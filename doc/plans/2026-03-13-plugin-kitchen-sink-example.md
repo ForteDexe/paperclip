@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add a new first-party example plugin, `Kitchen Sink (Example)`, that demonstrates every currently implemented Paperclip plugin API surface in one place.
+Add a new first-party example plugin, `Kitchen Sink (Example)`, that demonstrates every currently implemented Outpost plugin API surface in one place.
 
 This plugin is meant to be:
 
@@ -32,7 +32,7 @@ The kitchen-sink plugin should answer those questions by example.
 
 ## Success Criteria
 
-The plugin is successful if a contributor can install it and, without reading the SDK first, discover and exercise the current plugin runtime surface area from inside Paperclip.
+The plugin is successful if a contributor can install it and, without reading the SDK first, discover and exercise the current plugin runtime surface area from inside Outpost.
 
 Concretely:
 
@@ -45,7 +45,7 @@ Concretely:
 
 ## Constraints
 
-- Keep it instance-installed, not company-installed.
+- Keep it instance-installed, not space-installed.
 - Treat this as a trusted/local example plugin.
 - Do not rely on cloud-safe runtime assumptions.
 - Avoid destructive defaults.
@@ -80,7 +80,7 @@ These are the concrete `ctx` clients currently exposed by the SDK:
 - `ctx.state`
 - `ctx.entities`
 - `ctx.projects`
-- `ctx.companies`
+- `ctx.spaces`
 - `ctx.issues`
 - `ctx.agents`
 - `ctx.goals`
@@ -136,9 +136,9 @@ The plugin should be named:
 
 - display name: `Kitchen Sink (Example)`
 - package: `@outpost/plugin-kitchen-sink-example`
-- plugin id: `outpost.kitchen-sink-example` or `paperclip-kitchen-sink-example`
+- plugin id: `outpost.kitchen-sink-example` or `outpost-kitchen-sink-example`
 
-Recommendation: use `paperclip-kitchen-sink-example` to match current in-repo example naming style.
+Recommendation: use `outpost-kitchen-sink-example` to match current in-repo example naming style.
 
 Category mix:
 
@@ -171,8 +171,8 @@ Recommended page sections:
   - emit event
   - watch event log
   - stream demo output
-- `Paperclip Domain APIs`
-  - companies
+- `Outpost Domain APIs`
+  - spaces
   - projects/workspaces
   - issues
   - goals
@@ -265,7 +265,7 @@ Demos:
 
 - emit a plugin event
 - subscribe to plugin events
-- subscribe to a core Paperclip event such as `issue.created`
+- subscribe to a core Outpost event such as `issue.created`
 - show recent received events in a timeline
 
 ### `ctx.jobs`
@@ -291,7 +291,7 @@ Demo:
 - make a simple outbound GET request to a safe endpoint
 - show status code, latency, and JSON result
 
-Recommendation: default to a Paperclip-local endpoint or a stable public echo endpoint to avoid flaky docs.
+Recommendation: default to a Outpost-local endpoint or a stable public echo endpoint to avoid flaky docs.
 
 ### `ctx.secrets`
 
@@ -313,14 +313,14 @@ Demos:
 
 Demo:
 
-- button to write a plugin activity log entry against current company/entity
+- button to write a plugin activity log entry against current space/entity
 
 ### `ctx.state`
 
 Demos:
 
 - instance-scoped state
-- company-scoped state
+- space-scoped state
 - project-scoped state
 - issue-scoped state
 - delete/reset controls
@@ -344,17 +344,17 @@ Demos:
 - resolve primary workspace
 - resolve workspace for issue
 
-### `ctx.companies`
+### `ctx.spaces`
 
 Demo:
 
-- list companies and show current selected company
+- list spaces and show current selected space
 
 ### `ctx.issues`
 
 Demos:
 
-- list issues in current company
+- list issues in current space
 - create issue
 - update issue status/title
 - list comments
@@ -553,7 +553,7 @@ Recommended config fields:
 - `showCommentAnnotation`
 - `showCommentContextMenuItem`
 - `showToolbarLauncher`
-- `defaultDemoCompanyId` optional
+- `defaultDemoSpaceId` optional
 - `secretRefExample`
 - `httpDemoUrl`
 - `processAllowedCommands`
@@ -593,7 +593,7 @@ Default posture:
 - config
 - state
 - entities
-- companies/projects/issues/goals
+- spaces/projects/issues/goals
 - data/actions
 - metrics/logger/activity
 

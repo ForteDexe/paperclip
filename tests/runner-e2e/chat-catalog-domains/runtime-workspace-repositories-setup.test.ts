@@ -5,10 +5,10 @@ import { repositoryWaitingOwnerInput, repositoryWaitingOwnerRetained } from "./r
 
 type Context = Parameters<typeof repositoryWaitingOwnerInput>[0];
 function valid(): Context {
-  return { companyId: "company", personId: "person", workerId: "worker", taskId: "task", workspaceId: "workspace", fixtureRunId: "run",
-    members: [{ companyId: "company", principalType: "user", principalId: "person", status: "active" }],
-    task: { id: "task", companyId: "company", status: "done", assigneeAgentId: "worker", assigneeUserId: null, executionWorkspaceId: "workspace" },
-    run: { id: "run", companyId: "company", agentId: "worker", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "task" } } };
+  return { spaceId: "space", personId: "person", workerId: "worker", taskId: "task", workspaceId: "workspace", fixtureRunId: "run",
+    members: [{ spaceId: "space", principalType: "user", principalId: "person", status: "active" }],
+    task: { id: "task", spaceId: "space", status: "done", assigneeAgentId: "worker", assigneeUserId: null, executionWorkspaceId: "workspace" },
+    run: { id: "run", spaceId: "space", agentId: "worker", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "task" } } };
 }
 function saved(input = valid()) {
   return { ...input.task, ...repositoryWaitingOwnerInput(input) };
@@ -29,26 +29,26 @@ describe("repository waiting task public ownership", () => {
     expect(input.run.status).toBe("succeeded");
     expect(input.task.assigneeAgentId).toBe("worker");
   });
-  it("requires the signed-in active human membership in the exact company", () => {
+  it("requires the signed-in active human membership in the exact space", () => {
     for (const change of [
       (v: Context) => { v.personId = undefined; },
       (v: Context) => { v.members = []; },
       (v: Context) => { v.members[0]!.principalType = "agent"; },
       (v: Context) => { v.members[0]!.principalId = "another-person"; },
-      (v: Context) => { v.members[0]!.companyId = "foreign-company"; },
+      (v: Context) => { v.members[0]!.spaceId = "foreign-space"; },
       (v: Context) => { v.members[0]!.status = "suspended"; },
     ]) { const input = valid(); change(input); expect(() => repositoryWaitingOwnerInput(input)).toThrow(); }
   });
   it("preserves actual completed worker, task, workspace and native-run provenance", () => {
     for (const change of [
       (v: Context) => { v.task.id = "other-task"; },
-      (v: Context) => { v.task.companyId = "foreign"; },
+      (v: Context) => { v.task.spaceId = "foreign"; },
       (v: Context) => { v.task.status = "in_progress"; },
       (v: Context) => { v.task.assigneeAgentId = "another-worker"; },
       (v: Context) => { v.task.assigneeUserId = "another-person"; },
       (v: Context) => { v.task.executionWorkspaceId = "another-workspace"; },
       (v: Context) => { v.run.id = "invented-run"; },
-      (v: Context) => { v.run.companyId = "foreign"; },
+      (v: Context) => { v.run.spaceId = "foreign"; },
       (v: Context) => { v.run.agentId = "another-worker"; },
       (v: Context) => { v.run.status = "running"; },
       (v: Context) => { v.run.status = "cancelled"; },
@@ -61,7 +61,7 @@ describe("repository waiting task public ownership", () => {
     const input = valid();
     expect(repositoryWaitingOwnerRetained(input, saved(), ["run"], [{ id: "run", status: "succeeded" }])).toBe(true);
     const changes: Array<Partial<Context["task"]>> = [
-      { assigneeAgentId: "worker" }, { assigneeUserId: "other" }, { assigneeUserId: null }, { companyId: "foreign" },
+      { assigneeAgentId: "worker" }, { assigneeUserId: "other" }, { assigneeUserId: null }, { spaceId: "foreign" },
       { id: "other-task" }, { executionWorkspaceId: "other-workspace" }, { status: "done" },
     ];
     for (const change of changes) expect(repositoryWaitingOwnerRetained(input, { ...saved(), ...change }, ["run"], [{ id: "run", status: "succeeded" }])).toBe(false);

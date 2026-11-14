@@ -6,7 +6,7 @@ const before = await readFile(env.INSTRUCTION_FIXTURE_PATH, "utf8");
 assert(["# Original\n", "# Saved by the real worker\n☃\n"].includes(before));
 await writeFile(env.INSTRUCTION_FIXTURE_PATH, "# Saved by the real worker\n☃\n");
 console.log(JSON.stringify({ before, instructionPath: env.INSTRUCTION_FIXTURE_PATH }));
-const headers = { Authorization: `Bearer ${env.OUTPOST_API_KEY}`, "X-Paperclip-Run-Id": env.OUTPOST_RUN_ID, "Content-Type": "application/json" };
+const headers = { Authorization: `Bearer ${env.OUTPOST_API_KEY}`, "X-Outpost-Run-Id": env.OUTPOST_RUN_ID, "Content-Type": "application/json" };
 const runResponse = await fetch(`${env.OUTPOST_API_URL}/api/heartbeat-runs/${env.OUTPOST_RUN_ID}`, { headers });
 assert(runResponse.ok);
 const run = await runResponse.json();

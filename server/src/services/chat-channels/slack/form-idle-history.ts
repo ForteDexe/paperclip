@@ -6,7 +6,7 @@ import type { chatActions } from "@outpost/db";
 import { parseSlackFormBinding, parseSlackFormPublicEnrollment, sameSlackFormBinding } from "./cloud-forms.js";
 import { parseSlackFormAckWork, assertSlackFormReceiptHistory } from "./form-ack-work.js";
 
-export type SlackFormHistoryRow = Pick<typeof chatActions.$inferSelect, "id" | "companyId" | "endpointId" | "kind" | "payload" | "result" | "principalId" | "conversationId" | "status" | "providerActionId">;
+export type SlackFormHistoryRow = Pick<typeof chatActions.$inferSelect, "id" | "spaceId" | "endpointId" | "kind" | "payload" | "result" | "principalId" | "conversationId" | "status" | "providerActionId">;
 export type SlackFormHistoryCoverage = { requirements: readonly SlackConfiguredRequirement[]; verified: VerifiedIdleCapabilities;
   expected: { instanceId: string; generation: string; environment: string }; currentOwners?: ReadonlyMap<string, SlackFormHistoryRow> };
 
@@ -17,12 +17,12 @@ export function createSlackFormHistoryClassifier(coverage?: SlackFormHistoryCove
   const matched = coverage ? matchSlackConfiguredCoverage(coverage.requirements, coverage.verified, coverage.expected) : undefined;
   const endpoints = new Set(matched?.endpointIds), connections = new Set(matched?.connectionIds);
   const bindings = new Map(coverage?.requirements.map(requirement => [
-    `${requirement.binding.companyId}:${requirement.binding.endpointId}`, requirement.binding]));
-  return (rows: readonly SlackFormHistoryRow[], companyId: string, endpointId: string, check?: () => void): readonly string[] => {
+    `${requirement.binding.spaceId}:${requirement.binding.endpointId}`, requirement.binding]));
+  return (rows: readonly SlackFormHistoryRow[], spaceId: string, endpointId: string, check?: () => void): readonly string[] => {
     const scoped: SlackFormHistoryRow[] = [], byId = new Map<string, SlackFormHistoryRow>();
     for (const row of rows) {
       check?.();
-      if (row.companyId !== companyId || row.endpointId !== endpointId) continue;
+      if (row.spaceId !== spaceId || row.endpointId !== endpointId) continue;
       const prior = byId.get(row.id);
       if (prior && !isDeepStrictEqual(prior, row)) return [];
       if (!prior) { scoped.push(row); byId.set(row.id, row); }
@@ -37,8 +37,8 @@ export function createSlackFormHistoryClassifier(coverage?: SlackFormHistoryCove
           continue;
         }
         const binding = parseSlackFormBinding(row.payload.binding);
-        const current = bindings.get(`${companyId}:${endpointId}`);
-        if (binding.companyId !== companyId || binding.endpointId !== endpointId || !coverage
+        const current = bindings.get(`${spaceId}:${endpointId}`);
+        if (binding.spaceId !== spaceId || binding.endpointId !== endpointId || !coverage
           || !endpoints.has(endpointId) || !connections.has(binding.connectionId)
           || row.payload.environment !== coverage.expected.environment || !current || !sameSlackFormBinding(current, binding)) continue;
         if (row.kind === "slack_form_owner" && row.result?.phase === "enrolled") {
@@ -54,7 +54,7 @@ export function createSlackFormHistoryClassifier(coverage?: SlackFormHistoryCove
       try {
         const binding = parseSlackFormBinding(session.payload.binding), work = parseSlackFormAckWork(session.result?.formAck);
         if (session.status === "failed" && work.receipt?.outcome !== "no_effect") continue;
-        if (binding.companyId !== companyId || binding.endpointId !== endpointId || work.phase !== "transferred" || !work.receiptJws || !work.receipt
+        if (binding.spaceId !== spaceId || binding.endpointId !== endpointId || work.phase !== "transferred" || !work.receiptJws || !work.receipt
           || session.result?.nextAttemptAt !== null) continue;
         assertSlackFormReceiptHistory(session, work.receipt);
         completed.add(session.id);
@@ -70,15 +70,15 @@ export function createSlackFormHistoryClassifier(coverage?: SlackFormHistoryCove
   };
 }
 
-export function completedSlackFormHistoryActionIds(rows: readonly SlackFormHistoryRow[], companyId: string, endpointId: string, coverage?: SlackFormHistoryCoverage): readonly string[] {
-  return createSlackFormHistoryClassifier(coverage)(rows, companyId, endpointId);
+export function completedSlackFormHistoryActionIds(rows: readonly SlackFormHistoryRow[], spaceId: string, endpointId: string, coverage?: SlackFormHistoryCoverage): readonly string[] {
+  return createSlackFormHistoryClassifier(coverage)(rows, spaceId, endpointId);
 }
 
-export function completedSlackFormSessionReceipt(session: Pick<SlackFormHistoryRow, "id" | "companyId" | "endpointId" | "kind" | "payload" | "result" | "status">) {
+export function completedSlackFormSessionReceipt(session: Pick<SlackFormHistoryRow, "id" | "spaceId" | "endpointId" | "kind" | "payload" | "result" | "status">) {
   if (session.kind !== "slack_form_session" || !["processed", "cancelled", "failed"].includes(session.status)) return null;
   const binding = parseSlackFormBinding(session.payload.binding), work = parseSlackFormAckWork(session.result?.formAck);
   if (session.status === "failed" && work.receipt?.outcome !== "no_effect") return null;
-  if (binding.companyId !== session.companyId || binding.endpointId !== session.endpointId || work.phase !== "transferred"
+  if (binding.spaceId !== session.spaceId || binding.endpointId !== session.endpointId || work.phase !== "transferred"
     || !work.receiptJws || !work.receipt || session.result?.nextAttemptAt !== null) return null;
   assertSlackFormReceiptHistory(session, work.receipt);
   return work.receipt;

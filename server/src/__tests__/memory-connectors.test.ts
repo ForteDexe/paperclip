@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { classifyRisk } from "../services/tool-access.js";
 import { COGNEE_STDIO_TEMPLATE, cogneeCloudUrl, callCogneeCloud } from "../services/cognee-connection.js";
 
-describe("memory tool governance", () => {
+describe("memory tool policy", () => {
   it.each([
     ["mem0", "add_memory", "write"], ["mem0", "search_memories", "read"],
     ["mem0", "delete_entities", "destructive"], ["zep", "add_memory_to_graph", "write"],

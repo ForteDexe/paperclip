@@ -7,7 +7,7 @@ import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agentIdentityKeys, agents, companies, createDb, closeRegisteredClients, ensurePostgresDatabase, runDatabaseBackup, runDatabaseRestore, type Db } from "@outpost/db";
+import { agentIdentityKeys, agents, spaces, createDb, closeRegisteredClients, ensurePostgresDatabase, runDatabaseBackup, runDatabaseRestore, type Db } from "@outpost/db";
 import { resolveWorktreeSeedPlan } from "../../../cli/src/commands/worktree-lib.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
@@ -27,19 +27,19 @@ describe("agent cryptographic identity", () => {
   let db: Db;
   let database: Pick<Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>, "connectionString" | "cleanup">;
   let directory: string;
-  let companyId: string;
+  let spaceId: string;
 
   beforeAll(async () => {
-    directory = await mkdtemp(join(tmpdir(), "paperclip-identity-"));
+    directory = await mkdtemp(join(tmpdir(), "outpost-identity-"));
     vi.stubEnv("OUTPOST_HOME", directory);
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "");
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", join(directory, "master.key"));
     database = externalIdentityDatabase ? { connectionString: externalIdentityDatabase,
       cleanup: () => closeRegisteredClients(externalIdentityDatabase) }
-      : await startEmbeddedPostgresTestDatabase("paperclip-identity-");
+      : await startEmbeddedPostgresTestDatabase("outpost-identity-");
     db = createDb(database.connectionString);
-    companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Identity test", issuePrefix: "KEY", defaultResponsibleUserId: "identity-test-owner" });
+    spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Identity test", issuePrefix: "KEY", defaultResponsibleUserId: "identity-test-owner" });
   });
   afterAll(async () => {
     await database?.cleanup();
@@ -48,14 +48,14 @@ describe("agent cryptographic identity", () => {
   });
 
   async function oldAgent() {
-    const [agent] = await db.insert(agents).values({ companyId, name: randomUUID(), role: "engineer" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId, name: randomUUID(), role: "engineer" }).returning();
     return agent;
   }
 
   it("migration and public reads leave existing agents unprovisioned", async () => {
     const agent = await oldAgent();
-    expect(await agentIdentityService(db).getPublicIdentity(companyId, agent.id)).toBeNull();
-    expect((await agentIdentityService(db).createExistingLogRedactor(companyId, agent.id)).values).toEqual([]);
+    expect(await agentIdentityService(db).getPublicIdentity(spaceId, agent.id)).toBeNull();
+    expect((await agentIdentityService(db).createExistingLogRedactor(spaceId, agent.id)).values).toEqual([]);
     expect(await db.select().from(agentIdentityKeys).where(eq(agentIdentityKeys.agentId, agent.id))).toHaveLength(0);
     for (const type of ["http", "openclaw_gateway", "hermes_gateway"]) expect(supportsManagedAgentIdentity(type)).toBe(false);
     for (const provider of ["claude_managed", "aws_agentcore"]) expect(supportsManagedAgentIdentity("outpost_runner", { provider })).toBe(false);
@@ -66,50 +66,50 @@ describe("agent cryptographic identity", () => {
   it("concurrent first runs converge, restart/model/name changes preserve keys, and ownership is enforced", async () => {
     const agent = await oldAgent();
     const pairs = await Promise.all(Array.from({ length: 8 }, () =>
-      agentIdentityService(db).ensureAgentIdentity(companyId, agent.id)));
+      agentIdentityService(db).ensureAgentIdentity(spaceId, agent.id)));
     expect(new Set(pairs.map(pair => pair.privateKeyPem)).size).toBe(1);
     await db.update(agents).set({ name: "Renamed", adapterConfig: { model: "another-model" }, status: "paused" }).where(eq(agents.id, agent.id));
     const freshDb = createDb(database.connectionString);
-    expect(await agentIdentityService(freshDb).ensureAgentIdentity(companyId, agent.id)).toEqual(pairs[0]);
+    expect(await agentIdentityService(freshDb).ensureAgentIdentity(spaceId, agent.id)).toEqual(pairs[0]);
     expect(await agentIdentityService(db).getPublicIdentity(randomUUID(), agent.id)).toBeNull();
     await expect(agentIdentityService(db).ensureAgentIdentity(randomUUID(), agent.id)).rejects.toThrow("Agent not found");
     const second = await oldAgent();
-    expect((await agentIdentityService(db).ensureAgentIdentity(companyId, second.id)).keyId).not.toBe(pairs[0].keyId);
+    expect((await agentIdentityService(db).ensureAgentIdentity(spaceId, second.id)).keyId).not.toBe(pairs[0].keyId);
     await db.delete(agents).where(eq(agents.id, second.id));
-    expect(await agentIdentityService(db).getPublicIdentity(companyId, second.id)).toBeNull();
+    expect(await agentIdentityService(db).getPublicIdentity(spaceId, second.id)).toBeNull();
   });
 
   it("creates identities in the agent creation transaction and rolls both writes back on failure", async () => {
-    const created = await createAgentLifecycle(db).requestHire(companyId, { name: "New identity", role: "engineer", status: "pending_approval" });
-    expect(await agentIdentityService(db).getPublicIdentity(companyId, created.id)).toMatchObject({ algorithm: "Ed25519" });
+    const created = await createAgentLifecycle(db).requestCreation(spaceId, { name: "New identity", role: "engineer", status: "pending_approval" });
+    expect(await agentIdentityService(db).getPublicIdentity(spaceId, created.id)).toMatchObject({ algorithm: "Ed25519" });
     const id = randomUUID();
     await expect(db.transaction(async tx => {
-      await tx.insert(agents).values({ id, companyId, name: "Rollback", role: "engineer" });
-      await agentIdentityService(tx as unknown as Db).ensureAgentIdentity(companyId, id);
+      await tx.insert(agents).values({ id, spaceId, name: "Rollback", role: "engineer" });
+      await agentIdentityService(tx as unknown as Db).ensureAgentIdentity(spaceId, id);
       throw new Error("rollback");
     })).rejects.toThrow("rollback");
     expect(await db.select().from(agents).where(eq(agents.id, id))).toHaveLength(0);
-    expect(await agentIdentityService(db).getPublicIdentity(companyId, id)).toBeNull();
+    expect(await agentIdentityService(db).getPublicIdentity(spaceId, id)).toBeNull();
     const fail = vi.spyOn(localEncryptedProvider, "createSecret").mockRejectedValueOnce(new Error("encryption unavailable"));
-    await expect(createAgentLifecycle(db).requestHire(companyId, { name: "Must roll back", role: "engineer", status: "pending_approval" })).rejects.toThrow("encryption unavailable");
+    await expect(createAgentLifecycle(db).requestCreation(spaceId, { name: "Must roll back", role: "engineer", status: "pending_approval" })).rejects.toThrow("encryption unavailable");
     fail.mockRestore();
     expect(await db.select().from(agents).where(eq(agents.name, "Must roll back"))).toHaveLength(0);
   });
 
   it("fails closed for wrong master keys, corrupted material and mismatched public keys", async () => {
     const agent = await oldAgent();
-    const identity = await agentIdentityService(db).ensureAgentIdentity(companyId, agent.id);
+    const identity = await agentIdentityService(db).ensureAgentIdentity(spaceId, agent.id);
     const [stored] = await db.select().from(agentIdentityKeys).where(eq(agentIdentityKeys.agentId, agent.id));
     expect(JSON.stringify(stored)).not.toContain(identity.privateKeyPem.split("\n")[1]);
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
-    await expect(agentIdentityService(db).ensureAgentIdentity(companyId, agent.id)).rejects.toThrow("decryption failed");
-    expect(await agentIdentityService(db).getPublicIdentity(companyId, agent.id)).toMatchObject({ keyId: identity.keyId });
+    await expect(agentIdentityService(db).ensureAgentIdentity(spaceId, agent.id)).rejects.toThrow("decryption failed");
+    expect(await agentIdentityService(db).getPublicIdentity(spaceId, agent.id)).toMatchObject({ keyId: identity.keyId });
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "");
     await db.update(agentIdentityKeys).set({ privateKeyMaterial: { ...stored.privateKeyMaterial, ciphertext: "AAAA" } }).where(eq(agentIdentityKeys.agentId, agent.id));
-    await expect(agentIdentityService(db).ensureAgentIdentity(companyId, agent.id)).rejects.toThrow();
+    await expect(agentIdentityService(db).ensureAgentIdentity(spaceId, agent.id)).rejects.toThrow();
     const other = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" }).toString();
     await db.update(agentIdentityKeys).set({ privateKeyMaterial: stored.privateKeyMaterial, publicKeyPem: other }).where(eq(agentIdentityKeys.agentId, agent.id));
-    await expect(agentIdentityService(db).ensureAgentIdentity(companyId, agent.id)).rejects.toThrow("do not match");
+    await expect(agentIdentityService(db).ensureAgentIdentity(spaceId, agent.id)).rejects.toThrow("do not match");
     expect((await db.select().from(agentIdentityKeys).where(eq(agentIdentityKeys.agentId, agent.id)))[0].keyId).toBe(identity.keyId);
   });
 
@@ -119,8 +119,8 @@ describe("agent cryptographic identity", () => {
     let publicPem = "";
     for (let restart = 0; restart < 2; restart++) {
       const restarted = agentIdentityService(createDb(database.connectionString));
-      const identity = await restarted.ensureAgentIdentity(companyId, agent.id);
-      const publicIdentity = await restarted.getPublicIdentity(companyId, agent.id);
+      const identity = await restarted.ensureAgentIdentity(spaceId, agent.id);
+      const publicIdentity = await restarted.getPublicIdentity(spaceId, agent.id);
       if (restart) expect(publicIdentity!.publicKeyPem).toBe(publicPem);
       publicPem = publicIdentity!.publicKeyPem;
       vi.stubEnv("OUTPOST_AGENT_PRIVATE_KEY", "inherited override");
@@ -169,7 +169,7 @@ describe("agent cryptographic identity", () => {
         const signature = /SIGNATURE:([A-Za-z0-9+/=]+)/.exec(finished!.stdoutExcerpt ?? "")?.[1];
         expect(signature).toBeTruthy();
         expect(verify(null, Buffer.from(challenge, "base64"), publicResponse.body.publicKeyPem, Buffer.from(signature!, "base64"))).toBe(true);
-        const privateBody = (await agentIdentityService(db).ensureAgentIdentity(companyId, agent.id)).privateKeyPem.split("\n")[1];
+        const privateBody = (await agentIdentityService(db).ensureAgentIdentity(spaceId, agent.id)).privateKeyPem.split("\n")[1];
         expect(JSON.stringify(finished)).not.toContain(privateBody);
         expect(JSON.stringify(await heartbeat.readLog(run!.id))).not.toContain(privateBody);
       } finally {
@@ -202,7 +202,7 @@ describe("agent cryptographic identity", () => {
 
   it("disaster recovery retains identity; both development seed modes omit it and mint fresh keys", async () => {
     const agent = await oldAgent();
-    const original = await agentIdentityService(db).ensureAgentIdentity(companyId, agent.id);
+    const original = await agentIdentityService(db).ensureAgentIdentity(spaceId, agent.id);
     for (const mode of ["backup", "minimal", "full"] as const) {
       const seed = mode === "backup" ? undefined : resolveWorktreeSeedPlan(mode);
       const backup = await runDatabaseBackup({
@@ -217,10 +217,10 @@ describe("agent cryptographic identity", () => {
       target.pathname = `/identity_${mode}`;
       await runDatabaseRestore({ connectionString: target.toString(), backupFile: backup.backupFile });
       const restored = agentIdentityService(createDb(target.toString()));
-      if (mode === "backup") expect(await restored.ensureAgentIdentity(companyId, agent.id)).toEqual(original);
+      if (mode === "backup") expect(await restored.ensureAgentIdentity(spaceId, agent.id)).toEqual(original);
       else {
-        expect(await restored.getPublicIdentity(companyId, agent.id)).toBeNull();
-        expect((await restored.ensureAgentIdentity(companyId, agent.id)).keyId).not.toBe(original.keyId);
+        expect(await restored.getPublicIdentity(spaceId, agent.id)).toBeNull();
+        expect((await restored.ensureAgentIdentity(spaceId, agent.id)).keyId).not.toBe(original.keyId);
       }
       await closeRegisteredClients(target.toString());
     }

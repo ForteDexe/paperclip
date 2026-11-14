@@ -13,8 +13,8 @@ import type { RemoteMcpSetupState } from "./types";
 
 vi.mock("@/api/tools", () => ({ toolsApi: { getConnectionInstalls: vi.fn() } }));
 vi.mock("@/api/agents", () => ({ agentsApi: { list: vi.fn(async () => []) } }));
-vi.mock("@/api/companies-query", () => ({ resolveAccountUserId: async () => null }));
-vi.mock("@/context/CompanyContext", () => ({ useCompany: () => ({ selectedCompanyId: "company" }) }));
+vi.mock("@/api/spaces-query", () => ({ resolveAccountUserId: async () => null }));
+vi.mock("@/context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: "space" }) }));
 vi.mock("@/lib/router", () => ({ useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams(), vi.fn()] }));
 vi.mock("../ConnectionSetupFlow", () => ({ readConnectionIntentOAuthOutcome: () => null }));
 vi.mock("../ConnectionInstructions", () => ({ ConnectionInstructionsEditor: () => null }));
@@ -27,7 +27,7 @@ vi.mock("./RemoteMcpConnectionSetup", () => ({
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const connection = {
-  id: "connection-1", companyId: "company", name: "Composio", status: "active",
+  id: "connection-1", spaceId: "space", name: "Composio", status: "active",
   credentialPolicy: "organization", authKind: "oauth", config: { url: "https://connect.composio.dev/mcp" },
 } as unknown as ToolConnection;
 let root: Root;

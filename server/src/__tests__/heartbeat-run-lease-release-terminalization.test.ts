@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   costEvents,
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -36,7 +36,7 @@ describeEmbeddedPostgres("heartbeat terminalizeRunOnLeaseRelease", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-lease-release-terminal-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-lease-release-terminal-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -46,7 +46,7 @@ describeEmbeddedPostgres("heartbeat terminalizeRunOnLeaseRelease", () => {
     await db.delete(costEvents);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -54,20 +54,20 @@ describeEmbeddedPostgres("heartbeat terminalizeRunOnLeaseRelease", () => {
   });
 
   async function seed(input: { issueStatus: string; runStatus: string }) {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
     const runId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Coder",
       role: "engineer",
       status: "active",
@@ -78,7 +78,7 @@ describeEmbeddedPostgres("heartbeat terminalizeRunOnLeaseRelease", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Terminalize on lease release",
       status: input.issueStatus,
       priority: "high",
@@ -86,7 +86,7 @@ describeEmbeddedPostgres("heartbeat terminalizeRunOnLeaseRelease", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: input.runStatus,
       invocationSource: "manual",
@@ -100,7 +100,7 @@ describeEmbeddedPostgres("heartbeat terminalizeRunOnLeaseRelease", () => {
       .where(eq(heartbeatRuns.id, runId))
       .then((rows) => rows[0]!);
 
-    return { companyId, agentId, issueId, runId, run };
+    return { spaceId, agentId, issueId, runId, run };
   }
 
   it("forces a still-running run to succeeded when the issue already reached done", async () => {
@@ -154,11 +154,11 @@ describeEmbeddedPostgres("heartbeat terminalizeRunOnLeaseRelease", () => {
   });
 
   it.each(["in_progress", "done"])("preserves acknowledged Stop when teardown wins the finalizer race (%s)", async (issueStatus) => {
-    const { companyId, issueId, runId } = await seed({ issueStatus, runStatus: "running" });
+    const { spaceId, issueId, runId } = await seed({ issueStatus, runStatus: "running" });
     const [run] = await db.update(heartbeatRuns).set({
       nativeIssueId: issueId,
-      resultJson: { cancelledByActorType: "user", cancelledByUserId: "board", nativeCancellation: {
-        schema: "outpost.native-cancellation.v1", runId, companyId, issueId, scope: "run",
+      resultJson: { cancelledByActorType: "user", cancelledByUserId: "operator", nativeCancellation: {
+        schema: "outpost.native-cancellation.v1", runId, spaceId, issueId, scope: "run",
         reasonCode: "cancellation_run_only", dispatched: true, dispatchState: "acknowledged",
         intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID(),
       } },

@@ -76,19 +76,19 @@ export function decideScheduledResumeContinuation(
 
 export async function scheduledResumeContinuationAllowed(
   db: Db,
-  input: Omit<ScheduledResumeContinuationEvidence, "localStop"> & { companyId: string; runId: string },
+  input: Omit<ScheduledResumeContinuationEvidence, "localStop"> & { spaceId: string; runId: string },
 ): Promise<ScheduledResumeContinuationDecision> {
-  const { companyId, runId, ...evidence } = input;
+  const { spaceId, runId, ...evidence } = input;
   const localStop = evidence.restartRecovery || evidence.targetKind !== "local"
-    ? null : await readNativeLocalProcessStop(db, companyId, runId);
+    ? null : await readNativeLocalProcessStop(db, spaceId, runId);
   const decision = decideScheduledResumeContinuation({ ...evidence, localStop });
   if (decision.allowed || decision.reason !== "local_stop_unverified") return decision;
-  if (await readUnidentifiedLocalRunnerStop(db, companyId, runId))
+  if (await readUnidentifiedLocalRunnerStop(db, spaceId, runId))
     return decideScheduledResumeContinuation({ ...evidence, localStop: { processPid: null } });
-  const [run] = await db.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+  const [run] = await db.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
     runtimeMode: heartbeatRuns.runtimeMode, processPid: heartbeatRuns.processPid, processGroupId: heartbeatRuns.processGroupId,
     runnerProfileJson: heartbeatRuns.runnerProfileJson })
-    .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId))).limit(1);
+    .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId))).limit(1);
   if (!run || !await recordUnidentifiedLocalRunnerStop(db, run)) return decision;
   return decideScheduledResumeContinuation({ ...evidence, localStop: { processPid: null } });
 }

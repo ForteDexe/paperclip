@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { assets, runnerApiResponseReservations } from "@outpost/db";
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 describe("authorized read artifacts through real routes and storage", () => {
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
@@ -22,8 +22,8 @@ describe("authorized read artifacts through real routes and storage", () => {
 
   it.each([200, 204])("returns an explicit empty HTTP %s receipt without storage or quota reservations", async status => {
     const fixture = await server.fixture();
-    const authority = new PaperclipRunnerToolAuthority(server.db, { ...fixture, storage: server.storage, workspaceRoot: fixture.workspace });
-    const before = await server.db.select().from(assets).where(eq(assets.companyId, fixture.companyId));
+    const authority = new OutpostRunnerToolAuthority(server.db, { ...fixture, storage: server.storage, workspaceRoot: fixture.workspace });
+    const before = await server.db.select().from(assets).where(eq(assets.spaceId, fixture.spaceId));
     // Inject only the upstream empty response; storage and reservation writes
     // remain real so production's empty-file rejection cannot be hidden.
     const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status }));
@@ -34,13 +34,13 @@ describe("authorized read artifacts through real routes and storage", () => {
       expect(receipt).toMatchObject({ ok: true, status, empty: true, byteSize: 0, data: null });
       expect(receipt).not.toHaveProperty("artifact");
     } finally { spy.mockRestore(); }
-    expect(await server.db.select().from(assets).where(eq(assets.companyId, fixture.companyId))).toEqual(before);
-    expect(await server.db.select().from(runnerApiResponseReservations).where(eq(runnerApiResponseReservations.companyId, fixture.companyId))).toEqual([]);
+    expect(await server.db.select().from(assets).where(eq(assets.spaceId, fixture.spaceId))).toEqual(before);
+    expect(await server.db.select().from(runnerApiResponseReservations).where(eq(runnerApiResponseReservations.spaceId, fixture.spaceId))).toEqual([]);
   });
 
   it("preserves exact HTTP bytes in the immutable asset and downloaded helper input", async () => {
     const fixture = await server.fixture();
-    const authority = new PaperclipRunnerToolAuthority(server.db, { ...fixture, workspaceRoot: fixture.workspace });
+    const authority = new OutpostRunnerToolAuthority(server.db, { ...fixture, workspaceRoot: fixture.workspace });
     const execute = (tool: string, args: object) => authority.execute({ tool, callId: randomUUID(), arguments: args }) as Promise<any>;
     const body = '# Evidence\n\né🧭 "quoted" \\escaped\n```json\n{"empty":[]}\n```';
     await execute("call_api", { operationId: "PUT /api/issues/{id}/documents/{key}", pathParams: { id: fixture.issueId, key: "evidence" }, body: { title: "Evidence", format: "markdown", body, baseRevisionId: null } });
@@ -63,7 +63,7 @@ describe("authorized read artifacts through real routes and storage", () => {
     expect(receipt).not.toHaveProperty("data");
     expect(receipt).not.toHaveProperty("preview");
     const [asset] = await server.db.select().from(assets).where(eq(assets.id, receipt.artifact.artifactId));
-    const stored = await server.storage.getObject(fixture.companyId, asset.objectKey);
+    const stored = await server.storage.getObject(fixture.spaceId, asset.objectKey);
     const chunks: Buffer[] = [];
     for await (const chunk of stored.stream) chunks.push(Buffer.from(chunk));
     expect(Buffer.concat(chunks)).toEqual(source);

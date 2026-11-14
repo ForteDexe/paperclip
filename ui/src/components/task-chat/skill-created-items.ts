@@ -4,7 +4,7 @@ import type { TaskChatSkillCreatedItem } from "./task-chat-model";
 export function skillCreatedItems(events: readonly ActivityEvent[]): TaskChatSkillCreatedItem[] {
   const seen = new Set<string>();
   return events.flatMap((event) => {
-    if (event.action !== "company.skill_created" || event.entityType !== "company_skill" || seen.has(event.entityId)) return [];
+    if (event.action !== "space.skill_created" || event.entityType !== "space_skill" || seen.has(event.entityId)) return [];
     const details = event.details ?? {};
     if (typeof details.name !== "string") return [];
     seen.add(event.entityId);

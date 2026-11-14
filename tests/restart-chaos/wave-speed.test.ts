@@ -38,7 +38,7 @@ describe("wave speed grade", () => {
       events: [span("comment.to_run_created", 0, 4_000), span("heartbeat.queue", 4_000, 100), span("runner.turn.submit", 4_100, 900),
         span("task.time_to_first_agent_activity", 0, 9_000, { anchor: "comment" }), span("task.time_to_first_token", 0, 40_000, { anchor: "comment" })] };
     expect(firstActivityMs(withActivity)).toBe(5_000);
-    // Per-run detail splits Paperclip's boot from the provider's wait for first activity.
+    // Per-run detail splits Outpost's boot from the provider's wait for first activity.
     expect(gradeWaveSpeed("local", [withActivity], [], 0).runs).toEqual([{ runId: "a", adapter: "codex", start: "cold",
       firstActivityMs: 5_000, bootMs: 900, queueMs: 100, providerFirstActivityMs: 4_000,
       preTurnSteps: { "heartbeat.queue": 100, "runner.turn.submit": 900 }, breach: false }]);
@@ -52,13 +52,13 @@ describe("wave speed grade", () => {
     const recovered: BaselineRun = { runId: "r", adapter: "claude", environment: "local", phase: "cold",
       events: [{ eventType: "turn.started", createdAt: new Date(10_000 + 30_000).toISOString() }] };
     const speed = gradeWaveSpeed("local", [recovered], [{ kind: "K1", readyAt: 10_000, runIds: ["r"] }], 0);
-    // Nothing reloaded, so the whole latency is Paperclip's share and is judged.
+    // Nothing reloaded, so the whole latency is Outpost's share and is judged.
     expect(speed.rows.find(row => row.metric === "restart_recovery_control_plane")).toMatchObject({ adapter: "claude", breaches: [] });
     expect(speed).toMatchObject({ singleRunBreaches: 1, breaches: 1 });
     expect(speed.rows.find(row => row.metric === "restart_recovery")).toMatchObject({ budget: null, breaches: [], measured: { p50: 30_000 } });
   });
 
-  it("judges Paperclip's share of a recovery and only reports the provider's session load", () => {
+  it("judges Outpost's share of a recovery and only reports the provider's session load", () => {
     const loadEnd = 10_000 + 1_500 + 9_000;
     const recovered: BaselineRun = { runId: "r", adapter: "codex", environment: "local", phase: "cold", events: [
       { eventType: "run.performance.span", createdAt: new Date(100).toISOString(), payload: { span: "heartbeat.queue", startOffsetMs: 0, durationMs: 100 } },

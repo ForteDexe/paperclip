@@ -324,7 +324,7 @@ function ActivityRow({
   );
 }
 
-export function AuditTab({ companyId }: { companyId: string }) {
+export function AuditTab({ spaceId }: { spaceId: string }) {
   const [app, setApp] = useState<string>(ALL);
   const [agent, setAgent] = useState<string>(ALL);
   const [outcome, setOutcome] = useState<string>(ALL);
@@ -339,17 +339,17 @@ export function AuditTab({ companyId }: { companyId: string }) {
   }, [searchInput]);
 
   const apps = useQuery({
-    queryKey: queryKeys.tools.applications(companyId),
-    queryFn: () => toolsApi.listApplications(companyId),
+    queryKey: queryKeys.tools.applications(spaceId),
+    queryFn: () => toolsApi.listApplications(spaceId),
   });
   const agents = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
   });
   // Map matched rule IDs to their humanized names for the row "why" link.
   const policies = useQuery({
-    queryKey: queryKeys.tools.policies(companyId),
-    queryFn: () => toolsApi.listPolicies(companyId),
+    queryKey: queryKeys.tools.policies(spaceId),
+    queryFn: () => toolsApi.listPolicies(spaceId),
   });
   const ruleNamesById = useMemo(
     () => new Map((policies.data?.policies ?? []).map((p) => [p.id, p.name])),
@@ -367,7 +367,7 @@ export function AuditTab({ companyId }: { companyId: string }) {
     app !== ALL || agent !== ALL || outcome !== ALL || windowKey !== "all" || search.length > 0;
 
   const activity = useInfiniteQuery({
-    queryKey: queryKeys.tools.activity(companyId, {
+    queryKey: queryKeys.tools.activity(spaceId, {
       app: filters.app,
       agent: filters.agent,
       outcome: filters.outcome,
@@ -375,7 +375,7 @@ export function AuditTab({ companyId }: { companyId: string }) {
       search: filters.search,
     }),
     queryFn: ({ pageParam }) =>
-      toolsApi.listActivity(companyId, { ...filters, limit: PAGE_SIZE, cursor: pageParam ?? undefined }),
+      toolsApi.listActivity(spaceId, { ...filters, limit: PAGE_SIZE, cursor: pageParam ?? undefined }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });

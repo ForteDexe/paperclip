@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ManagedOAuthHandoffState } from "@/pages/apps/PaperclipCloudOAuthHandoff";
+import { ManagedOAuthHandoffState } from "@/pages/apps/OutpostCloudOAuthHandoff";
 
 const meta: Meta<typeof ManagedOAuthHandoffState> = {
   id: "apps-managed-cloud-oauth-handoff",
   title: "Apps, channels, and extensions/Connection setup/Apps/Managed Cloud OAuth handoff",
   component: ManagedOAuthHandoffState,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "connection-setup/handoff"
       ],
@@ -34,13 +34,13 @@ export const ResumingAfterReauthentication: Story = {
 export const RetryAfterInfrastructureFailure: Story = {
   args: {
     phase: "error",
-    error: "Paperclip Cloud couldn’t prepare secure sign-in. Try again.",
+    error: "Outpost Cloud couldn’t prepare secure sign-in. Try again.",
   },
 };
 
 export const TerminalExpiredSession: Story = {
   args: {
     phase: "error",
-    error: "This sign-in expired. Return to Paperclip and start the connection again.",
+    error: "This sign-in expired. Return to Outpost and start the connection again.",
   },
 };

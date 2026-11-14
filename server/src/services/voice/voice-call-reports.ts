@@ -11,7 +11,7 @@ import type { VoiceSessionRow } from "./voice-session-store.js";
 import type { SpekoCallReport } from "./speko-call-report.js";
 import { SpekoProviderError } from "./speko-provider.js";
 
-type Entry = { id: string; companyId: string; endpointId: string; connectionId: string; dueAt: number };
+type Entry = { id: string; spaceId: string; endpointId: string; connectionId: string; dueAt: number };
 type Report = SpekoCallReport;
 export const VOICE_CALL_REPORT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const WINDOW_MS = VOICE_CALL_REPORT_WINDOW_MS;
@@ -25,18 +25,18 @@ export function voiceCallReports(db: Db, fetchReport: (session: VoiceSessionRow)
   const cursors = new Map<string, Cursor>();
   async function page(scope?: VoiceRecoveryScope, cursor?: Cursor, signal?: AbortSignal) {
     signal?.throwIfAborted();
-    const rows = await db.select({ id: chatVoiceSessions.id, companyId: chatVoiceSessions.companyId,
+    const rows = await db.select({ id: chatVoiceSessions.id, spaceId: chatVoiceSessions.spaceId,
       endpointId: chatVoiceSessions.endpointId, connectionId: chatEndpoints.connectionId,
       endedAt: sql<string>`${chatVoiceSessions.endedAt}::text`,
       dueAt: sql<string>`least(coalesce(ceil(extract(epoch from ${chatVoiceReports.nextCheckAt}) * 1000), 0), floor(extract(epoch from ${chatVoiceSessions.endedAt}) * 1000) + ${WINDOW_MS} + 1)`,
     }).from(chatVoiceSessions)
-      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.companyId, chatVoiceSessions.companyId)))
-      .leftJoin(chatVoiceReports, and(eq(chatVoiceReports.sessionId, chatVoiceSessions.id), eq(chatVoiceReports.companyId, chatVoiceSessions.companyId)))
+      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.spaceId, chatVoiceSessions.spaceId)))
+      .leftJoin(chatVoiceReports, and(eq(chatVoiceReports.sessionId, chatVoiceSessions.id), eq(chatVoiceReports.spaceId, chatVoiceSessions.spaceId)))
       .where(and(eligible(Date.now()),
         scope?.kind === "session" ? eq(chatVoiceSessions.id, scope.id) : undefined,
         scope?.kind === "endpoint" ? eq(chatVoiceSessions.endpointId, scope.id) : undefined,
         scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
-        scope?.kind === "company" ? eq(chatVoiceSessions.companyId, scope.id) : undefined,
+        scope?.kind === "space" ? eq(chatVoiceSessions.spaceId, scope.id) : undefined,
         cursor ? sql`(${chatVoiceSessions.endedAt}, ${chatVoiceSessions.id}) > (${cursor.endedAt}::timestamptz, ${cursor.id}::uuid)` : undefined))
       .orderBy(chatVoiceSessions.endedAt, chatVoiceSessions.id).limit(100);
     signal?.throwIfAborted();
@@ -67,16 +67,16 @@ export function voiceCallReports(db: Db, fetchReport: (session: VoiceSessionRow)
     if (session.callerAuthority !== "guest_intake") return;
     await db.transaction(async tx => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`voice-transcript:${session.id}`}, 0))`);
-      const [retained] = await tx.select().from(chatVoiceReports).where(and(eq(chatVoiceReports.companyId, session.companyId), eq(chatVoiceReports.sessionId, session.id)));
+      const [retained] = await tx.select().from(chatVoiceReports).where(and(eq(chatVoiceReports.spaceId, session.spaceId), eq(chatVoiceReports.sessionId, session.id)));
       if (!retained?.transcript.length) return;
-      const [task] = await tx.select({sourceTrust: issues.sourceTrust}).from(issues).where(and(eq(issues.companyId, session.companyId), eq(issues.id, session.issueId)));
+      const [task] = await tx.select({sourceTrust: issues.sourceTrust}).from(issues).where(and(eq(issues.spaceId, session.spaceId), eq(issues.id, session.issueId)));
       if (task?.sourceTrust?.preset !== "low_trust_review" || task.sourceTrust.disposition !== "quarantined") return;
       const key = `voice-transcript-${session.id}`;
       const body = retained.transcript.map(turn => `**${turn.speaker === "caller" ? "Caller" : "Agent"}** · ${turn.startedAt}${turn.interrupted ? " · interrupted" : ""}\n\n${turn.text}`).join("\n\n---\n\n");
       const docs = documentService(tx as unknown as Db), previous = await docs.getIssueDocumentByKey(session.issueId, key);
       if (previous?.body === body) return;
       await docs.upsertIssueDocument({issueId: session.issueId, key, baseRevisionId: previous?.latestRevisionId, title: "Phone conversation transcript", format: "markdown", body, sourceTrust: task.sourceTrust, changeSummary: "Speko spoken conversation, including caller and agent turns"});
-      await tx.insert(activityLog).values({companyId: session.companyId, actorType: "system", actorId: "speko-report", action: "voice.transcript.updated", entityType: "issue", entityId: session.issueId, details: {sessionId: session.id}});
+      await tx.insert(activityLog).values({spaceId: session.spaceId, actorType: "system", actorId: "speko-report", action: "voice.transcript.updated", entityType: "issue", entityId: session.issueId, details: {sessionId: session.id}});
     });
   }
   async function check(id: string, signal?: AbortSignal): Promise<Entry | null> {
@@ -85,9 +85,9 @@ export function voiceCallReports(db: Db, fetchReport: (session: VoiceSessionRow)
       const [session] = await tx.select().from(chatVoiceSessions).where(and(eq(chatVoiceSessions.id, id), eligible(Date.now()))).for("update");
       if (!session) return null;
       await notifyVoiceReports(tx, { kind: "session", id });
-      await tx.insert(chatVoiceReports).values({ sessionId: id, companyId: session.companyId, nextCheckAt: new Date() }).onConflictDoNothing();
+      await tx.insert(chatVoiceReports).values({ sessionId: id, spaceId: session.spaceId, nextCheckAt: new Date() }).onConflictDoNothing();
       const [report] = await tx.select().from(chatVoiceReports).where(and(eq(chatVoiceReports.sessionId, id),
-        eq(chatVoiceReports.companyId, session.companyId), lte(chatVoiceReports.nextCheckAt, new Date()))).for("update");
+        eq(chatVoiceReports.spaceId, session.spaceId), lte(chatVoiceReports.nextCheckAt, new Date()))).for("update");
       if (!report) return null;
       signal?.throwIfAborted();
       const attempts = report.attempts + 1;
@@ -99,12 +99,12 @@ export function voiceCallReports(db: Db, fetchReport: (session: VoiceSessionRow)
       const { session, attempts, retryAt } = claim;
       // A callback can advance nextCheckAt while this GET is in flight.
       // That callback or a newer attempt owns settlement; never overwrite it.
-      const owned = () => and(eq(chatVoiceReports.sessionId, id), eq(chatVoiceReports.companyId, session.companyId),
+      const owned = () => and(eq(chatVoiceReports.sessionId, id), eq(chatVoiceReports.spaceId, session.spaceId),
         eq(chatVoiceReports.attempts, attempts), eq(chatVoiceReports.nextCheckAt, retryAt));
       signal?.throwIfAborted();
       try {
         const result = await fetchReport(session);
-        logger.info({ event: "voice.call.report_received", companyId: session.companyId, endpointId: session.endpointId,
+        logger.info({ event: "voice.call.report_received", spaceId: session.spaceId, endpointId: session.endpointId,
           issueId: session.issueId, sessionId: id, providerSessionId: session.providerSessionId, attempts,
           complete: result.complete, transcriptTurns: result.transcript.length, providerUpdatedAt: result.providerUpdatedAt?.toISOString() ?? null }, "Voice call report received for reconciliation");
         await db.transaction(async tx => {
@@ -119,7 +119,7 @@ export function voiceCallReports(db: Db, fetchReport: (session: VoiceSessionRow)
         // was stale. A projection failure retains the already saved retry.
         await projectTranscript(session);
       } catch (error) {
-        logger.warn({ event: "voice.call.report_failed", companyId: session.companyId, endpointId: session.endpointId,
+        logger.warn({ event: "voice.call.report_failed", spaceId: session.spaceId, endpointId: session.endpointId,
           issueId: session.issueId, sessionId: id, providerSessionId: session.providerSessionId, attempts,
           errorCode: error instanceof SpekoProviderError ? error.code : "report_reconciliation_failed",
           httpStatus: error instanceof SpekoProviderError ? error.httpStatus ?? null : null, retryAt: retryAt.toISOString() }, "Voice call report reconciliation deferred");
@@ -139,7 +139,7 @@ export function voiceCallReports(db: Db, fetchReport: (session: VoiceSessionRow)
   function register(coordinator: ReturnType<typeof createDeliveryWorkCoordinator>, canRun: () => boolean) {
     cursors.clear();
     return registerScopedDeadlineWork(coordinator, { queue: DELIVERY_QUEUES.voiceReports, decodeScope: voiceRecoveryScope,
-      matches: (entry, scope) => !scope || (scope.kind === "session" ? entry.id : scope.kind === "endpoint" ? entry.endpointId : scope.kind === "connection" ? entry.connectionId : entry.companyId) === scope.id,
+      matches: (entry, scope) => !scope || (scope.kind === "session" ? entry.id : scope.kind === "endpoint" ? entry.endpointId : scope.kind === "connection" ? entry.connectionId : entry.spaceId) === scope.id,
       load: refresh, check: (entry, signal) => check(entry.id, signal),
     }, canRun);
   }

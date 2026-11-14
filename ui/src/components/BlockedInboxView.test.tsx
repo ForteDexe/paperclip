@@ -73,7 +73,7 @@ function makeIssue(
 ): Issue {
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     projectWorkspaceId: null,
     goalId: null,
@@ -121,14 +121,14 @@ function renderWithClient(node: React.ReactNode, container: HTMLDivElement) {
 }
 
 const blockedViewProps = {
-  companyId: "company-1",
+  spaceId: "space-1",
   searchQuery: "",
   agentNameById: new Map<string, string>(),
   issueLinkState: null,
   groupBy: "none" as const,
   sortBy: "most_recent" as const,
   issueFilters: defaultIssueFilterState,
-  currentUserId: "local-board",
+  currentUserId: "local-operator",
   liveIssueIds: new Set<string>(),
   subtreeLiveCounts: new Map<string, number>(),
   workspaceFilterContext: {},
@@ -207,11 +207,11 @@ describe("BlockedInboxView", () => {
       makeIssue(
         "issue-decision",
         "PAP-4",
-        "Pending board decision",
+        "Pending operator decision",
         attention({
           reason: "pending_board_decision",
           severity: "medium",
-          owner: { type: "board", agentId: null, userId: null, label: "Board" },
+          owner: { type: "operator", agentId: null, userId: null, label: "Operator" },
           action: { label: "Accept or reject", detail: null },
         }),
       ),
@@ -233,7 +233,7 @@ describe("BlockedInboxView", () => {
     expect(titles[0]).toContain("Critical stalled row");
     expect(titles[1]).toContain("Stalled chain row");
 
-    expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", expect.objectContaining({
+    expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1", expect.objectContaining({
       attention: "blocked",
       includeBlockedInboxAttention: true,
       includeBlockedBy: true,
@@ -247,11 +247,11 @@ describe("BlockedInboxView", () => {
       makeIssue(
         "issue-decision",
         "PAP-4",
-        "Pending board decision",
+        "Pending operator decision",
         attention({
           reason: "pending_board_decision",
           severity: "medium",
-          owner: { type: "board", agentId: null, userId: null, label: "Board" },
+          owner: { type: "operator", agentId: null, userId: null, label: "Operator" },
           action: { label: "Accept or reject", detail: null },
         }),
       ),
@@ -267,9 +267,9 @@ describe("BlockedInboxView", () => {
     await waitFor(() => container.querySelector("a") !== null);
 
     const rowText = container.querySelector("a")?.parentElement?.textContent ?? "";
-    expect(rowText.indexOf("Pending board decision")).toBeGreaterThanOrEqual(0);
-    expect(rowText.indexOf("Needs decision")).toBeGreaterThan(rowText.indexOf("Pending board decision"));
-    expect(rowText.indexOf("Board")).toBeGreaterThan(rowText.indexOf("Needs decision"));
+    expect(rowText.indexOf("Pending operator decision")).toBeGreaterThanOrEqual(0);
+    expect(rowText.indexOf("Needs decision")).toBeGreaterThan(rowText.indexOf("Pending operator decision"));
+    expect(rowText.indexOf("Operator")).toBeGreaterThan(rowText.indexOf("Needs decision"));
     expect(rowText).not.toContain("Accept or reject");
     expect(container.querySelector('[data-testid="blocked-row-reason-column"]')?.textContent).toContain("Needs decision");
     const taskRow = container.querySelector('[data-slot="task-row"]');
@@ -291,7 +291,7 @@ describe("BlockedInboxView", () => {
         "issue-legacy",
         "PAP-41",
         "Legacy blocked row",
-        attention({ owner: { type: "board", agentId: null, userId: null, label: "Board" } }),
+        attention({ owner: { type: "operator", agentId: null, userId: null, label: "Operator" } }),
       ),
     ]);
 

@@ -20,7 +20,7 @@ function queuedEntry(body: string, index: number): IssueQueuedCommentEntry {
   return {
     comment: {
       id: `queued-${index + 1}`,
-      companyId: "storybook",
+      spaceId: "storybook",
       issueId: "coordinator-dock-queue-story",
       authorType: "user",
       authorAgentId: null,
@@ -63,12 +63,12 @@ function CoordinatorDockQueue({ count, mobile }: { count: number; mobile: boolea
   return (
     <div className="coordinator-workspace flex h-dvh flex-col bg-background text-foreground">
       <header data-testid="story-task-header" className="shrink-0 border-b border-border px-4 py-3 text-sm font-medium">
-        ONB-1 · Paperclip onboarding
+        ONB-1 · Outpost onboarding
       </header>
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div data-testid="task-chat-thread" className="relative flex min-h-0 flex-1 flex-col">
           <div data-testid="task-chat-scroller" className="min-h-0 flex-1 overflow-y-auto">
-            <div className="paperclip-mobile-thread mx-auto flex w-full max-w-(--tc-shell-max-w) flex-col gap-4 px-4 pt-4 text-sm">
+            <div className="outpost-mobile-thread mx-auto flex w-full max-w-(--tc-shell-max-w) flex-col gap-4 px-4 pt-4 text-sm">
               {TRANSCRIPT.map((text, index) => (
                 <p
                   key={index}
@@ -107,7 +107,7 @@ const meta = {
   parameters: {
     layout: "fullscreen",
     docs: { description: { component: "The production queued-message strip inside the production Coordinator composer dock with many long queued messages. The strip must scroll within a bounded height so the transcript above it stays readable." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "steering/queue"
       ],

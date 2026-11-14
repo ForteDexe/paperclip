@@ -146,17 +146,17 @@ function track(queryClient: QueryClient, refs: readonly string[], owner: Owner, 
 /** One task to request: the ref sent to the server, plus every ref it is known by. */
 type Wanted = { ref: string; refs: string[] };
 
-function startChunk(queryClient: QueryClient, companyId: string, wanted: readonly Wanted[]) {
+function startChunk(queryClient: QueryClient, spaceId: string, wanted: readonly Wanted[]) {
   const refs = wanted.map((target) => target.ref);
   const requestedAt = Date.now();
   const owner = newOwner(queryClient);
   // A synchronous throw (bad input) is only a missed preload as well.
-  const request = Promise.resolve().then(() => issuesApi.chatBootstrap(companyId, refs)).then((response) => {
+  const request = Promise.resolve().then(() => issuesApi.chatBootstrap(spaceId, refs)).then((response) => {
     const byRef = new Map<string, ChatBootstrapItem>();
     // Never seed or share an answer read with the previous account's cookie.
     if (!ownerMatches(owner, sessionAccount(queryClient))) return byRef;
     for (const item of response.items) {
-      if (!seedIssueChatBootstrap(queryClient, item, { companyId, requestedAt })) continue;
+      if (!seedIssueChatBootstrap(queryClient, item, { spaceId, requestedAt })) continue;
       byRef.set(refKey(item.ref), item);
     }
     return byRef;
@@ -204,7 +204,7 @@ export type ChatBootstrapTarget = string | { id: string; identifier: string | nu
  */
 export async function loadIssueChatBootstraps(
   queryClient: QueryClient,
-  companyId: string,
+  spaceId: string,
   targets: readonly ChatBootstrapTarget[],
   options: { signal?: AbortSignal; background?: boolean } = {},
 ) {
@@ -224,7 +224,7 @@ export async function loadIssueChatBootstraps(
     if (options.signal?.aborted) return;
     const chunk = ordered.slice(start, start + ISSUE_CHAT_BOOTSTRAP_MAX_IDS);
     if (options.background) rememberBackgroundPreload(chunk.flatMap((target) => target.refs), Date.now());
-    await startChunk(queryClient, companyId, chunk);
+    await startChunk(queryClient, spaceId, chunk);
   }
 }
 
@@ -235,7 +235,7 @@ type EarlyChatBootstrap = { ref: string; startedAt?: number; promise: Promise<Ch
  * Adopt the fetch the page's inline script started on a hard load of this task
  * (see `vite-issue-detail-preload`), so the first answer needs no new request.
  */
-function adoptEarlyChatBootstrap(queryClient: QueryClient, companyId: string | null | undefined, ref: string) {
+function adoptEarlyChatBootstrap(queryClient: QueryClient, spaceId: string | null | undefined, ref: string) {
   if (typeof window === "undefined") return false;
   const holder = window as unknown as Record<string, EarlyChatBootstrap | undefined>;
   const early = holder[EARLY_CHAT_BOOTSTRAP_GLOBAL];
@@ -249,16 +249,16 @@ function adoptEarlyChatBootstrap(queryClient: QueryClient, companyId: string | n
   track(queryClient, [ref], owner, startedAt, early.promise.then((item) => {
     // The answer belongs to the account that loaded the page.
     if (!item?.issue || !ownerMatches(owner, sessionAccount(queryClient))) return undefined;
-    // The route's task is the one the page opens; a known company must match it.
-    const ownerCompanyId = companyId ?? item.issue.companyId;
-    return seedIssueChatBootstrap(queryClient, item, { companyId: ownerCompanyId, requestedAt: startedAt }) ? item : undefined;
+    // The route's task is the one the page opens; a known space must match it.
+    const ownerSpaceId = spaceId ?? item.issue.spaceId;
+    return seedIssueChatBootstrap(queryClient, item, { spaceId: ownerSpaceId, requestedAt: startedAt }) ? item : undefined;
   }, () => undefined));
   return true;
 }
 
 /**
- * The single-task route, for a task whose company the caller does not know
- * (a link's open intent). The task's own company owns the answer.
+ * The single-task route, for a task whose space the caller does not know
+ * (a link's open intent). The task's own space owns the answer.
  */
 function startSingle(queryClient: QueryClient, ref: string) {
   const requestedAt = Date.now();
@@ -266,27 +266,27 @@ function startSingle(queryClient: QueryClient, ref: string) {
   const path = `/issues/${encodeURIComponent(ref)}/chat-bootstrap`;
   track(queryClient, [ref], owner, requestedAt, Promise.resolve().then(() => api.get<ChatBootstrapItem>(path, { cache: "no-store" })).then((item) => {
     if (!item?.issue || !ownerMatches(owner, sessionAccount(queryClient))) return undefined;
-    return seedIssueChatBootstrap(queryClient, item, { companyId: item.issue.companyId, requestedAt }) ? item : undefined;
+    return seedIssueChatBootstrap(queryClient, item, { spaceId: item.issue.spaceId, requestedAt }) ? item : undefined;
   }, () => undefined));
 }
 
 /**
  * Start a single-task bootstrap for a cold open or an open intent, unless one
  * is loading, loaded recently, or the task's first frame is cached and fresh.
- * Without a company it uses the single-task route. Resolves when the task's
+ * Without a space it uses the single-task route. Resolves when the task's
  * bootstrap (new or already loading) settles; it never rejects.
  */
 export function startIssueChatBootstrap(
   queryClient: QueryClient,
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   ref: string | null | undefined,
 ): Promise<unknown> {
   if (!ref) return Promise.resolve();
   const settled = () => currentEntry(queryClient, ref)?.promise ?? Promise.resolve();
   if (currentEntry(queryClient, ref)) return settled();
-  if (adoptEarlyChatBootstrap(queryClient, companyId, ref)) return settled();
-  if (companyId) {
-    void loadIssueChatBootstraps(queryClient, companyId, [ref]);
+  if (adoptEarlyChatBootstrap(queryClient, spaceId, ref)) return settled();
+  if (spaceId) {
+    void loadIssueChatBootstraps(queryClient, spaceId, [ref]);
     return settled();
   }
   if (hasFreshIssueChatFirstFrame(queryClient, [ref])) return Promise.resolve();

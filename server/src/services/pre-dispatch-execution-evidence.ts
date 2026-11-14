@@ -50,11 +50,11 @@ export function noRetainedExecutionPredicate() {
     sql`not (coalesce(${heartbeatRuns.runnerProfileJson}, '{}'::jsonb) ?| array[
       'nativeExecutionInput', 'nativeWorkspaceSync', 'remoteWorkspace', 'nativeWorkspaceFinalizationOwner', 'sessionCheckpoint'])`,
     sql`not exists (select 1 from ${nativeRunFinalizations}
-      where ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId} and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id})`,
+      where ${nativeRunFinalizations.spaceId} = ${heartbeatRuns.spaceId} and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id})`,
     sql`not exists (select 1 from ${environmentLeases}
-      where ${environmentLeases.companyId} = ${heartbeatRuns.companyId} and ${environmentLeases.heartbeatRunId} = ${heartbeatRuns.id})`,
+      where ${environmentLeases.spaceId} = ${heartbeatRuns.spaceId} and ${environmentLeases.heartbeatRunId} = ${heartbeatRuns.id})`,
     sql`not exists (select 1 from ${heartbeatRunEvents}
-      where ${and(eq(heartbeatRunEvents.companyId, heartbeatRuns.companyId),
+      where ${and(eq(heartbeatRunEvents.spaceId, heartbeatRuns.spaceId),
         eq(heartbeatRunEvents.runId, heartbeatRuns.id), executionStartedEventPredicate())})`,
   );
 }

@@ -43,7 +43,7 @@
     "code": { "$ref": "#/$defs/stableCode" },
     "retryable": { "type": "boolean" },
     "authorizationBoundary": {
-      "enum": ["company", "actor", "active_task", "grant", "governed_action", "lock", "revision"]
+      "enum": ["space", "actor", "active_task", "grant", "controlled_action", "lock", "revision"]
     },
     "operationReceiptId": { "$ref": "#/$defs/stableId" },
     "auditReceiptId": { "$ref": "#/$defs/stableId" },

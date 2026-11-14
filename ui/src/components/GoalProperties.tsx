@@ -5,7 +5,7 @@ import type { Goal } from "@outpost/shared";
 import { GOAL_STATUSES, GOAL_LEVELS } from "@outpost/shared";
 import { agentsApi } from "../api/agents";
 import { goalsApi } from "../api/goals";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { queryKeys } from "../lib/queryKeys";
 import { StatusBadge } from "./StatusBadge";
 import { formatDate, cn, agentUrl } from "../lib/utils";
@@ -71,18 +71,18 @@ function PickerButton({
 }
 
 export function GoalProperties({ goal, onUpdate }: GoalPropertiesProps) {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const { data: allGoals } = useQuery({
-    queryKey: queryKeys.goals.list(selectedCompanyId!),
-    queryFn: () => goalsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.goals.list(selectedSpaceId!),
+    queryFn: () => goalsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const ownerAgent = goal.ownerAgentId

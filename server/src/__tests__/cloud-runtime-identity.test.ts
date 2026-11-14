@@ -16,7 +16,7 @@ import {
   runtimePublicOrigin,
 } from "../services/cloud-runtime-identity.js";
 import { routineWebhookUrl } from "../services/routines.js";
-import { paperclipCloudConnectorEnrollmentStatus } from "../services/paperclip-cloud-connector-enrollment.js";
+import { outpostCloudConnectorEnrollmentStatus } from "../services/outpost-cloud-connector-enrollment.js";
 import { cloudRuntimeIdentityMiddleware } from "../middleware/cloud-runtime-identity.js";
 import { idleAdmissionMiddleware, trackIdleRequestHandlers } from "../middleware/idle-admission.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
@@ -85,7 +85,7 @@ describeEmbeddedPostgres("Cloud runtime identity", () => {
   const originalEnv = { ...process.env };
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-cloud-runtime-identity-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-cloud-runtime-identity-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -157,7 +157,7 @@ describeEmbeddedPostgres("Cloud runtime identity", () => {
     expect(routineWebhookUrl("hook-1")).toBe(
       "https://gonzo.staging.outpost.app/api/routine-triggers/public/hook-1/fire",
     );
-    expect(paperclipCloudConnectorEnrollmentStatus()).toMatchObject({
+    expect(outpostCloudConnectorEnrollmentStatus()).toMatchObject({
       configured: true,
       status: "active",
       origins: [CANONICAL_ORIGIN],
@@ -172,12 +172,12 @@ describeEmbeddedPostgres("Cloud runtime identity", () => {
       deploymentMode: "authenticated",
       deploymentExposure: "public",
       authReady: true,
-      companyDeletionEnabled: false,
+      spaceDeletionEnabled: false,
     }));
 
     const response = await request(app)
       .get("/api/health")
-      .set("x-paperclip-cloud-runtime-identity", assertion({
+      .set("x-outpost-cloud-runtime-identity", assertion({
         claims: { iat: requestTime, exp: requestTime + 300 },
       }));
 
@@ -206,7 +206,7 @@ describeEmbeddedPostgres("Cloud runtime identity", () => {
     trackIdleRequestHandlers(app);
     const requestTime = Math.floor(Date.now() / 1000);
     const accepted = request(app).get("/api/health")
-      .set("x-paperclip-cloud-runtime-identity", assertion({ claims: { iat: requestTime, exp: requestTime + 300 } }))
+      .set("x-outpost-cloud-runtime-identity", assertion({ claims: { iat: requestTime, exp: requestTime + 300 } }))
       .then(response => response);
     try {
       await entered;
@@ -225,7 +225,7 @@ describeEmbeddedPostgres("Cloud runtime identity", () => {
     const execute = vi.spyOn(db, "execute");
     const health = healthRoutes(db, {
       deploymentMode: "authenticated", deploymentExposure: "public",
-      authReady: true, companyDeletionEnabled: false, isWarmStandby: isStandby,
+      authReady: true, spaceDeletionEnabled: false, isWarmStandby: isStandby,
     });
     const app = express();
     app.use(cloudRuntimeIdentityMiddleware(db));
@@ -234,18 +234,18 @@ describeEmbeddedPostgres("Cloud runtime identity", () => {
     expect((await request(app).get("/api/health")).body.warmStandby).toBe(true);
     expect(execute).not.toHaveBeenCalled();
     const requestTime = Math.floor(Date.now() / 1000);
-    const invalid = await request(app).get("/api/health").set("x-paperclip-cloud-runtime-identity", assertion({
+    const invalid = await request(app).get("/api/health").set("x-outpost-cloud-runtime-identity", assertion({
       claims: { sub: "another-stack", iat: requestTime, exp: requestTime + 300 },
     }));
     expect(invalid.status).toBe(401);
     expect(isStandby()).toBe(true);
     const signed = assertion({ claims: { iat: requestTime, exp: requestTime + 300 } });
-    const claimed = await request(app).get("/api/health").set("x-paperclip-cloud-runtime-identity", signed);
+    const claimed = await request(app).get("/api/health").set("x-outpost-cloud-runtime-identity", signed);
     expect(claimed.status).toBe(200);
     expect(claimed.body.warmStandby).toBeUndefined();
     expect(isStandby()).toBe(false);
     expect(execute).toHaveBeenCalledOnce();
-    expect((await request(app).get("/api/health").set("x-paperclip-cloud-runtime-identity", signed)).status).toBe(200);
+    expect((await request(app).get("/api/health").set("x-outpost-cloud-runtime-identity", signed)).status).toBe(200);
     resetCloudRuntimeIdentityForTests();
     process.env.OUTPOST_PUBLIC_URL = POOL_ORIGIN;
     await initializeCloudRuntimeIdentity(db);

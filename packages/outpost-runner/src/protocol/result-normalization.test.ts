@@ -122,7 +122,7 @@ describe("normalizePrpResultSignals", () => {
 
   it("normalizes unambiguous completion aliases emitted by smaller tool callers", () => {
     const toolShaped = {
-      schema: "paperclip_paperclip_finish",
+      schema: "outpost_outpost_finish",
       reportedWorkDisposition: "completed",
       summary: "Answered the question.",
       completionClaim: {

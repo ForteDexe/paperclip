@@ -46,7 +46,7 @@ export interface HostDuplexObservabilityRecorderInput {
   tracer: DuplexObservabilityTracer;
   /**
    * Increment one guarded host counter by its metric name. The caller binds it
-   * to `incrementToolRuntimeMetricCounter` with the company id, inside a swallow.
+   * to `incrementToolRuntimeMetricCounter` with the space id, inside a swallow.
    */
   incrementCounter(metric: string): void;
   /**
@@ -65,7 +65,7 @@ export interface HostDuplexObservabilityRecorderInput {
 
 /**
  * Fold the discriminating dimension into the counter metric name. The guarded
- * counter store keys on `(companyId, metric)` with no label column, so the
+ * counter store keys on `(spaceId, metric)` with no label column, so the
  * fallback reason or the loss class rides the metric name to keep the analytic
  * breakdown. Both dimension sets are closed and low-cardinality, so the metric
  * cardinality stays bounded. A record with neither dimension uses the base name.

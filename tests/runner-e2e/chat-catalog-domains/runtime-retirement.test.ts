@@ -1,9 +1,9 @@
 import { it, expect } from "vitest";
 import { gradeRetirement } from "./runtime-retirement.js";
 function valid() {
-  const worker = { id: "morgan", companyId: "company", name: "Morgan", role: "engineer", adapterConfig: { model: "model" } };
+  const worker = { id: "morgan", spaceId: "space", name: "Morgan", role: "engineer", adapterConfig: { model: "model" } };
   const historicalTask = { id: "history", title: "Historical launch notes", status: "done", assigneeAgentId: worker.id };
-  return { scenarioId: "agents.retire-agent", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  return { scenarioId: "agents.retire-agent", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { worker, task: { id: "active" }, historicalTask, retiredWorker: { ...worker, status: "terminated", lifecycleState: "terminated" },
       workerRunId: "worker", workerWasReallyWaiting: true, agentTerminateStatus: 403, agentPatchTerminateStatus: 403, humanRetired: true,
       historicalDocumentRetained: true, historicalAttributionRetained: true,

@@ -1,7 +1,7 @@
 /**
  * Cloud managed-config bootstrap (harness → app contract).
  *
- * Instances managed by the Paperclip Cloud harness receive one environment
+ * Instances managed by the Outpost Cloud harness receive one environment
  * variable, `OUTPOST_MANAGED_CONFIG`, holding a single JSON document:
  *
  *   {
@@ -64,11 +64,11 @@ export interface ManagedInstanceConfig {
   plugins: {
     readonly autoInstall: readonly string[];
     readonly workerEnv?: Readonly<Record<string, readonly string[]>>;
-    readonly enabledCompanies?: Readonly<Record<string, readonly string[]>>;
+    readonly enabledSpaces?: Readonly<Record<string, readonly string[]>>;
   };
   /**
    * The sandbox entry of the `environments` section: zero or one, since it
-   * provisions the single Paperclip-managed sandbox slot (empty when the
+   * provisions the single Outpost-managed sandbox slot (empty when the
    * section is absent or declares only plugin entries).
    */
   environments: readonly ManagedEnvironmentSpec[];
@@ -164,7 +164,7 @@ export interface ManagedEnvironmentSpec {
 export const SECRET_LIKE_CONFIG_KEY_PATTERN = /(api[-_]?key|token|secret|password|credential)/i;
 
 const WORKER_ENV_NAME_PATTERN = /^[A-Z][A-Z0-9_]*$/;
-const COMPANY_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const SPACE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const WORKER_ENV_DENIED_NAME_PATTERN =
   /(^|_)(AWS|CREDENTIAL|CREDENTIALS|DATABASE|DSN|JWT|KEY|KEYS|PASSWORD|POSTGRES|PRIVATE|SECRET|SECRETS|SIGNING|TOKEN)(_|$)|^(DB|DYLD|LD|NODE)_|^(PATH|OUTPOST_MANAGED_CONFIG)$/;
@@ -300,7 +300,7 @@ function parseManagedEnvironmentsSection(
     }
     if (driver === "sandbox" && entry.instanceDefault !== undefined) {
       fail(
-        `"${at}.instanceDefault" is not allowed on the sandbox entry; only a plugin entry may become the instance default (the sandbox entry's default is governed by enableManagedSandboxOnly)`,
+        `"${at}.instanceDefault" is not allowed on the sandbox entry; only a plugin entry may become the instance default (the sandbox entry's default is controlled by enableManagedSandboxOnly)`,
       );
     }
     const allowedKeys: readonly string[] = driver === "plugin" ? PLUGIN_ENTRY_KEYS : SANDBOX_ENTRY_KEYS;
@@ -317,7 +317,7 @@ function parseManagedEnvironmentsSection(
     const description = readOptionalDescription(entry.description, `${at}.description`);
 
     if (driver === "sandbox") {
-      // The DB enforces at most ONE Paperclip-managed sandbox row per instance
+      // The DB enforces at most ONE Outpost-managed sandbox row per instance
       // (partial unique index `environments_managed_sandbox_idx`); every
       // sandbox entry provisions that row, so a second one can never be
       // satisfied.
@@ -486,8 +486,8 @@ export function parseManagedConfigEnv(env: ManagedConfigEnv): ManagedInstanceCon
     fail(`"plugins" must be an object (got ${describeJsonValue(doc.plugins)})`);
   }
   for (const key of Object.keys(doc.plugins)) {
-    if (key !== "autoInstall" && key !== "workerEnv" && key !== "enabledCompanies") {
-      fail(`"plugins" has unknown key "${key}" (allowed: autoInstall, workerEnv, enabledCompanies)`);
+    if (key !== "autoInstall" && key !== "workerEnv" && key !== "enabledSpaces") {
+      fail(`"plugins" has unknown key "${key}" (allowed: autoInstall, workerEnv, enabledSpaces)`);
     }
   }
   const rawAutoInstall = doc.plugins.autoInstall;
@@ -539,30 +539,30 @@ export function parseManagedConfigEnv(env: ManagedConfigEnv): ManagedInstanceCon
     }
   }
 
-  let enabledCompanies: Record<string, readonly string[]> | undefined;
-  if (doc.plugins.enabledCompanies !== undefined) {
-    if (!isPlainObject(doc.plugins.enabledCompanies)) {
-      fail(`"plugins.enabledCompanies" must be an object mapping plugin key → company ids (got ${describeJsonValue(doc.plugins.enabledCompanies)})`);
+  let enabledSpaces: Record<string, readonly string[]> | undefined;
+  if (doc.plugins.enabledSpaces !== undefined) {
+    if (!isPlainObject(doc.plugins.enabledSpaces)) {
+      fail(`"plugins.enabledSpaces" must be an object mapping plugin key → space ids (got ${describeJsonValue(doc.plugins.enabledSpaces)})`);
     }
-    enabledCompanies = Object.create(null) as Record<string, readonly string[]>;
-    for (const [key, ids] of Object.entries(doc.plugins.enabledCompanies)) {
+    enabledSpaces = Object.create(null) as Record<string, readonly string[]>;
+    for (const [key, ids] of Object.entries(doc.plugins.enabledSpaces)) {
       if (!autoInstall.includes(key)) {
-        fail(`"plugins.enabledCompanies" key "${key}" is not in "plugins.autoInstall"; enabling a company requires its plugin to be provisioned`);
+        fail(`"plugins.enabledSpaces" key "${key}" is not in "plugins.autoInstall"; enabling a space requires its plugin to be provisioned`);
       }
       if (!Array.isArray(ids) || ids.length === 0) {
-        fail(`"plugins.enabledCompanies.${key}" must be a non-empty array of company ids (got ${describeJsonValue(ids)})`);
+        fail(`"plugins.enabledSpaces.${key}" must be a non-empty array of space ids (got ${describeJsonValue(ids)})`);
       }
-      const companyIds: string[] = [];
+      const spaceIds: string[] = [];
       for (const id of ids) {
-        if (typeof id !== "string" || !COMPANY_ID_PATTERN.test(id)) {
-          fail(`"plugins.enabledCompanies.${key}" entries must be lowercase company UUIDs (got ${describeJsonValue(id)})`);
+        if (typeof id !== "string" || !SPACE_ID_PATTERN.test(id)) {
+          fail(`"plugins.enabledSpaces.${key}" entries must be lowercase space UUIDs (got ${describeJsonValue(id)})`);
         }
-        if (companyIds.includes(id)) {
-          fail(`"plugins.enabledCompanies.${key}" has duplicate entry "${id}"`);
+        if (spaceIds.includes(id)) {
+          fail(`"plugins.enabledSpaces.${key}" has duplicate entry "${id}"`);
         }
-        companyIds.push(id);
+        spaceIds.push(id);
       }
-      enabledCompanies[key] = Object.freeze(companyIds);
+      enabledSpaces[key] = Object.freeze(spaceIds);
     }
   }
 
@@ -585,7 +585,7 @@ export function parseManagedConfigEnv(env: ManagedConfigEnv): ManagedInstanceCon
     plugins: Object.freeze({
       autoInstall: Object.freeze(autoInstall),
       ...(workerEnv ? { workerEnv: Object.freeze(workerEnv) } : {}),
-      ...(enabledCompanies ? { enabledCompanies: Object.freeze(enabledCompanies) } : {}),
+      ...(enabledSpaces ? { enabledSpaces: Object.freeze(enabledSpaces) } : {}),
     }),
     environments: Object.freeze(environmentSpecs),
     pluginEnvironments: Object.freeze(pluginEnvironmentSpecs),

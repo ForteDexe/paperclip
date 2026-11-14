@@ -1,8 +1,8 @@
 /**
- * Hermes Agent adapter for Paperclip.
+ * Hermes Agent adapter for Outpost.
  *
  * Runs Hermes Agent (https://github.com/NousResearch/hermes-agent)
- * as a managed employee in a Paperclip company. Hermes Agent is a
+ * as a managed agent in a Outpost space. Hermes Agent is a
  * full-featured AI agent with 30+ native tools, persistent memory,
  * skills, session persistence, and MCP support.
  *
@@ -40,7 +40,7 @@ export {
 /**
  * Models available through Hermes Agent.
  *
- * Hermes supports any model via any provider. The Paperclip UI should
+ * Hermes supports any model via any provider. The Outpost UI should
  * prefer detectModel() plus manual entry over curated placeholder models,
  * since Hermes availability depends on the user's local configuration.
  */
@@ -67,7 +67,7 @@ function getRuntimeCommandSpec(config: Record<string, unknown>): AdapterRuntimeC
 }
 
 /**
- * Documentation shown in the Paperclip UI when configuring a Hermes agent.
+ * Documentation shown in the Outpost UI when configuring a Hermes agent.
  */
 export const agentConfigurationDoc = `# Hermes Agent Configuration
 
@@ -125,7 +125,7 @@ profile personality/system prompt.
 ## Hermes-Originated Outpost Tasks
 
 This adapter package also ships a Hermes-facing Outpost task bridge skill:
-\`paperclip-task-bridge\`. Use it when a user starts in Hermes and asks Hermes
+\`outpost-task-bridge\`. Use it when a user starts in Hermes and asks Hermes
 to create, comment on, update, or list Outpost tasks.
 
 Configure credentials through Hermes env/profile secrets, never in prompt text:
@@ -133,13 +133,13 @@ Configure credentials through Hermes env/profile secrets, never in prompt text:
 - \`OUTPOST_API_URL\` - Outpost base URL, with or without \`/api\`
 - \`OUTPOST_BRIDGE_API_KEY\` - Outpost agent API key created with \`scope.kind = "task_bridge"\`
 - optional fallback \`OUTPOST_API_KEY\` - must still be a task_bridge key, never a normal claimed agent key
-- optional \`OUTPOST_COMPANY_ID\`, \`OUTPOST_AGENT_ID\`, and \`OUTPOST_RUN_ID\`
+- optional \`OUTPOST_SPACE_ID\`, \`OUTPOST_AGENT_ID\`, and \`OUTPOST_RUN_ID\`
 
 The bridge is separate from adapter execution:
 
 - \`hermes_local\` means Outpost shells out to local \`hermes chat\`.
 - \`hermes_gateway\` means Outpost wakes remote Hermes through Hermes's API server.
-- \`paperclip-task-bridge\` means Hermes calls Outpost's REST API to manage tasks.
+- \`outpost-task-bridge\` means Hermes calls Outpost's REST API to manage tasks.
 
 Create task bridge keys with a parent issue or project boundary. Do not expose
 normal claimed Outpost agent API keys to internet-facing Hermes chat/webhook
@@ -149,8 +149,8 @@ task-bridge surfaces.
 
 - \`{{agentId}}\` — Outpost agent ID
 - \`{{agentName}}\` — Agent display name
-- \`{{companyId}}\` — Outpost company ID
-- \`{{companyName}}\` — Outpost display name
+- \`{{spaceId}}\` — Outpost space ID
+- \`{{spaceName}}\` — Outpost display name
 - \`{{runId}}\` — Current heartbeat run ID
 - \`{{taskId}}\` — Current task/issue ID (if assigned)
 - \`{{taskTitle}}\` — Task title (if assigned)
@@ -159,7 +159,7 @@ task-bridge surfaces.
 `;
 
 /**
- * External adapter plugin entrypoint expected by Paperclip's adapter manager.
+ * External adapter plugin entrypoint expected by Outpost's adapter manager.
  */
 export function createServerAdapter(): ServerAdapterModule {
   return {

@@ -10,7 +10,7 @@ interface BuiltInState { definition: { key: string }; agentId: string | null; ag
  */
 function agentInstructionSave(o: NonNullable<ReturnType<typeof runtimeObservation>>, workerId: string, content: string) {
   const contentHash = createHash("sha256").update(content).digest("hex");
-  return o.activity.find(row => row.action === "agent.files_updated" && row.companyId === o.companyId && row.entityId === workerId
+  return o.activity.find(row => row.action === "agent.files_updated" && row.spaceId === o.spaceId && row.entityId === workerId
     && row.actorType === "agent" && row.actorId === o.leadId && row.agentId === o.leadId
     && row.details?.path === "AGENTS.md" && row.details.contentHash === contentHash
     && o.runs.some(run => run.id === (row as typeof row & { runId?: string }).runId));
@@ -23,7 +23,7 @@ export function gradeBuiltInConfiguration(value: unknown) {
   const beforeInstruction = o.state.originalInstruction as InstructionFile | undefined; const current = o.instruction;
   const worker = o.agents.find(row => row.id === original?.agentId);
   c.add("protected-identity-preserved", !!original && !!after && after.definition.key === "summarizer" && after.agentId === original.agentId
-    && !!worker && worker.companyId === o.companyId && o.agents.length === o.state.agentCountBefore,
+    && !!worker && worker.spaceId === o.spaceId && o.agents.length === o.state.agentCountBefore,
     "The required registry still points to the same summarizer, with no replacement ordinary hire.");
   // The wording of the new guidance is the model's own; grade that the run
   // itself saved a targeted edit of the built-in's bundled instructions.
@@ -43,7 +43,7 @@ export function gradeBuiltInConfiguration(value: unknown) {
 }
 export const runtimeBuiltInCases = [runtimeDefinition("agents.configure-required-agent", async ctx => {
   await ctx.input.api.patch("/api/instance/settings/experimental", { enableBuiltInAgents: true });
-  const root = `/api/companies/${ctx.input.fixtures.company.id}`;
+  const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
   const builtInBefore = await ctx.input.api.post<BuiltInState>(`${root}/built-in-agents/summarizer/reconcile`, {});
   if (!builtInBefore.agentId || !builtInBefore.agent) throw new Error("Public reconcile did not create the protected summarizer identity");
   const worker = builtInBefore.agent;
@@ -63,7 +63,7 @@ export const runtimeBuiltInCases = [runtimeDefinition("agents.configure-required
       load: () => ctx.input.api.get<RuntimeAgent & { lifecycleError?: string | null }>(`/api/agents/${ctx.input.fixtures.agent.id}`),
       accept: row => row.lifecycleState === "ready" && ["idle", "active"].includes(row.status ?? ""),
       reject: row => row.lifecycleError ? "Source runtime verification failed" : undefined });
-    const builtIn = await ctx.input.api.get<BuiltInState>(`/api/companies/${ctx.input.fixtures.company.id}/built-in-agents/summarizer/status`);
+    const builtIn = await ctx.input.api.get<BuiltInState>(`/api/spaces/${ctx.input.fixtures.space.id}/built-in-agents/summarizer/status`);
     const history = await ctx.input.api.get<Entity>(`/api/issues/${(state.historicalTask as Entity).id}`);
     c.add("lead-ready", lead.lifecycleState === "ready" && ["idle", "active"].includes(lead.status ?? ""), "The actual chat agent is runnable.");
     c.add("protected-summarizer-identity", builtIn.definition.key === "summarizer" && builtIn.agentId === (state.worker as RuntimeAgent).id,
@@ -72,7 +72,7 @@ export const runtimeBuiltInCases = [runtimeDefinition("agents.configure-required
     return c.result();
   },
   async observe(ctx, state) {
-    state.builtInAfter = await ctx.input.api.get<BuiltInState>(`/api/companies/${ctx.input.fixtures.company.id}/built-in-agents/summarizer/status`);
+    state.builtInAfter = await ctx.input.api.get<BuiltInState>(`/api/spaces/${ctx.input.fixtures.space.id}/built-in-agents/summarizer/status`);
     // The built-in bundle has no arbitrary side-file prerequisite.
     const result = await observeRuntime(ctx, { ...state, instructionAgentId: undefined });
     const root = `/api/agents/${(state.worker as RuntimeAgent).id}/instructions-bundle`;

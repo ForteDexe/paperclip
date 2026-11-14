@@ -16,28 +16,28 @@ Connections v3 adds forward security surfaces that later phases must threat-mode
 in detail: subject-bound token requests, workspace/user grants, provider triggers,
 and the managed connector-service callback/webhook relay. Until those phases
 land, treat all four as untrusted boundaries: bind subjects and grants to the
-company, fail closed on revocation, authenticate and deduplicate triggers, and
+space, fail closed on revocation, authenticate and deduplicate triggers, and
 never trust relay-supplied tenant or connection identifiers without signed
 context and server-side ownership checks.
 
 ## Required Security Decisions
 
 1. **Every connection has exactly one durable credential authority.** The
-   default is `company_secrets`: connections store secret refs and redacted
+   default is `space_secrets`: connections store secret refs and redacted
    metadata. A reviewed remote MCP connection may explicitly use Vercel Connect;
-   then Vercel stores the durable provider credential and Paperclip stores only
+   then Vercel stores the durable provider credential and Outpost stores only
    an external connector ref plus allow-listed grant metadata. Mixed vault and
    external refs are invalid. Raw OAuth access tokens, refresh tokens, API keys,
    app private keys, webhook secrets, and runtime bearers must not live in
    connection config, plugin config, issue comments, activity logs, exports, or
    agent-visible payloads.
-2. **Connection operations are company-scoped and brokered by Paperclip.**
+2. **Connection operations are space-scoped and brokered by Outpost.**
    Agents do not receive long-lived provider credentials. Plugin/provider code
    receives the minimum resolved material for a single invocation.
 3. **Complete mediation is mandatory.** Tool calls, sync jobs, webhooks, catalog
    refreshes that affect permissions, and broker projections re-check current
    connection status, secret state, profile/policy state, resource filters, and
-   actor/company ownership at execution time.
+   actor/space ownership at execution time.
 4. **Default policy is deny-by-default.** New connections grant no agent-visible
    access until an explicit profile/binding/policy path exists.
 5. **Broad providers require resource filters.** GitHub needs repo/org bounds,
@@ -71,7 +71,7 @@ context and server-side ownership checks.
   and connector-service relay routing state.
 - Governance state: catalog entries, risk classes, quarantine state, profiles,
   bindings, policies, action requests, and trust rules.
-- Paperclip objects mutated by integrations: issues, comments, documents,
+- Outpost objects mutated by integrations: issues, comments, documents,
   projects, goals, activity rows, plugin entities, work products, and artifacts.
 - Agent runtime capability surface: the exact tools exposed into a heartbeat.
 - Audit trail: call events, action-request decisions, secret access events,
@@ -82,12 +82,12 @@ context and server-side ownership checks.
 Actors:
 
 - Board user or operator.
-- Company-scoped agent.
+- Space-scoped agent.
 - Plugin worker or provider adapter code.
 - External provider API.
 - External webhook sender.
 - Remote MCP server.
-- Attacker controlling a different company, compromised agent, compromised
+- Attacker controlling a different space, compromised agent, compromised
   external account, malicious external document/message, or malicious upstream
   tool schema.
 
@@ -101,7 +101,7 @@ Trust boundaries:
 5. Webhook boundary: inbound requests are attacker-controlled until signature
    validation and dedupe pass.
 6. Connector-service relay boundary: callbacks and trigger deliveries remain
-   untrusted until signed context resolves the company, connection, grant, and
+   untrusted until signed context resolves the space, connection, grant, and
    subject server-side.
 7. External-content boundary: provider data is untrusted even when fetched
    through an authenticated connection.
@@ -110,25 +110,25 @@ Trust boundaries:
 
 ### Connection Creation And Authentication
 
-Threats: spoofed OAuth callback, state replay, cross-company secret binding,
+Threats: spoofed OAuth callback, state replay, cross-space secret binding,
 forged app-installation metadata, forged remote MCP metadata, and token leakage.
 
 Required controls:
 
-- OAuth start rows are short-lived and scoped to company, app/provider, requested
+- OAuth start rows are short-lived and scoped to space, app/provider, requested
   scopes, creator, connection, and redirect URI. Use PKCE when supported.
 - OAuth callbacks reject missing, expired, replayed, mismatched-state, and
   mismatched-redirect requests.
-- Vercel Connect callbacks reuse the same one-time company/actor/session-bound
+- Vercel Connect callbacks reuse the same one-time space/actor/session-bound
   state rules. Subject identifiers are derived server-side from instance,
-  company, connection, grant kind, and user; browser and agent input can never
+  space, connection, grant kind, and user; browser and agent input can never
   supply them.
 - Vercel connector metadata is validated against the reviewed app method before
   persistence. Only connector id/UID, service/type, principal mode, reviewed
   scopes/header placement, and allow-listed issuance metadata may be stored.
-- API-key and app-installation flows write secret material to `company_secrets`
+- API-key and app-installation flows write secret material to `space_secrets`
   first, then persist only refs and redacted account metadata on the connection.
-- Create/update routes validate same-company ownership for every referenced
+- Create/update routes validate same-space ownership for every referenced
   secret, app, connection, agent, user, project, routine, and issue.
 - Create/update routes validate every configured token-broker exchange URL
   against the private-host policy before persisting the connection. Minting
@@ -138,20 +138,20 @@ Required controls:
   `degraded`, `failed`, `auth_required`, or disabled equivalents.
 - Error payloads and logs redact provider responses that may contain credentials.
 - Vercel access/OIDC credentials are deployment bootstrap authority and never a
-  company secret or provider bearer. Missing bootstrap authority fails existing
+  space secret or provider bearer. Missing bootstrap authority fails existing
   external connections closed; disabling new setup does not silently migrate or
   disable already-created connections.
 
 ### Profile, Binding, And Policy Changes
 
-Threats: non-admin actors widening access, IDOR against another company's agent
+Threats: non-admin actors widening access, IDOR against another space's agent
 or connection, implicit writes, and transient broadening during replacement.
 
 Required controls:
 
 - Only authorized board/operator paths can create, update, or revoke connection
   grants, profiles, bindings, and policies in V1.
-- Every write validates same-company ownership across connection, principal,
+- Every write validates same-space ownership across connection, principal,
   creator, referenced catalog entries, and target scopes.
 - Grant/profile replacement is atomic where possible. Avoid broad allow windows
   during multi-step updates.
@@ -173,7 +173,7 @@ Required controls:
 - New or changed write/destructive catalog entries are quarantined until reviewed.
 - Catalog entries carry stable schema/version hashes so approvals and trust rules
   stop applying when schemas drift.
-- Agent tool-list routes return only tools that pass current company, profile,
+- Agent tool-list routes return only tools that pass current space, profile,
   binding, policy, catalog status, and connection status checks.
 - Read tool output remains untrusted content and cannot mutate grants or
   profiles.
@@ -185,7 +185,7 @@ resource-filter bypass, and replaying old approval decisions.
 
 Required controls at call time:
 
-- Actor belongs to the connection's company.
+- Actor belongs to the connection's space.
 - Connection is enabled and in a usable status.
 - Secret refs resolve to usable, non-revoked secret versions.
 - External credential refs resolve to a current grant and a just-in-time token;
@@ -215,47 +215,47 @@ Required controls:
 
 ### Webhooks
 
-Threats: spoofing, replay, tampering, wrong-company routing, and unaudited
+Threats: spoofing, replay, tampering, wrong-space routing, and unaudited
 provider-origin mutations.
 
 Required controls:
 
 - Validate provider signature or authenticity material before dispatch.
 - Persist and dedupe delivery ids before mutation.
-- Resolve webhook secrets from `company_secrets`; never copy them into inline
+- Resolve webhook secrets from `space_secrets`; never copy them into inline
   config.
-- Route webhook payloads only to the owning company/connection. Ignore request
+- Route webhook payloads only to the owning space/connection. Ignore request
   body ids until the signed/provider-authenticated envelope resolves the
   connection.
-- Apply resource filters before storing external mappings or mutating Paperclip.
+- Apply resource filters before storing external mappings or mutating Outpost.
 - For revoked/disabled connections, acknowledge where provider semantics require
-  it, log the filtered/drop outcome, and do not mutate Paperclip state.
+  it, log the filtered/drop outcome, and do not mutate Outpost state.
 
 ### Import, Export, And Portability
 
-Threats: secret disclosure, cross-company principal binding, and imports starting
+Threats: secret disclosure, cross-space principal binding, and imports starting
 with broad active access.
 
 Required controls:
 
-- Company export includes provider declarations, display metadata, redacted
+- Space export includes provider declarations, display metadata, redacted
   secret refs, profiles, and policy shape only. It excludes secret values and
   refresh tokens.
-- Import restores connections in an unusable state until destination-company
+- Import restores connections in an unusable state until destination-space
   secret refs are remapped and validated.
 - Imported profiles/bindings/policies become active only when referenced
-  principals and connections resolve inside the destination company.
+  principals and connections resolve inside the destination space.
 
 ## Required Negative Tests
 
-Cross-company isolation:
+Cross-space isolation:
 
-- Board user from company A cannot read/update/delete company B's app,
+- Board user from space A cannot read/update/delete space B's app,
   connection, catalog entry, profile, policy, action request, or gateway session.
-- Agent from company A cannot list or invoke company B tools.
+- Agent from space A cannot list or invoke space B tools.
 - Create/update routes reject secret, agent, user, project, routine, issue, app,
-  and connection ids from another company.
-- Webhooks for company A cannot mutate company B entities even if external ids
+  and connection ids from another space.
+- Webhooks for space A cannot mutate space B entities even if external ids
   collide.
 
 Ungoverned or overbroad access:
@@ -282,8 +282,8 @@ OAuth and callback integrity:
 
 - Missing, expired, mismatched, and replayed OAuth state is rejected.
 - Mismatched redirect URI is rejected.
-- Callback cannot bind credentials into a company other than the OAuth start
-  company.
+- Callback cannot bind credentials into a space other than the OAuth start
+  space.
 
 Webhook integrity:
 
@@ -307,8 +307,8 @@ Redaction and agent safety:
 - Remote MCP providers remain supply-chain and prompt-injection surfaces. Use
   narrow default profiles, schema hashing, changed-tool quarantine, and
   board-supervised rollout.
-- Provider OAuth/app-installation scopes may be broader than Paperclip resource
-  filters. Paperclip must enforce the narrower internal filter.
+- Provider OAuth/app-installation scopes may be broader than Outpost resource
+  filters. Outpost must enforce the narrower internal filter.
 - High-risk writes still need good UX. Prefer provider-side dry-run or draft
   semantics, clear action names, and narrow explicit provider policy where an
   Allowed new-connection default would be unsafe.

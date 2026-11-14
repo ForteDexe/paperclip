@@ -17,14 +17,14 @@ type DbTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 /** Read the project requirements of the next selected workspace, without
  * admitting execution or moving files. Batch only the tasks needing a denial
  * presentation; this adds at most three bounded reads, not queries per task. */
-export async function taskWorkspaceProjectRequirements(db: Db, companyId: string, issueIds: string[]) {
+export async function taskWorkspaceProjectRequirements(db: Db, spaceId: string, issueIds: string[]) {
   const result = new Map<string, { projectIds: string[]; available: boolean }>();
   if (!issueIds.length) return result;
   const tasks = await db.select({ id: issues.id, projectId: issues.projectId,
     executionWorkspaceId: issues.executionWorkspaceId, projectWorkspaceId: issues.projectWorkspaceId,
     workspaceSelection: issues.workspaceSelection, workspacePendingSelection: issues.workspacePendingSelection,
     workspaceBindingRevision: issues.workspaceBindingRevision,
-  }).from(issues).where(and(eq(issues.companyId, companyId), inArray(issues.id, issueIds)));
+  }).from(issues).where(and(eq(issues.spaceId, spaceId), inArray(issues.id, issueIds)));
   const selections = tasks.map(task => {
     const pending = task.workspacePendingSelection;
     const intent = pending?.intent ?? (!task.executionWorkspaceId ? task.workspaceSelection : null);
@@ -39,7 +39,7 @@ export async function taskWorkspaceProjectRequirements(db: Db, companyId: string
   const workspaces = workspaceIds.length ? await db.select({ id: executionWorkspaces.id,
     projectId: executionWorkspaces.projectId, projectWorkspaceId: executionWorkspaces.projectWorkspaceId,
     selectable: sql<boolean>`${taskWorkspaceSelectableCondition()}`,
-  }).from(executionWorkspaces).where(and(eq(executionWorkspaces.companyId, companyId), inArray(executionWorkspaces.id, workspaceIds))) : [];
+  }).from(executionWorkspaces).where(and(eq(executionWorkspaces.spaceId, spaceId), inArray(executionWorkspaces.id, workspaceIds))) : [];
   const workspaceMap = new Map(workspaces.map(workspace => [workspace.id, workspace]));
   const sources = selections.map(row => {
     const workspace = row.workspaceId ? workspaceMap.get(row.workspaceId) : undefined;
@@ -50,7 +50,7 @@ export async function taskWorkspaceProjectRequirements(db: Db, companyId: string
   });
   const sourceIds = [...new Set(sources.flatMap(row => row.sourceId ? [row.sourceId] : []))];
   const sourceRows = sourceIds.length ? await db.select({ id: projectWorkspaces.id, projectId: projectWorkspaces.projectId })
-    .from(projectWorkspaces).where(and(eq(projectWorkspaces.companyId, companyId), inArray(projectWorkspaces.id, sourceIds))) : [];
+    .from(projectWorkspaces).where(and(eq(projectWorkspaces.spaceId, spaceId), inArray(projectWorkspaces.id, sourceIds))) : [];
   const sourceMap = new Map(sourceRows.map(source => [source.id, source]));
   for (const row of sources) {
     const source = row.sourceId ? sourceMap.get(row.sourceId) : undefined;
@@ -64,19 +64,19 @@ export async function taskWorkspaceProjectRequirements(db: Db, companyId: string
 }
 
 export async function assertTaskWorkspaceSourceProjectAccess(
-  db: Db | DbTransaction, actor: AuthorizationActor, companyId: string, projectId: string | null,
+  db: Db | DbTransaction, actor: AuthorizationActor, spaceId: string, projectId: string | null,
   options: { taskContainerOnly?: boolean } = {},
 ) {
   if (!projectId) return;
   const decision = await measureRunPhase("workspace.access.authorization", () => accessService(db as Db).decide({
-    actor, action: "project:read", resource: { type: "project", companyId, projectId },
+    actor, action: "project:read", resource: { type: "project", spaceId, projectId },
   }));
   if (!decision.allowed) {
     // A person's "My private tasks" project only parks their private tasks. An
     // issue-level grant exposes the task without its project, so when that
     // project supplies no workspace files, task access is enough to run it.
     if (options.taskContainerOnly && decision.reason === "deny_project_private"
-      && await personalProjectHasNoWorkspaceFiles(db, companyId, projectId)) return;
+      && await personalProjectHasNoWorkspaceFiles(db, spaceId, projectId)) return;
     if (actor.type === "agent" && decision.reason === "deny_low_trust_boundary") {
       throw new ProjectAccessDeniedError(projectId);
     }
@@ -84,28 +84,28 @@ export async function assertTaskWorkspaceSourceProjectAccess(
   }
 }
 
-async function personalProjectHasNoWorkspaceFiles(db: Db | DbTransaction, companyId: string, projectId: string) {
+async function personalProjectHasNoWorkspaceFiles(db: Db | DbTransaction, spaceId: string, projectId: string) {
   const [project] = await db.select({ personalOwnerUserId: projects.personalOwnerUserId }).from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.companyId, companyId)));
+    .where(and(eq(projects.id, projectId), eq(projects.spaceId, spaceId)));
   if (!project?.personalOwnerUserId) return false;
   const [source] = await db.select({ id: projectWorkspaces.id }).from(projectWorkspaces)
-    .where(and(eq(projectWorkspaces.projectId, projectId), eq(projectWorkspaces.companyId, companyId))).limit(1);
+    .where(and(eq(projectWorkspaces.projectId, projectId), eq(projectWorkspaces.spaceId, spaceId))).limit(1);
   return !source;
 }
 
 export async function assertExecutionWorkspaceRecordAccess(
-  db: Db | DbTransaction, actor: AuthorizationActor, companyId: string, workspaceId: string,
+  db: Db | DbTransaction, actor: AuthorizationActor, spaceId: string, workspaceId: string,
 ) {
   const [workspace] = await measureRunPhase("workspace.access.inventory", async () => db.select().from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.id, workspaceId), eq(executionWorkspaces.companyId, companyId),
+    eq(executionWorkspaces.id, workspaceId), eq(executionWorkspaces.spaceId, spaceId),
     await measureRunPhase("workspace.access.privacy", () => executionWorkspaceReadSqlCondition(db, actor)),
   )));
   if (!workspace) throw forbidden("Task workspace access is no longer available");
-  await assertTaskWorkspaceSourceProjectAccess(db, actor, companyId, workspace.projectId);
+  await assertTaskWorkspaceSourceProjectAccess(db, actor, spaceId, workspace.projectId);
   const retainedIssueIds = Object.keys(workspace.metadata?._issuePrivacySources ?? {});
   if (workspace.sourceIssueId) retainedIssueIds.push(workspace.sourceIssueId);
   const sources = await measureRunPhase("workspace.access.inventory", async () => db.select({ id: issues.id }).from(issues).where(and(
-    eq(issues.companyId, companyId),
+    eq(issues.spaceId, spaceId),
     or(eq(issues.executionWorkspaceId, workspaceId), retainedIssueIds.length > 0
       ? inArray(sql`${issues.id}`, retainedIssueIds.map(id => canonicalExecutionUuid(sql`${id}::text`))) : undefined),
   )));
@@ -113,11 +113,11 @@ export async function assertExecutionWorkspaceRecordAccess(
   if (retainedIssueIds.some(id => !sourceIds.has(id))) throw forbidden("Task workspace source is no longer accessible");
   const access = accessService(db as Db);
   if (sources.length === 0 && !workspace.projectId) {
-    const decision = await measureRunPhase("workspace.access.authorization", () => access.decide({ actor, action: "company_scope:read", resource: { type: "company", companyId } }));
+    const decision = await measureRunPhase("workspace.access.authorization", () => access.decide({ actor, action: "space_scope:read", resource: { type: "space", spaceId } }));
     if (!decision.allowed) throw forbidden("An unscoped workspace is outside this actor's authorization boundary");
   }
   for (const source of sources) {
-    const decision = await measureRunPhase("workspace.access.authorization", () => access.decide({ actor, action: "issue:read", resource: { type: "issue", companyId, issueId: source.id } }));
+    const decision = await measureRunPhase("workspace.access.authorization", () => access.decide({ actor, action: "issue:read", resource: { type: "issue", spaceId, issueId: source.id } }));
     if (!decision.allowed) throw forbidden("Workspace record contains task data outside this actor's authorization boundary");
   }
 }
@@ -126,25 +126,25 @@ export async function assertExecutionWorkspaceRecordAccess(
 export async function assertTaskWorkspaceExecutionAccess(
   db: Db | DbTransaction,
   actor: AuthorizationActor,
-  companyId: string,
+  spaceId: string,
   input: { issueId: string; workspaceId?: string | null; projectWorkspaceId?: string | null; persistedSelection?: TaskWorkspaceSelection },
 ) {
   return measureRunPhase("workspace.access.execution", async () => {
-    if (actor.companyId && actor.companyId !== companyId) throw forbidden("Task workspace belongs to another company");
+    if (actor.spaceId && actor.spaceId !== spaceId) throw forbidden("Task workspace belongs to another space");
     const [task] = await measureRunPhase("workspace.access.task_read", async () => db.select({
-      id: issues.id, companyId: issues.companyId, projectId: issues.projectId,
+      id: issues.id, spaceId: issues.spaceId, projectId: issues.projectId,
       executionPolicy: issues.executionPolicy, executionWorkspaceId: issues.executionWorkspaceId,
       projectWorkspaceId: issues.projectWorkspaceId, workspaceSelection: issues.workspaceSelection,
       workspacePendingSelection: issues.workspacePendingSelection, workspaceBindingRevision: issues.workspaceBindingRevision,
-    }).from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, companyId))));
+    }).from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, spaceId))));
     if (!task) throw forbidden("Task workspace task is unavailable");
     const access = accessService(db as Db);
     const [agent] = actor.type === "agent" && actor.agentId
-      ? await measureRunPhase("workspace.access.agent_read", async () => db.select({ id: agents.id, companyId: agents.companyId, permissions: agents.permissions })
-        .from(agents).where(and(eq(agents.id, actor.agentId!), eq(agents.companyId, companyId)))) : [];
+      ? await measureRunPhase("workspace.access.agent_read", async () => db.select({ id: agents.id, spaceId: agents.spaceId, permissions: agents.permissions })
+        .from(agents).where(and(eq(agents.id, actor.agentId!), eq(agents.spaceId, spaceId)))) : [];
     if (actor.type === "agent" && !agent) throw forbidden("Task workspace agent is unavailable");
     const [run] = actor.runId ? await measureRunPhase("workspace.access.run_read", async () => db.select(taskRepositoryRunColumns).from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.id, actor.runId!), eq(heartbeatRuns.companyId, companyId)))) : [];
+      .where(and(eq(heartbeatRuns.id, actor.runId!), eq(heartbeatRuns.spaceId, spaceId)))) : [];
     if ((actor.source === "agent_jwt" && !actor.runId) || (actor.runId && (!run
       || run.agentId !== actor.agentId || !runRetainsIssueIdentity(run, task.id)))) {
       throw forbidden("Task workspace run identity is unavailable");
@@ -152,7 +152,7 @@ export async function assertTaskWorkspaceExecutionAccess(
     if (run && !taskRepositoryResponsibleUserMatches(actor.onBehalfOfUserId, run.responsibleUserId)) {
       throw forbidden("Task workspace responsible user changed");
     }
-    const decision = await measureRunPhase("workspace.access.task_authorization", () => access.decide({ actor, action: "issue:read", resource: { type: "issue", companyId, issueId: task.id } }));
+    const decision = await measureRunPhase("workspace.access.task_authorization", () => access.decide({ actor, action: "issue:read", resource: { type: "issue", spaceId, issueId: task.id } }));
     if (!decision.allowed) throw forbidden(decision.explanation);
     const selection = task.workspaceSelection?.selection;
     const pending = task.workspacePendingSelection;
@@ -167,9 +167,9 @@ export async function assertTaskWorkspaceExecutionAccess(
       ? effectiveSelection.kind === "existing" ? effectiveSelection.workspaceId : null
       : input.workspaceId;
     const [workspace] = workspaceId ? await measureRunPhase("workspace.access.workspace_read", async () => db.select({
-      id: executionWorkspaces.id, companyId: executionWorkspaces.companyId,
+      id: executionWorkspaces.id, spaceId: executionWorkspaces.spaceId,
       projectId: executionWorkspaces.projectId, projectWorkspaceId: executionWorkspaces.projectWorkspaceId,
-    }).from(executionWorkspaces).where(and(eq(executionWorkspaces.id, workspaceId), eq(executionWorkspaces.companyId, companyId)))) : [];
+    }).from(executionWorkspaces).where(and(eq(executionWorkspaces.id, workspaceId), eq(executionWorkspaces.spaceId, spaceId)))) : [];
     if (workspaceId && (!workspace || (task.executionWorkspaceId !== workspace.id
       && !(selection?.kind === "existing" && selection.workspaceId === workspace.id)
       && !(pendingSelection?.kind === "existing" && pendingSelection.workspaceId === workspace.id)))) {
@@ -185,23 +185,23 @@ export async function assertTaskWorkspaceExecutionAccess(
       throw forbidden("Task workspace source binding is unavailable");
     }
     const [source] = selectedSourceId ? await measureRunPhase("workspace.access.source_read", async () => db.select({ id: projectWorkspaces.id, projectId: projectWorkspaces.projectId })
-      .from(projectWorkspaces).where(and(eq(projectWorkspaces.id, selectedSourceId), eq(projectWorkspaces.companyId, companyId)))) : [];
+      .from(projectWorkspaces).where(and(eq(projectWorkspaces.id, selectedSourceId), eq(projectWorkspaces.spaceId, spaceId)))) : [];
     if (selectedSourceId && !source) throw forbidden("Task workspace source is unavailable");
     const projectIds = [...new Set([task.projectId, workspace?.projectId, source?.projectId].filter((id): id is string => Boolean(id)))];
-    const selectedProjects = projectIds.length ? await measureRunPhase("workspace.access.projects_read", async () => db.select({ id: projects.id, companyId: projects.companyId, executionWorkspacePolicy: projects.executionWorkspacePolicy })
-      .from(projects).where(and(eq(projects.companyId, companyId), inArray(projects.id, projectIds)))) : [];
+    const selectedProjects = projectIds.length ? await measureRunPhase("workspace.access.projects_read", async () => db.select({ id: projects.id, spaceId: projects.spaceId, executionWorkspacePolicy: projects.executionWorkspacePolicy })
+      .from(projects).where(and(eq(projects.spaceId, spaceId), inArray(projects.id, projectIds)))) : [];
     if (selectedProjects.length !== projectIds.length) throw forbidden("Task workspace project is unavailable");
-    for (const projectId of projectIds) await assertTaskWorkspaceSourceProjectAccess(db, actor, companyId, projectId, {
+    for (const projectId of projectIds) await assertTaskWorkspaceSourceProjectAccess(db, actor, spaceId, projectId, {
       // issue:read was authorized above; the containing project gives no files.
       taskContainerOnly: projectId === task.projectId && projectId !== workspace?.projectId && projectId !== source?.projectId,
     });
     const sourceProjectId = source?.projectId ?? workspace?.projectId;
-    const trust = resolveCoreTrustPreset({ companyId, agent, issue: task,
+    const trust = resolveCoreTrustPreset({ spaceId, agent, issue: task,
       project: selectedProjects.find(project => project.id === task.projectId),
       workspaceSourceProject: selectedProjects.find(project => project.id === sourceProjectId),
-      run: run ? { companyId: run.companyId, executionPolicy: run.contextSnapshot?.executionPolicy } : null });
+      run: run ? { spaceId: run.spaceId, executionPolicy: run.contextSnapshot?.executionPolicy } : null });
     if (trust.kind === "denied") throw forbidden(trust.detail);
-    await measureRunPhase("workspace.access.trust", () => assertSelectedWorkspaceTrust(db, { companyId, actor, issueId: task.id,
+    await measureRunPhase("workspace.access.trust", () => assertSelectedWorkspaceTrust(db, { spaceId, actor, issueId: task.id,
       sourceProjectId: sourceProjectId ?? null, sourceWorkspaceId: effectiveSelection ? workspace?.id ?? null : workspace?.id }));
     return { task, workspace, source };
   });

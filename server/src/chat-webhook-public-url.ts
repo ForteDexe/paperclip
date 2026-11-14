@@ -1,4 +1,4 @@
-/** Deployment-only ingress origin; never a board URL or a request-header hint. */
+/** Deployment-only ingress origin; never a operator URL or a request-header hint. */
 export function parseChatWebhookPublicBaseUrl(
   value: string | null | undefined,
 ): string | undefined {

@@ -16,8 +16,8 @@ vi.mock("../services/plugin-registry.js", () => ({
   pluginRegistryService: () => mockRegistry,
 }));
 
-const companyA = "22222222-2222-4222-8222-222222222222";
-const companyB = "33333333-3333-4333-8333-333333333333";
+const spaceA = "22222222-2222-4222-8222-222222222222";
+const spaceB = "33333333-3333-4333-8333-333333333333";
 const pluginId = "11111111-1111-4111-8111-111111111111";
 const tempDirs: string[] = [];
 let originalNodeEnv: string | undefined;
@@ -25,7 +25,7 @@ let originalNodeEnv: string | undefined;
 function createPluginPackage(source = "export default {};\n") {
   const packageRoot = path.join(
     tmpdir(),
-    `paperclip-plugin-ui-static-${randomUUID()}`,
+    `outpost-plugin-ui-static-${randomUUID()}`,
   );
   const uiDir = path.join(packageRoot, "dist", "ui");
   mkdirSync(uiDir, { recursive: true });
@@ -38,7 +38,7 @@ function readyPlugin(packageRoot: string) {
   mockRegistry.getById.mockResolvedValue({
     id: pluginId,
     pluginKey: "outpost.example",
-    packageName: "paperclip-plugin-example",
+    packageName: "outpost-plugin-example",
     packagePath: packageRoot,
     version: "1.0.0",
     status: "ready",
@@ -52,13 +52,13 @@ function readyPlugin(packageRoot: string) {
   mockRegistry.getByKey.mockResolvedValue(null);
 }
 
-function boardActor(companyIds: string[]) {
+function operatorActor(spaceIds: string[]) {
   return {
-    type: "board",
-    userId: "board-user",
+    type: "operator",
+    userId: "operator-user",
     source: "session",
     isInstanceAdmin: false,
-    companyIds,
+    spaceIds,
   };
 }
 
@@ -98,7 +98,7 @@ describe("plugin UI static route", () => {
     }
   });
 
-  it("serves built UI assets publicly when no company context is requested", async () => {
+  it("serves built UI assets publicly when no space context is requested", async () => {
     readyPlugin(createPluginPackage("export const marker = 'static-bundle';\n"));
     const app = await createApp({ type: "none", source: "none" });
 
@@ -109,32 +109,32 @@ describe("plugin UI static route", () => {
     expect(mockRegistry.getConfig).not.toHaveBeenCalled();
   });
 
-  it("requires authentication before reading company-scoped devUiUrl config", async () => {
+  it("requires authentication before reading space-scoped devUiUrl config", async () => {
     readyPlugin(createPluginPackage());
     const app = await createApp({ type: "none", source: "none" });
 
     const res = await request(app)
       .get(`/_plugins/${pluginId}/ui/index.js`)
-      .query({ companyId: companyA });
+      .query({ spaceId: spaceA });
 
     expect(res.status).toBe(401);
     expect(mockRegistry.getConfig).not.toHaveBeenCalled();
   });
 
-  it("rejects cross-company companyId before reading devUiUrl config", async () => {
+  it("rejects cross-space spaceId before reading devUiUrl config", async () => {
     readyPlugin(createPluginPackage());
-    const app = await createApp(boardActor([companyA]));
+    const app = await createApp(operatorActor([spaceA]));
 
     const res = await request(app)
       .get(`/_plugins/${pluginId}/ui/index.js`)
-      .query({ companyId: companyB });
+      .query({ spaceId: spaceB });
 
     expect(res.status).toBe(403);
     expect(res.body.error).toMatch(/does not have access/i);
     expect(mockRegistry.getConfig).not.toHaveBeenCalled();
   });
 
-  it("proxies devUiUrl only after company access succeeds", async () => {
+  it("proxies devUiUrl only after space access succeeds", async () => {
     process.env.NODE_ENV = "development";
     readyPlugin(createPluginPackage());
     mockRegistry.getConfig.mockResolvedValue({
@@ -147,15 +147,15 @@ describe("plugin UI static route", () => {
       headers: { "content-type": "application/javascript" },
     }));
     vi.stubGlobal("fetch", fetchMock);
-    const app = await createApp(boardActor([companyA]));
+    const app = await createApp(operatorActor([spaceA]));
 
     const res = await request(app)
       .get(`/_plugins/${pluginId}/ui/index.js`)
-      .query({ companyId: companyA });
+      .query({ spaceId: spaceA });
 
     expect(res.status).toBe(200);
     expect(res.text).toBe("hot bundle");
-    expect(mockRegistry.getConfig).toHaveBeenCalledWith(pluginId, companyA);
+    expect(mockRegistry.getConfig).toHaveBeenCalledWith(pluginId, spaceA);
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:5173/index.js",
       expect.objectContaining({ signal: expect.any(Object) }),

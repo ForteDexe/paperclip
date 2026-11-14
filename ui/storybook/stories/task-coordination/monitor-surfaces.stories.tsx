@@ -8,7 +8,7 @@ import {
   storybookExecutionWorkspaces,
   storybookIssueDocuments,
   storybookIssues,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 
 const issueDocumentSummaries = storybookIssueDocuments.map(({ body: _body, ...summary }) => summary);
 
@@ -94,7 +94,7 @@ const clearedIssue: Issue = {
       lastTriggeredAt: null,
       attemptCount: 0,
       notes: null,
-      scheduledBy: "board",
+      scheduledBy: "operator",
       kind: null,
       serviceName: null,
       externalRef: null,
@@ -322,7 +322,7 @@ const meta = {
           "Surfaces the pinned monitor banner, composer strip, and IssueProperties Monitor row across the wireframe-04 states (scheduled / retrying / due / overdue / cleared) for UX review.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "task-coordination/tree-control"
       ],
@@ -353,7 +353,7 @@ export const BlockedTask: Story = {
     </div>;
   },
   parameters: {
-    paperclip: {
+    outpost: {
       capabilities: ["task-coordination/tree-control", "tasks/properties"],
       implementation: "production",
       boundary: "fixtures",

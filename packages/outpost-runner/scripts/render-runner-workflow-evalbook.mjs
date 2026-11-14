@@ -267,21 +267,21 @@ export async function resolveCanonicalEvalProgram(packageRoot, environment) {
   const program = await existingPath([
     environment.OUTPOST_EVALBOOK_PROGRAM,
     fromRoot,
-    resolve(packageRoot, "../../.paperclip-evals", EVAL_PROGRAM_RELATIVE_PATH),
+    resolve(packageRoot, "../../.outpost-evals", EVAL_PROGRAM_RELATIVE_PATH),
     resolve(
       packageRoot,
-      "../../../paperclip-evals",
+      "../../../outpost-evals",
       EVAL_PROGRAM_RELATIVE_PATH,
     ),
     resolve(
       packageRoot,
-      "../../../../paperclip-evals",
+      "../../../../outpost-evals",
       EVAL_PROGRAM_RELATIVE_PATH,
     ),
   ]);
   if (program !== null) return program;
   throw new Error(
-    `Canonical Evalbook generator not found. Set OUTPOST_EVALBOOK_PROGRAM to ${EVAL_PROGRAM_RELATIVE_PATH} in a paperclip-evals checkout.`,
+    `Canonical Evalbook generator not found. Set OUTPOST_EVALBOOK_PROGRAM to ${EVAL_PROGRAM_RELATIVE_PATH} in a outpost-evals checkout.`,
   );
 }
 

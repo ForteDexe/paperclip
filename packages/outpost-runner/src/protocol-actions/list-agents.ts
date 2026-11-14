@@ -26,11 +26,11 @@ export const listAgentsAction = {
     "orpEvidence": "read projection surfaced via a tool-result item event; no control-plane state diff",
     "orpBindingStatus": "audit_pending",
     "legacyAliases": [
-      "mcp:paperclipListAgents"
+      "mcp:outpostListAgents"
     ]
   },
   "documentation": {
-    "title": "List company agents",
+    "title": "List space agents",
     "description": "List redacted actor profiles.",
     "note": null
   },
@@ -51,7 +51,7 @@ export const listAgentsAction = {
       "schema": "outpost.semantic-tool.v1",
       "operationId": "list_agents",
       "version": 1,
-      "title": "List company agents",
+      "title": "List space agents",
       "description": "List redacted actor profiles.",
       "exposure": "optional",
       "requiredClaims": [
@@ -138,7 +138,7 @@ export const listAgentsAction = {
       "redaction": [],
       "mockCommandMapping": {
         "kind": "snapshot_read",
-        "projection": "company_actors"
+        "projection": "space_actors"
       }
     }
   }

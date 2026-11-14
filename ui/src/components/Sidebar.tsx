@@ -23,7 +23,7 @@ import { useAgentChatEnabled } from "@/hooks/useAgentChatEnabled";
 import { useAgentChatNavigation } from "@/hooks/useAgentChatNavigation";
 import { SidebarRecentTasks } from "./SidebarRecentTasks";
 import { useDialogActions } from "../context/DialogContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useSidebar } from "../context/SidebarContext";
 import { attentionApi } from "../api/attention";
 import { heartbeatsApi } from "../api/heartbeats";
@@ -37,7 +37,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn, SIDEBAR_RAIL_HIDDEN_LABEL } from "../lib/utils";
 import { PluginSlotOutlet } from "@/plugins/slots";
 import { PluginLauncherOutlet } from "@/plugins/launchers";
-import { SidebarCompanyMenu } from "./SidebarCompanyMenu";
+import { SidebarSpaceMenu } from "./SidebarSpaceMenu";
 import { primarySidebarStyles } from "./primary-sidebar-styles";
 
 export function Sidebar({ children }: { children?: ReactNode }) {
@@ -53,21 +53,21 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
   // one policy across static nav groups and the data-driven sections.
   const [workOpen, setWorkOpen] = useState(true);
   const [organizationOpen, setOrganizationOpen] = useState(true);
-  const { selectedCompanyId, selectedCompany } = useCompany();
+  const { selectedSpaceId, selectedSpace } = useSpace();
   const { collapsed, peeking } = useSidebar();
   const { enabled: streamlinedUiEnabled } = useStreamlinedUiEnabled();
   const rail = collapsed && !peeking;
-  const inboxBadge = useInboxBadge(selectedCompanyId);
+  const inboxBadge = useInboxBadge(selectedSpaceId);
   const { data: experimentalSettings } = useQuery({
     queryKey: queryKeys.instance.experimentalSettings,
     queryFn: () => instanceSettingsApi.getExperimental(),
   });
-  const liveRunsQueryKey = queryKeys.liveRuns(selectedCompanyId!);
+  const liveRunsQueryKey = queryKeys.liveRuns(selectedSpaceId!);
   const sharedLiveRuns = useSharedPollingQuery({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     resourceKey: "live-runs",
     queryKey: liveRunsQueryKey,
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
     // Event-sourced via LiveUpdatesProvider (GitHub issue 9627) + reconnect reconcile — no
     // interval poll needed. Polling here also re-armed React Query's timer on
     // every live-event cache write, a major source of steady-state churn.
@@ -76,7 +76,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
   });
   const { data: liveRuns, dataUpdatedAt: liveRunsUpdatedAt } = useQuery({
     queryKey: liveRunsQueryKey,
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedCompanyId!),
+    queryFn: () => heartbeatsApi.liveRunsForSpace(selectedSpaceId!),
     enabled: sharedLiveRuns.enabled,
     refetchInterval: sharedLiveRuns.refetchInterval,
   });
@@ -96,17 +96,17 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
   // showWorkspacesLink — it defaults hidden, so no placeholder is needed).
   const showDecisions = experimentalSettings?.enableDecisions === true;
   const { data: attentionFeed } = useQuery({
-    queryKey: queryKeys.attention(selectedCompanyId!),
-    queryFn: () => attentionApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId && showDecisions,
+    queryKey: queryKeys.attention(selectedSpaceId!),
+    queryFn: () => attentionApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId && showDecisions,
     refetchInterval: 60_000,
   });
   const attentionCount = attentionBadgeCount(attentionFeed);
   const showCases = experimentalSettings?.enableCases === true;
 
   const pluginContext = {
-    companyId: selectedCompanyId,
-    companyPrefix: selectedCompany?.issuePrefix ?? null,
+    spaceId: selectedSpaceId,
+    spacePrefix: selectedSpace?.issuePrefix ?? null,
   };
 
   return (
@@ -118,13 +118,13 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
           : "border-r border-border bg-background",
       )}
     >
-      {/* Top bar: company name, aligned with top sections and borderless.
+      {/* Top bar: space name, aligned with top sections and borderless.
           Search deliberately does NOT live here:
           the header's spare width goes to the workspace/organization name,
           which is the user's orientation anchor and truncates otherwise.
           Search is the first nav item below instead. */}
       <div className="flex h-(--sz-60px) shrink-0 items-center gap-1 px-3">
-        <SidebarCompanyMenu />
+        <SidebarSpaceMenu />
       </div>
 
       <nav className={primarySidebarStyles.nav}>
@@ -245,7 +245,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
         {children ?? (streamlinedUiEnabled ? <SidebarAgents streamlined /> : null)}
 
         {streamlinedUiEnabled ? (
-          <SidebarRecentTasks companyId={selectedCompanyId} liveIssueIds={liveIssueIds} />
+          <SidebarRecentTasks spaceId={selectedSpaceId} liveIssueIds={liveIssueIds} />
         ) : (
           <>
             <SidebarAgents />
@@ -254,7 +254,7 @@ function ClassicSidebar({ children }: { children?: ReactNode }) {
               collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
             >
               <SidebarNavItem to="/org" label="Crew map" icon={Network} />
-              <SidebarNavItem to="/company/settings" label="Settings" icon={Settings} />
+              <SidebarNavItem to="/space/settings" label="Settings" icon={Settings} />
             </SidebarSection>
           </>
         )}

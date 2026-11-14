@@ -171,7 +171,7 @@ const mockClearPanelMaximizeRequest = vi.hoisted(() => vi.fn());
 const mockPanelState = vi.hoisted(() => ({ panelVisible: true }));
 const mockRouteParams = vi.hoisted(() => ({
   issueId: "PAP-1",
-  companyPrefix: "PAP",
+  spacePrefix: "PAP",
 }));
 const mockSidebarState = vi.hoisted(() => ({ isMobile: false }));
 const mockIssuePropertiesRender = vi.hoisted(() => vi.fn());
@@ -285,19 +285,19 @@ vi.mock("@/lib/router", () => ({
   useParams: () => ({ ...mockRouteParams }),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({
-    companies: [
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({
+    spaces: [
       {
-        id: "company-1",
+        id: "space-1",
         name: "Outpost",
         issuePrefix: "PAP",
         status: "active",
       },
     ],
-    selectedCompanyId: "company-1",
-    selectedCompany: {
-      id: "company-1",
+    selectedSpaceId: "space-1",
+    selectedSpace: {
+      id: "space-1",
       name: "Outpost",
       issuePrefix: "PAP",
       status: "active",
@@ -305,9 +305,9 @@ vi.mock("../context/CompanyContext", () => ({
     selectionSource: "manual",
     loading: false,
     error: null,
-    setSelectedCompanyId: vi.fn(),
-    reloadCompanies: vi.fn(),
-    createCompany: vi.fn(),
+    setSelectedSpaceId: vi.fn(),
+    reloadSpaces: vi.fn(),
+    createSpace: vi.fn(),
   }),
 }));
 
@@ -808,7 +808,7 @@ function createDeferred<T>() {
 function createIssue(overrides: Partial<Issue> = {}): Issue {
   return {
     id: "issue-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     projectWorkspaceId: null,
     goalId: "goal-1",
@@ -859,7 +859,7 @@ function createIssueComment(
 ): IssueComment {
   return {
     id: "comment-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     authorType: "user",
     authorAgentId: null,
@@ -899,7 +899,7 @@ function createAttachment(
   const { id, ...attachmentOverrides } = overrides;
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     issueCommentId: null,
     assetId: `asset-${id}`,
@@ -939,13 +939,13 @@ function createArtifactWorkProduct(
   const contentPath = `/api/attachments/${attachmentId}/content`;
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     issueId: "issue-1",
     executionWorkspaceId: null,
     runtimeServiceId: null,
     type: "artifact",
-    provider: "paperclip",
+    provider: "outpost",
     externalId: null,
     title: overrides.title ?? originalFilename,
     url: null,
@@ -973,7 +973,7 @@ function createArtifactWorkProduct(
 function createAgent(overrides: Partial<Agent> = {}): Agent {
   return {
     id: "agent-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "CodexCoder",
     urlKey: "codexcoder",
     role: "engineer",
@@ -1004,7 +1004,7 @@ function createPauseHold(
   const now = new Date("2026-04-21T00:00:00.000Z");
   return {
     id: "hold-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     rootIssueId: "issue-1",
     mode: "pause",
     status: "active",
@@ -1026,7 +1026,7 @@ function createPauseHold(
     members: [
       {
         id: "hold-member-root",
-        companyId: "company-1",
+        spaceId: "space-1",
         holdId: "hold-1",
         issueId: "issue-1",
         parentIssueId: null,
@@ -1044,7 +1044,7 @@ function createPauseHold(
       },
       {
         id: "hold-member-child",
-        companyId: "company-1",
+        spaceId: "space-1",
         holdId: "hold-1",
         issueId: "child-1",
         parentIssueId: "issue-1",
@@ -1067,7 +1067,7 @@ function createPauseHold(
 
 function createResumePreview(): IssueTreeControlPreview {
   return {
-    companyId: "company-1",
+    spaceId: "space-1",
     rootIssueId: "issue-1",
     mode: "resume",
     generatedAt: new Date("2026-04-21T00:00:00.000Z"),
@@ -1122,7 +1122,7 @@ function createResumePreview(): IssueTreeControlPreview {
 
 function createPausePreview(): IssueTreeControlPreview {
   return {
-    companyId: "company-1",
+    spaceId: "space-1",
     rootIssueId: "issue-1",
     mode: "pause",
     generatedAt: new Date("2026-04-21T00:00:00.000Z"),
@@ -1208,7 +1208,7 @@ function createPausePreview(): IssueTreeControlPreview {
 
 function createRestorePreview(): IssueTreeControlPreview {
   return {
-    companyId: "company-1",
+    spaceId: "space-1",
     rootIssueId: "issue-1",
     mode: "restore",
     generatedAt: new Date("2026-04-21T00:00:00.000Z"),
@@ -1295,7 +1295,7 @@ function createCancelPreview(issueCount = 8): IssueTreeControlPreview {
   }));
 
   return {
-    companyId: "company-1",
+    spaceId: "space-1",
     rootIssueId: "issue-1",
     mode: "cancel",
     generatedAt: new Date("2026-04-21T00:00:00.000Z"),
@@ -1432,7 +1432,7 @@ describe("IssueDetail", () => {
     mockHeartbeatsApi.activeRunForIssue.mockResolvedValue(null);
     mockAgentsApi.list.mockResolvedValue([]);
     mockAccessApi.getCurrentBoardAccess.mockResolvedValue({
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
       isInstanceAdmin: true,
       source: "session",
       keyId: null,
@@ -1477,13 +1477,13 @@ describe("IssueDetail", () => {
     mockLocation.hash = "";
     mockLocation.state = null;
     mockRouteParams.issueId = "PAP-1";
-    mockRouteParams.companyPrefix = "PAP";
+    mockRouteParams.spacePrefix = "PAP";
   });
 
   it("clears only the monitor after confirmation and refreshes the task", async () => {
     const nextCheckAt = new Date(Date.now() + 60_000).toISOString();
     const preservedPolicy = { mode: "normal", commentRequired: false, stages: [{ type: "review", approvalsNeeded: 1, participants: [{ type: "user", userId: "reviewer-1" }] }], maxReviewRounds: 4, authorizationPolicy: { assignmentPolicy: { mode: "protected" } } };
-    const policy = { ...preservedPolicy, monitor: { nextCheckAt, scheduledBy: "board", notes: "Check deployment" } } as Issue["executionPolicy"];
+    const policy = { ...preservedPolicy, monitor: { nextCheckAt, scheduledBy: "operator", notes: "Check deployment" } } as Issue["executionPolicy"];
     const monitored = createIssue({ status: "in_progress", executionPolicy: policy, executionState: { monitor: { status: "scheduled", nextCheckAt, attemptCount: 1 } } as Issue["executionState"] });
     const cleared = createIssue({ status: "in_progress", executionPolicy: preservedPolicy as Issue["executionPolicy"] });
     mockIssuesApi.get.mockResolvedValue(monitored);
@@ -1555,7 +1555,7 @@ describe("IssueDetail", () => {
       const ref = mockRouteParams.issueId!;
       queryClient.setQueryData(queryKeys.issues.detail(ref), issue);
       queryClient.setQueryData([...queryKeys.issues.detail(ref), "core"], issue);
-      const inboxKey = [...queryKeys.issues.listMineByMe(issue.companyId), "with-routine-executions", "live-descendant-summary"];
+      const inboxKey = [...queryKeys.issues.listMineByMe(issue.spaceId), "with-routine-executions", "live-descendant-summary"];
       queryClient.setQueryData(inboxKey, [issue]);
       mockLocation.state = createIssueDetailLocationState("Inbox", "/inbox/mine", "inbox");
       mockIssuesApi.markRead.mockClear();
@@ -1602,7 +1602,7 @@ describe("IssueDetail", () => {
       queryClient.setQueryData(queryKeys.auth.session, { user: { id: "old-owner" } });
       mockIssuesApi.get.mockResolvedValue(issue);
       mockIssuesApi.archiveFromInbox.mockReturnValue(archive.promise);
-      const inboxKey = queryKeys.issues.listMineByMe(issue.companyId);
+      const inboxKey = queryKeys.issues.listMineByMe(issue.spaceId);
       queryClient.setQueryData(inboxKey, [issue]);
       mockLocation.state = createIssueDetailLocationState("Inbox", "/inbox/mine", "inbox");
       try {
@@ -1612,7 +1612,7 @@ describe("IssueDetail", () => {
         const button = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
           .find(entry => entry.textContent?.trim() === "Archive from inbox")!;
         await act(async () => button.click());
-        await waitForAssertion(() => expect(getLocalInboxArchiveIssueIds(issue.companyId).has(issue.id)).toBe(true));
+        await waitForAssertion(() => expect(getLocalInboxArchiveIssueIds(issue.spaceId).has(issue.id)).toBe(true));
         await waitForAssertion(() => expect(mockIssuesApi.archiveFromInbox).toHaveBeenCalledWith(issue.id));
         mockNavigate.mockClear();
         mockPushToast.mockClear();
@@ -1627,14 +1627,14 @@ describe("IssueDetail", () => {
           else archive.reject(new Error("Old account archive failed"));
         });
         await waitForAssertion(() => expect(queryClient.isMutating()).toBe(0));
-        expect(getLocalInboxArchiveIssueIds(issue.companyId).has(issue.id)).toBe(false);
-        expect(filterLocalInboxArchivedIssues(issue.companyId, [freshIssue])).toEqual([freshIssue]);
+        expect(getLocalInboxArchiveIssueIds(issue.spaceId).has(issue.id)).toBe(false);
+        expect(filterLocalInboxArchivedIssues(issue.spaceId, [freshIssue])).toEqual([freshIssue]);
         expect(queryClient.getQueryData(inboxKey)).toEqual([freshIssue]);
         expect(mockNavigate).not.toHaveBeenCalled();
         expect(mockPushToast).not.toHaveBeenCalled();
       } finally {
         archive.resolve({ id: issue.id, archivedAt: new Date() });
-        clearLocalInboxArchive(issue.companyId, issue.id);
+        clearLocalInboxArchive(issue.spaceId, issue.id);
       }
     });
   });
@@ -1778,7 +1778,7 @@ describe("IssueDetail", () => {
 
   it.each(["new-project", null])("remembers project %s only after its task update succeeds", async (projectId) => {
     const issue = createIssue({ projectId: "original-project" });
-    trackRecentProject("original-project", issue.companyId);
+    trackRecentProject("original-project", issue.spaceId);
     const failedUpdate = createDeferred<Issue>();
     const successfulUpdate = createDeferred<Issue>();
     mockIssuesApi.get.mockResolvedValue(issue);
@@ -1792,16 +1792,16 @@ describe("IssueDetail", () => {
     });
     await act(async () => properties.onUpdate({ projectId }));
     await waitForAssertion(() => expect(mockIssuesApi.update).toHaveBeenCalledTimes(1));
-    expect(getLastProjectId(issue.companyId)).toBe("original-project");
+    expect(getLastProjectId(issue.spaceId)).toBe("original-project");
     await act(async () => failedUpdate.reject(new Error("Project save failed")));
     await waitForAssertion(() => expect(mockPushToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't update the task" })));
-    expect(getLastProjectId(issue.companyId)).toBe("original-project");
+    expect(getLastProjectId(issue.spaceId)).toBe("original-project");
     await act(async () => properties.onUpdate({ projectId }));
     await waitForAssertion(() => expect(mockIssuesApi.update).toHaveBeenCalledTimes(2));
-    expect(getLastProjectId(issue.companyId)).toBe("original-project");
+    expect(getLastProjectId(issue.spaceId)).toBe("original-project");
     await act(async () => successfulUpdate.resolve({ ...issue, projectId }));
-    await waitForAssertion(() => expect(getLastProjectId(issue.companyId)).toBe(projectId ?? ""));
-    expect(getLastProjectId("company-2")).toBeUndefined();
+    await waitForAssertion(() => expect(getLastProjectId(issue.spaceId)).toBe(projectId ?? ""));
+    expect(getLastProjectId("space-2")).toBeUndefined();
   });
 
   it("waits for the personal workspace preference before exposing task controls", async () => {
@@ -1830,7 +1830,7 @@ describe("IssueDetail", () => {
     mockIssuesApi.get.mockResolvedValue(issue);
     mockIssuesApi.getCore.mockImplementation(async (_id, options) => options?.cache === "no-store" ? fresh : issue);
     mockIssuesApi.update.mockClear();
-    const key = `paperclip:inline-draft:v2:${owner}:issue:${issue.id}:title`;
+    const key = `outpost:inline-draft:v2:${owner}:issue:${issue.id}:title`;
     localStorage.setItem(key, JSON.stringify({ version: 1, draft: "Restored title B", base: issue.title }));
     await act(async () => renderIssueView());
     await waitForAssertion(() => expect(mockIssuesApi.getCore).toHaveBeenCalledWith(issue.id, { cache: "no-store", fresh: true }));
@@ -1952,8 +1952,8 @@ describe("IssueDetail", () => {
     await waitForAssertion(() => expect(mockIssueChatThreadRender).toHaveBeenCalled());
     expect(container.textContent).toContain(second.title);
     expect(container.textContent).not.toContain("Only the first task's draft");
-    expect(localStorage.getItem("paperclip:inline-draft:v2:pending-route-user:issue:issue-1:title")).toContain("Only the first task's draft");
-    expect(localStorage.getItem("paperclip:inline-draft:v2:pending-route-user:issue:issue-2:title")).toBeNull();
+    expect(localStorage.getItem("outpost:inline-draft:v2:pending-route-user:issue:issue-1:title")).toContain("Only the first task's draft");
+    expect(localStorage.getItem("outpost:inline-draft:v2:pending-route-user:issue:issue-2:title")).toBeNull();
     expect(mockIssuesApi.update).not.toHaveBeenCalled();
   });
 
@@ -1963,11 +1963,11 @@ describe("IssueDetail", () => {
     const grandchild = createIssue({ id: "grandchild", parentId: child.id, createdByAgentId: "agent-1" });
     const followup = createIssue({ id: "followup", createdByAgentId: "agent-1" });
     mockIssuesApi.get.mockResolvedValue(issue);
-    mockIssuesApi.listAll.mockImplementation(async (_companyId, filters) => filters?.createdFromIssueId ? [child, followup] : [child, grandchild]);
+    mockIssuesApi.listAll.mockImplementation(async (_spaceId, filters) => filters?.createdFromIssueId ? [child, followup] : [child, grandchild]);
     await act(async () => renderIssueView());
     await waitForAssertion(() => expect(mockIssueChatThreadRender.mock.calls.at(-1)?.[0]?.createdTasks).toEqual([child, child, followup]));
     const updated = { ...child, status: "done" };
-    await act(async () => { queryClient.setQueryData(queryKeys.issues.listByDescendantRoot(issue.companyId, issue.id), [updated, grandchild]); });
+    await act(async () => { queryClient.setQueryData(queryKeys.issues.listByDescendantRoot(issue.spaceId, issue.id), [updated, grandchild]); });
     await waitForAssertion(() => expect(mockIssueChatThreadRender.mock.calls.at(-1)?.[0]?.createdTasks[0]).toMatchObject({ id: "child", status: "done" }));
   });
 
@@ -1988,11 +1988,11 @@ describe("IssueDetail", () => {
     const issue = createIssue();
     const followup = createIssue({ id: "standalone", parentId: null, createdByAgentId: "agent-1" });
     mockIssuesApi.get.mockResolvedValue(issue);
-    mockIssuesApi.listAll.mockImplementation(async (_companyId, filters) => filters?.createdFromIssueId ? [followup] : []);
+    mockIssuesApi.listAll.mockImplementation(async (_spaceId, filters) => filters?.createdFromIssueId ? [followup] : []);
     await act(async () => renderIssueView());
     await waitForAssertion(() => expect(mockIssueChatThreadRender.mock.calls.at(-1)?.[0]?.createdTasks).toEqual([followup]));
     expect(container.querySelector('[data-testid="task-chat-thread"]')).not.toBeNull();
-    expect(mockIssuesApi.listAll).toHaveBeenCalledWith(issue.companyId, { createdFromIssueId: issue.id, includeRoutineExecutions: true });
+    expect(mockIssuesApi.listAll).toHaveBeenCalledWith(issue.spaceId, { createdFromIssueId: issue.id, includeRoutineExecutions: true });
   });
 
   it("uses Coordinator task presentation and panel scope without changing the Classic preference", async () => {
@@ -2014,7 +2014,7 @@ describe("IssueDetail", () => {
     let uploaded: string | undefined;
     await act(async () => { uploaded = await editor.imageUploadHandler(image); });
     expect(uploaded).toBe(createAttachment({ id: "document-image" }).contentPath);
-    expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledWith(createIssue().companyId, createIssue().id, image);
+    expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledWith(createIssue().spaceId, createIssue().id, image);
     coordinatorPreference.enabled = false;
     await act(async () => renderIssueView());
     await waitForAssertion(() => expect(container.querySelector('[data-testid="issue-chat-thread"]')).not.toBeNull());
@@ -2115,7 +2115,7 @@ describe("IssueDetail", () => {
     } else {
       const file = new File(["image"], "first.png", { type: "image/png" });
       await act(async () => { await props.onAttachImage(file); });
-      expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledWith(canonical.companyId, canonical.id, file);
+      expect(mockIssuesApi.uploadAttachment).toHaveBeenCalledWith(canonical.spaceId, canonical.id, file);
       expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.issues.attachments(canonical.id) });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.issues.detail(canonical.id) });
     }
@@ -2332,12 +2332,12 @@ describe("IssueDetail", () => {
     mockIssuesApi.get.mockResolvedValue(issue);
     const run = { runId: "stopped-run", runtimeMode: "native", status: "cancelled", agentId: "agent-1", createdAt: new Date().toISOString(),
       resultJson: { executionCancellation: { state: "acknowledged", proof: "provider_api_stop_receipt" },
-        nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: "stopped-run", companyId: issue.companyId, dispatchState: "acknowledged" } } };
+        nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: "stopped-run", spaceId: issue.spaceId, dispatchState: "acknowledged" } } };
     mockActivityApi.recentRunsForIssue.mockResolvedValue([run]);
     await act(async () => renderIssueView());
     await waitForAssertion(() => {
       const props = mockIssueChatThreadRender.mock.calls.at(-1)?.[0];
-      expect(props?.companyId).toBe(issue.companyId);
+      expect(props?.spaceId).toBe(issue.spaceId);
       expect(props?.linkedRuns).toEqual([expect.objectContaining(run)]);
     });
   });
@@ -2814,7 +2814,7 @@ describe("IssueDetail", () => {
       mockIssuesApi.uploadAttachment.mockResolvedValue({
         id,
         issueId: issue.id,
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         contentPath: `/api/attachments/${id}/content`,
       });
       mockIssuesApi.addComment
@@ -2900,7 +2900,7 @@ describe("IssueDetail", () => {
         labels: [
           {
             id: "label-1",
-            companyId: "company-1",
+            spaceId: "space-1",
             name: "Quick win",
             color: "#22c55e",
             createdAt: new Date("2026-04-21T00:00:00.000Z"),
@@ -3075,7 +3075,7 @@ describe("IssueDetail", () => {
     await flushReact();
 
     expect(
-      readRecentTasks(getRecentTasksStorageKey("company-1", null), "company-1"),
+      readRecentTasks(getRecentTasksStorageKey("space-1", null), "space-1"),
     ).toEqual([]);
 
     await act(async () => {
@@ -3087,8 +3087,8 @@ describe("IssueDetail", () => {
     await waitForAssertion(() => {
       expect(
         readRecentTasks(
-          getRecentTasksStorageKey("company-1", "user-1"),
-          "company-1",
+          getRecentTasksStorageKey("space-1", "user-1"),
+          "space-1",
         ),
       ).toEqual([
         expect.objectContaining({
@@ -3112,8 +3112,8 @@ describe("IssueDetail", () => {
 
     expect(
       readRecentTasks(
-        getRecentTasksStorageKey("company-1", "user-1"),
-        "company-1",
+        getRecentTasksStorageKey("space-1", "user-1"),
+        "space-1",
       )[0],
     ).toMatchObject({
       title: "Snapshot refresh title",
@@ -3128,7 +3128,7 @@ describe("IssueDetail", () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableClassicTaskInterface: true, enableStreamlinedUi: false });
     mockIssuesApi.get.mockResolvedValue(createIssue());
     mockDecisionsApi.get.mockResolvedValue({
-      id: "recorded-1", companyId: "company-1", originIssueId: "issue-1", originAgentId: "agent-1", originRunId: "run-1",
+      id: "recorded-1", spaceId: "space-1", originIssueId: "issue-1", originAgentId: "agent-1", originRunId: "run-1",
       title: "Choose launch channels", body: "Prepare the approved blog first.", status: "decided", executionStatus: "succeeded",
       chosenOptionId: "blog", options: [{ id: "blog", label: "Own blog first", effects: [] }],
       inputs: [{ id: "reason", label: "Reason" }], inputValues: { reason: "The copy is approved" },
@@ -3384,7 +3384,7 @@ describe("IssueDetail", () => {
     mockLocation.hash = "#document-agents";
     mockIssuesApi.get.mockResolvedValue(createIssue({
       documentSummaries: [{
-        id: "agents-doc", companyId: "company-1", issueId: "issue-1",
+        id: "agents-doc", spaceId: "space-1", issueId: "issue-1",
         key: "agents", title: "AGENTS.md", format: "markdown",
         latestRevisionId: "revision-1", latestRevisionNumber: 1,
         createdByAgentId: "agent-1", createdByUserId: null,
@@ -3512,7 +3512,7 @@ describe("IssueDetail", () => {
     const child = createIssue({ id: "manual-child", parentId: source.id, title: "Manual child" });
     const created = createIssue({ id: "created-task", parentId: null, title: "Created elsewhere" });
     mockIssuesApi.get.mockResolvedValue(source);
-    mockIssuesApi.list.mockImplementation((_companyId, filters?: { descendantOf?: string; createdFromIssueId?: string }) =>
+    mockIssuesApi.list.mockImplementation((_spaceId, filters?: { descendantOf?: string; createdFromIssueId?: string }) =>
       Promise.resolve(filters?.descendantOf === source.id ? [child] : filters?.createdFromIssueId === source.id ? [created] : []),
     );
     await act(async () => { renderIssueView(); });
@@ -3526,10 +3526,10 @@ describe("IssueDetail", () => {
     expect(taskProjection()?.count).toBe(4);
 
     const next = createIssue({ id: "new-created-task", parentId: source.id });
-    mockIssuesApi.list.mockImplementation((_companyId, filters?: { descendantOf?: string; createdFromIssueId?: string }) =>
+    mockIssuesApi.list.mockImplementation((_spaceId, filters?: { descendantOf?: string; createdFromIssueId?: string }) =>
       Promise.resolve(filters?.descendantOf === source.id ? [child, next] : filters?.createdFromIssueId === source.id ? [created, next] : []),
     );
-    await act(async () => { await queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(source.companyId) }); });
+    await act(async () => { await queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(source.spaceId) }); });
     await flushReact();
     expect(taskProjection()?.count).toBe(5);
     expect(taskProjection()?.content.props.createdTasks.map((row: Issue) => row.id)).toContain(next.id);
@@ -3697,7 +3697,7 @@ describe("IssueDetail", () => {
             {
               kind: "interaction",
               label: "Pending request confirmation",
-              responder: "Board",
+              responder: "Operator",
               since: "2026-04-21T00:00:00.000Z",
               ref: "interaction-1",
             },
@@ -3771,7 +3771,7 @@ describe("IssueDetail", () => {
       vi.stubGlobal("crypto", { getRandomValues: originalCrypto.getRandomValues.bind(originalCrypto) });
     try {
     const action = {
-      id: "file-recovery", companyId: "company-1", sourceIssueId: "issue-1",
+      id: "file-recovery", spaceId: "space-1", sourceIssueId: "issue-1",
       kind: "active_run_watchdog", cause: "native_workspace_sync_out_retry_exhausted",
       status: "active", ownerType: "system", evidence: { runId: "stopped-run", workspaceRecovery: {
         schema: "outpost.workspace-recovery.v1", runId: "stopped-run", status: "blocked",
@@ -3789,8 +3789,8 @@ describe("IssueDetail", () => {
     mockIssuesApi.get.mockResolvedValue(issue);
     mockAuthApi.getSession.mockResolvedValue({ user: { id: "file-operator" } });
     mockAccessApi.getCurrentBoardAccess.mockResolvedValue({ userId: "file-operator", source: "session",
-      isInstanceAdmin: false, companyIds: ["company-1"],
-      memberships: [{ companyId: "company-1", status: "active", membershipRole: mode === "denied" ? "viewer" : "operator" }],
+      isInstanceAdmin: false, spaceIds: ["space-1"],
+      memberships: [{ spaceId: "space-1", status: "active", membershipRole: mode === "denied" ? "viewer" : "operator" }],
     });
     mockIssuesApi.recoveryActions.mockResolvedValue({ active: action, actions: [action], sourceInspection: {
       actionId: mode === "stale" ? "other-action" : action.id, runId: "stopped-run",
@@ -3842,7 +3842,7 @@ describe("IssueDetail", () => {
     const interruption: NonNullable<Issue["interruption"]> = { intentId: "legacy-input", responsibility: "system", state: "failed", nextRetryAt: null,
       canRetry: true, userAction: null, sourceRunIds: ["legacy-run"], observedRunId: "legacy-run" };
     const issue = createIssue({ status: "blocked", assigneeAgentId: "agent-1", interruption,
-      activeRecoveryAction: { id: "legacy-recovery", companyId: "company-1", sourceIssueId: "issue-1",
+      activeRecoveryAction: { id: "legacy-recovery", spaceId: "space-1", sourceIssueId: "issue-1",
         kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", status: "active", ownerType: "system",
         evidence: { runId: "legacy-run", workspaceRestoreFailure: "restore_failed",
           workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: ["legacy-lease"] },
@@ -3854,8 +3854,8 @@ describe("IssueDetail", () => {
     mockIssuesApi.get.mockResolvedValue(issue);
     mockAuthApi.getSession.mockResolvedValue({ user: { id: "legacy-operator" } });
     mockAccessApi.getCurrentBoardAccess.mockResolvedValue({ userId: "legacy-operator", source: "session",
-      isInstanceAdmin: false, companyIds: ["company-1"],
-      memberships: [{ companyId: "company-1", status: "active", membershipRole: "operator" }],
+      isInstanceAdmin: false, spaceIds: ["space-1"],
+      memberships: [{ spaceId: "space-1", status: "active", membershipRole: "operator" }],
     });
     mockIssuesApi.retryTask.mockResolvedValue({ requestId: "legacy-retry", accepted: true, stale: false, presentation: interruption });
     await act(async () => renderIssueView());
@@ -3921,17 +3921,17 @@ describe("IssueDetail", () => {
     const actionId = "recovery-action-inline";
     const snapshot: DispositionRecoverySnapshot = { kind: "disposition_repair_escalated", actionId, attemptCount: 2, maxAttempts: 2, reason: "unchanged_source_state_exhausted", assigneeAgentId: "agent-1" };
     const issue = createIssue({ status: "blocked", assigneeAgentId: "agent-1", activeRecoveryAction: {
-      id: actionId, status: "active", kind: "deliberate_wait_without_target", ownerType: "board", returnOwnerAgentId: "agent-1", wakePolicy: { type: "board_escalation" },
-      companyId: "company-1", sourceIssueId: "issue-1", recoveryIssueId: null, ownerAgentId: null, ownerUserId: null,
+      id: actionId, status: "active", kind: "deliberate_wait_without_target", ownerType: "operator", returnOwnerAgentId: "agent-1", wakePolicy: { type: "operator_escalation" },
+      spaceId: "space-1", sourceIssueId: "issue-1", recoveryIssueId: null, ownerAgentId: null, ownerUserId: null,
       previousOwnerAgentId: "agent-1", cause: "deliberate_wait_without_target", fingerprint: "fixture", evidence: {}, nextAction: "Retry", monitorPolicy: null,
       attemptCount: 2, maxAttempts: 2, timeoutAt: null, lastAttemptAt: null, outcome: null, resolutionNote: null, resolvedAt: null, createdAt: new Date(), updatedAt: new Date(),
     } });
     mockIssuesApi.get.mockResolvedValue(issue);
-    mockIssuesApi.listComments.mockResolvedValue([{ id: "notice-inline", companyId: issue.companyId, issueId: issue.id, authorType: "system", body: "Unrelated prose", createdAt: new Date(), updatedAt: new Date(), metadata: { version: 1, sections: [], recovery: snapshot } }]);
+    mockIssuesApi.listComments.mockResolvedValue([{ id: "notice-inline", spaceId: issue.spaceId, issueId: issue.id, authorType: "system", body: "Unrelated prose", createdAt: new Date(), updatedAt: new Date(), metadata: { version: 1, sections: [], recovery: snapshot } }]);
     if (outcome === "pending question") mockIssuesApi.listInteractions.mockResolvedValue([{ id: "question-1", kind: "ask_user_questions", status: "pending", payload: { version: 1, questions: [] } }]);
     if (outcome.endsWith("plan")) {
       mockIssuesApi.getDocument.mockResolvedValue({
-        id: "plan-document", companyId: issue.companyId, issueId: issue.id, key: "plan", title: "Plan", format: "markdown", body: "# Current plan",
+        id: "plan-document", spaceId: issue.spaceId, issueId: issue.id, key: "plan", title: "Plan", format: "markdown", body: "# Current plan",
         latestRevisionId: "revision-4", latestRevisionNumber: 4,
         createdAt: new Date("2026-11-01T10:00:00Z"), updatedAt: new Date("2026-11-01T10:03:00Z"),
         createdByAgentId: "agent-1", createdByUserId: null, updatedByAgentId: "agent-1", updatedByUserId: null,
@@ -3940,7 +3940,7 @@ describe("IssueDetail", () => {
       const fixture = (await import("@/fixtures/issueThreadInteractionFixtures")).genericPendingRequestConfirmationInteraction;
       const revision = outcome === "outdated plan" ? 3 : 4;
       mockIssuesApi.listInteractions.mockResolvedValue([{
-        ...fixture, companyId: issue.companyId, issueId: issue.id, createdAt: new Date("2026-11-01T10:01:00Z"),
+        ...fixture, spaceId: issue.spaceId, issueId: issue.id, createdAt: new Date("2026-11-01T10:01:00Z"),
         payload: { version: 1, prompt: "Approve the plan?", target: { type: "issue_document", key: "plan", documentId: "plan-document", revisionId: `revision-${revision}`, revisionNumber: revision } },
       }]);
     }
@@ -3988,22 +3988,22 @@ describe("IssueDetail", () => {
     mockIssuesApi.archiveFromInbox.mockReturnValue(archiveRequest.promise);
 
     const mineKey = [
-      ...queryKeys.issues.listMineByMe("company-1"),
+      ...queryKeys.issues.listMineByMe("space-1"),
       "with-routine-executions",
       "live-descendant-summary",
     ] as const;
     const compactKey = [
-      ...queryKeys.issues.list("company-1"),
+      ...queryKeys.issues.list("space-1"),
       "compact",
       "with-routine-executions",
       "live-descendant-summary",
     ] as const;
     const touchedKey = [
-      ...queryKeys.issues.listTouchedByMe("company-1"),
+      ...queryKeys.issues.listTouchedByMe("space-1"),
       "with-routine-executions",
       "live-descendant-summary",
     ] as const;
-    const unreadKey = queryKeys.issues.listUnreadTouchedByMe("company-1");
+    const unreadKey = queryKeys.issues.listUnreadTouchedByMe("space-1");
     queryClient.setQueryData<Issue[]>(mineKey, [issue, otherIssue]);
     queryClient.setQueryData<Issue[]>(compactKey, [issue, otherIssue]);
     queryClient.setQueryData<Issue[]>(touchedKey, [issue, otherIssue]);
@@ -4129,7 +4129,7 @@ describe("IssueDetail", () => {
     );
 
     const mineKey = [
-      ...queryKeys.issues.listMineByMe("company-1"),
+      ...queryKeys.issues.listMineByMe("space-1"),
       "with-routine-executions",
       "live-descendant-summary",
     ] as const;
@@ -4709,18 +4709,18 @@ describe("IssueDetail", () => {
   });
 
   it.each(["missing_activity", "conflicting_activity"])(
-    "keeps the persisted authoring run for private Board replies: %s",
+    "keeps the persisted authoring run for private Operator replies: %s",
     async (mode) => {
       mockIssuesApi.get.mockResolvedValue(
         createIssue({ status: "in_progress" }),
       );
       mockIssuesApi.listComments.mockResolvedValue([
         createIssueComment({
-          id: "private-board-answer",
+          id: "private-operator-answer",
           authorType: "agent",
           authorAgentId: "agent-1",
           authorUserId: null,
-          createdByRunId: "run-private-board",
+          createdByRunId: "run-private-operator",
           body: "Object: lighthouse. Accent color: amber. Count: 63.",
         }),
         createIssueComment({
@@ -4730,7 +4730,7 @@ describe("IssueDetail", () => {
       ]);
       mockActivityApi.runsForIssue.mockResolvedValue([
         {
-          runId: "run-private-board",
+          runId: "run-private-operator",
           agentId: "agent-1",
           agentName: "Runner",
           adapterType: "outpost_runner",
@@ -4744,7 +4744,7 @@ describe("IssueDetail", () => {
             presentationDecision: {
               schema: "outpost.run_presentation_decision.v1",
               chosenSource: "existing_issue_comment",
-              commentId: "private-board-answer",
+              commentId: "private-operator-answer",
             },
           },
           logBytes: 1,
@@ -4757,7 +4757,7 @@ describe("IssueDetail", () => {
             runId: "run-other",
             agentId: "agent-other",
             details: {
-              commentId: "private-board-answer",
+              commentId: "private-operator-answer",
               interruptedRunId: "run-unrelated-interruption",
             },
           },
@@ -4776,11 +4776,11 @@ describe("IssueDetail", () => {
       expect(props.comments).toHaveLength(2);
       expect(
         props.comments?.find(
-          (comment) => comment.id === "private-board-answer",
+          (comment) => comment.id === "private-operator-answer",
         ),
       ).toMatchObject({
-        createdByRunId: "run-private-board",
-        runId: "run-private-board",
+        createdByRunId: "run-private-operator",
+        runId: "run-private-operator",
         runAgentId: "agent-1",
         interruptedRunId: null,
       });
@@ -4998,7 +4998,7 @@ describe("IssueDetail", () => {
     mockIssuesApi.listInteractions.mockResolvedValue([
       {
         id: "interaction-answers",
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         kind: "ask_user_questions",
         status: "answered",
@@ -5047,7 +5047,7 @@ describe("IssueDetail", () => {
     mockActivityApi.forIssue.mockResolvedValue([
       {
         id: "activity-answer-delivered",
-        companyId: "company-1",
+        spaceId: "space-1",
         actorType: "system",
         actorId: "question-response-delivery",
         agentId: null,
@@ -5133,7 +5133,7 @@ describe("IssueDetail", () => {
       mockIssuesApi.listInteractions.mockResolvedValue([
         {
           id: "interaction-plan",
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           kind: "request_confirmation",
           status: "accepted",
@@ -5762,8 +5762,8 @@ describe("IssueDetail", () => {
 
     expect(
       readRecentTasks(
-        getRecentTasksStorageKey("company-1", null),
-        "company-1",
+        getRecentTasksStorageKey("space-1", null),
+        "space-1",
       )[0],
     ).toMatchObject({
       id: "issue-1",
@@ -6008,7 +6008,7 @@ describe("IssueDetail", () => {
 
       mockIssuesApi.get.mockResolvedValue(createIssue());
       mockIssuesApi.list.mockImplementation(
-        (_companyId, filters?: { descendantOf?: string }) =>
+        (_spaceId, filters?: { descendantOf?: string }) =>
           Promise.resolve(
             filters?.descendantOf === "issue-1" ? [childIssue] : [],
           ),
@@ -6124,7 +6124,7 @@ describe("IssueDetail", () => {
 
     mockIssuesApi.get.mockResolvedValue(createIssue());
     mockIssuesApi.list.mockImplementation(
-      (_companyId, filters?: { descendantOf?: string }) =>
+      (_spaceId, filters?: { descendantOf?: string }) =>
         Promise.resolve(
           filters?.descendantOf === "issue-1" ? [childIssue] : [],
         ),
@@ -6191,7 +6191,7 @@ describe("IssueDetail", () => {
     await act(async () => { renderIssueView(); });
     await waitForAssertion(() => expect(mockIssueChatThreadRender.mock.calls.at(-1)?.[0]).toMatchObject({ stopRunLabel: "Stop Outpost work" }));
     await act(async () => { await mockIssueChatThreadRender.mock.calls.at(-1)![0].onStopRun("run-queued-2"); });
-    expect(mockGrokBotApi.stop).toHaveBeenCalledExactlyOnceWith("company-1", "agent-2", "run-queued-2");
+    expect(mockGrokBotApi.stop).toHaveBeenCalledExactlyOnceWith("space-1", "agent-2", "run-queued-2");
     expect(mockHeartbeatsApi.cancel).not.toHaveBeenCalled();
   });
 
@@ -6331,9 +6331,9 @@ describe("IssueDetail", () => {
     mockIssuesApi.update.mockClear();
     mockAuthApi.getSession.mockResolvedValue({ session: { userId: "user-1" }, user: { id: "user-1" } });
     mockHeartbeatsApi.cancel.mockReset().mockResolvedValue({
-      id: "run-active-1", companyId: "company-1", runtimeMode: "native", status: "cancelled",
+      id: "run-active-1", spaceId: "space-1", runtimeMode: "native", status: "cancelled",
       resultJson: { nativeCancellation: {
-        schema: "outpost.native-cancellation.v1", runId: "run-active-1", companyId: "company-1",
+        schema: "outpost.native-cancellation.v1", runId: "run-active-1", spaceId: "space-1",
         scope: "run", dispatchState: "acknowledged",
       } },
     });
@@ -6500,7 +6500,7 @@ describe("IssueDetail", () => {
   it("reports the selected continuation action after rejecting completion", async () => {
     const pendingInteraction = {
       id: "interaction-continue",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "request_confirmation",
       title: "Review completion",
@@ -6513,8 +6513,8 @@ describe("IssueDetail", () => {
       resolverPolicyProvenance: "explicit",
       effectiveResolverPolicySource: "requested",
       legacyResolverPolicyAliases: {
-        requested: "board_only",
-        effective: "board_only",
+        requested: "operator_only",
+        effective: "operator_only",
       },
       createdByAgentId: "agent-1",
       createdByUserId: null,
@@ -6582,7 +6582,7 @@ describe("IssueDetail", () => {
 
   it("falls back to execCommand when copying the task from an insecure context", async () => {
     const clipboardWrite = vi.fn(async () => {
-      throw new Error("Clipboard API blocked");
+      throw new Error("Clipoperator API blocked");
     });
     const execCommand = vi.fn(() => true);
     const originalClipboard = Object.getOwnPropertyDescriptor(
@@ -6679,7 +6679,7 @@ describe("IssueDetail", () => {
     mockIssuesApi.listInteractions.mockResolvedValue([
       {
         id: "classic-question",
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         kind: "ask_user_questions",
         status: "answered",
@@ -6785,7 +6785,7 @@ describe("IssueDetail", () => {
       title: "Mentionable task",
     };
     mockIssuesApi.list.mockImplementation(
-      (_companyId: string, filters?: { sortField?: string }) =>
+      (_spaceId: string, filters?: { sortField?: string }) =>
         Promise.resolve(
           filters?.sortField === "updated" ? [mentionPoolIssue] : [],
         ),
@@ -6806,7 +6806,7 @@ describe("IssueDetail", () => {
       );
     });
     expect(mockIssuesApi.list).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({ sortField: "updated" }),
     );
   });
@@ -6828,7 +6828,7 @@ describe("IssueDetail", () => {
       },
     ]);
     localStorage.setItem(
-      "paperclip:issue-comment-draft:issue-1",
+      "outpost:issue-comment-draft:issue-1",
       "Draft follow-up message",
     );
     mockIssuesApi.update.mockResolvedValue(
@@ -6854,10 +6854,10 @@ describe("IssueDetail", () => {
     expect(mockIssuesApi.update).toHaveBeenCalledWith(issue.identifier, {
       workMode: "ask",
     });
-    expect(localStorage.getItem("paperclip:issue-comment-draft:issue-1")).toBe(
+    expect(localStorage.getItem("outpost:issue-comment-draft:issue-1")).toBe(
       "Draft follow-up message",
     );
-    localStorage.removeItem("paperclip:issue-comment-draft:issue-1");
+    localStorage.removeItem("outpost:issue-comment-draft:issue-1");
   });
 
   describe.each([false, true])("composer tree control (mobile=%s)", (isMobile) => {
@@ -7061,7 +7061,7 @@ describe("IssueDetail", () => {
 
     mockIssuesApi.get.mockResolvedValue(createIssue());
     mockIssuesApi.list.mockImplementation(
-      (_companyId, filters?: { descendantOf?: string }) =>
+      (_spaceId, filters?: { descendantOf?: string }) =>
         Promise.resolve(
           filters?.descendantOf === "issue-1" ? [childIssue] : [],
         ),
@@ -7145,7 +7145,7 @@ describe("IssueDetail", () => {
 
     mockIssuesApi.get.mockResolvedValue(createIssue());
     mockIssuesApi.list.mockImplementation(
-      (_companyId, filters?: { descendantOf?: string }) =>
+      (_spaceId, filters?: { descendantOf?: string }) =>
         Promise.resolve(
           filters?.descendantOf === "issue-1" ? [childIssue] : [],
         ),
@@ -7442,7 +7442,7 @@ describe("IssueDetail", () => {
     releaseActivity([
       {
         id: "activity-steer-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         action: "issue.queued_comment_steered",
         createdAt: new Date("2026-04-21T00:00:06.000Z"),
@@ -7857,10 +7857,10 @@ describe("IssueDetail", () => {
 });
 
 describe("canBoardResolveRecoveryAction", () => {
-  it("falls back to companyIds when memberships are not populated", () => {
+  it("falls back to spaceIds when memberships are not populated", () => {
     expect(
-      canBoardResolveRecoveryAction("company-1", {
-        companyIds: ["company-1"],
+      canBoardResolveRecoveryAction("space-1", {
+        spaceIds: ["space-1"],
         memberships: [],
         isInstanceAdmin: false,
         source: "session",
@@ -7871,13 +7871,13 @@ describe("canBoardResolveRecoveryAction", () => {
     ).toBe(true);
   });
 
-  it("uses populated memberships as the authoritative board access source", () => {
+  it("uses populated memberships as the authoritative operator access source", () => {
     expect(
-      canBoardResolveRecoveryAction("company-1", {
-        companyIds: ["company-1"],
+      canBoardResolveRecoveryAction("space-1", {
+        spaceIds: ["space-1"],
         memberships: [
           {
-            companyId: "company-1",
+            spaceId: "space-1",
             membershipRole: "viewer",
             status: "active",
           },
@@ -7893,10 +7893,10 @@ describe("canBoardResolveRecoveryAction", () => {
 });
 
 describe("canBoardManageRuntime", () => {
-  it("falls back to companyIds when memberships are not populated", () => {
+  it("falls back to spaceIds when memberships are not populated", () => {
     expect(
-      canBoardManageRuntime("company-1", {
-        companyIds: ["company-1"],
+      canBoardManageRuntime("space-1", {
+        spaceIds: ["space-1"],
         memberships: [],
         isInstanceAdmin: false,
         source: "session",
@@ -7909,11 +7909,11 @@ describe("canBoardManageRuntime", () => {
 
   it("denies viewers the runtime-manage-gated break-glass affordance", () => {
     expect(
-      canBoardManageRuntime("company-1", {
-        companyIds: ["company-1"],
+      canBoardManageRuntime("space-1", {
+        spaceIds: ["space-1"],
         memberships: [
           {
-            companyId: "company-1",
+            spaceId: "space-1",
             membershipRole: "viewer",
             status: "active",
           },
@@ -7929,11 +7929,11 @@ describe("canBoardManageRuntime", () => {
 
   it("allows non-viewer active members (mirrors the backend runtime:manage member gate)", () => {
     expect(
-      canBoardManageRuntime("company-1", {
-        companyIds: ["company-1"],
+      canBoardManageRuntime("space-1", {
+        spaceIds: ["space-1"],
         memberships: [
           {
-            companyId: "company-1",
+            spaceId: "space-1",
             membershipRole: "operator",
             status: "active",
           },

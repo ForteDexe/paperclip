@@ -28,7 +28,7 @@ import { remainingIdentityObservationBudget, waitForReply } from "./identity-sup
 import type { Entity } from "./internal-support.js";
 interface Resource {
   id: string;
-  companyId: string;
+  spaceId: string;
   name?: string;
   status?: string;
   urlKey?: string;
@@ -42,7 +42,7 @@ export interface TeamResourceSnapshot {
 export function catalogTeamProvenance(agent: Agent) {
   return (
     agent.metadata as {
-      paperclip?: {
+      outpost?: {
         catalogTeam?: {
           catalogId?: string;
           originHash?: string;
@@ -50,7 +50,7 @@ export function catalogTeamProvenance(agent: Agent) {
         };
       };
     } | null
-  )?.paperclip?.catalogTeam;
+  )?.outpost?.catalogTeam;
 }
 export function catalogTeamMembers(
   snapshot: TeamResourceSnapshot,
@@ -68,7 +68,7 @@ export function selectedTeamInstallRuntime(ctx: ChatCatalogContext, actor: Agent
   const ref = ctx.input.fixtures.secretRefs.OPENROUTER_API_KEY;
   const bound = (config.env as Record<string, unknown> | undefined)?.OPENROUTER_API_KEY as SecretReference | undefined;
   if (profile.id !== CHAT_OPENCODE_PROFILE || profile.provider !== "opencode" || profile.model !== CHAT_OPENCODE_MODEL || profile.credential !== "OPENROUTER_API_KEY"
-    || actor.companyId !== ctx.input.fixtures.company.id || actor.adapterType !== "outpost_runner" || config.provider !== "opencode" || config.model !== CHAT_OPENCODE_MODEL || config.timeoutSec !== 0
+    || actor.spaceId !== ctx.input.fixtures.space.id || actor.adapterType !== "outpost_runner" || config.provider !== "opencode" || config.model !== CHAT_OPENCODE_MODEL || config.timeoutSec !== 0
     || !ref || ref.type !== "secret_ref" || !ref.secretId || ref.version !== "latest" || Object.keys(ref).sort().join() !== "secretId,type,version"
     || bound?.type !== ref.type || bound.secretId !== ref.secretId || bound.version !== ref.version)
     throw new Error("Selected team installer must use its actual configured OpenCode OpenRouter1017 account");
@@ -77,18 +77,18 @@ export function selectedTeamInstallRuntime(ctx: ChatCatalogContext, actor: Agent
 export function teamInstallOverrides(team: Pick<CatalogTeam, "agentSlugs">, runtime: TeamInstallRuntime) {
   return Object.fromEntries(team.agentSlugs.map(slug => [slug, { adapterType: runtime.adapterType, adapterConfig: { provider: runtime.provider, model: runtime.model, timeoutSec: 0, lifecycleMode: "per_turn", opencodePermissionMode: "allow", env: { OPENROUTER_API_KEY: runtime.accountRef } } }]));
 }
-export function teamMemberRuntimeMatches(agent: Agent, expected: TeamInstallRuntime, companyId: string) {
+export function teamMemberRuntimeMatches(agent: Agent, expected: TeamInstallRuntime, spaceId: string) {
   const config = agent.adapterConfig, ref = (config?.env as Record<string, unknown> | undefined)?.OPENROUTER_API_KEY as SecretReference | undefined;
   return expected?.profileId === CHAT_OPENCODE_PROFILE && expected.adapterType === "outpost_runner" && expected.provider === "opencode" && expected.model === CHAT_OPENCODE_MODEL
     && expected.accountRef?.type === "secret_ref" && !!expected.accountRef.secretId && expected.accountRef.version === "latest"
-    && agent.companyId === companyId && agent.adapterType === expected.adapterType && config?.provider === expected.provider && config.model === expected.model && config.timeoutSec === 0
+    && agent.spaceId === spaceId && agent.adapterType === expected.adapterType && config?.provider === expected.provider && config.model === expected.model && config.timeoutSec === 0
     && ref?.type === "secret_ref" && ref.secretId === expected.accountRef.secretId && ref.version === "latest";
 }
 export async function verifyInstalledTeamRuntime(ctx: ChatCatalogContext, team: CatalogTeam, first: TeamResourceSnapshot, runtime: TeamInstallRuntime) {
   const members = catalogTeamMembers(first, team.id);
   if (members.length !== team.agentSlugs.length) throw new Error("Installed team runtime readback requires the complete actual package");
   const saved = await Promise.all(members.map(member => ctx.input.api.get<Agent>(`/api/agents/${member.id}`)));
-  if (JSON.stringify(ids(saved)) !== JSON.stringify(ids(members)) || saved.some(member => !teamMemberRuntimeMatches(member, runtime, ctx.input.fixtures.company.id))) throw new Error("Actual saved installed-member runtime differs from selected OpenCode1017");
+  if (JSON.stringify(ids(saved)) !== JSON.stringify(ids(members)) || saved.some(member => !teamMemberRuntimeMatches(member, runtime, ctx.input.fixtures.space.id))) throw new Error("Actual saved installed-member runtime differs from selected OpenCode1017");
   const memberIds = new Set(members.map(member => member.id));
   if ((await ctx.allRuns()).some(run => memberIds.has(run.agentId) && !!run.startedAt)) throw new Error("Imported member work started before independent runtime readback");
   return { memberIds: saved.map(member => member.id).sort(), provider: runtime.provider, model: runtime.model, verifiedBeforeImportedWork: true };
@@ -163,19 +163,19 @@ export function gradeTeamInstall(value: unknown) {
       members.length === team.agentSlugs.length &&
       members.every(
         (agent) =>
-          agent.companyId === o.companyId &&
+          agent.spaceId === o.spaceId &&
           catalogTeamProvenance(agent)?.originHash === team.contentHash,
       ) &&
       new Set(members.map((agent) => agent.urlKey)).size === members.length &&
       after.agents.length - before.agents.length === team.counts.agents,
-    "Exactly the package's agents exist in this company with immutable catalog provenance; no unrelated or duplicate hires satisfy the count.",
+    "Exactly the package's agents exist in this space with immutable catalog provenance; no unrelated or duplicate hires satisfy the count.",
   );
   const runtime = o.state.selectedRuntime as TeamInstallRuntime, runtimeReadback = o.state.runtimeReadback as { memberIds?: string[]; provider?: string; model?: string; verifiedBeforeImportedWork?: boolean } | undefined;
   c.add("selected-runtime-preserved-for-every-installed-member", !!runtime && !!first && !!after && !!team
     && runtimeReadback?.verifiedBeforeImportedWork === true && runtimeReadback.provider === runtime.provider && runtimeReadback.model === runtime.model && JSON.stringify(runtimeReadback.memberIds) === JSON.stringify(ids(members))
-    && catalogTeamMembers(first, team.id).length === team.agentSlugs.length && catalogTeamMembers(first, team.id).every(member => teamMemberRuntimeMatches(member, runtime, o.companyId))
-    && members.every(member => teamMemberRuntimeMatches(member, runtime, o.companyId)),
-  "Every actual imported member retains the selected OpenCode/OpenRouter1017 and exact existing company account reference; public saved configuration is independently read before any imported work.");
+    && catalogTeamMembers(first, team.id).length === team.agentSlugs.length && catalogTeamMembers(first, team.id).every(member => teamMemberRuntimeMatches(member, runtime, o.spaceId))
+    && members.every(member => teamMemberRuntimeMatches(member, runtime, o.spaceId)),
+  "Every actual imported member retains the selected OpenCode/OpenRouter1017 and exact existing space account reference; public saved configuration is independently read before any imported work.");
   c.add(
     "intended-project-and-routine-resources",
     !!team &&
@@ -183,21 +183,21 @@ export function gradeTeamInstall(value: unknown) {
       !!before &&
       after.projects.length - before.projects.length === team.counts.projects &&
       after.routines.length - before.routines.length === team.counts.routines &&
-      after.projects.every((project) => project.companyId === o.companyId) &&
+      after.projects.every((project) => project.spaceId === o.spaceId) &&
       after.installed.some(
         (row) =>
           row.catalogId === team.id &&
           row.agentCount === team.counts.agents &&
           !row.outOfDate,
       ),
-    "Actual project/routine deltas and the server-computed installed-team state agree with the preview in the active company.",
+    "Actual project/routine deltas and the server-computed installed-team state agree with the preview in the active space.",
   );
   c.add(
     "actual-agent-installation-attribution",
     !!team &&
       o.activity.some(
         (row) =>
-          row.action === "company.team_catalog_installed" &&
+          row.action === "space.team_catalog_installed" &&
           row.actorType === "agent" &&
           row.agentId === o.leadId,
       ),
@@ -238,7 +238,7 @@ export function gradeTeamInstall(value: unknown) {
         hasResourceLink(
           o.links,
           o.origin,
-          o.state.companyPrefix,
+          o.state.spacePrefix,
           "agents",
           agent,
         ),
@@ -253,7 +253,7 @@ export function gradeTeamInstall(value: unknown) {
           hasResourceLink(
             o.links,
             o.origin,
-            o.state.companyPrefix,
+            o.state.spacePrefix,
             "projects",
             project,
           ),
@@ -280,7 +280,7 @@ export const teamInstallExternalCases = [
           "Setup blocker: real compatible Product Engineering team catalog package is unavailable",
         );
       const beforePermissions = await ctx.input.api.get<AgentDetail>(`/api/agents/${ctx.input.fixtures.agent.id}`);
-      if (beforePermissions.id !== ctx.input.fixtures.agent.id || beforePermissions.companyId !== ctx.input.fixtures.company.id || beforePermissions.role !== "ceo" || typeof beforePermissions.access?.canAssignTasks !== "boolean") throw new Error("Team fixture requires the independently observed installer identity and assignment authority");
+      if (beforePermissions.id !== ctx.input.fixtures.agent.id || beforePermissions.spaceId !== ctx.input.fixtures.space.id || beforePermissions.role !== "ceo" || typeof beforePermissions.access?.canAssignTasks !== "boolean") throw new Error("Team fixture requires the independently observed installer identity and assignment authority");
       await ctx.input.api.patch(
         `/api/agents/${ctx.input.fixtures.agent.id}/permissions`,
         { canCreateAgents: true, canAssignTasks: beforePermissions.access.canAssignTasks },
@@ -316,12 +316,12 @@ export const teamInstallExternalCases = [
       const before = await observeTeamResources(ctx);
       if (catalogTeamMembers(before, team.id).length)
         throw new Error(
-          "Setup blocker: the selected team is already installed in this disposable company",
+          "Setup blocker: the selected team is already installed in this disposable space",
         );
       await ctx.input.api.post(`${root(ctx)}/chats/${actor.id}`);
       await ctx.refreshIssue();
       await ctx.input.api.patch(`/api/issues/${ctx.issue()!.id}`, {
-        description: `The accepted website team preview is ${team.name}, catalog key ${team.key}, content hash ${team.contentHash}. Install the complete selected package under the current CEO using this company's existing eligible runtime account. No team resource is installed yet. This disposable catalog package already selects OpenCode/OpenRouter ${selectedRuntime.model}; its credential stays in the existing same-company secret reference.`,
+        description: `The accepted website team preview is ${team.name}, catalog key ${team.key}, content hash ${team.contentHash}. Install the complete selected package under the current CEO using this space's existing eligible runtime account. No team resource is installed yet. This disposable catalog package already selects OpenCode/OpenRouter ${selectedRuntime.model}; its credential stays in the existing same-space secret reference.`,
       });
       const session = await ctx.input.api.get<{ user: { id: string } }>("/api/auth/get-session");
       if (!session.user?.id) throw new Error("Team installer requires its actual responsible human session");
@@ -333,7 +333,7 @@ export const teamInstallExternalCases = [
         catalogRuntime,
         team,
         before,
-        companyPrefix: ctx.input.fixtures.company.issuePrefix,
+        spacePrefix: ctx.input.fixtures.space.issuePrefix,
         previewAccepted: true,
         previewErrorCount:
           preview.errors.length + preview.portabilityPreview.errors.length,
@@ -356,8 +356,8 @@ export const teamInstallExternalCases = [
         "server.ts",
         "../../packages/teams-catalog/src/catalog-builder.ts",
         "../../server/src/services/teams-catalog.ts",
-        "../../server/src/services/company-skills.ts",
-        "../../server/src/services/company-portability.ts",
+        "../../server/src/services/space-skills.ts",
+        "../../server/src/services/space-portability.ts",
         "../../packages/teams-catalog/generated/catalog.json",
         "chat-catalog-domains/external-support.ts",
         "chat-catalog-domains/internal-support.ts",
@@ -369,23 +369,23 @@ export const teamInstallExternalCases = [
         const remaining = () => remainingIdentityObservationBudget(ctx);
         remaining(); await waitForReply(ctx, ctx.observationDeadlineAt); remaining();
         const source = ctx.issue();
-        if (!source || source.id !== state.sourceIssueId || source.companyId !== ctx.input.fixtures.company.id)
+        if (!source || source.id !== state.sourceIssueId || source.spaceId !== ctx.input.fixtures.space.id)
           throw new Error("Team install initial response has the wrong conversation source");
         const [runs, comments] = await Promise.all([
           ctx.allRuns(), ctx.input.api.get<Entity[]>(`/api/issues/${source.id}/comments?order=asc`, { timeout: remaining() }),
         ]);
         remaining();
-        const human = comments.filter(row => row.companyId === source.companyId && row.issueId === source.id
+        const human = comments.filter(row => row.spaceId === source.spaceId && row.issueId === source.id
           && row.authorUserId === state.humanId && !row.authorAgentId && !row.createdByRunId
           && row.body?.trim() === ctx.scenario.query.trim());
         const run = runs[0];
         if (ctx.issue()?.id !== source.id || source.conversationState !== "waiting" || runs.length !== 1 || !run
-          || run.companyId !== source.companyId || run.agentId !== ctx.input.fixtures.agent.id || run.status !== "succeeded"
+          || run.spaceId !== source.spaceId || run.agentId !== ctx.input.fixtures.agent.id || run.status !== "succeeded"
           || run.runtimeMode !== "native" || run.contextSnapshot?.issueId !== source.id || human.length !== 1
           || run.contextSnapshot?.commentId !== human[0]?.id
           || (run.contextSnapshot.taskId !== undefined && run.contextSnapshot.taskId !== source.id)
           || (run.nativeIssueId != null && run.nativeIssueId !== source.id)
-          || !comments.some(row => row.companyId === source.companyId && row.issueId === source.id
+          || !comments.some(row => row.spaceId === source.spaceId && row.issueId === source.id
             && row.authorAgentId === run.agentId && row.createdByRunId === run.id && !!row.body?.trim()))
           throw new Error("Team install initial reply is not bound to its canonical human and native request");
         state.first = await observeTeamResources(ctx);
@@ -423,7 +423,7 @@ export const teamInstallExternalCases = [
             hasResourceLink(
               [link],
               o.origin,
-              state.companyPrefix,
+              state.spacePrefix,
               "agents",
               member,
             ),
@@ -446,7 +446,7 @@ export const teamInstallExternalCases = [
             hasResourceLink(
               [link],
               o.origin,
-              state.companyPrefix,
+              state.spacePrefix,
               "projects",
               project,
             ),
@@ -471,7 +471,7 @@ export const teamInstallExternalCases = [
             await ctx.input.api.patch(`/api/routines/${routine.id}`, {
               status: "paused",
             });
-        // Complete disposable-company teardown removes imported graph/provenance.
+        // Complete disposable-space teardown removes imported graph/provenance.
       },
     },
   ),

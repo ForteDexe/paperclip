@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   environments,
   instanceSettings,
@@ -68,7 +68,7 @@ const support = await getEmbeddedPostgresTestSupport();
   };
 
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-managed-plugin-environment-rows-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-managed-plugin-environment-rows-");
     db = createDb(database.connectionString);
   }, 90_000);
   afterAll(async () => { await database?.cleanup(); });
@@ -81,7 +81,7 @@ const support = await getEmbeddedPostgresTestSupport();
     await db.delete(instanceSettings);
     await db.delete(environments);
     await db.delete(plugins);
-    await db.delete(companies);
+    await db.delete(spaces);
     pluginId = randomUUID();
     await db.insert(plugins).values({
       id: pluginId,
@@ -108,14 +108,14 @@ const support = await getEmbeddedPostgresTestSupport();
       ...overrides,
     });
   const pluginRows = () => db.select().from(environments).where(eq(environments.driver, "plugin"));
-  const company = async () => {
+  const space = async () => {
     const id = randomUUID();
-    await db.insert(companies).values({ id, name: "Managed", issuePrefix: `M${id.slice(0, 7)}` });
+    await db.insert(spaces).values({ id, name: "Managed", issuePrefix: `M${id.slice(0, 7)}` });
     return id;
   };
 
   it("creates the marked row through the plugin validator, then changes nothing", async () => {
-    await company();
+    await space();
     const first = await ensure();
     expect(first.action).toBe("added");
     expect(first.environment).toMatchObject({
@@ -124,7 +124,7 @@ const support = await getEmbeddedPostgresTestSupport();
       driver: "plugin",
       status: "active",
       config: { pluginKey: PLUGIN_KEY, driverKey: "tasks", driverConfig: { normalized: true } },
-      metadata: { managedByPaperclip: true, managedPluginEnvironment: MARKER },
+      metadata: { managedByOutpost: true, managedPluginEnvironment: MARKER },
     });
     expect(call).toHaveBeenCalledWith(pluginId, "environmentValidateConfig", { driverKey: "tasks", config: {} });
     expect(await db.select().from(activityLog)).toHaveLength(1);
@@ -138,7 +138,7 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("adopts a hand-made row for the same plugin and driver, keeping its agents", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     const [handMade] = await db.insert(environments).values({
       name: "Remote Host (manual)",
       driver: "plugin",
@@ -147,7 +147,7 @@ const support = await getEmbeddedPostgresTestSupport();
       metadata: { note: "made by hand" },
     }).returning();
     const agentId = randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId, name: "Agent", adapterType: "process", defaultEnvironmentId: handMade!.id });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Agent", adapterType: "process", defaultEnvironmentId: handMade!.id });
 
     const result = await ensure();
     const rows = await pluginRows();
@@ -156,7 +156,7 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(rows[0]).toMatchObject({
       id: handMade!.id,
       name: "Remote Host",
-      metadata: { note: "made by hand", managedByPaperclip: true, managedPluginEnvironment: MARKER },
+      metadata: { note: "made by hand", managedByOutpost: true, managedPluginEnvironment: MARKER },
     });
     const [kept] = await db.select().from(agents).where(eq(agents.id, agentId));
     expect(kept!.defaultEnvironmentId).toBe(handMade!.id);
@@ -166,7 +166,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const first = await ensure();
     // What the route's marker-clear request stores.
     await db.update(environments)
-      .set({ metadata: { managedByPaperclip: null, managedPluginEnvironment: null } })
+      .set({ metadata: { managedByOutpost: null, managedPluginEnvironment: null } })
       .where(eq(environments.id, first.environment.id));
 
     const again = await ensure();
@@ -230,7 +230,7 @@ const support = await getEmbeddedPostgresTestSupport();
       const first = await boot();
       expect(first).toMatchObject({ ensured: 1, added: 1, failed: 0 });
       const [row] = await pluginRows();
-      expect(row).toMatchObject({ name: "Remote Host", status: "active", metadata: { managedByPaperclip: true, managedPluginEnvironment: MARKER } });
+      expect(row).toMatchObject({ name: "Remote Host", status: "active", metadata: { managedByOutpost: true, managedPluginEnvironment: MARKER } });
 
       const second = await boot();
       expect(second).toMatchObject({ ensured: 1, added: 0, unchanged: 1 });
@@ -272,14 +272,14 @@ const support = await getEmbeddedPostgresTestSupport();
     const sandboxRow = async () => {
       const [row] = await db.insert(environments).values({
         name: "Managed Sandbox", driver: "sandbox", status: "active", config: { provider: "daytona" },
-        metadata: { managedByPaperclip: true, managedSandboxProvider: "daytona" },
+        metadata: { managedByOutpost: true, managedSandboxProvider: "daytona" },
       }).returning();
       return row!.id;
     };
-    const agent = async (companyId: string, defaultEnvironmentId: string | null,
+    const agent = async (spaceId: string, defaultEnvironmentId: string | null,
       lifecycle: Partial<Pick<typeof agents.$inferInsert, "lifecycleState" | "lifecycleRequiredPluginIds">> = {}) => {
       const id = randomUUID();
-      await db.insert(agents).values({ id, companyId, name: `Agent ${id}`, adapterType: "process", defaultEnvironmentId, ...lifecycle });
+      await db.insert(agents).values({ id, spaceId, name: `Agent ${id}`, adapterType: "process", defaultEnvironmentId, ...lifecycle });
       return id;
     };
 
@@ -292,7 +292,7 @@ const support = await getEmbeddedPostgresTestSupport();
     it("keeps an existing instance's default, which the managed sandbox already filled", async () => {
       const sandboxId = await sandboxRow();
       await setInstanceDefault(sandboxId);
-      await agent(await company(), null);
+      await agent(await space(), null);
       await boot();
       await boot();
       expect(await instanceDefault()).toBe(sandboxId);
@@ -323,7 +323,7 @@ const support = await getEmbeddedPostgresTestSupport();
 
     it("declines an admin-cleared default while an active agent that follows it lacks the plugin's setup", async () => {
       await setInstanceDefault(null);
-      await agent(await company(), null);
+      await agent(await space(), null);
       await boot();
       expect(await instanceDefault()).toBeNull();
       // The same boot's managed sandbox fill still fills it.
@@ -335,17 +335,17 @@ const support = await getEmbeddedPostgresTestSupport();
     it("declines a local default the same way", async () => {
       const [local] = await db.insert(environments).values({ name: "Local", driver: "local", status: "active", config: {} }).returning();
       await setInstanceDefault(local!.id);
-      await agent(await company(), null, { lifecycleState: "verifying" });
+      await agent(await space(), null, { lifecycleState: "verifying" });
       await boot();
       expect(await instanceDefault()).toBe(local!.id);
     });
 
     it("fills when no active agent following the default needs the plugin's setup", async () => {
-      const companyId = await company();
+      const spaceId = await space();
       const sandboxId = await sandboxRow();
-      await agent(companyId, null, { lifecycleState: "paused" });
-      await agent(companyId, null, { lifecycleRequiredPluginIds: [pluginId] });
-      await agent(companyId, sandboxId);
+      await agent(spaceId, null, { lifecycleState: "paused" });
+      await agent(spaceId, null, { lifecycleRequiredPluginIds: [pluginId] });
+      await agent(spaceId, sandboxId);
       await setInstanceDefault(null);
       await boot();
       const [row] = await pluginRows();
@@ -360,12 +360,12 @@ const support = await getEmbeddedPostgresTestSupport();
     it("prepares a new agent that follows the default with the plugin, and one set to the sandbox without it", async () => {
       await boot();
       const sandboxId = await sandboxRow();
-      const companyId = await company();
+      const spaceId = await space();
       const selection = async (id: string) =>
         createLifecycleDriver(db, { call } as never)
           .requiredPluginIds((await createLifecycleStore(db, createAgentLifecycleEffects()).get(id))!);
-      expect(await selection(await agent(companyId, null))).toEqual([pluginId]);
-      expect(await selection(await agent(companyId, sandboxId))).toEqual([]);
+      expect(await selection(await agent(spaceId, null))).toEqual([pluginId]);
+      expect(await selection(await agent(spaceId, sandboxId))).toEqual([]);
     });
   });
 });

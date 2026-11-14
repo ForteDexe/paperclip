@@ -58,7 +58,7 @@ async function syncLockedRoutineRunStatusForIssue(executor: Db, issueId: string)
   const issue = await executor
     .select({
       id: issues.id,
-      companyId: issues.companyId,
+      spaceId: issues.spaceId,
       status: issues.status,
       originKind: issues.originKind,
       originRunId: issues.originRunId,
@@ -77,8 +77,8 @@ async function syncLockedRoutineRunStatusForIssue(executor: Db, issueId: string)
       completedAt: routineRuns.completedAt,
     })
     .from(routineRuns)
-    .innerJoin(routines, and(eq(routines.id, routineRuns.routineId), eq(routines.companyId, issue.companyId)))
-    .where(and(eq(routineRuns.id, issue.originRunId), eq(routineRuns.companyId, issue.companyId),
+    .innerJoin(routines, and(eq(routines.id, routineRuns.routineId), eq(routines.spaceId, issue.spaceId)))
+    .where(and(eq(routineRuns.id, issue.originRunId), eq(routineRuns.spaceId, issue.spaceId),
       eq(routineRuns.linkedIssueId, issue.id)))
     .for("update", { of: routineRuns })
     .then((rows) => rows[0] ?? null);
@@ -166,15 +166,15 @@ export function routineExecutionStatusDebtCondition() {
 
 export function routineExecutionStatusService(db: Db) {
   async function load(scope?: RoutineExecutionStatusScope, afterId?: string) {
-    return db.select({ id: routineRuns.id, companyId: routineRuns.companyId,
+    return db.select({ id: routineRuns.id, spaceId: routineRuns.spaceId,
       issueId: issues.id, routineId: routineRuns.routineId })
       .from(routineRuns)
-      .innerJoin(routines, and(eq(routines.id, routineRuns.routineId), eq(routines.companyId, routineRuns.companyId)))
-      .innerJoin(issues, and(eq(issues.id, routineRuns.linkedIssueId), eq(issues.companyId, routineRuns.companyId),
+      .innerJoin(routines, and(eq(routines.id, routineRuns.routineId), eq(routines.spaceId, routineRuns.spaceId)))
+      .innerJoin(issues, and(eq(issues.id, routineRuns.linkedIssueId), eq(issues.spaceId, routineRuns.spaceId),
         eq(issues.originKind, "routine_execution"), sql`${issues.originRunId} = ${routineRuns.id}::text`))
       .where(and(routineExecutionStatusDebtCondition(),
         ...(scope?.issueId ? [eq(issues.id, scope.issueId)] : []),
-        ...(scope?.companyId ? [eq(routineRuns.companyId, scope.companyId)] : []),
+        ...(scope?.spaceId ? [eq(routineRuns.spaceId, scope.spaceId)] : []),
         ...(afterId ? [sql`${routineRuns.id} > ${afterId}::uuid`] : [])))
       .orderBy(routineRuns.id).limit(ROUTINE_EXECUTION_STATUS_PAGE_SIZE);
   }
@@ -183,15 +183,15 @@ export function routineExecutionStatusService(db: Db) {
       await tx.execute(sql`SET LOCAL lock_timeout = '500ms'`);
       await tx.execute(sql`SET LOCAL statement_timeout = '5s'`);
       const [routine] = await tx.select({ id: routines.id }).from(routines).where(and(
-        eq(routines.id, candidate.routineId), eq(routines.companyId, candidate.companyId))).for("share");
+        eq(routines.id, candidate.routineId), eq(routines.spaceId, candidate.spaceId))).for("share");
       if (!routine) return false;
       const [issue] = await tx.select().from(issues).where(and(eq(issues.id, candidate.issueId),
-        eq(issues.companyId, candidate.companyId), eq(issues.originKind, "routine_execution"),
+        eq(issues.spaceId, candidate.spaceId), eq(issues.originKind, "routine_execution"),
         eq(issues.originRunId, candidate.id))).for("update");
       if (!issue) return false;
       const [run] = await tx.select({ id: routineRuns.id }).from(routineRuns)
         .innerJoin(issues, eq(issues.id, routineRuns.linkedIssueId))
-        .where(and(eq(routineRuns.id, candidate.id), eq(routineRuns.companyId, candidate.companyId),
+        .where(and(eq(routineRuns.id, candidate.id), eq(routineRuns.spaceId, candidate.spaceId),
           eq(routineRuns.routineId, candidate.routineId), eq(routineRuns.linkedIssueId, issue.id),
           routineExecutionStatusDebtCondition())).for("update", { of: routineRuns });
       if (!run) return false;

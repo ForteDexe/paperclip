@@ -1,9 +1,9 @@
 {
   "app": {
-    "noCompanies": {
+    "noSpaces": {
       "title": "Opret din første virksomhed",
       "description": "Kom i gang ved at oprette en virksomhed.",
-      "newCompany": "Ny virksomhed"
+      "newSpace": "Ny virksomhed"
     }
   }
 }

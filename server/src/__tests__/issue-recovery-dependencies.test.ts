@@ -11,10 +11,10 @@ describeIssueRecovery("issue recovery production producers and dependencies", ()
   it.each(["startup", "committed"])("restores blocker-only and completed-action debt with no assignment candidates (%s)", async mode => {
     const f = await fixture();
     if (mode === "committed") { await start(); await quiet(); }
-    const blocker = await issueService(state.db).create(f.companyId, { title: "Orphan blocker", status: "blocked", createdByAgentId: f.agentId });
-    const dependent = await issueService(state.db).create(f.companyId, { title: "Blocked dependent", status: "blocked", blockedByIssueIds: [blocker.id] });
-    const completedSource = await issueService(state.db).create(f.companyId, { title: "Completed source", status: "done" });
-    const action = await issueRecoveryActionService(state.db).upsertSourceScoped({ companyId: f.companyId, sourceIssueId: completedSource.id,
+    const blocker = await issueService(state.db).create(f.spaceId, { title: "Orphan blocker", status: "blocked", createdByAgentId: f.agentId });
+    const dependent = await issueService(state.db).create(f.spaceId, { title: "Blocked dependent", status: "blocked", blockedByIssueIds: [blocker.id] });
+    const completedSource = await issueService(state.db).create(f.spaceId, { title: "Completed source", status: "done" });
+    const action = await issueRecoveryActionService(state.db).upsertSourceScoped({ spaceId: f.spaceId, sourceIssueId: completedSource.id,
       kind: "stranded_assigned_issue", ownerType: "agent", ownerAgentId: f.agentId, cause: "stranded_assigned_issue",
       fingerprint: "source-terminal", nextAction: "Restore work", wakePolicy: { type: "wake_owner" }, evidence: {} });
     if (mode === "startup") await start();
@@ -26,8 +26,8 @@ describeIssueRecovery("issue recovery production producers and dependencies", ()
   });
   it("reacts to blocker resolution once and dispatches the durable dependency wake", async () => {
     const f = await fixture();
-    const blocker = await issueService(state.db).create(f.companyId, { title: "Blocker", status: "todo" });
-    const dependent = await issueService(state.db).create(f.companyId, { title: "Dependent", status: "blocked", assigneeAgentId: f.agentId,
+    const blocker = await issueService(state.db).create(f.spaceId, { title: "Blocker", status: "todo" });
+    const dependent = await issueService(state.db).create(f.spaceId, { title: "Dependent", status: "blocked", assigneeAgentId: f.agentId,
       blockedByIssueIds: [blocker.id] });
     const failures = await completingProvider(f);
     await start(); await quiet();
@@ -37,13 +37,13 @@ describeIssueRecovery("issue recovery production producers and dependencies", ()
     expect(run.contextSnapshot?.wakeReason).toBe("issue_blockers_resolved");
     expect(failures).toEqual([]);
     await finish(dependent.id); await quiet();
-    expect(await state.db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId),
+    expect(await state.db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId),
       sql`${heartbeatRuns.contextSnapshot}->>'wakeReason' = 'issue_blockers_resolved'`))).toHaveLength(1);
-    expect(await state.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
+    expect(await state.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
   }, 90_000);
   it("settles competing recovery inserts after both owners read an empty source", async () => {
     const f = await fixture();
-    const issue = await issueService(state.db).create(f.companyId, { title: "Concurrent recovery", status: "todo" });
+    const issue = await issueService(state.db).create(f.spaceId, { title: "Concurrent recovery", status: "todo" });
     const transaction = state.db.transaction.bind(state.db);
     let arrivals = 0, release: () => void = () => {};
     const barrier = new Promise<void>(resolve => { release = resolve; });
@@ -56,7 +56,7 @@ describeIssueRecovery("issue recovery production producers and dependencies", ()
       try { return await transaction(callback, config); }
       catch (error) { conflicts.push(error); throw error; }
     });
-    const input = { companyId: f.companyId, sourceIssueId: issue.id, kind: "stranded_assigned_issue" as const,
+    const input = { spaceId: f.spaceId, sourceIssueId: issue.id, kind: "stranded_assigned_issue" as const,
       ownerType: "agent" as const, ownerAgentId: f.agentId, cause: "stranded_assigned_issue",
       fingerprint: "concurrent-source", nextAction: "Restore work", evidence: {} };
     const results = await Promise.allSettled([
@@ -67,15 +67,15 @@ describeIssueRecovery("issue recovery production producers and dependencies", ()
     expect(conflicts[0]).toMatchObject({ cause: { code: "23505", constraint_name: "issue_recovery_actions_active_source_uq" } });
     expect(results.map(result => result.status)).toEqual(["fulfilled", "fulfilled"]);
     const actions = await state.db.select().from(issueRecoveryActions).where(and(
-      eq(issueRecoveryActions.companyId, f.companyId), eq(issueRecoveryActions.sourceIssueId, issue.id)));
+      eq(issueRecoveryActions.spaceId, f.spaceId), eq(issueRecoveryActions.sourceIssueId, issue.id)));
     expect(actions).toHaveLength(1);
     expect(actions[0]).toMatchObject({ status: "active", attemptCount: 2, fingerprint: input.fingerprint });
     for (const result of results) if (result.status === "fulfilled") expect(result.value.id).toBe(actions[0].id);
   });
   it("settles saved disposition debt on its original real-clock timers before measuring idle", async () => {
     const f = await fixture();
-    const blocker = await issueService(state.db).create(f.companyId, { title: "Saved debt blocker", status: "todo" });
-    const issue = await issueService(state.db).create(f.companyId, { title: "Saved disposition debt", status: "blocked",
+    const blocker = await issueService(state.db).create(f.spaceId, { title: "Saved debt blocker", status: "todo" });
+    const issue = await issueService(state.db).create(f.spaceId, { title: "Saved disposition debt", status: "blocked",
       assigneeAgentId: f.agentId, blockedByIssueIds: [blocker.id] });
     await start(); await compete();
     await issueService(state.db).update(blocker.id, { status: "done" });

@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import {
-  companyUserSidebarPreferences,
+  spaceUserSidebarPreferences,
   userSidebarPreferences,
 } from "@outpost/db";
 import type { SidebarOrderPreference } from "@outpost/shared";
@@ -30,61 +30,61 @@ function toPreference(orderedIds: unknown, updatedAt: Date | null): SidebarOrder
 
 export function sidebarPreferenceService(db: Db) {
   return {
-    async getCompanyOrder(userId: string): Promise<SidebarOrderPreference> {
+    async getSpaceOrder(userId: string): Promise<SidebarOrderPreference> {
       const row = await db.query.userSidebarPreferences.findFirst({
         where: eq(userSidebarPreferences.userId, userId),
       });
-      return toPreference(row?.companyOrder ?? [], row?.updatedAt ?? null);
+      return toPreference(row?.spaceOrder ?? [], row?.updatedAt ?? null);
     },
 
-    async upsertCompanyOrder(userId: string, orderedIds: string[]): Promise<SidebarOrderPreference> {
+    async upsertSpaceOrder(userId: string, orderedIds: string[]): Promise<SidebarOrderPreference> {
       const now = new Date();
       const normalized = normalizeOrderedIds(orderedIds);
       const [row] = await db
         .insert(userSidebarPreferences)
         .values({
           userId,
-          companyOrder: normalized,
+          spaceOrder: normalized,
           updatedAt: now,
         })
         .onConflictDoUpdate({
           target: [userSidebarPreferences.userId],
           set: {
-            companyOrder: normalized,
+            spaceOrder: normalized,
             updatedAt: now,
           },
         })
         .returning();
-      return toPreference(row?.companyOrder ?? normalized, row?.updatedAt ?? now);
+      return toPreference(row?.spaceOrder ?? normalized, row?.updatedAt ?? now);
     },
 
-    async getProjectOrder(companyId: string, userId: string): Promise<SidebarOrderPreference> {
-      const row = await db.query.companyUserSidebarPreferences.findFirst({
+    async getProjectOrder(spaceId: string, userId: string): Promise<SidebarOrderPreference> {
+      const row = await db.query.spaceUserSidebarPreferences.findFirst({
         where: and(
-          eq(companyUserSidebarPreferences.companyId, companyId),
-          eq(companyUserSidebarPreferences.userId, userId),
+          eq(spaceUserSidebarPreferences.spaceId, spaceId),
+          eq(spaceUserSidebarPreferences.userId, userId),
         ),
       });
       return toPreference(row?.projectOrder ?? [], row?.updatedAt ?? null);
     },
 
     async upsertProjectOrder(
-      companyId: string,
+      spaceId: string,
       userId: string,
       orderedIds: string[],
     ): Promise<SidebarOrderPreference> {
       const now = new Date();
       const normalized = normalizeOrderedIds(orderedIds);
       const [row] = await db
-        .insert(companyUserSidebarPreferences)
+        .insert(spaceUserSidebarPreferences)
         .values({
-          companyId,
+          spaceId,
           userId,
           projectOrder: normalized,
           updatedAt: now,
         })
         .onConflictDoUpdate({
-          target: [companyUserSidebarPreferences.companyId, companyUserSidebarPreferences.userId],
+          target: [spaceUserSidebarPreferences.spaceId, spaceUserSidebarPreferences.userId],
           set: {
             projectOrder: normalized,
             updatedAt: now,

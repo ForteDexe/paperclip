@@ -1,7 +1,7 @@
 import { forbidden, HttpError } from "../../../errors.js";
 
 // Stable categories only. Never surface stored provider payloads, identifiers,
-// credential fingerprints, or arbitrary downstream error text to the board.
+// credential fingerprints, or arbitrary downstream error text to the operator.
 const reasons = ["source_shape", "task_assignment", "delivery_binding", "runtime_fence",
   "conversation_binding", "destination_binding", "automatic_policy", "task_privacy",
   "principal_access", "source_comment", "retry_intent", "source_receipt", "app_binding",

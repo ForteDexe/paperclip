@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, agentWakeupRequests, applyPendingMigrations, companies, createDb, environmentLeases, environments, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, plugins, workspaceOperations } from "@outpost/db";
+import { agents, agentWakeupRequests, applyPendingMigrations, spaces, createDb, environmentLeases, environments, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, plugins, workspaceOperations } from "@outpost/db";
 import type { Environment } from "@outpost/shared";
 import type { PluginWorkerManager } from "../plugin-worker-manager.js";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -29,16 +29,16 @@ describe("native workspace export warm reuse fence", () => {
   afterAll(async () => { await db?.$client.end(); await temporary?.cleanup(); });
 
   async function seed(plugin: boolean, release = true) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), pluginId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Native warm fence", issuePrefix: `W${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Keep the source", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId, runtimeMode: "native", status: "running" });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), pluginId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Native warm fence", issuePrefix: `W${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Keep the source", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, nativeIssueId: issueId, runtimeMode: "native", status: "running" });
     const provider = plugin ? "native-fence-plugin" : "fake";
     if (plugin) await db.insert(plugins).values({ id: pluginId, pluginKey: `native-fence.${pluginId}`,
       packageName: "native-fence-provider", version: "1.0.0", apiVersion: 1, categories: ["automation"], status: "ready",
       manifestJson: { id: `native-fence.${pluginId}`, apiVersion: 1, version: "1.0.0", displayName: "Native fence provider",
-        description: "Controlled lifecycle boundary", author: "Paperclip", categories: ["automation"],
+        description: "Controlled lifecycle boundary", author: "Outpost", categories: ["automation"],
         capabilities: ["environment.drivers.register"], entrypoints: { worker: "dist/worker.js" },
         environmentDrivers: [{ driverKey: provider, kind: "sandbox_provider", displayName: "Native fence", supportsReusableLeases: true,
           configSchema: { type: "object", properties: { image: { type: "string" }, reuseLease: { type: "boolean" } } } }] } });
@@ -64,7 +64,7 @@ describe("native workspace export warm reuse fence", () => {
       });
     }
     const runtime = environmentRuntimeService(db, { pluginWorkerManager: worker });
-    const input = { companyId, agentId, issueId, environment: environment as unknown as Environment,
+    const input = { spaceId, agentId, issueId, environment: environment as unknown as Environment,
       heartbeatRunId: runId, persistedExecutionWorkspace: null };
     const acquired = await runtime.acquireRunLease(input);
     if (release) await runtime.releaseRunLeases(runId, "released", undefined, "keep_running");
@@ -73,7 +73,7 @@ describe("native workspace export warm reuse fence", () => {
       descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null };
     if (release) await db.update(heartbeatRuns).set({ status: "failed", runnerProfileJson: { nativeWorkspaceSync: reference } }).where(eq(heartbeatRuns.id, runId));
     const nextRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: nextRunId, companyId, agentId, issueId, nativeIssueId: issueId, runtimeMode: "native", status: "running" });
+    await db.insert(heartbeatRuns).values({ id: nextRunId, spaceId, agentId, issueId, nativeIssueId: issueId, runtimeMode: "native", status: "running" });
     call.mockClear();
     return { runtime, input, runId, nextRunId, reference, lease: acquired.lease, call };
   }
@@ -105,9 +105,9 @@ describe("native workspace export warm reuse fence", () => {
     { plugin: false, obsolete: true }, { plugin: true, obsolete: true }])(
     "reuses a clean candidate without touching a pending allocation: plugin=$plugin obsolete=$obsolete", async ({ plugin, obsolete }) => {
       const f = await seed(plugin), cleanRunId = randomUUID(), cleanLeaseId = randomUUID(), cleanProviderLeaseId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: cleanRunId, companyId: f.input.companyId, agentId: f.input.agentId,
+      await db.insert(heartbeatRuns).values({ id: cleanRunId, spaceId: f.input.spaceId, agentId: f.input.agentId,
         issueId: f.input.issueId, runtimeMode: "legacy", status: "succeeded", finishedAt: new Date() });
-      await db.insert(environmentLeases).values({ id: cleanLeaseId, companyId: f.input.companyId, environmentId: f.input.environment.id,
+      await db.insert(environmentLeases).values({ id: cleanLeaseId, spaceId: f.input.spaceId, environmentId: f.input.environment.id,
         heartbeatRunId: cleanRunId, issueId: f.input.issueId, provider: f.lease.provider, providerLeaseId: cleanProviderLeaseId,
         leasePolicy: "reuse_by_environment", status: "released", cleanupStatus: "success", metadata: f.lease.metadata });
       if (obsolete) await db.update(environmentLeases).set({ metadata: { ...f.lease.metadata, reusableSandboxLease: null } })
@@ -133,7 +133,7 @@ describe("native workspace export warm reuse fence", () => {
   it("checks the allocation even when the candidate snapshot contains only a rebound row", async () => {
     const f = await seed(true);
     const service = leases.environmentService(db);
-    const [rebound] = await db.insert(environmentLeases).values({ companyId: f.input.companyId, environmentId: f.input.environment.id,
+    const [rebound] = await db.insert(environmentLeases).values({ spaceId: f.input.spaceId, environmentId: f.input.environment.id,
       issueId: f.input.issueId, heartbeatRunId: f.nextRunId, provider: f.lease.provider, providerLeaseId: f.lease.providerLeaseId,
       leasePolicy: "reuse_by_environment", status: "retained", metadata: f.lease.metadata }).returning();
     const list = service.listLeases;
@@ -152,14 +152,14 @@ describe("native workspace export warm reuse fence", () => {
     const authority = { schema: "outpost.remote-workspace.v1", epoch: 1, snapshotId: null, source: { kind: "empty" },
       writerRunId: f.runId, dirty: true, location: { environmentId: f.input.environment.id,
         leaseId: f.lease.id, providerLeaseId: f.lease.providerLeaseId!, remoteCwd: "/work" } };
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId: f.input.companyId,
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId: f.input.spaceId,
       sourceIssueId: f.input.issueId, name: "Unsaved remote source", cwd: "/work", providerRef: "/work",
       providerType: "cloud_sandbox", mode: "isolated_workspace", strategyType: "git_worktree",
       status: "active", metadata: { remoteWorkspace: authority } });
     await db.update(environmentLeases).set({ executionWorkspaceId: workspaceId }).where(eq(environmentLeases.id, f.lease.id));
     await db.update(heartbeatRuns).set({ runtimeMode, nativeIssueId: runtimeMode === "native" ? f.input.issueId : null,
       runnerProfileJson: { remoteWorkspace: reference } }).where(eq(heartbeatRuns.id, f.runId));
-    const [rebound] = await db.insert(environmentLeases).values({ companyId: f.input.companyId, environmentId: f.input.environment.id,
+    const [rebound] = await db.insert(environmentLeases).values({ spaceId: f.input.spaceId, environmentId: f.input.environment.id,
       issueId: f.input.issueId, heartbeatRunId: f.nextRunId, provider: f.lease.provider, providerLeaseId: f.lease.providerLeaseId,
       leasePolicy: "reuse_by_environment", status: "retained", metadata: f.lease.metadata }).returning();
     const reads = vi.spyOn(db, "select");
@@ -208,10 +208,10 @@ describe("native workspace export warm reuse fence", () => {
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: { ...f.reference,
       state: "finalized", finalHostSha256: "c".repeat(64) } } }).where(eq(heartbeatRuns.id, f.runId));
     const history = Array.from({ length: 64 }, () => randomUUID());
-    await db.insert(heartbeatRuns).values(history.map(id => ({ id, companyId: f.input.companyId, agentId: f.input.agentId,
+    await db.insert(heartbeatRuns).values(history.map(id => ({ id, spaceId: f.input.spaceId, agentId: f.input.agentId,
       issueId: f.input.issueId, nativeIssueId: f.input.issueId, runtimeMode: "native", status: "succeeded",
       runnerProfileJson: { nativeWorkspaceSync: { ...f.reference, state: "finalized", finalHostSha256: "c".repeat(64) } } })));
-    await db.insert(environmentLeases).values(history.map(heartbeatRunId => ({ companyId: f.input.companyId,
+    await db.insert(environmentLeases).values(history.map(heartbeatRunId => ({ spaceId: f.input.spaceId,
       environmentId: f.input.environment.id, heartbeatRunId, provider: f.lease.provider,
       providerLeaseId: f.lease.providerLeaseId, leasePolicy: "reuse_by_environment", status: "released" })));
     const reads = vi.spyOn(db, "select");
@@ -228,7 +228,7 @@ describe("native workspace export warm reuse fence", () => {
 
   it.each(["grok_bot", "muse"])("does not fence an exactly bound workspace-less %s run", async kind => {
     const f = await seed(true);
-    const binding = { runId: f.runId, companyId: f.input.companyId, agentId: f.input.agentId, issueId: f.input.issueId };
+    const binding = { runId: f.runId, spaceId: f.input.spaceId, agentId: f.input.agentId, issueId: f.input.issueId };
     const profile = { nativeWorkspaceSync: f.reference, nativeExecutionInput: {
       schema: kind === "muse" ? "outpost.native-execution-input.v8" : "outpost.native-execution-input.v6",
       binding, workspace: { access: "none", cwd: null }, provider: { kind, bridgeRevision: "muse-v1" } } };
@@ -260,18 +260,18 @@ describe("native workspace export warm reuse fence", () => {
       await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: f.reference },
         resultJson: { workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: {
           schema: "outpost.workspace-restore-recovery.v1", leaseIds: [f.lease.id] } } }).where(eq(heartbeatRuns.id, f.runId));
-      await db.insert(nativeRunFinalizations).values({ companyId: f.input.companyId, issueId: f.input.issueId,
+      await db.insert(nativeRunFinalizations).values({ spaceId: f.input.spaceId, issueId: f.input.issueId,
         runId: f.runId, phase: "terminal_failure" });
-      await db.insert(issueRecoveryActions).values({ id: actionId, companyId: f.input.companyId, sourceIssueId: f.input.issueId,
+      await db.insert(issueRecoveryActions).values({ id: actionId, spaceId: f.input.spaceId, sourceIssueId: f.input.issueId,
         kind: "active_run_watchdog", ownerType: "system", cause: "native_workspace_sync_out_retry_exhausted", fingerprint: f.runId,
         nextAction: "Preserve the source", evidence: { runId: f.runId, systemRecovery: failure, workspaceRecovery: {
           schema: "outpost.workspace-recovery.v1", runId: f.runId, status: "blocked", stage: "verifying_stop",
           attempt: 1, requestIds: [requestId] } } });
-      await db.insert(agentWakeupRequests).values({ id: requestId, companyId: f.input.companyId, agentId: f.input.agentId,
-        source: "on_demand", reason: "task_retry", status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: "board",
+      await db.insert(agentWakeupRequests).values({ id: requestId, spaceId: f.input.spaceId, agentId: f.input.agentId,
+        source: "on_demand", reason: "task_retry", status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: "operator",
         payload: { issueId: f.input.issueId, taskRetry: { schema: "outpost.task-retry.v1", generationId: requestId,
-          sourceRunId: f.runId, actorId: "board", actorSource: "local_implicit", strategy: "evaluate" } } });
-      await recoverRetainedWorkspace({ db, companyId: f.input.companyId, issueId: f.input.issueId,
+          sourceRunId: f.runId, actorId: "operator", actorSource: "local_implicit", strategy: "evaluate" } } });
+      await recoverRetainedWorkspace({ db, spaceId: f.input.spaceId, issueId: f.input.issueId,
         runId: f.runId, actionId, environmentRuntime: f.runtime });
       const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, actionId));
       expect(action.evidence.systemRecovery).toEqual(failure);
@@ -300,21 +300,21 @@ describe("native workspace export warm reuse fence", () => {
     // The recovery's own receipts: files saved from this allocation, and its finalize.
     const system = { ...createSystemRecovery(f.runId), state: fault === "unsettled" ? "running" : "complete",
       phase: "reconcile_effects", preservationOperationIds: [operationId] };
-    await db.insert(issueRecoveryActions).values({ id: actionId, companyId: f.input.companyId, sourceIssueId: f.input.issueId,
+    await db.insert(issueRecoveryActions).values({ id: actionId, spaceId: f.input.spaceId, sourceIssueId: f.input.issueId,
       kind: "active_run_watchdog", ownerType: "system", cause: "native_continuation_requires_reconciliation", fingerprint: f.runId,
       nextAction: "Recover saved work", evidence: { runId: f.runId, workspaceRestoreFailure: "restore_failed",
         workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [f.lease.id] }, systemRecovery: system,
         workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: f.runId,
           status: fault === "unsettled" ? "recovering" : "recovered", stage: "saving_receipts", attempt: 1, requestIds: [] } } });
-    await db.insert(workspaceOperations).values([{ id: operationId, companyId: f.input.companyId, issueId: f.input.issueId,
+    await db.insert(workspaceOperations).values([{ id: operationId, spaceId: f.input.spaceId, issueId: f.input.issueId,
       heartbeatRunId: f.runId, phase: "workspace_recovery", status: "succeeded", finishedAt: new Date(),
       metadata: { recoveryActionId: actionId, leaseId: f.lease.id, providerLeaseId: f.lease.providerLeaseId } },
-    { companyId: f.input.companyId, issueId: f.input.issueId, heartbeatRunId: f.runId, phase: "workspace_finalize",
+    { spaceId: f.input.spaceId, issueId: f.input.issueId, heartbeatRunId: f.runId, phase: "workspace_finalize",
       status: "succeeded", finishedAt: new Date(), metadata: { owningService: "workspace_recovery", preservationOperationIds: [operationId] } }]);
     // An unsaved writer still bound to the stopped sandbox keeps it held.
     if (fault === "dirty") await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: f.reference } })
       .where(eq(heartbeatRuns.id, f.runId));
-    const restored = await settleRecoveredWorkspaceRestoreHolds(db, { companyId: f.input.companyId, issueId: f.input.issueId,
+    const restored = await settleRecoveredWorkspaceRestoreHolds(db, { spaceId: f.input.spaceId, issueId: f.input.issueId,
       runId: f.runId, actionId });
     f.call.mockClear();
     return { ...f, restored };

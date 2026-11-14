@@ -5,7 +5,7 @@ import type { EndpointRow } from "../runtime-types.js";
 type ConversationRow = typeof chatConversations.$inferSelect;
 
 type ConversationBindingInput = {
-  endpoint: Pick<EndpointRow, "id" | "companyId">;
+  endpoint: Pick<EndpointRow, "id" | "spaceId">;
   thread: { id: string; channelId: string };
   isLinear: () => boolean;
   lookupConversation?: () => Promise<ConversationRow | null>;
@@ -44,7 +44,7 @@ export async function resolveInboundConversationBinding(
           .from(issues)
           .where(
             and(
-              eq(issues.companyId, endpoint.companyId),
+              eq(issues.spaceId, endpoint.spaceId),
               eq(issues.id, existingConversation.issueId),
             ),
           )

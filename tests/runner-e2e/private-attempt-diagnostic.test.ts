@@ -15,10 +15,10 @@ it("never copies unknown error, stage, failure or status text", () => {
   expect(JSON.stringify(privateAttemptDiagnostic({ stage: "private-value", result: { status: "private-value", failureClass: "private-value", error: "private-value" }, error: new Error("private-value") }))).not.toContain("private-value");
 });
 it("counts a finish from the actual OpenCode event producer and recovers the pre-scan phase", () => {
-  const sourceEvents = ["pending", "running"].flatMap(status => canonicalProviderEventsFromOpenCodePart({ id: "private-call", type: "tool", tool: "paperclip_paperclip_finish", state: { status, input: {} } }));
-  const diagnostic = privateAttemptDiagnostic({ stage: "package-original", result: { error: "Secret leak in persisted Paperclip home state at private-path" },
+  const sourceEvents = ["pending", "running"].flatMap(status => canonicalProviderEventsFromOpenCodePart({ id: "private-call", type: "tool", tool: "outpost_outpost_finish", state: { status, input: {} } }));
+  const diagnostic = privateAttemptDiagnostic({ stage: "package-original", result: { error: "Secret leak in persisted Outpost home state at private-path" },
     observation: { sourceEvents, persistedState: { scanError: "private-error", originalResult: { error: "Canonical project-defaults turn settles: private-value" } } } });
-  expect(diagnostic).toMatchObject({ phase: "canonical-turn-timeout", privacy: { persistedState: true }, sourceProgress: { tools: { paperclip_finish: { started: 1, progressed: 1, completed: 0 }, other: { started: 0, completed: 0 } } } });
+  expect(diagnostic).toMatchObject({ phase: "canonical-turn-timeout", privacy: { persistedState: true }, sourceProgress: { tools: { outpost_finish: { started: 1, progressed: 1, completed: 0 }, other: { started: 0, completed: 0 } } } });
   expect(JSON.stringify(diagnostic)).not.toMatch(/private-(?:call|path|error|value)/);
 });
 it("distinguishes an unfinished source tool and preserves a timeout hidden by privacy finalization", async () => {
@@ -30,7 +30,7 @@ it("distinguishes an unfinished source tool and preserves a timeout hidden by pr
       { runId: "private-other", events: [{ eventType: "run.result.proposed" }] },
       { runId: "private-run", events: [
         { payload: { orpEvent: { eventType: "turn.started" } } },
-        { payload: { orpEvent: { eventType: "tool.execution.started", payload: { name: "paperclip_call_api", output: "private-value" } } } },
+        { payload: { orpEvent: { eventType: "tool.execution.started", payload: { name: "outpost_call_api", output: "private-value" } } } },
         { payload: { orpEvent: { eventType: "tool.execution.started", payload: { name: "private-tool" } } } },
         { payload: { orpEvent: { eventType: "tool.execution.completed", payload: { name: "private-tool" } } } },
       ] },
@@ -39,7 +39,7 @@ it("distinguishes an unfinished source tool and preserves a timeout hidden by pr
     const diagnostic = privateAttemptDiagnostic({ stage: "package-original", result: { failureClass: "secret_leak" },
       error: new Error("Secret leak in snapshots/private.json: exact secret value"), observation: await readPrivateAttemptObservation(root) });
     expect(diagnostic).toMatchObject({ phase: "canonical-turn-timeout", finalization: "text-secret-finding", privacy: { reporter: 1, packaging: "snapshot" },
-      sourceProgress: { events: 4, turns: 1, finishProposals: 0, tools: { paperclip_call_api: { started: 1, completed: 0 }, other: { started: 1, completed: 1 } } } });
+      sourceProgress: { events: 4, turns: 1, finishProposals: 0, tools: { outpost_call_api: { started: 1, completed: 0 }, other: { started: 1, completed: 1 } } } });
     expect(JSON.stringify(diagnostic)).not.toMatch(/private-(?:lead|run|value|path|tool|other)/);
     await rm(path.join(snapshots, "chat-catalog-runs.json"));
     const external = path.join(root, "outside.json"); await writeFile(external, JSON.stringify([{ runId: "private-run", events: [{ eventType: "run.result.proposed" }] }]));
@@ -50,12 +50,12 @@ it("distinguishes an unfinished source tool and preserves a timeout hidden by pr
 it("reports recognized tool and API outcomes without copying arbitrary operation names", () => {
   const diagnostic = privateAttemptDiagnostic({ stage: "package-original", error: new Error("Private cell evidence exceeds byte allowance"),
     observation: { privacy: { issues: [{ reason: "zip inspection exceeded its expanded-byte bound" }] }, sourceEvents: [
-      { eventType: "tool.execution.completed", payload: { name: "paperclip_search_api", status: "completed" } },
+      { eventType: "tool.execution.completed", payload: { name: "outpost_search_api", status: "completed" } },
       { eventType: "item.completed", payload: { kind: "dynamicToolCall", item: { result: { apiOperationId: "PATCH /api/projects/{id}", status: 403, ok: false, body: "private-value" } } } },
       { eventType: "item.completed", payload: { kind: "dynamicToolCall", item: { result: { apiOperationId: "private-operation", status: 200, ok: true } } } },
     ] } });
   expect(diagnostic).toMatchObject({ finalization: "byte-bound", privacy: { reporterReasons: { "zip inspection exceeded its expanded-byte bound": 1 } },
-    sourceProgress: { tools: { paperclip_search_api: { completed: 1 } }, lastTools: [{ name: "paperclip_search_api", phase: "completed", status: "completed" }],
+    sourceProgress: { tools: { outpost_search_api: { completed: 1 } }, lastTools: [{ name: "outpost_search_api", phase: "completed", status: "completed" }],
       apiResults: [{ operation: "update-project", status: 403, ok: false }, { operation: "other", status: 200, ok: true }] } });
   expect(JSON.stringify(diagnostic)).not.toMatch(/private-(?:value|operation)/);
 });

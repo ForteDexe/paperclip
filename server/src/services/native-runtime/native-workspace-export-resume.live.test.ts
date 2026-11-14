@@ -6,7 +6,7 @@ import { writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, companies, completionContracts, createDb, environmentLeases, environments, heartbeatRuns, issues, issueRecoveryActions, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, plugins } from "@outpost/db";
+import { agents, spaces, completionContracts, createDb, environmentLeases, environments, heartbeatRuns, issues, issueRecoveryActions, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, plugins } from "@outpost/db";
 import type { Environment, EnvironmentLease } from "@outpost/shared";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { environmentRuntimeService } from "../environment-runtime.js";
@@ -30,7 +30,7 @@ describeLive("live Daytona export-resume failure recovery", () => {
   let sandbox: any;
   let lease: EnvironmentLease;
   let environment: Environment;
-  const ids = { company: randomUUID(), agent: randomUUID(), environment: randomUUID(), run: randomUUID(), issue: randomUUID(),
+  const ids = { space: randomUUID(), agent: randomUUID(), environment: randomUUID(), run: randomUUID(), issue: randomUUID(),
     result: randomUUID(), contract: randomUUID(), lease: randomUUID(), action: randomUUID(), plugin: randomUUID() };
   const nonce = randomUUID();
   const bytes = `preserved-export-resume-${nonce}\n`;
@@ -75,7 +75,7 @@ describeLive("live Daytona export-resume failure recovery", () => {
     };
     return service;
   }
-  const scope = () => ({ driverKey: "daytona", companyId: ids.company, environmentId: ids.environment, issueId: ids.issue,
+  const scope = () => ({ driverKey: "daytona", spaceId: ids.space, environmentId: ids.environment, issueId: ids.issue,
     config, providerLeaseId: lease.providerLeaseId, leaseMetadata: lease.metadata });
   async function persistedLease() {
     return (await db.select().from(environmentLeases).where(eq(environmentLeases.id, ids.lease)))[0];
@@ -99,28 +99,28 @@ describeLive("live Daytona export-resume failure recovery", () => {
     ({ default: plugin } = await import(new URL("../../../../packages/plugins/sandbox-providers/daytona/dist/plugin.js", import.meta.url).href));
     plugin = plugin.definition;
     ({ default: manifest } = await import(new URL("../../../../packages/plugins/sandbox-providers/daytona/dist/manifest.js", import.meta.url).href));
-    await db.insert(companies).values({ id: ids.company, name: "Disposable export lifecycle", issuePrefix: "LXR" });
-    await db.insert(agents).values({ id: ids.agent, companyId: ids.company, name: "No provider turn", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: ids.space, name: "Disposable export lifecycle", issuePrefix: "LXR" });
+    await db.insert(agents).values({ id: ids.agent, spaceId: ids.space, name: "No provider turn", adapterType: "outpost_runner" });
     await db.insert(environments).values({ id: ids.environment, name: `Lifecycle ${nonce}`, driver: "sandbox", config });
     environment = (await db.select().from(environments).where(eq(environments.id, ids.environment)))[0] as unknown as Environment;
     await db.insert(plugins).values({ id: ids.plugin, pluginKey: manifest.id, packageName: "@outpost/plugin-daytona", version: manifest.version,
       apiVersion: 1, categories: ["automation"], manifestJson: manifest, status: "ready", installOrder: 1 });
-    await db.insert(issues).values({ id: ids.issue, companyId: ids.company, title: "Preserved accepted result", status: "blocked", assigneeAgentId: ids.agent });
-    await db.insert(completionContracts).values({ id: ids.contract, companyId: ids.company, issueId: ids.issue, revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "live-test", risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: { objective: "Preserve saved work" }, canonicalSha256: digest, createdByActorType: "system", createdByActorId: "live-test" });
-    await db.insert(heartbeatRuns).values({ id: ids.run, companyId: ids.company, agentId: ids.agent, status: "failed", runtimeMode: "native", nativeIssueId: ids.issue, nativePhase: "terminal_failure", completionContractId: ids.contract });
-    await db.insert(nativeRunResults).values({ id: ids.result, companyId: ids.company, issueId: ids.issue, runId: ids.run, completionContractId: ids.contract, serverFingerprint: digest, schemaStatus: "accepted", resultJson: { work: "preserve saved work" }, canonicalSha256: digest });
-    await db.insert(nativeRunFinalizations).values({ runId: ids.run, companyId: ids.company, issueId: ids.issue, phase: "terminal_failure", resultId: ids.result, failureCode: "native_workspace_sync_out_retry_exhausted" });
-    await db.insert(issueRecoveryActions).values({ id: ids.action, companyId: ids.company, sourceIssueId: ids.issue, kind: "active_run_watchdog", ownerType: "board", returnOwnerAgentId: ids.agent, cause: "native_workspace_sync_out_retry_exhausted", fingerprint: ids.run, evidence: { runId: ids.run }, nextAction: "Repair saved files" });
+    await db.insert(issues).values({ id: ids.issue, spaceId: ids.space, title: "Preserved accepted result", status: "blocked", assigneeAgentId: ids.agent });
+    await db.insert(completionContracts).values({ id: ids.contract, spaceId: ids.space, issueId: ids.issue, revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "live-test", risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: { objective: "Preserve saved work" }, canonicalSha256: digest, createdByActorType: "system", createdByActorId: "live-test" });
+    await db.insert(heartbeatRuns).values({ id: ids.run, spaceId: ids.space, agentId: ids.agent, status: "failed", runtimeMode: "native", nativeIssueId: ids.issue, nativePhase: "terminal_failure", completionContractId: ids.contract });
+    await db.insert(nativeRunResults).values({ id: ids.result, spaceId: ids.space, issueId: ids.issue, runId: ids.run, completionContractId: ids.contract, serverFingerprint: digest, schemaStatus: "accepted", resultJson: { work: "preserve saved work" }, canonicalSha256: digest });
+    await db.insert(nativeRunFinalizations).values({ runId: ids.run, spaceId: ids.space, issueId: ids.issue, phase: "terminal_failure", resultId: ids.result, failureCode: "native_workspace_sync_out_retry_exhausted" });
+    await db.insert(issueRecoveryActions).values({ id: ids.action, spaceId: ids.space, sourceIssueId: ids.issue, kind: "active_run_watchdog", ownerType: "operator", returnOwnerAgentId: ids.agent, cause: "native_workspace_sync_out_retry_exhausted", fingerprint: ids.run, evidence: { runId: ids.run }, nextAction: "Repair saved files" });
     let setupPhase = "acquire";
     try {
-      const acquired = await plugin.onEnvironmentAcquireLease({ driverKey: "daytona", companyId: ids.company, environmentId: ids.environment,
+      const acquired = await plugin.onEnvironmentAcquireLease({ driverKey: "daytona", spaceId: ids.space, environmentId: ids.environment,
         issueId: ids.issue, runId: ids.run, agentId: ids.agent, adapterType: "outpost_runner", config });
       setupPhase = "sdk_lookup";
       const require = createRequire(new URL("../../../../packages/plugins/sandbox-providers/daytona/package.json", import.meta.url));
       const { Daytona } = require("@daytonaio/sdk");
       sandbox = await new Daytona({ apiKey: process.env.DAYTONA_API_KEY }).get(acquired.providerLeaseId);
       const metadata = { ...acquired.metadata, provider: "daytona", pluginId: ids.plugin, sandboxProviderPlugin: true };
-      await db.insert(environmentLeases).values({ id: ids.lease, companyId: ids.company, environmentId: ids.environment, issueId: ids.issue,
+      await db.insert(environmentLeases).values({ id: ids.lease, spaceId: ids.space, environmentId: ids.environment, issueId: ids.issue,
         heartbeatRunId: ids.run, status: "active", leasePolicy: "ephemeral", provider: "daytona", providerLeaseId: acquired.providerLeaseId, metadata });
       lease = await persistedLease() as unknown as EnvironmentLease;
       setupPhase = "write";
@@ -140,7 +140,7 @@ describeLive("live Daytona export-resume failure recovery", () => {
   afterAll(async () => {
     try {
       if (sandbox) {
-        if (sandbox.labels?.["paperclip-company-id"] !== ids.company || sandbox.labels?.["paperclip-environment-id"] !== ids.environment || sandbox.labels?.["paperclip-run-id"] !== ids.run) throw new Error("Fixture cleanup ownership mismatch");
+        if (sandbox.labels?.["outpost-space-id"] !== ids.space || sandbox.labels?.["outpost-environment-id"] !== ids.environment || sandbox.labels?.["outpost-run-id"] !== ids.run) throw new Error("Fixture cleanup ownership mismatch");
         await sandbox.delete(60);
         evidence.cleanupPassed = true;
       }
@@ -151,7 +151,7 @@ describeLive("live Daytona export-resume failure recovery", () => {
     }
   }, 90_000);
   it("stops after a failed probe, and recovers a failed stop through a fresh runtime", async () => {
-    const request = () => ({ db, companyId: ids.company, issueId: ids.issue, actionId: ids.action, runId: ids.run, actorId: "live-test",
+    const request = () => ({ db, spaceId: ids.space, issueId: ids.issue, actionId: ids.action, runId: ids.run, actorId: "live-test",
       repairNote: "Provider-boundary fault integration preserves exact synthetic nonce bytes", environmentRuntime: runtime() });
     failProbe = true;
     await expect(retryNativeWorkspaceExport(request())).rejects.toThrow("Resume and repair");
@@ -207,8 +207,8 @@ describeLive("live Daytona export-resume failure recovery", () => {
     expect(await persistedLease()).toMatchObject({ status: "released", metadata: { remoteExecutionTermination: { providerLeaseId: lease.providerLeaseId, state: "stopped" } } });
     await confirmStoppedAndPreserved();
     const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.cause, "native_workspace_sync_out_retry_exhausted"));
-    expect(action).toMatchObject({ status: "active", ownerType: "board" });
-    const queued = await retryNativeWorkspaceExport({ db, companyId: ids.company, issueId: ids.issue, runId: ids.run, actionId: action.id,
+    expect(action).toMatchObject({ status: "active", ownerType: "operator" });
+    const queued = await retryNativeWorkspaceExport({ db, spaceId: ids.space, issueId: ids.issue, runId: ids.run, actionId: action.id,
       actorId: "live-test", repairNote: "Fixture-only export transport fault removed; exact nonce and allocation preserved", environmentRuntime: runtime() });
     expect(queued).toMatchObject({ resultId: ids.result, leaseId: ids.lease, status: "queued" });
     expect(await db.select().from(nativeRunResults)).toEqual(acceptedBefore);

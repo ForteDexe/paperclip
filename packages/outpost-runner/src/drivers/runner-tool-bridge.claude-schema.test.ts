@@ -39,7 +39,7 @@ it("keeps the human-input tool available in the pinned Claude client", async () 
   try {
     await new Promise<void>(resolve => api.listen(0, "127.0.0.1", resolve));
     const address = api.address() as { port: number };
-    const mcpConfig = { mcpServers: { paperclip: { type: "http", url: bridge.url, headers: { Authorization: `Bearer ${bridge.secret}` } } } };
+    const mcpConfig = { mcpServers: { outpost: { type: "http", url: bridge.url, headers: { Authorization: `Bearer ${bridge.secret}` } } } };
     await promisify(execFile)(await claudeCliPath(), [
       "--bare", "--print", "--model", "claude-sonnet-5", "--strict-mcp-config", "--mcp-config", JSON.stringify(mcpConfig),
       "--setting-sources", "", "--permission-mode", "dontAsk", "--no-session-persistence", "--tools", "", "--max-turns", "1",
@@ -50,8 +50,8 @@ it("keeps the human-input tool available in the pinned Claude client", async () 
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1", DISABLE_TELEMETRY: "1", DISABLE_ERROR_REPORTING: "1", ENABLE_TOOL_SEARCH: "false",
     } });
     expect(offered.length).toBeGreaterThan(0);
-    expect(offered.at(-1)?.map(tool => tool.name)).toContain("mcp__paperclip__write_document");
-    const question = offered.at(-1)?.find(tool => tool.name === "mcp__paperclip__request_human_input");
+    expect(offered.at(-1)?.map(tool => tool.name)).toContain("mcp__outpost__write_document");
+    const question = offered.at(-1)?.find(tool => tool.name === "mcp__outpost__request_human_input");
     expect(question).toBeDefined();
     expect(question!.input_schema).toMatchObject({ type: "object", properties: {
       idempotencyKey: { type: "string" }, interactionKind: { enum: expect.arrayContaining(["questions", "confirmation"]) },

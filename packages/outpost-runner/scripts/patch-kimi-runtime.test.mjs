@@ -17,7 +17,7 @@ const binding = content => JSON.stringify({ schema: "outpost.kimi.instructions.v
 const runtime = raw => createKimiInstructionRuntime(raw, { createHash, byteLength: text => Buffer.byteLength(text, "utf8") });
 
 test("native instruction binding preserves exact literals and rejects false readback", () => {
-  const content = "\nGovernance: résumé 日本語 ${cwd} ${base_prompt}\n\n";
+  const content = "\nApprovals: résumé 日本語 ${cwd} ${base_prompt}\n\n";
   const state = runtime(binding(content));
   const native = "Original native system prompt";
   const effective = `${native}\n\n${content}`;
@@ -89,12 +89,12 @@ test("pinned native package binds new/load and rejects failed turns", {
   } finally { await rm(bundledRoot, { recursive: true, force: true }); }
   const content = " Exact ${cwd} instructions\n日本語\n";
   const env = { OUTPOST_KIMI_INSTRUCTIONS: binding(content) };
-  const helper = segment(patched, "let paperclipKimiInstructionSnapshot;", "import { fileURLToPath");
-  const context = { process: { env }, Buffer, paperclipKimiCreateHash: createHash };
-  const state = runInNewContext(`${helper};paperclipKimiInstructionState()`, context);
+  const helper = segment(patched, "let outpostKimiInstructionSnapshot;", "import { fileURLToPath");
+  const context = { process: { env }, Buffer, outpostKimiCreateHash: createHash };
+  const state = runInNewContext(`${helper};outpostKimiInstructionState()`, context);
   assert.equal(env.OUTPOST_KIMI_INSTRUCTIONS, undefined);
   env.OUTPOST_KIMI_INSTRUCTIONS = binding("replacement");
-  assert.equal(runInNewContext("paperclipKimiInstructionState()", context), state);
+  assert.equal(runInNewContext("outpostKimiInstructionState()", context), state);
   env.KIMI_API_KEY = "fake-provider-key";
   env.OUTPOST_TASK_SCOPED = "assigned-task-value";
   const childEnvironment = segment(patched, "function buildEnv(overrides) {", "function waitForSpawn(child)");
@@ -135,18 +135,18 @@ test("pinned native package binds new/load and rejects failed turns", {
   const wire = segment(patched, "\t\tasync wireSession(sessionId) {", "\n\t\t/**");
   await assert.rejects(runInNewContext(`({${wire}}).wireSession`, context).call(host, "s"), /native instruction receipt/);
   const admitted = { ensureAuthed: async () => {}, klient: { global: { sessions: { create: async () => ({ id: "s" }) } } },
-    activateSession: async () => ({}), paperclipInstructionReceipts: new Map([["s", receipt]]) };
+    activateSession: async () => ({}), outpostInstructionReceipts: new Map([["s", receipt]]) };
   const create = segment(patched, "\t\tasync newSession(params) {", "\n\t\t/**");
   const createContext = { ...context, acpMcpServersToConfigRecord: value => value };
   const created = await runInNewContext(`({${create}}).newSession`, createContext).call(admitted, { cwd: "/workspace", mcpServers: [] });
-  assert.equal(created._meta.paperclipKimiInstructions, receipt);
+  assert.equal(created._meta.outpostKimiInstructions, receipt);
   for (const [name, next] of [["loadSession", "resumeSession"], ["resumeSession", "listSessions"]]) {
     const method = segment(patched, `\t\tasync ${name}(params) {`, `\t\tasync ${next}(params)`);
     const response = await runInNewContext(`({${method}}).${name}`, createContext).call({ ...admitted,
       warnIgnoredAdditionalDirs() {}, scheduleAvailableCommandsUpdate() {},
       resumeAcpSession: async () => ({ replayHistory: async () => {}, configOptions: async () => [], modeState: () => ({}) }) },
     { sessionId: "s", mcpServers: [] });
-    assert.equal(response._meta.paperclipKimiInstructions, receipt);
+    assert.equal(response._meta.outpostKimiInstructions, receipt);
   }
   const terminal = segment(patched, "\t\tonTurnEnded(event) {", "\n\t\t/**");
   const rejection = [];
@@ -164,7 +164,7 @@ test("pinned native package binds new/load and rejects failed turns", {
   const permission = runInNewContext(`${infer}\n${approval}\nbuildPermissionToolCallUpdate`, {
     displayBlockToAcpContent: () => null, acpToolCallId: (turn, id) => `${turn}:${id}`,
   });
-  for (const [toolName, kind] of [["Write", "edit"], ["Edit", "edit"], ["Read", "read"], ["Bash", "execute"], ["mcp__paperclip__read_workspace_file", "other"]]) {
+  for (const [toolName, kind] of [["Write", "edit"], ["Edit", "edit"], ["Read", "read"], ["Bash", "execute"], ["mcp__outpost__read_workspace_file", "other"]]) {
     const args = { path: "/workspace/exact.txt", content: "body" };
     const request = permission({ toolName, toolInput: args, toolCallId: "native-tool", turnId: 1, display: {}, action: "test" });
     assert.equal(request.kind, kind);
@@ -177,11 +177,11 @@ test("native step identity separates identical commentary/final text and retains
   skip: !process.env.OUTPOST_KIMI_VENDOR_MAIN,
 }, async () => {
   const patched = patchKimiRuntimeSource(await readFile(process.env.OUTPOST_KIMI_VENDOR_MAIN, "utf8"));
-  const methods = segment(patched, "\t\tpaperclipKimiMessageFailure(driver) {", "\n\t\tonToolCallStarted(event)");
+  const methods = segment(patched, "\t\toutpostKimiMessageFailure(driver) {", "\n\t\tonToolCallStarted(event)");
   const host = () => {
     const events = [], rejected = [];
     const driver = { reject: value => rejected.push(value) };
-    const session = runInNewContext(`new class {${methods}}`, { paperclipKimiCreateHash: createHash,
+    const session = runInNewContext(`new class {${methods}}`, { outpostKimiCreateHash: createHash,
       RequestError$1: { internalError: value => value } });
     Object.assign(session, { sessionId: "native-session", emit: value => events.push(value),
       driverFor: turnId => turnId === 7 && !driver.settled ? driver : undefined,
@@ -189,15 +189,15 @@ test("native step identity separates identical commentary/final text and retains
     return { session, events, rejected, driver };
   };
   const h = host();
-  h.session.paperclipKimiStep({ turnId: 7, step: 1, stepId: "native-step-uuid-one" }, "start");
+  h.session.outpostKimiStep({ turnId: 7, step: 1, stepId: "native-step-uuid-one" }, "start");
   h.session.onAssistantDelta({ turnId: 7, delta: "SAME café" });
   h.session.onThinkingDelta({ turnId: 7, delta: "reasoning" });
-  h.session.paperclipKimiStep({ turnId: 7, step: 1, stepId: "native-step-uuid-one", finishReason: "tool_use" }, "end");
-  h.session.paperclipKimiStep({ turnId: 7, step: 2, stepId: "native-step-uuid-two" }, "start");
+  h.session.outpostKimiStep({ turnId: 7, step: 1, stepId: "native-step-uuid-one", finishReason: "tool_use" }, "end");
+  h.session.outpostKimiStep({ turnId: 7, step: 2, stepId: "native-step-uuid-two" }, "start");
   h.session.onAssistantDelta({ turnId: 7, delta: "SAME café" });
-  h.session.paperclipKimiStep({ turnId: 7, step: 2, stepId: "native-step-uuid-two", finishReason: "end_turn" }, "end");
-  h.session.paperclipKimiStep({ turnId: 7, step: 3, stepId: "native-step-uuid-empty" }, "start");
-  h.session.paperclipKimiStep({ turnId: 7, step: 3, stepId: "native-step-uuid-empty", finishReason: "end_turn" }, "end");
+  h.session.outpostKimiStep({ turnId: 7, step: 2, stepId: "native-step-uuid-two", finishReason: "end_turn" }, "end");
+  h.session.outpostKimiStep({ turnId: 7, step: 3, stepId: "native-step-uuid-empty" }, "start");
+  h.session.outpostKimiStep({ turnId: 7, step: 3, stepId: "native-step-uuid-empty", finishReason: "end_turn" }, "end");
   const chunks = h.events.map(event => event.update);
   assert.equal(h.rejected.length, 0);
   assert.deepEqual(chunks.map(chunk => chunk._meta.kind), ["start", "delta", "delta", "end:tool_use", "start", "delta", "end:end_turn", "start", "end:end_turn"]);
@@ -210,10 +210,10 @@ test("native step identity separates identical commentary/final text and retains
   assert.equal(h.events.length, 9);
   for (const mutate of [
     value => value.session.onAssistantDelta({ turnId: 7, delta: "orphan" }),
-    value => { value.session.paperclipKimiStep({ turnId: 7, step: 1, stepId: "uuid" }, "start"); value.session.paperclipKimiStep({ turnId: 7, step: 2, stepId: "other" }, "start"); },
-    value => { value.session.paperclipKimiStep({ turnId: 7, step: 1, stepId: "uuid" }, "start"); value.session.paperclipKimiStep({ turnId: 7, step: 1, stepId: "foreign", finishReason: "end_turn" }, "end"); },
-    value => { value.session.paperclipKimiStep({ turnId: 7, step: 1, stepId: "uuid" }, "start"); value.session.paperclipKimiStep({ turnId: 7, step: 1, stepId: "uuid", finishReason: "invented" }, "end"); },
-    value => { value.session.paperclipKimiStep({ turnId: 7, step: 1, stepId: "uuid" }, "start"); value.session.paperclipKimiStep({ turnId: 7, step: 1, reason: "aborted" }, "interrupted"); value.session.paperclipKimiStep({ turnId: 7, step: 2, stepId: "uuid" }, "start"); },
+    value => { value.session.outpostKimiStep({ turnId: 7, step: 1, stepId: "uuid" }, "start"); value.session.outpostKimiStep({ turnId: 7, step: 2, stepId: "other" }, "start"); },
+    value => { value.session.outpostKimiStep({ turnId: 7, step: 1, stepId: "uuid" }, "start"); value.session.outpostKimiStep({ turnId: 7, step: 1, stepId: "foreign", finishReason: "end_turn" }, "end"); },
+    value => { value.session.outpostKimiStep({ turnId: 7, step: 1, stepId: "uuid" }, "start"); value.session.outpostKimiStep({ turnId: 7, step: 1, stepId: "uuid", finishReason: "invented" }, "end"); },
+    value => { value.session.outpostKimiStep({ turnId: 7, step: 1, stepId: "uuid" }, "start"); value.session.outpostKimiStep({ turnId: 7, step: 1, reason: "aborted" }, "interrupted"); value.session.outpostKimiStep({ turnId: 7, step: 2, stepId: "uuid" }, "start"); },
   ]) {
     const invalid = host(); mutate(invalid);
     assert.equal(invalid.rejected.length, 1);
@@ -233,7 +233,7 @@ test("real pinned Kimi and ACPX exchange instructions/tools/denial/errors with a
   try { await access(join(assets, "native-closure.json")); }
   catch (error) {
     if (error.code !== "ENOENT") throw error;
-    t.skip("Install the pinned Kimi runtime with paperclipai runtime setup kimi first");
+    t.skip("Install the pinned Kimi runtime with outpost runtime setup kimi first");
     return;
   }
   const { tsImport } = await import("tsx/esm/api");
@@ -268,7 +268,7 @@ test("real pinned Kimi and ACPX exchange instructions/tools/denial/errors with a
   const root = await realpath(await mkdtemp(join(tmpdir(), "kimi-simulated-model-peer-")));
   const home = join(root, "home"), workspace = join(root, "workspace");
   await mkdir(home, { mode: 0o700 }); await mkdir(workspace);
-  const instructions = "\nExact governance café 日本語 ${cwd} ${base_prompt}\nKeep the final LF.\n";
+  const instructions = "\nExact approvals café 日本語 ${cwd} ${base_prompt}\nKeep the final LF.\n";
   const selectedModel = "kimi-for-coding";
   const binding = instructionModule.kimiInstructionBinding(instructions);
   const argumentsObject = { payload: "café 🧪\n${literal}", nested: { count: 0, empty: {}, flag: false } };
@@ -304,7 +304,7 @@ test("real pinned Kimi and ACPX exchange instructions/tools/denial/errors with a
         const system = value.messages.find(message => message.role === "system")?.content;
         assert.equal(typeof system, "string");
         assert.ok(system.endsWith(`\n\n${instructions}`), "exact literal instructions reached native HTTP request");
-        const ack = nativeMessages.map(entry => entry.message.result?._meta?.paperclipKimiInstructions).filter(Boolean).at(-1);
+        const ack = nativeMessages.map(entry => entry.message.result?._meta?.outpostKimiInstructions).filter(Boolean).at(-1);
         assert.equal(ack?.digest, binding.digest);
         assert.equal(ack?.effectiveDigest, `sha256:${sha(system)}`, "native instruction receipt matches the full actual model-request prompt");
         modelRequests.push({ scenario, value });
@@ -425,7 +425,7 @@ test("real pinned Kimi and ACPX exchange instructions/tools/denial/errors with a
       owners.push(owner);
       const replies = createAcpxPermissionReplyConfirmations();
       owner.runtime = createAcpRuntime({ cwd: workspace, sessionStore: store,
-        agentRegistry: { resolve: () => "paperclip-verified-kimi-command", list: () => ["kimi"] },
+        agentRegistry: { resolve: () => "outpost-verified-kimi-command", list: () => ["kimi"] },
         mcpServers: [{ type: "http", name: "peer", url: `${endpoint}/mcp`, headers: [] }],
         permissionMode: "approve-all", permissionPolicy: { defaultAction: "escalate" }, timeoutMs: 15_000,
         protocolGuardFactory: () => admission.createGuard(),

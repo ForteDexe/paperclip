@@ -1,12 +1,12 @@
 // Local SQL benchmark for the task page "Created from this task" list
-// (GET /api/companies/:id/issues?createdFromIssueId=…&includeRoutineExecutions=true,
+// (GET /api/spaces/:id/issues?createdFromIssueId=…&includeRoutineExecutions=true,
 // which the UI pages with sortField=id, sortDir=asc and limit=500).
 //
 //   pnpm --filter @outpost/server exec tsx ../scripts/benchmark-created-from-issues.ts \
 //     --baseline-ref=<pre-fix commit> [--issues=30000] [--runs=60000] [--samples=9]
 //     [--evidence-dir=<dir>]
 //
-// Seeds one disposable embedded-PostgreSQL company with tens of thousands of
+// Seeds one disposable embedded-PostgreSQL space with tens of thousands of
 // tasks: about a third with a recorded origin task, a third with only a legacy
 // origin run, and a third manual. Runs carry a realistic context snapshot and
 // every agent-created task has creation activity. The source task has
@@ -71,15 +71,15 @@ try {
   const [settings] = await client.unsafe("select version(), current_setting('shared_buffers') shared_buffers, current_setting('work_mem') work_mem, current_setting('jit') jit");
 
   const seedStart = performance.now();
-  const companyId = randomUUID(), otherCompanyId = randomUUID();
-  await client.unsafe(`insert into companies(id,name,issue_prefix) values($1,'Synthetic Origin','ORG'),($2,'Synthetic Other','OTH')`, [companyId, otherCompanyId]);
+  const spaceId = randomUUID(), otherSpaceId = randomUUID();
+  await client.unsafe(`insert into spaces(id,name,issue_prefix) values($1,'Synthetic Origin','ORG'),($2,'Synthetic Other','OTH')`, [spaceId, otherSpaceId]);
   const agentIds = [randomUUID(), randomUUID(), randomUUID()];
-  for (const agentId of agentIds) await client.unsafe(`insert into agents(id,company_id,name,adapter_type,status) values($1,$2,$3,'process','active')`, [agentId, companyId, `Agent ${agentId.slice(0, 8)}`]);
+  for (const agentId of agentIds) await client.unsafe(`insert into agents(id,space_id,name,adapter_type,status) values($1,$2,$3,'process','active')`, [agentId, spaceId, `Agent ${agentId.slice(0, 8)}`]);
   const otherAgentId = randomUUID();
-  await client.unsafe(`insert into agents(id,company_id,name,adapter_type,status) values($1,$2,'Other','process','active')`, [otherAgentId, otherCompanyId]);
+  await client.unsafe(`insert into agents(id,space_id,name,adapter_type,status) values($1,$2,'Other','process','active')`, [otherAgentId, otherSpaceId]);
   await client.unsafe(`create or replace function bench_h(n int, salt text) returns int language sql immutable as $$ select abs(hashtext(n::text || salt)) % 100 $$`);
   // Tasks first (no origins), then runs on those tasks, then origins.
-  await client.unsafe(`insert into issues(id,company_id,title,description,status,identifier,issue_number,created_by_agent_id,origin_kind,created_at,updated_at)
+  await client.unsafe(`insert into issues(id,space_id,title,description,status,identifier,issue_number,created_by_agent_id,origin_kind,created_at,updated_at)
     select gen_random_uuid(),$1::uuid,'Synthetic '||n,repeat('Task description. ',40),
       case when bench_h(n,'s')<55 then 'done' when bench_h(n,'s')<62 then 'cancelled' when bench_h(n,'s')<72 then 'backlog'
            when bench_h(n,'s')<84 then 'todo' when bench_h(n,'s')<92 then 'in_progress' when bench_h(n,'s')<96 then 'in_review' else 'blocked' end,
@@ -87,14 +87,14 @@ try {
       case when bench_h(n,'o')<70 then ($2::uuid[])[1+n%3] else null end,
       case when n%41=0 then 'routine_execution' else 'manual' end,
       '2026-01-01'::timestamptz+n*interval '1 minute','2026-01-01'::timestamptz+n*interval '1 minute'
-    from generate_series(1,$3::int) n`, [companyId, agentIds, issueCount]);
-  await client.unsafe(`insert into issues(company_id,title,status,identifier,issue_number)
-    select $1::uuid,'Other '||n,'todo','OTH-'||n,n from generate_series(1,$2::int) n`, [otherCompanyId, Math.round(issueCount / 3)]);
-  await client.unsafe(`create table bench_fixture_issues as select id, issue_number n, identifier from issues where company_id=$1`, [companyId]);
+    from generate_series(1,$3::int) n`, [spaceId, agentIds, issueCount]);
+  await client.unsafe(`insert into issues(space_id,title,status,identifier,issue_number)
+    select $1::uuid,'Other '||n,'todo','OTH-'||n,n from generate_series(1,$2::int) n`, [otherSpaceId, Math.round(issueCount / 3)]);
+  await client.unsafe(`create table bench_fixture_issues as select id, issue_number n, identifier from issues where space_id=$1`, [spaceId]);
   await client.unsafe(`create unique index on bench_fixture_issues(n)`);
   // Runs: legacy context snapshots (issueId / taskId / taskKey) and native runs,
   // with a wide snapshot like real wakes.
-  await client.unsafe(`insert into heartbeat_runs(id,company_id,agent_id,status,runtime_mode,native_issue_id,context_snapshot,created_at)
+  await client.unsafe(`insert into heartbeat_runs(id,space_id,agent_id,status,runtime_mode,native_issue_id,context_snapshot,created_at)
     select gen_random_uuid(),$1::uuid,($2::uuid[])[1+g%3],'succeeded',
       case when g%4=0 then 'native' else 'legacy' end,
       case when g%4=0 then f.id else null end,
@@ -103,26 +103,26 @@ try {
         case when g%7=0 then f.identifier else f.id::text end,
         'wakeReason','issue_assigned','source','assignment','prompt',repeat('context ',120)),
       '2026-01-01'::timestamptz+g*interval '30 seconds'
-    from generate_series(1,$3::int) g join bench_fixture_issues f on f.n = 1 + (g * 7919) % $4::int`, [companyId, agentIds, runCount, issueCount]);
-  await client.unsafe(`insert into heartbeat_runs(company_id,agent_id,status,context_snapshot)
-    select $1::uuid,$2::uuid,'succeeded',jsonb_build_object('issueId',gen_random_uuid()::text) from generate_series(1,$3::int)`, [otherCompanyId, otherAgentId, Math.round(runCount / 3)]);
+    from generate_series(1,$3::int) g join bench_fixture_issues f on f.n = 1 + (g * 7919) % $4::int`, [spaceId, agentIds, runCount, issueCount]);
+  await client.unsafe(`insert into heartbeat_runs(space_id,agent_id,status,context_snapshot)
+    select $1::uuid,$2::uuid,'succeeded',jsonb_build_object('issueId',gen_random_uuid()::text) from generate_series(1,$3::int)`, [otherSpaceId, otherAgentId, Math.round(runCount / 3)]);
   // Origins for agent-created tasks: an earlier task (recorded) or a run (legacy).
   await client.unsafe(`update issues i set
       origin_issue_id = case when bench_h(f.n,'p')<50 then p.id else null end,
-      origin_run_id = (select r.id::text from heartbeat_runs r where r.company_id=$1 and r.created_at <= '2026-01-01'::timestamptz+f.n*interval '1 minute' order by r.created_at desc limit 1)
+      origin_run_id = (select r.id::text from heartbeat_runs r where r.space_id=$1 and r.created_at <= '2026-01-01'::timestamptz+f.n*interval '1 minute' order by r.created_at desc limit 1)
     from bench_fixture_issues f join bench_fixture_issues p on p.n = greatest(1, f.n - 1 - (f.n * 31) % 500)
-    where i.id=f.id and i.created_by_agent_id is not null and f.n > 1`, [companyId]);
+    where i.id=f.id and i.created_by_agent_id is not null and f.n > 1`, [spaceId]);
   // Creation activity for every agent-created task, plus ordinary activity.
-  await client.unsafe(`insert into activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action,run_id,details,created_at)
+  await client.unsafe(`insert into activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action,run_id,details,created_at)
     select $1::uuid,'issue',i.id::text,'agent',i.created_by_agent_id::text,
       case when i.parent_id is null then 'issue.created' else 'issue.child_created' end,
       case when i.origin_run_id is not null then i.origin_run_id::uuid else null end,'{}'::jsonb,i.created_at
-    from issues i where i.company_id=$1 and i.created_by_agent_id is not null`, [companyId]);
-  await client.unsafe(`insert into activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
+    from issues i where i.space_id=$1 and i.created_by_agent_id is not null`, [spaceId]);
+  await client.unsafe(`insert into activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action,details,created_at)
     select $1::uuid,'issue',f.id::text,'agent',($2::uuid[])[1+k%3]::text,
       case when k%2=0 then 'issue.updated' else 'issue.comment_added' end,'{"status":"todo"}'::jsonb,
       '2026-01-20'::timestamptz+(f.n*8+k)*interval '1 second'
-    from bench_fixture_issues f cross join generate_series(0,7) k`, [companyId, agentIds]);
+    from bench_fixture_issues f cross join generate_series(0,7) k`, [spaceId, agentIds]);
 
   // The source tasks: a busy one with every provenance path, and a quiet one
   // with only recorded origins.
@@ -132,8 +132,8 @@ try {
   for (let k = 0; k < 30; k++) {
     const runId = randomUUID();
     sourceRuns.push(runId);
-    await client.unsafe(`insert into heartbeat_runs(id,company_id,agent_id,status,runtime_mode,native_issue_id,context_snapshot)
-      values($1,$2,$3,'succeeded',$4,$5,$6::jsonb)`, [runId, companyId, agentIds[k % 3], k % 3 === 0 ? "native" : "legacy", k % 3 === 0 ? busy.id : null,
+    await client.unsafe(`insert into heartbeat_runs(id,space_id,agent_id,status,runtime_mode,native_issue_id,context_snapshot)
+      values($1,$2,$3,'succeeded',$4,$5,$6::jsonb)`, [runId, spaceId, agentIds[k % 3], k % 3 === 0 ? "native" : "legacy", k % 3 === 0 ? busy.id : null,
       JSON.stringify(k % 3 === 1 ? { taskKey: busy.identifier, prompt: "x".repeat(800) } : { issueId: busy.id, prompt: "x".repeat(800) })]);
   }
   const pick = async (limit: number, offset: number) => (await client.unsafe(
@@ -144,34 +144,34 @@ try {
   await client.unsafe(`update issues set origin_issue_id=null, origin_run_id=$1 where id = any($2::uuid[])`, [sourceRuns[1], legacyRun]);
   const activityOnly = await pick(8, 55);
   await client.unsafe(`update issues set origin_issue_id=null, origin_run_id=null where id = any($1::uuid[])`, [activityOnly]);
-  await client.unsafe(`insert into activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action,run_id)
-    select $1::uuid,'issue',id::text,'agent','agent','issue.child_created',$2::uuid from unnest($3::uuid[]) id`, [companyId, sourceRuns[2], activityOnly]);
+  await client.unsafe(`insert into activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action,run_id)
+    select $1::uuid,'issue',id::text,'agent','agent','issue.child_created',$2::uuid from unnest($3::uuid[]) id`, [spaceId, sourceRuns[2], activityOnly]);
   // Decoys: a recorded origin elsewhere wins over a source run; a source-run
   // comment is not creation; another task's run.
   const decoys = await pick(6, 70);
   await client.unsafe(`update issues set origin_issue_id=$1, origin_run_id=$2 where id = any($3::uuid[])`, [quiet.id, sourceRuns[3], decoys.slice(0, 3)]);
   await client.unsafe(`update issues set origin_issue_id=null, origin_run_id=null where id = any($1::uuid[])`, [decoys.slice(3)]);
-  await client.unsafe(`insert into activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action,run_id)
-    select $1::uuid,'issue',id::text,'agent','agent','issue.comment_added',$2::uuid from unnest($3::uuid[]) id`, [companyId, sourceRuns[4], decoys.slice(3)]);
+  await client.unsafe(`insert into activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action,run_id)
+    select $1::uuid,'issue',id::text,'agent','agent','issue.comment_added',$2::uuid from unnest($3::uuid[]) id`, [spaceId, sourceRuns[4], decoys.slice(3)]);
   await client.unsafe("ANALYZE");
   const [counts] = await client.unsafe(`select
-    (select count(*)::int from issues where company_id=$1) issues,
-    (select count(*)::int from issues where company_id=$1 and origin_issue_id is not null) recorded_origin,
-    (select count(*)::int from issues where company_id=$1 and origin_issue_id is null and origin_run_id is not null) legacy_run_origin,
-    (select count(*)::int from heartbeat_runs where company_id=$1) runs,
-    (select count(*)::int from activity_log where company_id=$1) activity,
+    (select count(*)::int from issues where space_id=$1) issues,
+    (select count(*)::int from issues where space_id=$1 and origin_issue_id is not null) recorded_origin,
+    (select count(*)::int from issues where space_id=$1 and origin_issue_id is null and origin_run_id is not null) legacy_run_origin,
+    (select count(*)::int from heartbeat_runs where space_id=$1) runs,
+    (select count(*)::int from activity_log where space_id=$1) activity,
     (select pg_size_pretty(pg_total_relation_size('heartbeat_runs'))) runs_size,
-    (select pg_size_pretty(pg_total_relation_size('issues'))) issues_size`, [companyId]);
+    (select pg_size_pretty(pg_total_relation_size('issues'))) issues_size`, [spaceId]);
   const fixtureMs = performance.now() - seedStart;
 
-  const readCondition = await issueReadSqlCondition(db, { type: "board", source: "session", userId: "board-user", isInstanceAdmin: true } as never);
+  const readCondition = await issueReadSqlCondition(db, { type: "operator", source: "session", userId: "operator-user", isInstanceAdmin: true } as never);
   // The UI's listAll page: route filters with sortField=id, asc, limit 500.
   const filtersFor = (sourceIssueId: string): IssueFilters => ({
     readCondition, createdFromIssueId: sourceIssueId, includeRoutineExecutions: true,
     sortField: "id", sortDir: "asc", limit: 500,
   });
   // The inbox case is a page of issues with blocked-inbox attention: its
-  // review-wait read used to cover every in-review task of the company.
+  // review-wait read used to cover every in-review task of the space.
   const cases: Record<string, { filters: IssueFilters; statement: RegExp }> = {
     busy: { filters: filtersFor(busy.id), statement: /"creation_source_issue"/ },
     quiet: { filters: filtersFor(quiet.id), statement: /"creation_source_issue"/ },
@@ -191,7 +191,7 @@ try {
     for (let iteration = -2; iteration < samples; iteration++) {
       for (const arm of (iteration % 2 === 0 ? ["baseline", "treatment"] : ["treatment", "baseline"]) as Array<keyof typeof arms>) {
         const started = performance.now();
-        const rows = await arms[arm].list(companyId, filters);
+        const rows = await arms[arm].list(spaceId, filters);
         const elapsed = performance.now() - started;
         if (iteration >= 0) times[arm].push(elapsed);
         const serialized = JSON.parse(JSON.stringify(rows));
@@ -207,7 +207,7 @@ try {
     const plans: Record<string, unknown> = {};
     for (const arm of ["baseline", "treatment"] as const) {
       capture = [];
-      await arms[arm].list(companyId, filters);
+      await arms[arm].list(spaceId, filters);
       const matching = capture.filter((query) => statement.test(query.sql));
       capture = null;
       assert.ok(matching.length > 0, `${arm}: list statement captured`);

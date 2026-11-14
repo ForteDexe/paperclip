@@ -21,7 +21,7 @@ const meta = {
   parameters: {
     layout: "fullscreen",
     initialEntries: ["/PAP/skills/studio/skill-gap"],
-    paperclip: {
+    outpost: {
       "capabilities": [
         "skills/testing"
       ],
@@ -35,7 +35,7 @@ const meta = {
     const skill = makeSkill();
     const run = {
       id: "run-gap",
-      companyId: skill.companyId,
+      spaceId: skill.spaceId,
       skillId: skill.id,
       inputId: "input-gap",
       inputSnapshot: "Review this release.",
@@ -77,8 +77,8 @@ const meta = {
       ...run,
       skillVersion: {
         id: "version-gap",
-        companyId: skill.companyId,
-        companySkillId: skill.id,
+        spaceId: skill.spaceId,
+        spaceSkillId: skill.id,
         revisionNumber: 1,
         label: "Release check",
         releaseId: null,
@@ -105,15 +105,15 @@ const meta = {
     return prepareFixtureApi(
       [
         {
-          path: "/api/companies/company-storybook/skills",
+          path: "/api/spaces/space-storybook/skills",
           read: () => [skill],
         },
         {
-          path: "/api/companies/company-storybook/skills/skill-gap",
+          path: "/api/spaces/space-storybook/skills/skill-gap",
           read: () => skill,
         },
         {
-          path: "/api/companies/company-storybook/skills/skill-gap/files",
+          path: "/api/spaces/space-storybook/skills/skill-gap/files",
           read: () => ({
             skillId: skill.id,
             path: "SKILL.md",
@@ -123,14 +123,14 @@ const meta = {
           }),
         },
         {
-          path: "/api/companies/company-storybook/skills/skill-gap/test-inputs",
+          path: "/api/spaces/space-storybook/skills/skill-gap/test-inputs",
           read: () =>
             parameters.fixtureState === "empty"
               ? []
               : [
                   {
                     id: "input-gap",
-                    companyId: skill.companyId,
+                    spaceId: skill.spaceId,
                     skillId: skill.id,
                     name: "Release review",
                     content: "Review this release.",
@@ -142,11 +142,11 @@ const meta = {
                 ],
         },
         {
-          path: "/api/companies/company-storybook/skill-test-run-templates",
+          path: "/api/spaces/space-storybook/skill-test-run-templates",
           read: () => [],
         },
         {
-          path: "/api/companies/company-storybook/skills/skill-gap/test-runs",
+          path: "/api/spaces/space-storybook/skills/skill-gap/test-runs",
           read: ({ method }) => {
             if (method === "POST") {
               const queued = { ...run, id: "run-queued", status: "queued" };
@@ -157,7 +157,7 @@ const meta = {
           },
         },
         {
-          path: "/api/companies/company-storybook/skills/skill-gap/test-runs/run-gap",
+          path: "/api/spaces/space-storybook/skills/skill-gap/test-runs/run-gap",
           read: detail,
         },
       ],

@@ -1,4 +1,4 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "@/lib/router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,13 +15,13 @@ import { type RoutineHistoryDirtyFieldDescriptor } from "../components/RoutineHi
 import { heartbeatsApi } from "../api/heartbeats";
 import { agentsApi } from "../api/agents";
 import { accessApi } from "../api/access";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useToastActions } from "../context/ToastContext";
 import { queryKeys } from "../lib/queryKeys";
 import { copyTextToClipboard } from "../lib/clipboard";
 import { routineOverviewCopyText } from "../lib/routine-description-copy";
-import { buildMarkdownMentionOptions } from "../lib/company-members";
+import { buildMarkdownMentionOptions } from "../lib/space-members";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
@@ -159,7 +159,7 @@ function buildRoutineMutationPayload(input: RoutineEditDraft) {
 
 export function RoutineDetail() {
   const { routineId, section: sectionParam } = useParams<{ routineId: string; section?: string }>();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -182,7 +182,7 @@ export function RoutineDetail() {
     concurrencyPolicy: "coalesce_if_active",
     catchUpPolicy: "skip_missed",
     activityGatePolicy: "always",
-    activityGateScope: "company",
+    activityGateScope: "space",
     variables: [],
     env: null,
   });
@@ -228,40 +228,40 @@ export function RoutineDetail() {
   );
   const { data: activity } = useQuery({
     queryKey: [
-      ...queryKeys.routines.activity(selectedCompanyId!, routineId!),
+      ...queryKeys.routines.activity(selectedSpaceId!, routineId!),
       relatedActivityIds.triggerIds.join(","),
       relatedActivityIds.runIds.join(","),
     ],
-    queryFn: () => routinesApi.activity(selectedCompanyId!, routineId!, relatedActivityIds),
-    enabled: !!selectedCompanyId && !!routineId && !!routine,
+    queryFn: () => routinesApi.activity(selectedSpaceId!, routineId!, relatedActivityIds),
+    enabled: !!selectedSpaceId && !!routineId && !!routine,
   });
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const { data: projects } = useQuery({
-    ...companyProjectsQuery(selectedCompanyId!, { includeArchived: true }),
-    enabled: !!selectedCompanyId,
+    ...spaceProjectsQuery(selectedSpaceId!, { includeArchived: true }),
+    enabled: !!selectedSpaceId,
   });
-  const { data: companyMembers } = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(selectedCompanyId!),
-    queryFn: () => accessApi.listUserDirectory(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+  const { data: spaceMembers } = useQuery({
+    queryKey: queryKeys.access.spaceUserDirectory(selectedSpaceId!),
+    queryFn: () => accessApi.listUserDirectory(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const { data: availableSecrets = [] } = useQuery({
-    queryKey: selectedCompanyId ? queryKeys.secrets.list(selectedCompanyId) : ["secrets", "none"],
-    queryFn: () => secretsApi.list(selectedCompanyId!),
-    enabled: Boolean(selectedCompanyId),
+    queryKey: selectedSpaceId ? queryKeys.secrets.list(selectedSpaceId) : ["secrets", "none"],
+    queryFn: () => secretsApi.list(selectedSpaceId!),
+    enabled: Boolean(selectedSpaceId),
   });
   const createSecret = useMutation({
     mutationFn: (input: { name: string; value: string }) => {
-      if (!selectedCompanyId) throw new Error("Select an Outpost to create secrets");
-      return secretsApi.create(selectedCompanyId, input);
+      if (!selectedSpaceId) throw new Error("Select an Outpost to create secrets");
+      return secretsApi.create(selectedSpaceId, input);
     },
     onSuccess: () => {
-      if (!selectedCompanyId) return;
-      queryClient.invalidateQueries({ queryKey: queryKeys.secrets.list(selectedCompanyId) });
+      if (!selectedSpaceId) return;
+      queryClient.invalidateQueries({ queryKey: queryKeys.secrets.list(selectedSpaceId) });
     },
   });
 
@@ -401,8 +401,8 @@ export function RoutineDetail() {
       setSaveConflict(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.detail(routineId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedCompanyId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(selectedCompanyId!, routineId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedSpaceId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(selectedSpaceId!, routineId!) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.revisions(routineId!) }),
       ]);
     },
@@ -445,8 +445,8 @@ export function RoutineDetail() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.detail(routineId!) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.runs(routineId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedCompanyId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(selectedCompanyId!, routineId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedSpaceId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(selectedSpaceId!, routineId!) }),
       ]);
     },
     onError: (runError) => {
@@ -468,7 +468,7 @@ export function RoutineDetail() {
       });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.detail(routineId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedCompanyId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedSpaceId!) }),
       ]);
     },
     onError: (statusError) => {
@@ -506,8 +506,8 @@ export function RoutineDetail() {
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.detail(routineId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedCompanyId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(selectedCompanyId!, routineId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedSpaceId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(selectedSpaceId!, routineId!) }),
       ]);
     },
     onError: (triggerError) => {
@@ -525,8 +525,8 @@ export function RoutineDetail() {
       pushToast({ title: "Trigger saved", body: "The routine cadence update was saved.", tone: "success" });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.detail(routineId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedCompanyId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(selectedCompanyId!, routineId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedSpaceId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(selectedSpaceId!, routineId!) }),
       ]);
     },
     onError: (triggerError) => {
@@ -544,8 +544,8 @@ export function RoutineDetail() {
       pushToast({ title: "Trigger deleted", tone: "success" });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.detail(routineId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedCompanyId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(selectedCompanyId!, routineId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(selectedSpaceId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(selectedSpaceId!, routineId!) }),
       ]);
     },
     onError: (triggerError) => {
@@ -566,7 +566,7 @@ export function RoutineDetail() {
       });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.detail(routineId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(selectedCompanyId!, routineId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.activity(selectedSpaceId!, routineId!) }),
       ]);
     },
     onError: (triggerError) => {
@@ -602,9 +602,9 @@ export function RoutineDetail() {
     () => buildMarkdownMentionOptions({
       agents,
       projects: (projects ?? []).filter((project) => !project.archivedAt),
-      members: companyMembers?.users,
+      members: spaceMembers?.users,
     }),
-    [agents, companyMembers?.users, projects],
+    [agents, spaceMembers?.users, projects],
   );
 
   // Wrap track-recent side-effects so the section components stay declarative.
@@ -679,7 +679,7 @@ export function RoutineDetail() {
     [queryClient, routineId],
   );
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <EmptyState icon={Repeat} message="Select an Outpost to view routines." />;
   }
 
@@ -746,7 +746,7 @@ export function RoutineDetail() {
   const contextValue: RoutineDetailContextValue = {
     routine,
     routineId: routineId!,
-    companyId: routine.companyId,
+    spaceId: routine.spaceId,
     editDraft,
     setEditDraft: setEditDraftTracked,
     routineDefaults,
@@ -938,7 +938,7 @@ export function RoutineDetail() {
       <RoutineRunVariablesDialog
         open={runVariablesOpen}
         onOpenChange={setRunVariablesOpen}
-        companyId={routine.companyId}
+        spaceId={routine.spaceId}
         routineName={routine.title}
         agents={agents ?? []}
         projects={projects ?? []}

@@ -28,9 +28,9 @@ export const runtimeAgentChatCases = [runtimeDefinition("agent-chat.reopen-conve
   await ctx.input.api.patch(`/api/agents/${ctx.input.fixtures.agent.id}`, { name: "Morgan" });
   // Genuine history runs before shared pre-canonical funding. Subscription
   // usage is unpriced, so fund both actual scopes before that setup turn.
-  for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id },
+  for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id },
     { scopeType: "agent", scopeId: ctx.input.fixtures.agent.id }])
-    await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/budgets/policies`, {
+    await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/policies`, {
       ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
   const source = await openStandingChat(ctx);
   const lead = await ctx.input.api.get<Entity>(`/api/agents/${ctx.input.fixtures.agent.id}`);
@@ -43,7 +43,7 @@ export const runtimeAgentChatCases = [runtimeDefinition("agent-chat.reopen-conve
   const firstRuns = await ctx.allRuns();
   if (!history.some(row => row.authorAgentId === ctx.input.fixtures.agent.id && firstRuns.some(run => run.id === row.createdByRunId)))
     throw new Error("Existing Morgan history requires a genuine attributed native reply");
-  const read = await readAgentResource(ctx, `/api/companies/${ctx.input.fixtures.company.id}/chats`);
+  const read = await readAgentResource(ctx, `/api/spaces/${ctx.input.fixtures.space.id}/chats`);
   return { existingIssueId: source.id, lead, history, historyMarker, setupRunIds: firstRuns.map(run => run.id), agentChatListStatus: read.status };
 }, gradeReopenConversation, {
   oracleVersion: "outpost.chat-catalog.runtime.reopen-conversation.v3", authentication: "human-session", setupHumanMessageCount: 1, expectedHumanMessageCount: 2, expectedRunCount: 2, attemptTimeoutMs: 420_000,
@@ -72,14 +72,14 @@ export const runtimeAgentChatCases = [runtimeDefinition("agent-chat.reopen-conve
     const lead = state.lead as Entity;
     state.finalNavigationLinksCorrect = allFinalLinks.filter(link => new URL(link, ctx.input.api.baseURL).pathname.includes("/chats")).every(link => {
       const url = new URL(link, ctx.input.api.baseURL); const parts = url.pathname.split("/").map(decodeURIComponent);
-      return url.origin === ctx.input.api.baseURL && parts[1] === ctx.input.fixtures.company.issuePrefix
+      return url.origin === ctx.input.api.baseURL && parts[1] === ctx.input.fixtures.space.issuePrefix
         && (parts.at(-1) === "chats" || [lead.id, lead.urlKey].includes(parts.at(-1)));
     });
     state.beforeNavigationRuns = runs.length;
-    const chatList = `/api/companies/${ctx.input.fixtures.company.id}/chats`;
+    const chatList = `/api/spaces/${ctx.input.fixtures.space.id}/chats`;
     state.beforeNavigationChatIds = (await ctx.input.api.get<Entity[]>(chatList)).map(row => row.id).sort();
     if (href) await ctx.input.page.locator(`[id^="comment-"] a[href=${JSON.stringify(href)}]`).last().click();
-    else await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/chats`, { waitUntil: "domcontentloaded" });
+    else await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/chats`, { waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible();
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible();

@@ -23,7 +23,7 @@ export interface GitWorkspaceSnapshot {
   repositories?: Array<{ path: string; snapshot: GitWorkspaceSnapshot }>;
 }
 
-export const PROJECT_REPOSITORIES_DIR = ".paperclip-repositories";
+export const PROJECT_REPOSITORIES_DIR = ".outpost-repositories";
 export const PROJECT_REPOSITORY_STAGING_PATTERN = /^[a-zA-Z0-9_-]+\.clone-[a-zA-Z0-9_-]+$/;
 
 export interface ExpensiveWorkspaceGitInput {
@@ -621,8 +621,8 @@ export async function withShallowGitWorkspaceClone<T>(
   },
   fn: (cloneDir: string) => Promise<T>,
 ): Promise<T> {
-  const cloneDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-git-workspace-"));
-  const tempRef = `refs/paperclip/git-sync/import/${randomUUID()}`;
+  const cloneDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-git-workspace-"));
+  const tempRef = `refs/outpost/git-sync/import/${randomUUID()}`;
   try {
     const originUrl = input.snapshot.originUrl !== undefined ? input.snapshot.originUrl : await readSanitizedOriginRemoteUrl(input.localDir);
     await runLocalGit(input.localDir, ["update-ref", tempRef, input.snapshot.headCommit], {
@@ -689,11 +689,11 @@ export async function withShallowGitWorkspaceClone<T>(
 }
 
 export function createImportedGitRef(scope = "remote"): string {
-  return `refs/paperclip/git-sync/imported/${scope}/${randomUUID()}`;
+  return `refs/outpost/git-sync/imported/${scope}/${randomUUID()}`;
 }
 
 export function createRemoteGitExportRef(scope = "remote"): string {
-  return `refs/paperclip/git-sync/export/${scope}/${randomUUID()}`;
+  return `refs/outpost/git-sync/export/${scope}/${randomUUID()}`;
 }
 
 export async function deleteLocalGitRef(input: {
@@ -751,7 +751,7 @@ export async function fetchGitBundleIntoLocalRef(input: {
     const objectFormat = (await importGit(input.localDir, ["rev-parse", "--show-object-format"])).stdout.trim();
     const oid = objectFormat === "sha256" ? /^[a-f0-9]{64}$/ : /^[a-f0-9]{40}$/;
     if (!boundaries.every((boundary) => oid.test(boundary))) throw new GitShallowMetadataError(`Invalid Git shallow boundaries for host object format ${objectFormat}`);
-    const staging = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-git-bundle-"));
+    const staging = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-git-bundle-"));
     try {
       // Git bundles have no shallow protocol. Unpack into a private repository
       // carrying the sender's boundaries, then let ordinary Git fetch negotiate

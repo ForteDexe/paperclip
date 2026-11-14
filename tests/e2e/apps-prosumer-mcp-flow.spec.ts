@@ -15,15 +15,15 @@ import { listenOnFetchAllowedPort } from "./fetch-allowed-port";
 
 const SCREENSHOT_DIR = "test-results";
 
-type Seed = { companyId: string; prefix: string };
+type Seed = { spaceId: string; prefix: string };
 
-async function newCompany(request: APIRequestContext, label: string): Promise<Seed> {
-  const res = await request.post("/api/companies", { data: { name: `prosumer MCP flow ${label} ${Date.now()}` } });
-  expect(res.ok(), `create company failed ${res.status()}: ${await res.text()}`).toBe(true);
-  const company = await res.json();
+async function newSpace(request: APIRequestContext, label: string): Promise<Seed> {
+  const res = await request.post("/api/spaces", { data: { name: `prosumer MCP flow ${label} ${Date.now()}` } });
+  expect(res.ok(), `create space failed ${res.status()}: ${await res.text()}`).toBe(true);
+  const space = await res.json();
   return {
-    companyId: company.id,
-    prefix: company.issuePrefix ?? company.prefix ?? company.urlKey ?? "E2E",
+    spaceId: space.id,
+    prefix: space.issuePrefix ?? space.prefix ?? space.urlKey ?? "E2E",
   };
 }
 
@@ -148,7 +148,7 @@ test.describe.serial("prosumer MCP flow prosumer MCP flow", () => {
   });
 
   test("Connect wizard happy path: link mode → success", async ({ page, request }) => {
-    const seed = await newCompany(request, "connect");
+    const seed = await newSpace(request, "connect");
 
     await gotoConnect(page, seed.prefix);
 
@@ -178,7 +178,7 @@ test.describe.serial("prosumer MCP flow prosumer MCP flow", () => {
     // Verify the mock saw a tools/list call from the catalog refresh.
     expect(mock.captures.some((c) => c.method === "tools/list")).toBe(true);
 
-    const connectionsResponse = await request.get(`/api/companies/${seed.companyId}/tools/connections`);
+    const connectionsResponse = await request.get(`/api/spaces/${seed.spaceId}/tools/connections`);
     expect(connectionsResponse.ok(), `list connections failed ${connectionsResponse.status()}`).toBe(true);
     const connectionsPayload = await connectionsResponse.json();
     const savedConnection = connectionsPayload.connections.find(
@@ -215,12 +215,12 @@ test.describe.serial("prosumer MCP flow prosumer MCP flow", () => {
   });
 
   test("Expired key → health sweep → Needs attention → reconnect → green", async ({ page, request }) => {
-    const seed = await newCompany(request, "attention");
+    const seed = await newSpace(request, "attention");
 
     // Spawn a dedicated mock we can break partway through.
     const ephemeral = await startMockMcp();
     try {
-      const connect = await request.post(`/api/companies/${seed.companyId}/tools/apps/connect`, {
+      const connect = await request.post(`/api/spaces/${seed.spaceId}/tools/apps/connect`, {
         data: { link: ephemeral.url, credentialValues: { "credentials.authorization": "qa-token" } },
       });
       expect(connect.ok(), `connect failed ${connect.status()}: ${await connect.text()}`).toBe(true);
@@ -229,7 +229,7 @@ test.describe.serial("prosumer MCP flow prosumer MCP flow", () => {
       const enabledCatalogEntryIds = (connectResult.actions?.readOnly ?? []).map(
         (action: { catalogEntryId: string }) => action.catalogEntryId,
       );
-      const finish = await request.post(`/api/companies/${seed.companyId}/tools/apps/${connectionId}/finish`, {
+      const finish = await request.post(`/api/spaces/${seed.spaceId}/tools/apps/${connectionId}/finish`, {
         data: { enabledCatalogEntryIds, askFirstCatalogEntryIds: [], access: "all_agents" },
       });
       expect(finish.ok(), `finish failed ${finish.status()}: ${await finish.text()}`).toBe(true);
@@ -287,7 +287,7 @@ test.describe.serial("prosumer MCP flow prosumer MCP flow", () => {
   });
 
   test("/apps/advanced mounts the paste-config path", async ({ page, request }) => {
-    const seed = await newCompany(request, "advanced");
+    const seed = await newSpace(request, "advanced");
 
     await gotoAdvanced(page, seed.prefix);
     await expect(page.getByRole("heading", { name: "Advanced setup" })).toBeVisible({ timeout: 20_000 });

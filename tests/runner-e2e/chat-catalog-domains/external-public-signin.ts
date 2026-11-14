@@ -32,7 +32,7 @@ export async function privatePublicSignIn(
   if (!validPublicSignInInput(input))
     throw new Error("Invalid finite generated-person public sign-in request");
   const directory = await mkdtemp(
-    path.join(tmpdir(), "paperclip-private-public-signin-"),
+    path.join(tmpdir(), "outpost-private-public-signin-"),
   );
   await chmod(directory, 0o700);
   try {

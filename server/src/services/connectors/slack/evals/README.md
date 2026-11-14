@@ -16,7 +16,7 @@ contract; its pass does not establish the probe's complete outcome.
 
 | Feature | Guidance to preserve | Acceptance probe |
 | --- | --- | --- |
-| Choice questions and forms | Use saved Paperclip questions; Slack controls answer and resume the same task. | `choice-question`, `question-form` |
+| Choice questions and forms | Use saved Outpost questions; Slack controls answer and resume the same task. | `choice-question`, `question-form` |
 | Files | Current-chat artifact handoff; explicit uploads elsewhere use an existing attachment. Verify delivery. | `file-reply` |
 | Mentions and replies | A bare mention starts a real conversation; unmentioned thread replies continue it. | `thread-followup` |
 | Search and history | Use authorized sources and real permalinks; disclose bounded coverage. | `search-coverage` |
@@ -26,7 +26,7 @@ contract; its pass does not establish the probe's complete outcome.
 | Destructive changes and invitations | Honor the saved action policy and approval decision. | `approval-decline` |
 | Canvases and lists | Use advertised capabilities; explain plan/scope limitations without inventing success. | `canvas-list-availability` |
 | Task links | Use the server-provided public URL. | `task-link` |
-| People joining | Give the saved bot command, personal confirmation flow, and company-access approval. Channel invitations do not grant Paperclip access. | `invite-person` |
+| People joining | Give the saved bot command, personal confirmation flow, and space-access approval. Channel invitations do not grant Outpost access. | `invite-person` |
 
 Pins, bookmarks, channel topics, invitations, list edits, and channel creation
 have tool descriptions and transport fixtures but no dedicated model probe here
@@ -61,7 +61,7 @@ from that file when investigating those features.
 
 ## Run a model acceptance probe
 
-Use an isolated Paperclip company and explicitly authorized Slack workspace and
+Use an isolated Outpost space and explicitly authorized Slack workspace and
 destinations. Seed synthetic content and record the expected result before
 starting. Send the case's neutral prompt through the real conversation, retain
 the required evidence, and grade actual provider state rather than agent prose.
@@ -69,7 +69,7 @@ For questions, answer through Slack and observe the continuation. For files,
 download and inspect the delivered bytes. Inject uncertain-write faults only
 through a controlled provider fixture.
 
-Record the Paperclip revision, case/version, model and adapter, legacy/native
+Record the Outpost revision, case/version, model and adapter, legacy/native
 runtime, effective tool policies, fixture identity, run/task/interaction/action
 IDs, timestamps, actual provider result, sanitized evidence, and cost when
 available. Distinguish model failure, product failure, fixture failure,
@@ -93,6 +93,6 @@ results do not constitute a fully passing campaign.
 To automate these probes, extend the canonical
 [`tests/runner-e2e`](../../../../../../tests/runner-e2e/README.md) Product E2E
 catalog and evidence/grading path. Runner-only protocol cases belong in the
-separate `paperclip-evals` repository. Follow
+separate `outpost-evals` repository. Follow
 [`doc/evals.md`](../../../../../../doc/evals.md); no Slack model campaign is
 registered or launched by this folder.

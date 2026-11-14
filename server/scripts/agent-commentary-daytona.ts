@@ -10,7 +10,7 @@ import { readEnvironmentCreationCleanupError, type PluginEnvironmentCreationClea
   type PluginEnvironmentLease, type PluginEnvironmentTerminationReceipt } from "@outpost/plugin-sdk";
 
 export async function acquireDaytonaLeaseWithCleanup(input: {
-  companyId: string; environmentId: string; runId: string;
+  spaceId: string; environmentId: string; runId: string;
   acquire: () => Promise<PluginEnvironmentLease>;
   destroy: (cleanup: PluginEnvironmentCreationCleanup) => Promise<PluginEnvironmentTerminationReceipt | void>;
 }) {
@@ -18,7 +18,7 @@ export async function acquireDaytonaLeaseWithCleanup(input: {
     return await input.acquire();
   } catch (error) {
     const cleanup = readEnvironmentCreationCleanupError(error);
-    if (cleanup && cleanup.companyId === input.companyId && cleanup.environmentId === input.environmentId
+    if (cleanup && cleanup.spaceId === input.spaceId && cleanup.environmentId === input.environmentId
         && (!cleanup.runId || cleanup.runId === input.runId)) {
       const receipt = await input.destroy(cleanup);
       assert.equal(receipt?.state, "destroyed", "Failed Daytona acquisition must be cleaned up");
@@ -28,7 +28,7 @@ export async function acquireDaytonaLeaseWithCleanup(input: {
 }
 
 export async function acquireCommentaryDaytonaTarget(db: Db, fixture: {
-  companyId: string; agentId: string; issueId: string; runId: string;
+  spaceId: string; agentId: string; issueId: string; runId: string;
 }, mode: "legacy" | "native") {
   const envFile = process.env.OUTPOST_LIVE_DAYTONA_ENV_FILE;
   const env = envFile ? parse(await readFile(envFile)) : process.env;
@@ -44,7 +44,7 @@ export async function acquireCommentaryDaytonaTarget(db: Db, fixture: {
   const config = { apiKey, image, cpu: 4, memory: 4, disk: 10, reuseLease: false,
     autoStopInterval: 5, autoArchiveInterval: 15, autoDeleteInterval: 60,
     timeoutMs: 300_000, livenessTimeoutMs: 30_000 };
-  const base = { driverKey: "daytona", companyId: fixture.companyId, environmentId, issueId: fixture.issueId, config };
+  const base = { driverKey: "daytona", spaceId: fixture.spaceId, environmentId, issueId: fixture.issueId, config };
   await db.insert(environments).values({ id: environmentId, name: `feedback-smoke-${environmentId}`, driver: "sandbox", config: { provider: "daytona", image } });
   console.error(`Acquiring disposable ${mode} Daytona sandbox.`);
   const lease = await acquireDaytonaLeaseWithCleanup({ ...fixture, environmentId,
@@ -62,7 +62,7 @@ export async function acquireCommentaryDaytonaTarget(db: Db, fixture: {
     await db.update(environmentLeases).set({ status: "released", releasedAt: new Date(), cleanupStatus: "completed" }).where(eq(environmentLeases.id, leaseId));
   };
   try {
-    await db.insert(environmentLeases).values({ id: leaseId, companyId: fixture.companyId, environmentId,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId: fixture.spaceId, environmentId,
       issueId: fixture.issueId, heartbeatRunId: fixture.runId, provider: "daytona", providerLeaseId: lease.providerLeaseId, metadata: lease.metadata });
     const target: AdapterSandboxExecutionTarget = {
       kind: "remote", transport: "sandbox", providerKey: "daytona", environmentId, leaseId,

@@ -17,7 +17,7 @@ export function queuedInteractionId(payload: unknown): string | null {
 }
 
 /**
- * A governed tool action resolves as approve = run: by the time a receipt for
+ * A controlled tool action resolves as approve = run: by the time a receipt for
  * it waits behind another turn, the tool already ran or was declined, and the
  * approval card shows that outcome. The receipt only hands the recorded result
  * to the agent. It still counts as owed input for delivery and recovery, but it
@@ -59,9 +59,9 @@ export function queuedInteractionSummary(interaction: {
  */
 // Table-qualified on purpose: inside a select list Drizzle renders columns
 // unqualified, which would bind them to the subquery's own run row.
-function deliveredInteractionRunExists(companyId: string, issueId: string) {
+function deliveredInteractionRunExists(spaceId: string, issueId: string) {
   return sql<boolean>`EXISTS (SELECT 1 FROM heartbeat_runs delivered_run
-    WHERE delivered_run.company_id = ${companyId}
+    WHERE delivered_run.space_id = ${spaceId}
       AND delivered_run.context_snapshot->>'issueId' = ${issueId}
       AND delivered_run.context_snapshot->>'interactionId' = issue_thread_interactions.id::text
       AND delivered_run.context_snapshot->>'interactionStatus' = issue_thread_interactions.status
@@ -87,7 +87,7 @@ export type QueuedInteractionResponse = NonNullable<Awaited<ReturnType<typeof re
 
 /** A stored human answer can reach its assignee while dependency work stays blocked. */
 export async function isVerifiedDependencyInteractionResponse(db: Pick<Db, "select">, input: {
-  companyId: string; issueId: string; agentId: string; context: unknown;
+  spaceId: string; issueId: string; agentId: string; context: unknown;
 }): Promise<boolean> {
   const id = queuedInteractionId(input.context);
   if (!id) return false;
@@ -95,7 +95,7 @@ export async function isVerifiedDependencyInteractionResponse(db: Pick<Db, "sele
   const [interaction] = await db.select({ status: issueThreadInteractions.status, kind: issueThreadInteractions.kind,
     resolvedByUserId: issueThreadInteractions.resolvedByUserId, resolvedAt: issueThreadInteractions.resolvedAt })
     .from(issueThreadInteractions).where(and(
-      eq(issueThreadInteractions.id, id), eq(issueThreadInteractions.companyId, input.companyId),
+      eq(issueThreadInteractions.id, id), eq(issueThreadInteractions.spaceId, input.spaceId),
       eq(issueThreadInteractions.issueId, input.issueId), eq(issueThreadInteractions.createdByAgentId, input.agentId),
     )).limit(1);
   return Boolean(interaction?.resolvedByUserId && interaction.resolvedAt
@@ -103,14 +103,14 @@ export async function isVerifiedDependencyInteractionResponse(db: Pick<Db, "sele
     && (context.interactionKind === undefined || interaction.kind === context.interactionKind));
 }
 
-export async function readQueuedInteractionResponse(db: Db, companyId: string, issueId: string, payload: unknown) {
+export async function readQueuedInteractionResponse(db: Db, spaceId: string, issueId: string, payload: unknown) {
   const id = queuedInteractionId(payload);
   if (!id) return null;
   const [row] = await db.select({
     interaction: issueThreadInteractions,
-    delivered: deliveredInteractionRunExists(companyId, issueId),
+    delivered: deliveredInteractionRunExists(spaceId, issueId),
   }).from(issueThreadInteractions).where(and(
-    eq(issueThreadInteractions.id, id), eq(issueThreadInteractions.companyId, companyId),
+    eq(issueThreadInteractions.id, id), eq(issueThreadInteractions.spaceId, spaceId),
     eq(issueThreadInteractions.issueId, issueId),
     inArray(issueThreadInteractions.status, ["accepted", "answered", "rejected"]),
   ));
@@ -119,34 +119,34 @@ export async function readQueuedInteractionResponse(db: Db, companyId: string, i
   const heading = queuedInteractionSummary(interaction);
   const body = queuedInteractionSteeringBody(interaction);
   const comment: IssueComment = {
-    id: interaction.id, companyId, issueId, authorType: interaction.resolvedByUserId ? "user" : "agent",
+    id: interaction.id, spaceId, issueId, authorType: interaction.resolvedByUserId ? "user" : "agent",
     authorUserId: interaction.resolvedByUserId, authorAgentId: interaction.resolvedByAgentId,
     body, presentation: null, metadata: null,
     createdAt: interaction.resolvedAt ?? interaction.updatedAt, updatedAt: interaction.updatedAt,
   };
   const source: NonNullable<IssueQueuedCommentEntry["source"]> = {
     kind: "interaction", interactionId: interaction.id, interactionKind: interaction.kind,
-    requiresFreshSession: record(record(payload)._paperclipWakeContext).forceFreshSession === true,
+    requiresFreshSession: record(record(payload)._outpostWakeContext).forceFreshSession === true,
     summary: heading,
   };
   return { comment, source, toolActionOutcome: isToolActionConfirmation(interaction) };
 }
 
 /** A saved answer is a live continuation, even though its card is no longer pending. */
-export async function hasQueuedInteractionResponse(db: Db, companyId: string, issueId: string, agentId?: string | null) {
+export async function hasQueuedInteractionResponse(db: Db, spaceId: string, issueId: string, agentId?: string | null) {
   if (!agentId) return false;
   const [row] = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests)
     .innerJoin(issueThreadInteractions, and(
-      eq(issueThreadInteractions.companyId, agentWakeupRequests.companyId),
+      eq(issueThreadInteractions.spaceId, agentWakeupRequests.spaceId),
       sql`${issueThreadInteractions.id}::text = ${agentWakeupRequests.payload}->>'interactionId'`,
       eq(issueThreadInteractions.issueId, issueId),
       inArray(issueThreadInteractions.status, ["accepted", "answered", "rejected"]),
     )).where(and(
-      eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.agentId, agentId),
+      eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.agentId, agentId),
       inArray(agentWakeupRequests.status, ["deferred_issue_execution", "queued"]),
       sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
       sql`${agentWakeupRequests.payload}->>'mutation' = 'interaction'`,
-      sql`NOT ${deliveredInteractionRunExists(companyId, issueId)}`,
+      sql`NOT ${deliveredInteractionRunExists(spaceId, issueId)}`,
     )).limit(1);
   return Boolean(row);
 }

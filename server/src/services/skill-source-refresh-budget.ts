@@ -1,5 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
-import { companySkillSources, type Db } from '@outpost/db';
+import { spaceSkillSources, type Db } from '@outpost/db';
 import { conflict, tooManyRequests } from '../errors.js';
 
 export const AUTOMATIC_SKILL_WORK_CAPACITY_BYTES = 512 * 1024 * 1024;
@@ -17,7 +17,7 @@ export function automaticSkillWorkRefund(work: { downloadBytes?: number; scanByt
 }
 
 /** The refresh lease serializes this durable token bucket across workers/restarts. */
-export async function reserveAutomaticSkillWork(db: Db, source: typeof companySkillSources.$inferSelect, token: string, now: Date) {
+export async function reserveAutomaticSkillWork(db: Db, source: typeof spaceSkillSources.$inferSelect, token: string, now: Date) {
   const effectiveNow = new Date(Math.max(now.getTime(), source.automaticBudgetAt.getTime()));
   const available = automaticSkillWorkAvailable(source.automaticBudgetBytes, source.automaticBudgetAt, effectiveNow);
   if (available < AUTOMATIC_SKILL_WORK_RESERVATION_BYTES) {
@@ -26,18 +26,18 @@ export async function reserveAutomaticSkillWork(db: Db, source: typeof companySk
       retryAfterSeconds: Math.ceil((AUTOMATIC_SKILL_WORK_RESERVATION_BYTES - available) * REFILL_WINDOW_MS / AUTOMATIC_SKILL_WORK_CAPACITY_BYTES / 1000),
     });
   }
-  const changed = await db.update(companySkillSources).set({ automaticBudgetAt: effectiveNow,
+  const changed = await db.update(spaceSkillSources).set({ automaticBudgetAt: effectiveNow,
     automaticBudgetBytes: available - AUTOMATIC_SKILL_WORK_RESERVATION_BYTES })
-    .where(and(eq(companySkillSources.companyId, source.companyId), eq(companySkillSources.id, source.id),
-      eq(companySkillSources.leaseToken, token))).returning({ id: companySkillSources.id });
+    .where(and(eq(spaceSkillSources.spaceId, source.spaceId), eq(spaceSkillSources.id, source.id),
+      eq(spaceSkillSources.leaseToken, token))).returning({ id: spaceSkillSources.id });
   if (!changed.length) throw conflict('Source refresh changed. Try again.');
 }
 
 /** Small repositories refund unused capacity; failures keep the bounded reservation. */
-export async function settleAutomaticSkillWork(db: Db, companyId: string, sourceId: string, token: string,
+export async function settleAutomaticSkillWork(db: Db, spaceId: string, sourceId: string, token: string,
   work: { downloadBytes?: number; scanBytes?: number }) {
   const refund = automaticSkillWorkRefund(work);
   if (!refund) return;
-  await db.update(companySkillSources).set({ automaticBudgetBytes: sql`least(${AUTOMATIC_SKILL_WORK_CAPACITY_BYTES}, ${companySkillSources.automaticBudgetBytes} + ${refund})` })
-    .where(and(eq(companySkillSources.companyId, companyId), eq(companySkillSources.id, sourceId), eq(companySkillSources.leaseToken, token)));
+  await db.update(spaceSkillSources).set({ automaticBudgetBytes: sql`least(${AUTOMATIC_SKILL_WORK_CAPACITY_BYTES}, ${spaceSkillSources.automaticBudgetBytes} + ${refund})` })
+    .where(and(eq(spaceSkillSources.spaceId, spaceId), eq(spaceSkillSources.id, sourceId), eq(spaceSkillSources.leaseToken, token)));
 }

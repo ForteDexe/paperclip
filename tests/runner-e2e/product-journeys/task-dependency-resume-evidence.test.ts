@@ -109,7 +109,7 @@ describe("task dependency resume evidence", () => {
   });
   it("has no global activity length cap after complete scoped observation", () => {
     const f = dependencyEvidenceFixture();
-    f.reopened.activity.push(...Array.from({ length: 600 }, (_, i) => ({ id: `prior-${i}`, companyId: f.scope.companyId,
+    f.reopened.activity.push(...Array.from({ length: 600 }, (_, i) => ({ id: `prior-${i}`, spaceId: f.scope.spaceId,
       entityType: "issue", entityId: f.scope.dependentId, action: "issue.observed" })));
     expect(gradeTaskDependencyResume(f).every(check => check.passed)).toBe(true);
   });

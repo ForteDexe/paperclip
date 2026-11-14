@@ -58,7 +58,7 @@ function createFakeDb(args: {
     execute: vi.fn(async (query: SQL) => {
       const statement = new PgDialect().sqlToQuery(query);
       expect(transactionDepth).toBeGreaterThan(0);
-      expect(statement.params).toContain(interactionRow.companyId);
+      expect(statement.params).toContain(interactionRow.spaceId);
       expect(statement.params).toContain(interactionRow.issueId);
       if (statement.sql.includes("origin_kind")) return [{ id: interactionRow.issueId, originKind: null, originId: null }];
       if (statement.sql.includes("with recursive affected")) return [{ issueId: interactionRow.issueId }];
@@ -69,11 +69,11 @@ function createFakeDb(args: {
       const rows = selectCallCount === 1 ? [interactionRow] : (args.parentRows ?? []);
       return createSelectChain(table => {
         if (getTableName(table as never) === "issues") return [{
-          id: interactionRow.issueId, companyId: interactionRow.companyId, status: "in_progress",
+          id: interactionRow.issueId, spaceId: interactionRow.spaceId, status: "in_progress",
           assigneeAgentId: interactionRow.createdByAgentId, conversationAgentId: null,
         }];
         if (getTableName(table as never) === "agents") return [{
-          id: interactionRow.createdByAgentId, companyId: interactionRow.companyId, permissions: {},
+          id: interactionRow.createdByAgentId, spaceId: interactionRow.spaceId, permissions: {},
         }];
         return rows;
       });
@@ -132,18 +132,18 @@ describe("issueThreadInteractionService", () => {
   it.each([
     ["ask_user_questions", undefined, {}, "anyone", "anyone", "inherited", "requested"],
     ["suggest_tasks", undefined, {}, "anyone", "anyone", "inherited", "requested"],
-    ["request_confirmation", "board_or_agents", {}, "anyone", "anyone", "explicit", "requested"],
-    ["request_confirmation", "board_only", {}, "human_only", "human_only", "explicit", "requested"],
+    ["request_confirmation", "operator_or_agents", {}, "anyone", "anyone", "explicit", "requested"],
+    ["request_confirmation", "operator_only", {}, "human_only", "human_only", "explicit", "requested"],
     ["request_checkbox_confirmation", undefined, { request_checkbox_confirmation: { defaultPolicy: "not_creator" } }, "not_creator", "not_creator", "inherited", "requested"],
-    ["request_item_verdicts", "anyone", { request_item_verdicts: { cap: "not_creator" } }, "anyone", "not_creator", "explicit", "company_cap"],
+    ["request_item_verdicts", "anyone", { request_item_verdicts: { cap: "not_creator" } }, "anyone", "not_creator", "explicit", "space_cap"],
   ] as const)(
     "resolves %s requested/default/cap policy snapshots",
-    async (kind, requested, governance, expectedRequested, expectedEffective, expectedProvenance, expectedSource) => {
+    async (kind, requested, policy, expectedRequested, expectedEffective, expectedProvenance, expectedSource) => {
       const { resolveInteractionPolicy } = await import("./issue-thread-interactions.js");
       expect(resolveInteractionPolicy({
         kind,
         requested,
-        governance,
+        policy,
         hasToolAction: false,
       })).toEqual({
         requestedResolverPolicy: expectedRequested,
@@ -158,14 +158,14 @@ describe("issueThreadInteractionService", () => {
     const { resolveInteractionPolicy } = await import("./issue-thread-interactions.js");
     expect(resolveInteractionPolicy({
       kind: "request_confirmation",
-      requested: "board_or_agents",
-      governance: { request_confirmation: { defaultPolicy: "board_or_agents", cap: "board_or_agents" } },
+      requested: "operator_or_agents",
+      policy: { request_confirmation: { defaultPolicy: "operator_or_agents", cap: "operator_or_agents" } },
       hasToolAction: true,
     })).toEqual({
       requestedResolverPolicy: "anyone",
       effectiveResolverPolicy: "human_only",
       resolverPolicyProvenance: "explicit",
-      effectiveResolverPolicySource: "governed_action",
+      effectiveResolverPolicySource: "controlled_action",
     });
   });
 
@@ -174,7 +174,7 @@ describe("issueThreadInteractionService", () => {
 
     const existingRow = {
       id: "interaction-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "11111111-1111-4111-8111-111111111111",
       kind: "suggest_tasks",
       status: "pending",
@@ -216,7 +216,7 @@ describe("issueThreadInteractionService", () => {
     const svc = issueThreadInteractionService(db as never);
     const created = await svc.create({
       id: "11111111-1111-4111-8111-111111111111",
-      companyId: "company-1",
+      spaceId: "space-1",
     }, {
       kind: "suggest_tasks",
       idempotencyKey: "run-1:suggest",
@@ -242,7 +242,7 @@ describe("issueThreadInteractionService", () => {
 
     const interactionRow = {
       id: "interaction-2",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "11111111-1111-4111-8111-111111111111",
       kind: "ask_user_questions",
       status: "pending",
@@ -252,7 +252,7 @@ describe("issueThreadInteractionService", () => {
       title: null,
       summary: null,
       createdByAgentId: null,
-      createdByUserId: "local-board",
+      createdByUserId: "local-operator",
       resolvedByAgentId: null,
       resolvedByUserId: null,
       payload: {
@@ -289,7 +289,7 @@ describe("issueThreadInteractionService", () => {
 
     const result = await svc.answerQuestions({
       id: "11111111-1111-4111-8111-111111111111",
-      companyId: "company-1",
+      spaceId: "space-1",
     }, "interaction-2", {
       answers: [
         { questionId: "scope", optionIds: ["phase-1"] },
@@ -297,7 +297,7 @@ describe("issueThreadInteractionService", () => {
       ],
       summaryMarkdown: "Phase 1 with tests and docs.",
     }, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     expect(result.status).toBe("answered");
@@ -326,7 +326,7 @@ describe("issueThreadInteractionService", () => {
   it("withdraws an unlinked pending interaction with attribution and rejects repeats", async () => {
     const { issueThreadInteractionService } = await import("./issue-thread-interactions.js");
     const interactionRow = {
-      id: "interaction-withdraw", companyId: "company-1", issueId: "11111111-1111-4111-8111-111111111111",
+      id: "interaction-withdraw", spaceId: "space-1", issueId: "11111111-1111-4111-8111-111111111111",
       kind: "request_confirmation", status: "pending", continuationPolicy: "wake_assignee",
       sourceCommentId: null, sourceRunId: null, title: null, summary: null,
       createdByAgentId: "agent-1", createdByUserId: null, resolvedByAgentId: null, resolvedByUserId: null,
@@ -335,7 +335,7 @@ describe("issueThreadInteractionService", () => {
     };
     const state = createFakeDb({ interactionRow });
     const svc = issueThreadInteractionService(state.db as never);
-    const withdrawn = await svc.withdrawInteraction({ id: interactionRow.issueId, companyId: "company-1" }, interactionRow.id, { reason: "Replanning" }, { agentId: "agent-1" });
+    const withdrawn = await svc.withdrawInteraction({ id: interactionRow.issueId, spaceId: "space-1" }, interactionRow.id, { reason: "Replanning" }, { agentId: "agent-1" });
     expect(withdrawn.status).toBe("cancelled");
     expect(withdrawn.result).toEqual({ version: 1, outcome: "withdrawn", reason: "Replanning" });
     expect(withdrawn.resolvedByAgentId).toBe("agent-1");
@@ -343,7 +343,7 @@ describe("issueThreadInteractionService", () => {
     const resolvedState = createFakeDb({ interactionRow: { ...interactionRow, status: "accepted" } });
     const resolvedSvc = issueThreadInteractionService(resolvedState.db as never);
     await expect(resolvedSvc.withdrawInteraction(
-      { id: interactionRow.issueId, companyId: "company-1" },
+      { id: interactionRow.issueId, spaceId: "space-1" },
       interactionRow.id,
       {},
       { agentId: "agent-1" },
@@ -353,7 +353,7 @@ describe("issueThreadInteractionService", () => {
   it("refuses withdrawal when the linked tool action is already executing", async () => {
     const { issueThreadInteractionService } = await import("./issue-thread-interactions.js");
     const interactionRow = {
-      id: "interaction-executing", companyId: "company-1", issueId: "11111111-1111-4111-8111-111111111111",
+      id: "interaction-executing", spaceId: "space-1", issueId: "11111111-1111-4111-8111-111111111111",
       kind: "request_confirmation", status: "pending", continuationPolicy: "wake_assignee",
       sourceCommentId: null, sourceRunId: null, title: null, summary: null,
       createdByAgentId: "agent-1", createdByUserId: null, resolvedByAgentId: null, resolvedByUserId: null,
@@ -363,7 +363,7 @@ describe("issueThreadInteractionService", () => {
     const state = createFakeDb({ interactionRow, parentRows: [{ id: "action-request-1" }] });
     const svc = issueThreadInteractionService(state.db as never);
     await expect(svc.withdrawInteraction(
-      { id: interactionRow.issueId, companyId: "company-1" },
+      { id: interactionRow.issueId, spaceId: "space-1" },
       interactionRow.id,
       {},
       { agentId: "agent-1" },
@@ -374,7 +374,7 @@ describe("issueThreadInteractionService", () => {
   it("expires pending interactions when the issue is terminal", async () => {
     const { issueThreadInteractionService } = await import("./issue-thread-interactions.js");
     const interactionRow = {
-      id: "interaction-close", companyId: "company-1", issueId: "11111111-1111-4111-8111-111111111111",
+      id: "interaction-close", spaceId: "space-1", issueId: "11111111-1111-4111-8111-111111111111",
       kind: "ask_user_questions", status: "pending", continuationPolicy: "wake_assignee",
       sourceCommentId: null, sourceRunId: null, title: null, summary: null,
       createdByAgentId: "agent-1", createdByUserId: null, resolvedByAgentId: null, resolvedByUserId: null,
@@ -383,7 +383,7 @@ describe("issueThreadInteractionService", () => {
     };
     const state = createFakeDb({ interactionRow });
     const svc = issueThreadInteractionService(state.db as never);
-    const expired = await svc.expirePendingInteractionsForTerminalIssue({ id: interactionRow.issueId, companyId: "company-1", status: "done" });
+    const expired = await svc.expirePendingInteractionsForTerminalIssue({ id: interactionRow.issueId, spaceId: "space-1", status: "done" });
     expect(expired).toHaveLength(1);
     expect(expired[0]?.status).toBe("expired");
     expect(expired[0]?.result).toMatchObject({ version: 1, outcome: "issue_closed", answers: [] });
@@ -393,7 +393,7 @@ describe("issueThreadInteractionService", () => {
   it("expires the linked tool action request when a terminal issue closes a confirmation card", async () => {
     const { issueThreadInteractionService } = await import("./issue-thread-interactions.js");
     const interactionRow = {
-      id: "interaction-tool", companyId: "company-1", issueId: "11111111-1111-4111-8111-111111111111",
+      id: "interaction-tool", spaceId: "space-1", issueId: "11111111-1111-4111-8111-111111111111",
       kind: "request_confirmation", status: "pending", continuationPolicy: "wake_assignee",
       sourceCommentId: null, sourceRunId: null, title: null, summary: null,
       createdByAgentId: "agent-1", createdByUserId: null, resolvedByAgentId: null, resolvedByUserId: null,
@@ -419,16 +419,16 @@ describe("issueThreadInteractionService", () => {
       result: null, resolvedAt: null, createdAt: new Date("2026-07-25T10:00:00.000Z"), updatedAt: new Date("2026-07-25T10:00:00.000Z"),
     };
     const state = createFakeDb({ interactionRow, parentRows: [{
-      id: "33333333-3333-4333-8333-333333333333", companyId: "company-1", interactionId: interactionRow.id,
+      id: "33333333-3333-4333-8333-333333333333", spaceId: "space-1", interactionId: interactionRow.id,
     }] });
     const svc = issueThreadInteractionService(state.db as never);
     const expired = await svc.expirePendingInteractionsForTerminalIssue(
-      { id: interactionRow.issueId, companyId: "company-1", status: "cancelled" },
-      { userId: "local-board" },
+      { id: interactionRow.issueId, spaceId: "space-1", status: "cancelled" },
+      { userId: "local-operator" },
     );
     expect(expired).toHaveLength(1);
     expect(expired[0]?.result).toMatchObject({ version: 1, outcome: "issue_closed" });
     expect(state.toolActionRequestUpdates).toHaveLength(1);
-    expect(state.toolActionRequestUpdates[0]).toMatchObject({ status: "expired", resolvedByUserId: "local-board" });
+    expect(state.toolActionRequestUpdates[0]).toMatchObject({ status: "expired", resolvedByUserId: "local-operator" });
   });
 });

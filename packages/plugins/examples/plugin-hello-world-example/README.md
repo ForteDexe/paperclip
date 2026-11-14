@@ -7,7 +7,7 @@ First-party reference plugin showing the smallest possible UI extension.
 - a manifest with a `dashboardWidget` UI slot
 - `entrypoints.ui` wiring for plugin UI bundles
 - a minimal React widget rendered in the Outpost dashboard
-- reading host context (`companyId`) from `PluginWidgetProps`
+- reading host context (`spaceId`) from `PluginWidgetProps`
 - worker lifecycle hooks (`setup`, `onHealth`) for basic runtime observability
 
 ## API Surface
@@ -26,7 +26,7 @@ From the repo root, build the plugin and install it by local path:
 
 ```bash
 pnpm --filter @outpost/plugin-hello-world-example build
-npx paperclipai plugin install ./packages/plugins/examples/plugin-hello-world-example
+npx @outpost/cli plugin install ./packages/plugins/examples/plugin-hello-world-example
 ```
 
 **Local development notes:**

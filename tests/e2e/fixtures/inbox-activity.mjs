@@ -1,6 +1,6 @@
 const headers = {
   Authorization: `Bearer ${process.env.OUTPOST_API_KEY}`,
-  "X-Paperclip-Run-Id": process.env.OUTPOST_RUN_ID,
+  "X-Outpost-Run-Id": process.env.OUTPOST_RUN_ID,
   "Content-Type": "application/json",
 };
 const base = `${process.env.OUTPOST_API_URL}/api`;

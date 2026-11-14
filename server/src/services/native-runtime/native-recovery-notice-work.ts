@@ -5,7 +5,7 @@ import type { NativeRecoveryNoticeScope } from "../native-recovery-notice-notifi
 import { registerScopedDeadlineWork } from "../scoped-deadline-work.js";
 import { pendingNativeRecoveryNotices, resolveCommittedNativeRecoveryNotices } from "./native-recovery-notices.js";
 
-type Entry = { id: string; companyId: string; issueId: string; dueAt: number };
+type Entry = { id: string; spaceId: string; issueId: string; dueAt: number };
 
 export function nativeRecoveryNoticeWork(db: Db, resolve = resolveCommittedNativeRecoveryNotices) {
   async function load(scope?: NativeRecoveryNoticeScope, signal?: AbortSignal, canRun = () => true): Promise<Entry[]> {
@@ -21,7 +21,7 @@ export function nativeRecoveryNoticeWork(db: Db, resolve = resolveCommittedNativ
   }
   async function check(entry: Entry, signal?: AbortSignal): Promise<Entry | null> {
     if (signal?.aborted) throw new Error("Native recovery notice resolution stopped");
-    const scope = { companyId: entry.companyId, issueId: entry.issueId, runId: entry.id };
+    const scope = { spaceId: entry.spaceId, issueId: entry.issueId, runId: entry.id };
     await resolve(db, scope, true);
     return (await pendingNativeRecoveryNotices(db, scope)).length ? { ...entry, dueAt: Date.now() + 30_000 } : null;
   }
@@ -30,7 +30,7 @@ export function nativeRecoveryNoticeWork(db: Db, resolve = resolveCommittedNativ
     return registerScopedDeadlineWork(coordinator, {
       queue: DELIVERY_QUEUES.nativeRecoveryNotices, batchSize: 25,
       decodeScope: (hint: string): NativeRecoveryNoticeScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
-      matches: (entry: Entry, scope?: NativeRecoveryNoticeScope) => !scope || entry.companyId === scope.companyId
+      matches: (entry: Entry, scope?: NativeRecoveryNoticeScope) => !scope || entry.spaceId === scope.spaceId
         && (!scope.issueId || entry.issueId === scope.issueId) && (!scope.runId || entry.id === scope.runId),
       load: async (scope, signal) => await canRecover() ? load(scope, signal, canRun) : [],
       check: async (entry, signal) => {

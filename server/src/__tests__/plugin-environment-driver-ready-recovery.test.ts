@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PaperclipPluginManifestV1, PluginRecord, PluginStatus } from "@outpost/shared";
+import type { OutpostPluginManifestV1, PluginRecord, PluginStatus } from "@outpost/shared";
 import { createManagedBundledPluginWorkerRecovery } from "../app.js";
 import { listReadyPluginEnvironmentDrivers } from "../services/plugin-environment-driver.js";
 import { pluginLoader, type PluginLoader } from "../services/plugin-loader.js";
@@ -22,13 +22,13 @@ vi.mock("../services/plugin-registry.js", () => ({
 const PLUGIN_ID = "plugin-daytona";
 const PLUGIN_KEY = "outpost.daytona-sandbox-provider";
 
-const manifest: PaperclipPluginManifestV1 = {
+const manifest: OutpostPluginManifestV1 = {
   id: PLUGIN_KEY,
   apiVersion: 1,
   version: "1.0.0",
   displayName: "Daytona Sandbox Provider",
   description: "Provides Daytona-backed sandboxes.",
-  author: "Paperclip",
+  author: "Outpost",
   categories: ["automation"],
   capabilities: ["environment.drivers.register"],
   entrypoints: { worker: "dist/worker.js" },
@@ -419,7 +419,7 @@ describe("listReadyPluginEnvironmentDrivers worker recovery", () => {
         JSON.stringify({
           name: "@outpost/daytona-sandbox-provider",
           version: "1.0.0",
-          paperclipPlugin: { manifest: "manifest.mjs" },
+          outpostPlugin: { manifest: "manifest.mjs" },
         }),
       );
       fs.writeFileSync(

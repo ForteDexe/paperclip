@@ -63,8 +63,8 @@ function expiryLabel(expiresAt: string): { text: string; overdue: boolean } {
 
 interface DecisionTriageStripProps {
   item: AttentionItem;
-  companyId: string;
-  /** Company agents, for the route-to-agent picker (optional). */
+  spaceId: string;
+  /** Space agents, for the route-to-agent picker (optional). */
   agents?: Agent[];
 }
 
@@ -76,7 +76,7 @@ interface DecisionTriageStripProps {
  * silent mutation. Queue/decide-by/snooze go through the P1 triage APIs; the
  * expiry chip surfaces the underlying decision's TTL read-only.
  */
-export function DecisionTriageStrip({ item, companyId, agents }: DecisionTriageStripProps) {
+export function DecisionTriageStrip({ item, spaceId, agents }: DecisionTriageStripProps) {
   const queryClient = useQueryClient();
   const { pushToast } = useToastActions();
   const sourceKind = item.sourceKind;
@@ -87,9 +87,9 @@ export function DecisionTriageStrip({ item, companyId, agents }: DecisionTriageS
     ?? (item.subject.kind === "issue" ? item.subject.id : null);
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.attention(companyId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.decisionQueues.list(companyId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.decisionQueues.triage(companyId, sourceKind, sourceId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.attention(spaceId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.decisionQueues.list(spaceId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.decisionQueues.triage(spaceId, sourceKind, sourceId) });
   };
 
   const onError = (verb: string) => (error: unknown) =>
@@ -101,23 +101,23 @@ export function DecisionTriageStrip({ item, companyId, agents }: DecisionTriageS
 
   const setDecideBy = useMutation({
     mutationFn: (decideBy: string | null) =>
-      decisionQueuesApi.updateTriage(companyId, sourceKind, sourceId, { decideBy }),
+      decisionQueuesApi.updateTriage(spaceId, sourceKind, sourceId, { decideBy }),
     onSuccess: invalidate,
     onError: onError("set when to decide"),
   });
   const setSnooze = useMutation({
     mutationFn: (snoozedUntil: string | null) =>
-      decisionQueuesApi.updateTriage(companyId, sourceKind, sourceId, { snoozedUntil }),
+      decisionQueuesApi.updateTriage(spaceId, sourceKind, sourceId, { snoozedUntil }),
     onSuccess: invalidate,
     onError: onError("snooze"),
   });
   const addToQueue = useMutation({
-    mutationFn: (key: string) => decisionQueuesApi.addItem(companyId, key, sourceKind, sourceId),
+    mutationFn: (key: string) => decisionQueuesApi.addItem(spaceId, key, sourceKind, sourceId),
     onSuccess: invalidate,
     onError: onError("add to queue"),
   });
   const removeFromQueue = useMutation({
-    mutationFn: (key: string) => decisionQueuesApi.removeItem(companyId, key, sourceKind, sourceId),
+    mutationFn: (key: string) => decisionQueuesApi.removeItem(spaceId, key, sourceKind, sourceId),
     onSuccess: invalidate,
     onError: onError("remove from queue"),
   });
@@ -220,7 +220,7 @@ export function DecisionTriageStrip({ item, companyId, agents }: DecisionTriageS
           </span>
         ))}
         <QueuePicker
-          companyId={companyId}
+          spaceId={spaceId}
           existingKeys={new Set(item.queues.map((queue) => queue.key))}
           disabled={pending}
           onAdd={(key) => addToQueue.mutate(key)}
@@ -303,12 +303,12 @@ function SegmentButton({
 }
 
 function QueuePicker({
-  companyId,
+  spaceId,
   existingKeys,
   disabled,
   onAdd,
 }: {
-  companyId: string;
+  spaceId: string;
   existingKeys: Set<string>;
   disabled?: boolean;
   onAdd: (key: string) => void;
@@ -319,15 +319,15 @@ function QueuePicker({
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
   const { data: queues } = useQuery({
-    queryKey: queryKeys.decisionQueues.list(companyId),
-    queryFn: () => decisionQueuesApi.list(companyId),
+    queryKey: queryKeys.decisionQueues.list(spaceId),
+    queryFn: () => decisionQueuesApi.list(spaceId),
     enabled: open,
   });
   const create = useMutation({
     mutationFn: (name: string) =>
-      decisionQueuesApi.create(companyId, { key: toQueueKey(name), title: name.trim() }),
+      decisionQueuesApi.create(spaceId, { key: toQueueKey(name), title: name.trim() }),
     onSuccess: (queue) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.decisionQueues.list(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.decisionQueues.list(spaceId) });
       onAdd(queue.key);
       setTitle("");
       setCreating(false);

@@ -49,8 +49,8 @@ function agentFeedback(): ChatCatalogCase {
       await enrollPrerequisitePerson(ctx, casey, "operator");
       const worker = await fixtureWorker(ctx); const privateWorker = await fixtureWorker(ctx);
       await ctx.input.api.patch(`/api/agents/${privateWorker.id}`, { name: "Riley" });
-      const root = `/api/companies/${ctx.input.fixtures.company.id}`;
-      for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, ...[worker, privateWorker].map(agent => ({ scopeType: "agent", scopeId: agent.id }))])
+      const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
+      for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, ...[worker, privateWorker].map(agent => ({ scopeType: "agent", scopeId: agent.id }))])
         await ctx.input.api.post(`${root}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
       const p = await project(ctx); const privateMarker = `RESTRICTED-COMMENTARY-${ctx.input.nonce}`;
       // The bootstrap person owns the restricted source. Casey is the actual
@@ -102,7 +102,7 @@ function agentFeedback(): ChatCatalogCase {
   return { ...base, oracleVersion: "outpost.chat-catalog.agent-feedback.v2", authentication: "human-session", expectedRunCount: 3, minimumRunCount: 3, attemptTimeoutMs: 600_000,
     sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-agent-feedback.ts", "chat-catalog-domains/internal-privacy.ts", "chat-catalog-domains/identity-auth.ts", "chat-catalog-domains/internal-commentary-reader.ts", "chat-run-evidence-observer.ts"],
     async observe(ctx, state): Promise<FeedbackObservation> {
-      if (!key) throw new Error("Feedback read probe was not created during setup"); const o = await observeInternal(ctx, state); const root = `/api/companies/${o.companyId}`;
+      if (!key) throw new Error("Feedback read probe was not created during setup"); const o = await observeInternal(ctx, state); const root = `/api/spaces/${o.spaceId}`;
       const hiddenEntry = state.hiddenEntry as Feedback;
       const status = async (path: string, agent = false) => { const url = new URL(path, ctx.input.api.baseURL);
         const response = agent ? await fetch(url, { redirect: "error", signal: AbortSignal.timeout(15_000), headers: { Authorization: `Bearer ${key!.token}` } })

@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, agentWakeupRequests, authUsers, companies, companyMemberships, createDb, environmentLeases, environments, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
+import { agents, agentWakeupRequests, authUsers, spaces, spaceMemberships, createDb, environmentLeases, environments, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { NativeStartupCleanupPendingError, readNativeStartupCleanup } from "../services/native-runtime/native-startup-cleanup.js";
@@ -37,13 +37,13 @@ suite("native terminal-run cleanup admission", () => {
   });
 
   it("holds the same task until its native executor settles while allowing unrelated tasks", async () => {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), otherIssueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Cleanup admission", issuePrefix: "CLN", defaultResponsibleUserId: "owner" });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), otherIssueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Cleanup admission", issuePrefix: "CLN", defaultResponsibleUserId: "owner" });
     await db.insert(authUsers).values({ id: "owner", name: "Fixture user", email: "owner@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "owner", status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", role: "engineer", status: "idle", adapterType: "process",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "owner", status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", role: "engineer", status: "idle", adapterType: "process",
       adapterConfig: {}, permissions: {}, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true, maxConcurrentRuns: 20 } } });
-    await db.insert(issues).values([issueId, otherIssueId].map(id => ({ id, companyId, title: "Recovery task", status: "todo", assigneeAgentId: agentId, responsibleUserId: "owner" })));
+    await db.insert(issues).values([issueId, otherIssueId].map(id => ({ id, spaceId, title: "Recovery task", status: "todo", assigneeAgentId: agentId, responsibleUserId: "owner" })));
     let release!: () => void, entered!: () => void;
     const cleanupGate = new Promise<void>(resolve => { release = resolve; });
     const terminal = new Promise<void>(resolve => { entered = resolve; });
@@ -67,8 +67,8 @@ suite("native terminal-run cleanup admission", () => {
       await heartbeat.invoke(agentId, "on_demand", { issueId }, "manual");
       await terminal;
       await db.insert(heartbeatRuns).values([
-        { id: nextId, companyId, agentId, status: "queued", invocationSource: "on_demand", responsibleUserId: "owner", contextSnapshot: { issueId } },
-        { id: otherId, companyId, agentId, status: "queued", invocationSource: "on_demand", responsibleUserId: "owner", contextSnapshot: { issueId: otherIssueId } },
+        { id: nextId, spaceId, agentId, status: "queued", invocationSource: "on_demand", responsibleUserId: "owner", contextSnapshot: { issueId } },
+        { id: otherId, spaceId, agentId, status: "queued", invocationSource: "on_demand", responsibleUserId: "owner", contextSnapshot: { issueId: otherIssueId } },
       ]);
       await heartbeat.resumeQueuedRuns();
       expect((await heartbeat.getRun(nextId))?.status).toBe("queued");
@@ -85,28 +85,28 @@ suite("native terminal-run cleanup admission", () => {
     "settles an automatic legacy retry from the committed cleanup event: %s", async mode => {
       const home = createIsolatedTestHome(), previousHome = process.env.OUTPOST_HOME;
       process.env.OUTPOST_HOME = home.home;
-      const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), sourceId = randomUUID();
+      const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), sourceId = randomUUID();
       const successorId = randomUUID(), wakeId = randomUUID(), ownerId = randomUUID();
       const cwd = path.join(home.home, "saved-task");
       await mkdir(cwd, { recursive: true });
       await writeFile(path.join(cwd, "saved.txt"), "Preserved work before preparation failed.\n");
       await db.insert(authUsers).values({ id: ownerId, name: "Task owner", email: `${ownerId}@example.test`,
         createdAt: new Date(), updatedAt: new Date() });
-      await db.insert(companies).values({ id: companyId, name: "Automatic cleanup retry", issuePrefix: `R${companyId.slice(0, 6)}`, defaultResponsibleUserId: ownerId });
-      await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: ownerId, status: "active", membershipRole: "owner" });
-      await db.insert(agents).values({ id: agentId, companyId, name: "Continuation worker", status: "idle", adapterType: "process",
+      await db.insert(spaces).values({ id: spaceId, name: "Automatic cleanup retry", issuePrefix: `R${spaceId.slice(0, 6)}`, defaultResponsibleUserId: ownerId });
+      await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: ownerId, status: "active", membershipRole: "owner" });
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Continuation worker", status: "idle", adapterType: "process",
         adapterConfig: { cwd }, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true, maxConcurrentRuns: 1 } } });
-      await db.insert(issues).values({ id: issueId, companyId, title: "Continue preserved work", status: "in_progress",
+      await db.insert(issues).values({ id: issueId, spaceId, title: "Continue preserved work", status: "in_progress",
         assigneeAgentId: agentId, responsibleUserId: ownerId });
-      await db.insert(heartbeatRuns).values({ id: sourceId, companyId, agentId, issueId, status: "failed", runtimeMode: "legacy",
+      await db.insert(heartbeatRuns).values({ id: sourceId, spaceId, agentId, issueId, status: "failed", runtimeMode: "legacy",
         startedAt: new Date(Date.now() - 10_000), finishedAt: new Date(), executionStage: "preparing", errorCode: "adapter_failed",
         resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } }, contextSnapshot: { issueId } });
-      const [lease] = await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId: sourceId,
+      const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId: sourceId,
         provider: "daytona", providerLeaseId: randomUUID(), status: "active" }).returning();
-      await db.insert(agentWakeupRequests).values({ id: wakeId, companyId, agentId, source: "automation", triggerDetail: "system",
+      await db.insert(agentWakeupRequests).values({ id: wakeId, spaceId, agentId, source: "automation", triggerDetail: "system",
         reason: "issue_continuation_needed", requestedByActorType: "system", status: "queued", runId: successorId,
         payload: { issueId } });
-      await db.insert(heartbeatRuns).values({ id: successorId, companyId, agentId, issueId, status: "queued", invocationSource: "automation",
+      await db.insert(heartbeatRuns).values({ id: successorId, spaceId, agentId, issueId, status: "queued", invocationSource: "automation",
         responsibleUserId: ownerId, retryOfRunId: sourceId, wakeupRequestId: wakeId,
         contextSnapshot: { issueId, retryOfRunId: sourceId, source: "issue.continuation_recovery",
           wakeReason: "issue_continuation_needed", skipIssueComment: true } });
@@ -129,23 +129,23 @@ suite("native terminal-run cleanup admission", () => {
           nextScheduledRetryAt: async () => null, schedulingSuppressed: async () => false,
           resumeQueuedRunsAfterDrain: async () => {
             const [current] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, lease.id));
-            await heartbeat.resumeQueuedRunsAfterDrain({ companyId });
+            await heartbeat.resumeQueuedRunsAfterDrain({ spaceId });
             if (current?.status === "released" && current.releasedAt && current.cleanupStatus === cleanupStatus)
               completedCleanupDispatches++;
           },
         }, () => true).ready;
         expect((await heartbeat.getRun(successorId))?.status).toBe("queued");
         expect(execute).not.toHaveBeenCalled();
-        if (mode === "stop") await heartbeat.cancelRun(successorId, "Cancelled by a board operator", {
+        if (mode === "stop") await heartbeat.cancelRun(successorId, "Cancelled by a operator operator", {
           resultJson: { cancelledByActorType: "user", cancelledByUserId: ownerId },
         });
         if (mode === "reassign") {
-          const [replacement] = await db.insert(agents).values({ companyId, name: "New owner", adapterType: "process" }).returning();
+          const [replacement] = await db.insert(agents).values({ spaceId, name: "New owner", adapterType: "process" }).returning();
           await db.update(issues).set({ assigneeAgentId: replacement.id }).where(eq(issues.id, issueId));
         }
         await writeEnvironmentCleanup(db, tx => tx.update(environmentLeases).set({ status: "released", releasedAt: new Date(),
           cleanupStatus }).where(eq(environmentLeases.id, lease.id)),
-        { companyId, runId: sourceId });
+        { spaceId, runId: sourceId });
         await vi.waitFor(() => expect(completedCleanupDispatches).toBeGreaterThan(0), { timeout: 10_000 });
         if (mode === "continue") {
           await heartbeat.drainActiveRunExecutions();
@@ -175,7 +175,7 @@ suite("native terminal-run cleanup admission", () => {
   it("retries a failed startup intent through timer failure and drain before verified cancellation", async () => {
     const home = createIsolatedTestHome(), originalHome = process.env.OUTPOST_HOME;
     process.env.OUTPOST_HOME = home.home;
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), leaseId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), leaseId = randomUUID();
     const contextId = randomUUID(), leaseOwner = randomUUID(), taskId = randomUUID(), deadlineAtMs = Date.now() - 1;
     const originalSetTimeout = globalThis.setTimeout;
     const retries: Array<{ timer: ReturnType<typeof setTimeout>; fire(): void }> = [];
@@ -197,18 +197,18 @@ suite("native terminal-run cleanup admission", () => {
     } });
     const heartbeat = heartbeatService(db, { runtimeEnv });
     try {
-      await db.insert(companies).values({ id: companyId, name: "Intent retry", issuePrefix: "CIR", defaultResponsibleUserId: "owner" });
+      await db.insert(spaces).values({ id: spaceId, name: "Intent retry", issuePrefix: "CIR", defaultResponsibleUserId: "owner" });
       await db.insert(authUsers).values({ id: "owner", name: "Fixture user", email: "owner@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-      await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "owner", status: "active", membershipRole: "member" });
-      await db.insert(agents).values({ id: agentId, companyId, name: "Worker", role: "engineer", status: "idle", adapterType: "process",
+      await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "owner", status: "active", membershipRole: "member" });
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", role: "engineer", status: "idle", adapterType: "process",
         adapterConfig: {}, permissions: {}, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } } });
-      await db.insert(issues).values({ id: issueId, companyId, title: "Recover startup", status: "todo", assigneeAgentId: agentId, responsibleUserId: "owner" });
+      await db.insert(issues).values({ id: issueId, spaceId, title: "Recover startup", status: "todo", assigneeAgentId: agentId, responsibleUserId: "owner" });
       const [environment] = await db.insert(environments).values({ name: "Controlled provider", driver: "plugin", config: {} }).returning();
       await db.execute(sql`create table test_cleanup_intent_fault (enabled boolean not null)`);
       await db.execute(sql`insert into test_cleanup_intent_fault values (true)`);
       await db.execute(sql`create sequence test_cleanup_intent_attempts`);
       await db.execute(sql.raw(`create function test_reject_cleanup_intent() returns trigger language plpgsql as $$ begin
-        if new.company_id = '${companyId}'::uuid and new.error_code = 'native_startup_cleanup_pending'
+        if new.space_id = '${spaceId}'::uuid and new.error_code = 'native_startup_cleanup_pending'
           and exists (select 1 from test_cleanup_intent_fault where enabled) then
           perform nextval('test_cleanup_intent_attempts'); raise exception 'Cleanup intent write unavailable';
         end if; return new; end $$`));
@@ -220,12 +220,12 @@ suite("native terminal-run cleanup admission", () => {
         await prepareNativeHeartbeatRun({ db, run, issue: { id: issueId, title: "Recover startup", description: null }, environmentLeaseId: leaseId });
         await db.update(agents).set({ adapterType: "outpost_runner", adapterConfig: { provider: "codex" } }).where(eq(agents.id, agentId));
         await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-        await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed", attempt: 1,
+        await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed", attempt: 1,
           controllerGeneration: 1, leaseOwner, leaseExpiresAt: new Date(Date.now() - 1_000) });
-        await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId: environment.id, heartbeatRunId: runId,
+        await db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId: environment.id, heartbeatRunId: runId,
           issueId, status: "active", provider: "plugin", providerLeaseId: taskId, leasePolicy: "reuse_by_environment", metadata: { runnerTaskLease: true } });
         await db.update(heartbeatRuns).set({ runnerProfileJson: sql`coalesce(${heartbeatRuns.runnerProfileJson}, '{}'::jsonb) || ${JSON.stringify({
-          nativeStartupContext: { schema: "outpost.native-startup-context.v1", companyId, agentId, runId,
+          nativeStartupContext: { schema: "outpost.native-startup-context.v1", spaceId, agentId, runId,
             contextId, deadlineAtMs, leaseId, leaseOwner, controllerGeneration: 1, attempt: 1 },
         })}::jsonb` }).where(eq(heartbeatRuns.id, runId));
         throw new NativeStartupCleanupPendingError(contextId, deadlineAtMs, leaseOwner, false, leaseId);

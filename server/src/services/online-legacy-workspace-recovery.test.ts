@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, closeRegisteredClients, companies, createDb, environmentLeases, environments,
+import { agents, closeRegisteredClients, spaces, createDb, environmentLeases, environments,
   executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { inspectOnlineLegacyWorkspaceRecoveryHold, inspectOnlineLegacyWorkspaceRecoverySource,
@@ -22,44 +22,44 @@ describe.skipIf(!support.supported)("online legacy source preservation", () => {
     await database?.cleanup();
   });
   async function fixture() {
-    const companyId = randomUUID(), workspaceId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Legacy preservation", issuePrefix: `P${companyId.slice(0, 6)}` });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Historical native worker", adapterType: "outpost_runner" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Preserve old files", status: "blocked" }).returning();
-    const [workspace] = await db.insert(executionWorkspaces).values({ id: workspaceId, companyId,
+    const spaceId = randomUUID(), workspaceId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Legacy preservation", issuePrefix: `P${spaceId.slice(0, 6)}` });
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Historical native worker", adapterType: "outpost_runner" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Preserve old files", status: "blocked" }).returning();
+    const [workspace] = await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId,
       sourceIssueId: issue.id, providerType: "local_fs", mode: "isolated_workspace", strategyType: "project_primary", name: "Legacy files" }).returning();
     const reference = { schema: "outpost.native-workspace-sync/v3" as const, state: "prepared" as const,
       workspaceId, leaseId: randomUUID(), providerLeaseId: randomUUID(), remoteCwd: "/workspaces/retained",
       descriptorSha256: "12".repeat(32), baselineSha256: "34".repeat(32), resourceDisposition: "destroy" as const };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId: agent.id, nativeIssueId: issue.id,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId: agent.id, nativeIssueId: issue.id,
       status: "failed", runtimeMode: "native", processPid: 4321, processGroupId: 4321,
       processStartedAt: new Date("2026-01-01T00:00:00Z"), runnerProfileJson: { nativeWorkspaceSync: reference },
       resultJson: { checkpoint: "preserve this result", workspaceRestoreRecovery: {
         schema: "outpost.workspace-restore-recovery.v1", leaseIds: [reference.leaseId] } } });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId: issue.id, runId, phase: "terminal_failure",
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId: issue.id, runId, phase: "terminal_failure",
       failureCode: "native_workspace_sync_out_retry_exhausted", recoveryHistory: [{ checkpoint: "preserve owner history" }] });
     const [environment] = await db.insert(environments).values({ name: runId, driver: "daytona" }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ id: reference.leaseId, companyId, issueId: issue.id,
+    const [lease] = await db.insert(environmentLeases).values({ id: reference.leaseId, spaceId, issueId: issue.id,
       environmentId: environment.id, heartbeatRunId: runId, executionWorkspaceId: workspaceId,
       provider: "daytona", providerLeaseId: reference.providerLeaseId, leasePolicy: "retain_on_failure",
       status: "retained", metadata: { remoteCwd: reference.remoteCwd } }).returning();
-    return { companyId, workspace, runId, agent, issue, reference, lease };
+    return { spaceId, workspace, runId, agent, issue, reference, lease };
   }
   async function retained(f: Awaited<ReturnType<typeof fixture>>) {
     return {
-      runs: await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId)),
-      owners: await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, f.companyId)),
-      leases: await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.companyId)),
-      issues: await db.select().from(issues).where(eq(issues.companyId, f.companyId)),
-      actions: await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId)),
+      runs: await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId)),
+      owners: await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, f.spaceId)),
+      leases: await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.spaceId)),
+      issues: await db.select().from(issues).where(eq(issues.spaceId, f.spaceId)),
+      actions: await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId)),
     };
   }
   const inspect = (f: Awaited<ReturnType<typeof fixture>>) => inspectOnlineLegacyWorkspaceRecoverySource(db, f);
   async function preparedWarning(f: Awaited<ReturnType<typeof fixture>>) {
     const cause = "native_workspace_sync_out_retry_exhausted";
-    const [warning] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issue.id,
+    const [warning] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issue.id,
       kind: "active_run_watchdog", cause, fingerprint: nativeSha256({ runId: f.runId, failureCode: cause }),
-      ownerType: "board", returnOwnerAgentId: f.agent.id, nextAction: "Preserve the failed export",
+      ownerType: "operator", returnOwnerAgentId: f.agent.id, nextAction: "Preserve the failed export",
       evidence: { runId: f.runId, coordinatorAttempt: 3 } }).returning();
     return warning;
   }
@@ -72,7 +72,7 @@ describe.skipIf(!support.supported)("online legacy source preservation", () => {
     } });
     await db.transaction(async tx => {
       expect(await lockOnlineLegacyWorkspaceRecoverySources(tx as unknown as Db, {
-        companyId: f.companyId, sources: [], holds: [held!],
+        spaceId: f.spaceId, sources: [], holds: [held!],
       })).toBe(true);
       await db.transaction(async other => {
         expect(await tryLockNativeWorkspaceFinalization(other as unknown as Db, f)).toBe(false);
@@ -89,7 +89,7 @@ describe.skipIf(!support.supported)("online legacy source preservation", () => {
     const f = await fixture(), recovery = await preparedWarning(f);
     if (kind === "run") recovery.evidence = { runId: randomUUID() };
     if (kind === "task") {
-      const [child] = await db.insert(issues).values({ companyId: f.companyId, parentId: f.issue.id, title: "Related task" }).returning();
+      const [child] = await db.insert(issues).values({ spaceId: f.spaceId, parentId: f.issue.id, title: "Related task" }).returning();
       recovery.sourceIssueId = child.id;
     }
     if (kind === "fingerprint") recovery.fingerprint = "00".repeat(32);
@@ -102,8 +102,8 @@ describe.skipIf(!support.supported)("online legacy source preservation", () => {
 
   it("preserves every source and historical process identity while unrelated object-backed work remains active", async () => {
     const f = await fixture();
-    const [other] = await db.insert(issues).values({ companyId: f.companyId, title: "Current unrelated work" }).returning();
-    await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, nativeIssueId: other.id,
+    const [other] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Current unrelated work" }).returning();
+    await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, nativeIssueId: other.id,
       runtimeMode: "native", status: "running", controllerLeaseExpiresAt: new Date(Date.now() + 60_000),
       runnerProfileJson: { remoteWorkspace: { schema: "outpost.remote-workspace-run.v1" } } });
     const before = await retained(f), source = await inspect(f);
@@ -111,7 +111,7 @@ describe.skipIf(!support.supported)("online legacy source preservation", () => {
       recoveryAllocations: [{ leaseId: f.lease.id, providerLeaseId: f.lease.providerLeaseId, remoteCwd: f.reference.remoteCwd }],
       onlineProof: { schema: "outpost.online-legacy-workspace-preservation.v1" } });
     await db.transaction(async tx => {
-      expect(await lockOnlineLegacyWorkspaceRecoverySources(tx as unknown as Db, { companyId: f.companyId, sources: [source!] })).toBe(true);
+      expect(await lockOnlineLegacyWorkspaceRecoverySources(tx as unknown as Db, { spaceId: f.spaceId, sources: [source!] })).toBe(true);
       expect(await inspectOnlineLegacyWorkspaceRecoverySource(tx, f)).toEqual(source);
       await db.transaction(async otherTx => {
         expect(await tryLockNativeWorkspaceFinalization(otherTx as unknown as Db, f)).toBe(false);
@@ -148,14 +148,14 @@ describe.skipIf(!support.supported)("online legacy source preservation", () => {
     await db.transaction(async tx => {
       expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, f)).toBe(true);
       await db.transaction(async other => {
-        expect(await lockOnlineLegacyWorkspaceRecoverySources(other as unknown as Db, { companyId: f.companyId, sources: [source!] })).toBe(false);
+        expect(await lockOnlineLegacyWorkspaceRecoverySources(other as unknown as Db, { spaceId: f.spaceId, sources: [source!] })).toBe(false);
       });
     });
   });
 
   it("preserves all declared allocations for an ownerless result-less finalization", async () => {
     const f = await fixture();
-    const [second] = await db.insert(environmentLeases).values({ companyId: f.companyId, issueId: f.issue.id,
+    const [second] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, issueId: f.issue.id,
       heartbeatRunId: f.runId, environmentId: f.lease.environmentId, provider: "daytona", providerLeaseId: randomUUID(),
       leasePolicy: "retain_on_failure", status: "retained", metadata: { remoteCwd: "/workspaces/second" } }).returning();
     await db.update(heartbeatRuns).set({ runnerProfileJson: {}, resultJson: { checkpoint: "retain",
@@ -173,7 +173,7 @@ describe.skipIf(!support.supported)("online legacy source preservation", () => {
   it.each(["checkpoint", "allocation", "new_owner"])("invalidates publication when %s changes after capture", async change => {
     const f = await fixture(), source = await inspect(f);
     await db.transaction(async tx => {
-      expect(await lockOnlineLegacyWorkspaceRecoverySources(tx as unknown as Db, { companyId: f.companyId, sources: [source!] })).toBe(true);
+      expect(await lockOnlineLegacyWorkspaceRecoverySources(tx as unknown as Db, { spaceId: f.spaceId, sources: [source!] })).toBe(true);
       if (change === "checkpoint") await db.update(nativeRunFinalizations).set({ recoveryHistory: [{ checkpoint: "new intent" }] }).where(eq(nativeRunFinalizations.runId, f.runId));
       if (change === "allocation") await db.update(environmentLeases).set({ metadata: { remoteCwd: "/different-source" } }).where(eq(environmentLeases.id, f.lease.id));
       if (change === "new_owner") await db.update(heartbeatRuns).set({ runnerProfileJson: {
@@ -185,7 +185,7 @@ describe.skipIf(!support.supported)("online legacy source preservation", () => {
 
   it("retains ordinary task warnings and requires a settled source for file-bearing holds", async () => {
     const f = await fixture();
-    const [warning] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issue.id,
+    const [warning] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issue.id,
       kind: "configuration_validation", cause: "configuration_incomplete", fingerprint: randomUUID(), nextAction: "Keep warning" }).returning();
     const before = await retained(f);
     expect(await inspectOnlineLegacyWorkspaceRecoveryHold(db, { workspace: f.workspace, recovery: warning })).toMatchObject({ finalizedHold: null });
@@ -198,14 +198,14 @@ describe.skipIf(!support.supported)("online legacy source preservation", () => {
     const f = await fixture();
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: {
       ...f.reference, state: "finalized", finalHostSha256: "56".repeat(32) } } }).where(eq(heartbeatRuns.id, f.runId));
-    const [recovery] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issue.id,
+    const [recovery] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issue.id,
       kind: "active_run_watchdog", cause: "native_continuation_requires_reconciliation", fingerprint: randomUUID(),
       nextAction: "Keep the task held", evidence: { runId: f.runId, nativeFailureBlock: { retained: true } } }).returning();
     const before = await retained(f), held = await inspectOnlineLegacyWorkspaceRecoveryHold(db, { workspace: f.workspace, recovery });
     expect(held?.finalizedHold).toMatchObject({ runId: f.runId, actionId: recovery.id, sourceWorkspaceId: f.workspace.id });
     await db.transaction(async tx => {
       expect(await lockOnlineLegacyWorkspaceRecoverySources(tx as unknown as Db, {
-        companyId: f.companyId, sources: [], holds: [held!] })).toBe(true);
+        spaceId: f.spaceId, sources: [], holds: [held!] })).toBe(true);
       await db.transaction(async other => expect(await tryLockNativeWorkspaceFinalization(other as unknown as Db, f)).toBe(false));
     });
     expect(await retained(f)).toEqual(before);

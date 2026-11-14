@@ -24,11 +24,11 @@ describe("local service supervision", () => {
   });
 
   it("keeps request-logging runtime stdio usable after the supervisor side closes", async () => {
-    const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-service-stdio-"));
-    const paperclipHome = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-service-home-"));
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
+    const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-service-stdio-"));
+    const outpostHome = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-service-home-"));
+    const previousOutpostHome = process.env.OUTPOST_HOME;
     const previousInstanceId = process.env.OUTPOST_INSTANCE_ID;
-    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_HOME = outpostHome;
     process.env.OUTPOST_INSTANCE_ID = `service-stdio-${randomUUID()}`;
 
     // The managed service uses a login shell, whose PATH can select a different
@@ -41,7 +41,7 @@ describe("local service supervision", () => {
     let registryRecord: Awaited<ReturnType<typeof listLocalServiceRegistryRecords>>[number] | null = null;
     try {
       const [service] = await startRuntimeServicesForWorkspaceControl({
-        actor: { id: null, name: "Board", companyId: randomUUID() },
+        actor: { id: null, name: "Operator", spaceId: randomUUID() },
         issue: null,
         workspace: {
           baseCwd: workspaceRoot,
@@ -98,11 +98,11 @@ describe("local service supervision", () => {
       registryRecord = null;
     } finally {
       if (registryRecord) await terminateLocalService(registryRecord).catch(() => undefined);
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
       if (previousInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
       else process.env.OUTPOST_INSTANCE_ID = previousInstanceId;
-      await fs.rm(paperclipHome, { recursive: true, force: true });
+      await fs.rm(outpostHome, { recursive: true, force: true });
       await fs.rm(workspaceRoot, { recursive: true, force: true });
     }
   }, 15_000);
@@ -143,7 +143,7 @@ describe("local service supervision", () => {
     expect(doesLocalServiceCommandLineMatch({
       commandLine: "/usr/bin/node /opt/pnpm/pnpm.cjs dev -- --bind custom --bind-host 127.0.0.1",
       recordedCommand: "pnpm dev -- --bind custom --bind-host 127.0.0.1",
-      serviceName: "paperclip-dev",
+      serviceName: "outpost-dev",
     })).toBe(true);
   });
 
@@ -160,7 +160,7 @@ describe("local service supervision", () => {
     expect(doesLocalServiceCommandLineMatch({
       commandLine: "/usr/bin/node /workspace/server/dist/index.js",
       recordedCommand: "pnpm dev -- --bind custom --bind-host 127.0.0.1",
-      serviceName: "paperclip-dev",
+      serviceName: "outpost-dev",
     })).toBe(false);
   });
 

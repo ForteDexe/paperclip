@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "cases" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"project_id" uuid,
 	"case_number" integer NOT NULL,
 	"identifier" text NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS "cases" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "case_issue_links" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"case_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"role" text NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS "case_issue_links" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "case_events" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"case_id" uuid NOT NULL,
 	"kind" text NOT NULL,
 	"actor_type" text NOT NULL,
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS "case_events" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "case_documents" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"case_id" uuid NOT NULL,
 	"document_id" uuid NOT NULL,
 	"key" text NOT NULL,
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS "case_documents" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "case_labels" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"case_id" uuid NOT NULL,
 	"label_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS "case_labels" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "case_attachments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"case_id" uuid NOT NULL,
 	"asset_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS "case_attachments" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "cases" ADD CONSTRAINT "cases_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+	ALTER TABLE "cases" ADD CONSTRAINT "cases_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;
@@ -112,7 +112,7 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "case_issue_links" ADD CONSTRAINT "case_issue_links_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+	ALTER TABLE "case_issue_links" ADD CONSTRAINT "case_issue_links_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;
@@ -130,7 +130,7 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "case_events" ADD CONSTRAINT "case_events_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+	ALTER TABLE "case_events" ADD CONSTRAINT "case_events_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;
@@ -148,7 +148,7 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "case_documents" ADD CONSTRAINT "case_documents_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+	ALTER TABLE "case_documents" ADD CONSTRAINT "case_documents_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;
@@ -166,7 +166,7 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "case_labels" ADD CONSTRAINT "case_labels_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+	ALTER TABLE "case_labels" ADD CONSTRAINT "case_labels_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;
@@ -184,7 +184,7 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "case_attachments" ADD CONSTRAINT "case_attachments_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+	ALTER TABLE "case_attachments" ADD CONSTRAINT "case_attachments_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;
@@ -201,17 +201,17 @@ EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;
 --> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "cases_company_case_number_uq" ON "cases" USING btree ("company_id","case_number");
+CREATE UNIQUE INDEX IF NOT EXISTS "cases_space_case_number_uq" ON "cases" USING btree ("space_id","case_number");
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "cases_identifier_uq" ON "cases" USING btree ("identifier");
 --> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "cases_company_type_key_uq" ON "cases" USING btree ("company_id","case_type","key");
+CREATE UNIQUE INDEX IF NOT EXISTS "cases_space_type_key_uq" ON "cases" USING btree ("space_id","case_type","key");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "cases_company_status_idx" ON "cases" USING btree ("company_id","status");
+CREATE INDEX IF NOT EXISTS "cases_space_status_idx" ON "cases" USING btree ("space_id","status");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "cases_company_type_idx" ON "cases" USING btree ("company_id","case_type");
+CREATE INDEX IF NOT EXISTS "cases_space_type_idx" ON "cases" USING btree ("space_id","case_type");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "cases_company_project_idx" ON "cases" USING btree ("company_id","project_id");
+CREATE INDEX IF NOT EXISTS "cases_space_project_idx" ON "cases" USING btree ("space_id","project_id");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "cases_parent_idx" ON "cases" USING btree ("parent_case_id");
 --> statement-breakpoint
@@ -223,26 +223,26 @@ CREATE INDEX IF NOT EXISTS "cases_summary_search_idx" ON "cases" USING gin ("sum
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "case_issue_links_case_issue_uq" ON "case_issue_links" USING btree ("case_id","issue_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "case_issue_links_company_case_idx" ON "case_issue_links" USING btree ("company_id","case_id");
+CREATE INDEX IF NOT EXISTS "case_issue_links_space_case_idx" ON "case_issue_links" USING btree ("space_id","case_id");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "case_issue_links_issue_idx" ON "case_issue_links" USING btree ("issue_id");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "case_events_case_created_idx" ON "case_events" USING btree ("case_id","created_at");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "case_events_company_case_idx" ON "case_events" USING btree ("company_id","case_id");
+CREATE INDEX IF NOT EXISTS "case_events_space_case_idx" ON "case_events" USING btree ("space_id","case_id");
 --> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "case_documents_company_case_key_uq" ON "case_documents" USING btree ("company_id","case_id","key");
+CREATE UNIQUE INDEX IF NOT EXISTS "case_documents_space_case_key_uq" ON "case_documents" USING btree ("space_id","case_id","key");
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "case_documents_document_uq" ON "case_documents" USING btree ("document_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "case_documents_company_case_updated_idx" ON "case_documents" USING btree ("company_id","case_id","updated_at");
+CREATE INDEX IF NOT EXISTS "case_documents_space_case_updated_idx" ON "case_documents" USING btree ("space_id","case_id","updated_at");
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "case_labels_case_label_uq" ON "case_labels" USING btree ("case_id","label_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "case_labels_company_case_idx" ON "case_labels" USING btree ("company_id","case_id");
+CREATE INDEX IF NOT EXISTS "case_labels_space_case_idx" ON "case_labels" USING btree ("space_id","case_id");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "case_labels_label_idx" ON "case_labels" USING btree ("label_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "case_attachments_company_case_idx" ON "case_attachments" USING btree ("company_id","case_id");
+CREATE INDEX IF NOT EXISTS "case_attachments_space_case_idx" ON "case_attachments" USING btree ("space_id","case_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "case_attachments_asset_uq" ON "case_attachments" USING btree ("asset_id");

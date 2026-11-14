@@ -26,7 +26,7 @@ const acceptanceRequired = () => forbidden(
 );
 
 type FirstTaskMutationInput = {
-  companyId: string;
+  spaceId: string;
   actorAgentId?: string | null;
   actorRunId?: string | null;
   blockedByIssueIds?: readonly string[];
@@ -35,7 +35,7 @@ type FirstTaskMutationInput = {
 async function readAuthenticatedFirstTaskSources(tx: Db, input: FirstTaskMutationInput, lockSource: boolean, parentIssueId?: string | null) {
   if (!input.actorAgentId || !input.actorRunId) return [];
   const [observedRun] = await tx.select(runOriginFields).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.id, input.actorRunId), eq(heartbeatRuns.companyId, input.companyId),
+    eq(heartbeatRuns.id, input.actorRunId), eq(heartbeatRuns.spaceId, input.spaceId),
     eq(heartbeatRuns.agentId, input.actorAgentId),
   ));
   if (!observedRun) throw forbidden("Authenticated agent run not found");
@@ -47,7 +47,7 @@ async function readAuthenticatedFirstTaskSources(tx: Db, input: FirstTaskMutatio
     ? sql<boolean>`${inArray(issues.id, [...input.blockedByIssueIds])}`
     : sql<boolean>`false`;
   const query = tx.select({ id: issues.id, isRequestedBlocker }).from(issues).where(and(
-    inArray(issues.id, sourceIssueIds), eq(issues.companyId, input.companyId),
+    inArray(issues.id, sourceIssueIds), eq(issues.spaceId, input.spaceId),
     eq(issues.originKind, ONBOARDING_FIRST_TASK_ORIGIN_KIND),
   ));
   return lockSource ? await query.for("update") : await query;
@@ -74,12 +74,12 @@ export async function assertOnboardingFirstTaskCreationAllowed(tx: Db, input: Fi
   const [source] = await readAuthenticatedFirstTaskSources(tx, input, true);
   if (!source) return;
   const [run] = await tx.select(runOriginFields).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.id, input.actorRunId), eq(heartbeatRuns.companyId, input.companyId),
+    eq(heartbeatRuns.id, input.actorRunId), eq(heartbeatRuns.spaceId, input.spaceId),
     eq(heartbeatRuns.agentId, input.actorAgentId),
   )).for("share");
   if (!run || runIssueId(run) !== source.id) throw acceptanceRequired();
 
-  if (await readOnboardingFirstTaskDecision(tx, { companyId: input.companyId, issueId: source.id, outcomes: ["accepted"] }) !== "accepted") throw acceptanceRequired();
+  if (await readOnboardingFirstTaskDecision(tx, { spaceId: input.spaceId, issueId: source.id, outcomes: ["accepted"] }) !== "accepted") throw acceptanceRequired();
   assertNotBlockedByFirstTaskSource(source);
 }
 
@@ -94,12 +94,12 @@ export async function assertOnboardingFirstTaskDependenciesAllowed(tx: Db, input
   assertNotBlockedByFirstTaskSource(sources.find(source => source.isRequestedBlocker));
 }
 
-async function readLatestProposal(tx: Db, input: { companyId: string; issueId: string }, planOnly = false) {
+async function readLatestProposal(tx: Db, input: { spaceId: string; issueId: string }, planOnly = false) {
   // Select the newest proposal before checking its outcome: a later pending or
-  // rejected proposal must never fall back to an older accepted scope. Governed
+  // rejected proposal must never fall back to an older accepted scope. Controlled
   // tool/credential actions and custom completion reviews are not proposals.
   const [proposal] = await tx.select().from(issueThreadInteractions).where(and(
-    eq(issueThreadInteractions.companyId, input.companyId), eq(issueThreadInteractions.issueId, input.issueId),
+    eq(issueThreadInteractions.spaceId, input.spaceId), eq(issueThreadInteractions.issueId, input.issueId),
     inArray(issueThreadInteractions.kind, ["request_confirmation", "request_checkbox_confirmation"]),
     sql`NOT (${issueThreadInteractions.payload} ?| ARRAY['toolAction', 'secretProposal', 'connectionAuthorization'])`,
     sql`COALESCE(${issueThreadInteractions.payload}->'target'->>'type', '') <> 'custom'`,
@@ -109,7 +109,7 @@ async function readLatestProposal(tx: Db, input: { companyId: string; issueId: s
   return proposal;
 }
 
-async function readHumanDecision(tx: Db, input: { companyId: string; issueId: string },
+async function readHumanDecision(tx: Db, input: { spaceId: string; issueId: string },
   proposal: typeof issueThreadInteractions.$inferSelect | undefined) {
   if (!proposal) return null;
   const decision = readPersistedConfirmationDecision(proposal);
@@ -117,12 +117,12 @@ async function readHumanDecision(tx: Db, input: { companyId: string; issueId: st
 
   if (proposal.sourceRunId) {
     const [origin] = await tx.select(runOriginFields).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, proposal.sourceRunId), eq(heartbeatRuns.companyId, input.companyId),
+      eq(heartbeatRuns.id, proposal.sourceRunId), eq(heartbeatRuns.spaceId, input.spaceId),
     )).for("share");
     if (!origin || runIssueId(origin) !== input.issueId || origin.agentId !== proposal.createdByAgentId) return null;
   } else if (proposal.createdByAgentId) {
-    const [creator] = await tx.select({ companyId: agents.companyId }).from(agents).where(eq(agents.id, proposal.createdByAgentId));
-    if (creator?.companyId !== input.companyId) return null;
+    const [creator] = await tx.select({ spaceId: agents.spaceId }).from(agents).where(eq(agents.id, proposal.createdByAgentId));
+    if (creator?.spaceId !== input.spaceId) return null;
   } else if (!proposal.createdByUserId) return null;
 
   const directHumanDecision = Boolean(proposal.resolvedByUserId && !proposal.resolvedByAgentId && !proposal.resolvedByRunId);
@@ -130,14 +130,14 @@ async function readHumanDecision(tx: Db, input: { companyId: string; issueId: st
     const commentId = decision.commentId;
     if (!commentId || !proposal.resolvedByAgentId || !proposal.resolvedByRunId) return null;
     const [comment] = await tx.select().from(issueComments).where(and(
-      eq(issueComments.id, commentId), eq(issueComments.companyId, input.companyId), eq(issueComments.issueId, input.issueId),
+      eq(issueComments.id, commentId), eq(issueComments.spaceId, input.spaceId), eq(issueComments.issueId, input.issueId),
     )).for("share");
     if (!comment || comment.deletedAt || comment.authorType !== "user" || !comment.authorUserId
       || comment.authorAgentId || comment.createdByRunId || comment.derivedAuthorAgentId || comment.derivedCreatedByRunId
       || comment.sourceTrust?.disposition === "quarantined" || comment.createdAt < proposal.createdAt
       || comment.body.trim() === "/new") return null;
     const [resolver] = await tx.select(runOriginFields).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, proposal.resolvedByRunId), eq(heartbeatRuns.companyId, input.companyId),
+      eq(heartbeatRuns.id, proposal.resolvedByRunId), eq(heartbeatRuns.spaceId, input.spaceId),
       eq(heartbeatRuns.agentId, proposal.resolvedByAgentId),
     )).for("share");
     if (!resolver || runIssueId(resolver) !== input.issueId
@@ -148,7 +148,7 @@ async function readHumanDecision(tx: Db, input: { companyId: string; issueId: st
 
 /** Shared persisted-decision proof; creation and completion retain different authority. */
 async function readOnboardingFirstTaskDecision(tx: Db, input: {
-  companyId: string; issueId: string; outcomes: Array<"accepted" | "rejected">;
+  spaceId: string; issueId: string; outcomes: Array<"accepted" | "rejected">;
 }): Promise<"accepted" | "rejected" | null> {
   const decision = await readHumanDecision(tx, input, await readLatestProposal(tx, input));
   if (!decision || !input.outcomes.includes(decision.outcome)) return null;
@@ -161,7 +161,7 @@ async function readOnboardingFirstTaskDecision(tx: Db, input: {
     ? await readHumanDecision(tx, input, await readLatestProposal(tx, input, true)) : null;
   const [plan] = await tx.select({ documentId: documents.id, revisionId: documents.latestRevisionId })
     .from(issueDocuments).innerJoin(documents, eq(documents.id, issueDocuments.documentId)).where(and(
-      eq(issueDocuments.companyId, input.companyId), eq(documents.companyId, input.companyId),
+      eq(issueDocuments.spaceId, input.spaceId), eq(documents.spaceId, input.spaceId),
       eq(issueDocuments.issueId, input.issueId), eq(issueDocuments.key, "plan"),
     )).for("share", { of: documents });
   const target = decision.target ?? (plan && planDecision?.outcome === "accepted" ? planDecision.target : null);
@@ -175,22 +175,22 @@ async function readOnboardingFirstTaskDecision(tx: Db, input: {
 
 /** Completion may acknowledge a trusted refusal; it never authorizes rejected work. */
 export async function onboardingFirstTaskCompletionAllowed(tx: Db, input: {
-  companyId: string; issueId: string; runId: string;
+  spaceId: string; issueId: string; runId: string;
 }): Promise<boolean> {
   const [source] = await tx.select({ id: issues.id, originKind: issues.originKind }).from(issues).where(and(
-    eq(issues.id, input.issueId), eq(issues.companyId, input.companyId),
+    eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId),
   ));
   if (!source) return false;
   if (source.originKind !== ONBOARDING_FIRST_TASK_ORIGIN_KIND) return true;
   // Only the first-task path takes additional authority locks. At status commit
   // these are held until the decision is written, in issue/run/proposal order.
   const [lockedSource] = await tx.select({ id: issues.id }).from(issues).where(and(
-    eq(issues.id, source.id), eq(issues.companyId, input.companyId), eq(issues.originKind, ONBOARDING_FIRST_TASK_ORIGIN_KIND),
+    eq(issues.id, source.id), eq(issues.spaceId, input.spaceId), eq(issues.originKind, ONBOARDING_FIRST_TASK_ORIGIN_KIND),
   )).for("update");
   if (!lockedSource) return false;
   const [run] = await tx.select({ ...runOriginFields, runtimeMode: heartbeatRuns.runtimeMode }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId),
+    eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId),
   )).for("share");
   if (!run || run.runtimeMode !== "native" || run.nativeIssueId !== source.id) return false;
-  return await readOnboardingFirstTaskDecision(tx, { companyId: input.companyId, issueId: source.id, outcomes: ["accepted", "rejected"] }) !== null;
+  return await readOnboardingFirstTaskDecision(tx, { spaceId: input.spaceId, issueId: source.id, outcomes: ["accepted", "rejected"] }) !== null;
 }

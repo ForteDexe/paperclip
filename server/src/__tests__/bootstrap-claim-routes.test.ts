@@ -3,7 +3,7 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { accessRoutes } from "../routes/access.js";
-import { boardMutationGuard } from "../middleware/board-mutation-guard.js";
+import { operatorMutationGuard } from "../middleware/operator-mutation-guard.js";
 import { errorHandler } from "../middleware/index.js";
 
 const claimFirstInstanceAdminMock = vi.hoisted(() => vi.fn());
@@ -24,7 +24,7 @@ vi.mock("../services/index.js", () => ({
   agentService: () => ({
     getById: vi.fn(),
   }),
-  boardAuthService: () => ({
+  operatorAuthService: () => ({
     createCliAuthChallenge: vi.fn(),
     resolveBoardAccess: vi.fn(),
     assertCurrentBoardKey: vi.fn(),
@@ -32,7 +32,7 @@ vi.mock("../services/index.js", () => ({
   }),
   deduplicateAgentName: vi.fn(),
   logActivity: vi.fn(),
-  notifyHireApproved: vi.fn(),
+  notifyCreateApproved: vi.fn(),
 }));
 
 function hashToken(token: string) {
@@ -60,14 +60,14 @@ function createApp(input: {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = input.actor ?? {
-      type: "board",
+      type: "operator",
       source: "session",
       userId: "user-1",
     };
     next();
   });
   if (input.guardMutations) {
-    app.use(boardMutationGuard());
+    app.use(operatorMutationGuard());
   }
   app.use(
     "/api",
@@ -123,8 +123,8 @@ describe("POST /bootstrap/claim", () => {
   it.each<[Record<string, unknown>, string]>([
     [{ type: "none", source: "none" }, "anonymous caller"],
     [{ type: "agent", source: "agent_key", agentId: "agent-1" }, "agent key"],
-    [{ type: "board", source: "board_key", userId: "user-1" }, "board API key"],
-    [{ type: "board", source: "local_implicit", userId: "local-board" }, "local implicit board"],
+    [{ type: "operator", source: "operator_key", userId: "user-1" }, "operator API key"],
+    [{ type: "operator", source: "local_implicit", userId: "local-operator" }, "local implicit operator"],
   ])("rejects %s before opening the first-admin transaction", async (actor) => {
     const app = createApp({ actor });
 
@@ -148,7 +148,7 @@ describe("POST /bootstrap/claim", () => {
     expect(res.body.error).toContain("already claimed");
   });
 
-  it("stays behind the board mutation origin guard", async () => {
+  it("stays behind the operator mutation origin guard", async () => {
     const app = createApp({ guardMutations: true });
 
     const blocked = await request(app).post("/api/bootstrap/claim").send({});
@@ -173,8 +173,8 @@ describe("bootstrap invite first-admin acceptance", () => {
   function createBootstrapInvite() {
     return {
       id: "invite-1",
-      companyId: null,
-      inviteType: "bootstrap_ceo",
+      spaceId: null,
+      inviteType: "bootstrap_lead",
       allowedJoinTypes: "human",
       tokenHash: hashToken("pcp_invite_test"),
       defaultsPayload: {},
@@ -203,7 +203,7 @@ describe("bootstrap invite first-admin acceptance", () => {
     expect(res.status).toBe(202);
     expect(res.body).toMatchObject({
       inviteId: "invite-1",
-      inviteType: "bootstrap_ceo",
+      inviteType: "bootstrap_lead",
       bootstrapAccepted: true,
       userId: "user-1",
     });

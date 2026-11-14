@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "decision_archive_notification_outbox" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"source_kind" text NOT NULL,
 	"source_id" text NOT NULL,
 	"archive_version" integer NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS "decision_archive_notification_outbox" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "decision_retention" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"source_kind" text NOT NULL,
 	"source_id" text NOT NULL,
 	"source_activity_at" timestamp with time zone NOT NULL,
@@ -41,14 +41,14 @@ CREATE TABLE IF NOT EXISTS "decision_retention" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
-	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'decision_archive_notification_outbox_company_id_companies_id_fk' AND conrelid = 'public.decision_archive_notification_outbox'::regclass) THEN
-		ALTER TABLE "decision_archive_notification_outbox" ADD CONSTRAINT "decision_archive_notification_outbox_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'decision_archive_notification_outbox_space_id_spaces_id_fk' AND conrelid = 'public.decision_archive_notification_outbox'::regclass) THEN
+		ALTER TABLE "decision_archive_notification_outbox" ADD CONSTRAINT "decision_archive_notification_outbox_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 	END IF;
 	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'decision_archive_notification_outbox_origin_agent_id_agents_id_fk' AND conrelid = 'public.decision_archive_notification_outbox'::regclass) THEN
 		ALTER TABLE "decision_archive_notification_outbox" ADD CONSTRAINT "decision_archive_notification_outbox_origin_agent_id_agents_id_fk" FOREIGN KEY ("origin_agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;
 	END IF;
-	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'decision_retention_company_id_companies_id_fk' AND conrelid = 'public.decision_retention'::regclass) THEN
-		ALTER TABLE "decision_retention" ADD CONSTRAINT "decision_retention_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'decision_retention_space_id_spaces_id_fk' AND conrelid = 'public.decision_retention'::regclass) THEN
+		ALTER TABLE "decision_retention" ADD CONSTRAINT "decision_retention_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 	END IF;
 	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'decision_retention_archived_by_agent_id_agents_id_fk' AND conrelid = 'public.decision_retention'::regclass) THEN
 		ALTER TABLE "decision_retention" ADD CONSTRAINT "decision_retention_archived_by_agent_id_agents_id_fk" FOREIGN KEY ("archived_by_agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;
@@ -58,7 +58,7 @@ DO $$ BEGIN
 	END IF;
 END $$;
 --> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "decision_archive_notification_outbox_uq" ON "decision_archive_notification_outbox" USING btree ("company_id","source_kind","source_id","archive_version","origin_agent_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "decision_archive_notification_outbox_uq" ON "decision_archive_notification_outbox" USING btree ("space_id","source_kind","source_id","archive_version","origin_agent_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "decision_archive_notification_outbox_pending_idx" ON "decision_archive_notification_outbox" USING btree ("status","created_at");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "decision_retention_company_source_uq" ON "decision_retention" USING btree ("company_id","source_kind","source_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "decision_retention_company_archived_idx" ON "decision_retention" USING btree ("company_id","archived_at");
+CREATE UNIQUE INDEX IF NOT EXISTS "decision_retention_space_source_uq" ON "decision_retention" USING btree ("space_id","source_kind","source_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "decision_retention_space_archived_idx" ON "decision_retention" USING btree ("space_id","archived_at");

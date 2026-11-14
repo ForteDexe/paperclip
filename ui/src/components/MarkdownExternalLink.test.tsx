@@ -91,7 +91,7 @@ describe("MarkdownBody external object decoration", () => {
 
   it("renders an unresolved URL as a plain external link with no status affordance", () => {
     const html = render("https://random.example.com/path");
-    expect(html).not.toContain("paperclip-markdown-external-ref");
+    expect(html).not.toContain("outpost-markdown-external-ref");
     expect(html).toContain('href="https://random.example.com/path"');
   });
 
@@ -102,7 +102,7 @@ describe("MarkdownBody external object decoration", () => {
     );
     // The fenced/inline literal should still be present as text but the
     // decorated anchor should not appear since no `<a>` is created in code.
-    expect(html).not.toContain('class="paperclip-markdown-external-ref"');
+    expect(html).not.toContain('class="outpost-markdown-external-ref"');
   });
 
   it("shows liveness suffix in the aria-label when the object is stale or auth_required", () => {

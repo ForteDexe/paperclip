@@ -41,7 +41,7 @@ function isRecoveryBudgetExhausted(evidence: Record<string, unknown>) {
 }
 
 export type UpsertIssueRecoveryActionInput = {
-  companyId: string;
+  spaceId: string;
   sourceIssueId: string;
   recoveryIssueId?: string | null;
   kind: IssueRecoveryActionKind;
@@ -77,7 +77,7 @@ export type UpsertIssueRecoveryActionInput = {
 };
 
 export type ResolveIssueRecoveryActionInput = {
-  companyId: string;
+  spaceId: string;
   sourceIssueId: string;
   actionId?: string | null;
   kind?: IssueRecoveryActionKind | null;
@@ -99,7 +99,7 @@ function readModelNextAction(row: IssueRecoveryActionRow): string {
 function toReadModel(row: IssueRecoveryActionRow): IssueRecoveryAction {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     sourceIssueId: row.sourceIssueId,
     recoveryIssueId: row.recoveryIssueId,
     kind: row.kind as IssueRecoveryAction["kind"],
@@ -158,7 +158,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
     input: UpsertIssueRecoveryActionInput,
     task: () => Promise<T>,
   ): Promise<T> {
-    const key = `${input.companyId}:${input.sourceIssueId}`;
+    const key = `${input.spaceId}:${input.sourceIssueId}`;
     const previous = upsertQueues.get(key) ?? Promise.resolve();
     let release: () => void = () => {};
     const current = new Promise<void>((resolve) => {
@@ -182,7 +182,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
   // scheduled retries, and workspace export can run while the heartbeat still
   // records its earlier failure. Project their actual activity for every reader.
   async function projectNativeRunActivity(
-    companyId: string,
+    spaceId: string,
     actions: IssueRecoveryAction[],
     dbOrTx: DbOrTransaction,
   ) {
@@ -200,7 +200,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
       finishedAt: heartbeatRuns.finishedAt,
       workspaceOperationId: workspaceOperations.id,
     }).from(heartbeatRuns).leftJoin(workspaceOperations, and(
-      eq(workspaceOperations.companyId, heartbeatRuns.companyId),
+      eq(workspaceOperations.spaceId, heartbeatRuns.spaceId),
       eq(workspaceOperations.heartbeatRunId, heartbeatRuns.id),
       eq(workspaceOperations.issueId, heartbeatRuns.nativeIssueId),
       eq(workspaceOperations.phase, "workspace_finalize"),
@@ -208,7 +208,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
       isNull(workspaceOperations.finishedAt),
       sql`${workspaceOperations.metadata}->>'owningService' = 'native_workspace_finalizer'`,
     )).where(and(
-      eq(heartbeatRuns.companyId, companyId),
+      eq(heartbeatRuns.spaceId, spaceId),
       eq(heartbeatRuns.runtimeMode, "native"),
       inArray(heartbeatRuns.id, runIds),
       or(
@@ -220,7 +220,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
     for (const row of activity) {
       const liveOperation = row.workspaceOperationId && row.issueId
         && isNativeWorkspaceFinalizationOperationActive({
-          operationId: row.workspaceOperationId, companyId, runId: row.runId, issueId: row.issueId,
+          operationId: row.workspaceOperationId, spaceId, runId: row.runId, issueId: row.issueId,
         });
       const liveHeartbeat = ["queued", "running"].includes(row.status) && row.finishedAt === null;
       if (!liveHeartbeat && !liveOperation) continue;
@@ -241,7 +241,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
   }
 
   async function getActiveForIssue(
-    companyId: string,
+    spaceId: string,
     sourceIssueId: string,
     dbOrTx: DbOrTransaction = db,
   ): Promise<IssueRecoveryAction | null> {
@@ -250,7 +250,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
       .from(issueRecoveryActions)
       .where(
         and(
-          eq(issueRecoveryActions.companyId, companyId),
+          eq(issueRecoveryActions.spaceId, spaceId),
           eq(issueRecoveryActions.sourceIssueId, sourceIssueId),
           inArray(issueRecoveryActions.status, [...ACTIVE_RECOVERY_ACTION_STATUSES]),
         ),
@@ -260,18 +260,18 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
       .then((rows) => rows[0] ?? null);
     if (!row) return null;
     const action = toReadModel(row);
-    await projectNativeRunActivity(companyId, [action], dbOrTx);
+    await projectNativeRunActivity(spaceId, [action], dbOrTx);
     return action;
   }
 
-  async function listActiveForIssues(companyId: string, sourceIssueIds: string[]) {
+  async function listActiveForIssues(spaceId: string, sourceIssueIds: string[]) {
     if (sourceIssueIds.length === 0) return new Map<string, IssueRecoveryAction>();
     const rows = await db
       .select()
       .from(issueRecoveryActions)
       .where(
         and(
-          eq(issueRecoveryActions.companyId, companyId),
+          eq(issueRecoveryActions.spaceId, spaceId),
           inArray(issueRecoveryActions.sourceIssueId, [...new Set(sourceIssueIds)]),
           inArray(issueRecoveryActions.status, [...ACTIVE_RECOVERY_ACTION_STATUSES]),
         ),
@@ -281,7 +281,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
     for (const row of rows) {
       if (!result.has(row.sourceIssueId)) result.set(row.sourceIssueId, toReadModel(row));
     }
-    await projectNativeRunActivity(companyId, [...result.values()], db);
+    await projectNativeRunActivity(spaceId, [...result.values()], db);
     return result;
   }
 
@@ -305,7 +305,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
     now: Date,
   ) {
     return {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       sourceIssueId: input.sourceIssueId,
       recoveryIssueId: input.recoveryIssueId ?? null,
       kind: input.kind,
@@ -344,12 +344,12 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
   ): Promise<IssueRecoveryAction> {
     try {
       const created = await db.transaction(async (tx) => {
-        await notifyAttentionRetentionWork(tx, { companyId: input.companyId });
-        await notifyIssueRecovery(tx, { companyId: input.companyId });
-        await notifyNativeRecoveryNotices(tx, { companyId: input.companyId, issueId: input.sourceIssueId });
+        await notifyAttentionRetentionWork(tx, { spaceId: input.spaceId });
+        await notifyIssueRecovery(tx, { spaceId: input.spaceId });
+        await notifyNativeRecoveryNotices(tx, { spaceId: input.spaceId, issueId: input.sourceIssueId });
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionDisposition);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionContinuation);
-        await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: input.companyId, issueId: input.sourceIssueId });
+        await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: input.spaceId, issueId: input.sourceIssueId });
         const [superseded] = await tx
           .update(issueRecoveryActions)
           .set({
@@ -387,10 +387,10 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
     input: UpsertIssueRecoveryActionInput,
     retryCount = 0,
   ): Promise<IssueRecoveryAction> {
-    const existing = await getActiveForIssue(input.companyId, input.sourceIssueId);
+    const existing = await getActiveForIssue(input.spaceId, input.sourceIssueId);
     const now = new Date();
     if (existing && input.createOnly) return existing;
-    const ownerType = input.ownerType ?? (input.ownerAgentId ? "agent" : "board");
+    const ownerType = input.ownerType ?? (input.ownerAgentId ? "agent" : "operator");
     if (existing) {
       // A distinct failure identity must not overwrite the active action of a
       // prior identity. Resolve the prior action and insert a new one, so the
@@ -402,7 +402,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
         return supersedePriorAndInsert(input, existing.id, ownerType, now, retryCount);
       }
       // `maxAttempts` is an execution budget, not display metadata. Once the
-      // same recovery identity consumes it, retain one inspectable board-owned
+      // same recovery identity consumes it, retain one inspectable operator-owned
       // action but remove every automatic wake/monitor path. Repeated sweep or
       // finalizer writes then become idempotent instead of silently advancing
       // beyond the advertised cap. A distinct identity can still supersede the
@@ -417,7 +417,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
           const [updated] = await writeExecutionControl(db, [DELIVERY_QUEUES.executionDisposition, DELIVERY_QUEUES.executionContinuation], tx => tx.update(issueRecoveryActions).set({ nextAction: input.nextAction, updatedAt: now })
             .where(and(eq(issueRecoveryActions.id, existing.id),
               inArray(issueRecoveryActions.status, [...ACTIVE_RECOVERY_ACTION_STATUSES]),
-              sql`${issueRecoveryActions.evidence}->'workspaceOwnerStop' is null`)).returning(), { companyId: input.companyId });
+              sql`${issueRecoveryActions.evidence}->'workspaceOwnerStop' is null`)).returning(), { spaceId: input.spaceId });
           if (updated) return toReadModel(updated);
         }
         return existing;
@@ -438,17 +438,17 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
           Math.min(nextAttemptCount, effectiveMaxAttempts),
         );
         const [exhausted] = await writeExecutionControl(db, [DELIVERY_QUEUES.executionDisposition, DELIVERY_QUEUES.executionContinuation], async tx => {
-          await notifyIssueRecovery(tx, { companyId: input.companyId });
-          await notifyNativeRecoveryNotices(tx, { companyId: input.companyId, issueId: input.sourceIssueId });
+          await notifyIssueRecovery(tx, { spaceId: input.spaceId });
+          await notifyNativeRecoveryNotices(tx, { spaceId: input.spaceId, issueId: input.sourceIssueId });
           if ((!input.preserveExistingOwner && existing.cause !== input.cause)
             || (input.evidence?.runId !== undefined && input.evidence.runId !== existing.evidence?.runId)) {
-            await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: input.companyId, issueId: input.sourceIssueId });
+            await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: input.spaceId, issueId: input.sourceIssueId });
           }
           return tx
             .update(issueRecoveryActions)
             .set({
               status: "escalated",
-              ownerType: existing.ownerType === "system" || input.ownerType === "system" ? "system" : "board",
+              ownerType: existing.ownerType === "system" || input.ownerType === "system" ? "system" : "operator",
               ownerAgentId: null,
               ownerUserId: null,
               previousOwnerAgentId:
@@ -493,18 +493,18 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
               ),
             )
             .returning();
-        }, { companyId: input.companyId });
+        }, { spaceId: input.spaceId });
         if (!exhausted) {
           return retryUpsertSourceScoped(input, retryCount);
         }
         return toReadModel(exhausted);
       }
       const [updated] = await writeExecutionControl(db, [DELIVERY_QUEUES.executionDisposition, DELIVERY_QUEUES.executionContinuation], async tx => {
-        await notifyIssueRecovery(tx, { companyId: input.companyId });
-        await notifyNativeRecoveryNotices(tx, { companyId: input.companyId, issueId: input.sourceIssueId });
+        await notifyIssueRecovery(tx, { spaceId: input.spaceId });
+        await notifyNativeRecoveryNotices(tx, { spaceId: input.spaceId, issueId: input.sourceIssueId });
         if ((!input.preserveExistingOwner && existing.cause !== input.cause)
           || (input.evidence?.runId !== undefined && input.evidence.runId !== existing.evidence?.runId)) {
-          await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: input.companyId, issueId: input.sourceIssueId });
+          await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: input.spaceId, issueId: input.sourceIssueId });
         }
         return tx
           .update(issueRecoveryActions)
@@ -566,7 +566,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
             ),
           )
           .returning();
-      }, { companyId: input.companyId });
+      }, { spaceId: input.spaceId });
       if (!updated) {
         return retryUpsertSourceScoped(input, retryCount);
       }
@@ -575,14 +575,14 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
 
     try {
       const [created] = await writeExecutionControl(db, [DELIVERY_QUEUES.executionDisposition, DELIVERY_QUEUES.executionContinuation], async tx => {
-        await notifyIssueRecovery(tx, { companyId: input.companyId });
-        await notifyNativeRecoveryNotices(tx, { companyId: input.companyId, issueId: input.sourceIssueId });
-        await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: input.companyId, issueId: input.sourceIssueId });
+        await notifyIssueRecovery(tx, { spaceId: input.spaceId });
+        await notifyNativeRecoveryNotices(tx, { spaceId: input.spaceId, issueId: input.sourceIssueId });
+        await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: input.spaceId, issueId: input.sourceIssueId });
         return tx
           .insert(issueRecoveryActions)
           .values(buildInsertValues(input, ownerType, now))
           .returning();
-      }, { companyId: input.companyId });
+      }, { spaceId: input.spaceId });
       return toReadModel(created!);
     } catch (error) {
       if (!isUniqueRecoveryActionConflict(error)) throw error;
@@ -602,7 +602,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
   ): Promise<IssueRecoveryAction | null> {
     const now = new Date();
     const predicates = [
-      eq(issueRecoveryActions.companyId, input.companyId),
+      eq(issueRecoveryActions.spaceId, input.spaceId),
       eq(issueRecoveryActions.sourceIssueId, input.sourceIssueId),
       inArray(issueRecoveryActions.status, [...ACTIVE_RECOVERY_ACTION_STATUSES]),
     ];
@@ -627,14 +627,14 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
       // waiter to one normal inspection. No recurring monitor or new turn.
       const [waiter] = await tx.select({ id: nativeRunFinalizations.runId }).from(nativeRunFinalizations)
         .innerJoin(heartbeatRuns, eq(heartbeatRuns.id, nativeRunFinalizations.runId)).where(and(
-          eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.issueId, input.sourceIssueId),
+          eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.issueId, input.sourceIssueId),
           eq(nativeRunFinalizations.phase, "observed"), isNull(nativeRunFinalizations.resultId),
           isNotNull(nativeRunFinalizations.leaseOwner), inArray(heartbeatRuns.status, ["failed", "timed_out", "interrupted"]),
         )).limit(1);
       if (waiter) await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionFinalization);
-      await notifyIssueRecovery(tx, { companyId: input.companyId });
-      await notifyNativeRecoveryNotices(tx, { companyId: input.companyId, issueId: input.sourceIssueId });
-      await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: input.companyId, issueId: input.sourceIssueId });
+      await notifyIssueRecovery(tx, { spaceId: input.spaceId });
+      await notifyNativeRecoveryNotices(tx, { spaceId: input.spaceId, issueId: input.sourceIssueId });
+      await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: input.spaceId, issueId: input.sourceIssueId });
       return tx
         .update(issueRecoveryActions)
         .set({
@@ -646,7 +646,7 @@ export function issueRecoveryActionService(db: DbOrTransaction) {
         })
         .where(and(...predicates))
         .returning();
-    }, { companyId: input.companyId });
+    }, { spaceId: input.spaceId });
 
     return updated ? toReadModel(updated) : null;
   }

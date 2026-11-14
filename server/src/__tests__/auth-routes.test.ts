@@ -77,7 +77,7 @@ describe("auth routes", () => {
     delete process.env.SENTRY_DSN;
     const app = await createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "user-1",
         source: "session",
       },
@@ -89,7 +89,7 @@ describe("auth routes", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       session: {
-        id: "paperclip:session:user-1",
+        id: "outpost:session:user-1",
         userId: "user-1",
       },
       user: baseUser,
@@ -99,19 +99,19 @@ describe("auth routes", () => {
   });
 
   it("preserves the session when optional navigation bootstrap cannot load", async () => {
-    const app = createApp({ type: "board", userId: "user-1", source: "session", companyIds: [] }, baseUser);
-    // This profile-only database cannot execute the bootstrap's company join.
+    const app = createApp({ type: "operator", userId: "user-1", source: "session", spaceIds: [] }, baseUser);
+    // This profile-only database cannot execute the bootstrap's space join.
     const response = await request(app).get("/api/auth/get-session");
     expect(response.status).toBe(200);
     expect(response.body.user.id).toBe("user-1");
-    expect(response.body.boardBootstrap).toBeUndefined();
+    expect(response.body.operatorBootstrap).toBeUndefined();
   });
 
-  it("sends sentryDsn for a board actor when SENTRY_DSN is set", async () => {
+  it("sends sentryDsn for a operator actor when SENTRY_DSN is set", async () => {
     process.env.SENTRY_DSN = "https://public@o0.ingest.sentry.io/1";
     const app = await createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "user-1",
         source: "session",
       },
@@ -124,13 +124,13 @@ describe("auth routes", () => {
     expect(res.body.sentryDsn).toBe("https://public@o0.ingest.sentry.io/1");
   });
 
-  it("sends sentryDsn for a board actor when only SENTRY_DSN_FRONTEND is set", async () => {
+  it("sends sentryDsn for a operator actor when only SENTRY_DSN_FRONTEND is set", async () => {
     delete process.env.SENTRY_DSN;
     delete process.env.SENTRY_DSN_BACKEND;
     process.env.SENTRY_DSN_FRONTEND = "https://public-frontend@o0.ingest.sentry.io/1";
     const app = await createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "user-1",
         source: "session",
       },
@@ -149,7 +149,7 @@ describe("auth routes", () => {
     process.env.SENTRY_DSN_BACKEND = "https://public-backend@o0.ingest.sentry.io/2";
     const app = await createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "user-1",
         source: "session",
       },
@@ -168,7 +168,7 @@ describe("auth routes", () => {
     process.env.SENTRY_DSN_BACKEND = "https://public-backend@o0.ingest.sentry.io/2";
     const app = await createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "user-1",
         source: "session",
       },
@@ -199,10 +199,10 @@ describe("auth routes", () => {
   });
 
   it.each(["staging", "production", "preview"])(
-    "sends the configured Sentry environment %s to board actors",
+    "sends the configured Sentry environment %s to operator actors",
     async (environment) => {
       vi.stubEnv("SENTRY_ENVIRONMENT", environment);
-      const app = createApp({ type: "board", userId: "user-1", source: "session" }, baseUser);
+      const app = createApp({ type: "operator", userId: "user-1", source: "session" }, baseUser);
 
       const res = await request(app).get("/api/auth/get-session");
 
@@ -213,7 +213,7 @@ describe("auth routes", () => {
 
   it.each([undefined, ""])("sends null for an unset Sentry environment (%s)", async (environment) => {
     vi.stubEnv("SENTRY_ENVIRONMENT", environment);
-    const app = createApp({ type: "board", userId: "user-1", source: "session" }, baseUser);
+    const app = createApp({ type: "operator", userId: "user-1", source: "session" }, baseUser);
 
     const res = await request(app).get("/api/auth/get-session");
 
@@ -223,7 +223,7 @@ describe("auth routes", () => {
 
   it.each([
     { type: "none", source: "none" },
-    { type: "agent", agentId: "agent-1", companyId: "company-1", source: "agent_key" },
+    { type: "agent", agentId: "agent-1", spaceId: "space-1", source: "agent_key" },
   ] satisfies Express.Request["actor"][])("withholds Sentry settings from a $type actor", async (actor) => {
     vi.stubEnv("SENTRY_ENVIRONMENT", "staging");
     vi.stubEnv("SENTRY_DSN_FRONTEND", "https://public@o0.ingest.sentry.io/1");

@@ -3,7 +3,7 @@ import { runnerSuites } from "./catalog.js";
 import { convertRepositoryProofAgent } from "./repository-conversion-setup.js";
 
 function fixtures(driver = "sandbox"): Parameters<typeof convertRepositoryProofAgent>[1] {
-  return { agent: { id: "agent", name: "Fixture Agent", companyId: "company" }, company: { id: "company", name: "Fixture Company" }, environment: { id: "environment", driver,
+  return { agent: { id: "agent", name: "Fixture Agent", spaceId: "space" }, space: { id: "space", name: "Fixture Space" }, environment: { id: "environment", driver,
     config: { image: `image@sha256:${"a".repeat(64)}` } } };
 }
 
@@ -29,9 +29,9 @@ describe("real legacy conversion prerequisites", () => {
     const api = { post: vi.fn(async () => { qualified = true; return { ok: true, details: { platformQualificationRecorded: true, leaseId: "lease" } }; }),
       patch: vi.fn(async () => { if (!qualified) throw new Error("agent_runner_unavailable"); return {}; }) };
     await expect(convertRepositoryProofAgent(api as any, fixture)).resolves.toBeUndefined();
-    expect(api.post).toHaveBeenCalledWith("/api/environments/environment/probe?companyId=company", {}, { timeout: 330_000 });
+    expect(api.post).toHaveBeenCalledWith("/api/environments/environment/probe?spaceId=space", {}, { timeout: 330_000 });
     expect(fixture.setupProbe).toMatchObject({ leaseId: "lease" });
-    expect(api.patch).toHaveBeenCalledExactlyOnceWith("/api/agents/agent", { runner: "paperclip" });
+    expect(api.patch).toHaveBeenCalledExactlyOnceWith("/api/agents/agent", { runner: "outpost" });
   });
   it("does not attempt conversion when platform qualification is absent", async () => {
     const fixture = fixtures(); const api = { post: vi.fn(async () => ({ ok: true, details: { leaseId: "lease" } })), patch: vi.fn() };

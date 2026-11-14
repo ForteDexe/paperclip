@@ -52,7 +52,7 @@ export async function settleEnvironmentTeardownClaim(db: Db, record: InProgressR
     const returnAttempt = controller?.countedAttempt === true;
     // Wake the cleanup worker before the write it announces, so it reads the
     // ended fence after commit instead of sleeping until the old deadline.
-    if (record.companyId) await notifyEnvironmentCleanup(tx, { companyId: record.companyId, leaseId: record.recordId });
+    if (record.spaceId) await notifyEnvironmentCleanup(tx, { spaceId: record.spaceId, leaseId: record.recordId });
     const updated = await tx.update(environmentLeases)
       .set({ metadata: sql`jsonb_set(jsonb_set(jsonb_set(${pendingCleanupMetadataObjectSql()},
         '{pendingCleanupLeaseExpiresAtMs}', to_jsonb(${nowMs}::bigint)),

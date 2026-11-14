@@ -10,7 +10,7 @@ import { filterLocalInboxArchivedQueryData } from "../lib/inboxArchiveCache";
 type RefetchInterval = number | false;
 
 export interface SharedPollingQueryOptions {
-  companyId: string | null | undefined;
+  spaceId: string | null | undefined;
   resourceKey: string;
   queryKey: QueryKey;
   enabled?: boolean;
@@ -38,29 +38,29 @@ type RegistryEntry = {
 
 const coordinators = new Map<string, RegistryEntry>();
 
-function acquireCoordinator(companyId: string): SharedPollingCoordinator {
-  const existing = coordinators.get(companyId);
+function acquireCoordinator(spaceId: string): SharedPollingCoordinator {
+  const existing = coordinators.get(spaceId);
   if (existing) {
     existing.refs += 1;
     return existing.coordinator;
   }
-  const coordinator = new SharedPollingCoordinator(companyId);
+  const coordinator = new SharedPollingCoordinator(spaceId);
   coordinator.start();
-  coordinators.set(companyId, { coordinator, refs: 1 });
+  coordinators.set(spaceId, { coordinator, refs: 1 });
   return coordinator;
 }
 
-function releaseCoordinator(companyId: string): void {
-  const existing = coordinators.get(companyId);
+function releaseCoordinator(spaceId: string): void {
+  const existing = coordinators.get(spaceId);
   if (!existing) return;
   existing.refs -= 1;
   if (existing.refs > 0) return;
   existing.coordinator.stop();
-  coordinators.delete(companyId);
+  coordinators.delete(spaceId);
 }
 
-function resourceKey(companyId: string, key: string, queryKeyHash: string): string {
-  return `${companyId}:${key}:${queryKeyHash}`;
+function resourceKey(spaceId: string, key: string, queryKeyHash: string): string {
+  return `${spaceId}:${key}:${queryKeyHash}`;
 }
 
 export function applySharedPollingResult<TData>(
@@ -79,7 +79,7 @@ export function applySharedPollingResult<TData>(
 }
 
 export function useSharedPollingQuery<TData>({
-  companyId,
+  spaceId,
   resourceKey: rawResourceKey,
   queryKey,
   enabled = true,
@@ -87,9 +87,9 @@ export function useSharedPollingQuery<TData>({
   leaderOnly = false,
 }: SharedPollingQueryOptions): SharedPollingQueryState<TData> {
   const queryClient = useQueryClient();
-  const activeCompanyId = enabled && companyId ? companyId : null;
+  const activeSpaceId = enabled && spaceId ? spaceId : null;
   const queryKeyHash = useMemo(() => JSON.stringify(queryKey), [queryKey]);
-  const fullResourceKey = activeCompanyId ? resourceKey(activeCompanyId, rawResourceKey, queryKeyHash) : null;
+  const fullResourceKey = activeSpaceId ? resourceKey(activeSpaceId, rawResourceKey, queryKeyHash) : null;
   const queryKeyRef = useRef(queryKey);
   const [snapshot, setSnapshot] = useState<SharedPollingSnapshot>({ isLeader: true });
 
@@ -111,12 +111,12 @@ export function useSharedPollingQuery<TData>({
   }, [queryKey, queryKeyHash]);
 
   useEffect(() => {
-    if (!activeCompanyId || !fullResourceKey) {
+    if (!activeSpaceId || !fullResourceKey) {
       applySnapshot({ isLeader: true });
       return;
     }
 
-    const coordinator = acquireCoordinator(activeCompanyId);
+    const coordinator = acquireCoordinator(activeSpaceId);
     const unsubscribeState = coordinator.subscribe(applySnapshot);
     const unsubscribeResource = coordinator.subscribeResource(fullResourceKey, (message) => {
       applySharedPollingResult(queryClient, queryKeyRef.current, message);
@@ -126,19 +126,19 @@ export function useSharedPollingQuery<TData>({
     return () => {
       unsubscribeResource();
       unsubscribeState();
-      releaseCoordinator(activeCompanyId);
+      releaseCoordinator(activeSpaceId);
     };
-  }, [activeCompanyId, applySnapshot, fullResourceKey, leaderOnly, queryClient, queryKeyHash]);
+  }, [activeSpaceId, applySnapshot, fullResourceKey, leaderOnly, queryClient, queryKeyHash]);
 
   const isLeader = !leaderOnly || snapshot.isLeader;
   const queryEnabled = enabled && (!leaderOnly || snapshot.isLeader);
   const coordinatedInterval = leaderOnly && !snapshot.isLeader ? false : refetchInterval;
 
   const publish = useCallback((data: TData | undefined, dataUpdatedAt: number) => {
-    if (!activeCompanyId || !fullResourceKey || data === undefined) return;
-    const entry = coordinators.get(activeCompanyId);
+    if (!activeSpaceId || !fullResourceKey || data === undefined) return;
+    const entry = coordinators.get(activeSpaceId);
     entry?.coordinator.publish(fullResourceKey, data, dataUpdatedAt);
-  }, [activeCompanyId, fullResourceKey]);
+  }, [activeSpaceId, fullResourceKey]);
 
   return useMemo(
     () => ({

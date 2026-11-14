@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   executionWorkspaceRuntimeLeases,
   executionWorkspaces,
@@ -37,7 +37,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-workspace-runtime-lease-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-workspace-runtime-lease-");
     db = createDb(tempDb.connectionString);
     otherProcessDb = createDb(tempDb.connectionString);
   }, 30_000);
@@ -49,7 +49,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     await db.delete(projects);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -57,26 +57,26 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
   });
 
   async function seedLane() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const executionWorkspaceId = randomUUID();
     const agentId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Runtime lease",
-      issuePrefix: `L${companyId.replace(/-/g, "").slice(0, 7).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+      issuePrefix: `L${spaceId.replace(/-/g, "").slice(0, 7).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Canary lane",
       status: "in_progress",
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       mode: "shared_workspace",
       strategyType: "git_worktree",
@@ -86,22 +86,22 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Security Engineer",
       role: "engineer",
     });
 
-    return { companyId, projectId, executionWorkspaceId, agentId };
+    return { spaceId, projectId, executionWorkspaceId, agentId };
   }
 
   async function seedIssue(
-    lane: { companyId: string; projectId: string; executionWorkspaceId: string; agentId: string },
+    lane: { spaceId: string; projectId: string; executionWorkspaceId: string; agentId: string },
     input: { title: string; status?: string },
   ) {
     const issueId = randomUUID();
     await db.insert(issues).values({
       id: issueId,
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       projectId: lane.projectId,
       executionWorkspaceId: lane.executionWorkspaceId,
       title: input.title,
@@ -113,13 +113,13 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
   }
 
   async function seedRun(
-    lane: { companyId: string; agentId: string },
+    lane: { spaceId: string; agentId: string },
     input: { status?: string } = {},
   ) {
     const runId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       agentId: lane.agentId,
       status: input.status ?? "running",
     });
@@ -143,7 +143,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     const leases = workspaceRuntimeLeaseService(db);
 
     const first = await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, runId: firstRunId, issueId: canaryIssueId }),
@@ -155,7 +155,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     // A later heartbeat of the same issue is still the same owner, even though the
     // run identity changed.
     const second = await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "restart",
       owner: ownerFor({ agentId: lane.agentId, runId: secondRunId, issueId: canaryIssueId }),
@@ -176,14 +176,14 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     const leases = workspaceRuntimeLeaseService(db);
 
     const held = await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: canaryIssueId }),
     });
 
     await expect(leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: competingIssueId }),
@@ -214,7 +214,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     const results = await Promise.allSettled(
       contenderIssueIds.map((issueId, index) =>
         leaseClients[index % leaseClients.length]!.claim({
-          companyId: lane.companyId,
+          spaceId: lane.spaceId,
           executionWorkspaceId: lane.executionWorkspaceId,
           action: "start",
           owner: ownerFor({ agentId: lane.agentId, issueId }),
@@ -246,14 +246,14 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     const competingIssueId = await seedIssue(lane, { title: "Competing lane" });
 
     await workspaceRuntimeLeaseService(db).claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: canaryIssueId }),
     });
 
     await expect(workspaceRuntimeLeaseService(otherProcessDb).claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "stop",
       owner: ownerFor({ agentId: lane.agentId, issueId: competingIssueId }),
@@ -270,14 +270,14 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     const leases = workspaceRuntimeLeaseService(db);
 
     await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: canaryIssueId }),
     });
 
     await expect(leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "stop",
       owner: ownerFor({ agentId: lane.agentId, issueId: teardownIssueId }),
@@ -286,7 +286,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     await db.update(issues).set({ status: "done" }).where(eq(issues.id, canaryIssueId));
 
     const reclaimed = await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "stop",
       owner: ownerFor({ agentId: lane.agentId, issueId: teardownIssueId }),
@@ -306,7 +306,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     const leases = workspaceRuntimeLeaseService(db);
 
     await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: hiddenIssueId }),
@@ -314,7 +314,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     await db.update(issues).set({ hiddenAt: new Date() }).where(eq(issues.id, hiddenIssueId));
 
     const afterHidden = await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: nextIssueId }),
@@ -325,14 +325,14 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     await leases.release({ executionWorkspaceId: lane.executionWorkspaceId, force: true });
     const staleRunId = await seedRun(lane, { status: "running" });
     await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, runId: staleRunId }),
     });
 
     await expect(leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: nextIssueId }),
@@ -340,7 +340,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
 
     await db.update(heartbeatRuns).set({ status: "failed" }).where(eq(heartbeatRuns.id, staleRunId));
     const afterRunTerminal = await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: nextIssueId }),
@@ -359,7 +359,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
 
     const claimedAt = new Date(Date.now() - WORKSPACE_RUNTIME_LEASE_TTL_MS - 60_000);
     await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: canaryIssueId }),
@@ -367,7 +367,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     });
 
     const reclaimed = await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: competingIssueId }),
@@ -385,7 +385,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     const leases = workspaceRuntimeLeaseService(db);
 
     await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: canaryIssueId }),
@@ -403,7 +403,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     })).resolves.toEqual({ released: true, ownerKey: `issue:${canaryIssueId}` });
 
     const claimed = await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "stop",
       owner: ownerFor({ agentId: lane.agentId, issueId: teardownIssueId }),
@@ -412,25 +412,25 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     expect(claimed.lease?.ownerIssueId).toBe(teardownIssueId);
   });
 
-  it("leaves board/operator control unleased", async () => {
+  it("leaves operator/operator control unleased", async () => {
     const lane = await seedLane();
     const canaryIssueId = await seedIssue(lane, { title: "HTTPS canary" });
     const leases = workspaceRuntimeLeaseService(db);
 
     await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: canaryIssueId }),
     });
 
-    const boardClaim = await leases.claim({
-      companyId: lane.companyId,
+    const operatorClaim = await leases.claim({
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "restart",
-      owner: { actorType: "board", agentId: null, runId: null, issueId: null },
+      owner: { actorType: "operator", agentId: null, runId: null, issueId: null },
     });
-    expect(boardClaim).toEqual({ outcome: "bypassed", ownerKey: null, lease: null, reclaimedFrom: null });
+    expect(operatorClaim).toEqual({ outcome: "bypassed", ownerKey: null, lease: null, reclaimedFrom: null });
 
     // The agent's lease survives the operator action.
     const rows = await db.select().from(executionWorkspaceRuntimeLeases);
@@ -443,7 +443,7 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     const otherWorkspaceId = randomUUID();
     await db.insert(executionWorkspaces).values({
       id: otherWorkspaceId,
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       projectId: lane.projectId,
       mode: "shared_workspace",
       strategyType: "git_worktree",
@@ -456,13 +456,13 @@ describeEmbeddedPostgres("execution workspace runtime leases", () => {
     const leases = workspaceRuntimeLeaseService(db);
 
     await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: lane.executionWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: canaryIssueId }),
     });
     const other = await leases.claim({
-      companyId: lane.companyId,
+      spaceId: lane.spaceId,
       executionWorkspaceId: otherWorkspaceId,
       action: "start",
       owner: ownerFor({ agentId: lane.agentId, issueId: competingIssueId }),

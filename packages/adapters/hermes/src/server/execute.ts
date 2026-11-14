@@ -2,7 +2,7 @@
  * Server-side execution logic for the Hermes Agent adapter.
  *
  * Spawns `hermes chat -q "..." -Q` as a child process, streams output,
- * and returns structured results to Paperclip.
+ * and returns structured results to Outpost.
  *
  * Verified CLI flags (hermes chat):
  *   -q/--query         single query (non-interactive)
@@ -35,9 +35,9 @@ import {
   ensureAbsoluteDirectory,
   DEFAULT_OUTPOST_AGENT_PROMPT_TEMPLATE,
   joinPromptSections,
-  selectPaperclipPromptSections,
-  stringifyPaperclipWakePayload,
-  isPaperclipRecoveryWakePayload,
+  selectOutpostPromptSections,
+  stringifyOutpostWakePayload,
+  isOutpostRecoveryWakePayload,
 } from "@outpost/adapter-utils/server-utils";
 
 import {
@@ -52,7 +52,7 @@ import {
   detectModel,
   resolveProvider,
 } from "./detect-model.js";
-import { reconcileHermesPaperclipSkills } from "./skills.js";
+import { reconcileHermesOutpostSkills } from "./skills.js";
 
 // ---------------------------------------------------------------------------
 // Config helpers
@@ -90,13 +90,13 @@ export function resolveHermesCommand(config: Record<string, unknown>): string {
 // ---------------------------------------------------------------------------
 
 const HERMES_RUNTIME_IDENTITY_TEMPLATE = [
-  'You are "{{agent.name}}", an AI agent employee in an Outpost-managed company.',
+  'You are "{{agent.name}}", an AI agent in an Outpost-managed space.',
   "",
   "Outpost runtime identity:",
   "- Agent ID: {{agent.id}}",
-  "- Outpost ID: {{agent.companyId}}",
+  "- Outpost ID: {{agent.spaceId}}",
   "- Run ID: {{run.id}}",
-  "- API base: {{paperclipApiUrl}}",
+  "- API base: {{outpostApiUrl}}",
 ].join("\n");
 
 // Hermes applies this overlay at each API call, including after compaction,
@@ -107,7 +107,7 @@ const HERMES_SYSTEM_PROMPT_TEMPLATE = [
   "- Use `$OUTPOST_API_URL`, `$OUTPOST_API_KEY`, and `$OUTPOST_RUN_ID`; do not hard-code local ports or copy secrets into comments.",
   "- Displayed command logs may redact secrets; rely on environment variables instead of printed token values.",
   "- Include `-H \"Authorization: Bearer $OUTPOST_API_KEY\"` on API requests.",
-  "- Include `-H \"X-Paperclip-Run-Id: $OUTPOST_RUN_ID\"` on mutating issue requests.",
+  "- Include `-H \"X-Outpost-Run-Id: $OUTPOST_RUN_ID\"` on mutating issue requests.",
   "- For multiline comments or status updates, preserve newlines with `jq --arg` or a heredoc-fed helper rather than hand-escaping JSON.",
   "",
   "Safe multiline update pattern:",
@@ -125,7 +125,7 @@ const HERMES_SYSTEM_PROMPT_TEMPLATE = [
   "jq -n --arg status done --arg comment \"$body\" '{status:$status, comment:$comment}' | \\",
   "  curl -sS -X PATCH \"$api/issues/$OUTPOST_TASK_ID\" \\",
   "    -H \"Authorization: Bearer $OUTPOST_API_KEY\" \\",
-  "    -H \"X-Paperclip-Run-Id: $OUTPOST_RUN_ID\" \\",
+  "    -H \"X-Outpost-Run-Id: $OUTPOST_RUN_ID\" \\",
   "    -H \"Content-Type: application/json\" \\",
   "    --data-binary @-",
   "```",
@@ -159,37 +159,37 @@ export function buildPrompt(
   const commentId = cfgString(context.commentId) || cfgString(context.wakeCommentId) || cfgString(ctx.config?.commentId) || "";
   const wakeReason = cfgString(context.wakeReason) || cfgString(ctx.config?.wakeReason) || "";
   const agentName = ctx.agent?.name || "Hermes Agent";
-  const companyName = cfgString(context.companyName) || cfgString(ctx.config?.companyName) || "";
+  const spaceName = cfgString(context.spaceName) || cfgString(ctx.config?.spaceName) || "";
   const projectName = cfgString(context.projectName) || cfgString(ctx.config?.projectName) || "";
 
   // Build API URL — ensure it has the /api path
-  let paperclipApiUrl =
-    cfgString(config.paperclipApiUrl) ||
+  let outpostApiUrl =
+    cfgString(config.outpostApiUrl) ||
     process.env.OUTPOST_API_URL ||
     "http://127.0.0.1:3100/api";
   // Ensure /api suffix
-  if (!paperclipApiUrl.endsWith("/api")) {
-    paperclipApiUrl = paperclipApiUrl.replace(/\/+$/, "") + "/api";
+  if (!outpostApiUrl.endsWith("/api")) {
+    outpostApiUrl = outpostApiUrl.replace(/\/+$/, "") + "/api";
   }
 
-  const { taskContextNote: taskContextMarkdown, wakePrompt } = selectPaperclipPromptSections(context, {
+  const { taskContextNote: taskContextMarkdown, wakePrompt } = selectOutpostPromptSections(context, {
     resumedSession: options.resumedSession === true,
     includeCommunicationGuidance: true,
   });
   // Keep the historical variable available to custom templates. Automatic
   // assembly uses the ownership-aware assignment variant below.
-  const paperclipTaskMarkdown = cfgString(context.paperclipTaskMarkdown)?.trim() || "";
-  const sessionHandoffMarkdown = cfgString(context.paperclipSessionHandoffMarkdown)?.trim() || "";
-  const wakePayloadJson = stringifyPaperclipWakePayload(context.paperclipWake) || "";
+  const outpostTaskMarkdown = cfgString(context.outpostTaskMarkdown)?.trim() || "";
+  const sessionHandoffMarkdown = cfgString(context.outpostSessionHandoffMarkdown)?.trim() || "";
+  const wakePayloadJson = stringifyOutpostWakePayload(context.outpostWake) || "";
 
   const vars: Record<string, unknown> = {
     agentId: ctx.agent?.id || "",
     agentName,
-    companyId: ctx.agent?.companyId || "",
-    companyName,
+    spaceId: ctx.agent?.spaceId || "",
+    spaceName,
     runId: ctx.runId || "",
     agent: ctx.agent || {},
-    company: { id: ctx.agent?.companyId || "", name: companyName },
+    space: { id: ctx.agent?.spaceId || "", name: spaceName },
     run: { id: ctx.runId || "", source: "on_demand" },
     context,
     taskId: taskId || "",
@@ -198,18 +198,18 @@ export function buildPrompt(
     commentId,
     wakeReason,
     projectName,
-    paperclipApiUrl,
-    paperclipWakePrompt: wakePrompt,
-    paperclipTaskMarkdown,
-    taskContext: paperclipTaskMarkdown,
+    outpostApiUrl,
+    outpostWakePrompt: wakePrompt,
+    outpostTaskMarkdown,
+    taskContext: outpostTaskMarkdown,
     taskContextMarkdown,
-    paperclipWakeJson: wakePayloadJson,
+    outpostWakeJson: wakePayloadJson,
     wakePayloadJson,
     outpostApiKeyEnv: "OUTPOST_API_KEY",
     outpostRunIdEnv: "OUTPOST_RUN_ID",
   };
 
-  const rendered = template && !isPaperclipRecoveryWakePayload(context.paperclipWake)
+  const rendered = template && !isOutpostRecoveryWakePayload(context.outpostWake)
     ? renderTemplate(renderConditionalSections(template, vars), vars)
     : "";
   return joinPromptSections([
@@ -364,10 +364,10 @@ export async function execute(
 
   // The server adds this runtime inventory at the run boundary. Requiring the
   // marker avoids touching a developer's real Hermes home in direct unit or
-  // library calls that did not opt into Paperclip runtime skills.
-  if (Object.prototype.hasOwnProperty.call(config, "paperclipRuntimeSkills")) {
+  // library calls that did not opt into Outpost runtime skills.
+  if (Object.prototype.hasOwnProperty.call(config, "outpostRuntimeSkills")) {
     try {
-      const selectedSkills = await reconcileHermesPaperclipSkills(config);
+      const selectedSkills = await reconcileHermesOutpostSkills(config);
       if (selectedSkills.length > 0) {
         await ctx.onLog(
           "stdout",
@@ -412,8 +412,8 @@ export async function execute(
     model,
   });
 
-  // ── Load agent instructions file (Paperclip instruction bundles) ──────
-  // Paperclip can materialize managed instructions into instructionsFilePath;
+  // ── Load agent instructions file (Outpost instruction bundles) ──────
+  // Outpost can materialize managed instructions into instructionsFilePath;
   // when present, reapply that bundle through Hermes's native system overlay.
   const instructionsFilePath = cfgString(config.instructionsFilePath);
   let agentInstructions = "";
@@ -430,7 +430,7 @@ export async function execute(
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       // Non-fatal: log to stdout with an explicit "Warning:" prefix so the
-      // Paperclip UI doesn't render this as a red error (stderr output is
+      // Outpost UI doesn't render this as a red error (stderr output is
       // surfaced as an error signal even when execution continues).
       await ctx.onLog(
         "stdout",
@@ -442,10 +442,10 @@ export async function execute(
   // ── Build prompt ───────────────────────────────────────────────────────
   const userEnvForPrompt = config.env as Record<string, unknown> | undefined;
   const promptConfig: Record<string, unknown> = { ...config };
-  if (!cfgString(promptConfig.paperclipApiUrl) && userEnvForPrompt && typeof userEnvForPrompt === "object") {
-    const configuredPaperclipApiUrl = cfgEnvString(userEnvForPrompt.OUTPOST_API_URL);
-    if (configuredPaperclipApiUrl) {
-      promptConfig.paperclipApiUrl = configuredPaperclipApiUrl;
+  if (!cfgString(promptConfig.outpostApiUrl) && userEnvForPrompt && typeof userEnvForPrompt === "object") {
+    const configuredOutpostApiUrl = cfgEnvString(userEnvForPrompt.OUTPOST_API_URL);
+    if (configuredOutpostApiUrl) {
+      promptConfig.outpostApiUrl = configuredOutpostApiUrl;
     }
   }
 
@@ -485,7 +485,7 @@ export async function execute(
   args.push("--source", "tool");
 
   // Bypass Hermes dangerous-command approval prompts.
-  // Paperclip agents run as non-interactive subprocesses with no TTY,
+  // Outpost agents run as non-interactive subprocesses with no TTY,
   // so approval prompts would always timeout and deny legitimate commands
   // (curl, python3 -c, etc.). Agents operate in a sandbox — the approval
   // system is designed for human-attended interactive sessions.
@@ -506,7 +506,7 @@ export async function execute(
 
   // Scope the overlay to this child process. Read the current bundle on every
   // invocation; never infer its availability from a persisted session ID.
-  // Preserve an operator's explicit overlay before Paperclip's instructions.
+  // Preserve an operator's explicit overlay before Outpost's instructions.
   env.HERMES_EPHEMERAL_SYSTEM_PROMPT = joinPromptSections([
     env.HERMES_EPHEMERAL_SYSTEM_PROMPT,
     agentInstructions,
@@ -518,7 +518,7 @@ export async function execute(
   if (ctx.runId) env.OUTPOST_RUN_ID = ctx.runId;
 
   // OUTPOST_API_KEY is never accepted from config — the harness-minted run
-  // token is the only source of Paperclip API identity.
+  // token is the only source of Outpost API identity.
   delete env.OUTPOST_API_KEY;
   // Wake context travels in the prompt; drop both inherited and configured copies.
   delete env.OUTPOST_WAKE_PAYLOAD_JSON;
@@ -534,7 +534,7 @@ export async function execute(
   if (envCommentId) env.OUTPOST_WAKE_COMMENT_ID = envCommentId;
 
   // ── Resolve working directory ──────────────────────────────────────────
-  const workspace = ctx.context?.paperclipWorkspace;
+  const workspace = ctx.context?.outpostWorkspace;
   const workspaceCwd = workspace && typeof workspace === "object"
     ? cfgString((workspace as Record<string, unknown>).cwd)
     : undefined;
@@ -560,7 +560,7 @@ export async function execute(
 
   // ── Execute ────────────────────────────────────────────────────────────
   // Hermes writes non-error noise to stderr (MCP init, INFO logs, etc).
-  // Paperclip renders all stderr as red/error in the UI.
+  // Outpost renders all stderr as red/error in the UI.
   // Wrap onLog to reclassify benign stderr lines as stdout.
   const wrappedOnLog = async (stream: "stdout" | "stderr", chunk: string) => {
     if (stream === "stderr") {
@@ -630,7 +630,7 @@ export async function execute(
     executionResult.summary = parsed.response.slice(0, 2000);
   }
 
-  // Set resultJson so Paperclip can persist run metadata (used for UI display + auto-comments)
+  // Set resultJson so Outpost can persist run metadata (used for UI display + auto-comments)
   executionResult.resultJson = {
     result: parsed.response || "",
     session_id: parsed.sessionId || null,

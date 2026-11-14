@@ -1,16 +1,16 @@
-# Paperclip Memory Service Plan
+# Outpost Memory Service Plan
 
 ## Goal
 
-Define a Paperclip memory service and surface API that can sit above multiple memory backends, while preserving Paperclip's control-plane requirements:
+Define a Outpost memory service and surface API that can sit above multiple memory backends, while preserving Outpost's control-plane requirements:
 
-- company scoping
+- space scoping
 - auditability
-- provenance back to Paperclip work objects
+- provenance back to Outpost work objects
 - budget and cost visibility
 - plugin-first extensibility
 
-This plan is based on the external landscape summarized in `doc/memory-landscape.md`, the AWS AgentCore comparison captured in [PAP-1274](/PAP/issues/PAP-1274), and the current Paperclip architecture in:
+This plan is based on the external landscape summarized in `doc/memory-landscape.md`, the AWS AgentCore comparison captured in [PAP-1274](/PAP/issues/PAP-1274), and the current Outpost architecture in:
 
 - `doc/SPEC-implementation.md`
 - `doc/plugins/PLUGIN_SPEC.md`
@@ -19,28 +19,28 @@ This plan is based on the external landscape summarized in `doc/memory-landscape
 
 ## Recommendation In One Sentence
 
-Paperclip should add a company-scoped memory control plane with company default plus agent override resolution, shared hook delivery, and full operation attribution, while leaving extraction and storage semantics to built-ins and plugins.
+Outpost should add a space-scoped memory control plane with space default plus agent override resolution, shared hook delivery, and full operation attribution, while leaving extraction and storage semantics to built-ins and plugins.
 
 ## Product Decisions
 
-### 1. Memory resolution is company default plus agent override
+### 1. Memory resolution is space default plus agent override
 
-Every memory binding belongs to exactly one company.
+Every memory binding belongs to exactly one space.
 
 Resolution order in V1:
 
-- company default binding
+- space default binding
 - optional per-agent override
 
 There is no per-project override in V1.
 
 Project context can still appear in scope and provenance so providers can use it for retrieval and partitioning, but projects do not participate in binding selection.
 
-No cross-company memory sharing in the initial design.
+No cross-space memory sharing in the initial design.
 
 ### 2. Providers are selected by stable binding key
 
-Each configured memory provider gets a stable key inside a company, for example:
+Each configured memory provider gets a stable key inside a space, for example:
 
 - `default`
 - `mem0-prod`
@@ -51,30 +51,30 @@ Agents, tools, and background hooks resolve the active provider by key, not by h
 
 ### 3. Plugins are the primary provider path
 
-Built-ins are useful for a zero-config local path, but most providers should arrive through the existing Paperclip plugin runtime.
+Built-ins are useful for a zero-config local path, but most providers should arrive through the existing Outpost plugin runtime.
 
-That keeps the core small and matches the broader Paperclip direction that specialized knowledge systems live at the edges.
+That keeps the core small and matches the broader Outpost direction that specialized knowledge systems live at the edges.
 
-### 4. Paperclip owns routing, provenance, and policy
+### 4. Outpost owns routing, provenance, and policy
 
-Providers should not decide how Paperclip entities map to governance.
+Providers should not decide how Outpost entities map to governance.
 
-Paperclip core should own:
+Outpost core should own:
 
 - binding resolution
 - who is allowed to call a memory operation
-- which company, agent, issue, project, run, and subject scope is active
+- which space, agent, issue, project, run, and subject scope is active
 - what source object the operation belongs to
 - how usage and costs are attributed
 - how operators inspect what happened
 
-### 5. Paperclip exposes shared hooks, providers own extraction
+### 5. Outpost exposes shared hooks, providers own extraction
 
-Paperclip should emit a common set of memory hooks that built-ins, third-party adapters, and plugins can all use.
+Outpost should emit a common set of memory hooks that built-ins, third-party adapters, and plugins can all use.
 
-Those hooks should pass structured Paperclip source objects plus normalized metadata. The provider then decides how to extract from those objects.
+Those hooks should pass structured Outpost source objects plus normalized metadata. The provider then decides how to extract from those objects.
 
-Paperclip should not force one extraction pipeline or one canonical "memory text" transform before the provider sees the input.
+Outpost should not force one extraction pipeline or one canonical "memory text" transform before the provider sees the input.
 
 ### 6. Automatic memory should start narrow, but the hook surface should be general
 
@@ -93,7 +93,7 @@ The hook registry itself should be general enough that other providers can subsc
 
 For the open-source version, changing memory bindings should not require approvals.
 
-Paperclip should still log those changes in activity and preserve full auditability. Approval-gated memory governance can remain an enterprise or future policy layer.
+Outpost should still log those changes in activity and preserve full auditability. Approval-gated memory governance can remain an enterprise or future policy layer.
 
 ## Proposed Concepts
 
@@ -110,26 +110,26 @@ Examples:
 
 ### Memory binding
 
-A company-scoped configuration record that points to a provider and carries provider-specific config.
+A space-scoped configuration record that points to a provider and carries provider-specific config.
 
 This is the object selected by key.
 
 ### Memory binding target
 
-A mapping from a Paperclip target to a binding.
+A mapping from a Outpost target to a binding.
 
 V1 targets:
 
-- `company`
+- `space`
 - `agent`
 
 ### Memory scope
 
-The normalized Paperclip scope passed into a provider request.
+The normalized Outpost scope passed into a provider request.
 
 At minimum:
 
-- `companyId`
+- `spaceId`
 - optional `agentId`
 - optional `projectId`
 - optional `issueId`
@@ -154,7 +154,7 @@ Supported source kinds should include:
 
 ### Memory hook
 
-A normalized trigger emitted by Paperclip when something memory-relevant happens.
+A normalized trigger emitted by Outpost when something memory-relevant happens.
 
 Initial hook kinds:
 
@@ -166,13 +166,13 @@ Initial hook kinds:
 
 ### Memory operation
 
-A normalized capture, record-write, query, browse, get, correction, or delete action performed through Paperclip.
+A normalized capture, record-write, query, browse, get, correction, or delete action performed through Outpost.
 
-Paperclip should log every memory operation whether the provider is local, plugin-backed, or external.
+Outpost should log every memory operation whether the provider is local, plugin-backed, or external.
 
 ## Required Adapter Contract
 
-The required core should be small enough to fit `memsearch`, `mem0`, `Memori`, `MemOS`, or `OpenViking`, but strong enough to satisfy Paperclip's attribution and inspectability requirements.
+The required core should be small enough to fit `memsearch`, `mem0`, `Memori`, `MemOS`, or `OpenViking`, but strong enough to satisfy Outpost's attribution and inspectability requirements.
 
 ```ts
 export interface MemoryAdapterCapabilities {
@@ -185,7 +185,7 @@ export interface MemoryAdapterCapabilities {
 }
 
 export interface MemoryScope {
-  companyId: string;
+  spaceId: string;
   agentId?: string;
   projectId?: string;
   issueId?: string;
@@ -204,7 +204,7 @@ export interface MemorySourceRef {
     | "activity"
     | "manual_note"
     | "external_document";
-  companyId: string;
+  spaceId: string;
   issueId?: string;
   commentId?: string;
   documentKey?: string;
@@ -342,7 +342,7 @@ export interface MemoryAdapter {
 }
 ```
 
-This contract intentionally does not force a provider to expose its internal graph, file tree, or ontology. It does require enough structure for Paperclip to browse, attribute, and audit what happened.
+This contract intentionally does not force a provider to expose its internal graph, file tree, or ontology. It does require enough structure for Outpost to browse, attribute, and audit what happened.
 
 ## Optional Adapter Surfaces
 
@@ -367,9 +367,9 @@ The broad direction still looks right:
 - AWS treats browse and list operations as first-class APIs, not ad hoc debugging helpers
 - AWS exposes extraction jobs instead of hiding asynchronous maintenance completely
 
-That lines up with the Paperclip plan at a high level: provider configuration, scoped writes, scoped retrieval, provider-managed extraction as a capability, and a browse and inspect surface.
+That lines up with the Outpost plan at a high level: provider configuration, scoped writes, scoped retrieval, provider-managed extraction as a capability, and a browse and inspect surface.
 
-The concrete changes Paperclip should take from AWS are:
+The concrete changes Outpost should take from AWS are:
 
 ### 1. Keep config APIs separate from runtime traffic
 
@@ -384,7 +384,7 @@ This keeps governance changes distinct from high-volume memory traffic.
 
 AWS does not flatten everything into one write primitive. It distinguishes captured events from durable memory records.
 
-Paperclip should do the same:
+Outpost should do the same:
 
 - `capture(...)` for raw run, comment, document, or activity residue
 - `upsertRecords(...)` for curated durable facts and notes
@@ -393,7 +393,7 @@ That is a better fit for provider-managed extraction and for manual curation flo
 
 ### 3. Make list and browse first-class
 
-AWS exposes list and retrieve surfaces directly. Paperclip should not make browse optional at the portable layer.
+AWS exposes list and retrieve surfaces directly. Outpost should not make browse optional at the portable layer.
 
 The minimum portable surface should include:
 
@@ -407,7 +407,7 @@ Provider-native graph or file browsing can remain optional beyond that.
 
 AWS consistently uses pagination on browse-heavy APIs.
 
-Paperclip should add cursor-based pagination to:
+Outpost should add cursor-based pagination to:
 
 - record listing
 - extraction job listing
@@ -419,7 +419,7 @@ Prompt hydration can continue to use `topK`, but operator surfaces need cursors.
 
 AWS uses `actorId`, `sessionId`, `namespace`, and `memoryStrategyId` heavily.
 
-Paperclip should keep its own control-plane-centric model, but the adapter contract needs obvious places to map those concepts:
+Outpost should keep its own control-plane-centric model, but the adapter contract needs obvious places to map those concepts:
 
 - `sessionKey`
 - `namespace`
@@ -428,7 +428,7 @@ The provider adapter can map them to AWS or other vendor-specific identifiers wi
 
 ### 6. Treat asynchronous extraction as a real operational surface
 
-AWS exposes extraction jobs explicitly. Paperclip should too.
+AWS exposes extraction jobs explicitly. Outpost should too.
 
 Operators should be able to see:
 
@@ -437,11 +437,11 @@ Operators should be able to see:
 - which hook or source caused the work
 - whether a retry is available
 
-### 7. Keep Paperclip provenance primary
+### 7. Keep Outpost provenance primary
 
-Paperclip should continue to center:
+Outpost should continue to center:
 
-- `companyId`
+- `spaceId`
 - `agentId`
 - `projectId`
 - `issueId`
@@ -450,14 +450,14 @@ Paperclip should continue to center:
 
 The lesson from AWS is to support clean mapping into provider-specific models, not to let provider identifiers take over the core product model.
 
-## What Paperclip Should Persist
+## What Outpost Should Persist
 
-Paperclip should not mirror the full provider memory corpus into Postgres unless the provider is a Paperclip-managed local provider.
+Outpost should not mirror the full provider memory corpus into Postgres unless the provider is a Outpost-managed local provider.
 
-Paperclip core should persist:
+Outpost core should persist:
 
 - memory bindings
-- company default and agent override resolution targets
+- space default and agent override resolution targets
 - provider keys and capability metadata
 - normalized memory operation logs
 - source references back to issue comments, documents, runs, and activity
@@ -471,7 +471,7 @@ For external providers, the actual memory payload can remain in the provider.
 
 ### Shared hook surface
 
-Paperclip should expose one shared hook system for memory.
+Outpost should expose one shared hook system for memory.
 
 That same system must be available to:
 
@@ -496,16 +496,16 @@ The payload should include structured objects where possible so the provider can
 These should be low-risk and easy to reason about:
 
 1. `pre_run_hydrate`
-   Before an agent run starts, Paperclip may call `query(... intent = "agent_preamble")` using the active binding.
+   Before an agent run starts, Outpost may call `query(... intent = "agent_preamble")` using the active binding.
 
 2. `post_run_capture`
-   After a run finishes, Paperclip may call `capture(...)` with structured run output, excerpts, and provenance.
+   After a run finishes, Outpost may call `capture(...)` with structured run output, excerpts, and provenance.
 
 3. `issue_comment_capture`
-   When enabled on the binding, Paperclip may call `capture(...)` for selected issue comments.
+   When enabled on the binding, Outpost may call `capture(...)` for selected issue comments.
 
 4. `issue_document_capture`
-   When enabled on the binding, Paperclip may call `capture(...)` for selected issue documents.
+   When enabled on the binding, Outpost may call `capture(...)` for selected issue documents.
 
 ### Explicit tools and APIs
 
@@ -522,13 +522,13 @@ These should be tool-driven or UI-driven first:
 
 - broad web crawling
 - silent import of arbitrary repo files
-- cross-company memory sharing
+- cross-space memory sharing
 - automatic destructive deletion
 - provider migration between bindings
 
 ## Agent UX Rules
 
-Paperclip should give agents both automatic recall and explicit tools, with simple guidance:
+Outpost should give agents both automatic recall and explicit tools, with simple guidance:
 
 - use `memory.search` when the task depends on prior decisions, people, projects, or long-running context that is not in the current issue thread
 - use `memory.note` when a durable fact, preference, or decision should survive this run
@@ -539,11 +539,11 @@ This keeps memory available without forcing every agent prompt to become a memor
 
 ## Browse And Inspect Surface
 
-Paperclip needs a first-class UI for memory, otherwise providers become black boxes.
+Outpost needs a first-class UI for memory, otherwise providers become black boxes.
 
 The initial browse surface should support:
 
-- active binding by company and agent
+- active binding by space and agent
 - recent memory operations
 - recent write and capture sources
 - record list and record detail with source backlinks
@@ -556,7 +556,7 @@ When a provider supports richer browsing, the plugin can add deeper views throug
 
 ## Cost And Evaluation
 
-Paperclip should treat memory accounting as two related but distinct concerns:
+Outpost should treat memory accounting as two related but distinct concerns:
 
 ### 1. `memory_operations` is the authoritative audit trail
 
@@ -580,10 +580,10 @@ The current `cost_events` model is already the canonical cost ledger for token a
 
 The recommendation is:
 
-- if a memory operation runs inside a normal Paperclip agent heartbeat and the model usage is already counted on that run, do not create a duplicate `cost_event`
+- if a memory operation runs inside a normal Outpost agent heartbeat and the model usage is already counted on that run, do not create a duplicate `cost_event`
 - instead, store the memory operation with `attributionMode = "included_in_run"` and link it to the related `heartbeatRunId`
-- if a memory provider makes a direct metered model call outside the agent run accounting path, the provider must report usage and Paperclip should create a `cost_event`
-- that direct `cost_event` should still link back to the memory operation, agent, company, and issue or run context when possible
+- if a memory provider makes a direct metered model call outside the agent run accounting path, the provider must report usage and Outpost should create a `cost_event`
+- that direct `cost_event` should still link back to the memory operation, agent, space, and issue or run context when possible
 
 ### 3. `finance_events` should carry flat subscription or invoice-style costs
 
@@ -599,7 +599,7 @@ That keeps usage telemetry separate from accounting entries like invoices and fl
 
 ### 4. Evaluation metrics still matter
 
-Paperclip should record evaluation-oriented metrics where possible:
+Outpost should record evaluation-oriented metrics where possible:
 
 - recall hit rate
 - empty query rate
@@ -607,25 +607,25 @@ Paperclip should record evaluation-oriented metrics where possible:
 - extraction failure count
 - per-binding success and failure counts
 
-This is important because a memory system that "works" but silently burns budget or silently fails extraction is not acceptable in Paperclip.
+This is important because a memory system that "works" but silently burns budget or silently fails extraction is not acceptable in Outpost.
 
 ## Suggested Data Model Additions
 
 At the control-plane level, the likely new core tables are:
 
 - `memory_bindings`
-  - company-scoped key
+  - space-scoped key
   - provider id or plugin id
   - config blob
   - enabled status
 
 - `memory_binding_targets`
-  - target type (`company`, `agent`)
+  - target type (`space`, `agent`)
   - target id
   - binding id
 
 - `memory_operations`
-  - company id
+  - space id
   - binding id
   - operation type (`capture`, `record_upsert`, `query`, `list`, `get`, `forget`, `correct`)
   - scope fields
@@ -636,7 +636,7 @@ At the control-plane level, the likely new core tables are:
   - success or error
 
 - `memory_extraction_jobs`
-  - company id
+  - space id
   - binding id
   - operation id
   - provider job id
@@ -654,7 +654,7 @@ The best zero-config built-in is a local markdown-first provider with optional s
 
 Why:
 
-- it matches Paperclip's local-first posture
+- it matches Outpost's local-first posture
 - it is inspectable
 - it is easy to back up and debug
 - it gives the system a baseline even without external API keys
@@ -666,7 +666,7 @@ The design should still treat that built-in as just another provider behind the 
 ### Phase 1: Control-plane contract
 
 - add memory binding models and API types
-- add company default plus agent override resolution
+- add space default plus agent override resolution
 - add plugin capability and registration surface for memory providers
 
 ### Phase 2: Hook delivery and operation audit
@@ -682,7 +682,7 @@ The design should still treat that built-in as just another provider behind the 
 
 ### Phase 4: UI inspection
 
-- add company and agent memory settings
+- add space and agent memory settings
 - add a memory operation explorer
 - add record list and detail surfaces
 - add source backlinks to issues and runs
@@ -697,7 +697,7 @@ The design should still treat that built-in as just another provider behind the 
 ## Remaining Open Questions
 
 - Which built-in local provider should ship first: pure markdown, markdown plus embeddings, or a lightweight local vector store?
-- How much source payload should Paperclip snapshot inside `memory_operations` for debugging without duplicating large transcripts?
+- How much source payload should Outpost snapshot inside `memory_operations` for debugging without duplicating large transcripts?
 - Should correction flows mutate provider state directly, create superseding records, or both depending on provider capability?
 - What default retention and size limits should the local built-in enforce?
 
@@ -705,7 +705,7 @@ The design should still treat that built-in as just another provider behind the 
 
 The right abstraction is:
 
-- Paperclip owns bindings, resolution, hooks, provenance, policy, and attribution.
+- Outpost owns bindings, resolution, hooks, provenance, policy, and attribution.
 - Providers own extraction, ranking, storage, and provider-native memory semantics.
 
-That gives Paperclip a stable memory service without locking the product to one memory philosophy or one vendor, and it integrates the AWS lessons without importing AWS's model into core.
+That gives Outpost a stable memory service without locking the product to one memory philosophy or one vendor, and it integrates the AWS lessons without importing AWS's model into core.

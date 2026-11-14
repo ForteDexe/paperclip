@@ -13,8 +13,8 @@ import { logActivity } from "../../activity-log.js";
 
 type InstallDependencies = {
   now: () => Date;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
-  assertOptionalAgent(companyId: string, agentId: string | null | undefined, label: string): Promise<void>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
+  assertOptionalAgent(spaceId: string, agentId: string | null | undefined, label: string): Promise<void>;
 };
 
 export function createConnectionInstalls(db: Db, { now, getConnectionRow, assertOptionalAgent }: InstallDependencies) {
@@ -28,7 +28,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
       .from(toolProfiles)
       .where(
         and(
-          eq(toolProfiles.companyId, connection.companyId),
+          eq(toolProfiles.spaceId, connection.spaceId),
           eq(toolProfiles.profileKey, profileKey),
         ),
       )
@@ -39,7 +39,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
         .from(toolProfiles)
         .where(
           and(
-            eq(toolProfiles.companyId, connection.companyId),
+            eq(toolProfiles.spaceId, connection.spaceId),
             eq(toolProfiles.name, connection.name),
           ),
         )
@@ -50,7 +50,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
       [profile] = await dbClient
         .insert(toolProfiles)
         .values({
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           profileKey,
           name: profileName,
           description: `Access profile for ${connection.name}.`,
@@ -71,7 +71,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
       .delete(toolProfileEntries)
       .where(
         and(
-          eq(toolProfileEntries.companyId, connection.companyId),
+          eq(toolProfileEntries.spaceId, connection.spaceId),
           eq(toolProfileEntries.profileId, profile.id),
           eq(toolProfileEntries.selectorType, "connection"),
           eq(toolProfileEntries.effect, "include"),
@@ -83,15 +83,15 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
 
   async function listConnectionInstalls(
     connectionId: string,
-    companyId?: string,
+    spaceId?: string,
   ): Promise<ToolConnectionInstall[]> {
-    const connection = await getConnectionRow(connectionId, companyId);
+    const connection = await getConnectionRow(connectionId, spaceId);
     const rows = await db
       .select()
       .from(toolConnectionInstalls)
       .where(
         and(
-          eq(toolConnectionInstalls.companyId, connection.companyId),
+          eq(toolConnectionInstalls.spaceId, connection.spaceId),
           eq(toolConnectionInstalls.connectionId, connection.id),
         ),
       )
@@ -103,11 +103,11 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
   }
 
   async function resolveInstalledConnectionsForAgent(
-    companyId: string,
+    spaceId: string,
     agentId: string,
   ): Promise<ToolConnection[]> {
     await assertOptionalAgent(
-      companyId,
+      spaceId,
       agentId,
       "Tool connection install agent",
     );
@@ -116,8 +116,8 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
       .from(toolConnectionInstalls)
       .where(
         and(
-          eq(toolConnectionInstalls.companyId, companyId),
-          sql`((${toolConnectionInstalls.targetType} = 'company' and ${toolConnectionInstalls.targetId} = ${companyId}) or (${toolConnectionInstalls.targetType} = 'agent' and ${toolConnectionInstalls.targetId} = ${agentId}))`,
+          eq(toolConnectionInstalls.spaceId, spaceId),
+          sql`((${toolConnectionInstalls.targetType} = 'space' and ${toolConnectionInstalls.targetId} = ${spaceId}) or (${toolConnectionInstalls.targetType} = 'agent' and ${toolConnectionInstalls.targetId} = ${agentId}))`,
         ),
       );
     if (installRows.length === 0) return [];
@@ -129,7 +129,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
       .from(toolConnections)
       .where(
         and(
-          eq(toolConnections.companyId, companyId),
+          eq(toolConnections.spaceId, spaceId),
           inArray(toolConnections.id, connectionIds),
         ),
       )
@@ -158,14 +158,14 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
         ]),
       );
       for (const install of requested.values()) {
-        if (install.targetType === "company") {
-          if (install.targetId !== connection.companyId)
+        if (install.targetType === "space") {
+          if (install.targetId !== connection.spaceId)
             throw unprocessable(
-              "Outpost installs must target the connection company",
+              "Outpost installs must target the connection space",
             );
         } else {
           await assertOptionalAgent(
-            connection.companyId,
+            connection.spaceId,
             install.targetId,
             "Tool connection install agent",
           );
@@ -174,12 +174,12 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
       const markMcpAccessConfigured = connection.transport === "mcp_remote"
         && connection.config.mcpAgentAccessConfigured !== true;
       const accessExtensions: Array<{
-        targetType: "company" | "agent";
+        targetType: "space" | "agent";
         targetId: string;
         profileId: string;
       }> = [];
       await db.transaction(async (tx) => {
-        await lockToolConnectionRuntimeInputs(tx, connection.companyId, connection.id);
+        await lockToolConnectionRuntimeInputs(tx, connection.spaceId, connection.id);
         if (markMcpAccessConfigured) {
           // Preserve an explicit zero-agent selection through OAuth. Merge the
           // marker in SQL so concurrent credential/config changes are retained.
@@ -188,7 +188,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
             transportConfig: sql`${toolConnections.transportConfig} || '{"mcpAgentAccessConfigured":true}'::jsonb`,
             updatedAt: now(),
           }).where(and(
-            eq(toolConnections.companyId, connection.companyId),
+            eq(toolConnections.spaceId, connection.spaceId),
             eq(toolConnections.id, connection.id),
           ));
         }
@@ -197,7 +197,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
           .from(toolConnectionInstalls)
           .where(
             and(
-              eq(toolConnectionInstalls.companyId, connection.companyId),
+              eq(toolConnectionInstalls.spaceId, connection.spaceId),
               eq(toolConnectionInstalls.connectionId, connection.id),
             ),
           );
@@ -208,14 +208,14 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
         );
         const bindings = await tx.select({ targetType: toolProfileBindings.targetType, targetId: toolProfileBindings.targetId })
           .from(toolProfileBindings).innerJoin(toolProfiles, eq(toolProfiles.id, toolProfileBindings.profileId))
-          .where(and(eq(toolProfileBindings.companyId, connection.companyId), eq(toolProfiles.companyId, connection.companyId), eq(toolProfiles.profileKey, `app:${connection.id}`)));
+          .where(and(eq(toolProfileBindings.spaceId, connection.spaceId), eq(toolProfiles.spaceId, connection.spaceId), eq(toolProfiles.profileKey, `app:${connection.id}`)));
         const sourceAgentId = actor?.managementContext?.actor.type === "agent" ? actor.managementContext.actor.agentId
           : actor?.actorType === "agent" ? actor.actorId : null;
-        await lockToolAssignmentAgents(tx, connection.companyId, [...existing, ...requested.values(), ...bindings], sourceAgentId);
+        await lockToolAssignmentAgents(tx, connection.spaceId, [...existing, ...requested.values(), ...bindings], sourceAgentId);
         const changedAgentIds = [...existing.filter(install => !requested.has(`${install.targetType}:${install.targetId}`)),
           ...[...requested.entries()].filter(([key]) => !existingKeys.has(key)).map(([, install]) => install)]
           .filter(install => install.targetType === "agent").map(install => install.targetId);
-        await assertAgentToolAssignmentInteractions(tx as unknown as Db, sourceAgentId, connection.companyId, changedAgentIds, false);
+        await assertAgentToolAssignmentInteractions(tx as unknown as Db, sourceAgentId, connection.spaceId, changedAgentIds, false);
         const removals = existing.filter(
           (install) =>
             !requested.has(`${install.targetType}:${install.targetId}`),
@@ -242,7 +242,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
             .from(toolProfiles)
             .where(
               and(
-                eq(toolProfiles.companyId, connection.companyId),
+                eq(toolProfiles.spaceId, connection.spaceId),
                 eq(toolProfiles.profileKey, `app:${connection.id}`),
               ),
             )
@@ -253,7 +253,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
                 .delete(toolProfileBindings)
                 .where(
                   and(
-                    eq(toolProfileBindings.companyId, connection.companyId),
+                    eq(toolProfileBindings.spaceId, connection.spaceId),
                     eq(toolProfileBindings.profileId, installProfile.id),
                     eq(toolProfileBindings.targetType, install.targetType),
                     eq(toolProfileBindings.targetId, install.targetId),
@@ -269,7 +269,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
         if (additions.length > 0) {
           await tx.insert(toolConnectionInstalls).values(
             additions.map((install) => ({
-              companyId: connection.companyId,
+              spaceId: connection.spaceId,
               connectionId: connection.id,
               targetType: install.targetType,
               targetId: install.targetId,
@@ -286,7 +286,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
             const [binding] = await tx
               .insert(toolProfileBindings)
               .values({
-                companyId: connection.companyId,
+                spaceId: connection.spaceId,
                 profileId: profile.id,
                 targetType: install.targetType,
                 targetId: install.targetId,
@@ -313,7 +313,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
         if (markMcpAccessConfigured || removeIds.length > 0 || additions.length > 0) {
           const binding = actorBinding(actor);
           await tx.insert(toolAccessAuditEvents).values({
-            companyId: connection.companyId,
+            spaceId: connection.spaceId,
             connectionId: connection.id,
             actorType: binding.actorType ?? "system",
             actorId: binding.actorId,
@@ -338,7 +338,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
       });
       for (const extension of accessExtensions) {
         await logActivity(db, {
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           actorType: actor?.actorType ?? "system",
           actorId: actor?.actorId ?? "system",
           action: "tool_connection.install_access_extended",
@@ -351,7 +351,7 @@ export function createConnectionInstalls(db: Db, { now, getConnectionRow, assert
         connectionId: connection.id,
         installs: await listConnectionInstalls(
           connection.id,
-          connection.companyId,
+          connection.spaceId,
         ),
       };
     }

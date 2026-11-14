@@ -5,7 +5,7 @@ import { getRunLogStore } from "./run-log-store.js";
 const MAX_BYTES = 2048;
 const READ_TIMEOUT_MS = 2000;
 type PreparationLog = {
-  companyId: string; agentId: string; id: string;
+  spaceId: string; agentId: string; id: string;
   contextSnapshot: Record<string, unknown> | null;
   logStore: string | null; logRef: string | null; logBytes: number | null; logSha256: string | null;
   logCompressed: boolean; stdoutExcerpt: string | null; stderrExcerpt: string | null;
@@ -16,7 +16,7 @@ export async function hasVerifiedPreparationLog(run: PreparationLog): Promise<bo
   const versions = run.contextSnapshot?.skillVersions;
   if (run.contextSnapshot?.skillSelectionSnapshot !== true || !versions || typeof versions !== "object"
     || Array.isArray(versions) || Object.keys(versions).length === 0
-    || run.logStore !== "s3_segments" || run.logRef !== `${run.companyId}/${run.agentId}/${run.id}`
+    || run.logStore !== "s3_segments" || run.logRef !== `${run.spaceId}/${run.agentId}/${run.id}`
     || !Number.isSafeInteger(run.logBytes) || run.logBytes! <= 0 || run.logBytes! > MAX_BYTES
     || !run.logSha256 || !/^[a-f0-9]{64}$/.test(run.logSha256) || run.logCompressed
     || run.lastOutputSeq !== 1 || run.lastOutputStream !== "stdout" || !run.lastOutputAt

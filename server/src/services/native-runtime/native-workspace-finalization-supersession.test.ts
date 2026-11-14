@@ -7,7 +7,7 @@ import { and, eq } from "drizzle-orm";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   completionContracts,
   createDb,
   heartbeatRuns,
@@ -29,18 +29,18 @@ describe("superseded native workspace finalization attempts", () => {
   let db: ReturnType<typeof createDb>;
   let workspaceRoot: string;
   let priorLogRoot: string | undefined;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
 
   beforeAll(async () => {
-    workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-finalize-supersession-"));
+    workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-finalize-supersession-"));
     priorLogRoot = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH;
     process.env.WORKSPACE_OPERATION_LOG_BASE_PATH = path.join(workspaceRoot, "operation-logs");
     const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_WORKSPACE_FINALIZER_TEST_DATABASE_URL");
-    if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-finalize-supersession-");
+    if (!external) temporary = await startEmbeddedPostgresTestDatabase("outpost-finalize-supersession-");
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 6 });
-    await db.insert(companies).values({ id: companyId, name: "Finalize supersession", issuePrefix: "FSS" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Finalize agent",
+    await db.insert(spaces).values({ id: spaceId, name: "Finalize supersession", issuePrefix: "FSS" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Finalize agent",
       adapterType: "outpost_runner", status: "running" });
   }, 30_000);
 
@@ -60,21 +60,21 @@ describe("superseded native workspace finalization attempts", () => {
     const resultId = randomUUID();
     const cwd = path.join(workspaceRoot, `orphan-${randomUUID()}`);
     if (options.cwdExists !== false) await fs.mkdir(cwd);
-    await db.insert(issues).values({ id: issueId, companyId, title: "Crash-loop finalize", status: "in_progress",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Crash-loop finalize", status: "in_progress",
       workMode: "standard", assigneeAgentId: agentId });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "finalize-supersession-test-v1",
       risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { objective: "finalize" }, canonicalSha256: `contract-${contractId}`,
       createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "succeeded", runtimeMode: "native",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "succeeded", runtimeMode: "native",
       nativeIssueId: issueId, completionContractId: contractId,
       runnerProfileJson: { nativeExecutionInput: { binding: { executionWorkspaceId: randomUUID() } } } });
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId, completionContractId: contractId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId, completionContractId: contractId,
       serverFingerprint: `result-${resultId}`, schemaStatus: "accepted", resultJson: {}, canonicalSha256: `result-${resultId}` });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "result_accepted", resultId });
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "result_accepted", resultId });
     const startedAt = new Date(Date.now() - 60_000);
-    const [orphan] = await db.insert(workspaceOperations).values({ companyId, heartbeatRunId: runId, issueId,
+    const [orphan] = await db.insert(workspaceOperations).values({ spaceId, heartbeatRunId: runId, issueId,
       phase: "workspace_finalize", status: "running", cwd, startedAt, createdAt: startedAt, updatedAt: startedAt,
       metadata: { owningService: "native_workspace_finalizer", observation: "workspace_directory",
         resumedFromOperationId: null, ...options.metadata },
@@ -113,7 +113,7 @@ describe("superseded native workspace finalization attempts", () => {
 
   it("settles an orphan older than an already succeeded attempt", async () => {
     const seeded = await seedOrphanedFinalize();
-    const [success] = await db.insert(workspaceOperations).values({ companyId, heartbeatRunId: seeded.runId,
+    const [success] = await db.insert(workspaceOperations).values({ spaceId, heartbeatRunId: seeded.runId,
       issueId: seeded.issueId, phase: "workspace_finalize", status: "succeeded", finishedAt: new Date(),
       metadata: { owningService: "native_workspace_finalizer", resumedFromOperationId: seeded.orphan.id } }).returning();
     const operation = await resumeNativeWorkspaceFinalization({ db, runId: seeded.runId });
@@ -125,7 +125,7 @@ describe("superseded native workspace finalization attempts", () => {
 
   it("leaves a running attempt alone while another controller owns the run", async () => {
     const seeded = await seedOrphanedFinalize();
-    const result = await withNativeWorkspaceFinalizationOwnership({ db, companyId, runId: seeded.runId },
+    const result = await withNativeWorkspaceFinalizationOwnership({ db, spaceId, runId: seeded.runId },
       () => resumeNativeWorkspaceFinalization({ db, runId: seeded.runId }));
     expect(result).toEqual({ acquired: true, value: null });
     expect((await read(seeded.orphan.id)).status).toBe("running");

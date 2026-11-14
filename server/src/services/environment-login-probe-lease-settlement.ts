@@ -33,7 +33,7 @@ export async function settleEnvironmentLoginProbeLease(db: Db, record: InProgres
       .where(and(eq(environmentLeases.id, lease.id), eq(environmentLeases.status, "active"),
         isNull(environmentLeases.heartbeatRunId),
         sql`${environmentLeases.metadata} is not distinct from ${lease.metadata === null ? null : JSON.stringify(lease.metadata)}::jsonb`))
-      .returning({ id: environmentLeases.id }), { companyId: lease.companyId, leaseId: lease.id });
+      .returning({ id: environmentLeases.id }), { spaceId: lease.spaceId, leaseId: lease.id });
     return flipped.length ? { settled: true, reason: context.proof.reason } : { settled: false, reason: "lease_no_longer_active" };
   });
 }

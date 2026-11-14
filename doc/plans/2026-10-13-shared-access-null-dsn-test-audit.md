@@ -29,7 +29,7 @@ The missing-DSN rejection case and real-DSN acceptance/value case remain unchang
 
 ## Reproducible verification
 
-Commands ran from `/private/tmp/paperclip-test-audit-pr-stack`, using the root Vitest project configuration and the package-shared project. Both commands ran complete files without a test-name filter.
+Commands ran from `/private/tmp/outpost-test-audit-pr-stack`, using the root Vitest project configuration and the package-shared project. Both commands ran complete files without a test-name filter.
 
 Baseline:
 

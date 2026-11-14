@@ -7,7 +7,7 @@ import { build } from "vite";
 import { expect, it } from "vitest";
 
 it("keeps component names through the production bundle for React error traces", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "paperclip-component-names-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "outpost-component-names-"));
   try {
     await mkdir(path.join(root, "public"));
     await mkdir(path.join(root, "src"));
@@ -44,7 +44,7 @@ it("keeps component names through the production bundle for React error traces",
     runInNewContext(code, scope);
     expect(scope.componentNames).toEqual(["DiagnosticComponent", "DiagnosticBoundary", "DiagnosticArrow"]);
     const worker = await readFile(path.join(root, "dist/sw.js"), "utf8");
-    expect(worker).toContain(".paperclip-offline");
+    expect(worker).toContain(".outpost-offline");
     expect(worker).not.toMatch(/__OUTPOST_/);
   } finally {
     await rm(root, { recursive: true, force: true });

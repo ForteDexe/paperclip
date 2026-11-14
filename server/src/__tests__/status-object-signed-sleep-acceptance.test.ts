@@ -11,7 +11,7 @@ import { applyPendingMigrations, createDb } from '@outpost/db';
 import { resolveExternalTestDatabaseUrl } from './helpers/external-test-database.js';
 import { startMaintenanceServer, withMaintenanceProvider, type MaintenanceRuntimeSecrets } from './helpers/maintenance/server-harness.js';
 import { createMaintenanceS3Boundary } from './helpers/maintenance/s3-boundary.js';
-import { provisionManagedSleepCompany, managedTenantActor } from './helpers/maintenance/managed-profile.js';
+import { provisionManagedSleepSpace, managedTenantActor } from './helpers/maintenance/managed-profile.js';
 import { startDefaultCadenceBridge } from './helpers/maintenance/default-cadence-bridge.js';
 import { prepareStatusInterval, prepareGitHubObject, statusObjectGitHubBoundary } from './helpers/maintenance/status-object-producers.js';
 
@@ -78,7 +78,7 @@ describe.skipIf(!enabled)('status and external-object actual signed cold-owner h
     const proxyEvidence = () => server ? { queries: [...server.proxy.queries], frames: server.proxy.frames, transport: server.proxy.transport,
       pending: server.proxy.pending, starting: server.proxy.starting, errors: server.proxy.errors.map(error => error.stack ?? String(error)) } : undefined;
     try {
-      secretsDirectory = await mkdtemp(path.join(tmpdir(), 'paperclip-owner-runtime-secrets-'));
+      secretsDirectory = await mkdtemp(path.join(tmpdir(), 'outpost-owner-runtime-secrets-'));
       await chmod(secretsDirectory, 0o700);
       const secretsPath = path.join(secretsDirectory, 'runtime-secrets.json');
       const runtimeSecrets: MaintenanceRuntimeSecrets = {
@@ -124,19 +124,19 @@ describe.skipIf(!enabled)('status and external-object actual signed cold-owner h
         try {
           server = await boot(); phase('app-ready');
           const setupDb = createDb(appUrl, { maxConnections: 1 });
-          let company: Awaited<ReturnType<typeof provisionManagedSleepCompany>>;
-          try { company = await provisionManagedSleepCompany(server, setupDb); }
+          let space: Awaited<ReturnType<typeof provisionManagedSleepSpace>>;
+          try { space = await provisionManagedSleepSpace(server, setupDb); }
           catch (error) { primary ??= { error }; throw error; }
           finally {
             try { await setupDb.$client.end({ timeout: 1 }); }
             catch (error) { if (primary) failures.push({ stage: 'setup-close', error }); else throw error; }
           }
           phase('normal-producer-entered');
-          if (owner === 'status') status = await prepareStatusInterval(server, company.id, statePath);
+          if (owner === 'status') status = await prepareStatusInterval(server, space.id, statePath);
           else {
-            const object = await prepareGitHubObject(server, company.id);
+            const object = await prepareGitHubObject(server, space.id);
             phase('object-plain-issue-created');
-            const setupAgents = await server.api<unknown[]>('GET', `/companies/${company.id}/agents`);
+            const setupAgents = await server.api<unknown[]>('GET', `/spaces/${space.id}/agents`);
             expect(setupAgents).toHaveLength(0);
             phase('object-setup-reconciliation-entered');
             const setup = await server.settled(500, 0, { managedSetupRecovery: true });
@@ -160,14 +160,14 @@ describe.skipIf(!enabled)('status and external-object actual signed cold-owner h
                     c.generating_issue_id as claim,c.refresh_policy as policy,
                     (select count(*)::int from status_card_updates u where u.card_id=c.id and u.status='running') as pending,
                     u.run_id as last_run_id,u.generation_issue_id,r.started_at as run_started_at,r.status as run_status,gi.status as generation_status
-                    from status_cards c join documents d on d.id=c.document_id and d.company_id=c.company_id
+                    from status_cards c join documents d on d.id=c.document_id and d.space_id=c.space_id
                     left join lateral (select run_id,generation_issue_id from status_card_updates u where u.card_id=c.id and u.kind!='compile' and u.status='ok' order by u.finished_at desc limit 1) u on true
-                    left join heartbeat_runs r on r.id=u.run_id and r.company_id=c.company_id
-                    left join issues gi on gi.id=u.generation_issue_id and gi.company_id=c.company_id where c.company_id=${company.id} and c.id=${status!.cardId}`
+                    left join heartbeat_runs r on r.id=u.run_id and r.space_id=c.space_id
+                    left join issues gi on gi.id=u.generation_issue_id and gi.space_id=c.space_id where c.space_id=${space.id} and c.id=${status!.cardId}`
                 : tx<ObservedRow[]>`select o.id,o.next_refresh_at as next_at,o.last_resolved_at as last_at,o.display_title as value,o.xmin::text as version,
-                    o.refresh_token::text as claim,(select count(*)::int from external_object_mentions m where m.object_id=o.id and m.company_id=o.company_id) as pending,
+                    o.refresh_token::text as claim,(select count(*)::int from external_object_mentions m where m.object_id=o.id and m.space_id=o.space_id) as pending,
                     o.data as policy,null::text as last_run_id,null::text as generation_issue_id,null::timestamptz as run_started_at,null::text as run_status,null::text as generation_status
-                    from external_objects o where o.company_id=${company.id} and o.provider_key='github' and o.external_id='acme/sleep-object#issues/7'`);
+                    from external_objects o where o.space_id=${space.id} and o.provider_key='github' and o.external_id='acme/sleep-object#issues/7'`);
               if (rows.length === 0) return undefined;
               assert.equal(rows.length, 1);
               const row = rows[0]!;
@@ -198,9 +198,9 @@ describe.skipIf(!enabled)('status and external-object actual signed cold-owner h
             let controlPrimary: { error: unknown } | undefined;
             try {
               const identity = async () => {
-                const rows = await identityDb.$client.begin('read only', tx => tx<Array<{ agent_id: string; company_id: string; algorithm: string; key_id: string; ciphertext_hash: string }>>`
-                  select agent_id,company_id,algorithm,key_id,md5(private_key_material::text) as ciphertext_hash
-                  from agent_identity_keys where company_id=${company.id} and agent_id=${status!.agentId}`);
+                const rows = await identityDb.$client.begin('read only', tx => tx<Array<{ agent_id: string; space_id: string; algorithm: string; key_id: string; ciphertext_hash: string }>>`
+                  select agent_id,space_id,algorithm,key_id,md5(private_key_material::text) as ciphertext_hash
+                  from agent_identity_keys where space_id=${space.id} and agent_id=${status!.agentId}`);
                 assert.equal(rows.length, 1); return rows[0]!;
               };
               const useful = async (revision: number) => {
@@ -268,7 +268,7 @@ describe.skipIf(!enabled)('status and external-object actual signed cold-owner h
               await status.revision(3);
               await server!.api('POST', `/status-cards/${status.cardId}/refresh`, { full: true });
               const latestRun = async () => identityDb.$client.begin('read only', tx => tx<Array<{ id: string; status: string; error_code: string | null; error: string | null }>>`
-                select id,status,error_code,error from heartbeat_runs where company_id=${company.id} and agent_id=${status!.agentId}
+                select id,status,error_code,error from heartbeat_runs where space_id=${space.id} and agent_id=${status!.agentId}
                 order by created_at desc limit 1`).then(rows => rows[0]);
               const failedBy = Date.now() + 30_000;
               let rejected = await latestRun();
@@ -302,7 +302,7 @@ describe.skipIf(!enabled)('status and external-object actual signed cold-owner h
           if (owner === 'status') {
             expect(initial.policy).toMatchObject({ mode: 'interval', intervalMinutes: 15 });
             expect(initial.pending).toBe(0); expect(initial.run_status).toBe('succeeded'); expect(initial.generation_status).toBe('done');
-            await server.api('POST', `/companies/${company.id}/issues`, { title: 'A changed real persisted blocker', status: 'blocked', priority: 'medium' });
+            await server.api('POST', `/spaces/${space.id}/issues`, { title: 'A changed real persisted blocker', status: 'blocked', priority: 'medium' });
             await server.settled(500, 0, { managedSetupRecovery: true });
             expect((await persisted()).value).toBe(initial.value);
             expect(new Date((await persisted()).next_at).getTime()).toBe(originalD);

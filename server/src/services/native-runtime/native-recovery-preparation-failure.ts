@@ -17,17 +17,17 @@ const SETTLEABLE_CLAIMS = new Set<NativeRestartRecoveryClaim["kind"]>(["bootstra
  * with a result, is left unchanged. Returns whether this call settled it.
  */
 export async function settleFailedNativeRecoveryPreparation(db: Db, input: {
-  companyId: string; runId: string; claim: Pick<NativeRestartRecoveryClaim, "kind" | "leaseOwner">;
+  spaceId: string; runId: string; claim: Pick<NativeRestartRecoveryClaim, "kind" | "leaseOwner">;
 }): Promise<boolean> {
   if (!SETTLEABLE_CLAIMS.has(input.claim.kind)) return false;
   return db.transaction(async tx => {
     const [run] = await tx.select({ status: heartbeatRuns.status, errorCode: heartbeatRuns.errorCode })
-      .from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId)))
+      .from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId)))
       .for("update");
     if (run?.status !== "failed") return false;
     // Register the work before the writes it announces. A spare wake when no
     // coordinator matches below is harmless.
-    await notifyExecutionRunWork(tx as unknown as Db, { companyId: input.companyId });
+    await notifyExecutionRunWork(tx as unknown as Db, { spaceId: input.spaceId });
     const now = new Date();
     const [settled] = await tx.update(nativeRunFinalizations).set({
       phase: "terminal_failure", leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: null, controlDeadlineAt: null,
@@ -36,13 +36,13 @@ export async function settleFailedNativeRecoveryPreparation(db: Db, input: {
         nextAction: "Preparation failed before the provider was started again. Retry the task." },
       recoveryState: "blocked", updatedAt: now,
     }).where(and(
-      eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.runId, input.runId),
+      eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.runId, input.runId),
       eq(nativeRunFinalizations.phase, "observed"), eq(nativeRunFinalizations.leaseOwner, input.claim.leaseOwner),
       isNull(nativeRunFinalizations.resultId),
     )).returning({ runId: nativeRunFinalizations.runId });
     if (!settled) return false;
     await tx.update(heartbeatRuns).set({ nativePhase: "terminal_failure", nativePhaseUpdatedAt: now, executionControlDeadlineAt: null })
-      .where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId)));
+      .where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId)));
     return true;
   });
 }

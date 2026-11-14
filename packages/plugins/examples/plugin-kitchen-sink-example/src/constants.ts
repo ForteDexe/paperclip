@@ -1,13 +1,13 @@
 import type { PluginLauncherRegistration } from "@outpost/plugin-sdk";
 
-export const PLUGIN_ID = "paperclip-kitchen-sink-example";
+export const PLUGIN_ID = "outpost-kitchen-sink-example";
 export const PLUGIN_VERSION = "0.1.0";
 export const PAGE_ROUTE = "kitchensink";
 
 export const SLOT_IDS = {
   page: "kitchen-sink-page",
   settingsPage: "kitchen-sink-settings-page",
-  companySettingsPage: "kitchen-sink-company-settings-page",
+  spaceSettingsPage: "kitchen-sink-space-settings-page",
   dashboardWidget: "kitchen-sink-dashboard-widget",
   sidebar: "kitchen-sink-sidebar-link",
   sidebarPanel: "kitchen-sink-sidebar-panel",
@@ -24,7 +24,7 @@ export const SLOT_IDS = {
 export const EXPORT_NAMES = {
   page: "KitchenSinkPage",
   settingsPage: "KitchenSinkSettingsPage",
-  companySettingsPage: "KitchenSinkCompanySettingsPage",
+  spaceSettingsPage: "KitchenSinkSpaceSettingsPage",
   dashboardWidget: "KitchenSinkDashboardWidget",
   sidebar: "KitchenSinkSidebarLink",
   sidebarPanel: "KitchenSinkSidebarPanel",
@@ -49,7 +49,7 @@ export const WEBHOOK_KEYS = {
 
 export const TOOL_NAMES = {
   echo: "echo",
-  companySummary: "company-summary",
+  spaceSummary: "space-summary",
   createIssue: "create-issue",
 } as const;
 
@@ -95,7 +95,7 @@ export const DEFAULT_CONFIG = {
   secretRefExample: "",
   httpDemoUrl: "https://httpbin.org/anything",
   allowedCommands: SAFE_COMMANDS.map((command) => command.key),
-  workspaceScratchFile: ".paperclip-kitchen-sink-demo.txt",
+  workspaceScratchFile: ".outpost-kitchen-sink-demo.txt",
 } as const;
 
 export const RUNTIME_LAUNCHER: PluginLauncherRegistration = {

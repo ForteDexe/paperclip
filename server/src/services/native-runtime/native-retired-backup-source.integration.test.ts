@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, environmentLeases, environments, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
+import { agents, spaces, createDb, environmentLeases, environments, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
 import { recoveryPostgresSupport, startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
 import { createReusableLeaseHandoff } from "../environment-lease-handoff.js";
 import { environmentService } from "../environments.js";
@@ -27,20 +27,20 @@ describeDb("retired native backup source authority", () => {
     handoffFault?: "missing_receipt" | "changed_receipt" | "active_predecessor" | "missing_predecessor";
     restoreHold?: "settled" | "no_marker" | "foreign_marker" | "reusable_policy" | "no_stop_receipt" | "dirty_writer";
     idleWarm?: "retained" | "released" | "run_active" | "export_pending" | "same_target" | "cleanup_in_flight" } = {}) {
-    const companyId = randomUUID(), agentId = randomUUID(), sessionId = randomUUID(), runnerInstanceId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), sessionId = randomUUID(), runnerInstanceId = randomUUID();
     const sourceRunId = randomUUID(), currentRunId = randomUUID(), leaseId = randomUUID(), providerLeaseId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Retired source", issuePrefix: `R${companyId.slice(0, 5)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Codie", adapterType: "outpost_runner" });
-    for (const id of [sourceRunId, currentRunId]) await db.insert(heartbeatRuns).values({ id, companyId, agentId,
+    await db.insert(spaces).values({ id: spaceId, name: "Retired source", issuePrefix: `R${spaceId.slice(0, 5)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Codie", adapterType: "outpost_runner" });
+    for (const id of [sourceRunId, currentRunId]) await db.insert(heartbeatRuns).values({ id, spaceId, agentId,
       status: id === sourceRunId ? "succeeded" : "running", runtimeMode: "native", nativeSessionId: sessionId,
       invocationSource: "assignment", triggerDetail: "system" });
-    const lease = (id: string) => ({ id, companyId, heartbeatRunId: sourceRunId, provider: "daytona", providerLeaseId,
+    const lease = (id: string) => ({ id, spaceId, heartbeatRunId: sourceRunId, provider: "daytona", providerLeaseId,
       status: options.status ?? "expired", cleanupStatus: "success", releasedAt: new Date(),
       metadata: {
         nativeHarnessBackup: { schema: "outpost.native-harness-backup-stamp.v2", normalizedSessionId: sessionId, runnerInstanceId,
           sessionScopeSha256: "a".repeat(64), sourceProviderLeaseId: providerLeaseId, authorizedProviderLeaseId: providerLeaseId,
           manifestSha256: options.stampSha ?? manifestSha256, completedAt: completedAt.toISOString() },
-        ...(options.termination === null ? {} : { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId,
+        ...(options.termination === null ? {} : { remoteExecutionTermination: { schema: "outpost.remote-termination.v1", spaceId,
           runId: sourceRunId, leaseId: id, provider: "daytona", providerLeaseId, state: options.termination ?? "destroyed",
           confirmedAt: new Date().toISOString() } }),
       } });
@@ -56,7 +56,7 @@ describeDb("retired native backup source authority", () => {
         ...(hold === "no_marker" ? {} : { workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1",
           runId: hold === "foreign_marker" ? randomUUID() : sourceRunId } }),
         ...(hold === "no_stop_receipt" ? {} : { sandboxStopAndRetainReceipt: { schema: "outpost.sandbox-stop-and-retain-receipt.v1",
-          requestId: randomUUID(), companyId, runId: sourceRunId, leaseId, provider: "daytona", providerLeaseId, pluginId,
+          requestId: randomUUID(), spaceId, runId: sourceRunId, leaseId, provider: "daytona", providerLeaseId, pluginId,
           method: "environmentStopLease", confirmedAt: termination.confirmedAt } }) };
       if (hold === "dirty_writer") await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: {
         schema: "outpost.native-workspace-sync/v3", state: "prepared", leaseId, providerLeaseId, workspaceId: randomUUID(),
@@ -82,13 +82,13 @@ describeDb("retired native backup source authority", () => {
     if (options.handoffs) {
       const environmentId = randomUUID(), issueId = randomUUID(), workspaceId = randomUUID();
       await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "sandbox" });
-      await db.insert(issues).values({ id: issueId, companyId, title: "Retained session" });
-      await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId,
+      await db.insert(issues).values({ id: issueId, spaceId, title: "Retained session" });
+      await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issueId,
         mode: "shared_workspace", strategyType: "project_primary", name: "Retained workspace" });
       const history: Array<typeof environmentLeases.$inferInsert> = [];
       for (let index = 0; index <= options.handoffs; index++) {
         const ownerRunId = index === options.handoffs ? sourceRunId : randomUUID();
-        if (ownerRunId !== sourceRunId) await db.insert(heartbeatRuns).values({ id: ownerRunId, companyId, agentId,
+        if (ownerRunId !== sourceRunId) await db.insert(heartbeatRuns).values({ id: ownerRunId, spaceId, agentId,
           status: "succeeded", runtimeMode: "native", nativeSessionId: sessionId,
           invocationSource: "assignment", triggerDetail: "system" });
         const acquiredAt = new Date(completedAt.getTime() - (options.handoffs - index + 1) * 60_000);
@@ -119,13 +119,13 @@ describeDb("retired native backup source authority", () => {
     } else await db.insert(environmentLeases).values(sourceLease);
     if (options.secondLease) await db.insert(environmentLeases).values(lease(randomUUID()));
     // The backup turn's own provider events precede the checkpoint.
-    await db.insert(heartbeatRunEvents).values({ companyId, runId: sourceRunId, agentId, seq: 1, eventType: "turn.started",
+    await db.insert(heartbeatRunEvents).values({ spaceId, runId: sourceRunId, agentId, seq: 1, eventType: "turn.started",
       createdAt: new Date(completedAt.getTime() - 60_000) });
-    if (options.providerEventAt) await db.insert(heartbeatRunEvents).values({ companyId, runId: currentRunId === sourceRunId
-      ? sourceRunId : (await db.insert(heartbeatRuns).values({ companyId, agentId, status: "failed", runtimeMode: "native",
+    if (options.providerEventAt) await db.insert(heartbeatRunEvents).values({ spaceId, runId: currentRunId === sourceRunId
+      ? sourceRunId : (await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "failed", runtimeMode: "native",
         nativeSessionId: sessionId, invocationSource: "automation", triggerDetail: "system" }).returning())[0]!.id,
       agentId, seq: 1, eventType: "session.resumed", createdAt: options.providerEventAt });
-    return retiredSourceAuthorizesNativeBackupRestore(db, { companyId, currentRunId, normalizedSessionId: sessionId,
+    return retiredSourceAuthorizesNativeBackupRestore(db, { spaceId, currentRunId, normalizedSessionId: sessionId,
       manifest: { sourceProviderLeaseId: providerLeaseId, runnerInstanceId, normalizedSessionId: sessionId }, manifestSha256,
       targetProviderLeaseId: options.idleWarm === "same_target" ? providerLeaseId : randomUUID() });
   }
@@ -205,16 +205,16 @@ describeDb("retired native backup source authority", () => {
     const [source] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, lastSourceLeaseId));
     const environmentId = randomUUID(), runId = randomUUID(), agentId = randomUUID();
     await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "sandbox" });
-    await db.insert(agents).values({ id: agentId, companyId: source!.companyId, name: "Other", adapterType: "outpost_runner" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: source!.companyId, agentId, status: "running",
+    await db.insert(agents).values({ id: agentId, spaceId: source!.spaceId, name: "Other", adapterType: "outpost_runner" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: source!.spaceId, agentId, status: "running",
       runtimeMode: "native", invocationSource: "assignment", triggerDetail: "system" });
     const issueId = randomUUID(), workspaceId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId: source!.companyId, title: "Warm source" });
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId: source!.companyId, sourceIssueId: issueId,
+    await db.insert(issues).values({ id: issueId, spaceId: source!.spaceId, title: "Warm source" });
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId: source!.spaceId, sourceIssueId: issueId,
       mode: "shared_workspace", strategyType: "project_primary", name: "Warm workspace" });
     await db.update(environmentLeases).set({ environmentId, executionWorkspaceId: workspaceId, issueId })
       .where(eq(environmentLeases.id, source!.id));
-    await expect(environmentService(db).acquireLease({ companyId: source!.companyId, environmentId,
+    await expect(environmentService(db).acquireLease({ spaceId: source!.spaceId, environmentId,
       executionWorkspaceId: workspaceId, issueId, heartbeatRunId: runId, leasePolicy: "reuse_by_environment",
       provider: "daytona", providerLeaseId: source!.providerLeaseId, metadata: { agentId },
       replacesReusableLeaseId: source!.id })).rejects.toThrow("ownership changed");

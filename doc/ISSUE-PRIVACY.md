@@ -1,6 +1,6 @@
 # Private tasks and projects
 
-Paperclip work is company-open by default. A task or project can instead be
+Outpost work is space-open by default. A task or project can instead be
 marked private when its title, discussion, documents, attachments, work
 products, or agent run traces should be limited to named participants.
 
@@ -26,15 +26,15 @@ activity, run-history, and tree-control surfaces apply the same predicate.
 Visible blocker and mention edges may show a locked identifier-only stub; they
 never include the private task's title or content.
 
-Audit logs remain company-wide because they are the sanctioned oversight path.
+Audit logs remain space-wide because they are the sanctioned oversight path.
 They contain entity identifiers rather than private task content. Dashboard and
-sidebar aggregate counts also remain company-wide: they may include private
+sidebar aggregate counts also remain space-wide: they may include private
 work in totals, but do not expose titles, descriptions, or identifiers. The
 issue list/count APIs themselves are viewer-filtered.
 
 ## Audited break-glass
 
-Company owners and admins do not silently inherit private-task access. A normal
+Space owners and admins do not silently inherit private-task access. A normal
 task detail request still returns `404`. When an owner or admin has a legitimate
 emergency need, they must deliberately request the task with
 `?breakGlass=true`.
@@ -49,7 +49,7 @@ future reads implicit. Non-admin members and agents cannot use it.
 
 Cloud customer-success inspection is a separate operator capability. When an
 operator enables it, the dedicated Cloud-signed permit can read private task
-content within its company scope. Ordinary users, agent API keys, and plugins
+content within its space scope. Ordinary users, agent API keys, and plugins
 cannot use that permit. Cloud enforces the inspection grant, expiration,
 revocation, replay protection, and audit trail; this path does not create a task
 grant or a task break-glass notice. Operators who require task ACLs on every
@@ -61,16 +61,16 @@ See [Cloud customer-success inspection support](CUSTOMER-SUCCESS-INSPECTION.md).
 Issue-bound run detail, events, transcripts, logs, and workspace operations use
 the task ACL. Run authority is the intersection of the agent and the run's responsible user.
 Reusing an agent does not transfer a different user's private-task permission.
-Company run lists retain only timing/status/token/cost metadata for
+Space run lists retain only timing/status/token/cost metadata for
 non-members so budget oversight continues without exposing task identity or run
 content.
 
 Workspace operation records retain their original task and run sources even if
 those entities are deleted or the operation is relinked. Deletion preserves the
 audit record; unresolved sources make its details and log inaccessible. A
-company-scoped run does not override a private task linked to the operation.
+space-scoped run does not override a private task linked to the operation.
 
-> **Residual risk — trusted agents (`trust-agent`).** Paperclip enforces privacy
+> **Residual risk — trusted agents (`trust-agent`).** Outpost enforces privacy
 > on reads from the control plane, but an agent that legitimately processes a
 > private task may write learned content into shared persistent memory, its home
 > directory, an external tool, or a later public response. V1 deliberately
@@ -81,7 +81,7 @@ company-scoped run does not override a private task linked to the operation.
 ## Plugins and notification/digest surfaces
 
 Plugins (including any Slack notifier or digest plugin) are **non-member
-principals**: they hold no company membership, task grant, or private-project
+principals**: they hold no space membership, task grant, or private-project
 access. Rather than an allowlist of individually patched methods, the plugin
 host centralizes the synthetic non-member check into shared helpers
 (`requirePluginReadableIssue`, `pluginReadableIssueIdsByIds`,
@@ -113,14 +113,14 @@ capabilities do not substitute for task access. Returned relationship summaries
 remain redacted.
 
 There is intentionally **no plugin oversight exception**: unlike the
-company-wide audit log, no plugin read path bypasses the predicate. A plugin
+space-wide audit log, no plugin read path bypasses the predicate. A plugin
 that must surface private work would need an explicit, separately designed
 oversight capability; none exists today.
 
 > **Residual metadata disclosure.** A plugin still learns aggregate,
 > content-free signals about private work that mirror the accepted
 > dashboard/count disclosure: `issues.getOrchestrationSummary` returns
-> company-wide `openBudgetIncidents`. Its `costs`/token roll-up is limited to
+> space-wide `openBudgetIncidents`. Its `costs`/token roll-up is limited to
 > the readable subtree, and unreadable relationship edges are omitted entirely.
 > No private title, body, comment, attachment, identifier, relationship target,
 > or locked-edge signal is exposed.
@@ -143,7 +143,7 @@ Migration `0313_private_task_access.sql` adds the task/project ACL tables and
 backfills privacy parent edges with indexed keyset batches. Run binding is derived
 from native task identity, explicit issue identity, or legacy `issueId`/`taskId` context. Missing
 source tasks remain issue-scoped tombstones. Context changes cannot turn those
-runs into company-wide history. The migration is idempotent for preview installs;
+runs into space-wide history. The migration is idempotent for preview installs;
 existing explicit grants are preserved. Operators upgrading an unreleased preview
 should inspect root grants created under its former whole-tree sharing semantics.
 
@@ -151,7 +151,7 @@ Migration `0314_private_task_draft_assets.sql` accompanies enforcement and binds
 historical inline images to their first owned task. Unbound drafts remain
 uploader-only under the new asset-content guard.
 
-Both privacy migrations use the Paperclip migration executor's explicit
+Both privacy migrations use the Outpost migration executor's explicit
 nontransactional path. Indexes on existing tables build concurrently; invalid builds are repaired on
 retry. DDL statements commit individually and each 1,000-row
 keyset batch commits before advancing, releasing schema and row locks. The
@@ -178,8 +178,8 @@ it protects:
 | Surface | Non-member regression coverage |
 | --- | --- |
 | Downward sharing, responsible-user intersection, mutation denial, provenance, live revocation | `privacy-production-review.test.ts` |
-| Task detail, list, count, grants, documents, work products | `issue-access-grants-routes.test.ts`, `company-search-service.test.ts` |
-| Search and machine extract | `company-search-service.test.ts`, `company-search-extract-service.test.ts` |
+| Task detail, list, count, grants, documents, work products | `issue-access-grants-routes.test.ts`, `space-search-service.test.ts` |
+| Search and machine extract | `space-search-service.test.ts`, `space-search-extract-service.test.ts` |
 | Attention feed | `attention-service.test.ts` |
 | Status-card hydrate and dry-run | `status-cards.test.ts` |
 | Activity stream | `activity-service.test.ts`, `activity-routes.test.ts` |

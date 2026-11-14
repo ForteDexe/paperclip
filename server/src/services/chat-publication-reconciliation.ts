@@ -26,12 +26,12 @@ export function isChatPublicationCommitSignal(
 }
 
 /**
- * Emit a company-scoped publication wake only after its durable source row is
+ * Emit a space-scoped publication wake only after its durable source row is
  * visible. The narrow primitive input prevents a ORP payload, message, tool
  * name, target, result, or error from crossing into the public live stream.
  */
 export function publishChatPublicationCommitSignal(input: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   agentId: string;
@@ -41,7 +41,7 @@ export function publishChatPublicationCommitSignal(input: {
   if (!isChatPublicationCommitEventType(input.eventType)) return false;
   try {
     publishLiveEvent({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       type: "heartbeat.run.event",
       payload: {
         runId: input.runId,

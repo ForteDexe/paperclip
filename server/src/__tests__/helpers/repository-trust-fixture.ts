@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { vi, type Mock } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, authUsers, companies, companyMemberships, createDb, executionWorkspaces, heartbeatRuns, issueAccessGrants, issues } from "@outpost/db";
+import { agents, authUsers, spaces, spaceMemberships, createDb, executionWorkspaces, heartbeatRuns, issueAccessGrants, issues } from "@outpost/db";
 import { executionWorkspaceRepositoryService } from "../../services/execution-workspace-repositories.js";
 import { startEmbeddedPostgresTestDatabase } from "./embedded-postgres.js";
 
@@ -16,9 +16,9 @@ export function createRepositoryTrustFixture(acquisition: { managedAuth: Mock; m
   let root: string;
   async function setup() {
     vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
-    database = await startEmbeddedPostgresTestDatabase("paperclip-repository-trust-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-repository-trust-");
     db = createDb(database.connectionString);
-    root = await mkdtemp(path.join(tmpdir(), "paperclip-repository-trust-"));
+    root = await mkdtemp(path.join(tmpdir(), "outpost-repository-trust-"));
     return { db, root };
   }
   async function cleanup() {
@@ -28,46 +28,46 @@ export function createRepositoryTrustFixture(acquisition: { managedAuth: Mock; m
   }
 
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     const userId = randomUUID(), cwd = path.join(root, issueId);
     await mkdir(cwd);
-    await db.insert(companies).values({ id: companyId, name: "Repository trust", issuePrefix: `R${companyId.slice(0, 6).toUpperCase()}` });
+    await db.insert(spaces).values({ id: spaceId, name: "Repository trust", issuePrefix: `R${spaceId.slice(0, 6).toUpperCase()}` });
     await db.insert(authUsers).values({ id: userId, name: "Sponsor", email: `${userId}@example.test`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Chat worker", adapterType: "process", status: "idle" });
-    await db.insert(companyMemberships).values([
-      { companyId, principalType: "user", principalId: userId, membershipRole: "operator", status: "active" },
-      { companyId, principalType: "agent", principalId: agentId, membershipRole: "member", status: "active" },
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Chat worker", adapterType: "process", status: "idle" });
+    await db.insert(spaceMemberships).values([
+      { spaceId, principalType: "user", principalId: userId, membershipRole: "operator", status: "active" },
+      { spaceId, principalType: "agent", principalId: agentId, membershipRole: "member", status: "active" },
     ]);
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId, name: "Task files", cwd,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId, name: "Task files", cwd,
       mode: "isolated_workspace", strategyType: "task_directory" }).returning();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Unlinked chat work", assigneeAgentId: agentId,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Unlinked chat work", assigneeAgentId: agentId,
       executionWorkspaceId: workspace.id });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", responsibleUserId: userId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", responsibleUserId: userId,
       contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     acquisition.catalog.mockResolvedValue({ repositories: [{ id: "private-repo", fullName: "sponsor/private", private: true,
       url: "https://github.com/sponsor/private", connections: ["sponsor-github"] }] });
     acquisition.managedAuth.mockRejectedValue(new Error("Managed credentials must not be acquired"));
-    const actor = { type: "agent" as const, source: "agent_jwt" as const, companyId, agentId, runId, onBehalfOfUserId: userId };
+    const actor = { type: "agent" as const, source: "agent_jwt" as const, spaceId, agentId, runId, onBehalfOfUserId: userId };
     const policy = { trustPreset: "low_trust_review" as const, authorizationPolicy: {
-      trustPreset: "low_trust_review" as const, trustBoundary: { mode: "low_trust_review" as const, companyId, rootIssueId: issueId },
+      trustPreset: "low_trust_review" as const, trustBoundary: { mode: "low_trust_review" as const, spaceId, rootIssueId: issueId },
     } };
     const service = executionWorkspaceRepositoryService(db);
     const request = (repository: { kind: "catalog"; id: string } | { kind: "url"; url: string }, requestKey = randomUUID()) =>
-      service.request({ companyId, issueId, actor, request: { repository, requestKey } });
-    const admission = { companyId, issueId, workspaceId: workspace.id, cwd, agentId, runId, responsibleUserId: userId };
-    return { companyId, agentId, issueId, runId, userId, workspace, policy, service, actor, request, admission };
+      service.request({ spaceId, issueId, actor, request: { repository, requestKey } });
+    const admission = { spaceId, issueId, workspaceId: workspace.id, cwd, agentId, runId, responsibleUserId: userId };
+    return { spaceId, agentId, issueId, runId, userId, workspace, policy, service, actor, request, admission };
   }
 
   async function lowTrustPeer(f: Awaited<ReturnType<typeof fixture>>, cwd = f.admission.cwd) {
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId, name: "Low-trust alias",
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, name: "Low-trust alias",
       cwd, mode: "isolated_workspace", strategyType: "task_directory" }).returning();
     const issueId = randomUUID(), runId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId: f.companyId, title: "Low-trust peer",
+    await db.insert(issues).values({ id: issueId, spaceId: f.spaceId, title: "Low-trust peer",
       assigneeAgentId: f.agentId, executionWorkspaceId: workspace.id });
     const policy = { ...f.policy, authorizationPolicy: { ...f.policy.authorizationPolicy,
       trustBoundary: { ...f.policy.authorizationPolicy.trustBoundary, rootIssueId: issueId } } };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, status: "running",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId, status: "running",
       responsibleUserId: f.userId, contextSnapshot: { issueId, executionPolicy: policy } });
     return { workspace, admission: { ...f.admission, cwd, issueId, runId, workspaceId: workspace.id }, actor: { ...f.actor, runId } };
   }
@@ -75,15 +75,15 @@ export function createRepositoryTrustFixture(acquisition: { managedAuth: Mock; m
   async function standardPeer(f: Awaited<ReturnType<typeof fixture>>) {
     const userId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Other sponsor", email: `${userId}@example.test`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(agents).values({ id: agentId, companyId: f.companyId, name: "Other worker", adapterType: "process" });
-    await db.insert(companyMemberships).values([
-      { companyId: f.companyId, principalType: "user", principalId: userId, membershipRole: "member", status: "active" },
-      { companyId: f.companyId, principalType: "agent", principalId: agentId, membershipRole: "member", status: "active" },
+    await db.insert(agents).values({ id: agentId, spaceId: f.spaceId, name: "Other worker", adapterType: "process" });
+    await db.insert(spaceMemberships).values([
+      { spaceId: f.spaceId, principalType: "user", principalId: userId, membershipRole: "member", status: "active" },
+      { spaceId: f.spaceId, principalType: "agent", principalId: agentId, membershipRole: "member", status: "active" },
     ]);
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId, name: "Other task files", cwd: f.admission.cwd,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, name: "Other task files", cwd: f.admission.cwd,
       mode: "shared_workspace", strategyType: "operator_directory" }).returning();
-    await db.insert(issues).values({ id: issueId, companyId: f.companyId, title: "Other task", assigneeAgentId: agentId, executionWorkspaceId: workspace.id });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId, responsibleUserId: userId, status: "running", contextSnapshot: { issueId } });
+    await db.insert(issues).values({ id: issueId, spaceId: f.spaceId, title: "Other task", assigneeAgentId: agentId, executionWorkspaceId: workspace.id });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId, responsibleUserId: userId, status: "running", contextSnapshot: { issueId } });
     return { userId, agentId, issueId, runId, workspace,
       actor: { ...f.actor, agentId, runId, onBehalfOfUserId: userId },
       admission: { ...f.admission, agentId, runId, issueId, workspaceId: workspace.id, responsibleUserId: userId } };

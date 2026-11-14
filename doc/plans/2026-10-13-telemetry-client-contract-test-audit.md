@@ -33,7 +33,7 @@ Independent review of this change found no production telemetry client, event, c
 
 ## Reproducible verification
 
-Commands ran from `/private/tmp/paperclip-test-audit-pr-stack`, using the root Vitest project configuration and the package-shared project. Both commands ran complete files without a test-name filter.
+Commands ran from `/private/tmp/outpost-test-audit-pr-stack`, using the root Vitest project configuration and the package-shared project. Both commands ran complete files without a test-name filter.
 
 Baseline:
 

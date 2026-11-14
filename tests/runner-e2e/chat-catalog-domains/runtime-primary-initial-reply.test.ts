@@ -29,13 +29,13 @@ function fixture(options: Options = {}) {
   const get = vi.fn(async () => { throw Error("Reached human preference step"); });
   const ctx = {
     ...(deadline === "missing" ? {} : { observationDeadlineAt: deadline }),
-    input: { api: { get }, fixtures: { company: { id: "company" }, agent: { id: "ceo" } } },
+    input: { api: { get }, fixtures: { space: { id: "space" }, agent: { id: "ceo" } } },
     issue: () => ({ id: "source", conversationState: port.now >= readyAt ? "waiting" : "active" }),
     refreshIssue: vi.fn(async () => {}),
     allRuns: vi.fn(async () => {
       if (options.lateLoad) port.now = 300_001;
       if (options.noWork) return [];
-      return [{ id: "native", companyId: "company", agentId: "ceo",
+      return [{ id: "native", spaceId: "space", agentId: "ceo",
         status: port.now >= readyAt ? options.terminal ?? "succeeded" : "running" },
         ...(options.extraRun ? [{ id: "unexpected", status: "succeeded" }] : [])];
     }),
@@ -48,7 +48,7 @@ it("owning act observes a delayed real completion only within the remaining orig
   expect(port.deadlines).toEqual([300_000]);
   expect(port.now).toBeGreaterThan(195_000); // old150s allowance from45s setup boundary
   expect(port.now).toBeLessThan(300_000);
-  expect(f.get).toHaveBeenCalledExactlyOnceWith("/api/companies/company/primary-agent/me");
+  expect(f.get).toHaveBeenCalledExactlyOnceWith("/api/spaces/space/primary-agent/me");
 });
 it.each([{ deadline: "missing" }, { deadline: NaN }, { deadline: Infinity }, { deadline: 44_999 }])("owning act refuses unavailable or expired originalclock before native reads %j", async options => {
   const f = fixture(options as Options);

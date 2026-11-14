@@ -8,7 +8,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, companies, companyMemberships, createDb, executionWorkspaceRepositoryAccess, executionWorkspaceRepositoryRoots, executionWorkspaceRepositories, executionWorkspaces, goals, issueAccessGrants, issues, projects, projectAccessMembers, projectWorkspaces, type Db } from "@outpost/db";
+import { activityLog, agents, spaces, spaceMemberships, createDb, executionWorkspaceRepositoryAccess, executionWorkspaceRepositoryRoots, executionWorkspaceRepositories, executionWorkspaces, goals, issueAccessGrants, issues, projects, projectAccessMembers, projectWorkspaces, type Db } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { taskRepositoryRelativePath } from "../services/execution-workspace-repositories.js";
 import type {
@@ -43,8 +43,8 @@ const execFileAsync = promisify(execFile);
 let seedGraphSequence = 0;
 
 type TestGraph = {
-  companyId: string;
-  otherCompanyId: string;
+  spaceId: string;
+  otherSpaceId: string;
   issueId: string;
   otherIssueId: string;
   projectId: string;
@@ -59,7 +59,7 @@ type TestGraph = {
 };
 
 async function makeWorkspace() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-file-resources-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-file-resources-"));
   const projectRoot = path.join(root, "project");
   const targetProjectRoot = path.join(root, "target-project");
   const executionRoot = path.join(root, "execution");
@@ -79,8 +79,8 @@ async function seedGraph(db: Db, input: {
   seedGraphSequence += 1;
   const prefixSuffix = seedGraphSequence.toString(36).toUpperCase().padStart(4, "0");
   const suffix = crypto.randomUUID().slice(0, 8);
-  const companyId = crypto.randomUUID();
-  const otherCompanyId = crypto.randomUUID();
+  const spaceId = crypto.randomUUID();
+  const otherSpaceId = crypto.randomUUID();
   const goalId = crypto.randomUUID();
   const otherGoalId = crypto.randomUUID();
   const projectId = crypto.randomUUID();
@@ -93,24 +93,24 @@ async function seedGraph(db: Db, input: {
   const issueId = crypto.randomUUID();
   const otherIssueId = crypto.randomUUID();
 
-  await db.insert(companies).values([
-    { id: companyId, name: `Company ${suffix}`, issuePrefix: `F${prefixSuffix}` },
-    { id: otherCompanyId, name: `Other ${suffix}`, issuePrefix: `G${prefixSuffix}` },
+  await db.insert(spaces).values([
+    { id: spaceId, name: `Space ${suffix}`, issuePrefix: `F${prefixSuffix}` },
+    { id: otherSpaceId, name: `Other ${suffix}`, issuePrefix: `G${prefixSuffix}` },
   ]);
-  await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "board-user", status: "active", membershipRole: "member" });
+  await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "operator-user", status: "active", membershipRole: "member" });
   await db.insert(goals).values([
-    { id: goalId, companyId, title: "Goal", level: "company", status: "active" },
-    { id: otherGoalId, companyId: otherCompanyId, title: "Other goal", level: "company", status: "active" },
+    { id: goalId, spaceId, title: "Goal", level: "space", status: "active" },
+    { id: otherGoalId, spaceId: otherSpaceId, title: "Other goal", level: "space", status: "active" },
   ]);
   await db.insert(projects).values([
-    { id: projectId, companyId, goalId, name: "Project", status: "in_progress" },
-    { id: targetProjectId, companyId, goalId, name: "Target project", status: "in_progress" },
-    { id: otherProjectId, companyId: otherCompanyId, goalId: otherGoalId, name: "Other project", status: "in_progress" },
+    { id: projectId, spaceId, goalId, name: "Project", status: "in_progress" },
+    { id: targetProjectId, spaceId, goalId, name: "Target project", status: "in_progress" },
+    { id: otherProjectId, spaceId: otherSpaceId, goalId: otherGoalId, name: "Other project", status: "in_progress" },
   ]);
   await db.insert(projectWorkspaces).values([
     {
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary workspace",
       sourceType: input.projectSourceType ?? "local_path",
@@ -119,7 +119,7 @@ async function seedGraph(db: Db, input: {
     },
     {
       id: otherProjectWorkspaceId,
-      companyId: otherCompanyId,
+      spaceId: otherSpaceId,
       projectId: otherProjectId,
       name: "Other workspace",
       sourceType: "local_path",
@@ -128,7 +128,7 @@ async function seedGraph(db: Db, input: {
     },
     {
       id: targetProjectWorkspaceId,
-      companyId,
+      spaceId,
       projectId: targetProjectId,
       name: "Target workspace",
       sourceType: input.targetProjectSourceType ?? "local_path",
@@ -139,7 +139,7 @@ async function seedGraph(db: Db, input: {
   await db.insert(issues).values([
     {
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       goalId,
       projectWorkspaceId,
@@ -149,7 +149,7 @@ async function seedGraph(db: Db, input: {
     },
     {
       id: otherIssueId,
-      companyId: otherCompanyId,
+      spaceId: otherSpaceId,
       projectId: otherProjectId,
       goalId: otherGoalId,
       projectWorkspaceId: otherProjectWorkspaceId,
@@ -160,7 +160,7 @@ async function seedGraph(db: Db, input: {
   ]);
   await db.insert(executionWorkspaces).values({
     id: executionWorkspaceId,
-    companyId,
+    spaceId,
     projectId,
     projectWorkspaceId,
     sourceIssueId: issueId,
@@ -175,8 +175,8 @@ async function seedGraph(db: Db, input: {
   await db.update(issues).set({ executionWorkspaceId }).where(eq(issues.id, issueId));
 
   return {
-    companyId,
-    otherCompanyId,
+    spaceId,
+    otherSpaceId,
     issueId,
     otherIssueId,
     projectId,
@@ -215,7 +215,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     if (externalDatabase) db = createDb(externalDatabase);
     else {
-      tempDb = await startEmbeddedPostgresTestDatabase("paperclip-file-resources-");
+      tempDb = await startEmbeddedPostgresTestDatabase("outpost-file-resources-");
       db = createDb(tempDb.connectionString);
     }
   }, 60_000);
@@ -231,7 +231,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const graph = await seedGraph(db, { projectRoot, executionRoot, targetProjectRoot });
     await fs.writeFile(path.join(projectRoot, "secret.txt"), "PRIVATE_FILE", "utf8");
     await fs.writeFile(path.join(targetProjectRoot, "secret.txt"), "PRIVATE_TARGET", "utf8");
-    const app = createApp(db, { type: "board", userId: "board-user", companyIds: [graph.companyId], source: "session", isInstanceAdmin: false });
+    const app = createApp(db, { type: "operator", userId: "operator-user", spaceIds: [graph.spaceId], source: "session", isInstanceAdmin: false });
     await db.update(issues).set({ visibility: "private", responsibleUserId: "owner" }).where(eq(issues.id, graph.issueId));
     await request(app).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ workspace: "project", path: "secret.txt" }).expect(404);
     await db.update(issues).set({ visibility: "open" }).where(eq(issues.id, graph.issueId));
@@ -244,10 +244,10 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const { projectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, executionRoot });
     await fs.writeFile(path.join(projectRoot, "notes.txt"), "IDENTIFIER_OK", "utf8");
-    const [company] = await db.select().from(companies).where(eq(companies.id, graph.companyId));
-    const identifier = `${company!.issuePrefix}-1`;
+    const [space] = await db.select().from(spaces).where(eq(spaces.id, graph.spaceId));
+    const identifier = `${space!.issuePrefix}-1`;
     await db.update(issues).set({ issueNumber: 1, identifier }).where(eq(issues.id, graph.issueId));
-    const app = createApp(db, { type: "board", userId: "board-user", companyIds: [graph.companyId], source: "session", isInstanceAdmin: false });
+    const app = createApp(db, { type: "operator", userId: "operator-user", spaceIds: [graph.spaceId], source: "session", isInstanceAdmin: false });
 
     for (const ref of [identifier, identifier.toLowerCase()]) {
       const content = await request(app).get(`/api/issues/${ref}/file-resources/content`).query({ workspace: "project", path: "notes.txt" }).expect(200);
@@ -258,7 +258,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await db.update(issues).set({ visibility: "private", responsibleUserId: "owner" }).where(eq(issues.id, graph.issueId));
     await request(app).get(`/api/issues/${identifier}/file-resources/content`).query({ workspace: "project", path: "notes.txt" }).expect(404);
 
-    for (const ref of [`${company!.issuePrefix}-999999`, "not-a-uuid"]) {
+    for (const ref of [`${space!.issuePrefix}-999999`, "not-a-uuid"]) {
       await request(app).get(`/api/issues/${ref}/file-resources/content`).query({ workspace: "project", path: "notes.txt" }).expect(404);
       await request(app).get(`/api/issues/${ref}/file-resources/list`).query({ workspace: "project" }).expect(404);
       await request(app).post(`/api/issues/${ref}/file-resources/availability`).send({ queries: [{ workspace: "project", path: "notes.txt" }] }).expect(404);
@@ -268,20 +268,20 @@ describeEmbeddedPostgres("workspace file resources", () => {
   it("does not record the issue UUID behind an identifier when an agent is denied", async () => {
     const { projectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, executionRoot });
-    const [otherCompany] = await db.select().from(companies).where(eq(companies.id, graph.otherCompanyId));
+    const [otherSpace] = await db.select().from(spaces).where(eq(spaces.id, graph.otherSpaceId));
     const otherIssueId = crypto.randomUUID();
-    const identifier = `${otherCompany!.issuePrefix}-7`;
-    await db.insert(issues).values({ id: otherIssueId, companyId: graph.otherCompanyId, title: "Other company issue", issueNumber: 7, identifier });
+    const identifier = `${otherSpace!.issuePrefix}-7`;
+    await db.insert(issues).values({ id: otherIssueId, spaceId: graph.otherSpaceId, title: "Other space issue", issueNumber: 7, identifier });
     const agentId = crypto.randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId: graph.companyId, name: "Identifier probe agent", role: "engineer", adapterType: "process", adapterConfig: {} });
-    const agentApp = createApp(db, { type: "agent", agentId, companyId: graph.companyId, source: "agent_key" });
+    await db.insert(agents).values({ id: agentId, spaceId: graph.spaceId, name: "Identifier probe agent", role: "engineer", adapterType: "process", adapterConfig: {} });
+    const agentApp = createApp(db, { type: "agent", agentId, spaceId: graph.spaceId, source: "agent_key" });
 
     await request(agentApp).get(`/api/issues/${identifier}/file-resources/content`).query({ workspace: "project", path: "notes.txt" }).expect(403);
     await request(agentApp).get(`/api/issues/${identifier}/file-resources/resolve`).query({ workspace: "project", path: "notes.txt" }).expect(403);
     await request(agentApp).get(`/api/issues/${identifier}/file-resources/list`).query({ workspace: "project" }).expect(403);
     await request(agentApp).post(`/api/issues/${identifier}/file-resources/availability`).send({ queries: [{ workspace: "project", path: "notes.txt" }] }).expect(403);
 
-    const denials = await db.select().from(activityLog).where(eq(activityLog.companyId, graph.companyId));
+    const denials = await db.select().from(activityLog).where(eq(activityLog.spaceId, graph.spaceId));
     const fileDenials = denials.filter((row) => row.action.startsWith("issue.file_resource_") && row.action.endsWith("_denied"));
     expect(fileDenials).toHaveLength(4);
     expect(fileDenials.every((row) => row.entityId === identifier)).toBe(true);
@@ -298,9 +298,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     });
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -324,9 +324,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.writeFile(path.join(projectRoot, relativePath), bytes);
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -389,12 +389,12 @@ describeEmbeddedPostgres("workspace file resources", () => {
       } else if (alternative === "overlong path") {
         await db.update(projectWorkspaces).set({ cwd: path.join(projectRoot, "x".repeat(512)) }).where(eq(projectWorkspaces.id, graph.projectWorkspaceId));
       } else {
-        const [privateIssue] = await db.insert(issues).values({ companyId: graph.companyId, title: "Private alternative source", visibility: "private", responsibleUserId: "private-owner" }).returning();
-        await db.insert(executionWorkspaces).values({ companyId: graph.companyId, sourceIssueId: privateIssue.id, name: "Private alternative", cwd: projectRoot,
+        const [privateIssue] = await db.insert(issues).values({ spaceId: graph.spaceId, title: "Private alternative source", visibility: "private", responsibleUserId: "private-owner" }).returning();
+        await db.insert(executionWorkspaces).values({ spaceId: graph.spaceId, sourceIssueId: privateIssue.id, name: "Private alternative", cwd: projectRoot,
           mode: "shared_workspace", strategyType: "task_directory", providerType: "local_fs" });
         await fs.writeFile(path.join(projectRoot, "report.txt"), "PRIVATE_ALTERNATIVE_BYTES");
       }
-      const app = createApp(db, { type: "board", userId: "board-user", companyIds: [graph.companyId], source: "session", isInstanceAdmin: false });
+      const app = createApp(db, { type: "operator", userId: "operator-user", spaceIds: [graph.spaceId], source: "session", isInstanceAdmin: false });
       const base = `/api/issues/${graph.issueId}/file-resources`;
       const listed = await request(app).get(`${base}/list`).expect(200);
       expect(listed.body.items).toEqual(expect.arrayContaining([expect.objectContaining({ relativePath: "report.txt" })]));
@@ -431,7 +431,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await db.update(issues).set({ projectId: null, projectWorkspaceId: null }).where(eq(issues.id, graph.issueId));
     await db.update(executionWorkspaces).set({ projectId: null, projectWorkspaceId: null, strategyType: "project_primary", providerType: "local_fs" }).where(eq(executionWorkspaces.sourceIssueId, graph.issueId));
     await fs.writeFile(path.join(executionRoot, "report.txt"), "Task-owned report", "utf8");
-    const app = createApp(db, { type: "board", userId: "board-user", companyIds: [graph.companyId], source: "session", isInstanceAdmin: false });
+    const app = createApp(db, { type: "operator", userId: "operator-user", spaceIds: [graph.spaceId], source: "session", isInstanceAdmin: false });
     for (const projectId of [null, graph.targetProjectId]) {
       await db.update(issues).set({ projectId }).where(eq(issues.id, graph.issueId));
       const result = await request(app).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ workspace: "execution", path: "report.txt" }).expect(200);
@@ -450,16 +450,16 @@ describeEmbeddedPostgres("workspace file resources", () => {
       await db.update(issues).set({ projectId: null, projectWorkspaceId: null }).where(eq(issues.id, graph.issueId));
       await db.update(executionWorkspaces).set({ projectId: null, projectWorkspaceId: null, providerType: "local_fs" }).where(eq(executionWorkspaces.sourceIssueId, graph.issueId));
       await db.update(projectWorkspaces).set({ cwd: executionRoot }).where(eq(projectWorkspaces.id, graph.projectWorkspaceId));
-      await db.insert(issues).values({ id: privateIssueId, companyId: graph.companyId, title: "Private source task", visibility: "private", responsibleUserId: "private-owner" });
-      const [source] = await db.insert(executionWorkspaces).values({ companyId: graph.companyId, sourceIssueId: privateIssueId,
+      await db.insert(issues).values({ id: privateIssueId, spaceId: graph.spaceId, title: "Private source task", visibility: "private", responsibleUserId: "private-owner" });
+      const [source] = await db.insert(executionWorkspaces).values({ spaceId: graph.spaceId, sourceIssueId: privateIssueId,
         name: "Private source workspace", cwd: executionRoot, mode: "shared_workspace", strategyType: "task_directory", providerType: "local_fs" }).returning();
       await fs.writeFile(path.join(executionRoot, "secret.txt"), "PRIVATE_ROOT_BYTES");
       const [task] = await db.select().from(issues).where(eq(issues.id, graph.issueId));
       await db.update(executionWorkspaces).set({ sourceIssueId: privateIssueId, name: "Private original workspace metadata" })
         .where(eq(executionWorkspaces.id, task.executionWorkspaceId!));
       await db.update(executionWorkspaces).set({ sourceIssueId: null }).where(eq(executionWorkspaces.id, task.executionWorkspaceId!));
-      expect(await canActorReadExecutionWorkspace(db, { type: "board", userId: "board-user", source: "session", companyIds: [graph.companyId] }, task.executionWorkspaceId!)).toBe(false);
-      const app = createApp(db, { type: "board", userId: "board-user", companyIds: [graph.companyId], source: "session", isInstanceAdmin: false });
+      expect(await canActorReadExecutionWorkspace(db, { type: "operator", userId: "operator-user", source: "session", spaceIds: [graph.spaceId] }, task.executionWorkspaceId!)).toBe(false);
+      const app = createApp(db, { type: "operator", userId: "operator-user", spaceIds: [graph.spaceId], source: "session", isInstanceAdmin: false });
       const targets = [{ workspace: "execution" }, { projectId: graph.projectId, workspaceId: graph.projectWorkspaceId }];
       const reads = () => targets.flatMap(target => [
         request(app).get(`/api/issues/${graph.issueId}/file-resources/list`).query(target),
@@ -479,14 +479,14 @@ describeEmbeddedPostgres("workspace file resources", () => {
         }
       };
       await allow();
-      expect(await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.companyId, graph.companyId))).toEqual([]);
-      expect(await db.select().from(executionWorkspaceRepositoryRoots).where(eq(executionWorkspaceRepositoryRoots.companyId, graph.companyId))).toEqual([]);
-      const [grant] = await db.insert(issueAccessGrants).values({ issueId: privateIssueId, subjectType: "user", subjectId: "board-user", source: "explicit" }).returning();
+      expect(await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.spaceId, graph.spaceId))).toEqual([]);
+      expect(await db.select().from(executionWorkspaceRepositoryRoots).where(eq(executionWorkspaceRepositoryRoots.spaceId, graph.spaceId))).toEqual([]);
+      const [grant] = await db.insert(issueAccessGrants).values({ issueId: privateIssueId, subjectType: "user", subjectId: "operator-user", source: "explicit" }).returning();
       for (const pending of reads()) expect((await pending).status).toBe(200);
       const content = await request(app).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ workspace: "execution", path: "secret.txt" }).expect(200);
       expect(content.body.content.data).toBe("PRIVATE_ROOT_BYTES");
-      await db.insert(executionWorkspaceRepositoryAccess).values({ companyId: graph.companyId, rootKey, canonicalCwd, kind: "source", scopeId: source.id });
-      const provenance = await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.companyId, graph.companyId));
+      await db.insert(executionWorkspaceRepositoryAccess).values({ spaceId: graph.spaceId, rootKey, canonicalCwd, kind: "source", scopeId: source.id });
+      const provenance = await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.spaceId, graph.spaceId));
       await db.update(executionWorkspaces).set({ cwd: targetProjectRoot }).where(eq(executionWorkspaces.id, source.id));
       await db.update(issueAccessGrants).set({ revokedAt: new Date() }).where(eq(issueAccessGrants.id, grant.id));
       await allow();
@@ -494,8 +494,8 @@ describeEmbeddedPostgres("workspace file resources", () => {
       await request(app).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ workspace: "execution", path: "secret.txt" }).expect(200);
       await db.delete(executionWorkspaces).where(eq(executionWorkspaces.id, source.id));
       await allow();
-      expect(await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.companyId, graph.companyId))).toEqual(provenance);
-      expect(await db.select().from(executionWorkspaceRepositoryRoots).where(eq(executionWorkspaceRepositoryRoots.companyId, graph.companyId))).toEqual([]);
+      expect(await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.spaceId, graph.spaceId))).toEqual(provenance);
+      expect(await db.select().from(executionWorkspaceRepositoryRoots).where(eq(executionWorkspaceRepositoryRoots.spaceId, graph.spaceId))).toEqual([]);
     } finally { await fs.rm(root, { recursive: true, force: true }); }
   });
 
@@ -508,9 +508,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
       await db.update(projects).set({ visibility: "private" }).where(eq(projects.id, graph.targetProjectId));
       await db.update(projectWorkspaces).set({ cwd: executionRoot }).where(eq(projectWorkspaces.id, graph.targetProjectWorkspaceId));
       await fs.writeFile(path.join(executionRoot, "private-project.txt"), "PRIVATE_CONFIGURED_PROJECT");
-      const app = createApp(db, { type: "board", userId: "board-user", companyIds: [graph.companyId], source: "session", isInstanceAdmin: false });
+      const app = createApp(db, { type: "operator", userId: "operator-user", spaceIds: [graph.spaceId], source: "session", isInstanceAdmin: false });
       await request(app).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ workspace: "execution", path: "private-project.txt" }).expect(200);
-      await db.insert(projectAccessMembers).values({ companyId: graph.companyId, projectId: graph.targetProjectId, subjectType: "user", subjectId: "board-user" });
+      await db.insert(projectAccessMembers).values({ spaceId: graph.spaceId, projectId: graph.targetProjectId, subjectType: "user", subjectId: "operator-user" });
       const response = await request(app).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ workspace: "execution", path: "private-project.txt" }).expect(200);
       expect(response.body.content.data).toBe("PRIVATE_CONFIGURED_PROJECT");
     } finally { await fs.rm(root, { recursive: true, force: true }); }
@@ -540,17 +540,17 @@ describeEmbeddedPostgres("workspace file resources", () => {
         await db.update(projectWorkspaces).set({ cwd: privateRoot }).where(eq(projectWorkspaces.id, graph.targetProjectWorkspaceId));
         expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.projectId, ownerId))).toEqual([]);
       } else {
-        const [task] = await db.insert(issues).values({ companyId: graph.companyId, title: "Private overlapping task", visibility: "private", responsibleUserId: "private-owner" }).returning();
+        const [task] = await db.insert(issues).values({ spaceId: graph.spaceId, title: "Private overlapping task", visibility: "private", responsibleUserId: "private-owner" }).returning();
         privateIssueId = task.id;
-        const [workspace] = await db.insert(executionWorkspaces).values({ companyId: graph.companyId, sourceIssueId: task.id,
+        const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: graph.spaceId, sourceIssueId: task.id,
           name: "Private overlapping workspace", cwd: privateRoot, mode: "shared_workspace", strategyType: "task_directory", providerType: "local_fs" }).returning();
         ownerId = workspace.id;
       }
-      const app = createApp(db, { type: "board", userId: "board-user", companyIds: [graph.companyId], source: "session", isInstanceAdmin: false });
+      const app = createApp(db, { type: "operator", userId: "operator-user", spaceIds: [graph.spaceId], source: "session", isInstanceAdmin: false });
       const targets = [{ workspace: "execution" }, { projectId: graph.projectId, workspaceId: graph.projectWorkspaceId }];
       const readState = async () => ({
-        access: await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.companyId, graph.companyId)),
-        policies: await db.select().from(executionWorkspaceRepositoryRoots).where(eq(executionWorkspaceRepositoryRoots.companyId, graph.companyId)),
+        access: await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.spaceId, graph.spaceId)),
+        policies: await db.select().from(executionWorkspaceRepositoryRoots).where(eq(executionWorkspaceRepositoryRoots.spaceId, graph.spaceId)),
       });
       const allow = async () => {
         const before = await readState();
@@ -569,8 +569,8 @@ describeEmbeddedPostgres("workspace file resources", () => {
       };
       await allow();
       const grant = ownerKind === "configured"
-        ? (await db.insert(projectAccessMembers).values({ companyId: graph.companyId, projectId: ownerId, subjectType: "user", subjectId: "board-user" }).returning())[0]!
-        : (await db.insert(issueAccessGrants).values({ issueId: privateIssueId!, subjectType: "user", subjectId: "board-user", source: "explicit" }).returning())[0]!;
+        ? (await db.insert(projectAccessMembers).values({ spaceId: graph.spaceId, projectId: ownerId, subjectType: "user", subjectId: "operator-user" }).returning())[0]!
+        : (await db.insert(issueAccessGrants).values({ issueId: privateIssueId!, subjectType: "user", subjectId: "operator-user", source: "explicit" }).returning())[0]!;
       const beforeAllowedReads = await readState();
       for (const target of targets) {
         const response = await request(app).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ ...target, path: relativeFile }).expect(200);
@@ -578,7 +578,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
       }
       expect(await readState()).toEqual(beforeAllowedReads);
       const canonicalCwd = await fs.realpath(privateRoot);
-      await db.insert(executionWorkspaceRepositoryAccess).values({ companyId: graph.companyId,
+      await db.insert(executionWorkspaceRepositoryAccess).values({ spaceId: graph.spaceId,
         rootKey: createHash("sha256").update(canonicalCwd).digest("hex"), canonicalCwd,
         kind: ownerKind === "configured" ? "project_source" : "source", scopeId: ownerId });
       if (ownerKind === "configured") {
@@ -602,10 +602,10 @@ describeEmbeddedPostgres("workspace file resources", () => {
       const graph = await seedGraph(db, { projectRoot, targetProjectRoot, executionRoot: publicRoot });
       await db.update(projects).set({ visibility: "private" }).where(eq(projects.id, graph.targetProjectId));
       await db.update(projectWorkspaces).set({ cwd: privateRoot }).where(eq(projectWorkspaces.id, graph.targetProjectWorkspaceId));
-      const [privateIssue] = await db.insert(issues).values({ companyId: graph.companyId, title: "Private sibling", visibility: "private", responsibleUserId: "private-owner" }).returning();
-      await db.insert(executionWorkspaces).values({ companyId: graph.companyId, sourceIssueId: privateIssue.id, cwd: privateRoot,
+      const [privateIssue] = await db.insert(issues).values({ spaceId: graph.spaceId, title: "Private sibling", visibility: "private", responsibleUserId: "private-owner" }).returning();
+      await db.insert(executionWorkspaces).values({ spaceId: graph.spaceId, sourceIssueId: privateIssue.id, cwd: privateRoot,
         name: "Private sibling", mode: "shared_workspace", strategyType: "task_directory", providerType: "local_fs" });
-      const app = createApp(db, { type: "board", userId: "board-user", companyIds: [graph.companyId], source: "session", isInstanceAdmin: false });
+      const app = createApp(db, { type: "operator", userId: "operator-user", spaceIds: [graph.spaceId], source: "session", isInstanceAdmin: false });
       const target = { workspace: "execution", path: "public.txt" };
       const content = await request(app).get(`/api/issues/${graph.issueId}/file-resources/content`).query(target).expect(200);
       expect(content.body.content.data).toBe("PUBLIC_SIBLING_BYTES");
@@ -613,8 +613,8 @@ describeEmbeddedPostgres("workspace file resources", () => {
       await request(app).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ ...target, download: true }).expect(200);
       const availability = await request(app).post(`/api/issues/${graph.issueId}/file-resources/availability`).send({ queries: [target] }).expect(200);
       expect(availability.body.results).toEqual([expect.objectContaining({ openable: true })]);
-      expect(await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.companyId, graph.companyId))).toEqual([]);
-      expect(await db.select().from(executionWorkspaceRepositoryRoots).where(eq(executionWorkspaceRepositoryRoots.companyId, graph.companyId))).toEqual([]);
+      expect(await db.select().from(executionWorkspaceRepositoryAccess).where(eq(executionWorkspaceRepositoryAccess.spaceId, graph.spaceId))).toEqual([]);
+      expect(await db.select().from(executionWorkspaceRepositoryRoots).where(eq(executionWorkspaceRepositoryRoots.spaceId, graph.spaceId))).toEqual([]);
     } finally { await fs.rm(root, { recursive: true, force: true }); }
   });
 
@@ -624,17 +624,17 @@ describeEmbeddedPostgres("workspace file resources", () => {
       const graph = await seedGraph(db, { projectRoot, executionRoot, targetProjectRoot });
       await db.update(issues).set({ projectId: null, projectWorkspaceId: null }).where(eq(issues.id, graph.issueId));
       const [publicWorkspace] = await db.update(executionWorkspaces).set({ projectId: null, projectWorkspaceId: null, providerType: "local_fs" }).where(eq(executionWorkspaces.sourceIssueId, graph.issueId)).returning();
-      const [privateIssue] = await db.insert(issues).values({ companyId: graph.companyId, title: "Unrelated private repository", visibility: "private", responsibleUserId: "private-owner" }).returning();
-      const [privateWorkspace] = await db.insert(executionWorkspaces).values({ companyId: graph.companyId, sourceIssueId: privateIssue.id,
+      const [privateIssue] = await db.insert(issues).values({ spaceId: graph.spaceId, title: "Unrelated private repository", visibility: "private", responsibleUserId: "private-owner" }).returning();
+      const [privateWorkspace] = await db.insert(executionWorkspaces).values({ spaceId: graph.spaceId, sourceIssueId: privateIssue.id,
         name: "Unrelated source", cwd: targetProjectRoot, mode: "shared_workspace", strategyType: "task_directory", providerType: "local_fs" }).returning();
       const identity = "https://github.com/fixture/same-repo.git", relativePath = taskRepositoryRelativePath(identity);
       for (const workspace of [publicWorkspace, privateWorkspace]) {
         await fs.mkdir(path.join(workspace.cwd!, relativePath), { recursive: true });
         await fs.writeFile(path.join(workspace.cwd!, relativePath, "report.txt"), workspace.id === publicWorkspace.id ? "PUBLIC_COPY" : "PRIVATE_COPY");
-        await db.insert(executionWorkspaceRepositories).values({ companyId: graph.companyId, executionWorkspaceId: workspace.id,
+        await db.insert(executionWorkspaceRepositories).values({ spaceId: graph.spaceId, executionWorkspaceId: workspace.id,
           repositoryIdentity: identity, repoUrl: identity, relativePath, requestKey: workspace.id, state: "ready" });
       }
-      const app = createApp(db, { type: "board", userId: "board-user", companyIds: [graph.companyId], source: "session", isInstanceAdmin: false });
+      const app = createApp(db, { type: "operator", userId: "operator-user", spaceIds: [graph.spaceId], source: "session", isInstanceAdmin: false });
       const response = await request(app).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ workspace: "execution", path: `${relativePath}/report.txt` }).expect(200);
       expect(response.body.content.data).toBe("PUBLIC_COPY");
     } finally { await fs.rm(root, { recursive: true, force: true }); }
@@ -644,7 +644,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const { projectRoot, targetProjectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, targetProjectRoot, executionRoot });
     await fs.writeFile(path.join(projectRoot, "source.txt"), "Selected source", "utf8");
-    const app = createApp(db, { type: "board", userId: "board-user", companyIds: [graph.companyId], source: "session", isInstanceAdmin: false });
+    const app = createApp(db, { type: "operator", userId: "operator-user", spaceIds: [graph.spaceId], source: "session", isInstanceAdmin: false });
     for (const projectId of [null, graph.targetProjectId]) {
       await db.update(issues).set({ projectId }).where(eq(issues.id, graph.issueId));
       const result = await request(app).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ workspace: "project", path: "source.txt" }).expect(200);
@@ -655,7 +655,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await request(app).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ workspace: "project", path: "source.txt" }).expect(404);
   });
 
-  it("auto-discovers unhinted same-company project files when issue workspaces miss", async () => {
+  it("auto-discovers unhinted same-space project files when issue workspaces miss", async () => {
     const { projectRoot, targetProjectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, targetProjectRoot, executionRoot });
     const targetPath = "docs/reference/skills.md";
@@ -684,16 +684,16 @@ describeEmbeddedPostgres("workspace file resources", () => {
     expect(content.content.data).toContain("# Skills reference");
   });
 
-  it("resolves explicit same-company cross-project workspace files and logs target details", async () => {
+  it("resolves explicit same-space cross-project workspace files and logs target details", async () => {
     const { root, projectRoot, targetProjectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, targetProjectRoot, executionRoot });
     await fs.mkdir(path.join(targetProjectRoot, "docs"), { recursive: true });
     await fs.writeFile(path.join(targetProjectRoot, "docs", "README.md"), "# Target project\n", "utf8");
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -741,9 +741,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.writeFile(path.join(targetProjectRoot, readmePath), "# Bundled skills\n\nRendered from content project.\n", "utf8");
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -770,7 +770,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     expect(JSON.stringify(res.body)).not.toContain(root);
   });
 
-  it("resolves and lists explicit same-company cross-project workspace folders", async () => {
+  it("resolves and lists explicit same-space cross-project workspace folders", async () => {
     const { root, projectRoot, targetProjectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, targetProjectRoot, executionRoot });
     const folderPath = "content-os/cases/active/2026-06-06-pap-10199-bundled-skills/";
@@ -780,9 +780,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.writeFile(path.join(targetProjectRoot, "outside.txt"), "not in focused folder\n", "utf8");
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -827,7 +827,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     expect(JSON.stringify(listed.body)).not.toContain("outside.txt");
   });
 
-  it("auto-discovers unhinted same-company project folders when issue workspaces miss", async () => {
+  it("auto-discovers unhinted same-space project folders when issue workspaces miss", async () => {
     const { root, projectRoot, targetProjectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, targetProjectRoot, executionRoot });
     const folderPath = "content-os/cases/active/2026-06-06-pap-10199-bundled-skills/";
@@ -836,9 +836,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.writeFile(path.join(targetProjectRoot, folderPath, "suggestions.md"), "# Suggestions\n", "utf8");
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -872,7 +872,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     expect(JSON.stringify(listed.body)).not.toContain(root);
   });
 
-  it("rejects ambiguous unhinted same-company project file matches", async () => {
+  it("rejects ambiguous unhinted same-space project file matches", async () => {
     const { projectRoot, targetProjectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, targetProjectRoot, executionRoot });
     const duplicateProjectId = crypto.randomUUID();
@@ -885,13 +885,13 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.writeFile(path.join(duplicateRoot, targetPath), "# Duplicate\n", "utf8");
     await db.insert(projects).values({
       id: duplicateProjectId,
-      companyId: graph.companyId,
+      spaceId: graph.spaceId,
       name: "Duplicate target",
       status: "in_progress",
     });
     await db.insert(projectWorkspaces).values({
       id: duplicateWorkspaceId,
-      companyId: graph.companyId,
+      spaceId: graph.spaceId,
       projectId: duplicateProjectId,
       name: "Duplicate workspace",
       sourceType: "local_path",
@@ -908,13 +908,13 @@ describeEmbeddedPostgres("workspace file resources", () => {
     });
   });
 
-  it("denies explicit cross-company project workspaces", async () => {
+  it("denies explicit cross-space project workspaces", async () => {
     const { projectRoot, targetProjectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, targetProjectRoot, executionRoot });
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -928,14 +928,14 @@ describeEmbeddedPostgres("workspace file resources", () => {
       });
 
     expect(res.status).toBe(403);
-    expect(res.body?.details?.code).toBe("cross_company_workspace");
+    expect(res.body?.details?.code).toBe("cross_space_workspace");
     const rows = await db.select().from(activityLog).where(eq(activityLog.entityId, graph.issueId));
     const denied = rows.find((row) => row.action === "issue.file_resource_resolve_denied");
     expect(denied?.details).toMatchObject({
       outcome: "denied",
       projectId: graph.otherProjectId,
       workspaceId: graph.otherProjectWorkspaceId,
-      denialReason: "cross_company_workspace",
+      denialReason: "cross_space_workspace",
     });
   });
 
@@ -943,9 +943,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const { projectRoot, targetProjectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, targetProjectRoot, executionRoot });
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1032,9 +1032,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.symlink(path.join(root, "outside.ts"), path.join(executionRoot, "escape.ts"));
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1070,9 +1070,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.writeFile(path.join(tooDeepDir, "too-deep.ts"), "export const hidden = true;\n", "utf8");
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1115,9 +1115,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     );
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1157,9 +1157,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.writeFile(path.join(projectRoot, "new.ts"), "export const newer = true;\n", "utf8");
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1203,9 +1203,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.utimes(path.join(projectRoot, "gamma.ts"), newer, newer);
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1236,9 +1236,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const { projectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, executionRoot });
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1266,9 +1266,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const graph = await seedGraph(db, { projectRoot, executionRoot });
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1295,9 +1295,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.writeFile(path.join(projectRoot, "safe.txt"), "safe\n", "utf8");
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1321,9 +1321,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.symlink(path.join(projectRoot, "safe", ".env"), path.join(projectRoot, "linked-env"));
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1351,9 +1351,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.writeFile(path.join(projectRoot, "icon.svg"), "<svg></svg>\n", "utf8");
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1406,9 +1406,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     })).rejects.toMatchObject({ status: 422 });
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1421,14 +1421,14 @@ describeEmbeddedPostgres("workspace file resources", () => {
     expect(listed.body.items).toEqual([]);
   });
 
-  it("blocks agents and cross-company board users before content reads", async () => {
+  it("blocks agents and cross-space operator users before content reads", async () => {
     const { projectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, executionRoot });
     await fs.writeFile(path.join(projectRoot, "README.md"), "# Secret\n", "utf8");
     const agentId = crypto.randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId: graph.companyId,
+      spaceId: graph.spaceId,
       name: "File audit agent",
       role: "engineer",
       adapterType: "process",
@@ -1438,23 +1438,23 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const agentApp = createApp(db, {
       type: "agent",
       agentId,
-      companyId: graph.companyId,
+      spaceId: graph.spaceId,
       source: "agent_key",
     });
-    const boardApp = createApp(db, {
-      type: "board",
+    const operatorApp = createApp(db, {
+      type: "operator",
       userId: "mallory",
-      companyIds: [graph.otherCompanyId],
+      spaceIds: [graph.otherSpaceId],
       source: "session",
       isInstanceAdmin: false,
     });
 
     expect((await request(agentApp).get(`/api/issues/${graph.issueId}/file-resources/resolve`).query({ path: "README.md" })).status).toBe(403);
-    expect((await request(boardApp).get(`/api/issues/${graph.issueId}/file-resources/resolve`).query({ path: "README.md" })).status).toBe(404);
+    expect((await request(operatorApp).get(`/api/issues/${graph.issueId}/file-resources/resolve`).query({ path: "README.md" })).status).toBe(404);
     expect((await request(agentApp).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ path: "README.md" })).status).toBe(403);
-    expect((await request(boardApp).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ path: "README.md" })).status).toBe(404);
+    expect((await request(operatorApp).get(`/api/issues/${graph.issueId}/file-resources/content`).query({ path: "README.md" })).status).toBe(404);
     expect((await request(agentApp).get(`/api/issues/${graph.issueId}/file-resources/list`)).status).toBe(403);
-    expect((await request(boardApp).get(`/api/issues/${graph.issueId}/file-resources/list`)).status).toBe(404);
+    expect((await request(operatorApp).get(`/api/issues/${graph.issueId}/file-resources/list`)).status).toBe(404);
 
     const rows = await db.select().from(activityLog).where(eq(activityLog.entityId, graph.issueId));
     const listDenials = rows.filter((row) => row.action === "issue.file_resource_list_denied");
@@ -1473,9 +1473,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.writeFile(path.join(projectRoot, "README.md"), "# Project\n", "utf8");
     await fs.writeFile(path.join(projectRoot, ".env"), "TOKEN=secret\n", "utf8");
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1497,9 +1497,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const app = createApp(
       db,
       {
-        type: "board",
-        userId: "board-user",
-        companyIds: [graph.companyId],
+        type: "operator",
+        userId: "operator-user",
+        spaceIds: [graph.spaceId],
         source: "session",
         isInstanceAdmin: false,
       },
@@ -1532,7 +1532,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     });
     const resolveLimitedService: WorkspaceFileResourceService = {
       resolveIssueId: vi.fn(async (issueId: string) => issueId),
-      getIssue: vi.fn(async () => ({ companyId: graph.companyId })),
+      getIssue: vi.fn(async () => ({ spaceId: graph.spaceId })),
       availability: vi.fn(async () => {
         throw new Error("not used");
       }),
@@ -1564,9 +1564,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const resolveLimitedApp = createApp(
       db,
       {
-        type: "board",
-        userId: "board-user",
-        companyIds: [graph.companyId],
+        type: "operator",
+        userId: "operator-user",
+        spaceIds: [graph.spaceId],
         source: "session",
         isInstanceAdmin: false,
       },
@@ -1597,7 +1597,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     });
     const contentLimitedService: WorkspaceFileResourceService = {
       resolveIssueId: vi.fn(async (issueId: string) => issueId),
-      getIssue: vi.fn(async () => ({ companyId: graph.companyId })),
+      getIssue: vi.fn(async () => ({ spaceId: graph.spaceId })),
       availability: vi.fn(async () => {
         throw new Error("not used");
       }),
@@ -1632,9 +1632,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const contentLimitedApp = createApp(
       db,
       {
-        type: "board",
-        userId: "board-user",
-        companyIds: [graph.companyId],
+        type: "operator",
+        userId: "operator-user",
+        spaceIds: [graph.spaceId],
         source: "session",
         isInstanceAdmin: false,
       },
@@ -1674,7 +1674,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     });
     const service: WorkspaceFileResourceService = {
       resolveIssueId: vi.fn(async (issueId: string) => issueId),
-      getIssue: vi.fn(async () => ({ companyId: graph.companyId })),
+      getIssue: vi.fn(async () => ({ spaceId: graph.spaceId })),
       availability: vi.fn(async () => {
         throw new Error("not used");
       }),
@@ -1710,9 +1710,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const app = createApp(
       db,
       {
-        type: "board",
-        userId: "board-user",
-        companyIds: [graph.companyId],
+        type: "operator",
+        userId: "operator-user",
+        spaceIds: [graph.spaceId],
         source: "session",
         isInstanceAdmin: false,
       },
@@ -1764,7 +1764,7 @@ describeEmbeddedPostgres("workspace file resources", () => {
     });
     const service: WorkspaceFileResourceService = {
       resolveIssueId: vi.fn(async (issueId: string) => issueId),
-      getIssue: vi.fn(async () => ({ companyId: graph.companyId })),
+      getIssue: vi.fn(async () => ({ spaceId: graph.spaceId })),
       availability: vi.fn(async () => {
         throw new Error("not used");
       }),
@@ -1805,9 +1805,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const app = createApp(
       db,
       {
-        type: "board",
-        userId: "board-user",
-        companyIds: [graph.companyId],
+        type: "operator",
+        userId: "operator-user",
+        spaceIds: [graph.spaceId],
         source: "session",
         isInstanceAdmin: false,
       },
@@ -1846,9 +1846,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     await fs.symlink(path.join(root, "outside-secret.txt"), path.join(projectRoot, "escape.txt"));
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1930,13 +1930,13 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const extraProjectId = crypto.randomUUID();
     await db.insert(projects).values({
       id: extraProjectId,
-      companyId: graph.companyId,
+      spaceId: graph.spaceId,
       name: "Extra project",
       status: "in_progress",
     });
     await db.insert(projectWorkspaces).values({
       id: crypto.randomUUID(),
-      companyId: graph.companyId,
+      spaceId: graph.spaceId,
       projectId: extraProjectId,
       name: "Extra workspace",
       sourceType: "local_path",
@@ -1945,9 +1945,9 @@ describeEmbeddedPostgres("workspace file resources", () => {
     });
 
     const app = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1967,13 +1967,13 @@ describeEmbeddedPostgres("workspace file resources", () => {
     expect(JSON.stringify(response.body)).not.toContain(root);
   });
 
-  it("enforces board access, company boundaries, and the 100-query cap", async () => {
+  it("enforces operator access, space boundaries, and the 100-query cap", async () => {
     const { projectRoot, executionRoot } = await makeWorkspace();
     const graph = await seedGraph(db, { projectRoot, executionRoot });
     const agentId = crypto.randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId: graph.companyId,
+      spaceId: graph.spaceId,
       name: "Availability audit agent",
       role: "engineer",
       adapterType: "process",
@@ -1982,20 +1982,20 @@ describeEmbeddedPostgres("workspace file resources", () => {
     const agentApp = createApp(db, {
       type: "agent",
       agentId,
-      companyId: graph.companyId,
+      spaceId: graph.spaceId,
       source: "agent_key",
     });
-    const otherCompanyApp = createApp(db, {
-      type: "board",
-      userId: "other-board",
-      companyIds: [graph.otherCompanyId],
+    const otherSpaceApp = createApp(db, {
+      type: "operator",
+      userId: "other-operator",
+      spaceIds: [graph.otherSpaceId],
       source: "session",
       isInstanceAdmin: false,
     });
-    const boardApp = createApp(db, {
-      type: "board",
-      userId: "board-user",
-      companyIds: [graph.companyId],
+    const operatorApp = createApp(db, {
+      type: "operator",
+      userId: "operator-user",
+      spaceIds: [graph.spaceId],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -2003,10 +2003,10 @@ describeEmbeddedPostgres("workspace file resources", () => {
     expect((await request(agentApp)
       .post(`/api/issues/${graph.issueId}/file-resources/availability`)
       .send({ queries: [{ path: "README.md" }] })).status).toBe(403);
-    expect((await request(otherCompanyApp)
+    expect((await request(otherSpaceApp)
       .post(`/api/issues/${graph.issueId}/file-resources/availability`)
       .send({ queries: [{ path: "README.md" }] })).status).toBe(404);
-    expect((await request(boardApp)
+    expect((await request(operatorApp)
       .post(`/api/issues/${graph.issueId}/file-resources/availability`)
       .send({ queries: Array.from({ length: 101 }, (_, index) => ({ path: `file-${index}.ts` })) })).status).toBe(400);
   });
@@ -2019,7 +2019,7 @@ describeEmbeddedPostgres("file resource route guards", () => {
   beforeAll(async () => {
     if (externalDatabase) db = createDb(externalDatabase);
     else {
-      tempDb = await startEmbeddedPostgresTestDatabase("paperclip-file-resource-guards-");
+      tempDb = await startEmbeddedPostgresTestDatabase("outpost-file-resource-guards-");
       db = createDb(tempDb.connectionString);
     }
   }, 60_000);
@@ -2030,10 +2030,10 @@ describeEmbeddedPostgres("file resource route guards", () => {
   });
 
   it("enforces bounded rate and concurrency limits", async () => {
-    const companyId = crypto.randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Rate limit company",
+    const spaceId = crypto.randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Rate limit space",
       issuePrefix: "RAT",
     });
     let releaseSlowRead = null as (() => void) | null;
@@ -2046,7 +2046,7 @@ describeEmbeddedPostgres("file resource route guards", () => {
     });
     const service: WorkspaceFileResourceService = {
       resolveIssueId: vi.fn(async (issueId: string) => issueId),
-      getIssue: vi.fn(async () => ({ companyId })),
+      getIssue: vi.fn(async () => ({ spaceId })),
       availability: vi.fn(async () => {
         throw new Error("not used");
       }),
@@ -2078,9 +2078,9 @@ describeEmbeddedPostgres("file resource route guards", () => {
     const app = express();
     app.use((req, _res, next) => {
       req.actor = {
-        type: "board",
-        userId: "board-user",
-        companyIds: [companyId],
+        type: "operator",
+        userId: "operator-user",
+        spaceIds: [spaceId],
         source: "session",
         isInstanceAdmin: false,
       };
@@ -2104,10 +2104,10 @@ describeEmbeddedPostgres("file resource route guards", () => {
   });
 
   it("uses a batch-specific availability limiter", async () => {
-    const companyId = crypto.randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Availability rate limit company",
+    const spaceId = crypto.randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Availability rate limit space",
       issuePrefix: "AVL",
     });
     let releaseSlowAvailability = null as (() => void) | null;
@@ -2120,7 +2120,7 @@ describeEmbeddedPostgres("file resource route guards", () => {
     });
     const service: WorkspaceFileResourceService = {
       resolveIssueId: vi.fn(async (issueId: string) => issueId),
-      getIssue: vi.fn(async () => ({ companyId })),
+      getIssue: vi.fn(async () => ({ spaceId })),
       availability: vi.fn(async (): Promise<WorkspaceFileAvailabilityResponse> => {
         slowAvailabilityStarted?.();
         await slowAvailability;
@@ -2134,9 +2134,9 @@ describeEmbeddedPostgres("file resource route guards", () => {
     const app = createApp(
       db,
       {
-        type: "board",
-        userId: "board-user",
-        companyIds: [companyId],
+        type: "operator",
+        userId: "operator-user",
+        spaceIds: [spaceId],
         source: "session",
         isInstanceAdmin: false,
       },

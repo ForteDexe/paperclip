@@ -29,8 +29,8 @@ export const claudeSetupTokenOverwriteSchema = z.object({
 export type ClaudeSetupTokenOverwrite =
   z.infer<typeof claudeSetupTokenOverwriteSchema>;
 
-// The start request for a company-and-environment Claude login session. The
-// company and the owner user come from the authenticated caller, not from this
+// The start request for a space-and-environment Claude login session. The
+// space and the owner user come from the authenticated caller, not from this
 // body. The body names the adapter and the environment of the login. It reuses
 // the adapter login-session request fields; every field has the same meaning.
 //

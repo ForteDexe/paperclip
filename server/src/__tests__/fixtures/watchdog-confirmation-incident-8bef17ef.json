@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "capturedAt": "2026-08-14T13:00:00.000Z",
   "purpose": "Immutable regression evidence for the stop-time authorization shape observed by the PAP-17159 watchdog. This fixture is historical evidence; do not use it to rewrite or re-resolve the source interaction.",
-  "companyId": "5cbe79ee-acb3-4597-896e-7662742593cd",
+  "spaceId": "5cbe79ee-acb3-4597-896e-7662742593cd",
   "watchdogRun": {
     "id": "3ede42c3-efed-4658-9cff-eda1b5c08e6d",
     "status": "succeeded",
@@ -28,8 +28,8 @@
     "kind": "request_confirmation",
     "status": "pending",
     "continuationPolicy": "wake_assignee",
-    "requestedResolverPolicy": "board_only",
-    "effectiveResolverPolicy": "board_only",
+    "requestedResolverPolicy": "operator_only",
+    "effectiveResolverPolicy": "operator_only",
     "sourceRunId": "ec65375d-e43f-4f1c-808a-7a953477b5aa",
     "createdByAgentId": "352aa64b-2a22-4d00-928f-71f5fb884f66",
     "createdAt": "2026-08-13T16:30:24.126Z",
@@ -90,7 +90,7 @@
   },
   "manualAcceptance": {
     "status": "accepted",
-    "resolverPolicy": "board_only",
+    "resolverPolicy": "operator_only",
     "resolvedByUserId": "1gQsX9Jbj5jk1Wu51YU1G0atxCRwj1Om",
     "resolvedByAgentId": null,
     "resolvedByRunId": null,

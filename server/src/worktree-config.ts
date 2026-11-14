@@ -4,9 +4,9 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
-  mergePaperclipConfig,
-  paperclipConfigSchema,
-  type PaperclipConfig,
+  mergeOutpostConfig,
+  outpostConfigSchema,
+  type OutpostConfig,
 } from "@outpost/shared";
 import { updateEnvFileContents, writeEnvFileAtomicallyIfChanged } from "@outpost/shared/env-file";
 import {
@@ -14,7 +14,7 @@ import {
   withWorktreePortRegistryLockSync,
   writeWorktreePortRegistry,
 } from "@outpost/shared/worktree-port-registry";
-import { resolvePaperclipConfigPath, resolveOutpostEnvPath } from "./paths.js";
+import { resolveOutpostConfigPath, resolveOutpostEnvPath } from "./paths.js";
 import { rewriteUrlPort } from "./url-utils.js";
 import { applyEmptyWorktreeSigningSecrets } from "./dev-runner-worktree.js";
 
@@ -112,17 +112,17 @@ function resolveWorktreeRuntimeContext(
 ): WorktreeRuntimeContext | null {
   if (env.OUTPOST_IN_WORKTREE !== "true") return null;
 
-  const configPath = resolvePaperclipConfigPath(overrideConfigPath);
+  const configPath = resolveOutpostConfigPath(overrideConfigPath);
   const envPath = resolveOutpostEnvPath(configPath);
   const persistedEnv = readEnvEntries(envPath);
 
   // OUTPOST_IN_WORKTREE can leak in from a parent process or a sourced env
   // file while config resolution still points at a non-worktree target (for
   // example the default instance under <home>/instances/default). Only adopt
-  // a target as a worktree when its config sits in a `<root>/.paperclip/`
+  // a target as a worktree when its config sits in a `<root>/.outpost/`
   // layout and its own persisted env already declares it a worktree;
   // otherwise the repair would rewrite main-instance config and env files.
-  if (path.basename(path.dirname(configPath)) !== ".paperclip") return null;
+  if (path.basename(path.dirname(configPath)) !== ".outpost") return null;
   if (persistedEnv.OUTPOST_IN_WORKTREE !== "true") return null;
 
   const persistedConfigPath = nonEmpty(persistedEnv.OUTPOST_CONFIG);
@@ -144,7 +144,7 @@ function resolveWorktreeRuntimeContext(
     nonEmpty(stablePersistedEnv.OUTPOST_HOME) ??
       nonEmpty(env.OUTPOST_HOME) ??
       nonEmpty(env.OUTPOST_WORKTREES_DIR) ??
-      "~/.paperclip-worktrees",
+      "~/.outpost-worktrees",
   );
   const instanceRoot = path.resolve(homeDir, "instances", instanceId);
 
@@ -204,14 +204,14 @@ function atomicWriteFile(filePath: string, contents: string): void {
   }
 }
 
-function writeConfigFile(configPath: string, config: PaperclipConfig): boolean {
+function writeConfigFile(configPath: string, config: OutpostConfig): boolean {
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  const update = paperclipConfigSchema.parse(config);
+  const update = outpostConfigSchema.parse(config);
   const source = fs.existsSync(configPath)
-    ? paperclipConfigSchema.parse(JSON.parse(fs.readFileSync(configPath, "utf8")))
+    ? outpostConfigSchema.parse(JSON.parse(fs.readFileSync(configPath, "utf8")))
     : null;
   const nextConfig = source
-    ? paperclipConfigSchema.parse(mergePaperclipConfig(source, update))
+    ? outpostConfigSchema.parse(mergeOutpostConfig(source, update))
     : update;
 
   if (source && isDeepStrictEqual(source, nextConfig)) return false;
@@ -222,11 +222,11 @@ function writeConfigFile(configPath: string, config: PaperclipConfig): boolean {
 
 function resolveRepoManagedWorktreesRoot(worktreeRoot: string): string | null {
   const normalized = path.resolve(worktreeRoot);
-  const marker = `${path.sep}.paperclip${path.sep}worktrees${path.sep}`;
+  const marker = `${path.sep}.outpost${path.sep}worktrees${path.sep}`;
   const index = normalized.indexOf(marker);
   if (index === -1) return null;
   const repoRoot = normalized.slice(0, index);
-  return path.resolve(repoRoot, ".paperclip", "worktrees");
+  return path.resolve(repoRoot, ".outpost", "worktrees");
 }
 
 function collectSiblingWorktreePorts(
@@ -263,7 +263,7 @@ function collectSiblingWorktreePorts(
     for (const entry of fs.readdirSync(repoManagedWorktreesRoot, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
 
-      const siblingConfigPath = path.resolve(repoManagedWorktreesRoot, entry.name, ".paperclip", "config.json");
+      const siblingConfigPath = path.resolve(repoManagedWorktreesRoot, entry.name, ".outpost", "config.json");
       if (path.resolve(siblingConfigPath) === path.resolve(context.configPath)) continue;
       if (fs.existsSync(siblingConfigPath)) {
         siblingConfigPaths.add(siblingConfigPath);
@@ -273,7 +273,7 @@ function collectSiblingWorktreePorts(
 
   for (const siblingConfigPath of siblingConfigPaths) {
     try {
-      const siblingConfig = JSON.parse(fs.readFileSync(siblingConfigPath, "utf8")) as PaperclipConfig;
+      const siblingConfig = JSON.parse(fs.readFileSync(siblingConfigPath, "utf8")) as OutpostConfig;
       if (Number.isInteger(siblingConfig.server.port) && siblingConfig.server.port > 0) {
         serverPorts.add(siblingConfig.server.port);
       }
@@ -300,19 +300,19 @@ function findNextUnclaimedPort(preferredPort: number, claimedPorts: Set<number>)
 }
 
 function buildIsolatedWorktreeConfig(
-  config: PaperclipConfig,
+  config: OutpostConfig,
   context: WorktreeRuntimeContext,
   portOverrides?: {
     serverPort?: number;
     databasePort?: number;
   },
-): PaperclipConfig {
+): OutpostConfig {
   const serverPort = portOverrides?.serverPort ?? config.server.port;
   const databasePort =
     config.database.mode === "embedded-postgres"
       ? portOverrides?.databasePort ?? config.database.embeddedPostgresPort
       : undefined;
-  const nextConfig: PaperclipConfig = {
+  const nextConfig: OutpostConfig = {
     ...config,
     database: {
       ...config.database,
@@ -363,7 +363,7 @@ function buildIsolatedWorktreeConfig(
 }
 
 function needsWorktreeConfigRepair(
-  config: PaperclipConfig,
+  config: OutpostConfig,
   context: WorktreeRuntimeContext,
 ): boolean {
   if (config.database.mode === "embedded-postgres") {
@@ -392,14 +392,14 @@ function needsWorktreeConfigRepair(
 }
 
 export function applyRuntimePortSelectionToConfig(
-  config: PaperclipConfig,
+  config: OutpostConfig,
   input: {
     serverPort: number;
     databasePort?: number | null;
     allowServerPortWrite?: boolean;
     allowDatabasePortWrite?: boolean;
   },
-): { config: PaperclipConfig; changed: boolean } {
+): { config: OutpostConfig; changed: boolean } {
   let changed = false;
   let nextConfig = config;
 
@@ -468,7 +468,7 @@ export function maybeRepairLegacyWorktreeConfigAndEnvFiles(): {
   if (fs.existsSync(context.configPath)) {
     try {
       const runtimeConfig = withWorktreePortRegistryLockSync(context.homeDir, () => {
-        const parsed = JSON.parse(fs.readFileSync(context.configPath, "utf8")) as PaperclipConfig;
+        const parsed = JSON.parse(fs.readFileSync(context.configPath, "utf8")) as OutpostConfig;
         let selectedConfig = parsed;
         const registeredConfigPaths = readWorktreePortRegistry(context.homeDir);
         const siblingPorts = collectSiblingWorktreePorts(context, registeredConfigPaths);
@@ -585,9 +585,9 @@ export function maybePersistWorktreeRuntimePorts(input: {
   const context = resolveWorktreeRuntimeContext(process.env);
   if (!context || !fs.existsSync(context.configPath)) return;
 
-  let fileConfig: PaperclipConfig;
+  let fileConfig: OutpostConfig;
   try {
-    fileConfig = JSON.parse(fs.readFileSync(context.configPath, "utf8")) as PaperclipConfig;
+    fileConfig = JSON.parse(fs.readFileSync(context.configPath, "utf8")) as OutpostConfig;
   } catch {
     return;
   }

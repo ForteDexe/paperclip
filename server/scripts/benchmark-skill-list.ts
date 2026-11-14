@@ -12,7 +12,7 @@ import { context, trace } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from "@opentelemetry/sdk-trace";
 import { eq } from "drizzle-orm";
-import { authUsers, companies, companyMemberships, companySkills, companySkillSources,
+import { authUsers, spaces, spaceMemberships, spaceSkills, spaceSkillSources,
   projectSkillSources, projects, applyPendingMigrations, closeRegisteredClients, createDb,
   startEmbeddedPostgresTestDatabase } from "../../packages/db/src/index.js";
 import * as schema from "../../packages/db/src/schema/index.js";
@@ -31,12 +31,12 @@ assert.ok(Number.isFinite(delayMs) && delayMs >= 0 && delayMs <= 20);
 const previous = { home: process.env.OUTPOST_HOME, instance: process.env.OUTPOST_INSTANCE_ID,
   endpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT };
 delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
-const { companySkillService } = await import("../src/services/company-skills.js");
+const { spaceSkillService } = await import("../src/services/space-skills.js");
 const { createAgentLifecycle } = await import("../src/services/agent-lifecycle.js");
-const { companySkillRoutes } = await import("../src/routes/company-skills.js");
+const { spaceSkillRoutes } = await import("../src/routes/space-skills.js");
 const { skillAccessRequestContext, withSkillActor } = await import("../src/services/skill-access.js");
 const home = await fs.mkdtemp(path.join(os.tmpdir(), "skill-list-benchmark-"));
-const sourceFiles = [fileURLToPath(import.meta.url), fileURLToPath(new URL("../src/services/company-skills.ts", import.meta.url))];
+const sourceFiles = [fileURLToPath(import.meta.url), fileURLToPath(new URL("../src/services/space-skills.ts", import.meta.url))];
 const sourceHash = async () => {
   const hash = createHash("sha256");
   for (const file of sourceFiles) hash.update(await fs.readFile(file));
@@ -101,44 +101,44 @@ try {
     target.port = String(address.port);
   }
   db = createDb(target.href);
-  const companyId = randomUUID(), userId = randomUUID();
-  await db.insert(companies).values({ id: companyId, name: "Skill list benchmark", issuePrefix: "SLB" });
+  const spaceId = randomUUID(), userId = randomUUID();
+  await db.insert(spaces).values({ id: spaceId, name: "Skill list benchmark", issuePrefix: "SLB" });
   await db.insert(authUsers).values({ id: userId, name: "Fixture owner", email: `${userId}@example.invalid`, createdAt: new Date(), updatedAt: new Date() });
-  await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "owner" });
-  const projectRows = await db.insert(projects).values(Array.from({ length: 14 }, (_, i) => ({ companyId, name: `Fixture ${i}` }))).returning();
-  const sources = await db.insert(companySkillSources).values(Array.from({ length: 10 }, (_, i) => ({ companyId,
+  await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "owner" });
+  const projectRows = await db.insert(projects).values(Array.from({ length: 14 }, (_, i) => ({ spaceId, name: `Fixture ${i}` }))).returning();
+  const sources = await db.insert(spaceSkillSources).values(Array.from({ length: 10 }, (_, i) => ({ spaceId,
     repositoryUrl: `https://example.invalid/fixture-${i}`, fullName: `fixture/${i}`, trackingRef: "main",
-    accessScope: i < 4 ? "projects" as const : "company" as const }))).returning();
-  await db.insert(projectSkillSources).values(sources.slice(0, 8).map((source, i) => ({ companyId, sourceId: source.id,
+    accessScope: i < 4 ? "projects" as const : "space" as const }))).returning();
+  await db.insert(projectSkillSources).values(sources.slice(0, 8).map((source, i) => ({ spaceId, sourceId: source.id,
     projectId: projectRows[i % 5]!.id, repositoryUrl: source.repositoryUrl, trackingRef: "main", status: "ready" as const })));
-  const skills = await db.insert(companySkills).values(Array.from({ length: 155 }, (_, i) => ({ companyId,
+  const skills = await db.insert(spaceSkills).values(Array.from({ length: 155 }, (_, i) => ({ spaceId,
     key: `fixture/skill-${i}`, slug: `skill-${i}`, name: `Skill ${String(i).padStart(3, "0")}`,
     markdown: "Synthetic unused markdown. ".repeat(280), sourceType: "github",
     sourceLocator: "https://example.invalid/immutable-fixture", accessSourceId: sources[i % 10]!.id,
     metadata: { unused: "metadata ".repeat(1000) }, fileInventory: [{ path: "SKILL.md", kind: "skill" as const }],
   }))).returning();
   const lifecycle = createAgentLifecycle(db);
-  for (let i = 0; i < 40; i++) await lifecycle.requestHire(companyId, {
+  for (let i = 0; i < 40; i++) await lifecycle.requestHire(spaceId, {
     name: `Reader ${i}`, adapterType: "process", status: i === 39 ? "terminated" : "paused",
     adapterConfig: { instructions: "Synthetic agent context. ".repeat(2600),
-      paperclipSkillSync: { desiredSkills: [skills[i % 155]!.key, { key: skills[(i + 1) % 155]!.id, versionId: null }] } },
+      outpostSkillSync: { desiredSkills: [skills[i % 155]!.key, { key: skills[(i + 1) % 155]!.id, versionId: null }] } },
     runtimeConfig: { unused: "runtime ".repeat(1000) }, metadata: { unused: "metadata ".repeat(1000) },
   }, { runnerResolved: true });
-  await companySkillService(db).list(companyId);
+  await spaceSkillService(db).list(spaceId);
 
-  const actor = { type: "board" as const, source: "session" as const, userId, companyIds: [companyId],
-    memberships: [{ companyId, membershipRole: "owner" }] };
-  let baselineService: ReturnType<typeof companySkillService> | undefined;
+  const actor = { type: "board" as const, source: "session" as const, userId, spaceIds: [spaceId],
+    memberships: [{ spaceId, membershipRole: "owner" }] };
+  let baselineService: ReturnType<typeof spaceSkillService> | undefined;
   if (baselineRef) {
     assert.equal(captureValues, false, "Paired acceptance uses --capture-values=false");
     baselineRevision = execFileSync("git", ["rev-parse", "--verify", "--end-of-options", `${baselineRef}^{commit}`], { encoding: "utf8" }).trim();
-    const source = execFileSync("git", ["show", `${baselineRevision}:server/src/services/company-skills.ts`], { encoding: "utf8", maxBuffer: 2 * 1024 * 1024 });
+    const source = execFileSync("git", ["show", `${baselineRevision}:server/src/services/space-skills.ts`], { encoding: "utf8", maxBuffer: 2 * 1024 * 1024 });
     baselineSourceHash = createHash("sha256").update(source).digest("hex");
-    baselineFile = fileURLToPath(new URL(`../src/services/.company-skills-benchmark-${randomUUID()}.ts`, import.meta.url));
+    baselineFile = fileURLToPath(new URL(`../src/services/.space-skills-benchmark-${randomUUID()}.ts`, import.meta.url));
     await fs.writeFile(baselineFile, source, { flag: "wx", mode: 0o600 });
-    const baselineModule = await import(pathToFileURL(baselineFile).href) as { companySkillService: typeof companySkillService };
-    baselineService = baselineModule.companySkillService(db);
-    await withSkillActor(actor, () => baselineService!.list(companyId));
+    const baselineModule = await import(pathToFileURL(baselineFile).href) as { spaceSkillService: typeof spaceSkillService };
+    baselineService = baselineModule.spaceSkillService(db);
+    await withSkillActor(actor, () => baselineService!.list(spaceId));
   }
 
   const exporter = new InMemorySpanExporter();
@@ -151,17 +151,17 @@ try {
     req.actor = actor;
     void withRunExecutionTiming(randomUUID(), () => new Promise<void>(resolve => { res.once("finish", resolve); next(); })).catch(next);
   });
-  const candidateService = companySkillService(db);
+  const candidateService = spaceSkillService(db);
   if (baselineService) app.get("/paired/:variant", skillAccessRequestContext, async (req, res) => {
     const selected = req.params.variant === "baseline" ? baselineService! : candidateService;
-    res.json(await selected.list(companyId));
+    res.json(await selected.list(spaceId));
   });
-  app.use("/api", companySkillRoutes(db));
+  app.use("/api", spaceSkillRoutes(db));
   app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => res.status(500).json({ error: error.message }));
   server = app.listen(0, "127.0.0.1");
   await new Promise<void>(resolve => server!.once("listening", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
-  const url = `http://127.0.0.1:${address.port}/api/companies/${companyId}/skills`;
+  const url = `http://127.0.0.1:${address.port}/api/spaces/${spaceId}/skills`;
   let queryCount = 0;
   db.$client.options.debug = () => { queryCount++; };
   const request = async (etag?: string, requestUrl = url) => {
@@ -215,14 +215,14 @@ try {
   const timings = samples.map(sample => sample.elapsedMs).sort((a, b) => a - b);
   const summary = events.find(event => event.event === "outpost.test_db_response_capture.summary.v1");
   if (capture) assert.ok(summary && summary.inFlightAtEnd === 0 && summary.overflowCalls === 0);
-  const rowCount = (await db.select().from(companySkills).where(eq(companySkills.companyId, companyId))).length;
+  const rowCount = (await db.select().from(spaceSkills).where(eq(spaceSkills.spaceId, spaceId))).length;
   console.log(JSON.stringify({ schema: "outpost.skill-list-benchmark.v1", sourceRevision, measuredSourceHash,
     fixture: { remoteSkills: 155, totalSkills: rowCount, agents: 40, nonterminatedAgents: 39, projects: 14, sources: 10 },
     captureValues, networkDelayMsPerDirection: delayMs, postgresVersion: await db.$client`select version()`,
-    boundary: "production router and real service; synthetic authenticated board actor; postgres-js response values",
+    boundary: "production router and real service; synthetic authenticated operator; postgres-js response values",
     medianMs: timings[Math.floor(timings.length / 2)], minMs: timings[0], maxMs: timings.at(-1),
     baselineRevision, baselineSourceHash,
-    baselineDependencyScope: baselineService ? "Only company-skills.ts differs; imported helpers and runtime dependencies use this checkout for both versions" : null,
+    baselineDependencyScope: baselineService ? "Only space-skills.ts differs; imported helpers and runtime dependencies use this checkout for both versions" : null,
     variantResults: ["baseline", "candidate"].flatMap(variant => {
       const selected = samples.filter(sample => sample.variant === variant);
       if (!selected.length) return [];

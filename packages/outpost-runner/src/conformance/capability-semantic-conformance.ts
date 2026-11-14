@@ -25,17 +25,17 @@ import type {
 } from "./semantic-conformance.js";
 
 export const CAPABILITY_SEMANTIC_CONFORMANCE_IDS = Object.freeze({
-  companyId: "10000000-0000-4000-8000-000000000001",
+  spaceId: "10000000-0000-4000-8000-000000000001",
   actorId: "10000000-0000-4000-8000-000000000002",
   defaultTaskId: "10000000-0000-4000-8000-000000000003",
-  crossCompanyTaskId: "10000000-0000-4000-8000-000000000004",
+  crossSpaceTaskId: "10000000-0000-4000-8000-000000000004",
   interactionTaskId: "10000000-0000-4000-8000-000000000005",
   terminalTaskId: "10000000-0000-4000-8000-000000000006",
   blockedTerminalTaskId: "10000000-0000-4000-8000-000000000007",
   blockerTaskId: "10000000-0000-4000-8000-000000000008",
   foreignTaskId: "20000000-0000-4000-8000-000000000001",
   defaultRunId: "10000000-0000-4000-8000-000000000011",
-  crossCompanyRunId: "10000000-0000-4000-8000-000000000012",
+  crossSpaceRunId: "10000000-0000-4000-8000-000000000012",
   interactionRunId: "10000000-0000-4000-8000-000000000013",
   terminalRunId: "10000000-0000-4000-8000-000000000014",
   blockedTerminalRunId: "10000000-0000-4000-8000-000000000015",
@@ -48,11 +48,11 @@ export const CAPABILITY_SEMANTIC_CONFORMANCE_IDS = Object.freeze({
  */
 export const CAPABILITY_HIGH_RISK_SEMANTIC_VECTORS = Object.freeze([
   {
-    id: "governed-action-without-claim",
+    id: "controlled-action-without-claim",
     worldId: "default",
     operationId: "decide_approval",
     input: {
-      idempotencyKey: "governed-denial",
+      idempotencyKey: "controlled-denial",
       approvalId: "10000000-0000-4000-8000-000000000099",
       decision: "approved",
       note: "Attempt without authority.",
@@ -68,11 +68,11 @@ export const CAPABILITY_HIGH_RISK_SEMANTIC_VECTORS = Object.freeze([
     },
   },
   {
-    id: "cross-company-dependency-denial",
-    worldId: "cross-company",
+    id: "cross-space-dependency-denial",
+    worldId: "cross-space",
     operationId: "set_dependencies",
     input: {
-      idempotencyKey: "cross-company-dependency",
+      idempotencyKey: "cross-space-dependency",
       blockedByTaskIds: [CAPABILITY_SEMANTIC_CONFORMANCE_IDS.foreignTaskId],
     },
   },
@@ -218,9 +218,9 @@ export function capabilityMockConformanceWorlds(): readonly CapabilityMockSemant
   return [
     mockWorld("default", ids.defaultTaskId, ids.defaultRunId, []),
     mockWorld(
-      "cross-company",
-      ids.crossCompanyTaskId,
-      ids.crossCompanyRunId,
+      "cross-space",
+      ids.crossSpaceTaskId,
+      ids.crossSpaceRunId,
       ["dependencies:write"],
       [ids.foreignTaskId],
     ),
@@ -395,7 +395,7 @@ function mockWorld(
   const ids = CAPABILITY_SEMANTIC_CONFORMANCE_IDS;
   const activeTask = {
     id: taskId,
-    companyId: ids.companyId,
+    spaceId: ids.spaceId,
     identifier: `SCF-${id}`,
     title: `${id} semantic fixture`,
     description: null,
@@ -412,10 +412,10 @@ function mockWorld(
   return {
     id,
     seed: {
-      company: { id: ids.companyId, name: "Semantic Conformance", issuePrefix: "SCF" },
+      space: { id: ids.spaceId, name: "Semantic Conformance", issuePrefix: "SCF" },
       actors: [{
         id: ids.actorId,
-        companyId: ids.companyId,
+        spaceId: ids.spaceId,
         name: "Conformance Engineer",
         role: "approver",
         status: "active",
@@ -441,7 +441,7 @@ function mockWorld(
     },
     run: {
       identity: {
-        companyId: ids.companyId,
+        spaceId: ids.spaceId,
         agentId: ids.actorId,
         issueId: taskId,
         runId,

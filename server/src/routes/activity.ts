@@ -4,7 +4,7 @@ import type { Db } from "@outpost/db";
 import { normalizeIssueIdentifier } from "@outpost/shared";
 import { validate } from "../middleware/validate.js";
 import { activityService, normalizeActivityLimit } from "../services/activity.js";
-import { assertAuthenticated, assertBoard, assertCompanyAccess, getAccessibleResource, getActorInfo, hasCompanyAccess } from "./authz.js";
+import { assertAuthenticated, assertOperator, assertSpaceAccess, getAccessibleResource, getActorInfo, hasSpaceAccess } from "./authz.js";
 import { accessService, heartbeatService, issueService } from "../services/index.js";
 import { sanitizeRecord } from "../redaction.js";
 import { badRequest, forbidden } from "../errors.js";
@@ -129,19 +129,19 @@ export function activityRoutes(db: Db) {
   const issueSvc = issueService(db);
   const agentAudit = agentActionAuditService(db);
 
-  async function hasAgentAuditPermission(req: import("express").Request, companyId: string) {
-    if (req.actor.type !== "board") return false;
+  async function hasAgentAuditPermission(req: import("express").Request, spaceId: string) {
+    if (req.actor.type !== "operator") return false;
     if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return true;
     return Boolean(
       req.actor.userId
-      && await access.canUser(companyId, req.actor.userId, "audit:view_agent_actions"),
+      && await access.canUser(spaceId, req.actor.userId, "audit:view_agent_actions"),
     );
   }
 
-  async function assertAgentAuditPermission(req: import("express").Request, companyId: string) {
-    assertBoard(req);
-    assertCompanyAccess(req, companyId);
-    if (await hasAgentAuditPermission(req, companyId)) return;
+  async function assertAgentAuditPermission(req: import("express").Request, spaceId: string) {
+    assertOperator(req);
+    assertSpaceAccess(req, spaceId);
+    if (await hasAgentAuditPermission(req, spaceId)) return;
     throw forbidden("Missing permission: audit:view_agent_actions");
   }
 
@@ -181,20 +181,20 @@ export function activityRoutes(db: Db) {
     };
   }
 
-  async function assertCompanyScopeReadAllowed(req: Parameters<typeof assertCompanyAccess>[0], res: any, companyId: string) {
+  async function assertSpaceScopeReadAllowed(req: Parameters<typeof assertSpaceAccess>[0], res: any, spaceId: string) {
     const decision = await access.decide({
       actor: req.actor,
-      action: "company_scope:read",
-      resource: { type: "company", companyId },
+      action: "space_scope:read",
+      resource: { type: "space", spaceId },
     });
     if (decision.allowed) return true;
     res.status(403).json({ error: "Activity is outside this actor's authorization boundary" });
     return false;
   }
 
-  async function assertIssueReadAllowed(req: Parameters<typeof assertCompanyAccess>[0], res: any, issue: {
+  async function assertIssueReadAllowed(req: Parameters<typeof assertSpaceAccess>[0], res: any, issue: {
     id: string;
-    companyId: string;
+    spaceId: string;
     projectId: string | null;
     parentId: string | null;
     assigneeAgentId: string | null;
@@ -206,7 +206,7 @@ export function activityRoutes(db: Db) {
       action: "issue:read",
       resource: {
         type: "issue",
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         issueId: issue.id,
         projectId: issue.projectId,
         parentIssueId: issue.parentId,
@@ -228,13 +228,13 @@ export function activityRoutes(db: Db) {
     return issueSvc.getById(rawId);
   }
 
-  router.get("/companies/:companyId/activity", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertCompanyScopeReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/activity", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertSpaceScopeReadAllowed(req, res, spaceId))) return;
 
     const filters = {
-      companyId,
+      spaceId,
       agentId: req.query.agentId as string | undefined,
       entityType: req.query.entityType as string | undefined,
       entityId: req.query.entityId as string | undefined,
@@ -246,8 +246,8 @@ export function activityRoutes(db: Db) {
     res.json(result);
   });
 
-  router.get("/companies/:companyId/audit/agent-actions", async (req, res) => {
-    const companyId = req.params.companyId as string;
+  router.get("/spaces/:spaceId/audit/agent-actions", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
     const parsedActorScope = agentActionAuditActorScopeSchema.safeParse(req.query.actorScope ?? "agents");
     if (!parsedActorScope.success) {
       throw badRequest("Invalid agent action audit query", parsedActorScope.error.issues);
@@ -255,10 +255,10 @@ export function activityRoutes(db: Db) {
     if (parsedActorScope.data === "agents") {
       // Keep the legacy authorization-before-validation behavior for callers
       // that omit the new flag.
-      await assertAgentAuditPermission(req, companyId);
+      await assertAgentAuditPermission(req, spaceId);
     } else {
-      assertCompanyAccess(req, companyId);
-      if (!(await assertCompanyScopeReadAllowed(req, res, companyId))) return;
+      assertSpaceAccess(req, spaceId);
+      if (!(await assertSpaceScopeReadAllowed(req, res, spaceId))) return;
     }
 
     const parsedQuery = agentActionAuditQuerySchema.safeParse(req.query);
@@ -266,17 +266,17 @@ export function activityRoutes(db: Db) {
       throw badRequest("Invalid agent action audit query", parsedQuery.error.issues);
     }
     if (parsedQuery.data.actorScope === "agents") {
-      const result = await agentAudit.list({ companyId, ...parsedQuery.data,
+      const result = await agentAudit.list({ spaceId, ...parsedQuery.data,
         caseReadCondition: await caseActivityReadSqlCondition(db, req.actor) });
       res.json({ ...result, accessTier: "full" });
       return;
     }
 
-    const canViewAttribution = await hasAgentAuditPermission(req, companyId);
+    const canViewAttribution = await hasAgentAuditPermission(req, spaceId);
     if (!canViewAttribution && hasAttributionFilters(parsedQuery.data)) {
       throw forbidden("Audit filters require permission: audit:view_agent_actions");
     }
-    const result = await agentAudit.list({ companyId, ...parsedQuery.data,
+    const result = await agentAudit.list({ spaceId, ...parsedQuery.data,
       caseReadCondition: await caseActivityReadSqlCondition(db, req.actor) });
     res.json({
       ...(canViewAttribution ? result : stripAuditAttribution(result)),
@@ -284,9 +284,9 @@ export function activityRoutes(db: Db) {
     });
   });
 
-  router.get("/companies/:companyId/audit/agent-actions.csv", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertAgentAuditPermission(req, companyId);
+  router.get("/spaces/:spaceId/audit/agent-actions.csv", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertAgentAuditPermission(req, spaceId);
     const parsedQuery = agentActionAuditQuerySchema.safeParse(req.query);
     if (!parsedQuery.success) {
       throw badRequest("Invalid agent action audit query", parsedQuery.error.issues);
@@ -298,7 +298,7 @@ export function activityRoutes(db: Db) {
     const rows: Awaited<ReturnType<typeof agentAudit.list>>["items"] = [];
     let cursor: string | undefined;
     do {
-      const page = await agentAudit.list({ companyId, ...filters, cursor, limit: AUDIT_CSV_PAGE_SIZE, caseReadCondition });
+      const page = await agentAudit.list({ spaceId, ...filters, cursor, limit: AUDIT_CSV_PAGE_SIZE, caseReadCondition });
       for (const item of page.items) {
         if (rows.length >= AUDIT_CSV_EXPORT_MAX_ROWS) break;
         rows.push(item);
@@ -308,14 +308,14 @@ export function activityRoutes(db: Db) {
 
     // The export is itself an auditable act (training-data export precedent):
     // record who exported what filter set and how many rows left the system.
-    const actorUserId = req.actor.type === "board" ? req.actor.userId ?? null : null;
+    const actorUserId = req.actor.type === "operator" ? req.actor.userId ?? null : null;
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actorUserId ? "user" : "system",
-      actorId: actorUserId ?? "local-board",
+      actorId: actorUserId ?? "local-operator",
       action: "audit.exported",
-      entityType: "company",
-      entityId: companyId,
+      entityType: "space",
+      entityId: spaceId,
       details: {
         format: "csv",
         rowCount: rows.length,
@@ -336,16 +336,16 @@ export function activityRoutes(db: Db) {
     });
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="agent-audit-${companyId}.csv"`);
+    res.setHeader("Content-Disposition", `attachment; filename="agent-audit-${spaceId}.csv"`);
     res.send(auditRowsToCsv(rows));
   });
 
-  router.post("/companies/:companyId/activity", validate(createActivitySchema), async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.post("/spaces/:spaceId/activity", validate(createActivitySchema), async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const event = await svc.create({
-      companyId,
+      spaceId,
       ...req.body,
       details: req.body.details ? sanitizeRecord(req.body.details) : null,
     });
@@ -362,7 +362,7 @@ export function activityRoutes(db: Db) {
         typeof req.query.commentIds === "string" && req.query.commentIds ? req.query.commentIds.split(",") : [],
       );
       if (!parsed.success) throw badRequest("commentIds must contain at most 100 UUIDs");
-      res.json(await svc.inputFactsForIssue(issue.companyId, issue.id, parsed.data));
+      res.json(await svc.inputFactsForIssue(issue.spaceId, issue.id, parsed.data));
       return;
     }
     const result = await (req.query.view === "recent" ? svc.forIssue(issue.id, 50) : svc.forIssue(issue.id));
@@ -374,18 +374,18 @@ export function activityRoutes(db: Db) {
     const issue = await getAccessibleResource(req, res, resolveIssueByRef(rawId), "Issue not found");
     if (!issue) return;
     if (!(await assertIssueReadAllowed(req, res, issue))) return;
-    const viewerUserId = req.actor.type === "board" ? getActorInfo(req).actorId : null;
+    const viewerUserId = req.actor.type === "operator" ? getActorInfo(req).actorId : null;
     if (req.query.runIds !== undefined) {
       const parsed = z.array(z.string().uuid()).min(1).max(100).safeParse(
         typeof req.query.runIds === "string" ? req.query.runIds.split(",") : null,
       );
       if (!parsed.success) throw badRequest("runIds must contain 1 to 100 UUIDs");
-      res.json(await svc.runsForIssue(issue.companyId, issue.id, viewerUserId, undefined, parsed.data));
+      res.json(await svc.runsForIssue(issue.spaceId, issue.id, viewerUserId, undefined, parsed.data));
       return;
     }
     const result = await (req.query.view === "recent"
-      ? svc.runsForIssue(issue.companyId, issue.id, viewerUserId, 2)
-      : svc.runsForIssue(issue.companyId, issue.id, viewerUserId));
+      ? svc.runsForIssue(issue.spaceId, issue.id, viewerUserId, 2)
+      : svc.runsForIssue(issue.spaceId, issue.id, viewerUserId));
     res.json(result);
   });
 
@@ -393,9 +393,9 @@ export function activityRoutes(db: Db) {
     const issue = await getAccessibleResource(req, res, resolveIssueByRef(req.params.id as string), "Issue not found");
     if (!issue) return;
     if (!(await assertIssueReadAllowed(req, res, issue))) return;
-    const usage = await issueContextUsage(db, issue.companyId, issue);
+    const usage = await issueContextUsage(db, issue.spaceId, issue);
     res.json(usage
-      ? { ...usage, compaction: await contextCompactionService(db).availability(issue.companyId, issue) }
+      ? { ...usage, compaction: await contextCompactionService(db).availability(issue.spaceId, issue) }
       : null);
   });
 
@@ -403,15 +403,15 @@ export function activityRoutes(db: Db) {
     assertAuthenticated(req);
     const runId = req.params.runId as string;
     const run = await heartbeat.getRunReadAccess(runId);
-    if (!run || !hasCompanyAccess(req, run.companyId)) {
+    if (!run || !hasSpaceAccess(req, run.spaceId)) {
       // Return `200 []` for both "doesn't exist" and "cross-tenant" — preserves the
       // legacy API contract while keeping the cross-tenant existence oracle closed
       // (both branches yield indistinguishable responses).
       res.json([]);
       return;
     }
-    assertCompanyAccess(req, run.companyId);
-    if (!(await assertCompanyScopeReadAllowed(req, res, run.companyId))) return;
+    assertSpaceAccess(req, run.spaceId);
+    if (!(await assertSpaceScopeReadAllowed(req, res, run.spaceId))) return;
     if (!(await canActorReadHeartbeatRun(db, access, req.actor, run))) {
       res.json([]);
       return;

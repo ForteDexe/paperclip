@@ -86,7 +86,7 @@ export function runnerE2EServerControlPaths(temporaryRoot: string) {
  * Native cells use the debug binary produced once by build:runner-binaries.
  * Preserve an explicit override for release builds and developer workflows.
  */
-export function resolvePaperclipRunnerBinaryForHarness(
+export function resolveOutpostRunnerBinaryForHarness(
   executions: readonly MatrixExecution[],
   repositoryRoot: string,
   configuredPath = process.env.OUTPOST_RUNNER_BINARY,
@@ -114,7 +114,7 @@ export function resolvePaperclipRunnerBinaryForHarness(
  * Remote native cells stage the same controller-owned binary whose digest is
  * authorized by the ORP control plane. Local cells launch it directly.
  */
-export function resolvePaperclipRemoteRunnerBinaryForHarness(
+export function resolveOutpostRemoteRunnerBinaryForHarness(
   executions: readonly MatrixExecution[],
   runnerBinary: string | undefined,
   configuredPath = process.env.OUTPOST_RUNNER_REMOTE_BINARY_PATH,
@@ -167,7 +167,7 @@ export function buildRunnerE2EProcessEnvironment(
   if (announcement) result.OUTPOST_ANNOUNCEMENTS_FEED_URL = CHAT_ANNOUNCEMENT_FEED_URL;
   delete result.OPENCODE_ALLOW_ALL_MODELS;
   // Discard ambient admission. Only explicit candidate cells authorize the
-  // exact model in their isolated server; credentials still use company secrets.
+  // exact model in their isolated server; credentials still use space secrets.
   delete result.OUTPOST_RUNNER_ACPX_QUALIFICATION;
   delete result.OUTPOST_ACPX_CANDIDATE_ADMISSION;
   const candidates = new Map<string, string>();
@@ -219,10 +219,10 @@ export function buildRunnerE2EProcessEnvironment(
 }
 
 /**
- * Build the environment inherited by the Paperclip server. Paid credentials
+ * Build the environment inherited by the Outpost server. Paid credentials
  * deliberately stay in the launcher/Playwright process and cross the server
- * boundary through encrypted company secrets. Explicit subscription fixtures
- * stage their login in the disposable company's private credential home.
+ * boundary through encrypted space secrets. Explicit subscription fixtures
+ * stage their login in the disposable space's private credential home.
  */
 export function buildOutpostServerEnvironment(
   source: NodeJS.ProcessEnv,
@@ -254,7 +254,7 @@ export function assertIsolatedServerEnvironment(
   env: NodeJS.ProcessEnv,
   expected: {
     temporaryRoot: string;
-    paperclipHome: string;
+    outpostHome: string;
     configPath: string;
     workspaceStorage?: NodeJS.ProcessEnv;
     generatedSecretsMasterKey?: string;
@@ -262,9 +262,9 @@ export function assertIsolatedServerEnvironment(
 ) {
   const home = env.OUTPOST_HOME;
   const config = env.OUTPOST_CONFIG;
-  if (home !== expected.paperclipHome || config !== expected.configPath) {
+  if (home !== expected.outpostHome || config !== expected.configPath) {
     throw new Error(
-      "Paperclip server environment does not use the allocated home/config paths",
+      "Outpost server environment does not use the allocated home/config paths",
     );
   }
   if (
@@ -272,12 +272,12 @@ export function assertIsolatedServerEnvironment(
     !config.startsWith(`${expected.temporaryRoot}/`)
   ) {
     throw new Error(
-      "Paperclip server paths escape the isolated temporary root",
+      "Outpost server paths escape the isolated temporary root",
     );
   }
   if (env.XDG_CACHE_HOME !== path.join(expected.temporaryRoot, "xdg-cache")) {
     throw new Error(
-      "Paperclip server cache does not use the allocated temporary root",
+      "Outpost server cache does not use the allocated temporary root",
     );
   }
   for (const key of [
@@ -290,14 +290,14 @@ export function assertIsolatedServerEnvironment(
     if (env[key] && !(AMBIENT_EXTERNAL_STATE_KEYS.includes(key as typeof AMBIENT_EXTERNAL_STATE_KEYS[number])
       && expected.workspaceStorage?.[key] === env[key] && expected.workspaceStorage?.OUTPOST_STORAGE_PROVIDER === "s3"))
       throw new Error(
-        `Paperclip server environment unexpectedly contains ${key}`,
+        `Outpost server environment unexpectedly contains ${key}`,
       );
   }
   if (expected.workspaceStorage && Object.entries(expected.workspaceStorage).some(([key, value]) => env[key] !== value)) {
-    throw new Error("Paperclip server storage does not match its explicit synthetic workspace qualification");
+    throw new Error("Outpost server storage does not match its explicit synthetic workspace qualification");
   }
   for (const key of GENERATED_SERVER_SECRET_KEYS) {
     if (!env[key])
-      throw new Error(`Paperclip server environment is missing ${key}`);
+      throw new Error(`Outpost server environment is missing ${key}`);
   }
 }

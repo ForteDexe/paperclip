@@ -52,7 +52,7 @@ describe("normalizeSkillPolicySourceLocator", () => {
   });
 
   it.each([
-    "/srv/company/skills/pr-gardening",
+    "/srv/space/skills/pr-gardening",
     "@outpost/skill-pack",
     "https://gist.github.com/Owner/abc123",
     "https://raw.githubusercontent.com/Owner/Repo/main/SKILL.md",

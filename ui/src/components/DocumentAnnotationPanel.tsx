@@ -28,7 +28,7 @@ import { deriveInitials } from "./Identity";
 import { MarkdownBody } from "./MarkdownBody";
 import type { PendingAnchor } from "./DocumentAnnotationLayer";
 import type { Agent } from "@outpost/shared";
-import type { CompanyUserProfile } from "@/lib/company-members";
+import type { SpaceUserProfile } from "@/lib/space-members";
 import { useDocumentAnnotationMutations } from "@/hooks/useDocumentAnnotationMutations";
 
 export interface AnnotationPanelProps {
@@ -61,7 +61,7 @@ export interface AnnotationPanelProps {
   /** Resolve `<authorAgentId>` to a display name. */
   agentMap?: ReadonlyMap<string, Pick<Agent, "id" | "name"> & Partial<Pick<Agent, "icon" | "appearance">>>;
   /** Resolve `<authorUserId>` to a display name. */
-  userProfileMap?: ReadonlyMap<string, CompanyUserProfile>;
+  userProfileMap?: ReadonlyMap<string, SpaceUserProfile>;
 }
 
 export function DocumentAnnotationPanel(props: AnnotationPanelProps) {
@@ -71,7 +71,7 @@ export function DocumentAnnotationPanel(props: AnnotationPanelProps) {
         <SheetContent
           side="bottom"
           showCloseButton={false}
-          className="paperclip-doc-annotation-sheet z-(--z-60) flex max-h-(--sz-88vh) flex-col rounded-none border-t border-border bg-popover p-0 text-popover-foreground shadow-2xl"
+          className="outpost-doc-annotation-sheet z-(--z-60) flex max-h-(--sz-88vh) flex-col rounded-none border-t border-border bg-popover p-0 text-popover-foreground shadow-2xl"
         >
           <SheetTitle className="sr-only">
             Comments on {props.documentKey} revision {props.documentRevisionNumber}
@@ -326,7 +326,7 @@ export function ThreadCard(props: {
   pendingReply: boolean;
   pendingStatus: boolean;
   agentMap?: ReadonlyMap<string, Pick<Agent, "id" | "name"> & Partial<Pick<Agent, "icon" | "appearance">>>;
-  userProfileMap?: ReadonlyMap<string, CompanyUserProfile>;
+  userProfileMap?: ReadonlyMap<string, SpaceUserProfile>;
 }) {
   const { thread } = props;
   const latestComment = thread.comments[thread.comments.length - 1];
@@ -461,7 +461,7 @@ function CommentRow({
   comment: DocumentAnnotationComment;
   focused: boolean;
   agentMap?: ReadonlyMap<string, Pick<Agent, "id" | "name"> & Partial<Pick<Agent, "icon" | "appearance">>>;
-  userProfileMap?: ReadonlyMap<string, CompanyUserProfile>;
+  userProfileMap?: ReadonlyMap<string, SpaceUserProfile>;
 }) {
   const author = resolveAuthor(comment, { agentMap, userProfileMap });
   return (
@@ -501,9 +501,9 @@ function resolveAuthor(
   comment: DocumentAnnotationComment,
   maps: {
     agentMap?: ReadonlyMap<string, Pick<Agent, "id" | "name"> & Partial<Pick<Agent, "icon" | "appearance">>>;
-    userProfileMap?: ReadonlyMap<string, CompanyUserProfile>;
+    userProfileMap?: ReadonlyMap<string, SpaceUserProfile>;
   },
-): { name: string; role: "board" | "agent"; agentIcon?: Agent["icon"]; agent?: import("./AgentAvatar").AvatarAgent; imageUrl?: string | null } {
+): { name: string; role: "operator" | "agent"; agentIcon?: Agent["icon"]; agent?: import("./AgentAvatar").AvatarAgent; imageUrl?: string | null } {
   if (comment.authorAgentId) {
     const agent = maps.agentMap?.get(comment.authorAgentId);
     return {
@@ -517,11 +517,11 @@ function resolveAuthor(
     const profile = maps.userProfileMap?.get(comment.authorUserId);
     return {
       name: profile?.label ?? comment.authorUserId.slice(0, 8),
-      role: "board",
+      role: "operator",
       imageUrl: profile?.image ?? null,
     };
   }
-  return { name: comment.authorType === "agent" ? "Agent" : "Human", role: comment.authorType === "agent" ? "agent" : "board" };
+  return { name: comment.authorType === "agent" ? "Agent" : "Human", role: comment.authorType === "agent" ? "agent" : "operator" };
 }
 
 export function truncate(value: string, limit: number) {

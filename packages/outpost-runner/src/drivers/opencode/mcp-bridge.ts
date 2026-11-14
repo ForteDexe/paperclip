@@ -72,7 +72,7 @@ type ToolDeliveryOutcome = "result" | "error" | "unanswered";
 export function canonicalOpenCodeMcpToolName(name: string): string {
   const trimmed = name.trim();
   if (trimmed === ORP_COMPLETION_TOOL_NAME || trimmed === ORP_BLOCK_TOOL_NAME) return trimmed;
-  for (const prefix of ["paperclip__", "paperclip_", "outpost."]) {
+  for (const prefix of ["outpost__", "outpost_", "outpost."]) {
     if (trimmed.startsWith(prefix)) return trimmed.slice(prefix.length);
   }
   return trimmed;
@@ -243,9 +243,9 @@ async function handleRequest(
 ): Promise<void> {
   setSecurityHeaders(response);
   // Keep the default keep-alive. Forcing `Connection: close` here left
-  // OpenCode (Bun fetch) without the Paperclip MCP tools in many native runs:
+  // OpenCode (Bun fetch) without the Outpost MCP tools in many native runs:
   // first model requests dropped from ~35k to ~15k input tokens (no tool
-  // schemas) and the agents reported that Paperclip tools were missing.
+  // schemas) and the agents reported that Outpost tools were missing.
   if (!authorized(request.headers.authorization, context.secret)) {
     response.statusCode = 401;
     response.end();
@@ -322,7 +322,7 @@ async function handleRequest(
     context.diagnoseToolDelivery(callId, context.delivery, outcome, response.writableFinished);
   });
   const rawName = typeof params.name === "string" ? params.name : "";
-  // A declared operation may itself start with paperclip_. Preserve that
+  // A declared operation may itself start with outpost_. Preserve that
   // authority identity before accepting an OpenCode transport prefix alias.
   const exactName = rawName.trim();
   const tool = context.admittedTools.some(entry => entry.name === exactName)

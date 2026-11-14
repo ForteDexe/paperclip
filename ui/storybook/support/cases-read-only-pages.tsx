@@ -10,7 +10,7 @@ export function ReadOnlyCasePages() {
     <PluginLauncherProvider>
       <Routes>
         <Route path="/cases" element={<Navigate to="/PAP/cases" replace />} />
-        <Route path="/:companyPrefix" element={<Layout />}>
+        <Route path="/:spacePrefix" element={<Layout />}>
           <Route path="cases" element={<Cases />} />
           <Route path="cases/:caseIdentifier" element={<CaseDetail />} />
         </Route>

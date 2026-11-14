@@ -9,9 +9,9 @@ type DbTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 export type AgentInteractionOperation = "assign" | "comment" | "edit" | "configure" | "mention";
 
 export interface AgentInteractionInput {
-  companyId: string;
+  spaceId: string;
   actorAgentId?: string | null;
-  actorCompanyId?: string;
+  actorSpaceId?: string;
   operation: AgentInteractionOperation;
   issueId?: string | null;
   targetAgentId?: string | null;
@@ -39,15 +39,15 @@ export async function agentInteractionDenial(
   input: AgentInteractionInput,
 ): Promise<AgentInteractionDenial | null> {
   const origin = currentPluginInteractionOrigin();
-  const actorCompanyId = input.actorCompanyId ?? input.companyId;
-  if (origin && origin.companyId !== actorCompanyId) throw notFound("Outpost resource not found");
+  const actorSpaceId = input.actorSpaceId ?? input.spaceId;
+  if (origin && origin.spaceId !== actorSpaceId) throw notFound("Outpost resource not found");
   const actorAgentId = origin?.agentId ?? input.actorAgentId;
   if (!actorAgentId) return null;
 
   const issueIds = [...new Set([input.issueId, input.parentIssueId].filter((id): id is string => Boolean(id)))].sort();
   const taskQuery = issueIds.length ? db.select({
     id: issues.id, assigneeAgentId: issues.assigneeAgentId, conversationAgentId: issues.conversationAgentId,
-  }).from(issues).where(and(eq(issues.companyId, input.companyId), inArray(issues.id, issueIds))).orderBy(issues.id) : null;
+  }).from(issues).where(and(eq(issues.spaceId, input.spaceId), inArray(issues.id, issueIds))).orderBy(issues.id) : null;
   const tasks = taskQuery ? await (input.lock ? taskQuery.for("update") : taskQuery) : [];
   if (tasks.length !== issueIds.length) throw notFound("Task not found");
   const issue = tasks.find(task => task.id === input.issueId);
@@ -57,13 +57,13 @@ export async function agentInteractionDenial(
   const agentIds = [...new Set([
     actorAgentId, input.targetAgentId, owner(issue), owner(parent), ...mentions, ...(input.lockAgentIds ?? []).filter(isUuidLike),
   ].filter((id): id is string => Boolean(id)))].sort();
-  const agentQuery = db.select({ id: agents.id, companyId: agents.companyId, permissions: agents.permissions }).from(agents)
-    .where(or(and(eq(agents.companyId, input.companyId), inArray(agents.id, agentIds)),
-      and(eq(agents.companyId, actorCompanyId), eq(agents.id, actorAgentId)))).orderBy(agents.id);
+  const agentQuery = db.select({ id: agents.id, spaceId: agents.spaceId, permissions: agents.permissions }).from(agents)
+    .where(or(and(eq(agents.spaceId, input.spaceId), inArray(agents.id, agentIds)),
+      and(eq(agents.spaceId, actorSpaceId), eq(agents.id, actorAgentId)))).orderBy(agents.id);
   const rows = await (input.lock ? agentQuery.for(input.lock === "update" ? "no key update" : "share") : agentQuery);
   const byId = new Map(rows.map(row => [row.id, row.permissions]));
-  if (!rows.some(row => row.id === actorAgentId && row.companyId === actorCompanyId)
-    || (input.targetAgentId && !rows.some(row => row.id === input.targetAgentId && row.companyId === input.companyId))) {
+  if (!rows.some(row => row.id === actorAgentId && row.spaceId === actorSpaceId)
+    || (input.targetAgentId && !rows.some(row => row.id === input.targetAgentId && row.spaceId === input.spaceId))) {
     throw notFound("Agent not found");
   }
 

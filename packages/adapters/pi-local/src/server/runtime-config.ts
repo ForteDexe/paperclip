@@ -135,7 +135,7 @@ export async function preparePiRuntimeConfig(input: {
       }
     }
   }
-  const agentConfigDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-pi-agent-config-"));
+  const agentConfigDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-pi-agent-config-"));
   try {
     await fs.writeFile(
       path.join(agentConfigDir, "models.json"),

@@ -30,8 +30,8 @@ describe("Cloud warm standby", () => {
     expect(select).not.toHaveBeenCalled();
   });
 
-  it("protects existing company data even when the marker is set", async () => {
-    const { db } = database([{ id: "company-test" }]);
+  it("protects existing space data even when the marker is set", async () => {
+    const { db } = database([{ id: "space-test" }]);
     expect((await createCloudWarmStandby(db, env))()).toBe(false);
   });
 
@@ -57,7 +57,7 @@ describe("Cloud warm standby", () => {
     expect(select).toHaveBeenCalledOnce();
   });
 
-  it("starts active after a persisted identity is restored, even with no companies", async () => {
+  it("starts active after a persisted identity is restored, even with no spaces", async () => {
     vi.spyOn(identity, "getCloudRuntimeIdentity").mockReturnValue({ stackId: env.OUTPOST_CLOUD_STACK_ID } as identity.CloudRuntimeIdentitySnapshot);
     const { db, select } = database();
     expect((await createCloudWarmStandby(db, env))()).toBe(false);

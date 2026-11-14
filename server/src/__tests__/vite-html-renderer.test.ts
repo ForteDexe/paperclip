@@ -35,7 +35,7 @@ describe("createCachedViteHtmlRenderer", () => {
   });
 
   it("ignores retired snippet settings in branded development HTML", async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-vite-html-"));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-vite-html-"));
     tempDirs.push(tempDir);
     fs.writeFileSync(path.join(tempDir, "index.html"), "<html><body>App</body></html>");
     vi.stubEnv("OUTPOST_MANAGED_CONFIG", "{}");
@@ -60,7 +60,7 @@ describe("createCachedViteHtmlRenderer", () => {
   });
 
   it("caches the branded template until index.html changes while transforming every request", async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-vite-html-"));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-vite-html-"));
     tempDirs.push(tempDir);
     const indexPath = path.join(tempDir, "index.html");
     fs.writeFileSync(
@@ -76,7 +76,7 @@ describe("createCachedViteHtmlRenderer", () => {
         '<script type="module" src="/@vite/client"></script>\n<script type="module" src="/src/main.tsx"></script>',
       ),
     );
-    const brandHtml = vi.fn((html: string) => html.replace("<body>", '<body data-brand="paperclip">'));
+    const brandHtml = vi.fn((html: string) => html.replace("<body>", '<body data-brand="outpost">'));
     const vite: ViteWatcherHost = {
       watcher,
       transformIndexHtml,
@@ -88,7 +88,7 @@ describe("createCachedViteHtmlRenderer", () => {
     const first = await renderer.render("/");
     const second = await renderer.render("/issues");
     expect(first).toBe(second);
-    expect(first).toContain('data-brand="paperclip"');
+    expect(first).toContain('data-brand="outpost"');
     expect(first.match(/\/@vite\/client/g)?.length).toBe(1);
     expect(brandHtml).toHaveBeenCalledTimes(1);
     expect(transformIndexHtml).toHaveBeenCalledTimes(3);
@@ -115,7 +115,7 @@ describe("createCachedViteHtmlRenderer", () => {
   });
 
   it("runs Vite's HTML transform on every render so HMR entry timestamps stay current", async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-vite-html-"));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-vite-html-"));
     tempDirs.push(tempDir);
     fs.writeFileSync(
       path.join(tempDir, "index.html"),

@@ -14,7 +14,7 @@ vi.mock("@outpost/adapter-utils/execution-target", async () => {
   );
   return {
     ...actual,
-    startAdapterExecutionTargetPaperclipBridge: async () => null,
+    startAdapterExecutionTargetOutpostBridge: async () => null,
   };
 });
 
@@ -136,7 +136,7 @@ async function createSkillDir(root: string, name: string) {
 
 describe("cursor execute", () => {
   it("injects outpost env vars and prompt note by default", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-cursor-execute-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-cursor-execute-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "agent");
     const capturePath = path.join(root, "capture.json");
@@ -152,7 +152,7 @@ describe("cursor execute", () => {
         runId: "run-1",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Cursor Coder",
           adapterType: "cursor",
           adapterConfig: {},
@@ -170,7 +170,7 @@ describe("cursor execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -184,7 +184,7 @@ describe("cursor execute", () => {
       expect(result.errorMessage).toBeNull();
 
       const capture = JSON.parse(await fs.readFile(capturePath, "utf8")) as CapturePayload;
-      expect(capture.argv).not.toContain("Follow the paperclip heartbeat.");
+      expect(capture.argv).not.toContain("Follow the outpost heartbeat.");
       expect(capture.argv).not.toContain("--mode");
       expect(capture.argv).not.toContain("ask");
       expect(capture.outpostEnvKeys).toEqual(
@@ -192,7 +192,7 @@ describe("cursor execute", () => {
           "OUTPOST_AGENT_ID",
           "OUTPOST_API_KEY",
           "OUTPOST_API_URL",
-          "OUTPOST_COMPANY_ID",
+          "OUTPOST_SPACE_ID",
           "OUTPOST_RUN_ID",
         ]),
       );
@@ -211,7 +211,7 @@ describe("cursor execute", () => {
   });
 
   it("passes --mode when explicitly configured", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-cursor-execute-mode-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-cursor-execute-mode-"));
     const workspace = path.join(root, "workspace");
     const commandPath = path.join(root, "agent");
     const capturePath = path.join(root, "capture.json");
@@ -226,7 +226,7 @@ describe("cursor execute", () => {
         runId: "run-2",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Cursor Coder",
           adapterType: "cursor",
           adapterConfig: {},
@@ -245,7 +245,7 @@ describe("cursor execute", () => {
           env: {
             OUTPOST_TEST_CAPTURE_PATH: capturePath,
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -268,8 +268,8 @@ describe("cursor execute", () => {
     }
   });
 
-  it("injects company-library runtime skills into the Cursor skills home before execution", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-cursor-execute-runtime-skill-"));
+  it("injects space-library runtime skills into the Cursor skills home before execution", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-cursor-execute-runtime-skill-"));
     const processHome = path.join(root, "process-home");
     const configuredHome = path.join(root, "configured-home");
     const workspace = path.join(root, "workspace");
@@ -278,7 +278,7 @@ describe("cursor execute", () => {
     await fs.mkdir(workspace, { recursive: true });
     await writeFakeCursorCommand(commandPath);
 
-    const paperclipDir = await createSkillDir(runtimeSkillsRoot, "paperclip");
+    const outpostDir = await createSkillDir(runtimeSkillsRoot, "outpost");
     const asciiHeartDir = await createSkillDir(runtimeSkillsRoot, "ascii-heart");
 
     const previousHome = process.env.HOME;
@@ -289,7 +289,7 @@ describe("cursor execute", () => {
         runId: "run-3",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Cursor Coder",
           adapterType: "cursor",
           adapterConfig: {},
@@ -305,20 +305,20 @@ describe("cursor execute", () => {
           cwd: workspace,
           model: "auto",
           env: { HOME: configuredHome },
-          paperclipRuntimeSkills: [
+          outpostRuntimeSkills: [
             {
-              name: "paperclip",
-              source: paperclipDir,
+              name: "outpost",
+              source: outpostDir,
             },
             {
               name: "ascii-heart",
               source: asciiHeartDir,
             },
           ],
-          paperclipSkillSync: {
+          outpostSkillSync: {
             desiredSkills: ["ascii-heart"],
           },
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -345,7 +345,7 @@ describe("cursor execute", () => {
   });
 
   it("prefers ~/.local/bin/cursor-agent for remote sandbox execution when using the default command", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-cursor-sandbox-execute-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-cursor-sandbox-execute-"));
     const homeDir = path.join(root, "home");
     const workspace = path.join(root, "workspace");
     const remoteWorkspace = path.join(root, "remote-workspace");
@@ -363,7 +363,7 @@ describe("cursor execute", () => {
         runId: "run-sandbox-1",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Cursor Coder",
           adapterType: "cursor",
           adapterConfig: {},
@@ -384,7 +384,7 @@ describe("cursor execute", () => {
         config: {
           command: "agent",
           cwd: workspace,
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",
@@ -400,7 +400,7 @@ describe("cursor execute", () => {
       };
       expect(capture.command).toBe(cursorAgentPath);
       expect(capture.path.split(":")[0]).toBe(path.join(homeDir, ".local", "bin"));
-      expect(capture.prompt).toContain("Follow the paperclip heartbeat.");
+      expect(capture.prompt).toContain("Follow the outpost heartbeat.");
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
@@ -409,7 +409,7 @@ describe("cursor execute", () => {
   });
 
   it("keeps explicit command overrides for remote sandbox execution", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-cursor-sandbox-explicit-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-cursor-sandbox-explicit-"));
     const homeDir = path.join(root, "home");
     const workspace = path.join(root, "workspace");
     const remoteWorkspace = path.join(root, "remote-workspace");
@@ -429,7 +429,7 @@ describe("cursor execute", () => {
         runId: "run-sandbox-2",
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Cursor Coder",
           adapterType: "cursor",
           adapterConfig: {},
@@ -450,7 +450,7 @@ describe("cursor execute", () => {
         config: {
           command: customCommandPath,
           cwd: workspace,
-          promptTemplate: "Follow the paperclip heartbeat.",
+          promptTemplate: "Follow the outpost heartbeat.",
         },
         context: {},
         authToken: "run-jwt-token",

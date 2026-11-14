@@ -2,7 +2,7 @@
  * Protected workspace readiness (PAP-17572).
  *
  * `/api/health` answering 200 only proves a listener exists. This module answers
- * the question the control plane and the UI actually need — "can a board user
+ * the question the control plane and the UI actually need — "can a operator user
  * open this clone and see their data?" — from four independent signals: the
  * isolated database, the versioned seed manifest, representative cloned rows,
  * and the login-handoff configuration.
@@ -19,18 +19,18 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { authUsers, companies, companyMemberships, issues } from "@outpost/db";
+import { authUsers, spaces, spaceMemberships, issues } from "@outpost/db";
 import type {
   WorkspaceReadiness,
   WorkspaceReadinessState,
   WorkspaceSeedReadinessState,
 } from "@outpost/shared";
 import {
-  resolveWorkspaceHandoffLocalCompanyId,
+  resolveWorkspaceHandoffLocalSpaceId,
   resolveWorkspaceHandoffLocalKey,
   resolveWorkspaceHandoffLocalWorkspaceId,
 } from "../auth/workspace-login-handoff.js";
-import { resolvePaperclipInstanceId } from "../home-paths.js";
+import { resolveOutpostInstanceId } from "../home-paths.js";
 import { logger } from "../middleware/logger.js";
 
 const WORKSPACE_SEED_MANIFEST_BASENAME = "seed-manifest.json";
@@ -53,7 +53,7 @@ type SeedManifestSummary = {
 export function resolveWorkspaceSeedMarkerDir(env: NodeJS.ProcessEnv = process.env): string {
   const configPath = env.OUTPOST_CONFIG?.trim();
   if (configPath) return path.dirname(path.resolve(configPath));
-  return path.resolve(process.cwd(), ".paperclip");
+  return path.resolve(process.cwd(), ".outpost");
 }
 
 function readSeedManifestSummary(markerDir: string): SeedManifestSummary {
@@ -183,13 +183,13 @@ export type WorkspaceReadinessDeps = {
 export async function resolveWorkspaceReadiness(deps: WorkspaceReadinessDeps): Promise<WorkspaceReadiness> {
   const env = deps.env ?? process.env;
   const seed = readSeedManifestSummary(resolveWorkspaceSeedMarkerDir(env));
-  const instanceId = resolvePaperclipInstanceId();
+  const instanceId = resolveOutpostInstanceId();
   const executionWorkspaceId = resolveWorkspaceHandoffLocalWorkspaceId(env);
-  // The company this workspace's board represents. Both product probes below are
-  // scoped to it: "some company in the clone has issues" and "some user has some
-  // membership" can both be true while the company the operator is opening is
+  // The space this workspace's operator represents. Both product probes below are
+  // scoped to it: "some space in the clone has issues" and "some user has some
+  // membership" can both be true while the space the operator is opening is
   // missing or has no members, which is a workspace that must not report ready.
-  const companyId = resolveWorkspaceHandoffLocalCompanyId(env);
+  const spaceId = resolveWorkspaceHandoffLocalSpaceId(env);
   const handoffKeyPresent = Boolean(resolveWorkspaceHandoffLocalKey(env));
   const handoffUserId = deps.handoffSubject?.userId.trim() || null;
   const handoffUserEmail = deps.handoffSubject?.email.trim().toLowerCase() || null;
@@ -208,15 +208,15 @@ export async function resolveWorkspaceReadiness(deps: WorkspaceReadinessDeps): P
       probeFailurePhase = "database_unreachable";
     }
 
-    if (databaseReady && companyId) {
+    if (databaseReady && spaceId) {
       try {
-        // One representative cloned company/issue pair proves the restore carried
+        // One representative cloned space/issue pair proves the restore carried
         // product rows, not just an empty migrated schema.
         const clonedRows = await deps.db
-          .select({ companyId: companies.id })
-          .from(companies)
-          .innerJoin(issues, eq(issues.companyId, companies.id))
-          .where(eq(companies.id, companyId))
+          .select({ spaceId: spaces.id })
+          .from(spaces)
+          .innerJoin(issues, eq(issues.spaceId, spaces.id))
+          .where(eq(spaces.id, spaceId))
           .limit(1)
           .then((rows) => rows.length);
         cloneDataReady = clonedRows > 0;
@@ -228,7 +228,7 @@ export async function resolveWorkspaceReadiness(deps: WorkspaceReadinessDeps): P
 
       try {
         // The handoff can only sign in a user who survived the clone with an
-        // active membership *in this workspace's company*, so readiness asserts
+        // active membership *in this workspace's space*, so readiness asserts
         // that identity exists here rather than discovering it at click time.
         // Existence, not a count: this runs on every protected health request and
         // counting the whole join would scale with instance size for an answer
@@ -237,12 +237,12 @@ export async function resolveWorkspaceReadiness(deps: WorkspaceReadinessDeps): P
           .select({ userId: authUsers.id })
           .from(authUsers)
           .innerJoin(
-            companyMemberships,
+            spaceMemberships,
             and(
-              eq(companyMemberships.principalType, "user"),
-              eq(companyMemberships.principalId, authUsers.id),
-              eq(companyMemberships.status, "active"),
-              eq(companyMemberships.companyId, companyId),
+              eq(spaceMemberships.principalType, "user"),
+              eq(spaceMemberships.principalId, authUsers.id),
+              eq(spaceMemberships.status, "active"),
+              eq(spaceMemberships.spaceId, spaceId),
               ...(handoffUserId ? [eq(authUsers.id, handoffUserId)] : []),
               ...(handoffUserEmail ? [sql`lower(${authUsers.email}) = ${handoffUserEmail}`] : []),
             ),
@@ -263,10 +263,10 @@ export async function resolveWorkspaceReadiness(deps: WorkspaceReadinessDeps): P
   const authHandoffReady = Boolean(
     handoffKeyPresent
     && executionWorkspaceId
-    && companyId
+    && spaceId
     && clonedAdminPresent,
   );
-  if (!companyId) probeFailurePhase ??= "workspace_company_not_configured";
+  if (!spaceId) probeFailurePhase ??= "workspace_space_not_configured";
   if (!executionWorkspaceId) probeFailurePhase ??= "workspace_identity_not_configured";
   if (!handoffKeyPresent) probeFailurePhase ??= "auth_handoff_not_configured";
 
@@ -288,7 +288,7 @@ export async function resolveWorkspaceReadiness(deps: WorkspaceReadinessDeps): P
     seedMode: seed.mode,
     instanceId,
     executionWorkspaceId,
-    companyId,
+    spaceId,
     // A seed-recorded failure phase is more specific than anything this probe
     // can infer, so it wins.
     failurePhase: seed.failurePhase ?? (state === "ready" ? null : probeFailurePhase),

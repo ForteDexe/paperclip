@@ -69,7 +69,7 @@ export function readPluginsUnder(parentDir) {
 }
 
 export function linkSdkInto(packageDir) {
-  const scopeDir = join(packageDir, "node_modules", "@paperclipai");
+  const scopeDir = join(packageDir, "node_modules", "@outpost");
   const linkTarget = join(scopeDir, "plugin-sdk");
   const relativeSdkDir = relative(scopeDir, sdkDir);
   const windows = process.platform === "win32";

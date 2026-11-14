@@ -15,7 +15,7 @@ import { hasVerifiedPreparationLog } from "./verified-preparation-log.js";
 import { executionStartedEventPredicate, isPreDispatchResourceWait, noRetainedExecutionPredicate } from "./pre-dispatch-execution-evidence.js";
 
 type Run = Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "status" | "startedAt" | "finishedAt" | "runtimeMode" |
+  "id" | "spaceId" | "status" | "startedAt" | "finishedAt" | "runtimeMode" |
   "runtimeModeResolvedAt" | "errorCode" | "error" | "resultJson" | "runnerProfileJson" |
   "contextSnapshot" | "processPid" | "processGroupId" | "processStartedAt" |
   "sessionIdAfter" | "issueId" | "nativeIssueId" | "nativeSessionId" | "executionStage" |
@@ -57,10 +57,10 @@ async function failedNativePreparation(db: Db, run: Run, coordinator: Coordinato
     || run.runnerProfileJson?.nativeWorkspaceSync != null
     || await preparerMayStillUnwind(run)) return false;
   const leases = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+    eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
   ));
   const [result] = await db.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-    eq(nativeRunResults.companyId, run.companyId), eq(nativeRunResults.runId, run.id),
+    eq(nativeRunResults.spaceId, run.spaceId), eq(nativeRunResults.runId, run.id),
   )).limit(1);
   if (result || await nativeStartupHasExecutionEvidence(db, run)) return false;
   if (!leases.length && run.runnerProfileJson?.remoteWorkspace == null) return !historicalRetryAncestor;
@@ -87,13 +87,13 @@ async function hasSettledFailedPreparationEvidence(db: Db, run: Run, historicalR
     lastOutputAt: heartbeatRuns.lastOutputAt, lastOutputSeq: heartbeatRuns.lastOutputSeq,
     lastOutputStream: heartbeatRuns.lastOutputStream, lastOutputBytes: heartbeatRuns.lastOutputBytes,
     usageJson: heartbeatRuns.usageJson, exitCode: heartbeatRuns.exitCode, signal: heartbeatRuns.signal,
-  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.id, run.id)));
+  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.id, run.id)));
   const emptyLog = source && source.logStore === "s3_segments"
-    && source.logRef === `${run.companyId}/${source.agentId}/${run.id}`
+    && source.logRef === `${run.spaceId}/${source.agentId}/${run.id}`
     && source.logBytes === 0 && source.logSha256 === EMPTY_LOG_SHA256
     && [source.stdoutExcerpt, source.stderrExcerpt].every(value => value === null || value === "");
   const preparationLog = historicalRetryAncestor && source &&
-    await hasVerifiedPreparationLog({ ...source, id: run.id, companyId: run.companyId });
+    await hasVerifiedPreparationLog({ ...source, id: run.id, spaceId: run.spaceId });
   if (!source || source.logCompressed || !preparationLog && source.lastOutputSeq !== 0 || Object.entries(source).some(([key, value]) =>
     !["agentId", "contextSnapshot", "logCompressed", "lastOutputSeq", "usageJson"].includes(key) &&
     !(historicalRetryAncestor && key === "sessionIdBefore") &&
@@ -152,14 +152,14 @@ export async function isInterruptedNativePreparation(db: Db, run: Run): Promise<
     || await preparerMayStillUnwind(run)
     || !settled && (!run.controllerBootId || run.controllerBootId === legacyControllerBootId)) return false;
   const [coordinator] = await db.select({ id: nativeRunFinalizations.runId }).from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, run.companyId), eq(nativeRunFinalizations.runId, run.id),
+    eq(nativeRunFinalizations.spaceId, run.spaceId), eq(nativeRunFinalizations.runId, run.id),
   )).limit(1);
   const [result] = await db.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-    eq(nativeRunResults.companyId, run.companyId), eq(nativeRunResults.runId, run.id),
+    eq(nativeRunResults.spaceId, run.spaceId), eq(nativeRunResults.runId, run.id),
   )).limit(1);
   if (coordinator || result || await nativeStartupHasExecutionEvidence(db, run)) return false;
   const leases = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+    eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
   ));
   if (leases.some(lease => !lease.releasedAt || lease.status === "pending_cleanup" || lease.cleanupStatus === "failed"
     || lease.metadata?.pendingCleanupInFlight === true
@@ -176,7 +176,7 @@ export async function canRetryStoppedRun(db: Db, run: Run): Promise<boolean> {
   if (run.status !== "cancelled" || !run.finishedAt || run.processPid || run.processGroupId ||
       run.processStartedAt || run.sessionIdAfter) return false;
   const [coordinator] = await db.select().from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, run.companyId), eq(nativeRunFinalizations.runId, run.id),
+    eq(nativeRunFinalizations.spaceId, run.spaceId), eq(nativeRunFinalizations.runId, run.id),
   ));
   return isCancelledNativeStartup(db, run, coordinator);
 }
@@ -201,13 +201,13 @@ async function isCancelledUnclaimedWorkspaceWaitRetry(db: Db, run: Run): Promise
     && cancellation?.source === "control_plane" && cancellation.expected === true && cancellation.initiator.type === "system";
   const pausedBeforePromotion = run.errorCode === "issue_paused" && run.resultJson === null && run.finishedAt
     ? await db.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents)
-      .innerJoin(issueTreeHolds, and(eq(issueTreeHolds.companyId, run.companyId),
+      .innerJoin(issueTreeHolds, and(eq(issueTreeHolds.spaceId, run.spaceId),
         sql`${issueTreeHolds.id}::text = ${heartbeatRunEvents.payload}->>'holdId'`,
         sql`${issueTreeHolds.rootIssueId}::text = ${heartbeatRunEvents.payload}->>'rootIssueId'`))
-      .innerJoin(issueTreeHoldMembers, and(eq(issueTreeHoldMembers.companyId, run.companyId),
+      .innerJoin(issueTreeHoldMembers, and(eq(issueTreeHoldMembers.spaceId, run.spaceId),
         eq(issueTreeHoldMembers.holdId, issueTreeHolds.id), eq(issueTreeHoldMembers.issueId, issueId),
         eq(issueTreeHoldMembers.skipped, false)))
-      .where(and(eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+      .where(and(eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
         eq(heartbeatRunEvents.eventType, "lifecycle"),
         eq(heartbeatRunEvents.stream, "system"), eq(heartbeatRunEvents.level, "warn"),
         eq(heartbeatRunEvents.message, "Scheduled retry suppressed because the issue is held by an active subtree pause hold"),
@@ -220,7 +220,7 @@ async function isCancelledUnclaimedWorkspaceWaitRetry(db: Db, run: Run): Promise
   if (!systemCancellation && !pausedBeforePromotion) return false;
   const [source] = await db.select({ agentId: heartbeatRuns.agentId, createdAt: heartbeatRuns.createdAt,
     retryOfRunId: heartbeatRuns.retryOfRunId,
-  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.id, run.id),
+  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.id, run.id),
     eq(heartbeatRuns.scheduledRetryReason, "workspace_busy"),
     sql`${heartbeatRuns.contextSnapshot}->>'retryReason' = 'workspace_busy'`,
     sql`${heartbeatRuns.contextSnapshot}->>'retryOfRunId' = ${heartbeatRuns.retryOfRunId}::text`,
@@ -231,7 +231,7 @@ async function isCancelledUnclaimedWorkspaceWaitRetry(db: Db, run: Run): Promise
     isNull(heartbeatRuns.usageJson)));
   if (!source?.retryOfRunId) return false;
   const [parent] = await db.select({ id: heartbeatRuns.id, usageJson: heartbeatRuns.usageJson }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.agentId, source.agentId), eq(heartbeatRuns.id, source.retryOfRunId),
+    eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.agentId, source.agentId), eq(heartbeatRuns.id, source.retryOfRunId),
     sql`coalesce(${heartbeatRuns.issueId}::text, ${heartbeatRuns.contextSnapshot}->>'issueId') = ${issueId}`,
     eq(heartbeatRuns.runtimeMode, "legacy"), eq(heartbeatRuns.status, "cancelled"), eq(heartbeatRuns.errorCode, "workspace_busy"),
     eq(heartbeatRuns.executionStage, "settled"), isNotNull(heartbeatRuns.finishedAt), lte(heartbeatRuns.finishedAt, source.createdAt),
@@ -244,16 +244,16 @@ async function isCancelledUnclaimedWorkspaceWaitRetry(db: Db, run: Run): Promise
     sql`${heartbeatRuns.resultJson}->'executionRecovery'->>'kind' = 'workspace_wait'`,
     sql`${heartbeatRuns.resultJson}->'executionRecovery'->'providerWorkStarted' = 'false'::jsonb`,
     sql`(${heartbeatRuns.resultJson} - 'cancellation' - 'workspaceBusy' - 'executionRecovery') = '{}'::jsonb`,
-    sql`not exists (select 1 from ${environmentLeases} where ${environmentLeases.companyId} = ${heartbeatRuns.companyId}
+    sql`not exists (select 1 from ${environmentLeases} where ${environmentLeases.spaceId} = ${heartbeatRuns.spaceId}
       and ${environmentLeases.heartbeatRunId} = ${heartbeatRuns.id})`,
-    sql`not exists (select 1 from ${nativeRunFinalizations} where ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId}
+    sql`not exists (select 1 from ${nativeRunFinalizations} where ${nativeRunFinalizations.spaceId} = ${heartbeatRuns.spaceId}
       and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id})`,
-    sql`not exists (select 1 from ${heartbeatRunEvents} where ${and(eq(heartbeatRunEvents.companyId, heartbeatRuns.companyId),
+    sql`not exists (select 1 from ${heartbeatRunEvents} where ${and(eq(heartbeatRunEvents.spaceId, heartbeatRuns.spaceId),
       eq(heartbeatRunEvents.runId, heartbeatRuns.id), executionStartedEventPredicate())})`,
   ));
   if (!parent || !hasOnlyPreparationAccountingContext(parent.usageJson, issueId)) return false;
   const [result] = await db.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-    eq(nativeRunResults.companyId, run.companyId), inArray(nativeRunResults.runId, [run.id, parent.id]),
+    eq(nativeRunResults.spaceId, run.spaceId), inArray(nativeRunResults.runId, [run.id, parent.id]),
   )).limit(1);
   return !result;
 }
@@ -295,7 +295,7 @@ export async function isCancelledNativeStartup(db: Db, run: Run, coordinator: Co
   // The old preparer can still be unwinding even though the run is terminal.
   if (await preparerMayStillUnwind(run)) return false;
   const leases = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+    eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
   ));
   if ((!settled && leases.length === 0 && !historicalBeforeSelection) || leases.some(lease =>
     lease.metadata?.pendingCleanupInFlight === true || (lease.provider === "local"
@@ -308,7 +308,7 @@ export async function isCancelledNativeStartup(db: Db, run: Run, coordinator: Co
 
 async function nativeStartupHasExecutionEvidence(db: Db, run: Run) {
   const [execution] = await db.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     executionStartedEventPredicate(),
   )).limit(1);
   return Boolean(execution);

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 import {
-  activityLog, agents, applyPendingMigrations, companies, companyMemberships, companySecrets,
+  activityLog, agents, applyPendingMigrations, spaces, spaceMemberships, spaceSecrets,
   connectionGrants, createDb, ensurePostgresDatabase, heartbeatRuns, issues, issueThreadInteractions,
   toolAccessAuditEvents, toolActionRequests, toolApplications, toolCatalogEntries, toolConnections, toolInvocations, userSecretDeclarations,
 } from "@outpost/db";
@@ -11,11 +11,11 @@ import { createToolGatewayService } from "../services/tool-gateway.js";
 import { summarizeToolValue } from "../services/tool-content-guards.js";
 import { connectionIntentService } from "../services/connection-intents.js";
 import { resolveNativeRuntimeMcpSnapshot } from "../services/native-runtime/runtime-context.js";
-import { buildPaperclipRuntimeMcpServers } from "../services/heartbeat/run-preparation.js";
+import { buildOutpostRuntimeMcpServers } from "../services/heartbeat/run-preparation.js";
 import { createAssignedMcpTools } from "../services/native-runtime/assigned-mcp-tools.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
-// These provider fixtures exercise Paperclip's real setup, vault, policy, and
+// These provider fixtures exercise Outpost's real setup, vault, policy, and
 // run gateway. They do not establish live provider permissions or deployment.
 const actor = { actorType: "user" as const, actorId: "deployment-connector-owner" };
 const projectRef = "abcdefghijklmnopqrst";
@@ -69,7 +69,7 @@ type Provider = typeof providers[number];
 const external = process.env.OUTPOST_TEST_DATABASE_URL;
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 
-(support.supported ? describe : describe.skip)("Deployment connector governance", () => {
+(support.supported ? describe : describe.skip)("Deployment connector policy", () => {
   let db: ReturnType<typeof createDb>;
   let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   beforeAll(async () => {
@@ -77,7 +77,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const url = new URL(external);
       if (process.env.OUTPOST_TEST_REUSE_DEPLOYMENT_DATABASE === "1") {
         // Only an explicitly named synthetic fixture database may be reused.
-        // Each test still creates its own company and connection identities.
+        // Each test still creates its own space and connection identities.
         if (!/^\/deployment_connectors_[a-f0-9]{32}$/.test(url.pathname)) {
           throw new Error("Reuse requires an isolated deployment_connectors fixture database");
         }
@@ -94,14 +94,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   }, 30000);
   afterAll(async () => { await db?.$client.end(); await temp?.cleanup(); });
 
-  async function createCompany() {
-    const [company] = await db.insert(companies).values({ name: "Deployment fixture", issuePrefix: `D${randomUUID().slice(0, 6)}` }).returning();
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: actor.actorId, membershipRole: "admin", status: "active" });
-    return company;
+  async function createSpace() {
+    const [space] = await db.insert(spaces).values({ name: "Deployment fixture", issuePrefix: `D${randomUUID().slice(0, 6)}` }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: actor.actorId, membershipRole: "admin", status: "active" });
+    return space;
   }
 
   async function fixture(provider: Provider, personal = false, secretValues = [environmentSecret]) {
-    const company = await createCompany();
+    const space = await createSpace();
     let credential = `synthetic-${provider.slug}-credential`;
     const request = vi.fn(async (url: string, init: RequestInit) => {
       expect(new Headers(init.headers).get("Authorization")).toBe(`Bearer ${credential}`);
@@ -156,27 +156,27 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       throw new Error(`Unexpected ${provider.slug} fixture request: ${method} ${parsed.pathname}`);
     });
     const service = toolAccessService(db, { remoteHttpRequest: request, remoteHttpEndpointLookup: async () => [{ address: "8.8.8.8", family: 4 }] });
-    const connected = await service.connectGalleryApp(company.id, {
+    const connected = await service.connectGalleryApp(space.id, {
       galleryKey: provider.slug, connectionMethodKey: provider.methodKey,
       configValues: provider.methodConfig, ...(personal ? { grantKind: "user" as const } : {}),
       credentialValues: { "credentials.authorization": credential },
     }, actor);
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Deployer", role: "engineer", adapterType: "process" }).returning();
-    await service.finishGalleryAppConnection(company.id, connected.connectionId, {
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Deployer", role: "engineer", adapterType: "process" }).returning();
+    await service.finishGalleryAppConnection(space.id, connected.connectionId, {
       enabledCatalogEntryIds: connected.catalog.map(entry => entry.id), askFirstCatalogEntryIds: [], access: { agentIds: [agent.id] },
     }, actor);
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Deploy fixture app", assigneeAgentId: agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, issueId: issue.id,
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Deploy fixture app", assigneeAgentId: agent.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, issueId: issue.id,
       scopeKind: "issue", invocationSource: "on_demand", status: "running", responsibleUserId: actor.actorId, contextSnapshot: { issueId: issue.id } }).returning();
     const gateway = createToolGatewayService(db, { remoteHttpRequest: request, toolActionSigningSecret: "synthetic-deployment-action-signing-secret" });
-    const session = await gateway.createSession({ companyId: company.id, agentId: agent.id, runId: run.id, issueId: issue.id });
+    const session = await gateway.createSession({ spaceId: space.id, agentId: agent.id, runId: run.id, issueId: issue.id });
     const tools = await gateway.listToolsForSession(session.token);
     const call = (action: { name: string; parameters: unknown }) => {
       const tool = tools.find(candidate => candidate.upstreamToolName === action.name);
       expect(tool, action.name).toBeTruthy();
       return gateway.executeTool({ sessionToken: session.token, tool: tool!.name, parameters: action.parameters, idempotencyKey: randomUUID() });
     };
-    return { company, service, connected, agent, issue, run, request, gateway, session, tools, call,
+    return { space, service, connected, agent, issue, run, request, gateway, session, tools, call,
       credential: () => credential, rotateCredential: () => { credential = `synthetic-${provider.slug}-replacement`; return credential; } };
   }
 
@@ -187,7 +187,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         installs: [{ targetType: "agent", targetId: f.agent.id }],
       }, actor);
       const intents = connectionIntentService(db);
-      const claims = { sub: f.agent.id, company_id: f.company.id, run_id: f.run.id, responsible_user_id: actor.actorId };
+      const claims = { sub: f.agent.id, space_id: f.space.id, run_id: f.run.id, responsible_user_id: actor.actorId };
       f.request.mockClear();
       const found = await intents.search(claims, provider.slug);
       expect(found.results).toContainEqual(expect.objectContaining({
@@ -197,7 +197,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         state: "ready", connectionId: f.connected.connectionId, interactionId: null,
       });
       const [card] = await db.insert(issueThreadInteractions).values({
-        companyId: f.company.id, issueId: f.issue.id, sourceRunId: f.run.id,
+        spaceId: f.space.id, issueId: f.issue.id, sourceRunId: f.run.id,
         kind: "connection_intent", status: "pending", addresseeUserId: actor.actorId,
         requestedResolverPolicy: "human_only", effectiveResolverPolicy: "human_only",
         payload: { version: 1, serviceSlug: provider.slug, serviceName: provider.slug,
@@ -206,7 +206,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       expect(await intents.complete(card.id, f.connected.connectionId, actor.actorId)).toMatchObject({
         status: "accepted", result: { outcome: "connected", connectionId: f.connected.connectionId },
       });
-      expect(await intents.usableConnectionForAgent({ companyId: f.company.id, agentId: f.agent.id,
+      expect(await intents.usableConnectionForAgent({ spaceId: f.space.id, agentId: f.agent.id,
         responsibleUserId: "another-user", serviceSlug: provider.slug })).toBeNull();
       expect(f.request).not.toHaveBeenCalled();
     });
@@ -220,14 +220,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       }, actor);
       const snapshot = await resolveNativeRuntimeMcpSnapshot({ db, agent: f.agent, runId: f.run.id });
       expect(snapshot.bindingId).not.toBeNull();
-      const servers = await buildPaperclipRuntimeMcpServers({ db, agent: f.agent, runId: f.run.id,
+      const servers = await buildOutpostRuntimeMcpServers({ db, agent: f.agent, runId: f.run.id,
         expectedAssignmentDigest: snapshot.digest });
       expect(servers).toHaveLength(1);
       const assigned = await createAssignedMcpTools({ gateway: f.gateway,
         gatewayPublicId: new URL(servers[0].url).pathname.split("/").at(-1)!, bearerToken: servers[0].token! });
-      const found = await assigned.execute({ tool: "paperclip_search_assigned_tools", arguments: { query: provider.read.name } }) as { tools: Array<{ name: string }> };
+      const found = await assigned.execute({ tool: "outpost_search_assigned_tools", arguments: { query: provider.read.name } }) as { tools: Array<{ name: string }> };
       expect(found.tools).toHaveLength(1);
-      expect(JSON.stringify(await assigned.execute({ tool: "paperclip_call_assigned_tool",
+      expect(JSON.stringify(await assigned.execute({ tool: "outpost_call_assigned_tool",
         arguments: { name: found.tools[0].name, arguments: provider.read.parameters } }))).toContain(provider.read.receipt);
 
       const intents = connectionIntentService(db);
@@ -240,36 +240,36 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       ]) {
         await db.update(toolConnections).set({ status: "active", enabled: true, config: original.config, ...change })
           .where(eq(toolConnections.id, original.id));
-        expect(await intents.usableConnectionForAgent({ companyId: f.company.id, agentId: f.agent.id,
+        expect(await intents.usableConnectionForAgent({ spaceId: f.space.id, agentId: f.agent.id,
           responsibleUserId: actor.actorId, serviceSlug: provider.slug })).toBeNull();
         expect((await resolveNativeRuntimeMcpSnapshot({ db, agent: f.agent, runId: f.run.id })).bindingId).toBeNull();
-        expect(await buildPaperclipRuntimeMcpServers({ db, agent: f.agent, runId: f.run.id })).toEqual([]);
+        expect(await buildOutpostRuntimeMcpServers({ db, agent: f.agent, runId: f.run.id })).toEqual([]);
       }
       expect(f.request).not.toHaveBeenCalled();
     });
 
     it("rejects unknown setup settings before saving credentials or contacting the provider", async () => {
-      const company = await createCompany();
+      const space = await createSpace();
       const request = vi.fn(async () => { throw new Error("Unexpected provider request"); });
       const service = toolAccessService(db, { remoteHttpRequest: request });
-      await expect(service.connectGalleryApp(company.id, {
+      await expect(service.connectGalleryApp(space.id, {
         galleryKey: provider.slug, connectionMethodKey: provider.methodKey,
         configValues: { ...provider.methodConfig, serverUrl: "https://attacker.example" },
         credentialValues: { "credentials.authorization": "synthetic-rejected-setup-key" },
       }, actor)).rejects.toThrow();
       expect(request).not.toHaveBeenCalled();
-      expect(await db.select().from(toolConnections).where(eq(toolConnections.companyId, company.id))).toHaveLength(0);
-      expect(await db.select().from(companySecrets).where(eq(companySecrets.companyId, company.id))).toHaveLength(0);
+      expect(await db.select().from(toolConnections).where(eq(toolConnections.spaceId, space.id))).toHaveLength(0);
+      expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.spaceId, space.id))).toHaveLength(0);
     });
 
     it("cleans up failed personal setup without echoing provider credentials", async () => {
-      const company = await createCompany();
+      const space = await createSpace();
       const credential = "synthetic-invalid-provider-token";
       const request = vi.fn(async () => Response.json({ error: `Rejected ${credential}` }, { status: 401 }));
       const service = toolAccessService(db, { remoteHttpRequest: request, remoteHttpEndpointLookup: async () => [{ address: "8.8.8.8", family: 4 }] });
       let failure: unknown;
       try {
-        await service.connectGalleryApp(company.id, {
+        await service.connectGalleryApp(space.id, {
           galleryKey: provider.slug, connectionMethodKey: provider.methodKey, configValues: provider.methodConfig,
           grantKind: "user", credentialValues: { "credentials.authorization": credential },
         }, actor);
@@ -277,20 +277,20 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       expect(failure).toBeInstanceOf(Error);
       expect(String(failure)).not.toContain(credential);
       expect(request).toHaveBeenCalled();
-      expect(await db.select().from(toolConnections).where(eq(toolConnections.companyId, company.id))).toHaveLength(0);
-      const secrets = await db.select().from(companySecrets).where(eq(companySecrets.companyId, company.id));
+      expect(await db.select().from(toolConnections).where(eq(toolConnections.spaceId, space.id))).toHaveLength(0);
+      const secrets = await db.select().from(spaceSecrets).where(eq(spaceSecrets.spaceId, space.id));
       expect(secrets.every(secret => secret.status !== "active" || secret.deletedAt !== null)).toBe(true);
-      expect(await db.select().from(userSecretDeclarations).where(eq(userSecretDeclarations.companyId, company.id))).toHaveLength(0);
+      expect(await db.select().from(userSecretDeclarations).where(eq(userSecretDeclarations.spaceId, space.id))).toHaveLength(0);
     });
 
-    it.each([false, true])("vaults the selected identity and executes governed deployment/configuration (personal=%s)", async personal => {
+    it.each([false, true])("vaults the selected identity and executes controlled deployment/configuration (personal=%s)", async personal => {
       const f = await fixture(provider, personal);
       const [grant] = await db.select().from(connectionGrants).where(eq(connectionGrants.connectionId, f.connected.connectionId));
       expect(grant).toMatchObject({ kind: personal ? "user" : "organization", status: "active" });
       expect(grant.credentialSecretRefs).toHaveLength(1);
       expect(grant.credentialSecretRefs[0].configPath).toBe("credentials.authorization");
-      const [secret] = await db.select().from(companySecrets).where(eq(companySecrets.id, grant.credentialSecretRefs[0].secretId));
-      expect(secret).toMatchObject({ scope: personal ? "user" : "company", ownerUserId: personal ? actor.actorId : null });
+      const [secret] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, grant.credentialSecretRefs[0].secretId));
+      expect(secret).toMatchObject({ scope: personal ? "user" : "space", ownerUserId: personal ? actor.actorId : null });
       if (personal) {
         const declarations = await db.select().from(userSecretDeclarations).where(eq(userSecretDeclarations.targetId, f.connected.connectionId));
         expect(declarations).toEqual(expect.arrayContaining([expect.objectContaining({
@@ -305,7 +305,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       expect(JSON.stringify(f.connected)).not.toContain(f.credential());
       f.request.mockClear();
       await expect(f.service.mintConnectionTokenForAgent({
-        connectionId: f.connected.connectionId, companyId: f.company.id, agentId: f.agent.id, runId: f.run.id, body: {},
+        connectionId: f.connected.connectionId, spaceId: f.space.id, agentId: f.agent.id, runId: f.run.id, body: {},
       })).rejects.toMatchObject({ status: 403, message: expect.stringContaining("cannot be exported") });
       expect(f.request).not.toHaveBeenCalled();
       const actions = [provider.read, provider.deploy, provider.configure, ...(provider.slug === "supabase" ? [provider.configureSecret] : [])];
@@ -321,8 +321,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const invocations = await db.select().from(toolInvocations).where(eq(toolInvocations.connectionId, f.connected.connectionId));
       expect(invocations).toHaveLength(actions.length);
       expect(invocations.every(invocation => invocation.runId === f.run.id && invocation.issueId === f.issue.id && invocation.agentId === f.agent.id && invocation.status === "succeeded")).toBe(true);
-      const audits = await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.companyId, f.company.id));
-      const activity = await db.select().from(activityLog).where(eq(activityLog.companyId, f.company.id));
+      const audits = await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.spaceId, f.space.id));
+      const activity = await db.select().from(activityLog).where(eq(activityLog.spaceId, f.space.id));
       const visible = JSON.stringify({ connection: await f.service.getConnection(f.connected.connectionId), invocations, audits, activity });
       expect(visible).not.toContain(f.credential());
       expect(visible).not.toContain(environmentSecret);
@@ -330,7 +330,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
     it("enforces changed Off policies and quarantined deployment contracts on an existing run", async () => {
       const f = await fixture(provider);
-      await f.service.finishGalleryAppConnection(f.company.id, f.connected.connectionId, {
+      await f.service.finishGalleryAppConnection(f.space.id, f.connected.connectionId, {
         enabledCatalogEntryIds: f.connected.catalog.filter(entry => entry.toolName !== provider.configure.name).map(entry => entry.id),
         askFirstCatalogEntryIds: [], access: { agentIds: [f.agent.id] },
       }, actor);
@@ -352,16 +352,16 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     it("posts an Ask-first deployment request without reaching the provider", async () => {
       const f = await fixture(provider);
       const deployment = f.connected.catalog.find(entry => entry.toolName === provider.deploy.name)!;
-      await f.service.finishGalleryAppConnection(f.company.id, f.connected.connectionId, {
+      await f.service.finishGalleryAppConnection(f.space.id, f.connected.connectionId, {
         enabledCatalogEntryIds: f.connected.catalog.map(entry => entry.id),
         askFirstCatalogEntryIds: [deployment.id], access: { agentIds: [f.agent.id] },
       }, actor);
       f.request.mockClear();
       await expect(f.call(provider.deploy)).rejects.toMatchObject({ reasonCode: "approval_required" });
       expect(f.request).not.toHaveBeenCalled();
-      const requests = await db.select().from(toolActionRequests).where(eq(toolActionRequests.companyId, f.company.id));
+      const requests = await db.select().from(toolActionRequests).where(eq(toolActionRequests.spaceId, f.space.id));
       expect(requests).toHaveLength(1);
-      expect(requests[0]).toMatchObject({ status: "pending", companyId: f.company.id, issueId: f.issue.id, requestedByAgentId: f.agent.id });
+      expect(requests[0]).toMatchObject({ status: "pending", spaceId: f.space.id, issueId: f.issue.id, requestedByAgentId: f.agent.id });
       expect(JSON.stringify(requests)).not.toContain(f.credential());
     });
 
@@ -369,25 +369,25 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const f = await fixture(provider);
       const configure = provider.slug === "supabase" ? provider.configureSecret : provider.configure;
       const entry = f.connected.catalog.find(candidate => candidate.toolName === configure.name)!;
-      await f.service.finishGalleryAppConnection(f.company.id, f.connected.connectionId, {
+      await f.service.finishGalleryAppConnection(f.space.id, f.connected.connectionId, {
         enabledCatalogEntryIds: f.connected.catalog.map(candidate => candidate.id),
         askFirstCatalogEntryIds: [entry.id], access: { agentIds: [f.agent.id] },
       }, actor);
       f.request.mockClear();
       await expect(f.call(configure)).rejects.toMatchObject({ reasonCode: "approval_required" });
       expect(f.request).not.toHaveBeenCalled();
-      const [pending] = await db.select().from(toolActionRequests).where(eq(toolActionRequests.companyId, f.company.id));
+      const [pending] = await db.select().from(toolActionRequests).where(eq(toolActionRequests.spaceId, f.space.id));
       expect(pending.status).toBe("pending");
       expect(pending.signedArguments).toEqual(expect.any(String));
       expect(Buffer.from(pending.signedArguments!, "base64url").toString("utf8")).not.toContain(environmentSecret);
       expect(JSON.stringify(pending)).not.toContain(environmentSecret);
-      const approved = await f.gateway.approveActionRequest({ companyId: f.company.id, actionRequestId: pending.id, actor: { userId: actor.actorId } });
+      const approved = await f.gateway.approveActionRequest({ spaceId: f.space.id, actionRequestId: pending.id, actor: { userId: actor.actorId } });
       expect(approved).toMatchObject({ status: "executed" });
       // Provider fixture assertions check the decrypted original value exactly.
       expect(f.request.mock.calls.filter(([, init]) => init.method === "POST")).toHaveLength(1);
-      const invocations = await db.select().from(toolInvocations).where(eq(toolInvocations.companyId, f.company.id));
-      const audits = await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.companyId, f.company.id));
-      const requests = await db.select().from(toolActionRequests).where(eq(toolActionRequests.companyId, f.company.id));
+      const invocations = await db.select().from(toolInvocations).where(eq(toolInvocations.spaceId, f.space.id));
+      const audits = await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.spaceId, f.space.id));
+      const requests = await db.select().from(toolActionRequests).where(eq(toolActionRequests.spaceId, f.space.id));
       expect(JSON.stringify({ approved, invocations, audits, requests })).not.toContain(environmentSecret);
       expect(JSON.stringify({ approved, invocations, audits, requests })).not.toContain(f.credential());
     });
@@ -404,7 +404,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       });
       if (askFirst) {
         const entry = f.connected.catalog.find(candidate => candidate.toolName === configure.name)!;
-        await f.service.finishGalleryAppConnection(f.company.id, f.connected.connectionId, {
+        await f.service.finishGalleryAppConnection(f.space.id, f.connected.connectionId, {
           enabledCatalogEntryIds: f.connected.catalog.map(candidate => candidate.id),
           askFirstCatalogEntryIds: [entry.id], access: { agentIds: [f.agent.id] },
         }, actor);
@@ -412,10 +412,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const execute = async (secretValue: string) => {
         if (askFirst) {
           await expect(write(secretValue)).rejects.toMatchObject({ reasonCode: "approval_required" });
-          const requests = await db.select().from(toolActionRequests).where(eq(toolActionRequests.companyId, f.company.id));
+          const requests = await db.select().from(toolActionRequests).where(eq(toolActionRequests.spaceId, f.space.id));
           const pending = requests.filter(request => request.status === "pending");
           expect(pending).toHaveLength(1);
-          await f.gateway.approveActionRequest({ companyId: f.company.id, actionRequestId: pending[0].id, actor: { userId: actor.actorId } });
+          await f.gateway.approveActionRequest({ spaceId: f.space.id, actionRequestId: pending[0].id, actor: { userId: actor.actorId } });
           if (mode === "ask_first_legacy" && secretValue === secrets[0]) {
             // Historical rows used the redacted summary hash. Their signed
             // payload must still distinguish a later change to the secret.
@@ -440,11 +440,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         const body = JSON.parse(String(init.body));
         return provider.slug === "supabase" ? body[0].value : body.value;
       })).toEqual(secrets);
-      const invocations = await db.select().from(toolInvocations).where(eq(toolInvocations.companyId, f.company.id));
+      const invocations = await db.select().from(toolInvocations).where(eq(toolInvocations.spaceId, f.space.id));
       expect(invocations).toHaveLength(2);
       expect(new Set(invocations.map(invocation => invocation.argumentsHash)).size).toBe(2);
-      const audits = await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.companyId, f.company.id));
-      const requests = await db.select().from(toolActionRequests).where(eq(toolActionRequests.companyId, f.company.id));
+      const audits = await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.spaceId, f.space.id));
+      const requests = await db.select().from(toolActionRequests).where(eq(toolActionRequests.spaceId, f.space.id));
       expect(requests).toHaveLength(askFirst ? 2 : 0);
       const visible = JSON.stringify({ first, second, replay, invocations, audits, requests });
       for (const secret of secrets) expect(visible).not.toContain(secret);
@@ -464,7 +464,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const [saved] = await db.select().from(toolInvocations).where(eq(toolInvocations.id, first.invocationId));
       const argumentsHash = saved.argumentsSummary!.sha256;
       const legacyScope = {
-        companyId: saved.companyId, runId: saved.runId, issueId: saved.issueId,
+        spaceId: saved.spaceId, runId: saved.runId, issueId: saved.issueId,
         applicationId: saved.applicationId, connectionId: saved.connectionId,
         catalogEntryId: saved.catalogEntryId, toolName: saved.toolName, argumentsHash,
       };
@@ -494,32 +494,32 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       expect(writes).toHaveLength(1);
       const body = JSON.parse(String(writes[0][1].body));
       expect(provider.slug === "supabase" ? body[0].value : body.value).toBe(secrets[1]);
-      const invocations = await db.select().from(toolInvocations).where(eq(toolInvocations.companyId, f.company.id));
+      const invocations = await db.select().from(toolInvocations).where(eq(toolInvocations.spaceId, f.space.id));
       expect(invocations).toHaveLength(2);
-      const audits = await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.companyId, f.company.id));
-      const requests = await db.select().from(toolActionRequests).where(eq(toolActionRequests.companyId, f.company.id));
+      const audits = await db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.spaceId, f.space.id));
+      const requests = await db.select().from(toolActionRequests).where(eq(toolActionRequests.spaceId, f.space.id));
       expect(requests).toHaveLength(0);
       const visible = JSON.stringify({ first, second, replay, invocations, audits });
       for (const secret of secrets) expect(visible).not.toContain(secret);
     });
 
-    it("keeps another company and another responsible user outside a personal connection", async () => {
+    it("keeps another space and another responsible user outside a personal connection", async () => {
       const f = await fixture(provider, true);
-      const foreign = await createCompany();
+      const foreign = await createSpace();
       await expect(f.service.getConnection(f.connected.connectionId, foreign.id)).rejects.toMatchObject({ status: 404 });
       await expect(f.service.reconnectGalleryApp(f.connected.connectionId, foreign.id, {
         credentialValues: { "credentials.authorization": "synthetic-foreign-replacement" },
       }, actor)).rejects.toMatchObject({ status: 404 });
-      const [agent] = await db.insert(agents).values({ companyId: foreign.id, name: "Foreign deployer", role: "engineer", adapterType: "process" }).returning();
-      const [run] = await db.insert(heartbeatRuns).values({ companyId: foreign.id, agentId: agent.id,
-        scopeKind: "company", invocationSource: "on_demand", status: "running", responsibleUserId: actor.actorId }).returning();
-      const session = await f.gateway.createSession({ companyId: foreign.id, agentId: agent.id, runId: run.id });
+      const [agent] = await db.insert(agents).values({ spaceId: foreign.id, name: "Foreign deployer", role: "engineer", adapterType: "process" }).returning();
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId: foreign.id, agentId: agent.id,
+        scopeKind: "space", invocationSource: "on_demand", status: "running", responsibleUserId: actor.actorId }).returning();
+      const session = await f.gateway.createSession({ spaceId: foreign.id, agentId: agent.id, runId: run.id });
       const deploy = f.tools.find(tool => tool.upstreamToolName === provider.deploy.name)!;
       expect((await f.gateway.listToolsForSession(session.token)).some(tool => tool.upstreamToolName === provider.deploy.name)).toBe(false);
       f.request.mockClear();
       await expect(f.gateway.executeTool({ sessionToken: session.token, tool: deploy.name, parameters: provider.deploy.parameters })).rejects.toThrow();
-      await db.insert(companyMemberships).values({ companyId: f.company.id, principalType: "user", principalId: "another-user", membershipRole: "admin", status: "active" });
-      await expect(f.service.reconnectGalleryApp(f.connected.connectionId, f.company.id, {
+      await db.insert(spaceMemberships).values({ spaceId: f.space.id, principalType: "user", principalId: "another-user", membershipRole: "admin", status: "active" });
+      await expect(f.service.reconnectGalleryApp(f.connected.connectionId, f.space.id, {
         credentialValues: { "credentials.authorization": "synthetic-foreign-replacement" },
       }, { actorType: "user", actorId: "another-user" })).rejects.toMatchObject({ status: 403 });
       await db.update(heartbeatRuns).set({ responsibleUserId: "another-user" }).where(eq(heartbeatRuns.id, f.run.id));
@@ -529,12 +529,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
     it("rotates credentials without widening saved policies and removes access and owned secrets", async () => {
       const f = await fixture(provider, true);
-      await f.service.finishGalleryAppConnection(f.company.id, f.connected.connectionId, {
+      await f.service.finishGalleryAppConnection(f.space.id, f.connected.connectionId, {
         enabledCatalogEntryIds: f.connected.catalog.filter(entry => entry.toolName !== provider.deploy.name).map(entry => entry.id),
         askFirstCatalogEntryIds: [], access: { agentIds: [f.agent.id] },
       }, actor);
       const replacement = f.rotateCredential();
-      const reconnected = await f.service.reconnectGalleryApp(f.connected.connectionId, f.company.id, {
+      const reconnected = await f.service.reconnectGalleryApp(f.connected.connectionId, f.space.id, {
         credentialValues: { "credentials.authorization": replacement },
       }, actor);
       expect(reconnected.connection.id).toBe(f.connected.connectionId);
@@ -543,11 +543,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       f.request.mockClear();
       await expect(f.call(provider.deploy)).rejects.toThrow();
       expect(f.request).not.toHaveBeenCalled();
-      const removed = await f.service.archiveConnection(f.connected.connectionId, f.company.id, actor);
+      const removed = await f.service.archiveConnection(f.connected.connectionId, f.space.id, actor);
       expect(removed.connection).toMatchObject({ status: "archived", enabled: false });
       expect(removed.removal.secretsRevoked).toBeGreaterThan(0);
       expect(JSON.stringify(removed)).not.toContain(replacement);
-      const secrets = await db.select().from(companySecrets).where(eq(companySecrets.companyId, f.company.id));
+      const secrets = await db.select().from(spaceSecrets).where(eq(spaceSecrets.spaceId, f.space.id));
       expect(secrets.every(secret => secret.status !== "active" || secret.deletedAt !== null)).toBe(true);
       expect((await f.gateway.listToolsForSession(f.session.token)).some(tool => tool.upstreamToolName === provider.read.name)).toBe(false);
       f.request.mockClear();
@@ -566,15 +566,15 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       await db.update(toolApplications).set({ type: applicationType }).where(eq(toolApplications.id, f.connected.application.id));
     }
     const [application] = await db.select().from(toolApplications).where(eq(toolApplications.id, f.connected.application.id));
-    const connectionsBefore = await db.select().from(toolConnections).where(eq(toolConnections.companyId, f.company.id));
-    const secretsBefore = await db.select().from(companySecrets).where(eq(companySecrets.companyId, f.company.id));
+    const connectionsBefore = await db.select().from(toolConnections).where(eq(toolConnections.spaceId, f.space.id));
+    const secretsBefore = await db.select().from(spaceSecrets).where(eq(spaceSecrets.spaceId, f.space.id));
     expect(application).toMatchObject({ status: "active", type: applicationType });
     expect(connectionsBefore).toHaveLength(1);
     expect(connectionsBefore[0]).toMatchObject({ status: "active", transport });
     expect(secretsBefore).toHaveLength(1);
     f.request.mockClear();
 
-    await expect(f.service.connectGalleryApp(f.company.id, {
+    await expect(f.service.connectGalleryApp(f.space.id, {
       galleryKey: "supabase", applicationId: application.id,
       connectionMethodKey: transport === "mcp_remote" ? "management-api" : "mcp-api-key",
       configValues: { projectRef },
@@ -586,14 +586,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(f.request).not.toHaveBeenCalled();
     const [applicationAfter] = await db.select().from(toolApplications).where(eq(toolApplications.id, application.id));
     expect(applicationAfter).toEqual(application);
-    expect(await db.select().from(toolConnections).where(eq(toolConnections.companyId, f.company.id))).toEqual(connectionsBefore);
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.companyId, f.company.id))).toEqual(secretsBefore);
+    expect(await db.select().from(toolConnections).where(eq(toolConnections.spaceId, f.space.id))).toEqual(connectionsBefore);
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.spaceId, f.space.id))).toEqual(secretsBefore);
   });
 
   it("keeps an archived Supabase MCP identity separate when connecting Management API", async () => {
     const provider = providers[0];
     const f = await fixture(provider);
-    await f.service.archiveConnection(f.connected.connectionId, f.company.id, actor);
+    await f.service.archiveConnection(f.connected.connectionId, f.space.id, actor);
     await db.update(toolConnections).set({ transport: "mcp_remote", config: {
       ...f.connected.connection.config, url: "https://mcp.supabase.com/mcp", connectionMethodKey: "mcp-api-key",
     } }).where(eq(toolConnections.id, f.connected.connectionId));
@@ -604,19 +604,19 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     };
     f.request.mockClear();
     for (const retained of [{ reconnectConnectionId: f.connected.connectionId }, { applicationId: f.connected.application.id }]) {
-      await expect(f.service.connectGalleryApp(f.company.id, { ...input, ...retained }, actor)).rejects.toMatchObject({
+      await expect(f.service.connectGalleryApp(f.space.id, { ...input, ...retained }, actor)).rejects.toMatchObject({
         status: 409, details: { code: "connection_transport_change_not_supported" },
       });
     }
     expect(f.request).not.toHaveBeenCalled();
     const [retained] = await db.select().from(toolConnections).where(eq(toolConnections.id, f.connected.connectionId));
     expect(retained).toMatchObject({ status: "archived", enabled: false, transport: "mcp_remote", credentialSecretRefs: [] });
-    const connected = await f.service.connectGalleryApp(f.company.id, input, actor);
+    const connected = await f.service.connectGalleryApp(f.space.id, input, actor);
     expect(connected.connectionId).not.toBe(f.connected.connectionId);
     expect(connected.application.id).not.toBe(f.connected.application.id);
     expect(connected.application.type).toBe("rest_api");
     expect(connected.connection.transport).toBe("rest_api");
-    await f.service.finishGalleryAppConnection(f.company.id, connected.connectionId, {
+    await f.service.finishGalleryAppConnection(f.space.id, connected.connectionId, {
       enabledCatalogEntryIds: connected.catalog.map(entry => entry.id), askFirstCatalogEntryIds: [], access: { agentIds: [f.agent.id] },
     }, actor);
     const tools = await f.gateway.listToolsForSession(f.session.token);

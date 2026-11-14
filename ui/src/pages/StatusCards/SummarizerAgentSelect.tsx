@@ -4,28 +4,28 @@ import { useQuery } from "@tanstack/react-query";
 
 import { agentsApi } from "@/api/agents";
 import { InlineEntitySelector, type InlineEntityOption } from "@/components/InlineEntitySelector";
-import { isAgentTaskTarget } from "@/lib/company-members";
+import { isAgentTaskTarget } from "@/lib/space-members";
 import { queryKeys } from "@/lib/queryKeys";
 
 /**
  * Picker for the agent that runs a card's updates. `value` is the override
- * agent id, or "" for the company's built-in Summarizer (the default).
+ * agent id, or "" for the space's built-in Summarizer (the default).
  */
 export function SummarizerAgentSelect({
-  companyId,
+  spaceId,
   value,
   onChange,
   enabled = true,
 }: {
-  companyId: string | null | undefined;
+  spaceId: string | null | undefined;
   value: string;
   onChange: (agentId: string) => void;
   enabled?: boolean;
 }) {
   const agentsQuery = useQuery({
-    queryKey: companyId ? queryKeys.agents.list(companyId) : ["agents", "none"],
-    queryFn: () => agentsApi.list(companyId!),
-    enabled: Boolean(companyId) && enabled,
+    queryKey: spaceId ? queryKeys.agents.list(spaceId) : ["agents", "none"],
+    queryFn: () => agentsApi.list(spaceId!),
+    enabled: Boolean(spaceId) && enabled,
   });
   const agentById = useMemo(
     () => new Map((agentsQuery.data ?? []).map((agent) => [agent.id, agent])),

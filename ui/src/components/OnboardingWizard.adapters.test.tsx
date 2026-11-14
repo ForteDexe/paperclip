@@ -7,19 +7,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // --- Mocks (hoisted so vi.mock factories can close over them) ----------------
 
-const ONBOARDING_STORAGE_KEY = "paperclip-onboarding-state";
+const ONBOARDING_STORAGE_KEY = "outpost-onboarding-state";
 
 const mockDialog = vi.hoisted(() => ({
   onboardingOpen: true,
-  onboardingOptions: {} as { initialStep?: number; companyId?: string },
+  onboardingOptions: {} as { initialStep?: number; spaceId?: string },
   closeOnboarding: vi.fn(),
   onboardingRouteDismissed: false,
   setOnboardingRouteDismissed: vi.fn(),
 }));
 
-const mockCompany = vi.hoisted(() => ({
-  companies: [] as Array<{ id: string; name: string; issuePrefix: string }>,
-  setSelectedCompanyId: vi.fn(),
+const mockSpace = vi.hoisted(() => ({
+  spaces: [] as Array<{ id: string; name: string; issuePrefix: string }>,
+  setSelectedSpaceId: vi.fn(),
   loading: false,
 }));
 
@@ -40,15 +40,15 @@ vi.mock("@/lib/router", () => ({
 vi.mock("../context/DialogContext", () => ({
   useDialog: () => mockDialog,
 }));
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => mockCompany,
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => mockSpace,
 }));
-// The restore gate fetches the company list itself to verify draft ownership,
+// The restore gate fetches the space list itself to verify draft ownership,
 // rather than trusting the shared cache, so this module now needs stubbing
 // here. An empty list is fine: the drafts in this file carry no
-// `createdCompanyId`, so there is no ownership question — but the fetch has to
+// `createdSpaceId`, so there is no ownership question — but the fetch has to
 // succeed for the gate to treat the draft as decidable at all.
-// The company list is keyed by account, so it holds until the session query
+// The space list is keyed by account, so it holds until the session query
 // *succeeds*. A seeded entry is stale under the test client and refetches, so
 // the refetch has to answer too — otherwise the identity errors and the list
 // never runs.
@@ -58,8 +58,8 @@ vi.mock("../api/auth", async (importOriginal) => {
   return { ...actual, authApi: { ...actual.authApi, getSession: mockAuthApi.getSession } };
 });
 
-vi.mock("../api/companies", () => ({
-  companiesApi: {
+vi.mock("../api/spaces", () => ({
+  spacesApi: {
     create: vi.fn(),
     list: vi.fn().mockResolvedValue([]),
     detachInflightList: vi.fn(),
@@ -118,7 +118,7 @@ async function mount(nativeRunnerEnabled?: boolean) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  // The company list is keyed by account, so it holds until the session is
+  // The space list is keyed by account, so it holds until the session is
   // known. Seeding it is how this test says "signed in".
   queryClient.setQueryData(queryKeys.auth.session, {
     session: { id: "session-1", userId: "user-1" },
@@ -145,7 +145,7 @@ describe("OnboardingWizard adapter selection", () => {
     window.localStorage.clear();
     mockDialog.onboardingOpen = true;
     mockDialog.onboardingOptions = {};
-    mockCompany.companies = [];
+    mockSpace.spaces = [];
     mockAdapterRegistry.list = [];
     mockAdapterRegistry.disabled = new Set<string>();
     mockAdapterRegistry.loaded = true;
@@ -224,7 +224,7 @@ describe("OnboardingWizard adapter selection", () => {
       window.localStorage.getItem(ONBOARDING_STORAGE_KEY) ?? "{}",
     );
     expect(saved.adapterType).toBe("codex_local");
-    expect(saved.runner).toBe("paperclip");
+    expect(saved.runner).toBe("outpost");
     expect(saved.model).toBe("gpt-runner-only");
     expect(saved.command).toBe("");
     expect(saved.args).toBe("");
@@ -256,7 +256,7 @@ describe("OnboardingWizard adapter selection", () => {
       window.localStorage.getItem(ONBOARDING_STORAGE_KEY) ?? "{}",
     );
     expect(saved.adapterType).toBe("codex_local");
-    expect(saved.runner).toBe("paperclip");
+    expect(saved.runner).toBe("outpost");
     expect(saved.model).toBe("gpt-runner-only");
     expect(saved.command).toBe("");
     expect(saved.args).toBe("");

@@ -8,21 +8,21 @@ import { useHiddenSettings } from "./hooks/useHiddenSettings";
 import { CloudAccessGate } from "./components/CloudAccessGate";
 import { ConnectionStatusBanner } from "./components/ConnectionStatusBanner";
 import { ShellConfigurationGate } from "./components/ShellConfigurationGate";
-import { PaperclipLoading } from "./components/AnimatedPaperclipIcon";
+import { OutpostLoading } from "./components/AnimatedOutpostIcon";
 import { AGENT_FILTER_TABS } from "./lib/agent-filter-tabs";
 import { useCombinedInboxTasksEnabled } from "./hooks/useCombinedInboxTasksEnabled";
 import { NotFoundPage } from "./pages/NotFound";
-import { useCompany } from "./context/CompanyContext";
+import { useSpace } from "./context/SpaceContext";
 import { loadLastInboxTab } from "./lib/inbox";
 import { TASK_VIEW_PARAM, taskViewForInboxTab, type TaskViewKey } from "./lib/task-views";
 import { filterHiddenInstanceSettingsPath, normalizeRememberedInstanceSettingsPath } from "./lib/instance-settings";
 import { useStreamlinedUiEnabled } from "./hooks/useStreamlinedUiEnabled";
 
 const AuthPage = lazy(() => import("./pages/Auth").then((module) => ({ default: module.AuthPage })));
-const BoardClaimPage = lazy(() => import("./pages/BoardClaim").then((module) => ({ default: module.BoardClaimPage })));
+const OperatorClaimPage = lazy(() => import("./pages/OperatorClaim").then((module) => ({ default: module.OperatorClaimPage })));
 const CliAuthPage = lazy(() => import("./pages/CliAuth").then((module) => ({ default: module.CliAuthPage })));
 const ChatIdentityConfirm = lazy(() => import("./pages/apps/chat/ChatIdentityConfirm").then((module) => ({ default: module.ChatIdentityConfirm })));
-const PaperclipCloudOAuthHandoffPage = lazy(() => import("./pages/apps/PaperclipCloudOAuthHandoff").then((module) => ({ default: module.PaperclipCloudOAuthHandoffPage })));
+const OutpostCloudOAuthHandoffPage = lazy(() => import("./pages/apps/OutpostCloudOAuthHandoff").then((module) => ({ default: module.OutpostCloudOAuthHandoffPage })));
 const McpConnectPage = lazy(() => import("./pages/McpConnect").then((module) => ({ default: module.McpConnectPage })));
 const McpDevicePage = lazy(() => import("./pages/McpConnect").then((module) => ({ default: module.McpDevicePage })));
 const AssistantConnectionsPage = lazy(() => import("./pages/McpConnect").then((module) => ({ default: module.AssistantConnectionsPage })));
@@ -42,7 +42,7 @@ const Cases = lazy(() => import("./pages/Cases").then((module) => ({ default: mo
 const CaseDetail = lazy(() => import("./pages/CaseDetail").then((module) => ({ default: module.CaseDetail })));
 const Dashboard = lazy(() => import("./pages/Dashboard").then((module) => ({ default: module.Dashboard })));
 const DashboardLive = lazy(() => import("./pages/DashboardLive").then((module) => ({ default: module.DashboardLive })));
-const Companies = lazy(() => import("./pages/Companies").then((module) => ({ default: module.Companies })));
+const Spaces = lazy(() => import("./pages/Spaces").then((module) => ({ default: module.Spaces })));
 const AgentDetail = lazy(() => import("./pages/AgentDetailPage").then((module) => ({ default: module.AgentDetailPage })));
 const Search = lazy(() => import("./pages/Search").then((module) => ({ default: module.Search })));
 const Goals = lazy(() => import("./pages/Goals").then((module) => ({ default: module.Goals })));
@@ -52,8 +52,8 @@ const Approvals = lazy(() => import("./pages/Approvals").then((module) => ({ def
 const ApprovalDetail = lazy(() => import("./pages/ApprovalDetail").then((module) => ({ default: module.ApprovalDetail })));
 const WhatNeedsMe = lazy(() => import("./pages/WhatNeedsMe").then((module) => ({ default: module.WhatNeedsMe })));
 const DecisionQueuePage = lazy(() => import("./pages/DecisionQueuePage").then((module) => ({ default: module.DecisionQueuePage })));
-const CompanySettings = lazy(() => import("./pages/CompanySettings").then((module) => ({ default: module.CompanySettings })));
-const CompanySettingsPluginPage = lazy(() => import("./pages/CompanySettingsPluginPage").then((module) => ({ default: module.CompanySettingsPluginPage })));
+const SpaceSettings = lazy(() => import("./pages/SpaceSettings").then((module) => ({ default: module.SpaceSettings })));
+const SpaceSettingsPluginPage = lazy(() => import("./pages/SpaceSettingsPluginPage").then((module) => ({ default: module.SpaceSettingsPluginPage })));
 const InstanceExperimentalSettings = lazy(() => import("./pages/InstanceExperimentalSettings").then((module) => ({ default: module.InstanceExperimentalSettings })));
 const PluginManager = lazy(() => import("./pages/PluginManager").then((module) => ({ default: module.PluginManager })));
 const PluginSettings = lazy(() => import("./pages/PluginSettings").then((module) => ({ default: module.PluginSettings })));
@@ -66,10 +66,10 @@ const ProductionAgents = lazy(() => import("./pages/Agents.production").then((mo
 const ProductionOrgChart = lazy(() => import("./pages/OrgChart.production").then((module) => ({ default: module.OrgChart })));
 
 function ProductionSurface({ children }: { children: ReactNode }) {
-  return <Suspense fallback={<PaperclipLoading />}>{children}</Suspense>;
+  return <Suspense fallback={<OutpostLoading />}>{children}</Suspense>;
 }
 
-function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: boolean) {
+function operatorRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: boolean) {
   // Combined Inbox + Task List (PAP-670) only exists in the streamlined shell.
   const mergedTasks = streamlinedUiEnabled && combinedInboxTasksEnabled;
   return (
@@ -79,38 +79,38 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route path="dashboard/live" element={<DashboardLive />} />
       <Route path="timeline" element={<Navigate to="/dashboard" replace />} />
       <Route path="onboarding" element={<Navigate to="../dashboard" replace />} />
-      <Route path="spaces" element={<Companies />} />
-      <Route path="companies" element={<Navigate to="/spaces" replace />} />
-      <Route path="company/settings" element={<CompanySettings />} />
-      <Route path="company/settings/connections" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/settings/environments" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/settings/cloud-upstream" element={<Navigate to="/company/export" replace />} />
-      <Route path="company/settings/members" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/settings/access" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/settings/invites" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/export/*" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/import" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/settings/secrets" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/settings/tools/*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="spaces" element={<Spaces />} />
+      <Route path="spaces" element={<Navigate to="/spaces" replace />} />
+      <Route path="space/settings" element={<SpaceSettings />} />
+      <Route path="space/settings/connections" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/settings/environments" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/settings/cloud-upstream" element={<Navigate to="/space/export" replace />} />
+      <Route path="space/settings/members" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/settings/access" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/settings/invites" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/export/*" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/import" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/settings/secrets" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/settings/tools/*" element={<Navigate to="/dashboard" replace />} />
       <Route path="tools/*" element={<Navigate to="/dashboard" replace />} />
       <Route path="apps/*" element={<Navigate to="/dashboard" replace />} />
-      <Route path="company/settings/instance" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/settings/instance/profile" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/settings/instance/general" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/settings/instance/heartbeats" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/settings/instance/environments/*" element={<Navigate to="/company/settings" replace />} />
-      <Route path="company/settings/instance/access" element={<Navigate to="/company/settings" replace />} />
+      <Route path="space/settings/instance" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/settings/instance/profile" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/settings/instance/general" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/settings/instance/heartbeats" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/settings/instance/environments/*" element={<Navigate to="/space/settings" replace />} />
+      <Route path="space/settings/instance/access" element={<Navigate to="/space/settings" replace />} />
       <Route element={<HiddenSettingsPageGate pageKey="instance.experimental" />}>
-        <Route path="company/settings/instance/experimental" element={<InstanceExperimentalSettings />} />
+        <Route path="space/settings/instance/experimental" element={<InstanceExperimentalSettings />} />
       </Route>
       <Route element={<HiddenSettingsPageGate pageKey="instance.plugins" />}>
-        <Route path="company/settings/instance/plugins" element={<PluginManager />} />
-        <Route path="company/settings/instance/plugins/:pluginId" element={<PluginSettings />} />
+        <Route path="space/settings/instance/plugins" element={<PluginManager />} />
+        <Route path="space/settings/instance/plugins/:pluginId" element={<PluginSettings />} />
       </Route>
       <Route element={<HiddenSettingsPageGate pageKey="instance.adapters" />}>
-        <Route path="company/settings/instance/adapters" element={<AdapterManager />} />
+        <Route path="space/settings/instance/adapters" element={<AdapterManager />} />
       </Route>
-      <Route path="company/settings/:settingsRoutePath/*" element={<CompanySettingsPluginPage />} />
+      <Route path="space/settings/:settingsRoutePath/*" element={<SpaceSettingsPluginPage />} />
       <Route path="skills/*" element={<Navigate to="/dashboard" replace />} />
       <Route path="settings" element={<LegacySettingsRedirect />} />
       <Route path="settings/*" element={<LegacySettingsRedirect />} />
@@ -168,7 +168,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       />
       <Route path="status" element={<Navigate to="/dashboard" replace />} />
       <Route path="status/:cardId" element={<Navigate to="/dashboard" replace />} />
-      {/* Back-compat: the board lived at /status-cards before PAP-15223. */}
+      {/* Back-compat: the operator lived at /status-cards before PAP-15223. */}
       <Route path="status-cards" element={<Navigate to="/dashboard" replace />} />
       <Route path="status-cards/:cardId" element={<Navigate to="/dashboard" replace />} />
       <Route path="routines/:routineId" element={<Navigate to="/dashboard" replace />} />
@@ -217,7 +217,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route path="design-guide" element={<Navigate to="/dashboard" replace />} />
       <Route path="instance/settings/adapters" element={<AdapterManager />} />
       <Route path=":pluginRoutePath/*" element={<PluginPage />} />
-      <Route path="*" element={<NotFoundPage scope="board" />} />
+      <Route path="*" element={<NotFoundPage scope="operator" />} />
     </>
   );
 }
@@ -239,23 +239,23 @@ function TaskViewRedirect({ view }: { view: TaskViewKey }) {
 
 function LegacySettingsRedirect() {
   const location = useLocation();
-  const { companies, selectedCompany, loading } = useCompany();
-  const { companyPrefix } = useParams<{ companyPrefix?: string }>();
+  const { spaces, selectedSpace, loading } = useSpace();
+  const { spacePrefix } = useParams<{ spacePrefix?: string }>();
   const { hidden: hiddenSettings } = useHiddenSettings();
 
   if (loading) {
-    return <PaperclipLoading />;
+    return <OutpostLoading />;
   }
 
-  const targetCompany =
-    (companyPrefix
-      ? companies.find((company) => company.issuePrefix.toUpperCase() === companyPrefix.toUpperCase())
+  const targetSpace =
+    (spacePrefix
+      ? spaces.find((space) => space.issuePrefix.toUpperCase() === spacePrefix.toUpperCase())
       : null) ??
-    selectedCompany ??
-    companies[0] ??
+    selectedSpace ??
+    spaces[0] ??
     null;
 
-  if (!targetCompany) {
+  if (!targetSpace) {
     return <Navigate to="/spaces" replace />;
   }
 
@@ -268,42 +268,42 @@ function LegacySettingsRedirect() {
 
   return (
     <Navigate
-      to={`/${targetCompany.issuePrefix}${normalizedPath}`}
+      to={`/${targetSpace.issuePrefix}${normalizedPath}`}
       replace
     />
   );
 }
 
-function CompanyRootRedirect() {
-  const { companies, selectedCompany, loading } = useCompany();
+function SpaceRootRedirect() {
+  const { spaces, selectedSpace, loading } = useSpace();
   if (loading) {
-    return <PaperclipLoading />;
+    return <OutpostLoading />;
   }
 
-  const targetCompany = selectedCompany ?? companies[0] ?? null;
-  if (!targetCompany) {
+  const targetSpace = selectedSpace ?? spaces[0] ?? null;
+  if (!targetSpace) {
     return <Navigate to="/spaces" replace />;
   }
 
-  return <Navigate to={`/${targetCompany.issuePrefix}/dashboard`} replace />;
+  return <Navigate to={`/${targetSpace.issuePrefix}/dashboard`} replace />;
 }
 
 function UnprefixedBoardRedirect() {
   const location = useLocation();
-  const { companies, selectedCompany, loading } = useCompany();
+  const { spaces, selectedSpace, loading } = useSpace();
 
   if (loading) {
-    return <PaperclipLoading />;
+    return <OutpostLoading />;
   }
 
-  const targetCompany = selectedCompany ?? companies[0] ?? null;
-  if (!targetCompany) {
+  const targetSpace = selectedSpace ?? spaces[0] ?? null;
+  if (!targetSpace) {
     return <Navigate to="/spaces" replace />;
   }
 
   return (
     <Navigate
-      to={`/${targetCompany.issuePrefix}${location.pathname}${location.search}${location.hash}`}
+      to={`/${targetSpace.issuePrefix}${location.pathname}${location.search}${location.hash}`}
       replace
     />
   );
@@ -311,20 +311,20 @@ function UnprefixedBoardRedirect() {
 
 function UnprefixedSpacesRoute() {
   const location = useLocation();
-  const { companies, selectedCompany, loading } = useCompany();
+  const { spaces, selectedSpace, loading } = useSpace();
 
   if (loading) {
-    return <PaperclipLoading />;
+    return <OutpostLoading />;
   }
 
-  const targetCompany = selectedCompany ?? companies[0] ?? null;
-  if (!targetCompany) {
-    return <Companies />;
+  const targetSpace = selectedSpace ?? spaces[0] ?? null;
+  if (!targetSpace) {
+    return <Spaces />;
   }
 
   return (
     <Navigate
-      to={`/${targetCompany.issuePrefix}/spaces${location.search}${location.hash}`}
+      to={`/${targetSpace.issuePrefix}/spaces${location.search}${location.hash}`}
       replace
     />
   );
@@ -335,7 +335,7 @@ export function App() {
   const { enabled: streamlinedUiEnabled, loaded: streamlinedUiLoaded } = useStreamlinedUiEnabled();
   const { enabled: combinedInboxTasksEnabled } = useCombinedInboxTasksEnabled();
   useEffect(() => {
-    // Download the requested collection while access/company checks run. Detail
+    // Download the requested collection while access/space checks run. Detail
     // code is already prefetched by row intent; don't compete with the cold list.
     if (/^\/[^/]+\/inbox(?:\/|$)/.test(pathname)) void loadInbox().catch(() => undefined);
     else if (/^\/[^/]+\/(issues|tasks)\/?$/.test(pathname)) void loadIssues().catch(() => undefined);
@@ -344,10 +344,10 @@ export function App() {
   return (
     <>
       <ConnectionStatusBanner />
-      <Suspense fallback={<PaperclipLoading />}><Routes>
-        <Route path="oauth-handoff" element={<PaperclipCloudOAuthHandoffPage />} />
+      <Suspense fallback={<OutpostLoading />}><Routes>
+        <Route path="oauth-handoff" element={<OutpostCloudOAuthHandoffPage />} />
         <Route path="auth" element={<AuthPage />} />
-        <Route path="board-claim/:token" element={<BoardClaimPage />} />
+        <Route path="operator-claim/:token" element={<OperatorClaimPage />} />
         <Route path="mcp-connect/:id" element={<McpConnectPage />} />
         <Route path="dot-connect/:id" element={<McpConnectPage agentPairingOnly />} />
         <Route path="mcp-device" element={<McpDevicePage />} />
@@ -362,13 +362,13 @@ export function App() {
         </Route>
         <Route element={<CloudAccessGate />}>
           <Route element={<ShellConfigurationGate loaded={streamlinedUiLoaded} />}>
-          <Route index element={<CompanyRootRedirect />} />
-          <Route path="onboarding" element={<CompanyRootRedirect />} />
+          <Route index element={<SpaceRootRedirect />} />
+          <Route path="onboarding" element={<SpaceRootRedirect />} />
           <Route path="instance" element={<LegacySettingsRedirect />} />
           <Route path="instance/settings" element={<LegacySettingsRedirect />} />
           <Route path="instance/settings/*" element={<LegacySettingsRedirect />} />
           <Route path="spaces" element={<UnprefixedSpacesRoute />} />
-          <Route path="companies" element={<Navigate to="/spaces" replace />} />
+          <Route path="spaces" element={<Navigate to="/spaces" replace />} />
           <Route path="issues" element={<UnprefixedBoardRedirect />} />
           <Route path="tasks" element={<UnprefixedBoardRedirect />} />
           <Route path="issues/:issueId" element={<UnprefixedBoardRedirect />} />
@@ -413,8 +413,8 @@ export function App() {
           <Route path="projects/*" element={<Navigate to="/spaces" replace />} />
           <Route path="workspaces" element={<UnprefixedBoardRedirect />} />
           <Route path="execution-workspaces/:workspaceId/*" element={<UnprefixedBoardRedirect />} />
-          <Route path=":companyPrefix" element={streamlinedUiEnabled ? <Layout /> : <ProductionLayout />}>
-            {boardRoutes(streamlinedUiEnabled, combinedInboxTasksEnabled)}
+          <Route path=":spacePrefix" element={streamlinedUiEnabled ? <Layout /> : <ProductionLayout />}>
+            {operatorRoutes(streamlinedUiEnabled, combinedInboxTasksEnabled)}
           </Route>
           <Route path="*" element={<NotFoundPage scope="global" />} />
           </Route>

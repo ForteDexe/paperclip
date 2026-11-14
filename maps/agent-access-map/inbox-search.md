@@ -19,12 +19,12 @@ The issue-list API accepts optional `includeAgentCreatedTasks`; false restricts
 independent results to human creation before search/pagination. Omission retains
 existing agent/API behavior. `includeParticipatedTasks=true` requires a board user
 and retains only that authenticated user's existing participation as a creation
-visibility exception. Company/private-task access checks still apply. Collection
+visibility exception. Space/private-task access checks still apply. Collection
 preferences and hierarchy presentation are browser state, not additional authority.
 Source-reviewed behavior; live agent access verification remains separate.
 
 Collection projections `view=index` and `view=rows` use the same issue-list
-company/private-task checks. Optional `ids` and `parentIds` batches accept at most
+space/private-task checks. Optional `ids` and `parentIds` batches accept at most
 100 UUIDs and cannot be combined with blocked attention. They grant no new access.
 `listProjection` marks omitted task bodies so clients do not reuse them as detail.
 The sidebar count endpoint returns only readable unread Mine task IDs; failed-run
@@ -36,7 +36,7 @@ API: `present` — representative operation IDs:
 
 - `GET /api/agents/me/inbox-lite`.
 - `GET /api/agents/me/inbox/mine`.
-- `GET /api/companies/{companyId}/issues`.
+- `GET /api/spaces/{spaceId}/issues`.
 
 Agent access: `partial` — REST / native call_api; MCP inbox/task search.
 
@@ -59,7 +59,7 @@ cover membership, unread counts, timestamps, and retained audit rows.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability. Seed a completed
 issue with only automatic read cleanup under a user identity: Mine and Unread
 must exclude it while activity history retains the row. An explicit recovery
@@ -89,7 +89,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Archive has an agent-aware responsible-user policy. Personal read/unread/dismissal
@@ -103,22 +103,22 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `GET /api/companies/{companyId}/decision-queues`.
-- `GET /api/companies/{companyId}/decision-queues/{key}/items`.
-- `GET /api/companies/{companyId}/attention/summary` — canonical outstanding
+- `GET /api/spaces/{spaceId}/decision-queues`.
+- `GET /api/spaces/{spaceId}/decision-queues/{key}/items`.
+- `GET /api/spaces/{spaceId}/attention/summary` — canonical outstanding
   counts without decision cards, images, plan bodies, or pagination. Board user
-  and company access are required. Task privacy, addressee, dismissal, snooze,
+  and space access are required. Task privacy, addressee, dismissal, snooze,
   archive, and complete-set counting rules match the attention feed. This read
   grants no agent or resolution authority.
-- `GET /api/companies/{companyId}/attention/tasks` — the same canonical counts
+- `GET /api/spaces/{spaceId}/attention/tasks` — the same canonical counts
   and distinct accessible task IDs for Needs attention. It has the same board,
-  company, privacy, addressee, dismissal, snooze, and archive gates as the feed.
-- `GET /api/companies/{companyId}/attention/history` — read-only canonical
+  space, privacy, addressee, dismissal, snooze, and archive gates as the feed.
+- `GET /api/spaces/{spaceId}/attention/history` — read-only canonical
   interaction/Decisions-v1 projection with cursor, search, outcome, agent, project,
   date, and chronological sort filters. Each source and v1 target must pass task
   privacy checks. Bounded to 100 records per page; no second decision write store.
 
-The history route is **operator-only**: a board user with company access is
+The history route is **operator-only**: a board user with space access is
 required. It does not grant an agent resolver authority. Existing task interaction
 and decision routes remain the mutation owners. Source evidence:
 [history service](../../server/src/services/decision-history.ts) and
@@ -126,9 +126,9 @@ and decision routes remain the mutation owners. Source evidence:
 coverage is in [decision-history.test.ts](../../server/src/__tests__/decision-history.test.ts);
 this is not a deployed user/agent credential test.
 
-`GET /api/companies/{companyId}/attention` also projects existing pending
+`GET /api/spaces/{spaceId}/attention` also projects existing pending
 interactions from persistent agent chats, including `ask_user_questions`, under
-the same board, company, task-read, and addressee rules. The execution-container
+the same board, space, task-read, and addressee rules. The execution-container
 exclusion does not suppress an explicit human request. Resolution still uses
 the owning interaction API and its resolver policy; ordinary chat prose and idle
 review status do not become decision records. Source and isolated PostgreSQL
@@ -145,7 +145,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Queue browsing/managing may be allowed; governed approval decisions still have
@@ -159,8 +159,8 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `GET /api/companies/{companyId}/search`.
-- `GET /api/companies/{companyId}/issues`.
+- `GET /api/spaces/{spaceId}/search`.
+- `GET /api/spaces/{spaceId}/issues`.
 
 Agent access: `available` — Native search_tasks for tasks; REST / native call_api for
 broader search.
@@ -173,10 +173,10 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
-Gaps: General company search and dedicated task search are different result sets; use
+Gaps: General space search and dedicated task search are different result sets; use
 the appropriate one.
 
 
@@ -186,14 +186,14 @@ Capability ID: `inbox-search/toasts`.
 
 Review: `baseline`.
 
-API: `present` — GET /api/companies/{companyId}/events/ws (WebSocket upgrade); viewer-specific
+API: `present` — GET /api/spaces/{spaceId}/events/ws (WebSocket upgrade); viewer-specific
 `toastEligible` metadata on authorized events. No notification mutation endpoint.
 
 Agent access: `not-applicable` — toast presentation is a human browser concern.
 Agent-authenticated event subscriptions retain authorization but do not qualify
 for human toasts. Agent task mutations may notify participating humans.
 
-Policy: Company membership and task/run read checks precede human participation
+Policy: Space membership and task/run read checks precede human participation
 checks. Creator, current human assignee, commenter, deliberate actor, or explicit
 user mention qualifies; agent ownership and responsible-user attribution alone do
 not. See [toast semantics](../../doc/TOASTS.md).

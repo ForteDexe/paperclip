@@ -6,7 +6,7 @@ import { TELEGRAM_VOICE_OGG } from "../__tests__/fixtures/telegram-voice.js";
 
 const options = {
   callbacks: { onMessage() {} },
-  companyId: "fixture-company",
+  spaceId: "fixture-space",
   endpointId: "fixture-endpoint",
   logger: "silent" as const,
   persistence: {
@@ -206,7 +206,7 @@ describe("Telegram bounded current rich inbound projection", () => {
         "richPath",
         "fileId",
         "fileUniqueId",
-        "companyId",
+        "spaceId",
         "endpointId",
         "messageId",
         "threadId",

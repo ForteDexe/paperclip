@@ -3,7 +3,7 @@
   "fixtureName": "Semantic tool artifact happy path",
   "identity": {
     "schema": "outpost.orp.identity.v1",
-    "companyId": "company_semantic_happy",
+    "spaceId": "space_semantic_happy",
     "issueId": "issue_semantic_happy",
     "runId": "run_semantic_happy",
     "environmentLeaseId": "lease_semantic_happy",

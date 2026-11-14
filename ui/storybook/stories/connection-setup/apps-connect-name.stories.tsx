@@ -13,7 +13,7 @@ import { AppsConnect } from "@/pages/apps/AppsConnect";
  * told apart in the Apps list without a detail-page rename hop.
  */
 
-const COMPANY = "company-storybook";
+const SPACE = "space-storybook";
 
 // Zapier is an api_key gallery app, so the key step renders both the new Name
 // field and a credential input — a representative shape for this screenshot.
@@ -26,7 +26,7 @@ function seededClient() {
       queries: { staleTime: Infinity, gcTime: Infinity, retry: false, refetchOnMount: false },
     },
   });
-  c.setQueryData(queryKeys.apps.gallery(COMPANY), { apps: GALLERY });
+  c.setQueryData(queryKeys.apps.gallery(SPACE), { apps: GALLERY });
   return c;
 }
 
@@ -85,7 +85,7 @@ const meta: Meta = {
   id: "apps-connect-name-at-create-time-pap-11283",
   title: "Apps, channels, and extensions/Connection setup/Apps/Connect name at create time (PAP-11283)",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "connection-setup/identity-and-access"
       ],

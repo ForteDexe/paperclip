@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { agents, applyPendingMigrations, companies, createDb, heartbeatRuns, issues, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
+import { agents, applyPendingMigrations, spaces, createDb, heartbeatRuns, issues, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
 import { findNativeSessionResumeRun } from "../server/src/services/native-runtime/native-session-resume.js";
 import { resolveExternalTestDatabaseUrl } from "../server/src/__tests__/helpers/external-test-database.js";
 
@@ -20,7 +20,7 @@ const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_SESSION_RESUME_BENCH
 const database = externalUrl ? { connectionString: externalUrl, cleanup: async () => {} } : await startEmbeddedPostgresTestDatabase("native-session-resume-benchmark-");
 const db = createDb(database.connectionString);
 const baselineDir = await fs.mkdtemp(path.join(root, "server/scripts/.session-resume-baseline-"));
-const companyIds: string[] = [];
+const spaceIds: string[] = [];
 try {
   if (externalUrl) await applyPendingMigrations(externalUrl);
   const moduleUrl = new URL(`../${sourcePath}`, import.meta.url);
@@ -51,32 +51,32 @@ try {
   const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
   const measurements = [];
   for (const scenario of ["wide_history", "unused_history", "small_selected"] as const) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), normalizedSessionId = randomUUID();
-    companyIds.push(companyId);
-    await db.insert(companies).values({ id: companyId, name: "Synthetic resume benchmark", issuePrefix: `B${companyId.replaceAll("-", "")}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Synthetic runner", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Retain canonical task" });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), normalizedSessionId = randomUUID();
+    spaceIds.push(spaceId);
+    await db.insert(spaces).values({ id: spaceId, name: "Synthetic resume benchmark", issuePrefix: `B${spaceId.replaceAll("-", "")}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Synthetic runner", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Retain canonical task" });
     const runCount = scenario === "small_selected" ? 1 : 15;
     const prompt = randomBytes(scenario === "small_selected" ? 16 : 144 * 1024).toString("base64");
     const profilePadding = randomBytes(scenario === "small_selected" ? 16 : 72 * 1024).toString("base64");
     const neededInput = { task: { title: "Prior task", description: "Canonical description", prompt: profilePadding }, runtimeContext: { instructions: "Keep complete input" } };
     const checkpoint = { sessionId: normalizedSessionId, state: randomBytes(4096).toString("base64") };
     await db.insert(heartbeatRuns).values(Array.from({ length: runCount }, (_, n) => ({
-      id: randomUUID(), companyId, agentId, nativeIssueId: issueId, nativeSessionId: normalizedSessionId,
+      id: randomUUID(), spaceId, agentId, nativeIssueId: issueId, nativeSessionId: normalizedSessionId,
       runtimeMode: "native", status: "failed", createdAt: new Date(Date.UTC(2026, 8, 8, 0, 0, n)),
       runnerProfileJson: { padding: "Unused profile metadata", nativeExecutionInput: neededInput, nativeToolContractFingerprint: "fixture",
         ...(scenario !== "unused_history" && n === 0 ? { sessionCheckpoint: checkpoint } : {}) },
-      contextSnapshot: { prompt, paperclipWake: { externalChatProvider: "slack", githubReviewConfigurations: [{ key: "review" }] },
-        paperclipIssue: { id: issueId, title: "Prior canonical title", description: "Prior canonical description" } },
+      contextSnapshot: { prompt, outpostWake: { externalChatProvider: "slack", githubReviewConfigurations: [{ key: "review" }] },
+        outpostIssue: { id: issueId, title: "Prior canonical title", description: "Prior canonical description" } },
     })));
     await db.$client.unsafe("ANALYZE heartbeat_runs");
-    const input = { companyId, agentId, issueId, normalizedSessionId, currentRunId: randomUUID(), beforeCreatedAt: new Date("2026-09-09T00:00:00Z") };
+    const input = { spaceId, agentId, issueId, normalizedSessionId, currentRunId: randomUUID(), beforeCreatedAt: new Date("2026-09-09T00:00:00Z") };
     const before = await capture(baseline.findNativeSessionResumeRun, input), after = await capture(findNativeSessionResumeRun, input);
     const contract = (run: typeof after.result) => run && ({ ...run,
       runnerProfileJson: { nativeExecutionInput: run.runnerProfileJson?.nativeExecutionInput ?? null,
         nativeToolContractFingerprint: run.runnerProfileJson?.nativeToolContractFingerprint ?? null,
         sessionCheckpoint: run.runnerProfileJson?.sessionCheckpoint ?? null },
-      contextSnapshot: { paperclipWake: run.contextSnapshot?.paperclipWake ?? null, paperclipIssue: run.contextSnapshot?.paperclipIssue ?? null } });
+      contextSnapshot: { outpostWake: run.contextSnapshot?.outpostWake ?? null, outpostIssue: run.contextSnapshot?.outpostIssue ?? null } });
     assert.deepEqual(contract(after.result), contract(before.result));
     const variants = [before.queries, after.queries], samples: number[][] = [[], []], dataRowBytes = [0, 0], resultRows = [0, 0];
     for (let iteration = 0; iteration < 9; iteration++) {
@@ -111,11 +111,11 @@ try {
     postgres: await db.$client.unsafe("select version()"), measurements }, null, 2));
 } finally {
   try {
-    for (const companyId of companyIds) {
-      await db.$client.unsafe("DELETE FROM heartbeat_runs WHERE company_id = $1::uuid", [companyId]);
-      await db.$client.unsafe("DELETE FROM issues WHERE company_id = $1::uuid", [companyId]);
-      await db.$client.unsafe("DELETE FROM agents WHERE company_id = $1::uuid", [companyId]);
-      await db.$client.unsafe("DELETE FROM companies WHERE id = $1::uuid", [companyId]);
+    for (const spaceId of spaceIds) {
+      await db.$client.unsafe("DELETE FROM heartbeat_runs WHERE space_id = $1::uuid", [spaceId]);
+      await db.$client.unsafe("DELETE FROM issues WHERE space_id = $1::uuid", [spaceId]);
+      await db.$client.unsafe("DELETE FROM agents WHERE space_id = $1::uuid", [spaceId]);
+      await db.$client.unsafe("DELETE FROM spaces WHERE id = $1::uuid", [spaceId]);
     }
   } finally {
     try { await db.$client.end({ timeout: 0 }); }

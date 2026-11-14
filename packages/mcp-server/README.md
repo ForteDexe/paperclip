@@ -11,7 +11,7 @@ The server reads its configuration from environment variables:
 
 - `OUTPOST_API_URL` - Outpost base URL, for example `http://localhost:3100`
 - `OUTPOST_API_KEY` - bearer token used for `/api` requests
-- `OUTPOST_COMPANY_ID` - optional default company for company-scoped tools
+- `OUTPOST_SPACE_ID` - optional default space for space-scoped tools
 - `OUTPOST_AGENT_ID` - optional default agent for checkout helpers
 - `OUTPOST_RUN_ID` - optional run id forwarded on mutating requests
 
@@ -39,52 +39,52 @@ Run-scoped connection tools:
 
 Read tools:
 
-- `paperclipMe`
-- `paperclipInboxLite`
-- `paperclipListAgents`
-- `paperclipGetAgent`
-- `paperclipListIssues`
-- `paperclipGetIssue`
-- `paperclipGetHeartbeatContext`
-- `paperclipListComments`
-- `paperclipGetComment`
-- `paperclipListIssueApprovals`
-- `paperclipListDocuments`
-- `paperclipGetDocument`
-- `paperclipListDocumentRevisions`
-- `paperclipListProjects`
-- `paperclipGetProject`
-- `paperclipGetIssueWorkspaceRuntime`
-- `paperclipWaitForIssueWorkspaceService`
-- `paperclipListGoals`
-- `paperclipGetGoal`
-- `paperclipListApprovals`
-- `paperclipGetApproval`
-- `paperclipGetApprovalIssues`
-- `paperclipListApprovalComments`
+- `outpostMe`
+- `outpostInboxLite`
+- `outpostListAgents`
+- `outpostGetAgent`
+- `outpostListIssues`
+- `outpostGetIssue`
+- `outpostGetHeartbeatContext`
+- `outpostListComments`
+- `outpostGetComment`
+- `outpostListIssueApprovals`
+- `outpostListDocuments`
+- `outpostGetDocument`
+- `outpostListDocumentRevisions`
+- `outpostListProjects`
+- `outpostGetProject`
+- `outpostGetIssueWorkspaceRuntime`
+- `outpostWaitForIssueWorkspaceService`
+- `outpostListGoals`
+- `outpostGetGoal`
+- `outpostListApprovals`
+- `outpostGetApproval`
+- `outpostGetApprovalIssues`
+- `outpostListApprovalComments`
 
 Write tools:
 
-- `paperclipCreateIssue`
-- `paperclipUpdateIssue`
-- `paperclipCheckoutIssue`
-- `paperclipReleaseIssue`
-- `paperclipAddComment`
-- `paperclipSuggestTasks`
-- `paperclipAskUserQuestions`
-- `paperclipRequestConfirmation`
-- `paperclipUpsertIssueDocument`
-- `paperclipRestoreIssueDocumentRevision`
-- `paperclipControlIssueWorkspaceServices`
-- `paperclipCreateApproval`
-- `paperclipLinkIssueApproval`
-- `paperclipUnlinkIssueApproval`
-- `paperclipApprovalDecision`
-- `paperclipAddApprovalComment`
+- `outpostCreateIssue`
+- `outpostUpdateIssue`
+- `outpostCheckoutIssue`
+- `outpostReleaseIssue`
+- `outpostAddComment`
+- `outpostSuggestTasks`
+- `outpostAskUserQuestions`
+- `outpostRequestConfirmation`
+- `outpostUpsertIssueDocument`
+- `outpostRestoreIssueDocumentRevision`
+- `outpostControlIssueWorkspaceServices`
+- `outpostCreateApproval`
+- `outpostLinkIssueApproval`
+- `outpostUnlinkIssueApproval`
+- `outpostApprovalDecision`
+- `outpostAddApprovalComment`
 
 Escape hatch:
 
-- `paperclipApiRequest`
+- `outpostApiRequest`
 
-`paperclipApiRequest` is limited to paths under `/api` and JSON bodies. It is
+`outpostApiRequest` is limited to paths under `/api` and JSON bodies. It is
 meant for endpoints that do not yet have a dedicated MCP tool.

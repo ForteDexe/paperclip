@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CompanySkillDetail } from "@outpost/shared";
+import type { SpaceSkillDetail } from "@outpost/shared";
 import {
   buildBlankSkillDraft,
   buildForkSkillDraft,
@@ -9,11 +9,11 @@ import {
   splitCategoryDraft,
 } from "./skill-create";
 
-function skill(overrides: Partial<CompanySkillDetail> = {}): CompanySkillDetail {
+function skill(overrides: Partial<SpaceSkillDetail> = {}): SpaceSkillDetail {
   return {
     id: "skill-1",
-    companyId: "company-1",
-    key: "paperclip/demo-skill",
+    spaceId: "space-1",
+    key: "outpost/demo-skill",
     slug: "demo-skill",
     name: "Demo Skill",
     description: "A demo skill.",
@@ -30,10 +30,10 @@ function skill(overrides: Partial<CompanySkillDetail> = {}): CompanySkillDetail 
     authorName: null,
     homepageUrl: null,
     categories: ["engineering", "review"],
-    sharingScope: "company",
+    sharingScope: "space",
     publicShareToken: null,
     forkedFromSkillId: null,
-    forkedFromCompanyId: null,
+    forkedFromSpaceId: null,
     starCount: 0,
     installCount: 0,
     forkCount: 0,
@@ -77,7 +77,7 @@ describe("skill create helpers", () => {
 
     expect(draft.name).toBe("");
     expect(draft.slug).toBe("");
-    expect(draft.sharingScope).toBe("company");
+    expect(draft.sharingScope).toBe("space");
     expect(draft.markdown).toContain("name: New Skill");
     expect(draft.markdown).toContain("Describe when agents should use this skill.");
   });

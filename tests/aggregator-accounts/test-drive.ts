@@ -2,7 +2,7 @@
 import express from "../../server/node_modules/express/index.js";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
-import { createDb, startEmbeddedPostgresTestDatabase, companies, companyMemberships, toolApplications, toolConnections, connectionGrants, toolCatalogEntries } from "../../packages/db/src/index.ts";
+import { createDb, startEmbeddedPostgresTestDatabase, spaces, spaceMemberships, toolApplications, toolConnections, connectionGrants, toolCatalogEntries } from "../../packages/db/src/index.ts";
 import { toolAccessRoutes } from "../../server/src/routes/tool-access.js";
 import { toolAccessService } from "../../server/src/services/tool-access.js";
 import { errorHandler } from "../../server/src/middleware/error-handler.js";
@@ -12,27 +12,27 @@ const startup = setInterval(() => undefined, 1000);
 async function startAcceptanceDatabase() {
   let failure: unknown;
   for (let attempt = 0; attempt < 30; attempt++) {
-    try { return await startEmbeddedPostgresTestDatabase("paperclip-aggregator-browser-"); }
+    try { return await startEmbeddedPostgresTestDatabase("outpost-aggregator-browser-"); }
     catch (error) { failure = error; await new Promise(resolve => setTimeout(resolve, 2000)); }
   }
   throw failure;
 }
 const database = await startAcceptanceDatabase();
-fs.writeFileSync("/tmp/paperclip-aggregator-acceptance-db.json", JSON.stringify({ connectionString: database.connectionString }), { mode: 0o600 });
+fs.writeFileSync("/tmp/outpost-aggregator-acceptance-db.json", JSON.stringify({ connectionString: database.connectionString }), { mode: 0o600 });
 const db = createDb(database.connectionString);
-const [company] = await db.insert(companies).values({ name: "Managed accounts test drive", issuePrefix: "AGG" }).returning();
+const [space] = await db.insert(spaces).values({ name: "Managed accounts test drive", issuePrefix: "AGG" }).returning();
 const userId = randomUUID();
-await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: userId, membershipRole: "admin", status: "active" });
+await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: userId, membershipRole: "admin", status: "active" });
 const state = { arcadeAccounts: ["Work", "Personal"], executorAccounts: ["Work"], failed: false, partial: false, unsupported: false };
 const gatewayNames = { composio: ["COMPOSIO_MANAGE_CONNECTIONS", "COMPOSIO_SEARCH_TOOLS"], arcade: ["Notion.ListPages"], executor: ["integrations"], notion: ["notion-read"] };
 const connections = [];
 for (const provider of ["notion", "composio", "arcade", "executor", "arcade"] as const) {
   const optional = provider === "arcade" && connections.some(connection => connection.provider === "arcade");
-  const [application] = await db.insert(toolApplications).values({ companyId: company.id, applicationKey: randomUUID(), name: optional ? "arcade optional" : provider, type: "mcp_http", metadata: { sourceTemplateKey: provider } }).returning();
-  const [connection] = await db.insert(toolConnections).values({ companyId: company.id, applicationId: application.id, uid: randomUUID(), name: optional ? "Arcade without sync" : provider === "notion" ? "Native workspace" : `Team ${provider[0].toUpperCase()}${provider.slice(1)}`, transport: "mcp_remote", authKind: "none", credentialPolicy: "shared", status: "active", enabled: true, createdByUserId: userId,
+  const [application] = await db.insert(toolApplications).values({ spaceId: space.id, applicationKey: randomUUID(), name: optional ? "arcade optional" : provider, type: "mcp_http", metadata: { sourceTemplateKey: provider } }).returning();
+  const [connection] = await db.insert(toolConnections).values({ spaceId: space.id, applicationId: application.id, uid: randomUUID(), name: optional ? "Arcade without sync" : provider === "notion" ? "Native workspace" : `Team ${provider[0].toUpperCase()}${provider.slice(1)}`, transport: "mcp_remote", authKind: "none", credentialPolicy: "shared", status: "active", enabled: true, createdByUserId: userId,
     config: { sourceTemplateKey: provider, url: provider === "arcade" ? "https://api.arcade.dev/mcp/test" : `https://${provider}.example/mcp`, ...(provider === "executor" ? { managementUrl: "https://executor.sh/test-workspace/integrations" } : {}) } }).returning();
-  await db.insert(connectionGrants).values({ companyId: company.id, connectionId: connection.id, kind: "organization", status: "active", isDefault: true });
-  await db.insert(toolCatalogEntries).values(gatewayNames[provider].map(toolName => ({ companyId: company.id, connectionId: connection.id, name: toolName, toolName, versionHash: "v1", status: "active", riskLevel: "read" as const })));
+  await db.insert(connectionGrants).values({ spaceId: space.id, connectionId: connection.id, kind: "organization", status: "active", isDefault: true });
+  await db.insert(toolCatalogEntries).values(gatewayNames[provider].map(toolName => ({ spaceId: space.id, connectionId: connection.id, name: toolName, toolName, versionHash: "v1", status: "active", riskLevel: "read" as const })));
   connections.push({ ...connection, provider, optional });
 }
 const remoteHttpRequest = async (rawUrl: string, init: RequestInit): Promise<Response> => {
@@ -65,15 +65,15 @@ const app = express();
 app.use((_req, res, next) => { res.setHeader("Access-Control-Allow-Origin", "http://localhost:6200"); res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS"); res.setHeader("Access-Control-Allow-Headers", "Content-Type"); next(); });
 app.options(/.*/, (_req, res) => { res.sendStatus(204); });
 app.use(express.json());
-app.get("/fixture", (_req, res) => res.json({ companyId: company.id, connections: connections.map(({ id, name, provider }) => ({ id, name, provider })) }));
+app.get("/fixture", (_req, res) => res.json({ spaceId: space.id, connections: connections.map(({ id, name, provider }) => ({ id, name, provider })) }));
 app.post("/fixture", (req, res) => { Object.assign(state, req.body); res.json(state); });
-app.use((req, _res, next) => { req.actor = { type: "board", userId, source: "session", isInstanceAdmin: false, companyIds: [company.id], memberships: [{ companyId: company.id, membershipRole: "admin", status: "active" }] }; next(); });
+app.use((req, _res, next) => { req.actor = { type: "board", userId, source: "session", isInstanceAdmin: false, spaceIds: [space.id], memberships: [{ spaceId: space.id, membershipRole: "admin", status: "active" }] }; next(); });
 app.use("/api", toolAccessRoutes(db, { remoteHttpRequest }));
 app.use(errorHandler);
 const server = app.listen(4310, "127.0.0.1", () => { clearInterval(startup); console.log("Managed-account fixture API ready at http://localhost:4310/fixture"); });
 async function stop() {
   server.close();
-  fs.rmSync("/tmp/paperclip-aggregator-acceptance-db.json", { force: true });
+  fs.rmSync("/tmp/outpost-aggregator-acceptance-db.json", { force: true });
   await database.cleanup();
   process.exit(0);
 }

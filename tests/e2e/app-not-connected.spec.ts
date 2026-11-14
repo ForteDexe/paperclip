@@ -7,15 +7,15 @@ import { listenOnFetchAllowedPort } from "./fetch-allowed-port";
 
 const SCREENSHOT_DIR = "test-results";
 
-type Seed = { companyId: string; prefix: string };
+type Seed = { spaceId: string; prefix: string };
 
-async function newCompany(request: APIRequestContext, label: string): Promise<Seed> {
-  const res = await request.post("/api/companies", { data: { name: `Apps navigation ${label} ${Date.now()}` } });
-  expect(res.ok(), `create company failed ${res.status()}: ${await res.text()}`).toBe(true);
-  const company = await res.json();
+async function newSpace(request: APIRequestContext, label: string): Promise<Seed> {
+  const res = await request.post("/api/spaces", { data: { name: `Apps navigation ${label} ${Date.now()}` } });
+  expect(res.ok(), `create space failed ${res.status()}: ${await res.text()}`).toBe(true);
+  const space = await res.json();
   return {
-    companyId: company.id,
-    prefix: company.issuePrefix ?? company.prefix ?? company.urlKey ?? "E2E",
+    spaceId: space.id,
+    prefix: space.issuePrefix ?? space.prefix ?? space.urlKey ?? "E2E",
   };
 }
 
@@ -71,9 +71,9 @@ test.describe.serial("not-connected app page", () => {
 
   test.beforeAll(async ({ request }) => {
     mock = await startMockMcp();
-    seed = await newCompany(request, "app-page");
+    seed = await newSpace(request, "app-page");
 
-    const connect = await request.post(`/api/companies/${seed.companyId}/tools/apps/connect`, {
+    const connect = await request.post(`/api/spaces/${seed.spaceId}/tools/apps/connect`, {
       data: { link: mock.url, name: "Bla", credentialValues: { "credentials.authorization": "qa-token" } },
     });
     expect(connect.ok(), `connect failed ${connect.status()}: ${await connect.text()}`).toBe(true);
@@ -127,7 +127,7 @@ test.describe.serial("not-connected app page", () => {
     // check can commit the restored connection transactionally.
     await expect(page.getByRole("heading", { name: "Bla is ready." })).toBeVisible({ timeout: 30_000 });
 
-    const apps = await request.get(`/api/companies/${seed.companyId}/tools/applications`);
+    const apps = await request.get(`/api/spaces/${seed.spaceId}/tools/applications`);
     const appsBody = await apps.json();
     const matching = (appsBody.applications as Array<{ id: string; name: string }>).filter(
       (app) => app.name === "Bla",
@@ -135,7 +135,7 @@ test.describe.serial("not-connected app page", () => {
     expect(matching).toHaveLength(1);
     expect(matching[0].id).toBe(applicationId);
 
-    const conns = await request.get(`/api/companies/${seed.companyId}/tools/connections`);
+    const conns = await request.get(`/api/spaces/${seed.spaceId}/tools/connections`);
     const connsBody = await conns.json();
     const appConns = (connsBody.connections as Array<{ id: string; applicationId: string; status: string }>).filter(
       (c) => c.applicationId === applicationId,

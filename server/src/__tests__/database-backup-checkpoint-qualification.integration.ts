@@ -155,7 +155,7 @@ describe("real automatic backup checkpoint qualification", () => {
 
   it.each(["auto", "javascript"] as const)("preserves prior recovery points after %s verification failure without fallback or pruning", async engine => {
     const first = await owner()("idle"); const firstBytes = await readFile(first!.backupFile);
-    const history = path.join(directory, "paperclip-history.sql.gz"); const historyBytes = gzipSync("SELECT 'history';");
+    const history = path.join(directory, "outpost-history.sql.gz"); const historyBytes = gzipSync("SELECT 'history';");
     await writeFile(history, historyBytes); await utimes(history, new Date(0), new Date(0));
     const failure = new Error("qualification fsync boundary failed"); let verifications = 0;
     await expect(runDatabaseBackup({ connectionString: pair.sourceUrl, backupDir: directory, retention, backupEngine: engine,

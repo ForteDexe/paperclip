@@ -18,7 +18,7 @@ describe("http adapter execute", () => {
     guardedFetchMock.mockImplementation(async (_url: string, init?: RequestInit) => {
       expect(onDispatch).toHaveBeenCalledOnce();
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      expect(body.paperclipRuntimeTools).toEqual({
+      expect(body.outpostRuntimeTools).toEqual({
         version: 1,
         guidance: CONNECTION_INTENT_AGENT_GUIDANCE,
         mcpEndpoint: "https://outpost.test/mcp/runtime-tools",
@@ -37,7 +37,7 @@ describe("http adapter execute", () => {
       runId: "run-1",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Agent",
         adapterType: "http",
         adapterConfig: {},
@@ -76,7 +76,7 @@ describe("http adapter execute", () => {
       expect(JSON.parse(String(init?.body)).connectionInstructions).toEqual(snapshot);
       return new Response(null, { status: 204 });
     });
-    await execute({ runId: "run-1", agent: { id: "agent-1", companyId: "company-1", name: "Agent", adapterType: "http", adapterConfig: {} }, runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
+    await execute({ runId: "run-1", agent: { id: "agent-1", spaceId: "space-1", name: "Agent", adapterType: "http", adapterConfig: {} }, runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
       config: { url: "https://example.test/webhook", payloadTemplate: { connectionInstructions: { text: "forged" } } }, context: { connectionInstructions: snapshot }, onLog: async () => {},
     });
     expect(guardedFetchMock).toHaveBeenCalledOnce();
@@ -95,7 +95,7 @@ describe("http adapter execute", () => {
       runId: "run-1",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Agent",
         adapterType: "http",
         adapterConfig: {},

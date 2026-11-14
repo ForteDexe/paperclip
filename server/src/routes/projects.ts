@@ -13,7 +13,7 @@ import { normalizeProjectRepositoryUrl, resolveProjectRepositorySelection } from
 import { toolAccessService } from "../services/tool-access.js";
 import { Router, type Request, type Response } from "express";
 import type { Db } from "@outpost/db";
-import { agents, authUsers, companyMemberships, instanceUserRoles, projectAccessMembers } from "@outpost/db";
+import { agents, authUsers, spaceMemberships, instanceUserRoles, projectAccessMembers } from "@outpost/db";
 import { inArray } from "drizzle-orm";
 import {
   addProjectAccessMemberSchema,
@@ -37,7 +37,7 @@ import { accessService, projectService, logActivity, workspaceOperationService }
 import { conflict, forbidden, unprocessable } from "../errors.js";
 import { externalObjectService } from "../services/external-objects.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
-import { assertBoard, assertCompanyAccess, getAccessibleResource, getActorInfo } from "./authz.js";
+import { assertOperator, assertSpaceAccess, getAccessibleResource, getActorInfo } from "./authz.js";
 import { ensureProjectAccessMember } from "../services/projects.js";
 import {
   buildWorkspaceRuntimeDesiredStatePatch,
@@ -65,16 +65,16 @@ export function projectRoutes(db: Db) {
   const svc = projectService(db);
 
   async function repositoryViewer(req: Request) {
-    if (req.actor.type === "board") return { userId: req.actor.userId ?? null, localTrusted: req.actor.source === "local_implicit" };
+    if (req.actor.type === "operator") return { userId: req.actor.userId ?? null, localTrusted: req.actor.source === "local_implicit" };
     const context = await projectToolContext(db, req.actor);
     if (!context.userId) throw forbidden("Repository access requires a responsible user");
     return context;
   }
 
-  async function selectedRepositories(req: Request, companyId: string, ids: string[], existing: import("@outpost/shared").ProjectWorkspace[] = []) {
+  async function selectedRepositories(req: Request, spaceId: string, ids: string[], existing: import("@outpost/shared").ProjectWorkspace[] = []) {
     const viewer = await repositoryViewer(req);
     if (!ids.length) return [];
-    const available = await toolAccessService(db).listProjectRepositories(companyId, viewer.userId, viewer.localTrusted);
+    const available = await toolAccessService(db).listProjectRepositories(spaceId, viewer.userId, viewer.localTrusted);
     return resolveProjectRepositorySelection(ids, available.repositories, existing);
   }
   const access = accessService(db);
@@ -111,54 +111,54 @@ export function projectRoutes(db: Db) {
     );
   }
 
-  async function resolveCompanyIdForProjectReference(req: Request) {
-    const companyIdQuery = req.query.companyId;
-    const requestedCompanyId =
-      typeof companyIdQuery === "string" && companyIdQuery.trim().length > 0
-        ? companyIdQuery.trim()
+  async function resolveSpaceIdForProjectReference(req: Request) {
+    const spaceIdQuery = req.query.spaceId;
+    const requestedSpaceId =
+      typeof spaceIdQuery === "string" && spaceIdQuery.trim().length > 0
+        ? spaceIdQuery.trim()
         : null;
-    if (requestedCompanyId) {
-      assertCompanyAccess(req, requestedCompanyId);
-      return requestedCompanyId;
+    if (requestedSpaceId) {
+      assertSpaceAccess(req, requestedSpaceId);
+      return requestedSpaceId;
     }
-    if (req.actor.type === "agent" && req.actor.companyId) {
-      return req.actor.companyId;
+    if (req.actor.type === "agent" && req.actor.spaceId) {
+      return req.actor.spaceId;
     }
     return null;
   }
 
   async function normalizeProjectReference(req: Request, rawId: string) {
     if (isUuidLike(rawId)) return rawId;
-    const companyId = await resolveCompanyIdForProjectReference(req);
-    if (!companyId) return rawId;
+    const spaceId = await resolveSpaceIdForProjectReference(req);
+    if (!spaceId) return rawId;
     const urlKey = normalizeProjectUrlKey(rawId);
     if (!urlKey) return rawId;
     const visibleProjects = await filterProjectsForActor(
       req,
-      await svc.list(companyId, { includeArchived: true }),
+      await svc.list(spaceId, { includeArchived: true }),
     );
     const matches = visibleProjects.filter((project) => deriveProjectUrlKey(project.name, project.id) === urlKey);
     if (matches.length > 1) {
-      throw conflict("Project shortname is ambiguous in this company. Use the project ID.");
+      throw conflict("Project shortname is ambiguous in this space. Use the project ID.");
     }
     return matches[0]?.id ?? rawId;
   }
 
-  async function assertProjectReadAllowed(req: Request, res: Response, project: { id: string; companyId: string }) {
+  async function assertProjectReadAllowed(req: Request, res: Response, project: { id: string; spaceId: string }) {
     const decision = await access.decide({
       actor: req.actor,
       action: "project:read",
-      resource: { type: "project", companyId: project.companyId, projectId: project.id },
+      resource: { type: "project", spaceId: project.spaceId, projectId: project.id },
     });
     if (decision.allowed) return true;
     res.status(404).json({ error: "Project not found" });
     return false;
   }
 
-  async function assertProjectWorkspaceWriteAllowed(req: Request, res: Response, project: { id: string; companyId: string }) {
+  async function assertProjectWorkspaceWriteAllowed(req: Request, res: Response, project: { id: string; spaceId: string }) {
     const assigneeAgentId = req.actor.type === "agent" ? req.actor.agentId ?? null : null;
     const decision = await access.decide({ actor: req.actor, action: "project:write_workspace",
-      resource: { type: "issue", companyId: project.companyId, projectId: project.id, assigneeAgentId },
+      resource: { type: "issue", spaceId: project.spaceId, projectId: project.id, assigneeAgentId },
       scope: { projectId: project.id, assigneeAgentId } });
     if (decision.allowed) return true;
     res.status(403).json({ error: decision.explanation });
@@ -166,32 +166,32 @@ export function projectRoutes(db: Db) {
   }
 
   async function assertCanManageProjectPrivacy(req: Request, res: Response, project: {
-    companyId: string; privacyOwnerUserId?: string | null; personalOwnerUserId?: string | null;
+    spaceId: string; privacyOwnerUserId?: string | null; personalOwnerUserId?: string | null;
   }) {
     const actor = req.actor;
-    if (actor.type === "board" && actor.userId) {
+    if (actor.type === "operator" && actor.userId) {
       if (actor.source === "local_implicit" || actor.isInstanceAdmin) return true;
       if (actor.userId === project.privacyOwnerUserId || actor.userId === project.personalOwnerUserId) return true;
       const instanceAdmin = actor.source !== "cloud_tenant" && await db.select({ id: instanceUserRoles.id }).from(instanceUserRoles)
         .where(and(eq(instanceUserRoles.userId, actor.userId), eq(instanceUserRoles.role, "instance_admin"))).limit(1).then(rows => rows.length > 0);
       if (instanceAdmin) return true;
-      const membership = await db.select({ role: companyMemberships.membershipRole }).from(companyMemberships)
-        .where(and(eq(companyMemberships.companyId, project.companyId), eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, actor.userId), eq(companyMemberships.status, "active"))).limit(1);
+      const membership = await db.select({ role: spaceMemberships.membershipRole }).from(spaceMemberships)
+        .where(and(eq(spaceMemberships.spaceId, project.spaceId), eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, actor.userId), eq(spaceMemberships.status, "active"))).limit(1);
       if (["owner", "admin"].includes(membership[0]?.role ?? "")) return true;
     }
     res.status(403).json({ error: "Only the project privacy owner or an administrator can change project access" });
     return false;
   }
 
-  async function addActorAsPrivateProjectPrincipal(req: Request, project: { id: string; companyId: string; privacyOwnerUserId?: string | null; personalOwnerUserId?: string | null }, dbOrTx: Db = db) {
+  async function addActorAsPrivateProjectPrincipal(req: Request, project: { id: string; spaceId: string; privacyOwnerUserId?: string | null; personalOwnerUserId?: string | null }, dbOrTx: Db = db) {
     const ownerUserId = project.privacyOwnerUserId ?? project.personalOwnerUserId;
     if (ownerUserId) await ensureProjectAccessMember(dbOrTx, {
-      companyId: project.companyId, projectId: project.id, subjectType: "user", subjectId: ownerUserId,
+      spaceId: project.spaceId, projectId: project.id, subjectType: "user", subjectId: ownerUserId,
     });
-    if (req.actor.type === "board" && req.actor.userId) {
+    if (req.actor.type === "operator" && req.actor.userId) {
       await ensureProjectAccessMember(dbOrTx, {
-        companyId: project.companyId,
+        spaceId: project.spaceId,
         projectId: project.id,
         subjectType: "user",
         subjectId: req.actor.userId,
@@ -201,14 +201,14 @@ export function projectRoutes(db: Db) {
     if (req.actor.type === "agent" && req.actor.agentId) {
       if (req.actor.onBehalfOfUserId) {
         await ensureProjectAccessMember(dbOrTx, {
-          companyId: project.companyId,
+          spaceId: project.spaceId,
           projectId: project.id,
           subjectType: "user",
           subjectId: req.actor.onBehalfOfUserId,
         });
       }
       await ensureProjectAccessMember(dbOrTx, {
-        companyId: project.companyId,
+        spaceId: project.spaceId,
         projectId: project.id,
         subjectType: "agent",
         subjectId: req.actor.agentId,
@@ -242,23 +242,23 @@ export function projectRoutes(db: Db) {
     });
   }
 
-  async function assertRuntimeManageAllowed(req: Request, res: Response, companyId: string) {
+  async function assertRuntimeManageAllowed(req: Request, res: Response, spaceId: string) {
     const decision = await access.decide({
       actor: req.actor,
       action: "runtime:manage",
-      resource: { type: "company", companyId },
+      resource: { type: "space", spaceId },
     });
     if (decision.allowed) return true;
     res.status(403).json({ error: "Runtime service control is outside this actor's authorization boundary" });
     return false;
   }
 
-  async function filterProjectsForActor<T extends { id: string; companyId: string }>(req: Request, rows: T[]) {
+  async function filterProjectsForActor<T extends { id: string; spaceId: string }>(req: Request, rows: T[]) {
     const decisions = await Promise.all(rows.map((project) =>
       access.decide({
         actor: req.actor,
         action: "project:read",
-        resource: { type: "project", companyId: project.companyId, projectId: project.id },
+        resource: { type: "project", spaceId: project.spaceId, projectId: project.id },
       })
     ));
     return rows.filter((_, index) => decisions[index]?.allowed);
@@ -273,63 +273,63 @@ export function projectRoutes(db: Db) {
     }
   });
 
-  router.get("/companies/:companyId/project-repositories", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/project-repositories", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const viewer = await repositoryViewer(req);
-    res.json(await toolAccessService(db).listProjectRepositories(companyId, viewer.userId, viewer.localTrusted));
+    res.json(await toolAccessService(db).listProjectRepositories(spaceId, viewer.userId, viewer.localTrusted));
   });
 
   router.get("/projects/:id/git-authorization", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const project = await getAccessibleResource(req, res, svc.getById(req.params.id as string), "Project not found");
     if (!project || !(await assertProjectReadAllowed(req, res, project))) return;
     if (!req.actor.userId) throw forbidden("A signed-in user is required");
-    res.json(await projectGitAuthorizationService(db).read(project.companyId, project.id, req.actor.userId));
+    res.json(await projectGitAuthorizationService(db).read(project.spaceId, project.id, req.actor.userId));
   });
 
   router.put("/projects/:id/git-authorization", validate(z.object({ grantId: z.string().uuid().nullable() }).strict()), async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const project = await getAccessibleResource(req, res, svc.getById(req.params.id as string), "Project not found");
     if (!project || !(await assertProjectReadAllowed(req, res, project)) || !(await assertProjectWorkspaceWriteAllowed(req, res, project))) return;
     if (!req.actor.userId) throw forbidden("A signed-in user is required");
-    res.json(await projectGitAuthorizationService(db).set(project.companyId, project.id, req.actor.userId, req.body.grantId));
+    res.json(await projectGitAuthorizationService(db).set(project.spaceId, project.id, req.actor.userId, req.body.grantId));
   });
 
   router.put("/projects/:id/repositories", validate(z.object({ repositoryIds: z.array(z.string().regex(/^\d+$/)) })), async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const project = await getAccessibleResource(req, res, svc.getById(req.params.id as string), "Project not found");
     if (!project) return;
     if (!(await assertProjectReadAllowed(req, res, project))) return;
     if (!(await assertProjectWorkspaceWriteAllowed(req, res, project))) return;
-    const repositories = await selectedRepositories(req, project.companyId, req.body.repositoryIds, project.workspaces);
+    const repositories = await selectedRepositories(req, project.spaceId, req.body.repositoryIds, project.workspaces);
     const updated = await svc.replaceRepositories(project.id, repositories);
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId: project.companyId, actorType: actor.actorType, actorId: actor.actorId,
+      spaceId: project.spaceId, actorType: actor.actorType, actorId: actor.actorId,
       action: "project.repositories_updated", entityType: "project", entityId: project.id,
       details: { repositoryIds: repositories.map((repo) => repo.id) },
     });
     res.json(updated);
   });
 
-  router.get("/companies/:companyId/projects", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/projects", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const includeArchived = req.query.includeArchived === "true";
     if (req.query.view === "summary") {
       const page = projectDiscoverySchema.extend({ limit: z.coerce.number().int().min(1).max(50).default(50) }).parse({
         limit: req.query.limit, cursor: req.query.cursor,
       });
-      const candidateIds = await access.projectDiscoveryCandidateIds(req.actor, companyId);
+      const candidateIds = await access.projectDiscoveryCandidateIds(req.actor, spaceId);
       const visible: ProjectDiscoveryPage["projects"] = [];
       let cursor = page.cursor;
       // Scan bounded projections; authorization runs before selecting the public
       // page/cursor so denied projects neither fill pages nor leak their IDs.
       while (visible.length <= page.limit) {
-        const batch = await svc.listSummaries(companyId, { limit: 51, cursor, includeArchived, candidateIds });
-        const allowed = await filterProjectsForActor(req, batch.map(project => ({ ...project, companyId })));
-        visible.push(...allowed.map(({ companyId: _companyId, ...project }) => project));
+        const batch = await svc.listSummaries(spaceId, { limit: 51, cursor, includeArchived, candidateIds });
+        const allowed = await filterProjectsForActor(req, batch.map(project => ({ ...project, spaceId })));
+        visible.push(...allowed.map(({ spaceId: _spaceId, ...project }) => project));
         if (batch.length < 51) break;
         cursor = batch.at(-1)!.id;
       }
@@ -337,7 +337,7 @@ export function projectRoutes(db: Db) {
       res.json({ projects: selected, nextCursor: visible.length > page.limit ? selected.at(-1)!.id : null } satisfies ProjectDiscoveryPage);
       return;
     }
-    const result = await svc.list(companyId, { includeArchived });
+    const result = await svc.list(spaceId, { includeArchived });
     res.json(await filterProjectsForActor(req, result));
   });
 
@@ -358,18 +358,18 @@ export function projectRoutes(db: Db) {
     res.json(summary);
   });
 
-  router.get("/companies/:companyId/project-environments", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    res.json(await projectEnvironmentOptions(db, companyId, {
-      userId: req.actor.type === "board" ? req.actor.userId : req.actor.onBehalfOfUserId,
+  router.get("/spaces/:spaceId/project-environments", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    res.json(await projectEnvironmentOptions(db, spaceId, {
+      userId: req.actor.type === "operator" ? req.actor.userId : req.actor.onBehalfOfUserId,
       agentId: req.actor.type === "agent" ? req.actor.agentId : null,
     }));
   });
 
-  router.post("/companies/:companyId/projects", validate(createProjectSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.post("/spaces/:spaceId/projects", validate(createProjectSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     type CreateProjectPayload = Parameters<typeof svc.create>[1] & {
       workspace?: Parameters<typeof svc.createWorkspace>[1];
       repositoryIds?: string[];
@@ -378,9 +378,9 @@ export function projectRoutes(db: Db) {
     };
 
     const { workspace, repositoryIds, repositoryUrls, idempotencyKey, environmentId, expectedStorageProviderPluginId, ...projectData } = req.body as CreateProjectPayload & { idempotencyKey?: string; repositoryUrls?: string[] };
-    const receiptOnly = req.get("X-Paperclip-Receipt-Only") === "true";
+    const receiptOnly = req.get("X-Outpost-Receipt-Only") === "true";
     if (receiptOnly && !idempotencyKey) throw unprocessable("Project receipt recovery requires an idempotency key");
-    projectData.privacyOwnerUserId = req.actor.type === "board" ? req.actor.userId ?? null : req.actor.type === "agent" ? req.actor.onBehalfOfUserId ?? null : null;
+    projectData.privacyOwnerUserId = req.actor.type === "operator" ? req.actor.userId ?? null : req.actor.type === "agent" ? req.actor.onBehalfOfUserId ?? null : null;
     const runContext = req.actor.type === "agent" && req.actor.source === "agent_jwt" && req.actor.runId
       ? await projectToolContext(db, req.actor, true) : null;
     assertNoAgentHostWorkspaceCommandMutation(
@@ -393,34 +393,34 @@ export function projectRoutes(db: Db) {
     await assertNoManagedSandboxWorkspacePath(workspace);
     if (projectData.env !== undefined) {
       projectData.env = await secretsSvc.normalizeEnvBindingsForPersistence(
-        companyId,
+        spaceId,
         projectData.env,
         { strictMode: strictSecretsMode, fieldPath: "env" },
       );
     }
     if (workspace && (repositoryIds || repositoryUrls)) throw unprocessable("Use either workspace or repositoryIds/repositoryUrls when creating a project");
     const urlRepositories = (repositoryUrls ?? []).map(normalizeProjectRepositoryUrl);
-    const repositories = repositoryIds ? await selectedRepositories(req, companyId, repositoryIds) : null;
+    const repositories = repositoryIds ? await selectedRepositories(req, spaceId, repositoryIds) : null;
     const actor = getActorInfo(req);
     const fingerprint = createHash("sha256").update(JSON.stringify({ projectData, workspace, repositoryIds, repositoryUrls, environmentId, expectedStorageProviderPluginId })).digest("hex");
-    const receiptKey = idempotencyKey ? `project:${companyId}:${actor.actorId}:${runContext?.issue.id ?? "board"}:${idempotencyKey}` : null;
+    const receiptKey = idempotencyKey ? `project:${spaceId}:${actor.actorId}:${runContext?.issue.id ?? "operator"}:${idempotencyKey}` : null;
     const result = await db.transaction(async (tx) => {
       if (receiptKey) {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${receiptKey}, 0))`);
       }
       const museActor = runContext && req.actor.type === "agent" && req.actor.authorizingUserId ? req.actor : null;
       if (museActor) {
-        const { companyId: actorCompanyId, agentId, runId, authorizingUserId } = museActor;
-        if (!actorCompanyId || !agentId || !runId) throw forbidden("Muse native tool authority is unavailable");
+        const { spaceId: actorSpaceId, agentId, runId, authorizingUserId } = museActor;
+        if (!actorSpaceId || !agentId || !runId) throw forbidden("Muse native tool authority is unavailable");
         // The receipt lock can wait too. Keep current authority behind every
         // admission wait and ahead of both receipt replay and project creation.
-        await withExternalExecutionAdmission(tx, actorCompanyId, agentId, runId, async () => {
+        await withExternalExecutionAdmission(tx, actorSpaceId, agentId, runId, async () => {
           const current = await projectToolContext(tx as unknown as Db, museActor, true, "Project", { includeExecutionInput: true });
           try {
             const execution = parseNativeExecutionInput(current.run.runnerProfileJson?.nativeExecutionInput);
             const broker = museExternalAgents(db);
             if (current.run.runtimeMode !== "native" || execution.schema !== "outpost.native-execution-input.v8"
-              || execution.binding.companyId !== actorCompanyId || execution.binding.agentId !== agentId
+              || execution.binding.spaceId !== actorSpaceId || execution.binding.agentId !== agentId
               || execution.binding.runId !== runId || execution.binding.issueId !== current.issue.id
               || await broker.authorizingUserIdForBinding(execution.provider.binding) !== authorizingUserId) {
               throw new Error("Muse internal tool authority mismatch");
@@ -434,7 +434,7 @@ export function projectRoutes(db: Db) {
       if (receiptOnly && runContext && !museActor) await projectToolContext(tx as unknown as Db, req.actor, true);
       if (receiptKey) {
         const [prior] = await tx.select().from(activityLog).where(and(
-          eq(activityLog.companyId, companyId), eq(activityLog.action, "project.created"),
+          eq(activityLog.spaceId, spaceId), eq(activityLog.action, "project.created"),
           sql`${activityLog.details}->>'idempotencyKey' = ${receiptKey}`,
         ));
         if (prior) {
@@ -450,10 +450,10 @@ export function projectRoutes(db: Db) {
       const environment = {
         environmentId,
         expectedStorageProviderPluginId,
-        userId: req.actor.type === "board" ? req.actor.userId : req.actor.onBehalfOfUserId,
+        userId: req.actor.type === "operator" ? req.actor.userId : req.actor.onBehalfOfUserId,
         agentId: req.actor.type === "agent" ? req.actor.agentId : null,
       };
-      const project = repositories ? await service.createWithRepositories(companyId, projectData, repositories, environment) : await service.create(companyId, projectData, environment);
+      const project = repositories ? await service.createWithRepositories(spaceId, projectData, repositories, environment) : await service.create(spaceId, projectData, environment);
       if (project.visibility === "private") await addActorAsPrivateProjectPrincipal(req, project, tx as unknown as Db);
       const attachedUrls = new Set((repositories ?? []).map(repo => repo.url.toLowerCase()));
       const registeredUrls: typeof urlRepositories = [];
@@ -467,7 +467,7 @@ export function projectRoutes(db: Db) {
       if (workspace && !createdWorkspace) throw unprocessable("Invalid project workspace payload");
       const hydrated = await service.getById(project.id);
       const activity = await persistActivity(tx as unknown as Db, {
-        companyId, actorType: actor.actorType, actorId: actor.actorId, agentId: actor.agentId,
+        spaceId, actorType: actor.actorType, actorId: actor.actorId, agentId: actor.agentId,
         runId: actor.runId, issueId: runContext?.issue.id,
         action: "project.created", entityType: "project", entityId: project.id,
         details: {
@@ -485,7 +485,7 @@ export function projectRoutes(db: Db) {
     });
     if (!result) { res.status(204).end(); return; }
     if (result.publication) publishActivity(result.publication);
-    if (result.project.env) await secretsSvc.syncEnvBindingsForTarget?.(companyId, { targetType: "project", targetId: result.project.id }, result.project.env);
+    if (result.project.env) await secretsSvc.syncEnvBindingsForTarget?.(spaceId, { targetType: "project", targetId: result.project.id }, result.project.env);
     if (result.duplicate) { res.status(200).json(result.project); return; }
     const telemetryClient = getTelemetryClient();
     if (telemetryClient) {
@@ -512,7 +512,7 @@ export function projectRoutes(db: Db) {
       body.archivedAt = new Date(body.archivedAt);
     }
     if (body.env !== undefined) {
-      body.env = await secretsSvc.normalizeEnvBindingsForPersistence(existing.companyId, body.env, {
+      body.env = await secretsSvc.normalizeEnvBindingsForPersistence(existing.spaceId, body.env, {
         strictMode: strictSecretsMode,
         fieldPath: "env",
       });
@@ -524,7 +524,7 @@ export function projectRoutes(db: Db) {
     }
     if (body.env !== undefined) {
       await secretsSvc.syncEnvBindingsForTarget?.(
-        project.companyId,
+        project.spaceId,
         { targetType: "project", targetId: project.id },
         project.env,
       );
@@ -532,7 +532,7 @@ export function projectRoutes(db: Db) {
 
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId: project.companyId,
+      spaceId: project.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -558,12 +558,12 @@ export function projectRoutes(db: Db) {
     const rows = await db
       .select()
       .from(projectAccessMembers)
-      .where(and(eq(projectAccessMembers.companyId, project.companyId), eq(projectAccessMembers.projectId, project.id)));
+      .where(and(eq(projectAccessMembers.spaceId, project.spaceId), eq(projectAccessMembers.projectId, project.id)));
     res.json(await enrichProjectAccessMembers(rows));
   });
 
   router.post("/projects/:id/access-members", validate(addProjectAccessMemberSchema), async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const id = req.params.id as string;
     const project = await getAccessibleResource(req, res, svc.getById(id), "Project not found");
     if (!project || !(await assertProjectReadAllowed(req, res, project))) return;
@@ -572,21 +572,21 @@ export function projectRoutes(db: Db) {
     const subjectId = req.body.subjectId as string;
     const subjectExists = subjectType === "agent"
       ? await db.select({ id: agents.id }).from(agents)
-          .where(and(eq(agents.id, subjectId), eq(agents.companyId, project.companyId)))
+          .where(and(eq(agents.id, subjectId), eq(agents.spaceId, project.spaceId)))
           .then((rows) => rows.length > 0)
-      : await db.select({ id: companyMemberships.id }).from(companyMemberships)
+      : await db.select({ id: spaceMemberships.id }).from(spaceMemberships)
           .where(and(
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, subjectId),
-            eq(companyMemberships.companyId, project.companyId),
-            eq(companyMemberships.status, "active"),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, subjectId),
+            eq(spaceMemberships.spaceId, project.spaceId),
+            eq(spaceMemberships.status, "active"),
           ))
           .then((rows) => rows.length > 0);
     if (!subjectExists) {
-      res.status(422).json({ error: "Project access member must belong to this company" });
+      res.status(422).json({ error: "Project access member must belong to this space" });
       return;
     }
-    await ensureProjectAccessMember(db, { companyId: project.companyId, projectId: project.id, subjectType, subjectId });
+    await ensureProjectAccessMember(db, { spaceId: project.spaceId, projectId: project.id, subjectType, subjectId });
     const rows = await db.select().from(projectAccessMembers).where(and(
       eq(projectAccessMembers.projectId, project.id),
       eq(projectAccessMembers.subjectType, subjectType),
@@ -595,7 +595,7 @@ export function projectRoutes(db: Db) {
     const [member] = await enrichProjectAccessMembers(rows);
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId: project.companyId,
+      spaceId: project.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -608,14 +608,14 @@ export function projectRoutes(db: Db) {
   });
 
   router.delete("/projects/:id/access-members/:memberId", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const id = req.params.id as string;
     const project = await getAccessibleResource(req, res, svc.getById(id), "Project not found");
     if (!project || !(await assertProjectReadAllowed(req, res, project))) return;
     if (!(await assertCanManageProjectPrivacy(req, res, project))) return;
     const member = await db.select().from(projectAccessMembers).where(and(
       eq(projectAccessMembers.id, req.params.memberId as string),
-      eq(projectAccessMembers.companyId, project.companyId),
+      eq(projectAccessMembers.spaceId, project.spaceId),
       eq(projectAccessMembers.projectId, project.id),
     )).then((rows) => rows[0] ?? null);
     if (!member) {
@@ -629,7 +629,7 @@ export function projectRoutes(db: Db) {
     await db.delete(projectAccessMembers).where(eq(projectAccessMembers.id, member.id));
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId: project.companyId,
+      spaceId: project.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -669,7 +669,7 @@ export function projectRoutes(db: Db) {
 
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -715,7 +715,7 @@ export function projectRoutes(db: Db) {
 
       const actor = getActorInfo(req);
       await logActivity(db, {
-        companyId: existing.companyId,
+        spaceId: existing.spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         agentId: actor.agentId,
@@ -750,7 +750,7 @@ export function projectRoutes(db: Db) {
       res.status(404).json({ error: "Project workspace not found" });
       return;
     }
-    if (!(await assertRuntimeManageAllowed(req, res, project.companyId))) return;
+    if (!(await assertRuntimeManageAllowed(req, res, project.spaceId))) return;
 
     const isSharedWorkspace = Boolean(workspace.sharedWorkspaceKey);
     if (
@@ -762,7 +762,7 @@ export function projectRoutes(db: Db) {
     }
 
     await assertCanManageProjectWorkspaceRuntimeServices(db, req, {
-      companyId: project.companyId,
+      spaceId: project.spaceId,
       projectWorkspaceId: workspace.id,
     });
 
@@ -821,7 +821,7 @@ export function projectRoutes(db: Db) {
     }
 
     const actor = getActorInfo(req);
-    const recorder = workspaceOperations.createRecorder({ companyId: project.companyId });
+    const recorder = workspaceOperations.createRecorder({ spaceId: project.spaceId });
     let runtimeServiceCount = workspace.runtimeServices?.length ?? 0;
     let stdout = "";
     let stderr = "";
@@ -848,8 +848,8 @@ export function projectRoutes(db: Db) {
           return await runWorkspaceJobForControl({
             actor: {
               id: actor.agentId ?? null,
-              name: actor.actorType === "user" ? "Board" : "Agent",
-              companyId: project.companyId,
+              name: actor.actorType === "user" ? "Operator" : "Agent",
+              spaceId: project.spaceId,
             },
             issue: null,
             workspace: {
@@ -904,8 +904,8 @@ export function projectRoutes(db: Db) {
             db,
             actor: {
               id: actor.agentId ?? null,
-              name: actor.actorType === "user" ? "Board" : "Agent",
-              companyId: project.companyId,
+              name: actor.actorType === "user" ? "Operator" : "Agent",
+              spaceId: project.spaceId,
             },
             issue: null,
             workspace: {
@@ -986,7 +986,7 @@ export function projectRoutes(db: Db) {
     const updatedWorkspace = (await svc.listWorkspaces(project.id)).find((entry) => entry.id === workspace.id) ?? workspace;
 
     await logActivity(db, {
-      companyId: project.companyId,
+      spaceId: project.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -1028,7 +1028,7 @@ export function projectRoutes(db: Db) {
 
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -1057,7 +1057,7 @@ export function projectRoutes(db: Db) {
 
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId: project.companyId,
+      spaceId: project.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,

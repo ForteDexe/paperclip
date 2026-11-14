@@ -1,4 +1,4 @@
-export const CLEANUP_VERIFICATION_KEY = "paperclipCleanupVerification";
+export const CLEANUP_VERIFICATION_KEY = "outpostCleanupVerification";
 export const CLEANUP_VERIFICATION_SCHEMA = "outpost.cleanup-verification.v1";
 export const CLEANUP_ROW_STAMP_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.US';
 
@@ -16,11 +16,11 @@ export function cleanupRowStamp(alias: string): string {
 /** Fixed aliases only; never interpolate request input into these predicates. */
 export function verifiedResourceCleanup(alias: string, kind: "lease" | "image_setup"): string {
   const proof = `${alias}.metadata->'${CLEANUP_VERIFICATION_KEY}'`;
-  const company = kind === "lease" ? `${alias}.company_id::text`
-    : `COALESCE(NULLIF(btrim(${alias}.metadata->>'setupRpcCompanyId'), ''), 'instance')`;
+  const space = kind === "lease" ? `${alias}.space_id::text`
+    : `COALESCE(NULLIF(btrim(${alias}.metadata->>'setupRpcSpaceId'), ''), 'instance')`;
   return `jsonb_typeof(${proof}) = 'object'
     AND ${proof}->>'schema' = '${CLEANUP_VERIFICATION_SCHEMA}' AND ${proof}->>'kind' = '${kind}'
-    AND ${proof}->>'resourceId' = ${alias}.id::text AND ${proof}->>'companyId' = ${company}
+    AND ${proof}->>'resourceId' = ${alias}.id::text AND ${proof}->>'spaceId' = ${space}
     AND ${proof}->>'environmentId' = ${alias}.environment_id::text
     AND ${proof}->>'provider' = ${alias}.provider
     AND ${proof}->>'providerLeaseId' = ${alias}.provider_lease_id

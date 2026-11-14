@@ -222,13 +222,13 @@ type SlackCallbackInspection = {
 // cannot replace it with their upstream host. Only use callback-health evidence on a
 // claimed Cloud instance, after provider authentication succeeded. It must not
 // change the Request passed to the adapter, signature verification, routing,
-// board identity, or the configured URL used to generate callbacks.
+// operator identity, or the configured URL used to generate callbacks.
 function slackCallbackObservationUrl(request: Request): string | null {
   const directUrl = canonicalCallbackUrl(request.url);
   if (!directUrl || !runtimeCanonicalOrigin()) return directUrl;
-  const hasCloudEvidence = request.headers.has("x-paperclip-cloud-forwarded-host");
-  const host = request.headers.get(hasCloudEvidence ? "x-paperclip-cloud-forwarded-host" : "x-forwarded-host")?.trim();
-  const protocol = request.headers.get(hasCloudEvidence ? "x-paperclip-cloud-forwarded-proto" : "x-forwarded-proto")?.trim();
+  const hasCloudEvidence = request.headers.has("x-outpost-cloud-forwarded-host");
+  const host = request.headers.get(hasCloudEvidence ? "x-outpost-cloud-forwarded-host" : "x-forwarded-host")?.trim();
+  const protocol = request.headers.get(hasCloudEvidence ? "x-outpost-cloud-forwarded-proto" : "x-forwarded-proto")?.trim();
   if (!host || /[\s/@\\?#,]/.test(host) || (protocol !== "https" && protocol !== "http")) return directUrl;
   try {
     const origin = new URL(`${protocol}://${host}`);
@@ -268,14 +268,14 @@ export function createSlackCallbackVerification(db: Db, options: SlackCallbackVe
       const [current] = await tx.select().from(chatEndpoints).where(eq(chatEndpoints.id, endpoint.id)).for("no key update");
       if (!current || ["archived", "paused", "revoked"].includes(current.status)) return new Response("ignored", { status: 200 });
       const [connection] = await tx.select({ status: toolConnections.status, refs: toolConnections.credentialSecretRefs }).from(toolConnections)
-        .where(and(eq(toolConnections.id, current.connectionId), eq(toolConnections.companyId, current.companyId)));
+        .where(and(eq(toolConnections.id, current.connectionId), eq(toolConnections.spaceId, current.spaceId)));
       if (!connection || connection.status === "archived") return new Response("ignored", { status: 200 });
       let secret = (await resolveCredentialRefs(current, connection.refs.filter(ref => ref.configPath.replace(/^credentials\./, "") === "signingSecret"), tx)).signingSecret;
       if (!secret && isProvisionedSlackSetup(current.setup.slackSetupMethod)) {
         const [registration] = await tx.select().from(chatSlackRegistrations)
-          .where(and(eq(chatSlackRegistrations.endpointId, current.id), eq(chatSlackRegistrations.companyId, current.companyId)));
+          .where(and(eq(chatSlackRegistrations.endpointId, current.id), eq(chatSlackRegistrations.spaceId, current.spaceId)));
         if (registration?.status !== "removed" && registration?.secretIds.signingSecret) {
-          secret = await secretService(tx as unknown as Db).resolveSecretValue(current.companyId, registration.secretIds.signingSecret, "latest", {
+          secret = await secretService(tx as unknown as Db).resolveSecretValue(current.spaceId, registration.secretIds.signingSecret, "latest", {
             accessContext: { consumerType: "system", consumerId: `slack-registration:${current.id}`, configPath: "slack_registration.signingSecret", actorType: "system" },
           });
         }
@@ -296,7 +296,7 @@ export function createSlackCallbackVerification(db: Db, options: SlackCallbackVe
         ...(matchesCurrentUrl && setup.slackAccount?.status === "linked" && !setup.slackAccount.verificationStatus
           ? { slackAccount: { ...setup.slackAccount, verificationStatus: "pending" as const } } : {}),
       } as InternalSetupState, ...(matchesCurrentUrl ? { healthMessage: "Slack Events Request URL verified" } : {}), updatedAt: observedAt }).where(eq(chatEndpoints.id, current.id));
-      if (matchesCurrentUrl && !setup.webhookVerifiedAt) await logActivity(tx as unknown as Db, { companyId: current.companyId, actorType: "system", actorId: "slack-webhook",
+      if (matchesCurrentUrl && !setup.webhookVerifiedAt) await logActivity(tx as unknown as Db, { spaceId: current.spaceId, actorType: "system", actorId: "slack-webhook",
         action: "chat_endpoint.webhook_verified", entityType: "tool_connection", entityId: current.connectionId,
         details: { endpointId: current.id, provider: "slack" } });
       notifyAccount = matchesCurrentUrl && setup.slackAccount?.status === "linked" && !setup.slackAccount.verificationStatus;

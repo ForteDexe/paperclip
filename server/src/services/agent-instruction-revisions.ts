@@ -48,7 +48,7 @@ type PluginResetActor = { type: "plugin"; pluginId: string; pluginKey: string; a
 type RevisionActor = AuthorizationActor | PluginResetActor;
 const { contentBase64: _contentColumn, ...revisionMetadataColumns } =
   getTableColumns(revisions);
-export type InstructionTarget = { companyId: string; agentId: string };
+export type InstructionTarget = { spaceId: string; agentId: string };
 export type InstructionCommitInput = InstructionTarget & {
   entryFile: string;
   content: string | Uint8Array;
@@ -72,14 +72,14 @@ function snapshot(row: Revision): AgentInstructionSnapshot {
 }
 function owner(target: InstructionTarget, entryFile: string) {
   return and(
-    eq(revisions.companyId, target.companyId),
+    eq(revisions.spaceId, target.spaceId),
     eq(revisions.agentId, target.agentId),
     eq(revisions.entryFile, entryFile),
   );
 }
 function headOwner(target: InstructionTarget, entryFile: string) {
   return and(
-    eq(heads.companyId, target.companyId),
+    eq(heads.spaceId, target.spaceId),
     eq(heads.agentId, target.agentId),
     eq(heads.entryFile, entryFile),
   );
@@ -92,7 +92,7 @@ export function agentInstructionRevisionService(db: Db) {
     target: InstructionTarget,
     actor?: AuthorizationActor,
   ) {
-    if (actor?.type === "agent" && actor.companyId !== target.companyId)
+    if (actor?.type === "agent" && actor.spaceId !== target.spaceId)
       throw notFound("Agent not found");
     const [agent] = await tx
       .select()
@@ -100,7 +100,7 @@ export function agentInstructionRevisionService(db: Db) {
       .where(
         and(
           eq(agents.id, target.agentId),
-          eq(agents.companyId, target.companyId),
+          eq(agents.spaceId, target.spaceId),
         ),
       )
       .for("update");
@@ -120,15 +120,15 @@ export function agentInstructionRevisionService(db: Db) {
     actor: AuthorizationActor,
     target: InstructionTarget,
   ) {
-    return authorizeInstructionRead(tx, actor, { companyId: target.companyId, id: target.agentId });
+    return authorizeInstructionRead(tx, actor, { spaceId: target.spaceId, id: target.agentId });
   }
   // Trusted host-only reset authority. No HTTP or agent tool accepts this actor.
   async function authorizePluginReset(tx: Tx, actor: PluginResetActor, target: InstructionTarget, agent: typeof agents.$inferSelect) {
     const [plugin] = await tx.select().from(plugins).where(and(eq(plugins.id, actor.pluginId), eq(plugins.pluginKey, actor.pluginKey)));
-    const marker = agent.metadata?.paperclipManagedResource as Record<string, unknown> | undefined;
+    const marker = agent.metadata?.outpostManagedResource as Record<string, unknown> | undefined;
     const [binding] = await tx.select().from(pluginManagedResources).where(and(
       eq(pluginManagedResources.pluginId, actor.pluginId), eq(pluginManagedResources.pluginKey, actor.pluginKey),
-      eq(pluginManagedResources.companyId, target.companyId), eq(pluginManagedResources.resourceKind, "agent"),
+      eq(pluginManagedResources.spaceId, target.spaceId), eq(pluginManagedResources.resourceKind, "agent"),
       eq(pluginManagedResources.resourceKey, actor.agentKey), eq(pluginManagedResources.resourceId, target.agentId),
     ));
     if (!plugin || plugin.status !== "ready" || !plugin.manifestJson.capabilities.includes("agents.managed")
@@ -172,8 +172,8 @@ export function agentInstructionRevisionService(db: Db) {
       contentHash: createHash("sha256").update(bytes).digest("hex"), byteLength: bytes.length,
       parentRevisionId: null, baseRevisionId: null, restoredFromRevisionId: null, source: "api",
       actorAgentId: origin?.agentId ?? (actor?.type === "agent" ? actor.agentId ?? null : null),
-      actorUserId: origin ? null : actor?.type === "board" ? actor.userId ?? null : null,
-      responsibleUserId: origin ? null : actor?.type === "board" ? actor.userId ?? null : actor?.type === "agent" ? actor.onBehalfOfUserId ?? null : null,
+      actorUserId: origin ? null : actor?.type === "operator" ? actor.userId ?? null : null,
+      responsibleUserId: origin ? null : actor?.type === "operator" ? actor.userId ?? null : actor?.type === "agent" ? actor.onBehalfOfUserId ?? null : null,
       sourceRunId: origin ? origin.runId ?? null : actor && actor.type !== "plugin" ? actor.runId ?? null : null, createdAt: new Date(0) };
   }
   async function getRevision(
@@ -231,7 +231,7 @@ export function agentInstructionRevisionService(db: Db) {
       const restoredInput = "restoreRevisionId" in input
         ? await getRevision(tx, input, input.entryFile, input.restoreRevisionId) : null;
       const submittedContent = (bytes ?? Buffer.from(restoredInput!.contentBase64, "base64")).toString("utf8");
-      await assertAgentInteraction(tx, { companyId: input.companyId, actorAgentId: actor.type === "agent" ? actor.agentId : null,
+      await assertAgentInteraction(tx, { spaceId: input.spaceId, actorAgentId: actor.type === "agent" ? actor.agentId : null,
         operation: "configure", targetAgentId: input.agentId, lockAgentIds: extractAgentMentionIds(submittedContent), lock: "update" });
       const state = await lockTarget(tx, input, actor.type === "plugin" ? undefined : actor);
       const bound = actor.type === "plugin"
@@ -260,13 +260,13 @@ export function agentInstructionRevisionService(db: Db) {
           : null;
       const candidate = bytes ?? Buffer.from(restored!.contentBase64, "base64");
       if (current?.contentBase64 !== candidate.toString("base64")) {
-        await assertAgentInteraction(tx, { companyId: input.companyId, actorAgentId: bound.type === "agent" ? bound.agentId : null,
+        await assertAgentInteraction(tx, { spaceId: input.spaceId, actorAgentId: bound.type === "agent" ? bound.agentId : null,
           operation: "mention", texts: [submittedContent] });
       }
       const origin = currentPluginInteractionOrigin();
-      const recordSave = (row: Revision) => tx.insert(activityLog).values({ companyId: input.companyId,
-        actorType: origin ? "agent" : bound.type === "plugin" ? "plugin" : bound.type === "board" ? "user" : "agent",
-        actorId: origin?.agentId ?? (bound.type === "plugin" ? bound.pluginId : bound.type === "board" ? bound.userId : bound.agentId)!,
+      const recordSave = (row: Revision) => tx.insert(activityLog).values({ spaceId: input.spaceId,
+        actorType: origin ? "agent" : bound.type === "plugin" ? "plugin" : bound.type === "operator" ? "user" : "agent",
+        actorId: origin?.agentId ?? (bound.type === "plugin" ? bound.pluginId : bound.type === "operator" ? bound.userId : bound.agentId)!,
         agentId: origin?.agentId ?? (bound.type === "agent" ? bound.agentId : null), runId: row.sourceRunId,
         responsibleUserId: row.responsibleUserId, action: "agent.files_updated", entityType: "agent", entityId: input.agentId,
         details: { path: input.entryFile, contentHash: row.contentHash, created: current === null, source: restored ? "legacy_restore" : (input as InstructionCommitInput).source } });

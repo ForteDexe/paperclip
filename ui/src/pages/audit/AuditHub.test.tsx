@@ -10,8 +10,8 @@ const setSearchParamsMock = vi.hoisted(() => vi.fn());
 const setBreadcrumbsMock = vi.hoisted(() => vi.fn());
 let currentSearch = "";
 
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 
 vi.mock("@/context/BreadcrumbContext", () => ({
@@ -42,20 +42,20 @@ vi.mock("./AuditFeed", () => ({
 }));
 
 vi.mock("./AgentCommentary", () => ({
-  AgentCommentary: ({ companyId }: { companyId: string }) => (
-    <div data-testid="agent-commentary" data-company={companyId} />
+  AgentCommentary: ({ spaceId }: { spaceId: string }) => (
+    <div data-testid="agent-commentary" data-space={spaceId} />
   ),
 }));
 
 vi.mock("./AuditRuns", () => ({
-  AuditRuns: ({ companyId, routineId }: { companyId: string; routineId?: string }) => (
-    <div data-testid="audit-runs" data-company={companyId} data-routine={routineId} />
+  AuditRuns: ({ spaceId, routineId }: { spaceId: string; routineId?: string }) => (
+    <div data-testid="audit-runs" data-space={spaceId} data-routine={routineId} />
   ),
 }));
 
 vi.mock("./RoutineAuditActivity", () => ({
-  RoutineAuditActivity: ({ companyId, routineId }: { companyId: string; routineId: string }) => (
-    <div data-testid="routine-audit-activity" data-company={companyId} data-routine={routineId} />
+  RoutineAuditActivity: ({ spaceId, routineId }: { spaceId: string; routineId: string }) => (
+    <div data-testid="routine-audit-activity" data-space={spaceId} data-routine={routineId} />
   ),
 }));
 
@@ -107,9 +107,9 @@ describe("AuditHub", () => {
     expect(setBreadcrumbsMock).toHaveBeenCalledWith([{ label: "Audit" }]);
   });
 
-  it("renders Commentary for the selected company without an experimental gate", () => {
+  it("renders Commentary for the selected space without an experimental gate", () => {
     render("commentary");
-    expect(container.querySelector<HTMLElement>('[data-testid="agent-commentary"]')?.dataset.company).toBe("company-1");
+    expect(container.querySelector<HTMLElement>('[data-testid="agent-commentary"]')?.dataset.space).toBe("space-1");
     const tab = Array.from(container.querySelectorAll<HTMLElement>('[role="tab"]'))
       .find((item) => item.textContent?.trim() === "Commentary");
     expect(tab?.getAttribute("aria-selected")).toBe("true");
@@ -124,7 +124,7 @@ describe("AuditHub", () => {
 
     expect(container.querySelector('[data-testid="audit-feed"]')).toBeNull();
     const activity = container.querySelector<HTMLElement>('[data-testid="routine-audit-activity"]');
-    expect(activity?.dataset.company).toBe("company-1");
+    expect(activity?.dataset.space).toBe("space-1");
     expect(activity?.dataset.routine).toBe("routine-1");
   });
 
@@ -167,7 +167,7 @@ describe("AuditHub", () => {
     render("runs");
 
     const runs = container.querySelector<HTMLElement>('[data-testid="audit-runs"]');
-    expect(runs?.dataset.company).toBe("company-1");
+    expect(runs?.dataset.space).toBe("space-1");
     expect(runs?.dataset.routine).toBe("routine-1");
   });
 

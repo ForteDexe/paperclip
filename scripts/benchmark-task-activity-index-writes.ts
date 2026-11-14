@@ -20,10 +20,10 @@ const count = Number(arg("count") ?? 1000);
 assert.ok(Number.isSafeInteger(count) && count > 0 && count <= 10000);
 const keepAlive = setInterval(() => {}, 1000);
 try {
-  const records = await clients[0]!.$client.unsafe("select company_id,id from issues order by id limit 1200");
+  const records = await clients[0]!.$client.unsafe("select space_id,id from issues order by id limit 1200");
   assert.ok(records.length);
-  const companyId = records[0]!.company_id;
-  const issueIds = records.filter(row => row.company_id === companyId).map(row => row.id);
+  const spaceId = records[0]!.space_id;
+  const issueIds = records.filter(row => row.space_id === spaceId).map(row => row.id);
   for (const client of clients) await client.$client.unsafe("select 1");
   for (let round = 0; round < 7; round++) for (const arm of round % 2 ? [1, 0] : [0, 1]) {
     const client = clients[arm]!;
@@ -31,11 +31,11 @@ try {
     await client.$client.unsafe("begin");
     let inserted: { id: string }[] = [];
     try {
-      inserted = await client.$client.unsafe<{ id: string }[]>(`insert into activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action,details)
+      inserted = await client.$client.unsafe<{ id: string }[]>(`insert into activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action,details)
         select $1::uuid,case when n%5=0 then 'issue' else 'heartbeat_run' end,
           case when n%5=0 then ($2::text[])[1+n%array_length($2::text[],1)] else gen_random_uuid()::text end,
           'agent','index-write-benchmark','issue.updated',jsonb_build_object('noise',left($3,case when n%5=0 then 4096 else 256 end))
-        from generate_series(1,$4::integer)n returning id`, [companyId, issueIds, noise, count]);
+        from generate_series(1,$4::integer)n returning id`, [spaceId, issueIds, noise, count]);
       await client.$client.unsafe("commit");
     } catch (error) {
       await client.$client.unsafe("rollback");

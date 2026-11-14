@@ -312,7 +312,7 @@ export const WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE = "ERR_WORKSPACE_RESTORE_LOCK_T
 /**
  * The closed set of codes a failed workspace restore can carry off the
  * sandbox. Every code is safe to store on a run record readable by any
- * same-company actor: none embeds a filesystem path, a raw error message, or
+ * same-space actor: none embeds a filesystem path, a raw error message, or
  * a process id.
  */
 export type WorkspaceRestoreFailureCode =
@@ -363,7 +363,7 @@ export function classifyWorkspaceRestoreFailure(error: unknown): WorkspaceRestor
  * workspace restore fails. Every call site must pass this to `onLog` instead
  * of the caught error's own message: the caught error can carry a host
  * filesystem path or the lock owner's process id, and the run log is
- * readable by any same-company actor. Never add the code's raw
+ * readable by any same-space actor. Never add the code's raw
  * `Error.message` to this text.
  */
 export function describeWorkspaceRestoreFailure(code: WorkspaceRestoreFailureCode): string {
@@ -507,8 +507,8 @@ function nonEmpty(value: string | undefined): string | null {
  * would follow the symlink) before any caller treats it as the lock root.
  */
 async function resolveDirectoryMergeLockRoot(env: NodeJS.ProcessEnv = process.env): Promise<string> {
-  const { resolvePaperclipInstanceRootForAdapter } = await import("./server-utils.js");
-  const instanceRoot = resolvePaperclipInstanceRootForAdapter({
+  const { resolveOutpostInstanceRootForAdapter } = await import("./server-utils.js");
+  const instanceRoot = resolveOutpostInstanceRootForAdapter({
     homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
     instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
@@ -622,7 +622,7 @@ async function copySnapshotEntry(sourceDir: string, targetDir: string, relative:
   }
   // An interrupted restore must not leave a truncated current file. Keep the
   // incoming tree until its owner records success; exact retries deduplicate.
-  const temporary = path.join(path.dirname(targetPath), `.paperclip-merge-${randomUUID()}`);
+  const temporary = path.join(path.dirname(targetPath), `.outpost-merge-${randomUUID()}`);
   try {
     await fs.copyFile(sourcePath, temporary, fsConstants.COPYFILE_FICLONE).catch(async () => {
       await fs.copyFile(sourcePath, temporary);
@@ -645,7 +645,7 @@ export async function captureDirectorySnapshot(
   const ignored = workspacePathMatcher(options.ignoredPaths);
   let writer: WorkspaceManifestWriter | null = null;
   try {
-    writer = options.diskBacked ? await createWorkspaceManifest("paperclip-workspace-baseline-") : null;
+    writer = options.diskBacked ? await createWorkspaceManifest("outpost-workspace-baseline-") : null;
     const memory = new Map<string, SnapshotEntry>();
     for await (const [relative, entry] of walkDirectory(rootDir, exclude, ignored)) {
       if (writer) writer.add("baseline", relative, JSON.stringify(entry));
@@ -686,7 +686,7 @@ export async function captureDirectorySnapshotOffThread(
 export async function selectDirectorySnapshot(snapshot: DirectorySnapshot, options: {
   prefix?: string; omit?: string[]; exclude: string[]; ignoredPaths?: WorkspacePaths;
 }): Promise<DirectorySnapshot> {
-  const writer = await createWorkspaceManifest("paperclip-workspace-baseline-");
+  const writer = await createWorkspaceManifest("outpost-workspace-baseline-");
   try {
     for (const [relative, entry] of snapshot.entries) {
       if (options.prefix && !relative.startsWith(options.prefix)) continue;

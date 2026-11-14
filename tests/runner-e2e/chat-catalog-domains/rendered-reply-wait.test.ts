@@ -18,7 +18,7 @@ beforeEach(() => { calls.length = 0; waits.length = 0; });
 function context(runs: Array<Record<string, unknown>>, comments: Array<Record<string, unknown>> = []) {
   const locator = () => { calls.push("dom-read"); throw new Error("rendered DOM read before the reply wait"); };
   return {
-    input: { fixtures: { agent: { id: "ceo" }, company: { id: "company", issuePrefix: "COM" } }, execution: { id: "unit" },
+    input: { fixtures: { agent: { id: "ceo" }, space: { id: "space", issuePrefix: "COM" } }, execution: { id: "unit" },
       page: { locator, url: () => "http://fixture.invalid/COM/issues/COM-1" },
       api: { get: async (path: string) => { calls.push(`api:${path}`); return path.includes("/comments") ? comments : { user: { name: "Alex Former" } }; } } },
     refreshIssue: async () => {}, issue: () => ({ id: "source", conversationState: "waiting" }), allRuns: async () => runs,

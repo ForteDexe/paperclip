@@ -13,7 +13,7 @@ export function createToolActionReviewQueue(db: Db) {
      * connection/app context the prosumer card renders. Defaults to pending.
      */
 listActionRequests: async (
-      companyId: string,
+      spaceId: string,
       status: ToolActionRequestStatus = "pending",
     ): Promise<ToolActionRequestListItem[]> => {
       const requests = await db
@@ -21,7 +21,7 @@ listActionRequests: async (
         .from(toolActionRequests)
         .where(
           and(
-            eq(toolActionRequests.companyId, companyId),
+            eq(toolActionRequests.spaceId, spaceId),
             eq(toolActionRequests.status, status),
           ),
         )
@@ -36,7 +36,7 @@ listActionRequests: async (
         .from(toolInvocations)
         .where(
           and(
-            eq(toolInvocations.companyId, companyId),
+            eq(toolInvocations.spaceId, spaceId),
             inArray(toolInvocations.id, invocationIds),
           ),
         );
@@ -87,7 +87,7 @@ listActionRequests: async (
           if (!readable) invalidRequestIds.push(request.id);
         }
         if (invalidRequestIds.length > 0) {
-          await writeToolReviewChange(db, companyId, tx => tx
+          await writeToolReviewChange(db, spaceId, tx => tx
             .update(toolActionRequests)
             .set({
               status: "cancelled",
@@ -96,7 +96,7 @@ listActionRequests: async (
             })
             .where(
               and(
-                eq(toolActionRequests.companyId, companyId),
+                eq(toolActionRequests.spaceId, spaceId),
                 eq(toolActionRequests.status, "pending"),
                 inArray(toolActionRequests.id, invalidRequestIds),
               ),

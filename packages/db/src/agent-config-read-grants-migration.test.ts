@@ -13,8 +13,8 @@ const migrationFile = "0423_agent_config_read_defaults.sql";
     const database = await startEmbeddedPostgresTestDatabase("agent-config-read-defaults-");
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     try {
-      const [company] = await sql`INSERT INTO companies (name, issue_prefix) VALUES ('Read defaults', 'RD1') RETURNING id`;
-      const [otherCompany] = await sql`INSERT INTO companies (name, issue_prefix) VALUES ('Other company', 'RD2') RETURNING id`;
+      const [space] = await sql`INSERT INTO spaces (name, issue_prefix) VALUES ('Read defaults', 'RD1') RETURNING id`;
+      const [otherSpace] = await sql`INSERT INTO spaces (name, issue_prefix) VALUES ('Other space', 'RD2') RETURNING id`;
       const candidates = [
         { name: "Legacy" },
         { name: "Paused", status: "paused", lifecycleState: "paused", lifecycleHolds: ["manual"], pauseReason: "manual" },
@@ -30,26 +30,26 @@ const migrationFile = "0423_agent_config_read_defaults.sql";
         { name: "Nested review preset", permissions: { authorizationPolicy: { reviewPreset: { id: "low_trust_review" } } } },
         { name: "Boundary", permissions: { authorizationPolicy: { trustBoundary: { mode: "low_trust_review" } } } },
         { name: "Unknown preset", permissions: { trustPreset: "unknown" } },
-        { name: "Built in", metadata: { paperclipBuiltInAgent: { key: "summarizer", featureKeys: [] } } },
+        { name: "Built in", metadata: { outpostBuiltInAgent: { key: "summarizer", featureKeys: [] } } },
         { name: "Pending", status: "pending_approval" },
         { name: "Terminated", status: "terminated" },
         { name: "Setup", status: "paused", lifecycleState: "paused", lifecycleHolds: ["setup"], pauseReason: "setup" },
         { name: "Legacy setup", status: "paused", lifecycleState: "paused", pauseReason: "setup" },
         { name: "Inactive membership", membershipStatus: "inactive" },
         { name: "No membership", membershipStatus: "absent" },
-        { name: "Wrong company membership", membershipStatus: "other_company" },
+        { name: "Wrong space membership", membershipStatus: "other_space" },
       ];
       const ids = new Map<string, string>();
       for (const candidate of candidates) {
         const id = randomUUID();
         ids.set(candidate.name, id);
-        await sql`INSERT INTO agents (id, company_id, name, status, lifecycle_state, lifecycle_holds, pause_reason, permissions, metadata)
-          VALUES (${id}, ${company!.id}, ${candidate.name}, ${candidate.status ?? "idle"},
+        await sql`INSERT INTO agents (id, space_id, name, status, lifecycle_state, lifecycle_holds, pause_reason, permissions, metadata)
+          VALUES (${id}, ${space!.id}, ${candidate.name}, ${candidate.status ?? "idle"},
             ${candidate.lifecycleState ?? "ready"}, ${sql.json(candidate.lifecycleHolds ?? [])}, ${candidate.pauseReason ?? null},
             ${sql.json(candidate.permissions ?? {})}, ${sql.json(candidate.metadata ?? {})})`;
         if (candidate.membershipStatus === "absent") continue;
-        await sql`INSERT INTO company_memberships (company_id, principal_type, principal_id, status, membership_role)
-          VALUES (${candidate.membershipStatus === "other_company" ? otherCompany!.id : company!.id}, 'agent', ${id},
+        await sql`INSERT INTO space_memberships (space_id, principal_type, principal_id, status, membership_role)
+          VALUES (${candidate.membershipStatus === "other_space" ? otherSpace!.id : space!.id}, 'agent', ${id},
             ${candidate.membershipStatus === "inactive" ? "inactive" : "active"}, 'member')`;
       }
       const scope = { agentIds: [ids.get("Legacy")!] };
@@ -59,8 +59,8 @@ const migrationFile = "0423_agent_config_read_defaults.sql";
         ["Scoped suggest", "agents:suggest-changes", scope],
         ["Scoped read", "agents:read", scope],
       ] as const) {
-        await sql`INSERT INTO principal_permission_grants (company_id, principal_type, principal_id, permission_key, scope)
-          VALUES (${company!.id}, 'agent', ${ids.get(name)!}, ${permissionKey}, ${grantScope ? sql.json(grantScope) : null})`;
+        await sql`INSERT INTO principal_permission_grants (space_id, principal_type, principal_id, permission_key, scope)
+          VALUES (${space!.id}, 'agent', ${ids.get(name)!}, ${permissionKey}, ${grantScope ? sql.json(grantScope) : null})`;
       }
       const before = await sql`SELECT principal_id, permission_key, scope FROM principal_permission_grants ORDER BY principal_id, permission_key`;
       const content = await readFile(new URL(`./migrations/${migrationFile}`, import.meta.url), "utf8");

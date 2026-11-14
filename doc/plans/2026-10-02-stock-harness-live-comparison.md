@@ -2,7 +2,7 @@
 
 **TL;DR:** Two newly failing paired cases: classic Claude/OpenCode document delivery. Two newly passing cases: classic and native OpenCode ordered continuation. Seven unchanged failures and 13 unchanged passes. The extra ACP Claude storage symptom occurs beneath an existing credential-guard failure. All 48 results are available; no general performance equivalence is established.
 
-The reduced instructions are **not yet qualified for merge**. Classic Claude and classic OpenCode pass the historical skill-output case but fail with the reduced instructions: they finish without saving a Paperclip task document. Native Codex and native Claude pass all three journeys in both variants. Single trials and ambiguous fixture storage wording limit causal attribution; the failed oracle remains unchanged.
+The reduced instructions are **not yet qualified for merge**. Classic Claude and classic OpenCode pass the historical skill-output case but fail with the reduced instructions: they finish without saving a Outpost task document. Native Codex and native Claude pass all three journeys in both variants. Single trials and ambiguous fixture storage wording limit causal attribution; the failed oracle remains unchanged.
 
 The reductions and evaluation setup are in draft [PR #14948](https://github.com/paperclipai/paperclip/pull/14948). This report and its [safe evidence projection](2026-10-02-stock-harness-live-comparison.json) record the measured revisions rather than claiming the final documentation head was run through the full matrix.
 
@@ -12,7 +12,7 @@ The reductions and evaluation setup are in draft [PR #14948](https://github.com/
 - Historical baseline: `12c5433c67dc2e62916b879349c7ba2b6e0431f0`, the same evaluation harness with only the prior default manual and shared prompt source restored from `e00d10d5d5594f6e2d1e8cf4e0ec81c074b0bd88`. Its manifest records ten identical behavioral/fixture source hashes.
 - Native Codex fix [#14920](https://github.com/paperclipai/paperclip/pull/14920) is held constant. This comparison does not measure its before/after performance.
 - Same eight profiles, three journeys, provider models, effort configuration, skills, tools, permissions, credentials, local runtime, and independent graders. Effort inherits provider defaults where the existing profile does not set it.
-- Each variant selects 24 cells and initially budgets 48 turns, with existing bounded retries and 1,000-cent company/agent hard stops. Recorded run-ledger counts can differ after early failures, retries and cleanup.
+- Each variant selects 24 cells and initially budgets 48 turns, with existing bounded retries and 1,000-cent space/agent hard stops. Recorded run-ledger counts can differ after early failures, retries and cleanup.
 
 ## Per-profile and case outcomes
 
@@ -23,16 +23,16 @@ These are recorded overall qualifications, including security and receipt failur
 | `legacy-codex` | `gpt-5.6-sol` | `assigned-skill-explicit-invocation` | Pass | Pass |
 | `legacy-codex` | `gpt-5.6-sol` | `ordered-comment-continuation` | Pass | Pass |
 | `legacy-codex` | `gpt-5.6-sol` | `continuity-restart` | Pass | Pass |
-| `legacy-claude` | `claude-sonnet-4-6` | `assigned-skill-explicit-invocation` | Pass | Fail: no Paperclip document |
+| `legacy-claude` | `claude-sonnet-4-6` | `assigned-skill-explicit-invocation` | Pass | Fail: no Outpost document |
 | `legacy-claude` | `claude-sonnet-4-6` | `ordered-comment-continuation` | Pass | Pass |
 | `legacy-claude` | `claude-sonnet-4-6` | `continuity-restart` | Fail: chat memory | Fail: chat memory |
-| `legacy-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `assigned-skill-explicit-invocation` | Pass | Fail: no Paperclip document |
+| `legacy-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `assigned-skill-explicit-invocation` | Pass | Fail: no Outpost document |
 | `legacy-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `ordered-comment-continuation` | Fail: deadline/run-start timeout | Pass |
 | `legacy-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `continuity-restart` | Pass | Pass |
 | `legacy-acp-codex` | `gpt-5.6-sol` | `assigned-skill-explicit-invocation` | Fail: credential guard | Fail: credential guard |
 | `legacy-acp-codex` | `gpt-5.6-sol` | `ordered-comment-continuation` | Fail: credential guard, receipt incomplete | Fail: credential guard |
 | `legacy-acp-codex` | `gpt-5.6-sol` | `continuity-restart` | Fail: credential guard, receipt incomplete | Fail: credential guard, receipt incomplete |
-| `legacy-acp-claude` | `claude-sonnet-4-6` | `assigned-skill-explicit-invocation` | Fail: credential guard | Fail: credential guard, no Paperclip document |
+| `legacy-acp-claude` | `claude-sonnet-4-6` | `assigned-skill-explicit-invocation` | Fail: credential guard | Fail: credential guard, no Outpost document |
 | `legacy-acp-claude` | `claude-sonnet-4-6` | `ordered-comment-continuation` | Fail: credential guard, receipt incomplete | Fail: credential guard |
 | `legacy-acp-claude` | `claude-sonnet-4-6` | `continuity-restart` | Fail: credential guard, receipt incomplete | Fail: credential guard |
 | `runner-codex` | `gpt-5.6-sol` | `assigned-skill-explicit-invocation` | Pass | Pass |
@@ -47,9 +47,9 @@ These are recorded overall qualifications, including security and receipt failur
 
 ## Findings and next step
 
-The classic Claude and classic OpenCode skill runs read the pinned skill marker and complete the task, but save zero Paperclip documents; both historical runs save exactly one. The legacy ACP Claude skill run has the same document difference under its credential-guard failure. The earlier reduced-instruction Claude pilot also failed this document oracle. The pinned skill asks for a “task document” without explicitly naming Paperclip storage, so this may reveal both reliance on the former manual and a fixture ambiguity. It remains a failed delivery result, not a regraded pass.
+The classic Claude and classic OpenCode skill runs read the pinned skill marker and complete the task, but save zero Outpost documents; both historical runs save exactly one. The legacy ACP Claude skill run has the same document difference under its credential-guard failure. The earlier reduced-instruction Claude pilot also failed this document oracle. The pinned skill asks for a “task document” without explicitly naming Outpost storage, so this may reveal both reliance on the former manual and a fixture ambiguity. It remains a failed delivery result, not a regraded pass.
 
-Keep the agreed tiny manual. Next, verify that legacy agents discover and follow the existing **Paperclip skill/API path for durable task documents and artifacts**. The skill already prohibits file-only handoff, lists issue-document routes and gives a plan-document example; audit that delivery before adding a concise generic-document recipe if needed. Run the same preserved case plus a clearly storage-specific case on both variants. Legacy agents do not receive native `paperclip_finish`/`paperclip_block` tools. Native tool descriptions are a separate item 2.3 change; guidance must follow the actual runtime capability. No production or skill instructions were changed to make these runs pass.
+Keep the agreed tiny manual. Next, verify that legacy agents discover and follow the existing **Outpost skill/API path for durable task documents and artifacts**. The skill already prohibits file-only handoff, lists issue-document routes and gives a plan-document example; audit that delivery before adding a concise generic-document recipe if needed. Run the same preserved case plus a clearly storage-specific case on both variants. Legacy agents do not receive native `outpost_finish`/`outpost_block` tools. Native tool descriptions are a separate item 2.3 change; guidance must follow the actual runtime capability. No production or skill instructions were changed to make these runs pass.
 
 Classic Claude chat fails the memory assertion in both variants. Six legacy ACP cells per variant fail the persisted-credential guard: the scanner finds a scoped provider credential in persisted ACP session state. Raw session files and credential values are not published. These are existing qualification failures requiring their own investigation; they cannot be waived or interpreted as instruction-reduction quality evidence.
 
@@ -101,10 +101,10 @@ PR #14948 stays draft while document delivery is unresolved. Unrepresented harne
 
 ## Retained delivery diagnosis and approved repair
 
-Both failed classic agents loaded the operational Paperclip skill. This is not an observed skill-discovery failure. In the reduced Claude run, the agent wrote a workspace Markdown file before loading Paperclip and then completed the issue without a document API write. The reduced OpenCode run loaded Paperclip, accessed the assigned skill through the public skills API, and wrote a workspace task-document file; it made no document, attachment, or work-product delivery write. Both corresponding historical runs saved a Paperclip issue document.
+Both failed classic agents loaded the operational Outpost skill. This is not an observed skill-discovery failure. In the reduced Claude run, the agent wrote a workspace Markdown file before loading Outpost and then completed the issue without a document API write. The reduced OpenCode run loaded Outpost, accessed the assigned skill through the public skills API, and wrote a workspace task-document file; it made no document, attachment, or work-product delivery write. Both corresponding historical runs saved a Outpost issue document.
 
 Claude received the full operational skill, including its existing no-local-only delivery guidance. OpenCode's skill result was explicitly truncated in both variants: the early artifact rule survived, but the later generic document endpoint and plan-only write example were omitted. That truncation is existing behavior, not a newly measured regression. Removing always-on delivery reminders may interact with it, but the combined manual/shared reduction and ambiguous assigned-skill wording prevent a causal attribution to one layer.
 
 Dotta approved a small early API-runtime skill recipe and a generic issue-document reference. The tiny manual remains eight words. The recipe checks the successful write's returned saved revision/content and links the returned key; it does not require another GET after a clear valid receipt. It preserves explicit destinations, downloadable-file delivery, and native document-tool boundaries.
 
-The focused repair comparison will hold the tiny manual/shared prompts fixed and vary only `skills/paperclip/SKILL.md` plus the new `references/issue-documents.md`. Classic Claude and OpenCode each run the preserved original case and an added explicitly Paperclip-storage case: four cells per variant, eight expected provider turns in total. This measures the skill repair separately from the original reduction. The explicit case independently checks public saved body/revision and an agent comment linking the exact same-app document; local-only, missing-revision, wrong-document, local-path, and other-origin outcomes cannot pass. Current state: fixture preparation and source freeze, no repair provider run yet.
+The focused repair comparison will hold the tiny manual/shared prompts fixed and vary only `skills/outpost/SKILL.md` plus the new `references/issue-documents.md`. Classic Claude and OpenCode each run the preserved original case and an added explicitly Outpost-storage case: four cells per variant, eight expected provider turns in total. This measures the skill repair separately from the original reduction. The explicit case independently checks public saved body/revision and an agent comment linking the exact same-app document; local-only, missing-revision, wrong-document, local-path, and other-origin outcomes cannot pass. Current state: fixture preparation and source freeze, no repair provider run yet.

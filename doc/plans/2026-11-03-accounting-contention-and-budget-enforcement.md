@@ -19,10 +19,10 @@ Evaluate budget policies in coalesced batches outside those transactions.
 First remove avoidable admission transactions and measure the remaining critical
 sections. Do not begin with distributed spending allocations or a new accounting
 service. A short lock at an infrequent boundary can be acceptable; serializing
-every company's receipt stream and admission preflight is the scaling concern.
+every space's receipt stream and admission preflight is the scaling concern.
 
 The first implementation now inspects preliminary eligibility in a repeatable-read,
-read-only snapshot. Healthy checks and checks with no policies bypass the company
+read-only snapshot. Healthy checks and checks with no policies bypass the space
 writer lock. Holds, hard blocks, recovering accounting and incidents needing
 resolution fall back to the existing mutating owner, which revalidates current
 state under the lock. Transactional admission, reservations and receipt accounting
@@ -36,10 +36,10 @@ before computing exposure. Qualify configured-policy workloads as well as the
 predominant no-policy case; the change is not a claim of lower CPU everywhere.
 
 The first milestone's budget-service suite passes 18 tests against real
-PostgreSQL. A controlled writer holds the company accounting lock while routine
+PostgreSQL. A controlled writer holds the space accounting lock while routine
 checks finish; authoritative admission on the same reader instead reaches its
 500 ms lock timeout. Coverage includes healthy/warning policies, manual and
-orphaned pauses, hold release, incident cleanup and cross-company rejection.
+orphaned pauses, hold release, incident cleanup and cross-space rejection.
 This establishes the lock-bypass contract, not deployed latency or CPU savings.
 Seven additional accounting/enforcement/replay/tracing suites pass 55 tests,
 for 73 passing targeted tests across eight files with no skips.
@@ -59,15 +59,15 @@ implementation stage below preserves existing enforcement semantics.
 ### The lock protects several different responsibilities
 
 [`withAccountingTransaction`](../../server/src/services/accounting-transaction.ts)
-takes `FOR NO KEY UPDATE` on the company row before invoking its callback. It
-holds that lock until the transaction ends. Different companies can proceed
-independently; writers for one company serialize. Ordinary report reads already
+takes `FOR NO KEY UPDATE` on the space row before invoking its callback. It
+holds that lock until the transaction ends. Different spaces can proceed
+independently; writers for one space serialize. Ordinary report reads already
 use a read-only repeatable-read snapshot and do not take this writer lock.
 
-| Path | Work sharing the company lock before this change |
+| Path | Work sharing the space lock before this change |
 | --- | --- |
 | Usage receipt | Lock run, validate source/sequence and replay hash, insert immutable receipt, update running usage, evaluate affected budgets if monetary exposure changed |
-| Admission | Read company/agent/project state and policies, calculate exposure, reconcile budget holds/incidents, reserve estimated capacity before dispatch |
+| Admission | Read space/agent/project state and policies, calculate exposure, reconcile budget holds/incidents, reserve estimated capacity before dispatch |
 | Final settlement | Recover durable receipt files, validate completion, settle reservation, insert ledger entries, update projections and runtime totals, acknowledge the run, evaluate budgets |
 | Other mutations | Direct cost reports, billing imports/corrections, accounting repairs, paid browser/decision/fast-response/classifier operations, and agent lifecycle operations |
 
@@ -126,12 +126,12 @@ measurement question rather than an assumed large win.
 The hot inputs are usage and turn-lifecycle events, not every streamed text
 token. Native capture handles usage reports and turn start/terminal events.
 Legacy capture also durably spools before its database attempt. Recovery can
-still read receipt files while the settlement transaction holds the company
+still read receipt files while the settlement transaction holds the space
 lock, although it builds an initial file-identity index outside the lock.
 
 [Monthly spend projections](../../server/src/services/costs.ts) update
-`companies.spentMonthlyCents` for each ledger insert, and the applicable agent
-counter. Merely deleting the explicit company lock would leave an implicit
+`spaces.spentMonthlyCents` for each ledger insert, and the applicable agent
+counter. Merely deleting the explicit space lock would leave an implicit
 shared-row write bottleneck and break assumptions around settlement and repair.
 PostgreSQL updates acquire conflicting row locks too. See the
 [PostgreSQL locking contract](https://www.postgresql.org/docs/current/explicit-locking.html#LOCKING-ROWS).
@@ -146,7 +146,7 @@ identifiers remain outside the repository.
 
 | Observed span | Count | p50 | p95 | p99 | Maximum |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Company lock acquisition | 9,421 | 13.00 ms | 206.85 ms | 725.14 ms | 4,301.53 ms |
+| Space lock acquisition | 9,421 | 13.00 ms | 206.85 ms | 725.14 ms | 4,301.53 ms |
 | Accounting transaction | 9,421 | 87.16 ms | 486.95 ms | 1,147.10 ms | 5,594.19 ms |
 | Admission evaluation | 8,082 | 43.45 ms | 166.84 ms | 342.13 ms | 1,212.92 ms |
 | Final settlement | 216 | 355.90 ms | 1,894.05 ms | 3,149.67 ms | 5,594.33 ms |
@@ -158,8 +158,8 @@ all evaluations represent new paid dispatches.
 
 Of 8,292 exposure evaluations on that host in that hour, **8,280 had zero policies**
 and 12 had one. That is 99.86% with zero policies at this call boundary; it does
-not prove that every company has no budgets. These empty evaluations are cheap,
-but their surrounding admission/accounting work still takes the company lock.
+not prove that every space has no budgets. These empty evaluations are cheap,
+but their surrounding admission/accounting work still takes the space lock.
 
 One inspected admission transaction took 4.183 seconds, with 4.090 seconds in
 lock acquisition. Its exposure child had zero policies and took about 0.026 ms.
@@ -173,8 +173,8 @@ Limits of this evidence:
   database/network round trips and Node scheduling; it is not a PostgreSQL
   lock-wait measurement. Transaction duration also includes transaction setup
   and commit. Do not subtract unrelated percentiles to estimate hold time.
-- The spans do not identify the locking company, blocker, receipt frequency,
-  or operation caller. They do not establish one company's throughput ceiling
+- The spans do not identify the locking space, blocker, receipt frequency,
+  or operation caller. They do not establish one space's throughput ceiling
   or the cause of the previously observed CPU utilization.
 - The sample identifies one host. It does not establish fleet-wide behavior or
   independently qualify the public instance serving each request.
@@ -189,7 +189,7 @@ Limits of this evidence:
 
 | Responsibility | Proposed contract |
 | --- | --- |
-| Receipt acceptance | Durable commit before acknowledgement; source ownership, sequence, hash conflicts and company scope remain enforced |
+| Receipt acceptance | Durable commit before acknowledgement; source ownership, sequence, hash conflicts and space scope remain enforced |
 | Ledger and settlement | Idempotent transaction scoped to the run/invocation; no lost charges, duplicate application, or transient live-plus-final double counting |
 | Budget detection | Coalesced evaluation from committed evidence; a measurable delay is allowed |
 | New work | Check current authoritative pause/Stop and known budget-block state at dispatch; concurrent admission against a not-yet-reflected spend increase can overshoot |
@@ -206,7 +206,7 @@ Suggested initial service targets, to validate before adopting as promises:
 - For applicable spend limits, stop admitting additional paid work when the
   oldest unevaluated accounting change exceeds fifteen seconds. This is a
   proposed protection against a failed evaluator, not a hard spending cap.
-  An idle company's old evaluation timestamp alone must never trigger it.
+  An idle space's old evaluation timestamp alone must never trigger it.
 - With no dirty changes, unresolved retries, or actual budget deadlines, the
   evaluator performs no recurring database scans.
 
@@ -238,7 +238,7 @@ it includes commit/return latency. Use sampled PostgreSQL wait/blocker evidence
 to establish actual contention, with SQL values and credentials excluded.
 
 Separate read-only preliminary eligibility from mutating reconciliation.
-Preflights should not take a company writer lock just to discover no applicable
+Preflights should not take a space writer lock just to discover no applicable
 policy. Keep the existing authoritative reservation and policy check at final
 dispatch in this stage. Budget changes, rollover, settlement and explicit
 reconciliation continue to own their necessary effects. Do not introduce a
@@ -268,13 +268,13 @@ In one run-scoped transaction:
    transaction-aware wake.
 5. Commit before acknowledging native delivery or removing legacy spool evidence.
 
-Do not take the company accounting writer lock or evaluate all affected policies
+Do not take the space accounting writer lock or evaluate all affected policies
 inside this receipt transaction. Keep final and partial receipts durable; batch
 derived budget evaluation rather than dropping intermediate accounting evidence.
 
 Use the shared delivery coordinator for coalescing, retry and deadlines. Pending
 state must be scoped to the changed run/operation, or an append-only change;
-updating one company dirty counter for every receipt would recreate the lock.
+updating one space dirty counter for every receipt would recreate the lock.
 Consumption must compare revisions or claim durable work so a concurrent change
 cannot be cleared by an older evaluator. A timestamp/sequence high-water mark
 alone cannot safely assume database transactions commit in allocation order.
@@ -282,7 +282,7 @@ alone cannot safely assume database transactions commit in allocation order.
 Read ledger and live contributions in one consistent database snapshot, or use
 transactionally consistent replacement contributions. The present four separate
 read-committed aggregates are not safe to reuse unchanged once other operations
-in the same company can settle concurrently: live-to-ledger
+in the same space can settle concurrently: live-to-ledger
 replacement must not be missed or counted twice across queries.
 
 Evaluate each affected policy once per batch, revalidate its revision before
@@ -296,7 +296,7 @@ This is the first stage that permits an additional detection/admission race
 window. Update the product contract together with implementation; removing only
 the wrapper is not a valid intermediate change.
 
-### 3. Remove remaining company writes from frequent settlement
+### 3. Remove remaining space writes from frequent settlement
 
 Owners: run-cost accounting, costs, billing reconciliation/import, accounting
 integrity, paid-service invocation owners, and DB/shared contracts.
@@ -304,10 +304,10 @@ integrity, paid-service invocation owners, and DB/shared contracts.
 Settle ledger entries, reservation state, final receipt acknowledgement, and
 run-specific accounting together under the operation's lock. Use database
 uniqueness plus conflict/hash verification for concurrent idempotency; a
-read-before-insert check previously protected by the company lock is insufficient.
+read-before-insert check previously protected by the space lock is insufficient.
 Retain narrow agent coordination for shared runtime totals where needed.
 
-Move company monthly display-counter updates to versioned, coalesced projection
+Move space monthly display-counter updates to versioned, coalesced projection
 work. Update integrity inspection/repair and all counter consumers to understand
 projection freshness and checkpoint identity. Reporting from ledger snapshots
 remains available; intentional projection lag must not look like lost money.
@@ -329,7 +329,7 @@ Start with bounded batches and indexed aggregates. If history growth or batch
 time misses the target, maintain incremental scope/window contributions. If
 those counters become the next measured hot row, partition their writes and
 sum a bounded set of partitions. Do not synchronously increment a single new
-company total on every receipt and call the bottleneck solved.
+space total on every receipt and call the bottleneck solved.
 
 ### 4. Qualify workload and roll out
 
@@ -341,9 +341,9 @@ provider qualification. Keep load tests off the active staging instance.
 
 | Dimension | Required cases |
 | --- | --- |
-| Distribution | 100, 1,000, then 10,000 active runs; one company and many companies |
+| Distribution | 100, 1,000, then 10,000 active runs; one space and many spaces |
 | Receipt cadence | One update per run per 60 seconds, 10 seconds and 1 second; record actual target-provider cadence before choosing the release load |
-| Policies | None; company; agent/project only; overlapping scopes and windows |
+| Policies | None; space; agent/project only; overlapping scopes and windows |
 | History | Increasing ledger history independently of active-run count |
 | Event shape | Cost-changing, unchanged, subscription, duplicate, stale, conflicting and out-of-order reports; reconnect bursts |
 | Races/failures | Simultaneous settlement and receipt, worker crash, failed/ambiguous commit, source replacement, policy change, manual Stop, late final charge, unknown price and UTC rollover |
@@ -352,21 +352,21 @@ At 10,000 runs the illustrative receipt cadences imply about 167, 1,000, and
 10,000 receipts/second before admission or settlement. This defines a workload,
 not a claim that current or proposed code supports it. A shared critical section
 held for an average of H seconds has an ideal ceiling near 1/H operations/second
-for that company; do not estimate H from the unrelated percentile summaries.
+for that space; do not estimate H from the unrelated percentile summaries.
 
 Acceptance requires durable receipt/ledger equality after quiescence, no duplicate
 effect or acknowledgement loss, stable pending-work depth, correct policy/manual
 hold behavior, and measured detection/cancellation/freshness targets. Record
 p50/p95/p99 ingestion, admission and settlement latency, actual PostgreSQL wait
 events, query count/rows/bytes, CPU/event-loop delay, and reconnect recovery time.
-Prove unrelated companies remain responsive and writers for unrelated runs no
-longer contend on a shared company update in the frequent path.
+Prove unrelated spaces remain responsive and writers for unrelated runs no
+longer contend on a shared space update in the frequent path.
 
 Initially compute the proposed evaluation in shadow mode without stop/resume
 effects and compare it against the authoritative ledger and existing decisions.
 Then canary the new enforcement contract on an explicitly selected environment,
 with its versioned pending work rebuilt and validated before switching. Do not
-run old and new enforcement authorities simultaneously for the same company.
+run old and new enforcement authorities simultaneously for the same space.
 Rollback must drain/reconcile accepted receipts and rebuild authoritative state
 before restoring the older path; flipping a flag alone is insufficient.
 

@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "chat_slack_registrations" (
 	"endpoint_id" uuid PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"request_id" uuid NOT NULL,
 	"status" text NOT NULL,
 	"manifest" jsonb NOT NULL,
@@ -19,6 +19,6 @@ CREATE TABLE IF NOT EXISTS "chat_slack_registrations" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
-ALTER TABLE "chat_slack_registrations" ADD CONSTRAINT "chat_slack_registrations_company_id_endpoint_id_chat_endpoints_company_id_id_fk" FOREIGN KEY ("company_id","endpoint_id") REFERENCES "public"."chat_endpoints"("company_id","id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "chat_slack_registrations" ADD CONSTRAINT "chat_slack_registrations_space_id_endpoint_id_chat_endpoints_space_id_id_fk" FOREIGN KEY ("space_id","endpoint_id") REFERENCES "public"."chat_endpoints"("space_id","id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;

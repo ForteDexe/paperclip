@@ -27,7 +27,7 @@ const describePostgres = support.supported ? describe : describe.skip;
 afterEach(async () => { while (cleanups.length) await cleanups.pop()?.(); });
 
 async function database() {
-  const db = await startEmbeddedPostgresTestDatabase("paperclip-muse-migration-replay-");
+  const db = await startEmbeddedPostgresTestDatabase("outpost-muse-migration-replay-");
   cleanups.push(db.cleanup);
   const sql = postgres(db.connectionString, { max: 1, onnotice: () => {} });
   cleanups.push(async () => { await sql.end(); });
@@ -65,36 +65,36 @@ async function removeMuseSchemaAndReceipts(sql: ReturnType<typeof postgres>) {
   }
 }
 async function seedRows(sql: ReturnType<typeof postgres>, complete: boolean) {
-  const [company] = await sql`INSERT INTO companies (name, issue_prefix) VALUES ('Migration replay', 'RPL') RETURNING id`;
-  const [agent] = await sql`INSERT INTO agents (company_id, name, adapter_type) VALUES (${company.id}, 'Retained agent', 'outpost_runner') RETURNING id`;
-  const [task] = await sql`INSERT INTO issues (company_id, title, assignee_agent_id) VALUES (${company.id}, 'Retained task', ${agent.id}) RETURNING id`;
-  const [run] = await sql`INSERT INTO heartbeat_runs (company_id, agent_id, invocation_source, trigger_detail, status)
-    VALUES (${company.id}, ${agent.id}, 'assignment', 'system', 'failed') RETURNING id`;
-  const [binding] = await sql`INSERT INTO muse_agent_bindings (company_id, agent_id, operator_id, generation, revision, status, worker_cursor, detector_removed_at, revoked_at)
-    VALUES (${company.id}, ${agent.id}, 'synthetic-operator', 3, 9, 'revoked', 13, '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z') RETURNING id`;
-  const [assignment] = await sql`INSERT INTO muse_runner_assignments (company_id, binding_id, binding_generation, run_id, agent_id,
+  const [space] = await sql`INSERT INTO spaces (name, issue_prefix) VALUES ('Migration replay', 'RPL') RETURNING id`;
+  const [agent] = await sql`INSERT INTO agents (space_id, name, adapter_type) VALUES (${space.id}, 'Retained agent', 'outpost_runner') RETURNING id`;
+  const [task] = await sql`INSERT INTO issues (space_id, title, assignee_agent_id) VALUES (${space.id}, 'Retained task', ${agent.id}) RETURNING id`;
+  const [run] = await sql`INSERT INTO heartbeat_runs (space_id, agent_id, invocation_source, trigger_detail, status)
+    VALUES (${space.id}, ${agent.id}, 'assignment', 'system', 'failed') RETURNING id`;
+  const [binding] = await sql`INSERT INTO muse_agent_bindings (space_id, agent_id, operator_id, generation, revision, status, worker_cursor, detector_removed_at, revoked_at)
+    VALUES (${space.id}, ${agent.id}, 'synthetic-operator', 3, 9, 'revoked', 13, '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z') RETURNING id`;
+  const [assignment] = await sql`INSERT INTO muse_runner_assignments (space_id, binding_id, binding_generation, run_id, agent_id,
     normalized_session_id, turn_id, controller_generation, catalog_digest, status, projection, accept_by, expires_at)
-    VALUES (${company.id}, ${binding.id}, 3, ${run.id}, ${agent.id}, 'retained-session', 'retained-turn', 4, 'retained-digest', 'fenced',
+    VALUES (${space.id}, ${binding.id}, 3, ${run.id}, ${agent.id}, 'retained-session', 'retained-turn', 4, 'retained-digest', 'fenced',
       '{"retained":true}'::jsonb, '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z') RETURNING id`;
-  await sql`INSERT INTO external_agent_holds (company_id, agent_id, provider, assignment_id, binding_id, binding_generation, run_id, worker_unknown, native_effects_unknown, stop_boundary)
-    VALUES (${company.id}, ${agent.id}, 'muse', ${assignment.id}, ${binding.id}, 3, ${run.id}, true, true, '{"retained":true}'::jsonb)`;
-  await sql`INSERT INTO muse_credentials (company_id, binding_id, binding_generation, kind, family_id, token_hash, expires_at, revoked_at)
-    VALUES (${company.id}, ${binding.id}, 3, 'cleanup', ${randomUUID()}, ${randomUUID()}, '2026-01-02T00:00:00Z', '2026-01-01T00:00:00Z')`;
-  await sql`INSERT INTO muse_idle_receipts (company_id, binding_id, binding_generation, request_id, digest, outcome)
-    VALUES (${company.id}, ${binding.id}, 3, ${randomUUID()}, 'retained-idle', '{"retained":true}'::jsonb)`;
-  await sql`INSERT INTO muse_input_deliveries (company_id, assignment_id, request_id, turn_id, input_digest, response, source_event_id, consumed_at, continuation_receipt_id)
-    VALUES (${company.id}, ${assignment.id}, 'retained-input', 'retained-turn', 'retained-digest', '{"retained":true}'::jsonb, 'retained-input-event', '2026-01-01T00:00:00Z', ${randomUUID()})`;
-  await sql`INSERT INTO muse_mailbox_items (company_id, binding_id, binding_generation, assignment_id, kind, source_event_id, "references")
-    VALUES (${company.id}, ${binding.id}, 3, ${assignment.id}, 'assignment', 'retained-mailbox', '{"retained":true}'::jsonb)`;
-  await sql`INSERT INTO muse_receiver_contact_buckets (company_id, binding_id, binding_generation, replica_id, bucket_at, first_at, last_at, contacts, gaps_at_most_seven_seconds, max_gap_ms)
-    VALUES (${company.id}, ${binding.id}, 3, ${randomUUID()}, '2026-01-01T00:00:00Z', '2026-01-01T00:00:01Z', '2026-01-01T00:00:03Z', 2, 1, 2000)`;
-  await sql`INSERT INTO muse_runner_operations (company_id, assignment_id, request_id, digest, command, status, outcome)
-    VALUES (${company.id}, ${assignment.id}, ${randomUUID()}, 'retained-operation', '{"retained":true}'::jsonb, 'unknown', '{"retained":true}'::jsonb)`;
+  await sql`INSERT INTO external_agent_holds (space_id, agent_id, provider, assignment_id, binding_id, binding_generation, run_id, worker_unknown, native_effects_unknown, stop_boundary)
+    VALUES (${space.id}, ${agent.id}, 'muse', ${assignment.id}, ${binding.id}, 3, ${run.id}, true, true, '{"retained":true}'::jsonb)`;
+  await sql`INSERT INTO muse_credentials (space_id, binding_id, binding_generation, kind, family_id, token_hash, expires_at, revoked_at)
+    VALUES (${space.id}, ${binding.id}, 3, 'cleanup', ${randomUUID()}, ${randomUUID()}, '2026-01-02T00:00:00Z', '2026-01-01T00:00:00Z')`;
+  await sql`INSERT INTO muse_idle_receipts (space_id, binding_id, binding_generation, request_id, digest, outcome)
+    VALUES (${space.id}, ${binding.id}, 3, ${randomUUID()}, 'retained-idle', '{"retained":true}'::jsonb)`;
+  await sql`INSERT INTO muse_input_deliveries (space_id, assignment_id, request_id, turn_id, input_digest, response, source_event_id, consumed_at, continuation_receipt_id)
+    VALUES (${space.id}, ${assignment.id}, 'retained-input', 'retained-turn', 'retained-digest', '{"retained":true}'::jsonb, 'retained-input-event', '2026-01-01T00:00:00Z', ${randomUUID()})`;
+  await sql`INSERT INTO muse_mailbox_items (space_id, binding_id, binding_generation, assignment_id, kind, source_event_id, "references")
+    VALUES (${space.id}, ${binding.id}, 3, ${assignment.id}, 'assignment', 'retained-mailbox', '{"retained":true}'::jsonb)`;
+  await sql`INSERT INTO muse_receiver_contact_buckets (space_id, binding_id, binding_generation, replica_id, bucket_at, first_at, last_at, contacts, gaps_at_most_seven_seconds, max_gap_ms)
+    VALUES (${space.id}, ${binding.id}, 3, ${randomUUID()}, '2026-01-01T00:00:00Z', '2026-01-01T00:00:01Z', '2026-01-01T00:00:03Z', 2, 1, 2000)`;
+  await sql`INSERT INTO muse_runner_operations (space_id, assignment_id, request_id, digest, command, status, outcome)
+    VALUES (${space.id}, ${assignment.id}, ${randomUUID()}, 'retained-operation', '{"retained":true}'::jsonb, 'unknown', '{"retained":true}'::jsonb)`;
   const userId = randomUUID(), clientId = `replay-client-${randomUUID()}`;
   await sql`INSERT INTO "user" (id, name, email, created_at, updated_at) VALUES (${userId}, 'Synthetic operator', ${`${userId}@example.test`}, now(), now())`;
   await sql`INSERT INTO mcp_oauth_clients (id, name, redirect_uris) VALUES (${clientId}, 'Synthetic client', '["https://example.test/callback"]'::jsonb)`;
-  const [grant] = await sql`INSERT INTO mcp_oauth_grants (company_id, user_id, client_id, resource, purpose, agent_id, scopes)
-    VALUES (${company.id}, ${userId}, ${clientId}, 'https://example.test/api/muse/v1', 'agent', ${agent.id}, '["paperclip:agent","offline_access"]'::jsonb) RETURNING id`;
+  const [grant] = await sql`INSERT INTO mcp_oauth_grants (space_id, user_id, client_id, resource, purpose, agent_id, scopes)
+    VALUES (${space.id}, ${userId}, ${clientId}, 'https://example.test/api/muse/v1', 'agent', ${agent.id}, '["outpost:agent","offline_access"]'::jsonb) RETURNING id`;
   await sql`UPDATE muse_agent_bindings SET grant_id = ${grant.id} WHERE id = ${binding.id}`;
   if (complete) {
     await sql`UPDATE muse_agent_bindings SET qualification_started_at = '2026-01-01T00:00:00Z', deadline_enforced_at = '2026-01-02T00:00:00Z',
@@ -105,8 +105,8 @@ async function seedRows(sql: ReturnType<typeof postgres>, complete: boolean) {
   }
   return async () => {
     const rows: Record<string, unknown[]> = {};
-    for (const table of [...museTables, "companies", "issues", "heartbeat_runs", "mcp_oauth_grants"] as const) {
-      rows[table] = Array.from(await sql.unsafe(`SELECT to_jsonb(t) AS row FROM "${table}" t WHERE ${table === "companies" ? "id" : "company_id"} = $1 ORDER BY id`, [company.id])).map(row => row.row);
+    for (const table of [...museTables, "spaces", "issues", "heartbeat_runs", "mcp_oauth_grants"] as const) {
+      rows[table] = Array.from(await sql.unsafe(`SELECT to_jsonb(t) AS row FROM "${table}" t WHERE ${table === "spaces" ? "id" : "space_id"} = $1 ORDER BY id`, [space.id])).map(row => row.row);
     }
     return rows;
   };
@@ -140,7 +140,7 @@ describePostgres("Muse migration SQL idempotence", () => {
     // A same-named FK elsewhere must not hide the missing public-table FK.
     await sql`CREATE SCHEMA migration_decoy`;
     await sql`CREATE TABLE migration_decoy.constraint_owner (binding_id uuid,
-      CONSTRAINT muse_credentials_binding_id_muse_agent_bindings_id_fk FOREIGN KEY (binding_id) REFERENCES public.companies(id))`;
+      CONSTRAINT muse_credentials_binding_id_muse_agent_bindings_id_fk FOREIGN KEY (binding_id) REFERENCES public.spaces(id))`;
     const rows = await seedRows(sql, false);
     const beforeRows = await rows();
     await applyPendingMigrations(url);

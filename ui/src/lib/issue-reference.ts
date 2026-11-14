@@ -50,7 +50,7 @@ export function parseIssueReferenceFromHref(
   if (!BARE_ISSUE_IDENTIFIER_RE.test(trimmed)) return null;
   const normalized = trimmed.toUpperCase();
   // Only auto-link a bare IDENT-123 token when its prefix belongs to a known
-  // company. An empty or omitted set means "prefixes unknown" -> stay permissive
+  // space. An empty or omitted set means "prefixes unknown" -> stay permissive
   // (preserves behavior during initial load and in provider-less render
   // surfaces). The issue:// scheme and /issues/ path forms handled above are
   // never gated -- they are deliberate references, not accidental foreign keys.
@@ -161,10 +161,10 @@ function rewriteMarkdownTree(node: MarkdownNode, knownPrefixes?: Set<string>) {
 
 export interface RemarkLinkIssueReferencesOptions {
   /**
-   * Company issue prefixes that are eligible for auto-linking. When provided
+   * Space issue prefixes that are eligible for auto-linking. When provided
    * and non-empty, a bare IDENT-123 token only becomes an issue link if its
    * prefix is in this set -- this keeps foreign tracker keys (e.g. a Jira
-   * "TREE-604") from linking to non-existent Paperclip issues. Omit or pass an
+   * "TREE-604") from linking to non-existent Outpost issues. Omit or pass an
    * empty list to keep the legacy permissive behavior (link any IDENT-123).
    */
   knownPrefixes?: string[];

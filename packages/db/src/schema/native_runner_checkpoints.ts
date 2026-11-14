@@ -3,7 +3,7 @@ import { foreignKey, index, jsonb, pgTable, primaryKey, text, timestamp, uuid } 
 import { heartbeatRuns } from "./heartbeat_runs.js";
 
 export const nativeRunnerCheckpoints = pgTable("native_runner_checkpoints", {
-  companyId: uuid("company_id").notNull(),
+  spaceId: uuid("space_id").notNull(),
   runId: uuid("run_id").notNull(),
   issueId: uuid("issue_id").notNull(),
   part: text("part").notNull(),
@@ -12,6 +12,6 @@ export const nativeRunnerCheckpoints = pgTable("native_runner_checkpoints", {
 }, table => ({
   pk: primaryKey({ columns: [table.runId, table.part] }),
   headers: index("native_runner_checkpoints_headers_idx").on(table.runId).where(sql`${table.part} = 'header'`),
-  run: foreignKey({ columns: [table.companyId, table.issueId, table.runId],
-    foreignColumns: [heartbeatRuns.companyId, heartbeatRuns.nativeIssueId, heartbeatRuns.id] }).onDelete("cascade"),
+  run: foreignKey({ columns: [table.spaceId, table.issueId, table.runId],
+    foreignColumns: [heartbeatRuns.spaceId, heartbeatRuns.nativeIssueId, heartbeatRuns.id] }).onDelete("cascade"),
 }));

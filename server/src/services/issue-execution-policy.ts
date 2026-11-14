@@ -165,7 +165,7 @@ function derivePersistedMonitorState(input: {
   const notes = scheduledMonitor?.notes ?? normalizeMonitorNotes(input.issue.monitorNotes) ?? fromState?.notes ?? null;
   const scheduledByRaw = input.issue.monitorScheduledBy ?? scheduledMonitor?.scheduledBy ?? fromState?.scheduledBy ?? null;
   const scheduledBy =
-    scheduledByRaw === "assignee" || scheduledByRaw === "board" ? scheduledByRaw : null;
+    scheduledByRaw === "assignee" || scheduledByRaw === "operator" ? scheduledByRaw : null;
   const metadata = scheduledMonitor ? monitorMetadataFromPolicy(scheduledMonitor) : monitorMetadataFromState(fromState);
 
   if (nextCheckAt) {
@@ -701,7 +701,7 @@ function applyIssueExecutionStageTransition(input: TransitionInput): TransitionR
     // changes requested), letting `done` ride along on that request would
     // silently drop the cycle and mark the issue complete through a review
     // that never ran — so `done` is rejected. Every other requested status,
-    // including a board cancellation that deliberately abandons the cycle,
+    // including a operator cancellation that deliberately abandons the cycle,
     // keeps the established clear/return-to-executor behavior below, exactly
     // like a bare policy edit with no requested status.
     const hasLiveReviewCycle =
@@ -932,7 +932,7 @@ function applyIssueExecutionStageTransition(input: TransitionInput): TransitionR
       }
       // Assignee-only override: the issue stays in_review, so clearing the
       // execution state would strand it with no participant or return
-      // assignment. Re-pend the stage when the board's chosen assignee is an
+      // assignment. Re-pend the stage when the operator's chosen assignee is an
       // eligible stage participant; otherwise (unassign or a non-participant)
       // dissolve the review — storing an ineligible participant would be
       // silently replaced by the stage-membership repair on the next

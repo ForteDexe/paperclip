@@ -143,7 +143,7 @@ export function isTestEvent(event: ToolCallEvent): boolean {
   return (event.metadata as { source?: unknown } | null)?.source === "test";
 }
 
-/** Display name for the human who ran a Test-tab call, from the company directory. */
+/** Display name for the human who ran a Test-tab call, from the space directory. */
 export function resolveActorLabel(
   actorId: string | null,
   userLabelById: Map<string, string> | undefined,
@@ -151,7 +151,7 @@ export function resolveActorLabel(
   if (actorId) {
     const label = userLabelById?.get(actorId);
     if (label) return label;
-    if (actorId === "local-board") return "You";
+    if (actorId === "local-operator") return "You";
   }
   return "Someone";
 }

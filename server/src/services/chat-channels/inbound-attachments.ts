@@ -142,13 +142,13 @@ export function createInboundAttachments(db: Db, options: InboundAttachmentsOpti
       .innerJoin(
         assets,
         and(
-          eq(assets.companyId, issueAttachments.companyId),
+          eq(assets.spaceId, issueAttachments.spaceId),
           eq(assets.id, issueAttachments.assetId),
         ),
       )
       .where(
         and(
-          eq(issueAttachments.companyId, input.endpoint.companyId),
+          eq(issueAttachments.spaceId, input.endpoint.spaceId),
           eq(issueAttachments.issueId, input.issueId),
           eq(issueAttachments.issueCommentId, input.issueCommentId),
         ),
@@ -178,7 +178,7 @@ export function createInboundAttachments(db: Db, options: InboundAttachmentsOpti
               .from(chatActions)
               .where(
                 and(
-                  eq(chatActions.companyId, input.endpoint.companyId),
+                  eq(chatActions.spaceId, input.endpoint.spaceId),
                   eq(chatActions.endpointId, input.endpoint.id),
                   eq(chatActions.deliveryId, input.deliveryId),
                   eq(chatActions.kind, "inbound_wakeup"),
@@ -208,7 +208,7 @@ export function createInboundAttachments(db: Db, options: InboundAttachmentsOpti
               .from(chatDeliveries)
               .where(
                 and(
-                  eq(chatDeliveries.companyId, input.endpoint.companyId),
+                  eq(chatDeliveries.spaceId, input.endpoint.spaceId),
                   eq(chatDeliveries.id, input.deliveryId),
                 ),
               )
@@ -220,7 +220,7 @@ export function createInboundAttachments(db: Db, options: InboundAttachmentsOpti
               .from(chatActions)
               .where(
                 and(
-                  eq(chatActions.companyId, input.endpoint.companyId),
+                  eq(chatActions.spaceId, input.endpoint.spaceId),
                   eq(chatActions.id, action.id),
                 ),
               )
@@ -315,7 +315,7 @@ export function createInboundAttachments(db: Db, options: InboundAttachmentsOpti
                 .from(issueComments)
                 .where(
                   and(
-                    eq(issueComments.companyId, input.endpoint.companyId),
+                    eq(issueComments.spaceId, input.endpoint.spaceId),
                     eq(issueComments.issueId, input.issueId),
                     eq(issueComments.id, input.issueCommentId),
                     isNull(issueComments.deletedAt),
@@ -331,7 +331,7 @@ export function createInboundAttachments(db: Db, options: InboundAttachmentsOpti
                 .from(chatDeliveries)
                 .where(
                   and(
-                    eq(chatDeliveries.companyId, input.endpoint.companyId),
+                    eq(chatDeliveries.spaceId, input.endpoint.spaceId),
                     eq(chatDeliveries.endpointId, input.endpoint.id),
                     or(
                       isNull(chatDeliveries.conversationId),
@@ -365,7 +365,7 @@ export function createInboundAttachments(db: Db, options: InboundAttachmentsOpti
           if (!isExternalChatWaitAuthorizationContention(error) || attempt >= 4)
             throw error;
           // Retry the complete short transaction; no network/storage work or
-          // backoff occurs while governance rows are locked.
+          // backoff occurs while policy rows are locked.
           await new Promise((resolve) =>
             setTimeout(resolve, 20 * (attempt + 1)),
           );
@@ -552,7 +552,7 @@ export function createInboundAttachments(db: Db, options: InboundAttachmentsOpti
           await db
             .insert(chatActions)
             .values({
-              companyId: input.endpoint.companyId,
+              spaceId: input.endpoint.spaceId,
               endpointId: input.endpoint.id,
               deliveryId: input.deliveryId,
               kind: relation.kind === "heif_jpeg_preview" ? "attachment_derivative" : "attachment_companion",
@@ -574,7 +574,7 @@ export function createInboundAttachments(db: Db, options: InboundAttachmentsOpti
           continue;
         }
         const stored = await options.storage.putFile({
-          companyId: input.endpoint.companyId,
+          spaceId: input.endpoint.spaceId,
           namespace: `issues/${input.issueId}`,
           originalFilename,
           contentType,
@@ -611,7 +611,7 @@ export function createInboundAttachments(db: Db, options: InboundAttachmentsOpti
             isExternalActionAuthorizationChange(error)
           )
             await options.storage
-              .deleteObject(input.endpoint.companyId, stored.objectKey)
+              .deleteObject(input.endpoint.spaceId, stored.objectKey)
               .catch(() => undefined);
           throw error;
         }

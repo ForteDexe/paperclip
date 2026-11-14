@@ -11,12 +11,12 @@ import type { CanonicalProviderEvent } from "../../packages/outpost-runner/src/p
 import { CodexSessionState } from "../../packages/outpost-runner/src/drivers/codex/codex-session-state.js";
 import { mapTerminalTurn } from "../../packages/outpost-runner/src/drivers/codex/codex-session-terminal.js";
 
-const caller = readActiveStopCaller({ deploymentMode: "local_trusted" }, { session: { userId: "local-board", id: "paperclip:local_implicit:local-board" } });
+const caller = readActiveStopCaller({ deploymentMode: "local_trusted" }, { session: { userId: "local-operator", id: "outpost:local_implicit:local-operator" } });
 const cancellationRequestId = "11111111-2222-4333-8444-555555555555";
 type Row = Record<string, any>;
 function fixture(provider: ActiveStopProvider = "copilot") {
-  const scope = { provider, companyId: "company", issueId: "issue", runId: "run", target: "target.txt", ...(provider === "cursor" ? { commandSha256: `sha256:${"a".repeat(64)}` } : {}) };
-  const row = (seq: number, eventType: string, payload: Row): Row => ({ companyId: "company", runId: "run", seq, eventType, protocolSchemaVersion: 1,
+  const scope = { provider, spaceId: "space", issueId: "issue", runId: "run", target: "target.txt", ...(provider === "cursor" ? { commandSha256: `sha256:${"a".repeat(64)}` } : {}) };
+  const row = (seq: number, eventType: string, payload: Row): Row => ({ spaceId: "space", runId: "run", seq, eventType, protocolSchemaVersion: 1,
     payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn",
       normalizedSessionId: "normalized-session", sourceInstanceId: "source", sourceSeq: seq, sourceEventId: `source:run:${seq}`, emittedAt: "2026-01-01T00:00:00Z", payload } } });
   const notice = (seq: number, stage: string, fields: Row) => row(seq, "provider.notice.recorded", {
@@ -32,8 +32,8 @@ function fixture(provider: ActiveStopProvider = "copilot") {
     row(4, "runtime_request.created", { request: { schema: "outpost.runtime_request.v2", requestKind: "permission_approval", type: "permission", status: "pending", requestId: "request", turnId: "turn", itemId: "item-run", method: "session/request_permission",
       details: { toolCallId: "tool" }, origin: { adapter: "acpx-runtime-sidecar", provider, method: "session/request_permission" } } }),
   ];
-  const run: Row = { id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "running", resultJson: {} };
-  const issue = { id: "issue", companyId: "company", status: "in_progress" };
+  const run: Row = { id: "run", spaceId: "space", nativeIssueId: "issue", runtimeMode: "native", status: "running", resultJson: {} };
+  const issue = { id: "issue", spaceId: "space", status: "in_progress" };
   const state = () => ({ events, run, issue });
   const pending = () => observeActiveStopPending({ ...state(), scope, caller, cancellationRequestId });
   const permissionResponse = vi.fn();
@@ -49,8 +49,8 @@ function fixture(provider: ActiveStopProvider = "copilot") {
       emit: (eventType: string, value: Row) => events.push(row(events.length + 1, eventType, value)),
     } as unknown as CodexSessionState;
     mapTerminalTurn(state, { id: "turn", status: "cancelled", error: null }, "turn");
-    run.status = "cancelled"; run.resultJson = { startupCancellation: { cancellationRequestId: requestId, requestedBy: { type: "board", userId: "local-board" } }, nativeCancellation: {
-      schema: "outpost.native-cancellation.v1", intentId: `native-cancellation:${requestId}`, companyId: "company", runId: "run", issueId: "issue", scope: "run",
+    run.status = "cancelled"; run.resultJson = { startupCancellation: { cancellationRequestId: requestId, requestedBy: { type: "board", userId: "local-operator" } }, nativeCancellation: {
+      schema: "outpost.native-cancellation.v1", intentId: `native-cancellation:${requestId}`, spaceId: "space", runId: "run", issueId: "issue", scope: "run",
       dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentAuditId: "audit-intent", acknowledgementAuditId: "audit-ack",
     } };
     return run;
@@ -232,7 +232,7 @@ describe("definitely active native permission Stop", () => {
     expect(read().schema).toBe("outpost.e2e.native-active-stop-settlement.v2");
   });
   it("admits only a fully attested remote bootstrap read completed before the pending operation", () => {
-    const f = fixture(), actionFile = `.paperclip-eval-action-${"a".repeat(36)}.txt`;
+    const f = fixture(), actionFile = `.outpost-eval-action-${"a".repeat(36)}.txt`;
     const readTargetSha256 = `sha256:${createHash("sha256").update(actionFile).digest("hex")}`;
     for (const row of f.events) { row.seq += 4; frame(row).sourceSeq += 4; frame(row).sourceEventId = `source:run:${row.seq}`; }
     f.events.unshift(f.notice(1, "tool", { toolCallId: "bootstrap", operation: "read", status: "pending", readTargetSha256 }),
@@ -269,7 +269,7 @@ describe("definitely active native permission Stop", () => {
     ["foreign normalized session", ({ f }: ReturnType<typeof settled>) => { frame(f.events[5]!).normalizedSessionId = "native-session"; }],
     ["foreign source", ({ f }: ReturnType<typeof settled>) => { frame(f.events[5]!).sourceInstanceId = "foreign"; }],
     ["foreign turn", ({ f }: ReturnType<typeof settled>) => { frame(f.events[5]!).turnId = "other-turn"; }],
-    ["foreign company", ({ f }: ReturnType<typeof settled>) => { f.events[5]!.companyId = "other"; }],
+    ["foreign space", ({ f }: ReturnType<typeof settled>) => { f.events[5]!.spaceId = "other"; }],
     ["foreign request", ({ f }: ReturnType<typeof settled>) => { payload(f.events[4]!).requestId = "other"; }],
     ["expired rather than cancelled", ({ f }: ReturnType<typeof settled>) => { f.events[4]!.eventType = frame(f.events[4]!).eventType = "runtime_request.expired"; }],
     ["provider death", ({ f }: ReturnType<typeof settled>) => { payload(f.events[4]!).reason = "provider_process_lost"; }],
@@ -296,7 +296,7 @@ describe("definitely active native permission Stop", () => {
     ["agent caller", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.startupCancellation.requestedBy.type = "agent"; }],
     ["unbound caller receipt", (s: ReturnType<typeof settled>) => { (s.pending as Row).caller = null; }],
     ["foreign intent", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.nativeCancellation.intentId = "native-cancellation:other"; }],
-    ["foreign ack scope", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.nativeCancellation.companyId = "other"; }],
+    ["foreign ack scope", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.nativeCancellation.spaceId = "other"; }],
     ["undispatched cancellation", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.nativeCancellation.dispatched = false; }],
     ["same audit twice", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.nativeCancellation.acknowledgementAuditId = "audit-intent"; }],
     ["finished task", ({ f }: ReturnType<typeof settled>) => { f.issue.status = "done"; }],
@@ -315,10 +315,10 @@ describe("definitely active native permission Stop", () => {
     }
   });
   it.each([
-    [{ deploymentMode: "authenticated" }, { session: { userId: "local-board", id: "paperclip:local_implicit:local-board" } }],
-    [{ deploymentMode: "local_trusted" }, { session: { userId: null, id: "paperclip:local_implicit:local-board" } }],
-    [{ deploymentMode: "local_trusted" }, { session: { userId: "another", id: "paperclip:local_implicit:another" } }],
-    [{ deploymentMode: "local_trusted" }, { session: { userId: "local-board", id: "paperclip:session:local-board" } }],
+    [{ deploymentMode: "authenticated" }, { session: { userId: "local-operator", id: "outpost:local_implicit:local-operator" } }],
+    [{ deploymentMode: "local_trusted" }, { session: { userId: null, id: "outpost:local_implicit:local-operator" } }],
+    [{ deploymentMode: "local_trusted" }, { session: { userId: "another", id: "outpost:local_implicit:another" } }],
+    [{ deploymentMode: "local_trusted" }, { session: { userId: "local-operator", id: "outpost:session:local-operator" } }],
   ])("rejects a non-fixture authentication context", (health, session) => expect(() => readActiveStopCaller(health, session)).toThrow());
   it("rejects a Stop dispatch not causally after the pending observation", () => {
     const { f, pending } = settled();
@@ -404,7 +404,7 @@ function remoteRetirementProof() {
   const root = { pid: 50, ppid: 1, startTicks: "200", bootId: "12345678-1234-1234-1234-123456789abc" };
   const child = { ...root, pid: 51, ppid: 50, startTicks: "201" };
   const snapshot = (sequence: number, live: number[]) => ({
-    binding: { companyId: "company", environmentId: "env", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `image@sha256:${"a".repeat(64)}`, remoteCwd: "/home/daytona/workspace" },
+    binding: { spaceId: "space", environmentId: "env", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `image@sha256:${"a".repeat(64)}`, remoteCwd: "/home/daytona/workspace" },
     observedAtMs: sequence, receivedAtMs: sequence + 1, observedMonotonicNs: String(sequence), complete: true, workspace: {},
     targets: { "target.txt": { absent: true, sha256: null, complete: true, mutationCount: 0, parent: { dev: "1", ino: "2" } } },
     watcher: { complete: true, targetMutationCount: 0, workspaceMutationCount: 0 },
@@ -416,7 +416,7 @@ function remoteRetirementProof() {
     { phase: "pending", source: "live-snapshot", snapshot: snapshot(2, [50, 51]) },
     { phase: "owned-process-retirement", source: "retirement-seal", snapshot: snapshot(3, []) },
   ];
-  return { scope: { companyId: "company", runId: "run", target: "target.txt" }, observations };
+  return { scope: { spaceId: "space", runId: "run", target: "target.txt" }, observations };
 }
 describe("Daytona active Stop observation lifetime", () => {
   it("binds one continuous owned-tree retirement seal without claiming a later filesystem observation", () => {
@@ -436,7 +436,7 @@ describe("Daytona active Stop observation lifetime", () => {
     ["after-UI seal replay", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations.push({ ...p.observations[2]!, phase: "after-cleanup" as any }); }],
     ["missing pending", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations.splice(1, 1); }],
     ["all foreign run snapshots", (p: ReturnType<typeof remoteRetirementProof>) => { for (const o of p.observations) o.snapshot.binding.runId = "other"; }],
-    ["all foreign company snapshots", (p: ReturnType<typeof remoteRetirementProof>) => { for (const o of p.observations) o.snapshot.binding.companyId = "other"; }],
+    ["all foreign space snapshots", (p: ReturnType<typeof remoteRetirementProof>) => { for (const o of p.observations) o.snapshot.binding.spaceId = "other"; }],
     ["foreign lease", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[2]!.snapshot.binding.leaseId = "other"; }],
     ["foreign run", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[1]!.snapshot.binding.runId = "other"; }],
     ["replacement root", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[2]!.snapshot.processes.root = { ...p.observations[2]!.snapshot.processes.root!, startTicks: "300" }; }],

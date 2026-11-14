@@ -12,7 +12,7 @@ import { configuredSleepFeatures, finalizeLocalSleepReceipt, observeConfiguredSi
 import { idleBackupArchiveNames, observeIdleBackupCheckpoint } from './helpers/maintenance/backup-observation.js';
 import { stabilizeEarlyDiagnostics } from './helpers/maintenance/early-diagnostic-stabilization.js';
 import { createMaintenanceS3Boundary } from './helpers/maintenance/s3-boundary.js';
-import { managedSleepConfiguration, managedSleepServerOptions, provisionManagedSleepCompany } from './helpers/maintenance/managed-profile.js';
+import { managedSleepConfiguration, managedSleepServerOptions, provisionManagedSleepSpace } from './helpers/maintenance/managed-profile.js';
 import { prepareMaintenanceRuntime } from './helpers/maintenance/runtime-build.js';
 import { produceCompletedToolReview } from './helpers/maintenance/configuration-producers.js';
 import { observeMaintenanceBrowser } from './helpers/maintenance/browser-observation.js';
@@ -71,17 +71,17 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
       let failure: { error: unknown } | undefined;
       try {
         await writeFile(path.join(server.directory, 'sleep-managed-startup.json'), JSON.stringify(await server.snapshot(), null, 2));
-        const company = await provisionManagedSleepCompany(server, fixture);
+        const space = await provisionManagedSleepSpace(server, fixture);
         expect(await server.api('GET', '/announcements/current')).toMatchObject({ id: 'new-projects' });
         const announcement = (await server.snapshot()).announcement;
         expect(announcement?.intercepted).toBe(true);
         expect(announcement?.requests).toEqual(['https://pages.outpost.ing/announcements/v1/current.json']);
         expect(announcement?.unmatched).toEqual([]);
-        const agent = await server.api<{ id: string }>('POST', `/companies/${company.id}/agents`, { name: 'Owned process worker', role: 'general', adapterType: 'process',
+        const agent = await server.api<{ id: string }>('POST', `/spaces/${space.id}/agents`, { name: 'Owned process worker', role: 'general', adapterType: 'process',
           adapterConfig: { command: process.execPath, args: ['-e', "console.log('sleep-acceptance-useful-work')"], cwd: server.directory }, runtimeConfig: { heartbeat: { enabled: true, intervalSec: 0, wakeOnDemand: true } } });
         const chatHistory = await server.produceChatHistory();
-        const toolHistory = await produceCompletedToolReview(server, fixture, company.id);
-        const github = await server.prepareGitHub(company.id);
+        const toolHistory = await produceCompletedToolReview(server, fixture, space.id);
+        const github = await server.prepareGitHub(space.id);
         await server.api('PATCH', `/tool-connections/${github.connectionId}`, { enabled: true });
         const githubContinuity = await server.settleGitHub(github);
         await expect.poll(async () => (await broker.binding())?.bindings.length, { timeout: 30_000 }).toBe(1);
@@ -96,17 +96,17 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
         const brokerBinding = await broker.binding();
         expect(brokerBinding?.bindings).toHaveLength(1);
         const key = await server.api<{ id: string; token: string }>('POST', `/agents/${agent.id}/keys`, { name: 'Retained qualification credential' });
-        const issue = await server.api<{ id: string }>('POST', `/companies/${company.id}/issues`, { title: 'Owned completed history', status: 'todo', assigneeAgentId: agent.id });
+        const issue = await server.api<{ id: string }>('POST', `/spaces/${space.id}/issues`, { title: 'Owned completed history', status: 'todo', assigneeAgentId: agent.id });
         await expect.poll(async () => {
           const [run] = await fixture.$client`select status from heartbeat_runs where issue_id=${issue.id} order by created_at desc limit 1`;
           return run?.status;
         }, { timeout: 30_000 }).toBe('succeeded');
         await server.api('PATCH', `/issues/${issue.id}`, { status: 'done' });
-        const routine = await server.api<{ id: string }>('POST', `/companies/${company.id}/routines`, { title: 'Harmless future obligation', assigneeAgentId: agent.id });
+        const routine = await server.api<{ id: string }>('POST', `/spaces/${space.id}/routines`, { title: 'Harmless future obligation', assigneeAgentId: agent.id });
         await server.api('POST', `/routines/${routine.id}/triggers`, { kind: 'schedule', cronExpression: (() => { const next = new Date(Date.now() + 24 * 60 * 60_000); return `0 ${next.getUTCHours()} ${next.getUTCDate()} ${next.getUTCMonth() + 1} *`; })(), timezone: 'UTC' });
         await server.api('GET', '/agents/me', undefined, { Authorization: `Bearer ${key.token}` });
         const lastAuthenticatedApiAt = performance.now();
-        await writeFile(path.join(server.directory, 'sleep-setup-receipt.json'), JSON.stringify({ ...expected, configuration, company,
+        await writeFile(path.join(server.directory, 'sleep-setup-receipt.json'), JSON.stringify({ ...expected, configuration, space,
           agentId: agent.id, keyId: key.id, announcement, chatHistory, toolHistory, githubContinuity, brokerBinding,
           brokerBoundary: broker.boundary, s3: s3.snapshot(), snapshot: await server.snapshot(),
           boundary: 'Actual managed startup/tenant provisioning/producers; Cloud front door, GitHub HTTP and S3 service are owned simulated transports' }, null, 2));
@@ -199,7 +199,7 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
         assertIncomingProof(final, capabilities.incomingWake, drain.ownerId);
         expect(final.idleSleepSafety.apiWakeAdmission).toEqual(initial.idleSleepSafety.apiWakeAdmission);
         const proof = final.idleSleepSafety;
-        const backupCheckpoint = await observeIdleBackupCheckpoint(server.directory, backupNamesBefore, checkpointStartedAt, company.id);
+        const backupCheckpoint = await observeIdleBackupCheckpoint(server.directory, backupNamesBefore, checkpointStartedAt, space.id);
         const observations = { version: 1, ...expected, startedAt,
           configuration, browser, s3: s3.snapshot(), announcement: after.announcement, chatHistory, toolHistory, githubContinuity, brokerBinding, brokerBoundary: broker.boundary, backupCheckpoint,
           signalObservation, features: configuredSleepFeatures({ announcement: after.announcement, signalObservation, backupCheckpoint }),
@@ -218,7 +218,7 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
         const [retained] = await fixture.$client`select (select count(*)::int from agent_api_keys where id=${key.id}) as keys, (select count(*)::int from issues where id=${issue.id}) as issues, (select count(*)::int from routines where id=${routine.id}) as routines, (select enabled from tool_connections where id=${github.connectionId}) as github_enabled`;
         expect(retained).toEqual({ keys: 1, issues: 1, routines: 1, github_enabled: true });
         await server.api('DELETE', `/instance/task-drain?ownerId=${drain.ownerId}`, undefined, control('task-drain:stop'));
-        const nextIssue = await server.api<{ id: string }>('POST', `/companies/${company.id}/issues`, { title: 'First ordinary producer after quiet', status: 'todo', assigneeAgentId: agent.id }, { Authorization: `Bearer ${key.token}` });
+        const nextIssue = await server.api<{ id: string }>('POST', `/spaces/${space.id}/issues`, { title: 'First ordinary producer after quiet', status: 'todo', assigneeAgentId: agent.id }, { Authorization: `Bearer ${key.token}` });
         const reactivationApiAt = performance.now();
         await expect.poll(async () => {
           const [run] = await fixture.$client`select status from heartbeat_runs where issue_id=${nextIssue.id} order by created_at desc limit 1`;
@@ -280,7 +280,7 @@ describe.skipIf(!enabled)('configured assembled sleep qualification (explicit ow
         expect(resumedProof.idleSleepSafety.deadlineProof?.generation).toBe(resumedInitial.idleSleepSafety.deadlineProof?.generation);
         expect(resumedProof.idleSleepSafety.backgroundWork).toBe('none');
         await writeFile(path.join(server.directory, 'sleep-local-reactivation-receipt.json'), JSON.stringify({
-          version: 1, actualProducer: 'POST company issues with process assignee using the retained opaque key after owned drain release', executions: executions.count,
+          version: 1, actualProducer: 'POST space issues with process assignee using the retained opaque key after owned drain release', executions: executions.count,
           realApiCooldownElapsedMs: performance.now() - reactivationApiAt,
           quiet: resumedQuiet,
           signalObservation: resumedSignals,

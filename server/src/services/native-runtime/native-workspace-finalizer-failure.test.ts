@@ -16,9 +16,9 @@ vi.mock("../remote-workspaces.js", () => ({
   saveRemoteWorkspace: sync.save,
 }));
 vi.mock("../environments.js", () => ({ environmentService: () => ({
-  getLeaseById: async () => ({ id: "lease", companyId: "company", environmentId: "environment", providerLeaseId: "sandbox", status: "active",
+  getLeaseById: async () => ({ id: "lease", spaceId: "space", environmentId: "environment", providerLeaseId: "sandbox", status: "active",
     heartbeatRunId: "run", executionWorkspaceId: "workspace" }),
-  getById: async () => ({ id: "environment", companyId: "company" }),
+  getById: async () => ({ id: "environment", spaceId: "space" }),
 }) }));
 vi.mock("../environment-execution-target.js", () => ({ resolveEnvironmentExecutionTarget: async () => ({ kind: "remote" }) }));
 vi.mock("../workspace-operations.js", () => ({ workspaceOperationService: () => ({
@@ -29,7 +29,7 @@ import { REMOTE_WORKSPACE_SANDBOX_DISK_FULL, RemoteWorkspaceOperationError } fro
 
 function fixtureDb(workspace?: Record<string, unknown>): Db {
   const responses = [[{
-    companyId: "company", runtimeMode: "native", issueId: "issue", resultId: "result", issueWorkspaceId: workspace?.id,
+    spaceId: "space", runtimeMode: "native", issueId: "issue", resultId: "result", issueWorkspaceId: workspace?.id,
     runnerProfileJson: { nativeWorkspaceSync: {}, nativeExecutionInput: { binding: {} } },
   }], [{ phase: "result_accepted", nextAttemptAt: null, resultId: "result" }], [], [], ...(workspace ? [[workspace]] : [])];
   return { select: () => {
@@ -78,7 +78,7 @@ describe("native workspace finalization without a manual export repair", () => {
 });
 
 describe("native remote workspace save failures", () => {
-  const workspace = { id: "workspace", companyId: "company", cwd: "/workspace",
+  const workspace = { id: "workspace", spaceId: "space", cwd: "/workspace",
     metadata: { remoteWorkspace: { location: { leaseId: "lease", providerLeaseId: "sandbox", environmentId: "environment" } } } };
   beforeEach(() => sync.save.mockReset());
 

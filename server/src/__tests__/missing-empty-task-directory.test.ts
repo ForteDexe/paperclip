@@ -29,21 +29,21 @@ async function fixture(kind = "empty", scope?: keyof RestorePointIdentity) {
   if (kind === "file") await fs.writeFile(path.join(directory, "saved.txt"), "must never disappear\n");
   if (kind === "directory") await fs.mkdir(path.join(directory, "saved-directory"));
   const snapshot = await captureTaskDirectorySnapshot(directory);
-  const identity = { companyId: randomUUID(), workspaceId: randomUUID(), restorePointId: randomUUID(), generation: 1 };
+  const identity = { spaceId: randomUUID(), workspaceId: randomUUID(), restorePointId: randomUUID(), generation: 1 };
   const foreign = { ...identity };
   if (scope === "generation") foreign.generation = 2;
   else if (scope) foreign[scope] = randomUUID();
   const sealed = await sealRestorePoint(snapshot.payload, foreign);
   const provider = createLocalDiskStorageProvider(path.join(root, "objects"));
   const storage = createStorageService(provider);
-  const objectKey = `${identity.companyId}/git-restore-points/${identity.workspaceId}/1/task-directory/${identity.restorePointId}.pcrp`;
-  const put = (body: Buffer) => storage.putFile({ companyId: identity.companyId, namespace: "git-restore-points", objectKey,
+  const objectKey = `${identity.spaceId}/git-restore-points/${identity.workspaceId}/1/task-directory/${identity.restorePointId}.pcrp`;
+  const put = (body: Buffer) => storage.putFile({ spaceId: identity.spaceId, namespace: "git-restore-points", objectKey,
     originalFilename: null, contentType: "application/octet-stream", body });
   await put(sealed.ciphertext);
   const ref: TaskDirectoryRestorePointRef = { schema: TASK_DIRECTORY_RESTORE_POINT_SCHEMA, id: identity.restorePointId, objectKey, generation: 1,
     sha256: sealed.sha256, byteSize: sealed.ciphertext.length, key: sealed.key, digest: snapshot.digest, files: snapshot.files, excluded: snapshot.excluded };
-  const load = (recoverMissingEmpty = true) => loadTaskDirectoryRestorePoint({ storage, workspace: { companyId: identity.companyId, id: identity.workspaceId }, ref, recoverMissingEmpty });
-  return { ref, storage, provider, put, load, empty, snapshot, directory, remove: () => storage.deleteObject(identity.companyId, objectKey) };
+  const load = (recoverMissingEmpty = true) => loadTaskDirectoryRestorePoint({ storage, workspace: { spaceId: identity.spaceId, id: identity.workspaceId }, ref, recoverMissingEmpty });
+  return { ref, storage, provider, put, load, empty, snapshot, directory, remove: () => storage.deleteObject(identity.spaceId, objectKey) };
 }
 
 it("recovers only the exact empty payload authenticated by the original scoped key envelope", async () => {
@@ -61,7 +61,7 @@ it.each(["file", "directory"])("refuses forged empty counters and digest for aut
   await expect(f.load()).rejects.toMatchObject({ reason: "plaintext_hash_mismatch" });
 });
 
-it.each(["companyId", "workspaceId", "restorePointId", "generation"] as const)("rejects a candidate from another %s", async scope => {
+it.each(["spaceId", "workspaceId", "restorePointId", "generation"] as const)("rejects a candidate from another %s", async scope => {
   const f = await fixture("empty", scope); await f.remove();
   await expect(f.load()).rejects.toMatchObject({ reason: "key_identity_mismatch" });
 });
@@ -91,7 +91,7 @@ it("does not reconstruct when object absence cannot be established", async () =>
 
 it("refuses an expired checkpoint even when its exact contents are reconstructible", async () => {
   const f = await fixture(); await f.remove();
-  await expect(loadTaskDirectoryRestorePoint({ storage: f.storage, workspace: { companyId: f.ref.objectKey.split("/")[0]!, id: f.ref.objectKey.split("/")[2]! },
+  await expect(loadTaskDirectoryRestorePoint({ storage: f.storage, workspace: { spaceId: f.ref.objectKey.split("/")[0]!, id: f.ref.objectKey.split("/")[2]! },
     ref: { ...f.ref, expiredAt: new Date().toISOString() }, recoverMissingEmpty: true })).rejects.toMatchObject({ reason: "restore_point_expired" });
 });
 
@@ -104,7 +104,7 @@ it("cancels a stalled absence check through the real storage service boundary", 
     release = () => resolve({ exists: false }); entered();
   }));
   const result = loadTaskDirectoryRestorePoint({ storage: f.storage,
-    workspace: { companyId: f.ref.objectKey.split("/")[0]!, id: f.ref.objectKey.split("/")[2]! },
+    workspace: { spaceId: f.ref.objectKey.split("/")[0]!, id: f.ref.objectKey.split("/")[2]! },
     ref: f.ref, recoverMissingEmpty: true, signal: controller.signal }).then(payload => ({ payload }), error => ({ error }));
   await started; controller.abort(reason);
   let timeout: ReturnType<typeof setTimeout> | undefined;

@@ -112,7 +112,7 @@ export async function prepareOwnedPublicOrigin(input: { controlDirectory?: strin
     const release = await responseFile<{ schema: string; executionId: string; attemptId: string; nonce: string; publicRouteReleased: boolean; proxyReleased: boolean }>(path.join(root, "released.json"), Date.now() + (input.timeoutMs ?? 90000));
     if (!publicOriginReleaseMatches(release, request) || !receipt) throw new Error("Owned public proxy release was not confirmed for this exact attempt");
     const live = await readPublicProxyIdentity(receipt.proxy.pid); if (live && live.startedAt === receipt.proxy.startedAt) throw new Error("Owned per-attempt public proxy remains alive after reported release");
-    const response = await fetch(`${receipt.publicOrigin}/.well-known/paperclip-eval-route/${request.nonce}`, { redirect: "error", signal: AbortSignal.timeout(5000) }).catch(() => undefined);
+    const response = await fetch(`${receipt.publicOrigin}/.well-known/outpost-eval-route/${request.nonce}`, { redirect: "error", signal: AbortSignal.timeout(5000) }).catch(() => undefined);
     if (response) { const body = await boundedResponse(response); if (body === request.nonce) throw new Error("Old public route remains reachable after reported release"); }
     released = true;
   };
@@ -124,7 +124,7 @@ export async function prepareOwnedPublicOrigin(input: { controlDirectory?: strin
     input.privateSecrets.push(receipt.publicOrigin);
     const port = Number(new URL(input.backendOrigin).port); let routeObserved = false, requestClaimed = false;
     const responder = createServer((req, res) => {
-      const expected = `/.well-known/paperclip-eval-route/${request.nonce}`;
+      const expected = `/.well-known/outpost-eval-route/${request.nonce}`;
       if (requestClaimed || req.method !== "GET" || req.url !== expected || !["127.0.0.1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress ?? "") || !req.socket.remotePort) { res.writeHead(404); res.end(); return; }
       requestClaimed = true;
       void confirmProxySocket(receipt!.proxy, req.socket.remotePort, port).then(() => { routeObserved = true; res.writeHead(200, { "content-type": "text/plain", "cache-control": "no-store" }); res.end(request.nonce); }).catch(() => { res.writeHead(403); res.end(); });
@@ -132,7 +132,7 @@ export async function prepareOwnedPublicOrigin(input: { controlDirectory?: strin
     responder.requestTimeout = 10000; responder.headersTimeout = 10000;
     try {
       await new Promise<void>((resolve, reject) => { responder.once("error", reject); responder.listen(port, "127.0.0.1", resolve); });
-      const response = await fetch(`${receipt.publicOrigin}/.well-known/paperclip-eval-route/${request.nonce}`, { redirect: "error", signal: AbortSignal.timeout(15000) });
+      const response = await fetch(`${receipt.publicOrigin}/.well-known/outpost-eval-route/${request.nonce}`, { redirect: "error", signal: AbortSignal.timeout(15000) });
       if (!response.ok || await boundedResponse(response) !== request.nonce || !routeObserved) throw new Error("Actual HTTPS route failed its independently observed exact-process loopback challenge");
     } finally { responder.closeAllConnections(); await new Promise<void>(resolve => responder.close(() => resolve())); }
     if (!samePublicProxyIdentity(await readPublicProxyIdentity(receipt.proxy.pid), receipt.proxy)) throw new Error("Public proxy changed identity after route verification");

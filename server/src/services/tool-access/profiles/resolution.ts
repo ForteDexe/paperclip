@@ -5,8 +5,8 @@ import type { ToolCatalogEntry, ToolConnection, ToolProfileEffectiveSummary, Too
 import { effectiveToolProfileBindings, profileIdsInBindingOrder } from "../../tool-profile-binding-precedence.js";
 import { buildProfileDetails, profileCatalogColumns, profileCatalogMatcher, toProfileBinding, toProfileEntry, type ProfileCatalogEntry, type ProfileEntryMatch, type ProfileCatalogMatch } from "./projection.js";
 type ProfileAssignmentDependencies = {
-  assertOptionalAgent(companyId: string, agentId: string | null | undefined, label: string): Promise<void>;
-  resolveInstalledConnectionsForAgent(companyId: string, agentId: string): Promise<ToolConnection[]>;
+  assertOptionalAgent(spaceId: string, agentId: string | null | undefined, label: string): Promise<void>;
+  resolveInstalledConnectionsForAgent(spaceId: string, agentId: string): Promise<ToolConnection[]>;
   toCatalogEntry(row: typeof toolCatalogEntries.$inferSelect): ToolCatalogEntry;
 };
 
@@ -64,17 +64,17 @@ function resolveCatalogAccess(
 }
 
 export function createToolProfileResolver(db: Db, { assertOptionalAgent, resolveInstalledConnectionsForAgent, toCatalogEntry }: ProfileAssignmentDependencies) {
-  async function readEffectiveProfileState(companyId: string, agentId: string) {
+  async function readEffectiveProfileState(spaceId: string, agentId: string) {
     await assertOptionalAgent(
-      companyId,
+      spaceId,
       agentId,
       "Tool profile effective agent",
     );
     const matchingBindings = await db
       .select()
       .from(toolProfileBindings)
-      .where(and(eq(toolProfileBindings.companyId, companyId), or(
-        and(eq(toolProfileBindings.targetType, "company"), eq(toolProfileBindings.targetId, companyId)),
+      .where(and(eq(toolProfileBindings.spaceId, spaceId), or(
+        and(eq(toolProfileBindings.targetType, "space"), eq(toolProfileBindings.targetId, spaceId)),
         and(eq(toolProfileBindings.targetType, "agent"), eq(toolProfileBindings.targetId, agentId)),
       )))
       .orderBy(
@@ -88,7 +88,7 @@ export function createToolProfileResolver(db: Db, { assertOptionalAgent, resolve
       .from(toolProfiles)
       .where(
         and(
-          eq(toolProfiles.companyId, companyId),
+          eq(toolProfiles.spaceId, spaceId),
           inArray(toolProfiles.id, candidateProfileIds),
         ),
       );
@@ -109,12 +109,12 @@ export function createToolProfileResolver(db: Db, { assertOptionalAgent, resolve
   }
 
   async function resolveEffectiveProfiles<TEntry extends ProfileCatalogEntry, TAllowedTool>(
-    companyId: string,
+    spaceId: string,
     agentId: string,
     loadCatalog: () => PromiseLike<TEntry[]>,
     toAllowedTool: (entry: TEntry) => TAllowedTool,
   ): Promise<Omit<ToolProfileEffectiveSummary, "allowedTools"> & { allowedTools: TAllowedTool[] }> {
-    const { bindings, activeProfiles } = await readEffectiveProfileState(companyId, agentId);
+    const { bindings, activeProfiles } = await readEffectiveProfileState(spaceId, agentId);
     if (activeProfiles.length === 0) {
       return {
         agentId,
@@ -124,19 +124,19 @@ export function createToolProfileResolver(db: Db, { assertOptionalAgent, resolve
         allowedTools: [],
         allowedToolNames: [],
         installedConnections: await resolveInstalledConnectionsForAgent(
-          companyId,
+          spaceId,
           agentId,
         ),
       };
     }
     const activeProfileIds = activeProfiles.map((profile) => profile.id);
-    const [entries, catalog, companyAgents] = await Promise.all([
+    const [entries, catalog, spaceAgents] = await Promise.all([
       db
         .select()
         .from(toolProfileEntries)
         .where(
           and(
-            eq(toolProfileEntries.companyId, companyId),
+            eq(toolProfileEntries.spaceId, spaceId),
             inArray(toolProfileEntries.profileId, activeProfileIds),
           ),
         )
@@ -145,7 +145,7 @@ export function createToolProfileResolver(db: Db, { assertOptionalAgent, resolve
       db
         .select({ id: agents.id })
         .from(agents)
-        .where(eq(agents.companyId, companyId)),
+        .where(eq(agents.spaceId, spaceId)),
     ]);
     const entriesByProfile = new Map<
       string,
@@ -157,7 +157,7 @@ export function createToolProfileResolver(db: Db, { assertOptionalAgent, resolve
       entriesByProfile.set(entry.profileId, list);
     }
     const { allowedCatalogIds, allowedToolNames } = resolveCatalogAccess(activeProfiles, entries, catalog);
-    const agentIds = companyAgents.map((agent) => agent.id);
+    const agentIds = spaceAgents.map((agent) => agent.id);
     const details: ToolProfileWithDetails[] = activeProfiles.map((profile) =>
       buildProfileDetails({
         profile,
@@ -182,15 +182,15 @@ export function createToolProfileResolver(db: Db, { assertOptionalAgent, resolve
         a.localeCompare(b),
       ),
       installedConnections: await resolveInstalledConnectionsForAgent(
-        companyId,
+        spaceId,
         agentId,
       ),
     };
   }
-  async function getConnectionAssignmentsForAgent(companyId: string, agentId: string, connectionIds: string[]) {
-    const { activeProfiles } = await readEffectiveProfileState(companyId, agentId);
+  async function getConnectionAssignmentsForAgent(spaceId: string, agentId: string, connectionIds: string[]) {
+    const { activeProfiles } = await readEffectiveProfileState(spaceId, agentId);
     if (activeProfiles.length === 0 || connectionIds.length === 0) {
-      return { allowedConnectionIds: [], installedConnections: await resolveInstalledConnectionsForAgent(companyId, agentId) };
+      return { allowedConnectionIds: [], installedConnections: await resolveInstalledConnectionsForAgent(spaceId, agentId) };
     }
     const catalog = await db.select({
       id: toolCatalogEntries.id,
@@ -199,7 +199,7 @@ export function createToolProfileResolver(db: Db, { assertOptionalAgent, resolve
       toolName: toolCatalogEntries.toolName,
       riskLevel: toolCatalogEntries.riskLevel,
     }).from(toolCatalogEntries).where(and(
-      eq(toolCatalogEntries.companyId, companyId), eq(toolCatalogEntries.status, "active"), inArray(toolCatalogEntries.connectionId, connectionIds),
+      eq(toolCatalogEntries.spaceId, spaceId), eq(toolCatalogEntries.status, "active"), inArray(toolCatalogEntries.connectionId, connectionIds),
     ));
     const entries = catalog.length === 0 ? [] : await db.select({
       profileId: toolProfileEntries.profileId,
@@ -211,7 +211,7 @@ export function createToolProfileResolver(db: Db, { assertOptionalAgent, resolve
       toolName: toolProfileEntries.toolName,
       riskLevel: toolProfileEntries.riskLevel,
     }).from(toolProfileEntries).where(and(
-      eq(toolProfileEntries.companyId, companyId), inArray(toolProfileEntries.profileId, activeProfiles.map(profile => profile.id)),
+      eq(toolProfileEntries.spaceId, spaceId), inArray(toolProfileEntries.profileId, activeProfiles.map(profile => profile.id)),
       or(
         and(eq(toolProfileEntries.selectorType, "application"), catalogValuesContain(toolProfileEntries.applicationId, catalog.map(entry => entry.applicationId))),
         and(eq(toolProfileEntries.selectorType, "connection"), catalogValuesContain(toolProfileEntries.connectionId, catalog.map(entry => entry.connectionId))),
@@ -223,36 +223,36 @@ export function createToolProfileResolver(db: Db, { assertOptionalAgent, resolve
     const { allowedCatalogIds } = resolveCatalogAccess(activeProfiles, entries, catalog);
     return {
       allowedConnectionIds: [...new Set(catalog.filter(entry => allowedCatalogIds.has(entry.id)).map(entry => entry.connectionId))],
-      installedConnections: await resolveInstalledConnectionsForAgent(companyId, agentId),
+      installedConnections: await resolveInstalledConnectionsForAgent(spaceId, agentId),
     };
   }
 
   return {
     getConnectionAssignmentsForAgent,
-    getEffectiveProfilesForAgent: (companyId: string, agentId: string) =>
+    getEffectiveProfilesForAgent: (spaceId: string, agentId: string) =>
       resolveEffectiveProfiles(
-        companyId,
+        spaceId,
         agentId,
         () => db
           .select()
           .from(toolCatalogEntries)
           .where(and(
-            eq(toolCatalogEntries.companyId, companyId),
+            eq(toolCatalogEntries.spaceId, spaceId),
             eq(toolCatalogEntries.status, "active"),
           ))
           .orderBy(asc(toolCatalogEntries.toolName)),
         toCatalogEntry,
       ),
 
-    getEffectiveToolAssignmentsForAgent: (companyId: string, agentId: string) =>
+    getEffectiveToolAssignmentsForAgent: (spaceId: string, agentId: string) =>
       resolveEffectiveProfiles(
-        companyId,
+        spaceId,
         agentId,
         () => db
           .select(profileCatalogColumns)
           .from(toolCatalogEntries)
           .where(and(
-            eq(toolCatalogEntries.companyId, companyId),
+            eq(toolCatalogEntries.spaceId, spaceId),
             eq(toolCatalogEntries.status, "active"),
           ))
           .orderBy(asc(toolCatalogEntries.toolName)),

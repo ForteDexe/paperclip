@@ -11,7 +11,7 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: /^@paperclipai\/outpost-runner$/,
+        find: /^@outpost\/outpost-runner$/,
         replacement: resolve(root, "packages/outpost-runner/src/index.ts"),
       },
     ],

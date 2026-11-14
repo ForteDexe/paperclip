@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, environmentLeases, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
+import { agents, applyPendingMigrations, closeRegisteredClients, spaces, createDb, environmentLeases, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../../../__tests__/helpers/external-test-database.js";
@@ -20,16 +20,16 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   let db: Db;
   beforeAll(async () => {
     if (external) { await applyPendingMigrations(external); db = createDb(external); }
-    else { database = await startEmbeddedPostgresTestDatabase("paperclip-resource-wait-stop-"); db = createDb(database.connectionString); }
+    else { database = await startEmbeddedPostgresTestDatabase("outpost-resource-wait-stop-"); db = createDb(database.connectionString); }
   }, 90_000);
   afterAll(async () => { if (external) await closeRegisteredClients(external); else await database?.cleanup(); });
 
   async function fixture(errorCode = "workspace_busy", executionStage = "preparing") {
     const id = randomUUID();
-    const [company] = await db.insert(companies).values({ name: "Resource wait", issuePrefix: `W${id.slice(0, 7)}` }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Migrated agent",
+    const [space] = await db.insert(spaces).values({ name: "Resource wait", issuePrefix: `W${id.slice(0, 7)}` }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Migrated agent",
       adapterType: "outpost_runner", status: "idle", lifecycleState: "ready" }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "cancelled", invocationSource: "on_demand", errorCode, runtimeMode: "legacy", executionStage,
       startedAt: new Date("2000-01-01T00:00:00Z"), finishedAt: new Date("2000-01-01T00:00:01Z"),
       controllerBootId: legacyControllerBootId, controllerLeaseExpiresAt: new Date("2000-01-01T00:01:00Z"),
@@ -92,7 +92,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it.each(["adapter.invoke", PROCESS_START_REQUESTED, "session.started", "provider.event", "tool.execution.started", "source_event"])(
     "retains a wait with a recorded %s event", async eventType => {
       const { agent, run } = await fixture();
-      await db.insert(heartbeatRunEvents).values({ companyId: run.companyId, agentId: agent.id, runId: run.id,
+      await db.insert(heartbeatRunEvents).values({ spaceId: run.spaceId, agentId: agent.id, runId: run.id,
         seq: 1, eventType, ...(eventType === "source_event" ? { sourceEventId: "provider-event" } : {}) });
       expect(await canRetryStoppedRun(db, run)).toBe(false);
       expect(await agentExecutionsHaveStopped(db, [agent.id])).toBe(false);
@@ -107,23 +107,23 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     { provider: "ssh", status: "released", cleanupStatus: "success", releasedAt: new Date(0), providerLeaseId: "synthetic-lease" },
   ])("requires resource cleanup proof: %j", async lease => {
     const { agent, run } = await fixture();
-    await db.insert(environmentLeases).values({ companyId: run.companyId, heartbeatRunId: run.id, ...lease });
+    await db.insert(environmentLeases).values({ spaceId: run.spaceId, heartbeatRunId: run.id, ...lease });
     expect(await canRetryStoppedRun(db, run)).toBe(false);
     expect(await agentExecutionsHaveStopped(db, [agent.id])).toBe(false);
   });
 
   it("rejects a native coordinator even without a current owner", async () => {
     const { agent, run } = await fixture();
-    const [issue] = await db.insert(issues).values({ companyId: run.companyId, title: "Native ownership" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: run.spaceId, title: "Native ownership" }).returning();
     const [changed] = await db.update(heartbeatRuns).set({ nativeIssueId: issue.id }).where(eq(heartbeatRuns.id, run.id)).returning();
-    await db.insert(nativeRunFinalizations).values({ companyId: run.companyId, runId: run.id, issueId: issue.id, phase: "observed" });
+    await db.insert(nativeRunFinalizations).values({ spaceId: run.spaceId, runId: run.id, issueId: issue.id, phase: "observed" });
     expect(await canRetryStoppedRun(db, changed)).toBe(false);
     expect(await agentExecutionsHaveStopped(db, [agent.id])).toBe(false);
   });
 
   it("accepts a remote resource only after its exact termination receipt is saved", async () => {
     const { agent, run } = await fixture();
-    const [lease] = await db.insert(environmentLeases).values({ companyId: run.companyId, heartbeatRunId: run.id,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: run.spaceId, heartbeatRunId: run.id,
       provider: "ssh", providerLeaseId: "synthetic-remote", status: "released", releasedAt: new Date(0), cleanupStatus: "success" }).returning();
     expect(await canRetryStoppedRun(db, run)).toBe(false);
     await db.update(environmentLeases).set({ metadata: { remoteExecutionTermination:

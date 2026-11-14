@@ -1,17 +1,17 @@
 import type { CapabilityJsonValue } from "../mock-core/capability-control-plane-types.js";
-import type { PaperclipJsonValue } from "../catalog/semantic-action-types.js";
+import type { OutpostJsonValue } from "../catalog/semantic-action-types.js";
 
 export const CAPABILITY_REDACTED = "[REDACTED]";
 
 export function redactSemanticValue(value: unknown, key = ""): CapabilityJsonValue {
   if (key.length === 0) {
-    return redactPaperclipSemanticValue(value) as CapabilityJsonValue;
+    return redactOutpostSemanticValue(value) as CapabilityJsonValue;
   }
-  const wrapped = redactPaperclipSemanticValue({ [key]: value });
+  const wrapped = redactOutpostSemanticValue({ [key]: value });
   if (typeof wrapped !== "object" || wrapped === null || Array.isArray(wrapped)) {
     return CAPABILITY_REDACTED;
   }
-  const object = wrapped as { readonly [entryKey: string]: PaperclipJsonValue };
+  const object = wrapped as { readonly [entryKey: string]: OutpostJsonValue };
   return (object[key] ?? CAPABILITY_REDACTED) as CapabilityJsonValue;
 }
 
@@ -33,26 +33,26 @@ const OUTPOST_MAX_STRING_LENGTH = 200_000;
 export const OUTPOST_SEMANTIC_REDACTED = "[REDACTED]";
 export const OUTPOST_SEMANTIC_TRUNCATED = "[TRUNCATED]";
 
-export interface PaperclipSemanticValueSafety {
+export interface OutpostSemanticValueSafety {
   readonly containsProtectedData: boolean;
   readonly withinBounds: boolean;
 }
 
-export function inspectPaperclipSemanticValue(
+export function inspectOutpostSemanticValue(
   value: unknown,
-): PaperclipSemanticValueSafety {
+): OutpostSemanticValueSafety {
   return inspectValueSafety(value, true);
 }
 
 /** Validate transport bounds without inspecting credential content. */
-export function isPaperclipSemanticValueWithinBounds(value: unknown): boolean {
+export function isOutpostSemanticValueWithinBounds(value: unknown): boolean {
   return inspectValueSafety(value, false).withinBounds;
 }
 
 function inspectValueSafety(
   value: unknown,
   detectCredentials: boolean,
-): PaperclipSemanticValueSafety {
+): OutpostSemanticValueSafety {
   const state = { nodes: 0, protected: false, withinBounds: true, detectCredentials };
   inspect(value, "", 0, state, new Set<object>());
   return Object.freeze({
@@ -61,9 +61,9 @@ function inspectValueSafety(
   });
 }
 
-export function redactPaperclipSemanticValue(
+export function redactOutpostSemanticValue(
   value: unknown,
-): PaperclipJsonValue {
+): OutpostJsonValue {
   const state = { nodes: 0 };
   return redact(value, "", 0, state, new Set<object>());
 }
@@ -143,7 +143,7 @@ function redact(
   depth: number,
   state: { nodes: number },
   ancestors: Set<object>,
-): PaperclipJsonValue {
+): OutpostJsonValue {
   state.nodes += 1;
   if (state.nodes > OUTPOST_MAX_NODES || depth > OUTPOST_MAX_DEPTH) {
     return OUTPOST_SEMANTIC_TRUNCATED;
@@ -185,10 +185,10 @@ function redact(
           ] as const,
       );
     ancestors.delete(value);
-    const result: Record<string, PaperclipJsonValue> =
+    const result: Record<string, OutpostJsonValue> =
       Object.fromEntries(entries);
     if (Object.keys(value).length > OUTPOST_MAX_OBJECT_KEYS) {
-      result.__paperclip_truncated__ = OUTPOST_SEMANTIC_TRUNCATED;
+      result.__outpost_truncated__ = OUTPOST_SEMANTIC_TRUNCATED;
     }
     return result;
   }

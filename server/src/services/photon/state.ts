@@ -4,7 +4,7 @@ import type {
   ChatSdkStateScope,
 } from "../chat-sdk-state.js";
 
-/** Typed provider records share the existing company/endpoint scoped CAS store. */
+/** Typed provider records share the existing space/endpoint scoped CAS store. */
 export class PhotonState {
   constructor(
     readonly scope: ChatSdkStateScope,

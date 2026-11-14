@@ -30,13 +30,13 @@
   "files": [
     "dist"
   ],
-  "paperclipPlugin": {
+  "outpostPlugin": {
     "manifest": "./dist/manifest.js",
     "worker": "./dist/worker.js",
     "ui": "./dist/ui/"
   },
   "keywords": [
-    "paperclip",
+    "outpost",
     "plugin",
     "workspace",
     "diff"

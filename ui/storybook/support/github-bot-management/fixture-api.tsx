@@ -26,7 +26,7 @@ function initialEndpoint(state: FixtureState) {
 }
 const reviewSkill = {
   id: "11111111-1111-4111-8111-111111111111", slug: "code-review", name: "Code review",
-  key: "company/company-storybook/code-review", description: "Follow the team's review playbook.",
+  key: "space/space-storybook/code-review", description: "Follow the team's review playbook.",
 };
 /** Only fixture IDs are intercepted. All shell requests use Storybook's shared API fixtures. */
 export function FixtureApi({
@@ -44,18 +44,18 @@ export function FixtureApi({
     client.setQueryData(queryKeys.agents.detail(agent.id), agent);
     client.setQueryData(["github-setup", endpoint.id], initialEndpoint(state));
     client.setQueryData(["github-wizard", endpoint.id], { endpointId: endpoint.id, state: state === "setup" ? "create" : "connected" });
-    client.setQueryData(queryKeys.chatEndpoints.list(endpoint.companyId), [endpoint]);
-    client.setQueryData(queryKeys.projects.list(endpoint.companyId), []);
-    client.setQueryData(["channel-workspace-choices", endpoint.companyId], []);
-    client.setQueryData(["project-repositories", endpoint.companyId], {
+    client.setQueryData(queryKeys.chatEndpoints.list(endpoint.spaceId), [endpoint]);
+    client.setQueryData(queryKeys.projects.list(endpoint.spaceId), []);
+    client.setQueryData(["channel-workspace-choices", endpoint.spaceId], []);
+    client.setQueryData(["project-repositories", endpoint.spaceId], {
       repositories: [
         { id: "100", fullName: "acme/web", ownerType: "organization", url: "https://github.com/acme/web", connections: ["GitHub"] },
-        { id: "101", fullName: "paperclipai/api", ownerType: "organization", url: "https://github.com/paperclipai/api", connections: ["GitHub"] },
+        { id: "101", fullName: "outpost/api", ownerType: "organization", url: "https://github.com/outpost/api", connections: ["GitHub"] },
         { id: "102", fullName: "mayacoder/site", ownerType: "personal", url: "https://github.com/mayacoder/site", connections: ["GitHub"] },
       ], connectionCount: 1, failedConnectionCount: 0,
     });
-    client.setQueryData(["github-members", endpoint.companyId], members);
-    client.setQueryData(queryKeys.companySkills.list(endpoint.companyId), [reviewSkill]);
+    client.setQueryData(["github-members", endpoint.spaceId], members);
+    client.setQueryData(queryKeys.spaceSkills.list(endpoint.spaceId), [reviewSkill]);
     return client;
   });
   const [ready, setReady] = useState(false);

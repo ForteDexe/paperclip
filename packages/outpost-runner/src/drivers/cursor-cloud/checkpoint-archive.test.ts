@@ -12,7 +12,7 @@ vi.mock("node:fs/promises", async importOriginal => {
 
 const roots: string[] = [];
 afterEach(async () => { vi.restoreAllMocks(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
-const binding = { companyId: "company", agentId: "agent", issueId: "issue", normalizedSessionId: "session" };
+const binding = { spaceId: "space", agentId: "agent", issueId: "issue", normalizedSessionId: "session" };
 
 function deferred() {
   let resolve!: () => void;

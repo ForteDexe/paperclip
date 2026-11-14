@@ -14,10 +14,10 @@ export type NativePreservedMonitorWait = { agentId: string; nextCheckAt: string;
 
 export async function readNativePreservedMonitorWait(
   db: Db,
-  binding: { companyId: string; issueId: string; runId: string; agentId: string },
+  binding: { spaceId: string; issueId: string; runId: string; agentId: string },
   issue: typeof issues.$inferSelect,
 ): Promise<NativePreservedMonitorWait | null> {
-  if (issue.companyId !== binding.companyId || issue.id !== binding.issueId || issue.workMode !== "standard" ||
+  if (issue.spaceId !== binding.spaceId || issue.id !== binding.issueId || issue.workMode !== "standard" ||
       issue.executionRunId !== null || issue.checkoutRunId !== null) return null;
   const nextCheckAt = scheduledIssueMonitorWait(issue, binding.agentId);
   if (!nextCheckAt) return null;
@@ -25,7 +25,7 @@ export async function readNativePreservedMonitorWait(
   return source?.hasReceipt ? { agentId: binding.agentId, nextCheckAt, resultId: source.resultId } : null;
 }
 
-type MonitorBinding = { companyId: string; issueId: string; runId: string; agentId: string };
+type MonitorBinding = { spaceId: string; issueId: string; runId: string; agentId: string };
 
 async function readCompletedNativeMonitorResult(db: Db, binding: MonitorBinding) {
   const [source] = await db.select({ resultId: nativeRunResults.id, finishedAt: heartbeatRuns.finishedAt, hasReceipt: sql<boolean>`exists (
@@ -36,13 +36,13 @@ async function readCompletedNativeMonitorResult(db: Db, binding: MonitorBinding)
       and receipt.value->'result'->'monitor'->>'status' = 'scheduled'
       and jsonb_typeof(receipt.value->'result'->'monitor'->'nextCheckAt') = 'string'
   )` }).from(heartbeatRuns).innerJoin(nativeRunFinalizations, and(
-    eq(nativeRunFinalizations.companyId, binding.companyId), eq(nativeRunFinalizations.issueId, binding.issueId),
+    eq(nativeRunFinalizations.spaceId, binding.spaceId), eq(nativeRunFinalizations.issueId, binding.issueId),
     eq(nativeRunFinalizations.runId, heartbeatRuns.id),
   )).innerJoin(nativeRunResults, and(
-    eq(nativeRunResults.id, nativeRunFinalizations.resultId), eq(nativeRunResults.companyId, binding.companyId),
+    eq(nativeRunResults.id, nativeRunFinalizations.resultId), eq(nativeRunResults.spaceId, binding.spaceId),
     eq(nativeRunResults.issueId, binding.issueId), eq(nativeRunResults.runId, heartbeatRuns.id),
     eq(nativeRunResults.schemaStatus, "accepted"),
-  )).where(and(eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.companyId, binding.companyId),
+  )).where(and(eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.spaceId, binding.spaceId),
     eq(heartbeatRuns.agentId, binding.agentId), eq(heartbeatRuns.nativeIssueId, binding.issueId),
     eq(heartbeatRuns.runtimeMode, "native"), eq(heartbeatRuns.status, "succeeded"), isNotNull(heartbeatRuns.finishedAt),
     ...["cancellation", "nativeCancellation", "executionCancellation", "startupCancellation"].map(key =>
@@ -57,7 +57,7 @@ export type NativeSupersededMonitorWait = {
 
 export async function readNativeSupersededMonitorWait(db: Db, binding: MonitorBinding,
   issue: typeof issues.$inferSelect, lockProof = false): Promise<NativeSupersededMonitorWait | null> {
-  if (issue.companyId !== binding.companyId || issue.id !== binding.issueId ||
+  if (issue.spaceId !== binding.spaceId || issue.id !== binding.issueId ||
       issue.executionRunId === binding.runId || issue.checkoutRunId === binding.runId ||
       scheduledIssueMonitorWait(issue, binding.agentId) !== null) return null;
   const source = await readCompletedNativeMonitorResult(db, binding);
@@ -65,7 +65,7 @@ export async function readNativeSupersededMonitorWait(db: Db, binding: MonitorBi
   const successor = alias(heartbeatRuns, "monitor_superseding_run");
   const query = db.select({ wakeId: agentWakeupRequests.id, commentId: issueComments.id,
     successorRunId: successor.id }).from(agentWakeupRequests).innerJoin(issueComments, and(
-      eq(issueComments.companyId, binding.companyId), eq(issueComments.issueId, binding.issueId),
+      eq(issueComments.spaceId, binding.spaceId), eq(issueComments.issueId, binding.issueId),
       eq(issueComments.authorType, "user"), eq(issueComments.authorUserId, agentWakeupRequests.requestedByActorId),
       isNull(issueComments.authorAgentId), isNull(issueComments.createdByRunId),
       isNull(issueComments.deletedAt), isNull(issueComments.sourceTrust),
@@ -74,17 +74,17 @@ export async function readNativeSupersededMonitorWait(db: Db, binding: MonitorBi
       sql`length(trim(${issueComments.body})) > 0`,
       sql`${agentWakeupRequests.payload}->>'commentId' = ${issueComments.id}::text`,
     )).leftJoin(successor, and(eq(successor.id, agentWakeupRequests.runId),
-      eq(successor.companyId, binding.companyId), eq(successor.agentId, binding.agentId),
+      eq(successor.spaceId, binding.spaceId), eq(successor.agentId, binding.agentId),
       eq(successor.nativeIssueId, binding.issueId), ne(successor.id, binding.runId),
       eq(successor.wakeupRequestId, agentWakeupRequests.id),
-      sql`${successor.contextSnapshot}#>>'{executionContinuation,companyId}' = ${binding.companyId}`,
+      sql`${successor.contextSnapshot}#>>'{executionContinuation,spaceId}' = ${binding.spaceId}`,
       sql`${successor.contextSnapshot}#>>'{executionContinuation,issueId}' = ${binding.issueId}`,
       sql`${successor.contextSnapshot}#>>'{executionContinuation,resumeDelta,baseRunId}' = ${binding.runId}`,
       sql`${successor.contextSnapshot}#>>'{executionContinuation,objectiveSource,kind}' = 'comment'`,
       sql`${successor.contextSnapshot}#>>'{executionContinuation,objectiveSource,id}' = ${issueComments.id}::text`,
       sql`${successor.contextSnapshot}#>>'{executionContinuation,objectiveSource,revision}' =
         to_char(${issueComments.updatedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`,
-    )).where(and(eq(agentWakeupRequests.companyId, binding.companyId),
+    )).where(and(eq(agentWakeupRequests.spaceId, binding.spaceId),
       eq(agentWakeupRequests.agentId, binding.agentId), gt(agentWakeupRequests.requestedAt, source.finishedAt),
       inArray(agentWakeupRequests.source, ["automation", "on_demand"]),
       inArray(agentWakeupRequests.reason, ["issue_commented", "issue_reopened_via_comment"]),
@@ -100,12 +100,12 @@ export async function readNativeSupersededMonitorWait(db: Db, binding: MonitorBi
 
 export async function readNativeMonitorSource(
   db: Pick<Db, "select">,
-  binding: { companyId: string; issueId: string; runId: string },
+  binding: { spaceId: string; issueId: string; runId: string },
 ): Promise<string | null> {
   const source = alias(heartbeatRuns, "monitor_source");
   const sources = await db.select({ runId: source.id }).from(heartbeatRuns)
     .innerJoin(agentWakeupRequests, and(
-      eq(agentWakeupRequests.companyId, binding.companyId),
+      eq(agentWakeupRequests.spaceId, binding.spaceId),
       eq(agentWakeupRequests.runId, heartbeatRuns.id),
       eq(agentWakeupRequests.agentId, heartbeatRuns.agentId),
       eq(agentWakeupRequests.reason, "issue_monitor_due"),
@@ -114,7 +114,7 @@ export async function readNativeMonitorSource(
       sql`${agentWakeupRequests.idempotencyKey} = 'issue-monitor:' || ${binding.issueId} || ':' || (${agentWakeupRequests.payload}->>'nextCheckAt')`,
     ))
     .innerJoin(source, and(
-      eq(source.companyId, binding.companyId), eq(source.agentId, heartbeatRuns.agentId),
+      eq(source.spaceId, binding.spaceId), eq(source.agentId, heartbeatRuns.agentId),
       eq(source.nativeIssueId, binding.issueId), eq(source.runtimeMode, "native"),
       ne(source.id, heartbeatRuns.id),
       sql`${source.responsibleUserId} is not distinct from ${heartbeatRuns.responsibleUserId}`,
@@ -127,7 +127,7 @@ export async function readNativeMonitorSource(
           and receipt.value->'result'->'monitor'->>'status' = 'scheduled'
           and receipt.value->'result'->'monitor'->>'nextCheckAt' = ${agentWakeupRequests.payload}->>'nextCheckAt')`,
     ))
-    .where(and(eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.companyId, binding.companyId),
+    .where(and(eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.spaceId, binding.spaceId),
       eq(boundRunIssueIdSql(), binding.issueId)))
     .groupBy(source.id).limit(2);
   return sources.length === 1 ? sources[0]!.runId : null;
@@ -136,13 +136,13 @@ export async function readNativeMonitorSource(
 /** A dispatched timer is historical delivery evidence, never authority to run again. */
 export async function readNativeMonitorDelivery(
   db: Db,
-  binding: { companyId: string; issueId: string; runId: string },
+  binding: { spaceId: string; issueId: string; runId: string },
 ): Promise<NativeMonitorDelivery | null> {
   const [run] = await db.select({
     agentId: heartbeatRuns.agentId, resultJson: heartbeatRuns.resultJson,
   }).from(heartbeatRuns).where(and(
     eq(heartbeatRuns.id, binding.runId),
-    eq(heartbeatRuns.companyId, binding.companyId),
+    eq(heartbeatRuns.spaceId, binding.spaceId),
     eq(heartbeatRuns.nativeIssueId, binding.issueId),
     eq(heartbeatRuns.runtimeMode, "native"),
   ));
@@ -156,18 +156,18 @@ export async function readNativeMonitorDelivery(
   });
   if (!keys.length) return null;
   // The issue index bounds this lookup to one task. Joining the admitted run
-  // excludes queued, forged, and cross-company/task delivery references.
+  // excludes queued, forged, and cross-space/task delivery references.
   const [delivery] = await db.select({
     wakeId: agentWakeupRequests.id, successorRunId: heartbeatRuns.id,
   }).from(agentWakeupRequests).innerJoin(heartbeatRuns, and(
     eq(heartbeatRuns.id, agentWakeupRequests.runId),
-    eq(heartbeatRuns.companyId, binding.companyId),
+    eq(heartbeatRuns.spaceId, binding.spaceId),
     eq(heartbeatRuns.agentId, run.agentId),
     ne(heartbeatRuns.id, binding.runId),
     sql`coalesce(${heartbeatRuns.nativeIssueId}::text, ${heartbeatRuns.contextSnapshot}->>'issueId',
       ${heartbeatRuns.contextSnapshot}->>'taskId') = ${binding.issueId}`,
   )).where(and(
-    eq(agentWakeupRequests.companyId, binding.companyId),
+    eq(agentWakeupRequests.spaceId, binding.spaceId),
     eq(agentWakeupRequests.agentId, run.agentId),
     eq(agentWakeupRequests.reason, "issue_monitor_due"),
     sql`${agentWakeupRequests.payload}->>'issueId' = ${binding.issueId}`,

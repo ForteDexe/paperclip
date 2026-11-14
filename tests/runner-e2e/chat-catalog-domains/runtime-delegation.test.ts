@@ -1,13 +1,13 @@
 import { expect, it } from "vitest";
 import { gradeDelegation, completeLaunchBrief, launchPageReflectsBrief, linksOpenTask, RETURN_DELIVERY_LATENCY_MS, type LaunchPageFacts } from "./runtime-delegation.js";
 function valid() {
-  const task = { id: "website", parentId: "launch", companyId: "company", assigneeAgentId: "morgan", status: "done", description: "Implement the approved design brief and report the completed result back." };
-  return { scenarioId: "task-coordination.delegate-with-context", companyId: "company", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "",
+  const task = { id: "website", parentId: "launch", spaceId: "space", assigneeAgentId: "morgan", status: "done", description: "Implement the approved design brief and report the completed result back." };
+  return { scenarioId: "task-coordination.delegate-with-context", spaceId: "space", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "",
     tasks: [{ id: "launch" }, task], activity: [{ id: "created", action: "issue.created", entityId: "website", agentId: "ceo" }],
     runs: [{ id: "context", agentId: "ceo", status: "succeeded", contextSnapshot: { issueId: "chat" } }, { id: "delegate", agentId: "ceo", status: "succeeded", contextSnapshot: { issueId: "chat" } },
       { id: "implement", agentId: "morgan", status: "succeeded", contextSnapshot: { issueId: "website" } }, { id: "report", agentId: "ceo", status: "succeeded", contextSnapshot: { issueId: "chat" } }],
     state: { parent: { id: "launch" }, task, worker: { id: "morgan" }, humanId: "human", briefCommentId: "human-brief", briefHash: "original-hash", briefDownloadedHash: "original-hash",
-      briefAttachment: { id: "brief", issueId: "launch", companyId: "company", createdByAgentId: null, createdByUserId: "human", issueCommentId: "human-brief", sha256: "original-hash" },
+      briefAttachment: { id: "brief", issueId: "launch", spaceId: "space", createdByAgentId: null, createdByUserId: "human", issueCommentId: "human-brief", sha256: "original-hash" },
       parentOwnedByCeo: true, parentContextRetained: true, createdFromSource: true, childHasBrief: true, linkedToLaunch: false, workerBriefReadStatus: 200, workerBriefHash: "original-hash", briefContextKind: "direct-attachment-reference", workerTaskReadStatus: 200, workerParentReadStatus: 200, parentLinkInspectable: true, durableBriefComplete: false,
       workerWasReallyWaiting: true, actualWebsiteArtifact: true, returnDeliveryLatencyMs: 40_000 as number,
       delivery: { checks: [{ id: "correlated", passed: true }], response: { body: "Morgan completed Website; the actual saved page is available on the child task." } } } };

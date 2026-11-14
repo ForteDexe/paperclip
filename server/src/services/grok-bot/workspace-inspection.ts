@@ -11,9 +11,9 @@ import { hasRequiredWorkspaceRecovery, nativeRunHasNoWorkspaceAccess } from "../
  * export for a Bot explicitly admitted without workspace access. Keep the old
  * execution fenced and its no-replay hold; inspection only retires that false
  * file obligation. Native Runner cleanup never certifies global Grok exit. */
-export async function grokWorkspaceInspectionCandidates(db: Db, companyId: string, agentId: string) {
+export async function grokWorkspaceInspectionCandidates(db: Db, spaceId: string, agentId: string) {
   const runs = await db.select().from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, agentId),
+    eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, agentId),
     eq(heartbeatRuns.driverKind, "grok_bot_mcp"), isNotNull(heartbeatRuns.finishedAt),
     inArray(heartbeatRuns.status, ["cancelled", "failed", "timed_out", "interrupted"]),
     sql`${heartbeatRuns.resultJson}->'workspaceRestoreRecovery'->>'schema' = 'outpost.workspace-restore-recovery.v1'`,
@@ -21,25 +21,25 @@ export async function grokWorkspaceInspectionCandidates(db: Db, companyId: strin
   return runs.filter(run => nativeRunHasNoWorkspaceAccess(run) && hasRequiredWorkspaceRecovery(run.resultJson));
 }
 
-export async function inspectGrokWorkspaceObligations(db: Db, companyId: string, agentId: string, operatorId: string) {
-  for (const selected of await grokWorkspaceInspectionCandidates(db, companyId, agentId)) {
+export async function inspectGrokWorkspaceObligations(db: Db, spaceId: string, agentId: string, operatorId: string) {
+  for (const selected of await grokWorkspaceInspectionCandidates(db, spaceId, agentId)) {
     // Independent task transactions keep the native task/coordinator/run lock
     // order out of the routine writer's binding/routine lock order. A partial
     // inspection grants no authority and never schedules work.
     await db.transaction(async tx => {
       const database = tx as unknown as Db;
-      await authorizeExternalBotOperator(database, companyId, operatorId);
+      await authorizeExternalBotOperator(database, spaceId, operatorId);
       const issueId = selected.nativeIssueId ?? selected.issueId;
       if (!issueId) return;
       const [task] = await tx.select().from(issues).where(and(
-        eq(issues.companyId, companyId), eq(issues.id, issueId),
+        eq(issues.spaceId, spaceId), eq(issues.id, issueId),
       )).for("update");
       const [coordinator] = await tx.select().from(nativeRunFinalizations).where(and(
-        eq(nativeRunFinalizations.companyId, companyId), eq(nativeRunFinalizations.runId, selected.id),
+        eq(nativeRunFinalizations.spaceId, spaceId), eq(nativeRunFinalizations.runId, selected.id),
         eq(nativeRunFinalizations.issueId, issueId),
       )).for("update");
       const [run] = await tx.select().from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, agentId), eq(heartbeatRuns.id, selected.id),
+        eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, agentId), eq(heartbeatRuns.id, selected.id),
       )).for("update");
       if (!run || !hasRequiredWorkspaceRecovery(run.resultJson)) return;
       const fail = () => new McpOAuthError("access_denied", "The stopped task still needs verified Runner cleanup before inspection can clear its file obligation.", 409);
@@ -48,20 +48,20 @@ export async function inspectGrokWorkspaceObligations(db: Db, companyId: string,
         || !coordinator || coordinator.phase !== "terminal_failure" || coordinator.leaseOwner
         || coordinator.failureDetail?.successorRunId) throw fail();
       const [active] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, companyId), inArray(heartbeatRuns.status, ["running", "queued", "scheduled_retry"]),
+        eq(heartbeatRuns.spaceId, spaceId), inArray(heartbeatRuns.status, ["running", "queued", "scheduled_retry"]),
         or(eq(heartbeatRuns.nativeIssueId, issueId), eq(heartbeatRuns.issueId, issueId)),
       )).limit(1);
       const work = await tx.select().from(dotRunnerAssignments).where(and(
-        eq(dotRunnerAssignments.companyId, companyId), eq(dotRunnerAssignments.agentId, agentId),
+        eq(dotRunnerAssignments.spaceId, spaceId), eq(dotRunnerAssignments.agentId, agentId),
         eq(dotRunnerAssignments.runId, run.id),
       ));
       const leases = await tx.select().from(environmentLeases).where(and(
-        eq(environmentLeases.companyId, companyId), eq(environmentLeases.heartbeatRunId, run.id),
+        eq(environmentLeases.spaceId, spaceId), eq(environmentLeases.heartbeatRunId, run.id),
       ));
       if (active || !work.length || work.some(row => row.status !== "fenced") || !leases.length
         || !leases.every(lease => lease.issueId === issueId && hasRemoteTerminationReceipt(lease))) throw fail();
       const actions = await tx.select().from(issueRecoveryActions).where(and(
-        eq(issueRecoveryActions.companyId, companyId), eq(issueRecoveryActions.sourceIssueId, issueId),
+        eq(issueRecoveryActions.spaceId, spaceId), eq(issueRecoveryActions.sourceIssueId, issueId),
         or(sql`${issueRecoveryActions.evidence}->>'runId' = ${run.id}`,
           sql`${issueRecoveryActions.evidence}->>'sourceRunId' = ${run.id}`),
       )).for("update");
@@ -75,13 +75,13 @@ export async function inspectGrokWorkspaceObligations(db: Db, companyId: string,
         return { ...rest, externalWorkspaceInspection: inspection };
       };
       await tx.update(heartbeatRuns).set({ resultJson: retireFileObligation(run.resultJson!) }).where(eq(heartbeatRuns.id, run.id));
-      if (actions.length) await notifyAttentionRetentionWork(tx, { companyId, sourceKind: "recovery_action" });
+      if (actions.length) await notifyAttentionRetentionWork(tx, { spaceId, sourceKind: "recovery_action" });
       for (const action of actions) {
         await tx.update(issueRecoveryActions).set({ evidence: retireFileObligation(action.evidence), updatedAt: new Date(),
           nextAction: "Inspect Grok and verify its connection before sending a new task message. The old work will not be replayed.",
         }).where(eq(issueRecoveryActions.id, action.id));
       }
-      await logActivity(database, { companyId, actorType: "user", actorId: operatorId,
+      await logActivity(database, { spaceId, actorType: "user", actorId: operatorId,
         action: "grok.workspace_obligation_inspected", entityType: "issue", entityId: issueId,
         agentId, runId: run.id, details: inspection });
     });

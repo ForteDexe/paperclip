@@ -141,7 +141,7 @@ describe("CommentThread", () => {
     const root = createRoot(container);
     const agent: Agent = {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "CodexCoder",
       urlKey: "codexcoder",
       role: "engineer",
@@ -236,10 +236,10 @@ describe("CommentThread", () => {
           <CommentThread
             comments={[{
               id: "comment-1",
-              companyId: "company-1",
+              spaceId: "space-1",
               issueId: "issue-1",
               authorAgentId: null,
-              authorUserId: "local-board",
+              authorUserId: "local-operator",
               body: "Please continue validation.",
               authorType: "user",
               presentation: null,
@@ -320,7 +320,7 @@ describe("CommentThread", () => {
     const root = createRoot(container);
     const agent: Agent = {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "CodexCoder",
       urlKey: "codexcoder",
       role: "engineer",
@@ -344,8 +344,8 @@ describe("CommentThread", () => {
     };
     const approval: Approval = {
       id: "approval-1",
-      companyId: "company-1",
-      type: "request_board_approval",
+      spaceId: "space-1",
+      type: "request_operator_approval",
       requestedByAgentId: "agent-1",
       requestedByUserId: null,
       status: "pending",
@@ -377,7 +377,7 @@ describe("CommentThread", () => {
 
     const approvalRow = container.querySelector("#approval-approval-1") as HTMLDivElement | null;
     expect(approvalRow).not.toBeNull();
-    expect(container.textContent).toContain("request_board_approval");
+    expect(container.textContent).toContain("request_operator_approval");
     expect(container.textContent).toContain("Approve hosting spend");
     expect(container.textContent).toContain("Approve");
     expect(container.textContent).toContain("Reject");
@@ -396,7 +396,7 @@ describe("CommentThread", () => {
           <CommentThread
             comments={[{
               id: "comment-1",
-              companyId: "company-1",
+              spaceId: "space-1",
               issueId: "issue-1",
               authorAgentId: null,
               authorUserId: "user-1",
@@ -454,7 +454,7 @@ describe("CommentThread", () => {
           <CommentThread
             comments={[{
               id: "comment-ref",
-              companyId: "company-1",
+              spaceId: "space-1",
               issueId: "issue-1",
               authorAgentId: null,
               authorUserId: "user-1",

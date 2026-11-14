@@ -46,7 +46,7 @@ export function createGitHubWebhookAuthentication(db: Db, options: Authenticatio
         healthMessage: "GitHub webhook verified", updatedAt: verifiedAt,
       }).where(eq(chatEndpoints.id, endpoint.id));
       await logActivity(tx as unknown as Db, {
-        companyId: endpoint.companyId, actorType: "system", actorId: "github-webhook",
+        spaceId: endpoint.spaceId, actorType: "system", actorId: "github-webhook",
         action: "chat_endpoint.webhook_verified", entityType: "tool_connection", entityId: endpoint.connectionId,
         details: { endpointId: endpoint.id, provider: "github", providerDeliveryId },
       });
@@ -163,7 +163,7 @@ export function createGitHubWebhookAuthentication(db: Db, options: Authenticatio
       async (
         credentialLease,
       ): Promise<"accepted" | "ignored" | "invalid_signature"> => {
-        // The repository upsert below is a Paperclip mutation derived from
+        // The repository upsert below is a Outpost mutation derived from
         // the webhook credential. Re-read and authenticate while holding the
         // same lease as rotation/reconnect/removal so a callback signed with
         // an obsolete secret cannot reopen a quarantined repository in the
@@ -217,7 +217,7 @@ export function createGitHubWebhookAuthentication(db: Db, options: Authenticatio
             // A dedicated endpoint represents exactly one GitHub App
             // installation. GitHub sends every installation's events to the
             // App webhook, so acknowledge foreign signed traffic without
-            // admitting it to Paperclip or prompting endless redelivery.
+            // admitting it to Outpost or prompting endless redelivery.
             // Installation lifecycle events are the one exception: even when
             // their id differs, canonical App inventory under the lifecycle
             // lease must decide whether this is a valid sole-installation

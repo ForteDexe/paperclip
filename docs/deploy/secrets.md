@@ -3,23 +3,23 @@ title: Secrets Management
 summary: Master key, encryption, and strict mode
 ---
 
-Paperclip encrypts secrets at rest using a local master key. Agent environment variables that contain sensitive values (API keys, tokens) are stored as encrypted secret references.
+Outpost encrypts secrets at rest using a local master key. Agent environment variables that contain sensitive values (API keys, tokens) are stored as encrypted secret references.
 
 ## Custody Boundaries
 
-Paperclip protects secret values up to the moment they are handed to an agent
+Outpost protects secret values up to the moment they are handed to an agent
 or workload:
 
 - Storage: values are encrypted at rest by the active provider. The local
   provider keeps them encrypted with a key that never leaves the host.
 - Transport: values are decrypted server-side and injected into the agent
   process environment, SSH command env, sandbox driver, or HTTP request
-  immediately before the call. Paperclip does not return decrypted values to
+  immediately before the call. Outpost does not return decrypted values to
   the board UI.
 - Audit: each resolution records a non-sensitive event (secret id, version,
   provider id, consumer, outcome) without the value or provider credentials.
 
-Once a value reaches the consuming process, Paperclip can no longer guarantee
+Once a value reaches the consuming process, Outpost can no longer guarantee
 secrecy. The agent (or sandbox, or remote host) can read the value, write it to
 its own logs or transcript, or pass it to downstream tools. Treat any secret
 you bind to an agent as exposed to that agent. Limit blast radius with bindings
@@ -29,13 +29,13 @@ system might have captured a value.
 
 ## Using Secrets In Runs
 
-Creating a company secret does not automatically create an environment variable.
+Creating a space secret does not automatically create an environment variable.
 You use a secret by binding it into an agent, project, environment, or plugin
 configuration field that supports secret references.
 
 For agent and project environment variables:
 
-1. Create or link the secret in `Company Settings > Secrets`.
+1. Create or link the secret in `Space Settings > Secrets`.
 2. Open the agent's `Environment variables` field, or the project's `Env`
    field.
 3. Add the environment variable key the process expects, such as `GH_TOKEN` or
@@ -43,15 +43,15 @@ For agent and project environment variables:
 4. Set the row source to `Secret`, select the stored secret, and choose either
    `latest` or a pinned version.
 
-At runtime, Paperclip resolves the selected secret server-side and injects the
+At runtime, Outpost resolves the selected secret server-side and injects the
 resolved value under the env key from the binding row. The stored secret name
 can be human-readable; the binding key is what the agent process receives.
 
 Project env applies to every issue run in that project. When a project env key
-matches an agent env key, the project value wins before Paperclip injects its
+matches an agent env key, the project value wins before Outpost injects its
 own `OUTPOST_*` runtime variables.
 
-Separately from env bindings, the **server itself** consumes a company secret
+Separately from env bindings, the **server itself** consumes a space secret
 named `GITHUB_TOKEN`, `GH_TOKEN`, or `OUTPOST_GITHUB_TOKEN` (by name, no
 binding needed) to authenticate server-side git operations — cloning private
 GitHub repos for repo-only project workspaces and refreshing worktree base
@@ -77,15 +77,15 @@ at dispatch time. The environment binding stores only the definition key:
 }
 ```
 
-Paperclip stores the feature as value-free metadata plus the user's own secret
+Outpost stores the feature as value-free metadata plus the user's own secret
 value record:
 
-- `user_secret_definitions`: company-level metadata for the reusable slot.
+- `user_secret_definitions`: space-level metadata for the reusable slot.
 - `user_secret_declarations`: target/config-path declarations for
   `user_secret_ref` bindings, including required/optional policy.
-- `company_secrets` rows with `scope = "user"`, `owner_user_id`, and
+- `space_secrets` rows with `scope = "user"`, `owner_user_id`, and
   `user_secret_definition_id`: the current user's actual value record.
-- `company_secret_versions`: encrypted or provider-backed version metadata for
+- `space_secret_versions`: encrypted or provider-backed version metadata for
   the value record.
 
 Board/admin operators manage definitions and coverage. Individual users manage
@@ -101,11 +101,11 @@ fall back to another user's value.
 
 ### Vault Placement
 
-User-scoped values can use the same provider families as company secrets:
+User-scoped values can use the same provider families as space secrets:
 
 - `local_encrypted`: the default local path. It is appropriate for local
   trusted installs and small self-hosted deployments. The same master key
-  protects both company and user-scoped values.
+  protects both space and user-scoped values.
 - `aws_secrets_manager`: the hosted/provider-vault path. Use it when the
   deployment already relies on AWS Secrets Manager, KMS, CloudTrail, and
   infrastructure IAM for custody.
@@ -118,7 +118,7 @@ A user-secret definition can carry provider and vault defaults. A user's value
 may also carry provider/vault metadata when the implementation path supports
 overrides. In both cases, provider vault config contains non-secret routing
 metadata only. Provider credentials still come from deployment infrastructure
-identity, not from Paperclip secrets.
+identity, not from Outpost secrets.
 
 ### External Reference Naming
 
@@ -129,7 +129,7 @@ plaintext secret values.
 Recommended external ref shape for operator-owned AWS paths:
 
 ```text
-paperclip-ext/{environment}/{company-id}/user-secrets/{definition-key}/{opaque-owner-id}
+outpost-ext/{environment}/{space-id}/user-secrets/{definition-key}/{opaque-owner-id}
 ```
 
 Guidance:
@@ -143,40 +143,40 @@ Guidance:
   vault id, Region, KMS key id or alias, tag counts, and fingerprint hashes.
   Do not store raw AWS descriptions, full tag maps, token scopes, provider
   error bodies, or anything copied from the secret value.
-- Keep Paperclip-managed AWS values under the Paperclip managed namespace.
+- Keep Outpost-managed AWS values under the Outpost managed namespace.
   External refs under that namespace are blocked by guardrails; use the
-  Paperclip-managed flow when Paperclip should create and rotate the value.
+  Outpost-managed flow when Outpost should create and rotate the value.
 
 ### IAM Caveats
 
-Paperclip enforces company scoping, responsible-user derivation, declaration
+Outpost enforces space scoping, responsible-user derivation, declaration
 policy, current-user value APIs, redaction, and access-event metadata. It does
 not replace the IAM policy of an external vault.
 
-For AWS Secrets Manager, the Paperclip runtime role needs `GetSecretValue` and
+For AWS Secrets Manager, the Outpost runtime role needs `GetSecretValue` and
 any required KMS decrypt permission for every user-scoped value it may resolve.
-If you link user-specific external refs outside the Paperclip managed prefix,
+If you link user-specific external refs outside the Outpost managed prefix,
 scope those permissions to the approved external prefixes and KMS keys. AWS
 tag/name filters help operators search, but they are not a reliable permission
 boundary for resolution.
 
 If stronger provider-side isolation is required, split user-secret workloads by
 provider vault, AWS account, Region, prefix, or runtime role before linking the
-refs. Paperclip can prevent an agent from choosing another credential owner,
+refs. Outpost can prevent an agent from choosing another credential owner,
 but a runtime role with broad external vault read permissions can still read
-what IAM allows if another code path is introduced outside Paperclip.
+what IAM allows if another code path is introduced outside Outpost.
 
 ## Default Provider: `local_encrypted`
 
 Secrets are encrypted with a local master key stored at:
 
 ```
-~/.paperclip/instances/default/secrets/master.key
+~/.outpost/instances/default/secrets/master.key
 ```
 
 This key is auto-created during onboarding. The key never leaves your machine.
-Paperclip best-effort enforces `0600` permissions when it creates or loads the
-key file. `paperclipai doctor` and the provider health API warn when the file is
+Outpost best-effort enforces `0600` permissions when it creates or loads the
+key file. `outpost doctor` and the provider health API warn when the file is
 readable by group or other users.
 
 Back up the key file together with database backups. A database backup without
@@ -190,20 +190,20 @@ metadata is not enough to restore named secret versions.
 Onboarding writes default secrets config:
 
 ```sh
-pnpm paperclipai onboard
+pnpm outpost onboard
 ```
 
 Update secrets settings:
 
 ```sh
-pnpm paperclipai configure --section secrets
+pnpm outpost configure --section secrets
 ```
 
 Validate secrets config:
 
 ```sh
-pnpm paperclipai doctor
-npx paperclipai secrets doctor --company-id <company-id>
+pnpm outpost doctor
+npx @outpost/cli secrets doctor --space-id <space-id>
 ```
 
 ### Environment Overrides
@@ -229,9 +229,9 @@ configuration or `OUTPOST_SECRETS_STRICT_MODE=false`.
 
 ## External References
 
-Provider-owned secrets can be linked without copying values into Paperclip by
+Provider-owned secrets can be linked without copying values into Outpost by
 using `managedMode: "external_reference"` plus a provider `externalRef`.
-Paperclip stores metadata and a non-sensitive fingerprint, never the value.
+Outpost stores metadata and a non-sensitive fingerprint, never the value.
 Runtime resolution remains server-side and binding-enforced.
 
 The built-in AWS, GCP, and Vault provider IDs currently accept external
@@ -239,14 +239,14 @@ reference metadata, but runtime resolution requires provider configuration in th
 deployment. Their provider health check reports this as a warning until
 configured.
 
-For hosted Paperclip Cloud on AWS, see the AWS Secrets Manager operational
+For hosted Outpost Cloud on AWS, see the AWS Secrets Manager operational
 contract — required env vars, IAM/KMS scoping, naming and tag conventions, and
 backup/rotation/incident runbooks — in `doc/SECRETS-AWS-PROVIDER.md`.
 
 ## Provider Vaults
 
-A *provider vault* is a named, company-scoped configuration that points secret
-material at one of the supported provider backends. Each company can configure
+A *provider vault* is a named, space-scoped configuration that points secret
+material at one of the supported provider backends. Each space can configure
 multiple vaults, including more than one vault per provider family, and pick a
 default vault per family for new secret operations. Existing secrets created
 before any vault was configured continue to resolve through the deployment-level
@@ -259,12 +259,12 @@ Open `Organization Settings → Secrets` in the board UI and switch to the
 
 - Create a vault for any supported provider family.
 - Edit the non-secret config of an existing vault.
-- Set one ready vault per provider family as the company default.
+- Set one ready vault per provider family as the space default.
 - Disable a vault (a soft delete that keeps audit history).
 - Run a health check against a vault and read the latest result inline.
 
 The same operations are exposed under
-`/api/companies/{companyId}/secret-provider-configs` for automation. See the
+`/api/spaces/{spaceId}/secret-provider-configs` for automation. See the
 [secrets API reference](/api/secrets#provider-vaults) for the full route table.
 
 ### Custody Of Provider Credentials
@@ -279,8 +279,8 @@ at validation time.
 
 That keeps the bootstrap rule from the AWS provider applicable to every
 provider family: **provider credentials live in deployment infrastructure
-identity, not in Paperclip company secrets**. Allowed credential sources are
-workload identity attached to the Paperclip server (instance profile, IRSA, ECS
+identity, not in Outpost space secrets**. Allowed credential sources are
+workload identity attached to the Outpost server (instance profile, IRSA, ECS
 task role), `AWS_PROFILE` / SSO / shared config for local runs, an orchestrator
 secret store that boots the server, or short-lived shell credentials for local
 development. Do not paste long-lived API keys into the vault config.
@@ -304,7 +304,7 @@ runtime-locked error.
 
 ### Default Vault Behavior
 
-A company can mark **one** ready (or warning) vault per provider family as the
+A space can mark **one** ready (or warning) vault per provider family as the
 default. The secret create and rotate dialogs preselect the default vault for
 the chosen provider so operators don't have to remember which vault to pick.
 Coming-soon and disabled vaults cannot be marked default; attempting to do so
@@ -326,7 +326,7 @@ Multiple vaults from the same provider family are first-class. Common patterns:
   separation.
 - A staging Vault address alongside a production address.
 - A dedicated GCP project for a single product line while the rest of the
-  company uses another.
+  space uses another.
 
 Each vault has its own display name, status, default flag, and health record.
 Operators choose the vault explicitly when creating or rotating a secret; the
@@ -358,7 +358,7 @@ credentials still come from the AWS SDK default credential chain — see
 
 **GCP Secret Manager** and **HashiCorp Vault** vaults are coming soon. You can
 save draft `projectId`, `location`, `namespace`, `address`, and `mountPath`
-metadata so the company is ready to flip them on when the provider modules
+metadata so the space is ready to flip them on when the provider modules
 ship. Vault `address` values must be origin-only `http(s)://host[:port]` URLs;
 addresses with embedded credentials, paths, query strings, or fragments are
 rejected.
@@ -366,28 +366,28 @@ rejected.
 ### Remote Import From AWS Vaults
 
 AWS provider vaults can import existing AWS Secrets Manager entries as
-Paperclip `external_reference` secrets. This is a metadata-only link: Paperclip
+Outpost `external_reference` secrets. This is a metadata-only link: Outpost
 stores the AWS ARN/path, a fingerprint/version reference, and binding metadata.
 It does not read, copy, store, log, or display the remote plaintext secret
 value during preview or import.
 
 Operator flow in the board UI:
 
-1. Open `Company Settings -> Secrets`.
+1. Open `Space Settings -> Secrets`.
 2. Confirm at least one AWS provider vault is `ready` or `warning`.
 3. In the `Secrets` tab, choose `Import from vault`.
 4. Select an AWS vault, search the remote inventory, and load more pages as
    needed.
-5. Check the rows to import, review/edit the Paperclip name and key, then
+5. Check the rows to import, review/edit the Outpost name and key, then
    submit.
 6. Review the result summary for created, skipped, and failed rows.
 
 The preview list is intentionally paged and search-first. AWS accounts can have
 large per-Region inventories, and `ListSecrets` returns opaque `NextToken`
-cursors. Do not expect Paperclip to crawl a whole account in the background;
+cursors. Do not expect Outpost to crawl a whole account in the background;
 load pages deliberately and retry throttled requests with backoff.
 
-Remote import exposes AWS secret metadata visible to the Paperclip runtime
+Remote import exposes AWS secret metadata visible to the Outpost runtime
 role, including names/ARNs and safe derived fields such as dates, whether a
 description or KMS key exists, and tag count. Treat names, ARNs, tags, and
 search text as operational metadata that may be sensitive. The API and activity
@@ -404,12 +404,12 @@ Required AWS posture:
 - Runtime resolution of an imported reference still needs
   `secretsmanager:GetSecretValue` on the selected external ARN/path and KMS
   decrypt when that secret uses a customer-managed key.
-- Keep managed create/rotate/delete permissions scoped to the Paperclip
+- Keep managed create/rotate/delete permissions scoped to the Outpost
   deployment prefix. Do not broaden managed write/delete permissions just
   because import inventory is enabled.
 
 Safe scoping comes from deployment posture rather than AWS list filtering:
-dedicated Paperclip runtime roles per environment/account, AWS vaults pointed at
+dedicated Outpost runtime roles per environment/account, AWS vaults pointed at
 the intended account and Region, import-enabled roles only where inventory
 exposure is acceptable, and board-only access to the import routes. Tags and
 name filters are search aids, not a permission model.
@@ -431,34 +431,34 @@ If import preview fails:
 
 Each provider family has a different backup story:
 
-- `local_encrypted`: back up the local master key file and the Paperclip
+- `local_encrypted`: back up the local master key file and the Outpost
   database together. Either alone is not enough to restore the encrypted
   values, and the vault row only records the path and acknowledgement, not the
   key bytes. This includes user-scoped values: the database holds
   `user_secret_definitions`, `user_secret_declarations`,
-  `company_secrets.scope = "user"` rows, version metadata, and owner ids; the
+  `space_secrets.scope = "user"` rows, version metadata, and owner ids; the
   key file is required to decrypt their local material.
-- `aws_secrets_manager`: back up Paperclip's database for vault metadata
+- `aws_secrets_manager`: back up Outpost's database for vault metadata
   (vault id, region, prefix, KMS key id, default flag, bindings, version
   pointers, user-secret definitions/declarations, owner ids, and access-event
   metadata). The actual secret values live in AWS Secrets Manager under the
   configured prefix or operator-owned external refs; restore by pointing the
-  same Paperclip company at the same AWS namespace and confirming the runtime
+  same Outpost space at the same AWS namespace and confirming the runtime
   role still has `GetSecretValue` plus KMS decrypt for both managed and linked
   user-scoped values. The full restore checklist lives in
   `doc/SECRETS-AWS-PROVIDER.md`.
 - `gcp_secret_manager` and `vault`: while these are coming soon, only the
-  draft vault config exists in Paperclip. Database backups capture it. There
+  draft vault config exists in Outpost. Database backups capture it. There
   is nothing to restore on the provider side until runtime support lands.
 
 ### AWS Provider Bootstrap Boundary
 
-The AWS Secrets Manager provider cannot bootstrap itself from Paperclip
-`company_secrets`. Its initial AWS access must be present before the server can
-create or resolve AWS-backed company secrets, regardless of whether you use the
-deployment-level default or a per-company vault.
+The AWS Secrets Manager provider cannot bootstrap itself from Outpost
+`space_secrets`. Its initial AWS access must be present before the server can
+create or resolve AWS-backed space secrets, regardless of whether you use the
+deployment-level default or a per-space vault.
 
-For Paperclip Cloud, provision the server runtime IAM role/workload identity,
+For Outpost Cloud, provision the server runtime IAM role/workload identity,
 KMS key, deployment prefix, and non-secret `OUTPOST_SECRETS_AWS_*` environment
 configuration before enabling AWS-backed secrets in the board UI. For
 self-hosted and local runs, use the AWS SDK default credential chain: instance
@@ -466,7 +466,7 @@ profile, ECS task role, EKS IRSA/OIDC web identity, AWS SSO/shared config via
 `AWS_PROFILE`, or short-lived shell credentials for local development.
 
 Do not store AWS root credentials or long-lived IAM user access keys in
-Paperclip secrets. Bootstrap material belongs in infrastructure IAM/workload
+Outpost secrets. Bootstrap material belongs in infrastructure IAM/workload
 identity, the process environment, an AWS profile, or the orchestrator secret
 store.
 
@@ -475,31 +475,31 @@ store.
 If you have existing agents with inline API keys in their config, migrate them to encrypted secret refs:
 
 ```sh
-npx paperclipai secrets migrate-inline-env --company-id <company-id>
-npx paperclipai secrets migrate-inline-env --company-id <company-id> --apply
+npx @outpost/cli secrets migrate-inline-env --space-id <space-id>
+npx @outpost/cli secrets migrate-inline-env --space-id <space-id> --apply
 
 # low-level script for direct database maintenance
 pnpm secrets:migrate-inline-env         # dry run
 pnpm secrets:migrate-inline-env --apply # apply migration
 ```
 
-Use the CLI command for normal operations because it goes through the Paperclip
+Use the CLI command for normal operations because it goes through the Outpost
 API, creates or rotates secret records, and updates agent env bindings with
 audit logging.
 
 ## Portable Declarations
 
-Company exports include only environment declarations. They do not include
+Space exports include only environment declarations. They do not include
 secret IDs, provider references, encrypted material, or plaintext values.
 
 ```sh
-npx paperclipai secrets declarations --company-id <company-id> --kind secret
+npx @outpost/cli secrets declarations --space-id <space-id> --kind secret
 ```
 
 Before importing a package into another instance, use those declarations to
 create local values or link hosted provider references in the target deployment.
 For hosted providers such as AWS Secrets Manager, the hosted provider remains
-the value custodian; Paperclip stores metadata and provider version references,
+the value custodian; Outpost stores metadata and provider version references,
 not provider credentials or plaintext secret values.
 
 ## Secret References in Agent Config

@@ -53,8 +53,8 @@ function fixture(run) {
   const env = {
     PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: process.env.TMPDIR,
     PREFLIGHT_EXPECTED_ROOT: root, PREFLIGHT_SPAWN_RECEIPT: spawnReceipt, PREFLIGHT_NETWORK_RECEIPT: networkReceipt,
-    OUTPOST_SKILL_DEFAULT_CADENCE_TEST_DATABASE_URL: 'postgres://paperclip@127.0.0.1:55448/owner_preflight_app_test',
-    OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_TEST_DATABASE_URL: 'postgres://paperclip@127.0.0.1:55448/owner_preflight_cloud_test',
+    OUTPOST_SKILL_DEFAULT_CADENCE_TEST_DATABASE_URL: 'postgres://outpost@127.0.0.1:55448/owner_preflight_app_test',
+    OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_TEST_DATABASE_URL: 'postgres://outpost@127.0.0.1:55448/owner_preflight_cloud_test',
     OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_CHECKOUT: cloud, OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_NODE: process.execPath,
     OUTPOST_SKILL_DEFAULT_CADENCE_CLOUD_SHA: '0'.repeat(40),
     OUTPOST_SKILL_DEFAULT_CADENCE_EVIDENCE: evidence, OUTPOST_SKILL_DEFAULT_CADENCE_GUARD_LOG: log,

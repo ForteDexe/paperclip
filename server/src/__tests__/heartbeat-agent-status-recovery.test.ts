@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { agents, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, type Db } from "@outpost/db";
+import { agents, spaces, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, type Db } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -14,19 +14,19 @@ describePostgres("heartbeat recovery of a stranded agent", () => {
   let db: Db;
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-agent-status-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-heartbeat-agent-status-");
     db = createDb(database.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => { await database?.cleanup(); });
 
   it("repairs shutdown state through the existing reaper and permits a quiet idle proof", async () => {
-    const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
     const old = new Date(Date.now() - 60 * 60_000);
-    await db.insert(companies).values({ id: companyId, name: "Recovery fixture", issuePrefix: "RCVR" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", role: "engineer",
+    await db.insert(spaces).values({ id: spaceId, name: "Recovery fixture", issuePrefix: "RCVR" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", role: "engineer",
       status: "running", adapterType: "process", runtimeConfig: { heartbeat: { enabled: false } },
       updatedAt: old, lastHeartbeatAt: null });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId,
       status: "interrupted", runtimeMode: "legacy", invocationSource: "automation",
       errorCode: "server_shutdown_interrupted", startedAt: old, finishedAt: old, updatedAt: old });
     const now = Date.now();
@@ -50,10 +50,10 @@ describePostgres("heartbeat recovery of a stranded agent", () => {
   });
 
   it("keeps unrelated recovery available when the correction audit fails", async () => {
-    const companyId = randomUUID(), agentId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID();
     const old = new Date(Date.now() - 60 * 60_000);
-    await db.insert(companies).values({ id: companyId, name: "Audit failure", issuePrefix: "ADTF" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", role: "engineer",
+    await db.insert(spaces).values({ id: spaceId, name: "Audit failure", issuePrefix: "ADTF" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", role: "engineer",
       status: "running", adapterType: "process", updatedAt: old });
     await db.execute(sql`ALTER TABLE activity_log ADD CONSTRAINT reject_status_repair CHECK (action <> 'agent.status_reconciled') NOT VALID`);
     const service = heartbeatService(db);

@@ -12,7 +12,7 @@ do not change their intended outcomes.
    reason cannot erase prior debt or charge another lane. Historical ambiguous
    counters remain conservative; known repair/productive counters are not failures.
 2. Promote delayed legacy repairs against their persisted episode fingerprint and
-   successful source run, checking company, issue, agent and bounded repair slot.
+   successful source run, checking space, issue, agent and bounded repair slot.
    Retain the existing late Stop, wait/approval, ownership, pause and spending gates.
 3. Replace the two obsolete scripted native `same_agent` probes with the reachable
    public question/response contract: create a durable question, wait for its answer,

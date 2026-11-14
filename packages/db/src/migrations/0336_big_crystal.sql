@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "execution_workspace_repositories" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"execution_workspace_id" uuid NOT NULL,
 	"requested_by_issue_id" uuid,
 	"repository_identity" text NOT NULL,
@@ -27,8 +27,8 @@ ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "workspace_binding_revision" integ
 ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "workspace_selection" jsonb;--> statement-breakpoint
 ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "workspace_pending_selection" jsonb;--> statement-breakpoint
 DO $migration$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'execution_workspace_repositories'::regclass AND conname = 'execution_workspace_repositories_company_id_companies_id_fk'::name) THEN
-    ALTER TABLE "execution_workspace_repositories" ADD CONSTRAINT "execution_workspace_repositories_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'execution_workspace_repositories'::regclass AND conname = 'execution_workspace_repositories_space_id_spaces_id_fk'::name) THEN
+    ALTER TABLE "execution_workspace_repositories" ADD CONSTRAINT "execution_workspace_repositories_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $migration$;--> statement-breakpoint
 DO $migration$ BEGIN
@@ -44,5 +44,5 @@ END $migration$;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "execution_workspace_repositories_identity_idx" ON "execution_workspace_repositories" USING btree ("execution_workspace_id","repository_identity");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "execution_workspace_repositories_path_idx" ON "execution_workspace_repositories" USING btree ("execution_workspace_id","relative_path");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "execution_workspace_repositories_request_idx" ON "execution_workspace_repositories" USING btree ("execution_workspace_id","request_key");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "execution_workspace_repositories_company_workspace_idx" ON "execution_workspace_repositories" USING btree ("company_id","execution_workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "execution_workspace_repositories_space_workspace_idx" ON "execution_workspace_repositories" USING btree ("space_id","execution_workspace_id");--> statement-breakpoint
 ALTER TABLE "execution_workspaces" ADD CONSTRAINT "execution_workspaces_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE restrict ON UPDATE no action;

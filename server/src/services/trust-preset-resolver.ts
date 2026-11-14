@@ -16,25 +16,25 @@ export const LOW_TRUST_ISSUE_ANCESTRY_MAX_DEPTH = 12;
 export type TrustPresetPolicySource = "agent" | "project" | "workspace_source_project" | "issue" | "run";
 
 export type ResolveCoreTrustPresetInput = {
-  companyId: string;
+  spaceId: string;
   agent?: {
-    companyId?: string | null;
+    spaceId?: string | null;
     permissions?: unknown;
   } | null;
   project?: {
-    companyId?: string | null;
+    spaceId?: string | null;
     executionWorkspacePolicy?: unknown;
   } | null;
   workspaceSourceProject?: {
-    companyId?: string | null;
+    spaceId?: string | null;
     executionWorkspacePolicy?: unknown;
   } | null;
   issue?: {
-    companyId?: string | null;
+    spaceId?: string | null;
     executionPolicy?: unknown;
   } | null;
   run?: {
-    companyId?: string | null;
+    spaceId?: string | null;
     executionPolicy?: unknown;
   } | null;
 };
@@ -43,7 +43,7 @@ export type TrustPresetDenyReason =
   | "unsupported_trust_preset"
   | "invalid_authorization_policy"
   | "invalid_low_trust_boundary"
-  | "cross_company_boundary"
+  | "cross_space_boundary"
   | "conflicting_low_trust_boundary"
   | "missing_low_trust_boundary_scope";
 
@@ -59,7 +59,7 @@ export type TrustPresetResolution =
     preset: typeof LOW_TRUST_REVIEW_PRESET;
     /** Server-derived authority for this run's exact task; never a policy input. */
     humanDirectedIssueId?: string;
-    boundary: LowTrustBoundary & { companyId: string };
+    boundary: LowTrustBoundary & { spaceId: string };
     sourcePresets: Partial<Record<TrustPresetPolicySource, TrustPreset>>;
   }
   | {
@@ -72,7 +72,7 @@ export type TrustPresetResolution =
 
 type ParsedPolicySource = {
   source: TrustPresetPolicySource;
-  companyId: string | null;
+  spaceId: string | null;
   rawPolicy: JsonRecord | null;
   authorizationPolicy: JsonRecord | null;
   trustPreset: TrustPreset | null;
@@ -175,7 +175,7 @@ function parseBoundary(
 
 function parseSource(
   source: TrustPresetPolicySource,
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   rawPolicy: JsonRecord | null,
   authorizationPolicyInput: unknown,
   sourcePresets: Partial<Record<TrustPresetPolicySource, TrustPreset>>,
@@ -203,7 +203,7 @@ function parseSource(
 
   return {
     source,
-    companyId: companyId ?? null,
+    spaceId: spaceId ?? null,
     rawPolicy,
     authorizationPolicy,
     trustPreset,
@@ -227,22 +227,22 @@ function intersectSets(left: string[] | undefined, right: string[] | undefined):
 }
 
 function mergeBoundary(
-  current: (LowTrustBoundary & { companyId: string }) | null,
+  current: (LowTrustBoundary & { spaceId: string }) | null,
   next: LowTrustBoundary,
-  companyId: string,
+  spaceId: string,
   source: TrustPresetPolicySource,
   sourcePresets: Partial<Record<TrustPresetPolicySource, TrustPreset>>,
-): (LowTrustBoundary & { companyId: string }) | TrustPresetResolution {
-  if (next.companyId && next.companyId !== companyId) {
+): (LowTrustBoundary & { spaceId: string }) | TrustPresetResolution {
+  if (next.spaceId && next.spaceId !== spaceId) {
     return deny(
-      "cross_company_boundary",
+      "cross_space_boundary",
       source,
-      "Low-trust boundary refers to a different company.",
+      "Low-trust boundary refers to a different space.",
       sourcePresets,
     );
   }
 
-  const base = current ?? { mode: LOW_TRUST_REVIEW_PRESET, companyId };
+  const base = current ?? { mode: LOW_TRUST_REVIEW_PRESET, spaceId };
   if (base.rootIssueId && next.rootIssueId && base.rootIssueId !== next.rootIssueId) {
     return deny(
       "conflicting_low_trust_boundary",
@@ -275,37 +275,37 @@ export function resolveCoreTrustPreset(input: ResolveCoreTrustPresetInput): Trus
   const sources: ParsedPolicySource[] = [];
 
   const agentPermissions = asRecord(input.agent?.permissions);
-  const agent = parseSource("agent", input.agent?.companyId, agentPermissions, agentPermissions?.authorizationPolicy, sourcePresets);
+  const agent = parseSource("agent", input.agent?.spaceId, agentPermissions, agentPermissions?.authorizationPolicy, sourcePresets);
   if ("kind" in agent) return agent;
   sources.push(agent);
 
   const projectPolicy = asRecord(input.project?.executionWorkspacePolicy);
-  const project = parseSource("project", input.project?.companyId, projectPolicy, projectPolicy?.authorizationPolicy, sourcePresets);
+  const project = parseSource("project", input.project?.spaceId, projectPolicy, projectPolicy?.authorizationPolicy, sourcePresets);
   if ("kind" in project) return project;
   sources.push(project);
 
   const workspaceSourcePolicy = asRecord(input.workspaceSourceProject?.executionWorkspacePolicy);
-  const workspaceSource = parseSource("workspace_source_project", input.workspaceSourceProject?.companyId,
+  const workspaceSource = parseSource("workspace_source_project", input.workspaceSourceProject?.spaceId,
     workspaceSourcePolicy, workspaceSourcePolicy?.authorizationPolicy, sourcePresets);
   if ("kind" in workspaceSource) return workspaceSource;
   sources.push(workspaceSource);
 
   const issuePolicy = asRecord(input.issue?.executionPolicy);
-  const issue = parseSource("issue", input.issue?.companyId, issuePolicy, issuePolicy?.authorizationPolicy, sourcePresets);
+  const issue = parseSource("issue", input.issue?.spaceId, issuePolicy, issuePolicy?.authorizationPolicy, sourcePresets);
   if ("kind" in issue) return issue;
   sources.push(issue);
 
   const runPolicy = asRecord(input.run?.executionPolicy);
-  const run = parseSource("run", input.run?.companyId, runPolicy, runPolicy?.authorizationPolicy, sourcePresets);
+  const run = parseSource("run", input.run?.spaceId, runPolicy, runPolicy?.authorizationPolicy, sourcePresets);
   if ("kind" in run) return run;
   sources.push(run);
 
   for (const source of sources) {
-    if (source.companyId && source.companyId !== input.companyId) {
+    if (source.spaceId && source.spaceId !== input.spaceId) {
       return deny(
-        "cross_company_boundary",
+        "cross_space_boundary",
         source.source,
-        "Policy source belongs to a different company.",
+        "Policy source belongs to a different space.",
         sourcePresets,
       );
     }
@@ -324,10 +324,10 @@ export function resolveCoreTrustPreset(input: ResolveCoreTrustPresetInput): Trus
     };
   }
 
-  let boundary: (LowTrustBoundary & { companyId: string }) | null = null;
+  let boundary: (LowTrustBoundary & { spaceId: string }) | null = null;
   for (const source of sources) {
     if (!source.boundary) continue;
-    const merged = mergeBoundary(boundary, source.boundary, input.companyId, source.source, sourcePresets);
+    const merged = mergeBoundary(boundary, source.boundary, input.spaceId, source.source, sourcePresets);
     if (isTrustPresetResolution(merged)) return merged;
     boundary = merged;
   }
@@ -350,10 +350,10 @@ export function resolveCoreTrustPreset(input: ResolveCoreTrustPresetInput): Trus
 }
 
 export function isIssueWithinLowTrustBoundary(
-  boundary: LowTrustBoundary & { companyId: string },
-  issue: { companyId: string; id?: string | null; projectId?: string | null },
+  boundary: LowTrustBoundary & { spaceId: string },
+  issue: { spaceId: string; id?: string | null; projectId?: string | null },
 ): boolean {
-  if (issue.companyId !== boundary.companyId) return false;
+  if (issue.spaceId !== boundary.spaceId) return false;
   if (issue.id && issue.id === boundary.rootIssueId) return true;
   if (issue.id && boundary.issueIds?.includes(issue.id)) return true;
   if (issue.projectId && boundary.projectIds?.includes(issue.projectId)) return true;

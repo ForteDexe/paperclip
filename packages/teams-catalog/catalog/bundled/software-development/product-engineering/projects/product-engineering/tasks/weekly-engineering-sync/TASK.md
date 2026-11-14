@@ -1,7 +1,7 @@
 ---
 name: Weekly Engineering Sync
 slug: weekly-engineering-sync
-assignee: cto
+assignee: engineering-lead
 project: product-engineering
 recurring: true
 ---

@@ -14,7 +14,7 @@ import { AgentConfigForm, AdapterLoginPanel, ModelDropdown, subtractPersistedOve
 import { AgentLifecycleStatus, useAgentLifecycleStatus } from "./AgentLifecycleStatus";
 import { queryKeys } from "../lib/queryKeys";
 import { defaultCreateValues } from "./agent-config-defaults";
-import { buildNewAgentHirePayload } from "../lib/new-agent-hire-payload";
+import { buildNewAgentCreatePayload } from "../lib/new-agent-create-payload";
 import { ApiError } from "../api/client";
 import { aiConnectionsApi } from "../api/ai-connections";
 import { CodexLocalConfigFields } from "../adapters/codex-local/config-fields";
@@ -85,7 +85,7 @@ vi.mock("../api/grokBot", () => ({
   },
 }));
 
-const mockAdaptersApi = vi.hoisted(() => ({ list: vi.fn(async () => [{ type: "codex_local", supportedRunners: ["legacy", "paperclip"], defaultRunner: "legacy" }]) }));
+const mockAdaptersApi = vi.hoisted(() => ({ list: vi.fn(async () => [{ type: "codex_local", supportedRunners: ["legacy", "outpost"], defaultRunner: "legacy" }]) }));
 vi.mock("../api/adapters", () => ({ adaptersApi: mockAdaptersApi }));
 
 vi.mock("../api/environments", () => ({
@@ -104,23 +104,23 @@ vi.mock("../lib/clipboard", () => ({
   copyTextToClipboard: mockClipboard.copyTextToClipboard,
 }));
 
-const mockCompanyContext = vi.hoisted(() => ({ workspaceRoot: null as string | null }));
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({
-    companies: [{ id: "company-1", name: "Outpost", issuePrefix: "CO" }],
-    selectedCompanyId: "company-1",
-    selectedCompany: {
-      id: "company-1",
+const mockSpaceContext = vi.hoisted(() => ({ workspaceRoot: null as string | null }));
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({
+    spaces: [{ id: "space-1", name: "Outpost", issuePrefix: "CO" }],
+    selectedSpaceId: "space-1",
+    selectedSpace: {
+      id: "space-1",
       name: "Outpost",
       issuePrefix: "CO",
-      workspaceRoot: mockCompanyContext.workspaceRoot,
+      workspaceRoot: mockSpaceContext.workspaceRoot,
     },
     selectionSource: "bootstrap",
     loading: false,
     error: null,
-    setSelectedCompanyId: vi.fn(),
-    reloadCompanies: vi.fn(),
-    createCompany: vi.fn(),
+    setSelectedSpaceId: vi.fn(),
+    reloadSpaces: vi.fn(),
+    createSpace: vi.fn(),
   }),
 }));
 
@@ -237,7 +237,7 @@ async function flushReact() {
 function makeAgent(overrides: Partial<Agent> = {}): Agent {
   return {
     id: "agent-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Cody",
     role: "Engineer",
     title: null,
@@ -652,7 +652,7 @@ describe("AgentConfigForm environment selector", () => {
   let roots: Root[] = [];
 
   it("keeps Environment internal for a repository-backed Space", async () => {
-    mockCompanyContext.workspaceRoot = "C:\\work\\maya";
+    mockSpaceContext.workspaceRoot = "C:\\work\\maya";
     try {
       const result = await renderCreateForm([
         makeEnvironment({ id: "local-1" }),
@@ -662,12 +662,12 @@ describe("AgentConfigForm environment selector", () => {
       expect(result.container.querySelector('[aria-label="Environment override"]')).toBeNull();
       expect(result.container.querySelector('[data-config-section="environment"]')).toBeNull();
     } finally {
-      mockCompanyContext.workspaceRoot = null;
+      mockSpaceContext.workspaceRoot = null;
     }
   });
 
-  it.each(["paperclip", "legacy"] as const)("uses the resolved %s Claude form to preserve the correct turn limit", async defaultRunner => {
-    mockAdaptersApi.list.mockResolvedValue([{ type: "claude_local", supportedRunners: defaultRunner === "paperclip" ? ["paperclip", "legacy"] : ["legacy"], defaultRunner }]);
+  it.each(["outpost", "legacy"] as const)("uses the resolved %s Claude form to preserve the correct turn limit", async defaultRunner => {
+    mockAdaptersApi.list.mockResolvedValue([{ type: "claude_local", supportedRunners: defaultRunner === "outpost" ? ["outpost", "legacy"] : ["legacy"], defaultRunner }]);
     try {
       const values = { ...defaultCreateValues, adapterType: "claude_local", runner: "auto" as const };
       const result = await renderCreateForm([], values);
@@ -680,12 +680,12 @@ describe("AgentConfigForm environment selector", () => {
       if (defaultRunner === "legacy") expect(config.maxTurnsPerRun).toBe(1000);
       else expect(config).not.toHaveProperty("maxTurnsPerRun");
       expect(config).not.toHaveProperty("resolvedRunner");
-    } finally { mockAdaptersApi.list.mockResolvedValue([{ type: "codex_local", supportedRunners: ["legacy", "paperclip"], defaultRunner: "legacy" }]); }
+    } finally { mockAdaptersApi.list.mockResolvedValue([{ type: "codex_local", supportedRunners: ["legacy", "outpost"], defaultRunner: "legacy" }]); }
   });
 
 
   it("carries a selected native Claude permission through the ordinary creation builder", async () => {
-    mockAdaptersApi.list.mockResolvedValue([{ type: "claude_local", supportedRunners: ["paperclip", "legacy"], defaultRunner: "paperclip" }]);
+    mockAdaptersApi.list.mockResolvedValue([{ type: "claude_local", supportedRunners: ["outpost", "legacy"], defaultRunner: "outpost" }]);
     try {
       const values = { ...defaultCreateValues, adapterType: "claude_local", runner: "auto" as const };
       const result = await renderCreateForm([], values);
@@ -696,7 +696,7 @@ describe("AgentConfigForm environment selector", () => {
       await clickElement(deny);
       const resolved = result.onChange.mock.calls.reduce((current, [patch]) => ({ ...current, ...patch }), values);
       expect(buildClaudeLocalConfig(resolved)).toMatchObject({ acpxPermissionMode: "deny-all" });
-    } finally { mockAdaptersApi.list.mockResolvedValue([{ type: "codex_local", supportedRunners: ["legacy", "paperclip"], defaultRunner: "legacy" }]); }
+    } finally { mockAdaptersApi.list.mockResolvedValue([{ type: "codex_local", supportedRunners: ["legacy", "outpost"], defaultRunner: "legacy" }]); }
   });
 
   it("keeps an explicit Codex draft policy until a harness reset clears it", async () => {
@@ -756,7 +756,7 @@ describe("AgentConfigForm environment selector", () => {
     { harness: "codex_local", label: "Codex", profile: { provider: "codex" } },
     { harness: "opencode_local", label: "OpenCode", profile: { provider: "opencode" } },
   ])("uses only Harness to choose $label for new and saved native agents", async ({ harness, label, profile }) => {
-    mockAdaptersApi.list.mockResolvedValue([{ type: harness, supportedRunners: ["paperclip", "legacy"], defaultRunner: "paperclip" }]);
+    mockAdaptersApi.list.mockResolvedValue([{ type: harness, supportedRunners: ["outpost", "legacy"], defaultRunner: "outpost" }]);
     const created = await renderCreateForm([], { adapterType: harness, runner: "auto" });
     roots.push(created.root);
     expect(created.container.querySelector('[aria-label="ACP agent"]')).toBeNull();
@@ -796,14 +796,14 @@ describe("AgentConfigForm environment selector", () => {
   });
 
   it.each(["codex_local", "claude_local", "grok_local"])("upgrades a saved %s in one click with pending edits", async adapterType => {
-    mockAdaptersApi.list.mockResolvedValueOnce([{ type: adapterType, supportedRunners: ["legacy", "paperclip"], defaultRunner: "paperclip" }]);
+    mockAdaptersApi.list.mockResolvedValueOnce([{ type: adapterType, supportedRunners: ["legacy", "outpost"], defaultRunner: "outpost" }]);
     const result = await renderForm([], { adapterType, adapterConfig: { model: "existing-model", effort: "high" } });
     roots.push(result.root);
     expect(result.container.textContent).toContain("Upgrade to Outpost Runner");
     await act(async () => setInputValue(result.container.querySelector<HTMLInputElement>('[placeholder="Agent name"]')!, "Renamed agent"));
     await flushReact();
     await clickByText(result.container, "Upgrade runner");
-    expect(result.onSave).toHaveBeenCalledWith({ name: "Renamed agent", runner: "paperclip" });
+    expect(result.onSave).toHaveBeenCalledWith({ name: "Renamed agent", runner: "outpost" });
   });
 
   it.each(["outpost_runner", "gemini_local"])("does not offer an upgrade for %s", async adapterType => {
@@ -813,7 +813,7 @@ describe("AgentConfigForm environment selector", () => {
   });
 
   it("includes an uncommitted environment variable draft in an upgrade", async () => {
-    mockAdaptersApi.list.mockResolvedValueOnce([{ type: "codex_local", supportedRunners: ["legacy", "paperclip"], defaultRunner: "paperclip" }]);
+    mockAdaptersApi.list.mockResolvedValueOnce([{ type: "codex_local", supportedRunners: ["legacy", "outpost"], defaultRunner: "outpost" }]);
     const result = await renderForm([], { adapterConfig: { model: "gpt-5.4" } }, { environmentVariablesPlacement: "configuration" });
     roots.push(result.root);
     await clickByText(result.container, "Add variable");
@@ -823,26 +823,26 @@ describe("AgentConfigForm environment selector", () => {
     });
     await flushReact();
     await clickByText(result.container, "Upgrade runner");
-    expect(result.onSave).toHaveBeenCalledWith(expect.objectContaining({ runner: "paperclip", replaceAdapterConfig: true,
+    expect(result.onSave).toHaveBeenCalledWith(expect.objectContaining({ runner: "outpost", replaceAdapterConfig: true,
       adapterConfig: { model: "gpt-5.4", env: { MIGRATION_MARKER: { type: "plain", value: "kept" } } },
     }));
   });
 
   it("keeps failed upgrades editable and allows retry", async () => {
-    mockAdaptersApi.list.mockResolvedValueOnce([{ type: "codex_local", supportedRunners: ["legacy", "paperclip"], defaultRunner: "paperclip" }]);
+    mockAdaptersApi.list.mockResolvedValueOnce([{ type: "codex_local", supportedRunners: ["legacy", "outpost"], defaultRunner: "outpost" }]);
     const result = await renderForm([]);
     roots.push(result.root);
     result.onSave.mockRejectedValueOnce(new Error("Outpost Runner cannot honor these settings: extraArgs."));
     await clickByText(result.container, "Upgrade runner");
     expect(result.container.querySelector('[role="alert"]')?.textContent).toContain("extraArgs");
-    expect(result.onSave).toHaveBeenLastCalledWith({ runner: "paperclip" });
+    expect(result.onSave).toHaveBeenLastCalledWith({ runner: "outpost" });
     await clickByText(result.container, "Upgrade runner");
     expect(result.onSave).toHaveBeenCalledTimes(2);
     expect(result.container.querySelector('[role="alert"]')).toBeNull();
   });
 
   it("does not show an earlier agent's upgrade result after navigation", async () => {
-    mockAdaptersApi.list.mockResolvedValueOnce([{ type: "codex_local", supportedRunners: ["legacy", "paperclip"], defaultRunner: "paperclip" }]);
+    mockAdaptersApi.list.mockResolvedValueOnce([{ type: "codex_local", supportedRunners: ["legacy", "outpost"], defaultRunner: "outpost" }]);
     let finishUpgrade!: () => void;
     let changeAgent!: () => void;
     const save = vi.fn(() => new Promise<void>(resolve => { finishUpgrade = resolve; }));
@@ -866,31 +866,31 @@ describe("AgentConfigForm environment selector", () => {
   });
 
   it("switches a saved legacy Claude agent to Outpost Runner on a Runner-only environment", async () => {
-    mockAdaptersApi.list.mockResolvedValue([{ type: "claude_local", supportedRunners: ["paperclip"], defaultRunner: "paperclip" }]);
+    mockAdaptersApi.list.mockResolvedValue([{ type: "claude_local", supportedRunners: ["outpost"], defaultRunner: "outpost" }]);
     try {
       const result = await renderForm([], { adapterType: "claude_local", adapterConfig: { model: "claude-opus-5-5" } });
       roots.push(result.root);
       expect(result.container.querySelector('[aria-label="Runner"]')).toBeNull();
       expect(result.container.querySelector('[data-config-section="configuration"]')?.textContent).not.toContain("Advanced");
       await clickByText(result.container, "Save");
-      expect(result.onSave).toHaveBeenCalledWith(expect.objectContaining({ runner: "paperclip" }));
-    } finally { mockAdaptersApi.list.mockResolvedValue([{ type: "codex_local", supportedRunners: ["legacy", "paperclip"], defaultRunner: "legacy" }]); }
+      expect(result.onSave).toHaveBeenCalledWith(expect.objectContaining({ runner: "outpost" }));
+    } finally { mockAdaptersApi.list.mockResolvedValue([{ type: "codex_local", supportedRunners: ["legacy", "outpost"], defaultRunner: "legacy" }]); }
   });
 
   it("switches a new agent's Legacy choice to Outpost Runner on a Runner-only environment", async () => {
-    mockAdaptersApi.list.mockResolvedValue([{ type: "claude_local", supportedRunners: ["paperclip"], defaultRunner: "paperclip" }]);
+    mockAdaptersApi.list.mockResolvedValue([{ type: "claude_local", supportedRunners: ["outpost"], defaultRunner: "outpost" }]);
     try {
       const result = await renderCreateForm([], { ...defaultCreateValues, adapterType: "claude_local", runner: "legacy" });
       roots.push(result.root);
-      expect(result.onChange).toHaveBeenCalledWith({ runner: "paperclip" });
-    } finally { mockAdaptersApi.list.mockResolvedValue([{ type: "codex_local", supportedRunners: ["legacy", "paperclip"], defaultRunner: "legacy" }]); }
+      expect(result.onChange).toHaveBeenCalledWith({ runner: "outpost" });
+    } finally { mockAdaptersApi.list.mockResolvedValue([{ type: "codex_local", supportedRunners: ["legacy", "outpost"], defaultRunner: "legacy" }]); }
   });
 
   it.each(["explicit", "instance", "managed", "env-draft"])("qualifies a saved Daytona Claude agent and upgrades with its legacy turn limit (%s environment)", async mode => {
     const environment = makeEnvironment({ id: "daytona-computer", name: "Outpost Sandbox", driver: "sandbox", status: "active",
-      config: { provider: "daytona", snapshot: "managed-snapshot" }, metadata: { managedByPaperclip: true } });
+      config: { provider: "daytona", snapshot: "managed-snapshot" }, metadata: { managedByOutpost: true } });
     const inventory = (qualified: boolean) => [
-      { type: "claude_local", supportedRunners: qualified ? ["paperclip", "legacy"] : ["legacy"], defaultRunner: qualified ? "paperclip" : "legacy" },
+      { type: "claude_local", supportedRunners: qualified ? ["outpost", "legacy"] : ["legacy"], defaultRunner: qualified ? "outpost" : "legacy" },
       { type: "outpost_runner", supportedRunners: ["legacy"], defaultRunner: "legacy" },
     ];
     mockAdaptersApi.list.mockResolvedValue(inventory(false));
@@ -916,18 +916,18 @@ describe("AgentConfigForm environment selector", () => {
       await flushReact();
     }
     await clickByText(result.container, "Upgrade runner");
-    expect(mockAgentsApi.qualifyRunner).toHaveBeenCalledWith("agent-1", environment.id, "company-1");
+    expect(mockAgentsApi.qualifyRunner).toHaveBeenCalledWith("agent-1", environment.id, "space-1");
     expect(result.onSave).toHaveBeenCalledWith(mode === "env-draft" ? expect.objectContaining({
-      runner: "paperclip", replaceAdapterConfig: true,
+      runner: "outpost", replaceAdapterConfig: true,
       adapterConfig: expect.objectContaining({ env: { MIGRATION_MARKER: { type: "plain", value: "kept" } } }),
-    }) : { runner: "paperclip" });
+    }) : { runner: "outpost" });
   });
 
   it.each([false, true])("requires saving a changed computer before upgrading (qualified: %s)", async qualified => {
     const environments = ["saved-computer", "draft-computer"].map(id => makeEnvironment({ id, driver: "sandbox", status: "active",
       config: { provider: "daytona", snapshot: "managed-snapshot" } }));
     mockAdaptersApi.list.mockResolvedValue([
-      { type: "claude_local", supportedRunners: qualified ? ["paperclip", "legacy"] : ["legacy"], defaultRunner: qualified ? "paperclip" : "legacy" },
+      { type: "claude_local", supportedRunners: qualified ? ["outpost", "legacy"] : ["legacy"], defaultRunner: qualified ? "outpost" : "legacy" },
       { type: "outpost_runner", supportedRunners: ["legacy"], defaultRunner: "legacy" },
     ]);
     const result = await renderForm(environments, { adapterType: "claude_local", defaultEnvironmentId: "saved-computer" });
@@ -968,7 +968,7 @@ describe("AgentConfigForm environment selector", () => {
     const kubernetes = makeEnvironment({ id: "forced-kubernetes", driver: "sandbox", config: { provider: "kubernetes", image: `example.test/runner@sha256:${"a".repeat(64)}` } });
     mockInstanceSettingsApi.getGeneral.mockResolvedValue({ executionMode: "kubernetes" });
     const inventory = (qualified: boolean) => [
-      { type: "claude_local", supportedRunners: qualified ? ["paperclip", "legacy"] : ["legacy"], defaultRunner: qualified ? "paperclip" : "legacy" },
+      { type: "claude_local", supportedRunners: qualified ? ["outpost", "legacy"] : ["legacy"], defaultRunner: qualified ? "outpost" : "legacy" },
       { type: "outpost_runner", supportedRunners: ["legacy"], defaultRunner: "legacy" },
     ];
     mockAdaptersApi.list.mockResolvedValue(inventory(false));
@@ -982,9 +982,9 @@ describe("AgentConfigForm environment selector", () => {
     roots.push(result.root);
     if (available) {
       await clickByText(result.container, "Upgrade runner");
-      expect(mockAgentsApi.qualifyRunner).toHaveBeenCalledWith("agent-1", kubernetes.id, "company-1");
-      expect(mockAdaptersApi.list).toHaveBeenLastCalledWith({ companyId: "company-1", environmentId: kubernetes.id });
-      expect(result.onSave).toHaveBeenCalledWith({ runner: "paperclip" });
+      expect(mockAgentsApi.qualifyRunner).toHaveBeenCalledWith("agent-1", kubernetes.id, "space-1");
+      expect(mockAdaptersApi.list).toHaveBeenLastCalledWith({ spaceId: "space-1", environmentId: kubernetes.id });
+      expect(result.onSave).toHaveBeenCalledWith({ runner: "outpost" });
     } else {
       expect(findButton(result.container, "Upgrade runner")).toBeUndefined();
       expect(mockAgentsApi.qualifyRunner).not.toHaveBeenCalled();
@@ -1114,7 +1114,7 @@ describe("AgentConfigForm environment selector", () => {
   beforeEach(() => {
     mockEnvironmentsApi.probe.mockReset();
     mockAgentsApi.qualifyRunner.mockReset();
-    mockAdaptersApi.list.mockReset().mockResolvedValue([{ type: "codex_local", supportedRunners: ["legacy", "paperclip"], defaultRunner: "legacy" }]);
+    mockAdaptersApi.list.mockReset().mockResolvedValue([{ type: "codex_local", supportedRunners: ["legacy", "outpost"], defaultRunner: "legacy" }]);
     mockAgentsApi.adapterModels.mockResolvedValue([]);
     mockAgentsApi.detectModel.mockResolvedValue(null);
     mockAgentsApi.list.mockResolvedValue([]);
@@ -1346,7 +1346,7 @@ describe("AgentConfigForm environment selector", () => {
   it.each([null, "saved-computer"])("tests native Cursor Cloud without a Computer when the saved target is %s", async defaultEnvironmentId => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableEnvironments: true, enableManagedSandboxOnly: true });
     mockInstanceSettingsApi.get.mockResolvedValue({ defaultEnvironmentId: "instance-computer" });
-    mockAdaptersApi.list.mockResolvedValue([{ type: "cursor_cloud", supportedRunners: ["paperclip", "legacy"], defaultRunner: "legacy" }]);
+    mockAdaptersApi.list.mockResolvedValue([{ type: "cursor_cloud", supportedRunners: ["outpost", "legacy"], defaultRunner: "legacy" }]);
     const result = await renderForm([], {
       adapterType: "outpost_runner", defaultEnvironmentId,
       adapterConfig: { provider: "cursor_cloud", model: "claude-sonnet-4-5", repoUrl: "https://github.com/example/qualification" },
@@ -1355,16 +1355,16 @@ describe("AgentConfigForm environment selector", () => {
 
     expect(result.container.querySelector('[aria-label="Environment override"]')).toBeNull();
     await runTest(result.container);
-    expect(mockAgentsApi.testEnvironment).toHaveBeenCalledExactlyOnceWith("company-1", "outpost_runner", expect.objectContaining({ environmentId: null, agentId: "agent-1" }));
+    expect(mockAgentsApi.testEnvironment).toHaveBeenCalledExactlyOnceWith("space-1", "outpost_runner", expect.objectContaining({ environmentId: null, agentId: "agent-1" }));
     expect(mockAgentsApi.qualifyRunner).not.toHaveBeenCalled();
     expect(mockEnvironmentsApi.probe).not.toHaveBeenCalled();
   });
 
   it("clears a Computer inherited by a new native Cursor Cloud draft", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableEnvironments: true, enableManagedSandboxOnly: true });
-    mockAdaptersApi.list.mockResolvedValue([{ type: "cursor_cloud", supportedRunners: ["paperclip", "legacy"], defaultRunner: "legacy" }]);
+    mockAdaptersApi.list.mockResolvedValue([{ type: "cursor_cloud", supportedRunners: ["outpost", "legacy"], defaultRunner: "legacy" }]);
     const result = await renderCreateForm([], {
-      adapterType: "outpost_runner", runner: "paperclip", defaultEnvironmentId: "previous-computer",
+      adapterType: "outpost_runner", runner: "outpost", defaultEnvironmentId: "previous-computer",
       adapterSchemaValues: { provider: "cursor_cloud", model: "claude-sonnet-4-5" },
     });
     roots.push(result.root);
@@ -1374,15 +1374,15 @@ describe("AgentConfigForm environment selector", () => {
 
   it("tests the native default explicitly when creating Cursor Cloud with automatic runner selection", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableEnvironments: true, enableManagedSandboxOnly: true });
-    mockAdaptersApi.list.mockResolvedValue([{ type: "cursor_cloud", supportedRunners: ["paperclip"], defaultRunner: "paperclip" }]);
+    mockAdaptersApi.list.mockResolvedValue([{ type: "cursor_cloud", supportedRunners: ["outpost"], defaultRunner: "outpost" }]);
     const result = await renderCreateForm([], {
       adapterType: "cursor_cloud", runner: "auto", model: "claude-sonnet-4-5",
       adapterSchemaValues: { provider: "cursor_cloud", repoUrl: "https://github.com/example/qualification" },
     }, { showAdapterTestEnvironmentButton: true });
     roots.push(result.root);
     await runTest(result.container);
-    expect(mockAgentsApi.testEnvironment).toHaveBeenCalledExactlyOnceWith("company-1", "cursor_cloud", expect.objectContaining({
-      environmentId: null, runner: "paperclip",
+    expect(mockAgentsApi.testEnvironment).toHaveBeenCalledExactlyOnceWith("space-1", "cursor_cloud", expect.objectContaining({
+      environmentId: null, runner: "outpost",
     }));
   });
 
@@ -1392,14 +1392,14 @@ describe("AgentConfigForm environment selector", () => {
       adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "kimi", model: "explicit-kimi-model" },
     });
     roots.push(result.root);
-    await vi.waitFor(() => expect(mockAgentsApi.adapterModels).toHaveBeenCalledWith("company-1", "outpost_runner", expect.objectContaining({ provider: "acpx", acpxAgent: "kimi" })));
+    await vi.waitFor(() => expect(mockAgentsApi.adapterModels).toHaveBeenCalledWith("space-1", "outpost_runner", expect.objectContaining({ provider: "acpx", acpxAgent: "kimi" })));
     expect(result.container.textContent).toContain("explicit-kimi-model");
   });
 
   it.each(["api_key", "subscription"] as const)("loads saved Antigravity %s models through its selected connection without a Claude fallback", async method => {
     const binding = { provider: "google", method, mode: "responsible_user" } as const;
     const accounts = vi.spyOn(aiConnectionsApi, "list").mockResolvedValue({ currentUserId: "you", canManageConnections: true, connections: [{
-      id: "google-account", grantId: "google-grant", companyId: "company-1", provider: "google", method, name: "Verified Google",
+      id: "google-account", grantId: "google-grant", spaceId: "space-1", provider: "google", method, name: "Verified Google",
       ownership: "personal", ownerUserId: "you", isDefault: true, status: "connected",
     }] });
     mockAgentsApi.adapterModels.mockResolvedValue([{ id: "google-exact-model", label: "My Google model" }]);
@@ -1408,7 +1408,7 @@ describe("AgentConfigForm environment selector", () => {
         adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "antigravity", model: "google-exact-model" }, runtimeConfig: { aiConnection: binding },
       });
       roots.push(result.root);
-      await vi.waitFor(() => expect(mockAgentsApi.adapterModels).toHaveBeenCalledWith("company-1", "outpost_runner", expect.objectContaining({
+      await vi.waitFor(() => expect(mockAgentsApi.adapterModels).toHaveBeenCalledWith("space-1", "outpost_runner", expect.objectContaining({
         provider: "acpx", acpxAgent: "antigravity", aiConnection: binding, agentId: "agent-1",
       })));
       expect(result.container.textContent).toContain("My Google model");
@@ -1650,7 +1650,7 @@ describe("AgentConfigForm environment selector", () => {
         name,
         driver: "sandbox",
         config: { provider: "daytona" },
-        metadata: { managedByPaperclip: true },
+        metadata: { managedByOutpost: true },
       }),
     ]);
     roots.push(result.root);
@@ -1760,17 +1760,17 @@ describe("AgentConfigForm environment selector", () => {
       adapterConfig: { provider: "opencode", model: "example/model" } }, { showAdapterTestEnvironmentButton: true });
     roots.push(result.root);
     await runTest(result.container);
-    expect(mockAgentsApi.qualifyRunner).toHaveBeenCalledWith("agent-1", computer.id, "company-1");
+    expect(mockAgentsApi.qualifyRunner).toHaveBeenCalledWith("agent-1", computer.id, "space-1");
     expect(order).toEqual(["qualification", "runtime"]);
     expect(result.onSave).not.toHaveBeenCalled();
   });
 
   it("tests an available managed runner directly without a separate qualification request", async () => {
     const computer = makeEnvironment({ id: "managed-computer", driver: "sandbox", status: "active",
-      config: { provider: "daytona", snapshot: "replacement-snapshot" }, metadata: { managedByPaperclip: true } });
+      config: { provider: "daytona", snapshot: "replacement-snapshot" }, metadata: { managedByOutpost: true } });
     mockAdaptersApi.list.mockResolvedValue([
-      { type: "opencode_local", supportedRunners: ["legacy", "paperclip"], defaultRunner: "paperclip" },
-      { type: "outpost_runner", supportedRunners: ["paperclip"], defaultRunner: "paperclip" },
+      { type: "opencode_local", supportedRunners: ["legacy", "outpost"], defaultRunner: "outpost" },
+      { type: "outpost_runner", supportedRunners: ["outpost"], defaultRunner: "outpost" },
     ]);
     mockAgentsApi.qualifyRunner.mockRejectedValue(new Error("Separate qualification is unavailable."));
     const result = await renderForm([computer], { adapterType: "outpost_runner", defaultEnvironmentId: computer.id,
@@ -1778,7 +1778,7 @@ describe("AgentConfigForm environment selector", () => {
     roots.push(result.root);
     await runTest(result.container);
     expect(mockAgentsApi.qualifyRunner).not.toHaveBeenCalled();
-    expect(mockAgentsApi.testEnvironment).toHaveBeenCalledWith("company-1", "outpost_runner",
+    expect(mockAgentsApi.testEnvironment).toHaveBeenCalledWith("space-1", "outpost_runner",
       expect.objectContaining({ environmentId: computer.id }));
   });
 
@@ -1905,7 +1905,7 @@ describe("AgentConfigForm environment selector", () => {
     expect(mockAgentsApi.testEnvironment).toHaveBeenCalled();
     for (const call of mockAgentsApi.testEnvironment.mock.calls) {
       expect(call).toEqual([
-        "company-1",
+        "space-1",
         "codex_local",
         expect.objectContaining({
           adapterConfig: expect.objectContaining({
@@ -1998,7 +1998,7 @@ describe("AgentConfigForm environment selector", () => {
     expect(Boolean(findButton(result.container, "Sign in"))).toBe(authentication);
     if (authentication) {
       await startLogin(result.container);
-      expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith("company-1", "codex_local", { environmentId: "sandbox-1" });
+      expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith("space-1", "codex_local", { environmentId: "sandbox-1" });
     } else {
       expect(mockAgentsApi.startAdapterAuthLogin).not.toHaveBeenCalled();
     }
@@ -2189,7 +2189,7 @@ describe("AgentConfigForm environment selector", () => {
           />
           {login && (
             <AdapterLoginPanel
-              companyId={login.companyId}
+              spaceId={login.spaceId}
               adapterType={login.adapterType}
               environmentId={login.environmentId}
             />
@@ -2258,7 +2258,7 @@ describe("AgentConfigForm environment selector", () => {
           name: "Managed",
           driver: "sandbox",
           config: { provider: "daytona" },
-          metadata: { managedByPaperclip: true },
+          metadata: { managedByOutpost: true },
         }),
       ],
       { adapterType: "claude_local", defaultEnvironmentId: null },
@@ -2398,7 +2398,7 @@ describe("AgentConfigForm environment selector", () => {
     await runTest(result.container);
     await startLogin(result.container);
 
-    expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith("company-1", "codex_local", {
+    expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith("space-1", "codex_local", {
       environmentId: "sandbox-1",
     });
     expect(result.container.textContent).toContain("WXYZ-1234");
@@ -2411,7 +2411,7 @@ describe("AgentConfigForm environment selector", () => {
     await flushReact();
 
     expect(mockAgentsApi.cancelAdapterAuthLogin).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "codex_local",
       "session-1",
     );
@@ -2452,7 +2452,7 @@ describe("AgentConfigForm environment selector", () => {
     const container = document.createElement("div"); document.body.appendChild(container);
     const root = createRoot(container); roots.push(root);
     await act(async () => renderFormView(root, createFormQueryClient(),
-      <AdapterLoginPanel requiresAgent agentId="computer-b" companyId="company-1" adapterType={adapterType} environmentId="plugin-env" chrome="onboarding" autoStart />));
+      <AdapterLoginPanel requiresAgent agentId="computer-b" spaceId="space-1" adapterType={adapterType} environmentId="plugin-env" chrome="onboarding" autoStart />));
     await flushUntil(() => container.textContent?.includes("Another sign-in attempt") ?? false);
     expect(mockAgentsApi.startAdapterAuthLogin).not.toHaveBeenCalled();
     expect(mockAgentsApi.startClaudeSetupTokenLogin).not.toHaveBeenCalled();
@@ -2473,7 +2473,7 @@ describe("AgentConfigForm environment selector", () => {
     const container = document.createElement("div"); document.body.appendChild(container);
     const root = createRoot(container); roots.push(root);
     await act(async () => renderFormView(root, createFormQueryClient(),
-      <AdapterLoginPanel requiresAgent companyId="company-1" adapterType={adapterType} environmentId="plugin-env"
+      <AdapterLoginPanel requiresAgent spaceId="space-1" adapterType={adapterType} environmentId="plugin-env"
         aiConnection={aiConnection} chrome="onboarding" autoStart />));
 
     const statusApi = adapterType === "codex_local" ? mockAgentsApi.getAdapterAuthLoginStatus : mockAgentsApi.getClaudeSetupTokenLoginStatus;
@@ -2495,7 +2495,7 @@ describe("AgentConfigForm environment selector", () => {
     const queryClient = createFormQueryClient();
     await act(async () => {
       renderFormView(root, queryClient,
-        <AdapterLoginPanel companyId="company-1" adapterType="grok_local" environmentId="new-sandbox"
+        <AdapterLoginPanel spaceId="space-1" adapterType="grok_local" environmentId="new-sandbox"
         aiConnection={{ ...intent, agentIds: [] }} chrome="onboarding" autoStart />
       );
     });
@@ -2513,8 +2513,8 @@ describe("AgentConfigForm environment selector", () => {
     expect(mockAgentsApi.startAdapterAuthLogin).not.toHaveBeenCalled();
     await act(async () => release());
     await flushUntil(() => mockAgentsApi.startAdapterAuthLogin.mock.calls.length === 1);
-    expect(mockAgentsApi.cancelAdapterAuthLogin).toHaveBeenLastCalledWith("company-1", "grok_local", "previous-login");
-    expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith("company-1", "grok_local", { environmentId: "new-sandbox", aiConnection: intent });
+    expect(mockAgentsApi.cancelAdapterAuthLogin).toHaveBeenLastCalledWith("space-1", "grok_local", "previous-login");
+    expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith("space-1", "grok_local", { environmentId: "new-sandbox", aiConnection: intent });
     queryClient.clear();
   });
 
@@ -2534,7 +2534,7 @@ describe("AgentConfigForm environment selector", () => {
     await act(async () => {
       renderFormView(root, queryClient,
         <AdapterLoginPanel
-          companyId="company-1"
+          spaceId="space-1"
           adapterType="codex_local"
           environmentId="sandbox-1"
           chrome="onboarding"
@@ -2569,7 +2569,7 @@ describe("AgentConfigForm environment selector", () => {
       expiresAt: null,
       failure: null,
       prompt: null,
-      codexAccountBinding: { secretId: "secret-bind-1", companyIdentityDiffers: true },
+      codexAccountBinding: { secretId: "secret-bind-1", spaceIdentityDiffers: true },
     });
     const onAccountBinding = vi.fn();
     const container = document.createElement("div");
@@ -2581,7 +2581,7 @@ describe("AgentConfigForm environment selector", () => {
     await act(async () => {
       renderFormView(root, queryClient,
         <AdapterLoginPanel
-          companyId="company-1"
+          spaceId="space-1"
           adapterType="codex_local"
           environmentId="sandbox-1"
           autoStart
@@ -2594,7 +2594,7 @@ describe("AgentConfigForm environment selector", () => {
     expect(onAccountBinding).toHaveBeenCalledTimes(1);
     expect(onAccountBinding).toHaveBeenCalledWith({
       secretId: "secret-bind-1",
-      companyIdentityDiffers: true,
+      spaceIdentityDiffers: true,
     });
     // The panel narrates the bind as its own state, separate from the login's
     // success line — the bind is a second save that can still fail.
@@ -2621,7 +2621,7 @@ describe("AgentConfigForm environment selector", () => {
       expiresAt: null,
       failure: null,
       prompt: null,
-      codexAccountBinding: { secretId: "secret-bind-2", companyIdentityDiffers: true },
+      codexAccountBinding: { secretId: "secret-bind-2", spaceIdentityDiffers: true },
     });
     const onAccountBinding = vi
       .fn()
@@ -2636,7 +2636,7 @@ describe("AgentConfigForm environment selector", () => {
     await act(async () => {
       renderFormView(root, queryClient,
         <AdapterLoginPanel
-          companyId="company-1"
+          spaceId="space-1"
           adapterType="codex_local"
           environmentId="sandbox-1"
           autoStart
@@ -2655,7 +2655,7 @@ describe("AgentConfigForm environment selector", () => {
     expect(onAccountBinding).toHaveBeenCalledTimes(2);
     expect(onAccountBinding).toHaveBeenLastCalledWith({
       secretId: "secret-bind-2",
-      companyIdentityDiffers: true,
+      spaceIdentityDiffers: true,
     });
   });
 
@@ -2681,7 +2681,7 @@ describe("AgentConfigForm environment selector", () => {
         prompt: { url: "https://auth.example.test/rebind", code: "REBIND-2" },
       });
     mockAgentsApi.getAdapterAuthLoginStatus.mockImplementation(
-      async (_companyId: string, _adapterType: string, sid: string) => ({
+      async (_spaceId: string, _adapterType: string, sid: string) => ({
         sessionId: sid,
         environmentId: "sandbox-1",
         status: "authenticated",
@@ -2690,7 +2690,7 @@ describe("AgentConfigForm environment selector", () => {
         prompt: null,
         codexAccountBinding: {
           secretId: sid === "rebind-s2" ? "secret-second" : "secret-first",
-          companyIdentityDiffers: true,
+          spaceIdentityDiffers: true,
         },
       }),
     );
@@ -2704,7 +2704,7 @@ describe("AgentConfigForm environment selector", () => {
     await act(async () => {
       renderFormView(root, queryClient,
         <AdapterLoginPanel
-          companyId="company-1"
+          spaceId="space-1"
           adapterType="codex_local"
           environmentId="sandbox-1"
           autoStart
@@ -2715,7 +2715,7 @@ describe("AgentConfigForm environment selector", () => {
     await flushUntil(() => onAccountBinding.mock.calls.length === 1);
     expect(onAccountBinding).toHaveBeenLastCalledWith({
       secretId: "secret-first",
-      companyIdentityDiffers: true,
+      spaceIdentityDiffers: true,
     });
 
     const signIn = findButton(container, "Sign in");
@@ -2726,7 +2726,7 @@ describe("AgentConfigForm environment selector", () => {
     await flushUntil(() => onAccountBinding.mock.calls.length === 2);
     expect(onAccountBinding).toHaveBeenLastCalledWith({
       secretId: "secret-second",
-      companyIdentityDiffers: true,
+      spaceIdentityDiffers: true,
     });
   });
 
@@ -2750,7 +2750,7 @@ describe("AgentConfigForm environment selector", () => {
       expiresAt: null,
       failure: null,
       prompt: null,
-      codexAccountBinding: { secretId: "secret-serialize", companyIdentityDiffers: true },
+      codexAccountBinding: { secretId: "secret-serialize", spaceIdentityDiffers: true },
     });
     let releaseSave: (() => void) | null = null;
     const onAccountBinding = vi.fn(
@@ -2768,7 +2768,7 @@ describe("AgentConfigForm environment selector", () => {
     await act(async () => {
       renderFormView(root, queryClient,
         <AdapterLoginPanel
-          companyId="company-1"
+          spaceId="space-1"
           adapterType="codex_local"
           environmentId="sandbox-1"
           autoStart
@@ -2823,7 +2823,7 @@ describe("AgentConfigForm environment selector", () => {
       await poll;
     });
     await flushReact();
-    expect(mockAgentsApi.get).toHaveBeenCalledWith(saved.id, saved.companyId);
+    expect(mockAgentsApi.get).toHaveBeenCalledWith(saved.id, saved.spaceId);
     expect(container.textContent).toContain("Verifying agent");
     expect(nameInput.value).toBe("Edited during poll");
     await act(async () => findButton(container, "Save")!.click());
@@ -2849,7 +2849,7 @@ describe("AgentConfigForm environment selector", () => {
       expiresAt: null,
       failure: null,
       prompt: null,
-      codexAccountBinding: { secretId: "secret-keep-edits", companyIdentityDiffers: true },
+      codexAccountBinding: { secretId: "secret-keep-edits", spaceIdentityDiffers: true },
     });
     const releaseSaves: Array<() => void> = [];
     const onSave = vi.fn(
@@ -2990,7 +2990,7 @@ describe("AgentConfigForm environment selector", () => {
     expect(mockAgentsApi.startAdapterAuthLogin).not.toHaveBeenCalled();
     // The panel polls the resumed session id, not a freshly started one.
     expect(mockAgentsApi.getAdapterAuthLoginStatus).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "codex_local",
       "resumed-session-1",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
@@ -3014,7 +3014,7 @@ describe("AgentConfigForm environment selector", () => {
 
     await startLogin(result.container);
 
-    expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith("company-1", "codex_local", {
+    expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith("space-1", "codex_local", {
       environmentId: "sandbox-1",
     });
   });
@@ -3230,7 +3230,7 @@ describe("AgentConfigForm environment selector", () => {
     await flushReact();
 
     expect(mockAgentsApi.submitClaudeSetupTokenBrowserCode).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "claude-session-1",
       "BROWSERCODE-9",
     );
@@ -3259,7 +3259,7 @@ describe("AgentConfigForm environment selector", () => {
     await flushUntil(() => (result.container.textContent ?? "").includes("Authenticated"));
 
     expect(mockAgentsApi.completeClaudeSetupTokenLogin).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "claude-session-1",
     );
     expect(result.container.textContent).toContain("Authenticated");
@@ -3310,7 +3310,7 @@ describe("AgentConfigForm environment selector", () => {
     expect("CLAUDE_CODE_OAUTH_TOKEN" in (values.envBindings ?? {})).toBe(false);
 
     // The create request body carries no stale claim.
-    const payload = buildNewAgentHirePayload({
+    const payload = buildNewAgentCreatePayload({
       name: "Cody",
       effectiveRole: "Engineer",
       configValues: values,
@@ -3334,13 +3334,13 @@ describe("AgentConfigForm environment selector", () => {
     });
     const makeDefinition = (key: string): UserSecretDefinition => ({
       id: `def-${key}`,
-      companyId: "company-1",
+      spaceId: "space-1",
       key,
       name: key.toUpperCase(),
       description: null,
       status: "active",
       provider: "local_encrypted",
-      managedMode: "paperclip_managed",
+      managedMode: "outpost_managed",
       providerConfigId: null,
       providerMetadata: null,
       usageGuidance: null,
@@ -3404,7 +3404,7 @@ describe("AgentConfigForm environment selector", () => {
     await act(async () => {
       renderFormView(root, queryClient,
         <AdapterLoginPanel
-          companyId="company-1"
+          spaceId="space-1"
           adapterType="claude_local"
           environmentId="sandbox-1"
           onStored={onStored}
@@ -3433,7 +3433,7 @@ describe("AgentConfigForm environment selector", () => {
     await act(async () => {
       renderFormView(root, queryClient,
         <AdapterLoginPanel
-          companyId="company-1"
+          spaceId="space-1"
           adapterType="claude_local"
           environmentId="sandbox-1"
           chrome="onboarding"
@@ -3458,7 +3458,7 @@ describe("AgentConfigForm environment selector", () => {
     const root = createRoot(container);
     roots.push(root);
     await act(async () => renderFormView(root, createFormQueryClient(),
-      <AdapterLoginPanel companyId="company-1" adapterType={adapterType} environmentId="sandbox-1" chrome="onboarding" autoStart />));
+      <AdapterLoginPanel spaceId="space-1" adapterType={adapterType} environmentId="sandbox-1" chrome="onboarding" autoStart />));
     await flushUntil(() => Boolean(findButton(container, "Retry sign-in")));
     expect(container.textContent).toContain("Sign-in didn’t finish");
     const startApi = claude ? mockAgentsApi.startClaudeSetupTokenLogin : mockAgentsApi.startAdapterAuthLogin;
@@ -3484,7 +3484,7 @@ describe("AgentConfigForm environment selector", () => {
     await act(async () => {
       renderFormView(root, queryClient,
         <AdapterLoginPanel
-          companyId="company-1"
+          spaceId="space-1"
           adapterType="claude_local"
           environmentId="sandbox-1"
           onApplyStored={onApplyStored}
@@ -3518,7 +3518,7 @@ describe("AgentConfigForm environment selector", () => {
     await act(async () => {
       renderFormView(root, queryClient,
         <AdapterLoginPanel
-          companyId="company-1"
+          spaceId="space-1"
           adapterType="claude_local"
           environmentId="sandbox-1"
           onApplyStored={onApplyStored}
@@ -3636,7 +3636,7 @@ describe("AgentConfigForm environment selector", () => {
       (result.container.textContent ?? "").includes("https://claude.example.test/authorize"),
     );
 
-    expect(mockAgentsApi.startClaudeSetupTokenLogin).toHaveBeenCalledWith("company-1", {
+    expect(mockAgentsApi.startClaudeSetupTokenLogin).toHaveBeenCalledWith("space-1", {
       environmentId: "sandbox-1",
     });
     // The panel shows the authorization URL and a browser-code input. It never
@@ -3655,7 +3655,7 @@ describe("AgentConfigForm environment selector", () => {
     await flushReact();
 
     expect(mockAgentsApi.cancelClaudeSetupTokenLogin).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "claude-session-1",
     );
     // The panel resets: the Sign in button is available again, and the URL and the
@@ -3689,7 +3689,7 @@ describe("AgentConfigForm environment selector", () => {
     await flushReact();
 
     expect(mockAgentsApi.cancelClaudeSetupTokenLogin).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "claude-session-1",
     );
     // The panel reset even though the cancel returned a 404: the Sign in button is
@@ -3763,7 +3763,7 @@ describe("AgentConfigForm environment selector", () => {
     expect(result.container.textContent).toContain("https://claude.example.test/resumed");
     expect(mockAgentsApi.startClaudeSetupTokenLogin).not.toHaveBeenCalled();
     expect(mockAgentsApi.getClaudeSetupTokenLoginStatus).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "resumed-claude-session-1",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
@@ -3811,7 +3811,7 @@ describe("AgentConfigForm environment selector", () => {
     await flushReact();
 
     expect(mockAgentsApi.cancelClaudeSetupTokenLogin).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "resumed-claude-session-1",
     );
     expect(findButton(result.container, "Sign in")?.disabled).toBe(false);
@@ -3984,7 +3984,7 @@ describe("AgentConfigForm environment selector", () => {
       // owner starts a new session and does not hit the "too many active
       // sessions" cap.
       expect(mockAgentsApi.cancelClaudeSetupTokenLogin).toHaveBeenCalledWith(
-        "company-1",
+        "space-1",
         "claude-session-1",
       );
       // The Log in button is available again, and the Cancel button is gone.
@@ -4092,7 +4092,7 @@ describe("AgentConfigForm environment selector", () => {
     expect(mockAgentsApi.adapterModels).toHaveBeenCalledTimes(1);
 
     mockAgentsApi.adapterModels.mockRejectedValue(
-      new ApiError("Paperclip is restarting.", 503, { error: "tenant_app_unavailable" }),
+      new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" }),
     );
     await act(async () => {
       await queryClient.invalidateQueries();
@@ -4100,7 +4100,7 @@ describe("AgentConfigForm environment selector", () => {
     await flushUntil(() => mockAgentsApi.adapterModels.mock.calls.length > 1);
 
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
-    expect(container.textContent).not.toContain("Paperclip is restarting.");
+    expect(container.textContent).not.toContain("Outpost is restarting.");
     expect(container.textContent).not.toContain("tenant_app_unavailable");
     expect(container.textContent).not.toContain("Loading models…");
 
@@ -4414,7 +4414,7 @@ describe("AgentConfigForm edit-mode Claude OAuth binding", () => {
     // The persisted patch never carries a token value.
     expect(JSON.stringify(adapterConfig.env)).not.toContain("sk-ant");
     // An update can never consume the fresh login's stored-session claim -- only
-    // create and hire can, per `enforceClaudeOAuthBindingClaim`. So a save that
+    // create and create can, per `enforceClaudeOAuthBindingClaim`. So a save that
     // introduces the binding through an update must set `applyStoredClaudeLogin`,
     // or the server rejects the patch with the fixed claim error even though the
     // login already stored the token. Regression coverage for that gap.

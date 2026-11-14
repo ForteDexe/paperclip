@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import {
   createDiscordCommandRegistration,
-  discordPaperclipCommandDefinition,
+  discordOutpostCommandDefinition,
   parseDiscordCommandRegistration,
   reconcileDiscordCommandRegistration,
   type DiscordCommandRegistration,
@@ -10,7 +10,7 @@ import {
 } from "./chat-discord-command-registration.js";
 
 const scope = {
-  companyId: "11111111-1111-4111-8111-111111111111",
+  spaceId: "11111111-1111-4111-8111-111111111111",
   endpointId: "22222222-2222-4222-8222-222222222222",
   applicationId: "123456789012345678",
   guildId: "234567890123456789",
@@ -46,7 +46,7 @@ function fixture() {
     if (method === "GET") return json(commands);
     expect(stored.phase).toBe("attempted");
     const body = JSON.parse(String(init?.body));
-    expect(body).toEqual(discordPaperclipCommandDefinition(stored.ownerId));
+    expect(body).toEqual(discordOutpostCommandDefinition(stored.ownerId));
     expect(["POST", "PATCH"]).toContain(method);
     if (method === "PATCH")
       expect(String(url).endsWith(`/${commandId}`)).toBe(true);
@@ -113,8 +113,8 @@ describe("Discord owned native-command registration", () => {
   async function priorCopyFixture() {
     const f = fixture();
     await reconcileDiscordCommandRegistration(f.options());
-    const prior = discordPaperclipCommandDefinition(f.stored.ownerId);
-    prior.options[2]!.description = "Close the current Paperclip task";
+    const prior = discordOutpostCommandDefinition(f.stored.ownerId);
+    prior.options[2]!.description = "Close the current Outpost task";
     if (f.stored.phase !== "registered") throw new Error("Missing receipt");
     f.stored = {
       ...f.stored,
@@ -154,7 +154,7 @@ describe("Discord owned native-command registration", () => {
     expect(f.commands[0]).toEqual(f.unrelated);
     expect(f.commands[1]).toMatchObject({
       id: commandId,
-      ...discordPaperclipCommandDefinition(f.stored.ownerId),
+      ...discordOutpostCommandDefinition(f.stored.ownerId),
     });
   });
 
@@ -240,8 +240,8 @@ describe("Discord owned native-command registration", () => {
     expect(f.commit).not.toHaveBeenCalled();
   });
 
-  it("describes closing a conversation without claiming to close the Paperclip task", () => {
-    const definition = discordPaperclipCommandDefinition(
+  it("describes closing a conversation without claiming to close the Outpost task", () => {
+    const definition = discordOutpostCommandDefinition(
       createDiscordCommandRegistration(scope).ownerId,
     );
     expect(
@@ -274,7 +274,7 @@ describe("Discord owned native-command registration", () => {
     const f = fixture();
     f.commands = [
       {
-        ...discordPaperclipCommandDefinition("b".repeat(32)),
+        ...discordOutpostCommandDefinition("b".repeat(32)),
         id: commandId,
         application_id: scope.applicationId,
         version,
@@ -299,7 +299,7 @@ describe("Discord owned native-command registration", () => {
       reconcileDiscordCommandRegistration(f.options()),
     ).resolves.toMatchObject({ kind: "registered" });
     expect(f.commands.slice(0, 4)).toEqual([f.unrelated, ...generic]);
-    expect(f.commands[4]!.name).toBe("paperclip");
+    expect(f.commands[4]!.name).toBe("outpost");
   });
 
   it("reconciles a committed create after lost response without sending another POST", async () => {
@@ -404,7 +404,7 @@ describe("Discord owned native-command registration", () => {
     ).resolves.toMatchObject({ kind: "unknown" });
     expect(f.order).toEqual(["GET"]);
     f.commands[1] = {
-      ...discordPaperclipCommandDefinition(f.stored.ownerId),
+      ...discordOutpostCommandDefinition(f.stored.ownerId),
       id: "678901234567890123",
       application_id: scope.applicationId,
       version,
@@ -473,7 +473,7 @@ describe("Discord owned native-command registration", () => {
           providerAccountId: scope.applicationId,
         },
       },
-      { scope: { ...scope, endpointId: scope.companyId } },
+      { scope: { ...scope, endpointId: scope.spaceId } },
       { state: { ...f.stored, ownerId: "guessed" } },
       { state: { ...f.stored, botToken: secret } },
       { runtimeFence: { ...runtimeFence, generation: -1 } },
@@ -487,7 +487,7 @@ describe("Discord owned native-command registration", () => {
 
   it("enforces Discord command limits without deleting customer commands", async () => {
     const f = fixture();
-    const body = discordPaperclipCommandDefinition(f.stored.ownerId);
+    const body = discordOutpostCommandDefinition(f.stored.ownerId);
     expect(body.name.length).toBeLessThanOrEqual(32);
     expect(body.description.length).toBeLessThanOrEqual(100);
     expect(body.options).toHaveLength(3);
@@ -588,7 +588,7 @@ describe("Discord owned native-command registration", () => {
     const f = fixture();
     f.commands = [
       {
-        ...discordPaperclipCommandDefinition(f.stored.ownerId),
+        ...discordOutpostCommandDefinition(f.stored.ownerId),
         id: commandId,
         application_id: scope.applicationId,
         version,

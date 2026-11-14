@@ -18,19 +18,19 @@ export function projectToolDefinitions(workMode: string, includeTask = false) {
 /** All transports use the normal authenticated API, including its validation and audit path. */
 export async function callProjectTool(input: {
   name: string; arguments: Record<string, unknown>; apiUrl: string; token: string;
-  companyId: string; issueId: string; agentId: string; conversation: boolean; receiptOnly?: boolean;
-  /** The company's issue prefix; list_projects rows then carry their page href. */
-  companyPrefix?: string | null;
+  spaceId: string; issueId: string; agentId: string; conversation: boolean; receiptOnly?: boolean;
+  /** The space's issue prefix; list_projects rows then carry their page href. */
+  spacePrefix?: string | null;
 }) {
   if (input.receiptOnly && input.name !== "create_project") throw badRequest("Receipt recovery is only supported for project creation");
   const args = input.arguments;
   const page = input.name === "list_projects" ? projectDiscoverySchema.parse(args) : null;
-  let path = `/companies/${input.companyId}/projects`;
+  let path = `/spaces/${input.spaceId}/projects`;
   let body: unknown;
   if (input.name === "set_task_title") {
     path = `/issues/${input.issueId}/title`;
     body = setIssueTitleSchema.parse(args);
-  } else if (input.name === "list_project_repositories") path = `/companies/${input.companyId}/project-repositories`;
+  } else if (input.name === "list_project_repositories") path = `/spaces/${input.spaceId}/project-repositories`;
   else if (page) {
     const query = new URLSearchParams({ view: "summary", limit: String(page.limit) });
     if (page.cursor) query.set("cursor", page.cursor);
@@ -40,7 +40,7 @@ export async function callProjectTool(input: {
     body = createProjectSchema.extend({ idempotencyKey: z.string().min(1).max(255) }).parse(args);
   } else if (input.name === "create_task") {
     const key = z.string().min(1).max(150).parse(args.idempotencyKey);
-    path = `/companies/${input.companyId}/issues`;
+    path = `/spaces/${input.spaceId}/issues`;
     body = createIssueSchema.parse({
       title: args.title, description: args.description, priority: args.priority,
       projectId: args.projectId, initialPlan: args.initialPlan,
@@ -65,7 +65,7 @@ export async function callProjectTool(input: {
   const response = await fetch(`${input.apiUrl.replace(/\/+$/, "").replace(/\/api$/, "")}/api${path}`, {
     method: input.name === "set_task_title" ? "PUT" : body ? "POST" : "GET",
     headers: { Authorization: `Bearer ${input.token}`, "Content-Type": "application/json",
-      ...(input.receiptOnly ? { "X-Paperclip-Receipt-Only": "true" } : {}),
+      ...(input.receiptOnly ? { "X-Outpost-Receipt-Only": "true" } : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
     signal: AbortSignal.timeout(60_000),
@@ -75,9 +75,9 @@ export async function callProjectTool(input: {
   if (!response.ok) throw new Error(typeof result.error === "string" ? result.error : `Project tool failed (${response.status})`);
   // Chat replies link a project only when they know its real page; without an
   // href the agent wrote the route as an unclickable path or omitted it.
-  if (page && input.companyPrefix && Array.isArray(result.projects)) {
+  if (page && input.spacePrefix && Array.isArray(result.projects)) {
     return { ...result, projects: result.projects.map((project: { id: string }) => ({ ...project,
-      href: `/${encodeURIComponent(input.companyPrefix!)}/projects/${encodeURIComponent(project.id)}` })) };
+      href: `/${encodeURIComponent(input.spacePrefix!)}/projects/${encodeURIComponent(project.id)}` })) };
   }
   return result;
 }

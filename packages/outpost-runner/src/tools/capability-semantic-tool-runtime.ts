@@ -93,12 +93,12 @@ const REPLAY_SAFE_LEGACY_MOCK_EXTENSIONS = new Set([
   "discovery.goals",
   "cases.list",
   "routines.list",
-  "company_skills.list",
+  "space_skills.list",
   "secrets.metadata",
-  "company_skills.sync",
+  "space_skills.sync",
   "routines.manage",
   "cases.upsert",
-  "company.admin",
+  "space.admin",
   "test.generic_api",
 ]);
 
@@ -1358,7 +1358,7 @@ export class CapabilitySemanticToolRuntime {
       case "discovery.goals":
       case "cases.list":
       case "routines.list":
-      case "company_skills.list":
+      case "space_skills.list":
       case "secrets.metadata":
         return { value: [], commandResult: null, entityRefs: [] };
       case "portability.export": {
@@ -1366,7 +1366,7 @@ export class CapabilitySemanticToolRuntime {
         return {
           value: {
             schema: "outpost.capability.mock-export.v1",
-            company: { id: snapshot.company.id, name: snapshot.company.name },
+            space: { id: snapshot.space.id, name: snapshot.space.name },
             taskCount: snapshot.tasks.length,
             actorCount: snapshot.actors.length,
           },
@@ -1374,7 +1374,7 @@ export class CapabilitySemanticToolRuntime {
           entityRefs: [],
         };
       }
-      case "company_skills.sync":
+      case "space_skills.sync":
         return {
           value: { synced: true },
           commandResult: null,
@@ -1396,7 +1396,7 @@ export class CapabilitySemanticToolRuntime {
           commandResult: null,
           entityRefs: [],
         };
-      case "company.admin":
+      case "space.admin":
         return {
           value: {
             action: requireString(input.action),
@@ -1453,7 +1453,7 @@ export class CapabilitySemanticToolRuntime {
         if (document === undefined) throw new Error("document is not available");
         return toJsonValue(document.revisions);
       }
-      case "company_tasks": {
+      case "space_tasks": {
         const query = typeof input.query === "string" ? input.query.toLowerCase() : "";
         const status = typeof input.status === "string" ? input.status : null;
         return toJsonValue(snapshot.tasks.filter(
@@ -1462,9 +1462,9 @@ export class CapabilitySemanticToolRuntime {
             (status === null || task.status === status),
         ));
       }
-      case "company_actors":
-        return toJsonValue(snapshot.actors.map(({ id, companyId, name, role, status }) => ({ id, companyId, name, role, status })));
-      case "company_approvals":
+      case "space_actors":
+        return toJsonValue(snapshot.actors.map(({ id, spaceId, name, role, status }) => ({ id, spaceId, name, role, status })));
+      case "space_approvals":
         return toJsonValue(snapshot.approvals);
       case "active_task_workspace":
         return toJsonValue(snapshot.workspaceServices.filter((service) => service.taskId === context.activeTask.id));

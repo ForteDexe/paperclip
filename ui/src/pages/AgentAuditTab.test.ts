@@ -60,18 +60,18 @@ describe("agent-scoped audit data", () => {
   });
 
   it("uses the agent's own budget policy and falls back to its monthly budget", () => {
-    const policy = { ...agentBudgetSummary(undefined, agent, "company-1"), policyId: "policy-1", amount: 50_000 };
+    const policy = { ...agentBudgetSummary(undefined, agent, "space-1"), policyId: "policy-1", amount: 50_000 };
     const overview = {
-      companyId: "company-1",
+      spaceId: "space-1",
       policies: [{ ...policy, scopeId: "agent-2", policyId: "policy-2" }, policy],
       activeIncidents: [],
       pausedAgentCount: 0,
       pausedProjectCount: 0,
       pendingApprovalCount: 0,
     } satisfies BudgetOverview;
-    expect(agentBudgetSummary(overview, agent, "company-1").policyId).toBe("policy-1");
+    expect(agentBudgetSummary(overview, agent, "space-1").policyId).toBe("policy-1");
 
-    const fallback = agentBudgetSummary(undefined, agent, "company-1");
+    const fallback = agentBudgetSummary(undefined, agent, "space-1");
     expect(fallback.scopeType).toBe("agent");
     expect(fallback.amount).toBe(10_000);
     expect(fallback.remainingAmount).toBe(7_500);

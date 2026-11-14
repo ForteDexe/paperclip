@@ -148,7 +148,7 @@ describe("buildStrandedRecoveryEscalationNotice", () => {
     expect(notice.body).toContain("before the agent started");
     expect(JSON.stringify(notice.metadata)).toContain("worker status");
   });
-  it("asks for Retry, not a board decision, when the environment provider stayed unavailable", () => {
+  it("asks for Retry, not a operator decision, when the environment provider stayed unavailable", () => {
     const notice = buildStrandedRecoveryEscalationNotice({
       seed: buildImmediateExecutionPathRecoveryNoticeSeed({ status: "in_progress" }),
       recoveryCause: ENVIRONMENT_PROVIDER_UNAVAILABLE_CODE,
@@ -159,10 +159,10 @@ describe("buildStrandedRecoveryEscalationNotice", () => {
     const metadata = JSON.stringify(notice.metadata);
     expect(notice.presentation.title).toBe("Environment provider was temporarily unavailable");
     expect(metadata).toContain("Retry when ready");
-    expect(metadata).not.toContain("Board decision required");
+    expect(metadata).not.toContain("Operator decision required");
   });
   const actionId = "6a2f8e64-6f5e-4b58-b7fd-111111111111";
-  const owner = { id: "9b1c2d3e-4f50-4a61-8b72-222222222222", name: "CTO" };
+  const owner = { id: "9b1c2d3e-4f50-4a61-8b72-222222222222", name: "Engineering Lead" };
   const sourceRun = {
     id: "0c1d2e3f-4a5b-4c6d-8e7f-333333333333",
     agentId: "4d5e6f70-8a9b-4c1d-8e2f-444444444444",
@@ -212,7 +212,7 @@ describe("buildStrandedRecoveryEscalationNotice", () => {
     expect(rows.some((row) => row.label === "Next action")).toBe(true);
   });
 
-  it("records board escalation when there is no invokable recovery owner", () => {
+  it("records operator escalation when there is no invokable recovery owner", () => {
     const notice = buildStrandedRecoveryEscalationNotice({
       seed: buildConfigurationIncompleteRecoveryNoticeSeed(),
       recoveryActionId: actionId,
@@ -222,7 +222,7 @@ describe("buildStrandedRecoveryEscalationNotice", () => {
 
     const ownerRow = allRows(notice.metadata).find((row) => row.label === "Recovery owner");
     expect(ownerRow?.type).toBe("key_value");
-    expect(ownerRow?.value).toBe("Board decision required");
+    expect(ownerRow?.value).toBe("Operator decision required");
   });
 
   it("derives title from the recovery cause and body from the plain-comment fallback", () => {

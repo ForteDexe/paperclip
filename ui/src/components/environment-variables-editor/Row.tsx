@@ -8,7 +8,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import type { CompanySecret, UserSecretDefinition } from "@outpost/shared";
+import type { SpaceSecret, UserSecretDefinition } from "@outpost/shared";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -46,9 +46,9 @@ export interface EnvironmentVariableDirtyFields {
 export interface EnvironmentVariableRowProps {
   row: EnvRow;
   isLast: boolean;
-  secrets: readonly CompanySecret[];
+  secrets: readonly SpaceSecret[];
   userSecretDefinitions?: readonly UserSecretDefinition[];
-  recentlyUsedSecrets?: readonly CompanySecret[];
+  recentlyUsedSecrets?: readonly SpaceSecret[];
   disabled?: boolean;
   nameIssue: NameIssue | null;
   showNameIssue: boolean;
@@ -60,7 +60,7 @@ export interface EnvironmentVariableRowProps {
   onNamePaste: (text: string) => boolean;
   /** Enter pressed in the value of the last row — append a fresh row and focus it. */
   onEnterInValueLast: () => void;
-  onCreateSecret: (name: string, value: string) => Promise<CompanySecret>;
+  onCreateSecret: (name: string, value: string) => Promise<SpaceSecret>;
   onToast: (message: string) => void;
   /** Parent-driven focus request for this row (append flow, source switch). */
   focusRequest: "name" | "value" | null;

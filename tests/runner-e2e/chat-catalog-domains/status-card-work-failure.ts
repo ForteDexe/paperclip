@@ -14,24 +14,24 @@ const text = (v: unknown) => typeof v === "string" && v.length > 0 && v !== "unk
 const millis = (v: unknown) => v instanceof Date ? v.getTime() : typeof v === "string" ? Date.parse(v) : NaN;
 const time = (v: unknown) => Number.isFinite(millis(v));
 const natural = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
-const root = (ctx: ChatCatalogContext) => `/api/companies/${ctx.input.fixtures.company.id}`;
-export interface CardRecipe { companyId: string; workerId: string; connectionId: string; readEntryId: string; instructionRevisionId: string; instructionSha256: string; interestPrompt: string }
+const root = (ctx: ChatCatalogContext) => `/api/spaces/${ctx.input.fixtures.space.id}`;
+export interface CardRecipe { spaceId: string; workerId: string; connectionId: string; readEntryId: string; instructionRevisionId: string; instructionSha256: string; interestPrompt: string }
 export interface CardWorkRun extends ChatRun { usageJson?: Record<string, unknown>; finishedAt?: string | null; costAccountingPending?: boolean; costAccountedAt?: string | null }
 export interface CardWorkEvidence { recipe: CardRecipe; instruction: InstructionFile; runs: CardWorkRun[]; overview: BudgetOverview; generation: Entity; decisions: ToolRunDecisionLookup; comments: Entity[]; activity: Array<Entity & { runId?: string }>; calls: ProviderCall[]; checklistSource: Entity }
 const owned = new WeakMap<ChatCatalogContext, { provider: NotesProvider; connectionId?: string; recipe?: CardRecipe; source: Entity }>();
 export function cardChecklistSourceData(source: Entity) {
-  return JSON.stringify({ syntheticDependency: "Synthetic Launch Notes", companyId: source.companyId, sourceTaskId: source.id, title: source.title, status: source.status, description: source.description });
+  return JSON.stringify({ syntheticDependency: "Synthetic Launch Notes", spaceId: source.spaceId, sourceTaskId: source.id, title: source.title, status: source.status, description: source.description });
 }
 export function updateCardChecklistSource(ctx: ChatCatalogContext, source: Entity) {
   const state = owned.get(ctx);
-  if (!state || source.id !== state.source.id || source.companyId !== state.source.companyId) throw new Error("Card checklist source identity changed");
+  if (!state || source.id !== state.source.id || source.spaceId !== state.source.spaceId) throw new Error("Card checklist source identity changed");
   state.source = structuredClone(source);
 }
 export function cardChecklistPurpose(projectId: string) {
   return `Summarize the biggest blockers for Launch project ${projectId}, citing actual source tasks. This card requires current Synthetic Launch Notes checklist verification of the same source-task facts; older verification is not current. Include only blockers grounded in the saved Launch tasks.`;
 }
 export function cardChecklistInstructions(connectionId: string) {
-  return `\n\n## Launch card source verification\nThis card uses an explicitly synthetic test dependency, Synthetic Launch Notes. For every generation, use its authorized read action on connection ${connectionId} to obtain current checklist verification of the saved Launch task facts. A previous generation's verification is not current input. If the required current source cannot be read, explain the actual blocker rather than presenting an unverified summary as fresh. Preserve the assigned task's company-search scope, bounded changed-issue facts, source visibility and required query/summary write-back sequence; do not add unrelated work or writes.\n`;
+  return `\n\n## Launch card source verification\nThis card uses an explicitly synthetic test dependency, Synthetic Launch Notes. For every generation, use its authorized read action on connection ${connectionId} to obtain current checklist verification of the saved Launch task facts. A previous generation's verification is not current input. If the required current source cannot be read, explain the actual blocker rather than presenting an unverified summary as fresh. Preserve the assigned task's space-search scope, bounded changed-issue facts, source visibility and required query/summary write-back sequence; do not add unrelated work or writes.\n`;
 }
 export function cardUsageComplete(run: CardWorkRun) {
   const u = run.usageJson;
@@ -42,12 +42,12 @@ export function cardUsageComplete(run: CardWorkRun) {
     && time(u.accountingReceiptReceivedAt) && u.usageSource === "per_run" && text(u.provider) && text(u.biller) && text(u.model)
     && ["metered_api", "subscription_included"].includes(String(u.billingType)) && natural(u.inputTokens) && natural(u.outputTokens) && Number(u.inputTokens) + Number(u.outputTokens) > 0;
 }
-export function cardAccountingReady(companyId: string, workerId: string, leadId: string, runs: CardWorkRun[], overview: BudgetOverview) {
-  if (!runs.length || runs.some(run => run.companyId !== companyId || ![workerId, leadId].includes(run.agentId ?? "") || !cardUsageComplete(run)) || overview.companyId !== companyId) return false;
-  const scopes = [{ scopeType: "company", scopeId: companyId }, { scopeType: "agent", scopeId: workerId }, { scopeType: "agent", scopeId: leadId }];
+export function cardAccountingReady(spaceId: string, workerId: string, leadId: string, runs: CardWorkRun[], overview: BudgetOverview) {
+  if (!runs.length || runs.some(run => run.spaceId !== spaceId || ![workerId, leadId].includes(run.agentId ?? "") || !cardUsageComplete(run)) || overview.spaceId !== spaceId) return false;
+  const scopes = [{ scopeType: "space", scopeId: spaceId }, { scopeType: "agent", scopeId: workerId }, { scopeType: "agent", scopeId: leadId }];
   return scopes.every(scope => {
     const policies = overview.policies.filter(p => p.isActive && p.scopeType === scope.scopeType && p.scopeId === scope.scopeId);
-    return policies.length > 0 && policies.every(p => p.companyId === companyId && p.hardStopEnabled && p.amount > 0 && p.unpricedUsagePolicy === "allow" && p.pendingRunCount === 0 && !p.paused && p.status !== "hard_stop" && p.remainingAmount > 0);
+    return policies.length > 0 && policies.every(p => p.spaceId === spaceId && p.hardStopEnabled && p.amount > 0 && p.unpricedUsagePolicy === "allow" && p.pendingRunCount === 0 && !p.paused && p.status !== "hard_stop" && p.remainingAmount > 0);
   });
 }
 function generationPayload(task: Entity) {
@@ -57,16 +57,16 @@ export function boundCardChecklistRead(recipe: CardRecipe, run: CardWorkRun, dec
   const relevant = calls.filter(call => call.method === "tools/call" && call.name === "launch_read" && typeof call.receivedAt === "number" && typeof call.respondedAt === "number"
     && Number.isFinite(call.receivedAt) && Number.isFinite(call.respondedAt) && call.receivedAt <= call.respondedAt
     && call.receivedAt >= millis(run.startedAt!) && call.respondedAt <= millis(run.finishedAt!));
-  if (source.companyId !== recipe.companyId || !source.id || !relevant.length || !relevant.every(call => call.authorized && call.responseHttpStatus === 200 && call.toolError === failed
+  if (source.spaceId !== recipe.spaceId || !source.id || !relevant.length || !relevant.every(call => call.authorized && call.responseHttpStatus === 200 && call.toolError === failed
     && call.responseSha256 === hash(JSON.stringify(notesReadResponse(cardChecklistSourceData(source), failed))))) return false;
   let causalReadCompleted = false;
-  const bound = decisions.runId === run.id && relevant.every(call => decisions.decisions.some(({ invocation: v, auditEvents }) => v.companyId === recipe.companyId && v.agentId === recipe.workerId
+  const bound = decisions.runId === run.id && relevant.every(call => decisions.decisions.some(({ invocation: v, auditEvents }) => v.spaceId === recipe.spaceId && v.agentId === recipe.workerId
     && v.issueId === run.contextSnapshot?.issueId && v.runId === run.id && v.connectionId === recipe.connectionId && v.catalogEntryId === recipe.readEntryId
     && v.policyDecision === "allow" && v.status === (failed ? "failed" : "succeeded") && v.errorCode === (failed ? "tool_error" : null)
     && time(v.startedAt) && time(v.completedAt) && !!v.argumentsHash && (failed || !!v.resultHash)
     && auditEvents.some(a => {
       const e = record(record(a.metadata).execution), request = record(e.request), response = record(e.response);
-      const matched = a.invocationId === v.id && a.companyId === recipe.companyId && a.agentId === recipe.workerId && a.issueId === v.issueId && a.runId === run.id
+      const matched = a.invocationId === v.id && a.spaceId === recipe.spaceId && a.agentId === recipe.workerId && a.issueId === v.issueId && a.runId === run.id
         && a.connectionId === recipe.connectionId && a.catalogEntryId === recipe.readEntryId && a.outcome === (failed ? "failure" : "success")
         && a.decision === (failed ? "deny" : "allow") && a.reasonCode === (failed ? "tool_error" : "tool_completed")
         && e.transport === "mcp_remote" && request.dispatched === true && request.upstreamToolName === "launch_read" && request.mcpMethod === "tools/call" && response.httpStatus === 200
@@ -81,19 +81,19 @@ export function genuineCardWorkFailure(card: StatusCard, update: StatusCardUpdat
   if (!evidence) return false;
   const { recipe, instruction, generation, runs, decisions, calls, comments, activity } = evidence;
   const run = runs.find(row => row.id === runId), payload = generationPayload(generation);
-  if (!run || !cardUsageComplete(run) || !time(run.startedAt) || card.state !== "error" || !card.failureReason || card.generatingIssueId || card.companyId !== recipe.companyId || card.agentId !== recipe.workerId || card.interestPrompt !== recipe.interestPrompt
-    || instruction.revision.companyId !== recipe.companyId || instruction.revision.agentId !== recipe.workerId || instruction.revision.id !== recipe.instructionRevisionId || hash(instruction.content) !== recipe.instructionSha256
-    || generation.id !== update.generationIssueId || generation.companyId !== recipe.companyId || generation.assigneeAgentId !== recipe.workerId || generation.status !== "blocked"
-    || payload?.companyId !== recipe.companyId || payload.statusCardId !== card.id || payload.generationIssueId !== generation.id
+  if (!run || !cardUsageComplete(run) || !time(run.startedAt) || card.state !== "error" || !card.failureReason || card.generatingIssueId || card.spaceId !== recipe.spaceId || card.agentId !== recipe.workerId || card.interestPrompt !== recipe.interestPrompt
+    || instruction.revision.spaceId !== recipe.spaceId || instruction.revision.agentId !== recipe.workerId || instruction.revision.id !== recipe.instructionRevisionId || hash(instruction.content) !== recipe.instructionSha256
+    || generation.id !== update.generationIssueId || generation.spaceId !== recipe.spaceId || generation.assigneeAgentId !== recipe.workerId || generation.status !== "blocked"
+    || payload?.spaceId !== recipe.spaceId || payload.statusCardId !== card.id || payload.generationIssueId !== generation.id
     || update.cardId !== card.id || update.status !== "failed" || !update.error || !time(update.finishedAt) || !time(update.startedAt)
     || millis(update.startedAt) > millis(run.startedAt) || millis(update.finishedAt!) < millis(run.startedAt)
-    || run.companyId !== recipe.companyId || run.agentId !== recipe.workerId || run.contextSnapshot?.issueId !== generation.id
-    || !boundCardChecklistRead(recipe, run, decisions, calls, true, evidence.checklistSource, update.finishedAt) || !cardAccountingReady(recipe.companyId, recipe.workerId, leadId, runs, evidence.overview)) return false;
+    || run.spaceId !== recipe.spaceId || run.agentId !== recipe.workerId || run.contextSnapshot?.issueId !== generation.id
+    || !boundCardChecklistRead(recipe, run, decisions, calls, true, evidence.checklistSource, update.finishedAt) || !cardAccountingReady(recipe.spaceId, recipe.workerId, leadId, runs, evidence.overview)) return false;
   // The worker's comment is model output, so its wording is not pattern-matched; the blocked task, failed update and
   // failed bound checklist read above carry the failure. The comment must come from that run on that generation task.
-  return comments.some(c => c.companyId === recipe.companyId && c.issueId === generation.id && c.authorAgentId === recipe.workerId && c.createdByRunId === run.id
+  return comments.some(c => c.spaceId === recipe.spaceId && c.issueId === generation.id && c.authorAgentId === recipe.workerId && c.createdByRunId === run.id
     && !!c.body?.trim())
-    && activity.some(a => a.companyId === recipe.companyId && a.entityId === generation.id && a.runId === run.id && a.action === "issue.updated"
+    && activity.some(a => a.spaceId === recipe.spaceId && a.entityId === generation.id && a.runId === run.id && a.action === "issue.updated"
       && (a.actorType === "agent" && a.actorId === recipe.workerId && a.details?.status === "blocked"
         || a.actorType === "system" && a.actorId === "native-status-committer" && a.details?.source === "native_status_decision" && a.details?.toStatus === "blocked"));
 }
@@ -109,7 +109,7 @@ export async function prepareCardChecklist(ctx: ChatCatalogContext, workerId: st
     const saved = await ctx.input.api.putSensitive<InstructionFile>(url, { path: "AGENTS.md", content: current.content + cardChecklistInstructions(connection.connectionId), baseRevisionId: current.revision.id });
     const readback = await ctx.input.api.get<InstructionFile>(`${url}?path=AGENTS.md`);
     if (saved.revision.id !== readback.revision.id || saved.content !== readback.content || !readback.content.startsWith(current.content)) throw new Error("Card recipe instructions were not saved through the public revision path");
-    state.recipe = { companyId: ctx.input.fixtures.company.id, workerId, connectionId: connection.connectionId, readEntryId: connection.read[0]!, instructionRevisionId: readback.revision.id, instructionSha256: hash(readback.content), interestPrompt: cardChecklistPurpose(projectId) };
+    state.recipe = { spaceId: ctx.input.fixtures.space.id, workerId, connectionId: connection.connectionId, readEntryId: connection.read[0]!, instructionRevisionId: readback.revision.id, instructionSha256: hash(readback.content), interestPrompt: cardChecklistPurpose(projectId) };
     return state.recipe;
   } catch (error) { await cleanupCardChecklist(ctx); throw error; }
 }
@@ -133,11 +133,11 @@ export async function observeCardWork(ctx: ChatCatalogContext, recipe: CardRecip
 export function genuineCardChecklistSuccess(cardId: string, recipe: CardRecipe, update: StatusCardUpdate, evidence: CardWorkEvidence | undefined) {
   if (!evidence || !update.runId || !update.generationIssueId || update.status !== "ok" || update.cardId !== cardId) return false;
   const run = evidence.runs.find(row => row.id === update.runId), payload = generationPayload(evidence.generation);
-  return !!run && cardUsageComplete(run) && time(run.startedAt) && run.companyId === recipe.companyId && run.agentId === recipe.workerId && run.contextSnapshot?.issueId === update.generationIssueId
-    && evidence.generation.companyId === recipe.companyId && evidence.generation.id === update.generationIssueId && evidence.generation.assigneeAgentId === recipe.workerId && evidence.generation.status === "done"
-    && payload?.companyId === recipe.companyId && payload.statusCardId === cardId && payload.generationIssueId === update.generationIssueId
+  return !!run && cardUsageComplete(run) && time(run.startedAt) && run.spaceId === recipe.spaceId && run.agentId === recipe.workerId && run.contextSnapshot?.issueId === update.generationIssueId
+    && evidence.generation.spaceId === recipe.spaceId && evidence.generation.id === update.generationIssueId && evidence.generation.assigneeAgentId === recipe.workerId && evidence.generation.status === "done"
+    && payload?.spaceId === recipe.spaceId && payload.statusCardId === cardId && payload.generationIssueId === update.generationIssueId
     && boundCardChecklistRead(recipe, run, evidence.decisions, evidence.calls, false, evidence.checklistSource)
-    && evidence.instruction.revision.companyId === recipe.companyId && evidence.instruction.revision.agentId === recipe.workerId
+    && evidence.instruction.revision.spaceId === recipe.spaceId && evidence.instruction.revision.agentId === recipe.workerId
     && evidence.instruction.revision.id === recipe.instructionRevisionId && hash(evidence.instruction.content) === recipe.instructionSha256;
 }
 export async function observeCardChecklistSuccess(ctx: ChatCatalogContext, recipe: CardRecipe, update: StatusCardUpdate) {

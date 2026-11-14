@@ -44,7 +44,7 @@ function ingress() {
     conversationId: "conversation",
     issueId: "issue",
     humanCommentId: "comment",
-    linkedPaperclipUserId: "human",
+    linkedOutpostUserId: "human",
     provider: {
       workspaceId: "TWORKSPACE",
       channelId: "CCHANNEL",
@@ -57,7 +57,7 @@ function ingress() {
     receipt,
     endpoint: {
       id: "endpoint",
-      companyId: "company",
+      spaceId: "space",
       assignedAgentId: "ceo",
       provider: "slack",
       providerAccountId: "TWORKSPACE",
@@ -66,7 +66,7 @@ function ingress() {
     conversation: {
       id: "conversation",
       endpointId: "endpoint",
-      companyId: "company",
+      spaceId: "space",
       issueId: "issue",
       externalConversationId: "slack:CCHANNEL",
       externalThreadId: "slack:CCHANNEL:1793050000.123456",
@@ -84,7 +84,7 @@ function ingress() {
       metadata: { sourceChannel: "slack" },
     },
     canonicalQuery: "Exact canonical query.",
-    companyId: "company",
+    spaceId: "space",
     agentId: "ceo",
   };
 }
@@ -121,10 +121,10 @@ describe("finite real Slack companion prerequisites and source binding", () => {
   });
   it("accepts exact canonical linked-human source identity across the actual public DTOs", () =>
     expect(slackIngressMatches(ingress())).toBe(true));
-  it("rejects copied company hints, wrong sender/comment, wrong thread, lost canonical bytes and missing dispatch", () => {
+  it("rejects copied space hints, wrong sender/comment, wrong thread, lost canonical bytes and missing dispatch", () => {
     for (const mutate of [
       (i: ReturnType<typeof ingress>) => {
-        i.endpoint.companyId = "another-company";
+        i.endpoint.spaceId = "another-space";
       },
       (i: ReturnType<typeof ingress>) => {
         i.receipt.provider.senderUserId = "UBOT";

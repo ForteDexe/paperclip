@@ -8,7 +8,7 @@ import { canonicalProviderPackJson } from "./remote-provider-pack-verification.j
 
 const directories: string[] = [];
 afterEach(() => { for (const dir of directories.splice(0)) rmSync(dir, { recursive: true, force: true }); });
-const binding = { companyId: "company", agentId: "agent", workspaceId: "workspace", sessionId: "session",
+const binding = { spaceId: "space", agentId: "agent", workspaceId: "workspace", sessionId: "session",
   runnerInstanceId: "runner", environmentLeaseId: "lease", remoteCwd: "/workspace", providerDigest: "provider" };
 const runnerArtifact = () => ({ version: "0.0.0", digest: "sha256:" + "c".repeat(64) });
 const manifest = (revision: string) => {

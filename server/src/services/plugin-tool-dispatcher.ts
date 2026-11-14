@@ -24,7 +24,7 @@
 
 import type { Db } from "@outpost/db";
 import type {
-  PaperclipPluginManifestV1,
+  OutpostPluginManifestV1,
   PluginRecord,
 } from "@outpost/shared";
 import type { ToolRunContext, ToolResult } from "@outpost/plugin-sdk";
@@ -160,7 +160,7 @@ export interface PluginToolDispatcher {
    */
   registerPluginTools(
     pluginKey: string,
-    manifest: PaperclipPluginManifestV1,
+    manifest: OutpostPluginManifestV1,
     pluginDbId: string,
   ): void;
 
@@ -221,7 +221,7 @@ export interface PluginToolDispatcher {
  * const result = await dispatcher.executeTool(
  *   "acme.linear:search-issues",
  *   { query: "auth bug" },
- *   { agentId: "a-1", runId: "r-1", companyId: "c-1", projectId: "p-1" },
+ *   { agentId: "a-1", runId: "r-1", spaceId: "c-1", projectId: "p-1" },
  * );
  * ```
  */
@@ -434,7 +434,7 @@ export function createPluginToolDispatcher(
 
     registerPluginTools(
       pluginKey: string,
-      manifest: PaperclipPluginManifestV1,
+      manifest: OutpostPluginManifestV1,
       pluginDbId: string,
     ): void {
       registry.registerPlugin(pluginKey, manifest, pluginDbId);

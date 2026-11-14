@@ -2,7 +2,7 @@
 
 OpenAI Dot is an experimental provider of `outpost_runner`. A dedicated
 agent OAuth connection and MCP Events wake an existing Dot. The Rust Runner
-owns the assignment lifecycle and durable tool receipts. Dot uses Paperclip's
+owns the assignment lifecycle and durable tool receipts. Dot uses Outpost's
 existing agent permissions and task tools, including document writes and
 completion feedback.
 
@@ -20,43 +20,43 @@ Runner setting in addition to Dot and Assistant connections (MCP).
    `OUTPOST_ENABLE_OPENAI_DOT` environment flag no longer enables the provider.
 2. In **Add agent**, choose the standalone **OpenAI Dot** option.
    Acknowledge that its provider billing is external and unmetered, then save it.
-   Approve the agent if company policy requires it. Dot uses the shared Runner
+   Approve the agent if space policy requires it. Dot uses the shared Runner
    internally; its own experimental toggle does not require enabling the general
    **Outpost Runner** option and does not enable other Runner providers.
 3. In the agent configuration, choose **Pair Dot**, then **Set up with Dot**.
    The shared setup-prompt component copies the MCP URL, one-use pairing code,
    expiry, and event instructions. Paste the prompt into your Dot so it can add
    or reuse the private plugin and finish OAuth in its own browser. Dot enters
-   the one-use code on the Paperclip connection page and chooses
+   the one-use code on the Outpost connection page and chooses
    **Allow agent connection**. Entering a valid code first shows the
-   exact company, agent, permissions, and ongoing revocable access duration;
+   exact space, agent, permissions, and ongoing revocable access duration;
    previewing consumes no code and creates no grant. No operator sign-in in Dot’s browser is
-   needed. The personal `/mcp/paperclip` connection
+   needed. The personal `/mcp/outpost` connection
    cannot execute as Dot.
 4. The OAuth code approval pairs Dot atomically. Attach the connected plugin
    to the Dot conversation if ChatGPT has not exposed its action tools. Dot calls
-   `paperclip_dot_inbox` to verify access, then subscribes to
-   `outpost.dot.mailbox_updated` with the setup company and inbox binding IDs.
+   `outpost_dot_inbox` to verify access, then subscribes to
+   `outpost.dot.mailbox_updated` with the setup space and inbox binding IDs.
    Its callback must pass the signed webhook verification. The prompt stays
    only in page memory and disappears when its code expires; if you leave the
    page or the code expires, revoke the pending connection and pair again.
-5. Choose **Test event delivery**. Dot drains `paperclip_dot_inbox` and confirms
+5. Choose **Test event delivery**. Dot drains `outpost_dot_inbox` and confirms
    the readiness challenge. Readiness requires this round trip, not just an
    HTTP acknowledgement from the callback.
-6. Assign a task to the agent. Normal scheduling, checkout, company access,
+6. Assign a task to the agent. Normal scheduling, checkout, space access,
    budgets and approval rules still determine admission.
 
 Only the operator's one-use pairing code is displayed. OAuth tokens and callback
 signing secrets stay on the server and never enter the Runner descriptor,
 task prompt or saved adapter config. Pairing codes expire after 15 minutes.
-Once paired, the connection has no Paperclip inactivity expiry, including existing
+Once paired, the connection has no Outpost inactivity expiry, including existing
 valid connections upgraded by migration `0319_heavy_captain_midlands.sql`. Access tokens
 still last 15 minutes and are renewed with rotating, non-expiring refresh tokens;
-revocation, replay detection, and current company/agent permissions still apply.
+revocation, replay detection, and current space/agent permissions still apply.
 This does not control any independent OpenAI-side connection policy.
 
 In **Invite an external agent → Dot**, the prompt preview closes automatically
-as soon as Paperclip observes the connection. The footer shows **Connecting…**
+as soon as Outpost observes the connection. The footer shows **Connecting…**
 while Dot subscribes, then **Confirming connection…** during the event check.
 After the round trip succeeds, **Done** closes the invitation dialog.
 
@@ -64,7 +64,7 @@ The dedicated connection uses the merged MCP gateway's PKCE browser and device
 flows, including verified client metadata documents and organization hints.
 Its issuer is `<origin>/mcp/runner/oauth`; the personal issuer remains `<origin>`.
 The shared consent page identifies Dot agent access. A code issued by an
-operator preapproves only its selected company and agent; redemption rechecks
+operator preapproves only its selected space and agent; redemption rechecks
 current operator membership, agent availability, all experimental prerequisites,
 expiry, revocation, and the authorization request’s organization hint. Redemption
 consumes the code and attaches the grant atomically; it creates no board session.
@@ -76,7 +76,7 @@ Database migration `0317_messy_famine.sql` adds only Dot tables and extensions
 after the merged gateway migrations. It is safe to reapply. The earlier
 prototype migration number is retired; published master migrations are intact.
 
-Company package imports use the same independent Dot option. An unpaired imported
+Space package imports use the same independent Dot option. An unpaired imported
 Dot can be saved after the external billing acknowledgement; pair it before
 assigning work. The dev launcher also prepares the shared Runner binary when
 Dot is enabled, even when the general Runner option is off.
@@ -92,7 +92,7 @@ returns `401` with a `WWW-Authenticate` header pointing to the resource metadata
 The server advertises both CIMD and Dynamic Client Registration; use CIMD when
 ChatGPT discovers it. A manually entered client secret is not required.
 ChatGPT’s CIMD prefers `private_key_jwt` but explicitly lists `none` among its
-supported methods. Paperclip selects the public PKCE method it advertises and
+supported methods. Outpost selects the public PKCE method it advertises and
 rejects clients whose published capabilities do not include that method.
 
 The browser authorization page must also be reachable from Dot’s computer.
@@ -107,7 +107,7 @@ accept only these explicitly configured origins; this does not allow arbitrary
 return destinations or expose another instance.
 
 If ChatGPT times out, compare its retry with the server access log. No incoming
-MCP or discovery request means that attempt did not reach Paperclip; entering
+MCP or discovery request means that attempt did not reach Outpost; entering
 OAuth URLs manually does not repair that connection. Verify public reachability
 from outside the tailnet: MagicDNS on the host can route a Tailscale URL directly
 to the private tailnet address even when the same URL uses Funnel externally.
@@ -122,20 +122,20 @@ reads the assignment, and explicitly accepts it before executing tools. A
 webhook `2xx` does not mean Dot accepted or started the task. Duplicate or
 out-of-order events must not create another assignment.
 
-Dot invokes catalogued tools through `paperclip_dot_tool`. Every operation uses
+Dot invokes catalogued tools through `outpost_dot_tool`. Every operation uses
 a UUID request ID. A pending response is reconciled with
-`paperclip_dot_operation_status` or retried with **the same ID and arguments**.
+`outpost_dot_operation_status` or retried with **the same ID and arguments**.
 Changing arguments under the same ID is rejected. An unknown write must never
 be retried under a new ID. Idle intake returns its assignment when available.
-If admission is still pending, retry `paperclip_dot_request_turn` with the same
+If admission is still pending, retry `outpost_dot_request_turn` with the same
 ID and exact prompt to inspect the same intake; no second task or human nudge
 is required. Events also notify work queued behind another active assignment.
 
-Dot calls `paperclip_finish` or `paperclip_block` through the tool bridge, then
-ends the external turn with `paperclip_dot_finish` using exactly the accepted
-structured report. Paperclip's ordinary result and status finalizers decide
+Dot calls `outpost_finish` or `outpost_block` through the tool bridge, then
+ends the external turn with `outpost_dot_finish` using exactly the accepted
+structured report. Outpost's ordinary result and status finalizers decide
 the task disposition. Dot can also discover its assigned tasks and request
-normal admission with `paperclip_dot_tasks` and `paperclip_dot_request_work`.
+normal admission with `outpost_dot_tasks` and `outpost_dot_request_work`.
 
 The completion tool returns its canonical accepted report. The final turn can
 repeat either that canonical report or the exact original accepted arguments;
@@ -154,12 +154,12 @@ tools; those narrow inbox reads leave its task cursor unchanged.
 ## Limits and recovery
 
 - One active assignment per binding. Acceptance expires after 10 minutes;
-  execution authority starts with a two-hour lease. Accepted, still-authorized assignments can renew with `paperclip_dot_renew` for up to two hours ahead, within a 24-hour total bound. Fifteen minutes without useful
+  execution authority starts with a two-hour lease. Accepted, still-authorized assignments can renew with `outpost_dot_renew` for up to two hours ahead, within a 24-hour total bound. Fifteen minutes without useful
   activity is shown in the connection panel as requiring attention.
 - No mounted workspace, selectable model, native Dot thread identifier,
-  provider usage or provider cost. Text deliverables use Paperclip documents.
+  provider usage or provider cost. Text deliverables use Outpost documents.
   Assigned skills are read from verified pinned bundles; app tools use the assigned MCP gateway. The optional workspace bridge provides files, sandboxed commands, and verified downloadable artifacts without mounting files into OpenAI. Workspace calls serialize within the local controller, including hash checks and writes, so overlapping edits cannot both commit against the same observed hash. Definite file/skill read failures return bounded error receipts rather than leaving tool calls pending. Commands require Linux bubblewrap with a private PID namespace; there is no unrestricted fallback. macOS file tools remain available, but commands are disabled because sandbox-exec cannot contain detached descendants. Networking and injected credentials are excluded from commands; use assigned app tools for services.
-- Cancel, pause, reassignment and revocation fence Paperclip authority. They do
+- Cancel, pause, reassignment and revocation fence Outpost authority. They do
   not confirm that Dot stopped all external activity. A fence acknowledgement
   records receipt only.
 - Controller recovery restores the same bridge and assignment. A missing or
@@ -175,7 +175,7 @@ Resubscribing verifies the Dot callback again and publishes a fresh mailbox
 reference for its existing outstanding assignment. It does not create another
 assignment or replay tool effects. OAuth revocation and refresh-token replay
 also revoke the matching binding, fence its assignments, and cancel waiting
-Paperclip runs. Revoking an old grant cannot revoke a replacement binding.
+Outpost runs. Revoking an old grant cannot revoke a replacement binding.
 Reopening an agent form restores the binding reference from the server so a
 previously completed pairing remains visible. Completing pairing also saves the exact binding reference and a configuration revision atomically; revocation clears only that matching reference. A separate form save is unnecessary.
 
@@ -194,7 +194,7 @@ proof does not qualify this new dedicated endpoint against a real account.
 The dedicated adapter was subsequently qualified against a real Dot account
 on 2026-10-07, as recorded below.
 On 2026-10-06, a hands-on browser test used a fresh authenticated instance with
-synthetic account, company, and agent data through its public HTTPS origin.
+synthetic account, space, and agent data through its public HTTPS origin.
 It verified the experimental prerequisites, saved toggle behavior, Dot harness,
 dedicated MCP URL, one-use pairing instructions, and revocation. The instance
 was created with `worktree init --empty`, so it copied no private instance data
@@ -209,7 +209,7 @@ Dot could not verify an agent relay of human approval, so this did not rely on
 impersonating the human or overriding Dot's policy. Codex attached the connected
 app to the Dot conversation when its tools were not initially exposed. No
 human operated Dot's computer. Dot verified its inbox and enabled its signed
-MCP Events subscription. A Paperclip readiness challenge woke Dot without a
+MCP Events subscription. A Outpost readiness challenge woke Dot without a
 manual chat message and was confirmed successfully.
 
 The first task exposed a missing Dot descriptor in ordinary heartbeat admission.
@@ -232,7 +232,7 @@ missing fixture exposed a read exception that left the operation pending and
 prevented turn closure. The test operator cancelled that run; Dot acknowledged
 its fence without repeating its work.
 
-After the fix, Dot initiated a new intake with `paperclip_dot_request_turn`,
+After the fix, Dot initiated a new intake with `outpost_dot_request_turn`,
 created **hello from idle** for the human owner, observed a terminal
 `runner_bridge_file_not_found` error, and continued successfully. It wrote,
 read, executed, and registered the 20-byte `idle-runner-verified` proof. Its
@@ -329,30 +329,30 @@ responses. These screenshots show preview data, not a qualified Dot account:
 
 ## Starting work from a Dot conversation
 
-Call `paperclip_dot_capabilities` to discover the bound agent, responsible person, permissions, prerequisites and active assignment. An idle Dot can call `paperclip_dot_request_turn` with a prompt and stable UUID. Paperclip creates one visible, agent-authored intake task and admits it through the ordinary heartbeat/Runner path. Retries reuse the task and wake receipt; the same UUID with a different prompt is rejected. Company and agent pause, grants, budgets, task assignment permissions and single-assignment ownership apply. The intake is work attributed to the Dot, not a fabricated operator message or an OAuth permission expansion.
+Call `outpost_dot_capabilities` to discover the bound agent, responsible person, permissions, prerequisites and active assignment. An idle Dot can call `outpost_dot_request_turn` with a prompt and stable UUID. Outpost creates one visible, agent-authored intake task and admits it through the ordinary heartbeat/Runner path. Retries reuse the task and wake receipt; the same UUID with a different prompt is rejected. Space and agent pause, grants, budgets, task assignment permissions and single-assignment ownership apply. The intake is work attributed to the Dot, not a fabricated operator message or an OAuth permission expansion.
 
-Read and accept the resulting assignment, then call its catalog through `paperclip_dot_tool`. Use `get_identity` and paginated `list_people` to identify the owner. `create_task` accepts either `assigneeActorId` for an agent or `assigneeUserId` for an active company person. `reassign_task` also accepts a person and checks the previous agent/person and status version before the ownership change. Human tasks do not wake agents.
+Read and accept the resulting assignment, then call its catalog through `outpost_dot_tool`. Use `get_identity` and paginated `list_people` to identify the owner. `create_task` accepts either `assigneeActorId` for an agent or `assigneeUserId` for an active space person. `reassign_task` also accepts a person and checks the previous agent/person and status version before the ownership change. Human tasks do not wake agents.
 
-The shared catalog adds `get_task`, `comment_on_task`, `list_task_documents`, `read_task_document`, and `write_task_document` through the existing authenticated REST authority. Company boundaries, task visibility, mode restrictions, document revisions, locks and mutation receipts still apply. `call_api` remains the discovery-based route for other authorized control-plane actions.
+The shared catalog adds `get_task`, `comment_on_task`, `list_task_documents`, `read_task_document`, and `write_task_document` through the existing authenticated REST authority. Space boundaries, task visibility, mode restrictions, document revisions, locks and mutation receipts still apply. `call_api` remains the discovery-based route for other authorized control-plane actions.
 
-`list_assigned_skills` and `read_assigned_skill` read the turn's exact pinned skill versions, with manifest and file digest checks. Assigned app tools are projected by the existing MCP gateway; its permission checks, approvals, receipts and revocations remain authoritative. Credentials are kept on Paperclip. Newly granted app tools arrive in a continuation with a new pinned catalog.
+`list_assigned_skills` and `read_assigned_skill` read the turn's exact pinned skill versions, with manifest and file digest checks. Assigned app tools are projected by the existing MCP gateway; its permission checks, approvals, receipts and revocations remain authoritative. Credentials are kept on Outpost. Newly granted app tools arrive in a continuation with a new pinned catalog.
 
-Enable **Workspace files and commands** on the agent to expose `workspace_list`, `workspace_read`, `workspace_write`, and `workspace_run`. The server binds these to the admitted execution workspace. File paths reject absolute paths, traversal and symlinks. Paperclip instance state under `.paperclip` is excluded from file tools, uploads, and sandbox commands. Linux commands mask existing instance directories and the workspace root instance directory with read-only empty mounts. The command protection scan fails closed above 4,096 directories. macOS supports file tools and publishing; `workspace_run` is neither advertised nor executable there because its file sandbox cannot contain detached descendants. New writes require an absent file; overwrites require its observed SHA-256. Commands have bounded output/time and an OS sandbox, use a workspace-local home, and do not inherit credentials. Linux commands run in a private PID namespace. Command completion, timeout, or live authority loss terminates its supervisor and all descendants, including children that start a new session. Register requested files with `register_deliverable` before finishing. Workspace mutation attempts are reserved durably before effects; an interrupted attempt returns an unknown outcome instead of replaying a possible effect. Inspect state before deciding another mutation.
+Enable **Workspace files and commands** on the agent to expose `workspace_list`, `workspace_read`, `workspace_write`, and `workspace_run`. The server binds these to the admitted execution workspace. File paths reject absolute paths, traversal and symlinks. Outpost instance state under `.outpost` is excluded from file tools, uploads, and sandbox commands. Linux commands mask existing instance directories and the workspace root instance directory with read-only empty mounts. The command protection scan fails closed above 4,096 directories. macOS supports file tools and publishing; `workspace_run` is neither advertised nor executable there because its file sandbox cannot contain detached descendants. New writes require an absent file; overwrites require its observed SHA-256. Commands have bounded output/time and an OS sandbox, use a workspace-local home, and do not inherit credentials. Linux commands run in a private PID namespace. Command completion, timeout, or live authority loss terminates its supervisor and all descendants, including children that start a new session. Register requested files with `register_deliverable` before finishing. Workspace mutation attempts are reserved durably before effects; an interrupted attempt returns an unknown outcome instead of replaying a possible effect. Inspect state before deciding another mutation.
 
-Mailbox `follow_up` entries reference new comments on an accepted assignment. Read `get_task_history` and incorporate them at a safe boundary. This supplies new input without claiming OpenAI steering support. `paperclip_dot_tasks` pages by the last task ID. Each assignment allows up to 4,000 broker operations; lower domain-specific limits still apply. A fenced assignment's control acknowledgement remains available at that limit. `hire_agent` creates a distinct unpaired Paperclip Dot teammate; the operator still pairs a separate OpenAI Dot. No existing binding or workspace permission is inherited.
+Mailbox `follow_up` entries reference new comments on an accepted assignment. Read `get_task_history` and incorporate them at a safe boundary. This supplies new input without claiming OpenAI steering support. `outpost_dot_tasks` pages by the last task ID. Each assignment allows up to 4,000 broker operations; lower domain-specific limits still apply. A fenced assignment's control acknowledgement remains available at that limit. `hire_agent` creates a distinct unpaired Outpost Dot teammate; the operator still pairs a separate OpenAI Dot. No existing binding or workspace permission is inherited.
 
 
 ## Tool inventory
 
 The top-level MCP catalog contains these 16 transport, lifecycle, and profile tools:
-`paperclip_dot_capabilities`, `paperclip_dot_request_turn`, `paperclip_dot_tasks`,
-`paperclip_dot_request_work`, `paperclip_dot_pair`, `paperclip_dot_inbox`,
-`paperclip_dot_read`, `paperclip_dot_accept`, `paperclip_dot_tool`,
-`paperclip_dot_progress`, `paperclip_dot_finish`, `paperclip_dot_operation_status`,
-`paperclip_dot_confirm_event`, `paperclip_dot_renew`, `paperclip_dot_control_ack`,
-`paperclip_dot_set_avatar`.
+`outpost_dot_capabilities`, `outpost_dot_request_turn`, `outpost_dot_tasks`,
+`outpost_dot_request_work`, `outpost_dot_pair`, `outpost_dot_inbox`,
+`outpost_dot_read`, `outpost_dot_accept`, `outpost_dot_tool`,
+`outpost_dot_progress`, `outpost_dot_finish`, `outpost_dot_operation_status`,
+`outpost_dot_confirm_event`, `outpost_dot_renew`, `outpost_dot_control_ack`,
+`outpost_dot_set_avatar`.
 
-After accepting work, use `paperclip_dot_tool` with a name from the assignment's
+After accepting work, use `outpost_dot_tool` with a name from the assignment's
 actual catalog. Availability depends on work mode, permissions, assigned apps,
 and workspace/attachment bindings. Advertising a tool does not bypass its
 server-side authorization.
@@ -366,18 +366,18 @@ server-side authorization.
 | Agent instructions | `read_agent_instructions`, `update_agent_instructions`, `get_agent_instruction_history`, `restore_agent_instructions` |
 | Skills | `create_skill`, `update_skill`, `list_assigned_skills`, `read_assigned_skill` |
 | Projects | `create_project`, `list_projects`, `list_project_repositories` |
-| Apps and control-plane APIs | `connections_search`, `connection_request`, `search_api`, `call_api`, `hire_agent`; assigned gateway tools are discovered from the actual catalog, or via `paperclip_search_assigned_tools` / `paperclip_call_assigned_tool` for large catalogs |
+| Apps and control-plane APIs | `connections_search`, `connection_request`, `search_api`, `call_api`, `hire_agent`; assigned gateway tools are discovered from the actual catalog, or via `outpost_search_assigned_tools` / `outpost_call_assigned_tool` for large catalogs |
 | Workspace and output | `workspace_list`, `workspace_read`, `workspace_write`, `workspace_run`, `register_deliverable` |
 | Task attachments | `list_task_attachments`, `read_task_attachment` when **Read task attachments** is enabled |
 | Bound chat inputs | `list_chat_attachments`, `reuse_chat_attachment`; `read_chat_attachment` and `read_current_wake_comments` require verified server bindings |
 | Feedback | `submit_complaint`, `submit_suggestion` |
-| Completion | `paperclip_finish`, `paperclip_block`; a separate review run offers its limited read catalog and `resolve_review` |
+| Completion | `outpost_finish`, `outpost_block`; a separate review run offers its limited read catalog and `resolve_review` |
 
 Enable **Read task attachments** on the Dot agent to expose `list_task_attachments`
 and `read_task_attachment` on new assignments. This setting is off by default,
 requires operator consent, and sends file contents to OpenAI. It is independent
 of **Workspace files and commands** and is never inherited by a hired teammate.
-Reads are restricted to the current run's assigned task and company, recheck
+Reads are restricted to the current run's assigned task and space, recheck
 live run/binding/setting authority before returning, verify byte size and
 SHA-256, and return at most 12,000 bytes per page from files up to 16 MiB.
 Each run keeps a verified in-memory copy bounded to 16 MiB and 20 files;
@@ -389,7 +389,7 @@ SHA-256 on subsequent pages to detect changes. Missing, oversized or corrupt
 files return terminal errors. Read audit entries contain metadata, never file
 contents. Revocation blocks further reads, but cannot withdraw bytes already
 sent to OpenAI. Files and filenames remain untrusted input. There is no public
-attachment URL or Paperclip credential exposed to Dot. Generic `call_api`
+attachment URL or Outpost credential exposed to Dot. Generic `call_api`
 attachment and workspace downloads cannot bypass these settings; use the scoped
 read tools. Raw asset reads and uploads are limited to API captures and output
 artifacts from the current run. API uploads from workspace paths require the
@@ -397,9 +397,9 @@ workspace grant and the same confined root as workspace tools.
 
 ### Dot's own tools and task scope
 
-Dot should use its own available tools, apps, plugins, skills, and capabilities to complete each Paperclip assignment or message, then return the result to Paperclip. For example, Dot can use a Slack connection already available in ChatGPT even when Slack is absent from the Paperclip agent's assigned app catalog. The assignment catalog governs Paperclip calls through `paperclip_dot_tool`; it does not enumerate or disable Dot's native tools. Each tool retains its own permissions and approval requirements. Paperclip company, agent, task, and denial boundaries remain in force. Native tools cannot substitute another Paperclip identity or bypass a denied Paperclip operation.
+Dot should use its own available tools, apps, plugins, skills, and capabilities to complete each Outpost assignment or message, then return the result to Outpost. For example, Dot can use a Slack connection already available in ChatGPT even when Slack is absent from the Outpost agent's assigned app catalog. The assignment catalog governs Outpost calls through `outpost_dot_tool`; it does not enumerate or disable Dot's native tools. Each tool retains its own permissions and approval requirements. Outpost space, agent, task, and denial boundaries remain in force. Native tools cannot substitute another Outpost identity or bypass a denied Outpost operation.
 
-Setup and qualification restrictions are local to their stated scope. Test prompts should say, for example, "For this qualification task only, send Paperclip operations through this test connection. After this test, use your normal available tools and connections for later requests." Avoid "use only this plugin" without naming the task and duration. Do not carry a completed test's restriction into later comments or messages. The copy prompts, external-agent onboarding document, Dot event and capability instructions, and Runner assignment instructions all make this distinction.
+Setup and qualification restrictions are local to their stated scope. Test prompts should say, for example, "For this qualification task only, send Outpost operations through this test connection. After this test, use your normal available tools and connections for later requests." Avoid "use only this plugin" without naming the task and duration. Do not carry a completed test's restriction into later comments or messages. The copy prompts, external-agent onboarding document, Dot event and capability instructions, and Runner assignment instructions all make this distinction.
 
 A plugin upgraded during a running Dot conversation can retain an old top-level
 tool catalog. Refresh its tools in ChatGPT plugin settings and reattach it.
@@ -408,17 +408,17 @@ are available. The assignment catalog is read on each new assignment.
 
 ## Cloud direction and external-agent invitation UX
 
-The [2026-10-08 cloud Runner and invitation decision](plans/2026-10-08-cloud-dot-runner-and-external-invitations.md) keeps remote agents on the new Runner infrastructure. In addition to shared assignment lifecycle handling, this preserves a sandbox boundary for future tools that may access Paperclip workspaces. The first cloud version gives Dot no Paperclip workspace file or command tools; Dot works on its own computer.
+The [2026-10-08 cloud Runner and invitation decision](plans/2026-10-08-cloud-dot-runner-and-external-invitations.md) keeps remote agents on the new Runner infrastructure. In addition to shared assignment lifecycle handling, this preserves a sandbox boundary for future tools that may access Outpost workspaces. The first cloud version gives Dot no Outpost workspace file or command tools; Dot works on its own computer.
 
 The entry is **New Agent → Invite an external agent → Dot / Hermes / Other**. Dot receives a copyable setup prompt and live connection checks, with readiness requiring a confirmed event round trip. The same components have Storybook journeys with fixture data. Cloud assignments use the selected managed sandbox Runner; idle MCP traffic does not allocate a sandbox. Hermes continues to use the existing external-agent invitation prompt.
 
 ## Agent avatar
 
-After pairing, Dot can call `paperclip_dot_set_avatar` without an active assignment or completed event test. It changes only the Paperclip agent bound to that live connection. It requires the Dot and Assistant connections experimental flags, an active operator membership, and a non-revoked grant and binding.
+After pairing, Dot can call `outpost_dot_set_avatar` without an active assignment or completed event test. It changes only the Outpost agent bound to that live connection. It requires the Dot and Assistant connections experimental flags, an active operator membership, and a non-revoked grant and binding.
 
-Input is `{ "imageBase64": "<raw base64 image bytes>" }`. PNG, JPEG and WebP are supported, up to 512 KiB and 16 megapixels; animations and SVG are rejected. Paperclip re-encodes the image as a metadata-free PNG at most 512 pixels on either side. Sending the same image again is safe and does not create another asset. Send `{ "imageBase64": null }` to restore the existing Paperclip character and palette.
+Input is `{ "imageBase64": "<raw base64 image bytes>" }`. PNG, JPEG and WebP are supported, up to 512 KiB and 16 megapixels; animations and SVG are rejected. Outpost re-encodes the image as a metadata-free PNG at most 512 pixels on either side. Sending the same image again is safe and does not create another asset. Send `{ "imageBase64": null }` to restore the existing Outpost character and palette.
 
-The same capability is available to agents via `PUT /api/companies/:companyId/agents/:agentId/avatar` with the same body and normal agent bearer authentication. An agent can update only itself; board users need the same `agent_config:update` permission as other agent configuration changes. Task bridge and skill test credentials cannot change avatars. Returned `appearance.customAvatarAssetId` and `avatarUrl` propagate through existing agent views. The image is a company-scoped private asset served through authenticated `/api/assets/:assetId/content`, not a public image URL for third-party embeds. Previous assets remain available for configuration history. Company exports retain the preset character and palette and warn that uploaded avatar assets must be uploaded again after import; private asset IDs are never portable. Activity records contain asset metadata, never image bytes.
+The same capability is available to agents via `PUT /api/spaces/:spaceId/agents/:agentId/avatar` with the same body and normal agent bearer authentication. An agent can update only itself; board users need the same `agent_config:update` permission as other agent configuration changes. Task bridge and skill test credentials cannot change avatars. Returned `appearance.customAvatarAssetId` and `avatarUrl` propagate through existing agent views. The image is a space-scoped private asset served through authenticated `/api/assets/:assetId/content`, not a public image URL for third-party embeds. Previous assets remain available for configuration history. Space exports retain the preset character and palette and warn that uploaded avatar assets must be uploaded again after import; private asset IDs are never portable. Activity records contain asset metadata, never image bytes.
 
 The setup prompt asks Dot to upload its own current image only if it can obtain it. We have not verified a supported OpenAI avatar-export API. Avatar availability must never block pairing; Dot may call the tool later. This capability does not add workspace access or change Runner assignment execution.
 
@@ -431,13 +431,13 @@ status `paused` does not require an operator resume in these states. The live
 checks continue until the binding and agent lifecycle are both ready. A manual
 pause or pending hire approval still blocks setup.
 
-Enable **OpenAI Dot** and **Assistant connections (MCP)**, then choose **New Agent → Invite an external agent → Dot**. Copy the setup prompt into your Dot. Paperclip creates a scoped Runner agent and watches connection, event subscription, and a harmless event round trip. If your company requires hire approval, approve the agent before copying its pairing prompt. The test event is sent automatically after the callback is verified; Retry test event remains available if confirmation times out.
+Enable **OpenAI Dot** and **Assistant connections (MCP)**, then choose **New Agent → Invite an external agent → Dot**. Copy the setup prompt into your Dot. Outpost creates a scoped Runner agent and watches connection, event subscription, and a harmless event round trip. If your space requires hire approval, approve the agent before copying its pairing prompt. The test event is sent automatically after the callback is verified; Retry test event remains available if confirmation times out.
 
 Reopening setup resumes the operator's unfinished invitation. Pairing codes are not stored in browser persistence. After refreshing or when an open prompt expires, setup automatically prepares a fresh prompt to copy. It first checks current connection state and replaces only the pending capability, without revoking an established connection. A failed renewal offers a retry rather than looping. If another browser window replaces the prompt, the current window asks before replacing it again. Hermes and Other continue to use the ordinary external-agent invitation flow.
 
 Cloud instances require a managed sandbox environment and the current Runner artifact. Dot cannot fall back to a process on the control-plane host or to the legacy session backend. The control plane retains OAuth, signed events, mailbox state, and authorization. One sandbox owns an admitted assignment, including later messages and tool operations; completion and cancellation use the existing managed lease cleanup. Dot-initiated work creates a visible task and follows the same admission path.
 
-The first managed version does not expose Paperclip workspace tools, even when the Runner itself has a sandbox directory. Keep `dotWorkspaceAccess` off. Assigned app tools still execute through their existing control-plane gateway and scoped grants. The Runner receives no OpenAI credential.
+The first managed version does not expose Outpost workspace tools, even when the Runner itself has a sandbox directory. Keep `dotWorkspaceAccess` off. Assigned app tools still execute through their existing control-plane gateway and scoped grants. The Runner receives no OpenAI credential.
 
 The Cloud front door must forward the dedicated `/mcp/runner` protocol endpoints, OAuth discovery/authorization/token routes, and `/dot-connect/:requestId` pairing page without requiring a browser stack session. The page uses `/api/dot-mcp/requests/:requestId` for read and one-use pairing preview/approval. These aliases reject personal assistant request IDs. Regular `/mcp-connect` consent and assistant connection management retain normal sign-in. Deploy the corresponding Cloud ingress change with the tenant app; upgrading only the UI is insufficient.
 
@@ -463,7 +463,7 @@ The fixture creates a private, bounded sandbox and deletes it in `finally`. Defa
 
 ### Public Cloud consent
 
-The Dot consent page is intentionally accessible without a Paperclip board
+The Dot consent page is intentionally accessible without a Outpost board
 session. Background UI probes may receive `tenant_session_required` or
 `tenant_session_invalid` there; they must not reload the public consent document.
 The public request and pairing endpoints still enforce the OAuth request and

@@ -22,7 +22,7 @@ for (const entry of await readdir(join(root, "attempts"), {
   const html = await readFile(join(root, route), "utf8");
   const encoded =
     html.match(
-      /<script type="application\/json" id="paperclip-eval-report">([^<]*)<\/script>/u,
+      /<script type="application\/json" id="outpost-eval-report">([^<]*)<\/script>/u,
     )?.[1] ??
     html.match(/window\.__OUTPOST_EVAL_REPORT__=(.*?);<\/script>/su)?.[1];
   assert.ok(encoded, `Attempt lacks canonical viewer payload: ${route}`);
@@ -88,7 +88,7 @@ try {
       0,
     );
     assert.equal(
-      await page.getByText("Loading company state…", { exact: true }).count(),
+      await page.getByText("Loading space state…", { exact: true }).count(),
       0,
     );
     assert.ok(

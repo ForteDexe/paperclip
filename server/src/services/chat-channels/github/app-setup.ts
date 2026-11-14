@@ -144,14 +144,14 @@ export function createGitHubAppSetup(db: Db, options: GitHubAppSetupOptions) {
           await tx.update(chatGitHubRegistrations).set({
             handoff: sql`${chatGitHubRegistrations.handoff} - 'manifestClaimId'`,
           }).where(and(
-            eq(chatGitHubRegistrations.companyId, record.endpoint.companyId),
+            eq(chatGitHubRegistrations.spaceId, record.endpoint.spaceId),
             eq(chatGitHubRegistrations.endpointId, endpointId),
             eq(chatGitHubRegistrations.userId, userId),
             inArray(chatGitHubRegistrations.status, ["pending", "exchanging", "failed"]),
             sql`${chatGitHubRegistrations.handoff} ? 'manifestClaimId'`,
           ));
         }
-        await logActivity(tx as unknown as Db, { companyId: record.endpoint.companyId, ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }), action: "chat_github.app_connected", entityType: "tool_connection", entityId: record.endpoint.connectionId, details: { endpointId, appId: identity.botExternalId } });
+        await logActivity(tx as unknown as Db, { spaceId: record.endpoint.spaceId, ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }), action: "chat_github.app_connected", entityType: "tool_connection", entityId: record.endpoint.connectionId, details: { endpointId, appId: identity.botExternalId } });
       });
     });
     // Manifest registration can send its ping before the credential exchange
@@ -219,7 +219,7 @@ export function createGitHubAppSetup(db: Db, options: GitHubAppSetupOptions) {
       const record = await endpointRecord(endpoint.id);
       if (
         !record ||
-        record.endpoint.companyId !== endpoint.companyId ||
+        record.endpoint.spaceId !== endpoint.spaceId ||
         record.endpoint.connectionId !== endpoint.connectionId ||
         record.endpoint.assignedAgentId !== endpoint.assignedAgentId ||
         record.endpoint.setup.github?.cloudRegistrationId !==

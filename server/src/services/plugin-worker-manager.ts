@@ -26,7 +26,7 @@ import { fork, type ChildProcess } from "node:child_process";
 import { beginIdleTrackedWork, readTaskDrain, trackIdleWork } from "./task-admission.js";
 import { EventEmitter } from "node:events";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import {
   JSONRPC_VERSION,
   JSONRPC_ERROR_CODES,
@@ -420,7 +420,7 @@ export interface WorkerStartOptions {
   /** Absolute path to the plugin worker entrypoint (CJS bundle). */
   entrypointPath: string;
   /** Plugin manifest. */
-  manifest: PaperclipPluginManifestV1;
+  manifest: OutpostPluginManifestV1;
   /** Resolved plugin configuration. */
   config: Record<string, unknown>;
   /** Host instance information for the initialize call. */
@@ -460,16 +460,16 @@ export interface WorkerStartOptions {
    */
   duplexRouteSlots?: DuplexRouteSlotController | null;
   /**
-   * Companies this worker may act on from proactive (no-invocation) worker→host
-   * calls — the plugin's configured companies. Seeded onto the handle at
+   * Spaces this worker may act on from proactive (no-invocation) worker→host
+   * calls — the plugin's configured spaces. Seeded onto the handle at
    * creation, BEFORE the child process spawns, so a proactive plugin that
    * issues host calls during setup() (e.g. the chat gateway's one-shot
    * `events.subscribe`, which runs while `startWorker` is still awaiting the
    * initialize response) is already authorized when those calls arrive. The set
-   * can still be replaced at runtime via `setProactiveCompanyScopes` (e.g. on a
-   * config change). Never widens access beyond the listed companies (LOOA-695).
+   * can still be replaced at runtime via `setProactiveSpaceScopes` (e.g. on a
+   * config change). Never widens access beyond the listed spaces (LOOA-695).
    */
-  proactiveCompanyScopes?: readonly string[];
+  proactiveSpaceScopes?: readonly string[];
   /**
    * Callback for stream notifications from the worker (streams.open/emit/close).
    * The host wires this to the PluginStreamBus to fan out events to SSE clients.
@@ -594,14 +594,14 @@ export interface LoginPtyOpenInput {
   expiresAt?: string;
   /** The environment driver key. It routes the worker; it confers no command authority. */
   driverKey: string;
-  companyId: string;
+  spaceId: string;
   environmentId: string;
   providerLeaseId: string;
   /** The host-resolved fixed command identity. The worker maps it to a compile-time command. */
   loginCommandKey: LoginCommandKey;
   /**
    * The server-controlled, validated session home. The shape is exact:
-   * `/tmp/paperclip-adapter-login/<uuid>`.
+   * `/tmp/outpost-adapter-login/<uuid>`.
    */
   sessionHome: string;
 }
@@ -632,7 +632,7 @@ export interface LoginPtyHostSession {
  */
 export interface DuplexChannelOpenInput {
   driverKey: string;
-  companyId: string;
+  spaceId: string;
   environmentId: string;
   providerLeaseId: string;
   /**
@@ -668,13 +668,13 @@ export interface DuplexChannelHostSession {
 
 /**
  * Host-owned route for one active execute call. The host mints the invocation
- * id and stores the exact company id and log sink here. A worker never selects
+ * id and stores the exact space id and log sink here. A worker never selects
  * this record; the host looks it up by the host-issued invocation id on the
- * message envelope. The company id is the single authority for the delivery
- * target, so an `execute.log` notification never carries a company id.
+ * message envelope. The space id is the single authority for the delivery
+ * target, so an `execute.log` notification never carries a space id.
  */
 interface ExecuteLogRoute {
-  companyId: string;
+  spaceId: string;
   onLog: ExecuteLogSink;
   /**
    * The count of characters delivered through this route. The router bounds the
@@ -683,12 +683,12 @@ interface ExecuteLogRoute {
   deliveredChars: number;
   /**
    * Latched when the router cannot bind the shared worker pipe to a single
-   * company, because a second company's execute overlapped this one. After the
+   * space, because a second space's execute overlapped this one. After the
    * latch the router drops every further chunk for this route and lets the final
    * command result deliver the complete output. The latch keeps the delivered
    * prefix contiguous, so the run log never shows a gap.
    */
-  crossCompanyBlocked: boolean;
+  crossSpaceBlocked: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -778,11 +778,11 @@ export interface PluginWorkerHandle {
   ): Promise<DuplexChannelHostSession>;
 
   /**
-   * Authorize the set of companies this worker may act on from proactive
+   * Authorize the set of spaces this worker may act on from proactive
    * (non-invocation) context. Replaces any previously-authorized set. See the
-   * proactive-company-scope note in `createPluginWorkerHandle` for rationale.
+   * proactive-space-scope note in `createPluginWorkerHandle` for rationale.
    */
-  setProactiveCompanyScopes(companyIds: readonly string[]): void;
+  setProactiveSpaceScopes(spaceIds: readonly string[]): void;
 
   /** Subscribe to worker events. */
   on<K extends WorkerHandleEventName>(
@@ -832,7 +832,7 @@ export interface PluginWorkerManager {
   drainStartup?(contextId: string): Promise<void>;
   recoverStartupAcquisition?(contextId: string, creationOperationId: string): void;
   retireStartup?(contextId: string): Promise<void>;
-  /** Subscribe after a worker successfully applies live company configuration. */
+  /** Subscribe after a worker successfully applies live space configuration. */
   onConfigApplied(listener: () => void): () => void;
   /**
    * Subscribe to every worker `ready`: first start, crash respawn, and a
@@ -870,10 +870,10 @@ export interface PluginWorkerManager {
   isRunning(pluginId: string): boolean;
 
   /**
-   * Authorize the companies a plugin's worker may act on from proactive
+   * Authorize the spaces a plugin's worker may act on from proactive
    * (non-invocation) context. No-op if the worker is not registered.
    */
-  setProactiveCompanyScopes(pluginId: string, companyIds: readonly string[]): void;
+  setProactiveSpaceScopes(pluginId: string, spaceIds: readonly string[]): void;
 
   /**
    * Stop all managed workers. Called during server shutdown.
@@ -1074,30 +1074,30 @@ export function createPluginWorkerHandle(
     options.duplexChannelLimits?.closeTimeoutMs ?? DUPLEX_CHANNEL_CLOSE_TIMEOUT_MS;
 
   // ------------------------------------------------------------------
-  // Proactive company scopes (LOOA-629)
+  // Proactive space scopes (LOOA-629)
   // ------------------------------------------------------------------
-  // A proactive plugin (e.g. the chat gateway) does company-scoped work from
+  // A proactive plugin (e.g. the chat gateway) does space-scoped work from
   // its own timers/loops — not inside a host-issued top-level invocation
   // (onEvent/performAction/executeTool/configChanged). Those worker→host calls
-  // carry no `paperclipInvocationId`, so the governed-access gate
-  // (host-client-factory.ts) rejects any company-scoped request with
-  // "company context is required" (regression class from #9557). The host
-  // authorizes a bounded set of companies — the plugin's configured companies,
+  // carry no `outpostInvocationId`, so the controlled-access gate
+  // (host-client-factory.ts) rejects any space-scoped request with
+  // "space context is required" (regression class from #9557). The host
+  // authorizes a bounded set of spaces — the plugin's configured spaces,
   // set by the loader after startup config delivery — for such proactive work.
-  // A no-invocation call that references one of these companies resolves to
-  // that company's scope; a call referencing any other company stays denied,
-  // and in-invocation calls keep their strict single-company match.
+  // A no-invocation call that references one of these spaces resolves to
+  // that space's scope; a call referencing any other space stays denied,
+  // and in-invocation calls keep their strict single-space match.
   //
   // Seeded from options at handle creation — before the child process is
   // spawned — so a proactive plugin's setup()-time host calls (which land while
   // `startWorker` is still awaiting initialize) are authorized in time. The
-  // loader used to call setProactiveCompanyScopes only AFTER startWorker
+  // loader used to call setProactiveSpaceScopes only AFTER startWorker
   // resolved, which was too late for the gateway's one-shot events.subscribe
   // and left outbound push permanently dead (LOOA-695).
-  const proactiveCompanyScopes = new Set<string>();
-  for (const id of options.proactiveCompanyScopes ?? []) {
+  const proactiveSpaceScopes = new Set<string>();
+  for (const id of options.proactiveSpaceScopes ?? []) {
     const trimmed = readNonEmptyString(id);
-    if (trimmed) proactiveCompanyScopes.add(trimmed);
+    if (trimmed) proactiveSpaceScopes.add(trimmed);
   }
 
   // Optional methods reported by the worker during initialization
@@ -1119,7 +1119,7 @@ export function createPluginWorkerHandle(
   let lastRetirementAt: number | null = null;
 
   // Track open stream channels so we can emit synthetic close on crash.
-  // Maps channel → companyId.
+  // Maps channel → spaceId.
   const openStreamChannels = new Map<string, string>();
 
   // Shutdown coordination
@@ -1268,22 +1268,22 @@ export function createPluginWorkerHandle(
     if (!isRecord(params)) return null;
 
     if (method === "executeTool" && isRecord(params.runContext)) {
-      const companyId = readNonEmptyString(params.runContext.companyId);
+      const spaceId = readNonEmptyString(params.runContext.spaceId);
       const agentId = readNonEmptyString(params.runContext.agentId);
       const runId = readNonEmptyString(params.runContext.runId);
-      return companyId ? { companyId, ...(agentId ? { agentOrigin: { agentId, runId } } : {}) } : null;
+      return spaceId ? { spaceId, ...(agentId ? { agentOrigin: { agentId, runId } } : {}) } : null;
     }
     if (method === "performAction" && isRecord(params.actorContext)) {
-      const companyId = readNonEmptyString(params.actorContext.companyId);
+      const spaceId = readNonEmptyString(params.actorContext.spaceId);
       const agentId = params.actorContext.type === "agent" ? readNonEmptyString(params.actorContext.agentId) : null;
       const runId = readNonEmptyString(params.actorContext.runId);
-      return companyId ? { companyId, ...(agentId ? { agentOrigin: { agentId, runId } } : {}) } : null;
+      return spaceId ? { spaceId, ...(agentId ? { agentOrigin: { agentId, runId } } : {}) } : null;
     }
 
-    const directCompanyId = readNonEmptyString(params.companyId);
-    if (directCompanyId) {
+    const directSpaceId = readNonEmptyString(params.spaceId);
+    if (directSpaceId) {
       if (method === "resourceLifecycle" && params.resourceType === "project" && readNonEmptyString(params.resourceId)) {
-        return { companyId: directCompanyId, projectGit: { projectId: params.resourceId as string } };
+        return { spaceId: directSpaceId, projectGit: { projectId: params.resourceId as string } };
       }
       if ((method === "workspaceOperation" || method === "workspacePrepare") && isRecord(params.operation)) {
         const operation = params.operation;
@@ -1294,17 +1294,17 @@ export function createPluginWorkerHandle(
           // Only foreground preparation may use a run. Maintenance uses project consent.
           const runId = operation.kind === "prepare" ? readNonEmptyString(params.runId) : null;
           const agentId = operation.kind === "prepare" ? readNonEmptyString(params.agentId) : null;
-          if (Boolean(runId) !== Boolean(agentId)) return { companyId: directCompanyId };
-          return { companyId: directCompanyId, projectGit: { projectId, workspaceId, operation: operation.kind,
+          if (Boolean(runId) !== Boolean(agentId)) return { spaceId: directSpaceId };
+          return { spaceId: directSpaceId, projectGit: { projectId, workspaceId, operation: operation.kind,
             ...(runId && agentId ? { runId, agentId } : {}) } };
         }
       }
-      return { companyId: directCompanyId };
+      return { spaceId: directSpaceId };
     }
 
     if (method === "onEvent" && isRecord(params.event)) {
-      const companyId = readNonEmptyString(params.event.companyId);
-      return companyId ? { companyId } : null;
+      const spaceId = readNonEmptyString(params.event.spaceId);
+      return spaceId ? { spaceId } : null;
     }
 
     return null;
@@ -1341,17 +1341,17 @@ export function createPluginWorkerHandle(
   }
 
   // Store the host-owned execute route for one active execute call. The host
-  // holds the exact company id and log sink; the worker never supplies them.
+  // holds the exact space id and log sink; the worker never supplies them.
   function registerExecuteRoute(
     invocationId: string,
-    companyId: string,
+    spaceId: string,
     onLog: ExecuteLogSink,
   ): void {
     activeExecuteRoutes.set(invocationId, {
-      companyId,
+      spaceId,
       onLog,
       deliveredChars: 0,
-      crossCompanyBlocked: false,
+      crossSpaceBlocked: false,
     });
   }
 
@@ -1377,7 +1377,7 @@ export function createPluginWorkerHandle(
 
   // Drop an `execute.log` notification. Write a rate-limited debug record with
   // the reason and a running drop count. The record never carries the chunk
-  // bytes, the company id, or command data.
+  // bytes, the space id, or command data.
   function dropExecuteLogNotification(reason: string): void {
     executeLogDropCount += 1;
     const nowMs = Date.now();
@@ -1392,24 +1392,24 @@ export function createPluginWorkerHandle(
   }
 
   // Route one `execute.log` notification to its host-owned execute route. The
-  // route is the single authority for the delivery target and the company
-  // binding. This never reads a company id from the notification and never
+  // route is the single authority for the delivery target and the space
+  // binding. This never reads a space id from the notification and never
   // routes through the generic active-invocation record.
   //
   // Complete mediation: the host and the worker share one stdio pipe, and the
   // worker process sees every active invocation id. So the host cannot prove
   // which concurrent invocation produced a notification, and it must NOT treat
-  // the worker-supplied `paperclipInvocationId` alone as proof of origin. The
-  // host validates the exact company scope instead: it delivers only while every
-  // active execute route on this worker belongs to ONE company. When a second
-  // company's execute overlaps, the host fails closed — it latches the active
-  // routes and drops the chunk — so a worker that runs company A can never forge
-  // company B's active id and inject output into B's route. The final command
+  // the worker-supplied `outpostInvocationId` alone as proof of origin. The
+  // host validates the exact space scope instead: it delivers only while every
+  // active execute route on this worker belongs to ONE space. When a second
+  // space's execute overlaps, the host fails closed — it latches the active
+  // routes and drops the chunk — so a worker that runs space A can never forge
+  // space B's active id and inject output into B's route. The final command
   // result still delivers the complete output, so no byte is lost; only the live
-  // stream pauses while two companies overlap.
+  // stream pauses while two spaces overlap.
   function routeExecuteLogNotification(notification: JsonRpcNotification): void {
     const invocationId = readNonEmptyString(
-      (notification as { paperclipInvocationId?: unknown }).paperclipInvocationId,
+      (notification as { outpostInvocationId?: unknown }).outpostInvocationId,
     );
     const params = isRecord(notification.params) ? notification.params : {};
     const stream = params.stream;
@@ -1438,31 +1438,31 @@ export function createPluginWorkerHandle(
       dropExecuteLogNotification("no-active-route");
       return;
     }
-    // The route already lost single-company attribution earlier in its life, so
+    // The route already lost single-space attribution earlier in its life, so
     // it stays closed for the rest of the call.
-    if (route.crossCompanyBlocked) {
-      dropExecuteLogNotification("cross-company-scope");
+    if (route.crossSpaceBlocked) {
+      dropExecuteLogNotification("cross-space-scope");
       return;
     }
-    // Validate the exact company scope. Deliver only while every active execute
-    // route on this worker belongs to one company. A second company's active
+    // Validate the exact space scope. Deliver only while every active execute
+    // route on this worker belongs to one space. A second space's active
     // route makes the shared pipe ambiguous, so the host fails closed: it
     // latches every active route and drops the chunk.
-    let onlyCompanyId: string | null = null;
-    let crossCompany = false;
+    let onlySpaceId: string | null = null;
+    let crossSpace = false;
     for (const active of activeExecuteRoutes.values()) {
-      if (onlyCompanyId === null) {
-        onlyCompanyId = active.companyId;
-      } else if (onlyCompanyId !== active.companyId) {
-        crossCompany = true;
+      if (onlySpaceId === null) {
+        onlySpaceId = active.spaceId;
+      } else if (onlySpaceId !== active.spaceId) {
+        crossSpace = true;
         break;
       }
     }
-    if (crossCompany) {
+    if (crossSpace) {
       for (const active of activeExecuteRoutes.values()) {
-        active.crossCompanyBlocked = true;
+        active.crossSpaceBlocked = true;
       }
-      dropExecuteLogNotification("cross-company-scope");
+      dropExecuteLogNotification("cross-space-scope");
       return;
     }
     // Bound the total characters one execute call may stream. Past the ceiling
@@ -1569,7 +1569,7 @@ export function createPluginWorkerHandle(
   type LoginPtyPreBindRecord = LoginPtyPreBindOutputRecord | LoginPtyPreBindExitRecord;
 
   interface LoginPtyRoute {
-    companyId: string;
+    spaceId: string;
     hostRouteId: string;
     closePromise: Promise<void> | null;
     state: LoginPtyRouteState;
@@ -1633,11 +1633,11 @@ export function createPluginWorkerHandle(
   // that carries the exact host route identifier. An absent, malformed,
   // mismatched, or timed-out acknowledgement returns false, so the caller fails
   // closed.
-  async function closeLoginPtyTerminal(hostRouteId: string, companyId: string): Promise<boolean> {
+  async function closeLoginPtyTerminal(hostRouteId: string, spaceId: string): Promise<boolean> {
     try {
       const ack = await callInternal(
         "loginPtyClose",
-        { hostRouteId, companyId },
+        { hostRouteId, spaceId },
         loginPtyCloseTimeoutMs,
       );
       return isRecord(ack) && readNonEmptyString(ack.hostRouteId) === hostRouteId;
@@ -1671,7 +1671,7 @@ export function createPluginWorkerHandle(
     }
     releaseLoginPtyRouteSlot(route);
     route.closePromise = (async () => {
-      const confirmed = await closeLoginPtyTerminal(route.hostRouteId, route.companyId);
+      const confirmed = await closeLoginPtyTerminal(route.hostRouteId, route.spaceId);
       if (!confirmed) {
         // The worker did not acknowledge the close, so the host cannot prove the
         // terminal is gone. Retire the worker before any reuse.
@@ -1932,7 +1932,7 @@ export function createPluginWorkerHandle(
       settleWait = resolve;
     });
     const route: LoginPtyRoute = {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       hostRouteId,
       closePromise: null,
       state: "reserved",
@@ -1966,7 +1966,7 @@ export function createPluginWorkerHandle(
         {
           hostRouteId,
           driverKey: input.driverKey,
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           environmentId: input.environmentId,
           providerLeaseId: input.providerLeaseId,
           loginCommandKey: input.loginCommandKey,
@@ -2016,7 +2016,7 @@ export function createPluginWorkerHandle(
         if (route.state !== "open" || !sid) return;
         void callInternal(
           "loginPtyInput",
-          { companyId: route.companyId, workerSessionId: sid, data, inputId: randomUUID() },
+          { spaceId: route.spaceId, workerSessionId: sid, data, inputId: randomUUID() },
           loginPtyOpenTimeoutMs,
         ).catch(() => terminalizeLoginPtyRoute(route));
       },
@@ -2028,7 +2028,7 @@ export function createPluginWorkerHandle(
         if (!sid) return;
         void callInternal(
           "loginPtyStop",
-          { companyId: route.companyId, workerSessionId: sid },
+          { spaceId: route.spaceId, workerSessionId: sid },
           loginPtyOpenTimeoutMs,
         ).catch(() => {});
       },
@@ -2652,7 +2652,7 @@ export function createPluginWorkerHandle(
         {
           hostRouteId,
           driverKey: input.driverKey,
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           environmentId: input.environmentId,
           providerLeaseId: input.providerLeaseId,
           command: input.command,
@@ -2808,61 +2808,61 @@ export function createPluginWorkerHandle(
   }
 
   /**
-   * Extract the single company a worker→host call references, mirroring the SDK
-   * governed-access gate's own derivation (host-client-factory.ts
-   * `requestedCompanyScope`) so a proactive call resolves to exactly the company
+   * Extract the single space a worker→host call references, mirroring the SDK
+   * controlled-access gate's own derivation (host-client-factory.ts
+   * `requestedSpaceScope`) so a proactive call resolves to exactly the space
    * the gate would require:
-   *   - explicit `params.companyId`;
-   *   - a company-scoped state key (`scopeKind: "company"` + `scopeId`);
-   *   - `events.subscribe`'s `params.filter.companyId` (how the SDK's
-   *     `ctx.events.on(name, { companyId }, fn)` issues its subscribe).
+   *   - explicit `params.spaceId`;
+   *   - a space-scoped state key (`scopeKind: "space"` + `scopeId`);
+   *   - `events.subscribe`'s `params.filter.spaceId` (how the SDK's
+   *     `ctx.events.on(name, { spaceId }, fn)` issues its subscribe).
    *
-   * Returns null whenever the gate treats the call as a wildcard (`companies.list`,
-   * a `scopeKind: "company"` key with no `scopeId`) or as referencing no company
+   * Returns null whenever the gate treats the call as a wildcard (`spaces.list`,
+   * a `scopeKind: "space"` key with no `scopeId`) or as referencing no space
    * (instance-scoped state, an unfiltered subscribe). A wildcard is deliberately
    * NOT granted proactively: proactive resolution only ever admits a single,
-   * explicit company, never "all". This keeps the resolver and the gate in
+   * explicit space, never "all". This keeps the resolver and the gate in
    * lockstep in the functional direction (LOOA-693 AC#4 / LOOA-695).
    */
-  function referencedCompanyId(method: string, params: unknown): string | null {
-    // Gate returns { kind: "all" } for companies.list regardless of params —
-    // never a single company — so proactive access declines it here.
-    if (method === "companies.list") return null;
+  function referencedSpaceId(method: string, params: unknown): string | null {
+    // Gate returns { kind: "all" } for spaces.list regardless of params —
+    // never a single space — so proactive access declines it here.
+    if (method === "spaces.list") return null;
     if (!isRecord(params)) return null;
-    const direct = readNonEmptyString(params.companyId);
+    const direct = readNonEmptyString(params.spaceId);
     if (direct) return direct;
-    if (params.scopeKind === "company") {
-      // scopeId present → that company; absent → wildcard ("all") in the gate,
+    if (params.scopeKind === "space") {
+      // scopeId present → that space; absent → wildcard ("all") in the gate,
       // which we never grant proactively → null.
       return readNonEmptyString(params.scopeId);
     }
     if (method === "events.subscribe" && isRecord(params.filter)) {
-      return readNonEmptyString(params.filter.companyId);
+      return readNonEmptyString(params.filter.spaceId);
     }
     return null;
   }
 
   function contextForWorkerMessage(message: JsonRpcRequest | JsonRpcNotification): WorkerHostCallContext {
     const invocationId = readNonEmptyString(
-      (message as { paperclipInvocationId?: unknown }).paperclipInvocationId,
+      (message as { outpostInvocationId?: unknown }).outpostInvocationId,
     );
     if (!invocationId) {
       if (Array.from(activeInvocations.values()).some(entry => entry.scope.agentOrigin)) {
         return { invalidInvocationScope: true };
       }
       // No host-issued invocation is being echoed. This is a genuinely
-      // proactive worker→host call (timer/loop). If it references a company the
+      // proactive worker→host call (timer/loop). If it references a space the
       // plugin is authorized to act on proactively, resolve it to that
-      // company's scope so the governed-access gate admits it. This never
-      // widens access beyond the plugin's configured companies, and only
+      // space's scope so the controlled-access gate admits it. This never
+      // widens access beyond the plugin's configured spaces, and only
       // applies when the worker is NOT inside a host-issued invocation (which
-      // would carry an id and keep its strict single-company match below).
-      const proactiveCompanyId = referencedCompanyId(
+      // would carry an id and keep its strict single-space match below).
+      const proactiveSpaceId = referencedSpaceId(
         message.method,
         (message as { params?: unknown }).params,
       );
-      if (proactiveCompanyId && proactiveCompanyScopes.has(proactiveCompanyId)) {
-        return { invocationScope: { companyId: proactiveCompanyId } };
+      if (proactiveSpaceId && proactiveSpaceScopes.has(proactiveSpaceId)) {
+        return { invocationScope: { spaceId: proactiveSpaceId } };
       }
       const hasActiveInvocation = activeInvocations.size > 0 ||
         Array.from(pendingRequests.values()).some((pending) => pending.invocationId);
@@ -2879,7 +2879,7 @@ export function createPluginWorkerHandle(
   async function handleWorkerRequest(request: JsonRpcRequest): Promise<void> {
     const done = beginIdleTrackedWork();
     activeHostHandlers++;
-    const invocationId = readNonEmptyString((request as { paperclipInvocationId?: unknown }).paperclipInvocationId);
+    const invocationId = readNonEmptyString((request as { outpostInvocationId?: unknown }).outpostInvocationId);
     const startupId = invocationId ? activeInvocations.get(invocationId)?.startupContextId : undefined;
     let complete = () => {}, pending: Promise<void> | undefined;
     if (startupId) {
@@ -2935,7 +2935,7 @@ export function createPluginWorkerHandle(
         code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED,
       });
       const source = context.invocationScope?.agentOrigin;
-      const origin = source && context.invocationScope ? { ...source, companyId: context.invocationScope.companyId } : undefined;
+      const origin = source && context.invocationScope ? { ...source, spaceId: context.invocationScope.spaceId } : undefined;
       const result = await withPluginInteractionOrigin(origin, () => handler(request.params, context));
       sendMessage({
         jsonrpc: JSONRPC_VERSION,
@@ -3038,20 +3038,20 @@ export function createPluginWorkerHandle(
       notification.method === "streams.close"
     ) {
       const params = (notification.params ?? {}) as Record<string, unknown>;
-      const companyId = String(params.companyId ?? "");
+      const spaceId = String(params.spaceId ?? "");
       const context = contextForWorkerMessage(notification);
       if (context.invalidInvocationScope) {
         log.warn(
-          { method: notification.method, companyId },
+          { method: notification.method, spaceId },
           "dropping plugin stream notification with invalid invocation scope",
         );
         return;
       }
-      const allowedCompanyId = context.invocationScope?.companyId;
-      if (allowedCompanyId && companyId !== allowedCompanyId) {
+      const allowedSpaceId = context.invocationScope?.spaceId;
+      if (allowedSpaceId && spaceId !== allowedSpaceId) {
         log.warn(
-          { method: notification.method, companyId, allowedCompanyId },
-          "dropping plugin stream notification outside invocation company scope",
+          { method: notification.method, spaceId, allowedSpaceId },
+          "dropping plugin stream notification outside invocation space scope",
         );
         return;
       }
@@ -3059,7 +3059,7 @@ export function createPluginWorkerHandle(
       // Track open channels so we can emit synthetic close on crash
       if (notification.method === "streams.open") {
         const ch = String(params.channel ?? "");
-        if (ch) openStreamChannels.set(ch, companyId);
+        if (ch) openStreamChannels.set(ch, spaceId);
       } else if (notification.method === "streams.close") {
         openStreamChannels.delete(String(params.channel ?? ""));
       }
@@ -3206,9 +3206,9 @@ export function createPluginWorkerHandle(
     // Emit synthetic close for any orphaned stream channels so SSE clients
     // are notified instead of hanging indefinitely.
     if (openStreamChannels.size > 0 && options.onStreamNotification) {
-      for (const [channel, companyId] of openStreamChannels) {
+      for (const [channel, spaceId] of openStreamChannels) {
         try {
-          options.onStreamNotification("streams.close", { channel, companyId });
+          options.onStreamNotification("streams.close", { channel, spaceId });
         } catch {
           // Best-effort cleanup — don't let it interfere with exit handling
         }
@@ -3678,11 +3678,11 @@ export function createPluginWorkerHandle(
       const invocation = invocationScope ? registerInvocation(invocationScope) : null;
       if (invocation && startupContextId) activeInvocations.get(invocation.id)!.startupContextId = startupContextId;
       // Register the host-owned execute route only for an execute call that
-      // carries a log sink. The company id comes from the host-derived
+      // carries a log sink. The space id comes from the host-derived
       // invocation scope, never from the worker. This binds the sink to the
-      // exact company for the life of the call.
+      // exact space for the life of the call.
       if (invocation && invocationScope && executeLogSink && method === "environmentExecute") {
-        registerExecuteRoute(invocation.id, invocationScope.companyId, executeLogSink);
+        registerExecuteRoute(invocation.id, invocationScope.spaceId, executeLogSink);
       }
 
       // Guard against double-settlement. When a process exits all pending
@@ -3733,7 +3733,7 @@ export function createPluginWorkerHandle(
       try {
         const request = {
           ...createRequest(method, params, id),
-          ...(invocation ? { paperclipInvocation: invocation } : {}),
+          ...(invocation ? { outpostInvocation: invocation } : {}),
         };
         sendMessage(request);
       } catch (err) {
@@ -3907,7 +3907,7 @@ export function createPluginWorkerHandle(
           jsonrpc: JSONRPC_VERSION,
           method,
           params,
-          ...(invocation ? { paperclipInvocation: invocation } : {}),
+          ...(invocation ? { outpostInvocation: invocation } : {}),
         });
       } catch {
         clearInvocation(invocation);
@@ -3929,11 +3929,11 @@ export function createPluginWorkerHandle(
       emitter.off(event, listener);
     },
 
-    setProactiveCompanyScopes(companyIds: readonly string[]): void {
-      proactiveCompanyScopes.clear();
-      for (const id of companyIds) {
+    setProactiveSpaceScopes(spaceIds: readonly string[]): void {
+      proactiveSpaceScopes.clear();
+      for (const id of spaceIds) {
         const trimmed = readNonEmptyString(id);
-        if (trimmed) proactiveCompanyScopes.add(trimmed);
+        if (trimmed) proactiveSpaceScopes.add(trimmed);
       }
     },
 
@@ -4221,8 +4221,8 @@ export function createPluginWorkerManager(
       return handle?.status === "running";
     },
 
-    setProactiveCompanyScopes(pluginId: string, companyIds: readonly string[]): void {
-      workers.get(pluginId)?.setProactiveCompanyScopes(companyIds);
+    setProactiveSpaceScopes(pluginId: string, spaceIds: readonly string[]): void {
+      workers.get(pluginId)?.setProactiveSpaceScopes(spaceIds);
     },
 
     async stopAll(): Promise<void> {

@@ -5,7 +5,7 @@
  * workspace is only usable when its own database is reachable, the seed
  * manifest reached a verified terminal state, representative cloned rows are
  * readable, the password-independent login handoff is configured, and the
- * instance/workspace/company identity matches the one the control plane expects.
+ * instance/workspace/space identity matches the one the control plane expects.
  *
  * These fields ride on the *protected* health response only. Public health
  * stays redacted: an anonymous caller learns liveness, never which instance or
@@ -42,7 +42,7 @@ export interface WorkspaceReadiness {
   state: WorkspaceReadinessState;
   /** `SELECT 1` plus a readable migration journal on this instance's own database. */
   databaseReady: boolean;
-  /** A representative cloned company/issue pair is readable. */
+  /** A representative cloned space/issue pair is readable. */
   cloneDataReady: boolean;
   /** A signing key and a resolvable cloned admin identity are both present. */
   authHandoffReady: boolean;
@@ -56,8 +56,8 @@ export interface WorkspaceReadiness {
   instanceId: string | null;
   /** Execution workspace this instance was provisioned for, when known. */
   executionWorkspaceId: string | null;
-  /** Company whose cloned board this workspace serves, when known. */
-  companyId: string | null;
+  /** Space whose cloned operator this workspace serves, when known. */
+  spaceId: string | null;
   /** Phase that failed, so operators do not need host-shell archaeology. */
   failurePhase: string | null;
 }
@@ -83,7 +83,7 @@ export type WorkspaceReadinessProbeResult =
     };
 
 export interface WorkspaceLoginHandoffTicketResponse {
-  /** Absolute URL that exchanges the ticket and redirects to the cloned board. */
+  /** Absolute URL that exchanges the ticket and redirects to the cloned operator. */
   url: string;
   expiresAt: string;
   /** `handoff` for the signed path, `credentials` when only the fallback is available. */

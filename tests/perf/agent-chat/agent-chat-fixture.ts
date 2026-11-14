@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { expect, type APIRequestContext } from "@playwright/test";
 
 export interface ChatFixture {
-  company: { id: string; issuePrefix: string };
+  space: { id: string; issuePrefix: string };
   agent: { id: string };
   issue: { id: string };
   comments: { id: string; body: string }[];
@@ -24,15 +24,15 @@ export async function longChatFixture(request: APIRequestContext, suffix = "", o
   if (!["localhost", "127.0.0.1", "[::1]"].includes(target.hostname) || !target.pathname.endsWith("_test"))
     throw new Error("The chat fixture requires a disposable loopback database ending in _test");
   const { createDb, closeRegisteredClients, heartbeatRuns, heartbeatRunEvents, issueComments, activityLog } = await import("../../../packages/db/src/index");
-  const companyResponse = await request.post("/api/companies", { data: { name: `Long chat ${count}` } });
-  expect(companyResponse.ok(), await companyResponse.text()).toBeTruthy();
-  const company = await companyResponse.json();
-  const agentResponse = await request.post(`/api/companies/${company.id}/agents`, { data: {
+  const spaceResponse = await request.post("/api/spaces", { data: { name: `Long chat ${count}` } });
+  expect(spaceResponse.ok(), await spaceResponse.text()).toBeTruthy();
+  const space = await spaceResponse.json();
+  const agentResponse = await request.post(`/api/spaces/${space.id}/agents`, { data: {
     name: "History Fixture", role: "engineer", status: "paused", adapterType: "process", adapterConfig: { command: "/usr/bin/true" },
   } });
   expect(agentResponse.ok(), await agentResponse.text()).toBeTruthy();
   const agent = await agentResponse.json();
-  const chatResponse = await request.post(`/api/companies/${company.id}/chats/${agent.id}`, { data: {} });
+  const chatResponse = await request.post(`/api/spaces/${space.id}/chats/${agent.id}`, { data: {} });
   expect(chatResponse.ok(), await chatResponse.text()).toBeTruthy();
   const issue = await chatResponse.json();
   const db = createDb(databaseUrl);
@@ -47,15 +47,15 @@ export async function longChatFixture(request: APIRequestContext, suffix = "", o
     let body = `History message ${index}. ` + (human ? "Please investigate these findings." : "The investigation is complete.\n\n- Checked the saved evidence.\n- Verified the result.\n\n" + "Saved findings and verification details. ".repeat(index % 7 + 2));
     if (options.delayedImage && index === count - 10) body += "\n\nInline evidence: ![Delayed evidence](/__chat-history-image.svg)";
     if (runId) {
-      runs.push({ id: runId, companyId: company.id, agentId: agent.id, issueId: issue.id, runtimeMode: "native", status: "succeeded",
+      runs.push({ id: runId, spaceId: space.id, agentId: agent.id, issueId: issue.id, runtimeMode: "native", status: "succeeded",
         createdAt: new Date(+createdAt - 1000), startedAt: new Date(+createdAt - 900), finishedAt: createdAt, contextSnapshot: { issueId: issue.id, conversationSessionGeneration: issue.conversationSessionGeneration, wakeCommentId: comments.at(-1)?.id } });
-      events.push({ companyId: company.id, agentId: agent.id, runId, seq: 1, eventType: "item.completed", createdAt,
+      events.push({ spaceId: space.id, agentId: agent.id, runId, seq: 1, eventType: "item.completed", createdAt,
         payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, eventType: "item.completed", runId,
           emittedAt: createdAt.toISOString(), itemId: `answer-${runId}`, payload: { kind: "agentMessage", text: body } } } });
     }
-    comments.push({ id, companyId: company.id, issueId: issue.id, authorType: human ? "user" : "agent", authorUserId: human ? issue.conversationUserId : null,
+    comments.push({ id, spaceId: space.id, issueId: issue.id, authorType: human ? "user" : "agent", authorUserId: human ? issue.conversationUserId : null,
       authorAgentId: human ? null : agent.id, createdByRunId: runId, body, createdAt, updatedAt: createdAt });
-    activity.push({ companyId: company.id, actorType: human ? "user" : "agent", actorId: human ? issue.conversationUserId : agent.id,
+    activity.push({ spaceId: space.id, actorType: human ? "user" : "agent", actorId: human ? issue.conversationUserId : agent.id,
       agentId: human ? null : agent.id, runId, entityType: "issue", entityId: issue.id, action: "issue.comment_added", details: { commentId: id }, createdAt });
   }
   try {
@@ -64,7 +64,7 @@ export async function longChatFixture(request: APIRequestContext, suffix = "", o
     for (let start = 0; start < events.length; start += 100) await db.insert(heartbeatRunEvents).values(events.slice(start, start + 100));
     for (let start = 0; start < activity.length; start += 100) await db.insert(activityLog).values(activity.slice(start, start + 100));
   } finally { await closeRegisteredClients(databaseUrl); }
-  const fixture = { company, agent, issue, comments: comments.map(({ id, body }) => ({ id: id!, body })) };
+  const fixture = { space, agent, issue, comments: comments.map(({ id, body }) => ({ id: id!, body })) };
   await fs.mkdir("test-results/agent-chat", { recursive: true });
   await fs.writeFile(file, JSON.stringify(fixture));
   return fixture;

@@ -6,7 +6,7 @@ import {
   agents,
   agentRuntimeState,
   agentWakeupRequests,
-  companies,
+  spaces,
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -15,7 +15,7 @@ import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
-import { subscribeCompanyLiveEvents } from "../services/live-events.ts";
+import { subscribeSpaceLiveEvents } from "../services/live-events.ts";
 import {
   clearAllHeartbeatRunRuntimeStatuses,
   getHeartbeatRunRuntimeStatus,
@@ -58,7 +58,7 @@ describeEmbeddedPostgres("heartbeat runtime state deduplication", () => {
     await db.delete(agentWakeupRequests);
     await db.delete(agentRuntimeState);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -66,20 +66,20 @@ describeEmbeddedPostgres("heartbeat runtime state deduplication", () => {
   });
 
   it("deduplicates concurrent runtime-state creation", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -98,29 +98,29 @@ describeEmbeddedPostgres("heartbeat runtime state deduplication", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       agentId,
-      companyId,
+      spaceId,
       adapterType: "codex_local",
       stateJson: {},
     });
   });
 
   it("publishes runtime progress without persisting heartbeat run events", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
     const issueId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "running",
@@ -132,7 +132,7 @@ describeEmbeddedPostgres("heartbeat runtime state deduplication", () => {
 
     const [insertedRun] = await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "assignment",
       status: "running",
@@ -141,7 +141,7 @@ describeEmbeddedPostgres("heartbeat runtime state deduplication", () => {
     const run = insertedRun!;
 
     const liveEvents: unknown[] = [];
-    const unsubscribe = subscribeCompanyLiveEvents(companyId, (event) => {
+    const unsubscribe = subscribeSpaceLiveEvents(spaceId, (event) => {
       liveEvents.push(event);
     });
     try {
@@ -155,7 +155,7 @@ describeEmbeddedPostgres("heartbeat runtime state deduplication", () => {
       }, issueId);
 
       expect(status).toMatchObject({
-        companyId,
+        spaceId,
         issueId,
         agentId,
         runId,
@@ -167,7 +167,7 @@ describeEmbeddedPostgres("heartbeat runtime state deduplication", () => {
       });
       expect(heartbeat.decorateActiveRunStatus({
         id: runId,
-        companyId,
+        spaceId,
         agentId,
         issueId,
         status: "running",
@@ -178,7 +178,7 @@ describeEmbeddedPostgres("heartbeat runtime state deduplication", () => {
         lastEventAt: new Date("2026-06-24T00:00:05.000Z"),
       });
       expect(liveEvents).toContainEqual(expect.objectContaining({
-        companyId,
+        spaceId,
         type: "heartbeat.run.progress",
         payload: expect.objectContaining({
           runId,
@@ -203,22 +203,22 @@ describeEmbeddedPostgres("heartbeat runtime state deduplication", () => {
   });
 
   it("ignores late runtime progress after the persisted run is terminal", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
     const issueId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "running",
@@ -230,7 +230,7 @@ describeEmbeddedPostgres("heartbeat runtime state deduplication", () => {
 
     const [insertedRun] = await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "assignment",
       status: "running",
@@ -239,7 +239,7 @@ describeEmbeddedPostgres("heartbeat runtime state deduplication", () => {
     const staleRunningRun = insertedRun!;
 
     const liveEvents: unknown[] = [];
-    const unsubscribe = subscribeCompanyLiveEvents(companyId, (event) => {
+    const unsubscribe = subscribeSpaceLiveEvents(spaceId, (event) => {
       liveEvents.push(event);
     });
     try {

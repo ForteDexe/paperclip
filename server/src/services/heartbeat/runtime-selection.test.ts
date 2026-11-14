@@ -4,7 +4,7 @@ import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { activityLog, agents, authUsers, companyMemberships, companySkillRepositorySnapshots, principalPermissionGrants, environments, environmentLeases, companies, completionContracts, costEvents, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, executionWorkspaces, heartbeatRuns, issues, nativeRunFinalizations, workspaceOperations, type Db } from "@outpost/db";
+import { activityLog, agents, authUsers, spaceMemberships, spaceSkillRepositorySnapshots, principalPermissionGrants, environments, environmentLeases, spaces, completionContracts, costEvents, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, executionWorkspaces, heartbeatRuns, issues, nativeRunFinalizations, workspaceOperations, type Db } from "@outpost/db";
 import { accountRunCost } from "../run-cost-accounting.js";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -51,18 +51,18 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
   let db: Db;
   let instructionRoot: string;
   beforeAll(async () => {
-    instructionRoot = await mkdtemp(join(tmpdir(), "paperclip-selection-instructions-"));
+    instructionRoot = await mkdtemp(join(tmpdir(), "outpost-selection-instructions-"));
     await writeFile(join(instructionRoot, "AGENTS.md"), "Complete the assigned task.\n");
     if (externalDatabaseUrl) await applyPendingMigrations(externalDatabaseUrl);
     database = externalDatabaseUrl ? { connectionString: externalDatabaseUrl, cleanup: async () => {} }
-      : await startEmbeddedPostgresTestDatabase("paperclip-runtime-selection");
+      : await startEmbeddedPostgresTestDatabase("outpost-runtime-selection");
     db = createDb(database.connectionString);
     await db.execute(sql`set client_min_messages = warning`);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); if (instructionRoot) await rm(instructionRoot, { recursive: true, force: true }); });
   afterEach(() => vi.unstubAllEnvs());
   beforeEach(async () => {
-    await db.execute(sql`truncate table companies restart identity cascade`);
+    await db.execute(sql`truncate table spaces restart identity cascade`);
     vi.clearAllMocks();
     vi.mocked(prepareNativeWorkspaceSync).mockResolvedValue(null);
     vi.mocked(buildNativeRuntimeContext).mockImplementation(async () => {
@@ -73,18 +73,18 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
   });
 
   async function fixture(adapterType = "outpost_runner") {
-    const [company] = await db.insert(companies).values({ name: "Runtime selection", issuePrefix: "SEL" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Selecting agent", status: "running", adapterType, adapterConfig: { provider: "codex", model: "gpt-5.6-luna" } }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Complete this task", description: "Preserve the requested work", assigneeAgentId: agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, issueId: issue.id, scopeKind: "issue", status: "running" }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Runtime selection", issuePrefix: "SEL" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Selecting agent", status: "running", adapterType, adapterConfig: { provider: "codex", model: "gpt-5.6-luna" } }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Complete this task", description: "Preserve the requested work", assigneeAgentId: agent.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, issueId: issue.id, scopeKind: "issue", status: "running" }).returning();
     const now = new Date();
     const input: HeartbeatRuntimeSelectionInput = {
       run, agent,
       nativeRuntimeResolution: resolveHeartbeatNativeRuntimeMode({ persisted: run, enabled: true, runtimeConfig: {}, adapterConfig: agent.adapterConfig, agent, issue, target: null, workspaceId: null }),
-      task: { issueRef: issue, issueContext: null, context: { paperclipTaskMarkdown: "Complete this task" }, executionContinuation: null, safeWakeComments: [], safeWakeCommentContext: null, paperclipWakePayload: null, acceptedPlanContinuationWake: false },
+      task: { issueRef: issue, issueContext: null, context: { outpostTaskMarkdown: "Complete this task" }, executionContinuation: null, safeWakeComments: [], safeWakeCommentContext: null, outpostWakePayload: null, acceptedPlanContinuationWake: false },
       session: { persistedNativeExecutionInput: null, persistedRunnerProfile: {}, taskSessionCredentialCompatible: true, taskSessionDecodedParams: null, taskSessionForRun: null, isFailedChatRunRetry: false, getFreshSessionHandoff: vi.fn(async () => "Earlier context") },
-      workspace: { persistedExecutionWorkspace: null, executionWorkspace: { cwd: "/tmp/paperclip-runtime-selection", repoUrl: null, repoRef: null, branchName: null }, executionTarget: null, isDotRun: false, projectRepositoryPaths: [],
-        activeEnvironmentLease: { lease: { id: randomUUID(), companyId: company.id, environmentId: null, executionWorkspaceId: null, issueId: issue.id, heartbeatRunId: run.id, status: "active", leasePolicy: "ephemeral", provider: null, providerLeaseId: null, acquiredAt: now, lastUsedAt: now, expiresAt: null, releasedAt: null, failureReason: null, cleanupStatus: null, metadata: null, createdAt: now, updatedAt: now } },
+      workspace: { persistedExecutionWorkspace: null, executionWorkspace: { cwd: "/tmp/outpost-runtime-selection", repoUrl: null, repoRef: null, branchName: null }, executionTarget: null, isDotRun: false, projectRepositoryPaths: [],
+        activeEnvironmentLease: { lease: { id: randomUUID(), spaceId: space.id, environmentId: null, executionWorkspaceId: null, issueId: issue.id, heartbeatRunId: run.id, status: "active", leasePolicy: "ephemeral", provider: null, providerLeaseId: null, acquiredAt: now, lastUsedAt: now, expiresAt: null, releasedAt: null, failureReason: null, cleanupStatus: null, metadata: null, createdAt: now, updatedAt: now } },
       },
       config: { runtimeConfig: {}, runtimeSkillEntries: [], runScopedMentionedSkillKeys: [], instructionCopy: null, agentIdentity: undefined, issueAssigneeOverrides: null, resolvedConfig: {}, managedAiRuntime: undefined },
       recovery: {}, trace: { providerTraceRequested: false, providerTraceCapture: null },
@@ -148,15 +148,15 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     const f = await fixture(), { input } = f;
     const home = await mkdtemp(join(tmpdir(), "selection-connector-assets-"));
     vi.stubEnv("OUTPOST_HOME", home);
-    const config = await applyConnectorSkills({}, [], [{ key: "slack", label: "Slack", skillKey: "paperclipai/paperclip/slack",
+    const config = await applyConnectorSkills({}, [], [{ key: "slack", label: "Slack", skillKey: "outpost/outpost/slack",
       resources: [{ id: "synthetic-channel", label: "Fixture channel", connectionId: randomUUID() }],
       tools: [{ name: "fixture_read", description: "Read synthetic messages", inputSchema: { type: "object" } }] }]);
     input.config.runtimeConfig = config;
-    input.config.runtimeSkillEntries = config.paperclipRuntimeSkills;
+    input.config.runtimeSkillEntries = config.outpostRuntimeSkills;
     vi.mocked(buildNativeRuntimeContext).mockImplementation(async () => {
       const context = nativeRuntimeContextFixture();
       context.instructions.bundle.rootPath = instructionRoot;
-      context.skills = await materializeSelectedSkills(config, config.paperclipRuntimeSkills, true);
+      context.skills = await materializeSelectedSkills(config, config.outpostRuntimeSkills, true);
       return { ...context, aggregateDigest: canonicalNativeRuntimeContextDigest(context) };
     });
     const provider = createLocalDiskStorageProvider(join(home, "objects"));
@@ -187,7 +187,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
       expect(original.versionId).toBeNull();
       const files = await Promise.all(["SKILL.md", "TOOLS.json"].map(async name => ({ name, bytes: await readFile(join(original.bundle.rootPath, name)) })));
       vi.stubEnv("OUTPOST_HOME", join(home, "cold"));
-      const recovered = await rehydratePinnedSkillAssets(db, { companyId: agent.companyId, agentId: agent.id, runId: run.id }, selected.nativeExecution.runtimeContext);
+      const recovered = await rehydratePinnedSkillAssets(db, { spaceId: agent.spaceId, agentId: agent.id, runId: run.id }, selected.nativeExecution.runtimeContext);
       expect(recovered.skills[0]!.versionId).toBeNull();
       expect(recovered.skills[0]!.bundle.digest).toBe(original.bundle.digest);
       expect(recovered.skills[0]!.bundle.rootPath).not.toBe(original.bundle.rootPath);
@@ -199,7 +199,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
       await removeRuntimeAssetTree(original.bundle.rootPath);
       const outage = vi.spyOn(storage, "getObject").mockRejectedValue(new Error("Synthetic storage outage"));
       try {
-        const staged = await runtimeSkillPreservation.stageNativeRuntimeSkillAssets(db, { companyId: agent.companyId, agentId: agent.id,
+        const staged = await runtimeSkillPreservation.stageNativeRuntimeSkillAssets(db, { spaceId: agent.spaceId, agentId: agent.id,
           runId: run.id, issueId: selected.nativeExecution.binding.issueId, execution: selected.nativeExecution }, storage);
         expect(staged?.receipt).toEqual(readRuntimeSkillPreservation(saved));
         expect(outage).not.toHaveBeenCalled();
@@ -224,8 +224,8 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
         execution.binding.agentId = randomUUID();
         await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: execution } }).where(eq(heartbeatRuns.id, run.id));
       }
-      if (failure === "retired package") await db.update(companySkillRepositorySnapshots).set({ storage: null })
-        .where(eq(companySkillRepositorySnapshots.companyId, agent.companyId));
+      if (failure === "retired package") await db.update(spaceSkillRepositorySnapshots).set({ storage: null })
+        .where(eq(spaceSkillRepositorySnapshots.spaceId, agent.spaceId));
     };
     try {
       if (failure === "cancelled") expect(await selectHeartbeatRuntime(db, input)).toEqual({ selected: false });
@@ -286,11 +286,11 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
         return { exitCode: 0, signal: null, timedOut: false, ...result, pid: null, startedAt: new Date().toISOString() };
       } } };
     await db.insert(authUsers).values({ id: userId, name: "Fixture editor", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values([{ companyId: agent.companyId, principalType: "user", principalId: userId, membershipRole: "operator" },
-      { companyId: agent.companyId, principalType: "agent", principalId: agent.id, membershipRole: "member" }]);
-    await db.insert(principalPermissionGrants).values({ companyId: agent.companyId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [agent.id] } });
+    await db.insert(spaceMemberships).values([{ spaceId: agent.spaceId, principalType: "user", principalId: userId, membershipRole: "operator" },
+      { spaceId: agent.spaceId, principalType: "agent", principalId: agent.id, membershipRole: "member" }]);
+    await db.insert(principalPermissionGrants).values({ spaceId: agent.spaceId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [agent.id] } });
     await db.insert(environments).values({ id: environmentId, name: `Loopback sandbox ${environmentId}`, driver: "sandbox" });
-    const [lease] = await db.insert(environmentLeases).values({ id: leaseId, companyId: agent.companyId, environmentId, heartbeatRunId: run.id,
+    const [lease] = await db.insert(environmentLeases).values({ id: leaseId, spaceId: agent.spaceId, environmentId, heartbeatRunId: run.id,
       provider: "fixture", providerLeaseId: "local-loopback", leasePolicy: "reuse_by_environment" }).returning();
     input.agent = { ...agent, adapterConfig: { ...agent.adapterConfig, lifecycleMode: "warm", idleTimeoutMs: 900_000,
       instructionsBundleMode: "managed", instructionsRootPath: canonical, instructionsEntryFile: "AGENTS.md" } };
@@ -323,10 +323,10 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     expect(controller.instructionCopy).not.toBeNull();
     if (!selected.selected || !selected.nativeExecution) throw new Error("Expected native selection");
     expect(selected.nativeExecution.session.lifecyclePolicy).toEqual({ mode: "warm", idleTimeoutMs: 900_000 });
-    expect((await copies.get(agent.companyId, run.id))?.receipt?.warm).toBe(true);
+    expect((await copies.get(agent.spaceId, run.id))?.receipt?.warm).toBe(true);
     if (changed) await writeFile(join(controller.instructionCopy!.executionRoot, "memory.txt"), "Synthetic changed memory.\n");
     expect(await controller.nativeInstructionWorkingCopy()!.checkpointWarm!()).toBe(true);
-    expect((await copies.get(agent.companyId, run.id))?.state).toBe("warm_saved");
+    expect((await copies.get(agent.spaceId, run.id))?.state).toBe("warm_saved");
     expect(instructionEvents).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ eventType: "instruction_save",
       payload: expect.objectContaining({ state: changed ? "saved" : "unchanged", contract: "agent_files", errorCode: null }) }));
     if (changed) expect(await readFile(join(canonical, "memory.txt"), "utf8")).toBe("Synthetic changed memory.\n");
@@ -347,7 +347,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
         providerSessionId: "retained-provider-thread", identity: { ...priorInput.binding, sessionId },
       } },
     }).where(eq(heartbeatRuns.id, run.id));
-    const [nextRun] = await db.insert(heartbeatRuns).values({ companyId: agent.companyId, agentId: agent.id,
+    const [nextRun] = await db.insert(heartbeatRuns).values({ spaceId: agent.spaceId, agentId: agent.id,
       issueId: issue.id, scopeKind: "issue", status: "running", nativeSessionId: sessionId,
       createdAt: new Date(run.createdAt.getTime() + 1000),
     }).returning();
@@ -383,15 +383,15 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     const sameSession = receipt === "matching";
     const { input, run, agent, issue } = await fixture();
     const sessionId = randomUUID(), operationId = randomUUID();
-    const logicalCwd = "/paperclip/legacy/task-workspace";
+    const logicalCwd = "/outpost/legacy/task-workspace";
     const marker = { schema: "outpost.native-workspace-migration.v1", operationId };
     const [workspace] = await db.insert(executionWorkspaces).values({
-      companyId: agent.companyId, sourceIssueId: issue.id, name: "Migrated workspace",
+      spaceId: agent.spaceId, sourceIssueId: issue.id, name: "Migrated workspace",
       mode: "shared_workspace", strategyType: "project_primary", cwd: "/tmp/ephemeral/task-workspace",
       providerType: "cloud_sandbox", metadata: receipt === "absent" ? {} : { nativeWorkspaceMigration: marker },
     }).returning();
     await db.insert(workspaceOperations).values({
-      id: operationId, companyId: agent.companyId, executionWorkspaceId: workspace!.id,
+      id: operationId, spaceId: agent.spaceId, executionWorkspaceId: workspace!.id,
       phase: "remote_workspace_migration", status: "succeeded", metadata: {
         schema: "outpost.remote-workspace-migration.v1", snapshotId: randomUUID(),
         nativeSessionContinuity: { schema: marker.schema, remoteCwd: sandbox.remoteCwd, sessions: [{
@@ -413,7 +413,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
         providerSessionId: "retained-provider-thread", identity: { ...priorInput.binding, sessionId },
       } },
     }).where(eq(heartbeatRuns.id, run.id));
-    const [nextRun] = await db.insert(heartbeatRuns).values({ companyId: agent.companyId, agentId: agent.id,
+    const [nextRun] = await db.insert(heartbeatRuns).values({ spaceId: agent.spaceId, agentId: agent.id,
       issueId: issue.id, scopeKind: "issue", status: "running", nativeSessionId: sessionId,
       createdAt: new Date(run.createdAt.getTime() + 1000),
     }).returning();
@@ -441,7 +441,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     if (!result.selected) throw new Error("Expected native Cursor selection");
     expect(result.nativeExecution?.provider).toMatchObject({ kind: "cursor_cloud", model: "caller-model" });
     expect(await read(run.id)).toMatchObject({ runtimeMode: "native", driverKind: "cursor_cloud_api", runnerProfileJson: {
-      backend: "cursor_cloud_api", executionPlacement: { kind: "provider_api", provider: "cursor_cloud", controller: "paperclip" },
+      backend: "cursor_cloud_api", executionPlacement: { kind: "provider_api", provider: "cursor_cloud", controller: "outpost" },
       nativeExecutionInput: result.nativeExecution,
     } });
     expect(await db.select().from(completionContracts)).toHaveLength(1);
@@ -454,7 +454,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     const { input, run, issue } = await fixture();
     input.agent = { ...input.agent, adapterConfig: { provider: "cursor_cloud", model: "caller-model", repoUrl: "https://github.com/example/qualification" } };
     await db.update(agents).set({ adapterConfig: input.agent.adapterConfig }).where(eq(agents.id, input.agent.id));
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: input.agent.companyId, sourceIssueId: issue.id,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: input.agent.spaceId, sourceIssueId: issue.id,
       name: "Previously admitted Cursor workspace", mode: "shared_workspace", strategyType: "project_primary", cwd: "/previous-cursor-workspace" }).returning();
     input.workspace.persistedExecutionWorkspace = workspace;
     input.workspace.activeEnvironmentLease = null;
@@ -479,7 +479,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     expect(resumed).toMatchObject({ selected: true, nativeExecution: selected.nativeExecution, nativeRunnerInstanceId: selected.nativeRunnerInstanceId });
     expect(await read(run.id)).toMatchObject({ driverKind: "cursor_cloud_api" });
     expect((await read(run.id)).runnerProfileJson).toMatchObject({ ...historicalProfile,
-      executionPlacement: { kind: "provider_api", provider: "cursor_cloud", controller: "paperclip" } });
+      executionPlacement: { kind: "provider_api", provider: "cursor_cloud", controller: "outpost" } });
     expect(await db.select().from(executionWorkspaces)).toEqual([workspace]);
     expect(await db.select().from(completionContracts)).toHaveLength(1);
     expect(await coordinators(run.id)).toHaveLength(1);
@@ -489,7 +489,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
 
   it("persists and admits a standing-chat response contract without requiring the unavailable action", async () => {
     const { input, issue, agent, run } = await fixture();
-    const [conversation] = await db.update(issues).set({ title: "Chat with CEO", description: null,
+    const [conversation] = await db.update(issues).set({ title: "Chat with Default agent", description: null,
       conversationAgentId: agent.id, conversationUserId: "runtime-test-operator", conversationState: "active" })
       .where(eq(issues.id, issue.id)).returning();
     input.task.issueRef = conversation!;
@@ -579,8 +579,8 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
 
   it("persists configured GitHub instruction skills without admitting provider-mentioned skills", async () => {
     const { input, issue, run } = await fixture();
-    input.config.runScopedMentionedSkillKeys = ["company/test/configured"];
-    input.task.context.paperclipWake = {
+    input.config.runScopedMentionedSkillKeys = ["space/test/configured"];
+    input.task.context.outpostWake = {
       reason: "External chat message received", externalChatProvider: "github", checkedOutByHarness: true,
       issue: { id: issue.id, workMode: "standard" },
       comments: [{ id: "review-comment", body: "Please use /provider-mentioned" }],
@@ -591,7 +591,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
       const context = nativeRuntimeContextFixture();
       context.instructions.bundle.rootPath = instructionRoot;
       context.skills = ["configured", "provider-mentioned"].map(name => ({
-        key: `company/test/${name}`, runtimeName: name, versionId: null,
+        key: `space/test/${name}`, runtimeName: name, versionId: null,
         bundle: { ...context.instructions.bundle },
       }));
       return { ...context, aggregateDigest: canonicalNativeRuntimeContextDigest(context) };
@@ -632,7 +632,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
     input.run = await read(run.id);
     input.session.persistedRunnerProfile = profile;
     input.session.persistedNativeExecutionInput = selected.nativeExecution;
-    input.task.context.paperclipTaskMarkdown = "A newer unrelated request";
+    input.task.context.outpostTaskMarkdown = "A newer unrelated request";
     input.task.safeWakeComments = [{ id: randomUUID(), body: "New direction belongs to a separate wake" }];
     vi.mocked(buildNativeRuntimeContext).mockClear();
     const resumed = await selectHeartbeatRuntime(db, input);
@@ -656,7 +656,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
 
   it("rejects resume after skill access revocation without rewriting the admitted revision", async () => {
     const { input, run } = await fixture();
-    const key = "company/test/private-skill", versionId = randomUUID();
+    const key = "space/test/private-skill", versionId = randomUUID();
     await db.update(heartbeatRuns).set({ contextSnapshot: { skillVersions: { [key]: versionId } } }).where(eq(heartbeatRuns.id, run.id));
     input.run = await read(run.id);
     vi.mocked(buildNativeRuntimeContext).mockImplementationOnce(async () => {
@@ -681,12 +681,12 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
       const { input, run, issue } = await fixture();
       const initial = await selectHeartbeatRuntime(db, input);
       if (!initial.selected || !initial.nativeExecution) throw new Error("Expected original native selection");
-      await reserveRunBudget(db, run.companyId, run.id, null);
+      await reserveRunBudget(db, run.spaceId, run.id, null);
       const saved = await read(run.id), leaseOwner = `stop:${randomUUID()}`, intentAuditId = randomUUID();
       input.run = saved;
       input.session.persistedNativeExecutionInput = initial.nativeExecution;
       input.session.persistedRunnerProfile = saved.runnerProfileJson ?? {};
-      await db.insert(activityLog).values({ id: intentAuditId, companyId: run.companyId, actorType: "system", actorId: "native-session-cancellation",
+      await db.insert(activityLog).values({ id: intentAuditId, spaceId: run.spaceId, actorType: "system", actorId: "native-session-cancellation",
         action: "native.cancellation_intent_recorded", entityType: "heartbeat_run", entityId: run.id, runId: run.id, agentId: run.agentId });
       await db.update(nativeRunFinalizations).set({ leaseOwner: mode === "foreign-owner" ? "another-owner" : leaseOwner,
         leaseExpiresAt: new Date(Date.now() + (mode === "expired" ? -1 : 60_000)), controllerGeneration: 2, attempt: 1,
@@ -696,7 +696,7 @@ describe.skipIf(!support.supported)("heartbeat runtime selection boundary", () =
       await db.update(heartbeatRuns).set({ resultJson: {
         startupCancellation: { beforeNativeSelection: false, errorCode: "cancelled", requestedAt: new Date().toISOString() },
         executionCancellation: { state: "requested" },
-        nativeCancellation: { schema: "outpost.native-cancellation.v1", companyId: run.companyId, runId: run.id, issueId: issue.id,
+        nativeCancellation: { schema: "outpost.native-cancellation.v1", spaceId: run.spaceId, runId: run.id, issueId: issue.id,
           scope: "run", reasonCode: "cancellation_run_only", intentId: `native-cancellation:${randomUUID()}`,
           intentAuditId: mode === "missing-audit" ? randomUUID() : intentAuditId, dispatchState: "pending", dispatched: false,
           effects: ["release_run_resources"] },

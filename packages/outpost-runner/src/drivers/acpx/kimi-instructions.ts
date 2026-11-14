@@ -52,7 +52,7 @@ export function createKimiInstructionAdmission(content: string) {
           pending.delete(message.id);
           if (message.error !== undefined) return;
           const result = record(message.result);
-          const ack = record(record(result._meta).paperclipKimiInstructions);
+          const ack = record(record(result._meta).outpostKimiInstructions);
           const sessionId = request.method === "session/new" ? result.sessionId : request.sessionId;
           if (ack.schema !== SCHEMA || ack.digest !== expected.digest || ack.byteLength !== expected.byteLength
             || typeof sessionId !== "string" || !sessionId.trim() || ack.sessionId !== sessionId

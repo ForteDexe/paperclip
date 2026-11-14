@@ -24,14 +24,14 @@ it("transports a valid encoded header set in both Codex exporters without reject
   expect(providerObservabilityEnvironment({ OUTPOST_OBSERVABILITY_CODEX_CONFIG: value }, "codex")).toEqual({ OUTPOST_OBSERVABILITY_CODEX_CONFIG: value });
   expect(() => providerObservabilityEnvironment({ OUTPOST_OBSERVABILITY_CODEX_CONFIG: "x".repeat(128 * 1024 + 1) }, "codex")).toThrow("Invalid observability launch environment");
 });
-it("materializes the real native home with both governed MCP and protected export config", async () => {
-  const home = await mkdtemp(join(tmpdir(), "paperclip-native-otel-")); roots.push(home);
+it("materializes the real native home with both controlled MCP and protected export config", async () => {
+  const home = await mkdtemp(join(tmpdir(), "outpost-native-otel-")); roots.push(home);
   await mkdir(join(home, "source"));
   await writeFile(join(home, "source", "auth.json"), '{"OPENAI_API_KEY":"fixture"}');
   await prepareIsolatedCodexHome({ context: null, codexHome: home, sourceCodexHome: join(home, "source"), observability: launch,
-    nativeMcp: { name: "paperclip-assigned", url: "https://outpost.example/mcp", token: "mcp-secret" } });
+    nativeMcp: { name: "outpost-assigned", url: "https://outpost.example/mcp", token: "mcp-secret" } });
   const config = parse(await readFile(join(home, "config.toml"), "utf8"));
-  expect(config.otel).toEqual(launch.otelConfig); expect(config.mcp_servers).toHaveProperty("paperclip-assigned");
+  expect(config.otel).toEqual(launch.otelConfig); expect(config.mcp_servers).toHaveProperty("outpost-assigned");
   expect(JSON.stringify(config)).not.toContain("secret-canary");
   expect((await stat(join(home, "config.toml"))).mode & 0o777).toBe(0o600);
 });

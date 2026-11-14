@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { qualificationReport } from "./muse-qualification-report.mjs";
-const companyId = "10000000-0000-4000-8000-000000000001", agentId = "20000000-0000-4000-8000-000000000001";
+const spaceId = "10000000-0000-4000-8000-000000000001", agentId = "20000000-0000-4000-8000-000000000001";
 const bindingId = "30000000-0000-4000-8000-000000000001", issueId = "40000000-0000-4000-8000-000000000001";
 const assignmentId = "50000000-0000-4000-8000-000000000001", runId = "60000000-0000-4000-8000-000000000001";
 const HOUR = 3_600_000;
@@ -25,7 +25,7 @@ async function fixture(action, options = {}) {
     const chunks = []; for await (const chunk of req) chunks.push(chunk);
     const input = Buffer.concat(chunks).toString(); const body = input ? JSON.parse(input) : undefined;
     requests.push({ method: req.method, path: req.url, body });
-    assert.equal(req.headers.authorization, "Bearer synthetic-board-credential");
+    assert.equal(req.headers.authorization, "Bearer synthetic-operator-credential");
     res.setHeader("Content-Type", "application/json");
     const send = (status, value) => { res.statusCode = status; res.end(JSON.stringify(value)); };
     if (req.url.includes("/qualification")) {
@@ -44,7 +44,7 @@ async function fixture(action, options = {}) {
     if (req.method === "GET" && req.url === "/api/heartbeat-runs/" + runId) return send(model.runFailureStatus || 200, model.run);
     if (req.method === "GET" && req.url === "/api/issues/" + issueId) return send(200, { status: model.issueStatus });
     if (req.method === "GET" && req.url === "/api/issues/" + issueId + "/documents/report") return send(200, { body: model.document });
-    if (req.method === "POST" && req.url === `/api/companies/${companyId}/issues`) {
+    if (req.method === "POST" && req.url === `/api/spaces/${spaceId}/issues`) {
       const issue = issues.get(body.idempotencyKey) ?? { id: "40000000-0000-4000-8000-" + String(issues.size + 1).padStart(12, "0"),
         createdAt: new Date().toISOString(), key: body.idempotencyKey };
       issues.set(body.idempotencyKey, issue);
@@ -57,9 +57,9 @@ async function fixture(action, options = {}) {
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const apiBase = `http://127.0.0.1:${server.address().port}`;
   await writeFile(authPath, JSON.stringify({ version: 1, credentials: { [apiBase]: { apiBase,
-    token: "synthetic-board-credential", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } } }), { mode: 0o600 });
+    token: "synthetic-operator-credential", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } } }), { mode: 0o600 });
   const run = command => new Promise((resolve, reject) => {
-    const extra = command === "start" ? ["--api-base", apiBase, "--company-id", companyId, "--agent-id", agentId,
+    const extra = command === "start" ? ["--api-base", apiBase, "--space-id", spaceId, "--agent-id", agentId,
       "--core-revision", "a".repeat(40), "--runner-revision", "b".repeat(40), "--environment", "local", "--evidence-mode", "synthetic"] : [];
     const child = spawn(process.execPath, ["cli/node_modules/tsx/dist/cli.mjs", "scripts/smoke/muse-qualification.ts", command, "--state", statePath, ...extra], {
       cwd: root, env: { ...process.env, OUTPOST_AUTH_STORE: authPath }, stdio: ["ignore", "pipe", "pipe"],
@@ -78,7 +78,7 @@ test("qualification persists sample identity before dispatch and retries a lost 
     const first = await run("check"); assert.equal(first.code, 1);
     const retained = JSON.parse(await readFile(statePath, "utf8"));
     assert.equal(retained.samples.length, 1); assert.equal(retained.samples[0].slot, 0); assert.equal(retained.samples[0].issueId, undefined);
-    assert.equal(JSON.stringify(retained).includes("synthetic-board-credential"), false);
+    assert.equal(JSON.stringify(retained).includes("synthetic-operator-credential"), false);
     const retry = await run("check"); assert.equal(retry.code, 0, retry.stderr);
     const report = JSON.parse(retry.stdout); assert.equal(report.qualificationPassed, false); assert.equal(report.provenance.mode, "synthetic_or_unspecified");
     const third = await run("check"); assert.equal(third.code, 0, third.stderr);
@@ -105,7 +105,7 @@ async function seedFailedSample(context) {
   const queued = Date.parse(state.startedAt) + 1000;
   const assignment = { id: assignmentId, issueId, runId, status: "fenced", offeredAt: new Date(queued + 1000).toISOString(),
     claimedAt: null, nativeAcceptedAt: null, acceptedResultAt: null, finalizedAt: null };
-  const run = { id: runId, companyId, agentId, nativeIssueId: issueId, status: "failed", runtimeMode: "native",
+  const run = { id: runId, spaceId, agentId, nativeIssueId: issueId, status: "failed", runtimeMode: "native",
     finishedAt: new Date(queued + 600_000).toISOString(), errorCode: "native_provider_terminal_failed" };
   state.samples.push({ slot: 0, issueId, queuedAt: new Date(queued).toISOString(), unattended: true, attempts: 1 });
   context.model.assignments = [assignment]; context.model.run = run;
@@ -148,7 +148,7 @@ for (const [name, change] of [
   ["terminal timestamp before offer", c => c.model.run.finishedAt = new Date(Date.parse(c.model.assignments[0].offeredAt) - 1).toISOString()],
   ["future terminal timestamp", c => c.model.run.finishedAt = new Date(Date.now() + HOUR).toISOString()],
   ["wrong run", c => c.model.run.id = "60000000-0000-4000-8000-000000000002"],
-  ["wrong company", c => c.model.run.companyId = "10000000-0000-4000-8000-000000000002"],
+  ["wrong space", c => c.model.run.spaceId = "10000000-0000-4000-8000-000000000002"],
   ["wrong agent", c => c.model.run.agentId = "20000000-0000-4000-8000-000000000002"],
   ["wrong issue", c => c.model.run.nativeIssueId = "40000000-0000-4000-8000-000000000002"],
   ["multiple assignments", c => c.model.assignments.push({ ...c.model.assignments[0], id: "50000000-0000-4000-8000-000000000002" })],
@@ -340,7 +340,7 @@ test("qualification report projects only the retained binding generation's authe
       assert.equal(report.unresolvedRemoteWork, variant.uncertain ?? false);
       assert.equal(report.deadlineCleanupVerified, false); assert.equal(report.qualificationPassed, false);
       assert.equal(result.stdout.includes("synthetic-cleanup-canary"), false);
-      for (const privateId of [companyId, agentId, bindingId]) assert.equal(result.stdout.includes(privateId), false);
+      for (const privateId of [spaceId, agentId, bindingId]) assert.equal(result.stdout.includes(privateId), false);
     }
     assert.ok(context.requests.slice(before).every(request => request.method === "GET"));
   });

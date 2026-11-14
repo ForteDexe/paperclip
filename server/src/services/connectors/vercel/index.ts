@@ -19,7 +19,7 @@ function collection(value: Record<string, unknown>, key: string): unknown[] {
 }
 
 /** Fixed provider operations only. Credentials come from the connection grant;
- * the gateway owns company, run, policy, approval and audit enforcement. */
+ * the gateway owns space, run, policy, approval and audit enforcement. */
 export function vercelClient(headers: Record<string, string>, request: VercelRequest, configuredTeamId: unknown,
   signal: AbortSignal = AbortSignal.timeout(30_000), deadlineAt: number = Date.now() + 30_000) {
   // Do not pass unvalidated credentials through Headers: its validation error

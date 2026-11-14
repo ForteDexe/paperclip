@@ -22,16 +22,16 @@ describe("Pi native assistant boundaries", () => {
       const start = messages.normalize({ type: "message_start", message: message() });
       const delta = messages.normalize({ type: "message_update", message: message(), assistantMessageEvent: { type: "thinking_delta", delta: "thought" } });
       const end = messages.normalize({ type: "message_end", message: message(1, reason) });
-      const chunk = piAssistantChunk(start.paperclipAssistantMessage);
+      const chunk = piAssistantChunk(start.outpostAssistantMessage);
       ids.push(chunk.messageId);
       expect(chunk).toMatchObject({ content: { text: "" }, _meta: { kind: "start" } });
-      expect(piAssistantChunk(delta.paperclipAssistantMessage, "thought", true)).toMatchObject({ messageId: chunk.messageId, sessionUpdate: "agent_thought_chunk" });
-      expect(piAssistantChunk(end.paperclipAssistantMessage)).toMatchObject({ messageId: chunk.messageId, content: { text: "" }, _meta: { kind: `end:${reason}` } });
+      expect(piAssistantChunk(delta.outpostAssistantMessage, "thought", true)).toMatchObject({ messageId: chunk.messageId, sessionUpdate: "agent_thought_chunk" });
+      expect(piAssistantChunk(end.outpostAssistantMessage)).toMatchObject({ messageId: chunk.messageId, content: { text: "" }, _meta: { kind: `end:${reason}` } });
       messages.normalize({ type: "agent_settled" });
     }
     expect(new Set(ids).size).toBe(5);
     const loaded = new PiAssistantMessages("00000000-0000-4000-8000-000000000001");
-    expect(piAssistantChunk(loaded.normalize({ type: "message_start", message: message() }).paperclipAssistantMessage).messageId).not.toBe(ids[0]);
+    expect(piAssistantChunk(loaded.normalize({ type: "message_start", message: message() }).outpostAssistantMessage).messageId).not.toBe(ids[0]);
   });
   it.each(["message_update", "message_end"])("rejects missing starts for %s and poisons subsequent input", type => {
     const messages = new PiAssistantMessages(namespace);
@@ -70,7 +70,7 @@ describe("Pi native assistant boundaries", () => {
     ]) expect(messages.normalize(event)).toEqual(event);
     expect(() => piAssistantChunk({ messageId: "invented", phase: "start" })).toThrow("provenance");
     const start = messages.normalize({ type: "message_start", message: message() });
-    expect(() => piAssistantChunk(start.paperclipAssistantMessage, "synthetic")).toThrow("synthetic");
+    expect(() => piAssistantChunk(start.outpostAssistantMessage, "synthetic")).toThrow("synthetic");
   });
 });
 
@@ -243,7 +243,7 @@ describe("Pi ACP bridge", () => {
     expect(usage.response()).toMatchObject({ usage: { inputTokens: 8, totalTokens: 20 } });
     usage.accept(failed); // A duplicate old failure cannot undo a successful retry.
     expect(usage.response()._meta).toBeUndefined();
-    expect(usage.response()).toMatchObject({ usage: { _meta: { paperclipPi: { costUsd: 0.02, costSource: "pi_pricing_estimate" } } } });
+    expect(usage.response()).toMatchObject({ usage: { _meta: { outpostPi: { costUsd: 0.02, costSource: "pi_pricing_estimate" } } } });
     usage.reset(); expect(usage.response()).toEqual({});
   });
 
@@ -251,11 +251,11 @@ describe("Pi ACP bridge", () => {
     const usage = new PiTurnUsage();
     usage.accept({ role: "assistant", timestamp: 1, stopReason: "stop", usage: { input: 4, output: 2 } });
     expect(usage.response()).toEqual({ usage: {
-      inputTokens: 4, outputTokens: 2, _meta: { paperclipPi: { provenance: "assistant_message_receipts" } },
+      inputTokens: 4, outputTokens: 2, _meta: { outpostPi: { provenance: "assistant_message_receipts" } },
     } });
     usage.accept({ role: "assistant", timestamp: 2, stopReason: "stop", usage: { input: 4, output: 2, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } } });
     expect(usage.response()).toEqual({ usage: {
-      inputTokens: 8, outputTokens: 4, _meta: { paperclipPi: { provenance: "assistant_message_receipts" } },
+      inputTokens: 8, outputTokens: 4, _meta: { outpostPi: { provenance: "assistant_message_receipts" } },
     } });
   });
 
@@ -263,7 +263,7 @@ describe("Pi ACP bridge", () => {
     const usage = new PiTurnUsage();
     usage.accept({ role: "assistant", timestamp: 1, stopReason: "error", usage: { input: 4, output: 2 } });
     expect(usage.response("cancelled")).toEqual({ usage: {
-      inputTokens: 4, outputTokens: 2, _meta: { paperclipPi: { provenance: "assistant_message_receipts" } },
+      inputTokens: 4, outputTokens: 2, _meta: { outpostPi: { provenance: "assistant_message_receipts" } },
     } });
     // Ordinary settlement keeps the provider failure and partial accounting.
     expect(usage.response("end_turn")).toMatchObject({
@@ -277,13 +277,13 @@ describe("Pi ACP bridge", () => {
     usage.accept({ role: "assistant", timestamp: 1, stopReason: "error", usage: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, cost: { total: 0.01 } } });
     const compacted = { firstKeptEntryId: "entry-2", tokensBefore: 100, summary: "Context summary", usage: { input: 10, output: 4, cacheRead: 2, cacheWrite: 0, cost: { total: 0.02 } } };
     usage.acceptCompaction(compacted); usage.acceptCompaction(compacted);
-    expect(usage.response()).toMatchObject({ usage: { inputTokens: 11, outputTokens: 6, totalTokens: 19, _meta: { paperclipPi: { provenance: "assistant_message_and_compaction_receipts", costUsd: 0.03 } } }, _meta: { jetbrains: { air: { sessionFailure: { severity: "error" } } } } });
+    expect(usage.response()).toMatchObject({ usage: { inputTokens: 11, outputTokens: 6, totalTokens: 19, _meta: { outpostPi: { provenance: "assistant_message_and_compaction_receipts", costUsd: 0.03 } } }, _meta: { jetbrains: { air: { sessionFailure: { severity: "error" } } } } });
     usage.acceptCompaction({ summary: "Missing usage" });
-    expect(usage.response().usage).toEqual({ _meta: { paperclipPi: { provenance: "assistant_message_and_compaction_receipts" } } });
+    expect(usage.response().usage).toEqual({ _meta: { outpostPi: { provenance: "assistant_message_and_compaction_receipts" } } });
   });
 
   it("launches verified paths only and rejects session escapes", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-pi-launch-")); temporary.push(root);
+    const root = await mkdtemp(join(tmpdir(), "outpost-pi-launch-")); temporary.push(root);
     await mkdir(join(root, "sessions"));
     for (const name of ["node", "cli.js", "extension.js"]) await writeFile(join(root, name), "verified");
     const environment = {

@@ -88,27 +88,27 @@ export function mergeExplicitWorkspaceSettings(
  */
 export async function loadTaskLineageIssueIds(
   db: Pick<Db, "execute">,
-  companyId: string,
+  spaceId: string,
   task: { id: string; parentId: string | null; privacyParentIssueId?: string | null },
 ): Promise<string[]> {
   const ids = new Set([
-    ...(await loadAncestorIssueIds(db, companyId, task.parentId)),
+    ...(await loadAncestorIssueIds(db, spaceId, task.parentId)),
     ...(task.privacyParentIssueId && task.privacyParentIssueId !== task.parentId
-      ? await loadAncestorIssueIds(db, companyId, task.privacyParentIssueId)
+      ? await loadAncestorIssueIds(db, spaceId, task.privacyParentIssueId)
       : []),
   ]);
   ids.delete(task.id);
   return [...ids];
 }
 
-/** Ids of `parentId` and every ancestor above it (company-scoped). */
+/** Ids of `parentId` and every ancestor above it (space-scoped). */
 export async function loadAncestorIssueIds(
   db: Pick<Db, "execute">,
-  companyId: string,
+  spaceId: string,
   parentId: string | null | undefined,
 ): Promise<string[]> {
   if (!parentId) return [];
-  const chain = await loadParentChain(db, companyId, parentId);
+  const chain = await loadParentChain(db, spaceId, parentId);
   return chain.map((row) => row.id);
 }
 
@@ -122,7 +122,7 @@ export async function loadAncestorIssueIds(
 export async function bindsRelativesExecutionWorkspace(
   db: LineageReader,
   input: {
-    companyId: string;
+    spaceId: string;
     executionWorkspaceId: string;
     task: { id: string; parentId: string | null; privacyParentIssueId?: string | null };
   },
@@ -131,15 +131,15 @@ export async function bindsRelativesExecutionWorkspace(
     .select({ sourceIssueId: executionWorkspaces.sourceIssueId })
     .from(executionWorkspaces)
     .where(and(
-      eq(executionWorkspaces.companyId, input.companyId),
+      eq(executionWorkspaces.spaceId, input.spaceId),
       eq(executionWorkspaces.id, input.executionWorkspaceId),
     ))
     .limit(1);
   const ownerIssueId = workspace?.sourceIssueId ?? null;
   if (ownerIssueId === input.task.id) return false;
-  const ancestorIssueIds = await loadTaskLineageIssueIds(db, input.companyId, input.task);
+  const ancestorIssueIds = await loadTaskLineageIssueIds(db, input.spaceId, input.task);
   if (await isAncestorExecutionWorkspace(db, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     executionWorkspaceId: input.executionWorkspaceId,
     ancestorIssueIds,
   })) return true;
@@ -147,10 +147,10 @@ export async function bindsRelativesExecutionWorkspace(
   const [owner] = await db
     .select({ parentId: issues.parentId, privacyParentIssueId: issues.privacyParentIssueId })
     .from(issues)
-    .where(and(eq(issues.companyId, input.companyId), eq(issues.id, ownerIssueId)))
+    .where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, ownerIssueId)))
     .limit(1);
   if (!owner) return false;
-  const ownerLineage = await loadTaskLineageIssueIds(db, input.companyId, { id: ownerIssueId, ...owner });
+  const ownerLineage = await loadTaskLineageIssueIds(db, input.spaceId, { id: ownerIssueId, ...owner });
   return ownerLineage.includes(input.task.id);
 }
 
@@ -161,14 +161,14 @@ export async function bindsRelativesExecutionWorkspace(
  */
 export async function isAncestorExecutionWorkspace(
   db: LineageReader,
-  input: { companyId: string; executionWorkspaceId: string; ancestorIssueIds: string[] },
+  input: { spaceId: string; executionWorkspaceId: string; ancestorIssueIds: string[] },
 ): Promise<boolean> {
   if (input.ancestorIssueIds.length === 0) return false;
   const [workspace] = await db
     .select({ sourceIssueId: executionWorkspaces.sourceIssueId })
     .from(executionWorkspaces)
     .where(and(
-      eq(executionWorkspaces.companyId, input.companyId),
+      eq(executionWorkspaces.spaceId, input.spaceId),
       eq(executionWorkspaces.id, input.executionWorkspaceId),
     ))
     .limit(1);
@@ -179,7 +179,7 @@ export async function isAncestorExecutionWorkspace(
     .select({ id: issues.id })
     .from(issues)
     .where(and(
-      eq(issues.companyId, input.companyId),
+      eq(issues.spaceId, input.spaceId),
       inArray(issues.id, input.ancestorIssueIds),
       eq(issues.executionWorkspaceId, input.executionWorkspaceId),
     ))

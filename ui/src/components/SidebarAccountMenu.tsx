@@ -35,7 +35,7 @@ export function SidebarAccountMenu({ forceExpanded = false }: SidebarAccountMenu
     <div data-sidebar-actions="" className="bg-border/50 px-3 py-2 dark:bg-muted">
       <div className={cn("flex items-center gap-0.5", !rail && "px-2")}>
         <Link
-          to="/company/settings"
+          to="/space/settings"
           onClick={closeMobileSidebar}
           aria-label="Settings"
           title={rail ? "Settings" : undefined}

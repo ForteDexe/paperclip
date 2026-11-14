@@ -9,14 +9,14 @@ import {
   browserUseSettings as settings,
   connectionGrants,
   connectionGrantMembers,
-  companyMemberships,
-  companySecrets,
+  spaceMemberships,
+  spaceSecrets,
   toolInvocations,
   toolConnections,
   issues,
   heartbeatRuns,
   agents,
-  companies,
+  spaces,
   toolCatalogEntries,
 } from "@outpost/db";
 import {
@@ -56,7 +56,7 @@ import { lockBudgetAdmissionControls } from "./budget-admission-controls.js";
 
 type Session = typeof sessions.$inferSelect;
 type Binding = {
-  companyId: string;
+  spaceId: string;
   agentId: string | null;
   runId: string | null;
   issueId: string | null;
@@ -94,7 +94,7 @@ const browserHoldSchema = z.object({ invocationId: z.string(), amountCents: exac
   uncapped: z.boolean().optional(), dispatchCommittedAt: z.string().optional(), accountedCentsExact: exactNonnegativeCents.optional(),
   billingUnknown: z.boolean().optional(), receipt: browserReceiptSchema.optional() });
 function budgetHold(value: unknown): BrowserBudgetHold | undefined {
-  const raw = resultObject(value).paperclipBudgetHold;
+  const raw = resultObject(value).outpostBudgetHold;
   if (raw === undefined) return undefined;
   const parsed = browserHoldSchema.safeParse(raw);
   if (!parsed.success) throw conflict("Browser accounting evidence is invalid.");
@@ -102,7 +102,7 @@ function budgetHold(value: unknown): BrowserBudgetHold | undefined {
 }
 function publicResult(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-  const { paperclipBudgetHold: _internal, ...visible } = resultObject(value);
+  const { outpostBudgetHold: _internal, ...visible } = resultObject(value);
   return Object.keys(visible).length ? visible : null;
 }
 
@@ -118,7 +118,7 @@ export function browserUseService(
   const budgets = budgetService(db, budgetHooks);
   const secrets = secretService(db);
   async function credentials(
-    s: Pick<Session, "companyId" | "connectionId" | "grantId">,
+    s: Pick<Session, "spaceId" | "connectionId" | "grantId">,
     cleanup = false,
   ) {
     const [row] = await db
@@ -131,8 +131,8 @@ export function browserUseService(
       .where(
         and(
           eq(connectionGrants.id, s.grantId),
-          eq(connectionGrants.companyId, s.companyId),
-          eq(toolConnections.companyId, s.companyId),
+          eq(connectionGrants.spaceId, s.spaceId),
+          eq(toolConnections.spaceId, s.spaceId),
           eq(toolConnections.id, s.connectionId),
         ),
       )
@@ -152,18 +152,18 @@ export function browserUseService(
         r.configPath.toLowerCase() === "headers.x-browser-use-api-key",
     );
     if (!ref) throw forbidden("Reconnect Browser Use to restore its API key.");
-    const [credentialSnapshot] = await db.select().from(companySecrets).where(and(
-      eq(companySecrets.companyId, s.companyId), eq(companySecrets.id, ref.secretId)));
+    const [credentialSnapshot] = await db.select().from(spaceSecrets).where(and(
+      eq(spaceSecrets.spaceId, s.spaceId), eq(spaceSecrets.id, ref.secretId)));
     if (!credentialSnapshot || (!cleanup && credentialSnapshot.status !== "active"))
       throw forbidden("Browser credential is unavailable.");
     if (row.grant.kind === "user") {
       const [secret] = await db
         .select()
-        .from(companySecrets)
+        .from(spaceSecrets)
         .where(
           and(
-            eq(companySecrets.id, ref.secretId),
-            eq(companySecrets.companyId, s.companyId),
+            eq(spaceSecrets.id, ref.secretId),
+            eq(spaceSecrets.spaceId, s.spaceId),
           ),
         )
         .limit(1);
@@ -177,7 +177,7 @@ export function browserUseService(
       }
     }
     const key = await secrets.resolveSecretValue(
-      s.companyId,
+      s.spaceId,
       ref.secretId,
       ref.versionSelector ?? "latest",
       {
@@ -211,7 +211,7 @@ export function browserUseService(
       .where(
         and(
           eq(sessions.id, id),
-          eq(sessions.companyId, binding.companyId),
+          eq(sessions.spaceId, binding.spaceId),
           eq(sessions.issueId, binding.issueId!),
           eq(sessions.agentId, binding.agentId!),
           eq(sessions.grantId, grant.id),
@@ -236,7 +236,7 @@ export function browserUseService(
       .where(
         and(
           eq(issues.id, binding.issueId),
-          eq(issues.companyId, binding.companyId),
+          eq(issues.spaceId, binding.spaceId),
         ),
       )
       .limit(1);
@@ -246,7 +246,7 @@ export function browserUseService(
       .where(
         and(
           eq(heartbeatRuns.id, binding.runId),
-          eq(heartbeatRuns.companyId, binding.companyId),
+          eq(heartbeatRuns.spaceId, binding.spaceId),
           eq(heartbeatRuns.agentId, binding.agentId),
         ),
       )
@@ -262,13 +262,13 @@ export function browserUseService(
       );
     if (
       await issueTreeControlService(db).getActivePauseHoldGate(
-        binding.companyId,
+        binding.spaceId,
         issue.id,
       )
     )
       throw forbidden("This task is paused.");
     const blocked = await budgets.getInvocationBlock(
-      binding.companyId,
+      binding.spaceId,
       binding.agentId,
       { issueId: issue.id, projectId: issue.projectId },
     );
@@ -276,14 +276,14 @@ export function browserUseService(
     return issue;
   }
   async function getSettings(
-    companyId: string,
+    spaceId: string,
     grantId: string,
   ): Promise<BrowserUseSettings> {
     const [s] = await db
       .select()
       .from(settings)
       .where(
-        and(eq(settings.grantId, grantId), eq(settings.companyId, companyId)),
+        and(eq(settings.grantId, grantId), eq(settings.spaceId, spaceId)),
       )
       .limit(1);
     return {
@@ -296,7 +296,7 @@ export function browserUseService(
       await db
         .select()
         .from(runs)
-        .where(and(eq(runs.companyId, s.companyId), eq(runs.sessionId, s.id)))
+        .where(and(eq(runs.spaceId, s.spaceId), eq(runs.sessionId, s.id)))
         .orderBy(desc(runs.createdAt))
         .limit(1)
     )[0];
@@ -307,7 +307,7 @@ export function browserUseService(
       .select({ id: browsers.id, status: browsers.status })
       .from(browsers)
       .where(
-        and(eq(browsers.companyId, s.companyId), eq(browsers.sessionId, s.id)),
+        and(eq(browsers.spaceId, s.spaceId), eq(browsers.sessionId, s.id)),
       );
     return {
       sessionId: s.id,
@@ -327,7 +327,7 @@ export function browserUseService(
     actorType: "system" | "user" = "system",
   ) {
     await logActivity(db, {
-      companyId: s.companyId,
+      spaceId: s.spaceId,
       actorType,
       actorId,
       action,
@@ -344,9 +344,9 @@ export function browserUseService(
     value: unknown,
   ) {
     const args = argsSchema.parse(value ?? {});
-    const config = await getSettings(binding.companyId, grant.id);
+    const config = await getSettings(binding.spaceId, grant.id);
     const scope = {
-      companyId: binding.companyId,
+      spaceId: binding.spaceId,
       connectionId: grant.connectionId,
       grantId: grant.id,
     };
@@ -373,7 +373,7 @@ export function browserUseService(
         .where(
           and(
             eq(toolInvocations.id, invocationId),
-            eq(toolInvocations.companyId, binding.companyId),
+            eq(toolInvocations.spaceId, binding.spaceId),
             eq(toolInvocations.agentId, binding.agentId!),
             eq(toolInvocations.runId, binding.runId!),
             eq(toolInvocations.issueId, binding.issueId!),
@@ -391,7 +391,7 @@ export function browserUseService(
         .from(sessions)
         .where(
           and(
-            eq(sessions.companyId, binding.companyId),
+            eq(sessions.spaceId, binding.spaceId),
             eq(sessions.issueId, binding.issueId!),
             eq(sessions.agentId, binding.agentId!),
             eq(sessions.grantId, grant.id),
@@ -413,7 +413,7 @@ export function browserUseService(
             .where(
               and(
                 eq(runs.sessionId, s.id),
-                eq(runs.companyId, s.companyId),
+                eq(runs.spaceId, s.spaceId),
                 sql`${runs.detachedUntil} is not null`,
               ),
             );
@@ -440,7 +440,7 @@ export function browserUseService(
       .from(runs)
       .where(
         and(
-          eq(runs.companyId, binding.companyId),
+          eq(runs.spaceId, binding.spaceId),
           eq(runs.invocationId, invocationId),
         ),
       )
@@ -449,51 +449,51 @@ export function browserUseService(
       return snapshot(await owned(binding, grant, existing[0].sessionId));
     const lockAdmissionScopes = async (tx: Db) => {
       // Shared authority fences let concurrent paid claims proceed together.
-      // A company/project pause must precede the claim or see its durable run.
+      // A space/project pause must precede the claim or see its durable run.
       // Take these before browser/session/run rows, matching control writers.
       const [scope] = await tx.select({ projectId: issues.projectId }).from(issues)
-        .where(and(eq(issues.id, binding.issueId!), eq(issues.companyId, binding.companyId)));
-      await lockBudgetAdmissionControls(tx, binding.companyId, scope?.projectId);
+        .where(and(eq(issues.id, binding.issueId!), eq(issues.spaceId, binding.spaceId)));
+      await lockBudgetAdmissionControls(tx, binding.spaceId, scope?.projectId);
       const [locked] = await tx.select({ projectId: issues.projectId }).from(issues)
-        .where(and(eq(issues.id, binding.issueId!), eq(issues.companyId, binding.companyId))).for("share");
+        .where(and(eq(issues.id, binding.issueId!), eq(issues.spaceId, binding.spaceId))).for("share");
       if (locked?.projectId !== scope?.projectId) throw conflict("The browser task's project changed before dispatch.");
     };
     const admissionCheck = async (tx: Db, publications: ActivityPublication[], hold?: BrowserBudgetHold) => {
       const [parent] = await tx.select().from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.id, binding.runId!), eq(heartbeatRuns.companyId, binding.companyId),
+        eq(heartbeatRuns.id, binding.runId!), eq(heartbeatRuns.spaceId, binding.spaceId),
         eq(heartbeatRuns.agentId, binding.agentId!))).for("update");
-      const [issue] = await tx.select().from(issues).where(and(eq(issues.id, binding.issueId!), eq(issues.companyId, binding.companyId)));
-      const [currentAgent] = await tx.select().from(agents).where(and(eq(agents.id, binding.agentId!), eq(agents.companyId, binding.companyId)));
-      const [company] = await tx.select({ status: companies.status }).from(companies).where(eq(companies.id, binding.companyId));
+      const [issue] = await tx.select().from(issues).where(and(eq(issues.id, binding.issueId!), eq(issues.spaceId, binding.spaceId)));
+      const [currentAgent] = await tx.select().from(agents).where(and(eq(agents.id, binding.agentId!), eq(agents.spaceId, binding.spaceId)));
+      const [space] = await tx.select({ status: spaces.status }).from(spaces).where(eq(spaces.id, binding.spaceId));
       if (!parent || (!approved && parent.status !== "running") || parent.resultJson?.cancellation || parent.resultJson?.startupCancellation
         || !issue || issue.assigneeAgentId !== binding.agentId || issue.status === "cancelled"
         || !currentAgent || currentAgent.lifecycleState !== "ready" || ["paused", "terminated", "pending_approval"].includes(currentAgent.status)
-        || company?.status !== "active") return { reason: "The browser's owning task, company or agent run is no longer active." };
+        || space?.status !== "active") return { reason: "The browser's owning task, space or agent run is no longer active." };
       const [invocation] = await tx.select().from(toolInvocations).where(and(
-        eq(toolInvocations.id, invocationId), eq(toolInvocations.companyId, binding.companyId)));
+        eq(toolInvocations.id, invocationId), eq(toolInvocations.spaceId, binding.spaceId)));
       if (invocation && (invocation.agentId !== binding.agentId || invocation.runId !== binding.runId
         || invocation.issueId !== binding.issueId || invocation.connectionId !== grant.connectionId
         || invocation.status !== "executing" || !["agent", "user", "system", "plugin"].includes(invocation.actorType)))
         return { reason: "The browser invocation is no longer authorized." };
       if (approved && invocation?.approvalState !== "approved") return { reason: "The browser approval is no longer authorized." };
-      if (await issueTreeControlService(tx).getActivePauseHoldGate(binding.companyId, issue.id)) return { reason: "This task is paused." };
+      if (await issueTreeControlService(tx).getActivePauseHoldGate(binding.spaceId, issue.id)) return { reason: "This task is paused." };
       const [current] = await tx.select({ grant: connectionGrants, connection: toolConnections }).from(connectionGrants)
         .innerJoin(toolConnections, eq(toolConnections.id, connectionGrants.connectionId)).where(and(
-          eq(connectionGrants.id, grant.id), eq(connectionGrants.companyId, binding.companyId),
-          eq(toolConnections.id, grant.connectionId), eq(toolConnections.companyId, binding.companyId))).for("share");
-      const [secret] = await tx.select().from(companySecrets).where(and(eq(companySecrets.id, selected.credentialSnapshot.id),
-        eq(companySecrets.companyId, binding.companyId))).for("share");
+          eq(connectionGrants.id, grant.id), eq(connectionGrants.spaceId, binding.spaceId),
+          eq(toolConnections.id, grant.connectionId), eq(toolConnections.spaceId, binding.spaceId))).for("share");
+      const [secret] = await tx.select().from(spaceSecrets).where(and(eq(spaceSecrets.id, selected.credentialSnapshot.id),
+        eq(spaceSecrets.spaceId, binding.spaceId))).for("share");
       // Reuse the gateway's policy evaluator, including profile precedence,
       // exclusions and explicit denies. REST gallery tools do not need MCP
       // installation rows, and a matching binding alone is not authorization.
       const [entry] = await tx.select().from(toolCatalogEntries).where(and(
-        eq(toolCatalogEntries.companyId, binding.companyId), eq(toolCatalogEntries.connectionId, grant.connectionId),
+        eq(toolCatalogEntries.spaceId, binding.spaceId), eq(toolCatalogEntries.connectionId, grant.connectionId),
         eq(toolCatalogEntries.toolName, name))).limit(1);
       if (!entry || (invocation?.catalogEntryId && invocation.catalogEntryId !== entry.id)
         || (invocation?.upstreamToolName && invocation.upstreamToolName !== name))
         return { reason: "Browser tool is no longer available." };
       const access = await toolAccessPolicyService(tx).decide({
-        companyId: binding.companyId, actor: { actorType: (invocation?.actorType ?? "agent") as "agent" | "user" | "system" | "plugin",
+        spaceId: binding.spaceId, actor: { actorType: (invocation?.actorType ?? "agent") as "agent" | "user" | "system" | "plugin",
           actorId: invocation?.actorId ?? binding.agentId!, agentId: binding.agentId },
         runContext: { heartbeatRunId: binding.runId, issueId: issue.id, projectId: issue.projectId, gatewayId: binding.gatewayId ?? invocation?.gatewayId },
         request: { applicationId: entry.applicationId, connectionId: grant.connectionId, catalogEntryId: entry.id,
@@ -509,19 +509,19 @@ export function browserUseService(
         || JSON.stringify(current.grant.credentialSecretRefs) !== JSON.stringify(selected.grant.credentialSecretRefs)
         || !secret || secret.status !== "active" || secret.latestVersion !== selected.credentialSnapshot.latestVersion)
         return { reason: "Browser access or its credential changed before dispatch." };
-      const admission = await budgetServiceInTransaction(tx, publications).evaluateAdmission(binding.companyId, binding.agentId, { projectId: issue.projectId });
+      const admission = await budgetServiceInTransaction(tx, publications).evaluateAdmission(binding.spaceId, binding.agentId, { projectId: issue.projectId });
       if (admission.block) return { reason: admission.block.reason };
       if (hold && centsToUnits(hold.amountCents) === 0n && admission.policies.length)
         return { reason: "Browser budget changed before dispatch; try again with a bounded cost cap." };
-      const [currentConfig] = await tx.select().from(settings).where(and(eq(settings.companyId, binding.companyId), eq(settings.grantId, grant.id)));
+      const [currentConfig] = await tx.select().from(settings).where(and(eq(settings.spaceId, binding.spaceId), eq(settings.grantId, grant.id)));
       if (args.profileId && !currentConfig?.allowedProfileIds.includes(args.profileId)) return { reason: "This profile is not allowed for this credential." };
       if (hold && issue.projectId !== hold.projectId) return { reason: "The browser task's project changed before dispatch." };
       return { amountCents: "0.0000000", maxCostUsd: undefined, projectId: issue.projectId };
     };
     const sid = args.sessionId;
-    const admitted = await withOperationAccountingTransaction(db, binding.companyId, async (tx, publications) => {
+    const admitted = await withOperationAccountingTransaction(db, binding.spaceId, async (tx, publications) => {
       await lockAdmissionScopes(tx);
-      const [duplicate] = await tx.select().from(runs).where(and(eq(runs.companyId, binding.companyId), eq(runs.invocationId, invocationId)));
+      const [duplicate] = await tx.select().from(runs).where(and(eq(runs.spaceId, binding.spaceId), eq(runs.invocationId, invocationId)));
       if (duplicate) return { existing: duplicate.sessionId };
       const check = await admissionCheck(tx, publications);
       if (check.reason) return { reason: check.reason };
@@ -540,7 +540,7 @@ export function browserUseService(
           .where(
             and(
               eq(sessions.id, sid),
-              eq(sessions.companyId, binding.companyId),
+              eq(sessions.spaceId, binding.spaceId),
               eq(sessions.status, "idle"),
               isNull(sessions.stopRequested),
               or(
@@ -567,8 +567,8 @@ export function browserUseService(
       const hold: BrowserBudgetHold = { invocationId, amountCents: check.amountCents!, projectId: check.projectId!,
         state: "held", uncapped: check.maxCostUsd === undefined };
       await tx.insert(runs).values({
-        result: { paperclipBudgetHold: hold },
-        companyId: binding.companyId,
+        result: { outpostBudgetHold: hold },
+        spaceId: binding.spaceId,
         sessionId: row.id,
         heartbeatRunId: binding.runId!,
         invocationId,
@@ -576,14 +576,14 @@ export function browserUseService(
           ? new Date(Date.now() + BROWSER_USE_IDLE_MS)
           : null,
       });
-      await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(binding.companyId, binding.agentId, check.projectId!);
+      await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(binding.spaceId, binding.agentId, check.projectId!);
       return { session: row, hold, maxCostUsd: check.maxCostUsd };
     }).catch(async error => {
       // Parallel retries can both observe no invocation in their snapshots.
       // Roll back the losing session/hold and replay the committed owner.
       if (!isUniqueViolation(error, "browser_use_runs_invocation_uq")) throw error;
       const [duplicate] = await db.select().from(runs).where(and(
-        eq(runs.companyId, binding.companyId), eq(runs.invocationId, invocationId)));
+        eq(runs.spaceId, binding.spaceId), eq(runs.invocationId, invocationId)));
       if (!duplicate) throw error;
       return { existing: duplicate.sessionId, reason: undefined, session: undefined, hold: undefined, maxCostUsd: undefined };
     });
@@ -607,28 +607,28 @@ export function browserUseService(
         },
         ...(maxCostUsd === undefined ? {} : { maxCostUsd }),
       }, async () => {
-        const reason = await withOperationAccountingTransaction(db, binding.companyId, async (tx, publications) => {
+        const reason = await withOperationAccountingTransaction(db, binding.spaceId, async (tx, publications) => {
           await lockAdmissionScopes(tx);
-          const [current] = await tx.select().from(runs).where(and(eq(runs.invocationId, invocationId), eq(runs.companyId, binding.companyId))).for("update");
-          const [currentSession] = await tx.select().from(sessions).where(and(eq(sessions.id, s.id), eq(sessions.companyId, binding.companyId))).for("update");
+          const [current] = await tx.select().from(runs).where(and(eq(runs.invocationId, invocationId), eq(runs.spaceId, binding.spaceId))).for("update");
+          const [currentSession] = await tx.select().from(sessions).where(and(eq(sessions.id, s.id), eq(sessions.spaceId, binding.spaceId))).for("update");
           const hold = budgetHold(current?.result);
           if (!currentSession || currentSession.status !== "starting" || currentSession.stopRequested) return "Browser session was stopped before dispatch.";
           if (!current || current.status !== "creating" || current.providerRunId || hold?.state !== "held" || hold.dispatchCommittedAt)
             return "Browser provider dispatch no longer owns this invocation.";
           const check = await admissionCheck(tx, publications, hold);
           if (check.reason) return check.reason;
-          await tx.update(runs).set({ result: { ...resultObject(current.result), paperclipBudgetHold: { ...hold, dispatchCommittedAt: new Date().toISOString() } } }).where(eq(runs.id, current.id));
-          await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(binding.companyId, binding.agentId, hold.projectId);
+          await tx.update(runs).set({ result: { ...resultObject(current.result), outpostBudgetHold: { ...hold, dispatchCommittedAt: new Date().toISOString() } } }).where(eq(runs.id, current.id));
+          await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(binding.spaceId, binding.agentId, hold.projectId);
           return null;
         });
         if (reason) throw new BrowserUseError(403, reason, 0, true);
         providerAttempted = true;
       });
-      const persistedSession = await withOperationAccountingTransaction(db, binding.companyId, async (tx) => {
+      const persistedSession = await withOperationAccountingTransaction(db, binding.spaceId, async (tx) => {
         const [currentRun] = await tx.select().from(runs).where(and(eq(runs.invocationId, invocationId),
-          eq(runs.companyId, binding.companyId))).for("update");
+          eq(runs.spaceId, binding.spaceId))).for("update");
         const [currentSession] = await tx.select().from(sessions).where(and(eq(sessions.id, s.id),
-          eq(sessions.companyId, binding.companyId))).for("update");
+          eq(sessions.spaceId, binding.spaceId))).for("update");
         if (!currentRun || !currentSession || (currentRun.providerRunId && currentRun.providerRunId !== result.id))
           throw conflict("Browser provider response does not match its invocation.");
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.browser);
@@ -654,18 +654,18 @@ export function browserUseService(
       const rejected = !providerAttempted || (error instanceof BrowserUseError && error.requestRejected);
       const message = rejected ? (error instanceof Error ? error.message : "Browser dispatch was rejected.") :
         "Browser run creation could not be confirmed. Outpost is locating and stopping possible provider work. Do not start another run yet.";
-      await withOperationAccountingTransaction(db, binding.companyId, async (tx, publications) => {
+      await withOperationAccountingTransaction(db, binding.spaceId, async (tx, publications) => {
         const [currentRun] = await tx.select().from(runs).where(and(eq(runs.invocationId, invocationId),
-          eq(runs.companyId, binding.companyId))).for("update");
-        const [current] = await tx.select().from(sessions).where(and(eq(sessions.id, s.id), eq(sessions.companyId, binding.companyId))).for("update");
+          eq(runs.spaceId, binding.spaceId))).for("update");
+        const [current] = await tx.select().from(sessions).where(and(eq(sessions.id, s.id), eq(sessions.spaceId, binding.spaceId))).for("update");
         if (!currentRun || !current || currentRun.providerRunId || currentRun.eventsDrained || budgetHold(currentRun.result)?.state === "settled") return;
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.browser);
         if (rejected) {
-          await tx.update(runs).set({ result: sql`jsonb_set(${runs.result}, '{paperclipBudgetHold,state}', '"released"'::jsonb)` }).where(eq(runs.invocationId, invocationId));
-          await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(binding.companyId, binding.agentId, admitted.hold!.projectId);
+          await tx.update(runs).set({ result: sql`jsonb_set(${runs.result}, '{outpostBudgetHold,state}', '"released"'::jsonb)` }).where(eq(runs.invocationId, invocationId));
+          await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(binding.spaceId, binding.agentId, admitted.hold!.projectId);
         } else {
-          await tx.update(runs).set({ result: sql`jsonb_set(${runs.result}, '{paperclipBudgetHold,billingUnknown}', 'true'::jsonb)` }).where(eq(runs.invocationId, invocationId));
-          await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(binding.companyId, binding.agentId, admitted.hold!.projectId);
+          await tx.update(runs).set({ result: sql`jsonb_set(${runs.result}, '{outpostBudgetHold,billingUnknown}', 'true'::jsonb)` }).where(eq(runs.invocationId, invocationId));
+          await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(binding.spaceId, binding.agentId, admitted.hold!.projectId);
         }
         // A restart must not leave a drained rejection attached to a starting
         // session: that combination has neither recovery work nor an idle timer.
@@ -711,7 +711,7 @@ export function browserUseService(
         .where(
           and(
             eq(sessions.id, s.id),
-            eq(sessions.companyId, s.companyId),
+            eq(sessions.spaceId, s.spaceId),
             eq(sessions.status, "idle"),
             isNull(sessions.stopRequested),
             or(
@@ -756,7 +756,7 @@ export function browserUseService(
     );
   }
   async function humanGrant(
-    companyId: string,
+    spaceId: string,
     grantId: string,
     userId: string,
     cleanup = false,
@@ -767,7 +767,7 @@ export function browserUseService(
       .where(
         and(
           eq(connectionGrants.id, grantId),
-          eq(connectionGrants.companyId, companyId),
+          eq(connectionGrants.spaceId, spaceId),
         ),
       )
       .limit(1);
@@ -775,20 +775,20 @@ export function browserUseService(
       throw forbidden("Browser credential access is unavailable.");
     const [membership] = await db
       .select({
-        id: companyMemberships.id,
-        role: companyMemberships.membershipRole,
+        id: spaceMemberships.id,
+        role: spaceMemberships.membershipRole,
       })
-      .from(companyMemberships)
+      .from(spaceMemberships)
       .where(
         and(
-          eq(companyMemberships.companyId, companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, userId),
-          eq(companyMemberships.status, "active"),
+          eq(spaceMemberships.spaceId, spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, userId),
+          eq(spaceMemberships.status, "active"),
         ),
       )
       .limit(1);
-    if ((!membership || membership.role === "viewer") && userId !== "board")
+    if ((!membership || membership.role === "viewer") && userId !== "operator")
       throw forbidden("Outpost membership is no longer active.");
     if (grant.kind === "agent" && grant.createdByUserId === userId)
       return grant;
@@ -800,7 +800,7 @@ export function browserUseService(
       .from(connectionGrantMembers)
       .where(
         and(
-          eq(connectionGrantMembers.companyId, companyId),
+          eq(connectionGrantMembers.spaceId, spaceId),
           eq(connectionGrantMembers.grantId, grantId),
         ),
       );
@@ -812,7 +812,7 @@ export function browserUseService(
     return grant;
   }
   async function list(
-    companyId: string,
+    spaceId: string,
     issueId: string,
     userId: string,
   ): Promise<TaskBrowser[]> {
@@ -821,13 +821,13 @@ export function browserUseService(
       .from(sessions)
       .leftJoin(browsers, eq(browsers.sessionId, sessions.id))
       .where(
-        and(eq(sessions.companyId, companyId), eq(sessions.issueId, issueId)),
+        and(eq(sessions.spaceId, spaceId), eq(sessions.issueId, issueId)),
       )
       .orderBy(sessions.createdAt);
     const out: TaskBrowser[] = [];
     for (const { s, b } of rows) {
       try {
-        await humanGrant(companyId, s.grantId, userId);
+        await humanGrant(spaceId, s.grantId, userId);
       } catch {
         continue;
       }
@@ -854,7 +854,7 @@ export function browserUseService(
     return out;
   }
   async function humanSession(
-    companyId: string,
+    spaceId: string,
     issueId: string,
     browserId: string,
     userId: string,
@@ -862,7 +862,7 @@ export function browserUseService(
     const [b] = await db
       .select()
       .from(browsers)
-      .where(and(eq(browsers.id, browserId), eq(browsers.companyId, companyId)))
+      .where(and(eq(browsers.id, browserId), eq(browsers.spaceId, spaceId)))
       .limit(1);
     const [s] = await db
       .select()
@@ -870,23 +870,23 @@ export function browserUseService(
       .where(
         and(
           eq(sessions.id, b?.sessionId ?? browserId),
-          eq(sessions.companyId, companyId),
+          eq(sessions.spaceId, spaceId),
           eq(sessions.issueId, issueId),
         ),
       )
       .limit(1);
     if (!s) throw notFound("Browser not found.");
-    await humanGrant(companyId, s.grantId, userId);
+    await humanGrant(spaceId, s.grantId, userId);
     return { s, b };
   }
   async function viewer(
-    companyId: string,
+    spaceId: string,
     issueId: string,
     browserId: string,
     userId: string,
     viewerId?: string,
   ) {
-    const { s, b } = await humanSession(companyId, issueId, browserId, userId);
+    const { s, b } = await humanSession(spaceId, issueId, browserId, userId);
     if (
       !b ||
       b.status !== "active" ||
@@ -912,12 +912,12 @@ export function browserUseService(
     };
   }
   async function presence(
-    companyId: string,
+    spaceId: string,
     issueId: string,
     browserId: string,
     userId: string,
   ) {
-    const { s, b } = await humanSession(companyId, issueId, browserId, userId);
+    const { s, b } = await humanSession(spaceId, issueId, browserId, userId);
     if (
       !b ||
       b.status !== "active" ||
@@ -943,7 +943,7 @@ export function browserUseService(
       .where(
         and(
           eq(sessions.id, s.id),
-          eq(sessions.companyId, companyId),
+          eq(sessions.spaceId, spaceId),
           eq(sessions.status, "idle"),
           isNull(sessions.stopRequested),
           // The reconciler holds this lease while deciding whether to close.
@@ -958,13 +958,13 @@ export function browserUseService(
     return { accepted: updated.length > 0 };
   }
   async function resize(
-    companyId: string,
+    spaceId: string,
     issueId: string,
     browserId: string,
     userId: string,
     request: BrowserUseViewportRequest,
   ) {
-    const { s, b } = await humanSession(companyId, issueId, browserId, userId);
+    const { s, b } = await humanSession(spaceId, issueId, browserId, userId);
     if (
       !b ||
       b.status !== "active" ||
@@ -992,7 +992,7 @@ export function browserUseService(
     );
     if (result.applied)
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
         actorId: userId,
         action: "browser.resized",
@@ -1009,13 +1009,13 @@ export function browserUseService(
     return result;
   }
   async function releaseViewport(
-    companyId: string,
+    spaceId: string,
     issueId: string,
     browserId: string,
     userId: string,
     viewerId: string,
   ) {
-    const { b } = await humanSession(companyId, issueId, browserId, userId);
+    const { b } = await humanSession(spaceId, issueId, browserId, userId);
     if (b)
       await browserUseViewports.releaseLease(
         b.providerBrowserId,
@@ -1040,7 +1040,7 @@ export function browserUseService(
         const rows = await db
           .insert(browsers)
           .values({
-            companyId: s.companyId,
+            spaceId: s.spaceId,
             sessionId: s.id,
             providerBrowserId: item.id,
             status: detail.status,
@@ -1054,7 +1054,7 @@ export function browserUseService(
           .set({ status: detail.status })
           .where(
             and(
-              eq(browsers.companyId, s.companyId),
+              eq(browsers.spaceId, s.spaceId),
               eq(browsers.sessionId, s.id),
               eq(browsers.providerBrowserId, item.id),
             ),
@@ -1082,8 +1082,8 @@ export function browserUseService(
     // A failed/uncertain commit can then recover its exact price, attribution and
     // occurrence time without depending on another provider response.
     for (;;) {
-      const receipt = await withOperationAccountingTransaction(db, s.companyId, async (tx, publications) => {
-        const [current] = await tx.select().from(runs).where(and(eq(runs.id, run.id), eq(runs.companyId, s.companyId))).for("update");
+      const receipt = await withOperationAccountingTransaction(db, s.spaceId, async (tx, publications) => {
+        const [current] = await tx.select().from(runs).where(and(eq(runs.id, run.id), eq(runs.spaceId, s.spaceId))).for("update");
         if (!current || current.sessionId !== s.id || !current.providerRunId || current.providerRunId !== run.providerRunId)
           throw conflict("Browser usage no longer belongs to this run.");
         const hold = budgetHold(current.result);
@@ -1100,23 +1100,23 @@ export function browserUseService(
           return null;
         }
         const [issue] = await tx.select({ projectId: issues.projectId }).from(issues)
-          .where(and(eq(issues.id, s.issueId), eq(issues.companyId, s.companyId)));
+          .where(and(eq(issues.id, s.issueId), eq(issues.spaceId, s.spaceId)));
         const projectId = hold ? hold.projectId : issue?.projectId ?? null;
         const captured: BrowserUsageReceipt = { invocationId: current.invocationId, providerRunId: current.providerRunId,
           totalCentsExact: unitsToCents(candidate.amount), model: candidate.model, occurredAt: new Date().toISOString() };
         const remaining = candidate.amount > previous ? candidate.amount - previous : 0n;
         const held = hold?.state === "held" ? centsToUnits(hold.amountCents) : 0n;
-        await tx.update(runs).set({ eventsDrained: 0, result: { ...candidate.result, paperclipBudgetHold: {
+        await tx.update(runs).set({ eventsDrained: 0, result: { ...candidate.result, outpostBudgetHold: {
           ...(hold ?? { invocationId: current.invocationId, projectId }), state: "held",
           amountCents: unitsToCents(held > remaining ? held : remaining), accountedCentsExact: unitsToCents(previous), receipt: captured,
         } } }).where(eq(runs.id, current.id));
-        await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(s.companyId, s.agentId, projectId);
+        await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(s.spaceId, s.agentId, projectId);
         return captured;
       });
       if (!receipt) return;
       const amount = centsToUnits(receipt.totalCentsExact);
-      await withBudgetSpan("budget.accounting.settlement", () => withOperationAccountingTransaction(db, s.companyId, async (tx, publications) => {
-        const [current] = await tx.select().from(runs).where(and(eq(runs.id, run.id), eq(runs.companyId, s.companyId))).for("update");
+      await withBudgetSpan("budget.accounting.settlement", () => withOperationAccountingTransaction(db, s.spaceId, async (tx, publications) => {
+        const [current] = await tx.select().from(runs).where(and(eq(runs.id, run.id), eq(runs.spaceId, s.spaceId))).for("update");
         const hold = current && budgetHold(current.result);
         if (!current || current.sessionId !== s.id || !hold || hold.invocationId !== receipt.invocationId
           || current.providerRunId !== receipt.providerRunId) throw conflict("Browser usage no longer belongs to this run.");
@@ -1129,21 +1129,21 @@ export function browserUseService(
         const settled: BrowserBudgetHold = { ...hold, state: "settled", billingUnknown: false,
           accountedCentsExact: unitsToCents(total) };
         await tx.update(runs).set({
-          result: { ...resultObject(current.result), paperclipBudgetHold: settled }, eventsDrained: 1,
+          result: { ...resultObject(current.result), outpostBudgetHold: settled }, eventsDrained: 1,
           accountedCents: Math.min(2_147_483_647, Math.round(Number(unitsToCents(total)))),
         }).where(eq(runs.id, current.id));
         if (amount <= previous) {
-          await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(s.companyId, s.agentId, hold.projectId);
+          await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(s.spaceId, s.agentId, hold.projectId);
           return;
         }
-        const e = await createCostEventInTransaction(tx, s.companyId, {
+        const e = await createCostEventInTransaction(tx, s.spaceId, {
           agentId: s.agentId, issueId: s.issueId, projectId: hold.projectId,
           heartbeatRunId: current.heartbeatRunId,
           provider: "browser-use-cloud", biller: "browser-use-cloud", billingType: "metered_api", model: receipt.model,
           costCents: unitsToCents(amount - previous), occurredAt: new Date(receipt.occurredAt),
           billingCode: `browser-use-cloud:${current.id}`, idempotencyKey: `browser-use-cloud:${current.id}:${receipt.totalCentsExact}`,
         }, publications);
-        await createFinanceEventInTransaction(tx, publications, s.companyId, {
+        await createFinanceEventInTransaction(tx, publications, s.spaceId, {
           agentId: e.agentId, issueId: e.issueId, projectId: e.projectId, heartbeatRunId: e.heartbeatRunId,
           costEventId: e.id, billingCode: e.billingCode, eventKind: "inference_charge", direction: "debit",
           biller: "browser-use-cloud", provider: "browser-use-cloud", model: e.model,
@@ -1154,9 +1154,9 @@ export function browserUseService(
       if (!candidate || amount >= candidate.amount) return;
     }
   }
-  const sessionLeaseFence = (s: Session) => and(eq(sessions.id, s.id), eq(sessions.companyId, s.companyId),
+  const sessionLeaseFence = (s: Session) => and(eq(sessions.id, s.id), eq(sessions.spaceId, s.spaceId),
     s.leaseToken ? eq(sessions.leaseToken, s.leaseToken) : sql`false`, sql`${sessions.leaseUntil} > clock_timestamp()`);
-  const runLeaseFence = (s: Session, runId: string) => and(eq(runs.id, runId), eq(runs.companyId, s.companyId),
+  const runLeaseFence = (s: Session, runId: string) => and(eq(runs.id, runId), eq(runs.spaceId, s.spaceId),
     sql`exists (select 1 from ${sessions} where ${sessionLeaseFence(s)})`);
   async function reconcile(s: Session) {
     const { grant, connection, client } = await credentials(s, true);
@@ -1169,11 +1169,11 @@ export function browserUseService(
     const [issue] = await db
       .select()
       .from(issues)
-      .where(and(eq(issues.id, s.issueId), eq(issues.companyId, s.companyId)));
+      .where(and(eq(issues.id, s.issueId), eq(issues.spaceId, s.spaceId)));
     const [agent] = await db
       .select()
       .from(agents)
-      .where(and(eq(agents.id, s.agentId), eq(agents.companyId, s.companyId)));
+      .where(and(eq(agents.id, s.agentId), eq(agents.spaceId, s.spaceId)));
     if (
       !issue ||
       issue.assigneeAgentId !== s.agentId ||
@@ -1184,13 +1184,13 @@ export function browserUseService(
       end = true;
     if (
       await issueTreeControlService(db).getActivePauseHoldGate(
-        s.companyId,
+        s.spaceId,
         s.issueId,
       )
     )
       end = true;
     if (
-      await budgets.getInvocationBlock(s.companyId, s.agentId, {
+      await budgets.getInvocationBlock(s.spaceId, s.agentId, {
         issueId: s.issueId,
         projectId: issue?.projectId,
       })
@@ -1199,7 +1199,7 @@ export function browserUseService(
     const allRuns = await db
       .select()
       .from(runs)
-      .where(and(eq(runs.sessionId, s.id), eq(runs.companyId, s.companyId)))
+      .where(and(eq(runs.sessionId, s.id), eq(runs.spaceId, s.spaceId)))
       .orderBy(desc(runs.createdAt));
     if (
       allRuns[0] &&
@@ -1220,8 +1220,8 @@ export function browserUseService(
           continue;
         }
         if (budgetHold(run.result)?.state === "held" && !budgetHold(run.result)?.dispatchCommittedAt) {
-          const repaired = await withOperationAccountingTransaction(db, s.companyId, async (tx, publications) => {
-            const [current] = await tx.select().from(runs).where(and(eq(runs.id, run.id), eq(runs.companyId, s.companyId))).for("update");
+          const repaired = await withOperationAccountingTransaction(db, s.spaceId, async (tx, publications) => {
+            const [current] = await tx.select().from(runs).where(and(eq(runs.id, run.id), eq(runs.spaceId, s.spaceId))).for("update");
             const hold = budgetHold(current?.result);
             if (!current || current.providerRunId || current.status !== "creating" || hold?.state !== "held" || hold.dispatchCommittedAt
               || Date.now() - current.createdAt.getTime() <= 60_000) return null;
@@ -1229,14 +1229,14 @@ export function browserUseService(
             if (!session) return null;
             await notifyDeliveryWork(tx, DELIVERY_QUEUES.browser);
             await tx.update(runs).set({ status: "failed", eventsDrained: 1,
-              result: { ...resultObject(current.result), paperclipBudgetHold: { ...hold, state: "released" } } }).where(runLeaseFence(s, run.id));
+              result: { ...resultObject(current.result), outpostBudgetHold: { ...hold, state: "released" } } }).where(runLeaseFence(s, run.id));
             const stopping = session.stopRequested === "end";
             const [updated] = await tx.update(sessions).set({
               status: stopping ? "stopping" : session.providerSessionId ? "idle" : "failed",
               idleDeadline: !stopping && session.providerSessionId ? new Date(Date.now() + BROWSER_USE_IDLE_MS) : null,
               updatedAt: new Date(),
             }).where(sessionLeaseFence(s)).returning();
-            await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(s.companyId, s.agentId, hold.projectId);
+            await budgetServiceInTransaction(tx, publications).evaluateAffectedScopes(s.spaceId, s.agentId, hold.projectId);
             return updated;
           });
           if (repaired) {
@@ -1535,9 +1535,9 @@ export function browserUseService(
     presence,
     control,
     getSettings,
-    async stopBeforeCredentialRemoval(companyId: string, connectionId: string) {
+    async stopBeforeCredentialRemoval(spaceId: string, connectionId: string) {
       const scope = and(
-        eq(sessions.companyId, companyId),
+        eq(sessions.spaceId, spaceId),
         eq(sessions.connectionId, connectionId),
         inArray(sessions.status, liveSessions),
       );
@@ -1564,13 +1564,13 @@ export function browserUseService(
         );
     },
     async availableProfiles(
-      companyId: string,
+      spaceId: string,
       grantId: string,
       userId: string,
     ) {
-      const grant = await humanGrant(companyId, grantId, userId);
+      const grant = await humanGrant(spaceId, grantId, userId);
       const { client } = await credentials({
-        companyId,
+        spaceId,
         grantId,
         connectionId: grant.connectionId,
       });
@@ -1588,17 +1588,17 @@ export function browserUseService(
       return profiles;
     },
     async saveSettings(
-      companyId: string,
+      spaceId: string,
       grantId: string,
       userId: string,
       value: BrowserUseSettings,
     ) {
-      const grant = await humanGrant(companyId, grantId, userId);
+      const grant = await humanGrant(spaceId, grantId, userId);
       const managesShared =
         grant.kind === "organization" &&
-        (userId === "board" ||
+        (userId === "operator" ||
           (await accessService(db).hasPermission(
-            companyId,
+            spaceId,
             "user",
             userId,
             "tools:manage_connections",
@@ -1612,7 +1612,7 @@ export function browserUseService(
           "Only the credential owner or a shared connection manager can change browser settings.",
         );
       const { client } = await credentials({
-        companyId,
+        spaceId,
         grantId,
         connectionId: grant.connectionId,
       });
@@ -1629,7 +1629,7 @@ export function browserUseService(
           );
       }
       const row = {
-        companyId,
+        spaceId,
         grantId,
         allowedProfileIds: value.allowedProfileIds,
         maxCostUsd: value.maxCostUsd?.toString() ?? null,
@@ -1639,7 +1639,7 @@ export function browserUseService(
         .values(row)
         .onConflictDoUpdate({ target: settings.grantId, set: row });
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
         actorId: userId,
         action: "browser.settings_updated",

@@ -1,8 +1,8 @@
 # Skills created by the Runner
 
-## Search and load company skills
+## Search and load space skills
 
-Native agents can use `search_skills` and `load_skill` to read accessible company
+Native agents can use `search_skills` and `load_skill` to read accessible space
 library skills even when those skills are not assigned to them. These read-only
 tools are available in Auto, Ask and Plan modes without generic API access or a
 mounted workspace. The closed Muse, completion-review and skill-test profiles
@@ -29,10 +29,10 @@ and supporting files. Text files above 16 MiB are rejected before body reads;
 accepted text is cached for the run with a 64 MiB budget and at most 64 files.
 Later pages reuse cached text and still check current access. Evicted files are
 read again. Repository reads use verified warm files or isolated recovery without
-holding the company startup lock. Supporting paths use the saved package limit
+holding the space startup lock. Supporting paths use the saved package limit
 of 4,096 characters plus the generated repository prefix.
 Binary files and unsafe paths are rejected. Access is
-checked against the current run and the existing company and project source
+checked against the current run and the existing space and project source
 boundaries, including after file I/O. Loaded content does not change persistent
 assignments, pinned runtime bundles, permissions, connections, or approval gates.
 Skill mutation policy continues to govern authoring and installation through the
@@ -41,11 +41,11 @@ existing APIs. Reading instructions does not authorize actions described in them
 ## Create and update skills
 
 The native Runner exposes `create_skill` in Auto and skill-test work. An agent
-can save a reusable, single-file skill directly in the company's skill library.
+can save a reusable, single-file skill directly in the space's skill library.
 The tool is unavailable in Ask and pre-acceptance Plan modes.
 
 The native Runner also exposes `update_skill` in the same modes. Read the
-existing skill and its `currentVersionId` through the company skill API before
+existing skill and its `currentVersionId` through the space skill API before
 editing. Supply the **complete** primary file, not a fragment:
 
 ```json
@@ -57,7 +57,7 @@ editing. Supply the **complete** primary file, not a fragment:
 }
 ```
 
-The tool uses the existing Skill Studio file endpoint and company `skills.edit`
+The tool uses the existing Skill Studio file endpoint and space `skills.edit`
 policy. It returns a skill ID, path, resulting version ID, and Skill Studio
 path. Retry a lost response with **exactly** the same key and inputs; that
 returns the original receipt without another version or activity record.
@@ -76,11 +76,11 @@ new key for the revised edit. Policy is checked again even on exact retries.
 
 The name is lowercase with hyphens. The complete `SKILL.md` must have matching
 name and description frontmatter and a nonempty instruction body. An optional
-`slug` must equal the name. Company, task, agent and run identity come from the
+`slug` must equal the name. Space, task, agent and run identity come from the
 authenticated run; they are not tool inputs.
 
-The tool uses the same company skill policy and storage as Skill Studio. Skills
-are open by default unless company policy restricts creation. Creating a skill
+The tool uses the same space skill policy and storage as Skill Studio. Skills
+are open by default unless space policy restricts creation. Creating a skill
 does not assign it to an agent or introduce a new approval step. Once the skill
 is saved, the task can finish normally if no other work remains.
 
@@ -97,7 +97,7 @@ deletion commits. Imported local and project source folders are not removed.
 
 Successful creation adds a **Skill created** card to the originating task's
 feed. The card opens a named skill tab in the task sidebar. Repeated clicks
-focus that tab. The tab reads the company skill directly, so it is not a second
+focus that tab. The tab reads the space skill directly, so it is not a second
 editable copy of the instructions.
 
 **Open in Skill Studio** opens that same skill for editing. After saving and
@@ -108,13 +108,13 @@ denied access and retryable load errors explicitly.
 
 ## Verification
 
-Server regressions cover authenticated creation, company isolation, policy
+Server regressions cover authenticated creation, space isolation, policy
 denials and revocation, mode restrictions, initial version/file persistence,
 idempotency, conflicting retries and concurrent creation. UI tests cover the
 creation card, saved tabs, frontmatter-free preview and error states.
 
 The companion Runner Eval case `create-skill` tests provider tool use against
-the seeded mock control plane, not production storage or company policy.
+the seeded mock control plane, not production storage or space policy.
 The standalone mock uses a generated production frontmatter parser and schema
 validator. Regenerate it with
 `node packages/shared/scripts/generate-runner-skill-frontmatter.ts` after changing

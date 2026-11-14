@@ -13,8 +13,8 @@ const mockSetBreadcrumbs = vi.hoisted(() => vi.fn());
 const mockOpenNewGoal = vi.hoisted(() => vi.fn());
 
 vi.mock("../api/goals", () => ({ goalsApi: mockGoalsApi }));
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 vi.mock("../context/DialogContext", () => ({
   useDialogActions: () => ({ openNewGoal: mockOpenNewGoal }),

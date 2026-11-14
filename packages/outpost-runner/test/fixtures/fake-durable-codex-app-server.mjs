@@ -154,11 +154,11 @@ function handleRequest(message) {
       params: {
         threadId: state.threadId,
         turnId,
-        callId: `governed-idempotent-call-${turnId}`,
+        callId: `controlled-idempotent-call-${turnId}`,
         tool: "report_progress",
         arguments: {
-          idempotencyKey: "governed-idempotency-key",
-          body: "One durable governed effect.",
+          idempotencyKey: "controlled-idempotency-key",
+          body: "One durable controlled effect.",
         },
       },
     });

@@ -77,8 +77,8 @@ export function ConnectionInstructionsSettings({ connection, provider, template,
   </div>;
 }
 
-export function AgentConnectionInstructions({ companyId, agentId }: { companyId: string; agentId: string }) {
-  const query = useQuery({ queryKey: queryKeys.tools.effectiveProfilesForAgent(companyId, agentId), queryFn: () => toolsApi.getEffectiveProfilesForAgent(companyId, agentId) });
+export function AgentConnectionInstructions({ spaceId, agentId }: { spaceId: string; agentId: string }) {
+  const query = useQuery({ queryKey: queryKeys.tools.effectiveProfilesForAgent(spaceId, agentId), queryFn: () => toolsApi.getEffectiveProfilesForAgent(spaceId, agentId) });
   const view = useQueryView(query);
   const sources = query.data?.installedConnections.filter((connection) => connection.agentInstructions && connection.enabled && connection.status === "active") ?? [];
   if (query.isLoading || view.kind === "reconnecting") return <p className="text-sm text-muted-foreground">Loading connection instructions…</p>;

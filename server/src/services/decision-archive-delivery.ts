@@ -6,7 +6,7 @@ const CLAIM_MS = 5 * 60_000;
 export const DECISION_ARCHIVE_RETRY_MS = 30_000;
 
 export type ArchiveNotificationBatch = {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   items: Array<{
     sourceKind: AttentionSourceKind;
@@ -50,7 +50,7 @@ export function decisionArchiveDeliveryService(
     });
     const groups = new Map<string, typeof rows>();
     for (const row of rows) {
-      const key = `${row.companyId}:${row.originAgentId}`;
+      const key = `${row.spaceId}:${row.originAgentId}`;
       const grouped = groups.get(key) ?? [];
       grouped.push(row);
       groups.set(key, grouped);
@@ -61,7 +61,7 @@ export function decisionArchiveDeliveryService(
       const first = grouped[0]!;
       try {
         await options.notifyOriginAgent({
-          companyId: first.companyId,
+          spaceId: first.spaceId,
           agentId: first.originAgentId,
           items: grouped.map((row) => ({
             sourceKind: row.sourceKind as AttentionSourceKind,

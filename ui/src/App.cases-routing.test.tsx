@@ -4,8 +4,8 @@
 // links (`/cases`, `/cases/:id`) — the same global-unprefixed pattern Routines
 // uses. Those only resolve if `cases` and `cases/:caseIdentifier` are registered
 // as reserved unprefixed redirect routes in <App>; otherwise the first path
-// segment is parsed as a company prefix ("CASES") and the page 404s with
-// "No company matches prefix". This drives the real <App> route table so a
+// segment is parsed as a space prefix ("CASES") and the page 404s with
+// "No space matches prefix". This drives the real <App> route table so a
 // future removal of those redirect routes fails loudly.
 
 import type { ReactNode } from "react";
@@ -43,8 +43,8 @@ vi.hoisted(() => {
 });
 
 // Real Layout renders the full authenticated shell (sidebar, data queries) and
-// owns the "No company matches prefix" NotFound. For routing we only need it to
-// resolve the :companyPrefix segment and render its nested routes.
+// owns the "No space matches prefix" NotFound. For routing we only need it to
+// resolve the :spacePrefix segment and render its nested routes.
 vi.mock("./components/Layout", async () => {
   const { Outlet } = await import("react-router-dom");
   return { Layout: () => <Outlet /> };
@@ -71,21 +71,21 @@ vi.mock("./components/CloudAccessGate", async () => {
   return { CloudAccessGate: () => <Outlet /> };
 });
 
-// The prefix resolver + redirect logic both read the active company.
-const PAP_COMPANY = {
-  id: "company-1",
+// The prefix resolver + redirect logic both read the active space.
+const PAP_SPACE = {
+  id: "space-1",
   name: "Outpost",
   issuePrefix: "PAP",
   status: "active",
 };
-vi.mock("./context/CompanyContext", () => ({
-  useCompany: () => ({
-    companies: [PAP_COMPANY],
-    selectedCompanyId: PAP_COMPANY.id,
-    selectedCompany: PAP_COMPANY,
+vi.mock("./context/SpaceContext", () => ({
+  useSpace: () => ({
+    spaces: [PAP_SPACE],
+    selectedSpaceId: PAP_SPACE.id,
+    selectedSpace: PAP_SPACE,
     loading: false,
   }),
-  CompanyProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  SpaceProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 async function renderAppAt(container: HTMLElement, path: string) {
@@ -129,14 +129,14 @@ describe("App Cases routing (PAP-13002)", () => {
     vi.clearAllMocks();
   });
 
-  it("redirects unprefixed /cases to the company-prefixed list page", async () => {
+  it("redirects unprefixed /cases to the space-prefixed list page", async () => {
     const root = await renderAppAt(container, "/cases");
     await waitForRoute(container, "CASES_LIST_PAGE");
     expect(container.textContent).not.toContain("No organization matches prefix");
     flushSync(() => root.unmount());
   });
 
-  it("redirects unprefixed /cases/:id to the company-prefixed detail page", async () => {
+  it("redirects unprefixed /cases/:id to the space-prefixed detail page", async () => {
     const root = await renderAppAt(container, "/cases/PAP-C5");
     await waitForRoute(container, "CASE_DETAIL_PAGE");
     expect(container.textContent).not.toContain("No organization matches prefix");

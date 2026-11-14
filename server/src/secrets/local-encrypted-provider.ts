@@ -103,7 +103,7 @@ function loadOrCreateMasterKey(allowCreate = true, env: LocalEncryptedKeyEnv = p
 /** Derive a purpose-specific instance secret without exposing or reusing the vault key. */
 export function deriveLocalEncryptedInstanceSecret(purpose: string, env: LocalEncryptedKeyEnv = process.env, options: { allowCreate?: boolean;readOnly?:boolean } = {}): string {
   return Buffer.from(hkdfSync("sha256", loadOrCreateMasterKey(options.readOnly?false:options.allowCreate ?? true, env,{readOnly:options.readOnly}), Buffer.alloc(0),
-    `paperclip:instance-secret:v1\0${purpose}`, 32)).toString("base64url");
+    `outpost:instance-secret:v1\0${purpose}`, 32)).toString("base64url");
 }
 
 function enforceKeyFilePermissionsBestEffort(keyPath: string) {
@@ -332,7 +332,7 @@ export const localEncryptedProvider: SecretProviderModule = {
     return createLocalEncryptedCipher("read").decrypt(input.material);
   },
   async deleteOrArchive() {
-    // Secret metadata deletion is handled in Paperclip DB; the local key is shared and must remain.
+    // Secret metadata deletion is handled in Outpost DB; the local key is shared and must remain.
   },
   async healthCheck() {
     return inspectLocalEncryptedHealth();

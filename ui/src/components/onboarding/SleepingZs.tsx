@@ -7,7 +7,7 @@ import { cn } from "../../lib/utils";
  * Sleep marks drifting off the dormant agent.
  *
  * The capsule is grey and closed-eyed for the whole of the connect step, which
- * is accurate — nothing has been hired yet — but a still silhouette reads as a
+ * is accurate — nothing has been created yet — but a still silhouette reads as a
  * placeholder that failed to load rather than as something waiting. Three small
  * z's rising off its shoulder say "asleep, not broken" without adding a second
  * thing to look at.

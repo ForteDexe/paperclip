@@ -11,12 +11,12 @@ import { toolsApi } from "@/api/tools";
  *
  * Two modes:
  *
- * 1. **Data-driven** (default) — pass only `companyId`. Renders the standing
+ * 1. **Data-driven** (default) — pass only `spaceId`. Renders the standing
  *    "enforcement is server-side" message and tints to `denied-detected` when
- *    governed tool calls were denied or failed in the last hour. This is an
+ *    controlled tool calls were denied or failed in the last hour. This is an
  *    *observability* banner — enforcement itself lives in the tool gateway.
  *
- * 2. **Presentational** (`tone` + `title`/`body`) — a static governance banner
+ * 2. **Presentational** (`tone` + `title`/`body`) — a static policy banner
  *    used to surface a fixed message such as the PAP-10400 trust-tier copy on
  *    the Runtime tab. Tones map to the same OKLCH token palette used elsewhere:
  *    `info` (neutral/shield), `warning` (amber), `error` (destructive).
@@ -46,13 +46,13 @@ const ONE_HOUR_MS = 60 * 60 * 1000;
 export type EnforcementTone = "info" | "warning" | "error";
 
 export interface EnforcementBannerProps extends VariantProps<typeof enforcementBanner> {
-  companyId?: string;
+  spaceId?: string;
   className?: string;
   /** Override the computed variant (used by the design guide). */
   forceVariant?: "default" | "denied-detected";
   recentDenialCount?: number;
   /**
-   * Presentational mode: when provided, the banner renders a static governance
+   * Presentational mode: when provided, the banner renders a static policy
    * message with this tone instead of the data-driven denial summary.
    */
   tone?: EnforcementTone;
@@ -101,19 +101,19 @@ function PresentationalBanner({
 }
 
 export function EnforcementBanner(props: EnforcementBannerProps) {
-  const { companyId, className, forceVariant, recentDenialCount, tone, title, body, icon, action } = props;
+  const { spaceId, className, forceVariant, recentDenialCount, tone, title, body, icon, action } = props;
 
   // Presentational mode short-circuits the data hook below.
   const isPresentational = tone !== undefined;
 
   const audit = useQuery({
-    queryKey: queryKeys.tools.audit(companyId ?? "", 100),
-    queryFn: () => toolsApi.listAudit(companyId ?? "", 100),
+    queryKey: queryKeys.tools.audit(spaceId ?? "", 100),
+    queryFn: () => toolsApi.listAudit(spaceId ?? "", 100),
     enabled:
       !isPresentational &&
       forceVariant === undefined &&
       recentDenialCount === undefined &&
-      !!companyId,
+      !!spaceId,
     refetchInterval: 30_000,
   });
 
@@ -151,7 +151,7 @@ export function EnforcementBanner(props: EnforcementBannerProps) {
       <div className="min-w-0 flex-1">
         {variant === "denied-detected" ? (
           <p>
-            <span className="font-medium">{computedCount}</span> governed tool call
+            <span className="font-medium">{computedCount}</span> controlled tool call
             {computedCount === 1 ? " was" : "s were"} denied or failed in the last hour. Access is enforced
             server-side by the tool gateway — open the affected connector to review what was blocked and why.
           </p>

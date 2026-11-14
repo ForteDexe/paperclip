@@ -39,7 +39,7 @@ import {
   chatIdentityLinks,
   chatMessageLinks,
   chatPublications,
-  companyMemberships,
+  spaceMemberships,
   heartbeatRuns,
   issueComments,
   issueAttachments,
@@ -129,7 +129,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(chatEndpoints)
       .where(
         and(
-          eq(chatEndpoints.companyId, supplied.companyId),
+          eq(chatEndpoints.spaceId, supplied.spaceId),
           eq(chatEndpoints.id, supplied.endpointId),
         ),
       )
@@ -148,7 +148,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(toolConnections)
       .where(
         and(
-          eq(toolConnections.companyId, endpoint.companyId),
+          eq(toolConnections.spaceId, endpoint.spaceId),
           eq(toolConnections.id, endpoint.connectionId),
         ),
       )
@@ -182,7 +182,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(chatConversations)
       .where(
         and(
-          eq(chatConversations.companyId, endpoint.companyId),
+          eq(chatConversations.spaceId, endpoint.spaceId),
           eq(chatConversations.endpointId, endpoint.id),
           eq(chatConversations.id, supplied.conversationId),
           eq(chatConversations.issueId, supplied.issueId),
@@ -199,7 +199,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(chatConversations)
       .where(
         and(
-          eq(chatConversations.companyId, endpoint.companyId),
+          eq(chatConversations.spaceId, endpoint.spaceId),
           eq(chatConversations.endpointId, endpoint.id),
           eq(chatConversations.externalThreadId, conversation.externalThreadId),
           gt(
@@ -215,7 +215,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, endpoint.companyId),
+          eq(issues.spaceId, endpoint.spaceId),
           eq(issues.id, conversation.issueId),
         ),
       )
@@ -223,14 +223,14 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
     if (!issue || issue.assigneeAgentId !== endpoint.assignedAgentId)
       return null;
     // The conversation lock serializes rollover. The endpoint lock serializes
-    // reach/credential changes; no lock here waits behind inverse Board order.
+    // reach/credential changes; no lock here waits behind inverse Operator order.
     if (conversation.resourceId)
       await tx
         .select({ id: chatEndpointResources.id })
         .from(chatEndpointResources)
         .where(
           and(
-            eq(chatEndpointResources.companyId, endpoint.companyId),
+            eq(chatEndpointResources.spaceId, endpoint.spaceId),
             eq(chatEndpointResources.endpointId, endpoint.id),
             eq(chatEndpointResources.id, conversation.resourceId),
           ),
@@ -241,7 +241,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(chatPublications)
       .where(
         and(
-          eq(chatPublications.companyId, endpoint.companyId),
+          eq(chatPublications.spaceId, endpoint.spaceId),
           eq(chatPublications.endpointId, endpoint.id),
           eq(chatPublications.conversationId, conversation.id),
           eq(chatPublications.issueId, conversation.issueId),
@@ -267,7 +267,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(issueComments)
       .where(
         and(
-          eq(issueComments.companyId, endpoint.companyId),
+          eq(issueComments.spaceId, endpoint.spaceId),
           eq(issueComments.issueId, conversation.issueId),
           eq(issueComments.id, publication.commentId),
           isNull(issueComments.deletedAt),
@@ -281,12 +281,12 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
         assets,
         and(
           eq(assets.id, issueAttachments.assetId),
-          eq(assets.companyId, endpoint.companyId),
+          eq(assets.spaceId, endpoint.spaceId),
         ),
       )
       .where(
         and(
-          eq(issueAttachments.companyId, endpoint.companyId),
+          eq(issueAttachments.spaceId, endpoint.spaceId),
           eq(issueAttachments.issueId, conversation.issueId),
           eq(issueAttachments.issueCommentId, publication.commentId),
           eq(issueAttachments.id, ids[0]),
@@ -342,7 +342,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
     principalId: string,
   ) {
     const identity = await tx.execute(
-      sql`select pg_try_advisory_xact_lock(hashtextextended(${`chat-identity:${endpoint.companyId}:${principalId}`}, 0)) as locked`,
+      sql`select pg_try_advisory_xact_lock(hashtextextended(${`chat-identity:${endpoint.spaceId}:${principalId}`}, 0)) as locked`,
     );
     if (!identity[0]?.locked)
       throw new NativeChatReviewPresentationContentionError();
@@ -351,23 +351,23 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(chatIdentityLinks)
       .where(
         and(
-          eq(chatIdentityLinks.companyId, endpoint.companyId),
+          eq(chatIdentityLinks.spaceId, endpoint.spaceId),
           eq(chatIdentityLinks.endpointId, endpoint.id),
           eq(chatIdentityLinks.principalId, principalId),
         ),
       )
       .for("update", { noWait: true });
     const userId =
-      link?.status === "linked" ? link.paperclipUserId : endpoint.sponsorUserId;
+      link?.status === "linked" ? link.outpostUserId : endpoint.sponsorUserId;
     if (userId)
       await tx
         .select()
-        .from(companyMemberships)
+        .from(spaceMemberships)
         .where(
           and(
-            eq(companyMemberships.companyId, endpoint.companyId),
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, userId),
+            eq(spaceMemberships.spaceId, endpoint.spaceId),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, userId),
           ),
         )
         .for("update", { noWait: true });
@@ -387,7 +387,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, endpoint.companyId),
+          eq(chatActions.spaceId, endpoint.spaceId),
           eq(chatActions.endpointId, endpoint.id),
           eq(chatActions.conversationId, conversation.id),
           eq(chatActions.id, actionId),
@@ -412,7 +412,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(chatDeliveries)
       .where(
         and(
-          eq(chatDeliveries.companyId, endpoint.companyId),
+          eq(chatDeliveries.spaceId, endpoint.spaceId),
           eq(chatDeliveries.endpointId, endpoint.id),
           eq(chatDeliveries.conversationId, conversation.id),
           eq(chatDeliveries.id, action.deliveryId),
@@ -432,7 +432,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(chatExternalPrincipals)
       .where(
         and(
-          eq(chatExternalPrincipals.companyId, endpoint.companyId),
+          eq(chatExternalPrincipals.spaceId, endpoint.spaceId),
           eq(chatExternalPrincipals.id, action.principalId),
           eq(chatExternalPrincipals.provider, "microsoft-teams"),
           eq(
@@ -446,7 +446,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .for("share", { noWait: true });
     if (!delivery || !originalFence || !principal) return null;
     const admission = {
-      companyId: endpoint.companyId,
+      spaceId: endpoint.spaceId,
       endpointId: endpoint.id,
       runtimeGeneration: originalFence.generation,
       credentialFingerprint: originalFence.credentialFingerprint,
@@ -497,13 +497,13 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
         issueComments,
         and(
           eq(issueComments.id, chatMessageLinks.commentId),
-          eq(issueComments.companyId, endpoint.companyId),
+          eq(issueComments.spaceId, endpoint.spaceId),
           eq(issueComments.issueId, conversation.issueId),
         ),
       )
       .where(
         and(
-          eq(chatMessageLinks.companyId, endpoint.companyId),
+          eq(chatMessageLinks.spaceId, endpoint.spaceId),
           eq(chatMessageLinks.endpointId, endpoint.id),
           eq(chatMessageLinks.conversationId, conversation.id),
           eq(chatMessageLinks.deliveryId, delivery.id),
@@ -536,7 +536,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(chatDeliveries)
       .where(
         and(
-          eq(chatDeliveries.companyId, endpoint.companyId),
+          eq(chatDeliveries.spaceId, endpoint.spaceId),
           eq(chatDeliveries.endpointId, endpoint.id),
           or(
             isNull(chatDeliveries.conversationId),
@@ -566,7 +566,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(agentWakeupRequests)
       .where(
         and(
-          eq(agentWakeupRequests.companyId, endpoint.companyId),
+          eq(agentWakeupRequests.spaceId, endpoint.spaceId),
           eq(agentWakeupRequests.id, action.id),
           eq(agentWakeupRequests.agentId, endpoint.assignedAgentId),
         ),
@@ -578,7 +578,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       assertFailedRetryReceipt(
         createDurableChatWakeupRequest({
           id: action.id,
-          companyId: endpoint.companyId,
+          spaceId: endpoint.spaceId,
           agentId: endpoint.assignedAgentId,
           issueId: conversation.issueId,
           commentId: source.comment.id,
@@ -631,7 +631,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, scope.endpoint.companyId),
+          eq(chatActions.spaceId, scope.endpoint.spaceId),
           eq(chatActions.endpointId, scope.endpoint.id),
           eq(chatActions.conversationId, scope.conversation.id),
           eq(chatActions.kind, "inbound_wakeup"),
@@ -646,7 +646,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, scope.endpoint.companyId),
+          eq(chatActions.spaceId, scope.endpoint.spaceId),
           eq(chatActions.endpointId, scope.endpoint.id),
           eq(chatActions.conversationId, scope.conversation.id),
           eq(chatActions.kind, "inbound_wakeup"),
@@ -659,19 +659,19 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
     return origin ? teamsFileSourceBinding(tx, scope, origin.id) : null;
   }
 
-  async function teamsBoardAuthorIsCurrent(
+  async function teamsOperatorAuthorIsCurrent(
     tx: DbTransaction,
-    companyId: string,
+    spaceId: string,
     userId: string,
   ) {
     const [membership] = await tx
       .select()
-      .from(companyMemberships)
+      .from(spaceMemberships)
       .where(
         and(
-          eq(companyMemberships.companyId, companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, userId),
+          eq(spaceMemberships.spaceId, spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, userId),
         ),
       )
       .for("share", { noWait: true });
@@ -686,7 +686,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
     userId: string,
   ) {
     return {
-      schema: "outpost.teams.board-file-intent.v1",
+      schema: "outpost.teams.operator-file-intent.v1",
       publicationId: scope.publication.id,
       issueId: scope.conversation.issueId,
       commentId: scope.comment.id,
@@ -724,7 +724,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
     conversation: ConversationRow,
   ): Promise<void> {
     if (
-      !publication.idempotencyKey.startsWith("explicit-board:") ||
+      !publication.idempotencyKey.startsWith("explicit-operator:") ||
       !conversation.isDirectMessage
     )
       return;
@@ -736,7 +736,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       scope.comment.authorUserId !== userId ||
       scope.comment.authorAgentId ||
       scope.comment.createdByRunId ||
-      !(await teamsBoardAuthorIsCurrent(tx, scope.endpoint.companyId, userId))
+      !(await teamsOperatorAuthorIsCurrent(tx, scope.endpoint.spaceId, userId))
     )
       return;
     const source = await teamsBoardOriginBinding(tx, scope);
@@ -748,7 +748,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, scope.endpoint.companyId),
+          eq(chatActions.spaceId, scope.endpoint.spaceId),
           eq(chatActions.endpointId, scope.endpoint.id),
           eq(chatActions.providerActionId, key),
         ),
@@ -769,7 +769,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       return;
     }
     await tx.insert(chatActions).values({
-      companyId: scope.endpoint.companyId,
+      spaceId: scope.endpoint.spaceId,
       endpointId: scope.endpoint.id,
       conversationId: scope.conversation.id,
       deliveryId: source.binding.deliveryId,
@@ -797,13 +797,13 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
     let causal: Record<string, unknown>;
     if (isExplicitOperatorPublication(scope.publication)) {
       if (
-        !scope.publication.idempotencyKey.startsWith("explicit-board:") ||
+        !scope.publication.idempotencyKey.startsWith("explicit-operator:") ||
         !scope.comment.authorUserId ||
         scope.comment.authorAgentId ||
         scope.comment.createdByRunId ||
-        !(await teamsBoardAuthorIsCurrent(
+        !(await teamsOperatorAuthorIsCurrent(
           tx,
-          scope.endpoint.companyId,
+          scope.endpoint.spaceId,
           scope.comment.authorUserId,
         ))
       )
@@ -813,7 +813,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
         .from(chatActions)
         .where(
           and(
-            eq(chatActions.companyId, scope.endpoint.companyId),
+            eq(chatActions.spaceId, scope.endpoint.spaceId),
             eq(chatActions.endpointId, scope.endpoint.id),
             eq(chatActions.conversationId, scope.conversation.id),
             eq(chatActions.kind, teamsBoardFileIntentKind),
@@ -868,7 +868,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
         .from(heartbeatRuns)
         .where(
           and(
-            eq(heartbeatRuns.companyId, scope.endpoint.companyId),
+            eq(heartbeatRuns.spaceId, scope.endpoint.spaceId),
             eq(heartbeatRuns.id, runId),
             eq(heartbeatRuns.agentId, scope.endpoint.assignedAgentId),
             eq(heartbeatRuns.nativeIssueId, scope.conversation.issueId),
@@ -900,7 +900,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
         .from(chatActions)
         .where(
           and(
-            eq(chatActions.companyId, scope.endpoint.companyId),
+            eq(chatActions.spaceId, scope.endpoint.spaceId),
             eq(chatActions.conversationId, scope.conversation.id),
             eq(chatActions.kind, "inbound_wakeup"),
             inArray(
@@ -920,7 +920,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
       let proved: FailedChatRetrySource;
       try {
         proved = await failedChatRetrySource(tx, {
-          companyId: scope.endpoint.companyId,
+          spaceId: scope.endpoint.spaceId,
           issueId: scope.conversation.issueId,
           agentId: run.agentId,
           failedRunId: run.id,
@@ -970,11 +970,11 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
         return null;
       if (
         run.resultJson?.finalizationReasonCode ===
-          "governed_response_waiting" &&
+          "controlled_response_waiting" &&
         !(await authorizeNativeChatReviewPresentation(
           tx as unknown as Db,
           {
-            companyId: scope.endpoint.companyId,
+            spaceId: scope.endpoint.spaceId,
             issueId: scope.conversation.issueId,
             runId: run.id,
             resultJson: run.resultJson,
@@ -1002,7 +1002,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
     // this digest. The next authorization derives these facts afresh.
     const sourceDigest = teamsFileProofHash({
       schema: "outpost.teams.file-source.v1",
-      companyId: scope.endpoint.companyId,
+      spaceId: scope.endpoint.spaceId,
       endpointId: scope.endpoint.id,
       conversationId: scope.conversation.id,
       conversationGeneration: scope.conversation.sessionGeneration,
@@ -1014,7 +1014,7 @@ export function createTeamsFileAuthority(options: TeamsFileAuthorityOptions) {
     });
     if (!teamsFileRuntimeStillCurrent(scope)) return null;
     return {
-      companyId: scope.endpoint.companyId,
+      spaceId: scope.endpoint.spaceId,
       endpointId: scope.endpoint.id,
       conversationId: scope.conversation.id,
       issueId: scope.conversation.issueId,

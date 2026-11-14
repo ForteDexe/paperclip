@@ -17,7 +17,7 @@ export function findRetainedNativeSessionCleanupCandidates(db: Db, options: {
   return db
     .select({
       runId: heartbeatRuns.id,
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
       issueId: nativeRunFinalizations.issueId,
       agentId: heartbeatRuns.agentId,
       leaseOwner: nativeRunFinalizations.leaseOwner,
@@ -28,7 +28,7 @@ export function findRetainedNativeSessionCleanupCandidates(db: Db, options: {
       nativeRunFinalizations,
       and(
         eq(nativeRunFinalizations.runId, heartbeatRuns.id),
-        eq(nativeRunFinalizations.companyId, heartbeatRuns.companyId),
+        eq(nativeRunFinalizations.spaceId, heartbeatRuns.spaceId),
         eq(nativeRunFinalizations.issueId, heartbeatRuns.nativeIssueId),
       ),
     )
@@ -37,7 +37,7 @@ export function findRetainedNativeSessionCleanupCandidates(db: Db, options: {
       and(
         eq(nativeRunResults.id, nativeRunFinalizations.resultId),
         eq(nativeRunResults.runId, heartbeatRuns.id),
-        eq(nativeRunResults.companyId, heartbeatRuns.companyId),
+        eq(nativeRunResults.spaceId, heartbeatRuns.spaceId),
         eq(nativeRunResults.issueId, heartbeatRuns.nativeIssueId),
       ),
     )
@@ -89,7 +89,7 @@ export function findRetainedNativeSessionCleanupCandidates(db: Db, options: {
           ) history
         )`,
         options.scope ? and(
-          eq(heartbeatRuns.companyId, options.scope.companyId),
+          eq(heartbeatRuns.spaceId, options.scope.spaceId),
           options.scope.runId ? eq(heartbeatRuns.id, options.scope.runId) : undefined,
           options.scope.issueId ? eq(nativeRunFinalizations.issueId, options.scope.issueId) : undefined,
           options.scope.agentId ? eq(heartbeatRuns.agentId, options.scope.agentId) : undefined,
@@ -114,7 +114,7 @@ export type NativeCleanupOutcome = {
   waitFor: "lease_expiry";
   retryAt: Date;
 };
-export type RetainedNativeSessionCleanup = (input: { companyId: string; runId: string }) => Promise<NativeCleanupOutcome>;
+export type RetainedNativeSessionCleanup = (input: { spaceId: string; runId: string }) => Promise<NativeCleanupOutcome>;
 
 
 
@@ -124,7 +124,7 @@ const operations = new WeakMap<Db, {
   tail: Promise<void>;
   runs: Map<string, Promise<NativeCleanupOutcome>>;
 }>();
-export function runRetainedNativeSessionCleanup(db: Db, input: { companyId: string; runId: string }, cleanup: RetainedNativeSessionCleanup) {
+export function runRetainedNativeSessionCleanup(db: Db, input: { spaceId: string; runId: string }, cleanup: RetainedNativeSessionCleanup) {
   let owned = operations.get(db);
   if (!owned) { owned = { tail: Promise.resolve(), runs: new Map() }; operations.set(db, owned); }
   const existing = owned.runs.get(input.runId);
@@ -181,7 +181,7 @@ export function reconcileRetainedNativeSessionCleanups(
     for (const candidate of candidates) {
       owned.cursor = candidate.runId;
       try {
-        outcomes.push(await runRetainedNativeSessionCleanup(db, { companyId: candidate.companyId, runId: candidate.runId }, options.cleanup));
+        outcomes.push(await runRetainedNativeSessionCleanup(db, { spaceId: candidate.spaceId, runId: candidate.runId }, options.cleanup));
       } catch (error) {
         options.onError?.(error, candidate.runId);
       }

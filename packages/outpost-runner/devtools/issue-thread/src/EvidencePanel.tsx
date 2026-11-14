@@ -257,7 +257,7 @@ function ToolsBrowser({ records, onInvoke }: { records: CapabilityEvidenceModel[
             {onInvoke !== undefined ? (
               <div className="pit-tool-tester">
                 <h3 className="pit-tool-schema-title">Invoke in conversation</h3>
-                <p className="pit-muted">Runs through the real semantic dispatcher and records a turn, evidence, and company-state changes.</p>
+                <p className="pit-muted">Runs through the real semantic dispatcher and records a turn, evidence, and space-state changes.</p>
                 <label className="pit-card-meta" htmlFor="tool-test-input">Parameters (JSON)</label>
                 <textarea id="tool-test-input" className="pit-tool-test-input" value={inputText} onChange={(event) => setInputText(event.target.value)} spellCheck={false} />
                 <button type="button" className="pit-button" disabled={invoking} onClick={() => {
@@ -407,7 +407,7 @@ export function EvidencePanel(props: EvidencePanelProps) {
                 ><span className="pit-tab-glyph"><Icon name="evidence" /></span><span>{tab === "eval" ? "Eval" : "Evidence"}</span></button>)}
               </div>
               {devtoolsTab === "eval" ? <EvalReportInspector evalReport={evalReport} /> : null}
-            </section> : <p className="pit-muted pit-devtools-loading">Loading company state…</p>
+            </section> : <p className="pit-muted pit-devtools-loading">Loading space state…</p>
           ) : (
             <DevtoolsInspector snapshot={devtools} onFork={onForkRevision} tab={devtoolsTab} onTabChange={onDevtoolsTabChange} evalReport={evalReport} />
           )}

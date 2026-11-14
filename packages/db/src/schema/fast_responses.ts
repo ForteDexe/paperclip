@@ -10,15 +10,15 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { costEvents } from "./cost_events.js";
 
-export const companyFastResponses = pgTable(
-  "company_fast_responses",
+export const spaceFastResponses = pgTable(
+  "space_fast_responses",
   {
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .primaryKey()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     connectionId: uuid("connection_id"),
     grantId: uuid("grant_id"),
     model: text("model"),
@@ -31,7 +31,7 @@ export const companyFastResponses = pgTable(
   },
   (t) => ({
     configured: check(
-      "company_fast_responses_configured",
+      "space_fast_responses_configured",
       sql`(${t.connectionId} is null) = (${t.grantId} is null) and (not ${t.enabled} or (${t.connectionId} is not null and ${t.model} is not null))`,
     ),
   }),
@@ -42,9 +42,9 @@ export const fastResponseRequests = pgTable(
   "fast_response_requests",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     sourceKey: text("source_key").notNull(),
     sourceCommentId: uuid("source_comment_id"),
     issueId: uuid("issue_id"),
@@ -78,13 +78,13 @@ export const fastResponseRequests = pgTable(
   },
   (t) => ({
     source: uniqueIndex("fast_response_requests_source_idx").on(
-      t.companyId,
+      t.spaceId,
       t.sourceKey,
     ),
-    delivery: index("fast_response_requests_delivery_idx").on(t.companyId, t.endpointId, t.deliveryId)
+    delivery: index("fast_response_requests_delivery_idx").on(t.spaceId, t.endpointId, t.deliveryId)
       .where(sql`${t.deliveryId} is not null`),
     history: index("fast_response_requests_history_idx").on(
-      t.companyId,
+      t.spaceId,
       t.acceptedAt,
     ),
     work: index("fast_response_requests_work_idx")

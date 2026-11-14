@@ -19,19 +19,19 @@ import {
   issues,
 } from "@outpost/db";
 import {
-  PaperclipSemanticDispatcher,
-  type PaperclipJsonValue,
-  type PaperclipSemanticActionBinding,
-  type PaperclipSemanticActionId,
-  type PaperclipSemanticAuthorizationRecord,
-  type PaperclipSemanticRunContext,
-  type PaperclipSemanticToolCall,
-  type PaperclipSemanticToolDefinition,
-  type PaperclipSemanticToolResult,
+  OutpostSemanticDispatcher,
+  type OutpostJsonValue,
+  type OutpostSemanticActionBinding,
+  type OutpostSemanticActionId,
+  type OutpostSemanticAuthorizationRecord,
+  type OutpostSemanticRunContext,
+  type OutpostSemanticToolCall,
+  type OutpostSemanticToolDefinition,
+  type OutpostSemanticToolResult,
 } from "../../vendor/outpost-runner/index.js";
 
-export interface PaperclipRunnerSemanticBinding {
-  readonly companyId: string;
+export interface OutpostRunnerSemanticBinding {
+  readonly spaceId: string;
   readonly issueId: string;
   readonly runId: string;
   readonly agentId: string;
@@ -43,7 +43,7 @@ const READ_OPERATION_IDS = [
   "list_documents",
   "read_document",
   "list_document_revisions",
-] as const satisfies readonly PaperclipSemanticActionId[];
+] as const satisfies readonly OutpostSemanticActionId[];
 
 type BoundContext = {
   readonly run: typeof heartbeatRuns.$inferSelect;
@@ -64,8 +64,8 @@ function requiredString(value: unknown): string {
   return value;
 }
 
-function jsonValue(value: unknown): PaperclipJsonValue {
-  return JSON.parse(JSON.stringify(value)) as PaperclipJsonValue;
+function jsonValue(value: unknown): OutpostJsonValue {
+  return JSON.parse(JSON.stringify(value)) as OutpostJsonValue;
 }
 
 function activeAgentStatus(status: string): "active" | "inactive" {
@@ -79,15 +79,15 @@ function activeAgentStatus(status: string): "active" | "inactive" {
  * This first server slice binds only same-task read operations. A catalog
  * entry remains undiscoverable until a later PR adds its guarded binding.
  */
-export class PaperclipRunnerSemanticAuthority {
+export class OutpostRunnerSemanticAuthority {
   readonly #db: Db;
-  readonly #binding: PaperclipRunnerSemanticBinding;
-  readonly #dispatcher: PaperclipSemanticDispatcher;
+  readonly #binding: OutpostRunnerSemanticBinding;
+  readonly #dispatcher: OutpostSemanticDispatcher;
 
-  constructor(db: Db, binding: PaperclipRunnerSemanticBinding) {
+  constructor(db: Db, binding: OutpostRunnerSemanticBinding) {
     this.#db = db;
     this.#binding = structuredClone(binding);
-    this.#dispatcher = new PaperclipSemanticDispatcher({
+    this.#dispatcher = new OutpostSemanticDispatcher({
       contextProvider: (runId) => this.#context(runId),
       bindings: READ_OPERATION_IDS.map((operationId) =>
         this.#readBinding(operationId),
@@ -96,24 +96,24 @@ export class PaperclipRunnerSemanticAuthority {
   }
 
   listAlwaysAvailableTools(): Promise<
-    readonly PaperclipSemanticToolDefinition[]
+    readonly OutpostSemanticToolDefinition[]
   > {
     return this.#dispatcher.listAlwaysAvailableTools(this.#binding.runId);
   }
 
   dispatch(
-    call: Omit<PaperclipSemanticToolCall, "runId">,
-  ): Promise<PaperclipSemanticToolResult> {
+    call: Omit<OutpostSemanticToolCall, "runId">,
+  ): Promise<OutpostSemanticToolResult> {
     return this.#dispatcher.dispatch({ ...call, runId: this.#binding.runId });
   }
 
-  authorizationRecords(): readonly PaperclipSemanticAuthorizationRecord[] {
+  authorizationRecords(): readonly OutpostSemanticAuthorizationRecord[] {
     return this.#dispatcher.authorizationRecords();
   }
 
   #readBinding(
     operationId: (typeof READ_OPERATION_IDS)[number],
-  ): PaperclipSemanticActionBinding {
+  ): OutpostSemanticActionBinding {
     return {
       operationId,
       execute: async (invocation) => {
@@ -124,7 +124,7 @@ export class PaperclipRunnerSemanticAuthority {
           case "get_task_context":
             return {
               value: jsonValue({
-                company: { id: this.#binding.companyId },
+                space: { id: this.#binding.spaceId },
                 actor: {
                   id: context.agent.id,
                   name: context.agent.name,
@@ -170,7 +170,7 @@ export class PaperclipRunnerSemanticAuthority {
               .from(issueComments)
               .where(
                 and(
-                  eq(issueComments.companyId, this.#binding.companyId),
+                  eq(issueComments.spaceId, this.#binding.spaceId),
                   eq(issueComments.issueId, this.#binding.issueId),
                   isNull(issueComments.deletedAt),
                 ),
@@ -209,9 +209,9 @@ export class PaperclipRunnerSemanticAuthority {
               .innerJoin(documents, eq(documents.id, issueDocuments.documentId))
               .where(
                 and(
-                  eq(issueDocuments.companyId, this.#binding.companyId),
+                  eq(issueDocuments.spaceId, this.#binding.spaceId),
                   eq(issueDocuments.issueId, this.#binding.issueId),
-                  eq(documents.companyId, this.#binding.companyId),
+                  eq(documents.spaceId, this.#binding.spaceId),
                 ),
               );
             return {
@@ -240,10 +240,10 @@ export class PaperclipRunnerSemanticAuthority {
               .innerJoin(documents, eq(documents.id, issueDocuments.documentId))
               .where(
                 and(
-                  eq(issueDocuments.companyId, this.#binding.companyId),
+                  eq(issueDocuments.spaceId, this.#binding.spaceId),
                   eq(issueDocuments.issueId, this.#binding.issueId),
                   eq(issueDocuments.key, key),
-                  eq(documents.companyId, this.#binding.companyId),
+                  eq(documents.spaceId, this.#binding.spaceId),
                 ),
               )
               .limit(1);
@@ -279,10 +279,10 @@ export class PaperclipRunnerSemanticAuthority {
               )
               .where(
                 and(
-                  eq(issueDocuments.companyId, this.#binding.companyId),
+                  eq(issueDocuments.spaceId, this.#binding.spaceId),
                   eq(issueDocuments.issueId, this.#binding.issueId),
                   eq(issueDocuments.key, key),
-                  eq(documentRevisions.companyId, this.#binding.companyId),
+                  eq(documentRevisions.spaceId, this.#binding.spaceId),
                 ),
               )
               .orderBy(desc(documentRevisions.revisionNumber))
@@ -300,7 +300,7 @@ export class PaperclipRunnerSemanticAuthority {
     };
   }
 
-  async #context(requestedRunId: string): Promise<PaperclipSemanticRunContext> {
+  async #context(requestedRunId: string): Promise<OutpostSemanticRunContext> {
     if (requestedRunId !== this.#binding.runId) {
       throw new Error("outpost_runner_semantic_run_mismatch");
     }
@@ -308,22 +308,22 @@ export class PaperclipRunnerSemanticAuthority {
     this.#assertActiveContext(context, false);
     return {
       runId: context.run.id,
-      companyId: context.run.companyId,
+      spaceId: context.run.spaceId,
       actor: {
         id: context.agent.id,
-        companyId: context.agent.companyId,
+        spaceId: context.agent.spaceId,
         status: activeAgentStatus(context.agent.status),
         role: context.agent.role,
         claims: [],
       },
       activeTask: {
         id: context.issue.id,
-        companyId: context.issue.companyId,
+        spaceId: context.issue.spaceId,
         assigneeActorId: context.issue.assigneeAgentId,
         executionRunId: context.issue.executionRunId,
         status: context.issue.status,
         workMode: context.issue
-          .workMode as PaperclipSemanticRunContext["activeTask"]["workMode"],
+          .workMode as OutpostSemanticRunContext["activeTask"]["workMode"],
       },
       delegatedClaims: [],
     };
@@ -337,20 +337,20 @@ export class PaperclipRunnerSemanticAuthority {
         issues,
         and(
           eq(issues.id, heartbeatRuns.nativeIssueId),
-          eq(issues.companyId, heartbeatRuns.companyId),
+          eq(issues.spaceId, heartbeatRuns.spaceId),
         ),
       )
       .innerJoin(
         agents,
         and(
           eq(agents.id, heartbeatRuns.agentId),
-          eq(agents.companyId, heartbeatRuns.companyId),
+          eq(agents.spaceId, heartbeatRuns.spaceId),
         ),
       )
       .where(
         and(
           eq(heartbeatRuns.id, this.#binding.runId),
-          eq(heartbeatRuns.companyId, this.#binding.companyId),
+          eq(heartbeatRuns.spaceId, this.#binding.spaceId),
           eq(heartbeatRuns.agentId, this.#binding.agentId),
           eq(heartbeatRuns.nativeIssueId, this.#binding.issueId),
           eq(heartbeatRuns.runtimeMode, "native"),

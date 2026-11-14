@@ -17,7 +17,7 @@ function savedProductAnswerMatches(o: IdentityObservation): boolean {
   return !!original && original.status === "pending" && !original.result
     && original.kind === "ask_user_questions" && current?.kind === original.kind
     && typeof o.state.humanId === "string" && !!o.state.humanId
-    && original.companyId === o.companyId && current.companyId === o.companyId
+    && original.spaceId === o.spaceId && current.spaceId === o.spaceId
     && original.issueId === o.state.sourceIssueId && current.issueId === o.state.sourceIssueId
     && current.status === "answered" && current.resolvedByUserId === o.state.humanId && !current.resolvedByAgentId
     && answers?.length === 1 && answers[0]?.questionId === "product" && answers[0].otherText === "Acorn"
@@ -31,11 +31,11 @@ export function answerContinuationCompleted(o: IdentityObservation): boolean {
   const continuation = continuations[0];
   if (!original || !savedProductAnswerMatches(o) || typeof o.state.sourceIssueId !== "string"
     || !o.state.sourceIssueId || typeof o.state.canonicalCommentId !== "string" || !o.state.canonicalCommentId || o.state.sourceConversationState !== "waiting"
-    || continuations.length !== 1 || !continuation || continuation.companyId !== o.companyId || continuation.agentId !== o.leadId
+    || continuations.length !== 1 || !continuation || continuation.spaceId !== o.spaceId || continuation.agentId !== o.leadId
     || continuation.contextSnapshot?.issueId !== o.state.sourceIssueId || continuation.status !== "succeeded"
     || !Number.isFinite(resolvedAt) || !Number.isFinite(Date.parse(continuation.startedAt ?? ""))
     || Date.parse(continuation.startedAt!) < resolvedAt
-    || !o.runs.some(run => run.id !== continuation.id && run.companyId === o.companyId && run.agentId === o.leadId
+    || !o.runs.some(run => run.id !== continuation.id && run.spaceId === o.spaceId && run.agentId === o.leadId
       && run.status === "succeeded" && Number.isFinite(Date.parse(run.startedAt ?? "")) && Date.parse(run.startedAt!) <= resolvedAt
       && run.contextSnapshot?.issueId === o.state.sourceIssueId && run.contextSnapshot?.commentId === o.state.canonicalCommentId)) return false;
   const deliveries = o.activity.filter(row => row.action === "issue.question_response_delivered" && row.entityId === o.state.sourceIssueId
@@ -64,14 +64,14 @@ export function gradeConfirmationWorkflow(value: unknown) {
       && row.details?.source === "conversation_reply" && row.details.responseCommentId === o.state.canonicalCommentId && row.agentId === o.leadId).length === 1,
       "The public decision audit retains one exact comment/proposal binding across the repeated human reply.");
     c.add("actual-action-once", !!first && o.tasks.length === 1 && o.tasks[0]?.id === first.id && first.title === o.state.taskTitle
-      && o.tasks[0]?.status === "backlog" && o.tasks[0]?.companyId === o.companyId && hasLink(o, "issues", o.tasks[0])
+      && o.tasks[0]?.status === "backlog" && o.tasks[0]?.spaceId === o.spaceId && hasLink(o, "issues", o.tasks[0])
       && o.activity.filter(row => row.action === "issue.created" && row.entityId === first.id && row.agentId === o.leadId).length === 1
       && o.state.afterReloadTaskId === first.id, "Acceptance is credited only when the named backlog task actually exists once, remains the same after repeat/reload and has a rendered result link.");
     c.add("repeat-did-not-replace-decision", o.state.afterRepeatResolvedCommentId === o.state.canonicalCommentId && o.humanQueries.length === 2
       && o.humanQueries[0]?.trim() === "Yes, go ahead with that." && o.humanQueries[1]?.trim() === repeatedProposalAcceptance,
       "Repeating acceptance of the same named proposal does not replace the saved decision or create a duplicate instruction side effect.");
   } else if (o.scenarioId === "questions-and-approvals.duplicate-answer") {
-    c.add("one-real-human-answer", savedProductAnswerMatches(o), "Both real browser tabs target the same original company/task question and only one saved human answer exists.");
+    c.add("one-real-human-answer", savedProductAnswerMatches(o), "Both real browser tabs target the same original space/task question and only one saved human answer exists.");
     c.add("real-simultaneous-conflict", o.state.actualSubmitRequests === 2 && Array.isArray(o.state.submitStatuses) && [...o.state.submitStatuses].sort().join(",") === "200,409"
       && o.state.noTaskBeforeAnswers === true && o.state.bothTabsResolved === true,
       "Both actual visible submit controls race, yielding one accepted response and one real conflict; both views converge on the same saved receipt.");
@@ -83,9 +83,9 @@ export function gradeConfirmationWorkflow(value: unknown) {
     const authored = (document: Entity) => document.issueId === o.tasks[0]?.id && !!document.latestRevisionId
       && o.revisions.some(revision => revision.id === document.latestRevisionId && revision.documentId === document.id
         && o.runs.some(run => run.id === revision.createdByRunId && run.status === "succeeded" && !!run.startedAt
-          && run.companyId === o.companyId && run.agentId === revision.createdByAgentId
+          && run.spaceId === o.spaceId && run.agentId === revision.createdByAgentId
           && [o.leadId, (o.state.worker as Entity | undefined)?.id].includes(run.agentId)));
-    c.add("one-actual-answer-artifact", o.tasks.length === 1 && o.tasks[0]?.companyId === o.companyId && hasLink(o, "issues", o.tasks[0])
+    c.add("one-actual-answer-artifact", o.tasks.length === 1 && o.tasks[0]?.spaceId === o.spaceId && hasLink(o, "issues", o.tasks[0])
       && introductions.length === 1 && !!introduction && (introduction.body ?? "").includes("Acorn") && authored(introduction)
       && o.documents.filter(document => document.key === "plan").length <= 1 && o.documents.every(authored)
       && o.activity.some(row => row.action === "issue.document_created" && row.entityId === o.tasks[0]?.id
@@ -135,7 +135,7 @@ export const confirmationWorkflowIdentityCases: readonly ChatCatalogCase[] = [
       remaining();
       await waitForReply(ctx, ctx.observationDeadlineAt);
       remaining();
-      const created = await ctx.input.api.get<Entity[]>(`/api/companies/${ctx.input.fixtures.company.id}/issues?includeAgentCreatedTasks=true`, { timeout: remaining() });
+      const created = await ctx.input.api.get<Entity[]>(`/api/spaces/${ctx.input.fixtures.space.id}/issues?includeAgentCreatedTasks=true`, { timeout: remaining() });
       const first = created.filter(row => row.id !== ctx.issue()!.id); if (first.length !== 1 || first[0]?.title !== state.taskTitle) throw new Error("The approved named task was not actually created once");
       state.firstTask = first[0];
       const comments = await ctx.input.api.get<SourceComment[]>(`/api/issues/${ctx.issue()!.id}/comments?order=asc`, { timeout: remaining() }); state.canonicalCommentId = comments.find(row => row.authorUserId && row.body?.trim() === ctx.scenario.query)?.id;
@@ -154,7 +154,7 @@ export const confirmationWorkflowIdentityCases: readonly ChatCatalogCase[] = [
   }),
   identityDefinition("questions-and-approvals.duplicate-answer", async ctx => {
     const source = await openStandingChat(ctx); const session = await ctx.input.api.get<{ user: { id: string } }>("/api/auth/get-session");
-    if (!session.user?.id || session.user.id === "local-board") throw new Error("Answer-race attribution requires a genuine human session");
+    if (!session.user?.id || session.user.id === "local-operator") throw new Error("Answer-race attribution requires a genuine human session");
     const worker = await identityWorker(ctx);
     await ctx.input.api.patch(`/api/issues/${source.id}`, { description: "A small local product introduction draft is waiting only for its product name. The person must submit the pending human-only question; an ordinary comment does not resolve that protected form. After its actual submission, produce one ordinary draft task with one short saved introduction document using the answer, delegating its execution to Morgan if necessary, and return its review link. Do not publish externally." });
     const original = await ctx.input.api.post<Interaction>(`/api/issues/${source.id}/interactions`, createIssueThreadInteractionSchema.parse({ kind: "ask_user_questions", title: "Product name for the introduction draft", resolverPolicy: "human_only", continuationPolicy: "wake_assignee",
@@ -175,7 +175,7 @@ export const confirmationWorkflowIdentityCases: readonly ChatCatalogCase[] = [
       remainingIdentityObservationBudget(ctx);
       const pending = await ctx.input.api.get<Interaction[]>(`/api/issues/${ctx.issue()!.id}/interactions`);
       if (pending.find(row => row.id === entity(state, "original").id)?.status !== "pending") throw new Error("The original human-only question is not pending before the two-tab answer race");
-      const before = await ctx.input.api.get<Entity[]>(`/api/companies/${ctx.input.fixtures.company.id}/issues?includeAgentCreatedTasks=true`); state.noTaskBeforeAnswers = before.filter(row => row.id !== ctx.issue()!.id).length === 0;
+      const before = await ctx.input.api.get<Entity[]>(`/api/spaces/${ctx.input.fixtures.space.id}/issues?includeAgentCreatedTasks=true`); state.noTaskBeforeAnswers = before.filter(row => row.id !== ctx.issue()!.id).length === 0;
       if (!state.noTaskBeforeAnswers) throw new Error("Work started before the protected human question was actually answered");
       for (const page of [ctx.input.page, other]) {
         const form = page.getByTestId("task-chat-composer-takeover");

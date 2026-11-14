@@ -16,7 +16,7 @@ const healthOptions = {
   deploymentMode: "authenticated" as const,
   deploymentExposure: "public" as const,
   authReady: true,
-  companyDeletionEnabled: false,
+  spaceDeletionEnabled: false,
   runtimeEnv: { OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "test-token" },
 };
 afterEach(() => vi.useRealTimers());
@@ -35,7 +35,7 @@ describe("unclaimed Cloud background work", () => {
     app.use(cloudWarmStandbyMiddleware(() => standby, health, ui));
     app.use(auth);
     app.use("/api/health", health);
-    app.get("/api/companies", (_req, res) => res.json([]));
+    app.get("/api/spaces", (_req, res) => res.json([]));
     for (let i = 0; i < 3; i++) {
       const probe = await request(app).get("/api/health").set("authorization", "Bearer ignored-in-standby");
       expect(probe.status).toBe(200);
@@ -43,12 +43,12 @@ describe("unclaimed Cloud background work", () => {
       expect(probe.body.serverInfo).toBeUndefined();
     }
     expect((await request(app).head("/api/health")).status).toBe(200);
-    expect((await request(app).get("/api/companies")).status).toBe(503);
+    expect((await request(app).get("/api/spaces")).status).toBe(503);
     expect((await request(app).post("/api/health/dev-server/restart")).status).toBe(503);
     for (const path of ["/", "/assets/app.js"]) {
       const page = await request(app).get(path)
         .set("authorization", "Bearer test-bearer")
-        .set("x-paperclip-cloud-tenant-token", "test-tenant")
+        .set("x-outpost-cloud-tenant-token", "test-tenant")
         .set("cookie", "outpost.session_token=test-session");
       expect(page.status).toBe(200);
     }
@@ -57,7 +57,7 @@ describe("unclaimed Cloud background work", () => {
     expect(auth).not.toHaveBeenCalled();
     expect(execute).not.toHaveBeenCalled();
     standby = false;
-    expect((await request(app).get("/api/companies")).status).toBe(200);
+    expect((await request(app).get("/api/spaces")).status).toBe(200);
     const claimed = await request(app).get("/api/health");
     expect(claimed.status).toBe(200);
     expect(claimed.body.warmStandby).toBeUndefined();
@@ -90,12 +90,12 @@ describe("unclaimed Cloud background work", () => {
       req.end();
     });
     try {
-      for (const path of ["/api/companies/company/events/ws?token=anything", "/api/health", "/orp", "/"]) {
+      for (const path of ["/api/spaces/space/events/ws?token=anything", "/api/health", "/orp", "/"]) {
         expect(await upgrade(path)).toBe(503);
       }
       expect(authenticate).not.toHaveBeenCalled();
       standby = false;
-      expect(await upgrade("/api/companies/company/events/ws?token=anything")).toBe(101);
+      expect(await upgrade("/api/spaces/space/events/ws?token=anything")).toBe(101);
       expect(authenticate).toHaveBeenCalledOnce();
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

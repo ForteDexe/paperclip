@@ -8,26 +8,26 @@ export const requestApprovalAction = {
       "live"
     ],
     "placement": "optional_agent_tool",
-    "optionalGroup": "governance",
+    "optionalGroup": "approvals",
     "requiredClaims": [
-      "governance:approvals:request"
+      "approvals:approvals:request"
     ],
     "taskModes": [
       "standard",
       "skill_test"
     ],
-    "sideEffectClass": "governance",
+    "sideEffectClass": "approvals",
     "idempotency": "required",
     "disabledByDefault": false,
     "realBindingStatus": "live_codex",
     "realServiceBinding": "unbound",
-    "orpEvidence": "approval lifecycle plus governed-wait continuation and audit events",
+    "orpEvidence": "approval lifecycle plus controlled-wait continuation and audit events",
     "orpBindingStatus": "audit_pending",
     "legacyAliases": []
   },
   "documentation": {
     "title": "Request approval",
-    "description": "Create a governed approval and waiting posture.",
+    "description": "Create a controlled approval and waiting posture.",
     "note": null
   },
   "examples": {
@@ -70,10 +70,10 @@ export const requestApprovalAction = {
       "operationId": "request_approval",
       "version": 1,
       "title": "Request approval",
-      "description": "Create a governed approval and waiting posture.",
+      "description": "Create a controlled approval and waiting posture.",
       "exposure": "optional",
       "requiredClaims": [
-        "governance:approvals:request"
+        "approvals:approvals:request"
       ],
       "allowedModes": [
         "standard",
@@ -163,7 +163,7 @@ export const requestApprovalAction = {
       "operationId": "request_approval",
       "version": 1,
       "title": "Request Approval",
-      "description": "Request Approval through the Capability governance capability set.",
+      "description": "Request Approval through the Capability approvals capability set.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -214,15 +214,15 @@ export const requestApprovalAction = {
         "additionalProperties": false
       },
       "disposition": "optional_agent_tool",
-      "optionalGroup": "governance",
+      "optionalGroup": "approvals",
       "requiredClaims": [
-        "governance:approvals:request"
+        "approvals:approvals:request"
       ],
       "taskModes": [
         "standard",
         "skill_test"
       ],
-      "sideEffectClass": "governance",
+      "sideEffectClass": "approvals",
       "idempotency": "required",
       "redaction": [],
       "mockCommandMapping": {

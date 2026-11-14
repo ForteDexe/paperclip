@@ -26,11 +26,11 @@ export function resolveDefaultBaseRef(input: {
 async function resolveProjectWorkspaceDefaultBaseRef(input: {
   ctx: PluginContext;
   projectId: string;
-  companyId: string;
+  spaceId: string;
   projectWorkspaceId?: string | null;
 }): Promise<string | null> {
   if (!input.projectId) return null;
-  const workspaces = await input.ctx.projects.listWorkspaces(input.projectId, input.companyId);
+  const workspaces = await input.ctx.projects.listWorkspaces(input.projectId, input.spaceId);
   const projectWorkspace = input.projectWorkspaceId
     ? workspaces.find((candidate) => candidate.id === input.projectWorkspaceId)
     : workspaces.find((candidate) => candidate.isPrimary) ?? workspaces[0] ?? null;
@@ -49,9 +49,9 @@ const plugin = definePlugin({
 
     ctx.data.register("workspace-diff", async (params: Record<string, unknown>) => {
       const workspaceId = readString(params.workspaceId);
-      const companyId = readString(params.companyId);
-      if (!workspaceId || !companyId) {
-        throw new Error("workspaceId and companyId are required");
+      const spaceId = readString(params.spaceId);
+      if (!workspaceId || !spaceId) {
+        throw new Error("workspaceId and spaceId are required");
       }
 
       if (params.entityType === "project_workspace") {
@@ -59,14 +59,14 @@ const plugin = definePlugin({
         if (!projectId) {
           throw new Error("projectId is required for project workspace diffs");
         }
-        const workspaces = await ctx.projects.listWorkspaces(projectId, companyId);
+        const workspaces = await ctx.projects.listWorkspaces(projectId, spaceId);
         const workspace = workspaces.find((candidate) => candidate.id === workspaceId);
         if (!workspace) {
           throw new Error("Workspace not found");
         }
         return workspaceDiff.getDiff({
           id: workspace.id,
-          companyId,
+          spaceId,
           cwd: workspace.path,
           baseRef: resolveDefaultBaseRef({
             projectWorkspaceDefaultRef: workspace.defaultRef,
@@ -75,7 +75,7 @@ const plugin = definePlugin({
         }, workspaceDiffQuerySchema.parse(params));
       }
 
-      const workspace = await ctx.executionWorkspaces.get(workspaceId, companyId);
+      const workspace = await ctx.executionWorkspaces.get(workspaceId, spaceId);
       if (!workspace) {
         throw new Error("Workspace not found");
       }
@@ -84,7 +84,7 @@ const plugin = definePlugin({
         projectWorkspaceDefaultBaseRef = await resolveProjectWorkspaceDefaultBaseRef({
           ctx,
           projectId: workspace.projectId || readString(params.projectId),
-          companyId,
+          spaceId,
           projectWorkspaceId: workspace.projectWorkspaceId,
         });
       }

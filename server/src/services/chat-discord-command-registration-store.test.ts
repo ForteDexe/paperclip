@@ -21,14 +21,14 @@ import {
   chatActions,
   chatDiscordCommandOwners,
   chatEndpoints,
-  companies,
+  spaces,
   createDb,
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
   toolApplications,
   toolConnections,
 } from "@outpost/db";
-import { discordPaperclipCommandDefinition } from "./chat-discord-command-registration.js";
+import { discordOutpostCommandDefinition } from "./chat-discord-command-registration.js";
 import {
   readDiscordCommandRegistrationDeadline,
   readRegisteredDiscordCommandRegistration,
@@ -54,7 +54,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     if (external) db = createDb(external);
     else {
       temporary = await startEmbeddedPostgresTestDatabase(
-        "paperclip-discord-command-store-",
+        "outpost-discord-command-store-",
       );
       db = createDb(temporary.connectionString);
     }
@@ -68,7 +68,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     await coordinator?.stop(); coordinator = undefined;
     vi.useRealTimers(); vi.restoreAllMocks();
   });
-  async function scheduled(companyId: string, reconcile: (id: string) => Promise<void>, canRun = () => true) {
+  async function scheduled(spaceId: string, reconcile: (id: string) => Promise<void>, canRun = () => true) {
     await Promise.all(Array.from({ length: 4 }, () => db.execute(sql`select 1`)));
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     await reconcileDatabaseWork(db, DELIVERY_QUEUES.chatCommandRegistration);
@@ -77,7 +77,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun, canReconcile: () => true, onError: error => errors.push(error) });
     const worker = registerDiscordCommandWork(coordinator, {
       ...service,
-      load: (scope, signal) => service.load(scope ?? { kind: "company", id: companyId }, signal),
+      load: (scope, signal) => service.load(scope ?? { kind: "space", id: spaceId }, signal),
     }, canRun);
     await worker.ready;
     return { service, errors };
@@ -92,29 +92,29 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
   }
 
   async function fixture(applicationId = appId()) {
-    const companyId = randomUUID(),
+    const spaceId = randomUUID(),
       endpointId = randomUUID(),
       agentId = randomUUID();
     const application = randomUUID(),
       connection = randomUUID();
-    const scope = { companyId, endpointId, applicationId, guildId: appId() };
-    await db.insert(companies).values({
-      id: companyId,
+    const scope = { spaceId, endpointId, applicationId, guildId: appId() };
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Registration fixture",
-      issuePrefix: `D${companyId.slice(0, 7)}`,
+      issuePrefix: `D${spaceId.slice(0, 7)}`,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Discord agent",
       adapterType: "codex_local",
     });
     await db
       .insert(toolApplications)
-      .values({ id: application, companyId, name: "Discord", type: "chat" });
+      .values({ id: application, spaceId, name: "Discord", type: "chat" });
     await db.insert(toolConnections).values({
       id: connection,
-      companyId,
+      spaceId,
       applicationId: application,
       uid: randomUUID(),
       name: "Discord",
@@ -125,7 +125,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     });
     await db.insert(chatEndpoints).values({
       id: endpointId,
-      companyId,
+      spaceId,
       connectionId: connection,
       provider: "discord",
       publicId: randomUUID(),
@@ -149,7 +149,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
           .where(
             and(
               eq(chatEndpoints.id, endpointId),
-              eq(chatEndpoints.companyId, companyId),
+              eq(chatEndpoints.spaceId, spaceId),
             ),
           )
           .for("update");
@@ -243,7 +243,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
           eq(chatDiscordCommandOwners.applicationId, f.scope.applicationId),
         );
       expect(owner).toMatchObject({
-        companyId: f.scope.companyId,
+        spaceId: f.scope.spaceId,
         endpointId: f.scope.endpointId,
       });
       const [action] = await tx
@@ -280,8 +280,8 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
       ownerId: string;
       receipt: Record<string, unknown>;
     };
-    const prior = discordPaperclipCommandDefinition(registration.ownerId);
-    prior.options[2]!.description = "Close the current Paperclip task";
+    const prior = discordOutpostCommandDefinition(registration.ownerId);
+    prior.options[2]!.description = "Close the current Outpost task";
     const remote = f.remote[0]!;
     f.remote[0] = {
       ...prior,
@@ -321,7 +321,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
       receipt: { commandId: remote.id },
     });
     expect(f.remote[0]).toMatchObject(
-      discordPaperclipCommandDefinition(registration.ownerId),
+      discordOutpostCommandDefinition(registration.ownerId),
     );
   });
 
@@ -451,8 +451,8 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     },
   );
 
-  it.each(["archive", "delete_company", "delete_endpoint"] as const)(
-    "retains app ownership across %s and refuses a different company",
+  it.each(["archive", "delete_space", "delete_endpoint"] as const)(
+    "retains app ownership across %s and refuses a different space",
     async (mode) => {
       const old = await fixture();
       old.beforeResponse(async (method) => {
@@ -470,16 +470,16 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
           .update(chatEndpoints)
           .set({ status: "archived" })
           .where(eq(chatEndpoints.id, old.scope.endpointId));
-      else if (mode === "delete_company") {
+      else if (mode === "delete_space") {
         // Respect the current endpoint -> assigned-agent RESTRICT relation while
-        // removing all company-owned fixture data; the instance tombstone alone survives.
+        // removing all space-owned fixture data; the instance tombstone alone survives.
         await db
           .delete(chatEndpoints)
-          .where(eq(chatEndpoints.companyId, old.scope.companyId));
+          .where(eq(chatEndpoints.spaceId, old.scope.spaceId));
         await db
           .delete(agents)
-          .where(eq(agents.companyId, old.scope.companyId));
-        await db.delete(companies).where(eq(companies.id, old.scope.companyId));
+          .where(eq(agents.spaceId, old.scope.spaceId));
+        await db.delete(spaces).where(eq(spaces.id, old.scope.spaceId));
       } else
         await db
           .delete(chatEndpoints)
@@ -543,7 +543,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     await f.reconcile();
     f.remote[0] = {
       ...f.remote[0],
-      ...discordPaperclipCommandDefinition("b".repeat(32)),
+      ...discordOutpostCommandDefinition("b".repeat(32)),
     };
     f.options.force = true;
     expect(await f.reconcile()).toMatchObject({ kind: "conflict" });
@@ -720,7 +720,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
   it("reconstructs a registered verification deadline and stays quiet until it is due", async () => {
     const f = await fixture(); await f.reconcile();
     const due = Date.parse(String((await f.read())!.result!.retryAt));
-    const { errors } = await scheduled(f.scope.companyId, async () => { await f.reconcile(); });
+    const { errors } = await scheduled(f.scope.spaceId, async () => { await f.reconcile(); });
     expect(coordinator!.nextWakeAt()).toBe(due);
     await sqlQuiet(120_000);
     expect(f.calls).toEqual(["GET", "POST"]);
@@ -733,7 +733,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     const f = await fixture(); await f.reconcile(); const row = (await f.read())!;
     await db.update(chatActions).set({ result: { ...row.result, retryIndefinite: true } }).where(eq(chatActions.id, row.id));
     const reconcile = vi.fn();
-    const { service, errors } = await scheduled(f.scope.companyId, reconcile);
+    const { service, errors } = await scheduled(f.scope.spaceId, reconcile);
     await sqlQuiet(600_000); expect(coordinator!.nextWakeAt()).toBeNull();
     await db.update(chatActions).set({ result: { ...row.result, retryAt: new Date(0).toISOString() } }).where(eq(chatActions.id, row.id));
     await db.update(chatEndpoints).set({ status: "paused" }).where(eq(chatEndpoints.id, f.scope.endpointId));
@@ -744,7 +744,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     const f = await fixture();
     await db.update(chatEndpoints).set({ status: "paused" }).where(eq(chatEndpoints.id, f.scope.endpointId));
     let draining = false;
-    const { errors } = await scheduled(f.scope.companyId, async () => { await f.reconcile(); }, () => !draining);
+    const { errors } = await scheduled(f.scope.spaceId, async () => { await f.reconcile(); }, () => !draining);
     const activate = async (tx: typeof db) => {
       await notifyDiscordCommandRegistration(tx, { kind: "endpoint", id: f.scope.endpointId });
       await tx.update(chatEndpoints).set({ status: "active" }).where(eq(chatEndpoints.id, f.scope.endpointId));
@@ -775,7 +775,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
   });
   it("rechecks persisted eligibility before a due provider call", async () => {
     const f = await fixture(); await f.reconcile();
-    const { service, errors } = await scheduled(f.scope.companyId, async () => { await f.reconcile(); });
+    const { service, errors } = await scheduled(f.scope.spaceId, async () => { await f.reconcile(); });
     await f.due();
     await db.update(toolConnections).set({ enabled: false }).where(eq(toolConnections.id,
       (await db.select().from(chatEndpoints).where(eq(chatEndpoints.id, f.scope.endpointId)))[0].connectionId));
@@ -786,7 +786,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
   it("backs off an attempt that cannot advance its durable state", async () => {
     const f = await fixture();
     const reconcile = vi.fn(async () => {});
-    const { errors } = await scheduled(f.scope.companyId, reconcile);
+    const { errors } = await scheduled(f.scope.spaceId, reconcile);
     expect(reconcile).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(30_000);
     await vi.waitFor(() => expect(reconcile).toHaveBeenCalledTimes(2));
@@ -802,7 +802,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     let release!: () => void;
     const held = new Promise<void>(resolve => { release = resolve; });
     f.beforeResponse(async method => { if (method === "GET") await held; });
-    const starting = scheduled(f.scope.companyId, async () => { await f.reconcile(); });
+    const starting = scheduled(f.scope.spaceId, async () => { await f.reconcile(); });
     await vi.waitFor(() => expect(f.calls).toEqual(["GET"]));
     let stopped = false;
     const stopping = coordinator!.stop().then(() => { stopped = true; });
@@ -818,7 +818,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     let release!: () => void;
     const held = new Promise<void>(resolve => { release = resolve; });
     f.beforeResponse(async method => { if (method === "GET") await held; });
-    const starting = scheduled(f.scope.companyId, async () => { await f.reconcile(); });
+    const starting = scheduled(f.scope.spaceId, async () => { await f.reconcile(); });
     try {
       await vi.waitFor(() => expect(f.calls).toEqual(["GET", "POST", "GET"]));
       await db.transaction(async tx => {
@@ -833,13 +833,13 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     expect(f.calls).toEqual(["GET", "POST", "GET"]); expect(errors).toEqual([]);
   });
 
-  it("checks a quiet company's due command in the first batch despite another company's backlog", async () => {
+  it("checks a quiet space's due command in the first batch despite another space's backlog", async () => {
     await reconcileDatabaseWork(db, DELIVERY_QUEUES.chatCommandRegistration);
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     const entries = Array.from({ length: 30 }, (_, index) => ({
-      id: `busy-${index.toString().padStart(2, "0")}`, companyId: "busy", connectionId: "busy-connection", dueAt: 0,
+      id: `busy-${index.toString().padStart(2, "0")}`, spaceId: "busy", connectionId: "busy-connection", dueAt: 0,
     }));
-    entries.push({ id: "quiet", companyId: "quiet", connectionId: "quiet-connection", dueAt: 1 });
+    entries.push({ id: "quiet", spaceId: "quiet", connectionId: "quiet-connection", dueAt: 1 });
     const check = vi.fn(async (id: string) => ({ ...entries.find(entry => entry.id === id)!, dueAt: Date.now() + 300_000 }));
     const errors: unknown[] = [];
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError: error => errors.push(error) });
@@ -853,7 +853,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     await reconcileDatabaseWork(db, DELIVERY_QUEUES.chatCommandRegistration);
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     const entries = Array.from({ length: 300 }, (_, index) => ({
-      id: `command-${index}`, companyId: `company-${index % 10}`, connectionId: `connection-${index}`, dueAt: 0,
+      id: `command-${index}`, spaceId: `space-${index % 10}`, connectionId: `connection-${index}`, dueAt: 0,
     }));
     const check = vi.fn(async (id: string) => ({ ...entries.find(entry => entry.id === id)!, dueAt: Date.now() + 300_000 }));
     const errors: unknown[] = [];
@@ -872,7 +872,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
     await reconcileDatabaseWork(db, DELIVERY_QUEUES.chatCommandRegistration);
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     const entries = Array.from({ length: 300 }, (_, index) => ({
-      id: `command-${index}`, companyId: `company-${index % 10}`, connectionId: `connection-${index}`, dueAt: 0,
+      id: `command-${index}`, spaceId: `space-${index % 10}`, connectionId: `connection-${index}`, dueAt: 0,
     }));
     const check = vi.fn(async (id: string) => {
       if (id === "command-0") throw new Error("Unavailable credential");
@@ -892,7 +892,7 @@ suite("Discord command ownership store (real PostgreSQL, no network)", () => {
   it("recovers queued scopes after an unknown hint instead of dropping the wake", async () => {
     await reconcileDatabaseWork(db, DELIVERY_QUEUES.chatCommandRegistration);
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
-    const entry = { id: "endpoint", companyId: "company", connectionId: "connection", dueAt: 0 };
+    const entry = { id: "endpoint", spaceId: "space", connectionId: "connection", dueAt: 0 };
     let owed = false;
     const check = vi.fn(async () => { owed = false; return null; });
     const errors: unknown[] = [];

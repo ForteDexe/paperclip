@@ -75,7 +75,7 @@ describe("finite held external diagnostics and visible entry correction", () => 
     }
   });
   const context = {
-    companyId: "owned-company",
+    spaceId: "owned-space",
     agentId: "owned-agent",
     runId: "owned-run",
     issueId: "owned-issue",
@@ -95,7 +95,7 @@ describe("finite held external diagnostics and visible entry correction", () => 
   });
   it("retains only a recognized policy/context code, never a secret-bearing error or extra response fields", () => {
     for (const reason of [
-      "run_company_mismatch",
+      "run_space_mismatch",
       "run_agent_mismatch",
       "run_inactive",
       "run_context_mismatch",
@@ -130,7 +130,7 @@ describe("finite held external diagnostics and visible entry correction", () => 
   it("visible-entry correction does not turn the retained model missing-URL question into a completed setup pass", () => {
     const o = {
       scenarioId: "connection-setup.unreachable-mcp",
-      companyId: "company",
+      spaceId: "space",
       origin: "http://fixture.invalid",
       reply: "",
       connections: [],

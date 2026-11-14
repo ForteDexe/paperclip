@@ -8,11 +8,11 @@ import { and, eq } from "drizzle-orm";
 import {
   activityLog,
   agents,
-  companies,
-  companySecretBindings,
-  companySecretProviderConfigs,
-  companySecretVersions,
-  companySecrets,
+  spaces,
+  spaceSecretBindings,
+  spaceSecretProviderConfigs,
+  spaceSecretVersions,
+  spaceSecrets,
   createDb,
   principalPermissionGrants,
 } from "@outpost/db";
@@ -36,7 +36,7 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
   let stopDb: (() => Promise<void>) | null = null;
   let db!: ReturnType<typeof createDb>;
   const previousKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
-  const secretsTmpDir = path.join(os.tmpdir(), `paperclip-agent-secret-bindings-${randomUUID()}`);
+  const secretsTmpDir = path.join(os.tmpdir(), `outpost-agent-secret-bindings-${randomUUID()}`);
 
   beforeAll(async () => {
     mkdirSync(secretsTmpDir, { recursive: true });
@@ -49,12 +49,12 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
   afterEach(async () => {
     await db.delete(activityLog);
     await db.delete(principalPermissionGrants);
-    await db.delete(companySecretBindings);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
-    await db.delete(companySecretProviderConfigs);
+    await db.delete(spaceSecretBindings);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
+    await db.delete(spaceSecretProviderConfigs);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -67,27 +67,27 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
     rmSync(secretsTmpDir, { recursive: true, force: true });
   });
 
-  async function seedCompany() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+  async function seedSpace() {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
-    return companyId;
+    return spaceId;
   }
 
   it("creates agent secret bindings when a new agent persists secret_ref env", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const secrets = secretService(db);
-    const secret = await secrets.create(companyId, {
+    const secret = await secrets.create(spaceId, {
       name: `anthropic-${randomUUID()}`,
       provider: "local_encrypted",
       value: "sk-ant-123",
     });
 
-    const created = await createAgentLifecycle(db).requestHire(companyId, {
+    const created = await createAgentLifecycle(db).requestCreation(spaceId, {
       name: "Claude Novita",
       role: "engineer",
       status: "pending_approval",
@@ -104,11 +104,11 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
 
     const bindings = await db
       .select()
-      .from(companySecretBindings)
+      .from(spaceSecretBindings)
       .where(and(
-        eq(companySecretBindings.companyId, companyId),
-        eq(companySecretBindings.targetType, "agent"),
-        eq(companySecretBindings.targetId, created.id),
+        eq(spaceSecretBindings.spaceId, spaceId),
+        eq(spaceSecretBindings.targetType, "agent"),
+        eq(spaceSecretBindings.targetId, created.id),
       ));
 
     expect(bindings).toHaveLength(1);
@@ -118,7 +118,7 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
       versionSelector: "latest",
       required: true,
     });
-    expect(await db.select().from(activityLog).where(eq(activityLog.companyId, companyId)))
+    expect(await db.select().from(activityLog).where(eq(activityLog.spaceId, spaceId)))
       .toEqual(expect.arrayContaining([
         expect.objectContaining({
           action: "secret.binding.created",
@@ -130,15 +130,15 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
   });
 
   it("stores approved class-3 env lease metadata on agent secret bindings", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const secrets = secretService(db);
-    const secret = await secrets.create(companyId, {
+    const secret = await secrets.create(spaceId, {
       name: `slack-${randomUUID()}`,
       provider: "local_encrypted",
       value: "slack-test-token",
     });
 
-    const created = await createAgentLifecycle(db).requestHire(companyId, {
+    const created = await createAgentLifecycle(db).requestCreation(spaceId, {
       name: "Slack Briefing",
       role: "briefing",
       adapterType: "codex_local",
@@ -160,11 +160,11 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
 
     const bindings = await db
       .select()
-      .from(companySecretBindings)
+      .from(spaceSecretBindings)
       .where(and(
-        eq(companySecretBindings.companyId, companyId),
-        eq(companySecretBindings.targetType, "agent"),
-        eq(companySecretBindings.targetId, created.id),
+        eq(spaceSecretBindings.spaceId, spaceId),
+        eq(spaceSecretBindings.targetType, "agent"),
+        eq(spaceSecretBindings.targetId, created.id),
       ));
 
     expect(bindings).toHaveLength(1);
@@ -177,16 +177,16 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
   });
 
   it("rejects class-3 env lease bindings outside the enumerated allowlist", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const secrets = secretService(db);
-    const secret = await secrets.create(companyId, {
+    const secret = await secrets.create(spaceId, {
       name: `github-${randomUUID()}`,
       provider: "local_encrypted",
       value: "github-test-token",
     });
 
     await expect(
-      createAgentLifecycle(db).requestHire(companyId, {
+      createAgentLifecycle(db).requestCreation(spaceId, {
         name: "Unlisted Static Lease",
         role: "engineer",
         adapterType: "codex_local",
@@ -213,15 +213,15 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
     const persistedAgents = await db
       .select()
       .from(agents)
-      .where(eq(agents.companyId, companyId));
+      .where(eq(agents.spaceId, spaceId));
     expect(persistedAgents).toHaveLength(0);
   });
 
   it("converts Hermes gateway apiKey strings into persisted secret refs", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const literalApiKey = `hermes-key-${randomUUID()}`;
 
-    const created = await createAgentLifecycle(db).requestHire(companyId, {
+    const created = await createAgentLifecycle(db).requestCreation(spaceId, {
       name: "Hermes Gateway",
       role: "engineer",
       status: "idle",
@@ -249,11 +249,11 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
     const secretId = (persistedConfig.apiKey as { secretId: string }).secretId;
     const bindings = await db
       .select()
-      .from(companySecretBindings)
+      .from(spaceSecretBindings)
       .where(and(
-        eq(companySecretBindings.companyId, companyId),
-        eq(companySecretBindings.targetType, "agent"),
-        eq(companySecretBindings.targetId, created.id),
+        eq(spaceSecretBindings.spaceId, spaceId),
+        eq(spaceSecretBindings.targetType, "agent"),
+        eq(spaceSecretBindings.targetId, created.id),
       ));
     expect(bindings).toHaveLength(1);
     expect(bindings[0]).toMatchObject({
@@ -264,7 +264,7 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
     });
 
     const resolved = await secretService(db).resolveAdapterConfigForRuntime(
-      companyId,
+      spaceId,
       persistedConfig,
       {
         consumerType: "agent",
@@ -277,20 +277,20 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
   });
 
   it("replaces agent secret bindings when adapterConfig env changes", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const secrets = secretService(db);
-    const oldSecret = await secrets.create(companyId, {
+    const oldSecret = await secrets.create(spaceId, {
       name: `old-${randomUUID()}`,
       provider: "local_encrypted",
       value: "old-value",
     });
-    const nextSecret = await secrets.create(companyId, {
+    const nextSecret = await secrets.create(spaceId, {
       name: `next-${randomUUID()}`,
       provider: "local_encrypted",
       value: "next-value",
     });
 
-    const created = await createAgentLifecycle(db).requestHire(companyId, {
+    const created = await createAgentLifecycle(db).requestCreation(spaceId, {
       name: "Binding Swapper",
       role: "engineer",
       adapterType: "codex_local",
@@ -314,11 +314,11 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
 
     const bindings = await db
       .select()
-      .from(companySecretBindings)
+      .from(spaceSecretBindings)
       .where(and(
-        eq(companySecretBindings.companyId, companyId),
-        eq(companySecretBindings.targetType, "agent"),
-        eq(companySecretBindings.targetId, created.id),
+        eq(spaceSecretBindings.spaceId, spaceId),
+        eq(spaceSecretBindings.targetType, "agent"),
+        eq(spaceSecretBindings.targetId, created.id),
       ));
 
     expect(bindings).toHaveLength(1);
@@ -329,9 +329,9 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
   });
 
   it("backfills missing secret bindings when a legacy pending agent is approved", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const secrets = secretService(db);
-    const secret = await secrets.create(companyId, {
+    const secret = await secrets.create(spaceId, {
       name: `legacy-${randomUUID()}`,
       provider: "local_encrypted",
       value: "legacy-value",
@@ -340,7 +340,7 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Legacy Pending Agent",
       role: "engineer",
       status: "pending_approval",
@@ -356,11 +356,11 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
 
     const beforeBindings = await db
       .select()
-      .from(companySecretBindings)
-      .where(eq(companySecretBindings.targetId, agentId));
+      .from(spaceSecretBindings)
+      .where(eq(spaceSecretBindings.targetId, agentId));
     expect(beforeBindings).toHaveLength(0);
 
-    const approved = await createAgentLifecycle(db).approveHire(agentId);
+    const approved = await createAgentLifecycle(db).approveCreation(agentId);
 
     expect(approved).toMatchObject({
       activated: true,
@@ -373,11 +373,11 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
 
     const afterBindings = await db
       .select()
-      .from(companySecretBindings)
+      .from(spaceSecretBindings)
       .where(and(
-        eq(companySecretBindings.companyId, companyId),
-        eq(companySecretBindings.targetType, "agent"),
-        eq(companySecretBindings.targetId, agentId),
+        eq(spaceSecretBindings.spaceId, spaceId),
+        eq(spaceSecretBindings.targetType, "agent"),
+        eq(spaceSecretBindings.targetId, agentId),
       ));
 
     expect(afterBindings).toHaveLength(1);
@@ -388,11 +388,11 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
   });
 
   it("rolls back create when binding sync fails", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const missingSecretId = randomUUID();
 
     await expect(
-      createAgentLifecycle(db).requestHire(companyId, {
+      createAgentLifecycle(db).requestCreation(spaceId, {
         name: "Broken Create",
         role: "engineer",
         adapterType: "claude_local",
@@ -410,19 +410,19 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
     const persistedAgents = await db
       .select()
       .from(agents)
-      .where(eq(agents.companyId, companyId));
+      .where(eq(agents.spaceId, spaceId));
     expect(persistedAgents).toHaveLength(0);
   });
 
   it("rolls back adapterConfig updates when binding sync fails", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const secrets = secretService(db);
-    const validSecret = await secrets.create(companyId, {
+    const validSecret = await secrets.create(spaceId, {
       name: `valid-${randomUUID()}`,
       provider: "local_encrypted",
       value: "valid-value",
     });
-    const created = await createAgentLifecycle(db).requestHire(companyId, {
+    const created = await createAgentLifecycle(db).requestCreation(spaceId, {
       name: "Transactional Update",
       role: "engineer",
       adapterType: "codex_local",
@@ -455,23 +455,23 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
 
     const bindings = await db
       .select()
-      .from(companySecretBindings)
+      .from(spaceSecretBindings)
       .where(and(
-        eq(companySecretBindings.companyId, companyId),
-        eq(companySecretBindings.targetType, "agent"),
-        eq(companySecretBindings.targetId, created.id),
+        eq(spaceSecretBindings.spaceId, spaceId),
+        eq(spaceSecretBindings.targetType, "agent"),
+        eq(spaceSecretBindings.targetId, created.id),
       ));
     expect(bindings).toHaveLength(1);
     expect(bindings[0]?.secretId).toBe(validSecret.id);
   });
 
   it("keeps pending approval status when activation binding sync fails", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const agentId = randomUUID();
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Broken Pending Agent",
       role: "engineer",
       status: "pending_approval",
@@ -485,7 +485,7 @@ describeEmbeddedPostgres("agent service secret binding sync", () => {
       permissions: {},
     });
 
-    await expect(createAgentLifecycle(db).approveHire(agentId)).rejects.toBeTruthy();
+    await expect(createAgentLifecycle(db).approveCreation(agentId)).rejects.toBeTruthy();
 
     const reloaded = await agentService(db).getById(agentId);
     expect(reloaded?.status).toBe("pending_approval");

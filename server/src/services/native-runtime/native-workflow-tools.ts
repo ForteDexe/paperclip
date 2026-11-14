@@ -18,7 +18,7 @@ const schemas = {
 };
 
 export async function executeNativeWorkflowTool(input: {
-  db: Db; binding: { companyId: string; casesEnabled?: boolean }; tool: string; arguments: unknown;
+  db: Db; binding: { spaceId: string; casesEnabled?: boolean }; tool: string; arguments: unknown;
   callApi: (receiptKey: string, request: RunnerApiCall) => Promise<unknown>;
 }) {
   if (input.binding.casesEnabled !== true) throw casesDisabledError({ inlineRemediation: true });
@@ -32,8 +32,8 @@ export async function executeNativeWorkflowTool(input: {
   } & Record<string, unknown>;
   const method = input.tool === "create_workflow" ? "POST" : input.tool === "update_workflow" ? "PATCH" : "GET";
   const request: RunnerApiCall = {
-    operationId: `${method} /api/${id ? "workflows/{id}" : "companies/{companyId}/workflows"}`,
-    pathParams: id ? { id } : { companyId: input.binding.companyId },
+    operationId: `${method} /api/${id ? "workflows/{id}" : "spaces/{spaceId}/workflows"}`,
+    pathParams: id ? { id } : { spaceId: input.binding.spaceId },
     ...(method === "GET" ? { query: body } : { body }),
     ...(input.tool === "read_workflow" ? { responseText: responseText ?? { offsetBytes: 0 } } : {}),
   };

@@ -16,9 +16,9 @@ const db = createDb(process.env.DATABASE_URL!);
 const authenticated = process.env.SPEKO_NATIVE_AUTH === "1";
 const deploymentMode = authenticated ? "authenticated" : "local_trusted";
 // Match index.ts's local-trusted bootstrap: agent JWTs retain this real
-// responsible user and the memberships created by the normal company route.
-if (!authenticated) await db.insert(authUsers).values({ id: "local-board", name: "Board", email: "local@outpost.local", emailVerified: true, createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-if (!authenticated) await db.insert(instanceUserRoles).values({ userId: "local-board", role: "instance_admin" }).onConflictDoNothing();
+// responsible user and the memberships created by the normal space route.
+if (!authenticated) await db.insert(authUsers).values({ id: "local-operator", name: "Board", email: "local@outpost.local", emailVerified: true, createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
+if (!authenticated) await db.insert(instanceUserRoles).values({ userId: "local-operator", role: "instance_admin" }).onConflictDoNothing();
 const { registerServerAdapter, waitForExternalAdapters } = await import("../../server/src/adapters/registry.js");
 await waitForExternalAdapters();
 const { instanceSettingsService } = await import("../../server/src/services/instance-settings.js");
@@ -35,7 +35,7 @@ registerServerAdapter({
     if (ctx.config.command === "fixture-phone") {
       // Only execution is synthetic. Discover and invoke through the real
       // run-scoped MCP transport; do not reach into the voice service.
-      const server = ctx.runtimeMcp?.getServers().find(server => server.name === "paperclip-assigned");
+      const server = ctx.runtimeMcp?.getServers().find(server => server.name === "outpost-assigned");
       if (!server) throw new Error("The assigned phone tool was not delivered to the runtime");
       const { Client } = requireServer("@modelcontextprotocol/sdk/client/index.js");
       const { StreamableHTTPClientTransport } = requireServer("@modelcontextprotocol/sdk/client/streamableHttp.js");
@@ -70,7 +70,7 @@ registerServerAdapter({
       if (!question) {
         const [task] = await db.select().from(issues).where(eq(issues.id, issueId));
         const response = await fetch(`${origin}/api/issues/${issueId}/interactions`, {
-          method: "POST", headers: { authorization: `Bearer ${ctx.authToken}`, "content-type": "application/json", "x-paperclip-run-id": ctx.runId },
+          method: "POST", headers: { authorization: `Bearer ${ctx.authToken}`, "content-type": "application/json", "x-outpost-run-id": ctx.runId },
           body: JSON.stringify({ kind: "ask_user_questions", idempotencyKey: `fixture-question:${issueId}`, addresseeUserId: task.responsibleUserId,
             payload: { version: 1, questions: [{ id: "color", prompt: "Which color should I use?", selectionMode: "single", required: true, allowOther: false, options: [{ id: "cobalt", label: "Cobalt" }, { id: "amber", label: "Amber" }] }] } }), signal: ctx.signal,
         });
@@ -82,7 +82,7 @@ registerServerAdapter({
     const answeredQuestion = (await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.issueId, issueId))).find((item) => item.idempotencyKey === `fixture-question:${issueId}` && item.status === "answered");
     const summary = answeredQuestion ? `Your structured answer was received: ${JSON.stringify(answeredQuestion.result)}.` : followupRun ? "Your follow-up was included in the completed result." : `The delayed work is complete. Verification number ${run.number}. I received ${Math.max(0, requests.length - 1)} follow-up instructions on this same task.`;
     const response = await fetch(`${origin}/api/issues/${issueId}/comments`, {
-      method: "POST", headers: { authorization: `Bearer ${ctx.authToken}`, "content-type": "application/json", "x-paperclip-run-id": ctx.runId },
+      method: "POST", headers: { authorization: `Bearer ${ctx.authToken}`, "content-type": "application/json", "x-outpost-run-id": ctx.runId },
       body: JSON.stringify({ body: summary }), signal: ctx.signal,
     });
     if (!response.ok) throw new Error(`Normal agent comment API rejected fixture: ${response.status} ${(await response.json() as { error: string }).error}`);
@@ -104,7 +104,7 @@ const app = await createApp(db, {
   uiMode: "static", serverPort: port, bindHost: "127.0.0.1", allowedHostnames: ["127.0.0.1", "localhost", new URL(callbackOrigin).hostname],
   deploymentMode,
   ...(auth ? { betterAuthHandler: authModule.createBetterAuthHandler(auth), resolveSession: (req: import("express").Request) => authModule.resolveBetterAuthSession(auth, req) } : {}),
-  deploymentExposure: "private", authReady: true, companyDeletionEnabled: true,
+  deploymentExposure: "private", authReady: true, spaceDeletionEnabled: true,
   chatWebhookPublicBaseUrl: callbackOrigin, authPublicBaseUrl: origin,
   storageService: createStorageService(createLocalDiskStorageProvider(resolve(home, "storage"))),
   decisionServiceOptions: { wakeOriginAgent: async () => {} }, managedPluginAutoInstall: [],
@@ -115,8 +115,8 @@ async function writeEvidence() {
   evidenceWriting = true;
   try {
   const [reports, incoming, sessions, replies, tools, deliveries, publications, runs, wakeups, comments, interactions, questionDeliveries, pushActions] = await Promise.all([
-    db.select({sessionId: chatVoiceReports.sessionId, companyId: chatVoiceReports.companyId, status: chatVoiceReports.status, costMicroUsd: chatVoiceReports.costMicroUsd, transcript: chatVoiceReports.transcript}).from(chatVoiceReports),
-    db.select({id: chatVoiceInboundCalls.id, companyId: chatVoiceInboundCalls.companyId, endpointId: chatVoiceInboundCalls.endpointId, state: chatVoiceInboundCalls.state, sessionId: chatVoiceInboundCalls.sessionId}).from(chatVoiceInboundCalls),
+    db.select({sessionId: chatVoiceReports.sessionId, spaceId: chatVoiceReports.spaceId, status: chatVoiceReports.status, costMicroUsd: chatVoiceReports.costMicroUsd, transcript: chatVoiceReports.transcript}).from(chatVoiceReports),
+    db.select({id: chatVoiceInboundCalls.id, spaceId: chatVoiceInboundCalls.spaceId, endpointId: chatVoiceInboundCalls.endpointId, state: chatVoiceInboundCalls.state, sessionId: chatVoiceInboundCalls.sessionId}).from(chatVoiceInboundCalls),
     db.select({ id: chatVoiceSessions.id, issueId: chatVoiceSessions.issueId, providerSessionId: chatVoiceSessions.providerSessionId, mode: chatVoiceSessions.mode, state: chatVoiceSessions.state }).from(chatVoiceSessions),
     db.select().from(chatVoiceReplies),
     db.select({ id: chatVoiceToolCalls.id, sessionId: chatVoiceToolCalls.sessionId, tool: chatVoiceToolCalls.tool, response: chatVoiceToolCalls.response }).from(chatVoiceToolCalls),
@@ -131,9 +131,9 @@ async function writeEvidence() {
   ]);
   const runEvidence = runs.map(({ contextSnapshot, ...row }) => {
     const context = (contextSnapshot ?? {}) as Record<string, unknown>;
-    const wake = (context.paperclipWake ?? {}) as Record<string, unknown>;
+    const wake = (context.outpostWake ?? {}) as Record<string, unknown>;
     return { ...row, context: { source: context.source, issueId: context.issueId, wakeCommentIds: context.wakeCommentIds,
-      paperclipTaskCommunicationGuidance: context.paperclipTaskCommunicationGuidance, paperclipHarnessCheckedOut: context.paperclipHarnessCheckedOut, paperclipExternalChatExecutionBound: context.paperclipExternalChatExecutionBound,
+      outpostTaskCommunicationGuidance: context.outpostTaskCommunicationGuidance, outpostHarnessCheckedOut: context.outpostHarnessCheckedOut, outpostExternalChatExecutionBound: context.outpostExternalChatExecutionBound,
       wake: { externalChatProvider: wake.externalChatProvider, checkedOutByHarness: wake.checkedOutByHarness, externalChatExecutionBound: wake.externalChatExecutionBound } } };
   });
   await writeFile(resolve(home, "evidence.pending.json"), JSON.stringify({ appPid: process.pid, at: new Date().toISOString(), reports, incoming, sessions, replies, tools, deliveries, publications, runs: runEvidence, wakeups, comments, interactions, questionDeliveries, pushActions }), { mode: 0o600 });
@@ -143,8 +143,8 @@ async function writeEvidence() {
 await writeEvidence();
 const evidenceTimer = setInterval(() => { void writeEvidence().catch((error) => console.error("Evidence snapshot failed:", error.message)); }, 2000);
 evidenceTimer.unref();
-const { createPaperclipHttpServer } = await import("../../server/src/http/server.js");
-const server = createPaperclipHttpServer(app, { apiUrl: origin });
+const { createOutpostHttpServer } = await import("../../server/src/http/server.js");
+const server = createOutpostHttpServer(app, { apiUrl: origin });
 server.listen(port, "127.0.0.1");
 const { setupLiveEventsWebSocketServer } = await import("../../server/src/realtime/live-events-ws.js");
 const liveEvents = setupLiveEventsWebSocketServer(server, db, { deploymentMode, ...(auth ? { resolveSessionFromHeaders: (headers: Headers) => authModule.resolveBetterAuthSessionFromHeaders(auth, headers) } : {}) });
@@ -156,7 +156,7 @@ async function stop() {
   clearInterval(evidenceTimer);
   for (const client of liveEvents.clients) client.terminate();
   server.close(); server.closeAllConnections();
-  await app.locals.paperclipShutdown?.();
+  await app.locals.outpostShutdown?.();
   await closeStub?.();
   process.exit(0);
 }

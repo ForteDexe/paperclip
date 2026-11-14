@@ -1,6 +1,6 @@
-import type { CompanySkill } from '@outpost/shared';
+import type { SpaceSkill } from '@outpost/shared';
 import { Link } from '@/lib/router';
-export function SkillSourceProvenance({ skill }: { skill: CompanySkill }) {
+export function SkillSourceProvenance({ skill }: { skill: SpaceSkill }) {
   const id = skill.metadata?.skillSourceId ?? skill.metadata?.legacySkillSourceId;
   if (typeof id !== 'string') return null;
   const state = skill.metadata?.skillSourceState;

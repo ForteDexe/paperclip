@@ -74,7 +74,7 @@ it("binds exact image/engine/resources, strips admission data and removes only o
   expect(JSON.stringify(state.calls)).not.toContain(secrets[0]); expect(JSON.stringify(state.calls)).not.toContain(owned.receipt.connectionString);
   const supervisor = await dockerDatabaseSupervisorEnvironment({ temporaryRoot: temp, env: { [DATABASE_LANE_ENV]: "owned-docker-postgres", [DOCKER_DATABASE_ENV]: owned.filename }, run });
   expect(supervisor.source[DOCKER_DATABASE_ENV]).toBeUndefined(); expect(supervisor.source[DATABASE_LANE_ENV]).toBeUndefined();
-  const configPath = path.join(temp, "paperclip-home", "instances", "fixture", "config.json");
+  const configPath = path.join(temp, "outpost-home", "instances", "fixture", "config.json");
   // The supervisor hands its selected receipt to config preparation.
   expect(await prepareSupervisorServerConfig({ temporaryRoot: temp, configPath, serverPort: 3100, database: supervisor, dockerRun: run })).toBeNull();
   const config = JSON.parse(await readFile(configPath, "utf8")); expect(config.database.mode).toBe("postgres"); expect(config.database.connectionString).toBe(owned.receipt.connectionString);
@@ -193,7 +193,7 @@ it("allows only exact Docker Desktop host translation with an owned canonical pr
 it("scans every raw config byte except one verified owned DSN field", async () => {
   const temp = await root(), { run } = daemon(), secrets: string[] = [];
   const owned = await startOwnedDockerDatabase({ temporaryRoot: temp, privateSecrets: secrets, run });
-  const home = path.join(temp, "paperclip-home"), configPath = path.join(home, "instances", "runner-e2e-custody", "config.json");
+  const home = path.join(temp, "outpost-home"), configPath = path.join(home, "instances", "runner-e2e-custody", "config.json");
   await prepareRunnerE2EServerConfig({ temporaryRoot: temp, configPath, serverPort: 3100, dockerReceiptPath: owned.filename, dockerRun: run });
   const options = { includeShapes: false, privateDockerDatabaseConfig: { temporaryRoot: temp, configPath, receiptPath: owned.filename, run } };
   const original = await readFile(configPath, "utf8");

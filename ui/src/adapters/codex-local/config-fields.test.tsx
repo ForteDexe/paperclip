@@ -11,7 +11,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { CodexLocalConfigFields } from "./config-fields";
 import { buildCodexRunnerConfig } from "./config-fields";
-import { buildPaperclipRunnerConfig } from "@outpost/adapter-codex-local/ui";
+import { buildOutpostRunnerConfig } from "@outpost/adapter-codex-local/ui";
 import { defaultCreateValues } from "@/components/agent-config-defaults";
 import { resolveCodexLocalCliPolicy } from "@outpost/adapter-codex-local";
 
@@ -85,11 +85,11 @@ async function editFields(
   let currentValues: CreateConfigValues = {
     ...defaultCreateValues,
     adapterType,
-    runner: adapterType === "outpost_runner" ? "paperclip" : "legacy",
+    runner: adapterType === "outpost_runner" ? "outpost" : "legacy",
     adapterSchemaValues: { provider: "codex" },
     envBindings: { CODEX_HOME: { type: "secret_ref", secretId: "codex-account" } },
-    paperclipRunnerLifecycleMode: "warm",
-    paperclipRunnerIdleTimeoutMs: 45_000,
+    outpostRunnerLifecycleMode: "warm",
+    outpostRunnerIdleTimeoutMs: 45_000,
     codexEngine: "acp",
     codexAcpMode: "persistent",
     codexAcpNonInteractivePermissions: "deny",
@@ -108,11 +108,11 @@ async function editFields(
   try {
     await act(async () => root.render(<QueryClientProvider client={new QueryClient()}><TooltipProvider><Fixture /></TooltipProvider></QueryClientProvider>));
     await inspect(container, () => mode === "create"
-      ? adapterType === "outpost_runner" ? buildPaperclipRunnerConfig(currentValues) : buildCodexRunnerConfig(currentValues)
+      ? adapterType === "outpost_runner" ? buildOutpostRunnerConfig(currentValues) : buildCodexRunnerConfig(currentValues)
       : currentConfig);
     if (mode === "create") {
       expect(currentValues.adapterType).toBe(adapterType);
-      expect(currentValues.runner).toBe(adapterType === "outpost_runner" ? "paperclip" : "legacy");
+      expect(currentValues.runner).toBe(adapterType === "outpost_runner" ? "outpost" : "legacy");
     }
   } finally {
     await act(async () => root.unmount());

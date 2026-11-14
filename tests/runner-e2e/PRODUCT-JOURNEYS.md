@@ -10,13 +10,13 @@ browser-only “use as a user” discovery.
 | --- | --- |
 | Journey | User actions, prerequisites, assertions, feature-map associations |
 | Target provider | Authentication, deployed identity, configuration, acquisition, cleanup |
-| Setup recipe | Resolve requested company/user/task capabilities through the fixture registry |
+| Setup recipe | Resolve requested space/user/task capabilities through the fixture registry |
 | Campaign | Explicit journey order, target, model profile, limits, lifetime |
 
 Shared code is in `product-journeys/`. Cloud fleet operations, email-code login,
-private state, and trusted CI live in the private `paperclip-cloud` repository.
+private state, and trusted CI live in the private `outpost-cloud` repository.
 The `TargetProvider` version-1 interface is defined in `product-journeys/types.ts`.
-Journeys receive a ready browser, company-scoped API, IDs, and capabilities. They
+Journeys receive a ready browser, space-scoped API, IDs, and capabilities. They
 never start a server or depend on a tenant filesystem.
 
 ## Selections
@@ -25,24 +25,24 @@ never start a server or depend on a tenant filesystem.
 | --- | --- | --- |
 | `repository-continuation` | Native agent; two work runs; a pinned public read-only repository | Verify independent Git bundle history and workspace bytes across two turns, preserve the original random file, and reopen registered outputs after reload. See [repository-continuation.md](product-journeys/repository-continuation.md) |
 | `routine-scheduled-run` | Native agent; one work run; an owned project and routine | Browser-create a routine, enable its minute schedule, verify one scheduled invocation and run-attributed saved output, then pause and observe the next schedule boundary with no new work |
-| `company-access-isolation` | Two registered QA Cloud workspaces; disposable company-bound agent credentials; zero model runs | Switch through the real tenant Cloud menu and return. Require allowed task reads and task creation, foreign read/create denial in both directions, exact canonical creator evidence, and key revocation. See [COMPANY-ACCESS.md](product-journeys/COMPANY-ACCESS.md) |
-| `saved-skill-use` | Native agent with skill-write capability; one work run; one synthetic company skill assigned by key using Latest | Load the assigned saved skill, use inputs available only in its source, and verify a same-run-authored task document after reload. Bind the immutable created version to the run's admitted skill-version map. Require a complete bound native source read/load and preserve the exact source and version. Works with Beta skills off. See [saved-skill-use.md](product-journeys/saved-skill-use.md) |
+| `space-access-isolation` | Two registered QA Cloud workspaces; disposable space-bound agent credentials; zero model runs | Switch through the real tenant Cloud menu and return. Require allowed task reads and task creation, foreign read/create denial in both directions, exact canonical creator evidence, and key revocation. See [SPACE-ACCESS.md](product-journeys/SPACE-ACCESS.md) |
+| `saved-skill-use` | Native agent with skill-write capability; one work run; one synthetic space skill assigned by key using Latest | Load the assigned saved skill, use inputs available only in its source, and verify a same-run-authored task document after reload. Bind the immutable created version to the run's admitted skill-version map. Require a complete bound native source read/load and preserve the exact source and version. Works with Beta skills off. See [saved-skill-use.md](product-journeys/saved-skill-use.md) |
 | `file-input-answer` | Native agent; one work run; synthetic CSV uploaded through the composer | Verify original uploaded bytes, independently calculated accepted-row count and units, a run-attributed task document after reload, and preservation of the input attachment. The task prompt contains neither the random file reference nor the answers |
 | `inbox-triage` | Signed-in board user; a separately authenticated QA human author; a fresh self-assigned task; zero model runs | Mark an unread task read, archive it through Mine, reload both views, verify unchanged work status, then observe a real Blocked transition resurface it through the normal archive policy |
-| `task-create` | Company and signed-in board user | Create a task through the shared production composer, assign it to yourself, reopen and reload it, verify the saved prompt and no agent work |
-| `project-task-context` | Company, signed-in board user, task-write capability; no model runs | Create a project and a self-assigned task with the project selected through the production dialogs. Reopen the project, open its task, reload both, and verify exact saved company, project, prompt, assignment, standard work mode and zero runs |
+| `task-create` | Space and signed-in board user | Create a task through the shared production composer, assign it to yourself, reopen and reload it, verify the saved prompt and no agent work |
+| `project-task-context` | Space, signed-in board user, task-write capability; no model runs | Create a project and a self-assigned task with the project selected through the production dialogs. Reopen the project, open its task, reload both, and verify exact saved space, project, prompt, assignment, standard work mode and zero runs |
 | `task-dependency-resume` | Native agent; one automatic work run; two browser-created tasks | Keep an assigned dependent blocked for a measured ten seconds; complete its human-owned blocker through the UI; require one automatic native wake, run-authored saved document, and reloaded result. See [contract](product-journeys/task-dependency-resume.md). |
-| `ask-question` | Company, configured agent capability, positive model allowance and exactly one permitted work run | Reuse the existing cross-model Ask question prompt; require one successful run with matching company/task/agent/model/environment, one saved exact answer, and visible readback after reload |
+| `ask-question` | Space, configured agent capability, positive model allowance and exactly one permitted work run | Reuse the existing cross-model Ask question prompt; require one successful run with matching space/task/agent/model/environment, one saved exact answer, and visible readback after reload |
 | `chat-continuity` | Fresh owned native agent with no prior work runs; Agent Chat enabled; fresh owned user chat; three provider turns and one synthetic reset | Recall prompt-hidden context after reopening, then use `/new` to advance the same saved conversation to a fresh native session, preserve history and verify the final reply after reload. See [CHAT-CONTINUITY.md](product-journeys/CHAT-CONTINUITY.md) |
 | `question-answer-resume` | Native agent; up to three work runs | Reuse the classic two-question story: answer a choice and a free-text question through the browser, verify each native continuation, then read the exact saved answers in an agent-authored task document after reload |
-| `task-properties` | Company, signed-in board user, task-write capability, prepared run-owned backlog task | Open its properties, assign it to the signed-in user, reload, check both UI and saved assignment; verify no agent run |
-| `task-edit-lifecycle` | Company, signed-in board user, task-write capability; target support for run-owned labels and exact predeclared `taskEdit.revisedTitle` cleanup; zero model runs | Create a self-assigned task, edit its inline header title and label, reload, complete and reopen it; independently verify exact saved state, unchanged context and zero runs. Open a closed Properties panel through its shipped toggle |
-| `task-document-persistence` | Company, signed-in board user, task-write capability, prepared run-owned backlog task; no model allowance or runs | Create a general document through Artifacts, edit its title and body, reopen and reload it; independently verify exact canonical content, preserved original and latest revisions, board-user authorship, and no agent work |
-| `task-search-filter` | Company, signed-in board user, task-write capability; zero model runs | Search three owned target/control tasks through the task list, require exact matching identities, filter Backlog to exclude the completed control, reload and return from the exact saved task with search/filter context intact |
+| `task-properties` | Space, signed-in board user, task-write capability, prepared run-owned backlog task | Open its properties, assign it to the signed-in user, reload, check both UI and saved assignment; verify no agent run |
+| `task-edit-lifecycle` | Space, signed-in board user, task-write capability; target support for run-owned labels and exact predeclared `taskEdit.revisedTitle` cleanup; zero model runs | Create a self-assigned task, edit its inline header title and label, reload, complete and reopen it; independently verify exact saved state, unchanged context and zero runs. Open a closed Properties panel through its shipped toggle |
+| `task-document-persistence` | Space, signed-in board user, task-write capability, prepared run-owned backlog task; no model allowance or runs | Create a general document through Artifacts, edit its title and body, reopen and reload it; independently verify exact canonical content, preserved original and latest revisions, board-user authorship, and no agent work |
+| `task-search-filter` | Space, signed-in board user, task-write capability; zero model runs | Search three owned target/control tasks through the task list, require exact matching identities, filter Backlog to exclude the completed control, reload and return from the exact saved task with search/filter context intact |
 | `plan-revise-accept` | Native agent; three work runs | Reuse the classic Plan story: canonical draft, browser revision request, new revision-bound confirmation, approval and exact saved final response |
 | `build-revise` | Native agent; two work runs; qualified Docker artifact oracle | Browser-download both ZIP versions, independently exercise source/CLI behavior, verify different hashes and preserve the original download |
 | `protected-actions` | Native agent; four work runs; authenticated reachable review-service fixture | Approve one action and decline another on separate owned tasks; verify zero calls before either decision, one after approval, zero after decline and a truthful saved explanation |
-| `create-skill-studio` | Native agent with skill-write permission; one work run | Create a uniquely named company skill, open its activity card, edit in Studio, reload and verify task-card readback |
+| `create-skill-studio` | Native agent with skill-write permission; one work run | Create a uniquely named space skill, open its activity card, edit in Studio, reload and verify task-card readback |
 | `stop-redirect` | Native agent; three work runs; qualified Docker oracle | Download a verified checkpoint, observe an active native command with current-turn usage, Stop it, verify cancellation and settled accounting, then send one new direction and complete without original-run activity |
 | `followup-while-running` | Native agent; a maximum of two work runs | Save a follow-up while an independently observed native shell command is still active, then require one attributed final reply with the late requirement after reload; in-turn steering and one normal successor are accepted |
 | `hire-delegate-reuse` | Native lead with a fresh user chat and scoped hiring permission; Agent Chat enabled; direct hiring policy; seven work runs | Hire one teammate, delegate a saved checklist, reuse the same teammate for a saved review, verify native run and revision authorship, preserve the original, and follow the lead's saved result link after reload |
@@ -63,7 +63,7 @@ and clock order cannot substitute for the run's actual settlement state. A recei
 that was already ready before Stop is accepted only when the exact cancelled run
 is actually accounted and no longer pending. Canonical usage receipts, including
 raw, partial and complete forms, do not count as continued work when their API row
-and envelope match the observed run, company and agent, with consistent source
+and envelope match the observed run, space and agent, with consistent source
 event IDs, sequence numbers and instance IDs. An accounting source can change
 after Stop; its receipt does not need the pre-Stop Runner instance or accounting
 source and sequence. Pre-Stop work still requires the current Runner and turn.
@@ -90,7 +90,7 @@ An API receipt must retain its creation identity unchanged after the answer. A f
 run count alone is never provenance. A target declares a three-run maximum and positive model allowance,
 and a passing receipt must contain one to three attributed native runs. Other journeys
 retain their exact run-count requirements. Both real board answers, no premature
-output, the sole document's agent/company/task ownership and its reloaded revision
+output, the sole document's agent/space/task ownership and its reloaded revision
 are independently checked. The private provider owns authentication, setup, accounting
 and cleanup. Local calibration is not deployed-target qualification.
 
@@ -143,20 +143,20 @@ The lead has a maximum of five work runs and the teammate has two.
 A 500-cent case allowance is split into 300 cents for the lead and 200 for the
 teammate; the allocation must not duplicate the declared case allowance.
 Setup probes and unpriced usage remain separate accounting
-uncertainties. The journey does not change company hiring policy or instance
+uncertainties. The journey does not change space hiring policy or instance
 features. The provider must own and clean up the hired agent, both child tasks,
 the chat, and the project. Before the first send, a fresh-chat intent records the
-company, user and owned lead after a normal GET confirms no existing chat.
+space, user and owned lead after a normal GET confirms no existing chat.
 Recovery can attach only that exact fresh conversation. Saved replies and links
 are allowed to render after reload within the journey deadline. Cleanup includes
 unexpected campaign-owned children after
 failure. A new deployment must qualify the journey before scheduled admission.
 Child discovery reads the exact native creation audit after the run snapshot,
 then fetches each audited agent/task ID directly. It never depends on the first
-page of a shared company list. Each proven child is recorded before the next
+page of a shared space list. Each proven child is recorded before the next
 lookup can fail. Observation retries are limited to typed transient GET transport failures within
 the existing deadline. Ownership callbacks and grading failures are never
-retried. Audited same-company children are recorded before manager/project
+retried. Audited same-space children are recorded before manager/project
 checks fail; foreign or malformed rows remain unowned and fail the journey.
 
 The task-document journey uses the normal default-chat Artifacts pane and the
@@ -185,7 +185,7 @@ The search/filter journey creates only campaign-owned, board-assigned tasks thro
 the public API. The target and completed control share a unique search marker;
 a second Backlog control has a different marker. Search and status selection use
 the production controls. The oracle compares the complete visible task identity
-set at each step, verifies the exact saved company, owner, title, description and
+set at each step, verifies the exact saved space, owner, title, description and
 status, and checks all three tasks have no native runs. It reopens the target after
 reload and browser Back, and leaves the target visible for the harness screenshot.
 The combined Tasks shell reapplies its named view's status preset on mount, so
@@ -200,7 +200,7 @@ Unexpected browser/API errors retain only a closed `task_search_<stage>_failed`
 code. Stage names come from the journey source; raw exception text, URLs, form
 values, and response bodies are not added to reporting. Existing owned evidence
 failures keep their specific codes and the screenshot privacy guard stays in place.
-It does not depend on row order or an otherwise empty company. The browser reads
+It does not depend on row order or an otherwise empty space. The browser reads
 the visible links together. Per-row indexed locators can disappear
 while a search replaces the old collection; a detached snapshot is retried within
 the existing poll deadline. Duplicates, unknown destinations, and extra controls
@@ -222,7 +222,7 @@ the parent must not record its own approval or treat the opening scope as accept
 It must copy the full marked brief verbatim into `create_task.description`,
 including tool names, parameters, and the encoded input. It orders the child's
 work: create the files, publish `connection-proof.json` with that exact filename
-and workspace-relative content reference, save its Paperclip task document with
+and workspace-relative content reference, save its Outpost task document with
 the returned file link, then report completion. A Markdown workspace note does
 not replace the task document. It explains the native completion contract:
 include actual verification, omit the optional schema, and use receipt-derived
@@ -297,7 +297,7 @@ An approved child that commits a board-owned current-track blocker fails with
 run must prove the blocked decision at the child's current status version.
 Parent dependency waits, pending recovery, and stale child decisions keep waiting
 within the original deadline. This failure does not satisfy any delivery check.
-The [semantic control-plane port](../../server/src/services/native-runtime/paperclip-control-plane-port.ts)
+The [semantic control-plane port](../../server/src/services/native-runtime/outpost-control-plane-port.ts)
 writes `orpReportedWorkDisposition`. [Native finalization](../../server/src/services/native-runtime/native-run-finalizer.ts)
 commits the blocked decision and `statusVersionAfter` into the run's `resultJson`.
 
@@ -315,7 +315,7 @@ The Plan, Stop and protected-action decline checks reload the owned task and bin
 unique visible reply to the final successful native run. A settled native turn
 can render its saved reply before the comments projection exists; that path also
 requires exactly one matching final assistant message in the complete durable
-event stream, with the same company, agent, run and validated ORP source. If the run
+event stream, with the same space, agent, run and validated ORP source. If the run
 has a projected selected completion comment, only that attributed comment can
 satisfy the check. A pending or suppressed comment can use the same proven native
 reply path. A finish summary by itself, an earlier turn, a progress
@@ -323,11 +323,11 @@ bubble, or a cancelled run cannot satisfy it. Private receipts record the run,
 thread anchor and observed text; classic protocol comment matchers stay strict.
 Markdown replies compare complete text, GFM checkbox states and exact link destinations after parsing
 through the UI-owned projection of its existing Markdown renderer and GFM/issue-reference plugins. The observer receives the
-same visible-company prefix list used by the UI, so bare issue keys and URLs
+same visible-space prefix list used by the UI, so bare issue keys and URLs
 match their rendered links. Whitespace and inline formatting can change during rendering. A
 document or issue chip can replace a link label, but must retain its destination.
 Ordinary links retain their source label. Destination resolution uses the existing
-production company-route helper and the current task URL for fragments.
+production space-route helper and the current task URL for fragments.
 Receipts retain both source Markdown and observed content. Unsupported structures
 such as images, raw HTML, tables and fenced code fail closed. Exact marker checks
 remain exact, and decline checks inspect both visible explanations and source
@@ -351,7 +351,7 @@ reply observer on managed self-hosted and attached Cloud targets. The initial
 request includes one bounded `sleep 90` command. It supplies no changed launch
 day or final marker. The observer requires a valid running native turn and a
 pending named builtin command or process execution before sending the follow-up.
-Paperclip semantic tools, including completion/block/progress calls, cannot
+Outpost semantic tools, including completion/block/progress calls, cannot
 satisfy this boundary even if a provider labels them builtin execute or wraps
 their names with a native prefix. Unnamed or ambiguous builtin calls fail closed.
 The observed older ORP v1 builtin `bash` shape is also supported when its
@@ -470,9 +470,9 @@ supplied. This does not turn a classic local pass into a QA Cloud pass.
 
 Paid deployment campaigns declare the exact sum of expected work runs (Ask 1,
 Plan 3, artifact revision 2, protected actions 4, Skill Studio 1, Stop/redirect 3).
-Each observer reads only its owned tasks and checks native company, agent, model
+Each observer reads only its owned tasks and checks native space, agent, model
 and execution-environment identity. Setup is separately unpriced. Skills and
-service connections are uniquely owned; customer credentials and company-wide
+service connections are uniquely owned; customer credentials and space-wide
 configuration are never copied into a journey.
 
 The private QA adapter keeps candidate cases available for manual qualification.
@@ -503,7 +503,7 @@ run-owned label through the Properties panel. If the panel starts closed, the
 journey opens it through the ordinary Toggle side panel or Show properties
 control. It changes the status to In Progress, reloads, marks
 the task Done, reloads, reopens it to Todo and reloads again. Independent API
-reads bind every observed state to the same company, task and human owner.
+reads bind every observed state to the same space, task and human owner.
 The exact description, assignee, project and priority remain unchanged.
 Priority editing is not part of this journey because the production UI hides
 that control. No agent or model work is allowed.
@@ -516,7 +516,7 @@ The target must journal `label` resources by campaign name before browser label
 creation and by exact ID after its 201 response. Before title editing, the owned
 issue receipt retains its original name and ID and declares
 `taskEdit: { revisedTitle }` for this case. Cleanup may match only that one
-predeclared title or the original title on the same company and issue ID.
+predeclared title or the original title on the same space and issue ID.
 The private target must reconcile a lost label-creation response, remove only
 its proven run-owned label, and verify absence. Targets without these ownership
 and cleanup semantics must not select this journey.

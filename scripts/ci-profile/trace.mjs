@@ -27,7 +27,7 @@ export function buildTrace(run, jobs, records = []) {
   const warnings = [];
   if (carriedJobs.length) warnings.push(`${carriedJobs.length} completed jobs carried over from earlier attempts were excluded`);
   const shared = {
-    "service.name": "paperclip-ci",
+    "service.name": "outpost-ci",
     "trace.trace_id": traceId,
     "ci.repository": run.repository.full_name,
     "ci.run_id": String(run.id),

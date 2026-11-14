@@ -5,13 +5,13 @@ import { sendChatMessage } from "../chat-flow.js";
 import { checks, type Entity } from "./internal-support.js";
 import { runtimeDefinition, runtimeObservation, observeRuntime, unchangedAgent, type RuntimeAgent, type RuntimeObservation } from "./runtime-support.js";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
-interface HireApproval { id: string; companyId: string; type: string; status: string; requestedByAgentId: string | null;
+interface HireApproval { id: string; spaceId: string; type: string; status: string; requestedByAgentId: string | null;
   decidedByUserId: string | null; payload: { agentId?: string; name?: string; role?: string; title?: string; reportsTo?: string; adapterType?: string; adapterConfig?: unknown } }
 async function pendingHire(ctx: ChatCatalogContext, name: string) {
   return pollUntil({ label: `Actual governed ${name} proposal`, deadlineAt: chatCatalogNativePhaseDeadline(ctx, Date.now() + 180_000),
     load: async () => { await ctx.refreshIssue(); return { source: ctx.issue(), runs: await ctx.allRuns(),
-      approvals: await ctx.input.api.get<HireApproval[]>(`/api/companies/${ctx.input.fixtures.company.id}/approvals`),
-      agents: await ctx.input.api.get<RuntimeAgent[]>(`/api/companies/${ctx.input.fixtures.company.id}/agents`) }; },
+      approvals: await ctx.input.api.get<HireApproval[]>(`/api/spaces/${ctx.input.fixtures.space.id}/approvals`),
+      agents: await ctx.input.api.get<RuntimeAgent[]>(`/api/spaces/${ctx.input.fixtures.space.id}/agents`) }; },
     accept: value => chatCatalogNativePhaseIsTimely(ctx) && value.source?.conversationState === "waiting" && value.approvals.filter(row => row.type === "hire_agent" && row.status === "pending" && row.payload.name === name).length === 1
       && value.agents.some(row => row.name === name && row.status === "pending_approval")
       && value.runs.every(run => run.agentId === ctx.input.fixtures.agent.id && run.status === "succeeded"),
@@ -39,7 +39,7 @@ export function gradeGovernedHire(value: unknown) {
   const approvals = o.state.approvalsAfter as HireApproval[] | undefined;
   const first = approvals?.find(row => row.id === rejected?.id); const second = approvals?.find(row => row.id === accepted?.id);
   c.add("one-proposal-per-explicit-request", !!rejected && !!accepted && rejected.id !== accepted.id && approvals?.length === 2
-    && rejected.companyId === o.companyId && accepted.companyId === o.companyId
+    && rejected.spaceId === o.spaceId && accepted.spaceId === o.spaceId
     && [rejected, accepted].every(row => row.type === "hire_agent" && row.status === "pending" && row.requestedByAgentId === o.leadId
       && row.payload.role === "qa" && !!row.payload.adapterType && row.payload.adapterConfig != null)
     && rejected.payload.name === "Morgan" && accepted.payload.name === "Jules" && o.state.secondRequestAttributed === true,
@@ -50,7 +50,7 @@ export function gradeGovernedHire(value: unknown) {
   "The genuine human rejection leaves no working Morgan or repeated proposal before the person explicitly changes their request.");
   const before = o.state.acceptedBefore as RuntimeAgent | undefined; const current = o.agents.find(row => row.id === accepted?.payload.agentId);
   c.add("accepted-same-intended-hire", second?.status === "approved" && !!second.decidedByUserId && !!before && !!current
-    && current.name === "Jules" && current.companyId === o.companyId && current.lifecycleState === "ready"
+    && current.name === "Jules" && current.spaceId === o.spaceId && current.lifecycleState === "ready"
     && ["active", "idle"].includes(current.status ?? "") && unchangedAgent(before, current),
   "Human acceptance activates the exact proposed Jules identity and admitted configuration, rather than a replacement employee.");
   c.add("no-worker-before-or-after-decision", o.state.noWorkerBeforeFirstDecision === true && o.state.noWorkerBeforeSecondDecision === true
@@ -66,21 +66,21 @@ export function gradeGovernedHire(value: unknown) {
   return c.result();
 }
 export const runtimeHiringCases = [runtimeDefinition("agents.hire-needs-approval", async ctx => {
-  await ctx.input.api.patch(`/api/companies/${ctx.input.fixtures.company.id}`, { requireBoardApprovalForNewAgents: true });
-  const company = await ctx.input.api.get<{ requireBoardApprovalForNewAgents: boolean }>(`/api/companies/${ctx.input.fixtures.company.id}`);
-  if (!company.requireBoardApprovalForNewAgents) throw new Error("Actual company hire approval policy did not persist");
-  return { companyRequiresApproval: true };
+  await ctx.input.api.patch(`/api/spaces/${ctx.input.fixtures.space.id}`, { requireBoardApprovalForNewAgents: true });
+  const space = await ctx.input.api.get<{ requireBoardApprovalForNewAgents: boolean }>(`/api/spaces/${ctx.input.fixtures.space.id}`);
+  if (!space.requireBoardApprovalForNewAgents) throw new Error("Actual space hire approval policy did not persist");
+  return { spaceRequiresApproval: true };
 }, gradeGovernedHire, {
   sourceFiles: ["chat-catalog-domains/runtime-hiring.ts", "chat-catalog-domains/runtime-support.ts", "chat-scenarios/agents.yaml"],
   oracleVersion: "outpost.chat-catalog.runtime-hiring.v3",
   expectedHumanMessageCount: 2, expectedRunCount: 4, minimumRunCount: 2, attemptTimeoutMs: 720_000,
   async act(ctx, state) {
-    const root = `/api/companies/${ctx.input.fixtures.company.id}`; const source = ctx.input.page.url();
+    const root = `/api/spaces/${ctx.input.fixtures.space.id}`; const source = ctx.input.page.url();
     const initial = await pendingHire(ctx, "Morgan"); const first = initial.approvals.find(row => row.payload.name === "Morgan" && row.status === "pending")!;
     state.firstProposal = first; state.noWorkerBeforeFirstDecision = initial.runs.every(run => run.agentId === ctx.input.fixtures.agent.id);
     state.firstReply = (await observeRuntime(ctx, state)).reply;
     const firstRequestRuns = initial.runs.filter(run => run.contextSnapshot?.source !== "approval.approved" && run.contextSnapshot?.source !== "approval.rejected").map(run => run.id);
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/approvals/${first.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/approvals/${first.id}`, { waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByText("Morgan", { exact: true }).first()).toBeVisible();
     await ctx.input.page.getByRole("button", { name: "Reject", exact: true }).click();
     const rejected = await pollUntil({ label: "Rejected Morgan stays inactive without a repeated proposal", deadlineAt: Date.now() + 60_000,
@@ -105,7 +105,7 @@ export const runtimeHiringCases = [runtimeDefinition("agents.hire-needs-approval
     state.secondReply = leadReplies(next.map(run => run.id)).map(row => row.body ?? "").join("\n");
     state.acceptedBefore = secondPhase.agents.find(row => row.id === second.payload.agentId);
     state.worker = state.acceptedBefore;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/approvals/${second.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/approvals/${second.id}`, { waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByText("Jules", { exact: true }).first()).toBeVisible();
     await ctx.input.page.getByRole("button", { name: "Approve", exact: true }).click();
     await pollUntil({ label: "Accepted exact QA hire becomes genuinely admitted", deadlineAt: Date.now() + 90_000,
@@ -117,7 +117,7 @@ export const runtimeHiringCases = [runtimeDefinition("agents.hire-needs-approval
     await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });
   },
   async observe(ctx, state) {
-    state.approvalsAfter = await ctx.input.api.get<HireApproval[]>(`/api/companies/${ctx.input.fixtures.company.id}/approvals`);
+    state.approvalsAfter = await ctx.input.api.get<HireApproval[]>(`/api/spaces/${ctx.input.fixtures.space.id}/approvals`);
     return observeRuntime(ctx, state);
   },
 })];

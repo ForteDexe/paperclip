@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { searchRunnerApi } from "../services/native-runtime/runner-api-catalog.js";
 import { validateRunnerApiCall } from "../services/native-runtime/runner-api-client.js";
 
-const context = { companyId: "00000000-0000-4000-8000-000000000121", issueId: "00000000-0000-4000-8000-000000000122", runId: "00000000-0000-4000-8000-000000000123", workMode: "standard" };
+const context = { spaceId: "00000000-0000-4000-8000-000000000121", issueId: "00000000-0000-4000-8000-000000000122", runId: "00000000-0000-4000-8000-000000000123", workMode: "standard" };
 
 it("tells agents searching for assistant disconnection that only the person can do it, and where", () => {
   for (const query of ["chat client assistant disconnect connection", "assistant connections revoke list", "mcp connection revoke REST"]) {
@@ -35,7 +35,7 @@ it("points at the catalog description only when the protocol endpoint has one", 
 
 it("does not claim a non-guidance protocol description says who can use the endpoint", () => {
   let message = "";
-  try { validateRunnerApiCall({ operationId: "GET /api/companies/{companyId}/events/ws" }, context); } catch (error) { message = (error as Error).message; }
+  try { validateRunnerApiCall({ operationId: "GET /api/spaces/{spaceId}/events/ws" }, context); } catch (error) { message = (error as Error).message; }
   expect(message).toContain("Read its catalog description for details.");
   expect(message).not.toContain("who can use it");
 });

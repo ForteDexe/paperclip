@@ -11,7 +11,7 @@ import { WorkspaceBaseRefRecoveryNotice } from "./WorkspaceBaseRefRecoveryNotice
 const mocks = vi.hoisted(() => ({ get: vi.fn(), resolve: vi.fn() }));
 vi.mock("../api/heartbeats", () => ({ heartbeatsApi: { get: mocks.get } }));
 vi.mock("../api/issues", () => ({ issuesApi: { resolveRecoveryAction: mocks.resolve } }));
-const issue = { id: "issue", companyId: "company", status: "blocked", assigneeAgentId: "agent",
+const issue = { id: "issue", spaceId: "space", status: "blocked", assigneeAgentId: "agent",
   executionWorkspaceSettings: { workspaceStrategy: { baseRef: "main" } },
   activeRecoveryAction: { id: "action", status: "active", cause: "configuration_incomplete", returnOwnerAgentId: "agent", evidence: { latestRunId: "run" } },
 } as unknown as Issue;
@@ -27,7 +27,7 @@ beforeEach(() => {
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   mocks.resolve.mockReset();
-  mocks.get.mockResolvedValue({ companyId: "company", agentId: "agent", contextSnapshot: { issueId: "issue" },
+  mocks.get.mockResolvedValue({ spaceId: "space", agentId: "agent", contextSnapshot: { issueId: "issue" },
     resultJson: { configurationIncomplete: { reason: "workspace_base_ref_unresolved", requestedRef: "main", defaultBranch: "master" } } });
 });
 afterEach(async () => { await act(async () => root.unmount()); client.clear(); container.remove(); });
@@ -69,12 +69,12 @@ it("renders only the latest run notice when a repeated failure reuses the incide
 });
 
 it.each(["configuration_incomplete", "setup_failed"])("offers one Retry without workspace explanations for %s", async errorCode => {
-  mocks.get.mockResolvedValue({ companyId: "company", agentId: "agent", status: "failed", errorCode,
+  mocks.get.mockResolvedValue({ spaceId: "space", agentId: "agent", status: "failed", errorCode,
     error: "Task workspace access is no longer available", contextSnapshot: { issueId: "issue" },
     resultJson: { configurationIncomplete: errorCode === "configuration_incomplete" ? { reason: "workspace_source_restricted" } : undefined,
       executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } });
   const action = issue.activeRecoveryAction!;
-  action.ownerType = "board";
+  action.ownerType = "operator";
   let finish!: () => void;
   mocks.resolve.mockImplementation(() => new Promise(resolve => { finish = () => resolve({ issue: { ...issue, status: "todo" } }); }));
   await render({ ...metadata, sourceRunId: "earlier-failure-of-same-action" });
@@ -88,9 +88,9 @@ it.each(["configuration_incomplete", "setup_failed"])("offers one Retry without 
 });
 
 it("keeps retry errors actionable and allows another click", async () => {
-  mocks.get.mockResolvedValue({ companyId: "company", agentId: "agent", status: "failed", contextSnapshot: { issueId: "issue" },
+  mocks.get.mockResolvedValue({ spaceId: "space", agentId: "agent", status: "failed", contextSnapshot: { issueId: "issue" },
     resultJson: { configurationIncomplete: { reason: "workspace_source_restricted" }, executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } });
-  issue.activeRecoveryAction!.ownerType = "board";
+  issue.activeRecoveryAction!.ownerType = "operator";
   mocks.resolve.mockRejectedValueOnce(new Error("The task is paused."));
   await render();
   await act(async () => container.querySelector("button")!.click());
@@ -99,9 +99,9 @@ it("keeps retry errors actionable and allows another click", async () => {
 });
 
 it("offers Retry even when its old notice is outside the loaded conversation", async () => {
-  mocks.get.mockResolvedValue({ companyId: "company", agentId: "agent", status: "failed", contextSnapshot: { issueId: "issue" },
+  mocks.get.mockResolvedValue({ spaceId: "space", agentId: "agent", status: "failed", contextSnapshot: { issueId: "issue" },
     resultJson: { configurationIncomplete: { reason: "workspace_source_restricted" }, executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } });
-  issue.activeRecoveryAction!.ownerType = "board";
+  issue.activeRecoveryAction!.ownerType = "operator";
   await render({ version: 1, sections: [] });
   expect(container.textContent).toBe("Retry");
 });

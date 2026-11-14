@@ -1,17 +1,17 @@
 ---
-title: Importing & Exporting Companies
-summary: Export companies to portable packages and import them from local paths or GitHub
+title: Importing & Exporting Spaces
+summary: Export spaces to portable packages and import them from local paths or GitHub
 ---
 
-Paperclip companies can be exported to portable markdown packages and imported from local directories or GitHub repositories. This lets you share company configurations, duplicate setups, and version-control your agent teams.
+Outpost spaces can be exported to portable markdown packages and imported from local directories or GitHub repositories. This lets you share space configurations, duplicate setups, and version-control your agent teams.
 
 ## Package Format
 
-Exported packages follow the [Agent Companies specification](/companies/companies-spec) and use a markdown-first structure:
+Exported packages follow the [Agent Spaces specification](/spaces/spaces-spec) and use a markdown-first structure:
 
 ```text
-my-company/
-├── COMPANY.md          # Company metadata
+my-space/
+├── COMPANY.md          # Space metadata
 ├── agents/
 │   ├── ceo/AGENT.md    # Agent instructions + frontmatter
 │   └── cto/AGENT.md
@@ -24,27 +24,27 @@ my-company/
 └── .outpost.yaml     # Adapter config, env inputs, routines
 ```
 
-- **COMPANY.md** defines company name, description, and metadata.
+- **COMPANY.md** defines space name, description, and metadata.
 - **AGENT.md** files contain agent identity, role, and instructions.
 - **SKILL.md** files are compatible with the Agent Skills ecosystem.
-- **.outpost.yaml** holds Paperclip-specific config (adapter types, env inputs, budgets) as an optional sidecar.
+- **.outpost.yaml** holds Outpost-specific config (adapter types, env inputs, budgets) as an optional sidecar.
 
 ## Export & Import in the App
 
-Both flows are also available in the web UI as company settings pages: **Export** and **Import** appear in the company settings navigation.
+Both flows are also available in the web UI as space settings pages: **Export** and **Import** appear in the space settings navigation.
 
-> **Cloud-managed instances:** when a hosting platform manages the instance, the company is provisioned by the platform and importing is disabled — the Import page and buttons are hidden, and every import API route answers `403` with `code: "cloud_managed"`. Export stays available, so you can always take your company's data with you. Self-hosted instances keep the full import surface.
+> **Cloud-managed instances:** when a hosting platform manages the instance, the space is provisioned by the platform and importing is disabled — the Import page and buttons are hidden, and every import API route answers `403` with `code: "cloud_managed"`. Export stays available, so you can always take your space's data with you. Self-hosted instances keep the full import surface.
 
 The **Export** page lets you pick exactly which files go into the bundle before downloading it. Above the file tree it shows a **"Not included in this export"** panel — the export fidelity report — listing data the bundle will not carry (for example attachments, approvals, cost history, or activity log entries), with blocking issues highlighted.
 
 The **Import** page previews the package, lets you resolve name collisions and adapter assignments, and applies the import. A **"Start imported agents and routines paused"** checkbox (on by default) makes imported agents and routines land paused instead of live. After the import finishes, an **"Activate imported agents and routines"** panel lists everything that was imported paused so you can resume the agents and activate the routines you select — nothing starts running until you say so.
 
-## Exporting a Company
+## Exporting a Space
 
-Export a company into a portable folder:
+Export a space into a portable folder:
 
 ```sh
-paperclipai company export <company-id> --out ./my-export
+outpost space export <space-id> --out ./my-export
 ```
 
 ### Options
@@ -52,7 +52,7 @@ paperclipai company export <company-id> --out ./my-export
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--out <path>` | Output directory (required) | — |
-| `--include <values>` | Comma-separated set: `company`, `agents`, `projects`, `issues`, `tasks`, `skills` | `company,agents` |
+| `--include <values>` | Comma-separated set: `space`, `agents`, `projects`, `issues`, `tasks`, `skills` | `space,agents` |
 | `--skills <values>` | Export only specific skill slugs | all |
 | `--projects <values>` | Export only specific project shortnames or IDs | all |
 | `--issues <values>` | Export specific issue identifiers or IDs | none |
@@ -62,19 +62,19 @@ paperclipai company export <company-id> --out ./my-export
 ### Examples
 
 ```sh
-# Export company with agents and projects
-paperclipai company export abc123 --out ./backup --include company,agents,projects
+# Export space with agents and projects
+outpost space export abc123 --out ./backup --include space,agents,projects
 
 # Export everything including tasks and skills
-paperclipai company export abc123 --out ./full-export --include company,agents,projects,tasks,skills
+outpost space export abc123 --out ./full-export --include space,agents,projects,tasks,skills
 
 # Export only specific skills
-paperclipai company export abc123 --out ./skills-only --include skills --skills review,deploy
+outpost space export abc123 --out ./skills-only --include skills --skills review,deploy
 ```
 
 ### What Gets Exported
 
-- Company name, description, and metadata
+- Space name, description, and metadata
 - Agent names, roles, reporting structure, and instructions
 - Project definitions and workspace config
 - Task/issue descriptions (when included)
@@ -83,33 +83,33 @@ paperclipai company export abc123 --out ./skills-only --include skills --skills 
 
 Secret values, machine-local paths, and database IDs are **never** exported.
 
-## Importing a Company
+## Importing a Space
 
 Import from a local directory, GitHub URL, or GitHub shorthand:
 
 ```sh
 # From a local folder
-paperclipai company import ./my-export
+outpost space import ./my-export
 
 # From a GitHub URL
-paperclipai company import https://github.com/org/repo
+outpost space import https://github.com/org/repo
 
 # From a GitHub subfolder
-paperclipai company import https://github.com/org/repo/tree/main/companies/acme
+outpost space import https://github.com/org/repo/tree/main/spaces/acme
 
 # From GitHub shorthand
-paperclipai company import org/repo
-paperclipai company import org/repo/companies/acme
+outpost space import org/repo
+outpost space import org/repo/spaces/acme
 ```
 
 ### Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--target <mode>` | `new` (create a new company) or `existing` (merge into existing) | inferred from context |
-| `--company-id <id>` | Target company ID for `--target existing` | current context |
-| `--new-company-name <name>` | Override company name for `--target new` | from package |
-| `--include <values>` | Comma-separated set: `company`, `agents`, `projects`, `issues`, `tasks`, `skills` | auto-detected |
+| `--target <mode>` | `new` (create a new space) or `existing` (merge into existing) | inferred from context |
+| `--space-id <id>` | Target space ID for `--target existing` | current context |
+| `--new-space-name <name>` | Override space name for `--target new` | from package |
+| `--include <values>` | Comma-separated set: `space`, `agents`, `projects`, `issues`, `tasks`, `skills` | auto-detected |
 | `--agents <list>` | Comma-separated agent slugs to import, or `all` | `all` |
 | `--collision <mode>` | How to handle name conflicts: `rename`, `skip`, or `replace` | `rename` |
 | `--ref <value>` | Git ref for GitHub imports (branch, tag, or commit) | default branch |
@@ -119,14 +119,14 @@ paperclipai company import org/repo/companies/acme
 
 ### Target Modes
 
-- **`new`** — Creates a fresh company from the package. Good for duplicating a company template.
-- **`existing`** — Merges the package into an existing company. Use `--company-id` to specify the target.
+- **`new`** — Creates a fresh space from the package. Good for duplicating a space template.
+- **`existing`** — Merges the package into an existing space. Use `--space-id` to specify the target.
 
-If `--target` is not specified, Paperclip infers it: if a `--company-id` is provided (or one exists in context), it defaults to `existing`; otherwise `new`.
+If `--target` is not specified, Outpost infers it: if a `--space-id` is provided (or one exists in context), it defaults to `existing`; otherwise `new`.
 
 ### Collision Strategies
 
-When importing into an existing company, agent or project names may conflict with existing ones:
+When importing into an existing space, agent or project names may conflict with existing ones:
 
 - **`rename`** (default) — Appends a suffix to avoid conflicts (e.g., `ceo` becomes `ceo-2`).
 - **`skip`** — Skips entities that already exist.
@@ -141,7 +141,7 @@ When running interactively (no `--yes` or `--json` flags), the import command sh
 Always preview first with `--dry-run`:
 
 ```sh
-paperclipai company import org/repo --target existing --company-id abc123 --dry-run
+outpost space import org/repo --target existing --space-id abc123 --dry-run
 ```
 
 The preview shows:
@@ -156,20 +156,20 @@ Imports can additionally request `pauseAutomations` (the default in the app's Im
 
 ### Common Workflows
 
-**Clone a company template from GitHub:**
+**Clone a space template from GitHub:**
 
 ```sh
-paperclipai company import org/company-templates/engineering-team \
+outpost space import org/space-templates/engineering-team \
   --target new \
-  --new-company-name "My Engineering Team"
+  --new-space-name "My Engineering Team"
 ```
 
-**Add agents from a package into your existing company:**
+**Add agents from a package into your existing space:**
 
 ```sh
-paperclipai company import ./shared-agents \
+outpost space import ./shared-agents \
   --target existing \
-  --company-id abc123 \
+  --space-id abc123 \
   --include agents \
   --collision rename
 ```
@@ -177,13 +177,13 @@ paperclipai company import ./shared-agents \
 **Import a specific branch or tag:**
 
 ```sh
-paperclipai company import org/repo --ref v2.0.0 --dry-run
+outpost space import org/repo --ref v2.0.0 --dry-run
 ```
 
 **Non-interactive import (CI/scripts):**
 
 ```sh
-paperclipai company import ./package \
+outpost space import ./package \
   --target new \
   --yes \
   --json
@@ -195,12 +195,12 @@ The CLI commands use these API endpoints under the hood:
 
 | Action | Endpoint |
 |--------|----------|
-| Export company | `POST /api/companies/{companyId}/export` |
-| Export fidelity report | `GET /api/companies/{companyId}/export/fidelity` |
-| Preview import (existing company) | `POST /api/companies/{companyId}/imports/preview` |
-| Apply import (existing company) | `POST /api/companies/{companyId}/imports/apply` |
-| Preview import (new company) | `POST /api/companies/import/preview` |
-| Apply import (new company) | `POST /api/companies/import` |
+| Export space | `POST /api/spaces/{spaceId}/export` |
+| Export fidelity report | `GET /api/spaces/{spaceId}/export/fidelity` |
+| Preview import (existing space) | `POST /api/spaces/{spaceId}/imports/preview` |
+| Apply import (existing space) | `POST /api/spaces/{spaceId}/imports/apply` |
+| Preview import (new space) | `POST /api/spaces/import/preview` |
+| Apply import (new space) | `POST /api/spaces/import` |
 
 Import apply requests accept `pauseAutomations: true` to create imported agents and routines in a paused state.
 
@@ -208,11 +208,11 @@ CEO agents can also use the safe import routes (`/imports/preview` and `/imports
 
 ## GitHub Sources
 
-Paperclip supports several GitHub URL formats:
+Outpost supports several GitHub URL formats:
 
 - Full URL: `https://github.com/org/repo`
-- Subfolder URL: `https://github.com/org/repo/tree/main/path/to/company`
+- Subfolder URL: `https://github.com/org/repo/tree/main/path/to/space`
 - Shorthand: `org/repo`
-- Shorthand with path: `org/repo/path/to/company`
+- Shorthand with path: `org/repo/path/to/space`
 
 Use `--ref` to pin to a specific branch, tag, or commit hash when importing from GitHub.

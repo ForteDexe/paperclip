@@ -33,7 +33,7 @@ export function projectNativeTerminalRunStatus(
 function claimedNativeWakeNeedsSettlement() {
   return sql`exists (select 1 from ${agentWakeupRequests} where
     ${agentWakeupRequests.id} = ${heartbeatRuns.wakeupRequestId}
-    and ${agentWakeupRequests.companyId} = ${heartbeatRuns.companyId}
+    and ${agentWakeupRequests.spaceId} = ${heartbeatRuns.spaceId}
     and ${agentWakeupRequests.agentId} = ${heartbeatRuns.agentId}
     and ${agentWakeupRequests.runId} = ${heartbeatRuns.id}
     and ${agentWakeupRequests.status} = 'claimed')`;
@@ -41,17 +41,17 @@ function claimedNativeWakeNeedsSettlement() {
 
 /** Settle only the exact persisted source claim inside terminal projection. */
 export async function settleNativeTerminalWake(tx: Db, run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "wakeupRequestId" | "runtimeMode" | "status" | "finishedAt" | "error">) {
+  "id" | "spaceId" | "agentId" | "wakeupRequestId" | "runtimeMode" | "status" | "finishedAt" | "error">) {
   if (run.runtimeMode !== "native" || !run.wakeupRequestId || !run.finishedAt
     || !["succeeded", "failed", "cancelled"].includes(run.status)) return;
   const claim = and(eq(agentWakeupRequests.id, run.wakeupRequestId),
-    eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+    eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
     eq(agentWakeupRequests.runId, run.id), eq(agentWakeupRequests.status, "claimed"));
   const [current] = await tx.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests)
     .where(claim).for("update").limit(1);
   if (!current) return;
-  await notifyExternalConversationSettlement(tx, { companyId: run.companyId });
-  await notifyStrandedAgentStatus(tx, { companyId: run.companyId, agentId: run.agentId });
+  await notifyExternalConversationSettlement(tx, { spaceId: run.spaceId });
+  await notifyStrandedAgentStatus(tx, { spaceId: run.spaceId, agentId: run.agentId });
   await tx.update(agentWakeupRequests).set({
     status: run.status === "succeeded" ? "completed" : run.status,
     finishedAt: run.finishedAt, error: run.error, updatedAt: new Date(),
@@ -105,7 +105,7 @@ export function pendingNativeRunProjectionCondition(db: Db) {
   return exists(db.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
     eq(nativeRunResults.id, nativeRunFinalizations.resultId),
     eq(nativeRunResults.runId, nativeRunFinalizations.runId),
-    eq(nativeRunResults.companyId, nativeRunFinalizations.companyId),
+    eq(nativeRunResults.spaceId, nativeRunFinalizations.spaceId),
     eq(nativeRunResults.issueId, nativeRunFinalizations.issueId),
     eq(nativeRunResults.schemaStatus, "accepted"),
     inArray(status, ["succeeded", "failed", "cancelled"]),
@@ -126,7 +126,7 @@ export function recoveredExecutionFailureMetadata() {
 export async function projectCommittedRun(input: {
   db: Db;
   onlyWhenEffectsSettled?: boolean;
-  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "status" | "finishedAt" | "runtimeMode" | "nativePhase" | "nativeIssueId" | "contextSnapshot">;
+  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId" | "status" | "finishedAt" | "runtimeMode" | "nativePhase" | "nativeIssueId" | "contextSnapshot">;
   coordinator: Pick<typeof nativeRunFinalizations.$inferSelect, "resultId" | "issueId">;
 }) {
   if (!input.coordinator.resultId) return;
@@ -137,7 +137,7 @@ export async function projectCommittedRun(input: {
       and(
         eq(nativeRunResults.id, input.coordinator.resultId),
         eq(nativeRunResults.runId, input.run.id),
-        eq(nativeRunResults.companyId, input.run.companyId),
+        eq(nativeRunResults.spaceId, input.run.spaceId),
         eq(nativeRunResults.issueId, input.coordinator.issueId),
         eq(nativeRunResults.schemaStatus, "accepted"),
       ),
@@ -149,10 +149,10 @@ export async function projectCommittedRun(input: {
     throw new Error("native_finalization_invalid");
   }
   const projectedStatus = terminalState as "succeeded" | "failed" | "cancelled";
-  const needsRepair = and(eq(heartbeatRuns.id, input.run.id), eq(heartbeatRuns.companyId, input.run.companyId),
+  const needsRepair = and(eq(heartbeatRuns.id, input.run.id), eq(heartbeatRuns.spaceId, input.run.spaceId),
     eq(heartbeatRuns.nativeIssueId, input.coordinator.issueId), nativeRunProjectionNeedsRepair(projectedStatus),
     exists(input.db.select({ runId: nativeRunFinalizations.runId }).from(nativeRunFinalizations).where(and(
-      eq(nativeRunFinalizations.runId, input.run.id), eq(nativeRunFinalizations.companyId, input.run.companyId),
+      eq(nativeRunFinalizations.runId, input.run.id), eq(nativeRunFinalizations.spaceId, input.run.spaceId),
       eq(nativeRunFinalizations.issueId, input.coordinator.issueId), eq(nativeRunFinalizations.resultId, input.coordinator.resultId),
       eq(nativeRunFinalizations.phase, "committed"),
       input.onlyWhenEffectsSettled ? not(pendingNativeStatusEffectsCondition(input.db)) : undefined,
@@ -164,17 +164,17 @@ export async function projectCommittedRun(input: {
       nativePhase: heartbeatRuns.nativePhase, finishedAt: heartbeatRuns.finishedAt })
       .from(heartbeatRuns).where(needsRepair).for("update").limit(1);
     if (!before) return null;
-    await notifyExternalAgentSettlement(tx, { companyId: input.run.companyId, runId: input.run.id });
-    await notifyNativeRecoveryNotices(tx, { companyId: input.run.companyId, runId: input.run.id });
-    await notifyNativeRunProjection(tx, { companyId: input.run.companyId, runId: input.run.id });
-    await notifyNativeEnvironmentSettlement(tx, { companyId: input.run.companyId, runId: input.run.id });
-    await notifyRetainedNativeSessionCleanup(tx, { companyId: input.run.companyId, runId: input.run.id });
-    await notifyInstructionCollection(tx, { companyId: input.run.companyId, runId: input.run.id });
-    await notifyCancelledWorkspacePreservation(tx, { companyId: input.run.companyId, runId: input.run.id });
+    await notifyExternalAgentSettlement(tx, { spaceId: input.run.spaceId, runId: input.run.id });
+    await notifyNativeRecoveryNotices(tx, { spaceId: input.run.spaceId, runId: input.run.id });
+    await notifyNativeRunProjection(tx, { spaceId: input.run.spaceId, runId: input.run.id });
+    await notifyNativeEnvironmentSettlement(tx, { spaceId: input.run.spaceId, runId: input.run.id });
+    await notifyRetainedNativeSessionCleanup(tx, { spaceId: input.run.spaceId, runId: input.run.id });
+    await notifyInstructionCollection(tx, { spaceId: input.run.spaceId, runId: input.run.id });
+    await notifyCancelledWorkspacePreservation(tx, { spaceId: input.run.spaceId, runId: input.run.id });
     await notifyUnsafeWorkspaceExportRunChange(tx, input.run);
-    await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, input.run.companyId);
-    await notifyExecutionRunWork(tx, { companyId: input.run.companyId });
-    await notifyChatRunMilestones(tx, { companyId: input.run.companyId, issueId: input.coordinator.issueId });
+    await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, input.run.spaceId);
+    await notifyExecutionRunWork(tx, { spaceId: input.run.spaceId });
+    await notifyChatRunMilestones(tx, { spaceId: input.run.spaceId, issueId: input.coordinator.issueId });
     const [after] = await tx
       .update(heartbeatRuns)
       .set({
@@ -206,7 +206,7 @@ export async function projectCommittedRun(input: {
       .returning();
     if (after) {
       await settleNativeTerminalWake(tx, after);
-      await promoteDeferredWorkIntents(tx, { companyId: input.run.companyId, trigger: "lock_released", issueId: input.coordinator.issueId });
+      await promoteDeferredWorkIntents(tx, { spaceId: input.run.spaceId, trigger: "lock_released", issueId: input.coordinator.issueId });
     }
     return after ? { before, after } : null;
   });

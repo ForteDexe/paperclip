@@ -1,15 +1,15 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search as SearchIcon, AlertTriangle, FileQuestion, Plus, X } from "lucide-react";
 import {
-  COMPANY_SEARCH_DEFAULT_LIMIT,
-  COMPANY_SEARCH_SCOPES,
-  type CompanySearchCountType,
-  type CompanySearchResponse,
-  type CompanySearchResult,
-  type CompanySearchScope,
-  type CompanySearchSort,
+  SPACE_SEARCH_DEFAULT_LIMIT,
+  SPACE_SEARCH_SCOPES,
+  type SpaceSearchCountType,
+  type SpaceSearchResponse,
+  type SpaceSearchResult,
+  type SpaceSearchScope,
+  type SpaceSearchSort,
 } from "@outpost/shared";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate, useSearchParams } from "@/lib/router";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useDialogActions } from "../context/DialogContext";
 import { searchApi } from "../api/search";
@@ -59,7 +59,7 @@ import type { Agent, IssueLabel, Project } from "@outpost/shared";
 const SEARCH_DEBOUNCE_MS = 250;
 const IDENTIFIER_PATTERN = /^[A-Z]+-\d+$/;
 
-const SCOPE_LABELS: Record<CompanySearchScope, string> = {
+const SCOPE_LABELS: Record<SpaceSearchScope, string> = {
   all: "All",
   issues: "Tasks",
   comments: "Comments",
@@ -69,16 +69,16 @@ const SCOPE_LABELS: Record<CompanySearchScope, string> = {
   projects: "Projects",
 };
 
-function isCompanySearchScope(value: string | null): value is CompanySearchScope {
-  return Boolean(value) && (COMPANY_SEARCH_SCOPES as readonly string[]).includes(value as string);
+function isSpaceSearchScope(value: string | null): value is SpaceSearchScope {
+  return Boolean(value) && (SPACE_SEARCH_SCOPES as readonly string[]).includes(value as string);
 }
 
-function describeScope(scope: CompanySearchScope) {
+function describeScope(scope: SpaceSearchScope) {
   if (scope === "all") return "All scopes";
   return SCOPE_LABELS[scope];
 }
 
-function totalMatchCount(counts: Partial<Record<CompanySearchCountType, number>>): number {
+function totalMatchCount(counts: Partial<Record<SpaceSearchCountType, number>>): number {
   return (
     (counts.issue ?? 0)
     + (counts.comment ?? 0)
@@ -99,9 +99,9 @@ function mergeSearchFilters(
 export function buildSearchUrl(
   href: string,
   query: string,
-  scope: CompanySearchScope,
+  scope: SpaceSearchScope,
   filters: ParsedSearchQuery["filters"] = {},
-  sort: CompanySearchSort = "relevance",
+  sort: SpaceSearchSort = "relevance",
 ): string {
   const url = new URL(href);
   if (query.length === 0) {
@@ -133,7 +133,7 @@ function shapeError(error: unknown): { message: string; status?: number } {
 }
 
 export function Search() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const { openNewIssue } = useDialogActions();
   const navigate = useNavigate();
@@ -142,13 +142,13 @@ export function Search() {
   const { isMobile } = useSidebar();
   const urlQuery = searchParams.get("q") ?? "";
   const urlScopeRaw = searchParams.get("scope");
-  const urlScope: CompanySearchScope = isCompanySearchScope(urlScopeRaw) ? urlScopeRaw : "all";
+  const urlScope: SpaceSearchScope = isSpaceSearchScope(urlScopeRaw) ? urlScopeRaw : "all";
   const urlSort = useMemo(() => parseSearchSort(searchParams), [searchParams]);
 
   const [draftQuery, setDraftQuery] = useState(urlQuery);
   const [committedQuery, setCommittedQuery] = useState(urlQuery);
-  const [scope, setScope] = useState<CompanySearchScope>(urlScope);
-  const [sort, setSort] = useState<CompanySearchSort>(urlSort);
+  const [scope, setScope] = useState<SpaceSearchScope>(urlScope);
+  const [sort, setSort] = useState<SpaceSearchSort>(urlSort);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [draftSheetFilters, setDraftSheetFilters] = useState<ParsedSearchQuery["filters"]>({});
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -162,9 +162,9 @@ export function Search() {
   }, [setBreadcrumbs]);
 
   useEffect(() => {
-    if (!selectedCompanyId) return;
-    setRecentSearches(loadRecentSearches(selectedCompanyId));
-  }, [selectedCompanyId]);
+    if (!selectedSpaceId) return;
+    setRecentSearches(loadRecentSearches(selectedSpaceId));
+  }, [selectedSpaceId]);
 
   // Pull URL changes back into local state (e.g. browser back/forward).
   useEffect(() => {
@@ -181,20 +181,20 @@ export function Search() {
   }, [urlSort]);
 
   const { data: agents = [] } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const { data: projects = [] } = useQuery({
-    ...companyProjectsQuery(selectedCompanyId!, { includeArchived: true }),
-    enabled: !!selectedCompanyId,
+    ...spaceProjectsQuery(selectedSpaceId!, { includeArchived: true }),
+    enabled: !!selectedSpaceId,
   });
 
   const { data: labels = [] } = useQuery({
-    queryKey: queryKeys.issues.labels(selectedCompanyId!),
-    queryFn: () => issuesApi.listLabels(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.issues.labels(selectedSpaceId!),
+    queryFn: () => issuesApi.listLabels(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const { data: session } = useQuery({
@@ -249,7 +249,7 @@ export function Search() {
 
   const handleScopeChange = useCallback(
     (next: string) => {
-      if (!isCompanySearchScope(next) || next === scope) return;
+      if (!isSpaceSearchScope(next) || next === scope) return;
       setScope(next);
       if (typeof window !== "undefined") {
         const url = buildSearchUrl(window.location.href, parsedCommittedQuery.query, next, activeFilters, sort);
@@ -260,7 +260,7 @@ export function Search() {
   );
 
   const handleSortChange = useCallback(
-    (next: CompanySearchSort) => {
+    (next: SpaceSearchSort) => {
       setSort(next);
       if (typeof window !== "undefined") {
         const url = buildSearchUrl(window.location.href, parsedCommittedQuery.query, scope, activeFilters, next);
@@ -303,25 +303,25 @@ export function Search() {
 
   const trimmedQuery = parsedCommittedQuery.query.trim();
   const displayQuery = committedQuery.trim();
-  const queryEnabled = !!selectedCompanyId && (trimmedQuery.length > 0 || hasSearchFilters(activeFilters));
+  const queryEnabled = !!selectedSpaceId && (trimmedQuery.length > 0 || hasSearchFilters(activeFilters));
 
-  const searchQuery = useQuery<CompanySearchResponse>({
+  const searchQuery = useQuery<SpaceSearchResponse>({
     queryKey: [
-      ...queryKeys.companySearch.search(
-        selectedCompanyId ?? "__no-company__",
+      ...queryKeys.spaceSearch.search(
+        selectedSpaceId ?? "__no-space__",
         trimmedQuery,
         scope,
-        COMPANY_SEARCH_DEFAULT_LIMIT,
+        SPACE_SEARCH_DEFAULT_LIMIT,
         0,
       ),
       activeFilters,
       sort,
     ] as const,
     queryFn: () =>
-      searchApi.search(selectedCompanyId!, {
+      searchApi.search(selectedSpaceId!, {
         q: trimmedQuery,
         scope,
-        limit: COMPANY_SEARCH_DEFAULT_LIMIT,
+        limit: SPACE_SEARCH_DEFAULT_LIMIT,
         ...activeFilters,
         ...(sort !== "relevance" ? { sort } : {}),
       }),
@@ -366,13 +366,13 @@ export function Search() {
 
   // Preview query for the mobile bottom sheet: run the draft filters so the apply
   // button can show "Show N results" before the user commits.
-  const { data: previewData } = useQuery<CompanySearchResponse>({
+  const { data: previewData } = useQuery<SpaceSearchResponse>({
     queryKey: [
-      ...queryKeys.companySearch.search(
-        selectedCompanyId ?? "__no-company__",
+      ...queryKeys.spaceSearch.search(
+        selectedSpaceId ?? "__no-space__",
         trimmedQuery,
         scope,
-        COMPANY_SEARCH_DEFAULT_LIMIT,
+        SPACE_SEARCH_DEFAULT_LIMIT,
         0,
       ),
       "preview",
@@ -380,10 +380,10 @@ export function Search() {
       sort,
     ] as const,
     queryFn: () =>
-      searchApi.search(selectedCompanyId!, {
+      searchApi.search(selectedSpaceId!, {
         q: trimmedQuery,
         scope,
-        limit: COMPANY_SEARCH_DEFAULT_LIMIT,
+        limit: SPACE_SEARCH_DEFAULT_LIMIT,
         ...draftSheetFilters,
         ...(sort !== "relevance" ? { sort } : {}),
       }),
@@ -393,11 +393,11 @@ export function Search() {
 
   // Persist recent searches once we have a successful response with a non-empty query.
   useEffect(() => {
-    if (!selectedCompanyId) return;
+    if (!selectedSpaceId) return;
     if (!data || !displayQuery) return;
-    const next = pushRecentSearch(selectedCompanyId, displayQuery);
+    const next = pushRecentSearch(selectedSpaceId, displayQuery);
     setRecentSearches(next);
-  }, [data, displayQuery, selectedCompanyId]);
+  }, [data, displayQuery, selectedSpaceId]);
 
   // Identifier shortcut: when q matches PAP-123 and the API returns an exact identifier match, redirect to it.
   useEffect(() => {
@@ -461,7 +461,7 @@ export function Search() {
       );
     }
     const issuesTotal = counts.issue ?? 0;
-    return COMPANY_SEARCH_SCOPES.map((value) => {
+    return SPACE_SEARCH_SCOPES.map((value) => {
       let count: number | null = null;
       if (value === "all") {
         count = (counts.issue ?? 0)
@@ -483,7 +483,7 @@ export function Search() {
         value,
         label: (
           <span className="flex items-center">
-            {SCOPE_LABELS[value as CompanySearchScope]}
+            {SCOPE_LABELS[value as SpaceSearchScope]}
             {dashOut ? (
               <span className="ml-1.5 text-(length:--text-nano) text-muted-foreground">—</span>
             ) : count !== null ? (
@@ -662,7 +662,7 @@ export function Search() {
           </div>
         ) : null}
 
-        {COMPANY_SEARCH_SCOPES.map((scopeValue) => (
+        {SPACE_SEARCH_SCOPES.map((scopeValue) => (
           <TabsContent
             key={scopeValue}
             value={scopeValue}
@@ -723,14 +723,14 @@ interface SearchTabContentProps {
   apiError: { message: string; status?: number } | null;
   isEmpty: boolean;
   trimmedQuery: string;
-  scope: CompanySearchScope;
+  scope: SpaceSearchScope;
   showAllScope: () => void;
   navigateIssuesFallback: () => void;
   openNewIssue: () => void;
   refetch: () => void;
   recentSearches: string[];
   onRecentClick: (query: string) => void;
-  results: CompanySearchResult[];
+  results: SpaceSearchResult[];
   totalResults: number;
   allMatchTotal: number;
   activeFilterCount: number;

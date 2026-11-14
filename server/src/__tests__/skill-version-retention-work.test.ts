@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { installDatabaseWorkSignals } from "../../../packages/db/src/work-signals.js";
 import { afterEach, expect, it, vi } from "vitest";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { noteSkillVersionCacheChange } from "../services/skill-version-retention-notifications.js";
 import { registerSkillVersionRetentionWork } from "../services/skill-version-retention-work.js";
@@ -28,46 +28,46 @@ it("keeps an expired cache change eligible when its own paged scan finishes", as
   vi.stubEnv("OUTPOST_INSTANCE_ID", "sleep64-retention-work");
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-10-29T12:00:00Z"));
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   let page = 0;
-  const prune = vi.fn(async (_companyId: string, _options: { cursor: unknown }) => {
+  const prune = vi.fn(async (_spaceId: string, _options: { cursor: unknown }) => {
     const truncated = ++page < 4;
     return { checked: truncated ? 50 : 0, removed: 0, failed: 0, skipped: {},
       truncated, interrupted: false, nextRunAt: null, cursor: truncated ? { page } : null };
   });
-  const service = { graceMs: 2_500, dryRun: false, listCompanies: async () => [{ id: companyId }],
-    pruneCompany: prune, dispose: async () => {} } as unknown as ReturnType<typeof skillVersionRetentionService>;
+  const service = { graceMs: 2_500, dryRun: false, listSpaces: async () => [{ id: spaceId }],
+    pruneSpace: prune, dispose: async () => {} } as unknown as ReturnType<typeof skillVersionRetentionService>;
   const onError = vi.fn();
   const owner = installDatabaseWorkSignals({ execute: vi.fn(async () => []), transaction: vi.fn(async () => undefined) });
   coordinator = createDeliveryWorkCoordinator({ owner, canRun: () => true, onError });
   worker = registerSkillVersionRetentionWork(coordinator, service, () => true);
   await worker.ready;
   expect(prune).toHaveBeenCalledOnce();
-  noteSkillVersionCacheChange(path.join(resolvePaperclipInstanceRoot(), "skills", companyId,
+  noteSkillVersionCacheChange(path.join(resolveOutpostInstanceRoot(), "skills", spaceId,
     "__versions__", randomUUID(), randomUUID()), { source: "access" });
   await vi.advanceTimersByTimeAsync(1_000);
   await vi.advanceTimersByTimeAsync(1_000);
   await vi.advanceTimersByTimeAsync(1_000);
   expect(prune).toHaveBeenCalledTimes(5);
-  expect(prune.mock.calls[4]).toEqual([companyId, expect.objectContaining({ cursor: null })]);
+  expect(prune.mock.calls[4]).toEqual([spaceId, expect.objectContaining({ cursor: null })]);
   expect(coordinator.nextWakeAt()).toBeNull();
   await vi.advanceTimersByTimeAsync(60_000);
   expect(prune).toHaveBeenCalledTimes(5);
   expect(onError).not.toHaveBeenCalled();
 });
 
-it("continues a successful page when another company's grace deadline expires during it", async () => {
+it("continues a successful page when another space's grace deadline expires during it", async () => {
   home = mkdtempSync(path.join(tmpdir(), "retention-page-deadline-"));
   vi.stubEnv("OUTPOST_HOME", home);
   vi.stubEnv("OUTPOST_INSTANCE_ID", "retention-page-deadline");
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2099-01-01T00:00:00Z"));
   const startedAt = Date.now();
-  const dueCompany = randomUUID(), pagedCompany = randomUUID();
+  const dueSpace = randomUUID(), pagedSpace = randomUUID();
   const began = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let pages = 0, dueScans = 0;
   const prune = vi.fn(async (id: string) => {
-    const due = id === dueCompany;
+    const due = id === dueSpace;
     if (due) dueScans++;
     else if (++pages === 2) { began.resolve(); await release.promise; }
     const truncated = !due && pages < 3;
@@ -76,8 +76,8 @@ it("continues a successful page when another company's grace deadline expires du
       cursor: truncated ? { skillId: "page", name: String(pages) } : null };
   });
   const service = { graceMs: 5_000, dryRun: false,
-    listCompanies: async () => [{ id: dueCompany }, { id: pagedCompany }],
-    pruneCompany: prune, dispose: async () => {} } as unknown as ReturnType<typeof skillVersionRetentionService>;
+    listSpaces: async () => [{ id: dueSpace }, { id: pagedSpace }],
+    pruneSpace: prune, dispose: async () => {} } as unknown as ReturnType<typeof skillVersionRetentionService>;
   const onError = vi.fn();
   const owner = installDatabaseWorkSignals({ execute: vi.fn(async () => []), transaction: vi.fn(async () => undefined) });
   coordinator = createDeliveryWorkCoordinator({ owner, canRun: () => true, onError });

@@ -18,7 +18,7 @@ async function fixture(behavior: "accept" | "missing" | "mismatch" | "question" 
   const children: ChildProcess[] = [];
   const records = new Map();
   const runtimes: Array<{ runtime: ReturnType<typeof createAcpRuntime>; handle: any }> = [];
-  const content = "  Exact 🧷 governance\n\n";
+  const content = "  Exact 🧷 approvals\n\n";
   const family = behavior.startsWith("family");
   const model = family ? "gemini-3.8-flash-low" : "caller-model-absent-from-catalog";
   const admission = createAntigravityAdmission(content, model);
@@ -61,14 +61,14 @@ async function fixture(behavior: "accept" | "missing" | "mismatch" | "question" 
         readline.createInterface({input:process.stdin}).on('line',line=>{
           const m=JSON.parse(line);
           if(m.method==='initialize') send({id:m.id,result:{protocolVersion:1,agentInfo:{name:'antigravity-acp',version:'1.4.3'},
-            agentCapabilities:{loadSession:true,_meta:{antigravity:{paperclipAdmission:1}}},authMethods:[]}});
+            agentCapabilities:{loadSession:true,_meta:{antigravity:{outpostAdmission:1}}},authMethods:[]}});
           else if(['session/new','session/load','session/resume','session/set_config_option','session/set_model'].includes(m.method)) {
-            const a=m.params._meta.antigravity.paperclipAdmission;
+            const a=m.params._meta.antigravity.outpostAdmission;
             const model=${JSON.stringify(behavior)}==='mismatch'?'fallback':a.model;
             send({id:m.id,result:{...(!family||m.method==='session/new'?{sessionId:'native-session'}:{}),...(!family||['session/new','session/load','session/resume'].includes(m.method)?{modes:{currentModeId:'default'}}:{}),
               ...(!family||['session/new','session/load','session/resume'].includes(m.method)?{models:{currentModelId:model,availableModels:family?[{modelId:'gemini-3.8-flash-high',name:'Gemini 3.8 Flash (High)'},{modelId:'gemini-3.8-flash-medium',name:'Gemini 3.8 Flash (Medium)'},{modelId:'gemini-3.8-flash-low',name:'Gemini 3.8 Flash (Low)'}]:[{modelId:'advertised-only',name:'Advertised'}]}}:{}),
               configOptions:nativeOptions()??[{id:'model',name:'Model',type:'select',category:'model',currentValue:model,options:[{value:'advertised-only',name:'Advertised'}]}],
-              ...(${JSON.stringify(behavior)}==='missing'?{}:{_meta:{paperclipAntigravityAdmission:{...a,model,sessionId:'native-session',connectionId:'owned-native-connection'}}})}});
+              ...(${JSON.stringify(behavior)}==='missing'?{}:{_meta:{outpostAntigravityAdmission:{...a,model,sessionId:'native-session',connectionId:'owned-native-connection'}}})}});
             if(family&&m.method==='session/set_config_option')send({method:'session/update',params:{sessionId:'native-session',update:{sessionUpdate:'config_option_update',configOptions:nativeOptions()}}});
           } else if(m.method==='session/prompt') {
             promptId=m.id;
@@ -116,9 +116,9 @@ it("passes exact unlisted model and instruction bytes through installed ACPX on 
   expect(opens.some(message => message.method === "session/load")).toBe(true);
   for (const message of opens) {
     expect(message.params._meta.antigravity.systemPrompt.append).toBe(f.content);
-    expect(message.params._meta.antigravity.paperclipAdmission.model).toBe(f.model);
+    expect(message.params._meta.antigravity.outpostAdmission.model).toBe(f.model);
   }
-  expect(new Set(opens.map(message => message.params._meta.antigravity.paperclipAdmission.nonce)).size).toBe(opens.length);
+  expect(new Set(opens.map(message => message.params._meta.antigravity.outpostAdmission.nonce)).size).toBe(opens.length);
 });
 
 it.each(["missing", "mismatch"] as const)("blocks prompts when the actual installed manager receives %s native admission", async behavior => {
@@ -151,7 +151,7 @@ it("admits the concrete model through installed ACPX when native new/load/setter
   const setter = native.find(message => !message.result.models);
   expect(setter).toBeDefined();
   expect(setter!.result.modes).toBeUndefined();
-  expect(setter!.result._meta.paperclipAntigravityAdmission.model).toBe(f.model);
+  expect(setter!.result._meta.outpostAntigravityAdmission.model).toBe(f.model);
   for (const message of native) {
     expect(message.result.configOptions.find((option: any) => option.id === "model").currentValue).toBe("gemini-3.8-flash");
     expect(message.result.configOptions.find((option: any) => option.id === "thinking_level").currentValue).toBe("low");

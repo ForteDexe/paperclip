@@ -11,7 +11,7 @@ import { CapabilityBadges, DecisionBadge, RiskBadge } from "@/pages/tools/shared
 /**
  * Action approval card (PAP-10787 / PAP-10778, surfaces 11/12/99).
  *
- * The card an agent's run posts into the issue thread when a governed tool
+ * The card an agent's run posts into the issue thread when a controlled tool
  * call needs human approval. Two hard requirements from the PAP-10400 security
  * hardening must never regress:
  *

@@ -1,7 +1,7 @@
 import {expect,type Locator,type Page} from "@playwright/test";
 export interface PersonalSecretMenuNavigation {advertisedHint:string;observedNavigationRoute:string;expectedDefinitionId:string;visibleDefinitionKey:string;viaMySecrets:true;limitation:string}
 export async function personalSecretMenuNavigation(page:Page,reply:{body:string;commentId?:string},origin:string,prefix:string,definitionId:string,timeout:number):Promise<PersonalSecretMenuNavigation|undefined>{
- const hint="/company/settings/secrets",text=reply.body.replace(/[*`]/g,"");
+ const hint="/space/settings/secrets",text=reply.body.replace(/[*`]/g,"");
  if(!reply.commentId||!text.includes(definitionId)||!/Settings\s*(?:→|>|then)\s*Secrets/i.test(text)||!/My secrets/i.test(text)||!/PERSONAL_PUBLISHING_KEY/.test(text)||!/Set my value/i.test(text))return;
  const tokens=(reply.body.match(/https?:\/\/[^\s`<>"']+|(?<![\w/:])\/[^\s`<>"']+/g)??[]).map(value=>value.replace(/[.,;!?\])}]+$/,""));
  if(tokens.filter(token=>token===hint).length!==1)return;
@@ -22,7 +22,7 @@ export async function personalSecretMenuNavigation(page:Page,reply:{body:string;
   const href=await anchor.getAttribute("href");try{const u=new URL(href??"",origin);if(u.origin!==origin||u.username||u.password||!u.pathname.startsWith(`/${prefix}/issues/`)||!await visible(anchor))return;issueLinks.add(u.href);}catch{return;}
  }
  for(const token of tokens){if(token===hint)continue;try{if(!issueLinks.has(new URL(token,origin).href))return;}catch{return;}}
- const supported=(href:string|null,suffix:string)=>{try{const u=new URL(href??"",origin);return u.origin===origin&&u.pathname===`/${prefix}/company/settings${suffix}`&&!u.search&&!u.hash&&!u.username&&!u.password?u.href:undefined;}catch{return;}};
+ const supported=(href:string|null,suffix:string)=>{try{const u=new URL(href??"",origin);return u.origin===origin&&u.pathname===`/${prefix}/space/settings${suffix}`&&!u.search&&!u.hash&&!u.username&&!u.password?u.href:undefined;}catch{return;}};
  const original=page.url();let navigated=false,opened=false;
  try{
   let settings=page.locator("aside").getByRole("link",{name:"Settings",exact:true});
@@ -38,6 +38,6 @@ export async function personalSecretMenuNavigation(page:Page,reply:{body:string;
   const tab=page.getByRole("tab",{name:"My secrets",exact:true});await tab.waitFor({state:"attached",timeout:remaining()});if(!await visible(tab))return;await tab.click({timeout:remaining()});
   const own=page.getByRole("listitem").filter({has:page.getByText("PERSONAL_PUBLISHING_KEY",{exact:true})});
   if(!await waitVisible(own)||!await waitVisible(own.getByRole("button",{name:"Set value",exact:true})))return;
-  return {advertisedHint:hint,observedNavigationRoute:href,expectedDefinitionId:definitionId,visibleDefinitionKey:"PERSONAL_PUBLISHING_KEY",viaMySecrets:true,limitation:"The advertised inline hint is noncanonical; only actual current-company UI hrefs authorized navigation. Private worker must independently verify definition and owner before entry."};
+  return {advertisedHint:hint,observedNavigationRoute:href,expectedDefinitionId:definitionId,visibleDefinitionKey:"PERSONAL_PUBLISHING_KEY",viaMySecrets:true,limitation:"The advertised inline hint is noncanonical; only actual current-space UI hrefs authorized navigation. Private worker must independently verify definition and owner before entry."};
  }finally{if(navigated)await page.goto(original,{waitUntil:"domcontentloaded",timeout:Math.max(1,deadline-Date.now())});else if(opened)await page.keyboard.press("Escape");}
 }

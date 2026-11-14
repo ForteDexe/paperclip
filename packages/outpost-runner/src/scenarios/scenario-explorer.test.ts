@@ -53,7 +53,7 @@ describe("capability scenario index", () => {
 
   it("declares an actor role, task mode, and seed for every scenario", () => {
     for (const entry of index.entries) {
-      expect(["engineer", "manager", "reviewer", "board"]).toContain(entry.actorRole);
+      expect(["engineer", "manager", "reviewer", "operator"]).toContain(entry.actorRole);
       expect(["standard", "ask", "planning", "skill_test"]).toContain(entry.taskMode);
       expect(entry.seedKind.length).toBeGreaterThan(0);
     }

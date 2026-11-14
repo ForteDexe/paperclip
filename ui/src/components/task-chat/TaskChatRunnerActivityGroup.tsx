@@ -82,7 +82,7 @@ interface ActivityRowPresentation {
   iconClassName?: string;
   /** Short plain-text outcome after the target, e.g. "6 tests passed". */
   trailing?: ReactNode;
-  /** A governance row's reason, shown under the row when an action was stopped. */
+  /** A policy row's reason, shown under the row when an action was stopped. */
   note?: string;
   /** Process exit code shown as a chip; null hides it. */
   exitCode?: number | null;
@@ -501,7 +501,7 @@ function ExpandedActivity({
       {note ? (
         <p
           className="-mt-1 mb-1 min-w-0 whitespace-pre-wrap break-words pl-7 text-xs text-muted-foreground"
-          data-testid="task-chat-governance-note"
+          data-testid="task-chat-policy-note"
         >
           {note}
         </p>

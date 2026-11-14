@@ -128,12 +128,12 @@ export async function createTaskThroughUi(input: {
   const submittedAtMs = Date.now();
   const [response] = await Promise.all([
     input.page.waitForResponse(response => response.request().method() === "POST"
-      && /^\/api\/companies\/[^/]+\/issues$/.test(new URL(response.url()).pathname)),
+      && /^\/api\/spaces\/[^/]+\/issues$/.test(new URL(response.url()).pathname)),
     dialog.getByRole("button", { name: "Create task", exact: true }).click(),
   ]);
   expect(response.status()).toBe(201);
-  const issue = await response.json() as { id: string; companyId: string; title: string; titleNeedsGeneration: boolean };
-  expect(new URL(response.url()).pathname).toBe(`/api/companies/${issue.companyId}/issues`);
+  const issue = await response.json() as { id: string; spaceId: string; title: string; titleNeedsGeneration: boolean };
+  expect(new URL(response.url()).pathname).toBe(`/api/spaces/${issue.spaceId}/issues`);
   expect(issue.id).toEqual(expect.any(String));
   expect(issue.id.length).toBeGreaterThan(0);
   if (input.requireExplicitTitle) {

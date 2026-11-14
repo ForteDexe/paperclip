@@ -26,7 +26,7 @@ export type SpeedBudgetAdapter = "claude" | "codex" | "opencode";
  * `restart_recovery_control_plane`: control plane ready to the moment the
  * recovered run's provider starts loading its saved session
  * (`provider.session.load`), or to the run's next provider event when nothing
- * reloads (a reattached runner). That is Paperclip's own share of a recovery:
+ * reloads (a reattached runner). That is Outpost's own share of a recovery:
  * claim, prepare, runtime stage and runner launch. The provider's session load
  * grows with session size and with how many sessions resume at once, so the
  * full `restart_recovery` latency is reported without a budget.
@@ -54,7 +54,7 @@ export const LOCAL_SPEED_BUDGETS: Readonly<Record<SpeedBudgetAdapter, {
   agent_boot: Record<SpeedBudgetStart, SpeedBudget>;
   /** Full recovery (ready → next provider event). Reported, not judged. */
   restart_recovery: SpeedBudget;
-  /** Paperclip's share of a recovery; judged. Measured 1.2–2.0 s per run with six
+  /** Outpost's share of a recovery; judged. Measured 1.2–2.0 s per run with six
    * Codex runs resuming at once (wave w-20261109T045320-s9807, local). */
   restart_recovery_control_plane: SpeedBudget;
 }>> = {

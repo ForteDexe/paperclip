@@ -11,7 +11,7 @@ const {
   restoreWorkspaceFromSshExecution,
   runSshCommand,
   syncDirectoryToSsh,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
 } = vi.hoisted(() => ({
   runChildProcess: vi.fn(async () => ({
     exitCode: 0,
@@ -36,7 +36,7 @@ const {
     exitCode: 0,
   })),
   syncDirectoryToSsh: vi.fn(async () => undefined),
-  startAdapterExecutionTargetPaperclipBridge: vi.fn(async () => ({
+  startAdapterExecutionTargetOutpostBridge: vi.fn(async () => ({
     env: {
       OUTPOST_API_URL: "http://127.0.0.1:4310",
       OUTPOST_API_KEY: "bridge-token",
@@ -77,7 +77,7 @@ vi.mock("@outpost/adapter-utils/execution-target", async () => {
   );
   return {
     ...actual,
-    startAdapterExecutionTargetPaperclipBridge,
+    startAdapterExecutionTargetOutpostBridge,
   };
 });
 
@@ -96,19 +96,19 @@ describe("cursor remote execution", () => {
   });
 
   it("prepares the workspace, syncs Cursor skills, and restores workspace changes for remote SSH execution", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-cursor-remote-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-cursor-remote-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     const alternateWorkspaceDir = path.join(rootDir, "workspace-other");
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(alternateWorkspaceDir, { recursive: true });
 
-    const managedRemoteWorkspace = "/remote/workspace/.paperclip-runtime/runs/run-1/workspace";
+    const managedRemoteWorkspace = "/remote/workspace/.outpost-runtime/runs/run-1/workspace";
     const result = await execute({
       runId: "run-1",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Cursor Builder",
         adapterType: "cursor",
         adapterConfig: {},
@@ -123,21 +123,21 @@ describe("cursor remote execution", () => {
         command: "agent",
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
-        paperclipWorkspaces: [
+        outpostWorkspaces: [
           {
             workspaceId: "workspace-1",
             cwd: workspaceDir,
-            repoUrl: "https://github.com/paperclipai/outpost.git",
+            repoUrl: "https://github.com/example/outpost.git",
             repoRef: "main",
           },
           {
             workspaceId: "workspace-2",
             cwd: alternateWorkspaceDir,
-            repoUrl: "https://github.com/paperclipai/outpost.git",
+            repoUrl: "https://github.com/example/outpost.git",
             repoRef: "feature/other",
           },
         ],
@@ -171,7 +171,7 @@ describe("cursor remote execution", () => {
     expect(prepareWorkspaceForSshExecution).toHaveBeenCalledTimes(1);
     expect(syncDirectoryToSsh).toHaveBeenCalledTimes(1);
     expect(syncDirectoryToSsh).toHaveBeenCalledWith(expect.objectContaining({
-      remoteDir: `${managedRemoteWorkspace}/.paperclip-runtime/cursor/skills`,
+      remoteDir: `${managedRemoteWorkspace}/.outpost-runtime/cursor/skills`,
       followSymlinks: true,
     }));
     expect(runSshCommand).toHaveBeenCalledWith(
@@ -189,34 +189,34 @@ describe("cursor remote execution", () => {
       {
         workspaceId: "workspace-1",
         cwd: managedRemoteWorkspace,
-        repoUrl: "https://github.com/paperclipai/outpost.git",
+        repoUrl: "https://github.com/example/outpost.git",
         repoRef: "main",
       },
       {
         workspaceId: "workspace-2",
-        repoUrl: "https://github.com/paperclipai/outpost.git",
+        repoUrl: "https://github.com/example/outpost.git",
         repoRef: "feature/other",
       },
     ]);
     expect(call?.[3].env.OUTPOST_API_URL).toBe("http://127.0.0.1:4310");
     expect(call?.[3].env.OUTPOST_API_BRIDGE_MODE).toBe("queue_v1");
     expect(call?.[3].remoteExecution?.remoteCwd).toBe(managedRemoteWorkspace);
-    expect(startAdapterExecutionTargetPaperclipBridge).toHaveBeenCalledTimes(1);
+    expect(startAdapterExecutionTargetOutpostBridge).toHaveBeenCalledTimes(1);
     expect(restoreWorkspaceFromSshExecution).toHaveBeenCalledTimes(1);
   });
 
   it("resumes saved Cursor sessions for remote SSH execution only when the identity matches", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-cursor-remote-resume-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-cursor-remote-resume-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     await mkdir(workspaceDir, { recursive: true });
 
-    const managedRemoteWorkspace = "/remote/workspace/.paperclip-runtime/runs/run-ssh-resume/workspace";
+    const managedRemoteWorkspace = "/remote/workspace/.outpost-runtime/runs/run-ssh-resume/workspace";
     await execute({
       runId: "run-ssh-resume",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Cursor Builder",
         adapterType: "cursor",
         adapterConfig: {},
@@ -241,7 +241,7 @@ describe("cursor remote execution", () => {
         command: "agent",
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -267,7 +267,7 @@ describe("cursor remote execution", () => {
   });
 
   it("restores the remote workspace if skills sync fails after workspace prep", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-cursor-remote-sync-fail-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-cursor-remote-sync-fail-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     await mkdir(workspaceDir, { recursive: true });
@@ -277,7 +277,7 @@ describe("cursor remote execution", () => {
       runId: "run-sync-fail",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Cursor Builder",
         adapterType: "cursor",
         adapterConfig: {},
@@ -292,7 +292,7 @@ describe("cursor remote execution", () => {
         command: "agent",
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },

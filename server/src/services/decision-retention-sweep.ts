@@ -2,7 +2,7 @@ import type { Db } from "@outpost/db";
 import type { AttentionSourceKind } from "@outpost/shared";
 import { decisionRetentionService, DEFAULT_DECISION_ARCHIVE_DAYS } from "./decision-retention.js";
 
-type Candidate = { id: string; companyId: string; at: Date; cursorAt: string };
+type Candidate = { id: string; spaceId: string; at: Date; cursorAt: string };
 type Cursor = { at: string; id: string };
 
 export function createDecisionRetentionSweep(db: Db, options: {
@@ -32,9 +32,9 @@ export function createDecisionRetentionSweep(db: Db, options: {
           if (!current) return 0;
           const retention = decisionRetentionService(database);
           const source = { sourceKind: options.sourceKind, subject: { id: current.id }, activityAt: current.at.toISOString() };
-          const states = await retention.syncItems(current.companyId, [source]);
+          const states = await retention.syncItems(current.spaceId, [source]);
           const state = states.get(`${options.sourceKind}:${current.id}`)!;
-          return retention.autoArchive({ companyId: current.companyId, now, items: [{ ...source,
+          return retention.autoArchive({ spaceId: current.spaceId, now, items: [{ ...source,
             keep: state.keep, archivedAt: state.archivedAt?.toISOString() ?? null, retentionVersion: state.version,
           }] });
         });

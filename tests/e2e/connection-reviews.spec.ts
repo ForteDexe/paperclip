@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { startReviewProvider } from "../fixtures/connection-review-provider";
 
 type Json = Record<string, unknown>;
-type Seed = { companyId: string; prefix: string };
+type Seed = { spaceId: string; prefix: string };
 type Agent = { id: string; name: string };
 
 async function json<T = Json>(
@@ -16,22 +16,22 @@ async function json<T = Json>(
   return (await response.json()) as T;
 }
 
-async function newCompany(request: APIRequestContext): Promise<Seed> {
-  const company = await json<{ id: string; issuePrefix: string }>(
-    await request.post("/api/companies", {
+async function newSpace(request: APIRequestContext): Promise<Seed> {
+  const space = await json<{ id: string; issuePrefix: string }>(
+    await request.post("/api/spaces", {
       data: { name: `Connection review E2E ${Date.now()}` },
     }),
   );
-  return { companyId: company.id, prefix: company.issuePrefix };
+  return { spaceId: space.id, prefix: space.issuePrefix };
 }
 
 async function createAgent(
   request: APIRequestContext,
-  companyId: string,
+  spaceId: string,
   name: string,
 ): Promise<Agent> {
   return await json<Agent>(
-    await request.post(`/api/companies/${companyId}/agents`, {
+    await request.post(`/api/spaces/${spaceId}/agents`, {
       data: {
         name,
         role: "qa",
@@ -51,7 +51,7 @@ function reviewAgentScript(connectionId: string, query: string) {
   return `
 const base = process.env.OUTPOST_API_URL + "/api";
 
-const headers = { authorization: "Bearer " + process.env.OUTPOST_API_KEY, "content-type": "application/json", "x-paperclip-run-id": process.env.OUTPOST_RUN_ID };
+const headers = { authorization: "Bearer " + process.env.OUTPOST_API_KEY, "content-type": "application/json", "x-outpost-run-id": process.env.OUTPOST_RUN_ID };
 const api = async (path, method = "GET", body) => {
   const response = await fetch(base + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) throw new Error(await response.text());
@@ -80,7 +80,7 @@ if (review && review.status !== "pending") {
   process.exit(0);
 }
 const session = await api("/tool-gateway/sessions", "POST", { runId: process.env.OUTPOST_RUN_ID, ttlMs: 60000 });
-const gatewayHeaders = { "x-paperclip-tool-gateway-token": session.token, "content-type": "application/json" };
+const gatewayHeaders = { "x-outpost-tool-gateway-token": session.token, "content-type": "application/json" };
 const tools = await (await fetch(base + "/tool-gateway/tools", { headers: gatewayHeaders })).json();
 const tool = tools.find(t => t.connectionId === ${JSON.stringify(connectionId)} && t.upstreamToolName === "notion:list_pages");
 if (!tool) throw new Error("Missing fixture connection");
@@ -126,7 +126,7 @@ for (const journey of [
           await route.fulfill({ json: [] });
         } else await route.continue();
       });
-      await page.routeWebSocket("**/api/companies/*/events/ws", (socket) => {
+      await page.routeWebSocket("**/api/spaces/*/events/ws", (socket) => {
         const server = socket.connectToServer();
         server.onMessage((message) => {
           if (suppressReviewEvents && String(message).includes("issue.thread_interaction_")) return;
@@ -136,8 +136,8 @@ for (const journey of [
     }
     const provider = await startReviewProvider();
     try {
-      const seed = await newCompany(request);
-      const agent = await createAgent(request, seed.companyId, "Page reader");
+      const seed = await newSpace(request);
+      const agent = await createAgent(request, seed.spaceId, "Page reader");
       await page.goto(`/${seed.prefix}/apps`);
       const connector = page
         .getByRole("list", { name: "Connector list" })
@@ -160,7 +160,7 @@ for (const journey of [
       const {
         connections: [connection],
       } = await json<{ connections: Array<{ id: string }> }>(
-        await request.get(`/api/companies/${seed.companyId}/tools/connections`),
+        await request.get(`/api/spaces/${seed.spaceId}/tools/connections`),
       );
       await json(
         await request.put(`/api/tool-connections/${connection.id}/installs`, {
@@ -189,7 +189,7 @@ for (const journey of [
         );
       await configureAgent(journey === "failure" ? "fail" : "recent");
       const issue = await json<{ id: string; identifier: string }>(
-        await request.post(`/api/companies/${seed.companyId}/issues`, {
+        await request.post(`/api/spaces/${seed.spaceId}/issues`, {
           data: {
             title: "Read recent pages",
             status: "in_progress",
@@ -344,7 +344,7 @@ for (const journey of [
       if (journey === "always") {
         await configureAgent("different search options");
         const later = await json<{ id: string }>(
-          await request.post(`/api/companies/${seed.companyId}/issues`, {
+          await request.post(`/api/spaces/${seed.spaceId}/issues`, {
             data: {
               title: "Read pages with different arguments",
               status: "in_progress",

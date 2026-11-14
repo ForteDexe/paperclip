@@ -2,7 +2,7 @@ import { createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { notFound } from "../errors.js";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 
 export type WorkspaceOperationLogStoreType = "local_file";
 
@@ -28,7 +28,7 @@ export interface WorkspaceOperationLogFinalizeSummary {
 }
 
 export interface WorkspaceOperationLogStore {
-  begin(input: { companyId: string; operationId: string }): Promise<WorkspaceOperationLogHandle>;
+  begin(input: { spaceId: string; operationId: string }): Promise<WorkspaceOperationLogHandle>;
   append(
     handle: WorkspaceOperationLogHandle,
     event: { stream: "stdout" | "stderr" | "system"; chunk: string; ts: string },
@@ -97,9 +97,9 @@ function createLocalFileWorkspaceOperationLogStore(basePath: string): WorkspaceO
 
   return {
     async begin(input) {
-      const [companyId] = safeSegments(input.companyId);
+      const [spaceId] = safeSegments(input.spaceId);
       const operationId = safeSegments(input.operationId)[0]!;
-      const relDir = companyId;
+      const relDir = spaceId;
       const relPath = path.join(relDir, `${operationId}.ndjson`);
       await ensureDir(relDir);
 
@@ -153,7 +153,7 @@ let cachedStore: WorkspaceOperationLogStore | null = null;
 export function getWorkspaceOperationLogStore() {
   if (cachedStore) return cachedStore;
   const basePath = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH
-    ?? path.resolve(resolvePaperclipInstanceRoot(), "data", "workspace-operation-logs");
+    ?? path.resolve(resolveOutpostInstanceRoot(), "data", "workspace-operation-logs");
   cachedStore = createLocalFileWorkspaceOperationLogStore(basePath);
   return cachedStore;
 }

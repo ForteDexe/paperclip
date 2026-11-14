@@ -53,7 +53,7 @@ Inspect `native.controller.<phase>` for backend construction, assigned-tool
 discovery and post-turn cleanup. Compare those intervals with the actual model
 turn; do not count a nested discovery interval twice.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Record adapter, model, account, native/legacy runtime, and environment. Capabilities vary; one harness result is not a matrix-wide qualification.
 
@@ -150,7 +150,7 @@ resuming setup. Custom commands, arguments, variants, and inherited permissions
 must give Legacy remediation when native is selected. A live task with the
 selected account is separate proof from these setup and persistence controls.
 Repeat with Pi on macOS or GNU/Linux x64 after explicit operator setup of the
-pinned runtime (`paperclipai runtime setup pi`). Linux ARM64 retains Legacy.
+pinned runtime (`outpost runtime setup pi`). Linux ARM64 retains Legacy.
 Resume an inactive model-free draft, connect an account, choose a `provider/model`,
 and finish setup with the generic native flag off. Verify Pi branding and native
 ACPX Pi execution by completing a simple assigned task. Preserve saved native
@@ -159,7 +159,7 @@ thinking supports `off`, `low`, `high`, `max`; legacy aliases must give remediat
 and returning to Legacy must reject settings it cannot honor.
 On a fresh forced-Kubernetes instance without an environment row, inspect discovery
 and create with automatic selection. Both must retain Legacy without provisioning;
-an explicit Paperclip request must give target-qualification guidance. Begin the
+an explicit Outpost request must give target-qualification guidance. Begin the
 ordinary task to exercise the existing lazy environment path. This live journey
 remains separate from the resolver's source controls.
 
@@ -169,7 +169,7 @@ require a separate qualification request before Test. Disabled or overridden
 adapters still restrict availability, and actual runtime startup can still fail.
 
 For other sandbox defaults, follow the [environment probe](./execution-environments.md#environment-settings)
-recipe first. Discovery/creation read company-bound immutable-image evidence
+recipe first. Discovery/creation read space-bound immutable-image evidence
 without allocating a target. A mutable image or snapshot name does not establish
 native compatibility. Then test the actual selected runtime with its selected
 account/model: a legacy CLI or authentication probe alone cannot establish native
@@ -261,7 +261,7 @@ revised-source live onboarding and follow-up proof.
 ## Gotchas
 
 - Model accounts are managed in Apps and inline agent account controls.
-  `/company/settings/connections` configures decision/fast-response models,
+  `/space/settings/connections` configures decision/fast-response models,
   not the general model-account library.
 
 - Structured run events stay in the instance database. Optional stdout/stderr and raw trace payload storage can use S3; see [run evidence storage](../../doc/run-evidence-storage.md). Both are separate from first-party Telemetry and operator OpenTelemetry export.
@@ -294,8 +294,8 @@ See the canonical [delegated configuration guidance and acceptance evidence](con
 
 ### Kimi Code verification
 
-The qualified native Kimi profile uses `paperclipai runtime setup kimi` on Mac
-ARM64 or Linux x64, an exact typed model, and a `KIMI_API_KEY` company secret.
+The qualified native Kimi profile uses `outpost runtime setup kimi` on Mac
+ARM64 or Linux x64, an exact typed model, and a `KIMI_API_KEY` space secret.
 Ordinary setup, hiring and Runtime Test require no candidate grant. Runtime Test
 queries the authenticated Code model catalog without inference. Existing legacy
 Kimi agents keep their saved runtime. Future pending profiles retain protected
@@ -306,6 +306,6 @@ reply, semantic question/plan, file/download, Stop, and continuation cases.
 Verify the actual task result, persisted state and process cleanup. Run the
 ordinary New Agent draft → model/secret → Test → save/reopen → task journey
 through ordinary released selection. Native filesystem/shell tools are denied in read-only
-Kimi work; scoped Paperclip tools retain control-plane authorization. This recipe
+Kimi work; scoped Outpost tools retain control-plane authorization. This recipe
 is a test path, not a statement that live acceptance passed. Current evidence:
 [Kimi release ledger](../../doc/plans/2026-10-28-kimi-code-runner-integration.md).

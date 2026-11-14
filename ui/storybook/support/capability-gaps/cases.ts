@@ -3,7 +3,7 @@ import type { CaseSummary, CaseDetail, CaseEvent, CaseHandoffView } from "@/api/
 import { prepareFixtureApi, type FixtureState } from "./api";
 export const caseItem: CaseSummary = {
   id: "case-gap",
-  companyId: "company-storybook",
+  spaceId: "space-storybook",
   projectId: null,
   caseNumber: 42,
   identifier: "PAP-C42",
@@ -72,7 +72,7 @@ const event: CaseEvent = {
 };
 export function installCaseFixtures(state: FixtureState = "ready", workflow?: "waiting" | "blocked") {
   const handoff: CaseHandoffView = {
-    id: "handoff-gap", companyId: caseItem.companyId, caseId: caseItem.id, issueId: "task-gap", version: 2,
+    id: "handoff-gap", spaceId: caseItem.spaceId, caseId: caseItem.id, issueId: "task-gap", version: 2,
     destinationKind: "agent", completedAt: null, workflowTransition: null,
     fromAgentId: "agent-coder", fromAgentName: "Codex Coder", toAgentId: "agent-verifier", toAgentName: "Release Verifier",
     phase: "verification", instructions: "Verify the saved release checklist and report any missing evidence on this task.",
@@ -98,7 +98,7 @@ export function installCaseFixtures(state: FixtureState = "ready", workflow?: "w
         }),
       },
       {
-        path: "/api/companies/company-storybook/cases",
+        path: "/api/spaces/space-storybook/cases",
         read: ({ url }) =>
           state === "empty"
             ? []

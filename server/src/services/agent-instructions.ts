@@ -6,7 +6,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { activityLog, agentFileRoots, agentInstructionHeads, agents, fileStorageDb, type Db } from "@outpost/db";
 import { instructionPath, assertInstructionPathSafe, instructionBytes, readInstructionBytes } from "./agent-instruction-files.js";
 import { notFound, unprocessable } from "../errors.js";
-import { resolveHomeAwarePath, resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveHomeAwarePath, resolveOutpostInstanceRoot } from "../home-paths.js";
 
 const ENTRY_FILE_DEFAULT = "AGENTS.md";
 const MODE_KEY = "instructionsBundleMode";
@@ -34,7 +34,7 @@ type BundleMode = "managed" | "external";
 
 type AgentLike = {
   id: string;
-  companyId: string;
+  spaceId: string;
   name: string;
   adapterConfig: unknown;
 };
@@ -62,7 +62,7 @@ type AgentInstructionsFileDetail = AgentInstructionsFileSummary & {
 
 type AgentInstructionsBundle = {
   agentId: string;
-  companyId: string;
+  spaceId: string;
   persistence?: "agent_files";
   mode: BundleMode | null;
   rootPath: string | null;
@@ -150,9 +150,9 @@ function resolvePathWithinRoot(rootPath: string, relativePath: string): string {
 
 export function resolveManagedInstructionsRoot(agent: AgentLike): string {
   return path.resolve(
-    resolvePaperclipInstanceRoot(),
-    "companies",
-    agent.companyId,
+    resolveOutpostInstanceRoot(),
+    "spaces",
+    agent.spaceId,
     "agents",
     agent.id,
     "instructions",
@@ -267,7 +267,7 @@ export function deriveBundleState(agent: AgentLike): BundleState {
   let mode: BundleMode | null = isBundleMode(storedModeRaw) ? storedModeRaw : null;
   // A managed root belongs to this process's disposable projection. Saved
   // absolute paths describe the old host, never a different storage authority.
-  const managedSuffix = path.join("companies", agent.companyId, "agents", agent.id, "instructions");
+  const managedSuffix = path.join("spaces", agent.spaceId, "agents", agent.id, "instructions");
   const portableManagedRoot = mode === "managed" && storedRootRaw
     && path.isAbsolute(storedRootRaw) && path.normalize(storedRootRaw).endsWith(`${path.sep}${managedSuffix}`);
   let rootPath = portableManagedRoot ? resolveManagedInstructionsRoot(agent)
@@ -411,7 +411,7 @@ function toBundle(agent: AgentLike, state: BundleState, files: AgentInstructions
   nextFiles.sort((left, right) => left.path.localeCompare(right.path));
   return {
     agentId: agent.id,
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     ...(state.mode === "managed" ? { persistence: "agent_files" as const } : {}),
     mode: state.mode,
     rootPath: state.rootPath,
@@ -528,7 +528,7 @@ export function agentInstructionsService(db?: Db) {
       // One bounded lookup for the open file, never one query per tree row.
       // Match the content hash so an unrecorded external edit cannot inherit an old save date.
       const [saved] = await connection.select({ date: activityLog.createdAt, details: activityLog.details }).from(activityLog)
-        .where(and(eq(activityLog.companyId, agent.companyId), eq(activityLog.entityType, "agent"),
+        .where(and(eq(activityLog.spaceId, agent.spaceId), eq(activityLog.entityType, "agent"),
           eq(activityLog.entityId, agent.id), inArray(activityLog.action, ["agent.files_updated", "agent.instructions_file_updated"]),
           eq(sql<string>`${activityLog.details}->>'path'`, relativePath),
           eq(sql<string>`${activityLog.details}->>'contentHash'`, contentHash)))
@@ -545,7 +545,7 @@ export function agentInstructionsService(db?: Db) {
     const [head] = await db.select({ sha256: sql<string | null>`jsonb_path_query_first(
       ${agentFileRoots.entries}, '$[*] ? (@.path == $entry && @.kind == "file")',
       jsonb_build_object('entry', ${state.entryFile}::text)) ->> 'sha256'` }).from(agentFileRoots)
-      .where(and(eq(agentFileRoots.companyId, agent.companyId), eq(agentFileRoots.agentId, agent.id)));
+      .where(and(eq(agentFileRoots.spaceId, agent.spaceId), eq(agentFileRoots.agentId, agent.id)));
     if (!head) return null;
     // This head is the file authority. A missing or retired local projection
     // must not make identical instructions appear to change at admission.
@@ -553,7 +553,7 @@ export function agentInstructionsService(db?: Db) {
   }
   async function assertUnversionedEntry(agent: AgentLike, entryFile: string, connection: Db | Parameters<Parameters<Db["transaction"]>[0]>[0] | undefined = db) {
     if (!connection) throw unprocessable("Bundle initialization requires the database-backed instructions service");
-    const [head] = await connection.select().from(agentInstructionHeads).where(and(eq(agentInstructionHeads.companyId, agent.companyId),
+    const [head] = await connection.select().from(agentInstructionHeads).where(and(eq(agentInstructionHeads.spaceId, agent.spaceId),
       eq(agentInstructionHeads.agentId, agent.id), eq(agentInstructionHeads.entryFile, entryFile)));
     if (head) throw unprocessable("This entry has revision history. Use the instruction content API with its baseRevisionId to update it.", { code: "INSTRUCTION_REVISION_REQUIRED" });
   }
@@ -784,7 +784,7 @@ export function agentInstructionsService(db?: Db) {
     if (!db) return operation(agent);
     return db.transaction(async (tx) => {
       const [current] = await tx.select().from(agents)
-        .where(and(eq(agents.id, agent.id), eq(agents.companyId, agent.companyId))).for("update");
+        .where(and(eq(agents.id, agent.id), eq(agents.spaceId, agent.spaceId))).for("update");
       if (!current) throw notFound("Agent not found");
       if (relativePath !== LEGACY_PROMPT_TEMPLATE_PATH) {
         // Historical entries also remain projections if the configured entry changes.
@@ -888,12 +888,12 @@ export function agentInstructionsService(db?: Db) {
     if (!db) throw unprocessable("Bundle initialization requires the database-backed instructions service");
     return db.transaction(async (tx) => {
       const agent = args[0];
-      const [owner] = await tx.select().from(agents).where(and(eq(agents.id, agent.id), eq(agents.companyId, agent.companyId))).for("update");
+      const [owner] = await tx.select().from(agents).where(and(eq(agents.id, agent.id), eq(agents.spaceId, agent.spaceId))).for("update");
       if (!owner) throw notFound("Agent not found");
       await assertUnversionedEntry(agent, args[2]?.entryFile ? normalizeRelativeFilePath(args[2].entryFile) : ENTRY_FILE_DEFAULT, tx);
       if (args[2]?.replaceExisting) {
         const [existingHead] = await tx.select({ id: agentInstructionHeads.revisionId }).from(agentInstructionHeads)
-          .where(and(eq(agentInstructionHeads.companyId, agent.companyId), eq(agentInstructionHeads.agentId, agent.id))).limit(1);
+          .where(and(eq(agentInstructionHeads.spaceId, agent.spaceId), eq(agentInstructionHeads.agentId, agent.id))).limit(1);
         if (existingHead) throw unprocessable("Replacing this bundle would remove a versioned entry. Use canonical content commits.", { code: "INSTRUCTION_REVISION_REQUIRED" });
       }
       const root = resolveManagedInstructionsRoot(owner);
@@ -911,7 +911,7 @@ export function agentInstructionsService(db?: Db) {
   async function withProjection<T>(agent: AgentLike, write: boolean, operation: (current: AgentLike, connection?: Pick<Db, "select">) => Promise<T>, managedDestination = false) {
     if (!db) return operation(agent);
     return db.transaction(async tx => {
-      const [current] = await tx.select().from(agents).where(and(eq(agents.id, agent.id), eq(agents.companyId, agent.companyId))).for("update");
+      const [current] = await tx.select().from(agents).where(and(eq(agents.id, agent.id), eq(agents.spaceId, agent.spaceId))).for("update");
       if (!current) throw notFound("Agent not found");
       const managed = agentInstructionsBundleMode(current) !== "external";
       const root = managed ? await adoptAgentFiles(tx, current) : managedDestination ? resolveManagedInstructionsRoot(current) : null;

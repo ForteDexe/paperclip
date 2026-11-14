@@ -52,11 +52,11 @@ function printUsage() {
 Usage:
   OUTPOST_API_URL=http://localhost:3100 \\
   OUTPOST_API_KEY=... \\
-  OUTPOST_COMPANY_ID=... \\
+  OUTPOST_SPACE_ID=... \\
   pnpm smoke:terminal-bench-loop-skill
 
 Options:
-  --source-issue-id <uuid>  Attach smoke issues under an existing Paperclip issue.
+  --source-issue-id <uuid>  Attach smoke issues under an existing Outpost issue.
   --project-id <uuid>       Override inferred project id.
   --goal-id <uuid>          Override inferred goal id.
   --run-key <string>        Stable key used in smoke titles and mocked artifact paths.
@@ -67,7 +67,7 @@ Options:
 function requireEnv(name) {
   const value = process.env[name];
   if (!value) {
-    throw new Error(`${name} is required. Run against a local Paperclip server with an agent or board API token.`);
+    throw new Error(`${name} is required. Run against a local Outpost server with an agent or operator API token.`);
   }
   return value;
 }
@@ -90,7 +90,7 @@ async function assertLocalSkillPackage() {
     "request_confirmation",
     "diagnosis",
     "blockedByIssueIds",
-    "PAPERCLIPAI_CMD",
+    "OUTPOST_CMD",
     "OUTPOST_HARBOR_RUNNER_CONFIG",
   ]) {
     assert(markdown.includes(expected), `Skill smoke expected ${skillPath} to mention ${expected}`);
@@ -110,7 +110,7 @@ function createApiClient({ apiUrl, apiKey, runId }) {
       headers["Content-Type"] = "application/json";
     }
     if (runId && method !== "GET") {
-      headers["X-Paperclip-Run-Id"] = runId;
+      headers["X-Outpost-Run-Id"] = runId;
     }
 
     const response = await fetch(`${baseUrl}${path}`, {
@@ -131,7 +131,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const apiUrl = requireEnv("OUTPOST_API_URL");
   const apiKey = requireEnv("OUTPOST_API_KEY");
-  const companyId = requireEnv("OUTPOST_COMPANY_ID");
+  const spaceId = requireEnv("OUTPOST_SPACE_ID");
   const runId = process.env.OUTPOST_RUN_ID ?? null;
   const api = createApiClient({ apiUrl, apiKey, runId });
 
@@ -151,7 +151,7 @@ async function main() {
     priority: "low",
   };
 
-  const loop = await api("POST", `/api/companies/${companyId}/issues`, {
+  const loop = await api("POST", `/api/spaces/${spaceId}/issues`, {
     body: {
       ...commonIssueFields,
       ...(sourceIssue ? { parentId: sourceIssue.id } : {}),
@@ -168,7 +168,7 @@ async function main() {
     },
   });
 
-  const iteration = await api("POST", `/api/companies/${companyId}/issues`, {
+  const iteration = await api("POST", `/api/spaces/${spaceId}/issues`, {
     body: {
       ...commonIssueFields,
       parentId: loop.id,
@@ -213,9 +213,9 @@ async function main() {
         "",
         `Exact stop point: ${iteration.identifier ?? iteration.id} is waiting on a product-fix confirmation after a mocked verifier failure.`,
         "",
-        "Next-action owner: board/user must accept or reject the confirmation before implementation subtasks exist.",
+        "Next-action owner: operator/user must accept or reject the confirmation before implementation subtasks exist.",
         "",
-        "Failure taxonomy: Paperclip product gap, mocked for smoke coverage.",
+        "Failure taxonomy: Outpost product gap, mocked for smoke coverage.",
         "",
         "Invariant check:",
         "",
@@ -277,7 +277,7 @@ async function main() {
         "Smoke waiting path opened.",
         "",
         `Pending confirmation: ${confirmation.id}`,
-        "Next-action owner: board/user accepts or rejects the mocked proposal.",
+        "Next-action owner: operator/user accepts or rejects the mocked proposal.",
       ].join("\n"),
     },
   });

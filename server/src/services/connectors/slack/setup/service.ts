@@ -3,7 +3,7 @@ import { createSlackManagerGrants } from "./manager-grants.js";
 import { createManagedSlackSetup } from "./managed.js";
 import { randomBytes } from "node:crypto";
 import { and, eq, gt, like } from "drizzle-orm";
-import { chatEndpoints, chatSlackRegistrations, companies, toolOauthStates, type Db } from "@outpost/db";
+import { chatEndpoints, chatSlackRegistrations, spaces, toolOauthStates, type Db } from "@outpost/db";
 import { badRequest, conflict, forbidden, notFound } from "../../../../errors.js";
 import { removeSlackRegistration } from "../../../chat-slack-registration-cleanup.js";
 import type { CredentialMutationLeaseGuard } from "../../../chat-credential-mutation-lease.js";
@@ -27,7 +27,7 @@ export function slackChatRegistrationService(db: Db, options: SlackSetupOptions)
       if (!row?.appId || !row.clientId || row.status === "removed") throw conflict("Create this Slack app before installing it");
       if (row.errorCode === "slack_manifest_update_pending") throw conflict("Finish configuring the saved Slack app before installing it");
       if (!isProvisionedSlackSetup(current.endpoint.setup.slackSetupMethod) || current.endpoint.status === "paused") throw conflict("Resume this connection before installing it");
-      if (row.managerGrantId) await managerGrants.token(row.managerGrantId, row.companyId, actor);
+      if (row.managerGrantId) await managerGrants.token(row.managerGrantId, row.spaceId, actor);
       assertOrigins(row, current.endpoint.publicId);
       const state = `${prefix}${randomBytes(32).toString("base64url")}`;
       const expiresAt = new Date(Date.now() + 10 * 60_000);
@@ -35,7 +35,7 @@ export function slackChatRegistrationService(db: Db, options: SlackSetupOptions)
       await db.transaction(async tx => {
         await lease.assertOwned(tx);
         await tx.delete(toolOauthStates).where(and(eq(toolOauthStates.connectionId, current.connection.id), like(toolOauthStates.state, `${prefix}%`)));
-        await tx.insert(toolOauthStates).values({ state, companyId: row.companyId, connectionId: current.connection.id,
+        await tx.insert(toolOauthStates).values({ state, spaceId: row.spaceId, connectionId: current.connection.id,
           codeVerifier: JSON.stringify({ endpointId, requestId: row.requestId, appId: row.appId, callbackUri: row.callbackUri,
             endpointStatus: current.endpoint.status, runtimeGeneration: object(current.endpoint.setup).runtimeGeneration ?? 0 }),
           createdByActorType: "user", createdByActorId: actor.userId, createdBySessionId: actor.sessionId,
@@ -58,7 +58,7 @@ export function slackChatRegistrationService(db: Db, options: SlackSetupOptions)
     return options.withLock(current.endpoint.id, async lease => {
       const latest = await endpoint(current.endpoint.id, actor);
       const row = await registration(current.endpoint.id);
-      if (!row || row.status === "removed" || row.requestId !== binding.requestId || row.companyId !== attempt.companyId || latest.connection.id !== attempt.connectionId
+      if (!row || row.status === "removed" || row.requestId !== binding.requestId || row.spaceId !== attempt.spaceId || latest.connection.id !== attempt.connectionId
         || !isProvisionedSlackSetup(latest.endpoint.setup.slackSetupMethod) || row.appId !== binding.appId || row.callbackUri !== binding.callbackUri) return null;
       assertOrigins(row, latest.endpoint.publicId);
       await lease.assertOwned();
@@ -81,9 +81,9 @@ export function slackChatRegistrationService(db: Db, options: SlackSetupOptions)
       || current.endpoint.status === "revoked" && binding.endpointStatus !== "revoked"
       || binding.runtimeGeneration !== (object(current.endpoint.setup).runtimeGeneration ?? 0)
       || row.requestId !== binding.requestId || row.appId !== binding.appId || row.callbackUri !== binding.callbackUri
-      || row.callbackUri !== callbackUri() || attempt.companyId !== row.companyId || attempt.connectionId !== current.connection.id)
+      || row.callbackUri !== callbackUri() || attempt.spaceId !== row.spaceId || attempt.connectionId !== current.connection.id)
       throw conflict("Slack setup changed. Resume the saved connection and install again.");
-    if (row.managerGrantId) await managerGrants.token(row.managerGrantId, row.companyId, actor);
+    if (row.managerGrantId) await managerGrants.token(row.managerGrantId, row.spaceId, actor);
     assertOrigins(row, current.endpoint.publicId);
     return { attempt, current, row };
   }
@@ -115,14 +115,14 @@ export function slackChatRegistrationService(db: Db, options: SlackSetupOptions)
           throw providerFailure("slack_install_identity_mismatch");
         if (typeof installerId !== "string" || !/^[UW][A-Z0-9]+$/.test(installerId) || installerId === result.bot_user_id) throw providerFailure("slack_install_account_missing");
         if (row.managerGrantId) {
-          const grant = await managerGrants.get(row.managerGrantId, row.companyId, actor);
+          const grant = await managerGrants.get(row.managerGrantId, row.spaceId, actor);
           if (grant.status !== "active" || installerId !== grant.slackUserId || teamId !== grant.workspaceId) throw providerFailure("slack_install_identity_mismatch");
         }
         await endpoint(row.endpointId, actor);
         // Reauthorization reuses the runtime signing secret after staging was cleaned.
         await saveSecrets(row, { botToken: result.access_token }, actor, lease,
           { status: "credentials_saved", workspaceId: teamId, botUserId: result.bot_user_id, errorCode: null },
-          { externalUserId: installerId, paperclipUserId: actor.userId, status: "pending", welcomeStatus: "pending" });
+          { externalUserId: installerId, outpostUserId: actor.userId, status: "pending", welcomeStatus: "pending" });
       } catch (failure) {
         const code = object(object(failure).details).code;
         const safeCode = typeof code === "string" && code.startsWith("slack_install_") ? code : "slack_install_failed";
@@ -136,8 +136,8 @@ export function slackChatRegistrationService(db: Db, options: SlackSetupOptions)
   }
   const cleanup = (endpointId: string, lease: CredentialMutationLeaseGuard) => removeSlackRegistration(db, endpointId, lease);
   async function returnPath(endpointId: string) {
-    const [row] = await db.select({ prefix: companies.issuePrefix }).from(chatEndpoints)
-      .innerJoin(companies, eq(companies.id, chatEndpoints.companyId)).where(eq(chatEndpoints.id, endpointId));
+    const [row] = await db.select({ prefix: spaces.issuePrefix }).from(chatEndpoints)
+      .innerJoin(spaces, eq(spaces.id, chatEndpoints.spaceId)).where(eq(chatEndpoints.id, endpointId));
     if (!row) throw notFound("Slack connection not found");
     return `/${encodeURIComponent(row.prefix)}/apps/chat/connect?provider=slack&resume=${encodeURIComponent(endpointId)}`;
   }
@@ -145,7 +145,7 @@ export function slackChatRegistrationService(db: Db, options: SlackSetupOptions)
     close: store.close,
     resume: (endpointId: string, actor: SlackSetupActor) => options.withLock(endpointId, async lease => {
       const row = await registration(endpointId);
-      if (row?.managerGrantId) await managerGrants.token(row.managerGrantId, row.companyId, actor);
+      if (row?.managerGrantId) await managerGrants.token(row.managerGrantId, row.spaceId, actor);
       return resumeLocked(endpointId, actor, lease);
     }) };
 }

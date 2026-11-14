@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -117,20 +117,20 @@ describeEmbeddedPostgres("native Codex server vertical slice", () => {
   it("returns a durable result and resumes the provider session on the next run", async () => {
     if (!temporary || !runtimeRoot) throw new Error("Vertical-slice fixture was not initialized");
     const db = createDb(temporary.connectionString);
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
     const runId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Native Codex vertical slice",
       issuePrefix: "NCV",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Native Codex",
       role: "engineer",
       status: "active",
@@ -141,7 +141,7 @@ describeEmbeddedPostgres("native Codex server vertical slice", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       identifier: "NCV-1",
       title: "Complete the native Codex vertical slice",
       description: "Return a bound structured completion result.",
@@ -152,7 +152,7 @@ describeEmbeddedPostgres("native Codex server vertical slice", () => {
     });
     const [run] = await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       invocationSource: "assignment",
@@ -179,7 +179,7 @@ describeEmbeddedPostgres("native Codex server vertical slice", () => {
     const logs: string[] = [];
     const execute = executeNativeCodexRunner({
       db,
-      companyId,
+      spaceId,
       issueId,
       runId,
       agentId,
@@ -208,7 +208,7 @@ describeEmbeddedPostgres("native Codex server vertical slice", () => {
           "--emit-tool-call",
           "--expected-canonical-task-context",
           JSON.stringify({
-            companyId,
+            spaceId,
             actorId: agentId,
             taskId: issueId,
             runId,
@@ -278,7 +278,7 @@ describeEmbeddedPostgres("native Codex server vertical slice", () => {
     const resumedRunId = randomUUID();
     const [resumedRun] = await db.insert(heartbeatRuns).values({
       id: resumedRunId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       invocationSource: "assignment",
@@ -303,7 +303,7 @@ describeEmbeddedPostgres("native Codex server vertical slice", () => {
     });
     const resumed = await executeNativeCodexRunner({
       db,
-      companyId,
+      spaceId,
       issueId,
       runId: resumedRunId,
       agentId,

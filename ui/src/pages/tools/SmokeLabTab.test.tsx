@@ -61,7 +61,7 @@ async function flushReact() {
 
 const RUN = {
   id: "run-1",
-  companyId: "company-1",
+  spaceId: "space-1",
   trigger: "manual",
   status: "passed",
   startedAt: "2026-07-10T00:00:00Z",
@@ -74,7 +74,7 @@ const RUN = {
 const STEPS = [
   {
     id: "s1",
-    companyId: "company-1",
+    spaceId: "space-1",
     runId: "run-1",
     path: "P1",
     scenarioStep: "oauth-login",
@@ -87,7 +87,7 @@ const STEPS = [
   },
   {
     id: "s2",
-    companyId: "company-1",
+    spaceId: "space-1",
     runId: "run-1",
     path: "P7",
     scenarioStep: "schema-change-quarantine",
@@ -114,7 +114,7 @@ describe("SmokeLabTab", () => {
           id: "fake-oauth",
           label: "Fake OAuth 2.0 provider",
           status: "running",
-          url: "http://127.0.0.1:3100/api/companies/company-1/smoke-lab/oauth/authorize",
+          url: "http://127.0.0.1:3100/api/spaces/space-1/smoke-lab/oauth/authorize",
           health: { ok: true },
           detail: "In-process deterministic OAuth provider.",
         },
@@ -137,7 +137,7 @@ describe("SmokeLabTab", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={client}>
-          <SmokeLabTab companyId="company-1" />
+          <SmokeLabTab spaceId="space-1" />
         </QueryClientProvider>,
       );
     });
@@ -160,15 +160,15 @@ describe("SmokeLabTab", () => {
     expect(container.querySelector('[data-testid="smoke-lab-tab"]')).not.toBeNull();
     // Resolved URL printed verbatim — never an assumed port.
     expect(container.textContent).toContain(
-      "http://127.0.0.1:3100/api/companies/company-1/smoke-lab/oauth/authorize",
+      "http://127.0.0.1:3100/api/spaces/space-1/smoke-lab/oauth/authorize",
     );
     // Demo credentials for the fake OAuth login.
     expect(container.textContent).toContain("smoke@outpost.test");
     expect(container.textContent).toContain("smoke-password");
-    // Matrix rows for every path + a governed lifecycle column.
+    // Matrix rows for every path + a controlled lifecycle column.
     expect(container.textContent).toContain("Integration matrix");
     expect(container.textContent).toContain("Remote HTTP · OAuth");
-    expect(container.textContent).toContain("Governance surfaces");
+    expect(container.textContent).toContain("Policy surfaces");
     expect(container.textContent).toContain("Schema-change quarantine");
     // Failing path surfaced from the recorded steps.
     expect(container.textContent).toContain("failing: P7");
@@ -189,6 +189,6 @@ describe("SmokeLabTab", () => {
     });
     await flushReact();
 
-    expect(createRunMock).toHaveBeenCalledWith("company-1", { trigger: "manual", summary: {} });
+    expect(createRunMock).toHaveBeenCalledWith("space-1", { trigger: "manual", summary: {} });
   });
 });

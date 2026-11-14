@@ -23,11 +23,11 @@ import {
 
 describe("Codex value and workspace boundaries", () => {
   it("accepts assigned workspaces below HOME while rejecting host-state and containment escapes", () => {
-    const fixture = mkdtempSync(join(tmpdir(), "paperclip-codex-boundaries-"));
+    const fixture = mkdtempSync(join(tmpdir(), "outpost-codex-boundaries-"));
     try {
       const hostRoot = join(fixture, "host");
       const hostHome = join(hostRoot, "home");
-      const workspaceRoot = join(hostHome, ".paperclip", "workspaces");
+      const workspaceRoot = join(hostHome, ".outpost", "workspaces");
       const workspace = join(workspaceRoot, "run-1");
       const ordinaryHomeWorkspace = join(hostHome, "projects", "app");
       const outside = join(fixture, "outside");
@@ -123,7 +123,7 @@ describe("Codex value and workspace boundaries", () => {
   });
 
   it("defers provider-owned workspace existence without weakening its assignment", () => {
-    const remoteWorkspace = "/home/daytona/paperclip-workspace";
+    const remoteWorkspace = "/home/daytona/outpost-workspace";
     const remoteEnvironment = {
       HOME: remoteWorkspace,
       CODEX_HOME: `${remoteWorkspace}/.codex`,
@@ -185,19 +185,19 @@ describe("Codex value and workspace boundaries", () => {
   });
 
   it("keeps completion and block dispositions distinct", () => {
-    expect(isCodexSemanticTool("paperclip_finish")).toBe(true);
-    expect(isCodexSemanticTool("paperclip_block")).toBe(true);
+    expect(isCodexSemanticTool("outpost_finish")).toBe(true);
+    expect(isCodexSemanticTool("outpost_block")).toBe(true);
     expect(isCodexSemanticTool("shell")).toBe(false);
-    expect(codexToolAcceptsDisposition("paperclip_finish", "done")).toBe(true);
-    expect(codexToolAcceptsDisposition("paperclip_finish", "yielded")).toBe(true);
-    expect(codexToolAcceptsDisposition("paperclip_finish", "blocked")).toBe(
+    expect(codexToolAcceptsDisposition("outpost_finish", "done")).toBe(true);
+    expect(codexToolAcceptsDisposition("outpost_finish", "yielded")).toBe(true);
+    expect(codexToolAcceptsDisposition("outpost_finish", "blocked")).toBe(
       false,
     );
-    expect(codexToolAcceptsDisposition("paperclip_block", "blocked")).toBe(
+    expect(codexToolAcceptsDisposition("outpost_block", "blocked")).toBe(
       true,
     );
     expect(codexToolAcceptsDisposition("unknown_tool", "done")).toBe(false);
-    expect(codexToolAcceptsResult("paperclip_finish", {
+    expect(codexToolAcceptsResult("outpost_finish", {
       schema: "outpost.run_result.v1",
       reportedWorkDisposition: "yielded",
       summary: "Waiting for the next response.",
@@ -217,7 +217,7 @@ describe("Codex value and workspace boundaries", () => {
         idempotencyKey: "response-wake-1",
       },
     })).toBe(true);
-    expect(codexToolAcceptsResult("paperclip_finish", {
+    expect(codexToolAcceptsResult("outpost_finish", {
       schema: "outpost.run_result.v1",
       reportedWorkDisposition: "yielded",
       summary: "Continue immediately.",

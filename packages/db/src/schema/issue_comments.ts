@@ -7,7 +7,7 @@ import type {
 } from "@outpost/shared";
 import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, timestamp, index, jsonb, unique, integer } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { issues } from "./issues.js";
 import { agents } from "./agents.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
@@ -17,7 +17,7 @@ export const issueComments = pgTable(
   "issue_comments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     issueId: uuid("issue_id").notNull().references(() => issues.id, { onDelete: "cascade" }),
     authorAgentId: uuid("author_agent_id").references(() => agents.id),
     authorUserId: text("author_user_id"),
@@ -25,7 +25,7 @@ export const issueComments = pgTable(
     authorType: text("author_type").$type<IssueCommentAuthorType>(),
     createdByRunId: uuid("created_by_run_id").references(() => heartbeatRuns.id, { onDelete: "set null" }),
     // Persisted result of best-effort agent-attribution derivation for comments
-    // authored by a non-human sentinel (e.g. `local-board`). Populated once by a
+    // authored by a non-human sentinel (e.g. `local-operator`). Populated once by a
     // backfill migration and lazily on read so the load path stops re-scanning
     // run logs.
     derivedAuthorAgentId: uuid("derived_author_agent_id").references(() => agents.id, { onDelete: "set null" }),
@@ -50,19 +50,19 @@ export const issueComments = pgTable(
   (table) => ({
     clientRequestUq: unique("issue_comments_client_request_uq").on(table.issueId, table.authorUserId, table.clientRequestId),
     agentClientRequestUq: unique("issue_comments_agent_client_request_uq").on(table.issueId, table.authorAgentId, table.clientRequestId),
-    companyIdUq: unique("issue_comments_company_id_uq").on(table.companyId, table.id),
+    spaceIdUq: unique("issue_comments_space_id_uq").on(table.spaceId, table.id),
     issueIdx: index("issue_comments_issue_idx").on(table.issueId),
     reviewResponseReceiptIdx: index("issue_comments_review_response_receipt_idx").on(
-      table.createdByRunId, table.companyId, table.issueId, table.authorAgentId,
+      table.createdByRunId, table.spaceId, table.issueId, table.authorAgentId,
     ).where(sql`${table.authorType} = 'agent' AND ${table.metadata}->>'authorizationReason' = 'allow_chat_run_presentation'`),
-    companyIdx: index("issue_comments_company_idx").on(table.companyId),
-    companyIssueCreatedAtIdx: index("issue_comments_company_issue_created_at_idx").on(
-      table.companyId,
+    spaceIdx: index("issue_comments_space_idx").on(table.spaceId),
+    spaceIssueCreatedAtIdx: index("issue_comments_space_issue_created_at_idx").on(
+      table.spaceId,
       table.issueId,
       table.createdAt,
     ),
-    companyAuthorIssueCreatedAtIdx: index("issue_comments_company_author_issue_created_at_idx").on(
-      table.companyId,
+    spaceAuthorIssueCreatedAtIdx: index("issue_comments_space_author_issue_created_at_idx").on(
+      table.spaceId,
       table.authorUserId,
       table.issueId,
       table.createdAt,

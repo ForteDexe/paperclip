@@ -353,7 +353,7 @@
       }
     },
     {
-      "label": "mutation-promotion-company-home",
+      "label": "mutation-promotion-space-home",
       "exitCode": 1,
       "passed": 0,
       "failed": 1,
@@ -363,12 +363,12 @@
       "originalSHA256": "6065e6e64c53965709acec0fd21431c1b08799bef8a9f2a9fba92f4c367a740a",
       "mutatedSHA256": "cf54fc5ca674868f4b98f8af0700800153837fc5db26066aec99eb530127f06e",
       "owner": "packages/adapters/codex-local/src/server/adapter-auth-promotion.ts",
-      "keeper": "device-login credential promotion a user login seeds this account's own home and the company default home",
-      "mutationId": "promotion-company-home",
+      "keeper": "device-login credential promotion a user login seeds this account's own home and the space default home",
+      "mutationId": "promotion-space-home",
       "assertion": "AssertionError: expected 'wrong-account' to be 'acct-42' // Object.is equality",
       "edit": {
-        "from": "      sourceBytes: authBytes,\n      destinationPath: companyHomeAuthPath,",
-        "to": "      sourceBytes: Buffer.from(JSON.stringify({ ...JSON.parse(authBytes.toString()), tokens: { ...JSON.parse(authBytes.toString()).tokens, account_id: \"wrong-account\" } })),\n      destinationPath: companyHomeAuthPath,"
+        "from": "      sourceBytes: authBytes,\n      destinationPath: spaceHomeAuthPath,",
+        "to": "      sourceBytes: Buffer.from(JSON.stringify({ ...JSON.parse(authBytes.toString()), tokens: { ...JSON.parse(authBytes.toString()).tokens, account_id: \"wrong-account\" } })),\n      destinationPath: spaceHomeAuthPath,"
       }
     },
     {
@@ -382,7 +382,7 @@
       "originalSHA256": "6065e6e64c53965709acec0fd21431c1b08799bef8a9f2a9fba92f4c367a740a",
       "mutatedSHA256": "d1b3f413f0c9e5a0c2f3fd57e37f4eaf38254884c4adb894b8e2fb03605272c0",
       "owner": "packages/adapters/codex-local/src/server/adapter-auth-promotion.ts",
-      "keeper": "device-login credential promotion a user login seeds this account's own home and the company default home",
+      "keeper": "device-login credential promotion a user login seeds this account's own home and the space default home",
       "mutationId": "promotion-account-id",
       "assertion": "AssertionError: expected 'wrong-account' to be 'acct-42' // Object.is equality",
       "edit": {
@@ -401,7 +401,7 @@
       "originalSHA256": "6065e6e64c53965709acec0fd21431c1b08799bef8a9f2a9fba92f4c367a740a",
       "mutatedSHA256": "b03b3fac62ac26b179b13505268fbfd59cbf63213f10da87835f33fd5c54843d",
       "owner": "packages/adapters/codex-local/src/server/adapter-auth-promotion.ts",
-      "keeper": "device-login credential promotion a user login seeds this account's own home and the company default home",
+      "keeper": "device-login credential promotion a user login seeds this account's own home and the space default home",
       "mutationId": "promotion-account-home",
       "assertion": "AssertionError: expected 'wrong-home' to be the exact independently resolved account-home path",
       "edit": {
@@ -420,7 +420,7 @@
       "originalSHA256": "6065e6e64c53965709acec0fd21431c1b08799bef8a9f2a9fba92f4c367a740a",
       "mutatedSHA256": "3d13658dcc9bfeab21ace2d5f44d30bd6490e73bdacb18810ab3415822bc4956",
       "owner": "packages/adapters/codex-local/src/server/adapter-auth-promotion.ts",
-      "keeper": "device-login credential promotion a user login seeds this account's own home and the company default home",
+      "keeper": "device-login credential promotion a user login seeds this account's own home and the space default home",
       "mutationId": "promotion-created-receipt",
       "assertion": "AssertionError: expected false to be true // Object.is equality",
       "edit": {

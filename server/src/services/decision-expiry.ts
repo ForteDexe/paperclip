@@ -19,11 +19,11 @@ export function decisionExpiryService(db: Db, deliverContinuation: (id: string) 
       }).where(and(eq(decisions.id, decision.id), open,
         reason === "ttl" ? lte(decisions.expiresAt, now) : undefined)).returning();
       if (!row) return null;
-      await logActivity(tx, { companyId: row.companyId, actorType: "system", actorId: "decision-expiry-sweeper",
+      await logActivity(tx, { spaceId: row.spaceId, actorType: "system", actorId: "decision-expiry-sweeper",
         agentId: row.originAgentId, runId: row.originRunId, action: "decision.expired", entityType: "decision",
         entityId: row.id, details: { expiredReason: reason } }, publications);
       return row;
-    }, { companyId: decision.companyId, sourceId: decision.id });
+    }, { spaceId: decision.spaceId, sourceId: decision.id });
     if (!updated) return 0;
     for (const publication of publications) publishActivity(publication);
     await deliverContinuation(updated.id);

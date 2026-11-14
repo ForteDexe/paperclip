@@ -98,7 +98,7 @@ function ChainOfThoughtReview() {
 
 const steeredComment: IssueChatComment = {
   id: "steered-comment",
-  companyId: "storybook-company",
+  spaceId: "storybook-space",
   issueId: "storybook-issue",
   authorAgentId: null,
   authorUserId: "storybook-user",
@@ -163,7 +163,7 @@ const meta = {
   title: "Tasks and conversations/Task creation and lifecycle/Tasks/Task chat review fixes",
   component: ChainOfThoughtReview,
   parameters: { layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "tasks/discussion",
         "runs-adapters/runs"

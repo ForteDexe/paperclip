@@ -12,7 +12,7 @@ import {
   agentTaskSessions as agentTaskSessionsTable,
   agents as agentsTable,
   budgetIncidents,
-  companyMemberships,
+  spaceMemberships,
   costEvents,
   heartbeatRuns,
   invites,
@@ -24,7 +24,7 @@ import {
 import { eq, and, like, desc, inArray, sql, isNull, isNotNull, gt, lte } from "drizzle-orm";
 import type {
   HostServices,
-  Company,
+  Space,
   Agent,
   Project,
   Issue,
@@ -37,7 +37,7 @@ import type {
 } from "@outpost/plugin-sdk";
 import type { CreateIssueThreadInteraction, InviteJoinType, IssueDocumentSummary, IssueRelationIssueSummary, PermissionKey, PrincipalType } from "@outpost/shared";
 import { pluginOperationIssueOriginKind } from "@outpost/shared";
-import { companyService } from "./companies.js";
+import { spaceService } from "./space-service.js";
 import { agentService } from "./agents.js";
 import { projectService } from "./projects.js";
 import { executionWorkspaceService } from "./execution-workspaces.js";
@@ -50,7 +50,7 @@ import { budgetService } from "./budgets.js";
 import { issueApprovalService } from "./issue-approvals.js";
 import { approvalService } from "./approvals.js";
 import { getStorageService } from "../storage/index.js";
-import { subscribeCompanyLiveEvents } from "./live-events.js";
+import { subscribeSpaceLiveEvents } from "./live-events.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { pluginRegistryService } from "./plugin-registry.js";
@@ -431,13 +431,13 @@ interface BufferedLogEntry {
   db: Db;
   pluginId: string;
   /**
-   * Owning tenant for `plugin_logs.company_id` — populated when the caller
-   * attributes the log/metric to a specific company so the row participates
-   * in the `ON DELETE CASCADE` from `companies`. `null` means instance-scope
+   * Owning tenant for `plugin_logs.space_id` — populated when the caller
+   * attributes the log/metric to a specific space so the row participates
+   * in the `ON DELETE CASCADE` from `spaces`. `null` means instance-scope
    * (cron jobs / public webhooks without a tenant); those rows survive
-   * company deletes but are still attributable.
+   * space deletes but are still attributable.
    */
-  companyId: string | null;
+  spaceId: string | null;
   level: string;
   message: string;
   meta: Record<string, unknown> | null;
@@ -470,7 +470,7 @@ export async function flushPluginLogBuffer(): Promise<void> {
   for (const [dbInstance, group] of byDb) {
     const values = group.map((e) => ({
       pluginId: e.pluginId,
-      companyId: e.companyId,
+      spaceId: e.spaceId,
       level: e.level,
       message: e.message,
       meta: e.meta,
@@ -501,7 +501,7 @@ if (_logFlushInterval.unref) _logFlushInterval.unref();
  * buildHostServices — creates a concrete implementation of the `HostServices`
  * interface for a specific plugin.
  *
- * This implementation delegates to the core Paperclip domain services,
+ * This implementation delegates to the core Outpost domain services,
  * providing the bridge between the plugin worker's SDK and the host platform.
  *
  * @param db - Database connection instance.
@@ -772,7 +772,7 @@ export function buildHostServices(
   notifyWorker?: (method: string, params: unknown) => void,
   options: {
     pluginWorkerManager?: PluginWorkerManager;
-    manifest?: import("@outpost/shared").PaperclipPluginManifestV1;
+    manifest?: import("@outpost/shared").OutpostPluginManifestV1;
     heartbeatRuntimeEnv?: Record<string, string | undefined>;
   } = {},
 ): HostServices & { dispose(): void } {
@@ -780,20 +780,20 @@ export function buildHostServices(
   const stateStore = pluginStateStore(db);
   const pluginDb = pluginDatabaseService(db);
   const secretsHandler = createPluginSecretsHandler({ db, pluginId });
-  const companies = companyService(db);
+  const spaces = spaceService(db);
   const agents = agentService(db);
   const agentsLifecycle = createAgentLifecycle(db);
   const managedAgents = pluginManagedAgentService(db, {
     pluginId,
     pluginKey,
     manifest: options.manifest,
-    instructionTemplateVariables: async (companyId) => {
+    instructionTemplateVariables: async (spaceId) => {
       const variables: Record<string, string | null | undefined> = {};
       for (const declaration of options.manifest?.localFolders ?? []) {
         const status = await inspectPluginLocalFolder({
           folderKey: declaration.folderKey,
           declaration,
-          storedConfig: await getStoredLocalFolderConfig(companyId, declaration.folderKey),
+          storedConfig: await getStoredLocalFolderConfig(spaceId, declaration.folderKey),
         });
         const prefix = `localFolders.${declaration.folderKey}`;
         variables[`${prefix}.path`] = status.realPath ?? status.path ?? null;
@@ -832,7 +832,7 @@ export function buildHostServices(
   const lifecycleInbox = pluginLifecycleInbox(db, pluginId);
 
   // --- Issue privacy for plugin-facing reads (PAP-16091 / PAP-16050) ---------
-  // Plugins are non-member principals: they hold no company membership, issue
+  // Plugins are non-member principals: they hold no space membership, issue
   // access grant, or private-project access, so the canonical issue-visibility
   // predicate resolves them to the same scope as any other non-member — public
   // issues only. Notification/digest plugins (e.g. a Slack notifier) fan issue
@@ -847,7 +847,7 @@ export function buildHostServices(
   const pluginIssuePrivacyActor: AuthorizationActor = { type: "none" };
   const toIssuePrivacyRow = (issue: {
     id: string;
-    companyId: string;
+    spaceId: string;
     visibility?: string | null;
     privacyRootIssueId?: string | null;
     responsibleUserId?: string | null;
@@ -857,7 +857,7 @@ export function buildHostServices(
     projectId?: string | null;
   }): IssuePrivacyRow => ({
     id: issue.id,
-    companyId: issue.companyId,
+    spaceId: issue.spaceId,
     visibility: issue.visibility ?? "open",
     privacyRootIssueId: issue.privacyRootIssueId ?? null,
     responsibleUserId: issue.responsibleUserId ?? null,
@@ -890,7 +890,7 @@ export function buildHostServices(
   // without their privacy columns loaded.
   const issuePrivacyRowColumns = {
     id: issuesTable.id,
-    companyId: issuesTable.companyId,
+    spaceId: issuesTable.spaceId,
     visibility: issuesTable.visibility,
     privacyRootIssueId: issuesTable.privacyRootIssueId,
     responsibleUserId: issuesTable.responsibleUserId,
@@ -901,10 +901,10 @@ export function buildHostServices(
   } as const;
   // Resolve which of the given issue IDs a non-member plugin may read. Loads
   // the privacy-relevant columns for those IDs and evaluates the canonical
-  // predicate. An ID with no surviving row (deleted, cross-company) is absent
+  // predicate. An ID with no surviving row (deleted, cross-space) is absent
   // from the result set — fail closed.
   const pluginReadableIssueIdsByIds = async (
-    companyId: string,
+    spaceId: string,
     ids: Iterable<string>,
   ): Promise<Set<string>> => {
     const uniqueIds = [...new Set(ids)];
@@ -914,16 +914,16 @@ export function buildHostServices(
     const rows = await db
       .select(issuePrivacyRowColumns)
       .from(issuesTable)
-      .where(and(eq(issuesTable.companyId, companyId), inArray(issuesTable.id, uniqueIds)));
+      .where(and(eq(issuesTable.spaceId, spaceId), inArray(issuesTable.id, uniqueIds)));
     return pluginReadableIssueIds(rows);
   };
-  // Fetch an issue and require it be both in-company and readable by a
+  // Fetch an issue and require it be both in-space and readable by a
   // non-member plugin. A private (unreadable) issue throws the same "not found"
   // error a genuinely missing issue would, so its existence never leaks. This
   // is the single gate every issue-derived plugin read routes through, so no
   // method needs its own bespoke visibility check.
-  const requirePluginReadableIssue = async (issueId: string, companyId: string): Promise<Issue> => {
-    const issue = requireInCompany("Issue", await issues.getById(issueId), companyId);
+  const requirePluginReadableIssue = async (issueId: string, spaceId: string): Promise<Issue> => {
+    const issue = requireInSpace("Issue", await issues.getById(issueId), spaceId);
     if (!(await pluginCanReadIssue(issue))) {
       throw new Error("Issue not found");
     }
@@ -936,7 +936,7 @@ export function buildHostServices(
   const pluginRedactRelationSummary = async <
     R extends { blockedBy: IssueRelationIssueSummary[]; blocks: IssueRelationIssueSummary[] },
   >(
-    companyId: string,
+    spaceId: string,
     relation: R,
   ): Promise<R> => {
     if (issuePrivacyMode() !== "enforce") return relation;
@@ -950,7 +950,7 @@ export function buildHostServices(
     collect(relation.blockedBy);
     collect(relation.blocks);
     if (edgeIds.size === 0) return relation;
-    const readable = await pluginReadableIssueIdsByIds(companyId, edgeIds);
+    const readable = await pluginReadableIssueIdsByIds(spaceId, edgeIds);
     const redact = (edges: IssueRelationIssueSummary[]): IssueRelationIssueSummary[] =>
       edges
         .filter((edge) => readable.has(edge.id))
@@ -964,9 +964,9 @@ export function buildHostServices(
   const activeSubscriptions = new Set<{ unsubscribe: () => void; timer: ReturnType<typeof setTimeout> }>();
   let disposed = false;
 
-  const ensureCompanyId = (companyId?: string) => {
-    if (!companyId) throw new Error("companyId is required for this operation");
-    return companyId;
+  const ensureSpaceId = (spaceId?: string) => {
+    if (!spaceId) throw new Error("spaceId is required for this operation");
+    return spaceId;
   };
 
   const parseWindowValue = (value: unknown): number | null => {
@@ -1001,33 +1001,33 @@ export function buildHostServices(
   };
 
   /**
-   * Plugins are instance-wide in the current runtime. Company IDs are still
-   * required for company-scoped data access, but there is no per-company
+   * Plugins are instance-wide in the current runtime. Space IDs are still
+   * required for space-scoped data access, but there is no per-space
    * availability gate to enforce here.
    */
-  const ensurePluginAvailableForCompany = async (_companyId: string) => {};
+  const ensurePluginAvailableForSpace = async (_spaceId: string) => {};
 
   const getLocalFolderDeclaration = (folderKey: string) =>
     requireLocalFolderDeclaration(options.manifest?.localFolders, folderKey);
 
-  const getStoredLocalFolderConfig = async (companyId: string, folderKey: string) => {
-    ensureCompanyId(companyId);
-    await ensurePluginAvailableForCompany(companyId);
-    const settings = await registry.getCompanySettings(pluginId, companyId);
+  const getStoredLocalFolderConfig = async (spaceId: string, folderKey: string) => {
+    ensureSpaceId(spaceId);
+    await ensurePluginAvailableForSpace(spaceId);
+    const settings = await registry.getSpaceSettings(pluginId, spaceId);
     return getStoredLocalFolders(settings?.settingsJson)[folderKey] ?? null;
   };
 
-  const inspectStoredLocalFolder = async (companyId: string, folderKey: string) =>
+  const inspectStoredLocalFolder = async (spaceId: string, folderKey: string) =>
     inspectPluginLocalFolder({
       folderKey,
       declaration: getLocalFolderDeclaration(folderKey),
-      storedConfig: await getStoredLocalFolderConfig(companyId, folderKey),
+      storedConfig: await getStoredLocalFolderConfig(spaceId, folderKey),
     });
 
-  const inCompany = <T extends { companyId: string | null | undefined }>(
+  const inSpace = <T extends { spaceId: string | null | undefined }>(
     record: T | null | undefined,
-    companyId: string,
-  ): record is T => Boolean(record && record.companyId === companyId);
+    spaceId: string,
+  ): record is T => Boolean(record && record.spaceId === spaceId);
 
   const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value);
@@ -1046,7 +1046,7 @@ export function buildHostServices(
     workspace: NonNullable<Awaited<ReturnType<typeof executionWorkspaces.getById>>>,
   ): PluginExecutionWorkspaceMetadata => ({
     id: workspace.id,
-    companyId: workspace.companyId,
+    spaceId: workspace.spaceId,
     projectId: workspace.projectId,
     projectWorkspaceId: workspace.projectWorkspaceId,
     path: workspace.cwd ?? workspace.providerRef,
@@ -1058,28 +1058,28 @@ export function buildHostServices(
     providerMetadata: readProviderMetadata(workspace.metadata),
   });
 
-  const requireInCompany = <T extends { companyId: string | null | undefined }>(
+  const requireInSpace = <T extends { spaceId: string | null | undefined }>(
     entityName: string,
     record: T | null | undefined,
-    companyId: string,
+    spaceId: string,
   ): T => {
-    if (!inCompany(record, companyId)) {
+    if (!inSpace(record, spaceId)) {
       throw new Error(`${entityName} not found`);
     }
     return record;
   };
 
   /**
-   * Verify `userId` is an active human member of `companyId` before letting a
+   * Verify `userId` is an active human member of `spaceId` before letting a
    * plugin attribute a mutation to them. Mirrors the authorization bar the
-   * web app's own board routes apply — a plugin can only ever attribute an
+   * web app's own operator routes apply — a plugin can only ever attribute an
    * action to an identity that could have taken it in the web app itself.
    * Used by any plugin capability that accepts an `actorUserId`
    * (`createComment`'s human-attributed path, `respondInteraction`, and
    * `approvals.decide`).
    *
    * All current call sites are non-safe (write) actions, so by default this
-   * also rejects a `viewer`-role member — the web app's board write-routes
+   * also rejects a `viewer`-role member — the web app's operator write-routes
    * treat `membershipRole === "viewer"` as read-only and 403 it ("Viewer
    * access is read-only", routes/authz.ts:115-116). Without this bar a plugin
    * holding `approvals.respond` / `issue.interactions.respond` could attribute
@@ -1089,22 +1089,22 @@ export function buildHostServices(
    * `{ allowViewer: true }`; the default is failure-closed.
    */
   const requireActiveHumanMember = async (
-    companyId: string,
+    spaceId: string,
     userId: string,
     { allowViewer = false }: { allowViewer?: boolean } = {},
   ): Promise<void> => {
     const [membership] = await db
-      .select({ id: companyMemberships.id, membershipRole: companyMemberships.membershipRole })
-      .from(companyMemberships)
+      .select({ id: spaceMemberships.id, membershipRole: spaceMemberships.membershipRole })
+      .from(spaceMemberships)
       .where(and(
-        eq(companyMemberships.companyId, companyId),
-        eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.principalId, userId),
-        eq(companyMemberships.status, "active"),
+        eq(spaceMemberships.spaceId, spaceId),
+        eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.principalId, userId),
+        eq(spaceMemberships.status, "active"),
       ))
       .limit(1);
     if (!membership) {
-      throw new Error(`actorUserId "${userId}" is not an active human member of this company`);
+      throw new Error(`actorUserId "${userId}" is not an active human member of this space`);
     }
     if (!allowViewer && membership.membershipRole === "viewer") {
       throw new Error(`actorUserId "${userId}" has viewer (read-only) access and cannot take this write action`);
@@ -1112,8 +1112,8 @@ export function buildHostServices(
   };
 
   /**
-   * Wake the assignee of a continuation issue after a plugin-relayed board-user
-   * interaction resolution, mirroring the web app's board interaction routes
+   * Wake the assignee of a continuation issue after a plugin-relayed operator-user
+   * interaction resolution, mirroring the web app's operator interaction routes
    * (routes/issues.ts's queueResolvedInteractionContinuationWakeup) so a
    * confirmation accepted/rejected from chat resumes the agent the same way it
    * would from the web app. Deliberately narrower than the HTTP helper: it
@@ -1253,7 +1253,7 @@ export function buildHostServices(
   };
 
   const logPluginActivity = async (input: {
-    companyId: string;
+    spaceId: string;
     action: string;
     entityType: string;
     entityId: string;
@@ -1261,7 +1261,7 @@ export function buildHostServices(
     actor?: { actorAgentId?: string | null; actorUserId?: string | null; actorRunId?: string | null };
   }) => {
     await logActivity(db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: "plugin",
       actorId: pluginId,
       agentId: input.actor?.actorAgentId ?? null,
@@ -1273,7 +1273,7 @@ export function buildHostServices(
     });
   };
 
-  const collectIssueSubtreeIds = async (companyId: string, rootIssueId: string) => {
+  const collectIssueSubtreeIds = async (spaceId: string, rootIssueId: string) => {
     const seen = new Set<string>([rootIssueId]);
     let frontier = [rootIssueId];
 
@@ -1281,7 +1281,7 @@ export function buildHostServices(
       const children = await db
         .select({ id: issuesTable.id })
         .from(issuesTable)
-        .where(and(eq(issuesTable.companyId, companyId), inArray(issuesTable.parentId, frontier)));
+        .where(and(eq(issuesTable.spaceId, spaceId), inArray(issuesTable.parentId, frontier)));
       frontier = children.map((child) => child.id).filter((id) => !seen.has(id));
       for (const id of frontier) seen.add(id);
     }
@@ -1290,7 +1290,7 @@ export function buildHostServices(
   };
 
   const getIssueRunSummaries = async (
-    companyId: string,
+    spaceId: string,
     issueIds: string[],
     options: { activeOnly?: boolean } = {},
   ) => {
@@ -1313,7 +1313,7 @@ export function buildHostServices(
         createdAt: heartbeatRuns.createdAt,
       })
       .from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, companyId), inArray(issueIdExpr, issueIds), statusCondition))
+      .where(and(eq(heartbeatRuns.spaceId, spaceId), inArray(issueIdExpr, issueIds), statusCondition))
       .orderBy(desc(heartbeatRuns.createdAt))
       .limit(100);
 
@@ -1327,14 +1327,14 @@ export function buildHostServices(
 
   const setBlockedByWithActivity = async (params: {
     issueId: string;
-    companyId: string;
+    spaceId: string;
     blockedByIssueIds: string[];
     mutation: "set" | "add" | "remove";
     actorAgentId?: string | null;
     actorUserId?: string | null;
     actorRunId?: string | null;
   }) => {
-    const existing = requireInCompany("Issue", await issues.getById(params.issueId), params.companyId);
+    const existing = requireInSpace("Issue", await issues.getById(params.issueId), params.spaceId);
     const previous = await issues.getRelationSummaries(params.issueId);
     await issues.update(params.issueId, {
       blockedByIssueIds: params.blockedByIssueIds,
@@ -1343,7 +1343,7 @@ export function buildHostServices(
     } as any);
     const relations = await issues.getRelationSummaries(params.issueId);
     await logPluginActivity({
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       action: "issue.relations.updated",
       entityType: "issue",
       entityId: params.issueId,
@@ -1363,7 +1363,7 @@ export function buildHostServices(
   };
 
   const getIssueCostSummary = async (
-    companyId: string,
+    spaceId: string,
     issueIds: string[],
     billingCode?: string | null,
   ) => {
@@ -1389,7 +1389,7 @@ export function buildHostServices(
         outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::double precision`,
       })
       .from(costEvents)
-      .where(and(eq(costEvents.companyId, companyId), scopeCondition));
+      .where(and(eq(costEvents.spaceId, spaceId), scopeCondition));
 
     return {
       costCents: Number(row?.costCents ?? 0),
@@ -1400,7 +1400,7 @@ export function buildHostServices(
     };
   };
 
-  const getOpenBudgetIncidents = async (companyId: string) => {
+  const getOpenBudgetIncidents = async (spaceId: string) => {
     const rows = await db
       .select({
         id: budgetIncidents.id,
@@ -1416,7 +1416,7 @@ export function buildHostServices(
         createdAt: budgetIncidents.createdAt,
       })
       .from(budgetIncidents)
-      .where(and(eq(budgetIncidents.companyId, companyId), eq(budgetIncidents.status, "open")))
+      .where(and(eq(budgetIncidents.spaceId, spaceId), eq(budgetIncidents.status, "open")))
       .orderBy(desc(budgetIncidents.createdAt));
 
     return rows.map((row) => ({
@@ -1430,7 +1430,7 @@ export function buildHostServices(
   // in routes/access.ts. The token is public, so it must not be brute-forceable.
   const INVITE_TOKEN_ENTROPY_BYTES = 32;
   const INVITE_TOKEN_MAX_RETRIES = 5;
-  const COMPANY_INVITE_TTL_MS = 72 * 60 * 60 * 1000;
+  const SPACE_INVITE_TTL_MS = 72 * 60 * 60 * 1000;
 
   const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
@@ -1517,11 +1517,11 @@ export function buildHostServices(
     scope: grant.scope && typeof grant.scope === "object" ? sanitizeRecord(grant.scope) : grant.scope ?? null,
   });
 
-  const loadPluginMember = async (companyId: string, memberId: string) => {
-    const member = await access.getMemberById(companyId, memberId);
+  const loadPluginMember = async (spaceId: string, memberId: string) => {
+    const member = await access.getMemberById(spaceId, memberId);
     if (!member) return null;
     const grants = await access.listPrincipalGrants(
-      companyId,
+      spaceId,
       member.principalType as PrincipalType,
       member.principalId,
     );
@@ -1534,29 +1534,29 @@ export function buildHostServices(
   };
 
   const pluginAssignmentActor = (actor: {
-    type: "agent" | "board";
+    type: "agent" | "operator";
     agentId?: string | null;
-    companyId?: string | null;
+    spaceId?: string | null;
     userId?: string | null;
-    companyIds?: string[];
+    spaceIds?: string[];
   }): AuthorizationActor => {
     if (actor.type === "agent") {
       return {
         type: "agent",
         agentId: actor.agentId ?? null,
-        companyId: actor.companyId ?? null,
+        spaceId: actor.spaceId ?? null,
         source: "agent_key",
       };
     }
     return {
-      type: "board",
+      type: "operator",
       userId: actor.userId ?? null,
-      companyIds: Array.isArray(actor.companyIds) ? actor.companyIds : [],
+      spaceIds: Array.isArray(actor.spaceIds) ? actor.spaceIds : [],
       source: "session",
     };
   };
 
-  const policyPathForResource = (resourceType: "company" | "agent" | "project" | "issue") => {
+  const policyPathForResource = (resourceType: "space" | "agent" | "project" | "issue") => {
     switch (resourceType) {
       case "agent":
         return { table: "agent" as const };
@@ -1564,21 +1564,21 @@ export function buildHostServices(
         return { table: "project" as const };
       case "issue":
         return { table: "issue" as const };
-      case "company":
-        return { table: "company" as const };
+      case "space":
+        return { table: "space" as const };
     }
   };
 
-  const readAuthorizationPolicy = async (companyId: string, resourceType: "company" | "agent" | "project" | "issue", resourceId: string) => {
+  const readAuthorizationPolicy = async (spaceId: string, resourceType: "space" | "agent" | "project" | "issue", resourceId: string) => {
     const pathInfo = policyPathForResource(resourceType);
     if (pathInfo.table === "agent") {
       const agent = await agents.getById(resourceId);
-      if (!inCompany(agent, companyId)) return null;
+      if (!inSpace(agent, spaceId)) return null;
       const permissions = agent.permissions && typeof agent.permissions === "object" ? agent.permissions as Record<string, unknown> : {};
       return {
         resourceType,
         resourceId,
-        companyId,
+        spaceId,
         policy: permissions.authorizationPolicy && typeof permissions.authorizationPolicy === "object"
           ? sanitizeRecord(permissions.authorizationPolicy as Record<string, unknown>)
           : null,
@@ -1587,43 +1587,43 @@ export function buildHostServices(
     }
     if (pathInfo.table === "project") {
       const project = await projects.getById(resourceId);
-      if (!inCompany(project, companyId)) return null;
+      if (!inSpace(project, spaceId)) return null;
       const policy = project.executionWorkspacePolicy && typeof project.executionWorkspacePolicy === "object"
         ? (project.executionWorkspacePolicy as unknown as Record<string, unknown>).authorizationPolicy
         : null;
       return {
         resourceType,
         resourceId,
-        companyId,
+        spaceId,
         policy: policy && typeof policy === "object" ? sanitizeRecord(policy as Record<string, unknown>) : null,
         updatedAt: project.updatedAt,
       };
     }
     if (pathInfo.table === "issue") {
       const issue = await issues.getById(resourceId);
-      if (!inCompany(issue, companyId)) return null;
+      if (!inSpace(issue, spaceId)) return null;
       const policy = issue.executionPolicy && typeof issue.executionPolicy === "object"
         ? (issue.executionPolicy as Record<string, unknown>).authorizationPolicy
         : null;
       return {
         resourceType,
         resourceId,
-        companyId,
+        spaceId,
         policy: policy && typeof policy === "object" ? sanitizeRecord(policy as Record<string, unknown>) : null,
         updatedAt: issue.updatedAt,
       };
     }
-    const company = await companies.getById(resourceId);
-    if (!company || company.id !== companyId) return null;
-    return { resourceType, resourceId, companyId, policy: null, updatedAt: company.updatedAt };
+    const space = await spaces.getById(resourceId);
+    if (!space || space.id !== spaceId) return null;
+    return { resourceType, resourceId, spaceId, policy: null, updatedAt: space.updatedAt };
   };
 
   return {
     config: {
       async get(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const configRow = await registry.getConfig(pluginId, companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const configRow = await registry.getConfig(pluginId, spaceId);
         return configRow?.configJson ?? {};
       },
     },
@@ -1634,10 +1634,10 @@ export function buildHostServices(
       },
 
       async configure(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const declaration = getLocalFolderDeclaration(params.folderKey);
-        const existing = await registry.getCompanySettings(pluginId, companyId);
+        const existing = await registry.getSpaceSettings(pluginId, spaceId);
         const existingConfig = getStoredLocalFolders(existing?.settingsJson)[params.folderKey] ?? null;
         await preparePluginLocalFolder({
           folderKey: params.folderKey,
@@ -1662,7 +1662,7 @@ export function buildHostServices(
           requiredDirectories: status.requiredDirectories,
           requiredFiles: status.requiredFiles,
         });
-        await registry.upsertCompanySettings(pluginId, companyId, {
+        await registry.upsertSpaceSettings(pluginId, spaceId, {
           enabled: existing?.enabled ?? true,
           settingsJson: nextSettings,
           lastError: status.healthy ? null : status.problems.map((item: { message: string }) => item.message).join("; "),
@@ -1671,11 +1671,11 @@ export function buildHostServices(
       },
 
       async status(params) {
-        return inspectStoredLocalFolder(params.companyId, params.folderKey);
+        return inspectStoredLocalFolder(params.spaceId, params.folderKey);
       },
 
       async list(params) {
-        const status = await inspectStoredLocalFolder(params.companyId, params.folderKey);
+        const status = await inspectStoredLocalFolder(params.spaceId, params.folderKey);
         assertConfiguredLocalFolder(status);
         const listing = await listPluginLocalFolderEntries(status.realPath!, {
           relativePath: params.relativePath,
@@ -1686,30 +1686,30 @@ export function buildHostServices(
       },
 
       async readText(params) {
-        const status = await inspectStoredLocalFolder(params.companyId, params.folderKey);
+        const status = await inspectStoredLocalFolder(params.spaceId, params.folderKey);
         assertConfiguredLocalFolder(status);
         return readPluginLocalFolderText(status.realPath!, params.relativePath);
       },
 
       async writeTextAtomic(params) {
-        const companyId = ensureCompanyId(params.companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
         await preparePluginLocalFolder({
           folderKey: params.folderKey,
           declaration: getLocalFolderDeclaration(params.folderKey),
-          storedConfig: await getStoredLocalFolderConfig(companyId, params.folderKey),
+          storedConfig: await getStoredLocalFolderConfig(spaceId, params.folderKey),
         });
-        const status = await inspectStoredLocalFolder(companyId, params.folderKey);
+        const status = await inspectStoredLocalFolder(spaceId, params.folderKey);
         assertWritableConfiguredLocalFolder(status);
         await writePluginLocalFolderTextAtomic(status.realPath!, params.relativePath, params.contents);
-        return inspectStoredLocalFolder(companyId, params.folderKey);
+        return inspectStoredLocalFolder(spaceId, params.folderKey);
       },
 
       async deleteFile(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        const status = await inspectStoredLocalFolder(companyId, params.folderKey);
+        const spaceId = ensureSpaceId(params.spaceId);
+        const status = await inspectStoredLocalFolder(spaceId, params.folderKey);
         assertWritableConfiguredLocalFolder(status);
         await deletePluginLocalFolderFile(status.realPath!, params.relativePath, params.folderKey);
-        return inspectStoredLocalFolder(companyId, params.folderKey);
+        return inspectStoredLocalFolder(spaceId, params.folderKey);
       },
     },
 
@@ -1760,16 +1760,16 @@ export function buildHostServices(
 
     events: {
       async listLifecycle(params) {
-        return lifecycleInbox.list(ensureCompanyId(params.companyId), params.limit, params.afterId, options.manifest?.resourceLifecycle?.includes("agent_runtime") ? ["agent", "project", "agent_runtime"] : ["agent", "project"]);
+        return lifecycleInbox.list(ensureSpaceId(params.spaceId), params.limit, params.afterId, options.manifest?.resourceLifecycle?.includes("agent_runtime") ? ["agent", "project", "agent_runtime"] : ["agent", "project"]);
       },
       async acknowledgeLifecycle(params) {
-        await lifecycleInbox.acknowledge(ensureCompanyId(params.companyId), params.eventId);
+        await lifecycleInbox.acknowledge(ensureSpaceId(params.spaceId), params.eventId);
       },
       async emit(params) {
-        if (params.companyId) {
-          await ensurePluginAvailableForCompany(params.companyId);
+        if (params.spaceId) {
+          await ensurePluginAvailableForSpace(params.spaceId);
         }
-        await scopedBus.emit(params.name, params.companyId, params.payload);
+        await scopedBus.emit(params.name, params.spaceId, params.payload);
       },
       async subscribe(params: { eventPattern: string; filter?: Record<string, unknown> | null }) {
         const handler = async (event: import("@outpost/plugin-sdk").PluginEvent) => {
@@ -1805,18 +1805,18 @@ export function buildHostServices(
 
     secrets: {
       async resolve(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return secretsHandler.resolve({ ...params, companyId });
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return secretsHandler.resolve({ ...params, spaceId });
       },
     },
 
     activity: {
       async log(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         await logActivity(db, {
-          companyId,
+          spaceId,
           actorType: "plugin",
           actorId: pluginId,
           action: params.message,
@@ -1839,7 +1839,7 @@ export function buildHostServices(
         _logBuffer.push({
           db,
           pluginId,
-          companyId: params.companyId ?? null,
+          spaceId: params.spaceId ?? null,
           level: "metric",
           message: safeName,
           meta: sanitiseMeta({ value: params.value, tags: params.tags ?? null }),
@@ -1888,7 +1888,7 @@ export function buildHostServices(
         _logBuffer.push({
           db,
           pluginId,
-          companyId: params.companyId ?? null,
+          spaceId: params.spaceId ?? null,
           level: level ?? "info",
           message: safeMessage,
           meta: safeMeta,
@@ -1912,43 +1912,43 @@ export function buildHostServices(
       },
     },
 
-    companies: {
+    spaces: {
       async list(params) {
-        return applyWindow((await companies.list()) as Company[], params);
+        return applyWindow((await spaces.list()) as Space[], params);
       },
       async get(params) {
-        await ensurePluginAvailableForCompany(params.companyId);
-        return (await companies.getById(params.companyId)) as Company;
+        await ensurePluginAvailableForSpace(params.spaceId);
+        return (await spaces.getById(params.spaceId)) as Space;
       },
     },
 
     projects: {
       async resolveGitCredential(params, context) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         return projectGitAuthorizationService(db).resolve(params, context.invocationScope?.projectGit);
       },
       async getInstanceSecrets(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return projectInstanceSecretService(db, pluginId).read(companyId, params.projectId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return projectInstanceSecretService(db, pluginId).read(spaceId, params.projectId);
       },
       async list(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return applyWindow((await projects.list(companyId)) as Project[], params);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return applyWindow((await projects.list(spaceId)) as Project[], params);
       },
       async get(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const project = await projects.getById(params.projectId);
-        return (inCompany(project, companyId) ? project : null) as Project | null;
+        return (inSpace(project, spaceId) ? project : null) as Project | null;
       },
       async listWorkspaces(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const project = await projects.getById(params.projectId);
-        if (!inCompany(project, companyId)) return [];
+        if (!inSpace(project, spaceId)) return [];
         const rows = await projects.listWorkspaces(params.projectId);
         return rows.map((row) => {
           const path = sanitizeWorkspacePath(row.cwd);
@@ -1968,10 +1968,10 @@ export function buildHostServices(
         });
       },
       async getPrimaryWorkspace(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const project = await projects.getById(params.projectId);
-        if (!inCompany(project, companyId)) return null;
+        if (!inSpace(project, spaceId)) return null;
         const row = project.primaryWorkspace;
         const path = sanitizeWorkspacePath(project.codebase.effectiveLocalFolder);
         const name = sanitizeWorkspaceName(row?.name ?? project.name, path);
@@ -1990,14 +1990,14 @@ export function buildHostServices(
       },
 
       async getWorkspaceForIssue(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const issue = await issues.getById(params.issueId);
-        if (!inCompany(issue, companyId)) return null;
+        if (!inSpace(issue, spaceId)) return null;
         const projectId = (issue as Record<string, unknown>).projectId as string | null;
         if (!projectId) return null;
         const project = await projects.getById(projectId);
-        if (!inCompany(project, companyId)) return null;
+        if (!inSpace(project, spaceId)) return null;
         const row = project.primaryWorkspace;
         const path = sanitizeWorkspacePath(project.codebase.effectiveLocalFolder);
         const name = sanitizeWorkspaceName(row?.name ?? project.name, path);
@@ -2015,10 +2015,10 @@ export function buildHostServices(
         };
       },
       async getManaged(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         return projects.resolveManagedProject({
-          companyId,
+          spaceId,
           pluginId,
           pluginKey,
           projectKey: params.projectKey,
@@ -2026,20 +2026,20 @@ export function buildHostServices(
         });
       },
       async reconcileManaged(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         return projects.resolveManagedProject({
-          companyId,
+          spaceId,
           pluginId,
           pluginKey,
           projectKey: params.projectKey,
         });
       },
       async resetManaged(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         return projects.resolveManagedProject({
-          companyId,
+          spaceId,
           pluginId,
           pluginKey,
           projectKey: params.projectKey,
@@ -2050,10 +2050,10 @@ export function buildHostServices(
 
     executionWorkspaces: {
       async get(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const workspace = await executionWorkspaces.getById(params.workspaceId);
-        if (inCompany(workspace, companyId)) {
+        if (inSpace(workspace, spaceId)) {
           return toPluginExecutionWorkspaceMetadata(workspace);
         }
         return null;
@@ -2062,37 +2062,37 @@ export function buildHostServices(
 
     routines: {
       async managedGet(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return managedRoutines.get(params.routineKey, companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return managedRoutines.get(params.routineKey, spaceId);
       },
       async managedReconcile(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return managedRoutines.reconcile(params.routineKey, companyId, {
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return managedRoutines.reconcile(params.routineKey, spaceId, {
           assigneeAgentId: params.assigneeAgentId,
           projectId: params.projectId,
         });
       },
       async managedReset(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return managedRoutines.reset(params.routineKey, companyId, {
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return managedRoutines.reset(params.routineKey, spaceId, {
           assigneeAgentId: params.assigneeAgentId,
           projectId: params.projectId,
         });
       },
       async managedUpdate(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return managedRoutines.update(params.routineKey, companyId, {
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return managedRoutines.update(params.routineKey, spaceId, {
           status: params.status,
         });
       },
       async managedRun(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return managedRoutines.run(params.routineKey, companyId, {
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return managedRoutines.run(params.routineKey, spaceId, {
           assigneeAgentId: params.assigneeAgentId,
           projectId: params.projectId,
         });
@@ -2101,64 +2101,64 @@ export function buildHostServices(
 
     skills: {
       async managedGet(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return managedSkills.get(params.skillKey, companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return managedSkills.get(params.skillKey, spaceId);
       },
       async managedReconcile(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return managedSkills.reconcile(params.skillKey, companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return managedSkills.reconcile(params.skillKey, spaceId);
       },
       async managedReset(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return managedSkills.reset(params.skillKey, companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return managedSkills.reset(params.skillKey, spaceId);
       },
     },
 
     issues: {
       async list(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         assertReadableOriginFilter(params.originKind);
         // Push the non-member visibility predicate into the list query so private
         // issues are filtered at the SQL layer before they can reach a plugin.
         const readCondition = await issueReadSqlCondition(db, pluginIssuePrivacyActor);
         return applyWindow(
-          (await issues.list(companyId, { ...(params as any), readCondition })) as Issue[],
+          (await issues.list(spaceId, { ...(params as any), readCondition })) as Issue[],
           params,
         );
       },
       async get(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const issue = await issues.getById(params.issueId);
-        if (!inCompany(issue, companyId)) return null;
+        if (!inSpace(issue, spaceId)) return null;
         if (!(await pluginCanReadIssue(issue))) return null;
         return issue as Issue;
       },
       async create(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const { actorAgentId, actorUserId, actorRunId, originKind, surfaceVisibility, ...issueInput } = params;
         const normalizedOriginKind = normalizePluginOriginKind(
           surfaceVisibility === "plugin_operation" && !originKind
             ? pluginOperationIssueOriginKind(pluginKey)
             : originKind,
         );
-        if (issueInput.parentId) await requirePluginReadableIssue(issueInput.parentId, companyId);
+        if (issueInput.parentId) await requirePluginReadableIssue(issueInput.parentId, spaceId);
         const sourceRunId = params.originRunId ?? actorRunId;
         if (sourceRunId) {
           const [sourceRun] = await db.select().from(heartbeatRuns)
-            .where(and(eq(heartbeatRuns.id, sourceRunId), eq(heartbeatRuns.companyId, companyId)));
+            .where(and(eq(heartbeatRuns.id, sourceRunId), eq(heartbeatRuns.spaceId, spaceId)));
           if (!sourceRun) throw new Error("Origin run not found");
-          if (sourceRun.scopeKind !== "company") {
+          if (sourceRun.scopeKind !== "space") {
             if (!sourceRun.issueId) throw new Error("Origin run not found");
-            await requirePluginReadableIssue(sourceRun.issueId, companyId);
+            await requirePluginReadableIssue(sourceRun.issueId, spaceId);
           }
         }
-        const issue = (await issues.create(companyId, {
+        const issue = (await issues.create(spaceId, {
           ...(issueInput as any),
           originKind: normalizedOriginKind,
           originId: params.originId ?? null,
@@ -2169,7 +2169,7 @@ export function buildHostServices(
           trustExplicitResponsibleUserId: true,
         })) as Issue;
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: "issue.created",
           entityType: "issue",
           entityId: issue.id,
@@ -2186,10 +2186,10 @@ export function buildHostServices(
         return issue;
       },
       async update(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const existing = requireInCompany("Issue", await issues.getById(params.issueId), companyId);
-        await requirePluginReadableIssue(params.issueId, companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const existing = requireInSpace("Issue", await issues.getById(params.issueId), spaceId);
+        await requirePluginReadableIssue(params.issueId, spaceId);
         const patch = { ...(params.patch as Record<string, unknown>) };
         const actorAgentId = typeof patch.actorAgentId === "string" ? patch.actorAgentId : null;
         const actorUserId = typeof patch.actorUserId === "string" ? patch.actorUserId : null;
@@ -2206,7 +2206,7 @@ export function buildHostServices(
           actorUserId,
         })) as Issue;
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: "issue.updated",
           entityType: "issue",
           entityId: updated.id,
@@ -2224,23 +2224,23 @@ export function buildHostServices(
         return updated;
       },
       async getRelations(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         // Private root -> indistinguishable from missing; readable root ->
         // still redact any edge that points at an issue the plugin cannot read.
-        await requirePluginReadableIssue(params.issueId, companyId);
+        await requirePluginReadableIssue(params.issueId, spaceId);
         return await pluginRedactRelationSummary(
-          companyId,
+          spaceId,
           await issues.getRelationSummaries(params.issueId),
         );
       },
       async setBlockedBy(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         // The echoed relation summary can name a private blocker target, so
         // redact unreadable edges before returning it to a non-member plugin.
-        return pluginRedactRelationSummary(companyId, await setBlockedByWithActivity({
-          companyId,
+        return pluginRedactRelationSummary(spaceId, await setBlockedByWithActivity({
+          spaceId,
           issueId: params.issueId,
           blockedByIssueIds: params.blockedByIssueIds,
           mutation: "set",
@@ -2250,9 +2250,9 @@ export function buildHostServices(
         }));
       },
       async addBlockers(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        requireInCompany("Issue", await issues.getById(params.issueId), companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        requireInSpace("Issue", await issues.getById(params.issueId), spaceId);
         const previous = await issues.getRelationSummaries(params.issueId);
         const nextBlockedByIssueIds = [
           ...new Set([
@@ -2260,8 +2260,8 @@ export function buildHostServices(
             ...params.blockerIssueIds,
           ]),
         ];
-        return pluginRedactRelationSummary(companyId, await setBlockedByWithActivity({
-          companyId,
+        return pluginRedactRelationSummary(spaceId, await setBlockedByWithActivity({
+          spaceId,
           issueId: params.issueId,
           blockedByIssueIds: nextBlockedByIssueIds,
           mutation: "add",
@@ -2271,16 +2271,16 @@ export function buildHostServices(
         }));
       },
       async removeBlockers(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        requireInCompany("Issue", await issues.getById(params.issueId), companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        requireInSpace("Issue", await issues.getById(params.issueId), spaceId);
         const previous = await issues.getRelationSummaries(params.issueId);
         const removals = new Set(params.blockerIssueIds);
         const nextBlockedByIssueIds = previous.blockedBy
           .map((relation) => relation.id)
           .filter((issueId) => !removals.has(issueId));
-        return pluginRedactRelationSummary(companyId, await setBlockedByWithActivity({
-          companyId,
+        return pluginRedactRelationSummary(spaceId, await setBlockedByWithActivity({
+          spaceId,
           issueId: params.issueId,
           blockedByIssueIds: nextBlockedByIssueIds,
           mutation: "remove",
@@ -2290,9 +2290,9 @@ export function buildHostServices(
         }));
       },
       async assertCheckoutOwner(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        requireInCompany("Issue", await issues.getById(params.issueId), companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        requireInSpace("Issue", await issues.getById(params.issueId), spaceId);
         const ownership = await issues.assertCheckoutOwner(
           params.issueId,
           params.actorAgentId,
@@ -2300,7 +2300,7 @@ export function buildHostServices(
         );
         if (ownership.adoptedFromRunId) {
           await logPluginActivity({
-            companyId,
+            spaceId,
             action: "issue.checkout_lock_adopted",
             entityType: "issue",
             entityId: params.issueId,
@@ -2324,13 +2324,13 @@ export function buildHostServices(
         };
       },
       async getSubtree(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         // A private root is invisible to a non-member plugin: report not-found
         // rather than leak its existence or any descendant metadata.
-        const rootIssue = await requirePluginReadableIssue(params.issueId, companyId);
+        const rootIssue = await requirePluginReadableIssue(params.issueId, spaceId);
         const includeRoot = params.includeRoot !== false;
-        const subtreeIssueIds = await collectIssueSubtreeIds(companyId, rootIssue.id);
+        const subtreeIssueIds = await collectIssueSubtreeIds(spaceId, rootIssue.id);
         const candidateIssueIds = includeRoot
           ? subtreeIssueIds
           : subtreeIssueIds.filter((issueId) => issueId !== rootIssue.id);
@@ -2338,7 +2338,7 @@ export function buildHostServices(
           ? await db
             .select()
             .from(issuesTable)
-            .where(and(eq(issuesTable.companyId, companyId), inArray(issuesTable.id, candidateIssueIds)))
+            .where(and(eq(issuesTable.spaceId, spaceId), inArray(issuesTable.id, candidateIssueIds)))
           : [];
         // Filter private descendants BEFORE fetching any relations, documents,
         // runs, or assignees so private issue rows and their metadata never
@@ -2363,7 +2363,7 @@ export function buildHostServices(
           params.includeRelations
             ? Promise.all(issueIds.map(async (issueId) => [
               issueId,
-              await pluginRedactRelationSummary(companyId, await issues.getRelationSummaries(issueId)),
+              await pluginRedactRelationSummary(spaceId, await issues.getRelationSummaries(issueId)),
             ] as const))
             : Promise.resolve(null),
           params.includeDocuments
@@ -2382,7 +2382,7 @@ export function buildHostServices(
             )
             : Promise.resolve(null),
           params.includeActiveRuns
-            ? getIssueRunSummaries(companyId, issueIds, { activeOnly: true })
+            ? getIssueRunSummaries(spaceId, issueIds, { activeOnly: true })
             : Promise.resolve(null),
           params.includeAssignees && assigneeAgentIds.length > 0
             ? db
@@ -2394,7 +2394,7 @@ export function buildHostServices(
                 status: agentsTable.status,
               })
               .from(agentsTable)
-              .where(and(eq(agentsTable.companyId, companyId), inArray(agentsTable.id, assigneeAgentIds)))
+              .where(and(eq(agentsTable.spaceId, spaceId), inArray(agentsTable.id, assigneeAgentIds)))
             : Promise.resolve(params.includeAssignees ? [] : null),
         ]);
 
@@ -2407,7 +2407,7 @@ export function buildHostServices(
 
         return {
           rootIssueId: rootIssue.id,
-          companyId,
+          spaceId,
           issueIds,
           issues: outputIssues,
           ...(relationPairs ? { relations: Object.fromEntries(relationPairs) } : {}),
@@ -2424,9 +2424,9 @@ export function buildHostServices(
         };
       },
       async requestWakeup(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const issue = requireInCompany("Issue", await issues.getById(params.issueId), companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const issue = requireInSpace("Issue", await issues.getById(params.issueId), spaceId);
         if (!issue.assigneeAgentId) {
           throw new Error("Issue has no assigned agent to wake");
         }
@@ -2438,7 +2438,7 @@ export function buildHostServices(
         if (unresolvedBlockers.length > 0) {
           throw new Error("Issue is blocked by unresolved blockers");
         }
-        const budgetBlock = await budgets.getInvocationBlock(companyId, issue.assigneeAgentId, {
+        const budgetBlock = await budgets.getInvocationBlock(spaceId, issue.assigneeAgentId, {
           issueId: issue.id,
           projectId: issue.projectId,
         });
@@ -2470,7 +2470,7 @@ export function buildHostServices(
           },
         });
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: "issue.assignment_wakeup_requested",
           entityType: "issue",
           entityId: issue.id,
@@ -2490,11 +2490,11 @@ export function buildHostServices(
         return { queued: Boolean(run), runId: run?.id ?? null };
       },
       async requestWakeups(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const results = [];
         for (const issueId of [...new Set(params.issueIds)]) {
-          const issue = requireInCompany("Issue", await issues.getById(issueId), companyId);
+          const issue = requireInSpace("Issue", await issues.getById(issueId), spaceId);
           if (!issue.assigneeAgentId) {
             throw new Error("Issue has no assigned agent to wake");
           }
@@ -2506,7 +2506,7 @@ export function buildHostServices(
           if (unresolvedBlockers.length > 0) {
             throw new Error("Issue is blocked by unresolved blockers");
           }
-          const budgetBlock = await budgets.getInvocationBlock(companyId, issue.assigneeAgentId, {
+          const budgetBlock = await budgets.getInvocationBlock(spaceId, issue.assigneeAgentId, {
             issueId: issue.id,
             projectId: issue.projectId,
           });
@@ -2538,7 +2538,7 @@ export function buildHostServices(
             },
           });
           await logPluginActivity({
-            companyId,
+            spaceId,
             action: "issue.assignment_wakeup_requested",
             entityType: "issue",
             entityId: issue.id,
@@ -2560,17 +2560,17 @@ export function buildHostServices(
         return results;
       },
       async getOrchestrationSummary(params): Promise<PluginIssueOrchestrationSummary> {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         // A private root is invisible to a non-member plugin: report not-found
         // rather than leak its existence or any subtree relationship metadata.
-        const rootIssue = await requirePluginReadableIssue(params.issueId, companyId);
+        const rootIssue = await requirePluginReadableIssue(params.issueId, spaceId);
         const rawSubtreeIssueIds = params.includeSubtree
-          ? await collectIssueSubtreeIds(companyId, rootIssue.id)
+          ? await collectIssueSubtreeIds(spaceId, rootIssue.id)
           : [rootIssue.id];
         // Drop any private descendant the plugin may not read so its relations,
         // approvals, runs, costs, and budget blocks never enter the summary.
-        const readableSubtreeIds = await pluginReadableIssueIdsByIds(companyId, rawSubtreeIssueIds);
+        const readableSubtreeIds = await pluginReadableIssueIdsByIds(spaceId, rawSubtreeIssueIds);
         readableSubtreeIds.add(rootIssue.id);
         const subtreeIssueIds = rawSubtreeIssueIds.filter((id) => readableSubtreeIds.has(id));
         // Blocker edges can point at private issues outside the readable subtree
@@ -2581,7 +2581,7 @@ export function buildHostServices(
         const relationPairs = await Promise.all(
           subtreeIssueIds.map(async (issueId) => [
             issueId,
-            await pluginRedactRelationSummary(companyId, await issues.getRelationSummaries(issueId)),
+            await pluginRedactRelationSummary(spaceId, await issues.getRelationSummaries(issueId)),
           ] as const),
         );
         const approvalRows = (
@@ -2603,9 +2603,9 @@ export function buildHostServices(
           )
         ).flat();
         const [runs, costsSummary, openBudgetIncidents] = await Promise.all([
-          getIssueRunSummaries(companyId, subtreeIssueIds),
-          getIssueCostSummary(companyId, subtreeIssueIds, params.billingCode ?? rootIssue.billingCode ?? null),
-          getOpenBudgetIncidents(companyId),
+          getIssueRunSummaries(spaceId, subtreeIssueIds),
+          getIssueCostSummary(spaceId, subtreeIssueIds, params.billingCode ?? rootIssue.billingCode ?? null),
+          getOpenBudgetIncidents(spaceId),
         ]);
         const issueRows = await db
           .select({
@@ -2614,13 +2614,13 @@ export function buildHostServices(
             projectId: issuesTable.projectId,
           })
           .from(issuesTable)
-          .where(and(eq(issuesTable.companyId, companyId), inArray(issuesTable.id, subtreeIssueIds)));
+          .where(and(eq(issuesTable.spaceId, spaceId), inArray(issuesTable.id, subtreeIssueIds)));
         const invocationBlocks = (
           await Promise.all(
             issueRows
               .filter((issueRow) => issueRow.assigneeAgentId)
               .map(async (issueRow) => {
-                const block = await budgets.getInvocationBlock(companyId, issueRow.assigneeAgentId!, {
+                const block = await budgets.getInvocationBlock(spaceId, issueRow.assigneeAgentId!, {
                   issueId: issueRow.id,
                   projectId: issueRow.projectId,
                 });
@@ -2639,7 +2639,7 @@ export function buildHostServices(
         ).filter((block): block is NonNullable<typeof block> => block !== null);
         return {
           issueId: rootIssue.id,
-          companyId,
+          spaceId,
           subtreeIssueIds,
           relations: Object.fromEntries(relationPairs),
           approvals: approvalRows,
@@ -2650,20 +2650,20 @@ export function buildHostServices(
         };
       },
       async listComments(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const issue = await issues.getById(params.issueId);
-        if (!inCompany(issue, companyId)) return [];
+        if (!inSpace(issue, spaceId)) return [];
         // Comment visibility follows the ACL of the issue they were posted on.
         if (!(await pluginCanReadIssue(issue))) return [];
         return (await issues.listComments(params.issueId)) as IssueComment[];
       },
       async createComment(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const issue = requireInCompany("Issue", await issues.getById(params.issueId), companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const issue = requireInSpace("Issue", await issues.getById(params.issueId), spaceId);
         if (params.actorUserId) {
-          await requireActiveHumanMember(companyId, params.actorUserId);
+          await requireActiveHumanMember(spaceId, params.actorUserId);
         }
         const comment = (await issues.addComment(
           params.issueId,
@@ -2671,7 +2671,7 @@ export function buildHostServices(
           { agentId: params.actorUserId ? undefined : params.authorAgentId, userId: params.actorUserId },
         )) as IssueComment;
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: "issue.comment.created",
           entityType: "issue",
           entityId: issue.id,
@@ -2684,7 +2684,7 @@ export function buildHostServices(
         });
 
         // Human-attributed comments participate in the same "wake the
-        // assignee" behavior a board user's comment gets in the web app
+        // assignee" behavior a operator user's comment gets in the web app
         // (routes/issues.ts's addComment route) — a plugin's own
         // agent-attributed comments never do this. Deliberately narrower
         // than the HTTP route: no reopen/resume/interrupt/scheduled-retry
@@ -2745,14 +2745,14 @@ export function buildHostServices(
         return comment;
       },
       async createInteraction(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const issue = requireInCompany("Issue", await issues.getById(params.issueId), companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const issue = requireInSpace("Issue", await issues.getById(params.issueId), spaceId);
         const interaction = await issueThreadInteractionService(db).create(issue, params.interaction as CreateIssueThreadInteraction, {
           agentId: params.authorAgentId ?? null,
         });
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: "issue.thread_interaction_created",
           entityType: "issue",
           entityId: issue.id,
@@ -2768,30 +2768,30 @@ export function buildHostServices(
         return interaction as any;
       },
       async listInteractions(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const issue = await issues.getById(params.issueId);
-        if (!inCompany(issue, companyId)) return [];
+        if (!inSpace(issue, spaceId)) return [];
         // Interaction payloads follow the ACL of the issue they belong to; a
         // private issue yields no interactions to a non-member plugin.
         if (!(await pluginCanReadIssue(issue))) return [];
         return (await interactions.listForIssue(params.issueId)) as any;
       },
       async respondInteraction(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const issue = requireInCompany("Issue", await issues.getById(params.issueId), companyId);
-        // Resolving an interaction is a board-user action (the web app's
-        // interaction-resolve routes are board-only). The host re-verifies the
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const issue = requireInSpace("Issue", await issues.getById(params.issueId), spaceId);
+        // Resolving an interaction is a operator-user action (the web app's
+        // interaction-resolve routes are operator-only). The host re-verifies the
         // paired user is an active human member at apply time and never trusts
         // the plugin-supplied identity — matching the createComment bar.
         if (!params.actorUserId) {
-          throw new Error("actorUserId is required to respond to an interaction on behalf of a board user");
+          throw new Error("actorUserId is required to respond to an interaction on behalf of a operator user");
         }
-        await requireActiveHumanMember(companyId, params.actorUserId);
+        await requireActiveHumanMember(spaceId, params.actorUserId);
 
         const current = await interactions.getById(params.interactionId);
-        if (!current || current.issueId !== issue.id || current.companyId !== companyId) {
+        if (!current || current.issueId !== issue.id || current.spaceId !== spaceId) {
           throw new Error(`Interaction "${params.interactionId}" not found for this issue`);
         }
         // Idempotent replay: an already-resolved interaction converges without
@@ -2811,7 +2811,7 @@ export function buildHostServices(
           const result = await interactions.acceptInteraction(
             {
               id: issue.id,
-              companyId,
+              spaceId,
               projectId: issue.projectId ?? null,
               goalId: issue.goalId ?? null,
               status: issue.status,
@@ -2830,7 +2830,7 @@ export function buildHostServices(
           }
         } else {
           resolved = (await interactions.rejectInteraction(
-            { id: issue.id, companyId, status: issue.status },
+            { id: issue.id, spaceId, status: issue.status },
             params.interactionId,
             { reason: params.reason ?? undefined },
             actor,
@@ -2838,7 +2838,7 @@ export function buildHostServices(
         }
 
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: params.action === "accept"
             ? "issue.thread_interaction_accepted"
             : "issue.thread_interaction_rejected",
@@ -2863,20 +2863,20 @@ export function buildHostServices(
         return { interaction: resolved as any, applied: true };
       },
       async listAttachments(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const issue = await issues.getById(params.issueId);
-        if (!inCompany(issue, companyId)) return [];
+        if (!inSpace(issue, spaceId)) return [];
         if (!(await pluginCanReadIssue(issue))) return [];
         return (await issues.listAttachments(params.issueId)) as any;
       },
       async getAttachmentContent(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const attachment = await issues.getAttachmentById(params.attachmentId);
-        // Unknown and cross-company ids are deliberately indistinguishable to
-        // the plugin: both return null (no existence oracle across companies).
-        if (!attachment || attachment.companyId !== companyId) return null;
+        // Unknown and cross-space ids are deliberately indistinguishable to
+        // the plugin: both return null (no existence oracle across spaces).
+        if (!attachment || attachment.spaceId !== spaceId) return null;
         // A private issue's attachment content must not reach a non-member
         // plugin: gate on the parent issue's visibility, same null response.
         if (!(await pluginCanReadIssue(await issues.getById(attachment.issueId)))) return null;
@@ -2888,7 +2888,7 @@ export function buildHostServices(
           );
         }
 
-        const object = await getStorageService().getObject(attachment.companyId, attachment.objectKey);
+        const object = await getStorageService().getObject(attachment.spaceId, attachment.objectKey);
         const chunks: Buffer[] = [];
         let total = 0;
         for await (const chunk of object.stream) {
@@ -2905,7 +2905,7 @@ export function buildHostServices(
         const bytes = Buffer.concat(chunks);
 
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: "issue.attachment.read",
           entityType: "issue",
           entityId: attachment.issueId,
@@ -2929,41 +2929,41 @@ export function buildHostServices(
 
     approvals: {
       async list(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const rows = await approvalSvc.list(companyId, params.status ?? undefined);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const rows = await approvalSvc.list(spaceId, params.status ?? undefined);
         // Match the web app's approval read surface: payloads are redacted so
         // the chat bridge never receives secrets the web app itself hides.
         return rows.map((approval) => redactApprovalPayload(approval)) as any;
       },
       async get(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const approval = await approvalSvc.getById(params.approvalId);
-        if (!approval || approval.companyId !== companyId) return null;
+        if (!approval || approval.spaceId !== spaceId) return null;
         return redactApprovalPayload(approval) as any;
       },
       async decide(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const existing = await approvalSvc.getById(params.approvalId);
-        if (!existing || existing.companyId !== companyId) {
+        if (!existing || existing.spaceId !== spaceId) {
           throw new Error(`Approval "${params.approvalId}" not found`);
         }
-        // Deciding an approval is a board-user action (the web app's approval
-        // decision routes are board-only). Re-verify active membership at apply
+        // Deciding an approval is a operator-user action (the web app's approval
+        // decision routes are operator-only). Re-verify active membership at apply
         // time; never trust the plugin-supplied identity.
         if (!params.actorUserId) {
-          throw new Error("actorUserId is required to decide an approval on behalf of a board user");
+          throw new Error("actorUserId is required to decide an approval on behalf of a operator user");
         }
-        await requireActiveHumanMember(companyId, params.actorUserId);
+        await requireActiveHumanMember(spaceId, params.actorUserId);
 
         const { approval, applied } = params.action === "approve"
           ? await approvalSvc.approve(params.approvalId, params.actorUserId, params.decisionNote ?? null)
           : await approvalSvc.reject(params.approvalId, params.actorUserId, params.decisionNote ?? null);
 
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: params.action === "approve" ? "approval.approved" : "approval.rejected",
           entityType: "approval",
           entityId: approval.id,
@@ -3008,24 +3008,24 @@ export function buildHostServices(
 
     issueDocuments: {
       async list(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         // Document bodies follow the issue ACL; a private issue is not-found.
-        await requirePluginReadableIssue(params.issueId, companyId);
+        await requirePluginReadableIssue(params.issueId, spaceId);
         const rows = await documents.listIssueDocuments(params.issueId);
         return rows as any;
       },
       async get(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        await requirePluginReadableIssue(params.issueId, companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        await requirePluginReadableIssue(params.issueId, spaceId);
         const doc = await documents.getIssueDocumentByKey(params.issueId, params.key);
         return (doc ?? null) as any;
       },
       async upsert(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const issue = requireInCompany("Issue", await issues.getById(params.issueId), companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const issue = requireInSpace("Issue", await issues.getById(params.issueId), spaceId);
         const result = await documents.upsertIssueDocument({
           issueId: params.issueId,
           key: params.key,
@@ -3035,7 +3035,7 @@ export function buildHostServices(
           changeSummary: params.changeSummary ?? null,
         });
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: "issue.document_upserted",
           entityType: "issue",
           entityId: issue.id,
@@ -3049,12 +3049,12 @@ export function buildHostServices(
         return result.document as any;
       },
       async delete(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const issue = requireInCompany("Issue", await issues.getById(params.issueId), companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const issue = requireInSpace("Issue", await issues.getById(params.issueId), spaceId);
         await documents.deleteIssueDocument(params.issueId, params.key);
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: "issue.document_deleted",
           entityType: "issue",
           entityId: issue.id,
@@ -3068,51 +3068,51 @@ export function buildHostServices(
 
     agents: {
       async getRuntimeIdentity(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return pluginAgentRuntimeIdentity(db, pluginId, companyId, params.agentId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return pluginAgentRuntimeIdentity(db, pluginId, spaceId, params.agentId);
       },
       async getRuntime(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return pluginAgentRuntimeState(db, pluginId, companyId, params.agentId, params.environmentId, params.installEnvironmentSkills);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return pluginAgentRuntimeState(db, pluginId, spaceId, params.agentId, params.environmentId, params.installEnvironmentSkills);
       },
       async list(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const rows = await agents.list(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const rows = await agents.list(spaceId);
         return applyWindow(
           rows.filter((agent) => !params.status || agent.status === params.status) as Agent[],
           params,
         );
       },
       async get(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const agent = await agents.getById(params.agentId);
-        return (inCompany(agent, companyId) ? agent : null) as Agent | null;
+        return (inSpace(agent, spaceId) ? agent : null) as Agent | null;
       },
       async pause(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const agent = await agents.getById(params.agentId);
-        requireInCompany("Agent", agent, companyId);
+        requireInSpace("Agent", agent, spaceId);
         return (await agentsLifecycle.pauseAgent(params.agentId)) as Agent;
       },
       async resume(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const agent = await agents.getById(params.agentId);
-        requireInCompany("Agent", agent, companyId);
+        requireInSpace("Agent", agent, spaceId);
         return (await agentsLifecycle.resumeAgent(params.agentId)) as Agent;
       },
       async invoke(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const agent = await agents.getById(params.agentId);
-        requireInCompany("Agent", agent, companyId);
+        requireInSpace("Agent", agent, spaceId);
         const origin = currentPluginInteractionOrigin();
-        await assertAgentInteraction(db, { companyId, actorAgentId: origin?.agentId,
+        await assertAgentInteraction(db, { spaceId, actorAgentId: origin?.agentId,
           operation: "assign", targetAgentId: params.agentId, texts: params.prompt ? [params.prompt] : [] });
         const run = await heartbeat.wakeup(params.agentId, {
           source: "automation",
@@ -3121,7 +3121,7 @@ export function buildHostServices(
           payload: { prompt: params.prompt },
           contextSnapshot: {
             wakeReason: params.reason ?? null,
-            paperclipAgentMessage: {
+            outpostAgentMessage: {
               text: params.prompt,
               source: "plugin_invoke",
               pluginKey,
@@ -3134,27 +3134,27 @@ export function buildHostServices(
         return { runId: run.id };
       },
       async managedGet(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return managedAgents.get(params.agentKey, companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return managedAgents.get(params.agentKey, spaceId);
       },
       async managedReconcile(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return managedAgents.reconcile(params.agentKey, companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return managedAgents.reconcile(params.agentKey, spaceId);
       },
       async managedReset(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return managedAgents.reset(params.agentKey, companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return managedAgents.reset(params.agentKey, spaceId);
       },
     },
 
     goals: {
       async list(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const rows = await goals.list(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const rows = await goals.list(spaceId);
         return applyWindow(
           rows.filter((goal) =>
             (!params.level || goal.level === params.level) &&
@@ -3164,15 +3164,15 @@ export function buildHostServices(
         );
       },
       async get(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const goal = await goals.getById(params.goalId);
-        return (inCompany(goal, companyId) ? goal : null) as Goal | null;
+        return (inSpace(goal, spaceId) ? goal : null) as Goal | null;
       },
       async create(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return (await goals.create(companyId, {
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return (await goals.create(spaceId, {
           title: params.title,
           description: params.description,
           level: params.level as any,
@@ -3182,23 +3182,23 @@ export function buildHostServices(
         })) as Goal;
       },
       async update(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        requireInCompany("North Star", await goals.getById(params.goalId), companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        requireInSpace("North Star", await goals.getById(params.goalId), spaceId);
         return (await goals.update(params.goalId, params.patch as any)) as Goal;
       },
     },
 
     access: {
       async listMembers(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const rows = await access.listMembers(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const rows = await access.listMembers(spaceId);
         const visibleRows = params.includeArchived ? rows : rows.filter((row) => row.status !== "archived");
         const grants = await db
           .select()
           .from(principalPermissionGrants)
-          .where(eq(principalPermissionGrants.companyId, companyId));
+          .where(eq(principalPermissionGrants.spaceId, spaceId));
         const grantsByPrincipal = new Map<string, typeof grants>();
         for (const grant of grants) {
           const key = `${grant.principalType}:${grant.principalId}`;
@@ -3214,36 +3214,36 @@ export function buildHostServices(
         }));
       },
       async getMember(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return loadPluginMember(companyId, params.memberId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return loadPluginMember(spaceId, params.memberId);
       },
       async updateMember(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        const updated = await access.updateMember(companyId, params.memberId, params.patch);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        const updated = await access.updateMember(spaceId, params.memberId, params.patch);
         if (!updated) throw new Error("Member not found");
         await logPluginActivity({
-          companyId,
-          action: "company_member.updated_by_plugin",
-          entityType: "company_membership",
+          spaceId,
+          action: "space_member.updated_by_plugin",
+          entityType: "space_membership",
           entityId: params.memberId,
           details: {
             patch: sanitizeRecord(params.patch as Record<string, unknown>),
           },
         });
-        return (await loadPluginMember(companyId, params.memberId))!;
+        return (await loadPluginMember(spaceId, params.memberId))!;
       },
       async listInvites(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const limit = Math.min(Math.max(Number(params.limit ?? 20), 1), 100);
         const offset = Math.max(Number(params.offset ?? 0), 0);
         const stateClause = inviteStateWhereClause(params.state);
         const rows = await db
           .select()
           .from(invites)
-          .where(stateClause ? and(eq(invites.companyId, companyId), stateClause) : eq(invites.companyId, companyId))
+          .where(stateClause ? and(eq(invites.spaceId, spaceId), stateClause) : eq(invites.spaceId, spaceId))
           .orderBy(desc(invites.createdAt))
           .limit(limit + 1)
           .offset(offset);
@@ -3254,19 +3254,19 @@ export function buildHostServices(
         };
       },
       async createInvite(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const normalizedAgentMessage = typeof params.agentMessage === "string"
           ? params.agentMessage.trim() || null
           : null;
         const allowedJoinTypes = params.allowedJoinTypes ?? "both";
         const humanRole = allowedJoinTypes === "agent" ? null : params.humanRole ?? "operator";
         const insertValues = {
-          companyId,
-          inviteType: "company_join" as const,
+          spaceId,
+          inviteType: "space_join" as const,
           allowedJoinTypes,
           defaultsPayload: mergeInviteDefaults(params.defaultsPayload ?? null, normalizedAgentMessage, humanRole),
-          expiresAt: new Date(Date.now() + COMPANY_INVITE_TTL_MS),
+          expiresAt: new Date(Date.now() + SPACE_INVITE_TTL_MS),
           invitedByUserId: null,
         };
         let token: string | null = null;
@@ -3290,7 +3290,7 @@ export function buildHostServices(
         }
         if (!token || !created) throw new Error("Failed to generate a unique invite token");
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: "invite.created_by_plugin",
           entityType: "invite",
           entityId: created.id,
@@ -3303,12 +3303,12 @@ export function buildHostServices(
         return { ...redactInvite(created), token };
       },
       async revokeInvite(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const invite = await db
           .select()
           .from(invites)
-          .where(and(eq(invites.id, params.inviteId), eq(invites.companyId, companyId)))
+          .where(and(eq(invites.id, params.inviteId), eq(invites.spaceId, spaceId)))
           .then((rows) => rows[0] ?? null);
         if (!invite) throw new Error("Invite not found");
         if (invite.acceptedAt) throw new Error("Invite already consumed");
@@ -3320,7 +3320,7 @@ export function buildHostServices(
           .returning()
           .then((rows) => rows[0] ?? invite);
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: "invite.revoked_by_plugin",
           entityType: "invite",
           entityId: invite.id,
@@ -3331,10 +3331,10 @@ export function buildHostServices(
 
     authorization: {
       async listGrants(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const conditions = [
-          eq(principalPermissionGrants.companyId, companyId),
+          eq(principalPermissionGrants.spaceId, spaceId),
           params.principalType ? eq(principalPermissionGrants.principalType, params.principalType) : undefined,
           params.principalId ? eq(principalPermissionGrants.principalId, params.principalId) : undefined,
         ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition));
@@ -3346,19 +3346,19 @@ export function buildHostServices(
         return rows.map(redactGrant);
       },
       async setGrants(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         if (params.principalType !== "agent" && params.principalType !== "user") {
           throw new Error("principalType must be 'agent' or 'user'");
         }
         if (params.principalType === "agent") {
-          requireInCompany("Agent", await agents.getById(params.principalId), companyId);
+          requireInSpace("Agent", await agents.getById(params.principalId), spaceId);
         } else {
-          const membership = await access.getMembership(companyId, params.principalType as PrincipalType, params.principalId);
-          if (!membership) throw new Error("Principal is not a member of this company");
+          const membership = await access.getMembership(spaceId, params.principalType as PrincipalType, params.principalId);
+          if (!membership) throw new Error("Principal is not a member of this space");
         }
         await access.setPrincipalGrants(
-          companyId,
+          spaceId,
           params.principalType as PrincipalType,
           params.principalId,
           params.grants.map((grant) => ({
@@ -3368,28 +3368,28 @@ export function buildHostServices(
           params.grantedByUserId ?? null,
         );
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: "authorization.grants_updated_by_plugin",
           entityType: "principal_permission_grants",
           entityId: `${params.principalType}:${params.principalId}`,
           details: { grantCount: params.grants.length },
         });
         return access
-          .listPrincipalGrants(companyId, params.principalType as PrincipalType, params.principalId)
+          .listPrincipalGrants(spaceId, params.principalType as PrincipalType, params.principalId)
           .then((rows) => rows.map(redactGrant));
       },
       async policySummary(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const [members, grants] = await Promise.all([
-          access.listMembers(companyId),
+          access.listMembers(spaceId),
           db
             .select({ id: principalPermissionGrants.id })
             .from(principalPermissionGrants)
-            .where(eq(principalPermissionGrants.companyId, companyId)),
+            .where(eq(principalPermissionGrants.spaceId, spaceId)),
         ]);
         return {
-          companyId,
+          spaceId,
           permissionsMode: "simple" as const,
           memberCount: members.length,
           activeMemberCount: members.filter((member) => member.status === "active").length,
@@ -3398,18 +3398,18 @@ export function buildHostServices(
         };
       },
       async getPolicy(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
-        return readAuthorizationPolicy(companyId, params.resourceType, params.resourceId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
+        return readAuthorizationPolicy(spaceId, params.resourceType, params.resourceId);
       },
       async updatePolicy(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const policy = params.policy ? sanitizeRecord(params.policy) : null;
         if (params.resourceType === "agent") {
-          const agent = requireInCompany("Agent", await agents.getById(params.resourceId), companyId);
+          const agent = requireInSpace("Agent", await agents.getById(params.resourceId), spaceId);
           await db.transaction(async tx => {
-            await assertAgentInteraction(tx, { companyId, operation: "configure", targetAgentId: agent.id, lock: "update" });
+            await assertAgentInteraction(tx, { spaceId, operation: "configure", targetAgentId: agent.id, lock: "update" });
             await tx.update(agentsTable)
               .set({ permissions: policy
                 ? sql`jsonb_set(${agentsTable.permissions}, '{authorizationPolicy}', ${JSON.stringify(policy)}::jsonb)`
@@ -3417,7 +3417,7 @@ export function buildHostServices(
               .where(eq(agentsTable.id, agent.id));
           });
         } else if (params.resourceType === "project") {
-          const project = requireInCompany("Project", await projects.getById(params.resourceId), companyId);
+          const project = requireInSpace("Project", await projects.getById(params.resourceId), spaceId);
           const executionWorkspacePolicy = project.executionWorkspacePolicy && typeof project.executionWorkspacePolicy === "object"
             ? { ...(project.executionWorkspacePolicy as unknown as Record<string, unknown>) }
             : {};
@@ -3430,39 +3430,39 @@ export function buildHostServices(
         } else if (params.resourceType === "issue") {
           await db.transaction(async tx => {
             const [locked] = await tx.select().from(issuesTable).where(and(
-              eq(issuesTable.id, params.resourceId), eq(issuesTable.companyId, companyId))).for("update");
-            const issue = requireInCompany("Issue", locked ?? null, companyId);
-            await assertAgentInteraction(tx, { companyId, operation: "edit", issueId: issue.id, lock: true });
+              eq(issuesTable.id, params.resourceId), eq(issuesTable.spaceId, spaceId))).for("update");
+            const issue = requireInSpace("Issue", locked ?? null, spaceId);
+            await assertAgentInteraction(tx, { spaceId, operation: "edit", issueId: issue.id, lock: true });
             const executionPolicy = issue.executionPolicy && typeof issue.executionPolicy === "object"
               ? { ...(issue.executionPolicy as Record<string, unknown>) } : {};
             if (policy) executionPolicy.authorizationPolicy = policy;
             else delete executionPolicy.authorizationPolicy;
             await tx.update(issuesTable).set({ executionPolicy, updatedAt: new Date() })
-              .where(and(eq(issuesTable.id, issue.id), eq(issuesTable.companyId, companyId)));
+              .where(and(eq(issuesTable.id, issue.id), eq(issuesTable.spaceId, spaceId)));
           });
         } else {
-          const company = await companies.getById(params.resourceId);
-          if (!company || company.id !== companyId) throw new Error("Outpost not found");
+          const space = await spaces.getById(params.resourceId);
+          if (!space || space.id !== spaceId) throw new Error("Outpost not found");
           throw new Error("Outpost authorization policy updates are not supported by the current core schema");
         }
         await logPluginActivity({
-          companyId,
+          spaceId,
           action: "authorization.policy_updated_by_plugin",
           entityType: params.resourceType,
           entityId: params.resourceId,
           details: { hasPolicy: Boolean(policy) },
         });
-        const updated = await readAuthorizationPolicy(companyId, params.resourceType, params.resourceId);
+        const updated = await readAuthorizationPolicy(spaceId, params.resourceType, params.resourceId);
         if (!updated) throw new Error("Policy resource not found");
         return updated;
       },
       async previewAssignment(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         return authorization.decide({
           actor: pluginAssignmentActor(params.actor),
           action: "tasks:assign",
-          resource: { type: "issue", companyId, ...params.target },
+          resource: { type: "issue", spaceId, ...params.target },
           scope: {
             issueId: params.target.issueId ?? null,
             projectId: params.target.projectId ?? null,
@@ -3473,12 +3473,12 @@ export function buildHostServices(
         });
       },
       async explainAssignment(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         return authorization.decide({
           actor: pluginAssignmentActor(params.actor),
           action: "tasks:assign",
-          resource: { type: "issue", companyId, ...params.target },
+          resource: { type: "issue", spaceId, ...params.target },
           scope: {
             issueId: params.target.issueId ?? null,
             projectId: params.target.projectId ?? null,
@@ -3489,15 +3489,15 @@ export function buildHostServices(
         });
       },
       async searchAudit(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const limit = Math.min(Math.max(Number(params.limit ?? 50), 1), 100);
         const offset = Math.max(Number(params.offset ?? 0), 0);
         const decisionFilter = typeof params.decision === "string" && params.decision.trim()
           ? params.decision.trim().toLowerCase()
           : null;
         const conditions = [
-          eq(activityLog.companyId, companyId),
+          eq(activityLog.spaceId, spaceId),
           params.action ? eq(activityLog.action, params.action) : undefined,
           params.actorType ? eq(activityLog.actorType, params.actorType) : undefined,
           params.actorId ? eq(activityLog.actorId, params.actorId) : undefined,
@@ -3523,16 +3523,16 @@ export function buildHostServices(
 
     agentSessions: {
       async create(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const agent = await agents.getById(params.agentId);
-        requireInCompany("Agent", agent, companyId);
+        requireInSpace("Agent", agent, spaceId);
         const taskKey = params.taskKey ?? `plugin:${pluginKey}:session:${randomUUID()}`;
 
         const row = await db
           .insert(agentTaskSessionsTable)
           .values({
-            companyId,
+            spaceId,
             agentId: params.agentId,
             adapterType: agent!.adapterType,
             taskKey,
@@ -3547,22 +3547,22 @@ export function buildHostServices(
         return {
           sessionId: row!.id,
           agentId: params.agentId,
-          companyId,
+          spaceId,
           status: "active" as const,
           createdAt: row!.createdAt.toISOString(),
         };
       },
 
       async list(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const rows = await db
           .select()
           .from(agentTaskSessionsTable)
           .where(
             and(
               eq(agentTaskSessionsTable.agentId, params.agentId),
-              eq(agentTaskSessionsTable.companyId, companyId),
+              eq(agentTaskSessionsTable.spaceId, spaceId),
               like(agentTaskSessionsTable.taskKey, `plugin:${pluginKey}:session:%`),
             ),
           )
@@ -3571,7 +3571,7 @@ export function buildHostServices(
         return rows.map((row) => ({
           sessionId: row.id,
           agentId: row.agentId,
-          companyId: row.companyId,
+          spaceId: row.spaceId,
           status: "active" as const,
           createdAt: row.createdAt.toISOString(),
         }));
@@ -3582,8 +3582,8 @@ export function buildHostServices(
           throw new Error("Host services have been disposed");
         }
 
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
 
         // Verify session exists and belongs to this plugin
         const session = await db
@@ -3592,7 +3592,7 @@ export function buildHostServices(
           .where(
             and(
               eq(agentTaskSessionsTable.id, params.sessionId),
-              eq(agentTaskSessionsTable.companyId, companyId),
+              eq(agentTaskSessionsTable.spaceId, spaceId),
               like(agentTaskSessionsTable.taskKey, `plugin:${pluginKey}:session:%`),
             ),
           )
@@ -3609,7 +3609,7 @@ export function buildHostServices(
             wakeReason: params.reason ?? null,
             wakeSource: "automation",
             wakeTriggerDetail: "system",
-            paperclipAgentMessage: {
+            outpostAgentMessage: {
               text: params.prompt,
               source: "plugin_session",
               pluginKey,
@@ -3698,7 +3698,7 @@ export function buildHostServices(
               failDelivery();
             },
           });
-          const unsubscribe = subscribeCompanyLiveEvents(companyId, event => {
+          const unsubscribe = subscribeSpaceLiveEvents(spaceId, event => {
             if (event.payload.runId === run.id &&
                 ["heartbeat.run.log", "heartbeat.run.event", "heartbeat.run.status"].includes(event.type)) delivery.enqueue(event);
           });
@@ -3722,14 +3722,14 @@ export function buildHostServices(
       },
 
       async close(params) {
-        const companyId = ensureCompanyId(params.companyId);
-        await ensurePluginAvailableForCompany(companyId);
+        const spaceId = ensureSpaceId(params.spaceId);
+        await ensurePluginAvailableForSpace(spaceId);
         const deleted = await db
           .delete(agentTaskSessionsTable)
           .where(
             and(
               eq(agentTaskSessionsTable.id, params.sessionId),
-              eq(agentTaskSessionsTable.companyId, companyId),
+              eq(agentTaskSessionsTable.spaceId, spaceId),
               like(agentTaskSessionsTable.taskKey, `plugin:${pluginKey}:session:%`),
             ),
           )

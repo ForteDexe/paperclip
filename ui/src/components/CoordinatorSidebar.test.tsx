@@ -13,7 +13,7 @@ import { queryKeys } from "@/lib/queryKeys";
 const fixture = vi.hoisted(() => ({ attention: vi.fn(), summary: vi.fn(), openNewIssue: vi.fn(), pathname: "/COO/issues", collapsed: false, userId: "reviewer", chats: [] as Array<{ isUnreadForMe: boolean }>,
   recentTasks: [] as Array<Record<string, unknown>>, projects: [] as Array<Record<string, unknown>>, projectTasks: vi.fn(), enableCases: false, agents: [] as Agent[] }));
 vi.mock("@/hooks/useAgentChatNavigation", () => ({ useAgentChatNavigation: () => ({
-  companyId: "company", userId: fixture.userId, agents: { data: fixture.agents }, chats: { data: fixture.chats }, session: { isSuccess: true },
+  spaceId: "space", userId: fixture.userId, agents: { data: fixture.agents }, chats: { data: fixture.chats }, session: { isSuccess: true },
 }) }));
 vi.mock("@/hooks/useRecentTasks", () => ({ useRecentTasks: () => ({ entries: fixture.recentTasks }) }));
 vi.mock("@/api/issues", () => ({ issuesApi: { listCompact: fixture.projectTasks } }));
@@ -27,7 +27,7 @@ vi.mock("@/context/SidebarContext", () => ({ useSidebar: () => ({ collapsed: fix
 vi.mock("@/api/attention", () => ({ attentionApi: { list: fixture.attention, summary: fixture.summary } }));
 vi.mock("@/api/instanceSettings", () => ({ instanceSettingsApi: { getExperimental: async () => ({ enableCases: fixture.enableCases }) } }));
 vi.mock("@/api/projects", () => ({ projectsApi: { list: async () => fixture.projects } }));
-vi.mock("./SidebarCompanyMenu", () => ({ SidebarCompanyMenu: () => null }));
+vi.mock("./SidebarSpaceMenu", () => ({ SidebarSpaceMenu: () => null }));
 vi.mock("@/lib/router", () => ({
   useLocation: () => ({ pathname: fixture.pathname, search: "" }),
   Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => <a href={to} {...props}>{children}</a>,
@@ -39,7 +39,7 @@ vi.mock("@/lib/router", () => ({
 const pending = (id: string) => ({ id, sourceKind: "issue_thread_interaction", subject: { id, kind: "interaction", status: "pending" },
   createdAt: "2026-10-20T12:00:00Z", activityAt: "2026-10-20T12:00:00Z" }) as AttentionItem;
 function feed(items: AttentionItem[]): AttentionFeed {
-  return { companyId: "company", generatedAt: "2026-10-27T12:00:00Z", totalCount: items.length, deskBadgeCount: 0,
+  return { spaceId: "space", generatedAt: "2026-10-27T12:00:00Z", totalCount: items.length, deskBadgeCount: 0,
     nextCursor: null, countsBySourceKind: {} as AttentionFeed["countsBySourceKind"], items };
 }
 
@@ -60,7 +60,7 @@ beforeEach(() => {
 describe("Coordinator task creation", () => {
   it("keeps every recent entry below the section header instead of truncating at twelve", async () => {
     fixture.recentTasks = Array.from({ length: 20 }, (_, index) => ({
-      id: `task-${index}`, companyId: "company", identifier: `TASK-${index}`, title: `Recent task ${index}`, status: "todo", recordedAt: index,
+      id: `task-${index}`, spaceId: "space", identifier: `TASK-${index}`, title: `Recent task ${index}`, status: "todo", recordedAt: index,
     }));
     await renderSidebar();
     const region = container.querySelector('[role="region"][aria-label="Recents"]')!;
@@ -96,15 +96,15 @@ describe("Coordinator task creation", () => {
 
 describe("Coordinator pinned pages", () => {
   it("matches pinned and recent agent avatar dimensions to task status icons", async () => {
-    fixture.agents = [{ id: "cto", companyId: "company", name: "CTO", urlKey: "cto", role: "cto", status: "idle" } as Agent];
-    const chat = { id: "chat-cto", conversationAgentId: "cto", updatedAt: "2026-11-11T12:00:00Z", isUnreadForMe: false };
+    fixture.agents = [{ id: "engineering_lead", spaceId: "space", name: "Engineering Lead", urlKey: "engineering_lead", role: "engineering_lead", status: "idle" } as Agent];
+    const chat = { id: "chat-engineering_lead", conversationAgentId: "engineering_lead", updatedAt: "2026-11-11T12:00:00Z", isUnreadForMe: false };
     fixture.chats = [chat];
-    fixture.recentTasks = [{ id: "task", companyId: "company", identifier: "TASK-1", title: "Recent task", status: "todo", recordedAt: 1 }];
-    localStorage.setItem("outpost.coordinator.pinned-nav.v1:reviewer", JSON.stringify(["agent-chat:company:cto"]));
+    fixture.recentTasks = [{ id: "task", spaceId: "space", identifier: "TASK-1", title: "Recent task", status: "todo", recordedAt: 1 }];
+    localStorage.setItem("outpost.coordinator.pinned-nav.v1:reviewer", JSON.stringify(["agent-chat:space:engineering_lead"]));
 
     await renderSidebar();
 
-    const avatars = [...container.querySelectorAll<HTMLImageElement>('a[href="/chats/cto"] [data-slot="agent-avatar"] img')];
+    const avatars = [...container.querySelectorAll<HTMLImageElement>('a[href="/chats/engineering_lead"] [data-slot="agent-avatar"] img')];
     const taskIcon = container.querySelector('a[href="/issues/TASK-1"] [data-slot="sidebar-nav-icon"] svg');
     expect(avatars).toHaveLength(2);
     expect(taskIcon).not.toBeNull();
@@ -118,8 +118,8 @@ describe("Coordinator pinned pages", () => {
     }
   });
   it("builds hundreds of agent pins with input reads proportional to list size", () => {
-    const agents = Array.from({ length: 500 }, (_, index) => ({ id: `agent-${index}`, companyId: "company", name: `Agent ${index}`, urlKey: `agent-${index}` } as Agent));
-    const pins = agents.map(agent => `agent-chat:company:${agent.id}`).reverse();
+    const agents = Array.from({ length: 500 }, (_, index) => ({ id: `agent-${index}`, spaceId: "space", name: `Agent ${index}`, urlKey: `agent-${index}` } as Agent));
+    const pins = agents.map(agent => `agent-chat:space:${agent.id}`).reverse();
     let reads = 0;
     function bounded<T>(items: T[]) {
       return new Proxy(items, { get(target, property, receiver) {
@@ -133,12 +133,12 @@ describe("Coordinator pinned pages", () => {
     expect(items[0].to).toBe("/chats/agent-499");
   });
   it("keeps mixed pins above More in stored order and prevents native link dragging", async () => {
-    fixture.agents = [{ id: "cto", companyId: "company", name: "CTO", urlKey: "cto", role: "cto", status: "idle" } as Agent];
-    const saved = ["agent-chat:company:cto", "agent-chat:another-company:hidden", "/artifacts", "/dashboard"];
+    fixture.agents = [{ id: "engineering_lead", spaceId: "space", name: "Engineering Lead", urlKey: "engineering_lead", role: "engineering_lead", status: "idle" } as Agent];
+    const saved = ["agent-chat:space:engineering_lead", "agent-chat:another-space:hidden", "/artifacts", "/dashboard"];
     localStorage.setItem("outpost.coordinator.pinned-nav.v1:reviewer", JSON.stringify(saved));
     await renderSidebar();
     const links = [...navigation().querySelectorAll<HTMLAnchorElement>("a")].slice(3);
-    expect(links.map(link => link.textContent)).toEqual(["CTO", "Artifacts", "Dashboard"]);
+    expect(links.map(link => link.textContent)).toEqual(["Engineering Lead", "Artifacts", "Dashboard"]);
     const more = navigation().querySelector('button[aria-label="More workspace pages"]')!;
     expect(links.at(-1)!.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(JSON.parse(localStorage.getItem("outpost.coordinator.pinned-nav.v1:reviewer")!)).toEqual(saved);
@@ -225,24 +225,24 @@ const decisionLink = () => container.querySelector('a[href="/decisions"]')!;
 describe("Coordinator Inbox badge", () => {
   it("counts every canonical outstanding decision even when none arrived today", async () => {
     // Personal page filters and completed receipts are separate cache entries.
-    client.setQueryData([...coordinatorAttentionQueryKey("company"), { search: "no match" }], feed([]));
-    client.setQueryData([...queryKeys.attention("company"), "history", "recent"], { items: [{ id: "answered-question" }] });
+    client.setQueryData([...coordinatorAttentionQueryKey("space"), { search: "no match" }], feed([]));
+    client.setQueryData([...queryKeys.attention("space"), "history", "recent"], { items: [{ id: "answered-question" }] });
     await renderSidebar();
     expect(fixture.attention).not.toHaveBeenCalled();
-    expect(client.getQueryData(coordinatorAttentionQueryKey("company"))).toBeUndefined();
-    expect(fixture.summary).toHaveBeenCalledWith("company");
+    expect(client.getQueryData(coordinatorAttentionQueryKey("space"))).toBeUndefined();
+    expect(fixture.summary).toHaveBeenCalledWith("space");
     expect(decisionLink().querySelector('[data-slot="badge"]')?.textContent).toBe("2");
   });
 
   it("updates after canonical attention refreshes and removes the badge once every decision is resolved", async () => {
     await renderSidebar();
     fixture.summary.mockResolvedValue(summary([pending("review")]));
-    await act(async () => { await client.invalidateQueries({ queryKey: queryKeys.attention("company") }); });
+    await act(async () => { await client.invalidateQueries({ queryKey: queryKeys.attention("space") }); });
     await flush();
     expect(decisionLink().querySelector('[data-slot="badge"]')?.textContent).toBe("1");
     fixture.summary.mockResolvedValue(summary([]));
-    client.setQueryData([...queryKeys.attention("company"), "history", "recent"], { items: [{ id: "answered-question" }, { id: "accepted-review" }] });
-    await act(async () => { await client.invalidateQueries({ queryKey: queryKeys.attention("company") }); });
+    client.setQueryData([...queryKeys.attention("space"), "history", "recent"], { items: [{ id: "answered-question" }, { id: "accepted-review" }] });
+    await act(async () => { await client.invalidateQueries({ queryKey: queryKeys.attention("space") }); });
     await flush();
     expect(decisionLink().querySelector('[data-slot="badge"]')).toBeNull();
     expect(decisionLink().textContent).toBe("Inbox");
@@ -258,19 +258,19 @@ describe("Coordinator Inbox badge", () => {
 
 describe("Coordinator collection reads", () => {
   it("does not replace a resolved count with an older summary that arrives later", async () => {
-    const key = coordinatorAttentionSummaryQueryKey("company");
+    const key = coordinatorAttentionSummaryQueryKey("space");
     client.setQueryDefaults(key, { staleTime: Infinity });
     client.setQueryData(key, { ...summary([pending("old")]), generatedAt: "2026-10-27T12:00:00Z" }, { updatedAt: 20 });
-    client.setQueryData(coordinatorAttentionQueryKey("company"), { ...feed([]), generatedAt: "2026-10-27T12:01:00Z" }, { updatedAt: 10 });
+    client.setQueryData(coordinatorAttentionQueryKey("space"), { ...feed([]), generatedAt: "2026-10-27T12:01:00Z" }, { updatedAt: 10 });
     await renderSidebar();
     expect(decisionLink().querySelector('[data-slot="badge"]')).toBeNull();
   });
 
   it("keeps a newer resolved count when returning to a cached navigation summary", async () => {
-    const key = coordinatorAttentionSummaryQueryKey("company");
+    const key = coordinatorAttentionSummaryQueryKey("space");
     client.setQueryDefaults(key, { staleTime: Infinity });
     client.setQueryData(key, summary([pending("old")]), { updatedAt: 1 });
-    client.setQueryData(coordinatorAttentionQueryKey("company"), feed([]), { updatedAt: 2 });
+    client.setQueryData(coordinatorAttentionQueryKey("space"), feed([]), { updatedAt: 2 });
     await renderSidebar();
     expect(decisionLink().querySelector('[data-slot="badge"]')).toBeNull();
     expect(fixture.summary).not.toHaveBeenCalled();
@@ -279,12 +279,12 @@ describe("Coordinator collection reads", () => {
 
   it("reuses the page-owned complete feed on Inbox without a second summary read", async () => {
     fixture.pathname = "/COO/decisions";
-    client.setQueryData(coordinatorAttentionQueryKey("company"), feed([pending("review")]));
+    client.setQueryData(coordinatorAttentionQueryKey("space"), feed([pending("review")]));
     await renderSidebar();
     expect(fixture.summary).not.toHaveBeenCalled();
     expect(fixture.attention).not.toHaveBeenCalled();
     expect(decisionLink().querySelector('[data-slot="badge"]')?.textContent).toBe("1");
-    await act(async () => client.setQueryData(coordinatorAttentionQueryKey("company"), feed([])));
+    await act(async () => client.setQueryData(coordinatorAttentionQueryKey("space"), feed([])));
     await flush();
     expect(decisionLink().querySelector('[data-slot="badge"]')).toBeNull();
   });
@@ -298,7 +298,7 @@ describe("Coordinator task status glyphs (BUG-07)", () => {
   const glyph = (href: string) => container.querySelector<SVGElement>(`a[href="${href}"] svg[role="img"]`);
 
   it("shows a covered-blocked recent task with the same queued glyph and label as the task pane", async () => {
-    fixture.recentTasks = [{ id: "task-1", companyId: "company", identifier: "ONB-1", title: "Outpost onboarding",
+    fixture.recentTasks = [{ id: "task-1", spaceId: "space", identifier: "ONB-1", title: "Outpost onboarding",
       status: "blocked", displayStatus: "blocked", externalConversationState: null, blockerAttention: covered, recordedAt: 1 }];
     await renderSidebar();
     expect(glyph("/issues/ONB-1")?.style.color).toBe("var(--status-task-icon-in_queue)");
@@ -306,7 +306,7 @@ describe("Coordinator task status glyphs (BUG-07)", () => {
   });
 
   it("shows project tasks with their full status presentation", async () => {
-    fixture.projects = [{ id: "project-1", companyId: "company", name: "Onboarding", urlKey: "onboarding" }];
+    fixture.projects = [{ id: "project-1", spaceId: "space", name: "Onboarding", urlKey: "onboarding" }];
     fixture.projectTasks.mockResolvedValue([
       { id: "task-1", identifier: "ONB-1", title: "Blocked parent", status: "blocked", displayStatus: "blocked", blockerAttention: covered },
       { id: "task-3", identifier: "ONB-3", title: "Waiting review", status: "in_review", displayStatus: "in_review", externalConversationState: "waiting" },
@@ -317,7 +317,7 @@ describe("Coordinator task status glyphs (BUG-07)", () => {
     expect(expand).not.toBeNull();
     await act(async () => expand!.click());
     await flush();
-    expect(fixture.projectTasks).toHaveBeenCalledWith("company", expect.objectContaining({ projectId: "project-1", projection: "rows" }));
+    expect(fixture.projectTasks).toHaveBeenCalledWith("space", expect.objectContaining({ projectId: "project-1", projection: "rows" }));
     expect(glyph("/issues/ONB-1")?.style.color).toBe("var(--status-task-icon-in_queue)");
     expect(glyph("/issues/ONB-3")?.getAttribute("aria-label")).toBe("Idle");
     // A press on a project task warms its chat like a task list row does.

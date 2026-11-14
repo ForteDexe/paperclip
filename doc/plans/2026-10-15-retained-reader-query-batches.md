@@ -9,7 +9,7 @@ Product E2E evaluation.
 
 The original guard made 1,431 queries. A declared 4ms round-trip delay in a
 loopback proxy increased one admission to 15.19 seconds and three concurrent
-admissions to 54.69 seconds. The company root fence serializes those admissions.
+admissions to 54.69 seconds. The space root fence serializes those admissions.
 With this change, one admission makes 680 queries and takes 7.13 seconds under
 the same proxy; three take 20.93 seconds. The zero-injected-delay samples took
 359ms before and 146ms after. Timing samples are controlled local evidence, not
@@ -18,12 +18,12 @@ an agent-response or hosted latency guarantee.
 ## Change boundary
 
 Retained readers still need individual saved-run identity and execution-policy
-checks. Current readers still need the existing write checks. Existing company
+checks. Current readers still need the existing write checks. Existing space
 root fences, row locks, source privacy and publication ordering stay in place.
 
 Batch retained-reader project reads through the existing multi-actor read API.
 Share only database read promises within one call. Keep actor-supplied membership
-snapshots and per-actor privacy results separate. Key raw reads by their company,
+snapshots and per-actor privacy results separate. Key raw reads by their space,
 principal and run as applicable. Each later call reads current grants again.
 Select only the run identity and saved policy fields needed by the guard,
 including both native and legacy issue-binding fallbacks.

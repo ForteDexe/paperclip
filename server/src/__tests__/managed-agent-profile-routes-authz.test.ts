@@ -7,8 +7,8 @@ import { errorHandler } from "../middleware/index.js";
 import { managedAgentProfileRoutes } from "../routes/managed-agent-profiles.js";
 import { remoteAgentProfileRoutes } from "../routes/remote-agent-profiles.js";
 
-const COMPANY_ID = "10000000-0000-4000-8000-000000000001";
-const OTHER_COMPANY_ID = "10000000-0000-4000-8000-000000000002";
+const SPACE_ID = "10000000-0000-4000-8000-000000000001";
+const OTHER_SPACE_ID = "10000000-0000-4000-8000-000000000002";
 
 const unusedDb = new Proxy({}, {
   get() {
@@ -29,65 +29,65 @@ function createApp(actor: Express.Request["actor"]) {
   return app;
 }
 
-function boardActor(role: "operator" | "viewer"): Express.Request["actor"] {
+function operatorActor(role: "operator" | "viewer"): Express.Request["actor"] {
   return {
-    type: "board",
+    type: "operator",
     source: "session",
     userId: `${role}-1`,
     userName: null,
     userEmail: null,
     isInstanceAdmin: false,
-    companyIds: [COMPANY_ID],
-    memberships: [{ companyId: COMPANY_ID, membershipRole: role, status: "active" }],
+    spaceIds: [SPACE_ID],
+    memberships: [{ spaceId: SPACE_ID, membershipRole: role, status: "active" }],
   };
 }
 
 describe("managed provider profile route authorization", () => {
-  it("does not allow a board member to enumerate another company's profiles", async () => {
-    const app = createApp(boardActor("operator"));
+  it("does not allow a operator member to enumerate another space's profiles", async () => {
+    const app = createApp(operatorActor("operator"));
 
     await request(app)
-      .get(`/api/companies/${OTHER_COMPANY_ID}/managed-agent-profiles`)
+      .get(`/api/spaces/${OTHER_SPACE_ID}/managed-agent-profiles`)
       .expect(403);
     await request(app)
-      .get(`/api/companies/${OTHER_COMPANY_ID}/remote-agent-profiles`)
+      .get(`/api/spaces/${OTHER_SPACE_ID}/remote-agent-profiles`)
       .expect(403);
   });
 
-  it("keeps profile management board-only", async () => {
+  it("keeps profile management operator-only", async () => {
     const app = createApp({
       type: "agent",
       source: "agent_key",
       agentId: "agent-1",
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
     });
 
     await request(app)
-      .get(`/api/companies/${COMPANY_ID}/managed-agent-profiles`)
+      .get(`/api/spaces/${SPACE_ID}/managed-agent-profiles`)
       .expect(403);
     await request(app)
-      .get(`/api/companies/${COMPANY_ID}/remote-agent-profiles`)
+      .get(`/api/spaces/${SPACE_ID}/remote-agent-profiles`)
       .expect(403);
   });
 
   it("allows viewer reads but blocks viewer writes before profile storage", async () => {
-    const app = createApp(boardActor("viewer"));
+    const app = createApp(operatorActor("viewer"));
 
     await request(app)
-      .post(`/api/companies/${COMPANY_ID}/managed-agent-profiles`)
+      .post(`/api/spaces/${SPACE_ID}/managed-agent-profiles`)
       .send({})
       .expect(403);
     await request(app)
-      .post(`/api/companies/${COMPANY_ID}/remote-agent-profiles`)
+      .post(`/api/spaces/${SPACE_ID}/remote-agent-profiles`)
       .send({})
       .expect(403);
   });
 
   it("does not let operator enablement substitute for qualification evidence", async () => {
-    const app = createApp(boardActor("operator"));
+    const app = createApp(operatorActor("operator"));
 
     await request(app)
-      .post(`/api/companies/${COMPANY_ID}/managed-agent-profiles`)
+      .post(`/api/spaces/${SPACE_ID}/managed-agent-profiles`)
       .send({
         profileKey: "managed",
         displayName: "Managed",
@@ -104,7 +104,7 @@ describe("managed provider profile route authorization", () => {
       .expect(422);
 
     await request(app)
-      .post(`/api/companies/${COMPANY_ID}/remote-agent-profiles`)
+      .post(`/api/spaces/${SPACE_ID}/remote-agent-profiles`)
       .send({
         profileKey: "agentcore",
         displayName: "AgentCore",
@@ -115,7 +115,7 @@ describe("managed provider profile route authorization", () => {
           harnessArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:harness/example",
           harnessVersion: "1",
           endpointArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:endpoint/example",
-          endpointQualifier: "paperclip",
+          endpointQualifier: "outpost",
           agentRuntimeArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/example",
           memoryArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:memory/example",
           memoryId: "memory-example",
@@ -135,10 +135,10 @@ describe("managed provider profile route authorization", () => {
   });
 
   it("routes Claude profiles only through the executable managed profile store", async () => {
-    const app = createApp(boardActor("operator"));
+    const app = createApp(operatorActor("operator"));
 
     await request(app)
-      .post(`/api/companies/${COMPANY_ID}/remote-agent-profiles`)
+      .post(`/api/spaces/${SPACE_ID}/remote-agent-profiles`)
       .send({
         profileKey: "wrong-store",
         displayName: "Wrong Store",
@@ -149,10 +149,10 @@ describe("managed provider profile route authorization", () => {
   });
 
   it("rejects obsolete AgentCore credential references before profile storage", async () => {
-    const app = createApp(boardActor("operator"));
+    const app = createApp(operatorActor("operator"));
 
     await request(app)
-      .post(`/api/companies/${COMPANY_ID}/remote-agent-profiles`)
+      .post(`/api/spaces/${SPACE_ID}/remote-agent-profiles`)
       .send({
         profileKey: "agentcore",
         displayName: "AgentCore",

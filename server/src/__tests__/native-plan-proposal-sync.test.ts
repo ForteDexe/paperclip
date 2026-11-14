@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   documentRevisions,
   documents,
@@ -33,7 +33,7 @@ describeEmbeddedPostgres("harness-proposed plan synchronization", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    if (!external) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-plan-proposal-sync-");
+    if (!external) tempDb = await startEmbeddedPostgresTestDatabase("outpost-plan-proposal-sync-");
     db = createDb(external ?? tempDb!.connectionString, { maxConnections: 6 });
   }, 20_000);
 
@@ -47,7 +47,7 @@ describeEmbeddedPostgres("harness-proposed plan synchronization", () => {
     await db.delete(issues);
     await db.delete(goals);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -56,24 +56,24 @@ describeEmbeddedPostgres("harness-proposed plan synchronization", () => {
   });
 
   async function seed(workMode: "standard" | "planning" | "ask") {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const goalId = randomUUID();
     const issueId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "PPS", requireBoardApprovalForNewAgents: false });
-    await db.insert(goals).values({ id: goalId, companyId, title: "Ship", level: "task", status: "active" });
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "PPS", requireOperatorApprovalForNewAgents: false });
+    await db.insert(goals).values({ id: goalId, spaceId, title: "Ship", level: "task", status: "active" });
     await db.insert(agents).values({
-      id: agentId, companyId, name: "Claude", role: "engineer", status: "active",
+      id: agentId, spaceId, name: "Claude", role: "engineer", status: "active",
       adapterType: "claude_local", adapterConfig: {}, runtimeConfig: {}, permissions: {},
     });
     await db.insert(issues).values({
-      id: issueId, companyId, goalId, title: "Fix duplicate deliveries", status: "in_progress",
+      id: issueId, spaceId, goalId, title: "Fix duplicate deliveries", status: "in_progress",
       priority: "medium", assigneeAgentId: agentId, workMode,
     });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", contextSnapshot: { issueId } });
-    const binding = { runId, issueId, companyId, agentId };
-    return { companyId, issueId, agentId, runId, binding };
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", contextSnapshot: { issueId } });
+    const binding = { runId, issueId, spaceId, agentId };
+    return { spaceId, issueId, agentId, runId, binding };
   }
 
   function proposalEvent(markdown: string, status: "streaming" | "completed" = "completed") {
@@ -156,7 +156,7 @@ describeEmbeddedPostgres("harness-proposed plan synchronization", () => {
   it("still refuses a proposal when someone else edited the plan after the pinned base", async () => {
     const { issueId, binding } = await seed("planning");
     await documentService(db).upsertIssueDocument({
-      issueId, key: "plan", title: "Plan", format: "markdown", body: "# Human edit", createdByUserId: "local-board",
+      issueId, key: "plan", title: "Plan", format: "markdown", body: "# Human edit", createdByUserId: "local-operator",
     });
     const execution = {
       binding,

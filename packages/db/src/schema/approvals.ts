@@ -1,13 +1,13 @@
 import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { agents } from "./agents.js";
 
 export const approvals = pgTable(
   "approvals",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     type: text("type").notNull(),
     requestedByAgentId: uuid("requested_by_agent_id").references(() => agents.id),
     requestedByUserId: text("requested_by_user_id"),
@@ -21,8 +21,8 @@ export const approvals = pgTable(
   },
   (table) => ({
     pendingRetentionIdx: index("approvals_pending_retention_idx").on(table.updatedAt, table.id).where(sql`${table.status} = 'pending'`),
-    companyStatusTypeIdx: index("approvals_company_status_type_idx").on(
-      table.companyId,
+    spaceStatusTypeIdx: index("approvals_space_status_type_idx").on(
+      table.spaceId,
       table.status,
       table.type,
     ),

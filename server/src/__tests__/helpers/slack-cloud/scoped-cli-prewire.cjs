@@ -1,7 +1,7 @@
 // Controlled exact useful-process fixture: host instrumentation, current run token only.
 const permitted = new Set([
   "PATH", "HOME", "TMPDIR", "XDG_CACHE_HOME", "LANG", "LC_ALL", "CI", "NODE_ENV", "NODE_OPTIONS",
-  "OUTPOST_API_URL", "OUTPOST_RUN_ID", "OUTPOST_AGENT_ID", "OUTPOST_COMPANY_ID", "OUTPOST_API_KEY",
+  "OUTPOST_API_URL", "OUTPOST_RUN_ID", "OUTPOST_AGENT_ID", "OUTPOST_SPACE_ID", "OUTPOST_API_KEY",
   "SLACK_FORM_FIXTURE_PEER_ORIGIN", "SLACK_GATE_PROCESS_LOG",
 ]);
 // The approved controller passes empty NODE_OPTIONS and the exact preload as

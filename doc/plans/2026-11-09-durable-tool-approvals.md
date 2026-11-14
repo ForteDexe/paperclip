@@ -1,10 +1,10 @@
 # Durable tool approvals
 
 Outcome: a person can approve the saved action later, after ordinary OAuth refresh
-and a server restart. Paperclip executes its reviewed arguments once and returns
+and a server restart. Outpost executes its reviewed arguments once and returns
 the result to the task. Delivery ends at a reviewed PR with passing checks.
 
-The approval binds the action, task, company, selected authorization, tool contract,
+The approval binds the action, task, space, selected authorization, tool contract,
 destination, and audience. OAuth token lifetime is separate from that decision.
 Authenticated refresh may preserve credential identity; manual replacement and
 new consent may not. Current access and task state still gate provider dispatch.

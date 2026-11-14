@@ -1,16 +1,16 @@
 # MCP Runtime Operations
 
-This runbook covers Paperclip Tools & Access runtime slots for MCP connections. It is written for board and CloudOps operators responding to stuck local stdio slots, degraded remote HTTP connections, capacity deferrals, restart storms, and secret-resolution failures.
+This runbook covers Outpost Tools & Access runtime slots for MCP connections. It is written for board and CloudOps operators responding to stuck local stdio slots, degraded remote HTTP connections, capacity deferrals, restart storms, and secret-resolution failures.
 
 Do not print raw bearer tokens, gateway session tokens, credential headers, environment variables, or secret values while following this runbook. The APIs below return redacted state and audit metadata; keep shell tracing disabled when exporting credentials.
 
-Tool action approvals and sensitive request identities use a durable key independent from auth/JWT secrets. `OUTPOST_TOOL_ACTION_SIGNING_SECRET` takes precedence when configured. `paperclipai onboard` generates it for local instances, and worktree setup propagates or generates an independent value in the worktree `.env`. When unset, the server derives a separate key from the persisted secrets master key, using its configured environment value or durable key file. Processes serving the same instance must share that signing key or master key, and operators must back it up with the database. Rotation can invalidate outstanding approvals and retry matching; drain or reject pending approvals and reconcile completed writes before rotating.
+Tool action approvals and sensitive request identities use a durable key independent from auth/JWT secrets. `OUTPOST_TOOL_ACTION_SIGNING_SECRET` takes precedence when configured. `outpost onboard` generates it for local instances, and worktree setup propagates or generates an independent value in the worktree `.env`. When unset, the server derives a separate key from the persisted secrets master key, using its configured environment value or durable key file. Processes serving the same instance must share that signing key or master key, and operators must back it up with the database. Rotation can invalidate outstanding approvals and retry matching; drain or reject pending approvals and reconcile completed writes before rotating.
 
 ## Support Matrix
 
 | Transport | Local trusted | Hosted cloud / public authenticated | Notes |
 | --- | --- | --- | --- |
-| `remote_http` | Supported | Supported | Preferred production path. Paperclip proxies calls through the gateway with policy, audit, timeout, and redaction controls. |
+| `remote_http` | Supported | Supported | Preferred production path. Outpost proxies calls through the gateway with policy, audit, timeout, and redaction controls. |
 | `local_stdio` | Supported through approved templates and supervised runtime slots | Supported only when an explicitly trusted MCP runtime worker/host is configured | Set `OUTPOST_TRUSTED_MCP_RUNTIME_HOST` or `OUTPOST_TOOL_RUNTIME_TRUSTED_HOST` only for a worker that is allowed to supervise local processes. Do not enable arbitrary agent-supplied commands. |
 
 ## Native runtime gateway ownership
@@ -27,13 +27,13 @@ a shared gateway. Invalid JSON metadata, including JSON `null`, returns the same
 authentication rejection. Use an ordinary profile for an explicit shared gateway.
 
 Older native gateways can have a null `agentId`. Authentication still checks
-their metadata owner. When the owner reuses the assignment, Paperclip validates
+their metadata owner. When the owner reuses the assignment, Outpost validates
 the gateway and profile before it binds the gateway to that agent. A conflicting
 owner is never overwritten.
 
 Native assignments enter the run configuration once through the runtime MCP
 delivery path. Managed gateway discovery excludes historical native assignments.
-Their stored rows remain available for existing runs. Explicit company gateways
+Their stored rows remain available for existing runs. Explicit space gateways
 continue to use their configured scopes.
 
 ## Client-side tool-call deadline
@@ -54,8 +54,8 @@ The board runtime health API summarizes one-hour event windows plus current dura
 
 ```sh
 curl -fsS \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/runtime-health" | jq .
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/runtime-health" | jq .
 ```
 
 Metrics surfaced there include:
@@ -88,24 +88,24 @@ Metrics surfaced there include:
 
    ```sh
    curl -fsS \
-     -H "Authorization: Bearer $BOARD_API_KEY" \
-     "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/runtime-health" | jq '{status, metrics, alerts}'
+     -H "Authorization: Bearer $OPERATOR_API_KEY" \
+     "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/runtime-health" | jq '{status, metrics, alerts}'
    ```
 
 2. List durable runtime slots:
 
    ```sh
    curl -fsS \
-     -H "Authorization: Bearer $BOARD_API_KEY" \
-     "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/runtime-slots" | jq .
+     -H "Authorization: Bearer $OPERATOR_API_KEY" \
+     "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/runtime-slots" | jq .
    ```
 
 3. Inspect recent gateway audit events without printing secrets:
 
    ```sh
    curl -fsS \
-     -H "Authorization: Bearer $BOARD_API_KEY" \
-     "$OUTPOST_URL/api/tool-gateway/audit?companyId=$COMPANY_ID&limit=100" \
+     -H "Authorization: Bearer $OPERATOR_API_KEY" \
+     "$OUTPOST_URL/api/tool-gateway/audit?spaceId=$SPACE_ID&limit=100" \
      | jq '[.[] | {createdAt, action, entityType, entityId, reasonCode: .details.reasonCode, tool: .details.tool, durationMs: .details.durationMs}]'
    ```
 
@@ -117,9 +117,9 @@ Stop the slot first when it is stale, idle, failed, or confirmed not to be servi
 
 ```sh
 curl -fsS -X POST \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
   -H "Content-Type: application/json" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/runtime-slots/$SLOT_ID/stop" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/runtime-slots/$SLOT_ID/stop" \
   -d '{}' | jq .
 ```
 
@@ -127,9 +127,9 @@ Restart once when the template/config is expected to recover:
 
 ```sh
 curl -fsS -X POST \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
   -H "Content-Type: application/json" \
-  "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/runtime-slots/$SLOT_ID/restart" \
+  "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/runtime-slots/$SLOT_ID/restart" \
   -d '{}' | jq .
 ```
 
@@ -137,7 +137,7 @@ If restart suppression fires, do not keep retrying. Disable the connection:
 
 ```sh
 curl -fsS -X PATCH \
-  -H "Authorization: Bearer $BOARD_API_KEY" \
+  -H "Authorization: Bearer $OPERATOR_API_KEY" \
   -H "Content-Type: application/json" \
   "$OUTPOST_URL/api/tool-connections/$CONNECTION_ID" \
   -d '{"enabled":false,"status":"disabled"}' | jq '{id, name, enabled, status, healthStatus}'
@@ -161,7 +161,7 @@ below to restore access after verifying the endpoint.
 
    ```sh
    curl -fsS -X POST \
-     -H "Authorization: Bearer $BOARD_API_KEY" \
+     -H "Authorization: Bearer $OPERATOR_API_KEY" \
      -H "Content-Type: application/json" \
      "$OUTPOST_URL/api/tool-connections/$CONNECTION_ID/health-check" \
      -d '{}' | jq '{connection: {id: .connection.id, healthStatus: .connection.healthStatus, healthMessage: .connection.healthMessage}, runtimeSlot}'
@@ -171,7 +171,7 @@ below to restore access after verifying the endpoint.
 
    ```sh
    curl -fsS -X POST \
-     -H "Authorization: Bearer $BOARD_API_KEY" \
+     -H "Authorization: Bearer $OPERATOR_API_KEY" \
      -H "Content-Type: application/json" \
      "$OUTPOST_URL/api/tool-connections/$CONNECTION_ID/catalog/refresh" \
      -d '{}' | jq '{discoveredCount, quarantinedCount}'
@@ -181,8 +181,8 @@ below to restore access after verifying the endpoint.
 
    ```sh
    curl -fsS \
-     -H "Authorization: Bearer $BOARD_API_KEY" \
-     "$OUTPOST_URL/api/companies/$COMPANY_ID/tools/runtime-health" | jq '{status, metrics, alerts}'
+     -H "Authorization: Bearer $OPERATOR_API_KEY" \
+     "$OUTPOST_URL/api/spaces/$SPACE_ID/tools/runtime-health" | jq '{status, metrics, alerts}'
    ```
 
 Recovery is complete when stuck-slot alerts clear, timeout/error rates return below threshold, the connection is healthy or intentionally disabled, and audit events show no new restart suppression or capacity deferrals.

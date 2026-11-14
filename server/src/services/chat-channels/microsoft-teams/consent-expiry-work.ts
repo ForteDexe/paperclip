@@ -5,19 +5,19 @@ import { DELIVERY_QUEUES, notifyDeliveryWork } from "../../delivery-work-notific
 import { registerScopedDeadlineWork } from "../../scoped-deadline-work.js";
 
 export const unusedTeamsConsentPhases = ["consent_pending", "awaiting_consent", "upload_pending"];
-type Entry = { id: string; companyId: string; dueAt: number };
+type Entry = { id: string; spaceId: string; dueAt: number };
 
 export function notifyTeamsConsentExpiry(tx: object, id: string) {
   return notifyDeliveryWork(tx, DELIVERY_QUEUES.chatTeamsConsentExpiry, id);
 }
 
 /** Owns only unused consent deadlines, not transport attempts or unknown outcomes. */
-export function teamsConsentExpiryWork(db: Db, expire: (companyId: string, id: string) => Promise<boolean>) {
+export function teamsConsentExpiryWork(db: Db, expire: (spaceId: string, id: string) => Promise<boolean>) {
   const cursors = new Map<string, string>();
   async function page(id?: string, cursor?: string, signal?: AbortSignal): Promise<Entry[]> {
     try {
       signal?.throwIfAborted();
-      const rows = await db.select({ id: chatTeamsFileTransfers.id, companyId: chatTeamsFileTransfers.companyId,
+      const rows = await db.select({ id: chatTeamsFileTransfers.id, spaceId: chatTeamsFileTransfers.spaceId,
         dueAt: sql<string>`ceil(extract(epoch from ${chatTeamsFileTransfers.expiresAt}) * 1000)`,
       }).from(chatTeamsFileTransfers).where(and(inArray(chatTeamsFileTransfers.phase, unusedTeamsConsentPhases),
         id ? eq(chatTeamsFileTransfers.id, id) : undefined,
@@ -47,7 +47,7 @@ export function teamsConsentExpiryWork(db: Db, expire: (companyId: string, id: s
     if (!current) return null;
     if (current.dueAt > Date.now()) return current;
     signal?.throwIfAborted();
-    try { await expire(current.companyId, current.id); }
+    try { await expire(current.spaceId, current.id); }
     catch { throw new Error("Teams consent expiry could not settle"); }
     return (await load(entry.id, signal))[0] ?? null;
   }

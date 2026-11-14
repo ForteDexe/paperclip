@@ -17,7 +17,7 @@ From an Outpost instance, install:
 Configure exe.dev from `Instance Settings -> Environments`, not from the plugin's plugin page.
 
 - Put the exe.dev API token on the sandbox environment itself.
-- When you save an environment, Outpost stores pasted API keys and pasted SSH private keys as company secrets.
+- When you save an environment, Outpost stores pasted API keys and pasted SSH private keys as space secrets.
 - `EXE_API_KEY` remains an optional host-level fallback when an environment omits the API token.
 - The current implementation provisions VMs through exe.dev's HTTPS API and runs commands through direct SSH to the created VM.
 
@@ -56,4 +56,4 @@ These commands assume the repo root has already been installed once so the local
 
 - `src/manifest.ts` declares the sandbox-provider driver metadata
 - `src/plugin.ts` implements the environment lifecycle hooks
-- `paperclipPlugin.manifest` and `paperclipPlugin.worker` point the host at the built plugin entrypoints in `dist/`
+- `outpostPlugin.manifest` and `outpostPlugin.worker` point the host at the built plugin entrypoints in `dist/`

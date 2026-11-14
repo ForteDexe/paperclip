@@ -36,7 +36,7 @@ jobs:
   source_verification:
     name: Watch exact-source verification
     if: github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master'
-    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'runs-on/fleet=paperclip-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'runs-on/fleet=outpost-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
     timeout-minutes: 44
     permissions:
       contents: read
@@ -123,7 +123,7 @@ jobs:
           - platform: linux/arm64
             runner: ubuntu-24.04-arm
             arch: arm64
-    runs-on: ${{ vars.CORE_RELEASE_AWS_ENABLED == 'true' && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && format('runs-on/fleet=paperclip-core-image-{0}/env=public-ci', matrix.arch == 'amd64' && 'x64' || 'arm64') || matrix.runner }}
+    runs-on: ${{ vars.CORE_RELEASE_AWS_ENABLED == 'true' && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && format('runs-on/fleet=outpost-core-image-{0}/env=public-ci', matrix.arch == 'amd64' && 'x64' || 'arm64') || matrix.runner }}
     # Stop before the AWS worker's 45-minute maximum lifetime. Hosted tag
     # builds retain their existing limit.
     timeout-minutes: ${{ vars.CORE_RELEASE_AWS_ENABLED == 'true' && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && 40 || 60 }}
@@ -279,8 +279,8 @@ jobs:
             type=sha
             type=raw,value=sha-${{ github.sha }},enable=${{ github.repository == 'paperclipai/paperclip' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
           labels: |
-            io.github.paperclipai.schema.last-migration=${{ steps.schema.outputs.last }}
-            io.github.paperclipai.schema.migration-count=${{ steps.schema.outputs.count }}
+            io.github.outpost.schema.last-migration=${{ steps.schema.outputs.last }}
+            io.github.outpost.schema.migration-count=${{ steps.schema.outputs.count }}
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v7
@@ -336,7 +336,7 @@ jobs:
     name: Require exact-source verification
     if: ${{ !cancelled() && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && needs.build-and-push.result == 'success' && needs.source_verification.result == 'success' && needs.source_verification.outputs.verified != 'true' }}
     needs: [build-and-push, source_verification]
-    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'runs-on/fleet=paperclip-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.AWS_POST_MERGE_CI_ENABLED == 'true' && github.run_attempt >= 1 && github.repository == 'paperclipai/paperclip' && github.repository_id == '1170821064' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'runs-on/fleet=outpost-post-merge-x64/env=public-ci' || 'ubuntu-latest' }}
     timeout-minutes: 44
     permissions:
       contents: read
@@ -420,8 +420,8 @@ jobs:
             type=sha
             type=raw,value=sha-${{ github.sha }},enable=${{ github.repository == 'paperclipai/paperclip' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
           labels: |
-            io.github.paperclipai.schema.last-migration=${{ steps.schema.outputs.last }}
-            io.github.paperclipai.schema.migration-count=${{ steps.schema.outputs.count }}
+            io.github.outpost.schema.last-migration=${{ steps.schema.outputs.last }}
+            io.github.outpost.schema.migration-count=${{ steps.schema.outputs.count }}
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -523,7 +523,7 @@ jobs:
           IMAGE: ghcr.io/${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          current="$(curl -fsS "https://registry.npmjs.org/-/package/@paperclipai%2Fdb/dist-tags" | jq -er .canary)"
+          current="$(curl -fsS "https://registry.npmjs.org/-/package/@outpost%2Fdb/dist-tags" | jq -er .canary)"
           sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/$(printf 'canary/v%s' "$current" | jq -sRr @uri)" --jq .sha 2>/dev/null || true)"
           if [ -z "$sha" ]; then
             echo "canary/v${current} does not resolve yet; a later promotion converges the channel"

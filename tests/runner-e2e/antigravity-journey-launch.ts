@@ -92,10 +92,10 @@ export async function runAntigravityJourneyCampaign(input: {
     const timer = setTimeout(() => deadline.abort(), config.limits.durationMs);
     const evidence: AntigravityJourneyEvidence = { version: 1, setupId: config.setupId, hosting: "self-hosted", targetCommit: null,
       phase: "configuration", outcome: "running", assisted: false, privacy: "private", authentication: "saved-subscription", model: ANTIGRAVITY_JOURNEY_MODEL,
-      companyId: config.target.companyId, connectionId: config.savedConnection.id, checkpoints: {}, turnEvidence: [],
+      spaceId: config.target.spaceId, connectionId: config.savedConnection.id, checkpoints: {}, turnEvidence: [],
       cleanup: { agent: true, runs: true, connectionPreserved: false } };
     const resources: AntigravityJourneyResources = { version: 1, executionId: execution.id, origin: config.target.baseURL,
-      companyId: config.target.companyId, environmentId: config.target.environmentId, connectionId: config.savedConnection.id,
+      spaceId: config.target.spaceId, environmentId: config.target.environmentId, connectionId: config.savedConnection.id,
       agentName: `Antigravity QA ${nonce}`, runIds: [], retained: false, setupProbe: "not_started", processes: {}, sourceProvenance: provenance };
     const result: RunnerE2EResult = { schema: "outpost.runner-e2e.result/v2", executionId: execution.id, suiteId: execution.suite.id,
       suiteDefinitionHash: execution.suiteDefinitionHash, source: { sha: provenance.head,
@@ -126,13 +126,13 @@ export async function runAntigravityJourneyCampaign(input: {
       catch { retainFinalizationFailure("resource_journal_failed", true); }
     };
     const captureRun = async (run: Row) => {
-      if (typeof run.id !== "string" || run.companyId !== resources.companyId || run.agentId !== resources.agentId)
+      if (typeof run.id !== "string" || run.spaceId !== resources.spaceId || run.agentId !== resources.agentId)
         throw new ConnectionFailure("observed_run_owner_mismatch");
       observed.set(run.id, run);
       // Preserve only accounting fields, before teardown can purge public rows.
       // This also runs after the attempt deadline while cleanup settles work.
       await save("run-usage-observations.json", { version: 1, runs: [...observed.values()].map(row => ({
-        id: row.id, companyId: row.companyId, agentId: row.agentId, status: row.status,
+        id: row.id, spaceId: row.spaceId, agentId: row.agentId, status: row.status,
         startedAt: row.startedAt ?? null, finishedAt: row.finishedAt ?? null,
         costAccountingPending: row.costAccountingPending ?? null, usageJson: row.usageJson ?? null,
       })) });
@@ -213,7 +213,7 @@ export async function runAntigravityJourneyCampaign(input: {
         checkpoint: async (id, tab) => {
           evidence.phase = id; evidence.checkpoints[id] = true;
           const url = new URL(tab.url());
-          if (url.origin === config.target.baseURL && url.pathname.startsWith(`/${prepared.company.issuePrefix}/`)
+          if (url.origin === config.target.baseURL && url.pathname.startsWith(`/${prepared.space.issuePrefix}/`)
             && !await tab.locator('input[type="password"]:visible,input[autocomplete="one-time-code"]:visible').count()) {
             const file = `${id}.png`, bytes = await tab.screenshot({ path: path.join(output, file) });
             result.screenshots!.push({ id, label: id.replaceAll("_", " "), file, sha256: createHash("sha256").update(bytes).digest("hex") });

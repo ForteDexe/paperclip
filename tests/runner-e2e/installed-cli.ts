@@ -78,7 +78,7 @@ export async function verifyInstalledCli(env: NodeJS.ProcessEnv, executions: rea
   const manifest = findPackageJSON("@outpost/server", pathToFileURL(entry));
   if (!manifest || await realpath(manifest) !== join(serverRoot, "package.json")) throw new Error("Installed CLI resolved a foreign server dependency");
   const server = JSON.parse((await readOwned(join(serverRoot, "package.json"), 65536)).toString());
-  if (cli.name !== "paperclipai" || cli.bin?.paperclipai !== "./dist/index.js" || server.name !== "@outpost/server" || typeof cli.version !== "string" || cli.version !== server.version || server.exports?.["."]?.import !== "./dist/index.js") throw new Error("Installed CLI/server public package identity differs");
+  if (cli.name !== "@outpost/cli" || cli.bin?.outpost !== "./dist/index.js" || server.name !== "@outpost/server" || typeof cli.version !== "string" || cli.version !== server.version || server.exports?.["."]?.import !== "./dist/index.js") throw new Error("Installed CLI/server public package identity differs");
   const serverEntry = join(serverRoot, "dist/index.js");
   if (await realpath(serverEntry) !== serverEntry) throw new Error("Installed server entrypoint escapes its package");
   const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
@@ -111,7 +111,7 @@ export async function probeInstalledCodexStartup(input: {
   const entries = [join(vendorRoot, "index.js"), join(input.serverRoot, "dist/services/native-runtime/native-codex-runner.js")];
   for (const filename of entries) if (await realpath(filename) !== filename) throw new Error("Installed Codex startup runtime escapes its package");
   const [runtime, production] = await Promise.all(entries.map(filename => import(pathToFileURL(filename).href)));
-  const runnerBinary = await realpath(production.resolvePaperclipRunnerBinary());
+  const runnerBinary = await realpath(production.resolveOutpostRunnerBinary());
   if (runnerBinary !== join(vendorRoot, "bin", `${process.platform}-${process.arch}`, "outpost-runnerd")) throw new Error("Installed Codex startup requires the normal platform daemon; no source or flat fallback");
   const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
   const runnerSha256 = digest(await readOwned(runnerBinary, 512 * 1024 * 1024));

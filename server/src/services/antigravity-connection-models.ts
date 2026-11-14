@@ -11,7 +11,7 @@ import { retainGoogleCredentialCleanup } from "./retained-google-credential-clea
  * refresh writeback. The native client cannot create a session or send a prompt.
  */
 export async function antigravityConnectionModels(db: Db, input: {
-  companyId: string;
+  spaceId: string;
   userId: string | null;
   agentId?: string;
   binding: AiConnectionBinding;
@@ -19,7 +19,7 @@ export async function antigravityConnectionModels(db: Db, input: {
 }) {
   if (input.binding.provider !== "google") throw unprocessable("Select a Google runtime connection");
   const runtime = await prepareManagedAiRuntime(db, {
-    companyId: input.companyId, responsibleUserId: input.userId,
+    spaceId: input.spaceId, responsibleUserId: input.userId,
     agentId: input.agentId ?? "00000000-0000-0000-0000-000000000000",
     adapterType: "outpost_runner", binding: input.binding,
     allowUninstalledPersonal: !input.agentId,
@@ -58,7 +58,7 @@ export async function antigravityConnectionModels(db: Db, input: {
             cleanup: runtime.cleanup,
           });
         }
-        logger.warn({ companyId: input.companyId, code: "ANTIGRAVITY_CATALOG_CREDENTIAL_CLEANUP_PENDING" },
+        logger.warn({ spaceId: input.spaceId, code: "ANTIGRAVITY_CATALOG_CREDENTIAL_CLEANUP_PENDING" },
           "Antigravity model-discovery credential cleanup is retained for recovery");
         throw unprocessable("Could not complete Google account credential cleanup. Try model discovery again shortly.");
       }

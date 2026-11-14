@@ -31,7 +31,7 @@ afterEach(async () => {
 });
 
 async function fixture(mode = "success") {
-  const home = await realpath(await mkdtemp(join(tmpdir(), "paperclip-antigravity-models-test-"))); roots.push(home);
+  const home = await realpath(await mkdtemp(join(tmpdir(), "outpost-antigravity-models-test-"))); roots.push(home);
   const peer = join(home, "peer.cjs");
   await writeFile(peer, `
 const fs=require('node:fs'),path=require('node:path'),readline=require('node:readline');
@@ -46,8 +46,8 @@ const reply=(id,result)=>process.stdout.write(JSON.stringify({jsonrpc:'2.0',id,r
 reader.on('line',line=>{
  const request=JSON.parse(line);requests.push(request);fs.writeFileSync(path.join(home,'requests.json'),JSON.stringify(requests));
  if(request.method==='initialize') {
-  reply(request.id,{protocolVersion:1,agentInfo:{name:'antigravity-acp',version:'1.4.3'},agentCapabilities:{_meta:{antigravity:{paperclipAdmission:1,paperclipModels:mode==='old-patch'?0:1}}},authMethods:[{id:'oauth-personal'}]});
- } else if(request.method==='_paperclip/models') {
+  reply(request.id,{protocolVersion:1,agentInfo:{name:'antigravity-acp',version:'1.4.3'},agentCapabilities:{_meta:{antigravity:{outpostAdmission:1,outpostModels:mode==='old-patch'?0:1}}},authMethods:[{id:'oauth-personal'}]});
+ } else if(request.method==='_outpost/models') {
   if(mode==='blocked'||mode==='stubborn') return;
   if(mode==='error') {process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:request.id,error:{code:-32000,message:'private-token-do-not-expose'}})+'\\n');return;}
   if(mode==='bad-utf8') {process.stdout.write(Buffer.from([255,10]));return;}
@@ -79,7 +79,7 @@ describe("Antigravity session-free account model discovery", () => {
     const result = await discoverAntigravityModels(home);
     expect(result).toEqual({ models: [{ id: "gemini-pro-agent", label: "Gemini Pro (High)" }, { id: "gemini-3.1-pro-low", label: "Gemini Pro (Low)" }], defaultModelId: "gemini-pro-agent" });
     const requests = JSON.parse(await readFile(join(home, "requests.json"), "utf8"));
-    expect(requests.map((value: { method: string }) => value.method)).toEqual(["initialize", "_paperclip/models"]);
+    expect(requests.map((value: { method: string }) => value.method)).toEqual(["initialize", "_outpost/models"]);
     expect(requests[1].params).toEqual({ schema: "outpost.antigravity.models.v1", nonce: expect.any(String), authMethod: "oauth-personal" });
     expect(setup.spawn.mock.calls[0]![1]).toMatchObject({ detached: true, env: { GEMINI_HOME: home, AGY_ACP_FORCE_FILE_STORAGE: "1", BROWSER: "/usr/bin/true" } });
     expect(Object.keys(setup.spawn.mock.calls[0]![1].env).some(key => /^(?:GOOGLE_|GEMINI_API|ANTIGRAVITY_|PYTHON|NODE_OPTIONS|HTTP_PROXY)/.test(key))).toBe(false);
@@ -134,7 +134,7 @@ describe("Antigravity session-free account model discovery", () => {
     expect(Date.now() - start).toBeGreaterThanOrEqual(29_500);
     expect(Date.now() - start).toBeLessThan(35_000);
     expect(children[0]!.signalCode).toBe("SIGTERM"); expect(setup.close).toHaveBeenCalledOnce();
-    expect(JSON.parse(await readFile(join(home, "requests.json"), "utf8")).map((value: { method: string }) => value.method)).toEqual(["initialize", "_paperclip/models"]);
+    expect(JSON.parse(await readFile(join(home, "requests.json"), "utf8")).map((value: { method: string }) => value.method)).toEqual(["initialize", "_outpost/models"]);
   }, 40_000);
 });
 

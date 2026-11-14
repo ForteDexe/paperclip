@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
 import { gradeTreePause } from "./runtime-tree.js";
 function valid(scenarioId = "task-coordination.pause-tree") {
-  const held = { id: "launch-hold", companyId: "company", rootIssueId: "launch", mode: "pause", status: "active", createdByActorType: "user", createdByUserId: "human",
-    members: ["launch", "website", "design", "manual"].map(issueId => ({ issueId, companyId: "company", skipped: issueId === "manual", skipReason: issueId === "manual" ? "already_held" : null })) };
-  return { scenarioId, origin: "http://fixture.invalid", companyId: "company", leadId: "ceo", reply: "", agents: [], tasks: [] as Array<{ id: string; createdByAgentId?: string }>,
+  const held = { id: "launch-hold", spaceId: "space", rootIssueId: "launch", mode: "pause", status: "active", createdByActorType: "user", createdByUserId: "human",
+    members: ["launch", "website", "design", "manual"].map(issueId => ({ issueId, spaceId: "space", skipped: issueId === "manual", skipReason: issueId === "manual" ? "already_held" : null })) };
+  return { scenarioId, origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo", reply: "", agents: [], tasks: [] as Array<{ id: string; createdByAgentId?: string }>,
     links: ["http://fixture.invalid/COM/issues/COM-1"], activity: [] as Array<{ id: string; actorType: string; action: string; actorId?: string; entityId?: string }>, humanQueries: [],
     runs: [{ id: "worker1", status: "cancelled" }, { id: "worker2", status: "cancelled" }, { id: "guidance", status: "succeeded" }, { id: "resumed1", status: "cancelled" }, { id: "resumed2", status: "cancelled" }],
     state: { parent: { id: "launch", identifier: "COM-1" }, task: { id: "website" }, second: { task: { id: "design" }, workerRunId: "worker2" }, manualChild: { id: "manual" }, workerRunId: "worker1",

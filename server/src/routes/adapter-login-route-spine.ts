@@ -22,7 +22,7 @@ export interface AdapterLoginStartSpineInput<TData extends { environmentId: stri
   req: Request;
   res: Response;
   /**
-   * Derives the immutable session owner from the actor. It also runs the company
+   * Derives the immutable session owner from the actor. It also runs the space
    * access check. It throws a mapped HTTP error for a forbidden actor. The shared
    * error handler maps the thrown error to the response.
    */
@@ -65,7 +65,7 @@ export interface AdapterLoginStartSpineInput<TData extends { environmentId: stri
  * ordered steps for both start routes, and it runs every step before any session
  * or lease side effect:
  *
- * 1. It derives the session owner and runs the company access check.
+ * 1. It derives the session owner and runs the space access check.
  * 2. It runs the optional pre-validation guard.
  * 3. It validates the request body with the strict schema. It sends the fixed
  *    400 and returns null on a failure.

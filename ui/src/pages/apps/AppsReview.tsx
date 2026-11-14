@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { ReviewQueueCard } from "./ReviewQueueCard";
 
 /**
@@ -14,7 +14,7 @@ import { ReviewQueueCard } from "./ReviewQueueCard";
  * "Needs attention"; decisions live here.
  */
 export function AppsReview() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export function AppsReview() {
     return () => setBreadcrumbs([]);
   }, [setBreadcrumbs]);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <div className="p-6 text-sm text-muted-foreground">Select an outpost to review approvals.</div>;
   }
 

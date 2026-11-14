@@ -216,7 +216,7 @@ describe("journey driver", () => {
       },
       async patch(route: string, body: unknown) { calls.push(`PATCH ${route} ${JSON.stringify(body)}`); return {}; },
     };
-    const host: JourneyHost = { plan, api: api as unknown as JourneyHost["api"], lab: { companyId: "c" } as JourneyHost["lab"],
+    const host: JourneyHost = { plan, api: api as unknown as JourneyHost["api"], lab: { spaceId: "c" } as JourneyHost["lab"],
       timeline: new Timeline(null), record, databaseUrl: () => null };
     return { driver: new JourneyDriver(workload, host), calls, record };
   }
@@ -285,7 +285,7 @@ describe("journey driver", () => {
         if (route === "/api/issues/issue-1") return { status: "blocked", blockedBy: [{ id: "blocker-1" }] };
         throw new Error(`unexpected GET ${route}`);
       }, async post() { return {}; }, async patch() { return {}; } };
-      const driver = new JourneyDriver("Q2", { plan, api: api as unknown as JourneyHost["api"], lab: { companyId: "c" } as JourneyHost["lab"],
+      const driver = new JourneyDriver("Q2", { plan, api: api as unknown as JourneyHost["api"], lab: { spaceId: "c" } as JourneyHost["lab"],
         timeline: new Timeline(null), record, databaseUrl: () => null });
       await driver.step({ sample: { at: 0, reachable: true, serverReady: true, runs: [runAfterAnswer] }, now: 30_000, quiet: true, pendingFaults: [] });
       expect(record.journey!.answerTurn ?? null).toEqual(eventType === "run.result.accepted"

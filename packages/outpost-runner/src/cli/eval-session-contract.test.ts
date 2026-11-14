@@ -28,7 +28,7 @@ function request(overrides: Record<string, unknown> = {}): unknown {
   return {
     schema: "outpost-runner/eval-session-request/v1",
     attemptId: "attempt-1",
-    prompt: "Inspect the governed task.",
+    prompt: "Inspect the controlled task.",
     model: "gpt-5.6-sol",
     provider: "codex",
     runnerd: { path: "/tmp/outpost-runnerd", sha256: "a".repeat(64) },
@@ -86,7 +86,7 @@ it("retains only closed startup failure facts in the actual CLI artifact", async
     expect(artifact.infrastructureError).toBe("Provider startup rejected");
   } finally {
     for (const entry of await readdir(workspace)) {
-      if (entry.startsWith(".paperclip-eval-runtime-context-")) await chmod(join(workspace, entry, "instructions"), 0o700);
+      if (entry.startsWith(".outpost-eval-runtime-context-")) await chmod(join(workspace, entry, "instructions"), 0o700);
     }
     await rm(workspace, { recursive: true, force: true });
   }
@@ -100,13 +100,13 @@ function agentCoreProfile(overrides: Record<string, unknown> = {}) {
     harnessArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:harness/test",
     harnessVersion: "1",
     endpointArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:harness-endpoint/test",
-    endpointQualifier: "paperclip",
+    endpointQualifier: "outpost",
     agentRuntimeArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/test",
     memoryArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:memory/test",
     memoryId: "memory-test",
-    invocationRoleArn: "arn:aws:iam::123456789012:role/paperclip-agentcore",
-    contextBucket: "paperclip-agentcore-context",
-    contextPrefix: "paperclip/agentcore/test",
+    invocationRoleArn: "arn:aws:iam::123456789012:role/outpost-agentcore",
+    contextBucket: "outpost-agentcore-context",
+    contextPrefix: "outpost/agentcore/test",
     contextKmsKeyArn: "arn:aws:kms:us-east-1:123456789012:key/test",
     qualificationRevision: "aws-agentcore-harness-context-v2",
     eventExpiryDays: 90,
@@ -160,7 +160,7 @@ describe("eval-session request contract", () => {
   });
 
   it.each(["pi", "cursor", "copilot"] as const)("rejects stale or incomplete %s identities before runtime construction", async (agent) => {
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-eval-profile-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-eval-profile-"));
     const model = agent === "pi" ? "openrouter/deepseek/deepseek-v4-flash-0731" : "explicit-provider-model";
     const expected = resolveQualifiedAcpxProfile(agent, model);
     const requestPath = join(workspace, "request.json");
@@ -211,7 +211,7 @@ describe("eval-session request contract", () => {
   });
 
   it("materializes a production-v3 runtime context for direct live providers", async () => {
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-eval-context-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-eval-context-"));
     let instructionRoot: string | null = null;
     try {
       const context = await prepareEvalRuntimeContext(workspace);
@@ -223,9 +223,9 @@ describe("eval-session request contract", () => {
       expect(await readFile(
         join(context.instructions.bundle.rootPath, "AGENTS.md"),
         "utf8",
-      )).toContain("Paperclip direct live evaluation");
+      )).toContain("Outpost direct live evaluation");
       const systemInstructions = evalRuntimeSystemInstructions(context);
-      expect(systemInstructions).toContain("Paperclip direct live evaluation");
+      expect(systemInstructions).toContain("Outpost direct live evaluation");
       expect(systemInstructions).toContain("Task-state changes in this mock control plane use finish_task and block_task");
       expect(systemInstructions).toContain("The current user request defines the work for this turn");
       expect(systemInstructions).toContain("read only the context needed for that request, perform the requested action, and end the turn");
@@ -308,8 +308,8 @@ describe("eval-session request contract", () => {
     }))).toMatchObject({
       provider: "aws_agentcore",
       agentCoreProfile: {
-        contextBucket: "paperclip-agentcore-context",
-        contextPrefix: "paperclip/agentcore/test",
+        contextBucket: "outpost-agentcore-context",
+        contextPrefix: "outpost/agentcore/test",
         contextKmsKeyArn: "arn:aws:kms:us-east-1:123456789012:key/test",
       },
     });
@@ -588,9 +588,9 @@ describe("eval-session budget settlement", () => {
         sessionId: "session-1", revision: 1, providerThreadId: "provider-1", providerSessionId: "provider-1",
         providerModel: { id: model, provider: agent === "grok" ? "xai" : "github" }, status: "idle", activeTurnId: null,
         createdAt: "2026-09-28T19:00:00.000Z", updatedAt: "2026-09-28T19:00:01.000Z",
-        authority: { companyId: "company-1", actorId: "actor-1", taskId: "task-1", runId: "run-1", sessionId: "session-1", scenarioId: "budget-test" },
+        authority: { spaceId: "space-1", actorId: "actor-1", taskId: "task-1", runId: "run-1", sessionId: "session-1", scenarioId: "budget-test" },
         config: { provider: "acpx", acpxAgent: agent, driver: "acpx_runtime", seedState: state, workingDirectory: workspace, scenario: { id: "budget-test" }, capabilities: [], explicitClaims: [], turnTimeoutMs: 1000 },
-        mockState: state, process: null, networkEvidence: { realPaperclipRequests: 0, childOutpostEnvironmentKeys: [] },
+        mockState: state, process: null, networkEvidence: { realOutpostRequests: 0, childOutpostEnvironmentKeys: [] },
         transcript: [{ id: "assistant-1", role: "assistant", text: "Retained actual provider response", turnId: "turn-1", at: "2026-09-28T19:00:01.000Z" }],
         evidence: [], authorizationRecords: [], attempts: [], terminalTurns: [{ turnId: "turn-1", status: "completed" }],
         usageLedger: noReceipt ? [] : [{ receiptId: "receipt-1", turnId: "turn-1", providerCalls: 1, providerRequests: 1, inputTokens: 100, outputTokens: kind === "over_limit" ? 1_000_000 : 10, cachedInputTokens: 0, reasoningTokens: 0, costNanodollars: 0 }],
@@ -646,7 +646,7 @@ describe("eval-session budget settlement", () => {
       expect(completeAttempt).toHaveBeenCalledWith("failed", artifact.accountingFailure.class);
     } finally {
       for (const entry of await readdir(workspace)) {
-        if (entry.startsWith(".paperclip-eval-runtime-context-")) await chmod(join(workspace, entry, "instructions"), 0o700).catch(() => undefined);
+        if (entry.startsWith(".outpost-eval-runtime-context-")) await chmod(join(workspace, entry, "instructions"), 0o700).catch(() => undefined);
       }
       await rm(workspace, { recursive: true, force: true });
     }

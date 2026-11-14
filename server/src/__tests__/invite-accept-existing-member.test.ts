@@ -18,7 +18,7 @@ vi.mock("../services/index.js", () => ({
   agentService: () => ({
     getById: vi.fn(),
   }),
-  boardAuthService: () => ({
+  operatorAuthService: () => ({
     createChallenge: vi.fn(),
     resolveBoardAccess: vi.fn(),
     assertCurrentBoardKey: vi.fn(),
@@ -26,7 +26,7 @@ vi.mock("../services/index.js", () => ({
   }),
   deduplicateAgentName: vi.fn(),
   logActivity: logActivityMock,
-  notifyHireApproved: vi.fn(),
+  notifyCreateApproved: vi.fn(),
 }));
 
 type QueryHooks = {
@@ -59,8 +59,8 @@ function createDbStub() {
   const updateMock = vi.fn();
   const invite = {
     id: "invite-1",
-    companyId: "company-1",
-    inviteType: "company_join",
+    spaceId: "space-1",
+    inviteType: "space_join",
     allowedJoinTypes: "human",
     tokenHash: "hash",
     defaultsPayload: { humanRole: "viewer" },
@@ -108,8 +108,8 @@ function createDbStub() {
 function createAgentInviteDbStub() {
   const invite = {
     id: "invite-1",
-    companyId: "company-1",
-    inviteType: "company_join",
+    spaceId: "space-1",
+    inviteType: "space_join",
     allowedJoinTypes: "agent",
     tokenHash: "hash",
     defaultsPayload: null,
@@ -134,13 +134,13 @@ function createAgentInviteDbStub() {
 
 function createApp(db: Record<string, unknown>) {
   return createAppWithActor(db, {
-    type: "board",
+    type: "operator",
     source: "session",
     userId: "user-1",
-    companyIds: ["company-1"],
+    spaceIds: ["space-1"],
     memberships: [
       {
-        companyId: "company-1",
+        spaceId: "space-1",
         membershipRole: "owner",
         status: "active",
       },
@@ -173,8 +173,8 @@ function createDirectHumanInviteDbStub(defaultsPayload: Record<string, unknown> 
   const updateValues: unknown[] = [];
   const invite = {
     id: "invite-1",
-    companyId: "company-1",
-    inviteType: "company_join",
+    spaceId: "space-1",
+    inviteType: "space_join",
     allowedJoinTypes: "human",
     tokenHash: "hash",
     defaultsPayload,
@@ -188,7 +188,7 @@ function createDirectHumanInviteDbStub(defaultsPayload: Record<string, unknown> 
   const createdJoinRequest = {
     id: "join-1",
     inviteId: "invite-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     requestType: "human",
     status: "pending_approval",
     requestIp: "::ffff:127.0.0.1",
@@ -250,8 +250,8 @@ function createAcceptedHumanInviteReplayDbStub() {
   const updateValues: unknown[] = [];
   const invite = {
     id: "invite-1",
-    companyId: "company-1",
-    inviteType: "company_join",
+    spaceId: "space-1",
+    inviteType: "space_join",
     allowedJoinTypes: "human",
     tokenHash: "hash",
     defaultsPayload: { human: { role: "operator" } },
@@ -265,7 +265,7 @@ function createAcceptedHumanInviteReplayDbStub() {
   const pendingJoinRequest = {
     id: "join-1",
     inviteId: "invite-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     requestType: "human",
     status: "pending_approval",
     requestIp: "::ffff:127.0.0.1",
@@ -329,7 +329,7 @@ describe("POST /invites/:token/accept", () => {
     vi.clearAllMocks();
   });
 
-  it("does not consume a human invite when the signed-in user is already a company member", async () => {
+  it("does not consume a human invite when the signed-in user is already a space member", async () => {
     const { db, updateMock } = createDbStub();
     const app = createApp(db);
 
@@ -338,7 +338,7 @@ describe("POST /invites/:token/accept", () => {
       .send({ requestType: "human" });
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe("You already belong to this company");
+    expect(res.body.error).toBe("You already belong to this space");
     expect(updateMock).not.toHaveBeenCalled();
   });
 
@@ -362,13 +362,13 @@ describe("POST /invites/:token/accept", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("grants company access immediately for a human invite", async () => {
+  it("grants space access immediately for a human invite", async () => {
     const { db, insertedValues, updateValues } = createDirectHumanInviteDbStub();
     const app = createAppWithActor(db, {
-      type: "board",
+      type: "operator",
       source: "session",
       userId: "invitee-user",
-      companyIds: [],
+      spaceIds: [],
       memberships: [],
     });
 
@@ -381,7 +381,7 @@ describe("POST /invites/:token/accept", () => {
     expect(insertedValues).toEqual([
       expect.objectContaining({
         inviteId: "invite-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         requestType: "human",
         status: "pending_approval",
         requestingUserId: "invitee-user",
@@ -401,14 +401,14 @@ describe("POST /invites/:token/accept", () => {
       ]),
     );
     expect(accessServiceMock.ensureMembership).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "user",
       "invitee-user",
       "owner",
       "active",
     );
     expect(accessServiceMock.setPrincipalGrants).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "user",
       "invitee-user",
       expect.arrayContaining([
@@ -434,23 +434,23 @@ describe("POST /invites/:token/accept", () => {
     ];
     const { db } = createDirectHumanInviteDbStub({ human: { role: "operator", grants: legacyGrants } });
     const app = createAppWithActor(db, {
-      type: "board", source: "session", userId: "invitee-user", companyIds: [], memberships: [],
+      type: "operator", source: "session", userId: "invitee-user", spaceIds: [], memberships: [],
     });
     const res = await request(app).post("/api/invites/pcp_invite_test/accept").send({ requestType: "human" }).expect(202);
     expect(res.body.status).toBe("approved");
-    expect(accessServiceMock.ensureMembership).toHaveBeenCalledWith("company-1", "user", "invitee-user", "operator", "active");
+    expect(accessServiceMock.ensureMembership).toHaveBeenCalledWith("space-1", "user", "invitee-user", "operator", "active");
     expect(accessServiceMock.setPrincipalGrants).toHaveBeenCalledWith(
-      "company-1", "user", "invitee-user", [...legacyGrants, { permissionKey: "commentary:view", scope: null }], "inviter-user",
+      "space-1", "user", "invitee-user", [...legacyGrants, { permissionKey: "commentary:view", scope: null }], "inviter-user",
     );
   });
 
-  it("replays a consumed human invite for the same user and repairs company access", async () => {
+  it("replays a consumed human invite for the same user and repairs space access", async () => {
     const { db, updateValues } = createAcceptedHumanInviteReplayDbStub();
     const app = createAppWithActor(db, {
-      type: "board",
+      type: "operator",
       source: "session",
       userId: "invitee-user",
-      companyIds: [],
+      spaceIds: [],
       memberships: [],
     });
 
@@ -477,7 +477,7 @@ describe("POST /invites/:token/accept", () => {
       expect.arrayContaining([expect.objectContaining({ acceptedAt: expect.any(Date) })]),
     );
     expect(accessServiceMock.ensureMembership).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "user",
       "invitee-user",
       "operator",

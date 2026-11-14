@@ -113,11 +113,11 @@ describe("Kimi installed runtime admission", () => {
   });
 
   it("gives the normal setup command and never falls back to ambient kimi when assets are missing", async () => {
-    const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-kimi-installation-test-"))); roots.push(root);
+    const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-kimi-installation-test-"))); roots.push(root);
     await writeFile(join(root, "package.json"), '{"name":"@outpost/outpost-runner"}');
     environment("OUTPOST_ACPX_PROVIDER_PACKAGE_ROOT", root);
     environment("OUTPOST_ACPX_PROVIDER_PACKAGE_MANIFEST", join(root, "package.json"));
-    await expect(verifyKimiInstallation(QUALIFIED_ACPX_PROFILES.kimi)).rejects.toThrow(/paperclipai runtime setup kimi/);
+    await expect(verifyKimiInstallation(QUALIFIED_ACPX_PROFILES.kimi)).rejects.toThrow(/outpost runtime setup kimi/);
     const assets = join(root, "provider-assets/kimi", `${process.platform}-${process.arch}`);
     await mkdir(join(assets, "runtime"), { recursive: true });
     await writeFile(join(assets, "kimi-distribution.json"), JSON.stringify({ schema: "outpost.kimi-distribution.v1", nativeClosureSha256: "f".repeat(64) }));

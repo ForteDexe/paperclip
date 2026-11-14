@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { companies, agents, createDb, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
+import { spaces, agents, createDb, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
 import { createHeartbeatRunState } from "../server/src/services/heartbeat/run-state.js";
 
 type Query = { sql: string; params: unknown[] };
@@ -26,18 +26,18 @@ try {
   const baselineFile = path.join(baselineDir, "run-state.ts");
   await fs.writeFile(baselineFile, rewritten);
   const baseline = await import(pathToFileURL(baselineFile).href) as typeof import("../server/src/services/heartbeat/run-state.js");
-  const companyId = randomUUID(), agentId = randomUUID();
-  await db.insert(companies).values({ id: companyId, name: "Synthetic history", issuePrefix: "BENCH" });
-  await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "codex_local" });
+  const spaceId = randomUUID(), agentId = randomUUID();
+  await db.insert(spaces).values({ id: spaceId, name: "Synthetic history", issuePrefix: "BENCH" });
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "codex_local" });
   const prompt = randomBytes(144 * 1024).toString("base64");
-  await db.$client.unsafe(`INSERT INTO heartbeat_runs (company_id, agent_id, status, created_at, context_snapshot, usage_json, result_json)
+  await db.$client.unsafe(`INSERT INTO heartbeat_runs (space_id, agent_id, status, created_at, context_snapshot, usage_json, result_json)
     SELECT $1::uuid, $2::uuid, 'succeeded', now() + n * interval '1 millisecond',
       jsonb_build_object('issueId', 'synthetic-issue-' || n, 'taskId', 'task-' || n, 'taskKey', 'key-' || n,
         'commentId', 'comment-' || n, 'wakeCommentId', 'wake-' || n, 'wakeReason', 'assignment',
         'wakeSource', 'automation', 'wakeTriggerDetail', 'fixture', 'prompt', $3::text),
       '{"inputTokens":123,"cachedInputTokens":12,"outputTokens":45,"totalTokens":168}'::jsonb,
       '{"summary":"Synthetic result","costUsd":0.03}'::jsonb
-    FROM generate_series(1, 1400) n`, [companyId, agentId, prompt]);
+    FROM generate_series(1, 1400) n`, [spaceId, agentId, prompt]);
   await db.$client.unsafe("ANALYZE heartbeat_runs");
 
   async function capture(factory: typeof createHeartbeatRunState, summary: boolean): Promise<Query> {
@@ -55,7 +55,7 @@ try {
         return builder;
       };
     }});
-    try { await factory(captureDb).listRuns(companyId, undefined, 200, { summary }); }
+    try { await factory(captureDb).listRuns(spaceId, undefined, 200, { summary }); }
     catch (error) { if (error !== stop) throw error; }
     assert.ok(query);
     return query;

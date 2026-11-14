@@ -51,21 +51,21 @@ const provision = privilegedDefinition("instance-operations.provision-runtime", 
     state.nativeClosureSha256 = sha(await readFile(closure));
     // Credentials remain exclusively in the public encrypted secret boundary.
     const token = ctx.input.privateInputs?.read(target.receipt.piCredentialEnv!); if (!token) throw new Error("Missing selected private Pi credential"); ctx.input.privateSecrets?.push(token);
-    const company = ctx.input.fixtures.company.id;
-    const secret = await ctx.input.api.postSensitive<{ id: string }>(`/api/companies/${company}/secrets`, { name: "Owned Pi qualification", key: "OPENROUTER_API_KEY", value: token });
+    const space = ctx.input.fixtures.space.id;
+    const secret = await ctx.input.api.postSensitive<{ id: string }>(`/api/spaces/${space}/secrets`, { name: "Owned Pi qualification", key: "OPENROUTER_API_KEY", value: token });
     const profile = extendedHarnessProfiles.find(p => p.id === "runner-acpx-pi")!;
     const config = profile.buildAgent({ environmentId: ctx.input.fixtures.environment.id, environmentFixtureId: "local", workspacePath: ctx.input.workspacePath,
       secretRefs: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: secret.id, version: "latest" } }, executionId: ctx.input.nonce });
-    const agent = await ctx.input.api.post<RuntimeAgent>(`/api/companies/${company}/agents`, { ...config, name: "Pi qualification worker", reportsTo: ctx.input.fixtures.agent.id,
+    const agent = await ctx.input.api.post<RuntimeAgent>(`/api/spaces/${space}/agents`, { ...config, name: "Pi qualification worker", reportsTo: ctx.input.fixtures.agent.id,
       runtimeConfig: { heartbeat: { enabled: false, maxConcurrentRuns: 1 } } }); state.piAgentId = agent.id;
     const ready = await pollUntil({ label: "Actual release Pi worker readiness", deadlineAt: Date.now() + 90000,
       load: () => ctx.input.api.get<RuntimeAgent>(`/api/agents/${agent.id}`), accept: a => a.lifecycleState === "ready" });
     const saved = ready.adapterConfig as { provider?: string; acpxAgent?: string; model?: string };
     state.piAgentConfigurationVerified = ready.adapterType === "outpost_runner" && saved.provider === "acpx" && saved.acpxAgent === "pi" && saved.model === profile.model;
-    for (const scope of [{ scopeType: "company", scopeId: company }, { scopeType: "agent", scopeId: agent.id }])
-      await ctx.input.api.post(`/api/companies/${company}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+    for (const scope of [{ scopeType: "space", scopeId: space }, { scopeType: "agent", scopeId: agent.id }])
+      await ctx.input.api.post(`/api/spaces/${space}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
     const marker = `Pi native qualification ${ctx.input.nonce}`;
-    const task = await ctx.input.api.post<Entity>(`/api/companies/${company}/issues`, { title: "Owned release Pi readiness", status: "todo", assigneeAgentId: agent.id,
+    const task = await ctx.input.api.post<Entity>(`/api/spaces/${space}/issues`, { title: "Owned release Pi readiness", status: "todo", assigneeAgentId: agent.id,
       description: `Write pi-qualified.txt in your admitted workspace containing exactly ${JSON.stringify(marker)}, then complete this task. Do not create another task or external side effect.` });
     const result = await pollUntil({ label: "Real release-matched native Pi task", deadlineAt: Date.now() + 180000,
       load: async () => ({ task: await ctx.input.api.get<Entity>(`/api/issues/${task.id}`), runs: await ctx.allRuns() }),

@@ -45,15 +45,15 @@ describe("codex managed home", () => {
   });
 
   it("treats a concurrently-created expected auth symlink as success", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-home-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-home-"));
     const sharedCodexHome = path.join(root, "shared-codex-home");
-    const paperclipHome = path.join(root, "paperclip-home");
+    const outpostHome = path.join(root, "outpost-home");
     const managedCodexHome = path.join(
-      paperclipHome,
+      outpostHome,
       "instances",
       "default",
-      "companies",
-      "company-1",
+      "spaces",
+      "space-1",
       "codex-home",
     );
     const sharedAuth = path.join(sharedCodexHome, "auth.json");
@@ -75,11 +75,11 @@ describe("codex managed home", () => {
         prepareManagedCodexHome(
           {
             CODEX_HOME: sharedCodexHome,
-            OUTPOST_HOME: paperclipHome,
+            OUTPOST_HOME: outpostHome,
             OUTPOST_INSTANCE_ID: "default",
           },
           async () => {},
-          "company-1",
+          "space-1",
         ),
       ).resolves.toBe(managedCodexHome);
 
@@ -91,7 +91,7 @@ describe("codex managed home", () => {
   });
 
   it("falls back to one shared auth hard link when symbolic links are denied", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-home-hardlink-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-home-hardlink-"));
     const sharedAuth = path.join(root, "shared", "auth.json");
     const managedAuth = path.join(root, "managed", "auth.json");
     await fs.mkdir(path.dirname(sharedAuth), { recursive: true });
@@ -120,7 +120,7 @@ describe("codex managed home", () => {
   });
 
   it("fails clearly instead of copying credentials when both link types are unavailable", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-home-link-failure-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-home-link-failure-"));
     const sharedAuth = path.join(root, "shared", "auth.json");
     const managedAuth = path.join(root, "managed", "auth.json");
     await fs.mkdir(path.dirname(sharedAuth), { recursive: true });
@@ -145,15 +145,15 @@ describe("codex managed home", () => {
   });
 
   it("still throws on EEXIST when a raced-in auth symlink points elsewhere", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-home-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-home-"));
     const sharedCodexHome = path.join(root, "shared-codex-home");
-    const paperclipHome = path.join(root, "paperclip-home");
+    const outpostHome = path.join(root, "outpost-home");
     const managedCodexHome = path.join(
-      paperclipHome,
+      outpostHome,
       "instances",
       "default",
-      "companies",
-      "company-1",
+      "spaces",
+      "space-1",
       "codex-home",
     );
     const sharedAuth = path.join(sharedCodexHome, "auth.json");
@@ -177,11 +177,11 @@ describe("codex managed home", () => {
         prepareManagedCodexHome(
           {
             CODEX_HOME: sharedCodexHome,
-            OUTPOST_HOME: paperclipHome,
+            OUTPOST_HOME: outpostHome,
             OUTPOST_INSTANCE_ID: "default",
           },
           async () => {},
-          "company-1",
+          "space-1",
         ),
       ).rejects.toMatchObject({ code: "EEXIST" });
 
@@ -192,23 +192,23 @@ describe("codex managed home", () => {
     }
   });
 
-  // Regression for #5028: older Paperclip versions copied auth.json into the
+  // Regression for #5028: older Outpost versions copied auth.json into the
   // managed home instead of symlinking. After upgrading to the symlink-based
   // logic, the stale regular file at the target stayed in place and every
   // subsequent codex_local run failed with refresh_token_reused as soon as the
   // source token rotated. `ensureSymlink` now heals the upgrade path by
   // unlinking the stale copy and creating a symlink to the live source.
   it("replaces a stale regular-file auth.json with a symlink to the live source (#5028)", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-home-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-home-"));
     try {
       const sharedCodexHome = path.join(root, "shared-codex-home");
-      const paperclipHome = path.join(root, "paperclip-home");
+      const outpostHome = path.join(root, "outpost-home");
       const managedCodexHome = path.join(
-        paperclipHome,
+        outpostHome,
         "instances",
         "default",
-        "companies",
-        "company-1",
+        "spaces",
+        "space-1",
         "codex-home",
       );
       const sharedAuth = path.join(sharedCodexHome, "auth.json");
@@ -218,18 +218,18 @@ describe("codex managed home", () => {
       // The live source has rotated since the stale copy was written.
       await fs.writeFile(sharedAuth, '{"token":"fresh"}', "utf8");
 
-      // Simulate a stale copy left by a previous Paperclip version.
+      // Simulate a stale copy left by a previous Outpost version.
       await fs.mkdir(managedCodexHome, { recursive: true });
       await fs.writeFile(managedAuth, '{"token":"stale-from-copy"}', "utf8");
 
       await prepareManagedCodexHome(
         {
           CODEX_HOME: sharedCodexHome,
-          OUTPOST_HOME: paperclipHome,
+          OUTPOST_HOME: outpostHome,
           OUTPOST_INSTANCE_ID: "default",
         },
         async () => {},
-        "company-1",
+        "space-1",
       );
 
       expect((await fs.lstat(managedAuth)).isSymbolicLink()).toBe(true);
@@ -245,7 +245,7 @@ describe("codex managed home", () => {
   // ensureSymlink runs — so the heal branch never executes there. Call
   // ensureSymlink directly to prove the unlink-and-recreate path itself.
   it("ensureSymlink: unlinks a stale regular file and recreates the symlink", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-ensure-symlink-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-ensure-symlink-"));
     try {
       const source = path.join(root, "live-source.json");
       const target = path.join(root, "stale-target.json");
@@ -263,9 +263,9 @@ describe("codex managed home", () => {
 
   // The isDirectory() guard added with the heal branch must keep an unexpected
   // directory in place rather than throwing EISDIR. We treat a directory at
-  // this path as operator-owned, not a stale Paperclip copy.
+  // this path as operator-owned, not a stale Outpost copy.
   it("ensureSymlink: leaves an unexpected directory in place instead of throwing", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-ensure-symlink-dir-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-ensure-symlink-dir-"));
     try {
       const source = path.join(root, "live-source.json");
       const target = path.join(root, "unexpected-dir");
@@ -286,42 +286,42 @@ describe("codex managed home", () => {
 
 describe("isManagedCodexHomePath", () => {
   const env = {
-    OUTPOST_HOME: "/srv/paperclip",
+    OUTPOST_HOME: "/srv/outpost",
     OUTPOST_INSTANCE_ID: "default",
   } satisfies NodeJS.ProcessEnv;
-  const companyRoot = path.resolve(
-    "/srv/paperclip/instances/default/companies/company-1",
+  const spaceRoot = path.resolve(
+    "/srv/outpost/instances/default/spaces/space-1",
   );
 
   it("treats the per-agent managed home as managed", () => {
     expect(
       isManagedCodexHomePath(
         env,
-        "company-1",
-        path.join(companyRoot, "agents", "agent-7", "codex-home"),
+        "space-1",
+        path.join(spaceRoot, "agents", "agent-7", "codex-home"),
       ),
     ).toBe(true);
   });
 
-  it("treats the shared company home as managed", () => {
+  it("treats the shared space home as managed", () => {
     expect(
-      isManagedCodexHomePath(env, "company-1", path.join(companyRoot, "codex-home")),
+      isManagedCodexHomePath(env, "space-1", path.join(spaceRoot, "codex-home")),
     ).toBe(true);
   });
 
-  it("treats a path outside the company tree as an external override", () => {
-    expect(isManagedCodexHomePath(env, "company-1", "/home/dev/.codex")).toBe(false);
+  it("treats a path outside the space tree as an external override", () => {
+    expect(isManagedCodexHomePath(env, "space-1", "/home/dev/.codex")).toBe(false);
     expect(
       isManagedCodexHomePath(
         env,
-        "company-1",
-        path.resolve("/srv/paperclip/instances/default/companies/company-2/codex-home"),
+        "space-1",
+        path.resolve("/srv/outpost/instances/default/spaces/space-2/codex-home"),
       ),
     ).toBe(false);
   });
 
-  it("returns false without a companyId", () => {
-    expect(isManagedCodexHomePath(env, undefined, path.join(companyRoot, "codex-home"))).toBe(
+  it("returns false without a spaceId", () => {
+    expect(isManagedCodexHomePath(env, undefined, path.join(spaceRoot, "codex-home"))).toBe(
       false,
     );
   });
@@ -329,7 +329,7 @@ describe("isManagedCodexHomePath", () => {
 
 describe("codexHomeHasUsableAuth", () => {
   it("is true for credential-bearing auth.json and false when missing", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-auth-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-auth-"));
     try {
       expect(await codexHomeHasUsableAuth(root)).toBe(false);
       await fs.writeFile(path.join(root, "auth.json"), "{}", "utf8");
@@ -348,7 +348,7 @@ describe("codexHomeHasUsableAuth", () => {
   });
 
   it("recognizes the Codex 0.143 AuthDotJson subscription shape", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-auth-modern-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-auth-modern-"));
     try {
       await fs.writeFile(
         path.join(root, "auth.json"),
@@ -371,7 +371,7 @@ describe("codexHomeHasUsableAuth", () => {
   });
 
   it("treats subscription auth without account_id or token material as unusable", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-auth-modern-invalid-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-auth-modern-invalid-"));
     try {
       await fs.writeFile(
         path.join(root, "auth.json"),
@@ -404,7 +404,7 @@ describe("codexHomeHasUsableAuth", () => {
   });
 
   it("is false for a dangling auth.json symlink", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-auth-dangling-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-auth-dangling-"));
     try {
       await fs.symlink(path.join(root, "missing-source.json"), path.join(root, "auth.json"));
       expect(await codexHomeHasUsableAuth(root)).toBe(false);
@@ -416,15 +416,15 @@ describe("codexHomeHasUsableAuth", () => {
 
 describe("seedManagedCodexHome", () => {
   it("symlinks auth.json from the shared source into an explicit per-agent home", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-seed-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-seed-"));
     try {
       const sharedCodexHome = path.join(root, "shared-codex-home");
       const agentHome = path.join(
         root,
         "instances",
         "default",
-        "companies",
-        "company-1",
+        "spaces",
+        "space-1",
         "agents",
         "agent-7",
         "codex-home",
@@ -445,7 +445,7 @@ describe("seedManagedCodexHome", () => {
   });
 
   it("writes an API-key auth.json into the home when an apiKey is supplied", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-seed-apikey-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-seed-apikey-"));
     try {
       const agentHome = path.join(root, "agent-home");
       const emptyShared = path.join(root, "empty-shared");
@@ -461,9 +461,9 @@ describe("seedManagedCodexHome", () => {
     }
   });
 
-  // A device-login promotion writes the company credential as a regular-file
+  // A device-login promotion writes the space credential as a regular-file
   // subscription auth.json. Re-seeding must keep it, or the first Test probe or
-  // run after a successful login silently signs the company out. The cases
+  // run after a successful login silently signs the space out. The cases
   // below pin the identity- and freshness-anchored rule: keep a subscription
   // identity the shared source does not hold; keep a same-identity file the
   // shared source is not strictly fresher than (ties and unparseable freshness
@@ -485,18 +485,18 @@ describe("seedManagedCodexHome", () => {
     });
 
   it("keeps a promoted subscription auth.json when the shared source has no auth", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-seed-promoted-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-seed-promoted-"));
     try {
-      const companyHome = path.join(root, "company-home");
+      const spaceHome = path.join(root, "space-home");
       const emptyShared = path.join(root, "empty-shared");
       const promoted = subscriptionAuth("acct-promoted", "promoted");
       await fs.mkdir(emptyShared, { recursive: true });
-      await fs.mkdir(companyHome, { recursive: true });
-      await fs.writeFile(path.join(companyHome, "auth.json"), promoted, "utf8");
+      await fs.mkdir(spaceHome, { recursive: true });
+      await fs.writeFile(path.join(spaceHome, "auth.json"), promoted, "utf8");
 
-      await seedManagedCodexHome(companyHome, { CODEX_HOME: emptyShared }, async () => {});
+      await seedManagedCodexHome(spaceHome, { CODEX_HOME: emptyShared }, async () => {});
 
-      const kept = path.join(companyHome, "auth.json");
+      const kept = path.join(spaceHome, "auth.json");
       expect((await fs.lstat(kept)).isSymbolicLink()).toBe(false);
       expect(await fs.readFile(kept, "utf8")).toBe(promoted);
     } finally {
@@ -505,9 +505,9 @@ describe("seedManagedCodexHome", () => {
   });
 
   it("keeps a promoted subscription auth.json whose identity differs from the shared source", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-seed-foreign-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-seed-foreign-"));
     try {
-      const companyHome = path.join(root, "company-home");
+      const spaceHome = path.join(root, "space-home");
       const sharedCodexHome = path.join(root, "shared-codex-home");
       const promoted = subscriptionAuth("acct-promoted", "promoted");
       await fs.mkdir(sharedCodexHome, { recursive: true });
@@ -516,12 +516,12 @@ describe("seedManagedCodexHome", () => {
         subscriptionAuth("acct-host", "host"),
         "utf8",
       );
-      await fs.mkdir(companyHome, { recursive: true });
-      await fs.writeFile(path.join(companyHome, "auth.json"), promoted, "utf8");
+      await fs.mkdir(spaceHome, { recursive: true });
+      await fs.writeFile(path.join(spaceHome, "auth.json"), promoted, "utf8");
 
-      await seedManagedCodexHome(companyHome, { CODEX_HOME: sharedCodexHome }, async () => {});
+      await seedManagedCodexHome(spaceHome, { CODEX_HOME: sharedCodexHome }, async () => {});
 
-      const kept = path.join(companyHome, "auth.json");
+      const kept = path.join(spaceHome, "auth.json");
       expect((await fs.lstat(kept)).isSymbolicLink()).toBe(false);
       expect(await fs.readFile(kept, "utf8")).toBe(promoted);
     } finally {
@@ -530,25 +530,25 @@ describe("seedManagedCodexHome", () => {
   });
 
   it("still replaces a same-identity stale regular copy with the shared symlink once the source is strictly fresher (#5028)", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-seed-stale-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-seed-stale-"));
     try {
-      const companyHome = path.join(root, "company-home");
+      const spaceHome = path.join(root, "space-home");
       const sharedCodexHome = path.join(root, "shared-codex-home");
       // The live source has rotated since the stale copy was written, so its
       // last_refresh is strictly greater — the real #5028 shape.
       const fresh = subscriptionAuth("acct-same", "fresh", "2026-07-09T02:00:00Z");
       await fs.mkdir(sharedCodexHome, { recursive: true });
       await fs.writeFile(path.join(sharedCodexHome, "auth.json"), fresh, "utf8");
-      await fs.mkdir(companyHome, { recursive: true });
+      await fs.mkdir(spaceHome, { recursive: true });
       await fs.writeFile(
-        path.join(companyHome, "auth.json"),
+        path.join(spaceHome, "auth.json"),
         subscriptionAuth("acct-same", "stale", "2026-07-09T01:00:00Z"),
         "utf8",
       );
 
-      await seedManagedCodexHome(companyHome, { CODEX_HOME: sharedCodexHome }, async () => {});
+      await seedManagedCodexHome(spaceHome, { CODEX_HOME: sharedCodexHome }, async () => {});
 
-      const healed = path.join(companyHome, "auth.json");
+      const healed = path.join(spaceHome, "auth.json");
       expect((await fs.lstat(healed)).isSymbolicLink()).toBe(true);
       expect(await fs.readFile(healed, "utf8")).toBe(fresh);
     } finally {
@@ -559,11 +559,11 @@ describe("seedManagedCodexHome", () => {
   it("keeps a same-identity promoted auth.json that is strictly newer than the shared source", async () => {
     // The device-login promotion mints a credential whose last_refresh is newer
     // than the host copy the user was failing with. Swapping it for the shared
-    // symlink here would sign the company back in with that failing credential
+    // symlink here would sign the space back in with that failing credential
     // right after the login that replaced it.
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-seed-newer-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-seed-newer-"));
     try {
-      const companyHome = path.join(root, "company-home");
+      const spaceHome = path.join(root, "space-home");
       const sharedCodexHome = path.join(root, "shared-codex-home");
       const promoted = subscriptionAuth("acct-same", "promoted", "2026-07-09T02:00:00Z");
       await fs.mkdir(sharedCodexHome, { recursive: true });
@@ -572,12 +572,12 @@ describe("seedManagedCodexHome", () => {
         subscriptionAuth("acct-same", "host", "2026-07-09T01:00:00Z"),
         "utf8",
       );
-      await fs.mkdir(companyHome, { recursive: true });
-      await fs.writeFile(path.join(companyHome, "auth.json"), promoted, "utf8");
+      await fs.mkdir(spaceHome, { recursive: true });
+      await fs.writeFile(path.join(spaceHome, "auth.json"), promoted, "utf8");
 
-      await seedManagedCodexHome(companyHome, { CODEX_HOME: sharedCodexHome }, async () => {});
+      await seedManagedCodexHome(spaceHome, { CODEX_HOME: sharedCodexHome }, async () => {});
 
-      const kept = path.join(companyHome, "auth.json");
+      const kept = path.join(spaceHome, "auth.json");
       expect((await fs.lstat(kept)).isSymbolicLink()).toBe(false);
       expect(await fs.readFile(kept, "utf8")).toBe(promoted);
     } finally {
@@ -598,9 +598,9 @@ describe("seedManagedCodexHome", () => {
       { source: "2026-07-09T02:00:00Z", target: null },
     ];
     for (const { source, target } of cases) {
-      const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-seed-tie-"));
+      const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-seed-tie-"));
       try {
-        const companyHome = path.join(root, "company-home");
+        const spaceHome = path.join(root, "space-home");
         const sharedCodexHome = path.join(root, "shared-codex-home");
         const file = subscriptionAuth("acct-same", "file", target);
         await fs.mkdir(sharedCodexHome, { recursive: true });
@@ -609,12 +609,12 @@ describe("seedManagedCodexHome", () => {
           subscriptionAuth("acct-same", "host", source),
           "utf8",
         );
-        await fs.mkdir(companyHome, { recursive: true });
-        await fs.writeFile(path.join(companyHome, "auth.json"), file, "utf8");
+        await fs.mkdir(spaceHome, { recursive: true });
+        await fs.writeFile(path.join(spaceHome, "auth.json"), file, "utf8");
 
-        await seedManagedCodexHome(companyHome, { CODEX_HOME: sharedCodexHome }, async () => {});
+        await seedManagedCodexHome(spaceHome, { CODEX_HOME: sharedCodexHome }, async () => {});
 
-        const kept = path.join(companyHome, "auth.json");
+        const kept = path.join(spaceHome, "auth.json");
         expect((await fs.lstat(kept)).isSymbolicLink()).toBe(false);
         expect(await fs.readFile(kept, "utf8")).toBe(file);
       } finally {
@@ -624,22 +624,22 @@ describe("seedManagedCodexHome", () => {
   });
 
   it("keeps the usable target when the shared source exists but cannot be read", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-seed-src-err-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-seed-src-err-"));
     try {
-      const companyHome = path.join(root, "company-home");
+      const spaceHome = path.join(root, "space-home");
       const sharedCodexHome = path.join(root, "shared-codex-home");
       // A directory at the source auth.json path makes the read fail with
       // EISDIR — a deterministic present-but-unreadable source. Removal plus
       // the existence-only symlink pass would link the home to a source no
       // downstream reader can use, so the usable target must survive.
       await fs.mkdir(path.join(sharedCodexHome, "auth.json"), { recursive: true });
-      await fs.mkdir(companyHome, { recursive: true });
+      await fs.mkdir(spaceHome, { recursive: true });
       const target = subscriptionAuth("acct-unknown-source", "target");
-      await fs.writeFile(path.join(companyHome, "auth.json"), target, "utf8");
+      await fs.writeFile(path.join(spaceHome, "auth.json"), target, "utf8");
 
-      await seedManagedCodexHome(companyHome, { CODEX_HOME: sharedCodexHome }, async () => {});
+      await seedManagedCodexHome(spaceHome, { CODEX_HOME: sharedCodexHome }, async () => {});
 
-      const kept = path.join(companyHome, "auth.json");
+      const kept = path.join(spaceHome, "auth.json");
       expect((await fs.lstat(kept)).isSymbolicLink()).toBe(false);
       expect(await fs.readFile(kept, "utf8")).toBe(target);
     } finally {
@@ -654,15 +654,15 @@ describe("seedManagedCodexHome", () => {
     // promotion/vend/copy-back own — a strictly-fresher same-identity shared
     // source must NOT trigger the #5028 heal here, or the bound account is
     // silently swapped for the host login.
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-seed-store-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-seed-store-"));
     try {
       const sharedCodexHome = path.join(root, "shared-codex-home");
       const entryHome = path.join(
-        root, "paperclip-home", "instances", "default", "companies", "company-1", "codex-auth-cache", "acct-bound",
+        root, "outpost-home", "instances", "default", "spaces", "space-1", "codex-auth-cache", "acct-bound",
       );
       const env = {
         CODEX_HOME: sharedCodexHome,
-        OUTPOST_HOME: path.join(root, "paperclip-home"),
+        OUTPOST_HOME: path.join(root, "outpost-home"),
         OUTPOST_INSTANCE_ID: "default",
       };
       const stored = subscriptionAuth("acct-same", "stored", "2026-07-09T01:00:00Z");
@@ -690,15 +690,15 @@ describe("seedManagedCodexHome", () => {
   });
 
   it("refuses an API-key rewrite of a credential-store entry's auth.json", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-seed-store-apikey-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-seed-store-apikey-"));
     try {
       const sharedCodexHome = path.join(root, "shared-codex-home");
       const entryHome = path.join(
-        root, "paperclip-home", "instances", "default", "companies", "company-1", "codex-auth-cache", "acct-bound",
+        root, "outpost-home", "instances", "default", "spaces", "space-1", "codex-auth-cache", "acct-bound",
       );
       const env = {
         CODEX_HOME: sharedCodexHome,
-        OUTPOST_HOME: path.join(root, "paperclip-home"),
+        OUTPOST_HOME: path.join(root, "outpost-home"),
         OUTPOST_INSTANCE_ID: "default",
       };
       const stored = subscriptionAuth("acct-bound-id", "stored", "2026-07-09T01:00:00Z");
@@ -719,23 +719,23 @@ describe("seedManagedCodexHome", () => {
   });
 
   it("still removes an apikey-mode auth.json so the chatgpt-mode symlink is restored", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-seed-apikey-residue-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-seed-apikey-residue-"));
     try {
-      const companyHome = path.join(root, "company-home");
+      const spaceHome = path.join(root, "space-home");
       const sharedCodexHome = path.join(root, "shared-codex-home");
       const shared = subscriptionAuth("acct-host", "host");
       await fs.mkdir(sharedCodexHome, { recursive: true });
       await fs.writeFile(path.join(sharedCodexHome, "auth.json"), shared, "utf8");
-      await fs.mkdir(companyHome, { recursive: true });
+      await fs.mkdir(spaceHome, { recursive: true });
       await fs.writeFile(
-        path.join(companyHome, "auth.json"),
+        path.join(spaceHome, "auth.json"),
         '{"OPENAI_API_KEY":"stale-key"}',
         "utf8",
       );
 
-      await seedManagedCodexHome(companyHome, { CODEX_HOME: sharedCodexHome }, async () => {});
+      await seedManagedCodexHome(spaceHome, { CODEX_HOME: sharedCodexHome }, async () => {});
 
-      const healed = path.join(companyHome, "auth.json");
+      const healed = path.join(spaceHome, "auth.json");
       expect((await fs.lstat(healed)).isSymbolicLink()).toBe(true);
       expect(await fs.readFile(healed, "utf8")).toBe(shared);
     } finally {
@@ -747,15 +747,15 @@ describe("seedManagedCodexHome", () => {
 // Startup backfill for already-isolated managed homes.
 describe("reconcileManagedCodexHome", () => {
   async function makeFixture() {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-reconcile-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-reconcile-"));
     const sharedCodexHome = path.join(root, "shared-codex-home");
-    const paperclipHome = path.join(root, "paperclip-home");
+    const outpostHome = path.join(root, "outpost-home");
     const agentHome = path.join(
-      paperclipHome,
+      outpostHome,
       "instances",
       "default",
-      "companies",
-      "company-1",
+      "spaces",
+      "space-1",
       "agents",
       "agent-7",
       "codex-home",
@@ -766,7 +766,7 @@ describe("reconcileManagedCodexHome", () => {
     await fs.writeFile(sharedAuth, '{"OPENAI_API_KEY":"shared"}', "utf8");
     const env = {
       CODEX_HOME: sharedCodexHome,
-      OUTPOST_HOME: paperclipHome,
+      OUTPOST_HOME: outpostHome,
       OUTPOST_INSTANCE_ID: "default",
     } satisfies NodeJS.ProcessEnv;
     return { root, sharedCodexHome, sharedAuth, agentHome, agentAuth, env };
@@ -779,7 +779,7 @@ describe("reconcileManagedCodexHome", () => {
       expect(await codexHomeHasUsableAuth(fx.agentHome)).toBe(false);
 
       const first = await reconcileManagedCodexHome({
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: fx.agentHome,
         env: fx.env,
       });
@@ -789,7 +789,7 @@ describe("reconcileManagedCodexHome", () => {
       expect(await fs.realpath(fx.agentAuth)).toBe(await fs.realpath(fx.sharedAuth));
 
       const second = await reconcileManagedCodexHome({
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: fx.agentHome,
         env: fx.env,
       });
@@ -807,7 +807,7 @@ describe("reconcileManagedCodexHome", () => {
       await fs.rm(fx.sharedAuth, { force: true });
 
       const result = await reconcileManagedCodexHome({
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: fx.agentHome,
         env: fx.env,
       });
@@ -826,7 +826,7 @@ describe("reconcileManagedCodexHome", () => {
       await fs.mkdir(external, { recursive: true });
 
       const result = await reconcileManagedCodexHome({
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: external,
         env: fx.env,
       });
@@ -841,7 +841,7 @@ describe("reconcileManagedCodexHome", () => {
     const fx = await makeFixture();
     try {
       const result = await reconcileManagedCodexHome({
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: null,
         env: fx.env,
       });
@@ -864,7 +864,7 @@ describe("reconcileManagedCodexHome", () => {
       );
 
       const result = await reconcileManagedCodexHome({
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: fx.agentHome,
         apiKeySecretBound: true,
         env: fx.env,
@@ -884,7 +884,7 @@ describe("reconcileManagedCodexHome", () => {
     const fx = await makeFixture();
     try {
       const result = await reconcileManagedCodexHome({
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: fx.agentHome,
         apiKeySecretBound: true,
         env: fx.env,
@@ -902,7 +902,7 @@ describe("reconcileManagedCodexHome", () => {
     const fx = await makeFixture();
     try {
       const result = await reconcileManagedCodexHome({
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: fx.agentHome,
         apiKey: "sk-reconcile-1",
         env: fx.env,
@@ -912,7 +912,7 @@ describe("reconcileManagedCodexHome", () => {
       expect(written).toEqual({ OPENAI_API_KEY: "sk-reconcile-1" });
 
       const second = await reconcileManagedCodexHome({
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: fx.agentHome,
         apiKey: "sk-reconcile-1",
         env: fx.env,
@@ -929,25 +929,25 @@ describe("reconcileManagedCodexHome", () => {
 
 describe("evaluateCodexCredentialReadiness", () => {
   async function makeFixture() {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-readiness-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-readiness-"));
     const sharedCodexHome = path.join(root, "shared-codex-home");
-    const paperclipHome = path.join(root, "paperclip-home");
-    const companyRoot = path.join(
-      paperclipHome,
+    const outpostHome = path.join(root, "outpost-home");
+    const spaceRoot = path.join(
+      outpostHome,
       "instances",
       "default",
-      "companies",
-      "company-1",
+      "spaces",
+      "space-1",
     );
-    const managedCompanyHome = path.join(companyRoot, "codex-home");
-    const managedAgentHome = path.join(companyRoot, "agents", "agent-1", "codex-home");
+    const managedSpaceHome = path.join(spaceRoot, "codex-home");
+    const managedAgentHome = path.join(spaceRoot, "agents", "agent-1", "codex-home");
     const env: NodeJS.ProcessEnv = {
       CODEX_HOME: sharedCodexHome,
-      OUTPOST_HOME: paperclipHome,
+      OUTPOST_HOME: outpostHome,
       OUTPOST_INSTANCE_ID: "default",
     };
     await fs.mkdir(sharedCodexHome, { recursive: true });
-    return { root, sharedCodexHome, managedCompanyHome, managedAgentHome, env };
+    return { root, sharedCodexHome, managedSpaceHome, managedAgentHome, env };
   }
 
   async function writeUsableAuth(home: string) {
@@ -960,7 +960,7 @@ describe("evaluateCodexCredentialReadiness", () => {
     try {
       const result = await evaluateCodexCredentialReadiness({
         env: fx.env,
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: fx.managedAgentHome,
         configuredApiKey: "",
       });
@@ -976,7 +976,7 @@ describe("evaluateCodexCredentialReadiness", () => {
     try {
       const result = await evaluateCodexCredentialReadiness({
         env: fx.env,
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: fx.managedAgentHome,
         configuredApiKey: "sk-agent-key",
       });
@@ -992,7 +992,7 @@ describe("evaluateCodexCredentialReadiness", () => {
       await writeUsableAuth(fx.sharedCodexHome);
       const result = await evaluateCodexCredentialReadiness({
         env: fx.env,
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: fx.managedAgentHome,
         configuredApiKey: "",
       });
@@ -1008,7 +1008,7 @@ describe("evaluateCodexCredentialReadiness", () => {
       await writeUsableAuth(fx.managedAgentHome);
       const result = await evaluateCodexCredentialReadiness({
         env: fx.env,
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: fx.managedAgentHome,
         configuredApiKey: "",
       });
@@ -1018,17 +1018,17 @@ describe("evaluateCodexCredentialReadiness", () => {
     }
   });
 
-  it("defaults to the managed company home when no CODEX_HOME is configured", async () => {
+  it("defaults to the managed space home when no CODEX_HOME is configured", async () => {
     const fx = await makeFixture();
     try {
       const result = await evaluateCodexCredentialReadiness({
         env: fx.env,
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: null,
         configuredApiKey: "",
       });
       expect(result).toMatchObject({ managed: true, authMode: "subscription", ready: false });
-      expect(result.effectiveHome).toBe(path.resolve(fx.managedCompanyHome));
+      expect(result.effectiveHome).toBe(path.resolve(fx.managedSpaceHome));
     } finally {
       await fs.rm(fx.root, { recursive: true, force: true });
     }
@@ -1041,7 +1041,7 @@ describe("evaluateCodexCredentialReadiness", () => {
       await fs.mkdir(externalHome, { recursive: true });
       const result = await evaluateCodexCredentialReadiness({
         env: fx.env,
-        companyId: "company-1",
+        spaceId: "space-1",
         configuredCodexHome: externalHome,
         configuredApiKey: "",
       });
@@ -1052,7 +1052,7 @@ describe("evaluateCodexCredentialReadiness", () => {
   });
 
   it("replaces the managed MCP block and clears stale servers for an empty runtime set", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-mcp-config-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-mcp-config-"));
     try {
       const alphaHome = path.join(root, "agent-alpha");
       const zeroHome = path.join(root, "agent-zero");
@@ -1094,7 +1094,7 @@ describe("evaluateCodexCredentialReadiness", () => {
   });
 
   it("restricts permissions on an existing managed MCP config", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-mcp-config-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-mcp-config-"));
     try {
       const configPath = path.join(root, "config.toml");
       await fs.writeFile(configPath, "model = \"gpt-5\"\n", { mode: 0o644 });
@@ -1122,8 +1122,8 @@ describe("stageCodexHomeForSync", () => {
     let staged: string | undefined;
     try {
       const home = path.join(root, "home"); await fs.mkdir(home);
-      const own = "paperclip-observability-run-1.config.toml";
-      const other = "paperclip-observability-run-2.config.toml";
+      const own = "outpost-observability-run-1.config.toml";
+      const other = "outpost-observability-run-2.config.toml";
       await fs.writeFile(path.join(home, own), '[otel]\nexporter = "none"\n', { mode: 0o600 });
       await fs.writeFile(path.join(home, other), "another-active-run", { mode: 0o600 });
       staged = await stageCodexHomeForSync(home, { runId: "run-1", additionalFiles: [own] });
@@ -1155,7 +1155,7 @@ describe("stageCodexHomeForSync", () => {
     await fs.mkdir(home, { recursive: true });
     // auth.json is a symlink into the shared source (single-use rotating tokens).
     await fs.symlink(authSource, path.join(home, "auth.json"));
-    await fs.writeFile(path.join(home, "config.toml"), "model_provider = \"paperclip\"\n", "utf8");
+    await fs.writeFile(path.join(home, "config.toml"), "model_provider = \"outpost\"\n", "utf8");
     await fs.writeFile(path.join(home, "config.json"), "{}\n", "utf8");
     await fs.writeFile(path.join(home, "instructions.md"), "hi\n", "utf8");
     // skills/ is a directory of symlinks.
@@ -1180,9 +1180,9 @@ describe("stageCodexHomeForSync", () => {
     { extraArgs: ["--full-auto"], args: ["--profile", "ignored"], expectedModel: undefined },
     { extraArgs: [], args: ["--profile", "legacy"], expectedModel: "legacy-model" },
   ])("uses effective CLI arguments when materializing an export profile: %j", async ({ extraArgs, args, expectedModel }) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-profile-policy-"));
-    const companyId = randomUUID();
-    const home = path.join(root, "instances", "default", "companies", companyId, "codex-home");
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-profile-policy-"));
+    const spaceId = randomUUID();
+    const home = path.join(root, "instances", "default", "spaces", spaceId, "codex-home");
     const captured = path.join(root, "captured-profile.json");
     try {
       vi.stubEnv("OUTPOST_HOME", root); vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
@@ -1205,10 +1205,10 @@ process.stdin.on("end", () => {
 });
 `, { mode: 0o700 });
       const result = await executeCodex({
-        runId: randomUUID(), agent: { id: randomUUID(), companyId, adapterType: "codex_local", name: "Profile fixture", adapterConfig: {} },
+        runId: randomUUID(), agent: { id: randomUUID(), spaceId, adapterType: "codex_local", name: "Profile fixture", adapterConfig: {} },
         runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null }, context: {}, config: { engine: "cli", command, cwd: root, extraArgs, args,
-          env: { CODEX_HOME: home, OPENAI_API_KEY: "fake-provider-key" }, paperclipSkillSync: { desiredSkills: [] } },
-        observability: buildProviderObservabilityLaunch({ kind: "codex", companyId, agentId: "fixture-agent", revision: "revision", compatibilityKey: "fixture",
+          env: { CODEX_HOME: home, OPENAI_API_KEY: "fake-provider-key" }, outpostSkillSync: { desiredSkills: [] } },
+        observability: buildProviderObservabilityLaunch({ kind: "codex", spaceId, agentId: "fixture-agent", revision: "revision", compatibilityKey: "fixture",
           enabled: true, capture: { userPrompts: true, assistantResponses: true, toolDetails: true, toolContent: true },
           logsEndpoint: "https://collector.example/v1/logs", tracesEndpoint: "https://collector.example/v1/traces", headers: {} }),
         onLog: async () => {}, onMeta: async () => {},
@@ -1224,7 +1224,7 @@ process.stdin.on("end", () => {
   });
 
   it.each([false, true])("preserves remote conversations through real exporter restaging (subscription=%s)", async (mergeAuth) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-restage-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-restage-"));
     const stagedHomes: string[] = [];
     try {
       const home = path.join(root, "host-home");
@@ -1285,14 +1285,14 @@ process.stdin.on("end", () => {
       expect(failed.exitCode).not.toBe(0);
       expect(await fs.readFile(path.join(remoteHome, "sessions", "conversation.jsonl"), "utf8")).toBe("saved-sessions");
       expect(await fs.readFile(path.join(remoteHome, "config.toml"), "utf8")).toContain("https://second.example.test/v1/logs");
-      expect((await fs.readdir(remoteHome)).some(name => name.startsWith(".paperclip-home-refresh."))).toBe(false);
+      expect((await fs.readdir(remoteHome)).some(name => name.startsWith(".outpost-home-refresh."))).toBe(false);
     } finally {
       await Promise.all([...stagedHomes, root].map(dir => fs.rm(dir, { recursive: true, force: true })));
     }
   });
 
   it("stages exactly the allowlist, derefs auth.json to bytes, and excludes decoys", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-stage-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-stage-"));
     let staged: string | null = null;
     try {
       const { home, authBytes, skillBytes } = await buildFakeHome(root);
@@ -1333,7 +1333,7 @@ process.stdin.on("end", () => {
   // config.toml carries the managed MCP `Authorization: Bearer …` header and is
   // secret-bearing; the staged copy must be 0600, not the world-readable default.
   it("writes the staged config.toml (managed MCP bearer header) with mode 0600", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-stage-toml-mode-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-stage-toml-mode-"));
     let staged: string | null = null;
     try {
       const home = path.join(root, "codex-home");
@@ -1342,7 +1342,7 @@ process.stdin.on("end", () => {
       // and is persisted 0600 on disk.
       await fs.writeFile(
         path.join(home, "config.toml"),
-        "[mcp_servers.paperclip]\nheaders = { Authorization = \"Bearer secret-token\" }\n",
+        "[mcp_servers.outpost]\nheaders = { Authorization = \"Bearer secret-token\" }\n",
         { mode: 0o600 },
       );
       staged = await stageCodexHomeForSync(home, { runId: "run-toml-mode" });
@@ -1355,7 +1355,7 @@ process.stdin.on("end", () => {
   });
 
   it("skips absent optional entries without throwing", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-stage-absent-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-stage-absent-"));
     let staged: string | null = null;
     try {
       // Keyring-credential mode: no auth.json, no config.json.
@@ -1373,7 +1373,7 @@ process.stdin.on("end", () => {
   });
 
   it("treats a dangling auth.json symlink as absent (skips it, no throw)", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-stage-dangling-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-stage-dangling-"));
     let staged: string | null = null;
     try {
       const home = path.join(root, "codex-home");
@@ -1392,7 +1392,7 @@ process.stdin.on("end", () => {
   // C3 + C4 — an unexpected I/O error must reject (fail-closed, not partial)
   // AND remove the temp dir it created (cleanup on the error path).
   it("fails closed and removes the temp dir on an unexpected I/O error", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-stage-fail-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-stage-fail-"));
     try {
       const { home } = await buildFakeHome(root);
 
@@ -1417,11 +1417,11 @@ process.stdin.on("end", () => {
   });
 
   // Circular symlinks inside skills/ must be silently skipped (not throw ELOOP).
-  // Skill symlinks that point OUTSIDE skills/ are intentional design (Paperclip
+  // Skill symlinks that point OUTSIDE skills/ are intentional design (Outpost
   // stores skill packages in a shared location) and are dereferenced normally;
   // all resulting files land 0600 inside the 0700 staged dir.
   it("skips circular skill symlinks (ELOOP) without throwing", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-stage-circular-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-stage-circular-"));
     let staged: string | null = null;
     try {
       const home = path.join(root, "codex-home");
@@ -1446,7 +1446,7 @@ process.stdin.on("end", () => {
 
   // Skill staging retains executable permission with owner-only access.
   it("retains skill executable bits without group or world permissions", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-stage-skill-mode-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-stage-skill-mode-"));
     let staged: string | null = null;
     try {
       const home = path.join(root, "codex-home");
@@ -1473,7 +1473,7 @@ process.stdin.on("end", () => {
   // exhausted. Cycle detection must let staging finish while still copying the
   // real content and skipping the self-referential link.
   it("does not infinitely traverse an ancestor directory link (back -> .) inside a skill", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-stage-cycle-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-stage-cycle-"));
     let staged: string | null = null;
     try {
       const home = path.join(root, "codex-home");
@@ -1503,7 +1503,7 @@ process.stdin.on("end", () => {
   // dereferenced into the staged asset — otherwise a malformed/compromised skill
   // could smuggle host secrets past CODEX_SYNC_ALLOWLIST.
   it("does not stage a nested skill symlink that escapes the skill root", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-stage-escape-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-stage-escape-"));
     let staged: string | null = null;
     try {
       const home = path.join(root, "codex-home");
@@ -1541,7 +1541,7 @@ process.stdin.on("end", () => {
   // never adopted as a containment root — otherwise the whole home
   // (`sessions/`, `*.sqlite`, …) would be dragged into the staged skills asset.
   it("skips a top-level skills entry that resolves to an ancestor of skills/", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-stage-ancestor-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-stage-ancestor-"));
     let staged: string | null = null;
     try {
       const home = path.join(root, "codex-home");

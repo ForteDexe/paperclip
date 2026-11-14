@@ -6,7 +6,7 @@ import { logActivity, publishActivity, type ActivityPublication } from "../activ
 
 const checks = ["verifier_format", "client_mismatch", "redirect_mismatch", "resource_mismatch", "pkce_mismatch", "code_consumed", "code_expired", "binding_unavailable", "grant_unavailable", "current_authority_unavailable"] as const;
 export type MuseCodeExchangeCheck = typeof checks[number];
-type BindingScope = Pick<typeof museAgentBindings.$inferSelect, "id" | "companyId" | "agentId" | "operatorId" | "generation" | "grantId">;
+type BindingScope = Pick<typeof museAgentBindings.$inferSelect, "id" | "spaceId" | "agentId" | "operatorId" | "generation" | "grantId">;
 type CodeTimes = Pick<typeof mcpOauthRequests.$inferSelect, "decidedAt" | "expiresAt">;
 export type MuseCodeExchangeObservation = {
   receivedAt: Date;
@@ -24,7 +24,7 @@ export function beginMuseCodeExchange(receivedAt: Date): MuseCodeExchangeObserva
 }
 
 export function observeMuseCodeBinding(observation: MuseCodeExchangeObservation | undefined, binding: BindingScope) {
-  if (observation) observation.binding = { id: binding.id, companyId: binding.companyId, agentId: binding.agentId,
+  if (observation) observation.binding = { id: binding.id, spaceId: binding.spaceId, agentId: binding.agentId,
     operatorId: binding.operatorId, generation: binding.generation, grantId: binding.grantId };
 }
 
@@ -56,9 +56,9 @@ export function publishMuseCodeActivities(publications: ActivityPublication[]) {
 export async function recordMuseCodeSuccess(tx: Db, observation: MuseCodeExchangeObservation, code: CodeTimes,
   grant: typeof mcpOauthGrants.$inferSelect) {
   const binding = observation.binding, times = timing(observation, code);
-  if (!binding || binding.grantId !== grant.id || binding.companyId !== grant.companyId || binding.agentId !== grant.agentId
+  if (!binding || binding.grantId !== grant.id || binding.spaceId !== grant.spaceId || binding.agentId !== grant.agentId
     || binding.operatorId !== grant.userId || !times) throw new Error("Muse OAuth exchange diagnostic scope is unavailable");
-  await logActivity(tx, { companyId: binding.companyId, actorType: "system", actorId: "muse-oauth",
+  await logActivity(tx, { spaceId: binding.spaceId, actorType: "system", actorId: "muse-oauth",
     action: "muse.oauth_code_exchange_succeeded", entityType: "agent", entityId: binding.agentId, agentId: binding.agentId,
     responsibleUserIdOverride: grant.userId,
     details: { schemaVersion: 1, bindingId: binding.id, generation: binding.generation, grantId: grant.id, ...times } }, observation.publications);
@@ -72,36 +72,36 @@ export async function recordMuseCodeRejection(db: Db, resource: string, codeHash
     const [grant] = await db.select().from(mcpOauthGrants).where(eq(mcpOauthGrants.id, source.grantId));
     if (!grant?.agentId || grant.purpose !== "agent" || grant.resource !== resource) return;
     const scope = observation.binding;
-    if (scope && (scope.grantId !== grant.id || scope.companyId !== grant.companyId || scope.agentId !== grant.agentId || scope.operatorId !== grant.userId)) return;
+    if (scope && (scope.grantId !== grant.id || scope.spaceId !== grant.spaceId || scope.agentId !== grant.agentId || scope.operatorId !== grant.userId)) return;
     const [candidate] = await db.select().from(museAgentBindings).where(and(eq(museAgentBindings.grantId, grant.id),
-      eq(museAgentBindings.companyId, grant.companyId), eq(museAgentBindings.agentId, grant.agentId), eq(museAgentBindings.operatorId, grant.userId),
+      eq(museAgentBindings.spaceId, grant.spaceId), eq(museAgentBindings.agentId, grant.agentId), eq(museAgentBindings.operatorId, grant.userId),
       scope ? eq(museAgentBindings.id, scope.id) : undefined, scope ? eq(museAgentBindings.generation, scope.generation) : undefined));
     if (!candidate) return;
     const publications: ActivityPublication[] = [];
-    await db.transaction(tx => withExternalAdmissionGuard(tx, candidate.companyId, candidate.agentId, async () => {
+    await db.transaction(tx => withExternalAdmissionGuard(tx, candidate.spaceId, candidate.agentId, async () => {
       const [binding] = await tx.select().from(museAgentBindings).where(and(eq(museAgentBindings.id, candidate.id),
         eq(museAgentBindings.generation, candidate.generation), eq(museAgentBindings.grantId, grant.id),
-        eq(museAgentBindings.companyId, candidate.companyId), eq(museAgentBindings.agentId, candidate.agentId),
+        eq(museAgentBindings.spaceId, candidate.spaceId), eq(museAgentBindings.agentId, candidate.agentId),
         eq(museAgentBindings.operatorId, candidate.operatorId))).for("update");
       if (!binding) return;
       const [code] = await tx.select().from(mcpOauthRequests).where(and(eq(mcpOauthRequests.codeHash, codeHash),
         eq(mcpOauthRequests.grantId, grant.id))).for("update");
       const [currentGrant] = await tx.select().from(mcpOauthGrants).where(and(eq(mcpOauthGrants.id, grant.id),
-        eq(mcpOauthGrants.companyId, binding.companyId), eq(mcpOauthGrants.agentId, binding.agentId),
+        eq(mcpOauthGrants.spaceId, binding.spaceId), eq(mcpOauthGrants.agentId, binding.agentId),
         eq(mcpOauthGrants.userId, binding.operatorId), eq(mcpOauthGrants.purpose, "agent"), eq(mcpOauthGrants.resource, resource))).for("update");
-      if (!code || !currentGrant || code.resource !== resource || code.requestedCompanyId !== binding.companyId || code.clientId !== currentGrant.clientId) return;
+      if (!code || !currentGrant || code.resource !== resource || code.requestedSpaceId !== binding.spaceId || code.clientId !== currentGrant.clientId) return;
       const times = timing(observation, code);
       if (!times) return;
       for (const check of observation.failedChecks) {
         const action = `muse.oauth_code_exchange_rejected_${check}`;
         const [existing] = await tx.select({ id: activityLog.id }).from(activityLog).where(and(
-          eq(activityLog.companyId, binding.companyId), eq(activityLog.actorType, "system"), eq(activityLog.actorId, "muse-oauth"),
+          eq(activityLog.spaceId, binding.spaceId), eq(activityLog.actorType, "system"), eq(activityLog.actorId, "muse-oauth"),
           eq(activityLog.entityType, "agent"), eq(activityLog.entityId, binding.agentId), eq(activityLog.agentId, binding.agentId),
           eq(activityLog.responsibleUserId, currentGrant.userId), eq(activityLog.action, action),
           sql`${activityLog.details}->>'bindingId' = ${binding.id}`, sql`${activityLog.details}->>'generation' = ${String(binding.generation)}`,
           sql`${activityLog.details}->>'grantId' = ${currentGrant.id}`)).limit(1);
         if (existing) continue;
-        await logActivity(tx as unknown as Db, { companyId: binding.companyId, actorType: "system", actorId: "muse-oauth", action,
+        await logActivity(tx as unknown as Db, { spaceId: binding.spaceId, actorType: "system", actorId: "muse-oauth", action,
           entityType: "agent", entityId: binding.agentId, agentId: binding.agentId, responsibleUserIdOverride: currentGrant.userId,
           details: { schemaVersion: 1, bindingId: binding.id, generation: binding.generation, grantId: currentGrant.id,
             failedChecks: observation.failedChecks, ...times } }, publications);

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildPaperclipTaskMarkdown } from "./task-markdown.js";
+import { buildOutpostTaskMarkdown } from "./task-markdown.js";
 
 const issue = {
   id: "task-1",
@@ -10,7 +10,7 @@ const issue = {
 
 describe("heartbeat task markdown rendering", () => {
   it.each([true, false])("keeps native task clarification in the current task on full and resumed assignments (description=%s)", (includeDescription) => {
-    const markdown = buildPaperclipTaskMarkdown({
+    const markdown = buildOutpostTaskMarkdown({
       issue: { ...issue, description: "Write a blog post about our launch." },
       nativeRunner: true,
       includeDescription,
@@ -30,7 +30,7 @@ describe("heartbeat task markdown rendering", () => {
   });
 
   it("preserves execution of a clear accepted plan without imposing clarification", () => {
-    const markdown = buildPaperclipTaskMarkdown({
+    const markdown = buildOutpostTaskMarkdown({
       issue: { ...issue, workMode: "planning" },
       nativeRunner: true,
       acceptedPlanContinuation: true,
@@ -49,66 +49,66 @@ describe("heartbeat task markdown rendering", () => {
     { nativeRunner: true, coordinatorWorkspace: false, conversationAgentId: "coordinator" },
     { nativeRunner: true, coordinatorWorkspace: true, conversationAgentId: "coordinator" },
   ])("does not add native task clarification to adapter or standing-chat assignments: %j", ({ conversationAgentId, ...input }) => {
-    expect(buildPaperclipTaskMarkdown({ issue: { ...issue, conversationAgentId }, ...input }))
+    expect(buildOutpostTaskMarkdown({ issue: { ...issue, conversationAgentId }, ...input }))
       .not.toContain("Task clarification directive:");
   });
 
   it("tells a chat agent the person's time zone only when it is known", () => {
     const chat = { id: "chat", identifier: null, title: "Chat", conversationAgentId: "coordinator" };
     const line = "The person's time zone is America/Chicago (from their browser). Read times and dates they give";
-    expect(buildPaperclipTaskMarkdown({ issue: chat, personTimeZone: "America/Chicago" })).toContain(line);
-    expect(buildPaperclipTaskMarkdown({ issue: chat, personTimeZone: "America/Chicago" })).toContain("save schedules such as routine triggers with that timezone; say the zone when you report a schedule.");
-    expect(buildPaperclipTaskMarkdown({ issue: chat, personTimeZone: null })).not.toContain("The person's time zone is");
-    expect(buildPaperclipTaskMarkdown({ issue: chat })).not.toContain("The person's time zone is");
-    expect(buildPaperclipTaskMarkdown({ issue, personTimeZone: "America/Chicago" })).not.toContain("The person's time zone is");
+    expect(buildOutpostTaskMarkdown({ issue: chat, personTimeZone: "America/Chicago" })).toContain(line);
+    expect(buildOutpostTaskMarkdown({ issue: chat, personTimeZone: "America/Chicago" })).toContain("save schedules such as routine triggers with that timezone; say the zone when you report a schedule.");
+    expect(buildOutpostTaskMarkdown({ issue: chat, personTimeZone: null })).not.toContain("The person's time zone is");
+    expect(buildOutpostTaskMarkdown({ issue: chat })).not.toContain("The person's time zone is");
+    expect(buildOutpostTaskMarkdown({ issue, personTimeZone: "America/Chicago" })).not.toContain("The person's time zone is");
   });
 
   it("shows inferred task proposals only for opted-in native conversations while preserving explicit creation", () => {
     const issue = { id: "chat", identifier: null, title: "Chat", conversationAgentId: "coordinator" };
-    const classic = buildPaperclipTaskMarkdown({ issue, nativeRunner: true });
+    const classic = buildOutpostTaskMarkdown({ issue, nativeRunner: true });
     expect(classic).not.toContain("Coordinator task proposals:");
-    const optedIn = buildPaperclipTaskMarkdown({ issue, nativeRunner: true, coordinatorWorkspace: true });
+    const optedIn = buildOutpostTaskMarkdown({ issue, nativeRunner: true, coordinatorWorkspace: true });
     expect(optedIn).toContain('interactionKind: "suggest_tasks"');
     expect(optedIn).toContain("acceptance creates the task atomically");
     expect(optedIn).toContain("If the user explicitly authorized task creation, use create_task directly");
-    expect(buildPaperclipTaskMarkdown({ issue, nativeRunner: false, coordinatorWorkspace: true }))
+    expect(buildOutpostTaskMarkdown({ issue, nativeRunner: false, coordinatorWorkspace: true }))
       .not.toContain("Coordinator task proposals:");
   });
   it("tells a standing chat what a status card is, how to create and refresh one, and to reply now with its link, only while the experiment is enabled", () => {
-    const chat = { id: "chat", identifier: "RUN-1", title: "Chat", conversationAgentId: "ceo" };
-    const enabled = buildPaperclipTaskMarkdown({ issue: chat, nativeRunner: true, statusCardsEnabled: true })!;
+    const chat = { id: "chat", identifier: "RUN-1", title: "Chat", conversationAgentId: "lead" };
+    const enabled = buildOutpostTaskMarkdown({ issue: chat, nativeRunner: true, statusCardsEnabled: true })!;
     expect(enabled).toContain("Status Cards:");
-    expect(enabled).toContain("A status card is a saved Paperclip feature, not a document or comment");
-    expect(enabled).toContain("POST /api/companies/{companyId}/status-cards");
+    expect(enabled).toContain("A status card is a saved Outpost feature, not a document or comment");
+    expect(enabled).toContain("POST /api/spaces/{spaceId}/status-cards");
     expect(enabled).toContain("POST /api/status-cards/{id}/refresh");
     expect(enabled).toContain("Do not sleep or poll the card. Report the outcome the response gives");
     expect(enabled).toContain("enqueued false otherwise means no run started, so say why from card.state");
     expect(enabled).toContain("[Launch blockers](/<prefix>/status/<cardId>)");
-    // The named pages are the board's real routes.
+    // The named pages are the operator's real routes.
     const app = readFileSync(new URL("../../../../ui/src/App.tsx", import.meta.url), "utf8");
     expect(enabled).toContain("Status page at /<prefix>/status (");
     expect(app).toMatch(/path="status"\s+element=\{<StatusCardsExperimentalGate>/);
     expect(app).toMatch(/path="status\/:cardId"\s+element=\{<StatusCardsExperimentalGate>/);
-    expect(buildPaperclipTaskMarkdown({ issue: chat, nativeRunner: true })).not.toContain("Status Cards:");
-    expect(buildPaperclipTaskMarkdown({ issue: { ...chat, conversationAgentId: null }, nativeRunner: true, statusCardsEnabled: true }))
+    expect(buildOutpostTaskMarkdown({ issue: chat, nativeRunner: true })).not.toContain("Status Cards:");
+    expect(buildOutpostTaskMarkdown({ issue: { ...chat, conversationAgentId: null }, nativeRunner: true, statusCardsEnabled: true }))
       .not.toContain("Status Cards:");
   });
   it("tells a standing chat to link a case's page by its identifier, only while the Cases experiment is enabled", () => {
-    const chat = { id: "chat", identifier: "RUN-1", title: "Chat", conversationAgentId: "ceo" };
-    const enabled = buildPaperclipTaskMarkdown({ issue: chat, nativeRunner: true, casesEnabled: true })!;
+    const chat = { id: "chat", identifier: "RUN-1", title: "Chat", conversationAgentId: "lead" };
+    const enabled = buildOutpostTaskMarkdown({ issue: chat, nativeRunner: true, casesEnabled: true })!;
     expect(enabled).toContain("Cases:");
     expect(enabled).toContain("/<prefix>/cases/<case identifier>");
     expect(enabled).toContain("[RUN-C1](/<prefix>/cases/RUN-C1)");
-    // The named page is the board's real route.
+    // The named page is the operator's real route.
     const app = readFileSync(new URL("../../../../ui/src/App.tsx", import.meta.url), "utf8");
     expect(app).toMatch(/path="cases\/:caseIdentifier"/);
-    expect(buildPaperclipTaskMarkdown({ issue: chat, nativeRunner: true })).not.toContain("Cases:");
-    expect(buildPaperclipTaskMarkdown({ issue: { ...chat, conversationAgentId: null }, nativeRunner: true, casesEnabled: true }))
+    expect(buildOutpostTaskMarkdown({ issue: chat, nativeRunner: true })).not.toContain("Cases:");
+    expect(buildOutpostTaskMarkdown({ issue: { ...chat, conversationAgentId: null }, nativeRunner: true, casesEnabled: true }))
       .not.toContain("Cases:");
   });
   it("returns null without a task or a nonempty wake comment", () => {
-    expect(buildPaperclipTaskMarkdown({ issue: null })).toBeNull();
-    expect(buildPaperclipTaskMarkdown({
+    expect(buildOutpostTaskMarkdown({ issue: null })).toBeNull();
+    expect(buildOutpostTaskMarkdown({
       issue: null,
       wakeComments: [{ id: "empty", body: " \n " }],
     })).toBeNull();
@@ -124,7 +124,7 @@ describe("heartbeat task markdown rendering", () => {
       ],
     };
     const before = structuredClone(input);
-    const markdown = buildPaperclipTaskMarkdown(input)!;
+    const markdown = buildOutpostTaskMarkdown(input)!;
 
     expect(markdown).toContain("Pending wake comments (oldest to newest):");
     expect(markdown.indexOf('("first")')).toBeLessThan(markdown.indexOf('("last")'));
@@ -132,13 +132,13 @@ describe("heartbeat task markdown rendering", () => {
     expect(markdown).toContain("\nLatest request.\n");
     expect(markdown).not.toContain('("empty")');
     expect(input).toEqual(before);
-    expect(buildPaperclipTaskMarkdown(input)).toBe(markdown);
+    expect(buildOutpostTaskMarkdown(input)).toBe(markdown);
   });
 
   it("quotes task scalars and keeps embedded code fences inside the description", () => {
     const description = "First line.\n````text\nQuoted instruction.\n````\nLast line.";
     const title = 'A "quoted" title\nwith a second line';
-    const markdown = buildPaperclipTaskMarkdown({
+    const markdown = buildOutpostTaskMarkdown({
       issue: { ...issue, title, description },
     });
 
@@ -147,7 +147,7 @@ describe("heartbeat task markdown rendering", () => {
   });
 
   it("keeps the nearest six ancestors and reports omitted ancestor context", () => {
-    const markdown = buildPaperclipTaskMarkdown({
+    const markdown = buildOutpostTaskMarkdown({
       issue,
       ancestors: Array.from({ length: 7 }, (_, index) => ({
         id: `ancestor-${index + 1}`,
@@ -163,7 +163,7 @@ describe("heartbeat task markdown rendering", () => {
 
   it.each([true, false])("retains attachment-only wakes with hidden comment bodies (native=%s)", (nativeRunner) => {
     const contentPath = "/api/attachments/attachment-1/content";
-    const markdown = buildPaperclipTaskMarkdown({
+    const markdown = buildOutpostTaskMarkdown({
       issue: null,
       nativeRunner,
       includeWakeComments: false,
@@ -193,7 +193,7 @@ describe("heartbeat task markdown rendering", () => {
   });
 
   it("keeps a rejected plan from granting execution through an older acceptance", () => {
-    const markdown = buildPaperclipTaskMarkdown({
+    const markdown = buildOutpostTaskMarkdown({
       issue: { ...issue, workMode: "planning" },
       acceptedPlanContinuation: true,
       interaction: { kind: "request_confirmation", status: "accepted" },

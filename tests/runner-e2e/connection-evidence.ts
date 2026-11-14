@@ -23,14 +23,14 @@ export interface ConnectionEvidence {
   waits: Array<{ kind: "board_login" | "provider_login"; startedAt: string; finishedAt?: string }>;
   connectionId?: string;
   agentId?: string;
-  companyId?: string;
+  spaceId?: string;
   artifactSha256?: string;
   model?: string;
   inputTransport?: "prompt_base64";
   setupChecks?: Array<{ code: string; level: "info" | "warn" | "error" }>;
   creationFailure?: { status: number; code: "ai_connection_api_key_rejected" | "ai_connection_verification_failed" | "connection_request_rejected" };
   cleanupRetained?: boolean;
-  companyArchived?: boolean;
+  spaceArchived?: boolean;
   artifactChecks?: Array<{ filename: string; runId: string; sha256: string; fields: Record<string, boolean>; exactFields: boolean }>;
   runDiagnostics?: ConnectionRunDiagnostic[];
 }

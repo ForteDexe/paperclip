@@ -2,7 +2,7 @@
 
 Run-log events write to the `heartbeat_run_events` table
 (`packages/db/src/schema/heartbeat_run_events.ts:6-20`). They are not
-Paperclip Telemetry events, and they are not OpenTelemetry exports. A run-log
+Outpost Telemetry events, and they are not OpenTelemetry exports. A run-log
 event needs no operator endpoint.
 
 ## ACPX sidecar shutdown
@@ -55,7 +55,7 @@ warmth. These events stay in the local run log; they add no first-party Telemetr
 ## Ordinary event persistence
 
 Events without a native source identity or retry-exhaustion receipt use one
-atomic PostgreSQL statement. The statement checks the stored run's company and
+atomic PostgreSQL statement. The statement checks the stored run's space and
 agent, allocates its next sequence, and inserts the event. An insertion failure
 also rolls back the sequence allocation. The returned row uses the existing
 column decoders, including the lossless payload codec. Callers still wait for
@@ -123,7 +123,7 @@ judged on `task.time_to_first_token` before 2026-11-08), `agent_boot` (end of
 `heartbeat.queue` to the end of `runner.turn.submit` or `runner.session.resume`)
 or `restart_recovery_control_plane` (startup recovery `ready` to the start of the
 provider's saved-session load, `provider.session.load`, or to the recovered run's
-first provider event when nothing reloads). That is Paperclip's own share of a
+first provider event when nothing reloads). That is Outpost's own share of a
 recovery: claim, prepare, runtime stage and runner launch. The full recovery
 (`ready` to the first provider event) and the provider's session load grow with
 session size and with how many sessions resume at once, so they are reported in
@@ -186,7 +186,7 @@ retains a normalized category, a bounded and redacted provider explanation, the
 startup/turn phase, and available status, code, request ID, or retry time. Provider
 adapters extract these fields; arbitrary exception objects, request bodies,
 headers, environment variables, and stacks are excluded. Unknown categories retain
-their explanation. The cause stays in company-scoped run records and the run log;
+their explanation. The cause stays in space-scoped run records and the run log;
 it is not added to first-party Telemetry, Observability attributes, or Sentry
 failure reports. The reportable run error keeps its existing generic text, except
 that an ACPX startup rejection keeps Runner's closed rejection text and its
@@ -302,7 +302,7 @@ restoring its plaintext into the checkpoint.
 PostgreSQL JSONB cannot represent NUL (U+0000), which can occur in command
 output such as Vite virtual-module paths. The run-event payload column uses a
 lossless storage codec for these events: the JSONB projection renders NUL as
-the literal `\u0000`, and the reserved `$paperclipRunEventJsonV1` field contains
+the literal `\u0000`, and the reserved `$outpostRunEventJsonV1` field contains
 the original serialized JSON as a doubly escaped string. Ordinary payloads
 retain their existing representation. Drizzle reads restore the exact stored
 payload before replay, hash validation, redaction, or API presentation. SQL
@@ -312,18 +312,18 @@ remains JSONB and requires no schema migration.
 
 The writer locks the native `heartbeat_runs` row and allocates the existing
 per-run `seq` cursor. A byte-equivalent retry reuses the first row; a changed
-retry or source-sequence gap is rejected. Company, issue, agent, run, session,
+retry or source-sequence gap is rejected. Space, issue, agent, run, session,
 and runner-source bindings must match the persisted native run. Bootstrap
 tickets, reconnect leases, authentication proofs, encryption keys, and raw
 credential material are never written to the run log.
 
 These records remain run-log events. They do not create an OpenTelemetry or
-Paperclip Telemetry export, and legacy adapters do not use this writer.
+Outpost Telemetry export, and legacy adapters do not use this writer.
 
 ## Semantic Settlement Diagnostics and Retry Logs
 
 When native tool arguments fail their authorized JSON Schema, the runner records
-`harness.diagnostic` with code `semantic_tool_denied` and `paperclipExecuted: false`.
+`harness.diagnostic` with code `semantic_tool_denied` and `outpostExecuted: false`.
 Its optional `inputSchemaGuidance` retains the same safe repair guidance sent to
 the provider: at most three authorized schema locations within 512 bytes.
 It includes no rejected arguments, submitted values, or unknown input keys.
@@ -391,7 +391,7 @@ Earlier attempts therefore remain available for incident diagnosis. Existing
 records without `attemptId` remain readable.
 
 These records use the instance run log and its configured storage. They add no
-Paperclip Telemetry or OpenTelemetry export.
+Outpost Telemetry or OpenTelemetry export.
 
 ## Omitted Unsafe Workspace Export
 
@@ -404,7 +404,7 @@ create a task warning, recovery action, Telemetry event, or OpenTelemetry export
 
 ## Native Restart Recovery Run-Log Event
 
-Paperclip writes a `native.recovery.transition` event for native restart
+Outpost writes a `native.recovery.transition` event for native restart
 classifications and for graceful restart suspension. A blocked remote retry
 records a changed hold reason once; repeated visits with the same hold reason,
 an existing future deadline, or a live lease do not append another transition.
@@ -412,7 +412,7 @@ Exhausting the automatic admission policy records its terminal disposition even
 when the underlying hold reason remains the same.
 This immutable run-log
 record lets operators reconstruct recovery decisions without exporting data to
-Paperclip Telemetry or OpenTelemetry.
+Outpost Telemetry or OpenTelemetry.
 
 The payload contains the restart kind, recovery request id when one exists,
 runner disposition, and the controller generation and provider attempt for a
@@ -547,7 +547,7 @@ It remains in the local run log and adds no Telemetry or OpenTelemetry export.
 
 ## Sandbox Startup Run-Log Event
 
-Paperclip writes one `run.startup.step` event to the run log for each bring-up
+Outpost writes one `run.startup.step` event to the run log for each bring-up
 step. This event is a run-log record, not a first-party telemetry event. The
 generated telemetry contract does not cover it, so this section is its canonical
 contract.
@@ -573,7 +573,7 @@ endpoint. A run with no endpoint keeps only the three run-log fields above.
 
 ## Run Phase Timing Run-Log Event
 
-Paperclip writes one `run.phase.timing` event to the run log for each
+Outpost writes one `run.phase.timing` event to the run log for each
 run-lifecycle phase. This event is a run-log record, not a first-party telemetry
 event. The generated telemetry contract does not cover it, so this section is its
 canonical contract. The producer is `emitRunPhaseTiming` in
@@ -615,7 +615,7 @@ run-log-only. It needs no OTLP endpoint.
 The heartbeat controller writes these records with `eventType: "lifecycle"`,
 `stream: "system"`, and `level: "info"`. The event name below is its `message`
 and its payload's `phase`. They remain in the instance run log and add no
-Paperclip Telemetry or OpenTelemetry export.
+Outpost Telemetry or OpenTelemetry export.
 
 | Event | Payload fields besides `phase` | Meaning |
 | --- | --- | --- |
@@ -664,10 +664,10 @@ for file storage before <step>; it was still unavailable." Its payload holds
 When the outage outlasts that wait, the run fails. Only a run recorded with
 `errorCode: "storage_unavailable"` gets a storage wait: a bounded retry
 (`retryReason: "storage_unavailable_wait"`) that starts again after storage is
-back. Its error says "Paperclip will retry automatically when storage is back"
+back. Its error says "Outpost will retry automatically when storage is back"
 only while that retry is scheduled. When the retry budget is spent, the error
 says so and asks for Retry. When no storage wait follows, the error says
-"Paperclip is not retrying it automatically. Retry or send a message to
+"Outpost is not retrying it automatically. Retry or send a message to
 continue." That happens when a native recovery already holds the run under
 another code (for example `native_continuation_requires_reconciliation`, where
 its files are kept and its unfinished turn is not replayed), or when the retry
@@ -766,7 +766,7 @@ Recovery still uses the typed failure category and the adapter's existing
 classifier. Provider warnings do not become failures, and timeouts or lost
 control channels keep their authoritative failure messages. These diagnostics
 stay in the instance's run records and configured run-log storage. They add no
-Paperclip Telemetry or OpenTelemetry export.
+Outpost Telemetry or OpenTelemetry export.
 
 ## Related instrumentation
 
@@ -1002,7 +1002,7 @@ Successful checkpoints can include `checkpointStats`: `scannedEntries`,
 `hashedBytes`, `copiedFiles`, and `copiedBytes`. These counts describe that
 capture, not cumulative traffic or an atomic snapshot of background writers.
 They contain no file contents. The receipt remains in the instance run log;
-it adds no Paperclip Telemetry or OpenTelemetry export.
+it adds no Outpost Telemetry or OpenTelemetry export.
 
 If instruction-copy release throws, `instruction_cleanup` records a warning
 with payload `{ "state": "deferred" }`. The existing working-copy recovery sweep
@@ -1014,7 +1014,7 @@ write the warning must not replace the provider outcome or stop lease release.
 ## Agent observability availability
 
 `agent_observability.unavailable` is one warning for a preparation snapshot that
-cannot apply company export settings. Its payload contains only a closed reason
+cannot apply space export settings. Its payload contains only a closed reason
 and the settings revision. It carries no endpoint, credential, secret reference
 or resolver error. Recording the diagnostic never contacts a destination.
 
@@ -1028,7 +1028,7 @@ Consumers use the pair to select a response to activity in the current run.
 For example, `{ namespace: "example.computer", activityKey: "desktop.used" }`
 records successful desktop use. Core can map that activity to a Desktop viewer
 for the task's running agent. The authenticated event envelope supplies the run,
-session, source sequence and emission time. Core resolves the company, task and
+session, source sequence and emission time. Core resolves the space, task and
 agent through the run's existing authorization checks.
 
 Both activity identifiers contain 1–160 Unicode code points and exclude C0

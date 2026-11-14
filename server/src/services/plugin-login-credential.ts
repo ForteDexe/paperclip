@@ -17,7 +17,7 @@ export async function readPluginLoginCredential(input: {
     if (!plugin || plugin.status !== "ready" || driver?.supportsLoginPty !== true ||
         !input.workerManager?.getWorker(plugin.id)?.supportedMethods.includes("loginPtyReadCredential")) throw new Error();
     const result = await input.workerManager.call(plugin.id, "loginPtyReadCredential", {
-      driverKey: metadata.driverKey, companyId: input.lease.companyId, environmentId: input.environment.id,
+      driverKey: metadata.driverKey, spaceId: input.lease.spaceId, environmentId: input.environment.id,
       providerLeaseId: input.lease.providerLeaseId, loginCommandKey: "codex",
     });
     if (result?.kind !== "codex-auth-json" || typeof result.authJson !== "string" || !result.authJson.length || Buffer.byteLength(result.authJson) > MAX_LOGIN_CREDENTIAL_BYTES) throw new Error();

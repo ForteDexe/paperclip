@@ -1,7 +1,7 @@
 {
   "schema": "outpost.cursor.patch-initialize-proof.v1",
   "observedAt": "2026-09-29",
-  "patchVersion": "paperclip-cursor-isolation-v1",
+  "patchVersion": "outpost-cursor-isolation-v1",
   "hostPlatform": "darwin-arm64",
   "providerCalls": 0,
   "authenticated": false,

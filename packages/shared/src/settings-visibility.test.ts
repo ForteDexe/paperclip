@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { INSTANCE_FEATURE_KEYS } from "./feature-catalog.js";
 import {
-  HIDEABLE_COMPANY_PAGES,
-  HIDEABLE_COMPANY_SECTIONS,
+  HIDEABLE_SPACE_PAGES,
+  HIDEABLE_SPACE_SECTIONS,
   HIDEABLE_GENERAL_SECTIONS,
   HIDEABLE_SETTING_KEYS,
   UI_ONLY_GENERAL_SECTIONS,
   experimentalSettingKey,
-  hidesCompanyPage,
-  hidesCompanySection,
+  hidesSpacePage,
+  hidesSpaceSection,
   hidesExperimentalSetting,
   hidesGeneralSection,
   hidesInstancePage,
@@ -25,15 +25,15 @@ describe("hideable setting keys", () => {
     expect(new Set(HIDEABLE_SETTING_KEYS).size).toBe(HIDEABLE_SETTING_KEYS.length);
   });
 
-  it("covers every top-level company settings page except the General root", () => {
-    expect(HIDEABLE_COMPANY_PAGES).toEqual([
-      "company.members",
-      "company.invites",
-      "company.secrets",
-      "company.export",
-      "company.import",
+  it("covers every top-level space settings page except the General root", () => {
+    expect(HIDEABLE_SPACE_PAGES).toEqual([
+      "space.members",
+      "space.invites",
+      "space.secrets",
+      "space.export",
+      "space.import",
     ]);
-    for (const page of HIDEABLE_COMPANY_PAGES) {
+    for (const page of HIDEABLE_SPACE_PAGES) {
       expect(HIDEABLE_SETTING_KEYS).toContain(page);
     }
   });
@@ -121,24 +121,24 @@ describe("membership helpers", () => {
     ).hidden,
   );
 
-  it("answers company-page membership", () => {
-    const companyHidden = new Set(parseHiddenSettingsList("company.import,company.secrets").hidden);
-    expect(hidesCompanyPage(companyHidden, "company.import")).toBe(true);
-    expect(hidesCompanyPage(companyHidden, "company.secrets")).toBe(true);
-    expect(hidesCompanyPage(companyHidden, "company.export")).toBe(false);
+  it("answers space-page membership", () => {
+    const spaceHidden = new Set(parseHiddenSettingsList("space.import,space.secrets").hidden);
+    expect(hidesSpacePage(spaceHidden, "space.import")).toBe(true);
+    expect(hidesSpacePage(spaceHidden, "space.secrets")).toBe(true);
+    expect(hidesSpacePage(spaceHidden, "space.export")).toBe(false);
   });
 
-  it("answers company-section membership independently of the parent page", () => {
-    const sectionHidden = new Set(parseHiddenSettingsList("company.secrets.vaults").hidden);
-    expect(hidesCompanySection(sectionHidden, "company.secrets.vaults")).toBe(true);
-    expect(hidesCompanySection(sectionHidden, "company.secrets.proposals")).toBe(false);
-    expect(hidesCompanyPage(sectionHidden, "company.secrets")).toBe(false);
+  it("answers space-section membership independently of the parent page", () => {
+    const sectionHidden = new Set(parseHiddenSettingsList("space.secrets.vaults").hidden);
+    expect(hidesSpaceSection(sectionHidden, "space.secrets.vaults")).toBe(true);
+    expect(hidesSpaceSection(sectionHidden, "space.secrets.proposals")).toBe(false);
+    expect(hidesSpacePage(sectionHidden, "space.secrets")).toBe(false);
   });
 
-  it("keeps every company section key parseable and prefixed by its page", () => {
-    for (const key of HIDEABLE_COMPANY_SECTIONS) {
+  it("keeps every space section key parseable and prefixed by its page", () => {
+    for (const key of HIDEABLE_SPACE_SECTIONS) {
       expect(parseHiddenSettingsList(key).hidden).toEqual([key]);
-      expect(key.startsWith("company.")).toBe(true);
+      expect(key.startsWith("space.")).toBe(true);
     }
   });
 

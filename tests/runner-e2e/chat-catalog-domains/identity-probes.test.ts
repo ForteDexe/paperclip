@@ -14,7 +14,7 @@ describe("identity attempt-private credential lifetime", () => {
     const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ revision: ++reads }), { status: 200 }));
     const results = await Promise.all([readAgentResource(f.ctx, "/api/issues/task"), readAgentResource(f.ctx, "/api/issues/task")]);
     expect(results.map(row => row.data)).toEqual([{ revision: 1 }, { revision: 2 }]);
-    await probeAgentPermission(f.ctx, "/api/companies/company/budgets/policies", "POST", {});
+    await probeAgentPermission(f.ctx, "/api/spaces/space/budgets/policies", "POST", {});
     expect(f.create).toHaveBeenCalledTimes(1); expect(fetch).toHaveBeenCalledTimes(3); expect(f.revoke).not.toHaveBeenCalled();
     expect(f.privateSecrets).toEqual(["attempt-private-token"]);
     await cleanupIdentityProbes(f.ctx); await cleanupIdentityProbes(f.ctx);

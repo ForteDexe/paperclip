@@ -2,21 +2,21 @@ import { pollUntil } from "../api.js";
 import { remainingIdentityObservationBudget } from "./identity-support.js";
 import type { ChatCatalogCase, ChatCatalogContext } from "../chat-catalog-contract.js";
 import { makeDefinition, fixtureWorker } from "./internal-definition.js";
-import { checks, companyPath, entity, hasLink, observation, observeInternal, project, sameTask, task, type Entity, type InternalObservation } from "./internal-support.js";
+import { checks, spacePath, entity, hasLink, observation, observeInternal, project, sameTask, task, type Entity, type InternalObservation } from "./internal-support.js";
 import type { DocumentRevision, IssueAttachment } from "../../../packages/shared/src/types/issue.js";
 
-interface InventoryOwner extends Entity { companyId?: string; lifecycleState?: string; lifecycleVersion?: number; lifecycleHolds?: string[]; lifecycleError?: unknown }
+interface InventoryOwner extends Entity { spaceId?: string; lifecycleState?: string; lifecycleVersion?: number; lifecycleHolds?: string[]; lifecycleError?: unknown }
 export interface InventoryOwnerPause { before: InventoryOwner; requested: InventoryOwner }
-export function inventoryOwnerWasReady(owner: InventoryOwner, companyId: string, id: string) {
-  return owner.id === id && owner.companyId === companyId && owner.lifecycleState === "ready"
+export function inventoryOwnerWasReady(owner: InventoryOwner, spaceId: string, id: string) {
+  return owner.id === id && owner.spaceId === spaceId && owner.lifecycleState === "ready"
     && ["idle", "active", "running"].includes(owner.status ?? "") && !owner.lifecycleError
     && Number.isSafeInteger(owner.lifecycleVersion) && owner.lifecycleVersion! >= 0 && Number.isSafeInteger(owner.lifecycleVersion! + 2)
     && Array.isArray(owner.lifecycleHolds) && owner.lifecycleHolds.length === 0;
 }
-export function inventoryOwnerPauseRetained(receipt: InventoryOwnerPause | undefined, current: InventoryOwner, companyId: string, id: string) {
-  if (!receipt || !inventoryOwnerWasReady(receipt.before, companyId, id)) return false;
+export function inventoryOwnerPauseRetained(receipt: InventoryOwnerPause | undefined, current: InventoryOwner, spaceId: string, id: string) {
+  if (!receipt || !inventoryOwnerWasReady(receipt.before, spaceId, id)) return false;
   const { before, requested } = receipt;
-  const held = (row: InventoryOwner) => row.id === id && row.companyId === companyId && row.status === "paused" && !row.lifecycleError
+  const held = (row: InventoryOwner) => row.id === id && row.spaceId === spaceId && row.status === "paused" && !row.lifecycleError
     && Array.isArray(row.lifecycleHolds) && row.lifecycleHolds.length === 1 && row.lifecycleHolds[0] === "manual";
   return held(requested) && held(current) && current.lifecycleState === "paused" && current.lifecycleVersion === before.lifecycleVersion! + 2
     && (requested.lifecycleState === "pausing" && requested.lifecycleVersion === before.lifecycleVersion! + 1
@@ -149,7 +149,7 @@ async function settledInventory(ctx: ChatCatalogContext, ids: readonly string[],
   // Product recovery may legitimately re-status seeded work (for example, assigned to a paused owner).
   // Record the inventory only after it stops changing, so the answer is judged against current records.
   const read = async () => {
-    const rows = await ctx.input.api.getRunObservation<Entity[]>(`${companyPath(ctx)}/issues?includeAgentCreatedTasks=true&limit=1000`);
+    const rows = await ctx.input.api.getRunObservation<Entity[]>(`${spacePath(ctx)}/issues?includeAgentCreatedTasks=true&limit=1000`);
     return ids.map(id => rows.find(row => row.id === id)!);
   };
   let last = await read(); let stableSince = Date.now();
@@ -194,17 +194,17 @@ function openInventory(): ChatCatalogCase {
     // actionable statuses so preparing an inventory never starts provider work.
     remainingIdentityObservationBudget(ctx);
     const deadlineAt = ctx.observationDeadlineAt!;
-    const companyId = ctx.input.fixtures.company.id;
+    const spaceId = ctx.input.fixtures.space.id;
     const ownerPauseReceipts: InventoryOwnerPause[] = [];
     if ((await ctx.allRuns()).length) throw new Error("Inventory prerequisites unexpectedly admitted work");
     for (const id of [worker.id, secondWorker.id]) {
       const before = await ctx.input.api.get<InventoryOwner>(`/api/agents/${id}`);
-      if (!inventoryOwnerWasReady(before, companyId, id)) throw new Error("Inventory owner was not genuinely ready before manual pause");
+      if (!inventoryOwnerWasReady(before, spaceId, id)) throw new Error("Inventory owner was not genuinely ready before manual pause");
       const requested = await ctx.input.api.post<InventoryOwner>(`/api/agents/${id}/pause`);
       const receipt = { before, requested }; ownerPauseReceipts.push(receipt);
       await pollUntil({ label: "Actual inventory owner manual pause completes", deadlineAt,
         load: () => ctx.input.api.get<InventoryOwner>(`/api/agents/${id}`),
-        accept: row => Date.now() < deadlineAt && inventoryOwnerPauseRetained(receipt, row, companyId, id),
+        accept: row => Date.now() < deadlineAt && inventoryOwnerPauseRetained(receipt, row, spaceId, id),
         reject: row => row.lifecycleError ? "Inventory owner pause failed" : undefined });
     }
     const originalTasks: Entity[] = [];
@@ -232,10 +232,10 @@ function openInventory(): ChatCatalogCase {
       const owners = await Promise.all(ids.map(id => ctx.input.api.get<InventoryOwner>(`/api/agents/${id}`)));
       const receipts = state.ownerPauseReceipts as InventoryOwnerPause[] | undefined;
       c.add("inventory-owners-paused", ids.length === 2 && new Set(ids).size === 2 && receipts?.length === 2
-        && owners.every((row, index) => inventoryOwnerPauseRetained(receipts[index], row, ctx.input.fixtures.company.id, ids[index]!)),
+        && owners.every((row, index) => inventoryOwnerPauseRetained(receipts[index], row, ctx.input.fixtures.space.id, ids[index]!)),
         "Both actual owners were ready before manual pause and retain their exact completed paused lifecycle, version and manual hold; no provider work is admitted.");
       c.add("lead-ready", lead.lifecycleState === "ready" && ["idle", "active"].includes(lead.status ?? ""), "The CEO remains ready for the canonical inventory query.");
-      const current = await ctx.input.api.getRunObservation<Entity[]>(`${companyPath(ctx)}/issues?includeAgentCreatedTasks=true&limit=1000`);
+      const current = await ctx.input.api.getRunObservation<Entity[]>(`${spacePath(ctx)}/issues?includeAgentCreatedTasks=true&limit=1000`);
       const originals = Array.isArray(state.originalTasks) ? state.originalTasks as Entity[] : [];
       c.add("inventory-settled", originals.length > 0 && originals.every(row => sameTask(row, current.find(now => now.id === row.id))),
         "The recorded inventory is still the current task state when the query is sent.");

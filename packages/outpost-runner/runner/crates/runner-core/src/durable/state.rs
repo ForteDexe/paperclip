@@ -281,7 +281,7 @@ impl WarmRunTransition {
             old_acked_source_seq: ack,
             connection: command
                 .payload
-                .pointer("/paperclipNextAuthority/connection")
+                .pointer("/outpostNextAuthority/connection")
                 .cloned()
                 .ok_or_else(|| DurableRunnerError::invalid("warm transition connection missing"))?,
             runner_version: config.runner_version.clone(),
@@ -1665,11 +1665,11 @@ fn protocol_authorization_boundary(key: &str, value: &Value) -> bool {
         && value.as_str().is_some_and(|boundary| {
             matches!(
                 boundary,
-                "company"
+                "space"
                     | "actor"
                     | "active_task"
                     | "grant"
-                    | "governed_action"
+                    | "controlled_action"
                     | "lock"
                     | "revision"
             )
@@ -2079,7 +2079,7 @@ pub(crate) fn validate_semantic_tool_input(
             "semantic tool input exceeds the 480 KiB encrypted transport limit",
         ));
     }
-    if matches!(operation_id, "paperclip_finish" | "paperclip_block")
+    if matches!(operation_id, "outpost_finish" | "outpost_block")
         && input
             .get("summary")
             .and_then(Value::as_str)
@@ -2752,9 +2752,9 @@ mod tests {
     }
 
     #[test]
-    fn governance_display_records_survive_the_durable_writer_unchanged() {
+    fn approvals_display_records_survive_the_durable_writer_unchanged() {
         use super::*;
-        let review = crate::governance_events::codex_safety_review_payload(
+        let review = crate::approval_events::codex_safety_review_payload(
             "item/autoApprovalReview/completed",
             &json!({
                 "reviewId": "review-1",
@@ -2764,7 +2764,7 @@ mod tests {
                 "action": {"type": "command", "source": "shell", "command": "rm -rf build", "cwd": "/work"},
             }),
         );
-        let hook = crate::governance_events::codex_hook_payload(
+        let hook = crate::approval_events::codex_hook_payload(
             "hook/completed",
             &json!({"run": {
                 "id": "pre-tool-use:0:/x/config.toml", "eventName": "preToolUse", "executionMode": "sync",
@@ -2995,7 +2995,7 @@ mod tests {
         next.item_id = "item_2".to_owned();
         let mut attach = command("attach_exact", 1);
         attach.command_type = "run.attach".to_owned();
-        attach.payload = json!({"paperclipNextAuthority": {
+        attach.payload = json!({"outpostNextAuthority": {
             "identity": WarmRunIdentity::from_config(&next),
             "connection": {"mode": "connect", "connectUrl": next.connect_url},
         }});
@@ -3054,7 +3054,7 @@ mod tests {
             ),
             ("/warmTransition/result/status", json!("failed")),
             (
-                "/warmTransition/command/payload/paperclipNextAuthority/identity/itemId",
+                "/warmTransition/command/payload/outpostNextAuthority/identity/itemId",
                 json!("foreign_item"),
             ),
             ("/ackedSourceSeq", json!(1)),
@@ -3478,13 +3478,13 @@ mod tests {
         );
         let input = json!({"summary": summary});
         let once_sanitized_input =
-            validate_semantic_tool_input("paperclip_finish", &input).unwrap();
+            validate_semantic_tool_input("outpost_finish", &input).unwrap();
         let payload = json!({
             "semantic_tool": {
                 "schema": "outpost.orp.semantic_tool.v1",
                 "schemaVersion": 1,
                 "phase": "input",
-                "operationId": "paperclip_finish",
+                "operationId": "outpost_finish",
                 "callId": "call-1",
                 "correlation": {
                     "runId": "run_1",
@@ -3569,13 +3569,13 @@ mod tests {
         small_frame.max_frame_bytes = 8_000;
         let mut state = DurableState::new(&small_frame);
         let long_input = json!({"summary": "C".repeat(12_000)});
-        let safe_input = validate_semantic_tool_input("paperclip_finish", &long_input).unwrap();
+        let safe_input = validate_semantic_tool_input("outpost_finish", &long_input).unwrap();
         let exact_payload = json!({
             "semantic_tool": {
                 "schema": "outpost.orp.semantic_tool.v1",
                 "schemaVersion": 1,
                 "phase": "input",
-                "operationId": "paperclip_finish",
+                "operationId": "outpost_finish",
                 "content": {
                     "digest": semantic_value_digest(&safe_input),
                 },
@@ -3593,7 +3593,7 @@ mod tests {
             .to_string()
             .contains("transport frame limit"));
         assert!(validate_semantic_tool_input(
-            "paperclip_finish",
+            "outpost_finish",
             &json!({"summary": "C".repeat(MAX_COMPLETION_SUMMARY_CHARS + 1)}),
         )
         .unwrap_err()
@@ -3608,7 +3608,7 @@ mod tests {
             "semantic_tool": {
                 "schema": "outpost.orp.semantic_tool.tampered",
                 "phase": "input",
-                "operationId": "paperclip_finish",
+                "operationId": "outpost_finish",
                 "content": {"digest": original_digest.clone()},
                 "input": once_sanitized,
             },

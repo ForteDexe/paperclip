@@ -17,7 +17,7 @@ const migrations = {
   "0000_first": 'CREATE TABLE IF NOT EXISTS "widgets" ("id" uuid PRIMARY KEY NOT NULL);\n--> statement-breakpoint\nCREATE INDEX "widgets_idx" ON "widgets" ("id");\n',
   // IF NOT EXISTS does not make a table from an earlier migration new again.
   "0001_second": 'CREATE TABLE IF NOT EXISTS "widgets" ("id" uuid);\n--> statement-breakpoint\nCREATE INDEX "widgets_again_idx" ON "widgets" ("id");\n',
-  "0002_third": '-- paperclip:migration-compat online_compatible: no release since 0.2 reads issues.legacy\nALTER TABLE "issues" DROP COLUMN "legacy";\n',
+  "0002_third": '-- outpost:migration-compat online_compatible: no release since 0.2 reads issues.legacy\nALTER TABLE "issues" DROP COLUMN "legacy";\n',
 };
 function tarEntry(name, content) {
   const bytes = Buffer.from(content);
@@ -202,7 +202,7 @@ test("real npm ci installs the new pair from pinned archives with an empty cache
   t.after(() => new Promise((resolve) => server.close(resolve)));
   const base = `http://127.0.0.1:${server.address().port}`;
   for (const name of ["db", "shared"]) lock.packages[`node_modules/@outpost/${name}`].resolved = `${base}/${name}.tgz`;
-  writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "paperclip-migrator-install-root", version: "0.0.0", private: true, dependencies: { "@outpost/db": versionFor(sha) } }));
+  writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "outpost-migrator-install-root", version: "0.0.0", private: true, dependencies: { "@outpost/db": versionFor(sha) } }));
   writeFileSync(path.join(dir, "package-lock.json"), JSON.stringify(lock));
   await promisify(execFile)("npm", ["ci", "--update-notifier=false", "--ignore-scripts", "--no-audit", "--no-fund", "--registry", base, "--cache", path.join(dir, "empty-cache")], { cwd: dir, timeout: 60_000 });
   assert.deepEqual(requests.sort(), ["/db.tgz", "/shared.tgz"]);

@@ -5,14 +5,14 @@ import { queryKeys } from "../lib/queryKeys";
 import { Link, useSearchParams } from "../lib/router";
 import { AllowedProjectsEditor } from "./AllowedProjectsEditor";
 import { Button } from "./ui/button";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 
-export function AgentProjectAccessSettings({ agent }: { agent: { id: string; companyId: string; name: string; urlKey?: string } }) {
+export function AgentProjectAccessSettings({ agent }: { agent: { id: string; spaceId: string; name: string; urlKey?: string } }) {
   const client = useQueryClient();
   const [params] = useSearchParams();
   const fromTask = params.get("fromTask");
   const access = useQuery({ queryKey: queryKeys.agents.projectAccess(agent.id), queryFn: () => agentsApi.projectAccess(agent.id) });
-  const projects = useQuery({ ...companyProjectsQuery(agent.companyId) });
+  const projects = useQuery({ ...spaceProjectsQuery(agent.spaceId) });
   if (access.error || projects.error) return <div role="alert" className="space-y-2 text-sm">
     <p>Couldn’t load project access.</p><Button variant="outline" size="sm" onClick={() => { void access.refetch(); void projects.refetch(); }}>Try again</Button>
   </div>;
@@ -25,7 +25,7 @@ export function AgentProjectAccessSettings({ agent }: { agent: { id: string; com
         await Promise.all([
           client.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) }),
           ...(agent.urlKey ? [client.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.urlKey) })] : []),
-          client.invalidateQueries({ queryKey: queryKeys.agents.list(agent.companyId) }),
+          client.invalidateQueries({ queryKey: queryKeys.agents.list(agent.spaceId) }),
           client.invalidateQueries({ queryKey: ["issues"] }),
         ]);
       }} />

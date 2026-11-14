@@ -16,14 +16,14 @@ export async function notifyEnvironmentCleanup(transaction: object, scope?: Envi
     const pendingShutdown = sql<boolean>`${environmentLeases.metadata}#>>'{legacyShutdownWorkspaceSettlement,schema}' = 'outpost.legacy-shutdown-workspace-settlement.v1'
       and ${environmentLeases.metadata}#>>'{legacyShutdownWorkspaceSettlement,state}' = 'pending'
       and ${environmentLeases.metadata}#>>'{legacyShutdownWorkspaceSettlement,runId}' = ${environmentLeases.heartbeatRunId}::text`;
-    const peers = await (transaction as Db).select({ id: environmentLeases.id, companyId: environmentLeases.companyId,
+    const peers = await (transaction as Db).select({ id: environmentLeases.id, spaceId: environmentLeases.spaceId,
       status: environmentLeases.status, pendingShutdown }).from(environmentLeases).where(and(
       or(eq(environmentLeases.status, "active"), pendingShutdown),
-      sql`exists (select 1 from environment_leases changed where changed.company_id = ${scope.companyId}
+      sql`exists (select 1 from environment_leases changed where changed.space_id = ${scope.spaceId}
         and ${scope.leaseId ? sql`changed.id = ${scope.leaseId}` : sql`changed.heartbeat_run_id = ${scope.runId}`} and changed.provider_lease_id is not null
         and changed.provider = ${environmentLeases.provider} and changed.provider_lease_id = ${environmentLeases.providerLeaseId})`));
     for (const peer of peers) {
-      const hint = JSON.stringify({ companyId: peer.companyId, leaseId: peer.id });
+      const hint = JSON.stringify({ spaceId: peer.spaceId, leaseId: peer.id });
       if (peer.status === "active") await notifyDeliveryWork(transaction, DELIVERY_QUEUES.orphanActiveLeases, hint);
       if (peer.pendingShutdown) await notifyDeliveryWork(transaction, DELIVERY_QUEUES.legacyShutdownSettlement, hint);
     }

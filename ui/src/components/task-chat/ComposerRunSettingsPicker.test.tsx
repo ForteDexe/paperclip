@@ -13,7 +13,7 @@ import { getLastComposerEffort, rememberComposerEffort } from "@/lib/recent-comp
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 const agent = {
-  id: "a1", companyId: "company-1", name: "Clippy",
+  id: "a1", spaceId: "space-1", name: "Clippy",
   role: "Engineering Lead",
   adapterType: "codex_local", adapterConfig: { model: "gpt-6-sol" },
 } as unknown as Agent;
@@ -42,7 +42,7 @@ function render(onAssigneeChange: (value: string) => void, onSettingsChange: () 
   root = createRoot(container);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const picker = <QueryClientProvider client={queryClient}>
-    <ComposerRunSettingsPicker companyId="company-1" assigneeValue="agent:a1" currentAssigneeValue="agent:a1"
+    <ComposerRunSettingsPicker spaceId="space-1" assigneeValue="agent:a1" currentAssigneeValue="agent:a1"
       options={options} agents={agents} settings={{ model: "gpt-6-sol", effort: "high", fast: true }}
       onAssigneeChange={onAssigneeChange} onSettingsChange={onSettingsChange}
       modelOptionsOverride={useCatalog ? undefined : []} {...props} />
@@ -79,7 +79,7 @@ describe("composer assignee picker", () => {
   it.each([false, true])("keeps the trigger stable until the picker closes (mobile: %s)", async (mobile) => {
     function ControlledPicker() {
       const [settings, setSettings] = useState({ model: "gpt-6-sol", effort: "high", fast: false });
-      return <ComposerRunSettingsPicker companyId="company-1" assigneeValue="agent:a1" currentAssigneeValue="agent:a1"
+      return <ComposerRunSettingsPicker spaceId="space-1" assigneeValue="agent:a1" currentAssigneeValue="agent:a1"
         options={options} agents={agents} settings={settings} onSettingsChange={(next) => setSettings(next! as typeof settings)}
         onAssigneeChange={vi.fn()} mobile={mobile} modelOptionsOverride={[{ id: "gpt-6-sol", label: "GPT-6 Sol" }, { id: "gpt-6-astra", label: "GPT-6 Astra" }]} />;
     }
@@ -185,7 +185,7 @@ describe("composer assignee picker", () => {
     { remembered: "high", settings: { model: null, effort: "low", fast: false }, overrides: null, restored: null },
     { remembered: "high", settings: null, overrides: { adapterConfig: { modelReasoningEffort: "low" } }, restored: null },
   ])("restores compatible history ($remembered) without replacing explicit settings", ({ remembered, settings, overrides, restored }) => {
-    rememberComposerEffort("company-1", remembered);
+    rememberComposerEffort("space-1", remembered);
     const onSettingsChange = vi.fn();
     render(vi.fn(), onSettingsChange, false, { settings, overrides });
     if (restored) expect(onSettingsChange).toHaveBeenCalledWith({ model: null, effort: restored, fast: false });
@@ -202,12 +202,12 @@ describe("composer assignee picker", () => {
       range.dispatchEvent(new Event("change", { bubbles: true }));
       range.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    expect(getLastComposerEffort("company-1")).toBe("low");
+    expect(getLastComposerEffort("space-1")).toBe("low");
     await click("Choose exact model");
     await click("GPT-6 Astra");
     expect(onSettingsChange).toHaveBeenLastCalledWith({ model: "gpt-6-astra", effort: "high", fast: false });
     await click("Reset to agent default");
-    expect(getLastComposerEffort("company-1")).toBeNull();
+    expect(getLastComposerEffort("space-1")).toBeNull();
   });
   it("lets the assignee and model use the available composer width", () => {
     render(vi.fn(), vi.fn());
@@ -264,7 +264,7 @@ describe("composer assignee picker", () => {
     ]);
     render(vi.fn(), vi.fn(), true);
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-    expect(loadModels).toHaveBeenCalledWith("company-1", "codex_local", {
+    expect(loadModels).toHaveBeenCalledWith("space-1", "codex_local", {
       environmentId: null,
       provider: undefined,
     });
@@ -313,7 +313,7 @@ describe("composer assignee picker", () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(loadModels).not.toHaveBeenCalled();
     await click("Select model and effort");
-    expect(loadModels).toHaveBeenCalledWith("company-1", "outpost_runner", {
+    expect(loadModels).toHaveBeenCalledWith("space-1", "outpost_runner", {
       environmentId: "daytona-1", provider: "acpx", poolId: undefined,
       acpxAgent, agentId: agent.id, aiConnection: binding,
     });
@@ -382,7 +382,7 @@ describe("composer assignee picker", () => {
     const loadModels = vi.spyOn(agentsApi, "adapterModels").mockResolvedValue([]);
     const onSettingsChange = vi.fn();
     const muse = { ...agent, adapterType: "outpost_runner", adapterConfig: { provider: "muse", model: "old-model" } } as Agent;
-    rememberComposerEffort("company-1", "high");
+    rememberComposerEffort("space-1", "high");
     render(vi.fn(), onSettingsChange, true, { mobile, settings: null, agents: new Map([[muse.id, muse]]) });
     expect(container!.querySelector('[aria-label="Select model and effort"]')).toBeNull();
     expect(container!.querySelector('[data-testid="task-chat-composer-model-label"]')).toBeNull();
@@ -404,7 +404,7 @@ describe("composer assignee picker", () => {
         : agent;
       return <>
         <button type="button" aria-label="Switch to Muse" onClick={() => setMuse(true)}>Switch to Muse</button>
-        <ComposerRunSettingsPicker companyId="company-1" assigneeValue="agent:a1" currentAssigneeValue="agent:a1"
+        <ComposerRunSettingsPicker spaceId="space-1" assigneeValue="agent:a1" currentAssigneeValue="agent:a1"
           options={options} agents={new Map([[agent.id, selectedAgent]])} settings={settings}
           onSettingsChange={(next) => { onSettingsChange(next); setSettings(next); }} onAssigneeChange={vi.fn()} mobile={mobile}
           modelOptionsOverride={[{ id: "gpt-6-sol", label: "GPT-6 Sol" }]} />

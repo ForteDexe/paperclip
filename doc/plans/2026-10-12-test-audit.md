@@ -96,7 +96,7 @@ application code was removed in this round. No measured speedup is claimed.
   the existing live lifecycle. Repair the misleading non-test-origin
   negative, whose random missing ID never reached the origin guard, using
   the real persisted agent-owned request in the connected-MCP gateway case.
-  Its company/connection/agent/run/issue preconditions reach the intended guard.
+  Its space/connection/agent/run/issue preconditions reach the intended guard.
 - Heartbeat: combine the weaker no-state accepted-plan recovery case with
   the dropped-accept-time-wake keeper. Carry every full-context/retry
   assertion. Consolidate only identical DB seed rows in five retained
@@ -129,7 +129,7 @@ receipt, broad skip or longer timeout replaces behavioral proof.
   and 28 stock-harness cases pass**, zero failed/skipped cases. The 182 include
   all 150 retained Codex/diff owners plus 32 transport/console siblings.
 - Mutation: bypass only getTestCallStatus's origin clause. The real persisted
-  request resolves and the new rejection assertion fails. Lookup/company/
+  request resolves and the new rejection assertion fails. Lookup/space/
   connection preconditions remain valid. Restore source byte for byte; control
   passes.
 - Mutation: misclassify Codex goal policy denial as unsupported. The retained
@@ -147,7 +147,7 @@ receipt, broad skip or longer timeout replaces behavioral proof.
 Keep native-session-runtime, runnerd transport, ACPX translation and browser
 model suites: they exercise distinct lifecycle, authentication, protocol or
 separate implementation owners. Keep sandbox queue versus real HTTP2 layers,
-credential/stream/order guards, and unrelated tool/company/security cases.
+credential/stream/order guards, and unrelated tool/space/security cases.
 No additional full-layer retirement was justified in those boundaries.
 
 ### Codex declaration ledger
@@ -162,7 +162,7 @@ Each exact case name identifies its protected contract; callback/table preservat
 | 496: persists process ownership before sending provider requests | D | `codex-app-server-driver.lifecycle.test.ts:265` | identical body/table under cwd alias |
 | 533: sends direct chat as plain text and permits a follow-up turn | D | `codex-app-server-driver.lifecycle.test.ts:417` | identical body/table under cwd alias |
 | 579: forwards the persisted native model to the runner transport | D | `codex-app-server-driver.lifecycle.test.ts:463` | identical body/table under cwd alias |
-| 600: adds Paperclip developer instructions without replacing the Codex base and enables selected skills | D | `codex-app-server-driver.lifecycle.test.ts:486` | identical body/table under cwd alias |
+| 600: adds Outpost developer instructions without replacing the Codex base and enables selected skills | D | `codex-app-server-driver.lifecycle.test.ts:486` | identical body/table under cwd alias |
 | 630: passes the common typed-event contract and reports one provider turn terminal | D | `codex-app-server-driver.lifecycle.test.ts:574` | identical body/table under cwd alias |
 | 845: admits a strictly bound semantic result from the durable runner | D | `codex-app-server-driver.events.test.ts:47` | identical body/table under cwd alias |
 | 879: correlates rehydrated notifications with the final canonical ORP event ids | D | `codex-app-server-driver.events.test.ts:81` | identical body/table under cwd alias |
@@ -341,7 +341,7 @@ not sufficient reasons to remove a test.
 | --- | --- |
 | `server/src/__tests__/issue-interactions-read-only-contract.test.ts`: route source check | Remove the file after adding terminal-expiry and activity-write assertions to the existing real HTTP read-path test in `issue-thread-interaction-routes.test.ts`. Check both `in_review` and `done`, the JSON response, listing, and absence of recovery. |
 | Same file: two whitespace rows, three forbidden-name rows, two missing-boundary rows | Remove all seven synthetic cases. They test a local regex/assertion helper against hand-written route strings, not production behavior. Removing the helper removes their purpose. |
-| Retry cases in `ui/src/api/chatEndpoints.test.ts` and `agents.test.ts` | Consolidate under `agents.test.ts`, the production API owner. Preserve the exact company-scoped request, ordinary and durable receipts, distinct stopped-successor errors, deferred dispatch, legacy receipts, both skipped-wake forms, and single-dispatch checks. |
+| Retry cases in `ui/src/api/chatEndpoints.test.ts` and `agents.test.ts` | Consolidate under `agents.test.ts`, the production API owner. Preserve the exact space-scoped request, ordinary and durable receipts, distinct stopped-successor errors, deferred dispatch, legacy receipts, both skipped-wake forms, and single-dispatch checks. |
 | Slack manifest replay in `ui/src/pages/apps/chat/chat-ui-contract.test.ts` | Remove duplicate scope/event assertions already pinned by the shared owner snapshots. Move the unique agent-view, bot presence, and app-home assertions to the existing shared manifest test. Keep the UI's manifest integration checks. |
 | Same UI file: sanitizer implementation substrings | Remove the checks for `replaceAll` and `encodeURIComponent`. Keep the UI integration assertions and `chat-setup-error.test.ts`, which exercises raw, escaped, encoded, and malformed UTF-16 secrets. |
 | Same UI file: v8 wireframe generator/import strings | Remove the design-plan implementation checks. Keep the shipped GitHub setup assertions, wizard behavior suite, and PEM file/late-read tests. Design generator version names are not a product contract. |
@@ -391,7 +391,7 @@ prerequisite builds, and a baseline timeout prevent a fair wall-time comparison.
    tests currently protect distinct behavior. The existing rendered suites do
    not cover every assertion, so deletion is not yet justified.
 3. Server source guards: compare each with its route/service owner before
-   pruning. Authentication ordering and company boundaries deserve particular
+   pruning. Authentication ordering and space boundaries deserve particular
    care; a source guard can protect routes missing a behavioral negative case.
 
 Retain protocol-schema cross-checks, package/build metadata, migration replay,

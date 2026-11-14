@@ -5,11 +5,11 @@ import { decisionEffectTargetIssueIds, type Agent, type AttentionSubject } from 
 import { decisionsApi, type DecisionOutcome } from "../api/decisions";
 import { issuesApi } from "../api/issues";
 import { queryKeys } from "../lib/queryKeys";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { DecisionCard, type DecisionIssueRef } from "./DecisionCard";
 
 interface DecisionResolverProps {
-  companyId: string;
+  spaceId: string;
   decisionId: string;
   /** Origin issue subject from the attention row (already carries identifier/href). */
   originIssue?: AttentionSubject | null;
@@ -42,10 +42,10 @@ export function signedCancelTreePreviewIds(targetIssueId: string, snapshot: { de
  * dismiss mutations, and invalidates the attention feed + target-issue keys on
  * success — same conventions as {@link AttentionInteractionResolver}.
  */
-export function DecisionResolver({ companyId, decisionId, originIssue, agentMap, initialDecision, recordedDecision, onResolved }: DecisionResolverProps) {
+export function DecisionResolver({ spaceId, decisionId, originIssue, agentMap, initialDecision, recordedDecision, onResolved }: DecisionResolverProps) {
   const queryClient = useQueryClient();
-  const { selectedCompany } = useCompany();
-  const prefix = selectedCompany?.issuePrefix ?? "";
+  const { selectedSpace } = useSpace();
+  const prefix = selectedSpace?.issuePrefix ?? "";
   const issueHref = useCallback(
     (idOrIdentifier: string) => (prefix ? `/${prefix}/issues/${idOrIdentifier}` : `/issues/${idOrIdentifier}`),
     [prefix],
@@ -62,9 +62,9 @@ export function DecisionResolver({ companyId, decisionId, originIssue, agentMap,
 
   // Shared across every open decision row → a single fetch carries `targetChanged`.
   const openList = useQuery({
-    queryKey: queryKeys.decisions.list(companyId, "open"),
-    queryFn: () => decisionsApi.list(companyId, { status: "open" }),
-    enabled: !!companyId && decision?.status === "open",
+    queryKey: queryKeys.decisions.list(spaceId, "open"),
+    queryFn: () => decisionsApi.list(spaceId, { status: "open" }),
+    enabled: !!spaceId && decision?.status === "open",
   });
   const targetChanged = useMemo(
     () => openList.data?.find((entry) => entry.id === decisionId)?.targetChanged ?? null,
@@ -137,11 +137,11 @@ export function DecisionResolver({ companyId, decisionId, originIssue, agentMap,
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.decisions.detail(decisionId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.decisions.list(companyId, "open") });
-    queryClient.invalidateQueries({ queryKey: queryKeys.decisions.list(companyId, "decided") });
-    queryClient.invalidateQueries({ queryKey: queryKeys.attention(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.decisions.list(spaceId, "open") });
+    queryClient.invalidateQueries({ queryKey: queryKeys.decisions.list(spaceId, "decided") });
+    queryClient.invalidateQueries({ queryKey: queryKeys.attention(spaceId) });
     for (const id of Object.keys(decision?.targetSnapshots ?? {})) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.decisions.forTargetIssue(companyId, id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.decisions.forTargetIssue(spaceId, id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(id) });
     }
     onResolved?.();

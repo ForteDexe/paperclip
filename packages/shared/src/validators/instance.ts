@@ -63,7 +63,7 @@ export const instanceExperimentalSettingsSchema = z.object({
   // Compatibility only: old stored and managed values must still parse.
   enableMcpAggregators: z.boolean().default(true),
   enableMemoryConnectors: z.boolean().default(false),
-  enablePaperclipNotebook: z.boolean().default(false),
+  enableOutpostNotebook: z.boolean().default(false),
   enableGoogleWorkspaceConnector: z.boolean().default(false),
   enableCases: z.boolean().default(false),
   enableAgentChat: z.boolean().default(true),
@@ -83,7 +83,7 @@ export const instanceExperimentalSettingsSchema = z.object({
   enableFastResponses: z.boolean().default(false),
   enableGoalsSidebarLink: z.boolean().default(false),
   enableServerInfoDebugView: z.boolean().default(false),
-  enablePaperclipDeveloperMode: z.boolean().default(false),
+  enableOutpostDeveloperMode: z.boolean().default(false),
   enableSimplifiedEnglishInteractions: z.boolean().default(false),
   enableFirstTaskPlanProposal: z.boolean().default(false),
   autoRestartDevServerWhenIdle: z.boolean().default(false),
@@ -118,7 +118,7 @@ export const patchInstanceExperimentalSettingsSchema = z
 
 export const managedSettingMetadataSchema = z.object({
   managed: z.literal(true),
-  managedBy: z.literal("paperclip-cloud"),
+  managedBy: z.literal("outpost-cloud"),
 }).strict();
 
 // Response shape of the experimental settings endpoints: on cloud-managed

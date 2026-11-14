@@ -606,7 +606,7 @@ export async function testCodexAcpEnvironment(
     const configuredCodexHome = isNonEmpty(envConfig.CODEX_HOME) ? envConfig.CODEX_HOME : null;
     const credentialReadiness = await evaluateCodexCredentialReadiness({
       env: process.env,
-      companyId: ctx.companyId,
+      spaceId: ctx.spaceId,
       configuredCodexHome,
       configuredApiKey,
     });
@@ -642,13 +642,13 @@ export async function testCodexAcpEnvironment(
     }
   } else if (targetIsSandbox) {
     // The ACP Test does not probe the sandbox, so it predicts readiness from the
-    // credentials the Paperclip server can seed into the sandbox. The host
+    // credentials the Outpost server can seed into the sandbox. The host
     // environment is not seeded, so only the adapter config key counts here.
     const configApiKey = isNonEmpty(envConfig.OPENAI_API_KEY) ? envConfig.OPENAI_API_KEY : null;
     const configuredCodexHome = isNonEmpty(envConfig.CODEX_HOME) ? envConfig.CODEX_HOME : null;
     const credentialReadiness = await evaluateCodexCredentialReadiness({
       env: process.env,
-      companyId: ctx.companyId,
+      spaceId: ctx.spaceId,
       configuredCodexHome,
       configuredApiKey: configApiKey,
     });

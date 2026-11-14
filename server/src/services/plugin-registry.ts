@@ -6,20 +6,20 @@ import type { Db } from "@outpost/db";
 import {
   plugins,
   pluginConfig,
-  pluginCompanySettings,
+  pluginSpaceSettings,
   pluginEntities,
   pluginJobs,
   pluginJobRuns,
   pluginWebhookDeliveries,
 } from "@outpost/db";
 import type {
-  PaperclipPluginManifestV1,
+  OutpostPluginManifestV1,
   PluginStatus,
   InstallPlugin,
   UpdatePluginStatus,
   UpsertPluginConfig,
   PatchPluginConfig,
-  PluginCompanySettings,
+  PluginSpaceSettings,
   PluginEntityRecord,
   PluginEntityQuery,
   PluginJobRecord,
@@ -33,7 +33,7 @@ import type {
 import { conflict, notFound } from "../errors.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 
-function sameBundledPluginRegistration(existing: typeof plugins.$inferSelect, packageName: string, manifest: PaperclipPluginManifestV1): boolean {
+function sameBundledPluginRegistration(existing: typeof plugins.$inferSelect, packageName: string, manifest: OutpostPluginManifestV1): boolean {
   return existing.pluginKey === manifest.id && existing.packageName === packageName && existing.version === manifest.version && isDeepStrictEqual(existing.manifestJson, manifest);
 }
 
@@ -59,7 +59,7 @@ function isPluginKeyConflict(error: unknown): boolean {
 /**
  * PluginRegistry – CRUD operations for the `plugins` and `plugin_config`
  * tables.  Follows the same factory-function pattern used by the rest of
- * the Paperclip service layer.
+ * the Outpost service layer.
  *
  * This is the lowest-level persistence layer for plugins. Higher-level
  * concerns such as lifecycle state-machine enforcement and capability
@@ -154,7 +154,7 @@ export function pluginRegistryService(db: Db) {
      * manifest from the package.  This method persists the plugin row and
      * assigns the next install order.
      */
-    install: async (input: InstallPlugin, manifest: PaperclipPluginManifestV1, options: { idempotent?: boolean } = {}) => {
+    install: async (input: InstallPlugin, manifest: OutpostPluginManifestV1, options: { idempotent?: boolean } = {}) => {
       const existing = await getByKey(manifest.id);
       if (existing) {
         if (existing.status !== "uninstalled") {
@@ -226,7 +226,7 @@ export function pluginRegistryService(db: Db) {
         packagePath?: string;
         status?: "upgrade_pending";
         version?: string;
-        manifest?: PaperclipPluginManifestV1;
+        manifest?: OutpostPluginManifestV1;
       },
     ) => {
       const plugin = await getById(id);
@@ -318,53 +318,53 @@ export function pluginRegistryService(db: Db) {
 
     // ----- Config ---------------------------------------------------------
 
-    /** Retrieve a plugin's company-scoped configuration. */
-    getConfig: (pluginId: string, companyId: string) =>
+    /** Retrieve a plugin's space-scoped configuration. */
+    getConfig: (pluginId: string, spaceId: string) =>
       db
         .select()
         .from(pluginConfig)
-        .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.companyId, companyId)))
+        .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.spaceId, spaceId)))
         .then((rows) => rows[0] ?? null),
 
     /**
-     * List every company-scoped configuration row for a plugin.
+     * List every space-scoped configuration row for a plugin.
      *
-     * Plugin config is company-scoped, but a worker is spawned once per plugin
-     * (not per company). Callers such as the plugin loader use this to replay
-     * each configured company's config to a freshly-started worker, so a
-     * proactive plugin that never runs inside a company-scoped invocation (and
-     * therefore cannot resolve `ctx.config.get(companyId)`) still receives its
+     * Plugin config is space-scoped, but a worker is spawned once per plugin
+     * (not per space). Callers such as the plugin loader use this to replay
+     * each configured space's config to a freshly-started worker, so a
+     * proactive plugin that never runs inside a space-scoped invocation (and
+     * therefore cannot resolve `ctx.config.get(spaceId)`) still receives its
      * configuration at startup.
      *
-     * Ordered deterministically by companyId: the startup replay delivers these
+     * Ordered deterministically by spaceId: the startup replay delivers these
      * rows to a single worker via `configChanged`, and a single-tenant worker
-     * binds to the first company it sees. Without a stable order the worker
-     * would bind to a nondeterministic (DB-dependent) company across restarts.
+     * binds to the first space it sees. Without a stable order the worker
+     * would bind to a nondeterministic (DB-dependent) space across restarts.
      */
     listConfigs: (pluginId: string) =>
       db
         .select()
         .from(pluginConfig)
         .where(eq(pluginConfig.pluginId, pluginId))
-        .orderBy(asc(pluginConfig.companyId)),
+        .orderBy(asc(pluginConfig.spaceId)),
 
     /**
-     * Create or fully replace a plugin's company-scoped configuration.
-     * If a config row already exists for the plugin/company pair it is replaced;
+     * Create or fully replace a plugin's space-scoped configuration.
+     * If a config row already exists for the plugin/space pair it is replaced;
      * otherwise a new row is inserted.
      */
-    upsertConfig: async (pluginId: string, companyId: string, input: UpsertPluginConfig) => {
+    upsertConfig: async (pluginId: string, spaceId: string, input: UpsertPluginConfig) => {
       return db.transaction(async tx => {
         const db = tx as unknown as Db;
         await notifyDeliveryWork(db, DELIVERY_QUEUES.pluginLifecycle);
-        await notifyExternalObjectRefresh(db, companyId);
+        await notifyExternalObjectRefresh(db, spaceId);
         const plugin = await getById(pluginId, db);
         if (!plugin) throw notFound("Plugin not found");
 
         const existing = await db
           .select()
           .from(pluginConfig)
-          .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.companyId, companyId)))
+          .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.spaceId, spaceId)))
           .then((rows) => rows[0] ?? null);
 
         if (existing) {
@@ -375,7 +375,7 @@ export function pluginRegistryService(db: Db) {
               lastError: null,
               updatedAt: new Date(),
             })
-            .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.companyId, companyId)))
+            .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.spaceId, spaceId)))
             .returning()
             .then((rows) => rows[0]);
         }
@@ -384,7 +384,7 @@ export function pluginRegistryService(db: Db) {
           .insert(pluginConfig)
           .values({
             pluginId,
-            companyId,
+            spaceId,
             configJson: input.configJson,
           })
           .returning()
@@ -393,21 +393,21 @@ export function pluginRegistryService(db: Db) {
     },
 
     /**
-     * Partially update a plugin's company-scoped configuration via shallow merge.
+     * Partially update a plugin's space-scoped configuration via shallow merge.
      * If no config row exists yet one is created with the supplied values.
      */
-    patchConfig: async (pluginId: string, companyId: string, input: PatchPluginConfig) => {
+    patchConfig: async (pluginId: string, spaceId: string, input: PatchPluginConfig) => {
       return db.transaction(async tx => {
         const db = tx as unknown as Db;
         await notifyDeliveryWork(db, DELIVERY_QUEUES.pluginLifecycle);
-        await notifyExternalObjectRefresh(db, companyId);
+        await notifyExternalObjectRefresh(db, spaceId);
         const plugin = await getById(pluginId, db);
         if (!plugin) throw notFound("Plugin not found");
 
         const existing = await db
           .select()
           .from(pluginConfig)
-          .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.companyId, companyId)))
+          .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.spaceId, spaceId)))
           .then((rows) => rows[0] ?? null);
 
         if (existing) {
@@ -419,7 +419,7 @@ export function pluginRegistryService(db: Db) {
               lastError: null,
               updatedAt: new Date(),
             })
-            .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.companyId, companyId)))
+            .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.spaceId, spaceId)))
             .returning()
             .then((rows) => rows[0]);
         }
@@ -428,7 +428,7 @@ export function pluginRegistryService(db: Db) {
           .insert(pluginConfig)
           .values({
             pluginId,
-            companyId,
+            spaceId,
             configJson: input.configJson,
           })
           .returning()
@@ -440,11 +440,11 @@ export function pluginRegistryService(db: Db) {
      * Record an error against a plugin's config (e.g. validation failure
      * against the plugin's instanceConfigSchema).
      */
-    setConfigError: async (pluginId: string, companyId: string, lastError: string | null) => {
+    setConfigError: async (pluginId: string, spaceId: string, lastError: string | null) => {
       const rows = await db
         .update(pluginConfig)
         .set({ lastError, updatedAt: new Date() })
-        .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.companyId, companyId)))
+        .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.spaceId, spaceId)))
         .returning();
 
       if (rows.length === 0) throw notFound("Plugin config not found");
@@ -452,47 +452,47 @@ export function pluginRegistryService(db: Db) {
     },
 
     /** Delete a plugin's config row. */
-    deleteConfig: async (pluginId: string, companyId: string) => {
+    deleteConfig: async (pluginId: string, spaceId: string) => {
       const rows = await db
         .delete(pluginConfig)
-        .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.companyId, companyId)))
+        .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.spaceId, spaceId)))
         .returning();
 
       return rows[0] ?? null;
     },
 
-    // ----- Company settings ----------------------------------------------
+    // ----- Space settings ----------------------------------------------
 
-    /** Retrieve company-scoped plugin settings. */
-    getCompanySettings: (pluginId: string, companyId: string): Promise<PluginCompanySettings | null> =>
+    /** Retrieve space-scoped plugin settings. */
+    getSpaceSettings: (pluginId: string, spaceId: string): Promise<PluginSpaceSettings | null> =>
       db
         .select()
-        .from(pluginCompanySettings)
+        .from(pluginSpaceSettings)
         .where(and(
-          eq(pluginCompanySettings.pluginId, pluginId),
-          eq(pluginCompanySettings.companyId, companyId),
+          eq(pluginSpaceSettings.pluginId, pluginId),
+          eq(pluginSpaceSettings.spaceId, spaceId),
         ))
-        .then((rows) => rows[0] ?? null) as Promise<PluginCompanySettings | null>,
+        .then((rows) => rows[0] ?? null) as Promise<PluginSpaceSettings | null>,
 
-    /** Create or replace company-scoped plugin settings. */
-    upsertCompanySettings: async (
+    /** Create or replace space-scoped plugin settings. */
+    upsertSpaceSettings: async (
       pluginId: string,
-      companyId: string,
+      spaceId: string,
       input: { enabled?: boolean; settingsJson: Record<string, unknown>; lastError?: string | null },
-    ): Promise<PluginCompanySettings> => {
+    ): Promise<PluginSpaceSettings> => {
       return db.transaction(async tx => {
         const db = tx as unknown as Db;
         await notifyDeliveryWork(db, DELIVERY_QUEUES.pluginLifecycle);
-        await notifyExternalObjectRefresh(db, companyId);
+        await notifyExternalObjectRefresh(db, spaceId);
         const plugin = await getById(pluginId, db);
         if (!plugin) throw notFound("Plugin not found");
 
         const existing = await db
           .select()
-          .from(pluginCompanySettings)
+          .from(pluginSpaceSettings)
           .where(and(
-            eq(pluginCompanySettings.pluginId, pluginId),
-            eq(pluginCompanySettings.companyId, companyId),
+            eq(pluginSpaceSettings.pluginId, pluginId),
+            eq(pluginSpaceSettings.spaceId, spaceId),
           ))
           .then((rows) => rows[0] ?? null);
 
@@ -502,29 +502,29 @@ export function pluginRegistryService(db: Db) {
 
         if (existing) {
           return db
-            .update(pluginCompanySettings)
+            .update(pluginSpaceSettings)
             .set({
               enabled: input.enabled ?? existing.enabled,
               settingsJson: input.settingsJson,
               lastError: input.lastError ?? null,
               updatedAt: new Date(),
             })
-            .where(eq(pluginCompanySettings.id, existing.id))
+            .where(eq(pluginSpaceSettings.id, existing.id))
             .returning()
-            .then((rows) => rows[0]) as Promise<PluginCompanySettings>;
+            .then((rows) => rows[0]) as Promise<PluginSpaceSettings>;
         }
 
         return db
-          .insert(pluginCompanySettings)
+          .insert(pluginSpaceSettings)
           .values({
             pluginId,
-            companyId,
+            spaceId,
             enabled: input.enabled ?? true,
             settingsJson: input.settingsJson,
             lastError: input.lastError ?? null,
           })
           .returning()
-          .then((rows) => rows[0]) as Promise<PluginCompanySettings>;
+          .then((rows) => rows[0]) as Promise<PluginSpaceSettings>;
       });
     },
 
@@ -557,33 +557,33 @@ export function pluginRegistryService(db: Db) {
      * Look up a plugin-owned entity mapping by its external identifier.
      *
      * Scope matches `plugin_entities_external_idx` (NULLS NOT DISTINCT):
-     * pass the owning `companyId` (or `null` for instance-scope) to retrieve
-     * the row that belongs to that tenant. Two companies can share the same
-     * `(pluginId, entityType, externalId)` tuple — omitting `companyId` would
+     * pass the owning `spaceId` (or `null` for instance-scope) to retrieve
+     * the row that belongs to that tenant. Two spaces can share the same
+     * `(pluginId, entityType, externalId)` tuple — omitting `spaceId` would
      * return the first matched row regardless of tenant, which is unsafe.
      *
      * @param pluginId - The UUID of the plugin.
      * @param entityType - The type of entity (e.g., 'project', 'issue').
      * @param externalId - The identifier in the external system.
-     * @param companyId - Tenant scope; `null` for instance-scope entities.
+     * @param spaceId - Tenant scope; `null` for instance-scope entities.
      * @returns The matching `PluginEntityRecord` or null.
      */
     getEntityByExternalId: (
       pluginId: string,
       entityType: string,
       externalId: string,
-      companyId: string | null,
+      spaceId: string | null,
     ) => {
-      const companyIdPredicate =
-        companyId == null
-          ? isNull(pluginEntities.companyId)
-          : eq(pluginEntities.companyId, companyId);
+      const spaceIdPredicate =
+        spaceId == null
+          ? isNull(pluginEntities.spaceId)
+          : eq(pluginEntities.spaceId, spaceId);
       return db
         .select()
         .from(pluginEntities)
         .where(
           and(
-            companyIdPredicate,
+            spaceIdPredicate,
             eq(pluginEntities.pluginId, pluginId),
             eq(pluginEntities.entityType, entityType),
             eq(pluginEntities.externalId, externalId),
@@ -593,7 +593,7 @@ export function pluginRegistryService(db: Db) {
     },
 
     /**
-     * Create or update a persistent mapping between a Paperclip object and an
+     * Create or update a persistent mapping between a Outpost object and an
      * external entity.
      *
      * @param pluginId - The UUID of the plugin.
@@ -607,21 +607,21 @@ export function pluginRegistryService(db: Db) {
       // Drizzle doesn't support pg-specific onConflictDoUpdate easily in the insert() call
       // with complex where clauses, so we do it manually.
       // Match the per-tenant uniqueness of `plugin_entities_external_idx`
-      // (companyId, pluginId, entityType, externalId) with NULLS NOT DISTINCT
-      // semantics: two companies (and instance-scope NULLs across each other)
+      // (spaceId, pluginId, entityType, externalId) with NULLS NOT DISTINCT
+      // semantics: two spaces (and instance-scope NULLs across each other)
       // may share the same (pluginId, entityType, externalId) tuple, so the
-      // lookup MUST scope by companyId — `isNull` for instance-scope, `eq`
+      // lookup MUST scope by spaceId — `isNull` for instance-scope, `eq`
       // otherwise — to avoid returning and overwriting another tenant's row.
-      const companyIdPredicate =
-        input.companyId == null
-          ? isNull(pluginEntities.companyId)
-          : eq(pluginEntities.companyId, input.companyId);
+      const spaceIdPredicate =
+        input.spaceId == null
+          ? isNull(pluginEntities.spaceId)
+          : eq(pluginEntities.spaceId, input.spaceId);
       const existing = await db
         .select()
         .from(pluginEntities)
         .where(
           and(
-            companyIdPredicate,
+            spaceIdPredicate,
             eq(pluginEntities.pluginId, pluginId),
             eq(pluginEntities.entityType, input.entityType),
             eq(pluginEntities.externalId, input.externalId ?? ""),
@@ -745,22 +745,22 @@ export function pluginRegistryService(db: Db) {
     /**
      * Record the start of a specific job execution.
      *
-     * Pass the owning `companyId` so `plugin_job_runs.company_id` is populated
-     * and the row participates in the `ON DELETE CASCADE` from `companies`.
+     * Pass the owning `spaceId` so `plugin_job_runs.space_id` is populated
+     * and the row participates in the `ON DELETE CASCADE` from `spaces`.
      * `null` is the explicit instance-scope marker (cron jobs without a tenant);
-     * those rows survive company deletes but are still attributable.
+     * those rows survive space deletes but are still attributable.
      *
      * @param pluginId - The UUID of the plugin.
      * @param jobId - The UUID of the parent job record.
      * @param trigger - What triggered this run (e.g., 'schedule', 'manual').
-     * @param companyId - Tenant scope; `null` for instance-scope runs.
+     * @param spaceId - Tenant scope; `null` for instance-scope runs.
      * @returns The newly created `PluginJobRunRecord` in 'pending' status.
      */
     createJobRun: async (
       pluginId: string,
       jobId: string,
       trigger: PluginJobRunTrigger,
-      companyId: string | null,
+      spaceId: string | null,
     ) => {
       return writePluginJobChange(db, async db => {
         return db
@@ -768,7 +768,7 @@ export function pluginRegistryService(db: Db) {
           .values({
             pluginId,
             jobId,
-            companyId,
+            spaceId,
             trigger,
             status: "pending",
           })
@@ -810,22 +810,22 @@ export function pluginRegistryService(db: Db) {
     /**
      * Create a record for an incoming webhook delivery.
      *
-     * Pass the owning `companyId` so `plugin_webhook_deliveries.company_id` is
+     * Pass the owning `spaceId` so `plugin_webhook_deliveries.space_id` is
      * populated and the row participates in the `ON DELETE CASCADE` from
-     * `companies`. `null` is the explicit instance-scope marker (public
-     * webhooks without a tenant); those rows survive company deletes but are
+     * `spaces`. `null` is the explicit instance-scope marker (public
+     * webhooks without a tenant); those rows survive space deletes but are
      * still attributable.
      *
      * @param pluginId - The UUID of the receiving plugin.
      * @param webhookKey - The endpoint key defined in the manifest.
-     * @param companyId - Tenant scope; `null` for instance-scope deliveries.
+     * @param spaceId - Tenant scope; `null` for instance-scope deliveries.
      * @param input - The payload, headers, and optional external ID.
      * @returns The newly created `PluginWebhookDeliveryRecord` in 'pending' status.
      */
     createWebhookDelivery: async (
       pluginId: string,
       webhookKey: string,
-      companyId: string | null,
+      spaceId: string | null,
       input: {
         externalId?: string;
         payload: Record<string, unknown>;
@@ -837,7 +837,7 @@ export function pluginRegistryService(db: Db) {
         .values({
           pluginId,
           webhookKey,
-          companyId,
+          spaceId,
           externalId: input.externalId,
           payload: input.payload,
           headers: input.headers ?? {},

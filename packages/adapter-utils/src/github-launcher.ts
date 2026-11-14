@@ -76,7 +76,7 @@ ${options.brokerFile ? String.raw`
   let authorReady = false;
   try {
     fs.mkdirSync(configRoot, { recursive: true, mode: 0o700 });
-    configDirectory = fs.mkdtempSync(path.join(configRoot, 'paperclip-github-operation-'));
+    configDirectory = fs.mkdtempSync(path.join(configRoot, 'outpost-github-operation-'));
     fs.chmodSync(configDirectory, 0o700);
     configReady = true;
     process.once('exit', () => { try { fs.rmSync(configDirectory, { recursive: true, force: true }); } catch {} });
@@ -113,7 +113,7 @@ ${options.brokerFile ? String.raw`
           response = await fetch(url, {
             method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
             headers: { authorization: 'Bearer ' + (env.OUTPOST_GITHUB_BRIDGE_TOKEN || env.OUTPOST_API_KEY || env.OUTPOST_GITHUB_BROKER_TOKEN),
-              'x-paperclip-github-capability': env.OUTPOST_GITHUB_BROKER_TOKEN, 'content-type': 'application/json' },
+              'x-outpost-github-capability': env.OUTPOST_GITHUB_BROKER_TOKEN, 'content-type': 'application/json' },
             body: '{}',
           });
           if (response.status === 409 && conflicts < 29) {

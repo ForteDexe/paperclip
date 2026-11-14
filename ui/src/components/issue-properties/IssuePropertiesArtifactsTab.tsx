@@ -463,8 +463,8 @@ export function IssuePropertiesArtifactsTab({
     queryFn: () => activityApi.runsForIssue(issue.id),
   });
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(issue.companyId),
-    queryFn: () => agentsApi.list(issue.companyId),
+    queryKey: queryKeys.agents.list(issue.spaceId),
+    queryFn: () => agentsApi.list(issue.spaceId),
   });
 
   const workProductRows = workProducts ?? [];

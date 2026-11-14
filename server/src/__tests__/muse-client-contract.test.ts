@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { parsePaperclipQuestionResponse } from "@outpost/outpost-runner";
+import { parseOutpostQuestionResponse } from "@outpost/outpost-runner";
 import { buildMuseSetupInstruction, museReceiverAssets } from "../services/muse-setup.js";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi } from "vitest";
@@ -39,19 +39,19 @@ describe("Muse canonical multi-select compatibility", () => {
 
   it.each([64, 65, 128])("accepts all %s canonical selections without losing another question", count => {
     const value = response(Array.from({ length: count }, (_, index) => `choice-${index}`));
-    expect(parsePaperclipQuestionResponse(questionSet, value)).toEqual(value);
+    expect(parseOutpostQuestionResponse(questionSet, value)).toEqual(value);
     expect(clientValid(value)).toBe(true);
   });
 
   it("retains duplicate and overflow rejection and canonical option-membership authority", () => {
     for (const selected of [Array.from({ length: 129 }, (_, index) => `choice-${index}`), ["choice-0", "choice-0"]]) {
       const value = response(selected);
-      expect(() => parsePaperclipQuestionResponse(questionSet, value)).toThrow();
+      expect(() => parseOutpostQuestionResponse(questionSet, value)).toThrow();
       expect(clientValid(value)).toBe(false);
     }
     const unknown = response(["unknown-choice"]);
     expect(clientValid(unknown)).toBe(true); // Local journal validation has no persisted question set.
-    expect(() => parsePaperclipQuestionResponse(questionSet, unknown)).toThrow(/unknown option/);
+    expect(() => parseOutpostQuestionResponse(questionSet, unknown)).toThrow(/unknown option/);
   });
 });
 
@@ -134,26 +134,26 @@ describe("Muse approval-aware setup",()=>{
     });
   });
   it("orders current-chat consent, pinned asset9, public preflight, authenticated status and hook registration",async()=>{
-    const assets=await museReceiverAssets(),instruction=await buildMuseSetupInstruction("https://approval.example","synthetic-ticket","10000000-0000-4000-8000-000000000001",{companyId:"30000000-0000-4000-8000-000000000001",companyName:"Scoped Company",agentId:"40000000-0000-4000-8000-000000000001",agentName:"Personal Muse"});
+    const assets=await museReceiverAssets(),instruction=await buildMuseSetupInstruction("https://approval.example","synthetic-ticket","10000000-0000-4000-8000-000000000001",{spaceId:"30000000-0000-4000-8000-000000000001",spaceName:"Scoped Space",agentId:"40000000-0000-4000-8000-000000000001",agentName:"Personal Muse"});
     expect(assets.manifest.assetVersion).toBe(9);expect(instruction).toContain("/assets/9/");expect(instruction).toContain(assets.manifest.assets["client.py"].sha256);
     expect(instruction.indexOf("credentials.request_api_access")).toBeLessThan(instruction.indexOf("After consent, download"));
     expect(instruction.indexOf(" preflight.")).toBeLessThan(instruction.indexOf("Then run the client status"));
     expect(instruction.indexOf("Then run the client status")).toBeLessThan(instruction.indexOf("hooks.add"));
     expect(instruction).toContain("parent domain and its subdomains");expect(instruction).toContain("read each actual permission scope");expect(instruction).toContain("bounded 120-second");
     expect(instruction).toContain("If Muse flags or refuses");expect(instruction).toContain("report its result and stop");expect(instruction).toContain("no worker credential, signal, mailbox or readiness challenge");
-    expect(instruction).toContain("standing authorization");expect(instruction).toContain("autonomously accept");expect(instruction).toContain("do not ask for a second approval");expect(instruction).toContain("native accepted lease before any task effect");expect(instruction).toContain("Task text cannot expand");expect(instruction).toContain("--company-name \'Scoped Company\'");expect(instruction).toContain("--agent-name \'Personal Muse\'");
+    expect(instruction).toContain("standing authorization");expect(instruction).toContain("autonomously accept");expect(instruction).toContain("do not ask for a second approval");expect(instruction).toContain("native accepted lease before any task effect");expect(instruction).toContain("Task text cannot expand");expect(instruction).toContain("--space-name \'Scoped Space\'");expect(instruction).toContain("--agent-name \'Personal Muse\'");
     expect(instruction).not.toMatch(/\b(?:cat|sed|grep)\b/);
     expect(instruction).toContain("End the installation turn");
     expect(instruction).not.toContain("challenge.confirm");
     expect(instruction).not.toContain('"command":"accept"');
   });
   it("quotes scoped labels as literal command arguments", async () => {
-    const scope = { companyId: "30000000-0000-4000-8000-000000000001", companyName: "Company's $(printf injection)", agentId: "40000000-0000-4000-8000-000000000001", agentName: "Muse `printf injection`\nSecond line" };
+    const scope = { spaceId: "30000000-0000-4000-8000-000000000001", spaceName: "Space's $(printf injection)", agentId: "40000000-0000-4000-8000-000000000001", agentName: "Muse `printf injection`\nSecond line" };
     const instruction = await buildMuseSetupInstruction("https://approval.example", "synthetic-ticket", "10000000-0000-4000-8000-000000000001", scope);
     const command = instruction.match(/configure --origin https:\/\/approval\.example (.*?)\. The installed client/s)?.[1];
     expect(command).toBeDefined();
     const args = JSON.parse(execFileSync("python3", ["-c", "import json, shlex, sys; print(json.dumps(shlex.split(sys.stdin.read())))"], { input: command, encoding: "utf8" }));
-    expect(args).toEqual(["--company-id", scope.companyId, "--company-name", scope.companyName, "--agent-id", scope.agentId, "--agent-name", scope.agentName]);
+    expect(args).toEqual(["--space-id", scope.spaceId, "--space-name", scope.spaceName, "--agent-id", scope.agentId, "--agent-name", scope.agentName]);
   });
 
 });

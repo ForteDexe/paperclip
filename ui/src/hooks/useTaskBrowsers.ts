@@ -3,12 +3,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { TaskBrowser } from "@outpost/shared";
 import { browserUseApi } from "@/api/browser-use";
 import { retryTransientOnly } from "@/lib/query-client";
-import { useHasCompanyLiveConnection } from "@/context/LiveUpdatesProvider";
+import { useHasSpaceLiveConnection } from "@/context/LiveUpdatesProvider";
 import { taskBrowsersQueryKey } from "@/lib/task-browsers-refresh";
 export const TASK_BROWSERS_REFETCH_MS = 3000;
 
 /**
- * Poll while the company live connection is closed, and while any browser can
+ * Poll while the space live connection is closed, and while any browser can
  * still change state. With the connection open, every browser lifecycle step
  * (`browser.started`, `browser.ready`, `browser.run_finished`, `browser.closed`
  * and controls) logs task activity, and `LiveUpdatesProvider` refreshes the
@@ -26,10 +26,10 @@ export function taskBrowsersRefetchInterval(
 
 export { taskBrowsersQueryKey };
 
-export function useTaskBrowsers(issueId?: string, companyId?: string | null) {
+export function useTaskBrowsers(issueId?: string, spaceId?: string | null) {
   // Socket open and reconnect reconcile active queries, including this one.
   // Browser activity refreshes it through `refreshTaskBrowsers`.
-  const connected = useHasCompanyLiveConnection(companyId);
+  const connected = useHasSpaceLiveConnection(spaceId);
   const enabled = Boolean(issueId) && !issueId?.startsWith("chat:");
   return useQuery({
     queryKey: taskBrowsersQueryKey(issueId),
@@ -49,7 +49,7 @@ export function useBrowserArrivals(accountScope: string, issueId: string | undef
   const [request, setRequest] = useState<{ scope: string; browserId: string; sessionId?: string } | null>(null);
   const acknowledged = useRef(new Set<string>());
   const key = useCallback((sessionId: string) =>
-    `paperclip:browser-arrival:v2:${accountScope}:${issueId}:${sessionId}`, [accountScope, issueId]);
+    `outpost:browser-arrival:v2:${accountScope}:${issueId}:${sessionId}`, [accountScope, issueId]);
   const current = request?.scope === scope ? request : null;
   useEffect(() => {
     if (!issueId || current) return;

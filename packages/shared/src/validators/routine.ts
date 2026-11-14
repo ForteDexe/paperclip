@@ -90,7 +90,7 @@ export type UpdateRoutine = z.infer<typeof updateRoutineSchema>;
 
 export const routineRevisionSnapshotRoutineV1Schema = z.object({
   id: z.string().guid(),
-  companyId: z.string().guid(),
+  spaceId: z.string().guid(),
   projectId: z.string().guid().nullable(),
   folderId: z.string().guid().nullable().optional(),
   goalId: z.string().guid().nullable(),
@@ -103,7 +103,7 @@ export const routineRevisionSnapshotRoutineV1Schema = z.object({
   concurrencyPolicy: z.enum(ROUTINE_CONCURRENCY_POLICIES),
   catchUpPolicy: z.enum(ROUTINE_CATCH_UP_POLICIES),
   activityGatePolicy: z.enum(ROUTINE_ACTIVITY_GATE_POLICIES).default("always"),
-  activityGateScope: z.enum(ROUTINE_ACTIVITY_GATE_SCOPES).default("company"),
+  activityGateScope: z.enum(ROUTINE_ACTIVITY_GATE_SCOPES).default("space"),
   variables: z.array(routineVariableSchema),
   env: envConfigSchema.nullable().default(null),
   responsibleUserId: z.string().nullable().default(null),

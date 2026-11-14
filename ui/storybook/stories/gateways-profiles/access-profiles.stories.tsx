@@ -23,7 +23,7 @@ import {
   type WizardSelections,
 } from "@/pages/tools/profiles/profile-model";
 
-const COMPANY = "company-storybook";
+const SPACE = "space-storybook";
 
 // --- Catalog fixtures ------------------------------------------------------
 
@@ -37,7 +37,7 @@ function makeTool(
 ): ToolCatalogEntry {
   return {
     id,
-    companyId: COMPANY,
+    spaceId: SPACE,
     applicationId,
     connectionId,
     entryKind: "tool",
@@ -112,7 +112,7 @@ function summary(partial: Partial<ToolProfileSummary>): ToolProfileSummary {
     totalToolCount: 16,
     assignmentCount: 0,
     appliesToAgentCount: 0,
-    isCompanyDefault: false,
+    isSpaceDefault: false,
     ...partial,
   };
 }
@@ -126,7 +126,7 @@ function profile(
 ): ToolProfileWithDetails {
   return {
     id,
-    companyId: COMPANY,
+    spaceId: SPACE,
     profileKey: id,
     name,
     description: null,
@@ -145,7 +145,7 @@ function profile(
 const PROFILES: ToolProfileWithDetails[] = [
   profile("read-only", "Read-only starter", "active", { allowedToolCount: 6, allowedApplicationCount: 0, appliesToAgentCount: 3 }, "2026-06-11T10:00:00Z"),
   profile("everyday", "Everyday work", "active", { allowedToolCount: 12, allowedApplicationCount: 1, appliesToAgentCount: 2 }, "2026-06-12T09:00:00Z"),
-  profile("company-baseline", "Company baseline", "active", { accessMode: "all_except", excludedToolCount: 4, isCompanyDefault: true }, "2026-06-09T14:00:00Z"),
+  profile("space-baseline", "Space baseline", "active", { accessMode: "all_except", excludedToolCount: 4, isSpaceDefault: true }, "2026-06-09T14:00:00Z"),
   profile("marketing", "Marketing reach", "active", { allowedToolCount: 3, allowedApplicationCount: 0 }, "2026-06-10T08:00:00Z"),
   profile("half-built", "Onboarding bot access", "draft", { allowedToolCount: 2 }, "2026-06-12T16:30:00Z"),
 ];
@@ -156,7 +156,7 @@ const DETAIL_PROFILE: ToolProfileWithDetails = {
   entries: [
     {
       id: "entry-gmail",
-      companyId: COMPANY,
+      spaceId: SPACE,
       profileId: "detail",
       selectorType: "application",
       effect: "include",
@@ -173,7 +173,7 @@ const DETAIL_PROFILE: ToolProfileWithDetails = {
   bindings: [
     {
       id: "bind-sage",
-      companyId: COMPANY,
+      spaceId: SPACE,
       profileId: "detail",
       targetType: "agent",
       targetId: "a-sage",
@@ -186,7 +186,7 @@ const DETAIL_PROFILE: ToolProfileWithDetails = {
     },
     {
       id: "bind-atlas",
-      companyId: COMPANY,
+      spaceId: SPACE,
       profileId: "detail",
       targetType: "agent",
       targetId: "a-atlas",
@@ -267,7 +267,7 @@ const NEW_TOOLS_REVIEW: ToolProfileNewToolsReview = {
 const CONNECTIONS: ToolConnection[] = [
   {
     id: "conn-gmail",
-    companyId: COMPANY,
+    spaceId: SPACE,
     applicationId: "app-gmail",
     name: "Gmail",
     uid: "gmail/gmail",
@@ -276,7 +276,7 @@ const CONNECTIONS: ToolConnection[] = [
     ownership: "customer",
     transport: "mcp_remote",
     authKind: "oauth",
-    credentialSource: "paperclip_vault",
+    credentialSource: "outpost_vault",
     credentialPolicy: "per_user",
     status: "active",
     transportConfig: {},
@@ -292,7 +292,7 @@ const CONNECTIONS: ToolConnection[] = [
     installs: [
       {
         id: "install-gmail-sage",
-        companyId: COMPANY,
+        spaceId: SPACE,
         connectionId: "conn-gmail",
         targetType: "agent",
         targetId: "a-sage",
@@ -304,7 +304,7 @@ const CONNECTIONS: ToolConnection[] = [
   } as ToolConnection,
   {
     id: "conn-slack",
-    companyId: COMPANY,
+    spaceId: SPACE,
     applicationId: "app-slack",
     name: "Slack",
     uid: "slack/slack",
@@ -313,7 +313,7 @@ const CONNECTIONS: ToolConnection[] = [
     ownership: "customer",
     transport: "mcp_remote",
     authKind: "oauth",
-    credentialSource: "paperclip_vault",
+    credentialSource: "outpost_vault",
     credentialPolicy: "per_user",
     status: "active",
     transportConfig: {},
@@ -350,11 +350,11 @@ function SeededIndex({
     const c = new QueryClient({
       defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false, refetchOnMount: false } },
     });
-    c.setQueryData(queryKeys.tools.profiles(COMPANY), { profiles });
-    c.setQueryData(queryKeys.tools.applications(COMPANY), { applications: [] });
-    c.setQueryData(queryKeys.tools.connections(COMPANY), { connections: [] });
-    c.setQueryData(queryKeys.agents.list(COMPANY), AGENTS);
-    c.setQueryData(queryKeys.tools.effectiveProfilesForAgent(COMPANY, "a-sage"), {
+    c.setQueryData(queryKeys.tools.profiles(SPACE), { profiles });
+    c.setQueryData(queryKeys.tools.applications(SPACE), { applications: [] });
+    c.setQueryData(queryKeys.tools.connections(SPACE), { connections: [] });
+    c.setQueryData(queryKeys.agents.list(SPACE), AGENTS);
+    c.setQueryData(queryKeys.tools.effectiveProfilesForAgent(SPACE, "a-sage"), {
       agentId: "a-sage",
       profiles: [DETAIL_PROFILE],
       entries: DETAIL_PROFILE.entries,
@@ -363,15 +363,15 @@ function SeededIndex({
       allowedToolNames: GMAIL_TOOLS.slice(0, 4).map((tool) => tool.toolName),
       installedConnections: [],
     } satisfies ToolProfileEffectiveSummary);
-    c.setQueryData(queryKeys.projects.list(COMPANY), []);
-    c.setQueryData(queryKeys.routines.list(COMPANY), []);
+    c.setQueryData(queryKeys.projects.list(SPACE), []);
+    c.setQueryData(queryKeys.routines.list(SPACE), []);
     return c;
   }, [profiles]);
   return (
     <QueryClientProvider client={client}>
       <div className="mx-auto max-w-6xl p-6">
         <ProfilesIndex
-          companyId={COMPANY}
+          spaceId={SPACE}
           initialStatusFilter={initialStatusFilter}
           initialResolverOpen={initialResolverOpen}
         />
@@ -397,27 +397,27 @@ function SeededDetail({
     const c = new QueryClient({
       defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false, refetchOnMount: false } },
     });
-    c.setQueryData(queryKeys.tools.profiles(COMPANY), { profiles: [profile, ...PROFILES] });
-    c.setQueryData(queryKeys.tools.applications(COMPANY), {
+    c.setQueryData(queryKeys.tools.profiles(SPACE), { profiles: [profile, ...PROFILES] });
+    c.setQueryData(queryKeys.tools.applications(SPACE), {
       applications: [
         { id: "app-gmail", name: "Gmail" },
         { id: "app-slack", name: "Slack" },
       ],
     });
-    c.setQueryData(queryKeys.tools.connections(COMPANY), { connections });
+    c.setQueryData(queryKeys.tools.connections(SPACE), { connections });
     c.setQueryData(queryKeys.tools.catalog("conn-gmail"), { catalog: catalog.filter((tool) => tool.connectionId === "conn-gmail") });
     c.setQueryData(queryKeys.tools.catalog("conn-slack"), { catalog: catalog.filter((tool) => tool.connectionId === "conn-slack") });
     c.setQueryData(queryKeys.tools.profileNewTools(profile.id), profile.newToolsPendingCount ? NEW_TOOLS_REVIEW : { profileId: profile.id, reviewedAt: null, pendingCount: 0, tools: [] });
-    c.setQueryData(queryKeys.agents.list(COMPANY), AGENTS);
-    c.setQueryData(queryKeys.projects.list(COMPANY), []);
-    c.setQueryData(queryKeys.routines.list(COMPANY), []);
+    c.setQueryData(queryKeys.agents.list(SPACE), AGENTS);
+    c.setQueryData(queryKeys.projects.list(SPACE), []);
+    c.setQueryData(queryKeys.routines.list(SPACE), []);
     return c;
   }, [profile, catalog, connections]);
   return (
     <QueryClientProvider client={client}>
       <div className="mx-auto max-w-6xl p-6">
         <ProfileDetail
-          companyId={COMPANY}
+          spaceId={SPACE}
           profileId={profile.id}
           initialCreated={initialCreated}
           initialReviewOpen={initialReviewOpen}
@@ -431,7 +431,7 @@ function SeededAgentTools() {
   const allowed = [...GMAIL_TOOLS.slice(0, 6), SLACK_TOOLS[0]];
   const policy: ToolPolicy = {
     id: "policy-write",
-    companyId: COMPANY,
+    spaceId: SPACE,
     name: "Ask first for sending mail",
     description: "Write tools need a quick human OK.",
     policyType: "require_approval",
@@ -449,25 +449,25 @@ function SeededAgentTools() {
     const c = new QueryClient({
       defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false, refetchOnMount: false } },
     });
-    c.setQueryData(queryKeys.tools.effectiveProfilesForAgent(COMPANY, "a-sage"), {
+    c.setQueryData(queryKeys.tools.effectiveProfilesForAgent(SPACE, "a-sage"), {
       agentId: "a-sage",
-      profiles: [{ ...DETAIL_PROFILE, summary: summary({ allowedToolCount: allowed.length, allowedApplicationCount: 1, assignmentCount: 1, appliesToAgentCount: 1, isCompanyDefault: true }) }],
+      profiles: [{ ...DETAIL_PROFILE, summary: summary({ allowedToolCount: allowed.length, allowedApplicationCount: 1, assignmentCount: 1, appliesToAgentCount: 1, isSpaceDefault: true }) }],
       entries: DETAIL_PROFILE.entries,
       bindings: DETAIL_PROFILE.bindings,
       allowedTools: allowed,
       allowedToolNames: allowed.map((tool) => tool.toolName),
       installedConnections: CONNECTIONS.filter((connection) => connection.id === "conn-gmail"),
     } satisfies ToolProfileEffectiveSummary);
-    c.setQueryData(queryKeys.tools.connections(COMPANY), { connections: CONNECTIONS });
+    c.setQueryData(queryKeys.tools.connections(SPACE), { connections: CONNECTIONS });
     c.setQueryData(queryKeys.tools.catalog("conn-gmail"), { catalog: GMAIL_TOOLS });
     c.setQueryData(queryKeys.tools.catalog("conn-slack"), { catalog: SLACK_TOOLS });
-    c.setQueryData(queryKeys.tools.policies(COMPANY), { policies: [policy] });
+    c.setQueryData(queryKeys.tools.policies(SPACE), { policies: [policy] });
     return c;
   }, [allowed, policy]);
   return (
     <QueryClientProvider client={client}>
       <div className="mx-auto max-w-6xl p-6">
-        <AgentToolsTab agent={{ id: "a-sage", name: "Sage" } as never} companyId={COMPANY} />
+        <AgentToolsTab agent={{ id: "a-sage", name: "Sage" } as never} spaceId={SPACE} />
       </div>
     </QueryClientProvider>
   );
@@ -477,7 +477,7 @@ const meta: Meta = {
   id: "tools-access-profiles",
   title: "Apps, channels, and extensions/Tool gateways and access profiles/Tools/Access profiles",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "gateways-profiles/profiles"
       ],
@@ -685,7 +685,7 @@ export const WizardStep3: Story = {
   name: "Wizard — step 3 (Assign)",
   render: function Step3() {
     const [selected, setSelected] = useState<Set<string>>(new Set(["a-sage"]));
-    const [companyDefault, setCompanyDefault] = useState(false);
+    const [spaceDefault, setSpaceDefault] = useState(false);
     return (
       <div className="mx-auto max-w-3xl p-6">
         <StepAssign
@@ -699,8 +699,8 @@ export const WizardStep3: Story = {
               return next;
             })
           }
-          companyDefault={companyDefault}
-          onCompanyDefault={setCompanyDefault}
+          spaceDefault={spaceDefault}
+          onSpaceDefault={setSpaceDefault}
         />
       </div>
     );

@@ -3,9 +3,9 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { and, asc, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
-import { agents, companies, companySkills, companySkillVersions, type Db } from "@outpost/db";
-import { readPaperclipSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { agents, spaces, spaceSkills, spaceSkillVersions, type Db } from "@outpost/db";
+import { readOutpostSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 import { noteSkillVersionCacheChange } from "./skill-version-retention-notifications.js";
 import { logger } from "../middleware/logger.js";
 import { allocatedBytes, ensureSkillCacheDirectory, hasRestorableSnapshot, lastUsedAt,
@@ -16,7 +16,7 @@ import { allocatedBytes, ensureSkillCacheDirectory, hasRestorableSnapshot, lastU
  * Retention for materialized skill version directories.
  *
  * `materializeVersionSnapshot` writes each selected skill version to
- * `<instance>/skills/<companyId>/__versions__/<skillId>/<versionId>/` from the
+ * `<instance>/skills/<spaceId>/__versions__/<skillId>/<versionId>/` from the
  * version row's stored file inventory. A directory is a cache: when it is
  * removed while its row survives, the next resolve writes it again. Nothing
  * removed these directories before, so they grew with every new version.
@@ -46,12 +46,12 @@ const versionSnapshotRemovals = new Map<string, Promise<unknown>>();
 // Trash directories this process is deleting right now; a concurrent prune skips them.
 const activeTrash = new Set<string>();
 
-export function resolveCompanySkillVersionsRoot(companyId: string) {
-  return path.resolve(resolvePaperclipInstanceRoot(), "skills", companyId, VERSIONS_DIR);
+export function resolveSpaceSkillVersionsRoot(spaceId: string) {
+  return path.resolve(resolveOutpostInstanceRoot(), "skills", spaceId, VERSIONS_DIR);
 }
 
-export function resolveSkillVersionSnapshotDir(companyId: string, skillId: string, versionId: string) {
-  return path.join(resolveCompanySkillVersionsRoot(companyId), skillId, versionId);
+export function resolveSkillVersionSnapshotDir(spaceId: string, skillId: string, versionId: string) {
+  return path.join(resolveSpaceSkillVersionsRoot(spaceId), skillId, versionId);
 }
 
 /**
@@ -134,8 +134,8 @@ async function removeVersionDirectory(parent: string, name: string): Promise<str
   return trash;
 }
 
-type CompanyCursor = { skillId: string; name: string };
-export type SkillVersionRetentionCursor = CompanyCursor & { companyId: string };
+type SpaceCursor = { skillId: string; name: string };
+export type SkillVersionRetentionCursor = SpaceCursor & { spaceId: string };
 export type SkillVersionPruneOptions = {
   keepNewest?: number;
   graceMs?: number;
@@ -151,7 +151,7 @@ export type SkillVersionPruneResult = {
   removed: number; removedOrphans: number; removedStaging: number; kept: number;
   skippedRecent: number; failed: number; truncated: boolean;
   skipped: Record<string, number>;
-  cursor: CompanyCursor | null;
+  cursor: SpaceCursor | null;
   nextRunAt: number | null;
   interrupted: boolean;
 };
@@ -204,50 +204,50 @@ function chunks<T>(values: T[], size: number): T[][] {
 }
 
 export function skillVersionRetentionService(db: Db, defaults: SkillVersionPruneOptions = {}) {
-  const scans = new Map<string, { iterator: AsyncGenerator<Candidate>; cursor: CompanyCursor | null;
+  const scans = new Map<string, { iterator: AsyncGenerator<Candidate>; cursor: SpaceCursor | null;
     pending: Candidate[]; expiry: ReturnType<typeof setTimeout> }>();
   const scanning = new Set<string>();
-  async function closeScan(companyId: string) {
-    const scan = scans.get(companyId);
+  async function closeScan(spaceId: string) {
+    const scan = scans.get(spaceId);
     if (!scan) return;
-    scans.delete(companyId);
+    scans.delete(spaceId);
     clearTimeout(scan.expiry);
     await scan.iterator.return(undefined);
   }
   async function dispose() { for (const id of [...scans.keys()]) await closeScan(id); }
 
-  async function protectedVersionIds(companyId: string, skillIds: string[], keepNewest: number) {
+  async function protectedVersionIds(spaceId: string, skillIds: string[], keepNewest: number) {
     const keep = new Set<string>();
     const leaseDeadlines = new Map<string, number>();
     if (skillIds.length === 0) return { versions: keep, leaseDeadlines };
     for (const batch of chunks(skillIds, QUERY_BATCH)) {
-      const rows = await db.select({ currentVersionId: companySkills.currentVersionId }).from(companySkills)
-        .where(and(eq(companySkills.companyId, companyId), inArray(companySkills.id, batch)));
+      const rows = await db.select({ currentVersionId: spaceSkills.currentVersionId }).from(spaceSkills)
+        .where(and(eq(spaceSkills.spaceId, spaceId), inArray(spaceSkills.id, batch)));
       for (const row of rows) if (row.currentVersionId) keep.add(row.currentVersionId);
       if (keepNewest > 0) {
         const ranked = db.select({
-          id: companySkillVersions.id,
-          rank: sql<number>`row_number() over (partition by ${companySkillVersions.companySkillId} order by ${companySkillVersions.revisionNumber} desc)`.as("rank"),
-        }).from(companySkillVersions)
-          .where(and(eq(companySkillVersions.companyId, companyId), inArray(companySkillVersions.companySkillId, batch)))
+          id: spaceSkillVersions.id,
+          rank: sql<number>`row_number() over (partition by ${spaceSkillVersions.spaceSkillId} order by ${spaceSkillVersions.revisionNumber} desc)`.as("rank"),
+        }).from(spaceSkillVersions)
+          .where(and(eq(spaceSkillVersions.spaceId, spaceId), inArray(spaceSkillVersions.spaceSkillId, batch)))
           .as("ranked");
         for (const row of await db.select({ id: ranked.id }).from(ranked).where(lte(ranked.rank, keepNewest))) keep.add(row.id);
       }
     }
-    for (const agent of await db.select({ adapterConfig: agents.adapterConfig }).from(agents).where(eq(agents.companyId, companyId))) {
-      for (const entry of readPaperclipSkillSyncPreference(agent.adapterConfig ?? {}).desiredSkillEntries) {
+    for (const agent of await db.select({ adapterConfig: agents.adapterConfig }).from(agents).where(eq(agents.spaceId, spaceId))) {
+      for (const entry of readOutpostSkillSyncPreference(agent.adapterConfig ?? {}).desiredSkillEntries) {
         if (entry.versionId) keep.add(entry.versionId);
       }
     }
-    const runVersions = await protectedVersions(db, companyId);
+    const runVersions = await protectedVersions(db, spaceId);
     if (!runVersions.versions) return { versions: null, leaseDeadlines };
     for (const [version, at] of runVersions.leaseDeadlines) if (!keep.has(version)) leaseDeadlines.set(version, at);
     for (const version of runVersions.versions) keep.add(version);
     return { versions: keep, leaseDeadlines };
   }
 
-  async function pruneCompanyPage(companyId: string, options: SkillVersionPruneOptions & { cursor?: CompanyCursor | null } = {}): Promise<SkillVersionPruneResult> {
-    if (!UUID_PATTERN.test(companyId)) throw new Error("Invalid company ID for skill retention");
+  async function pruneSpacePage(spaceId: string, options: SkillVersionPruneOptions & { cursor?: SpaceCursor | null } = {}): Promise<SkillVersionPruneResult> {
+    if (!UUID_PATTERN.test(spaceId)) throw new Error("Invalid space ID for skill retention");
     const keepNewest = Math.max(0, Math.floor(options.keepNewest ?? defaults.keepNewest ?? SKILL_VERSION_RETENTION_DEFAULT_KEEP_NEWEST));
     const graceMs = Math.max(0, options.graceMs ?? defaults.graceMs ?? SKILL_VERSION_RETENTION_DEFAULT_GRACE_MS);
     const maxRemovals = Math.min(50, Math.max(0, options.maxRemovals ?? defaults.maxRemovals ?? SKILL_VERSION_RETENTION_DEFAULT_MAX_REMOVALS));
@@ -267,18 +267,18 @@ export function skillVersionRetentionService(db: Db, defaults: SkillVersionPrune
       if (["cache_busy", "scan_busy", "unknown_run_pins", "unavailable_pins", "unsafe_or_unavailable", "cache_changed"].includes(reason)) schedule(now + 30_000);
     };
     const trash: string[] = [];
-    const root = resolveCompanySkillVersionsRoot(companyId);
+    const root = resolveSpaceSkillVersionsRoot(spaceId);
     const trashName = (name: string) => name.startsWith(TRASH_PREFIX) && UUID_PATTERN.test(name.slice(TRASH_PREFIX.length));
-    let scan = scans.get(companyId);
+    let scan = scans.get(spaceId);
     if (!options.cursor || !scan || scan.cursor?.skillId !== options.cursor.skillId || scan.cursor?.name !== options.cursor.name) {
-      await closeScan(companyId);
-      // A service normally holds two descriptors for one company's continuation.
+      await closeScan(spaceId);
+      // A service normally holds two descriptors for one space's continuation.
       // Bound direct/internal callers too; abandoned cursors expire automatically.
       if (scans.size >= 16) await closeScan(scans.keys().next().value!);
-      const expiry = setTimeout(() => { if (!scanning.has(companyId)) void closeScan(companyId).catch(() => {}); }, 5 * 60 * 1000);
+      const expiry = setTimeout(() => { if (!scanning.has(spaceId)) void closeScan(spaceId).catch(() => {}); }, 5 * 60 * 1000);
       expiry.unref();
       scan = { iterator: discoverDirectories(root), cursor: null, pending: [], expiry };
-      scans.set(companyId, scan);
+      scans.set(spaceId, scan);
     }
     scan.expiry.refresh();
     const entries: Candidate[] = [];
@@ -290,28 +290,28 @@ export function skillVersionRetentionService(db: Db, defaults: SkillVersionPrune
         entries.push(next.value);
       }
     } catch (error) {
-      await closeScan(companyId);
+      await closeScan(spaceId);
       if (errorCode(error) === "ENOENT" || errorCode(error) === "ENOTDIR") return result;
       result.checked++;
       result.failed++;
       skip("unsafe_or_unavailable");
-      logger.warn({ err: error, companyId }, "skill version retention skipped unsafe company root");
+      logger.warn({ err: error, spaceId }, "skill version retention skipped unsafe space root");
       return result;
     }
     result.truncated = !discoveryDone;
-    if (entries.length === 0) { await closeScan(companyId); return result; }
+    if (entries.length === 0) { await closeScan(spaceId); return result; }
     const skillIds = [...new Set(entries.filter(entry => !entry.unsafe && entry.skillId).map(entry => entry.skillId))];
     let initialKeep: Awaited<ReturnType<typeof protectedVersionIds>>;
-    try { initialKeep = await withSkillVersionCacheLock(db, companyId, () => protectedVersionIds(companyId, skillIds, keepNewest), true); }
+    try { initialKeep = await withSkillVersionCacheLock(db, spaceId, () => protectedVersionIds(spaceId, skillIds, keepNewest), true); }
     catch (error) {
       result.checked = 1;
       if (error instanceof SkillCacheBusy) skip("cache_busy");
       else { result.failed++; skip("unavailable_pins"); }
-      await closeScan(companyId);
+      await closeScan(spaceId);
       result.truncated = false;
       return result;
     }
-    if (!initialKeep.versions) { await closeScan(companyId); result.truncated = false; result.checked = 1; skip("unknown_run_pins"); return result; }
+    if (!initialKeep.versions) { await closeScan(spaceId); result.truncated = false; result.checked = 1; skip("unknown_run_pins"); return result; }
     const inspected: Array<{
       entry: Candidate; isStaging: boolean; version: boolean;
       before: { dev: number; ino: number }; bytes: number;
@@ -344,10 +344,10 @@ export function skillVersionRetentionService(db: Db, defaults: SkillVersionPrune
         }
         const stat = await fs.lstat(target);
         if (isVersion) {
-          const used = await lastUsedAt(skillVersionCachePaths(companyId, entry.skillId, entry.name).access);
+          const used = await lastUsedAt(skillVersionCachePaths(spaceId, entry.skillId, entry.name).access);
           if (used === null) {
             if (!dryRun) {
-              await touchSkillVersionCache(companyId, entry.skillId, entry.name, now);
+              await touchSkillVersionCache(spaceId, entry.skillId, entry.name, now);
               schedule(now + graceMs);
             }
             skip("observation_grace"); return null;
@@ -357,15 +357,15 @@ export function skillVersionRetentionService(db: Db, defaults: SkillVersionPrune
         return stat;
       };
       try {
-        const before = await withSkillVersionCacheLock(db, companyId, () => eligible(initialKeep), true);
+        const before = await withSkillVersionCacheLock(db, spaceId, () => eligible(initialKeep), true);
         if (!before) continue;
         // Inventory transfer/validation and recursive file walks must not hold
         // the lock needed by agent preparation. Immutable snapshots can be
         // checked here; mutable current/run pins are checked again below.
-        const [version] = isVersion ? await db.select({ id: companySkillVersions.id }).from(companySkillVersions).where(and(
-          eq(companySkillVersions.companyId, companyId), eq(companySkillVersions.companySkillId, entry.skillId),
-          eq(companySkillVersions.id, entry.name))) : [];
-        if (version && !await hasRestorableSnapshot(db, companyId, version.id)) { skip("snapshot_unavailable"); continue; }
+        const [version] = isVersion ? await db.select({ id: spaceSkillVersions.id }).from(spaceSkillVersions).where(and(
+          eq(spaceSkillVersions.spaceId, spaceId), eq(spaceSkillVersions.spaceSkillId, entry.skillId),
+          eq(spaceSkillVersions.id, entry.name))) : [];
+        if (version && !await hasRestorableSnapshot(db, spaceId, version.id)) { skip("snapshot_unavailable"); continue; }
         const bytes = await allocatedBytes(target, shouldContinue);
         inspected.push({ entry, isStaging, version: Boolean(version), before, bytes, eligible });
       } catch (error) {
@@ -375,16 +375,16 @@ export function skillVersionRetentionService(db: Db, defaults: SkillVersionPrune
         else {
           result.failed++;
           skip("unsafe_or_unavailable");
-          logger.warn({ err: error, companyId }, "skill version cache candidate skipped");
+          logger.warn({ err: error, spaceId }, "skill version cache candidate skipped");
         }
       }
     }
     if (inspected.length && shouldContinue()) {
       try {
-        // Read company-wide agent/run pins once per phase, not once per cache.
+        // Read space-wide agent/run pins once per phase, not once per cache.
         // The lock keeps this final set authoritative through every rename.
-        await withSkillVersionCacheLock(db, companyId, async () => {
-          const keep = await protectedVersionIds(companyId, skillIds, keepNewest);
+        await withSkillVersionCacheLock(db, spaceId, async () => {
+          const keep = await protectedVersionIds(spaceId, skillIds, keepNewest);
           for (const candidate of inspected) {
             if (!shouldContinue()) { result.truncated = true; break; }
             try {
@@ -403,7 +403,7 @@ export function skillVersionRetentionService(db: Db, defaults: SkillVersionPrune
             } catch (error) {
               if (errorCode(error) === "ENOENT") { skip("not_materialized"); continue; }
               result.failed++; skip("unsafe_or_unavailable");
-              logger.warn({ err: error, companyId }, "skill version cache rename skipped");
+              logger.warn({ err: error, spaceId }, "skill version cache rename skipped");
             }
           }
         }, true);
@@ -412,14 +412,14 @@ export function skillVersionRetentionService(db: Db, defaults: SkillVersionPrune
         else { result.failed++; skip("unavailable_pins"); }
       }
     }
-    if (!result.truncated) { result.cursor = null; await closeScan(companyId); }
+    if (!result.truncated) { result.cursor = null; await closeScan(spaceId); }
     else scan.cursor = result.cursor;
     // These unique names are never reused by materialization. A crash leaves
     // them for the next scan; a returning run can rehydrate immediately.
     for (const target of trash) {
       if (!shouldContinue()) break;
       try {
-        await withSkillVersionCacheLock(db, `trash:${companyId}:${target}`, async () => {
+        await withSkillVersionCacheLock(db, `trash:${spaceId}:${target}`, async () => {
           await ensureSkillCacheDirectory(target);
           const bytes = await allocatedBytes(target, shouldContinue);
           if (!shouldContinue()) return;
@@ -431,43 +431,43 @@ export function skillVersionRetentionService(db: Db, defaults: SkillVersionPrune
         if (errorCode(error) === "ENOENT") continue;
         if (error instanceof SkillCacheBusy) { schedule(now + 30_000); continue; }
         result.failed++; schedule(now + 30_000);
-        logger.warn({ err: error, companyId }, "skill version snapshot trash removal failed");
+        logger.warn({ err: error, spaceId }, "skill version snapshot trash removal failed");
       }
     }
     return result;
   }
 
-  async function pruneCompany(companyId: string, options: SkillVersionPruneOptions & { cursor?: CompanyCursor | null } = {}) {
-    if (scanning.has(companyId)) return { ...emptyResult(), checked: 1, nextRunAt: Date.now() + 30_000, skipped: { scan_busy: 1 } };
-    scanning.add(companyId);
-    try { return await withSkillPackageReadScope(db, () => pruneCompanyPage(companyId, options)); }
-    finally { scanning.delete(companyId); }
+  async function pruneSpace(spaceId: string, options: SkillVersionPruneOptions & { cursor?: SpaceCursor | null } = {}) {
+    if (scanning.has(spaceId)) return { ...emptyResult(), checked: 1, nextRunAt: Date.now() + 30_000, skipped: { scan_busy: 1 } };
+    scanning.add(spaceId);
+    try { return await withSkillPackageReadScope(db, () => pruneSpacePage(spaceId, options)); }
+    finally { scanning.delete(spaceId); }
   }
 
-  // A continuation visits later companies and protected directories too; a busy
-  // first company or a dry run cannot starve the remainder of the instance.
+  // A continuation visits later spaces and protected directories too; a busy
+  // first space or a dry run cannot starve the remainder of the instance.
   let cursor: SkillVersionRetentionCursor | null = null;
   async function tick(options: SkillVersionPruneOptions = {}) {
     const maxRemovals = Math.min(50, options.maxRemovals ?? defaults.maxRemovals ?? SKILL_VERSION_RETENTION_DEFAULT_MAX_REMOVALS);
     const maxEntries = Math.min(maxRemovals, options.maxEntries ?? defaults.maxEntries ?? 50);
     const shouldContinue = options.shouldContinue ?? defaults.shouldContinue ?? (() => true);
-    const totals = { ...emptyResult(), companies: 0, cursor: null as SkillVersionRetentionCursor | null };
-    const companyRows = await db.select({ id: companies.id }).from(companies)
-      .where(cursor ? cursor.skillId === "\uffff" ? gt(companies.id, cursor.companyId) : gte(companies.id, cursor.companyId) : undefined)
-      .orderBy(asc(companies.id)).limit(51);
-    for (const company of companyRows) {
-      if (cursor && (company.id < cursor.companyId || (company.id === cursor.companyId && cursor.skillId === "\uffff"))) continue;
-      if (totals.companies >= 50 || totals.checked >= maxEntries || totals.candidates >= maxRemovals || !shouldContinue()) { totals.truncated = true; break; }
-      const result = await pruneCompany(company.id, { ...options, cursor: cursor?.companyId === company.id ? cursor : null,
+    const totals = { ...emptyResult(), spaces: 0, cursor: null as SkillVersionRetentionCursor | null };
+    const spaceRows = await db.select({ id: spaces.id }).from(spaces)
+      .where(cursor ? cursor.skillId === "\uffff" ? gt(spaces.id, cursor.spaceId) : gte(spaces.id, cursor.spaceId) : undefined)
+      .orderBy(asc(spaces.id)).limit(51);
+    for (const space of spaceRows) {
+      if (cursor && (space.id < cursor.spaceId || (space.id === cursor.spaceId && cursor.skillId === "\uffff"))) continue;
+      if (totals.spaces >= 50 || totals.checked >= maxEntries || totals.candidates >= maxRemovals || !shouldContinue()) { totals.truncated = true; break; }
+      const result = await pruneSpace(space.id, { ...options, cursor: cursor?.spaceId === space.id ? cursor : null,
         maxEntries: maxEntries - totals.checked, maxRemovals: maxRemovals - totals.candidates, shouldContinue });
-      totals.companies++;
+      totals.spaces++;
       totals.interrupted ||= result.interrupted;
       if (result.nextRunAt !== null) totals.nextRunAt = Math.min(totals.nextRunAt ?? Infinity, result.nextRunAt);
       for (const key of ["checked", "candidates", "candidateBytes", "reclaimedBytes", "removed", "removedOrphans", "removedStaging", "kept", "skippedRecent", "failed"] as const) totals[key] += result[key];
       for (const [reason, count] of Object.entries(result.skipped)) totals.skipped[reason] = (totals.skipped[reason] ?? 0) + count;
-      cursor = { companyId: company.id, skillId: "\uffff", name: "" };
+      cursor = { spaceId: space.id, skillId: "\uffff", name: "" };
       if (result.truncated) {
-        cursor = { companyId: company.id, ...(result.cursor ?? { skillId: "", name: "" }) };
+        cursor = { spaceId: space.id, ...(result.cursor ?? { skillId: "", name: "" }) };
         totals.truncated = true;
         break;
       }
@@ -476,10 +476,10 @@ export function skillVersionRetentionService(db: Db, defaults: SkillVersionPrune
     totals.cursor = cursor;
     return totals;
   }
-  async function listCompanies(after?: string) {
-    return db.select({ id: companies.id }).from(companies)
-      .where(after ? gt(companies.id, after) : undefined).orderBy(asc(companies.id)).limit(51);
+  async function listSpaces(after?: string) {
+    return db.select({ id: spaces.id }).from(spaces)
+      .where(after ? gt(spaces.id, after) : undefined).orderBy(asc(spaces.id)).limit(51);
   }
-  return { pruneCompany, tick, listCompanies, dispose, dryRun: defaults.dryRun ?? false,
+  return { pruneSpace, tick, listSpaces, dispose, dryRun: defaults.dryRun ?? false,
     graceMs: Math.max(0, defaults.graceMs ?? SKILL_VERSION_RETENTION_DEFAULT_GRACE_MS) };
 }

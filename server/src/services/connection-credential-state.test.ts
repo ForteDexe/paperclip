@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { companySecrets, companySecretVersions, type Db } from "@outpost/db";
+import { spaceSecrets, spaceSecretVersions, type Db } from "@outpost/db";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
 import { readConnectionGrantCredentialStates, type ConnectionGrantCredentialInput } from "./connection-credentials.js";
 
-const input = (index = 0): ConnectionGrantCredentialInput => ({ connection: { id: "connection", companyId: "company" },
-  grant: { id: `grant-${index}`, companyId: "company", connectionId: "connection", kind: "user", subjectUserId: "owner",
+const input = (index = 0): ConnectionGrantCredentialInput => ({ connection: { id: "connection", spaceId: "space" },
+  grant: { id: `grant-${index}`, spaceId: "space", connectionId: "connection", kind: "user", subjectUserId: "owner",
     credentialSecretRefs: [{ configPath: "oauth.access_token", secretId: `secret-${index}`, versionSelector: 1 }] } });
-const metadata = (index = 0) => ({ secret: { id: `secret-${index}`, companyId: "company", scope: "user", ownerUserId: "owner",
+const metadata = (index = 0) => ({ secret: { id: `secret-${index}`, spaceId: "space", scope: "user", ownerUserId: "owner",
   userSecretDefinitionId: `definition-${index}`, status: "active", deletedAt: null, latestVersion: 2, updatedAt: new Date(0) },
-  definition: { id: `definition-${index}`, companyId: "company", status: "active", deletedAt: null, updatedAt: new Date(0) } });
+  definition: { id: `definition-${index}`, spaceId: "space", status: "active", deletedAt: null, updatedAt: new Date(0) } });
 const version = (index = 0) => ({ id: `version-${index}`, secretId: `secret-${index}`, version: 1, status: "previous", revokedAt: null as Date | null });
 function metadataDb(rows = [metadata()], versions = [version()], onRead: () => void = () => {}) {
   return { select: (columns: Record<string, unknown>) => {
@@ -21,8 +21,8 @@ function metadataDb(rows = [metadata()], versions = [version()], onRead: () => v
     let table: unknown, params: unknown[] = [];
     const query = { from: (source: unknown) => { table = source; return query; }, leftJoin: () => query,
       where: (where: SQL) => { params = new PgDialect().sqlToQuery(where).params; return query; }, orderBy: () => query,
-      limit: () => Promise.resolve(table === companySecrets ? rows.filter(row => params.includes(row.secret.id))
-        : table === companySecretVersions ? versions.filter(row => params.includes(row.secretId) && params.includes(row.version)) : []) };
+      limit: () => Promise.resolve(table === spaceSecrets ? rows.filter(row => params.includes(row.secret.id))
+        : table === spaceSecretVersions ? versions.filter(row => params.includes(row.secretId) && params.includes(row.version)) : []) };
     return query;
   } } as unknown as Pick<Db, "select">;
 }
@@ -44,7 +44,7 @@ describe("connection grant credential metadata", () => {
     expect(await readConnectionGrantCredentialStates(metadataDb([metadata()], [revoked]), [input()])).toBeUndefined();
     expect(await readConnectionGrantCredentialStates(metadataDb([], []), [input()])).toBeUndefined();
     expect(await readConnectionGrantCredentialStates(metadataDb([metadata()], []), [input()])).toBeUndefined();
-    for (const field of ["companyId", "ownerUserId", "userSecretDefinitionId"] as const) {
+    for (const field of ["spaceId", "ownerUserId", "userSecretDefinitionId"] as const) {
       const row = metadata(); row.secret[field] = "foreign";
       expect(await readConnectionGrantCredentialStates(metadataDb([row]), [input()])).toBeUndefined();
     }

@@ -6,7 +6,7 @@ Date: 2026-02-23
 
 ## Goal
 
-Keep Paperclip low-friction while making the mode model simpler and safer:
+Keep Outpost low-friction while making the mode model simpler and safer:
 
 1. `local_trusted` remains the default and easiest path.
 2. one authenticated runtime mode supports both private-network local use and public cloud use.
@@ -28,7 +28,7 @@ Keep Paperclip low-friction while making the mode model simpler and safer:
 
 - Runtime deployment modes are currently `local_trusted | cloud_hosted` (`packages/shared/src/constants.ts`).
 - `local_trusted` actor is currently synthetic:
-  - `req.actor = { type: "board", userId: "local-board", source: "local_implicit" }` (`server/src/middleware/auth.ts`).
+  - `req.actor = { type: "board", userId: "local-operator", source: "local_implicit" }` (`server/src/middleware/auth.ts`).
   - this is not a real auth user row by default.
 - `cloud_hosted` uses Better Auth sessions and `authUsers` rows (`server/src/auth/better-auth.ts`, `packages/db/src/schema/auth.ts`).
 
@@ -39,7 +39,7 @@ Keep Paperclip low-friction while making the mode model simpler and safer:
 
 ## Membership/Assignment Integration
 
-- User task assignment requires active `company_memberships` entry for that user (`server/src/services/issues.ts`).
+- User task assignment requires active `space_memberships` entry for that user (`server/src/services/issues.ts`).
 - Local implicit board identity is not automatically a real membership principal; this is a gap for “board as assignable user” semantics.
 
 ## Proposed Runtime Model
@@ -76,7 +76,7 @@ This is one authenticated mode with two safety policies, not two different auth 
 Default command remains:
 
 ```sh
-pnpm paperclipai onboard
+pnpm outpost onboard
 ```
 
 Interactive server step:
@@ -97,7 +97,7 @@ Flags are optional power-user overrides, not required for normal setup.
 Default command remains interactive:
 
 ```sh
-pnpm paperclipai configure --section server
+pnpm outpost configure --section server
 ```
 
 Same mode/exposure questions and defaults as onboarding.
@@ -107,7 +107,7 @@ Same mode/exposure questions and defaults as onboarding.
 Default command remains flagless:
 
 ```sh
-pnpm paperclipai doctor
+pnpm outpost doctor
 ```
 
 Doctor reads configured mode/exposure and applies relevant checks.
@@ -126,16 +126,16 @@ Board must be a real DB user principal so user-centric features (task assignment
 - actor middleware uses that real user id instead of synthetic-only identity.
 - ensure:
   - `instance_user_roles` includes `instance_admin` for this user.
-  - company membership can be created/maintained for this user where needed.
+  - space membership can be created/maintained for this user where needed.
 
 2. `authenticated`
 - Better Auth sign-up creates user row.
 - bootstrap/admin flow promotes that real user to `instance_admin`.
-- first company creation flow should ensure creator membership is active.
+- first space creation flow should ensure creator membership is active.
 
 ## Why This Matters
 
-- `assigneeUserId` validation checks company membership.
+- `assigneeUserId` validation checks space membership.
 - without a real board user + membership path, assigning tasks to board user is inconsistent.
 
 ## Configuration Contract (Target)
@@ -181,7 +181,7 @@ This change is a clean cut:
 - add ensure-board-user startup/setup step:
   - real local board user row
   - instance admin role row
-- ensure first-company creation path grants creator membership.
+- ensure first-space creation path grants creator membership.
 - remove synthetic-only assumptions where they break user assignment/membership semantics.
 
 ## Phase 5: UI + Docs
@@ -209,9 +209,9 @@ This change is a clean cut:
 
 ## Acceptance Criteria
 
-1. `pnpm paperclipai onboard` is interactive-first and defaults to `local_trusted`.
+1. `pnpm outpost onboard` is interactive-first and defaults to `local_trusted`.
 2. authenticated mode is one runtime mode with `private/public` exposure guidance.
-3. `pnpm paperclipai doctor` works flagless with mode-aware checks.
+3. `pnpm outpost doctor` works flagless with mode-aware checks.
 4. no extra compatibility aliases for dropped naming variants.
 5. Board identity is represented by real DB user/role/membership integration points, enabling consistent task assignment and permission behavior.
 

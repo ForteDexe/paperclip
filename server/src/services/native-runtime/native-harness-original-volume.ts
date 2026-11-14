@@ -3,7 +3,7 @@ import { lstat, open, realpath } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, relative, resolve, sep } from "node:path";
 import { readBuildCommit } from "../../build-commit.js";
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 import { nativeHarnessStateBase } from "./native-harness-backup-stamp.js";
 import { nativeSha256 } from "./canonical.js";
 
@@ -32,7 +32,7 @@ const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const digest = /^[a-f0-9]{64}$/;
 
 export function originalHarnessVolumeAnchorPath() {
-  return resolve(resolvePaperclipInstanceRoot(), "recovery", "native-harness-original-volume-anchor.json");
+  return resolve(resolveOutpostInstanceRoot(), "recovery", "native-harness-original-volume-anchor.json");
 }
 
 async function verify(witness: ReviewedOriginalHarnessVolumeWitness) {
@@ -46,7 +46,7 @@ async function verify(witness: ReviewedOriginalHarnessVolumeWitness) {
     if (!value || process.env[key] !== value) reject();
   }
   if (readBuildCommit() !== witness.currentCommit || !uuid.test(witness.volumeInstanceId)) reject();
-  const mount = resolve(witness.mountPath), instance = resolvePaperclipInstanceRoot(), state = nativeHarnessStateBase();
+  const mount = resolve(witness.mountPath), instance = resolveOutpostInstanceRoot(), state = nativeHarnessStateBase();
   if (!inside(mount, instance) || !inside(instance, state) || await realpath(mount) !== mount) reject();
   const anchorPath = originalHarnessVolumeAnchorPath();
   for (let path = dirname(anchorPath); path !== mount; path = dirname(path)) {

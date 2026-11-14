@@ -1,8 +1,8 @@
 //! Amazon Bedrock AgentCore Harness provider.
 //!
-//! The Harness owns the remote model loop. Paperclip supplies only caller-side
+//! The Harness owns the remote model loop. Outpost supplies only caller-side
 //! inline functions, then executes those functions through the durable ORP
-//! bridge. No Paperclip credential or callback address enters AgentCore.
+//! bridge. No Outpost credential or callback address enters AgentCore.
 
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fs;
@@ -42,7 +42,7 @@ const MAX_AGENTCORE_TOOLS: usize = 64;
 // bounded cold start, but leave enough of the eval's outer deadline for the
 // durable runner to classify the failure and service runner.shutdown cleanly.
 const AGENTCORE_INVOCATION_DELIVERY_TIMEOUT: Duration = Duration::from_secs(120);
-// InvokeHarness accepts at most 50 HarnessSkill entries. Paperclip reserves one
+// InvokeHarness accepts at most 50 HarnessSkill entries. Outpost reserves one
 // for the generated instruction companion, leaving at most 49 assigned skills.
 const MAX_CONTEXT_SKILL_SOURCES: usize = 50;
 const MAX_CONTEXT_UPLOAD_FILES: usize = 10_000;
@@ -82,7 +82,7 @@ fn restored_usage_snapshot(snapshot: Option<&Value>) -> Result<Value, LocalRunne
             "cacheWriteInputTokens": 0,
             "requestCount": 0,
             "estimatedCostUsd": 0.0,
-            "costSource": "paperclip_estimate"
+            "costSource": "outpost_estimate"
         }));
     };
     let object = snapshot.as_object().ok_or_else(|| {
@@ -110,7 +110,7 @@ fn restored_usage_snapshot(snapshot: Option<&Value>) -> Result<Value, LocalRunne
                 "AgentCore durable usage snapshot has invalid estimatedCostUsd",
             )
         })?;
-    if object.get("costSource").and_then(Value::as_str) != Some("paperclip_estimate") {
+    if object.get("costSource").and_then(Value::as_str) != Some("outpost_estimate") {
         return Err(LocalRunnerError::invalid(
             "AgentCore durable usage snapshot has invalid costSource",
         ));
@@ -253,7 +253,7 @@ impl NetworkWorker {
         let (event_tx, event_rx) = mpsc::sync_channel(256);
         let (ready_tx, ready_rx) = mpsc::channel();
         let join = thread::Builder::new()
-            .name("paperclip-aws-agentcore-network".to_owned())
+            .name("outpost-aws-agentcore-network".to_owned())
             .spawn(move || {
                 network_loop(config, session_id, actor_id, command_rx, event_tx, ready_tx)
             })
@@ -450,7 +450,7 @@ async fn upload_context_directory(
         {
             let metadata_digest = existing
                 .metadata()
-                .and_then(|metadata| metadata.get("paperclip-sha256"))
+                .and_then(|metadata| metadata.get("outpost-sha256"))
                 .map(String::as_str);
             if existing.content_length() != Some(bytes.len() as i64)
                 || metadata_digest != Some(content_digest.as_str())
@@ -471,7 +471,7 @@ async fn upload_context_directory(
             .key(&key)
             .server_side_encryption(aws_sdk_s3::types::ServerSideEncryption::AwsKms)
             .ssekms_key_id(&config.context_kms_key_arn)
-            .metadata("paperclip-sha256", content_digest)
+            .metadata("outpost-sha256", content_digest)
             .body(ByteStream::from(bytes))
             .send()
             .await
@@ -543,7 +543,7 @@ fn prepare_agentcore_runtime_context_assets(
         .map(|(path, bytes)| (PathBuf::from("instructions").join(path), bytes))
         .collect();
     let instruction_companion = format!(
-        "---\nname: paperclip-instructions-{}\ndescription: Paperclip agent instruction sibling bundle\n---\nRead `instructions/{entry_path}` and its sibling files as read-only context.\n",
+        "---\nname: outpost-instructions-{}\ndescription: Outpost agent instruction sibling bundle\n---\nRead `instructions/{entry_path}` and its sibling files as read-only context.\n",
         &instruction_digest[..12]
     );
     let instruction_asset_digest = sha_hex(
@@ -610,7 +610,7 @@ fn agentcore_system_instructions(config: &AwsAgentCoreProviderConfig) -> Result<
         .instructions
         .strip_suffix(&local_directive)
         .map(|prefix| format!(
-            "{prefix}Read-only instruction siblings are in the attached Paperclip HarnessSkill under `instructions/`."
+            "{prefix}Read-only instruction siblings are in the attached Outpost HarnessSkill under `instructions/`."
         ))
         .ok_or_else(|| "AgentCore instruction-root directive is missing or inconsistent".to_owned())
 }
@@ -643,7 +643,7 @@ fn network_loop(
             .await;
         let assumed = AssumeRoleProvider::builder(config.invocation_role_arn.clone())
             .session_name(format!(
-                "paperclip-{}",
+                "outpost-{}",
                 &session_id[session_id.len().saturating_sub(24)..]
             ))
             .configure(&base)
@@ -860,7 +860,7 @@ fn normalize_stream_event(
                 // built-in `skills` tool. Its trace is surfaced in the same
                 // ToolUse-shaped stream as client-owned inline functions, but
                 // AgentCore executes it inside the harness. Do not send it
-                // across ORP as a Paperclip semantic operation.
+                // across ORP as a Outpost semantic operation.
                 if remote_name == AGENTCORE_HARNESS_SKILLS_TOOL {
                     let _ = events.send(NetworkEvent::new(
                         invocation_id,
@@ -1141,7 +1141,7 @@ impl AwsAgentCoreHarnessProvider {
         let session_id = resume_session_id
             .map(str::to_owned)
             .unwrap_or_else(new_runtime_session_id);
-        let actor_id = format!("paperclip-{}", sha_hex(&session_id, 32));
+        let actor_id = format!("outpost-{}", sha_hex(&session_id, 32));
         let worker = NetworkWorker::start(config.clone(), session_id.clone(), actor_id.clone())?;
         let (encoded, allowed, reverse, schemas) = encode_tools(&tools)?;
         Ok(Self {
@@ -1275,7 +1275,7 @@ impl AwsAgentCoreHarnessProvider {
             "latencyMs": latency_ms,
             "estimatedCostUsd": estimate,
             "estimateScope": "bedrock_model_tokens_only",
-            "costSource": "paperclip_estimate",
+            "costSource": "outpost_estimate",
             "estimatedCeilingUsd": self.max_estimated_cost_usd,
         });
         if let Some(floor) = conservative_floor {
@@ -1289,7 +1289,7 @@ impl AwsAgentCoreHarnessProvider {
             self.invocation_budget_reached = true;
             self.queue.push_back(ProviderEvent::Notification {
                 method: "provider/budgetReached".to_owned(),
-                params: json!({ "turnId": self.current_turn_id, "status": "limit_reached", "stopReason": "estimated_session_cost", "estimatedCostUsd": estimate, "costSource": "paperclip_estimate" }),
+                params: json!({ "turnId": self.current_turn_id, "status": "limit_reached", "stopReason": "estimated_session_cost", "estimatedCostUsd": estimate, "costSource": "outpost_estimate" }),
             });
         }
         ProviderEvent::Notification {
@@ -1484,7 +1484,7 @@ impl AwsAgentCoreHarnessProvider {
 
         // AgentCore requires every toolUse from the assistant message and all
         // matching user toolResults in one continuation. This also guarantees
-        // that parallel governed mutations cannot advance separate model turns.
+        // that parallel controlled mutations cannot advance separate model turns.
         let mut assistant_builder =
             HarnessMessage::builder().role(HarnessConversationRole::Assistant);
         let mut user_builder = HarnessMessage::builder().role(HarnessConversationRole::User);
@@ -1529,7 +1529,7 @@ impl AwsAgentCoreHarnessProvider {
             LocalRunnerError::invalid("failed to build AgentCore user continuation")
         })?;
         // The durable runner records ToolResult before calling this method. A
-        // transport ambiguity therefore never repeats the Paperclip mutation;
+        // transport ambiguity therefore never repeats the Outpost mutation;
         // it fails closed with the last authoritative Memory cursor preserved
         // for the control plane's reconciliation workflow.
         self.invoke(vec![assistant, user])?;
@@ -1640,12 +1640,12 @@ impl Provider for AwsAgentCoreHarnessProvider {
             ));
         }
         self.max_estimated_cost_usd = value;
-        Ok(json!({ "maxEstimatedSessionCostUsd": value, "costSource": "paperclip_estimate" }))
+        Ok(json!({ "maxEstimatedSessionCostUsd": value, "costSource": "outpost_estimate" }))
     }
 
     fn destroy_session(&mut self) -> Result<(), LocalRunnerError> {
         self.worker.stop_runtime(format!(
-            "paperclip-delete-{}",
+            "outpost-delete-{}",
             sha_hex(&self.session_id, 32)
         ))?;
         self.worker.delete_memory()?;
@@ -1688,7 +1688,7 @@ impl Provider for AwsAgentCoreHarnessProvider {
             ));
         }
         self.worker.stop_runtime(format!(
-            "paperclip-interrupt-{}",
+            "outpost-interrupt-{}",
             sha_hex(&(self.session_id.clone() + turn_id), 32)
         ))?;
         let interrupted_invocation_id = self.active_invocation_id.clone();
@@ -1758,7 +1758,7 @@ impl Provider for AwsAgentCoreHarnessProvider {
                 if !validator_for(schema)
                     .map_err(|_| {
                         LocalRunnerError::invalid(
-                            "authorized Paperclip tool has invalid JSON Schema",
+                            "authorized Outpost tool has invalid JSON Schema",
                         )
                     })?
                     .is_valid(&input)
@@ -1873,7 +1873,7 @@ impl Provider for AwsAgentCoreHarnessProvider {
                     | "timeout_exceeded"
                     | "model_context_window_exceeded" => Ok(Some(ProviderEvent::Notification {
                         method: "provider/budgetReached".to_owned(),
-                        params: json!({ "turnId": self.current_turn_id, "status": "limit_reached", "stopReason": reason, "costSource": "paperclip_estimate" }),
+                        params: json!({ "turnId": self.current_turn_id, "status": "limit_reached", "stopReason": reason, "costSource": "outpost_estimate" }),
                     })),
                     "content_filtered" => Err(LocalRunnerError::invalid(
                         "AgentCore model output was filtered",
@@ -1947,7 +1947,7 @@ impl Provider for AwsAgentCoreHarnessProvider {
 
     fn shutdown(&mut self) -> Result<(), LocalRunnerError> {
         self.worker.stop_runtime(format!(
-            "paperclip-suspend-{}",
+            "outpost-suspend-{}",
             sha_hex(&self.session_id, 32)
         ))?;
         self.worker.shutdown();
@@ -2049,7 +2049,7 @@ fn encode_tools(
     let mut schemas = BTreeMap::new();
     for tool in tools {
         validator_for(&tool.input_schema).map_err(|_| {
-            LocalRunnerError::invalid("authorized Paperclip tool has invalid JSON Schema")
+            LocalRunnerError::invalid("authorized Outpost tool has invalid JSON Schema")
         })?;
         let remote_name = remote_tool_name(&tool.operation_id);
         if reverse
@@ -2086,7 +2086,7 @@ fn invocation_allowed_tools(mut allowed: Vec<String>, has_skills: bool) -> Vec<S
     {
         // HarnessSkill progressive disclosure is performed by AgentCore's
         // built-in `skills` tool. It must be admitted alongside the narrowly
-        // scoped Paperclip inline functions whenever skills are attached.
+        // scoped Outpost inline functions whenever skills are attached.
         allowed.push(AGENTCORE_HARNESS_SKILLS_TOOL.to_owned());
     }
     allowed
@@ -2108,14 +2108,14 @@ fn remote_tool_name(operation_id: &str) -> String {
     }
     slug = slug.trim_matches('_').to_owned();
     if slug.is_empty() {
-        slug = "paperclip_tool".to_owned();
+        slug = "outpost_tool".to_owned();
     }
     slug.truncate(48);
     format!("pc_{}_{}", slug, sha_hex(operation_id, 12))
 }
 
 fn new_runtime_session_id() -> String {
-    format!("paperclip-{}-{}", Uuid::new_v4(), Uuid::new_v4())
+    format!("outpost-{}-{}", Uuid::new_v4(), Uuid::new_v4())
 }
 
 fn estimate_model_token_cost_usd(
@@ -2294,9 +2294,9 @@ mod tests {
                 .to_owned(),
             memory_arn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:memory/test".to_owned(),
             memory_id: "memory-test".to_owned(),
-            invocation_role_arn: "arn:aws:iam::123456789012:role/paperclip-agentcore".to_owned(),
-            context_bucket: "paperclip-context-test".to_owned(),
-            context_prefix: "companies/company-test/profiles/profile-test".to_owned(),
+            invocation_role_arn: "arn:aws:iam::123456789012:role/outpost-agentcore".to_owned(),
+            context_bucket: "outpost-context-test".to_owned(),
+            context_prefix: "spaces/space-test/profiles/profile-test".to_owned(),
             context_kms_key_arn: "arn:aws:kms:us-east-1:123456789012:key/test".to_owned(),
             qualification_revision: "aws-agentcore-harness-context-v2".to_owned(),
             event_expiry_days: 90,
@@ -2304,7 +2304,7 @@ mod tests {
             max_iterations: 8,
             max_output_tokens: 4096,
             timeout_seconds: 300,
-            instructions: "Paperclip test instructions".to_owned(),
+            instructions: "Outpost test instructions".to_owned(),
             runtime_context: None,
         }
     }
@@ -2408,8 +2408,8 @@ mod tests {
     fn provider_with_worker(worker: NetworkWorker, usage: Value) -> AwsAgentCoreHarnessProvider {
         AwsAgentCoreHarnessProvider {
             config: config(),
-            session_id: "paperclip-test-session".to_owned(),
-            actor_id: "paperclip-test-actor".to_owned(),
+            session_id: "outpost-test-session".to_owned(),
+            actor_id: "outpost-test-actor".to_owned(),
             worker,
             tools: Vec::new(),
             allowed_tools: Vec::new(),
@@ -2448,7 +2448,7 @@ mod tests {
             "cacheWriteInputTokens": 8,
             "requestCount": 4,
             "estimatedCostUsd": 0.73,
-            "costSource": "paperclip_estimate",
+            "costSource": "outpost_estimate",
             "estimateScope": "bedrock_model_tokens_only"
         });
         assert_eq!(restored_usage_snapshot(Some(&usage)).unwrap(), usage);
@@ -2471,7 +2471,7 @@ mod tests {
             "cacheWriteInputTokens": 8,
             "requestCount": 4,
             "estimatedCostUsd": -1.0,
-            "costSource": "paperclip_estimate"
+            "costSource": "outpost_estimate"
         })))
         .is_err());
         assert!(restored_usage_snapshot(Some(&json!({
@@ -2481,7 +2481,7 @@ mod tests {
             "cacheWriteInputTokens": 8,
             "requestCount": 4,
             "estimatedCostUsd": 0.73,
-            "costSource": "paperclip_estimate",
+            "costSource": "outpost_estimate",
             "pendingEstimatedCeilingUsd": 1.0
         })))
         .is_err());
@@ -2492,7 +2492,7 @@ mod tests {
             "cacheWriteInputTokens": 8,
             "requestCount": 4,
             "estimatedCostUsd": 0.73,
-            "costSource": "paperclip_estimate",
+            "costSource": "outpost_estimate",
             "usageReconciliation": AGENTCORE_USAGE_RECONCILIATION_CONSERVATIVE,
             "conservativeCostFloorUsd": 0.74
         })))
@@ -2514,7 +2514,7 @@ mod tests {
             "cacheWriteInputTokens": 8,
             "requestCount": 4,
             "estimatedCostUsd": 0.73,
-            "costSource": "paperclip_estimate",
+            "costSource": "outpost_estimate",
             "usageReconciliation": "unexpected_state",
             "pendingInvocationId": "invocation-1"
         })))
@@ -3087,7 +3087,7 @@ mod tests {
             "cacheWriteInputTokens": 0,
             "requestCount": 2,
             "estimatedCostUsd": 1.0,
-            "costSource": "paperclip_estimate"
+            "costSource": "outpost_estimate"
         });
         let mut provider = provider_with_events(Vec::new(), usage);
         assert!(provider.invoke(Vec::new()).is_err());
@@ -3146,9 +3146,9 @@ mod tests {
     #[test]
     fn agentcore_system_replaces_the_local_instruction_path_with_the_harness_skill() {
         let mut config = config();
-        let local_root = "/paperclip/runtime/instructions";
+        let local_root = "/outpost/runtime/instructions";
         config.instructions = format!(
-            "paperclip prompt\n\nAGENTS entry\n\nRead-only instruction sibling root: {local_root}"
+            "outpost prompt\n\nAGENTS entry\n\nRead-only instruction sibling root: {local_root}"
         );
         config.runtime_context = Some(json!({
             "instructions": {
@@ -3159,15 +3159,15 @@ mod tests {
         }));
 
         let instructions = agentcore_system_instructions(&config).unwrap();
-        assert!(instructions.starts_with("paperclip prompt\n\nAGENTS entry\n\n"));
-        assert!(instructions.ends_with("attached Paperclip HarnessSkill under `instructions/`."));
+        assert!(instructions.starts_with("outpost prompt\n\nAGENTS entry\n\n"));
+        assert!(instructions.ends_with("attached Outpost HarnessSkill under `instructions/`."));
         assert!(!instructions.contains(local_root));
     }
 
     #[test]
     fn agentcore_upload_plan_contains_instruction_siblings_and_complete_assigned_skill_trees() {
         let root = std::env::temp_dir().join(format!(
-            "paperclip-agentcore-context-{}",
+            "outpost-agentcore-context-{}",
             uuid::Uuid::new_v4()
         ));
         let instruction_root = root.join("instructions");
@@ -3196,7 +3196,7 @@ mod tests {
                 }
             },
             "skills": [{
-                "key": "company-1/reviewer",
+                "key": "space-1/reviewer",
                 "runtimeName": "reviewer",
                 "bundle": {
                     "digest": "b".repeat(64),
@@ -3276,7 +3276,7 @@ mod tests {
     #[test]
     fn agentcore_rejects_too_many_assigned_skills_before_reading_any_skill_root() {
         let root = std::env::temp_dir().join(format!(
-            "paperclip-agentcore-context-count-{}",
+            "outpost-agentcore-context-count-{}",
             uuid::Uuid::new_v4()
         ));
         fs::create_dir_all(&root).unwrap();
@@ -3284,7 +3284,7 @@ mod tests {
         let assigned = (0..MAX_CONTEXT_SKILL_SOURCES)
             .map(|index| {
                 json!({
-                    "key": format!("company-1/skill-{index}"),
+                    "key": format!("space-1/skill-{index}"),
                     "runtimeName": format!("skill-{index}"),
                     "bundle": {
                         "digest": format!("{index:064x}"),
@@ -3314,9 +3314,9 @@ mod tests {
     fn agentcore_rejects_unsafe_context_prefixes_before_cloud_access() {
         for unsafe_prefix in [
             "/absolute",
-            "company//profile",
-            "company/../profile",
-            "company/./profile",
+            "space//profile",
+            "space/../profile",
+            "space/./profile",
         ] {
             let mut config = config();
             config.context_prefix = unsafe_prefix.to_owned();
@@ -3339,7 +3339,7 @@ mod tests {
     }
 
     #[test]
-    fn tool_allowlist_is_confined_to_the_paperclip_inline_namespace() {
+    fn tool_allowlist_is_confined_to_the_outpost_inline_namespace() {
         let tool = AuthorizedTool {
             operation_id: "get_task_context".to_owned(),
             version: 1,

@@ -4,12 +4,12 @@ set -euo pipefail
 
 base_cwd="${OUTPOST_WORKSPACE_BASE_CWD:?OUTPOST_WORKSPACE_BASE_CWD is required}"
 worktree_cwd="${OUTPOST_WORKSPACE_CWD:?OUTPOST_WORKSPACE_CWD is required}"
-paperclip_home="${OUTPOST_HOME:-$HOME/.paperclip}"
-paperclip_instance_id="${OUTPOST_INSTANCE_ID:-default}"
-paperclip_dir="$worktree_cwd/.paperclip"
-worktree_config_path="$paperclip_dir/config.json"
-seed_manifest_path="$paperclip_dir/seed-manifest.json"
-seed_empty_path="$paperclip_dir/seed-empty"
+outpost_home="${OUTPOST_HOME:-$HOME/.outpost}"
+outpost_instance_id="${OUTPOST_INSTANCE_ID:-default}"
+outpost_dir="$worktree_cwd/.outpost"
+worktree_config_path="$outpost_dir/config.json"
+seed_manifest_path="$outpost_dir/seed-manifest.json"
+seed_empty_path="$outpost_dir/seed-empty"
 
 if [[ ! -d "$base_cwd" ]]; then
   echo "Base workspace does not exist: $base_cwd" >&2
@@ -58,7 +58,7 @@ EOF
 fi
 
 if [[ ! -f "$worktree_config_path" ]]; then
-  initial_provision_script="$base_cwd/scripts/setup-paperclip-worktree.sh"
+  initial_provision_script="$base_cwd/scripts/setup-outpost-worktree.sh"
   if [[ ! -f "$initial_provision_script" ]]; then
     echo "Worktree config does not exist and the built-in provision script is unavailable: $worktree_config_path" >&2
     exit 1
@@ -80,13 +80,13 @@ fi
 # a plain checkout carries no instance config of its own, so name the control plane's
 # own registered instance config explicitly. The seed manifest stays diagnostic
 # evidence only and must never choose the clone source.
-if [[ -L "$base_cwd/.paperclip" && ! -d "$base_cwd/.paperclip" ]]; then
-  echo "Registered base project workspace .paperclip is a broken symlink: $base_cwd/.paperclip" >&2
+if [[ -L "$base_cwd/.outpost" && ! -d "$base_cwd/.outpost" ]]; then
+  echo "Registered base project workspace .outpost is a broken symlink: $base_cwd/.outpost" >&2
   exit 1
 fi
 source_config_args=()
-if [[ ! -e "$base_cwd/.paperclip/config.json" && ! -L "$base_cwd/.paperclip/config.json" ]]; then
-  source_config_path="${OUTPOST_CONFIG:-$paperclip_home/instances/$paperclip_instance_id/config.json}"
+if [[ ! -e "$base_cwd/.outpost/config.json" && ! -L "$base_cwd/.outpost/config.json" ]]; then
+  source_config_path="${OUTPOST_CONFIG:-$outpost_home/instances/$outpost_instance_id/config.json}"
   # A human may invoke this after sourcing `worktree env`, which points
   # OUTPOST_CONFIG at the target. Naming the target as its own source is never
   # right, so leave the source to the CLI in that case.
@@ -126,7 +126,7 @@ repair_base_workspace_install() {
   if command -v flock >/dev/null 2>&1 && [[ -d "$repair_lock_dir" ]]; then
     (
       cd "$base_cwd" || exit 1
-      exec 9>"$repair_lock_dir/paperclip-provision-repair.lock"
+      exec 9>"$repair_lock_dir/outpost-provision-repair.lock"
       flock 9
       if base_cli_healthy; then
         echo "Base workspace CLI became healthy while waiting for the repair lock; skipping reinstall." >&2
@@ -155,18 +155,18 @@ run_ensure_seeded() {
     return
   fi
 
-  if command -v pnpm >/dev/null 2>&1 && pnpm paperclipai --help >/dev/null 2>&1; then
+  if command -v pnpm >/dev/null 2>&1 && pnpm outpost --help >/dev/null 2>&1; then
     (
       cd "$worktree_cwd" &&
-        pnpm paperclipai worktree ensure-seeded --config "$worktree_config_path" ${source_config_args[@]+"${source_config_args[@]}"}
+        pnpm outpost worktree ensure-seeded --config "$worktree_config_path" ${source_config_args[@]+"${source_config_args[@]}"}
     )
     return
   fi
 
-  if command -v paperclipai >/dev/null 2>&1; then
+  if command -v outpost >/dev/null 2>&1; then
     (
       cd "$worktree_cwd" &&
-        paperclipai worktree ensure-seeded --config "$worktree_config_path" ${source_config_args[@]+"${source_config_args[@]}"}
+        outpost worktree ensure-seeded --config "$worktree_config_path" ${source_config_args[@]+"${source_config_args[@]}"}
     )
     return
   fi
@@ -179,7 +179,7 @@ if run_ensure_seeded; then
 else
   exit_code=$?
   if [[ "$exit_code" -eq 127 ]]; then
-    echo "No usable paperclipai CLI found; cannot seed the worktree database." >&2
+    echo "No usable outpost CLI found; cannot seed the worktree database." >&2
   fi
   exit "$exit_code"
 fi

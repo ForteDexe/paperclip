@@ -17,14 +17,14 @@ import {
 import type { DecisionQueueSeedRule } from "@outpost/shared";
 import { agentApiKeys } from "./agent_api_keys.js";
 import { agents } from "./agents.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 
 export const decisionQueues = pgTable(
   "decision_queues",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
     title: text("title").notNull(),
     description: text("description"),
@@ -40,9 +40,9 @@ export const decisionQueues = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyKeyUq: uniqueIndex("decision_queues_company_key_uq").on(table.companyId, table.key),
-    companyUpdatedIdx: index("decision_queues_company_updated_idx").on(table.companyId, table.updatedAt),
-    idCompanyUq: unique("decision_queues_id_company_uq").on(table.id, table.companyId),
+    spaceKeyUq: uniqueIndex("decision_queues_space_key_uq").on(table.spaceId, table.key),
+    spaceUpdatedIdx: index("decision_queues_space_updated_idx").on(table.spaceId, table.updatedAt),
+    idSpaceUq: unique("decision_queues_id_space_uq").on(table.id, table.spaceId),
     creatorCheck: check(
       "decision_queues_creator_check",
       sql`(
@@ -62,7 +62,7 @@ export const decisionQueueItems = pgTable(
   "decision_queue_items",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     queueId: uuid("queue_id").notNull(),
     sourceKind: text("source_kind").notNull(),
     sourceId: text("source_id").notNull(),
@@ -80,15 +80,15 @@ export const decisionQueueItems = pgTable(
       table.sourceKind,
       table.sourceId,
     ),
-    companySourceIdx: index("decision_queue_items_company_source_idx").on(
-      table.companyId,
+    spaceSourceIdx: index("decision_queue_items_space_source_idx").on(
+      table.spaceId,
       table.sourceKind,
       table.sourceId,
     ),
-    queueCompanyFk: foreignKey({
-      columns: [table.queueId, table.companyId],
-      foreignColumns: [decisionQueues.id, decisionQueues.companyId],
-      name: "decision_queue_items_queue_company_fk",
+    queueSpaceFk: foreignKey({
+      columns: [table.queueId, table.spaceId],
+      foreignColumns: [decisionQueues.id, decisionQueues.spaceId],
+      name: "decision_queue_items_queue_space_fk",
     }).onDelete("cascade"),
     actorCheck: check(
       "decision_queue_items_actor_check",
@@ -105,7 +105,7 @@ export const decisionTriage = pgTable(
   "decision_triage",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     sourceKind: text("source_kind").notNull(),
     sourceId: text("source_id").notNull(),
     decideBy: text("decide_by"),
@@ -122,12 +122,12 @@ export const decisionTriage = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companySourceUq: uniqueIndex("decision_triage_company_source_uq").on(
-      table.companyId,
+    spaceSourceUq: uniqueIndex("decision_triage_space_source_uq").on(
+      table.spaceId,
       table.sourceKind,
       table.sourceId,
     ),
-    companyDecideByIdx: index("decision_triage_company_decide_by_idx").on(table.companyId, table.decideBy),
+    spaceDecideByIdx: index("decision_triage_space_decide_by_idx").on(table.spaceId, table.decideBy),
     actorCheck: check(
       "decision_triage_actor_check",
       sql`(
@@ -150,7 +150,7 @@ export const decisionTriageEvents = pgTable(
   "decision_triage_events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     queueId: uuid("queue_id").references(() => decisionQueues.id),
     sourceKind: text("source_kind"),
     sourceId: text("source_id"),
@@ -165,8 +165,8 @@ export const decisionTriageEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companySourceCreatedIdx: index("decision_triage_events_company_source_created_idx").on(
-      table.companyId,
+    spaceSourceCreatedIdx: index("decision_triage_events_space_source_created_idx").on(
+      table.spaceId,
       table.sourceKind,
       table.sourceId,
       table.createdAt,
@@ -187,7 +187,7 @@ export const decisionRetention = pgTable(
   "decision_retention",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     sourceKind: text("source_kind").notNull(),
     sourceId: text("source_id").notNull(),
     sourceActivityAt: timestamp("source_activity_at", { withTimezone: true }).notNull(),
@@ -204,12 +204,12 @@ export const decisionRetention = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companySourceUq: uniqueIndex("decision_retention_company_source_uq").on(
-      table.companyId,
+    spaceSourceUq: uniqueIndex("decision_retention_space_source_uq").on(
+      table.spaceId,
       table.sourceKind,
       table.sourceId,
     ),
-    companyArchivedIdx: index("decision_retention_company_archived_idx").on(table.companyId, table.archivedAt),
+    spaceArchivedIdx: index("decision_retention_space_archived_idx").on(table.spaceId, table.archivedAt),
     archiveActorCheck: check(
       "decision_retention_archive_actor_check",
       sql`(
@@ -226,7 +226,7 @@ export const decisionArchiveNotificationOutbox = pgTable(
   "decision_archive_notification_outbox",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     sourceKind: text("source_kind").notNull(),
     sourceId: text("source_id").notNull(),
     archiveVersion: integer("archive_version").notNull(),
@@ -241,7 +241,7 @@ export const decisionArchiveNotificationOutbox = pgTable(
   },
   (table) => ({
     notificationUq: uniqueIndex("decision_archive_notification_outbox_uq").on(
-      table.companyId,
+      table.spaceId,
       table.sourceKind,
       table.sourceId,
       table.archiveVersion,

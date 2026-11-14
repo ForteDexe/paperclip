@@ -16,7 +16,7 @@ export const ISSUE_THREAD_INTERACTION_RESOLUTION_DENIAL_CODES = [
   "interaction_superseded",
   "interaction_already_resolved",
   "interaction_issue_closed",
-  "interaction_governed_action_denied",
+  "interaction_controlled_action_denied",
   "review_policy_denied",
 ] as const;
 
@@ -68,7 +68,7 @@ export type IssueThreadInteractionResolverAudienceInput = {
     | IssueThreadInteractionCanonicalResolverPolicy
     | IssueThreadInteractionResolverRestriction
     | null;
-  governedAction?: boolean;
+  controlledAction?: boolean;
 };
 
 export type IssueThreadInteractionResolverAudienceDecision =
@@ -88,7 +88,7 @@ export type IssueThreadInteractionResolverAudienceDecision =
         | "interaction_human_only"
         | "interaction_creator_excluded"
         | "interaction_addressee_mismatch"
-        | "interaction_governed_action_denied"
+        | "interaction_controlled_action_denied"
         | "review_policy_denied"
       >;
       message: string;
@@ -98,7 +98,7 @@ export type IssueThreadInteractionResolverAudienceDecision =
 /**
  * Canonicalize one stored resolver-policy value.
  *
- * Before provenance existed, `board_or_agents` excluded both the creator agent
+ * Before provenance existed, `operator_or_agents` excluded both the creator agent
  * and the creating run, so a pre-migration row must stay `not_creator` rather
  * than widening to canonical `anyone`. Every reader of the stored columns —
  * hydration, the audience evaluator, and the attention feed — goes through here
@@ -108,7 +108,7 @@ export function canonicalizeStoredResolverPolicy(
   policy: IssueThreadInteractionResolverPolicy | string,
   resolverPolicyProvenance: string | null | undefined,
 ): IssueThreadInteractionCanonicalResolverPolicy {
-  if (resolverPolicyProvenance === "legacy_inherited_restriction" && policy === "board_or_agents") {
+  if (resolverPolicyProvenance === "legacy_inherited_restriction" && policy === "operator_or_agents") {
     return "not_creator";
   }
   return normalizeIssueThreadInteractionResolverPolicy(policy as IssueThreadInteractionResolverPolicy);
@@ -161,7 +161,7 @@ function reviewPolicyDeniedDecision(
 /**
  * An agent may record a human-only confirmation only as the relay of a verified
  * human decision, and only on a card it created with an explicit human_only
- * request. Company caps (checked again at resolution by the caller), governed
+ * request. Space caps (checked again at resolution by the caller), controlled
  * actions and binding-flow restrictions still require a direct human resolution.
  */
 function relayedHumanDecisionAllowed(
@@ -172,9 +172,9 @@ function relayedHumanDecisionAllowed(
   if (input.actor.type !== "agent") return false;
   const userId = input.actor.relayedHumanUserId;
   return Boolean(userId && input.actor.agentId)
-    && !input.governedAction
+    && !input.controlledAction
     && persistedPolicy === "human_only"
-    // Only this agent's own explicit request; a company default, cap or a
+    // Only this agent's own explicit request; a space default, cap or a
     // human-created card keeps its direct human resolution.
     && input.interaction.createdByAgentId === input.actor.agentId
     && input.interaction.resolverPolicyProvenance === "explicit"
@@ -218,7 +218,7 @@ export function evaluateIssueThreadInteractionResolverAudience(
     persistedPolicy === "not_creator"
     || additionalRestriction?.policy === "not_creator";
   const humanOnly =
-    Boolean(input.governedAction)
+    Boolean(input.controlledAction)
     || persistedPolicy === "human_only"
     || additionalRestriction?.policy === "human_only";
   const effectiveResolverPolicy: IssueThreadInteractionCanonicalResolverPolicy = humanOnly
@@ -286,13 +286,13 @@ export function evaluateIssueThreadInteractionResolverAudience(
     };
   }
 
-  if (input.governedAction) {
+  if (input.controlledAction) {
     return {
       allowed: false,
       effectiveResolverPolicy,
       status: 403,
-      code: "interaction_governed_action_denied",
-      message: "This interaction is bound to a governed action that requires independent authorization",
+      code: "interaction_controlled_action_denied",
+      message: "This interaction is bound to a controlled action that requires independent authorization",
     };
   }
 
@@ -415,7 +415,7 @@ export function issueThreadInteractionAttentionAgentAllowed(input: {
   agentId: string;
   interaction: IssueThreadInteractionResolverAudienceInput["interaction"];
   additionalRestriction?: IssueThreadInteractionResolverAudienceInput["additionalRestriction"];
-  governedAction?: boolean;
+  controlledAction?: boolean;
 }) {
   const attentionRunId = input.interaction.createdByAgentId === input.agentId
     ? input.interaction.sourceRunId ?? "attention-owner-creator-run"
@@ -424,6 +424,6 @@ export function issueThreadInteractionAttentionAgentAllowed(input: {
     actor: { type: "agent", agentId: input.agentId, runId: attentionRunId },
     interaction: input.interaction,
     additionalRestriction: input.additionalRestriction,
-    governedAction: input.governedAction,
+    controlledAction: input.controlledAction,
   }).allowed;
 }

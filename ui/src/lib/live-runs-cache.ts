@@ -1,9 +1,9 @@
 import type { LiveRunForIssue } from "../api/heartbeats";
 
 /**
- * Pure cache operations for the company `liveRuns` list so run-lifecycle
+ * Pure cache operations for the space `liveRuns` list so run-lifecycle
  * websocket events can patch it in place instead of invalidating it and
- * triggering a full HTTP refetch. The company live-runs list is observed on
+ * triggering a full HTTP refetch. The space live-runs list is observed on
  * almost every page (the sidebar), so its refetch is the most ambient source of
  * live-update churn — event-sourcing it removes that entirely for the common
  * cases (a run finishing, or a status change on a run already in the list).
@@ -49,7 +49,7 @@ export function patchRunStatusInList(
 }
 
 /**
- * Safety interval for a task's known runs while the company live connection is
+ * Safety interval for a task's known runs while the space live connection is
  * open. Run lifecycle events refresh these queries (`useTaskRunLiveUpdates`)
  * and progress events patch them in place, so the interval only bounds drift
  * in server-derived fields that have no event, such as output silence.

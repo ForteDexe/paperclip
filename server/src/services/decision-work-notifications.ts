@@ -2,7 +2,7 @@ import { notifyAttentionRetentionWork } from "./retention-work-notifications.js"
 import type { Db } from "@outpost/db";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 
-type DecisionWorkScope = { companyId: string; sourceId?: string };
+type DecisionWorkScope = { spaceId: string; sourceId?: string };
 
 export async function notifyDecisionCreated(transaction: object, scope: DecisionWorkScope) {
   await notifyAttentionRetentionWork(transaction, { ...scope, sourceKind: "decision" });

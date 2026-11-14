@@ -11,19 +11,19 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 
 function CredentialSettings({
-  companyId,
+  spaceId,
   grantId,
 }: {
-  companyId: string;
+  spaceId: string;
   grantId: string;
 }) {
   const saved = useQuery({
     queryKey: ["browser-use-cloud-settings", grantId],
-    queryFn: () => browserUseApi.settings(companyId, grantId),
+    queryFn: () => browserUseApi.settings(spaceId, grantId),
   });
   const profiles = useQuery({
     queryKey: ["browser-use-cloud-profiles", grantId],
-    queryFn: () => browserUseApi.profiles(companyId, grantId),
+    queryFn: () => browserUseApi.profiles(spaceId, grantId),
   });
   const savedView = useQueryView(saved);
   const profilesView = useQueryView(profiles);
@@ -35,7 +35,7 @@ function CredentialSettings({
   }, [saved.data]);
   const save = useMutation({
     mutationFn: () =>
-      browserUseApi.saveSettings(companyId, grantId, {
+      browserUseApi.saveSettings(spaceId, grantId, {
         allowedProfileIds: allowed,
         maxCostUsd: null,
       }),
@@ -161,7 +161,7 @@ export function BrowserUseSettingsPanel({
       {grantId ? (
         <CredentialSettings
           key={grantId}
-          companyId={connection.companyId}
+          spaceId={connection.spaceId}
           grantId={grantId}
         />
       ) : (

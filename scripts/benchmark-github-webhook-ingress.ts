@@ -96,7 +96,7 @@ try {
       `${scenario.name}: successful claims must halve response values; skipped claims must eliminate the body`);
     results.push({ scenario: scenario.name, completeContractEqual: true, measurements });
   }
-  await cleanupIngressFixture(db, f.companyId);
+  await cleanupIngressFixture(db, f.spaceId);
   const [version] = await db.$client.unsafe("select version() as version");
   const settings = await db.$client.unsafe("select name,setting,unit from pg_settings where name in ('shared_buffers','work_mem','jit') order by name");
   assert.equal(createHash("sha256").update(readFileSync(new URL(`../${sourcePath}`, import.meta.url))).digest("hex"), treatmentSourceSha256,

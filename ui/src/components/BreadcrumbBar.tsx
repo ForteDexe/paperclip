@@ -2,7 +2,7 @@ import { Link } from "@/lib/router";
 import { Menu, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useSidebar } from "../context/SidebarContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { usePanel } from "../context/PanelContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +19,7 @@ import { PluginLauncherOutlet, usePluginLaunchers } from "@/plugins/launchers";
 import { cn } from "../lib/utils";
 import { useCoordinatorPresentation } from "./coordinator/CoordinatorPresentation";
 
-type GlobalToolbarContext = { companyId: string | null; companyPrefix: string | null };
+type GlobalToolbarContext = { spaceId: string | null; spacePrefix: string | null };
 
 const MAX_TASK_TITLE_CHARACTERS = 48;
 function taskTitleLabel(title: string) {
@@ -46,8 +46,8 @@ function GlobalToolbar({
   context: GlobalToolbarContext;
   pageToolbar?: ReactNode;
 }) {
-  const { slots } = usePluginSlots({ slotTypes: ["globalToolbarButton"], companyId: context.companyId });
-  const { launchers } = usePluginLaunchers({ placementZones: ["globalToolbarButton"], companyId: context.companyId, enabled: !!context.companyId });
+  const { slots } = usePluginSlots({ slotTypes: ["globalToolbarButton"], spaceId: context.spaceId });
+  const { launchers } = usePluginLaunchers({ placementZones: ["globalToolbarButton"], spaceId: context.spaceId, enabled: !!context.spaceId });
   return (
     <div className="ml-auto flex shrink-0 items-center gap-1 pl-2 empty:hidden">
       {pageToolbar}
@@ -71,7 +71,7 @@ export function BreadcrumbBar({ taskDetailLayout = false, showPropertiesToggle =
   } = useBreadcrumbs();
   const { toggleSidebar, isMobile } = useSidebar();
   const { panelVisible, togglePanelVisible } = usePanel();
-  const { selectedCompanyId, selectedCompany } = useCompany();
+  const { selectedSpaceId, selectedSpace } = useSpace();
   const taskPanelOpen = breadcrumbPanelControl?.open ?? panelVisible;
   const toggleTaskPanel = breadcrumbPanelControl?.onToggle ?? togglePanelVisible;
   const propertiesToggle = showPropertiesToggle ? (
@@ -89,10 +89,10 @@ export function BreadcrumbBar({ taskDetailLayout = false, showPropertiesToggle =
 
   const globalToolbarSlotContext = useMemo(
     () => ({
-      companyId: selectedCompanyId ?? null,
-      companyPrefix: selectedCompany?.issuePrefix ?? null,
+      spaceId: selectedSpaceId ?? null,
+      spacePrefix: selectedSpace?.issuePrefix ?? null,
     }),
-    [selectedCompanyId, selectedCompany?.issuePrefix],
+    [selectedSpaceId, selectedSpace?.issuePrefix],
   );
 
   const globalToolbarSlots = (

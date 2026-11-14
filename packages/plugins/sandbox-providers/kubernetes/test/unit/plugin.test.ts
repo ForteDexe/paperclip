@@ -32,7 +32,7 @@ describe("plugin", () => {
     expect(result.ok).toBe(true);
     expect(result.normalizedConfig).toEqual(
       expect.objectContaining({
-        namespacePrefix: "paperclip-",
+        namespacePrefix: "outpost-",
         egressMode: "standard",
         jobTtlSecondsAfterFinished: 900,
         podActivityDeadlineSec: 3600,
@@ -104,7 +104,7 @@ describe("plugin", () => {
     await expect(
       plugin.definition.onEnvironmentSyncIn!({
         driverKey: "kubernetes",
-        companyId: "co",
+        spaceId: "co",
         environmentId: "env",
         config: { inCluster: true },
         lease: { providerLeaseId: "lease-1", metadata: {} },
@@ -117,12 +117,12 @@ describe("plugin", () => {
     await expect(
       plugin.definition.onEnvironmentSyncOut!({
         driverKey: "kubernetes",
-        companyId: "co",
+        spaceId: "co",
         environmentId: "env",
         config: { inCluster: true },
         lease: {
           providerLeaseId: "lease-1",
-          metadata: { remoteCwd: "/workspace", backend: "job", namespace: "paperclip-co" },
+          metadata: { remoteCwd: "/workspace", backend: "job", namespace: "outpost-co" },
         },
         operations: [],
       }),

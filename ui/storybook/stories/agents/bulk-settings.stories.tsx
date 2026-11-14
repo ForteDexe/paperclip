@@ -3,16 +3,16 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { useQueryClient } from "@tanstack/react-query";
 import { Routes, Route, useNavigate } from "@/lib/router";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { PluginLauncherProvider } from "@/plugins/launchers";
 import { Layout } from "@/components/Layout";
 import { Agents } from "@/pages/Agents";
 import { queryKeys } from "@/lib/queryKeys";
 import type { Agent, AiConnectionBinding, AiManagedConnectionSummary } from "@outpost/shared";
-import { storybookAgents } from "../../fixtures/paperclipData";
+import { storybookAgents } from "../../fixtures/outpostData";
 import { connections, harnesses, roster } from "../../support/design-proposals/bulk-agent-settings-data";
 
-const companyId = "company-storybook";
+const spaceId = "space-storybook";
 const uuid = (n: number) => `10000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const accounts: AiManagedConnectionSummary[] = connections.map((c, i) => ({ ...c, id: uuid(i + 1), grantId: uuid(i + 101), isDefault: false,
   ...(c.id === "codex-limited" ? { routing: { kind: "gateway", protocol: "responses", auth: "bearer", baseUrl: "https://models.example.invalid/v1", models: [{ id: "gpt-5.5" }, { id: "gpt-5.4" }] } as const } : {}),
@@ -21,7 +21,7 @@ function initialAgents(): Agent[] {
   return roster.map((r, i) => {
     const connection = accounts[connections.findIndex(c => c.id === r.connectionId)];
     const binding: AiConnectionBinding | undefined = connection ? { provider: connection.provider, method: connection.method, mode: "shared", connectionId: connection.id, grantId: connection.grantId } : undefined;
-    return { ...storybookAgents[0], id: uuid(i + 201), urlKey: r.id, name: r.name, title: r.title, companyId,
+    return { ...storybookAgents[0], id: uuid(i + 201), urlKey: r.id, name: r.name, title: r.title, spaceId,
       adapterType: r.harness === "external" ? "http" : harnesses[r.harness].adapter,
       adapterConfig: { model: r.model, cwd: "/workspace" }, runtimeConfig: { heartbeat: { intervalSec: 900 }, ...(binding ? { aiConnection: binding } : {}) }, status: r.paused ? "paused" : "idle", pausedAt: r.paused ? new Date("2026-10-22T00:00:00Z") : null };
   });
@@ -31,7 +31,7 @@ function BulkSettingsPage({ failOne = false, localHermes = false }: { failOne?: 
   const [ready, setReady] = useState(false);
   const client = useQueryClient();
   const navigate = useNavigate();
-  const { setSelectedCompanyId } = useCompany();
+  const { setSelectedSpaceId } = useSpace();
   useEffect(() => {
     let agents = localHermes ? initialAgents().slice(0, 1).map(a => ({ ...a, name: "Hermes", adapterType: "hermes_local" as const, runtimeConfig: {}, adapterConfig: { model: "provider/old-model" } })) : initialAgents();
     let failed = false;
@@ -39,8 +39,8 @@ function BulkSettingsPage({ failOne = false, localHermes = false }: { failOne?: 
     window.fetch = async (input, init) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin);
       const path = url.pathname;
-      if (path === `/api/companies/${companyId}/agents`) return Response.json(agents);
-      if (path === `/api/companies/${companyId}/ai-connections`) return Response.json({ currentUserId: "user-board", canManageConnections: true, connections: accounts, pools: [] });
+      if (path === `/api/spaces/${spaceId}/agents`) return Response.json(agents);
+      if (path === `/api/spaces/${spaceId}/ai-connections`) return Response.json({ currentUserId: "user-board", canManageConnections: true, connections: accounts, pools: [] });
       const adapter = path.match(/\/adapters\/([^/]+)\/models$/)?.[1];
       if (adapter) return Response.json(Object.values(harnesses).find(h => h.adapter === adapter)?.models.map(id => ({ id, label: id })) ?? []);
       const agentId = path.match(/^\/api\/agents\/([^/]+)$/)?.[1];
@@ -58,19 +58,19 @@ function BulkSettingsPage({ failOne = false, localHermes = false }: { failOne?: 
       }
       return previous(input, init);
     };
-    client.setQueryData(queryKeys.agents.list(companyId), agents);
-    setSelectedCompanyId(companyId);
+    client.setQueryData(queryKeys.agents.list(spaceId), agents);
+    setSelectedSpaceId(spaceId);
     navigate("/PAP/agents/all", { replace: true });
     setReady(true);
     return () => { window.fetch = previous; };
-  }, [client, navigate, setSelectedCompanyId, failOne, localHermes]);
-  return ready ? <PluginLauncherProvider><Routes><Route path="/:companyPrefix" element={<Layout />}><Route path="agents/all" element={<Agents />} /></Route></Routes></PluginLauncherProvider> : null;
+  }, [client, navigate, setSelectedSpaceId, failOne, localHermes]);
+  return ready ? <PluginLauncherProvider><Routes><Route path="/:spacePrefix" element={<Layout />}><Route path="agents/all" element={<Agents />} /></Route></Routes></PluginLauncherProvider> : null;
 }
 
 const meta = {
   id: "agents-bulk-settings", title: "Agents and reusable capabilities/Hiring, configuration, and organization/Agents/Bulk settings",
   component: BulkSettingsPage,
-  parameters: { layout: "fullscreen", initialEntries: ["/PAP/agents/all"], paperclip: {
+  parameters: { layout: "fullscreen", initialEntries: ["/PAP/agents/all"], outpost: {
     capabilities: ["agents/organization", "agents/instructions"], implementation: "production", boundary: "fixtures",
     notes: "Actual Agents page, filter icon/popover with preserved selection, bulk roster, sheet, account picker, model intersection and narrow PATCH client. Includes paused agents at normal contrast. The filter popover has model, status, harness and connection selectors. The roster has no persistent selection hint. HTTP accounts/catalogs/writes are synthetic, including one transient failure and an empty local Hermes catalog. Does not establish live provider credential validity or database persistence. The original approved proposal remains in Design proposals.",
   } },

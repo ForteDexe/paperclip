@@ -5,22 +5,22 @@ import {
   type DiscoveryCard,
   type DiscoveryCategory,
   type DiscoveryTab,
-} from "@/pages/CompanySkills";
+} from "@/pages/SpaceSkills";
 
 type DiscoverySort = "agents" | "stars" | "forks" | "recent" | "alphabetical";
 const STORY_NOW = new Date("2026-08-31T12:00:00Z").getTime();
 
 const MOCK_CARDS: DiscoveryCard[] = [
   {
-    key: "paperclipai/paperclip/paperclip-dev",
+    key: "outpost/outpost/outpost-dev",
     skillId: "s-dev",
     catalogRef: null,
-    name: "paperclip-dev",
-    slug: "paperclip-dev",
-    author: "Paperclip",
+    name: "outpost-dev",
+    slug: "outpost-dev",
+    author: "Outpost",
     version: "v2.4.1",
-    tagline: "Run and repair local Paperclip workspaces.",
-    description: "Develop and operate a local Paperclip instance.",
+    tagline: "Run and repair local Outpost workspaces.",
+    description: "Develop and operate a local Outpost instance.",
     categories: ["devops", "coding"],
     iconUrl: null,
     color: null,
@@ -56,12 +56,12 @@ const MOCK_CARDS: DiscoveryCard[] = [
     sourceBadge: "skills_sh",
   },
   {
-    key: "paperclipai/paperclip/verify",
+    key: "outpost/outpost/verify",
     skillId: "s-verify",
     catalogRef: null,
     name: "verify",
     slug: "verify",
-    author: "Paperclip",
+    author: "Outpost",
     version: "v1.0.3",
     tagline: "Prove the change works in a real app run.",
     description: "Verify a code change works by running the app.",
@@ -97,7 +97,7 @@ const MOCK_CARDS: DiscoveryCard[] = [
     required: false,
     forkedFrom: true,
     updatedAt: STORY_NOW - 1 * 86_400_000,
-    sourceBadge: "paperclip",
+    sourceBadge: "outpost",
   },
   {
     key: "anthropic/claude-api",
@@ -122,12 +122,12 @@ const MOCK_CARDS: DiscoveryCard[] = [
     sourceBadge: "url",
   },
   {
-    key: "paperclipai/paperclip/security-review",
+    key: "outpost/outpost/security-review",
     skillId: "s-sec",
     catalogRef: null,
     name: "security-review",
     slug: "security-review",
-    author: "Paperclip",
+    author: "Outpost",
     version: "v1.1.0",
     tagline: "Review a branch for concrete security risks.",
     description: "Security review of pending changes on a branch.",
@@ -188,14 +188,14 @@ const MOCK_CARDS: DiscoveryCard[] = [
     sourceBadge: "local",
   },
   {
-    key: "paperclipai/paperclip/paperclip",
+    key: "outpost/outpost/outpost",
     skillId: "s-core",
     catalogRef: "c-core",
-    name: "paperclip",
-    slug: "paperclip",
-    author: "Paperclip",
+    name: "outpost",
+    slug: "outpost",
+    author: "Outpost",
     version: "core",
-    tagline: "Coordinate company work through the control plane.",
+    tagline: "Coordinate space work through the control plane.",
     description: "Control plane API for tasks, routines, and coordination.",
     categories: ["core"],
     iconUrl: null,
@@ -207,15 +207,15 @@ const MOCK_CARDS: DiscoveryCard[] = [
     required: true,
     forkedFrom: false,
     updatedAt: STORY_NOW - 30 * 86_400_000,
-    sourceBadge: "paperclip",
+    sourceBadge: "outpost",
   },
   {
-    key: "paperclipai/paperclip/diagnose-why-work-stopped",
+    key: "outpost/outpost/diagnose-why-work-stopped",
     skillId: "s-diag",
     catalogRef: "c-diag",
     name: "diagnose-why-work-stopped",
     slug: "diagnose-why-work-stopped",
-    author: "Paperclip",
+    author: "Outpost",
     version: "core",
     tagline: "Find the exact stop-point in stalled work.",
     description: "Forensics for stalled or looping work trees.",
@@ -310,7 +310,7 @@ const meta: Meta<typeof DiscoveryGridHarness> = {
   title: "Agents and reusable capabilities/Skills and Skill Studio/Skills Store/Discovery grid",
   component: DiscoveryGridHarness,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "skills/discovery"
       ],

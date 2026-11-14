@@ -19,10 +19,10 @@ export function reportsOnlyProviderMessage(result: unknown): boolean {
 }
 
 export async function pendingOwnQuestionId(db: Pick<Db, "select">, input: {
-  companyId: string; issueId: string; agentId: string;
+  spaceId: string; issueId: string; agentId: string;
 }): Promise<string | null> {
   const [row] = await db.select({ id: issueThreadInteractions.id }).from(issueThreadInteractions).where(and(
-    eq(issueThreadInteractions.companyId, input.companyId),
+    eq(issueThreadInteractions.spaceId, input.spaceId),
     eq(issueThreadInteractions.issueId, input.issueId),
     eq(issueThreadInteractions.createdByAgentId, input.agentId),
     eq(issueThreadInteractions.status, "pending"),
@@ -35,29 +35,29 @@ export async function pendingOwnQuestionId(db: Pick<Db, "select">, input: {
 export const OWN_QUESTION_UNANSWERED_REASON = "own_question_unanswered";
 
 export async function ownQuestionWaitReleasedByDismissal(db: Pick<Db, "select">, input: {
-  companyId: string; issueId: string; interactionId: string;
+  spaceId: string; issueId: string; interactionId: string;
 }): Promise<{ agentId: string } | null> {
   const [row] = await db.select({ agentId: issues.assigneeAgentId })
     .from(issues)
     .innerJoin(statusDecisions, and(
       eq(statusDecisions.id, issues.lastStatusDecisionId),
-      eq(statusDecisions.companyId, issues.companyId),
+      eq(statusDecisions.spaceId, issues.spaceId),
       eq(statusDecisions.issueId, issues.id),
     ))
     .innerJoin(heartbeatRuns, and(
       eq(heartbeatRuns.id, statusDecisions.runId),
-      eq(heartbeatRuns.companyId, statusDecisions.companyId),
+      eq(heartbeatRuns.spaceId, statusDecisions.spaceId),
       eq(heartbeatRuns.agentId, issues.assigneeAgentId),
     ))
     .innerJoin(issueThreadInteractions, and(
       eq(issueThreadInteractions.id, input.interactionId),
-      eq(issueThreadInteractions.companyId, issues.companyId),
+      eq(issueThreadInteractions.spaceId, issues.spaceId),
       eq(issueThreadInteractions.issueId, issues.id),
       eq(issueThreadInteractions.createdByAgentId, issues.assigneeAgentId),
     ))
     .where(and(
       eq(issues.id, input.issueId),
-      eq(issues.companyId, input.companyId),
+      eq(issues.spaceId, input.spaceId),
       eq(issues.status, "in_review"),
       isNull(issues.assigneeUserId),
       eq(statusDecisions.applicationState, "applied"),
@@ -66,17 +66,17 @@ export async function ownQuestionWaitReleasedByDismissal(db: Pick<Db, "select">,
     ))
     .limit(1);
   if (!row?.agentId) return null;
-  if (await pendingOwnQuestionId(db, { companyId: input.companyId, issueId: input.issueId, agentId: row.agentId })) return null;
+  if (await pendingOwnQuestionId(db, { spaceId: input.spaceId, issueId: input.issueId, agentId: row.agentId })) return null;
   return { agentId: row.agentId };
 }
 
 export async function enqueueOwnQuestionDismissalWake(tx: Db, input: {
-  companyId: string; issueId: string; interactionId: string;
+  spaceId: string; issueId: string; interactionId: string;
 }): Promise<string | null> {
   const released = await ownQuestionWaitReleasedByDismissal(tx, input);
   if (!released) return null;
   return enqueueWake({
-    tx, companyId: input.companyId, issueId: input.issueId, agentId: released.agentId,
+    tx, spaceId: input.spaceId, issueId: input.issueId, agentId: released.agentId,
     reason: "issue_question_dismissed",
     idempotencyKey: `issue_question_dismissed:${input.interactionId}`,
     payload: { dismissedInteractionId: input.interactionId },

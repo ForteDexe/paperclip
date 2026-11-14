@@ -5,7 +5,7 @@ import { redactSensitiveText } from "../../redaction.js";
 import { canonicalProviderPackJson, type ProviderPackIdentity } from "./remote-provider-pack-verification.js";
 
 export type ProviderPackBinding = {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   workspaceId: string;
   sessionId: string;

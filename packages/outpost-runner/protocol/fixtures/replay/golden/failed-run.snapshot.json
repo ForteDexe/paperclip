@@ -3,7 +3,7 @@
   "fixtureName": "Failed run",
   "identity": {
     "schema": "outpost.orp.identity.v1",
-    "companyId": "company_replay",
+    "spaceId": "space_replay",
     "issueId": "issue_replay_failed",
     "runId": "run_replay_failed",
     "environmentLeaseId": "lease_replay_failed",

@@ -27,12 +27,12 @@ const mockInstanceSettingsApi = vi.hoisted(() => ({
 }));
 
 const mockNavigate = vi.hoisted(() => vi.fn());
-const mockSetSelectedCompanyId = vi.hoisted(() => vi.fn());
+const mockSetSelectedSpaceId = vi.hoisted(() => vi.fn());
 const mockSetSidebarOpen = vi.hoisted(() => vi.fn());
-const mockCompanyState = vi.hoisted(() => ({
-  companies: [{ id: "company-1", issuePrefix: "PAP", name: "Outpost" }],
-  selectedCompany: { id: "company-1", issuePrefix: "PAP", name: "Outpost" },
-  selectedCompanyId: "company-1",
+const mockSpaceState = vi.hoisted(() => ({
+  spaces: [{ id: "space-1", issuePrefix: "PAP", name: "Outpost" }],
+  selectedSpace: { id: "space-1", issuePrefix: "PAP", name: "Outpost" },
+  selectedSpaceId: "space-1",
 }));
 const mockPluginSlots = vi.hoisted(() => ({
   slots: [] as Array<Record<string, unknown>>,
@@ -66,7 +66,7 @@ vi.mock("@/lib/router", () => ({
       .split("/")
       .filter(Boolean);
     return {
-      companyPrefix: firstSegment ?? "PAP",
+      spacePrefix: firstSegment ?? "PAP",
       pluginRoutePath: secondSegment,
       agentId: secondSegment === "agents" ? entityId : undefined,
       routineId: secondSegment === "routines" ? entityId : undefined,
@@ -77,13 +77,13 @@ vi.mock("@/lib/router", () => ({
 vi.mock("./Sidebar", () => ({
   Sidebar: ({ contentHeaderControls }: { contentHeaderControls?: boolean }) => (
     <div data-content-header-controls={String(contentHeaderControls ?? false)}>
-      Main company nav
+      Main space nav
     </div>
   ),
 }));
 
-vi.mock("./CompanySettingsSidebar", () => ({
-  CompanySettingsSidebar: () => <div>Company settings sidebar</div>,
+vi.mock("./SpaceSettingsSidebar", () => ({
+  SpaceSettingsSidebar: () => <div>Space settings sidebar</div>,
 }));
 
 vi.mock("./AppsSidebar", () => ({
@@ -124,7 +124,7 @@ vi.mock("./PropertiesPanel", () => ({
   PropertiesPanel: () => null,
 }));
 
-// Overlay account/company lifecycle has its own integration test. These tests
+// Overlay account/space lifecycle has its own integration test. These tests
 // exercise route navigation with intentionally minimal context providers.
 vi.mock("./PluginAppShellOverlays", () => ({
   PluginAppShellOverlays: () => null,
@@ -235,14 +235,14 @@ vi.mock("../context/PanelContext", () => ({
   }),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({
-    companies: mockCompanyState.companies,
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({
+    spaces: mockSpaceState.spaces,
     loading: false,
-    selectedCompany: mockCompanyState.selectedCompany,
-    selectedCompanyId: mockCompanyState.selectedCompanyId,
+    selectedSpace: mockSpaceState.selectedSpace,
+    selectedSpaceId: mockSpaceState.selectedSpaceId,
     selectionSource: "manual",
-    setSelectedCompanyId: mockSetSelectedCompanyId,
+    setSelectedSpaceId: mockSetSelectedSpaceId,
   }),
 }));
 
@@ -266,8 +266,8 @@ vi.mock("../hooks/useKeyboardShortcuts", () => ({
   useKeyboardShortcuts: () => undefined,
 }));
 
-vi.mock("../hooks/useCompanyPageMemory", () => ({
-  useCompanyPageMemory: () => undefined,
+vi.mock("../hooks/useSpacePageMemory", () => ({
+  useSpacePageMemory: () => undefined,
 }));
 
 vi.mock("../api/health", () => ({
@@ -278,12 +278,12 @@ vi.mock("../api/instanceSettings", () => ({
   instanceSettingsApi: mockInstanceSettingsApi,
 }));
 
-vi.mock("../lib/company-selection", () => ({
-  shouldSyncCompanySelectionFromRoute: () => false,
+vi.mock("../lib/space-selection", () => ({
+  shouldSyncSpaceSelectionFromRoute: () => false,
   // No bounce in the shared harness: these tests exercise layout chrome, not
-  // archived-company routing (covered by company-selection unit tests and the
-  // archived-company-url e2e).
-  resolveArchivedCompanyBounce: () => null,
+  // archived-space routing (covered by space-selection unit tests and the
+  // archived-space-url e2e).
+  resolveArchivedSpaceBounce: () => null,
 }));
 
 vi.mock("../lib/main-content-focus", () => ({
@@ -325,15 +325,15 @@ describe("Layout", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     currentPathname = "/PAP/dashboard";
-    mockCompanyState.companies = [
-      { id: "company-1", issuePrefix: "PAP", name: "Outpost" },
+    mockSpaceState.spaces = [
+      { id: "space-1", issuePrefix: "PAP", name: "Outpost" },
     ];
-    mockCompanyState.selectedCompany = {
-      id: "company-1",
+    mockSpaceState.selectedSpace = {
+      id: "space-1",
       issuePrefix: "PAP",
       name: "Outpost",
     };
-    mockCompanyState.selectedCompanyId = "company-1";
+    mockSpaceState.selectedSpaceId = "space-1";
     mockHealthApi.get.mockResolvedValue({
       status: "ok",
       deploymentMode: "authenticated",
@@ -392,7 +392,7 @@ describe("Layout", () => {
     expect(container.textContent).toContain("Breadcrumbs");
     expect(container.textContent).toContain("Outlet content");
     expect(container.querySelectorAll("[data-announcement-well]")).toHaveLength(1);
-    expect(container.textContent).not.toContain("Company rail");
+    expect(container.textContent).not.toContain("Space rail");
     expect(container.textContent).not.toContain("Authenticated private");
     expect(container.textContent).not.toContain(
       "Sign-in is required and this instance is intended for private-network access.",
@@ -544,28 +544,28 @@ describe("Layout", () => {
   });
 
   it("retains settings navigation and route content beside the proposed sandbox sidebar", async () => {
-    currentPathname = "/PAP/company/settings";
+    currentPathname = "/PAP/space/settings";
     mockDesignSandbox.enabled = true;
     const root = createRoot(container);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     await act(async () => { root.render(<QueryClientProvider client={queryClient}><Layout /></QueryClientProvider>); });
     await flushReact();
     expect(container.textContent).toContain("Proposed sidebar");
-    expect(container.textContent).toContain("Company settings sidebar");
+    expect(container.textContent).toContain("Space settings sidebar");
     expect(container.textContent).toContain("Outlet content");
-    expect(container.textContent).not.toContain("Main company nav");
+    expect(container.textContent).not.toContain("Main space nav");
     await act(async () => { root.unmount(); });
   });
 
   it("replaces the app sidebar with settings navigation on Streamlined settings routes", async () => {
-    currentPathname = "/PAP/company/settings/access";
+    currentPathname = "/PAP/space/settings/access";
     mockPluginSlots.slots = [
       {
         type: "page",
-        id: "company-page",
-        displayName: "Company Page",
-        exportName: "CompanyPage",
-        routePath: "company",
+        id: "space-page",
+        displayName: "Space Page",
+        exportName: "SpacePage",
+        routePath: "space",
         pluginId: "plugin-1",
         pluginKey: "fake-plugin",
         pluginDisplayName: "Fake Plugin",
@@ -573,10 +573,10 @@ describe("Layout", () => {
       },
       {
         type: "routeSidebar",
-        id: "company-sidebar",
-        displayName: "Company Route Sidebar",
-        exportName: "CompanySidebar",
-        routePath: "company",
+        id: "space-sidebar",
+        displayName: "Space Route Sidebar",
+        exportName: "SpaceSidebar",
+        routePath: "space",
         pluginId: "plugin-1",
         pluginKey: "fake-plugin",
         pluginDisplayName: "Fake Plugin",
@@ -594,12 +594,12 @@ describe("Layout", () => {
     await flushReact();
     await flushReact();
 
-    expect(container.textContent).toContain("Company settings sidebar");
-    expect(container.textContent).not.toContain("Main company nav");
+    expect(container.textContent).toContain("Space settings sidebar");
+    expect(container.textContent).not.toContain("Main space nav");
     const secondaryRail = container.querySelector("[data-secondary-sidebar]");
     expect(secondaryRail).not.toBeNull();
     expect(secondaryRail?.classList.contains("w-60")).toBe(false);
-    expect(container.textContent).not.toContain("Company rail");
+    expect(container.textContent).not.toContain("Space rail");
     expect(container.textContent).not.toContain("Instance sidebar");
     expect(container.textContent).not.toContain("Plugin route sidebar");
 
@@ -609,7 +609,7 @@ describe("Layout", () => {
   });
 
   it("uses settings navigation without reviving the legacy global sidebar", async () => {
-    currentPathname = "/PAP/company/settings/access";
+    currentPathname = "/PAP/space/settings/access";
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({
       enableApps: true,
       enableStreamlinedUi: false,
@@ -625,8 +625,8 @@ describe("Layout", () => {
     await flushReact();
     await flushReact();
 
-    expect(container.textContent).not.toContain("Main company nav");
-    expect(container.textContent).toContain("Company settings sidebar");
+    expect(container.textContent).not.toContain("Main space nav");
+    expect(container.textContent).toContain("Space settings sidebar");
     expect(mockSetForceCollapsed).toHaveBeenCalledWith(false);
 
     await act(async () => {
@@ -634,8 +634,8 @@ describe("Layout", () => {
     });
   });
 
-  it("renders a mobile company settings selector on company settings routes", async () => {
-    currentPathname = "/PAP/company/settings/secrets";
+  it("renders a mobile space settings selector on space settings routes", async () => {
+    currentPathname = "/PAP/space/settings/secrets";
     mockSidebarState.isMobile = true;
     mockSidebarState.sidebarOpen = false;
     const root = createRoot(container);
@@ -671,8 +671,8 @@ describe("Layout", () => {
     });
   });
 
-  it("replaces the company nav on instance settings routes", async () => {
-    currentPathname = "/PAP/company/settings/instance/general";
+  it("replaces the space nav on instance settings routes", async () => {
+    currentPathname = "/PAP/space/settings/instance/general";
     const root = createRoot(container);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -684,9 +684,9 @@ describe("Layout", () => {
     await flushReact();
     await flushReact();
 
-    expect(container.textContent).toContain("Company settings sidebar");
-    expect(container.textContent).not.toContain("Main company nav");
-    expect(container.textContent).not.toContain("Company rail");
+    expect(container.textContent).toContain("Space settings sidebar");
+    expect(container.textContent).not.toContain("Main space nav");
+    expect(container.textContent).not.toContain("Space rail");
     expect(container.textContent).not.toContain("Plugin route sidebar");
 
     await act(async () => {
@@ -694,8 +694,8 @@ describe("Layout", () => {
     });
   });
 
-  it.each(["/PAP/company/export", "/PAP/company/import"])(
-    "replaces the company nav with the shared settings sidebar on %s",
+  it.each(["/PAP/space/export", "/PAP/space/import"])(
+    "replaces the space nav with the shared settings sidebar on %s",
     async (pathname) => {
       currentPathname = pathname;
       const root = createRoot(container);
@@ -709,8 +709,8 @@ describe("Layout", () => {
       await flushReact();
       await flushReact();
 
-      expect(container.textContent).toContain("Company settings sidebar");
-      expect(container.textContent).not.toContain("Main company nav");
+      expect(container.textContent).toContain("Space settings sidebar");
+      expect(container.textContent).not.toContain("Main space nav");
 
       await act(async () => {
         root.unmount();
@@ -718,7 +718,7 @@ describe("Layout", () => {
     },
   );
 
-  it("keeps the company nav beside Apps navigation on legacy tools routes", async () => {
+  it("keeps the space nav beside Apps navigation on legacy tools routes", async () => {
     currentPathname = "/PAP/tools/runtime";
     const root = createRoot(container);
     const queryClient = new QueryClient({
@@ -732,8 +732,8 @@ describe("Layout", () => {
     await flushReact();
 
     expect(container.textContent).toContain("Apps sidebar");
-    expect(container.textContent).toContain("Main company nav");
-    expect(container.textContent).not.toContain("Company settings sidebar");
+    expect(container.textContent).toContain("Main space nav");
+    expect(container.textContent).not.toContain("Space settings sidebar");
 
     await act(async () => {
       root.unmount();
@@ -757,7 +757,7 @@ describe("Layout", () => {
     await flushReact();
 
     expect(container.textContent).toContain("Apps sidebar");
-    expect(container.textContent).toContain("Main company nav");
+    expect(container.textContent).toContain("Main space nav");
     const secondaryRail = container.querySelector("[data-secondary-sidebar]");
     expect(secondaryRail?.classList.contains("w-60")).toBe(true);
     expect(secondaryRail?.classList.contains("shrink-0")).toBe(true);
@@ -781,7 +781,7 @@ describe("Layout", () => {
     await flushReact();
 
     expect(container.textContent).toContain("Apps sidebar");
-    expect(container.textContent).toContain("Main company nav");
+    expect(container.textContent).toContain("Main space nav");
 
     await act(async () => {
       root.unmount();
@@ -802,7 +802,7 @@ describe("Layout", () => {
     await flushReact();
 
     expect(container.textContent).toContain("Apps sidebar");
-    expect(container.textContent).toContain("Main company nav");
+    expect(container.textContent).toContain("Main space nav");
 
     await act(async () => {
       root.unmount();
@@ -827,7 +827,7 @@ describe("Layout", () => {
       await flushReact();
 
       expect(container.textContent).toContain("Apps sidebar");
-      expect(container.textContent).toContain("Main company nav");
+      expect(container.textContent).toContain("Main space nav");
       expect(container.textContent).not.toContain("App detail sidebar");
 
       await act(async () => {
@@ -854,7 +854,7 @@ describe("Layout", () => {
       await flushReact();
 
       expect(container.textContent).toContain("Apps sidebar");
-      expect(container.textContent).toContain("Main company nav");
+      expect(container.textContent).toContain("Main space nav");
       expect(container.textContent).not.toContain("App detail sidebar");
 
       await act(async () => {
@@ -879,7 +879,7 @@ describe("Layout", () => {
     expect(container.textContent).toContain(
       "App detail sidebar connection conn-1",
     );
-    expect(container.textContent).toContain("Main company nav");
+    expect(container.textContent).toContain("Main space nav");
     expect(container.textContent).not.toContain("Apps sidebar");
 
     await act(async () => {
@@ -903,7 +903,7 @@ describe("Layout", () => {
     expect(container.textContent).toContain(
       "App detail sidebar application app-1",
     );
-    expect(container.textContent).toContain("Main company nav");
+    expect(container.textContent).toContain("Main space nav");
     expect(container.textContent).not.toContain("Apps sidebar");
 
     await act(async () => {
@@ -936,7 +936,7 @@ describe("Layout", () => {
     ] as const) {
       const root = await renderAt(pathname);
       expect(container.textContent).toContain(sidebarText);
-      expect(container.textContent).toContain("Main company nav");
+      expect(container.textContent).toContain("Main space nav");
       const secondaryRail = container.querySelector("[data-secondary-sidebar]");
       expect(secondaryRail?.classList.contains("w-60")).toBe(true);
       expect(secondaryRail?.classList.contains("bg-background")).toBe(true);
@@ -976,7 +976,7 @@ describe("Layout", () => {
       await flushReact();
       await flushReact();
 
-      expect(container.textContent).toContain("Main company nav");
+      expect(container.textContent).toContain("Main space nav");
       expect(container.textContent).toContain("Agent sidebar");
       expect(container.textContent).not.toContain("Routine sidebar");
 
@@ -995,7 +995,7 @@ describe("Layout", () => {
       await act(async () => { root.render(<QueryClientProvider client={queryClient}><Layout /></QueryClientProvider>); });
       await flushReact();
       await flushReact();
-      expect(container.textContent).toContain("Main company nav");
+      expect(container.textContent).toContain("Main space nav");
       expect(container.textContent).not.toContain("Skills sidebar");
       await act(async () => root.unmount());
       container.innerHTML = "";
@@ -1019,7 +1019,7 @@ describe("Layout", () => {
     await flushReact();
     await flushReact();
 
-    expect(container.textContent).toContain("Main company nav");
+    expect(container.textContent).toContain("Main space nav");
     expect(container.textContent).not.toContain("Skills sidebar");
     expect(mockSetForceCollapsed).toHaveBeenCalledWith(false);
 
@@ -1046,7 +1046,7 @@ describe("Layout", () => {
       await flushReact();
       await flushReact();
 
-      expect(container.textContent).toContain("Main company nav");
+      expect(container.textContent).toContain("Main space nav");
       expect(container.textContent).not.toContain("Agent sidebar");
       expect(container.textContent).not.toContain("Routine sidebar");
 
@@ -1100,8 +1100,8 @@ describe("Layout", () => {
     expect(
       container.querySelector("[data-plugin-slot-class='min-h-0 flex-1']"),
     ).not.toBeNull();
-    expect(container.textContent).not.toContain("Main company nav");
-    expect(container.textContent).not.toContain("Company settings sidebar");
+    expect(container.textContent).not.toContain("Main space nav");
+    expect(container.textContent).not.toContain("Space settings sidebar");
     expect(container.textContent).not.toContain("Instance sidebar");
 
     await act(async () => {
@@ -1148,32 +1148,32 @@ describe("Layout", () => {
 
     expect(mockUsePluginSlots).toHaveBeenCalledWith(
       expect.objectContaining({
-        companyId: "company-1",
+        spaceId: "space-1",
         enabled: true,
       }),
     );
     expect(container.textContent).toContain(
       "Plugin route sidebar: Wiki Sidebar",
     );
-    expect(container.textContent).not.toContain("Main company nav");
+    expect(container.textContent).not.toContain("Main space nav");
 
     await act(async () => {
       root.unmount();
     });
   });
 
-  it("uses the route company context for plugin route sidebars on the first render", async () => {
+  it("uses the route space context for plugin route sidebars on the first render", async () => {
     currentPathname = "/ALT/wiki";
-    mockCompanyState.companies = [
-      { id: "company-1", issuePrefix: "PAP", name: "Outpost" },
-      { id: "company-2", issuePrefix: "ALT", name: "Alternate" },
+    mockSpaceState.spaces = [
+      { id: "space-1", issuePrefix: "PAP", name: "Outpost" },
+      { id: "space-2", issuePrefix: "ALT", name: "Alternate" },
     ];
-    mockCompanyState.selectedCompany = {
-      id: "company-1",
+    mockSpaceState.selectedSpace = {
+      id: "space-1",
       issuePrefix: "PAP",
       name: "Outpost",
     };
-    mockCompanyState.selectedCompanyId = "company-1";
+    mockSpaceState.selectedSpaceId = "space-1";
     mockPluginSlots.slots = [
       {
         type: "page",
@@ -1211,17 +1211,17 @@ describe("Layout", () => {
 
     expect(mockUsePluginSlots).toHaveBeenCalledWith(
       expect.objectContaining({
-        companyId: "company-2",
+        spaceId: "space-2",
         enabled: true,
       }),
     );
     expect(mockPluginSlotContexts).toContainEqual({
-      companyId: "company-2",
-      companyPrefix: "ALT",
+      spaceId: "space-2",
+      spacePrefix: "ALT",
     });
     expect(mockPluginSlotContexts).not.toContainEqual({
-      companyId: "company-1",
-      companyPrefix: "PAP",
+      spaceId: "space-1",
+      spacePrefix: "PAP",
     });
 
     await act(async () => {
@@ -1229,7 +1229,7 @@ describe("Layout", () => {
     });
   });
 
-  it("keeps the normal company sidebar when a plugin page route is ambiguous", async () => {
+  it("keeps the normal space sidebar when a plugin page route is ambiguous", async () => {
     currentPathname = "/PAP/wiki";
     mockPluginSlots.slots = [
       {
@@ -1277,7 +1277,7 @@ describe("Layout", () => {
     await flushReact();
     await flushReact();
 
-    expect(container.textContent).toContain("Main company nav");
+    expect(container.textContent).toContain("Main space nav");
     expect(container.textContent).not.toContain("Plugin route sidebar");
 
     await act(async () => {

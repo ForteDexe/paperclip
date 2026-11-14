@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Stethoscope, Trash2, Vault } from "lucide-react";
 import type {
-  CompanySecret,
+  SpaceSecret,
   McpConnectionCredentialRef,
   ToolConnection,
 } from "@outpost/shared";
@@ -62,7 +62,7 @@ export function connectionEndpoint(conn: ToolConnection): string | null {
  * operator can confirm *which* vault entry resolves at gateway time. Free-text
  * secrets are never accepted; only references to the secret vault.
  */
-function vaultRef(secret: CompanySecret | undefined, version: number | "latest" = "latest"): string {
+function vaultRef(secret: SpaceSecret | undefined, version: number | "latest" = "latest"): string {
   if (!secret) return "vault://…";
   const v = version === "latest" || version === undefined ? "latest" : `v${version}`;
   return `vault://${secret.provider}/${secret.key}@${v}`;
@@ -133,11 +133,11 @@ type ProbeResult = {
  * draft before the operator activates it — per the Phase 0B spec surface map.
  */
 export function AddConnectionDialog({
-  companyId,
+  spaceId,
   defaultApplicationId,
   onClose,
 }: {
-  companyId: string;
+  spaceId: string;
   defaultApplicationId?: string | null;
   onClose: () => void;
 }) {
@@ -145,16 +145,16 @@ export function AddConnectionDialog({
   const { pushToast } = useToast();
 
   const apps = useQuery({
-    queryKey: queryKeys.tools.applications(companyId),
-    queryFn: () => toolsApi.listApplications(companyId),
+    queryKey: queryKeys.tools.applications(spaceId),
+    queryFn: () => toolsApi.listApplications(spaceId),
   });
   const secrets = useQuery({
-    queryKey: queryKeys.secrets.list(companyId),
-    queryFn: () => secretsApi.list(companyId),
+    queryKey: queryKeys.secrets.list(spaceId),
+    queryFn: () => secretsApi.list(spaceId),
   });
   const templates = useQuery({
-    queryKey: queryKeys.tools.stdioTemplates(companyId),
-    queryFn: () => toolsApi.listStdioTemplates(companyId),
+    queryKey: queryKeys.tools.stdioTemplates(spaceId),
+    queryFn: () => toolsApi.listStdioTemplates(spaceId),
   });
 
   const [step, setStep] = useState<1 | 2>(defaultApplicationId ? 2 : 1);
@@ -224,7 +224,7 @@ export function AddConnectionDialog({
         config,
         credentialRefs,
       };
-      return toolsApi.createConnection(companyId, input);
+      return toolsApi.createConnection(spaceId, input);
     },
     onSuccess: (conn) => {
       setDraft(conn);
@@ -255,8 +255,8 @@ export function AddConnectionDialog({
   const activate = useMutation({
     mutationFn: (id: string) => toolsApi.updateConnection(id, { status: "active", enabled: true }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.tools.connections(companyId) });
-      qc.invalidateQueries({ queryKey: queryKeys.tools.applications(companyId) });
+      qc.invalidateQueries({ queryKey: queryKeys.tools.connections(spaceId) });
+      qc.invalidateQueries({ queryKey: queryKeys.tools.applications(spaceId) });
       pushToast({ title: "Connection activated", tone: "success" });
       onClose();
     },
@@ -411,7 +411,7 @@ export function AddConnectionDialog({
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Only board-approved command templates can run. Arbitrary commands are never accepted.
+                    Only operator-approved command templates can run. Arbitrary commands are never accepted.
                   </p>
                 </div>
               )}

@@ -226,7 +226,7 @@ describe("createCoalescingQueryClient", () => {
 describe("overlapping live invalidations", () => {
   it.each([false, true])("does not restart a request already covered by its collection invalidation (child first=%s)", async childFirst => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
-    const key = ["issues", "company-1", "mine-by-me", "index"];
+    const key = ["issues", "space-1", "mine-by-me", "index"];
     client.setQueryData(key, "cached");
     const completions: Array<() => void> = [];
     const aborted = vi.fn();
@@ -238,7 +238,7 @@ describe("overlapping live invalidations", () => {
     const unsubscribe = observer.subscribe(() => undefined);
     const batcher = createInvalidationBatcher(client);
     try {
-      const filters = [{ queryKey: ["issues", "company-1"] }, { queryKey: ["issues", "company-1", "mine-by-me"] }];
+      const filters = [{ queryKey: ["issues", "space-1"] }, { queryKey: ["issues", "space-1", "mine-by-me"] }];
       for (const filter of childFirst ? filters.reverse() : filters) void batcher.schedule(filter);
       const flushed = batcher.flush();
       completions.forEach(complete => complete());
@@ -255,7 +255,7 @@ describe("overlapping live invalidations", () => {
 
   it.each(["exact", "type", "stale", "refetch", "predicate"])("preserves a child refresh when the parent has a different %s constraint", async constraint => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
-    const key = ["issues", "company-1", "mine-by-me"];
+    const key = ["issues", "space-1", "mine-by-me"];
     client.setQueryData(key, "cached");
     const read = vi.fn(async () => "fresh");
     const observer = new QueryObserver(client, { queryKey: key, queryFn: read });
@@ -263,7 +263,7 @@ describe("overlapping live invalidations", () => {
     const batcher = createInvalidationBatcher(client);
     try {
       const parent = {
-        queryKey: ["issues", "company-1"],
+        queryKey: ["issues", "space-1"],
         ...(constraint === "exact" ? { exact: true } : {}),
         ...(constraint === "type" ? { type: "inactive" as const } : {}),
         ...(constraint === "stale" ? { stale: true } : {}),
@@ -284,7 +284,7 @@ describe("overlapping live invalidations", () => {
 
   it.each(["stale", "fetchStatus"])("retains distinct %s filters on the same key", async constraint => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
-    const key = ["issues", "company-1"];
+    const key = ["issues", "space-1"];
     client.setQueryData(key, "cached");
     const observer = new QueryObserver(client, { queryKey: key, queryFn: async () => "fresh" });
     const unsubscribe = observer.subscribe(() => undefined);
@@ -308,7 +308,7 @@ describe("overlapping live invalidations", () => {
 
   it("starts a newer read when another event arrives in a later batch", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
-    const key = ["issues", "company-1", "mine-by-me"];
+    const key = ["issues", "space-1", "mine-by-me"];
     client.setQueryData(key, 0);
     let serverValue = 1;
     const completions: Array<() => void> = [];
@@ -321,7 +321,7 @@ describe("overlapping live invalidations", () => {
     const unsubscribe = observer.subscribe(() => undefined);
     const batcher = createInvalidationBatcher(client);
     try {
-      void batcher.schedule({ queryKey: ["issues", "company-1"] });
+      void batcher.schedule({ queryKey: ["issues", "space-1"] });
       const first = batcher.flush();
       serverValue = 2;
       void batcher.schedule({ queryKey: key });

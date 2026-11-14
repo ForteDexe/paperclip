@@ -128,12 +128,12 @@ function RoutineScopedRuns({
 }
 
 export function AuditRuns({
-  companyId,
+  spaceId,
   routineId,
   lockedAgentId,
   hideHeader = false,
 }: {
-  companyId: string;
+  spaceId: string;
   routineId?: string;
   /** Pin the list to one agent and hide the agent filter (the agent page's Runs). */
   lockedAgentId?: string;
@@ -143,14 +143,14 @@ export function AuditRuns({
   const agentId = lockedAgentId ?? searchParams.get("agentId") ?? ALL;
   const status = searchParams.get("runStatus") ?? ALL;
   const agents = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
     enabled: !routineId,
   });
   const runs = useQuery({
-    queryKey: queryKeys.audit.runs(companyId, agentId === ALL ? null : agentId),
+    queryKey: queryKeys.audit.runs(spaceId, agentId === ALL ? null : agentId),
     queryFn: () =>
-      heartbeatsApi.list(companyId, agentId === ALL ? undefined : agentId, RUN_LIMIT, {
+      heartbeatsApi.list(spaceId, agentId === ALL ? undefined : agentId, RUN_LIMIT, {
         summary: true,
       }),
     refetchInterval: 15_000,

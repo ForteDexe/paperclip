@@ -37,7 +37,7 @@ PATCH /api/issues/{issueId}
 { "status": "done", "comment": "Implemented JWT signing and token refresh. All tests passing." }
 ```
 
-Always include the `X-Paperclip-Run-Id` header on state changes.
+Always include the `X-Outpost-Run-Id` header on state changes.
 
 ## Blocked Pattern
 
@@ -55,7 +55,7 @@ Never sit silently on blocked work. Comment the blocker, update the status, and 
 If work is delegated, task creation supports a parent relationship:
 
 ```
-POST /api/companies/{companyId}/issues
+POST /api/spaces/{spaceId}/issues
 {
   "title": "Implement caching layer",
   "assigneeAgentId": "{reportAgentId}",
@@ -129,7 +129,7 @@ This releases your ownership. Leave a comment explaining why.
 
 ```
 GET /api/agents/me
-GET /api/companies/company-1/issues?assigneeAgentId=agent-42&status=todo,in_progress,in_review,blocked
+GET /api/spaces/space-1/issues?assigneeAgentId=agent-42&status=todo,in_progress,in_review,blocked
 # -> [{ id: "issue-101", status: "in_progress" }, { id: "issue-100", status: "in_review" }, { id: "issue-99", status: "todo" }]
 
 # Continue in_progress work

@@ -11,7 +11,7 @@ export function createGrokRoutineDispatcher(db: Db, isBackgroundWorkEnabled: () 
   let running: Promise<void> | null = null;
   let enabled = false;
   const prepared = () => db.select({ dispatch: grokBotDispatches, agentId: grokBotRoutines.agentId }).from(grokBotDispatches)
-    .innerJoin(grokBotRoutines, and(eq(grokBotRoutines.id, grokBotDispatches.routineId), eq(grokBotRoutines.companyId, grokBotDispatches.companyId)))
+    .innerJoin(grokBotRoutines, and(eq(grokBotRoutines.id, grokBotDispatches.routineId), eq(grokBotRoutines.spaceId, grokBotDispatches.spaceId)))
     .where(sql`${grokBotDispatches.status} = 'prepared'`)
     .orderBy(asc(grokBotDispatches.createdAt), asc(grokBotDispatches.id));
   function tick(signal?: AbortSignal): Promise<void> {
@@ -23,7 +23,7 @@ export function createGrokRoutineDispatcher(db: Db, isBackgroundWorkEnabled: () 
       const service = grokRoutineService(db, deliver);
       for (const { dispatch, agentId } of await prepared().limit(10)) {
         if (signal?.aborted || !isBackgroundWorkEnabled()) break;
-        try { await service.send(dispatch.companyId, agentId, dispatch.id); }
+        try { await service.send(dispatch.spaceId, agentId, dispatch.id); }
         catch {
           await db.update(grokBotDispatches).set({ status: "cancelled", updatedAt: new Date() })
             .where(and(eq(grokBotDispatches.id, dispatch.id), eq(grokBotDispatches.status, "prepared")));

@@ -11,7 +11,7 @@ const {
   restoreWorkspaceFromSshExecution,
   runSshCommand,
   syncDirectoryToSsh,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
 } = vi.hoisted(() => ({
   runChildProcess: vi.fn(async () => ({
     exitCode: 1,
@@ -28,7 +28,7 @@ const {
   restoreWorkspaceFromSshExecution: vi.fn(async () => undefined),
   runSshCommand: vi.fn(async () => ({ stdout: Buffer.from("{}").toString("base64"), stderr: "" })),
   syncDirectoryToSsh: vi.fn(async () => undefined),
-  startAdapterExecutionTargetPaperclipBridge: vi.fn(async () => ({
+  startAdapterExecutionTargetOutpostBridge: vi.fn(async () => ({
     env: {
       OUTPOST_API_URL: "http://127.0.0.1:4310",
       OUTPOST_API_KEY: "bridge-token",
@@ -69,7 +69,7 @@ vi.mock("@outpost/adapter-utils/execution-target", async () => {
   );
   return {
     ...actual,
-    startAdapterExecutionTargetPaperclipBridge,
+    startAdapterExecutionTargetOutpostBridge,
   };
 });
 
@@ -89,11 +89,11 @@ describe("codex remote execution", () => {
   });
 
   it("prepares the workspace, syncs CODEX_HOME, and restores workspace changes for remote SSH execution", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-codex-remote-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-codex-remote-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     const codexHomeDir = path.join(rootDir, "codex-home");
-    const managedRemoteWorkspace = "/remote/workspace/.paperclip-runtime/runs/run-1/workspace";
+    const managedRemoteWorkspace = "/remote/workspace/.outpost-runtime/runs/run-1/workspace";
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(codexHomeDir, { recursive: true });
     await writeFile(path.join(rootDir, "instructions.md"), "Use the remote workspace.\n", "utf8");
@@ -105,7 +105,7 @@ describe("codex remote execution", () => {
       runId: "run-1",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "CodexCoder",
         adapterType: "codex_local",
         adapterConfig: {},
@@ -124,27 +124,27 @@ describe("codex remote execution", () => {
         },
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
           strategy: "git_worktree",
           workspaceId: "workspace-1",
-          repoUrl: "https://github.com/paperclipai/outpost.git",
+          repoUrl: "https://github.com/example/outpost.git",
           repoRef: "main",
           branchName: "feature/remote-codex",
           worktreePath: workspaceDir,
         },
-        paperclipWorkspaces: [
+        outpostWorkspaces: [
           {
             workspaceId: "workspace-1",
             cwd: workspaceDir,
-            repoUrl: "https://github.com/paperclipai/outpost.git",
+            repoUrl: "https://github.com/example/outpost.git",
             repoRef: "main",
           },
           {
             workspaceId: "workspace-2",
             cwd: alternateWorkspaceDir,
-            repoUrl: "https://github.com/paperclipai/outpost.git",
+            repoUrl: "https://github.com/example/outpost.git",
             repoRef: "feature/other",
           },
         ],
@@ -179,8 +179,8 @@ describe("codex remote execution", () => {
       exclude?: string[];
     };
     expect(homeSyncArgs.localDir).not.toBe(codexHomeDir);
-    expect(homeSyncArgs.localDir).toContain("paperclip-codex-home-sync");
-    expect(homeSyncArgs.remoteDir).toBe(`${managedRemoteWorkspace}/.paperclip-runtime/codex/home`);
+    expect(homeSyncArgs.localDir).toContain("outpost-codex-home-sync");
+    expect(homeSyncArgs.remoteDir).toBe(`${managedRemoteWorkspace}/.outpost-runtime/codex/home`);
     expect(homeSyncArgs.followSymlinks).toBe(true);
     expect(homeSyncArgs.exclude).toBeUndefined();
 
@@ -189,26 +189,26 @@ describe("codex remote execution", () => {
       | [string, string, string[], { env: Record<string, string>; remoteExecution?: { remoteCwd: string } | null }]
       | undefined;
     expect(call?.[2]).not.toContain("--skip-git-repo-check");
-    expect(call?.[3].env.CODEX_HOME).toBe(`${managedRemoteWorkspace}/.paperclip-runtime/codex/home`);
+    expect(call?.[3].env.CODEX_HOME).toBe(`${managedRemoteWorkspace}/.outpost-runtime/codex/home`);
     expect(call?.[3].env.OUTPOST_WORKSPACE_CWD).toBe(managedRemoteWorkspace);
     expect(call?.[3].env.OUTPOST_WORKSPACE_WORKTREE_PATH).toBeUndefined();
     expect(JSON.parse(call?.[3].env.OUTPOST_WORKSPACES_JSON ?? "[]")).toEqual([
       {
         workspaceId: "workspace-1",
         cwd: managedRemoteWorkspace,
-        repoUrl: "https://github.com/paperclipai/outpost.git",
+        repoUrl: "https://github.com/example/outpost.git",
         repoRef: "main",
       },
       {
         workspaceId: "workspace-2",
-        repoUrl: "https://github.com/paperclipai/outpost.git",
+        repoUrl: "https://github.com/example/outpost.git",
         repoRef: "feature/other",
       },
     ]);
     expect(call?.[3].env.OUTPOST_API_URL).toBe("http://127.0.0.1:4310");
     expect(call?.[3].env.OUTPOST_API_BRIDGE_MODE).toBe("queue_v1");
     expect(call?.[3].remoteExecution?.remoteCwd).toBe(managedRemoteWorkspace);
-    expect(startAdapterExecutionTargetPaperclipBridge).toHaveBeenCalledTimes(1);
+    expect(startAdapterExecutionTargetOutpostBridge).toHaveBeenCalledTimes(1);
     expect(restoreWorkspaceFromSshExecution).toHaveBeenCalledTimes(1);
     expect(restoreWorkspaceFromSshExecution).toHaveBeenCalledWith(expect.objectContaining({
       localDir: workspaceDir,
@@ -217,7 +217,7 @@ describe("codex remote execution", () => {
   });
 
   it("stages only the allowlist into the home asset: keeps config.toml/skills/auth, drops session+sqlite state, no exclude", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-codex-allowlist-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-codex-allowlist-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     const codexHomeDir = path.join(rootDir, "codex-home");
@@ -269,7 +269,7 @@ describe("codex remote execution", () => {
       runId: "run-allowlist",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "CodexCoder",
         adapterType: "codex_local",
         adapterConfig: {},
@@ -288,7 +288,7 @@ describe("codex remote execution", () => {
         },
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -336,7 +336,7 @@ describe("codex remote execution", () => {
   });
 
   it("does not resume saved Codex sessions for remote SSH execution without a matching remote identity", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-codex-remote-resume-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-codex-remote-resume-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     const codexHomeDir = path.join(rootDir, "codex-home");
@@ -348,7 +348,7 @@ describe("codex remote execution", () => {
       runId: "run-ssh-no-resume",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "CodexCoder",
         adapterType: "codex_local",
         adapterConfig: {},
@@ -370,7 +370,7 @@ describe("codex remote execution", () => {
         },
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -401,11 +401,11 @@ describe("codex remote execution", () => {
   });
 
   it("resumes saved Codex sessions for remote SSH execution when the remote identity matches", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-codex-remote-resume-match-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-codex-remote-resume-match-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     const codexHomeDir = path.join(rootDir, "codex-home");
-    const managedRemoteWorkspace = "/remote/workspace/.paperclip-runtime/runs/run-ssh-resume/workspace";
+    const managedRemoteWorkspace = "/remote/workspace/.outpost-runtime/runs/run-ssh-resume/workspace";
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(codexHomeDir, { recursive: true });
     await writeFile(path.join(codexHomeDir, "auth.json"), "{}", "utf8");
@@ -414,7 +414,7 @@ describe("codex remote execution", () => {
       runId: "run-ssh-resume",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "CodexCoder",
         adapterType: "codex_local",
         adapterConfig: {},
@@ -443,7 +443,7 @@ describe("codex remote execution", () => {
         },
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -476,11 +476,11 @@ describe("codex remote execution", () => {
   });
 
   it("uses the provider-neutral execution target contract for remote SSH execution", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-codex-target-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-codex-target-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     const codexHomeDir = path.join(rootDir, "codex-home");
-    const managedRemoteWorkspace = "/remote/workspace/.paperclip-runtime/runs/run-target/workspace";
+    const managedRemoteWorkspace = "/remote/workspace/.outpost-runtime/runs/run-target/workspace";
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(codexHomeDir, { recursive: true });
     await writeFile(path.join(codexHomeDir, "auth.json"), "{}", "utf8");
@@ -489,7 +489,7 @@ describe("codex remote execution", () => {
       runId: "run-target",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "CodexCoder",
         adapterType: "codex_local",
         adapterConfig: {},
@@ -518,7 +518,7 @@ describe("codex remote execution", () => {
         },
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -554,12 +554,12 @@ describe("codex remote execution", () => {
       "session-123",
       "-",
     ]);
-    expect(call?.[3].env.CODEX_HOME).toBe(`${managedRemoteWorkspace}/.paperclip-runtime/codex/home`);
+    expect(call?.[3].env.CODEX_HOME).toBe(`${managedRemoteWorkspace}/.outpost-runtime/codex/home`);
     expect(call?.[3].remoteExecution?.remoteCwd).toBe(managedRemoteWorkspace);
   });
 
   it("runs in place at the authoritative root without archive prepare or restore", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-codex-in-place-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-codex-in-place-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     const codexHomeDir = path.join(rootDir, "codex-home");
@@ -571,7 +571,7 @@ describe("codex remote execution", () => {
       runId: "run-in-place",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "CodexCoder",
         adapterType: "codex_local",
         adapterConfig: {},
@@ -579,7 +579,7 @@ describe("codex remote execution", () => {
       runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
       config: { engine: "cli", command: "codex", env: { CODEX_HOME: codexHomeDir } },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "task_session",
         },
@@ -615,20 +615,20 @@ describe("codex remote execution", () => {
       localDir: string;
       remoteDir: string;
     };
-    expect(homeSyncArgs.localDir).toContain("paperclip-codex-home-sync");
-    expect(homeSyncArgs.remoteDir).toBe("/app/.paperclip-runtime/codex/home");
+    expect(homeSyncArgs.localDir).toContain("outpost-codex-home-sync");
+    expect(homeSyncArgs.remoteDir).toBe("/app/.outpost-runtime/codex/home");
     const call = runChildProcess.mock.calls[0] as unknown as
       | [string, string, string[], { env: Record<string, string>; remoteExecution?: { remoteCwd: string } | null }]
       | undefined;
     expect(call?.[3].env.OUTPOST_WORKSPACE_CWD).toBe("/app");
     expect(call?.[3].env.OUTPOST_WORKSPACE_REALIZATION_MODE).toBe("in_place");
     expect(call?.[3].env.OUTPOST_WORKSPACE_AUTHORITATIVE_ROOT).toBe("/app");
-    expect(call?.[3].env.CODEX_HOME).toBe("/app/.paperclip-runtime/codex/home");
+    expect(call?.[3].env.CODEX_HOME).toBe("/app/.outpost-runtime/codex/home");
     expect(call?.[3].remoteExecution?.remoteCwd).toBe("/app");
   });
 
   it("reselects the full assignment and bootstrap guidance after a failed resume", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-codex-cli-fallback-context-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-codex-cli-fallback-context-"));
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
     await mkdir(workspaceDir, { recursive: true });
@@ -660,7 +660,7 @@ describe("codex remote execution", () => {
       runId: "run-codex-cli-fallback-context",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Codex Coder",
         adapterType: "codex_local",
         adapterConfig: {},
@@ -678,7 +678,7 @@ describe("codex remote execution", () => {
       },
       context: {
         ...createPromptContextFixture(),
-        paperclipWorkspace: { cwd: workspaceDir, source: "project_primary" },
+        outpostWorkspace: { cwd: workspaceDir, source: "project_primary" },
       },
       onLog: async () => {},
     });

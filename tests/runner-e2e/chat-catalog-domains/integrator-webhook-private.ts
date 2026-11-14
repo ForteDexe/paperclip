@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { chromium, type Cookie } from "@playwright/test";
 export interface WebhookHumanReceipt { processIsolation: true; testRunnerAttached: false; credentialVisibleInHumanUI: true; setupFinished: true; invalidStatus: number; validStatus: number; invalidCreatedInvocation: boolean; invocationId: string; linkedIssueId: string; triggerId: string }
 export async function finishPrivateWebhook(input: { baseURL: string; route: string; routineId: string; triggerId: string; setupPending: boolean; signingMode: string; nonce: string; cookies: Cookie[] }, registerSecret: (value: string) => void): Promise<WebhookHumanReceipt> {
-  const dir = await mkdtemp(path.join(tmpdir(), "paperclip-routine-webhook-private-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "outpost-routine-webhook-private-"));
   try {
     const channel = process.env.OUTPOST_PLAYWRIGHT_CHANNEL;
     const request = path.join(dir, "request.json");

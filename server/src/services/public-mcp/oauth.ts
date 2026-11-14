@@ -11,13 +11,13 @@ import { and, eq, gt, inArray, isNull, lt, lte, notExists, sql } from "drizzle-o
 import { z } from "zod";
 import type { Request } from "express";
 import {
-  type Db, activityLog, agents, authUsers, companies, companyLogos, dotAgentBindings, museAgentBindings, mcpOauthClients, mcpOauthGrants, mcpOauthRequests, mcpOauthTokens, mcpOauthDeviceRequests, mcpOauthMetadataAdmissions,
+  type Db, activityLog, agents, authUsers, spaces, spaceLogos, dotAgentBindings, museAgentBindings, mcpOauthClients, mcpOauthGrants, mcpOauthRequests, mcpOauthTokens, mcpOauthDeviceRequests, mcpOauthMetadataAdmissions,
 } from "@outpost/db";
 import { DOT_RUNNER_MCP_PATH, DOT_RUNNER_MCP_SCOPES, PUBLIC_MCP_PATH, PUBLIC_MCP_SCOPES, MUSE_RESOURCE_PATH, MUSE_OAUTH_PATH, MUSE_OAUTH_SCOPES, type McpConnectionRequest, type McpDotPairingPreview } from "@outpost/shared";
 import { HttpError } from "../../errors.js";
 import { withExternalAdmissionGuard } from "../../modules/external-agents/index.js";
 import { assertMuseCurrentAuthority, revokeMuseOAuthGrant } from "../muse-identity.js";
-import { boardAuthService } from "../board-auth.js";
+import { operatorAuthService } from "../operator-auth.js";
 import { logActivity } from "../activity-log.js";
 import { createClientMetadataResolver, mcpRedirectMatches, validMcpRedirect as validRedirect, type MetadataFetch } from "./client-metadata.js";
 import { beginMuseCodeExchange, decideMuseCodeExchange, observeMuseCodeBinding, publishMuseCodeActivities, recordMuseCodeRejection, recordMuseCodeSuccess, type MuseCodeExchangeCheck, type MuseCodeExchangeObservation } from "./muse-oauth-diagnostics.js";
@@ -59,7 +59,7 @@ export type PublicMcpConfig = NonNullable<ReturnType<typeof publicMcpConfig>>;
 export type McpPrincipal = {
   grant: typeof mcpOauthGrants.$inferSelect;
   actor: Request["actor"];
-  company: { id: string; name: string; issuePrefix: string; status: string };
+  space: { id: string; name: string; issuePrefix: string; status: string };
 };
 
 export const DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
@@ -76,11 +76,11 @@ const authorizeSchema = z.object({
   redirect_uri: z.string().max(2048),
   response_type: z.literal("code"),
   resource: z.string().max(2048),
-  scope: z.string().max(200).default("paperclip:read"),
+  scope: z.string().max(200).default("outpost:read"),
   state: z.string().max(2048).optional(),
   code_challenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   code_challenge_method: z.literal("S256"),
-  company_id: z.string().uuid().optional(),
+  space_id: z.string().uuid().optional(),
 }).strip();
 
 export type McpOAuthMode = "personal" | "openai_dot_agent" | "muse_agent";
@@ -90,7 +90,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
   const agentConnection = museAgentConnection || dotAgentConnection;
   if (museAgentConnection && config.resource !== config.origin + MUSE_RESOURCE_PATH) throw new McpOAuthError("invalid_target", "Muse has one fixed agent resource.");
   const scopesSupported = museAgentConnection ? MUSE_OAUTH_SCOPES : dotAgentConnection ? DOT_RUNNER_MCP_SCOPES : PUBLIC_MCP_SCOPES;
-  const requiredScope = agentConnection ? "paperclip:agent" : "paperclip:read";
+  const requiredScope = agentConnection ? "outpost:agent" : "outpost:read";
   const defaultScope = museAgentConnection ? MUSE_OAUTH_SCOPES.join(" ") : requiredScope;
   const issuer = museAgentConnection ? config.origin + MUSE_OAUTH_PATH : dotAgentConnection ? config.origin + DOT_RUNNER_MCP_PATH + "/oauth" : config.origin;
   function withResource(input: unknown) {
@@ -107,51 +107,51 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
   async function assertEnabled(queryDb: Db = db) {
     if (!await isEnabled(queryDb)) throw new PublicMcpDisabledError();
   }
-  const boardAuth = boardAuthService(db);
+  const operatorAuth = operatorAuthService(db);
 
   async function fenceAgentGrant(grant: typeof mcpOauthGrants.$inferSelect | null | undefined) {
     if (grant?.purpose !== "agent" || !grant.agentId) return;
     // A persisted Muse link retains its provider identity after a public-origin
     // configuration change. Revocation must never reinterpret it as a Dot grant.
     const [museBinding] = await db.select({ id: museAgentBindings.id }).from(museAgentBindings)
-      .where(and(eq(museAgentBindings.grantId, grant.id), eq(museAgentBindings.companyId, grant.companyId),
+      .where(and(eq(museAgentBindings.grantId, grant.id), eq(museAgentBindings.spaceId, grant.spaceId),
         eq(museAgentBindings.agentId, grant.agentId), eq(museAgentBindings.operatorId, grant.userId)));
     if (museBinding) { await revokeMuseOAuthGrant(db, grant); return; }
     const { dotRunnerBroker } = await import("../dot-runner-broker.js");
-    await dotRunnerBroker(db).revoke(grant.companyId, grant.agentId, grant.userId, grant.id);
+    await dotRunnerBroker(db).revoke(grant.spaceId, grant.agentId, grant.userId, grant.id);
   }
 
   async function actorForGrant(grant: typeof mcpOauthGrants.$inferSelect, queryDb: Db = db): Promise<Request["actor"]> {
     if (grant.revokedAt || grant.resource !== config.resource) throw invalidGrant();
-    const access = await boardAuthService(queryDb).resolveBoardAccess(grant.userId);
-    const membership = access.memberships.find((m) => m.companyId === grant.companyId && m.status === "active");
-    const [company] = await queryDb.select({ status: companies.status }).from(companies).where(eq(companies.id, grant.companyId));
-    if (!access.user || !membership || !company || company.status === "archived") throw invalidGrant();
+    const access = await operatorAuthService(queryDb).resolveBoardAccess(grant.userId);
+    const membership = access.memberships.find((m) => m.spaceId === grant.spaceId && m.status === "active");
+    const [space] = await queryDb.select({ status: spaces.status }).from(spaces).where(eq(spaces.id, grant.spaceId));
+    if (!access.user || !membership || !space || space.status === "archived") throw invalidGrant();
     if (agentConnection) {
-      if (grant.purpose !== "agent" || !grant.scopes.includes("paperclip:agent")) throw invalidGrant();
+      if (grant.purpose !== "agent" || !grant.scopes.includes("outpost:agent")) throw invalidGrant();
       if (membership.membershipRole === "viewer") throw invalidGrant();
-      if (!grant.agentId) { if(museAgentConnection)throw invalidGrant(); return { type: "none", source: "mcp_oauth", companyId: grant.companyId }; }
-      const [agent] = await queryDb.select().from(agents).where(and(eq(agents.id, grant.agentId), eq(agents.companyId, grant.companyId)));
+      if (!grant.agentId) { if(museAgentConnection)throw invalidGrant(); return { type: "none", source: "mcp_oauth", spaceId: grant.spaceId }; }
+      const [agent] = await queryDb.select().from(agents).where(and(eq(agents.id, grant.agentId), eq(agents.spaceId, grant.spaceId)));
       // Paused Dot connections retain only the broker's fence inbox and ack
       // authority. Each task/tool method independently rejects paused agents.
       if (!agent || ["terminated", "pending_approval"].includes(agent.status)) throw invalidGrant();
       if (museAgentConnection) {
         if(!grant.scopes.includes("offline_access"))throw invalidGrant();
         const [binding] = await queryDb.select().from(museAgentBindings).where(and(
-          eq(museAgentBindings.grantId, grant.id), eq(museAgentBindings.companyId, grant.companyId),
+          eq(museAgentBindings.grantId, grant.id), eq(museAgentBindings.spaceId, grant.spaceId),
           eq(museAgentBindings.agentId, agent.id), eq(museAgentBindings.operatorId, grant.userId), isNull(museAgentBindings.revokedAt),
         ));
         if (!binding || !binding.workerActivityAt || binding.workerActivityAt.getTime() + refreshLifetime <= Date.now()) throw invalidGrant();
         await assertMuseCurrentAuthority(queryDb, binding, true, true);
       }
-      return { type: "agent", source: "mcp_oauth", agentId: agent.id, companyId: grant.companyId };
+      return { type: "agent", source: "mcp_oauth", agentId: agent.id, spaceId: grant.spaceId };
     }
     if (grant.purpose !== "personal") throw invalidGrant();
     return {
-      type: "board", source: "mcp_oauth", userId: grant.userId,
+      type: "operator", source: "mcp_oauth", userId: grant.userId,
       userName: access.user.name, userEmail: access.user.email,
-      // Even instance administrators get only the explicitly consented company.
-      companyIds: [grant.companyId], memberships: [membership], isInstanceAdmin: false,
+      // Even instance administrators get only the explicitly consented space.
+      spaceIds: [grant.spaceId], memberships: [membership], isInstanceAdmin: false,
     };
   }
 
@@ -248,36 +248,36 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
     }
   }
 
-  async function consentContext(actor: Request["actor"], requestedCompanyId: string | null) {
-    const signedIn = actor.type === "board" && !!actor.userId && ["session", "cloud_tenant"].includes(actor.source ?? "");
-    const access = signedIn ? await boardAuth.resolveBoardAccess(actor.userId!) : null;
-    const available = access?.user && access.companyIds.length ? await db.select({ id: companies.id, name: companies.name, status: companies.status, logoAssetId: companyLogos.assetId })
-      .from(companies).leftJoin(companyLogos, eq(companyLogos.companyId, companies.id)).where(inArray(companies.id, access.companyIds)) : [];
-    return { requiresSignIn: !access?.user, companies: available.flatMap((company) => {
-      if (requestedCompanyId && company.id !== requestedCompanyId) return [];
-      const membership = access?.memberships.find((m) => m.companyId === company.id);
-      return membership?.status === "active" && company.status !== "archived"
-        ? [{ id: company.id, name: company.name, logoUrl: company.logoAssetId ? `/api/assets/${company.logoAssetId}/content` : null, canWrite: membership.membershipRole !== "viewer" }] : [];
+  async function consentContext(actor: Request["actor"], requestedSpaceId: string | null) {
+    const signedIn = actor.type === "operator" && !!actor.userId && ["session", "cloud_tenant"].includes(actor.source ?? "");
+    const access = signedIn ? await operatorAuth.resolveBoardAccess(actor.userId!) : null;
+    const available = access?.user && access.spaceIds.length ? await db.select({ id: spaces.id, name: spaces.name, status: spaces.status, logoAssetId: spaceLogos.assetId })
+      .from(spaces).leftJoin(spaceLogos, eq(spaceLogos.spaceId, spaces.id)).where(inArray(spaces.id, access.spaceIds)) : [];
+    return { requiresSignIn: !access?.user, spaces: available.flatMap((space) => {
+      if (requestedSpaceId && space.id !== requestedSpaceId) return [];
+      const membership = access?.memberships.find((m) => m.spaceId === space.id);
+      return membership?.status === "active" && space.status !== "archived"
+        ? [{ id: space.id, name: space.name, logoUrl: space.logoAssetId ? `/api/assets/${space.logoAssetId}/content` : null, canWrite: membership.membershipRole !== "viewer" }] : [];
     }) };
   }
 
-  async function approveGrant(tx: Db, actor: Request["actor"], request: { requestedCompanyId: string | null; clientId: string; resource: string; scopes: string[] }, input: { companyId?: string; allowWrites: boolean; allowConfiguration?: boolean }) {
-    if (actor.type !== "board" || !actor.userId || !["session", "cloud_tenant"].includes(actor.source ?? "")) throw new McpOAuthError("access_denied", "Sign in to approve an assistant connection.", 401);
-    const access = await boardAuthService(tx).resolveBoardAccess(actor.userId);
-    const membership = access.memberships.find(m => m.companyId === input.companyId && m.status === "active");
-    if (!access.user || !membership || (request.requestedCompanyId && request.requestedCompanyId !== input.companyId)) throw new McpOAuthError("access_denied", "Choose an available organization for this request.", 403);
-    const [company] = await tx.select({ status: companies.status }).from(companies).where(eq(companies.id, input.companyId!));
-    if (!company || company.status === "archived") throw new McpOAuthError("access_denied", "This organization is no longer available.", 403);
+  async function approveGrant(tx: Db, actor: Request["actor"], request: { requestedSpaceId: string | null; clientId: string; resource: string; scopes: string[] }, input: { spaceId?: string; allowWrites: boolean; allowConfiguration?: boolean }) {
+    if (actor.type !== "operator" || !actor.userId || !["session", "cloud_tenant"].includes(actor.source ?? "")) throw new McpOAuthError("access_denied", "Sign in to approve an assistant connection.", 401);
+    const access = await operatorAuthService(tx).resolveBoardAccess(actor.userId);
+    const membership = access.memberships.find(m => m.spaceId === input.spaceId && m.status === "active");
+    if (!access.user || !membership || (request.requestedSpaceId && request.requestedSpaceId !== input.spaceId)) throw new McpOAuthError("access_denied", "Choose an available organization for this request.", 403);
+    const [space] = await tx.select({ status: spaces.status }).from(spaces).where(eq(spaces.id, input.spaceId!));
+    if (!space || space.status === "archived") throw new McpOAuthError("access_denied", "This organization is no longer available.", 403);
     if (request.resource !== config.resource) throw invalidGrant();
     if (agentConnection && membership.membershipRole === "viewer") throw new McpOAuthError("access_denied", "Dot agent connections require an operator role.", 403);
     if ((input.allowWrites || input.allowConfiguration) && membership.membershipRole === "viewer") throw new McpOAuthError("access_denied", "Viewer access is read-only.", 403);
-    const scopes = request.scopes.filter(s => (s !== "paperclip:write" || input.allowWrites)
-      && (s !== "paperclip:configure" || input.allowConfiguration === true));
+    const scopes = request.scopes.filter(s => (s !== "outpost:write" || input.allowWrites)
+      && (s !== "outpost:configure" || input.allowConfiguration === true));
     const grantId=randomUUID();
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpIngressHandoffs);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.mcpRevocationIndex, grantId);
-    const [grant] = await tx.insert(mcpOauthGrants).values({ id:grantId, companyId: input.companyId!, userId: actor.userId, clientId: request.clientId, resource: request.resource, scopes, purpose: agentConnection ? "agent" : "personal" }).returning();
-    await tx.insert(activityLog).values({ companyId: grant!.companyId, actorType: "user", actorId: actor.userId,
+    const [grant] = await tx.insert(mcpOauthGrants).values({ id:grantId, spaceId: input.spaceId!, userId: actor.userId, clientId: request.clientId, resource: request.resource, scopes, purpose: agentConnection ? "agent" : "personal" }).returning();
+    await tx.insert(activityLog).values({ spaceId: grant!.spaceId, actorType: "user", actorId: actor.userId,
       action: "mcp.connection_authorized", entityType: "mcp_connection", entityId: grant!.id, details: { clientId: grant!.clientId, scopes } });
     return grant!;
   }
@@ -321,10 +321,10 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
       eq(dotAgentBindings.pairingCodeHash, hashMcpSecret(pairingCode)), isNull(dotAgentBindings.revokedAt),
     )).for("update");
     if (!binding || !await externalBotEnabled(queryDb, binding.providerKind) || binding.status !== "pairing" || binding.grantId || !binding.pairingExpiresAt || binding.pairingExpiresAt <= new Date()) throw invalidGrant();
-    if (request.requestedCompanyId && request.requestedCompanyId !== binding.companyId) throw invalidGrant();
-    const [agent] = await queryDb.select().from(agents).where(and(eq(agents.id, binding.agentId), eq(agents.companyId, binding.companyId))).for("update");
+    if (request.requestedSpaceId && request.requestedSpaceId !== binding.spaceId) throw invalidGrant();
+    const [agent] = await queryDb.select().from(agents).where(and(eq(agents.id, binding.agentId), eq(agents.spaceId, binding.spaceId))).for("update");
     if (!agent || agent.adapterType !== "outpost_runner" || agent.adapterConfig.provider !== binding.providerKind || !canConfigureAgentConnection(agent)) throw invalidGrant();
-    if (binding.providerKind === "grok_bot") await authorizeExternalBotOperator(queryDb, binding.companyId, binding.operatorId);
+    if (binding.providerKind === "grok_bot") await authorizeExternalBotOperator(queryDb, binding.spaceId, binding.operatorId);
     return { request, binding, agent };
   }
 
@@ -332,9 +332,9 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
   async function revokeGrantTransaction<T>(grant:typeof mcpOauthGrants.$inferSelect,operation:(tx:Db)=>Promise<T>) {
     const [candidate]=grant.purpose==="agent"&&grant.agentId
       ? await db.select().from(museAgentBindings).where(and(eq(museAgentBindings.grantId,grant.id),
-          eq(museAgentBindings.companyId,grant.companyId),eq(museAgentBindings.agentId,grant.agentId),eq(museAgentBindings.operatorId,grant.userId))) : [];
+          eq(museAgentBindings.spaceId,grant.spaceId),eq(museAgentBindings.agentId,grant.agentId),eq(museAgentBindings.operatorId,grant.userId))) : [];
     if(!candidate)return db.transaction(tx=>operation(tx as unknown as Db));
-    return db.transaction(tx=>withExternalAdmissionGuard(tx,candidate.companyId,candidate.agentId,async()=>{
+    return db.transaction(tx=>withExternalAdmissionGuard(tx,candidate.spaceId,candidate.agentId,async()=>{
       await tx.select({id:museAgentBindings.id}).from(museAgentBindings).where(and(eq(museAgentBindings.id,candidate.id),eq(museAgentBindings.grantId,grant.id))).for("update");
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.museMaintenance, "*");
       return operation(tx as unknown as Db);
@@ -351,7 +351,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
     const [candidate]=await db.select().from(museAgentBindings).where(and(eq(museAgentBindings.grantId,source.grantId),isNull(museAgentBindings.revokedAt)));
     if(candidate)observeMuseCodeBinding(observation,candidate);
     if(!candidate){decideMuseCodeExchange(observation,["binding_unavailable"]);throw invalidGrant();}
-    return db.transaction(tx=>withExternalAdmissionGuard(tx,candidate.companyId,candidate.agentId,async()=>{
+    return db.transaction(tx=>withExternalAdmissionGuard(tx,candidate.spaceId,candidate.agentId,async()=>{
       const [binding]=await tx.select().from(museAgentBindings).where(and(eq(museAgentBindings.id,candidate.id),
         eq(museAgentBindings.grantId,source.grantId!),eq(museAgentBindings.generation,candidate.generation),isNull(museAgentBindings.revokedAt))).for("update");
       if(!binding){decideMuseCodeExchange(observation,["binding_unavailable"]);throw invalidGrant();}
@@ -407,13 +407,13 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
 
   async function authenticateToken(token: string, museStopControl = false): Promise<McpPrincipal & { accessTokenId: string }> {
       if(!museAgentConnection||!museStopControl)await assertEnabled();
-      const [row] = await db.select({ token: mcpOauthTokens, grant: mcpOauthGrants, company: { id: companies.id, name: companies.name, issuePrefix: companies.issuePrefix, status: companies.status } })
+      const [row] = await db.select({ token: mcpOauthTokens, grant: mcpOauthGrants, space: { id: spaces.id, name: spaces.name, issuePrefix: spaces.issuePrefix, status: spaces.status } })
         .from(mcpOauthTokens).innerJoin(mcpOauthGrants, eq(mcpOauthTokens.grantId, mcpOauthGrants.id))
-        .innerJoin(companies, eq(companies.id, mcpOauthGrants.companyId))
+        .innerJoin(spaces, eq(spaces.id, mcpOauthGrants.spaceId))
         .where(and(eq(mcpOauthTokens.tokenHash, hashMcpSecret(token)), eq(mcpOauthTokens.kind, "access"),
           gt(mcpOauthTokens.expiresAt, new Date()), isNull(mcpOauthGrants.revokedAt)));
       if (!row) throw new McpOAuthError("invalid_token", "Connect Outpost again.", 401);
-      try { return { grant: row.grant, company: row.company, actor: await actorForGrant(row.grant), accessTokenId: row.token.id }; }
+      try { return { grant: row.grant, space: row.space, actor: await actorForGrant(row.grant), accessTokenId: row.token.id }; }
       catch (error) { if (museAgentConnection && !(error instanceof McpOAuthError) && !(error instanceof HttpError && [401,403,404,410].includes(error.status))) throw error; throw new McpOAuthError("invalid_token", "Outpost access is no longer available.", 401); }
   }
 
@@ -432,7 +432,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
     async deviceAuthorize(input: unknown, source = "unknown", context?:McpDeviceMintContext) {
       if (museAgentConnection) throw new McpOAuthError("unsupported_grant_type", "Muse requires public-client PKCE authorization.");
       await assertEnabled();
-      const p = z.object({ client_id: z.string().min(1).max(2048), resource: z.literal(config.resource), scope: z.string().max(200).default(requiredScope), company_id: z.uuid().optional() }).safeParse(input);
+      const p = z.object({ client_id: z.string().min(1).max(2048), resource: z.literal(config.resource), scope: z.string().max(200).default(requiredScope), space_id: z.uuid().optional() }).safeParse(input);
       if (!p.success) throw new McpOAuthError("invalid_request", "Supply a registered client and the exact Outpost resource.");
       const scopes = [...new Set(p.data.scope.split(/\s+/).filter(Boolean))];
       if (!scopes.includes(requiredScope) || scopes.some(s => !(scopesSupported as readonly string[]).includes(s))) throw new McpOAuthError("invalid_scope", "Unsupported Outpost scope.");
@@ -456,7 +456,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
         if (!count || count.total >= 1000 || count.source >= 10) throw new McpOAuthError("temporarily_unavailable", "Too many device connection attempts. Try again later.", 429);
         await retainMetadataClient(tx as unknown as Db, client, source);
         await tx.insert(mcpOauthDeviceRequests).values({ clientId: client.id, ingressOwner:mintAuthority?"cloud":"tenant",deviceCodeHash: hashMcpSecret(deviceCode), userCodeHash: deviceHash(userCode),
-          resource: config.resource, scopes, requestedCompanyId: p.data.company_id ?? null, sourceHash, expiresAt: new Date(now.getTime() + 10 * minute) });
+          resource: config.resource, scopes, requestedSpaceId: p.data.space_id ?? null, sourceHash, expiresAt: new Date(now.getTime() + 10 * minute) });
       });
       return { device_code: deviceCode, user_code: userCode, verification_uri: authorizationOrigin + "/mcp-device", verification_uri_complete: authorizationOrigin + "/mcp-device?user_code=" + userCode, expires_in: 600, interval: 5 };
     },
@@ -467,12 +467,12 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
         .where(and(eq(mcpOauthDeviceRequests.userCodeHash, deviceHash(userCode)), eq(mcpOauthDeviceRequests.status, "pending"), gt(mcpOauthDeviceRequests.expiresAt, new Date())));
       if (!row || row.request.resource !== config.resource) throw new McpOAuthError("invalid_request", "This code is expired, already decided, or invalid. Start a new connection from your assistant.", 404);
       return { agentConnection, id: row.request.id, clientName: row.client.name, redirectOrigin: "", clientOrigin: row.client.id.startsWith("https://") ? new URL(row.client.id).origin : null,
-        requestedConfigure: row.request.scopes.includes("paperclip:configure"), requestedWrite: row.request.scopes.includes("paperclip:write"), offlineAccess: row.request.scopes.includes("offline_access"), requestedCompanyId: row.request.requestedCompanyId,
-        setupUrl: null, ...await consentContext(actor, row.request.requestedCompanyId) };
+        requestedConfigure: row.request.scopes.includes("outpost:configure"), requestedWrite: row.request.scopes.includes("outpost:write"), offlineAccess: row.request.scopes.includes("offline_access"), requestedSpaceId: row.request.requestedSpaceId,
+        setupUrl: null, ...await consentContext(actor, row.request.requestedSpaceId) };
     },
-    async consentDevice(userCode: string, actor: Request["actor"], input: { decision: "approve" | "deny"; companyId?: string; allowWrites: boolean; allowConfiguration?: boolean }) {
+    async consentDevice(userCode: string, actor: Request["actor"], input: { decision: "approve" | "deny"; spaceId?: string; allowWrites: boolean; allowConfiguration?: boolean }) {
       await assertEnabled();
-      if (actor.type !== "board" || !actor.userId || !["session", "cloud_tenant"].includes(actor.source ?? "")) throw new McpOAuthError("access_denied", "Sign in to approve a connection.", 401);
+      if (actor.type !== "operator" || !actor.userId || !["session", "cloud_tenant"].includes(actor.source ?? "")) throw new McpOAuthError("access_denied", "Sign in to approve a connection.", 401);
       return db.transaction(async tx => {
         await tx.execute(sql`SELECT pg_advisory_xact_lock(736721042)`);
         const [row] = await tx.select().from(mcpOauthDeviceRequests).where(eq(mcpOauthDeviceRequests.userCodeHash, deviceHash(userCode))).for("update");
@@ -521,22 +521,22 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
         if (!p.pairing_ticket) throw new McpOAuthError("invalid_request", "A one-use Muse pairing ticket is required.");
         const [candidate] = await db.select().from(museAgentBindings).where(eq(museAgentBindings.ticketHash, hashMcpSecret(p.pairing_ticket)));
         if (!candidate) throw invalidGrant();
-        return db.transaction(tx => withExternalAdmissionGuard(tx, candidate.companyId, candidate.agentId, async () => {
+        return db.transaction(tx => withExternalAdmissionGuard(tx, candidate.spaceId, candidate.agentId, async () => {
           const [binding] = await tx.select().from(museAgentBindings).where(and(eq(museAgentBindings.id, candidate.id),
             eq(museAgentBindings.ticketHash, hashMcpSecret(p.pairing_ticket!)), eq(museAgentBindings.status, "pairing"),
             isNull(museAgentBindings.grantId), isNull(museAgentBindings.revokedAt), gt(museAgentBindings.ticketExpiresAt, new Date()))).for("update");
-          if (!binding || (p.company_id && p.company_id !== binding.companyId)) throw invalidGrant();
+          if (!binding || (p.space_id && p.space_id !== binding.spaceId)) throw invalidGrant();
           await assertMuseCurrentAuthority(tx, binding, true);
           const now = new Date(), code = secret("pcmcp_code_");
-          const [grant] = await tx.insert(mcpOauthGrants).values({ companyId: binding.companyId, agentId: binding.agentId,
+          const [grant] = await tx.insert(mcpOauthGrants).values({ spaceId: binding.spaceId, agentId: binding.agentId,
             userId: binding.operatorId, clientId: client.id, resource: config.resource, scopes, purpose: "agent" }).returning();
           await tx.insert(mcpOauthRequests).values({ id, clientId: client.id, redirectUri: p.redirect_uri, resource: config.resource,
-            scopes, requestedCompanyId: binding.companyId, state: p.state ?? null, challenge: p.code_challenge,
+            scopes, requestedSpaceId: binding.spaceId, state: p.state ?? null, challenge: p.code_challenge,
             grantId: grant.id, codeHash: hashMcpSecret(code), decidedAt: now, expiresAt: new Date(now.getTime() + minute) });
           await notifyDeliveryWork(tx, DELIVERY_QUEUES.museMaintenance, "*");
           await tx.update(museAgentBindings).set({ grantId: grant.id, status: "connected", pairedAt: now, workerActivityAt: now,
             ticketHash: null, ticketExpiresAt: null, clientVersion: null, revision: binding.revision + 1, updatedAt: now }).where(eq(museAgentBindings.id, binding.id));
-          await logActivity(tx as unknown as Db, { companyId: binding.companyId, actorType: "user", actorId: binding.operatorId,
+          await logActivity(tx as unknown as Db, { spaceId: binding.spaceId, actorType: "user", actorId: binding.operatorId,
             action: "muse.paired", entityType: "agent", entityId: binding.agentId,
             details: { bindingId: binding.id, generation: binding.generation, grantId: grant.id, via: "oauth_pkce_ticket" } });
           const redirect = new URL(p.redirect_uri); redirect.searchParams.set("iss", issuer);
@@ -557,7 +557,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
         await retainMetadataClient(tx as unknown as Db, client, source);
         await tx.insert(mcpOauthRequests).values({
           id, clientId: client.id, redirectUri: p.redirect_uri, resource: p.resource, scopes,
-          requestedCompanyId: p.company_id ?? null,
+          requestedSpaceId: p.space_id ?? null,
           state: p.state ?? null, challenge: p.code_challenge, expiresAt: new Date(now.getTime() + 10 * minute),
         });
       });
@@ -572,21 +572,21 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
       return {
         agentConnection, id, clientName: row.client.name, redirectOrigin: new URL(row.request.redirectUri).origin,
         clientOrigin: row.client.id.startsWith("https://") ? new URL(row.client.id).origin : null,
-        requestedConfigure: row.request.scopes.includes("paperclip:configure"), requestedWrite: row.request.scopes.includes("paperclip:write"), offlineAccess: row.request.scopes.includes("offline_access"),
-        requestedCompanyId: row.request.requestedCompanyId,
-        ...await consentContext(actor, row.request.requestedCompanyId), setupUrl,
+        requestedConfigure: row.request.scopes.includes("outpost:configure"), requestedWrite: row.request.scopes.includes("outpost:write"), offlineAccess: row.request.scopes.includes("offline_access"),
+        requestedSpaceId: row.request.requestedSpaceId,
+        ...await consentContext(actor, row.request.requestedSpaceId), setupUrl,
       };
     },
-    async consent(id: string, actor: Request["actor"], input: { decision: "approve" | "deny"; companyId?: string; allowWrites: boolean; allowConfiguration?: boolean }) {
+    async consent(id: string, actor: Request["actor"], input: { decision: "approve" | "deny"; spaceId?: string; allowWrites: boolean; allowConfiguration?: boolean }) {
       if (museAgentConnection) throw new McpOAuthError("access_denied", "Muse uses an operator-authorized pairing ticket, not personal MCP consent.");
       await assertEnabled();
-      if (actor.type !== "board" || !actor.userId || !["session", "cloud_tenant"].includes(actor.source ?? "")) {
+      if (actor.type !== "operator" || !actor.userId || !["session", "cloud_tenant"].includes(actor.source ?? "")) {
         throw new McpOAuthError("access_denied", "Sign in to approve an assistant connection.", 401);
       }
-      const access = await boardAuth.resolveBoardAccess(actor.userId);
-      const membership = access.memberships.find((m) => m.companyId === input.companyId && m.status === "active");
+      const access = await operatorAuth.resolveBoardAccess(actor.userId);
+      const membership = access.memberships.find((m) => m.spaceId === input.spaceId && m.status === "active");
       if (!access.user || (input.decision === "approve" && !membership)) {
-        throw new McpOAuthError("access_denied", "Choose a company you belong to.", 403);
+        throw new McpOAuthError("access_denied", "Choose a space you belong to.", 403);
       }
       const result = await db.transaction(async (tx) => {
         const [row] = await tx.select().from(mcpOauthRequests).where(eq(mcpOauthRequests.id, id)).for("update");
@@ -599,7 +599,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
           redirect.searchParams.set("error", "access_denied");
           return { redirectUrl: redirect.toString(), grant: null };
         }
-        if (row.requestedCompanyId && input.companyId !== row.requestedCompanyId) {
+        if (row.requestedSpaceId && input.spaceId !== row.requestedSpaceId) {
           throw new McpOAuthError("access_denied", "This request is for a different organization. Start a new connection to change organizations.", 403);
         }
         const grant = await approveGrant(tx as unknown as Db, actor, row, input);
@@ -615,19 +615,19 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
     async describeDotPairing(id: string, pairingCode: string): Promise<McpDotPairingPreview> {
       return db.transaction(async tx => {
         const { binding, agent } = await dotPairingContext(tx as unknown as Db, id, pairingCode);
-        const access = await boardAuthService(tx as unknown as Db).resolveBoardAccess(binding.operatorId);
-        const membership = access.memberships.find(m => m.companyId === binding.companyId && m.status === "active");
-        const [company] = await tx.select().from(companies).where(eq(companies.id, binding.companyId));
-        if (!access.user || !membership || membership.membershipRole === "viewer" || !company || company.status === "archived") throw invalidGrant();
+        const access = await operatorAuthService(tx as unknown as Db).resolveBoardAccess(binding.operatorId);
+        const membership = access.memberships.find(m => m.spaceId === binding.spaceId && m.status === "active");
+        const [space] = await tx.select().from(spaces).where(eq(spaces.id, binding.spaceId));
+        if (!access.user || !membership || membership.membershipRole === "viewer" || !space || space.status === "archived") throw invalidGrant();
         return { providerKind: binding.providerKind, authorizingPerson: access.user.name,
-          company: { id: company.id, name: company.name }, agent: { id: agent.id, name: agent.name },
-          permissions: binding.providerKind === "grok_bot" ? "Work as this agent: find and create permitted tasks, claim admitted work sessions, report progress, ask questions, save documents and deliverables, and submit completion for normal review. Execution requires a current task-bound session. No board account or other-company access. Grok plugins are account-wide; linking this Bot does not isolate credentials from other Bots on your Grok account. Grok retains its own connected apps. Usage and spending are not reported." : "Start and accept work as this agent, coordinate permitted tasks and people, read assigned skills, and use assigned app tools. Reading assigned task attachment contents sends those contents to OpenAI and requires the agent’s separate attachment setting. Workspace files and sandboxed commands require the agent’s separate workspace setting. No board account or other-company access.",
+          space: { id: space.id, name: space.name }, agent: { id: agent.id, name: agent.name },
+          permissions: binding.providerKind === "grok_bot" ? "Work as this agent: find and create permitted tasks, claim admitted work sessions, report progress, ask questions, save documents and deliverables, and submit completion for normal review. Execution requires a current task-bound session. No operator account or other-space access. Grok plugins are account-wide; linking this Bot does not isolate credentials from other Bots on your Grok account. Grok retains its own connected apps. Usage and spending are not reported." : "Start and accept work as this agent, coordinate permitted tasks and people, read assigned skills, and use assigned app tools. Reading assigned task attachment contents sends those contents to OpenAI and requires the agent’s separate attachment setting. Workspace files and sandboxed commands require the agent’s separate workspace setting. No operator account or other-space access.",
           accessDuration: "Ongoing until revoked. This connection does not expire from inactivity.",
           pairingExpiresAt: binding.pairingExpiresAt!.toISOString() };
       });
     },
     // Pair Dot records the operator's approval in an expiring capability. It
-    // conveys only agent access, never a board session or personal MCP access.
+    // conveys only agent access, never a operator session or personal MCP access.
     async consentDotPairing(id: string, pairingCode: string) {
       await assertEnabled();
       if (!dotAgentConnection) throw new McpOAuthError("access_denied", "Use the dedicated Dot agent connection.", 403);
@@ -635,14 +635,14 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
       return db.transaction(async tx => {
         const { request, binding, agent } = await dotPairingContext(tx as unknown as Db, id, pairingCode);
         const grant = await approveGrant(tx as unknown as Db,
-          { type: "board", source: "session", userId: binding.operatorId }, request,
-          { companyId: binding.companyId, allowWrites: false, allowConfiguration: false });
+          { type: "operator", source: "session", userId: binding.operatorId }, request,
+          { spaceId: binding.spaceId, allowWrites: false, allowConfiguration: false });
         await tx.update(mcpOauthGrants).set({ agentId: binding.agentId }).where(eq(mcpOauthGrants.id, grant.id));
         await tx.update(dotAgentBindings).set({ grantId: grant.id, status: "connected", pairingCodeHash: null,
           pairingExpiresAt: null, updatedAt: new Date() }).where(eq(dotAgentBindings.id, binding.id));
         await updateAgentConfigurationInTransaction(tx as unknown as Db, agent.id, { adapterConfig: { ...agent.adapterConfig, [binding.providerKind === "grok_bot" ? "externalBindingId" : "dotBindingId"]: binding.id } },
           { recordRevision: { createdByUserId: binding.operatorId, source: "dot-pairing" } });
-        await logActivity(tx as unknown as Db, { companyId: binding.companyId, actorType: "user", actorId: binding.operatorId,
+        await logActivity(tx as unknown as Db, { spaceId: binding.spaceId, actorType: "user", actorId: binding.operatorId,
           action: "dot.paired", entityType: "agent", entityId: binding.agentId,
           details: { bindingId: binding.id, generation: binding.generation, via: "oauth_pairing_code" } });
         const code = secret("pcmcp_code_");
@@ -689,7 +689,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
             await tx.update(mcpOauthGrants).set({ revokedAt: new Date() }).where(eq(mcpOauthGrants.id, grant.id));
             revokedGrant = grant;
             await tx.insert(activityLog).values({
-              companyId: grant.companyId, actorType: "system", actorId: "mcp_oauth",
+              spaceId: grant.spaceId, actorType: "system", actorId: "mcp_oauth",
               action: "mcp.connection_revoked", entityType: "mcp_connection", entityId: grant.id,
               details: { clientId: grant.clientId, reason: "refresh_token_replay" },
             });
@@ -713,8 +713,8 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
     },
     async authorizeGrant(grantId: string, queryDb: Db = db): Promise<McpPrincipal> {
       await assertEnabled(queryDb);
-      const [row] = await queryDb.select({ grant: mcpOauthGrants, company: { id: companies.id, name: companies.name, issuePrefix: companies.issuePrefix, status: companies.status } })
-        .from(mcpOauthGrants).innerJoin(companies, eq(mcpOauthGrants.companyId, companies.id))
+      const [row] = await queryDb.select({ grant: mcpOauthGrants, space: { id: spaces.id, name: spaces.name, issuePrefix: spaces.issuePrefix, status: spaces.status } })
+        .from(mcpOauthGrants).innerJoin(spaces, eq(mcpOauthGrants.spaceId, spaces.id))
         .where(eq(mcpOauthGrants.id, grantId));
       if (!row || !row.grant.scopes.includes(requiredScope)) throw invalidGrant();
       return { ...row, actor: await actorForGrant(row.grant, queryDb) };
@@ -728,7 +728,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
     },
     async authenticate(token: string): Promise<McpPrincipal> {
       const principal = await authenticateAccess(token);
-      return { grant: principal.grant, company: principal.company, actor: principal.actor };
+      return { grant: principal.grant, space: principal.space, actor: principal.actor };
     },
     async revokeToken(token: string, clientId: string) {
       const [candidate]=await db.select({grant:mcpOauthGrants}).from(mcpOauthTokens).innerJoin(mcpOauthGrants,eq(mcpOauthGrants.id,mcpOauthTokens.grantId))
@@ -739,20 +739,20 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
           .where(and(eq(mcpOauthTokens.tokenHash,hashMcpSecret(token)),eq(mcpOauthGrants.clientId,clientId),eq(mcpOauthGrants.resource,config.resource)));
         if(!row)return;
         const [revoked]=await tx.update(mcpOauthGrants).set({revokedAt:new Date()}).where(and(eq(mcpOauthGrants.id,row.grant.id),isNull(mcpOauthGrants.revokedAt))).returning();
-        if(revoked)await tx.insert(activityLog).values({companyId:revoked.companyId,actorType:"user",actorId:revoked.userId,action:"mcp.connection_revoked",entityType:"mcp_connection",entityId:revoked.id,details:{clientId,reason:"oauth_revocation"}});
+        if(revoked)await tx.insert(activityLog).values({spaceId:revoked.spaceId,actorType:"user",actorId:revoked.userId,action:"mcp.connection_revoked",entityType:"mcp_connection",entityId:revoked.id,details:{clientId,reason:"oauth_revocation"}});
         return row.grant;
       });
       await fenceAgentGrant(grant);
     },
     async listConnections(userId: string) {
-      const rows = await db.select({ grant: mcpOauthGrants, clientName: mcpOauthClients.name, companyName: companies.name, companyPrefix: companies.issuePrefix, userName: authUsers.name, userImage: authUsers.image, agent: { id: agents.id, name: agents.name, config: agents.adapterConfig } })
+      const rows = await db.select({ grant: mcpOauthGrants, clientName: mcpOauthClients.name, spaceName: spaces.name, spacePrefix: spaces.issuePrefix, userName: authUsers.name, userImage: authUsers.image, agent: { id: agents.id, name: agents.name, config: agents.adapterConfig } })
         .from(mcpOauthGrants).innerJoin(mcpOauthClients, eq(mcpOauthGrants.clientId, mcpOauthClients.id))
-        .innerJoin(companies, eq(companies.id, mcpOauthGrants.companyId))
+        .innerJoin(spaces, eq(spaces.id, mcpOauthGrants.spaceId))
         .leftJoin(authUsers, eq(authUsers.id, mcpOauthGrants.userId))
-        .leftJoin(agents, and(eq(agents.id, mcpOauthGrants.agentId), eq(agents.companyId, mcpOauthGrants.companyId)))
+        .leftJoin(agents, and(eq(agents.id, mcpOauthGrants.agentId), eq(agents.spaceId, mcpOauthGrants.spaceId)))
         .where(eq(mcpOauthGrants.userId, userId));
-      return rows.map(({ grant, clientName, companyName, companyPrefix, userName, userImage, agent }) => ({
-        id: grant.id, companyId: grant.companyId, clientName, companyName, companyPrefix,
+      return rows.map(({ grant, clientName, spaceName, spacePrefix, userName, userImage, agent }) => ({
+        id: grant.id, spaceId: grant.spaceId, clientName, spaceName, spacePrefix,
         agent: agent ? { id: agent.id, name: agent.name, provider: String(agent.config.provider ?? "") } : null,
         user: userName === null ? null : { name: userName, image: userImage }, scopes: grant.scopes,
         createdAt: grant.createdAt.toISOString(), revokedAt: grant.revokedAt?.toISOString() ?? null,
@@ -765,7 +765,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig, options: {
         const [revoked]=await tx.update(mcpOauthGrants).set({revokedAt:new Date()}).where(and(eq(mcpOauthGrants.id,id),eq(mcpOauthGrants.userId,userId),isNull(mcpOauthGrants.revokedAt))).returning();return revoked;
       });
       await fenceAgentGrant(grant);
-      if(grant)await logActivity(db,{companyId:grant.companyId,actorType:"user",actorId:userId,action:"mcp.connection_revoked",entityType:"mcp_connection",entityId:grant.id,details:{clientId:grant.clientId}});
+      if(grant)await logActivity(db,{spaceId:grant.spaceId,actorType:"user",actorId:userId,action:"mcp.connection_revoked",entityType:"mcp_connection",entityId:grant.id,details:{clientId:grant.clientId}});
     },
   };
 }

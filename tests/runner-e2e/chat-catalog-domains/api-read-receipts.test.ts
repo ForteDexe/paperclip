@@ -43,7 +43,7 @@ it("the redactor keeps a dedicated get_task input in plaintext and its result as
 it("binds dedicated task read tools to the record like the call_api input the server builds", () => {
   expect(apiReadStatuses(getTask("task-uuid", 404), apiReadDigests(issueRead))).toEqual([{ operationId: "GET /api/issues/{id}", ok: false, status: 404 }]);
   expect(readRecord(getTask("COM-1", 200), issueRead)).toBe(true);
-  for (const tool of ["paperclip_get_task", "mcp__paperclip__get_task"]) expect(readRecord(getTask("task-uuid", 200, tool), issueRead)).toBe(true);
+  for (const tool of ["outpost_get_task", "mcp__outpost__get_task"]) expect(readRecord(getTask("task-uuid", 200, tool), issueRead)).toBe(true);
   const docs = [{ operationId: "GET /api/issues/{id}/documents/{key}", pathParams: [{ id: "task-uuid", key: "plan" }] }];
   expect(readRecord(savedCall({ taskId: "task-uuid", key: "plan" }, 200, "3", "run-1", {}, "read_task_document", "GET /api/issues/{id}/documents/{key}"), docs)).toBe(true);
 });

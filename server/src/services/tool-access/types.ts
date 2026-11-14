@@ -10,7 +10,7 @@ export type ActorInfo = {
   actorSource?:
     | "local_implicit"
     | "session"
-    | "board_key"
+    | "operator_key"
     | "agent_key"
     | "agent_jwt"
     | "mcp_oauth"

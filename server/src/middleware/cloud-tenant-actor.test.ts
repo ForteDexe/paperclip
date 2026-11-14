@@ -5,8 +5,8 @@ import { and, eq } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import {
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   instanceSettings,
   instanceUserRoles,
   principalPermissionGrants,
@@ -20,13 +20,13 @@ import { readIdleSleepSafety } from "../services/idle-sleep-safety.js";
 // supports the chained call shapes used by resolveCloudTenantActor (values /
 // onConflictDo* / returning().then() / delete().where()), plus the
 // select().from(table).where() reads: instanceSettings for the owner-elevation
-// flag resolution through instanceSettingsService, and companyMemberships for
+// flag resolution through instanceSettingsService, and spaceMemberships for
 // the user's own membership rows (rows configurable via membershipQueryRows,
 // where-conditions captured in selectWheres). The chain is awaitable so
 // directly-awaited statements resolve.
 function createFakeDb(options: {
-  membershipRow?: { companyId: string; membershipRole: string; status: string };
-  membershipQueryRows?: Array<{ companyId: string; membershipRole: string | null; status: string }>;
+  membershipRow?: { spaceId: string; membershipRole: string; status: string };
+  membershipQueryRows?: Array<{ spaceId: string; membershipRole: string | null; status: string }>;
   settingsRow?: Record<string, unknown> | null;
   selectThrows?: boolean;
   beforeWrite?: (table: unknown) => Promise<void>;
@@ -57,7 +57,7 @@ function createFakeDb(options: {
     chain.where = () => chain;
     chain.returning = async () => {
       await options.beforeWrite?.(table);
-      return options.unchangedMembership && table === companyMemberships ? [] : [options.membershipRow ?? values];
+      return options.unchangedMembership && table === spaceMemberships ? [] : [options.membershipRow ?? values];
     };
     chain.then = (resolve: (v: unknown) => unknown, reject?: (error: unknown) => unknown) =>
       Promise.resolve().then(() => options.beforeWrite?.(table)).then(resolve, reject);
@@ -89,7 +89,7 @@ function createFakeDb(options: {
             const rows =
               table === instanceSettings && settingsRow
                 ? [settingsRow]
-                : table === companyMemberships
+                : table === spaceMemberships
                   ? (options.membershipQueryRows ?? [])
                   : [];
             let locked = false;
@@ -97,9 +97,9 @@ function createFakeDb(options: {
               orderBy: () => ({ limit: () => result }),
               for: () => { locked = true; selected.locked = true; return result; },
               then: (resolve: (v: unknown) => unknown, reject?: (error: unknown) => unknown) => {
-                // The optional cross-company read can fail independently of
+                // The optional cross-space read can fail independently of
                 // the primary membership transaction, which must succeed.
-                const query = options.selectThrows && table === companyMemberships && !locked
+                const query = options.selectThrows && table === spaceMemberships && !locked
                   ? Promise.reject(new Error("select unavailable"))
                   : Promise.resolve(rows);
                 return Promise.resolve().then(() => options.beforeRead?.(table)).then(() => query).then(resolve, reject);
@@ -133,11 +133,11 @@ function fakeReq(headers: Record<string, string>): Request {
 }
 
 const VALID_HEADERS = {
-  "x-paperclip-cloud-tenant-token": "test-server-token",
-  "x-paperclip-cloud-user-id": "user-123",
-  "x-paperclip-cloud-user-email": "Owner@Example.com",
-  "x-paperclip-cloud-stack-id": "stack-abc",
-  "x-paperclip-cloud-stack-role": "owner",
+  "x-outpost-cloud-tenant-token": "test-server-token",
+  "x-outpost-cloud-user-id": "user-123",
+  "x-outpost-cloud-user-email": "Owner@Example.com",
+  "x-outpost-cloud-stack-id": "stack-abc",
+  "x-outpost-cloud-stack-role": "owner",
 };
 
 const MANAGED_CONFIG_FLAG_ON = JSON.stringify({
@@ -174,12 +174,12 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
     expect(insertedTables).not.toContain(instanceUserRoles);
   });
 
-  it("stays scoped to exactly the stack's company when the user has no other membership rows", async () => {
+  it("stays scoped to exactly the stack's space when the user has no other membership rows", async () => {
     const { db } = createFakeDb();
     const actor = await resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
-    expect(actor!.companyIds).toHaveLength(1);
+    expect(actor!.spaceIds).toHaveLength(1);
     expect(actor!.memberships).toHaveLength(1);
-    expect(actor?.memberships?.[0]?.companyId).toBe(actor?.companyIds?.[0]);
+    expect(actor?.memberships?.[0]?.spaceId).toBe(actor?.spaceIds?.[0]);
     expect(actor?.memberships?.[0]?.membershipRole).toBe("owner");
     expect(actor!.source).toBe("cloud_tenant");
   });
@@ -211,12 +211,12 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
     expect(deletedTables).toContain(instanceUserRoles);
   });
 
-  it("still upserts the user, company, and membership", async () => {
+  it("still upserts the user, space, and membership", async () => {
     const { db, insertedTables } = createFakeDb();
     await resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
     expect(insertedTables).toContain(authUsers);
-    expect(insertedTables).toContain(companies);
-    expect(insertedTables).toContain(companyMemberships);
+    expect(insertedTables).toContain(spaces);
+    expect(insertedTables).toContain(spaceMemberships);
   });
 
   it.each(["/api/health", "/api/instance/task-drain", "/api/instance/task-drain/status"])("counts unfinished authentication on exempt %s requests", async (path) => {
@@ -247,7 +247,7 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
       finishWrite();
       await accepted;
     }
-    expect(insertedTables).toEqual(expect.arrayContaining([authUsers, companies, companyMemberships]));
+    expect(insertedTables).toEqual(expect.arrayContaining([authUsers, spaces, spaceMemberships]));
     expect(idleWorkSnapshot().active).toBe(0);
     const after = await request(server).get("/api/instance/task-drain").expect(200);
     expect(after.body.backgroundWork).toBe("none");
@@ -269,14 +269,14 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
   it("resyncs an A to B to A context transition inside the debounce window", async () => {
     const { db, insertedTables } = createFakeDb();
     const contextA = VALID_HEADERS;
-    const contextB = { ...VALID_HEADERS, "x-paperclip-cloud-stack-role": "member" };
+    const contextB = { ...VALID_HEADERS, "x-outpost-cloud-stack-role": "member" };
 
     await resolveCloudTenantActor(db, fakeReq(contextA));
     await resolveCloudTenantActor(db, fakeReq(contextB));
     await resolveCloudTenantActor(db, fakeReq(contextA));
 
     expect(insertedTables.filter((table) => table === authUsers)).toHaveLength(3);
-    expect(insertedTables.filter((table) => table === companyMemberships)).toHaveLength(3);
+    expect(insertedTables.filter((table) => table === spaceMemberships)).toHaveLength(3);
   });
 
   it("coalesces concurrent identical syncs while keeping authority reads and stale-admin purges per request", async () => {
@@ -292,11 +292,11 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
     expect(insertedTables.filter(table => table === authUsers)).toHaveLength(1);
     release();
     const actors = await Promise.all(requests);
-    expect(insertedTables.filter(table => table === companyMemberships)).toHaveLength(1);
+    expect(insertedTables.filter(table => table === spaceMemberships)).toHaveLength(1);
     expect(deletedTables.filter(table => table === instanceUserRoles)).toHaveLength(20);
     expect(selectWheres.filter(entry => entry.table === instanceSettings)).toHaveLength(20);
-    expect(selectWheres.filter(entry => entry.table === companyMemberships && !entry.locked)).toHaveLength(20);
-    expect(selectWheres.filter(entry => entry.table === companyMemberships && entry.locked)).toHaveLength(1);
+    expect(selectWheres.filter(entry => entry.table === spaceMemberships && !entry.locked)).toHaveLength(20);
+    expect(selectWheres.filter(entry => entry.table === spaceMemberships && entry.locked)).toHaveLength(1);
     expect(actors.every(actor => actor?.memberships?.[0]?.membershipRole === "owner")).toBe(true);
   });
 
@@ -311,12 +311,12 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
     } });
     const first = resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
     await started;
-    const second = resolveCloudTenantActor(db, fakeReq({ ...VALID_HEADERS, "x-paperclip-cloud-stack-role": "member" }));
+    const second = resolveCloudTenantActor(db, fakeReq({ ...VALID_HEADERS, "x-outpost-cloud-stack-role": "member" }));
     const third = resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
     release();
     const actors = await Promise.all([first, second, third]);
     expect(actors.map(actor => actor?.memberships?.[0]?.membershipRole)).toEqual(["owner", "member", "owner"]);
-    expect(insertedTables.filter(table => table === companyMemberships)).toHaveLength(3);
+    expect(insertedTables.filter(table => table === spaceMemberships)).toHaveLength(3);
   });
 
   it("does not block another user behind a slow user's synchronization", async () => {
@@ -331,7 +331,7 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
     const slow = resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
     await started;
     try {
-      const other = await resolveCloudTenantActor(db, fakeReq({ ...VALID_HEADERS, "x-paperclip-cloud-user-id": "other-user" }));
+      const other = await resolveCloudTenantActor(db, fakeReq({ ...VALID_HEADERS, "x-outpost-cloud-user-id": "other-user" }));
       expect(other?.userId).toBe("other-user");
     } finally {
       release();
@@ -342,53 +342,53 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
   it("does not debounce a failed partial context transition or its repair", async () => {
     let fail = false;
     const { db, insertedTables } = createFakeDb({ beforeWrite: async table => {
-      if (fail && table === companyMemberships) throw new Error("partial sync failed");
+      if (fail && table === spaceMemberships) throw new Error("partial sync failed");
     } });
     await resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
     fail = true;
-    await expect(resolveCloudTenantActor(db, fakeReq({ ...VALID_HEADERS, "x-paperclip-cloud-stack-role": "member" })))
+    await expect(resolveCloudTenantActor(db, fakeReq({ ...VALID_HEADERS, "x-outpost-cloud-stack-role": "member" })))
       .rejects.toThrow("partial sync failed");
     fail = false;
     const repaired = await resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
     expect(repaired?.memberships?.[0]?.membershipRole).toBe("owner");
-    expect(insertedTables.filter(table => table === companyMemberships)).toHaveLength(3);
+    expect(insertedTables.filter(table => table === spaceMemberships)).toHaveLength(3);
   });
 
   it("retries a shared transient failure and completes default grants once", async () => {
     let failed = false;
     const { db, insertedTables } = createFakeDb({ beforeWrite: async table => {
-      if (!failed && table === companyMemberships) {
+      if (!failed && table === spaceMemberships) {
         failed = true;
         throw Object.assign(new Error("synthetic connection loss"), { code: "CONNECTION_CLOSED" });
       }
     } });
     const actors = await Promise.all(Array.from({ length: 10 }, () => resolveCloudTenantActor(db, fakeReq(VALID_HEADERS))));
     expect(actors.every(actor => actor?.memberships?.[0]?.membershipRole === "owner")).toBe(true);
-    expect(insertedTables.filter(table => table === companyMemberships)).toHaveLength(2);
+    expect(insertedTables.filter(table => table === spaceMemberships)).toHaveLength(2);
     expect(insertedTables.filter(table => table === principalPermissionGrants)).toHaveLength(1);
   });
 
   it("keeps default-grant repair and the input role when a guarded upsert returns no row", async () => {
     const { db, insertedTables } = createFakeDb({ unchangedMembership: true });
-    const actor = await resolveCloudTenantActor(db, fakeReq({ ...VALID_HEADERS, "x-paperclip-cloud-stack-role": "member" }));
+    const actor = await resolveCloudTenantActor(db, fakeReq({ ...VALID_HEADERS, "x-outpost-cloud-stack-role": "member" }));
     expect(actor?.memberships?.[0]?.membershipRole).toBe("member");
     expect(insertedTables).toContain(principalPermissionGrants);
   });
 
-  it("does not share completed syncs across databases or companies", async () => {
+  it("does not share completed syncs across databases or spaces", async () => {
     const first = createFakeDb();
     const second = createFakeDb();
     await Promise.all([resolveCloudTenantActor(first.db, fakeReq(VALID_HEADERS)), resolveCloudTenantActor(second.db, fakeReq(VALID_HEADERS))]);
-    await resolveCloudTenantActor(first.db, fakeReq({ ...VALID_HEADERS, "x-paperclip-cloud-stack-id": "stack-other" }));
-    expect(first.insertedTables.filter(table => table === companyMemberships)).toHaveLength(2);
-    expect(second.insertedTables.filter(table => table === companyMemberships)).toHaveLength(1);
+    await resolveCloudTenantActor(first.db, fakeReq({ ...VALID_HEADERS, "x-outpost-cloud-stack-id": "stack-other" }));
+    expect(first.insertedTables.filter(table => table === spaceMemberships)).toHaveLength(2);
+    expect(second.insertedTables.filter(table => table === spaceMemberships)).toHaveLength(1);
   });
 
-  it("resyncs when the requested company name changes", async () => {
+  it("resyncs when the requested space name changes", async () => {
     const { db, insertedTables } = createFakeDb();
-    await resolveCloudTenantActor(db, fakeReq({ ...VALID_HEADERS, "x-paperclip-cloud-paperclip-company-name": "First" }));
-    await resolveCloudTenantActor(db, fakeReq({ ...VALID_HEADERS, "x-paperclip-cloud-paperclip-company-name": "Second" }));
-    expect(insertedTables.filter(table => table === companyMemberships)).toHaveLength(2);
+    await resolveCloudTenantActor(db, fakeReq({ ...VALID_HEADERS, "x-outpost-cloud-outpost-space-name": "First" }));
+    await resolveCloudTenantActor(db, fakeReq({ ...VALID_HEADERS, "x-outpost-cloud-outpost-space-name": "Second" }));
+    expect(insertedTables.filter(table => table === spaceMemberships)).toHaveLength(2);
   });
 
   it("resumes membership and grant repair after the existing five-second debounce expires", async () => {
@@ -398,10 +398,10 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
       const { db, insertedTables } = createFakeDb();
       await resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
       await resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
-      expect(insertedTables.filter(table => table === companyMemberships)).toHaveLength(1);
+      expect(insertedTables.filter(table => table === spaceMemberships)).toHaveLength(1);
       clock.mockReturnValue(now + 5_001);
       await resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
-      expect(insertedTables.filter(table => table === companyMemberships)).toHaveLength(2);
+      expect(insertedTables.filter(table => table === spaceMemberships)).toHaveLength(2);
       expect(insertedTables.filter(table => table === principalPermissionGrants)).toHaveLength(2);
     } finally { clock.mockRestore(); }
   });
@@ -420,21 +420,21 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
     const { db } = createFakeDb();
     const rawHeaders: Record<string, string | string[] | undefined> = {};
     for (const [k, v] of Object.entries(VALID_HEADERS)) rawHeaders[k.toLowerCase()] = v;
-    rawHeaders["x-paperclip-cloud-user-name"] = ["Cloud Owner", "ignored-duplicate"];
+    rawHeaders["x-outpost-cloud-user-name"] = ["Cloud Owner", "ignored-duplicate"];
     const actor = await resolveCloudTenantActor(db, cloudActorHeaderSourceFromHeaders(rawHeaders));
     expect(actor).not.toBeNull();
     expect(actor!.userId).toBe("user-123");
     expect(actor!.userName).toBe("Cloud Owner");
-    expect(actor!.companyIds).toHaveLength(1);
+    expect(actor!.spaceIds).toHaveLength(1);
   });
 
   it("maps a non-owner stack role through to the membership without elevating", async () => {
     const { db } = createFakeDb({
-      membershipRow: { companyId: "company-y", membershipRole: "member", status: "active" },
+      membershipRow: { spaceId: "space-y", membershipRole: "member", status: "active" },
     });
     const actor = await resolveCloudTenantActor(
       db,
-      fakeReq({ ...VALID_HEADERS, "x-paperclip-cloud-stack-role": "member" }),
+      fakeReq({ ...VALID_HEADERS, "x-outpost-cloud-stack-role": "member" }),
     );
     expect(actor!.isInstanceAdmin).toBe(false);
     expect(actor?.memberships?.[0]?.membershipRole).toBe("member");
@@ -446,7 +446,7 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
       const { db, insertedTables } = createFakeDb();
       const actor = await resolveCloudTenantActor(
         db,
-        fakeReq({ ...VALID_HEADERS, "x-paperclip-cloud-stack-role": stackRole }),
+        fakeReq({ ...VALID_HEADERS, "x-outpost-cloud-stack-role": stackRole }),
       );
       expect(actor?.canManageExperimentalSettings).toBe(stackRole === "admin");
       expect(actor?.isInstanceAdmin).toBe(false);
@@ -458,47 +458,47 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
     const { db } = createFakeDb();
     const admin = await resolveCloudTenantActor(
       db,
-      fakeReq({ ...VALID_HEADERS, "x-paperclip-cloud-stack-role": "admin" }),
+      fakeReq({ ...VALID_HEADERS, "x-outpost-cloud-stack-role": "admin" }),
     );
     const member = await resolveCloudTenantActor(
       db,
-      fakeReq({ ...VALID_HEADERS, "x-paperclip-cloud-stack-role": "member" }),
+      fakeReq({ ...VALID_HEADERS, "x-outpost-cloud-stack-role": "member" }),
     );
     expect(admin?.canManageExperimentalSettings).toBe(true);
     expect(member?.canManageExperimentalSettings).toBe(false);
   });
 
-  describe("company membership union", () => {
-    // The primary company id is derived from the stack id; resolve it once
+  describe("space membership union", () => {
+    // The primary space id is derived from the stack id; resolve it once
     // through the same code path instead of duplicating the hash here.
-    async function resolvePrimaryCompanyId() {
+    async function resolvePrimarySpaceId() {
       const { db } = createFakeDb();
       const actor = await resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
-      return actor!.companyIds![0]!;
+      return actor!.spaceIds![0]!;
     }
 
     it("unions the pinned primary with the user's own active membership rows, primary first and deduped", async () => {
-      const primaryCompanyId = await resolvePrimaryCompanyId();
+      const primarySpaceId = await resolvePrimarySpaceId();
       const { db } = createFakeDb({
         membershipQueryRows: [
-          // The user's own row for the primary company comes back from the
+          // The user's own row for the primary space comes back from the
           // query too — it must not appear twice.
-          { companyId: primaryCompanyId, membershipRole: "owner", status: "active" },
-          { companyId: "company-imported", membershipRole: "member", status: "active" },
+          { spaceId: primarySpaceId, membershipRole: "owner", status: "active" },
+          { spaceId: "space-imported", membershipRole: "member", status: "active" },
         ],
       });
       const actor = await resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
-      expect(actor!.companyIds).toEqual([primaryCompanyId, "company-imported"]);
+      expect(actor!.spaceIds).toEqual([primarySpaceId, "space-imported"]);
       expect(actor!.memberships).toEqual([
-        { companyId: primaryCompanyId, membershipRole: "owner", status: "active" },
-        { companyId: "company-imported", membershipRole: "member", status: "active" },
+        { spaceId: primarySpaceId, membershipRole: "owner", status: "active" },
+        { spaceId: "space-imported", membershipRole: "member", status: "active" },
       ]);
     });
 
     it("loads memberships with the session path's exact own-user active-status filter", async () => {
       const { db, selectWheres } = createFakeDb();
       await resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
-      const membershipSelects = selectWheres.filter((entry) => entry.table === companyMemberships);
+      const membershipSelects = selectWheres.filter((entry) => entry.table === spaceMemberships);
       expect(membershipSelects).toHaveLength(2);
       // One read locks the primary membership before its upsert; the other,
       // which runs concurrently, loads the user's active memberships for
@@ -510,18 +510,18 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
       expect(authorizationReads).toHaveLength(1);
       expect(authorizationReads[0]!.condition).toEqual(
         and(
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, "user-123"),
-          eq(companyMemberships.status, "active"),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, "user-123"),
+          eq(spaceMemberships.status, "active"),
         ),
       );
     });
 
-    it("degrades to the primary company when the membership read fails", async () => {
+    it("degrades to the primary space when the membership read fails", async () => {
       const { db } = createFakeDb({ selectThrows: true });
       const actor = await resolveCloudTenantActor(db, fakeReq(VALID_HEADERS));
       expect(actor).not.toBeNull();
-      expect(actor!.companyIds).toHaveLength(1);
+      expect(actor!.spaceIds).toHaveLength(1);
       expect(actor!.memberships).toHaveLength(1);
     });
   });
@@ -552,12 +552,12 @@ describe("resolveCloudTenantActor (shared-pool hardening)", () => {
       "never elevates the %s stack role even with the flag enabled",
       async (stackRole) => {
         const { db } = createFakeDb({
-          membershipRow: { companyId: "company-y", membershipRole: "member", status: "active" },
+          membershipRow: { spaceId: "space-y", membershipRole: "member", status: "active" },
           settingsRow: settingsRowWith({ enableOwnerInstanceAdmin: true }),
         });
         const actor = await resolveCloudTenantActor(
           db,
-          fakeReq({ ...VALID_HEADERS, "x-paperclip-cloud-stack-role": stackRole }),
+          fakeReq({ ...VALID_HEADERS, "x-outpost-cloud-stack-role": stackRole }),
         );
         expect(actor).not.toBeNull();
         expect(actor!.isInstanceAdmin).toBe(false);

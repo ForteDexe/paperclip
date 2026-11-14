@@ -11,8 +11,8 @@ import { describeError } from "../api/errors";
 
 /**
  * Children and blockers of this task that stopped on a recovery action that
- * needs the board (for example, retries exhausted). The task's agent is woken
- * once per stall (`issue_blocker_stalled`); this lets the board see and act on
+ * needs the operator (for example, retries exhausted). The task's agent is woken
+ * once per stall (`issue_blocker_stalled`); this lets the operator see and act on
  * each one from here, with the child's own Retry, without opening it.
  */
 export function StalledDependencyNotice({ stalled }: { stalled: IssueBlockerStalledWakeContext[] | null | undefined }) {
@@ -43,7 +43,7 @@ function StalledDependencyList({ entries }: { entries: IssueBlockerStalledWakeCo
     >
       <div className="flex items-center gap-1.5 font-medium">
         <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        {rows.length === 1 ? "A dependency needs the board" : `${rows.length} dependencies need the board`}
+        {rows.length === 1 ? "A dependency needs the operator" : `${rows.length} dependencies need the operator`}
       </div>
       <ul className="mt-1.5 space-y-1.5">
         {rows.map(({ entry, child }) => <StalledDependencyRow key={entry.recoveryAction.id} entry={entry}

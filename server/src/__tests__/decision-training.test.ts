@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   decisionTrainingExamples,
   executionWorkspaces,
@@ -40,7 +40,7 @@ describeEmbeddedPostgres("decision training", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-decision-training-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-decision-training-");
     db = createDb(tempDb.connectionString);
   }, 30_000);
 
@@ -55,7 +55,7 @@ describeEmbeddedPostgres("decision training", () => {
     await db.delete(projectWorkspaces);
     await db.delete(projects);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -63,7 +63,7 @@ describeEmbeddedPostgres("decision training", () => {
   });
 
   async function seedResolvedInteraction() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const issueId = randomUUID();
     const interactionId = randomUUID();
@@ -72,11 +72,11 @@ describeEmbeddedPostgres("decision training", () => {
     const atCutoffId = randomUUID();
     const afterId = randomUUID();
 
-    await db.insert(companies).values({ id: companyId, name: "Decision Co", issuePrefix: `D${companyId.slice(0, 4)}` });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Decisions" });
+    await db.insert(spaces).values({ id: spaceId, name: "Decision Co", issuePrefix: `D${spaceId.slice(0, 4)}` });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Decisions" });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       identifier: "DEC-1",
       title: "Choose a rollout strategy",
@@ -84,27 +84,27 @@ describeEmbeddedPostgres("decision training", () => {
     });
     await db.insert(issueThreadInteractions).values({
       id: interactionId,
-      companyId,
+      spaceId,
       issueId,
       kind: "request_confirmation",
       status: "accepted",
       payload: { question: "Ship it?" } as never,
       result: { accepted: true } as never,
-      resolvedByUserId: "board-user",
+      resolvedByUserId: "operator-user",
       resolvedAt: cutoffAt,
     });
     await db.insert(issueComments).values([
-      { id: beforeId, companyId, issueId, body: "Before", createdAt: new Date("2026-07-16T11:59:59.000Z") },
-      { id: atCutoffId, companyId, issueId, body: "At cutoff", createdAt: cutoffAt },
-      { id: afterId, companyId, issueId, body: "Leaked later context", createdAt: new Date("2026-07-16T12:00:01.000Z") },
+      { id: beforeId, spaceId, issueId, body: "Before", createdAt: new Date("2026-07-16T11:59:59.000Z") },
+      { id: atCutoffId, spaceId, issueId, body: "At cutoff", createdAt: cutoffAt },
+      { id: afterId, spaceId, issueId, body: "Leaked later context", createdAt: new Date("2026-07-16T12:00:01.000Z") },
     ]);
-    return { companyId, projectId, issueId, interactionId, cutoffAt, beforeId, atCutoffId, afterId };
+    return { spaceId, projectId, issueId, interactionId, cutoffAt, beforeId, atCutoffId, afterId };
   }
 
   it("includes the cutoff boundary and excludes later comments", async () => {
     const seeded = await seedResolvedInteraction();
     const captured = await captureDecisionSnapshot(db, {
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceKind: "interaction",
       sourceId: seeded.interactionId,
       issueId: seeded.issueId,
@@ -129,16 +129,16 @@ describeEmbeddedPostgres("decision training", () => {
     const seeded = await seedResolvedInteraction();
     const svc = decisionTrainingService(db);
     const example = await svc.create({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceKind: "interaction",
       sourceId: seeded.interactionId,
       issueId: seeded.issueId,
       notes: "Keep the decision, not deleted comment content.",
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
 
     await svc.scrubDeletedComments({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       issueId: seeded.issueId,
       commentIds: [seeded.beforeId],
       deletedAt: new Date("2026-07-16T14:00:00.000Z"),
@@ -166,12 +166,12 @@ describeEmbeddedPostgres("decision training", () => {
     const seeded = await seedResolvedInteraction();
     const svc = decisionTrainingService(db);
     const example = await svc.create({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceKind: "interaction",
       sourceId: seeded.interactionId,
       issueId: seeded.issueId,
       notes: "Cascade with the issue.",
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
 
     await db.delete(issueComments).where(eq(issueComments.issueId, seeded.issueId));
@@ -188,7 +188,7 @@ describeEmbeddedPostgres("decision training", () => {
     const excludedRunId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       name: "Decision agent",
       role: "engineer",
       adapterType: "codex_local",
@@ -199,7 +199,7 @@ describeEmbeddedPostgres("decision training", () => {
     await db.insert(heartbeatRuns).values([
       {
         id: includedRunId,
-        companyId: seeded.companyId,
+        spaceId: seeded.spaceId,
         agentId,
         status: "succeeded",
         startedAt: new Date("2026-07-16T11:00:00.000Z"),
@@ -210,7 +210,7 @@ describeEmbeddedPostgres("decision training", () => {
       },
       {
         id: excludedRunId,
-        companyId: seeded.companyId,
+        spaceId: seeded.spaceId,
         agentId,
         status: "running",
         startedAt: new Date("2026-07-16T11:45:00.000Z"),
@@ -221,7 +221,7 @@ describeEmbeddedPostgres("decision training", () => {
     ]);
 
     const captured = await captureDecisionSnapshot(db, {
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceKind: "interaction",
       sourceId: seeded.interactionId,
       issueId: seeded.issueId,
@@ -234,27 +234,27 @@ describeEmbeddedPostgres("decision training", () => {
   it("labels workspace-only commit evidence accurately", async () => {
     const seeded = await seedResolvedInteraction();
     await db.insert(projectWorkspaces).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       projectId: seeded.projectId,
       name: "Primary workspace",
-      repoUrl: "https://github.com/paperclipai/outpost.git",
+      repoUrl: "https://github.com/outpost/outpost.git",
       metadata: { commitSha: "abcdef1234567890" },
       isPrimary: false,
       createdAt: new Date("2026-07-16T11:00:00.000Z"),
       updatedAt: new Date("2026-07-16T11:30:00.000Z"),
     });
     await db.insert(projectWorkspaces).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       projectId: seeded.projectId,
       name: "Post-cutoff workspace",
-      repoUrl: "https://github.com/paperclipai/outpost.git",
+      repoUrl: "https://github.com/outpost/outpost.git",
       metadata: { commitSha: "ffffffffffffffff" },
       isPrimary: true,
       createdAt: new Date("2026-07-16T11:00:00.000Z"),
       updatedAt: new Date("2026-07-16T12:30:00.000Z"),
     });
     await db.insert(executionWorkspaces).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       projectId: seeded.projectId,
       sourceIssueId: seeded.issueId,
       mode: "isolated_workspace",
@@ -268,7 +268,7 @@ describeEmbeddedPostgres("decision training", () => {
     });
 
     const captured = await captureDecisionSnapshot(db, {
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceKind: "interaction",
       sourceId: seeded.interactionId,
       issueId: seeded.issueId,
@@ -284,21 +284,21 @@ describeEmbeddedPostgres("decision training", () => {
     const seeded = await seedResolvedInteraction();
     const svc = decisionTrainingService(db);
     const input = {
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceKind: "interaction" as const,
       sourceId: seeded.interactionId,
       issueId: seeded.issueId,
       notes: "Ship behind a flag.",
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     };
 
     const created = await svc.create(input);
     await expect(svc.create(input)).rejects.toMatchObject({ status: 409 });
-    const updated = await svc.updateNotes(created.id, "board-user", "Use a 10% canary first.");
+    const updated = await svc.updateNotes(created.id, "operator-user", "Use a 10% canary first.");
     expect(updated?.notesHistory).toEqual([
-      expect.objectContaining({ author: "board-user", body: "Ship behind a flag." }),
+      expect.objectContaining({ author: "operator-user", body: "Ship behind a flag." }),
     ]);
-    const unchanged = await svc.updateNotes(created.id, "board-user", "Use a 10% canary first.");
+    const unchanged = await svc.updateNotes(created.id, "operator-user", "Use a 10% canary first.");
     expect(unchanged?.notesHistory).toEqual(updated?.notesHistory);
     expect(updated?.snapshot).toEqual(created.snapshot);
   });
@@ -306,19 +306,19 @@ describeEmbeddedPostgres("decision training", () => {
   it("enriches attention items with the current user's training example", async () => {
     const seeded = await seedResolvedInteraction();
     const example = await decisionTrainingService(db).create({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceKind: "interaction",
       sourceId: seeded.interactionId,
       issueId: seeded.issueId,
       notes: "Captured guidance.",
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
     await db
       .update(issueThreadInteractions)
       .set({ status: "pending", resolvedAt: null, updatedAt: new Date() })
       .where(eq(issueThreadInteractions.id, seeded.interactionId));
 
-    const feed = await attentionService(db).list(seeded.companyId, { userId: "board-user" });
+    const feed = await attentionService(db).list(seeded.spaceId, { userId: "operator-user" });
     const item = feed.items.find((candidate) => candidate.subject.id === seeded.interactionId);
     expect(item?.trainingExampleId).toBe(example.id);
   });
@@ -326,17 +326,17 @@ describeEmbeddedPostgres("decision training", () => {
   it("does not log a notes update when the submitted notes are unchanged", async () => {
     const seeded = await seedResolvedInteraction();
     const example = await decisionTrainingService(db).create({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceKind: "interaction",
       sourceId: seeded.interactionId,
       issueId: seeded.issueId,
       notes: "Keep the current notes.",
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", userId: "board-user", source: "local_implicit" };
+      req.actor = { type: "operator", userId: "operator-user", source: "local_implicit" };
       next();
     });
     app.use("/api", decisionTrainingRoutes(db));
@@ -369,7 +369,7 @@ describeEmbeddedPostgres("decision training", () => {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", userId: "board-user", source: "local_implicit" };
+      req.actor = { type: "operator", userId: "operator-user", source: "local_implicit" };
       next();
     });
     app.use("/api", decisionTrainingRoutes(db));
@@ -383,20 +383,20 @@ describeEmbeddedPostgres("decision training", () => {
     await request(app).delete("/api/decision-training/not-a-uuid").expect(404);
   });
 
-  it("rejects updates and deletes from a different board user", async () => {
+  it("rejects updates and deletes from a different operator user", async () => {
     const seeded = await seedResolvedInteraction();
     const example = await decisionTrainingService(db).create({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceKind: "interaction",
       sourceId: seeded.interactionId,
       issueId: seeded.issueId,
       notes: "Owner notes",
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", userId: "other-board-user", source: "local_implicit" };
+      req.actor = { type: "operator", userId: "other-operator-user", source: "local_implicit" };
       next();
     });
     app.use("/api", decisionTrainingRoutes(db));
@@ -420,7 +420,7 @@ describeEmbeddedPostgres("decision training", () => {
       req.actor = {
         type: "agent",
         agentId: randomUUID(),
-        companyId: seeded.companyId,
+        spaceId: seeded.spaceId,
         source: "agent_jwt",
       };
       next();
@@ -429,7 +429,7 @@ describeEmbeddedPostgres("decision training", () => {
     app.use(errorHandler);
 
     await request(app)
-      .post(`/api/companies/${seeded.companyId}/decision-training`)
+      .post(`/api/spaces/${seeded.spaceId}/decision-training`)
       .send({ sourceKind: "interaction", sourceId: seeded.interactionId, issueId: seeded.issueId, notes: "No" })
       .expect(403);
 
@@ -442,12 +442,12 @@ describeEmbeddedPostgres("decision training", () => {
   it("rejects agent reads and exports", async () => {
     const seeded = await seedResolvedInteraction();
     const example = await decisionTrainingService(db).create({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceKind: "interaction",
       sourceId: seeded.interactionId,
       issueId: seeded.issueId,
       notes: "Sensitive guidance",
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
     const app = express();
     app.use(express.json());
@@ -455,7 +455,7 @@ describeEmbeddedPostgres("decision training", () => {
       req.actor = {
         type: "agent",
         agentId: randomUUID(),
-        companyId: seeded.companyId,
+        spaceId: seeded.spaceId,
         source: "agent_jwt",
       };
       next();
@@ -463,32 +463,32 @@ describeEmbeddedPostgres("decision training", () => {
     app.use("/api", decisionTrainingRoutes(db));
     app.use(errorHandler);
 
-    await request(app).get(`/api/companies/${seeded.companyId}/decision-training`).expect(403);
+    await request(app).get(`/api/spaces/${seeded.spaceId}/decision-training`).expect(403);
     await request(app).get(`/api/decision-training/${example.id}`).expect(403);
-    await request(app).get(`/api/companies/${seeded.companyId}/decision-training/export.jsonl`).expect(403);
+    await request(app).get(`/api/spaces/${seeded.spaceId}/decision-training/export.jsonl`).expect(403);
   });
 
   it("exports immutable state and labels as JSONL", async () => {
     const seeded = await seedResolvedInteraction();
     const example = await decisionTrainingService(db).create({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceKind: "interaction",
       sourceId: seeded.interactionId,
       issueId: seeded.issueId,
       notes: "Use a feature flag.",
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", userId: "board-user", source: "local_implicit" };
+      req.actor = { type: "operator", userId: "operator-user", source: "local_implicit" };
       next();
     });
     app.use("/api", decisionTrainingRoutes(db));
     app.use(errorHandler);
 
     const response = await request(app)
-      .get(`/api/companies/${seeded.companyId}/decision-training/export.jsonl`)
+      .get(`/api/spaces/${seeded.spaceId}/decision-training/export.jsonl`)
       .expect(200);
     const line = JSON.parse(response.text.trim());
     expect(line).toEqual({
@@ -504,11 +504,11 @@ describeEmbeddedPostgres("decision training", () => {
       .where(eq(activityLog.action, "decision_training.exported"));
     expect(exportLogs).toHaveLength(1);
     expect(exportLogs[0]).toMatchObject({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       actorType: "user",
-      actorId: "board-user",
+      actorId: "operator-user",
       entityType: "decision_training_export",
-      entityId: seeded.companyId,
+      entityId: seeded.spaceId,
       details: { exampleCount: 1, exampleIds: [example.id] },
     });
   });
@@ -516,17 +516,17 @@ describeEmbeddedPostgres("decision training", () => {
   it("logs individual example reads", async () => {
     const seeded = await seedResolvedInteraction();
     const example = await decisionTrainingService(db).create({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceKind: "interaction",
       sourceId: seeded.interactionId,
       issueId: seeded.issueId,
       notes: "Read audit",
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", userId: "board-user", source: "local_implicit" };
+      req.actor = { type: "operator", userId: "operator-user", source: "local_implicit" };
       next();
     });
     app.use("/api", decisionTrainingRoutes(db));
@@ -540,9 +540,9 @@ describeEmbeddedPostgres("decision training", () => {
       .where(eq(activityLog.action, "decision_training.read"));
     expect(readLogs).toHaveLength(1);
     expect(readLogs[0]).toMatchObject({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       actorType: "user",
-      actorId: "board-user",
+      actorId: "operator-user",
       entityType: "decision_training_example",
       entityId: example.id,
       details: {

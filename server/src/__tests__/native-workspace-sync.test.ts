@@ -22,16 +22,16 @@ import {
 const digest = "a".repeat(64);
 
 describe("native workspace sync durable metadata", () => {
-  const originalPaperclipHome = process.env.OUTPOST_HOME;
-  const originalPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
+  const originalOutpostHome = process.env.OUTPOST_HOME;
+  const originalOutpostInstanceId = process.env.OUTPOST_INSTANCE_ID;
   const cleanupDirs: string[] = [];
 
   afterEach(async () => {
-    if (originalPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-    else process.env.OUTPOST_HOME = originalPaperclipHome;
-    if (originalPaperclipInstanceId === undefined)
+    if (originalOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+    else process.env.OUTPOST_HOME = originalOutpostHome;
+    if (originalOutpostInstanceId === undefined)
       delete process.env.OUTPOST_INSTANCE_ID;
-    else process.env.OUTPOST_INSTANCE_ID = originalPaperclipInstanceId;
+    else process.env.OUTPOST_INSTANCE_ID = originalOutpostInstanceId;
     await Promise.all(
       cleanupDirs
         .splice(0)
@@ -102,7 +102,7 @@ describe("native workspace sync durable metadata", () => {
   it("refuses a different sandbox before preparing restart workspace sync", async () => {
     const select = vi.fn();
     await expect(prepareNativeWorkspaceSync({
-      db: { select } as never, runId: "run", companyId: "company", workspaceId: "workspace",
+      db: { select } as never, runId: "run", spaceId: "space", workspaceId: "workspace",
       workspaceLocalDir: "/tmp/local-workspace", lease: { id: "lease", providerLeaseId: "replacement" } as never,
       target: { kind: "remote", transport: "sandbox", remoteCwd: "/workspace", providerKey: "daytona",
         sandboxLeaseAcquisition: { outcome: "replacement", providerLeaseId: "replacement" } } as never,
@@ -154,11 +154,11 @@ describe("native workspace sync durable metadata", () => {
   });
 
   it.each(["corrupt", "symlink", "foreign"] as const)("persists compact v2 manifests and rejects %s recovery storage", async (tamper) => {
-    const paperclipHome = await mkdtemp(path.join(os.tmpdir(), "paperclip-native-manifest-"));
-    cleanupDirs.push(paperclipHome);
-    process.env.OUTPOST_HOME = paperclipHome;
+    const outpostHome = await mkdtemp(path.join(os.tmpdir(), "outpost-native-manifest-"));
+    cleanupDirs.push(outpostHome);
+    process.env.OUTPOST_HOME = outpostHome;
     process.env.OUTPOST_INSTANCE_ID = "manifest-test";
-    const workspace = path.join(paperclipHome, "workspace");
+    const workspace = path.join(outpostHome, "workspace");
     await mkdir(workspace);
     await writeFile(path.join(workspace, "private-filename-雪"), "baseline");
     const baseline = await captureDirectorySnapshot(workspace, { diskBacked: true });
@@ -174,7 +174,7 @@ describe("native workspace sync durable metadata", () => {
     if (serialized.version !== 2) throw new Error("Expected v2");
     const descriptor = {
       schema: "outpost.native-workspace-sync/v2" as const,
-      binding: { runId, companyId: "company", workspaceId: "workspace", leaseId: "lease", providerLeaseId: "sandbox", localCwd: workspace, remoteCwd: "/workspace" },
+      binding: { runId, spaceId: "space", workspaceId: "workspace", leaseId: "lease", providerLeaseId: "sandbox", localCwd: workspace, remoteCwd: "/workspace" },
       state: "prepared" as const, baselineSha256: directorySnapshotSha256(baseline),
       baseline: serialized, gitSnapshot: null, seed: null,
       createdAt: new Date().toISOString(), finalizedAt: null, finalHostSha256: null, resourceDisposition: null,
@@ -186,18 +186,18 @@ describe("native workspace sync durable metadata", () => {
     const recovered = await nativeWorkspaceSyncInternals.readDescriptor({ runId, reference });
     expect(recovered.baseline.entries.get("private-filename-雪")).toMatchObject({ kind: "file" });
     await disposeDirectorySnapshot(recovered.baseline);
-    await expect(readNativeWorkspaceSyncLocalCwd({ runId, companyId: "company", workspaceId: "workspace", reference })).resolves.toBe(workspace);
-    await expect(readNativeWorkspaceSyncLocalCwd({ runId, companyId: "other-company", workspaceId: "workspace", reference })).rejects.toThrow(/binding_mismatch/);
-    await expect(readNativeWorkspaceSyncLocalCwd({ runId, companyId: "company", workspaceId: "other-workspace", reference })).rejects.toThrow(/binding_mismatch/);
+    await expect(readNativeWorkspaceSyncLocalCwd({ runId, spaceId: "space", workspaceId: "workspace", reference })).resolves.toBe(workspace);
+    await expect(readNativeWorkspaceSyncLocalCwd({ runId, spaceId: "other-space", workspaceId: "workspace", reference })).rejects.toThrow(/binding_mismatch/);
+    await expect(readNativeWorkspaceSyncLocalCwd({ runId, spaceId: "space", workspaceId: "other-workspace", reference })).rejects.toThrow(/binding_mismatch/);
     if (tamper === "corrupt") {
       await appendFile(serialized.entries.filePath, "corrupt");
     } else if (tamper === "symlink") {
-      const copy = path.join(paperclipHome, "copied.sqlite");
+      const copy = path.join(outpostHome, "copied.sqlite");
       await writeFile(copy, await readFile(serialized.entries.filePath));
       await rm(serialized.entries.filePath);
       await symlink(copy, serialized.entries.filePath);
     } else {
-      descriptor.baseline.entries.filePath = path.join(paperclipHome, "foreign.sqlite");
+      descriptor.baseline.entries.filePath = path.join(outpostHome, "foreign.sqlite");
       reference = await nativeWorkspaceSyncInternals.writeDescriptor(descriptor);
     }
     await expect(nativeWorkspaceSyncInternals.readDescriptor({ runId, reference })).rejects.toThrow();
@@ -206,14 +206,14 @@ describe("native workspace sync durable metadata", () => {
   });
 
   it.each([false, true])("writes one immutable descriptor when the same state is replayed (multiple repositories: %s)", async (multipleRepositories) => {
-    const paperclipHome = await mkdtemp(
-      path.join(os.tmpdir(), "paperclip-native-workspace-sync-"),
+    const outpostHome = await mkdtemp(
+      path.join(os.tmpdir(), "outpost-native-workspace-sync-"),
     );
-    cleanupDirs.push(paperclipHome);
-    process.env.OUTPOST_HOME = paperclipHome;
+    cleanupDirs.push(outpostHome);
+    process.env.OUTPOST_HOME = outpostHome;
     process.env.OUTPOST_INSTANCE_ID = "descriptor-test";
     const baseline = {
-      exclude: [".paperclip-runtime"],
+      exclude: [".outpost-runtime"],
       entries: new Map([
         [
           "continuity.txt",
@@ -225,11 +225,11 @@ describe("native workspace sync durable metadata", () => {
       schema: "outpost.native-workspace-sync/v1" as const,
       binding: {
         runId: "run-idempotent",
-        companyId: "company-1",
+        spaceId: "space-1",
         workspaceId: "workspace-1",
         leaseId: "lease-1",
         providerLeaseId: "sandbox-1",
-        localCwd: path.join(paperclipHome, "workspace"),
+        localCwd: path.join(outpostHome, "workspace"),
         remoteCwd: "/workspace",
       },
       state: "prepared" as const,
@@ -237,7 +237,7 @@ describe("native workspace sync durable metadata", () => {
       baseline: serializeDirectorySnapshot(baseline),
       gitSnapshot: multipleRepositories ? {
         headCommit: "a".repeat(40), branchName: "main", overlayPaths: [], deletedPaths: [], ignoredPaths: [],
-        repositories: [{ path: ".paperclip-repositories/backend", snapshot: {
+        repositories: [{ path: ".outpost-repositories/backend", snapshot: {
           headCommit: "b".repeat(40), branchName: "backend-work", overlayPaths: ["dirty.txt"], deletedPaths: [], ignoredPaths: ["secret.txt"],
         } }],
       } : null,
@@ -274,14 +274,14 @@ describe("native workspace sync durable metadata", () => {
   });
 
   it("repairs finalized remote and lease stamps after an interrupted commit", async () => {
-    const paperclipHome = await mkdtemp(
-      path.join(os.tmpdir(), "paperclip-native-workspace-sync-repair-"),
+    const outpostHome = await mkdtemp(
+      path.join(os.tmpdir(), "outpost-native-workspace-sync-repair-"),
     );
-    cleanupDirs.push(paperclipHome);
-    process.env.OUTPOST_HOME = paperclipHome;
+    cleanupDirs.push(outpostHome);
+    process.env.OUTPOST_HOME = outpostHome;
     process.env.OUTPOST_INSTANCE_ID = "descriptor-repair-test";
     const baseline = {
-      exclude: [".paperclip-runtime"],
+      exclude: [".outpost-runtime"],
       entries: new Map([
         [
           "continuity.txt",
@@ -294,11 +294,11 @@ describe("native workspace sync durable metadata", () => {
       schema: "outpost.native-workspace-sync/v1" as const,
       binding: {
         runId: "run-finalized-repair",
-        companyId: "company-1",
+        spaceId: "space-1",
         workspaceId: "workspace-1",
         leaseId: "lease-1",
         providerLeaseId: "sandbox-1",
-        localCwd: path.join(paperclipHome, "workspace"),
+        localCwd: path.join(outpostHome, "workspace"),
         remoteCwd: "/workspace",
       },
       state: "finalized" as const,

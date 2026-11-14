@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Lets each test decide what the next spawned child does, while the
-// node:child_process mock below is hoisted above the board-auth import.
+// node:child_process mock below is hoisted above the operator-auth import.
 const mocks = vi.hoisted(() => ({ spawn: vi.fn() }));
 
 vi.mock("node:child_process", async () => {
@@ -10,7 +10,7 @@ vi.mock("node:child_process", async () => {
   return { ...actual, spawn: mocks.spawn };
 });
 
-import { openUrl } from "../client/board-auth.js";
+import { openUrl } from "../client/operator-auth.js";
 
 function fakeChild(): EventEmitter & { unref: () => void } {
   const child = new EventEmitter() as EventEmitter & { unref: () => void };

@@ -1,4 +1,4 @@
-import type { CompanyPortabilityFileEntry } from "@outpost/shared";
+import type { SpacePortabilityFileEntry } from "@outpost/shared";
 
 // Inline imports post the whole parsed package as one JSON body, so oversized
 // packages must be blocked before the request is built. Packages past this
@@ -26,7 +26,7 @@ export const REQUEST_ENVELOPE_ALLOWANCE_BYTES = 256 * 1024;
 // characters and escape sequences both inflate past `String.length`), and the
 // base64 payload plus its object structure for blobs (base64 and MIME types
 // are ASCII, one byte per character).
-function fileEntryInlineBytes(entry: CompanyPortabilityFileEntry): number {
+function fileEntryInlineBytes(entry: SpacePortabilityFileEntry): number {
   if (typeof entry === "string") return utf8.encode(JSON.stringify(entry)).length;
   return BASE64_ENTRY_STRUCTURE_BYTES + entry.data.length + (entry.contentType?.length ?? 0);
 }
@@ -37,10 +37,10 @@ function fileEntryInlineBytes(entry: CompanyPortabilityFileEntry): number {
  * keys (thousands of paths are real bytes), and an envelope allowance for the
  * rest of the request body.
  *
- * Mirrored by `estimateInlineImportBytes` in cli/src/commands/client/company.ts
+ * Mirrored by `estimateInlineImportBytes` in cli/src/commands/client/space.ts
  * (the CLI cannot import from ui/) — keep the math on both sides in sync.
  */
-export function estimateInlineImportBytes(files: Record<string, CompanyPortabilityFileEntry>): number {
+export function estimateInlineImportBytes(files: Record<string, SpacePortabilityFileEntry>): number {
   let total = REQUEST_ENVELOPE_ALLOWANCE_BYTES;
   for (const [filePath, entry] of Object.entries(files)) {
     // "path": entry,  → key bytes + colon + comma.
@@ -50,8 +50,8 @@ export function estimateInlineImportBytes(files: Record<string, CompanyPortabili
 }
 
 export function stripBlobFiles(
-  files: Record<string, CompanyPortabilityFileEntry>,
-): Record<string, CompanyPortabilityFileEntry> {
+  files: Record<string, SpacePortabilityFileEntry>,
+): Record<string, SpacePortabilityFileEntry> {
   return Object.fromEntries(
     Object.entries(files).filter(([filePath]) => !isBlobStoreFilePath(filePath)),
   );
@@ -65,7 +65,7 @@ export interface InlineImportPreflight {
 }
 
 export function buildInlineImportPreflight(
-  files: Record<string, CompanyPortabilityFileEntry>,
+  files: Record<string, SpacePortabilityFileEntry>,
 ): InlineImportPreflight {
   const estimatedBytes = estimateInlineImportBytes(files);
   if (estimatedBytes <= INLINE_IMPORT_MAX_BYTES) {

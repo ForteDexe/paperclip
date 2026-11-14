@@ -11,7 +11,7 @@ interface BillerSpendCardProps {
   budgetMonthlyCents: number;
   /** Only compare a current-month report with the monthly budget. */
   showBudgetUtilization?: boolean;
-  totalCompanySpendCents: number;
+  totalSpaceSpendCents: number;
   providerRows: CostByProviderModel[];
 }
 
@@ -20,7 +20,7 @@ export function BillerSpendCard({
   weekSpendCents,
   budgetMonthlyCents,
   showBudgetUtilization = true,
-  totalCompanySpendCents,
+  totalSpaceSpendCents,
   providerRows,
 }: BillerSpendCardProps) {
   const providerBreakdown = useMemo(() => {

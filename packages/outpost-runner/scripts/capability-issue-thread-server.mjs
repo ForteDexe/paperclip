@@ -19,7 +19,7 @@ import { resolve } from "node:path";
  * Two surfaces share one session registry and one set of turn routes:
  *
  * - `issue` seeds the preset scenario the explorer selects;
- * - `cleanroom` seeds only a company, an agent, and a blank issue.
+ * - `cleanroom` seeds only a space, an agent, and a blank issue.
  *
  * Both run the same real runnerd + real Codex loop. Neither has a scripted or
  * replay path in this process, so there is nothing here that could quietly
@@ -57,8 +57,8 @@ const ACPX_AGENTS = new Set(["claude", "codex"]);
  * the clean room (and the reverse) instead of keeping two independent tenants.
  */
 const CAPABILITY_COOKIES = Object.freeze({
-  issue: "paperclip_capability_issue",
-  cleanroom: "paperclip_capability_chat",
+  issue: "outpost_capability_issue",
+  cleanroom: "outpost_capability_chat",
 });
 const CAPABILITY_BYTES = 32;
 const CAPABILITY_MAX_AGE_SECONDS = 30 * 60;
@@ -151,7 +151,7 @@ function scratchRoot() {
 }
 
 async function createWorkingDirectory(root, prefix = "capability-issue-thread-") {
-  // Managed previews can outlive the heartbeat that launched them. Paperclip
+  // Managed previews can outlive the heartbeat that launched them. Outpost
   // removes that heartbeat's scratch directory when the run ends, so ensure
   // the inherited parent still exists before every later session is minted.
   await mkdir(root, { recursive: true });
@@ -162,11 +162,11 @@ async function createWorkingDirectory(root, prefix = "capability-issue-thread-")
 function issueThreadSeed(runner, scenario) {
   return runner.createCapabilityFixtureState({
     epochMs: Date.UTC(2026, 7, 9, 9, 0, 0),
-    company: { id: "company-1", name: "Mock Outpost Outpost", issuePrefix: "MCK" },
+    space: { id: "space-1", name: "Mock Outpost Outpost", issuePrefix: "MCK" },
     actors: [
       {
         id: "actor-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Mock Engineer",
         role: "engineer",
         status: "active",
@@ -177,7 +177,7 @@ function issueThreadSeed(runner, scenario) {
     tasks: [
       {
         id: "task-31",
-        companyId: "company-1",
+        spaceId: "space-1",
         identifier: "MCK-31",
         title: "Wire the runner spike to the mock control plane",
         description: `Scenario ${scenario}. All records in this thread are mock records.`,
@@ -481,7 +481,7 @@ export function createCapabilityIssueThreadMiddleware(options = {}) {
       scenario: { id: scenario },
       taskId: "task-31",
       actorId: "actor-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       ...(options.requestedModel === undefined ? {} : { requestedModel: options.requestedModel }),
     });
     const entry = {
@@ -527,7 +527,7 @@ export function createCapabilityIssueThreadMiddleware(options = {}) {
       entry.surface === "cleanroom" && entry.session.snapshot().status !== "suspended",
     );
     // Bounded concurrency: the oldest clean room yields rather than refusing a
-    // new board user, because an abandoned chat is the likelier tenant here.
+    // new operator, because an abandoned chat is the likelier tenant here.
     for (const stale of open.slice(0, Math.max(0, open.length - (MAX_CLEAN_ROOM_SESSIONS - 1)))) {
       await retire(service, stale.session.id, "clean-room capacity");
     }
@@ -942,7 +942,7 @@ export function createCapabilityIssueThreadMiddleware(options = {}) {
             scenario: snapshot.config.scenario,
             capabilities: snapshot.config.capabilities,
             explicitClaims: snapshot.config.explicitClaims,
-            companyId: snapshot.authority.companyId,
+            spaceId: snapshot.authority.spaceId,
             actorId: snapshot.authority.actorId,
             taskId: snapshot.authority.taskId,
             turnTimeoutMs: snapshot.config.turnTimeoutMs,

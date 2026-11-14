@@ -7,9 +7,9 @@ function person(request: () => Promise<Response>) {
 
 describe("authenticated privacy observer response consumption", () => {
   it("returns the exact successful resource body and status", async () => {
-    const response = new Response(JSON.stringify({ id: "owned-company", name: "Launch — authorized" }), { status: 200 });
-    await expect(personRead(person(async () => response), "/api/companies/owned-company")).resolves.toEqual({
-      status: 200, body: JSON.stringify({ id: "owned-company", name: "Launch — authorized" }),
+    const response = new Response(JSON.stringify({ id: "owned-space", name: "Launch — authorized" }), { status: 200 });
+    await expect(personRead(person(async () => response), "/api/spaces/owned-space")).resolves.toEqual({
+      status: 200, body: JSON.stringify({ id: "owned-space", name: "Launch — authorized" }),
     });
   });
 
@@ -28,11 +28,11 @@ describe("authenticated privacy observer response consumption", () => {
   it("does not turn a successful HTTP response with broken bytes into permission evidence", async () => {
     const failure = new Error("fixture body read failed");
     const response = new Response(new ReadableStream({ start(controller) { controller.error(failure); } }), { status: 200 });
-    await expect(personRead(person(async () => response), "/api/companies/owned-company")).rejects.toBe(failure);
+    await expect(personRead(person(async () => response), "/api/spaces/owned-space")).rejects.toBe(failure);
   });
 
   it("preserves a genuine authenticated request failure", async () => {
     const failure = new Error("fixture request unavailable");
-    await expect(personRead(person(async () => { throw failure; }), "/api/companies/owned-company")).rejects.toBe(failure);
+    await expect(personRead(person(async () => { throw failure; }), "/api/spaces/owned-space")).rejects.toBe(failure);
   });
 });

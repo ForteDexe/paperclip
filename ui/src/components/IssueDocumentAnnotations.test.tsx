@@ -211,7 +211,7 @@ function makeQueryClient() {
 function makeDoc(overrides: Partial<IssueDocument> = {}): IssueDocument {
   return {
     id: "doc-1",
-    companyId: "co-1",
+    spaceId: "co-1",
     issueId: "issue-1",
     key: "plan",
     title: "Plan",
@@ -238,7 +238,7 @@ function makeThread(
   const id = overrides.id ?? "thread-1";
   return {
     id,
-    companyId: "co-1",
+    spaceId: "co-1",
     issueId: "issue-1",
     documentId: "doc-1",
     documentKey: "plan",
@@ -270,7 +270,7 @@ function makeThread(
     comments: [
       {
         id: "comment-1",
-        companyId: "co-1",
+        spaceId: "co-1",
         threadId: id,
         issueId: "issue-1",
         documentId: "doc-1",
@@ -455,7 +455,7 @@ describe("IssueDocumentAnnotations", () => {
       expect(anchor!.style.width).toBe("360px");
       expect(anchor!.className).not.toContain("fixed");
       expect(anchor!.style.left).toBe("");
-      const host = container.querySelector(".paperclip-doc-annotation-host") as HTMLElement | null;
+      const host = container.querySelector(".outpost-doc-annotation-host") as HTMLElement | null;
       expect(host!.className).toContain("lg:flex");
       // The panel is sticky inside the gutter so it stays beside the doc while scrolling.
       expect(anchor!.querySelector(".sticky")).not.toBeNull();
@@ -609,12 +609,12 @@ describe("IssueDocumentAnnotations", () => {
         id: "open-1",
         comments: [
           {
-            id: "comment-board",
-            companyId: "co-1",
+            id: "comment-operator",
+            spaceId: "co-1",
             threadId: "open-1",
             issueId: "issue-1",
             documentId: "doc-1",
-            body: "From the board.",
+            body: "From the operator.",
             authorType: "user",
             authorAgentId: null,
             authorUserId: "user-1",
@@ -624,7 +624,7 @@ describe("IssueDocumentAnnotations", () => {
           },
           {
             id: "comment-agent",
-            companyId: "co-1",
+            spaceId: "co-1",
             threadId: "open-1",
             issueId: "issue-1",
             documentId: "doc-1",
@@ -684,7 +684,7 @@ describe("IssueDocumentAnnotations", () => {
     const expandedThread = container.querySelector('[data-thread-id="open-1"]');
     const expandedText = expandedThread?.textContent ?? "";
     expect(expandedText).toContain("Dotta");
-    expect(expandedText).not.toContain("· board");
+    expect(expandedText).not.toContain("· operator");
     expect(expandedText).toContain("UXDesigner");
     expect(expandedText).toContain("· agent");
     // Each rendered comment shows an author avatar.
@@ -1058,7 +1058,7 @@ describe("IssueDocumentAnnotations", () => {
       const sheet = container.querySelector('[data-slot="sheet-content"]');
       expect(sheet).not.toBeNull();
       expect(sheet?.getAttribute("data-side")).toBe("bottom");
-      expect(sheet?.className).toContain("paperclip-doc-annotation-sheet");
+      expect(sheet?.className).toContain("outpost-doc-annotation-sheet");
       expect(sheet?.className).toContain("z-(--z-60)");
       expect(sheet?.className).toContain("bg-popover");
     } finally {

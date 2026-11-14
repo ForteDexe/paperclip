@@ -1,13 +1,13 @@
 # Docker Quickstart
 
-Run Paperclip in Docker without installing Node or pnpm locally.
+Run Outpost in Docker without installing Node or pnpm locally.
 
 All commands below assume you are in the **project root** (the directory containing `package.json`), not inside `docker/`.
 
 ## Building the image
 
 ```sh
-docker build -t paperclip-local .
+docker build -t outpost-local .
 ```
 
 The Dockerfile installs common agent tools (`git`, `gh`, `curl`, `wget`, `ripgrep`, `python3`) and the Claude, Codex, and OpenCode CLIs.
@@ -28,7 +28,7 @@ or earlier build inputs change. Local builds can set a new epoch explicitly
 to refresh tools without clearing the entire build cache.
 
 ```sh
-docker build -t paperclip-local \
+docker build -t outpost-local \
   --build-arg USER_UID=$(id -u) --build-arg USER_GID=$(id -g) .
 ```
 
@@ -80,15 +80,15 @@ image before rollout. Resolve immutable digests instead of deploying mutable tag
 ## One-liner (build + run)
 
 ```sh
-docker build -t paperclip-local . && \
-docker run --name paperclip \
+docker build -t outpost-local . && \
+docker run --name outpost \
   -p 3100:3100 \
   -e HOST=0.0.0.0 \
-  -e OUTPOST_HOME=/paperclip \
+  -e OUTPOST_HOME=/outpost \
   -e BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
   -e OUTPOST_TOOL_ACTION_SIGNING_SECRET=$(openssl rand -hex 32) \
-  -v "$(pwd)/data/docker-paperclip:/paperclip" \
-  paperclip-local
+  -v "$(pwd)/data/docker-outpost:/outpost" \
+  outpost-local
 ```
 
 Open: `http://localhost:3100`
@@ -100,7 +100,7 @@ Data persistence:
 - local secrets key
 - local agent workspace data
 
-All persisted under your bind mount (`./data/docker-paperclip` in the example above).
+All persisted under your bind mount (`./data/docker-outpost` in the example above).
 
 ## Docker Compose
 
@@ -130,7 +130,7 @@ docker compose -f docker/docker-compose.quickstart.yml up --build
 Defaults:
 
 - host port: `3100`
-- persistent data dir: `./data/docker-paperclip`
+- persistent data dir: `./data/docker-outpost`
 
 Optional overrides:
 
@@ -147,13 +147,13 @@ Pass `OPENAI_API_KEY` and/or `ANTHROPIC_API_KEY` to enable local adapter runs.
 
 ### Full stack (with PostgreSQL)
 
-Paperclip server + PostgreSQL 17. The database is health-checked before the server starts.
+Outpost server + PostgreSQL 17. The database is health-checked before the server starts.
 
 ```sh
 docker compose -f docker/docker-compose.yml up --build
 ```
 
-PostgreSQL data persists in a named Docker volume (`pgdata`). Paperclip data persists in `paperclip-data`.
+PostgreSQL data persists in a named Docker volume (`pgdata`). Outpost data persists in `outpost-data`.
 
 Both Compose files pass `OUTPOST_TOOL_ACTION_SIGNING_SECRET` to the server.
 When configured, keep it independent from `BETTER_AUTH_SECRET`. When unset,
@@ -173,11 +173,11 @@ docker compose -f docker/docker-compose.untrusted-review.yml run --rm --service-
 
 ## Authenticated Compose (Single Public URL)
 
-For authenticated deployments, set one canonical public URL and let Paperclip derive auth/callback defaults:
+For authenticated deployments, set one canonical public URL and let Outpost derive auth/callback defaults:
 
 ```yaml
 services:
-  paperclip:
+  outpost:
     environment:
       OUTPOST_DEPLOYMENT_MODE: authenticated
       OUTPOST_DEPLOYMENT_EXPOSURE: private
@@ -193,12 +193,12 @@ services:
 
 For fresh `authenticated/private` Docker or appliance-style installs, the first
 admin can now be claimed entirely from the browser after sign-in. Open the
-Paperclip URL, sign in or create an account, then choose `Claim this instance`
+Outpost URL, sign in or create an account, then choose `Claim this instance`
 on the setup screen. This browser claim is disabled for `authenticated/public`;
 public deployments should run the high-entropy CLI invite fallback instead:
 
 ```sh
-pnpm paperclipai auth bootstrap-ceo
+pnpm outpost auth bootstrap-ceo
 ```
 
 Granular overrides remain available if needed (`OUTPOST_AUTH_PUBLIC_BASE_URL`, `BETTER_AUTH_URL`, `BETTER_AUTH_TRUSTED_ORIGINS`, `OUTPOST_ALLOWED_HOSTNAMES`).
@@ -218,13 +218,13 @@ secret only when that token type is accepted by the live Connect API:
 
 ```yaml
 services:
-  paperclip:
+  outpost:
     environment:
       OUTPOST_VERCEL_CONNECT_ENABLED: "true"
       OUTPOST_VERCEL_CONNECT_ACCESS_TOKEN: ${OUTPOST_VERCEL_CONNECT_ACCESS_TOKEN}
 ```
 
-Do not save that access token in a company secret or connection config. It is
+Do not save that access token in a space secret or connection config. It is
 instance bootstrap authority for the operator-selected Vercel account. A token's
 long expiry and broad Vercel scope do not prove Connect compatibility; validate
 it with connector metadata before rollout. Workload OIDC takes precedence when
@@ -246,28 +246,28 @@ Codex subscription in your browser. You can also enter a provider API key there.
 You do not run a shell command or configure a CLI home.
 
 ```sh
-docker run --name paperclip \
+docker run --name outpost \
   -p 3100:3100 \
   -e HOST=0.0.0.0 \
-  -e OUTPOST_HOME=/paperclip \
-  -v "$(pwd)/data/docker-paperclip:/paperclip" \
-  paperclip-local
+  -e OUTPOST_HOME=/outpost \
+  -v "$(pwd)/data/docker-outpost:/outpost" \
+  outpost-local
 ```
 
 Notes:
 
 - The image provides the CLI and Python prerequisites for local subscription sign-in.
-- Adapter environment checks in Paperclip surface missing authentication or CLI prerequisites.
+- Adapter environment checks in Outpost surface missing authentication or CLI prerequisites.
 
 ## Podman Quadlet (systemd)
 
-The `docker/quadlet/` directory contains unit files to run Paperclip + PostgreSQL as systemd services via Podman Quadlet.
+The `docker/quadlet/` directory contains unit files to run Outpost + PostgreSQL as systemd services via Podman Quadlet.
 
 | File | Purpose |
 |------|---------|
 | `docker/quadlet/outpost.pod` | Pod definition — groups containers into a shared network namespace |
-| `docker/quadlet/outpost.container` | Paperclip server — joins the pod, connects to Postgres at `127.0.0.1` |
-| `docker/quadlet/paperclip-db.container` | PostgreSQL 17 — joins the pod, health-checked |
+| `docker/quadlet/outpost.container` | Outpost server — joins the pod, connects to Postgres at `127.0.0.1` |
+| `docker/quadlet/outpost-db.container` | PostgreSQL 17 — joins the pod, health-checked |
 
 ### Setup
 
@@ -291,10 +291,10 @@ The `docker/quadlet/` directory contains unit files to run Paperclip + PostgreSQ
    cat > ~/.config/containers/systemd/outpost.env <<EOL
    BETTER_AUTH_SECRET=$(openssl rand -hex 32)
    OUTPOST_TOOL_ACTION_SIGNING_SECRET=$(openssl rand -hex 32)
-   POSTGRES_USER=paperclip
-   POSTGRES_PASSWORD=paperclip
-   POSTGRES_DB=paperclip
-   DATABASE_URL=postgres://paperclip:paperclip@127.0.0.1:5432/paperclip
+   POSTGRES_USER=outpost
+   POSTGRES_PASSWORD=outpost
+   POSTGRES_DB=outpost
+   DATABASE_URL=postgres://outpost:outpost@127.0.0.1:5432/outpost
    # OPENAI_API_KEY=sk-...
    # ANTHROPIC_API_KEY=sk-...
    EOL
@@ -303,34 +303,34 @@ The `docker/quadlet/` directory contains unit files to run Paperclip + PostgreSQ
 4. Create the data directory and start:
 
    ```sh
-   mkdir -p ~/.local/share/paperclip
+   mkdir -p ~/.local/share/outpost
    systemctl --user daemon-reload
-   systemctl --user start paperclip-pod
+   systemctl --user start outpost-pod
    ```
 
 ### Quadlet management
 
 ```sh
-journalctl --user -u paperclip -f        # App logs
-journalctl --user -u paperclip-db -f     # DB logs
-systemctl --user status paperclip-pod    # Pod status
-systemctl --user restart paperclip-pod   # Restart all
-systemctl --user stop paperclip-pod      # Stop all
+journalctl --user -u outpost -f        # App logs
+journalctl --user -u outpost-db -f     # DB logs
+systemctl --user status outpost-pod    # Pod status
+systemctl --user restart outpost-pod   # Restart all
+systemctl --user stop outpost-pod      # Stop all
 ```
 
 ### Quadlet notes
 
-- **First boot**: Unlike Docker Compose's `condition: service_healthy`, Quadlet's `After=` only waits for the DB unit to *start*, not for PostgreSQL to be ready. On a cold first boot you may see one or two restart attempts in `journalctl --user -u paperclip` while PostgreSQL initialises — this is expected and resolves automatically via `Restart=on-failure`.
-- Containers in a pod share `localhost`, so Paperclip reaches Postgres at `127.0.0.1:5432`.
-- PostgreSQL data persists in the `paperclip-pgdata` named volume.
-- Paperclip data persists at `~/.local/share/paperclip`.
+- **First boot**: Unlike Docker Compose's `condition: service_healthy`, Quadlet's `After=` only waits for the DB unit to *start*, not for PostgreSQL to be ready. On a cold first boot you may see one or two restart attempts in `journalctl --user -u outpost` while PostgreSQL initialises — this is expected and resolves automatically via `Restart=on-failure`.
+- Containers in a pod share `localhost`, so Outpost reaches Postgres at `127.0.0.1:5432`.
+- PostgreSQL data persists in the `outpost-pgdata` named volume.
+- Outpost data persists at `~/.local/share/outpost`.
 - For rootful quadlet deployment, remove `%h` prefixes and use absolute paths.
 
 ## Onboard Smoke Test (Ubuntu + npm only)
 
 Use this when you want to mimic a fresh machine that only has Ubuntu + npm and verify:
 
-- `npx paperclipai onboard --yes` completes
+- `npx @outpost/cli onboard --yes` completes
 - the server binds to `0.0.0.0:3100` so host access works
 - onboard/run banners and startup logs are visible in your terminal
 
@@ -345,9 +345,9 @@ Open: `http://localhost:3131` (default smoke host port)
 Useful overrides:
 
 ```sh
-HOST_PORT=3200 PAPERCLIPAI_VERSION=latest ./scripts/docker-onboard-smoke.sh
+HOST_PORT=3200 OUTPOST_VERSION=latest ./scripts/docker-onboard-smoke.sh
 OUTPOST_DEPLOYMENT_MODE=authenticated OUTPOST_DEPLOYMENT_EXPOSURE=private ./scripts/docker-onboard-smoke.sh
-SMOKE_DETACH=true SMOKE_METADATA_FILE=/tmp/paperclip-smoke.env PAPERCLIPAI_VERSION=latest ./scripts/docker-onboard-smoke.sh
+SMOKE_DETACH=true SMOKE_METADATA_FILE=/tmp/outpost-smoke.env OUTPOST_VERSION=latest ./scripts/docker-onboard-smoke.sh
 ```
 
 Notes:
@@ -355,9 +355,9 @@ Notes:
 - Persistent data is mounted at `./data/docker-onboard-smoke` by default.
 - Container runtime user id defaults to your local `id -u` so the mounted data dir stays writable while avoiding root runtime.
 - Smoke script defaults to `authenticated/private` mode so `HOST=0.0.0.0` can be exposed to the host.
-- Smoke script defaults host port to `3131` to avoid conflicts with local Paperclip on `3100`.
+- Smoke script defaults host port to `3131` to avoid conflicts with local Outpost on `3100`.
 - Smoke script also defaults `OUTPOST_PUBLIC_URL` to `http://localhost:<HOST_PORT>` so bootstrap invite URLs and auth callbacks use the reachable host port instead of the container's internal `3100`.
-- In authenticated mode, the smoke script defaults `SMOKE_AUTO_BOOTSTRAP=true` and drives the real bootstrap path automatically: it signs up a real user, runs `paperclipai auth bootstrap-ceo` inside the container to mint a real bootstrap invite, accepts that invite over HTTP, and verifies board session access.
+- In authenticated mode, the smoke script defaults `SMOKE_AUTO_BOOTSTRAP=true` and drives the real bootstrap path automatically: it signs up a real user, runs `outpost auth bootstrap-ceo` inside the container to mint a real bootstrap invite, accepts that invite over HTTP, and verifies board session access.
 - Run the script in the foreground to watch the onboarding flow; stop with `Ctrl+C` after validation.
 - Set `SMOKE_DETACH=true` to leave the container running for automation and optionally write shell-ready metadata to `SMOKE_METADATA_FILE`.
 - Set `SMOKE_CONTAINER_NAME` to fix the container's name up front. Automation that has to collect diagnostics when the script *fails* needs a name it already knows, rather than one it can only read back out of a successful run. Defaults to the image name.
@@ -367,9 +367,9 @@ Notes:
 ## General Notes
 
 - The `docker-entrypoint.sh` adjusts the container `node` user UID/GID at startup to match the values passed via `USER_UID`/`USER_GID`, avoiding permission issues on bind-mounted volumes.
-- Before it drops privileges, the entrypoint makes sure `OUTPOST_HOME` is owned by the `node` user. Each boot checks only the home directory and its first three levels. The first boot (and any boot after a UID/GID change) also checks the full tree, and then writes `OUTPOST_HOME/.paperclip-ownership-verified`. While that marker is current, later boots skip the full-tree walk, which can take minutes on homes with many files. A mismatch triggers a recursive `chown`. If files deep in the tree get the wrong owner (for example, after a restore as root), delete the marker and restart to force a full check. If a check fails (for example, with an I/O error), the entrypoint does not write the marker, so the next boot checks again.
+- Before it drops privileges, the entrypoint makes sure `OUTPOST_HOME` is owned by the `node` user. Each boot checks only the home directory and its first three levels. The first boot (and any boot after a UID/GID change) also checks the full tree, and then writes `OUTPOST_HOME/.outpost-ownership-verified`. While that marker is current, later boots skip the full-tree walk, which can take minutes on homes with many files. A mismatch triggers a recursive `chown`. If files deep in the tree get the wrong owner (for example, after a restore as root), delete the marker and restart to force a full check. If a check fails (for example, with an I/O error), the entrypoint does not write the marker, so the next boot checks again.
 - The entrypoint writes timestamped lines when it starts, around the full ownership check or any repair (with the duration), and just before it starts the server, so you can measure the pre-start time from the container log.
-- Paperclip data persists via Docker volumes/bind mounts (compose) or at `~/.local/share/paperclip` (quadlet).
+- Outpost data persists via Docker volumes/bind mounts (compose) or at `~/.local/share/outpost` (quadlet).
 
 ## Native Runner build cache
 

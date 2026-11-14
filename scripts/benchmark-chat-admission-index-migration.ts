@@ -28,21 +28,21 @@ try {
   db = createDb(temporary.connectionString);
   const sql = db.$client;
   await sql.unsafe(`DROP INDEX IF EXISTS "${indexName}"`);
-  const { companyId, agentId, endpointId, conversationId } = await seedGitHubReviewWait(db);
+  const { spaceId, agentId, endpointId, conversationId } = await seedGitHubReviewWait(db);
   await sql.unsafe("create extension if not exists pgcrypto");
   const blob = (kib: string) => `(select string_agg(encode(gen_random_bytes(768), 'base64'), '')
     from generate_series(1, ${kib}) s(i) where g > 0)`;
 
   const loadStart = performance.now();
-  await sql.unsafe(`insert into chat_actions (company_id, endpoint_id, kind, provider_action_id, status, payload)
+  await sql.unsafe(`insert into chat_actions (space_id, endpoint_id, kind, provider_action_id, status, payload)
     select $1::uuid, $2::uuid, 'github_review_check', 'other-' || g, 'processed',
       jsonb_build_object('event', jsonb_build_object('body', ${blob("$3::int")}))
-    from generate_series(1, $4::int) g`, [companyId, endpointId, OTHER_PAYLOAD_KIB, OTHER_ACTIONS]);
-  await sql.unsafe(`insert into chat_actions (company_id, endpoint_id, conversation_id, kind, provider_action_id, status, payload)
+    from generate_series(1, $4::int) g`, [spaceId, endpointId, OTHER_PAYLOAD_KIB, OTHER_ACTIONS]);
+  await sql.unsafe(`insert into chat_actions (space_id, endpoint_id, conversation_id, kind, provider_action_id, status, payload)
     select $1::uuid, $2::uuid, $3::uuid, case when g % 50 = 0 then 'failed_run_retry' else 'inbound_wakeup' end,
       'wake-' || g, 'processed', jsonb_build_object('issueId', gen_random_uuid()::text, 'agentId', $4::text,
         'text', ${blob("$5::int")})
-    from generate_series(1, $6::int) g`, [companyId, endpointId, conversationId, agentId, WAKEUP_PAYLOAD_KIB, WAKEUPS]);
+    from generate_series(1, $6::int) g`, [spaceId, endpointId, conversationId, agentId, WAKEUP_PAYLOAD_KIB, WAKEUPS]);
   await sql.unsafe("vacuum analyze chat_actions");
   const loadMs = performance.now() - loadStart;
   const tableSizes = await sql.unsafe(`select relname as table, n_live_tup::bigint::text as rows,

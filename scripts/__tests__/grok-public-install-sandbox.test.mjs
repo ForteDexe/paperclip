@@ -194,7 +194,7 @@ test('only the scripts-disabled dependency download gets network access', () => 
 });
 
 test('Pi assembly gets bounded scratch capacity while preserving sandbox restrictions', () => {
-  const args = grokConsumerDockerArgs({ ...paths, download: true, temporarySizeMiB: 2048, command: ['node', '/consumer/node_modules/paperclipai/dist/index.js', 'runtime', 'setup', 'pi'] });
+  const args = grokConsumerDockerArgs({ ...paths, download: true, temporarySizeMiB: 2048, command: ['node', '/consumer/node_modules/@outpost/cli/dist/index.js', 'runtime', 'setup', 'pi'] });
   assert.deepEqual(values(args, '--tmpfs'), ['/tmp:rw,nosuid,nodev,noexec,size=2048m,mode=1777']);
   assert.deepEqual(values(args, '--memory'), ['3g']);
   assert.ok(args.includes('--read-only'));
@@ -224,7 +224,7 @@ test('the separately provisioned executable is exposed read-only to the offline 
   const prerequisite = '/private/staging/native/grok';
   const args = grokConsumerDockerArgs({ ...paths, prerequisite, command: ['node', '/packages/probe.mjs', 'present'] });
   assert.deepEqual(values(args, '--network'), ['none']);
-  assert.equal(values(args, '--mount').at(-1), `type=bind,src=${prerequisite},dst=/opt/paperclip/providers/grok/1.0.13/grok,readonly`);
+  assert.equal(values(args, '--mount').at(-1), `type=bind,src=${prerequisite},dst=/opt/outpost/providers/grok/1.0.13/grok,readonly`);
 });
 
 test('verification never elevates PR-controlled provisioning or cleanup on the host', () => {

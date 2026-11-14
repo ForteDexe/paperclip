@@ -12,7 +12,7 @@ fixtures for review; production screens use authenticated API requests.
   The searchable dropdown has a separate scroll area bounded by Radix's
   available viewport height, including when it opens above its trigger.
 - Repo selection uses the existing SearchableSelect, searching accessible
-  personal/company connections, provider-ID deduplication, and repeatable
+  personal/space connections, provider-ID deduplication, and repeatable
   add/remove. Fixtures contain 63 unique accessible repos, one duplicate repo,
   and an inaccessible personal connection. Selected repos leave the picker.
 - GitHub setup uses the actual ConnectionSetupFlow. The story intercepts
@@ -48,7 +48,7 @@ is the default execution workspace. Legacy `repoUrl` and local workspaces remain
 supported. Runtime credentials still come from the existing run identity resolver;
 a selection does not grant agents additional GitHub access.
 
-The company repository endpoint includes only the current user's personal grants
+The space repository endpoint includes only the current user's personal grants
 and organization grants whose audience includes that user. It refreshes GitHub
 installation metadata, supports PAT pagination, deduplicates provider IDs, and
 reports partial failures. Creation validates all selections before saving the

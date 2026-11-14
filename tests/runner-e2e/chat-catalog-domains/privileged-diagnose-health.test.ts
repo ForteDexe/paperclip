@@ -11,7 +11,7 @@ it("refuses a reused PID, wrong UID/port/directory or a substring lookalike proc
     expect(ownedPostmasterStillMatches({ ...original, ...delta })).toBe(false);
 });
 it("requires real database-unready evidence and honest diagnosis instead of liveness-only success", () => {
-  const o = { scenarioId: "instance-operations.diagnose-health", origin: "http://owned.invalid", companyId: "owned", leadId: "lead",
+  const o = { scenarioId: "instance-operations.diagnose-health", origin: "http://owned.invalid", spaceId: "owned", leadId: "lead",
     tasks: [], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [], links: [], humanQueries: ["canonical"], runs: [{ id: "run", status: "succeeded" }],
     reply: "The database prerequisite is failing; this instance is not ready to run work. Use the operator doctor database check.",
     state: { healthStatus: 503, healthError: "database_unreachable", doctorFailed: true, ownedProcessVerified: true, exactCanonicalBody: true,

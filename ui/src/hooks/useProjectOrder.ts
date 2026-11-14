@@ -8,7 +8,7 @@ import { useAccountBoundMutation } from "./useAccountBoundMutation";
 
 type UseProjectOrderParams = {
   projects: Project[];
-  companyId: string | null | undefined;
+  spaceId: string | null | undefined;
   userId: string | null | undefined;
 };
 
@@ -24,17 +24,17 @@ function buildOrderIds(projects: Project[], orderedIds: string[]) {
   return sortProjectsByStoredOrder(projects, orderedIds).map((project) => project.id);
 }
 
-export function useProjectOrder({ projects, companyId, userId }: UseProjectOrderParams) {
+export function useProjectOrder({ projects, spaceId, userId }: UseProjectOrderParams) {
   const queryClient = useQueryClient();
   const queryKey = useMemo(
-    () => queryKeys.sidebarPreferences.projectOrder(companyId ?? "__none__", userId ?? "__anon__"),
-    [companyId, userId],
+    () => queryKeys.sidebarPreferences.projectOrder(spaceId ?? "__none__", userId ?? "__anon__"),
+    [spaceId, userId],
   );
 
   const { data } = useQuery({
     queryKey,
-    queryFn: () => sidebarPreferencesApi.getProjectOrder(companyId!),
-    enabled: Boolean(companyId && userId),
+    queryFn: () => sidebarPreferencesApi.getProjectOrder(spaceId!),
+    enabled: Boolean(spaceId && userId),
   });
 
   const [orderedIds, setOrderedIds] = useState<string[]>(() => {
@@ -49,7 +49,7 @@ export function useProjectOrder({ projects, companyId, userId }: UseProjectOrder
   // The server saves for the request's user, so a restored sidebar must not
   // send (or optimistically apply) an order before the session is verified.
   const mutation = useAccountBoundMutation({
-    mutationFn: (nextIds: string[]) => sidebarPreferencesApi.updateProjectOrder(companyId!, { orderedIds: nextIds }),
+    mutationFn: (nextIds: string[]) => sidebarPreferencesApi.updateProjectOrder(spaceId!, { orderedIds: nextIds }),
     onMutate: (nextIds) => {
       queryClient.setQueryData(queryKey, (current: { orderedIds?: string[]; updatedAt?: Date | null } | undefined) => ({
         orderedIds: nextIds,
@@ -75,11 +75,11 @@ export function useProjectOrder({ projects, companyId, userId }: UseProjectOrder
       }
 
       setOrderedIds((current) => (areEqual(current, filtered) ? current : filtered));
-      if (!companyId || !userId) return;
+      if (!spaceId || !userId) return;
 
       mutation.mutate(filtered);
     },
-    [companyId, mutation, projects, userId],
+    [spaceId, mutation, projects, userId],
   );
 
   return {

@@ -24,10 +24,10 @@ afterEach(async () => {
 
 describeEmbeddedPostgres("issue comment on-behalf attribution migration", () => {
   it("reapplies the migration and round-trips the nullable user attribution FK", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-comment-on-behalf-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-comment-on-behalf-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
-    const historicalCompanyId = randomUUID();
+    const historicalSpaceId = randomUUID();
     const historicalAgentId = randomUUID();
     const historicalIssueId = randomUUID();
     const historicalRunId = randomUUID();
@@ -39,30 +39,30 @@ describeEmbeddedPostgres("issue comment on-behalf attribution migration", () => 
       await sql`ALTER TABLE "issue_comments" DROP CONSTRAINT IF EXISTS "issue_comments_on_behalf_of_user_id_user_id_fk"`;
       await sql`ALTER TABLE "issue_comments" DROP COLUMN IF EXISTS "on_behalf_of_user_id"`;
       await sql`
-        INSERT INTO "companies" ("id", "name", "issue_prefix")
-        VALUES (${historicalCompanyId}, 'Historical attribution company', 'HAC')
+        INSERT INTO "spaces" ("id", "name", "issue_prefix")
+        VALUES (${historicalSpaceId}, 'Historical attribution space', 'HAC')
       `;
       await sql`
-        INSERT INTO "agents" ("id", "company_id", "name", "role", "adapter_type", "adapter_config")
-        VALUES (${historicalAgentId}, ${historicalCompanyId}, 'Historical comment agent', 'engineer', 'process', '{}'::jsonb)
+        INSERT INTO "agents" ("id", "space_id", "name", "role", "adapter_type", "adapter_config")
+        VALUES (${historicalAgentId}, ${historicalSpaceId}, 'Historical comment agent', 'engineer', 'process', '{}'::jsonb)
       `;
       await sql`
-        INSERT INTO "issues" ("id", "company_id", "title", "identifier")
-        VALUES (${historicalIssueId}, ${historicalCompanyId}, 'Historical comment issue', 'HAC-1')
+        INSERT INTO "issues" ("id", "space_id", "title", "identifier")
+        VALUES (${historicalIssueId}, ${historicalSpaceId}, 'Historical comment issue', 'HAC-1')
       `;
       await sql`
         INSERT INTO "user" ("id", "name", "email", "email_verified", "created_at", "updated_at")
         VALUES (${historicalUserId}, 'Historical Comment User', 'historical-comment-user@example.test', true, now(), now())
       `;
       await sql`
-        INSERT INTO "heartbeat_runs" ("id", "company_id", "agent_id", "status", "responsible_user_id")
-        VALUES (${historicalRunId}, ${historicalCompanyId}, ${historicalAgentId}, 'succeeded', ${historicalUserId})
+        INSERT INTO "heartbeat_runs" ("id", "space_id", "agent_id", "status", "responsible_user_id")
+        VALUES (${historicalRunId}, ${historicalSpaceId}, ${historicalAgentId}, 'succeeded', ${historicalUserId})
       `;
       await sql`
         INSERT INTO "issue_comments" (
-          "id", "company_id", "issue_id", "author_agent_id", "created_by_run_id", "body"
+          "id", "space_id", "issue_id", "author_agent_id", "created_by_run_id", "body"
         ) VALUES (
-          ${historicalCommentId}, ${historicalCompanyId}, ${historicalIssueId}, ${historicalAgentId},
+          ${historicalCommentId}, ${historicalSpaceId}, ${historicalIssueId}, ${historicalAgentId},
           ${historicalRunId}, 'Historical attributed comment'
         )
       `;
@@ -113,22 +113,22 @@ describeEmbeddedPostgres("issue comment on-behalf attribution migration", () => 
       `;
       expect(historical).toEqual([{ on_behalf_of_user_id: historicalUserId }]);
 
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const agentId = randomUUID();
       const issueId = randomUUID();
       const commentId = randomUUID();
       const userId = `comment-user-${randomUUID()}`;
       await verify`
-        INSERT INTO "companies" ("id", "name", "issue_prefix")
-        VALUES (${companyId}, 'Comment attribution company', 'CAC')
+        INSERT INTO "spaces" ("id", "name", "issue_prefix")
+        VALUES (${spaceId}, 'Comment attribution space', 'CAC')
       `;
       await verify`
-        INSERT INTO "agents" ("id", "company_id", "name", "role", "adapter_type", "adapter_config")
-        VALUES (${agentId}, ${companyId}, 'Comment agent', 'engineer', 'process', '{}'::jsonb)
+        INSERT INTO "agents" ("id", "space_id", "name", "role", "adapter_type", "adapter_config")
+        VALUES (${agentId}, ${spaceId}, 'Comment agent', 'engineer', 'process', '{}'::jsonb)
       `;
       await verify`
-        INSERT INTO "issues" ("id", "company_id", "title", "identifier")
-        VALUES (${issueId}, ${companyId}, 'Comment issue', 'CAC-1')
+        INSERT INTO "issues" ("id", "space_id", "title", "identifier")
+        VALUES (${issueId}, ${spaceId}, 'Comment issue', 'CAC-1')
       `;
       await verify`
         INSERT INTO "user" ("id", "name", "email", "email_verified", "created_at", "updated_at")
@@ -136,8 +136,8 @@ describeEmbeddedPostgres("issue comment on-behalf attribution migration", () => 
       `;
       await verify`
         INSERT INTO "issue_comments" (
-          "id", "company_id", "issue_id", "author_agent_id", "on_behalf_of_user_id", "body"
-        ) VALUES (${commentId}, ${companyId}, ${issueId}, ${agentId}, ${userId}, 'Attributed comment')
+          "id", "space_id", "issue_id", "author_agent_id", "on_behalf_of_user_id", "body"
+        ) VALUES (${commentId}, ${spaceId}, ${issueId}, ${agentId}, ${userId}, 'Attributed comment')
       `;
       const inserted = await verify<{ on_behalf_of_user_id: string | null }[]>`
         SELECT "on_behalf_of_user_id" FROM "issue_comments" WHERE "id" = ${commentId}

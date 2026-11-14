@@ -62,7 +62,7 @@ export function announcementFeedService(options: AnnouncementFeedOptions) {
   let nextCheck = 0;
   let available = false;
   let pending: Promise<void> | null = null;
-  // One bounded cache slot per media kind, shared across board users.
+  // One bounded cache slot per media kind, shared across operator users.
   const assets = {
     image: assetSlot(),
     animation: assetSlot(),

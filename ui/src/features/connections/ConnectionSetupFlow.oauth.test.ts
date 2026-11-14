@@ -173,14 +173,14 @@ describe("retained reconnect definition lookup", () => {
   ] as const)("allows retained resume status %s only when appropriate", (status, expected) => {
     const resumeConnection = {
       id: "connection-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       applicationId: "app-clickup",
       status,
       config: { sourceTemplateKey: "clickup" },
     } as unknown as ToolConnection;
     const resumeApplication = {
       id: "app-clickup",
-      companyId: "company-1",
+      spaceId: "space-1",
       metadata: { sourceTemplateKey: "clickup" },
     } as unknown as ToolApplication;
 

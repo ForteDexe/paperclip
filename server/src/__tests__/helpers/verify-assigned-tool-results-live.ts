@@ -14,12 +14,12 @@ import { eq } from "drizzle-orm";
 import { agents, heartbeatRuns, issues } from "@outpost/db";
 import { startRunnerApiTestServer } from "./runner-api-server.js";
 import { createAssignedMcpTools } from "../../services/native-runtime/assigned-mcp-tools.js";
-import { PaperclipRunnerToolAuthority } from "../../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../../services/native-runtime/outpost-runner-tool-authority.js";
 import type { ToolGatewayService } from "../../services/tool-gateway.js";
 import { createRunnerdCodexTransport } from "../../vendor/outpost-runner/index.js";
 import { RUNNER_TOOL_RESULT_MAX_BYTES } from "../../services/native-runtime/runner-tool-results.js";
 
-const root = await mkdtemp(join(tmpdir(), "paperclip-tool-result-live-"));
+const root = await mkdtemp(join(tmpdir(), "outpost-tool-result-live-"));
 let server: Awaited<ReturnType<typeof startRunnerApiTestServer>> | undefined;
 let bundle: ReturnType<typeof createRunnerdCodexTransport> | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -34,7 +34,7 @@ try {
   server = await startRunnerApiTestServer();
   const fixture = await server.fixture({ disableWakeOnDemand: true, apiToolsEnabled: false });
   await server.db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: {
-    trustBoundary: { mode: "low_trust_review", companyId: fixture.companyId, issueIds: [fixture.issueId], allowedAgentIds: [fixture.agentId] },
+    trustBoundary: { mode: "low_trust_review", spaceId: fixture.spaceId, issueIds: [fixture.issueId], allowedAgentIds: [fixture.agentId] },
   } } }).where(eq(agents.id, fixture.agentId));
   const marker = `verified-${randomUUID()}`;
   const original = { untrusted: true, content: "x".repeat(660_000), verificationCode: marker };
@@ -48,7 +48,7 @@ try {
       executeTool: async () => { executions++; return { status: "completed", result: original }; },
     } as unknown as ToolGatewayService,
   });
-  const authority = new PaperclipRunnerToolAuthority(server.db, { ...fixture.authority.binding, assignedMcpTools });
+  const authority = new OutpostRunnerToolAuthority(server.db, { ...fixture.authority.binding, assignedMcpTools });
   const toolName = assignedMcpTools.definitions()[0]!.name as string;
   const tools = authority.definitions().filter(tool => [toolName, "read_tool_result"].includes(String(tool.name)));
   const calls: Array<{ tool: string; resultBytes: number }> = [];
@@ -112,7 +112,7 @@ try {
   await server.db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, fixture.runId));
   const evidence = { passed: true, model: "gpt-6.1-sol", trust: "low_trust_review", platform: `${process.platform}-${process.arch}`,
     responseBytes: Buffer.byteLength(JSON.stringify(original)), executions, calls, allPagesDelivered: true, providerReceivedFinalField: true,
-    runnerClosed: true, durationMs: Date.now() - started, upstream: "synthetic governed response" };
+    runnerClosed: true, durationMs: Date.now() - started, upstream: "synthetic controlled response" };
   if (process.env.OUTPOST_LIVE_EVIDENCE_PATH) await writeFile(process.env.OUTPOST_LIVE_EVIDENCE_PATH, JSON.stringify(evidence, null, 2) + "\n");
   console.log(JSON.stringify(evidence));
 } finally {

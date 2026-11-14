@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
-import { COMPANY_SEARCH_SORTS, type CompanySearchSort } from "@outpost/shared";
+import { SPACE_SEARCH_SORTS, type SpaceSearchSort } from "@outpost/shared";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -89,8 +89,8 @@ export function SearchFilterSheet({
   /** Total result count for the current draft, previewed before applying. */
   previewTotal: number | null;
   data: SearchFilterDataProps;
-  sort: CompanySearchSort;
-  onSortChange: (next: CompanySearchSort) => void;
+  sort: SpaceSearchSort;
+  onSortChange: (next: SpaceSearchSort) => void;
 }) {
   const [draft, setDraft] = useState<SearchFilters>(filters);
   const options = buildSearchFilterOptions(data);
@@ -191,7 +191,7 @@ export function SearchFilterSheet({
           <div className="space-y-1.5">
             <div className="text-xs font-medium text-muted-foreground">Sort by</div>
             <div className="flex flex-wrap gap-1.5">
-              {COMPANY_SEARCH_SORTS.map((value) => (
+              {SPACE_SEARCH_SORTS.map((value) => (
                 <button
                   key={value}
                   type="button"

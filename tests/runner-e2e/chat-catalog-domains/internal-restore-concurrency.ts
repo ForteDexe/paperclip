@@ -98,7 +98,7 @@ export function withRestoreConcurrency(primary: ChatCatalogCase): ChatCatalogCas
         || current.latestRevisionNumber !== doc.latestRevisionNumber || current.body !== doc.body) throw new Error("Current task document identity, revision or bytes changed before UI verification");
       const returned = o.links.find(href => hasLink({ ...o, links: [href] }, "issues", t));
       try {
-        const target = new URL(returned ?? `/${ctx.input.fixtures.company.issuePrefix}/issues/${t.identifier ?? t.id}`, o.origin); target.hash = "#document-plan";
+        const target = new URL(returned ?? `/${ctx.input.fixtures.space.issuePrefix}/issues/${t.identifier ?? t.id}`, o.origin); target.hash = "#document-plan";
         await ctx.input.page.goto(target.href, { waitUntil: "domcontentloaded" });
         await expect(ctx.input.page.getByRole("heading", { name: t.title!, exact: true }).first()).toBeVisible();
         const plan = ctx.input.page.getByTestId("issue-plan-document"); await expect(plan).toBeVisible();

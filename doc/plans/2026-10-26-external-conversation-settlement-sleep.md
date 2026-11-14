@@ -38,8 +38,8 @@ retry. Errors use the existing bounded failure backoff.
 Empty, configured-but-ineligible, and retained waiting history leave this worker
 without a deadline or recurring SQL. Its discovery cost is not zero: startup and
 committed changes can inspect multiple rows and make several readiness queries
-per candidate. Issue-scoped hints narrow that work. Run-only or company-wide
-changes can conservatively invalidate a company. The shared coordinator coalesces
+per candidate. Issue-scoped hints narrow that work. Run-only or space-wide
+changes can conservatively invalidate a space. The shared coordinator coalesces
 these hints. This is a process-local supported-writer contract, not independent
 SQL or multiple-replica change capture.
 
@@ -56,12 +56,12 @@ shutdown joins active work; restart reconstructs any remaining obligation.
 | Chat admission, endpoint configuration, resource reopening | Existing chat-run milestones cover new/reactivated bindings and current authority. Repeated inventory and setup metadata are not new settlement work. |
 | Run lifecycle, committed native projection and finalization | Existing milestone/finalization fanout covers run completion and committed-result proof. Live finalization can still settle directly. |
 | Publication resolution, delivery and cancellation | Scoped publication changes reach milestones. Payload preparation and transport leases alone do not authorize settlement. Both run-first and publication-first completion orders are tested. |
-| Issue update, release and deletion | Status, assignment, execution, monitor, visibility, origin and dependency changes signal before the write. Completion/reopening of a blocker and issue deletion invalidate dependents through company scope. |
+| Issue update, release and deletion | Status, assignment, execution, monitor, visibility, origin and dependency changes signal before the write. Completion/reopening of a blocker and issue deletion invalidate dependents through space scope. |
 | Approval links, interaction completion and connection intents | Shared review-state notification now includes external settlement. Pending interaction insertion blocks work; partial verdicts remain pending. Complete verdicts use the shared notification. |
 | Comment deletion and tombstoning | Signal before removing newer input. Admission and publication own ordinary message/response changes. |
-| Wake queue release, cancellation and retirement | Execution release signals in the adapter transaction. Inbound wake-notice fanout covers company archive, tree cancellation, budget cancellation and rejected chat retry. Wake-status updates retain cancellation fencing. Native status-wake retirement owns an explicit transaction. |
+| Wake queue release, cancellation and retirement | Execution release signals in the adapter transaction. Inbound wake-notice fanout covers space archive, tree cancellation, budget cancellation and rejected chat retry. Wake-status updates retain cancellation fencing. Native status-wake retirement owns an explicit transaction. |
 | Task retry receipts | Superseded retry writers already receive their caller transaction. Chat-receipt reconciliation now opens a transaction only for status-changing writes; diagnostic timestamp updates remain ordinary writes. |
-| Goal/session changes | Goal status changes and deletion of unfinished goal sessions signal. Agent configuration/deletion and harness-backup session expiry cover alternate deletion paths. Agent Chat reset is outside this owner's applicability; company deletion removes the candidates. |
+| Goal/session changes | Goal status changes and deletion of unfinished goal sessions signal. Agent configuration/deletion and harness-backup session expiry cover alternate deletion paths. Agent Chat reset is outside this owner's applicability; space deletion removes the candidates. |
 | Monitor consumption | The monitor owner signals its terminal clear in the transaction. The handoff ordering and restart receipt rules below prevent premature settlement. |
 
 Additional classifications: stopped-comment recovery only updates wait diagnostics
@@ -70,7 +70,7 @@ retry run creation and promotion retain a nonterminal run blocker. Dot and Muse
 follow-up consumption requires a current running owned assignment, whose eventual
 terminal writer supplies the wake. Preserved-result recovery signals finalization
 and remains blocked until commit. Native cancellation removes issue eligibility.
-Company portability creates fresh issue IDs, does not import live chat/run bindings,
+Space portability creates fresh issue IDs, does not import live chat/run bindings,
 and intentionally imports monitors unarmed; its relation inserts do not unblock
 an existing eligible conversation.
 
@@ -89,7 +89,7 @@ monitor-only JSON patch, preserving a replacement monitor and review state.
 
 A saved idempotency key alone does not deduplicate this queue path. Before another
 admission, recovery reads the exact saved receipt and its admitted run, with
-company, agent, issue, reason and recovery-key binding. This handles restart after
+space, agent, issue, reason and recovery-key binding. This handles restart after
 admission but before monitor consumption. A skipped receipt is not acceptance.
 Competing admissions still pass the queue's current monitor-claim guard.
 
@@ -147,7 +147,7 @@ Material failures were retained during development:
 - Review caught a restart edge case: the monitor limit reason can change from
   attempts exhausted to timeout after admission but before clear. Two regression
   cases failed before the fix. Recovery now uses the monitor schedule as identity
-  and recognizes both legacy reason-bearing receipt keys, retaining company,
+  and recognizes both legacy reason-bearing receipt keys, retaining space,
   assignee, issue, and admitted-run binding. A different schedule is not reused.
 - CI shard 1 exposed a stale cancellation fault injection: spying on root
   `db.update` no longer fails writes owned by transactions. The failure reproduced
@@ -183,7 +183,7 @@ A new real PostgreSQL regression calls `createWakeAdmissionWriter` inside its
 transaction scope, checks the persisted coalesced receipt, finishes the joined
 run, and retries the monitor. Before the fix, the enqueue spy was called once,
 contrary to the no-duplicate expectation. The fix accepts both receipt reasons.
-It preserves the company, agent, issue payload, admitted-run join, exact current
+It preserves the space, agent, issue payload, admitted-run join, exact current
 or legacy schedule key, and non-skipped status checks. A receipt for a different
 schedule remains ineligible for either reason. No new timer, table, or wrapper
 is added.
@@ -218,12 +218,12 @@ The parent composition proof retains 1,203 parent-only paths, 20 owned-only path
 11,512 identical paths, and 19 shared automatic merge results. Five explicit
 resolutions preserve the source-generation checks for accepted chat handoff,
 task-before-comment locks, issue-specific decision invalidation, and current
-conversation event columns. The explicit company-authority notification remains
+conversation event columns. The explicit space-authority notification remains
 active. Runner packages equal the parent byte for byte. Current profile 80 and
 its historical profile fixtures are preserved; this slice does not requalify a
 live provider.
 
-A database regression exposed recurring candidate SQL after routine company-only
+A database regression exposed recurring candidate SQL after routine space-only
 maintenance hints. Restoring the original unconditional fanout failed both the
 native and chat cases. Adding only the ordinary issue/run guards fixed the native
 case, but the chat case still made three candidate queries. That failed attempt
@@ -231,15 +231,15 @@ remains part of the evidence. The indirect path was through the shared inbound
 wake-notice and response-availability helpers.
 
 Both shared helpers now keep settlement notification enabled by default. Their
-existing callers include valid company-wide producers, so dropping broad scopes
+existing callers include valid space-wide producers, so dropping broad scopes
 globally would lose work. Only the milestone dispatcher disables their duplicate
 settlement fanout. Its scoped issue-review notification already signals real
-work. The explicit company-authority helper still signals company changes. No
+work. The explicit space-authority helper still signals space changes. No
 new table, polling loop, or producer wrappers were added.
 
 Four database cases cover both directions: coarse native/chat hints cause zero
 settlement candidate SQL after quiet, while real inbound-notice and response
-changes at company scope still settle an answered conversation. A controlled
+changes at space scope still settle an answered conversation. A controlled
 indirect baseline fails one of these cases and passes three; the repaired source
 passes all four. The test hash is identical across that final red/green pair.
 All temporary production changes restore byte for byte.

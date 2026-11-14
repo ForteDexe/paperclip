@@ -7,7 +7,7 @@ import {
   issueComments,
   heartbeatRuns,
   nativeRunFinalizations,
-  companies,
+  spaces,
   agentTaskSessions,
   agentWakeupRequests,
   agentSessionGoalActions,
@@ -72,7 +72,7 @@ type RunPreparation = ReturnType<typeof createHeartbeatRunPreparation>;
 export interface HeartbeatSchedulingDependencies
   extends Pick<HeartbeatRetryDependencies, "getRun" | "getAgent" | "getWorktreeExecutionCutoff">,
     Pick<HeartbeatQueue, "enqueueWakeup" | "parseHeartbeatPolicy" | "nextTimerHeartbeatAt" | "claimDueTimerHeartbeat">,
-    Pick<RunPreparation, "toAgentOrgRow" | "groupAgentOrgRowsByCompany"> {
+    Pick<RunPreparation, "toAgentOrgRow" | "groupAgentOrgRowsBySpace"> {
   issuesSvc: Pick<ReturnType<typeof issueService>, "listReviewAttention" | "create">;
   scheduleBoundedRetryForRun: ReturnType<typeof createHeartbeatRetries>["scheduleBoundedRetryForRun"];
   getSchedulingSuppression: (fresh?: boolean) => Promise<{ suppressed: boolean }>;
@@ -138,7 +138,7 @@ export function createHeartbeatScheduling(
     getSchedulingSuppression,
     getWorktreeExecutionCutoff,
     toAgentOrgRow,
-    groupAgentOrgRowsByCompany,
+    groupAgentOrgRowsBySpace,
     parseHeartbeatPolicy,
     nextTimerHeartbeatAt,
     claimDueTimerHeartbeat,
@@ -146,7 +146,7 @@ export function createHeartbeatScheduling(
 
   const issueMonitorDispatchColumns = {
     id: issues.id,
-    companyId: issues.companyId,
+    spaceId: issues.spaceId,
     projectId: issues.projectId,
     goalId: issues.goalId,
     identifier: issues.identifier,
@@ -168,7 +168,7 @@ export function createHeartbeatScheduling(
 
   interface IssueMonitorDispatchRow {
     id: string;
-    companyId: string;
+    spaceId: string;
     projectId: string | null;
     goalId: string | null;
     identifier: string | null;
@@ -272,7 +272,7 @@ export function createHeartbeatScheduling(
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, claimed.companyId),
+          eq(issues.spaceId, claimed.spaceId),
           eq(issues.originKind, RECOVERY_ORIGIN_KINDS.strandedIssueRecovery),
           eq(issues.originId, claimed.id),
           visibleIssueCondition(),
@@ -300,7 +300,7 @@ export function createHeartbeatScheduling(
     const reviewPathLost =
       input.claimed.status === "in_review" &&
       (await issuesSvc
-        .listReviewAttention(input.claimed.companyId, [input.claimed])
+        .listReviewAttention(input.claimed.spaceId, [input.claimed])
         .then(
           (attention) => attention.get(input.claimed.id)?.state === "stalled",
         ));
@@ -326,7 +326,7 @@ export function createHeartbeatScheduling(
         input.claimed,
       );
       if (!recoveryIssue) {
-        recoveryIssue = await issuesSvc.create(input.claimed.companyId, {
+        recoveryIssue = await issuesSvc.create(input.claimed.spaceId, {
           title: `Recover external-service monitor for ${input.claimed.identifier ?? input.claimed.title}`,
           description: monitorRecoveryComment({
             issue: input.claimed,
@@ -374,7 +374,7 @@ export function createHeartbeatScheduling(
       }
 
       await logActivity(db, {
-        companyId: input.claimed.companyId,
+        spaceId: input.claimed.spaceId,
         actorType: input.actorType,
         actorId: input.actorId,
         agentId: input.agentId,
@@ -404,11 +404,11 @@ export function createHeartbeatScheduling(
 
     const [accepted] = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests)
       .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, agentWakeupRequests.runId),
-        eq(heartbeatRuns.companyId, agentWakeupRequests.companyId),
+        eq(heartbeatRuns.spaceId, agentWakeupRequests.spaceId),
         eq(heartbeatRuns.agentId, agentWakeupRequests.agentId),
         sql`coalesce(${heartbeatRuns.contextSnapshot}->>'issueId', ${heartbeatRuns.contextSnapshot}->>'taskId',
           ${heartbeatRuns.nativeIssueId}::text) = ${input.claimed.id}`))
-      .where(and(eq(agentWakeupRequests.companyId, input.claimed.companyId),
+      .where(and(eq(agentWakeupRequests.spaceId, input.claimed.spaceId),
         eq(agentWakeupRequests.agentId, input.claimed.assigneeAgentId!),
         inArray(agentWakeupRequests.idempotencyKey, acceptedRecoveryKeys),
         inArray(agentWakeupRequests.reason, ["issue_monitor_recovery", "issue_execution_same_name"]),
@@ -457,7 +457,7 @@ export function createHeartbeatScheduling(
     if (!wake) return false;
 
     await logActivity(db, {
-      companyId: input.claimed.companyId,
+      spaceId: input.claimed.spaceId,
       actorType: input.actorType,
       actorId: input.actorId,
       agentId: input.agentId,
@@ -507,7 +507,7 @@ export function createHeartbeatScheduling(
 
     const publications: ActivityPublication[] = [];
     const cleared = await db.transaction(async tx => {
-      await notifyIssueReviewState(tx, { companyId: input.claimed.companyId, issueId: input.claimed.id });
+      await notifyIssueReviewState(tx, { spaceId: input.claimed.spaceId, issueId: input.claimed.id });
       const rows = await tx.update(issues).set({
         ...monitorOnlyDispatchPatch(buildIssueMonitorClearedPatch({
           issue: input.claimed, policy: input.policy, clearReason: input.clearReason, clearedAt: input.now,
@@ -516,7 +516,7 @@ export function createHeartbeatScheduling(
       }).where(issueMonitorClaimCondition(input.claimed)).returning({ id: issues.id });
       if (rows.length && input.recoveryPolicy === "escalate_to_board") {
         await insertIssueComment(tx, {
-          companyId: input.claimed.companyId,
+          spaceId: input.claimed.spaceId,
           issueId: input.claimed.id,
           body: monitorRecoveryComment({
             issue: input.claimed,
@@ -527,7 +527,7 @@ export function createHeartbeatScheduling(
         });
 
         await logActivity(tx as unknown as Db, {
-          companyId: input.claimed.companyId,
+          spaceId: input.claimed.spaceId,
           actorType: input.actorType,
           actorId: input.actorId,
           agentId: input.agentId,
@@ -545,7 +545,7 @@ export function createHeartbeatScheduling(
     if (cleared.length === 0) return { outcome: "skipped" as const, reason: "monitor_replaced" };
 
     await logActivity(db, {
-      companyId: input.claimed.companyId,
+      spaceId: input.claimed.spaceId,
       actorType: input.actorType,
       actorId: input.actorId,
       agentId: input.agentId,
@@ -581,7 +581,7 @@ export function createHeartbeatScheduling(
   }
 
   function issueMonitorClaimCondition(claimed: IssueMonitorDispatchRow) {
-    return and(eq(issues.id, claimed.id), eq(issues.companyId, claimed.companyId),
+    return and(eq(issues.id, claimed.id), eq(issues.spaceId, claimed.spaceId),
       eq(issues.assigneeAgentId, claimed.assigneeAgentId!), isNull(issues.assigneeUserId),
       eq(issues.status, claimed.status), eq(issues.monitorNextCheckAt, claimed.monitorNextCheckAt!),
       eq(issues.monitorWakeRequestedAt, claimed.monitorWakeRequestedAt!));
@@ -598,7 +598,7 @@ export function createHeartbeatScheduling(
     try {
       await db.transaction(async (tx) => {
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
-        await notifyStatusCardIssueChange(tx, claimed.companyId);
+        await notifyStatusCardIssueChange(tx, claimed.spaceId);
         const released = await tx.update(issues)
           .set({ monitorWakeRequestedAt: null, updatedAt: input.now })
           .where(issueMonitorClaimCondition(claimed)).returning({ id: issues.id });
@@ -606,7 +606,7 @@ export function createHeartbeatScheduling(
         // The issue lock serializes diagnostics from competing scheduler instances.
         // Bound recurring reads to this issue's recent indexed activity history.
         const [recent] = await tx.select({ id: activityLog.id }).from(activityLog).where(and(
-          eq(activityLog.companyId, claimed.companyId), eq(activityLog.entityType, "issue"),
+          eq(activityLog.spaceId, claimed.spaceId), eq(activityLog.entityType, "issue"),
           eq(activityLog.entityId, claimed.id), eq(activityLog.action, diagnostic.action),
           gte(activityLog.createdAt, new Date(Date.now() - 5 * 60_000)),
           sql`${activityLog.details}->>'nextCheckAt' = ${claimed.monitorNextCheckAt!.toISOString()}`,
@@ -615,7 +615,7 @@ export function createHeartbeatScheduling(
         )).limit(1);
         if (recent) return;
         await logActivity(tx as unknown as Db, {
-          companyId: claimed.companyId, actorType: input.actorType, actorId: input.actorId,
+          spaceId: claimed.spaceId, actorType: input.actorType, actorId: input.actorId,
           agentId: input.agentId, runId: input.runId, action: diagnostic.action,
           entityType: "issue", entityId: claimed.id,
           details: { nextCheckAt: claimed.monitorNextCheckAt!.toISOString(),
@@ -632,7 +632,7 @@ export function createHeartbeatScheduling(
       // failed, and never clobber a monitor that was replaced in the meantime.
       await db.transaction(async tx => {
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
-        await notifyStatusCardIssueChange(tx, claimed.companyId);
+        await notifyStatusCardIssueChange(tx, claimed.spaceId);
         await tx.update(issues).set({ monitorWakeRequestedAt: null, updatedAt: input.now })
           .where(issueMonitorClaimCondition(claimed));
       });
@@ -740,7 +740,7 @@ export function createHeartbeatScheduling(
             : null;
         if (
           !sourceRun ||
-          sourceRun.companyId !== claimed.companyId ||
+          sourceRun.spaceId !== claimed.spaceId ||
           sourceRun.agentId !== targetAgentId ||
           sourceRun.contextSnapshot?.issueId !== claimed.id ||
           !["failed", "timed_out", "interrupted", "cancelled"].includes(
@@ -832,7 +832,7 @@ export function createHeartbeatScheduling(
       }
 
       const consumed = await db.transaction(async tx => {
-        await notifyStatusCardIssueChange(tx, claimed.companyId);
+        await notifyStatusCardIssueChange(tx, claimed.spaceId);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
         return tx.update(issues)
         .set({
@@ -849,7 +849,7 @@ export function createHeartbeatScheduling(
       if (consumed.length === 0) return { outcome: "triggered" as const };
 
       await logActivity(db, {
-        companyId: claimed.companyId,
+        spaceId: claimed.spaceId,
         actorType: input.actorType,
         actorId: input.actorId,
         agentId: input.agentId,
@@ -873,7 +873,7 @@ export function createHeartbeatScheduling(
       if (err instanceof HttpError && err.status >= 400 && err.status < 500) {
         if (input.clearOnClientError) {
           await db.transaction(async tx => {
-            await notifyIssueReviewState(tx, { companyId: claimed.companyId, issueId: claimed.id });
+            await notifyIssueReviewState(tx, { spaceId: claimed.spaceId, issueId: claimed.id });
             await tx
             .update(issues)
             .set({
@@ -889,7 +889,7 @@ export function createHeartbeatScheduling(
           });
 
           await logActivity(db, {
-            companyId: claimed.companyId,
+            spaceId: claimed.spaceId,
             actorType: input.actorType,
             actorId: input.actorId,
             agentId: input.agentId,
@@ -920,12 +920,12 @@ export function createHeartbeatScheduling(
 
   function noActiveNativeMonitorRun() {
     return sql`not exists (select 1 from ${heartbeatRuns} monitor_run
-      where monitor_run.company_id = ${issues.companyId}
+      where monitor_run.space_id = ${issues.spaceId}
         and monitor_run.native_issue_id = ${issues.id}
         and monitor_run.runtime_mode = 'native'
         and (monitor_run.status in ('queued', 'running', 'scheduled_retry')
           or exists (select 1 from ${nativeRunFinalizations} monitor_finalization
-            where monitor_finalization.company_id = monitor_run.company_id
+            where monitor_finalization.space_id = monitor_run.space_id
               and monitor_finalization.run_id = monitor_run.id
               and monitor_finalization.phase not in ('committed', 'terminal_failure'))))`;
   }
@@ -983,7 +983,7 @@ export function createHeartbeatScheduling(
 
     const staleClaimThreshold = new Date(now.getTime() - 5 * 60 * 1000);
     const claimed = await db.transaction(async (tx) => {
-      await notifyStatusCardIssueChange(tx, issue.companyId);
+      await notifyStatusCardIssueChange(tx, issue.spaceId);
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
       const [updated] = await tx
         .update(issues)
@@ -1032,10 +1032,10 @@ export function createHeartbeatScheduling(
     const dueMonitors = await db
       .select(issueMonitorDispatchColumns)
       .from(issues)
-      .innerJoin(companies, eq(companies.id, issues.companyId))
+      .innerJoin(spaces, eq(spaces.id, issues.spaceId))
       .where(
         and(
-          eq(companies.status, "active"),
+          eq(spaces.status, "active"),
           noActiveNativeMonitorRun(),
           sql`${issues.monitorNextCheckAt} is not null`,
           lte(issues.monitorNextCheckAt, now),
@@ -1057,7 +1057,7 @@ export function createHeartbeatScheduling(
     for (const due of dueMonitors) {
       if (!canContinue()) break;
       const claimed = await db.transaction(async (tx) => {
-        await notifyStatusCardIssueChange(tx, due.companyId);
+        await notifyStatusCardIssueChange(tx, due.spaceId);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
         const [updated] = await tx
           .update(issues)
@@ -1125,8 +1125,8 @@ export function createHeartbeatScheduling(
     if ((await getSchedulingSuppression(true)).suppressed) return null;
     const [row] = await db.select({ at: sql<string | null>`min(greatest(${issues.monitorNextCheckAt},
       ${issues.monitorWakeRequestedAt} + interval '5 minutes' + interval '1 millisecond'))` })
-      .from(issues).innerJoin(companies, eq(companies.id, issues.companyId))
-      .where(and(eq(companies.status, "active"), noActiveNativeMonitorRun(),
+      .from(issues).innerJoin(spaces, eq(spaces.id, issues.spaceId))
+      .where(and(eq(spaces.status, "active"), noActiveNativeMonitorRun(),
         sql`${issues.monitorNextCheckAt} is not null`, isNull(issues.assigneeUserId),
         sql`${issues.assigneeAgentId} is not null`, inArray(issues.status, ["in_progress", "in_review"])));
 
@@ -1141,7 +1141,7 @@ export function createHeartbeatScheduling(
     const sessions = await db
       .select({
         id: agentTaskSessions.id,
-        companyId: agentTaskSessions.companyId,
+        spaceId: agentTaskSessions.spaceId,
         agentId: agentTaskSessions.agentId,
         issueId: agentTaskSessions.taskKey,
         revision: agentTaskSessions.goalRevision,
@@ -1151,7 +1151,7 @@ export function createHeartbeatScheduling(
         issues,
         and(
           sql`${issues.id}::text = ${agentTaskSessions.taskKey}`,
-          eq(issues.companyId, agentTaskSessions.companyId),
+          eq(issues.spaceId, agentTaskSessions.spaceId),
           eq(issues.assigneeAgentId, agentTaskSessions.agentId),
         ),
       )
@@ -1192,7 +1192,7 @@ export function createHeartbeatScheduling(
         id: agentSessionGoalActions.id,
         requestId: agentSessionGoalActions.requestId,
         payload: agentSessionGoalActions.payloadJson,
-        companyId: agentTaskSessions.companyId,
+        spaceId: agentTaskSessions.spaceId,
         agentId: agentTaskSessions.agentId,
         adapterType: agentTaskSessions.adapterType,
         issueId: agentTaskSessions.taskKey,
@@ -1206,7 +1206,7 @@ export function createHeartbeatScheduling(
         issues,
         and(
           sql`${issues.id}::text = ${agentTaskSessions.taskKey}`,
-          eq(issues.companyId, agentTaskSessions.companyId),
+          eq(issues.spaceId, agentTaskSessions.spaceId),
           eq(issues.assigneeAgentId, agentTaskSessions.agentId),
         ),
       )
@@ -1229,7 +1229,7 @@ export function createHeartbeatScheduling(
         await failRunnerGoalAction(
           db,
           {
-            companyId: action.companyId,
+            spaceId: action.spaceId,
             issueId: action.issueId,
             agentId: action.agentId,
             adapterType: action.adapterType,
@@ -1245,7 +1245,7 @@ export function createHeartbeatScheduling(
         .from(heartbeatRuns)
         .where(
           and(
-            eq(heartbeatRuns.companyId, action.companyId),
+            eq(heartbeatRuns.spaceId, action.spaceId),
             eq(heartbeatRuns.agentId, action.agentId),
             inArray(heartbeatRuns.status, [
               "queued",
@@ -1301,9 +1301,9 @@ export function createHeartbeatScheduling(
     const allAgents = await db
       .select({ ...getTableColumns(agents) })
       .from(agents)
-      .innerJoin(companies, eq(companies.id, agents.companyId))
-      .where(eq(companies.status, "active"));
-    const agentsByCompany = groupAgentOrgRowsByCompany(
+      .innerJoin(spaces, eq(spaces.id, agents.spaceId))
+      .where(eq(spaces.status, "active"));
+    const agentsBySpace = groupAgentOrgRowsBySpace(
       allAgents.map(toAgentOrgRow),
     );
     const eligible: Array<{ agent: typeof agents.$inferSelect; intervalSec: number }> = [];
@@ -1311,7 +1311,7 @@ export function createHeartbeatScheduling(
     for (const agent of allAgents) {
       const invokability = evaluateAgentInvokability(
         toAgentOrgRow(agent),
-        agentsByCompany.get(agent.companyId) ?? [],
+        agentsBySpace.get(agent.spaceId) ?? [],
       );
       if (!invokability.invokable) continue;
       if (!supportsUnscopedTimerHeartbeat(agent)) continue;
@@ -1324,7 +1324,7 @@ export function createHeartbeatScheduling(
           .from(issues)
           .where(
             and(
-              eq(issues.companyId, agent.companyId),
+              eq(issues.spaceId, agent.spaceId),
               eq(issues.assigneeAgentId, agent.id),
               inArray(issues.status, ["todo", "in_progress"]),
               gte(issues.createdAt, cutoff),

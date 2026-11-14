@@ -79,7 +79,7 @@ describe("OpenCode MCP bridge", () => {
     const pending = rpc(bridge, { id: "close-durable", method: "tools/call", params: { name: "documents.write", arguments: {} } });
     await begun;
     await bridge.close();
-    expect(await (await pending).json()).toMatchObject({ result: { isError: true, content: [{ text: "Paperclip tool call cancelled" }] } });
+    expect(await (await pending).json()).toMatchObject({ result: { isError: true, content: [{ text: "Outpost tool call cancelled" }] } });
     expect(aborted).toHaveBeenCalledOnce();
     expect(handler).toHaveBeenCalledOnce();
   });
@@ -133,8 +133,8 @@ describe("OpenCode MCP bridge", () => {
     expect(await listed.json()).toMatchObject({
       result: { tools: [
         { name: "documents.read" },
-        { name: "paperclip_finish", description: ORP_COMPLETION_TOOL_DESCRIPTION, inputSchema: ORP_COMPLETION_RESULT_PROVIDER_INPUT_SCHEMA },
-        { name: "paperclip_block", description: ORP_BLOCK_TOOL_DESCRIPTION, inputSchema: ORP_BLOCK_RESULT_PROVIDER_INPUT_SCHEMA },
+        { name: "outpost_finish", description: ORP_COMPLETION_TOOL_DESCRIPTION, inputSchema: ORP_COMPLETION_RESULT_PROVIDER_INPUT_SCHEMA },
+        { name: "outpost_block", description: ORP_BLOCK_TOOL_DESCRIPTION, inputSchema: ORP_BLOCK_RESULT_PROVIDER_INPUT_SCHEMA },
       ] },
     });
   });
@@ -149,10 +149,10 @@ describe("OpenCode MCP bridge", () => {
     expect(JSON.stringify(result).length).toBeGreaterThan(111_877);
     const handler = vi.fn(async () => result);
     const bridge = await startOpenCodeMcpBridge({
-      tools: [{ name: "paperclip_call_assigned_tool", inputSchema: { type: "object" } }], handler,
+      tools: [{ name: "outpost_call_assigned_tool", inputSchema: { type: "object" } }], handler,
     });
     bridges.push(bridge);
-    const request = { id: "large-result", method: "tools/call", params: { name: "paperclip_call_assigned_tool", arguments: {} } };
+    const request = { id: "large-result", method: "tools/call", params: { name: "outpost_call_assigned_tool", arguments: {} } };
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await (await rpc(bridge, request)).json() as { result: { content: Array<{ text: string }> } };
       expect(JSON.parse(response.result.content[0]!.text)).toEqual(result);
@@ -199,21 +199,21 @@ describe("OpenCode MCP bridge", () => {
   });
 
   it("admits runner-private extension operations without advertising them to the model", async () => {
-    const handler = vi.fn(async ({ tool }) => ({ decision: tool === "__paperclip_permission" ? "accept" : "decline" }));
+    const handler = vi.fn(async ({ tool }) => ({ decision: tool === "__outpost_permission" ? "accept" : "decline" }));
     const bridge = await startOpenCodeMcpBridge({
       tools: [{ name: "documents.read", inputSchema: { type: "object" } }],
-      privateTools: [{ name: "__paperclip_permission", inputSchema: { type: "object" } }],
+      privateTools: [{ name: "__outpost_permission", inputSchema: { type: "object" } }],
       handler,
     });
     bridges.push(bridge);
     const listed = await (await rpc(bridge, { id: 1, method: "tools/list" })).json() as { result: { tools: Array<{ name: string }> } };
-    expect(listed.result.tools.map((tool) => tool.name)).not.toContain("__paperclip_permission");
+    expect(listed.result.tools.map((tool) => tool.name)).not.toContain("__outpost_permission");
     expect(await (await rpc(bridge, {
       id: "permission-1",
       method: "tools/call",
-      params: { name: "__paperclip_permission", arguments: {} },
+      params: { name: "__outpost_permission", arguments: {} },
     })).json()).toMatchObject({ result: { content: [{ text: "{\"decision\":\"accept\"}" }] } });
-    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ tool: "__paperclip_permission" }));
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ tool: "__outpost_permission" }));
   });
 
   it("maps prefixed names and replays identical duplicate calls exactly once", async () => {
@@ -223,7 +223,7 @@ describe("OpenCode MCP bridge", () => {
       handler,
     });
     bridges.push(bridge);
-    const request = { id: "call-1", method: "tools/call", params: { name: "paperclip_documents.read", arguments: { id: "doc" } } };
+    const request = { id: "call-1", method: "tools/call", params: { name: "outpost_documents.read", arguments: { id: "doc" } } };
     expect(await (await rpc(bridge, request)).json()).toMatchObject({ result: { content: [{ text: "{\"value\":7}" }] } });
     expect(await (await rpc(bridge, request)).json()).toMatchObject({ result: { content: [{ text: "{\"value\":7}" }] } });
     expect(handler).toHaveBeenCalledTimes(1);
@@ -243,37 +243,37 @@ describe("OpenCode MCP bridge", () => {
   });
 
   it("preserves declared prefixed operation IDs through HTTP MCP and rejects undeclared aliases", async () => {
-    const names = ["paperclip_search_assigned_tools", "paperclip_call_assigned_tool", "search_assigned_tools"];
+    const names = ["outpost_search_assigned_tools", "outpost_call_assigned_tool", "search_assigned_tools"];
     const handler = vi.fn(async call => ({ operation: call.tool }));
     const bridge = await startOpenCodeMcpBridge({ tools: names.map(name => ({ name, inputSchema: { type: "object" } })), handler });
     bridges.push(bridge);
     const listed = await (await rpc(bridge, { id: "list", method: "tools/list" })).json() as { result: { tools: Array<{ name: string }> } };
-    expect(listed.result.tools.map(tool => tool.name)).toEqual([...names, "paperclip_finish", "paperclip_block"]);
+    expect(listed.result.tools.map(tool => tool.name)).toEqual([...names, "outpost_finish", "outpost_block"]);
     for (const [i, name] of names.entries()) {
-      for (const [j, prefix] of ["", "paperclip_", "paperclip__", "outpost."].entries()) {
-        const called = prefix === "paperclip_" && name === "search_assigned_tools" ? name : prefix + name;
+      for (const [j, prefix] of ["", "outpost_", "outpost__", "outpost."].entries()) {
+        const called = prefix === "outpost_" && name === "search_assigned_tools" ? name : prefix + name;
         const result = await (await rpc(bridge, { id: `call-${i}-${j}`, method: "tools/call", params: { name: called, arguments: {} } })).json();
         expect(result).toMatchObject({ result: { content: [{ text: JSON.stringify({ operation: name }) }] } });
       }
     }
     const before = handler.mock.calls.length;
-    expect(await (await rpc(bridge, { id: "unknown", method: "tools/call", params: { name: "paperclip_unassigned_tool", arguments: {} } })).json()).toMatchObject({ result: { isError: true } });
+    expect(await (await rpc(bridge, { id: "unknown", method: "tools/call", params: { name: "outpost_unassigned_tool", arguments: {} } })).json()).toMatchObject({ result: { isError: true } });
     expect(handler).toHaveBeenCalledTimes(before);
   });
 
   it("does not authorize a shortened operation when only its prefixed name is declared", async () => {
     const handler = vi.fn(async () => ({ ok: true }));
-    const bridge = await startOpenCodeMcpBridge({ tools: [{ name: "paperclip_search_assigned_tools", inputSchema: { type: "object" } }], handler });
+    const bridge = await startOpenCodeMcpBridge({ tools: [{ name: "outpost_search_assigned_tools", inputSchema: { type: "object" } }], handler });
     bridges.push(bridge);
     expect(await (await rpc(bridge, { id: "short", method: "tools/call", params: { name: "search_assigned_tools", arguments: {} } })).json()).toMatchObject({ result: { isError: true } });
     expect(handler).not.toHaveBeenCalled();
   });
 
   it("normalizes all supported OpenCode MCP prefixes", () => {
-    expect(canonicalOpenCodeMcpToolName("paperclip_documents.read")).toBe("documents.read");
-    expect(canonicalOpenCodeMcpToolName("paperclip__documents.read")).toBe("documents.read");
+    expect(canonicalOpenCodeMcpToolName("outpost_documents.read")).toBe("documents.read");
+    expect(canonicalOpenCodeMcpToolName("outpost__documents.read")).toBe("documents.read");
     expect(canonicalOpenCodeMcpToolName("outpost.documents.read")).toBe("documents.read");
-    expect(canonicalOpenCodeMcpToolName("paperclip_paperclip_finish")).toBe("paperclip_finish");
+    expect(canonicalOpenCodeMcpToolName("outpost_outpost_finish")).toBe("outpost_finish");
   });
 
   it("validates inputs before dispatch", async () => {
@@ -310,14 +310,14 @@ describe("OpenCode MCP bridge", () => {
       method: "tools/call",
       params: { name: "documents.read", arguments: {} },
     });
-    expect(await response.json()).toMatchObject({ result: { isError: true, content: [{ text: "Paperclip tool call timed out" }] } });
+    expect(await response.json()).toMatchObject({ result: { isError: true, content: [{ text: "Outpost tool call timed out" }] } });
     expect(observed).toHaveBeenCalledOnce();
   });
 
   it("allows human-gated private calls to outlive ordinary tool timeouts", async () => {
     const bridge = await startOpenCodeMcpBridge({
       tools: [{ name: "documents.read", inputSchema: { type: "object" } }],
-      privateTools: [{ name: "__paperclip_runtime_input", inputSchema: { type: "object" } }],
+      privateTools: [{ name: "__outpost_runtime_input", inputSchema: { type: "object" } }],
       timeoutMs: 20,
       privateToolTimeoutMs: 200,
       handler: async ({ tool }) => {
@@ -329,7 +329,7 @@ describe("OpenCode MCP bridge", () => {
     const response = await rpc(bridge, {
       id: "human-input",
       method: "tools/call",
-      params: { name: "__paperclip_runtime_input", arguments: {} },
+      params: { name: "__outpost_runtime_input", arguments: {} },
     });
     expect(await response.json()).toMatchObject({
       result: { content: [{ text: expect.stringContaining("\"resolved\":true") }] },
@@ -358,7 +358,7 @@ describe("OpenCode MCP bridge", () => {
       params: { requestId: "cancel-me", reason: "turn stopped" },
     })).status).toBe(202);
     expect(await (await pending).json()).toMatchObject({
-      result: { isError: true, content: [{ text: "Paperclip tool call cancelled" }] },
+      result: { isError: true, content: [{ text: "Outpost tool call cancelled" }] },
     });
   });
 });
@@ -382,7 +382,7 @@ it("keeps schema rejection intact when its observer fails", async () => {
   const handler = vi.fn(async () => ({}));
   const bridge = await startOpenCodeMcpBridge({ handler, onRejectedCall: () => { throw new Error("observer unavailable"); } });
   bridges.push(bridge);
-  expect(await (await rpc(bridge, { id: 1, method: "tools/call", params: { name: "paperclip_finish", arguments: {} } })).json()).toMatchObject({ result: { isError: true } });
+  expect(await (await rpc(bridge, { id: 1, method: "tools/call", params: { name: "outpost_finish", arguments: {} } })).json()).toMatchObject({ result: { isError: true } });
   expect(handler).not.toHaveBeenCalled();
 });
 it("reports conflicting request IDs without repeating the accepted action", async () => {

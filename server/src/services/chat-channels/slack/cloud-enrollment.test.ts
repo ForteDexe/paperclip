@@ -2,7 +2,7 @@ import { HttpError } from "../../../errors.js";
 import { generateKeyPairSync } from "node:crypto";
 import { chatEndpoints, chatSlackRegistrations, type Db } from "@outpost/db";
 import { afterEach, expect, it, vi } from "vitest";
-import { PaperclipCloudConnectorError } from "../../paperclip-cloud-connector.js";
+import { OutpostCloudConnectorError } from "../../outpost-cloud-connector.js";
 import { createSlackCloudEnrollment, stageSlackCloudEnrollmentIntent } from "./cloud-enrollment.js";
 import type { InternalSetupState } from "../runtime-types.js";
 import type { CredentialMutationLeaseGuard } from "../../chat-credential-mutation-lease.js";
@@ -23,7 +23,7 @@ function jsonValues(value: unknown): unknown[] {
 }
 function fixture() {
   configureCloud();
-  const endpoint = { id: "00000000-0000-4000-8000-000000000001", companyId: "company", connectionId: "connection", publicId: "a".repeat(43),
+  const endpoint = { id: "00000000-0000-4000-8000-000000000001", spaceId: "space", connectionId: "connection", publicId: "a".repeat(43),
     provider: "slack", status: "active", providerAccountId: "TTEST", setup: { runtimeGeneration: 1 } as InternalSetupState };
   const connection = { status: "active", enabled: true };
   let rejectWrite = false;
@@ -88,11 +88,11 @@ it.each(["paused", "archived"])("retains credential-free %s removal responsibili
 
 it("outage preserves a bounded pending retry; current broker denial preserves visible attention debt", async () => {
   const f = fixture(); await f.stage();
-  f.connector.slackEventsAvailable.mockRejectedValueOnce(new PaperclipCloudConnectorError("offline", "CONNECTOR_UNAVAILABLE"));
+  f.connector.slackEventsAvailable.mockRejectedValueOnce(new OutpostCloudConnectorError("offline", "CONNECTOR_UNAVAILABLE"));
   await f.run(f.endpoint.id, undefined, f.lease);
   expect(f.endpoint.setup.slackCloudIntent).toMatchObject({ attempts: 1, failureCode: "broker_unavailable" });
   expect(Date.parse(f.endpoint.setup.slackCloudIntent!.nextAttemptAt!)).toBeGreaterThan(Date.now());
-  f.connector.slackEventEnrollment.mockRejectedValueOnce(new PaperclipCloudConnectorError("denied", "CONNECTOR_REQUEST_FAILED", 403));
+  f.connector.slackEventEnrollment.mockRejectedValueOnce(new OutpostCloudConnectorError("denied", "CONNECTOR_REQUEST_FAILED", 403));
   await f.run(f.endpoint.id, undefined, f.lease);
   expect(f.endpoint.setup.slackCloudIntent).toMatchObject({ failureCode: "authority_required", nextAttemptAt: null });
 });
@@ -113,7 +113,7 @@ it("an absent Cloud configuration creates no new intent or background retry", as
 
 it.each(["SLACK_ENROLLMENT_GENERATION_CHANGED", "SLACK_ENROLLMENT_DISABLED"])("closed broker reason %s distinguishes permanent authority from rollout retry", async reason => {
   const f = fixture(); await f.stage();
-  f.connector.slackEventEnrollment.mockRejectedValueOnce(new PaperclipCloudConnectorError("rejected", "REAUTHORIZATION_REQUIRED", 409, undefined, reason));
+  f.connector.slackEventEnrollment.mockRejectedValueOnce(new OutpostCloudConnectorError("rejected", "REAUTHORIZATION_REQUIRED", 409, undefined, reason));
   await f.run(f.endpoint.id, undefined, f.lease);
   expect(f.endpoint.setup.slackCloudEvents).toBeUndefined();
   expect(f.endpoint.setup.slackCloudIntent!.nextAttemptAt === null).toBe(reason === "SLACK_ENROLLMENT_GENERATION_CHANGED");

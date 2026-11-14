@@ -147,8 +147,8 @@ export function gradeBrowserReconnect(value: unknown) {
 }
 
 export const runtimeHistoryCases = [runtimeDefinition("agent-chat.remember-and-follow-up", async ctx => {
-  for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: ctx.input.fixtures.agent.id }])
-    await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/budgets/policies`, { ...scope, amount: 500,
+  for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: ctx.input.fixtures.agent.id }])
+    await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/policies`, { ...scope, amount: 500,
       hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
   const source = await openStandingChat(ctx); const designMarker = `Selected blue preview ${ctx.input.nonce}`; const filename = `blue-preview-${ctx.input.nonce}.html`;
   await sendChatMessage(ctx.input.page, `We have selected the blue design. Save an actual small HTML preview named ${filename} with blue (#0000ff) styling and the exact visible marker ${JSON.stringify(designMarker)}. Register this real file as a downloadable artifact work product titled ${filename}. Keep that blue design and this exact preview as our selected version for the next turn. No delegated task or external action is needed.`, chatCatalogNativePhaseRemainingBudget(ctx));
@@ -270,7 +270,7 @@ export const runtimeHistoryCases = [runtimeDefinition("agent-chat.remember-and-f
     try {
       failedOffline = await ctx.input.page.evaluate(() => navigator.onLine === false);
       failure = await unavailableNativeModelFailure(ctx, failureWorker, async () => {
-        failedTask = await ctx.input.api.post<Entity>(`/api/companies/${ctx.input.fixtures.company.id}/issues`, {
+        failedTask = await ctx.input.api.post<Entity>(`/api/spaces/${ctx.input.fixtures.space.id}/issues`, {
           title: "Website configuration-failure attempt", status: "todo", assigneeAgentId: failureWorker.id,
           description: "Draft a single-page website and save a task document. Do not create another task or external side effect." });
         return { issueId: failedTask.id };
@@ -296,7 +296,7 @@ export const runtimeHistoryCases = [runtimeDefinition("agent-chat.remember-and-f
   },
   async verifyResult(ctx, state) {
     const source = ctx.input.page.url(); const task = state.task as Entity;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("heading", { name: task.title!, exact: true }).first()).toBeVisible();
     await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible();

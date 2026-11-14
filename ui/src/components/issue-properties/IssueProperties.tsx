@@ -1,4 +1,4 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { isLockedIssueStub } from "@/components/LockedIssueChip";
 import { IssuePullRequestLinks } from "../IssuePullRequestLinks";
 import { useIssueWorkProducts } from "../../hooks/useIssueWorkProducts";
@@ -33,11 +33,11 @@ import { useIssuePlanDocument } from "@/hooks/useIssuePlanDocument";
 import { useIssueDocuments } from "@/hooks/useIssueDocuments";
 import { useStreamlinedUiEnabled } from "@/hooks/useStreamlinedUiEnabled";
 import { selectArtifactAttachments } from "@/lib/issue-artifacts";
-import { useCompany } from "../../context/CompanyContext";
+import { useSpace } from "../../context/SpaceContext";
 import { useSidebar } from "../../context/SidebarContext";
 import { queryKeys } from "../../lib/queryKeys";
 import { ACCOUNT_BOUND_MODEL_DISCOVERY_QUERY_OPTIONS, nativeTaskModelCatalogOptions } from "../../lib/native-model-catalog";
-import { buildCompanyUserInlineOptions, buildCompanyUserLabelMap, buildCompanyUserProfileMap, isAgentTaskTarget } from "../../lib/company-members";
+import { buildSpaceUserInlineOptions, buildSpaceUserLabelMap, buildSpaceUserProfileMap, isAgentTaskTarget } from "../../lib/space-members";
 import { ISSUE_OVERRIDE_ADAPTER_TYPES, type IssueModelLane } from "../../lib/issue-assignee-overrides";
 import { useProjectOrder } from "../../hooks/useProjectOrder";
 import {
@@ -261,10 +261,10 @@ export function IssueProperties({
   const policyResult = useExecutionPolicy(issue.executionPolicy);
   const policyAvailable = policyResult.success;
   const executionPolicy = policyResult.success ? policyResult.data : null;
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { isMobile } = useSidebar();
   const queryClient = useQueryClient();
-  const companyId = issue.companyId ?? selectedCompanyId;
+  const spaceId = issue.spaceId ?? selectedSpaceId;
   const { data: experimentalSettings } = useQuery({
     queryKey: queryKeys.instance.experimentalSettings,
     queryFn: () => instanceSettingsApi.getExperimental(),
@@ -432,28 +432,28 @@ export function IssueProperties({
   const currentUserId = session?.user?.id ?? session?.session?.userId;
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(companyId!),
-    queryFn: () => agentsApi.list(companyId!),
-    enabled: !!companyId,
+    queryKey: queryKeys.agents.list(spaceId!),
+    queryFn: () => agentsApi.list(spaceId!),
+    enabled: !!spaceId,
   });
   const assigneeRuntimeAgentId = issue.assigneeAgentId ?? null;
   const { data: assigneeRuntimeState, isLoading: assigneeRuntimeStateLoading } = useQuery({
     queryKey: queryKeys.agents.runtimeState(assigneeRuntimeAgentId ?? ""),
-    queryFn: () => agentsApi.runtimeState(assigneeRuntimeAgentId!, companyId ?? undefined),
-    // Optional detail: a 403 for board users without agent management access
+    queryFn: () => agentsApi.runtimeState(assigneeRuntimeAgentId!, spaceId ?? undefined),
+    // Optional detail: a 403 for operator users without agent management access
     // is not retried by the shared policy and simply hides the row.
-    enabled: !!assigneeRuntimeAgentId && !!companyId,
+    enabled: !!assigneeRuntimeAgentId && !!spaceId,
   });
   const assigneeRateLimits = readProviderRateLimits(assigneeRuntimeState?.stateJson);
   const assigneeRateLimitAgent = assigneeRuntimeAgentId ? agents?.find((agent) => agent.id === assigneeRuntimeAgentId) : null;
-  const { data: companyMembers } = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(companyId!),
-    queryFn: () => accessApi.listUserDirectory(companyId!),
-    enabled: !!companyId,
+  const { data: spaceMembers } = useQuery({
+    queryKey: queryKeys.access.spaceUserDirectory(spaceId!),
+    queryFn: () => accessApi.listUserDirectory(spaceId!),
+    enabled: !!spaceId,
   });
   const { data: projects } = useQuery({
-    ...companyProjectsQuery(companyId!, { includeArchived: true }),
-    enabled: !!companyId,
+    ...spaceProjectsQuery(spaceId!, { includeArchived: true }),
+    enabled: !!spaceId,
   });
   const activeProjects = useMemo(
     () => (projects ?? []).filter((p) => !p.archivedAt || p.id === issue.projectId),
@@ -461,49 +461,49 @@ export function IssueProperties({
   );
   const { orderedProjects } = useProjectOrder({
     projects: activeProjects,
-    companyId,
+    spaceId,
     userId: currentUserId,
   });
 
   const { data: labels } = useQuery({
-    queryKey: queryKeys.issues.labels(companyId!),
-    queryFn: () => issuesApi.listLabels(companyId!),
-    enabled: !!companyId,
+    queryKey: queryKeys.issues.labels(spaceId!),
+    queryFn: () => issuesApi.listLabels(spaceId!),
+    enabled: !!spaceId,
   });
 
   const { data: allIssues, isFetching: isFetchingIssuePickerIssues } = useQuery({
-    queryKey: queryKeys.issues.list(companyId!),
-    queryFn: () => issuesApi.list(companyId!),
-    enabled: !!companyId && (parentOpen || (blockedByOpen && normalizedBlockedBySearch.length === 0)),
+    queryKey: queryKeys.issues.list(spaceId!),
+    queryFn: () => issuesApi.list(spaceId!),
+    enabled: !!spaceId && (parentOpen || (blockedByOpen && normalizedBlockedBySearch.length === 0)),
   });
 
   const { data: searchedBlockedByIssues, isFetching: isFetchingSearchedBlockedByIssues } = useQuery({
-    queryKey: companyId
-      ? queryKeys.issues.search(companyId, normalizedBlockedBySearch, undefined, ISSUE_BLOCKER_SEARCH_LIMIT)
+    queryKey: spaceId
+      ? queryKeys.issues.search(spaceId, normalizedBlockedBySearch, undefined, ISSUE_BLOCKER_SEARCH_LIMIT)
       : ["issues", "blocker-search", normalizedBlockedBySearch, ISSUE_BLOCKER_SEARCH_LIMIT],
-    queryFn: () => issuesApi.list(companyId!, {
+    queryFn: () => issuesApi.list(spaceId!, {
       q: normalizedBlockedBySearch,
       limit: ISSUE_BLOCKER_SEARCH_LIMIT,
     }),
-    enabled: !!companyId && blockedByOpen && normalizedBlockedBySearch.length > 0,
+    enabled: !!spaceId && blockedByOpen && normalizedBlockedBySearch.length > 0,
   });
 
   const { data: searchedParentIssues, isFetching: isFetchingSearchedParentIssues } = useQuery({
-    queryKey: companyId
-      ? queryKeys.issues.search(companyId, normalizedParentSearch, undefined, ISSUE_BLOCKER_SEARCH_LIMIT)
+    queryKey: spaceId
+      ? queryKeys.issues.search(spaceId, normalizedParentSearch, undefined, ISSUE_BLOCKER_SEARCH_LIMIT)
       : ["issues", "blocker-search", normalizedParentSearch, ISSUE_BLOCKER_SEARCH_LIMIT],
-    queryFn: () => issuesApi.list(companyId!, {
+    queryFn: () => issuesApi.list(spaceId!, {
       q: normalizedParentSearch,
       limit: ISSUE_BLOCKER_SEARCH_LIMIT,
     }),
-    enabled: !!companyId && parentOpen && normalizedParentSearch.length > 0,
+    enabled: !!spaceId && parentOpen && normalizedParentSearch.length > 0,
   });
 
   const createLabel = useMutation({
-    mutationFn: (data: { name: string; color: string }) => issuesApi.createLabel(companyId!, data),
+    mutationFn: (data: { name: string; color: string }) => issuesApi.createLabel(spaceId!, data),
     onSuccess: async (created) => {
       queryClient.setQueryData<IssueLabel[] | undefined>(
-        queryKeys.issues.labels(companyId!),
+        queryKeys.issues.labels(spaceId!),
         (current) => {
           if (!current) return [created];
           if (current.some((label) => label.id === created.id)) return current;
@@ -511,7 +511,7 @@ export function IssueProperties({
         },
       );
       onUpdate({ labelIds: [...(issue.labelIds ?? []), created.id] });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.issues.labels(companyId!) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.issues.labels(spaceId!) });
       setNewLabelName("");
     },
   });
@@ -527,7 +527,7 @@ export function IssueProperties({
         current ? { ...current, archivedAt: null, archivedByActorType: null, archivedByAgentId: null, archivedByRunId: null } : current,
       );
       void queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issue.id) });
-      if (companyId) invalidateInboxIssueQueries(queryClient, companyId);
+      if (spaceId) invalidateInboxIssueQueries(queryClient, spaceId);
     },
     onError: (error) => {
       setUnarchiveErrorMessage(error instanceof Error && error.message.trim().length > 0
@@ -567,17 +567,17 @@ export function IssueProperties({
     isLoading: reusableExecutionWorkspacesLoading,
     isError: reusableExecutionWorkspacesError,
   } = useQuery({
-    queryKey: queryKeys.executionWorkspaces.list(companyId!, {
+    queryKey: queryKeys.executionWorkspaces.list(spaceId!, {
       projectId: issue.projectId ?? undefined,
       projectWorkspaceId: issue.projectWorkspaceId ?? undefined,
       reuseEligible: true,
     }),
-    queryFn: () => executionWorkspacesApi.list(companyId!, {
+    queryFn: () => executionWorkspacesApi.list(spaceId!, {
       projectId: issue.projectId ?? undefined,
       projectWorkspaceId: issue.projectWorkspaceId ?? undefined,
       reuseEligible: true,
     }),
-    enabled: Boolean(companyId) && Boolean(issue.projectId) && workspacePickerEligible && workspacePickerOpen,
+    enabled: Boolean(spaceId) && Boolean(issue.projectId) && workspacePickerEligible && workspacePickerOpen,
   });
   const effectiveWorkspaceSelection = currentWorkspaceSelection(issue, issueProject);
   const hasWorkspaceOverride = issue.executionWorkspacePreference != null
@@ -655,11 +655,11 @@ export function IssueProperties({
       queryClient.setQueryData(queryKeys.executionWorkspaces.detail(result.workspace.id), result.workspace);
       void queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issue.id) });
       if (result.workspace.projectId) void queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(result.workspace.projectId) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.overview(result.workspace.companyId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.overview(result.workspace.spaceId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.workspaceOperations(result.workspace.id) });
-      if (companyId) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId) });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.list(companyId) });
+      if (spaceId) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(spaceId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.list(spaceId) });
       }
       setRuntimeActionErrorMessage(null);
       setRuntimeActionMessage(
@@ -738,16 +738,16 @@ export function IssueProperties({
   );
   const recentProjectIds = useMemo(() => getRecentProjectIds(), [projectOpen]);
   const userLabelMap = useMemo(
-    () => buildCompanyUserLabelMap(companyMembers?.users),
-    [companyMembers?.users],
+    () => buildSpaceUserLabelMap(spaceMembers?.users),
+    [spaceMembers?.users],
   );
   const userProfileMap = useMemo(
-    () => buildCompanyUserProfileMap(companyMembers?.users),
-    [companyMembers?.users],
+    () => buildSpaceUserProfileMap(spaceMembers?.users),
+    [spaceMembers?.users],
   );
   const otherUserOptions = useMemo(
-    () => buildCompanyUserInlineOptions(companyMembers?.users, { excludeUserIds: [currentUserId, issue.createdByUserId] }),
-    [companyMembers?.users, currentUserId, issue.createdByUserId],
+    () => buildSpaceUserInlineOptions(spaceMembers?.users, { excludeUserIds: [currentUserId, issue.createdByUserId] }),
+    [spaceMembers?.users, currentUserId, issue.createdByUserId],
   );
 
   const assignee = issue.assigneeAgentId
@@ -781,20 +781,20 @@ export function IssueProperties({
   const requestNativeModels = Boolean(nativeCatalog && assigneeOptionsOpen && showAssigneeAdapterOptions && supportsAssigneeOverrides);
   const { data: assigneeAdapterModels, refetch: refreshAssigneeModels } = useQuery({
     queryKey:
-      companyId && assigneeAdapterType
-        ? [...queryKeys.agents.adapterModels(companyId, assigneeAdapterType, catalogEnvironmentId, catalogProvider), catalogAcpxAgent ?? null, nativeCatalog ?? null]
+      spaceId && assigneeAdapterType
+        ? [...queryKeys.agents.adapterModels(spaceId, assigneeAdapterType, catalogEnvironmentId, catalogProvider), catalogAcpxAgent ?? null, nativeCatalog ?? null]
         : ["agents", "none", "adapter-models", assigneeAdapterType ?? "none"],
-    queryFn: () => agentsApi.adapterModels(companyId!, assigneeAdapterType!, {
+    queryFn: () => agentsApi.adapterModels(spaceId!, assigneeAdapterType!, {
       provider: catalogProvider,
       ...(catalogAcpxAgent ? { acpxAgent: catalogAcpxAgent } : {}),
       ...(nativeCatalog ? { environmentId: catalogEnvironmentId, ...nativeCatalog } : {}),
     }),
     ...(nativeCatalog ? ACCOUNT_BOUND_MODEL_DISCOVERY_QUERY_OPTIONS : {}),
-    enabled: Boolean(companyId) && showAssigneeAdapterOptions && supportsAssigneeOverrides && (!nativeCatalog || requestNativeModels),
+    enabled: Boolean(spaceId) && showAssigneeAdapterOptions && supportsAssigneeOverrides && (!nativeCatalog || requestNativeModels),
   });
   useEffect(() => {
     if (requestNativeModels) void refreshAssigneeModels();
-  }, [requestNativeModels, nativeCatalogScope, catalogEnvironmentId, companyId, refreshAssigneeModels]);
+  }, [requestNativeModels, nativeCatalogScope, catalogEnvironmentId, spaceId, refreshAssigneeModels]);
   const modelOverrideOptions = useMemo<InlineEntityOption[]>(() => {
     const models = sortAdapterModels(assigneeAdapterModels ?? []);
     const options = models.map((model) => ({
@@ -1328,7 +1328,7 @@ export function IssueProperties({
     updateMonitor({
       nextCheckAt: nextCheckAt.toISOString(),
       notes: monitorNotesInput.trim() || null,
-      scheduledBy: "board",
+      scheduledBy: "operator",
       kind: serviceName ? "external_service" : null,
       serviceName,
       externalRef: null,
@@ -1756,7 +1756,7 @@ export function IssueProperties({
     <span className="text-sm text-muted-foreground">Unassigned</span>
   );
 
-  // Grouped picker options (design surface 2): a board-users section and an
+  // Grouped picker options (design surface 2): a operator-users section and an
   // agents section, plus the "No assignee" reset. Agents stay recency-sorted
   // within their group via `sortedAgents`.
   const userAssigneeOptions = [
@@ -1814,11 +1814,11 @@ export function IssueProperties({
       onClick={() => {
         if (option.kind === "agent") {
           selectAssignee({ assigneeAgentId: option.agent.id, assigneeUserId: null }, option.label, () =>
-            trackRecentAssignee(option.agent.id, companyId ?? undefined),
+            trackRecentAssignee(option.agent.id, spaceId ?? undefined),
           );
         } else if (option.kind === "user") {
           selectAssignee({ assigneeAgentId: null, assigneeUserId: option.userId }, option.label, () =>
-            trackRecentAssigneeUser(option.userId, companyId ?? undefined),
+            trackRecentAssigneeUser(option.userId, spaceId ?? undefined),
           );
         } else {
           selectAssignee({ assigneeAgentId: null, assigneeUserId: null }, option.label);
@@ -2653,7 +2653,7 @@ export function IssueProperties({
       </PropertySection>
 
       <PropertySection title="Execution" streamlined={streamlinedPropertiesEnabled}>
-        {/* Read-only: agents set the policy, the board does not. */}
+        {/* Read-only: agents set the policy, the operator does not. */}
         {reviewPolicyBadge ? (
           <PropertyRow label="Approvals">
             <PropertyChip title={reviewPolicyBadge.description}>

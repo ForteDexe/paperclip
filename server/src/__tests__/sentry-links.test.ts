@@ -2,10 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { addSentryRunLinks, setSentryRunLinkResolver } from "../sentry-links.js";
 
 const runId = "22222222-2222-4222-8222-222222222222";
-const companyId = "55555555-5555-4555-8555-555555555555";
+const spaceId = "55555555-5555-4555-8555-555555555555";
 const agentId = "66666666-6666-4666-8666-666666666666";
 const taskId = "11111111-1111-4111-8111-111111111111";
-const identity = { companyId, companyPrefix: "TEAM", agentId, taskId, taskIdentifier: "TEAM-42" };
+const identity = { spaceId, spacePrefix: "TEAM", agentId, taskId, taskIdentifier: "TEAM-42" };
 
 afterEach(() => {
   setSentryRunLinkResolver(null);
@@ -19,13 +19,13 @@ describe("Sentry navigation links", () => {
     setSentryRunLinkResolver(async () => ({ ...identity,
       creationProvenance: { status: "complete" as const, routineIds: [routineId], shareable: true } }));
     vi.stubEnv("OUTPOST_PUBLIC_URL", "");
-    const event = await addSentryRunLinks({ tags: { event_kind: "run_failure", run_id: runId, company_id: companyId } });
+    const event = await addSentryRunLinks({ tags: { event_kind: "run_failure", run_id: runId, space_id: spaceId } });
     expect(event.tags).toMatchObject({ automation_origin_status: "complete", automation_routine_ids: routineId, task_shareable: "true" });
-    expect(event).toHaveProperty("contexts.paperclip_creation.routineIds", [routineId]);
+    expect(event).toHaveProperty("contexts.outpost_creation.routineIds", [routineId]);
   });
 
   it("keeps missing, failed, and excessive provenance unknown without changing unrelated events", async () => {
-    const failure = () => ({ tags: { event_kind: "run_failure", run_id: runId, company_id: companyId,
+    const failure = () => ({ tags: { event_kind: "run_failure", run_id: runId, space_id: spaceId,
       automation_origin_status: "complete", automation_routine_ids: "sender-claim" } });
     expect((await addSentryRunLinks(failure())).tags).toMatchObject({ automation_origin_status: "unknown", automation_routine_ids: "unknown" });
     setSentryRunLinkResolver(async () => { throw new Error("Database unavailable"); });
@@ -35,7 +35,7 @@ describe("Sentry navigation links", () => {
     const truncated = await addSentryRunLinks(failure());
     expect(truncated.tags.automation_origin_status).toBe("unknown");
     expect(String(truncated.tags.automation_routine_ids).length).toBeLessThanOrEqual(200);
-    expect(truncated).toHaveProperty("contexts.paperclip_creation.routineIds", routineIds);
+    expect(truncated).toHaveProperty("contexts.outpost_creation.routineIds", routineIds);
     const unrelated = { tags: { error_code: "unrelated" } };
     expect(await addSentryRunLinks(unrelated)).toEqual(unrelated);
     setSentryRunLinkResolver(async () => ({ ...identity,
@@ -47,7 +47,7 @@ describe("Sentry navigation links", () => {
 
   it("removes the caller run credential from all outgoing Sentry request headers", async () => {
     const event = await addSentryRunLinks({ request: { headers: {
-      "X-Paperclip-Source-Run-Token": "private-source-credential", "content-type": "application/json",
+      "X-Outpost-Source-Run-Token": "private-source-credential", "content-type": "application/json",
     } } });
     expect(event.request.headers).toEqual({ "content-type": "application/json" });
     expect(JSON.stringify(event)).not.toContain("private-source-credential");
@@ -70,12 +70,12 @@ describe("Sentry navigation links", () => {
     vi.stubEnv("OUTPOST_PUBLIC_URL", "https://outpost.example.com");
     const resolve = vi.fn(async () => identity);
     setSentryRunLinkResolver(resolve);
-    const event = { tags: { run_id: runId, company_id: companyId }, contexts: { paperclip: { runUrl: "/api/original" } }, fingerprint: ["failure"] };
+    const event = { tags: { run_id: runId, space_id: spaceId }, contexts: { outpost: { runUrl: "/api/original" } }, fingerprint: ["failure"] };
     const linked = await addSentryRunLinks(event);
     const runUrl = `https://outpost.example.com/TEAM/agents/${agentId}/runs/${runId}`;
     expect(linked).toMatchObject({ tags: { task_url: "https://outpost.example.com/TEAM/issues/TEAM-42", run_url: runUrl, task_identifier: "TEAM-42" },
-      contexts: { paperclip: { runUrl: "/api/original", runPageUrl: runUrl, taskUrl: "https://outpost.example.com/TEAM/issues/TEAM-42" } }, fingerprint: ["failure"] });
-    expect(resolve).toHaveBeenCalledWith({ runId, companyId });
+      contexts: { outpost: { runUrl: "/api/original", runPageUrl: runUrl, taskUrl: "https://outpost.example.com/TEAM/issues/TEAM-42" } }, fingerprint: ["failure"] });
+    expect(resolve).toHaveBeenCalledWith({ runId, spaceId });
     expect(await addSentryRunLinks({ contexts: { adapter_stop: { runId } } })).toMatchObject({ tags: { run_url: runUrl } });
     const unrelated = { tags: { error_code: "unrelated" } };
     expect(await addSentryRunLinks(unrelated)).toEqual(unrelated);
@@ -93,13 +93,13 @@ describe("Sentry navigation links", () => {
     expect(result.tags).not.toHaveProperty("task_identifier");
   });
 
-  it.each([17, 210])("keeps navigation for a saved %i-character company prefix within tag limits", async length => {
+  it.each([17, 210])("keeps navigation for a saved %i-character space prefix within tag limits", async length => {
     vi.stubEnv("OUTPOST_PUBLIC_URL", "https://outpost.example.com");
-    const companyPrefix = "A".repeat(length);
-    const taskIdentifier = `${companyPrefix}-42`;
-    setSentryRunLinkResolver(async () => ({ ...identity, companyPrefix, taskIdentifier }));
+    const spacePrefix = "A".repeat(length);
+    const taskIdentifier = `${spacePrefix}-42`;
+    setSentryRunLinkResolver(async () => ({ ...identity, spacePrefix, taskIdentifier }));
     const linked = await addSentryRunLinks({ tags: { run_id: runId } });
-    const taskUrl = `https://outpost.example.com/${companyPrefix}/issues/${taskIdentifier}`;
+    const taskUrl = `https://outpost.example.com/${spacePrefix}/issues/${taskIdentifier}`;
     expect(linked).toHaveProperty("contexts.outpost.taskUrl", taskUrl);
     expect(linked).toHaveProperty("contexts.outpost.runPageUrl");
     if (length === 17) {
@@ -121,11 +121,11 @@ describe("Sentry navigation links", () => {
     expect(resolve).not.toHaveBeenCalled();
   });
 
-  it("does not widen a malformed company identity or put long URLs in tags", async () => {
+  it("does not widen a malformed space identity or put long URLs in tags", async () => {
     vi.stubEnv("OUTPOST_PUBLIC_URL", `https://${"a".repeat(60)}.${"b".repeat(60)}.example.com`);
     const resolve = vi.fn(async () => identity);
     setSentryRunLinkResolver(resolve);
-    await addSentryRunLinks({ tags: { run_id: runId, company_id: "private-invalid" } });
+    await addSentryRunLinks({ tags: { run_id: runId, space_id: "private-invalid" } });
     expect(resolve).not.toHaveBeenCalled();
     const linked = await addSentryRunLinks({ tags: { run_id: runId } });
     expect(linked.tags).not.toHaveProperty("run_url");

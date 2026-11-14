@@ -17,8 +17,8 @@ export async function json(response: Awaited<ReturnType<APIRequestContext["get"]
   return response.json();
 }
 export async function setup(request: APIRequestContext) {
-  const company = await json(
-    await request.post("/api/companies", {
+  const space = await json(
+    await request.post("/api/spaces", {
       data: { name: `Agent Chat ${Date.now()}` },
     }),
   );
@@ -34,7 +34,7 @@ export async function setup(request: APIRequestContext) {
   for (const name of ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"])
     agents.push(
       await json(
-        await request.post(`/api/companies/${company.id}/agents`, {
+        await request.post(`/api/spaces/${space.id}/agents`, {
           data: {
             name,
             adapterType: "process",
@@ -51,10 +51,10 @@ export async function setup(request: APIRequestContext) {
       ),
     );
   const agent = agents[0];
-  const chatPath = `/api/companies/${company.id}/chats/${agent.id}`;
-  const route = `/${company.issuePrefix}/chats/${agent.id}`;
+  const chatPath = `/api/spaces/${space.id}/chats/${agent.id}`;
+  const route = `/${space.issuePrefix}/chats/${agent.id}`;
   return {
-    company,
+    space,
     agents,
     agent,
     chatPath,
@@ -64,13 +64,13 @@ export async function setup(request: APIRequestContext) {
         const chat = await request.get(chatPath);
         const history = chat.ok() ? await chat.json() : null;
         const tasks = await json(
-          await request.get(`/api/companies/${company.id}/issues`),
+          await request.get(`/api/spaces/${space.id}/issues`),
         );
         const projects = await json(
-          await request.get(`/api/companies/${company.id}/projects`),
+          await request.get(`/api/spaces/${space.id}/projects`),
         );
         const ledger = await json(
-          await request.get(`/api/companies/${company.id}/heartbeat-runs`),
+          await request.get(`/api/spaces/${space.id}/heartbeat-runs`),
         );
         const documents = await Promise.all(
           [...(history ? [history] : []), ...tasks].map(async (task: any) => ({
@@ -115,7 +115,7 @@ export async function setup(request: APIRequestContext) {
       } finally {
         try {
           const runs = await json(
-            await request.get(`/api/companies/${company.id}/live-runs`),
+            await request.get(`/api/spaces/${space.id}/live-runs`),
           );
           for (const run of runs)
             await json(

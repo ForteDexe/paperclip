@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
-import { companies, companySkills, companySkillSources, createDb, applyPendingMigrations, projects, projectWorkspaces, projectSkillSources } from '@outpost/db';
+import { spaces, spaceSkills, spaceSkillSources, createDb, applyPendingMigrations, projects, projectWorkspaces, projectSkillSources } from '@outpost/db';
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from '../__tests__/helpers/embedded-postgres.js';
 import { githubFixture } from '../__tests__/helpers/github-skills.js';
 import { skillSourceSyncService } from './skill-source-sync.js';
@@ -15,7 +15,7 @@ import { enqueueProjectSkillSource, detachProjectSkillSource } from './project-s
 import { createDeliveryWorkCoordinator } from './delivery-work-coordinator.js';
 import { idleWorkSnapshot } from './task-admission.js';
 import { readIdleSleepSafety } from './idle-sleep-safety.js';
-import { companyService } from './companies.js';
+import { spaceService } from './space-service.js';
 
 const externalUrl = resolveExternalTestDatabaseUrl('OUTPOST_SKILL_SYNC_TEST_DATABASE_URL');
 const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
@@ -28,7 +28,7 @@ describe.skipIf(!support.supported)('skill source committed work and deadlines',
   let service: ReturnType<typeof skillSourceSyncService>;
   let home: string;
   const oldHome = process.env.OUTPOST_HOME;
-  let companyId: string;
+  let spaceId: string;
   let draining: boolean;
   let standby: boolean;
   let calls: string[];
@@ -47,8 +47,8 @@ describe.skipIf(!support.supported)('skill source committed work and deadlines',
   beforeEach(async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'], shouldAdvanceTime: true });
     draining = false; standby = false; calls = []; errors = []; failDeadline = false;
-    companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: 'Skill sync', issuePrefix: 'SSW' });
+    spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: 'Skill sync', issuePrefix: 'SSW' });
     const reader = githubFixture({ 'test/SKILL.md': '---\nname: test\ndescription: Test workflow\n---\nFollow the workflow.\n' });
     reads = vi.fn(reader);
     Object.assign(reads, reader);
@@ -60,7 +60,7 @@ describe.skipIf(!support.supported)('skill source committed work and deadlines',
     await service?.stop();
     await coordinator?.stop();
     vi.useRealTimers();
-    await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
   });
   afterAll(async () => {
     if (oldHome === undefined) delete process.env.OUTPOST_HOME; else process.env.OUTPOST_HOME = oldHome;
@@ -70,15 +70,15 @@ describe.skipIf(!support.supported)('skill source committed work and deadlines',
   });
   async function workspace(ref = 'main', projectId?: string) {
     if (!projectId) {
-      const [project] = await db.insert(projects).values({ companyId, name: ref }).returning();
+      const [project] = await db.insert(projects).values({ spaceId, name: ref }).returning();
       projectId = project.id;
     }
-    const [row] = await db.insert(projectWorkspaces).values({ companyId, projectId, name: ref,
+    const [row] = await db.insert(projectWorkspaces).values({ spaceId, projectId, name: ref,
       repoUrl: 'https://github.com/acme/skills', defaultRef: ref }).returning();
     return row;
   }
-  async function source(overrides: Partial<typeof companySkillSources.$inferInsert> = {}) {
-    const [row] = await db.insert(companySkillSources).values({ companyId, repositoryUrl: 'https://github.com/acme/skills',
+  async function source(overrides: Partial<typeof spaceSkillSources.$inferInsert> = {}) {
+    const [row] = await db.insert(spaceSkillSources).values({ spaceId, repositoryUrl: 'https://github.com/acme/skills',
       fullName: 'acme/skills', trackingRef: 'main', refreshLocalTrusted: true, ...overrides }).returning();
     return row;
   }
@@ -127,7 +127,7 @@ describe.skipIf(!support.supported)('skill source committed work and deadlines',
     await coordinator.stop(); await service.stop();
     const row = await source({ automaticUpdates: false });
     const ws = await workspace();
-    await db.insert(projectSkillSources).values({ companyId, projectId: ws.projectId, workspaceId: ws.id,
+    await db.insert(projectSkillSources).values({ spaceId, projectId: ws.projectId, workspaceId: ws.id,
       sourceId: row.id, repositoryUrl: row.repositoryUrl, trackingRef: 'main', active: false, status: 'ready' });
     await start(); await quiet(600_000);
     expect(coordinator.nextWakeAt()).toBeNull();
@@ -164,7 +164,7 @@ describe.skipIf(!support.supported)('skill source committed work and deadlines',
     expect(idleWorkSnapshot().active).toBeGreaterThan(0);
     release(); await transaction;
     await imported(bindingId);
-    expect(await db.select().from(companySkills)).toHaveLength(1);
+    expect(await db.select().from(spaceSkills)).toHaveLength(1);
     expect(coordinator.nextWakeAt()).toBeGreaterThan(Date.now() + 250_000);
     await quiet();
     expect(service.reconciliationSnapshot().reconciled).toBe(true);
@@ -231,11 +231,11 @@ describe.skipIf(!support.supported)('skill source committed work and deadlines',
     const row = await source({ nextSyncAt: new Date(Date.now() + 600_000) });
     await start(); await quiet();
     const sources = skillSourceService(db);
-    await sources.settings(companyId, row.id, { revision: row.revision, importNewSkills: true }, context);
+    await sources.settings(spaceId, row.id, { revision: row.revision, importNewSkills: true }, context);
     await settle();
     expect(contextFor).toHaveBeenCalled();
-    const current = await sources.detail(companyId, row.id);
-    await sources.settings(companyId, row.id, { revision: current.revision, automaticUpdates: false }, context);
+    const current = await sources.detail(spaceId, row.id);
+    await sources.settings(spaceId, row.id, { revision: current.revision, automaticUpdates: false }, context);
     await settle(); await quiet(600_000);
     expect(coordinator.nextWakeAt()).toBeNull();
   });
@@ -246,20 +246,20 @@ describe.skipIf(!support.supported)('skill source committed work and deadlines',
     let rejectRead!: (error: Error) => void, reading!: () => void;
     const ready = new Promise<void>(resolve => { reading = resolve; });
     const response = new Promise<never>((_, reject) => { rejectRead = reject; });
-    const refresh = skillSourceService(db).refresh(companyId, row.id, {
+    const refresh = skillSourceService(db).refresh(spaceId, row.id, {
       ...context, read: () => Object.assign(async () => { reading(); return response; }, { openSnapshot: context.read(null).openSnapshot }),
     });
     const rejected = expect(refresh).rejects.toThrow('provider unavailable');
     await ready; await settle();
-    const [leased] = await db.select().from(companySkillSources).where(eq(companySkillSources.id, row.id));
+    const [leased] = await db.select().from(spaceSkillSources).where(eq(spaceSkillSources.id, row.id));
     expect(leased.leaseToken).not.toBeNull();
     rejectRead(new Error('provider unavailable')); await rejected; await settle();
-    const [failed] = await db.select().from(companySkillSources).where(eq(companySkillSources.id, row.id));
+    const [failed] = await db.select().from(spaceSkillSources).where(eq(spaceSkillSources.id, row.id));
     expect(failed.leaseToken).toBeNull();
     expect(coordinator.nextWakeAt()).toBe(failed.nextSyncAt.getTime());
     await quiet(60_000);
     await vi.advanceTimersByTimeAsync(240_000); await settle();
-    const [refreshed] = await db.select().from(companySkillSources).where(eq(companySkillSources.id, row.id));
+    const [refreshed] = await db.select().from(spaceSkillSources).where(eq(spaceSkillSources.id, row.id));
     expect(refreshed.failureCount).toBe(0);
     expect(refreshed.lastSuccessAt).not.toBeNull();
     await quiet(60_000);
@@ -311,18 +311,18 @@ describe.skipIf(!support.supported)('skill source committed work and deadlines',
     expect(await db.select().from(projectSkillSources).where(eq(projectSkillSources.status, 'ready'))).toHaveLength(2);
   });
 
-  it('wakes saved work on company reactivation and cancels detached imports', async () => {
+  it('wakes saved work on space reactivation and cancels detached imports', async () => {
     const ws = await workspace();
     const binding = await enqueueProjectSkillSource(db, ws, setup);
-    await db.update(companies).set({ status: 'paused' }).where(eq(companies.id, companyId));
+    await db.update(spaces).set({ status: 'paused' }).where(eq(spaces.id, spaceId));
     await start(); await quiet();
     expect(coordinator.nextWakeAt()).toBeNull();
-    await companyService(db).update(companyId, { status: 'active' });
+    await spaceService(db).update(spaceId, { status: 'active' });
     await imported(binding!.id);
     const later = await workspace('later');
     draining = true;
     const pending = await enqueueProjectSkillSource(db, later, setup);
-    await detachProjectSkillSource(db, companyId, later.id);
+    await detachProjectSkillSource(db, spaceId, later.id);
     draining = false; await settle();
     const [detached] = await db.select().from(projectSkillSources).where(eq(projectSkillSources.id, pending!.id));
     expect(detached.active).toBe(false); expect(detached.sourceId).toBeNull();
@@ -334,7 +334,7 @@ describe.skipIf(!support.supported)('skill source committed work and deadlines',
     await db.update(projectSkillSources).set({ nextSyncAt: new Date(Date.now() + 600_000) }).where(eq(projectSkillSources.id, binding!.id));
     await start();
     expect((await sleepSafety()).backgroundWork).toBe('present');
-    await detachProjectSkillSource(db, companyId, ws.id); await settle();
+    await detachProjectSkillSource(db, spaceId, ws.id); await settle();
     expect((await sleepSafety()).backgroundWork).toBe('none');
   });
 });

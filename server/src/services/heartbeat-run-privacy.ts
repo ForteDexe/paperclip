@@ -5,8 +5,8 @@ import { canActorReadExecutionWorkspace, type AuthorizationActor, type Authoriza
 import { retryIdempotentDatabaseOperation } from "../database-retry.js";
 
 type RunIssueBinding = {
-  companyId: string;
-  scopeKind?: "company" | "issue" | null;
+  spaceId: string;
+  scopeKind?: "space" | "issue" | null;
   issueId?: string | null;
 };
 
@@ -19,7 +19,7 @@ export async function canActorReadHeartbeatRun(
       action: "issue:read";
       resource: {
         type: "issue";
-        companyId: string;
+        spaceId: string;
         issueId: string;
         projectId: null;
         parentIssueId: null;
@@ -31,7 +31,7 @@ export async function canActorReadHeartbeatRun(
   actor: AuthorizationActor,
   run: RunIssueBinding,
 ): Promise<boolean> {
-  if (run.scopeKind === "company") return true;
+  if (run.scopeKind === "space") return true;
   const issueId = run.issueId;
   if (!issueId) return false;
 
@@ -41,7 +41,7 @@ export async function canActorReadHeartbeatRun(
   const issueExists = await retryIdempotentDatabaseOperation(() => db
     .select({ id: issues.id })
     .from(issues)
-    .where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)))
+    .where(and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId)))
     .then((rows) => rows.length > 0));
   if (!issueExists) return false;
 
@@ -50,7 +50,7 @@ export async function canActorReadHeartbeatRun(
     action: "issue:read",
     resource: {
       type: "issue",
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       issueId,
       projectId: null,
       parentIssueId: null,
@@ -69,26 +69,26 @@ export async function getHeartbeatRunReadDecisions(
 ): Promise<boolean[]> {
   const decideReads = access.decideReads;
   if (decideReads) {
-    const bindings = runs.map(run => ({ companyId: run.companyId, scopeKind: run.scopeKind, issueId: run.issueId }));
-    const key = (companyId: string, issueId: string) => JSON.stringify([companyId, issueId]);
-    const issuesByCompany = new Map<string, Set<string>>();
+    const bindings = runs.map(run => ({ spaceId: run.spaceId, scopeKind: run.scopeKind, issueId: run.issueId }));
+    const key = (spaceId: string, issueId: string) => JSON.stringify([spaceId, issueId]);
+    const issuesBySpace = new Map<string, Set<string>>();
     for (const run of bindings) {
-      if (run.scopeKind === "company" || !run.issueId) continue;
-      let ids = issuesByCompany.get(run.companyId);
-      if (!ids) { ids = new Set(); issuesByCompany.set(run.companyId, ids); }
+      if (run.scopeKind === "space" || !run.issueId) continue;
+      let ids = issuesBySpace.get(run.spaceId);
+      if (!ids) { ids = new Set(); issuesBySpace.set(run.spaceId, ids); }
       ids.add(run.issueId);
     }
     const resources: Parameters<typeof decideReads>[1] = [];
-    for (const [companyId, issueIds] of issuesByCompany) {
+    for (const [spaceId, issueIds] of issuesBySpace) {
       const ids = [...issueIds];
       for (let offset = 0; offset < ids.length; offset += 500) {
         const chunk = ids.slice(offset, offset + 500);
         const existing = await retryIdempotentDatabaseOperation(() => db
           .select({ id: issues.id })
           .from(issues)
-          .where(and(eq(issues.companyId, companyId), inArray(issues.id, chunk))));
+          .where(and(eq(issues.spaceId, spaceId), inArray(issues.id, chunk))));
         for (const { id: issueId } of existing) resources.push({
-          type: "issue", companyId, issueId, projectId: null, parentIssueId: null,
+          type: "issue", spaceId, issueId, projectId: null, parentIssueId: null,
           assigneeAgentId: null, assigneeUserId: null,
         });
       }
@@ -99,16 +99,16 @@ export async function getHeartbeatRunReadDecisions(
       for (let index = 0; index < resources.length; index++) {
         const resource = resources[index];
         if (resource.type === "issue" && resource.issueId) {
-          allowed.set(key(resource.companyId, resource.issueId), decisions[index]?.allowed === true);
+          allowed.set(key(resource.spaceId, resource.issueId), decisions[index]?.allowed === true);
         }
       }
     }
-    return bindings.map(run => run.scopeKind === "company" || Boolean(run.issueId && allowed.get(key(run.companyId, run.issueId))));
+    return bindings.map(run => run.scopeKind === "space" || Boolean(run.issueId && allowed.get(key(run.spaceId, run.issueId))));
   }
   const decisions = new Map<string, Promise<boolean>>();
   return Promise.all(runs.map(run => {
-    const binding = { companyId: run.companyId, scopeKind: run.scopeKind, issueId: run.issueId };
-    const key = JSON.stringify([binding.companyId, binding.scopeKind === "company", binding.issueId ?? null]);
+    const binding = { spaceId: run.spaceId, scopeKind: run.scopeKind, issueId: run.issueId };
+    const key = JSON.stringify([binding.spaceId, binding.scopeKind === "space", binding.issueId ?? null]);
     let decision = decisions.get(key);
     if (!decision) {
       decision = canActorReadHeartbeatRun(db, access, actor, binding);
@@ -180,7 +180,7 @@ export function redactHeartbeatRunListRow<T extends Record<string, unknown> & { 
 
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     agentId: row.agentId,
     agentName: row.agentName,
     adapterType: row.adapterType,
@@ -207,7 +207,7 @@ export async function canActorReadWorkspaceOperation(
   db: Db,
   access: Parameters<typeof canActorReadHeartbeatRun>[1],
   actor: AuthorizationActor,
-  operation: { companyId: string; issueId?: string | null; heartbeatRunId?: string | null; executionWorkspaceId?: string | null; metadata?: Record<string, unknown> | null },
+  operation: { spaceId: string; issueId?: string | null; heartbeatRunId?: string | null; executionWorkspaceId?: string | null; metadata?: Record<string, unknown> | null },
 ): Promise<boolean> {
   const sourceIds = (key: string, current?: string | null) => {
     const history = asRecord(operation.metadata?.[key]);
@@ -217,16 +217,16 @@ export async function canActorReadWorkspaceOperation(
   const runIds = sourceIds("_runPrivacySources", operation.heartbeatRunId);
   for (const issueId of issueIds) {
     if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(issueId)) return false;
-    if (!(await canActorReadHeartbeatRun(db, access, actor, { companyId: operation.companyId, scopeKind: "issue", issueId }))) return false;
+    if (!(await canActorReadHeartbeatRun(db, access, actor, { spaceId: operation.spaceId, scopeKind: "issue", issueId }))) return false;
   }
   for (const runId of runIds) {
     if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(runId)) return false;
     const [run] = await db.select({
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
       scopeKind: heartbeatRuns.scopeKind,
       issueId: heartbeatRuns.issueId,
     }).from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, operation.companyId))).limit(1);
+      .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, operation.spaceId))).limit(1);
     if (!run || !(await canActorReadHeartbeatRun(db, access, actor, run))) return false;
   }
   if (operation.executionWorkspaceId) {

@@ -6,7 +6,7 @@ import { checks, observation, project, task, type InternalObservation } from "./
 import { integratorDefinition, inspectResult, resultHref, observeInternal } from "./integrator-support.js";
 type CaseRecord = typeof cases.$inferSelect;
 interface CasesObservation extends InternalObservation { cases: CaseRecord[]; casesEnabled: boolean; casesReadStatus: number; casesReadError?: string; interactions?: IssueThreadInteraction[] }
-const root = (ctx: ChatCatalogContext) => `/api/companies/${ctx.input.fixtures.company.id}`;
+const root = (ctx: ChatCatalogContext) => `/api/spaces/${ctx.input.fixtures.space.id}`;
 async function observeCases(ctx: ChatCatalogContext, state: Record<string, unknown>): Promise<CasesObservation> {
   const base = await observeInternal(ctx, state);
   const settings = await ctx.input.api.get<{ enableCases: boolean }>("/api/instance/settings/experimental");
@@ -54,7 +54,7 @@ export function gradeIntegratorCases(value: unknown) {
   return c.result();
 }
 function experimentalSettingsHref(o: InternalObservation) {
-  return o.links.find(href => { try { const url = new URL(href, o.origin); return url.origin === new URL(o.origin).origin && /\/company\/settings\/instance\/experimental\/?$/.test(url.pathname); } catch { return false; } });
+  return o.links.find(href => { try { const url = new URL(href, o.origin); return url.origin === new URL(o.origin).origin && /\/space\/settings\/instance\/experimental\/?$/.test(url.pathname); } catch { return false; } });
 }
 function caseHref(o: InternalObservation, row: Pick<CaseRecord, "id" | "identifier">) { return resultHref(o, row.id, "cases") ?? resultHref(o, row.identifier, "cases"); }
 async function verifyCases(ctx: ChatCatalogContext, _state: Record<string, unknown>, value: unknown) {
@@ -73,7 +73,7 @@ async function verifyCases(ctx: ChatCatalogContext, _state: Record<string, unkno
       // The person follows the reply's own link and finds the Cases control there.
       const source = ctx.input.page.url(), link = ctx.input.page.locator(`[id^="comment-"] a[href=${JSON.stringify(settings)}]`).first();
       await expect(link).toBeVisible(); await link.click();
-      await expect(ctx.input.page).toHaveURL(url => url.pathname.endsWith("/company/settings/instance/experimental"));
+      await expect(ctx.input.page).toHaveURL(url => url.pathname.endsWith("/space/settings/instance/experimental"));
       await expect(ctx.input.page.getByText("Cases", { exact: true }).first()).toBeVisible();
       await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });
     }
@@ -98,7 +98,7 @@ function define(id: string, enabled: boolean, setup: ChatCatalogCase["setup"]): 
 }
 export const integratorCasesCases: readonly ChatCatalogCase[] = [
   { ...define("cases.cases-disabled", false, async ctx => {
-    await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/chats/${ctx.input.fixtures.agent.id}`);
+    await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/chats/${ctx.input.fixtures.agent.id}`);
     await ctx.refreshIssue();
     if (!ctx.issue()) throw new Error("Customer bug context requires its actual standing conversation");
     await ctx.input.api.patch(`/api/issues/${ctx.issue()!.id}`, { description: "Customer bug: the checkout button stops responding on mobile Safari after a trial item and a test address are entered. The person is asking about this bug." });

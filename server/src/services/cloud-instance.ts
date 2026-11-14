@@ -28,7 +28,7 @@ const CLOUD_STAGING_EXPERIMENTAL_KEYS: ReadonlySet<string> = new Set([
   "enableMuse",
   "enableNativeRunner",
   "enableOpenAiDot",
-  "enablePaperclipDeveloperMode",
+  "enableOutpostDeveloperMode",
   "enablePublicMcp",
   "enableServerInfoDebugView",
   "enableSimplifiedEnglishInteractions",
@@ -59,7 +59,7 @@ function normalizeOptionalEnvValue(value: string | undefined): string | null {
 }
 
 /**
- * The canonical Paperclip Cloud instance predicate.
+ * The canonical Outpost Cloud instance predicate.
  *
  * The tenant token is the signal injected on live cloud stacks. The managed
  * config document is the legacy/bootstrap signal used by managed feature and
@@ -81,7 +81,7 @@ export function isCloudStagingInstance(env: CloudInstanceEnv = process.env): boo
 }
 
 /**
- * Public stack metadata injected by the Paperclip Cloud provisioner.
+ * Public stack metadata injected by the Outpost Cloud provisioner.
  *
  * A managed signal can exist briefly before every metadata value is available,
  * so absent or blank values are represented as null rather than making health
@@ -102,13 +102,13 @@ export function getCloudStackContext(
 }
 
 /**
- * The Cloud-pinned primary company id for a stack: the deterministic
+ * The Cloud-pinned primary space id for a stack: the deterministic
  * v5-style UUID the trusted-header lane seeds and every Cloud surface pins.
- * The derivation is frozen — seeded companies fleet-wide already carry
+ * The derivation is frozen — seeded spaces fleet-wide already carry
  * these ids. middleware/auth.ts delegates here; this is the one definition.
  */
-export function cloudTenantPrimaryCompanyId(stackId: string): string {
-  const bytes = createHash("sha256").update(`paperclip-cloud-tenant-company:${stackId}`).digest();
+export function cloudTenantPrimarySpaceId(stackId: string): string {
+  const bytes = createHash("sha256").update(`outpost-cloud-tenant-space:${stackId}`).digest();
   bytes[6] = (bytes[6]! & 0x0f) | 0x50;
   bytes[8] = (bytes[8]! & 0x3f) | 0x80;
   const hex = bytes.subarray(0, 16).toString("hex");

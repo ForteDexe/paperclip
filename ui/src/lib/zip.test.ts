@@ -115,9 +115,9 @@ function createZipArchiveWithDirectoryEntries(rootPath: string) {
   const entries = [
     { path: `${rootPath}/`, body: new Uint8Array(0), compressionMethod: 0 },
     { path: `${rootPath}/agents/`, body: new Uint8Array(0), compressionMethod: 0 },
-    { path: `${rootPath}/agents/ceo/`, body: new Uint8Array(0), compressionMethod: 0 },
-    { path: `${rootPath}/COMPANY.md`, body: encoder.encode("# Company\n"), compressionMethod: 8 },
-    { path: `${rootPath}/agents/ceo/AGENTS.md`, body: encoder.encode("# CEO\n"), compressionMethod: 8 },
+    { path: `${rootPath}/agents/lead/`, body: new Uint8Array(0), compressionMethod: 0 },
+    { path: `${rootPath}/COMPANY.md`, body: encoder.encode("# Space\n"), compressionMethod: 8 },
+    { path: `${rootPath}/agents/lead/AGENTS.md`, body: encoder.encode("# Default agent\n"), compressionMethod: 8 },
   ].map((entry) => ({
     ...entry,
     data: entry.compressionMethod === 8 ? new Uint8Array(deflateRawSync(entry.body)) : entry.body,
@@ -186,26 +186,26 @@ describe("createZipArchive", () => {
   it("writes a zip archive with the export root path prefixed into each entry", () => {
     const archive = createZipArchive(
       {
-        "COMPANY.md": "# Company\n",
-        "agents/ceo/AGENTS.md": "# CEO\n",
+        "COMPANY.md": "# Space\n",
+        "agents/lead/AGENTS.md": "# Default agent\n",
       },
-      "paperclip-demo",
+      "outpost-demo",
     );
 
     expect(readUint32(archive, 0)).toBe(0x04034b50);
 
     const firstNameLength = readUint16(archive, 26);
     const firstBodyLength = readUint32(archive, 18);
-    expect(readString(archive, 30, firstNameLength)).toBe("paperclip-demo/agents/ceo/AGENTS.md");
-    expect(readString(archive, 30 + firstNameLength, firstBodyLength)).toBe("# CEO\n");
+    expect(readString(archive, 30, firstNameLength)).toBe("outpost-demo/agents/lead/AGENTS.md");
+    expect(readString(archive, 30 + firstNameLength, firstBodyLength)).toBe("# Default agent\n");
 
     const secondOffset = 30 + firstNameLength + firstBodyLength;
     expect(readUint32(archive, secondOffset)).toBe(0x04034b50);
 
     const secondNameLength = readUint16(archive, secondOffset + 26);
     const secondBodyLength = readUint32(archive, secondOffset + 18);
-    expect(readString(archive, secondOffset + 30, secondNameLength)).toBe("paperclip-demo/COMPANY.md");
-    expect(readString(archive, secondOffset + 30 + secondNameLength, secondBodyLength)).toBe("# Company\n");
+    expect(readString(archive, secondOffset + 30, secondNameLength)).toBe("outpost-demo/COMPANY.md");
+    expect(readString(archive, secondOffset + 30 + secondNameLength, secondBodyLength)).toBe("# Space\n");
 
     const endOffset = archive.length - 22;
     expect(readUint32(archive, endOffset)).toBe(0x06054b50);
@@ -216,19 +216,19 @@ describe("createZipArchive", () => {
   it("reads an Outpost zip archive back into rootPath and file contents", async () => {
     const archive = createZipArchive(
       {
-        "COMPANY.md": "# Company\n",
-        "agents/ceo/AGENTS.md": "# CEO\n",
-        ".outpost.yaml": "schema: paperclip/v1\n",
+        "COMPANY.md": "# Space\n",
+        "agents/lead/AGENTS.md": "# Default agent\n",
+        ".outpost.yaml": "schema: outpost/v1\n",
       },
-      "paperclip-demo",
+      "outpost-demo",
     );
 
     await expect(readZipArchive(archive)).resolves.toEqual({
-      rootPath: "paperclip-demo",
+      rootPath: "outpost-demo",
       files: {
-        "COMPANY.md": "# Company\n",
-        "agents/ceo/AGENTS.md": "# CEO\n",
-        ".outpost.yaml": "schema: paperclip/v1\n",
+        "COMPANY.md": "# Space\n",
+        "agents/lead/AGENTS.md": "# Default agent\n",
+        ".outpost.yaml": "schema: outpost/v1\n",
       },
     });
   });
@@ -236,19 +236,19 @@ describe("createZipArchive", () => {
   it("round-trips binary image files without coercing them to text", async () => {
     const archive = createZipArchive(
       {
-        "images/company-logo.png": {
+        "images/space-logo.png": {
           encoding: "base64",
           data: Buffer.from("png-bytes").toString("base64"),
           contentType: "image/png",
         },
       },
-      "paperclip-demo",
+      "outpost-demo",
     );
 
     await expect(readZipArchive(archive)).resolves.toEqual({
-      rootPath: "paperclip-demo",
+      rootPath: "outpost-demo",
       files: {
-        "images/company-logo.png": {
+        "images/space-logo.png": {
           encoding: "base64",
           data: Buffer.from("png-bytes").toString("base64"),
           contentType: "image/png",
@@ -266,16 +266,16 @@ describe("createZipArchive", () => {
     };
     const archive = createZipArchive(
       {
-        "COMPANY.md": "# Company\n",
+        "COMPANY.md": "# Space\n",
         "blobs/4f2d1c9a": entry,
       },
-      "paperclip-demo",
+      "outpost-demo",
     );
 
     await expect(readZipArchive(archive)).resolves.toEqual({
-      rootPath: "paperclip-demo",
+      rootPath: "outpost-demo",
       files: {
-        "COMPANY.md": "# Company\n",
+        "COMPANY.md": "# Space\n",
         "blobs/4f2d1c9a": entry,
       },
     });
@@ -291,7 +291,7 @@ describe("createZipArchive", () => {
           contentType: null,
         },
       },
-      "paperclip-demo",
+      "outpost-demo",
     );
 
     const result = await readZipArchive(archive);
@@ -305,29 +305,29 @@ describe("createZipArchive", () => {
   it("reads standard DEFLATE zip archives created outside Outpost", async () => {
     const archive = createDeflatedZipArchive(
       {
-        "COMPANY.md": "# Company\n",
-        "agents/ceo/AGENTS.md": "# CEO\n",
+        "COMPANY.md": "# Space\n",
+        "agents/lead/AGENTS.md": "# Default agent\n",
       },
-      "paperclip-demo",
+      "outpost-demo",
     );
 
     await expect(readZipArchive(archive)).resolves.toEqual({
-      rootPath: "paperclip-demo",
+      rootPath: "outpost-demo",
       files: {
-        "COMPANY.md": "# Company\n",
-        "agents/ceo/AGENTS.md": "# CEO\n",
+        "COMPANY.md": "# Space\n",
+        "agents/lead/AGENTS.md": "# Default agent\n",
       },
     });
   });
 
   it("ignores directory entries from standard zip archives", async () => {
-    const archive = createZipArchiveWithDirectoryEntries("paperclip-demo");
+    const archive = createZipArchiveWithDirectoryEntries("outpost-demo");
 
     await expect(readZipArchive(archive)).resolves.toEqual({
-      rootPath: "paperclip-demo",
+      rootPath: "outpost-demo",
       files: {
-        "COMPANY.md": "# Company\n",
-        "agents/ceo/AGENTS.md": "# CEO\n",
+        "COMPANY.md": "# Space\n",
+        "agents/lead/AGENTS.md": "# Default agent\n",
       },
     });
   });
@@ -336,7 +336,7 @@ describe("createZipArchive", () => {
 describe("estimateZipArchiveSize", () => {
   it("matches the real archive byte length for mixed text and binary entries", () => {
     const files = {
-      "COMPANY.md": "# Company\n",
+      "COMPANY.md": "# Space\n",
       "agents/céo/AGENT.md": "# Héllo wörld — 日本語 🚀\n",
       "images/logo.png": {
         encoding: "base64" as const,
@@ -351,8 +351,8 @@ describe("estimateZipArchiveSize", () => {
       "notes/empty.txt": "",
     };
 
-    expect(estimateZipArchiveSize(files, "paperclip-demo")).toBe(
-      createZipArchive(files, "paperclip-demo").byteLength,
+    expect(estimateZipArchiveSize(files, "outpost-demo")).toBe(
+      createZipArchive(files, "outpost-demo").byteLength,
     );
   });
 
@@ -374,7 +374,7 @@ describe("estimateZipArchiveSize", () => {
 
   it("mirrors the writer's path normalization for messy paths", () => {
     const files = {
-      "agents//ceo\\AGENT.md": "# CEO\n",
+      "agents//lead\\AGENT.md": "# Default agent\n",
     };
 
     expect(estimateZipArchiveSize(files, "demo/")).toBe(
@@ -383,9 +383,9 @@ describe("estimateZipArchiveSize", () => {
   });
 
   it("returns the 22-byte end-of-central-directory record for an empty map", () => {
-    expect(estimateZipArchiveSize({}, "paperclip-demo")).toBe(22);
-    expect(estimateZipArchiveSize({}, "paperclip-demo")).toBe(
-      createZipArchive({}, "paperclip-demo").byteLength,
+    expect(estimateZipArchiveSize({}, "outpost-demo")).toBe(22);
+    expect(estimateZipArchiveSize({}, "outpost-demo")).toBe(
+      createZipArchive({}, "outpost-demo").byteLength,
     );
   });
 });

@@ -8,13 +8,13 @@ export function applyMainlineStopMetadata(run: Record<string, any>) {
   const existing = run.resultJson ?? {}, template = structuredClone(retainedMainlineStop.run.resultJson);
   const requestedAt = existing.startupCancellation?.requestedAt ?? template.startupCancellation.requestedAt;
   run.runtimeMode = "native";
-  run.resultJson = { ...existing, cancelledByActorType: "user", cancelledByUserId: "local-board",
+  run.resultJson = { ...existing, cancelledByActorType: "user", cancelledByUserId: "local-operator",
     cancellation: { ...template.cancellation, recordedAt: requestedAt },
     startupCancellation: { requestedAt, beforeNativeSelection: false },
     nativeCancellation: { ...template.nativeCancellation, ...existing.nativeCancellation,
-      intentId: template.nativeCancellation.intentId, companyId: run.companyId, runId: run.id, issueId: run.nativeIssueId } };
+      intentId: template.nativeCancellation.intentId, spaceId: run.spaceId, runId: run.id, issueId: run.nativeIssueId } };
 }
 export function stopAcknowledgementForTest(run: Record<string, any>, fixtureCorrelationId: string, dispatchMonotonicNs: string) {
-  return readCopilotStopAcknowledgement(run, { companyId: run.companyId, runId: run.id, issueId: run.nativeIssueId, callerUserId: "local-board" },
+  return readCopilotStopAcknowledgement(run, { spaceId: run.spaceId, runId: run.id, issueId: run.nativeIssueId, callerUserId: "local-operator" },
     fixtureCorrelationId, dispatchMonotonicNs, (BigInt(dispatchMonotonicNs) + 1n).toString());
 }

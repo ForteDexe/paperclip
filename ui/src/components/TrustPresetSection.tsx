@@ -54,7 +54,7 @@ export function TrustPresetSection({
   permissions,
   onChange,
   disabled,
-  companyId,
+  spaceId,
   projectCandidates = [],
   issueCandidates = [],
   candidatesLoading,
@@ -66,7 +66,7 @@ export function TrustPresetSection({
   permissions: Partial<AgentPermissions> | null | undefined;
   onChange: (permissions: Partial<AgentPermissions>) => void;
   disabled?: boolean;
-  companyId?: string | null;
+  spaceId?: string | null;
   projectCandidates?: LowTrustBoundaryCandidate[];
   issueCandidates?: LowTrustBoundaryCandidate[];
   candidatesLoading?: boolean;
@@ -100,8 +100,8 @@ export function TrustPresetSection({
   }
 
   function handleBoundaryTargetChange(targetId: string) {
-    if (!companyId || !targetId) return;
-    onChange(setSingleLowTrustBoundaryTarget(permissions, companyId, { type: targetType, id: targetId }));
+    if (!spaceId || !targetId) return;
+    onChange(setSingleLowTrustBoundaryTarget(permissions, spaceId, { type: targetType, id: targetId }));
   }
 
   function handleClearBoundary() {
@@ -158,7 +158,7 @@ export function TrustPresetSection({
                         className={inputClass}
                         value={boundaryValue}
                         onChange={(event) => handleBoundaryTargetChange(event.target.value)}
-                        disabled={disabled || !companyId || candidatesLoading || targetCandidates.length === 0}
+                        disabled={disabled || !spaceId || candidatesLoading || targetCandidates.length === 0}
                       >
                         <option value="">
                           {candidatesLoading

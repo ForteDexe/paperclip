@@ -10,7 +10,7 @@ not total server CPU or request latency.
 The service now retains its Drizzle compiled query in a `WeakMap` keyed by the
 exact supplied database or transaction object. It creates only the requested
 read, `FOR UPDATE`, or `FOR UPDATE NOWAIT` variant. Each execution supplies fresh
-company, issue, agent, provider and comment IDs. An `ANY(uuid[])` placeholder
+space, issue, agent, provider and comment IDs. An `ANY(uuid[])` placeholder
 keeps the template count at three per live handle for every comment-list size.
 It retains no result or authorization decision. Transactions and nested
 savepoints cannot borrow a root query session. Setup, credential, resource and
@@ -64,7 +64,7 @@ host-load effect.
 The focused real PostgreSQL suite passed 17 tests: four new authorization tests
 and 13 existing attachment-reuse tests. The new cases exercise changed binding
 values and comment arities, duplicate and empty inputs, invalid UUID errors,
-company/agent/provider isolation, current setup generation and credential
+space/agent/provider isolation, current setup generation and credential
 fingerprints, transaction and savepoint rollback, read mode during a held row
 lock, blocking lock timeout and NOWAIT contention.
 

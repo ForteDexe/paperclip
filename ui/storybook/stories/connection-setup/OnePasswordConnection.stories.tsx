@@ -9,14 +9,14 @@ import { ConnectorCard } from "@/pages/apps/Browse";
 import { ActionsSection } from "@/pages/apps/app-detail/PermissionsPanel";
 
 const app = getAppStoreDefinition("1password")!;
-const companyId = "company-storybook";
+const spaceId = "space-storybook";
 const testAgent: ToolConnectionTestAgent = { id: "onepassword-review-agent", name: "Vault test agent", role: "engineer", title: null, status: "active", orgDepth: 0 };
 const tools = [
   { name: "onepassword_list_vaults", risk: "read", description: "List authorized vaults.", properties: {} },
   { name: "onepassword_create_item", risk: "write", description: "Create a disposable item.", properties: { vaultId: { type: "string" }, title: { type: "string" }, category: { type: "string", enum: ["SecureNote"] } } },
   { name: "onepassword_delete_item", risk: "destructive", description: "Delete a disposable item.", properties: { vaultId: { type: "string" }, itemId: { type: "string" } } },
 ].map(({ name, risk, description, properties }) => ({ id: name, toolName: name, title: name, description,
-  companyId, connectionId: "onepassword-review", status: "active", riskLevel: risk,
+  spaceId, connectionId: "onepassword-review", status: "active", riskLevel: risk,
   isReadOnly: risk === "read", isWrite: risk === "write", isDestructive: risk === "destructive",
   inputSchema: { type: "object", properties, additionalProperties: false },
 }) as unknown as ToolCatalogEntry);
@@ -30,7 +30,7 @@ function OnePasswordReview({ screen = "catalog", rejected = false, inline = fals
   const [askFirstIds, setAskFirstIds] = useState(new Set<string>());
   const client = useMemo(() => {
     const result = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
-    result.setQueryData(queryKeys.apps.gallery(companyId), { apps: [app], capabilities: { canSetCompanyInstall: true } });
+    result.setQueryData(queryKeys.apps.gallery(spaceId), { apps: [app], capabilities: { canSetSpaceInstall: true } });
     return result;
   }, []);
   const access = useMemo<ToolConnectionAccessSummary>(() => {
@@ -51,15 +51,15 @@ function OnePasswordReview({ screen = "catalog", rejected = false, inline = fals
     const original = window.fetch;
     const fixture: typeof window.fetch = async (input, init) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin);
-      if (url.pathname === `/api/companies/${companyId}/tools/applications`) return Response.json({ applications: [] });
-      if (url.pathname === `/api/companies/${companyId}/tools/connections`) return Response.json({ connections: [] });
-      if (url.pathname === `/api/companies/${companyId}/tools/apps/connect`) {
+      if (url.pathname === `/api/spaces/${spaceId}/tools/applications`) return Response.json({ applications: [] });
+      if (url.pathname === `/api/spaces/${spaceId}/tools/connections`) return Response.json({ connections: [] });
+      if (url.pathname === `/api/spaces/${spaceId}/tools/apps/connect`) {
         if (rejected) return Response.json({ error: "1Password could not verify access. Check the token and its vault permissions." }, { status: 422 });
         return Response.json({ connectionId: "onepassword-review", application: { id: "onepassword-app", name: app.name },
           connection: { id: "onepassword-review", name: app.name, status: "active" }, catalog: tools,
           actions: { readOnly: tools.filter(tool => tool.isReadOnly), canMakeChanges: tools.filter(tool => !tool.isReadOnly) }, suggestedDefaults: {} });
       }
-      if (url.pathname === `/api/companies/${companyId}/tools/apps/onepassword-review/finish`) return Response.json({ connectionId: "onepassword-review", installs: [] });
+      if (url.pathname === `/api/spaces/${spaceId}/tools/apps/onepassword-review/finish`) return Response.json({ connectionId: "onepassword-review", installs: [] });
       if (url.pathname === "/api/tool-connections/onepassword-review/test-agents") return Response.json({ agents: [testAgent] });
       if (url.pathname === `/api/tool-connections/onepassword-review/test-agents/${testAgent.id}/access`) return Response.json({ access });
       if (url.pathname === "/api/tool-connections/onepassword-review/test-calls") {
@@ -100,7 +100,7 @@ function OnePasswordReview({ screen = "catalog", rejected = false, inline = fals
 }
 
 const meta = { id: "apps-connections-onepassword", title: "Apps, channels, and extensions/Connection setup/Apps/Connections/1Password",
-  component: OnePasswordReview, parameters: { layout: "fullscreen", paperclip: { implementation: "production", boundary: "fixtures",
+  component: OnePasswordReview, parameters: { layout: "fullscreen", outpost: { implementation: "production", boundary: "fixtures",
     capabilities: ["connection-setup/catalog", "connection-setup/credentials", "connection-setup/failure", "app-permissions/action-policy", "app-permissions/test-action"],
     notes: "Production catalog card, token setup and Actions/Test controls with synthetic fixtures. No provider proof or task execution is claimed." } },
 } satisfies Meta<typeof OnePasswordReview>;

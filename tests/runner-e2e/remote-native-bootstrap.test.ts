@@ -11,19 +11,19 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
 function harness(timeoutMs = REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS + 18_000) {
   const order: string[] = [];
-  const issue = { id: "issue", companyId: "company", assigneeAgentId: "agent" };
-  const run = { id: "run", companyId: "company", agentId: "agent", status: "running", executionStage: "preparing", runtimeMode: "native", nativePhase: "provider_running" };
+  const issue = { id: "issue", spaceId: "space", assigneeAgentId: "agent" };
+  const run = { id: "run", spaceId: "space", agentId: "agent", status: "running", executionStage: "preparing", runtimeMode: "native", nativePhase: "provider_running" };
   const leases = [{ id: "lease", heartbeatRunId: "run", issueId: "issue", status: "active", providerLeaseId: "sandbox" }];
   const api = { get: vi.fn(async (path: string) => path === "/api/issues/issue" ? issue : path === "/api/heartbeat-runs/run" ? run : leases) };
   const fixture = {
-    binding: { companyId: "company", environmentId: "env", runId: "run", leaseId: "lease", sandboxId: "sandbox", remoteCwd: "/workspace" },
+    binding: { spaceId: "space", environmentId: "env", runId: "run", leaseId: "lease", sandboxId: "sandbox", remoteCwd: "/workspace" },
     baseline: { complete: true },
     publishAction: vi.fn(async () => { order.push("publish"); }),
     close: vi.fn(async () => { order.push("close"); }),
   } as unknown as RemoteNativeFixture;
   const bind = vi.fn(async () => { order.push("armed"); return fixture; });
   const input = {
-    api: api as unknown as RemoteFixtureApi, daytona: { get: vi.fn() }, companyId: "company", environmentId: "env", agentId: "agent",
+    api: api as unknown as RemoteFixtureApi, daytona: { get: vi.fn() }, spaceId: "space", environmentId: "env", agentId: "agent",
     image: `image@sha256:${"a".repeat(64)}`, nodeSha256: `sha256:${"b".repeat(64)}`, runnerdSha256: `sha256:${"c".repeat(64)}`,
     deadlineAt: Date.now() + timeoutMs, evidence: vi.fn(async (_name: string, _data: unknown) => { order.push("evidence"); }),
   };
@@ -98,19 +98,19 @@ it("withholds actual work until exact run admission, armed observer and awaited 
   expect(h.order).toEqual(["armed", "baseline", "evidence", "publish"]);
   expect(h.bind).toHaveBeenCalledWith(expect.objectContaining({
     sdkVersion: "0.203.0", targets: ["target.txt"],
-    authority: { companyId: "company", environmentId: "env", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: h.input.image },
+    authority: { spaceId: "space", environmentId: "env", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: h.input.image },
   }));
-  expect(h.fixture.publishAction).toHaveBeenCalledWith(expect.stringMatching(/^\.paperclip-eval-action-[a-f0-9]{36}\.txt$/u), "PRIVATE ACTUAL ACTION");
+  expect(h.fixture.publishAction).toHaveBeenCalledWith(expect.stringMatching(/^\.outpost-eval-action-[a-f0-9]{36}\.txt$/u), "PRIVATE ACTUAL ACTION");
   expect(JSON.stringify(h.input.evidence.mock.calls)).not.toContain("PRIVATE ACTUAL ACTION");
   await expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow("one unconsumed");
 });
 
-it.each(["issue-company", "issue-agent", "issue-id", "run-company", "run-agent", "run-id", "run-terminal", "ambiguous-lease"])("rejects %s before observer execution or action delivery", async variant => {
+it.each(["issue-space", "issue-agent", "issue-id", "run-space", "run-agent", "run-id", "run-terminal", "ambiguous-lease"])("rejects %s before observer execution or action delivery", async variant => {
   const h = harness(); h.bootstrap.prompt("nonce");
-  if (variant === "issue-company") h.issue.companyId = "other";
+  if (variant === "issue-space") h.issue.spaceId = "other";
   if (variant === "issue-agent") h.issue.assigneeAgentId = "other";
   if (variant === "issue-id") h.issue.id = "other";
-  if (variant === "run-company") h.run.companyId = "other";
+  if (variant === "run-space") h.run.spaceId = "other";
   if (variant === "run-agent") h.run.agentId = "other";
   if (variant === "run-id") h.run.id = "other";
   if (variant === "run-terminal") h.run.status = "succeeded";
@@ -197,7 +197,7 @@ it("rechecks run ownership while waiting for the lease", async () => {
   vi.useFakeTimers(); vi.setSystemTime(0);
   const h = harness(); h.bootstrap.prompt("owner"); h.leases.length = 0;
   const delivery = expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow("ownership is unproven");
-  await vi.advanceTimersByTimeAsync(100); h.run.companyId = "foreign";
+  await vi.advanceTimersByTimeAsync(100); h.run.spaceId = "foreign";
   await vi.advanceTimersByTimeAsync(100); await delivery;
   expect(h.bind).not.toHaveBeenCalled(); expect(h.fixture.publishAction).not.toHaveBeenCalled();
 });
@@ -238,8 +238,8 @@ it.each(["terminal", "run-owner", "issue-owner"])("does not lose a successful %s
   vi.useFakeTimers(); vi.setSystemTime(0);
   const h = harness(); h.bootstrap.prompt("read-error");
   if (variant === "terminal") h.run.status = "failed";
-  if (variant === "run-owner") h.run.companyId = "foreign";
-  if (variant === "issue-owner") h.issue.companyId = "foreign";
+  if (variant === "run-owner") h.run.spaceId = "foreign";
+  if (variant === "issue-owner") h.issue.spaceId = "foreign";
   const original = h.api.get.getMockImplementation()!;
   h.api.get.mockImplementation(async path => {
     if (path.endsWith("/leases") || (variant === "issue-owner" && path.endsWith("/run"))
@@ -301,8 +301,8 @@ it.each(["terminal", "run-owner", "issue-owner"])("rejects %s immediately with a
   vi.useFakeTimers(); vi.setSystemTime(0);
   const h = harness(); h.bootstrap.prompt("slow-lease");
   if (variant === "terminal") h.run.status = "failed";
-  if (variant === "run-owner") h.run.companyId = "foreign";
-  if (variant === "issue-owner") h.issue.companyId = "foreign";
+  if (variant === "run-owner") h.run.spaceId = "foreign";
+  if (variant === "issue-owner") h.issue.spaceId = "foreign";
   let rejectLease!: (error: Error) => void;
   const leaseRead = new Promise<never>((_resolve, reject) => { rejectLease = reject; });
   const original = h.api.get.getMockImplementation()!;
@@ -445,7 +445,7 @@ it("uses a short exact Copilot bootstrap path while preserving observer-before-a
   const bootstrap = createRemoteNativeBootstrap({ ...h.input, requireCopilotTaskContext: true }, h.bind);
   const prompt = bootstrap.prompt("copilot-short-path");
   const path = prompt.match(/workspace file (\S+)\./u)?.[1];
-  expect(path).toMatch(/^\.paperclip-eval-action-[a-f0-9]{12}\.txt$/u);
+  expect(path).toMatch(/^\.outpost-eval-action-[a-f0-9]{12}\.txt$/u);
   expect(prompt).toContain("exact relative file");
   expect(prompt).toContain("retry the read for up to 20 seconds");
   expect(h.fixture.publishAction).not.toHaveBeenCalled();

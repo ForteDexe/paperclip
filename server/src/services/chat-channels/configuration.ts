@@ -207,7 +207,7 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
           });
         }
         await notifyChatEndpointConfiguration(tx, endpoint);
-        await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.companyId);
+        await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.spaceId);
         await tx
           .update(chatEndpoints)
           .set({
@@ -245,8 +245,8 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
       });
       await invalidateRuntime(endpoint.id);
       await logActivity(db, {
-        companyId: endpoint.companyId,
-        ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "board" }),
+        spaceId: endpoint.spaceId,
+        ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "operator" }),
         action: "chat_endpoint.paused",
         entityType: "tool_connection",
         entityId: endpoint.connectionId,
@@ -327,7 +327,7 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
           }
           // Fail closed for any legacy or racing delivery that remained open
           // while this endpoint was paused. Resume must never execute traffic
-          // that Paperclip acknowledged during the inactive interval.
+          // that Outpost acknowledged during the inactive interval.
           await notifyChatDeliveryWork(tx);
           await tx
             .update(chatDeliveries)
@@ -346,7 +346,7 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
               ),
             );
           await notifyChatEndpointConfiguration(tx, endpoint);
-          await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.companyId);
+          await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.spaceId);
           [activatedEndpoint] = await tx
             .update(chatEndpoints)
             .set({
@@ -396,7 +396,7 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
           await mutate(async (tx) => {
             await credentialLease.assertOwned(tx);
             await notifyChatEndpointConfiguration(tx, endpoint);
-            await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.companyId);
+            await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.spaceId);
             await tx
               .update(chatEndpoints)
               .set({
@@ -447,8 +447,8 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
         throw error;
       }
       await logActivity(db, {
-        companyId: endpoint.companyId,
-        ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "board" }),
+        spaceId: endpoint.spaceId,
+        ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "operator" }),
         action: "chat_endpoint.resumed",
         entityType: "tool_connection",
         entityId: endpoint.connectionId,
@@ -501,7 +501,7 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
           });
         }
         await notifyChatEndpointConfiguration(tx, endpoint);
-        await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.companyId);
+        await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.spaceId);
         await tx
           .update(chatEndpoints)
           .set({
@@ -528,7 +528,7 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
           .from(toolConnections)
           .where(
             and(
-              eq(toolConnections.companyId, endpoint.companyId),
+              eq(toolConnections.spaceId, endpoint.spaceId),
               eq(toolConnections.applicationId, record.applicationId),
               ne(toolConnections.id, endpoint.connectionId),
               ne(toolConnections.status, "archived"),
@@ -736,7 +736,7 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
         const claimed = await mutate(async (tx) => {
           await credentialLease.assertOwned(tx);
           await notifyChatEndpointConfiguration(tx, endpoint);
-          await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.companyId);
+          await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.spaceId);
           const rows = await tx
             .update(chatEndpoints)
             .set({
@@ -816,7 +816,7 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
       }
         const preserveSlackVerification = preservesProvisionedSlackVerification(current.setup, credentials.signingSecret ?? "", `${getWebhookPublicBaseUrl()}/api/chat-webhooks/${endpoint.publicId}/slack`);
         await notifyChatEndpointConfiguration(tx, endpoint);
-        await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.companyId);
+        await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.spaceId);
         await tx
           .update(chatEndpoints)
           .set({
@@ -904,7 +904,7 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
       await mutate(async (tx) => {
         await credentialLease.assertOwned(tx);
         await notifyChatEndpointConfiguration(tx, endpoint);
-        await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.companyId);
+        await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.spaceId);
         await tx
           .update(chatEndpoints)
           .set({
@@ -934,8 +934,8 @@ export function createChatConfiguration(db: Db, options: ChatConfigurationOption
       await mutate(async (tx) => {
       await credentialLease.assertOwned(tx);
       await logActivity(tx as unknown as Db, {
-        companyId: endpoint.companyId,
-        ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "board" }),
+        spaceId: endpoint.spaceId,
+        ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "operator" }),
         action:
           input.action === "reconnect"
             ? "chat_endpoint.reconnected"

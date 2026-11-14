@@ -21,7 +21,7 @@ PUT /api/issues/{taskId}/documents/{key}
 
 Keys use lowercase letters, numbers, underscores, or hyphens and are at most 64
 characters. Use `plan` for plans. Include bearer authorization,
-`X-Paperclip-Run-Id`, and `Content-Type: application/json`.
+`X-Outpost-Run-Id`, and `Content-Type: application/json`.
 
 A successful creation returns `201`; an update returns `200`. Verify the
 returned key, body, and `latestRevisionId` before claiming delivery.

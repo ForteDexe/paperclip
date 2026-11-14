@@ -2,7 +2,7 @@ import { environmentSupportsLoginPty } from "@outpost/shared";
 import { matchesAdapterLoginTarget, useAdapterLoginCancellation } from "./useAdapterLoginCancellation";
 import { ACCOUNT_BOUND_MODEL_DISCOVERY_QUERY_OPTIONS, isAccountBoundAcpxAgent } from "@/lib/native-model-catalog";
 import { useConnectionModels } from "./ai-connections/useConnectionModels";
-import { agentHarnessType, agentRunner, paperclipRunnerProfileForHarness, normalizeClaudeRunnerOptions, type AgentRunnerChoice } from "@outpost/shared";
+import { agentHarnessType, agentRunner, outpostRunnerProfileForHarness, normalizeClaudeRunnerOptions, type AgentRunnerChoice } from "@outpost/shared";
 import { adaptersApi } from "../api/adapters";
 import { canQualifyRunnerEnvironment, qualifyRunnerEnvironment } from "../lib/qualify-claude-setup";
 import { aiRoutingHarness } from "@outpost/shared";
@@ -21,7 +21,7 @@ import type {
   AdapterAuthSessionStatus,
   CodexAccountBindingClaim,
   AdapterEnvironmentTestResult,
-  CompanySecret,
+  SpaceSecret,
   EnvBinding,
   EnvSecretRefBinding,
   Environment,
@@ -67,7 +67,7 @@ import {
 import { environmentDisplayLabel } from "../lib/managed-sandbox-environment";
 import { adapterCuratesModelOrder, extractModelName, extractProviderId } from "../lib/model-utils";
 import { queryKeys } from "../lib/queryKeys";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import {
   Field,
   ToggleField,
@@ -108,7 +108,7 @@ import { codexReasoningEffortOptions } from "../lib/codex-reasoning-effort";
 export type { CreateConfigValues } from "@outpost/adapter-utils";
 import {
   OUTPOST_RUNNER_PERMISSION_CAPABILITIES,
-  paperclipRunnerTransitionConfig,
+  outpostRunnerTransitionConfig,
   type CreateConfigValues,
 } from "@outpost/adapter-utils";
 import { Badge } from "@/components/ui/badge";
@@ -184,11 +184,11 @@ export function supportsAdapterModelRefresh(adapterType: string): boolean {
   return adapterType === "claude_local" || adapterType === "codex_local" || adapterType === "outpost_runner" || adapterType === "opencode_local";
 }
 
-export function resolvePaperclipRunnerTransitionModel(
+export function resolveOutpostRunnerTransitionModel(
   previousAdapterType: string,
   previousModel: unknown,
 ): string {
-  return paperclipRunnerTransitionConfig(previousAdapterType, previousModel).model as string;
+  return outpostRunnerTransitionConfig(previousAdapterType, previousModel).model as string;
 }
 
 function isOverlayDirty(o: AgentConfigOverlay): boolean {
@@ -369,8 +369,8 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   const showCreateRunPolicySection = props.showCreateRunPolicySection ?? true;
   const hideInstructionsFile = props.hideInstructionsFile ?? false;
   const canConfigureProviderTrace = props.canConfigureProviderTrace === true;
-  const { selectedCompanyId, selectedCompany } = useCompany();
-  const spaceBound = Boolean(selectedCompany?.workspaceRoot);
+  const { selectedSpaceId, selectedSpace } = useSpace();
+  const spaceBound = Boolean(selectedSpace?.workspaceRoot);
   const queryClient = useQueryClient();
   const environmentVariablesEditorRef = useRef<EnvironmentVariablesEditorHandle | null>(null);
 
@@ -378,28 +378,28 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   const disabledTypes = useDisabledAdaptersSync();
 
   const { data: availableSecrets = [] } = useQuery({
-    queryKey: selectedCompanyId ? queryKeys.secrets.list(selectedCompanyId) : ["secrets", "none"],
-    queryFn: () => secretsApi.list(selectedCompanyId!),
-    enabled: Boolean(selectedCompanyId),
+    queryKey: selectedSpaceId ? queryKeys.secrets.list(selectedSpaceId) : ["secrets", "none"],
+    queryFn: () => secretsApi.list(selectedSpaceId!),
+    enabled: Boolean(selectedSpaceId),
   });
   // User-secret definitions power the "User secret" env binding source. Requires
   // secret-admin; non-admins simply get the free-text key fallback in the editor.
   const { data: userSecretDefinitions = [] } = useQuery({
-    queryKey: selectedCompanyId
-      ? queryKeys.secrets.userDefinitions(selectedCompanyId)
+    queryKey: selectedSpaceId
+      ? queryKeys.secrets.userDefinitions(selectedSpaceId)
       : ["user-secret-definitions", "none"],
-    queryFn: () => secretsApi.listUserSecretDefinitions(selectedCompanyId!),
-    enabled: Boolean(selectedCompanyId),
+    queryFn: () => secretsApi.listUserSecretDefinitions(selectedSpaceId!),
+    enabled: Boolean(selectedSpaceId),
   });
-  // Pending binding proposals targeting this agent (PAP-14731). Board-only route;
+  // Pending binding proposals targeting this agent (PAP-14731). Operator-only route;
   // non-permitted viewers simply get an empty list.
   const editAgentId = !isCreate ? props.agent.id : null;
   const { data: pendingProposals = [] } = useQuery({
-    queryKey: selectedCompanyId
-      ? queryKeys.secrets.proposals(selectedCompanyId, "pending")
+    queryKey: selectedSpaceId
+      ? queryKeys.secrets.proposals(selectedSpaceId, "pending")
       : ["secret-proposals", "none"],
-    queryFn: () => secretsApi.listProposals(selectedCompanyId!, "pending"),
-    enabled: Boolean(selectedCompanyId) && !isCreate,
+    queryFn: () => secretsApi.listProposals(selectedSpaceId!, "pending"),
+    enabled: Boolean(selectedSpaceId) && !isCreate,
   });
   const agentBindingProposals = useMemo(
     () =>
@@ -408,7 +408,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       ),
     [pendingProposals, editAgentId],
   );
-  const proposalReview = useProposalReview(selectedCompanyId, []);
+  const proposalReview = useProposalReview(selectedSpaceId, []);
   const { data: experimentalSettings } = useQuery({
     queryKey: queryKeys.instance.experimentalSettings,
     queryFn: () => instanceSettingsApi.getExperimental(),
@@ -452,13 +452,13 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   });
 
   const { data: environments = [] } = useQuery<Environment[]>({
-    queryKey: selectedCompanyId ? queryKeys.environments.list(selectedCompanyId) : ["environments", "none"],
-    queryFn: () => environmentsApi.list(selectedCompanyId!),
+    queryKey: selectedSpaceId ? queryKeys.environments.list(selectedSpaceId) : ["environments", "none"],
+    queryFn: () => environmentsApi.list(selectedSpaceId!),
     // Load environments when the picker is enabled OR when execution is forced
     // onto Kubernetes (so we can resolve and default to the managed K8s env even
     // when the experimental environments picker is otherwise hidden).
     enabled:
-      Boolean(selectedCompanyId) &&
+      Boolean(selectedSpaceId) &&
       (environmentsEnabled || !isCreate || generalSettings?.executionMode === "kubernetes"),
   });
 
@@ -470,19 +470,19 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   );
   const createSecret = useMutation({
     mutationFn: (input: { name: string; value: string }) => {
-      if (!selectedCompanyId) throw new Error("Select an outpost to create secrets");
-      return secretsApi.create(selectedCompanyId, input);
+      if (!selectedSpaceId) throw new Error("Select an outpost to create secrets");
+      return secretsApi.create(selectedSpaceId, input);
     },
     onSuccess: () => {
-      if (!selectedCompanyId) return;
-      queryClient.invalidateQueries({ queryKey: queryKeys.secrets.list(selectedCompanyId) });
+      if (!selectedSpaceId) return;
+      queryClient.invalidateQueries({ queryKey: queryKeys.secrets.list(selectedSpaceId) });
     },
   });
 
   const uploadMarkdownImage = useMutation({
     mutationFn: async ({ file, namespace }: { file: File; namespace: string }) => {
-      if (!selectedCompanyId) throw new Error("Select an outpost to upload images");
-      return assetsApi.uploadImage(selectedCompanyId, file, namespace);
+      if (!selectedSpaceId) throw new Error("Select an outpost to upload images");
+      return assetsApi.uploadImage(selectedSpaceId, file, namespace);
     },
   });
 
@@ -636,7 +636,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   const effectiveConfig = isCreate ? props.values.adapterSchemaValues ?? {} : { ...config, ...overlay.adapterConfig };
   const harnessType = agentHarnessType(adapterType, effectiveConfig);
   const isCodexHarness = harnessType === "codex_local";
-  const runnerProfile = paperclipRunnerProfileForHarness(harnessType);
+  const runnerProfile = outpostRunnerProfileForHarness(harnessType);
   const isRunnerHarness = Boolean(runnerProfile);
   const rawCurrentDefaultEnvironmentId = isCreate
     ? props.values.defaultEnvironmentId ?? ""
@@ -647,15 +647,15 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     return selected?.driver === "local" ? "" : rawCurrentDefaultEnvironmentId;
   }, [environments, rawCurrentDefaultEnvironmentId]);
   const runnerDiscovery = useQuery({
-    queryKey: queryKeys.adapters.availability(selectedCompanyId, rawCurrentDefaultEnvironmentId || null),
-    queryFn: () => adaptersApi.list({ companyId: selectedCompanyId!, environmentId: rawCurrentDefaultEnvironmentId || null }),
-    enabled: Boolean(selectedCompanyId),
+    queryKey: queryKeys.adapters.availability(selectedSpaceId, rawCurrentDefaultEnvironmentId || null),
+    queryFn: () => adaptersApi.list({ spaceId: selectedSpaceId!, environmentId: rawCurrentDefaultEnvironmentId || null }),
+    enabled: Boolean(selectedSpaceId),
   });
   const runnerDiscoveryView = useQueryView(runnerDiscovery);
   const runnerAvailability = runnerDiscovery.data?.find(item => item.type === harnessType);
   const runner: AgentRunnerChoice = isCreate ? props.values.runner ?? "auto" : overlay.runner ?? agentRunner(adapterType);
   const fieldsAdapterType = isRunnerHarness
-    ? (runner === "paperclip" || (runner === "auto" && runnerAvailability?.defaultRunner === "paperclip") ? "outpost_runner" : harnessType)
+    ? (runner === "outpost" || (runner === "auto" && runnerAvailability?.defaultRunner === "outpost") ? "outpost_runner" : harnessType)
     : adapterType;
   const isCursorCloudRunner = harnessType === "cursor_cloud" && fieldsAdapterType === "outpost_runner";
   useEffect(() => {
@@ -676,8 +676,8 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     && runnerAvailability?.supportedRunners !== undefined && !runnerAvailability.supportedRunners.includes("legacy");
   useEffect(() => {
     if (!legacyRunnerUnavailable) return;
-    if (props.mode === "create") props.onChange({ runner: "paperclip" });
-    else setOverlay(prev => ({ ...prev, runner: "paperclip" }));
+    if (props.mode === "create") props.onChange({ runner: "outpost" });
+    else setOverlay(prev => ({ ...prev, runner: "outpost" }));
   }, [legacyRunnerUnavailable, props.mode, props.mode === "create" ? props.onChange : undefined]);
   const getCapabilities = useAdapterCapabilities();
   const adapterCaps = getCapabilities(isRunnerHarness ? harnessType : adapterType);
@@ -727,9 +727,9 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   // error. Invalidate the list so the row reads the fresh definitions and clears
   // the error.
   const invalidateUserSecretDefinitions = () => {
-    if (!selectedCompanyId) return;
+    if (!selectedSpaceId) return;
     void queryClient.invalidateQueries({
-      queryKey: queryKeys.secrets.userDefinitions(selectedCompanyId),
+      queryKey: queryKeys.secrets.userDefinitions(selectedSpaceId),
     });
   };
 
@@ -753,7 +753,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   // set into the overlay so the editor and the saved patch agree.
   //
   // An update can never consume a fresh login's stored-session claim -- only the
-  // create and hire paths can, per `enforceClaudeOAuthBindingClaim`. So this save
+  // create and create paths can, per `enforceClaudeOAuthBindingClaim`. So this save
   // must set `applyStoredClaudeLogin`, the same way `handleApplyStoredClaudeLoginEdit`
   // does, or the server rejects the patch with the fixed claim error even though
   // the login already stored the token. Without the flag every fresh login on an
@@ -778,17 +778,17 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   };
 
   // Edit mode: a Codex login that signed in to a DIFFERENT account than the
-  // company default cannot take effect through the shared company home — the
+  // space default cannot take effect through the shared space home — the
   // promotion never displaces another account's claim there. Bind this
   // agent's CODEX_HOME to the login's account-home secret and persist at
   // once, the same one-step shape as the Claude stored-login bind above.
-  // Same-account logins skip the bind on purpose: the company-home refresh
-  // already carried them, and an unbound agent keeps following the company
+  // Same-account logins skip the bind on purpose: the space-home refresh
+  // already carried them, and an unbound agent keeps following the space
   // default across later credential rotations. No claim flag is needed —
-  // the secret already exists company-scoped, so this is an ordinary
+  // the secret already exists space-scoped, so this is an ordinary
   // secret-reference binding through the normal agent-update patch.
   const handleCodexAccountBindingEdit = async (claim: CodexAccountBindingClaim) => {
-    if (isCreate || !claim.companyIdentityDiffers) return;
+    if (isCreate || !claim.spaceIdentityDiffers) return;
     const flushedEnv = flushEnvironmentDraft();
     const baseEnv =
       flushedEnv ??
@@ -935,7 +935,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     && Boolean(nativeRunnerAvailability && !nativeRunnerAvailability.disabled && !nativeRunnerAvailability.overriddenBuiltin);
   const upgradeWarnings = harnessType === "claude_local" ? normalizeClaudeRunnerOptions(effectiveConfig).warnings : [];
   const runnerSettingsTargetRef = useRef("");
-  const runnerSettingsTarget = JSON.stringify([!isCreate ? props.agent.id : null, selectedCompanyId, adapterType,
+  const runnerSettingsTarget = JSON.stringify([!isCreate ? props.agent.id : null, selectedSpaceId, adapterType,
     rawCurrentDefaultEnvironmentId, upgradeEnvironmentId, upgradeEnvironment?.config, effectiveConfig, overlay]);
   runnerSettingsTargetRef.current = runnerSettingsTarget;
   useEffect(() => () => { runnerSettingsTargetRef.current = ""; }, []);
@@ -943,7 +943,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     && ["codex_local", "claude_local", "grok_local"].includes(props.agent.adapterType)
     && adapterType === props.agent.adapterType
     && !(runnerDiscoveryView.kind === "error")
-    && (runnerAvailability?.defaultRunner === "paperclip" || canQualifyRunnerUpgrade);
+    && (runnerAvailability?.defaultRunner === "outpost" || canQualifyRunnerUpgrade);
   const upgradeRunner = async () => {
     if (isCreate || runnerUpgradePending || upgradeEnvironmentChanged) return;
     const agentId = props.agent.id;
@@ -954,21 +954,21 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         ? { ...overlay, adapterConfig: { ...overlay.adapterConfig, env: flushedEnv } }
         : overlay;
       const pendingTarget = runnerSettingsTargetRef.current;
-      if (runnerAvailability?.defaultRunner !== "paperclip") {
-        if (!canQualifyRunnerUpgrade || !upgradeEnvironmentId || !selectedCompanyId) {
+      if (runnerAvailability?.defaultRunner !== "outpost") {
+        if (!canQualifyRunnerUpgrade || !upgradeEnvironmentId || !selectedSpaceId) {
           throw new Error("Could not determine which environment to verify. Retry the upgrade.");
         }
         const qualified = await qualifyRunnerEnvironment({
           adapterType: harnessType,
-          readAdapters: () => adaptersApi.list({ companyId: selectedCompanyId, environmentId: upgradeEnvironmentId }),
-          probeEnvironment: () => agentsApi.qualifyRunner(agentId, upgradeEnvironmentId, selectedCompanyId),
+          readAdapters: () => adaptersApi.list({ spaceId: selectedSpaceId, environmentId: upgradeEnvironmentId }),
+          probeEnvironment: () => agentsApi.qualifyRunner(agentId, upgradeEnvironmentId, selectedSpaceId),
           isCurrent: () => runnerSettingsTargetRef.current === pendingTarget,
         });
         if (!qualified) throw new Error("Agent settings changed during verification. Retry the upgrade with the current settings.");
-        queryClient.setQueryData(queryKeys.adapters.availability(selectedCompanyId, rawCurrentDefaultEnvironmentId || null), qualified.adapters);
-        if (qualified.runner !== "paperclip") throw new Error("This environment does not support Outpost Runner. Your agent still uses Legacy runner.");
+        queryClient.setQueryData(queryKeys.adapters.availability(selectedSpaceId, rawCurrentDefaultEnvironmentId || null), qualified.adapters);
+        if (qualified.runner !== "outpost") throw new Error("This environment does not support Outpost Runner. Your agent still uses Legacy runner.");
       }
-      await props.onSave({ ...buildAgentUpdatePatch(props.agent, nextOverlay), runner: "paperclip" });
+      await props.onSave({ ...buildAgentUpdatePatch(props.agent, nextOverlay), runner: "outpost" });
       setRunnerUpgrade(current => current?.agentId === agentId ? { agentId, status: "upgraded" } : current);
     } catch (error) {
       setRunnerUpgrade(current => current?.agentId === agentId ? {
@@ -984,11 +984,11 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   // consults this data. The gate is advisory; the server resolves the capability
   // again and fails closed.
   const { data: environmentCapabilities } = useQuery({
-    queryKey: selectedCompanyId
-      ? queryKeys.environments.capabilities(selectedCompanyId)
+    queryKey: selectedSpaceId
+      ? queryKeys.environments.capabilities(selectedSpaceId)
       : ["environment-capabilities", "none"],
-    queryFn: () => environmentsApi.capabilities(selectedCompanyId!),
-    enabled: Boolean(selectedCompanyId) && adapterCaps.login != null,
+    queryFn: () => environmentsApi.capabilities(selectedSpaceId!),
+    enabled: Boolean(selectedSpaceId) && adapterCaps.login != null,
   });
 
   // When the instance forces Kubernetes execution, new agents must default to the
@@ -1037,15 +1037,15 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   const modelAiBinding = aiConnectionBindingSchema.safeParse((overlay.runtime.runtimeConfig as Record<string, unknown> | undefined)?.aiConnection ?? runtimeConfig.aiConnection).data;
   const accountBoundCatalog = isAccountBoundAcpxAgent(runnerAcpxAgent);
   const modelCacheIdentity = accountBoundCatalog ? `${modelProvider}:${runnerAcpxAgent}:${isCreate ? "new" : props.agent.id}:${JSON.stringify(modelAiBinding ?? null)}` : runnerAcpxAgent ? `${modelProvider}:${runnerAcpxAgent}` : modelProvider;
-  const connectionModels = useConnectionModels(isExternalRunner ? null : selectedCompanyId, isCreate ? undefined : modelAiBinding, aiRoutingHarness(adapterType, runnerProvider, runnerAcpxAgent));
+  const connectionModels = useConnectionModels(isExternalRunner ? null : selectedSpaceId, isCreate ? undefined : modelAiBinding, aiRoutingHarness(adapterType, runnerProvider, runnerAcpxAgent));
   // Fetch adapter models for the effective provider, including unsaved changes.
   const modelAdapterType = accountBoundCatalog ? "outpost_runner" : isRunnerHarness ? harnessType : adapterType;
-  const modelQueryKey = selectedCompanyId
-    ? queryKeys.agents.adapterModels(selectedCompanyId, modelAdapterType, currentDefaultEnvironmentId || null, modelCacheIdentity)
+  const modelQueryKey = selectedSpaceId
+    ? queryKeys.agents.adapterModels(selectedSpaceId, modelAdapterType, currentDefaultEnvironmentId || null, modelCacheIdentity)
     : ["agents", "none", "adapter-models", adapterType];
   const fetchedModelsQuery = useQuery({
     queryKey: modelQueryKey,
-    queryFn: () => agentsApi.adapterModels(selectedCompanyId!, modelAdapterType, {
+    queryFn: () => agentsApi.adapterModels(selectedSpaceId!, modelAdapterType, {
       environmentId: currentDefaultEnvironmentId || null,
       provider: modelProvider,
       acpxAgent: runnerAcpxAgent,
@@ -1053,14 +1053,14 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       agentId: isCreate ? undefined : props.agent.id,
     }),
     ...(accountBoundCatalog ? ACCOUNT_BOUND_MODEL_DISCOVERY_QUERY_OPTIONS : {}),
-    enabled: Boolean(selectedCompanyId) && !isExternalRunner && !connectionModels,
+    enabled: Boolean(selectedSpaceId) && !isExternalRunner && !connectionModels,
   });
   const { data: fetchedModels, error: fetchedModelsError, isLoading: fetchingModels, refetch: refreshConnectionModels } = fetchedModelsQuery;
   const fetchedModelsView = useQueryView(fetchedModelsQuery);
   const accountModelScope = accountBoundCatalog ? JSON.stringify(modelQueryKey) : null;
   useEffect(() => {
-    if (accountModelScope && selectedCompanyId && !isExternalRunner && !connectionModels) void refreshConnectionModels();
-  }, [accountModelScope, selectedCompanyId, isExternalRunner, connectionModels, refreshConnectionModels]);
+    if (accountModelScope && selectedSpaceId && !isExternalRunner && !connectionModels) void refreshConnectionModels();
+  }, [accountModelScope, selectedSpaceId, isExternalRunner, connectionModels, refreshConnectionModels]);
   const [refreshModelsError, setRefreshModelsError] = useState<string | null>(null);
   const [refreshingModels, setRefreshingModels] = useState(false);
   const models = connectionModels?.models ?? fetchedModels ?? externalModels ?? [];
@@ -1073,29 +1073,29 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     data: detectedModelData,
     refetch: refetchDetectedModel,
   } = useQuery({
-    queryKey: selectedCompanyId
-      ? queryKeys.agents.detectModel(selectedCompanyId, adapterType)
+    queryKey: selectedSpaceId
+      ? queryKeys.agents.detectModel(selectedSpaceId, adapterType)
       : ["agents", "none", "detect-model", adapterType],
     queryFn: () => {
-      if (!selectedCompanyId) {
+      if (!selectedSpaceId) {
         throw new Error("Select an outpost to detect the model");
       }
-      return agentsApi.detectModel(selectedCompanyId, adapterType);
+      return agentsApi.detectModel(selectedSpaceId, adapterType);
     },
-    enabled: Boolean(selectedCompanyId && isLocal && adapterType !== "opencode_local" && adapterType !== "outpost_runner"),
+    enabled: Boolean(selectedSpaceId && isLocal && adapterType !== "opencode_local" && adapterType !== "outpost_runner"),
   });
   const detectedModel = detectedModelData?.model ?? null;
   const detectedModelCandidates = detectedModelData?.candidates ?? [];
 
-  const { data: companyAgents = [] } = useQuery({
-    queryKey: selectedCompanyId ? queryKeys.agents.list(selectedCompanyId) : ["agents", "none", "list"],
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: Boolean(!isCreate && selectedCompanyId),
+  const { data: spaceAgents = [] } = useQuery({
+    queryKey: selectedSpaceId ? queryKeys.agents.list(selectedSpaceId) : ["agents", "none", "list"],
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: Boolean(!isCreate && selectedSpaceId),
   });
 
   /** Props passed to adapter-specific config field components */
   const adapterFieldProps = {
-    companyId: selectedCompanyId ?? undefined,
+    spaceId: selectedSpaceId ?? undefined,
     agentId: isCreate ? undefined : props.agent.id,
     mode,
     isCreate,
@@ -1156,7 +1156,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
 
   const testEnvironment = useMutation({
     mutationFn: async () => {
-      if (!selectedCompanyId) {
+      if (!selectedSpaceId) {
         throw new Error("Select an outpost to test adapter environment");
       }
       const flushedEnv = flushEnvironmentDraft();
@@ -1194,8 +1194,8 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 queryFn: () => instanceSettingsApi.get(),
               }),
               queryClient.ensureQueryData({
-                queryKey: queryKeys.environments.list(selectedCompanyId),
-                queryFn: () => environmentsApi.list(selectedCompanyId),
+                queryKey: queryKeys.environments.list(selectedSpaceId),
+                queryFn: () => environmentsApi.list(selectedSpaceId),
               }),
               queryClient.ensureQueryData({
                 queryKey: queryKeys.instance.experimentalSettings,
@@ -1234,15 +1234,15 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         (overlay.runtime.runtimeConfig as Record<string, unknown> | undefined)?.aiConnection ?? props.agent.runtimeConfig.aiConnection,
       ).data;
       const testRunnerSelection = isCursorCloudRunner
-        ? { runner: "paperclip" as const }
+        ? { runner: "outpost" as const }
         : isRunnerHarness && (isCreate ? runner !== "auto" : overlay.runner !== undefined) ? { runner } : {};
       if (!isCreate && props.agent.adapterType === "outpost_runner" && adapterType === "outpost_runner"
-        && runnerAvailability?.defaultRunner !== "paperclip"
+        && runnerAvailability?.defaultRunner !== "outpost"
         && !isExternalRunner && aiConnection?.mode !== "router" && !isDirty && environmentId && canQualifyRunnerEnvironment(environmentList.find(environment => environment.id === environmentId))) {
         const target = runnerSettingsTargetRef.current;
         // Qualify only the saved computer. The strict agent-scoped endpoint
         // accepts no draft provider config, credentials or replacement target.
-        const qualification = await agentsApi.qualifyRunner(props.agent.id, environmentId, selectedCompanyId);
+        const qualification = await agentsApi.qualifyRunner(props.agent.id, environmentId, selectedSpaceId);
         if (runnerSettingsTargetRef.current !== target) throw new Error("Agent settings changed during the test. Run test again.");
         if (qualification.ok !== true || qualification.details?.platformQualificationRecorded !== true) {
           throw new Error(qualification.summary || "Could not verify the saved computer. Run test again.");
@@ -1255,16 +1255,16 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
             : adapterConfig.provider === "acpx" && adapterConfig.acpxAgent === "claude" ? "claude_local"
               : adapterType
           : adapterType;
-        return testAgentSetup({ companyId: selectedCompanyId, adapterType, providerAdapter, adapterConfig, agentId, aiConnection, environmentId, ...testRunnerSelection });
+        return testAgentSetup({ spaceId: selectedSpaceId, adapterType, providerAdapter, adapterConfig, agentId, aiConnection, environmentId, ...testRunnerSelection });
       }
-      return agentsApi.testEnvironment(selectedCompanyId, adapterType, { adapterConfig, agentId, aiConnection, environmentId, ...testRunnerSelection });
+      return agentsApi.testEnvironment(selectedSpaceId, adapterType, { adapterConfig, agentId, aiConnection, environmentId, ...testRunnerSelection });
     },
   });
   const [testActionPending, setTestActionPending] = useState(false);
   const [testActionError, setTestActionError] = useState<string | null>(null);
   const testActionLabel = "Test";
   const isSavePending = !isCreate && Boolean(props.isSaving);
-  const testEnvironmentDisabled = testActionPending || isSavePending || !selectedCompanyId;
+  const testEnvironmentDisabled = testActionPending || isSavePending || !selectedSpaceId;
 
   // Drop a stale Test result when the adapter type or the effective environment
   // changes. A held result would keep the login affordance visible for a target
@@ -1331,11 +1331,11 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     adapterSupportsSandboxLogin &&
     (effectiveLoginEnvironment?.driver === "sandbox" || (effectiveLoginEnvironment?.driver === "plugin" && !isCreate)) &&
     Boolean(effectiveLoginEnvironmentId) &&
-    Boolean(selectedCompanyId) &&
+    Boolean(selectedSpaceId) &&
     Boolean(authMissingCheck) &&
     (!loginNeedsPty || providerSupportsLoginPty);
   const runEnvironmentTest = useCallback(async () => {
-    if (!selectedCompanyId) {
+    if (!selectedSpaceId) {
       throw new Error("Select an outpost to test adapter environment");
     }
     setTestActionPending(true);
@@ -1349,7 +1349,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     } finally {
       setTestActionPending(false);
     }
-  }, [selectedCompanyId, testEnvironment]);
+  }, [selectedSpaceId, testEnvironment]);
   // `runEnvironmentTest` (and `testEnvironmentDisabled`) change identity on every
   // render because `useMutation` returns a fresh result object each time. Hold the
   // latest behavior in a ref so the trigger handed to the parent stays referentially
@@ -1396,11 +1396,11 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       errorMessage: testActionError
         ?? (testEnvironment.error ? describeError(testEnvironment.error).body : null),
       result: testEnvironment.data ?? null,
-      // `showAdapterLogin` already requires a selected company and a non-empty
+      // `showAdapterLogin` already requires a selected space and a non-empty
       // environment id, so both are present here.
       login:
-        showAdapterLogin && selectedCompanyId && effectiveLoginEnvironmentId
-          ? { companyId: selectedCompanyId, adapterType: isRunnerHarness ? harnessType : adapterType, environmentId: effectiveLoginEnvironmentId }
+        showAdapterLogin && selectedSpaceId && effectiveLoginEnvironmentId
+          ? { spaceId: selectedSpaceId, adapterType: isRunnerHarness ? harnessType : adapterType, environmentId: effectiveLoginEnvironmentId }
           : null,
     });
     return () => {
@@ -1412,7 +1412,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     testEnvironment.data,
     testEnvironment.error,
     showAdapterLogin,
-    selectedCompanyId,
+    selectedSpaceId,
     adapterType,
     effectiveLoginEnvironmentId,
   ]);
@@ -1424,11 +1424,11 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   const currentModelId = typeof currentModelValue === "string" ? currentModelValue : "";
 
   async function handleRefreshModels() {
-    if (!selectedCompanyId) return;
+    if (!selectedSpaceId) return;
     setRefreshingModels(true);
     setRefreshModelsError(null);
     try {
-      const refreshed = await agentsApi.adapterModels(selectedCompanyId, modelAdapterType, { refresh: true, environmentId: currentDefaultEnvironmentId || null, provider: modelProvider, ...(runnerAcpxAgent ? { acpxAgent: runnerAcpxAgent } : {}), ...(accountBoundCatalog ? { aiConnection: modelAiBinding, agentId: !isCreate ? props.agent.id : undefined } : {}) });
+      const refreshed = await agentsApi.adapterModels(selectedSpaceId, modelAdapterType, { refresh: true, environmentId: currentDefaultEnvironmentId || null, provider: modelProvider, ...(runnerAcpxAgent ? { acpxAgent: runnerAcpxAgent } : {}), ...(accountBoundCatalog ? { aiConnection: modelAiBinding, agentId: !isCreate ? props.agent.id : undefined } : {}) });
       queryClient.setQueryData(modelQueryKey, refreshed);
     } catch (error) {
       setRefreshModelsError(describeError(error).body);
@@ -1619,7 +1619,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 Keep your harness, model, account, and compatible settings.
                 New sessions start fresh; past runs stay available.
               </p>
-              {canQualifyRunnerUpgrade && runnerAvailability?.defaultRunner !== "paperclip" ? (
+              {canQualifyRunnerUpgrade && runnerAvailability?.defaultRunner !== "outpost" ? (
                 <p className="text-xs text-muted-foreground">The upgrade will verify your computer first. This can take a few minutes.</p>
               ) : null}
               {upgradeWarnings.map(warning => <p key={warning.field} className="text-xs text-muted-foreground">{warning.message}</p>)}
@@ -1686,7 +1686,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
             </Field>
             <Field label="Reports to" hint={help.reportsTo}>
               <ReportsToPicker
-                agents={companyAgents}
+                agents={spaceAgents}
                 value={eff("identity", "reportsTo", props.agent.reportsTo ?? null)}
                 onChange={(id) => mark("identity", "reportsTo", id)}
                 excludeAgentIds={[props.agent.id]}
@@ -1865,7 +1865,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                               ? DEFAULT_CURSOR_LOCAL_MODEL
                             : external ? ""
                             : t === "outpost_runner"
-                              ? resolvePaperclipRunnerTransitionModel(adapterType, config.model)
+                              ? resolveOutpostRunnerTransitionModel(adapterType, config.model)
                               : "",
                         effort: "",
                         modelReasoningEffort: "",
@@ -1875,7 +1875,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                             ? { provider: muse ? "muse" : "openai_dot", lifecycleMode: "per_turn", allowUnmeteredProvider: false, ...(dot ? { dotAttachmentAccess: false, dotWorkspaceAccess: false } : {}) }
                           : t === "outpost_runner"
                             ? {
-                                ...paperclipRunnerTransitionConfig(adapterType, eff("adapterConfig", "model", config.model)),
+                                ...outpostRunnerTransitionConfig(adapterType, eff("adapterConfig", "model", config.model)),
                               }
                           : {}),
                       },
@@ -1915,7 +1915,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
               requiresAgent={effectiveLoginEnvironment?.driver === "plugin"}
               agentId={!isCreate && effectiveLoginEnvironment?.driver === "plugin" ? props.agent.id : undefined}
               key={`${adapterType}:${effectiveLoginEnvironmentId}`}
-              companyId={selectedCompanyId!}
+              spaceId={selectedSpaceId!}
               adapterType={isRunnerHarness ? harnessType : adapterType}
               environmentId={effectiveLoginEnvironmentId!}
               onStored={isCreate ? handleClaudeLoginStored : handleClaudeLoginStoredEdit}
@@ -2492,11 +2492,11 @@ function AdapterLoginTerminalState({
 // the adapter type and the environment id, so a change to either remounts the
 // panel with a fresh session state.
 // The props that identify one login panel: one adapter in one sandbox
-// environment for one company. A parent that lifts the test feedback renders
+// environment for one space. A parent that lifts the test feedback renders
 // the panel from this descriptor.
 export type AdapterLoginDescriptor = {
   agentId?: string;
-  companyId: string;
+  spaceId: string;
   adapterType: string;
   environmentId: string;
 };
@@ -2524,10 +2524,10 @@ export type AdapterLoginPanelProps = AdapterLoginDescriptor & {
   onStored?: (storedSessionId: string) => void;
   onApplyStored?: () => void;
   // Applies the non-secret Codex account-binding claim from an authenticated
-  // owner read: the company secret that names the signed-in account's own
-  // home. The panel calls this only when the company default home stayed on a
+  // owner read: the space secret that names the signed-in account's own
+  // home. The panel calls this only when the space default home stayed on a
   // DIFFERENT account — the one case where the login cannot take effect
-  // through the shared company home — and it AWAITS the handler, rendering
+  // through the shared space home — and it AWAITS the handler, rendering
   // saving/bound/failed states with an explicit Retry on failure, so a
   // rejected save is never silently swallowed. The claim never carries a
   // token byte or an account identifier.
@@ -2599,7 +2599,7 @@ class AdapterLoginConflictError extends Error {
 function DisplayedCodeLoginPanel({
   active: loginActive = true,
   requiresAgent,
-  companyId,
+  spaceId,
   adapterType,
   environmentId,
   agentId,
@@ -2614,7 +2614,7 @@ function DisplayedCodeLoginPanel({
 }: AdapterLoginPanelProps) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const automaticComputer = Boolean(requiresAgent && !agentId && aiConnection);
-  const cancellation = useAdapterLoginCancellation(loginActive, companyId, adapterType, false, sessionId, { environmentId, aiConnection });
+  const cancellation = useAdapterLoginCancellation(loginActive, spaceId, adapterType, false, sessionId, { environmentId, aiConnection });
   const [retrying, setRetrying] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   // The server delivers the one-time prompt on the first owner read only. Latch
@@ -2637,7 +2637,7 @@ function DisplayedCodeLoginPanel({
   const resumedRef = useRef(false);
 
   const startLogin = useMutation({
-    mutationFn: () => cancellation.accept(() => agentsApi.startAdapterAuthLogin(companyId, adapterType, { environmentId, ...(agentId ? { agentId } : {}), ...(aiConnection ? { aiConnection } : {}) })),
+    mutationFn: () => cancellation.accept(() => agentsApi.startAdapterAuthLogin(spaceId, adapterType, { environmentId, ...(agentId ? { agentId } : {}), ...(aiConnection ? { aiConnection } : {}) })),
     onSuccess: (session) => {
       if (!session || !cancellation.isActive()) return;
       resumedRef.current = false;
@@ -2664,7 +2664,7 @@ function DisplayedCodeLoginPanel({
   }, []);
 
   const cancelLogin = useMutation({
-    mutationFn: () => agentsApi.cancelAdapterAuthLogin(companyId, adapterType, sessionId!),
+    mutationFn: () => agentsApi.cancelAdapterAuthLogin(spaceId, adapterType, sessionId!),
     onSuccess: clearActiveSession,
     onError: (error) => {
       if (!cancellation.isActive()) return;
@@ -2676,10 +2676,10 @@ function DisplayedCodeLoginPanel({
   // browser rediscovers its own session after a reload with no local state. A
   // 404 means no active session for the caller.
   const activeSessionQuery = useQuery({
-    queryKey: ["adapter-login-active-session", companyId, adapterType, environmentId, agentId],
+    queryKey: ["adapter-login-active-session", spaceId, adapterType, environmentId, agentId],
     queryFn: async ({ signal }) => {
       try {
-        const active = await cancellation.resume(() => agentsApi.getActiveAdapterAuthLoginSession(companyId, adapterType, { signal }));
+        const active = await cancellation.resume(() => agentsApi.getActiveAdapterAuthLoginSession(spaceId, adapterType, { signal }));
         if (!active) return null;
         const wrongComputer = !automaticComputer && active.agentId !== agentId;
         const wrongConnection = aiConnection
@@ -2709,8 +2709,8 @@ function DisplayedCodeLoginPanel({
   const [releasingResumedSession, setReleasingResumedSession] = useState(false);
 
   const statusQuery = useQuery({
-    queryKey: ["adapter-login-status", companyId, adapterType, sessionId],
-    queryFn: ({ signal }) => agentsApi.getAdapterAuthLoginStatus(companyId, adapterType, sessionId!, { signal }),
+    queryKey: ["adapter-login-status", spaceId, adapterType, sessionId],
+    queryFn: ({ signal }) => agentsApi.getAdapterAuthLoginStatus(spaceId, adapterType, sessionId!, { signal }),
     enabled: loginActive && Boolean(sessionId) && !releasingResumedSession && !retrying,
     // A status 404 is unrecoverable: the server removed the row, so a retry
     // cannot bring it back. The shared retry policy never retries a 4xx, so
@@ -2772,14 +2772,14 @@ function DisplayedCodeLoginPanel({
     const id = sessionId;
     void (async () => {
       if (id) {
-        await agentsApi.cancelAdapterAuthLogin(companyId, adapterType, id).catch(() => {
+        await agentsApi.cancelAdapterAuthLogin(spaceId, adapterType, id).catch(() => {
           // The session is already gone either way; nothing more to do.
         });
       }
       setReleasingResumedSession(false);
       clearActiveSession();
     })();
-  }, [statusQuery.error, releasingResumedSession, sessionId, companyId, adapterType, clearActiveSession, chrome]);
+  }, [statusQuery.error, releasingResumedSession, sessionId, spaceId, adapterType, clearActiveSession, chrome]);
 
   // Start once, on mount, when the caller has already taken the press, and
   // only once the resume read has answered: a resumed session takes over
@@ -2793,7 +2793,7 @@ function DisplayedCodeLoginPanel({
     mutationFn: async () => {
       const conflict = activeSessionQuery.error;
       if (!(conflict instanceof AdapterLoginConflictError)) return;
-      await agentsApi.cancelAdapterAuthLogin(companyId, adapterType, conflict.sessionId);
+      await agentsApi.cancelAdapterAuthLogin(spaceId, adapterType, conflict.sessionId);
     },
     onSuccess: async () => {
       autoStartedRef.current = false;
@@ -2868,7 +2868,7 @@ function DisplayedCodeLoginPanel({
   useEffect(() => {
     if (status !== "authenticated" || !sessionId) return;
     if (accountBindSessionRef.current === sessionId) return;
-    if (!accountBinding || !accountBinding.companyIdentityDiffers || !onAccountBindingRef.current) {
+    if (!accountBinding || !accountBinding.spaceIdentityDiffers || !onAccountBindingRef.current) {
       return;
     }
     accountBindSessionRef.current = sessionId;
@@ -2891,7 +2891,7 @@ function DisplayedCodeLoginPanel({
   const retryLogin = useMutation({
     mutationFn: async () => {
       if (sessionId) {
-        await agentsApi.cancelAdapterAuthLogin(companyId, adapterType, sessionId).catch(error => {
+        await agentsApi.cancelAdapterAuthLogin(spaceId, adapterType, sessionId).catch(error => {
           if (!(error instanceof ApiError && error.status === 404)) throw error;
         });
       }
@@ -3147,7 +3147,7 @@ const CLAUDE_LOGIN_TIMED_OUT_MESSAGE = "The login timed out. Start the login aga
 function SubmittedBrowserCodeLoginPanel({
   active: loginActive = true,
   requiresAgent,
-  companyId,
+  spaceId,
   adapterType,
   environmentId,
   agentId,
@@ -3166,7 +3166,7 @@ function SubmittedBrowserCodeLoginPanel({
 }: AdapterLoginPanelProps) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const automaticComputer = Boolean(requiresAgent && !agentId && aiConnection);
-  const cancellation = useAdapterLoginCancellation(loginActive, companyId, adapterType, true, sessionId, { environmentId, aiConnection });
+  const cancellation = useAdapterLoginCancellation(loginActive, spaceId, adapterType, true, sessionId, { environmentId, aiConnection });
   const [retrying, setRetrying] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   // The server delivers the authorization URL on the guarded prompt read only.
@@ -3232,10 +3232,10 @@ function SubmittedBrowserCodeLoginPanel({
   // instead of a blind first write. The server rejects a stale capture, so a
   // change by another process after the capture fails the overwrite.
   const storedTokenQuery = useQuery({
-    queryKey: ["claude-oauth-token-status", companyId],
+    queryKey: ["claude-oauth-token-status", spaceId],
     queryFn: async () => {
       try {
-        return await agentsApi.getClaudeOAuthTokenStatus(companyId);
+        return await agentsApi.getClaudeOAuthTokenStatus(spaceId);
       } catch (error) {
         // A 404 means the owner has no stored value (indistinguishable from a
         // foreign value). The panel treats it as "no stored token".
@@ -3248,7 +3248,7 @@ function SubmittedBrowserCodeLoginPanel({
 
   const startLogin = useMutation({
     mutationFn: () => cancellation.accept(() =>
-      agentsApi.startClaudeSetupTokenLogin(companyId, {
+      agentsApi.startClaudeSetupTokenLogin(spaceId, {
         environmentId,
         ...(agentId ? { agentId } : {}),
         ...(aiConnection ? { aiConnection } : {}),
@@ -3285,7 +3285,7 @@ function SubmittedBrowserCodeLoginPanel({
   };
 
   const cancelLogin = useMutation({
-    mutationFn: () => agentsApi.cancelClaudeSetupTokenLogin(companyId, sessionId!),
+    mutationFn: () => agentsApi.cancelClaudeSetupTokenLogin(spaceId, sessionId!),
     onSuccess: () => {
       clearActiveSession();
     },
@@ -3316,22 +3316,22 @@ function SubmittedBrowserCodeLoginPanel({
   // state.
   const releaseServerSession = useCallback(
     (id: string) => {
-      void agentsApi.cancelClaudeSetupTokenLogin(companyId, id).catch(() => {
+      void agentsApi.cancelClaudeSetupTokenLogin(spaceId, id).catch(() => {
         // Drop the error. A 404 means the server already removed the session. A
         // cleanup path cannot surface any other error, so it stays silent.
       });
     },
-    [companyId],
+    [spaceId],
   );
 
   // Read the caller's active Claude setup-token session on mount, with no
   // session id, so the browser rediscovers its own session after a reload
   // with no local state. A 404 means no active session for the caller.
   const activeSessionQuery = useQuery({
-    queryKey: ["claude-setup-token-active-session", companyId, environmentId, agentId],
+    queryKey: ["claude-setup-token-active-session", spaceId, environmentId, agentId],
     queryFn: async ({ signal }) => {
       try {
-        const active = await cancellation.resume(() => agentsApi.getActiveClaudeSetupTokenLoginSession(companyId, { signal }));
+        const active = await cancellation.resume(() => agentsApi.getActiveClaudeSetupTokenLoginSession(spaceId, { signal }));
         if (!active) return null;
         const wrongComputer = !automaticComputer && active.agentId !== agentId;
         const wrongConnection = aiConnection
@@ -3368,8 +3368,8 @@ function SubmittedBrowserCodeLoginPanel({
     loginActive && Boolean(sessionId) && !timedOut && !statusGone && !releasingResumedSession && !retrying;
 
   const statusQuery = useQuery({
-    queryKey: ["claude-setup-token-status", companyId, sessionId],
-    queryFn: ({ signal }) => agentsApi.getClaudeSetupTokenLoginStatus(companyId, sessionId!, { signal }),
+    queryKey: ["claude-setup-token-status", spaceId, sessionId],
+    queryFn: ({ signal }) => agentsApi.getClaudeSetupTokenLoginStatus(spaceId, sessionId!, { signal }),
     enabled: pollingEnabled,
     // A status 404 is terminal. The server removes a cleaned-up session at once,
     // so a retry cannot recover it. The shared retry policy never retries a
@@ -3404,7 +3404,7 @@ function SubmittedBrowserCodeLoginPanel({
       const id = sessionId;
       void (async () => {
         if (id) {
-          await agentsApi.cancelClaudeSetupTokenLogin(companyId, id).catch(() => {
+          await agentsApi.cancelClaudeSetupTokenLogin(spaceId, id).catch(() => {
             // The session is already gone either way; nothing more to do.
           });
         }
@@ -3414,7 +3414,7 @@ function SubmittedBrowserCodeLoginPanel({
       return;
     }
     setStatusGone(true);
-  }, [statusQuery.error, releasingResumedSession, sessionId, companyId, chrome]);
+  }, [statusQuery.error, releasingResumedSession, sessionId, spaceId, chrome]);
 
   // Adopt the caller's active session once, on mount. This is what makes a
   // page reload keep the session: with no local state at all, the panel would
@@ -3439,11 +3439,11 @@ function SubmittedBrowserCodeLoginPanel({
   // route returns 404 until the URL is ready, so the panel treats a 404 as
   // not-ready and keeps polling.
   const promptQuery = useQuery({
-    queryKey: ["claude-setup-token-prompt", companyId, sessionId],
+    queryKey: ["claude-setup-token-prompt", spaceId, sessionId],
     enabled: pollingEnabled && !authorizationUrl,
     queryFn: async ({ signal }) => {
       try {
-        return await agentsApi.getClaudeSetupTokenLoginPrompt(companyId, sessionId!, { signal });
+        return await agentsApi.getClaudeSetupTokenLoginPrompt(spaceId, sessionId!, { signal });
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) return null;
         throw error;
@@ -3463,7 +3463,7 @@ function SubmittedBrowserCodeLoginPanel({
 
   const submitCode = useMutation({
     mutationFn: (code: string) =>
-      agentsApi.submitClaudeSetupTokenBrowserCode(companyId, sessionId!, code),
+      agentsApi.submitClaudeSetupTokenBrowserCode(spaceId, sessionId!, code),
     onError: (error) => {
       if (!cancellation.isActive()) return;
       setStartError(describeError(error).body);
@@ -3471,7 +3471,7 @@ function SubmittedBrowserCodeLoginPanel({
   });
 
   const completeLogin = useMutation({
-    mutationFn: () => agentsApi.completeClaudeSetupTokenLogin(companyId, sessionId!),
+    mutationFn: () => agentsApi.completeClaudeSetupTokenLogin(spaceId, sessionId!),
     onSuccess: (result) => {
       if (!cancellation.isActive()) return;
       // The server reached the `stored` state. Hold the non-secret claim and
@@ -3689,7 +3689,7 @@ function SubmittedBrowserCodeLoginPanel({
   const retryLogin = useMutation({
     mutationFn: async () => {
       if (sessionId) {
-        await agentsApi.cancelClaudeSetupTokenLogin(companyId, sessionId).catch(error => {
+        await agentsApi.cancelClaudeSetupTokenLogin(spaceId, sessionId).catch(error => {
           if (!(error instanceof ApiError && error.status === 404)) throw error;
         });
       }
@@ -4166,7 +4166,7 @@ export function ModelDropdown({
   }
 
   if (presentation === "native") {
-    const customOption = "__paperclip_custom_model__";
+    const customOption = "__outpost_custom_model__";
     const extraModels = [...new Set([value, ...promotedModelIds])].filter(id => id && (!models.some(model => model.id === id) || promotedModelIds.has(id)));
     return (
       <Field label="Model" hint={help.model}>

@@ -5,7 +5,7 @@ import path from "node:path";
 import type { Db } from "@outpost/db";
 import {
   OUTPOST_OPERATIONAL_SKILL_KEY,
-  type PaperclipSkillEntry,
+  type OutpostSkillEntry,
 } from "@outpost/adapter-utils/server-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -45,7 +45,7 @@ import { withRunExecutionTiming } from "../execution-preparation-timing.js";
 import { buildNativeRuntimeContext, resolveNativeRuntimeMcpSnapshot } from "./runtime-context.js";
 
 const temporaryRoots: string[] = [];
-let previousPaperclipHome: string | undefined;
+let previousOutpostHome: string | undefined;
 let previousInstanceId: string | undefined;
 
 async function makeTreeWritable(target: string): Promise<void> {
@@ -66,9 +66,9 @@ beforeEach(async () => {
   serviceMocks.readCommittedForRuntime.mockResolvedValue(null);
   serviceMocks.githubBotConnectionIdsForRun.mockResolvedValue(new Set());
   serviceMocks.spekoToolsForSession.mockResolvedValue([]);
-  previousPaperclipHome = process.env.OUTPOST_HOME;
+  previousOutpostHome = process.env.OUTPOST_HOME;
   previousInstanceId = process.env.OUTPOST_INSTANCE_ID;
-  const root = await mkdtemp(path.join(tmpdir(), "paperclip-native-context-"));
+  const root = await mkdtemp(path.join(tmpdir(), "outpost-native-context-"));
   temporaryRoots.push(root);
   process.env.OUTPOST_HOME = root;
   process.env.OUTPOST_INSTANCE_ID = "runtime_context_test";
@@ -90,8 +90,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-  else process.env.OUTPOST_HOME = previousPaperclipHome;
+  if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+  else process.env.OUTPOST_HOME = previousOutpostHome;
   if (previousInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
   else process.env.OUTPOST_INSTANCE_ID = previousInstanceId;
   // A rejected Promise.all does not cancel the other materializers. Let their
@@ -115,21 +115,21 @@ describe("buildNativeRuntimeContext", () => {
     });
     const context = await buildNativeRuntimeContext({
       db: {} as Db,
-      agent: { id: "agent-1", companyId: "company-1", name: "Reviewer", adapterType: "outpost_runner", adapterConfig: { instructionsBundleMode: "managed" } },
+      agent: { id: "agent-1", spaceId: "space-1", name: "Reviewer", adapterType: "outpost_runner", adapterConfig: { instructionsBundleMode: "managed" } },
       runId: "run-1", runtimeConfig: {}, runtimeSkillEntries: [],
     });
     expect(await readFile(path.join(context.instructions.bundle.rootPath, context.instructions.entryPath), "utf8"))
       .toBe("Saved canonical instructions\n");
     expect(await readFile(path.join(context.instructions.bundle.rootPath, "reference.md"), "utf8"))
       .toBe("Sibling reference\n");
-    expect(serviceMocks.readCommittedForRuntime).toHaveBeenCalledWith({ companyId: "company-1", agentId: "agent-1" });
+    expect(serviceMocks.readCommittedForRuntime).toHaveBeenCalledWith({ spaceId: "space-1", agentId: "agent-1" });
   });
 
   it("does not substitute canonical managed instructions into an external bundle", async () => {
     serviceMocks.exportFiles.mockResolvedValue({ entryFile: "AGENTS.md", files: { "AGENTS.md": "External instructions\n" } });
     const context = await buildNativeRuntimeContext({
       db: {} as Db,
-      agent: { id: "agent-1", companyId: "company-1", name: "Reviewer", adapterConfig: { instructionsBundleMode: "external" } },
+      agent: { id: "agent-1", spaceId: "space-1", name: "Reviewer", adapterConfig: { instructionsBundleMode: "external" } },
       runId: "run-1", runtimeConfig: {}, runtimeSkillEntries: [],
     });
     expect(await readFile(path.join(context.instructions.bundle.rootPath, context.instructions.entryPath), "utf8"))
@@ -147,7 +147,7 @@ describe("buildNativeRuntimeContext", () => {
     await writeFile(path.join(workingRoot, "instructions/CHARter.md"), "Original instructions.\n");
     const context = await buildNativeRuntimeContext({
       db: {} as Db,
-      agent: { id: "agent-1", companyId: "company-1", name: "Reviewer", adapterType: "outpost_runner", adapterConfig: {} },
+      agent: { id: "agent-1", spaceId: "space-1", name: "Reviewer", adapterType: "outpost_runner", adapterConfig: {} },
       runId: "run-1",
       runtimeConfig: {},
       runtimeSkillEntries: [],
@@ -186,7 +186,7 @@ describe("buildNativeRuntimeContext", () => {
         db: {} as Db,
         agent: {
           id: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           name: "Reviewer",
           adapterType: "outpost_runner",
           adapterConfig: {},
@@ -241,7 +241,7 @@ describe("buildNativeRuntimeContext", () => {
       db: {} as Db,
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Reviewer",
         adapterType: "outpost_runner",
         adapterConfig: {},
@@ -260,10 +260,10 @@ describe("buildNativeRuntimeContext", () => {
       entryFile: "AGENTS.md",
       files: {
         "AGENTS.md": "Follow the agent instructions.\n",
-        "references/policy.md": "Company policy sibling.\n",
+        "references/policy.md": "Space policy sibling.\n",
       },
     });
-    const sourceRoot = await mkdtemp(path.join(tmpdir(), "paperclip-native-skill-"));
+    const sourceRoot = await mkdtemp(path.join(tmpdir(), "outpost-native-skill-"));
     temporaryRoots.push(sourceRoot);
     const selectedRoot = path.join(sourceRoot, "reviewer");
     const unselectedRoot = path.join(sourceRoot, "unused");
@@ -272,21 +272,21 @@ describe("buildNativeRuntimeContext", () => {
     await writeFile(path.join(selectedRoot, "SKILL.md"), "# Reviewer\nUse the checklist.\n");
     await writeFile(path.join(selectedRoot, "references", "checklist.md"), "- Verify tests\n");
     await writeFile(path.join(unselectedRoot, "SKILL.md"), "# Not selected\n");
-    const entries: PaperclipSkillEntry[] = [
-      { key: "company-1/reviewer", runtimeName: "reviewer", source: selectedRoot, versionId: "version-1" },
-      { key: "company-1/unused", runtimeName: "unused", source: unselectedRoot, versionId: "version-2" },
+    const entries: OutpostSkillEntry[] = [
+      { key: "space-1/reviewer", runtimeName: "reviewer", source: selectedRoot, versionId: "version-1" },
+      { key: "space-1/unused", runtimeName: "unused", source: unselectedRoot, versionId: "version-2" },
     ];
     const input = {
       db: {} as Db,
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Reviewer",
         adapterType: "outpost_runner",
         adapterConfig: {},
       },
       runId: "run-1",
-      runtimeConfig: { paperclipSkillSync: { desiredSkills: ["company-1/reviewer"] } },
+      runtimeConfig: { outpostSkillSync: { desiredSkills: ["space-1/reviewer"] } },
       runtimeSkillEntries: entries,
     };
 
@@ -298,17 +298,17 @@ describe("buildNativeRuntimeContext", () => {
     reads.mockRestore();
 
     expect(serviceMocks.exportFiles).toHaveBeenCalledWith(input.agent, { rejectSymlinks: true });
-    expect(serviceMocks.getEffectiveToolAssignmentsForAgent).toHaveBeenCalledWith("company-1", "agent-1");
+    expect(serviceMocks.getEffectiveToolAssignmentsForAgent).toHaveBeenCalledWith("space-1", "agent-1");
     expect(context.instructions.entryPath).toBe("AGENTS.md");
     expect(await readFile(path.join(context.instructions.bundle.rootPath, "AGENTS.md"), "utf8"))
       .toBe("Follow the agent instructions.\n");
     expect(await readFile(path.join(context.instructions.bundle.rootPath, "references", "policy.md"), "utf8"))
-      .toBe("Company policy sibling.\n");
+      .toBe("Space policy sibling.\n");
     const unselected = await buildNativeRuntimeContext({ ...input, runtimeConfig: {} });
     expect(unselected.skills).toEqual([]);
     expect(context.skills).toHaveLength(1);
     expect(context.skills[0]).toMatchObject({
-      key: "company-1/reviewer",
+      key: "space-1/reviewer",
       runtimeName: "reviewer",
       versionId: "version-1",
     });
@@ -345,8 +345,8 @@ describe("buildNativeRuntimeContext", () => {
   it("does not materialize assigned skills or external MCP in preconfigured mode", async () => {
     serviceMocks.exportFiles.mockResolvedValue({ entryFile: "AGENTS.md", files: { "AGENTS.md": "Test\n" } });
     const context = await buildNativeRuntimeContext({ db: {} as Db,
-      agent: { id: "agent-1", companyId: "company-1", name: "Reviewer", adapterType: "outpost_runner", adapterConfig: {} },
-      runId: "run-1", runtimeConfig: { homeMode: "preconfigured", paperclipSkillSync: { desiredSkills: ["missing"] } },
+      agent: { id: "agent-1", spaceId: "space-1", name: "Reviewer", adapterType: "outpost_runner", adapterConfig: {} },
+      runId: "run-1", runtimeConfig: { homeMode: "preconfigured", outpostSkillSync: { desiredSkills: ["missing"] } },
       runtimeSkillEntries: [{ key: "missing", runtimeName: "missing", source: "/does/not/exist", sourceStatus: "missing" }],
     });
     expect(context.skills).toEqual([]);
@@ -360,7 +360,7 @@ describe("buildNativeRuntimeContext", () => {
       db: {} as Db,
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Reviewer",
         adapterType: "outpost_runner",
         adapterConfig: {},
@@ -369,39 +369,39 @@ describe("buildNativeRuntimeContext", () => {
     };
     await expect(buildNativeRuntimeContext({
       ...base,
-      runtimeConfig: { paperclipSkillSync: { desiredSkills: ["company-1/missing"] } },
+      runtimeConfig: { outpostSkillSync: { desiredSkills: ["space-1/missing"] } },
       runtimeSkillEntries: [{
-        key: "company-1/missing",
+        key: "space-1/missing",
         runtimeName: "missing",
         source: "/does/not/exist",
         sourceStatus: "missing",
         missingDetail: "assigned skill checkout is unavailable",
       }],
     })).rejects.toThrow("assigned skill checkout is unavailable");
-    const supportedRoot = await mkdtemp(path.join(tmpdir(), "paperclip-native-supported-skill-"));
+    const supportedRoot = await mkdtemp(path.join(tmpdir(), "outpost-native-supported-skill-"));
     temporaryRoots.push(supportedRoot);
     await writeFile(path.join(supportedRoot, "SKILL.md"), "# Supported\n");
     const context = await buildNativeRuntimeContext({
       ...base,
       runtimeConfig: {
-        paperclipSkillSync: {
-          desiredSkills: [OUTPOST_OPERATIONAL_SKILL_KEY, "company-1/supported"],
+        outpostSkillSync: {
+          desiredSkills: [OUTPOST_OPERATIONAL_SKILL_KEY, "space-1/supported"],
         },
       },
       runtimeSkillEntries: [
         {
           key: OUTPOST_OPERATIONAL_SKILL_KEY,
-          runtimeName: "paperclip",
+          runtimeName: "outpost",
           source: "/unused",
         },
         {
-          key: "company-1/supported",
+          key: "space-1/supported",
           runtimeName: "supported",
           source: supportedRoot,
         },
       ],
     });
-    expect(context.skills.map((skill) => skill.key)).toEqual(["company-1/supported"]);
+    expect(context.skills.map((skill) => skill.key)).toEqual(["space-1/supported"]);
   });
 });
 
@@ -418,7 +418,7 @@ it("pins both permitted GitHub tool catalogs even when another user’s health p
   });
   const limit = vi.fn(async () => [{ responsibleUserId: "A", activeIdentityContextId: "context-A" }]);
   const db = { select: () => ({ from: () => ({ where: () => ({ limit }) }) }) } as unknown as Db;
-  const snapshot = await resolveNativeRuntimeMcpSnapshot({ db, agent: { id: "agent-1", companyId: "company-1" }, runId: "run-1" });
+  const snapshot = await resolveNativeRuntimeMcpSnapshot({ db, agent: { id: "agent-1", spaceId: "space-1" }, runId: "run-1" });
   const expected = createHash("sha256").update(JSON.stringify({
     version: 1, agentId: "agent-1", connections: ["github-A", "github-B"],
     tools: ["github-A-get_me", "github-B-get_me"],
@@ -437,22 +437,22 @@ it("pins channel tools only when the current task run is bound to that bot", asy
     }],
     allowedTools: [{ id: "bot-read-pr", connectionId: "bot-connection" }],
   });
-  const input = { db: {} as Db, agent: { id: "agent-1", companyId: "company-1" }, runId: "run-1" };
+  const input = { db: {} as Db, agent: { id: "agent-1", spaceId: "space-1" }, runId: "run-1" };
   expect((await resolveNativeRuntimeMcpSnapshot(input)).bindingId).toBeNull();
   serviceMocks.githubBotConnectionIdsForRun.mockResolvedValue(new Set(["bot-connection"]));
   expect((await resolveNativeRuntimeMcpSnapshot(input)).bindingId).toBe("native-mcp:run-1");
-  expect(serviceMocks.githubBotConnectionIdsForRun).toHaveBeenLastCalledWith(input.db, "company-1", "agent-1", "run-1");
+  expect(serviceMocks.githubBotConnectionIdsForRun).toHaveBeenLastCalledWith(input.db, "space-1", "agent-1", "run-1");
 });
 
 it("pins a voice tool only when the current requester can call through that assigned endpoint", async () => {
   serviceMocks.getEffectiveToolAssignmentsForAgent.mockResolvedValue({ entries: [{ effect: "include", connectionId: "voice-connection" }], installedConnections: [{ id: "voice-connection", status: "active", enabled: true, healthStatus: "healthy", transport: "voice", config: { provider: "speko" }, transportConfig: {} }], allowedTools: [{ id: "phone-tool", connectionId: "voice-connection" }] });
   const limit = vi.fn().mockResolvedValue([{ issueId: "task-1", activeIdentityContextId: "identity-1" }]);
   const db = { select: () => ({ from: () => ({ where: () => ({ limit }) }) }) } as unknown as Db;
-  const input = { db, agent: { id: "agent-1", companyId: "company-1" }, runId: "run-1" };
+  const input = { db, agent: { id: "agent-1", spaceId: "space-1" }, runId: "run-1" };
   expect((await resolveNativeRuntimeMcpSnapshot(input)).bindingId).toBeNull();
   serviceMocks.spekoToolsForSession.mockResolvedValue([{ connectionId: "voice-connection" }]);
   expect((await resolveNativeRuntimeMcpSnapshot(input)).bindingId).toBe("native-mcp:run-1");
-  expect(serviceMocks.spekoToolsForSession).toHaveBeenLastCalledWith(db, { companyId: "company-1", agentId: "agent-1", runId: "run-1", issueId: "task-1", identityContextId: "identity-1" });
+  expect(serviceMocks.spekoToolsForSession).toHaveBeenLastCalledWith(db, { spaceId: "space-1", agentId: "agent-1", runId: "run-1", issueId: "task-1", identityContextId: "identity-1" });
 });
 
 it("keeps instructions, selected skills, and MCP concurrent and distinguishes cold materialization from warm verification", async () => {
@@ -472,8 +472,8 @@ it("keeps instructions, selected skills, and MCP concurrent and distinguishes co
   await mkdir(source);
   await writeFile(path.join(source, "SKILL.md"), "Private skill fixture");
   const input = {
-    db: {} as Db, agent: { id: "agent-1", companyId: "company-1", name: "Reviewer", adapterConfig: {} },
-    runId: "concurrent-context", runtimeConfig: { paperclipSkillSync: { desiredSkills: ["selected"] } },
+    db: {} as Db, agent: { id: "agent-1", spaceId: "space-1", name: "Reviewer", adapterConfig: {} },
+    runId: "concurrent-context", runtimeConfig: { outpostSkillSync: { desiredSkills: ["selected"] } },
     runtimeSkillEntries: [{ key: "selected", runtimeName: "selected", source }],
   };
   const pending = withRunExecutionTiming(input.runId, () => buildNativeRuntimeContext(input));

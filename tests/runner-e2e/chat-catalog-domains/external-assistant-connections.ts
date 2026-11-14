@@ -112,8 +112,8 @@ export const assistantConnectionExternalCases = [
       const other = await connect(
         ctx.input.page.context(),
         {
-          ...ctx.input.fixtures.company,
-          issuePrefix: ctx.input.fixtures.company.issuePrefix ?? "EVAL",
+          ...ctx.input.fixtures.space,
+          issuePrefix: ctx.input.fixtures.space.issuePrefix ?? "EVAL",
         },
         false,
         ctx.input.page,
@@ -156,12 +156,12 @@ export const assistantConnectionExternalCases = [
         await ctx.input.page.goto(request.consentUrl);
         await expect(
           ctx.input.page.getByRole("heading", {
-            name: /^Connect .+ to Paperclip$/,
+            name: /^Connect .+ to Outpost$/,
           }),
         ).toBeVisible();
         await ctx.input.page
           .getByRole("radio", {
-            name: ctx.input.fixtures.company.name,
+            name: ctx.input.fixtures.space.name,
             exact: true,
           })
           .check();
@@ -186,8 +186,8 @@ export const assistantConnectionExternalCases = [
         const client = await mcp(grants.get(ctx)!.tokens);
         try {
           state.otherGrantStillUsable =
-            (await client.call("paperclip_connection")).structuredContent
-              ?.companyId === ctx.input.fixtures.company.id;
+            (await client.call("outpost_connection")).structuredContent
+              ?.spaceId === ctx.input.fixtures.space.id;
         } finally {
           await client.close();
         }

@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issues,
@@ -33,22 +33,22 @@ const support = await getEmbeddedPostgresTestSupport();
       await database?.cleanup();
     });
     async function setup() {
-      const companyId = randomUUID(),
+      const spaceId = randomUUID(),
         agentId = randomUUID(),
         issueId = randomUUID(),
         runId = randomUUID();
       await db
-        .insert(companies)
+        .insert(spaces)
         .values({
-          id: companyId,
+          id: spaceId,
           name: "Context",
-          issuePrefix: `C${companyId.slice(0, 6)}`,
+          issuePrefix: `C${spaceId.slice(0, 6)}`,
         });
       await db
         .insert(agents)
         .values({
           id: agentId,
-          companyId,
+          spaceId,
           name: "Executor",
           role: "engineer",
           adapterType: "outpost_runner",
@@ -57,7 +57,7 @@ const support = await getEmbeddedPostgresTestSupport();
         .insert(issues)
         .values({
           id: issueId,
-          companyId,
+          spaceId,
           title: "Read Notion",
           status: "in_progress",
           assigneeAgentId: agentId,
@@ -65,14 +65,14 @@ const support = await getEmbeddedPostgresTestSupport();
         .returning();
       const previous = await ensureNativeCompletionContract({
         db,
-        companyId,
+        spaceId,
         issue: task!,
         actorId: agentId,
         immediateRequest: "Read Notion",
       });
       const current = await ensureNativeCompletionContract({
         db,
-        companyId,
+        spaceId,
         issue: task!,
         actorId: agentId,
         immediateRequest: "Now read Gmail",
@@ -86,7 +86,7 @@ const support = await getEmbeddedPostgresTestSupport();
       const oldInput = parseNativeExecutionInput({
         schema: "outpost.native-execution-input.v1",
         binding: {
-          companyId,
+          spaceId,
           issueId,
           agentId,
           runId,
@@ -124,7 +124,7 @@ const support = await getEmbeddedPostgresTestSupport();
         .insert(heartbeatRuns)
         .values({
           id: runId,
-          companyId,
+          spaceId,
           agentId,
           nativeIssueId: issueId,
           status: "running",
@@ -136,13 +136,13 @@ const support = await getEmbeddedPostgresTestSupport();
       await db
         .insert(nativeRunFinalizations)
         .values({
-          companyId,
+          spaceId,
           issueId,
           runId,
           phase: "retryable_failure",
           attempt: 1,
         });
-      return { companyId, issueId, runId, oldInput, nextInput };
+      return { spaceId, issueId, runId, oldInput, nextInput };
     }
     it("rebinds a fenced unfinished run to Gmail while retaining the Notion revision", async () => {
       const s = await setup();
@@ -183,7 +183,7 @@ const support = await getEmbeddedPostgresTestSupport();
       await db
         .insert(nativeRunResults)
         .values({
-          companyId: s.companyId,
+          spaceId: s.spaceId,
           issueId: s.issueId,
           runId: s.runId,
           completionContractId: s.oldInput.completionContract.id,
@@ -199,7 +199,7 @@ const support = await getEmbeddedPostgresTestSupport();
         .update(issues)
         .set({ assigneeAgentId: null })
         .where(
-          and(eq(issues.companyId, s.companyId), eq(issues.id, s.issueId)),
+          and(eq(issues.spaceId, s.spaceId), eq(issues.id, s.issueId)),
         );
       await expect(
         rebindContinuationContract(db, s.oldInput, s.nextInput),

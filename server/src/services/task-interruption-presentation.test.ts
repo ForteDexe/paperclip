@@ -1,24 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { projectTaskInterruption } from "./task-interruption-presentation.js";
 
-const issue = { id: "task", companyId: "11111111-1111-4111-8111-111111111111", status: "blocked", assigneeAgentId: "agent", projectId: "22222222-2222-4222-8222-222222222222" };
+const issue = { id: "task", spaceId: "11111111-1111-4111-8111-111111111111", status: "blocked", assigneeAgentId: "agent", projectId: "22222222-2222-4222-8222-222222222222" };
 const run = { id: "run", agentId: "agent", status: "failed", scheduledRetryAt: null,
   errorCode: "project_access_denied", error: null, livenessState: null,
   resultJson: { projectAccessDenied: { projectId: "22222222-2222-4222-8222-222222222222" } } };
 const agent = { status: "idle", pauseReason: null };
 
-describe("saved governed wait shutdown", () => {
+describe("saved controlled wait shutdown", () => {
   const now = Date.parse("2026-11-09T12:00:00Z");
-  const pending = { ...run, runtimeMode: "native", errorCode: "native_governed_wait_settlement_pending", resultJson: null };
+  const pending = { ...run, runtimeMode: "native", errorCode: "native_controlled_wait_settlement_pending", resultJson: null };
   it("names automatic shutdown settlement without offering a duplicate Retry", () => {
     expect(projectTaskInterruption(issue, { run: { ...pending, nativeResumeAt: new Date(now + 30_000) }, agent,
       paused: false, approval: false }, now)).toMatchObject({ state: "working", canRetry: false,
-        retryWait: { reason: "governed_wait_settlement", message: "Your work is saved. Paperclip is finishing shutdown." } });
+        retryWait: { reason: "controlled_wait_settlement", message: "Your work is saved. Outpost is finishing shutdown." } });
   });
   it("explains exhausted shutdown recovery while preserving the saved work", () => {
     expect(projectTaskInterruption(issue, { run: pending, agent, paused: false, approval: false }, now))
-      .toMatchObject({ state: "failed", canRetry: false, retryWait: { reason: "governed_wait_settlement",
-        message: "Paperclip couldn’t confirm shutdown. Your work is saved; continuation is paused." } });
+      .toMatchObject({ state: "failed", canRetry: false, retryWait: { reason: "controlled_wait_settlement",
+        message: "Outpost couldn’t confirm shutdown. Your work is saved; continuation is paused." } });
   });
   it("keeps genuine approvals authoritative", () => {
     expect(projectTaskInterruption(issue, { run: pending, agent, paused: false, approval: true }, now))
@@ -78,10 +78,10 @@ describe("never-started task refused by admission", () => {
   it("keeps pauses and budget stops as user actions instead of promising an automatic start", () => {
     for (const [state, action] of [
       [{ project: { pausedAt: new Date(), pauseReason: null } }, "resume"],
-      [{ company: { status: "paused", pauseReason: "manual" } }, "resume"],
+      [{ space: { status: "paused", pauseReason: "manual" } }, "resume"],
       [{ paused: true }, "resume"],
       [{ agent: { status: "paused", pauseReason: "manual" } }, "resume"],
-      [{ company: { status: "paused", pauseReason: "budget" } }, "budget"],
+      [{ space: { status: "paused", pauseReason: "budget" } }, "budget"],
       [{ approval: true }, "approval"],
     ] as const) {
       expect(projectTaskInterruption(todo, { agent, admissionWait, paused: false, approval: false, ...state }))
@@ -153,7 +153,7 @@ it("explains a persisted Retry wait without exposing the saved payload", () => {
     executionWaitReason: "workspace_repair_required" };
   const presentation = projectTaskInterruption(issue, { run: failed, agent, wait, paused: false, approval: false });
   expect(presentation).toMatchObject({ state: "failed", canRetry: true,
-    retryWait: { reason: "workspace_repair_required", message: "Retry is waiting for Paperclip to recover the saved files. Your message is saved." } });
+    retryWait: { reason: "workspace_repair_required", message: "Retry is waiting for Outpost to recover the saved files. Your message is saved." } });
   expect(projectTaskInterruption(issue, { run: failed, agent, wait: { ...wait, sourceRunId: "another-run" }, paused: false, approval: false }))
     .not.toHaveProperty("retryWait");
   expect(projectTaskInterruption(issue, { run: failed, agent, wait: { ...wait, executionWaitReason: "secret-payload" }, paused: false, approval: false }))
@@ -264,12 +264,12 @@ describe("setup command failure presentation (CF1)", () => {
 });
 
 function operatorStoppedRun() {
-  return { ...run, status: "cancelled", runtimeMode: "native" as const, companyId: issue.companyId,
+  return { ...run, status: "cancelled", runtimeMode: "native" as const, spaceId: issue.spaceId,
     nativeIssueId: issue.id, errorCode: "cancelled", resultJson: {
-      cancelledByActorType: "user", cancelledByUserId: "board",
+      cancelledByActorType: "user", cancelledByUserId: "operator",
       executionCancellation: { state: "requested" },
       nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: run.id,
-        companyId: issue.companyId, issueId: issue.id, scope: "run",
+        spaceId: issue.spaceId, issueId: issue.id, scope: "run",
         reasonCode: "cancellation_run_only", dispatched: true, dispatchState: "acknowledged",
         intentAuditId: "intent", acknowledgementAuditId: "ack" },
     } };
@@ -283,7 +283,7 @@ describe("intentional native Stop presentation", () => {
     expect(workingIssue.status).toBe("in_progress");
   });
 
-  it.each([{ runId: "foreign" }, { companyId: "foreign" }, { issueId: "foreign" },
+  it.each([{ runId: "foreign" }, { spaceId: "foreign" }, { issueId: "foreign" },
     { dispatchState: "pending" }, { dispatched: false }, { acknowledgementAuditId: undefined },
     { intentAuditId: 123 }, { acknowledgementAuditId: {} },
     { scope: "subtree" }])("retains failure presentation without the matching operator receipt %j", change => {

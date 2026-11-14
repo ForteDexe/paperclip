@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
-  agents, companies, completionContracts, createDb, environments, environmentLeases, heartbeatRuns, issues, issueComments,
+  agents, spaces, completionContracts, createDb, environments, environmentLeases, heartbeatRuns, issues, issueComments,
   nativeRunFinalizations, nativeRunResults, statusDecisionEffects, statusDecisions,
   workAssessments, workspaceOperations,
 } from "@outpost/db";
@@ -26,7 +26,7 @@ if (!support.supported) console.warn(`Skipping finalization idle-sleep Postgres 
     database = await startEmbeddedPostgresTestDatabase("idle-native-finalization-");
     db = createDb(database.connectionString);
   }, 60_000);
-  afterEach(async () => { await db.execute(sql`TRUNCATE companies, plugins, environments CASCADE`); });
+  afterEach(async () => { await db.execute(sql`TRUNCATE spaces, plugins, environments CASCADE`); });
   afterAll(async () => { await database?.cleanup(); });
 
   const read = () => readIdleSleepSafety(db, () => ({
@@ -35,35 +35,35 @@ if (!support.supported) console.warn(`Skipping finalization idle-sleep Postgres 
   }), () => now, ownerId, async () => "none");
 
   async function seed(status = "succeeded") {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
     const runId = randomUUID(), contractId = randomUUID(), resultId = randomUUID();
     const assessmentId = randomUUID(), decisionId = randomUUID();
     const operationId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Finalization fixture", issuePrefix: "FIN" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Idle worker", adapterType: "process", status: "idle" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Completed task", status: "done" });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(spaces).values({ id: spaceId, name: "Finalization fixture", issuePrefix: "FIN" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Idle worker", adapterType: "process", status: "idle" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Completed task", status: "done" });
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "fixture", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: {}, canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "fixture" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId,
       completionContractId: contractId, runtimeMode: "native", nativePhase: "committed",
       status, finishedAt: new Date(now), resultJson: { finalizationPhase: "committed" },
       processPid: 123, processStartedAt: new Date(now - 1000) });
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId, completionContractId: contractId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId, completionContractId: contractId,
       serverFingerprint: resultId, schemaStatus: "accepted", resultJson: { terminal: { runTerminalState: status } },
       canonicalSha256: resultId });
-    await db.insert(workAssessments).values({ id: assessmentId, companyId, issueId, runId, contractId, resultId,
-      triggerKind: "native_result", triggerActorCompanyId: companyId, priorIssueStatus: "in_progress",
+    await db.insert(workAssessments).values({ id: assessmentId, spaceId, issueId, runId, contractId, resultId,
+      triggerKind: "native_result", triggerActorSpaceId: spaceId, priorIssueStatus: "in_progress",
       priorStatusVersion: 0, policyVersion: "fixture", assessmentJson: {}, inputDigest: assessmentId });
-    await db.insert(statusDecisions).values({ id: decisionId, companyId, issueId, runId, assessmentId,
+    await db.insert(statusDecisions).values({ id: decisionId, spaceId, issueId, runId, assessmentId,
       decisionVersion: 1, policyVersion: "fixture", fromStatus: "in_progress", toStatus: "done",
       reasonCode: "fixture", decisionJson: {}, decisionDigest: decisionId, applicationState: "applied", appliedAt: new Date(now) });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, resultId, assessmentId, decisionId,
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, resultId, assessmentId, decisionId,
       phase: "committed", controllerBootId: "historical-controller", controllerPid: 123 });
-    await db.insert(workspaceOperations).values({ id: operationId, companyId, issueId, heartbeatRunId: runId,
+    await db.insert(workspaceOperations).values({ id: operationId, spaceId, issueId, heartbeatRunId: runId,
       phase: "workspace_finalize", status: "succeeded", startedAt: new Date(now), finishedAt: new Date(now) });
-    return { companyId, agentId, issueId, runId, resultId, assessmentId, decisionId, operationId };
+    return { spaceId, agentId, issueId, runId, resultId, assessmentId, decisionId, operationId };
   }
 
   it.each(["succeeded", "failed", "cancelled"])("permits a fully settled %s run and preserves its audit history", async status => {
@@ -126,7 +126,7 @@ if (!support.supported) console.warn(`Skipping finalization idle-sleep Postgres 
     { deliveryState: "delivered", deliveredAt: new Date(now), nextAttemptAt: future },
   ])("retains incomplete status effects %j", async change => {
     const f = await seed();
-    await db.insert(statusDecisionEffects).values({ companyId: f.companyId, issueId: f.issueId,
+    await db.insert(statusDecisionEffects).values({ spaceId: f.spaceId, issueId: f.issueId,
       decisionId: f.decisionId, ordinal: 0, effectKind: "release_checkout", targetType: "issue",
       idempotencyKey: randomUUID(), payload: {}, ...change });
     expect(await read()).toEqual(present);
@@ -134,7 +134,7 @@ if (!support.supported) console.warn(`Skipping finalization idle-sleep Postgres 
 
   it("permits acknowledged effects without deleting their receipts", async () => {
     const f = await seed();
-    await db.insert(statusDecisionEffects).values({ companyId: f.companyId, issueId: f.issueId,
+    await db.insert(statusDecisionEffects).values({ spaceId: f.spaceId, issueId: f.issueId,
       decisionId: f.decisionId, ordinal: 0, effectKind: "release_checkout", targetType: "issue",
       idempotencyKey: randomUUID(), payload: {}, deliveryState: "delivered", deliveredAt: new Date(now) });
     expect(await read()).toEqual(none);
@@ -147,7 +147,7 @@ if (!support.supported) console.warn(`Skipping finalization idle-sleep Postgres 
     const [environment] = await db.insert(environments).values({
       name: "Sandbox fixture", driver: "sandbox", config: {},
     }).returning();
-    await db.insert(environmentLeases).values({ companyId: f.companyId,
+    await db.insert(environmentLeases).values({ spaceId: f.spaceId,
       heartbeatRunId: f.runId, environmentId: environment.id, provider: "sandbox",
       providerLeaseId: "live-fixture", status: "active" });
     expect(await read()).toEqual(present);
@@ -190,7 +190,7 @@ if (!support.supported) console.warn(`Skipping finalization idle-sleep Postgres 
     const f = await seedPendingReply();
     expect(await nativeResponsePresentationWork(db).load()).toMatchObject([{ id: f.runId }]);
     expect(await read()).toEqual(present);
-    const [comment] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+    const [comment] = await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
       authorAgentId: f.agentId, createdByRunId: f.runId, body: "Final reply fixture" }).returning();
     await db.update(heartbeatRuns).set({ resultJson: { finalizationPhase: "committed",
       presentationDecision: { commentAction: "create", commentId: comment.id } } }).where(eq(heartbeatRuns.id, f.runId));

@@ -23,10 +23,10 @@ Existing approvals, issue approvals, issue work products, queues, and queue item
 are the only durable state. No new table, outbox, external API, or provider branch
 is introduced. `approvalQueueSeedingService` selects missing memberships for:
 
-- A pending approval in an active company.
-- Its first linked issue, ordered by issue ID, in the same company and eligible
+- A pending approval in an active space.
+- Its first linked issue, ordered by issue ID, in the same space and eligible
   under the attention feed's execution-issue visibility predicate.
-- A pull-request work product belonging to that issue and company.
+- A pull-request work product belonging to that issue and space.
 - A missing PR queue or an enabled seed rule without this approval's membership.
 
 Disabled rules, nonmatching approvals, completed approvals, and existing seeded
@@ -48,11 +48,11 @@ change, including the proposal in #13364.
 
 | Producer | Commit boundary and effect |
 | --- | --- |
-| Approval create, cancel, revision, resubmit, resolve | `writeApprovalChange` notifies retention and company-scoped queue seeding before writes in the owning transaction. Approve/reject/cancel retain their explicit tool-review notification; ordinary mutations do not wake those queues. |
+| Approval create, cancel, revision, resubmit, resolve | `writeApprovalChange` notifies retention and space-scoped queue seeding before writes in the owning transaction. Approve/reject/cancel retain their explicit tool-review notification; ordinary mutations do not wake those queues. |
 | Shared approval records, budget approvals, formal tool approvals | The same approval notification covers their existing transactions. |
 | Issue approval link, unlink, link-many, tool-created links | Existing approval transaction helper. Link removal can expose a different first issue. |
 | Issue visibility changes and issue deletion | Existing approval notification before the update or cascading delete. Routine failure cleanup retains this signal. |
-| Company activation, pause, archive, deletion and budget pause/resume | Existing company notification wakes both approval consumers. |
+| Space activation, pause, archive, deletion and budget pause/resume | Existing space notification wakes both approval consumers. |
 | Work-product create, type/issue update, import batch, delete | The owning work-product transaction notifies seeding when a pull-request row is involved. |
 | PR queue creation, rule update and manual approval membership removal | The queue mutation transaction notifies seeding. An enabled rule can re-add a still-matching manually removed item, as the old scan did. |
 
@@ -69,9 +69,9 @@ unscoped maintenance feed. No new deadline is inferred from those display states
 ## Worker lifecycle
 
 Startup reconstructs missing memberships across the instance. Each later committed
-producer carries its company ID and wakes only that company's reconciliation.
-Pending scopes coalesce in memory; one company's ordinary mutations cannot restart
-a global scan. Scope rotation prevents one failing company from starving another. Each sweep processes at most 100 approvals, with an ID cursor and a fixed upper ID per scan cycle. The cursor advances past
+producer carries its space ID and wakes only that space's reconciliation.
+Pending scopes coalesce in memory; one space's ordinary mutations cannot restart
+a global scan. Scope rotation prevents one failing space from starving another. Each sweep processes at most 100 approvals, with an ID cursor and a fixed upper ID per scan cycle. The cursor advances past
 failures and finishes that finite cycle before revisiting them; new arrivals cannot
 extend it indefinitely. Each row is rechecked under
 an approval lock before the queue writer runs. One bad row cannot permanently
@@ -83,7 +83,7 @@ Unprocessed pages and newer committed signals retain a one-second continuation.
 Failed scopes back off exponentially from one second to one minute. A successful
 nonempty batch resets consecutive failures; an empty cursor rollover while debt
 remains preserves outage backoff. New signals
-do not reset a failing scope's backoff; other companies can proceed independently.
+do not reset a failing scope's backoff; other spaces can proceed independently.
 The next retry is registered with the shared scheduler, with no SQL during the
 wait. A failed scope remains tracked until its owed memberships are reconciled. The generation check follows the final awaited lookup, so a commit arriving
 during an empty read cannot be erased. Once reconciled, there is no deadline and
@@ -104,8 +104,8 @@ other source owners.
   without a full attention read.
 - Twenty-one real-database worker tests cover empty-to-active-to-quiet behavior,
   startup and completed history, actual approval/link/work-product producers,
-  batch import, first-link selection, company isolation, hidden targets, queue
-  rule enablement, company activation, resubmission, outer commit and rollback,
+  batch import, first-link selection, space isolation, hidden targets, queue
+  rule enablement, space activation, resubmission, outer commit and rollback,
   first write during drain, database failure through drain, multiple pages,
   failed-page progress and retry, concurrent resolution, archived/kept history, shutdown/restart, and an admitted transaction at shutdown.
 - 115 existing tests pass across queue routes, attention, approval retention,
@@ -129,13 +129,13 @@ detected`. Manual add/remove now lock the queue before touching its items, match
 the seed writer. The regression and the existing queue route suite pass (27 cases).
 Server typecheck and build pass after the repair. Fresh-head CI/review is required.
 
-Security review found that normal producer wakes could restart a cross-company
-scan. The regression reproduced another company's queue being populated by an
-unrelated company write. Producers now include company hints, including batch
+Security review found that normal producer wakes could restart a cross-space
+scan. The regression reproduced another space's queue being populated by an
+unrelated space write. Producers now include space hints, including batch
 imports and nested transactions. A separate controlled PostgreSQL test holds the
 final empty read while a real producer commits and verifies the retained wake.
 
-After company scoping, all 169 selected cases pass across approval queue seeding,
+After space scoping, all 169 selected cases pass across approval queue seeding,
 approval retention, queue routes, approval services, work products, and issue
 comment routes. Server typechecking passes. The preceding run suffered timeouts
 and a consequent cleanup foreign-key error; it is not counted as passing. The
@@ -156,7 +156,7 @@ Further review reproduced 120 failed transactions in two simulated minutes for a
 persistently failing projection. Per-scope backoff now bounds that test to at most
 eight attempts, even with new signals every second. Removing the fault recovers
 the membership. A real coordinator/producer case proves thirty seconds without
-SQL during backoff, another company's successful queue seeding during that wait,
+SQL during backoff, another space's successful queue seeding during that wait,
 and eventual recovery without losing the original work. All 25 worker cases pass.
 The first consumer command omitted the external DB setting for queue routes and
 skipped those six cases; the corrected command executes and passes all six.
@@ -170,7 +170,7 @@ cases. With the 25 worker and six queue cases, 124 affected tests pass.
 ## Current retention-parent integration
 
 The seeding worker reuses `firstApprovalIssueId` from the approval-visibility
-owner rather than retaining its own first-link SQL. Company IDs are part of the
+owner rather than retaining its own first-link SQL. Space IDs are part of the
 approval notification contract because projection reconciliation is scoped.
 Generic approval writes notify retention and seeding only; the existing terminal
 approve/reject/cancel owners alone notify tool-review consumers. Current precise
@@ -187,9 +187,9 @@ separate existing disposable databases. No database was shared with another
 concurrent local test run. The subsequent parent merge changes only two documents;
 all tested runtime and acceptance sources remain byte-identical.
 
-The first integration typecheck caught two incorrect gateway company references.
-They now use the existing session company, and typecheck plus the complete gateway
-suite pass. Earlier deadlock, cross-company wake, backoff, skipped-fixture and
+The first integration typecheck caught two incorrect gateway space references.
+They now use the existing session space, and typecheck plus the complete gateway
+suite pass. Earlier deadlock, cross-space wake, backoff, skipped-fixture and
 teardown failures remain in the historical sections above. The parent's attention
 cleanup timeout and expiry-test CI assertion are recorded in its document; this
 larger current run passes without changing their assertions or timeouts. Fresh

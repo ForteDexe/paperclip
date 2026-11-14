@@ -2,13 +2,13 @@
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createIssue } from "../../storybook/fixtures/paperclipData";
+import { createIssue } from "../../storybook/fixtures/outpostData";
 import { TaskList, topRenderedTaskRefs, type TaskListItem } from "./TaskList";
 import { TooltipProvider } from "./ui/tooltip";
 
-const preloads = vi.hoisted(() => [] as Array<{ companyId: string | null | undefined; refs: string[] }>);
+const preloads = vi.hoisted(() => [] as Array<{ spaceId: string | null | undefined; refs: string[] }>);
 vi.mock("../hooks/usePreloadTaskChats", () => ({
-  usePreloadTaskChats: (companyId: string | null | undefined, refs: readonly string[]) => { preloads.push({ companyId, refs: [...refs] }); },
+  usePreloadTaskChats: (spaceId: string | null | undefined, refs: readonly string[]) => { preloads.push({ spaceId, refs: [...refs] }); },
 }));
 vi.mock("@/lib/router", () => ({
   Link: ({ children, to, state: _state, disableIssueQuicklook: _quicklook, issuePrefetch: _prefetch, ...props }:
@@ -46,9 +46,9 @@ describe("TaskList chat preload", () => {
   });
 
   it("preloads the top ten rows in display order when the page asks for it", async () => {
-    await act(async () => root.render(<TooltipProvider><TaskList items={items} preloadCompanyId="company-1" /></TooltipProvider>));
+    await act(async () => root.render(<TooltipProvider><TaskList items={items} preloadSpaceId="space-1" /></TooltipProvider>));
     const last = preloads.at(-1)!;
-    expect(last.companyId).toBe("company-1");
+    expect(last.spaceId).toBe("space-1");
     expect(last.refs).toEqual(Array.from({ length: 10 }, (_, index) => `PAP-${13 - index}`));
   });
 
@@ -62,7 +62,7 @@ describe("TaskList chat preload", () => {
         large.push({ issue: createIssue({ id: `c-${parent}-${child}`, identifier: `C-${parent}-${child}`, title: `Child ${parent}.${child}`, parentId: `p-${parent}`, status: "todo", updatedAt }) });
       }
     }
-    await act(async () => root.render(<TooltipProvider><TaskList items={large} groupBy="status" preloadCompanyId="company-1" /></TooltipProvider>));
+    await act(async () => root.render(<TooltipProvider><TaskList items={large} groupBy="status" preloadSpaceId="space-1" /></TooltipProvider>));
     const refs = preloads.at(-1)!.refs;
     expect(refs).toHaveLength(10);
     // Rows in the order the list shows them: the first group's parents, each followed by its children.

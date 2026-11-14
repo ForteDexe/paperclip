@@ -21,19 +21,19 @@ describeIssueRecovery("issue recovery production producers and deadlines", () =>
   });
   it("creates a blocking child through the ordinary root service transaction", async () => {
     const f = await fixture();
-    const parent = await issueService(state.db).create(f.companyId, { title: "Parent", status: "todo" });
+    const parent = await issueService(state.db).create(f.spaceId, { title: "Parent", status: "todo" });
     const child = await issueService(state.db).createChild(parent.id, { title: "Blocking child", status: "todo", blockParentUntilDone: true });
     expect(child.parentBlockerAdded).toBe(true);
-    expect(await state.db.select().from(issueRelations).where(and(eq(issueRelations.companyId, f.companyId),
+    expect(await state.db.select().from(issueRelations).where(and(eq(issueRelations.spaceId, f.spaceId),
       eq(issueRelations.issueId, child.issue.id), eq(issueRelations.relatedIssueId, parent.id)))).toHaveLength(1);
   });
-  it("bounds subsidiary scans for100 assignment candidates and coalesces repeated company writes", async () => {
+  it("bounds subsidiary scans for100 assignment candidates and coalesces repeated space writes", async () => {
     const f = await fixture(), foreign = await fixture();
     await state.db.update(agents).set({ lifecycleState: "preparing" }).where(eq(agents.id, f.agentId));
-    await state.db.insert(issues).values(Array.from({ length: 100 }, (_, index) => ({ companyId: f.companyId,
+    await state.db.insert(issues).values(Array.from({ length: 100 }, (_, index) => ({ spaceId: f.spaceId,
       title: `Waiting setup ${index}`, status: "todo", assigneeAgentId: f.agentId })));
-    const [source] = await state.db.insert(issues).values({ companyId: f.companyId, title: "Done source", status: "done" }).returning();
-    const action = await issueRecoveryActionService(state.db).upsertSourceScoped({ companyId: f.companyId, sourceIssueId: source.id,
+    const [source] = await state.db.insert(issues).values({ spaceId: f.spaceId, title: "Done source", status: "done" }).returning();
+    const action = await issueRecoveryActionService(state.db).upsertSourceScoped({ spaceId: f.spaceId, sourceIssueId: source.id,
       kind: "stranded_assigned_issue", ownerType: "agent", ownerAgentId: f.agentId, cause: "stranded_assigned_issue",
       fingerprint: "query-budget", nextAction: "Restore work", wakePolicy: { type: "wake_owner" }, evidence: {} });
     const scans = { blockers: 0, actions: 0, loads: 0 };
@@ -41,7 +41,7 @@ describeIssueRecovery("issue recovery production producers and deadlines", () =>
     vi.spyOn(state.db, "select").mockImplementation(((fields?: Record<string, unknown>) => {
       const query = originalSelect(fields as never); const from = query.from.bind(query);
       query.from = ((table: unknown) => {
-        if (table === issues && fields?.id === issues.id && fields.companyId === issues.companyId && Object.keys(fields).length === 2) scans.loads++;
+        if (table === issues && fields?.id === issues.id && fields.spaceId === issues.spaceId && Object.keys(fields).length === 2) scans.loads++;
         if (table === issueRelations && fields?.createdByAgentId === issues.createdByAgentId) scans.blockers++;
         if (table === issueRecoveryActions && fields?.action === issueRecoveryActions) scans.actions++;
         return from(table as never);
@@ -51,11 +51,11 @@ describeIssueRecovery("issue recovery production producers and deadlines", () =>
     await start(); await settled();
     expect(scans.actions).toBe(1); expect(scans.blockers).toBe(0); expect(scans.loads).toBeLessThanOrEqual(8);
     expect((await originalSelect().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, action.id)))[0].status).toBe("resolved");
-    const [foreignSource] = await state.db.insert(issues).values({ companyId: foreign.companyId, title: "Foreign done", status: "done" }).returning();
-    const [foreignAction] = await state.db.insert(issueRecoveryActions).values({ companyId: foreign.companyId, sourceIssueId: foreignSource.id,
-      kind: "stranded_assigned_issue", ownerType: "board", cause: "stranded_assigned_issue", fingerprint: "foreign-query-budget", nextAction: "Inspect" }).returning();
+    const [foreignSource] = await state.db.insert(issues).values({ spaceId: foreign.spaceId, title: "Foreign done", status: "done" }).returning();
+    const [foreignAction] = await state.db.insert(issueRecoveryActions).values({ spaceId: foreign.spaceId, sourceIssueId: foreignSource.id,
+      kind: "stranded_assigned_issue", ownerType: "operator", cause: "stranded_assigned_issue", fingerprint: "foreign-query-budget", nextAction: "Inspect" }).returning();
     const before = { ...scans };
-    for (let index = 0; index < 100; index++) await state.db.transaction(tx => notifyIssueRecovery(tx, { companyId: f.companyId }));
+    for (let index = 0; index < 100; index++) await state.db.transaction(tx => notifyIssueRecovery(tx, { spaceId: f.spaceId }));
     await new Promise(resolve => setTimeout(resolve, 100));
     expect(scans.loads).toBe(before.loads);
     await settled();
@@ -67,7 +67,7 @@ describeIssueRecovery("issue recovery production producers and deadlines", () =>
   it("limits an ordinary comment to its issue among one thousand open assignments", async () => {
     const f = await fixture();
     const rows = await state.db.insert(issues).values(Array.from({ length: 1000 }, (_, index) => ({
-      companyId: f.companyId, title: `Open work ${index}`, status: "todo", assigneeAgentId: f.agentId,
+      spaceId: f.spaceId, title: `Open work ${index}`, status: "todo", assigneeAgentId: f.agentId,
     }))).returning({ id: issues.id });
     const checked: string[] = [];
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
@@ -102,21 +102,21 @@ describeIssueRecovery("issue recovery production producers and deadlines", () =>
     await issueService(state.db).addComment(rows[0].id, "New evidence on this task", { userId: "recovery-user" });
     await settleWork();
     expect(checked).toEqual([rows[0].id]);
-    // Company eligibility changes still reconstruct all assignments. Narrowing
+    // Space eligibility changes still reconstruct all assignments. Narrowing
     // comment hints must not hide unrelated work after an operator resumes it.
     checked.length = 0;
-    await state.db.transaction(tx => notifyIssueRecovery(tx, { companyId: f.companyId }));
+    await state.db.transaction(tx => notifyIssueRecovery(tx, { spaceId: f.spaceId }));
     await settleWork();
     expect(new Set(checked).size).toBe(1000);
     await quiet();
   });
   it("uses ordinary watchdog configuration and subtree closure to dispatch a reusable review", async () => {
     const f = await fixture();
-    const source = await issueService(state.db).create(f.companyId, { title: "Finished subtree", status: "done" });
-    const failures = await completingProvider(f, () => taskWatchdogService(state.db).disableForIssue(f.companyId, source.id));
+    const source = await issueService(state.db).create(f.spaceId, { title: "Finished subtree", status: "done" });
+    const failures = await completingProvider(f, () => taskWatchdogService(state.db).disableForIssue(f.spaceId, source.id));
     await start(); await quiet();
     await compete();
-    const watchdog = await taskWatchdogService(state.db).upsertForIssue(f.companyId, source.id, { agentId: f.agentId });
+    const watchdog = await taskWatchdogService(state.db).upsertForIssue(f.spaceId, source.id, { agentId: f.agentId });
     let reviewId: string | undefined;
     await vi.waitFor(async () => {
       const [row] = await state.db.select().from(issueWatchdogs).where(eq(issueWatchdogs.id, watchdog.watchdog.id));
@@ -124,20 +124,20 @@ describeIssueRecovery("issue recovery production producers and deadlines", () =>
     }, { timeout: 15_000 });
     await completed(reviewId!);
     expect(failures).toEqual([]);
-    expect(await state.db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId),
+    expect(await state.db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId),
       sql`${heartbeatRuns.contextSnapshot}->>'wakeReason' = 'task_watchdog_stopped_subtree'`))).toHaveLength(1);
     await finish(reviewId!);
-    await taskWatchdogService(state.db).disableForIssue(f.companyId, source.id);
+    await taskWatchdogService(state.db).disableForIssue(f.spaceId, source.id);
     if (!vi.isFakeTimers()) vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] }); await quiet();
   }, 90_000);
-  it("bounds ordinary writes to their company and reconstructs foreign stale debt after restart", async () => {
+  it("bounds ordinary writes to their space and reconstructs foreign stale debt after restart", async () => {
     const selected = await fixture(); await start(); await quiet();
     const foreign = await fixture();
-    const [run] = await state.db.insert(heartbeatRuns).values({ companyId: foreign.companyId, agentId: foreign.agentId,
+    const [run] = await state.db.insert(heartbeatRuns).values({ spaceId: foreign.spaceId, agentId: foreign.agentId,
       status: "failed", finishedAt: new Date() }).returning();
-    const [stale] = await state.db.insert(issues).values({ companyId: foreign.companyId, title: "Foreign stale lock", status: "done",
+    const [stale] = await state.db.insert(issues).values({ spaceId: foreign.spaceId, title: "Foreign stale lock", status: "done",
       checkoutRunId: run.id }).returning();
-    await issueService(state.db).create(selected.companyId, { title: "Selected change", status: "done" }); await quiet();
+    await issueService(state.db).create(selected.spaceId, { title: "Selected change", status: "done" }); await quiet();
     expect((await state.db.select().from(issues).where(eq(issues.id, stale.id)))[0].checkoutRunId).toBe(run.id);
     await state.worker.stop(); await state.dispatch.stop(); await state.cancellation.stop(); await state.coordinator.stop();
     state.heartbeat = heartbeatService(state.db); await start(); await quiet();
@@ -145,19 +145,19 @@ describeIssueRecovery("issue recovery production producers and deadlines", () =>
   });
   it("retains a fresh subtree's exact first-run grace then disarms on disable", async () => {
     const f = await fixture();
-    const source = await issueService(state.db).create(f.companyId, { title: "Fresh unassigned subtree", status: "todo" });
+    const source = await issueService(state.db).create(f.spaceId, { title: "Fresh unassigned subtree", status: "todo" });
     await start(); await quiet();
-    await taskWatchdogService(state.db).upsertForIssue(f.companyId, source.id, { agentId: f.agentId });
+    await taskWatchdogService(state.db).upsertForIssue(f.spaceId, source.id, { agentId: f.agentId });
     await vi.waitFor(() => expect(state.coordinator.nextWakeAt()).toBe(source.createdAt.getTime() + 15_000), { timeout: 5_000 });
     expect(await state.db.select().from(issues).where(eq(issues.originKind, "task_watchdog"))).toHaveLength(0);
-    await taskWatchdogService(state.db).disableForIssue(f.companyId, source.id);
+    await taskWatchdogService(state.db).disableForIssue(f.spaceId, source.id);
     if (!vi.isFakeTimers()) vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] }); await quiet();
   });
   it("waits for a live foreign controller's exact stored lease before clearing a terminal lock", async () => {
     const f = await fixture();
-    const source = await issueService(state.db).create(f.companyId, { title: "Remote owner", status: "done" });
+    const source = await issueService(state.db).create(f.spaceId, { title: "Remote owner", status: "done" });
     const lease = new Date(Date.now() + 5_000);
-    const [run] = await state.db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running",
+    const [run] = await state.db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "running",
       runtimeMode: "legacy", controllerBootId: randomUUID(), controllerLeaseExpiresAt: lease,
       contextSnapshot: { issueId: source.id }, processPid: 2_000_000_000, startedAt: new Date() }).returning();
     await state.db.update(issues).set({ executionRunId: run.id }).where(eq(issues.id, source.id));

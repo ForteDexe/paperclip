@@ -141,7 +141,7 @@ export type DeferredWakeQueuedCommentDecision =
   | { kind: "proceed" };
 
 export type DeferredWakeAgentFacts = {
-  /** True when the wake's agent exists in the issue's own company. */
+  /** True when the wake's agent exists in the issue's own space. */
   agentFound: boolean;
   /** True when the agent is invokable (status, org chain). Meaningless when agentFound is false. */
   invokable: boolean;
@@ -361,7 +361,7 @@ export type QueuedCommentActorOwnershipFacts = {
 
 /**
  * Decides whether the actor discarding a queued message authored it. A user
- * actor must be the board user who wrote the message. An agent actor must be
+ * actor must be the operator user who wrote the message. An agent actor must be
  * the agent that wrote it, because an agent actor can discard its own queued
  * message through the general comment-delete route.
  */

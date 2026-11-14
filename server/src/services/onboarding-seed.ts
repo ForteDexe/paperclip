@@ -1,13 +1,13 @@
 import { and, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { agents, companyOnboardingSeeds, goals, issues, projects } from "@outpost/db";
+import { agents, spaceOnboardingSeeds, goals, issues, projects } from "@outpost/db";
 import type { ApplyOnboardingSeed } from "@outpost/shared";
-import { writePaperclipSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
+import { writeOutpostSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
 import { findActiveServerAdapter } from "../adapters/registry.js";
 import { agentService } from "./agents.js";
 import { createAgentLifecycle, scheduleAgentLifecycle } from "./agent-lifecycle.js";
 import { withDedicatedDbConnection } from "@outpost/db";
-import { OUTPOST_CORE_SKILL_KEYS } from "./company-skills.js";
+import { OUTPOST_CORE_SKILL_KEYS } from "./space-skills.js";
 import { goalService } from "./goals.js";
 import { projectService } from "./projects.js";
 import { issueService } from "./issues.js";
@@ -24,9 +24,9 @@ export const ONBOARDING_SEED_PROJECT_NAME = "Onboarding";
 /**
  * Role assigned to the seeded lead agent. The seed's own `agent.role` is
  * customer free text (for example, "Lead") and lands on `title`; `role` keeps
- * the legacy `ceo` compatibility key until the stored role contract migrates.
+ * the legacy `lead` compatibility key until the stored role contract migrates.
  */
-const SEEDED_AGENT_ROLE = "ceo";
+const SEEDED_AGENT_ROLE = "lead";
 
 /**
  * Adapter the seeded agent is created with. Mirrors the teams-catalog default
@@ -57,7 +57,7 @@ function seededAgentAdapterType() {
 function seededAgentAdapterConfig(adapterType: string): Record<string, unknown> {
   const adapter = findActiveServerAdapter(adapterType);
   if (!adapter?.listSkills && !adapter?.syncSkills) return {};
-  return writePaperclipSkillSyncPreference(
+  return writeOutpostSkillSyncPreference(
     {},
     OUTPOST_CORE_SKILL_KEYS.map((key) => ({ key, versionId: null })),
   );
@@ -103,20 +103,20 @@ export type OnboardingSeedAuditActor = {
 };
 
 export function onboardingSeedService(db: Db) {
-  async function readRecord(dbx: Db, companyId: string) {
+  async function readRecord(dbx: Db, spaceId: string) {
     return dbx
       .select()
-      .from(companyOnboardingSeeds)
-      .where(eq(companyOnboardingSeeds.companyId, companyId))
+      .from(spaceOnboardingSeeds)
+      .where(eq(spaceOnboardingSeeds.spaceId, spaceId))
       .then((rows) => rows[0] ?? null);
   }
 
-  async function goalStillExists(dbx: Db, companyId: string, goalId: string | null) {
+  async function goalStillExists(dbx: Db, spaceId: string, goalId: string | null) {
     if (!goalId) return false;
     return dbx
       .select({ id: goals.id })
       .from(goals)
-      .where(and(eq(goals.id, goalId), eq(goals.companyId, companyId)))
+      .where(and(eq(goals.id, goalId), eq(goals.spaceId, spaceId)))
       .then((rows) => rows.length > 0);
   }
 
@@ -124,14 +124,14 @@ export function onboardingSeedService(db: Db) {
    * The agent a re-push should update rather than duplicate: the one this
    * seed created if it is still around, else a pre-existing lead the tenant
    * already has. Built-in agents are excluded — they are provisioned by the
-   * platform and are not the customer's first hire.
+   * platform and are not the customer's first create.
    */
-  async function resolveTargetAgentId(dbx: Db, companyId: string, recordedAgentId: string | null) {
+  async function resolveTargetAgentId(dbx: Db, spaceId: string, recordedAgentId: string | null) {
     if (recordedAgentId) {
       const recorded = await dbx
         .select({ id: agents.id })
         .from(agents)
-        .where(and(eq(agents.id, recordedAgentId), eq(agents.companyId, companyId)))
+        .where(and(eq(agents.id, recordedAgentId), eq(agents.spaceId, spaceId)))
         .then((rows) => rows[0] ?? null);
       if (recorded) return recorded.id;
     }
@@ -140,32 +140,32 @@ export function onboardingSeedService(db: Db) {
       .select({ id: agents.id, metadata: agents.metadata })
       .from(agents)
       .where(and(
-        eq(agents.companyId, companyId),
+        eq(agents.spaceId, spaceId),
         eq(agents.role, SEEDED_AGENT_ROLE),
         ne(agents.status, "terminated"),
       ));
     return candidates.find((row) => !readBuiltInAgentMarker(row.metadata))?.id ?? null;
   }
 
-  async function issueStillExists(dbx: Db, companyId: string, issueId: string | null) {
+  async function issueStillExists(dbx: Db, spaceId: string, issueId: string | null) {
     if (!issueId) return false;
     return dbx
       .select({ id: issues.id })
       .from(issues)
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, companyId)))
+      .where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId)))
       .then((rows) => rows.length > 0);
   }
 
   async function resolveOnboardingProjectId(
     dbx: Db,
     projectSvc: ReturnType<typeof projectService>,
-    companyId: string,
+    spaceId: string,
     goalId: string | null,
   ) {
     const existing = await dbx
       .select({ id: projects.id, name: projects.name, status: projects.status })
       .from(projects)
-      .where(eq(projects.companyId, companyId));
+      .where(eq(projects.spaceId, spaceId));
     const reusable = existing.find(
       (project) =>
         project.status !== "cancelled"
@@ -173,7 +173,7 @@ export function onboardingSeedService(db: Db) {
     );
     if (reusable) return reusable.id;
 
-    const created = await projectSvc.create(companyId, {
+    const created = await projectSvc.create(spaceId, {
       name: ONBOARDING_SEED_PROJECT_NAME,
       status: "in_progress",
       ...(goalId ? { goalIds: [goalId] } : {}),
@@ -181,21 +181,21 @@ export function onboardingSeedService(db: Db) {
     return created.id;
   }
 
-  async function prepareAgent(dbx: Db, companyId: string, seed: ApplyOnboardingSeed, audit?: OnboardingSeedAuditActor) {
-    const existing = await readRecord(dbx, companyId);
+  async function prepareAgent(dbx: Db, spaceId: string, seed: ApplyOnboardingSeed, audit?: OnboardingSeedAuditActor) {
+    const existing = await readRecord(dbx, spaceId);
     if (existing?.revision === seed.revision) return existing.agentId;
     const agentSvc = agentService(dbx);
     const agentName = seed.agent?.name.trim() || null;
     const agentRole = seed.agent?.role?.trim() || null;
-    // 2. Agent → the customer's first hire, the lead the first task is
+    // 2. Agent → the customer's first create, the lead the first task is
     //    assigned to.
-    let agentId = await resolveTargetAgentId(dbx, companyId, existing?.agentId ?? null);
+    let agentId = await resolveTargetAgentId(dbx, spaceId, existing?.agentId ?? null);
     if (agentName) {
       if (agentId) {
         await agentSvc.update(agentId, { name: agentName, title: agentRole });
       } else {
         const adapterType = seededAgentAdapterType();
-        const created = await createAgentLifecycle(dbx).requestHire(companyId, {
+        const created = await createAgentLifecycle(dbx).requestCreation(spaceId, {
           name: agentName,
           role: SEEDED_AGENT_ROLE,
           title: agentRole,
@@ -216,7 +216,7 @@ export function onboardingSeedService(db: Db) {
 
   async function applyWithin(
     dbx: Db,
-    companyId: string,
+    spaceId: string,
     seed: ApplyOnboardingSeed,
     preparedAgentId: string | null,
   ): Promise<OnboardingSeedApplication> {
@@ -224,7 +224,7 @@ export function onboardingSeedService(db: Db) {
     const projectSvc = projectService(dbx);
     const issueSvc = issueService(dbx);
 
-    const existing = await readRecord(dbx, companyId);
+    const existing = await readRecord(dbx, spaceId);
     if (existing && existing.revision === seed.revision) {
       return {
         revision: existing.revision,
@@ -241,13 +241,13 @@ export function onboardingSeedService(db: Db) {
     const firstTaskTitle = seed.firstTask?.title.trim() || null;
     const firstTaskDetails = seed.firstTask?.details?.trim() || null;
 
-    // 1. Mission → the company-level goal the dashboard reads.
+    // 1. Mission → the space-level goal the dashboard reads.
     let goalId = existing?.goalId ?? null;
     if (mission) {
       const parsed = parseSeedMission(mission);
-      const target = (await goalStillExists(dbx, companyId, goalId))
+      const target = (await goalStillExists(dbx, spaceId, goalId))
         ? goalId
-        : (await goalSvc.getDefaultCompanyGoal(companyId))?.id ?? null;
+        : (await goalSvc.getDefaultSpaceGoal(spaceId))?.id ?? null;
       if (target) {
         await goalSvc.update(target, {
           title: parsed.title,
@@ -255,10 +255,10 @@ export function onboardingSeedService(db: Db) {
         });
         goalId = target;
       } else {
-        const created = await goalSvc.create(companyId, {
+        const created = await goalSvc.create(spaceId, {
           title: parsed.title,
           description: parsed.description,
-          level: "company",
+          level: "space",
           status: "active",
         });
         goalId = created.id;
@@ -270,7 +270,7 @@ export function onboardingSeedService(db: Db) {
     // A mission-only seed leaves the first task to the onboarding route.
     let issueId = existing?.issueId ?? null;
     if (firstTaskTitle) {
-      if (await issueStillExists(dbx, companyId, issueId)) {
+      if (await issueStillExists(dbx, spaceId, issueId)) {
         await issueSvc.update(
           issueId as string,
           {
@@ -287,20 +287,20 @@ export function onboardingSeedService(db: Db) {
           dbx,
         );
       } else {
-        const projectId = await resolveOnboardingProjectId(dbx, projectSvc, companyId, goalId);
+        const projectId = await resolveOnboardingProjectId(dbx, projectSvc, spaceId, goalId);
         // The idempotency key is what protects two pushes that arrive at once
         // — Cloud's reconcile runs off portfolio fetches, which can overlap.
         // It is deliberately not revision-scoped: if the recorded issue is
         // lost, a later revision should still dedupe against whatever the
         // first push created.
-        const created = await issueSvc.create(companyId, {
+        const created = await issueSvc.create(spaceId, {
           title: firstTaskTitle,
           ...(firstTaskDetails ? { description: firstTaskDetails } : {}),
           ...(agentId ? { assigneeAgentId: agentId } : {}),
           projectId,
           ...(goalId ? { goalId } : {}),
           status: "todo",
-          idempotencyKey: `onboarding-seed:${companyId}`,
+          idempotencyKey: `onboarding-seed:${spaceId}`,
         });
         issueId = created.id;
       }
@@ -310,7 +310,7 @@ export function onboardingSeedService(db: Db) {
     //    this row claims the seed is applied.
     const now = new Date();
     const values = {
-      companyId,
+      spaceId,
       revision: seed.revision,
       mission,
       agentName,
@@ -324,10 +324,10 @@ export function onboardingSeedService(db: Db) {
       updatedAt: now,
     };
     await dbx
-      .insert(companyOnboardingSeeds)
+      .insert(spaceOnboardingSeeds)
       .values(values)
       .onConflictDoUpdate({
-        target: companyOnboardingSeeds.companyId,
+        target: spaceOnboardingSeeds.spaceId,
         set: {
           revision: values.revision,
           mission: values.mission,
@@ -346,10 +346,10 @@ export function onboardingSeedService(db: Db) {
     return { revision: seed.revision, changed: true, goalId, agentId, issueId };
   }
 
-  // Hire first. If the content transaction fails, a retry reuses the committed agent.
-  // The dedicated transaction holds only the workflow lock, not the hire writes.
+  // Create first. If the content transaction fails, a retry reuses the committed agent.
+  // The dedicated transaction holds only the workflow lock, not the create writes.
   async function apply(
-    companyId: string,
+    spaceId: string,
     seed: ApplyOnboardingSeed,
     audit?: OnboardingSeedAuditActor,
   ): Promise<OnboardingSeedApplication> {
@@ -360,27 +360,27 @@ export function onboardingSeedService(db: Db) {
     const publications: ActivityPublication[] = [];
 
     const database = db;
-    const lockKey = `paperclip:onboarding-seed:${companyId}`;
+    const lockKey = `outpost:onboarding-seed:${spaceId}`;
     return withDedicatedDbConnection(db, lockDb => lockDb.transaction(async lock => {
       await lock.execute(sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
-      const preparedAgentId = await prepareAgent(database, companyId, seed, audit);
+      const preparedAgentId = await prepareAgent(database, spaceId, seed, audit);
       const result = await database.transaction(async (tx) => {
         const dbx = tx as unknown as Db;
-        const applied = await applyWithin(dbx, companyId, seed, preparedAgentId);
+        const applied = await applyWithin(dbx, spaceId, seed, preparedAgentId);
 
         if (applied.changed && audit) {
           await logActivity(
             dbx,
             {
-              companyId,
+              spaceId,
               actorType: audit.actorType,
               actorId: audit.actorId,
               agentId: audit.agentId,
               runId: audit.runId,
               agentApiKeyId: audit.agentApiKeyId,
-              action: "company.onboarding_seed_applied",
-              entityType: "company",
-              entityId: companyId,
+              action: "space.onboarding_seed_applied",
+              entityType: "space",
+              entityId: spaceId,
               details: {
                 revision: applied.revision,
                 goalId: applied.goalId,
@@ -401,5 +401,5 @@ export function onboardingSeedService(db: Db) {
     }));
   }
 
-  return { apply, get: (companyId: string) => readRecord(db, companyId) };
+  return { apply, get: (spaceId: string) => readRecord(db, spaceId) };
 }

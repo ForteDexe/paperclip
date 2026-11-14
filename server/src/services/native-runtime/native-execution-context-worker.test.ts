@@ -2,20 +2,20 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import { createHostClientHandlers } from "@outpost/plugin-sdk";
 import { createPluginWorkerManager } from "../plugin-worker-manager.js";
 import type { NativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 import { NativeExecutionContext } from "./native-execution-context.js";
 
-const execution = { binding: { companyId: "company", agentId: "agent", runId: "run" } } as NativeExecutionInput;
-const manifest: PaperclipPluginManifestV1 = {
+const execution = { binding: { spaceId: "space", agentId: "agent", runId: "run" } } as NativeExecutionInput;
+const manifest: OutpostPluginManifestV1 = {
   id: "test.execution-context", apiVersion: 1, version: "1.0.0", displayName: "Execution context fixture",
-  description: "Execution context fixture", author: "Paperclip", categories: ["automation"], capabilities: [],
+  description: "Execution context fixture", author: "Outpost", categories: ["automation"], capabilities: [],
   entrypoints: { worker: "worker.cjs" },
 };
 const params = {
-  companyId: "company", agentId: "agent", runId: "run", environmentId: "environment", issueId: "issue",
+  spaceId: "space", agentId: "agent", runId: "run", environmentId: "environment", issueId: "issue",
   driverKey: "tasks", taskId: "task", config: {}, projectIds: [],
   lease: { providerLeaseId: "task" }, operation: { kind: "describe" as const },
 };
@@ -23,7 +23,7 @@ const params = {
 let directory: string;
 let entrypointPath: string;
 beforeAll(async () => {
-  directory = await mkdtemp(path.join(tmpdir(), "paperclip-startup-worker-"));
+  directory = await mkdtemp(path.join(tmpdir(), "outpost-startup-worker-"));
   entrypointPath = path.join(directory, "worker.cjs");
   await writeFile(entrypointPath, `
 const readline = require("node:readline");
@@ -35,14 +35,14 @@ readline.createInterface({input:process.stdin,crlfDelay:Infinity}).on("line", li
   if (message.method === "initialize") send(message.id, {ok:true,supportedMethods:["environmentTask","environmentAcquireLease","configChanged","health"]});
   else if (message.method === "environmentTask" || message.method === "environmentDestroyLease" || message.method === "environmentAcquireLease") {
     held.push(message.id);
-    invocations.push(message.paperclipInvocation?.id);
-    if (message.params.config.hostWrite) process.stdout.write(JSON.stringify({jsonrpc:"2.0",id:"host-"+message.id,method:"companies.get",params:{companyId:"company"},paperclipInvocationId:message.paperclipInvocation.id})+"\\n");
+    invocations.push(message.outpostInvocation?.id);
+    if (message.params.config.hostWrite) process.stdout.write(JSON.stringify({jsonrpc:"2.0",id:"host-"+message.id,method:"spaces.get",params:{spaceId:"space"},outpostInvocationId:message.outpostInvocation.id})+"\\n");
     if (message.params.config.replyEarly) { held.splice(held.indexOf(message.id),1); send(message.id,{kind:"description",taskId:"task"}); }
   }
   else if (message.method === "health") send(message.id, {status:"ok",details:{pending:held.length}});
   else if (message.method === "configChanged") {
     if (message.params.config.exit) process.exit(1);
-    if (message.params.config.hostAfter) process.stdout.write(JSON.stringify({jsonrpc:"2.0",id:"late-host",method:"companies.get",params:{companyId:"company"},paperclipInvocationId:invocations.at(-1)})+"\\n");
+    if (message.params.config.hostAfter) process.stdout.write(JSON.stringify({jsonrpc:"2.0",id:"late-host",method:"spaces.get",params:{spaceId:"space"},outpostInvocationId:invocations.at(-1)})+"\\n");
     if (message.params.config.release) for (const id of held.splice(0)) { send(id, {providerLeaseId:"late-task",kind:"description",taskId:"task"}); if (message.params.config.duplicate) send(id, {providerLeaseId:"late-task",kind:"description",taskId:"task"}); }
     send(message.id, {});
   } else if (message.method === "shutdown") {send(message.id, {});setImmediate(()=>process.exit(0));}
@@ -63,18 +63,18 @@ describe("Core startup responsibility across real worker IPC", () => {
     let releaseWrite!: () => void, writing!: () => void, releaseObservation!: () => void, observing!: () => void;
     const writeGate = new Promise<void>(resolve => { releaseWrite = resolve; }), entered = new Promise<void>(resolve => { writing = resolve; });
     const observationGate = new Promise<void>(resolve => { releaseObservation = resolve; }), observed = new Promise<void>(resolve => { observing = resolve; });
-    const manager = await startWorker({ "companies.get": async () => { writing(); await writeGate; return {}; } });
+    const manager = await startWorker({ "spaces.get": async () => { writing(); await writeGate; return {}; } });
     const settled = vi.fn(), unrelatedSettled = vi.fn();
     const observe = vi.fn(async () => { observing(); await observationGate; });
     const recover = (operationId: string) => manager.recoverStartupAcquisition?.("reconstructed-acquire", operationId);
     let draining: Promise<void> | undefined;
     try {
-      const acquire = manager.call(manifest.id, "environmentAcquireLease", { companyId: "company", environmentId: "environment",
+      const acquire = manager.call(manifest.id, "environmentAcquireLease", { spaceId: "space", environmentId: "environment",
         driverKey: "tasks", config: { hostWrite: true }, runId: "run", agentId: "agent", adapterType: "outpost_runner",
         creationOperationId: "recovered-operation" }, 10, undefined, settled, "reconstructed-acquire", observe);
       const rejected = expect(acquire).rejects.toThrow("timed out");
       await entered; await rejected;
-      await expect(manager.call(manifest.id, "environmentAcquireLease", { companyId: "company", environmentId: "environment",
+      await expect(manager.call(manifest.id, "environmentAcquireLease", { spaceId: "space", environmentId: "environment",
         driverKey: "tasks", config: {}, runId: "run", agentId: "agent", adapterType: "outpost_runner",
         creationOperationId: "unrelated-operation" }, 10, undefined, unrelatedSettled, "unrelated-acquire", async () => {})).rejects.toThrow("timed out");
       recover("unrelated-operation");
@@ -120,10 +120,10 @@ describe("Core startup responsibility across real worker IPC", () => {
   it("drops only a dead acquisition reply placeholder while retaining real writes until verified retirement", async () => {
     let release!: () => void, writing!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; }), entered = new Promise<void>(resolve => { writing = resolve; });
-    const manager = await startWorker({ "companies.get": async () => { writing(); await gate; return {}; } });
+    const manager = await startWorker({ "spaces.get": async () => { writing(); await gate; return {}; } });
     const settled = vi.fn(), observe = vi.fn(async () => {});
     try {
-      const acquisition = manager.call(manifest.id, "environmentAcquireLease", { companyId: "company", environmentId: "environment",
+      const acquisition = manager.call(manifest.id, "environmentAcquireLease", { spaceId: "space", environmentId: "environment",
         driverKey: "tasks", config: { hostWrite: true }, runId: "run", agentId: "agent", adapterType: "outpost_runner" },
         10, undefined, settled, "dead-acquire", observe);
       const rejected = expect(acquisition).rejects.toThrow("timed out");
@@ -153,7 +153,7 @@ describe("Core startup responsibility across real worker IPC", () => {
       recording(); await gate;
     });
     try {
-      const acquire = manager.call(manifest.id, "environmentAcquireLease", { companyId: "company", environmentId: "environment",
+      const acquire = manager.call(manifest.id, "environmentAcquireLease", { spaceId: "space", environmentId: "environment",
         driverKey: "tasks", config: {}, runId: "run", agentId: "agent", adapterType: "outpost_runner" }, 10, undefined, settled, "late-acquire", observe);
       await expect(acquire).rejects.toThrow("timed out");
       await manager.call(manifest.id, "configChanged", { config: { release: true, duplicate: true } });
@@ -184,7 +184,7 @@ describe("Core startup responsibility across real worker IPC", () => {
   it.each(["stop", "replace", "stopAll"])("keeps stopped startup work reachable through %s until verified retirement", async mode => {
     let release!: () => void, entered!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; }), started = new Promise<void>(resolve => { entered = resolve; });
-    const manager = await startWorker({ "companies.get": async () => { entered(); await gate; return {}; } });
+    const manager = await startWorker({ "spaces.get": async () => { entered(); await gate; return {}; } });
     const original = manager.getWorker(manifest.id)!, settled = vi.fn();
     try {
       const request = manager.call(manifest.id, "environmentTask", { ...params, config: { hostWrite: true } }, 50, undefined, settled, "stopped-context");
@@ -213,7 +213,7 @@ describe("Core startup responsibility across real worker IPC", () => {
   it("prunes a stopped handle after its last accepted startup host call settles", async () => {
     let release!: () => void, entered!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; }), started = new Promise<void>(resolve => { entered = resolve; });
-    const manager = await startWorker({ "companies.get": async () => { entered(); await gate; return {}; } });
+    const manager = await startWorker({ "spaces.get": async () => { entered(); await gate; return {}; } });
     const original = manager.getWorker(manifest.id)!, settled = vi.fn();
     try {
       const request = manager.call(manifest.id, "environmentTask", { ...params, config: { hostWrite: true, replyEarly: true } }, 5_000, undefined, settled, "host-only-context");
@@ -234,7 +234,7 @@ describe("Core startup responsibility across real worker IPC", () => {
   it("keeps a stopped handle owned after bounded retirement fails and permits verified retry", async () => {
     let release!: () => void, entered!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; }), started = new Promise<void>(resolve => { entered = resolve; });
-    const manager = await startWorker({ "companies.get": async () => { entered(); await gate; return {}; } }), settled = vi.fn();
+    const manager = await startWorker({ "spaces.get": async () => { entered(); await gate; return {}; } }), settled = vi.fn();
     try {
       const request = manager.call(manifest.id, "environmentTask", { ...params, config: { hostWrite: true } }, 50, undefined, settled, "stopped-retry");
       const rejected = expect(request).rejects.toThrow("timed out");
@@ -277,7 +277,7 @@ describe("Core startup responsibility across real worker IPC", () => {
     let release!: () => void, entered!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; }), started = new Promise<void>(resolve => { entered = resolve; });
     const write = vi.fn(async () => { entered(); await gate; return {}; });
-    const handlers = createHostClientHandlers({ pluginId: manifest.id, capabilities: ["companies.read"], services: { companies: { get: write } } as never });
+    const handlers = createHostClientHandlers({ pluginId: manifest.id, capabilities: ["spaces.read"], services: { spaces: { get: write } } as never });
     const manager = await startWorker(handlers), firstSettled = vi.fn(), secondSettled = vi.fn();
     try {
       const request = manager.call(manifest.id, "environmentTask", { ...params, config: { hostWrite: true } }, 5_000, undefined, firstSettled, "retiring-context");
@@ -295,7 +295,7 @@ describe("Core startup responsibility across real worker IPC", () => {
       expect(await manager.call(manifest.id, "health", {})).toMatchObject({ status: "ok" });
       release(); await Promise.all([retiring, joined]);
       expect(firstSettled).toHaveBeenCalledOnce();
-      await manager.call(manifest.id, "configChanged", { companyId: "company", config: { release: true } });
+      await manager.call(manifest.id, "configChanged", { spaceId: "space", config: { release: true } });
       await request;
       expect(firstSettled).toHaveBeenCalledOnce();
     } finally { release(); await manager.stopAll(); }
@@ -305,22 +305,22 @@ describe("Core startup responsibility across real worker IPC", () => {
     let release!: () => void, entered!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; }), started = new Promise<void>(resolve => { entered = resolve; });
     const write = vi.fn(async () => { entered(); await gate; return {}; });
-    const handlers = createHostClientHandlers({ pluginId: manifest.id, capabilities: ["companies.read"], services: { companies: { get: write } } as never });
+    const handlers = createHostClientHandlers({ pluginId: manifest.id, capabilities: ["spaces.read"], services: { spaces: { get: write } } as never });
     const manager = await startWorker(handlers), settled = vi.fn();
     try {
       await manager.drainStartup!("cleanup-context");
-      const request = manager.call(manifest.id, "environmentDestroyLease", { companyId: "company", environmentId: "environment", issueId: "issue", driverKey: "tasks",
+      const request = manager.call(manifest.id, "environmentDestroyLease", { spaceId: "space", environmentId: "environment", issueId: "issue", driverKey: "tasks",
         config: { hostWrite: true }, providerLeaseId: "task", leaseMetadata: { runnerTaskStartupCleanup: { contextId: "cleanup-context", requiresPreparationStop: true } } },
         5_000, undefined, settled);
       await started;
       let retired = false;
       const retiring = manager.retireStartup!("cleanup-context").then(() => { retired = true; });
-      await manager.call(manifest.id, "configChanged", { companyId: "company", config: { hostAfter: true } });
+      await manager.call(manifest.id, "configChanged", { spaceId: "space", config: { hostAfter: true } });
       expect(write).toHaveBeenCalledOnce();
       expect(retired).toBe(false);
       release(); await retiring;
       expect(settled).toHaveBeenCalledOnce();
-      await manager.call(manifest.id, "configChanged", { companyId: "company", config: { release: true } });
+      await manager.call(manifest.id, "configChanged", { spaceId: "space", config: { release: true } });
       await request;
       expect(settled).toHaveBeenCalledOnce();
       expect(write).toHaveBeenCalledOnce();
@@ -329,7 +329,7 @@ describe("Core startup responsibility across real worker IPC", () => {
   it("bounds the cleanup wait without discarding an accepted host handler", async () => {
     let release!: () => void, entered!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; }), started = new Promise<void>(resolve => { entered = resolve; });
-    const manager = await startWorker({ "companies.get": async () => { entered(); await gate; return {}; } }), settled = vi.fn();
+    const manager = await startWorker({ "spaces.get": async () => { entered(); await gate; return {}; } }), settled = vi.fn();
     try {
       const request = manager.call(manifest.id, "environmentTask", { ...params, config: { hostWrite: true } }, 100, undefined, settled, "bounded-context");
       const rejected = expect(request).rejects.toThrow("timed out");
@@ -350,19 +350,19 @@ describe("Core startup responsibility across real worker IPC", () => {
       await manager.retireStartup!("bounded-context");
       expect(settled).toHaveBeenCalledOnce();
       expect(retried).toHaveBeenCalledOnce();
-      await manager.call(manifest.id, "configChanged", { companyId: "company", config: { release: true } });
+      await manager.call(manifest.id, "configChanged", { spaceId: "space", config: { release: true } });
       await retry;
     } finally { vi.useRealTimers(); release(); await manager.stopAll(); }
   });
   it.each(["startup", "cleanup"])("drains accepted %s host writes before retiring only verified bookkeeping", async mode => {
     let release!: () => void, entered!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; }), started = new Promise<void>(resolve => { entered = resolve; });
-    const manager = await startWorker({ "companies.get": async () => { entered(); await gate; return {}; } });
+    const manager = await startWorker({ "spaces.get": async () => { entered(); await gate; return {}; } });
     const verified = vi.fn(), unrelated = vi.fn();
     try {
       const request = mode === "startup"
         ? manager.call(manifest.id, "environmentTask", { ...params, config: { hostWrite: true } }, 100, undefined, verified, "verified-context")
-        : manager.call(manifest.id, "environmentDestroyLease", { companyId: "company", environmentId: "environment", issueId: "issue", driverKey: "tasks",
+        : manager.call(manifest.id, "environmentDestroyLease", { spaceId: "space", environmentId: "environment", issueId: "issue", driverKey: "tasks",
           config: { hostWrite: true }, providerLeaseId: "task", leaseMetadata: { runnerTaskStartupCleanup: { contextId: "verified-context", requiresPreparationStop: true } } },
           100, undefined, verified);
       const rejected = expect(request).rejects.toThrow("timed out");
@@ -379,7 +379,7 @@ describe("Core startup responsibility across real worker IPC", () => {
       await manager.retireStartup!("verified-context");
       expect(verified).toHaveBeenCalledOnce();
       expect(unrelated).not.toHaveBeenCalled();
-      await manager.call(manifest.id, "configChanged", { companyId: "company", config: { release: true } });
+      await manager.call(manifest.id, "configChanged", { spaceId: "space", config: { release: true } });
       expect(verified).toHaveBeenCalledOnce();
       expect(unrelated).toHaveBeenCalledOnce();
     } finally { release(); await manager.stopAll(); }
@@ -390,7 +390,7 @@ describe("Core startup responsibility across real worker IPC", () => {
     try {
       await expect(manager.call(manifest.id, "environmentTask", params, 10, undefined, verified, "verified-context")).rejects.toThrow("timed out");
       await expect(manager.call(manifest.id, "environmentTask", params, 10, undefined, unrelated, "other-context")).rejects.toThrow("timed out");
-      await expect(manager.call(manifest.id, "configChanged", { companyId: "company", config: { exit: true } })).rejects.toThrow("exited");
+      await expect(manager.call(manifest.id, "configChanged", { spaceId: "space", config: { exit: true } })).rejects.toThrow("exited");
       expect(verified).not.toHaveBeenCalled();
       await manager.drainStartup!("verified-context");
       await manager.retireStartup!("verified-context");
@@ -411,7 +411,7 @@ describe("Core startup responsibility across real worker IPC", () => {
       const drain = context.drain().then(result => { drained = true; return result; });
       expect(await manager.call(manifest.id, "health", {})).toMatchObject({ details: { pending: 1 } });
       expect(drained).toBe(false);
-      await manager.call(manifest.id, "configChanged", { companyId: "company", config: { release: true } });
+      await manager.call(manifest.id, "configChanged", { spaceId: "space", config: { release: true } });
       expect(await drain).toBe(true);
       expect(context.pending).toBe(false);
       expect(settled).toHaveBeenCalledOnce();
@@ -430,7 +430,7 @@ describe("Core startup responsibility across real worker IPC", () => {
       expect(context.pending).toBe(true);
       expect(settled).not.toHaveBeenCalled();
       expect(await manager.call(manifest.id, "health", {})).toMatchObject({ details: { pending: 1 } });
-      await manager.call(manifest.id, "configChanged", { companyId: "company", config: { release: true } });
+      await manager.call(manifest.id, "configChanged", { spaceId: "space", config: { release: true } });
       expect(settled).toHaveBeenCalledOnce();
       expect(context.pending).toBe(false);
       expect(await context.drain()).toBe(true);

@@ -98,7 +98,7 @@ function extractUiParserSource(
     return undefined;
   }
 
-  const contractVersion = pkg.paperclip?.adapterUiParser;
+  const contractVersion = pkg.outpost?.adapterUiParser;
   if (contractVersion) {
     const major = contractVersion.split(".")[0];
     if (major !== SUPPORTED_PARSER_CONTRACT) {

@@ -4,7 +4,7 @@ import { resolveJoinRequestAgentManagerId } from "../routes/access.js";
 describe("resolveJoinRequestAgentManagerId", () => {
   it("selects a root peer when no default agent is set", () => {
     const managerId = resolveJoinRequestAgentManagerId([
-      { id: "a1", role: "cto", reportsTo: null },
+      { id: "a1", role: "engineering_lead", reportsTo: null },
       { id: "a2", role: "engineer", reportsTo: "a1" },
     ]);
 
@@ -20,11 +20,11 @@ describe("resolveJoinRequestAgentManagerId", () => {
     expect(managerId).toBe("primary");
   });
 
-  it("does not prioritize a CEO title over the first root peer", () => {
+  it("does not prioritize a Default agent title over the first root peer", () => {
     const managerId = resolveJoinRequestAgentManagerId([
-      { id: "ceo-child", role: "ceo", reportsTo: "manager-1" },
-      { id: "manager-1", role: "cto", reportsTo: null },
-      { id: "ceo-root", role: "ceo", reportsTo: null },
+      { id: "lead-child", role: "lead", reportsTo: "manager-1" },
+      { id: "manager-1", role: "engineering_lead", reportsTo: null },
+      { id: "lead-root", role: "lead", reportsTo: null },
     ]);
 
     expect(managerId).toBe("manager-1");
@@ -32,9 +32,9 @@ describe("resolveJoinRequestAgentManagerId", () => {
 
   it("prefers an available root peer over nested agents", () => {
     const managerId = resolveJoinRequestAgentManagerId([
-      { id: "ceo-1", role: "ceo", reportsTo: "mgr" },
-      { id: "ceo-2", role: "ceo", reportsTo: "mgr" },
-      { id: "mgr", role: "cto", reportsTo: null },
+      { id: "lead-1", role: "lead", reportsTo: "mgr" },
+      { id: "lead-2", role: "lead", reportsTo: "mgr" },
+      { id: "mgr", role: "engineering_lead", reportsTo: null },
     ]);
 
     expect(managerId).toBe("mgr");

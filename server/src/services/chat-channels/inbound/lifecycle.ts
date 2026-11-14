@@ -105,7 +105,7 @@ export function createChatMessageLifecycle(db: Db, options: MessageLifecycleOpti
       .then((rows) => rows[0] ?? null);
     if (exact || !threadId.startsWith("teams:")) return exact;
 
-    // Before Paperclip made Teams route state independent, the adapter
+    // Before Outpost made Teams route state independent, the adapter
     // embedded the mutable Bot Connector serviceUrl in every thread id. Read
     // those rows by the immutable conversation id so a regional route change
     // continues the same task. New rows use the canonical route-free id.
@@ -153,7 +153,7 @@ export function createChatMessageLifecycle(db: Db, options: MessageLifecycleOpti
   ) {
     if (!githubSourceMapped && input.threadId.startsWith("github:") && /^[1-9][0-9]*$/.test(input.messageId)) {
       const requests = await db.select({ id: chatDeliveries.id, messageId: sql<string>`${chatDeliveries.normalizedEvent}->'message'->>'providerMessageId'` })
-        .from(chatDeliveries).innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatDeliveries.endpointId), eq(chatEndpoints.companyId, chatDeliveries.companyId)))
+        .from(chatDeliveries).innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatDeliveries.endpointId), eq(chatEndpoints.spaceId, chatDeliveries.spaceId)))
         .where(and(eq(chatDeliveries.endpointId, input.endpointId), eq(chatEndpoints.provider, "github"),
           inArray(chatDeliveries.eventKind, ["mention", "message", "direct_message"]),
           input.admissionDependencyEventId ? ne(chatDeliveries.providerEventId, input.admissionDependencyEventId) : undefined,
@@ -203,7 +203,7 @@ export function createChatMessageLifecycle(db: Db, options: MessageLifecycleOpti
       const [delivery] = await tx
         .insert(chatDeliveries)
         .values({
-          companyId: endpoint.companyId,
+          spaceId: endpoint.spaceId,
           endpointId: input.endpointId,
           providerEventId,
           deduplicationKey: createHash("sha256")
@@ -444,13 +444,13 @@ export function createChatMessageLifecycle(db: Db, options: MessageLifecycleOpti
               chatConversations,
               and(
                 eq(chatConversations.id, chatMessageLinks.conversationId),
-                eq(chatConversations.companyId, chatMessageLinks.companyId),
+                eq(chatConversations.spaceId, chatMessageLinks.spaceId),
                 eq(chatConversations.endpointId, chatMessageLinks.endpointId),
               ),
             )
             .where(
               and(
-                eq(chatMessageLinks.companyId, currentEndpoint.companyId),
+                eq(chatMessageLinks.spaceId, currentEndpoint.spaceId),
                 eq(chatMessageLinks.endpointId, currentEndpoint.id),
                 eq(chatMessageLinks.providerMessageId, lifecycle.messageId),
                 eq(chatConversations.externalThreadId, lifecycle.threadId),
@@ -516,7 +516,7 @@ export function createChatMessageLifecycle(db: Db, options: MessageLifecycleOpti
             .from(chatDeliveries)
             .where(
               and(
-                eq(chatDeliveries.companyId, activeDelivery.companyId),
+                eq(chatDeliveries.spaceId, activeDelivery.spaceId),
                 eq(chatDeliveries.endpointId, endpoint.id),
                 inArray(chatDeliveries.eventKind, [
                   "message_deleted",
@@ -630,7 +630,7 @@ export function createChatMessageLifecycle(db: Db, options: MessageLifecycleOpti
           .innerJoin(
             chatConversations,
             and(
-              eq(chatConversations.companyId, chatMessageLinks.companyId),
+              eq(chatConversations.spaceId, chatMessageLinks.spaceId),
               eq(chatConversations.id, chatMessageLinks.conversationId),
             ),
           )
@@ -701,7 +701,7 @@ export function createChatMessageLifecycle(db: Db, options: MessageLifecycleOpti
           .from(chatConversations)
           .where(
             and(
-              eq(chatConversations.companyId, currentEndpoint.companyId),
+              eq(chatConversations.spaceId, currentEndpoint.spaceId),
               eq(chatConversations.endpointId, currentEndpoint.id),
               eq(chatConversations.id, linkedTarget.conversationId),
             ),
@@ -717,8 +717,8 @@ export function createChatMessageLifecycle(db: Db, options: MessageLifecycleOpti
                 .where(
                   and(
                     eq(
-                      chatEndpointResources.companyId,
-                      currentEndpoint.companyId,
+                      chatEndpointResources.spaceId,
+                      currentEndpoint.spaceId,
                     ),
                     eq(chatEndpointResources.endpointId, currentEndpoint.id),
                     eq(
@@ -741,7 +741,7 @@ export function createChatMessageLifecycle(db: Db, options: MessageLifecycleOpti
             return false;
           const invalidatedAt = new Date();
           // Provider authentication proves the exact source changed. The
-          // editor's current Paperclip rights govern admitting new content,
+          // editor's current Outpost rights govern admitting new content,
           // not whether a later regrant can resurrect the stale old source.
           await notifyChatDeliveryWork(tx);
           await tx
@@ -810,8 +810,8 @@ export function createChatMessageLifecycle(db: Db, options: MessageLifecycleOpti
                 .where(
                   and(
                     eq(
-                      chatExternalPrincipals.companyId,
-                      currentEndpoint.companyId,
+                      chatExternalPrincipals.spaceId,
+                      currentEndpoint.spaceId,
                     ),
                     eq(
                       chatExternalPrincipals.provider,

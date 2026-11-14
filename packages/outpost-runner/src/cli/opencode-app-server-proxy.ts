@@ -258,7 +258,7 @@ async function pumpEvents(opened: HarnessSession): Promise<void> {
       }
     } else if (event.eventType === "run.result.proposed") {
       send({
-        method: "paperclip/runResult",
+        method: "outpost/runResult",
         params: {
           threadId: opened.ids().driverSessionId,
           turnId: event.turnId,
@@ -281,7 +281,7 @@ async function pumpEvents(opened: HarnessSession): Promise<void> {
       // proxy and runnerd will expire the still-pending canonical request.
       void (async () => {
         const controllerResponse = record(
-          await requestController("paperclip/runtimeRequest", {
+          await requestController("outpost/runtimeRequest", {
             request,
           }),
         );
@@ -294,7 +294,7 @@ async function pumpEvents(opened: HarnessSession): Promise<void> {
         });
       })().catch((error) => failProxy(error));
     } else if (event.eventType === "run.attached") {
-      // OpenCode can retain one provider session across governed runs. Usage
+      // OpenCode can retain one provider session across controlled runs. Usage
       // totals are run-scoped, so a new attachment must not inherit the prior
       // run's completed-turn ledger.
       usageLedger.reset();
@@ -323,7 +323,7 @@ async function pumpEvents(opened: HarnessSession): Promise<void> {
       activeTurnId = null;
     } else if (event.eventType === "harness.diagnostic") {
       if (payload.code === PROVIDER_PERFORMANCE_DIAGNOSTIC) {
-        send({method: "paperclip/providerPerformance", params: {
+        send({method: "outpost/providerPerformance", params: {
           threadId: opened.ids().driverSessionId, turnId: event.turnId,
           spans: parseProviderPerformanceSpans(payload, Date.now()),
         }});
@@ -367,14 +367,14 @@ async function handle(message: RpcMessage): Promise<void> {
     case "turn/start": {
       if (!session) throw new Error("OpenCode thread is not open");
       assertOpenCodeProxyCollaborationMode(params);
-      if (params.paperclipRunId !== undefined) {
-        const runId = params.paperclipRunId;
+      if (params.outpostRunId !== undefined) {
+        const runId = params.outpostRunId;
         if (typeof runId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(runId))
           throw new Error("Invalid Outpost run identity");
         // Runnerd sends the attached run's contract with its run identity;
         // the launch parameters may still name an earlier run's contract,
         // even when the launch environment already names this run.
-        const contract = openCodeProxyCompletionContract(params.paperclipCompletionContract);
+        const contract = openCodeProxyCompletionContract(params.outpostCompletionContract);
         if (runId !== activeRunId
           || (contract !== undefined && !sameOpenCodeProxyCompletionContract(contract, activeCompletionContract))) {
           if (!session.attachRun) throw new Error("OpenCode run attachment unavailable");

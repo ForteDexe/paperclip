@@ -16,8 +16,8 @@ The native `hire_agent` tool shares this availability policy.
 Set `OUTPOST_RUNNER_API_TOOLS_ENABLED=false` on the server to disable these
 tools. An explicit `true` also enables them; other explicit values fail closed.
 
-Operators can restrict availability with `OUTPOST_RUNNER_API_TOOLS_COMPANY_IDS`,
-a comma-separated list of company UUIDs. An unset list allows every company;
+Operators can restrict availability with `OUTPOST_RUNNER_API_TOOLS_SPACE_IDS`,
+a comma-separated list of space UUIDs. An unset list allows every space;
 an explicitly empty list allows none. IDs must match exactly. This restriction
 also applies when the enabled flag is unset.
 
@@ -28,7 +28,7 @@ preparing any files. Existing dedicated tools remain available. Operators must
 update the environment of each server process and restart it for deployment-level
 changes; this environment switch is not a live settings API.
 
-All company, run, work-mode, credential, and route authorization checks below still apply.
+All space, run, work-mode, credential, and route authorization checks below still apply.
 
 ## Discovery and requests
 
@@ -47,7 +47,7 @@ with their supported parameters. `limit` defaults to five and is capped at ten.
 {"operationId":"PATCH /api/projects/{id}","pathParams":{"id":"PROJECT_UUID"},"body":{"description":"Updated project description"}}
 ```
 
-The catalog determines method and path. `companyId` is filled from the active
+The catalog determines method and path. `spaceId` is filled from the active
 binding. Scalars and arrays are accepted in `query`. `body` defaults to JSON;
 `contentType` supports text and raw uploads. `files` accepts entries containing
 exactly one authorized `artifactId` or task-workspace `path`, and an optional
@@ -86,7 +86,7 @@ inspect its state rather than retrying it to obtain a smaller response.
 
 Connection setup and stalled response reads time out after 30 seconds. An active
 capture has a 10-minute total download deadline. Responses above 24 KiB stream
-into a private temporary file, then into a company-owned asset scoped to the
+into a private temporary file, then into a space-owned asset scoped to the
 issuing agent and responsible user (plus authorized board administrators).
 Ordinary task or run visibility does not grant access to another actor’s API
 snapshot. Explicit deliverables use the existing attachment/work-product flow. Memory stays
@@ -98,30 +98,30 @@ before creating a file. A completed capture settles to its actual byte count;
 failed/interrupted captures retain the full reservation to bound retry loops.
 A process restart does not reset that budget. Small inline responses without explicit export and reads
 of existing assets need no reservation. Concurrent large captures are limited
-to **two per company and four per server process**, including the storage upload
+to **two per space and four per server process**, including the storage upload
 and temporary-file cleanup. Budget exhaustion returns `api_response_capture_limit`;
 concurrency exhaustion returns `api_response_capture_busy` without queuing more
-large transfers. A **20 GiB company-wide quota** counts all stored `runner-api` snapshots plus
-unattached reservations. Admission uses a company database lock, so runs and
+large transfers. A **20 GiB space-wide quota** counts all stored `runner-api` snapshots plus
+unattached reservations. Admission uses a space database lock, so runs and
 server processes share the same quota. Existing snapshots from before this
 change count too. Attaching an asset converts its reservation to actual stored
 bytes; deleting the asset frees that capacity. Small binary snapshots also need
 storage admission. Ordinary inline text/JSON and existing-asset pages do not.
 
-Operators can set `OUTPOST_RUNNER_API_COMPANY_CAPTURE_MAX_BYTES` to a positive
+Operators can set `OUTPOST_RUNNER_API_SPACE_CAPTURE_MAX_BYTES` to a positive
 safe integer of at least 1 GiB. Invalid values fall back to 20 GiB. No zero or
-unlimited setting is accepted. This quota covers API snapshots, not all company
+unlimited setting is accepted. This quota covers API snapshots, not all space
 attachments. Storage capacity and backend limits still apply.
 
-Handled pre-storage failures release the company reservation after temporary
+Handled pre-storage failures release the space reservation after temporary
 file cleanup, but retain the run's charge against retry loops. After a metadata
 transaction fails, a locking read must prove the asset was not committed before
-the uploaded object is removed. Confirmed cleanup refunds the company quota. A crash, failed
+the uploaded object is removed. Confirmed cleanup refunds the space quota. A crash, failed
 cleanup, or ambiguous storage write keeps an unattached reservation. Operators
 must reconcile possible orphan files/objects before deleting that reservation
 from `runner_api_response_reservations`; no automatic expiry silently refunds
 possibly occupied space. Linked rows are removed with their asset. Deleting a
-run does not release its unattached company reservations.
+run does not release its unattached space reservations.
 
 Temporary files are removed on success or failure. Long captures revalidate the
 active run at least every MiB or at the next chunk after one second, and again
@@ -166,7 +166,7 @@ workspace-relative `destination`, and the exact saved `byteSize` and `sha256`.
 The parent directory must already exist. The transfer is bounded to 10 MiB;
 larger snapshots remain readable through the existing paged content API.
 
-The controller reuses asset content authorization (including company, capture
+The controller reuses asset content authorization (including space, capture
 owner and responsible-user restrictions), checks the complete stored bytes, then
 uses the lease-owned command runner for remote execution. The execution host
 checks size and SHA-256 on a private staging file before atomic create-only
@@ -272,7 +272,7 @@ failed to return a valid response.
 ## Authority and replay
 
 The server revalidates the active native run, assigned task and actor, then
-creates a server-held agent JWT bound to that company and run. Requests go
+creates a server-held agent JWT bound to that space and run. Requests go
 through the actual HTTP router with its authorization, validation and domain
 audit behavior. Skill-test runs retain the same task-scoped `skill_test` JWT
 as legacy REST runs, including after later edits to the task mode. An additional `runner.api_called` receipt attributes mutations
@@ -284,7 +284,7 @@ a stopped run cannot dispatch an upload prepared under its earlier binding.
 permissions as a legacy agent using REST. It does not maintain a second denylist
 for routines, runtime services, skill tests, recovery, invitations, secrets,
 exports, lifecycle fields or approval routes. Existing HTTP routes enforce their
-company/resource scope, ownership, grants, redaction, run requirements and board
+space/resource scope, ownership, grants, redaction, run requirements and board
 or approval gates. A board-only route still denies an agent call. Dedicated tools
 remain preferred for common workflows, including native completion and monitors.
 
@@ -303,9 +303,9 @@ run. No database migration is needed.
 Workspace uploads use the existing workspace resource containment checks,
 no-symlink file opens covering every path component, and bounded descriptor reads.
 Local uploads require Linux or macOS; authorized artifacts work on other hosts.
-Artifacts must belong to the bound company and pass the same actor access checks
+Artifacts must belong to the bound space and pass the same actor access checks
 as downloads, before and after reading their bytes. Private API response snapshots
-cannot be used as public company logos or bundled into company exports. An owner
+cannot be used as public space logos or bundled into space exports. An owner
 can explicitly publish a copy through the existing attachment upload path.
 Request bodies and uploads go
 through the route's validation and authorization; the fallback does not reject
@@ -357,7 +357,7 @@ provider projections and generated compatibility checks include both tools.
 
 ## Verification and paid evals
 
-The companion `paperclip-evals` worktree contains `evals/runner-api-tools`.
+The companion `outpost-evals` worktree contains `evals/runner-api-tools`.
 Its README documents explicit case/model selectors, the cumulative budget ledger,
 fixture reset, progressive batches, and Evalbook generation. No command defaults
 to running the entire paid suite. Capability, forced operation contracts and
@@ -369,7 +369,7 @@ spoofing, file containment, uncertain mutation receipts and fixture isolation.
 
 The Evalbook viewer uses the existing shared viewer and stylesheet on master.
 The report retains actual persisted-state summaries for private local inspection;
-public replay continues to withhold company-state details.
+public replay continues to withhold space-state details.
 
 The ACPX sidecar includes the upstream terminal-usage accounting correction from
 `origin/codex/evalbook-default-chat-sept6`. Its qualified Claude executable requires

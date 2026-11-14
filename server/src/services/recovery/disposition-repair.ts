@@ -21,7 +21,7 @@ export const DISPOSITION_REPAIR_BASE_DELAYS_MS = [0, 60_000, 120_000, 240_000, 4
 type DispositionRepairIssue = Pick<
   typeof issues.$inferSelect,
   | "id"
-  | "companyId"
+  | "spaceId"
   | "status"
   | "assigneeAgentId"
   | "assigneeUserId"
@@ -32,7 +32,7 @@ type DispositionRepairIssue = Pick<
 
 export const dispositionRepairIssueFields = {
   id: issues.id,
-  companyId: issues.companyId,
+  spaceId: issues.spaceId,
   status: issues.status,
   assigneeAgentId: issues.assigneeAgentId,
   assigneeUserId: issues.assigneeUserId,
@@ -116,22 +116,22 @@ export async function readDispositionRepairDurableWaitingState(
   const issue = input.issue;
   const [facts] = await db.execute<DurableWaitingFacts>(sql`select
     exists (select 1 from ${issueRelations}
-      inner join ${issues} on ${issues.companyId} = ${issueRelations.companyId}
+      inner join ${issues} on ${issues.spaceId} = ${issueRelations.spaceId}
         and ${issues.id} = ${issueRelations.issueId}
-      where ${issueRelations.companyId} = ${issue.companyId}
+      where ${issueRelations.spaceId} = ${issue.spaceId}
         and ${issueRelations.relatedIssueId} = ${issue.id}
         and ${issueRelations.type} = 'blocks'
         and ${issues.status} not in ('done', 'cancelled')
         and ${issues.hiddenAt} is null) as "hasBlocker",
     exists (select 1 from ${issueThreadInteractions}
-      where ${issueThreadInteractions.companyId} = ${issue.companyId}
+      where ${issueThreadInteractions.spaceId} = ${issue.spaceId}
         and ${issueThreadInteractions.issueId} = ${issue.id}
         and ${issueThreadInteractions.status} = 'pending') as "hasPendingInteraction",
     exists (select 1 from ${issueApprovals}
       inner join ${approvals} on ${issueApprovals.approvalId} = ${approvals.id}
-        and ${issueApprovals.companyId} = ${approvals.companyId}
-      where ${issueApprovals.companyId} = ${issue.companyId}
-        and ${approvals.companyId} = ${issue.companyId}
+        and ${issueApprovals.spaceId} = ${approvals.spaceId}
+      where ${issueApprovals.spaceId} = ${issue.spaceId}
+        and ${approvals.spaceId} = ${issue.spaceId}
         and ${issueApprovals.issueId} = ${issue.id}
         and ${approvals.status} in ('pending', 'revision_requested')) as "hasPendingApproval"`);
   const durablePathReason = dispositionRepairDurablePathReason(issue, facts!);
@@ -154,11 +154,11 @@ export async function collectDispositionRepairSourceState(
         .from(issueRelations)
         .innerJoin(
           issues,
-          and(eq(issues.companyId, issueRelations.companyId), eq(issues.id, issueRelations.issueId)),
+          and(eq(issues.spaceId, issueRelations.spaceId), eq(issues.id, issueRelations.issueId)),
         )
         .where(
           and(
-            eq(issueRelations.companyId, issue.companyId),
+            eq(issueRelations.spaceId, issue.spaceId),
             eq(issueRelations.relatedIssueId, issue.id),
             eq(issueRelations.type, "blocks"),
             notInArray(issues.status, ["done", "cancelled"]),
@@ -170,7 +170,7 @@ export async function collectDispositionRepairSourceState(
         .from(issues)
         .where(
           and(
-            eq(issues.companyId, issue.companyId),
+            eq(issues.spaceId, issue.spaceId),
             eq(issues.parentId, issue.id),
             notInArray(issues.status, ["done", "cancelled"]),
             sql`${issues.hiddenAt} is null`,
@@ -187,7 +187,7 @@ export async function collectDispositionRepairSourceState(
         .from(issueThreadInteractions)
         .where(
           and(
-            eq(issueThreadInteractions.companyId, issue.companyId),
+            eq(issueThreadInteractions.spaceId, issue.spaceId),
             eq(issueThreadInteractions.issueId, issue.id),
             inArray(issueThreadInteractions.status, ["pending", "accepted", "answered"]),
           ),
@@ -199,13 +199,13 @@ export async function collectDispositionRepairSourceState(
           approvals,
           and(
             eq(issueApprovals.approvalId, approvals.id),
-            eq(issueApprovals.companyId, approvals.companyId),
+            eq(issueApprovals.spaceId, approvals.spaceId),
           ),
         )
         .where(
           and(
-            eq(issueApprovals.companyId, issue.companyId),
-            eq(approvals.companyId, issue.companyId),
+            eq(issueApprovals.spaceId, issue.spaceId),
+            eq(approvals.spaceId, issue.spaceId),
             eq(issueApprovals.issueId, issue.id),
             inArray(approvals.status, ["pending", "revision_requested", "approved"]),
           ),
@@ -221,7 +221,7 @@ export async function collectDispositionRepairSourceState(
         .from(issueWorkProducts)
         .where(
           and(
-            eq(issueWorkProducts.companyId, issue.companyId),
+            eq(issueWorkProducts.spaceId, issue.spaceId),
             eq(issueWorkProducts.issueId, issue.id),
           ),
         ),
@@ -230,7 +230,7 @@ export async function collectDispositionRepairSourceState(
         .from(heartbeatRuns)
         .where(
           and(
-            eq(heartbeatRuns.companyId, issue.companyId),
+            eq(heartbeatRuns.spaceId, issue.spaceId),
             inArray(heartbeatRuns.status, [...ACTIVE_RUN_STATUSES]),
             sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' = ${issue.id}`,
             input.excludeRunId ? ne(heartbeatRuns.id, input.excludeRunId) : sql`true`,
@@ -241,7 +241,7 @@ export async function collectDispositionRepairSourceState(
         .from(agentWakeupRequests)
         .where(
           and(
-            eq(agentWakeupRequests.companyId, issue.companyId),
+            eq(agentWakeupRequests.spaceId, issue.spaceId),
             inArray(agentWakeupRequests.status, ["queued", "deferred_issue_execution"]),
             sql`${agentWakeupRequests.payload} ->> 'issueId' = ${issue.id}`,
             input.excludeWakeupRequestId

@@ -2,8 +2,8 @@ import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notificatio
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, lt, lte, or, sql } from "drizzle-orm";
 import {
-  agents, authUsers, budgetReservations, companies, companyMemberships, companyDecisionModels, costEvents,
-  decisionInvocations, heartbeatRuns, issues, projects, companySecrets, type Db,
+  agents, authUsers, budgetReservations, spaces, spaceMemberships, spaceDecisionModels, costEvents,
+  decisionInvocations, heartbeatRuns, issues, projects, spaceSecrets, type Db,
 } from "@outpost/db";
 import {
   DECISION_MODELS, decisionProviderForConnection, decisionRequestSchema, updateDecisionModelSchema,
@@ -33,7 +33,7 @@ export function defineDecisionFeature(id: string, options: { background?: boolea
 }
 export const settingsDecisionTest = defineDecisionFeature("settings.test");
 export interface DecisionContext {
-  companyId: string;
+  spaceId: string;
   feature: ReturnType<typeof defineDecisionFeature>;
   actor: AuthorizationActor | { type: "system" };
   issueId?: string;
@@ -55,39 +55,39 @@ function unavailableReason(error: unknown): DecisionUnavailableReason | null {
 
 export function decisionModelService(db: Db, options: { provider?: typeof runDecisionProvider; budgetHooks?: BudgetServiceHooks } = {}) {
   const providerCall = options.provider ?? runDecisionProvider;
-  async function settings(companyId: string): Promise<DecisionModelSettings> {
-    const [row] = await db.select().from(companyDecisionModels).where(eq(companyDecisionModels.companyId, companyId));
+  async function settings(spaceId: string): Promise<DecisionModelSettings> {
+    const [row] = await db.select().from(spaceDecisionModels).where(eq(spaceDecisionModels.spaceId, spaceId));
     return row ? { ...row, provider: row.provider as DecisionProvider | null } : {
-      companyId, enabled: false, allowBackground: true, connectionId: null, grantId: null, provider: null, model: null,
+      spaceId, enabled: false, allowBackground: true, connectionId: null, grantId: null, provider: null, model: null,
     };
   }
-  async function choices(companyId: string, userId: string): Promise<DecisionConnectionChoice[]> {
+  async function choices(spaceId: string, userId: string): Promise<DecisionConnectionChoice[]> {
     const connections = aiConnectionService(db);
-    if (!(await connections.membership(companyId, userId))) throw forbidden();
-    return (await connections.list(companyId, userId)).flatMap(row => {
+    if (!(await connections.membership(spaceId, userId))) throw forbidden();
+    return (await connections.list(spaceId, userId)).flatMap(row => {
       const provider = decisionProviderForConnection(row);
       return provider && row.ownership === "shared" ? [{ ...row, decisionModel: DECISION_MODELS[provider].id }] : [];
     });
   }
-  async function configure(companyId: string, userId: string, input: UpdateDecisionModel) {
+  async function configure(spaceId: string, userId: string, input: UpdateDecisionModel) {
     const data = updateDecisionModelSchema.parse(input);
-    return withAccountingTransaction(db, companyId, async (tx, publications) => {
-      const [previous] = await tx.select().from(companyDecisionModels).where(eq(companyDecisionModels.companyId, companyId));
+    return withAccountingTransaction(db, spaceId, async (tx, publications) => {
+      const [previous] = await tx.select().from(spaceDecisionModels).where(eq(spaceDecisionModels.spaceId, spaceId));
       // Managers can always turn off a broken/revoked connection without acquiring it.
       const disabling = !data.enabled && previous?.connectionId === data.connectionId && previous?.grantId === data.grantId;
-      const row = !disabling && data.connectionId && data.grantId ? await aiConnectionService(tx).selectDecision({ companyId,
+      const row = !disabling && data.connectionId && data.grantId ? await aiConnectionService(tx).selectDecision({ spaceId,
         userId, connectionId: data.connectionId, grantId: data.grantId }) : null;
       const provider = (disabling ? previous?.provider : row?.provider) as DecisionProvider | null | undefined;
-      const values = { ...data, allowBackground: data.allowBackground ?? previous?.allowBackground ?? true, companyId, provider: provider ?? null, model: provider ? DECISION_MODELS[provider].id : null, updatedAt: new Date() };
-      await tx.insert(companyDecisionModels).values(values).onConflictDoUpdate({ target: companyDecisionModels.companyId, set: values });
-      await logActivity(tx, { companyId, actorType: "user", actorId: userId, action: "decision_model.configured", entityType: "company", entityId: companyId,
+      const values = { ...data, allowBackground: data.allowBackground ?? previous?.allowBackground ?? true, spaceId, provider: provider ?? null, model: provider ? DECISION_MODELS[provider].id : null, updatedAt: new Date() };
+      await tx.insert(spaceDecisionModels).values(values).onConflictDoUpdate({ target: spaceDecisionModels.spaceId, set: values });
+      await logActivity(tx, { spaceId, actorType: "user", actorId: userId, action: "decision_model.configured", entityType: "space", entityId: spaceId,
         details: { ...data, provider: values.provider, model: values.model } }, publications);
       return values;
     });
   }
   async function resolve(context: DecisionContext, executor = db, lockAdmission = false) {
     if (!registeredFeatures.has(context.feature)) throw forbidden("A registered decision feature is required");
-    const configQuery = executor.select().from(companyDecisionModels).where(eq(companyDecisionModels.companyId, context.companyId));
+    const configQuery = executor.select().from(spaceDecisionModels).where(eq(spaceDecisionModels.spaceId, context.spaceId));
     const [config] = await (lockAdmission ? configQuery.for("share") : configQuery);
     if (!config?.connectionId || !config.grantId) throw new DecisionUnavailable("not_configured");
     if (!config.enabled) throw new DecisionUnavailable("disabled");
@@ -98,45 +98,45 @@ export function decisionModelService(db: Db, options: { provider?: typeof runDec
     if (actor.type === "system") {
       if (!context.feature.background || !config.allowBackground) throw new DecisionUnavailable("background_disabled");
     } else if (actor.type === "agent") {
-      if (!actor.agentId || !actor.runId || actor.companyId !== context.companyId) throw forbidden();
+      if (!actor.agentId || !actor.runId || actor.spaceId !== context.spaceId) throw forbidden();
       if (lockAdmission) [admissionAgent] = await executor.select({ status: agents.status }).from(agents).where(and(
-        eq(agents.id, actor.agentId), eq(agents.companyId, context.companyId),
+        eq(agents.id, actor.agentId), eq(agents.spaceId, context.spaceId),
       )).for("share");
-      const runQuery = executor.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, context.companyId), eq(heartbeatRuns.id, actor.runId), eq(heartbeatRuns.agentId, actor.agentId)));
+      const runQuery = executor.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, context.spaceId), eq(heartbeatRuns.id, actor.runId), eq(heartbeatRuns.agentId, actor.agentId)));
       const [run] = await (lockAdmission ? runQuery.for("share") : runQuery);
       if (!run || run.status !== "running") throw forbidden("An active run is required");
       agentId = run.agentId; runId = run.id; userId = run.responsibleUserId; identityContextId = run.activeIdentityContextId;
       const runIssue = run.nativeIssueId ?? run.contextSnapshot?.issueId ?? run.contextSnapshot?.taskId;
       if (issueId && issueId !== runIssue) throw forbidden("Task does not belong to this run");
       issueId = typeof runIssue === "string" ? runIssue : null;
-      const memberships = userId ? await executor.select({ companyId: companyMemberships.companyId, membershipRole: companyMemberships.membershipRole, status: companyMemberships.status })
-        .from(companyMemberships).where(and(eq(companyMemberships.companyId, context.companyId), eq(companyMemberships.principalType, "user"), eq(companyMemberships.principalId, userId))) : [];
+      const memberships = userId ? await executor.select({ spaceId: spaceMemberships.spaceId, membershipRole: spaceMemberships.membershipRole, status: spaceMemberships.status })
+        .from(spaceMemberships).where(and(eq(spaceMemberships.spaceId, context.spaceId), eq(spaceMemberships.principalType, "user"), eq(spaceMemberships.principalId, userId))) : [];
       actor = { ...actor, onBehalfOfUserId: userId, onBehalfOfMemberships: memberships };
-    } else if (actor.type === "board") userId = actor.userId ?? (actor.source === "local_implicit" ? "local-board" : null);
+    } else if (actor.type === "operator") userId = actor.userId ?? (actor.source === "local_implicit" ? "local-operator" : null);
     else throw forbidden();
     if (actor.type !== "system" && !userId) throw new DecisionUnavailable("responsible_user_missing");
-    const [issue] = issueId ? await executor.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, context.companyId))) : [];
+    const [issue] = issueId ? await executor.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, context.spaceId))) : [];
     if (issueId && !issue) throw forbidden();
     if (issue && context.projectId && context.projectId !== issue.projectId) throw forbidden("Task project mismatch");
     const projectId = issue?.projectId ?? context.projectId ?? null;
     if (projectId) {
-      const [project] = await executor.select({ id: projects.id }).from(projects).where(and(eq(projects.id, projectId), eq(projects.companyId, context.companyId)));
+      const [project] = await executor.select({ id: projects.id }).from(projects).where(and(eq(projects.id, projectId), eq(projects.spaceId, context.spaceId)));
       if (!project) throw forbidden();
     }
     if (actor.type !== "system") {
       const access = accessService(executor);
-      const accessResult = await access.decide({ actor, action: issue ? "issue:read" : projectId ? "project:read" : "company_scope:read",
-        resource: issue ? { type: "issue", companyId: context.companyId, issueId: issue.id, projectId: issue.projectId, parentIssueId: issue.parentId,
+      const accessResult = await access.decide({ actor, action: issue ? "issue:read" : projectId ? "project:read" : "space_scope:read",
+        resource: issue ? { type: "issue", spaceId: context.spaceId, issueId: issue.id, projectId: issue.projectId, parentIssueId: issue.parentId,
           assigneeAgentId: issue.assigneeAgentId, assigneeUserId: issue.assigneeUserId, status: issue.status }
-          : projectId ? { type: "project", companyId: context.companyId, projectId } : { type: "company", companyId: context.companyId } });
+          : projectId ? { type: "project", spaceId: context.spaceId, projectId } : { type: "space", spaceId: context.spaceId } });
       if (!accessResult.allowed) throw forbidden();
     }
-    const connection = await aiConnectionService(executor).selectDecision({ companyId: context.companyId,
+    const connection = await aiConnectionService(executor).selectDecision({ spaceId: context.spaceId,
       connectionId: config.connectionId, grantId: config.grantId, userId, agentId, sponsoredBackground: actor.type === "system" });
     if (connection.provider !== config.provider || config.model !== DECISION_MODELS[connection.provider].id) throw new DecisionUnavailable("incompatible_connection");
     return { config, connection, userId, agentId, runId, identityContextId, issueId, projectId, admissionAgent,
-      actorType: actor.type === "board" ? "user" as const : actor.type === "agent" ? "agent" as const : "system" as const,
-      actorId: actor.type === "system" ? "paperclip-decisions" : agentId ?? userId! };
+      actorType: actor.type === "operator" ? "user" as const : actor.type === "agent" ? "agent" as const : "system" as const,
+      actorId: actor.type === "system" ? "outpost-decisions" : agentId ?? userId! };
   }
   async function availability(context: DecisionContext): Promise<DecisionAvailability> {
     try { await resolve(context); return { available: true }; }
@@ -148,7 +148,7 @@ export function decisionModelService(db: Db, options: { provider?: typeof runDec
     return (context: DecisionContext) => { let result = cache.get(context); if (!result) { result = availability(context); cache.set(context, result); } return result; };
   }
   async function settle(invocation: typeof decisionInvocations.$inferSelect, outcome: DecisionProviderOutcome) {
-    await withBudgetSpan("budget.accounting.settlement", () => withOperationAccountingTransaction(db, invocation.companyId, async (tx, publications) => {
+    await withBudgetSpan("budget.accounting.settlement", () => withOperationAccountingTransaction(db, invocation.spaceId, async (tx, publications) => {
       const receipt = outcome.receipt;
       // Keep dispatch identity on the invocation even if its task or agent was
       // deleted while the provider worked. Ledger foreign keys use live rows.
@@ -156,16 +156,16 @@ export function decisionModelService(db: Db, options: { provider?: typeof runDec
       for (const [key, table] of [["agentId", agents], ["issueId", issues], ["projectId", projects]] as const) {
         const id = invocation[key];
         if (!id) continue;
-        const [row] = await tx.select({ id: table.id }).from(table).where(and(eq(table.id, id), eq(table.companyId, invocation.companyId))).for("key share");
+        const [row] = await tx.select({ id: table.id }).from(table).where(and(eq(table.id, id), eq(table.spaceId, invocation.spaceId))).for("key share");
         if (row) links[key] = row.id;
       }
-      const [current] = await tx.select().from(decisionInvocations).where(and(eq(decisionInvocations.companyId, invocation.companyId), eq(decisionInvocations.id, invocation.id))).for("update");
+      const [current] = await tx.select().from(decisionInvocations).where(and(eq(decisionInvocations.spaceId, invocation.spaceId), eq(decisionInvocations.id, invocation.id))).for("update");
       if (!current) return;
       const [existing] = current.costEventId ? await tx.select({ id: costEvents.id, costStatus: costEvents.costStatus,
         inputTokens: costEvents.inputTokens, cachedInputTokens: costEvents.cachedInputTokens, outputTokens: costEvents.outputTokens,
         providerRequestId: costEvents.providerRequestId, pricingProvenance: costEvents.pricingProvenance,
         costCents: sql<string>`${costEvents.costCents}::text` }).from(costEvents).where(and(
-        eq(costEvents.companyId, invocation.companyId), eq(costEvents.id, current.costEventId),
+        eq(costEvents.spaceId, invocation.spaceId), eq(costEvents.id, current.costEventId),
       )).for("update") : [];
       if (current.status !== "running") {
         if (!existing || outcome.errorCode === "interrupted") return;
@@ -177,7 +177,7 @@ export function decisionModelService(db: Db, options: { provider?: typeof runDec
           outputTokens: receipt.outputTokens ?? current.outputTokens ?? 0, providerRequestId: receipt.providerRequestId ?? current.providerRequestId };
         // Recovery records uncertainty, not final billing evidence. A late receipt
         // values the same attempt through the existing audited correction ledger.
-        if (existing.costStatus === "unpriced" && receipt.costStatus !== "unpriced") await applyCostCorrectionInTransaction(tx, publications, { companyId: invocation.companyId, eventId: existing.id,
+        if (existing.costStatus === "unpriced" && receipt.costStatus !== "unpriced") await applyCostCorrectionInTransaction(tx, publications, { spaceId: invocation.spaceId, eventId: existing.id,
           idempotencyKey: `decision:${invocation.id}:late-receipt`, expectedCents: existing.costCents,
           correctedCents: receipt.costCents ?? "0", reason: "Provider receipt arrived after interrupted accounting recovery",
           costStatus: receipt.costStatus,
@@ -187,19 +187,19 @@ export function decisionModelService(db: Db, options: { provider?: typeof runDec
           actorId: "cost_accounting" });
         else {
           if (Object.entries(receiptUsage).some(([key, value]) => existing[key as keyof typeof existing] !== value))
-            await applyCostCorrectionInTransaction(tx, publications, { companyId: invocation.companyId, eventId: existing.id,
+            await applyCostCorrectionInTransaction(tx, publications, { spaceId: invocation.spaceId, eventId: existing.id,
               idempotencyKey: `decision:${invocation.id}:late-usage`, expectedCents: existing.costCents, correctedCents: existing.costCents,
               costStatus: existing.costStatus === "unpriced" ? "unpriced" : existing.costStatus === "estimated" ? "estimated" : "reported", receiptUsage,
               reason: "Provider usage arrived after interrupted accounting recovery",
               pricing: existing.pricingProvenance ?? { source: "unknown" }, actorId: "cost_accounting" });
-          if (existing.costStatus !== "unpriced") await logActivity(tx, { companyId: invocation.companyId,
+          if (existing.costStatus !== "unpriced") await logActivity(tx, { spaceId: invocation.spaceId,
             actorType: "system", actorId: "cost_accounting", responsibleUserIdOverride: invocation.responsibleUserId,
             action: "accounting.late_receipt_observed", entityType: "cost_event", entityId: existing.id,
             details: { effectiveCostCents: existing.costCents, ...receipt },
           }, publications);
         }
         event = existing;
-      } else event = await createCostEventInTransaction(tx, invocation.companyId, {
+      } else event = await createCostEventInTransaction(tx, invocation.spaceId, {
         usageKind: "decision", responsibleUserId: invocation.responsibleUserId, ...links,
         // Run attribution lives on the invocation. Run receipt reconciliation must not ingest this independent charge.
         heartbeatRunId: null, idempotencyKey: `decision:${invocation.id}`,
@@ -209,13 +209,13 @@ export function decisionModelService(db: Db, options: { provider?: typeof runDec
         providerRequestId: receipt.providerRequestId, pricingProvenance: receipt.pricingProvenance, occurredAt: invocation.startedAt,
       }, publications, { actorType: invocation.actorType as "system" | "user" | "agent", actorId: invocation.actorId, agentId: links.agentId });
       const finishedAt = new Date();
-      await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, invocation.companyId);
+      await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, invocation.spaceId);
       await tx.update(decisionInvocations).set({ status: outcome.answers ? "succeeded" : receipt.costStatus === "unpriced" ? "unknown" : "failed",
         errorCode: outcome.errorCode ?? null, costEventId: event.id, providerRequestId: receipt.providerRequestId ?? current.providerRequestId,
         inputTokens: receipt.inputTokens ?? current.inputTokens, outputTokens: receipt.outputTokens ?? current.outputTokens, finishedAt, durationMs: Math.max(0, finishedAt.getTime() - invocation.startedAt.getTime()),
-      }).where(and(eq(decisionInvocations.companyId, invocation.companyId), eq(decisionInvocations.id, invocation.id)));
+      }).where(and(eq(decisionInvocations.spaceId, invocation.spaceId), eq(decisionInvocations.id, invocation.id)));
       if (receipt.costStatus !== "unpriced") await tx.update(budgetReservations).set({ state: outcome.noProviderWork ? "released" : "settled", settledAt: finishedAt }).where(and(
-        eq(budgetReservations.companyId, invocation.companyId), eq(budgetReservations.decisionInvocationId, invocation.id), eq(budgetReservations.state, "held"),
+        eq(budgetReservations.spaceId, invocation.spaceId), eq(budgetReservations.decisionInvocationId, invocation.id), eq(budgetReservations.state, "held"),
       ));
     }), { "budget.accounting.owner": "decision" });
   }
@@ -226,22 +226,22 @@ export function decisionModelService(db: Db, options: { provider?: typeof runDec
     try { selected = await resolve(context); }
     catch (error) { const reason = unavailableReason(error); if (reason) return { status: "unavailable", reason }; throw error; }
     const secretId = selected.connection.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")?.secretId;
-    const [credentialSnapshot] = secretId ? await db.select({ id: companySecrets.id, status: companySecrets.status, version: companySecrets.latestVersion })
-      .from(companySecrets).where(and(eq(companySecrets.companyId, context.companyId), eq(companySecrets.id, secretId))) : [];
+    const [credentialSnapshot] = secretId ? await db.select({ id: spaceSecrets.id, status: spaceSecrets.status, version: spaceSecrets.latestVersion })
+      .from(spaceSecrets).where(and(eq(spaceSecrets.spaceId, context.spaceId), eq(spaceSecrets.id, secretId))) : [];
     if (!credentialSnapshot || credentialSnapshot.status !== "active") return { status: "unavailable", reason: "connection_unavailable" };
     let credential: string;
     try { credential = await aiConnectionService(db).credential(selected.connection, 0, { responsibleUserId: selected.userId,
       actorType: selected.actorType, actorId: selected.actorId, issueId: selected.issueId, heartbeatRunId: selected.runId }); }
     catch (error) { return { status: "unavailable", reason: unavailableReason(error) ?? "connection_unavailable" }; }
-    const admission = await withOperationAccountingTransaction(db, context.companyId, async (tx, publications) => {
+    const admission = await withOperationAccountingTransaction(db, context.spaceId, async (tx, publications) => {
       // Admission readers share these control fences. A manual pause either
       // precedes this admission or sees its committed invocation when it wins.
-      const [company] = await tx.select({ status: companies.status }).from(companies)
-        .where(eq(companies.id, context.companyId)).for("share");
-      if (!company || company.status !== "active") return { reason: "budget_blocked" as const };
+      const [space] = await tx.select({ status: spaces.status }).from(spaces)
+        .where(eq(spaces.id, context.spaceId)).for("share");
+      if (!space || space.status !== "active") return { reason: "budget_blocked" as const };
       if (selected.projectId) {
         const [project] = await tx.select({ id: projects.id }).from(projects).where(and(
-          eq(projects.companyId, context.companyId), eq(projects.id, selected.projectId),
+          eq(projects.spaceId, context.spaceId), eq(projects.id, selected.projectId),
         )).for("share");
         if (!project) return { reason: "budget_blocked" as const };
       }
@@ -260,30 +260,30 @@ export function decisionModelService(db: Db, options: { provider?: typeof runDec
         return { reason: "connection_unavailable" as const };
       // Secret changes do not update the connection revision. Serialize against
       // rotation/revocation through this invocation's admission.
-      const [currentSecret] = await tx.select({ status: companySecrets.status, version: companySecrets.latestVersion }).from(companySecrets)
-        .where(and(eq(companySecrets.companyId, context.companyId), eq(companySecrets.id, credentialSnapshot.id))).for("share");
+      const [currentSecret] = await tx.select({ status: spaceSecrets.status, version: spaceSecrets.latestVersion }).from(spaceSecrets)
+        .where(and(eq(spaceSecrets.spaceId, context.spaceId), eq(spaceSecrets.id, credentialSnapshot.id))).for("share");
       if (!currentSecret || currentSecret.status !== "active" || currentSecret.version !== credentialSnapshot.version)
         return { reason: "connection_unavailable" as const };
       const budgets = budgetServiceInTransaction(tx, publications);
-      const { block, policies, observations } = await budgets.evaluateAdmission(context.companyId, current.agentId, { projectId: current.projectId });
+      const { block, policies, observations } = await budgets.evaluateAdmission(context.spaceId, current.agentId, { projectId: current.projectId });
       const agent = current.admissionAgent;
-      if (block || company.status !== "active" || (current.agentId && (!agent || agent.status === "paused" || agent.status === "terminated"))) return { reason: "budget_blocked" as const };
+      if (block || space.status !== "active" || (current.agentId && (!agent || agent.status === "paused" || agent.status === "terminated"))) return { reason: "budget_blocked" as const };
       const amount = policies.reduce((max, p) => { const n = centsToUnits(p.reservationCents); return n > max ? n : max; }, 0n);
       for (const [index, policy] of policies.entries()) {
         const committed = centsToUnits(observations[index].ledgerCents) + centsToUnits(observations[index].effectiveHeldCents);
         if (committed >= centsToUnits(policy.amount) || committed + amount > centsToUnits(policy.amount)) return { reason: "budget_blocked" as const };
       }
       signal?.throwIfAborted();
-      await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, context.companyId);
-      const [invocation] = await tx.insert(decisionInvocations).values({ id: randomUUID(), companyId: context.companyId, feature: context.feature.id,
+      await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, context.spaceId);
+      const [invocation] = await tx.insert(decisionInvocations).values({ id: randomUUID(), spaceId: context.spaceId, feature: context.feature.id,
         actorType: current.actorType, actorId: current.actorId, responsibleUserId: current.userId, agentId: current.agentId,
         issueId: current.issueId, projectId: current.projectId, runId: current.runId, identityContextId: current.identityContextId,
         connectionId: current.connection.connection.id, grantId: current.connection.grant.id, provider: current.connection.provider, model: current.config.model!,
         questionTypes: Object.values(parsed.data.questions).map(q => q.type),
       }).returning();
-      await tx.insert(budgetReservations).values({ companyId: context.companyId, decisionInvocationId: invocation.id, agentId: current.agentId,
+      await tx.insert(budgetReservations).values({ spaceId: context.spaceId, decisionInvocationId: invocation.id, agentId: current.agentId,
         projectId: current.projectId, amountCents: unitsToCents(amount), providerStartedAt: invocation.startedAt });
-      await queueBudgetEvaluation(tx, { companyId: context.companyId, agentId: current.agentId, projectId: current.projectId });
+      await queueBudgetEvaluation(tx, { spaceId: context.spaceId, agentId: current.agentId, projectId: current.projectId });
       return { invocation };
     });
     if (admission.reason) return { status: "unavailable", reason: admission.reason };
@@ -303,20 +303,20 @@ export function decisionModelService(db: Db, options: { provider?: typeof runDec
     for (const invocation of stale) await settle(invocation, { errorCode: "interrupted", receipt: decisionReceipt(invocation.provider as DecisionProvider, null) });
     return stale.length;
   }
-  async function history(companyId: string, actor: AuthorizationActor, range: { from?: Date; to?: Date; before?: Date; limit?: number } = {}): Promise<DecisionHistoryEntry[]> {
+  async function history(spaceId: string, actor: AuthorizationActor, range: { from?: Date; to?: Date; before?: Date; limit?: number } = {}): Promise<DecisionHistoryEntry[]> {
     const access = accessService(db);
-    if (!(await access.decide({ actor, action: "company_scope:read", resource: { type: "company", companyId } })).allowed) throw forbidden();
+    if (!(await access.decide({ actor, action: "space_scope:read", resource: { type: "space", spaceId } })).allowed) throw forbidden();
     const rows = await db.select({ invocation: decisionInvocations, userName: authUsers.name,
       inputTokens: costEvents.inputTokens, outputTokens: costEvents.outputTokens, costStatus: costEvents.costStatus,
       costCents: sql<string | null>`${costEvents.costCents}::text`, issue: issues,
-    }).from(decisionInvocations).leftJoin(costEvents, and(eq(costEvents.id, decisionInvocations.costEventId), eq(costEvents.companyId, companyId)))
+    }).from(decisionInvocations).leftJoin(costEvents, and(eq(costEvents.id, decisionInvocations.costEventId), eq(costEvents.spaceId, spaceId)))
       .leftJoin(authUsers, eq(authUsers.id, decisionInvocations.responsibleUserId))
-      .leftJoin(issues, and(eq(issues.id, decisionInvocations.issueId), eq(issues.companyId, companyId)))
-      .where(and(eq(decisionInvocations.companyId, companyId), range.from ? gte(decisionInvocations.startedAt, range.from) : undefined,
+      .leftJoin(issues, and(eq(issues.id, decisionInvocations.issueId), eq(issues.spaceId, spaceId)))
+      .where(and(eq(decisionInvocations.spaceId, spaceId), range.from ? gte(decisionInvocations.startedAt, range.from) : undefined,
         range.to ? lte(decisionInvocations.startedAt, range.to) : undefined, range.before ? lt(decisionInvocations.startedAt, range.before) : undefined))
       .orderBy(desc(decisionInvocations.startedAt), desc(decisionInvocations.id)).limit(Math.min(range.limit ?? 100, 500));
     return Promise.all(rows.map(async ({ invocation: row, issue, ...cost }) => {
-      const visible = issue && (await access.decide({ actor, action: "issue:read", resource: { type: "issue", companyId, issueId: issue.id,
+      const visible = issue && (await access.decide({ actor, action: "issue:read", resource: { type: "issue", spaceId, issueId: issue.id,
         projectId: issue.projectId, parentIssueId: issue.parentId, assigneeAgentId: issue.assigneeAgentId, assigneeUserId: issue.assigneeUserId, status: issue.status } })).allowed;
       return { id: row.id, feature: row.feature, actorType: row.actorType, responsibleUserId: row.responsibleUserId, userName: cost.userName,
         issueId: visible ? issue.id : null, issueIdentifier: visible ? issue.identifier : null, agentId: row.agentId, runId: visible ? row.runId : null,

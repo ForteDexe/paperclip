@@ -7,7 +7,7 @@ import {
   PLUGIN_STATE_SCOPE_KINDS,
   definePlugin,
   runWorker,
-  type PaperclipPlugin,
+  type OutpostPlugin,
   type EnvSecretRefBinding,
   type PluginContext,
   type PluginEntityQuery,
@@ -92,8 +92,8 @@ function pushRecord(record: Omit<DemoRecord, "id" | "createdAt">): DemoRecord {
   return next;
 }
 
-async function getConfig(ctx: PluginContext, companyId?: string): Promise<KitchenSinkConfig> {
-  const config = await ctx.config.get(companyId);
+async function getConfig(ctx: PluginContext, spaceId?: string): Promise<KitchenSinkConfig> {
+  const config = await ctx.config.get(spaceId);
   return {
     ...DEFAULT_CONFIG,
     ...(config as KitchenSinkConfig),
@@ -116,11 +116,11 @@ async function readInstanceState<T = unknown>(ctx: PluginContext, stateKey: stri
 
 async function resolveWorkspace(
   ctx: PluginContext,
-  companyId: string,
+  spaceId: string,
   projectId: string,
   workspaceId?: string,
 ): Promise<PluginWorkspace> {
-  const workspaces = await ctx.projects.listWorkspaces(projectId, companyId);
+  const workspaces = await ctx.projects.listWorkspaces(projectId, spaceId);
   if (workspaces.length === 0) {
     throw new Error("No workspaces configured for this project");
   }
@@ -165,7 +165,7 @@ function parseScopeKey(params: Record<string, unknown>): ScopeKey {
 async function runCuratedCommand(
   ctx: PluginContext,
   config: KitchenSinkConfig,
-  companyId: string,
+  spaceId: string,
   projectId: string,
   workspaceId: string | undefined,
   commandKey: string,
@@ -181,7 +181,7 @@ async function runCuratedCommand(
   if (!definition) {
     throw new Error(`Unknown curated command "${commandKey}"`);
   }
-  const workspace = await resolveWorkspace(ctx, companyId, projectId, workspaceId);
+  const workspace = await resolveWorkspace(ctx, spaceId, projectId, workspaceId);
   const cwd = workspace.path;
   const startedAt = new Date().toISOString();
   const child = spawn(definition.command, definition.args, {
@@ -224,12 +224,12 @@ async function runCuratedCommand(
   return result;
 }
 
-function getCurrentCompanyId(params: Record<string, unknown>): string {
-  const companyId = typeof params.companyId === "string" ? params.companyId : "";
-  if (!companyId) {
-    throw new Error("companyId is required");
+function getCurrentSpaceId(params: Record<string, unknown>): string {
+  const spaceId = typeof params.spaceId === "string" ? params.spaceId : "";
+  if (!spaceId) {
+    throw new Error("spaceId is required");
   }
-  return companyId;
+  return spaceId;
 }
 
 function getListLimit(params: Record<string, unknown>, fallback = 50): number {
@@ -238,12 +238,12 @@ function getListLimit(params: Record<string, unknown>, fallback = 50): number {
   return Math.max(1, Math.min(200, Math.floor(value)));
 }
 
-async function listIssuesForCompany(ctx: PluginContext, companyId: string, limit = 50): Promise<Issue[]> {
-  return await ctx.issues.list({ companyId, limit, offset: 0 });
+async function listIssuesForSpace(ctx: PluginContext, spaceId: string, limit = 50): Promise<Issue[]> {
+  return await ctx.issues.list({ spaceId, limit, offset: 0 });
 }
 
-async function listGoalsForCompany(ctx: PluginContext, companyId: string, limit = 50): Promise<Goal[]> {
-  return await ctx.goals.list({ companyId, limit, offset: 0 });
+async function listGoalsForSpace(ctx: PluginContext, spaceId: string, limit = 50): Promise<Goal[]> {
+  return await ctx.goals.list({ spaceId, limit, offset: 0 });
 }
 
 function recentRecordsSnapshot(): DemoRecord[] {
@@ -256,18 +256,18 @@ function runtimeLaunchersSnapshot(): PluginLauncherRegistration[] {
 
 async function registerDataHandlers(ctx: PluginContext): Promise<void> {
   ctx.data.register("plugin-config", async (params) => {
-    const companyId = typeof params.companyId === "string" ? params.companyId : undefined;
-    return await getConfig(ctx, companyId);
+    const spaceId = typeof params.spaceId === "string" ? params.spaceId : undefined;
+    return await getConfig(ctx, spaceId);
   });
 
   ctx.data.register("overview", async (params) => {
-    const companyId = typeof params.companyId === "string" ? params.companyId : "";
-    const config = companyId ? await getConfig(ctx, companyId) : DEFAULT_CONFIG;
-    const companies = await ctx.companies.list({ limit: 200, offset: 0 });
-    const projects = companyId ? await ctx.projects.list({ companyId, limit: 200, offset: 0 }) : [];
-    const issues = companyId ? await listIssuesForCompany(ctx, companyId, 200) : [];
-    const goals = companyId ? await listGoalsForCompany(ctx, companyId, 200) : [];
-    const agents = companyId ? await ctx.agents.list({ companyId, limit: 200, offset: 0 }) : [];
+    const spaceId = typeof params.spaceId === "string" ? params.spaceId : "";
+    const config = spaceId ? await getConfig(ctx, spaceId) : DEFAULT_CONFIG;
+    const spaces = await ctx.spaces.list({ limit: 200, offset: 0 });
+    const projects = spaceId ? await ctx.projects.list({ spaceId, limit: 200, offset: 0 }) : [];
+    const issues = spaceId ? await listIssuesForSpace(ctx, spaceId, 200) : [];
+    const goals = spaceId ? await listGoalsForSpace(ctx, spaceId, 200) : [];
+    const agents = spaceId ? await ctx.agents.list({ spaceId, limit: 200, offset: 0 }) : [];
     const lastJob = await readInstanceState(ctx, "last-job-run");
     const lastWebhook = await readInstanceState(ctx, "last-webhook");
     const entityRecords = await ctx.entities.list({ limit: 10 } satisfies PluginEntityQuery);
@@ -279,7 +279,7 @@ async function registerDataHandlers(ctx: PluginContext): Promise<void> {
       runtimeLaunchers: runtimeLaunchersSnapshot(),
       recentRecords: recentRecordsSnapshot(),
       counts: {
-        companies: companies.length,
+        spaces: spaces.length,
         projects: projects.length,
         issues: issues.length,
         goals: goals.length,
@@ -299,35 +299,35 @@ async function registerDataHandlers(ctx: PluginContext): Promise<void> {
     };
   });
 
-  ctx.data.register("companies", async (params) => {
-    return await ctx.companies.list({ limit: getListLimit(params), offset: 0 });
+  ctx.data.register("spaces", async (params) => {
+    return await ctx.spaces.list({ limit: getListLimit(params), offset: 0 });
   });
 
   ctx.data.register("projects", async (params) => {
-    const companyId = getCurrentCompanyId(params);
-    return await ctx.projects.list({ companyId, limit: getListLimit(params), offset: 0 });
+    const spaceId = getCurrentSpaceId(params);
+    return await ctx.projects.list({ spaceId, limit: getListLimit(params), offset: 0 });
   });
 
   ctx.data.register("issues", async (params) => {
-    const companyId = getCurrentCompanyId(params);
-    return await listIssuesForCompany(ctx, companyId, getListLimit(params));
+    const spaceId = getCurrentSpaceId(params);
+    return await listIssuesForSpace(ctx, spaceId, getListLimit(params));
   });
 
   ctx.data.register("goals", async (params) => {
-    const companyId = getCurrentCompanyId(params);
-    return await listGoalsForCompany(ctx, companyId, getListLimit(params));
+    const spaceId = getCurrentSpaceId(params);
+    return await listGoalsForSpace(ctx, spaceId, getListLimit(params));
   });
 
   ctx.data.register("agents", async (params) => {
-    const companyId = getCurrentCompanyId(params);
-    return await ctx.agents.list({ companyId, limit: getListLimit(params), offset: 0 });
+    const spaceId = getCurrentSpaceId(params);
+    return await ctx.agents.list({ spaceId, limit: getListLimit(params), offset: 0 });
   });
 
   ctx.data.register("workspaces", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const projectId = typeof params.projectId === "string" ? params.projectId : "";
     if (!projectId) return [];
-    return await ctx.projects.listWorkspaces(projectId, companyId);
+    return await ctx.projects.listWorkspaces(projectId, spaceId);
   });
 
   ctx.data.register("state-value", async (params) => {
@@ -351,11 +351,11 @@ async function registerDataHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.data.register("comment-context", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const issueId = typeof params.issueId === "string" ? params.issueId : "";
     const commentId = typeof params.commentId === "string" ? params.commentId : "";
     if (!issueId || !commentId) return null;
-    const comments = await ctx.issues.listComments(issueId, companyId);
+    const comments = await ctx.issues.listComments(issueId, spaceId);
     const comment = comments.find((entry) => entry.id === commentId) ?? null;
     if (!comment) return null;
     return {
@@ -374,34 +374,34 @@ async function registerDataHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.data.register("entity-context", async (params) => {
-    const companyId = typeof params.companyId === "string" ? params.companyId : "";
+    const spaceId = typeof params.spaceId === "string" ? params.spaceId : "";
     const entityId = typeof params.entityId === "string" ? params.entityId : "";
     const entityType = typeof params.entityType === "string" ? params.entityType : "";
-    if (!companyId || !entityId || !entityType) return null;
+    if (!spaceId || !entityId || !entityType) return null;
 
     if (entityType === "project") {
-      return await ctx.projects.get(entityId, companyId);
+      return await ctx.projects.get(entityId, spaceId);
     }
     if (entityType === "issue") {
-      return await ctx.issues.get(entityId, companyId);
+      return await ctx.issues.get(entityId, spaceId);
     }
     if (entityType === "goal") {
-      return await ctx.goals.get(entityId, companyId);
+      return await ctx.goals.get(entityId, spaceId);
     }
     if (entityType === "agent") {
-      return await ctx.agents.get(entityId, companyId);
+      return await ctx.agents.get(entityId, spaceId);
     }
-    return { entityId, entityType, companyId };
+    return { entityId, entityType, spaceId };
   });
 }
 
 async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   ctx.actions.register("emit-demo-event", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const message = typeof params.message === "string" && params.message.trim().length > 0
       ? params.message.trim()
       : "Kitchen Sink demo event";
-    await ctx.events.emit("demo-event", companyId, {
+    await ctx.events.emit("demo-event", spaceId, {
       message,
       source: "kitchen-sink",
       emittedAt: new Date().toISOString(),
@@ -410,18 +410,18 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
       level: "info",
       source: "events.emit",
       message,
-      data: { companyId },
+      data: { spaceId },
     });
     await ctx.metrics.write("demo.events.emitted", 1, { source: "manual" });
     await ctx.telemetry.track("demo_event", {
       source: "manual",
-      has_company: Boolean(companyId),
+      has_space: Boolean(spaceId),
     });
     pushRecord({
       level: "info",
       source: "telemetry",
       message: "Tracked plugin telemetry event demo_event",
-      data: { companyId },
+      data: { spaceId },
     });
     return { ok: true, message };
   });
@@ -483,13 +483,13 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("create-issue", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const title = typeof params.title === "string" && params.title.trim().length > 0
       ? params.title.trim()
       : "Kitchen Sink demo issue";
     const description = typeof params.description === "string" ? params.description : undefined;
     const projectId = typeof params.projectId === "string" && params.projectId.length > 0 ? params.projectId : undefined;
-    const issue = await ctx.issues.create({ companyId, projectId, title, description });
+    const issue = await ctx.issues.create({ spaceId, projectId, title, description });
     pushRecord({
       level: "info",
       source: "issues.create",
@@ -497,7 +497,7 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
       data: { issueId: issue.id },
     });
     await ctx.activity.log({
-      companyId,
+      spaceId,
       entityType: "issue",
       entityId: issue.id,
       message: `Kitchen Sink created issue "${issue.title}"`,
@@ -507,13 +507,13 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("advance-issue-status", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const issueId = typeof params.issueId === "string" ? params.issueId : "";
     const status = typeof params.status === "string" ? params.status : "";
     if (!issueId || !status) {
       throw new Error("issueId and status are required");
     }
-    const issue = await ctx.issues.update(issueId, { status: status as Issue["status"] }, companyId);
+    const issue = await ctx.issues.update(issueId, { status: status as Issue["status"] }, spaceId);
     pushRecord({
       level: "info",
       source: "issues.update",
@@ -523,12 +523,12 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("create-goal", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const title = typeof params.title === "string" && params.title.trim().length > 0
       ? params.title.trim()
       : "Kitchen Sink demo goal";
     const description = typeof params.description === "string" ? params.description : undefined;
-    const goal = await ctx.goals.create({ companyId, title, description, level: "team", status: "planned" });
+    const goal = await ctx.goals.create({ spaceId, title, description, level: "team", status: "planned" });
     pushRecord({
       level: "info",
       source: "goals.create",
@@ -539,13 +539,13 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("advance-goal-status", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const goalId = typeof params.goalId === "string" ? params.goalId : "";
     const status = typeof params.status === "string" ? params.status : "";
     if (!goalId || !status) {
       throw new Error("goalId and status are required");
     }
-    const goal = await ctx.goals.update(goalId, { status: status as Goal["status"] }, companyId);
+    const goal = await ctx.goals.update(goalId, { status: status as Goal["status"] }, spaceId);
     pushRecord({
       level: "info",
       source: "goals.update",
@@ -555,14 +555,14 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("write-activity", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const entityType = typeof params.entityType === "string" ? params.entityType : undefined;
     const entityId = typeof params.entityId === "string" ? params.entityId : undefined;
     const message = typeof params.message === "string" && params.message.length > 0
       ? params.message
       : "Kitchen Sink wrote an activity entry";
     await ctx.activity.log({
-      companyId,
+      spaceId,
       entityType,
       entityId,
       message,
@@ -591,8 +591,8 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("http-fetch", async (params) => {
-    const companyId = getCurrentCompanyId(params);
-    const config = await getConfig(ctx, companyId);
+    const spaceId = getCurrentSpaceId(params);
+    const config = await getConfig(ctx, spaceId);
     const url = typeof params.url === "string" && params.url.length > 0
       ? params.url
       : config.httpDemoUrl || DEFAULT_CONFIG.httpDemoUrl;
@@ -616,8 +616,8 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("resolve-secret", async (params) => {
-    const companyId = getCurrentCompanyId(params);
-    const config = await getConfig(ctx, companyId);
+    const spaceId = getCurrentSpaceId(params);
+    const config = await getConfig(ctx, spaceId);
     const secretRef = isSecretRefBinding(params.secretRef)
       ? params.secretRef
       : isSecretRefBinding(config.secretRefExample)
@@ -626,7 +626,7 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
     if (!secretRef) {
       throw new Error("No secret reference configured");
     }
-    const resolved = await ctx.secrets.resolve(secretRef, { companyId, configPath: "secretRefExample" });
+    const resolved = await ctx.secrets.resolve(secretRef, { spaceId, configPath: "secretRefExample" });
     pushRecord({
       level: "info",
       source: "secrets",
@@ -640,18 +640,18 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("run-process", async (params) => {
-    const companyId = getCurrentCompanyId(params);
-    const config = await getConfig(ctx, companyId);
+    const spaceId = getCurrentSpaceId(params);
+    const config = await getConfig(ctx, spaceId);
     const projectId = typeof params.projectId === "string" ? params.projectId : "";
     const workspaceId = typeof params.workspaceId === "string" && params.workspaceId.length > 0 ? params.workspaceId : undefined;
     const commandKey = typeof params.commandKey === "string" ? params.commandKey : "pwd";
     if (!projectId) throw new Error("projectId is required");
-    return await runCuratedCommand(ctx, config, companyId, projectId, workspaceId, commandKey);
+    return await runCuratedCommand(ctx, config, spaceId, projectId, workspaceId, commandKey);
   });
 
   ctx.actions.register("read-workspace-file", async (params) => {
-    const companyId = getCurrentCompanyId(params);
-    const config = await getConfig(ctx, companyId);
+    const spaceId = getCurrentSpaceId(params);
+    const config = await getConfig(ctx, spaceId);
     if (!config.enableWorkspaceDemos) {
       throw new Error("Workspace demos are disabled in plugin settings");
     }
@@ -661,7 +661,7 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
       ? params.relativePath
       : config.workspaceScratchFile || DEFAULT_CONFIG.workspaceScratchFile;
     if (!projectId) throw new Error("projectId is required");
-    const workspace = await resolveWorkspace(ctx, companyId, projectId, workspaceId);
+    const workspace = await resolveWorkspace(ctx, spaceId, projectId, workspaceId);
     const fullPath = ensureInsideWorkspace(workspace.path, relativePath);
     const content = await fs.readFile(fullPath, "utf8");
     return {
@@ -672,8 +672,8 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("write-workspace-scratch", async (params) => {
-    const companyId = getCurrentCompanyId(params);
-    const config = await getConfig(ctx, companyId);
+    const spaceId = getCurrentSpaceId(params);
+    const config = await getConfig(ctx, spaceId);
     if (!config.enableWorkspaceDemos) {
       throw new Error("Workspace demos are disabled in plugin settings");
     }
@@ -684,7 +684,7 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
       : config.workspaceScratchFile || DEFAULT_CONFIG.workspaceScratchFile;
     const content = typeof params.content === "string" ? params.content : "Kitchen Sink workspace demo";
     if (!projectId) throw new Error("projectId is required");
-    const workspace = await resolveWorkspace(ctx, companyId, projectId, workspaceId);
+    const workspace = await resolveWorkspace(ctx, spaceId, projectId, workspaceId);
     const fullPath = ensureInsideWorkspace(workspace.path, relativePath);
     await fs.writeFile(fullPath, content, "utf8");
     pushRecord({
@@ -701,10 +701,10 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("start-progress-stream", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const steps = typeof params.steps === "number" ? params.steps : 5;
     void (async () => {
-      ctx.streams.open(STREAM_CHANNELS.progress, companyId);
+      ctx.streams.open(STREAM_CHANNELS.progress, spaceId);
       try {
         for (let index = 1; index <= steps; index += 1) {
           ctx.streams.emit(STREAM_CHANNELS.progress, {
@@ -722,13 +722,13 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("invoke-agent", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const agentId = typeof params.agentId === "string" ? params.agentId : "";
     const prompt = typeof params.prompt === "string" && params.prompt.length > 0
       ? params.prompt
       : "Kitchen Sink test invocation";
     if (!agentId) throw new Error("agentId is required");
-    const result = await ctx.agents.invoke(agentId, companyId, { prompt, reason: "Kitchen Sink plugin demo" });
+    const result = await ctx.agents.invoke(agentId, spaceId, { prompt, reason: "Kitchen Sink plugin demo" });
     pushRecord({
       level: "info",
       source: "agents.invoke",
@@ -739,33 +739,33 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("pause-agent", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const agentId = typeof params.agentId === "string" ? params.agentId : "";
     if (!agentId) throw new Error("agentId is required");
-    return await ctx.agents.pause(agentId, companyId);
+    return await ctx.agents.pause(agentId, spaceId);
   });
 
   ctx.actions.register("resume-agent", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const agentId = typeof params.agentId === "string" ? params.agentId : "";
     if (!agentId) throw new Error("agentId is required");
-    return await ctx.agents.resume(agentId, companyId);
+    return await ctx.agents.resume(agentId, spaceId);
   });
 
   ctx.actions.register("ask-agent", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const agentId = typeof params.agentId === "string" ? params.agentId : "";
     const prompt = typeof params.prompt === "string" && params.prompt.length > 0
       ? params.prompt
       : "Say hello from the Kitchen Sink plugin.";
     if (!agentId) throw new Error("agentId is required");
 
-    ctx.streams.open(STREAM_CHANNELS.agentChat, companyId);
-    const session = await ctx.agents.sessions.create(agentId, companyId, {
+    ctx.streams.open(STREAM_CHANNELS.agentChat, spaceId);
+    const session = await ctx.agents.sessions.create(agentId, spaceId, {
       reason: "Kitchen Sink plugin chat demo",
     });
 
-    await ctx.agents.sessions.sendMessage(session.sessionId, companyId, {
+    await ctx.agents.sessions.sendMessage(session.sessionId, spaceId, {
       prompt,
       reason: "Kitchen Sink demo",
       onEvent: (event) => {
@@ -791,13 +791,13 @@ async function registerActionHandlers(ctx: PluginContext): Promise<void> {
   });
 
   ctx.actions.register("copy-comment-context", async (params) => {
-    const companyId = getCurrentCompanyId(params);
+    const spaceId = getCurrentSpaceId(params);
     const issueId = typeof params.issueId === "string" ? params.issueId : "";
     const commentId = typeof params.commentId === "string" ? params.commentId : "";
     if (!issueId || !commentId) {
       throw new Error("issueId and commentId are required");
     }
-    const comments = await ctx.issues.listComments(issueId, companyId);
+    const comments = await ctx.issues.listComments(issueId, spaceId);
     const comment = comments.find((entry) => entry.id === commentId);
     if (!comment) {
       throw new Error("Comment not found");
@@ -852,21 +852,21 @@ async function registerToolHandlers(ctx: PluginContext): Promise<void> {
   );
 
   ctx.tools.register(
-    TOOL_NAMES.companySummary,
+    TOOL_NAMES.spaceSummary,
     {
       displayName: "Kitchen Sink Outpost Summary",
-      description: "Summarizes current company counts from the Outpost APIs.",
+      description: "Summarizes current space counts from the Outpost APIs.",
       parametersSchema: { type: "object", properties: {} },
     },
     async (_params, runCtx): Promise<ToolResult> => {
-      const projects = await ctx.projects.list({ companyId: runCtx.companyId, limit: 50, offset: 0 });
-      const issues = await ctx.issues.list({ companyId: runCtx.companyId, limit: 50, offset: 0 });
-      const goals = await ctx.goals.list({ companyId: runCtx.companyId, limit: 50, offset: 0 });
-      const agents = await ctx.agents.list({ companyId: runCtx.companyId, limit: 50, offset: 0 });
+      const projects = await ctx.projects.list({ spaceId: runCtx.spaceId, limit: 50, offset: 0 });
+      const issues = await ctx.issues.list({ spaceId: runCtx.spaceId, limit: 50, offset: 0 });
+      const goals = await ctx.goals.list({ spaceId: runCtx.spaceId, limit: 50, offset: 0 });
+      const agents = await ctx.agents.list({ spaceId: runCtx.spaceId, limit: 50, offset: 0 });
       return {
         content: `Outpost has ${projects.length} projects, ${issues.length} issues, ${goals.length} goals, and ${agents.length} agents.`,
         data: {
-          companyId: runCtx.companyId,
+          spaceId: runCtx.spaceId,
           projects: projects.length,
           issues: issues.length,
           goals: goals.length,
@@ -896,7 +896,7 @@ async function registerToolHandlers(ctx: PluginContext): Promise<void> {
         return { error: "title is required" };
       }
       const issue = await ctx.issues.create({
-        companyId: runCtx.companyId,
+        spaceId: runCtx.spaceId,
         // The run context has an empty project ID when the run has no project.
         projectId: runCtx.projectId || undefined,
         title: payload.title,
@@ -959,7 +959,7 @@ async function registerJobs(ctx: PluginContext): Promise<void> {
   });
 }
 
-const plugin: PaperclipPlugin = definePlugin({
+const plugin: OutpostPlugin = definePlugin({
   async setup(ctx) {
     currentContext = ctx;
     runtimeLaunchers.set(RUNTIME_LAUNCHER.id, RUNTIME_LAUNCHER);

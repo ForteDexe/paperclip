@@ -1,11 +1,11 @@
 import { foreignKey, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { toolConnections } from "./tool_access.js";
 
 /** One bounded discovery lease per viewing human and saved credential identity. */
 export const toolConnectionAppSyncs = pgTable("tool_connection_app_syncs", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   connectionId: uuid("connection_id").notNull(),
   userId: text("user_id").notNull(),
   credentialKey: text("credential_key").notNull(),
@@ -17,6 +17,6 @@ export const toolConnectionAppSyncs = pgTable("tool_connection_app_syncs", {
   lastCompletedAt: timestamp("last_completed_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [
-  uniqueIndex("tool_connection_app_syncs_owner_key_uq").on(table.companyId, table.connectionId, table.userId, table.credentialKey),
-  foreignKey({ columns: [table.companyId, table.connectionId], foreignColumns: [toolConnections.companyId, toolConnections.id], name: "tool_connection_app_syncs_company_connection_fk" }).onDelete("cascade"),
+  uniqueIndex("tool_connection_app_syncs_owner_key_uq").on(table.spaceId, table.connectionId, table.userId, table.credentialKey),
+  foreignKey({ columns: [table.spaceId, table.connectionId], foreignColumns: [toolConnections.spaceId, toolConnections.id], name: "tool_connection_app_syncs_space_connection_fk" }).onDelete("cascade"),
 ]);

@@ -14,7 +14,7 @@ type Coordinator = typeof nativeRunFinalizations.$inferSelect;
 type Lease = typeof environmentLeases.$inferSelect;
 export type SettledNativeHarnessBackupOwner = {
   kind: "settled_native_harness_backup";
-  companyId: string; issueId: string; agentId: string; runId: string;
+  spaceId: string; issueId: string; agentId: string; runId: string;
   sessionId: string; runnerInstanceId: string; scopeDigest: string; root: string; manifestSha256: string;
   selectedSessionId: string; selectedLastRunId: string; sourceLeaseId: string; providerLeaseId: string;
   runDigest: string; coordinatorDigest: string; leaseDigest: string;
@@ -35,25 +35,25 @@ const fail = (): never => { throw new Error("native_harness_preservation_source_
 /** Copy sealed historical files without certifying provider termination, changing
  * a failed run, or taking an expired coordinator. Every publication rechecks it. */
 export async function settledNativeHarnessBackupOwner(db: Db, input: {
-  companyId: string; issueId: string; runId: string; sessionId: string; runnerInstanceId: string;
+  spaceId: string; issueId: string; runId: string; sessionId: string; runnerInstanceId: string;
   scopeDigest: string; root: string; manifestSha256: string; providerLeaseId: string; signal: AbortSignal;
 }): Promise<SettledNativeHarnessBackupOwner | null> {
-  const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId)));
-  const [coordinator] = await db.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, input.companyId),
+  const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId)));
+  const [coordinator] = await db.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.spaceId, input.spaceId),
     eq(nativeRunFinalizations.issueId, input.issueId), eq(nativeRunFinalizations.runId, input.runId)));
   if (!run || !coordinator || !settled(coordinator)) return null;
   const selected = await db.select({ id: agentTaskSessions.id, lastRunId: agentTaskSessions.lastRunId }).from(agentTaskSessions)
-    .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.companyId, agentTaskSessions.companyId), eq(heartbeatRuns.agentId, agentTaskSessions.agentId),
-      eq(heartbeatRuns.id, agentTaskSessions.lastRunId))).where(and(eq(agentTaskSessions.companyId, input.companyId),
+    .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.spaceId, agentTaskSessions.spaceId), eq(heartbeatRuns.agentId, agentTaskSessions.agentId),
+      eq(heartbeatRuns.id, agentTaskSessions.lastRunId))).where(and(eq(agentTaskSessions.spaceId, input.spaceId),
       eq(agentTaskSessions.agentId, run.agentId), eq(agentTaskSessions.adapterType, "outpost_runner"),
       eq(heartbeatRuns.nativeIssueId, input.issueId), eq(heartbeatRuns.nativeSessionId, input.sessionId))).limit(2);
   if (selected.length !== 1 || !selected[0]!.lastRunId) return null;
-  const leases = await db.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId),
+  const leases = await db.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId),
     eq(environmentLeases.issueId, input.issueId), eq(environmentLeases.providerLeaseId, input.providerLeaseId),
     sql`${environmentLeases.metadata}->'nativeHarnessBackup'->>'manifestSha256' = ${input.manifestSha256}`));
   const lease = leases.find(row => readNativeHarnessBackupStamp(row.metadata?.nativeHarnessBackup, input.providerLeaseId)?.sessionScopeSha256 === input.scopeDigest);
   if (!lease) return null;
-  const owner: SettledNativeHarnessBackupOwner = { kind: "settled_native_harness_backup", companyId: input.companyId,
+  const owner: SettledNativeHarnessBackupOwner = { kind: "settled_native_harness_backup", spaceId: input.spaceId,
     issueId: input.issueId, agentId: run.agentId, runId: input.runId, sessionId: input.sessionId, runnerInstanceId: input.runnerInstanceId,
     scopeDigest: input.scopeDigest, root: input.root, manifestSha256: input.manifestSha256,
     selectedSessionId: selected[0]!.id, selectedLastRunId: selected[0]!.lastRunId,
@@ -68,19 +68,19 @@ export async function assertSettledNativeHarnessBackupSource(db: Db, owner: Sett
   signal.throwIfAborted();
   await db.execute(sql`set local lock_timeout = '1s'`);
   if (!await tryLockNativeWorkspaceFinalization(db, owner)) fail();
-  const [task] = await db.select().from(issues).where(and(eq(issues.companyId, owner.companyId), eq(issues.id, owner.issueId))).for("update");
+  const [task] = await db.select().from(issues).where(and(eq(issues.spaceId, owner.spaceId), eq(issues.id, owner.issueId))).for("update");
   if (!task || task.executionRunId || task.checkoutRunId) fail();
-  const [coordinator] = await db.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, owner.companyId),
+  const [coordinator] = await db.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.spaceId, owner.spaceId),
     eq(nativeRunFinalizations.issueId, owner.issueId), eq(nativeRunFinalizations.runId, owner.runId))).for("update");
   if (!coordinator || !settled(coordinator) || coordinatorDigest(coordinator) !== owner.coordinatorDigest) fail();
-  const [selection] = await db.select().from(agentTaskSessions).where(and(eq(agentTaskSessions.companyId, owner.companyId),
+  const [selection] = await db.select().from(agentTaskSessions).where(and(eq(agentTaskSessions.spaceId, owner.spaceId),
     eq(agentTaskSessions.agentId, owner.agentId), eq(agentTaskSessions.id, owner.selectedSessionId),
     eq(agentTaskSessions.adapterType, "outpost_runner"),
     eq(agentTaskSessions.lastRunId, owner.selectedLastRunId))).for("share");
-  const [selectedRun] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, owner.companyId),
+  const [selectedRun] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, owner.spaceId),
     eq(heartbeatRuns.agentId, owner.agentId), eq(heartbeatRuns.id, owner.selectedLastRunId),
     eq(heartbeatRuns.nativeIssueId, owner.issueId), eq(heartbeatRuns.nativeSessionId, owner.sessionId)));
-  const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, owner.companyId),
+  const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, owner.spaceId),
     eq(heartbeatRuns.agentId, owner.agentId), eq(heartbeatRuns.id, owner.runId), eq(heartbeatRuns.nativeIssueId, owner.issueId),
     eq(heartbeatRuns.nativeSessionId, owner.sessionId), eq(heartbeatRuns.runnerInstanceId, owner.runnerInstanceId), eq(heartbeatRuns.runtimeMode, "native"))).for("share");
   const [clock] = await db.execute<{ now: Date }>(sql`select clock_timestamp() as now`);
@@ -88,12 +88,12 @@ export async function assertSettledNativeHarnessBackupSource(db: Db, owner: Sett
     || run.controllerLeaseExpiresAt && run.controllerLeaseExpiresAt > new Date(clock.now)
     || adapterExecutionControls.has(run.id) || run.runnerProfileJson?.nativeWorkspaceFinalizationOwner != null
     || runDigest(run) !== owner.runDigest) fail();
-  const [active] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, owner.companyId),
+  const [active] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, owner.spaceId),
     inArray(heartbeatRuns.status, ["queued", "running"]), or(eq(heartbeatRuns.nativeIssueId, owner.issueId),
       eq(heartbeatRuns.issueId, owner.issueId), eq(heartbeatRuns.nativeSessionId, owner.sessionId)))).limit(1);
   if (active) fail();
   const [lease] = await db.select().from(environmentLeases).where(and(eq(environmentLeases.id, owner.sourceLeaseId),
-    eq(environmentLeases.companyId, owner.companyId), eq(environmentLeases.issueId, owner.issueId),
+    eq(environmentLeases.spaceId, owner.spaceId), eq(environmentLeases.issueId, owner.issueId),
     eq(environmentLeases.providerLeaseId, owner.providerLeaseId))).for("share");
   const stamp = readNativeHarnessBackupStamp(lease?.metadata?.nativeHarnessBackup, owner.providerLeaseId);
   if (!lease || !stamp || leaseDigest(lease) !== owner.leaseDigest || stamp.sessionScopeSha256 !== owner.scopeDigest

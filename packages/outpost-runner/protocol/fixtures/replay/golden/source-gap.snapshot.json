@@ -3,7 +3,7 @@
   "fixtureName": "Source sequence gap",
   "identity": {
     "schema": "outpost.orp.identity.v1",
-    "companyId": "company_replay",
+    "spaceId": "space_replay",
     "issueId": "issue_replay_gap",
     "runId": "run_replay_gap",
     "environmentLeaseId": "lease_replay_gap",

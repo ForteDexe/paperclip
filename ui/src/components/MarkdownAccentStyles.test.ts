@@ -18,7 +18,7 @@ function cssBlock(selector: string): string {
 
 describe("accent markdown styles", () => {
   it("inherits the current message bubble foreground for prose text, links, and list counters", () => {
-    const block = cssBlock(".paperclip-markdown.paperclip-markdown-on-accent");
+    const block = cssBlock(".outpost-markdown.outpost-markdown-on-accent");
 
     expect(block).toContain("color: inherit");
     expect(block).toContain("--tw-prose-body: currentColor");
@@ -29,18 +29,18 @@ describe("accent markdown styles", () => {
   });
 
   it("keeps ordered-list markers and rendered link variants readable on accent bubbles", () => {
-    expect(cssBlock(".paperclip-markdown.paperclip-markdown-on-accent li::marker")).toContain(
+    expect(cssBlock(".outpost-markdown.outpost-markdown-on-accent li::marker")).toContain(
       "color: currentColor",
     );
-    expect(cssBlock(".paperclip-markdown.paperclip-markdown-on-accent :where(a, a:visited)")).toContain(
+    expect(cssBlock(".outpost-markdown.outpost-markdown-on-accent :where(a, a:visited)")).toContain(
       "color: currentColor",
     );
-    expect(cssBlock(".paperclip-markdown.paperclip-markdown-on-accent .paperclip-workspace-file-link")).toContain(
+    expect(cssBlock(".outpost-markdown.outpost-markdown-on-accent .outpost-workspace-file-link")).toContain(
       "color: currentColor",
     );
     expect(
       cssBlock(
-        ".paperclip-markdown.paperclip-markdown-on-accent :where(a.paperclip-mention-chip, a.paperclip-project-mention-chip)",
+        ".outpost-markdown.outpost-markdown-on-accent :where(a.outpost-mention-chip, a.outpost-project-mention-chip)",
       ),
     ).toContain("color: currentColor !important");
   });

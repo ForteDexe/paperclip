@@ -149,7 +149,7 @@ export async function stageProviderPackLayers(input: {
     ...missing.map(index => ({ name: `${index}.tar.zst`, ...archive.files[index]!.archive })),
     { name: "overlay.tar.zst", ...archive.overlay },
   ];
-  const temporary = await mkdtemp(join(tmpdir(), "paperclip-provider-layers-"));
+  const temporary = await mkdtemp(join(tmpdir(), "outpost-provider-layers-"));
   const bundlePath = join(temporary, "selected.tar.zst");
   const scratch = `${input.targetPath}.upload-${randomUUID()}`;
   const remoteArchive = `${scratch}/selected.tar.zst`;

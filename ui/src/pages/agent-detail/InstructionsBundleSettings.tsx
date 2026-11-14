@@ -28,7 +28,7 @@ const errorMessage = (error: unknown, fallback: string) => (error instanceof Err
 export function InstructionsBundleSettings({
   agentId,
   agentUrlKey,
-  companyId,
+  spaceId,
   mode,
   rootPath,
   entryFile,
@@ -37,7 +37,7 @@ export function InstructionsBundleSettings({
 }: {
   agentId: string;
   agentUrlKey?: string | null;
-  companyId?: string;
+  spaceId?: string;
   mode: "managed" | "external";
   rootPath: string;
   entryFile: string;
@@ -72,7 +72,7 @@ export function InstructionsBundleSettings({
       await agentsApi.updateInstructionsBundle(
         agentId,
         { mode: "external", rootPath: trimmedRoot, entryFile: trimmedEntry, requireExistingEntry: true },
-        companyId,
+        spaceId,
       );
     } catch (error) {
       setLoad({ kind: "error", field: null, message: errorMessage(error, `Couldn’t read ${trimmedEntry} in ${trimmedRoot}.`) });
@@ -86,7 +86,7 @@ export function InstructionsBundleSettings({
   const switchToManaged = async () => {
     setLoad({ kind: "loading" });
     try {
-      await agentsApi.updateInstructionsBundle(agentId, { mode: "managed", rootPath: null, entryFile }, companyId);
+      await agentsApi.updateInstructionsBundle(agentId, { mode: "managed", rootPath: null, entryFile }, spaceId);
       await refresh();
       onSwitched();
       setLoad({ kind: "idle" });

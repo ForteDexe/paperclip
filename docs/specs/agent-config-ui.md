@@ -14,13 +14,13 @@ A plugin environment whose driver declares `supportsTasks` runs agents only thro
 
 The new-agent dialog also retains an external-agent invitation link, with an optional message, one-time onboarding prompt, and clipboard fallback. External agents still require organization-admin approval.
 
-The full configuration page retains the contextual navigation and existing instruction-file editor, skills, tools, permissions, API keys, and revision behavior. **Secrets & variables** groups environment bindings with API secret-access grants. Its page-level Save/Discard actions include editor-local environment drafts. Activity, runs, costs, and budgets link to the company audit views scoped to the agent.
+The full configuration page retains the contextual navigation and existing instruction-file editor, skills, tools, permissions, API keys, and revision behavior. **Secrets & variables** groups environment bindings with API secret-access grants. Its page-level Save/Discard actions include editor-local environment drafts. Activity, runs, costs, and budgets link to the space audit views scoped to the agent.
 
 The sections below are the original design reference; the implementation summary above supersedes their creation-dialog layout.
 
 ## Context
 
-Agents are the employees of a Paperclip company. Each agent has an adapter type (`claude_local`, `codex_local`, `process`, `http`) that determines how it runs, a position in the org chart (who it reports to), a heartbeat policy (how/when it wakes up), and a budget. The UI at `/agents` needs to support creating and configuring agents, viewing their org hierarchy, and inspecting what they've been doing -- their run history, live logs, and accumulated costs.
+Agents are the employees of a Outpost space. Each agent has an adapter type (`claude_local`, `codex_local`, `process`, `http`) that determines how it runs, a position in the org chart (who it reports to), a heartbeat policy (how/when it wakes up), and a budget. The UI at `/agents` needs to support creating and configuring agents, viewing their org hierarchy, and inspecting what they've been doing -- their run history, live logs, and accumulated costs.
 
 This spec covers three surfaces:
 
@@ -32,7 +32,7 @@ This spec covers three surfaces:
 
 ## 1. Agent Creation Dialog
 
-Follows the existing `NewIssueDialog` / `NewProjectDialog` pattern: a `Dialog` component with expand/minimize toggle, company badge breadcrumb, and Cmd+Enter submit.
+Follows the existing `NewIssueDialog` / `NewProjectDialog` pattern: a `Dialog` component with expand/minimize toggle, space badge breadcrumb, and Cmd+Enter submit.
 
 ### Fields
 
@@ -43,7 +43,7 @@ Follows the existing `NewIssueDialog` / `NewProjectDialog` pattern: a `Dialog` c
 | Name | Text input (large, auto-focused) | Yes | -- | e.g. "Alice", "Build Bot" |
 | Title | Text input (subtitle style) | No | -- | e.g. "VP of Engineering" |
 | Role | Chip popover (select) | No | `general` | Values from `AGENT_ROLES`: ceo, cto, cmo, cfo, engineer, designer, pm, qa, devops, researcher, general |
-| Reports To | Chip popover (agent select) | No | -- | Dropdown of existing agents in the company. If this is the first agent, auto-set role to `ceo` and gray out Reports To. Otherwise required unless role is `ceo`. |
+| Reports To | Chip popover (agent select) | No | -- | Dropdown of existing agents in the space. If this is the first agent, auto-set role to `ceo` and gray out Reports To. Otherwise required unless role is `ceo`. |
 | Capabilities | Text input | No | -- | Free-text description of what this agent can do |
 
 **Adapter (collapsible section, default open):**
@@ -107,9 +107,9 @@ Follows the existing `NewIssueDialog` / `NewProjectDialog` pattern: a `Dialog` c
 
 ### Behavior
 
-- On submit, calls `agentsApi.create(companyId, data)` where `data` packs identity fields at the top level and adapter-specific fields into `adapterConfig` and heartbeat/runtime into `runtimeConfig`.
+- On submit, calls `agentsApi.create(spaceId, data)` where `data` packs identity fields at the top level and adapter-specific fields into `adapterConfig` and heartbeat/runtime into `runtimeConfig`.
 - After creation, navigate to the new agent's detail page.
-- If the company has zero agents, pre-fill role as `ceo` and disable Reports To.
+- If the space has zero agents, pre-fill role as `ceo` and disable Reports To.
 - The adapter config section updates its visible fields when adapter type changes, preserving any shared field values (cwd, promptTemplate, etc.).
 
 ---
@@ -231,7 +231,7 @@ Shows a flat list of agents with status badge, name, role, title, and budget bar
 - Tree layout showing reporting hierarchy
 - Each node shows: agent name, role, status badge
 - CEO at the top, direct reports below, etc.
-- Uses the `agentsApi.org(companyId)` endpoint which already returns `OrgNode[]`
+- Uses the `agentsApi.org(spaceId)` endpoint which already returns `OrgNode[]`
 - Clicking a node navigates to agent detail
 
 **List view improvements:**
@@ -273,16 +273,16 @@ All endpoints already exist. No new server work needed for V1.
 
 | Action | Endpoint | Used by |
 |--------|----------|---------|
-| List agents | `GET /companies/:id/agents` | List page |
-| Get org tree | `GET /companies/:id/org` | Org chart view |
-| Create agent | `POST /companies/:id/agents` | Creation dialog |
+| List agents | `GET /spaces/:id/agents` | List page |
+| Get org tree | `GET /spaces/:id/org` | Org chart view |
+| Create agent | `POST /spaces/:id/agents` | Creation dialog |
 | Update agent | `PATCH /agents/:id` | Configuration tab |
 | Pause/Resume/Terminate | `POST /agents/:id/{action}` | Header actions |
 | Reset session | `POST /agents/:id/runtime-state/reset-session` | Overflow menu |
 | Create API key | `POST /agents/:id/keys` | Overflow menu |
 | Get runtime state | `GET /agents/:id/runtime-state` | Overview tab, properties panel |
 | Invoke/Wakeup | `POST /agents/:id/heartbeat/invoke` | Header invoke button |
-| List runs | `GET /companies/:id/heartbeat-runs?agentId=X` | Runs tab |
+| List runs | `GET /spaces/:id/heartbeat-runs?agentId=X` | Runs tab |
 | Cancel run | `POST /heartbeat-runs/:id/cancel` | Run detail |
 | Run events | `GET /heartbeat-runs/:id/events` | Log viewer |
 | Run log | `GET /heartbeat-runs/:id/log` | Full log view |

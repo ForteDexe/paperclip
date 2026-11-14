@@ -24,12 +24,12 @@ it("creates only one bounded uninstalled synthetic source and records no importe
 });
 it("uses the actual canonical source document and factual selection without adding human messages", async () => {
   const calls: Array<{ path: string; body?: unknown }> = []; const source = { id: "source" }; let document: unknown;
-  const ctx = { issue: () => source, refreshIssue: async () => {}, input: { fixtures: { company: { id: "company" }, agent: { id: "ceo" } }, api: {
+  const ctx = { issue: () => source, refreshIssue: async () => {}, input: { fixtures: { space: { id: "space" }, agent: { id: "ceo" } }, api: {
     post: async (path: string) => { calls.push({ path }); }, patch: async (path: string, body: unknown) => { calls.push({ path, body }); },
     putSensitive: async (path: string, body: object) => { document = { ...body, issueId: source.id }; calls.push({ path, body }); }, get: async () => document,
   } } } as unknown as ChatCatalogContext;
   const selected = await saveSkillConversationContext(ctx, { description: "Selected existing skill: skill-id", document: { key: "sample", title: "Sample page", body: "Synthetic actual input" } });
-  expect(calls.map(call => call.path)).toEqual(["/api/companies/company/chats/ceo", "/api/issues/source", "/api/issues/source/documents/sample"]);
+  expect(calls.map(call => call.path)).toEqual(["/api/spaces/space/chats/ceo", "/api/issues/source", "/api/issues/source/documents/sample"]);
   expect(calls.some(call => call.path.includes("/comments"))).toBe(false);
   expect(uploadFactualQueryAttachment).toHaveBeenLastCalledWith(ctx, { filename: "skill-context.md", body: "Selected existing skill: skill-id\n\n# Sample page\n\nSynthetic actual input" });
   expect(selected.factualContextAttachment.id).toBe("factual-upload");
@@ -40,10 +40,10 @@ it("qualifies the genuine immutable GitHub upstream without treating a local fil
   let editable = false;
   const api = { post: vi.fn(async (_path: string, _body: unknown) => ({ source: { lastScanCommit: pins.oldCommit, entries: [{ path: pins.path, skillId: "upstream" }] }, imported: [{ id: "upstream" }] })),
     get: async () => ({ id: "upstream", sourceType: "github", sourceRef: pins.oldCommit, markdown, editable, currentVersionId: "saved-version" }) };
-  const ctx = { input: { fixtures: { company: { id: "company" } }, api } } as unknown as ChatCatalogContext;
+  const ctx = { input: { fixtures: { space: { id: "space" } }, api } } as unknown as ChatCatalogContext;
   expect((await importReadOnlySkill(ctx)).sourceRef).toBe(pins.oldCommit);
   expect(fetch.mock.calls[0]?.[0]).toBe(`https://raw.githubusercontent.com/KreerC/ACCESSIBILITY.md/${pins.oldCommit}/${pins.path}`);
-  expect(api.post.mock.calls[0]).toEqual(["/api/companies/company/skill-sources", { repositoryUrl: pins.repositoryURL, trackingRef: pins.oldCommit, commitSha: pins.oldCommit, selectedPaths: [pins.path], excludedFolders: [] }]);
+  expect(api.post.mock.calls[0]).toEqual(["/api/spaces/space/skill-sources", { repositoryUrl: pins.repositoryURL, trackingRef: pins.oldCommit, commitSha: pins.oldCommit, selectedPaths: [pins.path], excludedFolders: [] }]);
   editable = true;
   await expect(importReadOnlySkill(ctx)).rejects.toThrow("Actual read-only checklist identity/content/version was not established");
 });

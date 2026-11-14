@@ -8,7 +8,7 @@ const removal = vi.hoisted(() => ({ failures: 0 }));
 vi.mock("node:fs/promises", async importOriginal => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
   return { ...actual, rm: async (...args: Parameters<typeof actual.rm>) => {
-    if (removal.failures && String(args[0]).split("/").at(-1)?.startsWith("paperclip-google-recovery-")) {
+    if (removal.failures && String(args[0]).split("/").at(-1)?.startsWith("outpost-google-recovery-")) {
       removal.failures -= 1;
       await actual.rm(join(String(args[0]), "antigravity-acp", "acp_token.json"), { force: true });
       throw new Error("fixture partial home removal");
@@ -35,7 +35,7 @@ afterEach(async () => {
 
 describe("retired Google verification ownership", () => {
   it("retries partial home removal without reusing an already handed-off token", async () => {
-    const scope = { companyId: randomUUID(), accountKey: randomUUID() };
+    const scope = { spaceId: randomUUID(), accountKey: randomUUID() };
     const persistVerified = vi.fn().mockResolvedValue(undefined);
     const request = vi.fn().mockResolvedValueOnce(Response.json({ access_token: "fixture-access", refresh_token: "fixture-latest" }))
       .mockResolvedValueOnce(Response.json({ email_verified: true, email: "alice@example.test" }));
@@ -50,7 +50,7 @@ describe("retired Google verification ownership", () => {
     await expect(access(homes.at(-1)!)).rejects.toMatchObject({ code: "ENOENT" });
   });
   it("keeps the newest rotated token until verified encrypted replacement succeeds", async () => {
-    const scope = { companyId: randomUUID(), accountKey: randomUUID() };
+    const scope = { spaceId: randomUUID(), accountKey: randomUUID() };
     const persistVerified = vi.fn().mockRejectedValueOnce(new Error("fixture encrypted replacement unavailable")).mockResolvedValue(undefined);
     const request = vi.fn()
       .mockResolvedValueOnce(Response.json({ access_token: "fixture-access", refresh_token: "fixture-latest" }))

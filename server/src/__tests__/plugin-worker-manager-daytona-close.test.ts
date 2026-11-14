@@ -11,7 +11,7 @@ const providerRoot = path.join(repoRoot, "packages/plugins/sandbox-providers/day
 const pluginId = "fixture-daytona-provider";
 
 it.each(["release", "cancel", "stop", "destroy", "resume", "stalled-close"] as const)("preserves worker ownership after %s of a bound duplex channel", async mode => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "paperclip-daytona-worker-close-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "outpost-daytona-worker-close-"));
   const journal = path.join(root, "provider.jsonl"), savedFile = path.join(root, "saved.txt");
   const workerFile = path.join(root, "worker.mjs");
   const manager = createPluginWorkerManager();
@@ -47,13 +47,13 @@ it.each(["release", "cancel", "stop", "destroy", "resume", "stalled-close"] as c
     });
     const pid = worker.diagnostics().pid;
     const exited = new Promise<void>(resolve => worker.on("exit", () => resolve()));
-    const base = { driverKey: "daytona", companyId: "fixture-company", environmentId: "fixture-environment",
+    const base = { driverKey: "daytona", spaceId: "fixture-space", environmentId: "fixture-environment",
       config: { apiKey: "fixture-not-a-credential", image: "fixture-image", timeoutMs: 2_000, livenessTimeoutMs: 250, reuseLease: true } };
     const acquisition = { ...base, agentId: "fixture-agent", executionWorkspaceId: "fixture-workspace" };
     const first = await manager.call(pluginId, "environmentAcquireLease", { ...acquisition, runId: "fixture-first-run" });
     const next = await manager.call(pluginId, "environmentAcquireLease", { ...acquisition, runId: "fixture-next-run" });
     const channel = await worker.openDuplexChannel({
-      driverKey: base.driverKey, companyId: base.companyId, environmentId: base.environmentId,
+      driverKey: base.driverKey, spaceId: base.spaceId, environmentId: base.environmentId,
       providerLeaseId: first.providerLeaseId!, command: ["fixture-bridge"],
     });
     const teardown = { ...base, providerLeaseId: first.providerLeaseId! };

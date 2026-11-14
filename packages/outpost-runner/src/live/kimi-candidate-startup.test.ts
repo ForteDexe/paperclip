@@ -7,7 +7,7 @@ import { KIMI_DISTRIBUTION_CLOSURE_SHA256 } from "../drivers/acpx/kimi-closure-p
 import { QUALIFIED_ACPX_PROFILES, resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.js";
 import { createRunnerdCodexTransport } from "./runnerd-codex-transport.js";
 
-const candidate = (remote = false): AcpxCandidateAdmission => ({ schema: "outpost.acpx-candidate-admission.v1", companyId: "company-kimi", agent: "kimi", model: "kimi-for-coding",
+const candidate = (remote = false): AcpxCandidateAdmission => ({ schema: "outpost.acpx-candidate-admission.v1", spaceId: "space-kimi", agent: "kimi", model: "kimi-for-coding",
   profileDigest: resolveQualifiedAcpxProfile("kimi", "kimi-for-coding").commandDigest,
   nativeClosureDigest: `sha256:${KIMI_DISTRIBUTION_CLOSURE_SHA256[remote ? "linux-x64" : "darwin-arm64"]}`,
   platform: remote ? "linux" : "darwin", architecture: remote ? "x64" : "arm64", expiresAt: Date.now() + 60_000 });

@@ -24,11 +24,11 @@ OPENCLAW_METHOD="${OPENCLAW_METHOD:-POST}"
 OPENCLAW_AUTH_HEADER="${OPENCLAW_AUTH_HEADER:-}"
 OPENCLAW_TIMEOUT_SEC="${OPENCLAW_TIMEOUT_SEC:-180}"
 OPENCLAW_MODEL="${OPENCLAW_MODEL:-openclaw}"
-OPENCLAW_USER="${OPENCLAW_USER:-paperclip-smoke}"
+OPENCLAW_USER="${OPENCLAW_USER:-outpost-smoke}"
 
 OUTPOST_RUN_ID="${OUTPOST_RUN_ID:-smoke-run-$(date +%s)}"
 OUTPOST_AGENT_ID="${OUTPOST_AGENT_ID:-openclaw-smoke-agent}"
-OUTPOST_COMPANY_ID="${OUTPOST_COMPANY_ID:-openclaw-smoke-company}"
+OUTPOST_SPACE_ID="${OUTPOST_SPACE_ID:-openclaw-smoke-space}"
 OUTPOST_API_URL="${OUTPOST_API_URL:-http://localhost:3100}"
 OUTPOST_TASK_ID="${OUTPOST_TASK_ID:-openclaw-smoke-task}"
 OUTPOST_WAKE_REASON="${OUTPOST_WAKE_REASON:-openclaw_smoke_test}"
@@ -45,7 +45,7 @@ ${OPENCLAW_TEXT_PREFIX}
 
 OUTPOST_RUN_ID=${OUTPOST_RUN_ID}
 OUTPOST_AGENT_ID=${OUTPOST_AGENT_ID}
-OUTPOST_COMPANY_ID=${OUTPOST_COMPANY_ID}
+OUTPOST_SPACE_ID=${OUTPOST_SPACE_ID}
 OUTPOST_API_URL=${OUTPOST_API_URL}
 OUTPOST_TASK_ID=${OUTPOST_TASK_ID}
 OUTPOST_WAKE_REASON=${OUTPOST_WAKE_REASON}
@@ -54,7 +54,7 @@ OUTPOST_APPROVAL_ID=${OUTPOST_APPROVAL_ID}
 OUTPOST_APPROVAL_STATUS=${OUTPOST_APPROVAL_STATUS}
 OUTPOST_LINKED_ISSUE_IDS=${OUTPOST_LINKED_ISSUE_IDS}
 
-Run your Paperclip heartbeat procedure now.
+Run your Outpost heartbeat procedure now.
 EOF
 
 PAYLOAD="$(jq -nc \
@@ -63,7 +63,7 @@ PAYLOAD="$(jq -nc \
   --arg user "$OPENCLAW_USER" \
   --arg runId "$OUTPOST_RUN_ID" \
   --arg agentId "$OUTPOST_AGENT_ID" \
-  --arg companyId "$OUTPOST_COMPANY_ID" \
+  --arg spaceId "$OUTPOST_SPACE_ID" \
   --arg apiUrl "$OUTPOST_API_URL" \
   --arg taskId "$OUTPOST_TASK_ID" \
   --arg wakeReason "$OUTPOST_WAKE_REASON" \
@@ -79,7 +79,7 @@ PAYLOAD="$(jq -nc \
     metadata: {
       OUTPOST_RUN_ID: $runId,
       OUTPOST_AGENT_ID: $agentId,
-      OUTPOST_COMPANY_ID: $companyId,
+      OUTPOST_SPACE_ID: $spaceId,
       OUTPOST_API_URL: $apiUrl,
       OUTPOST_TASK_ID: $taskId,
       OUTPOST_WAKE_REASON: $wakeReason,
@@ -87,7 +87,7 @@ PAYLOAD="$(jq -nc \
       OUTPOST_APPROVAL_ID: $approvalId,
       OUTPOST_APPROVAL_STATUS: $approvalStatus,
       OUTPOST_LINKED_ISSUE_IDS: $linkedIssueIds,
-      paperclip_session_key: ("paperclip:run:" + $runId)
+      outpost_session_key: ("outpost:run:" + $runId)
     }
   }')"
 
@@ -105,7 +105,7 @@ args=(
   -X "$OPENCLAW_METHOD"
   -H "content-type: application/json"
   -H "accept: text/event-stream"
-  -H "x-openclaw-session-key: paperclip:run:${OUTPOST_RUN_ID}"
+  -H "x-openclaw-session-key: outpost:run:${OUTPOST_RUN_ID}"
   -D "$headers_file"
   -o "$body_file"
   --data "$PAYLOAD"

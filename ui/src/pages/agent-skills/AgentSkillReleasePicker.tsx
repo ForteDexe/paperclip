@@ -1,4 +1,4 @@
-import type { CompanySkillVersionSummary } from "@outpost/shared";
+import type { SpaceSkillVersionSummary } from "@outpost/shared";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -18,7 +18,7 @@ const DEFAULT_LABEL = "Default — current (recommended)";
  * v7-roster manifest entry) render verbatim; full timestamps collapse to their
  * local calendar day so the picker reads `released 2026-07-21`.
  */
-export function formatReleaseDate(value: CompanySkillVersionSummary["releasedAt"]): string | null {
+export function formatReleaseDate(value: SpaceSkillVersionSummary["releasedAt"]): string | null {
   if (!value) return null;
   const raw = typeof value === "string" ? value : value.toISOString();
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
@@ -31,25 +31,25 @@ export function formatReleaseDate(value: CompanySkillVersionSummary["releasedAt"
 }
 
 /** Release display name, e.g. `V7 — Roster champion` (no date). */
-export function releaseName(release: CompanySkillVersionSummary): string {
+export function releaseName(release: SpaceSkillVersionSummary): string {
   return release.releaseName ?? release.label ?? release.releaseId ?? "Release";
 }
 
 /** Full option label, e.g. `V7 — Roster champion · released 2026-07-21`. */
-export function releaseOptionLabel(release: CompanySkillVersionSummary): string {
+export function releaseOptionLabel(release: SpaceSkillVersionSummary): string {
   const name = releaseName(release);
   const date = formatReleaseDate(release.releasedAt);
   return date ? `${name} · released ${date}` : name;
 }
 
 /** Compact badge label for a pinned release, e.g. `V7`. */
-export function releaseShortLabel(release: CompanySkillVersionSummary): string {
+export function releaseShortLabel(release: SpaceSkillVersionSummary): string {
   const name = release.releaseName ?? release.label ?? release.releaseId ?? "Release";
   return name.split(" — ")[0]!.trim();
 }
 
 export interface AgentSkillReleasePickerProps {
-  releases: CompanySkillVersionSummary[];
+  releases: SpaceSkillVersionSummary[];
   /** Currently pinned version id, or null for the live default. */
   value: string | null;
   disabled?: boolean;
@@ -57,7 +57,7 @@ export interface AgentSkillReleasePickerProps {
 }
 
 /**
- * Release picker for the paperclip core skill. Only rendered when the
+ * Release picker for the outpost core skill. Only rendered when the
  * `enableBetaSkills` experimental flag is on and the skill has seeded releases.
  * Selecting a release pins the agent to that frozen snapshot; "Default" clears
  * the pin and returns the agent to the live skill.

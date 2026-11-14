@@ -11,7 +11,7 @@ type Person = Awaited<ReturnType<typeof createAuthenticatedPerson>>;
 const observers = new WeakMap<ChatCatalogContext, Person>();
 /** Unauthenticated (non-session credential) and forbidden are both denials of the human-only profile route. */
 const AGENT_DENIED: readonly number[] = [401, 403];
-const PROFILE_EDITOR_PATH = "/company/settings/instance/profile";
+const PROFILE_EDITOR_PATH = "/space/settings/instance/profile";
 export function isProfileEditorLink(href: string, origin: string, prefix: string): boolean {
   try {
     const url = new URL(href, origin);
@@ -20,33 +20,33 @@ export function isProfileEditorLink(href: string, origin: string, prefix: string
 }
 export function gradeProfile(value: unknown) {
   const c = checks(); const o = identityObservation(value);
-  c.add("real-person-profile-evidence", !!o && o.state.authenticated === true && typeof o.state.personId === "string" && o.state.personId !== "local-board",
+  c.add("real-person-profile-evidence", !!o && o.state.authenticated === true && typeof o.state.personId === "string" && o.state.personId !== "local-operator",
     "The result belongs to a real authenticated person and an independently enrolled second user.");
   if (!o) return c.result();
   c.add("agent-cannot-impersonate", o.state.beforeHumanName === "Alex Former" && AGENT_DENIED.includes(o.state.agentWriteStatus as number),
     "An agent credential is denied the personal profile write, and the old name remains after the reply until the human acts.");
-  c.add("agent-links-profile-editor", typeof o.state.companyPrefix === "string" && o.links.some(href => isProfileEditorLink(href, o.origin, o.state.companyPrefix as string))
+  c.add("agent-links-profile-editor", typeof o.state.spacePrefix === "string" && o.links.some(href => isProfileEditorLink(href, o.origin, o.state.spacePrefix as string))
     && o.state.followedProfileLink === true, "The reply links the person's own profile editor, and the person reaches the editor by following that rendered link.");
   c.add("same-user-profile-persisted", o.state.afterUserId === o.state.personId && o.state.afterName === "Alex Chen" && o.state.profileAfterReload === "Alex Chen"
     && o.state.accountFooterVisible === true, "The visible personal form saves Alex Chen on the same human ID and the account footer updates after reload.");
-  c.add("other-identities-preserved", o.company.name === o.state.companyName && o.agents.find(row => row.id === o.leadId)?.name === o.state.agentName
+  c.add("other-identities-preserved", o.space.name === o.state.spaceName && o.agents.find(row => row.id === o.leadId)?.name === o.state.agentName
     && o.state.observerNameBefore === o.state.observerNameAfter && o.state.observerId !== o.state.personId,
-    "The CEO, company and separate real Riley retain their original identities.");
+    "The CEO, space and separate real Riley retain their original identities.");
   return c.result();
 }
 export const profileIdentityCases: readonly ChatCatalogCase[] = [identityDefinition("navigation-preferences.edit-profile", async ctx => {
   const health = await ctx.input.api.get<{ deploymentMode: string }>("/api/health");
   const session = await ctx.input.api.get<Session>("/api/auth/get-session"); const browser = ctx.input.page.context().browser();
-  if (health.deploymentMode !== "authenticated" || !browser || !ctx.input.privateSecrets || session.user.id === "local-board") throw new Error("Profile journey requires actual authenticated human identities");
+  if (health.deploymentMode !== "authenticated" || !browser || !ctx.input.privateSecrets || session.user.id === "local-operator") throw new Error("Profile journey requires actual authenticated human identities");
   const observer = await createAuthenticatedPerson({ api: ctx.input.api, browser, secrets: ctx.input.privateSecrets, name: "Riley" });
   observers.set(ctx, observer);
   try {
     await enrollPrerequisitePerson(ctx, observer);
     await updateOwnProfile(ctx, "Alex Former");
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
-    const company = await ctx.input.api.get<{ name: string }>(`/api/companies/${ctx.input.fixtures.company.id}`);
-    return { authenticated: true, companyPrefix: ctx.input.fixtures.company.issuePrefix, personId: session.user.id, originalName: session.user.name, observerId: observer.id,
-      observerNameBefore: observer.name, companyName: company.name, agentName: ctx.input.fixtures.agent.name };
+    const space = await ctx.input.api.get<{ name: string }>(`/api/spaces/${ctx.input.fixtures.space.id}`);
+    return { authenticated: true, spacePrefix: ctx.input.fixtures.space.issuePrefix, personId: session.user.id, originalName: session.user.name, observerId: observer.id,
+      observerNameBefore: observer.name, spaceName: space.name, agentName: ctx.input.fixtures.agent.name };
   } catch (error) { await observer.dispose(); observers.delete(ctx); throw error; }
 }, gradeProfile, {
   authentication: "human-session",
@@ -63,7 +63,7 @@ export const profileIdentityCases: readonly ChatCatalogCase[] = [identityDefinit
     const rendered = ctx.input.page.locator(`[id^="comment-"] a[href$="${PROFILE_EDITOR_PATH}"]`).first();
     state.followedProfileLink = await rendered.count() > 0;
     if (state.followedProfileLink) await rendered.click();
-    else await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}${PROFILE_EDITOR_PATH}`, { waitUntil: "domcontentloaded" });
+    else await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}${PROFILE_EDITOR_PATH}`, { waitUntil: "domcontentloaded" });
     await expect(ctx.input.page).toHaveURL(new RegExp(`${PROFILE_EDITOR_PATH}$`));
     await expect(ctx.input.page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
     await ctx.input.page.getByLabel("Display name", { exact: true }).fill("Alex Chen");

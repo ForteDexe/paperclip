@@ -10,7 +10,7 @@ import { storybookButtonUsage } from "../../../scripts/storybook-button-usage.mj
 generateStorybook();
 
 const storybookConfigDir = path.dirname(fileURLToPath(import.meta.url));
-const paperclipInstanceOrigin = (() => {
+const outpostInstanceOrigin = (() => {
   try {
     const url = new URL(process.env.OUTPOST_STORYBOOK_API_URL ?? "");
     return url.protocol === "http:" || url.protocol === "https:" ? url.origin : "";
@@ -33,7 +33,7 @@ const config: StorybookConfig = {
   viteFinal: async (baseConfig) =>
     mergeConfig(baseConfig, {
       define: {
-        "import.meta.env.VITE_OUTPOST_INSTANCE_URL": JSON.stringify(paperclipInstanceOrigin),
+        "import.meta.env.VITE_OUTPOST_INSTANCE_URL": JSON.stringify(outpostInstanceOrigin),
       },
       plugins: [tailwindcss(), storybookAgentAvatarAssets(), storybookButtonUsage()],
       server: { proxy: { "/api/agent-avatars": { target: process.env.OUTPOST_STORYBOOK_API_URL ?? "http://localhost:3100", changeOrigin: true } } },

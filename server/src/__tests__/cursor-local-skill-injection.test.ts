@@ -20,13 +20,13 @@ describe("cursor local adapter skill injection", () => {
     cleanupDirs.clear();
   });
 
-  it("links missing Paperclip skills into Cursor skills home", async () => {
-    const skillsDir = await makeTempDir("paperclip-cursor-skills-src-");
-    const skillsHome = await makeTempDir("paperclip-cursor-skills-home-");
+  it("links missing Outpost skills into Cursor skills home", async () => {
+    const skillsDir = await makeTempDir("outpost-cursor-skills-src-");
+    const skillsHome = await makeTempDir("outpost-cursor-skills-home-");
     cleanupDirs.add(skillsDir);
     cleanupDirs.add(skillsHome);
 
-    await createSkillDir(skillsDir, "paperclip");
+    await createSkillDir(skillsDir, "outpost");
     await createSkillDir(skillsDir, "outpost-delegation");
     await fs.writeFile(path.join(skillsDir, "README.txt"), "ignore", "utf8");
 
@@ -38,28 +38,28 @@ describe("cursor local adapter skill injection", () => {
       { skillsDir, skillsHome },
     );
 
-    const injectedA = path.join(skillsHome, "paperclip");
+    const injectedA = path.join(skillsHome, "outpost");
     const injectedB = path.join(skillsHome, "outpost-delegation");
     expect((await fs.lstat(injectedA)).isSymbolicLink()).toBe(true);
     expect((await fs.lstat(injectedB)).isSymbolicLink()).toBe(true);
-    expect(await fs.realpath(injectedA)).toBe(await fs.realpath(path.join(skillsDir, "paperclip")));
+    expect(await fs.realpath(injectedA)).toBe(await fs.realpath(path.join(skillsDir, "outpost")));
     expect(await fs.realpath(injectedB)).toBe(
       await fs.realpath(path.join(skillsDir, "outpost-delegation")),
     );
-    expect(logs.some((line) => line.includes('Injected Cursor skill "paperclip"'))).toBe(true);
+    expect(logs.some((line) => line.includes('Injected Cursor skill "outpost"'))).toBe(true);
     expect(logs.some((line) => line.includes('Injected Cursor skill "outpost-delegation"'))).toBe(true);
   });
 
   it("preserves existing targets and only links missing skills", async () => {
-    const skillsDir = await makeTempDir("paperclip-cursor-preserve-src-");
-    const skillsHome = await makeTempDir("paperclip-cursor-preserve-home-");
+    const skillsDir = await makeTempDir("outpost-cursor-preserve-src-");
+    const skillsHome = await makeTempDir("outpost-cursor-preserve-home-");
     cleanupDirs.add(skillsDir);
     cleanupDirs.add(skillsHome);
 
-    await createSkillDir(skillsDir, "paperclip");
+    await createSkillDir(skillsDir, "outpost");
     await createSkillDir(skillsDir, "outpost-delegation");
 
-    const existingTarget = path.join(skillsHome, "paperclip");
+    const existingTarget = path.join(skillsHome, "outpost");
     await fs.mkdir(existingTarget, { recursive: true });
     await fs.writeFile(path.join(existingTarget, "keep.txt"), "keep", "utf8");
 
@@ -71,8 +71,8 @@ describe("cursor local adapter skill injection", () => {
   });
 
   it("logs per-skill link failures and continues without throwing", async () => {
-    const skillsDir = await makeTempDir("paperclip-cursor-fail-src-");
-    const skillsHome = await makeTempDir("paperclip-cursor-fail-home-");
+    const skillsDir = await makeTempDir("outpost-cursor-fail-src-");
+    const skillsHome = await makeTempDir("outpost-cursor-fail-home-");
     cleanupDirs.add(skillsDir);
     cleanupDirs.add(skillsHome);
 

@@ -1,6 +1,6 @@
 # Plugin Authoring Guide
 
-This guide describes the current, implemented way to create a Paperclip plugin in this repo.
+This guide describes the current, implemented way to create a Outpost plugin in this repo.
 
 It is intentionally narrower than [PLUGIN_SPEC.md](./PLUGIN_SPEC.md). The spec includes future ideas; this guide only covers the alpha surface that exists now.
 
@@ -9,7 +9,7 @@ It is intentionally narrower than [PLUGIN_SPEC.md](./PLUGIN_SPEC.md). The spec i
 ## Current reality
 
 - Treat plugin workers and plugin UI as trusted code.
-- Plugin UI runs as same-origin JavaScript inside the main Paperclip app.
+- Plugin UI runs as same-origin JavaScript inside the main Outpost app.
 - Worker-side host APIs are capability-gated.
 - Plugin UI is not sandboxed by manifest capabilities.
 - External object reference providers are trusted-install only in the MVP.
@@ -21,7 +21,7 @@ It is intentionally narrower than [PLUGIN_SPEC.md](./PLUGIN_SPEC.md). The spec i
 - Plugin-owned JSON API routes must be declared in the manifest and are mounted
   only under `/api/plugins/:pluginId/api/*`.
 - The host provides a small shared React component kit through
-  `@outpost/plugin-sdk/ui`; use it for common Paperclip controls before
+  `@outpost/plugin-sdk/ui`; use it for common Outpost controls before
   building custom versions.
 - `ctx.assets` is not supported in the current runtime.
 
@@ -84,7 +84,7 @@ export default definePlugin({
 ```
 
 `reconcileResources` above is plugin-owned provider code, not an SDK function.
-Use `companyId` and `agentId` from the request to scope resources.
+Use `spaceId` and `agentId` from the request to scope resources.
 Request `agents.read` separately if the handler needs `ctx.agents.get`.
 Lifecycle authority does not grant agent configuration writes or secret access.
 
@@ -103,11 +103,11 @@ Throw on failure. The host records a fixed error without provider error text.
 The agent page shows the phase and offers Retry for failed work.
 
 Calls can repeat, including after a timeout or restart. Retain the highest
-version per company and agent, reject older requests, and serialize external
+version per space and agent, reject older requests, and serialize external
 effects or clean up late results. The host's revision fence protects its state;
 it cannot cancel a provider request that has already left the process.
 
-The host saves required plugin IDs at first selection. Company-disabled plugins
+The host saves required plugin IDs at first selection. Space-disabled plugins
 are excluded then. Disabling or removing a selected plugin blocks progress;
 restore it to complete the step. Later installations do not backfill existing
 agents. The durable event inbox below is separate: acknowledging an event does
@@ -121,18 +121,18 @@ manifest, with `events.subscribe`, and implement `onResourceLifecycle(event)`:
 
 ```ts
 async onResourceLifecycle(event) {
-  const config = await ctx.config.get(event.companyId);
+  const config = await ctx.config.get(event.spaceId);
   if (!config.provider) return { eventId: event.id, status: "deferred" };
   const finished = await reconcileCurrentResource(event);
   return { eventId: event.id, status: finished ? "acknowledged" : "retry" };
 }
 ```
 
-Core delivers events to ready plugins with a configuration row for that company,
+Core delivers events to ready plugins with a configuration row for that space,
 unless the plugin is disabled there. A workspace storage provider receives project
 events only for projects attached to it, plus events for deleted projects. Each
-invocation has the event's company scope. The dispatcher wakes after the mutation's outer transaction settles,
-on host startup, plugin activation/worker start, and company configuration or
+invocation has the event's space scope. The dispatcher wakes after the mutation's outer transaction settles,
+on host startup, plugin activation/worker start, and space configuration or
 enablement changes. Successful worker `onConfigChanged` completion wakes delivery
 again, so a callback that deferred while configuration was still applying is
 revisited. Failed scans retain pending work through idle drain. Empty and deferred
@@ -144,7 +144,7 @@ do not bypass that event's delay; a host restart may replay it immediately.
 a retry deadline, useful while waiting for operator configuration. A later wake
 revisits deferred events. Acknowledgment immediately exposes subsequent work.
 
-Events contain `id`, `companyId`, `resourceType`, `resourceId`, `action`, and
+Events contain `id`, `spaceId`, `resourceType`, `resourceId`, `action`, and
 `createdAt`. Agent actions are `create`, `pause`, `resume`, and `terminate`;
 project actions are `create`, `update`, `archive`, and `delete`. Pending hires
 produce creation after approval. Project updates include repository/workspace
@@ -173,8 +173,8 @@ queues. Startup replays committed work. Independent database writers and separat
 active server processes need an explicit ownership/wake protocol; see
 [database work signals](../DATABASE.md#transaction-aware-delivery-work-signals).
 
-The existing `ctx.events.listLifecycle(companyId, limit?, afterId?)` and
-`acknowledgeLifecycle(companyId, eventId)` remain available for manual consumers.
+The existing `ctx.events.listLifecycle(spaceId, limit?, afterId?)` and
+`acknowledgeLifecycle(spaceId, eventId)` remain available for manual consumers.
 Do not mix automatic and manual acknowledgment for the same resources. Reads
 return one pending event per resource (default 50, maximum 100). `afterId` is a
 page cursor, never a durable high-water mark: restart pagination to revisit
@@ -201,7 +201,7 @@ objectReferences: [
 Implement `onDetectExternalObjects()` in the worker to recognize sanitized URL
 candidates and return provider-stable identities. Implement
 `onResolveExternalObject()` to return normalized board-safe status metadata.
-Paperclip owns inline markdown rendering; plugins must not return React, HTML,
+Outpost owns inline markdown rendering; plugins must not return React, HTML,
 or `dangerouslySetInnerHTML` content for inline references.
 
 ## Scaffold a plugin
@@ -209,7 +209,7 @@ or `dangerouslySetInnerHTML` content for inline references.
 Use the CLI scaffold command:
 
 ```bash
-paperclipai plugin init @yourscope/plugin-name --output /absolute/path/to/plugin-repos
+outpost plugin init @yourscope/plugin-name --output /absolute/path/to/plugin-repos
 ```
 
 That creates `<output>/plugin-name/` with:
@@ -223,11 +223,11 @@ That creates `<output>/plugin-name/` with:
 
 Inside this monorepo, the scaffold uses `workspace:*` for `@outpost/plugin-sdk`.
 
-Outside this monorepo, the scaffold snapshots `@outpost/plugin-sdk` from the local Paperclip checkout into a `.paperclip-sdk/` tarball so you can build and test a plugin without publishing anything to npm first. Pass `--sdk-path /absolute/path/to/paperclip/packages/plugins/sdk` if you have more than one Paperclip checkout.
+Outside this monorepo, the scaffold snapshots `@outpost/plugin-sdk` from the local Outpost checkout into a `.outpost-sdk/` tarball so you can build and test a plugin without publishing anything to npm first. Pass `--sdk-path /absolute/path/to/outpost/packages/plugins/sdk` if you have more than one Outpost checkout.
 
 ## Local development workflow
 
-See the short [Local Plugin Development guide](./LOCAL_PLUGIN_DEVELOPMENT.md) for the full happy path (`pnpm dev` → `paperclipai plugin install <absolute-path>` → `paperclipai plugin list`) and reload semantics.
+See the short [Local Plugin Development guide](./LOCAL_PLUGIN_DEVELOPMENT.md) for the full happy path (`pnpm dev` → `outpost plugin install <absolute-path>` → `outpost plugin list`) and reload semantics.
 
 Minimum verification from the generated plugin folder:
 
@@ -277,7 +277,7 @@ Worker:
 - scoped JSON API routes declared with `apiRoutes`
 - entities
 - projects, project workspaces, and plugin-managed projects
-- companies
+- spaces
 - issues, comments, namespaced `plugin:<pluginKey>` origins, blocker relations, checkout assertions, assignment wakeups, and orchestration summaries
 - agents, plugin-managed agents, and agent sessions
 - plugin-managed routines
@@ -326,26 +326,26 @@ apiRoutes: [
     auth: "board-or-agent",
     capability: "api.routes.register",
     checkoutPolicy: "required-for-agent-in-progress",
-    companyResolution: { from: "issue", param: "issueId" },
+    spaceResolution: { from: "issue", param: "issueId" },
   },
 ]
 ```
 
 The host resolves the plugin, checks that it is ready, enforces
-`api.routes.register`, matches the declared method/path, resolves company access,
+`api.routes.register`, matches the declared method/path, resolves space access,
 and applies checkout policy before dispatching to the worker's `onApiRequest`
 handler. The worker receives sanitized headers, route params, query, parsed JSON
-body, actor context, and company id. Do not use plugin routes to claim core
+body, actor context, and space id. Do not use plugin routes to claim core
 paths; they always remain under `/api/plugins/:pluginId/api/*`.
 
-## Managed Paperclip resources
+## Managed Outpost resources
 
-Plugins that provide durable Paperclip business objects should declare them in
-the manifest and let the host create or relink the actual records per company.
+Plugins that provide durable Outpost business objects should declare them in
+the manifest and let the host create or relink the actual records per space.
 Do this for plugin-owned agents, projects, routines, and skills.
 Do not hide long-lived work behind private plugin state when it should be visible
-to the board, scoped to a company, audited, budgeted, and assigned like normal
-Paperclip work.
+to the board, scoped to a space, audited, budgeted, and assigned like normal
+Outpost work.
 
 Content-oriented plugins, such as LLM Wiki-style ingestion or durable knowledge
 systems, should use the same pattern: managed projects for operation issues,
@@ -357,26 +357,26 @@ Use these surfaces:
 - Managed agents: declare top-level `agents[]` and require
   `agents.managed`. Use this when the plugin provides a named worker the board
   should see in the org, budget, pause, invoke, and inspect. Managed agents are
-  normal Paperclip agents with plugin ownership metadata, not background plugin
+  normal Outpost agents with plugin ownership metadata, not background plugin
   workers.
 - Managed projects: declare top-level `projects[]` and require
-  `projects.managed`. Use this when the plugin needs a stable company-scoped
+  `projects.managed`. Use this when the plugin needs a stable space-scoped
   project for its issues, routines, or workspace-oriented UI. Keep plugin work
   in a project instead of scattering generated issues across unrelated projects.
 - Managed routines: declare top-level `routines[]` and require
   `routines.managed`. Use this for scheduled, webhook, or manually triggered
-  jobs that should create visible Paperclip issues. Prefer managed routines over
+  jobs that should create visible Outpost issues. Prefer managed routines over
   plugin `jobs[]` for recurring business work; plugin jobs are for plugin
   runtime maintenance that does not need a board-visible task trail.
 - Managed skills: declare top-level `skills[]` and require `skills.managed`.
   Use this for reusable plugin capabilities that should be surfaced to operators and
-  synced into Paperclip managed agents.
+  synced into Outpost managed agents.
 
 Managed resources are resolved by stable plugin keys, not hardcoded database
 ids. In a worker action or data handler, call `ctx.agents.managed.reconcile()`,
 `ctx.projects.managed.reconcile()`, `ctx.routines.managed.reconcile()`, and
 `ctx.skills.managed.reconcile()` for
-the current `companyId`. `reconcile()` creates the missing resource, relinks a
+the current `spaceId`. `reconcile()` creates the missing resource, relinks a
 recoverable binding, or returns the existing resource. `reset()` reapplies the
 manifest defaults when the operator wants to restore the plugin's suggested
 configuration.
@@ -388,9 +388,9 @@ routine; if a ref is still missing, the routine resolution reports
 `missing_refs` instead of guessing.
 
 ```ts
-import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
+import type { OutpostPluginManifestV1 } from "@outpost/plugin-sdk";
 
-const manifest: PaperclipPluginManifestV1 = {
+const manifest: OutpostPluginManifestV1 = {
   id: "example.research-plugin",
   apiVersion: 1,
   version: "0.1.0",
@@ -415,10 +415,10 @@ const manifest: PaperclipPluginManifestV1 = {
       displayName: "Researcher",
       role: "research",
       title: "Research Agent",
-      capabilities: "Runs recurring research briefs for this company.",
+      capabilities: "Runs recurring research briefs for this space.",
       adapterPreference: ["codex_local", "claude_local", "process"],
       instructions: {
-        content: "Follow the Paperclip heartbeat and produce concise research briefs.",
+        content: "Follow the Outpost heartbeat and produce concise research briefs.",
       },
     },
   ],
@@ -472,21 +472,21 @@ export default manifest;
 ```
 
 In the worker, expose a small setup action or settings-page action that
-reconciles the resources for the selected company:
+reconciles the resources for the selected space:
 
 ```ts
 import { definePlugin } from "@outpost/plugin-sdk";
 
 export default definePlugin({
   setup(ctx) {
-    ctx.actions.register("setup-company", async (params) => {
-      const companyId = String(params.companyId ?? "");
-      if (!companyId) throw new Error("companyId is required");
+    ctx.actions.register("setup-space", async (params) => {
+      const spaceId = String(params.spaceId ?? "");
+      if (!spaceId) throw new Error("spaceId is required");
 
-      const project = await ctx.projects.managed.reconcile("research", companyId);
-      const agent = await ctx.agents.managed.reconcile("researcher", companyId);
-      const routine = await ctx.routines.managed.reconcile("weekly-brief", companyId);
-      const skill = await ctx.skills.managed.reconcile("weekly-brief-skills", companyId);
+      const project = await ctx.projects.managed.reconcile("research", spaceId);
+      const agent = await ctx.agents.managed.reconcile("researcher", spaceId);
+      const routine = await ctx.routines.managed.reconcile("weekly-brief", spaceId);
+      const skill = await ctx.skills.managed.reconcile("weekly-brief-skills", spaceId);
 
       return { project, agent, routine, skill };
     });
@@ -504,7 +504,7 @@ Authoring rules:
   the operator or resolved from `ctx.agents.managed`.
 - Use managed routines for recurring or externally triggered work that should
   produce tasks. Schedule, webhook, and API triggers are visible routine
-  triggers, and each run has the normal Paperclip issue/audit trail.
+  triggers, and each run has the normal Outpost issue/audit trail.
 - Use managed skills for reusable operator-visible capabilities that are shared
   by managed agents. Reconcile skill declarations by `skillKey` and keep the
   declared skill markdown and files in sync with agent behavior.
@@ -512,7 +512,7 @@ Authoring rules:
   project-scoped plugin UI a stable home. For filesystem access inside a
   project, still resolve project workspaces through `ctx.projects`.
 - Keep defaults conservative. Managed declarations are suggestions owned by the
-  plugin, but the resulting resources are normal Paperclip records that the
+  plugin, but the resulting resources are normal Outpost records that the
   operator can inspect, pause, and adjust.
 
 UI:
@@ -562,11 +562,11 @@ the user chose as soon as they navigate away.
 ## Shared host components
 
 Use shared components from `@outpost/plugin-sdk/ui` when the plugin needs a
-Paperclip-native control. The host owns the implementation, so plugins inherit
+Outpost-native control. The host owns the implementation, so plugins inherit
 the board's current styling, ordering, recent selections, and dark-mode behavior
 without importing `ui/src` internals.
 
-Prefer shared components for common Paperclip UX patterns to reduce drift and
+Prefer shared components for common Outpost UX patterns to reduce drift and
 deprecation risk, especially for task/assignment flows and routine or sidebar-like
 plugin screens.
 
@@ -574,7 +574,7 @@ Currently exposed components include:
 
 - `MarkdownBlock` and `MarkdownEditor` for rendered and editable markdown.
 - `FileTree` for serializable file and directory trees.
-- `IssuesList` for a native company-scoped issue table.
+- `IssuesList` for a native space-scoped issue table.
 - `AssigneePicker` for the same agent/user selector used in the new issue pane.
   Use the controlled `value` format `agent:<id>`, `user:<id>`, or `""`.
 - `ProjectPicker` for the same project selector used in the new issue pane.
@@ -584,19 +584,19 @@ Currently exposed components include:
 ```tsx
 import { AssigneePicker, ProjectPicker } from "@outpost/plugin-sdk/ui";
 
-export function PluginAssignmentControls({ companyId }: { companyId: string }) {
+export function PluginAssignmentControls({ spaceId }: { spaceId: string }) {
   const [assignee, setAssignee] = useState("");
   const [projectId, setProjectId] = useState("");
 
   return (
     <>
       <AssigneePicker
-        companyId={companyId}
+        spaceId={spaceId}
         value={assignee}
         onChange={(value) => setAssignee(value)}
       />
       <ProjectPicker
-        companyId={companyId}
+        spaceId={spaceId}
         value={projectId}
         onChange={setProjectId}
       />
@@ -710,7 +710,7 @@ export const manifest = {
 Use this when:
 
 - The data lives outside any project workspace.
-- Reads and writes need company-scoped configuration.
+- Reads and writes need space-scoped configuration.
 - The operator picks the path once in plugin settings and the worker resolves
   files relative to that root.
 
@@ -723,9 +723,9 @@ chose to expose.
 
 Workers with `projects.read`, `project.workspaces.read`, and
 `projects.instance-secrets` can call
-`ctx.projects.readSnapshots(projectIds, companyId, entityType)` to read up to
+`ctx.projects.readSnapshots(projectIds, spaceId, entityType)` to read up to
 64 distinct projects in one call. Each snapshot includes workspaces, the
-worker's authorized instance secrets, and its own company-scoped entity of the
+worker's authorized instance secrets, and its own space-scoped entity of the
 given type keyed by the project ID. A missing, archived, inaccessible, or
 changing project fails the whole request. Older hosts return `null` through
 the SDK. Keep instance secrets inside the trusted worker.
@@ -755,12 +755,12 @@ through `FileTree`. The file browser example uses `ctx.projects.listWorkspaces`
 to pick a workspace and renders its on-disk tree through `FileTree` with lazy
 loading. Pick the boundary per data source, not per plugin.
 
-## Company routes
+## Space routes
 
-Plugins may declare a `page` slot with `routePath` to own a company route like:
+Plugins may declare a `page` slot with `routePath` to own a space route like:
 
 ```text
-/:companyPrefix/<routePath>
+/:spacePrefix/<routePath>
 ```
 
 Rules:
@@ -801,20 +801,20 @@ For image-supplied plugins and the persistent shell lifecycle, see
 ### Organization switcher
 
 Declare one `organizationSwitcher` slot with `ui.sidebar.register`. The host
-passes `PluginOrganizationSwitcherProps`: current company display data, collapsed
+passes `PluginOrganizationSwitcherProps`: current space display data, collapsed
 and open state, navigation/logout callbacks, and an icon renderer. Use the host
 logout callback; authenticate remote account requests at their owning service.
-`currentCompany` describes the host-local company. A distribution plugin must
+`currentSpace` describes the host-local space. A distribution plugin must
 resolve its external account/organization label itself; the host does not fetch
 that portfolio on the plugin's behalf.
 The slot props and `useHostContext()` are display context, not proof of identity.
-The host reserves the trigger with a neutral placeholder while account, company,
+The host reserves the trigger with a neutral placeholder while account, space,
 and plugin discovery load. Plugins should reserve the same space while their
 external label loads and retain resolved labels during same-account refreshes.
-The host resets plugin state on account/company changes and keeps its built-in
+The host resets plugin state on account/space changes and keeps its built-in
 menu when no unique contribution exists, discovery fails, the module is missing,
 or rendering throws. The slot is a React-only contract; do not use a custom
-element export. This replaces only the menu, not company policy or authorization.
+element export. This replaces only the menu, not space policy or authorization.
 
 ## Runner task worker hooks
 

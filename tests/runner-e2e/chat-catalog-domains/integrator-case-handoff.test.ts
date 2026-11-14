@@ -8,7 +8,7 @@ function valid() {
     { id: "source", agentId: "morgan", status: "succeeded", contextSnapshot: { issueId: "chat" }, runtimeMode: "native", startedAt: "2026-10-26T11:00:00Z" },
     { id: "owner", agentId: "morgan", status: "succeeded", contextSnapshot: { issueId: "primary" }, runtimeMode: "native", startedAt: "2026-10-26T11:01:00Z" },
     { id: "review", agentId: "riley", status: "succeeded", contextSnapshot: { issueId: "primary" }, runtimeMode: "native", startedAt: "2026-10-26T11:02:00Z" }];
-  const base = { scenarioId: "cases.handoff-same-task", origin: "https://fixture.test", companyId: "company", leadId: "morgan", state: { case: row, reviewer: { id: "riley" }, respondentId: "morgan", findings,
+  const base = { scenarioId: "cases.handoff-same-task", origin: "https://fixture.test", spaceId: "space", leadId: "morgan", state: { case: row, reviewer: { id: "riley" }, respondentId: "morgan", findings,
     interruptedRunId: "stopped", interruptedTask: { id: "primary", executionRunId: "stopped", assigneeAgentId: "morgan" } }, sourceIssueId: "chat", actingAgent: { id: "morgan", name: "Morgan", role: "engineer" }, reviewer: { id: "riley", name: "Riley", role: "engineer" },
     tasks: [{ id: "primary", assigneeAgentId: "riley", status: "done" }], projects: [], goals: [], documents: [], revisions: [], humanQueries: [], activity: [], links: [], runs,
     comments: [], sourceReplies: [{ id: "reply", authorAgentId: "morgan", createdAt: "2026-10-26T11:00:30Z", createdByRunId: "source", body: "The review direction is queued for the primary task." }],

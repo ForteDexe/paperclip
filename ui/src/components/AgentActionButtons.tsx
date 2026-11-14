@@ -134,15 +134,15 @@ function duplicateInstructionFilePath(
 
 export async function loadDuplicateInstructionsBundle(
   agentId: string,
-  companyId?: string,
+  spaceId?: string,
 ): Promise<DuplicateInstructionsBundle | null> {
-  const bundle = await agentsApi.instructionsBundle(agentId, companyId);
+  const bundle = await agentsApi.instructionsBundle(agentId, spaceId);
   const files: Record<string, string> = {};
 
   for (const summary of bundle.files) {
     const path = duplicateInstructionFilePath(bundle, summary);
     if (!path) continue;
-    const file = await agentsApi.instructionsFile(agentId, summary.path, companyId);
+    const file = await agentsApi.instructionsFile(agentId, summary.path, spaceId);
     files[path] = file.content;
   }
 
@@ -159,7 +159,7 @@ export async function loadDuplicateInstructionsBundle(
  */
 export function AgentActionButtons({
   agent,
-  companyId,
+  spaceId,
   size = "sm",
   assignLabel = "Assign Task",
   showAssignIcon = true,
@@ -183,7 +183,7 @@ export function AgentActionButtons({
   className,
 }: {
   agent: Agent;
-  companyId?: string | null;
+  spaceId?: string | null;
   size?: "sm" | "default";
   assignLabel?: string;
   showAssignIcon?: boolean;
@@ -247,7 +247,7 @@ export function AgentActionButtons({
     );
   }
 
-  const resolvedCompanyId = companyId ?? agent.companyId;
+  const resolvedSpaceId = spaceId ?? agent.spaceId;
   const canonicalAgentRef = agentRouteRef(agent);
   const isPaused = agent.lifecycleState ? agent.lifecycleState === "paused" : agent.status === "paused";
   const isAgentError = agent.status === "error";
@@ -270,22 +270,22 @@ export function AgentActionButtons({
     queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(canonicalAgentRef) });
     queryClient.invalidateQueries({ queryKey: queryKeys.agents.runtimeState(agent.id) });
     queryClient.invalidateQueries({ queryKey: queryKeys.agents.taskSessions(agent.id) });
-    if (resolvedCompanyId) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedCompanyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(resolvedCompanyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(resolvedCompanyId, agent.id) });
+    if (resolvedSpaceId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedSpaceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(resolvedSpaceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(resolvedSpaceId, agent.id) });
     }
-  }, [agent.id, canonicalAgentRef, queryClient, resolvedCompanyId]);
+  }, [agent.id, canonicalAgentRef, queryClient, resolvedSpaceId]);
 
   const agentAction = useMutation({
     mutationFn: async (action: "invoke" | "pause" | "resume" | "clear_error" | "approve" | "terminate") => {
       switch (action) {
-        case "invoke": return agentsApi.invoke(agent.id, resolvedCompanyId ?? undefined);
-        case "pause": return agentsApi.pause(agent.id, resolvedCompanyId ?? undefined);
-        case "resume": return agentsApi.resume(agent.id, resolvedCompanyId ?? undefined);
-        case "clear_error": return agentsApi.clearError(agent.id, resolvedCompanyId ?? undefined);
-        case "approve": return agentsApi.approve(agent.id, resolvedCompanyId ?? undefined);
-        case "terminate": return agentsApi.terminate(agent.id, resolvedCompanyId ?? undefined);
+        case "invoke": return agentsApi.invoke(agent.id, resolvedSpaceId ?? undefined);
+        case "pause": return agentsApi.pause(agent.id, resolvedSpaceId ?? undefined);
+        case "resume": return agentsApi.resume(agent.id, resolvedSpaceId ?? undefined);
+        case "clear_error": return agentsApi.clearError(agent.id, resolvedSpaceId ?? undefined);
+        case "approve": return agentsApi.approve(agent.id, resolvedSpaceId ?? undefined);
+        case "terminate": return agentsApi.terminate(agent.id, resolvedSpaceId ?? undefined);
       }
     },
     onSuccess: (data, action) => {
@@ -307,25 +307,25 @@ export function AgentActionButtons({
 
   const duplicateAgent = useMutation({
     mutationFn: async () => {
-      if (!resolvedCompanyId) {
+      if (!resolvedSpaceId) {
         throw new Error("Agent is not ready to duplicate");
       }
-      const instructionsBundle = await loadDuplicateInstructionsBundle(agent.id, resolvedCompanyId);
+      const instructionsBundle = await loadDuplicateInstructionsBundle(agent.id, resolvedSpaceId);
       const payload = buildDuplicateAgentPayload(agent, instructionsBundle);
       try {
-        return await agentsApi.create(resolvedCompanyId, payload);
+        return await agentsApi.create(resolvedSpaceId, payload);
       } catch (error) {
-        if (error instanceof ApiError && error.status === 409 && error.message.includes("requires board approval")) {
-          const hire = await agentsApi.hire(resolvedCompanyId, payload);
-          return hire.agent;
+        if (error instanceof ApiError && error.status === 409 && error.message.includes("requires operator approval")) {
+          const create = await agentsApi.requestCreation(resolvedSpaceId, payload);
+          return create.agent;
         }
         throw error;
       }
     },
     onSuccess: async (createdAgent) => {
       onActionError?.(null);
-      if (resolvedCompanyId) {
-        await queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedCompanyId) });
+      if (resolvedSpaceId) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedSpaceId) });
       }
       pushToast({ title: "Agent duplicated", body: createdAgent.name, tone: "success" });
       if (!confirmLateNavigationChanges(duplicateStartedDirtyRef)) return;
@@ -348,7 +348,7 @@ export function AgentActionButtons({
   }, [agent.name, duplicateAgent]);
 
   const resetTaskSession = useMutation({
-    mutationFn: () => agentsApi.resetSession(agent.id, null, resolvedCompanyId ?? undefined),
+    mutationFn: () => agentsApi.resetSession(agent.id, null, resolvedSpaceId ?? undefined),
     onSuccess: () => {
       onActionError?.(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.runtimeState(agent.id) });
@@ -377,7 +377,7 @@ export function AgentActionButtons({
     navigate(`/agents/new?${new URLSearchParams({
       name: agent.name, adapterType: agent.adapterType, setupAgentId: agent.id,
       runnerProvider: String(agent.adapterConfig.provider === "acpx" ? agent.adapterConfig.acpxAgent : agent.adapterConfig.provider ?? "codex"),
-      ...(agent.adapterType === "outpost_runner" ? { runner: "paperclip" } : ["codex_local", "claude_local", "opencode_local", "pi_local"].includes(agent.adapterType) ? { runner: "legacy" } : {}),
+      ...(agent.adapterType === "outpost_runner" ? { runner: "outpost" } : ["codex_local", "claude_local", "opencode_local", "pi_local"].includes(agent.adapterType) ? { runner: "legacy" } : {}),
       ...pendingAgentSetupChoice(agent),
     })}`);
   };
@@ -576,7 +576,7 @@ export function AgentActionButtons({
           navigate(`/agents/new?${new URLSearchParams({
             name: agent.name, adapterType: agent.adapterType, setupAgentId: agent.id,
             runnerProvider: String(agent.adapterConfig.provider === "acpx" ? agent.adapterConfig.acpxAgent : agent.adapterConfig.provider ?? "codex"),
-            ...(agent.adapterType === "outpost_runner" ? { runner: "paperclip" } : ["codex_local", "claude_local", "opencode_local", "pi_local"].includes(agent.adapterType) ? { runner: "legacy" } : {}),
+            ...(agent.adapterType === "outpost_runner" ? { runner: "outpost" } : ["codex_local", "claude_local", "opencode_local", "pi_local"].includes(agent.adapterType) ? { runner: "legacy" } : {}),
             ...pendingAgentSetupChoice(agent),
           })}`);
         }}>Finish setup</Button>

@@ -7,7 +7,7 @@ import {
   updateSmokeRunSchema,
 } from "@outpost/shared";
 import { validate } from "../middleware/validate.js";
-import { assertBoard, assertBoardOrAgent, assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertOperator, assertOperatorOrAgent, assertSpaceAccess, getActorInfo } from "./authz.js";
 import { logActivity, smokeLabService } from "../services/index.js";
 
 function configuredPublicBaseUrl() {
@@ -32,8 +32,8 @@ function requestBaseUrl(req: Request) {
   return `${req.protocol}://${host}`;
 }
 
-function smokeLabBaseUrl(req: Request, companyId: string) {
-  return `${requestBaseUrl(req)}/api/companies/${encodeURIComponent(companyId)}/smoke-lab`;
+function smokeLabBaseUrl(req: Request, spaceId: string) {
+  return `${requestBaseUrl(req)}/api/spaces/${encodeURIComponent(spaceId)}/smoke-lab`;
 }
 
 function stringBodyValue(body: unknown, key: string) {
@@ -55,11 +55,11 @@ export function smokeLabRoutes(db: Db, options: {
     await svc.assertEnabled();
   }
 
-  router.get("/companies/:companyId/smoke-lab/oauth/authorize", async (req, res) => {
+  router.get("/spaces/:spaceId/smoke-lab/oauth/authorize", async (req, res) => {
     await assertSmokeLabEnabled();
-    const companyId = req.params.companyId as string;
+    const spaceId = req.params.spaceId as string;
     res.type("html").send(svc.oauthAuthorizePage({
-      companyId,
+      spaceId,
       clientId: String(req.query.client_id ?? "smoke-client"),
       redirectUri: String(req.query.redirect_uri ?? "http://127.0.0.1/callback"),
       state: typeof req.query.state === "string" ? req.query.state : undefined,
@@ -69,10 +69,10 @@ export function smokeLabRoutes(db: Db, options: {
     }));
   });
 
-  router.post("/companies/:companyId/smoke-lab/oauth/authorize", formParser, async (req, res) => {
+  router.post("/spaces/:spaceId/smoke-lab/oauth/authorize", formParser, async (req, res) => {
     await assertSmokeLabEnabled();
     const location = svc.completeAuthorize({
-      companyId: req.params.companyId as string,
+      spaceId: req.params.spaceId as string,
       clientId: stringBodyValue(req.body, "client_id") ?? "smoke-client",
       redirectUri: stringBodyValue(req.body, "redirect_uri") ?? "http://127.0.0.1/callback",
       state: stringBodyValue(req.body, "state"),
@@ -84,10 +84,10 @@ export function smokeLabRoutes(db: Db, options: {
     res.redirect(302, location);
   });
 
-  router.post("/companies/:companyId/smoke-lab/oauth/token", formParser, async (req, res) => {
+  router.post("/spaces/:spaceId/smoke-lab/oauth/token", formParser, async (req, res) => {
     await assertSmokeLabEnabled();
     res.json(svc.issueToken({
-      companyId: req.params.companyId as string,
+      spaceId: req.params.spaceId as string,
       grantType: stringBodyValue(req.body, "grant_type"),
       code: stringBodyValue(req.body, "code"),
       refreshToken: stringBodyValue(req.body, "refresh_token"),
@@ -96,37 +96,37 @@ export function smokeLabRoutes(db: Db, options: {
     }));
   });
 
-  router.get("/companies/:companyId/smoke-lab/oauth/userinfo", async (req, res) => {
+  router.get("/spaces/:spaceId/smoke-lab/oauth/userinfo", async (req, res) => {
     await assertSmokeLabEnabled();
     res.json(svc.userinfo({
-      companyId: req.params.companyId as string,
+      spaceId: req.params.spaceId as string,
       authorization: req.get("authorization"),
     }));
   });
 
-  router.post("/companies/:companyId/smoke-lab/oauth/revoke", formParser, async (req, res) => {
+  router.post("/spaces/:spaceId/smoke-lab/oauth/revoke", formParser, async (req, res) => {
     await assertSmokeLabEnabled();
     res.json(svc.revoke({
-      companyId: req.params.companyId as string,
+      spaceId: req.params.spaceId as string,
       token: stringBodyValue(req.body, "token"),
     }));
   });
 
-  router.get("/companies/:companyId/smoke-lab/services", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    res.json(await svc.listServices(smokeLabBaseUrl(req, companyId)));
+  router.get("/spaces/:spaceId/smoke-lab/services", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    res.json(await svc.listServices(smokeLabBaseUrl(req, spaceId)));
   });
 
-  router.post("/companies/:companyId/smoke-lab/services/start", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const result = await svc.startServices(companyId, smokeLabBaseUrl(req, companyId));
+  router.post("/spaces/:spaceId/smoke-lab/services/start", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const result = await svc.startServices(spaceId, smokeLabBaseUrl(req, spaceId));
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -134,20 +134,20 @@ export function smokeLabRoutes(db: Db, options: {
       agentApiKeyId: actor.agentApiKeyId,
       action: "smoke_lab.services_started",
       entityType: "smoke_lab",
-      entityId: companyId,
+      entityId: spaceId,
       details: { services: result.services.map((service) => service.id) },
     });
     res.json(result);
   });
 
-  router.post("/companies/:companyId/smoke-lab/services/stop", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const result = await svc.stopServices(smokeLabBaseUrl(req, companyId));
+  router.post("/spaces/:spaceId/smoke-lab/services/stop", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const result = await svc.stopServices(smokeLabBaseUrl(req, spaceId));
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -155,20 +155,20 @@ export function smokeLabRoutes(db: Db, options: {
       agentApiKeyId: actor.agentApiKeyId,
       action: "smoke_lab.services_stopped",
       entityType: "smoke_lab",
-      entityId: companyId,
+      entityId: spaceId,
       details: { services: result.services.map((service) => service.id) },
     });
     res.json(result);
   });
 
-  router.post("/companies/:companyId/smoke-lab/install-fixtures", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const result = await svc.installFixtures(companyId, getActorInfo(req));
+  router.post("/spaces/:spaceId/smoke-lab/install-fixtures", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const result = await svc.installFixtures(spaceId, getActorInfo(req));
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -176,7 +176,7 @@ export function smokeLabRoutes(db: Db, options: {
       agentApiKeyId: actor.agentApiKeyId,
       action: "smoke_lab.fixtures_installed",
       entityType: "smoke_lab",
-      entityId: companyId,
+      entityId: spaceId,
       details: {
         created: result.created,
         applicationIds: result.applications.map((application) => application.id),
@@ -188,21 +188,21 @@ export function smokeLabRoutes(db: Db, options: {
     res.status(result.created ? 201 : 200).json(result);
   });
 
-  router.get("/companies/:companyId/smoke-lab/runs", async (req, res) => {
-    assertBoardOrAgent(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    res.json(await svc.listRuns(companyId));
+  router.get("/spaces/:spaceId/smoke-lab/runs", async (req, res) => {
+    assertOperatorOrAgent(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    res.json(await svc.listRuns(spaceId));
   });
 
-  router.post("/companies/:companyId/smoke-lab/runs", validate(createSmokeRunSchema), async (req, res) => {
-    assertBoardOrAgent(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const run = await svc.createRun(companyId, req.body);
+  router.post("/spaces/:spaceId/smoke-lab/runs", validate(createSmokeRunSchema), async (req, res) => {
+    assertOperatorOrAgent(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const run = await svc.createRun(spaceId, req.body);
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -216,21 +216,21 @@ export function smokeLabRoutes(db: Db, options: {
     res.status(201).json({ run });
   });
 
-  router.get("/companies/:companyId/smoke-lab/runs/:runId", async (req, res) => {
-    assertBoardOrAgent(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    res.json(await svc.getRun(companyId, req.params.runId as string));
+  router.get("/spaces/:spaceId/smoke-lab/runs/:runId", async (req, res) => {
+    assertOperatorOrAgent(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    res.json(await svc.getRun(spaceId, req.params.runId as string));
   });
 
-  router.patch("/companies/:companyId/smoke-lab/runs/:runId", validate(updateSmokeRunSchema), async (req, res) => {
-    assertBoardOrAgent(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const run = await svc.updateRun(companyId, req.params.runId as string, req.body);
+  router.patch("/spaces/:spaceId/smoke-lab/runs/:runId", validate(updateSmokeRunSchema), async (req, res) => {
+    assertOperatorOrAgent(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const run = await svc.updateRun(spaceId, req.params.runId as string, req.body);
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -244,14 +244,14 @@ export function smokeLabRoutes(db: Db, options: {
     res.json({ run });
   });
 
-  router.post("/companies/:companyId/smoke-lab/runs/:runId/steps", validate(recordSmokeRunStepSchema), async (req, res) => {
-    assertBoardOrAgent(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const result = await svc.recordStep(companyId, req.params.runId as string, req.body);
+  router.post("/spaces/:spaceId/smoke-lab/runs/:runId/steps", validate(recordSmokeRunStepSchema), async (req, res) => {
+    assertOperatorOrAgent(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const result = await svc.recordStep(spaceId, req.params.runId as string, req.body);
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -265,14 +265,14 @@ export function smokeLabRoutes(db: Db, options: {
     res.status(201).json(result);
   });
 
-  router.post("/companies/:companyId/smoke-lab/reset", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const result = await svc.reset(companyId);
+  router.post("/spaces/:spaceId/smoke-lab/reset", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const result = await svc.reset(spaceId);
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -280,7 +280,7 @@ export function smokeLabRoutes(db: Db, options: {
       agentApiKeyId: actor.agentApiKeyId,
       action: "smoke_lab.reset",
       entityType: "smoke_lab",
-      entityId: companyId,
+      entityId: spaceId,
       details: result,
     });
     res.json(result);

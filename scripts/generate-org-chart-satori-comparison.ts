@@ -24,9 +24,9 @@ import {
 
 const ORGS: Record<string, OrgNode> = {
   sm: {
-    id: "ceo",
-    name: "CEO",
-    role: "Chief Executive",
+    id: "lead",
+    name: "Default agent",
+    role: "Default agent",
     status: "active",
     reports: [
       { id: "eng1", name: "Engineer", role: "Engineering", status: "active", reports: [] },
@@ -34,14 +34,14 @@ const ORGS: Record<string, OrgNode> = {
     ],
   },
   med: {
-    id: "ceo",
-    name: "CEO",
-    role: "Chief Executive",
+    id: "lead",
+    name: "Default agent",
+    role: "Default agent",
     status: "active",
     reports: [
       {
-        id: "cto",
-        name: "CTO",
+        id: "engineering_lead",
+        name: "Engineering Lead",
         role: "Technology",
         status: "active",
         reports: [
@@ -53,8 +53,8 @@ const ORGS: Record<string, OrgNode> = {
         ],
       },
       {
-        id: "cmo",
-        name: "CMO",
+        id: "product",
+        name: "Product Lead",
         role: "Marketing",
         status: "active",
         reports: [
@@ -64,14 +64,14 @@ const ORGS: Record<string, OrgNode> = {
     ],
   },
   lg: {
-    id: "ceo",
-    name: "CEO",
-    role: "Chief Executive",
+    id: "lead",
+    name: "Default agent",
+    role: "Default agent",
     status: "active",
     reports: [
       {
-        id: "cto",
-        name: "CTO",
+        id: "engineering_lead",
+        name: "Engineering Lead",
         role: "Technology",
         status: "active",
         reports: [
@@ -82,8 +82,8 @@ const ORGS: Record<string, OrgNode> = {
         ],
       },
       {
-        id: "cmo",
-        name: "CMO",
+        id: "product",
+        name: "Product Lead",
         role: "Marketing",
         status: "active",
         reports: [
@@ -92,8 +92,8 @@ const ORGS: Record<string, OrgNode> = {
         ],
       },
       {
-        id: "cfo",
-        name: "CFO",
+        id: "operations",
+        name: "Operations Lead",
         role: "Finance",
         status: "active",
         reports: [
@@ -209,7 +209,7 @@ async function main() {
     It runs on any Node.js route, generates in &lt;10ms, and produces identical output every time.
   </p>
   <p>
-    Routes: <code>GET /api/companies/:id/org.svg?style=monochrome</code> and <code>GET /api/companies/:id/org.png?style=circuit</code>
+    Routes: <code>GET /api/spaces/:id/org.svg?style=monochrome</code> and <code>GET /api/spaces/:id/org.png?style=circuit</code>
   </p>
 </div>
 </body></html>`;

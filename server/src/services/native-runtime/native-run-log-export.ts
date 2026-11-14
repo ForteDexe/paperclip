@@ -10,9 +10,9 @@ import { MAX_RUN_LOG_RECORD_BYTES } from "../run-log-record-limits.js";
 export function formatNativeRunLogEvent(event: PrpEvent) {
   return `${JSON.stringify({ type: "outpost.orp.event", event })}\n`;
 }
-export function nativeRunLogSourceWhere(companyId: string, runId: string) {
+export function nativeRunLogSourceWhere(spaceId: string, runId: string) {
   return and(
-    eq(heartbeatRunEvents.companyId, companyId),
+    eq(heartbeatRunEvents.spaceId, spaceId),
     eq(heartbeatRunEvents.runId, runId),
     isNotNull(heartbeatRunEvents.sourceEventId),
     not(
@@ -38,7 +38,7 @@ export function nativeRunLogSourceWhere(companyId: string, runId: string) {
 }
 async function sourcePage(
   db: Db,
-  companyId: string,
+  spaceId: string,
   runId: string,
   after: number,
   through?: number,
@@ -57,7 +57,7 @@ async function sourcePage(
     .from(heartbeatRunEvents)
     .where(
       and(
-        nativeRunLogSourceWhere(companyId, runId),
+        nativeRunLogSourceWhere(spaceId, runId),
         gt(heartbeatRunEvents.seq, after),
         through === undefined ? undefined : lte(heartbeatRunEvents.seq, through),
       ),
@@ -116,7 +116,7 @@ function matchesPublishedEvent(source: unknown, published: unknown) {
  * compare every field semantically. A marker or matching substring alone is not proof.
  */
 function restoreCompactedEvent(chunk: string, source: unknown): unknown {
-  const marker = /\n\[paperclip truncated run log chunk: omitted ([1-9][0-9]*) chars\]\n/g;
+  const marker = /\n\[outpost truncated run log chunk: omitted ([1-9][0-9]*) chars\]\n/g;
   const found = marker.exec(chunk);
   if (!found || marker.exec(chunk)) return;
   const omitted = Number(found[1]);
@@ -157,7 +157,7 @@ function restoreCompactedEvent(chunk: string, source: unknown): unknown {
 
 export function createNativeRunLogCoverageVerifier(
   db: Db,
-  companyId: string,
+  spaceId: string,
   runId: string,
   options?: {
     allowSourceSuffix?: boolean;
@@ -171,7 +171,7 @@ export function createNativeRunLogCoverageVerifier(
   let page: Awaited<ReturnType<typeof sourcePage>> = [];
   const unproven = () => new Error("native_log_source_coverage_unproven");
   async function next() {
-    if (!page.length) page = await sourcePage(db, companyId, runId, cursor, undefined, options?.signal);
+    if (!page.length) page = await sourcePage(db, spaceId, runId, cursor, undefined, options?.signal);
     return page[0];
   }
   async function line(value: string, newlineBytes = 1) {
@@ -270,7 +270,7 @@ export function createNativeRunLogCoverageVerifier(
 /** Validate committed provenance, or prove an older unwatermarked source prefix. */
 export async function nativeRunLogPrefixCursor(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   runId: string;
   store: Partial<Pick<RunLogStore, "read" | "recordVerifiedSourcePrefix">>;
   handle: RunLogHandle;
@@ -288,22 +288,22 @@ export async function nativeRunLogPrefixCursor(input: {
   }
   if (input.handle.initialSourcePrefixVerified) {
     const sequence = input.handle.initialSequence ?? 0;
-    const [company, , run, extra] = input.handle.logRef.split("/");
-    if (input.handle.store !== "s3_segments" || company !== input.companyId || run !== input.runId || extra ||
+    const [space, , run, extra] = input.handle.logRef.split("/");
+    if (input.handle.store !== "s3_segments" || space !== input.spaceId || run !== input.runId || extra ||
       !bytes || !Number.isSafeInteger(sequence) || sequence < 1) throw unproven();
     // A separate immutable proof binds this exact journal index/end/sequence/cursor.
     // Legacy maximum-cursor metadata alone never establishes ordered coverage.
     // Only explicitly coverage-preserving appends can carry the proof forward;
     // an older writer's changed prefix gets no matching proof and must scan once.
     if (watermark) {
-      const [source] = await sourcePage(input.db, input.companyId, input.runId,
+      const [source] = await sourcePage(input.db, input.spaceId, input.runId,
         watermark - 1, watermark, input.signal);
       if (!source || source.cursor !== watermark) throw unproven();
     }
     return watermark;
   }
   if (!input.store.read) throw unproven();
-  const verifier = createNativeRunLogCoverageVerifier(input.db, input.companyId, input.runId, {
+  const verifier = createNativeRunLogCoverageVerifier(input.db, input.spaceId, input.runId, {
     allowSourceSuffix: true,
     redactChunks: input.redactChunks,
     signal: input.signal,
@@ -327,7 +327,7 @@ export async function nativeRunLogPrefixCursor(input: {
 
 export function createNativeRunLogExporter(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   runId: string;
   afterCursor: number;
   enqueue: (cursor: number, chunk: string) => Promise<void>;
@@ -338,7 +338,7 @@ export function createNativeRunLogExporter(input: {
   let queue = Promise.resolve();
   let queuedBytes = 0,
     queuedRecords = 0;
-  const sourceWhere = nativeRunLogSourceWhere(input.companyId, input.runId);
+  const sourceWhere = nativeRunLogSourceWhere(input.spaceId, input.runId);
   async function replay(through?: number) {
     input.signal?.throwIfAborted();
     if (through === undefined) {
@@ -353,7 +353,7 @@ export function createNativeRunLogExporter(input: {
     while (cursor < through) {
       const rows = await sourcePage(
         input.db,
-        input.companyId,
+        input.spaceId,
         input.runId,
         cursor,
         through,

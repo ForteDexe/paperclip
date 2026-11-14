@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "smoke_runs" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "trigger" text NOT NULL,
   "status" text DEFAULT 'running' NOT NULL,
   "started_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS "smoke_runs" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "smoke_run_steps" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "run_id" uuid NOT NULL,
   "path" text NOT NULL,
   "scenario_step" text NOT NULL,
@@ -25,13 +25,13 @@ CREATE TABLE IF NOT EXISTS "smoke_run_steps" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
-  ALTER TABLE "smoke_runs" ADD CONSTRAINT "smoke_runs_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "smoke_runs" ADD CONSTRAINT "smoke_runs_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-  ALTER TABLE "smoke_run_steps" ADD CONSTRAINT "smoke_run_steps_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "smoke_run_steps" ADD CONSTRAINT "smoke_run_steps_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;
@@ -42,10 +42,10 @@ EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "smoke_runs_company_started_idx" ON "smoke_runs" USING btree ("company_id", "started_at");
+CREATE INDEX IF NOT EXISTS "smoke_runs_space_started_idx" ON "smoke_runs" USING btree ("space_id", "started_at");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "smoke_runs_company_status_idx" ON "smoke_runs" USING btree ("company_id", "status");
+CREATE INDEX IF NOT EXISTS "smoke_runs_space_status_idx" ON "smoke_runs" USING btree ("space_id", "status");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "smoke_run_steps_company_run_idx" ON "smoke_run_steps" USING btree ("company_id", "run_id");
+CREATE INDEX IF NOT EXISTS "smoke_run_steps_space_run_idx" ON "smoke_run_steps" USING btree ("space_id", "run_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "smoke_run_steps_company_path_idx" ON "smoke_run_steps" USING btree ("company_id", "path");
+CREATE INDEX IF NOT EXISTS "smoke_run_steps_space_path_idx" ON "smoke_run_steps" USING btree ("space_id", "path");

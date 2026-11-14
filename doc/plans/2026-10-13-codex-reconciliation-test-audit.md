@@ -14,7 +14,7 @@ The full fixture helper at lines 186–253 writes the classification only into
 `heartbeatRuns.resultJson.errorFamily`. Both cases then update that run with
 `resultJson: null` before `heartbeat.scheduleBoundedRetry`. Both persist the same
 Codex adapter, active agent, failed status, harness-crash error code, zero retry
-attempts, context shape and company defaults. They call with the same random
+attempts, context shape and space defaults. They call with the same random
 callback and identical relative `now`/created/updated/finished timestamps. The
 remaining absolute 12:00 versus 13:00 difference enters no clock comparison with
 another fixture; no retry deadline, active holder or evidence receipt is seeded.

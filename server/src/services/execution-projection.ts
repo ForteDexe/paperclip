@@ -67,7 +67,7 @@ type Recovery = Pick<
 /** Batched reads; list consumers do not perform per-task polling. */
 export async function executionProjectionsForRuns(
   db: Db,
-  companyId: string,
+  spaceId: string,
   runIds: string[],
   now = new Date(),
   options: { retryDatabaseReads?: boolean } = {},
@@ -84,7 +84,7 @@ export async function executionProjectionsForRuns(
     .from(heartbeatRuns)
     .where(
       and(
-        eq(heartbeatRuns.companyId, companyId),
+        eq(heartbeatRuns.spaceId, spaceId),
         inArray(heartbeatRuns.id, runIds),
       ),
     ));
@@ -93,7 +93,7 @@ export async function executionProjectionsForRuns(
     .from(nativeRunFinalizations)
     .where(
       and(
-        eq(nativeRunFinalizations.companyId, companyId),
+        eq(nativeRunFinalizations.spaceId, spaceId),
         inArray(nativeRunFinalizations.runId, runIds),
       ),
     ));
@@ -113,7 +113,7 @@ export async function executionProjectionsForRuns(
         .from(issueThreadInteractions)
         .where(
           and(
-            eq(issueThreadInteractions.companyId, companyId),
+            eq(issueThreadInteractions.spaceId, spaceId),
             inArray(issueThreadInteractions.issueId, issueIds),
             eq(issueThreadInteractions.status, "pending"),
           ),
@@ -131,7 +131,7 @@ export async function executionProjectionsForRuns(
         .from(issueRecoveryActions)
         .where(
           and(
-            eq(issueRecoveryActions.companyId, companyId),
+            eq(issueRecoveryActions.spaceId, spaceId),
             inArray(issueRecoveryActions.sourceIssueId, issueIds),
             inArray(issueRecoveryActions.status, [
               "active",
@@ -155,13 +155,13 @@ export async function executionProjectionsForRuns(
       .from(museRunnerAssignments)
       .innerJoin(museAgentBindings, and(
         eq(museAgentBindings.id, museRunnerAssignments.bindingId),
-        eq(museAgentBindings.companyId, museRunnerAssignments.companyId),
+        eq(museAgentBindings.spaceId, museRunnerAssignments.spaceId),
         eq(museAgentBindings.agentId, museRunnerAssignments.agentId),
         eq(museAgentBindings.generation, museRunnerAssignments.bindingGeneration),
         isNull(museAgentBindings.revokedAt),
       ))
       .where(and(
-        eq(museRunnerAssignments.companyId, companyId),
+        eq(museRunnerAssignments.spaceId, spaceId),
         inArray(museRunnerAssignments.runId, museRunIds),
         inArray(museRunnerAssignments.status, ["offered", "claimed"]),
         isNull(museRunnerAssignments.nativeAcceptedAt),
@@ -175,13 +175,13 @@ export async function executionProjectionsForRuns(
       .from(dotRunnerAssignments)
       .innerJoin(dotAgentBindings, and(
         eq(dotAgentBindings.id, dotRunnerAssignments.bindingId),
-        eq(dotAgentBindings.companyId, dotRunnerAssignments.companyId),
+        eq(dotAgentBindings.spaceId, dotRunnerAssignments.spaceId),
         eq(dotAgentBindings.agentId, dotRunnerAssignments.agentId),
         eq(dotAgentBindings.generation, dotRunnerAssignments.bindingGeneration),
         isNull(dotAgentBindings.revokedAt),
       ))
       .where(and(
-        eq(dotRunnerAssignments.companyId, companyId),
+        eq(dotRunnerAssignments.spaceId, spaceId),
         inArray(dotRunnerAssignments.runId, dotRunIds),
         eq(dotRunnerAssignments.status, "offered"),
         isNull(dotRunnerAssignments.acceptedAt),
@@ -201,7 +201,7 @@ export async function executionProjectionsForRuns(
     .select({ id: agents.id, lifecycleState: agents.lifecycleState,
       lifecycleHolds: agents.lifecycleHolds,
       retryRequired: sql<boolean>`coalesce(${agents.lifecycleOperation}->>'retryRequired', 'false') = 'true'` })
-    .from(agents).where(and(eq(agents.companyId, companyId), inArray(agents.id, setupAgentIds)))) : [];
+    .from(agents).where(and(eq(agents.spaceId, spaceId), inArray(agents.id, setupAgentIds)))) : [];
   const setupByAgent = new Map(setupAgents.map(agent => [agent.id, agent]));
   const issueIdOf = (run: Run) => run.nativeIssueId ?? text(run.contextSnapshot?.issueId);
   const queuedIssueIds = [...new Set(queuedRuns.map(issueIdOf).filter((id): id is string => !!id))];
@@ -213,12 +213,12 @@ export async function executionProjectionsForRuns(
       read(async () => db
         .select({ id: issues.id, executionRunId: issues.executionRunId })
         .from(issues)
-        .where(and(eq(issues.companyId, companyId), inArray(issues.id, queuedIssueIds)))),
+        .where(and(eq(issues.spaceId, spaceId), inArray(issues.id, queuedIssueIds)))),
       read(async () => db
         .selectDistinctOn([heartbeatRuns.agentId, issueKey], { id: heartbeatRuns.id, agentId: heartbeatRuns.agentId, issueId: issueKey })
         .from(heartbeatRuns)
         .where(and(
-          eq(heartbeatRuns.companyId, companyId),
+          eq(heartbeatRuns.spaceId, spaceId),
           inArray(heartbeatRuns.agentId, [...new Set(queuedRuns.map(run => run.agentId))]),
           inArray(issueKey, queuedIssueIds),
           inArray(heartbeatRuns.status, ["succeeded", "failed", "cancelled", "timed_out"]),
@@ -238,7 +238,7 @@ export async function executionProjectionsForRuns(
     // A label is not worth an unbounded fan-out on large list reads.
     if (distinct.length <= MAX_PREDECESSOR_CLEANUP_CHECKS) {
       const pendingIds = new Set((await Promise.all(distinct.map(async id =>
-        (await read(() => hasPendingRunCleanup(db, companyId, id))) ? id : null))).filter((id): id is string => !!id));
+        (await read(() => hasPendingRunCleanup(db, spaceId, id))) ? id : null))).filter((id): id is string => !!id));
       for (const [runId, candidates] of candidatesByRun)
         if (candidates.some(id => pendingIds.has(id))) settlingPredecessorKeys.add(runId);
     }
@@ -249,7 +249,7 @@ export async function executionProjectionsForRuns(
   const responseWaitIssues = responseWaitRuns.length ? await read(async () => db
     .select({ id: issues.id, status: issues.status, lastStatusDecisionId: issues.lastStatusDecisionId })
     .from(issues)
-    .where(and(eq(issues.companyId, companyId), inArray(issues.id, [...new Set(responseWaitRuns.map(run => issueIdOf(run)!))])))) : [];
+    .where(and(eq(issues.spaceId, spaceId), inArray(issues.id, [...new Set(responseWaitRuns.map(run => issueIdOf(run)!))])))) : [];
   const responseWaitIssueById = new Map(responseWaitIssues.map(row => [row.id, row]));
   const currentResponseWait = (run: Run) => {
     const issue = responseWaitIssueById.get(issueIdOf(run) ?? "");
@@ -285,12 +285,12 @@ export async function executionProjectionsForRuns(
 }
 export async function executionProjectionForRun(
   db: Db,
-  companyId: string,
+  spaceId: string,
   runId: string,
   now = new Date(),
 ): Promise<ExecutionProjection | null> {
   return (
-    (await executionProjectionsForRuns(db, companyId, [runId], now)).get(
+    (await executionProjectionsForRuns(db, spaceId, [runId], now)).get(
       runId,
     ) ?? null
   );
@@ -309,7 +309,7 @@ export function projectExecution(
   const detail = coordinator?.failureDetail ?? {};
   const successorRunId = text(detail.successorRunId);
   const projection: ExecutionProjection = {
-    // A live run is always stoppable by the board (POST /heartbeat-runs/:id/cancel);
+    // A live run is always stoppable by the operator (POST /heartbeat-runs/:id/cancel);
     // a failed native run is stoppable only while its retry is still pending.
     canStop: run.status === "running" || run.status === "queued" || (
       run.runtimeMode === "native" && run.status === "failed" && run.driverKind !== "grok_bot_mcp" && !!run.nativeIssueId
@@ -436,7 +436,7 @@ export function projectExecution(
     run.status === "scheduled_retry"
   )) {
     projection.recoveryOwner = "agent";
-    if (coordinator?.failureCode === "native_governed_wait_settlement_pending") {
+    if (coordinator?.failureCode === "native_controlled_wait_settlement_pending") {
       projection.nextAction = "The work and waiting state are saved. Outpost is confirming shutdown before continuing.";
       return set("finishing", "Finishing shutdown");
     }
@@ -462,7 +462,7 @@ export function projectExecution(
         "Checking that the previous provider stopped and its action outcomes are known before continuing.";
       return set("reconnecting", "Checking recovery");
     }
-    projection.recoveryOwner = "board";
+    projection.recoveryOwner = "operator";
     projection.cause =
       recoveryAction?.cause ??
       text(detail.replacementDenied) ??

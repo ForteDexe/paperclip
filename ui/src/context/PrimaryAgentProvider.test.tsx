@@ -10,24 +10,24 @@ import { startPersistedQueryCache } from "@/lib/persisted-query-cache";
 import { ApiError } from "@/api/client";
 
 const state = vi.hoisted(() => ({
-  companyId: "company-a", get: vi.fn(), set: vi.fn(), session: vi.fn(), toast: vi.fn(),
+  spaceId: "space-a", get: vi.fn(), set: vi.fn(), session: vi.fn(), toast: vi.fn(),
 }));
-vi.mock("./CompanyContext", () => ({ useCompany: () => ({ selectedCompanyId: state.companyId }) }));
+vi.mock("./SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: state.spaceId }) }));
 vi.mock("./ToastContext", () => ({ useToastActions: () => ({ pushToast: state.toast }) }));
 vi.mock("@/api/auth", () => ({ authApi: { getSession: state.session } }));
 vi.mock("@/api/primaryAgent", () => ({ primaryAgentApi: { get: state.get, set: state.set } }));
-vi.mock("@/api/agents", () => ({ agentsApi: { list: async (companyId: string) => [
-  { id: "maia", name: "Maia", companyId, status: "idle" },
-  { id: "alex", name: "Alex", companyId, status: "idle" },
+vi.mock("@/api/agents", () => ({ agentsApi: { list: async (spaceId: string) => [
+  { id: "maia", name: "Maia", spaceId, status: "idle" },
+  { id: "alex", name: "Alex", spaceId, status: "idle" },
 ] } }));
 
 let root: Root, container: HTMLDivElement, client: QueryClient;
 let cache: ReturnType<typeof startPersistedQueryCache> | undefined;
-const preference = (companyId = "company-a", userId = "user-a", primaryAgentId: string | null = "maia") => ({
-  companyId, userId, primaryAgentId, initialized: true,
+const preference = (spaceId = "space-a", userId = "user-a", primaryAgentId: string | null = "maia") => ({
+  spaceId, userId, primaryAgentId, initialized: true,
 });
 function Harness() {
-  const value = usePrimaryAgentPresentation(state.companyId);
+  const value = usePrimaryAgentPresentation(state.spaceId);
   const [onboarding, setOnboarding] = useState(false);
   return <>
     <output>{value?.loading ? "loading" : value?.error ? "error" : value?.primaryAgentId ?? "none"}</output>
@@ -50,7 +50,7 @@ async function waitForOutput(text: string) {
 beforeEach(() => {
   localStorage.clear();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  state.companyId = "company-a";
+  state.spaceId = "space-a";
   state.get.mockReset().mockResolvedValue(preference());
   state.set.mockReset(); state.toast.mockReset();
   state.session.mockReset().mockResolvedValue({ user: { id: "user-a" } });
@@ -64,27 +64,27 @@ afterEach(async () => {
 function restorePreference() {
   const source = new QueryClient();
   source.setQueryData(queryKeys.auth.session, { user: { id: "user-a" } });
-  source.setQueryData(queryKeys.companies.list("user-a"), { companies: [{ id: "company-a", name: "Example" }], unauthorized: false });
-  source.setQueryData(queryKeys.primaryAgent.mine("company-a", "user-a"), preference());
+  source.setQueryData(queryKeys.spaces.list("user-a"), { spaces: [{ id: "space-a", name: "Example" }], unauthorized: false });
+  source.setQueryData(queryKeys.primaryAgent.mine("space-a", "user-a"), preference());
   const saved = startPersistedQueryCache(source, { storage: localStorage, buildId: "test", eventTarget: null });
   saved.flush(); saved.dispose(); source.clear();
   cache = startPersistedQueryCache(client, { storage: localStorage, buildId: "test", eventTarget: null });
-  expect(client.getQueryData(queryKeys.primaryAgent.mine("company-a", "user-a"))).toEqual(preference());
+  expect(client.getQueryData(queryKeys.primaryAgent.mine("space-a", "user-a"))).toEqual(preference());
 }
 
 describe("primary agent persistence provider", () => {
   it.each(["user-a", "user-b", null])("waits for fresh identity before changing a restored primary agent (verified=%s)", async verified => {
     let finish!: (value: { user: { id: string } } | null) => void;
     state.session.mockReturnValue(new Promise(resolve => { finish = resolve; }));
-    state.set.mockResolvedValue(preference("company-a", "user-a", "alex"));
+    state.set.mockResolvedValue(preference("space-a", "user-a", "alex"));
     restorePreference();
     await render(); await waitForOutput("maia");
     await act(async () => container.querySelector("button")!.click());
     try {
       expect(state.set).not.toHaveBeenCalled();
-      expect(client.getQueryData(queryKeys.primaryAgent.mine("company-a", "user-a"))).toEqual(preference());
+      expect(client.getQueryData(queryKeys.primaryAgent.mine("space-a", "user-a"))).toEqual(preference());
     } finally {
-      state.get.mockResolvedValue(preference("company-a", verified ?? "local-board", verified === "user-a" ? "alex" : null));
+      state.get.mockResolvedValue(preference("space-a", verified ?? "local-operator", verified === "user-a" ? "alex" : null));
       await act(async () => finish(verified ? { user: { id: verified } } : null));
     }
     await vi.waitFor(() => expect(client.isMutating()).toBe(0));
@@ -114,54 +114,54 @@ describe("primary agent persistence provider", () => {
     await act(async () => reject(new Error("Connection lost")));
     await waitForOutput("maia");
     expect(state.toast).toHaveBeenCalledWith(expect.objectContaining({ tone: "error", body: "Connection lost" }));
-    state.get.mockResolvedValue(preference("company-a", "user-a", "alex"));
-    state.set.mockResolvedValue(preference("company-a", "user-a", "alex"));
+    state.get.mockResolvedValue(preference("space-a", "user-a", "alex"));
+    state.set.mockResolvedValue(preference("space-a", "user-a", "alex"));
     await act(async () => state.toast.mock.calls[0][0].action.onClick());
     await waitForOutput("alex");
-    expect(state.set).toHaveBeenLastCalledWith("company-a", { primaryAgentId: "alex" });
+    expect(state.set).toHaveBeenLastCalledWith("space-a", { primaryAgentId: "alex" });
   });
 
-  it("keeps cached preferences separate across companies and users", async () => {
+  it("keeps cached preferences separate across spaces and users", async () => {
     await render(); await waitForOutput("maia");
-    state.companyId = "company-b";
-    state.get.mockResolvedValue(preference("company-b", "user-a", "alex"));
+    state.spaceId = "space-b";
+    state.get.mockResolvedValue(preference("space-b", "user-a", "alex"));
     await render(); await waitForOutput("alex");
-    state.get.mockResolvedValue(preference("company-b", "user-b", null));
+    state.get.mockResolvedValue(preference("space-b", "user-b", null));
     await act(async () => client.setQueryData(queryKeys.auth.session, { user: { id: "user-b" } }));
     await waitForOutput("none");
-    expect(client.getQueryData(queryKeys.primaryAgent.mine("company-a", "user-a"))).toEqual(preference());
-    expect(client.getQueryData(queryKeys.primaryAgent.mine("company-b", "user-a"))).toEqual(preference("company-b", "user-a", "alex"));
-    expect(client.getQueryData(queryKeys.primaryAgent.mine("company-b", "user-b"))).toEqual(preference("company-b", "user-b", null));
+    expect(client.getQueryData(queryKeys.primaryAgent.mine("space-a", "user-a"))).toEqual(preference());
+    expect(client.getQueryData(queryKeys.primaryAgent.mine("space-b", "user-a"))).toEqual(preference("space-b", "user-a", "alex"));
+    expect(client.getQueryData(queryKeys.primaryAgent.mine("space-b", "user-b"))).toEqual(preference("space-b", "user-b", null));
   });
 
-  it("preserves app and onboarding state when the company or authenticated user changes", async () => {
+  it("preserves app and onboarding state when the space or authenticated user changes", async () => {
     await render(); await waitForOutput("maia");
     await act(async () => container.querySelectorAll("button")[2].click());
-    state.companyId = "company-b";
-    state.get.mockResolvedValue(preference("company-b", "user-a", "alex"));
+    state.spaceId = "space-b";
+    state.get.mockResolvedValue(preference("space-b", "user-a", "alex"));
     await render(); await waitForOutput("alex");
     expect(container.querySelector("aside")?.textContent).toBe("Onboarding is open");
-    state.get.mockResolvedValue(preference("company-b", "user-b", null));
+    state.get.mockResolvedValue(preference("space-b", "user-b", null));
     await act(async () => client.setQueryData(queryKeys.auth.session, { user: { id: "user-b" } }));
     await waitForOutput("none");
     expect(container.querySelector("aside")?.textContent).toBe("Onboarding is open");
   });
 
-  it("keeps a late mutation failure in its original company and user scope", async () => {
+  it("keeps a late mutation failure in its original space and user scope", async () => {
     let reject!: (error: Error) => void;
     state.set.mockImplementationOnce(() => new Promise((_resolve, onReject) => { reject = onReject; }));
     await render(); await waitForOutput("maia");
     await act(async () => container.querySelector("button")!.click());
     await waitForOutput("alex");
-    state.companyId = "company-b";
-    state.get.mockResolvedValue(preference("company-b", "user-b", null));
+    state.spaceId = "space-b";
+    state.get.mockResolvedValue(preference("space-b", "user-b", null));
     await act(async () => client.setQueryData(queryKeys.auth.session, { user: { id: "user-b" } }));
     await render(); await waitForOutput("none");
     expect(container.querySelector("[data-pending]")?.textContent).toBe("none");
     await act(async () => reject(new Error("Old request failed")));
     await waitForOutput("none");
-    expect(client.getQueryData(queryKeys.primaryAgent.mine("company-a", "user-a"))).toEqual(preference());
-    expect(client.getQueryData(queryKeys.primaryAgent.mine("company-b", "user-b"))).toEqual(preference("company-b", "user-b", null));
+    expect(client.getQueryData(queryKeys.primaryAgent.mine("space-a", "user-a"))).toEqual(preference());
+    expect(client.getQueryData(queryKeys.primaryAgent.mine("space-b", "user-b"))).toEqual(preference("space-b", "user-b", null));
     expect(state.toast).not.toHaveBeenCalled();
   });
 
@@ -171,16 +171,16 @@ describe("primary agent persistence provider", () => {
     await render(); await waitForOutput("maia");
     await act(async () => container.querySelector("button")!.click());
     await waitForOutput("alex");
-    const key = queryKeys.primaryAgent.mine("company-a", "user-a");
+    const key = queryKeys.primaryAgent.mine("space-a", "user-a");
     await act(async () => {
       client.setQueryData(queryKeys.auth.session, { user: { id: "user-b" } });
       client.setQueryData(queryKeys.auth.session, { user: { id: "user-a" } });
-      client.setQueryData(key, preference("company-a", "user-a", "alex"));
-      if (outcome === "success") finish(preference("company-a", "user-a", "alex"));
+      client.setQueryData(key, preference("space-a", "user-a", "alex"));
+      if (outcome === "success") finish(preference("space-a", "user-a", "alex"));
       else reject(new Error("Old request failed"));
     });
     await vi.waitFor(() => expect(client.isMutating()).toBe(0));
-    expect(client.getQueryData(key)).toEqual(preference("company-a", "user-a", "alex"));
+    expect(client.getQueryData(key)).toEqual(preference("space-a", "user-a", "alex"));
     expect(state.toast).not.toHaveBeenCalled();
   });
 

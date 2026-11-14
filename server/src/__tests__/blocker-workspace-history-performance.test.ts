@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { applyPendingMigrations, companies, createDb, issues } from "@outpost/db";
+import { applyPendingMigrations, spaces, createDb, issues } from "@outpost/db";
 import { issueService } from "../services/issues.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -25,34 +25,34 @@ describe.skipIf(!support.supported)("blocker workspace retained history cost", (
       if (capture && query.includes("workspace_operations")) queries.push({ query, parameters: [...parameters] });
     };
   }, 30_000);
-  afterEach(async () => { capture = false; queries.length = 0; await db.execute(sql`truncate companies cascade`); });
+  afterEach(async () => { capture = false; queries.length = 0; await db.execute(sql`truncate spaces cascade`); });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
 
   it.each(["finalized", "pending"] as const)("bounds operation-history work for 2100 blockers sharing 5000 %s operations", async kind => {
-    const companyId = randomUUID(), workspaceId = randomUUID(), unrelatedWorkspaceId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Shared history", issuePrefix: `SH${companyId.slice(0, 6)}` });
-    const [root] = await db.insert(issues).values({ companyId, title: "History dependent", status: "blocked" }).returning();
-    await db.execute(sql`insert into execution_workspaces (id, company_id, name, mode, strategy_type)
-      values (${workspaceId}::uuid, ${companyId}::uuid, 'Shared operation history', 'shared', 'project_primary'),
-        (${unrelatedWorkspaceId}::uuid, ${companyId}::uuid, 'Unrelated history', 'shared', 'project_primary')`);
-    await db.execute(sql`insert into workspace_operations (company_id, execution_workspace_id, phase, status, started_at)
-      select ${companyId}::uuid, ${unrelatedWorkspaceId}::uuid, 'worktree_prepare', 'succeeded',
+    const spaceId = randomUUID(), workspaceId = randomUUID(), unrelatedWorkspaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Shared history", issuePrefix: `SH${spaceId.slice(0, 6)}` });
+    const [root] = await db.insert(issues).values({ spaceId, title: "History dependent", status: "blocked" }).returning();
+    await db.execute(sql`insert into execution_workspaces (id, space_id, name, mode, strategy_type)
+      values (${workspaceId}::uuid, ${spaceId}::uuid, 'Shared operation history', 'shared', 'project_primary'),
+        (${unrelatedWorkspaceId}::uuid, ${spaceId}::uuid, 'Unrelated history', 'shared', 'project_primary')`);
+    await db.execute(sql`insert into workspace_operations (space_id, execution_workspace_id, phase, status, started_at)
+      select ${spaceId}::uuid, ${unrelatedWorkspaceId}::uuid, 'worktree_prepare', 'succeeded',
         '2025-01-01T00:00:00Z'::timestamptz + n * interval '1 second' from generate_series(1, 50000) n`);
-    await db.execute(sql`insert into workspace_operations (company_id, execution_workspace_id, phase, status, started_at)
-      select ${companyId}::uuid, ${workspaceId}::uuid,
+    await db.execute(sql`insert into workspace_operations (space_id, execution_workspace_id, phase, status, started_at)
+      select ${spaceId}::uuid, ${workspaceId}::uuid,
         case when n = 5000 and ${kind} = 'finalized' then 'workspace_finalize' else 'worktree_prepare' end,
         'succeeded', '2026-01-01T00:00:00Z'::timestamptz + n * interval '1 second' from generate_series(1, 5000) n`);
     await db.execute(sql`with history as (
-      insert into issues (company_id, title, status, execution_workspace_id)
-      select ${companyId}::uuid, 'done blocker ' || n, 'done', ${workspaceId}::uuid
+      insert into issues (space_id, title, status, execution_workspace_id)
+      select ${spaceId}::uuid, 'done blocker ' || n, 'done', ${workspaceId}::uuid
       from generate_series(1, 2100) n returning id)
-      insert into issue_relations (company_id, issue_id, related_issue_id, type)
-      select ${companyId}::uuid, id, ${root.id}::uuid, 'blocks' from history`);
+      insert into issue_relations (space_id, issue_id, related_issue_id, type)
+      select ${spaceId}::uuid, id, ${root.id}::uuid, 'blocks' from history`);
     await db.execute(sql`analyze workspace_operations`);
     await db.execute(sql`analyze issues`);
     await db.execute(sql`analyze issue_relations`);
     capture = true;
-    const batch = await issueService(db).listBlockerAttentionBatch(companyId, [root]);
+    const batch = await issueService(db).listBlockerAttentionBatch(spaceId, [root]);
     capture = false;
     expect(queries.length).toBeGreaterThan(0);
     expect(Math.max(...queries.map(statement => statement.parameters.length))).toBeLessThanOrEqual(1100);
@@ -79,25 +79,25 @@ describe.skipIf(!support.supported)("blocker workspace retained history cost", (
     if (kind === "finalized") expect(batch.nodeCount).toBe(1);
   }, 120_000);
   it("preserves attributed precedence and the strict later-finalize boundary", async () => {
-    const companyId = randomUUID(), workspaceId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Finalize policy", issuePrefix: `FP${companyId.slice(0, 6)}` });
-    await db.execute(sql`insert into execution_workspaces (id, company_id, name, mode, strategy_type)
-      values (${workspaceId}::uuid, ${companyId}::uuid, 'Policy workspace', 'shared', 'project_primary')`);
-    const roots = await db.insert(issues).values(["older", "equal", "fallback"].map(title => ({ companyId, title, status: "blocked" }))).returning();
-    const blockers = await db.insert(issues).values(roots.map(root => ({ companyId, title: root.title + " blocker", status: "done", executionWorkspaceId: workspaceId }))).returning();
+    const spaceId = randomUUID(), workspaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Finalize policy", issuePrefix: `FP${spaceId.slice(0, 6)}` });
+    await db.execute(sql`insert into execution_workspaces (id, space_id, name, mode, strategy_type)
+      values (${workspaceId}::uuid, ${spaceId}::uuid, 'Policy workspace', 'shared', 'project_primary')`);
+    const roots = await db.insert(issues).values(["older", "equal", "fallback"].map(title => ({ spaceId, title, status: "blocked" }))).returning();
+    const blockers = await db.insert(issues).values(roots.map(root => ({ spaceId, title: root.title + " blocker", status: "done", executionWorkspaceId: workspaceId }))).returning();
     for (let index = 0; index < roots.length; index += 1) {
-      await db.execute(sql`insert into issue_relations (company_id, issue_id, related_issue_id, type)
-        values (${companyId}::uuid, ${blockers[index]!.id}::uuid, ${roots[index]!.id}::uuid, 'blocks')`);
+      await db.execute(sql`insert into issue_relations (space_id, issue_id, related_issue_id, type)
+        values (${spaceId}::uuid, ${blockers[index]!.id}::uuid, ${roots[index]!.id}::uuid, 'blocks')`);
     }
-    await db.execute(sql`insert into workspace_operations (company_id, execution_workspace_id, issue_id, phase, status, started_at) values
-      (${companyId}::uuid, ${workspaceId}::uuid, ${blockers[0]!.id}::uuid, 'worktree_prepare', 'succeeded', '2026-01-01T00:00:01Z'),
-      (${companyId}::uuid, ${workspaceId}::uuid, ${blockers[1]!.id}::uuid, 'worktree_prepare', 'succeeded', '2026-01-01T00:00:02Z'),
-      (${companyId}::uuid, ${workspaceId}::uuid, null, 'workspace_finalize', 'succeeded', '2026-01-01T00:00:02Z'),
-      (${companyId}::uuid, ${workspaceId}::uuid, null, 'worktree_prepare', 'succeeded', '2026-01-01T00:00:03Z')`);
+    await db.execute(sql`insert into workspace_operations (space_id, execution_workspace_id, issue_id, phase, status, started_at) values
+      (${spaceId}::uuid, ${workspaceId}::uuid, ${blockers[0]!.id}::uuid, 'worktree_prepare', 'succeeded', '2026-01-01T00:00:01Z'),
+      (${spaceId}::uuid, ${workspaceId}::uuid, ${blockers[1]!.id}::uuid, 'worktree_prepare', 'succeeded', '2026-01-01T00:00:02Z'),
+      (${spaceId}::uuid, ${workspaceId}::uuid, null, 'workspace_finalize', 'succeeded', '2026-01-01T00:00:02Z'),
+      (${spaceId}::uuid, ${workspaceId}::uuid, null, 'worktree_prepare', 'succeeded', '2026-01-01T00:00:03Z')`);
     const service = issueService(db);
-    expect((await service.listBlockerAttentionBatch(companyId, [roots[0]!])).nodeCount).toBe(1);
-    expect((await service.listBlockerAttentionBatch(companyId, [roots[1]!])).nodeCount).toBe(2);
-    expect((await service.listBlockerAttentionBatch(companyId, [roots[2]!])).nodeCount).toBe(2);
+    expect((await service.listBlockerAttentionBatch(spaceId, [roots[0]!])).nodeCount).toBe(1);
+    expect((await service.listBlockerAttentionBatch(spaceId, [roots[1]!])).nodeCount).toBe(2);
+    expect((await service.listBlockerAttentionBatch(spaceId, [roots[2]!])).nodeCount).toBe(2);
   });
 
 });

@@ -3,9 +3,9 @@ import { chmod, copyFile, cp, lstat, mkdir, mkdtemp, readFile, realpath, rename,
 import { tmpdir, userInfo } from "node:os";
 import { basename, join } from "node:path";
 import { and, eq } from "drizzle-orm";
-import type { CompanySkillVersionFileInventoryEntry } from "@outpost/shared";
+import type { SpaceSkillVersionFileInventoryEntry } from "@outpost/shared";
 import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
-import { activityLog, agentTaskSessions, agents, companies, companySkills, companySkillVersions, companySkillRepositorySnapshots, createDb, environmentLeases,
+import { activityLog, agentTaskSessions, agents, spaces, spaceSkills, spaceSkillVersions, spaceSkillRepositorySnapshots, createDb, environmentLeases,
   heartbeatRuns, instanceSettings, issues, nativeHarnessBackups, nativeRunnerCheckpoints, nativeRunFinalizations, nativeRunResults } from "@outpost/db";
 import { describeEmbeddedPostgres } from "../../__tests__/helpers/native-restart.js";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -64,7 +64,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
   async function fixture(kind: "unversioned" | "repository" | "package" | "deleted" | "none" | "many-web-files" = "unversioned", managedWorkspace = false) {
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "61".repeat(32));
     const mount = await realpath(await mkdtemp(join(tmpdir(), "native-harness-original-"))); roots.push(mount);
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), sessionId = randomUUID(), runnerId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), sessionId = randomUUID(), runnerId = randomUUID();
     const projectId = randomUUID(), serviceId = randomUUID(), environmentId = randomUUID(), volumeId = randomUUID(), deploymentId = randomUUID();
     for (const [key, value] of Object.entries({ OUTPOST_HOME: mount, OUTPOST_INSTANCE_ID: "default", RAILWAY_PROJECT_ID: projectId,
       RAILWAY_SERVICE_ID: serviceId, RAILWAY_ENVIRONMENT_ID: environmentId, RAILWAY_VOLUME_ID: volumeId,
@@ -85,9 +85,9 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       anchorSha256: createHash("sha256").update(bytes).digest("hex"), providerWitnessSha256: "e".repeat(64) };
     const source = await verifyOriginalHarnessVolumeSource(witness);
     const storage = createStorageService({ ...createLocalDiskStorageProvider(join(mount, "objects")), id: "s3" });
-    await db.insert(companies).values({ id: companyId, name: "Original-volume preservation", issuePrefix: `F${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Retained source" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Retain prior failure", status: "blocked" });
+    await db.insert(spaces).values({ id: spaceId, name: "Original-volume preservation", issuePrefix: `F${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Retained source" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Retain prior failure", status: "blocked" });
     const runtimeContext = nativeRuntimeContextFixture();
     if (kind === "many-web-files") {
       runtimeContext.skills = [];
@@ -100,7 +100,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       runtimeContext.aggregateDigest = canonicalNativeRuntimeContextDigest(runtimeContext);
     } else if (kind !== "none") {
       let versionId: string | null = null;
-      const files: CompanySkillVersionFileInventoryEntry[] = kind === "deleted"
+      const files: SpaceSkillVersionFileInventoryEntry[] = kind === "deleted"
         ? [{ path: "SKILL.md", kind: "skill", content: "# Historical acceptance skill\n\n".padEnd(281, "x") }]
         : [{ path: "SKILL.md", kind: "skill", content: "# original immutable skill\n" },
           { path: "tool.sh", kind: "other" as const, content: "#!/bin/sh\nexit 0\n", executable: true }];
@@ -110,9 +110,9 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
         projected = repositorySkillProjection(files, "SKILL.md");
       }
       if (kind === "repository" || kind === "package" || kind === "deleted") {
-        const packageId = await skillPackageStore(db, storage).prepare(companyId, files, true);
-        const [skill] = await db.insert(companySkills).values({ companyId, key: "retained", slug: "retained", name: "Retained", markdown: projected[0]!.content }).returning();
-        const [version] = await db.insert(companySkillVersions).values({ companyId, companySkillId: skill!.id, revisionNumber: 1,
+        const packageId = await skillPackageStore(db, storage).prepare(spaceId, files, true);
+        const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "retained", slug: "retained", name: "Retained", markdown: projected[0]!.content }).returning();
+        const [version] = await db.insert(spaceSkillVersions).values({ spaceId, spaceSkillId: skill!.id, revisionNumber: 1,
           ...(kind === "repository" ? { repositorySnapshotId: packageId, repositorySkillPath: "SKILL.md" } : { packageSnapshotId: packageId }), fileInventory: [] }).returning();
         versionId = version!.id;
       }
@@ -121,45 +121,45 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       runtimeContext.aggregateDigest = canonicalNativeRuntimeContextDigest(runtimeContext);
     }
     const execution = parseNativeExecutionInput({ schema: "outpost.native-execution-input.v3", executionMode: "default", planningContext: null,
-      binding: { companyId, agentId, issueId, runId, executionWorkspaceId: managedWorkspace ? randomUUID() : runId }, provider: { kind: "codex", model: null },
+      binding: { spaceId, agentId, issueId, runId, executionWorkspaceId: managedWorkspace ? randomUUID() : runId }, provider: { kind: "codex", model: null },
       task: { identifier: "FS-1", title: "Retain failure", description: null, prompt: "Retain failure", workMode: "standard" },
       workspace: { cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: sessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
       completionContract: { id: "contract", sha256: "saved", schemaVersion: "outpost.completion-contract.v1",
         contract: { revision: "1", objective: "Retain failure", criteria: [{ id: "retain", requirement: "Retain failure" }] } },
       runtimeContext, interactionResponses: [], credentialBindings: [] });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, nativeSessionId: sessionId, runnerInstanceId: runnerId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId, nativeSessionId: sessionId, runnerInstanceId: runnerId,
       runtimeMode: "native", status: "failed", finishedAt: new Date(), processPid: 1234, processStartedAt: new Date(0),
       runnerProfileJson: { nativeExecutionInput: execution, nativeToolContractFingerprint: nativeToolContractFingerprintForTarget("remote", "codex"), retainedWarning: "provider resume remains failed", sessionCheckpoint: {
         backendKind: "runner", driverKind: "codex_app_server", sessionId: "saved-provider-driver", providerSessionId: "saved-provider-session",
-        identity: { companyId, agentId, issueId, runId, sessionId }, activeTurnId: null, cursor: "2", goal: null,
+        identity: { spaceId, agentId, issueId, runId, sessionId }, activeTurnId: null, cursor: "2", goal: null,
       } } });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "terminal_failure", recoveryState: "blocked" });
-    const [selection] = await db.insert(agentTaskSessions).values({ companyId, agentId, adapterType: "outpost_runner", taskKey: issueId,
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "terminal_failure", recoveryState: "blocked" });
+    const [selection] = await db.insert(agentTaskSessions).values({ spaceId, agentId, adapterType: "outpost_runner", taskKey: issueId,
       lastRunId: runId, lastError: "existing provider failure" }).returning();
     const scopeDigest = basename(scopedRunnerdStateRoot(execution)), leaseId = randomUUID(), providerLeaseId = `destroyed-${randomUUID()}`;
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, issueId, heartbeatRunId: runId, provider: "daytona", providerLeaseId,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, issueId, heartbeatRunId: runId, provider: "daytona", providerLeaseId,
       status: "released", cleanupStatus: "success", releasedAt: new Date(), metadata: {
         nativeHarnessBackup: { schema: "outpost.native-harness-backup-stamp.v2", normalizedSessionId: sessionId, runnerInstanceId: runnerId,
           sessionScopeSha256: scopeDigest, sourceProviderLeaseId: providerLeaseId, authorizedProviderLeaseId: providerLeaseId,
           manifestSha256: `sha256:${"f".repeat(64)}`, completedAt: new Date().toISOString() },
-        remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId, runId, leaseId, provider: "daytona", providerLeaseId,
+        remoteExecutionTermination: { schema: "outpost.remote-termination.v1", spaceId, runId, leaseId, provider: "daytona", providerLeaseId,
           state: "destroyed", confirmedAt: new Date().toISOString() },
       } });
     if (kind !== "none") {
-      if (kind === "unversioned") await preserveRuntimeSkillAssets(db, { companyId, runId }, storage);
+      if (kind === "unversioned") await preserveRuntimeSkillAssets(db, { spaceId, runId }, storage);
       await mkdir(join(scopedRunnerdStateRoot(execution), "codex-home/skills"), { recursive: true, mode: 0o700 });
       for (const skill of runtimeContext.skills) {
         await cp(skill.bundle.rootPath, join(scopedRunnerdStateRoot(execution), "codex-home/skills", skill.runtimeName), { recursive: true });
       }
     }
-    const input = { companyId, selectedSessionId: selection!.id, scopeDigest, source, storage, signal: AbortSignal.timeout(60_000) };
+    const input = { spaceId, selectedSessionId: selection!.id, scopeDigest, source, storage, signal: AbortSignal.timeout(60_000) };
     return { input, runId, issueId, agentId, leaseId, execution, witness, storage, mount, sourceRoot: scopedRunnerdStateRoot(execution) };
   }
 
   async function controllerFixture(managedWorkspace = false, kind: Parameters<typeof fixture>[0] = "unversioned", checkpointParts?: number) {
     const f = await fixture(kind, managedWorkspace);
-    const completion = await ensureNativeCompletionContract({ db, companyId: f.input.companyId,
+    const completion = await ensureNativeCompletionContract({ db, spaceId: f.input.spaceId,
       issue: { id: f.issueId, title: "Retain controller evidence", description: null }, actorId: f.agentId });
     const execution = parseNativeExecutionInput({ ...f.execution, session: { ...f.execution.session, lifecyclePolicy: { mode: "warm", idleTimeoutMs: 60_000 } },
       completionContract: { id: completion.row.id, sha256: completion.row.canonicalSha256,
@@ -192,7 +192,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       expect(captureLegacyDurablePrpCheckpoint(JSON.stringify(control.store.state), identity, artifact).records.size).toBe(checkpointParts);
     }
     const raw = JSON.stringify(control.store.state);
-    control.setCheckpointPersistence(nativeRunnerCheckpointWriter(db, { companyId: f.input.companyId, issueId: f.issueId,
+    control.setCheckpointPersistence(nativeRunnerCheckpointWriter(db, { spaceId: f.input.spaceId, issueId: f.issueId,
       runId: f.runId, authorityRunId: f.runId, bootId, generation: 1, leaseOwner }));
     await control.flushCheckpoint();
     await control.stop();
@@ -202,7 +202,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       processConfigDigest: null, snapshot });
     await mkdir(join(descriptor.supervisorPath, ".."), { recursive: true, mode: 0o700 });
     await writeFile(descriptor.supervisorPath, supervisor, { mode: 0o600 });
-    const [result] = await db.insert(nativeRunResults).values({ companyId: f.input.companyId, issueId: f.issueId, runId: f.runId,
+    const [result] = await db.insert(nativeRunResults).values({ spaceId: f.input.spaceId, issueId: f.issueId, runId: f.runId,
       completionContractId: completion.row.id, serverFingerprint: "raw-evidence-fixture", schemaStatus: "accepted", resultJson: {}, canonicalSha256: "a".repeat(64) }).returning();
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date(), runnerProfileJson: { ...prior!.runnerProfileJson,
       nativeExecutionInput: execution, nativeControllerRecovery: createNativeControllerRecovery(snapshot as never,
@@ -329,12 +329,12 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     const f = await controllerFixture(true, "deleted");
     if (!("runtimeContext" in f.execution)) throw new Error("fixture runtime context missing");
     const versionId = f.execution.runtimeContext.skills[0]!.versionId!;
-    await db.delete(companySkillVersions).where(eq(companySkillVersions.id, versionId));
+    await db.delete(spaceSkillVersions).where(eq(spaceSkillVersions.id, versionId));
     const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId));
     const metadata = { ...lease!.metadata }; delete metadata.remoteExecutionTermination;
     await db.update(environmentLeases).set({ metadata }).where(eq(environmentLeases.id, f.leaseId));
-    const beforeLeases = await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.input.companyId));
-    const beforeRuns = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.input.companyId));
+    const beforeLeases = await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.input.spaceId));
+    const beforeRuns = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.input.spaceId));
     await expect(preserveNativeHarnessFilesystemIndependence(db, f.input)).rejects.toThrow("unverified");
     const result = await preserveNativeHarnessFilesystemIndependence(db, { ...f.input, mode: "web_evidence" });
     expect(await hasValidNativeHarnessFilesystemIndependence(db, f.input)).toBe(true);
@@ -344,7 +344,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     expect(receipt.schema).toBe("outpost.native-harness-web-evidence.v1");
     const [archive] = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.id, receipt.controller.archive.id));
     const target = join(f.mount, "isolated-web-evidence");
-    expect(await restoreDurableNativeHarnessBackup({ db, storage: f.storage, companyId: f.input.companyId,
+    expect(await restoreDurableNativeHarnessBackup({ db, storage: f.storage, spaceId: f.input.spaceId,
       scopeDigest: archive!.scopeDigest, backupRoot: target })).toBe(true);
     expect(await readFile(join(target, "current/control-plane-state.json"), "utf8")).toBe(f.raw);
     expect(await readFile(join(target, "current/supervisor.json"), "utf8")).toBe(f.supervisor);
@@ -352,10 +352,10 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     expect(await readFile(restored)).toEqual(await readFile(original));
     expect((await lstat(restored)).mode & 0o777).toBe(0o444);
     expect((await readFile(restored)).length).toBe(281);
-    expect(await db.select().from(companySkillVersions).where(eq(companySkillVersions.id, versionId))).toEqual([]);
+    expect(await db.select().from(spaceSkillVersions).where(eq(spaceSkillVersions.id, versionId))).toEqual([]);
     expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.scopeDigest, f.input.scopeDigest))).toEqual([]);
-    expect(await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.input.companyId))).toEqual(beforeLeases);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.input.companyId))).toEqual(beforeRuns.map(r => ({ ...r,
+    expect(await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.input.spaceId))).toEqual(beforeLeases);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.input.spaceId))).toEqual(beforeRuns.map(r => ({ ...r,
       runnerProfileJson: { ...r.runnerProfileJson, nativeHarnessFilesystemIndependence: run!.runnerProfileJson!.nativeHarnessFilesystemIndependence } })));
     vi.stubEnv("OUTPOST_HOME", join(f.mount, "absent-web")); vi.stubEnv("OUTPOST_RUNNER_STATE_DIR", join(f.mount, "absent-web/state"));
     vi.stubEnv("RAILWAY_VOLUME_ID", ""); vi.spyOn(f.storage, "getObject").mockRejectedValue(new Error("replacement must not read storage"));
@@ -377,7 +377,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId));
     const metadata = { ...lease!.metadata }; delete metadata.remoteExecutionTermination;
     await db.update(environmentLeases).set({ metadata }).where(eq(environmentLeases.id, f.leaseId));
-    const originalLeases = await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.input.companyId));
+    const originalLeases = await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.input.spaceId));
     const result = await preserveNativeHarnessFilesystemIndependence(db, { ...f.input, mode: "web_evidence" });
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     const receipt = run!.runnerProfileJson!.nativeHarnessFilesystemIndependence as {
@@ -386,7 +386,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     expect(receipt.web.entries.length).toBeGreaterThan(927);
     const [archive] = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.id, receipt.controller.archive.id));
     const target = join(f.mount, "cold-many-web-files");
-    expect(await restoreDurableNativeHarnessBackup({ db, storage: f.storage, companyId: f.input.companyId,
+    expect(await restoreDurableNativeHarnessBackup({ db, storage: f.storage, spaceId: f.input.spaceId,
       scopeDigest: archive!.scopeDigest, backupRoot: target })).toBe(true);
     if (!("runtimeContext" in f.execution)) throw new Error("fixture runtime context missing");
     const files: Array<{ relative: string; sha256: string }> = [];
@@ -408,7 +408,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
         expect(stat.mode & 0o777).toBe(0o444);
       }));
     }
-    expect(await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.input.companyId))).toEqual(originalLeases);
+    expect(await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.input.spaceId))).toEqual(originalLeases);
     vi.stubEnv("OUTPOST_HOME", join(f.mount, "absent-many-web-files"));
     vi.stubEnv("OUTPOST_RUNNER_STATE_DIR", join(f.mount, "absent-many-web-files/state")); vi.stubEnv("RAILWAY_VOLUME_ID", "");
     vi.spyOn(f.storage, "getObject").mockRejectedValue(new Error("database validation must not read storage"));
@@ -417,7 +417,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
   }, 120_000);
 
   function webDescriptor(entries: NativeControllerHistoryManifestEntry[]) {
-    return nativeControllerEvidenceDescriptor({ companyId: "company", issueId: "issue", runId: "run", controllerDigest: null,
+    return nativeControllerEvidenceDescriptor({ spaceId: "space", issueId: "issue", runId: "run", controllerDigest: null,
       supervisorDigest: null, purpose: "filesystem_independence", web: { bindingDigest: "a".repeat(64), entries } });
   }
 
@@ -425,7 +425,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     const entries: NativeControllerHistoryManifestEntry[] = [{ path: "web-home", mode: 0o700, type: "directory" },
       ...Array.from({ length: 127 }, (_, index) => ({ path: `web-home/entry-${index}`, mode: 0o700, type: "directory" as const }))];
     const descriptor = webDescriptor(entries);
-    const manifest = JSON.stringify({ schema: "outpost.legacy-controller-archive.v1", companyId: "company", issueId: "issue",
+    const manifest = JSON.stringify({ schema: "outpost.legacy-controller-archive.v1", spaceId: "space", issueId: "issue",
       runId: "run", reason: "original_volume_source_evidence", files: {}, web: { entries, bindingDigest: "a".repeat(64), controllerAbsent: true } });
     expect(descriptor.manifest).toBe(manifest);
     expect(descriptor.manifestSha256).toBe(`sha256:${createHash("sha256").update(manifest).digest("hex")}`);
@@ -480,7 +480,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     const lastRunId = randomUUID(), execution = parseNativeExecutionInput({ ...f.execution, binding: { ...f.execution.binding, runId: lastRunId } });
     await db.insert(heartbeatRuns).values({ ...source!, id: lastRunId, status: "failed", processPid: null, processStartedAt: null,
       createdAt: new Date(source!.createdAt.getTime() + 1_000), runnerProfileJson: { nativeExecutionInput: execution, retainedWarning: "existing failed admission" } });
-    await db.insert(nativeRunFinalizations).values({ companyId: f.input.companyId, issueId: f.issueId, runId: lastRunId,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.input.spaceId, issueId: f.issueId, runId: lastRunId,
       phase: "terminal_failure", recoveryState: "blocked" });
     await db.update(agentTaskSessions).set({ lastRunId }).where(eq(agentTaskSessions.id, f.input.selectedSessionId));
     await preserveNativeHarnessFilesystemIndependence(db, f.input);
@@ -491,7 +491,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     expect(receipt.controller.archive.controllerDigest).toBeNull();
     const [archive] = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.id, receipt.controller.archive.id));
     const target = join(f.mount, "isolated-supervisor-only");
-    expect(await restoreDurableNativeHarnessBackup({ db, storage: f.storage, companyId: f.input.companyId,
+    expect(await restoreDurableNativeHarnessBackup({ db, storage: f.storage, spaceId: f.input.spaceId,
       scopeDigest: archive!.scopeDigest, backupRoot: target })).toBe(true);
     await expect(lstat(join(target, "current/control-plane-state.json"))).rejects.toMatchObject({ code: "ENOENT" });
     expect(await readFile(join(target, "current/supervisor.json"), "utf8")).toBe(f.supervisor);
@@ -512,7 +512,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       .where(eq(environmentLeases.id, f.leaseId));
     expect(await hasValidNativeHarnessFilesystemIndependence(db, f.input)).toBe(true);
     expect((await preserveNativeHarnessFilesystemIndependence(db, f.input)).receiptDigest).toBe(result.receiptDigest);
-    expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+    expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
       eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(1);
     await db.update(environmentLeases).set({ providerLeaseId: "different-allocation" }).where(eq(environmentLeases.id, f.leaseId));
     expect(await hasValidNativeHarnessFilesystemIndependence(db, f.input)).toBe(false);
@@ -534,14 +534,14 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
 
   it("reproves stale native facts after a legacy migration marker without replacing preserved evidence", async () => {
     const f = await staleNativeFixture(453), { first, previous } = f;
-    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.input.companyId));
-    const leases = await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.input.companyId));
-    const finalizers = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, f.input.companyId));
-    const results = await db.select().from(nativeRunResults).where(eq(nativeRunResults.companyId, f.input.companyId));
+    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.input.spaceId));
+    const leases = await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.input.spaceId));
+    const finalizers = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, f.input.spaceId));
+    const results = await db.select().from(nativeRunResults).where(eq(nativeRunResults.spaceId, f.input.spaceId));
     const parts = await db.select().from(nativeRunnerCheckpoints).where(eq(nativeRunnerCheckpoints.runId, f.runId));
-    const backups = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId));
-    const packages = await db.select().from(companySkillRepositorySnapshots).where(eq(companySkillRepositorySnapshots.companyId, f.input.companyId));
-    const versions = await db.select().from(companySkillVersions).where(eq(companySkillVersions.companyId, f.input.companyId));
+    const backups = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId));
+    const packages = await db.select().from(spaceSkillRepositorySnapshots).where(eq(spaceSkillRepositorySnapshots.spaceId, f.input.spaceId));
+    const versions = await db.select().from(spaceSkillVersions).where(eq(spaceSkillVersions.spaceId, f.input.spaceId));
     const put = vi.spyOn(f.storage, "putFile"), get = vi.spyOn(f.storage, "getObject");
     const result = await preserveNativeHarnessFilesystemIndependence(db, f.input);
     const [current] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
@@ -554,15 +554,15 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     expect(await readFile(f.supervisorPath, "utf8")).toBe(f.supervisor);
     expect(parts).toHaveLength(453);
     expect(await db.select().from(nativeRunnerCheckpoints).where(eq(nativeRunnerCheckpoints.runId, f.runId))).toEqual(parts);
-    expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId))).toEqual(backups);
-    expect(await db.select().from(companySkillRepositorySnapshots).where(eq(companySkillRepositorySnapshots.companyId, f.input.companyId))).toEqual(packages);
-    expect(await db.select().from(companySkillVersions).where(eq(companySkillVersions.companyId, f.input.companyId))).toEqual(versions);
-    expect(await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.input.companyId))).toEqual(leases);
-    expect(await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, f.input.companyId))).toEqual(finalizers);
-    expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.companyId, f.input.companyId))).toEqual(results);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.input.companyId)))
+    expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId))).toEqual(backups);
+    expect(await db.select().from(spaceSkillRepositorySnapshots).where(eq(spaceSkillRepositorySnapshots.spaceId, f.input.spaceId))).toEqual(packages);
+    expect(await db.select().from(spaceSkillVersions).where(eq(spaceSkillVersions.spaceId, f.input.spaceId))).toEqual(versions);
+    expect(await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.input.spaceId))).toEqual(leases);
+    expect(await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, f.input.spaceId))).toEqual(finalizers);
+    expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.spaceId, f.input.spaceId))).toEqual(results);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.input.spaceId)))
       .toEqual(runs.map(run => ({ ...run, runnerProfileJson: { ...run.runnerProfileJson, nativeHarnessFilesystemIndependence: receipt } })));
-    const audits = await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+    const audits = await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
       eq(activityLog.action, "native_harness_filesystem_independence_verified")));
     expect(audits).toHaveLength(2);
     const audit = audits.find(row => row.details?.previousReceiptDigest === first.receiptDigest)!.details!;
@@ -591,16 +591,16 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
         await db.update(heartbeatRuns).set({ runnerProfileJson: { ...run!.runnerProfileJson,
           nativeHarnessFilesystemIndependence: receipt } }).where(eq(heartbeatRuns.id, f.runId));
       }
-      const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.input.companyId));
-      const leases = await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.input.companyId));
-      const backups = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId));
+      const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.input.spaceId));
+      const leases = await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.input.spaceId));
+      const backups = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId));
       const put = vi.spyOn(f.storage, "putFile");
       await expect(preserveNativeHarnessFilesystemIndependence(db, f.input)).rejects.toThrow("unverified");
       expect(put).not.toHaveBeenCalled();
-      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.input.companyId))).toEqual(runs);
-      expect(await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.input.companyId))).toEqual(leases);
-      expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId))).toEqual(backups);
-      expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.input.spaceId))).toEqual(runs);
+      expect(await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.input.spaceId))).toEqual(leases);
+      expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId))).toEqual(backups);
+      expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
         eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(1);
     });
 
@@ -627,17 +627,17 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
         }
         if (control === "active-owner") await db.update(nativeRunFinalizations).set({ leaseOwner: "new-owner",
           leaseExpiresAt: new Date(Date.now() + 60_000) }).where(eq(nativeRunFinalizations.runId, f.runId));
-        const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.input.companyId));
-        const finalizers = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, f.input.companyId));
-        const backups = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId));
+        const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.input.spaceId));
+        const finalizers = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, f.input.spaceId));
+        const backups = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId));
         release();
         if (winner) expect((await late).receiptDigest).toBe(winner.receiptDigest);
         else await expect(late).rejects.toThrow("unverified");
         expect(put).not.toHaveBeenCalled();
-        expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.input.companyId))).toEqual(runs);
-        expect(await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, f.input.companyId))).toEqual(finalizers);
-        expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId))).toEqual(backups);
-        expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+        expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.input.spaceId))).toEqual(runs);
+        expect(await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, f.input.spaceId))).toEqual(finalizers);
+        expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId))).toEqual(backups);
+        expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
           eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(winner ? 2 : 1);
       } finally { release(); await late.catch(() => undefined); }
     });
@@ -655,10 +655,10 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
   it.each([false, true])("refreshes stale WEB facts with the same verified source and archive while auditing the prior receipt (touched: %s)", async touched => {
     const f = await staleWebFixture();
     if (touched) { const stat = await lstat(f.supervisorPath); await utimes(f.supervisorPath, stat.atime, new Date(stat.mtimeMs + 5_000)); }
-    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.input.companyId));
-    const leases = await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.input.companyId));
-    const finalizers = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, f.input.companyId));
-    const backups = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId));
+    const runs = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.input.spaceId));
+    const leases = await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.input.spaceId));
+    const finalizers = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, f.input.spaceId));
+    const backups = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId));
     const put = vi.spyOn(f.storage, "putFile");
     const get = vi.spyOn(f.storage, "getObject");
     const now = Date.now(), source = await verifyOriginalHarnessVolumeSource({ ...f.witness,
@@ -674,12 +674,12 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     expect(result.receiptDigest).not.toBe(f.first.receiptDigest);
     expect(await hasValidNativeHarnessFilesystemIndependence(db, f.input)).toBe(true);
     expect(put).not.toHaveBeenCalled(); expect(get).toHaveBeenCalled();
-    expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId))).toEqual(backups);
-    expect(await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.input.companyId))).toEqual(leases);
-    expect(await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, f.input.companyId))).toEqual(finalizers);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.input.companyId)))
+    expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId))).toEqual(backups);
+    expect(await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.input.spaceId))).toEqual(leases);
+    expect(await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, f.input.spaceId))).toEqual(finalizers);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.input.spaceId)))
       .toEqual(runs.map(row => ({ ...row, runnerProfileJson: { ...row.runnerProfileJson, nativeHarnessFilesystemIndependence: receipt } })));
-    const audits = await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+    const audits = await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
       eq(activityLog.action, "native_harness_filesystem_independence_verified")));
     expect(audits).toHaveLength(2);
     expect(audits.find(row => row.details?.previousReceiptDigest === f.first.receiptDigest)?.details)
@@ -690,14 +690,14 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     expect(nativeSha256({ ...receipt, ...audit.previousReceiptState as Record<string, unknown> })).toBe(f.first.receiptDigest);
     expect((await preserveNativeHarnessFilesystemIndependence(db, f.input)).receiptDigest).toBe(result.receiptDigest);
     expect(put).not.toHaveBeenCalled();
-    expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+    expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
       eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(2);
   });
 
   it.each(["touch", "new-inode"])("preserves a valid WEB receipt after metadata-only %s", async control => {
     const f = await webFixture(), first = await preserveNativeHarnessFilesystemIndependence(db, f.input);
     const before = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-    const backups = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId));
+    const backups = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId));
     const stat = await lstat(f.supervisorPath);
     if (control === "touch") await utimes(f.supervisorPath, stat.atime, new Date(stat.mtimeMs + 5_000));
     else { await copyFile(f.supervisorPath, `${f.supervisorPath}.copy`); await rename(`${f.supervisorPath}.copy`, f.supervisorPath);
@@ -707,8 +707,8 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     expect((await preserveNativeHarnessFilesystemIndependence(db, f.input)).receiptDigest).toBe(first.receiptDigest);
     expect(get).toHaveBeenCalled(); expect(put).not.toHaveBeenCalled();
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId))).toEqual(before);
-    expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId))).toEqual(backups);
-    expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+    expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId))).toEqual(backups);
+    expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
       eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(1);
   });
 
@@ -724,14 +724,14 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     const [settings] = await db.select().from(instanceSettings);
     await db.update(instanceSettings).set({ general: { ...settings!.general, censorUsernameInLogs: true } }).where(eq(instanceSettings.id, settings!.id));
     try {
-      await logActivity(db, { companyId: f.input.companyId, actorType: "system", actorId: "redaction-fixture",
+      await logActivity(db, { spaceId: f.input.spaceId, actorType: "system", actorId: "redaction-fixture",
         action: "redaction_fixture", entityType: "heartbeat_run", entityId: f.runId, details: { path } });
-      const [redacted] = await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId), eq(activityLog.action, "redaction_fixture")));
+      const [redacted] = await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId), eq(activityLog.action, "redaction_fixture")));
       expect(redacted!.details!.path).not.toBe(path);
       await preserveNativeHarnessFilesystemIndependence(db, f.input);
       const [current] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
       const receipt = current!.runnerProfileJson!.nativeHarnessFilesystemIndependence as Record<string, unknown>;
-      const audits = await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+      const audits = await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
         eq(activityLog.action, "native_harness_filesystem_independence_verified")));
       const audit = audits.find(row => row.details?.previousReceiptDigest === first.receiptDigest)!.details!;
       const reconstructed = audit.previousReceipt ?? { ...receipt, ...audit.previousReceiptState as Record<string, unknown> };
@@ -745,7 +745,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
         .where(eq(heartbeatRuns.id, f.runId));
       await preserveNativeHarnessFilesystemIndependence(db, f.input);
       const [latest] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-      const history = await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+      const history = await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
         eq(activityLog.action, "native_harness_filesystem_independence_verified")));
       expect(history).toHaveLength(3);
       for (const row of history.filter(row => row.details?.previousReceiptState)) {
@@ -762,7 +762,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     await db.update(heartbeatRuns).set({ runnerProfileJson: profile }).where(eq(heartbeatRuns.id, f.runId));
     await expect(preserveNativeHarnessFilesystemIndependence(db, f.input)).rejects.toThrow("native_harness_filesystem_independence_unverified");
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]!.runnerProfileJson).toEqual(profile);
-    expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+    expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
       eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(1);
   });
 
@@ -783,7 +783,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     await expect(preserveNativeHarnessFilesystemIndependence(db, f.input)).rejects.toThrow();
     const after = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     expect(after[0]!.runnerProfileJson).toEqual(before[0]!.runnerProfileJson);
-    expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+    expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
       eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(1);
   });
 
@@ -800,14 +800,14 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       if (control === "unreadable-archive") vi.spyOn(f.storage, "getObject").mockRejectedValue(new Error("archive unavailable"));
       if (control === "replaced-volume") vi.stubEnv("RAILWAY_VOLUME_ID", randomUUID());
       const before = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-      const backups = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId));
+      const backups = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId));
       const put = vi.spyOn(f.storage, "putFile");
       await expect(preserveNativeHarnessFilesystemIndependence(db, { ...f.input,
         ...(control === "aborted" ? { signal: AbortSignal.abort() } : {}) })).rejects.toThrow();
       expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId))).toEqual(before);
-      expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId))).toEqual(backups);
+      expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId))).toEqual(backups);
       expect(put).not.toHaveBeenCalled();
-      expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+      expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
         eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(1);
     });
 
@@ -839,7 +839,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
         if (winner) expect((await late).receiptDigest).toBe(winner.receiptDigest);
         else await expect(late).rejects.toThrow();
         expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId))).toEqual(before);
-        expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+        expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
           eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(winner ? 2 : 1);
       } finally { release(); await late.catch(() => undefined); }
     });
@@ -913,7 +913,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       if (invalid) await expect(late).rejects.toThrow("unverified");
       else expect((await late).receiptDigest).toBe(winner.receiptDigest);
       expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]).toEqual(published);
-      expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+      expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
         eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(1);
     } finally { release(); await late.catch(() => undefined); }
   });
@@ -950,12 +950,12 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       const runId = randomUUID(), bootId = randomUUID(), leaseOwner = randomUUID(), leaseId = randomUUID();
       const execution = parseNativeExecutionInput({ ...f.execution, binding: { ...f.execution.binding, runId } });
       const snapshot = { ...(anchor!.runnerProfileJson!.sessionCheckpoint as Record<string, unknown>),
-        identity: { companyId: f.input.companyId, agentId: f.agentId, issueId: f.issueId, runId,
+        identity: { spaceId: f.input.spaceId, agentId: f.agentId, issueId: f.issueId, runId,
           sessionId: execution.session.normalizedSessionId } };
       await db.insert(heartbeatRuns).values({ ...anchor!, id: runId, status: "running", finishedAt: null,
         createdAt: new Date(anchor!.createdAt.getTime() - index * 60_000),
         runnerProfileJson: { ...anchor!.runnerProfileJson, nativeExecutionInput: execution, sessionCheckpoint: snapshot } });
-      await db.insert(nativeRunFinalizations).values({ companyId: f.input.companyId, issueId: f.issueId, runId,
+      await db.insert(nativeRunFinalizations).values({ spaceId: f.input.spaceId, issueId: f.issueId, runId,
         phase: "observed", controllerBootId: bootId, controllerGeneration: 1, leaseOwner, leaseExpiresAt: new Date(Date.now() + 60_000) });
       const identity = { ...f.identity, environmentLeaseId: execution.binding.executionWorkspaceId, runId, turnId: randomUUID(), itemId: randomUUID() };
       let epoch = "epoch-" + createHash("sha256").update(JSON.stringify(identity)).digest("hex").slice(0, 24);
@@ -969,7 +969,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
         envelope: { ...identity, text: `Retained historical stream ${index}` }, deliveryCount: 1, logicalEffectCount: 1 });
       control.store.state.ackedSourceSeq = 1;
       const contents = JSON.stringify(control.store.state);
-      control.setCheckpointPersistence(nativeRunnerCheckpointWriter(db, { companyId: f.input.companyId, issueId: f.issueId,
+      control.setCheckpointPersistence(nativeRunnerCheckpointWriter(db, { spaceId: f.input.spaceId, issueId: f.issueId,
         runId, authorityRunId: runId, bootId, generation: 1, leaseOwner }));
       await control.flushCheckpoint(); await control.stop();
       const canonicalEpoch = "epoch-" + createHash("sha256").update(JSON.stringify(JSON.parse(contents).identity)).digest("hex").slice(0, 24);
@@ -985,7 +985,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
           payload: { text: `Suspended historical outbox ${index}` } }], processedCommands: {}, diagnostics: ["retained suspended authority"],
       }) } : undefined;
       if (runner) await writeFile(join(f.sourceRoot, runner.path), runner.contents, { mode: 0o600 });
-      const [result] = await db.insert(nativeRunResults).values({ companyId: f.input.companyId, issueId: f.issueId, runId,
+      const [result] = await db.insert(nativeRunResults).values({ spaceId: f.input.spaceId, issueId: f.issueId, runId,
         completionContractId: anchor!.completionContractId!, serverFingerprint: "historical-evidence-fixture", schemaStatus: "accepted",
         resultJson: {}, canonicalSha256: "a".repeat(64) }).returning();
       await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, runId));
@@ -998,7 +998,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       await db.insert(environmentLeases).values({ ...lease!, id: leaseId, heartbeatRunId: runId, providerLeaseId,
         metadata: { ...lease!.metadata, nativeHarnessBackup: { ...(lease!.metadata!.nativeHarnessBackup as Record<string, unknown>),
           sourceProviderLeaseId: providerLeaseId, authorizedProviderLeaseId: providerLeaseId },
-        remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId: f.input.companyId, runId, leaseId,
+        remoteExecutionTermination: { schema: "outpost.remote-termination.v1", spaceId: f.input.spaceId, runId, leaseId,
           provider: "daytona", providerLeaseId, state: "destroyed", confirmedAt: new Date().toISOString() } } });
       entries.push({ path, contents, runId, header: header!, runner });
     }
@@ -1007,8 +1007,8 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
 
   it.each([false, true])("preserves a four-run session's three authority epochs with suspended Runner state %s and validates without the original volume", async includeRunnerState => {
     const f = await historyFixture(false, includeRunnerState);
-    const beforeRuns = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.input.companyId));
-    const beforeLeases = await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.input.companyId));
+    const beforeRuns = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.input.spaceId));
+    const beforeLeases = await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.input.spaceId));
     for (const entry of f.entries) expect(await db.select().from(nativeRunnerCheckpoints).where(eq(nativeRunnerCheckpoints.runId, entry.runId))).toEqual([]);
     const result = await preserveNativeHarnessFilesystemIndependence(db, f.input);
     expect(await hasValidNativeHarnessFilesystemIndependence(db, f.input)).toBe(true);
@@ -1018,7 +1018,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     expect(archive!.id).not.toBe(f.currentOnly.id);
     expect((await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.id, f.currentOnly.id)))[0]).toEqual(f.currentOnly);
     const target = join(f.mount, "isolated-authority-evidence");
-    expect(await restoreDurableNativeHarnessBackup({ db, storage: f.storage, companyId: f.input.companyId,
+    expect(await restoreDurableNativeHarnessBackup({ db, storage: f.storage, spaceId: f.input.spaceId,
       scopeDigest: archive!.scopeDigest, backupRoot: target })).toBe(true);
     for (const entry of f.entries) {
       for (const file of [entry, ...(entry.runner ? [entry.runner] : [])]) {
@@ -1027,10 +1027,10 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
         expect(await readFile(join(f.sourceRoot, file.path), "utf8")).toBe(file.contents);
       }
     }
-    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.input.companyId))).sort((a, b) => a.id.localeCompare(b.id)))
+    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.input.spaceId))).sort((a, b) => a.id.localeCompare(b.id)))
       .toEqual(beforeRuns.map(run => run.id === f.runId ? { ...run, runnerProfileJson: { ...run.runnerProfileJson,
         nativeHarnessFilesystemIndependence: anchor!.runnerProfileJson!.nativeHarnessFilesystemIndependence } } : run).sort((a, b) => a.id.localeCompare(b.id)));
-    expect(await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.input.companyId))).toEqual(beforeLeases);
+    expect(await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.input.spaceId))).toEqual(beforeLeases);
     vi.stubEnv("OUTPOST_HOME", join(f.mount, "absent-replacement")); vi.stubEnv("OUTPOST_RUNNER_STATE_DIR", join(f.mount, "absent-replacement/state"));
     vi.stubEnv("RAILWAY_VOLUME_ID", ""); vi.spyOn(f.storage, "getObject").mockRejectedValue(new Error("replacement must not read storage"));
     expect(await hasValidNativeHarnessFilesystemIndependence(db, f.input)).toBe(true);
@@ -1053,7 +1053,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
 
   it("bounds historical evidence at sixteen MiB per file and sixty-four MiB total", () => {
     const limit = 16 * 1024 * 1024;
-    const descriptor = (sizes: number[]) => nativeControllerEvidenceDescriptor({ companyId: randomUUID(), issueId: randomUUID(),
+    const descriptor = (sizes: number[]) => nativeControllerEvidenceDescriptor({ spaceId: randomUUID(), issueId: randomUUID(),
       runId: randomUUID(), controllerDigest: "a".repeat(64), supervisorDigest: null, purpose: "filesystem_independence",
       historyBindingDigest: "b".repeat(64), history: [{ path: "authority-epochs", mode: 0o700, type: "directory" },
         ...sizes.flatMap((size, index) => {
@@ -1140,7 +1140,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     const f = await historyFixture(control !== "unknown-override"), entry = f.entries[0]!;
     if (control === "malformed") await db.update(nativeRunnerCheckpoints).set({ material: { schema: "unreadable" } })
       .where(and(eq(nativeRunnerCheckpoints.runId, entry.runId), eq(nativeRunnerCheckpoints.part, "header")));
-    if (control === "retired") await db.update(nativeRunnerCheckpoints).set({ material: nativeCheckpointRetirement({ companyId: f.input.companyId,
+    if (control === "retired") await db.update(nativeRunnerCheckpoints).set({ material: nativeCheckpointRetirement({ spaceId: f.input.spaceId,
       agentId: f.agentId, sessionId: f.execution.session.normalizedSessionId!, runIds: [entry.runId] }) })
       .where(and(eq(nativeRunnerCheckpoints.runId, entry.runId), eq(nativeRunnerCheckpoints.part, "header")));
     if (control === "unknown-override") {
@@ -1173,7 +1173,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       release(); expect((await late).receiptDigest).toBe(winner.receiptDigest);
       expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]).toEqual(published);
       expect(await hasValidNativeHarnessFilesystemIndependence(db, f.input)).toBe(true);
-      expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+      expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
         eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(1);
     } finally { release(); await late.catch(() => undefined); }
   });
@@ -1183,7 +1183,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     const [before] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId));
     expect(await hasLocalNativeHarnessObligations(db)).toBe(true);
-    const [unrelated] = await db.insert(heartbeatRuns).values({ companyId: f.input.companyId, agentId: f.agentId, status: "running", runtimeMode: "native" }).returning();
+    const [unrelated] = await db.insert(heartbeatRuns).values({ spaceId: f.input.spaceId, agentId: f.agentId, status: "running", runtimeMode: "native" }).returning();
     await preserveNativeHarnessFilesystemIndependence(db, f.input);
     expect(await hasLocalNativeHarnessObligations(db)).toBe(false);
     const [after] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
@@ -1192,7 +1192,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     expect((await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId)))[0]).toEqual(lease);
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0])
       .toMatchObject({ phase: "terminal_failure", recoveryState: "blocked", leaseOwner: null });
-    expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId))).toEqual([]);
+    expect(await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId))).toEqual([]);
     expect(await readFile(join(f.sourceRoot, "codex-home/skills/retained/SKILL.md"), "utf8")).toBe("# original immutable skill\n");
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, unrelated!.id)))[0]!.status).toBe("running");
     const replacement = await realpath(await mkdtemp(join(tmpdir(), "native-harness-replacement-"))); roots.push(replacement);
@@ -1201,7 +1201,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     const get = vi.spyOn(f.storage, "getObject").mockRejectedValue(new Error("startup must not read objects"));
     expect(await hasLocalNativeHarnessObligations(db)).toBe(false); expect(get).not.toHaveBeenCalled();
     await expect(preserveNativeHarnessFilesystemIndependence(db, f.input)).rejects.toThrow();
-    expect((await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+    expect((await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
       eq(activityLog.action, "native_harness_filesystem_independence_verified"))))).toHaveLength(1);
   });
 
@@ -1228,7 +1228,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     if (control === "checkpoint") { const [r] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
       await db.update(heartbeatRuns).set({ runnerProfileJson: { ...r!.runnerProfileJson, sessionCheckpoint: { changed: true } } }).where(eq(heartbeatRuns.id, f.runId)); }
     if (control === "lease") await db.update(environmentLeases).set({ metadata: {} }).where(eq(environmentLeases.id, f.leaseId));
-    if (control === "package") await db.update(companySkillRepositorySnapshots).set({ storage: null }).where(eq(companySkillRepositorySnapshots.companyId, f.input.companyId));
+    if (control === "package") await db.update(spaceSkillRepositorySnapshots).set({ storage: null }).where(eq(spaceSkillRepositorySnapshots.spaceId, f.input.spaceId));
     if (control === "retained-selection") await db.update(agentTaskSessions).set({ lastRunId: null }).where(eq(agentTaskSessions.id, f.input.selectedSessionId));
     if (control === "malformed-stamp") {
       const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId));
@@ -1244,7 +1244,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     expect(await hasValidNativeHarnessFilesystemIndependence(db, f.input)).toBe(true);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]!.runnerProfileJson)
       .not.toHaveProperty("nativeRuntimeSkillPreservation");
-    await db.delete(companySkillVersions).where(eq(companySkillVersions.companyId, f.input.companyId));
+    await db.delete(spaceSkillVersions).where(eq(spaceSkillVersions.spaceId, f.input.spaceId));
     expect(await hasValidNativeHarnessFilesystemIndependence(db, f.input)).toBe(false);
   });
   it("does not publish across the actual physical-finalization lock", async () => {
@@ -1253,7 +1253,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     const held = new Promise<void>(resolve => { release = resolve; });
     const ready = new Promise<void>(resolve => { acquired = resolve; });
     const owner = db.transaction(async tx => { expect(await tryLockNativeWorkspaceFinalization(tx as unknown as typeof db,
-      { companyId: f.input.companyId, runId: f.runId })).toBe(true); acquired(); await held; });
+      { spaceId: f.input.spaceId, runId: f.runId })).toBe(true); acquired(); await held; });
     try { await ready; await expect(preserveNativeHarnessFilesystemIndependence(db, f.input)).rejects.toThrow("unverified"); }
     finally { release(); await owner; }
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]!.runnerProfileJson)
@@ -1267,7 +1267,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     const [before] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     await preserveNativeHarnessFilesystemIndependence(db, f.input);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]).toEqual(before);
-    expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+    expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
       eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(1);
   });
   it.each([false, true])("retains or refuses the existing receipt when an earlier capture finishes late (invalid: %s)", async invalid => {
@@ -1294,7 +1294,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       if (invalid) await expect(late).rejects.toThrow("unverified");
       else expect((await late).receiptDigest).toBe(winner.receiptDigest);
       expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]).toEqual(published);
-      expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+      expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
         eq(activityLog.action, "native_harness_filesystem_independence_verified")))).toHaveLength(1);
     } finally { release(); await late.catch(() => undefined); }
   });
@@ -1302,24 +1302,24 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     const f = await controllerFixture();
     const [before] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     const [owner] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
-    const checkpoint = await loadNativeRunnerCheckpoint(db, { companyId: f.input.companyId, issueId: f.issueId, runId: f.runId });
+    const checkpoint = await loadNativeRunnerCheckpoint(db, { spaceId: f.input.spaceId, issueId: f.issueId, runId: f.runId });
     const captured = captureLegacyDurablePrpCheckpoint(f.raw, { runId: f.runId, runnerInstanceId: before!.runnerInstanceId!,
       normalizedSessionId: before!.nativeSessionId! }, { version: checkpoint!.runnerVersion, digest: checkpoint!.runnerDigest });
     expect([...captured.records].map(([key, value]) => [key, JSON.parse(value)])).toEqual(
       [...checkpoint!.records].map(([key, value]) => [key, JSON.parse(value)]));
     await preserveNativeHarnessFilesystemIndependence(db, f.input);
-    const rows = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId));
+    const rows = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId));
     expect(rows).toHaveLength(1); expect(rows[0]!.scopeDigest).not.toBe(f.input.scopeDigest);
     expect(rows[0]!.status).toBe("current");
     const restored = join(f.mount, "isolated-raw-evidence");
-    expect(await restoreDurableNativeHarnessBackup({ db, storage: f.storage, companyId: f.input.companyId,
+    expect(await restoreDurableNativeHarnessBackup({ db, storage: f.storage, spaceId: f.input.spaceId,
       scopeDigest: rows[0]!.scopeDigest, backupRoot: restored })).toBe(true);
     expect(await readFile(join(restored, "current/control-plane-state.json"), "utf8")).toBe(f.raw);
     expect(await readFile(join(restored, "current/supervisor.json"), "utf8")).toBe(f.supervisor);
     expect(JSON.parse(await readFile(join(restored, "current/manifest.json"), "utf8")))
       .toMatchObject({ schema: "outpost.legacy-controller-archive.v1", reason: "original_volume_source_evidence" });
     expect(await readFile(join(restored, "current/manifest.json"), "utf8")).toBe(JSON.stringify({ schema: "outpost.legacy-controller-archive.v1",
-      companyId: f.input.companyId, issueId: f.issueId, runId: f.runId, reason: "original_volume_source_evidence",
+      spaceId: f.input.spaceId, issueId: f.issueId, runId: f.runId, reason: "original_volume_source_evidence",
       files: { "control-plane-state.json": createHash("sha256").update(f.raw).digest("hex"),
         "supervisor.json": createHash("sha256").update(f.supervisor).digest("hex") } }));
     expect(await readFile(f.controllerPath, "utf8")).toBe(f.raw);
@@ -1376,14 +1376,14 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
       await ready;
       const winner = await preserveNativeHarnessFilesystemIndependence(db, f.input);
       const [published] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-      const [archive] = await db.select().from(nativeHarnessBackups).where(and(eq(nativeHarnessBackups.companyId, f.input.companyId),
+      const [archive] = await db.select().from(nativeHarnessBackups).where(and(eq(nativeHarnessBackups.spaceId, f.input.spaceId),
         eq(nativeHarnessBackups.status, "current")));
       release();
       expect((await late).receiptDigest).toBe(winner.receiptDigest);
       expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]).toEqual(published);
-      expect(await db.select().from(nativeHarnessBackups).where(and(eq(nativeHarnessBackups.companyId, f.input.companyId),
+      expect(await db.select().from(nativeHarnessBackups).where(and(eq(nativeHarnessBackups.spaceId, f.input.spaceId),
         eq(nativeHarnessBackups.status, "current")))).toEqual([archive]);
-      expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.input.companyId),
+      expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.input.spaceId),
         eq(activityLog.action, "native_controller_source_evidence_preserved")))).toHaveLength(1);
       expect(await hasValidNativeHarnessFilesystemIndependence(db, f.input)).toBe(true);
     } finally { release(); await late.catch(() => undefined); }
@@ -1393,7 +1393,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     await preserveNativeHarnessFilesystemIndependence(db, f.input);
     expect(await hasValidNativeHarnessFilesystemIndependence(db, f.input)).toBe(true);
     if (binding === "checkpoint") await db.delete(nativeRunnerCheckpoints).where(eq(nativeRunnerCheckpoints.runId, f.runId));
-    else await db.update(nativeHarnessBackups).set({ status: "retired" }).where(eq(nativeHarnessBackups.companyId, f.input.companyId));
+    else await db.update(nativeHarnessBackups).set({ status: "retired" }).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId));
     expect(await hasValidNativeHarnessFilesystemIndependence(db, f.input)).toBe(false);
     expect(await hasLocalNativeHarnessObligations(db)).toBe(true);
   });
@@ -1408,7 +1408,7 @@ describeEmbeddedPostgres("owner-verified native harness filesystem independence"
     await expect(preserveNativeHarnessFilesystemIndependence(db, f.input)).rejects.toThrow();
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]!.runnerProfileJson)
       .not.toHaveProperty("nativeHarnessFilesystemIndependence");
-    const rows = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.companyId, f.input.companyId));
+    const rows = await db.select().from(nativeHarnessBackups).where(eq(nativeHarnessBackups.spaceId, f.input.spaceId));
     expect(rows.every(row => row.status === "pending")).toBe(true);
   });
 });

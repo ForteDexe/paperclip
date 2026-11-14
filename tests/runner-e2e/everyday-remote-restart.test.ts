@@ -4,18 +4,18 @@ import { storyLifecycleChecks, type StoryRun } from "./everyday-observations.js"
 import { gradeRemoteRestart, observeRemoteRestartBoundary, projectRemoteRestartEvents, projectRemoteRestartRun, waitForRemoteRestartBoundary } from "./everyday-remote-restart.js";
 
 const run: StoryRun = {
-  id: "run", companyId: "company", agentId: "lead", nativeIssueId: "task",
+  id: "run", spaceId: "space", agentId: "lead", nativeIssueId: "task",
   status: "succeeded", runtimeMode: "native", runnerInstanceId: "runner", nativeSessionId: "session",
 };
 
 function fixture() {
   const active = { ...run, status: "running", processPid: 42, processStartedAt: "2026-10-14T00:00:00.000Z" };
-  const scope = { companyId: "company", agentId: "lead", issueId: "task", environmentId: "environment" };
+  const scope = { spaceId: "space", agentId: "lead", issueId: "task", environmentId: "environment" };
   const leases = [{ id: "lease", ...scope, heartbeatRunId: "run", provider: "daytona", providerLeaseId: "private-sandbox",
     status: "active", releasedAt: null, executionWorkspaceId: "workspace" }];
   const event = (seq: number, eventType: string, payload: Record<string, unknown> = {}, sourceKind = "runner", sourceSeq = seq) => {
     const sourceInstanceId = sourceKind === "runner" ? "runner" : "runner:control";
-    return { seq, runId: "run", companyId: "company", eventType, protocolSchemaVersion: 1, payload: { orpEvent: {
+    return { seq, runId: "run", spaceId: "space", eventType, protocolSchemaVersion: 1, payload: { orpEvent: {
       schema: "outpost.orp.event.v1", schemaVersion: 1, runId: "run", normalizedSessionId: "session", sourceKind,
       sourceInstanceId, sourceSeq, sourceEventId: `${sourceInstanceId}:run:${sourceSeq}`, eventType,
       turnId: eventType === "turn.submitted" ? null : "turn", payload,
@@ -33,13 +33,13 @@ function fixture() {
   const finalRows = [...afterRows, event(6, "run.result.proposed"), event(7, "turn.completed"),
     event(8, "run.result.accepted", {}, "control_plane", 1), event(9, "run.terminal", {}, "control_plane", 2)];
   const final = { observedAt: "2026-10-22T00:02:00.000Z", run: finished, events: projectRemoteRestartEvents(finished, finalRows),
-    operations: [{ companyId: "company", heartbeatRunId: "run", issueId: "task", executionWorkspaceId: "workspace",
+    operations: [{ spaceId: "space", heartbeatRunId: "run", issueId: "task", executionWorkspaceId: "workspace",
       phase: "workspace_finalize", status: "succeeded" }], scheduledRetry: null as unknown, recoveryActions: [] as Record<string, unknown>[] };
   const outage: ControllerOutageReceipt = { schema: "outpost.e2e.controller-outage/v1", requestId: "story-test",
     signal: "SIGKILL", holdMs: 1000, previousPid: 100, replacementPid: 200,
     startedAt: "2026-10-22T00:00:00.000Z", stoppedAfterMs: 100, cacheDiscarded: true,
     replacementStartedAfterMs: 1100, readyAfterMs: 4000,
-    recovery: { binding: { companyId: "company", issueId: "task", runId: "run" }, runnerInstanceId: "runner", nativeSessionId: "session",
+    recovery: { binding: { spaceId: "space", issueId: "task", runId: "run" }, runnerInstanceId: "runner", nativeSessionId: "session",
       previousGeneration: 1, generation: 2, previousBootId: "old", bootId: "new", previousLeaseExpiresAt: "2026-10-22T00:01:00.000Z",
       ownershipAcquiredAt: "2026-10-22T00:01:00.001Z", ownershipObservedAfterMs: 60_010,
       authenticatedAttachmentObservedAfterMs: 61_000, resumedProcessingObservedAfterMs: 61_000,
@@ -121,7 +121,7 @@ describe("remote restart lifecycle evidence", () => {
     for (const field of ["runnerInstanceId", "nativeSessionId"] as const) {
       expect(grade([{ ...first, outage: { ...first.outage, recovery: { ...first.outage.recovery!, [field]: "another" } } }, second])).toBe(false);
     }
-    for (const field of ["companyId", "issueId"] as const) {
+    for (const field of ["spaceId", "issueId"] as const) {
       expect(grade([{ ...first, outage: { ...first.outage, recovery: { ...first.outage.recovery!,
         binding: { ...first.outage.recovery!.binding, [field]: "another" } } } }, second])).toBe(false);
     }
@@ -139,7 +139,7 @@ describe("remote restart lifecycle evidence", () => {
     const { evidence } = fixture();
     const replacement = { ...evidence.final.run, id: "replacement", runnerInstanceId: "replacement-runner" };
     evidence.final.run = replacement;
-    const checks = storyLifecycleChecks({ issues: [{ id: "task", companyId: "company", title: "task", status: "done" }],
+    const checks = storyLifecycleChecks({ issues: [{ id: "task", spaceId: "space", title: "task", status: "done" }],
       runs: [replacement], parentId: "task", leadId: "lead", requireRemoteRestart: true, remoteRestart: evidence,
     } as Parameters<typeof storyLifecycleChecks>[0]);
     expect(checks.every(check => check.passed)).toBe(false);
@@ -148,7 +148,7 @@ describe("remote restart lifecycle evidence", () => {
   it("does not accept a terminal native result without its workspace finalization receipt", () => {
     const { evidence } = fixture();
     evidence.final.operations = [];
-    const checks = storyLifecycleChecks({ issues: [{ id: "task", companyId: "company", title: "task", status: "done" }],
+    const checks = storyLifecycleChecks({ issues: [{ id: "task", spaceId: "space", title: "task", status: "done" }],
       runs: [evidence.final.run], parentId: "task", leadId: "lead", requireRemoteRestart: true, remoteRestart: evidence,
     } as Parameters<typeof storyLifecycleChecks>[0]);
     expect(checks.every(check => check.passed)).toBe(false);
@@ -156,7 +156,7 @@ describe("remote restart lifecycle evidence", () => {
 
   it("accepts the original live process and lease followed by committed native and workspace receipts", () => {
     const { evidence } = fixture();
-    expect(storyLifecycleChecks({ issues: [{ id: "task", companyId: "company", title: "task", status: "done" }],
+    expect(storyLifecycleChecks({ issues: [{ id: "task", spaceId: "space", title: "task", status: "done" }],
       runs: [evidence.final.run], parentId: "task", leadId: "lead", requireRemoteRestart: true, remoteRestart: evidence,
     }).every(check => check.passed)).toBe(true);
   });
@@ -233,7 +233,7 @@ describe("remote restart lifecycle evidence", () => {
     const f = fixture();
     expect(() => observeRemoteRestartBoundary({ ...f.active, status: "succeeded" }, f.rows, f.leases, f.scope)).toThrow("live native process");
     expect(() => observeRemoteRestartBoundary(f.active, f.rows.slice(0, 3), f.leases, f.scope)).toThrow("completed tool");
-    expect(() => observeRemoteRestartBoundary(f.active, f.rows, [{ ...f.leases[0]!, companyId: "foreign" }], f.scope)).toThrow("exact active sandbox");
+    expect(() => observeRemoteRestartBoundary(f.active, f.rows, [{ ...f.leases[0]!, spaceId: "foreign" }], f.scope)).toThrow("exact active sandbox");
     const foreign = structuredClone(f.rows);
     foreign[0]!.payload.orpEvent.normalizedSessionId = "foreign";
     expect(() => observeRemoteRestartBoundary(f.active, foreign, f.leases, f.scope)).toThrow("foreign, duplicate or invalid");

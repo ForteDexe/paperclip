@@ -42,7 +42,7 @@ export interface ConfigReference {
 export const CONFIG_REFERENCE_IDS = ["provision_command", "ai_default", "agent_secret", "workspace_cwd", "base_ref", "model_id"] as const;
 export type ConfigReferenceId = (typeof CONFIG_REFERENCE_IDS)[number];
 
-/** The stale setup script CF1 points at: the path #20269 renamed in the Paperclip repository. */
+/** The stale setup script CF1 points at: the path #20269 renamed in the Outpost repository. */
 export const STALE_PROVISION_COMMAND = "bash ./scripts/provision-worktree.sh";
 
 export const CONFIG_REFERENCES: Record<ConfigReferenceId, ConfigReference> = {
@@ -83,7 +83,7 @@ export const CONFIG_REFERENCES: Record<ConfigReferenceId, ConfigReference> = {
  * Reported with every wave so the coverage gap stays visible.
  */
 export const CONFIG_REFERENCES_NOT_BROKEN: Record<string, string> = {
-  "agent skills (paperclipSkillSync.desiredSkills)": "deleting a skill an agent uses is refused (422) and unknown keys are rejected on write",
+  "agent skills (outpostSkillSync.desiredSkills)": "deleting a skill an agent uses is refused (422) and unknown keys are rejected on write",
   "agent defaultEnvironmentId": "the FK is ON DELETE SET NULL and an instance has one local environment, so a local wave cannot leave it dangling",
   "project executionWorkspacePolicy.environmentId": "not read when choosing a run's environment, so breaking it changes nothing",
   "agent instructionsFilePath": "native runner agents use an instructions bundle; a missing file is only a warning for local adapters",
@@ -151,7 +151,7 @@ export function planConfigWave(options: ConfigWaveOptions): ConfigTaskPlan[] {
 }
 
 /**
- * The responsible user's account default is company-wide: once one task's
+ * The responsible user's account default is space-wide: once one task's
  * repair connects an account, a later task's binding is no longer broken, and
  * the product has no route to clear a default. One ai_default task per wave.
  */

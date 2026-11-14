@@ -162,7 +162,7 @@ Grouped by rough domain area. One line each; variants column is props-based wher
 | `SidebarSection.tsx` / `SidebarNavItem.tsx` | Sidebar section grouping + nav item row |
 | `SidebarProjects.tsx` / `SidebarStarredProjects.tsx` | Project list / starred-project list in sidebar |
 | `SidebarAgents.tsx` | Agent list in sidebar |
-| `SidebarAccountMenu.tsx` / `SidebarCompanyMenu.tsx` | Account and company switcher menus |
+| `SidebarAccountMenu.tsx` / `SidebarSpaceMenu.tsx` | Account and space switcher menus |
 | `SidebarServerInfo.tsx` | Server/instance info footer |
 | `RequestCollapsedSidebar.tsx` | Collapsed-state sidebar for request/approval views |
 | `RoutineSubSidebar.tsx` | Routine-scoped sub-sidebar |
@@ -246,8 +246,8 @@ Grouped by rough domain area. One line each; variants column is props-based wher
 | `JsonSchemaForm.tsx` | JSON-schema-driven dynamic form renderer |
 | `TrustPresetSection.tsx` | Trust-level preset picker section |
 | `WorktreeBanner.tsx` | Worktree-branding banner |
-| `CompanyPatternIcon.tsx` | Canvas-rendered company pattern/avatar icon |
-| `CompanySwitcher.tsx` / `CompanySettingsSidebar.tsx` | Company switcher + settings sidebar |
+| `SpacePatternIcon.tsx` | Canvas-rendered space pattern/avatar icon |
+| `SpaceSwitcher.tsx` / `SpaceSettingsSidebar.tsx` | Space switcher + settings sidebar |
 | `ProjectProperties.tsx` / `ProjectTile.tsx` / `ProjectWorkspaceSummaryCard.tsx` / `ProjectWorkspacesContent.tsx` | Project detail panel, tile, workspace summary card, workspace content |
 | `ApprovalCard.tsx` / `ApprovalPayload.tsx` | Approval request card + payload renderer |
 | `ExecutionWorkspaceCloseDialog.tsx` | Close-workspace confirm dialog |
@@ -297,7 +297,7 @@ Grouped by area; one line each.
 | `Timeline.tsx` | Work timeline view (wraps `timeline/WorkTimelineChart`) |
 | `Inbox.tsx` | Notifications/requests inbox |
 | `Approvals.tsx` / `ApprovalDetail.tsx` | Approval queue + detail |
-| `CompanySettings.tsx` / `CompanySkills.tsx` / `CompanyEnvironments.tsx` / `CompanyAccess.tsx` / `CompanyImport.tsx` / `CompanyExport.tsx` | Company-scoped settings sub-pages |
+| `SpaceSettings.tsx` / `SpaceSkills.tsx` / `SpaceEnvironments.tsx` / `SpaceAccess.tsx` / `SpaceImport.tsx` / `SpaceExport.tsx` | Space-scoped settings sub-pages |
 | `TeamCatalog.tsx` | Team/role catalog |
 | `UserProfile.tsx` / `ProfileSettings.tsx` | User profile view + settings |
 | `Secrets.tsx` / `secrets/*` (5 files) | Secrets management + sub-tabs (import-from-vault, definitions, my-secrets, presentation helpers, missing-banner) |
@@ -316,8 +316,8 @@ Grouped by area; one line each.
 | `JoinRequestQueue.tsx` | Join-request queue |
 | `InstanceAccess.tsx` / `InstanceGeneralSettings.tsx` / `InstanceExperimentalSettings.tsx` | Instance-level settings pages |
 | `ExecutionWorkspaceDetail.tsx` / `ProjectWorkspaceDetail.tsx` | Execution/project workspace detail pages |
-| `Companies.tsx` | Multi-company switcher/list |
-| `CompanyImport.tsx` / `CompanyExport.tsx` | Import/export company data |
+| `Spaces.tsx` | Multi-space switcher/list |
+| `SpaceImport.tsx` / `SpaceExport.tsx` | Import/export space data |
 | `RoutineDetail.tsx` | Routine detail route |
 
 **UxLab pages are real routes** (confirmed via `App.tsx` — `/ux-lab/*`, `/design-guide`), not build-excluded demo code, so all hardcoded values inside them are in-scope per DESIGN.md even though they're showcase surfaces rather than product screens a typical operator visits daily.
@@ -360,7 +360,7 @@ All of the below are **leads for human review**, not verdicts, per KNOWN-DUPLICA
 |---|---|
 | `ChatComposer` vs `MarkdownEditor`-based task composer | **Confirmed genuinely distinct** (380 vs 1,425 lines; different prop interfaces `ChatComposerProps` vs `MarkdownEditorProps`; MarkdownEditor owns mention-autocomplete machinery — `findMentionMatch`, `computeMentionMenuPosition`, `placeCaretAfterMentionAnchor` — that ChatComposer has none of). Matches KNOWN-DUPLICATES.md's note that this was a deliberate non-unification (PAP-101). **Needs human decision: re-confirm this split should remain permanent, or revisit unification now that both have matured further.** |
 | `AgentBubbleActionRow.tsx` duplicate check | **Only one file found** (`components/AgentBubbleActionRow.tsx`). The concurrent-work duplicate PRIOR-ART/KNOWN-DUPLICATES.md warned about is not present on this branch — resolved. |
-| `StatusIcon` vs inline-mention chips vs task chips | **Confirmed three separate, intentionally distinct systems**: (1) `StatusIcon`/`StatusGlyph` — task status glyph, drives from `--status-task-icon-*` tokens; (2) `ExternalObjectStatusIcon`/`ExternalObjectPill`/`ExternalObjectStatusSummary` — a parallel system for external (PR/doc/etc.) object status, independent color/severity model (`externalObjectStatusIcon`, `externalObjectStatusToneSeverity` in `lib/status-colors.ts`); (3) mention chips (`lib/mention-chips.ts` + `.paperclip-mention-chip` CSS in `index.css`) — generic "entity reference in prose" chip unrelated to status at all. Documented per instruction, **not merged.** |
+| `StatusIcon` vs inline-mention chips vs task chips | **Confirmed three separate, intentionally distinct systems**: (1) `StatusIcon`/`StatusGlyph` — task status glyph, drives from `--status-task-icon-*` tokens; (2) `ExternalObjectStatusIcon`/`ExternalObjectPill`/`ExternalObjectStatusSummary` — a parallel system for external (PR/doc/etc.) object status, independent color/severity model (`externalObjectStatusIcon`, `externalObjectStatusToneSeverity` in `lib/status-colors.ts`); (3) mention chips (`lib/mention-chips.ts` + `.outpost-mention-chip` CSS in `index.css`) — generic "entity reference in prose" chip unrelated to status at all. Documented per instruction, **not merged.** |
 
 ### 5.2 New leads found during this audit
 
@@ -409,7 +409,7 @@ Investigated Jul 7 2026 on `design/component-convergence` per DECISION-SHEET.md 
 **Deliberate divergence, not copy-paste drift.** No shared git ancestry: `git log --follow` shows FileTree.tsx originating in 3c73ed26b (plugin host surface, #5205) and WorkspaceFileBrowser.tsx independently in 468edd8b2 (workspace file viewer, #7681); no rename/copy relationship, and the only commit touching both is the mechanical token retune (c07e650cd).
 
 **Data shapes are distinct, not overlapping:**
-- `FileTreeNode` (FileTree.tsx:18-25): `kind: "dir"|"file"`, keyed on `path`, children on every node, optional `action` string. Built by `buildFileTree(files: Record<string, unknown>)` — a flat path→content map fed static blobs (CompanyExport.tsx:696/762/832, CompanyImport.tsx:783/903, AgentDetail.tsx:1902).
+- `FileTreeNode` (FileTree.tsx:18-25): `kind: "dir"|"file"`, keyed on `path`, children on every node, optional `action` string. Built by `buildFileTree(files: Record<string, unknown>)` — a flat path→content map fed static blobs (SpaceExport.tsx:696/762/832, SpaceImport.tsx:783/903, AgentDetail.tsx:1902).
 - `WorkspaceFileTreeNode` (WorkspaceFileBrowser.tsx:211-227): `kind: "folder"|"file"` (different literals), composite `key` = `kind:workspaceId:relativePath`, baked-in `depth`, folder-only `lazy` flag, and file nodes embed the entire `WorkspaceFileListFileItem` server DTO (~15 fields: capabilities, previewKind, byteSize, download URLs — packages/shared/src/types/workspace-file-resource.ts:50-94). Built from an array of server DTOs with rootPath prefix-stripping.
 
 **Behavior domains differ:** FileTree is an eager, static tree with tri-state checkboxes, badges/tones, frontmatter parsing, and a full roving-tabindex keyboard grid; WorkspaceFileBrowser is a server-paginated live browser with lazy folders, per-folder "load more" via `useQueries`, a debounced search combobox, and opposite sort order (folders-first vs FileTree's deliberate files-first, FileTree.tsx:96-99). Neither uses the other's load-bearing features; a merge would be a superficial shared-recursion abstraction both sides immediately override.
@@ -425,7 +425,7 @@ Per-component rationale:
 
 ### 7.3 Interactive-card affordance (Run 3 review feedback)
 
-`Card` gained an `interactive` prop — pointer cursor, quiet hover (border→foreground/20 + shadow-md lift), focus-visible ring — used when the whole card is a click target (e.g. Companies selector). Skills tiles (CompanySkills `SkillCard`) and artifact cards (`ArtifactCard`/`ArtifactGroupCard`) apply the same recipe verbatim since they cannot render through Card (button/Link semantics). Static container Cards stay affordance-free by design.
+`Card` gained an `interactive` prop — pointer cursor, quiet hover (border→foreground/20 + shadow-md lift), focus-visible ring — used when the whole card is a click target (e.g. Spaces selector). Skills tiles (SpaceSkills `SkillCard`) and artifact cards (`ArtifactCard`/`ArtifactGroupCard`) apply the same recipe verbatim since they cannot render through Card (button/Link semantics). Static container Cards stay affordance-free by design.
 
 
 ## In-task connections — 2026-09-07
@@ -471,7 +471,7 @@ The shared `new-agent/ExternalAgentInviteDialog.tsx` and
 `ExternalAgentInviteContent.tsx` now support personal Muse alongside Dot. They
 reuse the agent picker, name and role form, setup instruction, and single-row
 footer. The Muse journey distinguishes pairing, detector contact, an independent
-background reply, and the existing agent lifecycle gate. Company/operator drafts
+background reply, and the existing agent lifecycle gate. Space/operator drafts
 contain only the name, role, and agent reference; pairing tickets stay transient.
 
 `MuseRunnerConnection.tsx` is the agent settings surface for connection health,

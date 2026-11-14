@@ -8,7 +8,7 @@ export interface StoryCheck {
 }
 export interface StoryIssue {
   id: string;
-  companyId: string;
+  spaceId: string;
   title: string;
   status: string;
   identifier?: string | null;
@@ -119,7 +119,7 @@ export interface StoryWakeDiagnostics {
 }
 export interface StoryRun {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   status: string;
   runtimeMode?: string;
@@ -491,12 +491,12 @@ export function storyHasDurableServiceContinuation(issues: StoryIssue[], parentI
         interaction.kind !== "request_confirmation" || interaction.continuationPolicy !== "wake_assignee" ||
         !resolved ||
         action?.version !== 1 || typeof action.actionRequestId !== "string" || !action.actionRequestId.trim() ||
-        source?.agentId !== agentId || source.companyId !== issue.companyId || source.nativeIssueId !== parentId || source.status !== "succeeded" ||
+        source?.agentId !== agentId || source.spaceId !== issue.spaceId || source.nativeIssueId !== parentId || source.status !== "succeeded" ||
         (!Number.isFinite(Date.parse(source.finishedAt ?? "")) || !Number.isFinite(Date.parse(interaction.resolvedAt ?? "")))) return false;
     return !runs.some(run => {
       const input = run.runnerProfileJson?.nativeExecutionInput as
         { interactionResponses?: Array<{ interactionId?: string }> } | undefined;
-      return run.id !== source.id && run.agentId === agentId && run.companyId === issue.companyId &&
+      return run.id !== source.id && run.agentId === agentId && run.spaceId === issue.spaceId &&
         input?.interactionResponses?.some(response => response.interactionId === interaction.id);
     });
   }) ?? false;

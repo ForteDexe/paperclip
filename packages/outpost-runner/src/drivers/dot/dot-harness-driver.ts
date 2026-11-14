@@ -3,7 +3,7 @@ import type { HarnessDriver, HarnessSession, OpenHarnessSessionInput, PersistedH
 import type { NativeRunIdentity, NativeUserMessage } from "../../contracts/types.js";
 import { validatePrpStructuredRunResult, type PrpEvent, type PrpStructuredRunResult } from "../../protocol/replay-contract.js";
 
-export interface DotPrincipal { companyId: string; grantId: string }
+export interface DotPrincipal { spaceId: string; grantId: string }
 export interface DotTool { name: string; description: string; inputSchema: Record<string, unknown> }
 export interface DotAssignment extends NativeRunIdentity { turnId: string; messageId: string }
 
@@ -35,7 +35,7 @@ export class DotHarnessDriver implements HarnessDriver {
   #revoked = false;
 
   constructor(options: DotDriverOptions) {
-    if (options.identity.companyId !== options.principal.companyId) throw new DotBoundaryError("Outpost binding mismatch.");
+    if (options.identity.spaceId !== options.principal.spaceId) throw new DotBoundaryError("Outpost binding mismatch.");
     const remaining = options.expiresAt - (options.now ?? Date.now)();
     if (!Number.isFinite(remaining) || remaining <= 0 || remaining > 24 * 3600_000) throw new DotBoundaryError("Dot authority must expire within 24 hours.");
     this.identity = structuredClone(options.identity);
@@ -107,7 +107,7 @@ class DotSession implements HarnessSession {
   ids() { return { driverSessionId: this.options.identity.sessionId, providerSessionId: `dot-bridge:${this.options.identity.sessionId}`, displayId: "OpenAI Dot" }; }
 
   async #authorize(principal?: DotPrincipal) {
-    if (principal && (principal.companyId !== this.options.principal.companyId || principal.grantId !== this.options.principal.grantId)) {
+    if (principal && (principal.spaceId !== this.options.principal.spaceId || principal.grantId !== this.options.principal.grantId)) {
       throw new DotBoundaryError("This connection is not bound to this Dot run.");
     }
     if (this.#revoked || this.options.expiresAt <= this.#now()) throw new DotBoundaryError("Dot run authority expired or was revoked.");

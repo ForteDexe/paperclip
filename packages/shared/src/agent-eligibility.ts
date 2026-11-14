@@ -10,7 +10,7 @@ export type AgentEligibilityLifecycleReason =
 
 export interface AgentEligibilityAgent {
   id: string;
-  companyId: string;
+  spaceId: string;
   name: string;
   status: AgentStatus | string;
   reportsTo?: string | null;
@@ -18,7 +18,7 @@ export interface AgentEligibilityAgent {
 
 export interface AgentOrgChainEntry {
   id: string;
-  companyId: string;
+  spaceId: string;
   name: string;
   status: AgentStatus | string;
   reportsTo: string | null;
@@ -84,7 +84,7 @@ function chainEntry(
 ): AgentOrgChainEntry {
   return {
     id: agent.id,
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     name: agent.name,
     status: agent.status,
     reportsTo: agent.reportsTo ?? null,
@@ -145,7 +145,7 @@ export function getAgentOrgChainHealth(input: {
       };
       fullChain.push({
         id: invalid.id,
-        companyId: input.agent.companyId,
+        spaceId: input.agent.spaceId,
         name: invalid.name,
         status: invalid.status,
         reportsTo: cycleAgent?.reportsTo ?? null,
@@ -158,7 +158,7 @@ export function getAgentOrgChainHealth(input: {
     seen.add(current.reportsTo);
 
     const parent = byId.get(current.reportsTo);
-    if (!parent || parent.companyId !== input.agent.companyId) {
+    if (!parent || parent.spaceId !== input.agent.spaceId) {
       const invalid = {
         id: current.reportsTo,
         name: current.reportsTo,
@@ -166,7 +166,7 @@ export function getAgentOrgChainHealth(input: {
       };
       fullChain.push({
         id: invalid.id,
-        companyId: input.agent.companyId,
+        spaceId: input.agent.spaceId,
         name: invalid.name,
         status: invalid.status,
         reportsTo: null,

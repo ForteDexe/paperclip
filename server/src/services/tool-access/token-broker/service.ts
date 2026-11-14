@@ -3,7 +3,7 @@ import { restConnectorFor } from "../../connectors/rest-registry.js";
 import { isBrowserUseConnection } from "../../browser-use-client.js";
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { connectionGrantMembers, connectionGrantDelegations, connectionGrants, companyMemberships, toolApplications, toolConnectionInstalls, toolConnections } from "@outpost/db";
+import { connectionGrantMembers, connectionGrantDelegations, connectionGrants, spaceMemberships, toolApplications, toolConnectionInstalls, toolConnections } from "@outpost/db";
 import type { ConnectionTokenIssuanceOutcome, ConnectionTokenRequest, ConnectionTokenResponse } from "@outpost/shared";
 import { forbidden, HttpError, unprocessable } from "../../../errors.js";
 import { secretService } from "../../secrets.js";
@@ -18,7 +18,7 @@ type TokenBrokerDependencies = {
   secrets: ReturnType<typeof secretService>;
   policySvc: Pick<ReturnType<typeof toolAccessPolicyService>, "decide" | "writeAudit">;
   audit: ToolAccessAudit;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   ensureDefaultOrganizationGrant(connection: typeof toolConnections.$inferSelect): Promise<typeof connectionGrants.$inferSelect>;
 };
 
@@ -45,24 +45,24 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
     loadBrokerRunContext,
     mintConnectionTokenForAgent: async (input: {
       connectionId: string;
-      companyId: string;
+      spaceId: string;
       agentId: string;
       runId: string;
       body: ConnectionTokenRequest;
     }): Promise<ConnectionTokenResponse> => {
       const runContext = await loadBrokerRunContext({
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         agentId: input.agentId,
         runId: input.runId,
       });
       const connection = await getConnectionRow(
         input.connectionId,
-        input.companyId,
+        input.spaceId,
       );
       const nativeProvider = nativeProviderCatalogFor(connection);
-      if (nativeProvider) throw forbidden(`${nativeProvider.name} credentials stay in the governed tool gateway and cannot be exported.`);
-      if (restConnectorFor(connection)) throw forbidden("Deployment connection credentials stay in the governed tool gateway and cannot be exported.");
-      if (isBrowserUseConnection(connection)) throw forbidden("Browser Use credentials stay in the governed tool gateway and cannot be exported.");
+      if (nativeProvider) throw forbidden(`${nativeProvider.name} credentials stay in the controlled tool gateway and cannot be exported.`);
+      if (restConnectorFor(connection)) throw forbidden("Deployment connection credentials stay in the controlled tool gateway and cannot be exported.");
+      if (isBrowserUseConnection(connection)) throw forbidden("Browser Use credentials stay in the controlled tool gateway and cannot be exported.");
       if (connection.connectionPurpose === "ai") throw unprocessable("AI credentials are available only through the runtime resolver");
       const application = await getConnectionApplication(connection);
       const brokerEnabled = connectionTokenBrokerEnabled(connection);
@@ -93,7 +93,7 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
         details: Record<string, unknown> = {},
       ) => {
         await recordConnectionTokenIssuance({
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           applicationId: connection.applicationId,
           connectionId: connection.id,
           agentId: input.agentId,
@@ -112,7 +112,7 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
           metadata: details,
         });
         await auditConnectionTokenIssuance({
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           connectionId: connection.id,
           agentId: input.agentId,
           runId: input.runId,
@@ -143,9 +143,9 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
         .from(toolConnectionInstalls)
         .where(
           and(
-            eq(toolConnectionInstalls.companyId, connection.companyId),
+            eq(toolConnectionInstalls.spaceId, connection.spaceId),
             eq(toolConnectionInstalls.connectionId, connection.id),
-            sql`((${toolConnectionInstalls.targetType} = 'company' and ${toolConnectionInstalls.targetId} = ${connection.companyId}) or (${toolConnectionInstalls.targetType} = 'agent' and ${toolConnectionInstalls.targetId} = ${input.agentId}))`,
+            sql`((${toolConnectionInstalls.targetType} = 'space' and ${toolConnectionInstalls.targetId} = ${connection.spaceId}) or (${toolConnectionInstalls.targetType} = 'agent' and ${toolConnectionInstalls.targetId} = ${input.agentId}))`,
           ),
         )
         .limit(1);
@@ -217,7 +217,7 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
           .from(connectionGrants)
           .where(
             and(
-              eq(connectionGrants.companyId, connection.companyId),
+              eq(connectionGrants.spaceId, connection.spaceId),
               eq(connectionGrants.connectionId, connection.id),
               eq(connectionGrants.kind, "agent"),
               eq(connectionGrants.subjectAgentId, input.agentId),
@@ -246,21 +246,21 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
         // force. A separate standing delegation is required only when no such
         // responsible user exists for unattended work.
         const [membership] = await db
-          .select({ id: companyMemberships.id })
-          .from(companyMemberships)
+          .select({ id: spaceMemberships.id })
+          .from(spaceMemberships)
           .where(
             and(
-              eq(companyMemberships.companyId, connection.companyId),
-              eq(companyMemberships.principalType, "user"),
-              eq(companyMemberships.principalId, actingUserId),
-              eq(companyMemberships.status, "active"),
+              eq(spaceMemberships.spaceId, connection.spaceId),
+              eq(spaceMemberships.principalType, "user"),
+              eq(spaceMemberships.principalId, actingUserId),
+              eq(spaceMemberships.status, "active"),
             ),
           )
           .limit(1);
         if (!membership) {
           await fail(
             403,
-            "The personal grant owner is not an active company member",
+            "The personal grant owner is not an active space member",
             "denied",
             "grant_owner_membership_inactive",
             {
@@ -279,7 +279,7 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
           .from(connectionGrants)
           .where(
             and(
-              eq(connectionGrants.companyId, connection.companyId),
+              eq(connectionGrants.spaceId, connection.spaceId),
               eq(connectionGrants.connectionId, connection.id),
               eq(connectionGrants.kind, "user"),
               eq(connectionGrants.subjectUserId, actingUserId),
@@ -295,14 +295,14 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
             and(
               eq(connectionGrants.id, connectionGrantDelegations.grantId),
               eq(
-                connectionGrants.companyId,
-                connectionGrantDelegations.companyId,
+                connectionGrants.spaceId,
+                connectionGrantDelegations.spaceId,
               ),
             ),
           )
           .where(
             and(
-              eq(connectionGrantDelegations.companyId, connection.companyId),
+              eq(connectionGrantDelegations.spaceId, connection.spaceId),
               eq(connectionGrantDelegations.agentId, input.agentId),
               eq(connectionGrants.connectionId, connection.id),
               eq(connectionGrants.kind, "user"),
@@ -350,21 +350,21 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
         grant.subjectUserId !== actingUserId
       ) {
         const [membership] = await db
-          .select({ id: companyMemberships.id })
-          .from(companyMemberships)
+          .select({ id: spaceMemberships.id })
+          .from(spaceMemberships)
           .where(
             and(
-              eq(companyMemberships.companyId, connection.companyId),
-              eq(companyMemberships.principalType, "user"),
-              eq(companyMemberships.principalId, grant.subjectUserId),
-              eq(companyMemberships.status, "active"),
+              eq(spaceMemberships.spaceId, connection.spaceId),
+              eq(spaceMemberships.principalType, "user"),
+              eq(spaceMemberships.principalId, grant.subjectUserId),
+              eq(spaceMemberships.status, "active"),
             ),
           )
           .limit(1);
         if (!membership) {
           await fail(
             403,
-            "The delegated personal grant owner is not an active company member",
+            "The delegated personal grant owner is not an active space member",
             "denied",
             "grant_owner_membership_inactive",
             {
@@ -383,14 +383,14 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
       if (grant.kind === "organization") {
         const activeAudienceMember = actingUserId
           ? await db
-              .select({ id: companyMemberships.id })
-              .from(companyMemberships)
+              .select({ id: spaceMemberships.id })
+              .from(spaceMemberships)
               .where(
                 and(
-                  eq(companyMemberships.companyId, connection.companyId),
-                  eq(companyMemberships.principalType, "user"),
-                  eq(companyMemberships.principalId, actingUserId),
-                  eq(companyMemberships.status, "active"),
+                  eq(spaceMemberships.spaceId, connection.spaceId),
+                  eq(spaceMemberships.principalType, "user"),
+                  eq(spaceMemberships.principalId, actingUserId),
+                  eq(spaceMemberships.status, "active"),
                 ),
               )
               .limit(1)
@@ -401,7 +401,7 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
           .from(connectionGrantMembers)
           .where(
             and(
-              eq(connectionGrantMembers.companyId, connection.companyId),
+              eq(connectionGrantMembers.spaceId, connection.spaceId),
               eq(connectionGrantMembers.grantId, grant.id),
               eq(connectionGrantMembers.subjectType, "user"),
             ),
@@ -527,7 +527,7 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
       }
 
       const hasBrokerGrant = await hasExplicitConnectionTokenMintProfileGrant({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         agentId: input.agentId,
         issueId: runContext.issueId,
         projectId: runContext.projectId,
@@ -547,7 +547,7 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
       }
 
       const decisionInput = {
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         actor: {
           actorType: "agent" as const,
           actorId: input.agentId,
@@ -647,7 +647,7 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
         const mintResult = await db.transaction(async (tx) => {
           await lockAuthorizedBrokerResponsibleMembership(
             {
-              companyId: connection.companyId,
+              spaceId: connection.spaceId,
               responsibleUserId: runContext.responsibleUserId,
             },
             tx,
@@ -677,7 +677,7 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
           const tokenHash = bearerTokenHash(minted.token);
           await recordConnectionTokenIssuance(
             {
-              companyId: connection.companyId,
+              spaceId: connection.spaceId,
               applicationId: connection.applicationId,
               connectionId: connection.id,
               agentId: input.agentId,
@@ -709,7 +709,7 @@ export function createConnectionTokenBroker(db: Db, { now, secrets, policySvc, a
           };
         });
         await auditConnectionTokenIssuance({
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           connectionId: connection.id,
           agentId: input.agentId,
           runId: input.runId,

@@ -20,7 +20,7 @@ function database(present: string[] = [], change?: (row: Record<string, unknown>
     const query = new PgDialect().sqlToQuery(statement).sql;
     if (query.startsWith("SET LOCAL")) return [];
     if (query.includes("FROM routine_triggers t JOIN routines r")) return schedules?.routines ?? [];
-    if (query.includes("FROM issues i JOIN companies c")) return schedules?.issues ?? [];
+    if (query.includes("FROM issues i JOIN spaces c")) return schedules?.issues ?? [];
     if (query.includes("WHERE status NOT IN ('active', 'paused', 'archived')")) return [{ blocked: false }];
     if (query.endsWith(" AS blocked")) return [{ blocked: present.length > 0 }];
     keys = [...query.matchAll(/ AS "([^"]+)"(?=, EXISTS |$)/g)].map(match => match[1]!);
@@ -65,14 +65,14 @@ describe("owned idle sleep diagnostics", () => {
     }
   });
 
-  const routine = { id: "trigger", routine_id: "routine", company_id: "company", kind: "schedule",
+  const routine = { id: "trigger", routine_id: "routine", space_id: "space", kind: "schedule",
     setup_pending: false, cron_expression: "*/15 * * * *", timezone: "UTC", scoped: true,
     next_run_at: new Date(now + 600_000), routine_updated: new Date(now), trigger_updated: new Date(now) };
-  const issue = { id: "issue", company_id: "company", status: "backlog", updated_at: new Date(now),
+  const issue = { id: "issue", space_id: "space", status: "backlog", updated_at: new Date(now),
     assignee_agent_id: "agent", assignee_user_id: null, checkout_run_id: null, execution_run_id: null,
     execution_policy: null, execution_state: null, unblock_descriptor: null, conversation_agent_id: null,
     monitor_next_check_at: null, monitor_wake_requested_at: null, monitor_attempt_count: 0,
-    company_status: "active", company_updated: new Date(now), agent_status: "idle", agent_updated: new Date(now),
+    space_status: "active", space_updated: new Date(now), agent_status: "idle", agent_updated: new Date(now),
     scoped: true, unsafe_dependencies: false, dependency_ready: false, untouched_onboarding: false,
     response_driven_wait: false, unblock_request_finished: false, response_wait_generation: null };
   const scheduledRead = (f: ReturnType<typeof database>, diagnostics = true) => readIdleSleepSafety(f.db, hold,
@@ -129,7 +129,7 @@ describe("owned idle sleep diagnostics", () => {
   });
 
   it("continues safe inspection after local and plugin blockers without starting a backup", async () => {
-    const f = database(["company_secret_proposals"]);
+    const f = database(["space_secret_proposals"]);
     const backup = vi.fn(async () => true);
     const plugins = vi.fn(async () => ({ backgroundWork: "present" as const, pluginIds: [] }));
     const result = await readIdleSleepSafety(f.db, hold, () => now, ownerId, async record => {
@@ -139,7 +139,7 @@ describe("owned idle sleep diagnostics", () => {
     }, plugins, backup, false, false, collect);
     expect(result.backgroundWork).toBe("present");
     expect(result.diagnostics?.checks).toEqual(expect.arrayContaining([
-      { reason: "company_secret_proposals", state: "present" },
+      { reason: "space_secret_proposals", state: "present" },
       { reason: "local.accounting_spool", state: "present" },
       { reason: "local.orphan_spool", state: "present" },
       { reason: "plugins.runtime_drain", state: "present" },

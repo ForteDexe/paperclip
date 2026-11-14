@@ -4,7 +4,7 @@ import { createWriteStream } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { paperclipConfigSchema } from "../../packages/shared/src/config-schema.js";
+import { outpostConfigSchema } from "../../packages/shared/src/config-schema.js";
 import { makeDirectoryTreeRemovable } from "./directory-cleanup.js";
 import { runnerE2EServerControlPaths } from "./harness-env.js";
 import { reserveRunnerE2EServerPort } from "./ports.js";
@@ -20,7 +20,7 @@ export async function superviseLegacyWorkspaceMigration(input: {
   temporaryRoot: string; repositoryRoot: string; configPath: string; port: number;
   environment: NodeJS.ProcessEnv; executionIds: string[]; cancelled: () => boolean;
 }) {
-  const config = paperclipConfigSchema.parse(JSON.parse(await readFile(input.configPath, "utf8")));
+  const config = outpostConfigSchema.parse(JSON.parse(await readFile(input.configPath, "utf8")));
   if (input.executionIds.length !== 1 || config.database.mode !== "postgres" || !config.database.connectionString
     || input.environment.OUTPOST_STORAGE_PROVIDER !== "s3") throw new Error("Migration qualification requires one owned Postgres/S3 cell");
   const databaseUrl = config.database.connectionString, controls = runnerE2EServerControlPaths(input.temporaryRoot);

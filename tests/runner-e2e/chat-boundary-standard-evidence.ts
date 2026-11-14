@@ -3,11 +3,11 @@
  * snapshots/fixtures.json, snapshots/api-state.json) that the launcher and the trusted
  * private transfer require. These records describe only what the boundary really observed:
  * the resources it reported creating and its own graded observation. Nothing is manufactured. */
-export interface BoundaryResourceTrail { companyIds: string[]; agentIds: string[]; runIds: string[] }
-export function emptyBoundaryResourceTrail(): BoundaryResourceTrail { return { companyIds: [], agentIds: [], runIds: [] }; }
-export function recordBoundaryResources(trail: BoundaryResourceTrail, value: { companyId?: string; agentId?: string; runIds: string[] }) {
+export interface BoundaryResourceTrail { spaceIds: string[]; agentIds: string[]; runIds: string[] }
+export function emptyBoundaryResourceTrail(): BoundaryResourceTrail { return { spaceIds: [], agentIds: [], runIds: [] }; }
+export function recordBoundaryResources(trail: BoundaryResourceTrail, value: { spaceId?: string; agentId?: string; runIds: string[] }) {
   const add = (list: string[], id?: string) => { if (id && !list.includes(id)) list.push(id); };
-  add(trail.companyIds, value.companyId); add(trail.agentIds, value.agentId); for (const id of value.runIds) add(trail.runIds, id);
+  add(trail.spaceIds, value.spaceId); add(trail.agentIds, value.agentId); for (const id of value.runIds) add(trail.runIds, id);
 }
 export function boundaryStandardSnapshots(input: { scenarioId: string; trail: BoundaryResourceTrail; boundaryObservation: unknown }) {
   if (!input.boundaryObservation || typeof input.boundaryObservation !== "object")

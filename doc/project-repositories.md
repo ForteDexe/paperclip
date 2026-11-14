@@ -8,11 +8,11 @@ Old Overview URLs and saved Overview preferences redirect to Configuration.
 
 ## API and persistence
 
-- `GET /api/companies/:companyId/project-repositories` returns `repositories`,
+- `GET /api/spaces/:spaceId/project-repositories` returns `repositories`,
   `connectionCount`, and `failedConnectionCount`. Repository IDs are GitHub's stable
   numeric IDs represented as strings. Results are deduplicated across accessible
   grants and sorted by full name. Connection labels are display provenance only.
-- `POST /api/companies/:companyId/projects` accepts optional `repositoryIds`.
+- `POST /api/spaces/:spaceId/projects` accepts optional `repositoryIds`.
   The server resolves new selections through the caller's authorized GitHub grants
   before creating the project and all repository workspaces in a transaction.
   The existing `workspace` input remains supported; it cannot be combined with
@@ -37,7 +37,7 @@ ignore rules, and reuse behavior. Responsible-user credential rules still apply.
 A repository selection never delegates credentials.
 
 Fresh tasks using the default repository workspace can clone the same authorized
-remote into a company- and task-scoped source directory when an existing project
+remote into a space- and task-scoped source directory when an existing project
 checkout contains another task's restricted workspace. The clone uses the run's
 Git connection and keeps separate Git metadata. Source access checks still apply
 before the task workspace is published. Low-trust review runs cannot use this
@@ -54,7 +54,7 @@ the current binding rather than inferring a default from the selected checkout I
 When the denial is retained, the run stops before the agent starts with a
 `configuration_incomplete` failure (reason `workspace_source_restricted`). The task
 is blocked with a notice that tells the owner to push unpublished work and select a
-new workspace, or to grant access to the restricted task, then retry. Paperclip
+new workspace, or to grant access to the restricted task, then retry. Outpost
 does not report this owner action to Sentry as an unexpected run failure.
 This applies to both isolated-source checks and repository admission for a shared
 project workspace. Neither path replaces the existing workspace or retries the
@@ -62,11 +62,11 @@ same access denial automatically.
 Startup validation of these recorded defaults keeps the task's effective workspace
 strategy. It does not substitute the agent's shared strategy or grant project writes.
 Workspace close and reopen use the recorded isolated source. Both operations
-verify its company, task, repository URL, and separate Git storage before use.
+verify its space, task, repository URL, and separate Git storage before use.
 
 ## Discovery and setup
 
-The server checks company membership, grant ownership/status, and organization-grant
+The server checks space membership, grant ownership/status, and organization-grant
 audiences before loading provider metadata. Connection managers receive no bypass to
 another person's personal repositories. Managed GitHub grants refresh installation
 access; PAT connections use paginated `/user/repos`. Provider failures are reported

@@ -6,7 +6,7 @@ export const callApiInputDigest = (input: Record<string, unknown>) => nativeSha2
 /**
  * Record-bound read receipts that survive run-event redaction.
  *
- * PaperclipControlPlanePort saves call_api inputs and results with their
+ * OutpostControlPlanePort saves call_api inputs and results with their
  * payloads replaced by a SHA-256 digest; only the operationId, ok and status
  * remain. A read is therefore tied to a record by recomputing the digest of
  * every input that names it (path parameter by id or identifier, with no query
@@ -53,7 +53,7 @@ export function recordParams(name: string, ...values: Array<string | null | unde
  * (taskBridgeApiRequest in outpost-runner-tool-authority.ts). Their saved
  * tool_use keeps the plaintext taskId, while the result carries the same
  * redacted receipt (apiOperationId, ok, status) as call_api. Harnesses may
- * namespace the name (paperclip_get_task, mcp__paperclip__get_task).
+ * namespace the name (outpost_get_task, mcp__outpost__get_task).
  */
 const TASK_READ_TOOLS: Readonly<Record<string, string>> = {
   get_task: "GET /api/issues/{id}",
@@ -61,7 +61,7 @@ const TASK_READ_TOOLS: Readonly<Record<string, string>> = {
   read_task_document: "GET /api/issues/{id}/documents/{key}",
 };
 function taskReadTool(name: unknown): string | undefined {
-  const match = typeof name === "string" ? /^(?:[A-Za-z0-9_-]*__)?(?:paperclip_)?([a-z_]+)$/.exec(name) : null;
+  const match = typeof name === "string" ? /^(?:[A-Za-z0-9_-]*__)?(?:outpost_)?([a-z_]+)$/.exec(name) : null;
   return match && Object.hasOwn(TASK_READ_TOOLS, match[1]!) ? match[1] : undefined;
 }
 function taskReadInput(tool: string, input: Record<string, unknown>): Record<string, unknown> | undefined {

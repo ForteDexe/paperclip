@@ -10,7 +10,7 @@ later corrections. It is a procedure for future work, not a certification of
 today's binaries or a requirement to repeat every historical test.
 
 All reusable principles and acceptance criteria are written here and in the
-templates. No private Codex session, Paperclip task, historical evidence archive,
+templates. No private Codex session, Outpost task, historical evidence archive,
 or separate private repository is a prerequisite. Links point to code and docs
 in this checkout or public provider documentation. The matching skill is
 [create-runner-adapter](../.agents/skills/create-runner-adapter/SKILL.md).
@@ -89,7 +89,7 @@ adding filesystem, process, database, or network work to shared paths.
 ## 2. Define the release before implementing it
 
 Create a dated plan under `doc/plans/` when a repository plan is needed. If the
-task lives in Paperclip and requests a plan, use its issue plan document. Keep
+task lives in Outpost and requests a plan, use its issue plan document. Keep
 one current acceptance ledger; append historical results without allowing them
 to masquerade as the current decision.
 
@@ -135,7 +135,7 @@ writing new code. Record the file and owner at each boundary.
 
 ```text
 Operator / API
-    -> saved agent configuration + company/workspace authority
+    -> saved agent configuration + space/workspace authority
     -> server admission and persisted native run selection
     -> execution environment prepares verified assets and scoped credentials
     -> runnerd + authenticated ORP transport
@@ -170,7 +170,7 @@ actual field or capability to find its callers, serializers, snapshots, tests,
 UI, and packaging. Some historical filenames still say `codex` while carrying
 shared ACPX behavior. Do not infer ownership solely from a filename.
 
-Keep business authority in Paperclip: company access, task ownership, approval
+Keep business authority in Outpost: space access, task ownership, approval
 policy, budget stops, semantic action acceptance, and final task state. Keep
 provider protocol translation, native mode names, CLI flags, credentials, and
 version-specific quirks in provider code. The runner owns process supervision,
@@ -223,7 +223,7 @@ Cover:
 - File edits, diffs, images, attachments, artifacts, and inbound media.
 - Usage, cached tokens, retries, subagent usage, cost provenance, and subscription limits.
 - Idle behavior, autonomous retry/cache warming, shutdown, EOF, and process cleanup.
-- Config/command discovery and useful native events that Paperclip does not yet display.
+- Config/command discovery and useful native events that Outpost does not yet display.
 
 For every partial or dropped field, name the field, loss boundary, impact,
 reason, and next action. “ACP does not support it” is too broad if the wrapper
@@ -266,7 +266,7 @@ Implement in this order unless a demonstrated dependency requires another:
 2. Start the real provider through a minimal owned harness. Establish exact
    model/instruction admission and a clean stop with no product UI yet.
 3. Complete one semantic tool round trip through the real wrapper/sidecar.
-4. Run an actual task through Paperclip: context → file change → validation →
+4. Run an actual task through Outpost: context → file change → validation →
    artifact → accepted completion → durable Done → cleanup.
 5. Add the blocking human interactions and lifecycle controls promised for
    the first environment. Exercise their failures, not only successful replies.
@@ -348,7 +348,7 @@ Pass the actual registered profile through every execution-input parser, not onl
 the runtime registry. Derive version types from one declaration so a new profile
 cannot be admitted by one layer and rejected by another. A provider's
 `commandDigest` attests only its own upstream release: upstream versions, platform
-closure pins and any launcher bytes. Never bind Paperclip source, the shared ACPX
+closure pins and any launcher bytes. Never bind Outpost source, the shared ACPX
 version or patch, absolute paths or the pack layout into it. Every harness gets
 the ACPX layer the same way: the profile's `acpxVersion` and the provider pack's
 `contractDigest`, which also covers the Runner's ACPX patch and Runner source
@@ -365,7 +365,7 @@ Include both agent configuration and task-level model selection where supported.
 | Setup boundary | Required proof |
 | --- | --- |
 | Connection purpose | Runtime authentication is distinct from repository/MCP access, even when both use the same vendor catalog entry. Correct method survives navigation and reconnect. |
-| Ownership and grants | New personal connections do not acquire company-wide grants accidentally. Shared access follows existing explicit policy; reconnect preserves grants and revocation removes access. |
+| Ownership and grants | New personal connections do not acquire space-wide grants accidentally. Shared access follows existing explicit policy; reconnect preserves grants and revocation removes access. |
 | Database admission | Inspect CHECK constraints and defaults as well as TypeScript enums. A text column may still reject the new provider. Test a fresh database and upgrade/reapplication through the maintained migration workflow. |
 | Metadata probe | Uses the bound account and selected execution environment, sends no model prompt, distinguishes auth/entitlement/model/install failures, and retires its process or sandbox. |
 | Environment routing | Remote discovery and Test use the production plugin/worker/lease services. Global managed-sandbox settings cannot silently replace an explicit target, and a controller-local probe cannot qualify a remote installation. |
@@ -406,18 +406,18 @@ cannot replace the managed context.
 
 ### 7.2 Bridge tools with the correct authority
 
-Trace assigned MCP tools and Paperclip semantic actions from current company/run
+Trace assigned MCP tools and Outpost semantic actions from current space/run
 authority through discovery and invocation. The provider receives only the
 scoped tool bridge and explicitly granted credentials. Do not give the native
 runner a broad control-plane credential to simplify integration.
 
-Distinguish native tools, Paperclip semantic tools, and assigned external tools.
+Distinguish native tools, Outpost semantic tools, and assigned external tools.
 Verify discovery, schema, invocation, result, and accepted control-plane mutation
 separately. Inspect the schema actually sent to the model: a validator may accept
 a schema that presents required fields poorly to a real model. Preserve runtime
 validation when improving the presented schema.
 
-Test revoked/wrong-company access, stale run identity, malformed arguments,
+Test revoked/wrong-space access, stale run identity, malformed arguments,
 duplicate delivery, and denied mutations. Display events must not mint approvals,
 register artifacts, or claim successful semantic completion. A successful MCP
 transport response is not automatically an accepted product action.
@@ -437,7 +437,7 @@ waiting for an action that itself depends on that file creates a fixture deadloc
 
 ### 7.3 Make credential selection explicit
 
-Use company secret bindings or the product's selected managed connection.
+Use space secret bindings or the product's selected managed connection.
 Isolate provider HOME/XDG/config/cache directories as appropriate; do not borrow
 ambient developer login as production proof. Enumerate credential forwarding by
 provider and explicit run environment. Redact secrets from logs, prompts,
@@ -503,7 +503,7 @@ notification does not prove a usable image was delivered. Compare downloaded
 bytes with an independent expected result.
 
 Inbound media is a separate capability from artifact output. A provider's
-advertised image support does not prove Paperclip's text-only turn path forwards
+advertised image support does not prove Outpost's text-only turn path forwards
 attachments. Do not expose an affordance until the complete conversion path exists.
 
 ### Usage and costs
@@ -544,10 +544,10 @@ merely because a callback resolved locally.
 | Interaction | Required details and negative cases |
 | --- | --- |
 | Native question | Native question/option identity, required fields, selection cardinality, supported text/editor forms, explicit skip/cancel. Reject missing, duplicate, forged, or cross-question selections. |
-| Semantic Paperclip question | Durable tool-backed product interaction; prove its continuation independently of native question support. |
+| Semantic Outpost question | Durable tool-backed product interaction; prove its continuation independently of native question support. |
 | Permission | Only offered and policy-supported decisions; correlate with the exact tool operation. Denial must precede side effects. An “always” choice requires a proven scope. |
 | Native plan | Complete plan, correct revision, reject with feedback, revised display, accept/cancel, exact response delivery, and defined post-accept state. Reject oversize plans instead of approving a truncated document. |
-| Stale/duplicate answer | Reject wrong task/company/run/revision, late answer after Stop, repeated submission, and provider-loss answer. No second mutation or replacement run. |
+| Stale/duplicate answer | Reject wrong task/space/run/revision, late answer after Stop, repeated submission, and provider-loss answer. No second mutation or replacement run. |
 
 Define the distinction between a successful planning run and a completed task.
 For Cursor's accepted native plan, the run can succeed while the task remains
@@ -580,7 +580,7 @@ and agent-file persistence separately. A supported provider may reload a
 conversation in a new process; another may require the original process to
 preserve a pending native callback. A warm test must grade the promised property.
 
-Session identity must fence relevant company/agent/task/workspace, selected model,
+Session identity must fence relevant space/agent/task/workspace, selected model,
 mode, instructions/skills/tools, executable profile, and environment. Define which
 run-scoped references may refresh and which changes force a new session. Do not
 copy an old agent-home path into a new run or reject every refreshed path by
@@ -608,7 +608,7 @@ Cursor's. Advertise unsupported controls honestly.
 ### 10.3 Prove terminal behavior and cleanup
 
 Separate provider prompt completion, native background-work settlement, accepted
-Paperclip result, task-state finalization, and resource retirement. Pi historically
+Outpost result, task-state finalization, and resource retirement. Pi historically
 required `agent_settled`; a partial tool JSON fragment or final-looking assistant
 message cannot substitute for the native terminal boundary.
 
@@ -662,15 +662,15 @@ must not make a stale provider pack compatible with a newer controller.
 ### 11.2 Prove ordinary installation
 
 Exercise the actual public-package lifecycle in a clean consumer as the OS user
-who will run Paperclip. Use the published-layout package/tarball path; a local
+who will run Outpost. Use the published-layout package/tarball path; a local
 source loader, private store, borrowed `dist`, or candidate environment override
 does not establish normal installation.
 
 Pi and Cursor currently have explicit setup commands:
 
 ```sh
-paperclipai runtime setup pi
-paperclipai runtime setup cursor
+outpost runtime setup pi
+outpost runtime setup cursor
 ```
 
 These are examples, not a generic command that already supports a new provider.
@@ -788,7 +788,7 @@ case/flow, matcher, result validator, and report test. Follow this sequence:
    checks continuous reads and writes, and requires a later turn to retain the
    native and provider session identity after another empty-home replacement.
    A profile's presence in the matrix is not a passing qualification receipt.
-3. Make setup create an isolated company, workspace, agent, and secrets through
+3. Make setup create an isolated space, workspace, agent, and secrets through
    supported APIs. Execute the graded action through ordinary browser/API
    surfaces. Avoid direct database writes and test-only provider shortcuts.
 4. Define an expected result independently of the model. For a file task, generate
@@ -1135,7 +1135,7 @@ and cleanup. Use existing observability and run logs; classify any new data by
 path under the repository's Telemetry/Observability/run-log rules. Do not send
 private prompts, credentials, or reasoning into a new reporting channel.
 
-For Paperclip issue work, upload deliverable files and register work products
+For Outpost issue work, upload deliverable files and register work products
 before final status, following the [artifact guide](AGENT-ARTIFACTS.md). Keep raw
 private evidence in its proper store; public summaries use sanitized evidence
 and immutable references. A local `/tmp` directory is not a release handoff.

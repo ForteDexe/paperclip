@@ -19,9 +19,9 @@ function renderPicker(policy: unknown) {
   const root = createRoot(container);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const onUpdate = vi.fn();
-  const issue = { companyId: "company-fixture", executionPolicy: policy } as Issue;
+  const issue = { spaceId: "space-fixture", executionPolicy: policy } as Issue;
   act(() => root.render(<QueryClientProvider client={client}>
-    <ExecutionParticipantPicker issue={issue} stageType="review" agents={[]} currentUserId="board-reviewer" onUpdate={onUpdate} />
+    <ExecutionParticipantPicker issue={issue} stageType="review" agents={[]} currentUserId="operator-reviewer" onUpdate={onUpdate} />
   </QueryClientProvider>));
   return { container, onUpdate, cleanup: () => { act(() => root.unmount()); client.clear(); } };
 }
@@ -37,7 +37,7 @@ describe("ExecutionParticipantPicker", () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
     const updated = onUpdate.mock.calls[0][0].executionPolicy;
     expect(issueExecutionPolicySchema.safeParse(updated).success).toBe(true);
-    expect(updated).toMatchObject({ ...policy, stages: [{ type: "review", participants: [{ type: "user", userId: "board-reviewer" }] }] });
+    expect(updated).toMatchObject({ ...policy, stages: [{ type: "review", participants: [{ type: "user", userId: "operator-reviewer" }] }] });
     expect(policy).not.toHaveProperty("stages");
     cleanup();
   });
@@ -45,7 +45,7 @@ describe("ExecutionParticipantPicker", () => {
   it("shows an existing reviewer and preserves other policy settings when that reviewer is removed", () => {
     const policy = {
       authorizationPolicy: { trustPreset: "standard" }, maxReviewRounds: 4,
-      stages: [{ type: "review", participants: [{ type: "user", userId: "board-reviewer" }] }],
+      stages: [{ type: "review", participants: [{ type: "user", userId: "operator-reviewer" }] }],
     };
     const { container, onUpdate, cleanup } = renderPicker(policy);
     expect(container.querySelector("button")?.textContent).toBe("You");

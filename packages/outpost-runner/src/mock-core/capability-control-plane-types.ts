@@ -22,7 +22,7 @@ export type CapabilityTaskStatus =
   | "blocked"
   | "cancelled";
 
-export interface CapabilityFixtureCompany {
+export interface CapabilityFixtureSpace {
   id: string;
   name: string;
   issuePrefix: string;
@@ -31,7 +31,7 @@ export interface CapabilityFixtureCompany {
 }
 export interface CapabilityFixtureActor {
   id: string;
-  companyId: string;
+  spaceId: string;
   name: string;
   role: string;
   status: "active" | "paused";
@@ -42,7 +42,7 @@ export interface CapabilityFixtureActor {
 export interface CapabilityFixtureTask {
   statusVersion?: number;
   id: string;
-  companyId: string;
+  spaceId: string;
   identifier: string;
   title: string;
   description: string | null;
@@ -115,7 +115,7 @@ export interface CapabilityFixtureApprovalComment {
 
 export interface CapabilityFixtureApproval {
   id: string;
-  companyId: string;
+  spaceId: string;
   taskIds: string[];
   type: string;
   status: "pending" | "approved" | "rejected" | "cancelled";
@@ -166,7 +166,7 @@ export interface CapabilityFixtureWorkspaceService {
 
 export interface CapabilityFixtureBudget {
   id: string;
-  scope: "company" | "actor";
+  scope: "space" | "actor";
   scopeId: string;
   limitCents: number;
   spentCents: number;
@@ -200,7 +200,7 @@ export interface CapabilityScheduledWake {
 
 export interface CapabilityFixtureRun {
   id: string;
-  companyId: string;
+  spaceId: string;
   actorId: string;
   taskId: string;
   sessionId: string;
@@ -309,14 +309,14 @@ export interface CapabilityFixtureState {
   counters: Record<string, number>;
   lifecycle: "stopped" | "running";
   activeRunId: string | null;
-  company: CapabilityFixtureCompany;
+  space: CapabilityFixtureSpace;
   actors: CapabilityFixtureActor[];
   tasks: CapabilityFixtureTask[];
-  /** Known task ids outside the fixture company, without leaking foreign data. */
+  /** Known task ids outside the fixture space, without leaking foreign data. */
   outOfScopeTaskIds: string[];
   comments: CapabilityFixtureComment[];
   documents: CapabilityFixtureDocument[];
-  skills?: Array<{ id: string; companyId: string; name: string; slug: string; description: string; markdown: string; versionId: string }>;
+  skills?: Array<{ id: string; spaceId: string; name: string; slug: string; description: string; markdown: string; versionId: string }>;
 
   interactions: CapabilityFixtureInteraction[];
   approvals: CapabilityFixtureApproval[];
@@ -337,7 +337,7 @@ export interface CapabilityFixtureState {
 
 export interface CapabilityRunContext {
   schema: "outpost.capability.run-context.v1";
-  company: Pick<CapabilityFixtureCompany, "id" | "name" | "issuePrefix" | "status">;
+  space: Pick<CapabilityFixtureSpace, "id" | "name" | "issuePrefix" | "status">;
   actor: Pick<CapabilityFixtureActor, "id" | "name" | "role" | "status" | "capabilityGrants">;
   activeTask: CapabilityFixtureTask;
   ancestors: CapabilityFixtureTask[];
@@ -489,9 +489,9 @@ export const CAPABILITY_COMMAND_REQUIRED_CLAIMS = {
   set_dependencies: ["dependencies:write"],
   reassign_task: ["delegation:tasks:assign"],
   create_task: ["delegation:tasks:create"],
-  request_approval: ["governance:approvals:request"],
-  decide_approval: ["governance:approvals:decide"],
-  comment_on_approval: ["governance:approvals:comment"],
+  request_approval: ["approvals:approvals:request"],
+  decide_approval: ["approvals:approvals:decide"],
+  comment_on_approval: ["approvals:approvals:comment"],
   control_workspace_service: ["workspace:control"],
   record_budget_usage: ["control_plane:budget"],
   finish_task: [],
@@ -525,7 +525,7 @@ export interface CapabilityMockControlPlanePort extends ControlPlanePort {
 
 export interface CapabilityFixtureSeed {
   epochMs?: number;
-  company?: Partial<CapabilityFixtureCompany>;
+  space?: Partial<CapabilityFixtureSpace>;
   actors?: CapabilityFixtureActor[];
   tasks?: CapabilityFixtureTask[];
   outOfScopeTaskIds?: string[];
@@ -543,18 +543,18 @@ export interface CapabilityFixtureSeed {
 }
 
 export function createCapabilityFixtureState(seed: CapabilityFixtureSeed = {}): CapabilityFixtureState {
-  const company: CapabilityFixtureCompany = {
-    id: "company-1",
+  const space: CapabilityFixtureSpace = {
+    id: "space-1",
     name: "Mock Outpost Outpost",
     issuePrefix: "MCK",
     status: "active",
-    budgetId: "budget-company-1",
-    ...seed.company,
+    budgetId: "budget-space-1",
+    ...seed.space,
   };
   const actors = seed.actors ?? [
     {
       id: "actor-1",
-      companyId: company.id,
+      spaceId: space.id,
       name: "Mock Engineer",
       role: "engineer",
       status: "active",
@@ -565,8 +565,8 @@ export function createCapabilityFixtureState(seed: CapabilityFixtureSeed = {}): 
   const tasks = seed.tasks ?? [
     {
       id: "task-1",
-      companyId: company.id,
-      identifier: `${company.issuePrefix}-1`,
+      spaceId: space.id,
+      identifier: `${space.issuePrefix}-1`,
       title: "Deterministic fixture task",
       description: null,
       status: "todo",
@@ -582,9 +582,9 @@ export function createCapabilityFixtureState(seed: CapabilityFixtureSeed = {}): 
   ];
   const budgets = seed.budgets ?? [
     {
-      id: company.budgetId,
-      scope: "company",
-      scopeId: company.id,
+      id: space.budgetId,
+      scope: "space",
+      scopeId: space.id,
       limitCents: 10_000,
       spentCents: 0,
       hardStop: true,
@@ -605,7 +605,7 @@ export function createCapabilityFixtureState(seed: CapabilityFixtureSeed = {}): 
     counters: {},
     lifecycle: "stopped",
     activeRunId: null,
-    company,
+    space,
     actors: structuredClone(actors),
     tasks: structuredClone(tasks).map(task => ({ ...task, statusVersion: task.statusVersion ?? 0 })),
     outOfScopeTaskIds: structuredClone(seed.outOfScopeTaskIds ?? []),

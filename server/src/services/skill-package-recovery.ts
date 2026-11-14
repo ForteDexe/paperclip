@@ -1,7 +1,7 @@
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
-import { companySkillSources, type Db, type SkillPackageRestoreRecipe } from "@outpost/db";
-import type { CompanySkillVersionFileInventoryEntry } from "@outpost/shared";
+import { spaceSkillSources, type Db, type SkillPackageRestoreRecipe } from "@outpost/db";
+import type { SpaceSkillVersionFileInventoryEntry } from "@outpost/shared";
 import { forbidden } from "../errors.js";
 import { assertSkillSnapshotPath } from "./skill-snapshot.js";
 import { packageSha256, skillPackageManifest, validateSkillPackageManifest } from "./skill-package-files.js";
@@ -9,10 +9,10 @@ import type { GitHubRead } from "./github-skill-source.js";
 import { MAX_REPOSITORY_BYTES, MAX_REPOSITORY_FILES } from "./skill-repository-package.js";
 
 /** Recheck the source's saved identity and current grant. Never search another
- * company's credentials or turn a mutable branch name into a historical commit. */
-export async function skillPackageRecoveryReader(db: Db, companyId: string, recipe: SkillPackageRestoreRecipe) {
-  const [source] = await db.select().from(companySkillSources).where(and(
-    eq(companySkillSources.companyId, companyId), eq(companySkillSources.id, recipe.sourceId)));
+ * space's credentials or turn a mutable branch name into a historical commit. */
+export async function skillPackageRecoveryReader(db: Db, spaceId: string, recipe: SkillPackageRestoreRecipe) {
+  const [source] = await db.select().from(spaceSkillSources).where(and(
+    eq(spaceSkillSources.spaceId, spaceId), eq(spaceSkillSources.id, recipe.sourceId)));
   if (!source || source.removedAt || !source.enabled || source.repositoryId !== recipe.repositoryId
     || source.repositoryUrl.toLowerCase() !== recipe.repositoryUrl.toLowerCase()) {
     throw forbidden("This skill package is no longer cached. Reconnect its original repository to restore it.");
@@ -24,7 +24,7 @@ export async function skillPackageRecoveryReader(db: Db, companyId: string, reci
   return context.read(source.connectionId);
 }
 
-export async function recoverSkillPackage(recipe: SkillPackageRestoreRecipe, read: GitHubRead, signal: AbortSignal): Promise<CompanySkillVersionFileInventoryEntry[]> {
+export async function recoverSkillPackage(recipe: SkillPackageRestoreRecipe, read: GitHubRead, signal: AbortSignal): Promise<SpaceSkillVersionFileInventoryEntry[]> {
   if (recipe.version !== 1 || !/^[a-f0-9]{40}$/i.test(recipe.commitSha)) throw new Error("Invalid immutable skill package recipe");
   const manifest = validateSkillPackageManifest(recipe.manifest);
   const url = new URL(recipe.repositoryUrl);
@@ -47,7 +47,7 @@ export async function recoverSkillPackage(recipe: SkillPackageRestoreRecipe, rea
       }
       return entry;
     });
-    const files: CompanySkillVersionFileInventoryEntry[] = [];
+    const files: SpaceSkillVersionFileInventoryEntry[] = [];
     for (let start = 0; start < entries.length;) {
       signal.throwIfAborted();
       let end = start, batchBytes = 0;

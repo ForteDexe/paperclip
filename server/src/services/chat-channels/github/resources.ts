@@ -86,7 +86,7 @@ export async function reconcileGitHubRepositoryCoordinates(tx: DbTransaction, en
       .from(chatEndpointResources)
       .where(
         and(
-          eq(chatEndpointResources.companyId, endpoint.companyId),
+          eq(chatEndpointResources.spaceId, endpoint.spaceId),
           eq(chatEndpointResources.endpointId, endpoint.id),
           eq(chatEndpointResources.type, "repository"),
           sql`${chatEndpointResources.metadata}->>'providerRepositoryId' = ${stableGitHubId}`,
@@ -103,7 +103,7 @@ export async function reconcileGitHubRepositoryCoordinates(tx: DbTransaction, en
         .from(chatEndpointResources)
         .where(
           and(
-            eq(chatEndpointResources.companyId, endpoint.companyId),
+            eq(chatEndpointResources.spaceId, endpoint.spaceId),
             eq(chatEndpointResources.endpointId, endpoint.id),
             eq(chatEndpointResources.type, "repository"),
             eq(
@@ -186,7 +186,7 @@ export async function reconcileGitHubRepositoryCoordinates(tx: DbTransaction, en
         })
         .where(
           and(
-            eq(chatConversations.companyId, endpoint.companyId),
+            eq(chatConversations.spaceId, endpoint.spaceId),
             eq(chatConversations.endpointId, endpoint.id),
             eq(chatConversations.resourceId, stableResource.id),
           ),
@@ -219,7 +219,7 @@ export function createGitHubResources(db: Db, options: GitHubResourceOptions) {
       const resource = await upsertProviderResourceRow(tx, endpoint, item);
       if (!resource) return;
       // A correctly signed repository callback is current provider proof. Keep
-      // Paperclip's enabled choice, and reopen only conversations previously
+      // Outpost's enabled choice, and reopen only conversations previously
       // quarantined for provider availability loss.
       await restoreResourceConversations(tx, endpoint, resource.id);
       await credentialLease.assertOwned(tx);
@@ -233,7 +233,7 @@ export function createGitHubResources(db: Db, options: GitHubResourceOptions) {
     const record = await endpointRecord(endpointId);
     if (!record || record.endpoint.provider !== "github") throw notFound("GitHub bot not found");
     const scope = and(
-      eq(chatEndpointResources.companyId, record.endpoint.companyId),
+      eq(chatEndpointResources.spaceId, record.endpoint.spaceId),
       eq(chatEndpointResources.endpointId, endpointId),
       eq(chatEndpointResources.type, "repository"),
     );

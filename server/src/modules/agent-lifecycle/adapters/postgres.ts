@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { agents, agentApiKeys, companies, budgetPolicies, type Db } from "@outpost/db";
+import { agents, agentApiKeys, spaces, budgetPolicies, type Db } from "@outpost/db";
 import type { AgentLifecycleOperation } from "@outpost/shared";
 import { AgentLifecycleConflict, canConfigureAgentConnection, compatibilityStatus, isLifecycleWorkPending, transition, type LifecycleCommand } from "../domain/policy.js";
 import type { LifecycleEffects } from "./effects.js";
@@ -58,12 +58,12 @@ export async function releaseAgentLifecycleLeaseOfHolderInTransaction(
 
 export async function requestAgentLifecycleRecheckInTransaction(
   tx: Pick<Db, "select" | "update">,
-  input: { companyId: string; agentId: string; expectedVersion?: number; onlyIfWaiting?: boolean; configurationRepaired?: boolean },
+  input: { spaceId: string; agentId: string; expectedVersion?: number; onlyIfWaiting?: boolean; configurationRepaired?: boolean },
   notify: () => Promise<void>,
 ): Promise<boolean> {
   if (!("nestedIndex" in tx)) throw new AgentLifecycleConflict("Lifecycle rechecks require the producer transaction");
   const [agent] = await tx.select().from(agents).where(and(
-    eq(agents.id, input.agentId), eq(agents.companyId, input.companyId),
+    eq(agents.id, input.agentId), eq(agents.spaceId, input.spaceId),
   )).for("update");
   if (!agent || !["preparing", "verifying", "resuming"].includes(agent.lifecycleState)
     || agent.lifecycleOperation?.retryRequired && !input.configurationRepaired
@@ -79,7 +79,7 @@ export async function requestAgentLifecycleRecheckInTransaction(
         ? sql`${agents.lifecycleOperation} - 'waitingForSignal' - 'recheckRequested' - 'retryAt' - 'retryRequired' - 'verificationFailures'`
         : sql`${agents.lifecycleOperation} - 'waitingForSignal' - 'recheckRequested' - 'retryAt'`,
     updatedAt: new Date(),
-  }).where(and(eq(agents.id, agent.id), eq(agents.companyId, input.companyId), eq(agents.lifecycleVersion, agent.lifecycleVersion)));
+  }).where(and(eq(agents.id, agent.id), eq(agents.spaceId, input.spaceId), eq(agents.lifecycleVersion, agent.lifecycleVersion)));
   return true;
 }
 
@@ -111,18 +111,18 @@ async function changeLockedAgent(tx: Db, effects: LifecycleEffects, agent: Lifec
   const reason = options.reason ?? "manual";
   if (command === "reconcile" && policyHolds === undefined) {
     if (["pending_approval", "terminating", "cleaning_up", "terminated", "rejected"].includes(agent.lifecycleState)) return agent;
-    const [company] = await tx.select().from(companies).where(eq(companies.id, agent.companyId));
-    const policies = await tx.select().from(budgetPolicies).where(and(eq(budgetPolicies.companyId, agent.companyId),
+    const [space] = await tx.select().from(spaces).where(eq(spaces.id, agent.spaceId));
+    const policies = await tx.select().from(budgetPolicies).where(and(eq(budgetPolicies.spaceId, agent.spaceId),
       eq(budgetPolicies.scopeType, "agent"), eq(budgetPolicies.scopeId, agent.id)));
     let budgetBlocked = false;
     for (const policy of policies) if (await effects.policyBlocks(tx, policy)) budgetBlocked = true;
-    holds = holds.filter(hold => hold !== "budget" && hold !== "company_archived" && hold !== "company_paused");
+    holds = holds.filter(hold => hold !== "budget" && hold !== "space_archived" && hold !== "space_paused");
     if (budgetBlocked) holds.push("budget");
-    if (company.status === "archived") holds.push("company_archived");
-    if (company.status === "paused") holds.push("company_paused");
+    if (space.status === "archived") holds.push("space_archived");
+    if (space.status === "paused") holds.push("space_paused");
   }
   if (command === "pause") holds = [...new Set([...holds, reason])];
-  if (command === "resume") holds = holds.filter(hold => reason === "user" ? ["budget", "company_archived", "company_paused"].includes(hold) : hold !== reason);
+  if (command === "resume") holds = holds.filter(hold => reason === "user" ? ["budget", "space_archived", "space_paused"].includes(hold) : hold !== reason);
   const blockingHolds = holds.filter(hold => hold !== "setup" || !["preparing", "verifying"].includes(agent.lifecycleState));
   let next = command === "reconcile"
     ? blockingHolds.length && !["pausing", "paused"].includes(agent.lifecycleState) ? "pausing" as const
@@ -133,7 +133,7 @@ async function changeLockedAgent(tx: Db, effects: LifecycleEffects, agent: Lifec
   if (command === "complete" && next === "ready" && holds.length) next = "pausing";
   if (command === "complete" && next === "paused" && !holds.length) next = "resuming";
   if (["complete", "reconcile"].includes(command) && next === "paused" && holds.length === 1 && holds[0] === "setup"
-    && await effects.setupRequiresPreparation(tx, agent.companyId, agent.defaultEnvironmentId, agent)) next = "preparing";
+    && await effects.setupRequiresPreparation(tx, agent.spaceId, agent.defaultEnvironmentId, agent)) next = "preparing";
   if (next === agent.lifecycleState) {
     if (JSON.stringify(holds) !== JSON.stringify(agent.lifecycleHolds) || agent.pauseReason !== (holds[0] ?? null)) {
       const [updated] = await tx.update(agents).set({ lifecycleHolds: holds, pauseReason: holds[0] ?? null }).where(eq(agents.id, agent.id)).returning();
@@ -150,13 +150,13 @@ async function changeLockedAgent(tx: Db, effects: LifecycleEffects, agent: Lifec
   };
   if (next === "ready") operation.resumeState = "ready";
   if (next === "pausing") {
-    const [company] = await tx.select({ pauseReason: companies.pauseReason }).from(companies)
-      .where(eq(companies.id, agent.companyId));
-    operation.pauseCause = { holds, companyPauseReason: company?.pauseReason ?? null };
+    const [space] = await tx.select({ pauseReason: spaces.pauseReason }).from(spaces)
+      .where(eq(spaces.id, agent.spaceId));
+    operation.pauseCause = { holds, spacePauseReason: space?.pauseReason ?? null };
   }
   const status = compatibilityStatus(next, agent.status);
-  if(!canConfigureAgentConnection(agent)&&canConfigureAgentConnection({lifecycleState:next,status}))await effects.beforeConnectionEligibilityRestore?.(tx,agent.companyId,agent.id);
-  if (status !== agent.status) await effects.beforeStatusChange(tx, agent.companyId, agent.id, agent.status, status);
+  if(!canConfigureAgentConnection(agent)&&canConfigureAgentConnection({lifecycleState:next,status}))await effects.beforeConnectionEligibilityRestore?.(tx,agent.spaceId,agent.id);
+  if (status !== agent.status) await effects.beforeStatusChange(tx, agent.spaceId, agent.id, agent.status, status);
   if (isLifecycleWorkPending(next)) await effects.notifyWork(tx);
   const [updated] = await tx.update(agents).set({
     lifecycleHolds: holds, lifecycleState: next, lifecycleVersion: agent.lifecycleVersion + 1, lifecycleError: null,
@@ -167,11 +167,11 @@ async function changeLockedAgent(tx: Db, effects: LifecycleEffects, agent: Lifec
   }).where(eq(agents.id, agent.id)).returning();
   if (next === "terminating" || next === "rejected") {
     await tx.update(agentApiKeys).set({ revokedAt: new Date() }).where(eq(agentApiKeys.agentId, agent.id));
-    await effects.clearPrimary(tx, agent.companyId, agent.id);
+    await effects.clearPrimary(tx, agent.spaceId, agent.id);
   }
-  if (command === "approve") await effects.recordCreation(tx, agent.companyId, agent.id);
+  if (command === "approve") await effects.recordCreation(tx, agent.spaceId, agent.id);
   if (next === "pausing" || next === "resuming" || next === "terminating" || next === "rejected") {
-    await effects.recordStatus(tx, agent.companyId, agent.id,
+    await effects.recordStatus(tx, agent.spaceId, agent.id,
       next === "resuming" ? "paused" : "idle",
       next === "resuming" ? "idle" : next === "pausing" ? "paused" : "terminated");
   }
@@ -180,21 +180,21 @@ async function changeLockedAgent(tx: Db, effects: LifecycleEffects, agent: Lifec
 
 /** Apply a computed hold without resolving policies or opening another transaction. */
 export async function applyAgentPolicyHoldsInTransaction(tx: Db, effects: LifecycleEffects,
-  companyId: string, agentId: string, patch: { budget?: boolean; companyStatus?: string; restartPause?: boolean }, lockedAgent?: LifecycleRow) {
+  spaceId: string, agentId: string, patch: { budget?: boolean; spaceStatus?: string; restartPause?: boolean }, lockedAgent?: LifecycleRow) {
   if (!("nestedIndex" in tx)) throw new AgentLifecycleConflict("Policy holds require the caller's accounting transaction");
   const agent = lockedAgent ?? (await tx.select().from(agents).where(and(
-    eq(agents.id, agentId), eq(agents.companyId, companyId),
+    eq(agents.id, agentId), eq(agents.spaceId, spaceId),
   )).for("update"))[0];
-  if (!agent || agent.companyId !== companyId || ["pending_approval", "terminating", "cleaning_up", "terminated", "rejected"].includes(agent.lifecycleState)) return null;
+  if (!agent || agent.spaceId !== spaceId || ["pending_approval", "terminating", "cleaning_up", "terminated", "rejected"].includes(agent.lifecycleState)) return null;
   let holds = [...agent.lifecycleHolds];
   if (patch.budget !== undefined) {
     holds = holds.filter(hold => hold !== "budget");
     if (patch.budget) holds.push("budget");
   }
-  if (patch.companyStatus !== undefined) {
-    holds = holds.filter(hold => hold !== "company_paused" && hold !== "company_archived");
-    if (patch.companyStatus === "paused") holds.push("company_paused");
-    if (patch.companyStatus === "archived") holds.push("company_archived");
+  if (patch.spaceStatus !== undefined) {
+    holds = holds.filter(hold => hold !== "space_paused" && hold !== "space_archived");
+    if (patch.spaceStatus === "paused") holds.push("space_paused");
+    if (patch.spaceStatus === "archived") holds.push("space_archived");
   }
   return changeLockedAgent(tx, effects, agent, "reconcile", {}, holds, patch.restartPause);
 }
@@ -206,7 +206,7 @@ export function createLifecycleStore(db: Db, effects: LifecycleEffects): Lifecyc
     async change(id, command, options = {}) {
       const existing = await get(id);
       if (!existing) return null;
-      return effects.transaction(db, existing.companyId, async tx => {
+      return effects.transaction(db, existing.spaceId, async tx => {
         const [agent] = await tx.select().from(agents).where(eq(agents.id, id)).for("update", command === "reconcile" ? { skipLocked: true } : undefined);
         if (!agent) return null;
         return changeLockedAgent(tx, effects, agent, command, options);
@@ -222,7 +222,7 @@ export function createLifecycleStore(db: Db, effects: LifecycleEffects): Lifecyc
           || ${JSON.stringify(leaseHolder ? { leaseHolder } : {})}::jsonb`,
       }).where(and(eq(agents.id, id), pendingLifecycleWork,
         sql`(${agents.lifecycleState} in ('pausing', 'terminating', 'cleaning_up') or exists (
-          select 1 from ${companies} where ${companies.id} = ${agents.companyId} and ${companies.status} = 'active'))`,
+          select 1 from ${spaces} where ${spaces.id} = ${agents.spaceId} and ${spaces.status} = 'active'))`,
         sql`coalesce((${agents.lifecycleOperation}->>'leaseUntil')::timestamptz, '-infinity') <= ${now.toISOString()}::timestamptz`,
         sql`coalesce((${agents.lifecycleOperation}->>'retryAt')::timestamptz, '-infinity') <= ${now.toISOString()}::timestamptz`,
       )).returning();

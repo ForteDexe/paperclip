@@ -27,7 +27,7 @@ describe("Space working directories", () => {
   it("writes only portable Space identity into the repository", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-space-"));
     temporaryDirectories.push(directory);
-    await writePortableSpaceManifest({ root: directory, companyId: "space-1", name: "Maya" });
+    await writePortableSpaceManifest({ root: directory, spaceId: "space-1", name: "Maya" });
     expect(JSON.parse(fs.readFileSync(path.join(directory, ".outpost", "space.json"), "utf8"))).toEqual({
       schemaVersion: 1,
       spaceId: "space-1",

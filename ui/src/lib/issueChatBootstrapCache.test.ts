@@ -17,7 +17,7 @@ const REQUESTED_AT = 1_000_000;
 
 function issue(overrides: Partial<Issue> = {}) {
   return {
-    id: ID, identifier: IDENTIFIER, companyId: "company-1", title: "Recent task", status: "todo", priority: "medium",
+    id: ID, identifier: IDENTIFIER, spaceId: "space-1", title: "Recent task", status: "todo", priority: "medium",
     workMode: "standard", projectId: null, parentId: null, description: null, assigneeAgentId: null,
     assigneeUserId: null, executionRunId: null, issueNumber: 7, requestDepth: 0,
     createdAt: new Date(0), updatedAt: new Date(0),
@@ -59,7 +59,7 @@ describe("seedIssueChatBootstrap", () => {
   it("fills every first-frame key in the shape of its single endpoint, under id and identifier", () => {
     const qc = client();
     const entry = item();
-    expect(seedIssueChatBootstrap(qc, entry, { companyId: "company-1", requestedAt: REQUESTED_AT })).toBe(true);
+    expect(seedIssueChatBootstrap(qc, entry, { spaceId: "space-1", requestedAt: REQUESTED_AT })).toBe(true);
     for (const ref of [ID, IDENTIFIER]) {
       expect(qc.getQueryData(coreKey(ref))).toBe(entry.issue);
       expect(qc.getQueryData(commentsKey(ref))).toBe(entry.recentComments);
@@ -86,16 +86,16 @@ describe("seedIssueChatBootstrap", () => {
     const entry = item({ activeRun: null });
     delete (entry as Partial<IssueChatBootstrapEntry>).liveRuns;
     delete (entry as Partial<IssueChatBootstrapEntry>).commentInputFacts;
-    seedIssueChatBootstrap(qc, entry, { companyId: "company-1", requestedAt: REQUESTED_AT });
+    seedIssueChatBootstrap(qc, entry, { spaceId: "space-1", requestedAt: REQUESTED_AT });
     expect(qc.getQueryState(queryKeys.issues.activeRun(ID))?.data).toBeNull();
     expect(qc.getQueryState(queryKeys.issues.activeRun(ID))?.status).toBe("success");
     expect(qc.getQueryState(queryKeys.issues.liveRuns(ID))).toBeUndefined();
     expect(qc.getQueryState([...issueCommentInputFactsQueryKey(ID), "batch-ids"])).toBeUndefined();
   });
 
-  it("ignores an item for another company", () => {
+  it("ignores an item for another space", () => {
     const qc = client();
-    expect(seedIssueChatBootstrap(qc, item({ issue: issue({ companyId: "company-2" }) }), { companyId: "company-1", requestedAt: REQUESTED_AT })).toBe(false);
+    expect(seedIssueChatBootstrap(qc, item({ issue: issue({ spaceId: "space-2" }) }), { spaceId: "space-1", requestedAt: REQUESTED_AT })).toBe(false);
     expect(qc.getQueryCache().getAll()).toHaveLength(0);
   });
 
@@ -106,7 +106,7 @@ describe("seedIssueChatBootstrap", () => {
     qc.setQueryData(queryKeys.issues.interactions(ID), ["stale"], { updatedAt: REQUESTED_AT - 1 });
     qc.invalidateQueries({ queryKey: queryKeys.issues.interactions(ID) });
     qc.setQueryData(queryKeys.issues.attachments(ID), ["older"], { updatedAt: REQUESTED_AT - 1 });
-    seedIssueChatBootstrap(qc, item(), { companyId: "company-1", requestedAt: REQUESTED_AT });
+    seedIssueChatBootstrap(qc, item(), { spaceId: "space-1", requestedAt: REQUESTED_AT });
     expect(qc.getQueryData(coreKey(ID))).toBe(newer);
     expect(qc.getQueryData(queryKeys.issues.interactions(ID))).toEqual(["stale"]);
     // A whole-answer endpoint with older, valid data takes the newer answer.
@@ -120,7 +120,7 @@ describe("seedIssueChatBootstrap", () => {
     qc.setQueryData(recentIssueActivityQueryKey(ID), [event("seen")], { updatedAt: REQUESTED_AT - 10_000 });
     qc.setQueryData(recentIssueRunWindowQueryKey(ID), { runs: [run("r9")], hasEarlierRuns: false }, { updatedAt: REQUESTED_AT - 10_000 });
     qc.setQueryData([...issueCommentInputFactsQueryKey(ID), "batch-ids"], [["c3"]]);
-    seedIssueChatBootstrap(qc, item(), { companyId: "company-1", requestedAt: REQUESTED_AT });
+    seedIssueChatBootstrap(qc, item(), { spaceId: "space-1", requestedAt: REQUESTED_AT });
     expect(qc.getQueryData(commentsKey(ID))).toBe(observed);
     expect(qc.getQueryData(recentIssueActivityQueryKey(ID))).toEqual([event("seen")]);
     expect(qc.getQueryData(recentIssueRunWindowQueryKey(ID))).toEqual({ runs: [run("r9")], hasEarlierRuns: false });
@@ -132,7 +132,7 @@ describe("hasFreshIssueChatFirstFrame", () => {
   it("is true only while every first-frame read is cached, valid and fresh", () => {
     const qc = client();
     expect(hasFreshIssueChatFirstFrame(qc, [ID], REQUESTED_AT)).toBe(false);
-    seedIssueChatBootstrap(qc, item(), { companyId: "company-1", requestedAt: REQUESTED_AT });
+    seedIssueChatBootstrap(qc, item(), { spaceId: "space-1", requestedAt: REQUESTED_AT });
     expect(hasFreshIssueChatFirstFrame(qc, [IDENTIFIER], REQUESTED_AT + 29_999)).toBe(true);
     expect(hasFreshIssueChatFirstFrame(qc, [IDENTIFIER], REQUESTED_AT + 30_000)).toBe(false);
     qc.invalidateQueries({ queryKey: commentsKey(IDENTIFIER) });
@@ -149,7 +149,7 @@ describe("hasFreshIssueChatFirstFrame", () => {
 
   it("is false while a recent comment's input facts are missing", () => {
     const qc = client();
-    seedIssueChatBootstrap(qc, item(), { companyId: "company-1", requestedAt: REQUESTED_AT });
+    seedIssueChatBootstrap(qc, item(), { spaceId: "space-1", requestedAt: REQUESTED_AT });
     const factsKey = issueCommentInputFactsQueryKey(IDENTIFIER);
     qc.removeQueries({ queryKey: [...factsKey, "batch", ["c1", "c2"]], exact: true });
     expect(hasFreshIssueChatFirstFrame(qc, [IDENTIFIER], REQUESTED_AT + 1)).toBe(false);

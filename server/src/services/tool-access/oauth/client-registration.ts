@@ -20,7 +20,7 @@ type RegistrationDependencies = {
   now: () => Date;
   options: { oauthClientMetadataLookup?: RemoteHttpEndpointLookup };
   store: Pick<OAuthCredentialStore, "createOrRotateOAuthSecret" | "oauthClientForConnection" | "syncCredentialBindings">;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   requestOAuthClientRegistration: ReturnType<typeof createOAuthClientProtocol>["requestOAuthClientRegistration"];
 };
 
@@ -37,7 +37,7 @@ export function assertOAuthClientBindingUnchanged(
         || current.transportConfig[key] !== expected.transportConfig[key]));
   const bindings: Record<string, unknown> = {
     clientRedirectUri: redirectUri, clientIssuer: endpoints.issuer ?? null,
-    clientResource: endpoints.resource ?? null, clientCompanyId: expected.companyId,
+    clientResource: endpoints.resource ?? null, clientSpaceId: expected.spaceId,
     issuer: endpoints.issuer ?? null, resource: endpoints.resource ?? null,
   };
   const changedClient = expected.ownership !== current.ownership
@@ -74,7 +74,7 @@ export function createOAuthClientRegistration(db: Db, { now, options, store, get
       );
     if (clientSecret) {
       const clientSecretRef = await createOrRotateOAuthSecret({
-        companyId: input.connection.companyId,
+        spaceId: input.connection.spaceId,
         connection: input.connection,
         configPath: "oauth.client_secret",
         label: "OAuth client secret",
@@ -118,7 +118,7 @@ export function createOAuthClientRegistration(db: Db, { now, options, store, get
         // client another authorization server issued.
         clientIssuer: input.endpoints.issuer ?? null,
         clientResource: input.endpoints.resource ?? null,
-        clientCompanyId: input.connection.companyId,
+        clientSpaceId: input.connection.spaceId,
         clientIdIssuedAt,
         clientSecretExpiresAt,
       },
@@ -135,7 +135,7 @@ export function createOAuthClientRegistration(db: Db, { now, options, store, get
       .where(
         and(
           eq(toolConnections.id, input.connection.id),
-          eq(toolConnections.companyId, input.connection.companyId),
+          eq(toolConnections.spaceId, input.connection.spaceId),
         ),
       )
       .returning();
@@ -146,7 +146,7 @@ export function createOAuthClientRegistration(db: Db, { now, options, store, get
 
   /**
    * Adopt a Client ID Metadata Document as this connection's client: the
-   * `client_id` *is* the https URL of Paperclip's published client metadata, so
+   * `client_id` *is* the https URL of Outpost's published client metadata, so
    * there is nothing to register with the authorization server. Still recorded on
    * the connection so the issuer/resource/callback binding is enforced on reuse
    * exactly like a dynamically registered client.
@@ -184,7 +184,7 @@ async function adoptClientIdMetadataDocument(input: {
         clientRedirectUri: input.redirectUri,
         clientIssuer: input.endpoints.issuer ?? null,
         clientResource: input.endpoints.resource ?? null,
-        clientCompanyId: input.connection.companyId,
+        clientSpaceId: input.connection.spaceId,
       },
     };
     // A CIMD client has no secret. Drop any leftover one so a stale credential
@@ -205,7 +205,7 @@ async function adoptClientIdMetadataDocument(input: {
       .where(
         and(
           eq(toolConnections.id, input.connection.id),
-          eq(toolConnections.companyId, input.connection.companyId),
+          eq(toolConnections.spaceId, input.connection.spaceId),
         ),
       )
       .returning();
@@ -217,7 +217,7 @@ async function adoptClientIdMetadataDocument(input: {
   /**
    * How the client already stored on this connection was obtained. Anything
    * unrecognised (including connections written before this field existed) reads
-   * as `manual`, which is the conservative answer: Paperclip will not silently
+   * as `manual`, which is the conservative answer: Outpost will not silently
    * re-register over client material it cannot prove it minted.
    */
 function storedOAuthClientRegistrationSource(
@@ -231,14 +231,14 @@ function storedOAuthClientRegistrationSource(
 
   /**
    * Is the client material already stored on this connection still valid for the
-   * authorization server, MCP resource, callback URI and company we are about to
+   * authorization server, MCP resource, callback URI and space we are about to
    * use it with? Client credentials are minted against exactly one such tuple;
    * reusing them across a moved binding would let a re-pointed endpoint borrow
    * another server's registration.
    */
 function reviewedOAuthClientBinding(connection: typeof toolConnections.$inferSelect, endpoints: OAuthProviderEndpoints) {
     const oauth = oauthConfig(connection);
-    // Only repair the known Asana v1 discovery mistake. Retain company and
+    // Only repair the known Asana v1 discovery mistake. Retain space and
     // callback checks, and never carry a secret to an arbitrary new issuer.
     if (connection.config.sourceTemplateKey === "asana"
       && connection.config.connectionMethodKey === "mcp-own-oauth"
@@ -272,7 +272,7 @@ function reviewedOAuthClientBinding(connection: typeof toolConnections.$inferSel
         : null;
     // Older interrupted setup flows could accidentally round-trip a DCR client
     // through the customer-client form and relabel it `manual`. Ownership is the
-    // durable proof that Paperclip minted that client. Force a fresh registration
+    // durable proof that Outpost minted that client. Force a fresh registration
     // instead of preserving the damaged binding forever.
     if (source === "manual" && connection.ownership === "dcr") return false;
     // A URL client id that now resolves only to a private network is unusable by
@@ -281,7 +281,7 @@ function reviewedOAuthClientBinding(connection: typeof toolConnections.$inferSel
     if (source === "cimd" && oauth.clientId !== clientIdMetadataDocumentUrl)
       return false;
     // A manually preregistered client was registered by the operator against
-    // Paperclip's callback, so it has no recorded callback until first use.
+    // Outpost's callback, so it has no recorded callback until first use.
     const redirectMatches =
       source === "manual"
         ? oauth.clientRedirectUri === undefined ||
@@ -290,8 +290,8 @@ function reviewedOAuthClientBinding(connection: typeof toolConnections.$inferSel
         : oauth.clientRedirectUri === redirectUri;
     if (!redirectMatches) return false;
     if (
-      typeof oauth.clientCompanyId === "string" &&
-      oauth.clientCompanyId !== connection.companyId
+      typeof oauth.clientSpaceId === "string" &&
+      oauth.clientSpaceId !== connection.spaceId
     )
       return false;
     if (
@@ -314,7 +314,7 @@ function reviewedOAuthClientBinding(connection: typeof toolConnections.$inferSel
   }
 
   /**
-   * Record the issuer/resource/callback/company a client is bound to, the first
+   * Record the issuer/resource/callback/space a client is bound to, the first
    * time that client is actually used.
    *
    * A dynamically registered or CIMD client is stamped at registration. A client
@@ -330,7 +330,7 @@ async function stampOAuthClientBinding(
   ): Promise<typeof toolConnections.$inferSelect> {
     return db.transaction(async tx => {
       const [saved] = await tx.select().from(toolConnections).where(and(
-        eq(toolConnections.id, connection.id), eq(toolConnections.companyId, connection.companyId),
+        eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, connection.spaceId),
       )).for("no key update");
       if (!saved) throw notFound("Tool connection not found");
       assertOAuthClientBindingUnchanged(connection, saved, endpoints, redirectUri);
@@ -346,10 +346,10 @@ async function stampOAuthClientBinding(
           typeof oauth.clientResource === "string" && oauth.clientResource
             ? oauth.clientResource
             : (endpoints.resource ?? null),
-        clientCompanyId:
-          typeof oauth.clientCompanyId === "string" && oauth.clientCompanyId
-            ? oauth.clientCompanyId
-            : saved.companyId,
+        clientSpaceId:
+          typeof oauth.clientSpaceId === "string" && oauth.clientSpaceId
+            ? oauth.clientSpaceId
+            : saved.spaceId,
       };
       const unchanged = Object.entries(nextBinding).every(
         ([key, value]) => originalOAuth[key] === value,
@@ -370,7 +370,7 @@ async function stampOAuthClientBinding(
         .where(
           and(
             eq(toolConnections.id, connection.id),
-            eq(toolConnections.companyId, connection.companyId),
+            eq(toolConnections.spaceId, connection.spaceId),
           ),
         )
         .returning();
@@ -380,7 +380,7 @@ async function stampOAuthClientBinding(
   }
 
   /**
-   * May Paperclip mint client material for this connection without an operator
+   * May Outpost mint client material for this connection without an operator
    * pasting client credentials?
    *
    * A curated app opts in through its `ownershipModes`. A generic remote MCP
@@ -443,7 +443,7 @@ function canRegisterOAuthClientDynamically(
           options.oauthClientMetadataLookup,
         )
       : null;
-    // 2. Client material already bound to this issuer/resource/callback/company.
+    // 2. Client material already bound to this issuer/resource/callback/space.
     if (
       oauthClientBindingMatches(
         input.connection,
@@ -474,7 +474,7 @@ function canRegisterOAuthClientDynamically(
       typeof oauth.clientId === "string" &&
       oauth.clientId.trim()
     ) {
-      // Paperclip cannot re-register on the operator's behalf: the credentials
+      // Outpost cannot re-register on the operator's behalf: the credentials
       // came from a console this deployment does not control.
       throw unprocessable(
         "This connection's sign-in details no longer match the server it points at. Re-enter the client ID and secret to continue.",
@@ -506,7 +506,7 @@ function canRegisterOAuthClientDynamically(
     return singleFlight(oauthRegistrationFlights, key, async () => {
       const latest = await getConnectionRow(
         input.connection.id,
-        input.connection.companyId,
+        input.connection.spaceId,
       );
       const latestConfigured = configuredOAuthClientForConnection(
         latest,

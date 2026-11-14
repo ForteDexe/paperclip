@@ -24,7 +24,7 @@ export function useCoordinatorWorkspaceEnabled() {
     enabled: contextClient != null && session.isSuccess && !sessionUserId,
   }, client);
   const userId = session.isSuccess
-    ? sessionUserId ?? (health.isSuccess && health.data.deploymentMode === "local_trusted" ? "local-board" : null)
+    ? sessionUserId ?? (health.isSuccess && health.data.deploymentMode === "local_trusted" ? "local-operator" : null)
     : null;
   const preference = useQuery({
     queryKey: queryKeys.workspacePreferences.mine(userId),
@@ -32,8 +32,8 @@ export function useCoordinatorWorkspaceEnabled() {
     enabled: contextClient != null && !!userId,
   }, client);
   const mutation = useAccountBoundMutation({
-    mutationFn: async ({ companyId, enabled, owner }: { companyId: string; enabled: boolean; owner: string }) => {
-      const result = await workspacePreferencesApi.update(companyId, { coordinatorWorkspaceEnabled: enabled });
+    mutationFn: async ({ spaceId, enabled, owner }: { spaceId: string; enabled: boolean; owner: string }) => {
+      const result = await workspacePreferencesApi.update(spaceId, { coordinatorWorkspaceEnabled: enabled });
       if (result.userId !== owner) throw new Error("Your account changed. Reload your workspace preference and try again.");
       return result;
     },
@@ -52,9 +52,9 @@ export function useCoordinatorWorkspaceEnabled() {
     error: session.error ?? (!sessionUserId ? health.error : null) ?? preference.error
       ?? (mutation.variables?.owner === userId ? mutation.error : null),
     isSaving: mutation.isPending && mutation.variables?.owner === userId,
-    setEnabled: async (companyId: string, enabled: boolean) => {
+    setEnabled: async (spaceId: string, enabled: boolean) => {
       if (!contextClient || !userId) throw new Error("Sign in before changing your workspace.");
-      return mutation.mutateAsync({ companyId, enabled, owner: userId });
+      return mutation.mutateAsync({ spaceId, enabled, owner: userId });
     },
     retry: async () => {
       mutation.reset();

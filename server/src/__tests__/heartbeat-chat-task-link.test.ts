@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildPaperclipTaskMarkdown } from "../services/heartbeat.js";
+import { buildOutpostTaskMarkdown } from "../services/heartbeat.js";
 import { runtimeCanonicalOrigin } from "../services/cloud-runtime-identity.js";
 import { readConfigFile } from "../config-file.js";
 
@@ -25,10 +25,10 @@ describe("external chat task link context", () => {
       vi.mocked(runtimeCanonicalOrigin).mockReturnValue("https://vanity.example");
       for (const includeDescription of [true, false]) {
         for (const nativeRunner of [true, false]) {
-          const markdown = buildPaperclipTaskMarkdown({ issue, externalChatProvider, nativeRunner, includeDescription });
+          const markdown = buildOutpostTaskMarkdown({ issue, externalChatProvider, nativeRunner, includeDescription });
           expect(markdown).toContain("Public task URL: https://vanity.example/issues/task-123");
           expect(markdown).toContain("use this exact URL");
-          expect(markdown).toContain("Opening it still requires Paperclip access");
+          expect(markdown).toContain("Opening it still requires Outpost access");
           expect(markdown).not.toContain("https://pool.example");
           expect(markdown).not.toContain("http://localhost:3100");
         }
@@ -36,14 +36,14 @@ describe("external chat task link context", () => {
     },
   );
 
-  it.each(["", "http://localhost:3100", "https://board.internal", "https://user:secret@board.example"])(
+  it.each(["", "http://localhost:3100", "https://operator.internal", "https://user:secret@operator.example"])(
     "does not invent a task link from missing or unsafe configuration (%s)",
     (publicUrl) => {
       for (const name of ["OUTPOST_AUTH_PUBLIC_BASE_URL", "BETTER_AUTH_URL", "BETTER_AUTH_BASE_URL", "OUTPOST_PUBLIC_URL", "OUTPOST_MANAGED_RUNTIME_PUBLIC_URL"]) vi.stubEnv(name, "");
       vi.stubEnv("OUTPOST_PUBLIC_URL", publicUrl);
       vi.stubEnv("OUTPOST_API_URL", "https://api.example");
       vi.stubEnv("OUTPOST_CHAT_WEBHOOK_PUBLIC_URL", "https://ingress.example");
-      const markdown = buildPaperclipTaskMarkdown({ issue, externalChatProvider: "slack" });
+      const markdown = buildOutpostTaskMarkdown({ issue, externalChatProvider: "slack" });
       expect(markdown).toContain("No public task URL is configured");
       expect(markdown).toContain("do not invent a URL");
       expect(markdown).not.toContain("Public task URL:");

@@ -4,7 +4,7 @@ import { MAX_AGENT_TASK_HIERARCHY_DEPTH, type IssueParentAdjustment } from "@out
 
 /**
  * `flatten` (the default) applies the agent hierarchy limit: a new parent edge
- * may not make the task deeper than MAX_AGENT_TASK_HIERARCHY_DEPTH. Board users
+ * may not make the task deeper than MAX_AGENT_TASK_HIERARCHY_DEPTH. Operator users
  * pass `allow_nested` and may build trees of any depth.
  */
 export type IssueParentDepthPolicy = "flatten" | "allow_nested";
@@ -83,7 +83,7 @@ export function confirmPlacement(placement: ParentPlacement, expectedParentId: s
 /** Loads a requested parent's ancestor chain in one recursive query. Empty when it does not exist. */
 export async function loadParentChain(
   db: Pick<Db, "execute">,
-  companyId: string,
+  spaceId: string,
   parentId: string,
 ): Promise<ParentChainRow[]> {
   const result = await db.execute(sql`
@@ -92,13 +92,13 @@ export async function loadParentChain(
         ${issues.conversationAgentId} AS conversation_agent_id, ${issues.executionPolicy} AS execution_policy,
         1 AS depth, ARRAY[${issues.id}] AS path
       FROM ${issues}
-      WHERE ${issues.companyId} = ${companyId} AND ${issues.id} = ${parentId}
+      WHERE ${issues.spaceId} = ${spaceId} AND ${issues.id} = ${parentId}
       UNION ALL
       SELECT parent.id, parent.identifier, parent.parent_id, parent.conversation_agent_id, parent.execution_policy,
         chain.depth + 1, chain.path || parent.id
       FROM ${issues} AS parent
       JOIN chain ON parent.id = chain.parent_id
-      WHERE parent.company_id = ${companyId}
+      WHERE parent.space_id = ${spaceId}
         AND NOT parent.id = ANY(chain.path)
     )
     SELECT id, identifier, parent_id, conversation_agent_id, execution_policy FROM chain ORDER BY depth
@@ -115,7 +115,7 @@ export async function loadParentChain(
   }));
 }
 
-/** Loads an ancestor chain one issue at a time through a caller-supplied, company-scoped reader. */
+/** Loads an ancestor chain one issue at a time through a caller-supplied, space-scoped reader. */
 export async function loadParentChainWith(
   load: (id: string) => Promise<ParentChainRow | null>,
   parentId: string,
@@ -139,14 +139,14 @@ export async function loadParentChainWith(
  */
 export async function resolveNewTaskParent(
   db: Pick<Db, "execute">,
-  companyId: string,
+  spaceId: string,
   requestedParentId: string | null | undefined,
   policy: IssueParentDepthPolicy = "flatten",
 ): Promise<ParentPlacement> {
   if (!requestedParentId || policy === "allow_nested") {
     return { effectiveParentId: requestedParentId ?? null, adjustment: null };
   }
-  const chain = await loadParentChain(db, companyId, requestedParentId);
+  const chain = await loadParentChain(db, spaceId, requestedParentId);
   if (chain.length === 0) return { effectiveParentId: requestedParentId, adjustment: null };
   return placeTaskParent(chain, policy);
 }
@@ -187,23 +187,23 @@ export function planParentChange(
 /** Database-backed {@link planParentChange} for the issue service. */
 export async function planIssueParentChange(
   db: Pick<Db, "execute" | "select">,
-  existing: { id: string; companyId: string; parentId: string | null },
+  existing: { id: string; spaceId: string; parentId: string | null },
   requestedParentId: string,
   policy: IssueParentDepthPolicy = "flatten",
 ) {
   if (policy === "allow_nested" || requestedParentId === existing.parentId) {
     return { parentId: requestedParentId as string | null | undefined, adjustment: null as IssueParentAdjustment | null };
   }
-  const chain = await loadParentChain(db, existing.companyId, requestedParentId);
+  const chain = await loadParentChain(db, existing.spaceId, requestedParentId);
   const [child] = await db
     .select({ id: issues.id })
     .from(issues)
-    .where(and(eq(issues.companyId, existing.companyId), eq(issues.parentId, existing.id)))
+    .where(and(eq(issues.spaceId, existing.spaceId), eq(issues.parentId, existing.id)))
     .limit(1);
   const [currentParent] = existing.parentId && child ? await db
     .select({ id: issues.id, identifier: issues.identifier })
     .from(issues)
-    .where(and(eq(issues.companyId, existing.companyId), eq(issues.id, existing.parentId))) : [];
+    .where(and(eq(issues.spaceId, existing.spaceId), eq(issues.id, existing.parentId))) : [];
   return planParentChange(existing, chain, requestedParentId, Boolean(child), currentParent ?? null, policy);
 }
 

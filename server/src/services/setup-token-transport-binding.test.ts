@@ -28,7 +28,7 @@ import {
 // The owner scope for one login session. The per-owner session cap is one, so one
 // scope holds one live session.
 const SCOPE: SetupTokenSessionScope = {
-  companyId: "company-1",
+  spaceId: "space-1",
   ownerUserId: "user-1",
   adapterType: "claude_local",
   environmentId: "env-1",
@@ -130,7 +130,7 @@ function createRecordingStore() {
     async findActiveDurable(key, now) {
       for (const row of rows.values()) {
         if (
-          row.companyId === key.companyId &&
+          row.spaceId === key.spaceId &&
           row.ownerUserId === key.ownerUserId &&
           row.adapterType === key.adapterType &&
           !isTerminalSessionState(row.state) &&
@@ -331,7 +331,7 @@ describe("setup-token production transport binding", () => {
     // in-memory lease map is empty, as after a restart.
     const orphan: SetupTokenCleanupRecord = {
       sessionId: "orphan-session",
-      companyId: SCOPE.companyId,
+      spaceId: SCOPE.spaceId,
       ownerUserId: SCOPE.ownerUserId,
       adapterType: SCOPE.adapterType,
       environmentId: SCOPE.environmentId,
@@ -362,7 +362,7 @@ describe("setup-token production transport binding", () => {
     // restart. No live session references it.
     const orphan: SetupTokenCleanupRecord = {
       sessionId: "orphan-session",
-      companyId: SCOPE.companyId,
+      spaceId: SCOPE.spaceId,
       ownerUserId: SCOPE.ownerUserId,
       adapterType: SCOPE.adapterType,
       environmentId: SCOPE.environmentId,
@@ -618,7 +618,7 @@ describe("worker-bound live pseudo-terminal opener", () => {
     expect(pluginId).toBe("outpost.daytona");
     expect(openInput).toMatchObject({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "provider-lease-9",
       loginCommandKey: "claude",
@@ -626,7 +626,7 @@ describe("worker-bound live pseudo-terminal opener", () => {
     expect(openInput).not.toHaveProperty("command");
     // The session home is the fixed root, one slash, and one UUID.
     expect(openInput.sessionHome).toMatch(
-      /^\/tmp\/paperclip-adapter-login\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      /^\/tmp\/outpost-adapter-login\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
     expect(opened).toBe(session);
   });

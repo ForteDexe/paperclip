@@ -16,7 +16,7 @@ export interface IdentityBoundaryContext {
    * calls it with that page at the end of its run, before its own cleanup closes anything. */
   captureFinalState(page: Page): Promise<void>;
   /** Real resources may be observed only after their supported creation. */
-  observeResources(value: { companyId?: string; agentId?: string; runIds: string[] }): void;
+  observeResources(value: { spaceId?: string; agentId?: string; runIds: string[] }): void;
 }
 export type IdentityBoundaryCase = Omit<ChatCatalogCase, "journeyKind" | "setup" | "act" | "observe" | "verifyResult" | "cleanup" | "verifySetup" | "verifyQueryRejection" | "grade"> & {
   journeyKind: "browser-boundary";

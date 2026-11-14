@@ -42,19 +42,19 @@ vi.mock("@/components/IssueDocumentAnnotations", () => ({
   IssueDocumentAnnotations: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-const issue = { id: "issue-1", companyId: "company-1", identifier: "ACM-3", workMode: "standard" } as Issue;
+const issue = { id: "issue-1", spaceId: "space-1", identifier: "ACM-3", workMode: "standard" } as Issue;
 const ATTACHMENT_ID = "00000000-0000-4000-8000-000000000001";
 const IMAGE_ID = "00000000-0000-4000-8000-000000000002";
 
 const pdfWorkProduct = {
   id: "wp-pdf",
-  companyId: "company-1",
+  spaceId: "space-1",
   projectId: null,
   issueId: "issue-1",
   executionWorkspaceId: null,
   runtimeServiceId: null,
   type: "artifact",
-  provider: "paperclip",
+  provider: "outpost",
   externalId: null,
   title: "Interface Craft revision — PDF",
   url: null,
@@ -95,7 +95,7 @@ const brokenService = {
   ...pdfWorkProduct,
   id: "wp-service",
   type: "runtime_service",
-  provider: "paperclip",
+  provider: "outpost",
   title: "Preview server",
   url: "https://preview.example.test",
   status: "active",
@@ -107,7 +107,7 @@ const brokenService = {
 
 const planDocument = {
   id: "doc-plan",
-  companyId: "company-1",
+  spaceId: "space-1",
   issueId: "issue-1",
   key: "plan",
   title: "acmehats branding strategy — proposed plan",
@@ -122,7 +122,7 @@ const planDocument = {
 
 const heroAttachment = {
   id: IMAGE_ID,
-  companyId: "company-1",
+  spaceId: "space-1",
   issueId: "issue-1",
   issueCommentId: null,
   assetId: "asset-2",

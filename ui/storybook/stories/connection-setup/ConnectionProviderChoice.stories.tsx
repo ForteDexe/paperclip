@@ -113,7 +113,7 @@ const meta = {
   title: "Apps, channels, and extensions/Connection setup/Apps/Connections/Provider choice",
   component: ProviderChoice,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "connection-setup/identity-and-access"
       ],

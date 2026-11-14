@@ -8,7 +8,7 @@ scenarios:
     capabilities:
       - runs-adapters/availability
     context: >-
-      The company has admitted model discovery and configured coding accounts; some adapter
+      The space has admitted model discovery and configured coding accounts; some adapter
       inventories remain board-only.
     query: >-
       What coding models can Morgan use with our current accounts?

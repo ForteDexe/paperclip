@@ -107,7 +107,7 @@
         "sse": false
       },
       "_meta": {
-        "paperclipPi": {
+        "outpostPi": {
           "version": 1,
           "steering": true,
           "queuedFollowUp": true,

@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFile as execFileCallback } from "node:child_process";
 import { createHash } from "node:crypto";
-import { resolveManagedProjectWorkspaceDir, resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveManagedProjectWorkspaceDir, resolveOutpostInstanceRoot } from "../home-paths.js";
 import { materializeManagedProjectWorkspace, RepositoryRefNotFoundError, readManagedRepositoryPreparationFailure } from "./managed-repository-checkout.js";
 import { readGitConnectionFailure } from "./git-connection-failure.js";
 import { promisify } from "node:util";
@@ -28,7 +28,7 @@ export const GIT_CACHE_EXPIRATION_REASON = "reproducible_git_cache_expired";
 export const GIT_CACHE_RESTORATION_SCHEMA_V2 = "outpost.git-cache-restoration.v2";
 export type GitCacheRestoration = {
   schema: "outpost.git-cache-restoration.v1" | typeof GIT_CACHE_RESTORATION_SCHEMA_V2;
-  companyId: string;
+  spaceId: string;
   workspaceId: string;
   sourceIssueId: string;
   repoUrl: string;
@@ -50,7 +50,7 @@ export type GitCacheExpiration = {
   worktreeTrash: string; worktreeAdmin: string; baseTrash: string | null; completed: boolean; lockToken?: string;
 };
 type Workspace = {
-  id: string; companyId: string; projectId: string | null; sourceIssueId: string | null; repoUrl: string | null;
+  id: string; spaceId: string; projectId: string | null; sourceIssueId: string | null; repoUrl: string | null;
   mode: string | null; strategyType: string | null; branchName: string | null;
   cwd: string | null; providerRef: string | null; status?: string; metadata: Record<string, unknown> | null;
 };
@@ -59,7 +59,7 @@ export function managedSourcePaths(workspace: Workspace) {
   if (!workspace.projectId || !workspace.repoUrl) return [];
   let repoName: string | null = null;
   try { repoName = new URL(workspace.repoUrl).pathname.replace(/\/+$/, "").split("/").pop()?.replace(/\.git$/i, "") || null; } catch { return []; }
-  const root = resolveManagedProjectWorkspaceDir({ companyId: workspace.companyId, projectId: workspace.projectId, repoName });
+  const root = resolveManagedProjectWorkspaceDir({ spaceId: workspace.spaceId, projectId: workspace.projectId, repoName });
   return [root, `${root}-${createHash("sha256").update(workspace.repoUrl).digest("hex").slice(0, 12)}`];
 }
 
@@ -72,11 +72,11 @@ export async function verifiedGitCacheSource(workspace: Workspace, sourcePath: s
   return verifiedManagedGitObjectSource(workspace, sourcePath);
 }
 
-/** Read immutable commit objects from the company/project cache. This does not
+/** Read immutable commit objects from the space/project cache. This does not
  * certify the files or restore-point contents of an isolated task checkout. */
 export async function verifiedManagedGitObjectSource(workspace: Workspace, sourcePath: string) {
   if (!managedSourcePaths(workspace).includes(sourcePath)) throw new GitCacheRestorationFailure();
-  const root = resolvePaperclipInstanceRoot();
+  const root = resolveOutpostInstanceRoot();
   const actual = await fs.realpath(sourcePath);
   if (actual !== path.join(await fs.realpath(root), path.relative(root, sourcePath))) throw new GitCacheRestorationFailure();
   const storage = await fs.lstat(path.join(actual, ".git"));
@@ -152,7 +152,7 @@ export function readGitCacheRestoration(workspace: Workspace): GitCacheRestorati
   if (!recipe || !restorationSchemaMatches(recipe)
     || !isRuntimeOwnedGitBranch(workspace.metadata)
     || recipe.gitBranchOwnershipVersion !== 1
-    || recipe.companyId !== workspace.companyId || recipe.workspaceId !== workspace.id
+    || recipe.spaceId !== workspace.spaceId || recipe.workspaceId !== workspace.id
     || recipe.sourceIssueId !== workspace.sourceIssueId || recipe.repoUrl !== workspace.repoUrl
     || recipe.branchName !== workspace.branchName || recipe.worktreePath !== workspace.cwd
     || (workspace.providerRef && recipe.worktreePath !== workspace.providerRef)
@@ -179,7 +179,7 @@ function restorationSchemaMatches(recipe: GitCacheRestoration) {
     : recipe.schema === GIT_CACHE_RESTORATION_SCHEMA_V2 && hasRestorePoints(recipe);
 }
 
-function validateRestorePoints(recipe: GitCacheRestoration, workspace: { companyId: string; id: string }) {
+function validateRestorePoints(recipe: GitCacheRestoration, workspace: { spaceId: string; id: string }) {
   try {
     if (recipe.restorePoint) validateGitRestorePointRef(recipe.restorePoint, workspace);
     for (const checkout of recipe.contents?.checkouts ?? []) {
@@ -199,7 +199,7 @@ export async function gitCacheCommand(cwd: string, args: string[], signal?: Abor
 /** A fresh object store proves the object came from upstream, not our cache. */
 export async function verifyRemoteGitCommit(repoUrl: string, commit: string, resolveGitAuth: GitRemoteAuthProvider, signal?: AbortSignal) {
   if (!shaPattern.test(commit)) throw new GitCacheRestorationFailure();
-  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-git-proof-"));
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-git-proof-"));
   try {
     const auth = await resolveGitAuth(repoUrl);
     const env = { ...process.env, ...auth?.env, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: os.devNull };
@@ -215,7 +215,7 @@ export async function verifyRemoteGitCommit(repoUrl: string, commit: string, res
 let templateFiles: Promise<Map<string, Buffer>> | undefined;
 async function stockGitFiles() {
   templateFiles ??= (async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-git-template-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-git-template-"));
     const files = new Map<string, Buffer>();
     try {
       await execFile("git", ["init", "--bare", root], { timeout: 10_000,
@@ -476,7 +476,7 @@ export async function hasCommitsMissingUpstream(checkout: string, localTips: str
 
 async function commitsMissingUpstream(checkout: string, localTips: string[], repoUrl: string,
   resolveGitAuth: GitRemoteAuthProvider, signal?: AbortSignal, covered: string[] = [], limit?: number) {
-  const store = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-git-checkout-proof-"));
+  const store = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-git-checkout-proof-"));
   try {
     const options = { timeout: 120_000, signal, maxBuffer: 16 * 1024 * 1024, cwd: os.tmpdir(),
       env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: os.devNull } };
@@ -660,7 +660,7 @@ async function inspectRecipe(workspace: Workspace, resolveGitAuth: GitRemoteAuth
     if (!restorePoint || signal?.aborted) throw error;
     headOnRemote = false;
   }
-  return { headOnRemote, recipe: { schema: "outpost.git-cache-restoration.v1", companyId: workspace.companyId, workspaceId: workspace.id,
+  return { headOnRemote, recipe: { schema: "outpost.git-cache-restoration.v1", spaceId: workspace.spaceId, workspaceId: workspace.id,
     sourceIssueId: workspace.sourceIssueId, repoUrl: workspace.repoUrl, commit, branchName: workspace.branchName,
     sourceKind: recordedIsolatedRemoteSource(workspace) ? "isolated_remote" : "managed_project", projectId: workspace.projectId,
     sourcePath: source, worktreePath: workspace.cwd, gitBranchOwnershipVersion: 1, verifiedAt: new Date().toISOString() } };
@@ -713,7 +713,7 @@ export async function gitCacheExpirationLockLocations(workspace: Workspace): Pro
 async function recordedNestedBase(recipe: GitCacheRestoration, repoUrl: string, recorded: string) {
   if (!recipe.projectId) throw new GitCacheRestorationFailure();
   const base = await recordedNestedRepositoryBase(recorded,
-    nestedRepositoryBaseCandidates({ companyId: recipe.companyId, projectId: recipe.projectId, repoUrl }));
+    nestedRepositoryBaseCandidates({ spaceId: recipe.spaceId, projectId: recipe.projectId, repoUrl }));
   if (!base) throw new GitCacheRestorationFailure();
   return base;
 }
@@ -786,7 +786,7 @@ export async function restoreGitCacheBase(workspace: Workspace, recipe: GitCache
       throw error;
     });
     if (!present && recipe.sourceKind === "managed_project") {
-      const root = resolvePaperclipInstanceRoot();
+      const root = resolveOutpostInstanceRoot();
       let parent = await fs.realpath(root);
       for (const segment of path.relative(root, path.dirname(recipe.sourcePath)).split(path.sep)) {
         parent = path.join(parent, segment);
@@ -798,7 +798,7 @@ export async function restoreGitCacheBase(workspace: Workspace, recipe: GitCache
     step = present ? "source_verify" : "source_materialize";
     const cwd = present ? await verifiedGitCacheSource(workspace, recipe.sourcePath)
       : recipe.sourceKind === "isolated_remote"
-        ? await materializeIsolatedRemoteWorkspaceSource({ companyId: recipe.companyId, issueId: recipe.sourceIssueId,
+        ? await materializeIsolatedRemoteWorkspaceSource({ spaceId: recipe.spaceId, issueId: recipe.sourceIssueId,
           repoUrl: recipe.repoUrl, resolveGitAuth })
         : (await materializeManagedProjectWorkspace(recipe.sourcePath, { repoUrl: recipe.repoUrl, resolveGitAuth })).cwd;
     step = "source_verify";
@@ -807,7 +807,7 @@ export async function restoreGitCacheBase(workspace: Workspace, recipe: GitCache
     if (options.freshStart) return cwd;
     step = "restore_point";
     if (recipe.restorePoint) {
-      await ensureGitRestorePointCommit({ storage: storage ?? getStorageService(), workspace: { companyId: workspace.companyId, id: workspace.id },
+      await ensureGitRestorePointCommit({ storage: storage ?? getStorageService(), workspace: { spaceId: workspace.spaceId, id: workspace.id },
         ref: recipe.restorePoint, repositoryCwd: cwd });
     }
     step = "saved_commit";
@@ -829,20 +829,20 @@ export async function ensureSavedGitCommit(cwd: string, repoUrl: string, commit:
 }
 
 /** Runtime callers must bind the recipe to the selected workspace and base. */
-export function savedGitWorkspaceRestoration(input: { metadata?: Record<string, unknown> | null; companyId: string;
+export function savedGitWorkspaceRestoration(input: { metadata?: Record<string, unknown> | null; spaceId: string;
   workspaceId?: string | null; cwd: string; baseCwd: string; repoUrl: string | null; branchName: string | null }) {
   const raw = input.metadata?.[GIT_CACHE_RESTORATION_KEY];
   if (raw === undefined) return null;
   const value = raw as GitCacheRestoration | null;
   if (!value || !restorationSchemaMatches(value) || !shaPattern.test(value.commit)
-    || value.companyId !== input.companyId || value.workspaceId !== input.workspaceId
+    || value.spaceId !== input.spaceId || value.workspaceId !== input.workspaceId
     || value.worktreePath !== input.cwd || value.sourcePath !== input.baseCwd
     || value.repoUrl !== input.repoUrl || value.branchName !== input.branchName
     || !isRuntimeOwnedGitBranch(input.metadata)
     || (value.restoredAt !== undefined && !Number.isFinite(Date.parse(value.restoredAt)))
     || (value.contentsRestoredAt != null && !Number.isFinite(Date.parse(value.contentsRestoredAt)))) throw new GitCacheRestorationFailure();
   validateGitWorkspaceContents(value.contents);
-  validateRestorePoints(value, { companyId: input.companyId, id: input.workspaceId ?? "" });
+  validateRestorePoints(value, { spaceId: input.spaceId, id: input.workspaceId ?? "" });
   const restorePoint: GitRestorePointRef | null = value.restorePoint ?? null;
   return { commit: value.commit, restored: value.restoredAt !== undefined, contents: value.contents, restorePoint,
     contentsRestored: value.contentsRestoredAt === undefined ? value.restoredAt !== undefined : value.contentsRestoredAt !== null };

@@ -35,15 +35,15 @@ test("parseArgs rejects unknown options", () => {
   assert.throws(() => parseArgs(["@outpost/a", "--otp", "123456"]), /unknown option/);
 });
 
-test("validatePackageName accepts @paperclipai scoped names", () => {
+test("validatePackageName accepts @outpost scoped names", () => {
   validatePackageName("@outpost/adapter-kimi-local");
   validatePackageName("@outpost/plugin-workspace-diff");
 });
 
-test("validatePackageName rejects names outside the @paperclipai scope", () => {
-  assert.throws(() => validatePackageName("left-pad"), /@paperclipai scope/);
-  assert.throws(() => validatePackageName("@evil/adapter-kimi-local"), /@paperclipai scope/);
-  assert.throws(() => validatePackageName("@outpost/UPPER"), /@paperclipai scope/);
+test("validatePackageName rejects names outside the @outpost scope", () => {
+  assert.throws(() => validatePackageName("left-pad"), /@outpost scope/);
+  assert.throws(() => validatePackageName("@evil/adapter-kimi-local"), /@outpost scope/);
+  assert.throws(() => validatePackageName("@outpost/UPPER"), /@outpost scope/);
 });
 
 test("buildPlaceholderFiles produces a publishable manifest at the placeholder version", () => {

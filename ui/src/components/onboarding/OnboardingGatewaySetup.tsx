@@ -5,7 +5,7 @@ import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 
 export function OnboardingGatewaySetup({
-  companyId,
+  spaceId,
   agentId,
   environmentId,
   adapterType,
@@ -13,7 +13,7 @@ export function OnboardingGatewaySetup({
   className,
   onComplete,
 }: {
-  companyId: string;
+  spaceId: string;
   agentId?: string;
   environmentId?: string;
   adapterType: "codex_local" | "claude_local";
@@ -32,7 +32,7 @@ export function OnboardingGatewaySetup({
           <DialogTitle>Custom gateway connection</DialogTitle>
           <DialogDescription>Save the connection, then choose a model and test it with your agent.</DialogDescription>
         </DialogHeader>
-        <AiProviderSetup companyId={companyId} agentId={agentId} environmentId={environmentId}
+        <AiProviderSetup spaceId={spaceId} agentId={agentId} environmentId={environmentId}
           initialProvider="gateway" initialProtocol={adapterType === "codex_local" ? "responses" : "messages"}
           submitLabel="Save connection" onCancel={() => setOpen(false)}
           onComplete={binding => { setOpen(false); onComplete(binding); }} />

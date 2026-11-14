@@ -10,7 +10,7 @@ let root: string;
 let requestPath: string;
 const profilesModule = "../../packages/outpost-runner/src/drivers/acpx/qualified-profiles.js";
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "paperclip-supervisor-request-"));
+  root = await mkdtemp(join(tmpdir(), "outpost-supervisor-request-"));
   requestPath = join(root, "restart.json");
 });
 afterEach(async () => {
@@ -21,7 +21,7 @@ afterEach(async () => {
 
 it.each(["rolling-web-deployment", "rolling-web-deployment-warm"])("accepts the assembled %s restart request", async suite => {
   const execution = runnerMatrix.find(row => row.suite.id === suite && row.profile.id === "runner-codex")!;
-  const recoveryBinding = { companyId: "11111111-1111-4111-8111-111111111111",
+  const recoveryBinding = { spaceId: "11111111-1111-4111-8111-111111111111",
     issueId: "22222222-2222-4222-8222-222222222222", runId: "33333333-3333-4333-8333-333333333333" };
   await writeFile(requestPath, JSON.stringify({ requestId: "rolling-request", rollingDeployment: true,
     discardControllerCache: true, controllerOutage: controllerOutageForExecution(execution, {}), recoveryBinding }));
@@ -88,7 +88,7 @@ it.each(["local", "daytona"])("uses ordinary released Kimi restart without candi
   expect(request).not.toHaveProperty("kimiCandidateAdmission");
 });
 
-it.each(["local", "daytona"])("stages only exact pending Kimi company/model/profile/target via owned restart on %s", async environment => {
+it.each(["local", "daytona"])("stages only exact pending Kimi space/model/profile/target via owned restart on %s", async environment => {
   const actual = await vi.importActual<typeof import("../../packages/outpost-runner/src/drivers/acpx/qualified-profiles.js")>(profilesModule);
   vi.doMock(profilesModule, () => ({ ...actual, QUALIFIED_ACPX_PROFILES: { ...actual.QUALIFIED_ACPX_PROFILES,
     kimi: { ...actual.QUALIFIED_ACPX_PROFILES.kimi, qualificationStatus: "pending" } } }));
@@ -100,7 +100,7 @@ it.each(["local", "daytona"])("stages only exact pending Kimi company/model/prof
   await writeFile(requestPath, JSON.stringify({ requestId: "kimi-startup", kimiCandidateAdmission: admission }));
   await expect(readRestartRequest(requestPath, [execution.id])).resolves.toMatchObject({ requestId: "kimi-startup", kimiCandidateAdmission: admission });
   expect(admission).not.toHaveProperty("runId");
-  for (const change of [{ companyId: "foreign" }, { agent: "antigravity" }, { model: "different" },
+  for (const change of [{ spaceId: "foreign" }, { agent: "antigravity" }, { model: "different" },
     { profileDigest: `sha256:${"0".repeat(64)}` }, { nativeClosureDigest: `sha256:${"0".repeat(64)}` },
     { expiresAt: 0 }, { runId: "injected-run" }, { architecture: "arm64", platform: "linux" }]) {
     await writeFile(requestPath, JSON.stringify({ requestId: "wrong-kimi", kimiCandidateAdmission: { ...admission, ...change } }));

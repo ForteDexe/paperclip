@@ -27,10 +27,10 @@ function createTempRoot(prefix: string): string {
 
 describe("dev-runner worktree env bootstrap", () => {
   it("uses saved empty-instance signing keys instead of inherited source keys", () => {
-    const root = createTempRoot("paperclip-empty-signing-keys-");
-    fs.mkdirSync(path.join(root, ".paperclip"));
-    fs.writeFileSync(path.join(root, ".git"), "gitdir: /tmp/paperclip/.git/worktrees/empty\n");
-    fs.writeFileSync(path.join(root, ".paperclip", "seed-empty"), "explicitly empty\n");
+    const root = createTempRoot("outpost-empty-signing-keys-");
+    fs.mkdirSync(path.join(root, ".outpost"));
+    fs.writeFileSync(path.join(root, ".git"), "gitdir: /tmp/outpost/.git/worktrees/empty\n");
+    fs.writeFileSync(path.join(root, ".outpost", "seed-empty"), "explicitly empty\n");
     fs.writeFileSync(resolveWorktreeEnvFilePath(root), 'OUTPOST_AGENT_JWT_SECRET="fresh-jwt"\nOUTPOST_TOOL_ACTION_SIGNING_SECRET="fresh-actions"\n');
     const env = { OUTPOST_AGENT_JWT_SECRET: "source-jwt", OUTPOST_TOOL_ACTION_SIGNING_SECRET: "source-actions", BETTER_AUTH_SECRET: "source-auth" };
     bootstrapDevRunnerWorktreeEnv(root, env);
@@ -39,19 +39,19 @@ describe("dev-runner worktree env bootstrap", () => {
     expect(() => applyEmptyWorktreeSigningSecrets(root, env)).toThrow("missing its saved OUTPOST_TOOL_ACTION_SIGNING_SECRET");
   });
   it("guards seed-pending worktrees until a seed-complete marker exists", () => {
-    const root = createTempRoot("paperclip-dev-runner-seed-pending-");
-    fs.mkdirSync(path.join(root, ".paperclip"), { recursive: true });
-    fs.writeFileSync(path.join(root, ".paperclip", "seed-pending"), "{}\n", "utf8");
+    const root = createTempRoot("outpost-dev-runner-seed-pending-");
+    fs.mkdirSync(path.join(root, ".outpost"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".outpost", "seed-pending"), "{}\n", "utf8");
 
     expect(isWorktreeSeedPending(root)).toBe(true);
 
-    fs.writeFileSync(path.join(root, ".paperclip", "seed-complete"), "{}\n", "utf8");
+    fs.writeFileSync(path.join(root, ".outpost", "seed-complete"), "{}\n", "utf8");
     expect(isWorktreeSeedPending(root)).toBe(false);
   });
 
   it("guards every manifest state except a complete verified manifest", () => {
-    const root = createTempRoot("paperclip-dev-runner-seed-manifest-");
-    const manifestPath = path.join(root, ".paperclip", "seed-manifest.json");
+    const root = createTempRoot("outpost-dev-runner-seed-manifest-");
+    const manifestPath = path.join(root, ".outpost", "seed-manifest.json");
     fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
     fs.writeFileSync(manifestPath, JSON.stringify({ version: 2, state: "failed" }), "utf8");
     expect(isWorktreeSeedPending(root)).toBe(true);
@@ -80,14 +80,14 @@ describe("dev-runner worktree env bootstrap", () => {
   });
 
   it("detects linked git worktrees from .git files", () => {
-    const root = createTempRoot("paperclip-dev-runner-worktree-");
-    fs.writeFileSync(path.join(root, ".git"), "gitdir: /tmp/paperclip/.git/worktrees/feature\n", "utf8");
+    const root = createTempRoot("outpost-dev-runner-worktree-");
+    fs.writeFileSync(path.join(root, ".git"), "gitdir: /tmp/outpost/.git/worktrees/feature\n", "utf8");
 
     expect(isLinkedGitWorktreeCheckout(root)).toBe(true);
   });
 
   it("does not mistake a git submodule for a linked worktree", () => {
-    const root = createTempRoot("paperclip-dev-runner-submodule-");
+    const root = createTempRoot("outpost-dev-runner-submodule-");
     fs.writeFileSync(path.join(root, ".git"), "gitdir: ../.git/modules/outpost\n", "utf8");
 
     expect(isLinkedGitWorktreeCheckout(root)).toBe(false);
@@ -98,13 +98,13 @@ describe("dev-runner worktree env bootstrap", () => {
   });
 
   it("loads repo-local Outpost env for initialized worktrees without overriding explicit env", () => {
-    const root = createTempRoot("paperclip-dev-runner-worktree-env-");
-    fs.mkdirSync(path.join(root, ".paperclip"), { recursive: true });
-    fs.writeFileSync(path.join(root, ".git"), "gitdir: /tmp/paperclip/.git/worktrees/feature\n", "utf8");
+    const root = createTempRoot("outpost-dev-runner-worktree-env-");
+    fs.mkdirSync(path.join(root, ".outpost"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".git"), "gitdir: /tmp/outpost/.git/worktrees/feature\n", "utf8");
     fs.writeFileSync(
       resolveWorktreeEnvFilePath(root),
       [
-        "OUTPOST_HOME=/tmp/paperclip-worktrees",
+        "OUTPOST_HOME=/tmp/outpost-worktrees",
         "OUTPOST_INSTANCE_ID=feature-worktree",
         "OUTPOST_IN_WORKTREE=true",
         "OUTPOST_WORKTREE_NAME=feature-worktree",
@@ -123,26 +123,26 @@ describe("dev-runner worktree env bootstrap", () => {
       envPath: resolveWorktreeEnvFilePath(root),
       missingEnv: false,
     });
-    expect(env.OUTPOST_HOME).toBe("/tmp/paperclip-worktrees");
+    expect(env.OUTPOST_HOME).toBe("/tmp/outpost-worktrees");
     expect(env.OUTPOST_INSTANCE_ID).toBe("already-set");
     expect(env.OUTPOST_IN_WORKTREE).toBe("true");
     expect(env.OUTPOST_OPTIONAL).toBe("");
   });
 
   it("repairs stale migrated config paths before loading worktree env", () => {
-    const root = createTempRoot("paperclip-dev-runner-worktree-migrated-env-");
-    const localConfigPath = path.join(root, ".paperclip", "config.json");
-    const worktreesDir = path.join(root, ".paperclip-worktrees");
+    const root = createTempRoot("outpost-dev-runner-worktree-migrated-env-");
+    const localConfigPath = path.join(root, ".outpost", "config.json");
+    const worktreesDir = path.join(root, ".outpost-worktrees");
     fs.mkdirSync(path.dirname(localConfigPath), { recursive: true });
-    fs.writeFileSync(path.join(root, ".git"), "gitdir: /tmp/paperclip/.git/worktrees/feature\n", "utf8");
+    fs.writeFileSync(path.join(root, ".git"), "gitdir: /tmp/outpost/.git/worktrees/feature\n", "utf8");
     fs.writeFileSync(localConfigPath, "{}\n", "utf8");
     fs.writeFileSync(
       resolveWorktreeEnvFilePath(root),
       [
-        "OUTPOST_HOME=/old/home/.paperclip-worktrees",
+        "OUTPOST_HOME=/old/home/.outpost-worktrees",
         "OUTPOST_INSTANCE_ID=feature-worktree",
-        "OUTPOST_CONFIG=/old/home/paperclip/.paperclip/worktrees/feature/.paperclip/config.json",
-        "OUTPOST_CONTEXT=/old/home/.paperclip-worktrees/context.json",
+        "OUTPOST_CONFIG=/old/home/outpost/.outpost/worktrees/feature/.outpost/config.json",
+        "OUTPOST_CONTEXT=/old/home/.outpost-worktrees/context.json",
         "OUTPOST_IN_WORKTREE=true",
         "OUTPOST_WORKTREE_NAME=feature-worktree",
         "",
@@ -166,8 +166,8 @@ describe("dev-runner worktree env bootstrap", () => {
   });
 
   it("reports uninitialized linked worktrees so dev runner can fail fast", () => {
-    const root = createTempRoot("paperclip-dev-runner-worktree-missing-");
-    fs.writeFileSync(path.join(root, ".git"), "gitdir: /tmp/paperclip/.git/worktrees/feature\n", "utf8");
+    const root = createTempRoot("outpost-dev-runner-worktree-missing-");
+    fs.writeFileSync(path.join(root, ".git"), "gitdir: /tmp/outpost/.git/worktrees/feature\n", "utf8");
 
     expect(bootstrapDevRunnerWorktreeEnv(root, {})).toEqual({
       envPath: resolveWorktreeEnvFilePath(root),

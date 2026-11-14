@@ -42,7 +42,7 @@ if (
   throw new Error(`Refusing unsafe provider-pack output path: ${outputRoot}`);
 }
 
-const temporaryParent = realpathSync(mkdtempSync(join(tmpdir(), "paperclip-provider-pack-")));
+const temporaryParent = realpathSync(mkdtempSync(join(tmpdir(), "outpost-provider-pack-")));
 const temporaryRoot = join(temporaryParent, "pack");
 
 function canonicalJson(value) {
@@ -234,7 +234,7 @@ try {
       "node_modules",
       ".pnpm",
       "node_modules",
-      "@paperclipai",
+      "@outpost",
       "outpost-runner",
     ),
     { recursive: true, force: true },

@@ -1,14 +1,14 @@
 import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, integer, timestamp, jsonb, index, unique, uniqueIndex, foreignKey, check } from "drizzle-orm/pg-core";
 import type { VoiceSessionState, VoiceSessionMode, VoiceCallerAuthority } from "@outpost/shared";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { agents } from "./agents.js";
 import { issues } from "./issues.js";
 import { chatEndpoints, chatConversations, chatDeliveries, chatPublications } from "./chat_channels.js";
 
 export const chatVoiceSessions = pgTable("chat_voice_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   endpointId: uuid("endpoint_id").notNull(),
   conversationId: uuid("conversation_id").notNull(),
   issueId: uuid("issue_id").notNull(),
@@ -31,17 +31,17 @@ export const chatVoiceSessions = pgTable("chat_voice_sessions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  unique("chat_voice_sessions_company_id_uq").on(t.companyId, t.id),
+  unique("chat_voice_sessions_space_id_uq").on(t.spaceId, t.id),
   uniqueIndex("chat_voice_sessions_provider_uq").on(t.providerSessionId),
-  uniqueIndex("chat_voice_sessions_request_uq").on(t.companyId, t.callerId, t.idempotencyKey),
-  uniqueIndex("chat_voice_sessions_live_caller_task_uq").on(t.companyId, t.callerId, t.issueId).where(sql`${t.state} not in ('ended', 'failed', 'expired')`),
+  uniqueIndex("chat_voice_sessions_request_uq").on(t.spaceId, t.callerId, t.idempotencyKey),
+  uniqueIndex("chat_voice_sessions_live_caller_task_uq").on(t.spaceId, t.callerId, t.issueId).where(sql`${t.state} not in ('ended', 'failed', 'expired')`),
   index("chat_voice_sessions_expiry_idx").on(t.state, t.expiresAt),
   index("chat_voice_sessions_report_window_idx").on(t.endedAt, t.id)
     .where(sql`${t.state} in ('ended', 'failed', 'expired') and ${t.providerSessionId} is not null`),
-  foreignKey({ columns: [t.companyId, t.endpointId], foreignColumns: [chatEndpoints.companyId, chatEndpoints.id], name: "chat_voice_sessions_endpoint_fk" }),
-  foreignKey({ columns: [t.companyId, t.conversationId], foreignColumns: [chatConversations.companyId, chatConversations.id], name: "chat_voice_sessions_conversation_fk" }),
-  foreignKey({ columns: [t.companyId, t.issueId], foreignColumns: [issues.companyId, issues.id], name: "chat_voice_sessions_issue_fk" }),
-  foreignKey({ columns: [t.companyId, t.assignedAgentId], foreignColumns: [agents.companyId, agents.id], name: "chat_voice_sessions_agent_fk" }),
+  foreignKey({ columns: [t.spaceId, t.endpointId], foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id], name: "chat_voice_sessions_endpoint_fk" }),
+  foreignKey({ columns: [t.spaceId, t.conversationId], foreignColumns: [chatConversations.spaceId, chatConversations.id], name: "chat_voice_sessions_conversation_fk" }),
+  foreignKey({ columns: [t.spaceId, t.issueId], foreignColumns: [issues.spaceId, issues.id], name: "chat_voice_sessions_issue_fk" }),
+  foreignKey({ columns: [t.spaceId, t.assignedAgentId], foreignColumns: [agents.spaceId, agents.id], name: "chat_voice_sessions_agent_fk" }),
   check("chat_voice_sessions_state_check", sql`${t.state} in ('reserved', 'creating', 'creation_unknown', 'connecting', 'active', 'awaiting_approval', 'ending', 'ended', 'failed', 'expired')`),
   check("chat_voice_sessions_mode_check", sql`${t.mode} in ('browser', 'inbound_phone', 'outbound_phone')`),
   check("chat_voice_sessions_authority_check", sql`${t.callerAuthority} in ('member', 'instance_admin', 'local_board', 'guest_intake', 'pending_approval')`),
@@ -53,7 +53,7 @@ export const chatVoiceSessions = pgTable("chat_voice_sessions", {
 /** Each tool call has one durable result; inbound work points at the chat ledger. */
 export const chatVoiceToolCalls = pgTable("chat_voice_tool_calls", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   sessionId: uuid("session_id").notNull(),
   providerToolCallId: text("provider_tool_call_id").notNull(),
   webhookId: text("webhook_id").notNull(),
@@ -64,16 +64,16 @@ export const chatVoiceToolCalls = pgTable("chat_voice_tool_calls", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("chat_voice_tool_calls_tool_uq").on(t.sessionId, t.providerToolCallId),
-  uniqueIndex("chat_voice_tool_calls_webhook_uq").on(t.companyId, t.webhookId),
-  foreignKey({ columns: [t.companyId, t.sessionId], foreignColumns: [chatVoiceSessions.companyId, chatVoiceSessions.id], name: "chat_voice_tool_calls_session_fk" }),
-  foreignKey({ columns: [t.companyId, t.deliveryId], foreignColumns: [chatDeliveries.companyId, chatDeliveries.id], name: "chat_voice_tool_calls_delivery_fk" }),
+  uniqueIndex("chat_voice_tool_calls_webhook_uq").on(t.spaceId, t.webhookId),
+  foreignKey({ columns: [t.spaceId, t.sessionId], foreignColumns: [chatVoiceSessions.spaceId, chatVoiceSessions.id], name: "chat_voice_tool_calls_session_fk" }),
+  foreignKey({ columns: [t.spaceId, t.deliveryId], foreignColumns: [chatDeliveries.spaceId, chatDeliveries.id], name: "chat_voice_tool_calls_delivery_fk" }),
   check("chat_voice_tool_calls_tool_check", sql`${t.tool} in ('submit_request', 'get_updates', 'answer_question')`),
 ]);
 
 /** Returning a publication to Speko is distinct from confirmed spoken playback. */
 export const chatVoiceReplies = pgTable("chat_voice_replies", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   sessionId: uuid("session_id").notNull(),
   publicationId: uuid("publication_id").notNull(),
   cursor: integer("cursor").notNull(),
@@ -83,8 +83,8 @@ export const chatVoiceReplies = pgTable("chat_voice_replies", {
 }, (t) => [
   uniqueIndex("chat_voice_replies_publication_uq").on(t.sessionId, t.publicationId),
   uniqueIndex("chat_voice_replies_cursor_uq").on(t.sessionId, t.cursor),
-  foreignKey({ columns: [t.companyId, t.sessionId], foreignColumns: [chatVoiceSessions.companyId, chatVoiceSessions.id], name: "chat_voice_replies_session_fk" }),
-  foreignKey({ columns: [t.companyId, t.publicationId], foreignColumns: [chatPublications.companyId, chatPublications.id], name: "chat_voice_replies_publication_fk" }),
+  foreignKey({ columns: [t.spaceId, t.sessionId], foreignColumns: [chatVoiceSessions.spaceId, chatVoiceSessions.id], name: "chat_voice_replies_session_fk" }),
+  foreignKey({ columns: [t.spaceId, t.publicationId], foreignColumns: [chatPublications.spaceId, chatPublications.id], name: "chat_voice_replies_publication_fk" }),
   check("chat_voice_replies_cursor_check", sql`${t.cursor} > 0`),
   check("chat_voice_replies_spoken_check", sql`${t.spokenAt} is null or ${t.deliveredAt} is not null`),
 ]);

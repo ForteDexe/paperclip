@@ -8,15 +8,15 @@ import os from "node:os";
 import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, companySkills, companySkillVersions, companySkillRepositorySnapshots as snapshots,
+import { agents, spaces, spaceSkills, spaceSkillVersions, spaceSkillRepositorySnapshots as snapshots,
   skillPackageDeletions, createDb, withDedicatedDbConnection } from "@outpost/db";
 import * as dbModule from "@outpost/db";
-import type { CompanySkill, CompanySkillVersionFileInventoryEntry } from "@outpost/shared";
+import type { SpaceSkill, SpaceSkillVersionFileInventoryEntry } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import * as storageModule from "../storage/index.js";
 import { createStorageService } from "../storage/service.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
-import { companySkillService } from "../services/company-skills.js";
+import { spaceSkillService } from "../services/space-skills.js";
 import { skillPackageStore, skillPackagePaths, withSkillPackageReadScope } from "../services/skill-package-store.js";
 import { skillPackageMaintenance } from "../services/skill-package-maintenance.js";
 import { skillPackageManifest, validateSkillPackageManifest, writeSkillPackageArchive, extractSkillPackageArchive,
@@ -26,9 +26,9 @@ import { readCustomerSuccessResource } from "../services/customer-success-inspec
 import { repositorySkillProjection } from "../services/skill-repository-package.js";
 import { hasRestorableSnapshot } from "../services/skill-version-cache.js";
 
-function toSkill(row: typeof companySkills.$inferSelect): CompanySkill {
-  return { ...row, sourceType: row.sourceType as CompanySkill["sourceType"], trustLevel: row.trustLevel as CompanySkill["trustLevel"],
-    compatibility: row.compatibility as CompanySkill["compatibility"], fileInventory: row.fileInventory.map(entry => ({ path: String(entry.path), kind: entry.kind as CompanySkill["fileInventory"][number]["kind"] })) };
+function toSkill(row: typeof spaceSkills.$inferSelect): SpaceSkill {
+  return { ...row, sourceType: row.sourceType as SpaceSkill["sourceType"], trustLevel: row.trustLevel as SpaceSkill["trustLevel"],
+    compatibility: row.compatibility as SpaceSkill["compatibility"], fileInventory: row.fileInventory.map(entry => ({ path: String(entry.path), kind: entry.kind as SpaceSkill["fileInventory"][number]["kind"] })) };
 }
 
 const support = await getEmbeddedPostgresTestSupport();
@@ -38,7 +38,7 @@ describe.skipIf(!support.supported)("external skill packages", () => {
   let home: string;
   let storage: storageModule.StorageService;
   const previousHome = process.env.OUTPOST_HOME;
-  const files: CompanySkillVersionFileInventoryEntry[] = [
+  const files: SpaceSkillVersionFileInventoryEntry[] = [
     { path: "skills/one/SKILL.md", kind: "skill", content: "---\nname: one\ndescription: Test one\n---\nUse ../../shared/run.sh\n" },
     { path: "skills/two/SKILL.md", kind: "skill", content: "---\nname: two\ndescription: Test two\n---\nUse ../../shared/run.sh\n" },
     { path: "shared/run.sh", kind: "script", content: "#!/bin/sh\necho original\n", executable: true },
@@ -60,47 +60,47 @@ describe.skipIf(!support.supported)("external skill packages", () => {
     await database?.cleanup();
     if (home) await fs.rm(home, { recursive: true, force: true });
   });
-  async function company() {
+  async function space() {
     const id = randomUUID();
-    await db.insert(companies).values({ id, name: "Package test", issuePrefix: `P${id.slice(0, 6)}` });
+    await db.insert(spaces).values({ id, name: "Package test", issuePrefix: `P${id.slice(0, 6)}` });
     return id;
   }
   async function fixture(recoverable = false) {
-    const companyId = await company();
+    const spaceId = await space();
     vi.spyOn(storageModule, "getStorageService").mockReturnValue(storage);
     const store = skillPackageStore(db, storage);
     const recipe = recoverable ? { version: 1 as const, sourceId: randomUUID(), repositoryId: "123", repositoryUrl: "https://github.com/acme/skills",
       commitSha: "a".repeat(40), skillPath: null, manifest: skillPackageManifest(files) } : undefined;
-    const id = await store.prepare(companyId, files, false, undefined, recipe);
-    const skills: { skill: CompanySkill; version: typeof companySkillVersions.$inferSelect }[] = [];
+    const id = await store.prepare(spaceId, files, false, undefined, recipe);
+    const skills: { skill: SpaceSkill; version: typeof spaceSkillVersions.$inferSelect }[] = [];
     for (const name of ["one", "two"]) {
-      const [skill] = await db.insert(companySkills).values({ companyId, key: `company/${companyId}/${name}`, slug: name,
+      const [skill] = await db.insert(spaceSkills).values({ spaceId, key: `space/${spaceId}/${name}`, slug: name,
         name, markdown: files.find(file => file.path === `skills/${name}/SKILL.md`)!.content, sourceType: "github",
         metadata: { skillSourceId: randomUUID(), snapshotHash: "saved" } }).returning();
-      const [version] = await db.insert(companySkillVersions).values({ companyId, companySkillId: skill!.id, revisionNumber: 1,
+      const [version] = await db.insert(spaceSkillVersions).values({ spaceId, spaceSkillId: skill!.id, revisionNumber: 1,
         repositorySnapshotId: id, repositorySkillPath: `skills/${name}/SKILL.md`, packageSnapshotId: id, migrationAt: null,
         packageFileMap: [{ path: "SKILL.md", kind: "skill", sourcePath: `skills/${name}/SKILL.md` }] }).returning();
-      await db.update(companySkills).set({ currentVersionId: version!.id }).where(eq(companySkills.id, skill!.id));
+      await db.update(spaceSkills).set({ currentVersionId: version!.id }).where(eq(spaceSkills.id, skill!.id));
       skills.push({ skill: toSkill(skill!), version: version! });
     }
-    const service = companySkillService(db);
-    const resolve = () => service.listRuntimeSkillEntries(companyId, { onlyKeys: new Set(skills.map(({ skill }) => skill.key)), snapshotLatest: true });
-    return { companyId, id, store, skills, service, resolve };
+    const service = spaceSkillService(db);
+    const resolve = () => service.listRuntimeSkillEntries(spaceId, { onlyKeys: new Set(skills.map(({ skill }) => skill.key)), snapshotLatest: true });
+    return { spaceId, id, store, skills, service, resolve };
   }
 
   it("keeps unchanged linked-local execution on the verified manifest path with complete metadata indexes", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     vi.spyOn(storageModule, "getStorageService").mockReturnValue(storage);
-    const directory = path.join(home, `linked-${companyId}`);
+    const directory = path.join(home, `linked-${spaceId}`);
     await fs.mkdir(directory);
     await fs.writeFile(path.join(directory, "SKILL.md"), "# Linked");
     await fs.writeFile(path.join(directory, "support.txt"), "unchanged support");
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "linked", slug: "linked", name: "Linked",
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "linked", slug: "linked", name: "Linked",
       markdown: "# Linked", sourceType: "local_path", sourceLocator: directory,
       fileInventory: [{ path: "SKILL.md", kind: "skill" }, { path: "support.txt", kind: "other" }] }).returning();
-    const service = companySkillService(db);
-    const version = await service.createVersion(companyId, skill!.id);
-    const resolve = () => service.listRuntimeSkillEntries(companyId, { onlyKeys: new Set([skill!.key]), snapshotLatest: true });
+    const service = spaceSkillService(db);
+    const version = await service.createVersion(spaceId, skill!.id);
+    const resolve = () => service.listRuntimeSkillEntries(spaceId, { onlyKeys: new Set([skill!.key]), snapshotLatest: true });
     await resolve();
     const read = vi.spyOn(fs, "readFile");
     const [runtime] = await resolve();
@@ -116,32 +116,32 @@ describe.skipIf(!support.supported)("external skill packages", () => {
     const waiting = new Promise<void>(resolve => { waitingOnSkill = resolve; });
     const debug = db.$client.options.debug;
     db.$client.options.debug = (_connection, query) => {
-      if (query.includes('from "company_skills"') && query.includes('for update')) waitingOnSkill();
+      if (query.includes('from "space_skills"') && query.includes('for update')) waitingOnSkill();
     };
     let saving: Promise<unknown> | undefined;
     try {
       await withDedicatedDbConnection(db, connection => connection.transaction(async tx => {
         // updateFile owns this lock before its package is prepared separately.
-        await tx.select({ id: companySkills.id }).from(companySkills).where(eq(companySkills.id, skill.id)).for("update");
-        saving = f.service.createVersion(f.companyId, skill.id, {}, null, options);
+        await tx.select({ id: spaceSkills.id }).from(spaceSkills).where(eq(spaceSkills.id, skill.id)).for("update");
+        saving = f.service.createVersion(f.spaceId, skill.id, {}, null, options);
         await waiting;
         await withDedicatedDbConnection(db, async upload => {
           // A regression fails promptly and releases the outer lock instead of
           // leaving a hidden cross-connection wait cycle hanging the suite.
           await upload.execute(sql`set statement_timeout = '3s'`);
-          expect(await skillPackageStore(upload, storage).prepare(f.companyId, files)).toBe(f.id);
+          expect(await skillPackageStore(upload, storage).prepare(f.spaceId, files)).toBe(f.id);
         });
-        await f.service.createVersion(f.companyId, skill.id, {}, null, { ...options, database: tx });
+        await f.service.createVersion(f.spaceId, skill.id, {}, null, { ...options, database: tx });
       }));
       await saving;
-      expect(await f.service.listVersions(f.companyId, skill.id)).toHaveLength(3);
+      expect(await f.service.listVersions(f.spaceId, skill.id)).toHaveLength(3);
     } finally { db.$client.options.debug = debug; await saving; }
   }, 15_000);
 
   it("follows a package published between version metadata and summary reads", async () => {
-    const companyId = await company();
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "summary", slug: "summary", name: "Summary", markdown: files[0]!.content }).returning();
-    const [stale] = await db.insert(companySkillVersions).values({ companyId, companySkillId: skill!.id, revisionNumber: 1, fileInventory: files }).returning();
+    const spaceId = await space();
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "summary", slug: "summary", name: "Summary", markdown: files[0]!.content }).returning();
+    const [stale] = await db.insert(spaceSkillVersions).values({ spaceId, spaceSkillId: skill!.id, revisionNumber: 1, fileInventory: files }).returning();
     await skillPackageMaintenance(db, storage).migrateVersions({ id: stale!.id, apply: true, clearLegacy: true });
     expect(await skillPackageStore(db, storage).versionInventory(stale!)).toEqual(files.map(({ path, kind }) => ({ path, kind })));
   });
@@ -154,55 +154,55 @@ describe.skipIf(!support.supported)("external skill packages", () => {
       expect(publishing, "Package acquisition must finish before publication takes database locks").toBe(false);
       return read(...args);
     });
-    const fork = await f.service.createLocalSkill(f.companyId,
+    const fork = await f.service.createLocalSkill(f.spaceId,
       { name: "Idempotent fork", slug: "idempotent-fork", forkedFromSkillId: f.skills[0]!.skill.id }, null, {
         beforeLock: async () => { publishing = true; },
         afterPublish: async (tx, skill, version) => {
-          expect((await tx.select().from(companySkillVersions).where(eq(companySkillVersions.id, version.id)))[0])
-            .toMatchObject({ companySkillId: skill.id });
+          expect((await tx.select().from(spaceSkillVersions).where(eq(spaceSkillVersions.id, version.id)))[0])
+            .toMatchObject({ spaceSkillId: skill.id });
         },
       });
     publishing = false;
-    const saved = await f.service.getVersion(f.companyId, fork.id, fork.currentVersionId!);
+    const saved = await f.service.getVersion(f.spaceId, fork.id, fork.currentVersionId!);
     expect(saved!.fileInventory).toEqual(expect.arrayContaining([
-      expect.objectContaining({ path: ".paperclip-repository/shared/run.sh", content: files[2]!.content }),
+      expect.objectContaining({ path: ".outpost-repository/shared/run.sh", content: files[2]!.content }),
     ]));
   }, 15_000);
 
   it("publishes a fork and agent reassignment atomically with a one-connection pool", async () => {
     const f = await fixture();
     const original = f.skills[0]!.skill;
-    const [agent] = await db.insert(agents).values({ companyId: f.companyId, name: "Fork user", adapterType: "codex_local",
-      adapterConfig: { paperclipSkillSync: { desiredSkills: [{ key: original.key }] } } }).returning();
-    await expect(f.service.forkSkill(f.companyId, original.id, { slug: "atomic-fork", reassignAgentIds: [agent!.id] }, null,
+    const [agent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Fork user", adapterType: "codex_local",
+      adapterConfig: { outpostSkillSync: { desiredSkills: [{ key: original.key }] } } }).returning();
+    await expect(f.service.forkSkill(f.spaceId, original.id, { slug: "atomic-fork", reassignAgentIds: [agent!.id] }, null,
       { afterPublish: async () => { throw new Error("audit rollback"); } })).rejects.toThrow("audit rollback");
-    expect(await f.service.getByKey(f.companyId, `company/${f.companyId}/atomic-fork`)).toBeNull();
+    expect(await f.service.getByKey(f.spaceId, `space/${f.spaceId}/atomic-fork`)).toBeNull();
     expect((await db.select().from(agents).where(eq(agents.id, agent!.id)))[0]!.adapterConfig).toEqual(agent!.adapterConfig);
-    const fork = await f.service.forkSkill(f.companyId, original.id, { slug: "atomic-fork", reassignAgentIds: [agent!.id] });
+    const fork = await f.service.forkSkill(f.spaceId, original.id, { slug: "atomic-fork", reassignAgentIds: [agent!.id] });
     expect(fork.reassignments).toEqual([{ agentId: agent!.id, previousSkillKey: original.key, nextSkillKey: fork.skill.key }]);
   });
 
   it("lists version metadata without reading archives, while inspection reads the requested historical bytes", async () => {
     const f = await fixture();
     const { skill, version } = f.skills[0]!;
-    await db.update(companySkills).set({ markdown: "New current markdown" }).where(eq(companySkills.id, skill.id));
+    await db.update(spaceSkills).set({ markdown: "New current markdown" }).where(eq(spaceSkills.id, skill.id));
     const read = vi.spyOn(storage, "getObject");
-    const history = await f.service.listVersions(f.companyId, skill.id);
+    const history = await f.service.listVersions(f.spaceId, skill.id);
     expect(history[0]!.fileInventory).toEqual([{ path: "SKILL.md", kind: "skill" }]);
     expect(read.mock.calls.filter(call => call[1].endsWith("files.tar.gz"))).toHaveLength(0);
-    await db.update(companySkillVersions).set({ packageFileMap: [
+    await db.update(spaceSkillVersions).set({ packageFileMap: [
       ...version.packageFileMap!, { path: "run.sh", kind: "script", sourcePath: "shared/run.sh" },
-    ] }).where(eq(companySkillVersions.id, version.id));
+    ] }).where(eq(spaceSkillVersions.id, version.id));
     const script = await readCustomerSuccessResource(db, storage, {
-      operation: "skills.file", companyId: f.companyId, resourceId: skill.id, versionId: version.id, path: "run.sh",
+      operation: "skills.file", spaceId: f.spaceId, resourceId: skill.id, versionId: version.id, path: "run.sh",
     }) as { content: string };
     expect(Buffer.from(script.content, "base64").toString()).toBe(files[2]!.content);
     const result = await readCustomerSuccessResource(db, storage, {
-      operation: "skills.file", companyId: f.companyId, resourceId: skill.id, versionId: version.id, path: "SKILL.md",
+      operation: "skills.file", spaceId: f.spaceId, resourceId: skill.id, versionId: version.id, path: "SKILL.md",
     }) as { content: string };
     expect(Buffer.from(result.content, "base64").toString()).toBe(files[0]!.content);
     const missing = await readCustomerSuccessResource(db, storage, {
-      operation: "skills.file", companyId: f.companyId, resourceId: skill.id, versionId: version.id, path: "not-saved.md",
+      operation: "skills.file", spaceId: f.spaceId, resourceId: skill.id, versionId: version.id, path: "not-saved.md",
     });
     expect(missing).toEqual({ available: false, reason: "skill_file_not_snapshotted" });
   });
@@ -210,84 +210,84 @@ describe.skipIf(!support.supported)("external skill packages", () => {
   it("does not block a warm turn behind a paused archive read for retention", async () => {
     const f = await fixture();
     await f.resolve();
-    await fs.rm(skillPackagePaths(f.companyId, f.id).directory, { recursive: true, force: true });
+    await fs.rm(skillPackagePaths(f.spaceId, f.id).directory, { recursive: true, force: true });
     let release!: () => void;
     let entered!: () => void;
     const blocked = new Promise<void>(resolve => { release = resolve; });
     const reading = new Promise<void>(resolve => { entered = resolve; });
     const original = storage.getObject.bind(storage);
-    vi.spyOn(storage, "getObject").mockImplementation(async (companyId, key, options) => {
+    vi.spyOn(storage, "getObject").mockImplementation(async (spaceId, key, options) => {
       if (key.endsWith("files.tar.gz")) { entered(); await blocked; }
-      return original(companyId, key, options);
+      return original(spaceId, key, options);
     });
-    const cleanup = hasRestorableSnapshot(db, f.companyId, f.skills[0]!.version.id);
+    const cleanup = hasRestorableSnapshot(db, f.spaceId, f.skills[0]!.version.id);
     try {
       await reading;
       const warm = await f.resolve();
       expect(warm.map(entry => entry.sourceStatus)).toEqual(["available", "available"]);
     } finally { release(); await cleanup; }
-    expect(await fs.stat(skillPackagePaths(f.companyId, f.id).directory).catch(() => null)).toBeNull();
+    expect(await fs.stat(skillPackagePaths(f.spaceId, f.id).directory).catch(() => null)).toBeNull();
   }, 15_000);
 
   it("skips an in-flight publication without waiting on its row or the warm preparation lock", async () => {
     const f = await fixture(true);
-    await db.update(companySkills).set({ currentVersionId: null }).where(eq(companySkills.companyId, f.companyId));
+    await db.update(spaceSkills).set({ currentVersionId: null }).where(eq(spaceSkills.spaceId, f.spaceId));
     await db.update(snapshots).set({ createdAt: new Date(0), maintenanceAt: new Date(0) }).where(eq(snapshots.id, f.id));
     let retirementStarted!: () => void;
     const waiting = new Promise<void>(resolve => { retirementStarted = resolve; });
     const debug = db.$client.options.debug;
     db.$client.options.debug = (_connection, query) => {
-      if (query.includes('company_skill_repository_snapshots') && query.includes('for update')) retirementStarted();
+      if (query.includes('space_skill_repository_snapshots') && query.includes('for update')) retirementStarted();
     };
     let sweep: Promise<void> | undefined;
     try {
       await withDedicatedDbConnection(db, connection => connection.transaction(async tx => {
         await tx.select({ id: snapshots.id }).from(snapshots).where(eq(snapshots.id, f.id)).for("update");
-        await tx.update(companySkills).set({ currentVersionId: f.skills[0]!.version.id }).where(eq(companySkills.id, f.skills[0]!.skill.id));
+        await tx.update(spaceSkills).set({ currentVersionId: f.skills[0]!.version.id }).where(eq(spaceSkills.id, f.skills[0]!.skill.id));
         sweep = skillPackageWork(db, storage).tick(new AbortController().signal);
         await waiting;
         await sweep;
       }));
       await sweep;
-      expect((await f.store.descriptor(f.companyId, f.id)).storage).not.toBeNull();
+      expect((await f.store.descriptor(f.spaceId, f.id)).storage).not.toBeNull();
     } finally { db.$client.options.debug = debug; await sweep; }
   }, 15_000);
 
   it("refuses to publish a package retired before the publication row lock", async () => {
     const f = await fixture(true);
-    await db.update(companySkills).set({ currentVersionId: null }).where(eq(companySkills.companyId, f.companyId));
+    await db.update(spaceSkills).set({ currentVersionId: null }).where(eq(spaceSkills.spaceId, f.spaceId));
     await db.update(snapshots).set({ storage: null }).where(eq(snapshots.id, f.id));
-    await expect(f.service.createVersion(f.companyId, f.skills[0]!.skill.id, {}, null, {
+    await expect(f.service.createVersion(f.spaceId, f.skills[0]!.skill.id, {}, null, {
       skill: f.skills[0]!.skill, skipInventoryRefresh: true, fileInventory: files,
       packageSnapshotId: f.id, repositorySnapshotId: f.id, repositorySkillPath: files[0]!.path,
     })).rejects.toThrow(/changed during publication/);
-    const [skill] = await db.select().from(companySkills).where(eq(companySkills.id, f.skills[0]!.skill.id));
+    const [skill] = await db.select().from(spaceSkills).where(eq(spaceSkills.id, f.skills[0]!.skill.id));
     expect(skill!.currentVersionId).toBeNull();
   });
 
   it("converts a legacy fork with the scanner's deepest accepted repository path", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     const deep = [...Array(63).fill("d"), "SKILL.md"].join("/");
     const projected = repositorySkillProjection([{ ...files[0]!, path: deep }], deep);
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "deep", slug: "deep", name: "Deep", markdown: projected[0]!.content }).returning();
-    const [version] = await db.insert(companySkillVersions).values({ companyId, companySkillId: skill!.id, revisionNumber: 1, fileInventory: projected }).returning();
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "deep", slug: "deep", name: "Deep", markdown: projected[0]!.content }).returning();
+    const [version] = await db.insert(spaceSkillVersions).values({ spaceId, spaceSkillId: skill!.id, revisionNumber: 1, fileInventory: projected }).returning();
     await skillPackageMaintenance(db, storage).migrateVersions({ id: version!.id, apply: true, clearLegacy: true });
-    const [saved] = await db.select().from(companySkillVersions).where(eq(companySkillVersions.id, version!.id));
+    const [saved] = await db.select().from(spaceSkillVersions).where(eq(spaceSkillVersions.id, version!.id));
     expect(saved!.migrationAt).toBeNull();
     expect(await skillPackageStore(db, storage).versionFiles(saved!)).toEqual(projected);
   });
 
   it("automatically converts legacy rows, clears verified payloads and preserves version identities", async () => {
-    const companyId = await company();
-    const [snapshot] = await db.insert(snapshots).values({ companyId, contentHash: skillSnapshotHash(files), fileInventory: files }).returning();
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "legacy", slug: "legacy", name: "Legacy", markdown: files[0]!.content }).returning();
-    const [version] = await db.insert(companySkillVersions).values({ companyId, companySkillId: skill!.id, revisionNumber: 7,
+    const spaceId = await space();
+    const [snapshot] = await db.insert(snapshots).values({ spaceId, contentHash: skillSnapshotHash(files), fileInventory: files }).returning();
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "legacy", slug: "legacy", name: "Legacy", markdown: files[0]!.content }).returning();
+    const [version] = await db.insert(spaceSkillVersions).values({ spaceId, spaceSkillId: skill!.id, revisionNumber: 7,
       repositorySnapshotId: snapshot!.id, repositorySkillPath: files[0]!.path,
       fileInventory: [{ ...files[0]!, path: "SKILL.md" }] }).returning();
     const work = skillPackageWork(db, storage);
     await work.tick(new AbortController().signal);
     const [saved] = await db.select().from(snapshots).where(eq(snapshots.id, snapshot!.id));
-    const [converted] = await db.select().from(companySkillVersions).where(eq(companySkillVersions.id, version!.id));
+    const [converted] = await db.select().from(spaceSkillVersions).where(eq(spaceSkillVersions.id, version!.id));
     expect(saved!.fileInventory).toEqual([]);
     expect(saved!.migrationAt).toBeNull();
     expect(saved!.storage).not.toBeNull();
@@ -299,52 +299,52 @@ describe.skipIf(!support.supported)("external skill packages", () => {
   });
 
   it.each(["file", "folder"] as const)("keeps committed %s contents when the replacement package upload fails", async target => {
-    const companyId = await company();
+    const spaceId = await space();
     vi.spyOn(storageModule, "getStorageService").mockReturnValue(storage);
-    const service = companySkillService(db);
-    const skill = await service.createLocalSkill(companyId, { name: "Delete rollback", slug: "delete-rollback", markdown: "# Keep the skill\n" });
+    const service = spaceSkillService(db);
+    const skill = await service.createLocalSkill(spaceId, { name: "Delete rollback", slug: "delete-rollback", markdown: "# Keep the skill\n" });
     const binary = Buffer.from([0, 255, 7, 128]);
-    await service.updateFile(companyId, skill.id, "bundle/probe.sh", "#!/bin/sh\nprintf kept\n", null, { executable: true });
-    await service.updateFile(companyId, skill.id, "bundle/nested/data.bin", binary.toString("base64"), null, { encoding: "base64" });
-    await service.updateFile(companyId, skill.id, "keep.txt", "Unrelated file\n");
-    const [before] = await db.select().from(companySkills).where(eq(companySkills.id, skill.id));
-    const versionsBefore = await db.select({ id: companySkillVersions.id }).from(companySkillVersions)
-      .where(eq(companySkillVersions.companySkillId, skill.id));
+    await service.updateFile(spaceId, skill.id, "bundle/probe.sh", "#!/bin/sh\nprintf kept\n", null, { executable: true });
+    await service.updateFile(spaceId, skill.id, "bundle/nested/data.bin", binary.toString("base64"), null, { encoding: "base64" });
+    await service.updateFile(spaceId, skill.id, "keep.txt", "Unrelated file\n");
+    const [before] = await db.select().from(spaceSkills).where(eq(spaceSkills.id, skill.id));
+    const versionsBefore = await db.select({ id: spaceSkillVersions.id }).from(spaceSkillVersions)
+      .where(eq(spaceSkillVersions.spaceSkillId, skill.id));
     const input = { path: target === "file" ? "bundle/probe.sh" : "bundle", target };
     const upload = vi.spyOn(storage, "putFile").mockRejectedValue(new Error("Object storage unavailable"));
     try {
-      await expect(service.deleteFile(companyId, skill.id, input)).rejects.toThrow("Object storage unavailable");
+      await expect(service.deleteFile(spaceId, skill.id, input)).rejects.toThrow("Object storage unavailable");
       expect(upload).toHaveBeenCalled();
     } finally { upload.mockRestore(); }
-    expect(await service.readFile(companyId, skill.id, "bundle/probe.sh"))
+    expect(await service.readFile(spaceId, skill.id, "bundle/probe.sh"))
       .toMatchObject({ content: "#!/bin/sh\nprintf kept\n", executable: true });
-    expect(await service.readFile(companyId, skill.id, "bundle/nested/data.bin"))
+    expect(await service.readFile(spaceId, skill.id, "bundle/nested/data.bin"))
       .toMatchObject({ content: binary.toString("base64"), encoding: "base64" });
-    const [after] = await db.select().from(companySkills).where(eq(companySkills.id, skill.id));
+    const [after] = await db.select().from(spaceSkills).where(eq(spaceSkills.id, skill.id));
     expect(after).toEqual(before);
-    expect(await db.select({ id: companySkillVersions.id }).from(companySkillVersions)
-      .where(eq(companySkillVersions.companySkillId, skill.id))).toEqual(versionsBefore);
+    expect(await db.select({ id: spaceSkillVersions.id }).from(spaceSkillVersions)
+      .where(eq(spaceSkillVersions.spaceSkillId, skill.id))).toEqual(versionsBefore);
     // Failed uploads keep a durable claim for reconciliation. Simulate its
     // expiry before retrying the same package with recovered storage.
     await db.update(snapshots).set({ upload: sql`jsonb_set(${snapshots.upload}, '{expiresAt}', to_jsonb(${new Date(0).toISOString()}::text))` })
-      .where(and(eq(snapshots.companyId, companyId), sql`${snapshots.upload} is not null`));
-    const deleted = await service.deleteFile(companyId, skill.id, input);
+      .where(and(eq(snapshots.spaceId, spaceId), sql`${snapshots.upload} is not null`));
+    const deleted = await service.deleteFile(spaceId, skill.id, input);
     expect(deleted.deletedPaths).toContain("bundle/probe.sh");
-    await expect(service.readFile(companyId, skill.id, "bundle/probe.sh")).rejects.toMatchObject({ status: 404 });
-    if (target === "folder") await expect(service.readFile(companyId, skill.id, "bundle/nested/data.bin")).rejects.toMatchObject({ status: 404 });
-    expect(await service.readFile(companyId, skill.id, "keep.txt")).toMatchObject({ content: "Unrelated file\n" });
-    expect((await service.getVersion(companyId, skill.id, before!.currentVersionId!))!.fileInventory)
+    await expect(service.readFile(spaceId, skill.id, "bundle/probe.sh")).rejects.toMatchObject({ status: 404 });
+    if (target === "folder") await expect(service.readFile(spaceId, skill.id, "bundle/nested/data.bin")).rejects.toMatchObject({ status: 404 });
+    expect(await service.readFile(spaceId, skill.id, "keep.txt")).toMatchObject({ content: "Unrelated file\n" });
+    expect((await service.getVersion(spaceId, skill.id, before!.currentVersionId!))!.fileInventory)
       .toEqual(expect.arrayContaining([expect.objectContaining({ path: "bundle/probe.sh", executable: true })]));
   });
 
   it.each(["committed", "rolled_back", "newer_edit", "unavailable"] as const)("reconciles a lost deletion commit reply when %s", async outcome => {
-    const companyId = await company();
+    const spaceId = await space();
     vi.spyOn(storageModule, "getStorageService").mockReturnValue(storage);
-    const service = companySkillService(db);
-    const skill = await service.createLocalSkill(companyId, { name: "Commit reply", slug: "commit-reply", markdown: "# Keep\n" });
-    await service.updateFile(companyId, skill.id, "notes.txt", "Original notes\n");
-    await service.updateFile(companyId, skill.id, "keep.txt", "Keep\n");
-    const before = (await service.getById(companyId, skill.id))!;
+    const service = spaceSkillService(db);
+    const skill = await service.createLocalSkill(spaceId, { name: "Commit reply", slug: "commit-reply", markdown: "# Keep\n" });
+    await service.updateFile(spaceId, skill.id, "notes.txt", "Original notes\n");
+    await service.updateFile(spaceId, skill.id, "keep.txt", "Keep\n");
+    const before = (await service.getById(spaceId, skill.id))!;
     let deletionFinished = false;
     const ambiguousDb = new Proxy(db, {
       get(target, property, receiver) {
@@ -359,30 +359,30 @@ describe.skipIf(!support.supported)("external skill packages", () => {
             return value;
           }, ...options);
           if (result?.skill?.id !== skill.id || !result?.version) return result;
-          if (outcome === "newer_edit") await service.updateFile(companyId, skill.id, "notes.txt", "Newer edit\n");
+          if (outcome === "newer_edit") await service.updateFile(spaceId, skill.id, "notes.txt", "Newer edit\n");
           throw new Error("Lost commit reply");
         };
         return Reflect.get(target, property, receiver);
       },
     });
-    await expect(companySkillService(ambiguousDb, { packageDb: db }).deleteFile(companyId, skill.id,
+    await expect(spaceSkillService(ambiguousDb, { packageDb: db }).deleteFile(spaceId, skill.id,
       { path: "notes.txt", target: "file", expectedVersionId: before.currentVersionId })).rejects.toThrow("Lost commit reply");
     expect(deletionFinished).toBe(true);
-    const [saved] = await db.select().from(companySkills).where(eq(companySkills.id, skill.id));
+    const [saved] = await db.select().from(spaceSkills).where(eq(spaceSkills.id, skill.id));
     if (outcome === "rolled_back") {
       expect(saved!.currentVersionId).toBe(before.currentVersionId);
-      expect(await service.readFile(companyId, skill.id, "notes.txt")).toMatchObject({ content: "Original notes\n" });
-      await expect(service.deleteFile(companyId, skill.id, { path: "notes.txt", target: "file", expectedVersionId: before.currentVersionId }))
+      expect(await service.readFile(spaceId, skill.id, "notes.txt")).toMatchObject({ content: "Original notes\n" });
+      await expect(service.deleteFile(spaceId, skill.id, { path: "notes.txt", target: "file", expectedVersionId: before.currentVersionId }))
         .resolves.toMatchObject({ deletedPaths: ["notes.txt"] });
     } else {
       expect(saved!.currentVersionId).not.toBe(before.currentVersionId);
-      if (outcome === "newer_edit") expect(await service.readFile(companyId, skill.id, "notes.txt"))
+      if (outcome === "newer_edit") expect(await service.readFile(spaceId, skill.id, "notes.txt"))
         .toMatchObject({ content: "Newer edit\n" });
-      else await expect(service.readFile(companyId, skill.id, "notes.txt")).rejects.toMatchObject({ status: 404 });
-      await expect(service.deleteFile(companyId, skill.id, { path: "notes.txt", target: "file", expectedVersionId: before.currentVersionId }))
+      else await expect(service.readFile(spaceId, skill.id, "notes.txt")).rejects.toMatchObject({ status: 404 });
+      await expect(service.deleteFile(spaceId, skill.id, { path: "notes.txt", target: "file", expectedVersionId: before.currentVersionId }))
         .rejects.toMatchObject({ status: 409 });
     }
-    expect((await service.getVersion(companyId, skill.id, before.currentVersionId!))!.fileInventory)
+    expect((await service.getVersion(spaceId, skill.id, before.currentVersionId!))!.fileInventory)
       .toEqual(expect.arrayContaining([expect.objectContaining({ path: "notes.txt", content: "Original notes\n" })]));
 
   });
@@ -391,80 +391,80 @@ describe.skipIf(!support.supported)("external skill packages", () => {
     const f = await fixture(true);
     const recipe = { version: 1 as const, sourceId: randomUUID(), repositoryId: "123", repositoryUrl: "https://github.com/acme/skills",
       commitSha: "a".repeat(40), skillPath: null, manifest: skillPackageManifest(files) };
-    await f.store.prepare(f.companyId, files, true, undefined, recipe);
-    await f.store.files(f.companyId, f.id);
+    await f.store.prepare(f.spaceId, files, true, undefined, recipe);
+    await f.store.files(f.spaceId, f.id);
     await db.update(snapshots).set({ createdAt: new Date(Date.now() - 40 * 86_400_000), maintenanceAt: new Date(0), migrationAt: null }).where(eq(snapshots.id, f.id));
     // Current versions stay pinned even after their cache age expires.
     await skillPackageWork(db, storage).tick(new AbortController().signal);
-    expect((await f.store.descriptor(f.companyId, f.id)).storage).not.toBeNull();
-    for (const { skill } of f.skills) await db.update(companySkills).set({ currentVersionId: null }).where(eq(companySkills.id, skill.id));
+    expect((await f.store.descriptor(f.spaceId, f.id)).storage).not.toBeNull();
+    for (const { skill } of f.skills) await db.update(spaceSkills).set({ currentVersionId: null }).where(eq(spaceSkills.id, skill.id));
     await db.update(snapshots).set({ maintenanceAt: new Date(0) }).where(eq(snapshots.id, f.id));
     await skillPackageWork(db, storage).tick(new AbortController().signal);
-    expect((await f.store.descriptor(f.companyId, f.id)).storage).toBeNull();
-    expect(await fs.stat(skillPackagePaths(f.companyId, f.id).directory).catch(() => null)).toBeNull();
+    expect((await f.store.descriptor(f.spaceId, f.id)).storage).toBeNull();
+    expect(await fs.stat(skillPackagePaths(f.spaceId, f.id).directory).catch(() => null)).toBeNull();
     const entries = recipe.manifest.files.map((file, i) => ({ path: file.path, mode: file.executable ? "100755" : "100644", type: "blob", size: file.size, sha: String(i).repeat(40) }));
     const read = Object.assign(vi.fn(async () => ({ id: 123 })), { openSnapshot: vi.fn(async () => ({ commitSha: recipe.commitSha, entries,
       readBlob: async (entry: typeof entries[number]) => skillFileBytes(files[entries.indexOf(entry)]!), release: async () => {} })) }) as unknown as GitHubRead;
     const authorization = vi.spyOn(recovery, "skillPackageRecoveryReader").mockResolvedValue(read);
-    expect(await f.store.files(f.companyId, f.id)).toEqual(files);
+    expect(await f.store.files(f.spaceId, f.id)).toEqual(files);
     expect(read.openSnapshot).toHaveBeenCalledOnce();
-    await f.store.files(f.companyId, f.id);
+    await f.store.files(f.spaceId, f.id);
     expect(authorization).toHaveBeenCalledOnce();
-    await fs.rm(skillPackagePaths(f.companyId, f.id).directory, { recursive: true });
+    await fs.rm(skillPackagePaths(f.spaceId, f.id).directory, { recursive: true });
     authorization.mockRejectedValue(new Error("grant revoked"));
-    await expect(f.store.files(f.companyId, f.id)).rejects.toThrow("grant revoked");
-    await expect(f.store.files(f.companyId, f.id)).rejects.toThrow("backoff");
+    await expect(f.store.files(f.spaceId, f.id)).rejects.toThrow("grant revoked");
+    await expect(f.store.files(f.spaceId, f.id)).rejects.toThrow("backoff");
     expect(authorization).toHaveBeenCalledTimes(2);
   });
 
   it("recovers missing archive and manifest objects while a published receipt still exists", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     const store = skillPackageStore(db, storage);
     const recipe = { version: 1 as const, sourceId: randomUUID(), repositoryId: "123", repositoryUrl: "https://github.com/acme/skills",
       commitSha: "a".repeat(40), skillPath: null, manifest: skillPackageManifest(files) };
-    const id = await store.prepare(companyId, files, true, undefined, recipe);
-    const receipt = (await store.descriptor(companyId, id)).storage!;
-    await storage.deleteObject(companyId, receipt.archiveKey);
-    await storage.deleteObject(companyId, receipt.manifestKey);
-    await expect(recovery.skillPackageRecoveryReader(db, companyId, recipe)).rejects.toThrow("Reconnect its original repository");
+    const id = await store.prepare(spaceId, files, true, undefined, recipe);
+    const receipt = (await store.descriptor(spaceId, id)).storage!;
+    await storage.deleteObject(spaceId, receipt.archiveKey);
+    await storage.deleteObject(spaceId, receipt.manifestKey);
+    await expect(recovery.skillPackageRecoveryReader(db, spaceId, recipe)).rejects.toThrow("Reconnect its original repository");
     const entries = recipe.manifest.files.map((file, i) => ({ path: file.path, mode: file.executable ? "100755" : "100644", type: "blob", size: file.size, sha: String(i).repeat(40) }));
     const read = Object.assign(vi.fn(async () => ({ id: 123 })), { openSnapshot: vi.fn(async () => ({ commitSha: recipe.commitSha, entries,
       readBlob: async (entry: typeof entries[number]) => skillFileBytes(files[entries.indexOf(entry)]!), release: async () => {} })) }) as unknown as GitHubRead;
     vi.spyOn(recovery, "skillPackageRecoveryReader").mockResolvedValue(read);
     // PostgreSQL JSONB has reordered recipe object keys; its canonical bytes must
     // still agree with the original externally written manifest checksum.
-    expect(await store.files(companyId, id)).toEqual(files);
+    expect(await store.files(spaceId, id)).toEqual(files);
     expect(read.openSnapshot).toHaveBeenCalledOnce();
   });
 
   it("retains referenced historical bytes without an exact Git recipe", async () => {
     const f = await fixture();
-    for (const { skill } of f.skills) await db.update(companySkills).set({ currentVersionId: null }).where(eq(companySkills.id, skill.id));
+    for (const { skill } of f.skills) await db.update(spaceSkills).set({ currentVersionId: null }).where(eq(spaceSkills.id, skill.id));
     await db.update(snapshots).set({ createdAt: new Date(0), migrationAt: null, maintenanceAt: new Date(0) }).where(eq(snapshots.id, f.id));
     await skillPackageWork(db, storage).tick(new AbortController().signal);
-    expect((await f.store.descriptor(f.companyId, f.id)).storage).not.toBeNull();
-    expect(await f.store.files(f.companyId, f.id)).toEqual(files);
+    expect((await f.store.descriptor(f.spaceId, f.id)).storage).not.toBeNull();
+    expect(await f.store.files(f.spaceId, f.id)).toEqual(files);
   });
 
   it("retains authored history when a Git import shares its package and later loses access", async () => {
     const f = await fixture();
-    const [authored] = await db.insert(companySkillVersions).values({ companyId: f.companyId, companySkillId: f.skills[0]!.skill.id,
+    const [authored] = await db.insert(spaceSkillVersions).values({ spaceId: f.spaceId, spaceSkillId: f.skills[0]!.skill.id,
       revisionNumber: 2, packageSnapshotId: f.id, migrationAt: null }).returning();
     const recipe = { version: 1 as const, sourceId: randomUUID(), repositoryId: "123", repositoryUrl: "https://github.com/acme/skills",
       commitSha: "a".repeat(40), skillPath: null, manifest: skillPackageManifest(files) };
-    expect(await f.store.prepare(f.companyId, files, true, undefined, recipe)).toBe(f.id);
-    for (const { skill } of f.skills) await db.update(companySkills).set({ currentVersionId: null }).where(eq(companySkills.id, skill.id));
+    expect(await f.store.prepare(f.spaceId, files, true, undefined, recipe)).toBe(f.id);
+    for (const { skill } of f.skills) await db.update(spaceSkills).set({ currentVersionId: null }).where(eq(spaceSkills.id, skill.id));
     await db.update(snapshots).set({ createdAt: new Date(0), migrationAt: null, maintenanceAt: new Date(0) }).where(eq(snapshots.id, f.id));
     await skillPackageWork(db, storage).tick(new AbortController().signal);
-    expect((await f.store.descriptor(f.companyId, f.id)).storage).not.toBeNull();
-    await fs.rm(skillPackagePaths(f.companyId, f.id).directory, { recursive: true, force: true });
+    expect((await f.store.descriptor(f.spaceId, f.id)).storage).not.toBeNull();
+    await fs.rm(skillPackagePaths(f.spaceId, f.id).directory, { recursive: true, force: true });
     const upstream = vi.spyOn(recovery, "skillPackageRecoveryReader").mockRejectedValue(new Error("grant revoked"));
     expect(await f.store.versionFiles(authored!)).toEqual(files);
     expect(upstream).not.toHaveBeenCalled();
   });
 
   it("keeps authored durability when it joins an in-flight Git package upload", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     const store = skillPackageStore(db, storage);
     const recipe = { version: 1 as const, sourceId: randomUUID(), repositoryId: "123", repositoryUrl: "https://github.com/acme/skills",
       commitSha: "a".repeat(40), skillPath: null, manifest: skillPackageManifest(files) };
@@ -474,41 +474,41 @@ describe.skipIf(!support.supported)("external skill packages", () => {
     const uploading = new Promise<void>(resolve => { entered = resolve; });
     const put = storage.putFile.bind(storage);
     vi.spyOn(storage, "putFile").mockImplementationOnce(async input => { entered(); await blocked; return put(input); });
-    const git = store.prepare(companyId, files, true, undefined, recipe);
+    const git = store.prepare(spaceId, files, true, undefined, recipe);
     await uploading;
-    const authored = store.prepare(companyId, files);
+    const authored = store.prepare(spaceId, files);
     release();
     const ids = await Promise.all([git, authored]);
     expect(ids[0]).toBe(ids[1]);
-    expect((await store.descriptor(companyId, ids[0]!)).storage?.durable).toBe(true);
-    expect(await db.select().from(skillPackageDeletions).where(eq(skillPackageDeletions.companyId, companyId))).toEqual([]);
+    expect((await store.descriptor(spaceId, ids[0]!)).storage?.durable).toBe(true);
+    expect(await db.select().from(skillPackageDeletions).where(eq(skillPackageDeletions.spaceId, spaceId))).toEqual([]);
   });
 
   it("preserves version kinds and encodings when identical package bytes are deduplicated", async () => {
-    const companyId = await company();
-    const original: CompanySkillVersionFileInventoryEntry[] = [{ path: "SKILL.md", kind: "skill", content: files[0]!.content },
+    const spaceId = await space();
+    const original: SpaceSkillVersionFileInventoryEntry[] = [{ path: "SKILL.md", kind: "skill", content: files[0]!.content },
       { path: "helper", kind: "other", content: "#!/bin/sh\necho same\n" }];
-    const changed: CompanySkillVersionFileInventoryEntry[] = [original[0]!, { ...original[1]!, kind: "script", encoding: "base64",
+    const changed: SpaceSkillVersionFileInventoryEntry[] = [original[0]!, { ...original[1]!, kind: "script", encoding: "base64",
       content: Buffer.from(original[1]!.content).toString("base64") }];
     const store = skillPackageStore(db, storage);
-    const packageId = await store.prepare(companyId, original);
+    const packageId = await store.prepare(spaceId, original);
     vi.spyOn(storageModule, "getStorageService").mockReturnValue(storage);
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "metadata", slug: "metadata", name: "Metadata", markdown: original[0]!.content }).returning();
-    const service = companySkillService(db);
-    const saved = await service.createVersion(companyId, skill!.id, {}, null, { skill: toSkill(skill!), skipInventoryRefresh: true, fileInventory: changed });
-    expect((await service.getVersion(companyId, skill!.id, saved.id))!.fileInventory).toEqual(changed);
-    const [legacy] = await db.insert(companySkillVersions).values({ companyId, companySkillId: skill!.id, revisionNumber: 2, fileInventory: changed }).returning();
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "metadata", slug: "metadata", name: "Metadata", markdown: original[0]!.content }).returning();
+    const service = spaceSkillService(db);
+    const saved = await service.createVersion(spaceId, skill!.id, {}, null, { skill: toSkill(skill!), skipInventoryRefresh: true, fileInventory: changed });
+    expect((await service.getVersion(spaceId, skill!.id, saved.id))!.fileInventory).toEqual(changed);
+    const [legacy] = await db.insert(spaceSkillVersions).values({ spaceId, spaceSkillId: skill!.id, revisionNumber: 2, fileInventory: changed }).returning();
     await skillPackageMaintenance(db, storage).migrateVersions({ id: legacy!.id, apply: true, clearLegacy: true });
-    const [converted] = await db.select().from(companySkillVersions).where(eq(companySkillVersions.id, legacy!.id));
+    const [converted] = await db.select().from(spaceSkillVersions).where(eq(spaceSkillVersions.id, legacy!.id));
     expect(converted!.packageSnapshotId).toBe(packageId);
     expect(converted!.fileInventory).toEqual([]);
     expect(await store.versionFiles(converted!)).toEqual(changed);
   });
 
   it("does not delete an orphan whose expired upload was reclaimed after selection", async () => {
-    const companyId = await company();
-    const upload = { token: randomUUID(), provider: "local_disk" as const, archiveKey: `${companyId}/old/archive`, manifestKey: `${companyId}/old/manifest`, expiresAt: new Date(0).toISOString() };
-    const [row] = await db.insert(snapshots).values({ companyId, contentHash: skillSnapshotHash(files), createdAt: new Date(0), upload }).returning();
+    const spaceId = await space();
+    const upload = { token: randomUUID(), provider: "local_disk" as const, archiveKey: `${spaceId}/old/archive`, manifestKey: `${spaceId}/old/manifest`, expiresAt: new Date(0).toISOString() };
+    const [row] = await db.insert(snapshots).values({ spaceId, contentHash: skillSnapshotHash(files), createdAt: new Date(0), upload }).returning();
     const renewed = { ...upload, token: randomUUID(), expiresAt: new Date(Date.now() + 600_000).toISOString() };
     let unlock!: () => void, locked!: () => void, waiting!: () => void;
     const release = new Promise<void>(resolve => { unlock = resolve; });
@@ -522,10 +522,10 @@ describe.skipIf(!support.supported)("external skill packages", () => {
     await acquired;
     const debug = db.$client.options.debug;
     db.$client.options.debug = (_connection, query) => {
-      if (query.includes('from "company_skill_repository_snapshots"') && query.includes("for update")) waiting();
+      if (query.includes('from "space_skill_repository_snapshots"') && query.includes("for update")) waiting();
     };
     try {
-      const collection = skillPackageMaintenance(db, storage).collectOrphans({ companyId, apply: true });
+      const collection = skillPackageMaintenance(db, storage).collectOrphans({ spaceId, apply: true });
       await deleting; unlock(); await renewal;
       expect((await collection).removed).toBe(0);
     } finally { unlock(); db.$client.options.debug = debug; }
@@ -550,21 +550,21 @@ describe.skipIf(!support.supported)("external skill packages", () => {
     finally { db.$client.options.debug = oldDebug; }
     expect(read).not.toHaveBeenCalled();
     expect(sql.length).toBeLessThanOrEqual(6);
-    for (const query of sql.filter(query => /from "company_skill_(repository_snapshots|versions)"/.test(query))) {
+    for (const query of sql.filter(query => /from "space_skill_(repository_snapshots|versions)"/.test(query))) {
       // Bundled release validation returns only a DB-side digest.
       if (!query.includes("encode(sha256(")) expect(query).not.toMatch(/"file_inventory"/);
     }
-    expect((await f.service.getVersion(f.companyId, f.skills[0]!.skill.id, f.skills[0]!.version.id))!.fileInventory)
+    expect((await f.service.getVersion(f.spaceId, f.skills[0]!.skill.id, f.skills[0]!.version.id))!.fileInventory)
       .toEqual([{ path: "SKILL.md", kind: "skill", content: files[0]!.content }]);
-    const restored = await f.store.files(f.companyId, f.id);
+    const restored = await f.store.files(f.spaceId, f.id);
     expect(restored.map(skillFileBytes)).toEqual(files.map(skillFileBytes));
-    await expect(f.store.files(await company(), f.id)).rejects.toThrow("unavailable");
+    await expect(f.store.files(await space(), f.id)).rejects.toThrow("unavailable");
   });
 
   it("repairs a same-size cached edit and restores old versions without upstream access", async () => {
     const f = await fixture();
     const entries = await f.resolve();
-    const target = path.join(entries[0]!.source, ".paperclip-repository/shared/run.sh");
+    const target = path.join(entries[0]!.source, ".outpost-repository/shared/run.sh");
     const stat = await fs.stat(target);
     await fs.chmod(target, 0o755);
     await fs.writeFile(target, "#!/bin/sh\necho modified\n");
@@ -575,7 +575,7 @@ describe.skipIf(!support.supported)("external skill packages", () => {
     expect(read).not.toHaveBeenCalled();
     const upstream = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
     for (const entry of entries) await fs.rm(entry.source, { recursive: true });
-    await fs.rm(skillPackagePaths(f.companyId, f.id).directory, { recursive: true });
+    await fs.rm(skillPackagePaths(f.spaceId, f.id).directory, { recursive: true });
     expect((await f.resolve()).every(entry => entry.sourceStatus === "available")).toBe(true);
     expect(upstream).not.toHaveBeenCalled();
   });
@@ -583,25 +583,25 @@ describe.skipIf(!support.supported)("external skill packages", () => {
   it("refuses cache eviction when durable objects are missing, even after an earlier verification", async () => {
     const f = await fixture();
     await f.resolve();
-    expect(await hasRestorableSnapshot(db, f.companyId, f.skills[0]!.version.id)).toBe(true);
-    const receipt = (await f.store.descriptor(f.companyId, f.id)).storage!;
-    await storage.deleteObject(f.companyId, receipt.archiveKey);
-    await expect(hasRestorableSnapshot(db, f.companyId, f.skills[0]!.version.id)).rejects.toThrow();
+    expect(await hasRestorableSnapshot(db, f.spaceId, f.skills[0]!.version.id)).toBe(true);
+    const receipt = (await f.store.descriptor(f.spaceId, f.id)).storage!;
+    await storage.deleteObject(f.spaceId, receipt.archiveKey);
+    await expect(hasRestorableSnapshot(db, f.spaceId, f.skills[0]!.version.id)).rejects.toThrow();
     // Existing local verified files remain usable while storage is unavailable.
     expect((await f.resolve()).every(entry => entry.sourceStatus === "available")).toBe(true);
   });
 
   it("reads verified cached versions offline while independently checking durable bytes and rejecting corrupt files", async () => {
     const f = await fixture();
-    await f.store.files(f.companyId, f.id);
+    await f.store.files(f.spaceId, f.id);
     const read = vi.spyOn(storage, "getObject").mockRejectedValue(new Error("storage offline"));
     const saved = f.skills[0]!;
-    expect((await f.service.getVersion(f.companyId, saved.skill.id, saved.version.id))!.fileInventory)
+    expect((await f.service.getVersion(f.spaceId, saved.skill.id, saved.version.id))!.fileInventory)
       .toEqual([{ path: "SKILL.md", kind: "skill", content: files[0]!.content }]);
     expect(await f.store.versionFiles({ ...saved.version, packageFileMap: null })).toEqual(files);
     expect(read).not.toHaveBeenCalled();
-    await expect(f.store.verifyDurable(f.companyId, f.id)).rejects.toThrow("storage offline");
-    const target = path.join(skillPackagePaths(f.companyId, f.id).directory, files[0]!.path);
+    await expect(f.store.verifyDurable(f.spaceId, f.id)).rejects.toThrow("storage offline");
+    const target = path.join(skillPackagePaths(f.spaceId, f.id).directory, files[0]!.path);
     await fs.chmod(target, 0o600);
     await fs.writeFile(target, "x".repeat(Buffer.byteLength(files[0]!.content)));
     await expect(f.store.versionFiles(saved.version)).rejects.toThrow("storage offline");
@@ -610,11 +610,11 @@ describe.skipIf(!support.supported)("external skill packages", () => {
   it("coalesces cold version reads and retains the verified package for subsequent reads", async () => {
     const f = await fixture();
     await f.resolve();
-    const root = skillPackagePaths(f.companyId, f.id).directory;
+    const root = skillPackagePaths(f.spaceId, f.id).directory;
     await fs.rm(root, { recursive: true });
     const read = vi.spyOn(storage, "getObject");
     const saved = f.skills[0]!;
-    const get = () => f.service.getVersion(f.companyId, saved.skill.id, saved.version.id);
+    const get = () => f.service.getVersion(f.spaceId, saved.skill.id, saved.version.id);
     const [first, second, third] = await Promise.all([get(), get(), get()]);
     expect(first!.fileInventory).toEqual([{ path: "SKILL.md", kind: "skill", content: files[0]!.content }]);
     expect(second).toEqual(first);
@@ -640,9 +640,9 @@ describe.skipIf(!support.supported)("external skill packages", () => {
       return get(...args);
     });
     const cancellation = new AbortController();
-    const first = f.store.manifest(f.companyId, f.id, cancellation.signal).catch(error => error);
+    const first = f.store.manifest(f.spaceId, f.id, cancellation.signal).catch(error => error);
     await started;
-    const second = f.store.manifest(f.companyId, f.id);
+    const second = f.store.manifest(f.spaceId, f.id);
     try {
       // The shared one-slot pool places this query after the second descriptor.
       await db.select({ id: snapshots.id }).from(snapshots).where(eq(snapshots.id, f.id));
@@ -658,7 +658,7 @@ describe.skipIf(!support.supported)("external skill packages", () => {
   it("keeps warm preparation responsive while a read-triggered cache trim verifies storage", async () => {
     const f = await fixture();
     await f.resolve();
-    const paths = skillPackagePaths(f.companyId, f.id);
+    const paths = skillPackagePaths(f.spaceId, f.id);
     // Exceed the directory bound without manufacturing large file payloads.
     for (let index = 0; index < 63; index++) {
       const orphan = path.join(paths.parent, randomUUID());
@@ -667,11 +667,11 @@ describe.skipIf(!support.supported)("external skill packages", () => {
       await fs.utimes(orphan, later, later);
     }
     const changed = files.map((file, index) => index ? file : { ...file, content: `${file.content}Updated\n` });
-    const id = await f.store.prepare(f.companyId, changed);
-    const [version] = await db.insert(companySkillVersions).values({ companyId: f.companyId,
-      companySkillId: f.skills[0]!.skill.id, revisionNumber: 2, packageSnapshotId: id, migrationAt: null,
+    const id = await f.store.prepare(f.spaceId, changed);
+    const [version] = await db.insert(spaceSkillVersions).values({ spaceId: f.spaceId,
+      spaceSkillId: f.skills[0]!.skill.id, revisionNumber: 2, packageSnapshotId: id, migrationAt: null,
       packageFileMap: f.skills[0]!.version.packageFileMap }).returning();
-    const receipt = (await f.store.descriptor(f.companyId, f.id)).storage!;
+    const receipt = (await f.store.descriptor(f.spaceId, f.id)).storage!;
     const get = storage.getObject.bind(storage);
     let entered!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
@@ -720,7 +720,7 @@ describe.skipIf(!support.supported)("external skill packages", () => {
       // must remain queued while two decoded responses are owned by cleanup.
       await new Promise(resolve => setTimeout(resolve, 50));
       expect(decoded).toBe(2);
-      const third = (await fixtures[2]!.store.descriptor(fixtures[2]!.companyId, fixtures[2]!.id)).storage!;
+      const third = (await fixtures[2]!.store.descriptor(fixtures[2]!.spaceId, fixtures[2]!.id)).storage!;
       expect(storageRead.mock.calls.filter(call => call[1] === third.archiveKey)).toHaveLength(0);
       release();
       expect((await Promise.all(reads)).every(files => files[0]!.path === "SKILL.md")).toBe(true);
@@ -730,24 +730,24 @@ describe.skipIf(!support.supported)("external skill packages", () => {
 
   it.each(["manifest", "files"] as const)("does not load queued legacy bodies for %s reads", async kind => {
     const f = await fixture();
-    const companyId = await company();
+    const spaceId = await space();
     const rows = await db.insert(snapshots).values(Array.from({ length: 33 }, (_, index) => {
       const inventory = files.map((file, i) => i ? file : { ...file, content: `${file.content}${index}` });
-      return { companyId, contentHash: skillSnapshotHash(inventory), fileInventory: inventory };
+      return { spaceId, contentHash: skillSnapshotHash(inventory), fileInventory: inventory };
     })).returning({ id: snapshots.id });
     const store = skillPackageStore(db, storage);
-    if (kind === "files") for (const row of rows) await store.manifest(companyId, row.id);
+    if (kind === "files") for (const row of rows) await store.manifest(spaceId, row.id);
     let release!: () => void;
     const blocked = new Promise<void>(resolve => { release = resolve; });
     let active = 0;
-    const occupying = Array.from({ length: 2 }, () => f.store.withIsolatedPackage(f.companyId, f.id, async () => {
+    const occupying = Array.from({ length: 2 }, () => f.store.withIsolatedPackage(f.spaceId, f.id, async () => {
       active++;
       await blocked;
     }));
     await vi.waitFor(() => expect(active).toBe(2));
     let bodies = 0;
     const observe = (_connection: number, query: string) => {
-      if (query.includes('"file_inventory"') && query.includes('"company_skill_repository_snapshots"')) bodies++;
+      if (query.includes('"file_inventory"') && query.includes('"space_skill_repository_snapshots"')) bodies++;
     };
     const debug = db.$client.options.debug;
     db.$client.options.debug = observe;
@@ -759,7 +759,7 @@ describe.skipIf(!support.supported)("external skill packages", () => {
       return action(connection);
     }));
     if (kind === "manifest") {
-      const parent = skillPackagePaths(companyId, rows[0]!.id).parent;
+      const parent = skillPackagePaths(spaceId, rows[0]!.id).parent;
       const lstat = fs.lstat.bind(fs);
       vi.spyOn(fs, "lstat").mockImplementation(async (...args) => {
         const result = await lstat(...args);
@@ -767,7 +767,7 @@ describe.skipIf(!support.supported)("external skill packages", () => {
         return result;
       });
     }
-    const read = (id: string) => kind === "files" ? store.files(companyId, id, true) : store.manifest(companyId, id);
+    const read = (id: string) => kind === "files" ? store.files(spaceId, id, true) : store.manifest(spaceId, id);
     const queued = rows.slice(0, 32).map(row => read(row.id));
     try {
       await vi.waitFor(() => expect(ready).toBe(32));
@@ -786,7 +786,7 @@ describe.skipIf(!support.supported)("external skill packages", () => {
 
   it("does not deadlock a transaction behind cold reads on a one-connection pool", async () => {
     const fixtures = [await fixture(), await fixture(), await fixture()];
-    const roots = new Map(fixtures.slice(0, 2).map(f => [skillPackagePaths(f.companyId, f.id).directory, 0]));
+    const roots = new Map(fixtures.slice(0, 2).map(f => [skillPackagePaths(f.spaceId, f.id).directory, 0]));
     let release!: () => void;
     const blocked = new Promise<void>(resolve => { release = resolve; });
     const lstat = fs.lstat.bind(fs);
@@ -829,7 +829,7 @@ describe.skipIf(!support.supported)("external skill packages", () => {
   it("bounds concurrent cached inventories while leaving warm turn preparation responsive", async () => {
     const f = await fixture();
     await f.resolve();
-    const target = path.join(skillPackagePaths(f.companyId, f.id).directory, files[0]!.path);
+    const target = path.join(skillPackagePaths(f.spaceId, f.id).directory, files[0]!.path);
     const open = fs.open.bind(fs);
     let entered = 0;
     let bothEntered!: () => void;
@@ -879,8 +879,8 @@ describe.skipIf(!support.supported)("external skill packages", () => {
       await blocked;
       return get(...args);
     });
-    const pending = [f.store.withIsolatedPackage(f.companyId, f.id, async () => null),
-      f.store.withIsolatedPackage(f.companyId, f.id, async () => null)];
+    const pending = [f.store.withIsolatedPackage(f.spaceId, f.id, async () => null),
+      f.store.withIsolatedPackage(f.spaceId, f.id, async () => null)];
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
       await started;
@@ -893,32 +893,32 @@ describe.skipIf(!support.supported)("external skill packages", () => {
   });
 
   it("retries expired upload claims with fresh keys and only deletes the abandoned attempt", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     const store = skillPackageStore(db, storage);
     const put = vi.spyOn(storage, "putFile").mockRejectedValueOnce(new Error("connection lost"));
-    await expect(store.prepare(companyId, files)).rejects.toThrow("connection lost");
+    await expect(store.prepare(spaceId, files)).rejects.toThrow("connection lost");
     put.mockRestore();
-    const [pending] = await db.select().from(snapshots).where(eq(snapshots.companyId, companyId));
+    const [pending] = await db.select().from(snapshots).where(eq(snapshots.spaceId, spaceId));
     expect(pending!.storage).toBeNull();
-    await expect(store.prepare(companyId, files)).rejects.toThrow("being saved");
+    await expect(store.prepare(spaceId, files)).rejects.toThrow("being saved");
     await db.update(snapshots).set({ upload: { ...pending!.upload!, expiresAt: new Date(0).toISOString() } }).where(eq(snapshots.id, pending!.id));
-    const id = await store.prepare(companyId, files);
+    const id = await store.prepare(spaceId, files);
     expect(id).toBe(pending!.id);
-    const receipt = (await store.descriptor(companyId, id)).storage!;
+    const receipt = (await store.descriptor(spaceId, id)).storage!;
     expect(receipt.archiveKey).not.toBe(pending!.upload!.archiveKey);
-    const [deletion] = await db.select().from(skillPackageDeletions).where(eq(skillPackageDeletions.companyId, companyId));
+    const [deletion] = await db.select().from(skillPackageDeletions).where(eq(skillPackageDeletions.spaceId, spaceId));
     expect(deletion!.archiveKey).toBe(pending!.upload!.archiveKey);
     await db.update(skillPackageDeletions).set({ deleteAfter: new Date(0) }).where(eq(skillPackageDeletions.id, deletion!.id));
-    expect((await skillPackageMaintenance(db, storage).deleteObjects({ companyId, apply: true })).removed).toBe(1);
-    expect(await store.verifyDurable(companyId, id)).toBe(true);
-    // Company cascades retain a receipt after removing the snapshot's DB row.
-    await db.delete(companies).where(eq(companies.id, companyId));
-    expect(await db.select().from(skillPackageDeletions).where(eq(skillPackageDeletions.companyId, companyId)))
+    expect((await skillPackageMaintenance(db, storage).deleteObjects({ spaceId, apply: true })).removed).toBe(1);
+    expect(await store.verifyDurable(spaceId, id)).toBe(true);
+    // Space cascades retain a receipt after removing the snapshot's DB row.
+    await db.delete(spaces).where(eq(spaces.id, spaceId));
+    expect(await db.select().from(skillPackageDeletions).where(eq(skillPackageDeletions.spaceId, spaceId)))
       .toEqual([expect.objectContaining({ archiveKey: receipt.archiveKey })]);
   });
 
   it("cancels queued and active uploads without publishing or leaking I/O capacity", async () => {
-    const ids = await Promise.all([company(), company(), company()]);
+    const ids = await Promise.all([space(), space(), space()]);
     const active = new AbortController();
     const queued = new AbortController();
     const put = vi.spyOn(storage, "putFile").mockImplementation(async input => {
@@ -934,7 +934,7 @@ describe.skipIf(!support.supported)("external skill packages", () => {
       await vi.waitFor(() => expect(put).toHaveBeenCalledTimes(2));
       const waiting = store.prepare(ids[2]!, files, false, queued.signal).catch(error => error);
       await vi.waitFor(async () => expect(await db.select({ id: snapshots.id }).from(snapshots)
-        .where(eq(snapshots.companyId, ids[2]!))).toHaveLength(1));
+        .where(eq(snapshots.spaceId, ids[2]!))).toHaveLength(1));
       queued.abort(new Error("queued cancellation"));
       expect((await waiting).message).toBe("queued cancellation");
       expect(put).toHaveBeenCalledTimes(2);
@@ -944,47 +944,47 @@ describe.skipIf(!support.supported)("external skill packages", () => {
       put.mockRestore();
     }
     for (const id of ids) {
-      const [row] = await db.select().from(snapshots).where(eq(snapshots.companyId, id!));
+      const [row] = await db.select().from(snapshots).where(eq(snapshots.spaceId, id!));
       expect(row!.storage).toBeNull();
       expect(row!.upload).not.toBeNull();
     }
-    expect(await store.prepare(await company(), files)).toEqual(expect.any(String));
+    expect(await store.prepare(await space(), files)).toEqual(expect.any(String));
   });
 
   it("migrates both legacy payload locations in bounded resumable pages without changing version IDs", async () => {
-    const companyId = await company();
-    const [snapshot] = await db.insert(snapshots).values({ companyId, contentHash: skillSnapshotHash(files), fileInventory: files }).returning();
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "legacy", slug: "legacy", name: "Legacy", markdown: files[0]!.content }).returning();
+    const spaceId = await space();
+    const [snapshot] = await db.insert(snapshots).values({ spaceId, contentHash: skillSnapshotHash(files), fileInventory: files }).returning();
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "legacy", slug: "legacy", name: "Legacy", markdown: files[0]!.content }).returning();
     const original = { path: "SKILL.md", kind: "skill" as const, content: files[0]!.content };
-    const [version] = await db.insert(companySkillVersions).values({ companyId, companySkillId: skill!.id, revisionNumber: 7,
+    const [version] = await db.insert(spaceSkillVersions).values({ spaceId, spaceSkillId: skill!.id, revisionNumber: 7,
       repositorySnapshotId: snapshot!.id, repositorySkillPath: files[0]!.path, fileInventory: [original] }).returning();
     const maintenance = skillPackageMaintenance(db, storage);
-    expect((await maintenance.migrateSnapshots({ companyId })).migrated).toBe(0);
+    expect((await maintenance.migrateSnapshots({ spaceId })).migrated).toBe(0);
     const fail = vi.spyOn(storage, "getObject").mockRejectedValueOnce(new Error("verification interrupted"));
-    await expect(maintenance.migrateSnapshots({ companyId, apply: true })).rejects.toThrow("verification interrupted");
+    await expect(maintenance.migrateSnapshots({ spaceId, apply: true })).rejects.toThrow("verification interrupted");
     fail.mockRestore();
     const [pending] = await db.select().from(snapshots).where(eq(snapshots.id, snapshot!.id));
     expect(pending!.fileInventory).toEqual(files);
     await db.update(snapshots).set({ upload: { ...pending!.upload!, expiresAt: new Date(0).toISOString() } }).where(eq(snapshots.id, snapshot!.id));
-    expect((await maintenance.migrateSnapshots({ companyId, limit: 1, apply: true })).migrated).toBe(1);
+    expect((await maintenance.migrateSnapshots({ spaceId, limit: 1, apply: true })).migrated).toBe(1);
     const [soaked] = await db.select().from(snapshots).where(eq(snapshots.id, snapshot!.id));
     expect(soaked!.storage).not.toBeNull();
     expect(soaked!.fileInventory).toEqual(files);
-    expect((await maintenance.migrateSnapshots({ companyId, limit: 1, apply: true, clearLegacy: true })).migrated).toBe(1);
-    expect((await maintenance.migrateSnapshots({ companyId, apply: true })).inspected).toBe(0);
-    expect((await maintenance.migrateVersions({ companyId, apply: true, clearLegacy: true })).migrated).toBe(1);
-    const [saved] = await db.select().from(companySkillVersions).where(and(eq(companySkillVersions.id, version!.id), eq(companySkillVersions.companyId, companyId)));
+    expect((await maintenance.migrateSnapshots({ spaceId, limit: 1, apply: true, clearLegacy: true })).migrated).toBe(1);
+    expect((await maintenance.migrateSnapshots({ spaceId, apply: true })).inspected).toBe(0);
+    expect((await maintenance.migrateVersions({ spaceId, apply: true, clearLegacy: true })).migrated).toBe(1);
+    const [saved] = await db.select().from(spaceSkillVersions).where(and(eq(spaceSkillVersions.id, version!.id), eq(spaceSkillVersions.spaceId, spaceId)));
     expect(saved).toMatchObject({ id: version!.id, revisionNumber: 7, fileInventory: [], repositorySnapshotId: snapshot!.id, packageSnapshotId: snapshot!.id });
     expect(await skillPackageStore(db, storage).versionFiles(saved!)).toEqual([original]);
   });
 
   it("backfills a cleared version's metadata index without changing its identity or bytes", async () => {
     const f = await fixture();
-    const [version] = await db.insert(companySkillVersions).values({ companyId: f.companyId,
-      companySkillId: f.skills[0]!.skill.id, revisionNumber: 2, packageSnapshotId: f.id,
+    const [version] = await db.insert(spaceSkillVersions).values({ spaceId: f.spaceId,
+      spaceSkillId: f.skills[0]!.skill.id, revisionNumber: 2, packageSnapshotId: f.id,
       packageFileMap: null, fileInventory: [], migrationAt: null }).returning();
     expect((await skillPackageMaintenance(db, storage).migrateVersions({ id: version!.id, apply: true })).migrated).toBe(1);
-    const [saved] = await db.select().from(companySkillVersions).where(eq(companySkillVersions.id, version!.id));
+    const [saved] = await db.select().from(spaceSkillVersions).where(eq(spaceSkillVersions.id, version!.id));
     expect(saved).toMatchObject({ id: version!.id, revisionNumber: 2, packageSnapshotId: f.id, fileInventory: [] });
     expect(await f.store.versionFiles(saved!)).toEqual(expect.arrayContaining(files));
     const read = vi.spyOn(storage, "getObject").mockRejectedValue(new Error("Metadata must not fetch objects"));
@@ -994,16 +994,16 @@ describe.skipIf(!support.supported)("external skill packages", () => {
   });
 
   it.each([false, true])("restores across legacy payload clearing with a cached manifest: %s", async cachedManifest => {
-    const companyId = await company();
-    const [snapshot] = await db.insert(snapshots).values({ companyId, contentHash: skillSnapshotHash(files), fileInventory: files }).returning();
+    const spaceId = await space();
+    const [snapshot] = await db.insert(snapshots).values({ spaceId, contentHash: skillSnapshotHash(files), fileInventory: files }).returning();
     const store = skillPackageStore(db, storage);
     await withSkillPackageReadScope(db, async () => {
-      expect((await store.descriptor(companyId, snapshot!.id)).storage).toBeNull();
-      if (cachedManifest) await store.manifest(companyId, snapshot!.id);
-      await store.prepare(companyId, files, true);
+      expect((await store.descriptor(spaceId, snapshot!.id)).storage).toBeNull();
+      if (cachedManifest) await store.manifest(spaceId, snapshot!.id);
+      await store.prepare(spaceId, files, true);
       await db.update(snapshots).set({ fileInventory: [] }).where(eq(snapshots.id, snapshot!.id));
-      expect(skillSnapshotHash(await store.files(companyId, snapshot!.id))).toBe(skillSnapshotHash(files));
-      expect(await store.verifyDurable(companyId, snapshot!.id)).toBe(true);
+      expect(skillSnapshotHash(await store.files(spaceId, snapshot!.id))).toBe(skillSnapshotHash(files));
+      expect(await store.verifyDurable(spaceId, snapshot!.id)).toBe(true);
     });
   });
 
@@ -1032,17 +1032,17 @@ describe.skipIf(!support.supported)("external skill packages", () => {
   });
 
   it("stores and converts a saved directory package above 64 MiB without losing its history", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     const content = "x".repeat(1024 * 1024);
     const large = [{ path: "SKILL.md", kind: "skill" as const, content: "---\nname: large\n---\nlarge skill" },
       ...Array.from({ length: 65 }, (_, index) => ({ path: `asset-${index}`, kind: "asset" as const, content }))];
     const store = skillPackageStore(db, storage);
-    const id = await store.prepare(companyId, large);
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "large", slug: "large", name: "Large", markdown: large[0]!.content }).returning();
-    const [version] = await db.insert(companySkillVersions).values({ companyId, companySkillId: skill!.id,
+    const id = await store.prepare(spaceId, large);
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "large", slug: "large", name: "Large", markdown: large[0]!.content }).returning();
+    const [version] = await db.insert(spaceSkillVersions).values({ spaceId, spaceSkillId: skill!.id,
       revisionNumber: 1, fileInventory: large }).returning();
     await skillPackageMaintenance(db, storage).migrateVersions({ id: version!.id, apply: true, clearLegacy: true });
-    const [converted] = await db.select().from(companySkillVersions).where(eq(companySkillVersions.id, version!.id));
+    const [converted] = await db.select().from(spaceSkillVersions).where(eq(spaceSkillVersions.id, version!.id));
     expect(converted!.fileInventory).toEqual([]);
     expect(converted!.migrationAt).toBeNull();
     expect(converted!.packageSnapshotId).toBe(id);

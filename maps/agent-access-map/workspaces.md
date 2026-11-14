@@ -9,7 +9,7 @@ Lost-source reconstruction adds the board-only
 `runtime:manage` and ordinary task visibility. Agents cannot authorize it. The
 result is a durable fresh-session admission request, subject to current execution
 gates. It grants no additional tool access, budget, work window or permission to
-repeat completed actions. Attachments must belong to the same task and company.
+repeat completed actions. Attachments must belong to the same task and space.
 The original failed run and lost-export evidence remain unchanged.
 Later native run-only cancellations can coexist only with confirmed lease stops,
 board file-only repair and an external-action outcome of `not_performed`.
@@ -37,7 +37,7 @@ API: `present` — representative operation IDs:
 - `GET /api/execution-workspaces/{id}`.
 - `GET /api/issues/{id}/workspace` inspects the durable task binding.
 - `PUT /api/issues/{id}/workspace` requests the next binding.
-- `GET /api/companies/{companyId}/execution-workspaces?summary=true&selectableForTask=true`
+- `GET /api/spaces/{spaceId}/execution-workspaces?summary=true&selectableForTask=true`
   lists authorized task-selectable workspaces.
 
 Agent access: `available` — Native get_task_context / REST / CLI / MCP workspace read.
@@ -46,11 +46,11 @@ The task-bound native tools `get_workspace`, `list_workspaces`, and
 `select_workspace` use the ordinary authenticated APIs. Legacy agents can call
 those APIs with their admitted run token. These paths do not require a project.
 
-Policy: Company/project/workspace visibility and runtime authority; active run, trust
+Policy: Space/project/workspace visibility and runtime authority; active run, trust
 preset and task ownership where required.
 
 Ordinary input may reuse the exact currently bound private task directory after
-an explicitly fresh retry. Preparation rechecks company, source task, current
+an explicitly fresh retry. Preparation rechecks space, source task, current
 binding and canonical path; missing directories, symlinks and foreign roots are
 rejected. This preserves files without granting new access or replaying the
 previous turn. An explicitly fresh retry still creates a clean sibling.
@@ -64,7 +64,7 @@ selection applies at the next normal admission without interrupting a live run.
 
 The managed `remoteWorkspaceStorageEnabled` setting defaults on for Cloud and
 self-hosted instances. New native Outpost Runner sandbox workspaces with
-supported fresh sources reserve company/task-bound remote authority through
+supported fresh sources reserve space/task-bound remote authority through
 existing admission only when durable Postgres, S3, and a stable key are configured.
 Existing host workspaces and configured local folders stay on the legacy path
 until an explicit import. Stored `false` disables new enrollment unless managed
@@ -98,7 +98,7 @@ cover reservation and persisted waits with PostgreSQL; live sandbox
 provider acceptance remains separate.
 The [reservation tests](../../server/src/services/remote-workspace-reservation.test.ts)
 exercise that service boundary with real PostgreSQL, including competing children,
-private sources, foreign companies, and closed records. This is automated evidence,
+private sources, foreign spaces, and closed records. This is automated evidence,
 not live agent qualification.
 Importing an existing local task folder is an operator source-checkout command,
 not an agent API or tool: see the
@@ -124,16 +124,16 @@ remain effective. Repeated resolution of the same action does not enqueue anothe
 run. Agents cannot mint recovery provenance through the workspace selection API;
 they can observe the existing recovery action and request board recovery.
 Local paths, unsupported transports and credential-bearing URLs are not fallback
-sources. Company/task/remote bindings, real paths, Git storage and the exact origin
+sources. Space/task/remote bindings, real paths, Git storage and the exact origin
 are revalidated for reuse, cleanup and reopening. A failed save removes only the
 owned task worktree. The [isolated-source service](../../server/src/services/isolated-remote-workspace-source.ts)
 and its local regression tests establish source and lifecycle boundaries; live
 agent/provider qualification remains separate.
 Reconstructable Git expiration adds no agent endpoint or permission. It records
-company/workspace/repository identity and an exact commit before removing owned
-cache files. Existing task/workspace reopening retains current company, source,
+space/workspace/repository identity and an exact commit before removing owned
+cache files. Existing task/workspace reopening retains current space, source,
 and trust checks. Missing upstream access returns a retryable error; it does not
-choose a newer commit or grant access to another company's source. Shared project
+choose a newer commit or grant access to another space's source. Shared project
 bases and unresolved recovery remain protected. Local lifecycle evidence is in
 [expiration tests](../../server/src/__tests__/git-workspace-expiration.test.ts).
 
@@ -160,7 +160,7 @@ access. The merge still holds its canonical writer lock and runs both authority
 and publication hooks. Denials still propagate, and checkpoint/archive validation
 is unchanged. [Regression coverage](../../packages/adapter-utils/src/workspace-restore-unchanged.test.ts)
 is source-level evidence only.
-Child creation by an admitted agent checks an explicit prospective-task context before the child is saved. The creator run must have an authoritative saved policy and a verified company/agent/parent lineage. Current parent, prospective child and selected source configuration policies must fit that boundary. This creation path does not relax exact task/run checks for existing-task writes. The [child trust regression](../../server/src/__tests__/task-workspace-child-trust.test.ts) is automated source-level evidence, not live agent qualification.
+Child creation by an admitted agent checks an explicit prospective-task context before the child is saved. The creator run must have an authoritative saved policy and a verified space/agent/parent lineage. Current parent, prospective child and selected source configuration policies must fit that boundary. This creation path does not relax exact task/run checks for existing-task writes. The [child trust regression](../../server/src/__tests__/task-workspace-child-trust.test.ts) is automated source-level evidence, not live agent qualification.
 Source review for these additions: PR #15749 and
 [task workspace routes](../../server/src/routes/task-workspaces.ts),
 [native authority](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts),
@@ -172,7 +172,7 @@ reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Run/task context identifies its actual realized workspace; record existence is not
@@ -183,7 +183,7 @@ a running service.
 Capability ID: `workspaces/provisioning`.
 
 Source preparation keeps its dedicated lock connection active during work on
-other connections. It preserves company/source exclusion and existing admission
+other connections. It preserves space/source exclusion and existing admission
 authority; it adds no agent API or permission. The
 [source-lock regression](../../server/src/services/isolated-remote-workspace-source-lock.test.ts)
 covers PostgreSQL idle timeout, competing preparation, ordinary pool availability,
@@ -218,7 +218,7 @@ status decisions and wake admission retain Stop and authorization gates. The
 and [driver regression](../../packages/outpost-runner/src/drivers/completion-continuation.test.ts)
 cover this contract; live qualification remains separate.
 
-Policy: Company/project/workspace visibility and runtime authority; active run, trust
+Policy: Space/project/workspace visibility and runtime authority; active run, trust
 preset and task ownership where required.
 
 Evidence: `source-only` —
@@ -227,7 +227,7 @@ reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Observing readiness exists. Creating host commands or arbitrary provision targets
@@ -246,7 +246,7 @@ API: `present` — representative operation IDs:
 Agent access: `available` — Authorized agent REST / native `call_api` / CLI runtime
 service controls and existing stdio MCP controls.
 
-Policy: Company/project/workspace visibility and runtime authority; active run, trust
+Policy: Space/project/workspace visibility and runtime authority; active run, trust
 preset and task ownership where required.
 
 Evidence: `source-only` —
@@ -255,7 +255,7 @@ reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: No dedicated production control_workspace_service binding. Generic native
@@ -287,7 +287,7 @@ The [authority regression](../../server/src/services/native-runtime/artifact-tra
 and [filesystem faults](../../server/src/services/native-runtime/artifact-transfer.test.ts)
 use disposable data and real files; provider transport qualification is separate.
 
-Policy: Company/project/workspace visibility and runtime authority; active run, trust
+Policy: Space/project/workspace visibility and runtime authority; active run, trust
 preset and task ownership where required.
 
 Evidence: `source-only` —
@@ -296,13 +296,13 @@ reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Files panel HTTP requires board. Agents can use their admitted workspace file
 tools; remote/Dot scope and Git command availability differ.
 
-Task-bound file reads authorize the current task, company, and concrete binding;
+Task-bound file reads authorize the current task, space, and concrete binding;
 selected project roots require selected configuration access. Historical task,
 reader, physical-root, and directory acquisition classifications have no effect.
 Root containment and symlink escape checks remain, and attachments, task records,
@@ -312,7 +312,7 @@ For enrolled remote workspaces the same board file-resource endpoints read the
 authorized live allocation or a verified committed saved version. Returned
 `source.kind` is `live` or `saved`, with `savedAt` for a saved copy. An unavailable
 clean allocation does not prevent reads of its current committed save once
-writer authority is clear; saved reads validate the exact company, workspace,
+writer authority is clear; saved reads validate the exact space, workspace,
 and snapshot even while a remote location remains recorded. Cleanup may clear
 only that location during a saved read; logical-authority changes and foreign
 or reintroduced locations still reject it. Live reads retain their full fence. An unavailable
@@ -322,7 +322,7 @@ bounded search/preview, download streaming, and cancellation remain enforced by
 [remote file access](../../server/src/services/remote-workspace-files.ts).
 Evidence: `source-only` here; regression suites are not a live agent read proof.
 Verification: `not-run` — exercise allowed live/saved reads and deny another
-company, changed binding, traversal, and unsaved-allocation fallback.
+space, changed binding, traversal, and unsaved-allocation fallback.
 
 ## `closure`
 
@@ -339,7 +339,7 @@ API: `present` — representative operation IDs:
 Agent access: `partial` — REST / native fallback for permitted update; CLI workspace;
 reconcile-branch requires board.
 
-Policy: Company/project/workspace visibility and runtime authority; active run, trust
+Policy: Space/project/workspace visibility and runtime authority; active run, trust
 preset and task ownership where required.
 Workspace metadata reads do not perform storage inspection or certify delivery.
 The explicit close-readiness API and destructive cleanup retain live safety checks.
@@ -355,7 +355,7 @@ reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Closure/readiness exists; not every workspace can be reopened, and branch
@@ -371,4 +371,4 @@ Source: [remote lifecycle](../../server/src/services/remote-workspace-lifecycle.
 and [close readiness](../../server/src/services/execution-workspaces.ts).
 Evidence: `source-only` for the remote extension. Verification: `not-run` —
 reject dirty/unfinished/custom-command close, confirm clean release retains the
-snapshot, then reopen under current task/company authorization.
+snapshot, then reopen under current task/space authorization.

@@ -67,7 +67,7 @@ export function createSlackInventory(db: Db, options: SlackInventoryOptions) {
       .set({ label: resource.label, updatedAt: new Date() })
       .where(
         and(
-          eq(chatEndpointResources.companyId, record.endpoint.companyId),
+          eq(chatEndpointResources.spaceId, record.endpoint.spaceId),
           eq(chatEndpointResources.endpointId, endpointId),
           eq(chatEndpointResources.type, "channel"),
           eq(chatEndpointResources.providerResourceId, providerResourceId),

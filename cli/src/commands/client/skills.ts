@@ -5,15 +5,15 @@ import {
   type Agent,
   type AgentSkillSnapshot,
   type CatalogSkill,
-  type CompanySkill,
-  type CompanySkillAuditResult,
-  type CompanySkillDetail,
-  type CompanySkillFileDetail,
-  type CompanySkillImportResult,
-  type CompanySkillInstallCatalogResult,
-  type CompanySkillListItem,
-  type CompanySkillProjectScanResult,
-  type CompanySkillUpdateStatus,
+  type SpaceSkill,
+  type SpaceSkillAuditResult,
+  type SpaceSkillDetail,
+  type SpaceSkillFileDetail,
+  type SpaceSkillImportResult,
+  type SpaceSkillInstallCatalogResult,
+  type SpaceSkillListItem,
+  type SpaceSkillProjectScanResult,
+  type SpaceSkillUpdateStatus,
 } from "@outpost/shared";
 import { readFile } from "node:fs/promises";
 import { stdin as input, stdout as output } from "node:process";
@@ -29,7 +29,7 @@ import {
 } from "./common.js";
 
 interface SkillsOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
 }
 
 interface SkillFileOptions extends SkillsOptions {
@@ -74,18 +74,18 @@ interface AgentSkillSyncOptions extends SkillsOptions {
   mode: AgentSkillAssignmentMode;
 }
 
-type CompanySkillReferenceTarget = Pick<CompanySkillListItem, "id" | "key" | "slug" | "name">;
+type SpaceSkillReferenceTarget = Pick<SpaceSkillListItem, "id" | "key" | "slug" | "name">;
 
-export interface CompanySkillCheckRow {
-  skill: CompanySkillReferenceTarget;
-  status: CompanySkillUpdateStatus;
+export interface SpaceSkillCheckRow {
+  skill: SpaceSkillReferenceTarget;
+  status: SpaceSkillUpdateStatus;
 }
 
-export interface CompanySkillUpdateRow {
+export interface SpaceSkillUpdateRow {
   skillRef: string;
   action: "updated" | "skipped" | "failed";
-  skill?: CompanySkill;
-  status?: CompanySkillUpdateStatus;
+  skill?: SpaceSkill;
+  status?: SpaceSkillUpdateStatus;
   reason?: string;
 }
 
@@ -159,15 +159,15 @@ export function registerSkillsCommands(program: Command): void {
   addCommonClientOptions(
     skills
       .command("install")
-      .description("Install a catalog skill into the company skill library; does not attach it to agents")
+      .description("Install a catalog skill into the space skill library; does not attach it to agents")
       .argument("<catalogRef>", "Catalog skill ID, key, or unique slug")
       .option("--as <slug>", "Outpost skill slug override")
       .option("--force", "Replace a same-key catalog-managed skill when the server allows it", false)
       .action(async (catalogRef: string, opts: CatalogInstallOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const result = await ctx.api.post<CompanySkillInstallCatalogResult>(
-            `/api/companies/${ctx.companyId}/skills/install-catalog`,
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const result = await ctx.api.post<SpaceSkillInstallCatalogResult>(
+            `/api/spaces/${ctx.spaceId}/skills/install-catalog`,
             {
               catalogSkillId: catalogRef,
               slug: opts.as,
@@ -183,62 +183,62 @@ export function registerSkillsCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     skills
       .command("list")
-      .description("List company skills")
+      .description("List space skills")
       .action(async (opts: SkillsOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const rows = await listCompanySkills(ctx);
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const rows = await listSpaceSkills(ctx);
           if (ctx.json) {
             printOutput(rows, { json: true });
             return;
           }
-          printCompanySkillRows(rows);
+          printSpaceSkillRows(rows);
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     skills
       .command("show")
-      .description("Show company skill details")
+      .description("Show space skill details")
       .argument("<skillRef>", "Outpost skill ID, key, or unique slug")
       .action(async (skillRef: string, opts: SkillsOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const skill = await resolveCompanySkill(ctx, skillRef);
-          const detail = await ctx.api.get<CompanySkillDetail>(
-            `/api/companies/${ctx.companyId}/skills/${encodeURIComponent(skill.id)}`,
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const skill = await resolveSpaceSkill(ctx, skillRef);
+          const detail = await ctx.api.get<SpaceSkillDetail>(
+            `/api/spaces/${ctx.spaceId}/skills/${encodeURIComponent(skill.id)}`,
           );
           printOutput(detail, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     skills
       .command("file")
-      .description("Print a company skill file")
+      .description("Print a space skill file")
       .argument("<skillRef>", "Outpost skill ID, key, or unique slug")
       .option("--path <path>", "Relative file path", "SKILL.md")
       .action(async (skillRef: string, opts: SkillFileOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const skill = await resolveCompanySkill(ctx, skillRef);
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const skill = await resolveSpaceSkill(ctx, skillRef);
           const params = new URLSearchParams({ path: opts.path?.trim() || "SKILL.md" });
-          const file = await ctx.api.get<CompanySkillFileDetail>(
-            `/api/companies/${ctx.companyId}/skills/${encodeURIComponent(skill.id)}/files?${params.toString()}`,
+          const file = await ctx.api.get<SpaceSkillFileDetail>(
+            `/api/spaces/${ctx.spaceId}/skills/${encodeURIComponent(skill.id)}/files?${params.toString()}`,
           );
           if (ctx.json) {
             printOutput(file, { json: true });
@@ -252,19 +252,19 @@ export function registerSkillsCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     skills
       .command("import")
-      .description("Import company skills from a local path, GitHub, skills.sh, or URL source")
+      .description("Import space skills from a local path, GitHub, skills.sh, or URL source")
       .argument("<source>", "Skill source")
       .action(async (source: string, opts: SkillsOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const result = await ctx.api.post<CompanySkillImportResult>(
-            `/api/companies/${ctx.companyId}/skills/import`,
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const result = await ctx.api.post<SpaceSkillImportResult>(
+            `/api/spaces/${ctx.spaceId}/skills/import`,
             { source },
           );
           if (ctx.json) {
@@ -274,7 +274,7 @@ export function registerSkillsCommands(program: Command): void {
           console.log(
             `Imported ${result?.imported.length ?? 0} skill(s); warnings=${result?.warnings.length ?? 0}`,
           );
-          printCompanySkillRows(result?.imported ?? []);
+          printSpaceSkillRows(result?.imported ?? []);
           for (const warning of result?.warnings ?? []) {
             console.log(`warning=${warning}`);
           }
@@ -282,23 +282,23 @@ export function registerSkillsCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     skills
       .command("create")
-      .description("Create a managed local company skill")
+      .description("Create a managed local space skill")
       .requiredOption("--name <name>", "Skill name")
       .option("--slug <slug>", "Skill slug")
       .option("--description <text>", "Skill description")
       .option("--body-file <path>", "Markdown body file; use - to read stdin")
       .action(async (opts: SkillCreateOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const markdown = opts.bodyFile ? await readBodyFile(opts.bodyFile) : undefined;
-          const created = await ctx.api.post<CompanySkill>(
-            `/api/companies/${ctx.companyId}/skills`,
+          const created = await ctx.api.post<SpaceSkill>(
+            `/api/spaces/${ctx.spaceId}/skills`,
             {
               name: opts.name,
               slug: opts.slug,
@@ -315,7 +315,7 @@ export function registerSkillsCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
@@ -326,9 +326,9 @@ export function registerSkillsCommands(program: Command): void {
       .option("--workspace-id <id>", "Workspace ID to scan; may be repeated", collectOptionValue, [] as string[])
       .action(async (opts: SkillScanProjectsOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const result = await ctx.api.post<CompanySkillProjectScanResult>(
-            `/api/companies/${ctx.companyId}/skills/scan-projects`,
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const result = await ctx.api.post<SpaceSkillProjectScanResult>(
+            `/api/spaces/${ctx.spaceId}/skills/scan-projects`,
             {
               projectIds: emptyToUndefined(opts.projectId),
               workspaceIds: emptyToUndefined(opts.workspaceId),
@@ -345,93 +345,93 @@ export function registerSkillsCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     skills
       .command("check")
-      .description("Check company skill update status")
+      .description("Check space skill update status")
       .argument("[skillRef]", "Outpost skill ID, key, or unique slug")
       .action(async (skillRef: string | undefined, opts: SkillsOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const rows = await checkCompanySkills(ctx, skillRef);
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const rows = await checkSpaceSkills(ctx, skillRef);
           if (ctx.json) {
             printOutput(rows, { json: true });
             return;
           }
-          printCompanySkillCheckRows(rows);
+          printSpaceSkillCheckRows(rows);
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     skills
       .command("update")
-      .description("Install company skill updates")
+      .description("Install space skill updates")
       .argument("[skillRef]", "Outpost skill ID, key, or unique slug")
       .option("--all", "Check all skills and install available updates", false)
       .option("--force", "Discard local-modification or soft-audit holds; hard-stop audit findings still fail", false)
       .action(async (skillRef: string | undefined, opts: SkillUpdateOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           if (opts.all && skillRef?.trim()) {
             throw new Error("Use either a skill reference or --all, not both.");
           }
           const rows = opts.all
-            ? await updateAllCompanySkills(ctx, opts)
-            : [await updateOneCompanySkill(ctx, requireSkillRef(skillRef), opts)];
+            ? await updateAllSpaceSkills(ctx, opts)
+            : [await updateOneSpaceSkill(ctx, requireSkillRef(skillRef), opts)];
           if (ctx.json) {
             printOutput(rows.length === 1 && !opts.all ? rows[0] : rows, { json: true });
             return;
           }
-          printCompanySkillUpdateRows(rows);
+          printSpaceSkillUpdateRows(rows);
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     skills
       .command("audit")
-      .description("Audit installed company skill bytes without executing them")
+      .description("Audit installed space skill bytes without executing them")
       .argument("[skillRef]", "Outpost skill ID, key, or unique slug")
       .action(async (skillRef: string | undefined, opts: SkillsOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const rows = await auditCompanySkills(ctx, skillRef);
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const rows = await auditSpaceSkills(ctx, skillRef);
           if (ctx.json) {
             printOutput(rows.length === 1 && skillRef ? rows[0]?.audit : rows, { json: true });
             return;
           }
-          printCompanySkillAuditRows(rows);
+          printSpaceSkillAuditRows(rows);
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     skills
       .command("reset")
-      .description("Reset a catalog-managed company skill to its pinned installed origin")
+      .description("Reset a catalog-managed space skill to its pinned installed origin")
       .argument("<skillRef>", "Outpost skill ID, key, or unique slug")
       .option("--yes", "Confirm reset without prompting", false)
       .option("--force", "Discard local modifications or accept soft audit warnings; hard-stop audit findings still fail", false)
       .action(async (skillRef: string, opts: ConfirmedSkillOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const skill = await resolveCompanySkill(ctx, skillRef);
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const skill = await resolveSpaceSkill(ctx, skillRef);
           await confirmDangerousAction(opts.yes, `Reset catalog skill "${skill.name}" (${skill.key}) to its pinned origin?`);
-          const reset = await ctx.api.post<CompanySkill>(
-            `/api/companies/${ctx.companyId}/skills/${encodeURIComponent(skill.id)}/reset`,
+          const reset = await ctx.api.post<SpaceSkill>(
+            `/api/spaces/${ctx.spaceId}/skills/${encodeURIComponent(skill.id)}/reset`,
             { force: opts.force || undefined },
           );
           if (ctx.json) {
@@ -443,22 +443,22 @@ export function registerSkillsCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     skills
       .command("remove")
-      .description("Remove a company skill")
+      .description("Remove a space skill")
       .argument("<skillRef>", "Outpost skill ID, key, or unique slug")
       .option("--yes", "Confirm removal without prompting", false)
       .action(async (skillRef: string, opts: ConfirmedSkillOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const skill = await resolveCompanySkill(ctx, skillRef);
-          await confirmDangerousAction(opts.yes, `Remove company skill "${skill.name}" (${skill.key})?`);
-          const removed = await ctx.api.delete<CompanySkill>(
-            `/api/companies/${ctx.companyId}/skills/${encodeURIComponent(skill.id)}`,
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const skill = await resolveSpaceSkill(ctx, skillRef);
+          await confirmDangerousAction(opts.yes, `Remove space skill "${skill.name}" (${skill.key})?`);
+          const removed = await ctx.api.delete<SpaceSkill>(
+            `/api/spaces/${ctx.spaceId}/skills/${encodeURIComponent(skill.id)}`,
           );
           if (ctx.json) {
             printOutput(removed, { json: true });
@@ -469,7 +469,7 @@ export function registerSkillsCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   registerAgentSkillCommands(skills);
@@ -485,7 +485,7 @@ function registerAgentSkillCommands(skills: Command): void {
       .argument("<agentRef>", "Agent ID or shortname/url-key")
       .action(async (agentRef: string, opts: SkillsOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const agentRow = await resolveAgent(ctx, agentRef);
           const snapshot = await ctx.api.get<AgentSkillSnapshot>(
             `/api/agents/${encodeURIComponent(agentRow.id)}/skills`,
@@ -499,15 +499,15 @@ function registerAgentSkillCommands(skills: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     agent
       .command("sync")
-      .description("Merge an agent's desired company skills and sync runtime state")
+      .description("Merge an agent's desired space skills and sync runtime state")
       .argument("<agentRef>", "Agent ID or shortname/url-key")
-      .option("--skill <skillRef>", "Desired company skill ID, key, or slug; may be repeated", collectOptionValue, [] as string[])
+      .option("--skill <skillRef>", "Desired space skill ID, key, or slug; may be repeated", collectOptionValue, [] as string[])
       .requiredOption(
         "--mode <mode>",
         "Merge mode: add keeps other skills; remove deletes only named skills; replace destructively overwrites the complete set",
@@ -518,7 +518,7 @@ function registerAgentSkillCommands(skills: Command): void {
           if (desiredSkills.length === 0) {
             throw new Error("At least one --skill value is required for skills agent sync.");
           }
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const agentRow = await resolveAgent(ctx, agentRef);
           const mode = agentSkillAssignmentModeSchema.parse(opts.mode);
           const snapshot = await ctx.api.post<AgentSkillSnapshot>(
@@ -530,29 +530,29 @@ function registerAgentSkillCommands(skills: Command): void {
             return;
           }
           console.log(
-            `Desired company skills updated with ${mode} mode for ${agentRow.name} (${agentRow.id}); runtime sync returned ${snapshot?.entries.length ?? 0} entrie(s).`,
+            `Desired space skills updated with ${mode} mode for ${agentRow.name} (${agentRow.id}); runtime sync returned ${snapshot?.entries.length ?? 0} entrie(s).`,
           );
           printAgentSkillSnapshot(snapshot, agentRow);
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     agent
       .command("clear")
-      .description("Clear an agent's desired company skills and sync runtime state")
+      .description("Clear an agent's desired space skills and sync runtime state")
       .argument("<agentRef>", "Agent ID or shortname/url-key")
       .option("--yes", "Confirm clear without prompting", false)
       .action(async (agentRef: string, opts: ConfirmedSkillOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const agentRow = await resolveAgent(ctx, agentRef);
           await confirmDangerousAction(
             opts.yes,
-            `Clear desired company skills for "${agentRow.name}" (${agentRow.id})?`,
+            `Clear desired space skills for "${agentRow.name}" (${agentRow.id})?`,
           );
           const snapshot = await ctx.api.post<AgentSkillSnapshot>(
             `/api/agents/${encodeURIComponent(agentRow.id)}/skills/sync`,
@@ -563,19 +563,19 @@ function registerAgentSkillCommands(skills: Command): void {
             return;
           }
           console.log(
-            `Desired company skills cleared for ${agentRow.name} (${agentRow.id}).`,
+            `Desired space skills cleared for ${agentRow.name} (${agentRow.id}).`,
           );
           printAgentSkillSnapshot(snapshot, agentRow);
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 }
 
-async function listCompanySkills(ctx: ResolvedClientContext): Promise<CompanySkillListItem[]> {
-  return (await ctx.api.get<CompanySkillListItem[]>(`/api/companies/${ctx.companyId}/skills`)) ?? [];
+async function listSpaceSkills(ctx: ResolvedClientContext): Promise<SpaceSkillListItem[]> {
+  return (await ctx.api.get<SpaceSkillListItem[]>(`/api/spaces/${ctx.spaceId}/skills`)) ?? [];
 }
 
 async function listCatalogSkills(
@@ -602,10 +602,10 @@ async function getCatalogSkill(ctx: ResolvedClientContext, catalogRef: string): 
   return detail;
 }
 
-export function resolveCompanySkillReference(
-  skills: CompanySkillReferenceTarget[],
+export function resolveSpaceSkillReference(
+  skills: SpaceSkillReferenceTarget[],
   reference: string,
-): CompanySkillReferenceTarget {
+): SpaceSkillReferenceTarget {
   const trimmed = reference.trim();
   if (!trimmed) {
     throw new Error("Skill reference is required.");
@@ -627,23 +627,23 @@ export function resolveCompanySkillReference(
   throw new Error(`Skill not found: ${reference}`);
 }
 
-async function resolveCompanySkill(
+async function resolveSpaceSkill(
   ctx: ResolvedClientContext,
   reference: string,
-): Promise<CompanySkillReferenceTarget> {
-  return resolveCompanySkillReference(await listCompanySkills(ctx), reference);
+): Promise<SpaceSkillReferenceTarget> {
+  return resolveSpaceSkillReference(await listSpaceSkills(ctx), reference);
 }
 
-async function checkCompanySkills(
+async function checkSpaceSkills(
   ctx: ResolvedClientContext,
   skillRef: string | undefined,
-): Promise<CompanySkillCheckRow[]> {
-  const skills = await listCompanySkills(ctx);
-  const selected = skillRef ? [resolveCompanySkillReference(skills, skillRef)] : skills;
-  const rows: CompanySkillCheckRow[] = [];
+): Promise<SpaceSkillCheckRow[]> {
+  const skills = await listSpaceSkills(ctx);
+  const selected = skillRef ? [resolveSpaceSkillReference(skills, skillRef)] : skills;
+  const rows: SpaceSkillCheckRow[] = [];
   for (const skill of selected) {
-    const status = await ctx.api.get<CompanySkillUpdateStatus>(
-      `/api/companies/${ctx.companyId}/skills/${encodeURIComponent(skill.id)}/update-status`,
+    const status = await ctx.api.get<SpaceSkillUpdateStatus>(
+      `/api/spaces/${ctx.spaceId}/skills/${encodeURIComponent(skill.id)}/update-status`,
     );
     if (!status) {
       throw new Error(`No update status returned for skill ${skill.key}.`);
@@ -653,14 +653,14 @@ async function checkCompanySkills(
   return rows;
 }
 
-async function updateOneCompanySkill(
+async function updateOneSpaceSkill(
   ctx: ResolvedClientContext,
   skillRef: string,
   opts: SkillUpdateOptions = {},
-): Promise<CompanySkillUpdateRow> {
-  const skill = await resolveCompanySkill(ctx, skillRef);
-  const updated = await ctx.api.post<CompanySkill>(
-    `/api/companies/${ctx.companyId}/skills/${encodeURIComponent(skill.id)}/install-update`,
+): Promise<SpaceSkillUpdateRow> {
+  const skill = await resolveSpaceSkill(ctx, skillRef);
+  const updated = await ctx.api.post<SpaceSkill>(
+    `/api/spaces/${ctx.spaceId}/skills/${encodeURIComponent(skill.id)}/install-update`,
     { force: opts.force || undefined },
   );
   return {
@@ -670,9 +670,9 @@ async function updateOneCompanySkill(
   };
 }
 
-async function updateAllCompanySkills(ctx: ResolvedClientContext, opts: SkillUpdateOptions = {}): Promise<CompanySkillUpdateRow[]> {
-  const checks = await checkCompanySkills(ctx, undefined);
-  const rows: CompanySkillUpdateRow[] = [];
+async function updateAllSpaceSkills(ctx: ResolvedClientContext, opts: SkillUpdateOptions = {}): Promise<SpaceSkillUpdateRow[]> {
+  const checks = await checkSpaceSkills(ctx, undefined);
+  const rows: SpaceSkillUpdateRow[] = [];
   for (const row of checks) {
     if (!row.status.supported) {
       rows.push({
@@ -693,8 +693,8 @@ async function updateAllCompanySkills(ctx: ResolvedClientContext, opts: SkillUpd
       continue;
     }
     try {
-      const updated = await ctx.api.post<CompanySkill>(
-        `/api/companies/${ctx.companyId}/skills/${encodeURIComponent(row.skill.id)}/install-update`,
+      const updated = await ctx.api.post<SpaceSkill>(
+        `/api/spaces/${ctx.spaceId}/skills/${encodeURIComponent(row.skill.id)}/install-update`,
         { force: opts.force || undefined },
       );
       rows.push({
@@ -715,16 +715,16 @@ async function updateAllCompanySkills(ctx: ResolvedClientContext, opts: SkillUpd
   return rows;
 }
 
-async function auditCompanySkills(
+async function auditSpaceSkills(
   ctx: ResolvedClientContext,
   skillRef: string | undefined,
-): Promise<Array<{ skill: CompanySkillReferenceTarget; audit: CompanySkillAuditResult }>> {
-  const skills = await listCompanySkills(ctx);
-  const selected = skillRef ? [resolveCompanySkillReference(skills, skillRef)] : skills;
-  const rows: Array<{ skill: CompanySkillReferenceTarget; audit: CompanySkillAuditResult }> = [];
+): Promise<Array<{ skill: SpaceSkillReferenceTarget; audit: SpaceSkillAuditResult }>> {
+  const skills = await listSpaceSkills(ctx);
+  const selected = skillRef ? [resolveSpaceSkillReference(skills, skillRef)] : skills;
+  const rows: Array<{ skill: SpaceSkillReferenceTarget; audit: SpaceSkillAuditResult }> = [];
   for (const skill of selected) {
-    const audit = await ctx.api.post<CompanySkillAuditResult>(
-      `/api/companies/${ctx.companyId}/skills/${encodeURIComponent(skill.id)}/audit`,
+    const audit = await ctx.api.post<SpaceSkillAuditResult>(
+      `/api/spaces/${ctx.spaceId}/skills/${encodeURIComponent(skill.id)}/audit`,
       {},
     );
     if (!audit) {
@@ -736,7 +736,7 @@ async function auditCompanySkills(
 }
 
 async function resolveAgent(ctx: ResolvedClientContext, agentRef: string): Promise<Agent> {
-  const params = new URLSearchParams({ companyId: ctx.companyId ?? "" });
+  const params = new URLSearchParams({ spaceId: ctx.spaceId ?? "" });
   const agent = await ctx.api.get<Agent>(`/api/agents/${encodeURIComponent(agentRef)}?${params.toString()}`);
   if (!agent) {
     throw new Error(`Agent not found: ${agentRef}`);
@@ -744,7 +744,7 @@ async function resolveAgent(ctx: ResolvedClientContext, agentRef: string): Promi
   return agent;
 }
 
-function printCompanySkillRows(rows: Array<CompanySkillListItem | CompanySkill>): void {
+function printSpaceSkillRows(rows: Array<SpaceSkillListItem | SpaceSkill>): void {
   if (rows.length === 0) {
     printOutput([], { json: false });
     return;
@@ -808,23 +808,23 @@ function printCatalogSkillDetail(skill: CatalogSkill): void {
   })));
 }
 
-function printCatalogInstallResult(result: CompanySkillInstallCatalogResult | null): void {
+function printCatalogInstallResult(result: SpaceSkillInstallCatalogResult | null): void {
   if (!result) {
     console.log("Catalog install returned no result.");
     return;
   }
   console.log(
-    `Catalog skill ${result.action}: ${result.skill.name} (${result.skill.key}) in company skill library.`,
+    `Catalog skill ${result.action}: ${result.skill.name} (${result.skill.key}) in space skill library.`,
   );
   console.log(
-    "This does not attach the skill to an agent. Use `paperclipai skills agent sync <agent> --skill <skill>` when you want an agent to use it.",
+    "This does not attach the skill to an agent. Use `outpost skills agent sync <agent> --skill <skill>` when you want an agent to use it.",
   );
   for (const warning of result.warnings) {
     console.log(`warning=${warning}`);
   }
 }
 
-function printCompanySkillCheckRows(rows: CompanySkillCheckRow[]): void {
+function printSpaceSkillCheckRows(rows: SpaceSkillCheckRow[]): void {
   if (rows.length === 0) {
     printOutput([], { json: false });
     return;
@@ -850,7 +850,7 @@ function printCompanySkillCheckRows(rows: CompanySkillCheckRow[]): void {
   }
 }
 
-function printCompanySkillAuditRows(rows: Array<{ skill: CompanySkillReferenceTarget; audit: CompanySkillAuditResult }>): void {
+function printSpaceSkillAuditRows(rows: Array<{ skill: SpaceSkillReferenceTarget; audit: SpaceSkillAuditResult }>): void {
   if (rows.length === 0) {
     printOutput([], { json: false });
     return;
@@ -880,7 +880,7 @@ function printCompanySkillAuditRows(rows: Array<{ skill: CompanySkillReferenceTa
   }
 }
 
-function printCompanySkillUpdateRows(rows: CompanySkillUpdateRow[]): void {
+function printSpaceSkillUpdateRows(rows: SpaceSkillUpdateRow[]): void {
   for (const row of rows) {
     console.log(
       formatInlineRecord({
@@ -901,7 +901,7 @@ function printAgentSkillSnapshot(snapshot: AgentSkillSnapshot | null, agent: Age
     return;
   }
   console.log(
-    `Agent ${agent.name} (${agent.id}) adapter=${snapshot.adapterType} supported=${snapshot.supported} mode=${snapshot.mode} desiredCompanySkills=${snapshot.desiredSkills.length}`,
+    `Agent ${agent.name} (${agent.id}) adapter=${snapshot.adapterType} supported=${snapshot.supported} mode=${snapshot.mode} desiredSpaceSkills=${snapshot.desiredSkills.length}`,
   );
   if (snapshot.warnings.length > 0) {
     for (const warning of snapshot.warnings) {
@@ -927,7 +927,7 @@ function printAgentSkillSnapshot(snapshot: AgentSkillSnapshot | null, agent: Age
   }
 }
 
-function toSkillReferenceTarget(skill: CompanySkillReferenceTarget): CompanySkillReferenceTarget {
+function toSkillReferenceTarget(skill: SpaceSkillReferenceTarget): SpaceSkillReferenceTarget {
   return {
     id: skill.id,
     key: skill.key,

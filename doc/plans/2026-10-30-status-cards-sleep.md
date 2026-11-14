@@ -12,9 +12,9 @@ only an actual debounce, hourly rate, daily budget, active-hour or saved-query
 membership deadline. Unchanged cards disarm. A changed experimental setting
 invalidates the worker's cached feature gate. Other source writes do not reread
 settings. Startup reconstructs every disarmed reactive scope together with any
-concurrent company-scoped hint, without moving saved eligibility/retry deadlines.
+concurrent space-scoped hint, without moving saved eligibility/retry deadlines.
 
-Company search reports the earliest matching `updatedWithin` expiry through an
+Space search reports the earliest matching `updatedWithin` expiry through an
 optional internal callback in its existing aggregate query. It includes rows
 outside the returned page: an expiring priority-ranked row ahead of an offset
 can change the watched set. The callback exposes only a normalized deadline;
@@ -31,7 +31,7 @@ while existing issue/card services commit through their own transactions. The
 lock remains held through actual refresh settlement. Existing card deadline CAS,
 generating-issue ownership and issue idempotency keys remain in force. Manual
 refresh and older instances continue to use those existing guards. A busy lock
-retains a company-scoped retry; consuming a hint is not successful evaluation.
+retains a space-scoped retry; consuming a hint is not successful evaluation.
 A failed scheduled refresh retains the existing five-minute durable claim.
 
 Once a generation exists, the normal issue assignment authority remains its
@@ -43,7 +43,7 @@ write replay, execution-authority exemption or sleep-safety relaxation is added.
 ## Supported producer coverage
 
 All hints are registered before the relevant write within its owning transaction.
-Nested service writes share outer commit ownership. Company-scoped hints batch
+Nested service writes share outer commit ownership. Space-scoped hints batch
 reactive reconciliation; ordinary execution writes without known scope retain
 all existing execution consumers without sending an instance-wide card hint.
 
@@ -51,15 +51,15 @@ all existing execution consumers without sending an instance-wide card hint.
 | --- | --- |
 | Card create, configuration, archive/restore, delete, compile, query/summary result, evaluation claim | Status-card mutation transactions; stalled issue finalization signals before releasing the card claim |
 | Experimental status-card setting | Instance experimental-settings transaction; full reconstruction is appropriate for this instance-wide setting |
-| Company pause/archive/reactivate/delete | Company lifecycle/deletion transactions and budget-owned company hard-stop/resume transactions |
-| Issue create/update/delete and label changes | Ordinary issue transactions; label deletion signals its known company before cascades; title and prefix changes signal their existing owner transactions |
-| Issue checkout/adoption/release/reset and environment-selection recency | Existing issue transaction, or a transaction around the previously standalone write; company comes from the existing issue/run read |
+| Space pause/archive/reactivate/delete | Space lifecycle/deletion transactions and budget-owned space hard-stop/resume transactions |
+| Issue create/update/delete and label changes | Ordinary issue transactions; label deletion signals its known space before cascades; title and prefix changes signal their existing owner transactions |
+| Issue checkout/adoption/release/reset and environment-selection recency | Existing issue transaction, or a transaction around the previously standalone write; space comes from the existing issue/run read |
 | Comment create, edit, delete, tombstone, import and recency | Common comment insert; outer root comment transaction; queued-comment and Telegram edit transactions; existing metadata-upgrade path; remove/tombstone transactions |
-| Issue import, comment import, document import | One notification per affected company in the existing batch transaction; no per-row notification lookup |
-| Document create/update/restore/delete and search membership | Document owner transactions; only the existing company is passed, without copying search predicates into producers |
+| Issue import, comment import, document import | One notification per affected space in the existing batch transaction; no per-row notification lookup |
+| Document create/update/restore/delete and search membership | Document owner transactions; only the existing space is passed, without copying search predicates into producers |
 | Review, interaction and execution transitions | Existing issue-review-state and native-status-reassessment boundaries; scoped execution-control helpers; interaction recency touches own a transaction when called after settlement |
 | Run admission, retries, monitors, watchdog/recovery and native settlement/reclaim | Existing scoped review/milestone/status/execution-control hooks; explicit notifications at the uncovered issue execution bind, legacy claim, monitor claim/release and review-participant recovery transaction |
-| Agent deletion/access reassignment and project deletion/privacy cascades | Existing company-scoped owner transactions before foreign-key or recursive issue changes |
+| Agent deletion/access reassignment and project deletion/privacy cascades | Existing space-scoped owner transactions before foreign-key or recursive issue changes |
 | Workspace selection/binding, plugin/provider workspace and cleanup/audit touches | Existing owner transactions, including standalone cleanup and audit recency writes now enclosed with their intent |
 | Skill-test harness expiry and task-watchdog fingerprint touch | Existing owner mutation transaction; no feature policy is moved into the writer |
 
@@ -88,7 +88,7 @@ and the test explicitly performs the authorized result write; no model runs.
 Checks cover empty/manual/reactive/disabled quiet SQL, first source change,
 debounce and durable wake/result, earlier/cancelled deadlines, outer commit and
 rollback, drain/resume, competing connections, busy locks, restart eligibility,
-active hours/rate/budget gates, multiple companies, budget-owned company resume,
+active hours/rate/budget gates, multiple spaces, budget-owned space resume,
 ignored activity, document/comment membership, relative query expiry including
 an off-page candidate, failed assignment cleanup/manual retry and the persisted
 five-minute internal-failure retry across restart/drain.
@@ -97,7 +97,7 @@ Shared coordinator regressions also cover warm standby, ambiguous transaction
 intent, failure entering drain and different domain/coordinator gates. The paused
 worker releases only settled holds and retains a future in-memory resume wake.
 An expired saved deadline cannot schedule an immediate skipped-attempt loop.
-Existing startup, status-card, company-search, execution and monitor suites cover
+Existing startup, status-card, space-search, execution and monitor suites cover
 the production wiring and unchanged consumers. Exact commands and results belong
 in the PR verification record; this document does not claim deployed savings.
 
@@ -128,20 +128,20 @@ No recurring compatibility scan is added.
 
 Source notifications use the shared deadline helper's fixed one-second batching
 window. The first hint after idle can reconcile immediately. Later hints merge
-by company until that window ends. The window does not slide with each new
+by space until that window ends. The window does not slide with each new
 write, so a sustained source stream cannot postpone reconciliation forever.
 One second keeps reactive cards prompt (the removed heartbeat default was 30s)
 and bounds burst SQL. No minimum spacing is set: an already-known policy,
 expiry, or retry deadline can preempt batching. The window alone creates no
 scheduled work after settlement. Real issue/comment producer acceptance measures
-due/next queries and actual searches under 100 writes, preserves both companies'
-hints, dispatches another company's saved deadline inside the batching window,
+due/next queries and actual searches under 100 writes, preserves both spaces'
+hints, dispatches another space's saved deadline inside the batching window,
 and checks SQL quietness after authorized results.
 
-Card deletion resolves the card's owning company and emits only that company's
-deadline-reconstruction hint. Every card mutation requires a company ID; only
+Card deletion resolves the card's owning space and emits only that space's
+deadline-reconstruction hint. Every card mutation requires a space ID; only
 instance-level settings retain wildcard ingress. Deleting an already-missing
-card emits no hint. The real two-company regression proves deletion does not
+card emits no hint. The real two-space regression proves deletion does not
 re-run unchanged reactive searches or wake either summarizer, then stays quiet.
 
 Active-hours eligibility keeps the existing exact UTC-minute search across DST
@@ -154,14 +154,14 @@ keep their behavior. Clock rollback and policy changes cannot reuse the wrong
 range. Empty windows return without formatter or search work. A cold nonempty
 policy can still perform at most 2881 conversions including its first check; warm
 closed-range evaluations perform one conversion, not another minute walk.
-Both caches use bounded LRU retention and hold no company/card data. Tests prove
+Both caches use bounded LRU retention and hold no space/card data. Tests prove
 eviction, skipped/repeated hours, half-hour DST, date-line changes, rollback,
 strict boundaries, and actual twenty-card source delivery followed by quiet.
 
 
 Refresh decisions use the card's PostgreSQL row revision as a private compare-and-swap fence. If a card changes during watched-source reads, the owner rereads it and reconsiders the current policy, for at most three attempts. A replacement future interval deadline remains unchanged; a replacement manual policy does not run automatically. The same fence protects no-change, paused-policy and generation claims. Refresh task idempotency includes that captured revision: concurrent requests for the same revision still share one task, while a later revision gets an independent task even when its watched fingerprint is unchanged. A superseded refresh can therefore cancel its losing task without cancelling a newer revision's not-yet-claimed task. Compile task identity is unchanged. The row revision is not exposed through card APIs or shared scheduling contracts.
 
-Company source hints do not preempt a future deadline owned by a failed evaluation (`retry`). Membership and policy deadlines remain eligible for source-driven rechecks, and actual due retries still run. An explicit policy edit can replace the retry through the existing card mutation path. Real PostgreSQL regressions hold the actual search while committing an ordinary policy edit, then verify the saved interval still fires. Persistent search failures stay quiet through issue hints and restart, retry at their saved deadline, and recover through an ordinary policy edit.
+Space source hints do not preempt a future deadline owned by a failed evaluation (`retry`). Membership and policy deadlines remain eligible for source-driven rechecks, and actual due retries still run. An explicit policy edit can replace the retry through the existing card mutation path. Real PostgreSQL regressions hold the actual search while committing an ordinary policy edit, then verify the saved interval still fires. Persistent search failures stay quiet through issue hints and restart, retry at their saved deadline, and recover through an ordinary policy edit.
 
 Card queries request the search owner's internal `issueResultsOnly` capability.
 Nonissue result branches and their counts are excluded before pagination, so
@@ -172,10 +172,10 @@ still matches issues through their comments and documents, and explicit comments
 or documents scopes retain their task matches. Issue filters, privacy, tenant
 boundaries, facets and membership-expiry deadlines remain search-owned. Card
 preview, visibility counts, generation and writeback all use the same restriction.
-Normal company search keeps its mixed result kinds by default. No extra
+Normal space search keeps its mixed result kinds by default. No extra
 project/agent/artifact wake fanout or public query syntax is introduced.
 
-A losing refresh cancels only an unclaimed task. It locks the exact company task
+A losing refresh cancels only an unclaimed task. It locks the exact space task
 in the canonical issue-first order, checks its generation ledger, and preserves
 terminal state and timestamps. Successful summary writeback records that ledger
 in the same transaction that clears the card's generation pointer. Because the
@@ -189,7 +189,7 @@ after the outer transaction commits. Archive and truly unclaimed-task cleanup
 retain their existing effects.
 
 
-Every reactive summary writeback records one immediate card-owned refresh deadline in the same transaction that clears its generation. This preserves changes whose committed source hint was consumed while the old generation still owned the card, including changes after the summary's final watched-source read. The existing card commit hint restores that one deadline; it does not fan out to other companies or force generation. A fresh unchanged search disarms it. A relevant diff follows the existing policy, assignment, result and quiet path. Manual and interval writeback cadence stays unchanged. Rollback removes both the summary and its recheck obligation. Real PostgreSQL controls hold the actual summary search, commit an ordinary issue write, observe the worker consume that hint while generation is still owned, then verify exactly one needed generation or one unchanged recheck followed by SQL quiet.
+Every reactive summary writeback records one immediate card-owned refresh deadline in the same transaction that clears its generation. This preserves changes whose committed source hint was consumed while the old generation still owned the card, including changes after the summary's final watched-source read. The existing card commit hint restores that one deadline; it does not fan out to other spaces or force generation. A fresh unchanged search disarms it. A relevant diff follows the existing policy, assignment, result and quiet path. Manual and interval writeback cadence stays unchanged. Rollback removes both the summary and its recheck obligation. Real PostgreSQL controls hold the actual summary search, commit an ordinary issue write, observe the worker consume that hint while generation is still owned, then verify exactly one needed generation or one unchanged recheck followed by SQL quiet.
 
 
 ### Read-only idle deadline inspection
@@ -198,7 +198,7 @@ The actual evaluation service exposes `readIdleSchedule(tx, now, owner)` for an
 owned sleep inspection. The supplied owner is the registered deadline worker's
 synchronous reconciliation snapshot. Startup, a running sweep, dirty source
 hints, failure and stopped ownership cannot certify settled work. A busy card
-advisory lock can leave a company-scoped retry only in service memory even after
+advisory lock can leave a space-scoped retry only in service memory even after
 the helper sweep succeeds; retained reconstruction/change/retry state therefore
 also blocks inspection until evaluated. Disabled features retain this state for
 reenablement without owing an automatic evaluation while disabled.

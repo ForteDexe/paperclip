@@ -5,38 +5,38 @@ import { parseAcpxCandidateAdmission, QUALIFIED_ACPX_PROFILES, type AcpxCandidat
 export const ANTIGRAVITY_CANDIDATE_ADMISSION_ENV = "OUTPOST_ACPX_CANDIDATE_ADMISSION";
 
 export function resolveAntigravityCandidateAdmission(
-  input: { companyId?: string; model?: string },
+  input: { spaceId?: string; model?: string },
   hostEnvironment: NodeJS.ProcessEnv = process.env,
 ): AcpxCandidateAdmission | undefined {
   const encoded = hostEnvironment[ANTIGRAVITY_CANDIDATE_ADMISSION_ENV];
-  if (!encoded || !input.companyId || process.platform !== "darwin" || process.arch !== "arm64") return undefined;
+  if (!encoded || !input.spaceId || process.platform !== "darwin" || process.arch !== "arm64") return undefined;
   let value: unknown;
   try { value = JSON.parse(encoded); } catch { throw new Error("Invalid Antigravity candidate admission"); }
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid Antigravity candidate admission");
   const record = value as Record<string, unknown>;
-  // Other companies receive no candidate surface or execution authority.
-  if (record.companyId !== input.companyId) return undefined;
+  // Other spaces receive no candidate surface or execution authority.
+  if (record.spaceId !== input.spaceId) return undefined;
   return parseAcpxCandidateAdmission(value, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     agent: "antigravity",
     model: input.model ?? (typeof record.model === "string" ? record.model : ""),
   });
 }
 
 export function resolveKimiCandidateAdmission(
-  input: { companyId?: string; model?: string; target?: { platform: string; architecture: string } },
+  input: { spaceId?: string; model?: string; target?: { platform: string; architecture: string } },
   hostEnvironment: NodeJS.ProcessEnv = process.env,
 ): AcpxCandidateAdmission | undefined {
   if (QUALIFIED_ACPX_PROFILES.kimi.qualificationStatus !== "pending") return undefined;
   const encoded = hostEnvironment[ANTIGRAVITY_CANDIDATE_ADMISSION_ENV];
-  if (!encoded || !input.companyId) return undefined;
+  if (!encoded || !input.spaceId) return undefined;
   let value: unknown;
   try { value = JSON.parse(encoded); } catch { throw new Error("Invalid Kimi candidate admission"); }
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid Kimi candidate admission");
   const record = value as Record<string, unknown>;
-  if (record.companyId !== input.companyId || record.agent !== "kimi") return undefined;
+  if (record.spaceId !== input.spaceId || record.agent !== "kimi") return undefined;
   const admission = parseAcpxCandidateAdmission(value, {
-    companyId: input.companyId, agent: "kimi",
+    spaceId: input.spaceId, agent: "kimi",
     model: input.model ?? (typeof record.model === "string" ? record.model : ""),
   });
   if (input.target && (admission.platform !== input.target.platform || admission.architecture !== input.target.architecture)) {

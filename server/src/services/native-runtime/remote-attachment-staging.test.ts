@@ -19,7 +19,7 @@ describe("remote attachment transport", () => {
   it("uses opaque run paths, a separate stdin body, bounded independent commands, and idempotent cleanup", async () => {
     const execute = vi.fn().mockResolvedValue(success);
     const result = await createRemoteAttachmentStager("/workspace", { execute })({ body: bytes, contentType: "image/png" });
-    expect(result.workspaceRelativePath).toMatch(/^\.paperclip-inbound\/remote-[0-9a-f-]+\/content\.png$/);
+    expect(result.workspaceRelativePath).toMatch(/^\.outpost-inbound\/remote-[0-9a-f-]+\/content\.png$/);
     await result.cleanup(); await result.cleanup();
     expect(execute).toHaveBeenCalledTimes(2);
     const [stage] = execute.mock.calls[0]!;
@@ -96,7 +96,7 @@ describe.skipIf(process.platform !== "linux")("remote attachment Linux workspace
   it("refuses a symlinked inbound directory without touching its target", async () => {
     await mkdir(join(root, "outside"));
     await writeFile(join(root, "outside", "keep"), "keep");
-    await symlink(join(root, "outside"), join(root, ".paperclip-inbound"));
+    await symlink(join(root, "outside"), join(root, ".outpost-inbound"));
     await expect(createRemoteAttachmentStager(root, { execute })({ body: bytes })).rejects.toThrow();
     expect(await readFile(join(root, "outside", "keep"), "utf8")).toBe("keep");
   });
@@ -123,7 +123,7 @@ describe.skipIf(process.platform !== "linux")("remote attachment Linux workspace
     }) };
     await expect(createRemoteAttachmentStager(root, runner)({ body: bytes })).rejects.toThrow();
     const input = JSON.parse(runner.execute.mock.calls[0]![0].args!.at(-1)!);
-    expect(await readFile(join(root, ".paperclip-inbound", input.slot, "content"))).toEqual(Buffer.alloc(0));
+    expect(await readFile(join(root, ".outpost-inbound", input.slot, "content"))).toEqual(Buffer.alloc(0));
     const corrupt = { execute: (input: Parameters<typeof execute>[0]) => execute({ ...input, stdin: input.stdin ? "AAAA" : undefined }) };
     await expect(createRemoteAttachmentStager(root, corrupt)({ body: bytes })).rejects.toThrow();
   });

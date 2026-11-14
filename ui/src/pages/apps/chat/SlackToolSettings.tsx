@@ -200,15 +200,15 @@ export function SlackSearchView({
   );
 }
 export function SlackToolsSettings({
-  companyId,
+  spaceId,
   endpointId,
 }: {
-  companyId: string;
+  spaceId: string;
   endpointId: string;
 }) {
   const query = useQuery({
-    queryKey: ["slack-capabilities", companyId, endpointId],
-    queryFn: () => slackToolsApi.capabilities(companyId, endpointId),
+    queryKey: ["slack-capabilities", spaceId, endpointId],
+    queryFn: () => slackToolsApi.capabilities(spaceId, endpointId),
     staleTime: 60_000,
   });
   const view = useQueryView(query);
@@ -223,15 +223,15 @@ export function SlackToolsSettings({
   );
 }
 export function SlackSearchAccess({
-  companyId,
+  spaceId,
   endpointId,
 }: {
-  companyId: string;
+  spaceId: string;
   endpointId: string;
 }) {
   const query = useQuery({
-    queryKey: ["slack-search", companyId, endpointId],
-    queryFn: () => slackToolsApi.search(companyId, endpointId),
+    queryKey: ["slack-search", spaceId, endpointId],
+    queryFn: () => slackToolsApi.search(spaceId, endpointId),
   });
   const authorization = useAuthorizationWindow();
   const view = useQueryView(query);
@@ -257,16 +257,16 @@ export function SlackSearchAccess({
       onConnect={async () => {
         authorization.reserve();
         try {
-          const result = await slackToolsApi.connect(companyId, endpointId);
+          const result = await slackToolsApi.connect(spaceId, endpointId);
           await authorization.open(result.url);
         } catch (error) { authorization.cancel(); throw error; }
       }}
       onDisconnect={async () => {
-        await slackToolsApi.disconnect(companyId, endpointId);
+        await slackToolsApi.disconnect(spaceId, endpointId);
         await query.refetch();
       }}
       onConfigure={async (input) => {
-        await slackToolsApi.configure(companyId, endpointId, input);
+        await slackToolsApi.configure(spaceId, endpointId, input);
         await query.refetch();
       }}
     />

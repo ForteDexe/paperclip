@@ -10,7 +10,7 @@ calls either service, including when the heartbeat scheduler is disabled.
 ## Event delivery contract
 
 The Cloud webhook target queue remains durable truth. The tenant leases sealed
-events, validates their bindings, persists company-scoped receipts, applies the
+events, validates their bindings, persists space-scoped receipts, applies the
 existing installation or pull-request behavior, and acknowledges completed work.
 A receipt row lock prevents overlapping receivers from applying an installation
 delta twice. Completed receipts remain passive history. The existing normalized
@@ -51,19 +51,19 @@ Binding-only retries use the existing credential refresh lease and current
 secret resolver without repeating account/repository discovery. The initial OAuth
 callback uses the same saved debt and settlement path after connection activation.
 
-Cloud binding calls acquire the company share lock before locking the grant and
-its connection, matching company deletion's parent-before-child order. A deletion
+Cloud binding calls acquire the space share lock before locking the grant and
+its connection, matching space deletion's parent-before-child order. A deletion
 that wins admission leaves no registration to apply; a handoff already admitted
-keeps its fence through completion. The grant, connection, company status and
+keeps its fence through completion. The grant, connection, space status and
 binding revision are re-read under those locks before calling Cloud.
 That admission fence prevents a concurrent disable, revoke, or archive from
 finishing before an already-admitted registration call. The API has no remote
 revision fence that could safely replace those locks with two short transactions.
 Each HTTP request and response body has a physical 15-second abort deadline.
 Four calls run in an awaited batch; a failed batch leaves the saved debt and
-releases the transaction after all four outcomes settle. Other companies can
+releases the transaction after all four outcomes settle. Other spaces can
 continue through separate pool connections. Slow successful multi-batch passes
-can delay writes to the same grant/connection and company status changes; the
+can delay writes to the same grant/connection and space status changes; the
 schema permits up to 100 active and 100 removed installation IDs. This is not an
 instance-wide lock or an idle hold.
 
@@ -72,11 +72,11 @@ checks run one hour before recorded access expiry or after the existing 30-day
 continuity window. A successful renewal that leaves the credential short-lived
 or unchanged retains a one-hour retry obligation instead of causing rapid calls.
 Changed credential metadata invalidates the old retry revision, so an earlier new
-expiry can preempt it. Disabled connections and archived companies do not perform
+expiry can preempt it. Disabled connections and archived spaces do not perform
 credential work. Reactivation uses the normal committed configuration signal.
 
 GitHub owners receive only relevant credential/configuration signals, not generic
-health or receiver notifications. Continuity reconstruction is company-scoped
+health or receiver notifications. Continuity reconstruction is space-scoped
 after the startup scan. Event draining retains instance-wide binding matching
 because Cloud leases an instance queue. Event hints coalesce with a five-second
 minimum pass spacing; an unrelated connection PATCH cannot trigger that drain.
@@ -84,7 +84,7 @@ OAuth rotation merges only its owned OAuth fields, lease acquisition compares
 current metadata, and cleanup atomically removes only the matching lease path,
 preserving concurrent GitHub installation changes and binding-removal debt.
 
-Supported local producers are the owning connection, OAuth, grant and company
+Supported local producers are the owning connection, OAuth, grant and space
 services in one tenant process. Their notifications belong to the outer database
 transaction. A savepoint does not commit a wake, and rollback cancels the write.
 Arbitrary SQL writers must use these notification contracts or restart the owner;

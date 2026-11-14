@@ -66,14 +66,14 @@ describe("daytona file-sync inbound scratch cleanup", () => {
   });
 
   it("removes the reserved scratch tar when a directory extraction fails", async () => {
-    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-daytona-scratch-"));
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-daytona-scratch-"));
     cleanupDirs.push(rootDir);
     const sourceDir = path.join(rootDir, "referenced-project");
     await fs.mkdir(sourceDir, { recursive: true });
     await fs.writeFile(path.join(sourceDir, "README.md"), "referenced project\n", "utf8");
 
     const remoteDir = "/workspace";
-    const targetPath = "/workspace/.paperclip-runtime/test-adapter/project-abc";
+    const targetPath = "/workspace/.outpost-runtime/test-adapter/project-abc";
     const uploadedDestinations: string[] = [];
     const commands: RecordedCommand[] = [];
     // Fail the extract round trip (the only command that runs `tar -xf`).
@@ -100,10 +100,10 @@ describe("daytona file-sync inbound scratch cleanup", () => {
     ).rejects.toThrow(/syncIn extract/);
 
     // The runtime uploaded exactly one reserved scratch tar under the workspace
-    // root. Its name carries the reserved `.paperclip-upload-` prefix.
+    // root. Its name carries the reserved `.outpost-upload-` prefix.
     expect(uploadedDestinations).toHaveLength(1);
     const scratchTar = uploadedDestinations[0];
-    expect(scratchTar).toContain(".paperclip-upload-");
+    expect(scratchTar).toContain(".outpost-upload-");
     expect(scratchTar.startsWith(`${remoteDir}/`)).toBe(true);
 
     // The failure path swept the scratch tar: a standalone `rm -f` of the exact
@@ -120,14 +120,14 @@ describe("daytona file-sync inbound scratch cleanup", () => {
   });
 
   it("does not sweep scratch on the happy path (extract removes it)", async () => {
-    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-daytona-scratch-"));
+    const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-daytona-scratch-"));
     cleanupDirs.push(rootDir);
     const sourceDir = path.join(rootDir, "referenced-project");
     await fs.mkdir(sourceDir, { recursive: true });
     await fs.writeFile(path.join(sourceDir, "README.md"), "referenced project\n", "utf8");
 
     const remoteDir = "/workspace";
-    const targetPath = "/workspace/.paperclip-runtime/test-adapter/project-abc";
+    const targetPath = "/workspace/.outpost-runtime/test-adapter/project-abc";
     const uploadedDestinations: string[] = [];
     const commands: RecordedCommand[] = [];
     // No failure: every command succeeds, so the extract's own `rm -f` clears the
@@ -159,7 +159,7 @@ describe("daytona file-sync inbound scratch cleanup", () => {
   });
 
   it("writes an inbound file mapping to a sandbox path outside the workspace root", async () => {
-    const hostDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-daytona-outside-root-"));
+    const hostDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-daytona-outside-root-"));
     cleanupDirs.push(hostDir);
     const sourcePath = path.join(hostDir, "source.txt");
     await fs.writeFile(sourcePath, "payload");
@@ -169,7 +169,7 @@ describe("daytona file-sync inbound scratch cleanup", () => {
     // authority over its own filesystem, so the provider no longer confines
     // the target to the remote dir.
     const remoteDir = "/workspace";
-    const targetPath = "/etc/paperclip-outside-root.txt";
+    const targetPath = "/etc/outpost-outside-root.txt";
     const uploadedDestinations: string[] = [];
     const commands: RecordedCommand[] = [];
     const sandbox = createMockSandbox({ uploadedDestinations, commands });
@@ -210,7 +210,7 @@ function sha256OfFile(filePath: string): Promise<string> {
 
 async function writeCompressibleFile(filePath: string, sizeBytes: number): Promise<void> {
   // Low-entropy repeated content compresses well past the 10% saving bar.
-  const chunk = Buffer.from("paperclip-zstd-transport-compression-fixture-".repeat(64));
+  const chunk = Buffer.from("outpost-zstd-transport-compression-fixture-".repeat(64));
   const parts: Buffer[] = [];
   for (let written = 0; written < sizeBytes; written += chunk.length) parts.push(chunk);
   await fs.writeFile(filePath, Buffer.concat(parts).subarray(0, sizeBytes));
@@ -302,7 +302,7 @@ const gnuTar = ["gtar", "tar"].map((candidate) => {
 }).find(Boolean);
 
 it.skipIf(!gnuTar)("extracts interleaved read-only skill directories with GNU tar and preserves their modes", async () => {
-  const root = await fs.mkdtemp("/tmp/paperclip-daytona-readonly-");
+  const root = await fs.mkdtemp("/tmp/outpost-daytona-readonly-");
   const source = path.join(root, "source");
   const remoteDir = path.join(root, "remote");
   const target = path.join(remoteDir, "skill");
@@ -349,7 +349,7 @@ it.skipIf(!gnuTar)("extracts interleaved read-only skill directories with GNU ta
     await expect(performSyncIn({ sandbox: sandbox as never, remoteDir, timeoutSeconds: 30,
       operations: [{ operationId: "corrupt-skill-resume", files: [{ sourcePath: source, targetPath: target, kind: "directory", mode: 0o555 }] }] })).rejects.toThrow("syncIn extract");
     expect(await fs.readFile(qa, "utf8")).toBe("XX instructions");
-    expect((await fs.readdir(remoteDir)).filter((name) => name.startsWith(".paperclip-upload"))).toEqual([]);
+    expect((await fs.readdir(remoteDir)).filter((name) => name.startsWith(".outpost-upload"))).toEqual([]);
 
   } finally {
     for (const base of [source, target]) {
@@ -360,7 +360,7 @@ it.skipIf(!gnuTar)("extracts interleaved read-only skill directories with GNU ta
 }, 30_000);
 
 it.skipIf(!gnuTar)("uploads gzip directory archives and preserves content, executable modes, and symlinks", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-daytona-gzip-dir-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-daytona-gzip-dir-"));
   const source = path.join(root, "source");
   const remoteDir = path.join(root, "remote");
   const target = path.join(remoteDir, "target");
@@ -404,7 +404,7 @@ it.skipIf(!gnuTar)("uploads gzip directory archives and preserves content, execu
 }, 30_000);
 
 it.skipIf(!gnuTar)("uploads and extracts a gzip empty directory archive", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-daytona-gzip-empty-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-daytona-gzip-empty-"));
   const source = path.join(root, "source");
   const remoteDir = path.join(root, "remote");
   const target = path.join(remoteDir, "target");
@@ -460,8 +460,8 @@ describe("daytona file-sync inbound zstd transport compression", () => {
 
   describeWithZstd("compressed path (real promotion script, real zstd)", () => {
     it("compresses on the host and decompresses in-sandbox to a byte-identical file", async () => {
-      const remoteDir = await mkTempDir("paperclip-daytona-zstd-remote-");
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const remoteDir = await mkTempDir("outpost-daytona-zstd-remote-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourcePath = path.join(hostDir, "workspace-upload.tar");
       await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
       const targetPath = path.posix.join(remoteDir, "workspace-upload.tar");
@@ -483,12 +483,12 @@ describe("daytona file-sync inbound zstd transport compression", () => {
 
       // Cleanup on success: no reserved scratch (raw or `.zst`) remains.
       const remaining = await fs.readdir(remoteDir);
-      expect(remaining.filter((name) => name.includes(".paperclip-upload"))).toHaveLength(0);
+      expect(remaining.filter((name) => name.includes(".outpost-upload"))).toHaveLength(0);
     });
 
     it("removes the private compressed host temp directory after a successful sync", async () => {
-      const remoteDir = await mkTempDir("paperclip-daytona-zstd-remote-");
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const remoteDir = await mkTempDir("outpost-daytona-zstd-remote-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourcePath = path.join(hostDir, "workspace-upload.tar");
       await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
       const targetPath = path.posix.join(remoteDir, "target.bin");
@@ -509,15 +509,15 @@ describe("daytona file-sync inbound zstd transport compression", () => {
 
       await performSyncIn({ sandbox: sandbox as never, operations, remoteDir, timeoutSeconds: 30 });
 
-      expect(capturedHostTempDir).toContain("paperclip-daytona-zstd-");
+      expect(capturedHostTempDir).toContain("outpost-daytona-zstd-");
       // The private host temp directory (not just the file inside it) is gone
       // after a successful sync.
       await expect(fs.stat(capturedHostTempDir)).rejects.toThrow();
     });
 
     it("reports the sync as successful when the post-promotion `.zst` cleanup fails, and warns with a leftover count but no path", async () => {
-      const remoteDir = await mkTempDir("paperclip-daytona-zstd-remote-");
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const remoteDir = await mkTempDir("outpost-daytona-zstd-remote-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourcePath = path.join(hostDir, "workspace-upload.tar");
       await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
       const targetPath = path.posix.join(remoteDir, "target.bin");
@@ -527,7 +527,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
       // separate `rm -f` fail, the same way a persistent cleanup error would.
       // The other commands (`mv`, `zstd`, `chmod`) still resolve to the real
       // binaries later on PATH.
-      const fakeBinDir = await mkTempDir("paperclip-daytona-zstd-fakebin-");
+      const fakeBinDir = await mkTempDir("outpost-daytona-zstd-fakebin-");
       const fakeRmPath = path.join(fakeBinDir, "rm");
       await fs.writeFile(fakeRmPath, "#!/bin/sh\nexit 1\n");
       await fs.chmod(fakeRmPath, 0o755);
@@ -568,8 +568,8 @@ describe("daytona file-sync inbound zstd transport compression", () => {
     });
 
     it("recovers a transient post-promotion `.zst` cleanup failure with the bounded sweep, without warning", async () => {
-      const remoteDir = await mkTempDir("paperclip-daytona-zstd-remote-");
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const remoteDir = await mkTempDir("outpost-daytona-zstd-remote-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourcePath = path.join(hostDir, "workspace-upload.tar");
       await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
       const targetPath = path.posix.join(remoteDir, "target.bin");
@@ -578,7 +578,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
       // own inline `.zst` cleanup. It defers to the real `rm` for every later
       // call. This simulates a transient cleanup failure: the bounded sweep's
       // own, separate `rm -f` is the second call, and it succeeds.
-      const fakeBinDir = await mkTempDir("paperclip-daytona-zstd-fakebin-");
+      const fakeBinDir = await mkTempDir("outpost-daytona-zstd-fakebin-");
       const counterFile = path.join(fakeBinDir, "rm-call-count");
       const fakeRmPath = path.join(fakeBinDir, "rm");
       await fs.writeFile(
@@ -623,8 +623,8 @@ describe("daytona file-sync inbound zstd transport compression", () => {
     });
 
     it("never promotes a partial file when decompression fails, and sweeps all reserved scratch", async () => {
-      const remoteDir = await mkTempDir("paperclip-daytona-zstd-remote-");
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const remoteDir = await mkTempDir("outpost-daytona-zstd-remote-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourcePath = path.join(hostDir, "workspace-upload.tar");
       await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
       const targetPath = path.posix.join(remoteDir, "target.bin");
@@ -654,12 +654,12 @@ describe("daytona file-sync inbound zstd transport compression", () => {
 
       await expect(fs.stat(targetPath)).rejects.toThrow(); // never promoted
       const remaining = await fs.readdir(remoteDir);
-      expect(remaining.filter((name) => name.includes(".paperclip-upload"))).toHaveLength(0); // scratch swept
+      expect(remaining.filter((name) => name.includes(".outpost-upload"))).toHaveLength(0); // scratch swept
     });
 
     it("applies mapping.mode via chmod before promotion, when set", async () => {
-      const remoteDir = await mkTempDir("paperclip-daytona-zstd-remote-");
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const remoteDir = await mkTempDir("outpost-daytona-zstd-remote-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourceNoMode = path.join(hostDir, "no-mode.tar");
       const sourceWithMode = path.join(hostDir, "with-mode.tar");
       await writeCompressibleFile(sourceNoMode, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
@@ -702,9 +702,9 @@ describe("daytona file-sync inbound zstd transport compression", () => {
     });
 
     it("runs two concurrent compressed sync operations without cross-talk", async () => {
-      const remoteDirA = await mkTempDir("paperclip-daytona-zstd-remote-a-");
-      const remoteDirB = await mkTempDir("paperclip-daytona-zstd-remote-b-");
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const remoteDirA = await mkTempDir("outpost-daytona-zstd-remote-a-");
+      const remoteDirB = await mkTempDir("outpost-daytona-zstd-remote-b-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourceA = path.join(hostDir, "a.tar");
       const sourceB = path.join(hostDir, "b.tar");
       await writeCompressibleFile(sourceA, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 2048);
@@ -754,8 +754,8 @@ describe("daytona file-sync inbound zstd transport compression", () => {
       let targetPath = "";
       let remoteDir = "";
       try {
-        remoteDir = await mkTempDir("paperclip-daytona-zstd-remote-");
-        const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+        remoteDir = await mkTempDir("outpost-daytona-zstd-remote-");
+        const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
         const sourcePath = path.join(hostDir, "workspace-upload.tar");
         await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
         targetPath = path.posix.join(remoteDir, "target.bin");
@@ -796,7 +796,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
 
   describe("raw-path fallback conditions (no real sandbox exec needed)", () => {
     it("falls back to the raw path when the sandbox reports no zstd binary", async () => {
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourcePath = path.join(hostDir, "big.tar");
       await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
       const uploadedSources: string[] = [];
@@ -819,7 +819,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
     });
 
     it("falls back to the raw path when the source is below ZSTD_MIN_SOURCE_BYTES", async () => {
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourcePath = path.join(hostDir, "small.tar");
       await fs.writeFile(sourcePath, "well below the 8 MiB compression floor\n");
       const uploadedSources: string[] = [];
@@ -842,7 +842,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
     });
 
     it("falls back to the raw path when the saving ratio is below ZSTD_MIN_SAVING_RATIO", async () => {
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourcePath = path.join(hostDir, "incompressible.tar");
       await writeIncompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
       const uploadedSources: string[] = [];
@@ -871,7 +871,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
       const original = zlib.createZstdCompress;
       Object.defineProperty(zlib, "createZstdCompress", { value: undefined, configurable: true, writable: true });
       try {
-        const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+        const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
         const sourcePath = path.join(hostDir, "big.tar");
         await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
         const uploadedSources: string[] = [];
@@ -910,7 +910,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
         writable: true,
       });
       try {
-        const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+        const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
         const sourcePath = path.join(hostDir, "big.tar");
         await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
         const uploadedSources: string[] = [];
@@ -925,13 +925,13 @@ describe("daytona file-sync inbound zstd transport compression", () => {
           operationId: "op-1",
           files: [{ sourcePath, targetPath: "/workspace/target.bin", kind: "file" }],
         }];
-        const before = (await fs.readdir(os.tmpdir())).filter((name) => name.startsWith("paperclip-daytona-zstd-"));
+        const before = (await fs.readdir(os.tmpdir())).filter((name) => name.startsWith("outpost-daytona-zstd-"));
 
         await performSyncIn({ sandbox: sandbox as never, operations, remoteDir: "/workspace", timeoutSeconds: 30 });
 
         expect(uploadedSources).toEqual([sourcePath]);
         expect(uploadedDestinations.some((dest) => dest.endsWith(".zst"))).toBe(false);
-        const after = (await fs.readdir(os.tmpdir())).filter((name) => name.startsWith("paperclip-daytona-zstd-"));
+        const after = (await fs.readdir(os.tmpdir())).filter((name) => name.startsWith("outpost-daytona-zstd-"));
         expect(after).toEqual(before); // no leftover host temp file
       } finally {
         Object.defineProperty(zlib, "createZstdCompress", { value: original, configurable: true, writable: true });
@@ -947,7 +947,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
         return (realStat as typeof fs.stat)(targetPath, ...(rest as []));
       });
       try {
-        const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+        const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
         const sourcePath = path.join(hostDir, "big.tar");
         await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
         const uploadedSources: string[] = [];
@@ -962,14 +962,14 @@ describe("daytona file-sync inbound zstd transport compression", () => {
           operationId: "op-1",
           files: [{ sourcePath, targetPath: "/workspace/target.bin", kind: "file" }],
         }];
-        const before = (await fs.readdir(os.tmpdir())).filter((name) => name.startsWith("paperclip-daytona-zstd-"));
+        const before = (await fs.readdir(os.tmpdir())).filter((name) => name.startsWith("outpost-daytona-zstd-"));
 
         await performSyncIn({ sandbox: sandbox as never, operations, remoteDir: "/workspace", timeoutSeconds: 30 });
 
         // The post-compression stat failed, so the candidate falls back to the raw path.
         expect(uploadedSources).toEqual([sourcePath]);
         expect(uploadedDestinations.some((dest) => dest.endsWith(".zst"))).toBe(false);
-        const after = (await fs.readdir(os.tmpdir())).filter((name) => name.startsWith("paperclip-daytona-zstd-"));
+        const after = (await fs.readdir(os.tmpdir())).filter((name) => name.startsWith("outpost-daytona-zstd-"));
         expect(after).toEqual(before); // the stat failure did not leak the private host temp directory
       } finally {
         statSpy.mockRestore();
@@ -977,7 +977,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
     });
 
     it("removes the host compressed temp file and sweeps sandbox scratch when the upload itself is rejected (cancellation)", async () => {
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourcePath = path.join(hostDir, "big.tar");
       await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
       const commands: RecordedCommand[] = [];
@@ -995,7 +995,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
           setFilePermissions: async () => undefined,
         },
       };
-      const before = (await fs.readdir(os.tmpdir())).filter((name) => name.startsWith("paperclip-daytona-zstd-"));
+      const before = (await fs.readdir(os.tmpdir())).filter((name) => name.startsWith("outpost-daytona-zstd-"));
       const operations: PluginSyncOperation[] = [{
         operationId: "op-1",
         files: [{ sourcePath, targetPath: "/workspace/target.bin", kind: "file" }],
@@ -1005,14 +1005,14 @@ describe("daytona file-sync inbound zstd transport compression", () => {
         performSyncIn({ sandbox: sandbox as never, operations, remoteDir: "/workspace", timeoutSeconds: 30 }),
       ).rejects.toThrow(/simulated cancellation/);
 
-      const after = (await fs.readdir(os.tmpdir())).filter((name) => name.startsWith("paperclip-daytona-zstd-"));
+      const after = (await fs.readdir(os.tmpdir())).filter((name) => name.startsWith("outpost-daytona-zstd-"));
       expect(after).toEqual(before); // no leftover host temp file
       const rmCommands = commands.filter((entry) => entry.command.includes("rm -f"));
       expect(rmCommands.length).toBeGreaterThan(0); // both reserved scratch names swept
     });
 
     it("stages the compressed artifact in a private 0700 directory with a 0600 file, and removes the directory when the upload fails", async () => {
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourcePath = path.join(hostDir, "big.tar");
       await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
       let capturedDir = "";
@@ -1055,7 +1055,7 @@ describe("daytona file-sync inbound zstd transport compression", () => {
     });
 
     it("passes the caller's timeoutSeconds unchanged through every round trip on the compressed path", async () => {
-      const hostDir = await mkTempDir("paperclip-daytona-zstd-host-");
+      const hostDir = await mkTempDir("outpost-daytona-zstd-host-");
       const sourcePath = path.join(hostDir, "big.tar");
       await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
       const seenTimeouts: Array<number | undefined> = [];
@@ -1093,7 +1093,7 @@ describe.skipIf(!gnuTar)("automatic unsafe workspace export recovery", () => {
     await Promise.all(cleanupDirs.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })));
   });
   it.each(["/usr/bin/pnpm", "../../outside.txt", "ambiguous", "ambiguous-target"])("preserves files and safe links when a link is unsafe: %s", async (target) => {
-    const root = await fs.mkdtemp("/tmp/paperclip-export-recovery-");
+    const root = await fs.mkdtemp("/tmp/outpost-export-recovery-");
     cleanupDirs.push(root);
     const remoteDir = path.join(root, "remote");
     const output = path.join(root, "output");
@@ -1133,11 +1133,11 @@ describe.skipIf(!gnuTar)("automatic unsafe workspace export recovery", () => {
     await expect(fs.stat(path.join(output, "cache", "ignored.txt"))).rejects.toMatchObject({ code: "ENOENT" });
     expect(await fs.readFile(path.join(root, "outside.txt"), "utf8")).toBe("private bytes");
     expect((await fs.lstat(path.join(remoteDir, "nested", linkName))).isSymbolicLink()).toBe(true);
-    expect((await fs.readdir(remoteDir)).filter((name) => name.startsWith(".paperclip-upload"))).toEqual([]);
+    expect((await fs.readdir(remoteDir)).filter((name) => name.startsWith(".outpost-upload"))).toEqual([]);
   });
 
   it("finishes an export containing only unsafe links with an empty directory", async () => {
-    const root = await fs.mkdtemp("/tmp/paperclip-export-empty-");
+    const root = await fs.mkdtemp("/tmp/outpost-export-empty-");
     cleanupDirs.push(root);
     const remoteDir = path.join(root, "remote");
     const output = path.join(root, "output");
@@ -1165,9 +1165,9 @@ describe.skipIf(!gnuTar)("automatic unsafe workspace export recovery", () => {
 describe("daytona file-sync inbound gzip transport fallback (sandbox without zstd)", () => {
   // The Daytona runner image has gzip but no zstd binary. Without this fallback
   // every remote turn uploaded the whole uncompressed workspace seed (about
-  // 220 MB for the paperclip repository, about 13 s per turn).
+  // 220 MB for the outpost repository, about 13 s per turn).
   it("compresses with gzip on the host and decompresses in-sandbox to a byte-identical file", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-daytona-gzip-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-daytona-gzip-"));
     try {
       const remoteDir = path.join(root, "remote");
       await fs.mkdir(remoteDir);
@@ -1194,14 +1194,14 @@ describe("daytona file-sync inbound gzip transport fallback (sandbox without zst
       expect(commands.some((entry) => entry.command.includes("gzip -dc"))).toBe(true);
       expect(await sha256OfFile(targetPath)).toBe(await sha256OfFile(sourcePath));
       expect((await fs.stat(targetPath)).mode & 0o777).toBe(0o600);
-      expect((await fs.readdir(remoteDir)).filter((name) => name.includes(".paperclip-upload"))).toHaveLength(0);
+      expect((await fs.readdir(remoteDir)).filter((name) => name.includes(".outpost-upload"))).toHaveLength(0);
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }
   });
 
   it("never promotes a truncated gzip upload: gzip's CRC check fails the sync and the scratch is swept", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-daytona-gzip-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-daytona-gzip-"));
     try {
       const remoteDir = path.join(root, "remote");
       await fs.mkdir(remoteDir);
@@ -1221,14 +1221,14 @@ describe("daytona file-sync inbound gzip transport fallback (sandbox without zst
       await expect(performSyncIn({ sandbox: sandbox as never, remoteDir, timeoutSeconds: 30,
         operations: [{ operationId: "op-1", files: [{ sourcePath, targetPath, kind: "file" }] }] })).rejects.toThrow(/decompress failed|exit 49/);
       await expect(fs.stat(targetPath)).rejects.toThrow(/ENOENT/);
-      expect((await fs.readdir(remoteDir)).filter((name) => name.includes(".paperclip-upload"))).toHaveLength(0);
+      expect((await fs.readdir(remoteDir)).filter((name) => name.includes(".outpost-upload"))).toHaveLength(0);
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }
   });
 
   it("prefers zstd when the sandbox has both, and uploads raw when it has neither", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-daytona-gzip-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-daytona-gzip-"));
     try {
       const sourcePath = path.join(root, "big.tar");
       await writeCompressibleFile(sourcePath, ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
@@ -1254,7 +1254,7 @@ describe("daytona file-sync inbound gzip transport fallback (sandbox without zst
 
 describe("precompressed file transport", () => {
   it.each(["gzip", "zstd"])("uploads %s bytes without trying to recompress them", async codec => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-compressed-transfer-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-compressed-transfer-"));
     try {
       const raw = crypto.randomBytes(ZSTD_MIN_SOURCE_BYTES_FOR_TEST + 1024);
       const bytes = codec === "gzip" ? zlib.gzipSync(raw) : zlib.zstdCompressSync(raw);

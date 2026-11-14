@@ -10,14 +10,14 @@ import type { SandboxManagedRuntimeAsset } from "@outpost/adapter-utils/sandbox-
 // harness drives every round-trip case through the REAL `execute()` wiring.
 const captured: { assets: SandboxManagedRuntimeAsset[] } = { assets: [] };
 const sandboxAuthFixture: { bytes: Buffer } = { bytes: Buffer.from("{}") };
-const REMOTE_RUNTIME_ROOT = "/remote/workspace/.paperclip-runtime/codex";
+const REMOTE_RUNTIME_ROOT = "/remote/workspace/.outpost-runtime/codex";
 
 const {
   runChildProcess,
   ensureCommandResolvable,
   resolveCommandForLogs,
   prepareAdapterExecutionTargetRuntime,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
 } = vi.hoisted(() => ({
   runChildProcess: vi.fn(async () => ({
     exitCode: 0,
@@ -31,7 +31,7 @@ const {
   ensureCommandResolvable: vi.fn(async () => undefined),
   resolveCommandForLogs: vi.fn(async () => "/usr/bin/codex"),
   prepareAdapterExecutionTargetRuntime: vi.fn(),
-  startAdapterExecutionTargetPaperclipBridge: vi.fn(async () => null),
+  startAdapterExecutionTargetOutpostBridge: vi.fn(async () => null),
 }));
 
 vi.mock("@outpost/adapter-utils/server-utils", async () => {
@@ -53,7 +53,7 @@ vi.mock("@outpost/adapter-utils/execution-target", async () => {
   return {
     ...actual,
     prepareAdapterExecutionTargetRuntime,
-    startAdapterExecutionTargetPaperclipBridge,
+    startAdapterExecutionTargetOutpostBridge,
   };
 });
 
@@ -120,7 +120,7 @@ describe("codex execute — outbound auth copy-back restore contribution", () =>
 
   async function runTeardown(input: { sandboxAuth: string; hostAuth: string; onProviderStopped?: () => Promise<void>; withIdentity?: boolean; env?: Record<string, string> }) {
     const rootDir = await mkdtemp(
-      path.join(os.tmpdir(), "paperclip-codex-copyback-e2e-"),
+      path.join(os.tmpdir(), "outpost-codex-copyback-e2e-"),
     );
     cleanupDirs.push(rootDir);
     const workspaceDir = path.join(rootDir, "workspace");
@@ -148,7 +148,7 @@ describe("codex execute — outbound auth copy-back restore contribution", () =>
       onProviderStopped: input.onProviderStopped,
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "CodexCoder",
         adapterType: "codex_local",
         adapterConfig: {},
@@ -157,12 +157,12 @@ describe("codex execute — outbound auth copy-back restore contribution", () =>
       config: {
         command: "codex",
         engine: "cli",
-        // External CODEX_HOME (outside the managed company tree) so no managed
+        // External CODEX_HOME (outside the managed space tree) so no managed
         // seeding rewrites auth.json before teardown; equals the shared host home.
         env: { CODEX_HOME: sharedHostHome, ...input.env },
       },
       context: {
-        paperclipWorkspace: {
+        outpostWorkspace: {
           cwd: workspaceDir,
           source: "project_primary",
         },
@@ -229,7 +229,7 @@ describe("codex execute — outbound auth copy-back restore contribution", () =>
 
   it("stops the bridge and restores the workspace when instruction collection rejects", async () => {
     const order: string[] = [];
-    startAdapterExecutionTargetPaperclipBridge.mockResolvedValueOnce({
+    startAdapterExecutionTargetOutpostBridge.mockResolvedValueOnce({
       env: {}, stop: async () => { order.push("bridge-stop"); },
     } as never);
     prepareAdapterExecutionTargetRuntime.mockImplementationOnce(async () => ({

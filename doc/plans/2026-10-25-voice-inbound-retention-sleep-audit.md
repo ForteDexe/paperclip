@@ -29,7 +29,7 @@ All supported admission mutations already use notifyVoiceInbound directly or the
 voice-change composition. Extend that boundary to signal the separate retention
 queue before writes. This includes signed terminal callbacks, cleanup confirmation,
 legacy binding repair, approval/session handoff, expiry and rejection. Bound rows
-remain ineligible; their history belongs to their other owners. Company deletion
+remain ineligible; their history belongs to their other owners. Space deletion
 can remove confirmed unbound history within its existing transaction.
 
 At deletion time, lock and recheck the row and deadline. A cached candidate must
@@ -61,7 +61,7 @@ migration checks passed locally. Initial CI run 40181994295 and review run
 40181994134 are live on its exact published head. It is mergeable and had no
 failures at inspection. Fresh checks/reviews remain required; no merge authority
 is implied. #17578 at 90caaf3fa9 has passing checks and exact-head Greptile 5/5;
-its latest Paperclip reviewer stopped before completion.
+its latest Outpost reviewer stopped before completion.
 
 The full original recurring-server ledger, older #17490 E2E failure and final
 stack/master reconciliation remain required.
@@ -116,21 +116,21 @@ Logs: `/tmp/sleep24-retention-cleanup-final.log`,
 `/tmp/sleep24-voice-acceptance-fixed.log`, `/tmp/sleep24-workspace-types.log`,
 `/tmp/sleep24-workspace-build.log`, `/tmp/sleep24-final-server-types.log`.
 
-Final local consumer checks pass: 52 company-deletion/startup tests, 11 parent
+Final local consumer checks pass: 52 space-deletion/startup tests, 11 parent
 voice recovery tests, and final server typecheck. Selected nonoverlapping test
 coverage totals 218 passing cases. The implementation and local verification are
 complete; remote PR CI/review and the rest of the original stack remain pending.
 
 ## Review repairs
 
-The first published head 9c38ddfe53 passed all CI and Greptile 5/5. Paperclip
+The first published head 9c38ddfe53 passed all CI and Greptile 5/5. Outpost
 Review found unnecessary endpoint-wide retention refresh on every new call and
 missing behavioral coverage of removal from the maintenance lane.
 
 Pre-call admission now allocates its ID before insertion and registers the
 existing intent for that admission only. Retention lookup uses the primary key;
 new calls no longer scan the endpoint's retained history. Cleanup receives the
-same precise hint. Existing endpoint/company configuration changes retain their
+same precise hint. Existing endpoint/space configuration changes retain their
 scope, and startup still reconstructs eligible history. No schema change.
 
 Two service regressions verify the actual signed pre-call scope and drive the
@@ -145,7 +145,7 @@ server tsconfig excludes the test directory, whose behavior is verified by Vites
 Fresh remote checks/review are required on the repaired head.
 
 Parent #17580 has all checks terminal and Greptile 5/5 at 4f0364d269. Its final
-Paperclip review added two findings: unresolved cleanup can block deletion, and
+Outpost review added two findings: unresolved cleanup can block deletion, and
 rejection awaits provider calls. These require explicit disposition/repair at the
 parent; green checks do not resolve them. An arbitrary retry cap or credential
 failure is not proof that a provider call ended and must not silently discard the
@@ -194,7 +194,7 @@ before the complete lifecycle acceptance. Row measurements are selected rows,
 not PostgreSQL tuple visits or deployed costs.
 
 The external retention fixture also assumed a pre-existing schema. Its first
-empty-database run failed on missing companies/admission tables. It now applies
+empty-database run failed on missing spaces/admission tables. It now applies
 the application migrations with the standard setup timeout. The first-pass
 budget then failed at the intended 105-versus-100 assertion before the reader
 repair. Both failures are retained in `/tmp/sleep24-empty-fixture-red.log` and
@@ -206,10 +206,10 @@ repair. Both failures are retained in `/tmp/sleep24-empty-fixture-red.log` and
 
 - All 126 voice-session integration cases, including actual signed ingress,
   cleanup confirmation, scoped retention wake and maintenance-lane behavior.
-- All 154 cases in ten full retention, cleanup, parent recovery, company removal,
+- All 154 cases in ten full retention, cleanup, parent recovery, space removal,
   shared deadline/coordinator/batching, startup and hostname suites. This includes
   12 retention and 14 cleanup lifecycle cases. Voice integration, parent recovery
-  and company removal use separate initially empty databases and migrate themselves.
+  and space removal use separate initially empty databases and migrate themselves.
   Retention uses its dedicated database after the fresh-setup repair. Cleanup
   uses its already-migrated dedicated database. These suites do not share fixture
   state with a live application.
@@ -242,7 +242,7 @@ selection also had a cancelled check. The source failure log is preserved at
 ## Configuration rescan review repair, October 28
 
 Ponytail's current-head 4/5 review of `ffe9d47b7f` identified that completed
-connection/company/endpoint scans restarted after every configuration save.
+connection/space/endpoint scans restarted after every configuration save.
 Paging bounded each burst but did not remove total repeated work. A real
 producer regression seeds 205 future confirmed admissions and performs five
 separate `toolAccessService.updateConnection` saves, allowing each scan to settle.
@@ -256,7 +256,7 @@ admission eligibility or its timestamps. Admission creation, confirmation,
 expiry, approval/binding and signed lifecycle writes retain their exact hints.
 The schema uses restrictive session/task foreign keys, not implicit SET NULL
 transitions that could create eligible history behind this boundary. Cascading
-endpoint/company removal creates no retained work. A previously cached deadline
+endpoint/space removal creates no retained work. A previously cached deadline
 may expire once after a row has been removed; it cannot recreate history or start
 recurring reconciliation. Arbitrary SQL and other processes still require their
 own explicit wake contract.
@@ -269,7 +269,7 @@ original source was restored. There is no new helper, queue, schema or scheduler
 contract.
 
 All 282 distinct cases pass after this repair: 127 complete voice integration
-cases and 155 cases in ten full retention/cleanup/recovery/company-removal/shared/
+cases and 155 cases in ten full retention/cleanup/recovery/space-removal/shared/
 startup suites. These include 13 retention cases. The complete voice suite uses
 a fresh dedicated database; the lifecycle suites use their existing separate
 isolated databases. Server typecheck and build pass. The earlier 280 count belongs
@@ -290,15 +290,15 @@ After normal integration of landed cleanup, head `768c650365362b12b75ca6481f4446
 received exact-head Greptile 5/5 and Ponytail 5/5, but CI run `40697141057`
 failed. This is not accepted as green evidence. Server shard 7/12 job
 `122846941793` reported 1 failed test, 1,750 passed and 6 skipped: cleanup's
-backlog fairness case expected the other company in the first 25 provider
+backlog fairness case expected the other space in the first 25 provider
 calls even when its random admission ID placed it after the first 100-row
 inventory page. The secondary afterEach error retained the deliberately
 injected provider failure because the assertion interrupted settlement.
 
-Giving the second company a fixed final UUID reproduced the same first-batch
+Giving the second space a fixed final UUID reproduced the same first-batch
 assertion on unchanged production scheduling. The fixture now uses its supplied
 ID for both the inserted row and transaction notification. The corrected case
-controls fake time, places that company on the second inventory page, checks it
+controls fake time, places that space on the second inventory page, checks it
 is absent before discovery and served within the next 25-call batch, completes
 all 105 successful calls before the failed provider's saved retry, and checks
 that failed provider runs exactly once again when its deadline arrives. It also
@@ -311,8 +311,8 @@ transaction intent can legitimately retain that hold while the next pass is
 scheduled. The final test waits for the next scheduled pass or actual idle
 settlement while advancing one second at a time, then requires actual idle
 settlement after the backlog. This failure is retained rather than counted as
-a pass. A guarded mutation bypassing company rotation fails the corrected
-fairness assertion with missing second-company delivery; the original shared
+a pass. A guarded mutation bypassing space rotation fails the corrected
+fairness assertion with missing second-space delivery; the original shared
 helper was restored byte-for-byte before final acceptance.
 
 The same CI run's Canary Dry Run job `122846941357` independently failed

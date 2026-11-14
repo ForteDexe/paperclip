@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
+import { agents, authUsers, spaces, spaceMemberships, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import { registerServerAdapter, unregisterServerAdapter } from "../adapters/index.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { recoveryPostgresSupport, startRecoveryPostgres } from "./helpers/recovery-postgres.js";
@@ -24,7 +24,7 @@ describePostgres("new task for a manually paused assignee", () => {
   beforeAll(async () => {
     temporary = await startRecoveryPostgres("heartbeat-paused-assignee-");
     db = createDb(temporary.connectionString);
-    home = await mkdtemp(path.join(tmpdir(), "paperclip-paused-assignee-"));
+    home = await mkdtemp(path.join(tmpdir(), "outpost-paused-assignee-"));
     process.env.OUTPOST_HOME = home;
     heartbeat = heartbeatService(db);
     registerServerAdapter({
@@ -48,25 +48,25 @@ describePostgres("new task for a manually paused assignee", () => {
   });
 
   async function seed(holds: string[]) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-    const userId = `paused-user-${companyId}`;
-    await db.insert(authUsers).values({ id: userId, name: "Board user", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companies).values({ id: companyId, name: "Paused assignee fixture", issuePrefix: `P${companyId.slice(0, 6)}` });
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Morgan", adapterType, adapterConfig: {},
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    const userId = `paused-user-${spaceId}`;
+    await db.insert(authUsers).values({ id: userId, name: "Operator user", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
+    await db.insert(spaces).values({ id: spaceId, name: "Paused assignee fixture", issuePrefix: `P${spaceId.slice(0, 6)}` });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Morgan", adapterType, adapterConfig: {},
       status: "paused", lifecycleState: "paused", lifecycleHolds: holds, pauseReason: holds[0] ?? null, pausedAt: new Date() });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Task created while Morgan is paused", status: "todo",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Task created while Morgan is paused", status: "todo",
       assigneeAgentId: agentId, responsibleUserId: userId, issueNumber: 1 });
-    return { companyId, agentId, issueId };
+    return { spaceId, agentId, issueId };
   }
 
-  const runs = (f: { companyId: string; agentId: string }) => db.select().from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.agentId, f.agentId)));
+  const runs = (f: { spaceId: string; agentId: string }) => db.select().from(heartbeatRuns).where(and(
+    eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.agentId, f.agentId)));
 
   it("keeps the task waiting while the pause lasts and starts it once on resume", async () => {
     const f = await seed(["manual"]);
-    await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId });
-    await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId });
+    await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId });
+    await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId });
     const [waiting] = await db.select().from(issues).where(eq(issues.id, f.issueId));
     expect(waiting.status).toBe("todo");
     expect(await db.select().from(issueComments).where(eq(issueComments.issueId, f.issueId))).toHaveLength(0);
@@ -74,7 +74,7 @@ describePostgres("new task for a manually paused assignee", () => {
 
     await db.update(agents).set({ status: "idle", lifecycleState: "ready", lifecycleHolds: [], pauseReason: null, pausedAt: null })
       .where(eq(agents.id, f.agentId));
-    await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId });
+    await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId });
     await heartbeat.drainActiveRunExecutions();
     const ids = new Set((await runs(f)).map(run => run.id));
     expect(dispatched.filter(id => ids.has(id))).toHaveLength(1);
@@ -84,7 +84,7 @@ describePostgres("new task for a manually paused assignee", () => {
 
   it("still escalates a new task whose assignee is paused by something other than a person", async () => {
     const f = await seed(["budget"]);
-    await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId });
+    await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId });
     const [saved] = await db.select().from(issues).where(eq(issues.id, f.issueId));
     expect(saved.status).not.toBe("todo");
     expect(await runs(f)).toHaveLength(0);

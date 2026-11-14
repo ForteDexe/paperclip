@@ -4,18 +4,18 @@ import { defaultAiConnectionForHire } from "../../../server/src/services/agent-a
 import { agentJourneyRuns, journeyRequiredChecks } from "./success-contract.js";
 
 type Row = Record<string, any>;
-const scope: HireScope = { companyId: "company", leadId: "lead", chatId: "chat", projectId: "project", campaignId: "journey-1-deadbeef",
+const scope: HireScope = { spaceId: "space", leadId: "lead", chatId: "chat", projectId: "project", campaignId: "journey-1-deadbeef",
   origin: "https://qa.example.test", issuePrefix: "TEST",
   model: "fixed-model", provider: "opencode", environmentId: "daytona", connectionBinding: { connectionId: "connection" } };
 function fixture() {
   const names = hireDelegateNames(scope.campaignId);
-  const agent = { id: "hire", companyId: scope.companyId, name: names.hire, reportsTo: scope.leadId, adapterType: "outpost_runner",
+  const agent = { id: "hire", spaceId: scope.spaceId, name: names.hire, reportsTo: scope.leadId, adapterType: "outpost_runner",
     adapterConfig: { model: scope.model }, runtimeConfig: { aiConnection: scope.connectionBinding } };
-  const task = { id: "task", title: names.checklist, identifier: "TEST-1", companyId: scope.companyId, projectId: scope.projectId, status: "done", assigneeAgentId: agent.id };
-  const run = (id: string, issueId: string, agentId: string) => ({ id, companyId: scope.companyId, agentId, issueId, status: "succeeded", runtimeMode: "native",
+  const task = { id: "task", title: names.checklist, identifier: "TEST-1", spaceId: scope.spaceId, projectId: scope.projectId, status: "done", assigneeAgentId: agent.id };
+  const run = (id: string, issueId: string, agentId: string) => ({ id, spaceId: scope.spaceId, agentId, issueId, status: "succeeded", runtimeMode: "native",
     contextSnapshot: { issueId, outpostEnvironment: { id: scope.environmentId } }, runnerProfileJson: { nativeExecutionInput: { provider: { kind: scope.provider, model: scope.model } } } });
   const leadRun = run("lead-run", scope.chatId, scope.leadId), taskRun = run("task-run", task.id, agent.id);
-  const event = (action: string, entityId: string): Row => ({ companyId: scope.companyId, actorType: "agent", actorId: scope.leadId, agentId: scope.leadId, runId: leadRun.id, action, entityId, entityType: action.startsWith("agent.") ? "agent" : "issue",
+  const event = (action: string, entityId: string): Row => ({ spaceId: scope.spaceId, actorType: "agent", actorId: scope.leadId, agentId: scope.leadId, runId: leadRun.id, action, entityId, entityType: action.startsWith("agent.") ? "agent" : "issue",
     details: { assigneeAgentId: agent.id, assigneeUserId: null, status: "todo" } });
   const state = { agents: [agent], tasks: [task], leadRuns: [leadRun], activity: [event("agent.hire_created", agent.id), event("issue.created", task.id)] };
   return { agent, task, leadRun, taskRun, state, event, run };
@@ -28,7 +28,7 @@ function completionFixture() {
     contextSnapshot: { ...f.leadRun.contextSnapshot, wakeReason: "chat_task_completed", wakeSource: "automation", wakeTriggerDetail: "system",
       chatCompletionDeliveryIds: [`delivery-${i}`], chatCompletionUpdates: [{ id: task.id, status: "done" }] } }));
   const runs = [...requested, ...callbacks, f.taskRun, f.run("review-run", second.id, f.agent.id)];
-  const comments = callbacks.map(run => ({ companyId: scope.companyId, issueId: scope.chatId, authorAgentId: scope.leadId, createdByRunId: run.id, body: `Completed [saved result](/TEST/issues/${[f.task, second][callbacks.indexOf(run)]!.identifier})` }));
+  const comments = callbacks.map(run => ({ spaceId: scope.spaceId, issueId: scope.chatId, authorAgentId: scope.leadId, createdByRunId: run.id, body: `Completed [saved result](/TEST/issues/${[f.task, second][callbacks.indexOf(run)]!.identifier})` }));
   const grade = (value = runs, replies = comments) => assertHireRuns(scope, f.agent.id, [f.task, second], value, 7, ["message-1", "message-2", "message-3"], replies);
   return { f, second, requested, callbacks, runs, comments, grade };
 }
@@ -44,10 +44,10 @@ describe("deployment hiring qualification", () => {
     expect(() => assertHireAuditCoverage(activity, [{}])).toThrow();
     expect(() => assertHireAuditCoverage(activity, [])).not.toThrow();
   });
-  it("trusts the native actor's actual hire/task receipts, not matching names in a shared company", () => {
+  it("trusts the native actor's actual hire/task receipts, not matching names in a shared space", () => {
     const f = fixture();
     expect(observedHireResources(scope, f.state).hires).toEqual([f.agent]);
-    for (const property of ["companyId", "actorType", "actorId", "agentId", "runId"]) {
+    for (const property of ["spaceId", "actorType", "actorId", "agentId", "runId"]) {
       const changed = structuredClone(f.state); changed.activity[0]![property as keyof typeof changed.activity[0]] = "foreign";
       const observed = observedHireResources(scope, changed);
       expect(() => assertHireBinding(scope, observed.agents)).toThrow();
@@ -60,7 +60,7 @@ describe("deployment hiring qualification", () => {
     const f = fixture(); expect(assertHireBinding(scope, [f.agent]).id).toBe("hire");
     expect(() => assertHireBinding(scope, [f.agent], "old-hire")).toThrow();
     expect(() => assertHireBinding(scope, [f.agent, { ...f.agent, id: "duplicate" }])).toThrow();
-    for (const change of [{ companyId: "other" }, { reportsTo: "other" }, { adapterType: "legacy" },
+    for (const change of [{ spaceId: "other" }, { reportsTo: "other" }, { adapterType: "legacy" },
       { adapterConfig: { model: "other" } }, { runtimeConfig: { aiConnection: { connectionId: "other" } } }]) {
       expect(() => assertHireBinding(scope, [{ ...f.agent, ...change }])).toThrow();
     }
@@ -78,12 +78,12 @@ describe("deployment hiring qualification", () => {
     const binding = { provider: "openrouter", method: "api_key", mode: "delegated", connectionId: "00000000-0000-4000-8000-000000000001", grantId: "00000000-0000-4000-8000-000000000002" };
     expect(defaultAiConnectionForHire("outpost_runner", { provider: "opencode", model: "openrouter/deepseek/deepseek-v4.1-flash-1017" }, binding))
       .toEqual({ provider: "openrouter", method: "api_key", mode: "responsible_user" });
-    const selected = { id: binding.connectionId, grantId: binding.grantId, companyId: scope.companyId, provider: binding.provider,
+    const selected = { id: binding.connectionId, grantId: binding.grantId, spaceId: scope.spaceId, provider: binding.provider,
       method: binding.method, ownership: "personal", ownerUserId: "user", isDefault: true, status: "connected" };
     const listed = { currentUserId: "user", connections: [selected] };
-    const installed = { connectionId: binding.connectionId, installs: [{ companyId: scope.companyId, targetType: "agent", targetId: "hire" }] };
+    const installed = { connectionId: binding.connectionId, installs: [{ spaceId: scope.spaceId, targetType: "agent", targetId: "hire" }] };
     const api = { async get<T>(route: string): Promise<T> { return (route.endsWith("/installs") ? installed : listed) as T; } };
-    const input = { companyId: scope.companyId, responsibleUserId: "user", binding, hiredId: "hire" };
+    const input = { spaceId: scope.spaceId, responsibleUserId: "user", binding, hiredId: "hire" };
     await expect(readHireConnectionChoice(api, input)).resolves.toMatchObject({ connectionId: binding.connectionId, grantId: binding.grantId, responsibleUserId: "user" });
     for (const mutate of [() => { listed.currentUserId = "operator"; }, () => { selected.grantId = "foreign"; },
       () => { selected.ownerUserId = "operator"; }, () => { selected.status = "revoked"; },
@@ -98,11 +98,11 @@ describe("deployment hiring qualification", () => {
       connectionId: "00000000-0000-4000-8000-000000000001", grantId: "00000000-0000-4000-8000-000000000002" };
     const placeholder = defaultAiConnectionForHire("outpost_runner", { provider: "codex", model: "fixed-model" }, binding);
     expect(placeholder).toEqual({ provider: "openai", method: "api_key", mode: "responsible_user" });
-    const selected = { id: binding.connectionId, grantId: binding.grantId, companyId: scope.companyId, provider: binding.provider,
+    const selected = { id: binding.connectionId, grantId: binding.grantId, spaceId: scope.spaceId, provider: binding.provider,
       method: binding.method, ownership: "personal", ownerUserId: "user", isDefault: true, status: "connected" };
-    const installed = { connectionId: binding.connectionId, installs: [{ companyId: scope.companyId, targetType: "agent", targetId: f.agent.id }] };
+    const installed = { connectionId: binding.connectionId, installs: [{ spaceId: scope.spaceId, targetType: "agent", targetId: f.agent.id }] };
     const api = { async get<T>(route: string): Promise<T> { return (route.endsWith("/installs") ? installed : { currentUserId: "user", connections: [selected] }) as T; } };
-    const input = { companyId: scope.companyId, responsibleUserId: "user", binding, hiredId: f.agent.id };
+    const input = { spaceId: scope.spaceId, responsibleUserId: "user", binding, hiredId: f.agent.id };
     const connectionChoice = await readHireConnectionChoice(api, input);
     const scoped = { ...scope, provider: "codex", connectionBinding: binding, connectionChoice };
     const hired = { ...f.agent, runtimeConfig: { aiConnection: placeholder } };
@@ -138,7 +138,7 @@ describe("deployment hiring qualification", () => {
   });
   it("binds lead and worker runs to their exact tasks, provider, model and environment", () => {
     const f = fixture(); expect(() => assertHireRuns(scope, f.agent.id, [f.task], [f.leadRun, f.taskRun])).not.toThrow();
-    for (const change of [{ companyId: "other" }, { agentId: scope.leadId }, { issueId: "other" }, { status: "failed" },
+    for (const change of [{ spaceId: "other" }, { agentId: scope.leadId }, { issueId: "other" }, { status: "failed" },
       { runtimeMode: "legacy" }, { contextSnapshot: { outpostEnvironment: { id: "local" } } },
       { runnerProfileJson: { nativeExecutionInput: { provider: { kind: "opencode", model: "other" } } } }]) {
       expect(() => assertHireRuns(scope, f.agent.id, [f.task], [f.leadRun, { ...f.taskRun, ...change }])).toThrow();
@@ -195,7 +195,7 @@ describe("deployment hiring qualification", () => {
       (event: Row) => { delete event.details.assigneeAgentId; },
       (event: Row) => { event.details.assigneeUserId = "user"; },
       (event: Row) => { event.actorId = "foreign"; },
-      (event: Row) => { event.companyId = "foreign"; },
+      (event: Row) => { event.spaceId = "foreign"; },
       (event: Row) => { event.runId = "foreign"; },
     ]) {
       const activity = structuredClone(f.state.activity); mutate(activity[1]!);
@@ -224,7 +224,7 @@ describe("deployment hiring qualification", () => {
   });
   it("requires the saved document revision to come from the successful hired-agent work run", () => {
     const f = fixture(), body = "Reference: independent-marker";
-    const document = { id: "doc", issueId: f.task.id, companyId: scope.companyId, key: "checklist", body, latestRevisionId: "revision" };
+    const document = { id: "doc", issueId: f.task.id, spaceId: scope.spaceId, key: "checklist", body, latestRevisionId: "revision" };
     const revision: Row = { id: "revision", body, createdByAgentId: f.agent.id, createdByRunId: f.taskRun.id };
     const grade = (doc = document, revisions = [revision], runs = [f.taskRun]) => assertHireDocument(scope, f.task, doc, revisions, runs, "independent-marker", f.agent.id);
     expect(() => grade()).not.toThrow();

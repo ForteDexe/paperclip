@@ -23,7 +23,7 @@ export function createOAuthCredentialStore(db: Db, secrets: ReturnType<typeof se
   /**
    * @param grantSecretRefs Secret refs held by a grant rather than the connection
    *   row. A personal credential lives only on its user grant (PAP-17835), so it
-   *   would otherwise have no `company_secret_bindings` row and drop out of
+   *   would otherwise have no `space_secret_bindings` row and drop out of
    *   secret projection and removal teardown.
    */
 async function syncCredentialBindings(
@@ -40,7 +40,7 @@ async function syncCredentialBindings(
       ? await db.select({ connectionId: connectionGrants.connectionId, refs: connectionGrants.credentialSecretRefs })
         .from(connectionGrants)
         .where(and(
-          inArray(connectionGrants.companyId, [...new Set(personal.map((connection) => connection.companyId))]),
+          inArray(connectionGrants.spaceId, [...new Set(personal.map((connection) => connection.spaceId))]),
           inArray(connectionGrants.connectionId, personal.map((connection) => connection.id)),
           eq(connectionGrants.kind, "user"),
           eq(connectionGrants.subjectUserId, viewerUserId),
@@ -93,7 +93,7 @@ async function syncCredentialBindings(
         .from(connectionGrants)
         .where(
           and(
-            eq(connectionGrants.companyId, connection.companyId),
+            eq(connectionGrants.spaceId, connection.spaceId),
             eq(connectionGrants.connectionId, connection.id),
             eq(connectionGrants.kind, "user"),
             eq(connectionGrants.subjectUserId, connectionActorUserId(actor)!),
@@ -111,7 +111,7 @@ async function syncCredentialBindings(
         );
     const clientSecret = clientSecretRef
       ? await secrets.resolveSecretValue(
-          connection.companyId,
+          connection.spaceId,
           clientSecretRef.secretId,
           clientSecretRef.versionSelector ?? "latest",
           {
@@ -133,7 +133,7 @@ async function syncCredentialBindings(
 
   async function createOrRotateOAuthSecret(
     input: {
-      companyId: string;
+      spaceId: string;
       connection: typeof toolConnections.$inferSelect;
       configPath:
         "oauth.access_token" | "oauth.refresh_token" | "oauth.client_secret" | "railway.ssh_private_key";
@@ -153,7 +153,7 @@ async function syncCredentialBindings(
       ? oauthSecretRef(input.connection, input.configPath)
       : input.existingRefs.find((ref) => ref.configPath === input.configPath);
     const write = (client: Db | DbTransaction) => writeConnectionCredential(client, {
-      companyId: input.companyId, connectionName: input.connection.name, configPath: input.configPath,
+      spaceId: input.spaceId, connectionName: input.connection.name, configPath: input.configPath,
       label: input.label, value: input.value, existingRef: existing ?? undefined, actor: actorForSecret(input.actor),
       preserveOAuthIdentity: input.preserveOAuthIdentity,
       // Registration authenticates the OAuth client, never the person invoking tools.
@@ -168,7 +168,7 @@ async function syncCredentialBindings(
   }
 
   async function getOAuthGrantRow(input: {
-    companyId: string;
+    spaceId: string;
     connectionId: string;
     grantId: string;
   }) {
@@ -178,7 +178,7 @@ async function syncCredentialBindings(
       .where(
         and(
           eq(connectionGrants.id, input.grantId),
-          eq(connectionGrants.companyId, input.companyId),
+          eq(connectionGrants.spaceId, input.spaceId),
           eq(connectionGrants.connectionId, input.connectionId),
         ),
       )

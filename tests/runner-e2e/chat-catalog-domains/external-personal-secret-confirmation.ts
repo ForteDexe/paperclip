@@ -3,10 +3,10 @@ import { expect, type Page } from "@playwright/test";
 import type { RequestConfirmationInteraction } from "../../../packages/shared/src/types/issue.js";
 import { requestConfirmationPayloadSchema } from "../../../packages/shared/src/validators/issue.js";
 import { chatCatalogHumanQuestionPolicies, chatCatalogHasExactDefinitionId } from "../chat-catalog-contract.js";
-export interface PersonalConfirmationBinding { companyId: string; issueId: string; agentId: string; userId: string; runId: string; definitionId: string; canonicalCommentId: string }
+export interface PersonalConfirmationBinding { spaceId: string; issueId: string; agentId: string; userId: string; runId: string; definitionId: string; canonicalCommentId: string }
 export function personalSecretConfirmationHandoff(value: unknown, b: PersonalConfirmationBinding, guidance: (text: string) => boolean, status: "pending" | "accepted" = "pending") {
   const row = value as Partial<RequestConfirmationInteraction> | undefined, p = row?.payload;
-  if (!row?.id || row.kind !== "request_confirmation" || row.status !== status || row.companyId !== b.companyId || row.issueId !== b.issueId
+  if (!row?.id || row.kind !== "request_confirmation" || row.status !== status || row.spaceId !== b.spaceId || row.issueId !== b.issueId
     || row.sourceRunId !== b.runId || row.createdByAgentId !== b.agentId || row.createdByUserId || row.addresseeAgentId
     || (row.addresseeUserId != null && row.addresseeUserId !== b.userId) || !row.originCommentIds?.includes(b.canonicalCommentId)
     || !chatCatalogHumanQuestionPolicies(row) || (row.continuationPolicy !== "wake_assignee" && row.continuationPolicy !== "wake_assignee_on_accept") || !p
@@ -69,7 +69,7 @@ export async function readVisiblePersonalSecretConfirmation(page: Page, handoff:
       if (Array.from(range.getClientRects()).some(rect => visibility.shown(node.parentElement!, rect))) parts.push(match[0]);
     }
     const links = Array.from(root.querySelectorAll<HTMLAnchorElement>("a[href]")).filter(node => visibility.shown(node, node.getBoundingClientRect())).map(node => node.href);
-    const linked = links.some(href => { try { const url = new URL(href, target.origin); return url.origin === target.origin && url.pathname === `/${target.prefix}/company/settings/secrets` && !url.username && !url.password && !url.hash && url.searchParams.getAll("definition").length === 1 && url.searchParams.get("definition") === target.definitionId && [...url.searchParams.keys()].every(key => key === "definition"); } catch { return false; } });
+    const linked = links.some(href => { try { const url = new URL(href, target.origin); return url.origin === target.origin && url.pathname === `/${target.prefix}/space/settings/secrets` && !url.username && !url.password && !url.hash && url.searchParams.getAll("definition").length === 1 && url.searchParams.get("definition") === target.definitionId && [...url.searchParams.keys()].every(key => key === "definition"); } catch { return false; } });
     return { text: parts.join(" "), linked };
   }, target);
   let visible = await read(); const before = visible.text;

@@ -1,7 +1,7 @@
 import { writeLoginCleanup } from "./login-cleanup-notifications.js";
 import { DELIVERY_QUEUES } from "./delivery-work-notifications.js";
 import type { ConnectionManagementContext } from "./connection-management.js";
-// The Claude setup-token login session service. It owns a company-scoped,
+// The Claude setup-token login session service. It owns a space-scoped,
 // owner-bound login session that holds one live setup-token process and one
 // sandbox lease for the whole login. The login is a two-way round-trip: the
 // `claude setup-token` process holds the flow state in memory, so the server
@@ -12,7 +12,7 @@ import type { ConnectionManagementContext } from "./connection-management.js";
 // The service gives the harness these operations against the one live session:
 // start the session, read the login prompt, submit one browser code, cancel the
 // session, expire the session on a timeout, and receive the token. Every
-// operation verifies the company, the owner user, and the adapter. A missing
+// operation verifies the space, the owner user, and the adapter. A missing
 // session and a cross-scope session both return the same not-found error.
 //
 // Security controls folded here:
@@ -25,7 +25,7 @@ import type { ConnectionManagementContext } from "./connection-management.js";
 //     `awaiting_code` to `submitting`. The service rejects every later submit.
 //   * SR-4 (durable cleanup and caps): a non-secret cleanup record, an external
 //     lease expiry no later than the session deadline, idempotent cleanup on
-//     every terminal path, a startup reaper, per-owner/agent/company caps, and a
+//     every terminal path, a startup reaper, per-owner/agent/space caps, and a
 //     start rate limit.
 //   * SR-5 (two login-URL representations): the full URL is transport-only; every
 //     sink receives the sanitized URL form.
@@ -51,7 +51,7 @@ import type { AgentAdapterType } from "@outpost/shared";
 //      other adapter type before it creates a lease, a durable row, or a
 //      pseudo-terminal.
 //   2. The five follow-up routes in `agents.ts`, which build their session
-//      lookup key from this constant through `companySetupTokenKey`.
+//      lookup key from this constant through `spaceSetupTokenKey`.
 //   3. The restart reaper scan below, which filters on this constant to reach
 //      only the setup-token rows and to leave every Codex device-login row
 //      alone.
@@ -103,12 +103,12 @@ export const SETUP_TOKEN_CANCELLABLE_STATES: readonly SetupTokenSessionState[] =
 
 /**
  * The immutable owner scope of a session. The service builds the scope once at
- * start and never changes it. The session identity is the company, the owner,
+ * start and never changes it. The session identity is the space, the owner,
  * and the adapter. Every operation verifies these three fields against the
  * stored scope.
  *
- * The active company credential slot is scoped to the company, the owner, and
- * the adapter. Two owners in one company no longer conflict. The scope drops the
+ * The active space credential slot is scoped to the space, the owner, and
+ * the adapter. Two owners in one space no longer conflict. The scope drops the
  * environment term from the slot, so the same owner cannot hold one active login
  * per environment.
  */
@@ -116,7 +116,7 @@ export interface SetupTokenSessionScope {
   agentId?: string;
   managementContext?: ConnectionManagementContext;
   aiConnection?: import("@outpost/shared").AiConnectionLoginIntent;
-  companyId: string;
+  spaceId: string;
   ownerUserId: string;
   // The adapter of the login. It is part of the session identity.
   adapterType: string;
@@ -227,7 +227,7 @@ export interface SetupTokenLeaseManager {
 export interface SetupTokenCleanupRecord {
   aiConnection?: import("@outpost/shared").AiConnectionLoginIntent;
   sessionId: string;
-  companyId: string;
+  spaceId: string;
   ownerUserId: string;
   adapterType: string;
   environmentId: string;
@@ -240,13 +240,13 @@ export interface SetupTokenCleanupRecord {
 }
 
 /**
- * The immutable identity of a cleanup record. It is the company, the owner, the
+ * The immutable identity of a cleanup record. It is the space, the owner, the
  * adapter, and the public session id. Every durable write matches on all four
  * fields, so a write never updates a row by the session id alone.
  */
 export interface SetupTokenCleanupIdentity {
   sessionId: string;
-  companyId: string;
+  spaceId: string;
   ownerUserId: string;
   adapterType: string;
 }
@@ -257,7 +257,7 @@ export interface SetupTokenCleanupIdentity {
  * already consumed. The store persists no secret.
  */
 export interface SetupTokenCleanupStore {
-  getLoginAgentId?(leaseId: string, companyId: string): Promise<string | undefined>;
+  getLoginAgentId?(leaseId: string, spaceId: string): Promise<string | undefined>;
   record(record: SetupTokenCleanupRecord): Promise<void>;
   /**
    * Marks the state only when the full owner scope and the session id match. The
@@ -301,13 +301,13 @@ export interface SetupTokenCleanupStore {
    * restarted server process holds no in-memory session, so this is the
    * fallback source of truth for session discovery: the row survives the
    * restart even though the live process and the in-memory session do not. It
-   * returns a row only when the company, the owner, and the adapter match, the
+   * returns a row only when the space, the owner, and the adapter match, the
    * state is not terminal, and the deadline is not yet past. It returns null
    * for a missing row, a foreign-scope row, a terminal row, and an expired
    * row.
    */
   findActiveDurable(
-    key: Pick<SetupTokenCleanupIdentity, "companyId" | "ownerUserId" | "adapterType">,
+    key: Pick<SetupTokenCleanupIdentity, "spaceId" | "ownerUserId" | "adapterType">,
     now: number,
   ): Promise<SetupTokenCleanupRecord | null>;
 }
@@ -345,7 +345,7 @@ export async function reapSetupTokenLeases(
       await deps.leases.releaseById(record.leaseId);
       await deps.store.remove({
         sessionId: record.sessionId,
-        companyId: record.companyId,
+        spaceId: record.spaceId,
         ownerUserId: record.ownerUserId,
         adapterType: record.adapterType,
       });
@@ -364,15 +364,15 @@ export interface SetupTokenRateLimiter {
 }
 
 export interface SetupTokenSessionCaps {
-  // The active-session cap per company, owner, and adapter slot. The slot cap
+  // The active-session cap per space, owner, and adapter slot. The slot cap
   // mirrors the database active-slot unique index as defense in depth.
   perOwner: number;
-  perCompany: number;
+  perSpace: number;
 }
 
 export const DEFAULT_SETUP_TOKEN_SESSION_CAPS: SetupTokenSessionCaps = {
   perOwner: 1,
-  perCompany: 3,
+  perSpace: 3,
 };
 
 /** The default host timeout for one login session. */
@@ -632,7 +632,7 @@ export function assessConfidentialStartup(config: ConfidentialTransportConfig): 
 
 /**
  * A synchronous capacity hold for the enforced caps. The service reserves the
- * capacity for the slot and the company before the first `await` in
+ * capacity for the slot and the space before the first `await` in
  * {@link SetupTokenSessionService.start}, so two concurrent starts for one slot
  * never both pass the cap. The service holds the reservation for the whole
  * session lifetime and releases it exactly one time: on an early start failure or
@@ -640,8 +640,8 @@ export function assessConfidentialStartup(config: ConfidentialTransportConfig): 
  */
 interface CapReservation {
   released: boolean;
-  companyId: string;
-  // The company, owner, and adapter slot key. The reservation counts one active
+  spaceId: string;
+  // The space, owner, and adapter slot key. The reservation counts one active
   // session per slot, so it mirrors the database active-slot unique index.
   slotKey: string;
 }
@@ -686,7 +686,7 @@ export interface SetupTokenPromptView {
 }
 
 /**
- * The owner descriptor of a session. The company-and-environment routes read it
+ * The owner descriptor of a session. The space-and-environment routes read it
  * to build the response contract. It carries the immutable environment and the
  * session deadline, plus the current state and the full login URL. The route
  * projects it: the public status response drops the login URL; the owner prompt
@@ -743,16 +743,16 @@ function defaultSessionId(): string {
 /**
  * The setup-token login session service. It holds every live session in memory
  * and persists a non-secret cleanup record for each. It bounds active sessions
- * per owner, per agent, and per company, and it rate-limits the start path.
+ * per owner, per agent, and per space, and it rate-limits the start path.
  */
 export class SetupTokenSessionService {
   private readonly sessions = new Map<string, StoredSession>();
-  // The live reservation counts per slot and per company. The start path reads
+  // The live reservation counts per slot and per space. The start path reads
   // and increments these synchronously before the first `await`, so the cap
   // decision and the capacity hold are one atomic step on the event loop. The
-  // slot key is the company, the owner, and the adapter.
+  // slot key is the space, the owner, and the adapter.
   private readonly reservedBySlot = new Map<string, number>();
-  private readonly reservedByCompany = new Map<string, number>();
+  private readonly reservedBySpace = new Map<string, number>();
   private readonly factory: SetupTokenLoginProcessFactory;
   private readonly leases: SetupTokenLeaseManager;
   private readonly store: SetupTokenCleanupStore;
@@ -781,13 +781,13 @@ export class SetupTokenSessionService {
 
   /**
    * Builds the durable-record identity for a session. The store matches every
-   * write on the company, the owner, the adapter, and the session id, so no write
+   * write on the space, the owner, the adapter, and the session id, so no write
    * updates a row by the session id alone.
    */
   private identityOf(session: StoredSession): SetupTokenCleanupIdentity {
     return {
       sessionId: session.id,
-      companyId: session.scope.companyId,
+      spaceId: session.scope.spaceId,
       ownerUserId: session.scope.ownerUserId,
       adapterType: session.scope.adapterType,
     };
@@ -836,12 +836,12 @@ export class SetupTokenSessionService {
     }
   }
 
-  /** Builds the company, owner, and adapter slot key. The reservation and the
+  /** Builds the space, owner, and adapter slot key. The reservation and the
    *  database active-slot unique index share this identity. */
   private static slotKey(
-    scope: Pick<SetupTokenSessionScope, "companyId" | "ownerUserId" | "adapterType">,
+    scope: Pick<SetupTokenSessionScope, "spaceId" | "ownerUserId" | "adapterType">,
   ): string {
-    return [scope.companyId, scope.ownerUserId, scope.adapterType].join("\u0000");
+    return [scope.spaceId, scope.ownerUserId, scope.adapterType].join("\u0000");
   }
 
   /**
@@ -850,7 +850,7 @@ export class SetupTokenSessionService {
    * {@link start}. Two concurrent starts for one slot cannot interleave inside
    * it: the first reserves the slot, and the second reads the incremented count
    * and fails closed with the fixed 429 cap error. The method holds the per-slot
-   * and per-company semantics; the slot is the company, the owner, and the
+   * and per-space semantics; the slot is the space, the owner, and the
    * adapter. It increments no counter on a rejection, so a rejected start
    * reserves nothing.
    */
@@ -859,14 +859,14 @@ export class SetupTokenSessionService {
     if ((this.reservedBySlot.get(slotKey) ?? 0) >= this.caps.perOwner) {
       throw new SetupTokenSessionError(429, SETUP_TOKEN_CAP_EXCEEDED);
     }
-    if ((this.reservedByCompany.get(scope.companyId) ?? 0) >= this.caps.perCompany) {
+    if ((this.reservedBySpace.get(scope.spaceId) ?? 0) >= this.caps.perSpace) {
       throw new SetupTokenSessionError(429, SETUP_TOKEN_CAP_EXCEEDED);
     }
     SetupTokenSessionService.incrementCount(this.reservedBySlot, slotKey);
-    SetupTokenSessionService.incrementCount(this.reservedByCompany, scope.companyId);
+    SetupTokenSessionService.incrementCount(this.reservedBySpace, scope.spaceId);
     return {
       released: false,
-      companyId: scope.companyId,
+      spaceId: scope.spaceId,
       slotKey,
     };
   }
@@ -881,7 +881,7 @@ export class SetupTokenSessionService {
     if (reservation.released) return;
     reservation.released = true;
     SetupTokenSessionService.decrementCount(this.reservedBySlot, reservation.slotKey);
-    SetupTokenSessionService.decrementCount(this.reservedByCompany, reservation.companyId);
+    SetupTokenSessionService.decrementCount(this.reservedBySpace, reservation.spaceId);
   }
 
   /**
@@ -891,7 +891,7 @@ export class SetupTokenSessionService {
    * It returns the opaque session id and no token.
    */
   async start(scope: SetupTokenSessionScope): Promise<{ sessionId: string; state: SetupTokenSessionState }> {
-    const rate = this.rateLimiter.consume(`${scope.companyId}:${scope.ownerUserId}`);
+    const rate = this.rateLimiter.consume(`${scope.spaceId}:${scope.ownerUserId}`);
     if (!rate.allowed) {
       throw new SetupTokenSessionError(429, SETUP_TOKEN_RATE_LIMITED);
     }
@@ -919,7 +919,7 @@ export class SetupTokenSessionService {
       await this.store.record({
         aiConnection: scope.aiConnection,
         sessionId,
-        companyId: scope.companyId,
+        spaceId: scope.spaceId,
         ownerUserId: scope.ownerUserId,
         adapterType: scope.adapterType,
         environmentId: scope.environmentId,
@@ -972,7 +972,7 @@ export class SetupTokenSessionService {
       await this.store
         .remove({
           sessionId,
-          companyId: scope.companyId,
+          spaceId: scope.spaceId,
           ownerUserId: scope.ownerUserId,
           adapterType: scope.adapterType,
         })
@@ -1068,16 +1068,16 @@ export class SetupTokenSessionService {
   /**
    * Resolves a session for an operation. It returns the session only when the
    * id exists and the stored scope equals the caller scope in all three identity
-   * fields: the company, the owner, and the adapter. A missing session and a
+   * fields: the space, the owner, and the adapter. A missing session and a
    * cross-scope session both throw the same not-found error, so a caller cannot
-   * tell them apart. The scope match makes a cross-company, a cross-owner, and a
+   * tell them apart. The scope match makes a cross-space, a cross-owner, and a
    * cross-adapter session return the same not-found error as a missing session.
    */
   private resolveOwned(sessionId: string, scope: SetupTokenSessionScope): StoredSession {
     const session = this.sessions.get(sessionId);
     if (
       !session ||
-      session.scope.companyId !== scope.companyId ||
+      session.scope.spaceId !== scope.spaceId ||
       session.scope.ownerUserId !== scope.ownerUserId ||
       session.scope.adapterType !== scope.adapterType
     ) {
@@ -1087,26 +1087,26 @@ export class SetupTokenSessionService {
   }
 
   /**
-   * Resolves the immutable scope of a company-and-environment session. The
-   * caller provides the company, the owner, and the adapter it derived from the
-   * request; the route path gives the company, the actor gives the owner, and
+   * Resolves the immutable scope of a space-and-environment session. The
+   * caller provides the space, the owner, and the adapter it derived from the
+   * request; the route path gives the space, the actor gives the owner, and
    * the route fixes the adapter. The lookup matches these three fields, then
    * returns the full scope, including the intrinsic environment.
    *
    * A caller never supplies the environment on a read, a submit, a cancel, or a
    * completion. The environment is intrinsic to the session, so a foreign
    * environment cannot address the session. A missing session and a
-   * cross-company, cross-owner, or cross-adapter session all throw the same
+   * cross-space, cross-owner, or cross-adapter session all throw the same
    * not-found error.
    */
-  resolveCompanyScope(
+  resolveSpaceScope(
     sessionId: string,
-    key: { companyId: string; ownerUserId: string; adapterType: string },
+    key: { spaceId: string; ownerUserId: string; adapterType: string },
   ): SetupTokenSessionScope {
     const session = this.sessions.get(sessionId);
     if (
       !session ||
-      session.scope.companyId !== key.companyId ||
+      session.scope.spaceId !== key.spaceId ||
       session.scope.ownerUserId !== key.ownerUserId ||
       session.scope.adapterType !== key.adapterType
     ) {
@@ -1116,7 +1116,7 @@ export class SetupTokenSessionService {
   }
 
   /**
-   * Returns the owner descriptor for a session. The company-and-environment
+   * Returns the owner descriptor for a session. The space-and-environment
    * routes read it to build the response contract. The scope check runs first,
    * so a cross-scope caller gets the same not-found error. The route
    * projects the descriptor: the public status response drops the login URL; the
@@ -1178,7 +1178,7 @@ export class SetupTokenSessionService {
   /**
    * Finds the caller's active session for a scope, with no session id. The
    * browser rediscovers its own session after a reload with no local state. It
-   * matches the company, the owner, and the adapter, and it returns only a
+   * matches the space, the owner, and the adapter, and it returns only a
    * non-terminal session, so a caller with no active login and a caller with a
    * foreign scope both find nothing.
    *
@@ -1190,12 +1190,12 @@ export class SetupTokenSessionService {
    * reject.
    */
   async findActiveByScope(
-    key: Pick<SetupTokenSessionScope, "companyId" | "ownerUserId" | "adapterType">,
+    key: Pick<SetupTokenSessionScope, "spaceId" | "ownerUserId" | "adapterType">,
   ): Promise<SetupTokenSessionDescriptor | null> {
     for (const session of this.sessions.values()) {
       if (isTerminalSessionState(session.state)) continue;
       if (
-        session.scope.companyId === key.companyId &&
+        session.scope.spaceId === key.spaceId &&
         session.scope.ownerUserId === key.ownerUserId &&
         session.scope.adapterType === key.adapterType
       ) {
@@ -1204,7 +1204,7 @@ export class SetupTokenSessionService {
     }
     const durable = await this.store.findActiveDurable(key, this.now());
     if (!durable) return null;
-    const agentId = await this.store.getLoginAgentId?.(durable.leaseId, key.companyId);
+    const agentId = await this.store.getLoginAgentId?.(durable.leaseId, key.spaceId);
     return {
       ...(agentId ? { agentId } : {}),
       sessionId: durable.sessionId,
@@ -1223,20 +1223,20 @@ export class SetupTokenSessionService {
    * session matches — for example, a restart dropped the in-memory session —
    * it falls back to a durable-only cancel: a conditional transition of the
    * exact row from a cancellable pre-promotion state to `cancelled`. This
-   * releases the company slot even though this process holds no live process
+   * releases the space slot even though this process holds no live process
    * to stop, so it aborts no local process. It throws the fixed not-found
-   * error for a missing row, a foreign owner, a foreign company, a foreign
+   * error for a missing row, a foreign owner, a foreign space, a foreign
    * adapter, and a row outside the cancellable states — the caller cannot tell
    * these apart.
    */
   async cancelByScope(
     sessionId: string,
-    key: Pick<SetupTokenSessionScope, "companyId" | "ownerUserId" | "adapterType">,
+    key: Pick<SetupTokenSessionScope, "spaceId" | "ownerUserId" | "adapterType">,
   ): Promise<{ state: SetupTokenSessionState }> {
     const session = this.sessions.get(sessionId);
     if (
       session &&
-      session.scope.companyId === key.companyId &&
+      session.scope.spaceId === key.spaceId &&
       session.scope.ownerUserId === key.ownerUserId &&
       session.scope.adapterType === key.adapterType
     ) {
@@ -1470,7 +1470,7 @@ function toCleanupRecord(row: AdapterAuthSessionRow): SetupTokenCleanupRecord {
   return {
     sessionId: row.publicSessionId,
     ...(row.aiConnection ? { aiConnection: row.aiConnection } : {}),
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     ownerUserId: row.startedByUserId,
     adapterType: row.adapterType,
     environmentId: row.environmentId,
@@ -1484,15 +1484,15 @@ function toCleanupRecord(row: AdapterAuthSessionRow): SetupTokenCleanupRecord {
 }
 
 /**
- * The database scope predicate. It matches the company, the owner, the adapter,
+ * The database scope predicate. It matches the space, the owner, the adapter,
  * and the public session id, so no write ever addresses a row by the session id
- * alone. The `company_id` and `started_by_user_id` terms hold the server-scoped
+ * alone. The `space_id` and `started_by_user_id` terms hold the server-scoped
  * lookup: a query never keys on the public session id alone.
  */
 function setupTokenScopeMatch(identity: SetupTokenCleanupIdentity) {
   return and(
     eq(adapterAuthSessions.publicSessionId, identity.sessionId),
-    eq(adapterAuthSessions.companyId, identity.companyId),
+    eq(adapterAuthSessions.spaceId, identity.spaceId),
     eq(adapterAuthSessions.startedByUserId, identity.ownerUserId),
     eq(adapterAuthSessions.adapterType, identity.adapterType as AgentAdapterType),
   );
@@ -1553,15 +1553,15 @@ export function createDbSetupTokenCleanupStore(db: Db): SetupTokenCleanupStore {
   const scopeMatch = setupTokenScopeMatch;
 
   return {
-    async getLoginAgentId(leaseId, companyId) {
+    async getLoginAgentId(leaseId, spaceId) {
       const lease = await environmentService(db).getLeaseById(leaseId);
-      return lease?.companyId === companyId && lease.metadata?.purpose === "login" ? (typeof lease.metadata.agentId === "string" ? lease.metadata.agentId : undefined) : undefined;
+      return lease?.spaceId === spaceId && lease.metadata?.purpose === "login" ? (typeof lease.metadata.agentId === "string" ? lease.metadata.agentId : undefined) : undefined;
     },
     async record(record): Promise<void> {
       // The database generates `id`. The store fills `public_session_id` with the
       // service session id, which the service builds from a CSPRNG at start.
       await writeLoginCleanup(db, DELIVERY_QUEUES.setupTokenCleanup, tx => tx.insert(adapterAuthSessions).values({
-        companyId: record.companyId,
+        spaceId: record.spaceId,
         aiConnection: record.aiConnection,
         environmentId: record.environmentId,
         adapterType: record.adapterType as AgentAdapterType,
@@ -1575,7 +1575,7 @@ export function createDbSetupTokenCleanupStore(db: Db): SetupTokenCleanupStore {
     },
 
     async markState(identity, state): Promise<void> {
-      // The compare-and-set predicate matches the company, the owner, and the
+      // The compare-and-set predicate matches the space, the owner, and the
       // adapter, so a write never updates a row by the session id alone.
       await writeLoginCleanup(db, DELIVERY_QUEUES.setupTokenCleanup, tx => tx
         .update(adapterAuthSessions)
@@ -1584,7 +1584,7 @@ export function createDbSetupTokenCleanupStore(db: Db): SetupTokenCleanupStore {
     },
 
     async remove(identity): Promise<void> {
-      // The delete matches the company, the owner, and the adapter, so it never
+      // The delete matches the space, the owner, and the adapter, so it never
       // removes a row by the session id alone.
       await writeLoginCleanup(db, DELIVERY_QUEUES.setupTokenCleanup, tx => tx.delete(adapterAuthSessions).where(scopeMatch(identity)));
     },
@@ -1612,7 +1612,7 @@ export function createDbSetupTokenCleanupStore(db: Db): SetupTokenCleanupStore {
     },
 
     async consumeStoredClaim(identity): Promise<SetupTokenCleanupRecord | null> {
-      // One conditional write. The predicate carries the company, the owner, the
+      // One conditional write. The predicate carries the space, the owner, the
       // adapter, the session id, `status = stored`, an unexpired deadline, and an
       // unconsumed marker. It checks the deadline with `clock_timestamp()`, so the
       // database evaluates the current time after any row-lock wait. An expired
@@ -1635,7 +1635,7 @@ export function createDbSetupTokenCleanupStore(db: Db): SetupTokenCleanupStore {
     },
 
     async cancelDurable(identity, cancellableStates): Promise<SetupTokenCleanupRecord | null> {
-      // One conditional write. The predicate carries the company, the owner, the
+      // One conditional write. The predicate carries the space, the owner, the
       // adapter, the session id, and one of `cancellableStates`. It never
       // interrupts a `submitting` write, a `stored` claim, or a terminal row.
       const changed = await writeLoginCleanup(db, DELIVERY_QUEUES.setupTokenCleanup, tx => tx
@@ -1652,7 +1652,7 @@ export function createDbSetupTokenCleanupStore(db: Db): SetupTokenCleanupStore {
     },
 
     async findActiveDurable(key, now): Promise<SetupTokenCleanupRecord | null> {
-      // The active slot cap is one row per company, owner, and adapter, so at
+      // The active slot cap is one row per space, owner, and adapter, so at
       // most one row can match. The scan filters by the setup-token adapter, so
       // it never reads a Codex device-login row on the shared table.
       const rows = await db
@@ -1660,7 +1660,7 @@ export function createDbSetupTokenCleanupStore(db: Db): SetupTokenCleanupStore {
         .from(adapterAuthSessions)
         .where(
           and(
-            eq(adapterAuthSessions.companyId, key.companyId),
+            eq(adapterAuthSessions.spaceId, key.spaceId),
             eq(adapterAuthSessions.startedByUserId, key.ownerUserId),
             eq(adapterAuthSessions.adapterType, key.adapterType as AgentAdapterType),
             notInArray(adapterAuthSessions.status, [...SETUP_TOKEN_TERMINAL_STATES]),

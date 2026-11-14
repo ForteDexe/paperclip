@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 const { and, eq } = createRequire(new URL("../server/package.json", import.meta.url))("drizzle-orm");
-import { agents, companies, createDb, heartbeatRuns, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
+import { agents, spaces, createDb, heartbeatRuns, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
 import { agentRunWritesRevoked } from "../server/src/agent-run-cancellation.js";
 import { loadAgentRunAuthentication } from "../server/src/middleware/agent-run-authentication.js";
 
@@ -24,15 +24,15 @@ let db: Db | undefined;
 try {
   database = await startEmbeddedPostgresTestDatabase("agent-authentication-benchmark-");
   db = createDb(database.connectionString);
-  const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
-  await db.insert(companies).values({ id: companyId, name: "Synthetic authentication", issuePrefix: "AUTH" });
-  await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "process" });
-  await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running",
+  const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
+  await db.insert(spaces).values({ id: spaceId, name: "Synthetic authentication", issuePrefix: "AUTH" });
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "process" });
+  await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running",
     activeIdentityContextId: randomUUID(), responsibleUserId: "fixture-user" });
   const baseline = new Function("db", "heartbeatRuns", "and", "eq", "claims", `return ${expression}`)(
-    db, heartbeatRuns, and, eq, { sub: agentId, company_id: companyId, run_id: runId },
+    db, heartbeatRuns, and, eq, { sub: agentId, space_id: spaceId, run_id: runId },
   ).toSQL() as Query;
-  const treatment = loadAgentRunAuthentication(db, { companyId, agentId, runId }).toSQL();
+  const treatment = loadAgentRunAuthentication(db, { spaceId, agentId, runId }).toSQL();
 
   function contract(rows: unknown[][]) {
     return rows.map(([activeIdentityContextId, responsibleUserId, status, resultJson, contextSnapshot]) => ({

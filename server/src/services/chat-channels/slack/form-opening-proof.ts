@@ -22,14 +22,14 @@ function opening(value: unknown): { rawBody: string; timestamp: string; signatur
   return { rawBody: raw.rawBody, timestamp: raw.timestamp, signature: raw.signature };
 }
 const digest = (raw: ReturnType<typeof opening>) => createHash("sha256").update(JSON.stringify([raw.rawBody, raw.timestamp, raw.signature])).digest("hex");
-export function readSlackFormOriginalProofs(row: Pick<typeof chatActions.$inferSelect, "id" | "companyId" | "endpointId" | "kind" | "payload" | "result">): { opening: ReturnType<typeof opening>; terminal: ReturnType<typeof opening> | null } {
+export function readSlackFormOriginalProofs(row: Pick<typeof chatActions.$inferSelect, "id" | "spaceId" | "endpointId" | "kind" | "payload" | "result">): { opening: ReturnType<typeof opening>; terminal: ReturnType<typeof opening> | null } {
   const saved = object(row.result?.openingProof);
   if (row.kind !== "slack_form_session" || saved.version !== 1 || Object.keys(saved).sort().join() !== "material,version") return fail("form_opening_proof_invalid");
   let value: Record<string, unknown>;
   try { value = object(JSON.parse(createLocalEncryptedCipher("read").decrypt(object(saved.material)))); }
   catch { return fail("form_opening_cipher_unavailable"); }
   const binding = parseSlackFormBinding(row.payload.binding);
-  if (value.version !== 1 || value.kind !== "slack_form_original_opening" || value.appReceiptId !== row.id || value.companyId !== row.companyId || value.endpointId !== row.endpointId
+  if (value.version !== 1 || value.kind !== "slack_form_original_opening" || value.appReceiptId !== row.id || value.spaceId !== row.spaceId || value.endpointId !== row.endpointId
     || value.operationId !== row.payload.operationId || value.environment !== row.payload.environment
     || !sameSlackFormBinding(parseSlackFormBinding(value.binding), binding)) return fail("form_opening_cipher_binding_changed");
   const raw = opening(value.original);
@@ -37,8 +37,8 @@ export function readSlackFormOriginalProofs(row: Pick<typeof chatActions.$inferS
   if (value.terminal === undefined) return fail("form_terminal_original_proof_missing");
   return { opening: raw, terminal: value.terminal === null ? null : opening(value.terminal) };
 }
-export async function retainSlackFormOpeningProof(tx: Tx, input: { companyId: string; appReceiptId: string; operation: SlackFormOperation; original: unknown }): Promise<void> {
-  const [row] = await tx.select().from(chatActions).where(and(eq(chatActions.id, input.appReceiptId), eq(chatActions.companyId, input.companyId),
+export async function retainSlackFormOpeningProof(tx: Tx, input: { spaceId: string; appReceiptId: string; operation: SlackFormOperation; original: unknown }): Promise<void> {
+  const [row] = await tx.select().from(chatActions).where(and(eq(chatActions.id, input.appReceiptId), eq(chatActions.spaceId, input.spaceId),
     eq(chatActions.endpointId, input.operation.binding.endpointId), eq(chatActions.kind, "slack_form_session"))).for("update");
   if (!row || row.payload.operationId !== input.operation.id || row.payload.requestDigest !== input.operation.requestDigest
     || !sameSlackFormBinding(parseSlackFormBinding(row.payload.binding), input.operation.binding) || !row.result?.cloudProofAcceptance)
@@ -53,11 +53,11 @@ export async function retainSlackFormOpeningProof(tx: Tx, input: { companyId: st
     return;
   }
   let material: StoredSecretVersionMaterial;
-  try { material = createLocalEncryptedCipher("write").encrypt(JSON.stringify({ version: 1, kind: "slack_form_original_opening", appReceiptId: row.id, companyId: row.companyId,
+  try { material = createLocalEncryptedCipher("write").encrypt(JSON.stringify({ version: 1, kind: "slack_form_original_opening", appReceiptId: row.id, spaceId: row.spaceId,
     endpointId: row.endpointId, operationId: input.operation.id, environment: row.payload.environment, binding: input.operation.binding, original, terminal })); }
   catch { return fail("form_opening_cipher_unavailable"); }
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.connectionEvents);
   const changed = await tx.update(chatActions).set({ result: { ...row.result, openingProof: { version: 1, material } }, updatedAt: new Date() })
-    .where(and(eq(chatActions.id, row.id), eq(chatActions.companyId, input.companyId), sql`${chatActions.result} = ${JSON.stringify(row.result)}::jsonb`)).returning({ id: chatActions.id });
+    .where(and(eq(chatActions.id, row.id), eq(chatActions.spaceId, input.spaceId), sql`${chatActions.result} = ${JSON.stringify(row.result)}::jsonb`)).returning({ id: chatActions.id });
   if (changed.length !== 1) return fail("form_opening_proof_custody_changed");
 }

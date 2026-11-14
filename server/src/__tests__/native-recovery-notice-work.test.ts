@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, companies, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
+import { agents, spaces, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations, type Db } from "@outpost/db";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { nativeRecoveryNoticeWork } from "../services/native-runtime/native-recovery-notice-work.js";
 import { resolveCommittedNativeRecoveryNotices } from "../services/native-runtime/native-recovery-notices.js";
@@ -22,7 +22,7 @@ import { issueRecoveryActionService } from "../services/issue-recovery-actions.j
 import { issueRecoveryActions } from "@outpost/db";
 import { finalizeNativeRun } from "../services/native-runtime/native-run-finalizer.js";
 import * as statusCommitter from "../services/native-runtime/status-decision-committer.js";
-import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "../services/native-runtime/outpost-control-plane-port.js";
 import { NativeRunCoordinatorStore } from "../services/native-runtime/native-run-coordinator-store.js";
 import { workspaceOperationService } from "../services/workspace-operations.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
@@ -40,7 +40,7 @@ describe("committed native recovery notice lifecycle", () => {
   let db: Db, root: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let worker: ReturnType<ReturnType<typeof nativeRecoveryNoticeWork>["register"]> | undefined;
-  const companyId = randomUUID(), agentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID();
   const priorLogs = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH;
   let admitted = true;
   const errors: unknown[] = [];
@@ -50,8 +50,8 @@ describe("committed native recovery notice lifecycle", () => {
     const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_RECOVERY_NOTICE_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("native-recovery-notice-");
     db = createDb(external ?? temporary!.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Result commits", issuePrefix: `RC${randomUUID().slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Result worker", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Result commits", issuePrefix: `RC${randomUUID().slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Result worker", adapterType: "outpost_runner" });
   }, 30_000);
   beforeEach(() => {
     admitted = true; errors.length = 0; vi.mocked(emitAgentTaskRun).mockClear();
@@ -60,7 +60,7 @@ describe("committed native recovery notice lifecycle", () => {
   afterEach(async () => {
     await coordinator?.stop(); coordinator = undefined; worker = undefined;
     vi.useRealTimers(); vi.restoreAllMocks();
-    await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, companyId));
+    await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, spaceId));
     expect(errors).toEqual([]);
   });
   afterAll(async () => {
@@ -90,21 +90,21 @@ describe("committed native recovery notice lifecycle", () => {
   }
   async function seed() {
     const runId = randomUUID(), issueId = randomUUID(), contractId = randomUUID(), sourceInstanceId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Commit accepted work", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Commit accepted work", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "result-worker-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "result-worker-v1", objective: "Finish", criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, runtimeMode: "native", status: "running",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, runtimeMode: "native", status: "running",
       nativeIssueId: issueId, nativeSessionId: runId, runnerInstanceId: sourceInstanceId,
       completionContractId: contractId, completionContractSha256: contractId, contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    return { companyId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
+    return { spaceId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
       completionContractSha256: contractId, sourceInstanceId, controlPlaneSourceInstanceId: "result-worker-test" };
   }
   async function complete(binding: Awaited<ReturnType<typeof seed>>, producer: "control_plane" | "coordinator", writer: Db = db, terminalStatus: "succeeded" | "failed" | "cancelled" = "succeeded") {
-    const port = producer === "control_plane" ? new PaperclipControlPlanePort(writer, binding)
+    const port = producer === "control_plane" ? new OutpostControlPlanePort(writer, binding)
       : new NativeRunCoordinatorStore(writer, { ...binding, normalizedSessionId: binding.sessionId,
         runnerSourceInstanceId: binding.sourceInstanceId,
         completionContractRevision: CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim.contractRevision,
@@ -113,7 +113,7 @@ describe("committed native recovery notice lifecycle", () => {
       callerResultId: `${binding.runId}:result` });
   }
   async function barrier(binding: Awaited<ReturnType<typeof seed>>) {
-    await workspaceOperationService(db).createRecorder({ companyId, issueId: binding.issueId, heartbeatRunId: binding.runId })
+    await workspaceOperationService(db).createRecorder({ spaceId, issueId: binding.issueId, heartbeatRunId: binding.runId })
       .recordOperation({ phase: "workspace_finalize", cwd: root, run: async () => ({ status: "succeeded", exitCode: 0 }) });
   }
   async function state(runId: string) {
@@ -133,7 +133,7 @@ describe("committed native recovery notice lifecycle", () => {
   }
   async function notice(binding: Awaited<ReturnType<typeof seed>>, writer: Db = db,
     patch: Partial<Parameters<ReturnType<typeof issueRecoveryActionService>["upsertSourceScoped"]>[0]> = {}) {
-    return issueRecoveryActionService(writer).upsertSourceScoped({ companyId, sourceIssueId: binding.issueId,
+    return issueRecoveryActionService(writer).upsertSourceScoped({ spaceId, sourceIssueId: binding.issueId,
       kind: "active_run_watchdog", ownerType: "system", cause: "native_workspace_sync_out_failed",
       fingerprint: binding.runId, evidence: { runId: binding.runId }, nextAction: "Retry finalization",
       wakePolicy: { kind: "resume_native_run", runId: binding.runId }, ...patch });
@@ -147,7 +147,7 @@ describe("committed native recovery notice lifecycle", () => {
     await quiet(); const settled = await action(pending.id);
     await coordinator!.stop(); await start(); await flush(); await quiet(); expect(await action(pending.id)).toEqual(settled);
   });
-  it("ignores routine company-only finalization hints and still resolves a real notice", async () => {
+  it("ignores routine space-only finalization hints and still resolves a real notice", async () => {
     await start(); await flush(); await quiet();
     const previous = db.$client.options.debug;
     const queries: string[] = [];
@@ -156,7 +156,7 @@ describe("committed native recovery notice lifecycle", () => {
     };
     try {
       for (let index = 0; index < 3; index += 1) {
-        await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, { companyId }); });
+        await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, { spaceId }); });
         await flush();
       }
       expect(queries).toEqual([]);
@@ -209,7 +209,7 @@ describe("committed native recovery notice lifecycle", () => {
     const queries: string[] = []; const previous = db.$client.options.debug;
     db.$client.options.debug = (_id, query) => { queries.push(query); };
     try {
-      await issueRecoveryActionService(db).resolveActiveForIssue({ companyId, sourceIssueId: binding.issueId,
+      await issueRecoveryActionService(db).resolveActiveForIssue({ spaceId, sourceIssueId: binding.issueId,
         actionId: pending.id, status: "resolved", outcome: "restored" });
       await flush();
       expect(queries.filter(query => query.includes('from "native_run_finalizations"'))).toEqual([]);
@@ -299,7 +299,7 @@ describe("committed native recovery notice lifecycle", () => {
       skipNativeResponsePresentation: true, skipNativeReviewResponse: true, onWorkspaceSettled: settled,
     });
     expect(settleAssignment).toHaveBeenCalledTimes(delegated ? 0 : 1);
-    if (!delegated) expect(settleAssignment).toHaveBeenCalledWith(db, expect.objectContaining({ id: binding.runId, companyId }));
+    if (!delegated) expect(settleAssignment).toHaveBeenCalledWith(db, expect.objectContaining({ id: binding.runId, spaceId }));
     expect(settled).toHaveBeenCalledWith(expect.objectContaining({ runId: binding.runId, succeeded: true }));
   });
   it.each([true, false])("preserves resource settlement while delegating conversations: %s", async delegated => {
@@ -312,7 +312,7 @@ describe("committed native recovery notice lifecycle", () => {
       skipNativeReviewResponse: true, onWorkspaceSettled: settled,
     });
     expect(settleConversation).toHaveBeenCalledTimes(delegated ? 0 : 1);
-    if (!delegated) expect(settleConversation).toHaveBeenCalledWith(db, companyId, binding.issueId);
+    if (!delegated) expect(settleConversation).toHaveBeenCalledWith(db, spaceId, binding.issueId);
     expect(settled).toHaveBeenCalledWith(expect.objectContaining({ runId: binding.runId, succeeded: true }));
   });
   it("delegates only notice repair and preserves periodic resource settlement", async () => {

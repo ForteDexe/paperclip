@@ -12,7 +12,7 @@ import type { WaveOptions } from "./types.js";
 
 const IMAGE = `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:${"a".repeat(64)}`;
 const RUN = "c4373803-ef67-4dcc-ad20-ea330aac80c1";
-const COMPANY = "11111111-1111-4111-8111-111111111111";
+const SPACE = "11111111-1111-4111-8111-111111111111";
 const ENVIRONMENT = "22222222-2222-4222-8222-222222222222";
 
 describe("class R options", () => {
@@ -71,7 +71,7 @@ describe("CR2 provider kill", () => {
   it("quotes the fixed script and passes only a run id and the adapter's pattern", () => {
     const command = providerKillCommand(RUN, "opencode");
     expect(command.startsWith("sh -c '")).toBe(true);
-    expect(command.endsWith(`paperclip-chaos-cr2 '${RUN}' ' serve --hostname 127.0.0.1 --port '`)).toBe(true);
+    expect(command.endsWith(`outpost-chaos-cr2 '${RUN}' ' serve --hostname 127.0.0.1 --port '`)).toBe(true);
     expect(PROVIDER_KILL_SCRIPT).toContain("kill -KILL $targets");
     // A survivor fails the fault instead of being reported as killed.
     expect(PROVIDER_KILL_SCRIPT.indexOf("exit 5")).toBeLessThan(PROVIDER_KILL_SCRIPT.indexOf("== killed"));
@@ -129,11 +129,11 @@ describe("CR3 stall", () => {
 
 describe("CR2 sandbox search", () => {
   const list = async function* () {
-    yield { id: "a", state: "started", labels: { "paperclip-company-id": COMPANY, "paperclip-environment-id": ENVIRONMENT } };
+    yield { id: "a", state: "started", labels: { "outpost-space-id": SPACE, "outpost-environment-id": ENVIRONMENT } };
   };
   it("returns at its deadline when a Daytona lookup never answers", async () => {
     const started = Date.now();
-    const result = await executeInWaveSandboxes({ apiKey: "", companyId: COMPANY, environmentId: ENVIRONMENT, command: "true", secrets: [],
+    const result = await executeInWaveSandboxes({ apiKey: "", spaceId: SPACE, environmentId: ENVIRONMENT, command: "true", secrets: [],
       done: () => true, client: { list, get: async () => new Promise<never>(() => {}) } as never, deadlineMs: 1_500 });
     const elapsed = Date.now() - started;
     expect(result.error).toMatch(/deadline 1500 ms/);
@@ -144,7 +144,7 @@ describe("CR2 sandbox search", () => {
     let commands = 0;
     const sandbox = { process: { executeCommand: async () => { commands += 1; return { exitCode: 0, result: "" }; } } };
     const get = () => new Promise(resolve => setTimeout(() => resolve(sandbox), 1_800));
-    const result = await executeInWaveSandboxes({ apiKey: "", companyId: COMPANY, environmentId: ENVIRONMENT, command: "true", secrets: [],
+    const result = await executeInWaveSandboxes({ apiKey: "", spaceId: SPACE, environmentId: ENVIRONMENT, command: "true", secrets: [],
       done: () => true, client: { list, get } as never, deadlineMs: 1_500 });
     expect(result.error).toMatch(/deadline/);
     await new Promise(resolve => setTimeout(resolve, 600));

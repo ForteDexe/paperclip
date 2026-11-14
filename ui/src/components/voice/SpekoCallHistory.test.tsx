@@ -20,7 +20,7 @@ describe("saved Speko call history", () => {
   });
   afterEach(async () => {await act(async () => root.unmount()); query.clear(); container.remove();});
   async function render() {
-    await act(async () => root.render(<MemoryRouter><QueryClientProvider client={query}><SpekoCallHistory companyId="company" endpointId="endpoint" /></QueryClientProvider></MemoryRouter>));
+    await act(async () => root.render(<MemoryRouter><QueryClientProvider client={query}><SpekoCallHistory spaceId="space" endpointId="endpoint" /></QueryClientProvider></MemoryRouter>));
   }
   it("keeps completed call transcripts when paused inbound admission cannot load", async () => {
     mocks.incoming.mockRejectedValue(new Error("Connection is paused")); await render();

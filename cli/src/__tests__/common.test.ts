@@ -3,13 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { writeContext } from "../client/context.js";
-import { setStoredBoardCredential } from "../client/board-auth.js";
+import { setStoredBoardCredential } from "../client/operator-auth.js";
 import { apiPath, inferContentTypeFromPath, resolveApiBase, resolveCommandContext } from "../commands/client/common.js";
 
 const ORIGINAL_ENV = { ...process.env };
 
 function createTempPath(name: string): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-cli-common-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-cli-common-"));
   return path.join(dir, name);
 }
 
@@ -18,7 +18,7 @@ describe("resolveCommandContext", () => {
     process.env = { ...ORIGINAL_ENV };
     delete process.env.OUTPOST_API_URL;
     delete process.env.OUTPOST_API_KEY;
-    delete process.env.OUTPOST_COMPANY_ID;
+    delete process.env.OUTPOST_SPACE_ID;
     delete process.env.OUTPOST_AUTH_STORE;
     delete process.env.OUTPOST_SERVER_PORT;
   });
@@ -37,7 +37,7 @@ describe("resolveCommandContext", () => {
         profiles: {
           ops: {
             apiBase: "http://127.0.0.1:9999",
-            companyId: "company-profile",
+            spaceId: "space-profile",
             apiKeyEnvVarName: "AGENT_KEY",
           },
         },
@@ -46,9 +46,9 @@ describe("resolveCommandContext", () => {
     );
     process.env.AGENT_KEY = "key-from-env";
 
-    const resolved = resolveCommandContext({ context: contextPath }, { requireCompany: true });
+    const resolved = resolveCommandContext({ context: contextPath }, { requireSpace: true });
     expect(resolved.api.apiBase).toBe("http://127.0.0.1:9999");
-    expect(resolved.companyId).toBe("company-profile");
+    expect(resolved.spaceId).toBe("space-profile");
     expect(resolved.api.apiKey).toBe("key-from-env");
   });
 
@@ -61,7 +61,7 @@ describe("resolveCommandContext", () => {
         profiles: {
           default: {
             apiBase: "http://profile:3100",
-            companyId: "company-profile",
+            spaceId: "space-profile",
           },
         },
       },
@@ -73,17 +73,17 @@ describe("resolveCommandContext", () => {
         context: contextPath,
         apiBase: "http://override:3200",
         apiKey: "direct-token",
-        companyId: "company-override",
+        spaceId: "space-override",
       },
-      { requireCompany: true },
+      { requireSpace: true },
     );
 
     expect(resolved.api.apiBase).toBe("http://override:3200");
-    expect(resolved.companyId).toBe("company-override");
+    expect(resolved.spaceId).toBe("space-override");
     expect(resolved.api.apiKey).toBe("direct-token");
   });
 
-  it("throws when company is required but unresolved", () => {
+  it("throws when space is required but unresolved", () => {
     const contextPath = createTempPath("context.json");
     writeContext(
       {
@@ -95,8 +95,8 @@ describe("resolveCommandContext", () => {
     );
 
     expect(() =>
-      resolveCommandContext({ context: contextPath, apiBase: "http://localhost:3100" }, { requireCompany: true }),
-    ).toThrow(/Company ID is required/);
+      resolveCommandContext({ context: contextPath, apiBase: "http://localhost:3100" }, { requireSpace: true }),
+    ).toThrow(/Space ID is required/);
   });
 
   it("resolves api base by explicit, env, profile, then config/default precedence", () => {
@@ -119,14 +119,14 @@ describe("resolveCommandContext", () => {
     expect(resolveApiBase({ config: configPath }, {})).toBe("http://localhost:4111");
   });
 
-  it("prefers explicit and env tokens over profile env and stored board auth", () => {
+  it("prefers explicit and env tokens over profile env and stored operator auth", () => {
     const contextPath = createTempPath("context.json");
     const authStorePath = createTempPath("auth.json");
     process.env.OUTPOST_AUTH_STORE = authStorePath;
     process.env.PROFILE_KEY = "profile-token";
     setStoredBoardCredential({
       apiBase: "http://localhost:3100",
-      token: "stored-board-token",
+      token: "stored-operator-token",
       userId: "user-1",
       storePath: authStorePath,
     });

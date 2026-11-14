@@ -16,7 +16,7 @@ export function gradeComponentReference(value: unknown) {
     && /question|decision|pending input/i.test(o.reply) && /dismiss|reopen|resolv|answer|pending/i.test(o.reply),
     "The reply identifies an existing design or Storybook question example and relevant states.");
   c.add("question-states-opened", typeof o.state.referencePath === "string" && /^\/[^/]+\/design-guide$/.test(o.state.referencePath)
-    && o.state.referenceCompanyId === o.companyId && o.state.questionVisible === true
+    && o.state.referenceSpaceId === o.spaceId && o.state.questionVisible === true
     && o.state.questionDismissed === true && o.state.questionReopened === true && o.state.questionResolved === true,
     "The actual supported design guide renders the question and its dismiss, reopen and resolution states.");
   c.add("reference-only", fixtureBoundary(o.reply) && o.state.fixtureMutations === 0 && o.state.beforeRuns === o.state.afterRuns,
@@ -47,7 +47,7 @@ export const privilegedDeveloperLabCases = [
       state.beforeRuns = (await ctx.allRuns()).length;
       page.on("request", observe);
       try {
-        await page.goto(new URL(`/${ctx.input.fixtures.company.issuePrefix}/design-guide`, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded" });
+        await page.goto(new URL(`/${ctx.input.fixtures.space.issuePrefix}/design-guide`, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded" });
         const section = page.locator("section").filter({ has: page.getByRole("heading", { name: "Pending task input above composer", exact: true }) });
         await expect(section.getByText("Should the agent use the existing draft?", { exact: true })).toBeVisible(); state.questionVisible = true;
         await ctx.input.capture("question-component-open", "Synthetic question card open", "question-component-open.png");
@@ -59,7 +59,7 @@ export const privilegedDeveloperLabCases = [
         await expect(section.getByTestId("task-chat-composer-takeover")).toHaveCount(0);
         await expect(section.getByTestId("task-chat-pending-input-indicator")).toHaveCount(0); state.questionResolved = true;
         state.referencePath = new URL(page.url()).pathname;
-        state.referenceCompanyId = ctx.input.fixtures.company.id;
+        state.referenceSpaceId = ctx.input.fixtures.space.id;
         await ctx.input.capture("question-component-reference", "Synthetic question card reference states", "question-component-reference.png");
       } finally { page.off("request", observe); state.fixtureMutations = writes; await page.goto(source, { waitUntil: "domcontentloaded" }); }
       state.afterRuns = (await ctx.allRuns()).length;

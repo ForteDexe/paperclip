@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { activityLog, agents, agentWakeupRequests, authUsers, caseAccessSources, caseEvents, caseHandoffs, cases,
-  companies, companyMemberships, createDb, heartbeatRuns, issues, toolActionRequests, toolInvocations, type Db } from "@outpost/db";
+  spaces, spaceMemberships, createDb, heartbeatRuns, issues, toolActionRequests, toolInvocations, type Db } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { issueService } from "../services/issues.js";
@@ -20,31 +20,31 @@ describe("terminal case handoff follows accepted task completion", () => {
   afterAll(async () => { await temporary?.cleanup(); });
 
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), otherAgentId = randomUUID(), issueId = randomUUID(),
+    const spaceId = randomUUID(), agentId = randomUUID(), otherAgentId = randomUUID(), issueId = randomUUID(),
       caseId = randomUUID(), handoffId = randomUUID(), userId = randomUUID(), runId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Operator", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companies).values({ id: companyId, name: "Terminal factory", issuePrefix: `T${companyId.slice(0, 6)}`,
+    await db.insert(spaces).values({ id: spaceId, name: "Terminal factory", issuePrefix: `T${spaceId.slice(0, 6)}`,
       defaultResponsibleUserId: userId });
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "owner" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "owner" });
     await db.insert(agents).values([
-      { id: agentId, companyId, name: "Builder", role: "ceo", status: "idle", adapterType: "process" },
-      { id: otherAgentId, companyId, name: "Other", role: "engineer", status: "idle", adapterType: "process", reportsTo: agentId },
+      { id: agentId, spaceId, name: "Builder", role: "lead", status: "idle", adapterType: "process" },
+      { id: otherAgentId, spaceId, name: "Other", role: "engineer", status: "idle", adapterType: "process", reportsTo: agentId },
     ]);
-    await db.insert(issues).values({ id: issueId, companyId, title: "Verify a receipt", status: "in_progress",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Verify a receipt", status: "in_progress",
       assigneeAgentId: agentId, responsibleUserId: userId });
     // The original execution may already be settled when a reviewer/human
     // accepts completion. Its persisted provenance must remain sufficient.
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "succeeded", runtimeMode: "legacy",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "succeeded", runtimeMode: "legacy",
       responsibleUserId: userId, finishedAt: new Date(), contextSnapshot: { issueId } });
-    await db.insert(cases).values({ id: caseId, companyId, caseNumber: 1, identifier: `CASE-${caseId}`, caseType: "work",
+    await db.insert(cases).values({ id: caseId, spaceId, caseNumber: 1, identifier: `CASE-${caseId}`, caseType: "work",
       title: "Verify a receipt", status: "in_progress", workIssueId: issueId, phase: "verification", handoffVersion: 2 });
-    await db.insert(caseAccessSources).values({ companyId, caseId, sourceKind: "issue", sourceId: issueId });
-    await db.insert(caseHandoffs).values({ id: handoffId, companyId, caseId, issueId, version: 2,
+    await db.insert(caseAccessSources).values({ spaceId, caseId, sourceKind: "issue", sourceId: issueId });
+    await db.insert(caseHandoffs).values({ id: handoffId, spaceId, caseId, issueId, version: 2,
       fromAgentId: agentId, destinationKind: "done", toAgentId: null, phase: "done", instructions: "Receipt verified; finish normally.",
       actorType: "agent", actorId: agentId, sourceRunId: runId, responsibleUserId: userId,
       expectedIssueStatusVersion: 0, wakeupRequestId: randomUUID(), idempotencyKey: "finish", inputFingerprint: "fixture",
       state: "awaiting_completion" });
-    return { companyId, agentId, otherAgentId, issueId, caseId, handoffId, userId, runId };
+    return { spaceId, agentId, otherAgentId, issueId, caseId, handoffId, userId, runId };
   }
 
   async function read(f: Awaited<ReturnType<typeof fixture>>) {
@@ -69,7 +69,7 @@ describe("terminal case handoff follows accepted task completion", () => {
     });
     expect(await read(f)).toMatchObject({ issue: { status: "in_progress" }, caseRow: { status: "in_progress", phase: "verification" },
       handoff: { state: "awaiting_completion", completedAt: null, attemptCount: 0 } });
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
   });
 
   it("closes exactly once in the accepted completion transaction, even after Cases is disabled", async () => {
@@ -85,11 +85,11 @@ describe("terminal case handoff follows accepted task completion", () => {
     expect(await db.select().from(activityLog).where(and(eq(activityLog.entityId, f.caseId), eq(activityLog.action, "case.handoff_completed")))).toHaveLength(1);
   });
 
-  it("survives review status versions and waits for an existing governed action before closing", async () => {
+  it("survives review status versions and waits for an existing controlled action before closing", async () => {
     const f = await fixture();
-    const [invocation] = await db.insert(toolInvocations).values({ companyId: f.companyId, issueId: f.issueId,
-      agentId: f.agentId, toolName: "governed-change" }).returning();
-    const [request] = await db.insert(toolActionRequests).values({ companyId: f.companyId, issueId: f.issueId, invocationId: invocation.id,
+    const [invocation] = await db.insert(toolInvocations).values({ spaceId: f.spaceId, issueId: f.issueId,
+      agentId: f.agentId, toolName: "controlled-change" }).returning();
+    const [request] = await db.insert(toolActionRequests).values({ spaceId: f.spaceId, issueId: f.issueId, invocationId: invocation.id,
       status: "pending", canonicalArgumentsHash: "test", canonicalArgumentsSummary: { summary: "Test action" } }).returning();
     await issueService(db).update(f.issueId, { status: "in_review", statusVersion: 1 });
     await expect(issueService(db).update(f.issueId, { status: "done", actorAgentId: f.agentId })).rejects.toMatchObject({
@@ -143,7 +143,7 @@ describe("terminal case handoff follows accepted task completion", () => {
 
   it("revoked retained access cancels only the case effect, preserving accepted task completion", async () => {
     const f = await fixture();
-    await db.insert(caseAccessSources).values({ companyId: f.companyId, caseId: f.caseId, sourceKind: "issue", sourceId: randomUUID() });
+    await db.insert(caseAccessSources).values({ spaceId: f.spaceId, caseId: f.caseId, sourceKind: "issue", sourceId: randomUUID() });
     await issueService(db).update(f.issueId, { status: "done", actorUserId: f.userId });
     expect(await read(f)).toMatchObject({ issue: { status: "done" }, caseRow: { status: "in_progress" },
       handoff: { state: "cancelled", lastError: "Terminal handoff authority is no longer available" } });

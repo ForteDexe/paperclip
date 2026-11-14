@@ -116,7 +116,7 @@ move the CLI can make.
 ## 5. What is never asked
 
 Theme (both palettes ship behind the `t` toggle), animation (always on behind `a`), Today (always present,
-always the shipped components on fixtures), ports, slug, landing, title, group, company and capabilities.
+always the shipped components on fixtures), ports, slug, landing, title, group, space and capabilities.
 Why: each is fixed by the lab contract or derivable from the brief and the grep, and the question call is
 the one chance to ask; spending it on a derivable value costs an answer that only Tonio can give.
 
@@ -134,7 +134,7 @@ derived; always run `--dry-run` first.
 | `--names` | only when the brief names the directions, comma-separated, in order | `Refine,Rework,Rethink`; `Refine,Rethink` for 2; required with `--force-count` |
 | `--group` | `Components` when any §2 hit is under `ui/src/components`, `Pages` when every hit is under `ui/src/pages`; `Layouts` and `Patterns` only when the brief says so. The vocabulary is the existing Storybook section order at `scripts/storybook-feature-index.mjs:11` | `Components` |
 | `--capabilities` | the validated `<area>/<key>` ids from §2 whose description names what the subject does; when none fits, `[]`, and the story carries the exception sentence `repo-gates.md` §1.4 describes | `[]` |
-| `--company` | `name:PREFIX`, fixed so the fixtures and the stub's `/companies` fallback match the precedent (`today-fixtures-and-build.md` §3) | `acmehats:ACM` |
+| `--space` | `name:PREFIX`, fixed so the fixtures and the stub's `/spaces` fallback match the precedent (`today-fixtures-and-build.md` §3) | `acmehats:ACM` |
 | `--landing` | `auto` picks `d=all&s=board` when cells = (directions + 1) × surfaces ≤ 8, else `d=all&s=<first surface>`; `all`, `today` or a direction id override it | `auto` |
 | `--ports` | chosen by the generator: the first `dev,dev+10` pair from `5200/5210` upward in steps of 20 that avoids every port in `.claude/launch.json` (today `3121`, `6016`, `4173`, `5180`, `5190`), `RESERVED_PORTS` in `scripts/lib/ports.mjs:5` and any `ui/node_modules/.vite-*-<port>` cache directory; pass `dev,preview` only to override, and a taken pair is refused | generator |
 
@@ -145,7 +145,7 @@ them; three frame comments in the precedent had drifted (`lab-anatomy.md` §8).
 |---|---|---|
 | Task-chat column (thread, composer dock) | `960` | `ui/src/index.css:575` `--tc-shell-max-w: 60rem`, used by `ui/src/components/task-chat/TaskChatComposerDock.tsx:19` and `ui/src/components/TaskChatThread.tsx:3072` |
 | Right pane (task detail properties panel) | `434` | `ui/src/components/PropertiesPanel.tsx:88` `TASK_DETAIL_DEFAULT_PANE_WIDTH = 434` |
-| Company page body | `1152` | `max-w-6xl` (72rem) at `ui/src/pages/Artifacts.tsx:248`; the same class caps `ui/src/pages/PluginManager.tsx:192` and `ui/src/pages/Secrets.tsx:1808` |
+| Space page body | `1152` | `max-w-6xl` (72rem) at `ui/src/pages/Artifacts.tsx:248`; the same class caps `ui/src/pages/PluginManager.tsx:192` and `ui/src/pages/Secrets.tsx:1808` |
 | A place with no `max-w-*` on its wrapper (the inbox list fills the main column; `ui/src/pages/Inbox.tsx` sets none) | `960` | the default; say in the reply that the width is the default, not a product constant |
 
 `nav` takes `tasks`, `artifacts` or `other` (`scripts/lib/context.mjs:5`); the generated `AppShell` highlights only

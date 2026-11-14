@@ -23,10 +23,10 @@ import {
   projects,
   authUsers,
   budgetReservations,
-  companies,
-  companyFastResponses,
-  companyMemberships,
-  companySecrets,
+  spaces,
+  spaceFastResponses,
+  spaceMemberships,
+  spaceSecrets,
   costEvents,
   fastResponseRequests,
   heartbeatRunEvents,
@@ -85,7 +85,7 @@ import {
 type Request = typeof fastResponseRequests.$inferSelect;
 export type FastResponseSource = Pick<
   Request,
-  "companyId" | "issueId" | "agentId" | "responsibleUserId"
+  "spaceId" | "issueId" | "agentId" | "responsibleUserId"
 > &
   Partial<
     Pick<
@@ -108,7 +108,7 @@ export async function fastResponseTurnQueued(
   db: Db,
   request: Pick<
     Request,
-    "companyId" | "agentId" | "issueId" | "sourceCommentId" | "acceptedAt"
+    "spaceId" | "agentId" | "issueId" | "sourceCommentId" | "acceptedAt"
   >,
 ) {
   if (!request.agentId) return false;
@@ -121,7 +121,7 @@ export async function fastResponseTurnQueued(
     .from(heartbeatRuns)
     .where(
       and(
-        eq(heartbeatRuns.companyId, request.companyId),
+        eq(heartbeatRuns.spaceId, request.spaceId),
         eq(heartbeatRuns.agentId, request.agentId),
         inArray(heartbeatRuns.status, ["queued", "running"]),
       ),
@@ -141,10 +141,10 @@ export async function fastResponseTurnQueued(
   });
 }
 
-/** Board chat streams without a heartbeat run; fence its receipt when real text begins. */
+/** Operator chat streams without a heartbeat run; fence its receipt when real text begins. */
 export async function supersedeFastResponse(
   db: Db,
-  companyId: string,
+  spaceId: string,
   sourceCommentId: string,
 ) {
   await db
@@ -156,7 +156,7 @@ export async function supersedeFastResponse(
     })
     .where(
       and(
-        eq(fastResponseRequests.companyId, companyId),
+        eq(fastResponseRequests.spaceId, spaceId),
         eq(fastResponseRequests.sourceCommentId, sourceCommentId),
         isNull(fastResponseRequests.commentId),
         inArray(fastResponseRequests.status, ["pending", "running"]),
@@ -168,13 +168,13 @@ export async function supersedeFastResponse(
 export async function enqueueFastResponse(tx: Db, source: FastResponseSource) {
   if (!(await instanceSettingsService(tx).getExperimental()).enableFastResponses) return;
   const [config] = await tx
-    .select({ enabled: companyFastResponses.enabled })
-    .from(companyFastResponses)
-    .where(eq(companyFastResponses.companyId, source.companyId));
+    .select({ enabled: spaceFastResponses.enabled })
+    .from(spaceFastResponses)
+    .where(eq(spaceFastResponses.spaceId, source.spaceId));
   if (
     !config?.enabled ||
     !source.issueId ||
-    (!source.agentId && !source.sourceKey.startsWith("board:"))
+    (!source.agentId && !source.sourceKey.startsWith("operator:"))
   )
     return;
   const [comment] = source.sourceCommentId
@@ -183,7 +183,7 @@ export async function enqueueFastResponse(tx: Db, source: FastResponseSource) {
         .from(issueComments)
         .where(
           and(
-            eq(issueComments.companyId, source.companyId),
+            eq(issueComments.spaceId, source.spaceId),
             eq(issueComments.id, source.sourceCommentId),
           ),
         )
@@ -198,7 +198,7 @@ export async function enqueueFastResponse(tx: Db, source: FastResponseSource) {
   if (source.acceptedAt.getTime() + FAST_RESPONSE_DEADLINE_MS <= Date.now())
     return;
   await notifyDeliveryWork(tx, DELIVERY_QUEUES.fastResponse);
-  if (source.endpointId && source.deliveryId) await notifyChatResponseAvailability(tx, { companyId: source.companyId, deliveryId: source.deliveryId });
+  if (source.endpointId && source.deliveryId) await notifyChatResponseAvailability(tx, { spaceId: source.spaceId, deliveryId: source.deliveryId });
   await tx
     .insert(fastResponseRequests)
     .values({
@@ -215,10 +215,10 @@ export async function fastResponseSourceCurrent(tx: Db, request: Request) {
   if (!(await instanceSettingsService(tx).getExperimental()).enableFastResponses) return false;
   if (!request.issueId || request.expiresAt.getTime() <= Date.now())
     return false;
-  const [company] = await tx
-    .select({ status: companies.status })
-    .from(companies)
-    .where(eq(companies.id, request.companyId));
+  const [space] = await tx
+    .select({ status: spaces.status })
+    .from(spaces)
+    .where(eq(spaces.id, request.spaceId));
   const [agent] = request.agentId
     ? await tx
         .select({ status: agents.status })
@@ -226,12 +226,12 @@ export async function fastResponseSourceCurrent(tx: Db, request: Request) {
         .where(
           and(
             eq(agents.id, request.agentId),
-            eq(agents.companyId, request.companyId),
+            eq(agents.spaceId, request.spaceId),
           ),
         )
     : [];
   if (
-    company?.status !== "active" ||
+    space?.status !== "active" ||
     (request.agentId &&
       (!agent || ["paused", "terminated"].includes(agent.status)))
   )
@@ -242,7 +242,7 @@ export async function fastResponseSourceCurrent(tx: Db, request: Request) {
     .where(
       and(
         eq(issues.id, request.issueId),
-        eq(issues.companyId, request.companyId),
+        eq(issues.spaceId, request.spaceId),
       ),
     )
     .for("update");
@@ -258,7 +258,7 @@ export async function fastResponseSourceCurrent(tx: Db, request: Request) {
   if (
     await isAutomaticRecoverySuppressedByPauseHold(
       tx,
-      request.companyId,
+      request.spaceId,
       request.issueId,
     )
   )
@@ -269,7 +269,7 @@ export async function fastResponseSourceCurrent(tx: Db, request: Request) {
         .from(issueComments)
         .where(
           and(
-            eq(issueComments.companyId, request.companyId),
+            eq(issueComments.spaceId, request.spaceId),
             eq(issueComments.id, request.sourceCommentId),
             isNull(issueComments.deletedAt),
           ),
@@ -285,14 +285,14 @@ export async function fastResponseSourceCurrent(tx: Db, request: Request) {
     .from(issueComments)
     .where(
       and(
-        eq(issueComments.companyId, request.companyId),
+        eq(issueComments.spaceId, request.spaceId),
         eq(issueComments.issueId, request.issueId),
         eq(issueComments.origin, "comment"),
         isNull(issueComments.deletedAt),
         gt(issueComments.createdAt, source?.createdAt ?? request.acceptedAt),
         request.agentId
           ? eq(issueComments.authorAgentId, request.agentId)
-          : eq(issueComments.authorUserId, "board-concierge"),
+          : eq(issueComments.authorUserId, "operator-concierge"),
       ),
     )
     .limit(1);
@@ -301,7 +301,7 @@ export async function fastResponseSourceCurrent(tx: Db, request: Request) {
     .from(heartbeatRuns)
     .where(
       and(
-        eq(heartbeatRuns.companyId, request.companyId),
+        eq(heartbeatRuns.spaceId, request.spaceId),
         sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${request.issueId}`,
         inArray(heartbeatRuns.status, ["cancelled", "failed", "succeeded"]),
         request.sourceCommentId
@@ -316,7 +316,7 @@ export async function fastResponseSourceCurrent(tx: Db, request: Request) {
     .innerJoin(heartbeatRuns, eq(heartbeatRuns.id, heartbeatRunEvents.runId))
     .where(
       and(
-        eq(heartbeatRunEvents.companyId, request.companyId),
+        eq(heartbeatRunEvents.spaceId, request.spaceId),
         gt(heartbeatRunEvents.createdAt, request.acceptedAt),
         sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${request.issueId}`,
         inArray(heartbeatRunEvents.eventType, ["item.delta", "item.completed"]),
@@ -343,15 +343,15 @@ export function fastResponseService(
   } = {},
 ) {
   const providerCall = options.provider ?? runFastResponseProvider;
-  async function settings(companyId: string): Promise<FastResponseSettings> {
+  async function settings(spaceId: string): Promise<FastResponseSettings> {
     const [row] = await db
       .select()
-      .from(companyFastResponses)
-      .where(eq(companyFastResponses.companyId, companyId));
+      .from(spaceFastResponses)
+      .where(eq(spaceFastResponses.spaceId, spaceId));
     return row
       ? { ...row, provider: row.provider as AiProvider }
       : {
-          companyId,
+          spaceId,
           enabled: false,
           connectionId: null,
           grantId: null,
@@ -360,25 +360,25 @@ export function fastResponseService(
           allowSponsored: true,
         };
   }
-  async function choices(companyId: string, userId: string) {
-    return (await aiConnectionService(db).list(companyId, userId)).filter(
+  async function choices(spaceId: string, userId: string) {
+    return (await aiConnectionService(db).list(spaceId, userId)).filter(
       (c) => c.ownership === "shared" && c.method === "api_key",
     );
   }
   async function configure(
-    companyId: string,
+    spaceId: string,
     userId: string,
     input: UpdateFastResponse,
   ) {
     const data = updateFastResponseSchema.parse(input);
     return withAccountingTransaction(
       db,
-      companyId,
+      spaceId,
       async (tx, publications) => {
         const [previous] = await tx
           .select()
-          .from(companyFastResponses)
-          .where(eq(companyFastResponses.companyId, companyId));
+          .from(spaceFastResponses)
+          .where(eq(spaceFastResponses.spaceId, spaceId));
         const disabling =
           !data.enabled &&
           previous?.connectionId === data.connectionId &&
@@ -386,7 +386,7 @@ export function fastResponseService(
         const connection =
           !disabling && data.connectionId && data.grantId
             ? await aiConnectionService(tx).selectFastResponse({
-                companyId,
+                spaceId,
                 userId,
                 connectionId: data.connectionId,
                 grantId: data.grantId,
@@ -394,28 +394,28 @@ export function fastResponseService(
             : null;
         const values = {
           ...data,
-          companyId,
+          spaceId,
           provider: disabling
             ? previous.provider
             : (connection?.provider ?? null),
           updatedAt: new Date(),
         };
         await tx
-          .insert(companyFastResponses)
+          .insert(spaceFastResponses)
           .values(values)
           .onConflictDoUpdate({
-            target: companyFastResponses.companyId,
+            target: spaceFastResponses.spaceId,
             set: values,
           });
         await logActivity(
           tx,
           {
-            companyId,
+            spaceId,
             actorType: "user",
             actorId: userId,
             action: "fast_response.configured",
-            entityType: "company",
-            entityId: companyId,
+            entityType: "space",
+            entityId: spaceId,
             details: data,
           },
           publications,
@@ -428,7 +428,7 @@ export function fastResponseService(
     tx: Db,
     request: Pick<
       Request,
-      | "companyId"
+      | "spaceId"
       | "issueId"
       | "responsibleUserId"
       | "agentId"
@@ -442,8 +442,8 @@ export function fastResponseService(
       throw unprocessable("disabled");
     const configQuery = tx
       .select()
-      .from(companyFastResponses)
-      .where(eq(companyFastResponses.companyId, request.companyId));
+      .from(spaceFastResponses)
+      .where(eq(spaceFastResponses.spaceId, request.spaceId));
     const [config] = await (lockConfiguration ? configQuery.for("share") : configQuery);
     if (
       !config?.enabled ||
@@ -469,16 +469,16 @@ export function fastResponseService(
     const memberships = request.responsibleUserId
       ? await tx
           .select({
-            companyId: companyMemberships.companyId,
-            membershipRole: companyMemberships.membershipRole,
-            status: companyMemberships.status,
+            spaceId: spaceMemberships.spaceId,
+            membershipRole: spaceMemberships.membershipRole,
+            status: spaceMemberships.status,
           })
-          .from(companyMemberships)
+          .from(spaceMemberships)
           .where(
             and(
-              eq(companyMemberships.companyId, request.companyId),
-              eq(companyMemberships.principalType, "user"),
-              eq(companyMemberships.principalId, request.responsibleUserId),
+              eq(spaceMemberships.spaceId, request.spaceId),
+              eq(spaceMemberships.principalType, "user"),
+              eq(spaceMemberships.principalId, request.responsibleUserId),
             ),
           )
       : [];
@@ -490,7 +490,7 @@ export function fastResponseService(
           .from(issues)
           .where(
             and(
-              eq(issues.companyId, request.companyId),
+              eq(issues.spaceId, request.spaceId),
               eq(issues.id, request.issueId),
             ),
           )
@@ -498,13 +498,13 @@ export function fastResponseService(
     if (request.issueId && !issue) throw forbidden();
     if (!request.sponsored && issue) {
       const actor: AuthorizationActor = {
-        type: "board",
+        type: "operator",
         userId: request.responsibleUserId!,
         source:
-          request.responsibleUserId === "local-board"
+          request.responsibleUserId === "local-operator"
             ? "local_implicit"
             : "session",
-        companyIds: memberships.map((m) => m.companyId),
+        spaceIds: memberships.map((m) => m.spaceId),
         memberships,
       };
       if (
@@ -514,7 +514,7 @@ export function fastResponseService(
             action: "issue:read",
             resource: {
               type: "issue",
-              companyId: request.companyId,
+              spaceId: request.spaceId,
               issueId: issue.id,
               projectId: issue.projectId,
               parentIssueId: issue.parentId,
@@ -528,7 +528,7 @@ export function fastResponseService(
         throw forbidden();
     }
     const connection = await aiConnectionService(tx).selectFastResponse({
-      companyId: request.companyId,
+      spaceId: request.spaceId,
       connectionId: config.connectionId,
       grantId: config.grantId,
       userId: request.responsibleUserId,
@@ -537,12 +537,12 @@ export function fastResponseService(
     });
     return { config, connection, issue };
   }
-  async function availability(companyId: string, userId: string) {
+  async function availability(spaceId: string, userId: string) {
     if (!(await instanceSettingsService(db).getExperimental()).enableFastResponses)
       return { available: false as const, reason: "disabled" };
     try {
       await resolve(db, {
-        companyId,
+        spaceId,
         responsibleUserId: userId,
         issueId: null,
         agentId: null,
@@ -556,7 +556,7 @@ export function fastResponseService(
   }
   async function skip(request: Request, reason: string) {
     await db.transaction(async tx => {
-      if (request.deliveryId) await notifyChatResponseAvailability(tx, { companyId: request.companyId, deliveryId: request.deliveryId });
+      if (request.deliveryId) await notifyChatResponseAvailability(tx, { spaceId: request.spaceId, deliveryId: request.deliveryId });
       await tx
         .update(fastResponseRequests)
         .set({
@@ -568,7 +568,7 @@ export function fastResponseService(
         .where(
           and(
             eq(fastResponseRequests.id, request.id),
-            eq(fastResponseRequests.companyId, request.companyId),
+            eq(fastResponseRequests.spaceId, request.spaceId),
             eq(fastResponseRequests.status, "pending"),
           ),
         );
@@ -577,7 +577,7 @@ export function fastResponseService(
   async function settle(request: Request, outcome: FastResponseOutcome) {
     await withBudgetSpan("budget.accounting.settlement", () => withOperationAccountingTransaction(
       db,
-      request.companyId,
+      request.spaceId,
       async (tx, publications) => {
         const receipt = outcome.receipt;
         const links: {
@@ -596,20 +596,20 @@ export function fastResponseService(
             .select({ id: table.id })
             .from(table)
             .where(
-              and(eq(table.id, id), eq(table.companyId, request.companyId)),
+              and(eq(table.id, id), eq(table.spaceId, request.spaceId)),
             )
             .for("key share");
           if (row) links[key] = row.id;
         }
         const [current] = await tx.select().from(fastResponseRequests).where(and(
-          eq(fastResponseRequests.companyId, request.companyId), eq(fastResponseRequests.id, request.id),
+          eq(fastResponseRequests.spaceId, request.spaceId), eq(fastResponseRequests.id, request.id),
         )).for("update");
         if (!current) return;
         const [existing] = current.costEventId ? await tx.select({ id: costEvents.id, costStatus: costEvents.costStatus,
           inputTokens: costEvents.inputTokens, cachedInputTokens: costEvents.cachedInputTokens, outputTokens: costEvents.outputTokens,
           providerRequestId: costEvents.providerRequestId, pricingProvenance: costEvents.pricingProvenance,
           costCents: sql<string>`${costEvents.costCents}::text` }).from(costEvents).where(and(
-          eq(costEvents.companyId, request.companyId), eq(costEvents.id, current.costEventId),
+          eq(costEvents.spaceId, request.spaceId), eq(costEvents.id, current.costEventId),
         )).for("update") : [];
         if (current.status !== "running") {
           if (!existing || outcome.errorCode === "interrupted") return;
@@ -619,7 +619,7 @@ export function fastResponseService(
         if (existing) {
           const receiptUsage = { inputTokens: receipt.inputTokens ?? current.inputTokens ?? 0, cachedInputTokens: 0,
             outputTokens: receipt.outputTokens ?? current.outputTokens ?? 0, providerRequestId: receipt.providerRequestId ?? current.providerRequestId };
-          if (existing.costStatus === "unpriced" && receipt.costStatus !== "unpriced") await applyCostCorrectionInTransaction(tx, publications, { companyId: request.companyId, eventId: existing.id,
+          if (existing.costStatus === "unpriced" && receipt.costStatus !== "unpriced") await applyCostCorrectionInTransaction(tx, publications, { spaceId: request.spaceId, eventId: existing.id,
             idempotencyKey: `fast-response:${request.id}:late-receipt`, expectedCents: existing.costCents,
             correctedCents: receipt.costCents ?? "0", reason: "Provider receipt arrived after interrupted accounting recovery",
             costStatus: receipt.costStatus,
@@ -629,12 +629,12 @@ export function fastResponseService(
             actorId: "cost_accounting" });
           else {
             if (Object.entries(receiptUsage).some(([key, value]) => existing[key as keyof typeof existing] !== value))
-              await applyCostCorrectionInTransaction(tx, publications, { companyId: request.companyId, eventId: existing.id,
+              await applyCostCorrectionInTransaction(tx, publications, { spaceId: request.spaceId, eventId: existing.id,
                 idempotencyKey: `fast-response:${request.id}:late-usage`, expectedCents: existing.costCents, correctedCents: existing.costCents,
                 costStatus: existing.costStatus === "unpriced" ? "unpriced" : existing.costStatus === "estimated" ? "estimated" : "reported", receiptUsage,
                 reason: "Provider usage arrived after interrupted accounting recovery",
                 pricing: existing.pricingProvenance ?? { source: "unknown" }, actorId: "cost_accounting" });
-            if (existing.costStatus !== "unpriced") await logActivity(tx, { companyId: request.companyId,
+            if (existing.costStatus !== "unpriced") await logActivity(tx, { spaceId: request.spaceId,
               actorType: "system", actorId: "cost_accounting", responsibleUserIdOverride: request.responsibleUserId,
               action: "accounting.late_receipt_observed", entityType: "cost_event", entityId: existing.id,
               details: { effectiveCostCents: existing.costCents, ...receipt },
@@ -643,7 +643,7 @@ export function fastResponseService(
           event = existing;
         } else event = await createCostEventInTransaction(
           tx,
-          request.companyId,
+          request.spaceId,
           {
             usageKind: "fast_response",
             responsibleUserId: request.responsibleUserId,
@@ -665,11 +665,11 @@ export function fastResponseService(
           publications,
           {
             actorType: request.responsibleUserId ? "user" : "system",
-            actorId: request.responsibleUserId ?? "paperclip-fast-response",
+            actorId: request.responsibleUserId ?? "outpost-fast-response",
           },
         );
         const finishedAt = new Date();
-        if (request.deliveryId) await notifyChatResponseAvailability(tx, { companyId: request.companyId, deliveryId: request.deliveryId });
+        if (request.deliveryId) await notifyChatResponseAvailability(tx, { spaceId: request.spaceId, deliveryId: request.deliveryId });
         await tx
           .update(fastResponseRequests)
           .set({
@@ -687,7 +687,7 @@ export function fastResponseService(
             durationMs: finishedAt.getTime() - request.acceptedAt.getTime(),
             ...(outcome.text ? {} : { publicationStatus: "suppressed" }),
           })
-          .where(and(eq(fastResponseRequests.companyId, request.companyId), eq(fastResponseRequests.id, request.id)));
+          .where(and(eq(fastResponseRequests.spaceId, request.spaceId), eq(fastResponseRequests.id, request.id)));
         if (receipt.costStatus !== "unpriced")
           await tx
             .update(budgetReservations)
@@ -697,7 +697,7 @@ export function fastResponseService(
             })
             .where(
               and(
-                eq(budgetReservations.companyId, request.companyId),
+                eq(budgetReservations.spaceId, request.spaceId),
                 eq(budgetReservations.fastResponseRequestId, request.id),
                 eq(budgetReservations.state, "held"),
               ),
@@ -714,7 +714,7 @@ export function fastResponseService(
       credential: string,
       prompt: string;
     let secretId: string | undefined,
-      secret: typeof companySecrets.$inferSelect | undefined;
+      secret: typeof spaceSecrets.$inferSelect | undefined;
     try {
       selected = await resolve(db, request);
       const [agent] = request.agentId
@@ -723,7 +723,7 @@ export function fastResponseService(
             .from(agents)
             .where(
               and(
-                eq(agents.companyId, request.companyId),
+                eq(agents.spaceId, request.spaceId),
                 eq(agents.id, request.agentId),
               ),
             )
@@ -741,7 +741,7 @@ export function fastResponseService(
               .from(issueComments)
               .where(
                 and(
-                  eq(issueComments.companyId, request.companyId),
+                  eq(issueComments.spaceId, request.spaceId),
                   eq(issueComments.id, request.sourceCommentId),
                 ),
               )
@@ -751,7 +751,7 @@ export function fastResponseService(
           .from(issueComments)
           .where(
             and(
-              eq(issueComments.companyId, request.companyId),
+              eq(issueComments.spaceId, request.spaceId),
               eq(issueComments.issueId, request.issueId),
               isNull(issueComments.deletedAt),
               eq(issueComments.origin, "comment"),
@@ -774,12 +774,12 @@ export function fastResponseService(
                 assets,
                 and(
                   eq(assets.id, issueAttachments.assetId),
-                  eq(assets.companyId, request.companyId),
+                  eq(assets.spaceId, request.spaceId),
                 ),
               )
               .where(
                 and(
-                  eq(issueAttachments.companyId, request.companyId),
+                  eq(issueAttachments.spaceId, request.spaceId),
                   eq(issueAttachments.issueCommentId, request.sourceCommentId),
                 ),
               )
@@ -787,7 +787,7 @@ export function fastResponseService(
           : [];
         prompt = fastResponsePrompt({
           attachments: attachments.map((a) => `${a.name} (${a.type})`),
-          agentName: agent?.name ?? "Board assistant",
+          agentName: agent?.name ?? "Operator assistant",
           message:
             (source ? sanitizeQuarantinedCommentForHigherTrust(source).body : undefined) ??
             selected.issue?.description ??
@@ -808,11 +808,11 @@ export function fastResponseService(
       [secret] = secretId
         ? await db
             .select()
-            .from(companySecrets)
+            .from(spaceSecrets)
             .where(
               and(
-                eq(companySecrets.id, secretId),
-                eq(companySecrets.companyId, request.companyId),
+                eq(spaceSecrets.id, secretId),
+                eq(spaceSecrets.spaceId, request.spaceId),
               ),
             )
         : [];
@@ -822,7 +822,7 @@ export function fastResponseService(
         {
           responsibleUserId: request.responsibleUserId,
           actorType: request.responsibleUserId ? "user" : "system",
-          actorId: request.responsibleUserId ?? "paperclip-fast-response",
+          actorId: request.responsibleUserId ?? "outpost-fast-response",
           issueId: request.issueId,
         },
       );
@@ -840,16 +840,16 @@ export function fastResponseService(
     try {
       admitted = await withOperationAccountingTransaction(
         db,
-        request.companyId,
+        request.spaceId,
         async (tx) => {
           if (request.expiresAt.getTime() <= Date.now() || signal?.aborted)
             return null;
-          const [company] = await tx.select({ status: companies.status }).from(companies)
-            .where(eq(companies.id, request.companyId)).for("share");
-          if (!company || company.status !== "active") return null;
+          const [space] = await tx.select({ status: spaces.status }).from(spaces)
+            .where(eq(spaces.id, request.spaceId)).for("share");
+          if (!space || space.status !== "active") return null;
           if (selected.issue?.projectId) {
             const [project] = await tx.select({ id: projects.id }).from(projects).where(and(
-              eq(projects.companyId, request.companyId), eq(projects.id, selected.issue.projectId),
+              eq(projects.spaceId, request.spaceId), eq(projects.id, selected.issue.projectId),
             )).for("share");
             if (!project) return null;
           }
@@ -871,8 +871,8 @@ export function fastResponseService(
           if (secretId) {
             const [now] = await tx
               .select()
-              .from(companySecrets)
-              .where(eq(companySecrets.id, secretId))
+              .from(spaceSecrets)
+              .where(eq(spaceSecrets.id, secretId))
               .for("share");
             if (
               !now ||
@@ -894,18 +894,18 @@ export function fastResponseService(
                 .where(
                   and(
                     eq(agents.id, request.agentId),
-                    eq(agents.companyId, request.companyId),
+                    eq(agents.spaceId, request.spaceId),
                   ),
                 ).for("share")
             : [];
           if (
-            company?.status !== "active" ||
+            space?.status !== "active" ||
             (request.agentId &&
               (!agent || ["paused", "terminated"].includes(agent.status)))
           )
             return null;
           const { block, policies, observations } = await budgetServiceInTransaction(tx, []).evaluateAdmission(
-            request.companyId, request.agentId, { projectId: current.issue?.projectId });
+            request.spaceId, request.agentId, { projectId: current.issue?.projectId });
           if (block) return null;
           const amount = policies.reduce((max, p) => {
             const n = centsToUnits(p.reservationCents);
@@ -936,21 +936,21 @@ export function fastResponseService(
             .where(
               and(
                 eq(fastResponseRequests.id, request.id),
-                eq(fastResponseRequests.companyId, request.companyId),
+                eq(fastResponseRequests.spaceId, request.spaceId),
                 eq(fastResponseRequests.status, "pending"),
               ),
             )
             .returning();
           if (!claimed) return null;
           await tx.insert(budgetReservations).values({
-            companyId: request.companyId,
+            spaceId: request.spaceId,
             fastResponseRequestId: request.id,
             agentId: request.agentId,
             projectId: current.issue?.projectId,
             amountCents: unitsToCents(amount),
             providerStartedAt: claimed.startedAt,
           });
-          await queueBudgetEvaluation(tx, { companyId: request.companyId, agentId: request.agentId, projectId: current.issue?.projectId });
+          await queueBudgetEvaluation(tx, { spaceId: request.spaceId, agentId: request.agentId, projectId: current.issue?.projectId });
           return claimed;
         },
       );
@@ -993,7 +993,7 @@ export function fastResponseService(
           const [locked] = await tx
             .select()
             .from(fastResponseRequests)
-            .where(and(eq(fastResponseRequests.companyId, request.companyId), eq(fastResponseRequests.id, request.id)))
+            .where(and(eq(fastResponseRequests.spaceId, request.spaceId), eq(fastResponseRequests.id, request.id)))
             .for("update");
           if (
             !locked ||
@@ -1014,16 +1014,16 @@ export function fastResponseService(
                 .from(issueComments)
                 .where(
                   and(
-                    eq(issueComments.companyId, request.companyId),
+                    eq(issueComments.spaceId, request.spaceId),
                     eq(issueComments.id, request.sourceCommentId),
                   ),
                 )
             : [];
           const [comment] = await insertIssueComment(tx, {
-            companyId: request.companyId,
+            spaceId: request.spaceId,
             issueId: request.issueId!,
             authorAgentId: request.agentId,
-            authorUserId: request.agentId ? null : "board-concierge",
+            authorUserId: request.agentId ? null : "operator-concierge",
             authorType: request.agentId ? "agent" : "system",
             body: safe.text,
             sourceTrust: source?.sourceTrust ?? null,
@@ -1042,7 +1042,7 @@ export function fastResponseService(
             ))
           )
             await tx.insert(chatPublications).values({
-              companyId: request.companyId,
+              spaceId: request.spaceId,
               issueId: request.issueId!,
               endpointId: request.endpointId,
               conversationId: request.conversationId,
@@ -1050,20 +1050,20 @@ export function fastResponseService(
               idempotencyKey: `fast-response:${request.id}`,
               payload: safe,
             });
-          if (request.deliveryId) await notifyChatResponseAvailability(tx, { companyId: request.companyId, deliveryId: request.deliveryId });
+          if (request.deliveryId) await notifyChatResponseAvailability(tx, { spaceId: request.spaceId, deliveryId: request.deliveryId });
           await tx
             .update(fastResponseRequests)
             .set({
               commentId: comment.id,
               publicationStatus: request.endpointId ? "pending" : "published",
             })
-            .where(and(eq(fastResponseRequests.companyId, request.companyId), eq(fastResponseRequests.id, request.id)));
+            .where(and(eq(fastResponseRequests.spaceId, request.spaceId), eq(fastResponseRequests.id, request.id)));
           await logActivity(
             tx as unknown as Db,
             {
-              companyId: request.companyId,
+              spaceId: request.spaceId,
               actorType: "system",
-              actorId: "paperclip-fast-response",
+              actorId: "outpost-fast-response",
               action: "issue.comment_added",
               entityType: "issue",
               entityId: request.issueId!,
@@ -1084,7 +1084,7 @@ export function fastResponseService(
       .where(
         and(
           eq(fastResponseRequests.id, request.id),
-          eq(fastResponseRequests.companyId, request.companyId),
+          eq(fastResponseRequests.spaceId, request.spaceId),
           isNull(fastResponseRequests.commentId),
         ),
       );
@@ -1102,12 +1102,12 @@ export function fastResponseService(
           invocationId: request.id,
         };
   }
-  async function test(companyId: string, userId: string) {
+  async function test(spaceId: string, userId: string) {
     const now = new Date();
     const [request] = await db
       .insert(fastResponseRequests)
       .values({
-        companyId,
+        spaceId,
         sourceKey: `test:${randomUUID()}`,
         responsibleUserId: userId,
         acceptedAt: now,
@@ -1169,7 +1169,7 @@ export function fastResponseService(
     return Boolean(row);
   }
   async function history(
-    companyId: string,
+    spaceId: string,
     actor: AuthorizationActor,
     range: { from?: Date; to?: Date; limit?: number } = {},
   ): Promise<FastResponseHistoryEntry[]> {
@@ -1177,8 +1177,8 @@ export function fastResponseService(
       !(
         await accessService(db).decide({
           actor,
-          action: "company_scope:read",
-          resource: { type: "company", companyId },
+          action: "space_scope:read",
+          resource: { type: "space", spaceId },
         })
       ).allowed
     )
@@ -1196,7 +1196,7 @@ export function fastResponseService(
       .leftJoin(
         costEvents,
         and(
-          eq(costEvents.companyId, companyId),
+          eq(costEvents.spaceId, spaceId),
           eq(costEvents.id, fastResponseRequests.costEventId),
         ),
       )
@@ -1207,14 +1207,14 @@ export function fastResponseService(
       .leftJoin(
         toolConnections,
         and(
-          eq(toolConnections.companyId, companyId),
+          eq(toolConnections.spaceId, spaceId),
           eq(toolConnections.id, fastResponseRequests.connectionId),
         ),
       )
       .leftJoin(
         chatPublications,
         and(
-          eq(chatPublications.companyId, companyId),
+          eq(chatPublications.spaceId, spaceId),
           eq(
             chatPublications.idempotencyKey,
             sql`'fast-response:' || ${fastResponseRequests.id}::text`,
@@ -1224,13 +1224,13 @@ export function fastResponseService(
       .leftJoin(
         issues,
         and(
-          eq(issues.companyId, companyId),
+          eq(issues.spaceId, spaceId),
           eq(issues.id, fastResponseRequests.issueId),
         ),
       )
       .where(
         and(
-          eq(fastResponseRequests.companyId, companyId),
+          eq(fastResponseRequests.spaceId, spaceId),
           range.from
             ? gte(fastResponseRequests.acceptedAt, range.from)
             : undefined,
@@ -1257,7 +1257,7 @@ export function fastResponseService(
                 action: "issue:read",
                 resource: {
                   type: "issue",
-                  companyId,
+                  spaceId,
                   issueId: issue.id,
                   projectId: issue.projectId,
                   parentIssueId: issue.parentId,

@@ -2,19 +2,19 @@
 
 - Status: Proposed
 - Date: 2026-08-24
-- Owners: Paperclip control plane and runner maintainers
+- Owners: Outpost control plane and runner maintainers
 - Related: [Outpost Runner compatibility and rollout](outpost-runner-compatibility.md)
 
 ## Context
 
-Paperclip is a control plane. It owns companies, agents, issues, budgets,
+Outpost is a control plane. It owns spaces, agents, issues, budgets,
 approvals, and durable workflow state. Agent providers remain execution
-services. Existing adapters invoke those services directly from the Paperclip
+services. Existing adapters invoke those services directly from the Outpost
 server.
 
 Outpost Runner introduces a separate execution process for provider sessions.
 This process needs durable delivery, restart recovery, and governed access to
-Paperclip actions. It must not become a second control plane. It must also land
+Outpost actions. It must not become a second control plane. It must also land
 without changing the behavior of existing adapters.
 
 The implementation remains behind one explicit experimental adapter and one
@@ -37,8 +37,8 @@ paths.
 
 ## Goals
 
-- Keep runner process ownership outside the Paperclip server process.
-- Preserve Paperclip as the authority for identity, policy, and workflow state.
+- Keep runner process ownership outside the Outpost server process.
+- Preserve Outpost as the authority for identity, policy, and workflow state.
 - Recover a run after runner or network interruption without duplicate effects.
 - Expose only actions that the current run is allowed to use.
 - Make protocol behavior deterministic across TypeScript and Rust.
@@ -48,7 +48,7 @@ paths.
 
 - Replace existing direct adapters.
 - Move business authorization or issue status policy into Rust.
-- Give runnerd a broad Paperclip API credential.
+- Give runnerd a broad Outpost API credential.
 - Support unqualified provider versions, arbitrary ACPX agents, or editable
   remote-resource identity in agent configuration.
 - Expose browser SDK, React SDK, eval, lab, or scenario-explorer package entry
@@ -61,7 +61,7 @@ paths.
 The initial local topology is:
 
 ```text
-Paperclip server
+Outpost server
   |  authenticated ORP v1 WebSocket
   v
 outpost-runnerd
@@ -76,11 +76,11 @@ then owns the provider process group and the durable transport state for that
 run.
 
 The browser does not connect to runnerd. It reads projections from the existing
-Paperclip APIs and task-thread models.
+Outpost APIs and task-thread models.
 
 ## Dependency direction
 
-The runner package must build and test without importing Paperclip server, UI,
+The runner package must build and test without importing Outpost server, UI,
 CLI, database, or other private workspace implementation modules.
 
 ```text
@@ -94,10 +94,10 @@ JSON Schema and fixtures
                    v
          deterministic parity
 
-Paperclip server ----implements----> runner public ports
+Outpost server ----implements----> runner public ports
 ```
 
-The dependency points from an implementation to a contract. The Paperclip
+The dependency points from an implementation to a contract. The Outpost
 server may implement a public runner port. The runner package must not import
 the server implementation.
 
@@ -137,9 +137,9 @@ input.
 
 ## Trust boundary
 
-The Paperclip server is authoritative for:
+The Outpost server is authoritative for:
 
-- company, agent, issue, run, session, and user attribution;
+- space, agent, issue, run, session, and user attribution;
 - rollout and runtime selection;
 - action discovery and authorization;
 - approval, budget, secret, revision, and workspace policy;
@@ -155,11 +155,11 @@ Runnerd is authoritative only for its local responsibilities:
 - bounded process diagnostics.
 
 Runnerd receives a short-lived, one-use bootstrap ticket. The ticket is bound to
-the company, agent, issue, run, runner, session, turn, and verified artifact. The
+the space, agent, issue, run, runner, session, turn, and verified artifact. The
 server exchanges it for a short-lived connection lease. Raw tickets are never
-stored. Runnerd never receives a broad Paperclip API key.
+stored. Runnerd never receives a broad Outpost API key.
 
-The server rejects expired, replayed, revoked, cross-company, mismatched,
+The server rejects expired, replayed, revoked, cross-space, mismatched,
 malformed, oversized, or protocol-incompatible connections. Cancellation,
 timeout, supersession, and environment-lease loss revoke runner authority.
 
@@ -192,7 +192,7 @@ existing application authority, and returns a redacted receipt.
 
 This keeps these invariants in one place:
 
-- company scoping;
+- space scoping;
 - actor and run attribution;
 - authorization and approval;
 - revision and idempotency checks;
@@ -262,7 +262,7 @@ only on the agent adapter profile.
 
 This design adds process, protocol, and recovery complexity. In return, it gives
 provider sessions a durable and testable execution boundary without moving
-Paperclip governance into the runner.
+Outpost governance into the runner.
 
 The default-off, explicit-adapter rollout duplicates some provider
 configuration during the experiment. This is intentional. It keeps comparison
@@ -277,7 +277,7 @@ prevent server implementation details from becoming accidental public API.
 - TypeScript and Rust accept and reject the same protocol fixtures.
 - Lost acknowledgements, reconnects, runner restarts, and duplicate commands do
   not duplicate events or effects.
-- Bootstrap replay, binding mismatch, and cross-company access fail closed.
+- Bootstrap replay, binding mismatch, and cross-space access fail closed.
 - Only authorized and production-bound actions appear in discovery.
 - Cancellation settles provider, runner, transport, and application state.
 - Flag-off direct-adapter runs create no native records and start no runner

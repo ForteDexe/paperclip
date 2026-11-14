@@ -19,7 +19,7 @@ import { Identity } from "@/components/Identity";
 import { cn, relativeTime } from "@/lib/utils";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatActivityVerb } from "@/lib/activity-format";
-import { buildCompanyUserProfileMap, type CompanyUserProfile } from "@/lib/company-members";
+import { buildSpaceUserProfileMap, type SpaceUserProfile } from "@/lib/space-members";
 import { auditApi, type AuditActionRecord, type AuditActionFilters } from "@/api/audit";
 import { agentsApi } from "@/api/agents";
 import { accessApi } from "@/api/access";
@@ -41,7 +41,7 @@ const ACTION_DOMAINS: { value: string; label: string }[] = [
   { value: "project.", label: "Projects" },
   { value: "goal.", label: "North Stars" },
   { value: "tool_gateway.", label: "Tools" },
-  { value: "company.", label: "Outpost" },
+  { value: "space.", label: "Outpost" },
 ];
 
 /** Entity types offered in the filter (server does an exact match). */
@@ -51,18 +51,18 @@ const ENTITY_TYPES: { value: string; label: string }[] = [
   { value: "agent", label: "Agent" },
   { value: "project", label: "Project" },
   { value: "goal", label: "North Star" },
-  { value: "company", label: "Outpost" },
+  { value: "space", label: "Outpost" },
 ];
 
 /**
- * Which actors the feed covers. `all` is the shared company activity view
+ * Which actors the feed covers. `all` is the shared space activity view
  * (people, agents, and the system); `agents` is the privileged agent-action
  * audit that carries responsible-person and run attribution.
  */
 export type AuditFeedMode = "all" | "agents";
 
 export interface AuditFeedProps {
-  companyId: string;
+  spaceId: string;
   /**
    * When set, the feed is pinned to a single agent (per-agent Audit tab) — the
    * agent filter is hidden and every query/export carries this agentId.
@@ -99,9 +99,9 @@ function AuditActor({
 }: {
   record: AuditActionRecord;
   agentMap: Map<string, Agent>;
-  userProfileMap: Map<string, CompanyUserProfile>;
+  userProfileMap: Map<string, SpaceUserProfile>;
 }) {
-  // Agent names are company-readable through the same authorization-filtered
+  // Agent names are space-readable through the same authorization-filtered
   // directory used by this page. The basic audit tier strips privileged
   // attribution (`agentId`) but retains the acting principal (`actorId`), so
   // use that principal to avoid presenting a trivially joinable identity as
@@ -164,7 +164,7 @@ function AuditEntityNode({ record }: { record: AuditActionRecord }) {
   if (document) {
     return <span className="font-medium text-foreground">{document.key}</span>;
   }
-  // Non-linkable entities (company, agent, goal, …) — show a plain descriptor.
+  // Non-linkable entities (space, agent, goal, …) — show a plain descriptor.
   return <span className="text-muted-foreground">{record.entityType}</span>;
 }
 
@@ -175,7 +175,7 @@ function AuditRow({
 }: {
   record: AuditActionRecord;
   agentMap: Map<string, Agent>;
-  userProfileMap: Map<string, CompanyUserProfile>;
+  userProfileMap: Map<string, SpaceUserProfile>;
 }) {
   const verb = formatActivityVerb(record.action, record.details, { agentMap, userProfileMap });
   const responsible = record.responsibleUserId ? userProfileMap.get(record.responsibleUserId) : null;
@@ -259,7 +259,7 @@ function AuditUpsell() {
 }
 
 export function AuditFeed({
-  companyId,
+  spaceId,
   lockedAgentId,
   hideHeader,
   mode,
@@ -276,12 +276,12 @@ export function AuditFeed({
   const [downgradeRecoveryAttempted, setDowngradeRecoveryAttempted] = useState(false);
 
   const agents = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
   });
   const userDirectory = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(companyId),
-    queryFn: () => accessApi.listUserDirectory(companyId),
+    queryKey: queryKeys.access.spaceUserDirectory(spaceId),
+    queryFn: () => accessApi.listUserDirectory(spaceId),
   });
 
   const agentMap = useMemo(
@@ -289,7 +289,7 @@ export function AuditFeed({
     [agents.data],
   );
   const userProfileMap = useMemo(
-    () => buildCompanyUserProfileMap(userDirectory.data?.users),
+    () => buildSpaceUserProfileMap(userDirectory.data?.users),
     [userDirectory.data],
   );
 
@@ -318,7 +318,7 @@ export function AuditFeed({
   );
 
   const feed = useInfiniteQuery({
-    queryKey: queryKeys.audit.agentActions(companyId, {
+    queryKey: queryKeys.audit.agentActions(spaceId, {
       actorScope: filters.actorScope,
       agentId: filters.agentId,
       responsibleUserId: filters.responsibleUserId,
@@ -328,7 +328,7 @@ export function AuditFeed({
       to: filters.to,
     }),
     queryFn: ({ pageParam }) =>
-      auditApi.listAgentActions(companyId, { ...filters, limit: PAGE_SIZE, cursor: pageParam ?? undefined }),
+      auditApi.listAgentActions(spaceId, { ...filters, limit: PAGE_SIZE, cursor: pageParam ?? undefined }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     // The shared retry policy already covers this: a 403 never retries, a
@@ -427,7 +427,7 @@ export function AuditFeed({
   const handleExport = async () => {
     setExporting(true);
     try {
-      const blob = await auditApi.exportAgentActionsCsv(companyId, {
+      const blob = await auditApi.exportAgentActionsCsv(spaceId, {
         actorScope: filters.actorScope,
         agentId: filters.agentId,
         responsibleUserId: filters.responsibleUserId,
@@ -439,7 +439,7 @@ export function AuditFeed({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${resolvedMode === "agents" ? "agent-audit" : "activity"}-${companyId}.csv`;
+      link.download = `${resolvedMode === "agents" ? "agent-audit" : "activity"}-${spaceId}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();

@@ -21,7 +21,7 @@ const meta = {
           "The task-thread browser entry point, placed at the moment the browser was opened, including history and reopening a session. All data is simulated.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "workspaces/services",
         "tasks/discussion"

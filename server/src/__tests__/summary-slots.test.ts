@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   documentRevisions,
   documents,
@@ -41,7 +41,7 @@ describeEmbeddedPostgres("summary slot service", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-summary-slots-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-summary-slots-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -56,35 +56,35 @@ describeEmbeddedPostgres("summary slot service", () => {
     await db.delete(projects);
     await db.delete(activityLog);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompany() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: issuePrefix(companyId),
+  async function seedSpace() {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: issuePrefix(spaceId),
       defaultResponsibleUserId: "responsible-user",
     });
-    return companyId;
+    return spaceId;
   }
 
-  async function seedProject(companyId: string) {
+  async function seedProject(spaceId: string) {
     const projectId = randomUUID();
-    await db.insert(projects).values({ id: projectId, companyId, name: "Paperclip App" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Outpost App" });
     return projectId;
   }
 
-  async function seedProjectWorkspace(companyId: string, projectId: string) {
+  async function seedProjectWorkspace(spaceId: string, projectId: string) {
     const projectWorkspaceId = randomUUID();
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary workspace",
     });
@@ -92,14 +92,14 @@ describeEmbeddedPostgres("summary slot service", () => {
   }
 
   async function seedExecutionWorkspace(
-    companyId: string,
+    spaceId: string,
     projectId: string,
     projectWorkspaceId: string | null = null,
   ) {
     const executionWorkspaceId = randomUUID();
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       mode: "isolated_workspace",
@@ -109,11 +109,11 @@ describeEmbeddedPostgres("summary slot service", () => {
     return executionWorkspaceId;
   }
 
-  async function seedSummarizer(companyId: string, ready = true) {
+  async function seedSummarizer(spaceId: string, ready = true) {
     const agentId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Summarizer",
       role: "general",
       status: "idle",
@@ -124,11 +124,11 @@ describeEmbeddedPostgres("summary slot service", () => {
     return agentId;
   }
 
-  async function seedPlainAgent(companyId: string) {
+  async function seedPlainAgent(spaceId: string) {
     const agentId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Coder",
       role: "engineer",
       status: "active",
@@ -138,19 +138,19 @@ describeEmbeddedPostgres("summary slot service", () => {
     return agentId;
   }
 
-  async function seedRun(companyId: string, agentId: string) {
+  async function seedRun(spaceId: string, agentId: string) {
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running" });
     return runId;
   }
 
-  function projectSelector(companyId: string, projectId: string) {
-    return { companyId, scopeKind: "project", slotKey: "header", scopeId: projectId };
+  function projectSelector(spaceId: string, projectId: string) {
+    return { spaceId, scopeKind: "project", slotKey: "header", scopeId: projectId };
   }
 
-  function executionWorkspaceSelector(companyId: string, executionWorkspaceId: string) {
+  function executionWorkspaceSelector(spaceId: string, executionWorkspaceId: string) {
     return {
-      companyId,
+      spaceId,
       scopeKind: "execution_workspace",
       slotKey: "header",
       scopeId: executionWorkspaceId,
@@ -159,101 +159,101 @@ describeEmbeddedPostgres("summary slot service", () => {
 
   describe("reads and target visibility", () => {
     it("returns an empty slot state before any generation", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
       const svc = summarySlotService(db);
-      const result = await svc.getSlot(projectSelector(companyId, projectId));
+      const result = await svc.getSlot(projectSelector(spaceId, projectId));
       expect(result).toEqual({ slot: null, document: null, generatingIssue: null });
     });
 
-    it("rejects targets that do not exist in the company", async () => {
-      const companyId = await seedCompany();
+    it("rejects targets that do not exist in the space", async () => {
+      const spaceId = await seedSpace();
       const svc = summarySlotService(db);
-      await expect(svc.getSlot(projectSelector(companyId, randomUUID()))).rejects.toMatchObject({
+      await expect(svc.getSlot(projectSelector(spaceId, randomUUID()))).rejects.toMatchObject({
         status: 404,
       });
     });
 
-    it("rejects a project owned by another company (company scoping)", async () => {
-      const companyId = await seedCompany();
-      const otherCompanyId = await seedCompany();
-      const foreignProjectId = await seedProject(otherCompanyId);
+    it("rejects a project owned by another space (space scoping)", async () => {
+      const spaceId = await seedSpace();
+      const otherSpaceId = await seedSpace();
+      const foreignProjectId = await seedProject(otherSpaceId);
       const svc = summarySlotService(db);
-      await expect(svc.getSlot(projectSelector(companyId, foreignProjectId))).rejects.toMatchObject({
+      await expect(svc.getSlot(projectSelector(spaceId, foreignProjectId))).rejects.toMatchObject({
         status: 404,
       });
     });
 
-    it("rejects an execution workspace owned by another company", async () => {
-      const companyId = await seedCompany();
-      const otherCompanyId = await seedCompany();
-      const otherProjectId = await seedProject(otherCompanyId);
-      const foreignExecutionWorkspaceId = await seedExecutionWorkspace(otherCompanyId, otherProjectId);
+    it("rejects an execution workspace owned by another space", async () => {
+      const spaceId = await seedSpace();
+      const otherSpaceId = await seedSpace();
+      const otherProjectId = await seedProject(otherSpaceId);
+      const foreignExecutionWorkspaceId = await seedExecutionWorkspace(otherSpaceId, otherProjectId);
       const svc = summarySlotService(db);
 
       await expect(
-        svc.getSlot(executionWorkspaceSelector(companyId, foreignExecutionWorkspaceId)),
+        svc.getSlot(executionWorkspaceSelector(spaceId, foreignExecutionWorkspaceId)),
       ).rejects.toMatchObject({ status: 404 });
     });
 
     it("rejects a workspaces_overview selector that carries a scopeId", async () => {
-      const companyId = await seedCompany();
+      const spaceId = await seedSpace();
       const svc = summarySlotService(db);
       await expect(
-        svc.getSlot({ companyId, scopeKind: "workspaces_overview", slotKey: "header", scopeId: randomUUID() }),
+        svc.getSlot({ spaceId, scopeKind: "workspaces_overview", slotKey: "header", scopeId: randomUUID() }),
       ).rejects.toMatchObject({ status: 422 });
     });
   });
 
   describe("generate", () => {
     it("fails when the Summarizer built-in is not configured", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
       const svc = summarySlotService(db);
       await expect(
-        svc.generate(projectSelector(companyId, projectId), { userId: "board-user" }),
+        svc.generate(projectSelector(spaceId, projectId), { userId: "operator-user" }),
       ).rejects.toMatchObject({ status: 422, details: { code: "summarizer_not_configured" } });
     });
 
     it("creates a summarizer task, links it, and marks the slot generating", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
-      const otherProjectId = await seedProject(companyId);
-      const summarizerAgentId = await seedSummarizer(companyId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
+      const otherProjectId = await seedProject(spaceId);
+      const summarizerAgentId = await seedSummarizer(spaceId);
       const svc = summarySlotService(db);
 
       await db.insert(issues).values([
         {
-          companyId,
+          spaceId,
           projectId,
-          identifier: `${issuePrefix(companyId)}-101`,
+          identifier: `${issuePrefix(spaceId)}-101`,
           issueNumber: 101,
-          title: "Waiting on board approval",
+          title: "Waiting on operator approval",
           status: "blocked",
           priority: "high",
         },
         {
-          companyId,
+          spaceId,
           projectId,
-          identifier: `${issuePrefix(companyId)}-102`,
+          identifier: `${issuePrefix(spaceId)}-102`,
           issueNumber: 102,
           title: "Implement summary cards",
           status: "in_progress",
           priority: "medium",
         },
         {
-          companyId,
+          spaceId,
           projectId,
-          identifier: `${issuePrefix(companyId)}-103`,
+          identifier: `${issuePrefix(spaceId)}-103`,
           issueNumber: 103,
           title: "Ship the previous summary",
           status: "done",
           priority: "low",
         },
         {
-          companyId,
+          spaceId,
           projectId: otherProjectId,
-          identifier: `${issuePrefix(companyId)}-104`,
+          identifier: `${issuePrefix(spaceId)}-104`,
           issueNumber: 104,
           title: "Other project issue",
           status: "blocked",
@@ -261,7 +261,7 @@ describeEmbeddedPostgres("summary slot service", () => {
         },
       ]);
 
-      const result = await svc.generate(projectSelector(companyId, projectId), { userId: "board-user" });
+      const result = await svc.generate(projectSelector(spaceId, projectId), { userId: "operator-user" });
 
       expect(result.alreadyGenerating).toBe(false);
       expect(result.slot.status).toBe("generating");
@@ -273,7 +273,7 @@ describeEmbeddedPostgres("summary slot service", () => {
         .where(eq(issues.id, result.generatingIssue.id))
         .then((rows) => rows[0]!);
       expect(issueRow.assigneeAgentId).toBe(summarizerAgentId);
-      expect(issueRow.companyId).toBe(companyId);
+      expect(issueRow.spaceId).toBe(spaceId);
       expect(issueRow.title).toMatch(/^Summarize project on \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/);
       expect(issueRow.hiddenAt).toBeInstanceOf(Date);
       expect(issueRow.description).toContain(
@@ -282,13 +282,13 @@ describeEmbeddedPostgres("summary slot service", () => {
       expect(issueRow.description).toContain("Call `/summarize-status`");
       expect(issueRow.description).not.toContain("Follow the Summarizer skill");
       expect(issueRow.description).toContain(
-        `GET /api/companies/${companyId}/summary-slots/project/header?scopeId=${projectId}`,
+        `GET /api/spaces/${spaceId}/summary-slots/project/header?scopeId=${projectId}`,
       );
       expect(issueRow.description).not.toContain(
         "do not call the revisions or issues-list endpoints",
       );
       expect(issueRow.description).toContain(
-        `PUT /api/companies/${companyId}/summary-slots/project/header`,
+        `PUT /api/spaces/${spaceId}/summary-slots/project/header`,
       );
       expect(issueRow.description).toContain(
         "opens with the 1–3 specific, concrete, actionable items",
@@ -310,43 +310,43 @@ describeEmbeddedPostgres("summary slot service", () => {
       expect(issueRow.description).toContain("sentinel-wrapped summary draft");
       expect(issueRow.description).toContain("## Prebuilt scope snapshot");
       expect(issueRow.description).toContain("### Blocked");
-      expect(issueRow.description).toContain("Waiting on board approval");
+      expect(issueRow.description).toContain("Waiting on operator approval");
       expect(issueRow.description).toContain("### In progress");
       expect(issueRow.description).toContain("Implement summary cards");
       expect(issueRow.description).toContain("### Recently done");
       expect(issueRow.description).toContain("Ship the previous summary");
-      expect(issueRow.description).toContain(`/${issuePrefix(companyId)}/issues/`);
+      expect(issueRow.description).toContain(`/${issuePrefix(spaceId)}/issues/`);
       expect(issueRow.description).not.toContain("/PAP/issues/");
       expect(issueRow.description).not.toContain("Other project issue");
     });
 
     it("keeps summaries and snapshots isolated between execution workspaces", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
-      const projectWorkspaceId = await seedProjectWorkspace(companyId, projectId);
-      const firstExecutionWorkspaceId = await seedExecutionWorkspace(companyId, projectId, projectWorkspaceId);
-      const secondExecutionWorkspaceId = await seedExecutionWorkspace(companyId, projectId, projectWorkspaceId);
-      await seedSummarizer(companyId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
+      const projectWorkspaceId = await seedProjectWorkspace(spaceId, projectId);
+      const firstExecutionWorkspaceId = await seedExecutionWorkspace(spaceId, projectId, projectWorkspaceId);
+      const secondExecutionWorkspaceId = await seedExecutionWorkspace(spaceId, projectId, projectWorkspaceId);
+      await seedSummarizer(spaceId);
       const svc = summarySlotService(db);
 
       await db.insert(issues).values([
         {
-          companyId,
+          spaceId,
           projectId,
           projectWorkspaceId,
           executionWorkspaceId: firstExecutionWorkspaceId,
-          identifier: `${issuePrefix(companyId)}-201`,
+          identifier: `${issuePrefix(spaceId)}-201`,
           issueNumber: 201,
           title: "First workspace task",
           status: "in_progress",
           priority: "medium",
         },
         {
-          companyId,
+          spaceId,
           projectId,
           projectWorkspaceId,
           executionWorkspaceId: secondExecutionWorkspaceId,
-          identifier: `${issuePrefix(companyId)}-202`,
+          identifier: `${issuePrefix(spaceId)}-202`,
           issueNumber: 202,
           title: "Second workspace task",
           status: "blocked",
@@ -354,9 +354,9 @@ describeEmbeddedPostgres("summary slot service", () => {
         },
       ]);
 
-      const firstSelector = executionWorkspaceSelector(companyId, firstExecutionWorkspaceId);
-      const secondSelector = executionWorkspaceSelector(companyId, secondExecutionWorkspaceId);
-      const generated = await svc.generate(firstSelector, { userId: "board-user" });
+      const firstSelector = executionWorkspaceSelector(spaceId, firstExecutionWorkspaceId);
+      const secondSelector = executionWorkspaceSelector(spaceId, secondExecutionWorkspaceId);
+      const generated = await svc.generate(firstSelector, { userId: "operator-user" });
 
       expect(generated.slot).toMatchObject({
         scopeKind: "execution_workspace",
@@ -380,40 +380,40 @@ describeEmbeddedPostgres("summary slot service", () => {
     });
 
     it("dedupes concurrent generate clicks without creating an orphan task", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
-      await seedSummarizer(companyId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
+      await seedSummarizer(spaceId);
       const svc = summarySlotService(db);
 
       const [first, second] = await Promise.all([
-        svc.generate(projectSelector(companyId, projectId), { userId: "board-user" }),
-        svc.generate(projectSelector(companyId, projectId), { userId: "board-user" }),
+        svc.generate(projectSelector(spaceId, projectId), { userId: "operator-user" }),
+        svc.generate(projectSelector(spaceId, projectId), { userId: "operator-user" }),
       ]);
 
       expect(second.generatingIssue.id).toBe(first.generatingIssue.id);
       expect([first.alreadyGenerating, second.alreadyGenerating].sort()).toEqual([false, true]);
 
-      const issueRows = await db.select().from(issues).where(eq(issues.companyId, companyId));
+      const issueRows = await db.select().from(issues).where(eq(issues.spaceId, spaceId));
       expect(issueRows).toHaveLength(1);
     });
 
     it("creates a fresh task once the previous generation task is terminal", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
-      await seedSummarizer(companyId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
+      await seedSummarizer(spaceId);
       const svc = summarySlotService(db);
 
-      const first = await svc.generate(projectSelector(companyId, projectId), { userId: "board-user" });
+      const first = await svc.generate(projectSelector(spaceId, projectId), { userId: "operator-user" });
       await issueService(db).update(first.generatingIssue.id, { status: "done" });
 
-      const failed = await svc.getSlot(projectSelector(companyId, projectId));
+      const failed = await svc.getSlot(projectSelector(spaceId, projectId));
       expect(failed.slot).toMatchObject({
         status: "failed",
         generatingIssueId: first.generatingIssue.id,
         failureReason: expect.stringContaining("finished without writing a summary"),
       });
 
-      const second = await svc.generate(projectSelector(companyId, projectId), { userId: "board-user" });
+      const second = await svc.generate(projectSelector(spaceId, projectId), { userId: "operator-user" });
       expect(second.alreadyGenerating).toBe(false);
       expect(second.generatingIssue.id).not.toBe(first.generatingIssue.id);
       expect(second.slot).toMatchObject({
@@ -422,20 +422,20 @@ describeEmbeddedPostgres("summary slot service", () => {
         generatingIssueId: second.generatingIssue.id,
       });
 
-      const issueRows = await db.select().from(issues).where(eq(issues.companyId, companyId));
+      const issueRows = await db.select().from(issues).where(eq(issues.spaceId, spaceId));
       expect(issueRows).toHaveLength(2);
     });
 
     it("marks the slot failed when its generation task is cancelled without a write", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
-      await seedSummarizer(companyId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
+      await seedSummarizer(spaceId);
       const svc = summarySlotService(db);
 
-      const generated = await svc.generate(projectSelector(companyId, projectId), { userId: "board-user" });
+      const generated = await svc.generate(projectSelector(spaceId, projectId), { userId: "operator-user" });
       await issueService(db).update(generated.generatingIssue.id, { status: "cancelled" });
 
-      const result = await svc.getSlot(projectSelector(companyId, projectId));
+      const result = await svc.getSlot(projectSelector(spaceId, projectId));
       expect(result.slot).toMatchObject({
         status: "failed",
         generatingIssueId: generated.generatingIssue.id,
@@ -445,24 +445,24 @@ describeEmbeddedPostgres("summary slot service", () => {
   });
 
   describe("summarizer writes", () => {
-    async function startGeneration(companyId: string, projectId: string, summarizerAgentId: string) {
+    async function startGeneration(spaceId: string, projectId: string, summarizerAgentId: string) {
       const svc = summarySlotService(db);
-      const generated = await svc.generate(projectSelector(companyId, projectId), { userId: "board-user" });
-      const runId = await seedRun(companyId, summarizerAgentId);
+      const generated = await svc.generate(projectSelector(spaceId, projectId), { userId: "operator-user" });
+      const runId = await seedRun(spaceId, summarizerAgentId);
       // Simulate the summarizer run checking out its linked generation task.
       await db.update(issues).set({ checkoutRunId: runId }).where(eq(issues.id, generated.generatingIssue.id));
       return { svc, generationIssueId: generated.generatingIssue.id, runId };
     }
 
-    it("writes a board-readable revision, preserves the previous revision, and clears the generating state", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
-      const summarizerAgentId = await seedSummarizer(companyId);
-      const { svc, generationIssueId, runId } = await startGeneration(companyId, projectId, summarizerAgentId);
+    it("writes a operator-readable revision, preserves the previous revision, and clears the generating state", async () => {
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
+      const summarizerAgentId = await seedSummarizer(spaceId);
+      const { svc, generationIssueId, runId } = await startGeneration(spaceId, projectId, summarizerAgentId);
 
       const initial = await svc.write(
         {
-          ...projectSelector(companyId, projectId),
+          ...projectSelector(spaceId, projectId),
           markdown:
             "Quiet scope — nothing is in flight and nothing is waiting on you. First summary for this scope.\n\n**Next:** nothing needs a decision from you right now; the next thing worth watching is the first issue landing here.",
           model: "cheap-model",
@@ -471,17 +471,17 @@ describeEmbeddedPostgres("summary slot service", () => {
         { agentId: summarizerAgentId, runId },
       );
 
-      const nextGeneration = await svc.generate(projectSelector(companyId, projectId), {
-        userId: "board-user",
+      const nextGeneration = await svc.generate(projectSelector(spaceId, projectId), {
+        userId: "operator-user",
       });
-      const nextRunId = await seedRun(companyId, summarizerAgentId);
+      const nextRunId = await seedRun(spaceId, summarizerAgentId);
       await db
         .update(issues)
         .set({ checkoutRunId: nextRunId })
         .where(eq(issues.id, nextGeneration.generatingIssue.id));
       const written = await svc.write(
         {
-          ...projectSelector(companyId, projectId),
+          ...projectSelector(spaceId, projectId),
           markdown:
             "**Decide:**\n- The change is done and the review is sitting with you — [T-123](/T/issues/T-123). **I suggest:** approve it, the tests are green.\n\nNothing else moved since last time.",
           baseRevisionId: initial.revision.id,
@@ -500,7 +500,7 @@ describeEmbeddedPostgres("summary slot service", () => {
       expect(written.slot.lastGeneratedByAgentId).toBe(summarizerAgentId);
       expect(written.slot.lastModel).toBe("cheap-model");
 
-      const revisions = await svc.listRevisions(projectSelector(companyId, projectId));
+      const revisions = await svc.listRevisions(projectSelector(spaceId, projectId));
       expect(revisions.revisions).toHaveLength(2);
       expect(revisions.revisions[0]!.id).toBe(written.revision.id);
       expect(revisions.revisions[1]!.id).toBe(initial.revision.id);
@@ -508,52 +508,52 @@ describeEmbeddedPostgres("summary slot service", () => {
     });
 
     it("returns only the 20 most recent summary revisions", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
-      const summarizerAgentId = await seedSummarizer(companyId);
-      const { svc, generationIssueId, runId } = await startGeneration(companyId, projectId, summarizerAgentId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
+      const summarizerAgentId = await seedSummarizer(spaceId);
+      const { svc, generationIssueId, runId } = await startGeneration(spaceId, projectId, summarizerAgentId);
       const written = await svc.write(
-        { ...projectSelector(companyId, projectId), markdown: "# Summary v1", generationIssueId },
+        { ...projectSelector(spaceId, projectId), markdown: "# Summary v1", generationIssueId },
         { agentId: summarizerAgentId, runId },
       );
 
       await db.insert(documentRevisions).values(
         Array.from({ length: 24 }, (_, index) => ({
-          companyId,
+          spaceId,
           documentId: written.document.id,
           revisionNumber: index + 2,
           body: `# Summary v${index + 2}`,
         })),
       );
 
-      const revisions = await svc.listRevisions(projectSelector(companyId, projectId));
+      const revisions = await svc.listRevisions(projectSelector(spaceId, projectId));
       expect(revisions.revisions).toHaveLength(20);
       expect(revisions.revisions[0]!.revisionNumber).toBe(25);
       expect(revisions.revisions.at(-1)!.revisionNumber).toBe(6);
     });
 
     it("appends further revisions and enforces optimistic baseRevisionId", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
-      const summarizerAgentId = await seedSummarizer(companyId);
-      const { svc, generationIssueId, runId } = await startGeneration(companyId, projectId, summarizerAgentId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
+      const summarizerAgentId = await seedSummarizer(spaceId);
+      const { svc, generationIssueId, runId } = await startGeneration(spaceId, projectId, summarizerAgentId);
 
       const first = await svc.write(
-        { ...projectSelector(companyId, projectId), markdown: "# Summary v1", generationIssueId },
+        { ...projectSelector(spaceId, projectId), markdown: "# Summary v1", generationIssueId },
         { agentId: summarizerAgentId, runId },
       );
 
       // A stale baseRevisionId must be rejected.
-      const second = await summarySlotService(db).generate(projectSelector(companyId, projectId), {
-        userId: "board-user",
+      const second = await summarySlotService(db).generate(projectSelector(spaceId, projectId), {
+        userId: "operator-user",
       });
-      const runId2 = await seedRun(companyId, summarizerAgentId);
+      const runId2 = await seedRun(spaceId, summarizerAgentId);
       await db.update(issues).set({ checkoutRunId: runId2 }).where(eq(issues.id, second.generatingIssue.id));
 
       await expect(
         svc.write(
           {
-            ...projectSelector(companyId, projectId),
+            ...projectSelector(spaceId, projectId),
             markdown: "# Summary v2",
             baseRevisionId: randomUUID(),
             generationIssueId: second.generatingIssue.id,
@@ -564,7 +564,7 @@ describeEmbeddedPostgres("summary slot service", () => {
 
       const ok = await svc.write(
         {
-          ...projectSelector(companyId, projectId),
+          ...projectSelector(spaceId, projectId),
           markdown: "# Summary v2",
           baseRevisionId: first.revision.id,
           generationIssueId: second.generatingIssue.id,
@@ -575,59 +575,59 @@ describeEmbeddedPostgres("summary slot service", () => {
     });
 
     it("rejects writes from a non-Summarizer agent", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
-      const summarizerAgentId = await seedSummarizer(companyId);
-      const plainAgentId = await seedPlainAgent(companyId);
-      const { svc, runId } = await startGeneration(companyId, projectId, summarizerAgentId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
+      const summarizerAgentId = await seedSummarizer(spaceId);
+      const plainAgentId = await seedPlainAgent(spaceId);
+      const { svc, runId } = await startGeneration(spaceId, projectId, summarizerAgentId);
 
       await expect(
         svc.write(
-          { ...projectSelector(companyId, projectId), markdown: "# Sneaky" },
+          { ...projectSelector(spaceId, projectId), markdown: "# Sneaky" },
           { agentId: plainAgentId, runId },
         ),
       ).rejects.toMatchObject({ status: 403 });
     });
 
     it("rejects Summarizer writes that do not run from the linked generation task", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
-      const summarizerAgentId = await seedSummarizer(companyId);
-      const { generationIssueId } = await startGeneration(companyId, projectId, summarizerAgentId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
+      const summarizerAgentId = await seedSummarizer(spaceId);
+      const { generationIssueId } = await startGeneration(spaceId, projectId, summarizerAgentId);
       const svc = summarySlotService(db);
 
       await expect(
         svc.write(
-          { ...projectSelector(companyId, projectId), markdown: "# Wrong run", generationIssueId },
+          { ...projectSelector(spaceId, projectId), markdown: "# Wrong run", generationIssueId },
           { agentId: summarizerAgentId, runId: randomUUID() },
         ),
       ).rejects.toMatchObject({ status: 403 });
     });
 
     it("rejects using one generation task to write a different slot", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
-      const otherProjectId = await seedProject(companyId);
-      const summarizerAgentId = await seedSummarizer(companyId);
-      const { svc, generationIssueId, runId } = await startGeneration(companyId, projectId, summarizerAgentId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
+      const otherProjectId = await seedProject(spaceId);
+      const summarizerAgentId = await seedSummarizer(spaceId);
+      const { svc, generationIssueId, runId } = await startGeneration(spaceId, projectId, summarizerAgentId);
 
       await expect(
         svc.write(
-          { ...projectSelector(companyId, otherProjectId), markdown: "# Wrong slot", generationIssueId },
+          { ...projectSelector(spaceId, otherProjectId), markdown: "# Wrong slot", generationIssueId },
           { agentId: summarizerAgentId, runId },
         ),
       ).rejects.toMatchObject({ status: 403 });
     });
 
     it("rejects writes when there is no active generation", async () => {
-      const companyId = await seedCompany();
-      const projectId = await seedProject(companyId);
-      const summarizerAgentId = await seedSummarizer(companyId);
+      const spaceId = await seedSpace();
+      const projectId = await seedProject(spaceId);
+      const summarizerAgentId = await seedSummarizer(spaceId);
       const svc = summarySlotService(db);
 
       await expect(
         svc.write(
-          { ...projectSelector(companyId, projectId), markdown: "# No generation" },
+          { ...projectSelector(spaceId, projectId), markdown: "# No generation" },
           { agentId: summarizerAgentId, runId: randomUUID() },
         ),
       ).rejects.toMatchObject({ status: 403 });

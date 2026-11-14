@@ -76,7 +76,7 @@ describe("Copilot denied-target origin correlation", () => {
 });
 function receipt(): CopilotRemoteSnapshot {
   const root = { pid: 50, ppid: 1, startTicks: "200", bootId: "12345678-1234-1234-1234-123456789abc" };
-  return { binding: { companyId: "company", environmentId: "env", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `image@sha256:${"a".repeat(64)}`, remoteCwd: "/home/daytona/workspace" },
+  return { binding: { spaceId: "space", environmentId: "env", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `image@sha256:${"a".repeat(64)}`, remoteCwd: "/home/daytona/workspace" },
     observedAtMs: 60, receivedAtMs: 61, observedMonotonicNs: "600", complete: true, workspace: {},
     targets: { [target]: { absent: true, sha256: null, complete: true, mutationCount: 0, parent: { dev: "1", ino: "2" } } },
     watcher: { complete: true, targetMutationCount: 0, workspaceMutationCount: 0 }, processes: { captured: true, root, journal: [root], live: [] },
@@ -121,7 +121,7 @@ describe("Copilot sealed remote proof", () => {
   it("exempts only exact completed action-file reads before the tested operation", () => {
     const call = { ...notice, seq: 10, status: "in_progress" as const };
     const read = { ...notice, toolCallId: "bootstrap", operation: "read", status: "completed", seq: 1 } as CopilotToolNotice;
-    const actionFile = `.paperclip-eval-action-${"a".repeat(36)}.txt`;
+    const actionFile = `.outpost-eval-action-${"a".repeat(36)}.txt`;
     const event = { runId: "run", seq: 2, protocolSchemaVersion: 1, eventType: "tool.execution.completed", payload: { orpEvent: {
       schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType: "tool.execution.completed", emittedAt: new Date(2).toISOString(),
       payload: { schema: "outpost.tool.execution.v1", executionId: "bootstrap", transport: "builtin", operation: "read", target: actionFile, status: "completed" },
@@ -146,12 +146,12 @@ describe("Copilot sealed remote proof", () => {
       releaseAttachedCommand: async () => { throw new Error("Unexpected fixture release during setup"); },
       setupAttachedCommand: async input => { expect(input.waitForFinishAttempt).toBe(true); expect(input.markerText).toBe("private-marker"); order.push("setup"); return { command: "exact-remote-command", commandSha256: `sha256:${"c".repeat(64)}` }; },
       finish: async () => { throw new Error("must not finish during setup"); }, readFile: async () => { throw new Error("must not read host file"); }, close: async () => {} };
-    const prepared = await prepareCopilotRemoteAction({ fixture, companyId: "company", environmentId: "env", runId: "run", target, prompt: "test", markerText: "private-marker" });
+    const prepared = await prepareCopilotRemoteAction({ fixture, spaceId: "space", environmentId: "env", runId: "run", target, prompt: "test", markerText: "private-marker" });
     order.push("publish"); expect(order).toEqual(["setup", "baseline", "publish"]);
     expect(prepared.prompt).toContain("exact-remote-command"); expect(prepared.prompt).not.toContain("private-marker");
-    await expect(prepareCopilotRemoteAction({ fixture, companyId: "company", environmentId: "env", runId: "other", target, prompt: "test" })).rejects.toThrow(/Foreign/);
+    await expect(prepareCopilotRemoteAction({ fixture, spaceId: "space", environmentId: "env", runId: "other", target, prompt: "test" })).rejects.toThrow(/Foreign/);
     s.targets[target]!.absent = false;
-    await expect(prepareCopilotRemoteAction({ fixture, companyId: "company", environmentId: "env", runId: "run", target, prompt: "test" })).rejects.toThrow(/present/);
+    await expect(prepareCopilotRemoteAction({ fixture, spaceId: "space", environmentId: "env", runId: "run", target, prompt: "test" })).rejects.toThrow(/present/);
   });
 });
 

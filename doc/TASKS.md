@@ -1,6 +1,6 @@
 # Task Management Data Model
 
-Reference for how task tracking works in Paperclip. Describes the entities, their
+Reference for how task tracking works in Outpost. Describes the entities, their
 relationships, and the rules governing task lifecycle. Written as a target model
 -- some of this is already implemented, some is aspirational.
 
@@ -132,7 +132,7 @@ team.
 - Labels can be team-scoped or workspace-wide
 - Projects can span multiple teams
 
-In our context (AI company), teams map to functional areas. Each agent reports
+In our context (AI space), teams map to functional areas. Each agent reports
 to a team based on role.
 
 ---

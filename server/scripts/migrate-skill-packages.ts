@@ -36,6 +36,6 @@ try {
   if (!action) throw new Error("--phase must be snapshots, versions, orphans, deletions, installations, eligibility, verification, or runtime-assets");
   const apply = process.argv.includes("--apply");
   const result = await action({ apply, writersStopped: process.argv.includes("--writers-stopped"),
-    clearLegacy: process.argv.includes("--clear-legacy"), limit, after: value("--after"), companyId: value("--company") });
+    clearLegacy: process.argv.includes("--clear-legacy"), limit, after: value("--after"), spaceId: value("--space") });
   console.log(JSON.stringify({ phase, apply, ...result }));
 } finally { await db.$client.end({ timeout: 1 }); }

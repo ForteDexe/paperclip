@@ -171,14 +171,14 @@ describe("InboxIssueTrailingColumns attribution", () => {
         projectColor={null}
         workspaceName={null}
         assigneeName={null}
-        creatorUserName="Riley Board"
+        creatorUserName="Riley Operator"
         currentUserId="user-1"
         parentIdentifier={null}
         parentTitle={null}
       />,
     );
 
-    expect(text).toContain("Riley Board");
+    expect(text).toContain("Riley Operator");
     expect(container?.querySelector('[data-shape="circle"]')).not.toBeNull();
   });
 

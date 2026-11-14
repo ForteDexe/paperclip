@@ -7,12 +7,12 @@ import {
   index,
   unique,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { plugins } from "./plugins.js";
 import type { PluginStateScopeKind } from "@outpost/shared";
 
 /**
- * `plugin_entities` table — persistent high-level mapping between Paperclip
+ * `plugin_entities` table — persistent high-level mapping between Outpost
  * objects and external plugin-defined entities.
  *
  * This table is used by plugins (e.g. `linear`, `github`) to store pointers
@@ -32,8 +32,8 @@ export const pluginEntities = pgTable(
     pluginId: uuid("plugin_id")
       .notNull()
       .references(() => plugins.id, { onDelete: "cascade" }),
-    /** Company scope — NULL for instance-level entities. */
-    companyId: uuid("company_id").references(() => companies.id, { onDelete: "cascade" }),
+    /** Space scope — NULL for instance-level entities. */
+    spaceId: uuid("space_id").references(() => spaces.id, { onDelete: "cascade" }),
     entityType: text("entity_type").notNull(),
     scopeKind: text("scope_kind").$type<PluginStateScopeKind>().notNull(),
     scopeId: text("scope_id"), // NULL for global scope (text to match plugin_state.scope_id)
@@ -46,21 +46,21 @@ export const pluginEntities = pgTable(
   },
   (table) => ({
     pluginIdx: index("plugin_entities_plugin_idx").on(table.pluginId),
-    companyIdx: index("plugin_entities_company_idx").on(table.companyId),
+    spaceIdx: index("plugin_entities_space_idx").on(table.spaceId),
     typeIdx: index("plugin_entities_type_idx").on(table.entityType),
     scopeIdx: index("plugin_entities_scope_idx").on(table.scopeKind, table.scopeId),
     /**
-     * Per-tenant uniqueness on (companyId, pluginId, entityType, externalId).
-     * `.nullsNotDistinct()` is required because companyId is nullable for
+     * Per-tenant uniqueness on (spaceId, pluginId, entityType, externalId).
+     * `.nullsNotDistinct()` is required because spaceId is nullable for
      * instance-scope entities (cron jobs, public webhooks): without it,
-     * postgres treats two NULL company_ids as distinct and a tuple like
+     * postgres treats two NULL space_ids as distinct and a tuple like
      * `(NULL, pluginId, entityType, externalId)` can be inserted multiple
      * times, losing the dedup guarantee. Same pattern as plugin_state.ts.
      * Requires PostgreSQL 15+.
      */
     externalIdx: unique("plugin_entities_external_idx")
       .on(
-        table.companyId,
+        table.spaceId,
         table.pluginId,
         table.entityType,
         table.externalId,

@@ -6,7 +6,7 @@ export const nativeFinalizationResultV1Schema = z.object({
   runtimeMode: z.literal("native"),
   runId: z.string().uuid(),
   issueId: z.string().uuid(),
-  companyId: z.string().uuid(),
+  spaceId: z.string().uuid(),
   result: z.record(z.string(), z.unknown()),
   terminal: z.object({
     schema: z.literal("outpost.orp.terminal.v1"),

@@ -6,7 +6,7 @@
   "required": ["schema", "caseId", "candidateId", "provider", "classification", "base", "lifecycle", "continuation", "presentation", "traceLineage", "metrics", "observedPrpEventTypes", "artifactDigests"],
   "properties": {
     "schema": { "const": "outpost.runner.workflow-observation.v1" },
-    "caseId": { "enum": ["final-response", "rich-activity", "verification-policy", "governed-interaction", "steering-causality", "planning-lifecycle", "review-lifecycle", "delegation-return", "completion-robustness", "restart-recovery", "cancellation-permissions", "trace-lineage"] },
+    "caseId": { "enum": ["final-response", "rich-activity", "verification-policy", "controlled-interaction", "steering-causality", "planning-lifecycle", "review-lifecycle", "delegation-return", "completion-robustness", "restart-recovery", "cancellation-permissions", "trace-lineage"] },
     "candidateId": { "type": "string", "minLength": 1 },
     "provider": { "enum": ["codex", "opencode", "acpx"] },
     "classification": { "enum": ["completed", "candidate_failure", "infrastructure_failure", "skipped"] },

@@ -26,7 +26,7 @@ vi.mock("../components/transcript/RunTranscriptView", () => ({
 
 const unavailable = () => new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" });
 const row = (seq: number, chunk: string) => JSON.stringify({ seq, ts: `2026-09-10T12:00:0${seq}Z`, stream: "stdout", chunk }) + "\n";
-const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "succeeded", logRef: "log" } as HeartbeatRun;
+const run = { id: "run-1", spaceId: "space-1", agentId: "agent-1", status: "succeeded", logRef: "log" } as HeartbeatRun;
 
 let container: HTMLDivElement;
 let root: Root;

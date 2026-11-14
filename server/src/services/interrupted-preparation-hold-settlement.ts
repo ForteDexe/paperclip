@@ -29,7 +29,7 @@ import { abandonedPreparedRemoteWorkspaceExists } from "./remote-workspace-aband
 export function heldInterruptedPreparationWhere() {
   return and(inArray(heartbeatRuns.status, ["interrupted", "failed"]), eq(heartbeatRuns.runtimeMode, "legacy"),
     isNull(heartbeatRuns.runtimeModeResolvedAt), eq(heartbeatRuns.executionStage, "preparing"),
-    sql`exists (select 1 from issue_recovery_actions hold where hold.company_id = ${heartbeatRuns.companyId}
+    sql`exists (select 1 from issue_recovery_actions hold where hold.space_id = ${heartbeatRuns.spaceId}
       and hold.cause = ${LEGACY_RECOVERY_CAUSE} and hold.fingerprint = 'legacy-execution:' || ${heartbeatRuns.id}::text
       and hold.evidence->>'runId' = ${heartbeatRuns.id}::text
       and hold.status = 'resolved' and hold.outcome = 'blocked' and hold.owner_user_id is null
@@ -38,7 +38,7 @@ export function heldInterruptedPreparationWhere() {
       and not (hold.evidence ?| array['executionReconciliation', ${OWNER_GONE_ATTESTATION_KEY}, 'explicitUserContinuation'])
       and (not (hold.evidence ?| array['workspaceRestoreFailure', 'workspaceRestoreRecovery'])
         or ${abandonedPreparedRemoteWorkspaceExists()}))`,
-    sql`not exists (select 1 from environment_leases lease where lease.company_id = ${heartbeatRuns.companyId}
+    sql`not exists (select 1 from environment_leases lease where lease.space_id = ${heartbeatRuns.spaceId}
       and lease.heartbeat_run_id = ${heartbeatRuns.id}
       and (lease.released_at is null or lease.status = 'pending_cleanup' or lease.cleanup_status = 'failed'))`);
 }
@@ -47,7 +47,7 @@ export function heldInterruptedPreparationWhere() {
  * (`resumeRemoteStopComments`): it schedules the uncharged
  * `interrupted_preparation` successor and records the continuation. The
  * heartbeat service registers it; it owns the scheduling dependencies. */
-type HeldPreparationResumer = (input: { companyId: string; runId: string }) => Promise<void>;
+type HeldPreparationResumer = (input: { spaceId: string; runId: string }) => Promise<void>;
 let heldPreparationResumer: HeldPreparationResumer | null = null;
 
 export function registerHeldPreparationResumer(resumer: HeldPreparationResumer): void {
@@ -65,9 +65,9 @@ export function registerHeldPreparationResumer(resumer: HeldPreparationResumer):
  */
 export async function settleHeldInterruptedPreparation(db: Db, record: InProgressRecord,
   context: { now: Date; proof: OwnerProof }): Promise<SettleOutcome> {
-  if (!record.companyId) return { settled: false, reason: "run_has_no_company" };
+  if (!record.spaceId) return { settled: false, reason: "run_has_no_space" };
   const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, record.recordId),
-    eq(heartbeatRuns.companyId, record.companyId), heldInterruptedPreparationWhere()));
+    eq(heartbeatRuns.spaceId, record.spaceId), heldInterruptedPreparationWhere()));
   if (!run) return { settled: false, reason: "no_longer_a_held_preparation" };
   if (!await isInterruptedNativePreparation(db, run)) {
     return { settled: false, reason: "provider_work_not_disproved", watch: false };
@@ -80,7 +80,7 @@ export async function settleHeldInterruptedPreparation(db: Db, record: InProgres
     onHoldsResolved: count => { resolved = count; } });
   if (resolved === 0) return { settled: false, reason: "hold_changed_since_proof" };
   // Only the call that resolved the hold starts the replay, so it starts once.
-  await heldPreparationResumer({ companyId: record.companyId, runId: run.id }).catch(error => {
+  await heldPreparationResumer({ spaceId: record.spaceId, runId: run.id }).catch(error => {
     // The hold is settled; its pending continuation stays recorded, and the
     // run's next resume (a wake or a cleanup completion) delivers it, as on
     // the run-control path. Logged so a stuck replay is visible.

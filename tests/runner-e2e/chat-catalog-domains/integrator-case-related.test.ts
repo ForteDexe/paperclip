@@ -4,7 +4,7 @@ function valid() {
   const primary = { id: "primary", identifier: "ACN-1", title: "Investigation", status: "done" };
   const followup = { id: "followup", identifier: "ACN-2", title: "Mobile follow-up", status: "backlog" };
   const row = { id: "case", identifier: "ACN-C1", workIssueId: primary.id, status: "in_progress", handoffVersion: 1 };
-  return { scenarioId: "cases.related-work", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { case: structuredClone(row), followup,
+  return { scenarioId: "cases.related-work", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { case: structuredClone(row), followup,
     unrelated: { id: "same-name", identifier: "ACN-3", title: followup.title }, privateTask: { id: "foreign", identifier: "PRV-1", title: "Private customer" }, privateMarker: "PRIVATE-SENTINEL" },
     tasks: [primary, followup], projects: [], goals: [], comments: [], documents: [], revisions: [], humanQueries: [], activity: [], runs: [],
     links: ["/ACN/issues/ACN-1", "/ACN/issues/ACN-2"], caseDetail: { ...row, issueLinks: [{ issueId: "primary", role: "work" }, { issueId: "followup", role: "reference" }] },

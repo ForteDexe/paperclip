@@ -3,7 +3,7 @@
 Campfire is an Outpost plugin for persistent, multi-agent development rooms.
 Each Outpost agent may be booked into one room at a time. The plugin stores
 room membership, messages, delivery receipts, and the current native agent
-session in its company-scoped database namespace.
+session in its space-scoped database namespace.
 
 ## Current vertical slice
 
@@ -27,7 +27,7 @@ corepack pnpm install --ignore-scripts
 corepack pnpm --filter @outpost/plugin-sdk ensure-build-deps
 corepack pnpm --filter @forted/plugin-campfire exec node ./esbuild.config.mjs
 corepack pnpm --filter @forted/plugin-campfire exec vitest run
-corepack pnpm paperclipai run
+corepack pnpm outpost run
 ```
 
 `--ignore-scripts` avoids Outpost's optional excluded-plugin symlink setup,
@@ -37,8 +37,8 @@ to build or run Campfire.
 In a second terminal, install the local plugin into the running instance:
 
 ```powershell
-corepack pnpm paperclipai plugin install "$PWD\packages\plugins\plugin-campfire" --local
-corepack pnpm paperclipai plugin inspect forted.campfire
+corepack pnpm outpost plugin install "$PWD\packages\plugins\plugin-campfire" --local
+corepack pnpm outpost plugin inspect forted.campfire
 ```
 
 Open **Campfire** in the Outpost sidebar, create a room for a development

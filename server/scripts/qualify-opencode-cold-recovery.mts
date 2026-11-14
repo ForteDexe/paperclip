@@ -111,11 +111,11 @@ for (const [name, image] of Object.entries(images)) {
 }
 if (metadata.old.Architecture !== metadata.next.Architecture)
   throw Error("Images must have matching architectures");
-const root = await mkdtemp(join(tmpdir(), "paperclip-native-cold-full-"));
+const root = await mkdtemp(join(tmpdir(), "outpost-native-cold-full-"));
 process.env.OUTPOST_HOME = join(root, "fixture-home");
 process.env.OUTPOST_SECRETS_MASTER_KEY = randomBytes(32).toString("hex");
 const home = "/home/native-fixture",
-  base = home + "/paperclip-workspace",
+  base = home + "/outpost-workspace",
   account = userInfo();
 const passwd = join(root, "passwd");
 await writeFile(
@@ -179,7 +179,7 @@ const source = {
 const containers = new Map<string, string>();
 const create = async (first: boolean) => {
   const path = join(root, first ? "original-account" : "replacement-account");
-  await mkdir(join(path, "paperclip-workspace"), { recursive: true });
+  await mkdir(join(path, "outpost-workspace"), { recursive: true });
   await chmod(path, 0o700);
   const id = await docker([
     "create",
@@ -291,7 +291,7 @@ const stage = (path: string) => async (f: any) => {
   await chmod(mapped(path, f.targetPath), f.mode);
 };
 const ids = {
-  company: randomUUID(),
+  space: randomUUID(),
   agent: randomUUID(),
   issue: randomUUID(),
   run: randomUUID(),
@@ -308,7 +308,7 @@ const identity = {
   itemId: randomUUID(),
 };
 const binding = {
-    companyId: ids.company,
+    spaceId: ids.space,
     agentId: ids.agent,
     issueId: ids.issue,
     runId: ids.run,
@@ -366,14 +366,14 @@ const probe = async (id: string, input: any) => {
   return JSON.parse(line);
 };
 try {
-  await db.insert(t.companies).values({
-    id: ids.company,
+  await db.insert(t.spaces).values({
+    id: ids.space,
     name: "Owned cold recovery qualification",
     issuePrefix: "COLD",
   });
   await db.insert(t.agents).values({
     id: ids.agent,
-    companyId: ids.company,
+    spaceId: ids.space,
     name: "Owned native worker",
     adapterType: "outpost_runner",
   });
@@ -385,7 +385,7 @@ try {
   });
   await db.insert(t.issues).values({
     id: ids.issue,
-    companyId: ids.company,
+    spaceId: ids.space,
     title: "Preserve useful cold work",
     status: "in_progress",
     assigneeAgentId: ids.agent,
@@ -393,7 +393,7 @@ try {
   const epoch = randomUUID();
   await db.insert(t.heartbeatRuns).values({
     id: ids.run,
-    companyId: ids.company,
+    spaceId: ids.space,
     agentId: ids.agent,
     nativeIssueId: ids.issue,
     runtimeMode: "native",
@@ -412,7 +412,7 @@ try {
     .where(eq(t.issues.id, ids.issue));
   await db.insert(t.nativeRunFinalizations).values({
     runId: ids.run,
-    companyId: ids.company,
+    spaceId: ids.space,
     issueId: ids.issue,
     phase: "observed",
     attempt: 1,
@@ -423,7 +423,7 @@ try {
   });
   await db.insert(t.environmentLeases).values({
     id: ids.lease,
-    companyId: ids.company,
+    spaceId: ids.space,
     environmentId: ids.environment,
     heartbeatRunId: ids.run,
     issueId: ids.issue,
@@ -475,10 +475,10 @@ try {
   workspace = prepared.remoteRoot;
   runtime =
     workspace +
-    "/.paperclip-runtime/outpost-runner/sessions/retained/filesystem/opencode";
+    "/.outpost-runtime/outpost-runner/sessions/retained/filesystem/opencode";
   execution = {
     binding: { ...binding, executionWorkspaceId: reserved.id },
-    provider: { kind: "opencode", model: "paperclip/qualification" },
+    provider: { kind: "opencode", model: "outpost/qualification" },
     workspace: {
       cwd: workspace,
       repoUrl: null,
@@ -677,7 +677,7 @@ try {
     nextLease = randomUUID();
   await db.insert(t.environmentLeases).values({
     id: nextLease,
-    companyId: ids.company,
+    spaceId: ids.space,
     environmentId: ids.environment,
     heartbeatRunId: ids.run,
     issueId: ids.issue,
@@ -714,7 +714,7 @@ try {
     !(await restoreDurableNativeHarnessBackup({
       db,
       storage,
-      companyId: ids.company,
+      spaceId: ids.space,
       scopeDigest,
       backupRoot: join(restored, "failover-backups"),
       signal: AbortSignal.timeout(180000),

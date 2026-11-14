@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "@outpost/db";
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 import { materializeAsset } from "./runtime-context.js";
 import { removeRuntimeAssetTree, runtimeAssetRetention, RUNTIME_ASSET_RETENTION_MS } from "./runtime-asset-retention.js";
 
@@ -20,7 +20,7 @@ function database(rows: unknown[] = []) {
   return { db: { select } as unknown as Db, select };
 }
 async function age(digest: string) {
-  const manifest = path.join(resolvePaperclipInstanceRoot(), "runtime-context-assets", "manifests", `${digest}.json`);
+  const manifest = path.join(resolveOutpostInstanceRoot(), "runtime-context-assets", "manifests", `${digest}.json`);
   const old = new Date(Date.now() - RUNTIME_ASSET_RETENTION_MS - 1_000);
   await fs.utimes(manifest, old, old);
 }
@@ -48,7 +48,7 @@ describe("runtime asset retention", () => {
   it("keeps files when an unfinished run has no trustworthy input", async () => {
     const asset = await materializeAsset([{ path: "SKILL.md", content: Buffer.from("pinned skill"), mode: 0o444 }]);
     await age(asset.digest);
-    const { db } = database([{ id: "run", companyId: "company", agentId: "agent", input: null }]);
+    const { db } = database([{ id: "run", spaceId: "space", agentId: "agent", input: null }]);
     const worker = runtimeAssetRetention(db);
     await worker.tick(new AbortController().signal);
     expect((await fs.stat(asset.rootPath)).isDirectory()).toBe(true);

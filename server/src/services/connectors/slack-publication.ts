@@ -4,7 +4,7 @@ import { chatPublications, type Db } from "@outpost/db";
 // ECMAScript String.trim whitespace, matching tool-send text comparison.
 const trimCharacters = "\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff";
 type PublicationMatch = {
-  companyId: SQL; endpointId: SQL; conversationId: SQL;
+  spaceId: SQL; endpointId: SQL; conversationId: SQL;
   issueId: SQL; commentId: SQL; payload: SQL;
 };
 
@@ -12,10 +12,10 @@ function matchingSlackSend(publication: PublicationMatch) {
   const p = publication;
   return sql`from chat_actions send
     join issue_comments comment on comment.id = ${p.commentId}
-      and comment.company_id = ${p.companyId} and comment.issue_id = ${p.issueId}
+      and comment.space_id = ${p.spaceId} and comment.issue_id = ${p.issueId}
     join chat_conversations conversation on conversation.id = ${p.conversationId}
-      and conversation.company_id = ${p.companyId}
-    where send.company_id = ${p.companyId} and send.endpoint_id = ${p.endpointId}
+      and conversation.space_id = ${p.spaceId}
+    where send.space_id = ${p.spaceId} and send.endpoint_id = ${p.endpointId}
       and send.conversation_id = ${p.conversationId} and send.kind = 'slack_tool_write'
       and send.payload->'binding'->>'runId' = coalesce(comment.created_by_run_id, comment.derived_created_by_run_id)::text
       and send.payload->>'name' = 'slack_post_message'
@@ -31,7 +31,7 @@ function matchingSlackSend(publication: PublicationMatch) {
 /** Dispatch and deadlines must agree about pending explicit Slack sends. */
 export function unresolvedSlackPublicationCondition(): SQL {
   return sql`exists (select 1 ${matchingSlackSend({
-    companyId: sql`${chatPublications.companyId}`, endpointId: sql`${chatPublications.endpointId}`,
+    spaceId: sql`${chatPublications.spaceId}`, endpointId: sql`${chatPublications.endpointId}`,
     conversationId: sql`${chatPublications.conversationId}`, issueId: sql`${chatPublications.issueId}`,
     commentId: sql`${chatPublications.commentId}`, payload: sql`${chatPublications.payload}`,
   })} and send.status in ('received', 'processing', 'uncertain'))`;
@@ -45,7 +45,7 @@ export async function slackExplicitPublicationDuplicate(
   const p = publication;
   if (!p.commentId || p.payload.interactionId || p.payload.progressState || p.payload.attachmentIds?.length) return null;
   const rows = await db.execute<{ status: string }>(sql`select send.status ${matchingSlackSend({
-    companyId: sql`${p.companyId}::uuid`, endpointId: sql`${p.endpointId}::uuid`,
+    spaceId: sql`${p.spaceId}::uuid`, endpointId: sql`${p.endpointId}::uuid`,
     conversationId: sql`${p.conversationId}::uuid`, issueId: sql`${p.issueId}::uuid`,
     commentId: sql`${p.commentId}::uuid`, payload: sql`${JSON.stringify(p.payload)}::jsonb`,
   })} and send.status in ('processed', 'received', 'processing', 'uncertain')

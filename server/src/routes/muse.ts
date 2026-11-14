@@ -12,7 +12,7 @@ import { museInvitationService } from "../services/muse-invitations.js";
 import { agentService } from "../services/agents.js";
 import { canConfigureAgentConnection } from "../modules/agent-lifecycle/index.js";
 import { authorizationService } from "../services/authorization.js";
-import { assertBoard, assertCompanyAccess } from "./authz.js";
+import { assertOperator, assertSpaceAccess } from "./authz.js";
 import { HttpError, badRequest, forbidden, notFound, unauthorized, payloadTooLarge } from "../errors.js";
 function bearer(req:Request) {const header=req.get("authorization")??"";if(!/^Bearer [A-Za-z0-9_-]{20,200}$/.test(header))throw unauthorized("A Muse bearer credential is required.");return header.slice(7);}
 /** Exact manifest is registered here and consumed by Cloud. No adjacent namespace has machine authority. */
@@ -68,7 +68,7 @@ export function museTransportRoutes(db:Db,publicOrigin?:string,options:{allowLeg
       }
       if(route.path.endsWith("/pair")) {if(!options.allowLegacyCredentials)throw notFound("Legacy test pairing is unavailable.");const value=musePairSchema.parse(req.body);res.json(await identity.pair(value.ticket,value.clientVersion));return;}
       if(route.path.endsWith("/refresh")) {if(!options.allowLegacyCredentials)throw notFound("Legacy test refresh is unavailable.");const value=museRefreshSchema.parse(req.body);res.json(await identity.refresh(value.refreshToken));return;}
-      if(route.path.endsWith("/signal")) {const bindingId=z.uuid().parse(req.get("X-Paperclip-Muse-Binding"));res.json(await receiver.signal(bindingId,musePublicOrigin(publicOrigin)+MUSE_RESOURCE_PATH));return;}
+      if(route.path.endsWith("/signal")) {const bindingId=z.uuid().parse(req.get("X-Outpost-Muse-Binding"));res.json(await receiver.signal(bindingId,musePublicOrigin(publicOrigin)+MUSE_RESOURCE_PATH));return;}
       if(route.path.endsWith("/cleanup")) {const value=museCleanupSchema.parse(req.body);const subject=await authenticateWorker(req,"cleanup",true);res.json(await broker.cleanup(subject,value));return;}
       if(route.path.endsWith("/detector-cleanup")) {const value=museDetectorCleanupSchema.parse(req.body),subject=await authenticateWorker(req,"detector_cleanup");if(value.bindingId!==subject.bindingId||value.generation!==subject.generation)throw forbidden("Detector cleanup identity mismatch.");res.json(await broker.detectorCleanup(subject,"detectorRemoved" in value));return;}
       const query=route.path.endsWith("/queries")?museQuerySchema.safeParse(req.body):null;
@@ -84,23 +84,23 @@ export function museTransportRoutes(db:Db,publicOrigin?:string,options:{allowLeg
 export function museBoardRoutes(db:Db,publicOrigin?:string) {
   const router=Router(),broker=museExternalAgents(db,{publicOrigin}),invitations=museInvitationService(db);
   async function scope(req:Request,write=false) {
-    const companyId=z.uuid().parse(req.params.companyId);assertBoard(req);assertCompanyAccess(req,companyId);
+    const spaceId=z.uuid().parse(req.params.spaceId);assertOperator(req);assertSpaceAccess(req,spaceId);
     const operatorId=req.actor.userId;
-    if(!operatorId||!["session","cloud_tenant","board_key"].includes(req.actor.source??"")||req.actor.memberships?.find(m=>m.companyId===companyId)?.membershipRole==="viewer")throw forbidden("Sign in as a company operator to configure Muse.");
+    if(!operatorId||!["session","cloud_tenant","operator_key"].includes(req.actor.source??"")||req.actor.memberships?.find(m=>m.spaceId===spaceId)?.membershipRole==="viewer")throw forbidden("Sign in as a space operator to configure Muse.");
     const agentId=req.params.agentId?z.uuid().parse(req.params.agentId):undefined;
-    if(write) {const decision=await authorizationService(db).decide({actor:req.actor,action:agentId?"agent_config:update":"agents:create",resource:agentId?{type:"agent",companyId,agentId}:{type:"company",companyId},scope:{requiresChangeGrant:true}});if(!decision.allowed)throw forbidden(decision.explanation);}
-    if(agentId){const agent=await agentService(db).getById(agentId);if(!agent||agent.companyId!==companyId)throw notFound("Agent not found.");}
-    return {companyId,agentId,operatorId};
+    if(write) {const decision=await authorizationService(db).decide({actor:req.actor,action:agentId?"agent_config:update":"agents:create",resource:agentId?{type:"agent",spaceId,agentId}:{type:"space",spaceId},scope:{requiresChangeGrant:true}});if(!decision.allowed)throw forbidden(decision.explanation);}
+    if(agentId){const agent=await agentService(db).getById(agentId);if(!agent||agent.spaceId!==spaceId)throw notFound("Agent not found.");}
+    return {spaceId,agentId,operatorId};
   }
-  const invite="/companies/:companyId/muse-invitations",path="/companies/:companyId/agents/:agentId/muse-binding";
+  const invite="/spaces/:spaceId/muse-invitations",path="/spaces/:spaceId/agents/:agentId/muse-binding";
   const identitySchema=z.object({bindingId:z.uuid(),generation:z.number().int().positive(),expectedRevision:z.number().int().positive()}).strict();
-  router.get(invite,async(req,res)=>{const s=await scope(req,true);res.set("Cache-Control","no-store").json(await invitations.resume(s.companyId,s.operatorId));});
-  router.post(invite,async(req,res)=>{const s=await scope(req,true),input=z.object({name:z.string().trim().min(1).max(100),role:z.string().trim().min(1).max(100)}).strict().parse(req.body);res.set("Cache-Control","no-store").json(await invitations.create(s.companyId,s.operatorId,input));});
-  router.get(path,async(req,res)=>{const s=await scope(req),agent=(await agentService(db).getById(s.agentId!))!;let origin:string|null=null;try{origin=musePublicOrigin(publicOrigin);}catch{/* setup diagnostic remains visible */}res.set("Cache-Control","no-store").json({enabled:await broker.enabled(),publicOrigin:origin,agentStatus:agent.status,agentLifecycleState:agent.lifecycleState,canConfigureConnection:canConfigureAgentConnection(agent),binding:await broker.bindingForAgent(s.companyId,s.agentId!),usage:null,cost:null});});
+  router.get(invite,async(req,res)=>{const s=await scope(req,true);res.set("Cache-Control","no-store").json(await invitations.resume(s.spaceId,s.operatorId));});
+  router.post(invite,async(req,res)=>{const s=await scope(req,true),input=z.object({name:z.string().trim().min(1).max(100),role:z.string().trim().min(1).max(100)}).strict().parse(req.body);res.set("Cache-Control","no-store").json(await invitations.create(s.spaceId,s.operatorId,input));});
+  router.get(path,async(req,res)=>{const s=await scope(req),agent=(await agentService(db).getById(s.agentId!))!;let origin:string|null=null;try{origin=musePublicOrigin(publicOrigin);}catch{/* setup diagnostic remains visible */}res.set("Cache-Control","no-store").json({enabled:await broker.enabled(),publicOrigin:origin,agentStatus:agent.status,agentLifecycleState:agent.lifecycleState,canConfigureConnection:canConfigureAgentConnection(agent),binding:await broker.bindingForAgent(s.spaceId,s.agentId!),usage:null,cost:null});});
   router.post(path,async(req,res)=>{const s=await scope(req,true),input=z.object({replaceBindingId:z.uuid().optional(),expectedRevision:z.number().int().positive().optional()}).strict().parse(req.body??{});res.set("Cache-Control","no-store").status(201).json(await broker.createPairing({...s,agentId:s.agentId!,...input}));});
-  router.post(path+"/verify",async(req,res)=>{const s=await scope(req,true);res.json(await broker.verify(s.companyId,s.agentId!,identitySchema.parse(req.body),s.operatorId));});
-  router.post(path+"/revoke",async(req,res)=>{const s=await scope(req,true);await broker.revoke(s.companyId,s.agentId!,s.operatorId,identitySchema.parse(req.body));res.status(204).end();});
-  router.post(path+"/attest-detector-cleanup",async(req,res)=>{const s=await scope(req,true);res.set("Cache-Control","no-store").json(await broker.attestDetectorCleanup(s.companyId,s.agentId!,s.operatorId,museDetectorCleanupAttestationSchema.parse(req.body),req.actor));});
-  router.post(path+"/attest-stop",async(req,res)=>{const s=await scope(req,true),input=z.object({boundary:museStopBoundarySchema,expectedRevision:z.number().int().positive(),workerStopped:z.literal(true)}).strict().parse(req.body);res.json(await broker.attestStop(s.companyId,s.agentId!,s.operatorId,input));});
+  router.post(path+"/verify",async(req,res)=>{const s=await scope(req,true);res.json(await broker.verify(s.spaceId,s.agentId!,identitySchema.parse(req.body),s.operatorId));});
+  router.post(path+"/revoke",async(req,res)=>{const s=await scope(req,true);await broker.revoke(s.spaceId,s.agentId!,s.operatorId,identitySchema.parse(req.body));res.status(204).end();});
+  router.post(path+"/attest-detector-cleanup",async(req,res)=>{const s=await scope(req,true);res.set("Cache-Control","no-store").json(await broker.attestDetectorCleanup(s.spaceId,s.agentId!,s.operatorId,museDetectorCleanupAttestationSchema.parse(req.body),req.actor));});
+  router.post(path+"/attest-stop",async(req,res)=>{const s=await scope(req,true),input=z.object({boundary:museStopBoundarySchema,expectedRevision:z.number().int().positive(),workerStopped:z.literal(true)}).strict().parse(req.body);res.json(await broker.attestStop(s.spaceId,s.agentId!,s.operatorId,input));});
   return router;
 }

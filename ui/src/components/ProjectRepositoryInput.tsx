@@ -5,16 +5,16 @@ import { RepositoryEditor } from "./RepositoryEditor";
 import { Button } from "./ui/button";
 import { useQueryView } from "./QueryView";
 
-export const repositoryOptionsKey = (companyId: string) => ["project-repositories", companyId] as const;
+export const repositoryOptionsKey = (spaceId: string) => ["project-repositories", spaceId] as const;
 
-export function ProjectRepositoryInput({ companyId, selected, onChange, onConnect, disabled }: {
-  companyId: string;
+export function ProjectRepositoryInput({ spaceId, selected, onChange, onConnect, disabled }: {
+  spaceId: string;
   selected: ProjectRepository[];
   onChange: (repos: ProjectRepository[]) => void;
   onConnect: () => void;
   disabled?: boolean;
 }) {
-  const query = useQuery({ queryKey: repositoryOptionsKey(companyId), queryFn: () => projectsApi.repositoryOptions(companyId), staleTime: 30_000 });
+  const query = useQuery({ queryKey: repositoryOptionsKey(spaceId), queryFn: () => projectsApi.repositoryOptions(spaceId), staleTime: 30_000 });
   // Read through the shared view so cached options stay visible while a transient
   // refetch fails; only a no-data failure lands in the error state with Retry.
   const view = useQueryView(query);

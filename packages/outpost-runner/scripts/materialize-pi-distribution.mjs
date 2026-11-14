@@ -112,7 +112,7 @@ export function piDistributionBootstrapSource() {
       'process.env.OUTPOST_PI_NODE_EXECUTABLE=path.join(__dirname,"node/bin/node");',
       'process.env.OUTPOST_PI_ENTRYPOINT=path.join(__dirname,"node_modules/@earendil-works/pi-coding-agent/dist/cli.js");',
       'process.env.OUTPOST_PI_EXTENSION_PATH=path.join(__dirname,"extensions/outpost.js");',
-      'process.env.OUTPOST_PI_MODULE_GUARD_PATH=path.join(__dirname,".paperclip-native-module-guard.cjs");',
+      'process.env.OUTPOST_PI_MODULE_GUARD_PATH=path.join(__dirname,".outpost-native-module-guard.cjs");',
       'const protectedRoots=JSON.parse(process.env.OUTPOST_PI_PROTECTED_ROOTS??"[]");if(!Array.isArray(protectedRoots))throw new Error("Invalid Pi protected roots");',
       'process.env.OUTPOST_PI_PROTECTED_ROOTS=JSON.stringify([...protectedRoots,__dirname]);',
       'import(require("node:url").pathToFileURL(path.join(__dirname,"node_modules/pi-acp/dist/index.js")).href).catch(()=>{process.exitCode=1;});',
@@ -198,7 +198,7 @@ export async function materializePiDistribution({ outputRoot, nodeExecutable, np
   if (!supportedTargets.has(`${process.platform}-${process.arch}`)) throw new Error("Pi distribution target is unsupported");
   try { await lstat(output); throw new Error("Pi distribution output already exists"); } catch (error) { if (error.code !== "ENOENT") throw error; }
   await mkdir(dirname(output), { recursive: true });
-  const staging = await mkdtemp(join(await realpath(dirname(output)), ".paperclip-pi-distribution-"));
+  const staging = await mkdtemp(join(await realpath(dirname(output)), ".outpost-pi-distribution-"));
   const runtimeRoot = join(staging, "runtime");
   try {
     const target = `${process.platform}-${process.arch}`;
@@ -244,7 +244,7 @@ export async function materializePiDistribution({ outputRoot, nodeExecutable, np
     await runOwned("git", ["apply", "--check", inputPatchPath], { cwd: wrapper, env: environment, timeout: 10_000 });
     await runOwned("git", ["apply", inputPatchPath], { cwd: wrapper, env: environment, timeout: 10_000 });
     const [wrapperBytes, helperBytes, helperSource] = await Promise.all([
-      readFile(join(wrapper, "dist/index.js")), readFile(join(wrapper, "dist/paperclip-runtime.js")),
+      readFile(join(wrapper, "dist/index.js")), readFile(join(wrapper, "dist/outpost-runtime.js")),
       readFile(helperSourcePath, "utf8"),
     ]);
     // Installed CLI users may run another supported Node patch. Generate the
@@ -255,7 +255,7 @@ export async function materializePiDistribution({ outputRoot, nodeExecutable, np
     const stripped = (await stripPinnedSource(helperSourcePath, helperSource)).split("\n").map((line) => line.trimEnd()).join("\n");
     if (hash(wrapperBytes) !== PI_DISTRIBUTION_PINS.wrapperSha256 || hash(helperBytes) !== PI_DISTRIBUTION_PINS.helperSha256 || helperBytes.toString("utf8") !== stripped) throw new Error("Pi wrapper patch does not match its qualified source");
     await mkdir(join(runtimeRoot, "extensions"));
-    await writeFile(join(runtimeRoot, "extensions/outpost.js"), (await stripPinnedSource(extensionSourcePath, await readFile(extensionSourcePath, "utf8"))).replace('from "./pi-acp-runtime.js"', 'from "../node_modules/pi-acp/dist/paperclip-runtime.js"'));
+    await writeFile(join(runtimeRoot, "extensions/outpost.js"), (await stripPinnedSource(extensionSourcePath, await readFile(extensionSourcePath, "utf8"))).replace('from "./pi-acp-runtime.js"', 'from "../node_modules/pi-acp/dist/outpost-runtime.js"'));
     await mkdir(join(runtimeRoot, "node/bin"), { recursive: true });
     const copiedNode = join(runtimeRoot, "node/bin/node");
     await copyFile(node, copiedNode); await chmod(copiedNode, 0o755);

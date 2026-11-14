@@ -10,11 +10,11 @@ export const ISSUE_CHILDREN_COMPLETED_WAKE_REASON = "issue_children_completed";
 const DEPENDENCY_RESOLVED_WAKE_REASONS = [ISSUE_BLOCKERS_RESOLVED_WAKE_REASON, ISSUE_CHILDREN_COMPLETED_WAKE_REASON];
 
 export const dependencyResolvedWakePayloadSql =
-  sql`${agentWakeupRequests.payload}#>>'{_paperclipWakeContext,wakeReason}' in (${sql.join(
+  sql`${agentWakeupRequests.payload}#>>'{_outpostWakeContext,wakeReason}' in (${sql.join(
     DEPENDENCY_RESOLVED_WAKE_REASONS.map(reason => sql`${reason}`), sql`, `)})`;
 
 export function isDependencyResolvedWakePayload(payload: Record<string, unknown> | null | undefined): boolean {
-  const context = payload?._paperclipWakeContext;
+  const context = payload?._outpostWakeContext;
   return context !== null && typeof context === "object" && !Array.isArray(context)
     && DEPENDENCY_RESOLVED_WAKE_REASONS.includes(String((context as Record<string, unknown>).wakeReason));
 }
@@ -28,7 +28,7 @@ export function isDependencyResolvedWakePayload(payload: Record<string, unknown>
  * straight back made it re-block in a loop: every re-block stamps a new
  * `blockedTransitionAt`, so the ready-state dedup key never matched and the
  * agent was woken again on each run (five wakes in four minutes observed).
- * Board or other-actor transitions and assignee changes still wake, and the
+ * Operator or other-actor transitions and assignee changes still wake, and the
  * dependency backstop still covers a genuinely stranded issue.
  */
 export function shouldWakeOnRestoredBlockedDependency(input: {
@@ -235,7 +235,7 @@ function wakeCoversIssueBlockersResolvedReadyState(
 export async function findExistingIssueBlockersResolvedWakeForReadyState(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     dependentIssueId: string;
     blockerIssueIds: string[];
     blockedTransitionAt?: IssueBlockersResolvedWakeCycleInput;
@@ -268,7 +268,7 @@ export async function findExistingIssueBlockersResolvedWakeForReadyState(
     .from(agentWakeupRequests)
     .where(
       and(
-        eq(agentWakeupRequests.companyId, input.companyId),
+        eq(agentWakeupRequests.spaceId, input.spaceId),
         inArray(agentWakeupRequests.idempotencyKey, lookupKeys),
       ),
     );

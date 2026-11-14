@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
 import { gradeMultipleHandoffs, promptCarriesComment } from "./runtime-multiple-handoffs.js";
 function valid() {
-  const logo = { id: "logo", identifier: "RUN-1", title: "Logo", companyId: "company", status: "done", assigneeAgentId: "riley" };
+  const logo = { id: "logo", identifier: "RUN-1", title: "Logo", spaceId: "space", status: "done", assigneeAgentId: "riley" };
   const artifact = { contentVerified: true, attachmentId: "logo-file", sha256: "same", content: "<svg><text>Acorn real-marker</text></svg>" };
-  return { scenarioId: "agent-chat.multiple-handoffs", companyId: "company", leadId: "ceo", agents: [], links: [], activity: [], humanQueries: [], reply: "",
+  return { scenarioId: "agent-chat.multiple-handoffs", spaceId: "space", leadId: "ceo", agents: [], links: [], activity: [], humanQueries: [], reply: "",
     tasks: [logo, { id: "8ba8b5a2-066a-4bb2-b591-e396942ecdf5", assigneeAgentId: "morgan", status: "done" }],
     runs: [{ id: "logo-run", agentId: "riley", status: "succeeded" }, { id: "prior", agentId: "morgan", status: "succeeded" },
       { id: "setup", agentId: "ceo", status: "succeeded" }, { id: "canonical", agentId: "ceo", status: "succeeded" }, { id: "consumer", agentId: "morgan", status: "succeeded" }],
@@ -40,7 +40,7 @@ it("rejects redirection to a different worker", () => { const o = valid(); o.tas
 it("rejects losing the original Website work", () => { const o = valid(); o.state.originalWebsiteRevisionRetained = false; expect(gradeMultipleHandoffs(o).passed).toBe(false); });
 it("finds a delivered comment in a native continuation that embeds it as JSON", () => {
   const comment = { id: "b9e3ab32-934e-4d07-a5cf-e06fc28d574a", body: 'The headline must be **"Launch sooner"** — nothing else.\nKeep the logo.' };
-  const prompt = `## Paperclip Wake Payload\n${JSON.stringify({ messages: [{ id: comment.id, authorType: "agent", body: comment.body }] })}`;
+  const prompt = `## Outpost Wake Payload\n${JSON.stringify({ messages: [{ id: comment.id, authorType: "agent", body: comment.body }] })}`;
   expect(promptCarriesComment(prompt, comment)).toBe(true);
   expect(promptCarriesComment(`plain ${comment.id}\n${comment.body}`, comment)).toBe(true);
   expect(promptCarriesComment(prompt.replace(comment.id, "other"), comment)).toBe(false);

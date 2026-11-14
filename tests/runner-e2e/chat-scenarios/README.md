@@ -1,7 +1,7 @@
 # Chat feature scenarios
 
 This is the planning catalog for what happens when a person asks an agent to use
-Paperclip. It belongs to [Product E2E](../README.md), alongside the existing chat
+Outpost. It belongs to [Product E2E](../README.md), alongside the existing chat
 and Everyday Workflows suites. These files contain human requests, assumed context
 and loosely specified outcomes. Entries alone do not run models, register tests,
 or contribute passing results to a report. Two task entries now have explicit
@@ -92,7 +92,7 @@ execution requires a separate product change and updated access contract.
 | Allowed / human approval / denied / wrong resolver | `agents.hire-*`, `questions-and-approvals.wrong-reviewer` |
 | Unambiguous / missing required detail / ambiguous reference | `tasks.website-task`, `questions-and-approvals.necessary-question`, `tasks.ambiguous-task` |
 | Complete list / partial mutation / undo | `tasks.organize-open-work`, `inbox-search.archive-partial-failure`, `inbox-search.restore-archive` |
-| Same company / other company / private resource | `access.other-company`, `access.private-resource`, `tasks.private-task` |
+| Same space / other space / private resource | `access.other-space`, `access.private-resource`, `tasks.private-task` |
 | Current decision / stale decision / duplicate answer | `questions-and-approvals.ambiguous-yes`, `questions-and-approvals.review-plan`, `questions-and-approvals.duplicate-answer` |
 | Idle / busy / steering / stop / saved continuation | `steering.*`, `recovery.post-stop-message` |
 | Known result / uncertain side effect / failed accounting | `recovery.unknown-email-outcome`, `budgets-costs.repair-cost-recording` |
@@ -181,7 +181,7 @@ and authority. Each YAML file can also reference capabilities from other areas.
 | [cases](cases.yaml) | [Feature](../../../maps/feature-map/cases.md) | [Access](../../../maps/agent-access-map/cases.md) |
 | [chat-channels](chat-channels.yaml) | [Feature](../../../maps/feature-map/chat-channels.md) | [Access](../../../maps/agent-access-map/chat-channels.md) |
 | [cli-operations](cli-operations.yaml) | [Feature](../../../maps/feature-map/cli-operations.md) | [Access](../../../maps/agent-access-map/cli-operations.md) |
-| [companies](companies.yaml) | [Feature](../../../maps/feature-map/companies.md) | [Access](../../../maps/agent-access-map/companies.md) |
+| [spaces](spaces.yaml) | [Feature](../../../maps/feature-map/spaces.md) | [Access](../../../maps/agent-access-map/spaces.md) |
 | [connection-setup](connection-setup.yaml) | [Feature](../../../maps/feature-map/connection-setup.md) | [Access](../../../maps/agent-access-map/connection-setup.md) |
 | [developer-labs](developer-labs.yaml) | [Feature](../../../maps/feature-map/developer-labs.md) | [Access](../../../maps/agent-access-map/developer-labs.md) |
 | [documents-artifacts](documents-artifacts.yaml) | [Feature](../../../maps/feature-map/documents-artifacts.md) | [Access](../../../maps/agent-access-map/documents-artifacts.md) |

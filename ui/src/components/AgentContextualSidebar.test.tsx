@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 import { AgentContextualSidebar } from "./AgentContextualSidebar";
 import { queryKeys } from "@/lib/queryKeys";
 
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 
 vi.mock("./ContextualSidebarFrame", () => ({
@@ -78,8 +78,8 @@ describe("AgentContextualSidebar", () => {
 
 it.each(["computer", "local"])("offers environment-specific navigation only for the configured %s agent", environmentId => {
   const client = new QueryClient();
-  client.setQueryData([...queryKeys.agents.detail("agent-1"), "company-1"], { id: "agent-1", companyId: "company-1", defaultEnvironmentId: environmentId });
-  client.setQueryData(queryKeys.environments.list("company-1"), [{ id: "computer", driver: "plugin", config: {}, pluginDriver: { pluginKey: "example.computer", driverKey: "tasks" } }]);
+  client.setQueryData([...queryKeys.agents.detail("agent-1"), "space-1"], { id: "agent-1", spaceId: "space-1", defaultEnvironmentId: environmentId });
+  client.setQueryData(queryKeys.environments.list("space-1"), [{ id: "computer", driver: "plugin", config: {}, pluginDriver: { pluginKey: "example.computer", driverKey: "tasks" } }]);
   const markup = renderToStaticMarkup(<QueryClientProvider client={client}><MemoryRouter>
     <AgentContextualSidebar agentRef="agent" agentId="agent-1" agentName="Agent" />
   </MemoryRouter></QueryClientProvider>);

@@ -5,7 +5,7 @@ import type { VoiceRecoveryEntry, voiceSessionRecovery } from "./voice-session-r
 import { voiceRecoveryScope, type VoiceRecoveryScope } from "./voice-recovery-notifications.js";
 
 function matches(entry: VoiceRecoveryEntry, scope?: VoiceRecoveryScope) {
-  return !scope || (scope.kind === "session" ? entry.id : scope.kind === "endpoint" ? entry.endpointId : scope.kind === "connection" ? entry.connectionId : entry.companyId) === scope.id;
+  return !scope || (scope.kind === "session" ? entry.id : scope.kind === "endpoint" ? entry.endpointId : scope.kind === "connection" ? entry.connectionId : entry.spaceId) === scope.id;
 }
 export function registerVoiceRecoveryWork(
   coordinator: ReturnType<typeof createDeliveryWorkCoordinator>,

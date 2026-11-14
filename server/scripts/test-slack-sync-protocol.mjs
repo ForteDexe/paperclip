@@ -24,7 +24,7 @@ for (const name of names) {
     || ['options', 'database', 'dbname'].some(k => url.searchParams.has(k))) throw new Error(`${name} must name an explicit loopback *_test database`);
 }
 const vitest = path.join(path.dirname(require.resolve('vitest/package.json')), 'vitest.mjs');
-const ownedHome = mkdtempSync(path.join(tmpdir(), 'paperclip-slack-protocol-'));
+const ownedHome = mkdtempSync(path.join(tmpdir(), 'outpost-slack-protocol-'));
 const env = {
   PATH: process.env.PATH, HOME: process.env.HOME, CODEX_HOME: process.env.CODEX_HOME,
   LANG: process.env.LANG, TMPDIR: ownedHome, OUTPOST_HOME: ownedHome,

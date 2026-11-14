@@ -12,7 +12,7 @@ function recording(paths: QuestionPath[] = ["provider", "semantic"]) {
   const cards: Row[] = [];
   const points: any[] = [];
   const newRun = (previous?: Row) => ({ id: `run-${runs.length + 1}`, status: "running", runtimeMode: "native",
-    companyId: "company", issueId: "task", agentId: "agent", resultJson: { semanticToolReceipts: {} },
+    spaceId: "space", issueId: "task", agentId: "agent", resultJson: { semanticToolReceipts: {} },
     runnerProfileJson: { nativeExecutionInput: { task: { prompt: "actual native task input" } } },
     contextSnapshot: previous ? { issueId: "task", sourceRunId: previous.sourceRunId,
       interactionId: previous.id, interactionKind: "ask_user_questions", interactionStatus: "answered" } : {},
@@ -20,7 +20,7 @@ function recording(paths: QuestionPath[] = ["provider", "semantic"]) {
   runs.push(newRun());
   const snap = (phase: string, documents: Row[] = []) => {
     const active = runs.find(r => r.status === "running");
-    points.push(structuredClone({ phase, issue: { id: "task", companyId: "company", assigneeAgentId: "agent",
+    points.push(structuredClone({ phase, issue: { id: "task", spaceId: "space", assigneeAgentId: "agent",
       status: phase === "final" ? "done" : active ? "in_progress" : "in_review" },
       lifecycle: { executionRunId: active?.id ?? null, scheduledRetry: null, activeRecoveryAction: null, monitorNextCheckAt: null },
       runs, interactions: cards, children: [], attachments: [], comments: [], documents }));
@@ -36,7 +36,7 @@ function recording(paths: QuestionPath[] = ["provider", "semantic"]) {
     const questions: Row[] = [field];
     if (provider && n === 0) questions.push({ id: "field-2-question_0_custom-hash", answerMode: "text", header: "Other", required: false });
     const card: Row = { id: `card-${n}`, kind: "ask_user_questions", status: "pending",
-      companyId: "company", issueId: "task", createdByAgentId: "agent", sourceRunId: run.id, idempotencyKey,
+      spaceId: "space", issueId: "task", createdByAgentId: "agent", sourceRunId: run.id, idempotencyKey,
       continuationPolicy: provider ? "none" : "wake_assignee", createdByUserId: null,
       payload: { ...(provider ? { runtimeRequestId: request } : {}), questionSet: { questions } } };
     cards.push(card);
@@ -49,7 +49,7 @@ function recording(paths: QuestionPath[] = ["provider", "semantic"]) {
         result: { disposition: "applied", interaction: structuredClone(card) } };
     }
     snap(n === 0 ? "initial" : "answered");
-    card.status = "answered"; card.resolvedByUserId = "local-board";
+    card.status = "answered"; card.resolvedByUserId = "local-operator";
     card.result = { answers: [n === 0 ? { questionId: field.id, optionIds: ["pm"] } :
       { questionId: field.id, optionIds: [], otherText: "Use AMBERnonce." }] };
     if (!provider) runs.push(newRun(card));
@@ -84,7 +84,7 @@ describe("native question/resume path qualification", () => {
     expect(failed(r)).toContain("question-resume.forms");
   });
   it.each(["missing-custom", "disabled-custom", "missing-options", "duplicate-options", "missing-option-id", "multi-select", "extra-question",
-    "wrong-request", "foreign-source", "foreign-agent", "foreign-company", "semantic", "api"])("rejects an unverified written-reference form: %s", kind => {
+    "wrong-request", "foreign-source", "foreign-agent", "foreign-space", "semantic", "api"])("rejects an unverified written-reference form: %s", kind => {
     const r = writtenReference(recording(["provider", kind === "semantic" || kind === "api" ? kind : "provider"]));
     const card = question(r, 1), field = card.payload.questionSet.questions[0];
     if (kind === "missing-custom") delete field.customAnswer;
@@ -97,7 +97,7 @@ describe("native question/resume path qualification", () => {
     if (kind === "wrong-request") card.payload.runtimeRequestId = "other";
     if (kind === "foreign-source") card.sourceRunId = "other";
     if (kind === "foreign-agent") card.createdByAgentId = "other";
-    if (kind === "foreign-company") card.companyId = "other";
+    if (kind === "foreign-space") card.spaceId = "other";
     expect(failed(r)).toContain("question-resume.forms");
   });
   it.each(["predefined-option", "wrong-text", "missing-text", "foreign-user", "changed-form"])("rejects a corrupt written-reference answer: %s", kind => {
@@ -115,7 +115,7 @@ describe("native question/resume path qualification", () => {
     expect(validResumeQuestionForm(point, point.interactions[0], true)).toBe(true);
   });
   it.each(["missing", "pending", "wrong-operation", "wrong-result-operation", "unknown-outcome", "wrong-status", "missing-digest", "wrong-key",
-    "foreign-card", "foreign-company", "foreign-issue", "foreign-agent", "foreign-source", "wrong-idempotency", "changed-form", "changed-compatibility-form",
+    "foreign-card", "foreign-space", "foreign-issue", "foreign-agent", "foreign-source", "wrong-idempotency", "changed-form", "changed-compatibility-form",
     "board-created", "resolved-creation", "wrong-policy", "runtime-request", "legacy-run", "active-source", "foreign-run", "duplicate-source", "spoofed-store"])("rejects unverified native API provenance: %s", kind => {
     const point = JSON.parse(readFileSync(new URL("./fixtures/native-api-question.json", import.meta.url), "utf8"));
     const card = point.interactions[0], run = point.runs[0], receipts = run.resultJson.apiToolReceipts;
@@ -129,7 +129,7 @@ describe("native question/resume path qualification", () => {
     if (kind === "missing-digest") delete receipt.digest;
     if (kind === "wrong-key") run.resultJson.apiToolReceipts = { "model-authored-claim": receipt };
     if (kind === "foreign-card") original.id = "other";
-    if (kind === "foreign-company") original.companyId = "other";
+    if (kind === "foreign-space") original.spaceId = "other";
     if (kind === "foreign-issue") original.issueId = "other";
     if (kind === "foreign-agent") original.createdByAgentId = "other";
     if (kind === "foreign-source") original.sourceRunId = "other";
@@ -194,12 +194,12 @@ describe("native question/resume path qualification", () => {
     i.payload.questionSet.questions.push({ id: "field-2-question_0_custom-hash", answerMode: "text", header: "Other", required: false });
     expect(validResumeQuestionForm(r[0], i, true)).toBe(false);
   });
-  it.each(["sourceRunId", "issueId", "companyId", "createdByAgentId", "idempotencyKey"])("rejects a provider card with mismatched %s", key => {
+  it.each(["sourceRunId", "issueId", "spaceId", "createdByAgentId", "idempotencyKey"])("rejects a provider card with mismatched %s", key => {
     const r = recording(); question(r)[key] = "unrelated";
     expect(failed(r)).toContain("question-resume.choice.path");
   });
-  it("rejects a consistent foreign-company card/run pair on this task", () => {
-    const r = recording(); question(r).companyId = "foreign"; r[0].runs[0].companyId = "foreign";
+  it("rejects a consistent foreign-space card/run pair on this task", () => {
+    const r = recording(); question(r).spaceId = "foreign"; r[0].runs[0].spaceId = "foreign";
     expect(questionPath(r[0], question(r))).toBeNull();
   });
   it.each(["missing-request", "wrong-request", "terminal-run", "wrong-policy", "legacy-run"])("rejects invalid provider binding: %s", kind => {

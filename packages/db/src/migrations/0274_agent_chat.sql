@@ -11,7 +11,7 @@ DO $$ BEGIN
     ALTER TABLE "issues" ADD CONSTRAINT "issues_conversation_agent_id_agents_id_fk" FOREIGN KEY ("conversation_agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "issues_conversation_identity_idx" ON "issues" USING btree ("company_id","conversation_agent_id","conversation_user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "issues_conversation_identity_idx" ON "issues" USING btree ("space_id","conversation_agent_id","conversation_user_id");--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'issue_comments_client_request_uq' AND conrelid = 'issue_comments'::regclass) THEN
     ALTER TABLE "issue_comments" ADD CONSTRAINT "issue_comments_client_request_uq" UNIQUE("issue_id","author_user_id","client_request_id");

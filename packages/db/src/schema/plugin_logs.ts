@@ -6,7 +6,7 @@ import {
   jsonb,
   index,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { plugins } from "./plugins.js";
 
 /**
@@ -29,8 +29,8 @@ export const pluginLogs = pgTable(
     pluginId: uuid("plugin_id")
       .notNull()
       .references(() => plugins.id, { onDelete: "cascade" }),
-    /** Company scope — NULL for instance-level logs. */
-    companyId: uuid("company_id").references(() => companies.id, { onDelete: "cascade" }),
+    /** Space scope — NULL for instance-level logs. */
+    spaceId: uuid("space_id").references(() => spaces.id, { onDelete: "cascade" }),
     level: text("level").notNull().default("info"),
     message: text("message").notNull(),
     meta: jsonb("meta").$type<Record<string, unknown>>(),
@@ -41,7 +41,7 @@ export const pluginLogs = pgTable(
       table.pluginId,
       table.createdAt,
     ),
-    companyIdx: index("plugin_logs_company_idx").on(table.companyId),
+    spaceIdx: index("plugin_logs_space_idx").on(table.spaceId),
     levelIdx: index("plugin_logs_level_idx").on(table.level),
   }),
 );

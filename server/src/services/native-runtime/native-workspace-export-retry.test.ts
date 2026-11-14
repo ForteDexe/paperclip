@@ -7,7 +7,7 @@ import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external
 import { randomUUID } from "node:crypto";
 import { beforeAll, afterAll, beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { agents, companies, completionContracts, createDb, environmentLeases, environments, heartbeatRuns, issues, issueRecoveryActions, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, activityLog } from "@outpost/db";
+import { agents, spaces, completionContracts, createDb, environmentLeases, environments, heartbeatRuns, issues, issueRecoveryActions, nativeRunFinalizations, nativeRunResults, agentWakeupRequests, activityLog } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { remoteTerminationReceipt } from "../remote-execution-termination.js";
 import { withNativeWorkspaceFinalizationOwnership } from "./native-workspace-finalization-ownership.js";
@@ -20,32 +20,32 @@ import { retryNativeWorkspaceExport } from "./native-workspace-export-retry.js";
 import { releaseCompletedNativeWorkspaceExportRetention } from "./native-workspace-export-resume.js";
 import { requestWorkspaceRecovery } from "../workspace-recovery.js";
 
-describe("board retry of accepted workspace export", () => {
+describe("operator retry of accepted workspace export", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID();
   beforeAll(async () => {
     const external = resolveExternalTestDatabaseUrl("OUTPOST_EXPORT_RETRY_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("workspace-export-retry-");
     db = createDb(external ?? temporary!.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Export repair", issuePrefix: "EXP" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Exporter", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Export repair", issuePrefix: "EXP" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Exporter", adapterType: "outpost_runner" });
     await db.insert(environments).values({ id: environmentId, name: `Retained ${environmentId}`, driver: "sandbox" });
   }, 30_000);
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   async function seed(cause = "native_workspace_sync_out_retry_exhausted") {
     probe.mockReset().mockResolvedValue({ exitCode: 0, timedOut: false });
     const issueId = randomUUID(), runId = randomUUID(), resultId = randomUUID(), contractId = randomUUID(), leaseId = randomUUID(), actionId = randomUUID(), providerLeaseId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Preserve accepted work", status: "blocked", assigneeAgentId: agentId });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: { objective: "Preserve accepted work" }, canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "failed", runtimeMode: "native", nativeIssueId: issueId, nativePhase: "terminal_failure", completionContractId: contractId,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Preserve accepted work", status: "blocked", assigneeAgentId: agentId });
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: { objective: "Preserve accepted work" }, canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "failed", runtimeMode: "native", nativeIssueId: issueId, nativePhase: "terminal_failure", completionContractId: contractId,
       runnerProfileJson: { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v1", state: "prepared", descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null, workspaceId: randomUUID(), leaseId, providerLeaseId, remoteCwd: "/work", resourceDisposition: "keep_running" } } });
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId, completionContractId: contractId, serverFingerprint: resultId, schemaStatus: "accepted", resultJson: { work: "already finished" }, canonicalSha256: resultId });
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "terminal_failure", resultId, failureCode: cause, failureDetail: { workspaceFinalizeAttempt: 1 } });
-    const identity = { id: leaseId, companyId, heartbeatRunId: runId, provider: "daytona", providerLeaseId };
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId, completionContractId: contractId, serverFingerprint: resultId, schemaStatus: "accepted", resultJson: { work: "already finished" }, canonicalSha256: resultId });
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "terminal_failure", resultId, failureCode: cause, failureDetail: { workspaceFinalizeAttempt: 1 } });
+    const identity = { id: leaseId, spaceId, heartbeatRunId: runId, provider: "daytona", providerLeaseId };
     await db.insert(environmentLeases).values({ ...identity, environmentId, issueId, status: "released", releasedAt: new Date(), cleanupStatus: "success", leasePolicy: "reuse_by_environment", metadata: { pluginId: randomUUID(), remoteExecutionTermination: remoteTerminationReceipt(identity, { providerLeaseId, state: "stopped" }) } });
-    await db.insert(issueRecoveryActions).values({ id: actionId, companyId, sourceIssueId: issueId, kind: "active_run_watchdog", ownerType: "board", returnOwnerAgentId: agentId, cause, fingerprint: runId, evidence: { runId }, nextAction: "Repair saved files" });
-    const request = { db, companyId, issueId, actionId, runId, actorId: "board", repairNote: "Restored provider transport availability and preserved the saved work.", environmentRuntime: {
+    await db.insert(issueRecoveryActions).values({ id: actionId, spaceId, sourceIssueId: issueId, kind: "active_run_watchdog", ownerType: "operator", returnOwnerAgentId: agentId, cause, fingerprint: runId, evidence: { runId }, nextAction: "Repair saved files" });
+    const request = { db, spaceId, issueId, actionId, runId, actorId: "operator", repairNote: "Restored provider transport availability and preserved the saved work.", environmentRuntime: {
       resumeRunLease: vi.fn().mockResolvedValue({ providerLeaseId, metadata: { remoteCwd: "/work" } }),
       retryPendingSandboxTeardown: vi.fn().mockResolvedValue({ providerLeaseId, state: "stopped" }),
     } as never };
@@ -65,7 +65,7 @@ describe("board retry of accepted workspace export", () => {
     expect(probe).toHaveBeenCalledOnce();
     expect(probe).toHaveBeenCalledWith(expect.objectContaining({ args: ["-c", "true"], bypassSession: true }));
     expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, f.runId))).toEqual(accepted);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId))).toHaveLength(0);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId))).toHaveLength(0);
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.nativeIssueId, f.issueId))).toHaveLength(1);
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0]).toMatchObject({ phase: "result_accepted", resultId: f.resultId, nextAttemptAt: null });
     expect((await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId)))[0]).toMatchObject({ status: "active", releasedAt: null });
@@ -91,7 +91,7 @@ describe("board retry of accepted workspace export", () => {
       status: "queued", runId: f.runId, resultId: f.resultId, leaseId: f.leaseId,
     });
     expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, f.runId))).toEqual(before);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId))).toHaveLength(0);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId))).toHaveLength(0);
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.nativeIssueId, f.issueId))).toHaveLength(1);
     expect((f.request.environmentRuntime as { resumeRunLease: ReturnType<typeof vi.fn> }).resumeRunLease).toHaveBeenCalledOnce();
   });
@@ -117,7 +117,7 @@ describe("board retry of accepted workspace export", () => {
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     await db.update(heartbeatRuns).set({ runnerProfileJson: { ...run.runnerProfileJson, nativeWorkspaceSync: { ...(run.runnerProfileJson!.nativeWorkspaceSync as object), resourceDisposition: "destroy" } } }).where(eq(heartbeatRuns.id, f.runId));
     await expect(retryNativeWorkspaceExport(f.request)).resolves.toMatchObject({ status: "queued", resultId: f.resultId, leaseId: f.leaseId });
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId))).toHaveLength(0);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId))).toHaveLength(0);
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.nativeIssueId, f.issueId))).toHaveLength(1);
   });
   it.each(["unsafe", "transient"])("records stop-only preservation atomically with %s terminal export failure", async kind => {
@@ -154,7 +154,7 @@ describe("board retry of accepted workspace export", () => {
     }).where(eq(heartbeatRuns.id, f.runId));
     await db.update(nativeRunFinalizations).set({ phase: "committed", ...(kind === "wrong_result" ? { resultId: null } : {}) }).where(eq(nativeRunFinalizations.runId, f.runId));
     const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId));
-    if (kind === "competing_owner") await db.insert(environmentLeases).values({ companyId, environmentId, status: "active", provider: lease.provider, providerLeaseId: lease.providerLeaseId });
+    if (kind === "competing_owner") await db.insert(environmentLeases).values({ spaceId, environmentId, status: "active", provider: lease.provider, providerLeaseId: lease.providerLeaseId });
     const released = await releaseCompletedNativeWorkspaceExportRetention(db, lease);
     const committed = ["complete", "committed_failed", "committed_cancelled"].includes(kind);
     if (committed) expect(released).toMatchObject({ id: lease.id, metadata: expect.not.objectContaining({ nativeWorkspaceExportResume: expect.anything() }) });
@@ -186,7 +186,7 @@ describe("board retry of accepted workspace export", () => {
     if (kind === "resume_reply_lost") runtime.resumeRunLease.mockRejectedValueOnce(new Error("reply lost after provider resumed"));
     else probe.mockImplementationOnce(async () => {
       if (kind === "admission_changed") {
-        await db.insert(heartbeatRuns).values({ companyId, agentId, nativeIssueId: f.issueId, status: "failed", createdAt: new Date(Date.now() + 1000) });
+        await db.insert(heartbeatRuns).values({ spaceId, agentId, nativeIssueId: f.issueId, status: "failed", createdAt: new Date(Date.now() + 1000) });
         return { exitCode: 0, timedOut: false };
       }
       if (kind === "cancelled" || kind === "completed") {
@@ -207,7 +207,7 @@ describe("board retry of accepted workspace export", () => {
       expect(lease.metadata?.nativeWorkspaceExportResume).toMatchObject({ runId: f.runId, leaseId: f.leaseId });
     } else expect(lease.metadata?.remoteExecutionTermination).toMatchObject({ runId: f.runId, leaseId: f.leaseId, state: "stopped" });
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0]).toMatchObject({ phase: "terminal_failure", resultId: f.resultId });
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId))).toHaveLength(0);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId))).toHaveLength(0);
   });
   it.each(["rebound_lease", "competing_owner", "retained_owner", "late_stop_receipt"])("does not stop or overwrite a newer sandbox owner: %s", async kind => {
     const f = await seed();
@@ -218,7 +218,7 @@ describe("board retry of accepted workspace export", () => {
       if (kind === "rebound_lease") await rebound();
       if (kind === "competing_owner" || kind === "retained_owner") {
         const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId));
-        await db.insert(environmentLeases).values({ companyId, environmentId, status: kind === "retained_owner" ? "retained" : "active", provider: lease.provider, providerLeaseId: lease.providerLeaseId });
+        await db.insert(environmentLeases).values({ spaceId, environmentId, status: kind === "retained_owner" ? "retained" : "active", provider: lease.provider, providerLeaseId: lease.providerLeaseId });
       }
       throw new Error("probe failed after ownership changed");
     });
@@ -258,14 +258,14 @@ describe("board retry of accepted workspace export", () => {
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0]).toMatchObject({ phase: "result_accepted", failureCode: null, nextAttemptAt: null });
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]).toMatchObject({ status: "running", nativePhase: "result_accepted" });
   });
-  it.each(["foreign_company", "missing_result", "newer_run", "lease_rebound", "other_lease", "retained_lease", "unconfirmed_stop", "destroyed"])("rejects %s before probing or changing finalization", async (kind) => {
+  it.each(["foreign_space", "missing_result", "newer_run", "lease_rebound", "other_lease", "retained_lease", "unconfirmed_stop", "destroyed"])("rejects %s before probing or changing finalization", async (kind) => {
     const f = await seed();
-    if (kind === "foreign_company") f.request.companyId = randomUUID();
+    if (kind === "foreign_space") f.request.spaceId = randomUUID();
     if (kind === "missing_result") await db.update(nativeRunFinalizations).set({ resultId: null }).where(eq(nativeRunFinalizations.runId, f.runId));
-    if (kind === "newer_run") await db.insert(heartbeatRuns).values({ companyId, agentId, nativeIssueId: f.issueId, status: "failed", createdAt: new Date(Date.now() + 1000) });
+    if (kind === "newer_run") await db.insert(heartbeatRuns).values({ spaceId, agentId, nativeIssueId: f.issueId, status: "failed", createdAt: new Date(Date.now() + 1000) });
     if (kind === "other_lease" || kind === "retained_lease") {
       const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId));
-      await db.insert(environmentLeases).values({ companyId, environmentId, issueId: f.issueId, status: kind === "retained_lease" ? "retained" : "active", provider: lease.provider, providerLeaseId: lease.providerLeaseId });
+      await db.insert(environmentLeases).values({ spaceId, environmentId, issueId: f.issueId, status: kind === "retained_lease" ? "retained" : "active", provider: lease.provider, providerLeaseId: lease.providerLeaseId });
     }
     if (kind === "lease_rebound") await db.update(environmentLeases).set({ heartbeatRunId: null }).where(eq(environmentLeases.id, f.leaseId));
     if (kind === "unconfirmed_stop" || kind === "destroyed") {
@@ -287,7 +287,7 @@ describe("board retry of accepted workspace export", () => {
     await expect(retryNativeWorkspaceExport(f.request)).rejects.toThrow("no longer current");
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0].phase).toBe("terminal_failure");
   });
-  it.each(["board", "system"])("does not take ownership from an active exporter after %s admission", async owner => {
+  it.each(["operator", "system"])("does not take ownership from an active exporter after %s admission", async owner => {
     const f = await seed();
     if (owner === "system") await requestWorkspaceRecovery({ ...f.request, idempotencyKey: randomUUID() });
     await withNativeWorkspaceFinalizationOwnership(f, async () => {
@@ -298,19 +298,19 @@ describe("board retry of accepted workspace export", () => {
   });
   it.each(["native_workspace_sync_out_retry_exhausted", "native_workspace_sync_out_unsafe_archive"])("does not dispatch another provider turn from a pending accepted export: %s", async cause => {
     const f = await seed(cause);
-    await db.insert(agentWakeupRequests).values({ companyId, agentId, source: "assignment", status: "claimed", runId: f.runId, payload: { issueId: f.issueId } });
+    await db.insert(agentWakeupRequests).values({ spaceId, agentId, source: "assignment", status: "claimed", runId: f.runId, payload: { issueId: f.issueId } });
     await recoveryService(db, { enqueueWakeup: vi.fn() }).reconcileStrandedAssignedIssues();
-    expect((await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.actionId)))[0]).toMatchObject({ status: "active", ownerType: "board" });
+    expect((await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.actionId)))[0]).toMatchObject({ status: "active", ownerType: "operator" });
   });
 
   it.each(["eligible", "newer_run", "competing_action", "other_lease", "unaccepted_result", "changed_contract", "cancelled", "owned"])("quietly recovers historical unsafe exports with ownership fences: %s", async kind => {
     const f = await seed("native_workspace_sync_out_unsafe_archive");
     await db.update(issueRecoveryActions).set({ status: "resolved", outcome: "restored", resolutionNote: "new_source_execution_path", resolvedAt: new Date() }).where(eq(issueRecoveryActions.id, f.actionId));
-    if (kind === "newer_run") await db.insert(heartbeatRuns).values({ companyId, agentId, nativeIssueId: f.issueId, status: "failed", createdAt: new Date(Date.now() + 1000) });
-    if (kind === "competing_action") await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: f.issueId, kind: "active_run_watchdog", ownerType: "board", cause: "other_repair", fingerprint: "other", nextAction: "Preserve another repair" });
+    if (kind === "newer_run") await db.insert(heartbeatRuns).values({ spaceId, agentId, nativeIssueId: f.issueId, status: "failed", createdAt: new Date(Date.now() + 1000) });
+    if (kind === "competing_action") await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: f.issueId, kind: "active_run_watchdog", ownerType: "operator", cause: "other_repair", fingerprint: "other", nextAction: "Preserve another repair" });
     if (kind === "other_lease") {
       const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, f.leaseId));
-      await db.insert(environmentLeases).values({ companyId, environmentId, status: "active", provider: lease.provider, providerLeaseId: lease.providerLeaseId });
+      await db.insert(environmentLeases).values({ spaceId, environmentId, status: "active", provider: lease.provider, providerLeaseId: lease.providerLeaseId });
     }
     if (kind === "unaccepted_result") await db.update(nativeRunResults).set({ schemaStatus: "rejected" }).where(eq(nativeRunResults.id, f.resultId));
     if (kind === "changed_contract") {
@@ -334,7 +334,7 @@ describe("board retry of accepted workspace export", () => {
     const errors: unknown[] = [];
     beforeEach(async () => {
       await db.update(nativeRunFinalizations).set({ failureCode: "unrelated_test_history" })
-        .where(and(eq(nativeRunFinalizations.companyId, companyId), eq(nativeRunFinalizations.failureCode, unsafe)));
+        .where(and(eq(nativeRunFinalizations.spaceId, spaceId), eq(nativeRunFinalizations.failureCode, unsafe)));
       admitted = true; errors.length = 0;
       vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     });
@@ -384,9 +384,9 @@ describe("board retry of accepted workspace export", () => {
     it.each(["newer_run", "older_active_run", "competing_action", "cancelled", "changed_contract", "explicit_settlement", "cancelled_action", "null_settlement", "rejected"])("does not poll dormant history: %s", async kind => {
       const f = await seed(unsafe);
       await db.update(issueRecoveryActions).set({ status: "resolved", resolutionNote: "unsafe_export_automatic_recovery" }).where(eq(issueRecoveryActions.id, f.actionId));
-      if (["newer_run", "older_active_run"].includes(kind)) await db.insert(heartbeatRuns).values({ companyId, agentId, nativeIssueId: f.issueId,
+      if (["newer_run", "older_active_run"].includes(kind)) await db.insert(heartbeatRuns).values({ spaceId, agentId, nativeIssueId: f.issueId,
         status: kind === "older_active_run" ? "running" : "failed", createdAt: new Date(Date.now() + (kind === "older_active_run" ? -60_000 : 60_000)) });
-      if (kind === "competing_action") await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: f.issueId, kind: "active_run_watchdog", ownerType: "board", cause: "other_repair", fingerprint: randomUUID(), nextAction: "Keep this repair", evidence: {} });
+      if (kind === "competing_action") await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: f.issueId, kind: "active_run_watchdog", ownerType: "operator", cause: "other_repair", fingerprint: randomUUID(), nextAction: "Keep this repair", evidence: {} });
       if (kind === "cancelled") await db.update(issues).set({ status: "cancelled" }).where(eq(issues.id, f.issueId));
       if (kind === "changed_contract") {
         const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, f.issueId));
@@ -400,7 +400,7 @@ describe("board retry of accepted workspace export", () => {
     });
     it("retires a stale action even when a newer run prevents result readmission", async () => {
       const f = await seed(unsafe);
-      await db.insert(heartbeatRuns).values({ companyId, agentId, nativeIssueId: f.issueId, status: "failed", createdAt: new Date(Date.now() + 60_000) });
+      await db.insert(heartbeatRuns).values({ spaceId, agentId, nativeIssueId: f.issueId, status: "failed", createdAt: new Date(Date.now() + 60_000) });
       await start(); await flush();
       expect((await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.actionId)))[0]).toMatchObject({ status: "resolved", resolutionNote: "unsafe_export_automatic_recovery" });
       expect(await phase(f.runId)).toBe("terminal_failure"); await quiet();
@@ -414,7 +414,7 @@ describe("board retry of accepted workspace export", () => {
       await db.insert(heartbeatRuns).values({ ...oldRun, id: runId, createdAt: new Date() });
       await db.insert(nativeRunResults).values({ ...oldResult, id: resultId, runId,
         serverFingerprint: resultId, canonicalSha256: resultId });
-      await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId: older.issueId,
+      await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId: older.issueId,
         phase: "terminal_failure", resultId, failureCode: unsafe });
       const accepted = await db.select().from(nativeRunResults).where(eq(nativeRunResults.issueId, older.issueId));
 
@@ -488,7 +488,7 @@ describe("board retry of accepted workspace export", () => {
     it.each(["admin", "stale_lock_recovery"])("reactivates dormant history after %s releases an older run's locks", async mode => {
       const f = await seed(unsafe);
       await db.update(issueRecoveryActions).set({ status: "resolved", resolutionNote: "unsafe_export_automatic_recovery" }).where(eq(issueRecoveryActions.id, f.actionId));
-      const [older] = await db.insert(heartbeatRuns).values({ companyId, agentId, nativeIssueId: f.issueId,
+      const [older] = await db.insert(heartbeatRuns).values({ spaceId, agentId, nativeIssueId: f.issueId,
         status: "failed", createdAt: new Date(Date.now() - 60_000) }).returning();
       await db.update(issues).set({ checkoutRunId: older.id, executionRunId: older.id }).where(eq(issues.id, f.issueId));
       await start(); await flush();
@@ -536,7 +536,7 @@ describe("board retry of accepted workspace export", () => {
     it("reactivates dormant history when the real cancellation path settles an older queued run", async () => {
       const f = await seed(unsafe);
       await db.update(issueRecoveryActions).set({ status: "resolved", resolutionNote: "unsafe_export_automatic_recovery" }).where(eq(issueRecoveryActions.id, f.actionId));
-      const [older] = await db.insert(heartbeatRuns).values({ companyId, agentId, contextSnapshot: { issueId: f.issueId },
+      const [older] = await db.insert(heartbeatRuns).values({ spaceId, agentId, contextSnapshot: { issueId: f.issueId },
         status: "queued", runtimeMode: "legacy", createdAt: new Date(Date.now() - 60_000) }).returning();
       await start(); await flush(); expect(await phase(f.runId)).toBe("terminal_failure"); await quiet();
       await heartbeatService(db).cancelRun(older.id);
@@ -554,14 +554,14 @@ describe("board retry of accepted workspace export", () => {
     it("does not wake dormant history for unchanged action metadata or repeated resolution", async () => {
       const f = await seed(unsafe);
       await db.update(issueRecoveryActions).set({ status: "resolved", resolutionNote: "unsafe_export_automatic_recovery" }).where(eq(issueRecoveryActions.id, f.actionId));
-      const actionInput = { companyId, sourceIssueId: f.issueId, kind: "active_run_watchdog" as const,
-        ownerType: "board" as const, cause: "other_repair", fingerprint: randomUUID(), nextAction: "Wait for repair" };
+      const actionInput = { spaceId, sourceIssueId: f.issueId, kind: "active_run_watchdog" as const,
+        ownerType: "operator" as const, cause: "other_repair", fingerprint: randomUUID(), nextAction: "Wait for repair" };
       const service = issueRecoveryActionService(db);
       const other = await service.upsertSourceScoped(actionInput);
       await start(); await flush(); await quiet();
       await service.upsertSourceScoped({ ...actionInput, nextAction: "Updated operator guidance" });
       expect(coordinator!.nextWakeAt()).toBeNull(); await quiet();
-      const resolution = { companyId, sourceIssueId: f.issueId, actionId: other.id,
+      const resolution = { spaceId, sourceIssueId: f.issueId, actionId: other.id,
         status: "resolved" as const, outcome: "restored" as const, resolutionNote: "Other repair finished" };
       await service.resolveActiveForIssue(resolution); await flush();
       expect(await phase(f.runId)).toBe("result_accepted");
@@ -571,9 +571,9 @@ describe("board retry of accepted workspace export", () => {
     it("reactivates dormant history from the real recovery-action resolution", async () => {
       const f = await seed(unsafe);
       await db.update(issueRecoveryActions).set({ status: "resolved", resolutionNote: "unsafe_export_automatic_recovery" }).where(eq(issueRecoveryActions.id, f.actionId));
-      const [other] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: f.issueId, kind: "active_run_watchdog", ownerType: "board", cause: "other_repair", fingerprint: randomUUID(), nextAction: "Wait for repair" }).returning();
+      const [other] = await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: f.issueId, kind: "active_run_watchdog", ownerType: "operator", cause: "other_repair", fingerprint: randomUUID(), nextAction: "Wait for repair" }).returning();
       await start(); await flush(); await quiet();
-      await issueRecoveryActionService(db).resolveActiveForIssue({ companyId, sourceIssueId: f.issueId, actionId: other.id,
+      await issueRecoveryActionService(db).resolveActiveForIssue({ spaceId, sourceIssueId: f.issueId, actionId: other.id,
         status: "resolved", outcome: "restored", resolutionNote: "Other repair finished" });
       await flush(); expect(await phase(f.runId)).toBe("result_accepted"); await quiet();
     });

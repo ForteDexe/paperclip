@@ -7,7 +7,7 @@ export default {
   title: "Agents and reusable capabilities/Hiring, configuration, and organization/Primary Agent/07 Confirmation",
   decorators: [primaryDecorator],
   parameters: { ...primaryParameters, initialEntries: ["/PAP/agents/alex"],
-    paperclip: {
+    outpost: {
       "capabilities": [
         "agents/primary-agent",
         "tasks/create",

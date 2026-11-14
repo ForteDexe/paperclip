@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, heartbeatRuns, heartbeatRunEvents, issues, principalPermissionGrants } from "@outpost/db";
+import { agents, authUsers, spaces, spaceMemberships, createDb, heartbeatRuns, heartbeatRunEvents, issues, principalPermissionGrants } from "@outpost/db";
 import { registerServerAdapter, unregisterServerAdapter } from "../adapters/index.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { resolveManagedInstructionsRoot } from "../services/agent-instructions.js";
@@ -16,14 +16,14 @@ vi.mock("../services/agent-instruction-working-copies.js", async importOriginal 
   return { ...actual, agentInstructionWorkingCopyService: (...args: Parameters<typeof actual.agentInstructionWorkingCopyService>) => {
     const copies = actual.agentInstructionWorkingCopyService(...args);
     return { ...copies, prepare: async (input: Parameters<typeof copies.prepare>[0]) => {
-      if (cleanup.revocations.has(input.companyId)) {
-        await args[0].update(companyMemberships).set({ status: "suspended" }).where(eq(companyMemberships.companyId, input.companyId));
+      if (cleanup.revocations.has(input.spaceId)) {
+        await args[0].update(spaceMemberships).set({ status: "suspended" }).where(eq(spaceMemberships.spaceId, input.spaceId));
       }
       return copies.prepare(input);
-    }, release: async (companyId: string, runId: string) => {
+    }, release: async (spaceId: string, runId: string) => {
       cleanup.attempts.set(runId, (cleanup.attempts.get(runId) ?? 0) + 1);
-      if (cleanup.failures.has(companyId)) throw new Error("Fixture cleanup unavailable");
-      return copies.release(companyId, runId);
+      if (cleanup.failures.has(spaceId)) throw new Error("Fixture cleanup unavailable");
+      return copies.release(spaceId, runId);
     } };
   } };
 });
@@ -82,19 +82,19 @@ describePostgres("heartbeat instruction working-copy lifecycle", () => {
   });
 
   async function seed() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Instruction lifecycle fixture", issuePrefix: `I${companyId.slice(0, 6)}` });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Instruction lifecycle fixture", issuePrefix: `I${spaceId.slice(0, 6)}` });
     await db.insert(authUsers).values({ id: userId, name: "Editor", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "operator" });
-    await db.insert(principalPermissionGrants).values({ companyId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [agentId] } });
-    const root = resolveManagedInstructionsRoot({ companyId, id: agentId, name: "Editor", adapterConfig: {} });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "operator" });
+    await db.insert(principalPermissionGrants).values({ spaceId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [agentId] } });
+    const root = resolveManagedInstructionsRoot({ spaceId, id: agentId, name: "Editor", adapterConfig: {} });
     await fs.mkdir(path.dirname(path.join(root, entryFile)), { recursive: true });
     await fs.writeFile(path.join(root, entryFile), initial);
     const cwd = await fs.mkdtemp(path.join(home, "workspace-"));
-    await db.insert(agents).values({ id: agentId, companyId, name: "Editor", adapterType, status: "idle", adapterConfig: { cwd, instructionsBundleMode: "managed", instructionsRootPath: root, instructionsEntryFile: entryFile } });
-    await db.insert(companyMemberships).values({ companyId, principalType: "agent", principalId: agentId, membershipRole: "member" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Save agent instructions", status: "todo", assigneeAgentId: agentId, responsibleUserId: userId, issueNumber: 1 });
-    return { companyId, agentId, issueId, root };
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Editor", adapterType, status: "idle", adapterConfig: { cwd, instructionsBundleMode: "managed", instructionsRootPath: root, instructionsEntryFile: entryFile } });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "agent", principalId: agentId, membershipRole: "member" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Save agent instructions", status: "todo", assigneeAgentId: agentId, responsibleUserId: userId, issueNumber: 1 });
+    return { spaceId, agentId, issueId, root };
   }
 
   async function execute(f: Awaited<ReturnType<typeof seed>>) {
@@ -112,7 +112,7 @@ describePostgres("heartbeat instruction working-copy lifecycle", () => {
     expect(first.finished.status, first.finished.error ?? undefined).toBe("succeeded");
     expect(first.input.before).toBe(initial);
     expect(first.input.instructionPath).not.toBe(path.join(f.root, entryFile));
-    expect(first.input.context.paperclipTaskMarkdown).toContain("Your persistent agent directory is");
+    expect(first.input.context.outpostTaskMarkdown).toContain("Your persistent agent directory is");
     expect(first.finished.resultJson?.instructionSave).toMatchObject({ state: "saved", contract: "agent_files", entryFile });
     expect(first.events.some(event => event.eventType === "instruction_save" && event.payload?.state === "saved")).toBe(true);
     expect(await fs.readFile(path.join(f.root, entryFile), "utf8")).toBe(edited);
@@ -125,11 +125,11 @@ describePostgres("heartbeat instruction working-copy lifecycle", () => {
 
   it("continues without a copy or save claim when access is revoked after dispatch admission", async () => {
     const f = await seed();
-    cleanup.revocations.add(f.companyId);
+    cleanup.revocations.add(f.spaceId);
     const { finished, input, events } = await execute(f);
     expect(finished.status, finished.error ?? undefined).toBe("succeeded");
     expect(input.instructionPath).toBeNull();
-    expect(input.context.paperclipTaskMarkdown).toContain("No editable agent instruction working copy is registered");
+    expect(input.context.outpostTaskMarkdown).toContain("No editable agent instruction working copy is registered");
     expect(finished.resultJson?.instructionSave).toBeUndefined();
     expect(events.some(event => event.eventType === "instruction_save" && event.payload?.state === "unavailable")).toBe(true);
     expect(await fs.readFile(path.join(f.root, entryFile), "utf8")).toBe(initial);
@@ -137,7 +137,7 @@ describePostgres("heartbeat instruction working-copy lifecycle", () => {
 
   it("keeps the successful save and result when cleanup fails, without repeating that failure in outer teardown", async () => {
     const f = await seed();
-    cleanup.failures.add(f.companyId);
+    cleanup.failures.add(f.spaceId);
     const { finished, events } = await execute(f);
     expect(finished.status, finished.error ?? undefined).toBe("succeeded");
     expect(finished.resultJson?.instructionSave).toMatchObject({ state: "saved" });

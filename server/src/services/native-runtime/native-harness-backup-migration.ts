@@ -17,19 +17,19 @@ const MAX_PARALLEL_INDEPENDENCE_CHECKS = 4;
 export async function hasLocalNativeHarnessObligations(db: Db): Promise<boolean> {
   let afterSession = "", afterScope = "";
   for (;;) {
-    const rows = await db.execute<{ company_id: string; selected_session_id: string; scope_digest: string; has_receipt: boolean }>(sql`with selected_sessions as materialized (
-      select s.company_id, s.id, s.last_run_id, r.native_issue_id, r.native_session_id
+    const rows = await db.execute<{ space_id: string; selected_session_id: string; scope_digest: string; has_receipt: boolean }>(sql`with selected_sessions as materialized (
+      select s.space_id, s.id, s.last_run_id, r.native_issue_id, r.native_session_id
       from agent_task_sessions s
-      join heartbeat_runs r on r.id = s.last_run_id and r.company_id = s.company_id and r.agent_id = s.agent_id
+      join heartbeat_runs r on r.id = s.last_run_id and r.space_id = s.space_id and r.agent_id = s.agent_id
       where s.adapter_type = 'outpost_runner'
     ) select distinct
-    s.company_id, s.id::text as selected_session_id, coalesce(e.metadata->'nativeHarnessBackup'->>'sessionScopeSha256', '') as scope_digest,
+    s.space_id, s.id::text as selected_session_id, coalesce(e.metadata->'nativeHarnessBackup'->>'sessionScopeSha256', '') as scope_digest,
     r.runner_profile_json ? 'nativeHarnessFilesystemIndependence' as has_receipt from selected_sessions s
-    join heartbeat_runs r on r.id = s.last_run_id and r.company_id = s.company_id
-    join environment_leases e on e.company_id = s.company_id and e.issue_id = s.native_issue_id
+    join heartbeat_runs r on r.id = s.last_run_id and r.space_id = s.space_id
+    join environment_leases e on e.space_id = s.space_id and e.issue_id = s.native_issue_id
       and e.metadata->'nativeHarnessBackup'->>'normalizedSessionId' = s.native_session_id::text
     where e.metadata->'nativeHarnessBackup'->>'schema' = 'outpost.native-harness-backup-stamp.v2'
-      and not exists (select 1 from native_harness_backups b where b.company_id = s.company_id
+      and not exists (select 1 from native_harness_backups b where b.space_id = s.space_id
         and b.scope_digest = e.metadata->'nativeHarnessBackup'->>'sessionScopeSha256' and b.status = 'current')
       and (s.id::text, coalesce(e.metadata->'nativeHarnessBackup'->>'sessionScopeSha256', '')) > (${afterSession}, ${afterScope})
     order by selected_session_id, scope_digest limit 100`);
@@ -39,7 +39,7 @@ export async function hasLocalNativeHarnessObligations(db: Db): Promise<boolean>
         const row = rows[next++]!;
         try {
           if (!row.has_receipt || !await hasValidNativeHarnessFilesystemIndependence(db, {
-            companyId: row.company_id, selectedSessionId: row.selected_session_id, scopeDigest: row.scope_digest,
+            spaceId: row.space_id, selectedSessionId: row.selected_session_id, scopeDigest: row.scope_digest,
           })) invalid = true;
         } catch (error) { invalid = true; throw error; }
       }
@@ -86,7 +86,7 @@ async function prepareSource(base: string, scopeDigest: string) {
 type Source = NonNullable<Awaited<ReturnType<typeof prepareSource>>>;
 
 async function sourceRun(db: Db, source: Source) {
-  const [run] = await db.select({ companyId: heartbeatRuns.companyId, issueId: heartbeatRuns.nativeIssueId,
+  const [run] = await db.select({ spaceId: heartbeatRuns.spaceId, issueId: heartbeatRuns.nativeIssueId,
     sessionId: heartbeatRuns.nativeSessionId, runnerId: heartbeatRuns.runnerInstanceId,
     status: heartbeatRuns.status, finishedAt: heartbeatRuns.finishedAt }).from(heartbeatRuns)
     .where(eq(heartbeatRuns.id, source.runId));
@@ -100,7 +100,7 @@ async function sourceRun(db: Db, source: Source) {
 async function verifiedSourceLease(db: Db, source: Source, run: NonNullable<Awaited<ReturnType<typeof sourceRun>>>, signal: AbortSignal) {
   const leases = await db.select({ stamp: sql<unknown>`${environmentLeases.metadata}->'nativeHarnessBackup'`,
     providerLeaseId: environmentLeases.providerLeaseId }).from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.issueId, run.issueId),
+    eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.issueId, run.issueId),
     sql`${environmentLeases.metadata}->'nativeHarnessBackup'->>'manifestSha256' = ${source.manifestSha256}`));
   for (const lease of leases) {
     const stamp = readNativeHarnessBackupStamp(lease.stamp, lease.providerLeaseId ?? "");
@@ -113,18 +113,18 @@ async function migrateSource(db: Db, input: { storage: StorageService; signal: A
   input.signal.throwIfAborted();
   const { root, scopeDigest, manifestSha256 } = source, run = await sourceRun(db, source);
   if (!run) return 0;
-  const [current] = await db.select().from(nativeHarnessBackups).where(and(eq(nativeHarnessBackups.companyId, run.companyId),
+  const [current] = await db.select().from(nativeHarnessBackups).where(and(eq(nativeHarnessBackups.spaceId, run.spaceId),
     eq(nativeHarnessBackups.scopeDigest, scopeDigest), eq(nativeHarnessBackups.status, "current")));
   if (current) {
     if (current.manifestSha256 !== manifestSha256) throw new Error("native_harness_migration_durable_source_conflict");
-    await verifyDurableNativeHarnessBackup({ db, storage: input.storage, companyId: run.companyId,
+    await verifyDurableNativeHarnessBackup({ db, storage: input.storage, spaceId: run.spaceId,
       scopeDigest, manifestSha256: current.manifestSha256, signal: input.signal });
     return 1;
   }
   if (!await verifiedSourceLease(db, source, run, input.signal)) throw new Error("native_harness_migration_backup_unverified");
   await persistNativeHarnessBackup({ db, storage: input.storage, root, scopeDigest, signal: input.signal,
     maxArchiveBytes: source.archiveLimit,
-    owner: { kind: "offline_migration", writersStopped: true, companyId: run.companyId, issueId: run.issueId, runId: source.runId } });
+    owner: { kind: "offline_migration", writersStopped: true, spaceId: run.spaceId, issueId: run.issueId, runId: source.runId } });
   return 1;
 }
 
@@ -201,11 +201,11 @@ export async function prestageNativeHarnessBackups(db: Db, input: { storage: Sto
       throw error;
     });
     if (!run) return "missing_run";
-    const [current] = await db.select().from(nativeHarnessBackups).where(and(eq(nativeHarnessBackups.companyId, run.companyId),
+    const [current] = await db.select().from(nativeHarnessBackups).where(and(eq(nativeHarnessBackups.spaceId, run.spaceId),
       eq(nativeHarnessBackups.scopeDigest, source.scopeDigest), eq(nativeHarnessBackups.status, "current")));
     if (current) {
       if (current.manifestSha256 !== source.manifestSha256) return "durable_source_changed";
-      await verifyDurableNativeHarnessBackup({ db, storage: input.storage, companyId: run.companyId,
+      await verifyDurableNativeHarnessBackup({ db, storage: input.storage, spaceId: run.spaceId,
         scopeDigest: source.scopeDigest, manifestSha256: source.manifestSha256, signal });
       return "current";
     }
@@ -214,7 +214,7 @@ export async function prestageNativeHarnessBackups(db: Db, input: { storage: Sto
       const providerLeaseId = await verifiedSourceLease(db, source, run, signal);
       if (!providerLeaseId) return "source_unverified";
       try {
-        const owner = await settledNativeHarnessBackupOwner(db, { companyId: run.companyId, issueId: run.issueId,
+        const owner = await settledNativeHarnessBackupOwner(db, { spaceId: run.spaceId, issueId: run.issueId,
           runId: source.runId, sessionId: run.sessionId, runnerInstanceId: run.runnerId, scopeDigest: source.scopeDigest,
           root: source.root, manifestSha256: source.manifestSha256, providerLeaseId, signal });
         if (!owner) return "source_not_successful";
@@ -233,19 +233,19 @@ export async function prestageNativeHarnessBackups(db: Db, input: { storage: Sto
       }
     }
     const [coordinator] = await db.select().from(nativeRunFinalizations).where(and(
-      eq(nativeRunFinalizations.companyId, run.companyId), eq(nativeRunFinalizations.issueId, run.issueId),
+      eq(nativeRunFinalizations.spaceId, run.spaceId), eq(nativeRunFinalizations.issueId, run.issueId),
       eq(nativeRunFinalizations.runId, source.runId)));
     if (coordinator?.phase !== "committed" || coordinator.leaseOwner || !coordinator.resultId || !coordinator.controllerBootId) return "owner_not_released";
     const [task] = await db.select({ executionRunId: issues.executionRunId, checkoutRunId: issues.checkoutRunId }).from(issues)
-      .where(and(eq(issues.companyId, run.companyId), eq(issues.id, run.issueId)));
+      .where(and(eq(issues.spaceId, run.spaceId), eq(issues.id, run.issueId)));
     const [active] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, run.companyId), inArray(heartbeatRuns.status, ["queued", "running"]),
+      eq(heartbeatRuns.spaceId, run.spaceId), inArray(heartbeatRuns.status, ["queued", "running"]),
       or(eq(heartbeatRuns.nativeIssueId, run.issueId), eq(heartbeatRuns.issueId, run.issueId), eq(heartbeatRuns.nativeSessionId, run.sessionId)))).limit(1);
     if (!task || task.executionRunId || task.checkoutRunId || active) return "source_active";
     const providerLeaseId = await verifiedSourceLease(db, source, run, signal);
     if (!providerLeaseId) return "source_unverified";
     try {
-      const owner = await nativeHarnessBackupOwner(db, { companyId: run.companyId, issueId: run.issueId,
+      const owner = await nativeHarnessBackupOwner(db, { spaceId: run.spaceId, issueId: run.issueId,
         runId: source.runId, bootId: coordinator.controllerBootId });
       await persistNativeHarnessBackup({ db, storage: input.storage, root: source.root, scopeDigest: source.scopeDigest,
         owner, signal, maxArchiveBytes: source.archiveLimit,

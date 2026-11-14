@@ -21,14 +21,14 @@ const taskId = (run: ChatRun) => (run as ChatRun & { nativeIssueId?: string }).n
 const record = (value: unknown) => value && typeof value === "object" ? value as Record<string, unknown> : {};
 /** Early polling can defer only the saved, independently held worker, never a source or unrelated cancellation. */
 export function chatCatalogRunStatusAllowed(input: {
-  implementation: CancellationCase; run: ChatRun; companyId: string; leadId: string; source?: ChatIssue; observation?: unknown;
+  implementation: CancellationCase; run: ChatRun; spaceId: string; leadId: string; source?: ChatIssue; observation?: unknown;
 }): boolean {
   const { implementation, run } = input;
   if (run.status !== "cancelled" || !permitsReassignment(implementation)) return chatCatalogAllowedRunStatuses(implementation).includes(run.status);
   const state = record(record(input.observation).state), held = record(state.heldRun), task = record(state.heldTask), worker = record(state.riley);
-  return held.id === run.id && held.status === "running" && held.companyId === input.companyId && held.agentId === worker.id
-    && run.companyId === input.companyId && run.agentId === worker.id && run.agentId !== input.leadId
-    && task.companyId === input.companyId && task.assigneeAgentId === worker.id && task.executionRunId === run.id
+  return held.id === run.id && held.status === "running" && held.spaceId === input.spaceId && held.agentId === worker.id
+    && run.spaceId === input.spaceId && run.agentId === worker.id && run.agentId !== input.leadId
+    && task.spaceId === input.spaceId && task.assigneeAgentId === worker.id && task.executionRunId === run.id
     && task.id === taskId(run) && task.id !== input.source?.id && run.errorCode === "issue_reassigned";
 }
 /**
@@ -45,14 +45,14 @@ export function chatCatalogNeverStartedTerminalTaskRun(run: ChatRun, source?: Ch
 }
 export function gradeChatCatalogRuns(input: {
   implementation: Pick<ChatCatalogCase, "expectedRunCount" | "minimumRunCount" | "runPolicy"> & CancellationCase;
-  companyId: string; leadId: string; source?: ChatIssue; runs: ChatRun[];
+  spaceId: string; leadId: string; source?: ChatIssue; runs: ChatRun[];
   observation?: unknown;
 }): ChatCatalogGrade {
   const { implementation: c, runs, source } = input;
   const checks = [
     { id: "catalog-bounded-native-runs", passed: runs.length >= (c.minimumRunCount ?? c.expectedRunCount) && runs.length <= c.expectedRunCount
-      && runs.every(run => run.companyId === input.companyId && run.runtimeMode === "native" && chatCatalogAllowedRunStatuses(c).includes(run.status)),
-      detail: "Observed provider runs satisfy declared count, company, native runtime and allowed outcome bounds." },
+      && runs.every(run => run.spaceId === input.spaceId && run.runtimeMode === "native" && chatCatalogAllowedRunStatuses(c).includes(run.status)),
+      detail: "Observed provider runs satisfy declared count, space, native runtime and allowed outcome bounds." },
   ];
   if (c.expectedCancelledWorkerRun !== undefined || c.runPolicy?.kind === "source-settled-with-active-work" && c.runPolicy.expectedWorkerCancellation !== undefined) {
     let valid = true; try { assertExpectedWorkerCancellation(c); } catch { valid = false; }
@@ -78,18 +78,18 @@ export function gradeChatCatalogRuns(input: {
     const acknowledgement = actual?.resultJson?.nativeCancellation as Record<string, unknown> | undefined;
     const exact = !!expected && cancelled.length === 1 && cancelled[0]?.id === expected.runId && !!actual
       && chatCatalogRunStatusAllowed({ ...input, run: actual })
-      && actual.companyId === input.companyId && actual.agentId === expected.workerId && actual.agentId !== input.leadId
+      && actual.spaceId === input.spaceId && actual.agentId === expected.workerId && actual.agentId !== input.leadId
       && taskId(actual) === expected.taskId && expected.taskId !== source?.id && actual.errorCode === "issue_reassigned"
       && actual.resultJson?.reassignmentStopConfirmed === true
       && acknowledgement?.schema === "outpost.native-cancellation.v1" && acknowledgement.runId === actual.id
-      && acknowledgement.issueId === expected.taskId && acknowledgement.companyId === input.companyId
+      && acknowledgement.issueId === expected.taskId && acknowledgement.spaceId === input.spaceId
       && acknowledgement.dispatchState === "acknowledged" && typeof acknowledgement.acknowledgedAt === "string" && Number.isFinite(Date.parse(acknowledgement.acknowledgedAt))
       && typeof acknowledgement.intentAuditId === "string" && acknowledgement.intentAuditId.length > 0
       && typeof acknowledgement.acknowledgementAuditId === "string" && acknowledgement.acknowledgementAuditId.length > 0
       && sourceRuns.some(run => run.id === expected.sourceRunId && run.agentId === input.leadId && run.status === "succeeded");
     checks.push({ id: "catalog-exact-owned-worker-cancellation", passed: cancelled.length === 0 ? expected === undefined : declared && exact,
       detail: "Only the exact independently proved task-reassignment cancellation is accepted; final actor, chronology and saved-state proof remains mandatory in the case callback." });
-    checks.push({ id: "catalog-settled-source-separate-work", passed: !!source && source.companyId === input.companyId
+    checks.push({ id: "catalog-settled-source-separate-work", passed: !!source && source.spaceId === input.spaceId
       && source.conversationState === "waiting" && sourceRuns.length > 0 && sourceRuns.every(run => run.agentId === input.leadId && run.status === "succeeded")
       && workers.every(run => typeof taskId(run) === "string" && run.agentId !== input.leadId)
       && workers.filter(run => ["queued", "running"].includes(run.status)).length <= c.runPolicy.maximumActiveWorkerRuns
@@ -105,7 +105,7 @@ export type ChatCatalogFinalRunVerifier = (source: ChatIssue | undefined, runs: 
 /** Preserve the loaded case's proof callback for a fresh outer ledger read. */
 export function createChatCatalogFinalRunVerifier(input: {
   implementation: Parameters<typeof gradeChatCatalogRuns>[0]["implementation"];
-  companyId: string;
+  spaceId: string;
   leadId: string;
   observation: unknown;
 }): ChatCatalogFinalRunVerifier {

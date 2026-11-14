@@ -9,7 +9,7 @@ describeIssueRecovery("issue recovery production producers and assignments", () 
   const { start, fixture, settled, quiet, finish, completed } = state;
   it("dispatches an ordinary new assignment after commit and returns to quiet after completion", async () => {
     const f = await fixture(); await start(); await quiet();
-    const issue = await issueService(state.db).create(f.companyId, { title: "Recover assignment", status: "todo", assigneeAgentId: f.agentId });
+    const issue = await issueService(state.db).create(f.spaceId, { title: "Recover assignment", status: "todo", assigneeAgentId: f.agentId });
     await completed(issue.id);
     await finish(issue.id); await quiet();
   }, 90_000);
@@ -20,7 +20,7 @@ describeIssueRecovery("issue recovery production producers and assignments", () 
     let committedId = "";
     await state.db.transaction(async outer => {
       await outer.transaction(async nested => {
-        const issue = await issueService(state.db).create(f.companyId, { title: "Nested commit", status: "todo", assigneeAgentId: f.agentId }, nested);
+        const issue = await issueService(state.db).create(f.spaceId, { title: "Nested commit", status: "todo", assigneeAgentId: f.agentId }, nested);
         committedId = issue.id;
       });
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -29,7 +29,7 @@ describeIssueRecovery("issue recovery production producers and assignments", () 
     await completed(committedId); await finish(committedId); await settled();
     await expect(state.db.transaction(async outer => {
       await outer.transaction(async nested => {
-        await issueService(state.db).create(f.companyId, { title: "Nested rollback", status: "todo", assigneeAgentId: f.agentId }, nested);
+        await issueService(state.db).create(f.spaceId, { title: "Nested rollback", status: "todo", assigneeAgentId: f.agentId }, nested);
       });
       throw new Error("rollback control");
     })).rejects.toThrow("rollback control");
@@ -40,7 +40,7 @@ describeIssueRecovery("issue recovery production producers and assignments", () 
   }, 90_000);
   it("retains the first committed assignment during drain and executes on resume", async () => {
     const f = await fixture(); await start(); await quiet(); state.draining = true;
-    const issue = await issueService(state.db).create(f.companyId, { title: "Drained assignment", status: "todo", assigneeAgentId: f.agentId });
+    const issue = await issueService(state.db).create(f.spaceId, { title: "Drained assignment", status: "todo", assigneeAgentId: f.agentId });
     await new Promise(resolve => setTimeout(resolve, 100));
     const reads = vi.spyOn(state.db, "select");
     if (!vi.isFakeTimers()) vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });

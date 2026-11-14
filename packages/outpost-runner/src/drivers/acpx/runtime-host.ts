@@ -126,7 +126,7 @@ export interface AcpxRuntimeGoalSnapshot {
   updatedAt?: number | string | null;
 }
 
-/** A harness-native proposed plan captured for Paperclip's approval gate. */
+/** A harness-native proposed plan captured for Outpost's approval gate. */
 export interface AcpxPlanProposal {
   toolCallId: string;
   markdown: string;
@@ -140,7 +140,7 @@ export interface AcpxRuntimeTurnInput {
   onPermissionRequest?: AcpxHostPermissionHandler;
   onExtensionRequest?: AcpxHostExtensionRequestHandler;
   onExtensionNotification?: AcpRuntimeOptions["onExtensionNotification"];
-  /** Receives a harness-native proposed plan that Paperclip, not the harness, approves. */
+  /** Receives a harness-native proposed plan that Outpost, not the harness, approves. */
   onPlanProposal?: (proposal: AcpxPlanProposal) => void;
   /** Receives the typed AIR failure behind ACPX's generic terminal error. */
   onTerminalSessionFailure?: (failure: AcpxTerminalSessionFailure) => void;
@@ -380,7 +380,7 @@ export class AcpxRuntimeHost {
     // shortcut: qualify session permissions that deny Runner state before enabling this provider.
     if (preconfigured && options.agent === "codex") throw new Error("preconfigured ACPX Codex cannot protect Runner state; use native Codex or isolated mode");
     const nativeMcp = preconfigured ? null : nativeMcpLaunchBinding(options.environment);
-    if (nativeMcp?.name === "paperclip") {
+    if (nativeMcp?.name === "outpost") {
       throw new Error("assigned native MCP name conflicts with the task bridge");
     }
     if (!preconfigured && options.runtimeContext?.mcp.bindingId && !nativeMcp
@@ -575,7 +575,7 @@ export class AcpxRuntimeHost {
       if (options.agent !== "antigravity") assertAcpxProfileEnvironment(options.agent, sandbox.launchEnvironment);
       admissionStage = "configuration";
       let launchEnvironment = sandbox.launchEnvironment;
-      // This copy is registered by the authenticated controller for its company,
+      // This copy is registered by the authenticated controller for its space,
       // agent and run. Environment/config values cannot widen the grant. Each
       // resumed process receives the newly registered copy; collection already
       // requires verified provider shutdown in the native executor.
@@ -706,9 +706,9 @@ export class AcpxRuntimeHost {
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             mcpServers: [
               ...(options.providerPolicy?.readOnly ? [] : prepareStdioMcpBindings(options.environment ?? {}, sandbox.root)),
-              ...(toolBridge ? [{ name: preconfigured ? `outpost_runner_${binding.profileSessionKey.slice(-16)}` : "paperclip", url: toolBridge.url,
+              ...(toolBridge ? [{ name: preconfigured ? `outpost_runner_${binding.profileSessionKey.slice(-16)}` : "outpost", url: toolBridge.url,
                 bearerToken: toolBridge.secret, runnerOwned: true }] : []),
-              // This is Paperclip's authenticated gateway, not a direct upstream
+              // This is Outpost's authenticated gateway, not a direct upstream
               // binding. Its existing grants and approval checks remain authoritative.
               ...(nativeMcp ? [{ name: nativeMcp.name, url: nativeMcp.url,
                 bearerToken: nativeMcp.token, runnerOwned: true }] : []),

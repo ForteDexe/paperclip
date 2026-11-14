@@ -1,4 +1,4 @@
-# Paperclip maps
+# Outpost maps
 
 The maps describe the same capabilities from two perspectives:
 
@@ -22,16 +22,16 @@ denial as success.
 
 The feature ID is the recipe filename without `.md`, such as `onboarding`.
 The full capability ID joins that feature ID and a Sub-features key with `/`:
-the `company` key in `feature-map/onboarding.md` is `onboarding/company`.
-Its `agent-access-map/onboarding.md` companion uses the same local `company` key.
+the `space` key in `feature-map/onboarding.md` is `onboarding/space`.
+Its `agent-access-map/onboarding.md` companion uses the same local `space` key.
 [The feature-map index](feature-map/README.md#browse-features) lists the existing
 feature and full capability IDs.
 
 Each child page states ``Feature ID: `onboarding`.`` after its introduction or
 product-map link. In feature recipes, show the full ID beside the parsed local
-key: ``- `company`: `onboarding/company` — create a company``. In access
+key: ``- `space`: `onboarding/space` — create a space``. In access
 companions and Storybook verification guidance, keep the existing local heading
-and put ``Capability ID: `onboarding/company`.`` beneath it. These labels make
+and put ``Capability ID: `onboarding/space`.`` beneath it. These labels make
 the existing identifiers visible without changing keys, anchors, or ID generation.
 
 Use full capability IDs in cross-feature references, Storybook annotations,
@@ -59,7 +59,7 @@ Track these independently:
 | --- | --- |
 | API | `present`, `missing`, `not-applicable`, or `unreviewed`. Use exact methods/paths; distinguish protocols from REST. |
 | Agent access | `available`, `partial`, `missing`, `restricted`, `operator-only`, `not-applicable`, or `unreviewed`. Name the supported surface and actual entry point. |
-| Policy | Actor, action/grant, company/resource/ownership scope, responsible-user intersection, run requirements, work modes, and gates relevant to the operation. |
+| Policy | Actor, action/grant, space/resource/ownership scope, responsible-user intersection, run requirements, work modes, and gates relevant to the operation. |
 | Evidence | `source-only`, `verified`, `failed`, `blocked`, or `not-run`. Source presence and successful board calls are not agent verification. |
 | Review depth | `baseline` records representative operations and known gaps; `operation-reviewed` enumerates the capability's meaningful operations and their individual access contracts. |
 
@@ -81,7 +81,7 @@ coverage. Promoting local state to a shared feature requires revisiting the entr
 A board-only endpoint is `restricted` for agent identity, not an automatic
 exception or a missing API. Cite the enforced policy and record whether the
 agent can request the authorized human's action and observe its result. An
-unresolved delegation question remains in **Gaps**. Company access, a job title,
+unresolved delegation question remains in **Gaps**. Space access, a job title,
 a personal assistant's OAuth grant, or an accepted interaction does not grant
 board identity. Keep budget, approval, secret and execution authority intact.
 
@@ -122,10 +122,10 @@ Review: `operation-reviewed`.
 
 ### `create`
 
-API: `present` — POST /api/companies/{companyId}/routines.
+API: `present` — POST /api/spaces/{spaceId}/routines.
 Agent access: `available` — agent REST, CLI routine create and native call_api
 under the enabled rollout and active-run/mode gates.
-Policy: same company; assigneeAgentId must be the calling agent; cite the
+Policy: same space; assigneeAgentId must be the calling agent; cite the
 routine authorization and native API policy sources.
 Evidence: `source-only` — reviewed commit and source links; no live proof.
 Verification: `not-run` — create an owned routine; reject assignment to another
@@ -152,7 +152,7 @@ conditions rather than treating an API path as conversational coverage.
 owns reconciliation of both maps. It follows changed source and authorization,
 checks real agent reachability, and records product gaps without implementing
 them during a maintenance pass. The creation skill uses this structure.
-[verify-paperclip](../.agents/skills/verify-paperclip/SKILL.md) consumes the relevant
+[verify-outpost](../.agents/skills/verify-outpost/SKILL.md) consumes the relevant
 recipes and reports evidence/drift; map editing belongs to maintenance.
 
 Run the structural check after map changes:
@@ -166,9 +166,9 @@ does not certify endpoint authorization, production bindings, operation
 completeness, or live behavior. Source audits must check those against the
 existing API and tool contracts; avoid a second schema catalog or runtime.
 
-For live access proof, use Paperclip's existing API/runner/MCP fixtures or an owned
+For live access proof, use Outpost's existing API/runner/MCP fixtures or an owned
 isolated instance. Use the actual agent identity, target and work mode. Assert the
-allowed result and relevant denial (another company/private resource, wrong
+allowed result and relevant denial (another space/private resource, wrong
 owner, missing grant, invalid run, restricted mode or resolver). Mutations also
 need persisted state/attribution and retry behavior. Capture evidence using the
 [existing artifact workflow](../doc/AGENT-ARTIFACTS.md); keep executed run results
@@ -178,7 +178,7 @@ separate from generated `maps/generated/coverage.json`, which lists page referen
 
 Change only the recipes, access contracts and stories whose behavior or intent
 changed. Feature recipes own navigation metadata; stories own small
-`parameters.paperclip` annotations. Keep the feature-map README's readable ID
+`parameters.outpost` annotations. Keep the feature-map README's readable ID
 index aligned with those sources; it does not register entries for generation.
 Do not refresh counts in shared READMEs, inventories, fingerprints or review
 journals.

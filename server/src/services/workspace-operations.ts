@@ -152,7 +152,7 @@ export const LOCAL_WORKSPACE_COMMAND_PHASES: readonly WorkspaceOperationPhase[] 
 
 type NativeFinalizationActivityScope = {
   operationId: string;
-  companyId: string;
+  spaceId: string;
   runId: string;
   issueId: string;
 };
@@ -162,7 +162,7 @@ const liveNativeFinalizationOperations = new Map<string, NativeFinalizationActiv
 
 export function isNativeWorkspaceFinalizationOperationActive(scope: NativeFinalizationActivityScope): boolean {
   const active = liveNativeFinalizationOperations.get(scope.operationId);
-  return Boolean(active && active.companyId === scope.companyId
+  return Boolean(active && active.spaceId === scope.spaceId
     && active.runId === scope.runId && active.issueId === scope.issueId);
 }
 
@@ -237,7 +237,7 @@ export function resetWorkspaceRuntimeControlLocksForTests() {
 function toWorkspaceOperation(row: WorkspaceOperationRow): WorkspaceOperation {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     executionWorkspaceId: row.executionWorkspaceId ?? null,
     heartbeatRunId: row.heartbeatRunId ?? null,
     issueId: row.issueId ?? null,
@@ -398,7 +398,7 @@ export async function settleRuntimeControlOperation(db: Db, record: { recordId: 
       provenance: { reconciledBy: "ownership-reconciler", ownerProof: context.proof.reason },
     })) return false;
     publication = (await persistActivity(tx, {
-      companyId: candidate.companyId, actorType: "system", actorId: "ownership-reconciler",
+      spaceId: candidate.spaceId, actorType: "system", actorId: "ownership-reconciler",
       action: "workspace_operation.reconciled", entityType: "workspace_operation", entityId: candidate.id,
       runId: candidate.heartbeatRunId, issueId: candidate.issueId,
       details: { reason: "orphaned_runtime_control", action, proof: context.proof.reason,
@@ -559,7 +559,7 @@ export function workspaceOperationService(db: Db) {
     },
 
     createRecorder(input: {
-      companyId: string;
+      spaceId: string;
       heartbeatRunId?: string | null;
       executionWorkspaceId?: string | null;
       issueId?: string | null;
@@ -577,7 +577,7 @@ export function workspaceOperationService(db: Db) {
             await tx
               .update(workspaceOperations)
               .set({ executionWorkspaceId, updatedAt: new Date() })
-              .where(and(eq(workspaceOperations.companyId, input.companyId), inArray(workspaceOperations.id, createdIds)));
+              .where(and(eq(workspaceOperations.spaceId, input.spaceId), inArray(workspaceOperations.id, createdIds)));
           });
         },
 
@@ -589,15 +589,15 @@ export function workspaceOperationService(db: Db) {
               else if (input.issueId) await notifyTerminalWorkspaceWork(tx, `issue:${input.issueId}`);
               if (!input.heartbeatRunId) {
                 // An export clears barriers for every issue sharing this workspace.
-                if (executionWorkspaceId) await notifyAttentionRetentionWork(tx, { companyId: input.companyId, sourceKind: "blocker_attention" });
-                else await notifyIssueAttentionRetentionWork(tx, { companyId: input.companyId, issueId: input.issueId ?? undefined });
+                if (executionWorkspaceId) await notifyAttentionRetentionWork(tx, { spaceId: input.spaceId, sourceKind: "blocker_attention" });
+                else await notifyIssueAttentionRetentionWork(tx, { spaceId: input.spaceId, issueId: input.issueId ?? undefined });
                 return write(tx as unknown as Db);
               }
-              await notifyNativeResultCommit(tx, { companyId: input.companyId,
+              await notifyNativeResultCommit(tx, { spaceId: input.spaceId,
                 runId: input.heartbeatRunId!, issueId: input.issueId ?? undefined });
-              await notifyNativeWorkspaceFinalization(tx, { companyId: input.companyId,
+              await notifyNativeWorkspaceFinalization(tx, { spaceId: input.spaceId,
                 runId: input.heartbeatRunId!, issueId: input.issueId ?? undefined });
-              await notifyNativeStatusReassessment(tx, { companyId: input.companyId,
+              await notifyNativeStatusReassessment(tx, { spaceId: input.spaceId,
                 runId: input.heartbeatRunId!, issueId: input.issueId ?? undefined });
               return write(tx as unknown as Db);
             }));
@@ -608,7 +608,7 @@ export function workspaceOperationService(db: Db) {
           const startedAt = new Date();
           const id = randomUUID();
           const handle = await logStore.begin({
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             operationId: id,
           });
 
@@ -656,7 +656,7 @@ export function workspaceOperationService(db: Db) {
             let published = false;
             const insertRunning = (database: Db) => database.insert(workspaceOperations).values({
               id,
-              companyId: input.companyId,
+              spaceId: input.spaceId,
               executionWorkspaceId,
               heartbeatRunId: input.heartbeatRunId ?? null,
               issueId: input.issueId ?? null,
@@ -679,7 +679,7 @@ export function workspaceOperationService(db: Db) {
                 // announces, so a quiet worker starts watching this owner.
                 await db.transaction(async tx => {
                   await notifyDeliveryWork(tx, DELIVERY_QUEUES.ownershipInvariantReport,
-                    JSON.stringify({ companyId: input.companyId, operationId: id }));
+                    JSON.stringify({ spaceId: input.spaceId, operationId: id }));
                   await insertRunning(tx as unknown as Db);
                 });
               } else {
@@ -750,7 +750,7 @@ export function workspaceOperationService(db: Db) {
               && recordInput.metadata?.owningService === "native_workspace_finalizer"
               && input.heartbeatRunId && input.issueId;
             if (nativeFinalization) liveNativeFinalizationOperations.set(id, {
-              operationId: id, companyId: input.companyId,
+              operationId: id, spaceId: input.spaceId,
               runId: input.heartbeatRunId!, issueId: input.issueId!,
             });
             try {

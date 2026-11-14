@@ -32,7 +32,7 @@ export function assertProfileEntryShape(input: CreateToolProfileEntryForProfile)
 
 export async function assertProfileEntryInputs(
   db: Pick<Db, "select">,
-  companyId: string,
+  spaceId: string,
   entries: CreateToolProfileEntryForProfile[],
 ) {
   const applications = new Set<string>();
@@ -44,14 +44,14 @@ export async function assertProfileEntryInputs(
 
   for (const ids of referenceBatches(references("applicationId"))) {
     const rows = await db.select({ id: toolApplications.id }).from(toolApplications)
-      .where(and(eq(toolApplications.companyId, companyId), inArray(toolApplications.id, ids)));
+      .where(and(eq(toolApplications.spaceId, spaceId), inArray(toolApplications.id, ids)));
     for (const row of rows) applications.add(row.id.toLowerCase());
   }
   for (const refs of referenceBatches(references("connectionId"))) {
     const ids = refs.filter(value => UUID_IDENTIFIER.test(value));
     const uids = refs.filter(value => !UUID_IDENTIFIER.test(value));
     const rows = await db.select({ id: toolConnections.id, uid: toolConnections.uid }).from(toolConnections)
-      .where(and(eq(toolConnections.companyId, companyId), or(
+      .where(and(eq(toolConnections.spaceId, spaceId), or(
         ids.length ? inArray(toolConnections.id, ids) : undefined,
         uids.length ? inArray(toolConnections.uid, uids) : undefined,
       )));
@@ -62,7 +62,7 @@ export async function assertProfileEntryInputs(
   }
   for (const ids of referenceBatches(references("catalogEntryId"))) {
     const rows = await db.select({ id: toolCatalogEntries.id }).from(toolCatalogEntries)
-      .where(and(eq(toolCatalogEntries.companyId, companyId), inArray(toolCatalogEntries.id, ids)));
+      .where(and(eq(toolCatalogEntries.spaceId, spaceId), inArray(toolCatalogEntries.id, ids)));
     for (const row of rows) catalogEntries.add(row.id.toLowerCase());
   }
 
@@ -76,7 +76,7 @@ export async function assertProfileEntryInputs(
       throw notFound("Tool connection not found");
     }
     if (entry.catalogEntryId && !catalogEntries.has(entry.catalogEntryId.toLowerCase())) {
-      throw unprocessable("Tool profile catalog entry selector must belong to the same company");
+      throw unprocessable("Tool profile catalog entry selector must belong to the same space");
     }
   }
 }

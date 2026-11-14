@@ -123,14 +123,14 @@ export function preflightNotionGenericLive(environment = process.env) {
   const api = explicitHttpsOrigin(requiredValue(environment, "OUTPOST_API_URL"), "unsafe_api_url");
 
   const email = requiredValue(environment, "OUTPOST_E2E_EMAIL");
-  if (!email.includes("@")) throw new NotionGenericLivePreflightError("invalid_paperclip_email");
+  if (!email.includes("@")) throw new NotionGenericLivePreflightError("invalid_outpost_email");
 
   return {
     baseUrl: base.origin,
     apiBaseUrl: `${api.origin}/api`,
     callbackUrl: `${base.origin}/api/tools/oauth/callback`,
-    paperclipEmail: email,
-    paperclipPassword: environment.OUTPOST_DEV_LOGIN_PASSWORD,
+    outpostEmail: email,
+    outpostPassword: environment.OUTPOST_DEV_LOGIN_PASSWORD,
     agentApiKey: environment.OUTPOST_API_KEY,
     runId: environment.OUTPOST_RUN_ID,
     taskId: environment.OUTPOST_TASK_ID,

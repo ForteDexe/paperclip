@@ -21,22 +21,22 @@ import { buildProjectWorkspaceSummaries } from "@/lib/project-workspaces-tab";
 import {
   storybookAgents,
   storybookAuthSession,
-  storybookCompanies,
+  storybookSpaces,
   storybookExecutionWorkspaces,
   storybookGoals,
   storybookIssues,
   storybookProjectWorkspaces,
   storybookProjects,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 
-const COMPANY_ID = "company-storybook";
+const SPACE_ID = "space-storybook";
 const boardProject = storybookProjects.find((project) => project.id === "project-board-ui") ?? storybookProjects[0]!;
 const archivedProject =
   storybookProjects.find((project) => project.id === "project-archived-import")
   ?? storybookProjects[storybookProjects.length - 1]!;
 
 const goalProgress = new Map<string, number>([
-  ["goal-company", 62],
+  ["goal-space", 62],
   ["goal-board-ux", 74],
   ["goal-agent-runtime", 48],
   ["goal-storybook", 88],
@@ -54,9 +54,9 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="paperclip-story__frame overflow-hidden">
+    <section className="outpost-story__frame overflow-hidden">
       <div className="border-b border-border px-5 py-4">
-        <div className="paperclip-story__label">{eyebrow}</div>
+        <div className="outpost-story__label">{eyebrow}</div>
         <h2 className="mt-1 text-xl font-semibold">{title}</h2>
       </div>
       <div className="p-5">{children}</div>
@@ -66,30 +66,30 @@ function Section({
 
 function hydrateStorybookQueries(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.setQueryData(queryKeys.auth.session, storybookAuthSession);
-  queryClient.setQueryData(queryKeys.companies.all, { companies: storybookCompanies, unauthorized: false });
-  queryClient.setQueryData(queryKeys.agents.list(COMPANY_ID), storybookAgents);
-  queryClient.setQueryData(queryKeys.projects.list(COMPANY_ID), storybookProjects);
+  queryClient.setQueryData(queryKeys.spaces.all, { spaces: storybookSpaces, unauthorized: false });
+  queryClient.setQueryData(queryKeys.agents.list(SPACE_ID), storybookAgents);
+  queryClient.setQueryData(queryKeys.projects.list(SPACE_ID), storybookProjects);
   queryClient.setQueryData(queryKeys.projects.detail(boardProject.id), boardProject);
   queryClient.setQueryData(queryKeys.projects.detail(boardProject.urlKey), boardProject);
   queryClient.setQueryData(queryKeys.projects.detail(archivedProject.id), archivedProject);
-  queryClient.setQueryData(queryKeys.goals.list(COMPANY_ID), storybookGoals);
+  queryClient.setQueryData(queryKeys.goals.list(SPACE_ID), storybookGoals);
   for (const goal of storybookGoals) {
     queryClient.setQueryData(queryKeys.goals.detail(goal.id), goal);
   }
-  queryClient.setQueryData(queryKeys.issues.list(COMPANY_ID), storybookIssues);
-  queryClient.setQueryData(queryKeys.issues.listByProject(COMPANY_ID, boardProject.id), storybookIssues);
-  queryClient.setQueryData(queryKeys.secrets.list(COMPANY_ID), []);
+  queryClient.setQueryData(queryKeys.issues.list(SPACE_ID), storybookIssues);
+  queryClient.setQueryData(queryKeys.issues.listByProject(SPACE_ID, boardProject.id), storybookIssues);
+  queryClient.setQueryData(queryKeys.secrets.list(SPACE_ID), []);
   queryClient.setQueryData(queryKeys.instance.experimentalSettings, {
     enableIsolatedWorkspaces: true,
     enableRoutineTriggers: true,
   });
-  queryClient.setQueryData(queryKeys.executionWorkspaces.list(COMPANY_ID), storybookExecutionWorkspaces);
+  queryClient.setQueryData(queryKeys.executionWorkspaces.list(SPACE_ID), storybookExecutionWorkspaces);
   queryClient.setQueryData(
-    queryKeys.executionWorkspaces.list(COMPANY_ID, { projectId: boardProject.id }),
+    queryKeys.executionWorkspaces.list(SPACE_ID, { projectId: boardProject.id }),
     storybookExecutionWorkspaces,
   );
   queryClient.setQueryData(
-    queryKeys.executionWorkspaces.summaryList(COMPANY_ID),
+    queryKeys.executionWorkspaces.summaryList(SPACE_ID),
     storybookExecutionWorkspaces.map((workspace) => ({
       id: workspace.id,
       name: workspace.name,
@@ -193,7 +193,7 @@ function WorkspacesMatrix() {
   return (
     <div className="space-y-5">
       <ProjectWorkspacesContent
-        companyId={COMPANY_ID}
+        spaceId={SPACE_ID}
         projectId={boardProject.id}
         projectRef={boardProject.urlKey}
         summaries={summaries}
@@ -213,7 +213,7 @@ function WorkspacesMatrix() {
       </div>
       <div className="rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">
         <ProjectWorkspacesContent
-          companyId={COMPANY_ID}
+          spaceId={SPACE_ID}
           projectId={archivedProject.id}
           projectRef={archivedProject.urlKey}
           summaries={[]}
@@ -256,7 +256,7 @@ function GoalPropertiesMatrix() {
         <div className="rounded-lg border border-border bg-background p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="paperclip-story__label">Goal detail composition</div>
+              <div className="outpost-story__label">Goal detail composition</div>
               <h3 className="mt-2 text-xl font-semibold">{selectedGoal.title}</h3>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{selectedGoal.description}</p>
             </div>
@@ -299,7 +299,7 @@ function GoalTreeMatrix() {
         />
       </div>
       <div className="rounded-lg border border-border bg-background p-4">
-        <div className="paperclip-story__label">Selected goal</div>
+        <div className="outpost-story__label">Selected goal</div>
         {selectedGoal ? (
           <div className="mt-3 space-y-3">
             <div>
@@ -413,10 +413,10 @@ function setWorktreeMeta(name: string, content: string) {
 }
 
 function WorktreeBannerMatrix() {
-  setWorktreeMeta("paperclip-worktree-enabled", "true");
-  setWorktreeMeta("paperclip-worktree-name", "PAP-1675-projects-goals-workspaces");
-  setWorktreeMeta("paperclip-worktree-color", "#0f766e");
-  setWorktreeMeta("paperclip-worktree-text-color", "#ecfeff");
+  setWorktreeMeta("outpost-worktree-enabled", "true");
+  setWorktreeMeta("outpost-worktree-name", "PAP-1675-projects-goals-workspaces");
+  setWorktreeMeta("outpost-worktree-color", "#0f766e");
+  setWorktreeMeta("outpost-worktree-text-color", "#ecfeff");
 
   return (
     <div className="space-y-4">
@@ -446,12 +446,12 @@ function WorktreeBannerMatrix() {
 function ProjectsGoalsWorkspacesStories() {
   return (
     <StorybookData>
-      <div className="paperclip-story">
-        <main className="paperclip-story__inner space-y-6">
-          <section className="paperclip-story__frame p-6">
+      <div className="outpost-story">
+        <main className="outpost-story__inner space-y-6">
+          <section className="outpost-story__frame p-6">
             <div className="flex flex-wrap items-start justify-between gap-5">
               <div>
-                <div className="paperclip-story__label">Projects, goals, and workspaces</div>
+                <div className="outpost-story__label">Projects, goals, and workspaces</div>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight">Hierarchical planning and runtime surfaces</h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
                   Fixture-backed project and goal stories cover editable project properties, local and remote workspace
@@ -507,7 +507,7 @@ const meta = {
           "Projects, goals, and workspaces stories cover project properties, workspace cards/lists, goal hierarchy panels, runtime controls, and worktree branding states.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "projects/lifecycle",
         "goals/hierarchy",

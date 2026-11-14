@@ -11,7 +11,7 @@ export type AgentSkillState =
   | "external";
 
 export type AgentSkillOrigin =
-  | "company_managed"
+  | "space_managed"
   | "user_installed"
   | "external_unknown";
 

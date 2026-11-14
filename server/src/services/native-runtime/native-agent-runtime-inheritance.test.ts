@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { inheritNativeRunnerAdapterConfig } from "./native-agent-runtime-inheritance.js";
-import { resolvePaperclipRunnerProviderProfile } from "./provider-profile.js";
+import { resolveOutpostRunnerProviderProfile } from "./provider-profile.js";
 
-describe("native hire runtime inheritance", () => {
-  it("does not inherit operator-owned home mode into a hired agent", () => {
+describe("native create runtime inheritance", () => {
+  it("does not inherit operator-owned home mode into a created agent", () => {
     expect(inheritNativeRunnerAdapterConfig({ provider: "codex", homeMode: "preconfigured" })).toEqual({ provider: "codex" });
   });
   it("preserves Cursor's selected mode without its live session or credentials", () => {
@@ -16,17 +16,17 @@ describe("native hire runtime inheritance", () => {
   it.each([
     ["claude_managed", "managedProfileId", "managedAgentsRetentionAcknowledged"],
     ["aws_agentcore", "agentCoreProfileId", "agentCoreRetentionAcknowledged"],
-  ])("preserves the company profile reference for %s", (provider, profileKey, retentionKey) => {
+  ])("preserves the space profile reference for %s", (provider, profileKey, retentionKey) => {
     const inherited = inheritNativeRunnerAdapterConfig({
       provider,
-      [profileKey]: "qualified-company-profile",
+      [profileKey]: "qualified-space-profile",
       [retentionKey]: true,
       runtimeSessionId: "parent-session",
       env: { API_KEY: "parent-secret" },
     });
-    expect(resolvePaperclipRunnerProviderProfile(inherited)).toMatchObject({
+    expect(resolveOutpostRunnerProviderProfile(inherited)).toMatchObject({
       provider,
-      [profileKey]: "qualified-company-profile",
+      [profileKey]: "qualified-space-profile",
     });
     expect(inherited).not.toHaveProperty("runtimeSessionId");
     expect(inherited).not.toHaveProperty("env");

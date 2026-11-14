@@ -23,7 +23,7 @@ Other chat maintenance duties remain for their own migration slices.
 
 ## Durable contract and triggers
 
-The candidate requires a native running run, matching company/agent and bound
+The candidate requires a native running run, matching space/agent and bound
 issue, an active/waiting conversation, and an automatic endpoint assigned to the
 agent. Its existing base working publication must be pending, retry, streaming,
 or published. The latest allowlisted event must be within the existing 24-hour
@@ -41,7 +41,7 @@ The two event writers register awaited intent before insertion, after duplicate
 and ownership checks, inside their existing transaction boundaries:
 
 - `appendHeartbeatRunEvent` covers native ingress through
-  `PaperclipControlPlanePort`, direct allowlisted events and recovered trace diffs.
+  `OutpostControlPlanePort`, direct allowlisted events and recovered trace diffs.
   It reads only runtime mode and bound issue alongside the existing binding
   fields. Ordinary non-progress direct log events retain their atomic-statement
   path. Direct allowlisted event writes now use a transaction even for legacy
@@ -51,7 +51,7 @@ and ownership checks, inside their existing transaction boundaries:
 - `persistReprojectedWorkspaceDiffs` delegates to the first writer and is tested
   through its actual recovered-trace persistence API, including duplicate replay.
 
-Eligibility mutations share slice 28's issue/company notification boundary.
+Eligibility mutations share slice 28's issue/space notification boundary.
 `notifyChatRunMilestones` now invalidates both lifecycle and native progress,
 without adding recovery wrappers to every caller. Both topics share the outer
 transaction's identity and commit/rollback outcome. Existing writers cover
@@ -67,11 +67,11 @@ Routine transport claim bookkeeping retains its narrower notification behavior.
 
 `chat-native-progress-work.ts` uses `registerScopedDeadlineWork` and the shared
 delivery coordinator. It reconstructs relevant issue scopes on startup, refreshes
-only the affected issue/company after a committed change, and projects batches
+only the affected issue/space after a committed change, and projects batches
 of 100. A full insertion batch retains immediate work. Lock contention retains a
 one-second retry; failure uses the shared backoff. A settled short pass disarms.
 The shared worker preserves changes during execution, paused work during drain,
-startup failures through resume, fair company dispatch and shutdown ownership.
+startup failures through resume, fair space dispatch and shutdown ownership.
 
 Projection retains issue-before-run SKIP LOCKED ordering. A skipped lock is a
 concrete obligation only while the matching row still exists and the run is
@@ -111,7 +111,7 @@ and an eligible later event. A query-count guard bounds failure of the old code.
   18 worker cases and 26 existing/new integration cases. These cover both real
   event owners, nested outer commit/rollback, duplicate replay, irrelevant logs,
   issue/run lock contention and terminalization, startup reconstruction, drain,
-  failed startup through resume, shutdown, trace recovery, issue/company scope,
+  failed startup through resume, shutdown, trace recovery, issue/space scope,
   concurrent commits, full batches, cadence, final suppression and provider-safe
   content. The name filter skips the app file; its 13 cases passed separately.
 - `/tmp/sleep29-wired-typecheck.log`: production server typecheck passes.
@@ -130,7 +130,7 @@ and an eligible later event. A query-count guard bounds failure of the old code.
   the final hook. No retries were needed in either browser run.
 
 PostgreSQL is external and isolated because embedded PostgreSQL is unavailable
-on this host. Worker fixtures clean their own companies. The reused chat fixture
+on this host. Worker fixtures clean their own spaces. The reused chat fixture
 DB retains history; tests stop workers and retire endpoints after assertions.
 Configured-idle and retained-history quiet assertions observe select/transaction
 calls, including two minutes of controlled time in worker tests. Provider APIs
@@ -158,7 +158,7 @@ serialization of a Drizzle table through the caller's database handle.
 
 The new native-progress notifier serialized the entire structurally compatible
 scope argument. Existing lifecycle callers legitimately pass wider domain inputs
-(including `db`) through that typed boundary. Serialize only `companyId` and
+(including `db`) through that typed boundary. Serialize only `spaceId` and
 `issueId`, as the lifecycle notifier already does; do not constrain every caller
 or serialize domain/private fields into work hints.
 
@@ -187,7 +187,7 @@ convention, allowing its actual PostgreSQL SQL assertions to run locally despite
 embedded bootstrap failure. The original implementation reproduces both CI
 failures in `/tmp/sleep29-atomic-events-before.log`. That first external run also
 exposed fixture cleanup ordering; cleanup now removes event/run/agent rows before
-companies and always closes its pools. The repaired atomic-event and progress
+spaces and always closes its pools. The repaired atomic-event and progress
 worker suites pass all 25 cases in `/tmp/sleep29-atomic-progress-fixed.log`;
 server typecheck passes in `/tmp/sleep29-atomic-progress-typecheck.log`.
 

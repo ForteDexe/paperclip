@@ -36,9 +36,9 @@ it("surfaces a bounded product validation reason for 400/409/422 without request
   const { api } = fixture();
   const reply = (status: number, body: unknown) => vi.fn(async () => new Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers: { "content-type": "application/json" } }));
   vi.stubGlobal("fetch", reply(422, { error: "Built-in fake sandbox environments are reserved for internal probes and cannot be saved.", details: { issues: [{ received: "private-detail-canary" }] } }));
-  const failure = await api.post("/api/companies/c/environments", { name: "control", config: { provider: "fake" } }).catch((error: Error) => error) as Error;
+  const failure = await api.post("/api/spaces/c/environments", { name: "control", config: { provider: "fake" } }).catch((error: Error) => error) as Error;
   expect(failure).toBeInstanceOf(RunnerApiHttpError); expect((failure as RunnerApiHttpError).status).toBe(422);
-  expect(failure.message).toBe("POST /api/companies/c/environments returned 422; reason: Built-in fake sandbox environments are reserved for internal probes and cannot be saved.; other body fields withheld");
+  expect(failure.message).toBe("POST /api/spaces/c/environments returned 422; reason: Built-in fake sandbox environments are reserved for internal probes and cannot be saved.; other body fields withheld");
   expect(failure.message).not.toContain("private-detail-canary");
   vi.stubGlobal("fetch", reply(400, { error: "Invalid apiKey private-request-value-123 for synthetic-session-cookie-928364 token abcdefghijklmnopqrstuvwxyzABCDEFGHIJ" }));
   const echoed = await api.post("/api/x", { apiKey: "private-request-value-123" }).catch((error: Error) => error) as Error;

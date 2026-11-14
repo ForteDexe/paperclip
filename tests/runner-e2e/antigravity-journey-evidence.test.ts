@@ -13,7 +13,7 @@ it("consumes the activity router's public runId summary rather than a full heart
   const router = readFileSync(new URL("../../server/src/routes/activity.ts", import.meta.url), "utf8");
   const client = readFileSync(new URL("../../ui/src/api/activity.ts", import.meta.url), "utf8");
   expect(service).toMatch(/runsForIssue:[\s\S]*?\.select\(\{\s*runId: heartbeatRuns\.id/u);
-  expect(router).toMatch(/router\.get\("\/issues\/:id\/runs"[\s\S]*?svc\.runsForIssue\(issue\.companyId, issue\.id/u);
+  expect(router).toMatch(/router\.get\("\/issues\/:id\/runs"[\s\S]*?svc\.runsForIssue\(issue\.spaceId, issue\.id/u);
   expect(client).toMatch(/interface RunForIssue\s*\{\s*runId: string/u);
   expect(selectAntigravityIssueRun([{ runId: "old", agentId: "agent" }, { runId: "new", agentId: "agent" }], "agent", ["old"])).toBe("new");
   expect(selectAntigravityIssueRun([], "agent", [])).toBeNull();
@@ -32,7 +32,7 @@ it.skipIf(process.platform !== "darwin" || process.arch !== "arm64")("fetches th
   const api = { origin: "http://127.0.0.1:3104", get: async (route: string) => {
     routes.push(route);
     if (route.endsWith("/runs")) return [{ runId: fixture.run.id, agentId: fixture.agentId }];
-    return { ...fixture.run, companyId: "foreign" };
+    return { ...fixture.run, spaceId: "foreign" };
   } } as unknown as ConnectionApi;
   await expect(verifyAntigravityJourneyTurn({ ...fixture, api, deadlineAt: Date.now() + 1000,
     observeRun: async () => { observed = true; } })).rejects.toThrow("observed_run_binding");

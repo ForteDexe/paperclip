@@ -12,14 +12,14 @@ import { collectRunEvents } from "../run-observations.js";
 // The public full-run route selects these persisted native fields; the legacy
 // shared HeartbeatRun DTO does not yet declare them. Keep this exact projection.
 export type NativeFaultRun = HeartbeatRun & Pick<typeof heartbeatRuns.$inferSelect, "runtimeMode" | "nativeIssueId" | "runnerInstanceId" | "nativePhase" | "nativeSessionId" | "runnerProfileJson">;
-export type NativeFaultBinding = Pick<NativeFaultRun, "id" | "companyId" | "agentId" | "status" | "runtimeMode" | "nativeIssueId" | "runnerInstanceId" | "processPid" | "processGroupId" | "processStartedAt">;
+export type NativeFaultBinding = Pick<NativeFaultRun, "id" | "spaceId" | "agentId" | "status" | "runtimeMode" | "nativeIssueId" | "runnerInstanceId" | "processPid" | "processGroupId" | "processStartedAt">;
 export interface OwnedNativeIdentity {
   pid: number; uid: number; group: number; startedAt: string; executable: string; commandRunId: string; commandRunnerId: string; runtimeRoot: string;
 }
 export function matchesOwnedNativeIdentity(input: { identity: OwnedNativeIdentity; run: NativeFaultBinding;
-  expected: { companyId: string; agentId: string; issueId: string; uid: number; executable: string; root: string } }) {
+  expected: { spaceId: string; agentId: string; issueId: string; uid: number; executable: string; root: string } }) {
   const { identity: p, run, expected: e } = input;
-  return run.status === "running" && run.runtimeMode === "native" && run.companyId === e.companyId && run.agentId === e.agentId && run.nativeIssueId === e.issueId
+  return run.status === "running" && run.runtimeMode === "native" && run.spaceId === e.spaceId && run.agentId === e.agentId && run.nativeIssueId === e.issueId
     && Number.isSafeInteger(p.pid) && p.pid > 1 && p.pid !== process.pid && p.pid === run.processPid && p.group === run.processGroupId
     && p.uid === e.uid && p.commandRunId === run.id && p.commandRunnerId === run.runnerInstanceId
     && p.executable === e.executable && path.isAbsolute(p.runtimeRoot) && p.runtimeRoot.startsWith(`${e.root}${path.sep}`) && path.resolve(p.runtimeRoot) === p.runtimeRoot
@@ -72,7 +72,7 @@ export function nativeFaultOutcome(run: Pick<NativeFaultRun, "status" | "finishe
 export async function verifyOwnedNativeRunner(ctx: ChatCatalogContext, binding: { runId: string; issueId: string; agentId: string }) {
   if (ctx.input.execution.environment.id !== "local" || typeof process.getuid !== "function") throw new Error("Owned infrastructure fault requires a supported local UID/process identity");
   const isolated = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT; if (!isolated) throw new Error("Owned infrastructure fault requires the explicit isolated attempt root");
-  const expected = { companyId: ctx.input.fixtures.company.id, agentId: binding.agentId, issueId: binding.issueId, uid: process.getuid(), executable: await realpath(defaultCapabilityRunnerdBinary()), root: await realpath(isolated) };
+  const expected = { spaceId: ctx.input.fixtures.space.id, agentId: binding.agentId, issueId: binding.issueId, uid: process.getuid(), executable: await realpath(defaultCapabilityRunnerdBinary()), root: await realpath(isolated) };
   const load = () => ctx.input.api.get<NativeFaultRun>(`/api/heartbeat-runs/${binding.runId}`);
   const first = await load(), observed = await processIdentity(first);
   if (!matchesOwnedNativeIdentity({ identity: observed, run: first, expected })) throw new Error("Owned infrastructure fault rejected a foreign or mismatched native process identity");
@@ -86,7 +86,7 @@ export async function faultOwnedNativeProcess(ctx: ChatCatalogContext, binding: 
   // Deliberately signal only the verified Runner PID. Its provider/tools remain
   // subject to the production cleanup/quarantine rules; never signal a group.
   process.kill(confirmed.pid, "SIGKILL");
-  await ctx.input.evidence("runtime-owned-native-process-fault.json", { runId: current.id, companyId: current.companyId, agentId: current.agentId,
+  await ctx.input.evidence("runtime-owned-native-process-fault.json", { runId: current.id, spaceId: current.spaceId, agentId: current.agentId,
     issueId: current.nativeIssueId, runnerInstanceId: current.runnerInstanceId, processPid: confirmed.pid, processGroupId: confirmed.group, processStartedAt: confirmed.startedAt,
     uidMatches: true, executableMatches: true, runtimeRootWithinAttempt: true, identityReadTwice: true, signal: "SIGKILL", processGroupSignalled: false });
   // The product settles a lost Runner either as a failed run or, when its

@@ -16,11 +16,11 @@ const compose = spawnSync("docker", ["compose", "version"], { env: baseEnv });
 assert.equal(compose.status, 0, "Docker Compose is required for this integration check.");
 
 for (const [file, service] of [
-  ["docker/docker-compose.quickstart.yml", "paperclip"],
+  ["docker/docker-compose.quickstart.yml", "outpost"],
   ["docker/docker-compose.yml", "server"],
 ]) {
   test(`${file} forwards the independent tool signing secret`, () => {
-    const temporary = mkdtempSync(path.join(os.tmpdir(), "paperclip-compose-secrets-"));
+    const temporary = mkdtempSync(path.join(os.tmpdir(), "outpost-compose-secrets-"));
     const envFile = path.join(temporary, "empty.env");
     writeFileSync(envFile, "");
     try {

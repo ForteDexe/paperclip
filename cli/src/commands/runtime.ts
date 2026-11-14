@@ -189,6 +189,6 @@ export function registerRuntimeCommands(program: Command): void {
       else if (provider === "cursor") await setupCursorRuntime();
       else if (provider === "kimi") await setupKimiRuntime();
       else if (provider === "antigravity") await setupAntigravityRuntime();
-      else throw new Error("Supported runtime setup: paperclipai runtime setup pi, cursor, kimi, or antigravity");
+      else throw new Error("Supported runtime setup: outpost runtime setup pi, cursor, kimi, or antigravity");
     });
 }

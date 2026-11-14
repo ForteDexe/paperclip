@@ -5,7 +5,7 @@ import type { Db } from "@outpost/db";
 import { conflict, unprocessable } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import {
-  readCustomImageSetupSessionCompanyId,
+  readCustomImageSetupSessionSpaceId,
   requireFutureCustomImageSetupExpiry,
 } from "../services/environment-custom-image-setup-session-utils.js";
 import { environmentCustomImageService } from "../services/environment-custom-images.js";
@@ -100,8 +100,8 @@ interface AuthenticatedTerminalContext {
 }
 
 interface IncomingMessageWithTerminalContext extends IncomingMessage {
-  paperclipWebSocketHandled?: boolean;
-  paperclipTerminalUpgradeContext?: TerminalUpgradeContext;
+  outpostWebSocketHandled?: boolean;
+  outpostTerminalUpgradeContext?: TerminalUpgradeContext;
 }
 
 const require = createRequire(import.meta.url);
@@ -323,9 +323,9 @@ async function validateTerminalUpgrade(input: {
     input.sessionStore.delete(terminalSession.id);
     throw unprocessable("Invalid terminal setup session.");
   }
-  const storedSetupCompanyId = readCustomImageSetupSessionCompanyId(storedSetupSession);
+  const storedSetupSpaceId = readCustomImageSetupSessionSpaceId(storedSetupSession);
   if (
-    storedSetupCompanyId !== terminalSession.companyId
+    storedSetupSpaceId !== terminalSession.spaceId
     || storedSetupSession.environmentId !== terminalSession.environmentId
     || storedSetupSession.provider !== terminalSession.provider
   ) {
@@ -339,7 +339,7 @@ async function validateTerminalUpgrade(input: {
   });
   if (
     refreshed.session.id !== terminalSession.setupSessionId
-    || readCustomImageSetupSessionCompanyId(refreshed.session) !== terminalSession.companyId
+    || readCustomImageSetupSessionSpaceId(refreshed.session) !== terminalSession.spaceId
     || refreshed.session.environmentId !== terminalSession.environmentId
     || refreshed.session.provider !== terminalSession.provider
   ) {
@@ -501,7 +501,7 @@ export function setupEnvironmentCustomImageTerminalWebSocketServer(
   const sshConnector = opts.sshConnector ?? createSsh2EnvironmentCustomImageSshConnector();
 
   wss.on("connection", (socket: TerminalWsSocket, req: IncomingMessage) => {
-    const upgradeContext = (req as IncomingMessageWithTerminalContext).paperclipTerminalUpgradeContext;
+    const upgradeContext = (req as IncomingMessageWithTerminalContext).outpostTerminalUpgradeContext;
     if (!upgradeContext) {
       socket.close(1008, "missing context");
       return;
@@ -727,7 +727,7 @@ export function setupEnvironmentCustomImageTerminalWebSocketServer(
     const path = parseTerminalPath(url.pathname);
     if (!path) return;
 
-    reqWithContext.paperclipWebSocketHandled = true;
+    reqWithContext.outpostWebSocketHandled = true;
     const logPath = safeUpgradePath(req.url);
 
     const onRawSocketError = (err: Error) => {
@@ -749,7 +749,7 @@ export function setupEnvironmentCustomImageTerminalWebSocketServer(
       return;
     }
 
-    reqWithContext.paperclipTerminalUpgradeContext = {
+    reqWithContext.outpostTerminalUpgradeContext = {
       setupSessionId: path.setupSessionId,
       terminalSessionId,
       initialCols,

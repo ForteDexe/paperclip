@@ -8,16 +8,16 @@ import {
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 
 /** Immutable attribution records. Only acceptance state and redacted diagnostics advance. */
 export const runIdentityContexts = pgTable(
   "run_identity_contexts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     // Retain attribution after an agent and its runs are deleted: surviving tasks
     // and approvals still reference these contexts. The original run UUID is archival.
     runId: uuid("run_id").notNull(),
@@ -51,8 +51,8 @@ export const runIdentityContexts = pgTable(
       t.runId,
       t.correlationId,
     ),
-    companyRunIdx: index("run_identity_contexts_company_run_idx").on(
-      t.companyId,
+    spaceRunIdx: index("run_identity_contexts_space_run_idx").on(
+      t.spaceId,
       t.runId,
     ),
   }),

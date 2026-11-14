@@ -120,11 +120,11 @@ export function assertNoBundledCodexPayloads(entries) {
     assert.equal(typeof entry, 'string');
     assert.ok(!entry.startsWith('/') && !entry.split('/').includes('..'), 'Tar member must remain inside the package');
     assert.doesNotMatch(entry, /(?:^|\/)node_modules\/@openai\/codex-(?:linux|darwin|win32)-(?:x64|arm64)(?:\/|$)/,
-      'Paperclip tarballs must not bundle Codex platform packages');
+      'Outpost tarballs must not bundle Codex platform packages');
     assert.doesNotMatch(entry, /(?:^|\/)node_modules\/@openai\/codex\/vendor(?:\/|$)/,
-      'Paperclip tarballs must not bundle the Codex wrapper vendor payload');
+      'Outpost tarballs must not bundle the Codex wrapper vendor payload');
     if (!entry.endsWith('/')) assert.doesNotMatch(entry, /(?:^|\/)codex(?:\.exe)?$/,
-      'Paperclip tarballs must not bundle native Codex executables');
+      'Outpost tarballs must not bundle native Codex executables');
   }
 }
 
@@ -312,7 +312,7 @@ export function installedDaemonProbeSource(outputRoot, consumerRoot, sourceRevis
     assert.ok(inside(output));
     const { defaultCapabilityRunnerdBinary } = await import(pathToFileURL(join(output, 'live/runnerd-codex-transport.js')).href);
     const { runnerBinaryTarget } = await import(pathToFileURL(join(output, 'live/runner-binary.js')).href);
-    const { parsePaperclipRunnerdBuildMetadata } = await import(pathToFileURL(join(output, 'evals/runnerd-artifact.js')).href);
+    const { parseOutpostRunnerdBuildMetadata } = await import(pathToFileURL(join(output, 'evals/runnerd-artifact.js')).href);
     const { OUTPOST_RUNNER_BUILD_METADATA: expected } = await import(pathToFileURL(join(output, 'evals/build-metadata.js')).href);
     const manifest = JSON.parse(readFileSync(join(output, 'bin/release-manifest.json'), 'utf8'));
     const targets = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64'];
@@ -330,7 +330,7 @@ export function installedDaemonProbeSource(outputRoot, consumerRoot, sourceRevis
     const target = process.platform + '-' + process.arch, selected = defaultCapabilityRunnerdBinary();
     assert.ok(inside(selected));
     assert.equal(realpathSync(selected), realpathSync(join(output, 'bin', manifest.platforms[target].path)), 'Production must select the packaged host daemon');
-    const metadata = parsePaperclipRunnerdBuildMetadata(JSON.parse(execFileSync(selected, ['--build-metadata'], {
+    const metadata = parseOutpostRunnerdBuildMetadata(JSON.parse(execFileSync(selected, ['--build-metadata'], {
       timeout: 15000, maxBuffer: 64 * 1024, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: process.env.HOME, NODE_PATH: '' },
     })));
     assert.equal(metadata.binaryContractVersion, expected.contracts.runnerdArtifact);
@@ -380,7 +380,7 @@ export function grokConsumerDockerArgs({ assets, consumer, cache, command, uid, 
     '--mount', `type=bind,src=${assets},dst=/packages,readonly`,
     '--mount', `type=bind,src=${consumer},dst=/consumer`,
     '--mount', `type=bind,src=${cache},dst=/cache`,
-    ...(prerequisite ? ['--mount', `type=bind,src=${prerequisite},dst=/opt/paperclip/providers/grok/1.0.13/grok,readonly`] : []),
+    ...(prerequisite ? ['--mount', `type=bind,src=${prerequisite},dst=/opt/outpost/providers/grok/1.0.13/grok,readonly`] : []),
     '--workdir', '/consumer', GROK_PUBLIC_INSTALL_IMAGE, ...command,
   ];
 }

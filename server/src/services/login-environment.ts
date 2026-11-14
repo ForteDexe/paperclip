@@ -1,11 +1,11 @@
 import { agents, environmentLeases, type Db } from "@outpost/db";
 import { and, asc, eq, isNull, notExists, notInArray, or, sql } from "drizzle-orm";
 import { badRequest, forbidden, notFound } from "../errors.js";
-import { assertEnvironmentSelectionForCompany } from "./environment-selection.js";
+import { assertEnvironmentSelectionForSpace } from "./environment-selection.js";
 import { environmentService } from "./environments.js";
 import { instanceSettingsService } from "./instance-settings.js";
 
-type LoginEnvironmentTarget = { companyId: string; environmentId: string; agentId?: string; adapterType?: string };
+type LoginEnvironmentTarget = { spaceId: string; environmentId: string; agentId?: string; adapterType?: string };
 
 export async function assertLoginEnvironmentTarget(db: Db, input: LoginEnvironmentTarget) {
   return (await resolveLoginEnvironmentTarget(db, input)).environment;
@@ -17,13 +17,13 @@ export async function resolveLoginEnvironmentTarget(
   input: LoginEnvironmentTarget & { selectComputer?: boolean },
 ) {
   const environments = environmentService(db);
-  await assertEnvironmentSelectionForCompany(environments, input.companyId, input.environmentId, {
+  await assertEnvironmentSelectionForSpace(environments, input.spaceId, input.environmentId, {
     allowedDrivers: ["sandbox", "plugin"],
   });
   const environment = await environments.getById(input.environmentId);
   if (!environment) throw notFound("Environment not found");
-  const companies = await environments.listBoundCompanyIds(environment.id);
-  if (companies.length && !companies.includes(input.companyId)) throw forbidden("The selected environment belongs to another company.", { code: "environment_company_mismatch" });
+  const spaces = await environments.listBoundSpaceIds(environment.id);
+  if (spaces.length && !spaces.includes(input.spaceId)) throw forbidden("The selected environment belongs to another space.", { code: "environment_space_mismatch" });
   if (environment.driver !== "plugin") {
     if (input.agentId) throw badRequest("A temporary sandbox login does not take an agent computer target.");
     return { environment, agentId: undefined };
@@ -34,14 +34,14 @@ export async function resolveLoginEnvironmentTarget(
     const settings = await instanceSettingsService(db).get();
     const matchesEnvironment = eq(agents.defaultEnvironmentId, environment.id);
     const activeLogin = db.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, input.companyId),
+      eq(environmentLeases.spaceId, input.spaceId),
       eq(environmentLeases.environmentId, environment.id),
       eq(environmentLeases.status, "active"),
       sql`${environmentLeases.metadata}->>'purpose' = 'login'`,
       sql`${environmentLeases.metadata}->>'agentId' = ${agents.id}::text`,
     ));
     const [agent] = await db.select({ id: agents.id }).from(agents).where(and(
-      eq(agents.companyId, input.companyId),
+      eq(agents.spaceId, input.spaceId),
       eq(agents.adapterType, "outpost_runner"),
       notExists(activeLogin),
       settings.defaultEnvironmentId === environment.id
@@ -55,8 +55,8 @@ export async function resolveLoginEnvironmentTarget(
     if (!agent) throw badRequest("No agent computer is available for sign-in.", { code: "login_agent_unavailable" });
     return { environment, agentId: agent.id };
   }
-  const [agent] = await db.select().from(agents).where(and(eq(agents.id, input.agentId), eq(agents.companyId, input.companyId))).limit(1);
-  if (!agent || agent.companyId !== input.companyId) throw notFound("Agent not found");
+  const [agent] = await db.select().from(agents).where(and(eq(agents.id, input.agentId), eq(agents.spaceId, input.spaceId))).limit(1);
+  if (!agent || agent.spaceId !== input.spaceId) throw notFound("Agent not found");
   const inherited = agent.defaultEnvironmentId ?? (await instanceSettingsService(db).get()).defaultEnvironmentId;
   if (inherited !== environment.id || agent.adapterType !== "outpost_runner" || !["ready", "verifying"].includes(agent.lifecycleState)) {
     throw badRequest("The selected agent computer is not available for sign-in.", { code: "login_agent_unavailable" });

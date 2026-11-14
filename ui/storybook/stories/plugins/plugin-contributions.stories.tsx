@@ -14,11 +14,11 @@ function Contribution() {
   return (
     <Routes>
       <Route
-        path="/PAP/company/settings/instance/plugins/:pluginId"
+        path="/PAP/space/settings/instance/plugins/:pluginId"
         element={<PluginSettings />}
       />
       <Route
-        path="/PAP/company/settings/instance/plugins"
+        path="/PAP/space/settings/instance/plugins"
         element={<PluginManager />}
       />
       <Route path="/PAP/plugins/:pluginId" element={<PluginPage />} />
@@ -35,7 +35,7 @@ const meta = {
   parameters: {
     layout: "padded",
     initialEntries: ["/PAP/plugins/contribution-gap"],
-    paperclip: {
+    outpost: {
       "capabilities": [
         "plugins/contributions"
       ],

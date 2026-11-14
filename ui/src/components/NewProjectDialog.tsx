@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PROJECT_COLORS, type ProjectRepository } from "@outpost/shared";
 import { X } from "lucide-react";
 import { useDialog } from "../context/DialogContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { projectsApi } from "../api/projects";
 import { describeError } from "../api/errors";
 import { queryKeys } from "../lib/queryKeys";
@@ -18,12 +18,12 @@ import { ConnectionSetupFlow } from "@/features/connections/ConnectionSetupFlow"
 
 export function NewProjectDialog() {
   const { newProjectOpen, closeNewProject } = useDialog();
-  const { selectedCompanyId } = useCompany();
-  return selectedCompanyId && newProjectOpen
-    ? <NewProjectForm key={selectedCompanyId} companyId={selectedCompanyId} onClose={closeNewProject} /> : null;
+  const { selectedSpaceId } = useSpace();
+  return selectedSpaceId && newProjectOpen
+    ? <NewProjectForm key={selectedSpaceId} spaceId={selectedSpaceId} onClose={closeNewProject} /> : null;
 }
 
-export function NewProjectForm({ companyId, onClose }: { companyId: string; onClose: () => void }) {
+export function NewProjectForm({ spaceId, onClose }: { spaceId: string; onClose: () => void }) {
   const client = useQueryClient();
   const [name, setName] = useState("");
   const [color] = useState(() => PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)]!);
@@ -31,7 +31,7 @@ export function NewProjectForm({ companyId, onClose }: { companyId: string; onCl
   const [connecting, setConnecting] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string | null>(null);
-  const environments = useQuery({ queryKey: queryKeys.projects.environments(companyId), queryFn: () => projectsApi.environmentOptions(companyId), gcTime: 0 });
+  const environments = useQuery({ queryKey: queryKeys.projects.environments(spaceId), queryFn: () => projectsApi.environmentOptions(spaceId), gcTime: 0 });
   const environmentView = useQueryView(environments);
   const options = environmentView.data;
   const groupOf = (id: string | null | undefined) => options?.groups.find(group => group.environments.some(environment => environment.id === id));
@@ -41,10 +41,10 @@ export function NewProjectForm({ companyId, onClose }: { companyId: string; onCl
   const environmentReady = Boolean(environmentView.kind !== "error" && options && (!options.error || selectedGroup) && (!options.groups.length || selectedGroup));
 
   const create = useMutation({
-    mutationFn: () => projectsApi.create(companyId, { name: name.trim(), color, status: "planned", repositoryIds: repos.map((repo) => repo.id), ...(selectedGroup ? { environmentId, expectedStorageProviderPluginId: selectedGroup.storageProviderPluginId } : {}) }),
+    mutationFn: () => projectsApi.create(spaceId, { name: name.trim(), color, status: "planned", repositoryIds: repos.map((repo) => repo.id), ...(selectedGroup ? { environmentId, expectedStorageProviderPluginId: selectedGroup.storageProviderPluginId } : {}) }),
     onSuccess: (project) => {
-      trackRecentProject(project.id, companyId);
-      void client.invalidateQueries({ queryKey: queryKeys.projects.all(companyId) });
+      trackRecentProject(project.id, spaceId);
+      void client.invalidateQueries({ queryKey: queryKeys.projects.all(spaceId) });
       onClose();
     },
   });
@@ -55,7 +55,7 @@ export function NewProjectForm({ companyId, onClose }: { companyId: string; onCl
       {connecting ? <div className="min-h-0 overflow-y-auto p-5">
         <DialogTitle className="sr-only">Connect GitHub</DialogTitle>
         <ConnectionSetupFlow host="dialog" serviceSlug="github" forceNewConnection onCancel={() => setConnecting(false)} onComplete={() => {
-          void client.invalidateQueries({ queryKey: repositoryOptionsKey(companyId) });
+          void client.invalidateQueries({ queryKey: repositoryOptionsKey(spaceId) });
           setConnecting(false);
         }} />
       </div> : <form className="flex min-h-0 flex-col overflow-hidden" onSubmit={(event) => { event.preventDefault(); if (name.trim() && environmentReady && !create.isPending) create.mutate(); }}>
@@ -86,7 +86,7 @@ export function NewProjectForm({ companyId, onClose }: { companyId: string; onCl
           {environmentView.kind === "error" && <QueryErrorState error={environmentView.error} size="inline" action="load project environments"
             className="mb-3" onRetry={environmentView.retry} retrying={environmentView.isFetching} />}
           {options?.error && !selectedGroup && <p role="alert" className="mb-3 text-sm text-destructive">{options.error}</p>}
-          <ProjectRepositoryInput companyId={companyId} selected={repos} onChange={setRepos} onConnect={() => setConnecting(true)} disabled={create.isPending} />
+          <ProjectRepositoryInput spaceId={spaceId} selected={repos} onChange={setRepos} onConnect={() => setConnecting(true)} disabled={create.isPending} />
         </div>
         {create.status === "error" && <p role="alert" className="px-5 pt-3 text-sm text-destructive">{describeError(create.error).body}</p>}
         <div className="flex shrink-0 justify-between gap-2 px-5 py-5">

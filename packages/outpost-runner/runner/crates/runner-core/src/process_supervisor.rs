@@ -238,7 +238,7 @@ impl NamedExecutableSnapshot {
             ));
         }
         let basename = std::ffi::OsString::from(format!(
-            ".paperclip-verified-executable-{}",
+            ".outpost-verified-executable-{}",
             Uuid::new_v4().simple()
         ));
         let path = parent_path.join(&basename);
@@ -342,10 +342,10 @@ fn sealed_snapshot(
     use rustix::fs::{MemfdFlags, Mode, SealFlags};
 
     let flags = MemfdFlags::CLOEXEC | MemfdFlags::ALLOW_SEALING | MemfdFlags::EXEC;
-    let fd = match rustix::fs::memfd_create("paperclip-verified-launch", flags) {
+    let fd = match rustix::fs::memfd_create("outpost-verified-launch", flags) {
         Ok(fd) => fd,
         Err(rustix::io::Errno::INVAL) => rustix::fs::memfd_create(
-            "paperclip-verified-launch",
+            "outpost-verified-launch",
             MemfdFlags::CLOEXEC | MemfdFlags::ALLOW_SEALING,
         )
         .map_err(|error| snapshot_error(display_path, error))?,
@@ -376,7 +376,7 @@ fn unlinked_snapshot(
     expected_sha256: &str,
 ) -> Result<File, LocalRunnerError> {
     let temporary_path = std::env::temp_dir().join(format!(
-        ".paperclip-verified-launch-{}",
+        ".outpost-verified-launch-{}",
         Uuid::new_v4().simple()
     ));
     let mut writable = OpenOptions::new()
@@ -699,7 +699,7 @@ fn materialize_executable(
 ) -> Result<TemporaryExecutable, LocalRunnerError> {
     let directory = verified_executable_parent(artifact)?;
     let path = directory.join(format!(
-        ".paperclip-verified-executable-{}",
+        ".outpost-verified-executable-{}",
         Uuid::new_v4().simple()
     ));
     materialize_executable_at(artifact, path, None)
@@ -711,7 +711,7 @@ fn materialize_bound_executable(
 ) -> Result<TemporaryExecutable, LocalRunnerError> {
     let parent = verified_executable_parent(artifact)?;
     let directory = parent.join(format!(
-        ".paperclip-verified-executable-{}",
+        ".outpost-verified-executable-{}",
         Uuid::new_v4().simple()
     ));
     fs::create_dir(&directory).map_err(|error| snapshot_error(&artifact.display_path, error))?;
@@ -1092,7 +1092,7 @@ impl SupervisedProcess {
         if let Some(executable) = verified_runtime_executable {
             // Node reports a sealed memfd launch as `/memfd:... (deleted)` via
             // process.execPath. Give descriptor-loaded runtimes the inherited,
-            // authenticated executable path so their governed child launches
+            // authenticated executable path so their controlled child launches
             // can reopen the same immutable image instead of that dead alias.
             command.env(VERIFIED_RUNTIME_EXECUTABLE_ENV, executable);
         }
@@ -1508,12 +1508,12 @@ mod tests {
     ) -> (
         SupervisedProcess,
         PathBuf,
-        paperclip_process_table::ProcessEntry,
+        outpost_process_table::ProcessEntry,
         crate::process_lineage::host_orphans::MayOrphan,
     ) {
         let orphans = crate::process_lineage::host_orphans::may_orphan();
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-escaped-tool-{name}-{}-{}",
+            "outpost-escaped-tool-{name}-{}-{}",
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -1546,11 +1546,11 @@ mod tests {
                 .ok()
                 .and_then(|text| text.trim().parse::<i32>().ok())
             {
-                let job = paperclip_process_table::read(pid)
+                let job = outpost_process_table::read(pid)
                     .entry()
                     .expect("tool job is running");
                 // Wait until the wrapper has exited and the job is orphaned.
-                if paperclip_process_table::read(job.ppid)
+                if outpost_process_table::read(job.ppid)
                     .entry()
                     .is_none_or(|parent| parent.pgid != job.pgid)
                 {
@@ -1565,11 +1565,11 @@ mod tests {
     }
 
     fn assert_stopped_and_clean_up(
-        job: paperclip_process_table::ProcessEntry,
+        job: outpost_process_table::ProcessEntry,
         directory: &Path,
         orphans: crate::process_lineage::host_orphans::MayOrphan,
     ) {
-        let alive = paperclip_process_table::read(job.pid)
+        let alive = outpost_process_table::read(job.pid)
             .entry()
             .is_some_and(|current| current.started == job.started && !current.zombie);
         if alive {
@@ -1763,7 +1763,7 @@ mod tests {
         impl Fixture {
             fn new() -> Self {
                 let directory = std::env::temp_dir().join(format!(
-                    "paperclip-darwin-snapshot-{}",
+                    "outpost-darwin-snapshot-{}",
                     Uuid::new_v4().simple()
                 ));
                 fs::create_dir(&directory).unwrap();
@@ -1793,7 +1793,7 @@ mod tests {
                         entry
                             .file_name()
                             .to_string_lossy()
-                            .starts_with(".paperclip-verified-executable-")
+                            .starts_with(".outpost-verified-executable-")
                     })
                     .count()
             }
@@ -2022,7 +2022,7 @@ mod tests {
             .unwrap()
             .as_nanos();
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-commonjs-launch-{}-{nonce}",
+            "outpost-commonjs-launch-{}-{nonce}",
             std::process::id()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -2052,7 +2052,7 @@ mod tests {
             .unwrap()
             .as_nanos();
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-trusted-root-launch-{}-{nonce}",
+            "outpost-trusted-root-launch-{}-{nonce}",
             std::process::id()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -2098,7 +2098,7 @@ mod tests {
             .unwrap()
             .as_nanos();
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-executable-argument-launch-{}-{nonce}",
+            "outpost-executable-argument-launch-{}-{nonce}",
             std::process::id()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -2117,7 +2117,7 @@ mod tests {
             .file_name()
             .unwrap()
             .to_string_lossy()
-            .starts_with(".paperclip-verified-executable-"));
+            .starts_with(".outpost-verified-executable-"));
         assert_eq!(
             fs::symlink_metadata(&private_directory)
                 .unwrap()

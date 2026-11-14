@@ -12,12 +12,12 @@ import { googleWorkspaceEffectiveScopes, isGoogleWorkspaceScopeGrant } from "@ou
 import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, gte, ne } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { connectionGrants, companyMemberships, principalPermissionGrants, issueThreadInteractions, toolApplications, toolConnections, toolOauthStates } from "@outpost/db";
+import { connectionGrants, spaceMemberships, principalPermissionGrants, issueThreadInteractions, toolApplications, toolConnections, toolOauthStates } from "@outpost/db";
 import type { ConnectionGrantKind, ConnectToolAppResult } from "@outpost/shared";
 import { getConnectableAppDefinition, recommendedDefaultsForApp } from "@outpost/shared";
 import { badRequest, forbidden, HttpError, unprocessable } from "../../../errors.js";
 import { secretService } from "../../secrets.js";
-import { isPaperclipCloudConnectorStrategy, type PaperclipCloudConnector } from "../../paperclip-cloud-connector.js";
+import { isOutpostCloudConnectorStrategy, type OutpostCloudConnector } from "../../outpost-cloud-connector.js";
 
 import type { OAuthStateStore } from "./state.js";
 import type { OAuthCredentialStore } from "./credential-store.js";
@@ -29,12 +29,12 @@ import { groupedActions } from "../catalog/action-summary.js";
 
 type Dependencies = {
   now: () => Date;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   state: OAuthStateStore;
   refreshCatalog: RefreshConnectionCatalog;
   finishOAuthCatalogWithRecommendedDefaults: OAuthCatalogCompletion;
   store: Pick<OAuthCredentialStore, "createOrRotateOAuthSecret" | "syncCredentialBindings">;
-  currentCloudConnector: () => PaperclipCloudConnector | null;
+  currentCloudConnector: () => OutpostCloudConnector | null;
   syncGitHubGrantBindings: ReturnType<typeof createGitHubGrantContinuity>["syncGitHubGrantBindings"];
 };
 
@@ -42,7 +42,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
   const { now, getConnectionRow, state, store, refreshCatalog, finishOAuthCatalogWithRecommendedDefaults, currentCloudConnector } = dependencies;
   const { consumeOAuthState, validateOAuthState, rejectPendingOAuthInteraction } = state;
   const { createOrRotateOAuthSecret, syncCredentialBindings } = store;
-  async function completePaperclipCloudConnectorCallback(input: {
+  async function completeOutpostCloudConnectorCallback(input: {
     state: string;
     claimId?: string | null;
     error?: string | null;
@@ -54,7 +54,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
     const stateRow = await validateOAuthState(input.state, input.actor);
     let connection = await getConnectionRow(
       stateRow.connectionId,
-      stateRow.companyId,
+      stateRow.spaceId,
     );
     const preCloudCallbackLifecycle = {
       status: connection.status,
@@ -88,7 +88,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
           code:
             input.error === "access_denied"
               ? "oauth_authorization_denied"
-              : "paperclip_cloud_connector_failed",
+              : "outpost_cloud_connector_failed",
         },
       );
     }
@@ -101,7 +101,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
       throw unprocessable(
         `${providerName} connections through Outpost are not available on this instance yet`,
         {
-          code: "paperclip_cloud_connector_unavailable",
+          code: "outpost_cloud_connector_unavailable",
         },
       );
     }
@@ -109,7 +109,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
     const subjectAgentId = stateRow.subjectAgentId;
     if (
       !method ||
-      !isPaperclipCloudConnectorStrategy(method.oauthStrategy) ||
+      !isOutpostCloudConnectorStrategy(method.oauthStrategy) ||
       (!subjectUserId && !subjectAgentId)
     ) {
       throw badRequest(
@@ -124,7 +124,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
       : subjectUserId!;
     const credentials = await cloudConnector.claim({
       subject: connectorSubject,
-      companyId: stateRow.companyId,
+      spaceId: stateRow.spaceId,
       profile: profile.id,
       claimId: input.claimId,
       redemptionId: input.state,
@@ -168,24 +168,24 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
       // while the initiating user still holds connection-management authority.
       const [membership] = await tx
         .select({
-          id: companyMemberships.id,
-          membershipRole: companyMemberships.membershipRole,
+          id: spaceMemberships.id,
+          membershipRole: spaceMemberships.membershipRole,
         })
-        .from(companyMemberships)
+        .from(spaceMemberships)
         .where(
           and(
-            eq(companyMemberships.companyId, connection.companyId),
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, authorizingUserId),
-            eq(companyMemberships.status, "active"),
-            ne(companyMemberships.membershipRole, "viewer"),
+            eq(spaceMemberships.spaceId, connection.spaceId),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, authorizingUserId),
+            eq(spaceMemberships.status, "active"),
+            ne(spaceMemberships.membershipRole, "viewer"),
           ),
         )
         .limit(1)
         .for("update");
       if (!membership) {
         throw forbidden(
-          `Your company membership no longer permits connection changes. Restore non-viewer access before you connect ${providerName} again.`,
+          `Your space membership no longer permits connection changes. Restore non-viewer access before you connect ${providerName} again.`,
         );
       }
       if (subjectAgentId) {
@@ -201,7 +201,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
               .from(principalPermissionGrants)
               .where(
                 and(
-                  eq(principalPermissionGrants.companyId, connection.companyId),
+                  eq(principalPermissionGrants.spaceId, connection.spaceId),
                   eq(principalPermissionGrants.principalType, "user"),
                   eq(principalPermissionGrants.principalId, authorizingUserId),
                   eq(
@@ -245,7 +245,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
         .from(connectionGrants)
         .where(
           and(
-            eq(connectionGrants.companyId, connection.companyId),
+            eq(connectionGrants.spaceId, connection.spaceId),
             eq(connectionGrants.connectionId, connection.id),
             eq(connectionGrants.kind, grantKind),
             agentCredential
@@ -258,10 +258,10 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
         .limit(1)
         .for("update");
       await tx.select({ id: toolApplications.id }).from(toolApplications)
-        .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.companyId, connection.companyId)))
+        .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.spaceId, connection.spaceId)))
         .for("update");
       await tx.select({ id: toolConnections.id }).from(toolConnections)
-        .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.companyId, connection.companyId)))
+        .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, connection.spaceId)))
         .for("update");
       const existingRefs =
         existingCredentialGrant?.credentialSecretRefs ??
@@ -270,7 +270,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
           : connection.credentialSecretRefs);
       const accessRef = await createOrRotateOAuthSecret(
         {
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           connection,
           configPath: "oauth.access_token",
           label: `${providerName} access token`,
@@ -284,7 +284,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
       const refreshRef = refreshToken
         ? await createOrRotateOAuthSecret(
             {
-              companyId: connection.companyId,
+              spaceId: connection.spaceId,
               connection,
               configPath: "oauth.refresh_token",
               label: `${providerName} refresh token`,
@@ -312,7 +312,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
           name: githubMetadata?.login ?? providerName,
           externalId: credentials.subject,
           oauth: {
-            strategy: "paperclip_cloud_connector",
+            strategy: "outpost_cloud_connector",
             accessTokenExpiresAt: credentials.accessTokenExpiresAt,
             scopes: credentials.scopes,
             requestedScopes: stateRow.requestedScopes ?? undefined,
@@ -346,7 +346,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
           .where(eq(connectionGrants.id, existingCredentialGrant.id));
       } else {
         await tx.insert(connectionGrants).values({
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           connectionId: connection.id,
           kind: grantKind,
           subjectUserId: personalCredential ? subjectUserId : null,
@@ -360,7 +360,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
         ...connection.config,
         oauth: {
           ...oauthConfig(connection),
-          strategy: "paperclip_cloud_connector",
+          strategy: "outpost_cloud_connector",
           provider: galleryEntry?.slug,
           connectorProfile,
           connectorSubjectUserId: subjectUserId,
@@ -431,7 +431,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
         stateRow.interactionId &&
         linkedInteraction?.kind === "request_confirmation"
       ) {
-        await notifyIssueReviewState(tx, { companyId: connection.companyId, issueId: linkedInteraction.issueId });
+        await notifyIssueReviewState(tx, { spaceId: connection.spaceId, issueId: linkedInteraction.issueId });
         await tx
           .update(issueThreadInteractions)
           .set({
@@ -445,7 +445,7 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
       }
     });
     // The transaction above committed the connection's lifecycle write; a
-    // Paperclip Cloud connector callback is the managed variant of an OAuth
+    // Outpost Cloud connector callback is the managed variant of an OAuth
     // callback completion.
     emitConnectionUpdated(connection, preCloudCallbackLifecycle, "oauth_callback");
     // Binding registration is saved above before Cloud I/O. The continuity
@@ -472,12 +472,12 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
       : null;
     if (githubMetadata) {
       const [grant] = await db.select().from(connectionGrants).where(and(
-        eq(connectionGrants.companyId, connection.companyId), eq(connectionGrants.connectionId, connection.id),
+        eq(connectionGrants.spaceId, connection.spaceId), eq(connectionGrants.connectionId, connection.id),
         subjectAgentId ? and(eq(connectionGrants.kind, "agent"), eq(connectionGrants.subjectAgentId, subjectAgentId))
           : and(eq(connectionGrants.kind, "user"), eq(connectionGrants.subjectUserId, subjectUserId!)),
       )).limit(1);
       if (!grant) throw new Error("GitHub grant was not persisted");
-      await dependencies.syncGitHubGrantBindings(await getConnectionRow(connection.id, connection.companyId), grant, input.actor, credentials.accessToken);
+      await dependencies.syncGitHubGrantBindings(await getConnectionRow(connection.id, connection.spaceId), grant, input.actor, credentials.accessToken);
     }
     const activatedCatalogEntryIds = new Set(
       shouldFinalizeManagedDefaults
@@ -505,5 +505,5 @@ export function createCloudOAuthCallback(db: Db, dependencies: Dependencies) {
       auth: null,
     };
   }
-  return completePaperclipCloudConnectorCallback;
+  return completeOutpostCloudConnectorCallback;
 }

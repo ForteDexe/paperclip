@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, decisions, decisionTargetIssues, heartbeatRuns, issues, issueThreadInteractions } from "@outpost/db";
+import { agents, spaces, createDb, decisions, decisionTargetIssues, heartbeatRuns, issues, issueThreadInteractions } from "@outpost/db";
 import { decisionHistoryService, decodeDecisionHistoryCursor, decisionHistoryHref, decisionHistoryTarget, itemVerdictsHistoryLabel } from "../services/decision-history.js";
 import { documentService } from "../services/documents.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -34,38 +34,38 @@ const support = await getEmbeddedPostgresTestSupport();
   let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   beforeAll(async () => {
-    temp = await startEmbeddedPostgresTestDatabase("paperclip-decision-history-");
+    temp = await startEmbeddedPostgresTestDatabase("outpost-decision-history-");
     db = createDb(temp.connectionString);
   }, 30_000);
   afterAll(async () => { vi.unstubAllEnvs(); await temp?.cleanup(); });
 
   it("projects mixed review verdicts into history instead of generic answers", async () => {
-    const companyId = randomUUID(), issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Review history", issuePrefix: "VRD" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Reviewed outputs" });
-    await db.insert(issueThreadInteractions).values({ companyId, issueId, kind: "request_item_verdicts", status: "answered",
+    const spaceId = randomUUID(), issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Review history", issuePrefix: "VRD" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Reviewed outputs" });
+    await db.insert(issueThreadInteractions).values({ spaceId, issueId, kind: "request_item_verdicts", status: "answered",
       resolvedAt: new Date(), resolvedByUserId: "reviewer", payload: { version: 1, prompt: "Review outputs", items: [] },
       result: { version: 1, outcome: "resolved", complete: true, items: [
         { id: "copy", verdict: "approve", resolvedAt: new Date().toISOString() },
         { id: "art", verdict: "reject", resolvedAt: new Date().toISOString() },
         { id: "extra", verdict: "defer", resolvedAt: new Date().toISOString() },
       ] } });
-    const page = await decisionHistoryService(db).list(companyId, { actor: { type: "board", userId: "reviewer" }, userId: "reviewer" });
+    const page = await decisionHistoryService(db).list(spaceId, { actor: { type: "operator", userId: "reviewer" }, userId: "reviewer" });
     expect(page.items[0]?.label).toBe("1 approved · 1 rejected · 1 deferred");
   });
 
   it("returns a cross-task document receipt whose exact revision belongs to the target, not the origin", async () => {
-    const companyId = randomUUID(), originId = randomUUID(), documentOwnerId = randomUUID(), interactionId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Cross-task review", issuePrefix: "XDR" });
+    const spaceId = randomUUID(), originId = randomUUID(), documentOwnerId = randomUUID(), interactionId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Cross-task review", issuePrefix: "XDR" });
     await db.insert(issues).values([
-      { id: originId, companyId, identifier: "XDR-1", title: "Review in origin task" },
-      { id: documentOwnerId, companyId, identifier: "XDR-2", title: "Document owning task" },
+      { id: originId, spaceId, identifier: "XDR-1", title: "Review in origin task" },
+      { id: documentOwnerId, spaceId, identifier: "XDR-2", title: "Document owning task" },
     ]);
     const documents = documentService(db);
     const reviewed = (await documents.upsertIssueDocument({ issueId: documentOwnerId, key: "plan", title: "Reviewed plan", body: "Approved v1 body", format: "markdown", createdByUserId: "reviewer" })).document;
     await documents.upsertIssueDocument({ issueId: documentOwnerId, key: "plan", title: "Later plan", body: "Later v2 body", format: "markdown", baseRevisionId: reviewed.latestRevisionId, createdByUserId: "reviewer" });
-    await db.insert(issueThreadInteractions).values({ id: interactionId, companyId, issueId: originId, kind: "request_confirmation", status: "accepted", resolvedByUserId: "reviewer", resolvedAt: new Date(), payload: { version: 1, prompt: "Review the other task's plan", target: { type: "issue_document", issueId: documentOwnerId, documentId: reviewed.id, key: "plan", revisionId: reviewed.latestRevisionId } } });
-    const page = await decisionHistoryService(db).list(companyId, { actor: { type: "board", userId: "reviewer" }, userId: "reviewer" });
+    await db.insert(issueThreadInteractions).values({ id: interactionId, spaceId, issueId: originId, kind: "request_confirmation", status: "accepted", resolvedByUserId: "reviewer", resolvedAt: new Date(), payload: { version: 1, prompt: "Review the other task's plan", target: { type: "issue_document", issueId: documentOwnerId, documentId: reviewed.id, key: "plan", revisionId: reviewed.latestRevisionId } } });
+    const page = await decisionHistoryService(db).list(spaceId, { actor: { type: "operator", userId: "reviewer" }, userId: "reviewer" });
     expect(page.items).toHaveLength(1);
     const receipt = page.items[0]!;
     expect(receipt.issueId).toBe(originId);
@@ -76,26 +76,26 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("filters item reviews by recorded verdicts before pagination and keeps mixed reviews in both outcomes", async () => {
-    const companyId = randomUUID(), issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Verdict filters", issuePrefix: "VFL" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Review outputs" });
+    const spaceId = randomUUID(), issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Verdict filters", issuePrefix: "VFL" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Review outputs" });
     for (const [title, verdicts] of [
       ["Approved outputs", ["approve", "approve"]], ["Rejected outputs", ["reject"]],
       ["Mixed outputs", ["approve", "reject", "defer"]], ["Deferred outputs", ["defer"]],
     ] as const) {
-      await db.insert(issueThreadInteractions).values({ companyId, issueId, title,
+      await db.insert(issueThreadInteractions).values({ spaceId, issueId, title,
         kind: "request_item_verdicts", status: "answered", resolvedAt: new Date(),
         payload: { version: 1, prompt: "Review", items: [] },
         result: { version: 1, outcome: "resolved", complete: true,
           items: verdicts.map((verdict, index) => ({ id: String(index), verdict, resolvedAt: new Date().toISOString() })) } });
     }
     await db.insert(issueThreadInteractions).values([
-      { companyId, issueId, title: "Question answered", kind: "ask_user_questions", status: "answered", resolvedAt: new Date(), payload: { version: 1, questions: [] } },
-      { companyId, issueId, title: "Confirmation approved", kind: "request_confirmation", status: "accepted", resolvedAt: new Date(), payload: { version: 1, prompt: "Approve?" } },
-      { companyId, issueId, title: "Confirmation rejected", kind: "request_confirmation", status: "rejected", resolvedAt: new Date(), payload: { version: 1, prompt: "Approve?" } },
+      { spaceId, issueId, title: "Question answered", kind: "ask_user_questions", status: "answered", resolvedAt: new Date(), payload: { version: 1, questions: [] } },
+      { spaceId, issueId, title: "Confirmation approved", kind: "request_confirmation", status: "accepted", resolvedAt: new Date(), payload: { version: 1, prompt: "Approve?" } },
+      { spaceId, issueId, title: "Confirmation rejected", kind: "request_confirmation", status: "rejected", resolvedAt: new Date(), payload: { version: 1, prompt: "Approve?" } },
     ]);
     const service = decisionHistoryService(db);
-    const options = { actor: { type: "board" as const, userId: "reviewer" }, userId: "reviewer" };
+    const options = { actor: { type: "operator" as const, userId: "reviewer" }, userId: "reviewer" };
     for (const [outcome, titles] of [
       ["accepted", ["Approved outputs", "Mixed outputs", "Confirmation approved"]],
       ["rejected", ["Rejected outputs", "Mixed outputs", "Confirmation rejected"]],
@@ -103,58 +103,58 @@ const support = await getEmbeddedPostgresTestSupport();
     ] as const) {
       const found = []; let cursor: string | undefined;
       do {
-        const page = await service.list(companyId, { ...options, outcome, limit: 1, cursor });
+        const page = await service.list(spaceId, { ...options, outcome, limit: 1, cursor });
         found.push(...page.items.map(item => item.title));
         cursor = page.nextCursor ?? undefined;
       } while (cursor);
       expect(new Set(found)).toEqual(new Set(titles));
       expect(found).toHaveLength(titles.length);
     }
-    expect((await service.list(companyId, options)).items).toHaveLength(7);
+    expect((await service.list(spaceId, options)).items).toHaveLength(7);
   });
 
-  it("paginates both sources without losing answered questions; filters before limiting; isolates companies and private tasks", async () => {
+  it("paginates both sources without losing answered questions; filters before limiting; isolates spaces and private tasks", async () => {
     vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
-    const companyId = randomUUID(), otherCompanyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), hiddenId = randomUUID(), otherIssueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values([{ id: companyId, name: "History", issuePrefix: "HIS" }, { id: otherCompanyId, name: "Other", issuePrefix: "OTH" }]);
-    await db.insert(agents).values({ id: agentId, companyId, name: "Writer", role: "engineer", adapterType: "codex_local" });
+    const spaceId = randomUUID(), otherSpaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), hiddenId = randomUUID(), otherIssueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values([{ id: spaceId, name: "History", issuePrefix: "HIS" }, { id: otherSpaceId, name: "Other", issuePrefix: "OTH" }]);
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Writer", role: "engineer", adapterType: "codex_local" });
     await db.insert(issues).values([
-      { id: issueId, companyId, identifier: "HIS-1", title: "Launch copy" },
-      { id: hiddenId, companyId, identifier: "HIS-2", title: "Private launch", visibility: "private", createdByUserId: "somebody-else" },
-      { id: otherIssueId, companyId: otherCompanyId, identifier: "OTH-1", title: "Other company" },
+      { id: issueId, spaceId, identifier: "HIS-1", title: "Launch copy" },
+      { id: hiddenId, spaceId, identifier: "HIS-2", title: "Private launch", visibility: "private", createdByUserId: "somebody-else" },
+      { id: otherIssueId, spaceId: otherSpaceId, identifier: "OTH-1", title: "Other space" },
     ]);
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId });
     const at = new Date("2026-10-26T12:00:00.000Z");
     const copy = randomUUID(), visual = randomUUID(), question = randomUUID();
     await db.insert(issueThreadInteractions).values([
-      { id: copy, companyId, issueId, kind: "request_confirmation", status: "accepted", title: "Copy approved", createdByAgentId: agentId, resolvedByUserId: "reviewer", resolvedAt: at, payload: { version: 1, prompt: "Approve?", target: { type: "issue_document", key: "copy", revisionId: randomUUID() } }, result: { version: 1, outcome: "accepted" } },
-      { id: question, companyId, issueId, kind: "ask_user_questions", status: "answered", title: "Which channels?", resolvedAt: at, payload: { version: 1, questions: [] }, result: { version: 1, answers: [] } },
-      { companyId, issueId: hiddenId, kind: "ask_user_questions", status: "answered", title: "Secret", resolvedAt: at, payload: { version: 1, questions: [] } },
-      { companyId: otherCompanyId, issueId: otherIssueId, kind: "ask_user_questions", status: "answered", title: "Other secret", resolvedAt: at, payload: { version: 1, questions: [] } },
+      { id: copy, spaceId, issueId, kind: "request_confirmation", status: "accepted", title: "Copy approved", createdByAgentId: agentId, resolvedByUserId: "reviewer", resolvedAt: at, payload: { version: 1, prompt: "Approve?", target: { type: "issue_document", key: "copy", revisionId: randomUUID() } }, result: { version: 1, outcome: "accepted" } },
+      { id: question, spaceId, issueId, kind: "ask_user_questions", status: "answered", title: "Which channels?", resolvedAt: at, payload: { version: 1, questions: [] }, result: { version: 1, answers: [] } },
+      { spaceId, issueId: hiddenId, kind: "ask_user_questions", status: "answered", title: "Secret", resolvedAt: at, payload: { version: 1, questions: [] } },
+      { spaceId: otherSpaceId, issueId: otherIssueId, kind: "ask_user_questions", status: "answered", title: "Other secret", resolvedAt: at, payload: { version: 1, questions: [] } },
     ]);
-    await db.insert(decisions).values({ id: visual, companyId, originIssueId: issueId, originAgentId: agentId, originRunId: runId, title: "Visual review", body: "Choose", options: [{ id: "yes", label: "Visual approved", effects: [] }], chosenOptionId: "yes", status: "decided", decidedAt: at, expiresAt: at, decidedByUserId: "reviewer", signedSpec: "test", targetSnapshots: {} });
+    await db.insert(decisions).values({ id: visual, spaceId, originIssueId: issueId, originAgentId: agentId, originRunId: runId, title: "Visual review", body: "Choose", options: [{ id: "yes", label: "Visual approved", effects: [] }], chosenOptionId: "yes", status: "decided", decidedAt: at, expiresAt: at, decidedByUserId: "reviewer", signedSpec: "test", targetSnapshots: {} });
     // PostgreSQL now() can have more precision than the JSON Date cursor.
     await db.execute(sql`update ${issueThreadInteractions} set resolved_at = '2026-10-26T12:00:00.123456Z'::timestamptz where id = ${copy}`);
     await db.execute(sql`update ${issueThreadInteractions} set resolved_at = '2026-10-26T12:00:00.123789Z'::timestamptz where id = ${question}`);
     const service = decisionHistoryService(db);
-    const options = { actor: { type: "board" as const, userId: "reviewer", ignoreInstanceAdmin: true, authorizingUserId: "reviewer" }, userId: "reviewer", limit: 1 };
+    const options = { actor: { type: "operator" as const, userId: "reviewer", ignoreInstanceAdmin: true, authorizingUserId: "reviewer" }, userId: "reviewer", limit: 1 };
     const result = [];
     let cursor: string | undefined;
     do {
-      const page = await service.list(companyId, { ...options, cursor });
+      const page = await service.list(spaceId, { ...options, cursor });
       result.push(...page.items);
       cursor = page.nextCursor ?? undefined;
     } while (cursor);
     expect(new Set(result.map((item) => item.sourceId))).toEqual(new Set([copy, visual, question]));
     expect(result).toHaveLength(3);
     expect(result.find((item) => item.sourceId === question)?.label).toBe("Answers recorded");
-    const filtered = await service.list(companyId, { ...options, search: "channels", sort: "oldest" });
+    const filtered = await service.list(spaceId, { ...options, search: "channels", sort: "oldest" });
     expect(filtered.items.map((item) => item.sourceId)).toEqual([question]);
-    expect((await service.list(companyId, { ...options, limit: 100, since: "2026-10-26T12:00:00.100Z" })).items).toHaveLength(2);
-    expect((await service.list(companyId, { ...options, issueIds: [] })).items).toEqual([]);
+    expect((await service.list(spaceId, { ...options, limit: 100, since: "2026-10-26T12:00:00.100Z" })).items).toHaveLength(2);
+    expect((await service.list(spaceId, { ...options, issueIds: [] })).items).toEqual([]);
     // A visible origin does not grant access to a private Decision-v1 target.
-    await db.insert(decisionTargetIssues).values({ companyId, decisionId: visual, issueId: hiddenId });
-    const secured = await service.list(companyId, { ...options, limit: 100 });
+    await db.insert(decisionTargetIssues).values({ spaceId, decisionId: visual, issueId: hiddenId });
+    const secured = await service.list(spaceId, { ...options, limit: 100 });
     expect(secured.items.map((item) => item.sourceId)).not.toContain(visual);
   });
 });

@@ -5,7 +5,7 @@ import {
   activityLog,
   agentWakeupRequests,
   agents,
-  companies,
+  spaces,
   createDb,
   documentRevisions,
   documents,
@@ -37,14 +37,14 @@ if (!embeddedPostgresSupport.supported) {
 
 async function waitForIssueRun(
   service: ActivityService,
-  companyId: string,
+  spaceId: string,
   issueId: string,
   predicate: (run: IssueRun) => boolean,
 ) {
   const deadline = Date.now() + 2_000;
   let latestRuns: IssueRun[] = [];
   while (Date.now() < deadline) {
-    latestRuns = await service.runsForIssue(companyId, issueId);
+    latestRuns = await service.runsForIssue(spaceId, issueId);
     const run = latestRuns.find(predicate);
     if (run) return { run, runs: latestRuns };
     await new Promise((resolve) => setTimeout(resolve, 25));
@@ -57,7 +57,7 @@ describeEmbeddedPostgres("activity service", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-activity-service-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-activity-service-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -71,7 +71,7 @@ describeEmbeddedPostgres("activity service", () => {
     await db.delete(heartbeatRuns);
     await db.delete(agentWakeupRequests);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -79,12 +79,12 @@ describeEmbeddedPostgres("activity service", () => {
   });
 
   it.each(["standard", "planning", "ask"] as const)("LCA-05 persists explicit %s mode across wording edits and uses it in ledger backfill", async (workMode) => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Mode fixture", issuePrefix: `M${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Writer", role: "engineer", status: "idle", adapterType: "codex_local" });
+    await db.insert(spaces).values({ id: spaceId, name: "Mode fixture", issuePrefix: `M${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Writer", role: "engineer", status: "idle", adapterType: "codex_local" });
     const service = issueService(db);
-    const task = await service.create(companyId, { title: "Making a plan", description: "Create a report and research proposal.", status: "in_progress", assigneeAgentId: agentId, ...(workMode === "standard" ? {} : { workMode }) });
+    const task = await service.create(spaceId, { title: "Making a plan", description: "Create a report and research proposal.", status: "in_progress", assigneeAgentId: agentId, ...(workMode === "standard" ? {} : { workMode }) });
     expect(task.workMode).toBe(workMode);
     for (const prose of [
       { title: "Implement exporter", description: "Change the code now." },
@@ -94,9 +94,9 @@ describeEmbeddedPostgres("activity service", () => {
       expect((await service.getById(task.id))?.workMode).toBe(workMode);
     }
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "succeeded", contextSnapshot: { issueId: task.id }, resultJson: { summary: "I will inspect the repository next." } });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "succeeded", contextSnapshot: { issueId: task.id }, resultJson: { summary: "I will inspect the repository next." } });
     const expected = workMode === "planning" ? "advanced" : "plan_only";
-    await waitForIssueRun(activityService(db), companyId, task.id, run => run.runId === runId && run.livenessState === expected);
+    await waitForIssueRun(activityService(db), spaceId, task.id, run => run.runId === runId && run.livenessState === expected);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)))[0].livenessState).toBe(expected);
     if (workMode === "standard") {
       await documentService(db).upsertIssueDocument({ issueId: task.id, key: "plan", title: "Requested plan", format: "markdown", body: "1. Inspect files.\n2. Implement the exporter.", createdByAgentId: agentId });
@@ -108,64 +108,64 @@ describeEmbeddedPostgres("activity service", () => {
     expect((await service.getById(task.id))?.workMode).toBe(nextMode);
   });
 
-  it("limits company activity lists", async () => {
-    const companyId = randomUUID();
+  it("limits space activity lists", async () => {
+    const spaceId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(activityLog).values([
       {
-        companyId,
+        spaceId,
         actorType: "system",
         actorId: "system",
         action: "test.oldest",
-        entityType: "company",
-        entityId: companyId,
+        entityType: "space",
+        entityId: spaceId,
         createdAt: new Date("2026-04-21T10:00:00.000Z"),
       },
       {
-        companyId,
+        spaceId,
         actorType: "system",
         actorId: "system",
         action: "test.middle",
-        entityType: "company",
-        entityId: companyId,
+        entityType: "space",
+        entityId: spaceId,
         createdAt: new Date("2026-04-21T11:00:00.000Z"),
       },
       {
-        companyId,
+        spaceId,
         actorType: "system",
         actorId: "system",
         action: "test.newest",
-        entityType: "company",
-        entityId: companyId,
+        entityType: "space",
+        entityId: spaceId,
         createdAt: new Date("2026-04-21T12:00:00.000Z"),
       },
     ]);
 
-    const result = await activityService(db).list({ companyId, limit: 2 });
+    const result = await activityService(db).list({ spaceId, limit: 2 });
 
     expect(result.map((event) => event.action)).toEqual(["test.newest", "test.middle"]);
   });
 
-  it("filters company activity rows whose entity is a private issue", async () => {
-    const companyId = randomUUID();
+  it("filters space activity rows whose entity is a private issue", async () => {
+    const spaceId = randomUUID();
     const privateIssueId = randomUUID();
     const openIssueId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Private activity",
-      issuePrefix: `A${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      issuePrefix: `A${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
     });
     await db.insert(issues).values([
       {
         id: privateIssueId,
-        companyId,
+        spaceId,
         title: "Confidential activity",
         status: "todo",
         priority: "medium",
@@ -175,26 +175,26 @@ describeEmbeddedPostgres("activity service", () => {
       },
       {
         id: openIssueId,
-        companyId,
+        spaceId,
         title: "Open activity",
         status: "todo",
         priority: "medium",
       },
     ]);
     await db.insert(activityLog).values([
-      { companyId, actorType: "system", actorId: "system", action: "private.changed", entityType: "issue", entityId: privateIssueId },
-      { companyId, actorType: "system", actorId: "system", action: "open.changed", entityType: "issue", entityId: openIssueId },
+      { spaceId, actorType: "system", actorId: "system", action: "private.changed", entityType: "issue", entityId: privateIssueId },
+      { spaceId, actorType: "system", actorId: "system", action: "open.changed", entityType: "issue", entityId: openIssueId },
     ]);
     const actor = {
-      type: "board" as const,
+      type: "operator" as const,
       userId: "non-member",
-      companyIds: [companyId],
+      spaceIds: [spaceId],
       source: "session" as const,
       isInstanceAdmin: false,
     };
 
     const rows = await activityService(db).list({
-      companyId,
+      spaceId,
       readCondition: await issueReadSqlCondition(db, actor),
     });
     expect(rows.map((row) => row.action)).toContain("open.changed");
@@ -202,22 +202,22 @@ describeEmbeddedPostgres("activity service", () => {
   });
 
   it.each([null, "native_provider_model_rejected", "adapter_failed"])("returns compact issue runs with bounded model rejection details: %s", async (errorCode) => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
     const runId = randomUUID();
     const wakeupRequestId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "running",
@@ -229,7 +229,7 @@ describeEmbeddedPostgres("activity service", () => {
 
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Summarize a completed run",
       status: "done",
       priority: "medium",
@@ -237,12 +237,12 @@ describeEmbeddedPostgres("activity service", () => {
     });
 
     await db.insert(agentWakeupRequests).values({
-      id: wakeupRequestId, companyId, agentId, source: "issue", status: "claimed",
+      id: wakeupRequestId, spaceId, agentId, source: "issue", status: "claimed",
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
       wakeupRequestId,
-      companyId,
+      spaceId,
       agentId,
       scopeKind: "issue",
       issueId,
@@ -277,7 +277,7 @@ describeEmbeddedPostgres("activity service", () => {
       nextAction: "Review the completed output.",
     });
 
-    const runs = await activityService(db).runsForIssue(companyId, issueId);
+    const runs = await activityService(db).runsForIssue(spaceId, issueId);
 
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({
@@ -325,14 +325,14 @@ describeEmbeddedPostgres("activity service", () => {
     expect(runs[0]).not.toHaveProperty("contextSnapshot");
   });
 
-  it.each(["requested", "acknowledged", "pending_native", "missing_native", "wrong_run", "wrong_company",
+  it.each(["requested", "acknowledged", "pending_native", "missing_native", "wrong_run", "wrong_space",
     "malformed_execution", "null_execution", "malformed_native"] as const)(
     "projects only bounded, owner-matched Stop evidence in issue history: %s", async proof => {
-      const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-      await db.insert(companies).values({ id: companyId, name: "Stop history", issuePrefix: `S${companyId.slice(0, 6)}` });
-      await db.insert(agents).values({ id: agentId, companyId, name: "Stopped runner", adapterType: "process" });
-      await db.insert(issues).values({ id: issueId, companyId, title: "Stop the current run", assigneeAgentId: agentId });
-      const native = { schema: "outpost.native-cancellation.v1", runId, companyId,
+      const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+      await db.insert(spaces).values({ id: spaceId, name: "Stop history", issuePrefix: `S${spaceId.slice(0, 6)}` });
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Stopped runner", adapterType: "process" });
+      await db.insert(issues).values({ id: issueId, spaceId, title: "Stop the current run", assigneeAgentId: agentId });
+      const native = { schema: "outpost.native-cancellation.v1", runId, spaceId,
         dispatchState: proof === "pending_native" ? "pending" : "acknowledged",
         intentAuditId: "private-stop-proof", effects: ["private-stop-proof"], secret: "private-stop-proof" };
       const result: Record<string, unknown> = {
@@ -342,22 +342,22 @@ describeEmbeddedPostgres("activity service", () => {
       };
       if (proof === "missing_native") delete result.nativeCancellation;
       if (proof === "wrong_run") native.runId = randomUUID();
-      if (proof === "wrong_company") native.companyId = randomUUID();
+      if (proof === "wrong_space") native.spaceId = randomUUID();
       if (proof === "malformed_native") result.nativeCancellation = { ...native, dispatchState: { secret: "private-stop-proof" } };
       if (proof === "malformed_execution") result.executionCancellation = { state: { secret: "private-stop-proof" } };
       if (proof === "null_execution") result.executionCancellation = null;
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, scopeKind: "issue",
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, scopeKind: "issue",
         nativeIssueId: issueId, runtimeMode: "native", status: "cancelled", finishedAt: new Date(),
         contextSnapshot: { issueId }, livenessState: "advanced", resultJson: result });
 
-      const rows = await activityService(db).runsForIssue(companyId, issueId);
+      const rows = await activityService(db).runsForIssue(spaceId, issueId);
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({ runId, runtimeMode: "native", status: "cancelled" });
       expect(rows[0]!.resultJson).toEqual({
         executionCancellation: { state: proof === "requested" ? "requested"
           : proof === "malformed_execution" || proof === "null_execution" ? "unknown" : "acknowledged" },
-        ...(["missing_native", "wrong_run", "wrong_company", "malformed_native"].includes(proof) ? {} : {
-          nativeCancellation: { schema: "outpost.native-cancellation.v1", runId, companyId,
+        ...(["missing_native", "wrong_run", "wrong_space", "malformed_native"].includes(proof) ? {} : {
+          nativeCancellation: { schema: "outpost.native-cancellation.v1", runId, spaceId,
             dispatchState: proof === "pending_native" ? "pending" : "acknowledged" },
         }),
       });
@@ -373,37 +373,37 @@ describeEmbeddedPostgres("activity service", () => {
     ["boolean", true, null],
     ["number", 40001, null],
   ] as const)("projects only a closed-shape failure cause in issue history: %s", async (_case, stored, expected) => {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Failure cause", issuePrefix: `F${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Failing runner", adapterType: "process" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Fail with a cause", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, scopeKind: "issue", status: "failed",
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Failure cause", issuePrefix: `F${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Failing runner", adapterType: "process" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Fail with a cause", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, scopeKind: "issue", status: "failed",
       errorCode: "adapter_failed", finishedAt: new Date(), contextSnapshot: { issueId }, livenessState: "failed",
       resultJson: { stopReason: "adapter_failed", ...(stored === undefined ? {} : { failureCause: stored }) } });
 
-    const [row] = await activityService(db).runsForIssue(companyId, issueId);
+    const [row] = await activityService(db).runsForIssue(spaceId, issueId);
     expect(row).toMatchObject({ runId, errorCode: "adapter_failed", failureCause: expected });
     expect(row!.resultJson).toEqual({ stopReason: "adapter_failed" });
     expect(JSON.stringify(row)).not.toContain("secret");
   });
 
   it("backfills missing liveness for completed issue runs before returning the ledger", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
     const runId = randomUUID();
     const completedAt = new Date("2026-04-18T20:04:00.000Z");
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -415,7 +415,7 @@ describeEmbeddedPostgres("activity service", () => {
 
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Fix run ledger",
       description: "Make the run ledger answer whether a run advanced.",
       status: "done",
@@ -426,7 +426,7 @@ describeEmbeddedPostgres("activity service", () => {
 
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       scopeKind: "issue",
       issueId,
@@ -445,7 +445,7 @@ describeEmbeddedPostgres("activity service", () => {
     });
 
     await db.insert(issueComments).values({
-      companyId,
+      spaceId,
       issueId,
       authorAgentId: agentId,
       createdByRunId: runId,
@@ -456,7 +456,7 @@ describeEmbeddedPostgres("activity service", () => {
     const service = activityService(db);
     const { run, runs } = await waitForIssueRun(
       service,
-      companyId,
+      spaceId,
       issueId,
       (entry) => entry.runId === runId && entry.livenessState === "completed",
     );
@@ -481,7 +481,7 @@ describeEmbeddedPostgres("activity service", () => {
   });
 
   it("does not backfill document evidence from a different run", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
     const runId = randomUUID();
@@ -490,16 +490,16 @@ describeEmbeddedPostgres("activity service", () => {
     const revisionId = randomUUID();
     const createdAt = new Date("2026-04-18T20:08:00.000Z");
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -511,7 +511,7 @@ describeEmbeddedPostgres("activity service", () => {
 
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Fix run ledger",
       description: "Make the run ledger answer whether a run advanced.",
       status: "in_progress",
@@ -522,7 +522,7 @@ describeEmbeddedPostgres("activity service", () => {
     await db.insert(heartbeatRuns).values([
       {
         id: runId,
-        companyId,
+        spaceId,
         agentId,
         scopeKind: "issue",
         issueId,
@@ -539,7 +539,7 @@ describeEmbeddedPostgres("activity service", () => {
       },
       {
         id: otherRunId,
-        companyId,
+        spaceId,
         agentId,
         scopeKind: "issue",
         issueId,
@@ -558,7 +558,7 @@ describeEmbeddedPostgres("activity service", () => {
 
     await db.insert(documents).values({
       id: documentId,
-      companyId,
+      spaceId,
       title: "Plan",
       format: "markdown",
       latestBody: "# Plan\n\n- Inspect files",
@@ -572,7 +572,7 @@ describeEmbeddedPostgres("activity service", () => {
 
     await db.insert(documentRevisions).values({
       id: revisionId,
-      companyId,
+      spaceId,
       documentId,
       revisionNumber: 1,
       title: "Plan",
@@ -584,7 +584,7 @@ describeEmbeddedPostgres("activity service", () => {
     });
 
     await db.insert(issueDocuments).values({
-      companyId,
+      spaceId,
       issueId,
       documentId,
       key: "plan",
@@ -595,7 +595,7 @@ describeEmbeddedPostgres("activity service", () => {
     const service = activityService(db);
     const { run: backfilledRun } = await waitForIssueRun(
       service,
-      companyId,
+      spaceId,
       issueId,
       (entry) => entry.runId === runId && entry.livenessState === "plan_only",
     );
@@ -609,7 +609,7 @@ describeEmbeddedPostgres("activity service", () => {
   });
 
   it("does not treat continuation summary revisions as concrete backfill evidence", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
     const runId = randomUUID();
@@ -617,16 +617,16 @@ describeEmbeddedPostgres("activity service", () => {
     const revisionId = randomUUID();
     const createdAt = new Date("2026-04-18T20:12:00.000Z");
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -638,7 +638,7 @@ describeEmbeddedPostgres("activity service", () => {
 
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Fix run ledger",
       description: "Make the run ledger answer whether a run advanced.",
       status: "in_progress",
@@ -648,7 +648,7 @@ describeEmbeddedPostgres("activity service", () => {
 
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       scopeKind: "issue",
       issueId,
@@ -666,7 +666,7 @@ describeEmbeddedPostgres("activity service", () => {
 
     await db.insert(documents).values({
       id: documentId,
-      companyId,
+      spaceId,
       title: "Continuation Summary",
       format: "markdown",
       latestBody: "# Continuation Summary",
@@ -680,7 +680,7 @@ describeEmbeddedPostgres("activity service", () => {
 
     await db.insert(documentRevisions).values({
       id: revisionId,
-      companyId,
+      spaceId,
       documentId,
       revisionNumber: 1,
       title: "Continuation Summary",
@@ -692,7 +692,7 @@ describeEmbeddedPostgres("activity service", () => {
     });
 
     await db.insert(issueDocuments).values({
-      companyId,
+      spaceId,
       issueId,
       documentId,
       key: ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY,
@@ -703,7 +703,7 @@ describeEmbeddedPostgres("activity service", () => {
     const service = activityService(db);
     const { run: backfilledRun } = await waitForIssueRun(
       service,
-      companyId,
+      spaceId,
       issueId,
       (entry) => entry.runId === runId && entry.livenessState === "plan_only",
     );
@@ -718,18 +718,18 @@ describeEmbeddedPostgres("activity service", () => {
 
   describe("run liveness backfill", () => {
     async function seedIssue() {
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const agentId = randomUUID();
       const issueId = randomUUID();
-      await db.insert(companies).values({ id: companyId, name: "Backfill", issuePrefix: `B${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}` });
-      await db.insert(agents).values({ id: agentId, companyId, name: "Coder", role: "engineer", status: "idle", adapterType: "codex_local" });
-      await db.insert(issues).values({ id: issueId, companyId, title: "Backfill target", status: "done", assigneeAgentId: agentId });
-      return { companyId, agentId, issueId };
+      await db.insert(spaces).values({ id: spaceId, name: "Backfill", issuePrefix: `B${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}` });
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Coder", role: "engineer", status: "idle", adapterType: "codex_local" });
+      await db.insert(issues).values({ id: issueId, spaceId, title: "Backfill target", status: "done", assigneeAgentId: agentId });
+      return { spaceId, agentId, issueId };
     }
 
-    async function insertMissingRun(companyId: string, agentId: string, contextSnapshot: Record<string, unknown>, status = "succeeded") {
+    async function insertMissingRun(spaceId: string, agentId: string, contextSnapshot: Record<string, unknown>, status = "succeeded") {
       const runId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status, contextSnapshot, livenessState: null });
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status, contextSnapshot, livenessState: null });
       return runId;
     }
 
@@ -738,10 +738,10 @@ describeEmbeddedPostgres("activity service", () => {
       return runIds.map((id) => rows.find((row) => row.id === id)?.livenessState ?? null);
     }
 
-    async function waitForLiveness(service: ActivityService, companyId: string, issueId: string, runIds: string[]) {
+    async function waitForLiveness(service: ActivityService, spaceId: string, issueId: string, runIds: string[]) {
       const deadline = performance.now() + 3_000;
       while (performance.now() < deadline) {
-        await service.runsForIssue(companyId, issueId);
+        await service.runsForIssue(spaceId, issueId);
         if ((await livenessOf(runIds)).every((state) => state !== null)) {
           // Let the pass finish its bookkeeping after the last update.
           await new Promise((resolve) => setTimeout(resolve, 50));
@@ -753,30 +753,30 @@ describeEmbeddedPostgres("activity service", () => {
     }
 
     it("backfills only this issue's runs, found by context or by issue activity", async () => {
-      const { companyId, agentId, issueId } = await seedIssue();
-      const viaContext = await insertMissingRun(companyId, agentId, { issueId });
-      const viaActivity = await insertMissingRun(companyId, agentId, {}, "failed");
-      await db.insert(activityLog).values({ companyId, actorType: "agent", actorId: agentId, action: "issue.updated",
+      const { spaceId, agentId, issueId } = await seedIssue();
+      const viaContext = await insertMissingRun(spaceId, agentId, { issueId });
+      const viaActivity = await insertMissingRun(spaceId, agentId, {}, "failed");
+      await db.insert(activityLog).values({ spaceId, actorType: "agent", actorId: agentId, action: "issue.updated",
         entityType: "issue", entityId: issueId, runId: viaActivity });
-      const running = await insertMissingRun(companyId, agentId, { issueId }, "running");
-      const otherIssueRun = await insertMissingRun(companyId, agentId, { issueId: randomUUID() });
+      const running = await insertMissingRun(spaceId, agentId, { issueId }, "running");
+      const otherIssueRun = await insertMissingRun(spaceId, agentId, { issueId: randomUUID() });
       const other = await seedIssue();
-      const otherCompanyRun = await insertMissingRun(other.companyId, other.agentId, { issueId });
+      const otherSpaceRun = await insertMissingRun(other.spaceId, other.agentId, { issueId });
 
-      await waitForLiveness(activityService(db), companyId, issueId, [viaContext, viaActivity]);
+      await waitForLiveness(activityService(db), spaceId, issueId, [viaContext, viaActivity]);
 
-      expect(await livenessOf([running, otherIssueRun, otherCompanyRun])).toEqual([null, null, null]);
+      expect(await livenessOf([running, otherIssueRun, otherSpaceRun])).toEqual([null, null, null]);
     });
 
     it("does not repeat the lookup for a clean issue until the skip window ends", async () => {
-      const { companyId, agentId, issueId } = await seedIssue();
-      const first = await insertMissingRun(companyId, agentId, { issueId });
+      const { spaceId, agentId, issueId } = await seedIssue();
+      const first = await insertMissingRun(spaceId, agentId, { issueId });
       const service = activityService(db);
-      await waitForLiveness(service, companyId, issueId, [first]);
+      await waitForLiveness(service, spaceId, issueId, [first]);
 
-      const late = await insertMissingRun(companyId, agentId, { issueId });
+      const late = await insertMissingRun(spaceId, agentId, { issueId });
       for (let read = 0; read < 3; read++) {
-        await service.runsForIssue(companyId, issueId);
+        await service.runsForIssue(spaceId, issueId);
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       expect(await livenessOf([late])).toEqual([null]);
@@ -784,29 +784,29 @@ describeEmbeddedPostgres("activity service", () => {
       const now = Date.now();
       const clock = vi.spyOn(Date, "now").mockReturnValue(now + 11 * 60_000);
       try {
-        await waitForLiveness(service, companyId, issueId, [late]);
+        await waitForLiveness(service, spaceId, issueId, [late]);
       } finally {
         clock.mockRestore();
       }
     });
 
     it("keeps backfilling on later reads while an issue has more than one batch", async () => {
-      const { companyId, agentId, issueId } = await seedIssue();
+      const { spaceId, agentId, issueId } = await seedIssue();
       const runIds: string[] = [];
-      for (let index = 0; index < 25; index++) runIds.push(await insertMissingRun(companyId, agentId, { issueId }));
+      for (let index = 0; index < 25; index++) runIds.push(await insertMissingRun(spaceId, agentId, { issueId }));
 
-      await waitForLiveness(activityService(db), companyId, issueId, runIds);
+      await waitForLiveness(activityService(db), spaceId, issueId, runIds);
     });
 
     it("leaves the backfill to the task page when a read skips it", async () => {
-      const { companyId, agentId, issueId } = await seedIssue();
-      const runId = await insertMissingRun(companyId, agentId, { issueId });
+      const { spaceId, agentId, issueId } = await seedIssue();
+      const runId = await insertMissingRun(spaceId, agentId, { issueId });
       const service = activityService(db);
-      await service.runsForIssue(companyId, issueId, null, 2, undefined, { skipLivenessBackfill: true });
+      await service.runsForIssue(spaceId, issueId, null, 2, undefined, { skipLivenessBackfill: true });
       await new Promise((resolve) => setTimeout(resolve, 100));
       expect(await livenessOf([runId])).toEqual([null]);
 
-      await waitForLiveness(service, companyId, issueId, [runId]);
+      await waitForLiveness(service, spaceId, issueId, [runId]);
     });
   });
 });

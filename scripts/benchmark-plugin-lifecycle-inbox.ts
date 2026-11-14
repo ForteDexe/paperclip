@@ -9,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import * as schema from "../packages/db/src/schema/index.js";
-import { companies, plugins, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
+import { spaces, plugins, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
 import * as current from "../server/src/services/plugin-lifecycle-inbox.js";
 
 const arg = (name: string, fallback: string) => process.argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3) ?? fallback;
@@ -52,28 +52,28 @@ try {
 
   // Fixture: agent_runtime history interleaved across agents. Each agent has `acked`
   // acknowledged revisions followed by a backlog of unacknowledged revisions.
-  const companyId = randomUUID(), decoyId = randomUUID();
-  await db.insert(companies).values([{ id: companyId, name: "Bench", issuePrefix: "BNCH" }, { id: decoyId, name: "Decoy", issuePrefix: "DCOY" }]);
+  const spaceId = randomUUID(), decoyId = randomUUID();
+  await db.insert(spaces).values([{ id: spaceId, name: "Bench", issuePrefix: "BNCH" }, { id: decoyId, name: "Decoy", issuePrefix: "DCOY" }]);
   const [plugin] = await db.insert(plugins).values({ pluginKey: randomUUID(), packageName: "bench", version: "1.0.0", status: "ready", manifestJson: {} as never }).returning();
   const agentIds = Array.from({ length: agentCount }, () => randomUUID());
   const projectIds = Array.from({ length: 20 }, () => randomUUID());
-  await client.unsafe(`INSERT INTO resource_lifecycle_events (company_id, resource_type, resource_id, action)
+  await client.unsafe(`INSERT INTO resource_lifecycle_events (space_id, resource_type, resource_id, action)
     SELECT $1::uuid, 'agent', a, 'create' FROM unnest($2::uuid[]) a
-    UNION ALL SELECT $1::uuid, 'project', p, 'create' FROM unnest($3::uuid[]) p`, [companyId, agentIds, projectIds]);
-  await client.unsafe(`INSERT INTO resource_lifecycle_events (company_id, resource_type, resource_id, action)
+    UNION ALL SELECT $1::uuid, 'project', p, 'create' FROM unnest($3::uuid[]) p`, [spaceId, agentIds, projectIds]);
+  await client.unsafe(`INSERT INTO resource_lifecycle_events (space_id, resource_type, resource_id, action)
     SELECT $1::uuid, 'agent_runtime', ($2::uuid[])[(n % $3) + 1], 'update' FROM generate_series(0, $4::int - 1) n ORDER BY n`,
-    [companyId, agentIds, agentCount, agentCount * perAgent]);
+    [spaceId, agentIds, agentCount, agentCount * perAgent]);
   // A few project updates after the agent backlog, so heads are spread across the id range.
-  await client.unsafe(`INSERT INTO resource_lifecycle_events (company_id, resource_type, resource_id, action)
-    SELECT $1::uuid, 'project', p, 'update' FROM unnest($2::uuid[]) p`, [companyId, projectIds]);
-  await client.unsafe(`INSERT INTO resource_lifecycle_events (company_id, resource_type, resource_id, action)
+  await client.unsafe(`INSERT INTO resource_lifecycle_events (space_id, resource_type, resource_id, action)
+    SELECT $1::uuid, 'project', p, 'update' FROM unnest($2::uuid[]) p`, [spaceId, projectIds]);
+  await client.unsafe(`INSERT INTO resource_lifecycle_events (space_id, resource_type, resource_id, action)
     SELECT $1::uuid, 'agent_runtime', gen_random_uuid(), 'update' FROM generate_series(1, 20000)`, [decoyId]);
   await client.unsafe(`INSERT INTO plugin_lifecycle_acknowledgments (plugin_id, event_id)
     SELECT $1::uuid, id FROM (
       SELECT id, resource_type, row_number() OVER (PARTITION BY resource_type, resource_id ORDER BY id) AS rank
-      FROM resource_lifecycle_events WHERE company_id = $2::uuid) e
+      FROM resource_lifecycle_events WHERE space_id = $2::uuid) e
     WHERE resource_type = 'agent' OR (resource_type = 'project' AND rank = 1) OR (resource_type = 'agent_runtime' AND rank <= $3)`,
-    [plugin.id, companyId, acked]);
+    [plugin.id, spaceId, acked]);
   // Upgrade path: carry the acknowledgment rows into resource cursors as the migration does.
   const cursorMigration = await fs.readFile(new URL("../packages/db/src/migrations/0462_plugin_lifecycle_resource_cursors.sql", import.meta.url), "utf8");
   const backfill = cursorMigration.split("--> statement-breakpoint").find(statement => statement.includes('INSERT INTO "plugin_lifecycle_resource_cursors"'));
@@ -98,8 +98,8 @@ try {
     const start = performance.now();
     const service = inbox(db, plugin.id) as ReturnType<Inbox>;
     const rows = "probe" in c
-      ? [("hasPending" in service ? await service.hasPending(companyId, [...c.types]) : (await service.list(companyId, 1, undefined, [...c.types])).length > 0)]
-      : await service.list(companyId, c.limit, undefined, [...c.types]);
+      ? [("hasPending" in service ? await service.hasPending(spaceId, [...c.types]) : (await service.list(spaceId, 1, undefined, [...c.types])).length > 0)]
+      : await service.list(spaceId, c.limit, undefined, [...c.types]);
     const ms = performance.now() - start;
     const query = recorded.find(q => q.sql.includes('"resource_lifecycle_events"'));
     return { ms, rows, query };
@@ -127,24 +127,24 @@ try {
   // Acknowledge one resource's head, then undo it, so every sample sees the same state.
   {
     const ackSamples = { baseline: [] as number[], treatment: [] as number[] };
-    const [head] = await current.pluginLifecycleInbox(db, plugin.id).list(companyId, 1, undefined, ["agent_runtime"]);
+    const [head] = await current.pluginLifecycleInbox(db, plugin.id).list(spaceId, 1, undefined, ["agent_runtime"]);
     // A fresh plugin (--acked=0) has no cursor row; restore that absence between samples.
     const [cursorRow] = await client.unsafe(`SELECT acknowledged_through_id::text AS through FROM plugin_lifecycle_resource_cursors
-      WHERE plugin_id = $1 AND company_id = $2 AND resource_type = 'agent_runtime' AND resource_id = $3`, [plugin.id, companyId, head.resourceId]);
+      WHERE plugin_id = $1 AND space_id = $2 AND resource_type = 'agent_runtime' AND resource_id = $3`, [plugin.id, spaceId, head.resourceId]);
     const through: string | undefined = cursorRow?.through;
     for (let n = 0; n <= sampleCount; n++) {
       const order = n % 2 === 0 ? (["baseline", "treatment"] as const) : (["treatment", "baseline"] as const);
       for (const which of order.filter(w => !treatmentOnly || w === "treatment")) {
         const start = performance.now();
-        await (which === "baseline" ? baseline : current.pluginLifecycleInbox)(db, plugin.id).acknowledge(companyId, head.id);
+        await (which === "baseline" ? baseline : current.pluginLifecycleInbox)(db, plugin.id).acknowledge(spaceId, head.id);
         if (n > 0) ackSamples[which].push(performance.now() - start);
         await client.unsafe(`DELETE FROM plugin_lifecycle_acknowledgments WHERE plugin_id = $1 AND event_id = $2`, [plugin.id, head.id]);
         if (through === undefined) {
           await client.unsafe(`DELETE FROM plugin_lifecycle_resource_cursors
-            WHERE plugin_id = $1 AND company_id = $2 AND resource_type = 'agent_runtime' AND resource_id = $3`, [plugin.id, companyId, head.resourceId]);
+            WHERE plugin_id = $1 AND space_id = $2 AND resource_type = 'agent_runtime' AND resource_id = $3`, [plugin.id, spaceId, head.resourceId]);
         } else {
           await client.unsafe(`UPDATE plugin_lifecycle_resource_cursors SET acknowledged_through_id = $4
-            WHERE plugin_id = $1 AND company_id = $2 AND resource_type = 'agent_runtime' AND resource_id = $3`, [plugin.id, companyId, head.resourceId, through]);
+            WHERE plugin_id = $1 AND space_id = $2 AND resource_type = 'agent_runtime' AND resource_id = $3`, [plugin.id, spaceId, head.resourceId, through]);
         }
       }
     }
@@ -154,7 +154,7 @@ try {
   }
   // Control: the agent runtime revision read (plugin-agent-runtime-state.ts, agent-file-store.ts) is unchanged.
   const revisionPlan = (await client.unsafe(`EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) SELECT id FROM resource_lifecycle_events
-    WHERE company_id = $1 AND resource_type = 'agent_runtime' AND resource_id = $2 ORDER BY id DESC LIMIT 1`, [companyId, agentIds[0]]))
+    WHERE space_id = $1 AND resource_type = 'agent_runtime' AND resource_id = $2 ORDER BY id DESC LIMIT 1`, [spaceId, agentIds[0]]))
     .map(r => r["QUERY PLAN"]).join("\n");
   console.log(JSON.stringify({ revisionPlan, baselineRevision, postgres: version, agents: agentCount, perAgent, acked, events, acks, backfillMs, samples: sampleCount, results }, null, 2));
 } finally {

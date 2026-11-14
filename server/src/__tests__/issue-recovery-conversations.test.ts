@@ -12,13 +12,13 @@ describeIssueRecovery("issue recovery production producers and conversations", (
   const { quiet, completed, savedConversation } = state;
   it("dispatches a saved conversation after agent resume despite retired Chat off values", async () => {
     const f = await savedConversation();
-    expect(await undeliveredConversationComments(state.db, f.companyId, f.chat.id)).toHaveLength(1);
+    expect(await undeliveredConversationComments(state.db, f.spaceId, f.chat.id)).toHaveLength(1);
     await f.resume();
     await vi.waitFor(async () => expect(await state.db.select().from(heartbeatRuns)
-      .where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1), { timeout: 40_000 });
+      .where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1), { timeout: 40_000 });
     const run = await completed(f.chat.id);
     expect(f.replies).toEqual([run.id]); expect(f.failures).toEqual([]);
-    expect(await undeliveredConversationComments(state.db, f.companyId, f.chat.id)).toEqual([]);
+    expect(await undeliveredConversationComments(state.db, f.spaceId, f.chat.id)).toEqual([]);
     expect((await state.db.select().from(issues).where(eq(issues.id, f.chat.id)))[0])
       .toMatchObject({ conversationState: "waiting", executionRunId: null });
     expect(await state.db.select().from(issueComments).where(and(eq(issueComments.createdByRunId, run.id),
@@ -48,7 +48,7 @@ describeIssueRecovery("issue recovery production producers and conversations", (
     } finally { stop(); }
     expect(f.replies).toEqual([]); expect(f.failures).toEqual([]);
     expect(await state.db.select().from(heartbeatRuns)).toEqual([]);
-    expect(await undeliveredConversationComments(state.db, f.companyId, f.chat.id)).toHaveLength(1);
+    expect(await undeliveredConversationComments(state.db, f.spaceId, f.chat.id)).toHaveLength(1);
   });
   it("keeps accepted saved input parked while its agent is paused despite retired Chat off values", async () => {
     const f = await savedConversation(false);
@@ -62,7 +62,7 @@ describeIssueRecovery("issue recovery production producers and conversations", (
     state.draining = false; await quiet();
     expect(f.replies).toEqual([]); expect(f.failures).toEqual([]);
     expect(await state.db.select().from(heartbeatRuns)).toEqual([]);
-    expect(await undeliveredConversationComments(state.db, f.companyId, f.chat.id)).toHaveLength(1);
+    expect(await undeliveredConversationComments(state.db, f.spaceId, f.chat.id)).toHaveLength(1);
   });
 
 });

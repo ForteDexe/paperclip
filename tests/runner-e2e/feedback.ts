@@ -30,7 +30,7 @@ export interface FeedbackRunCoverage {
 }
 export interface FeedbackEvidence {
   version: 1;
-  companyId: string;
+  spaceId: string;
   entries: AgentCommentaryDetail[];
   invocations: FeedbackInvocation[];
   /** Absent in historical evidence; no-provider coverage is not native execution. */
@@ -51,7 +51,7 @@ export function emptyFeedbackSummary(): FeedbackSummary {
 
 function feedbackKind(name: unknown): FeedbackInvocation["kind"] | undefined {
   if (typeof name !== "string") return undefined;
-  const canonicalName = name.replace(/^(?:mcp__paperclip__|paperclip__|paperclip_)/, "");
+  const canonicalName = name.replace(/^(?:mcp__outpost__|outpost__|outpost_)/, "");
   if (/(?:^|[.\/])submit_complaint$/.test(canonicalName)) return "complaint";
   if (/(?:^|[.\/])submit_suggestion$/.test(canonicalName)) return "suggestion";
   return undefined;
@@ -120,7 +120,7 @@ export function summarizeCampaignFeedback(attempts: readonly { feedback?: Feedba
 
 export async function collectAttemptFeedback(input: {
   api: Pick<RunnerApi, "get">;
-  companyId: string;
+  spaceId: string;
   persist: (evidence: FeedbackEvidence, signal: AbortSignal) => Promise<void>;
   onCheckpoint?: (summary: FeedbackSummary) => void;
   deadlineAt?: number;
@@ -134,7 +134,7 @@ export async function collectAttemptFeedback(input: {
     ...(summary.invocationCollection !== "complete" ? { invocationCollection: summary.invocationCollection } : {}),
   });
   const runCoverage: FeedbackRunCoverage[] = [];
-  const evidence: FeedbackEvidence = { version: 1, companyId: input.companyId, entries: [], invocations: [], runCoverage, diagnostics: [], summary };
+  const evidence: FeedbackEvidence = { version: 1, spaceId: input.spaceId, entries: [], invocations: [], runCoverage, diagnostics: [], summary };
   let retainedBytes = 0, checkpointBytes = 0, eventBytes = 0, eventCount = 0;
   const diagnose = (code: FeedbackEvidence["diagnostics"][number]) => { if (!evidence.diagnostics.includes(code)) evidence.diagnostics.push(code); };
   const get = <T>(url: string, options?: { useRemainingBudget: boolean }) => {
@@ -179,7 +179,7 @@ export async function collectAttemptFeedback(input: {
   feedbackPages: for (let offset = 0; offset < FEEDBACK_COLLECTION_LIMITS.entries; offset += 100) {
     let page: AgentCommentaryPage;
     try {
-      page = await get<AgentCommentaryPage>(`/api/companies/${input.companyId}/agent-commentary?limit=100&offset=${offset}`);
+      page = await get<AgentCommentaryPage>(`/api/spaces/${input.spaceId}/agent-commentary?limit=100&offset=${offset}`);
       if (!Array.isArray(page.items) || !Number.isSafeInteger(page.total) || page.total < 0 || page.items.length > 100) throw new Error("Invalid feedback page");
     } catch {
       summary.collection = seen.size ? "partial" : "unavailable";
@@ -196,7 +196,7 @@ export async function collectAttemptFeedback(input: {
       else if (entry.kind === "suggestion") summary.suggestions++;
       else { detailsFailed = true; continue; }
       try {
-        const detail = await get<AgentCommentaryDetail>(`/api/companies/${input.companyId}/agent-commentary/${encodeURIComponent(entry.id)}`);
+        const detail = await get<AgentCommentaryDetail>(`/api/spaces/${input.spaceId}/agent-commentary/${encodeURIComponent(entry.id)}`);
         if (detail.id !== entry.id || detail.kind !== entry.kind || detail.runId !== entry.runId || typeof detail.body !== "string") throw new Error("Invalid feedback detail");
         const bytes = Buffer.byteLength(JSON.stringify(detail)) + 1;
         if (retainedBytes + bytes + 4 > FEEDBACK_COLLECTION_LIMITS.retainedBytes) { diagnose("evidence_limit_reached"); break feedbackPages; }
@@ -219,7 +219,7 @@ export async function collectAttemptFeedback(input: {
   if (!await persist(true)) summary.collection = evidence.entries.length ? "partial" : "unavailable";
   let runs: Array<{ id: string; status?: string }>;
   try {
-    runs = await get(`/api/companies/${input.companyId}/heartbeat-runs?limit=1000`);
+    runs = await get(`/api/spaces/${input.spaceId}/heartbeat-runs?limit=1000`);
     if (!Array.isArray(runs) || runs.length > 1000 || runs.some(run => typeof run.id !== "string")) throw new Error("Invalid runs");
   } catch {
     summary.invocationCollection = "unavailable";

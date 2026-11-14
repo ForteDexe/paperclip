@@ -127,12 +127,12 @@ test("AgentCore wrapper is valid shell and writes only nonsecret profile metadat
   assert.match(source, /existing_status.*ROLLBACK_COMPLETE/s);
   assert.match(source, /--replace-failed-stack/);
   assert.match(provisionBlock, /existing_description.*STACK_DESCRIPTION/s);
-  assert.match(provisionBlock, /existing_owned.*paperclip:owned/s);
-  assert.match(provisionBlock, /existing_environment.*paperclip:environment/s);
-  assert.match(provisionBlock, /existing_cost_center.*paperclip:cost-center/s);
+  assert.match(provisionBlock, /existing_owned.*outpost:owned/s);
+  assert.match(provisionBlock, /existing_environment.*outpost:environment/s);
+  assert.match(provisionBlock, /existing_cost_center.*outpost:cost-center/s);
   assert.ok(provisionBlock.indexOf("ownership tags or template provenance") < provisionBlock.indexOf("cloudformation delete-stack"));
   assert.ok(provisionBlock.indexOf("REPLACE_FAILED_STACK") < provisionBlock.indexOf("cloudformation delete-stack"));
-  assert.match(provisionBlock, /Unable to verify whether stack .* exists and is owned by Paperclip/);
+  assert.match(provisionBlock, /Unable to verify whether stack .* exists and is owned by Outpost/);
   assert.match(source, /cloudformation wait stack-delete-complete/);
   assert.match(source, /--query harness\.status/);
   assert.match(source, /AgentCore tool allowlist drift/);
@@ -166,7 +166,7 @@ test("AgentCore wrapper rejects unsafe model IDs before AWS access", () => {
 });
 
 test("AgentCore wrapper never implicitly deletes a colliding failed stack", async () => {
-  const temp = await mkdtemp(join(tmpdir(), "paperclip-agentcore-test-"));
+  const temp = await mkdtemp(join(tmpdir(), "outpost-agentcore-test-"));
   const fakeAws = join(temp, "aws");
   const commandLog = join(temp, "aws.log");
   await writeFile(fakeAws, `#!/usr/bin/env bash
@@ -175,9 +175,9 @@ printf '%s\\n' "$*" >>"$MOCK_AWS_LOG"
 if [[ " $* " == *" --version "* || "$1" == "--version" ]]; then
   printf 'aws-cli/2.31.0 Python/3.13.0\\n'
 elif [[ " $* " == *" sts get-caller-identity "* ]]; then
-  printf '{"Account":"123456789012","Arn":"arn:aws:iam::123456789012:role/paperclip-test"}\\n'
+  printf '{"Account":"123456789012","Arn":"arn:aws:iam::123456789012:role/outpost-test"}\\n'
 elif [[ " $* " == *" cloudformation describe-stacks "* ]]; then
-  printf '{"Stacks":[{"StackStatus":"ROLLBACK_COMPLETE","Description":"%s","Tags":[{"Key":"paperclip:owned","Value":"%s"},{"Key":"paperclip:environment","Value":"development"},{"Key":"paperclip:cost-center","Value":"runner-lab"}]}]}\\n' "\${MOCK_STACK_DESCRIPTION}" "\${MOCK_STACK_OWNED}"
+  printf '{"Stacks":[{"StackStatus":"ROLLBACK_COMPLETE","Description":"%s","Tags":[{"Key":"outpost:owned","Value":"%s"},{"Key":"outpost:environment","Value":"development"},{"Key":"outpost:cost-center","Value":"runner-lab"}]}]}\\n' "\${MOCK_STACK_DESCRIPTION}" "\${MOCK_STACK_OWNED}"
 elif [[ " $* " == *" cloudformation deploy "* ]]; then
   exit 42
 fi
@@ -187,7 +187,7 @@ fi
     ...process.env,
     PATH: `${temp}:${process.env.PATH}`,
     MOCK_AWS_LOG: commandLog,
-    MOCK_STACK_DESCRIPTION: "Paperclip proof-of-concept Amazon Bedrock AgentCore Harness and least-privilege invocation roles.",
+    MOCK_STACK_DESCRIPTION: "Outpost proof-of-concept Amazon Bedrock AgentCore Harness and least-privilege invocation roles.",
     MOCK_STACK_OWNED: "true",
   };
   try {
@@ -234,7 +234,7 @@ test("Runner Lab accepts and resolves the complete qualified AgentCore profile",
   assert.match(source, /configuration\.provider === "aws_agentcore" \? "remote_service"/);
 });
 
-test("Runner Lab qualifies Claude Managed and exposes remote governance for both remote providers", async () => {
+test("Runner Lab qualifies Claude Managed and exposes remote approvals for both remote providers", async () => {
   const source = await readFile(labServerUrl, "utf8");
   const liveSessionSource = await readFile(liveSessionUrl, "utf8");
   assert.match(source, /provider !== "claude_managed"/);

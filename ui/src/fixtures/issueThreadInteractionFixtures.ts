@@ -18,10 +18,10 @@ import type {
 } from "../lib/issue-thread-interactions";
 
 export const issueThreadInteractionFixtureMeta = {
-  companyId: "company-storybook",
-  projectId: "project-board-ui",
+  spaceId: "space-storybook",
+  projectId: "project-operator-ui",
   issueId: "issue-thread-interactions",
-  currentUserId: "user-board",
+  currentUserId: "user-operator",
 } as const;
 
 /**
@@ -52,7 +52,7 @@ function resolverAudienceFields(
     resolverPolicyProvenance:
       overrides.resolverPolicyProvenance ?? (requested === "anyone" ? "inherited" : "explicit"),
     effectiveResolverPolicySource:
-      overrides.effectiveResolverPolicySource ?? (effective === requested ? "requested" : "company_cap"),
+      overrides.effectiveResolverPolicySource ?? (effective === requested ? "requested" : "space_cap"),
     legacyResolverPolicyAliases: overrides.legacyResolverPolicyAliases ?? {
       requested: legacyIssueThreadInteractionResolverPolicyAlias(requested),
       effective: legacyIssueThreadInteractionResolverPolicyAlias(effective),
@@ -64,7 +64,7 @@ function createComment(overrides: Partial<IssueChatComment>): IssueChatComment {
   const createdAt = overrides.createdAt ?? new Date("2026-04-20T14:00:00.000Z");
   return {
     id: "comment-default",
-    companyId: issueThreadInteractionFixtureMeta.companyId,
+    spaceId: issueThreadInteractionFixtureMeta.spaceId,
     issueId: issueThreadInteractionFixtureMeta.issueId,
     authorType: overrides.authorAgentId ? "agent" : "user",
     authorAgentId: null,
@@ -83,7 +83,7 @@ function createSuggestTasksInteraction(
 ): SuggestTasksInteraction {
   return {
     id: "interaction-suggest-default",
-    companyId: issueThreadInteractionFixtureMeta.companyId,
+    spaceId: issueThreadInteractionFixtureMeta.spaceId,
     issueId: issueThreadInteractionFixtureMeta.issueId,
     kind: "suggest_tasks",
     title: "Suggested issue tree for the first interaction pass",
@@ -154,7 +154,7 @@ function createAskUserQuestionsInteraction(
 ): AskUserQuestionsInteraction {
   return {
     id: "interaction-questions-default",
-    companyId: issueThreadInteractionFixtureMeta.companyId,
+    spaceId: issueThreadInteractionFixtureMeta.spaceId,
     issueId: issueThreadInteractionFixtureMeta.issueId,
     kind: "ask_user_questions",
     title: "Resolve open UX decisions before Phase 1",
@@ -231,12 +231,12 @@ function createRequestConfirmationInteraction(
 ): RequestConfirmationInteraction {
   return {
     id: "interaction-confirmation-default",
-    companyId: issueThreadInteractionFixtureMeta.companyId,
+    spaceId: issueThreadInteractionFixtureMeta.spaceId,
     issueId: issueThreadInteractionFixtureMeta.issueId,
     kind: "request_confirmation",
     title: "Approve the proposed plan",
     summary:
-      "The responsible is waiting on a direct board decision before continuing from the plan document.",
+      "The responsible is waiting on a direct operator decision before continuing from the plan document.",
     status: "pending",
     continuationPolicy: "wake_assignee",
     createdByAgentId: "agent-codex",
@@ -275,12 +275,12 @@ function createRequestCheckboxConfirmationInteraction(
 ): RequestCheckboxConfirmationInteraction {
   return {
     id: "interaction-checkbox-default",
-    companyId: issueThreadInteractionFixtureMeta.companyId,
+    spaceId: issueThreadInteractionFixtureMeta.spaceId,
     issueId: issueThreadInteractionFixtureMeta.issueId,
     kind: "request_checkbox_confirmation",
     title: "Choose the stale drafts to delete",
     summary:
-      "The agent found several stale draft documents and needs the board to confirm exactly which ones to remove.",
+      "The agent found several stale draft documents and needs the operator to confirm exactly which ones to remove.",
     status: "pending",
     continuationPolicy: "wake_assignee",
     createdByAgentId: "agent-codex",
@@ -861,7 +861,7 @@ function createConnectionAuthorizationInteraction(
         type: "custom",
         key: "connection:gmail-abc:user:user-dotta",
         label: "Connect Gmail",
-        href: "https://accounts.google.com/o/oauth2/v2/auth?client_id=paperclip",
+        href: "https://accounts.google.com/o/oauth2/v2/auth?client_id=outpost",
       },
     },
     ...rest,
@@ -886,7 +886,7 @@ function createConnectionIntentInteraction(
 ): ConnectionIntentInteraction {
   return {
     id: "interaction-connection-intent-default",
-    companyId: issueThreadInteractionFixtureMeta.companyId,
+    spaceId: issueThreadInteractionFixtureMeta.spaceId,
     issueId: issueThreadInteractionFixtureMeta.issueId,
     kind: "connection_intent",
     title: "Connect Notion",
@@ -915,10 +915,10 @@ function createConnectionIntentInteraction(
     requestedResolverPolicy: "human_only",
     effectiveResolverPolicy: "human_only",
     resolverPolicyProvenance: "explicit",
-    effectiveResolverPolicySource: "governed_action",
+    effectiveResolverPolicySource: "controlled_action",
     legacyResolverPolicyAliases: {
-      requested: "board_only",
-      effective: "board_only",
+      requested: "operator_only",
+      effective: "operator_only",
     },
     ...overrides,
   };
@@ -1102,7 +1102,7 @@ export const failedRequestConfirmationInteraction = createRequestConfirmationInt
   updatedAt: new Date("2026-04-20T14:42:00.000Z"),
 });
 
-// --- P4 governance / lifecycle card states (PAP-15427) ---
+// --- P4 policy / lifecycle card states (PAP-15427) ---
 
 // Agent-addressed, agents-may-resolve pending confirmation: exercises the
 // header policy badge + addressee chip.
@@ -1111,13 +1111,13 @@ export const agentAddressedRequestConfirmationInteraction =
     id: "interaction-confirmation-agent-addressed",
     title: "Confirm the deploy window with the release agent",
     summary:
-      "Directed to the release agent, who owns this response without waiting on the board.",
+      "Directed to the release agent, who owns this response without waiting on the operator.",
     addresseeAgentId: "agent-codex",
   });
 
 // --- Explicit resolver restrictions (PAP-17280) ---
 // Every card above is open by default; these four are the deliberate narrowings
-// a requester or a company must ask for, one per audience row the card renders.
+// a requester or a space must ask for, one per audience row the card renders.
 
 /** Independent review requested on purpose: the creator is excluded. */
 export const notCreatorRequestConfirmationInteraction =
@@ -1133,19 +1133,19 @@ export const humanOnlyRequestConfirmationInteraction =
   createRequestConfirmationInteraction({
     id: "interaction-confirmation-human-only",
     title: "Approve the customer-facing announcement",
-    summary: "Reserved for a human on the board because it commits the organization publicly.",
+    summary: "Reserved for a human on the operator because it commits the organization publicly.",
     requestedResolverPolicy: "human_only",
   });
 
-/** Open request narrowed by company interaction governance. */
-export const companyCappedRequestConfirmationInteraction =
+/** Open request narrowed by space interaction policy. */
+export const spaceCappedRequestConfirmationInteraction =
   createRequestConfirmationInteraction({
-    id: "interaction-confirmation-company-capped",
+    id: "interaction-confirmation-space-capped",
     title: "Confirm the data retention change",
     summary: "Asked for an open audience; the organization caps this kind at a human decision.",
     requestedResolverPolicy: "anyone",
     effectiveResolverPolicy: "human_only",
-    effectiveResolverPolicySource: "company_cap",
+    effectiveResolverPolicySource: "space_cap",
   });
 
 /** Pre-migration card whose provenance cannot prove it was ever open. */
@@ -1158,7 +1158,7 @@ export const legacyRestrictedRequestConfirmationInteraction =
     resolverPolicyProvenance: "legacy_inherited_restriction",
   });
 
-// Confirmation resolved by an agent under governance: exercises the
+// Confirmation resolved by an agent under policy: exercises the
 // "Resolved by … / Agent" audit chip.
 export const agentResolvedRequestConfirmationInteraction =
   createRequestConfirmationInteraction({
@@ -1188,7 +1188,7 @@ export const withdrawnRequestConfirmationInteraction =
     result: {
       version: 1,
       outcome: "withdrawn",
-      reason: "Plan superseded by a newer revision; no board decision needed.",
+      reason: "Plan superseded by a newer revision; no operator decision needed.",
     },
   });
 
@@ -1356,7 +1356,7 @@ function createRequestItemVerdictsInteraction(
 ): RequestItemVerdictsInteraction {
   return {
     id: "interaction-verdicts-default",
-    companyId: issueThreadInteractionFixtureMeta.companyId,
+    spaceId: issueThreadInteractionFixtureMeta.spaceId,
     issueId: issueThreadInteractionFixtureMeta.issueId,
     kind: "request_item_verdicts",
     title: "Review 5 blog posts",
@@ -1406,9 +1406,9 @@ function createRequestItemVerdictsInteraction(
           href: "/PAP/issues/PAP-9004",
         },
         {
-          id: "post-hiring-push",
-          label: "We're hiring: platform engineers",
-          description: "420 words · recruiting",
+          id: "post-creation-push",
+          label: "We're creation: platform engineers",
+          description: "420 words · adding agents",
           previewMarkdown: "An open call for platform engineers to join the team.",
           href: "/PAP/issues/PAP-9005",
         },
@@ -1492,9 +1492,9 @@ export const completeRequestItemVerdictsInteraction = createRequestItemVerdictsI
         resolvedAt: new Date("2026-04-20T15:14:00.000Z"),
       },
       {
-        id: "post-hiring-push",
+        id: "post-creation-push",
         verdict: "reject",
-        reason: "Hold the recruiting post until the req is approved.",
+        reason: "Hold the adding agents post until the req is approved.",
         resolvedByUserId: issueThreadInteractionFixtureMeta.currentUserId,
         resolvedAt: new Date("2026-04-20T15:14:00.000Z"),
       },
@@ -1561,7 +1561,7 @@ export const manyItemsRequestItemVerdictsInteraction = createRequestItemVerdicts
 
 export const issueThreadInteractionComments: IssueChatComment[] = [
   createComment({
-    id: "comment-thread-board",
+    id: "comment-thread-operator",
     body: "Pressure-test first-class issue-thread interactions before we touch persistence. I want to see the cards in the real feed, not in a disconnected mock.",
     createdAt: new Date("2026-04-20T14:02:00.000Z"),
     updatedAt: new Date("2026-04-20T14:02:00.000Z"),

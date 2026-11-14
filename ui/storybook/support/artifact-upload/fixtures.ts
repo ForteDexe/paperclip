@@ -2,7 +2,7 @@ import type { IssueDocument, IssueWorkProduct } from "@outpost/shared";
 import { queryKeys } from "@/lib/queryKeys";
 import { uploadedDocumentKey } from "@/lib/issue-artifact-upload";
 import { QueryClient } from "@tanstack/react-query";
-import { createIssue, storybookAgents } from "../../fixtures/paperclipData";
+import { createIssue, storybookAgents } from "../../fixtures/outpostData";
 
 export const issue = createIssue({
   id: "artifact-upload-placeholder", identifier: "PAP-214", issueNumber: 214,
@@ -14,7 +14,7 @@ export const issue = createIssue({
 
 export const handoffBody = `# Instance sleep: engineering handoff
 
-Paperclip should release idle database connections and let inactive instances sleep without losing scheduled work, incoming events, accounting, or recovery.
+Outpost should release idle database connections and let inactive instances sleep without losing scheduled work, incoming events, accounting, or recovery.
 
 ## Start here
 
@@ -38,7 +38,7 @@ Work caused by a committed change should run from that event. Work caused by the
 
 export function makeDocument(key: string, title: string, body: string): IssueDocument {
   return {
-    id: `document-${key}`, issueId: issue.id, companyId: issue.companyId,
+    id: `document-${key}`, issueId: issue.id, spaceId: issue.spaceId,
     key, title, format: "markdown", body, latestRevisionId: `revision-${key}`,
     latestRevisionNumber: 1, createdByAgentId: null, updatedByAgentId: null,
     createdByUserId: "user-board", updatedByUserId: "user-board",
@@ -76,7 +76,7 @@ export function createPreviewClient(state: PreviewState) {
   client.setQueryData(queryKeys.issues.attachments(issue.id), []);
   client.setQueryData(queryKeys.issues.workProducts(issue.id), []);
   client.setQueryData(queryKeys.issues.runs(issue.id), []);
-  client.setQueryData(queryKeys.agents.list(issue.companyId), storybookAgents);
+  client.setQueryData(queryKeys.agents.list(issue.spaceId), storybookAgents);
   return client;
 }
 
@@ -93,8 +93,8 @@ export async function addPreviewFile(client: QueryClient, file: File, id: string
   client.setQueryData(["storybook-upload-file", id], file);
   const contentPath = `/api/attachments/${id}/content`;
   const product: IssueWorkProduct = {
-    id, companyId: issue.companyId, issueId: issue.id, projectId: issue.projectId,
-    executionWorkspaceId: null, runtimeServiceId: null, type: "artifact", provider: "paperclip",
+    id, spaceId: issue.spaceId, issueId: issue.id, projectId: issue.projectId,
+    executionWorkspaceId: null, runtimeServiceId: null, type: "artifact", provider: "outpost",
     externalId: null, title: file.name, url: null, status: "active", reviewState: "none",
     isPrimary: false, healthStatus: "healthy", summary: null, createdByRunId: null,
     metadata: { attachmentId: id, contentType: file.type || "application/octet-stream", byteSize: file.size, contentPath, openPath: contentPath, downloadPath: `${contentPath}?download=1`, originalFilename: file.name },

@@ -35,7 +35,7 @@ export type CapabilityAssertionClass =
 
 export type CapabilityParityStatus = "pass" | "fail" | "intentional_gap" | "not_run";
 
-export type CapabilityActorRole = "engineer" | "manager" | "reviewer" | "board";
+export type CapabilityActorRole = "engineer" | "manager" | "reviewer" | "operator";
 
 export interface CapabilitySkillElement {
   file: string;

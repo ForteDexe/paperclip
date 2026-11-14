@@ -9,7 +9,7 @@ import { applyCursorRuntimePatch, CURSOR_RUNTIME_PATCH_VERSION } from "./cursor-
 const MANIFEST_PATH = fileURLToPath(new URL("../cursor-distributions.json", import.meta.url));
 const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
 const MAX_TREE_BYTES = 1024 * 1024 * 1024;
-const TREE_MANIFEST = ".paperclip-cursor-closure.json";
+const TREE_MANIFEST = ".outpost-cursor-closure.json";
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
 
 export async function cursorDistribution(platform = process.platform, architecture = process.arch) {

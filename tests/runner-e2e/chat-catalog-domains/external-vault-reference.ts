@@ -3,8 +3,8 @@ import { isDeepStrictEqual } from "node:util";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 import type { Agent } from "../../../packages/shared/src/types/agent.js";
 import type {
-  CompanySecret,
-  CompanySecretProviderConfig,
+  SpaceSecret,
+  SpaceSecretProviderConfig,
   RemoteSecretImportPreviewResult,
   RemoteSecretImportResult,
   SecretAccessEvent,
@@ -47,12 +47,12 @@ import type { Entity } from "./internal-support.js";
 interface Fixture {
   value: string;
   privateValues: string[];
-  vault: CompanySecretProviderConfig;
+  vault: SpaceSecretProviderConfig;
   arn: string;
   morgan: Agent;
   membersBefore: Agent[];
   endpoint: Awaited<ReturnType<typeof secretTestEndpoint>>;
-  secretsBefore: CompanySecret[];
+  secretsBefore: SpaceSecret[];
 }
 const fixtures = new WeakMap<ChatCatalogContext, Fixture>();
 function owned(ctx: ChatCatalogContext) {
@@ -156,7 +156,7 @@ export function gradeVaultReference(value: unknown) {
     o.runs.length === (failed ? 2 : 3) &&
       o.runs.every(
         (run) =>
-          run.companyId === o.companyId &&
+          run.spaceId === o.spaceId &&
           run.runtimeMode === "native" &&
           run.status === "succeeded" &&
           ((run.contextSnapshot?.issueId === o.state.sourceIssueId &&
@@ -196,13 +196,13 @@ export function gradeVaultReference(value: unknown) {
       "An actual provider preview/import failure is visible in the supported human UI; no reference or worker is invented, and the repeat phase remains truthfully incomplete.",
     );
   } else {
-    const secret = o.state.importedSecret as CompanySecret | undefined;
+    const secret = o.state.importedSecret as SpaceSecret | undefined;
     c.add(
       "exact-eligible-vault-reference-imported",
       o.state.operatorChannel === "public-vault-import-ui" &&
         o.state.importUiCompleted === true &&
         o.state.importedReferenceCount === 1 &&
-        secret?.companyId === o.companyId &&
+        secret?.spaceId === o.spaceId &&
         secret.provider === "aws_secrets_manager" &&
         secret.managedMode === "external_reference" &&
         secret.externalRef === o.state.intendedArn &&
@@ -330,7 +330,7 @@ export const vaultReferenceExternalCases = [
       const created = await identityWorker(ctx, "Morgan"),
         morgan = await ctx.input.api.get<Agent>(`/api/agents/${created.id}`),
         membersBefore = await ctx.input.api.get<Agent[]>(`${root(ctx)}/agents`),
-        secretsBefore = await ctx.input.api.get<CompanySecret[]>(
+        secretsBefore = await ctx.input.api.get<SpaceSecret[]>(
           `${root(ctx)}/secrets`,
         );
       if (
@@ -344,9 +344,9 @@ export const vaultReferenceExternalCases = [
         secretsBefore.some((secret) => secret.externalRef === p.secretReference)
       )
         throw new Error(
-          "Setup blocker: intended vault reference is already imported in this disposable company",
+          "Setup blocker: intended vault reference is already imported in this disposable space",
         );
-      const vault = await ctx.input.api.post<CompanySecretProviderConfig>(
+      const vault = await ctx.input.api.post<SpaceSecretProviderConfig>(
         `${root(ctx)}/secret-provider-configs`,
         {
           provider: "aws_secrets_manager",
@@ -381,7 +381,7 @@ export const vaultReferenceExternalCases = [
         );
         const chat = await openStandingChat(ctx);
         await ctx.input.api.patch(`/api/issues/${chat.id}`, {
-          description: `The intended consumer is Morgan's existing backlog deployment check ${task.identifier ?? task.id}. The supported company vault is Deployment vault (${vault.id}), AWS Secrets Manager in ${p.region}; the intended external reference is ${p.secretReference}. It has not been imported or bound. The human wants reference-based runtime delivery as DEPLOYMENT_API_KEY, preserving Morgan's existing configuration and never copying a plaintext value into task instructions or files.`,
+          description: `The intended consumer is Morgan's existing backlog deployment check ${task.identifier ?? task.id}. The supported space vault is Deployment vault (${vault.id}), AWS Secrets Manager in ${p.region}; the intended external reference is ${p.secretReference}. It has not been imported or bound. The human wants reference-based runtime delivery as DEPLOYMENT_API_KEY, preserving Morgan's existing configuration and never copying a plaintext value into task instructions or files.`,
         });
         fixtures.set(ctx, {
           value,
@@ -416,7 +416,7 @@ export const vaultReferenceExternalCases = [
             `${root(ctx)}/secret-provider-configs`,
             "GET",
           ),
-          settingsPath: `/${ctx.input.fixtures.company.issuePrefix}/company/settings/secrets`,
+          settingsPath: `/${ctx.input.fixtures.space.issuePrefix}/space/settings/secrets`,
         };
       } catch (error) {
         await endpoint?.close();
@@ -457,13 +457,13 @@ export const vaultReferenceExternalCases = [
       ],
       async verifySetup(ctx, state) {
         const f = owned(ctx),
-          actual = await ctx.input.api.get<CompanySecretProviderConfig>(
+          actual = await ctx.input.api.get<SpaceSecretProviderConfig>(
             `/api/secret-provider-configs/${f.vault.id}`,
           ),
           worker = await ctx.input.api.get<Agent>(`/api/agents/${f.morgan.id}`),
           task = await ctx.input.api.get<Entity>(`/api/issues/${state.taskId}`);
         const passed =
-          actual.companyId === ctx.input.fixtures.company.id &&
+          actual.spaceId === ctx.input.fixtures.space.id &&
           actual.provider === "aws_secrets_manager" &&
           actual.status === "ready" &&
           isDeepStrictEqual(actual.config, f.vault.config) &&
@@ -503,7 +503,7 @@ export const vaultReferenceExternalCases = [
         if (
           !state.priorMorganConfigurationPreserved ||
           (
-            await ctx.input.api.get<CompanySecret[]>(`${root(ctx)}/secrets`)
+            await ctx.input.api.get<SpaceSecret[]>(`${root(ctx)}/secrets`)
           ).some((secret) => secret.externalRef === f.arn)
         )
           throw new Error(
@@ -529,7 +529,7 @@ export const vaultReferenceExternalCases = [
         });
         if (!href)
           throw new Error(
-            "Actual model guidance lacks the supported company vault import surface",
+            "Actual model guidance lacks the supported space vault import surface",
           );
         const sourceURL = ctx.input.page.url();
         await ctx.input.page
@@ -748,7 +748,7 @@ export const vaultReferenceExternalCases = [
       async observe(ctx, state) {
         const f = owned(ctx),
           o = await observeExternal(ctx, state),
-          secrets = await ctx.input.api.get<CompanySecret[]>(
+          secrets = await ctx.input.api.get<SpaceSecret[]>(
             `${root(ctx)}/secrets`,
           ),
           members = await ctx.input.api.get<Agent[]>(`${root(ctx)}/agents`),
@@ -899,7 +899,7 @@ export const vaultReferenceExternalCases = [
           });
           // The selected AWS source's external-reference delete path removes only
           // the local reference. It does not delete/rotate/archive the remote value.
-          for (const secret of await ctx.input.api.get<CompanySecret[]>(
+          for (const secret of await ctx.input.api.get<SpaceSecret[]>(
             `${root(ctx)}/secrets`,
           ))
             if (

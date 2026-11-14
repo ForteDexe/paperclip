@@ -24,7 +24,7 @@ import {
   sanitizeWorkspaceHandoffRedirectPath,
   WORKSPACE_HANDOFF_TICKET_TTL_SECONDS,
 } from "../auth/workspace-login-handoff.js";
-import { resolvePaperclipInstanceId } from "../home-paths.js";
+import { resolveOutpostInstanceId } from "../home-paths.js";
 import {
   probeManagedWorkspaceReadiness,
   resolveManagedWorkspaceIdentity,
@@ -37,7 +37,7 @@ export type WorkspaceLoginHandoffActor = {
 };
 
 export type WorkspaceLoginHandoffFailure =
-  | { reason: "no_board_identity" }
+  | { reason: "no_operator_identity" }
   | { reason: "handoff_not_configured" }
   | { reason: "runtime_not_running" }
   | { reason: "runtime_url_unusable"; detail: string }
@@ -58,15 +58,15 @@ export type WorkspaceLoginHandoffResult =
   | { ok: false; failure: WorkspaceLoginHandoffFailure };
 
 /**
- * Resolve the board user a ticket will be minted for.
+ * Resolve the operator user a ticket will be minted for.
  *
  * In `authenticated` mode this is the caller's own session identity. The
  * `local_implicit` actor of a `local_trusted` instance has no auth row, so the
  * instance's oldest instance admin stands in: that mode already grants
- * unrestricted board access to this instance and its clones, so this widens
+ * unrestricted operator access to this instance and its clones, so this widens
  * nothing, and it keeps local development password-independent too.
  */
-export async function resolveWorkspaceHandoffBoardIdentity(
+export async function resolveWorkspaceHandoffOperatorIdentity(
   db: Db,
   actor: WorkspaceLoginHandoffActor,
 ): Promise<{ userId: string; email: string } | null> {
@@ -100,7 +100,7 @@ export async function resolveWorkspaceHandoffBoardIdentity(
  */
 export async function resolveLiveWorkspaceRuntimeOrigin(
   db: Db,
-  input: { companyId: string; executionWorkspaceId: string },
+  input: { spaceId: string; executionWorkspaceId: string },
 ): Promise<{ url: string; runtimeServiceId: string } | null> {
   const row = await db
     .select({
@@ -111,7 +111,7 @@ export async function resolveLiveWorkspaceRuntimeOrigin(
     .from(workspaceRuntimeServices)
     .where(
       and(
-        eq(workspaceRuntimeServices.companyId, input.companyId),
+        eq(workspaceRuntimeServices.spaceId, input.spaceId),
         eq(workspaceRuntimeServices.executionWorkspaceId, input.executionWorkspaceId),
         eq(workspaceRuntimeServices.status, "running"),
         eq(workspaceRuntimeServices.healthStatus, "healthy"),
@@ -125,7 +125,7 @@ export async function resolveLiveWorkspaceRuntimeOrigin(
 
 export async function issueWorkspaceLoginHandoff(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   executionWorkspace: { id: string; cwd: string | null };
   actor: WorkspaceLoginHandoffActor;
   next?: string | null;
@@ -136,15 +136,15 @@ export async function issueWorkspaceLoginHandoff(input: {
   const identity = resolveManagedWorkspaceIdentity({
     workspaceCwd: input.executionWorkspace.cwd,
     executionWorkspaceId: input.executionWorkspace.id,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
   });
   if (!identity) return { ok: false, failure: { reason: "handoff_not_configured" } };
 
-  const boardIdentity = await resolveWorkspaceHandoffBoardIdentity(input.db, input.actor);
-  if (!boardIdentity) return { ok: false, failure: { reason: "no_board_identity" } };
+  const operatorIdentity = await resolveWorkspaceHandoffOperatorIdentity(input.db, input.actor);
+  if (!operatorIdentity) return { ok: false, failure: { reason: "no_operator_identity" } };
 
   const live = await resolveLiveWorkspaceRuntimeOrigin(input.db, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     executionWorkspaceId: input.executionWorkspace.id,
   });
   if (!live) return { ok: false, failure: { reason: "runtime_not_running" } };
@@ -160,7 +160,7 @@ export async function issueWorkspaceLoginHandoff(input: {
     // reassigned port is caught before a ticket exists rather than after.
     healthUrl: new URL("/api/health", origin).toString(),
     identity,
-    handoffSubject: boardIdentity,
+    handoffSubject: operatorIdentity,
   });
   if (!readinessResult.ok) {
     return {
@@ -175,13 +175,13 @@ export async function issueWorkspaceLoginHandoff(input: {
 
   const { ticket, payload } = issueWorkspaceHandoffTicket({
     key: identity.handoffKey,
-    userId: boardIdentity.userId,
-    email: boardIdentity.email,
+    userId: operatorIdentity.userId,
+    email: operatorIdentity.email,
     executionWorkspaceId: identity.executionWorkspaceId,
-    companyId: identity.companyId,
+    spaceId: identity.spaceId,
     instanceId: identity.instanceId,
     origin,
-    issuerInstanceId: resolvePaperclipInstanceId(),
+    issuerInstanceId: resolveOutpostInstanceId(),
     next: sanitizeWorkspaceHandoffRedirectPath(input.next),
     ttlSeconds: input.ttlSeconds ?? WORKSPACE_HANDOFF_TICKET_TTL_SECONDS,
     now: input.now,
@@ -194,7 +194,7 @@ export async function issueWorkspaceLoginHandoff(input: {
       expiresAt: new Date(payload.exp * 1000).toISOString(),
       origin,
       nonce: payload.jti,
-      userId: boardIdentity.userId,
+      userId: operatorIdentity.userId,
       instanceId: identity.instanceId,
     },
   };
@@ -203,7 +203,7 @@ export async function issueWorkspaceLoginHandoff(input: {
 /** HTTP status for a failed issuance. */
 export function workspaceLoginHandoffFailureStatus(failure: WorkspaceLoginHandoffFailure): number {
   switch (failure.reason) {
-    case "no_board_identity":
+    case "no_operator_identity":
       return 403;
     case "handoff_not_configured":
       return 501;

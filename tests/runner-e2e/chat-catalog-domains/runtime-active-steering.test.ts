@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { gradeActiveSteering, isBlueColor, hasVisibleBlueDesign, steerDeliveryRevisionBound, steeringBranch } from "./runtime-active-steering.js";
 function valid() {
-  return { scenarioId: "steering.steer-active", companyId: "company", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "", tasks: [{ id: "website" }], activity: [],
+  return { scenarioId: "steering.steer-active", spaceId: "space", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "", tasks: [{ id: "website" }], activity: [],
     runs: [{ id: "worker", status: "succeeded" }, { id: "source", status: "succeeded" }],
     state: { task: { id: "website" }, targetId: "blue", humanId: "human", workerRunId: "worker", workerWasReallyWaiting: true,
       queueBefore: { issueId: "website", targetRunId: "worker", protocol: "outpost_runner_v1", steeringDisposition: "available", entries: [{ comment: { id: "blue", body: "Switch to a blue design while you are working.", authorUserId: "human", authorAgentId: null } }] },

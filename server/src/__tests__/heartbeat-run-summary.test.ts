@@ -38,7 +38,7 @@ describe.each(["scheduled_monitor_waiting", "scheduled_monitor_dispatched", "sch
     },
   };
 
-  it.each([false, true])("retains the accepted continuation explanation on board and chat (%s)", (external) => {
+  it.each([false, true])("retains the accepted continuation explanation on operator and chat (%s)", (external) => {
     expect(resolveHeartbeatRunResponse({
       resultJson,
       preferFinalResponseOverExistingComment: external,
@@ -438,7 +438,7 @@ describe("resolveHeartbeatRunResponse", () => {
     }
   });
 
-  it("keeps a governed interaction in control of the conversation response", () => {
+  it("keeps a controlled interaction in control of the conversation response", () => {
     for (const input of [{ resultJson, interactionOwnsResponse: true },
       { resultJson: { nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded", summary: "Waiting for an answer" } } }]) {
       expect(resolveHeartbeatRunResponse({ ...input, nativeConversationFinalResponse: true,
@@ -840,7 +840,7 @@ describe("resolveHeartbeatRunResponse", () => {
     });
   });
 
-  it("withholds root-chat bookkeeping while a governed interaction owns output", () => {
+  it("withholds root-chat bookkeeping while a controlled interaction owns output", () => {
     expect(
       resolveHeartbeatRunResponse({
         resultJson: {
@@ -918,7 +918,7 @@ describe("resolveHeartbeatRunResponse", () => {
       { ...responseWakeResult, finalizationPhase: "retryable_failure" },
       {
         ...responseWakeResult,
-        finalizationReasonCode: "governed_response_waiting",
+        finalizationReasonCode: "controlled_response_waiting",
       },
       {
         ...responseWakeResult,
@@ -1021,10 +1021,10 @@ describe("resolveHeartbeatRunResponse", () => {
     });
   });
 
-  it("requires separate server review-presentation authorization for a governed response wait", () => {
+  it("requires separate server review-presentation authorization for a controlled response wait", () => {
     const resultJson = {
       finalizationPhase: "committed",
-      finalizationReasonCode: "governed_response_waiting",
+      finalizationReasonCode: "controlled_response_waiting",
       externalChatReviewPresentation: {
         schema: "outpost.chat_review_response_presentation.v1",
       },
@@ -1085,7 +1085,7 @@ describe("resolveHeartbeatRunResponse", () => {
     ).toBeNull();
   });
 
-  it.each([false, true])("keeps board approval comments unless the chat origin is verified (%s)", (verified) => {
+  it.each([false, true])("keeps operator approval comments unless the chat origin is verified (%s)", (verified) => {
     const resolved = resolveHeartbeatRunResponse({
       resultJson: {},
       existingComment: { id: "approval-comment", body: "Explicit task outcome" },
@@ -1112,13 +1112,13 @@ describe("resolveHeartbeatRunResponse", () => {
     ).toBe(true);
     expect(
       isExternalChatPresentationContext({
-        paperclipWake: { externalInteractionContinuation: true },
+        outpostWake: { externalInteractionContinuation: true },
       }),
     ).toBe(true);
     expect(
       isExternalChatPresentationContext({
         externalChatContinuation: false,
-        paperclipWake: { externalInteractionContinuation: false },
+        outpostWake: { externalInteractionContinuation: false },
       }),
     ).toBe(false);
     expect(isExternalChatPresentationContext({ source: "chatty:github" })).toBe(

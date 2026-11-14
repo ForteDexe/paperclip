@@ -66,14 +66,14 @@ function validatorFor(message: string): NonNullable<CapturedTextOptions["validat
 
 const dbFixture: DatabaseConfig = {
   mode: "postgres",
-  connectionString: "postgres://user:pass@localhost:5432/paperclip",
-  embeddedPostgresDataDir: "/var/lib/paperclip/db",
+  connectionString: "postgres://user:pass@localhost:5432/outpost",
+  embeddedPostgresDataDir: "/var/lib/outpost/db",
   embeddedPostgresPort: 54329,
   backup: {
     enabled: false,
     intervalMinutes: 30,
     retentionDays: 7,
-    dir: "/var/lib/paperclip/backups",
+    dir: "/var/lib/outpost/backups",
   },
 };
 
@@ -142,7 +142,7 @@ describe("promptDatabase accepts defaults", () => {
     await expect(promptDatabase()).rejects.toThrow(/Connection string is required/);
 
     const connection = validatorFor("PostgreSQL connection string");
-    expect(connection("postgres://user:pass@localhost:5432/paperclip")).toBeUndefined();
+    expect(connection("postgres://user:pass@localhost:5432/outpost")).toBeUndefined();
     expect(connection("mysql://nope")).toBeTruthy();
   });
 });
@@ -226,7 +226,7 @@ describe("promptStorage accepts defaults", () => {
 
     const storage = await promptStorage();
 
-    expect(storage.s3.bucket).toBe("paperclip");
+    expect(storage.s3.bucket).toBe("outpost");
     expect(storage.s3.region).toBe("us-east-1");
 
     expect(validatorFor("S3 bucket")("   ")).toBeTruthy();

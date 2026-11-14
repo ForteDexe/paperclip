@@ -12,17 +12,17 @@ import { resourceMembershipState, useResourceMemberships } from "@/hooks/useReso
 import { useDialogActions } from "@/context/DialogContext";
 import { AgentChatPin, useAgentChatPins } from "./AgentChatPin";
 
-/** Account- and company-scoped data for the secondary chat navigation. */
+/** Account- and space-scoped data for the secondary chat navigation. */
 export function AgentConversationsSidebar() {
-  const { companyId, userId, agents, chats, session } = useAgentChatNavigation();
+  const { spaceId, userId, agents, chats, session } = useAgentChatNavigation();
   const agentChatPins = useAgentChatPins();
   const unreadMessageCounts = useMemo(() => new Map((chats.data ?? [])
     .flatMap(chat => chat.conversationAgentId && chat.unreadMessageCount
       ? [[chat.conversationAgentId, chat.unreadMessageCount] as const] : [])), [chats.data]);
-  const openChat = useOpenAgentChat(companyId, userId);
+  const openChat = useOpenAgentChat(spaceId, userId);
   const navigate = useNavigate();
   const { openNewAgent } = useDialogActions();
-  const memberships = useResourceMemberships(companyId);
+  const memberships = useResourceMemberships(spaceId);
   const { isMobile, setSidebarOpen } = useSidebar();
   const { pathname } = useLocation();
   const activeRef = pathname.split("/chats/")[1]?.split("/")[0];
@@ -33,7 +33,7 @@ export function AgentConversationsSidebar() {
   const missingIds = agents.isSuccess ? [...new Set((chats.data ?? [])
     .flatMap(chat => chat.conversationAgentId && !roster.some(agent => agent.id === chat.conversationAgentId) ? [chat.conversationAgentId] : []))] : [];
   const historyAgents = useQueries({ queries: missingIds.map(id => ({
-    queryKey: queryKeys.agents.detail(id), queryFn: () => agentsApi.get(id, companyId!),
+    queryKey: queryKeys.agents.detail(id), queryFn: () => agentsApi.get(id, spaceId!),
   })) });
   const byId = new Map(roster.map(agent => [agent.id, agent]));
   for (const result of historyAgents) if (result.data) byId.set(result.data.id, result.data);
@@ -63,7 +63,7 @@ export function AgentConversationsSidebar() {
     .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
   const previews = Object.fromEntries((chats.data ?? []).filter(chat => chat.conversationState === "active")
     .map(chat => [chat.conversationAgentId!, "Working…"]));
-  return <AgentConversationSidebar key={`${companyId}:${userId}`} agents={[...conversations, ...teammates]} availableAgents={activeRoster}
+  return <AgentConversationSidebar key={`${spaceId}:${userId}`} agents={[...conversations, ...teammates]} availableAgents={activeRoster}
     existingChatAgentIds={existingChatAgentIds}
     activeId={active?.id} previews={previews}
     unreadAgentIds={unreadAgentIds}

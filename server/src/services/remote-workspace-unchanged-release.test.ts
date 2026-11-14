@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  agents, closeRegisteredClients, companies, createDb, environmentLeases, environments, executionWorkspaces,
+  agents, closeRegisteredClients, spaces, createDb, environmentLeases, environments, executionWorkspaces,
   heartbeatRunEvents, heartbeatRuns, issues, workspaceOperations,
 } from "@outpost/db";
 import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
@@ -44,10 +44,10 @@ describe.skipIf(!support.supported)("remote workspace writer that ended without 
 
   /** A saved workspace, then a follow-up writer B prepared on the same sandbox (staging PAP-3367 shape). */
   async function preparedFollowUp(options: { runtimeProvisionCommand?: string } = {}) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Unchanged release", issuePrefix: `U${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Codie", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Daily repair", status: "in_progress", assigneeAgentId: agentId });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Unchanged release", issuePrefix: `U${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Codie", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Daily repair", status: "in_progress", assigneeAgentId: agentId });
     const [environment] = await db.insert(environments).values({ name: issueId, driver: "sandbox" }).returning();
     const storage = { ...createStorageService(createLocalDiskStorageProvider(path.join(root, issueId, "objects"))), provider: "s3" as const };
     const remoteCwd = path.join(root, issueId, "remote");
@@ -73,11 +73,11 @@ describe.skipIf(!support.supported)("remote workspace writer that ended without 
         } },
     });
     const writer = async (runId: string, existingWorkspaceId: string | null, runtimeProvisionCommand?: string) => {
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, runtimeMode: "legacy",
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, runtimeMode: "legacy",
         status: "running", contextSnapshot: { issueId } });
-      const [lease] = await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId: runId,
+      const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId: runId,
         environmentId: environment.id, provider: "daytona", providerLeaseId, status: "active" }).returning();
-      const reserved = await reserveRemoteWorkspace({ db, storage, companyId, issueId, runId, agentId,
+      const reserved = await reserveRemoteWorkspace({ db, storage, spaceId, issueId, runId, agentId,
         environmentId: environment.id, projectId: null, projectWorkspaceId: null, existingWorkspaceId, source: { kind: "empty" } });
       const prepared = await prepareRemoteWorkspace({ db, storage, workspace: reserved, runId,
         lease: lease as EnvironmentLease, target: target(lease.id), runtimeProvisionCommand });
@@ -105,22 +105,22 @@ describe.skipIf(!support.supported)("remote workspace writer that ended without 
       eq(workspaceOperations.heartbeatRunId, runB), eq(workspaceOperations.phase, "remote_workspace_snapshot")));
     const reserveNext = async () => {
       const runC = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: runC, companyId, agentId, issueId, runtimeMode: "legacy",
+      await db.insert(heartbeatRuns).values({ id: runC, spaceId, agentId, issueId, runtimeMode: "legacy",
         status: "running", contextSnapshot: { issueId } });
-      return { runC, reserved: await reserveRemoteWorkspace({ db, storage, companyId, issueId, runId: runC, agentId,
+      return { runC, reserved: await reserveRemoteWorkspace({ db, storage, spaceId, issueId, runId: runC, agentId,
         environmentId: environment.id, projectId: null, projectWorkspaceId: null, existingWorkspaceId: a.workspaceId, source: { kind: "empty" } }) };
     };
     const parkWaiter = async () => {
       const waiterId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: waiterId, companyId, agentId, issueId, runtimeMode: "legacy",
+      await db.insert(heartbeatRuns).values({ id: waiterId, spaceId, agentId, issueId, runtimeMode: "legacy",
         status: "scheduled_retry", scheduledRetryReason: "workspace_busy", scheduledRetryAt: new Date(Date.now() + 5 * 60_000),
         contextSnapshot: { issueId, workspaceBusyWait: { key: `execution:${a.workspaceId}`, holderRunId: runB,
           waitingSince: new Date().toISOString(), issueExecutionWorkspaceId: a.workspaceId, issueProjectWorkspaceId: null } } });
       return async () => (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, waiterId)))[0]!.scheduledRetryAt!;
     };
-    const event = (eventType: string) => db.insert(heartbeatRunEvents).values({ companyId, runId: runB, agentId,
+    const event = (eventType: string) => db.insert(heartbeatRunEvents).values({ spaceId, runId: runB, agentId,
       seq: 1, stream: "system", level: "info", eventType });
-    return { companyId, runA, runB, savedA, workspace, end, saveB, snapshotOperations, reserveNext, parkWaiter, event,
+    return { spaceId, runA, runB, savedA, workspace, end, saveB, snapshotOperations, reserveNext, parkWaiter, event,
       captures: () => captures };
   }
 
@@ -152,7 +152,7 @@ describe.skipIf(!support.supported)("remote workspace writer that ended without 
     await f.end();
     const dueAt = await f.parkWaiter();
     // Production finalizers publish their wrapper receipt before the save.
-    await db.insert(workspaceOperations).values({ companyId: f.companyId, executionWorkspaceId: (await f.workspace()).id,
+    await db.insert(workspaceOperations).values({ spaceId: f.spaceId, executionWorkspaceId: (await f.workspace()).id,
       heartbeatRunId: f.runB, phase: "workspace_finalize", status: "running", metadata: { owningService: "native_workspace_finalizer" } });
     const before = f.captures();
     const saved = await f.saveB();
@@ -189,7 +189,7 @@ describe.skipIf(!support.supported)("remote workspace writer that ended without 
     const f = await preparedFollowUp(provision ? { runtimeProvisionCommand: provision } : {});
     // The heartbeat still holds the run's controller lease when it settles the failure.
     await f.end({ status: "failed", errorCode: "adapter_failed", controllerLeaseExpiresAt: new Date(Date.now() + 60_000) });
-    expect(await releaseUnchangedFallbackWorkspace(db, { id: f.runB, companyId: f.companyId })).toBe(released);
+    expect(await releaseUnchangedFallbackWorkspace(db, { id: f.runB, spaceId: f.spaceId })).toBe(released);
     expect(readRemoteWorkspaceAuthority((await f.workspace()).metadata)).toMatchObject(released
       ? { dirty: false, writerRunId: null, snapshotId: f.savedA.snapshotId } : { dirty: true, writerRunId: f.runB });
   });
@@ -201,7 +201,7 @@ describe.skipIf(!support.supported)("remote workspace writer that ended without 
     const authority = readRemoteWorkspaceAuthority(current.metadata)!;
     await db.update(executionWorkspaces).set({ metadata: { ...current.metadata, remoteWorkspace: { ...authority,
       writerRunId: randomUUID(), epoch: authority.epoch + epochChange } } }).where(eq(executionWorkspaces.id, current.id));
-    expect(await releaseUnchangedFallbackWorkspace(db, { id: f.runB, companyId: f.companyId })).toBe(false);
+    expect(await releaseUnchangedFallbackWorkspace(db, { id: f.runB, spaceId: f.spaceId })).toBe(false);
   });
 
   it("keeps the full save while the writer's owner may still act, and while it is still running", async () => {

@@ -56,7 +56,7 @@ describe("describeIssueWriteDenial", () => {
 
   it("points a visibility denial at the missing permission", () => {
     const copy = describeIssueWriteDenial("issue_write_not_visible");
-    expect(copy.sanctionedPath).toContain("Ask the board to widen visibility");
+    expect(copy.sanctionedPath).toContain("Ask the operator to widen visibility");
   });
 
   it("frames the per-run cap as a rate backstop, not a permission decision", () => {
@@ -81,7 +81,7 @@ describe("describeIssueWriteDenial", () => {
 
   it("gives the run-context denial a copy-pasteable fix", () => {
     const copy = describeIssueWriteDenial("cross_issue_influence_run_context_required");
-    expect(copy.sanctionedPath).toContain("X-Paperclip-Run-Id");
+    expect(copy.sanctionedPath).toContain("X-Outpost-Run-Id");
     expect(copy.sanctionedPath).toContain("OUTPOST_RUN_ID");
   });
 

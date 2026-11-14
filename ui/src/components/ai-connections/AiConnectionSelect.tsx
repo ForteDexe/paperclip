@@ -56,7 +56,7 @@ export function AiConnectionSelect({
   const compatible = connections
     .filter(
       (c) =>
-        c.companyId === requirement.companyId &&
+        c.spaceId === requirement.spaceId &&
         isAiConnectionCompatible(
           c,
           adapterType,

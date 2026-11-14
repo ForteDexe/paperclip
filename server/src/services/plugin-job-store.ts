@@ -438,21 +438,21 @@ export function pluginJobStore(db: PluginJobDatabase) {
      *
      * @param jobId - UUID of the job
      * @param limit - Maximum number of rows to return (default: 50)
-     * @param companyIds - Optional tenant scope. `null`/omitted keeps the
+     * @param spaceIds - Optional tenant scope. `null`/omitted keeps the
      *   instance-wide view (used by instance administrators); an array limits
-     *   rows to those companies; an empty array returns no rows.
+     *   rows to those spaces; an empty array returns no rows.
      */
     async listRunsByJob(
       jobId: string,
       limit = 50,
-      companyIds: string[] | null = null,
+      spaceIds: string[] | null = null,
     ): Promise<(typeof pluginJobRuns.$inferSelect)[]> {
-      if (companyIds && companyIds.length === 0) {
+      if (spaceIds && spaceIds.length === 0) {
         return [];
       }
       const conditions = [eq(pluginJobRuns.jobId, jobId)];
-      if (companyIds) {
-        conditions.push(inArray(pluginJobRuns.companyId, companyIds));
+      if (spaceIds) {
+        conditions.push(inArray(pluginJobRuns.spaceId, spaceIds));
       }
       return db
         .select()
@@ -468,25 +468,25 @@ export function pluginJobStore(db: PluginJobDatabase) {
      * @param pluginId - UUID of the owning plugin
      * @param status - Optional status filter
      * @param limit - Maximum number of rows to return (default: 50)
-     * @param companyIds - Optional tenant scope. `null`/omitted keeps the
+     * @param spaceIds - Optional tenant scope. `null`/omitted keeps the
      *   instance-wide view (used by instance administrators); an array limits
-     *   rows to those companies; an empty array returns no rows.
+     *   rows to those spaces; an empty array returns no rows.
      */
     async listRunsByPlugin(
       pluginId: string,
       status?: PluginJobRunStatus,
       limit = 50,
-      companyIds: string[] | null = null,
+      spaceIds: string[] | null = null,
     ): Promise<(typeof pluginJobRuns.$inferSelect)[]> {
-      if (companyIds && companyIds.length === 0) {
+      if (spaceIds && spaceIds.length === 0) {
         return [];
       }
       const conditions = [eq(pluginJobRuns.pluginId, pluginId)];
       if (status) {
         conditions.push(eq(pluginJobRuns.status, status));
       }
-      if (companyIds) {
-        conditions.push(inArray(pluginJobRuns.companyId, companyIds));
+      if (spaceIds) {
+        conditions.push(inArray(pluginJobRuns.spaceId, spaceIds));
       }
       return db
         .select()

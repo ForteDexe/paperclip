@@ -24,18 +24,18 @@ describe("run failure diagnostics", () => {
     expect(JSON.stringify(diagnostic)).not.toContain("private-token");
   });
   it("reports only private acquisition observations for the exact failed setup run", () => {
-    const scope = { companyId: "company-fixture", environmentId: "environment-fixture", runId: "run-fixture" };
+    const scope = { spaceId: "space-fixture", environmentId: "environment-fixture", runId: "run-fixture" };
     const diagnostic = { phase: "workspace", elapsedMs: 100, budgetMs: 2_000 } as const;
     const error = Object.freeze(new Error("Acquisition failed"));
     const properties = Object.getOwnPropertyDescriptors(error);
     captureEnvironmentAcquisitionDiagnostic(error, scope, diagnostic);
-    const fixture = run({ id: scope.runId, companyId: scope.companyId, errorCode: "setup_failed" });
+    const fixture = run({ id: scope.runId, spaceId: scope.spaceId, errorCode: "setup_failed" });
     const collectSetup = (failure: unknown, record = fixture) => collectRunFailureDiagnostics(record, { error: failure, phase: "setup" }).execution;
     expect(collectSetup(new Error("Cleanup confirmed", { cause: error }))).toMatchObject({
       environmentAcquisitionPhase: "workspace", environmentAcquisitionElapsedMs: 100, environmentAcquisitionBudgetMs: 2_000,
     });
     expect(collectSetup(error, run({ ...fixture, id: "another-run" }))).not.toHaveProperty("environmentAcquisitionPhase");
-    expect(collectSetup(error, run({ ...fixture, companyId: "another-company" }))).not.toHaveProperty("environmentAcquisitionPhase");
+    expect(collectSetup(error, run({ ...fixture, spaceId: "another-space" }))).not.toHaveProperty("environmentAcquisitionPhase");
     expect(collectSetup(error, run({ ...fixture, errorCode: "adapter_failed" }))).not.toHaveProperty("environmentAcquisitionPhase");
     expect(collectRunFailureDiagnostics(fixture, { error, phase: "execute" }).execution).not.toHaveProperty("environmentAcquisitionPhase");
     expect(Object.getOwnPropertyDescriptors(error)).toEqual(properties);
@@ -49,7 +49,7 @@ describe("run failure diagnostics", () => {
   it("ignores forged acquisition fields and persisted JSON without private producer evidence", () => {
     const acquisitionDiagnostic = { phase: "shell", elapsedMs: 2_000, budgetMs: 2_000 };
     const error = Object.assign(new Error("Acquisition failed"), { acquisitionDiagnostic,
-      data: { schema: "paperclip/environment-creation-cleanup/v1", acquisitionDiagnostic },
+      data: { schema: "outpost/environment-creation-cleanup/v1", acquisitionDiagnostic },
     });
     expect(collectRunFailureDiagnostics(run({ errorCode: "setup_failed", resultJson: { acquisitionDiagnostic,
       environmentAcquisitionPhase: "shell", environmentAcquisitionElapsedMs: 2_000,

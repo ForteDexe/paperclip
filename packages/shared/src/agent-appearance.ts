@@ -5,7 +5,7 @@ export type AgentPaletteId = typeof AGENT_PALETTE_IDS[number];
 export type CharacterPaletteId = AgentPaletteId | "muted-dream";
 export const AGENT_AVATAR_SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256, 512] as const;
 export type AgentAvatarSize = typeof AGENT_AVATAR_SIZES[number];
-export type AgentAvatarBackground = "transparent" | "paperclip-dark";
+export type AgentAvatarBackground = "transparent" | "outpost-dark";
 /** sRGB PNG equivalent of index.css .dark --background: oklch(0.205 0 0). */
 export const OUTPOST_DARK_AVATAR_BACKGROUND = "#171717";
 export const CHARACTER_STATES = ["rest", "idle", "listening", "thinking", "working", "success", "confused", "sleepy", "loading"] as const;
@@ -14,7 +14,7 @@ export const agentAppearanceSchema = z.object({
   schemaVersion: z.literal(1),
   characterVersion: z.literal("cap-v1"),
   paletteId: z.enum(AGENT_PALETTE_IDS),
-  /** Company-scoped normalized image, set through the avatar upload service. */
+  /** Space-scoped normalized image, set through the avatar upload service. */
   customAvatarAssetId: z.uuid().optional(),
 }).strict();
 export type AgentAppearance = z.infer<typeof agentAppearanceSchema>;
@@ -42,7 +42,7 @@ export function resolveAgentAppearance(appearance: unknown, id = "agent"): Agent
 }
 export function agentAvatarUrl(appearance: AgentAppearance, size: AgentAvatarSize = 512, scale: 1 | 2 = 1, pose: CharacterState = "rest", muted = false, background: AgentAvatarBackground = "transparent"): string {
   if (appearance.customAvatarAssetId) return `/api/assets/${appearance.customAvatarAssetId}/content`;
-  return `/api/agent-avatars/${appearance.characterVersion}/${muted ? "muted-dream" : appearance.paletteId}/${pose}.png?size=${size}&scale=${scale}${background === "paperclip-dark" ? "&background=paperclip-dark" : ""}`;
+  return `/api/agent-avatars/${appearance.characterVersion}/${muted ? "muted-dream" : appearance.paletteId}/${pose}.png?size=${size}&scale=${scale}${background === "outpost-dark" ? "&background=outpost-dark" : ""}`;
 }
 export function characterStateForAgent(status: string): CharacterState {
   if (status === "running") return "working";

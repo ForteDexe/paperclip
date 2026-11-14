@@ -16,8 +16,8 @@ function act(callback: () => void | Promise<void>) {
   return result;
 }
 
-const companyState = vi.hoisted(() => ({
-  selectedCompanyId: "company-1",
+const spaceState = vi.hoisted(() => ({
+  selectedSpaceId: "space-1",
 }));
 
 const dialogState = vi.hoisted(() => ({
@@ -51,8 +51,8 @@ const mockAuthApi = vi.hoisted(() => ({
   getSession: vi.fn(),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => companyState,
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => spaceState,
 }));
 
 vi.mock("../context/DialogContext", () => ({
@@ -237,7 +237,7 @@ describe("CommandPalette", () => {
     });
 
     await waitForAssertion(() => {
-      expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", {
+      expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1", {
         q: "pull/3303",
         limit: 10,
         includeRoutineExecutions: true,
@@ -417,7 +417,7 @@ describe("CommandPalette", () => {
     });
 
     await waitForAssertion(() => {
-      expect(mockIssuesApi.list).toHaveBeenCalledWith("company-1", {
+      expect(mockIssuesApi.list).toHaveBeenCalledWith("space-1", {
         q: "auth",
         limit: 10,
         includeRoutineExecutions: true,

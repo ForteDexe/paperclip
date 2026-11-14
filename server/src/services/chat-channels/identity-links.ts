@@ -1,4 +1,4 @@
-import { notifyChatCompanyAuthorityChange } from "../chat-run-milestone-notifications.js";
+import { notifyChatSpaceAuthorityChange } from "../chat-run-milestone-notifications.js";
 import { githubIdentityFields } from "./github/identity-links.js";
 import { createSlackIdentityLinks, type SlackIdentityEffectStager } from "./slack/identity-links.js";
 import { createHash, randomBytes } from "node:crypto";
@@ -6,7 +6,7 @@ import { and, asc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 
 import type { Db } from "@outpost/db";
 
-import { authUsers, chatEndpoints, chatExternalPrincipals, chatIdentityLinks, companies, companyMemberships } from "@outpost/db";
+import { authUsers, chatEndpoints, chatExternalPrincipals, chatIdentityLinks, spaces, spaceMemberships } from "@outpost/db";
 
 import { conflict, forbidden, notFound, unprocessable } from "../../errors.js";
 
@@ -33,7 +33,7 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
       .from(chatExternalPrincipals)
       .where(
         and(
-          eq(chatExternalPrincipals.companyId, record.endpoint.companyId),
+          eq(chatExternalPrincipals.spaceId, record.endpoint.spaceId),
           eq(chatExternalPrincipals.provider, record.endpoint.provider),
           eq(
             chatExternalPrincipals.providerAccountId,
@@ -49,7 +49,7 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
     const connects = record.endpoint.provider === "slack" ? await slackIdentityLinks.listConnects(record.endpoint) : [];
     const connectByPrincipal = new Map(connects.map((row) => [row.principalId, new Date(row.lastConnectAt).toISOString()]));
     const userIds = links.flatMap((link) =>
-      link.paperclipUserId ? [link.paperclipUserId] : [],
+      link.outpostUserId ? [link.outpostUserId] : [],
     );
     const users = userIds.length
       ? await db
@@ -68,8 +68,8 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
     const userById = new Map(users.map((user) => [user.id, user]));
     return principals.map((principal) => {
       const link = linkByPrincipal.get(principal.id);
-      const user = link?.paperclipUserId
-        ? userById.get(link.paperclipUserId)
+      const user = link?.outpostUserId
+        ? userById.get(link.outpostUserId)
         : null;
       return {
         id: link?.id ?? principal.id,
@@ -80,9 +80,9 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
         externalDetail: principal.handle
           ? `@${principal.handle.replace(/^@/, "")}`
           : principal.externalId,
-        paperclipUserId: link?.paperclipUserId ?? null,
-        paperclipUserLabel: user?.name ?? user?.email ?? null,
-        paperclipUserImage: user?.image ?? null,
+        outpostUserId: link?.outpostUserId ?? null,
+        outpostUserLabel: user?.name ?? user?.email ?? null,
+        outpostUserImage: user?.image ?? null,
         status: link?.status ?? "pending",
         lastConnectAt: connectByPrincipal.get(principal.id) ?? null,
       };
@@ -101,7 +101,7 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
       .from(chatExternalPrincipals)
       .where(
         and(
-          eq(chatExternalPrincipals.companyId, record.endpoint.companyId),
+          eq(chatExternalPrincipals.spaceId, record.endpoint.spaceId),
           eq(chatExternalPrincipals.id, principalId),
           eq(chatExternalPrincipals.provider, record.endpoint.provider),
           eq(
@@ -120,7 +120,7 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
     const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
     await db.transaction(async (tx) => {
       await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtextextended(${`chat-identity:${record.endpoint.companyId}:${principalId}`}, 0))`,
+        sql`select pg_advisory_xact_lock(hashtextextended(${`chat-identity:${record.endpoint.spaceId}:${principalId}`}, 0))`,
       );
       const existingLink = await tx
         .select({ status: chatIdentityLinks.status })
@@ -141,7 +141,7 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
       await tx
         .insert(chatIdentityLinks)
         .values({
-          companyId: record.endpoint.companyId,
+          spaceId: record.endpoint.spaceId,
           endpointId,
           principalId,
           status: "pending",
@@ -151,7 +151,7 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
         .onConflictDoUpdate({
           target: [chatIdentityLinks.endpointId, chatIdentityLinks.principalId],
           set: {
-            paperclipUserId: null,
+            outpostUserId: null,
             status: "pending",
             confirmationTokenHash: tokenHash,
             expiresAt,
@@ -175,25 +175,25 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
         link: chatIdentityLinks,
         principal: chatExternalPrincipals,
         endpoint: chatEndpoints,
-        companyName: companies.name,
-        companyPrefix: companies.issuePrefix,
+        spaceName: spaces.name,
+        spacePrefix: spaces.issuePrefix,
       })
       .from(chatIdentityLinks)
       .innerJoin(
         chatExternalPrincipals,
         and(
-          eq(chatExternalPrincipals.companyId, chatIdentityLinks.companyId),
+          eq(chatExternalPrincipals.spaceId, chatIdentityLinks.spaceId),
           eq(chatExternalPrincipals.id, chatIdentityLinks.principalId),
         ),
       )
       .innerJoin(
         chatEndpoints,
         and(
-          eq(chatEndpoints.companyId, chatIdentityLinks.companyId),
+          eq(chatEndpoints.spaceId, chatIdentityLinks.spaceId),
           eq(chatEndpoints.id, chatIdentityLinks.endpointId),
         ),
       )
-      .innerJoin(companies, eq(companies.id, chatIdentityLinks.companyId))
+      .innerJoin(spaces, eq(spaces.id, chatIdentityLinks.spaceId))
       .where(
         and(
           eq(chatIdentityLinks.confirmationTokenHash, tokenHash),
@@ -206,16 +206,16 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
     }
     if (!["active", "verifying"].includes(row.endpoint.status)) throw unprocessable("This connection is not available");
     const selfService = await slackIdentityLinks.isSelfService(row.link, tokenHash);
-    const membership = userId ? await db.select({ status: companyMemberships.status }).from(companyMemberships).where(and(
-      eq(companyMemberships.companyId, row.link.companyId), eq(companyMemberships.principalType, "user"), eq(companyMemberships.principalId, userId),
+    const membership = userId ? await db.select({ status: spaceMemberships.status }).from(spaceMemberships).where(and(
+      eq(spaceMemberships.spaceId, row.link.spaceId), eq(spaceMemberships.principalType, "user"), eq(spaceMemberships.principalId, userId),
     )).then((rows) => rows[0]) : null;
     return {
       selfService,
       canConfirm: membership?.status === "active",
       endpointId: row.endpoint.id,
-      companyId: row.endpoint.companyId,
-      companyName: row.companyName,
-      companyPrefix: row.companyPrefix,
+      spaceId: row.endpoint.spaceId,
+      spaceName: row.spaceName,
+      spacePrefix: row.spacePrefix,
       provider: row.endpoint.provider,
       providerAccountLabel: row.endpoint.providerAccountLabel,
       botLabel: row.endpoint.botDisplayName,
@@ -230,7 +230,7 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
     };
   }
 
-  async function confirmIdentityLink(token: string, paperclipUserId: string) {
+  async function confirmIdentityLink(token: string, outpostUserId: string) {
     const tokenHash = createHash("sha256").update(token).digest("hex");
     const link = await db
       .select()
@@ -251,12 +251,12 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
     let confirmationEffectId: string | null = null;
     const confirmed = await db.transaction(async (tx) => {
       await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtextextended(${`chat-identity:${link.companyId}:${link.principalId}`}, 0))`,
+        sql`select pg_advisory_xact_lock(hashtextextended(${`chat-identity:${link.spaceId}:${link.principalId}`}, 0))`,
       );
       const currentLink = await tx
         .select({
           id: chatIdentityLinks.id,
-          companyId: chatIdentityLinks.companyId,
+          spaceId: chatIdentityLinks.spaceId,
           endpointId: chatIdentityLinks.endpointId,
           principalId: chatIdentityLinks.principalId,
           expiresAt: chatIdentityLinks.expiresAt,
@@ -280,34 +280,34 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
         return null;
       }
       const membership = await tx
-        .select({ status: companyMemberships.status })
-        .from(companyMemberships)
+        .select({ status: spaceMemberships.status })
+        .from(spaceMemberships)
         .where(
           and(
-            eq(companyMemberships.companyId, currentLink.companyId),
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, paperclipUserId),
+            eq(spaceMemberships.spaceId, currentLink.spaceId),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, outpostUserId),
           ),
         )
         .for("update")
         .then((rows) => rows[0] ?? null);
       if (membership?.status !== "active") {
         throw forbidden(
-          "The signed-in Outpost account is not a member of this company",
+          "The signed-in Outpost account is not a member of this space",
         );
       }
       const conflictingLink = await tx
         .select({
           id: chatIdentityLinks.id,
-          paperclipUserId: chatIdentityLinks.paperclipUserId,
+          outpostUserId: chatIdentityLinks.outpostUserId,
         })
         .from(chatIdentityLinks)
         .where(
           and(
-            eq(chatIdentityLinks.companyId, link.companyId),
+            eq(chatIdentityLinks.spaceId, link.spaceId),
             eq(chatIdentityLinks.principalId, link.principalId),
             eq(chatIdentityLinks.status, "linked"),
-            ne(chatIdentityLinks.paperclipUserId, paperclipUserId),
+            ne(chatIdentityLinks.outpostUserId, outpostUserId),
           ),
         )
         .limit(1)
@@ -320,11 +320,11 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
           },
         );
       }
-      await notifyChatCompanyAuthorityChange(tx, { companyId: currentLink.companyId });
+      await notifyChatSpaceAuthorityChange(tx, { spaceId: currentLink.spaceId });
       const confirmedLink = await tx
         .update(chatIdentityLinks)
         .set({
-          paperclipUserId,
+          outpostUserId,
           status: "linked",
           confirmationTokenHash: null,
           confirmedAt: now,
@@ -361,7 +361,7 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
 
   async function revokeLink(endpointId: string, principalId: string) {
     const link = await db
-      .select({ companyId: chatIdentityLinks.companyId })
+      .select({ spaceId: chatIdentityLinks.spaceId })
       .from(chatIdentityLinks)
       .where(
         and(
@@ -373,12 +373,12 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
     if (!link) throw notFound("Identity link not found");
     const revoked = await db.transaction(async (tx) => {
       await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtextextended(${`chat-identity:${link.companyId}:${principalId}`}, 0))`,
+        sql`select pg_advisory_xact_lock(hashtextextended(${`chat-identity:${link.spaceId}:${principalId}`}, 0))`,
       );
       return tx
         .update(chatIdentityLinks)
         .set({
-          paperclipUserId: null,
+          outpostUserId: null,
           status: "revoked",
           confirmationTokenHash: null,
           revokedAt: new Date(),
@@ -386,7 +386,7 @@ export function createChatIdentityLinks(db: Db, options: ChatIdentityLinkOptions
         })
         .where(
           and(
-            eq(chatIdentityLinks.companyId, link.companyId),
+            eq(chatIdentityLinks.spaceId, link.spaceId),
             eq(chatIdentityLinks.endpointId, endpointId),
             eq(chatIdentityLinks.principalId, principalId),
           ),

@@ -84,9 +84,9 @@ const {
 }));
 
 // The session lookup never answers on its own; tests set the account directly.
-vi.mock("@/context/CompanyContext", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/context/CompanyContext")>()),
-  useCompany: () => ({ selectedCompany: null }),
+vi.mock("@/context/SpaceContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/context/SpaceContext")>()),
+  useSpace: () => ({ selectedSpace: null }),
 }));
 
 vi.mock("../api/auth", async (importOriginal) => {
@@ -234,8 +234,8 @@ vi.mock("./IssueLinkQuicklook", () => ({
   ),
 }));
 
-vi.mock("../hooks/usePaperclipIssueRuntime", () => ({
-  usePaperclipIssueRuntime: () => ({}),
+vi.mock("../hooks/useOutpostIssueRuntime", () => ({
+  useOutpostIssueRuntime: () => ({}),
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -246,7 +246,7 @@ function createSuggestedTasksInteraction(
 ): SuggestTasksInteraction {
   return {
     id: "interaction-suggest-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     kind: "suggest_tasks",
     title: "Suggested follow-up work",
@@ -278,8 +278,8 @@ function createSuggestedTasksInteraction(
     effectiveResolverPolicySource:
       overrides.effectiveResolverPolicySource ?? "requested",
     legacyResolverPolicyAliases: overrides.legacyResolverPolicyAliases ?? {
-      requested: "board_or_agents",
-      effective: "board_or_agents",
+      requested: "operator_or_agents",
+      effective: "operator_or_agents",
     },
   };
 }
@@ -289,7 +289,7 @@ function createQuestionInteraction(
 ): AskUserQuestionsInteraction {
   return {
     id: "interaction-question-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     kind: "ask_user_questions",
     title: "Clarify the phase",
@@ -327,8 +327,8 @@ function createQuestionInteraction(
     effectiveResolverPolicySource:
       overrides.effectiveResolverPolicySource ?? "requested",
     legacyResolverPolicyAliases: overrides.legacyResolverPolicyAliases ?? {
-      requested: "board_or_agents",
-      effective: "board_or_agents",
+      requested: "operator_or_agents",
+      effective: "operator_or_agents",
     },
   };
 }
@@ -338,7 +338,7 @@ function createExpiredRequestConfirmationInteraction(
 ): RequestConfirmationInteraction {
   return {
     id: "interaction-confirmation-expired",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     kind: "request_confirmation",
     title: "Approve the plan",
@@ -370,8 +370,8 @@ function createExpiredRequestConfirmationInteraction(
     effectiveResolverPolicySource:
       overrides.effectiveResolverPolicySource ?? "requested",
     legacyResolverPolicyAliases: overrides.legacyResolverPolicyAliases ?? {
-      requested: "board_or_agents",
-      effective: "board_or_agents",
+      requested: "operator_or_agents",
+      effective: "operator_or_agents",
     },
   };
 }
@@ -488,16 +488,16 @@ describe("IssueChatThread", () => {
     });
   });
 
-  it("labels incoming iMessage bubbles without labeling board replies", () => {
+  it("labels incoming iMessage bubbles without labeling operator replies", () => {
     const root = createRoot(container);
     act(() => {
       renderIssueThread(root, {
-        comments: ["imessage", "board"].map((source) => ({
+        comments: ["imessage", "operator"].map((source) => ({
           id: `comment-${source}`,
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: "issue-1",
           authorAgentId: null,
-          authorUserId: "user-board",
+          authorUserId: "user-operator",
           authorType: "user" as const,
           body: `Reply from ${source}`,
           presentation: null,
@@ -509,12 +509,12 @@ describe("IssueChatThread", () => {
           createdAt: new Date("2026-09-12T12:00:00Z"),
           updatedAt: new Date("2026-09-12T12:00:00Z"),
         })),
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         showComposer: false,
       });
     });
     expect(container.querySelector("#comment-comment-imessage")?.textContent).toContain("Sent from iMessage");
-    expect(container.querySelector("#comment-comment-board")?.textContent).not.toContain("Sent from iMessage");
+    expect(container.querySelector("#comment-comment-operator")?.textContent).not.toContain("Sent from iMessage");
     act(() => root.unmount());
   });
 
@@ -526,10 +526,10 @@ describe("IssueChatThread", () => {
         comments: [
           {
             id: "comment-current-user",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
-            authorUserId: "user-board",
+            authorUserId: "user-operator",
             authorType: "user",
             body: "1. **Readable** markdown on blue",
             presentation: null,
@@ -538,7 +538,7 @@ describe("IssueChatThread", () => {
             updatedAt: new Date("2026-04-06T12:00:00.000Z"),
           },
         ],
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         showComposer: false,
       });
     });
@@ -546,7 +546,7 @@ describe("IssueChatThread", () => {
     expect(markdownBodyRenderMock).toHaveBeenCalledWith(
       expect.objectContaining({
         children: "1. **Readable** markdown on blue",
-        className: expect.stringContaining("paperclip-markdown-on-accent"),
+        className: expect.stringContaining("outpost-markdown-on-accent"),
       }),
     );
 
@@ -592,7 +592,7 @@ describe("IssueChatThread", () => {
     });
 
     expect(container.textContent).toContain(
-      "interrupted by board after 1 minute",
+      "interrupted by operator after 1 minute",
     );
     expect(container.textContent).toContain("cancelled after 1 minute");
     expect(container.textContent).not.toContain("run interrupted");
@@ -604,7 +604,7 @@ describe("IssueChatThread", () => {
 
   it("falls back to execCommand for comment copy actions in insecure contexts", async () => {
     const clipboardWrite = vi.fn(async () => {
-      throw new Error("Clipboard API blocked");
+      throw new Error("Clipoperator API blocked");
     });
     const execCommand = vi.fn(() => true);
     const originalClipboard = Object.getOwnPropertyDescriptor(
@@ -640,7 +640,7 @@ describe("IssueChatThread", () => {
           comments: [
             {
               id: "comment-copy",
-              companyId: "company-1",
+              spaceId: "space-1",
               issueId: "issue-1",
               authorAgentId: null,
               authorUserId: "user-1",
@@ -909,7 +909,7 @@ describe("IssueChatThread", () => {
         linkedRuns: issueChatLongThreadLinkedRuns,
         timelineEvents: issueChatLongThreadEvents,
         agentMap: issueChatLongThreadAgentMap,
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         showComposer: false,
         showJumpToLatest: false,
         autoScrollToHashOnInitialLoad: true,
@@ -960,7 +960,7 @@ describe("IssueChatThread", () => {
         linkedRuns: issueChatLongThreadLinkedRuns,
         timelineEvents: issueChatLongThreadEvents,
         agentMap: issueChatLongThreadAgentMap,
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         showComposer: false,
         showJumpToLatest: false,
         transcriptsByRunId: issueChatLongThreadTranscriptsByRunId,
@@ -1025,7 +1025,7 @@ describe("IssueChatThread", () => {
             timelineEvents={issueChatLongThreadEvents}
             liveRuns={[]}
             agentMap={issueChatLongThreadAgentMap}
-            currentUserId="user-board"
+            currentUserId="user-operator"
             onAdd={async () => {}}
             showComposer={false}
             showJumpToLatest={false}
@@ -1062,7 +1062,7 @@ describe("IssueChatThread", () => {
         linkedRuns: issueChatLongThreadLinkedRuns,
         timelineEvents: issueChatLongThreadEvents,
         agentMap: issueChatLongThreadAgentMap,
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         transcriptsByRunId: issueChatLongThreadTranscriptsByRunId,
         hasOutputForRun: (runId) =>
           issueChatLongThreadTranscriptsByRunId.has(runId),
@@ -1118,7 +1118,7 @@ describe("IssueChatThread", () => {
         linkedRuns: issueChatLongThreadLinkedRuns,
         timelineEvents: issueChatLongThreadEvents,
         agentMap: issueChatLongThreadAgentMap,
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         transcriptsByRunId: issueChatLongThreadTranscriptsByRunId,
         hasOutputForRun: (runId) =>
           issueChatLongThreadTranscriptsByRunId.has(runId),
@@ -1182,7 +1182,7 @@ describe("IssueChatThread", () => {
         linkedRuns: issueChatLongThreadLinkedRuns,
         timelineEvents: issueChatLongThreadEvents,
         agentMap: issueChatLongThreadAgentMap,
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         transcriptsByRunId: issueChatLongThreadTranscriptsByRunId,
         hasOutputForRun: (runId) =>
           issueChatLongThreadTranscriptsByRunId.has(runId),
@@ -1257,7 +1257,7 @@ describe("IssueChatThread", () => {
         linkedRuns: issueChatLongThreadLinkedRuns,
         timelineEvents: issueChatLongThreadEvents,
         agentMap: issueChatLongThreadAgentMap,
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         transcriptsByRunId: issueChatLongThreadTranscriptsByRunId,
         hasOutputForRun: (runId) =>
           issueChatLongThreadTranscriptsByRunId.has(runId),
@@ -1313,7 +1313,7 @@ describe("IssueChatThread", () => {
             comments={[
               {
                 id: "comment-target",
-                companyId: "company-1",
+                spaceId: "space-1",
                 issueId: "issue-1",
                 authorAgentId: "agent-1",
                 authorUserId: null,
@@ -1415,7 +1415,7 @@ describe("IssueChatThread", () => {
         linkedRuns: linkedRuns,
         timelineEvents: issueChatLongThreadEvents,
         agentMap: issueChatLongThreadAgentMap,
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         transcriptsByRunId: transcriptsByRunId,
         hasOutputForRun: (runId) => transcriptsByRunId.has(runId),
       });
@@ -1474,7 +1474,7 @@ describe("IssueChatThread", () => {
       renderIssueThread(root, {
         comments: directComments,
         agentMap: issueChatLongThreadAgentMap,
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         onRefreshLatestComments: refreshMock,
       });
     });
@@ -1506,7 +1506,7 @@ describe("IssueChatThread", () => {
 
     const olderComment = {
       id: "comment-before-refresh",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       authorAgentId: "agent-perf-codex",
       authorUserId: null,
@@ -1534,7 +1534,7 @@ describe("IssueChatThread", () => {
           timelineEvents={[]}
           liveRuns={[]}
           agentMap={issueChatLongThreadAgentMap}
-          currentUserId="user-board"
+          currentUserId="user-operator"
           onAdd={async () => {}}
           enableLiveTranscriptPolling={false}
           onRefreshLatestComments={async () => {
@@ -1599,7 +1599,7 @@ describe("IssueChatThread", () => {
       renderIssueThread(root, {
         comments: directComments,
         agentMap: issueChatLongThreadAgentMap,
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         showComposer: false,
         showJumpToLatest: false,
       });
@@ -1658,7 +1658,7 @@ describe("IssueChatThread", () => {
         linkedRuns: issueChatLongThreadLinkedRuns,
         timelineEvents: issueChatLongThreadEvents,
         agentMap: issueChatLongThreadAgentMap,
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         showComposer: false,
         showJumpToLatest: false,
         transcriptsByRunId: issueChatLongThreadTranscriptsByRunId,
@@ -1700,7 +1700,7 @@ describe("IssueChatThread", () => {
         linkedRuns: issueChatLongThreadLinkedRuns,
         timelineEvents: issueChatLongThreadEvents,
         agentMap: issueChatLongThreadAgentMap,
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         onAdd: onAdd,
         showComposer: false,
         showJumpToLatest: false,
@@ -1718,7 +1718,7 @@ describe("IssueChatThread", () => {
         linkedRuns: issueChatLongThreadLinkedRuns,
         timelineEvents: issueChatLongThreadEvents,
         agentMap: issueChatLongThreadAgentMap,
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         onAdd: onAdd,
         showComposer: false,
         showJumpToLatest: true,
@@ -1741,7 +1741,7 @@ describe("IssueChatThread", () => {
     const comments = [
       {
         id: "comment-agent-feedback",
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         authorAgentId: "agent-1",
         authorUserId: null,
@@ -1775,7 +1775,7 @@ describe("IssueChatThread", () => {
         feedbackVotes: [
           {
             id: "feedback-1",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             targetType: "issue_comment",
             targetId: "comment-agent-feedback",
@@ -1804,7 +1804,7 @@ describe("IssueChatThread", () => {
         comments: [
           {
             id: "comment-agent-bubble",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: "agent-1",
             authorUserId: null,
@@ -1816,7 +1816,7 @@ describe("IssueChatThread", () => {
             updatedAt: new Date("2026-04-06T12:00:00.000Z"),
           },
         ],
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         showComposer: false,
       });
     });
@@ -1849,10 +1849,10 @@ describe("IssueChatThread", () => {
         comments: [
           {
             id: "comment-owned",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
-            authorUserId: "user-board",
+            authorUserId: "user-operator",
             body: "Delete me",
             authorType: "user",
             presentation: null,
@@ -1862,7 +1862,7 @@ describe("IssueChatThread", () => {
           },
           {
             id: "comment-other",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
             authorUserId: "user-other",
@@ -1874,7 +1874,7 @@ describe("IssueChatThread", () => {
             updatedAt: new Date("2026-04-06T12:01:00.000Z"),
           },
         ],
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         onDeleteComment: onDeleteComment,
         showComposer: false,
       });
@@ -1916,22 +1916,22 @@ describe("IssueChatThread", () => {
         comments: [
           {
             id: "comment-deleted",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
-            authorUserId: "user-board",
+            authorUserId: "user-operator",
             body: "Sensitive deleted body",
             authorType: "user",
             presentation: null,
             metadata: null,
             deletedAt: new Date("2026-04-06T12:05:00.000Z"),
             deletedByType: "user",
-            deletedByUserId: "user-board",
+            deletedByUserId: "user-operator",
             createdAt: new Date("2026-04-06T12:00:00.000Z"),
             updatedAt: new Date("2026-04-06T12:05:00.000Z"),
           },
         ],
-        currentUserId: "user-board",
+        currentUserId: "user-operator",
         onDeleteComment: async () => {},
         showComposer: false,
       });
@@ -1966,22 +1966,22 @@ describe("IssueChatThread", () => {
             comments={[
               {
                 id: "comment-deleted",
-                companyId: "company-1",
+                spaceId: "space-1",
                 issueId: "issue-1",
                 authorAgentId: null,
-                authorUserId: "user-board",
+                authorUserId: "user-operator",
                 body: "Sensitive deleted body",
                 authorType: "user",
                 presentation: null,
                 metadata: null,
                 deletedAt: new Date("2026-04-06T12:05:00.000Z"),
                 deletedByType: "user",
-                deletedByUserId: "user-board",
+                deletedByUserId: "user-operator",
                 createdAt: new Date("2026-04-06T12:00:00.000Z"),
                 updatedAt: new Date("2026-04-06T12:05:00.000Z"),
               },
             ]}
-            currentUserId="user-board"
+            currentUserId="user-operator"
             linkedRuns={[]}
             timelineEvents={[]}
             liveRuns={[]}
@@ -2009,10 +2009,10 @@ describe("IssueChatThread", () => {
         comments: [
           {
             id: "comment-1",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
-            authorUserId: "local-board",
+            authorUserId: "local-operator",
             body: "Please continue validation.",
             authorType: "user",
             presentation: null,
@@ -2371,7 +2371,7 @@ describe("IssueChatThread", () => {
     const root = createRoot(container);
     const pausedAgent = {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "CodexCoder",
       status: "paused",
       pauseReason: "manual",
@@ -2708,7 +2708,7 @@ describe("IssueChatThread", () => {
         comments: [
           {
             id: "comment-1",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: "agent-1",
             authorUserId: null,
@@ -2737,7 +2737,7 @@ describe("IssueChatThread", () => {
   it("hides queued interrupt and cancel actions until the task resumes", () => {
     const root = createRoot(container);
     const comments = [{
-      id: "comment-paused-queue", companyId: "company-1", issueId: "issue-1",
+      id: "comment-paused-queue", spaceId: "space-1", issueId: "issue-1",
       authorAgentId: null, authorUserId: "user-1", authorType: "user" as const,
       body: "Keep this queued message", presentation: null, metadata: null,
       queueState: "queued" as const, queueTargetRunId: "run-1",
@@ -2762,7 +2762,7 @@ describe("IssueChatThread", () => {
     const root = createRoot(container);
     const onInterruptQueued = vi.fn(async () => {});
     act(() => root.render(<MemoryRouter><IssueChatThread
-      comments={[{ id: "comment-queue", companyId: "company-1", issueId: "issue-1",
+      comments={[{ id: "comment-queue", spaceId: "space-1", issueId: "issue-1",
         authorAgentId: null, authorUserId: "user-1", authorType: "user", body: "Pending input",
         presentation: null, metadata: null, queueState: "queued", queueTargetRunId: null,
         createdAt: new Date(), updatedAt: new Date() }]}
@@ -2784,7 +2784,7 @@ describe("IssueChatThread", () => {
         comments: [
           {
             id: "comment-hold",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
             authorUserId: "user-1",
@@ -2809,7 +2809,7 @@ describe("IssueChatThread", () => {
         comments: [
           {
             id: "comment-active-run",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
             authorUserId: "user-1",
@@ -3355,7 +3355,7 @@ describe("IssueChatThread", () => {
       await uploadGate;
       return {
         id: "attachment-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         issueCommentId: null,
         assetId: "asset-1",
@@ -3629,10 +3629,10 @@ describe("IssueChatThread", () => {
         draftKey: "legacy-awaited-reassignment",
         enableReassign: true,
         reassignOptions: [
-          { id: "user:board", label: "Board" },
+          { id: "user:operator", label: "Operator" },
           { id: "user:reviewer", label: "Reviewer" },
         ],
-        currentAssigneeValue: "user:board",
+        currentAssigneeValue: "user:operator",
         suggestedAssigneeValue: "user:reviewer",
       }),
     );
@@ -3720,7 +3720,7 @@ describe("IssueChatThread", () => {
     const root = createRoot(container);
     const onAttachImage = vi.fn(async (file: File) => ({
       id: "attachment-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       issueCommentId: null,
       assetId: "asset-1",
@@ -3776,7 +3776,7 @@ describe("IssueChatThread", () => {
         comments: [
           {
             id: "comment-spacer-1",
-            companyId: "company-1",
+            spaceId: "space-1",
             issueId: "issue-1",
             authorAgentId: null,
             authorUserId: "user-1",
@@ -4383,7 +4383,7 @@ describe("IssueChatThread", () => {
     ).toBe(false);
   });
 
-  it("uses company profile data to distinguish the current user from other humans", () => {
+  it("uses space profile data to distinguish the current user from other humans", () => {
     const userProfileMap = new Map([
       ["user-1", { label: "Dotta", image: "/avatars/dotta.png" }],
       ["user-2", { label: "Alice", image: "/avatars/alice.png" }],
@@ -4432,7 +4432,7 @@ describe("IssueAssigneePausedNotice", () => {
   function pausedAgent(pauseReason: string): Agent {
     return {
       id: "agent-1",
-      name: "CEO",
+      name: "Default agent",
       status: "paused",
       pauseReason,
     } as unknown as Agent;
@@ -4484,7 +4484,7 @@ describe("IssueAssigneePausedNotice", () => {
     ["paused", "setup isn't finished"],
   ])("shows a setup-draft agent (%s) as still being set up, not manually paused", (lifecycleState, detail) => {
     const root = createRoot(container);
-    const agent = { ...pausedAgent("setup"), lifecycleState, urlKey: "ceo" } as unknown as Agent;
+    const agent = { ...pausedAgent("setup"), lifecycleState, urlKey: "lead" } as unknown as Agent;
 
     act(() => {
       root.render(
@@ -4497,13 +4497,13 @@ describe("IssueAssigneePausedNotice", () => {
     const text = container.textContent ?? "";
     expect(text).not.toContain("paused manually");
     expect(text).not.toContain("is paused");
-    expect(text).toContain("CEO is still being set up");
+    expect(text).toContain("Default agent is still being set up");
     expect(text.toLowerCase()).toContain(detail);
     // Resuming a setup draft is not the recovery path; finishing setup is.
     expect(container.querySelector('[data-testid="issue-assignee-paused-resume"]')).toBeNull();
     if (lifecycleState !== "preparing") {
       const finish = container.querySelector('[data-testid="issue-assignee-finish-setup"]');
-      expect(finish?.getAttribute("href")).toBe("/ONB/agents/ceo");
+      expect(finish?.getAttribute("href")).toBe("/ONB/agents/lead");
     } else {
       expect(container.querySelector('[data-testid="issue-assignee-finish-setup"]')).toBeNull();
     }
@@ -4511,11 +4511,11 @@ describe("IssueAssigneePausedNotice", () => {
     act(() => root.unmount());
   });
 
-  it("explains a company-archive pause instead of calling it manual", () => {
+  it("explains a space-archive pause instead of calling it manual", () => {
     const root = createRoot(container);
     act(() => {
       root.render(
-        <IssueAssigneePausedNotice agent={pausedAgent("company_archived")} issueStatus="todo" onResume={vi.fn()} />,
+        <IssueAssigneePausedNotice agent={pausedAgent("space_archived")} issueStatus="todo" onResume={vi.fn()} />,
       );
     });
     expect(container.textContent).not.toContain("paused manually");
@@ -4554,7 +4554,7 @@ describe("IssueAssigneePausedNotice", () => {
         <IssueAssigneePausedNotice
           issueStatus="in_progress"
           agent={
-            { id: "agent-1", name: "CEO", status: "idle" } as unknown as Agent
+            { id: "agent-1", name: "Default agent", status: "idle" } as unknown as Agent
           }
         />,
       );

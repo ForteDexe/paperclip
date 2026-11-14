@@ -15,12 +15,12 @@ export const upsertCaseAction = {
       "standard",
       "skill_test"
     ],
-    "sideEffectClass": "company_write",
+    "sideEffectClass": "space_write",
     "idempotency": "required",
     "disabledByDefault": false,
     "realBindingStatus": "scenario_mock",
     "realServiceBinding": "unbound",
-    "orpEvidence": "semantic-operation item event plus company-entity state diff and audit record",
+    "orpEvidence": "semantic-operation item event plus space-entity state diff and audit record",
     "orpBindingStatus": "audit_pending",
     "legacyAliases": [],
     "note": "Scenario/eval-only mock extension."
@@ -129,7 +129,7 @@ export const upsertCaseAction = {
         "standard",
         "skill_test"
       ],
-      "sideEffectClass": "company_write",
+      "sideEffectClass": "space_write",
       "idempotency": "required",
       "redaction": [],
       "mockCommandMapping": {

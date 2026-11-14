@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { CompanySkillAuditFinding, CompanySkillVersionFileInventoryEntry, SkillPackageInspection, SkillPackageReference } from '@outpost/shared';
+import type { SpaceSkillAuditFinding, SpaceSkillVersionFileInventoryEntry, SkillPackageInspection, SkillPackageReference } from '@outpost/shared';
 import { unprocessable } from '../errors.js';
 import { skillFileBytes } from './skill-snapshot.js';
 
@@ -43,10 +43,10 @@ export function indexSkillPackagePaths(paths: Iterable<string>): ReadonlySet<str
 
 export function inspectSkillPackage(
   skillPath: string,
-  files: CompanySkillVersionFileInventoryEntry[],
+  files: SpaceSkillVersionFileInventoryEntry[],
   repositoryPaths: ReadonlySet<string>,
   frontmatter: Record<string, unknown>,
-  findings: CompanySkillAuditFinding[],
+  findings: SpaceSkillAuditFinding[],
   includedPaths?: ReadonlySet<string>,
 ): SkillPackageInspection {
   const root = path.posix.dirname(skillPath);

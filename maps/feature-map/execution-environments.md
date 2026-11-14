@@ -33,7 +33,7 @@ Settings. Local execution is selected from the Space and agent runtime flows.
 
 Choose the environment in agent/project/workspace configuration, then inspect the resulting task/run and workspace.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use an owned disposable target and a supported provider plugin. Record provider, target identity, account, and spending constraints before a live remote run.
 
@@ -44,19 +44,19 @@ Automated: [environment routes](../../server/src/__tests__/environment-routes.te
 Manual: Save a disposable target, reload it, and run its available probe. Verify both success and missing-credential/reachability errors identify the target. Confirm unavailable providers are not offered as working run targets.
 
 For an immutable sandbox image, pin the OCI image with `@sha256`, or select
-a Daytona snapshot whose provider ID can be verified, and explicitly probe the saved environment in the intended company. The existing connection
+a Daytona snapshot whose provider ID can be verified, and explicitly probe the saved environment in the intended space. The existing connection
 probe allocates a fresh lease and can measure its OS, architecture and libc.
 Qualification is recorded only when the selected image/configuration matches
 the live lease and cleanup is confirmed. Inspect `platformQualificationRecorded`
 and its diagnostic in the probe result: connection success alone does not mean
 the image has native runtime qualification.
 
-Paperclip-managed Cloud images use the current platform-selected image without
+Outpost-managed Cloud images use the current platform-selected image without
 a saved qualification prerequisite when the active Cloud configuration provisions
 the sandbox provider. Custom environments and active captured custom images
 retain qualification requirements.
 
-For other images, the measured record is server-owned, company-bound and tied to the effective
+For other images, the measured record is server-owned, space-bound and tied to the effective
 configuration and active custom-image identity. Mutable tags, provider defaults
 and snapshots without verified provider identities do not qualify. Daytona
 qualification creates by provider ID and binds native execution to that same ID;
@@ -69,7 +69,7 @@ qualification operation. See the [runtime contract](../../packages/outpost-runne
 and [adapter validation recipe](./runs-adapters.md#adapter-setup) for native
 binary/provider readiness after platform qualification.
 
-Verification recipe: probe a pinned owned image, record its company/config/image
+Verification recipe: probe a pinned owned image, record its space/config/image
 identity and cleanup result, then change the image or target and verify its old
 qualification is not reused. A mutable-image connection can succeed while
 qualification remains absent. Assert ordinary agent and non-admin board probe
@@ -156,7 +156,7 @@ Capability ID: `execution-environments/probe`.
 
 Scope: ui
 Storybook: Remote Test pending, success, reachability/auth failure and platform qualification absent/invalidated notice.
-Production: Probe actual owned target; verify selected saved immutable config/image/company qualification plus lease cleanup; local API probe proves host/cwd only and has no UI Test button.
+Production: Probe actual owned target; verify selected saved immutable config/image/space qualification plus lease cleanup; local API probe proves host/cwd only and has no UI Test button.
 Sources: Source: [environments.ts](../../ui/src/api/environments.ts), [environment-probe.ts](../../server/src/services/environment-probe.ts). Tests: [environment-routes.test.ts](../../server/src/__tests__/environment-routes.test.ts), [environment-probe.test.ts](../../server/src/__tests__/environment-probe.test.ts), [environment-live-ssh.test.ts](../../server/src/__tests__/environment-live-ssh.test.ts)
 
 #### `images`

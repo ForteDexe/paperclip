@@ -6,7 +6,7 @@ export interface CostEvent {
   usageKind?: "agent" | "decision" | "fast_response" | "prompt_injection";
   responsibleUserId?: string | null;
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string | null;
   issueId: string | null;
   projectId: string | null;
@@ -38,7 +38,7 @@ export interface CostSummary {
   /** Receipts whose API/subscription billing identity was not established. */
   unknownBillingEventCount?: number;
   pricingComplete: boolean;
-  companyId: string;
+  spaceId: string;
   spendCents: number;
   spendCentsExact?: string;
   budgetCents: number;
@@ -104,9 +104,9 @@ export interface CostByUser {
 }
 
 export interface CostByUserReport {
-  /** Active human members, excluding the synthetic local-board principal. */
+  /** Active human members, excluding the synthetic local-operator principal. */
   activeUserCount: number;
-  /** Includes zero-spend active users, even in single-user companies. */
+  /** Includes zero-spend active users, even in single-user spaces. */
   rows: CostByUser[];
 }
 

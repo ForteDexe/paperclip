@@ -1,0 +1,3 @@
+[Pod]
+PodName=outpost
+PublishPort=3100:3100

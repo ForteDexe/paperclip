@@ -9,7 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { AiProvider, AiAuthMethod } from "@outpost/shared";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { connectionGrants } from "./tool_access.js";
 
 /** A retained row with a null/revoked grant is an unavailable default, never permission to auto-select. */
@@ -17,9 +17,9 @@ export const aiConnectionDefaults = pgTable(
   "ai_connection_defaults",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull(),
     provider: text("provider").$type<AiProvider>().notNull(),
     method: text("method").$type<AiAuthMethod>().notNull(),
@@ -30,15 +30,15 @@ export const aiConnectionDefaults = pgTable(
   },
   (t) => [
     uniqueIndex("ai_connection_defaults_owner_method_uq").on(
-      t.companyId,
+      t.spaceId,
       t.userId,
       t.provider,
       t.method,
     ),
     foreignKey({
-      columns: [t.companyId, t.grantId],
-      foreignColumns: [connectionGrants.companyId, connectionGrants.id],
-      name: "ai_connection_defaults_company_grant_fk",
+      columns: [t.spaceId, t.grantId],
+      foreignColumns: [connectionGrants.spaceId, connectionGrants.id],
+      name: "ai_connection_defaults_space_grant_fk",
     }),
     check(
       "ai_connection_defaults_provider_check",

@@ -2,7 +2,7 @@
 
 Use this workflow when you want Codex or Claude to inspect a pull request that you do not want touching your host machine directly.
 
-This is intentionally separate from the normal Paperclip dev image.
+This is intentionally separate from the normal Outpost dev image.
 
 ## What this container isolates
 
@@ -56,7 +56,7 @@ Inside the container:
 
 ```sh
 review-checkout-pr paperclipai/paperclip 432
-cd /work/checkouts/paperclipai-paperclip/pr-432
+cd /work/checkouts/outpostai-outpost/pr-432
 ```
 
 What this does:
@@ -87,7 +87,7 @@ Or with Claude:
 claude
 ```
 
-## Preview the Paperclip app from the PR
+## Preview the Outpost app from the PR
 
 Only do this when you intentionally want to execute the PR's code inside the container.
 
@@ -110,7 +110,7 @@ Notes:
 
 - `pnpm install` can run untrusted lifecycle scripts from the PR. That is why this happens inside the isolated container instead of on your host.
 - If you only want static inspection, do not run install/dev commands.
-- Paperclip's embedded PostgreSQL and local storage stay inside the container home volume via `OUTPOST_HOME=/home/reviewer/.paperclip-review`.
+- Outpost's embedded PostgreSQL and local storage stay inside the container home volume via `OUTPOST_HOME=/home/reviewer/.outpost-review`.
 
 ## Reset state
 

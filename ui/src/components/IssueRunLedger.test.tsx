@@ -65,7 +65,7 @@ function createRun(overrides: Partial<RunForIssue> = {}): RunForIssue {
 function createActivity(overrides: Partial<ActivityEvent> = {}): ActivityEvent {
   return {
     id: "activity-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     actorType: "system",
     actorId: "system",
     action: "issue.updated",
@@ -82,7 +82,7 @@ function createActivity(overrides: Partial<ActivityEvent> = {}): ActivityEvent {
 function createIssue(overrides: Partial<Issue> = {}): Issue {
   return {
     id: "issue-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     projectWorkspaceId: null,
     goalId: null,
@@ -393,7 +393,7 @@ describe("IssueRunLedger", () => {
     expect(container.textContent).toContain("cancelled");
     expect(container.textContent).toContain("paused by a legacy policy");
     expect(container.textContent).toContain("unmanaged background task stopped");
-    expect(container.textContent).toContain("paused by board");
+    expect(container.textContent).toContain("paused by operator");
   });
 
   it("names the recorded cause of an adapter failure and keeps the plain label for older runs", () => {

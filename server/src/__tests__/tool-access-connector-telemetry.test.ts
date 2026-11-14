@@ -6,11 +6,11 @@ import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   activityLog,
-  companies,
-  companyMemberships,
-  companySecretBindings,
-  companySecretVersions,
-  companySecrets,
+  spaces,
+  spaceMemberships,
+  spaceSecretBindings,
+  spaceSecretVersions,
+  spaceSecrets,
   connectionGrants,
   createDb,
   secretAccessEvents,
@@ -52,23 +52,23 @@ function updatedEvents() {
   return track.mock.calls.filter(([name]) => name === "connection.updated");
 }
 
-async function createCompany(db: Db) {
-  const company = await db
-    .insert(companies)
+async function createSpace(db: Db) {
+  const space = await db
+    .insert(spaces)
     .values({
       name: `Lifecycle telemetry ${randomUUID()}`,
       issuePrefix: `LT${randomUUID().slice(0, 6).toUpperCase()}`,
     })
     .returning()
     .then((rows) => rows[0]!);
-  await db.insert(companyMemberships).values({
-    companyId: company.id,
+  await db.insert(spaceMemberships).values({
+    spaceId: space.id,
     principalType: "user",
     principalId: actor.actorId,
     status: "active",
     membershipRole: "admin",
   });
-  return company;
+  return space;
 }
 
 const actor = {
@@ -120,15 +120,15 @@ function remoteMcpFixture() {
  * catalog slug and a `provider: composio` child. Master keeps such rows only
  * for inspection and explicit removal; they cannot execute or reconnect.
  */
-async function insertRetiredComposioRecords(db: Db, companyId: string) {
+async function insertRetiredComposioRecords(db: Db, spaceId: string) {
   const [application] = await db
     .insert(toolApplications)
-    .values({ companyId, name: "Composio", type: "rest_api", status: "active" })
+    .values({ spaceId, name: "Composio", type: "rest_api", status: "active" })
     .returning();
   const [parent] = await db
     .insert(toolConnections)
     .values({
-      companyId,
+      spaceId,
       applicationId: application!.id,
       name: "Composio (legacy broker)",
       uid: `composio/${randomUUID()}`,
@@ -143,7 +143,7 @@ async function insertRetiredComposioRecords(db: Db, companyId: string) {
   const [child] = await db
     .insert(toolConnections)
     .values({
-      companyId,
+      spaceId,
       applicationId: application!.id,
       name: "GitHub (via Composio)",
       uid: `composio/github/${randomUUID()}`,
@@ -173,7 +173,7 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
     keyDir = await mkdtemp(join(tmpdir(), "lifecycle-telemetry-secrets-"));
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", join(keyDir, "key"));
     tempDb = await startEmbeddedPostgresTestDatabase(
-      "paperclip-lifecycle-telemetry-",
+      "outpost-lifecycle-telemetry-",
     );
     db = createDb(tempDb.connectionString);
   }, 30_000);
@@ -190,11 +190,11 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
     await db.delete(toolConnections);
     await db.delete(toolApplications);
     await db.delete(secretAccessEvents);
-    await db.delete(companySecretBindings);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceSecretBindings);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -211,9 +211,9 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
   }
 
   it("createConnection emits one created event with the catalog key from the committed row", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const svc = service();
-    await svc.createConnection(company.id, {
+    await svc.createConnection(space.id, {
       name: "GitHub fixture",
       transport: "mcp_remote",
       config: { url: "https://fixture.example/mcp", sourceTemplateKey: "github" },
@@ -238,9 +238,9 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
   }, 30_000);
 
   it("updateConnection emits committed transitions only; metadata saves stay silent", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const svc = service();
-    const connection = await svc.createConnection(company.id, {
+    const connection = await svc.createConnection(space.id, {
       name: "Custom fixture",
       transport: "mcp_remote",
       config: { url: "https://fixture.example/mcp" },
@@ -273,7 +273,7 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
   }, 30_000);
 
   it("direct Composio MCP setup from the gallery emits catalog identity only, never the session URL", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const remote = remoteMcpFixture();
     const svc = service({
       deploymentMode: "local_trusted",
@@ -281,10 +281,10 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
       remoteHttpRequest: remote.remoteHttpRequest,
     });
     // The same server path the Apps gallery and inline task cards call
-    // (POST /companies/:companyId/tools/apps/connect): Composio Connect with an
+    // (POST /spaces/:spaceId/tools/apps/connect): Composio Connect with an
     // externally configured MCP session URL.
     const connected = await svc.connectGalleryApp(
-      company.id,
+      space.id,
       {
         galleryKey: "composio",
         connectionMethodKey: "mcp",
@@ -309,7 +309,7 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
 
     track.mockClear();
     const finished = await svc.finishGalleryAppConnection(
-      company.id,
+      space.id,
       connected.connectionId,
       {
         enabledCatalogEntryIds: connected.catalog.map((entry) => entry.id),
@@ -337,7 +337,7 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
   }, 30_000);
 
   it("pausing and resuming a direct Composio MCP connection reports api transitions with the catalog key", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const remote = remoteMcpFixture();
     const svc = service({
       deploymentMode: "local_trusted",
@@ -345,7 +345,7 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
       remoteHttpRequest: remote.remoteHttpRequest,
     });
     const connected = await svc.connectGalleryApp(
-      company.id,
+      space.id,
       {
         galleryKey: "composio",
         connectionMethodKey: "mcp",
@@ -355,7 +355,7 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
       actor,
     );
     await svc.finishGalleryAppConnection(
-      company.id,
+      space.id,
       connected.connectionId,
       {
         enabledCatalogEntryIds: connected.catalog.map((entry) => entry.id),
@@ -395,16 +395,16 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
     // then finalizeOAuthAccess — POST .../apps/:id/finalize-oauth-access, also
     // called by connection-intent completion — activates the draft row itself
     // before handing off to the finish step.
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const svc = service();
     const [application] = await db
       .insert(toolApplications)
-      .values({ companyId: company.id, name: "Composio", type: "mcp_http", status: "active" })
+      .values({ spaceId: space.id, name: "Composio", type: "mcp_http", status: "active" })
       .returning();
     const [connection] = await db
       .insert(toolConnections)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         applicationId: application!.id,
         name: "Composio",
         uid: `composio/${randomUUID()}`,
@@ -421,14 +421,14 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
         transportConfig: { url: "https://connect.composio.dev/mcp" },
       })
       .returning();
-    const accessToken = await secretService(db).create(company.id, {
+    const accessToken = await secretService(db).create(space.id, {
       name: `OAuth access token ${randomUUID().slice(0, 8)}`,
       key: `tool_app.${randomUUID()}.oauth_access_token`,
       provider: "local_encrypted",
       value: "fixture-access-token",
     });
     await db.insert(connectionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       connectionId: connection!.id,
       kind: "user",
       subjectUserId: actor.actorId,
@@ -446,7 +446,7 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
     track.mockClear();
 
     const finished = await svc.finalizeOAuthAccess(
-      company.id,
+      space.id,
       connection!.id,
       { grantKind: "user" },
       actor,
@@ -471,8 +471,8 @@ describeEmbeddedPostgres("connector lifecycle telemetry (tool-access)", () => {
   }, 30_000);
 
   it("retained legacy broker records emit only their explicit removal, distinguishable by transport", async () => {
-    const company = await createCompany(db);
-    const { parent, child } = await insertRetiredComposioRecords(db, company.id);
+    const space = await createSpace(db);
+    const { parent, child } = await insertRetiredComposioRecords(db, space.id);
     const svc = service();
     track.mockClear();
 

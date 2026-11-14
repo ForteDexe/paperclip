@@ -226,7 +226,7 @@ function setSandboxExecSpanFailure(
 
 export async function resolveEnvironmentExecutionTarget(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   adapterType: string;
   environment: {
     id?: string;
@@ -258,7 +258,7 @@ export async function resolveEnvironmentExecutionTarget(input: {
   if (input.environment.driver === "plugin" && input.adapterType === "outpost_runner") {
     const lease = input.lease;
     const runtime = input.environmentRuntime;
-    if (!lease || !runtime || lease.companyId !== input.companyId ||
+    if (!lease || !runtime || lease.spaceId !== input.spaceId ||
         lease.environmentId !== input.environment.id || !await runtime.supportsTasks({ lease })) {
       throw new Error("Plugin environment does not provide native Runner task execution");
     }
@@ -275,7 +275,7 @@ export async function resolveEnvironmentExecutionTarget(input: {
       sandboxLeaseAcquisition:acquisition,
       ...(lease.metadata?.runnerTaskProbe ? { runnerTaskProbe: lease.metadata.runnerTaskProbe as { runId: string; sessionId: string } } : {}),
       runnerTask: async (operation, context) => {
-        const result = await runtime.task({ companyId: input.companyId, leaseId: lease.id,
+        const result = await runtime.task({ spaceId: input.spaceId, leaseId: lease.id,
           operation: environmentTaskOperationSchema.parse(operation),
           ...(context?.executionContext ? { executionContext: context.executionContext } : {}),
           ...(context?.expectedTaskId !== undefined ? { expectedTaskId: context.expectedTaskId } : {}) });
@@ -297,7 +297,7 @@ export async function resolveEnvironmentExecutionTarget(input: {
       return null;
     }
 
-    const parsed = await resolveEnvironmentDriverConfigForRuntime(input.db, input.companyId, {
+    const parsed = await resolveEnvironmentDriverConfigForRuntime(input.db, input.spaceId, {
       id: input.environment.id,
       driver: input.environment.driver as "sandbox",
       config: parseObject(input.environment.config),
@@ -676,7 +676,7 @@ export async function resolveEnvironmentExecutionTarget(input: {
     return null;
   }
 
-  const parsed = await resolveEnvironmentDriverConfigForRuntime(input.db, input.companyId, {
+  const parsed = await resolveEnvironmentDriverConfigForRuntime(input.db, input.spaceId, {
     id: input.environment.id,
     driver: input.environment.driver as "ssh",
     config: parseObject(input.environment.config),

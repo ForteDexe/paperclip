@@ -23,22 +23,22 @@ export async function readIdleIssueSchedule(tx: Pick<Db, "execute">, ownerId: st
   generation?: string;
 }> {
   const rows = await tx.execute<{
-    id: string; company_id: string; status: string; updated_at: Date | string;
+    id: string; space_id: string; status: string; updated_at: Date | string;
     assignee_agent_id: string | null; assignee_user_id: string | null;
     checkout_run_id: string | null; execution_run_id: string | null;
     execution_policy: unknown; execution_state: unknown; unblock_descriptor: unknown;
     conversation_agent_id: string | null; monitor_next_check_at: Date | string | null;
     monitor_wake_requested_at: Date | string | null; monitor_attempt_count: number;
-    company_status: string; company_updated: Date | string; agent_status: string | null;
+    space_status: string; space_updated: Date | string; agent_status: string | null;
     agent_updated: Date | string | null; scoped: boolean; unsafe_dependencies: boolean; dependency_ready: boolean;
     untouched_onboarding: boolean; response_driven_wait: boolean;
     unblock_request_finished: boolean;
     response_wait_generation: unknown;
     passive_conversation: boolean;
-  }>(sql`SELECT i.id, i.company_id, i.status, i.updated_at, i.assignee_agent_id, i.assignee_user_id,
+  }>(sql`SELECT i.id, i.space_id, i.status, i.updated_at, i.assignee_agent_id, i.assignee_user_id,
       i.checkout_run_id, i.execution_run_id, i.execution_policy, i.execution_state, i.unblock_descriptor,
       i.conversation_agent_id, i.monitor_next_check_at, i.monitor_wake_requested_at, i.monitor_attempt_count,
-      c.status AS company_status, c.updated_at AS company_updated,
+      c.status AS space_status, c.updated_at AS space_updated,
       a.status AS agent_status, a.updated_at AS agent_updated,
       (i.assignee_agent_id IS NULL OR a.id IS NOT NULL) AS scoped,
       (${sql.raw(responseDrivenIssueWait('i'))}) AS response_driven_wait,
@@ -47,17 +47,17 @@ export async function readIdleIssueSchedule(tx: Pick<Db, "execute">, ownerId: st
       (SELECT jsonb_agg(jsonb_build_array(w.id, w.updated_at, w.kind, w.status, w.source_run_id,
           w.effective_resolver_policy, w.continuation_policy, w.addressee_agent_id, w.addressee_user_id) ORDER BY w.id)
         FROM issue_thread_interactions w WHERE w.issue_id = i.id AND w.status = 'pending') AS response_wait_generation,
-      (${onboardingFirstTaskAwaitingUserSql(sql`i.company_id`, sql`i.id`, sql`i.origin_kind`)}
-        AND NOT EXISTS (SELECT 1 FROM heartbeat_runs h WHERE h.company_id = i.company_id
+      (${onboardingFirstTaskAwaitingUserSql(sql`i.space_id`, sql`i.id`, sql`i.origin_kind`)}
+        AND NOT EXISTS (SELECT 1 FROM heartbeat_runs h WHERE h.space_id = i.space_id
           AND (h.context_snapshot ->> 'issueId' = i.id::text OR h.context_snapshot ->> 'taskId' = i.id::text))) AS untouched_onboarding,
       EXISTS (SELECT 1 FROM issue_relations r LEFT JOIN issues b ON b.id = r.issue_id
-        WHERE r.related_issue_id = i.id AND (r.company_id <> i.company_id OR b.company_id <> i.company_id
+        WHERE r.related_issue_id = i.id AND (r.space_id <> i.space_id OR b.space_id <> i.space_id
           OR b.id IS NULL OR r.type <> 'blocks' OR b.status NOT IN ('backlog', 'todo', 'in_progress', 'in_review', 'blocked', 'done', 'cancelled'))) AS unsafe_dependencies,
       (EXISTS (SELECT 1 FROM issue_relations r WHERE r.related_issue_id = i.id AND r.type = 'blocks')
         AND NOT EXISTS (SELECT 1 FROM issue_relations r JOIN issues b ON b.id = r.issue_id
           WHERE r.related_issue_id = i.id AND r.type = 'blocks' AND b.status <> 'done')) AS dependency_ready
-    FROM issues i JOIN companies c ON c.id = i.company_id
-    LEFT JOIN agents a ON a.id = i.assignee_agent_id AND a.company_id = i.company_id
+    FROM issues i JOIN spaces c ON c.id = i.space_id
+    LEFT JOIN agents a ON a.id = i.assignee_agent_id AND a.space_id = i.space_id
     WHERE i.status NOT IN ('done', 'cancelled') ORDER BY i.id LIMIT ${limit + 1}`);
   if (rows.length > limit) return { blocked: true, inspectionComplete: false };
   let earliest = Infinity;
@@ -83,7 +83,7 @@ export async function readIdleIssueSchedule(tx: Pick<Db, "execute">, ownerId: st
         && parsedPolicy.success && execution.currentStageIndex === parsedPolicy.data.stages.findIndex(stage => stage.id === reviewRetry.stageId);
       if (!currentReviewRetry) return { blocked: true };
     }
-    if (!statuses.has(row.status) || row.company_status !== "active" || row.scoped !== true
+    if (!statuses.has(row.status) || row.space_status !== "active" || row.scoped !== true
       || (row.assignee_agent_id && !agentStatuses.has(row.agent_status ?? ""))
       || row.unsafe_dependencies !== false
       || (row.checkout_run_id && row.checkout_run_id !== retry?.runId)
@@ -114,7 +114,7 @@ export async function readIdleIssueSchedule(tx: Pick<Db, "execute">, ownerId: st
     const passive = retryWait || row.passive_conversation === true || row.status === "backlog"
       || (row.status === "todo" && !row.assignee_agent_id)
       || (row.status === "todo" && row.assignee_agent_id && row.agent_status === "idle" && row.untouched_onboarding === true)
-      || (row.status === "blocked" && (row.unblock_descriptor === null || unblock?.owner === "board"
+      || (row.status === "blocked" && (row.unblock_descriptor === null || unblock?.owner === "operator"
         || row.unblock_request_finished === true))
       || (["in_progress", "in_review"].includes(row.status) && row.response_driven_wait === true)
       || Boolean(row.assignee_user_id && !row.assignee_agent_id);

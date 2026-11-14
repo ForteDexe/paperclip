@@ -3,7 +3,7 @@ import { readAiConnectionConfigurationFailure } from "./ai-connection-configurat
 import { logger } from "../middleware/logger.js";
 import { createHmac } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
-import { agents, companies, companySecrets, type Db } from "@outpost/db";
+import { agents, spaces, spaceSecrets, type Db } from "@outpost/db";
 import type { AdapterEnvironmentTestResult } from "@outpost/adapter-utils";
 import { ADAPTER_AUTH_MISSING_CHECK_CODE, aiRuntimeConnectionBindingSchema } from "@outpost/shared";
 import { isForbiddenConfigEnvKey, parseObject } from "@outpost/adapter-utils/server-utils";
@@ -78,39 +78,39 @@ export function agentHarnessVerificationService(db: Db, manager: PluginWorkerMan
     const [agent] = await db.select().from(agents).where(and(eq(agents.id, snapshot.id), eq(agents.lifecycleVersion, snapshot.lifecycleVersion)));
     if (!agent) return "pending";
     if (agent.adapterType === "outpost_runner" && ["openai_dot", "grok_bot"].includes(String(agent.adapterConfig.provider))) {
-      const binding = await dotRunnerBroker(db).bindingForAgent(agent.companyId, agent.id);
+      const binding = await dotRunnerBroker(db).bindingForAgent(agent.spaceId, agent.id);
       return binding?.status === "ready" && binding.wakeVerified && binding.id === agent.adapterConfig[agent.adapterConfig.provider === "grok_bot" ? "externalBindingId" : "dotBindingId"] ? "complete" : "pending";
     }
     if (agent.adapterType === "outpost_runner" && agent.adapterConfig.provider === "muse") {
-      const binding = await museRunnerBroker(db).bindingForAgent(agent.companyId,agent.id);
+      const binding = await museRunnerBroker(db).bindingForAgent(agent.spaceId,agent.id);
       // A successful read of these external facts has no retry deadline. The
       // real confirmation/configuration producer rechecks this phase durably.
       return binding?.status === "ready" && binding.paired && binding.receiverDetected && binding.backgroundReplyVerified && binding.id === agent.adapterConfig.museBindingId ? "complete" : "waiting";
     }
     const providerApi = resolveProviderApiPlacement({ agent });
     if (providerApi) assertProviderApiPlacementPolicy(await instanceSettingsService(db).getGeneral());
-    const [company] = await db.select().from(companies).where(eq(companies.id, agent.companyId));
-    const responsibleUserId = agent.lifecycleOperation?.responsibleUserId ?? company.defaultResponsibleUserId;
+    const [space] = await db.select().from(spaces).where(eq(spaces.id, agent.spaceId));
+    const responsibleUserId = agent.lifecycleOperation?.responsibleUserId ?? space.defaultResponsibleUserId;
     const context = { consumerType: "agent" as const, consumerId: agent.id, actorType: "system" as const,
       actorId: "agent-lifecycle", responsibleUserId };
     let binding = agent.runtimeConfig.aiConnection ? aiRuntimeConnectionBindingSchema.parse(agent.runtimeConfig.aiConnection) : undefined;
     let config = agent.adapterConfig;
     if (binding?.mode === "router") {
-      const selected = await aiConnectionRouterService(db, manager).resolve({ companyId: agent.companyId,
+      const selected = await aiConnectionRouterService(db, manager).resolve({ spaceId: agent.spaceId,
         poolId: binding.connectionId, agentId: agent.id, userId: responsibleUserId,
         adapterType: agent.adapterType, taskKey: `lifecycle:${agent.lifecycleOperation!.id}` });
       binding = selected.binding;
       config = { ...config, ...selected.runtimeConfig };
     }
     if (binding) config = { ...config, env: stripAiAuthBindings(config.env) };
-    config = (await secrets.resolveAdapterConfigForRuntime(agent.companyId, config, context, { adapterType: agent.adapterType })).config;
+    config = (await secrets.resolveAdapterConfigForRuntime(agent.spaceId, config, context, { adapterType: agent.adapterType })).config;
     let runner: Record<string, unknown> | null = providerApi ? { kind: "provider_api" } : { kind: "local", version: serverVersion };
-    const environmentId = providerApi ? null : await tests.resolveAdapterTestEnvironmentId(agent.companyId, agent.defaultEnvironmentId, agent.adapterType === "outpost_runner" && config.provider === "acpx" && config.acpxAgent === "copilot");
+    const environmentId = providerApi ? null : await tests.resolveAdapterTestEnvironmentId(agent.spaceId, agent.defaultEnvironmentId, agent.adapterType === "outpost_runner" && config.provider === "acpx" && config.acpxAgent === "copilot");
     if (environmentId) {
-      await tests.assertAdapterTestEnvironmentForCompany(agent.companyId, environmentId, agent.adapterType);
+      await tests.assertAdapterTestEnvironmentForSpace(agent.spaceId, environmentId, agent.adapterType);
       const environment = await environments.getById(environmentId);
       if (environment && environment.driver !== "local") {
-        const image = environment.driver === "sandbox" ? await sandboxBinding(db, environment, agent.companyId).catch(() => null) : null;
+        const image = environment.driver === "sandbox" ? await sandboxBinding(db, environment, agent.spaceId).catch(() => null) : null;
         // Only an immutable image digest names the image a test ran in; a snapshot
         // name may be re-pointed without the allocation pinning it, so it never counts.
         const immutable = image && "image" in image;
@@ -125,12 +125,12 @@ export function agentHarnessVerificationService(db: Db, manager: PluginWorkerMan
         && await pluginEnvironmentRunnerTaskDriver(db, environment)) throw pluginRunnerAiConnectionRequiredFailure(preconfiguredHome);
       const env = Object.fromEntries(Object.entries(binding ? stripAiAuthBindings(environment?.envVars) : parseObject(environment?.envVars))
         .filter(([key]) => !isForbiddenConfigEnvKey(key)));
-      const resolved = await secrets.resolveEnvBindings(agent.companyId, env,
+      const resolved = await secrets.resolveEnvBindings(agent.spaceId, env,
         { ...context, consumerType: "environment", consumerId: environmentId });
       config = { ...config, env: { ...resolved.env, ...parseObject(config.env) } };
     }
     const selectAccount = () => aiConnectionService(db).select({
-      companyId: agent.companyId, userId: responsibleUserId, agentId: agent.id,
+      spaceId: agent.spaceId, userId: responsibleUserId, agentId: agent.id,
       adapterType: agent.adapterType, model: config.model, runnerProvider: config.provider,
       acpxAgent: config.acpxAgent, binding: binding!,
     });
@@ -142,9 +142,9 @@ export function agentHarnessVerificationService(db: Db, manager: PluginWorkerMan
     const connection = selected?.connection;
     const credentialRefs = [...(connection?.credentialSecretRefs ?? []), ...(selected?.grant?.credentialSecretRefs ?? [])];
     const credentialSecretIds = [...new Set(credentialRefs.map(ref => ref.secretId))];
-    const readCredentialVersions = async () => credentialSecretIds.length ? await db.select({ id: companySecrets.id,
-      latestVersion: companySecrets.latestVersion, aiSessionEpoch: companySecrets.aiSessionEpoch })
-      .from(companySecrets).where(and(eq(companySecrets.companyId, agent.companyId), inArray(companySecrets.id, credentialSecretIds)))
+    const readCredentialVersions = async () => credentialSecretIds.length ? await db.select({ id: spaceSecrets.id,
+      latestVersion: spaceSecrets.latestVersion, aiSessionEpoch: spaceSecrets.aiSessionEpoch })
+      .from(spaceSecrets).where(and(eq(spaceSecrets.spaceId, agent.spaceId), inArray(spaceSecrets.id, credentialSecretIds)))
       .then(rows => rows.sort((a, b) => a.id.localeCompare(b.id))) : [];
     const accountWith = (credentialVersions: Awaited<ReturnType<typeof readCredentialVersions>>) => selected ? { ...selected.attribution,
       credentialSecretRefs: credentialRefs, externalCredential: connection?.externalCredential ?? null,
@@ -160,13 +160,13 @@ export function agentHarnessVerificationService(db: Db, manager: PluginWorkerMan
     if (digest && agent.harnessVerifiedDigest === digest) return "complete";
     const target = providerApi
       ? { executionTarget: null, environmentName: null, fallbackChecks: [], release: async (_status?: "released" | "failed") => {} }
-      : await tests.resolveAdapterTestExecutionContext({ agentId: agent.id, companyId: agent.companyId, adapterType: agent.adapterType, environmentId });
+      : await tests.resolveAdapterTestExecutionContext({ agentId: agent.id, spaceId: agent.spaceId, adapterType: agent.adapterType, environmentId });
     let status: "released" | "failed" = "failed";
     // A holder, so the account the probe callback records survives control-flow narrowing.
     const probed: { account: { connectionId: string; grantId: string } | null } = { account: null };
     try {
       if (target.fallbackChecks.length) throw Object.assign(new Error("The test environment is unavailable"), { code: "test_environment_unavailable" });
-      const input = { companyId: agent.companyId, adapterType: agent.adapterType, config,
+      const input = { spaceId: agent.spaceId, adapterType: agent.adapterType, config,
         executionTarget: target.executionTarget, environmentName: target.environmentName };
       const result = binding ? await withManagedAiProbe(db, { ...input, agentId: agent.id, responsibleUserId, binding },
         managed => {
@@ -202,7 +202,7 @@ export function agentHarnessVerificationService(db: Db, manager: PluginWorkerMan
     try { return await verify(snapshot); }
     catch (error) {
       if (readAiConnectionConfigurationFailure(error)) await connectionIntentService(db)
-        .requestForQueuedAgentSetup(snapshot.companyId, snapshot.id)
+        .requestForQueuedAgentSetup(snapshot.spaceId, snapshot.id)
         .catch(() => logger.warn({ agentId: snapshot.id }, "Could not attach queued agent setup connection request"));
       throw error;
     }

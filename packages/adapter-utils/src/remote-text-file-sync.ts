@@ -47,7 +47,7 @@ function timeout(value: number | null | undefined) {
 
 function program(input: RemoteTextFileSyncFile) {
   const remotePartial = `${input.remotePath}.partial`;
-  const remoteUploadPath = `${input.remotePath}.paperclip-upload.b64`;
+  const remoteUploadPath = `${input.remotePath}.outpost-upload.b64`;
   const base64Body = Buffer.from(input.body, "utf8").toString("base64");
   const sha256 = createHash("sha256").update(input.body, "utf8").digest("hex");
   const script = [

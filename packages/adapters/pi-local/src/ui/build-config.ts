@@ -5,14 +5,14 @@ export function buildPiLocalConfig(v: CreateConfigValues): Record<string, unknow
   if (v.cwd) ac.cwd = v.cwd;
   if (v.instructionsFilePath) ac.instructionsFilePath = v.instructionsFilePath;
   if (v.model) ac.model = v.model;
-  const nativeSelected = v.runner === "paperclip"
-    || ((v.runner === undefined || v.runner === "auto") && v.resolvedRunner === "paperclip");
+  const nativeSelected = v.runner === "outpost"
+    || ((v.runner === undefined || v.runner === "auto") && v.resolvedRunner === "outpost");
   if (nativeSelected) {
     const thinking = v.adapterSchemaValues?.piThinkingLevel ?? v.thinkingEffort;
     if (thinking) ac.piThinkingLevel = thinking;
     if (v.adapterSchemaValues?.acpxPermissionMode !== undefined) ac.acpxPermissionMode = v.adapterSchemaValues.acpxPermissionMode;
-    if (v.paperclipRunnerLifecycleMode !== undefined) ac.lifecycleMode = v.paperclipRunnerLifecycleMode;
-    if (v.paperclipRunnerIdleTimeoutMs !== undefined) ac.idleTimeoutMs = v.paperclipRunnerIdleTimeoutMs;
+    if (v.outpostRunnerLifecycleMode !== undefined) ac.lifecycleMode = v.outpostRunnerLifecycleMode;
+    if (v.outpostRunnerIdleTimeoutMs !== undefined) ac.idleTimeoutMs = v.outpostRunnerIdleTimeoutMs;
   } else if (v.thinkingEffort) ac.thinking = v.thinkingEffort;
   
   // Pi sessions can run until the CLI exits naturally; keep timeout disabled (0)

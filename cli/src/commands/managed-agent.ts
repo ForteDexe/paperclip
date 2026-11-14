@@ -17,7 +17,7 @@ export const CLAUDE_MANAGED_SYSTEM_PROMPT =
   "You are an Outpost remote agent. Follow the current user turn and use only the custom tools supplied for that session. Outpost tool authority, completion, blocking, review, and yielding are enforced by the runner. Never request or infer an Outpost endpoint or credential.";
 
 export interface ManagedAgentSetupOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   profileKey: string;
   displayName: string;
   apiKeySecretId: string;
@@ -160,7 +160,7 @@ function resourceByProfile(
   const matches = resources.filter(
     (resource) =>
       typeof resource.id === "string"
-      && record(resource.metadata).paperclip_profile === profileKey,
+      && record(resource.metadata).outpost_profile === profileKey,
   );
   if (matches.length > 1) {
     throw new Error(
@@ -260,7 +260,7 @@ async function resolveEnvironment(
         pip: [],
       },
     },
-    metadata: { paperclip_profile: options.profileKey },
+    metadata: { outpost_profile: options.profileKey },
   });
   assertSafeManagedEnvironment(environment);
   return environment;
@@ -301,7 +301,7 @@ async function resolveAgent(
     tools: [],
     mcp_servers: [],
     skills: [],
-    metadata: { paperclip_profile: options.profileKey },
+    metadata: { outpost_profile: options.profileKey },
   });
   assertSafeManagedAgent(agent);
   assertManagedAgentModel(agent, options.model);
@@ -382,9 +382,9 @@ export async function setupManagedAgent(options: ManagedAgentSetupOptions): Prom
     return;
   }
 
-  const context = resolveCommandContext(options, { requireCompany: true });
+  const context = resolveCommandContext(options, { requireSpace: true });
   const stored = await context.api.post(
-    apiPath`/api/companies/${context.companyId}/managed-agent-profiles`,
+    apiPath`/api/spaces/${context.spaceId}/managed-agent-profiles`,
     profile,
   );
   printOutput(stored, { json: context.json });
@@ -398,13 +398,13 @@ export function registerManagedAgentCommands(program: Command): void {
     command
       .command("setup")
       .description(
-        "Create or adopt a locked-down Anthropic Agent and Environment, then store a company profile",
+        "Create or adopt a locked-down Anthropic Agent and Environment, then store a space profile",
       )
-      .requiredOption("--profile-key <key>", "Stable company profile key")
+      .requiredOption("--profile-key <key>", "Stable space profile key")
       .requiredOption("--display-name <name>", "Profile display name")
       .requiredOption(
         "--api-key-secret-id <id>",
-        "Existing company secret containing ANTHROPIC_API_KEY",
+        "Existing space secret containing ANTHROPIC_API_KEY",
       )
       .option("--model <id>", "Pinned Claude model", CLAUDE_MANAGED_QUALIFIED_MODEL)
       .option(
@@ -428,6 +428,6 @@ export function registerManagedAgentCommands(program: Command): void {
           handleCommandError(error);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 }

@@ -5,7 +5,7 @@ import {
   agents,
   agentWakeupRequests,
   agentTaskSessions,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issues,
@@ -67,13 +67,13 @@ describe("heartbeat run state module", () => {
     expect(second.select).not.toHaveBeenCalled();
     expect(second.execute).not.toHaveBeenCalled();
     const [one, two] = await Promise.all([
-      firstState.getTaskSession("company-one", "agent-one", "codex_local", "task-one"),
-      secondState.getTaskSession("company-two", "agent-two", "claude_local", "task-two"),
+      firstState.getTaskSession("space-one", "agent-one", "codex_local", "task-one"),
+      secondState.getTaskSession("space-two", "agent-two", "claude_local", "task-two"),
     ]);
     expect(one?.sessionDisplayId).toBe("first");
     expect(two?.sessionDisplayId).toBe("second");
-    expect(first.scopes[0]).toEqual(["company-one", "agent-one", "codex_local", "task-one"]);
-    expect(second.scopes[0]).toEqual(["company-two", "agent-two", "claude_local", "task-two"]);
+    expect(first.scopes[0]).toEqual(["space-one", "agent-one", "codex_local", "task-one"]);
+    expect(second.scopes[0]).toEqual(["space-two", "agent-two", "claude_local", "task-two"]);
   });
 
   it("keeps encoding caches local to each factory and preserves full-result reads", async () => {
@@ -100,11 +100,11 @@ describe("heartbeat run state module", () => {
     expect(raw.columns[0].resultJson).toBe(heartbeatRuns.resultJson);
   });
 
-  it.each(["UTF8", "SQL_ASCII"])("keeps execution-wait reads company scoped with %s text handling", async encoding => {
+  it.each(["UTF8", "SQL_ASCII"])("keeps execution-wait reads space scoped with %s text handling", async encoding => {
     const reader = readingDatabase(encoding), state = extracted.createHeartbeatRunState(reader.db);
-    expect(await state.getRunExecutionWait("company", "run")).toBeNull();
-    expect(await state.getRunExecutionWait("other-company", "run")).toBeNull();
-    expect(reader.scopes).toEqual([["company", "run"], ["other-company", "run"]]);
+    expect(await state.getRunExecutionWait("space", "run")).toBeNull();
+    expect(await state.getRunExecutionWait("other-space", "run")).toBeNull();
+    expect(reader.scopes).toEqual([["space", "run"], ["other-space", "run"]]);
     expect(reader.execute).toHaveBeenCalledTimes(1);
     if (encoding === "UTF8") expect(reader.columns[0].error).toBe(heartbeatRuns.error);
     else expect(new PgDialect().sqlToQuery((reader.columns[0].error as SQL.Aliased).sql).sql).toBe("NULL");
@@ -112,7 +112,7 @@ describe("heartbeat run state module", () => {
   });
 
   it("loads current run status without large fields or an encoding probe", async () => {
-    const binding = { id: "run", companyId: "company", agentId: "agent", status: "running" };
+    const binding = { id: "run", spaceId: "space", agentId: "agent", status: "running" };
     const reader = readingDatabase("SQL_ASCII", [binding], []);
     const state = extracted.createHeartbeatRunState(reader.db);
     expect(await state.getRunStatus("run")).toEqual(binding);
@@ -120,7 +120,7 @@ describe("heartbeat run state module", () => {
     expect(reader.execute).not.toHaveBeenCalled();
     expect(reader.columns).toEqual(Array(2).fill({
       id: heartbeatRuns.id,
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
       agentId: heartbeatRuns.agentId,
       status: heartbeatRuns.status,
     }));
@@ -128,7 +128,7 @@ describe("heartbeat run state module", () => {
   });
 
   it("loads run read bindings without large fields or an encoding probe", async () => {
-    const binding = { id: "run", companyId: "company", scopeKind: "issue", issueId: "issue" };
+    const binding = { id: "run", spaceId: "space", scopeKind: "issue", issueId: "issue" };
     const reader = readingDatabase("SQL_ASCII", [binding], []);
     const state = extracted.createHeartbeatRunState(reader.db);
     expect(await state.getRunReadAccess("run")).toEqual(binding);
@@ -136,7 +136,7 @@ describe("heartbeat run state module", () => {
     expect(reader.execute).not.toHaveBeenCalled();
     expect(reader.columns).toEqual(Array(2).fill({
       id: heartbeatRuns.id,
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
       scopeKind: heartbeatRuns.scopeKind,
       issueId: heartbeatRuns.issueId,
     }));
@@ -164,17 +164,17 @@ describePostgres("heartbeat run state database wiring", () => {
   });
 
   async function fixture() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Run state", issuePrefix: `S${companyId.slice(0, 8)}` });
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Run state", issuePrefix: `S${spaceId.slice(0, 8)}` });
     const [agent] = await db.insert(agents).values({
-      companyId, name: "Session agent", adapterType: "codex_local",
+      spaceId, name: "Session agent", adapterType: "codex_local",
     }).returning();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Session task", assigneeAgentId: agent.id }).returning();
-    return { companyId, agent, issue, state: extracted.createHeartbeatRunState(db) };
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Session task", assigneeAgentId: agent.id }).returning();
+    return { spaceId, agent, issue, state: extracted.createHeartbeatRunState(db) };
   }
 
   it("reads current execution-wait evidence without transferring saved input or output", async () => {
-    const { companyId, agent, issue } = await fixture();
+    const { spaceId, agent, issue } = await fixture();
     const payload = randomBytes(128 * 1024).toString("base64");
     const context = { issueId: issue.id, connectionIntentResolution: "existing_connection", source: "connection_intent.resolved",
       interactionKind: "connection_intent", interactionStatus: "expired", mutation: "interaction", interactionId: randomUUID() };
@@ -182,7 +182,7 @@ describePostgres("heartbeat run state database wiring", () => {
       startupPreparationSettledAt: "2020-01-01T00:00:00Z", cancellation: { source: "provider", expected: false,
         initiator: { type: "provider" }, reason: "Cancelled", recordedAt: "2020-01-01T00:00:00Z" },
       acpToolInventoryComplete: true, acpPendingToolCount: 0, stdout: payload };
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId: agent.id, status: "cancelled", runtimeMode: "legacy",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agent.id, status: "cancelled", runtimeMode: "legacy",
       startedAt: new Date("2020-01-01T00:00:00Z"), finishedAt: new Date("2020-01-01T00:01:00Z"),
       contextSnapshot: { ...context, prompt: payload }, resultJson: result,
       runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner", adapterConfig: { prompt: payload } }, savedInput: payload },
@@ -193,12 +193,12 @@ describePostgres("heartbeat run state database wiring", () => {
     installDatabaseResponseCapture(observed, { heartbeatRuns }, capture);
     try {
       const state = extracted.createHeartbeatRunState(observed);
-      const read = await state.getRunExecutionWait(companyId, run.id);
+      const read = await state.getRunExecutionWait(spaceId, run.id);
       capture.flush();
       const summary = events.find(event => event.event === "outpost.test_db_response_capture.summary.v1")!;
       expect(summary.completedQueries).toBe(2);
       expect(summary.responseValueBytes).toBeLessThan(4096);
-      expect(read).toMatchObject({ id: run.id, companyId, agentId: agent.id, status: "cancelled", contextSnapshot: context,
+      expect(read).toMatchObject({ id: run.id, spaceId, agentId: agent.id, status: "cancelled", contextSnapshot: context,
         runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
         resultJson: { startupCancellation: result.startupCancellation, cancellation: result.cancellation,
           acpToolInventoryComplete: true, acpPendingToolCount: 0 } });
@@ -209,24 +209,24 @@ describePostgres("heartbeat run state database wiring", () => {
       await db.update(heartbeatRuns).set({ status: "running", resultJson: { ...result, acpPendingToolCount: 1 },
         runnerProfileJson: { adapterDispatch: { adapterType: "process" }, savedInput: payload },
       }).where(eq(heartbeatRuns.id, run.id));
-      expect(await state.getRunExecutionWait(companyId, run.id)).toMatchObject({ status: "running",
+      expect(await state.getRunExecutionWait(spaceId, run.id)).toMatchObject({ status: "running",
         resultJson: { acpPendingToolCount: 1 }, runnerProfileJson: { adapterDispatch: { adapterType: "process" } } });
       expect(await state.getRunExecutionWait(randomUUID(), run.id)).toBeNull();
-      expect(await state.getRunExecutionWait(companyId, randomUUID())).toBeNull();
+      expect(await state.getRunExecutionWait(spaceId, randomUUID())).toBeNull();
       for (const value of [null, false, 42, [], {}, { nested: true }, "task"]) {
         await db.update(heartbeatRuns).set({ contextSnapshot: { ...context, issueId: value },
           runnerProfileJson: { adapterDispatch: { adapterType: value } },
         }).where(eq(heartbeatRuns.id, run.id));
-        expect(await state.getRunExecutionWait(companyId, run.id)).toMatchObject({ contextSnapshot: { issueId: value },
+        expect(await state.getRunExecutionWait(spaceId, run.id)).toMatchObject({ contextSnapshot: { issueId: value },
           runnerProfileJson: { adapterDispatch: { adapterType: value } } });
       }
     } finally { capture.flush(); await observed.$client.end(); }
   });
 
   it("reads current workspace access without execution snapshots and retains JSON types", async () => {
-    const { companyId, agent, issue } = await fixture();
+    const { spaceId, agent, issue } = await fixture();
     const payload = randomBytes(128 * 1024).toString("base64"), workspaceId = randomUUID();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId: agent.id, scopeKind: "issue", issueId: issue.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agent.id, scopeKind: "issue", issueId: issue.id,
       contextSnapshot: { executionWorkspaceId: workspaceId, prompt: payload }, runnerProfileJson: { instructions: payload },
       resultJson: { stdout: payload }, stdoutExcerpt: payload, stderrExcerpt: payload,
     }).returning();
@@ -236,7 +236,7 @@ describePostgres("heartbeat run state database wiring", () => {
     try {
       const state = extracted.createHeartbeatRunState(observed);
       expect(await state.getRunWorkspaceAccess(run.id)).toEqual({
-        id: run.id, companyId, scopeKind: "issue", issueId: issue.id, executionWorkspaceId: workspaceId,
+        id: run.id, spaceId, scopeKind: "issue", issueId: issue.id, executionWorkspaceId: workspaceId,
       });
       capture.flush();
       const summary = events.find(event => event.event === "outpost.test_db_response_capture.summary.v1")!;
@@ -252,9 +252,9 @@ describePostgres("heartbeat run state database wiring", () => {
   });
 
   it("reads fresh issue control facts without transferring execution snapshots", async () => {
-    const { companyId, agent, issue } = await fixture();
+    const { spaceId, agent, issue } = await fixture();
     const payload = randomBytes(128 * 1024).toString("base64");
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId: agent.id, status: "running",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agent.id, status: "running",
       runtimeMode: "legacy", runtimeModeResolvedAt: null,
       startedAt: new Date("2020-01-01T00:00:00Z"),
       contextSnapshot: { issueId: issue.id, prompt: payload },
@@ -269,7 +269,7 @@ describePostgres("heartbeat run state database wiring", () => {
       const state = extracted.createHeartbeatRunState(observed);
       const direct = await state.getRunIssueControl(run.id), active = await state.getActiveRunIssueControlForAgent(agent.id);
       expect(active).toEqual(direct);
-      expect(direct).toEqual({ id: run.id, companyId, agentId: agent.id, status: "running", runtimeMode: "legacy",
+      expect(direct).toEqual({ id: run.id, spaceId, agentId: agent.id, status: "running", runtimeMode: "legacy",
         runtimeModeResolvedAt: null, startedAt: run.startedAt, createdAt: run.createdAt,
         contextSnapshot: { issueId: issue.id }, runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } } });
       capture.flush();
@@ -286,10 +286,10 @@ describePostgres("heartbeat run state database wiring", () => {
   });
 
   it("preserves native preparation, legacy steering, and typed issue context in issue control reads", async () => {
-    const { companyId, agent, issue, state } = await fixture();
+    const { spaceId, agent, issue, state } = await fixture();
     for (const mode of ["native", "legacy"] as const) {
       for (const value of [null, false, 42, [], {}, { nested: true }, "outpost_runner", "process"]) {
-        const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId: agent.id, status: "running", runtimeMode: mode,
+        const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agent.id, status: "running", runtimeMode: mode,
           contextSnapshot: { issueId: value }, runnerProfileJson: { adapterDispatch: { adapterType: value } },
         }).returning();
         const narrow = await state.getRunIssueControl(run.id), full = await state.getRun(run.id);
@@ -310,11 +310,11 @@ describePostgres("heartbeat run state database wiring", () => {
   });
 
   it("reads cleanup and workspace settlement without transferring saved input or changing the run", async () => {
-    const { companyId, agent, issue, state } = await fixture();
+    const { spaceId, agent, issue, state } = await fixture();
     const bulk = "cleanup-saved-input-sentinel🙂".repeat(40_000);
     const sync = { schema: "outpost.native-workspace-sync.v1", state: "prepared", resourceDisposition: "destroy" };
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId, agentId: agent.id, issueId: issue.id, runtimeMode: "native", status: "failed",
+      spaceId, agentId: agent.id, issueId: issue.id, runtimeMode: "native", status: "failed",
       errorCode: "provider_transport_failed", error: "Retain saved files", nativePhase: "terminal_failure",
       runnerProfileJson: { nativeWorkspaceSync: sync, nativeResourceDisposition: "keep_running", savedInput: bulk },
       resultJson: { workspaceExportRetry: { requestId: "retry-source" }, stdout: bulk },
@@ -327,7 +327,7 @@ describePostgres("heartbeat run state database wiring", () => {
     const capture = createFullDatabaseResponseCapture({ start: now - 100, end: now + 59_000 }, event => events.push(event));
     installDatabaseResponseCapture(db, { heartbeatRuns }, capture);
     expect(await state.getRunCleanupState(run.id)).toEqual({
-      id: run.id, companyId, agentId: agent.id, runtimeMode: run.runtimeMode,
+      id: run.id, spaceId, agentId: agent.id, runtimeMode: run.runtimeMode,
       status: run.status, errorCode: run.errorCode, nativePhase: run.nativePhase,
     });
     expect(await state.getRunWorkspaceSettlement(run.id)).toEqual({
@@ -347,10 +347,10 @@ describePostgres("heartbeat run state database wiring", () => {
   });
 
   it("preserves JSON types in workspace settlement decisions", async () => {
-    const { companyId, agent, state } = await fixture();
+    const { spaceId, agent, state } = await fixture();
     for (const value of [null, false, true, "true", 0, [], { future: [1, "retained"] }]) {
       const [run] = await db.insert(heartbeatRuns).values({
-        companyId, agentId: agent.id,
+        spaceId, agentId: agent.id,
         runnerProfileJson: { nativeWorkspaceSync: value },
         resultJson: { workspaceExportRetry: value },
         contextSnapshot: { timerClaimWasFirstHeartbeat: value },
@@ -363,12 +363,12 @@ describePostgres("heartbeat run state database wiring", () => {
   });
 
   it("retains the consumed queue identity in issue polling summaries", async () => {
-    const { companyId, agent, issue, state } = await fixture();
+    const { spaceId, agent, issue, state } = await fixture();
     const [wake] = await db.insert(agentWakeupRequests).values({
-      companyId, agentId: agent.id, source: "issue", status: "claimed",
+      spaceId, agentId: agent.id, source: "issue", status: "claimed",
     }).returning();
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId, agentId: agent.id, issueId: issue.id, status: "running",
+      spaceId, agentId: agent.id, issueId: issue.id, status: "running",
       startedAt: new Date(), wakeupRequestId: wake.id,
       contextSnapshot: { issueId: issue.id, commentId: "delivered-message", queuedCommentSourceWakeIds: ["coalesced-queue"] },
     }).returning();
@@ -380,39 +380,39 @@ describePostgres("heartbeat run state database wiring", () => {
     }
   });
 
-  it("bounds history at the service boundary and keeps company and agent scope", async () => {
-    const { companyId, agent, state } = await fixture();
-    await db.execute(sql`insert into heartbeat_runs (company_id, agent_id, created_at)
-      select ${companyId}::uuid, ${agent.id}::uuid, '2026-01-01'::timestamptz + n * interval '1 second'
+  it("bounds history at the service boundary and keeps space and agent scope", async () => {
+    const { spaceId, agent, state } = await fixture();
+    await db.execute(sql`insert into heartbeat_runs (space_id, agent_id, created_at)
+      select ${spaceId}::uuid, ${agent.id}::uuid, '2026-01-01'::timestamptz + n * interval '1 second'
       from generate_series(1, 1005) n`);
     const foreign = await fixture();
-    await db.insert(heartbeatRuns).values({ companyId: foreign.companyId, agentId: foreign.agent.id });
-    const rows = await state.listRuns(companyId);
+    await db.insert(heartbeatRuns).values({ spaceId: foreign.spaceId, agentId: foreign.agent.id });
+    const rows = await state.listRuns(spaceId);
     expect(rows).toHaveLength(200);
-    expect(rows.every(row => row.companyId === companyId && row.agentId === agent.id)).toBe(true);
+    expect(rows.every(row => row.spaceId === spaceId && row.agentId === agent.id)).toBe(true);
     expect(rows[0].createdAt.getTime()).toBeGreaterThan(rows[199].createdAt.getTime());
-    expect(await state.listRuns(companyId, agent.id, 10000)).toHaveLength(1000);
-    expect(await state.listRuns(companyId, agent.id, 1.9)).toHaveLength(1);
-    expect(await state.listRuns(companyId, agent.id, -10)).toHaveLength(1);
-    expect(await state.listRuns(companyId, agent.id, NaN)).toHaveLength(200);
-    expect(await state.listRuns(companyId, foreign.agent.id)).toEqual([]);
+    expect(await state.listRuns(spaceId, agent.id, 10000)).toHaveLength(1000);
+    expect(await state.listRuns(spaceId, agent.id, 1.9)).toHaveLength(1);
+    expect(await state.listRuns(spaceId, agent.id, -10)).toHaveLength(1);
+    expect(await state.listRuns(spaceId, agent.id, NaN)).toHaveLength(200);
+    expect(await state.listRuns(spaceId, foreign.agent.id)).toEqual([]);
   });
 
   it("lists a previously saved storage retry promise under native recovery truthfully", async () => {
-    const { companyId, agent, state } = await fixture();
-    const [held] = await db.insert(heartbeatRuns).values({ companyId, agentId: agent.id, status: "failed",
+    const { spaceId, agent, state } = await fixture();
+    const [held] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agent.id, status: "failed",
       errorCode: "native_continuation_requires_reconciliation", error: STORAGE_UNAVAILABLE_MESSAGE }).returning();
-    const [waiting] = await db.insert(heartbeatRuns).values({ companyId, agentId: agent.id, status: "failed",
+    const [waiting] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agent.id, status: "failed",
       errorCode: STORAGE_UNAVAILABLE_CODE, error: STORAGE_UNAVAILABLE_MESSAGE }).returning();
     for (const summary of [false, true]) {
-      const rows = await state.listRuns(companyId, agent.id, 100, { summary });
+      const rows = await state.listRuns(spaceId, agent.id, 100, { summary });
       expect(rows.find(row => row.id === held.id)?.error).toBe(STORAGE_UNAVAILABLE_HELD_MESSAGE);
       expect(rows.find(row => row.id === waiting.id)?.error).toBe(STORAGE_UNAVAILABLE_MESSAGE);
     }
   });
 
   it("preserves legacy context text, native issue precedence and summary privacy", async () => {
-    const { companyId, agent, issue, state } = await fixture();
+    const { spaceId, agent, issue, state } = await fixture();
     const contexts: unknown[] = [null, [], "legacy", 3, true, {}, {
       issueId: "legacy-issue", taskId: 17, taskKey: { nested: true }, commentId: ["one", 2],
       wakeCommentId: null, wakeReason: false, wakeSource: "   ", wakeTriggerDetail: "héllo\nworld",
@@ -420,7 +420,7 @@ describePostgres("heartbeat run state database wiring", () => {
     }];
     for (const [index, contextSnapshot] of contexts.entries()) {
       const [run] = await db.insert(heartbeatRuns).values({
-        companyId, agentId: agent.id, issueId: index === contexts.length - 1 ? issue.id : null,
+        spaceId, agentId: agent.id, issueId: index === contexts.length - 1 ? issue.id : null,
         contextSnapshot: contextSnapshot as Record<string, unknown>,
       }).returning();
       const expected = (await db.execute(sql`select coalesce(issue_id::text, context_snapshot->>'issueId') as "issueId",
@@ -429,7 +429,7 @@ describePostgres("heartbeat run state database wiring", () => {
         context_snapshot->>'wakeReason' as "wakeReason", context_snapshot->>'wakeSource' as "wakeSource",
         context_snapshot->>'wakeTriggerDetail' as "wakeTriggerDetail" from heartbeat_runs where id = ${run.id}::uuid`))[0];
       for (const summary of [false, true]) {
-        const actual = (await state.listRuns(companyId, agent.id, 100, { summary })).find(row => row.id === run.id)!;
+        const actual = (await state.listRuns(spaceId, agent.id, 100, { summary })).find(row => row.id === run.id)!;
         expect(actual.contextSnapshot).toEqual(extracted.summarizeHeartbeatRunContextSnapshot(expected));
         expect(actual.contextSnapshot ?? {}).not.toHaveProperty("secret");
         expect(actual.contextSnapshot ?? {}).not.toHaveProperty("prompt");
@@ -438,13 +438,13 @@ describePostgres("heartbeat run state database wiring", () => {
   });
 
   it("preserves controller lease cancellation when a large result is bounded", async () => {
-    const { companyId, agent, state } = await fixture();
+    const { spaceId, agent, state } = await fixture();
     const cancellation = {
       source: "controller_lease", expected: false, initiator: { type: "system" },
       reason: "Legacy controller lease lost (renewal_rejected)", recordedAt: "2026-01-01T00:00:00Z",
     };
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId, agentId: agent.id, invocationSource: "assignment", status: "cancelled",
+      spaceId, agentId: agent.id, invocationSource: "assignment", status: "cancelled",
       resultJson: { cancellation, providerPrivateData: randomBytes(96 * 1024).toString("hex") },
     }).returning();
     const [stored] = await db.select({ size: sql<number>`pg_column_size(${heartbeatRuns.resultJson})` })
@@ -456,18 +456,18 @@ describePostgres("heartbeat run state database wiring", () => {
   });
 
   it("resumes only the selected agent's run and task session", async () => {
-    const { companyId, agent, issue, state } = await fixture();
+    const { spaceId, agent, issue, state } = await fixture();
     const foreign = await fixture();
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId, agentId: agent.id, invocationSource: "assignment", status: "failed",
+      spaceId, agentId: agent.id, invocationSource: "assignment", status: "failed",
       contextSnapshot: { issueId: issue.id }, sessionIdAfter: "our-session",
     }).returning();
     const [foreignRun] = await db.insert(heartbeatRuns).values({
-      companyId: foreign.companyId, agentId: foreign.agent.id, invocationSource: "assignment",
+      spaceId: foreign.spaceId, agentId: foreign.agent.id, invocationSource: "assignment",
       contextSnapshot: { issueId: foreign.issue.id }, sessionIdAfter: "foreign-session",
     }).returning();
     await state.upsertTaskSession({
-      companyId, agentId: agent.id, adapterType: agent.adapterType, taskKey: issue.id,
+      spaceId, agentId: agent.id, adapterType: agent.adapterType, taskKey: issue.id,
       sessionParamsJson: { sessionId: "our-session", cwd: "/saved-workspace" },
       sessionDisplayId: "our-session", lastRunId: run.id, lastError: null,
     });
@@ -478,20 +478,20 @@ describePostgres("heartbeat run state database wiring", () => {
     });
     expect(await state.resolveSessionBeforeForWakeup(agent, issue.id)).toBe("our-session");
     expect(await state.getRuntimeStateWithSessions(agent.id)).toMatchObject({
-      companyId, sessionDisplayId: "our-session", sessionParamsJson: { sessionId: "our-session" },
+      spaceId, sessionDisplayId: "our-session", sessionParamsJson: { sessionId: "our-session" },
     });
-    expect((await state.listRuns(companyId)).map((row) => row.id)).toEqual([run.id]);
+    expect((await state.listRuns(spaceId)).map((row) => row.id)).toEqual([run.id]);
   });
 
   it("subtracts prior cumulative usage while excluding the current run", async () => {
-    const { companyId, agent, state } = await fixture();
+    const { spaceId, agent, state } = await fixture();
     await db.insert(heartbeatRuns).values({
-      companyId, agentId: agent.id, invocationSource: "assignment", sessionIdAfter: "cumulative",
+      spaceId, agentId: agent.id, invocationSource: "assignment", sessionIdAfter: "cumulative",
       createdAt: new Date("2026-01-01T00:00:00Z"),
       usageJson: { rawInputTokens: 800, rawCachedInputTokens: 100, rawOutputTokens: 80 },
     });
     const [current] = await db.insert(heartbeatRuns).values({
-      companyId, agentId: agent.id, invocationSource: "assignment", sessionIdAfter: "cumulative",
+      spaceId, agentId: agent.id, invocationSource: "assignment", sessionIdAfter: "cumulative",
       createdAt: new Date("2026-01-02T00:00:00Z"),
       usageJson: { rawInputTokens: 1000, rawCachedInputTokens: 125, rawOutputTokens: 100 },
     }).returning();
@@ -508,15 +508,15 @@ describePostgres("heartbeat run state database wiring", () => {
   });
 
   it("uses the selected session's usage and summary for compaction", async () => {
-    const { companyId, agent, issue, state } = await fixture();
+    const { spaceId, agent, issue, state } = await fixture();
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId, agentId: agent.id, invocationSource: "assignment", sessionIdAfter: "compact",
+      spaceId, agentId: agent.id, invocationSource: "assignment", sessionIdAfter: "compact",
       usageJson: { rawInputTokens: 90, rawCachedInputTokens: 20, rawInputIncludesCached: false },
       resultJson: { summary: "Continue our task", providerPrivateData: "omit this" },
     }).returning();
     const foreign = await fixture();
     await db.insert(heartbeatRuns).values({
-      companyId: foreign.companyId, agentId: foreign.agent.id, invocationSource: "assignment",
+      spaceId: foreign.spaceId, agentId: foreign.agent.id, invocationSource: "assignment",
       sessionIdAfter: "compact", resultJson: { summary: "Foreign task" },
     });
     const decision = await state.evaluateSessionCompaction({
@@ -530,17 +530,17 @@ describePostgres("heartbeat run state database wiring", () => {
   });
 
   it.each(["superseded", "cancelled"] as const)("fences %s conversation session writes and clears", async (scenario) => {
-    const { companyId, agent, issue, state } = await fixture();
+    const { spaceId, agent, issue, state } = await fixture();
     await db.update(issues).set({
       conversationAgentId: agent.id, conversationUserId: "test-user", conversationState: "active",
       conversationSessionGeneration: 2,
     }).where(eq(issues.id, issue.id));
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId, agentId: agent.id, invocationSource: "assignment", status: "succeeded",
+      spaceId, agentId: agent.id, invocationSource: "assignment", status: "succeeded",
       contextSnapshot: { conversationSessionGeneration: 2 },
     }).returning();
     const input = {
-      companyId, agentId: agent.id, adapterType: agent.adapterType, taskKey: issue.id,
+      spaceId, agentId: agent.id, adapterType: agent.adapterType, taskKey: issue.id,
       sessionParamsJson: { sessionId: "retained" }, sessionDisplayId: "retained", lastRunId: run.id, lastError: null,
     };
     const saved = await state.upsertTaskSession(input);
@@ -551,7 +551,7 @@ describePostgres("heartbeat run state database wiring", () => {
       await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, run.id));
     }
     expect(await state.upsertTaskSession({ ...input, sessionDisplayId: "stale" })).toBeNull();
-    expect(await state.clearTaskSessions(companyId, agent.id, { taskKey: issue.id, expectedRunId: run.id })).toBe(0);
+    expect(await state.clearTaskSessions(spaceId, agent.id, { taskKey: issue.id, expectedRunId: run.id })).toBe(0);
     const [retained] = await db.select().from(agentTaskSessions).where(eq(agentTaskSessions.id, saved!.id));
     expect(retained.sessionDisplayId).toBe("retained");
   });

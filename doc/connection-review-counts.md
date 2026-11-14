@@ -4,20 +4,20 @@ The contextual App sidebar uses `GET /api/tool-connections/:connectionId/review-
 for its Review badge. The response contains `pendingActionRequestCount` and
 `quarantinedCatalogEntryCount`. The badge adds the pending count and one when the
 quarantine count is positive. Both sidebar variants keep the 30 second cadence.
-The key is a child of the existing company attention prefix so current mutations
+The key is a child of the existing space attention prefix so current mutations
 and events still invalidate it.
 
 The route uses existing connection read admission. It resolves UUIDs and UIDs,
-checks company and current actor/responsible-user authority, and enforces personal
+checks space and current actor/responsible-user authority, and enforces personal
 account restrictions before reading counts. An authorized archived connection
 returns zero counts, as its absent legacy attention item did. Missing and hidden
 connections retain normal admission errors. This read adds no execution authority.
 
 The catalog owner reads two independent scalar aggregates in one SQL statement.
 Pending counts join requests to invocations by invocation ID and constrain both
-company IDs. SQL NULL signed arguments are excluded; empty signed text counts.
+space IDs. SQL NULL signed arguments are excluded; empty signed text counts.
 Multiple requests for one invocation count separately. No profile, rule or active
-catalog projection runs for this read. The company-wide attention API is unchanged.
+catalog projection runs for this read. The space-wide attention API is unchanged.
 
 ## Local performance proof (2026-11-02)
 
@@ -60,9 +60,9 @@ using existing indexes; no migration or new cache was needed.
 
 ## Correctness and preserved failures
 
-PostgreSQL differential tests cover sibling/company boundaries, multiple requests,
+PostgreSQL differential tests cover sibling/space boundaries, multiple requests,
 NULL and empty signed text, unsigned/resolved requests, null invocation connections,
-cross-company historical references, unhealthy-only connections, archive/restore,
+cross-space historical references, unhealthy-only connections, archive/restore,
 and changed rows between reads. Assembled HTTP tests use actual human sessions
 and agent JWT authentication with explicit permissions. They exercise UID lookup,
 missing/foreign resources, personal grant revocation and membership revocation.
@@ -80,7 +80,7 @@ the accepted fixture supplies both and retains revocation denial checks.
 
 The built static UI was also exercised in Chromium against an owned local-trusted
 server and disposable PostgreSQL. The connection Permissions page showed Review 3,
-issued the scoped count request, and made no company attention request. After
+issued the scoped count request, and made no space attention request. After
 resolving requests and clearing quarantines, reload removed the badge. An archived
 connection returned zero counts. This browser path uses board authority; separate
 authenticated HTTP fixtures prove delegated agent authority. The first ad hoc
@@ -94,8 +94,8 @@ identified an invalid resolved-request fixture label (`denied`); it was correcte
 to the declared `rejected` status. This preserves the non-pending exclusion that
 the differential test verifies.
 
-The first final-head CI run flagged the new explicit resource company assertion
-because the route lacked a local `hasCompanyAccess` existence gate. Management
+The first final-head CI run flagged the new explicit resource space assertion
+because the route lacked a local `hasSpaceAccess` existence gate. Management
 admission already rejects foreign resources with 404, but the route now also
 follows the repository's two-step gate pattern. The static existence-oracle guard
 and actual authenticated HTTP negative cases verify that pattern together.

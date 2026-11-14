@@ -1,4 +1,4 @@
-# Everyday Paperclip workflow evals
+# Everyday Outpost workflow evals
 
 ## Main-server outage qualification
 
@@ -56,7 +56,7 @@ exact execution ID explicitly.
 | Request an email address | `agentmail-setup` | Enable Chat connectors, ask for an email address, and require a durable AgentMail card for the requesting agent and user. Reload and verify one password field, the direct API-key link, and no access selectors or modal. Decline and verify no connection or repeated request. |
 | Continue work after a controller restart | `recover-controller` | Observe saved source, persist a user message, restart the isolated controller, and independently test the delivered result. Native Daytona cases keep the controller offline for 125 seconds before restarting. |
 | Stop work and change direction | `stop-redirect` | Click Stop, send one new request, reload, observe exactly one stored user message and the new answer, and reach Done. |
-| Create and edit a company skill | `create-skill-studio` | Create one skill through the runner, verify its persisted library entry and activity-feed card, open Skill Studio, save an edit, and verify the edit after returning. Local Codex, local ACPX Claude, and warm Daytona cells are explicit. |
+| Create and edit a space skill | `create-skill-studio` | Create one skill through the runner, verify its persisted library entry and activity-feed card, open Skill Studio, save an edit, and verify the edit after returning. Local Codex, local ACPX Claude, and warm Daytona cells are explicit. |
 
 For normal completion, all story tasks must reach Done, with no active run,
 pending completion confirmation, or scheduled recovery. Runs must prove native
@@ -93,7 +93,7 @@ pnpm test:e2e:runner -- --id everyday-workflows.runner-codex.daytona.interrupt-r
 **Cadence:** launch the [TestOps Reliability plan](#testops-reliability-plan)
 before a release and after a risky runner, recovery, queue, tree-control or
 restart change. Do not run it per PR, and it has no schedule. It is paid:
-single attempt per cell, with a 1,000-cent company and lead-agent hard stop.
+single attempt per cell, with a 1,000-cent space and lead-agent hard stop.
 Missing provider or Daytona credentials, or a mutable Daytona image, stop the
 launch before any provider spend.
 
@@ -226,7 +226,7 @@ The local matrix has fourteen cases on native Codex `gpt-6.1-sol`, native ACPX C
 also declare build/revise, delegation, controller-restart, and skill-creation cases
 on Daytona: eight cells. OpenCode adds only local hiring/reuse and delegation,
 for 52 cells total. Hiring/reuse and delegation have one attempt and a
-1,000-cent company and lead-agent hard stop. Remote runner-process killing is not supported. For remote controller
+1,000-cent space and lead-agent hard stop. Remote runner-process killing is not supported. For remote controller
 restart, a verified first download supplies the persistence checkpoint; the
 controller is interrupted during a subsequent revision with another queued
 requirement.
@@ -328,7 +328,7 @@ ZIPs, assertions, actual task comments and run records, timing, accounting,
 source provenance, and screenshots. The story records a digest of its harness
 sources. Infrastructure failures and failed attempts must remain inspectable.
 
-Import packaged results with `paperclip-evals/evals/everyday-workflows/import_results.py`.
+Import packaged results with `outpost-evals/evals/everyday-workflows/import_results.py`.
 It uses the canonical Runner Evalbook generator and the built Runner Lab viewer.
 It does not invent provider transcripts, tool counts, model observations, or
 cost estimates. The selected model is checked against persisted native execution
@@ -478,7 +478,7 @@ checks use the same bounded matcher, including unavailable/rejected access and
 “wasn't able to pull” wording. This is textual evidence, not proof of cognition.
 
 An executed approval or a recorded tool-action rejection with `wake_assignee`
-may precede its continuation run. Only a response bound to the same task, company,
+may precede its continuation run. Only a response bound to the same task, space,
 agent, and completed source run can defer the stranded-blocker check, and only
 within the original deadline. A failed execution, unrelated card, or already
 consumed response cannot extend that wait.

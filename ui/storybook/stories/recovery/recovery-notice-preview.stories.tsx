@@ -13,7 +13,7 @@ const meta = {
         component: "Production recovery notice with a simulated request. Rendering, disclosure, pending, failure, and acknowledgement use the same component as both task interfaces. No real task is changed.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "recovery/diagnosis",
         "recovery/source-action"
@@ -46,7 +46,7 @@ export const InConversation: Story = { name: "Start here · In conversation" };
 export const BeforeAndAfter: Story = { args: { comparison: true } };
 export const ExpandedDetails: Story = { args: { defaultExpanded: true } };
 export const RetryUnavailable: Story = {
-  args: { retryBlockedReason: "The company’s spending limit has been reached. Update the limit before retrying." },
+  args: { retryBlockedReason: "The space’s spending limit has been reached. Update the limit before retrying." },
 };
 export const RequestingRetry: Story = { args: { holdRequest: true }, play: async ({ canvasElement }) => {
   const canvas = within(canvasElement); await userEvent.click(canvas.getByRole("button", { name: "Retry agent" }));

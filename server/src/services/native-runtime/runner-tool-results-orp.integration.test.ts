@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
 import { createRunnerdCodexTransport, defaultCapabilityRunnerdBinary } from "../../vendor/outpost-runner/index.js";
 import { createAssignedMcpTools } from "./assigned-mcp-tools.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { RUNNER_TOOL_RESULT_MAX_BYTES } from "./runner-tool-results.js";
 import type { ToolGatewayService } from "../tool-gateway.js";
 
@@ -42,7 +42,7 @@ describe("saved assigned results through actual ORP", () => {
         executeTool,
       } as unknown as ToolGatewayService,
     });
-    const authority = new PaperclipRunnerToolAuthority(server.db, { ...fixture.authority.binding, assignedMcpTools });
+    const authority = new OutpostRunnerToolAuthority(server.db, { ...fixture.authority.binding, assignedMcpTools });
     const provider = join(server.root, "scripted-saved-result-provider.mjs");
     await writeFile(provider, `#!${process.execPath}
 import { createInterface } from 'node:readline';

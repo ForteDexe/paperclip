@@ -5,7 +5,7 @@ Updated: 2026-09-16 for source-deployment security review.
 
 The hosted connector alone cannot provide governed direct logs and shell. The
 chosen runtime is a first-party fixed-operation bridge inside the existing MCP
-gateway. It reuses OAuth resolution, agent/company/run/grant isolation, policy,
+gateway. It reuses OAuth resolution, agent/space/run/grant isolation, policy,
 argument snapshots and auditing. It has no separate HTTP service, plugin,
 database schema or arbitrary GraphQL/CLI interface.
 
@@ -21,7 +21,7 @@ Container commands run a fixed system OpenSSH client with isolated temporary
 state, a dedicated vault-backed grant key, verified host trust and explicit
 container-instance membership. Enrollment is manual: hosted OAuth does not
 advertise SSH-key management scope, and provider-side key deletion can require
-2FA. Paperclip does not borrow a developer's CLI login or SSH directory.
+2FA. Outpost does not borrow a developer's CLI login or SSH directory.
 
 Independent read-only security review accepted this architecture for local
 preview, subject to tests and live qualification. It required permanent blocks

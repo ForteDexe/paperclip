@@ -30,7 +30,7 @@ describe("HTTP body limits", () => {
     expect(PORTABLE_JSON_BODY_LIMIT_BYTES).toBeGreaterThan(10 * 1024 * 1024);
   });
 
-  it("accepts large real-world compressed company packages by default", () => {
+  it("accepts large real-world compressed space packages by default", () => {
     expect(PORTABLE_ZIP_UPLOAD_LIMIT_BYTES).toBe(1024 * 1024 * 1024);
   });
 

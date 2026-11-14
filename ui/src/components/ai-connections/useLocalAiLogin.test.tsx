@@ -21,7 +21,7 @@ beforeEach(() => {
 });
 afterEach(() => { flushSync(() => root.unmount()); host.remove(); });
 function Harness({ name = "Account", provider = "openai", enabled = true }: { name?: string; provider?: "anthropic" | "openai"; enabled?: boolean }) {
-  const login = useLocalAiLogin("company", { provider, method: "subscription", name, ownership: "personal", agentIds: [], allAgents: true }, enabled);
+  const login = useLocalAiLogin("space", { provider, method: "subscription", name, ownership: "personal", agentIds: [], allAgents: true }, enabled);
   return <><LocalProviderLoginInstructions adapterType={provider === "anthropic" ? "claude_local" : "codex_local"} login={login} /><button onClick={() => void login.connect()}>Connect</button><button onClick={login.cancel}>Back</button></>;
 }
 it("checks once under StrictMode, preserves renaming and navigation, and cancels only on explicit retry", async () => {
@@ -37,7 +37,7 @@ it("checks once under StrictMode, preserves renaming and navigation, and cancels
   await vi.waitFor(() => expect(host.textContent).toContain("ABCD-12345"));
   expect(api.cancelLocalLogin).not.toHaveBeenCalled();
   flushSync(() => Array.from(host.querySelectorAll('button')).find(b => b.textContent === 'Connect')!.click());
-  await vi.waitFor(() => expect(api.connectLocal).toHaveBeenCalledWith("company", expect.objectContaining({ name: "Renamed", localSessionId: "attempt-1" })));
+  await vi.waitFor(() => expect(api.connectLocal).toHaveBeenCalledWith("space", expect.objectContaining({ name: "Renamed", localSessionId: "attempt-1" })));
   flushSync(() => Array.from(host.querySelectorAll('button')).find(b => b.textContent === 'Start sign-in again')!.click());
   await vi.waitFor(() => expect(api.startLocalLogin).toHaveBeenCalledTimes(2));
   expect(api.cancelLocalLogin).toHaveBeenCalledTimes(1);
@@ -78,7 +78,7 @@ it("explicit retry can replace an attempt opened in another authentication host"
   await vi.waitFor(() => expect(host.textContent).toContain("Another sign-in"));
   flushSync(() => Array.from(host.querySelectorAll('button')).find(b => b.textContent === 'Start sign-in again')!.click());
   await vi.waitFor(() => expect(host.textContent).toContain("ABCD-12345"));
-  expect(api.startLocalLogin).toHaveBeenLastCalledWith("company", expect.objectContaining({ restart: true }));
+  expect(api.startLocalLogin).toHaveBeenLastCalledWith("space", expect.objectContaining({ restart: true }));
 });
 
 it("submits a Claude browser code through the owned local attempt", async () => {
@@ -91,7 +91,7 @@ it("submits a Claude browser code through the owned local attempt", async () => 
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
   flushSync(() => Array.from(host.querySelectorAll("button")).find((button) => button.textContent === "Submit code")?.click());
-  await vi.waitFor(() => expect(api.submitLocalLoginCode).toHaveBeenCalledWith("company", "attempt-1", "fixture-code"));
+  await vi.waitFor(() => expect(api.submitLocalLoginCode).toHaveBeenCalledWith("space", "attempt-1", "fixture-code"));
   expect(host.textContent).not.toContain("claude auth login");
 });
 
@@ -117,7 +117,7 @@ it.each(["start", "check"])("cancels a local subscription with a pending %s and 
   flushSync(() => Array.from(host.querySelectorAll("button")).find(button => button.textContent === "Back")!.click());
   finish(stage === "start" ? { sessionId: "attempt-1", expiresAt: "2099-01-01T00:00:00Z" }
     : { status: "sign_in_required", authorizationUrl: "https://auth.openai.com/codex/device", code: "CANCELLED-CODE" });
-  await vi.waitFor(() => expect(api.cancelLocalLogin).toHaveBeenCalledWith("company", "attempt-1"));
+  await vi.waitFor(() => expect(api.cancelLocalLogin).toHaveBeenCalledWith("space", "attempt-1"));
   window.dispatchEvent(new Event("focus"));
   await new Promise(resolve => setTimeout(resolve, 10));
   expect(host.textContent).not.toContain("CANCELLED-CODE");

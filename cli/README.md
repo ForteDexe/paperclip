@@ -7,7 +7,7 @@
   <a href="https://docs.outpost.ing"><strong>Docs</strong></a> &middot;
   <a href="https://github.com/paperclipai/paperclip"><strong>GitHub</strong></a> &middot;
   <a href="https://discord.gg/paperclipai"><strong>Discord</strong></a> &middot;
-  <a href="https://x.com/papercliping"><strong>Twitter</strong></a> &middot;
+  <a href="https://x.com/outposting"><strong>Twitter</strong></a> &middot;
   <a href="https://outpost.ing"><strong>Website</strong></a>
 </p>
 
@@ -34,7 +34,7 @@ Outpost is a private fork for persistent AI-agent sessions, durable development 
 |        | Step            | Example                                                            |
 | ------ | --------------- | ------------------------------------------------------------------ |
 | **01** | Define the North Star | _"Ship the next useful version of this project."_                  |
-| **02** | Form the crew   | Outpost Lead, Engineering Lead, specialists — any bot, any provider. |
+| **02** | Form the crew   | Default agent, Engineering Lead, specialists — any bot, any provider. |
 | **03** | Approve and run | Review direction. Start work. Monitor from the dashboard.          |
 
 <br/>
@@ -52,7 +52,7 @@ Outpost is a private fork for persistent AI-agent sessions, durable development 
   </tr>
 </table>
 
-<em>If it can receive a heartbeat, it's hired.</em>
+<em>If it can receive a heartbeat, it can join the crew.</em>
 
 </div>
 
@@ -102,7 +102,7 @@ Every conversation traced. Every decision explained. Full tool-call tracing and 
 </tr>
 <tr>
 <td align="center">
-<h3>🛡️ Governance</h3>
+<h3>🛡️ Approval policies</h3>
 Approve hires, override strategy, pause or terminate any agent — at any time.
 </td>
 <td align="center">
@@ -124,7 +124,7 @@ Monitor and coordinate agent work from anywhere.
 | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | ❌ You have 20 Claude Code tabs open and can't track which one does what. On reboot you lose everything.                              | ✅ Tasks are ticket-based, conversations are threaded, sessions persist across reboots.                                                |
 | ❌ You manually gather context from several places to remind your bot what you're actually doing.                                     | ✅ Context flows from the task up through the project and outpost North Stars — your agent always knows what to do and why.                  |
-| ❌ Folders of agent configs are disorganized and you're re-inventing task management, communication, and coordination between agents. | ✅ Outpost gives you crew maps, ticketing, delegation, and governance out of the box — so you coordinate one durable outpost, not a pile of scripts. |
+| ❌ Folders of agent configs are disorganized and you're re-inventing task management, communication, and coordination between agents. | ✅ Outpost gives you crew maps, ticketing, delegation, and approval policies out of the box — so you coordinate one durable outpost, not a pile of scripts. |
 | ❌ Long-running work is hard to supervise across many sessions.                                                                      | ✅ Run history, stop controls, and durable task state keep execution visible and recoverable.                                           |
 | ❌ You have recurring jobs (customer support, social, reports) and have to remember to manually kick them off.                        | ✅ Heartbeats handle regular work on a schedule. Management supervises.                                                                |
 | ❌ You have an idea, you have to find your repo, fire up Claude Code, keep a tab open, and babysit it.                                | ✅ Add a task in Outpost. Your coding agent works on it until it's done. Management reviews their work.                              |
@@ -140,7 +140,7 @@ Outpost handles the hard orchestration details correctly.
 | **Atomic execution.**             | Task checkout is atomic, preventing double-work across concurrent agents.                                     |
 | **Persistent agent state.**       | Agents resume the same task context across heartbeats instead of restarting from scratch.                     |
 | **Runtime skill injection.**      | Agents can learn Outpost workflows and project context at runtime, without retraining.                      |
-| **Governance with rollback.**     | Approval gates are enforced, config changes are revisioned, and bad changes can be rolled back safely.        |
+| **Approval policies with rollback.** | Approval gates are enforced, config changes are revisioned, and bad changes can be rolled back safely.        |
 | **North Star-aware execution.**         | Tasks carry full North Star ancestry so agents consistently see the "why," not just a title.                        |
 | **Portable outpost templates.**   | Export/import outposts, agents, and skills with secret scrubbing and collision handling.                      |
 | **Outpost isolation.**            | Compatibility-layer scoping lets one deployment run many outposts with separate data and audit trails.       |
@@ -156,7 +156,7 @@ Outpost is a full control plane, not a wrapper. Before you build any of this you
 │                         OUTPOST SERVER                       │
 │                                                              │
 │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  │
-│  │Identity & │  │  Work &   │  │ Heartbeat │  │Governance │  │
+│  │Identity & │  │  Work &   │  │ Heartbeat │  │ Policies  │  │
 │  │  Access   │  │   Tasks   │  │ Execution │  │& Approvals│  │
 │  └───────────┘  └───────────┘  └───────────┘  └───────────┘  │
 │                                                              │
@@ -183,7 +183,7 @@ Outpost is a full control plane, not a wrapper. Before you build any of this you
 <tr>
 <td width="50%">
 
-**Identity & Access** — Two deployment modes (trusted local or authenticated), board users, agent API keys, short-lived run JWTs, outpost crew access, invite flows, and OpenClaw onboarding. Every mutating request is traced to an actor.
+**Identity & Access** — Two deployment modes (trusted local or authenticated), operators, agent API keys, short-lived run JWTs, outpost crew access, invite flows, and OpenClaw onboarding. Every mutating request is traced to an actor.
 
 </td>
 <td width="50%">
@@ -212,7 +212,7 @@ Outpost is a full control plane, not a wrapper. Before you build any of this you
 </td>
 <td>
 
-**Governance & Approvals** — Review and approval workflows, execution policies, decision tracking, agent pause/resume/terminate, and full audit logging. Nothing ships without your sign-off.
+**Policies & Approvals** — Review and approval workflows, execution policies, decision tracking, agent pause/resume/terminate, and full audit logging. Nothing ships without your sign-off.
 
 </td>
 </tr>
@@ -260,7 +260,7 @@ Outpost is a full control plane, not a wrapper. Before you build any of this you
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | **Not a chatbot.**           | Agents have jobs, not chat windows.                                                                                  |
 | **Not an agent framework.**  | We don't tell you how to build agents. We coordinate persistent agents as one crew.                                |
-| **Not a workflow builder.**  | No drag-and-drop pipelines. Outpost models shared scopes with crew maps, North Stars, and governance.                    |
+| **Not a workflow builder.**  | No drag-and-drop pipelines. Outpost models shared scopes with crew maps, North Stars, and approval policies.                    |
 | **Not a prompt manager.**    | Agents bring their own prompts, models, and runtimes. Outpost manages the shared scope they work in.               |
 | **Not a single-agent tool.** | This is for teams. If you have one agent, you probably don't need Outpost. If you have twenty — you definitely do. |
 | **Not a code review tool.**  | Outpost orchestrates work, not pull requests. Bring your own review process.                                       |
@@ -272,24 +272,24 @@ Outpost is a full control plane, not a wrapper. Before you build any of this you
 Open source. Self-hosted. No Outpost account required.
 
 ```bash
-npx paperclipai onboard --yes
+npx @outpost/cli onboard --yes
 ```
 
 That quickstart path now defaults to trusted local loopback mode for the fastest first run. To start in authenticated/private mode instead, choose a bind preset explicitly:
 
 ```bash
-npx paperclipai onboard --yes --bind lan
+npx @outpost/cli onboard --yes --bind lan
 # or:
-npx paperclipai onboard --yes --bind tailnet
+npx @outpost/cli onboard --yes --bind tailnet
 ```
 
-If you already have Outpost configured, rerunning `onboard` keeps the existing config in place. Use `paperclipai configure` to edit settings.
+If you already have Outpost configured, rerunning `onboard` keeps the existing config in place. Use `outpost configure` to edit settings.
 
 Or manually:
 
 ```bash
-git clone https://github.com/paperclipai/outpost.git
-cd paperclip
+git clone https://github.com/paperclipai/paperclip.git
+cd outpost
 pnpm install
 pnpm dev
 ```
@@ -308,13 +308,13 @@ Locally, a single Node.js process manages an embedded Postgres and local file st
 If you're a solo entrepreneur you can use Tailscale to access Outpost on the go. Then later you can deploy to e.g. Vercel when you need it.
 
 **Can I run multiple outposts?**
-Yes. A single deployment can run many outposts with complete data isolation. Existing storage and APIs retain their legacy `company` identifiers for compatibility.
+Yes. A single deployment can run many outposts with complete data isolation. Existing storage and APIs retain their legacy `space` identifiers for compatibility.
 
 **How is Outpost different from agents like OpenClaw or Claude Code?**
-Outpost _uses_ those agents. It coordinates them as a persistent crew with tasks, North Stars, governance, and accountability.
+Outpost _uses_ those agents. It coordinates them as a persistent crew with tasks, North Stars, approval policies, and accountability.
 
 **Why should I use Outpost instead of just pointing my OpenClaw to Asana or Trello?**
-Agent orchestration has subtleties in work ownership, persistent sessions, shared context, and governance—Outpost handles those concerns.
+Agent orchestration has subtleties in work ownership, persistent sessions, shared context, and approval policies—Outpost handles those concerns.
 
 (Bring-your-own-ticket-system is on the Roadmap)
 
@@ -325,12 +325,12 @@ By default, agents run on scheduled heartbeats and event-based triggers (task as
 
 ## Importing & Exporting Outposts
 
-Export an outpost to a portable package and import it into any other instance — local or cloud — from a local path or GitHub. The CLI retains `company` as a compatibility command:
+Export an outpost to a portable package and import it into any other instance — local or cloud — from a local path or GitHub. The CLI retains `space` as a compatibility command:
 
 ```bash
-paperclipai company export <company-id> --out ./my-export
-paperclipai company import ./my-export --dry-run
-paperclipai company import org/repo --target new
+outpost space export <space-id> --out ./my-export
+outpost space import ./my-export --dry-run
+outpost space import org/repo --target new
 ```
 
 The board UI has matching Export and Import pages in outpost settings: the Export page shows a fidelity panel listing what the bundle will not carry, and the Import page starts imported agents and routines paused by default, with a post-import activation step. See the [Importing & Exporting guide](https://github.com/paperclipai/paperclip/blob/master/docs/guides/board-operator/importing-and-exporting.md) for details.
@@ -359,8 +359,8 @@ See [doc/DEVELOPING.md](https://github.com/paperclipai/paperclip/blob/master/doc
 ## Roadmap
 
 - ✅ Plugin system (e.g. add a knowledge base, custom tracing, queues, etc)
-- ✅ Get OpenClaw / claw-style agent employees
-- ✅ Outpost import and export (`company` remains the compatibility command)
+- ✅ Add OpenClaw / claw-style agents
+- ✅ Outpost import and export (`space` remains the compatibility command)
 - ✅ Easy AGENTS.md configurations
 - ✅ Skills Manager
 - ✅ Scheduled Routines
@@ -375,7 +375,7 @@ See [doc/DEVELOPING.md](https://github.com/paperclipai/paperclip/blob/master/doc
 - ⚪ Work Queues
 - ⚪ Self-Coordination
 - ⚪ Automatic Crew Learning
-- ⚪ Outpost Lead Chat
+- ⚪ Default agent Chat
 - ⚪ Cloud deployments
 - ⚪ Desktop App
 
@@ -385,7 +385,7 @@ This is the short roadmap preview. See the full roadmap in [ROADMAP.md](https://
 
 ## Community & Plugins
 
-Find Plugins and more at [awesome-paperclip](https://github.com/gsxdsm/awesome-paperclip)
+Find Plugins and more at [awesome-outpost](https://github.com/gsxdsm/awesome-outpost)
 
 ## Privacy
 
@@ -400,7 +400,7 @@ We welcome contributions. See the [contributing guide](https://github.com/paperc
 ## Community
 
 - [Discord](https://discord.gg/paperclipai) — Join the community
-- [Twitter / X](https://x.com/papercliping) — Follow updates and announcements
+- [Twitter / X](https://x.com/outposting) — Follow updates and announcements
 - [GitHub Issues](https://github.com/paperclipai/paperclip/issues) — bugs and feature requests
 - [GitHub Discussions](https://github.com/paperclipai/paperclip/discussions) — ideas and RFC
 
@@ -412,7 +412,7 @@ MIT &copy; 2026 [Outpost Labs, Inc](https://outpost.ing)
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/image?repos=paperclipai/paperclip&type=date&legend=top-left)](https://www.star-history.com/?repos=paperclipai%2Fpaperclip&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/image?repos=paperclipai/paperclip&type=date&legend=top-left)](https://www.star-history.com/?repos=outpost%2Foutpost&type=date&legend=top-left)
 
 <br/>
 

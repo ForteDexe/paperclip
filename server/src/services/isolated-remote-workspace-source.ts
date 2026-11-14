@@ -5,7 +5,7 @@ import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
 import type { TaskWorkspaceIntent } from "@outpost/shared";
 import { isGitHubHttpsRemoteUrl, type GitRemoteAuthProvider } from "./git-credentials.js";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 import { materializeManagedProjectWorkspace } from "./managed-repository-checkout.js";
 import { measureRunPhase } from "./execution-preparation-timing.js";
 import { isRestrictedWorkspaceSourceDenial } from "./workspace-source-restriction.js";
@@ -13,15 +13,15 @@ import { isRestrictedWorkspaceSourceDenial } from "./workspace-source-restrictio
 const execFile = promisify(execFileCallback);
 
 export { IsolatedRepositorySourceBusy, withIsolatedRepositorySourceLock } from "./workspace-source-lock.js";
-export function isolatedRemoteSourcePath(companyId: string, issueId: string): string {
-  if ([companyId, issueId].some(id => !/^[a-zA-Z0-9_-]+$/.test(id))) {
+export function isolatedRemoteSourcePath(spaceId: string, issueId: string): string {
+  if ([spaceId, issueId].some(id => !/^[a-zA-Z0-9_-]+$/.test(id))) {
     throw new Error("Invalid isolated repository source identity");
   }
-  return path.join(resolvePaperclipInstanceRoot(), "isolated-repository-sources", companyId, issueId, "checkout");
+  return path.join(resolveOutpostInstanceRoot(), "isolated-repository-sources", spaceId, issueId, "checkout");
 }
 
 export function recordedIsolatedRemoteSource(input: {
-  companyId?: string;
+  spaceId?: string;
   sourceIssueId: string | null;
   repoUrl: string | null;
   metadata?: Record<string, unknown> | null;
@@ -30,15 +30,15 @@ export function recordedIsolatedRemoteSource(input: {
   if (value === undefined) return null;
   const source = value as Record<string, unknown> | null;
   if (!source || source.schema !== "outpost.isolated-remote-source.v1"
-    || !input.companyId || !input.sourceIssueId || source.companyId !== input.companyId
+    || !input.spaceId || !input.sourceIssueId || source.spaceId !== input.spaceId
     || source.issueId !== input.sourceIssueId || source.repoUrl !== input.repoUrl) {
     throw new Error("Recorded isolated repository source identity changed");
   }
-  return isolatedRemoteSourcePath(input.companyId, input.sourceIssueId);
+  return isolatedRemoteSourcePath(input.spaceId, input.sourceIssueId);
 }
 
 async function assertRemoteSourceIdentity(cwd: string, repoUrl: string) {
-  const root = resolvePaperclipInstanceRoot();
+  const root = resolveOutpostInstanceRoot();
   const canonicalCwd = await fs.realpath(cwd);
   if (canonicalCwd !== path.join(await fs.realpath(root), path.relative(root, cwd))) {
     throw new Error("Isolated repository source path changed");
@@ -86,18 +86,18 @@ export function canIsolateRemoteWorkspaceSource(input: {
 }
 
 export async function materializeIsolatedRemoteWorkspaceSource(input: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   repoUrl: string;
   resolveGitAuth: GitRemoteAuthProvider;
 }): Promise<string> {
-  const cwd = isolatedRemoteSourcePath(input.companyId, input.issueId);
+  const cwd = isolatedRemoteSourcePath(input.spaceId, input.issueId);
   const canonicalCwd = await measureRunPhase("workspace.materialize.directories", async () => {
-    const root = resolvePaperclipInstanceRoot();
+    const root = resolveOutpostInstanceRoot();
     await fs.mkdir(root, { recursive: true });
     const canonicalRoot = await fs.realpath(root);
     let parent = canonicalRoot;
-    for (const segment of ["isolated-repository-sources", input.companyId, input.issueId]) {
+    for (const segment of ["isolated-repository-sources", input.spaceId, input.issueId]) {
       parent = path.join(parent, segment);
       await fs.mkdir(parent, { mode: 0o700 }).catch((error: NodeJS.ErrnoException) => {
         if (error.code !== "EEXIST") throw error;
@@ -119,8 +119,8 @@ export async function materializeIsolatedRemoteWorkspaceSource(input: {
   });
   const result = await materializeManagedProjectWorkspace(canonicalCwd, {
     repoUrl: input.repoUrl, resolveGitAuth: input.resolveGitAuth,
-    objectCacheCompanyDirectory: isGitHubHttpsRemoteUrl(input.repoUrl)
-      ? path.join(await fs.realpath(resolvePaperclipInstanceRoot()), "repository-object-cache", input.companyId) : undefined,
+    objectCacheSpaceDirectory: isGitHubHttpsRemoteUrl(input.repoUrl)
+      ? path.join(await fs.realpath(resolveOutpostInstanceRoot()), "repository-object-cache", input.spaceId) : undefined,
   });
   if (result.warning) throw new Error("Isolated repository source is not a Git checkout");
   await measureRunPhase("workspace.materialize.source_identity", () => assertRemoteSourceIdentity(cwd, input.repoUrl));

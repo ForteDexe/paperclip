@@ -7,13 +7,13 @@ import { activityLog, heartbeatRuns } from "@outpost/db";
  * A run belongs to the issue when its context names the issue or when an
  * issue activity row records the run. Each branch reads only this issue's
  * rows through its own index, so the cost does not grow with the number of
- * unclassified runs in other issues of the company.
+ * unclassified runs in other issues of the space.
  */
-export function missingRunLivenessCandidatesQuery(db: Db, companyId: string, issueId: string, limit: number) {
+export function missingRunLivenessCandidatesQuery(db: Db, spaceId: string, issueId: string, limit: number) {
   return db
     .select({
       id: heartbeatRuns.id,
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
       status: heartbeatRuns.status,
       contextSnapshot: heartbeatRuns.contextSnapshot,
       resultJson: heartbeatRuns.resultJson,
@@ -26,18 +26,18 @@ export function missingRunLivenessCandidatesQuery(db: Db, companyId: string, iss
     .from(heartbeatRuns)
     .where(
       and(
-        eq(heartbeatRuns.companyId, companyId),
+        eq(heartbeatRuns.spaceId, spaceId),
         isNull(heartbeatRuns.livenessState),
         sql`${heartbeatRuns.status} not in ('queued', 'running')`,
         sql`${heartbeatRuns.id} in (
           select issue_run.id
           from ${heartbeatRuns} as issue_run
-          where issue_run.company_id = ${companyId}
+          where issue_run.space_id = ${spaceId}
             and issue_run.context_snapshot ->> 'issueId' = ${issueId}
           union all
           select ${activityLog.runId}
           from ${activityLog}
-          where ${activityLog.companyId} = ${companyId}
+          where ${activityLog.spaceId} = ${spaceId}
             and ${activityLog.entityType} = 'issue'
             and ${activityLog.entityId} = ${issueId}
             and ${activityLog.runId} is not null

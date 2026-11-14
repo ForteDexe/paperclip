@@ -4,14 +4,14 @@ import express from "express";
 import request from "supertest";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, authUsers, chatEndpoints, chatExternalPrincipals, chatIdentityLinks, companies, companyMemberships, companySecretProviderConfigs, companySecrets, companySecretVersions, createDb, decisionArchiveNotificationOutbox,
+import { activityLog, agents, authUsers, chatEndpoints, chatExternalPrincipals, chatIdentityLinks, spaces, spaceMemberships, spaceSecretProviderConfigs, spaceSecrets, spaceSecretVersions, createDb, decisionArchiveNotificationOutbox,
   decisionRetention, invites, joinRequests, principalPermissionGrants, toolApplications, toolConnections, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { joinRequestRetentionService, registerJoinRequestRetentionWork } from "../services/join-request-retention.js";
 import { decisionRetentionService, DEFAULT_DECISION_ARCHIVE_DAYS } from "../services/decision-retention.js";
 import { attentionService } from "../services/attention.js";
-import { companyService } from "../services/companies.js";
+import { spaceService } from "../services/space-service.js";
 import { writeJoinRequestChange } from "../services/retention-work-notifications.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
@@ -21,7 +21,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
 (support.supported ? describe : describe.skip)("join request retention worker", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
-  let db: ReturnType<typeof createDb>, companyId: string, userId: string;
+  let db: ReturnType<typeof createDb>, spaceId: string, userId: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let draining: boolean;
   let accessRoutes: typeof import("../routes/access.js").accessRoutes;
@@ -33,10 +33,10 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
   }, 30_000);
   beforeEach(async () => {
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "0123456789abcdef0123456789abcdef");
-    companyId = randomUUID(); userId = randomUUID(); draining = false; errors.length = 0;
-    await db.insert(companies).values({ id: companyId, name: "Join retention", issuePrefix: `J${companyId.slice(0, 6)}` });
+    spaceId = randomUUID(); userId = randomUUID(); draining = false; errors.length = 0;
+    await db.insert(spaces).values({ id: spaceId, name: "Join retention", issuePrefix: `J${spaceId.slice(0, 6)}` });
     await db.insert(authUsers).values({ id: userId, name: "Owner", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
     await Promise.all(Array.from({ length: 6 }, () => db.execute(sql`select pg_sleep(0.01)`)));
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"], shouldAdvanceTime: true });
   });
@@ -49,31 +49,31 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
     await db.delete(chatIdentityLinks); await db.delete(chatExternalPrincipals); await db.delete(chatEndpoints);
     await db.delete(toolConnections); await db.delete(toolApplications); await db.delete(agents);
     await db.delete(joinRequests); await db.delete(invites); await db.delete(principalPermissionGrants);
-    await db.delete(companySecretVersions); await db.delete(companySecrets); await db.delete(companySecretProviderConfigs);
-    await db.delete(companyMemberships); await db.delete(authUsers); await db.delete(companies);
+    await db.delete(spaceSecretVersions); await db.delete(spaceSecrets); await db.delete(spaceSecretProviderConfigs);
+    await db.delete(spaceMemberships); await db.delete(authUsers); await db.delete(spaces);
     expect(errors).toEqual([]);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   const old = () => new Date(Date.now() - delay - 60_000);
-  const state = (id: string) => decisionRetentionService(db).getState(companyId, "join_request", id);
+  const state = (id: string) => decisionRetentionService(db).getState(spaceId, "join_request", id);
   async function exactDeadline(id: string) {
     const [row] = await db.select({ micros: sql<string>`(extract(epoch from ${joinRequests.updatedAt}) * 1000000)::bigint::text` })
       .from(joinRequests).where(eq(joinRequests.id, id));
     return Number((BigInt(row!.micros) + 999n) / 1000n) + delay;
   }
-  const authActor = () => ({ type: "board" as const, source: "local_implicit" as const, userId, companyIds: [companyId], isInstanceAdmin: true,
-    memberships: [{ companyId, membershipRole: "owner", status: "active" }] });
-  const mutation = (id: string) => ({ companyId, sourceKind: "join_request" as const, sourceId: id, authActor: authActor(),
+  const authActor = () => ({ type: "operator" as const, source: "local_implicit" as const, userId, spaceIds: [spaceId], isInstanceAdmin: true,
+    memberships: [{ spaceId, membershipRole: "owner", status: "active" }] });
+  const mutation = (id: string) => ({ spaceId, sourceKind: "join_request" as const, sourceId: id, authActor: authActor(),
     actor: { actorType: "user" as const, actorId: userId, agentId: null, userId, runId: null, agentApiKeyId: null, responsibleUserId: userId } });
   async function invite(database: Db = db) {
     const token = randomUUID();
-    const [row] = await database.insert(invites).values({ companyId, tokenHash: createHash("sha256").update(token).digest("hex"),
+    const [row] = await database.insert(invites).values({ spaceId, tokenHash: createHash("sha256").update(token).digest("hex"),
       allowedJoinTypes: "both", expiresAt: new Date(Date.now() + 86_400_000), invitedByUserId: userId }).returning();
     return { ...row, token };
   }
   async function create(at = new Date(), database: Db = db) {
     const invitation = await invite(database);
-    const [row] = await writeJoinRequestChange(database, tx => tx.insert(joinRequests).values({ companyId, inviteId: invitation.id,
+    const [row] = await writeJoinRequestChange(database, tx => tx.insert(joinRequests).values({ spaceId, inviteId: invitation.id,
       requestType: "agent", requestIp: "127.0.0.1", agentName: "Pending agent", createdAt: at, updatedAt: at }).returning());
     return row;
   }
@@ -91,7 +91,7 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
     const response = await request(app(database)).post(`/api/invites/${token}/accept`)
       .send({ requestType: "agent", agentName: "New agent", adapterType: "claude_local" });
     expect(response.status, JSON.stringify(response.body)).toBe(202);
-    const [row] = await database.select().from(joinRequests).where(eq(joinRequests.companyId, companyId));
+    const [row] = await database.select().from(joinRequests).where(eq(joinRequests.spaceId, spaceId));
     return row;
   }
   async function start(service = joinRequestRetentionService(db)) {
@@ -119,7 +119,7 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
     await settle(); expect(coordinator!.nextWakeAt()).toBe(await exactDeadline(row.id));
     const reads = vi.spyOn(db, "select"); await vi.advanceTimersByTimeAsync(300_000);
     expect(reads).not.toHaveBeenCalled(); reads.mockRestore();
-    const response = await request(app()).post(`/api/companies/${companyId}/join-requests/${row.id}/reject`).send({});
+    const response = await request(app()).post(`/api/spaces/${spaceId}/join-requests/${row.id}/reject`).send({});
     expect(response.status, JSON.stringify(response.body)).toBe(200); await quiet();
     expect(await state(row.id)).toBeNull();
   });
@@ -165,37 +165,37 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
 
   it("keeps revoked and expired invite requests visible under the existing retention policy", async () => {
     const row = await create(old()); await db.update(invites).set({ expiresAt: old(), revokedAt: old() });
-    const feed = await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true });
+    const feed = await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true });
     expect(feed.items.some(item => item.subject.id === row.id)).toBe(true);
     await start(); await archived(row.id); await quiet();
   });
 
-  it("waits for company activation and disarms when the company pauses", async () => {
-    const row = await create(old()); await companyService(db).update(companyId, { status: "paused" });
+  it("waits for space activation and disarms when the space pauses", async () => {
+    const row = await create(old()); await spaceService(db).update(spaceId, { status: "paused" });
     await start(); await quiet(); expect(await state(row.id)).toBeNull();
-    await companyService(db).update(companyId, { status: "active" }); await archived(row.id); await quiet();
+    await spaceService(db).update(spaceId, { status: "active" }); await archived(row.id); await quiet();
     await create(); await settle(); expect(coordinator!.nextWakeAt()).not.toBeNull();
-    await companyService(db).update(companyId, { status: "paused" }); await quiet();
+    await spaceService(db).update(spaceId, { status: "paused" }); await quiet();
   });
 
   it("honors keep and schedules an old request again when unkept", async () => {
-    const row = await create(old()); await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true });
+    const row = await create(old()); await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true });
     await decisionRetentionService(db).setKeep({ ...mutation(row.id), keep: true });
     await start(); await quiet();
     await decisionRetentionService(db).setKeep({ ...mutation(row.id), keep: false }); await archived(row.id); await quiet();
   });
 
   it("honors manual archival and reactivates on revive", async () => {
-    const row = await create(old()); await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true });
+    const row = await create(old()); await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true });
     await decisionRetentionService(db).archive(mutation(row.id)); await start(); await quiet();
     await decisionRetentionService(db).revive(mutation(row.id)); await archived(row.id); await quiet();
   });
 
   it("preserves normal attention reads but omits join requests from maintenance", async () => {
     const row = await create(old());
-    const excluded = await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true, excludeSources: ["join_request"] });
+    const excluded = await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true, excludeSources: ["join_request"] });
     expect(excluded.items.some(item => item.sourceKind === "join_request")).toBe(false); expect(await state(row.id)).toBeNull();
-    const feed = await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true });
+    const feed = await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true });
     expect(feed.items.some(item => item.subject.id === row.id)).toBe(true);
   });
 
@@ -239,15 +239,15 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
 
   it("wakes from the Slack access-request producer and deduplicates repeated requests", async () => {
     await start(); await quiet(); const token = randomUUID(), endpointId = randomUUID();
-    const [agent] = await db.insert(agents).values({ companyId, name: "Chat agent", role: "engineer", status: "active", adapterType: "codex_local" }).returning();
-    const [application] = await db.insert(toolApplications).values({ companyId, name: "Slack", type: "chat" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId, applicationId: application.id, name: "Slack", uid: randomUUID(), transport: "chat_sdk", connectionPurpose: "channel" }).returning();
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId, connectionId: connection.id, provider: "slack", publicId: randomUUID(), assignedAgentId: agent.id, status: "active" });
-    const [principal] = await db.insert(chatExternalPrincipals).values({ companyId, provider: "slack", providerAccountId: "team", externalId: randomUUID() }).returning();
-    await db.insert(chatIdentityLinks).values({ companyId, endpointId, principalId: principal.id,
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Chat agent", role: "engineer", status: "active", adapterType: "codex_local" }).returning();
+    const [application] = await db.insert(toolApplications).values({ spaceId, name: "Slack", type: "chat" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId: application.id, name: "Slack", uid: randomUUID(), transport: "chat_sdk", connectionPurpose: "channel" }).returning();
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId: connection.id, provider: "slack", publicId: randomUUID(), assignedAgentId: agent.id, status: "active" });
+    const [principal] = await db.insert(chatExternalPrincipals).values({ spaceId, provider: "slack", providerAccountId: "team", externalId: randomUUID() }).returning();
+    await db.insert(chatIdentityLinks).values({ spaceId, endpointId, principalId: principal.id,
       confirmationTokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 600_000) });
     const links = createSlackIdentityLinks(db, {
-      previewIdentityLink: async () => ({ selfService: true, canConfirm: false, companyId, endpointId }),
+      previewIdentityLink: async () => ({ selfService: true, canConfirm: false, spaceId, endpointId }),
       stageProviderEffect: vi.fn(async () => null),
     });
     expect(await links.requestIdentityAccess(token, userId, "127.0.0.1")).toEqual({ status: "pending_approval" });
@@ -263,7 +263,7 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
     const row = await create();
     await db.update(joinRequests).set({ requestType: "human", requestingUserId: requester }).where(eq(joinRequests.id, row.id));
     await start(); await settle(); expect(coordinator!.nextWakeAt()).not.toBeNull();
-    const response = await request(app()).post(`/api/companies/${companyId}/join-requests/${row.id}/approve`).send({});
+    const response = await request(app()).post(`/api/spaces/${spaceId}/join-requests/${row.id}/approve`).send({});
     expect(response.status, JSON.stringify(response.body)).toBe(200); await quiet();
     expect((await db.select().from(joinRequests))[0].status).toBe("approved");
   });
@@ -295,7 +295,7 @@ const delay = DEFAULT_DECISION_ARCHIVE_DAYS * 86_400_000;
     await writeJoinRequestChange(db, tx => tx.update(joinRequests).set({ updatedAt: new Date() }).where(eq(joinRequests.id, row.id)));
     expect(await state(row.id)).toMatchObject({ archivedAt });
     expect(await service.next()).toBeNull();
-    expect((await attentionService(db).list(companyId, { all: true, allowUnscopedAll: true })).items
+    expect((await attentionService(db).list(spaceId, { all: true, allowUnscopedAll: true })).items
       .some(item => item.subject.id === row.id)).toBe(false);
     await decisionRetentionService(db).revive(mutation(row.id));
     expect((await state(row.id))!.archivedAt).toBeNull();

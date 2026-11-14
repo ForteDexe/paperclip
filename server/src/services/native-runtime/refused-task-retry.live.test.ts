@@ -3,7 +3,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
-import { agents, agentWakeupRequests, companies, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
+import { agents, agentWakeupRequests, spaces, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
 import { expect, it } from "vitest";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
 import { createIsolatedTestHome } from "../../__tests__/helpers/isolated-test-home.js";
@@ -17,7 +17,7 @@ it.skipIf(process.env.OUTPOST_LIVE_REFUSED_RETRY !== "true")("completes work thr
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>> | undefined;
   let heartbeat: ReturnType<typeof heartbeatService> | undefined;
-  let companyId: string | undefined;
+  let spaceId: string | undefined;
   try {
     const codexHome = join(home.home, "codex");
     await mkdir(codexHome, { mode: 0o700 });
@@ -30,11 +30,11 @@ it.skipIf(process.env.OUTPOST_LIVE_REFUSED_RETRY !== "true")("completes work thr
     server = await startRunnerApiTestServer({ deploymentMode: "authenticated", humanSessions: true });
     process.env.OUTPOST_API_URL = server.apiUrl;
     const f = await server.fixture({ connectionScenario: "fresh" }), db = server.db;
-    companyId = f.companyId;
+    spaceId = f.spaceId;
     heartbeat = heartbeatService(db);
     const preserved = randomUUID(), appended = randomUUID();
     await writeFile(join(f.workspace, "retry-proof.txt"), `${preserved}\n`);
-    await db.update(companies).set({ defaultResponsibleUserId: f.userId }).where(eq(companies.id, f.companyId));
+    await db.update(spaces).set({ defaultResponsibleUserId: f.userId }).where(eq(spaces.id, f.spaceId));
     await db.update(agents).set({ status: "idle", adapterConfig: { provider: "codex", model: "gpt-6.1-sol", modelReasoningEffort: "high",
       cwd: f.workspace, workspaceStrategy: { type: "project_primary" }, env: { CODEX_HOME: codexHome }, timeoutSec: 180, lifecycleMode: "per_turn" },
       runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true, maxConcurrentRuns: 1 } },
@@ -42,9 +42,9 @@ it.skipIf(process.env.OUTPOST_LIVE_REFUSED_RETRY !== "true")("completes work thr
     await instanceSettingsService(db).updateExperimental({ enableNativeRunner: true, enableIsolatedWorkspaces: true });
     await db.update(issues).set({ status: "blocked", executionRunId: null, checkoutRunId: null, responsibleUserId: f.userId,
       executionWorkspaceSettings: { mode: "shared_workspace" }, title: "Complete one Retry turn",
-      description: `Write exactly ${appended} and a newline once to retry-result.txt in the current workspace. Read the complete file. This is the only requested work. Finish with paperclip_finish, reportedWorkDisposition done. No external writes are needed.`, 
+      description: `Write exactly ${appended} and a newline once to retry-result.txt in the current workspace. Read the complete file. This is the only requested work. Finish with outpost_finish, reportedWorkDisposition done. No external writes are needed.`,
     }).where(eq(issues.id, f.issueId));
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId, projectId: f.projectId,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, projectId: f.projectId,
       projectWorkspaceId: f.projectWorkspaceId, name: "Saved task workspace", mode: "shared_workspace",
       strategyType: "project_primary", cwd: f.workspace }).returning();
     await db.update(issues).set({ executionWorkspaceId: workspace.id, executionWorkspacePreference: "reuse_existing" })
@@ -55,11 +55,11 @@ it.skipIf(process.env.OUTPOST_LIVE_REFUSED_RETRY !== "true")("completes work thr
       finishedAt: new Date(now - 2000), runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
       resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
     }).where(eq(heartbeatRuns.id, f.runId));
-    const [hold] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
+    const [hold] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
       kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", fingerprint: f.runId,
       status: "resolved", outcome: "blocked", nextAction: "Continue after recovery.",
       evidence: { runId: f.runId, automaticRecovery: { replay: "blocked", actionOutcome: "unknown" } } }).returning();
-    const [refused] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+    const [refused] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
       issueId: f.issueId, status: "cancelled", errorCode: "execution_reconciliation_required", retryOfRunId: f.runId,
       createdAt: new Date(now - 1000), finishedAt: new Date(now - 500), contextSnapshot: { issueId: f.issueId, retryOfRunId: f.runId },
       resultJson: { stopReason: "execution_reconciliation_required", timeoutSource: "stale_queued_run_gate",
@@ -91,7 +91,7 @@ it.skipIf(process.env.OUTPOST_LIVE_REFUSED_RETRY !== "true")("completes work thr
     expect(coordinator.phase).toBe("committed");
     const repeated = await retry();
     expect(await repeated.json()).toMatchObject({ accepted: true, requestId: receipt.requestId });
-    expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.runtimeMode, "native"))))
+    expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.runtimeMode, "native"))))
       .toHaveLength(1);
     const evidence = { passed: true, platform: `${process.platform}-${process.arch}`, model: "gpt-6.1-sol", effort: "high",
       sourceRunId: f.runId, refusedRunId: refused.id, successorRunId: successor.id, sourceFilePreserved: true, outputFileLines: 1,
@@ -99,8 +99,8 @@ it.skipIf(process.env.OUTPOST_LIVE_REFUSED_RETRY !== "true")("completes work thr
     if (process.env.OUTPOST_LIVE_EVIDENCE_PATH) await writeFile(process.env.OUTPOST_LIVE_EVIDENCE_PATH, JSON.stringify(evidence, null, 2) + "\n");
     console.log(JSON.stringify(evidence));
   } catch (error) {
-    if (server && companyId && process.env.OUTPOST_LIVE_EVIDENCE_PATH) {
-      const runs = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
+    if (server && spaceId && process.env.OUTPOST_LIVE_EVIDENCE_PATH) {
+      const runs = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId));
       await writeFile(`${process.env.OUTPOST_LIVE_EVIDENCE_PATH}.failure.json`, JSON.stringify({ error: String(error),
         runs: runs.map(run => ({ id: run.id, status: run.status, error: run.error, result: run.resultJson })),
       }, null, 2));

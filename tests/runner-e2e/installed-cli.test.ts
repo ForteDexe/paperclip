@@ -22,9 +22,9 @@ afterEach(async () => {
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 async function fixture() {
   const root = await realpath(await mkdtemp(join(tmpdir(), "e2e-installed-cli-"))); roots.push(root);
-  const cli = join(root, "node_modules/paperclipai"); const server = join(root, "node_modules/@outpost/server");
+  const cli = join(root, "node_modules/@outpost/cli"); const server = join(root, "node_modules/@outpost/server");
   await mkdir(join(cli, "dist"), { recursive: true }); await mkdir(join(server, "dist"), { recursive: true });
-  await writeFile(join(cli, "package.json"), JSON.stringify({ name: "paperclipai", version: "1.2.3", type: "module", bin: { paperclipai: "./dist/index.js" } }));
+  await writeFile(join(cli, "package.json"), JSON.stringify({ name: "@outpost/cli", version: "1.2.3", type: "module", bin: { outpost: "./dist/index.js" } }));
   await writeFile(join(server, "package.json"), JSON.stringify({ name: "@outpost/server", version: "1.2.3", type: "module", exports: { ".": { import: "./dist/index.js" } } }));
   await writeFile(join(cli, "dist/index.js"), "// installed public CLI"); await writeFile(join(server, "dist/index.js"), "// installed public server");
   const env = { OUTPOST_RUNNER_E2E_INSTALLED_CLI: join(cli, "dist/index.js"), OUTPOST_RUNNER_E2E_INSTALLED_CLI_SHA256: hash("// installed public CLI"), OUTPOST_RUNNER_E2E_INSTALLED_SERVER_ROOT: server, OUTPOST_RUNNER_E2E_INSTALLED_SERVER_SHA256: hash("// installed public server") };
@@ -143,7 +143,7 @@ async function startupFixture(mode: "normal" | "wrong-model" | "ambient-codex" |
   await writeFile(daemon, "fixture-daemon");
   await writeFile(codex, "#!/bin/sh\nprintf 'codex-cli 0.149.5\\n'\n");
   await chmod(codex, 0o755);
-  await writeFile(join(f.server, "dist/services/native-runtime/native-codex-runner.js"), `export function resolvePaperclipRunnerBinary() { return ${JSON.stringify(daemon)}; }`);
+  await writeFile(join(f.server, "dist/services/native-runtime/native-codex-runner.js"), `export function resolveOutpostRunnerBinary() { return ${JSON.stringify(daemon)}; }`);
   await writeFile(join(vendor, "index.js"), `
     import {writeFileSync} from "node:fs";
     const state={calls:[],environmentKeys:[],fileAuthPinned:false};let retired=false;

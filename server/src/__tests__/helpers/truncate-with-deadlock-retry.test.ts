@@ -26,7 +26,7 @@ describe("truncateTablesWithDeadlockRetry", () => {
       .mockRejectedValueOnce(deadlockError())
       .mockResolvedValueOnce(undefined);
 
-    await truncateTablesWithDeadlockRetry(fakeDb(execute), "TRUNCATE TABLE \"companies\" CASCADE", {
+    await truncateTablesWithDeadlockRetry(fakeDb(execute), "TRUNCATE TABLE \"spaces\" CASCADE", {
       attempts: 5,
       delayMs: () => 0,
     });
@@ -52,7 +52,7 @@ describe("truncateTablesWithDeadlockRetry", () => {
     const execute = vi.fn().mockRejectedValue(error);
 
     await expect(
-      truncateTablesWithDeadlockRetry(fakeDb(execute), "TRUNCATE TABLE \"companies\" CASCADE", {
+      truncateTablesWithDeadlockRetry(fakeDb(execute), "TRUNCATE TABLE \"spaces\" CASCADE", {
         attempts: 3,
         delayMs: () => 0,
       }),
@@ -66,7 +66,7 @@ describe("truncateTablesWithDeadlockRetry", () => {
     const execute = vi.fn().mockRejectedValue(error);
 
     await expect(
-      truncateTablesWithDeadlockRetry(fakeDb(execute), "TRUNCATE TABLE \"companies\" CASCADE", {
+      truncateTablesWithDeadlockRetry(fakeDb(execute), "TRUNCATE TABLE \"spaces\" CASCADE", {
         attempts: 5,
         delayMs: () => 0,
       }),

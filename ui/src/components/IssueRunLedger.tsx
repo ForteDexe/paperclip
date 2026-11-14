@@ -37,7 +37,7 @@ import {
 
 type IssueRunLedgerProps = {
   issueId: string;
-  companyId: string;
+  spaceId: string;
   issueStatus: Issue["status"];
   childIssues: Issue[];
   agentMap: ReadonlyMap<string, Agent>;
@@ -326,7 +326,7 @@ function stopReasonLabel(run: RunForIssue) {
     return "max turns exhausted";
   if (stopReason === "budget_paused") return "paused by a legacy policy";
   if (stopReason === "cancelled") return "cancelled";
-  if (stopReason === "paused") return "paused by board";
+  if (stopReason === "paused") return "paused by operator";
   if (stopReason === "process_lost") return "process lost";
   if (stopReason === "unmanaged_background_task_stopped")
     return "unmanaged background task stopped";
@@ -406,19 +406,19 @@ function formatSilenceAge(ms: number | null | undefined) {
 }
 
 function canBoardRecordWatchdogDecision(
-  companyId: string,
-  boardAccess: CurrentBoardAccess | undefined,
+  spaceId: string,
+  operatorAccess: CurrentBoardAccess | undefined,
 ) {
-  if (!boardAccess) return false;
-  if (boardAccess.source === "local_implicit" || boardAccess.isInstanceAdmin)
+  if (!operatorAccess) return false;
+  if (operatorAccess.source === "local_implicit" || operatorAccess.isInstanceAdmin)
     return true;
 
-  const membership = boardAccess.memberships?.find(
-    (item) => item.companyId === companyId && item.status === "active",
+  const membership = operatorAccess.memberships?.find(
+    (item) => item.spaceId === spaceId && item.status === "active",
   );
   if (!membership)
     return (
-      boardAccess.companyIds.includes(companyId) && !boardAccess.memberships
+      operatorAccess.spaceIds.includes(spaceId) && !operatorAccess.memberships
     );
   return (
     membership.membershipRole !== "viewer" && membership.membershipRole !== null
@@ -427,7 +427,7 @@ function canBoardRecordWatchdogDecision(
 
 function watchdogDecisionErrorMessage(error: unknown) {
   if (error instanceof ApiError && error.status === 403) {
-    return "Only the board or the assigned recovery owner can record watchdog decisions";
+    return "Only the operator or the assigned recovery owner can record watchdog decisions";
   }
   return error instanceof Error && error.message.trim().length > 0
     ? error.message
@@ -436,7 +436,7 @@ function watchdogDecisionErrorMessage(error: unknown) {
 
 export function IssueRunLedger({
   issueId,
-  companyId,
+  spaceId,
   issueStatus,
   childIssues,
   agentMap,
@@ -450,7 +450,7 @@ export function IssueRunLedger({
   const [watchdogDecisionError, setWatchdogDecisionError] = useState<
     string | null
   >(null);
-  const { data: boardAccess } = useQuery({
+  const { data: operatorAccess } = useQuery({
     queryKey: queryKeys.access.currentBoardAccess,
     queryFn: () => accessApi.getCurrentBoardAccess(),
   });
@@ -483,10 +483,10 @@ export function IssueRunLedger({
     [runs],
   );
   const canInspectProviderTrace =
-    boardAccess?.source === "local_implicit" || boardAccess?.isInstanceAdmin === true;
+    operatorAccess?.source === "local_implicit" || operatorAccess?.isInstanceAdmin === true;
   const { data: providerTraceRows } = useQuery({
-    queryKey: queryKeys.providerTraceMetadata(companyId, traceRunIds),
-    queryFn: () => heartbeatsApi.providerTraceMetadata(companyId, traceRunIds),
+    queryKey: queryKeys.providerTraceMetadata(spaceId, traceRunIds),
+    queryFn: () => heartbeatsApi.providerTraceMetadata(spaceId, traceRunIds),
     enabled: canInspectProviderTrace && traceRunIds.length > 0,
   });
   const providerTraceMetadata = useMemo(
@@ -538,7 +538,7 @@ export function IssueRunLedger({
           payload,
           debug: { providerTrace: "raw" },
         },
-        companyId,
+        spaceId,
       );
       if (!("id" in result))
         throw new Error(result.message ?? "Trace re-run was skipped.");
@@ -577,8 +577,8 @@ export function IssueRunLedger({
       resolveUserLabel={resolveUserLabel}
       pendingWatchdogDecision={watchdogDecision.variables?.decision ?? null}
       canRecordWatchdogDecisions={canBoardRecordWatchdogDecision(
-        companyId,
-        boardAccess,
+        spaceId,
+        operatorAccess,
       )}
       watchdogDecisionError={watchdogDecisionError}
       onWatchdogDecision={(input) => watchdogDecision.mutate(input)}

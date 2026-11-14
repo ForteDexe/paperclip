@@ -1,10 +1,10 @@
 import type { StatusCard, StatusCardRefreshPolicy } from "@outpost/shared";
 
 /**
- * The lifecycle states a status card renders as on the board (plan §7,
+ * The lifecycle states a status card renders as on the operator (plan §7,
  * wireframe `07-card-states.svg`). Derived from the stored `status_cards` row:
  * the persisted `state` enum plus `archivedAt`, `generatingIssueId` and
- * `pendingChangeCount`. Kept in one place so the board tile, detail drawer and
+ * `pendingChangeCount`. Kept in one place so the operator tile, detail drawer and
  * tests agree on the mapping.
  */
 export type StatusCardLifecycle =
@@ -74,7 +74,7 @@ export const STATUS_CARD_LIFECYCLE_PRESENTATION: Record<
   },
   updating: {
     // Blue (distinct from fresh-emerald and compiling-cyan) so an in-flight
-    // update never reads as "fresh" on a glance-scan of the board.
+    // update never reads as "fresh" on a glance-scan of the operator.
     label: "Updating",
     dotClassName: "bg-blue-500 animate-pulse",
     description: "An update is streaming in now.",

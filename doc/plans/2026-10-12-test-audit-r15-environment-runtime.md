@@ -18,7 +18,7 @@ The keeper also releases the lease and checks the durable released row.
 
 One file: +2/-17 test lines, net15 fewer lines. One registered case and one
 redundant seed/acquisition/setup/cleanup cycle disappear (162→161 cases).
-No production behavior changes. Provider, SSH, company access, secret
+No production behavior changes. Provider, SSH, space access, secret
 resolution/redaction, timeout precedence, session and recovery cases remain.
 
 ## Exact-parent proof

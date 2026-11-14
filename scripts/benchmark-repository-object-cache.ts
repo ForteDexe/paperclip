@@ -14,7 +14,7 @@ const previousHome = process.env.OUTPOST_HOME;
 const previousTrace = process.env.GIT_TRACE_PACKFILE;
 process.env.OUTPOST_HOME = path.join(root, "home");
 const source = path.join(root, "source");
-const cache = path.join(root, "cache/company");
+const cache = path.join(root, "cache/space");
 const samples = Number(process.argv.find(arg => arg.startsWith("--samples="))?.split("=")[1] ?? 5);
 assert.ok(Number.isSafeInteger(samples) && samples > 0 && samples <= 10);
 try {
@@ -28,7 +28,7 @@ try {
   }
   const repoUrl = pathToFileURL(source).href;
   const prepare = (target: string, useCache: boolean) => materializeManagedProjectWorkspace(target,
-    { repoUrl, ...(useCache ? { objectCacheCompanyDirectory: cache } : {}) });
+    { repoUrl, ...(useCache ? { objectCacheSpaceDirectory: cache } : {}) });
   const warmStart = performance.now(); await prepare(path.join(root, "prime"), true);
   const cachePrimeMs = performance.now() - warmStart;
   const expected = await git("rev-parse", "HEAD");

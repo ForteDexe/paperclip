@@ -218,10 +218,10 @@ describe("in-tab GET coalescing", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     // Each caller gets its own response, not the other's.
-    first.resolve(jsonResponse({ companies: ["previous"] }));
-    second.resolve(jsonResponse({ companies: ["current"] }));
-    expect(await previousAccount).toEqual({ companies: ["previous"] });
-    expect(await currentAccount).toEqual({ companies: ["current"] });
+    first.resolve(jsonResponse({ spaces: ["previous"] }));
+    second.resolve(jsonResponse({ spaces: ["current"] }));
+    expect(await previousAccount).toEqual({ spaces: ["previous"] });
+    expect(await currentAccount).toEqual({ spaces: ["current"] });
   });
 
   it("never coalesces mutations", async () => {
@@ -308,8 +308,8 @@ describe("managed-account request isolation", () => {
 
 describe("Muse operator request isolation", () => {
   it.each([
-    ["invitation resume", () => museInvitationsApi.resume("company")],
-    ["connection evidence", () => museInvitationsApi.connection("company", "agent")],
+    ["invitation resume", () => museInvitationsApi.resume("space")],
+    ["connection evidence", () => museInvitationsApi.connection("space", "agent")],
   ] as const)("does not join the previous operator's %s request", async (_name, read) => {
     const previous = deferred<Response>();
     const current = deferred<Response>();

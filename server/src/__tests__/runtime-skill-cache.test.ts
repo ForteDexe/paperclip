@@ -5,7 +5,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CompanySkill } from "@outpost/shared";
+import type { SpaceSkill } from "@outpost/shared";
 import { once } from "node:events";
 import { releaseExitedRuntimeSkillCacheLock, removeRuntimeSkillCache, resolveRuntimeSkillCache, runtimeSkillCacheLockHolderExited, runtimeSkillCacheSpec } from "../services/runtime-skill-cache.js";
 import { currentControllerProcessStamp } from "../services/controller-process-identity.js";
@@ -38,16 +38,16 @@ async function makeReadonly(root: string): Promise<void> {
 
 describe("runtime skill revision cache", () => {
   let root: string;
-  let skill: CompanySkill;
+  let skill: SpaceSkill;
   const contents: Record<string, string> = { "SKILL.md": "# Test", "references/a.md": "Supporting content" };
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "runtime-cache-"));
-    skill = { id: randomUUID(), companyId: randomUUID(), sourceType: "github", sourceLocator: "https://github.com/org/repo",
+    skill = { id: randomUUID(), spaceId: randomUUID(), sourceType: "github", sourceLocator: "https://github.com/org/repo",
       sourceRef: "a".repeat(40), slug: "test", markdown: contents["SKILL.md"], metadata: { owner: "org", repo: "repo", repoSkillDir: "skills/test" },
       fileInventory: [{ path: "SKILL.md", kind: "skill" }, { path: "references/a.md", kind: "reference" }],
       key: "org/repo/test", name: "Test", description: null, trustLevel: "markdown_only", compatibility: "compatible",
-      iconUrl: null, color: null, tagline: null, authorName: null, homepageUrl: null, categories: [], sharingScope: "company",
-      publicShareToken: null, forkedFromSkillId: null, forkedFromCompanyId: null, starCount: 0, installCount: 0, forkCount: 0,
+      iconUrl: null, color: null, tagline: null, authorName: null, homepageUrl: null, categories: [], sharingScope: "space",
+      publicShareToken: null, forkedFromSkillId: null, forkedFromSpaceId: null, starCount: 0, installCount: 0, forkCount: 0,
       currentVersionId: null, createdAt: new Date(0), updatedAt: new Date(0),
     };
   });
@@ -247,7 +247,7 @@ describe("runtime skill revision cache", () => {
     const spec = runtimeSkillCacheSpec(root, skill)!;
     expect(runtimeSkillCacheSpec(root, { ...skill, name: "Renamed", updatedAt: new Date(), metadata: { ...skill.metadata, starred: true, ref: "new-branch" } })!.fingerprint).toBe(spec.fingerprint);
     expect(runtimeSkillCacheSpec(root, { ...skill, fileInventory: [...skill.fileInventory].reverse() })!.fingerprint).toBe(spec.fingerprint);
-    for (const update of [{ companyId: randomUUID() }, { sourceRef: "b".repeat(40) }, { markdown: "changed" },
+    for (const update of [{ spaceId: randomUUID() }, { sourceRef: "b".repeat(40) }, { markdown: "changed" },
       { metadata: { ...skill.metadata, repoSkillDir: "other" } }]) {
       expect(runtimeSkillCacheSpec(root, { ...skill, ...update })!.fingerprint).not.toBe(spec.fingerprint);
     }

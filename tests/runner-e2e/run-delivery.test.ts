@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { inspectRunDelivery, waitForRunDelivery } from "./run-delivery.js";
 
 function fixture() {
-  const binding = { companyId: "company", issueId: "task", runId: "run" };
+  const binding = { spaceId: "space", issueId: "task", runId: "run" };
   return { binding, agentId: "agent", runCount: 1,
-    run: { id: "run", agentId: "agent", companyId: "company", nativeIssueId: "task", status: "succeeded", issueCommentStatus: "satisfied",
+    run: { id: "run", agentId: "agent", spaceId: "space", nativeIssueId: "task", status: "succeeded", issueCommentStatus: "satisfied",
       issueCommentSatisfiedByCommentId: "reply", resultJson: { nativeResult: { summary: "Internal saved result." },
         presentationDecision: { schema: "outpost.run_presentation_decision.v1", chosenSource: "final_agent_message", commentAction: "create", commentId: "reply" } } },
-    comments: [{ id: "reply", companyId: "company", issueId: "task", authorAgentId: "agent", createdByRunId: "run",
+    comments: [{ id: "reply", spaceId: "space", issueId: "task", authorAgentId: "agent", createdByRunId: "run",
       body: "Here is your downloadable proof.", deletedAt: null as string | null }] };
 }
 
@@ -26,9 +26,9 @@ describe("finalization final delivery observation", () => {
     expect(observed.finalDeliveryCount).toBe(2);
     expect(observed.deliveryReceiptMatches).toBe(false);
   });
-  it.each(["company", "task", "run", "presentation", "receipt", "deleted", "blank"] as const)("rejects a mismatched %s final delivery", kind => {
+  it.each(["space", "task", "run", "presentation", "receipt", "deleted", "blank"] as const)("rejects a mismatched %s final delivery", kind => {
     const state = fixture();
-    if (kind === "company") state.run.companyId = "foreign";
+    if (kind === "space") state.run.spaceId = "foreign";
     if (kind === "task") state.comments[0]!.issueId = "foreign";
     if (kind === "run") state.run.id = "foreign";
     if (kind === "presentation") state.run.resultJson.presentationDecision.commentId = "foreign";
@@ -76,7 +76,7 @@ it("counts the receipt-bound final reply separately from a verified file-prepara
 });
 
 
-it.each(["no-receipt", "wrong-operation", "wrong-command", "unapplied", "no-attachment", "wrong-issue", "wrong-run", "wrong-comment", "wrong-company", "missing-reference", "duplicate-attachment"] as const)("keeps an unproven %s carrier as an extra reply instead of hiding it", kind => {
+it.each(["no-receipt", "wrong-operation", "wrong-command", "unapplied", "no-attachment", "wrong-issue", "wrong-run", "wrong-comment", "wrong-space", "missing-reference", "duplicate-attachment"] as const)("keeps an unproven %s carrier as an extra reply instead of hiding it", kind => {
   const state = withPreparedFile();
   const receipt = state.run.resultJson.semanticToolReceipts.proof;
   if (kind === "no-receipt") state.run.resultJson.semanticToolReceipts = {} as typeof state.run.resultJson.semanticToolReceipts;
@@ -87,7 +87,7 @@ it.each(["no-receipt", "wrong-operation", "wrong-command", "unapplied", "no-atta
   if (kind === "wrong-issue") state.attachments[0]!.issueId = "foreign";
   if (kind === "wrong-run") state.attachments[0]!.originatingRunId = "foreign";
   if (kind === "wrong-comment") state.attachments[0]!.issueCommentId = "foreign";
-  if (kind === "wrong-company") Object.assign(state.attachments[0]!, { companyId: "foreign" });
+  if (kind === "wrong-space") Object.assign(state.attachments[0]!, { spaceId: "foreign" });
   if (kind === "missing-reference") receipt.result.entityRefs = ["attachment", "work-product"];
   if (kind === "duplicate-attachment") state.attachments.push({ ...state.attachments[0]! });
   expect(inspectRunDelivery(state)).toMatchObject({ finalDeliveryCount: 2, deliveryReceiptMatches: false });

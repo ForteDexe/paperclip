@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, documents, heartbeatRuns, issueComments, issueThreadInteractions, issueWorkProducts, issues,
+import { agents, spaces, createDb, documents, heartbeatRuns, issueComments, issueThreadInteractions, issueWorkProducts, issues,
   EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { buildAgentMentionHref } from "@outpost/shared";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -11,7 +11,7 @@ import { workProductService } from "../services/work-products.js";
 import { buildHostServices } from "../services/plugin-host-services.js";
 import { withPluginInteractionOrigin } from "../services/plugin-interaction-context.js";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 
 describe("agent interaction mutation boundaries", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
@@ -23,14 +23,14 @@ describe("agent interaction mutation boundaries", () => {
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
   async function seed() {
-    const companyId = randomUUID(), sender = randomUUID(), recipient = randomUUID(), issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Interactions", issuePrefix: `I${companyId.slice(0, 6)}` });
+    const spaceId = randomUUID(), sender = randomUUID(), recipient = randomUUID(), issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Interactions", issuePrefix: `I${spaceId.slice(0, 6)}` });
     await db.insert(agents).values([
-      { id: sender, companyId, name: "Sender", adapterType: "process", status: "idle", permissions: {} },
-      { id: recipient, companyId, name: "Recipient", adapterType: "process", status: "idle", permissions: {} },
+      { id: sender, spaceId, name: "Sender", adapterType: "process", status: "idle", permissions: {} },
+      { id: recipient, spaceId, name: "Recipient", adapterType: "process", status: "idle", permissions: {} },
     ]);
-    await db.insert(issues).values({ id: issueId, companyId, title: "Original", status: "todo", assigneeAgentId: recipient });
-    return { companyId, sender, recipient, issueId };
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Original", status: "todo", assigneeAgentId: recipient });
+    return { spaceId, sender, recipient, issueId };
   }
   async function restrict(agentId: string, interactions: Record<string, boolean>) {
     await db.update(agents).set({ permissions: { interactions } }).where(eq(agents.id, agentId));
@@ -42,7 +42,7 @@ describe("agent interaction mutation boundaries", () => {
     await svc.addComment(f.issueId, "Peer reply", { agentId: f.sender });
     await svc.update(f.issueId, { title: "Edited", actorAgentId: f.sender });
     const [task] = await db.select().from(issues).where(eq(issues.id, f.issueId));
-    const rows = await db.select().from(agents).where(eq(agents.companyId, f.companyId));
+    const rows = await db.select().from(agents).where(eq(agents.spaceId, f.spaceId));
     expect(task.title).toBe("Edited");
     expect(rows.every(row => Object.keys(row.permissions).length === 0)).toBe(true);
   });
@@ -54,7 +54,7 @@ describe("agent interaction mutation boundaries", () => {
       forPlugin: () => ({ emit: vi.fn(), subscribe: vi.fn(), clear: vi.fn() }),
     } as any);
     try {
-      await expect(services.issues.createComment({ companyId: f.companyId, issueId: f.issueId,
+      await expect(services.issues.createComment({ spaceId: f.spaceId, issueId: f.issueId,
         body: "Blocked plugin reply", authorAgentId: f.sender })).rejects.toMatchObject(denied("canReceiveCommentsFromAgents"));
       expect(await db.select().from(issueComments).where(eq(issueComments.issueId, f.issueId))).toEqual([]);
     } finally { services.dispose(); }
@@ -102,16 +102,16 @@ describe("agent interaction mutation boundaries", () => {
   it("rejects creating work for a protected recipient without inserting a task", async () => {
     const f = await seed();
     await restrict(f.recipient, { canReceiveAssignmentsFromAgents: false });
-    await expect(issueService(db).create(f.companyId, { title: "Blocked new work", createdByAgentId: f.sender,
+    await expect(issueService(db).create(f.spaceId, { title: "Blocked new work", createdByAgentId: f.sender,
       assigneeAgentId: f.recipient, status: "todo" })).rejects.toMatchObject(denied("canReceiveAssignmentsFromAgents"));
-    expect(await db.select().from(issues).where(eq(issues.companyId, f.companyId))).toHaveLength(1);
+    expect(await db.select().from(issues).where(eq(issues.spaceId, f.spaceId))).toHaveLength(1);
   });
 
   it("allows initial plan content under assignment authority without requiring peer edit permission", async () => {
     const f = await seed();
     await restrict(f.sender, { canEditOtherTasks: false });
     await restrict(f.recipient, { canReceiveTaskEditsFromAgents: false });
-    const created = await issueService(db).create(f.companyId, { title: "New assigned work", createdByAgentId: f.sender,
+    const created = await issueService(db).create(f.spaceId, { title: "New assigned work", createdByAgentId: f.sender,
       assigneeAgentId: f.recipient, initialPlan: "Initial instructions", status: "todo" });
     expect((await documentService(db).getIssueDocumentByKey(created.id, "plan"))?.body).toBe("Initial instructions");
     await expect(documentService(db).upsertIssueDocument({ issueId: created.id, key: "notes", format: "markdown",
@@ -122,17 +122,17 @@ describe("agent interaction mutation boundaries", () => {
     const f = await seed(), runId = randomUUID(), wakes = vi.fn();
     await db.update(issues).set({ assigneeAgentId: f.sender, status: "in_progress" }).where(eq(issues.id, f.issueId));
     await db.update(agents).set({ adapterType: "outpost_runner", status: "active" }).where(eq(agents.id, f.sender));
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.sender,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.sender,
       status: "running", runtimeMode: "native", nativeIssueId: f.issueId,
       invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId: f.issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, f.issueId));
     await restrict(f.recipient, { canReceiveAssignmentsFromAgents: false });
-    const authority = new PaperclipRunnerToolAuthority(db, { companyId: f.companyId, agentId: f.sender,
+    const authority = new OutpostRunnerToolAuthority(db, { spaceId: f.spaceId, agentId: f.sender,
       issueId: f.issueId, runId, enqueueWakeup: wakes });
     await expect(authority.execute({ tool: "create_task", callId: randomUUID(), arguments: {
       idempotencyKey: "protected-recipient", title: "Delegated", assigneeActorId: f.recipient,
     } })).rejects.toMatchObject(denied("canReceiveAssignmentsFromAgents"));
-    expect(await db.select().from(issues).where(eq(issues.companyId, f.companyId))).toHaveLength(1);
+    expect(await db.select().from(issues).where(eq(issues.spaceId, f.spaceId))).toHaveLength(1);
     expect(wakes).not.toHaveBeenCalled();
   });
 
@@ -140,8 +140,8 @@ describe("agent interaction mutation boundaries", () => {
     const f = await seed();
     await db.update(issues).set({ assigneeAgentId: f.sender }).where(eq(issues.id, f.issueId));
     await restrict(f.recipient, { canReceiveAssignmentsFromAgents: false });
-    await expect(issueThreadInteractionService(db).create({ id: f.issueId, companyId: f.companyId }, {
-      kind: "ask_user_questions", resolverPolicy: "board_or_agents", addresseeAgentId: f.recipient,
+    await expect(issueThreadInteractionService(db).create({ id: f.issueId, spaceId: f.spaceId }, {
+      kind: "ask_user_questions", resolverPolicy: "operator_or_agents", addresseeAgentId: f.recipient,
       continuationPolicy: "wake_assignee", payload: { version: 1,
         questions: [{ id: "review", prompt: "Review?", selectionMode: "single", options: [{ id: "yes", label: "Yes" }] }] },
     }, { agentId: f.sender })).rejects.toMatchObject(denied("canReceiveAssignmentsFromAgents"));
@@ -152,18 +152,18 @@ describe("agent interaction mutation boundaries", () => {
     const f = await seed(), runId = randomUUID(), targetRunId = randomUUID(), stop = vi.fn(), wake = vi.fn();
     await db.update(issues).set({ assigneeAgentId: f.sender, status: "in_progress" }).where(eq(issues.id, f.issueId));
     await db.update(agents).set({ adapterType: "outpost_runner", status: "active" }).where(eq(agents.id, f.sender));
-    const [target] = await db.insert(issues).values({ companyId: f.companyId, title: "Running peer task",
+    const [target] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Running peer task",
       status: "in_progress", assigneeAgentId: f.recipient }).returning();
     await db.insert(heartbeatRuns).values([
-      { id: runId, companyId: f.companyId, agentId: f.sender, status: "running", runtimeMode: "native", nativeIssueId: f.issueId,
+      { id: runId, spaceId: f.spaceId, agentId: f.sender, status: "running", runtimeMode: "native", nativeIssueId: f.issueId,
         invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId: f.issueId } },
-      { id: targetRunId, companyId: f.companyId, agentId: f.recipient, status: "running", runtimeMode: "native", nativeIssueId: target.id,
+      { id: targetRunId, spaceId: f.spaceId, agentId: f.recipient, status: "running", runtimeMode: "native", nativeIssueId: target.id,
         invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId: target.id } },
     ]);
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, f.issueId));
     await db.update(issues).set({ executionRunId: targetRunId }).where(eq(issues.id, target.id));
     await restrict(f.recipient, { canReceiveCommentsFromAgents: false });
-    const authority = new PaperclipRunnerToolAuthority(db, { companyId: f.companyId, agentId: f.sender,
+    const authority = new OutpostRunnerToolAuthority(db, { spaceId: f.spaceId, agentId: f.sender,
       issueId: f.issueId, runId, enqueueWakeup: wake, stopTaskForReassignment: stop });
     await expect(authority.execute({ tool: "reassign_task", callId: randomUUID(), arguments: {
       idempotencyKey: "protected-reason", taskId: target.id, assigneeActorId: f.sender,
@@ -181,7 +181,7 @@ describe("agent interaction mutation boundaries", () => {
     const f = await seed();
     await db.update(issues).set({ assigneeAgentId: f.sender }).where(eq(issues.id, f.issueId));
     await restrict(f.recipient, { canReceiveConfigurationChangesFromAgents: false });
-    await expect(issueThreadInteractionService(db).create({ id: f.issueId, companyId: f.companyId }, {
+    await expect(issueThreadInteractionService(db).create({ id: f.issueId, spaceId: f.spaceId }, {
       kind: "request_confirmation", payload: { version: 1, prompt: "Change instructions?",
         target: { type: "custom", key: `agent:${f.recipient}:instructions`, revisionId: "proposed" } },
     }, { agentId: f.sender })).rejects.toMatchObject(denied("canReceiveConfigurationChangesFromAgents"));
@@ -190,8 +190,8 @@ describe("agent interaction mutation boundaries", () => {
 
   it("preserves trusted plugin origin despite a supplied human comment actor", async () => {
     const f = await seed();
-    const write = () => withPluginInteractionOrigin({ companyId: f.companyId, agentId: f.sender }, () =>
-      issueService(db).addComment(f.issueId, "Plugin reply", { userId: "local-board" }));
+    const write = () => withPluginInteractionOrigin({ spaceId: f.spaceId, agentId: f.sender }, () =>
+      issueService(db).addComment(f.issueId, "Plugin reply", { userId: "local-operator" }));
     const comment = await write();
     expect(comment.authorAgentId).toBe(f.sender);
     expect(comment.authorUserId).toBeNull();
@@ -207,8 +207,8 @@ describe("agent interaction mutation boundaries", () => {
       forPlugin: () => ({ emit: vi.fn(), subscribe: vi.fn(), clear: vi.fn() }),
     } as any);
     try {
-      await expect(withPluginInteractionOrigin({ companyId: f.companyId, agentId: f.sender }, () =>
-        services.authorization.updatePolicy({ companyId: f.companyId, resourceType: "issue", resourceId: f.issueId,
+      await expect(withPluginInteractionOrigin({ spaceId: f.spaceId, agentId: f.sender }, () =>
+        services.authorization.updatePolicy({ spaceId: f.spaceId, resourceType: "issue", resourceId: f.issueId,
           policy: { example: "policy" } }))).rejects.toMatchObject(denied("canReceiveTaskEditsFromAgents"));
       expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0].executionPolicy).toBeNull();
     } finally { services.dispose(); }
@@ -217,9 +217,9 @@ describe("agent interaction mutation boundaries", () => {
   it("blocks parent influence when creating a child even if the child is self-assigned", async () => {
     const f = await seed();
     await restrict(f.recipient, { canReceiveTaskEditsFromAgents: false });
-    await expect(issueService(db).create(f.companyId, { title: "Child", createdByAgentId: f.sender,
+    await expect(issueService(db).create(f.spaceId, { title: "Child", createdByAgentId: f.sender,
       assigneeAgentId: f.sender, parentId: f.issueId, status: "todo" })).rejects.toMatchObject(denied("canReceiveTaskEditsFromAgents"));
-    expect(await db.select().from(issues).where(eq(issues.companyId, f.companyId))).toHaveLength(1);
+    expect(await db.select().from(issues).where(eq(issues.spaceId, f.spaceId))).toHaveLength(1);
   });
 
   it("protects document writes and restores without adding revisions", async () => {
@@ -238,9 +238,9 @@ describe("agent interaction mutation boundaries", () => {
     const mention = `[@Recipient](${buildAgentMentionHref(f.recipient)})`;
     await expect(docs.upsertIssueDocument({ issueId: f.issueId, key: "notes", format: "markdown", body: mention,
       createdByAgentId: f.sender })).rejects.toMatchObject(denied("canMentionAgents"));
-    await expect(products.createForIssue(f.issueId, f.companyId, { type: "artifact", provider: "external", status: "ready", title: mention }, f.sender))
+    await expect(products.createForIssue(f.issueId, f.spaceId, { type: "artifact", provider: "external", status: "ready", title: mention }, f.sender))
       .rejects.toMatchObject(denied("canMentionAgents"));
-    expect(await db.select().from(documents).where(eq(documents.companyId, f.companyId))).toEqual([]);
+    expect(await db.select().from(documents).where(eq(documents.spaceId, f.spaceId))).toEqual([]);
     expect(await db.select().from(issueWorkProducts).where(eq(issueWorkProducts.issueId, f.issueId))).toEqual([]);
     await docs.upsertIssueDocument({ issueId: f.issueId, key: "notes", format: "markdown", body: mention });
   });
@@ -250,13 +250,13 @@ describe("agent interaction mutation boundaries", () => {
     await db.update(issues).set({ description: `[@Recipient](${buildAgentMentionHref(f.recipient)})` }).where(eq(issues.id, f.issueId));
     await restrict(f.sender, { canMentionAgents: false });
     await issueService(db).update(f.issueId, { priority: "high", actorAgentId: f.sender });
-    expect((await db.select().from(issues).where(and(eq(issues.id, f.issueId), eq(issues.companyId, f.companyId))))[0].priority).toBe("high");
+    expect((await db.select().from(issues).where(and(eq(issues.id, f.issueId), eq(issues.spaceId, f.spaceId))))[0].priority).toBe("high");
   });
 
   it("checks a work product's destination task when moving it from the sender's own task", async () => {
     const f = await seed(), products = workProductService(db);
-    const [own] = await db.insert(issues).values({ companyId: f.companyId, title: "Own task", assigneeAgentId: f.sender }).returning();
-    const product = await products.createForIssue(own.id, f.companyId,
+    const [own] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Own task", assigneeAgentId: f.sender }).returning();
+    const product = await products.createForIssue(own.id, f.spaceId,
       { type: "artifact", provider: "external", status: "ready", title: "Own output" }, f.sender);
     await restrict(f.recipient, { canReceiveTaskEditsFromAgents: false });
     await expect(products.update(product!.id, { issueId: f.issueId }, f.sender))
@@ -266,29 +266,29 @@ describe("agent interaction mutation boundaries", () => {
 
   it("checks bulk import assignments before reserving issue numbers or inserting tasks", async () => {
     const f = await seed();
-    const [before] = await db.select().from(companies).where(eq(companies.id, f.companyId));
+    const [before] = await db.select().from(spaces).where(eq(spaces.id, f.spaceId));
     await restrict(f.recipient, { canReceiveAssignmentsFromAgents: false });
-    await expect(issueService(db).importIssues(f.companyId, [{ id: randomUUID(), ref: "imported", title: "Imported task",
+    await expect(issueService(db).importIssues(f.spaceId, [{ id: randomUUID(), ref: "imported", title: "Imported task",
       projectId: null, projectWorkspaceId: null, description: "New initial instructions", assigneeAgentId: f.recipient,
       status: "todo", priority: "medium", billingCode: null, assigneeAdapterOverrides: null,
       executionWorkspaceSettings: null, labelIds: [], monitorNotes: null, monitorScheduledBy: null,
     }], f.sender)).rejects.toMatchObject(denied("canReceiveAssignmentsFromAgents"));
-    expect(await db.select().from(issues).where(eq(issues.companyId, f.companyId))).toHaveLength(1);
-    expect((await db.select().from(companies).where(eq(companies.id, f.companyId)))[0].issueCounter).toBe(before.issueCounter);
+    expect(await db.select().from(issues).where(eq(issues.spaceId, f.spaceId))).toHaveLength(1);
+    expect((await db.select().from(spaces).where(eq(spaces.id, f.spaceId)))[0].issueCounter).toBe(before.issueCounter);
   });
 
-  it("waits for company accounting before locking actors during task creation", async () => {
+  it("waits for space accounting before locking actors during task creation", async () => {
     const f = await seed();
     let creation: Promise<unknown> | undefined;
     try {
       await db.transaction(async importer => {
-        await importer.select({ id: companies.id }).from(companies).where(eq(companies.id, f.companyId)).for("no key update");
+        await importer.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, f.spaceId)).for("no key update");
         let started!: (pid: number) => void;
         const creatorPid = new Promise<number>(resolve => { started = resolve; });
         creation = db.transaction(async creator => {
           const rows = await creator.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
           started(rows[0].pid);
-          return issueService(db).create(f.companyId, { title: "Concurrent creation", assigneeAgentId: f.recipient,
+          return issueService(db).create(f.spaceId, { title: "Concurrent creation", assigneeAgentId: f.recipient,
             createdByAgentId: f.sender, status: "todo" }, creator);
         });
         const pid = await creatorPid;
@@ -299,10 +299,10 @@ describe("agent interaction mutation boundaries", () => {
           if (rows[0]?.wait_event_type === "Lock") { waitingQuery = rows[0].query; break; }
           await new Promise(resolve => setTimeout(resolve, 10));
         }
-        expect(waitingQuery).toContain('"companies"');
+        expect(waitingQuery).toContain('"spaces"');
         await importer.execute(sql`select id from ${agents} where id in (${f.sender}, ${f.recipient}) for no key update nowait`);
       });
     } finally { await creation; }
-    expect(await db.select().from(issues).where(eq(issues.companyId, f.companyId))).toHaveLength(2);
+    expect(await db.select().from(issues).where(eq(issues.spaceId, f.spaceId))).toHaveLength(2);
   });
 });

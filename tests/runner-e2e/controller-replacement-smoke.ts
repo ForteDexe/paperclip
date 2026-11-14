@@ -13,7 +13,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { createDb, startEmbeddedPostgresTestDatabase } from "../../packages/db/src/index.js";
-import { paperclipConfigSchema } from "../../packages/shared/src/config-schema.js";
+import { outpostConfigSchema } from "../../packages/shared/src/config-schema.js";
 import { configuredControllerOutage, validControllerOutageReceipt, type ControllerOutage } from "./controller-outage.js";
 import { runnerE2EServerControlPaths } from "./harness-env.js";
 import { reserveRunnerE2EServerPort } from "./ports.js";
@@ -90,7 +90,7 @@ try {
   }
   const reservation = await prepareRunnerE2EServerConfig({ temporaryRoot, configPath, serverPort: port });
   await reservation?.close();
-  const config = paperclipConfigSchema.parse(JSON.parse(await readFile(configPath, "utf8")));
+  const config = outpostConfigSchema.parse(JSON.parse(await readFile(configPath, "utf8")));
   config.database = { ...config.database, mode: "postgres", connectionString: database.connectionString };
   await writeFile(configPath, JSON.stringify(config), { mode: 0o600 });
   if (rolling) {
@@ -140,7 +140,7 @@ try {
     return response.json() as Promise<Record<string, unknown>>;
   }
   await poll(() => api("/health").catch(() => null), health => health?.status === "ok", 180_000);
-  const company = await api("/companies", { name: `Restart smoke ${randomUUID()}` });
+  const space = await api("/spaces", { name: `Restart smoke ${randomUUID()}` });
   const [before] = await db.$client<{ started: string }[]>`select pg_postmaster_start_time()::text as started`;
   const receipts: unknown[] = [];
   for (let index = 1; index < (upgrades?.sequence.length ?? (rolling ? 3 : 2)); index += 1) {
@@ -163,10 +163,10 @@ try {
     receipts.push(rolling ? ack!.rollingDeployment : ack!.controllerOutage);
     report.replacements = receipts;
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
-    assert.equal((await api(`/companies/${company.id}`)).id, company.id);
+    assert.equal((await api(`/spaces/${space.id}`)).id, space.id);
     const after: { started: string } = (await db.$client<{ started: string }[]>`select pg_postmaster_start_time()::text as started`)[0]!;
     assert.equal(after.started, before.started, "Postgres must remain alive across the web-server replacement");
-    await api("/companies", { name: `New admission after restart ${randomUUID()}` });
+    await api("/spaces", { name: `New admission after restart ${randomUUID()}` });
   }
   Object.assign(report, { postgresStayedAlive: true, existingDataReadable: true, newMutationAccepted: true, passed: true });
   await stopper.stopAll();

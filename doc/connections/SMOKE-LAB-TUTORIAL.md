@@ -32,7 +32,7 @@ Turning on the flag is all the setup there is.
 
 That's it. The everyday dev server works as-is: a `local_trusted` localhost box, an
 **`authenticated` instance behind Tailscale + login** (e.g.
-`http://paperclip-dev:45439`), and a `pnpm dev` server built with
+`http://outpost-dev:45439`), and a `pnpm dev` server built with
 `NODE_ENV=production` are all fine — those are private, so the Smoke Lab is
 available. The auth mode and the Node build target no longer matter; only public
 exposure is disallowed (the fake OAuth provider and fixture sidecars must never be
@@ -42,7 +42,7 @@ If the flag is off you'll see the tab say *"Smoke Lab is turned off"*. If you're
 `public` instance, API calls return `403 "Smoke lab is only available on private
 (non-public) deployments"` — move to a private instance.
 
-Throughout this tutorial, `{PREFIX}` is your company's short issue prefix (shown in
+Throughout this tutorial, `{PREFIX}` is your space's short issue prefix (shown in
 the URL bar, e.g. `PAP`). Replace it in the example paths.
 
 ---
@@ -72,7 +72,7 @@ the URL bar, e.g. `PAP`). Replace it in the example paths.
 3. Click **Start services**.
    **You should see:** two service cards flip to a green **running** dot:
    - **Fake OAuth 2.0 provider** — its URL is on the instance's own host
-     (`…/api/companies/{companyId}/smoke-lab/oauth/authorize`); the provider runs
+     (`…/api/spaces/{spaceId}/smoke-lab/oauth/authorize`); the provider runs
      in-process, so there is no separate port.
    - **HTTP MCP fixture** — a loopback sidecar with a `http://127.0.0.1:<port>/mcp`
      URL.
@@ -125,7 +125,7 @@ Two things to know before you start:
 | **denied-call** | Set the blocked action to **Off**, then use its **Test** button on **Permissions**. | Decision **Off**; the call is refused with a reason. |
 | **schema-change / quarantine** | Trigger the fixture schema flip (HTTP paths), then **Refresh actions** on Permissions. | A **quarantine** pill with the changed entries held back. |
 | **revoke** | From **Connectors**, choose **Remove connection** from the connection's management menu. In the classic table, use the trash button labeled **Delete _app_ connection**. (For P6, revoke the gateway session instead.) | Agent access is removed immediately; a revoked token is cut off (401). |
-| **audit-evidence** | Open company **Audit** and choose **Apps & tools** in the Action filter. | Audit rows for the allowed, approved, denied, quarantine, and revoke decisions. |
+| **audit-evidence** | Open space **Audit** and choose **Apps & tools** in the Action filter. | Audit rows for the allowed, approved, denied, quarantine, and revoke decisions. |
 
 (The results matrix in §6 folds **approve** into its *Ask-first write* column, so
 the matrix shows 8 columns for these 9 steps.)
@@ -151,7 +151,7 @@ This is the richest path — do it by hand once and the rest are variations.
      needs authorization and offers **Connect with Smoke OAuth**. If the fixture
      is already healthy, no reconnect card is shown.
    - Click it. The fake provider's **real consent page** opens: a brown banner
-     *"SMOKE TEST - not a real provider"*, headed *"Paperclip Smoke OAuth login +
+     *"SMOKE TEST - not a real provider"*, headed *"Outpost Smoke OAuth login +
      consent"*.
    - The **email is pre-filled** (`smoke@outpost.test`). Type the password
      `smoke-password` and click **Authorize smoke test app**.
@@ -183,7 +183,7 @@ This is the richest path — do it by hand once and the rest are variations.
    explaining that saved credentials are deleted and agent access ends
    immediately. Reinstall the fixture apps before continuing with another path
    that uses this connection.
-8. **Audit evidence.** Open company **Audit** and choose **Apps & tools** in the
+8. **Audit evidence.** Open space **Audit** and choose **Apps & tools** in the
    Action filter.
    **You should see:** rows for each decision above (allowed, approved, denied,
    quarantine, revoke).
@@ -263,7 +263,7 @@ read the evidence:
 
 ## 8. The daily routine (hands-off)
 
-A recurring Paperclip routine — **"Daily Smoke Lab integration smoke (P1-P7)"** —
+A recurring Outpost routine — **"Daily Smoke Lab integration smoke (P1-P7)"** —
 runs the browser smoke for you every day and:
 
 - **records** each run to the results API (matrix + dashboard);

@@ -17,13 +17,13 @@ function assertTransaction(tx: Db) {
 
 /**
  * Global lock order step 3: locks the whole project set in ascending ID order
- * in one statement. Returns the IDs that are not projects of the company.
+ * in one statement. Returns the IDs that are not projects of the space.
  */
-export async function lockAdmissionProjects(tx: Db, companyId: string, projectIds: readonly string[]) {
+export async function lockAdmissionProjects(tx: Db, spaceId: string, projectIds: readonly string[]) {
   assertTransaction(tx);
   if (projectIds.length === 0) return [];
   const rows = await tx.select({ id: projects.id }).from(projects)
-    .where(and(eq(projects.companyId, companyId), inArray(projects.id, [...projectIds])))
+    .where(and(eq(projects.spaceId, spaceId), inArray(projects.id, [...projectIds])))
     .orderBy(asc(projects.id)).for("no key update");
   const found = new Set(rows.map(row => row.id));
   return projectIds.filter(id => !found.has(id));
@@ -35,31 +35,31 @@ function toPolicy(row: { maxConcurrentTasks: number | null } | undefined): TaskE
 
 export function createPostgresTaskExecutionPolicyStore(db: Db): TaskExecutionPolicyStore {
   return {
-    async read({ companyId, projectId }) {
+    async read({ spaceId, projectId }) {
       const [row] = await db.select({ configured: policies.projectId, maxConcurrentTasks: policies.maxConcurrentTasks })
         .from(projects).leftJoin(policies, eq(policies.projectId, projects.id))
-        .where(and(eq(projects.companyId, companyId), eq(projects.id, projectId)));
+        .where(and(eq(projects.spaceId, spaceId), eq(projects.id, projectId)));
       if (!row) return null;
       return row.configured ? toPolicy(row) : ABSENT_TASK_EXECUTION_POLICY;
     },
 
-    update: ({ companyId, projectId }, change) => db.transaction(async transaction => {
+    update: ({ spaceId, projectId }, change) => db.transaction(async transaction => {
       const tx = transaction as unknown as Db;
-      if ((await lockAdmissionProjects(tx, companyId, [projectId])).length > 0) return null;
+      if ((await lockAdmissionProjects(tx, spaceId, [projectId])).length > 0) return null;
       const [row] = await tx.select({ maxConcurrentTasks: policies.maxConcurrentTasks }).from(policies)
         .where(eq(policies.projectId, projectId));
       const current = toPolicy(row);
       const next = change(current);
       if (next === current) return current;
       if (next.state === "absent") throw new Error("A stored task execution policy cannot become absent");
-      await tx.insert(policies).values({ projectId, companyId, maxConcurrentTasks: next.maxConcurrentTasks })
+      await tx.insert(policies).values({ projectId, spaceId, maxConcurrentTasks: next.maxConcurrentTasks })
         .onConflictDoUpdate({ target: policies.projectId, set: { maxConcurrentTasks: next.maxConcurrentTasks, updatedAt: sql`now()` } });
       return next;
     }),
   };
 }
 
-export type RecordAdmissionInput = { companyId: string; runId: string; admissionId: string; record: AdmissionRecord };
+export type RecordAdmissionInput = { spaceId: string; runId: string; admissionId: string; record: AdmissionRecord };
 
 export type RecordAdmissionOutcome =
   | { kind: "recorded" | "replayed"; attempt: number }
@@ -77,16 +77,16 @@ export type RecordAdmissionOutcome =
  */
 export async function recordAdmission(tx: Db, input: RecordAdmissionInput): Promise<RecordAdmissionOutcome> {
   assertTransaction(tx);
-  const { companyId, runId, admissionId, record } = input;
-  const missing = await lockAdmissionProjects(tx, companyId, record.projectIds);
+  const { spaceId, runId, admissionId, record } = input;
+  const missing = await lockAdmissionProjects(tx, spaceId, record.projectIds);
   if (missing.length > 0) return { kind: "projects_unavailable", projectIds: missing };
   const [run] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
-    .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId))).for("no key update");
+    .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId))).for("no key update");
   if (!run) return { kind: "run_not_found" };
 
   const [existing] = await tx.select().from(admissions).where(eq(admissions.id, admissionId));
   if (existing) {
-    if (existing.companyId !== companyId || existing.runId !== runId) return { kind: "admission_conflict" };
+    if (existing.spaceId !== spaceId || existing.runId !== runId) return { kind: "admission_conflict" };
     if (existing.settledAt) return { kind: "admission_settled" };
     const stored = { primaryProjectId: existing.primaryProjectId, contextRevision: existing.contextRevision,
       projectIds: existing.admittedProjectIds ?? [] };
@@ -98,10 +98,10 @@ export async function recordAdmission(tx: Db, input: RecordAdmissionInput): Prom
 
   const [{ attempt }] = await tx.select({ attempt: sql<number>`coalesce(max(${admissions.attempt}), 0)::int + 1` })
     .from(admissions).where(eq(admissions.runId, runId));
-  await tx.insert(admissions).values({ id: admissionId, companyId, runId, attempt,
+  await tx.insert(admissions).values({ id: admissionId, spaceId, runId, attempt,
     primaryProjectId: record.primaryProjectId, contextRevision: record.contextRevision, admittedProjectIds: record.projectIds });
   if (record.projectIds.length > 0) {
-    await tx.insert(charges).values(record.projectIds.map(projectId => ({ admissionId, companyId, projectId })));
+    await tx.insert(charges).values(record.projectIds.map(projectId => ({ admissionId, spaceId, projectId })));
   }
   return { kind: "recorded", attempt };
 }
@@ -115,17 +115,17 @@ export type SettleAdmissionOutcome =
  * keeps its admitted project set. Callers must first verify authoritative
  * lifecycle facts. Takes no project lock.
  */
-export async function settleAdmission(tx: Db, input: { companyId: string; admissionId: string; settlementId: string }):
+export async function settleAdmission(tx: Db, input: { spaceId: string; admissionId: string; settlementId: string }):
 Promise<SettleAdmissionOutcome> {
   assertTransaction(tx);
-  const { companyId, admissionId, settlementId } = input;
+  const { spaceId, admissionId, settlementId } = input;
   const [row] = await tx.select({ settlementId: admissions.settlementId }).from(admissions)
-    .where(and(eq(admissions.companyId, companyId), eq(admissions.id, admissionId))).for("no key update");
+    .where(and(eq(admissions.spaceId, spaceId), eq(admissions.id, admissionId))).for("no key update");
   if (!row) return { kind: "not_found" };
   const decision = decideSettlement(row.settlementId, settlementId);
   if (decision !== "settle") return { kind: decision };
   const released = await tx.delete(charges)
-    .where(and(eq(charges.companyId, companyId), eq(charges.admissionId, admissionId)))
+    .where(and(eq(charges.spaceId, spaceId), eq(charges.admissionId, admissionId)))
     .returning({ projectId: charges.projectId });
   await tx.update(admissions).set({ settlementId, settledAt: sql`now()` }).where(eq(admissions.id, admissionId));
   return { kind: "settled", releasedProjectIds: released.map(charge => charge.projectId).sort() };
@@ -137,9 +137,9 @@ export type AdmittedProjectsRead =
   | { kind: "not_found" };
 
 /** The admission's complete admitted set, settled or not, for retained-session resolution. */
-export async function readAdmittedProjects(db: Db, scope: { companyId: string; admissionId: string }): Promise<AdmittedProjectsRead> {
+export async function readAdmittedProjects(db: Db, scope: { spaceId: string; admissionId: string }): Promise<AdmittedProjectsRead> {
   const [row] = await db.select().from(admissions)
-    .where(and(eq(admissions.companyId, scope.companyId), eq(admissions.id, scope.admissionId)));
+    .where(and(eq(admissions.spaceId, scope.spaceId), eq(admissions.id, scope.admissionId)));
   if (!row) return { kind: "not_found" };
   return { kind: "found", runId: row.runId, attempt: row.attempt, primaryProjectId: row.primaryProjectId,
     contextRevision: row.contextRevision, settled: row.settledAt !== null,
@@ -147,33 +147,33 @@ export async function readAdmittedProjects(db: Db, scope: { companyId: string; a
 }
 
 /** Active charge counts per project. Every stored charge is unsettled. */
-export async function countActiveProjectCharges(db: Db, companyId: string, projectIds: readonly string[]) {
+export async function countActiveProjectCharges(db: Db, spaceId: string, projectIds: readonly string[]) {
   const counts = new Map(projectIds.map(id => [id, 0]));
   if (projectIds.length === 0) return counts;
   const rows = await db.select({ projectId: charges.projectId, active: sql<number>`count(*)::int` }).from(charges)
-    .where(and(eq(charges.companyId, companyId), inArray(charges.projectId, [...projectIds])))
+    .where(and(eq(charges.spaceId, spaceId), inArray(charges.projectId, [...projectIds])))
     .groupBy(charges.projectId);
   for (const row of rows) counts.set(row.projectId, row.active);
   return counts;
 }
 
 /** Project deletion holds the project row lock, so no charge can be added concurrently. */
-export async function hasUnsettledProjectCharges(db: Db, scope: { companyId: string; projectId: string }) {
+export async function hasUnsettledProjectCharges(db: Db, scope: { spaceId: string; projectId: string }) {
   const [row] = await db.select({ admissionId: charges.admissionId }).from(charges)
-    .where(and(eq(charges.companyId, scope.companyId), eq(charges.projectId, scope.projectId))).limit(1);
+    .where(and(eq(charges.spaceId, scope.spaceId), eq(charges.projectId, scope.projectId))).limit(1);
   return Boolean(row);
 }
 
 /** Removes settled history of an agent's runs before they are deleted; refuses while any admission is unsettled. */
-export async function deleteAgentAdmissionHistory(tx: Db, scope: { companyId: string; agentId: string }) {
+export async function deleteAgentAdmissionHistory(tx: Db, scope: { spaceId: string; agentId: string }) {
   assertTransaction(tx);
   const agentRuns = tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
-    .where(and(eq(heartbeatRuns.companyId, scope.companyId), eq(heartbeatRuns.agentId, scope.agentId)));
+    .where(and(eq(heartbeatRuns.spaceId, scope.spaceId), eq(heartbeatRuns.agentId, scope.agentId)));
   const [live] = await tx.select({ id: admissions.id }).from(admissions)
-    .where(and(eq(admissions.companyId, scope.companyId), inArray(admissions.runId, agentRuns), isNull(admissions.settledAt)))
+    .where(and(eq(admissions.spaceId, scope.spaceId), inArray(admissions.runId, agentRuns), isNull(admissions.settledAt)))
     .limit(1);
   if (live) return { kind: "unsettled" as const };
-  await tx.delete(admissions).where(and(eq(admissions.companyId, scope.companyId), inArray(admissions.runId, agentRuns)));
+  await tx.delete(admissions).where(and(eq(admissions.spaceId, scope.spaceId), inArray(admissions.runId, agentRuns)));
   return { kind: "deleted" as const };
 }
 

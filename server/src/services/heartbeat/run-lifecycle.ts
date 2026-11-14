@@ -84,7 +84,7 @@ import {
   agentWakeupRequests,
   activityLog,
   approvals,
-  companySkillTestRuns,
+  spaceSkillTestRuns,
   documentRevisions,
   issueDocuments,
   heartbeatRunEvents,
@@ -205,7 +205,7 @@ import type { createHeartbeatQueue } from "./queue.js";
 import type { HeartbeatRetryDependencies } from "./retries.js";
 import type { issueService } from "../issues.js";
 import type { recoveryService } from "../recovery/index.js";
-import type { companySkillService } from "../company-skills.js";
+import type { spaceSkillService } from "../space-skills.js";
 import type { budgetService, BudgetServiceHooks } from "../budgets.js";
 import type { issueTreeControlService } from "../issue-tree-control.js";
 import { presentStorageFailureMessage } from "../../storage/storage-unavailable.js";
@@ -220,7 +220,7 @@ export interface HeartbeatLifecycleDependencies extends Pick<ReturnType<typeof c
   Pick<HeartbeatRetryDependencies, "getAgentInvokability"> {
   issuesSvc: Pick<ReturnType<typeof issueService>, "addComment" | "listReviewAttention">;
   recovery: Pick<ReturnType<typeof recoveryService>, "escalateStrandedAssignedIssue">;
-  companySkills: Pick<ReturnType<typeof companySkillService>, "completeTestRunForIssue">;
+  spaceSkills: Pick<ReturnType<typeof spaceSkillService>, "completeTestRunForIssue">;
   budgets: Pick<ReturnType<typeof budgetService>, "getInvocationBlock">;
   treeControlSvc: Pick<ReturnType<typeof issueTreeControlService>, "getActivePauseHoldGate">;
   enqueueWakeup: ReturnType<typeof createHeartbeatQueue>["enqueueWakeup"];
@@ -317,7 +317,7 @@ export function isHeartbeatRunRuntimeStatusActive(
 type HeartbeatRunRuntimeStatusRunLike = {
   id: string;
   status?: string | null;
-  companyId?: string | null;
+  spaceId?: string | null;
   agentId?: string | null;
   issueId?: string | null;
   contextSnapshot?: Record<string, unknown> | null;
@@ -338,7 +338,7 @@ export function decorateHeartbeatRunRuntimeStatus<
 >(
   run: T,
   expected: {
-    companyId?: string | null;
+    spaceId?: string | null;
     issueId?: string | null;
     agentId?: string | null;
   } = {},
@@ -353,16 +353,16 @@ export function decorateHeartbeatRunRuntimeStatus<
     clearHeartbeatRunRuntimeStatus(run.id);
   }
 
-  const companyId = expected.companyId ?? run.companyId ?? null;
+  const spaceId = expected.spaceId ?? run.spaceId ?? null;
   const agentId = expected.agentId ?? run.agentId ?? null;
   const issueId =
     expected.issueId !== undefined
       ? expected.issueId
       : readRuntimeStatusIssueIdCandidate(run);
   const currentStatus =
-    isHeartbeatRunRuntimeStatusActive(run.status) && companyId && agentId
+    isHeartbeatRunRuntimeStatusActive(run.status) && spaceId && agentId
       ? getHeartbeatRunRuntimeStatus(run.id, {
-          companyId,
+          spaceId,
           agentId,
           ...(issueId !== undefined ? { issueId } : {}),
         })
@@ -381,7 +381,7 @@ export function decorateHeartbeatRunRuntimeStatus<
 }
 
 export function publishHeartbeatRunRuntimeProgress(status: {
-  companyId: string;
+  spaceId: string;
   runId: string;
   agentId: string;
   issueId: string | null;
@@ -393,7 +393,7 @@ export function publishHeartbeatRunRuntimeProgress(status: {
   lastEventAt?: Date | null;
 }) {
   publishLiveEvent({
-    companyId: status.companyId,
+    spaceId: status.spaceId,
     type: "heartbeat.run.progress",
     payload: {
       runId: status.runId,
@@ -412,14 +412,14 @@ export function publishHeartbeatRunRuntimeProgress(status: {
 function recordHeartbeatRunRuntimeProgress(
   run: Pick<
     typeof heartbeatRuns.$inferSelect,
-    "id" | "companyId" | "agentId" | "status"
+    "id" | "spaceId" | "agentId" | "status"
   >,
   update: RuntimeStatusUpdate,
   issueId: string | null,
 ) {
   if (!isHeartbeatRunRuntimeStatusActive(run.status)) return null;
   const status = setHeartbeatRunRuntimeStatus({
-    companyId: run.companyId,
+    spaceId: run.spaceId,
     issueId,
     agentId: run.agentId,
     runId: run.id,
@@ -618,7 +618,7 @@ export async function persistHeartbeatRunProcessMetadata(
   const processStartedAt = Number.isNaN(startedAt.getTime()) ? new Date() : startedAt;
   return db.transaction(async tx => {
     const [binding] = await tx
-      .select({ companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId })
+      .select({ spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId })
       .from(heartbeatRuns)
       .where(eq(heartbeatRuns.id, runId))
       .limit(1);
@@ -628,7 +628,7 @@ export async function persistHeartbeatRunProcessMetadata(
     // deadlock with) any transaction holding the agent, issue, or predecessor
     // run FOR UPDATE, which failed spawn persistence and lost the run.
     await appendHeartbeatRunEvent(tx as unknown as Db, {
-      companyId: binding.companyId, runId, agentId: binding.agentId,
+      spaceId: binding.spaceId, runId, agentId: binding.agentId,
       eventType: PROCESS_IDENTITY_RECORDED, stream: "system", level: "info",
       message: "Process identity recorded; prior stop evidence no longer applies.",
       payload: { targetKind: meta.targetKind ?? "local", hostname: os.hostname(),
@@ -691,7 +691,7 @@ function preserveNativeExecutionObligationsSql(incoming: Record<string, unknown>
   const result = setupFailure ? sql`case when ${heartbeatRuns.runtimeMode} = 'native'
     and exists (select 1 from ${nativeRunFinalizations}
       where ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
-        and ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId}
+        and ${nativeRunFinalizations.spaceId} = ${heartbeatRuns.spaceId}
         and ${nativeRunFinalizations.issueId} = ${heartbeatRuns.nativeIssueId}
         and ${nativeRunFinalizations.attempt} > 0)
     and ${projected}->'executionRecovery'->>'kind' = 'bootstrap'
@@ -702,7 +702,7 @@ function preserveNativeExecutionObligationsSql(incoming: Record<string, unknown>
     and ${heartbeatRuns.resultJson}->'nativeCancellation'->>'scope' = 'run'
     and ${heartbeatRuns.resultJson}->'nativeCancellation'->>'reasonCode' = 'cancellation_run_only'
     and ${heartbeatRuns.resultJson}->'nativeCancellation'->>'runId' = ${heartbeatRuns.id}::text
-    and ${heartbeatRuns.resultJson}->'nativeCancellation'->>'companyId' = ${heartbeatRuns.companyId}::text
+    and ${heartbeatRuns.resultJson}->'nativeCancellation'->>'spaceId' = ${heartbeatRuns.spaceId}::text
     and ${heartbeatRuns.resultJson}->'nativeCancellation'->>'issueId' = ${heartbeatRuns.nativeIssueId}::text
     then coalesce(${result}, '{}'::jsonb) || (
       select coalesce(jsonb_object_agg(stop_field.key, stop_field.value), '{}'::jsonb)
@@ -717,7 +717,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
   const {
     issuesSvc,
     recovery,
-    companySkills,
+    spaceSkills,
     getRunStatus,
     emitTerminalAgentTaskRun,
     getIssueExecutionContext,
@@ -759,7 +759,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(issueThreadInteractions)
       .where(
         and(
-          eq(issueThreadInteractions.companyId, run.companyId),
+          eq(issueThreadInteractions.spaceId, run.spaceId),
           eq(issueThreadInteractions.issueId, issueId),
           eq(issueThreadInteractions.id, interactionId),
         ),
@@ -849,7 +849,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(issueComments)
       .where(
         and(
-          eq(issueComments.companyId, input.run.companyId),
+          eq(issueComments.spaceId, input.run.spaceId),
           eq(issueComments.issueId, input.issueId),
           or(
             eq(issueComments.body, input.body),
@@ -869,7 +869,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
   }
 
   async function getActiveRecoveryActionId(
-    companyId: string,
+    spaceId: string,
     sourceIssueId: string,
   ) {
     return db
@@ -877,7 +877,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(issueRecoveryActions)
       .where(
         and(
-          eq(issueRecoveryActions.companyId, companyId),
+          eq(issueRecoveryActions.spaceId, spaceId),
           eq(issueRecoveryActions.sourceIssueId, sourceIssueId),
           inArray(issueRecoveryActions.status, ["active", "escalated"]),
         ),
@@ -941,7 +941,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, input.run.companyId),
+          eq(issues.spaceId, input.run.spaceId),
           eq(issues.id, input.issueId),
         ),
       )
@@ -973,7 +973,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     });
 
     const recoveryActionId = await getActiveRecoveryActionId(
-      issue.companyId,
+      issue.spaceId,
       issue.id,
     );
     await updatePlanApprovalInteractionResumeFailure({
@@ -1012,7 +1012,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
         .from(issues)
         .where(
           and(
-            eq(issues.companyId, input.run.companyId),
+            eq(issues.spaceId, input.run.spaceId),
             eq(issues.id, input.issueId),
           ),
         )
@@ -1025,14 +1025,14 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
 
     const existingRun = await db
       .select({
-        id: companySkillTestRuns.id,
-        status: companySkillTestRuns.status,
+        id: spaceSkillTestRuns.id,
+        status: spaceSkillTestRuns.status,
       })
-      .from(companySkillTestRuns)
+      .from(spaceSkillTestRuns)
       .where(
         and(
-          eq(companySkillTestRuns.companyId, input.run.companyId),
-          eq(companySkillTestRuns.issueId, input.issueId),
+          eq(spaceSkillTestRuns.spaceId, input.run.spaceId),
+          eq(spaceSkillTestRuns.issueId, input.issueId),
         ),
       )
       .then((rows) => rows[0] ?? null);
@@ -1042,8 +1042,8 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     )
       return null;
 
-    const completedRun = await companySkills.completeTestRunForIssue({
-      companyId: input.run.companyId,
+    const completedRun = await spaceSkills.completeTestRunForIssue({
+      spaceId: input.run.spaceId,
       issueId: input.issueId,
       outcome: completion.outcome,
       error: completion.error,
@@ -1051,13 +1051,13 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     if (!completedRun) return null;
 
     await logActivity(db, {
-      companyId: input.run.companyId,
+      spaceId: input.run.spaceId,
       actorType: "system",
       actorId: "heartbeat_finalize",
       agentId: input.run.agentId,
       runId: input.run.id,
-      action: "company.skill_test_run_completed",
-      entityType: "company_skill_test_run",
+      action: "space.skill_test_run_completed",
+      entityType: "space_skill_test_run",
       entityId: completedRun.id,
       issueId: input.issueId,
       details: {
@@ -1075,7 +1075,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
   async function recordCurrentHeartbeatRunRuntimeProgress(
     run: Pick<
       typeof heartbeatRuns.$inferSelect,
-      "id" | "companyId" | "agentId" | "status"
+      "id" | "spaceId" | "agentId" | "status"
     >,
     update: RuntimeStatusUpdate,
     issueId: string | null,
@@ -1094,33 +1094,33 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     return recordHeartbeatRunRuntimeProgress(currentRun, update, issueId);
   }
 
-  async function writeRunStatus<T>(status: string, previous: Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "status" | "runtimeMode" | "nativeIssueId" | "issueId" | "contextSnapshot" | "scheduledRetryReason"> | null,
+  async function writeRunStatus<T>(status: string, previous: Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId" | "status" | "runtimeMode" | "nativeIssueId" | "issueId" | "contextSnapshot" | "scheduledRetryReason"> | null,
     write: (tx: Db) => Promise<T>) {
-    const companyId = previous?.companyId;
+    const spaceId = previous?.spaceId;
     // Register on the outer transaction before the terminal write. An unknown
     // commit cannot strand newly-actionable accounting after the live event.
     return db.transaction(async transaction => {
       const tx = transaction as unknown as Db;
       if (previous?.runtimeMode === "native" && isHeartbeatRunTerminalStatus(status))
-        await notifyExternalAgentSettlement(tx, { companyId: previous.companyId, runId: previous.id });
-      if (previous?.runtimeMode === "native") await notifyNativeRecoveryNotices(tx, { companyId: previous.companyId, runId: previous.id });
-      if (previous?.runtimeMode === "native") await notifyNativeRunProjection(tx, { companyId: previous.companyId, runId: previous.id });
-      if (previous?.runtimeMode === "native") await notifyNativeEnvironmentSettlement(tx, { companyId: previous.companyId, runId: previous.id });
+        await notifyExternalAgentSettlement(tx, { spaceId: previous.spaceId, runId: previous.id });
+      if (previous?.runtimeMode === "native") await notifyNativeRecoveryNotices(tx, { spaceId: previous.spaceId, runId: previous.id });
+      if (previous?.runtimeMode === "native") await notifyNativeRunProjection(tx, { spaceId: previous.spaceId, runId: previous.id });
+      if (previous?.runtimeMode === "native") await notifyNativeEnvironmentSettlement(tx, { spaceId: previous.spaceId, runId: previous.id });
       if (previous && previous.status !== status) await notifyUnsafeWorkspaceExportRunChange(tx, previous);
       if (previous && (previous.status === "scheduled_retry" || status === "scheduled_retry"))
-        await notifyScheduledRetryCancellation(tx, { companyId: previous.companyId, runId: previous.id });
-      if (previous) await notifyInstructionCollection(tx, { companyId: previous.companyId, runId: previous.id });
-      if (previous) await notifyCancelledWorkspacePreservation(tx, { companyId: previous.companyId, runId: previous.id });
+        await notifyScheduledRetryCancellation(tx, { spaceId: previous.spaceId, runId: previous.id });
+      if (previous) await notifyInstructionCollection(tx, { spaceId: previous.spaceId, runId: previous.id });
+      if (previous) await notifyCancelledWorkspacePreservation(tx, { spaceId: previous.spaceId, runId: previous.id });
       if (previous && isHeartbeatRunTerminalStatus(status))
-        await notifyRetainedNativeSessionCleanup(tx, { companyId: previous.companyId, runId: previous.id });
-      if (isHeartbeatRunTerminalStatus(status)) await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, companyId);
-      await notifyExecutionRunWork(tx, previous ? { companyId: previous.companyId, runId: previous.id,
+        await notifyRetainedNativeSessionCleanup(tx, { spaceId: previous.spaceId, runId: previous.id });
+      if (isHeartbeatRunTerminalStatus(status)) await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, spaceId);
+      await notifyExecutionRunWork(tx, previous ? { spaceId: previous.spaceId, runId: previous.id,
         issueId: previous.nativeIssueId ?? previous.issueId ?? readNonEmptyString(parseObject(previous.contextSnapshot).issueId) ?? undefined } : undefined);
-      if (previous) await notifyChatRunMilestones(tx, { companyId: previous.companyId, runId: previous.id,
+      if (previous) await notifyChatRunMilestones(tx, { spaceId: previous.spaceId, runId: previous.id,
         issueId: previous.nativeIssueId ?? previous.issueId ?? readNonEmptyString(parseObject(previous.contextSnapshot).issueId) ?? undefined });
       // A running run may hold a shared workspace that parked retries wait for.
       if (previous?.status === "running" && isHeartbeatRunTerminalStatus(status))
-        await wakeWorkspaceBusyWaitersInTx(tx, { companyId: previous.companyId, runId: previous.id,
+        await wakeWorkspaceBusyWaitersInTx(tx, { spaceId: previous.spaceId, runId: previous.id,
           contextSnapshot: parseObject(previous.contextSnapshot), scheduledRetryReason: previous.scheduledRetryReason, now: new Date() });
       return write(tx);
     });
@@ -1190,7 +1190,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
 
     if (updated) {
       publishLiveEvent({
-        companyId: updated.companyId,
+        spaceId: updated.spaceId,
         type: "heartbeat.run.status",
         payload: buildHeartbeatRunStatusLiveEventPayload(updated),
       });
@@ -1280,13 +1280,13 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       if (options?.setupFailure && previousStatus?.runtimeMode === "native" && previousStatus.nativeIssueId) {
         await writer.select({ runId: nativeRunFinalizations.runId }).from(nativeRunFinalizations)
           .where(and(eq(nativeRunFinalizations.runId, runId),
-            eq(nativeRunFinalizations.companyId, previousStatus.companyId),
+            eq(nativeRunFinalizations.spaceId, previousStatus.spaceId),
             eq(nativeRunFinalizations.issueId, previousStatus.nativeIssueId)))
           .for("update");
       } else if (options?.onlyWhileNativeLeaseLapsed && previousStatus) {
         await writer.select({ runId: nativeRunFinalizations.runId }).from(nativeRunFinalizations)
           .where(and(eq(nativeRunFinalizations.runId, runId),
-            eq(nativeRunFinalizations.companyId, previousStatus.companyId)))
+            eq(nativeRunFinalizations.spaceId, previousStatus.spaceId)))
           .for("update");
       }
       return previousStatus && previousStatus.runtimeMode === "legacy" && isHeartbeatRunTerminalStatus(status)
@@ -1347,7 +1347,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
 
     if (updated) {
       publishLiveEvent({
-        companyId: updated.companyId,
+        spaceId: updated.spaceId,
         type: "heartbeat.run.status",
         payload: buildHeartbeatRunStatusLiveEventPayload(updated),
       });
@@ -1454,7 +1454,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     run: typeof heartbeatRuns.$inferSelect,
   ) {
     publishRunLifecyclePluginEventData({
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       runId: run.id,
       agentId: run.agentId,
       status: run.status,
@@ -1469,7 +1469,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
   }
 
   function publishRunLifecyclePluginEventData(run: {
-    companyId: string;
+    spaceId: string;
     runId: string;
     agentId: string;
     status: string;
@@ -1500,7 +1500,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       actorType: "agent",
       entityId: run.runId,
       entityType: "heartbeat_run",
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       payload: {
         runId: run.runId,
         agentId: run.agentId,
@@ -1525,13 +1525,13 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
   ) {
     if (!wakeupRequestId) return;
     await db.transaction(async tx => {
-      const [current] = await tx.select({ companyId: agentWakeupRequests.companyId, agentId: agentWakeupRequests.agentId, status: agentWakeupRequests.status })
+      const [current] = await tx.select({ spaceId: agentWakeupRequests.spaceId, agentId: agentWakeupRequests.agentId, status: agentWakeupRequests.status })
         .from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wakeupRequestId)).for("update");
       if (!current || current.status === "cancelled") return;
       if (current.status !== (patch?.status ?? status) || patch?.payload !== undefined || patch?.runId !== undefined) {
-        await notifyExternalConversationSettlement(tx, { companyId: current.companyId });
+        await notifyExternalConversationSettlement(tx, { spaceId: current.spaceId });
       }
-      await notifyStrandedAgentStatus(tx, { companyId: current.companyId, agentId: current.agentId });
+      await notifyStrandedAgentStatus(tx, { spaceId: current.spaceId, agentId: current.agentId });
       await tx.update(agentWakeupRequests)
         .set({ status, ...patch, updatedAt: new Date() })
 
@@ -1550,7 +1550,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(issueComments)
       .where(
         and(
-          eq(issueComments.companyId, input.run.companyId),
+          eq(issueComments.spaceId, input.run.spaceId),
           eq(issueComments.issueId, input.issueId),
           eq(issueComments.createdByRunId, input.run.id),
           sql`${issueComments.body} like 'Bounded liveness continuation exhausted%'`,
@@ -1581,14 +1581,14 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
 
     const issueId = readNonEmptyString(context.issueId);
     if (!issueId) return;
-    const waitingContext = await getIssueExecutionContext(run.companyId, issueId);
+    const waitingContext = await getIssueExecutionContext(run.spaceId, issueId);
     if (isWaitingConversation(waitingContext) || waitingContext?.externalConversationState === "waiting") return;
 
     const [issue, agent] = await Promise.all([
       db
         .select({
           id: issues.id,
-          companyId: issues.companyId,
+          spaceId: issues.spaceId,
           identifier: issues.identifier,
           title: issues.title,
           status: issues.status,
@@ -1597,12 +1597,12 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
           projectId: issues.projectId,
         })
         .from(issues)
-        .where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)))
+        .where(and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId)))
         .then((rows) => rows[0] ?? null),
       db
         .select({
           id: agents.id,
-          companyId: agents.companyId,
+          spaceId: agents.spaceId,
           status: agents.status,
         })
         .from(agents)
@@ -1612,7 +1612,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
 
     const budgetBlock =
       issue && agent
-        ? await budgets.getInvocationBlock(issue.companyId, agent.id, {
+        ? await budgets.getInvocationBlock(issue.spaceId, agent.id, {
             issueId: issue.id,
             projectId: issue.projectId,
           })
@@ -1629,7 +1629,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       : null;
     const existingWake = idempotencyKey
       ? await findExistingRunLivenessContinuationWake(db, {
-          companyId: run.companyId,
+          spaceId: run.spaceId,
           idempotencyKey,
         })
       : null;
@@ -1752,7 +1752,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(issueComments)
       .where(
         and(
-          eq(issueComments.companyId, input.run.companyId),
+          eq(issueComments.spaceId, input.run.spaceId),
           eq(issueComments.issueId, input.issue.id),
           eq(issueComments.createdByRunId, input.run.id),
           sql`(${issueComments.body} = ${SUCCESSFUL_RUN_HANDOFF_REQUIRED_NOTICE_BODY} or ${issueComments.body} like '## This issue still needs a next step%' or ${issueComments.body} like '## Successful run missing issue disposition%')`,
@@ -1785,14 +1785,14 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     const issueId =
       readNonEmptyString(context.issueId) ?? readNonEmptyString(context.taskId);
     if (!issueId) return;
-    const waitingContext = await getIssueExecutionContext(run.companyId, issueId);
+    const waitingContext = await getIssueExecutionContext(run.spaceId, issueId);
     if (isWaitingConversation(waitingContext) || waitingContext?.externalConversationState === "waiting") return;
     if (
       readNonEmptyString(context.goalControlRequestId) ||
       context.resumeSessionGoalHeartbeat === true
     ) {
       const goalProjection = await runnerGoalService(db).projection(
-        run.companyId,
+        run.spaceId,
         issueId,
         run.agentId,
       );
@@ -1802,7 +1802,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     const issue = await db
       .select({
         id: issues.id,
-        companyId: issues.companyId,
+        spaceId: issues.spaceId,
         identifier: issues.identifier,
         title: issues.title,
         description: issues.description,
@@ -1815,7 +1815,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
         originKind: issues.originKind,
       })
       .from(issues)
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)))
+      .where(and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId)))
       .then((rows) => rows[0] ?? null);
     const idempotencyKey = issue
       ? buildFinishSuccessfulRunHandoffIdempotencyKey({
@@ -1861,7 +1861,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
             .from(heartbeatRuns)
             .where(
               and(
-                eq(heartbeatRuns.companyId, issue.companyId),
+                eq(heartbeatRuns.spaceId, issue.spaceId),
                 eq(heartbeatRuns.agentId, run.agentId),
                 inArray(heartbeatRuns.status, [
                   ...EXECUTION_PATH_HEARTBEAT_RUN_STATUSES,
@@ -1882,7 +1882,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
             .from(agentWakeupRequests)
             .where(
               and(
-                eq(agentWakeupRequests.companyId, issue.companyId),
+                eq(agentWakeupRequests.spaceId, issue.spaceId),
                 eq(agentWakeupRequests.agentId, run.agentId),
                 inArray(agentWakeupRequests.status, [
                   "queued",
@@ -1892,8 +1892,8 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
                 sql`(
                 ${agentWakeupRequests.payload} ->> 'issueId' = ${issue.id}
                 or ${agentWakeupRequests.payload} ->> 'taskId' = ${issue.id}
-                or ${agentWakeupRequests.payload} -> '_paperclipWakeContext' ->> 'issueId' = ${issue.id}
-                or ${agentWakeupRequests.payload} -> '_paperclipWakeContext' ->> 'taskId' = ${issue.id}
+                or ${agentWakeupRequests.payload} -> '_outpostWakeContext' ->> 'issueId' = ${issue.id}
+                or ${agentWakeupRequests.payload} -> '_outpostWakeContext' ->> 'taskId' = ${issue.id}
               )`,
               ),
             )
@@ -1906,7 +1906,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
             .from(issueThreadInteractions)
             .where(
               and(
-                eq(issueThreadInteractions.companyId, issue.companyId),
+                eq(issueThreadInteractions.spaceId, issue.spaceId),
                 eq(issueThreadInteractions.issueId, issue.id),
                 eq(issueThreadInteractions.status, "pending"),
                 activeIssueInteractionCondition({ runId: run.id }),
@@ -1922,7 +1922,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
             .innerJoin(approvals, eq(issueApprovals.approvalId, approvals.id))
             .where(
               and(
-                eq(issueApprovals.companyId, issue.companyId),
+                eq(issueApprovals.spaceId, issue.spaceId),
                 eq(issueApprovals.issueId, issue.id),
                 inArray(approvals.status, ["pending", "revision_requested"]),
               ),
@@ -1936,14 +1936,14 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
             .from(issueRelations)
             .where(
               and(
-                eq(issueRelations.companyId, issue.companyId),
+                eq(issueRelations.spaceId, issue.spaceId),
                 eq(issueRelations.relatedIssueId, issue.id),
                 eq(issueRelations.type, "blocks"),
                 sql`exists (
                 select 1
                 from issues blocker
                 where blocker.id = ${issueRelations.issueId}
-                  and blocker.company_id = ${issue.companyId}
+                  and blocker.space_id = ${issue.spaceId}
                   and blocker.status not in ('done', 'cancelled')
                   and blocker.hidden_at is null
               )`,
@@ -1958,7 +1958,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
             .from(issues)
             .where(
               and(
-                eq(issues.companyId, issue.companyId),
+                eq(issues.spaceId, issue.spaceId),
                 inArray(issues.originKind, [
                   RECOVERY_ORIGIN_KINDS.strandedIssueRecovery,
                   RECOVERY_ORIGIN_KINDS.issueGraphLivenessEscalation,
@@ -1973,18 +1973,18 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
         : Promise.resolve(null),
       idempotencyKey
         ? findExistingFinishSuccessfulRunHandoffWake(db, {
-            companyId: run.companyId,
+            spaceId: run.spaceId,
             idempotencyKey,
           })
         : Promise.resolve(null),
       issue
-        ? budgets.getInvocationBlock(issue.companyId, run.agentId, {
+        ? budgets.getInvocationBlock(issue.spaceId, run.agentId, {
             issueId: issue.id,
             projectId: issue.projectId,
           })
         : Promise.resolve(null),
       issue
-        ? treeControlSvc.getActivePauseHoldGate(issue.companyId, issue.id)
+        ? treeControlSvc.getActivePauseHoldGate(issue.spaceId, issue.id)
         : Promise.resolve(null),
       issue
         ? db
@@ -1992,7 +1992,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
             .from(routines)
             .where(
               and(
-                eq(routines.companyId, issue.companyId),
+                eq(routines.spaceId, issue.spaceId),
                 eq(routines.parentIssueId, issue.id),
                 eq(routines.status, "active"),
               ),
@@ -2027,7 +2027,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
 
     if (isSuccessfulRunHandoffValidPathSkip(decision) && issue) {
       await resolveRequiredSuccessfulRunHandoffOnValidPath(db, {
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         issueId: issue.id,
         issueIdentifier: issue.identifier,
         agentId: run.agentId,
@@ -2075,7 +2075,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
         "The run reported progress, but did not choose a next step.",
     });
     await logActivity(db, {
-      companyId: issue.companyId,
+      spaceId: issue.spaceId,
       actorType: "system",
       actorId: "heartbeat",
       agentId: run.agentId,
@@ -2104,25 +2104,25 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       readNonEmptyString(contextSnapshot.issueId) ??
       readNonEmptyString(contextSnapshot.taskId);
     if (!issueId) return;
-    const waitingContext = await getIssueExecutionContext(run.companyId, issueId);
+    const waitingContext = await getIssueExecutionContext(run.spaceId, issueId);
     if (isWaitingConversation(waitingContext) || waitingContext?.externalConversationState === "waiting") return;
 
     const issue = await db
       .select({
         id: issues.id,
-        companyId: issues.companyId,
+        spaceId: issues.spaceId,
         identifier: issues.identifier,
         status: issues.status,
         assigneeAgentId: issues.assigneeAgentId,
       })
       .from(issues)
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)))
+      .where(and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId)))
       .then((rows) => rows[0] ?? null);
     if (!issue || issue.status !== "in_review" || !issue.assigneeAgentId)
       return;
 
     const reviewAttention = await issuesSvc
-      .listReviewAttention(issue.companyId, [issue])
+      .listReviewAttention(issue.spaceId, [issue])
       .then(
         (map) =>
           map.get(issue.id) ?? {
@@ -2147,7 +2147,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(agentWakeupRequests)
       .where(
         and(
-          eq(agentWakeupRequests.companyId, issue.companyId),
+          eq(agentWakeupRequests.spaceId, issue.spaceId),
           eq(agentWakeupRequests.idempotencyKey, idempotencyKey),
           notInArray(agentWakeupRequests.status, ["skipped"]),
         ),
@@ -2185,7 +2185,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     if (!recoveryRun) return;
 
     await logActivity(db, {
-      companyId: issue.companyId,
+      spaceId: issue.spaceId,
       actorType: "system",
       actorId: "heartbeat",
       agentId: issue.assigneeAgentId,
@@ -2242,7 +2242,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       at: eventAt,
     });
     const persistedEvent = await appendHeartbeatRunEvent(db, {
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       runId: run.id,
       agentId: run.agentId,
       eventType: event.eventType,
@@ -2257,7 +2257,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     const seq = persistedEvent.row.seq;
 
     publishLiveEvent({
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       type: "heartbeat.run.event",
       payload: {
         runId: run.id,
@@ -2277,7 +2277,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     });
     if (progress && isHeartbeatRunRuntimeStatusActive(run.status)) {
       const status = setHeartbeatRunRuntimeStatus({
-        companyId: run.companyId,
+        spaceId: run.spaceId,
         issueId,
         agentId: run.agentId,
         runId: run.id,
@@ -2349,7 +2349,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
 
   async function findRunIssueComment(
     runId: string,
-    companyId: string,
+    spaceId: string,
     issueId: string,
     resultJson?: Record<string, unknown> | null,
   ) {
@@ -2362,7 +2362,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(issueComments)
       .where(
         and(
-          eq(issueComments.companyId, companyId),
+          eq(issueComments.spaceId, spaceId),
           eq(issueComments.issueId, issueId),
           eq(issueComments.createdByRunId, runId),
         ),
@@ -2373,7 +2373,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
 
   async function findLatestCompletedFinalAgentMessage(
     runId: string,
-    companyId: string,
+    spaceId: string,
   ) {
     const rows = await db
       .select({
@@ -2383,7 +2383,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(heartbeatRunEvents)
       .where(
         and(
-          eq(heartbeatRunEvents.companyId, companyId),
+          eq(heartbeatRunEvents.spaceId, spaceId),
           eq(heartbeatRunEvents.runId, runId),
           eq(heartbeatRunEvents.eventType, "item.completed"),
         ),
@@ -2401,7 +2401,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(heartbeatRunEvents)
       .where(
         and(
-          eq(heartbeatRunEvents.companyId, companyId),
+          eq(heartbeatRunEvents.spaceId, spaceId),
           eq(heartbeatRunEvents.runId, runId),
           eq(heartbeatRunEvents.eventType, "plan.proposed"),
         ),
@@ -2424,7 +2424,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(heartbeatRunEvents)
       .where(
         and(
-          eq(heartbeatRunEvents.companyId, companyId),
+          eq(heartbeatRunEvents.spaceId, spaceId),
           eq(heartbeatRunEvents.runId, runId),
           eq(heartbeatRunEvents.eventType, "lifecycle"),
         ),
@@ -2532,7 +2532,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
 
     const retryRun = await db.transaction(async (tx) => {
       await tx.execute(
-        sql`select id from issues where company_id = ${run.companyId} and execution_run_id = ${run.id} for update`,
+        sql`select id from issues where space_id = ${run.spaceId} and execution_run_id = ${run.id} for update`,
       );
 
       const issue = await tx
@@ -2540,7 +2540,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
         .from(issues)
         .where(
           and(
-            eq(issues.companyId, run.companyId),
+            eq(issues.spaceId, run.spaceId),
             eq(issues.executionRunId, run.id),
           ),
         )
@@ -2550,7 +2550,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       const wakeupRequest = await tx
         .insert(agentWakeupRequests)
         .values({
-          companyId: run.companyId,
+          spaceId: run.spaceId,
           agentId: run.agentId,
           source: "automation",
           triggerDetail: "system",
@@ -2571,11 +2571,11 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
         .returning()
         .then((rows) => rows[0]);
 
-      await notifyRunDispatch(tx, { companyId: run.companyId });
+      await notifyRunDispatch(tx, { spaceId: run.spaceId });
       const queuedRun = await tx
         .insert(heartbeatRuns)
         .values({
-          companyId: run.companyId,
+          spaceId: run.spaceId,
           agentId: run.agentId,
           scopeKind: "issue",
           issueId,
@@ -2626,7 +2626,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     if (!retryRun) return null;
 
     publishLiveEvent({
-      companyId: retryRun.companyId,
+      spaceId: retryRun.spaceId,
       type: "heartbeat.run.queued",
       payload: {
         runId: retryRun.id,
@@ -2641,7 +2641,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
   }
 
   async function hasDeferredIssueCommentWake(
-    companyId: string,
+    spaceId: string,
     issueId: string,
     agentId: string,
   ) {
@@ -2650,7 +2650,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(agentWakeupRequests)
       .where(
         and(
-          eq(agentWakeupRequests.companyId, companyId),
+          eq(agentWakeupRequests.spaceId, spaceId),
           eq(agentWakeupRequests.agentId, agentId),
           eq(agentWakeupRequests.status, "deferred_issue_execution"),
           sql`${agentWakeupRequests.payload} ->> 'issueId' = ${issueId}`,
@@ -2760,7 +2760,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
 
     const postedComment = await findRunIssueComment(
       run.id,
-      run.companyId,
+      run.spaceId,
       issueId,
       parseObject(run.resultJson),
     );
@@ -2818,7 +2818,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     }
 
     if (
-      await hasDeferredIssueCommentWake(run.companyId, issueId, run.agentId)
+      await hasDeferredIssueCommentWake(run.spaceId, issueId, run.agentId)
     ) {
       await patchRunIssueCommentStatus(run.id, {
         issueCommentStatus: "not_applicable",
@@ -2964,7 +2964,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
           .from(issues)
           .where(
             and(
-              eq(issues.companyId, run.companyId),
+              eq(issues.spaceId, run.spaceId),
               eq(issues.id, contextIssueId),
             ),
           )
@@ -2980,7 +2980,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
           .from(issueComments)
           .where(
             and(
-              eq(issueComments.companyId, run.companyId),
+              eq(issueComments.spaceId, run.spaceId),
               eq(issueComments.issueId, contextIssueId),
               eq(issueComments.createdByRunId, run.id),
               isNull(issueComments.deletedAt),
@@ -2994,7 +2994,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
           .from(issueComments)
           .where(
             and(
-              eq(issueComments.companyId, run.companyId),
+              eq(issueComments.spaceId, run.spaceId),
               eq(issueComments.issueId, contextIssueId),
               eq(issueComments.createdByRunId, run.id),
             ),
@@ -3022,9 +3022,9 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
           )
           .where(
             and(
-              eq(documentRevisions.companyId, run.companyId),
+              eq(documentRevisions.spaceId, run.spaceId),
               eq(documentRevisions.createdByRunId, run.id),
-              eq(issueDocuments.companyId, run.companyId),
+              eq(issueDocuments.spaceId, run.spaceId),
               eq(issueDocuments.issueId, contextIssueId),
               sql`${issueDocuments.key} != ${ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY}`,
             ),
@@ -3040,7 +3040,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
           .from(issueWorkProducts)
           .where(
             and(
-              eq(issueWorkProducts.companyId, run.companyId),
+              eq(issueWorkProducts.spaceId, run.spaceId),
               eq(issueWorkProducts.issueId, contextIssueId),
               eq(issueWorkProducts.createdByRunId, run.id),
             ),
@@ -3055,7 +3055,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(workspaceOperations)
       .where(
         and(
-          eq(workspaceOperations.companyId, run.companyId),
+          eq(workspaceOperations.spaceId, run.spaceId),
           eq(workspaceOperations.heartbeatRunId, run.id),
         ),
       );
@@ -3068,7 +3068,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(activityLog)
       .where(
         and(
-          eq(activityLog.companyId, run.companyId),
+          eq(activityLog.spaceId, run.spaceId),
           eq(activityLog.runId, run.id),
           notInArray(activityLog.action, LIVENESS_BOOKKEEPING_ACTIVITY_ACTIONS),
         ),
@@ -3082,7 +3082,7 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
       .from(heartbeatRunEvents)
       .where(
         and(
-          eq(heartbeatRunEvents.companyId, run.companyId),
+          eq(heartbeatRunEvents.spaceId, run.spaceId),
           eq(heartbeatRunEvents.runId, run.id),
           notInArray(heartbeatRunEvents.eventType, LIVENESS_BOOKKEEPING_EVENT_TYPES),
         ),

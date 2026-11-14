@@ -6,7 +6,7 @@ const {
   ensureAdapterExecutionTargetCommandResolvable,
   ensureAdapterExecutionTargetRuntimeCommandInstalled,
   prepareCodexRuntimeConfig,
-  readPaperclipRuntimeSkillEntries,
+  readOutpostRuntimeSkillEntries,
   resolveAdapterExecutionTargetCommandForLogs,
   runAdapterExecutionTargetProcess,
   tempCodexHome,
@@ -14,10 +14,10 @@ const {
   ensureAdapterExecutionTargetCommandResolvable: vi.fn(async () => undefined),
   ensureAdapterExecutionTargetRuntimeCommandInstalled: vi.fn(async () => undefined),
   prepareCodexRuntimeConfig: vi.fn(async () => ({ cleanup: vi.fn(async () => undefined), notes: [] })),
-  readPaperclipRuntimeSkillEntries: vi.fn(async () => []),
+  readOutpostRuntimeSkillEntries: vi.fn(async () => []),
   resolveAdapterExecutionTargetCommandForLogs: vi.fn(async () => "codex"),
   runAdapterExecutionTargetProcess: vi.fn(),
-  tempCodexHome: "/tmp/paperclip-codex-stderr-error-test-home",
+  tempCodexHome: "/tmp/outpost-codex-stderr-error-test-home",
 }));
 
 vi.mock("./acp.js", () => ({
@@ -46,7 +46,7 @@ vi.mock("@outpost/adapter-utils/server-utils", async () => {
   );
   return {
     ...actual,
-    readPaperclipRuntimeSkillEntries,
+    readOutpostRuntimeSkillEntries,
   };
 });
 
@@ -95,7 +95,7 @@ function buildContext(config: Record<string, unknown> = {}) {
     runId: "run-1",
     agent: {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Codex Coder",
       adapterType: "codex_local",
       adapterConfig: {},

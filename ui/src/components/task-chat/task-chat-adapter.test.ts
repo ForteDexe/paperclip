@@ -45,19 +45,19 @@ describe("commentsToTaskChatItems", () => {
       id: "photon-comment",
       body: "From my phone",
       authorType: "user",
-      authorUserId: "local-board",
+      authorUserId: "local-operator",
       metadata: { version: 1, sourceChannel: "imessage-photon", sections: [] },
       createdAt: "2026-09-12T12:00:00Z",
     } as unknown as IssueChatComment])).toMatchObject([{
       author: "human", sourceChannel: "imessage-photon", text: "From my phone",
     }]);
   });
-  it("classifies a recovered local-board comment as an agent bubble", () => {
+  it("classifies a recovered local-operator comment as an agent bubble", () => {
     const items = commentsToTaskChatItems([{
       id: "c-recovered",
       body: "Recovered agent reply.",
       authorType: "user",
-      authorUserId: "local-board",
+      authorUserId: "local-operator",
       authorAgentId: null,
       derivedAuthorAgentId: "agent-1",
       createdAt: "2026-08-07T09:00:00.000Z",

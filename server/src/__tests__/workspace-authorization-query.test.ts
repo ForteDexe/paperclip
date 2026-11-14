@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { agents, authUsers, companies, companyMemberships, createDb, executionWorkspaces, executionWorkspaceRepositoryAccess, heartbeatRuns, issueAccessGrants,
+import { agents, authUsers, spaces, spaceMemberships, createDb, executionWorkspaces, executionWorkspaceRepositoryAccess, heartbeatRuns, issueAccessGrants,
   issues, projects, projectAccessMembers, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { authorizationService, executionWorkspaceReadSqlCondition, type AuthorizationActor } from "../services/authorization.js";
 import { executionWorkspaceRepositoryService } from "../services/execution-workspace-repositories.js";
@@ -16,22 +16,22 @@ const support = await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("workspace authorization query", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID(), agentId = randomUUID(), userId = randomUUID(), workspaceId = randomUUID(), runId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID(), userId = randomUUID(), workspaceId = randomUUID(), runId = randomUUID();
   const sourceId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
-  const actor: AuthorizationActor = { type: "agent", source: "agent_jwt", companyId, agentId, runId, onBehalfOfUserId: userId };
+  const actor: AuthorizationActor = { type: "agent", source: "agent_jwt", spaceId, agentId, runId, onBehalfOfUserId: userId };
 
   beforeAll(async () => {
     vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     database = await startEmbeddedPostgresTestDatabase("workspace-authorization-query-");
     db = createDb(database.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Workspace authorization", issuePrefix: "WAQ" });
+    await db.insert(spaces).values({ id: spaceId, name: "Workspace authorization", issuePrefix: "WAQ" });
     await db.insert(authUsers).values({ id: userId, name: "Sponsor", email: `${userId}@example.test`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "process" });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "operator" });
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, name: "Retained files", mode: "shared_workspace", strategyType: "operator_directory" });
-    await db.$client.unsafe(`insert into issues (company_id, title) select $1, 'Unrelated history ' || n from generate_series(1, 1200) n`, [companyId]);
-    await db.insert(issues).values({ id: sourceId, companyId, title: "Retained source" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "succeeded", contextSnapshot: { issueId: sourceId } });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "process" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "operator" });
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, name: "Retained files", mode: "shared_workspace", strategyType: "operator_directory" });
+    await db.$client.unsafe(`insert into issues (space_id, title) select $1, 'Unrelated history ' || n from generate_series(1, 1200) n`, [spaceId]);
+    await db.insert(issues).values({ id: sourceId, spaceId, title: "Retained source" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "succeeded", contextSnapshot: { issueId: sourceId } });
     await db.$client.unsafe("ANALYZE");
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => {
@@ -42,7 +42,7 @@ const support = await getEmbeddedPostgresTestSupport();
 
   async function query() {
     return db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, workspaceId),
-      eq(executionWorkspaces.companyId, companyId), await executionWorkspaceReadSqlCondition(db, actor))).toSQL();
+      eq(executionWorkspaces.spaceId, spaceId), await executionWorkspaceReadSqlCondition(db, actor))).toSQL();
   }
   async function read() {
     const q = await query();
@@ -58,7 +58,7 @@ const support = await getEmbeddedPostgresTestSupport();
     });
   }
 
-  it("checks retained task IDs without evaluating privacy for unrelated company history", async () => {
+  it("checks retained task IDs without evaluating privacy for unrelated space history", async () => {
     await retain(sourceId);
     expect(await read()).toHaveLength(1);
     const q = await query();
@@ -69,13 +69,13 @@ const support = await getEmbeddedPostgresTestSupport();
         + (plan.Plans ?? []).reduce((sum, child) => sum + privacyTraversals(child), 0);
     }
     // A single source should not make admission authorize 1,200 unrelated tasks
-    // for both the agent and its responsible user under the company-wide lock.
+    // for both the agent and its responsible user under the space-wide lock.
     expect(privacyTraversals(result["QUERY PLAN"][0].Plan)).toBeLessThan(100);
   });
 
   it("enumerates attached and retained source tasks without scanning unrelated history", async () => {
     await retain(sourceId);
-    const [attached] = await db.insert(issues).values({ companyId, title: "Attached source", executionWorkspaceId: workspaceId })
+    const [attached] = await db.insert(issues).values({ spaceId, title: "Attached source", executionWorkspaceId: workspaceId })
       .returning({ id: issues.id });
     try {
       const statements: Array<{ sql: string; params: unknown[] }> = [];
@@ -83,7 +83,7 @@ const support = await getEmbeddedPostgresTestSupport();
         schema: db._.fullSchema,
         logger: { logQuery: (query, params) => statements.push({ sql: query, params }) },
       }) as unknown as typeof db;
-      await assertExecutionWorkspaceRecordAccess(recorded, { type: "board", source: "local_implicit", userId: "local-board" }, companyId, workspaceId);
+      await assertExecutionWorkspaceRecordAccess(recorded, { type: "operator", source: "local_implicit", userId: "local-operator" }, spaceId, workspaceId);
       const query = statements.find(statement => statement.sql.startsWith('select "id" from "issues"')
         && statement.sql.includes('"execution_workspace_id"'));
       expect(query).toBeDefined();
@@ -112,23 +112,23 @@ const support = await getEmbeddedPostgresTestSupport();
     const rootKey = createHash("sha256").update(cwd).digest("hex");
     const workspaceIds = Array.from({ length: 40 }, () => randomUUID());
     const taskIds = workspaceIds.map(() => randomUUID()), runIds = taskIds.slice(0, 10).map(() => randomUUID());
-    await db.insert(executionWorkspaces).values(workspaceIds.map(id => ({ id, companyId, cwd,
+    await db.insert(executionWorkspaces).values(workspaceIds.map(id => ({ id, spaceId, cwd,
       name: "Historical root", mode: "shared_workspace", strategyType: "operator_directory" })));
-    await db.insert(issues).values(taskIds.map((id, i) => ({ id, companyId, title: "Source", assigneeAgentId: agentId, executionWorkspaceId: workspaceIds[i] })));
-    await db.insert(heartbeatRuns).values(runIds.map((id, i) => ({ id, companyId, agentId, responsibleUserId: userId,
+    await db.insert(issues).values(taskIds.map((id, i) => ({ id, spaceId, title: "Source", assigneeAgentId: agentId, executionWorkspaceId: workspaceIds[i] })));
+    await db.insert(heartbeatRuns).values(runIds.map((id, i) => ({ id, spaceId, agentId, responsibleUserId: userId,
       status: "succeeded", contextSnapshot: { issueId: taskIds[i] } })));
-    await db.insert(executionWorkspaceRepositoryAccess).values(runIds.map((scopeId, i) => ({ companyId, rootKey,
+    await db.insert(executionWorkspaceRepositoryAccess).values(runIds.map((scopeId, i) => ({ spaceId, rootKey,
       canonicalCwd: cwd, kind: "reader" as const, scopeId, issueId: taskIds[i], agentId, responsibleUserId: userId })));
     try {
       const statements: string[] = [];
       const recorded = drizzle(db.$client, { schema: db._.fullSchema,
         logger: { logQuery: query => statements.push(query) } }) as unknown as typeof db;
-      await executionWorkspaceRepositoryService(recorded).prepareForAdmission({ companyId, cwd,
+      await executionWorkspaceRepositoryService(recorded).prepareForAdmission({ spaceId, cwd,
         issueId: taskIds[0], workspaceId: workspaceIds[0], agentId, runId: runIds[0], responsibleUserId: userId });
       expect(statements.filter(query => query.includes('from "execution_workspaces"')
         || query.includes('from "issues"')).length).toBeLessThan(50);
     } finally {
-      await db.delete(executionWorkspaceRepositoryAccess).where(and(eq(executionWorkspaceRepositoryAccess.companyId, companyId), eq(executionWorkspaceRepositoryAccess.rootKey, rootKey)));
+      await db.delete(executionWorkspaceRepositoryAccess).where(and(eq(executionWorkspaceRepositoryAccess.spaceId, spaceId), eq(executionWorkspaceRepositoryAccess.rootKey, rootKey)));
       await db.delete(heartbeatRuns).where(inArray(heartbeatRuns.id, runIds));
       await db.delete(issues).where(inArray(issues.id, taskIds));
       await db.delete(executionWorkspaces).where(inArray(executionWorkspaces.id, workspaceIds));
@@ -139,8 +139,8 @@ const support = await getEmbeddedPostgresTestSupport();
   it.each(["missing", "malformed", "uppercase", "foreign"])("denies a %s retained source without throwing a UUID parse error", async kind => {
     const id = kind === "malformed" ? "not-a-uuid" : kind === "uppercase" ? sourceId.toUpperCase() : randomUUID();
     if (kind === "foreign") {
-      const [foreign] = await db.insert(companies).values({ name: "Foreign", issuePrefix: "OTHER" }).returning();
-      await db.insert(issues).values({ id, companyId: foreign.id, title: "Foreign source" });
+      const [foreign] = await db.insert(spaces).values({ name: "Foreign", issuePrefix: "OTHER" }).returning();
+      await db.insert(issues).values({ id, spaceId: foreign.id, title: "Foreign source" });
     }
     await retain(id);
     expect(await read()).toHaveLength(0);
@@ -160,25 +160,25 @@ const support = await getEmbeddedPostgresTestSupport();
   it.each(["enforce", "shadow", "off"])("matches individual read decisions for a fresh batch in %s mode", async mode => {
     vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", mode);
     try {
-      const resources = [{ type: "issue" as const, companyId, issueId: sourceId }, { type: "company" as const, companyId }];
+      const resources = [{ type: "issue" as const, spaceId, issueId: sourceId }, { type: "space" as const, spaceId }];
       const actors: AuthorizationActor[] = [actor, { ...actor, onBehalfOfUserId: undefined },
-        { ...actor, companyId: randomUUID() }, { type: "none" },
-        { type: "board", source: "session", userId }, { type: "board", source: "local_implicit", userId: "local-board" }];
+        { ...actor, spaceId: randomUUID() }, { type: "none" },
+        { type: "operator", source: "session", userId }, { type: "operator", source: "local_implicit", userId: "local-operator" }];
       const service = authorizationService(db);
       for (const candidate of actors) {
         const individual = [];
         for (const resource of resources) individual.push(await service.decide({ actor: { ...candidate }, resource,
-          action: resource.type === "issue" ? "issue:read" : "company_scope:read" }));
+          action: resource.type === "issue" ? "issue:read" : "space_scope:read" }));
         expect(await service.decideReads(candidate, resources)).toEqual(individual);
       }
     } finally { vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce"); }
   });
 
   it("matches private project decisions as each principal gains and loses access", async () => {
-    const [project] = await db.insert(projects).values({ companyId, name: "Private batch source", visibility: "private" }).returning();
-    const resource = { type: "project" as const, companyId, projectId: project.id };
+    const [project] = await db.insert(projects).values({ spaceId, name: "Private batch source", visibility: "private" }).returning();
+    const resource = { type: "project" as const, spaceId, projectId: project.id };
     const service = authorizationService(db);
-    const candidates: AuthorizationActor[] = [actor, { ...actor, onBehalfOfUserId: undefined }, { type: "board", source: "session", userId }];
+    const candidates: AuthorizationActor[] = [actor, { ...actor, onBehalfOfUserId: undefined }, { type: "operator", source: "session", userId }];
     async function check(expected: boolean[]) {
       const batched = await service.decideReadsForActors(candidates, [resource]);
       for (let i = 0; i < candidates.length; i++) {
@@ -188,9 +188,9 @@ const support = await getEmbeddedPostgresTestSupport();
     }
     try {
       await check([false, false, false]);
-      await db.insert(projectAccessMembers).values({ companyId, projectId: project.id, subjectType: "agent", subjectId: agentId });
+      await db.insert(projectAccessMembers).values({ spaceId, projectId: project.id, subjectType: "agent", subjectId: agentId });
       await check([false, true, false]);
-      const [grant] = await db.insert(projectAccessMembers).values({ companyId, projectId: project.id, subjectType: "user", subjectId: userId }).returning();
+      const [grant] = await db.insert(projectAccessMembers).values({ spaceId, projectId: project.id, subjectType: "user", subjectId: userId }).returning();
       await check([true, true, true]);
       await db.delete(projectAccessMembers).where(eq(projectAccessMembers.id, grant.id));
       await check([false, true, false]);
@@ -198,11 +198,11 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("supports more than 100 distinct reader principals for issue and project batches", async () => {
-    const [project] = await db.insert(projects).values({ companyId, name: "Many readers" }).returning();
-    const candidates: AuthorizationActor[] = Array.from({ length: 101 }, () => ({ type: "board", source: "session", userId: randomUUID() }));
+    const [project] = await db.insert(projects).values({ spaceId, name: "Many readers" }).returning();
+    const candidates: AuthorizationActor[] = Array.from({ length: 101 }, () => ({ type: "operator", source: "session", userId: randomUUID() }));
     const service = authorizationService(db);
     try {
-      for (const resource of [{ type: "issue" as const, companyId, issueId: sourceId }, { type: "project" as const, companyId, projectId: project.id }]) {
+      for (const resource of [{ type: "issue" as const, spaceId, issueId: sourceId }, { type: "project" as const, spaceId, projectId: project.id }]) {
         const decisions = await service.decideReadsForActors(candidates, [resource]);
         expect(decisions).toHaveLength(101);
         expect(decisions.every(batch => batch.length === 1 && !batch[0].allowed)).toBe(true);
@@ -212,16 +212,16 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("reloads run trust and responsible-user membership between read batches", async () => {
     const service = authorizationService(db);
-    const resources = [{ type: "company" as const, companyId }];
+    const resources = [{ type: "space" as const, spaceId }];
     expect((await service.decideReads(actor, resources))[0].allowed).toBe(true);
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: sourceId, executionPolicy: {
       trustPreset: "low_trust_review", authorizationPolicy: { trustPreset: "low_trust_review",
-        trustBoundary: { mode: "low_trust_review", companyId, rootIssueId: sourceId } },
+        trustBoundary: { mode: "low_trust_review", spaceId, rootIssueId: sourceId } },
     } } }).where(eq(heartbeatRuns.id, runId));
     expect((await service.decideReads(actor, resources))[0]).toMatchObject({ allowed: false, reason: "deny_low_trust_boundary" });
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: sourceId } }).where(eq(heartbeatRuns.id, runId));
     expect((await service.decideReads(actor, resources))[0].allowed).toBe(true);
-    await db.update(companyMemberships).set({ status: "inactive" }).where(and(eq(companyMemberships.companyId, companyId), eq(companyMemberships.principalId, userId)));
+    await db.update(spaceMemberships).set({ status: "inactive" }).where(and(eq(spaceMemberships.spaceId, spaceId), eq(spaceMemberships.principalId, userId)));
     expect((await service.decideReads(actor, resources))[0]).toMatchObject({ allowed: false, code: "RESPONSIBLE_USER_UNAVAILABLE" });
   });
 

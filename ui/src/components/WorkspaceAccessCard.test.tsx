@@ -17,7 +17,7 @@ function accessState(overrides: Partial<WorkspaceAccessState> = {}): WorkspaceAc
   return {
     state: "ready",
     title: "Ready",
-    description: "Opening the workspace signs you in to the cloned board without a password.",
+    description: "Opening the workspace signs you in to the cloned operator without a password.",
     action: { kind: "open", label: "Open workspace" },
     handoffAvailable: true,
     ...overrides,
@@ -101,7 +101,7 @@ describe("WorkspaceAccessCard", () => {
     const { root } = renderCard({
       access: accessState({
         handoffAvailable: false,
-        description: "Opening the board will ask for the credentials captured in this snapshot.",
+        description: "Opening the operator will ask for the credentials captured in this snapshot.",
       }),
     });
     expect(container.textContent).toContain("snapshot-local credentials captured");
@@ -173,7 +173,7 @@ describe("WorkspaceAccessCard", () => {
       access: accessState({
         state: "stopped",
         title: "Workspace is not running",
-        description: "Start the workspace runtime to publish its board.",
+        description: "Start the workspace runtime to publish its operator.",
         action: { kind: "start", label: "Start workspace" },
       }),
     });

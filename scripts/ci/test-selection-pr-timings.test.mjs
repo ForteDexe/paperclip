@@ -89,7 +89,7 @@ test("shared-file tests map to exactly one shard spec", () => {
 });
 
 const runnerLog = logLines([
-  [0, " RUN  v5.0.0 /home/runner/_work/paperclip/paperclip/packages/outpost-runner"],
+  [0, " RUN  v5.0.0 /home/runner/_work/outpost/outpost/packages/outpost-runner"],
   [10, ` ${esc}[32m✓${esc}[39m src/live/runnerd-codex-transport.test.ts ${esc}[2m(257 tests)${esc}[22m 126679ms`],
   [11, " ✓ src/control-plane/acpx-controller-recovery.test.ts (11 tests | 1 skipped) 78087ms"],
   [12, " ✓ scripts/vitest-sequencer.test.mjs (3 tests) 12ms"],
@@ -156,7 +156,7 @@ test("merged-PR runs must be successful pull_request runs of pr.yml at the PR's 
     assert.throws(() => validatePull({ ...merged, ...override }));
   }
   for (const override of [{ head_sha: sha("c") }, { event: "push" }, { path: ".github/workflows/pr-trusted.yml" },
-    { conclusion: "failure" }, { status: "in_progress" }, { repository: { id: 7, full_name: "fork/paperclip" } }, { run_attempt: 0 }]) {
+    { conclusion: "failure" }, { status: "in_progress" }, { repository: { id: 7, full_name: "fork/outpost" } }, { run_attempt: 0 }]) {
     assert.throws(() => validatePrRun(prRun(5, sha("a"), override), merged));
   }
 });

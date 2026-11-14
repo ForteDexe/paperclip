@@ -5,31 +5,31 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
 // the user-visible Connections list plus app Permissions flows.
 
 type SeedResult = {
-  companyId: string;
+  spaceId: string;
   prefix: string;
 };
 
 const SCREENSHOT_DIR = "test-results";
 const APP_PREFIX = `QA 10820 ${Date.now().toString(36)}`;
 
-async function discoverCompany(request: APIRequestContext): Promise<SeedResult> {
-  const res = await request.post("/api/companies", {
+async function discoverSpace(request: APIRequestContext): Promise<SeedResult> {
+  const res = await request.post("/api/spaces", {
     data: { name: `applications lifecycle ${Date.now()}` },
   });
-  expect(res.ok(), `create company failed ${res.status()}: ${await res.text()}`).toBe(true);
-  const company = await res.json();
+  expect(res.ok(), `create space failed ${res.status()}: ${await res.text()}`).toBe(true);
+  const space = await res.json();
   return {
-    companyId: company.id,
-    prefix: company.issuePrefix ?? company.prefix ?? company.urlKey ?? "E2E",
+    spaceId: space.id,
+    prefix: space.issuePrefix ?? space.prefix ?? space.urlKey ?? "E2E",
   };
 }
 
 async function createApplication(
   request: APIRequestContext,
-  companyId: string,
+  spaceId: string,
   body: { name: string; description?: string; type?: string },
 ): Promise<{ id: string; name: string }> {
-  const res = await request.post(`/api/companies/${companyId}/tools/applications`, {
+  const res = await request.post(`/api/spaces/${spaceId}/tools/applications`, {
     data: { type: "mcp_http", ...body },
   });
   if (!res.ok()) throw new Error(`create app failed ${res.status()}: ${await res.text()}`);
@@ -38,10 +38,10 @@ async function createApplication(
 
 async function createConnection(
   request: APIRequestContext,
-  companyId: string,
+  spaceId: string,
   data: { applicationName?: string; applicationId?: string; name: string; transport?: string; config?: object },
 ): Promise<{ id: string; applicationId: string; name: string }> {
-  const res = await request.post(`/api/companies/${companyId}/tools/connections`, {
+  const res = await request.post(`/api/spaces/${spaceId}/tools/connections`, {
     data: {
       transport: "mcp_remote",
       config: { url: "http://127.0.0.1:65535/mcp" },
@@ -63,22 +63,22 @@ test.describe.serial("applications lifecycle", () => {
   let seed: SeedResult;
 
   test.beforeAll(async ({ request }) => {
-    seed = await discoverCompany(request);
+    seed = await discoverSpace(request);
   });
 
   test.afterAll(async ({ request }) => {
-    if (!seed?.companyId) return;
-    await request.delete(`/api/companies/${seed.companyId}`).catch(() => undefined);
+    if (!seed?.spaceId) return;
+    await request.delete(`/api/spaces/${seed.spaceId}`).catch(() => undefined);
   });
 
   test("Connections list surfaces connected and not-connected apps", async ({ page, request }) => {
     const connectedName = `${APP_PREFIX}-connected`;
     const notConnectedName = `${APP_PREFIX}-offline`;
-    const connected = await createConnection(request, seed.companyId, {
+    const connected = await createConnection(request, seed.spaceId, {
       applicationName: connectedName,
       name: connectedName,
     });
-    const notConnected = await createApplication(request, seed.companyId, { name: notConnectedName });
+    const notConnected = await createApplication(request, seed.spaceId, { name: notConnectedName });
 
     await gotoApps(page, seed.prefix);
 
@@ -127,7 +127,7 @@ test.describe.serial("applications lifecycle", () => {
   test("connected app detail supports rename on Permissions", async ({ page, request }) => {
     const appName = `${APP_PREFIX}-detail-app`;
     const renamed = `${APP_PREFIX}-renamed-app`;
-    const connection = await createConnection(request, seed.companyId, {
+    const connection = await createConnection(request, seed.spaceId, {
       applicationName: appName,
       name: appName,
     });

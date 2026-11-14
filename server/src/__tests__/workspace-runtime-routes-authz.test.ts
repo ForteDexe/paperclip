@@ -154,7 +154,7 @@ async function createExecutionWorkspaceApp(actor: Record<string, unknown>) {
 function buildProject(overrides: Record<string, unknown> = {}) {
   return {
     id: "project-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     urlKey: "project-1",
     goalId: null,
     goalIds: [],
@@ -182,7 +182,7 @@ function buildProject(overrides: Record<string, unknown> = {}) {
 function buildExecutionWorkspace(overrides: Record<string, unknown> = {}) {
   return {
     id: "workspace-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     projectWorkspaceId: null,
     sourceIssueId: null,
@@ -220,18 +220,18 @@ describe("workspace runtime service route authorization", () => {
     vi.clearAllMocks();
     mockAccessService.decide.mockResolvedValue({
       allowed: true,
-      action: "company_scope:read",
+      action: "space_scope:read",
       reason: "allow_test",
       explanation: "Allowed by test mock.",
     });
     mockEnvironmentService.getById.mockResolvedValue(null);
-    mockSecretService.normalizeEnvBindingsForPersistence.mockImplementation(async (_companyId, env) => env);
+    mockSecretService.normalizeEnvBindingsForPersistence.mockImplementation(async (_spaceId, env) => env);
     mockProjectService.resolveByReference.mockResolvedValue({ ambiguous: false, project: null });
     mockProjectService.create.mockResolvedValue(buildProject());
     mockProjectService.update.mockResolvedValue(buildProject());
     mockProjectService.createWorkspace.mockResolvedValue({
       id: workspaceId,
-      companyId: "company-1",
+      spaceId: "space-1",
       projectId,
       name: "Workspace",
       sourceType: "local_path",
@@ -254,7 +254,7 @@ describe("workspace runtime service route authorization", () => {
     });
     mockProjectService.listWorkspaces.mockResolvedValue([{
       id: workspaceId,
-      companyId: "company-1",
+      spaceId: "space-1",
       projectId,
       name: "Workspace",
       sourceType: "local_path",
@@ -277,7 +277,7 @@ describe("workspace runtime service route authorization", () => {
     }]);
     mockProjectService.updateWorkspace.mockResolvedValue({
       id: workspaceId,
-      companyId: "company-1",
+      spaceId: "space-1",
       projectId,
       name: "Workspace",
       sourceType: "local_path",
@@ -309,7 +309,7 @@ describe("workspace runtime service route authorization", () => {
       id: projectId,
       workspaces: [{
         id: workspaceId,
-        companyId: "company-1",
+        spaceId: "space-1",
         projectId,
         name: "Workspace",
         sourceType: "local_path",
@@ -337,7 +337,7 @@ describe("workspace runtime service route authorization", () => {
     const app = await createProjectApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
       runId: "run-1",
     });
@@ -367,7 +367,7 @@ describe("workspace runtime service route authorization", () => {
         id: projectId,
         workspaces: [{
           id: workspaceId,
-          companyId: "company-1",
+          spaceId: "space-1",
           projectId,
           runtimeConfig: {
             workspaceRuntime: { services: [{ name: "web", command: "pnpm dev" }] },
@@ -383,7 +383,7 @@ describe("workspace runtime service route authorization", () => {
       const actor = {
         type: "agent",
         agentId: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         source: "agent_key",
         runId: "run-1",
         keyScope: kind === "skill_test"
@@ -407,7 +407,7 @@ describe("workspace runtime service route authorization", () => {
       expect(mockAssertCanManageExecutionWorkspaceRuntimeServices).not.toHaveBeenCalled();
       expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
         action: "runtime:manage",
-        resource: { type: "company", companyId: "company-1" },
+        resource: { type: "space", spaceId: "space-1" },
       }));
     },
   );
@@ -417,7 +417,7 @@ describe("workspace runtime service route authorization", () => {
       id: projectId,
       workspaces: [{
         id: workspaceId,
-        companyId: "company-1",
+        spaceId: "space-1",
         projectId,
         name: "Workspace",
         sourceType: "local_path",
@@ -442,7 +442,7 @@ describe("workspace runtime service route authorization", () => {
     const app = await createProjectApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
       runId: "run-1",
     });
@@ -465,21 +465,21 @@ describe("workspace runtime service route authorization", () => {
     const app = await createProjectApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
       runId: "run-1",
     });
 
     const res = await request(app)
-      .post("/api/companies/company-1/projects")
+      .post("/api/spaces/space-1/projects")
       .send({
         name: "Exploit",
         executionWorkspacePolicy: {
           enabled: true,
           workspaceStrategy: {
             type: "git_worktree",
-            provisionCommand: "touch /tmp/paperclip-rce",
-            runtimeProvisionCommand: "touch /tmp/paperclip-runtime-rce",
+            provisionCommand: "touch /tmp/outpost-rce",
+            runtimeProvisionCommand: "touch /tmp/outpost-runtime-rce",
           },
         },
       });
@@ -494,19 +494,19 @@ describe("workspace runtime service route authorization", () => {
     const app = await createProjectApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
       runId: "run-1",
     });
 
     const projectRes = await request(app)
-      .post("/api/companies/company-1/projects")
+      .post("/api/spaces/space-1/projects")
       .send({
         name: "Exploit",
         executionWorkspacePolicy: {
           enabled: true,
           workspaceRuntime: {
-            services: [{ name: "web", command: "touch /tmp/paperclip-rce" }],
+            services: [{ name: "web", command: "touch /tmp/outpost-rce" }],
           },
         },
       });
@@ -518,7 +518,7 @@ describe("workspace runtime service route authorization", () => {
       .send({
         runtimeConfig: {
           workspaceRuntime: {
-            jobs: [{ name: "build", command: "touch /tmp/paperclip-rce" }],
+            jobs: [{ name: "build", command: "touch /tmp/outpost-rce" }],
           },
         },
       });
@@ -533,7 +533,7 @@ describe("workspace runtime service route authorization", () => {
     const app = await createProjectApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
       runId: "run-1",
     });
@@ -541,7 +541,7 @@ describe("workspace runtime service route authorization", () => {
     const res = await request(app)
       .patch(`/api/projects/${projectId}/workspaces/${workspaceId}`)
       .send({
-        cleanupCommand: "rm -rf /tmp/paperclip-rce",
+        cleanupCommand: "rm -rf /tmp/outpost-rce",
       });
 
     expect(res.status).toBe(403);
@@ -549,12 +549,12 @@ describe("workspace runtime service route authorization", () => {
     expect(mockProjectService.updateWorkspace).not.toHaveBeenCalled();
   });
 
-  it("allows board callers through the project workspace runtime auth gate", async () => {
+  it("allows operator callers through the project workspace runtime auth gate", async () => {
     mockProjectService.getById.mockResolvedValue(null);
     const app = await createProjectApp({
-      type: "board",
-      userId: "board-1",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "operator-1",
+      spaceIds: ["space-1"],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -577,7 +577,7 @@ describe("workspace runtime service route authorization", () => {
     const app = await createExecutionWorkspaceApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
       runId: "run-1",
     });
@@ -597,7 +597,7 @@ describe("workspace runtime service route authorization", () => {
     const app = await createExecutionWorkspaceApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
       runId: "run-1",
     });
@@ -606,7 +606,7 @@ describe("workspace runtime service route authorization", () => {
       .patch(`/api/execution-workspaces/${executionWorkspaceId}`)
       .send({
         config: {
-          cleanupCommand: "rm -rf /tmp/paperclip-rce",
+          cleanupCommand: "rm -rf /tmp/outpost-rce",
         },
       });
 
@@ -620,7 +620,7 @@ describe("workspace runtime service route authorization", () => {
     const app = await createExecutionWorkspaceApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
       runId: "run-1",
     });
@@ -630,7 +630,7 @@ describe("workspace runtime service route authorization", () => {
       .send({
         metadata: {
           config: {
-            provisionCommand: "touch /tmp/paperclip-rce",
+            provisionCommand: "touch /tmp/outpost-rce",
           },
         },
       });
@@ -640,12 +640,12 @@ describe("workspace runtime service route authorization", () => {
     expect(mockExecutionWorkspaceService.update).not.toHaveBeenCalled();
   });
 
-  it("allows board callers through the execution workspace runtime auth gate", async () => {
+  it("allows operator callers through the execution workspace runtime auth gate", async () => {
     mockExecutionWorkspaceService.getById.mockResolvedValue(null);
     const app = await createExecutionWorkspaceApp({
-      type: "board",
-      userId: "board-1",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "operator-1",
+      spaceIds: ["space-1"],
       source: "session",
       isInstanceAdmin: false,
     });

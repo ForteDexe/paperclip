@@ -63,7 +63,7 @@ export interface PersistedNativeSession {
   codexUsageBaseline?: PersistedHarnessSession["codexUsageBaseline"];
   providerRecoveryPolicy?:
     | "same_session_only"
-    | "allow_replacement_after_governed_wait"
+    | "allow_replacement_after_controlled_wait"
     | "allow_replacement_after_resume_failure";
   cursor?: string | null;
   semanticResult?: PrpStructuredRunResult | null;
@@ -72,7 +72,7 @@ export interface PersistedNativeSession {
   terminalTurns?: PersistedHarnessTurnTerminal[];
   /** Control-plane disposition bound to the exact committed tool event. It is
    * independent of the interaction's later answer and proves no provider terminal. */
-  governedWait?: { sourceEvent: PrpEvent; result: PrpStructuredRunResult; settlement?: CancelledTurnSettlement };
+  controlledWait?: { sourceEvent: PrpEvent; result: PrpStructuredRunResult; settlement?: CancelledTurnSettlement };
 
   /** At-most-once marker for resultless disposition repair or restart continuation. */
   dispositionOnlyRecoveryConsumed?: boolean;
@@ -244,7 +244,7 @@ export interface NativeSession {
      * submitting `message`. Only for a resumed session with prior context.
      */
     compact?: true;
-    /** Last context occupancy Paperclip recorded before a compaction turn. */
+    /** Last context occupancy Outpost recorded before a compaction turn. */
     contextTokensBefore?: number;
   }): Promise<{
     turnId: string;
@@ -317,7 +317,7 @@ export interface NativeSessionBackend {
   readonly preparedTaskConstraints?: readonly string[];
   descriptor(): Promise<NativeSessionBackendDescriptor>;
   openSession(input: OpenNativeSessionInput): Promise<NativeSession>;
-  /** Open a fresh provider session after an explicitly governed continuity break. */
+  /** Open a fresh provider session after an explicitly controlled continuity break. */
   openReplacementSession?(
     input: OpenNativeSessionInput,
     previous: PersistedNativeSession,
@@ -350,11 +350,11 @@ export class NativeProviderSideEffectPendingError extends Error {
   }
 }
 
-export class NativeGovernedWaitSettlementPendingError extends Error {
-  readonly code = "native_governed_wait_settlement_pending";
+export class NativeControlledWaitSettlementPendingError extends Error {
+  readonly code = "native_controlled_wait_settlement_pending";
   constructor(options?: ErrorOptions) {
     super("The waiting state is saved; confirming shutdown of the previous execution is still pending.", options);
-    this.name = "NativeGovernedWaitSettlementPendingError";
+    this.name = "NativeControlledWaitSettlementPendingError";
   }
 }
 

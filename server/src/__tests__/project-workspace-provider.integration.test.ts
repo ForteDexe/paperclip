@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { companies, createDb, executionWorkspaces, heartbeatRuns, issues, pluginCompanySettings, plugins, projects } from "@outpost/db";
+import { spaces, createDb, executionWorkspaces, heartbeatRuns, issues, pluginSpaceSettings, plugins, projects } from "@outpost/db";
 import { createPluginWorkspaceFixture } from "./helpers/plugin-workspaces.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { effectiveProjectWorkspacePolicy, listProjectWorkspaceProviders, resolveProjectWorkspaceProvider, sourcelessProjectWorkspacePolicy } from "../services/project-workspace-provider.js";
@@ -25,7 +25,7 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
     db = createDb(database.connectionString);
   }, 120_000);
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
-  beforeEach(async () => { await db.execute(sql`truncate companies, plugins cascade`); });
+  beforeEach(async () => { await db.execute(sql`truncate spaces, plugins cascade`); });
 
   async function fixture() {
     const f = await createPluginWorkspaceFixture(db);
@@ -40,13 +40,13 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
     const f = await fixture();
     await db.update(projects).set({ executionWorkspacePolicy: null }).where(eq(projects.id, f.input.projectId));
     const svc = projectService(db);
-    const created = await svc.create(f.companyId, { name: "New project" });
+    const created = await svc.create(f.spaceId, { name: "New project" });
     expect(created.executionWorkspacePolicy).toBeNull();
     expect(created.workspaceProvider).toMatchObject({ source: "core", pluginId: null });
     const existing = await svc.getById(f.input.projectId);
     expect(existing!.executionWorkspacePolicy).toBeNull();
     expect(existing!.workspaceProvider).toMatchObject({ source: "core", pluginId: null });
-    expect(await effectiveProjectWorkspacePolicy(db, f.companyId, null, true)).toBeNull();
+    expect(await effectiveProjectWorkspacePolicy(db, f.spaceId, null, true)).toBeNull();
     expect(await preparePluginWorkspace(db, f.workers, { ...f.input, selectedProviderPluginId: null })).toBeNull();
     expect(f.calls).toHaveLength(0);
   });
@@ -54,7 +54,7 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
   it("creates a project on Core storage when no default is installed, and keeps it there after one arrives", async () => {
     const f = await createPluginWorkspaceFixture(db);
     const svc = projectService(db);
-    const created = await svc.create(f.companyId, { name: "Before the provider" });
+    const created = await svc.create(f.spaceId, { name: "Before the provider" });
     expect(created.executionWorkspacePolicy).toBeNull();
     const [plugin] = await db.select().from(plugins).where(eq(plugins.id, f.pluginId));
     await db.update(plugins).set({ manifestJson: { ...plugin.manifestJson, workspaceProvider: {
@@ -65,17 +65,17 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
 
   it("keeps an explicit creation choice", async () => {
     const f = await fixture();
-    const other = await createPluginWorkspaceFixture(db, f.companyId);
+    const other = await createPluginWorkspaceFixture(db, f.spaceId);
     const svc = projectService(db);
-    expect((await svc.create(f.companyId, { name: "Local", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: null } })).workspaceProvider)
+    expect((await svc.create(f.spaceId, { name: "Local", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: null } })).workspaceProvider)
       .toMatchObject({ source: "project", pluginId: null });
-    expect((await svc.create(f.companyId, { name: "Other", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: other.pluginId } })).workspaceProvider)
+    expect((await svc.create(f.spaceId, { name: "Other", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: other.pluginId } })).workspaceProvider)
       .toMatchObject({ source: "project", pluginId: other.pluginId });
   });
 
   it("does not attach a personal project based only on a plugin default claim", async () => {
     const f = await fixture();
-    const project = await ensurePersonalPrivateProject(db, f.companyId, "user-one");
+    const project = await ensurePersonalPrivateProject(db, f.spaceId, "user-one");
     expect(project.executionWorkspacePolicy).toBeNull();
   });
 
@@ -84,21 +84,21 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
     await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });
     let issueId: string;
     if (method === "create") {
-      const created = await issueService(db).create(f.companyId, { title: "Use inherited storage", projectId: f.input.projectId, assigneeAgentId: f.input.agentId });
+      const created = await issueService(db).create(f.spaceId, { title: "Use inherited storage", projectId: f.input.projectId, assigneeAgentId: f.input.agentId });
       issueId = created.id;
     } else {
       issueId = randomUUID();
-      await issueService(db).importIssues(f.companyId, [{ id: issueId, ref: "inherited", title: "Import inherited storage", projectId: f.input.projectId,
+      await issueService(db).importIssues(f.spaceId, [{ id: issueId, ref: "inherited", title: "Import inherited storage", projectId: f.input.projectId,
         projectWorkspaceId: null, description: null, assigneeAgentId: f.input.agentId, status: "todo", priority: "medium", billingCode: null,
         assigneeAdapterOverrides: null, executionWorkspaceSettings: null, labelIds: [], monitorNotes: null, monitorScheduledBy: null }]);
     }
     const [task] = await db.select().from(issues).where(eq(issues.id, issueId));
     expect(task.executionWorkspaceSettings?.mode).toBeUndefined();
-    const policy = await effectiveProjectWorkspacePolicy(db, f.companyId, { enabled: true, storageProviderPluginId: f.pluginId }, true);
+    const policy = await effectiveProjectWorkspacePolicy(db, f.spaceId, { enabled: true, storageProviderPluginId: f.pluginId }, true);
     const settings = parseIssueExecutionWorkspaceSettings(task.executionWorkspaceSettings);
     const mode = resolveExecutionWorkspaceMode({ projectPolicy: policy, issueSettings: settings, legacyUseProjectWorkspace: null });
     const config = buildExecutionWorkspaceAdapterConfig({ agentConfig: {}, projectPolicy: policy, issueSettings: settings, mode, legacyUseProjectWorkspace: null });
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.input.agentId,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.input.agentId,
       issueId, scopeKind: "issue", status: "running", runtimeMode: "legacy" }).returning();
     await preparePluginWorkspace(db, f.workers, { ...f.input, runId: run.id, issueId, mode, strategy: resolveEffectiveWorkspaceStrategyType(mode, config) });
     expect(f.calls[0].operation).toMatchObject({ mode: "isolated_workspace", strategy: "git_worktree" });
@@ -106,7 +106,7 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
 
   it("keeps a plugin-backed project attached through every policy update", async () => {
     const f = await fixture();
-    const other = await createPluginWorkspaceFixture(db, f.companyId);
+    const other = await createPluginWorkspaceFixture(db, f.spaceId);
     const workspace = await preparePluginWorkspace(db, f.workers, f.input);
     const svc = projectService(db);
     const kept = await svc.update(f.input.projectId, { executionWorkspacePolicy: { enabled: true, sharedWorkspaceConcurrency: "serialize" } });
@@ -121,7 +121,7 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
 
   it("keeps a Core project on Core storage", async () => {
     const f = await fixture();
-    const other = await createPluginWorkspaceFixture(db, f.companyId);
+    const other = await createPluginWorkspaceFixture(db, f.spaceId);
     await db.update(projects).set({ executionWorkspacePolicy: null }).where(eq(projects.id, f.input.projectId));
     const svc = projectService(db);
     for (const storageProviderPluginId of [f.pluginId, other.pluginId]) {
@@ -135,8 +135,8 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
   });
 
   it("preserves explicit alternatives and the explicit Core/local choice", async () => {
-    const f = await fixture(), other = await createPluginWorkspaceFixture(db, f.companyId);
-    const providers = await listProjectWorkspaceProviders(db, f.companyId);
+    const f = await fixture(), other = await createPluginWorkspaceFixture(db, f.spaceId);
+    const providers = await listProjectWorkspaceProviders(db, f.spaceId);
     expect(resolveProjectWorkspaceProvider({ enabled: true, storageProviderPluginId: other.pluginId }, providers, true))
       .toMatchObject({ source: "project", pluginId: other.pluginId });
     const local = { enabled: true, storageProviderPluginId: null };
@@ -149,33 +149,33 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
   it.each(["disabled", "uninstalled"] as const)("does not attach a new project to an instance %s provider", async status => {
     const f = await fixture();
     await db.update(plugins).set({ status }).where(eq(plugins.id, f.pluginId));
-    expect((await projectService(db).create(f.companyId, { name: "New project" })).executionWorkspacePolicy).toBeNull();
+    expect((await projectService(db).create(f.spaceId, { name: "New project" })).executionWorkspacePolicy).toBeNull();
   });
 
-  it("scopes company enablement and does not borrow another company's override", async () => {
+  it("scopes space enablement and does not borrow another space's override", async () => {
     const f = await fixture();
-    const [other] = await db.insert(companies).values({ name: "Other", issuePrefix: "OTH" }).returning();
-    await db.insert(pluginCompanySettings).values({ companyId: f.companyId, pluginId: f.pluginId, enabled: false });
-    await db.insert(pluginCompanySettings).values({ companyId: other.id, pluginId: f.pluginId, enabled: true });
+    const [other] = await db.insert(spaces).values({ name: "Other", issuePrefix: "OTH" }).returning();
+    await db.insert(pluginSpaceSettings).values({ spaceId: f.spaceId, pluginId: f.pluginId, enabled: false });
+    await db.insert(pluginSpaceSettings).values({ spaceId: other.id, pluginId: f.pluginId, enabled: true });
     const svc = projectService(db);
-    expect((await svc.create(f.companyId, { name: "Disabled here" })).executionWorkspacePolicy).toBeNull();
+    expect((await svc.create(f.spaceId, { name: "Disabled here" })).executionWorkspacePolicy).toBeNull();
     expect((await svc.create(other.id, { name: "Enabled here", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: f.pluginId } })).executionWorkspacePolicy).toMatchObject({ storageProviderPluginId: f.pluginId });
-    await expect(effectiveProjectWorkspacePolicy(db, f.companyId, { enabled: true, storageProviderPluginId: f.pluginId }, true))
+    await expect(effectiveProjectWorkspacePolicy(db, f.spaceId, { enabled: true, storageProviderPluginId: f.pluginId }, true))
       .rejects.toThrow("unavailable");
   });
 
   it.each(["error", "installed", "upgrade_pending", "ready"] as const)("retains the selected %s provider when its worker is unavailable", async status => {
     const f = await fixture();
     await db.update(plugins).set({ status }).where(eq(plugins.id, f.pluginId));
-    expect(await effectiveProjectWorkspacePolicy(db, f.companyId, { enabled: true, storageProviderPluginId: f.pluginId }, true)).toMatchObject({ storageProviderPluginId: f.pluginId });
+    expect(await effectiveProjectWorkspacePolicy(db, f.spaceId, { enabled: true, storageProviderPluginId: f.pluginId }, true)).toMatchObject({ storageProviderPluginId: f.pluginId });
     await expect(preparePluginWorkspace(db, undefined, f.input)).rejects.toThrow("unavailable");
     expect(await db.select().from(executionWorkspaces)).toHaveLength(0);
   });
 
   it("never falls back when the attached provider is disabled during preparation", async () => {
     const f = await fixture();
-    const policy = await effectiveProjectWorkspacePolicy(db, f.companyId, { enabled: true, storageProviderPluginId: f.pluginId }, true);
-    await db.insert(pluginCompanySettings).values({ companyId: f.companyId, pluginId: f.pluginId, enabled: false });
+    const policy = await effectiveProjectWorkspacePolicy(db, f.spaceId, { enabled: true, storageProviderPluginId: f.pluginId }, true);
+    await db.insert(pluginSpaceSettings).values({ spaceId: f.spaceId, pluginId: f.pluginId, enabled: false });
     await expect(preparePluginWorkspace(db, f.workers, { ...f.input, selectedProviderPluginId: policy!.storageProviderPluginId }))
       .rejects.toThrow("unavailable");
     expect(await db.select().from(executionWorkspaces)).toHaveLength(0);
@@ -183,12 +183,12 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
 
   it("ignores conflicting storage default claims without a matching environment and preserves explicit choices", async () => {
     const f = await fixture();
-    const other = await createPluginWorkspaceFixture(db, f.companyId);
+    const other = await createPluginWorkspaceFixture(db, f.spaceId);
     const [plugin] = await db.select().from(plugins).where(eq(plugins.id, f.pluginId));
     await db.update(plugins).set({ manifestJson: { ...plugin.manifestJson, id: `test.${other.pluginId}` } }).where(eq(plugins.id, other.pluginId));
     const svc = projectService(db);
-    expect((await svc.create(f.companyId, { name: "Core" })).workspaceProvider).toMatchObject({ pluginId: null, error: null });
-    expect((await svc.create(f.companyId, { name: "Chosen", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: f.pluginId } })).workspaceProvider)
+    expect((await svc.create(f.spaceId, { name: "Core" })).workspaceProvider).toMatchObject({ pluginId: null, error: null });
+    expect((await svc.create(f.spaceId, { name: "Chosen", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: f.pluginId } })).workspaceProvider)
       .toMatchObject({ pluginId: f.pluginId, error: null });
     expect((await svc.getById(f.input.projectId))!.workspaceProvider).toMatchObject({ pluginId: f.pluginId, error: null });
   });
@@ -199,7 +199,7 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
     { enabled: true, workspaceStrategy: { type: "project_primary" } },
   ])("rejects incompatible explicit settings: %j", async policy => {
     const f = await fixture();
-    await expect(effectiveProjectWorkspacePolicy(db, f.companyId, { ...policy, storageProviderPluginId: f.pluginId }, true)).rejects.toThrow("explicit project workspace settings");
+    await expect(effectiveProjectWorkspacePolicy(db, f.spaceId, { ...policy, storageProviderPluginId: f.pluginId }, true)).rejects.toThrow("explicit project workspace settings");
   });
 
   it("ignores saved storage for a project with no source", () => {
@@ -215,8 +215,8 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
   it("preserves compatible explicit fields while supplying only missing defaults", async () => {
     const f = await fixture();
     const policy = { enabled: true, defaultMode: "operator_branch", storageProviderPluginId: f.pluginId, workspaceStrategy: { type: "git_worktree", baseRef: "release", branchTemplate: "kept" } };
-    expect(await effectiveProjectWorkspacePolicy(db, f.companyId, policy, true)).toEqual(policy);
-    expect(await effectiveProjectWorkspacePolicy(db, f.companyId, { enabled: true, storageProviderPluginId: f.pluginId }, false)).toEqual({ enabled: true, storageProviderPluginId: f.pluginId });
+    expect(await effectiveProjectWorkspacePolicy(db, f.spaceId, policy, true)).toEqual(policy);
+    expect(await effectiveProjectWorkspacePolicy(db, f.spaceId, { enabled: true, storageProviderPluginId: f.pluginId }, false)).toEqual({ enabled: true, storageProviderPluginId: f.pluginId });
   });
 
   it("retains both plugin and local workspace ownership when defaults change", async () => {
@@ -226,18 +226,18 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
     expect(await preparePluginWorkspace(db, f.workers, { ...f.input, existingWorkspaceId: workspace!.id })).toMatchObject({ id: workspace!.id });
     await db.update(plugins).set({ status: "error" }).where(eq(plugins.id, f.pluginId));
     await expect(preparePluginWorkspace(db, f.workers, { ...f.input, existingWorkspaceId: workspace!.id })).rejects.toThrow("unavailable");
-    const [local] = await db.insert(executionWorkspaces).values({ companyId: f.companyId, projectId: f.input.projectId,
+    const [local] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, projectId: f.input.projectId,
       projectWorkspaceId: f.input.projectWorkspaceId, mode: "shared_workspace", strategyType: "project_primary", name: "Retained local", providerType: "local_fs", cwd: "/fixture/kept" }).returning();
     await db.update(projects).set({ executionWorkspacePolicy: null }).where(eq(projects.id, f.input.projectId));
     expect(await preparePluginWorkspace(db, f.workers, { ...f.input, existingWorkspaceId: local.id })).toBeNull();
     expect((await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, local.id)))[0]).toEqual(local);
   });
 
-  it("exposes attachment through the normal API with company access checks", async () => {
+  it("exposes attachment through the normal API with space access checks", async () => {
     const f = await fixture();
     const app = express();
     app.use(express.json());
-    app.use((req, _res, next) => { req.actor = { type: "board", source: "local_implicit", isInstanceAdmin: true }; next(); });
+    app.use((req, _res, next) => { req.actor = { type: "operator", source: "local_implicit", isInstanceAdmin: true }; next(); });
     app.use("/api", projectRoutes(db));
     app.use(errorHandler);
     const url = `/api/projects/${f.input.projectId}`;
@@ -248,7 +248,7 @@ describe.skipIf(!support.supported)("installed project workspace defaults", () =
     expect(kept.status).toBe(200);
     expect(kept.body.executionWorkspacePolicy).toMatchObject({ storageProviderPluginId: f.pluginId });
     const denied = express();
-    denied.use((req, _res, next) => { req.actor = { type: "agent", agentId: f.input.agentId, companyId: "00000000-0000-4000-8000-000000000099" }; next(); });
+    denied.use((req, _res, next) => { req.actor = { type: "agent", agentId: f.input.agentId, spaceId: "00000000-0000-4000-8000-000000000099" }; next(); });
     denied.use("/api", projectRoutes(db)); denied.use(errorHandler);
     expect((await request(denied).get(url)).status).toBe(404);
   });

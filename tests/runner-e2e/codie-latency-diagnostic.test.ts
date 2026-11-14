@@ -18,7 +18,7 @@ describe("explicit native latency diagnostic", () => {
   });
   it("declares the authentication and staging-fidelity limits", () => {
     expect(runnerSuites.find(suite => suite.id === suiteId)?.definitionMetadata).toMatchObject({
-      diagnostic: true, providerAuth: "api_key", stagingAuth: "subscription", companyData: "fresh-fixture", slackDelivery: false, maximumAutomaticRetries: 0,
+      diagnostic: true, providerAuth: "api_key", stagingAuth: "subscription", spaceData: "fresh-fixture", slackDelivery: false, maximumAutomaticRetries: 0,
     });
   });
 });

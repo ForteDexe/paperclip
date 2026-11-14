@@ -20,7 +20,7 @@ describe("task voice connection failures", () => {
   });
   afterEach(async () => { await act(async () => root.unmount()); client.clear(); container.remove(); });
   async function render(bound = false, active?: boolean) {
-    await act(async () => root.render(<QueryClientProvider client={client}><VoiceCallContext.Provider value={active === undefined ? null : { active, open: vi.fn() }}><TaskVoiceLauncher companyId="company" issueId="issue" agentId={spekoEndpoint.assignedAgentId} boundEndpointId={bound ? spekoEndpoint.id : undefined} /></VoiceCallContext.Provider></QueryClientProvider>));
+    await act(async () => root.render(<QueryClientProvider client={client}><VoiceCallContext.Provider value={active === undefined ? null : { active, open: vi.fn() }}><TaskVoiceLauncher spaceId="space" issueId="issue" agentId={spekoEndpoint.assignedAgentId} boundEndpointId={bound ? spekoEndpoint.id : undefined} /></VoiceCallContext.Provider></QueryClientProvider>));
   }
   it.each([false, true])("shows a retryable request failure for bound=%s instead of a missing connection", async bound => {
     mocks.list.mockRejectedValueOnce(new Error("Offline")).mockResolvedValue([spekoEndpoint]); await render(bound);
@@ -52,11 +52,11 @@ describe("task voice connection failures", () => {
     mocks.list.mockResolvedValue([spekoEndpoint]); await render(true);
     await vi.waitFor(() => expect(container.textContent).toContain(`Talk to ${spekoEndpoint.assignedAgentName}`));
     mocks.list.mockResolvedValue([{...spekoEndpoint, status: "paused"}]);
-    await act(async () => { await client.invalidateQueries({queryKey: queryKeys.chatEndpoints.list("company")}); });
+    await act(async () => { await client.invalidateQueries({queryKey: queryKeys.chatEndpoints.list("space")}); });
     await vi.waitFor(() => expect(container.textContent).toContain("Voice is unavailable"));
     expect(container.textContent).not.toContain(`Talk to ${spekoEndpoint.assignedAgentName}`);
     mocks.list.mockResolvedValue([spekoEndpoint]);
-    await act(async () => { await client.invalidateQueries({queryKey: queryKeys.chatEndpoints.list("company")}); });
+    await act(async () => { await client.invalidateQueries({queryKey: queryKeys.chatEndpoints.list("space")}); });
     await vi.waitFor(() => expect(container.textContent).toContain(`Talk to ${spekoEndpoint.assignedAgentName}`));
   });
   it("keeps active controls mounted when a background connection refresh fails", async () => {
@@ -65,7 +65,7 @@ describe("task voice connection failures", () => {
     await act(async () => container.querySelector('button')!.click());
     expect(container.textContent).toContain("Active voice controls");
     mocks.list.mockRejectedValue(new Error("Offline"));
-    await act(async () => { await client.refetchQueries({queryKey: queryKeys.chatEndpoints.list("company")}); });
+    await act(async () => { await client.refetchQueries({queryKey: queryKeys.chatEndpoints.list("space")}); });
     await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull());
     expect(container.textContent).toContain("Active voice controls");
   });

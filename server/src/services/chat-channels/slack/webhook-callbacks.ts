@@ -79,9 +79,9 @@ export function createSlackWebhookCallbacks(db: Db, options: SlackWebhookOptions
           && slackCallbackMatchesPublicUrl(callback.url, `${getWebhookPublicBaseUrl()}/api/chat-webhooks/${current.publicId}/slack`)) {
           const payload = JSON.parse(eventBody) as { type?: string; team_id?: string; api_app_id?: string; event_id?: string; event?: { type?: string } };
           const [registration] = await tx.select().from(chatSlackRegistrations)
-            .where(and(eq(chatSlackRegistrations.endpointId, current.id), eq(chatSlackRegistrations.companyId, current.companyId)));
+            .where(and(eq(chatSlackRegistrations.endpointId, current.id), eq(chatSlackRegistrations.spaceId, current.spaceId)));
           const [connection] = await tx.select({ status: toolConnections.status, enabled: toolConnections.enabled }).from(toolConnections)
-            .where(and(eq(toolConnections.id, current.connectionId), eq(toolConnections.companyId, current.companyId)));
+            .where(and(eq(toolConnections.id, current.connectionId), eq(toolConnections.spaceId, current.spaceId)));
           if (connection?.status === "active" && connection.enabled && registration?.status === "configured"
             && registration.workspaceId === current.providerAccountId && registration.botUserId === current.botExternalId
             && payload.type === "event_callback" && typeof payload.event_id === "string" && payload.event_id.length > 0
@@ -121,7 +121,7 @@ export function createSlackWebhookCallbacks(db: Db, options: SlackWebhookOptions
           })
           .where(eq(chatEndpoints.id, endpoint.id));
         if (connectionProved) await logActivity(tx as unknown as Db, {
-          companyId: current.companyId, actorType: "system", actorId: "slack-webhook",
+          spaceId: current.spaceId, actorType: "system", actorId: "slack-webhook",
           action: "chat_endpoint.webhook_verified", entityType: "tool_connection", entityId: current.connectionId,
           details: { endpointId: current.id, provider: "slack", evidence: "authenticated_event" },
         });

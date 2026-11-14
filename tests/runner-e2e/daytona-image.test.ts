@@ -45,7 +45,7 @@ describe("runner E2E Daytona image contract", () => {
 
   it("invalidates the image content ID when a release attestation input changes", async () => {
     const manifestPath = "packages/outpost-runner/acpx-profiles.json";
-    const root = await mkdtemp(path.join(tmpdir(), "paperclip-daytona-attestation-"));
+    const root = await mkdtemp(path.join(tmpdir(), "outpost-daytona-attestation-"));
     const options = {
       repositoryRoot: root,
       inputPaths: DAYTONA_IMAGE_INPUT_PATHS.filter(inputPath => inputPath === manifestPath),
@@ -77,7 +77,7 @@ describe("runner E2E Daytona image contract", () => {
       "packages/outpost-runner/scripts/patch-antigravity-runtime.mjs",
       "packages/outpost-runner/scripts/patch-antigravity-runtime.admission.py",
     ];
-    const root = await mkdtemp(path.join(tmpdir(), "paperclip-daytona-builder-inputs-"));
+    const root = await mkdtemp(path.join(tmpdir(), "outpost-daytona-builder-inputs-"));
     const options = {
       repositoryRoot: root,
       inputPaths: DAYTONA_IMAGE_INPUT_PATHS.filter(input => required.includes(input)),
@@ -117,7 +117,7 @@ describe("runner E2E Daytona image contract", () => {
     expect(JSON.parse(runnerPackage).dependencies).not.toHaveProperty("@outpost/grok-acp");
     expect(packBuilder).toContain('path: "dist/providers/grok/launcher.cjs"');
     expect(dockerfile).toContain("scripts/provision-grok.mjs");
-    expect(dockerfile).toContain("/opt/paperclip/providers/grok/1.0.13/grok");
+    expect(dockerfile).toContain("/opt/outpost/providers/grok/1.0.13/grok");
     expect(DAYTONA_IMAGE_INPUT_PATHS).toContain("packages/outpost-runner/scripts/provision-grok.mjs");
     expect(DAYTONA_IMAGE_INPUT_PATHS).not.toContain("packages/grok-acp/package.json");
   });
@@ -388,7 +388,7 @@ describe("runner E2E Daytona image contract", () => {
 
   it("changes for runtime source, package, lockfile, Dockerfile, frontend, base, or platform inputs", async () => {
     const root = await mkdtemp(
-      path.join(tmpdir(), "paperclip-daytona-image-id-"),
+      path.join(tmpdir(), "outpost-daytona-image-id-"),
     );
     const inputPaths = [
       "docker/daytona-runner/Dockerfile",
@@ -518,7 +518,7 @@ describe("runner E2E Daytona image contract", () => {
     "packages/outpost-runner/scripts/kimi-distribution/package.json",
     "packages/outpost-runner/scripts/kimi-distribution/package-lock.json",
   ])("invalidates the image when %s changes", async (patchPath) => {
-    const root = await mkdtemp(path.join(tmpdir(), "paperclip-provider-image-id-"));
+    const root = await mkdtemp(path.join(tmpdir(), "outpost-provider-image-id-"));
     expect(DAYTONA_IMAGE_INPUT_PATHS.some(inputPath => patchPath === inputPath || patchPath.startsWith(`${inputPath}/`))).toBe(true);
     const options = {
       repositoryRoot: root,
@@ -540,7 +540,7 @@ describe("runner E2E Daytona image contract", () => {
 
   it("reuses the image for runner-only tests and documentation", async () => {
     const root = await mkdtemp(
-      path.join(tmpdir(), "paperclip-daytona-runner-development-inputs-"),
+      path.join(tmpdir(), "outpost-daytona-runner-development-inputs-"),
     );
     const options = {
       repositoryRoot: root,

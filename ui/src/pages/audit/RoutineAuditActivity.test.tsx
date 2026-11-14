@@ -15,10 +15,10 @@ vi.mock("@/api/routines", () => ({
     get: (routineId: string) => getRoutineMock(routineId),
     listRuns: (routineId: string, limit?: number) => listRoutineRunsMock(routineId, limit),
     activity: (
-      companyId: string,
+      spaceId: string,
       routineId: string,
       scope: { triggerIds: string[]; runIds: string[] },
-    ) => routineActivityMock(companyId, routineId, scope),
+    ) => routineActivityMock(spaceId, routineId, scope),
   },
 }));
 
@@ -62,7 +62,7 @@ describe("RoutineAuditActivity", () => {
     flushSync(() => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <RoutineAuditActivity companyId="company-1" routineId="routine-1" />
+          <RoutineAuditActivity spaceId="space-1" routineId="routine-1" />
         </QueryClientProvider>,
       );
     });
@@ -70,7 +70,7 @@ describe("RoutineAuditActivity", () => {
 
     expect(getRoutineMock).toHaveBeenCalledWith("routine-1");
     expect(listRoutineRunsMock).toHaveBeenCalledWith("routine-1", 200);
-    expect(routineActivityMock).toHaveBeenCalledWith("company-1", "routine-1", {
+    expect(routineActivityMock).toHaveBeenCalledWith("space-1", "routine-1", {
       triggerIds: ["trigger-1", "trigger-2"],
       runIds: ["run-1", "run-2"],
     });

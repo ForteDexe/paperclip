@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, applyPendingMigrations, environmentLeases, environments, heartbeatRuns, issues, plugins, projects, sandboxCreationOperations } from "@outpost/db";
+import { agents, spaces, createDb, applyPendingMigrations, environmentLeases, environments, heartbeatRuns, issues, plugins, projects, sandboxCreationOperations } from "@outpost/db";
 import { environmentRuntimeService } from "../services/environment-runtime.js";
 import { environmentService } from "../services/environments.js";
 import { recordSandboxCreationResource } from "../services/sandbox-creation-operations.js";
@@ -20,17 +20,17 @@ const support=external ? {supported:true} : await getEmbeddedPostgresTestSupport
  beforeAll(async()=>{if(external){await applyPendingMigrations(external);db=createDb(external);stop=()=>db.$client.end({timeout:1});return;}const started=await startEmbeddedPostgresTestDatabase("plugin-warm-tasks");db=createDb(started.connectionString);stop=started.cleanup;});
  afterAll(async()=>{await stop?.();});
  async function fixture(initialProjects:string[]=[],initialExpiry?:string,deadline?:Date){
-  const companyId=randomUUID(),agentId=randomUUID(),issueId=randomUUID(),environmentId=randomUUID(),pluginId=randomUUID();
+  const spaceId=randomUUID(),agentId=randomUUID(),issueId=randomUUID(),environmentId=randomUUID(),pluginId=randomUUID();
   let runId=randomUUID(),allocation=0,stopped=false,outage=false,releaseFails=false,unavailable=false;
   const calls:string[]=[],dispatched:Array<[string,string]>=[],failures=new Set<string>();
   let projectIds=[...initialProjects],providerExpiry=initialExpiry;
   const taskExpiries=new Map<string,string|undefined>(),acquireRequests:any[]=[];
   let resumeGate:Promise<void>|undefined,releaseResume:(()=>void)|undefined,resumes=0;
-  await db.insert(companies).values({id:companyId,name:"Warm fixture",issuePrefix:`W${companyId.slice(0,7)}`});
-  for(const id of initialProjects) await db.insert(projects).values({id,companyId,name:"Authorized project"});
-  await db.insert(agents).values({id:agentId,companyId,name:"Codex",adapterType:"outpost_runner"});
-  await db.insert(issues).values({id:issueId,companyId,title:"Warm task",status:"in_progress",assigneeAgentId:agentId});
-  await db.insert(heartbeatRuns).values({id:runId,companyId,agentId,nativeIssueId:issueId,invocationSource:"manual",status:"running"});
+  await db.insert(spaces).values({id:spaceId,name:"Warm fixture",issuePrefix:`W${spaceId.slice(0,7)}`});
+  for(const id of initialProjects) await db.insert(projects).values({id,spaceId,name:"Authorized project"});
+  await db.insert(agents).values({id:agentId,spaceId,name:"Codex",adapterType:"outpost_runner"});
+  await db.insert(issues).values({id:issueId,spaceId,title:"Warm task",status:"in_progress",assigneeAgentId:agentId});
+  await db.insert(heartbeatRuns).values({id:runId,spaceId,agentId,nativeIssueId:issueId,invocationSource:"manual",status:"running"});
   const [environment]=await db.insert(environments).values({id:environmentId,name:environmentId,driver:"plugin",status:"active",
    config:{pluginKey:pluginId,driverKey:"tasks",driverConfig:{},runnerLifecycleMode:"warm",runnerIdleTimeoutMs:300000}}).returning();
   await db.insert(plugins).values({id:pluginId,pluginKey:pluginId,packageName:"fixture-warm",version:"1.0.0",status:"ready",manifestJson:{
@@ -57,19 +57,19 @@ const support=external ? {supported:true} : await getEmbeddedPostgresTestSupport
     return {kind:"accepted",taskId:p.taskId};
    }} as unknown as PluginWorkerManager;
   const runtime=(orphanCleanupSpoolDir?:string)=>environmentRuntimeService(db,{pluginWorkerManager:workers,orphanCleanupSpoolDir});
-  const acquire=()=>runtime().acquireRunLease({companyId,environment:environment as never,issueId,agentId,heartbeatRunId:runId,persistedExecutionWorkspace:null,adapterType:"outpost_runner",runnerTaskProjectIds:projectIds,requestedExpiresAt:deadline});
+  const acquire=()=>runtime().acquireRunLease({spaceId,environment:environment as never,issueId,agentId,heartbeatRunId:runId,persistedExecutionWorkspace:null,adapterType:"outpost_runner",runnerTaskProjectIds:projectIds,requestedExpiresAt:deadline});
   const first=await acquire();
   const identity={runnerInstanceId:"runner",environmentLeaseId:first.lease.id,runId,normalizedSessionId:"session",turnId:"turn",itemId:"item"};
-  await runtime().task({companyId,leaseId:first.lease.id,operation:{kind:"check_project_auth",configurationId:"configuration",provider:"openai",projectIds:initialProjects}});
-  await runtime().task({companyId,leaseId:first.lease.id,operation:{kind:"submit",preparedLaunchId:"configuration",projectIds:initialProjects,bootstrapTicket:"synthetic",accountIdentity:"account",
+  await runtime().task({spaceId,leaseId:first.lease.id,operation:{kind:"check_project_auth",configurationId:"configuration",provider:"openai",projectIds:initialProjects}});
+  await runtime().task({spaceId,leaseId:first.lease.id,operation:{kind:"submit",preparedLaunchId:"configuration",projectIds:initialProjects,bootstrapTicket:"synthetic",accountIdentity:"account",
    runner:{harness:"codex",protocolMin:1,protocolMax:3,runnerId:identity.runnerInstanceId,leaseId:identity.environmentLeaseId,runId,sessionId:identity.normalizedSessionId,turnId:identity.turnId,itemId:identity.itemId},
    launch:{runnerVersion:"fixture",runnerDigest:`sha256:${"a".repeat(64)}`,maxOutboxBytes:262144,p0ReserveBytes:65536,lifecyclePolicy:{mode:"warm",idleTimeoutMs:300000}}}});
   await runtime().releaseRunLeases(runId,"released",undefined,"keep_running");
   await db.update(heartbeatRuns).set({status:"succeeded"}).where(eq(heartbeatRuns.id,runId));
-  return {companyId,first,identity,calls,dispatched,runtime,acquire,acquireRequests,
+  return {spaceId,first,identity,calls,dispatched,runtime,acquire,acquireRequests,
    fail(kind:string){failures.add(kind);},unavailable(){unavailable=true;},
    setExpiry(next?:string){providerExpiry=next;},
-   async nextRun(){runId=randomUUID();await db.insert(heartbeatRuns).values({id:runId,companyId,agentId,nativeIssueId:issueId,invocationSource:"manual",status:"running"});return runId;},
+   async nextRun(){runId=randomUUID();await db.insert(heartbeatRuns).values({id:runId,spaceId,agentId,nativeIssueId:issueId,invocationSource:"manual",status:"running"});return runId;},
    setProjects(next:string[]){projectIds=next;},stopped(){stopped=true;},failRelease(){releaseFails=true;},outage(){outage=true;},
    raceResume(){resumeGate=new Promise<void>(resolve=>{releaseResume=resolve;});}};
  }
@@ -83,26 +83,26 @@ const support=external ? {supported:true} : await getEmbeddedPostgresTestSupport
   const identity={...f.identity,runId,turnId:"next-turn",itemId:"next-item"};
   const operation={kind:"prepare" as const,projectIds:[],priorIdentity:f.identity,accountIdentity:"account",requirements:{
    schema:"outpost.runner.launch-requirements.v1" as const,identity,provider:"codex" as const,model:null,instructions:"Current run",runtimeContext:null,settings:{},approvalPolicy:"never" as const,readOnly:false,preparedConversation:false,includeCollaborationModeInstructions:false}};
-  await expect(f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation:{kind:"read_state",identity:f.identity}})).resolves.toMatchObject({kind:"state"});
-  await expect(f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation})).resolves.toMatchObject({kind:"prepared"});
-  await expect(f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation})).resolves.toMatchObject({kind:"prepared"});
-  await expect(f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation:{...operation,priorIdentity:{...f.identity,itemId:"foreign"}}})).rejects.toThrow("prior identity mismatch");
-  await expect(f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation:{kind:"read_state",identity:f.identity}})).resolves.toMatchObject({kind:"state"});
-  await expect(f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation:{kind:"read_state",identity:{...f.identity,itemId:"foreign"}}})).rejects.toThrow("state identity mismatch");
+  await expect(f.runtime().task({spaceId:f.spaceId,leaseId:next.lease.id,operation:{kind:"read_state",identity:f.identity}})).resolves.toMatchObject({kind:"state"});
+  await expect(f.runtime().task({spaceId:f.spaceId,leaseId:next.lease.id,operation})).resolves.toMatchObject({kind:"prepared"});
+  await expect(f.runtime().task({spaceId:f.spaceId,leaseId:next.lease.id,operation})).resolves.toMatchObject({kind:"prepared"});
+  await expect(f.runtime().task({spaceId:f.spaceId,leaseId:next.lease.id,operation:{...operation,priorIdentity:{...f.identity,itemId:"foreign"}}})).rejects.toThrow("prior identity mismatch");
+  await expect(f.runtime().task({spaceId:f.spaceId,leaseId:next.lease.id,operation:{kind:"read_state",identity:f.identity}})).resolves.toMatchObject({kind:"state"});
+  await expect(f.runtime().task({spaceId:f.spaceId,leaseId:next.lease.id,operation:{kind:"read_state",identity:{...f.identity,itemId:"foreign"}}})).rejects.toThrow("state identity mismatch");
   expect(f.calls.filter(call=>call==="submit")).toHaveLength(1);
   const [old]=await db.select().from(environmentLeases).where(eq(environmentLeases.id,f.first.lease.id));
   expect(old.status).toBe("expired");
  });
  it("keeps successful warm state readable for retirement before and after lease handoff",async()=>{
   const f=await fixture();
-  const read=()=>f.runtime().task({companyId:f.companyId,leaseId:f.first.lease.id,operation:{kind:"read_state",identity:f.identity}});
+  const read=()=>f.runtime().task({spaceId:f.spaceId,leaseId:f.first.lease.id,operation:{kind:"read_state",identity:f.identity}});
   await expect(read()).resolves.toMatchObject({kind:"state"});
   await f.nextRun();await f.acquire();
   await expect(read()).resolves.toMatchObject({kind:"state"});
   const [prior]=await db.select().from(environmentLeases).where(eq(environmentLeases.id,f.first.lease.id));
   expect(prior.status).toBe("expired");
-  await expect(f.runtime().task({companyId:f.companyId,leaseId:f.first.lease.id,operation:{kind:"describe"}})).rejects.toThrow("not active");
-  await expect(f.runtime().task({companyId:f.companyId,leaseId:f.first.lease.id,operation:{kind:"read_state",identity:{...f.identity,itemId:"foreign"}}})).rejects.toThrow();
+  await expect(f.runtime().task({spaceId:f.spaceId,leaseId:f.first.lease.id,operation:{kind:"describe"}})).rejects.toThrow("not active");
+  await expect(f.runtime().task({spaceId:f.spaceId,leaseId:f.first.lease.id,operation:{kind:"read_state",identity:{...f.identity,itemId:"foreign"}}})).rejects.toThrow();
   expect(f.calls).not.toContain("stop");
   expect(f.calls.filter(call=>call==="submit")).toHaveLength(1);
  });
@@ -111,7 +111,7 @@ const support=external ? {supported:true} : await getEmbeddedPostgresTestSupport
   const next=await f.acquire();
   expect(next.lease.providerLeaseId).not.toBe(f.first.lease.providerLeaseId);
   expect(f.calls).toContain("complete");
-  await expect(resolvePluginTaskResume(db,{companyId:f.companyId,leaseId:next.lease.id,priorIdentity:f.identity})).resolves.toBe(f.first.lease.providerLeaseId);
+  await expect(resolvePluginTaskResume(db,{spaceId:f.spaceId,leaseId:next.lease.id,priorIdentity:f.identity})).resolves.toBe(f.first.lease.providerLeaseId);
  });
  it.each([false,true])("retires a stopped retained task with one status and complete after warm preparation (%s)",async prepared=>{
   const f=await fixture();f.stopped();await f.nextRun();
@@ -157,9 +157,9 @@ const support=external ? {supported:true} : await getEmbeddedPostgresTestSupport
  });
  it("replaces a task that stops after lease handoff before preparing the next run",async()=>{
   const f=await fixture();await f.nextRun();const next=await f.acquire();f.stopped();
-  const result=await f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation:{kind:"describe"}});
+  const result=await f.runtime().task({spaceId:f.spaceId,leaseId:next.lease.id,operation:{kind:"describe"}});
   expect(result.taskId).not.toBe(f.first.lease.providerLeaseId);
-  await expect(resolvePluginTaskResume(db,{companyId:f.companyId,leaseId:next.lease.id,priorIdentity:f.identity})).resolves.toBe(f.first.lease.providerLeaseId);
+  await expect(resolvePluginTaskResume(db,{spaceId:f.spaceId,leaseId:next.lease.id,priorIdentity:f.identity})).resolves.toBe(f.first.lease.providerLeaseId);
  });
 
  it.each(["ownership-lost","database-error"] as const)("retains a durable operation for an unattached replacement task: %s",async mode=>{
@@ -170,18 +170,18 @@ const support=external ? {supported:true} : await getEmbeddedPostgresTestSupport
     if new.provider_lease_id = 'task-2' then ${mode === "ownership-lost" ? "return null;" : "raise exception 'replacement write failed';"} end if; return new; end $$`));
   await db.execute(sql`create trigger reject_task_replacement before update on environment_leases for each row execute function reject_task_replacement()`);
   try {
-   await expect(runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation:{kind:"describe"}})).rejects.toThrow("reconcile the same task");
+   await expect(runtime().task({spaceId:f.spaceId,leaseId:next.lease.id,operation:{kind:"describe"}})).rejects.toThrow("reconcile the same task");
   } finally { await db.execute(sql`drop trigger reject_task_replacement on environment_leases`); }
   expect(f.calls).not.toContain("environmentReleaseLease");
   const [lease]=await db.select().from(environmentLeases).where(eq(environmentLeases.id,next.lease.id));
   expect(lease.providerLeaseId).toBe(next.lease.providerLeaseId);
-  const operations=await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.companyId,f.companyId));
+  const operations=await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.spaceId,f.spaceId));
   const pending=operations.filter(row=>row.state === "pending");
   expect(pending).toHaveLength(1);expect(pending[0].requestKey).toBe(next.lease.providerLeaseId);
   expect(pending[0].metadata.creationProviderLeaseId).toBe("task-2");expect(pending[0].config).toEqual({});
   expect(f.acquireRequests.at(-1)?.creationOperationId).toBe(pending[0].id);
   const creates=f.acquireRequests.length;
-  await expect(runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation:{kind:"describe"}})).rejects.toThrow("reconcile the same task");
+  await expect(runtime().task({spaceId:f.spaceId,leaseId:next.lease.id,operation:{kind:"describe"}})).rejects.toThrow("reconcile the same task");
   expect(f.acquireRequests).toHaveLength(creates);
   await db.update(sandboxCreationOperations).set({nextAttemptAt:new Date(0)}).where(eq(sandboxCreationOperations.id,pending[0].id));
   await runtime().flushDeferredOrphanCleanups();
@@ -202,36 +202,36 @@ const support=external ? {supported:true} : await getEmbeddedPostgresTestSupport
    return result;
   }) as typeof db.transaction);
   try {
-   await expect(f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation:{kind:"describe"}})).rejects.toThrow("reconcile the same task");
+   await expect(f.runtime().task({spaceId:f.spaceId,leaseId:next.lease.id,operation:{kind:"describe"}})).rejects.toThrow("reconcile the same task");
   } finally {response.mockRestore();}
   expect(lost).toBe(true);
-  const operations=await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.companyId,f.companyId));
+  const operations=await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.spaceId,f.spaceId));
   const replacement=operations.find(operation=>operation.requestKey === next.lease.providerLeaseId)!;
   expect(replacement).toMatchObject({state:"attached",leaseId:next.lease.id,metadata:{creationProviderLeaseId:"task-2"}});
-  const identity={id:replacement.id,companyId:f.companyId,environmentId:replacement.originalEnvironmentId,providerLeaseId:"task-2"};
+  const identity={id:replacement.id,spaceId:f.spaceId,environmentId:replacement.originalEnvironmentId,providerLeaseId:"task-2"};
   await recordSandboxCreationResource(db,identity);
   await expect(recordSandboxCreationResource(db,{...identity,providerLeaseId:"different-resource"})).rejects.toThrow("identity changed");
-  await expect(recordSandboxCreationResource(db,{...identity,companyId:randomUUID()})).rejects.toThrow("identity changed");
+  await expect(recordSandboxCreationResource(db,{...identity,spaceId:randomUUID()})).rejects.toThrow("identity changed");
   expect((await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.id,replacement.id)))[0])
    .toMatchObject({state:"attached",metadata:{creationProviderLeaseId:"task-2"}});
   const [saved]=await db.select().from(environmentLeases).where(eq(environmentLeases.id,next.lease.id));
   expect(saved).toMatchObject({providerLeaseId:"task-2",status:"active"});
   await db.update(sandboxCreationOperations).set({nextAttemptAt:new Date(0)}).where(eq(sandboxCreationOperations.id,replacement.id));
   await f.runtime().flushDeferredOrphanCleanups();
-  expect((await f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation:{kind:"describe"}})).taskId).toBe("task-2");
+  expect((await f.runtime().task({spaceId:f.spaceId,leaseId:next.lease.id,operation:{kind:"describe"}})).taskId).toBe("task-2");
   expect(f.acquireRequests).toHaveLength(2);expect(f.calls).not.toContain("environmentReleaseLease");
  });
 
  it.each(["added","removed"] as const)("retires retained mounts when an authorized project is %s after controller restart",async mode=>{
   const projectId=randomUUID(),f=await fixture(mode==="removed" ? [projectId] : []);
-  if(mode==="added") await db.insert(projects).values({id:projectId,companyId:f.companyId,name:"Added project"});
+  if(mode==="added") await db.insert(projects).values({id:projectId,spaceId:f.spaceId,name:"Added project"});
   f.setProjects(mode==="added" ? [projectId] : []);await f.nextRun();
   const next=await f.acquire();
   expect(next.lease.providerLeaseId).not.toBe(f.first.lease.providerLeaseId);
   expect(next.lease.metadata?.runnerTaskProjectIds).toEqual(mode==="added" ? [projectId] : []);
   expect(f.calls).toContain("stop");expect(f.calls).toContain("complete");
   expect(f.calls).not.toContain("environmentResumeLease");
-  await expect(resolvePluginTaskResume(db,{companyId:f.companyId,leaseId:next.lease.id,priorIdentity:f.identity})).resolves.toBe(f.first.lease.providerLeaseId);
+  await expect(resolvePluginTaskResume(db,{spaceId:f.spaceId,leaseId:next.lease.id,priorIdentity:f.identity})).resolves.toBe(f.first.lease.providerLeaseId);
  });
 
  it.each(["later","none","bounded","violating","missing-bounded","invalid","expired"] as const)("replaces task expiry without losing caller bounds: %s",async mode=>{
@@ -242,11 +242,11 @@ const support=external ? {supported:true} : await getEmbeddedPostgresTestSupport
   const expiry=mode === "invalid" ? "invalid-expiry" : mode === "expired" ? "2000-01-01T00:00:00.000Z" : mode === "none" || mode === "missing-bounded" ? undefined
    : mode === "violating" ? "2099-04-01T00:00:00.000Z" : "2099-02-01T00:00:00.000Z";
   f.setExpiry(expiry);
-  const replacing=f.runtime().task({companyId:f.companyId,leaseId:next.lease.id,operation:{kind:"describe"}});
+  const replacing=f.runtime().task({spaceId:f.spaceId,leaseId:next.lease.id,operation:{kind:"describe"}});
   if(["violating","missing-bounded","invalid","expired"].includes(mode)) {
    await expect(replacing).rejects.toThrow("reconcile the same task");
    expect(f.calls).not.toContain("environmentReleaseLease");
-   const operations=await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.companyId,f.companyId));
+   const operations=await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.spaceId,f.spaceId));
    expect(operations.filter(row=>row.state === "pending")).toHaveLength(1);
   } else {
    const description=await replacing;

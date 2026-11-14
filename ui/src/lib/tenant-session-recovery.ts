@@ -50,7 +50,7 @@ export function createTenantSessionRecoveryCoordinator(
       // Dot consent is intentionally public. Global settings/session probes can
       // receive an expected 401 here; reloading would repeat that probe forever
       // and prevent the public connection request from finishing. Leave those
-      // failures to their consumers while preserving recovery on board routes
+      // failures to their consumers while preserving recovery on operator routes
       // and for archived stacks.
       if (
         isTenantSessionRecoveryError(status, body)

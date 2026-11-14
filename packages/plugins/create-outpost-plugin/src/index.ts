@@ -100,7 +100,7 @@ function packLocalPackage(packagePath: string, outputDir: string): string {
   const packageName = packageJson.name ?? path.basename(packagePath);
   const packageVersion = packageJson.version ?? "0.0.0";
   const tarballFileName = `${packageName.replace(/^@/, "").replace("/", "-")}-${packageVersion}.tgz`;
-  const sdkBundleDir = path.join(outputDir, ".paperclip-sdk");
+  const sdkBundleDir = path.join(outputDir, ".outpost-sdk");
 
   fs.mkdirSync(sdkBundleDir, { recursive: true });
   execFileSync("pnpm", ["build"], { cwd: packagePath, stdio: "pipe" });
@@ -115,7 +115,7 @@ function packLocalPackage(packagePath: string, outputDir: string): string {
 }
 
 /**
- * Generate a complete Paperclip plugin starter project.
+ * Generate a complete Outpost plugin starter project.
  *
  * Output includes manifest/worker/UI entries, SDK harness tests, bundler presets,
  * and a local dev server script for hot-reload workflow.
@@ -166,16 +166,16 @@ export function scaffoldPluginProject(options: ScaffoldPluginOptions): string {
       build: "node ./esbuild.config.mjs",
       "build:rollup": "rollup -c",
       dev: "node ./esbuild.config.mjs --watch",
-      "dev:ui": "paperclip-plugin-dev-server --root . --ui-dir dist/ui --port 4177",
+      "dev:ui": "outpost-plugin-dev-server --root . --ui-dir dist/ui --port 4177",
       test: "vitest run --config ./vitest.config.ts",
       typecheck: "tsc --noEmit"
     },
-    paperclipPlugin: {
+    outpostPlugin: {
       manifest: "./dist/manifest.js",
       worker: "./dist/worker.js",
       ui: "./dist/ui/"
     },
-    keywords: ["paperclip", "plugin", category],
+    keywords: ["outpost", "plugin", category],
     author,
     license: "MIT",
     ...(packedSharedTarball
@@ -303,9 +303,9 @@ export default defineConfig({
   if (template === "environment") {
     writeFile(
       path.join(outputDir, "src", "manifest.ts"),
-      `import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
+      `import type { OutpostPluginManifestV1 } from "@outpost/plugin-sdk";
 
-const manifest: PaperclipPluginManifestV1 = {
+const manifest: OutpostPluginManifestV1 = {
   id: ${quote(manifestId)},
   apiVersion: 1,
   version: "0.1.0",
@@ -466,7 +466,7 @@ import plugin from "../src/worker.js";
 const ENV_ID = "env-test-1";
 const BASE_PARAMS = {
   driverKey: manifest.environmentDrivers![0].driverKey,
-  companyId: "co-1",
+  spaceId: "co-1",
   environmentId: ENV_ID,
   config: {},
 };
@@ -530,9 +530,9 @@ describe("environment plugin scaffold", () => {
   } else {
     writeFile(
       path.join(outputDir, "src", "manifest.ts"),
-      `import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
+      `import type { OutpostPluginManifestV1 } from "@outpost/plugin-sdk";
 
-const manifest: PaperclipPluginManifestV1 = {
+const manifest: OutpostPluginManifestV1 = {
   id: ${quote(manifestId)},
   apiVersion: 1,
   version: "0.1.0",
@@ -678,13 +678,13 @@ output and reloads the plugin worker. Local installs run trusted code from this
 folder on your machine.
 
 ${sdkDependency.startsWith("file:")
-  ? `This scaffold snapshots \`@outpost/plugin-sdk\` and \`@outpost/shared\` from a local Outpost checkout at:\n\n\`${toPosixPath(localSdkPath)}\`\n\nThe packed tarballs live in \`.paperclip-sdk/\` for local development. Before publishing this plugin, switch those dependencies to published package versions once they are available on npm.\n\n`
+  ? `This scaffold snapshots \`@outpost/plugin-sdk\` and \`@outpost/shared\` from a local Outpost checkout at:\n\n\`${toPosixPath(localSdkPath)}\`\n\nThe packed tarballs live in \`.outpost-sdk/\` for local development. Before publishing this plugin, switch those dependencies to published package versions once they are available on npm.\n\n`
   : ""}
 
 ## Install Into Outpost
 
 \`\`\`bash
-paperclipai plugin install ${shellQuote(toPosixPath(outputDir))}
+outpost plugin install ${shellQuote(toPosixPath(outputDir))}
 \`\`\`
 
 ## Build Options
@@ -694,7 +694,7 @@ paperclipai plugin install ${shellQuote(toPosixPath(outputDir))}
 `,
   );
 
-  writeFile(path.join(outputDir, ".gitignore"), "dist\nnode_modules\n.paperclip-sdk\n");
+  writeFile(path.join(outputDir, ".gitignore"), "dist\nnode_modules\n.outpost-sdk\n");
 
   return outputDir;
 }

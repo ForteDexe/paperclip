@@ -55,10 +55,10 @@ describe("tool app gallery URL matching", () => {
   });
 
   it("uses Notebook's canonical endpoint without per-instance configuration", () => {
-    const notebook = CONNECTABLE_APP_DEFINITIONS.find((app) => app.slug === "paperclip-notebook");
+    const notebook = CONNECTABLE_APP_DEFINITIONS.find((app) => app.slug === "outpost-notebook");
     expect(notebook?.availability?.available).toBe(true);
     expect(notebook?.methods[0]?.defaults?.serverUrl).toBe("https://notebook.outpost.app/mcp");
-    expect(getAppDefinitionForUrl("https://notebook.outpost.app/p/page-id")?.slug).toBe("paperclip-notebook");
+    expect(getAppDefinitionForUrl("https://notebook.outpost.app/p/page-id")?.slug).toBe("outpost-notebook");
   });
 
   it("offers region and custom model connections without claiming arbitrary URLs", () => {

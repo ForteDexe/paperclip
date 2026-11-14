@@ -20,7 +20,7 @@ const originIssue = ISSUES["issue-origin"]!;
 function mkDecision(overrides: Partial<Decision> = {}): Decision {
   return {
     id: "decision-1",
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     bundleId: null,
     originAgentId: "agent-gardener",
     originIssueId: "issue-origin",
@@ -91,7 +91,7 @@ const shared = {
 };
 
 const meta: Meta<typeof DecisionCard> = {
-  parameters: { paperclip: {
+  parameters: { outpost: {
       "capabilities": [
         "inbox-search/decisions"
       ],

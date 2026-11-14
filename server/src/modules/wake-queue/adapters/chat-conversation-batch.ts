@@ -8,10 +8,10 @@ import { withQueuedCommentIdsInWakePayload } from "../../../services/issue-queue
 // a conversation it does not record: the work-intent outbox saves unanswered
 // chat messages as a plain comment wake. These checks compare the
 // conversations of the messages themselves, so a batch never holds messages
-// of two conversations. Comments with no inbound chat link (board comments)
+// of two conversations. Comments with no inbound chat link (operator comments)
 // belong to no conversation and batch as before.
 
-const DEFERRED_WAKE_CONTEXT_KEY = "_paperclipWakeContext";
+const DEFERRED_WAKE_CONTEXT_KEY = "_outpostWakeContext";
 const CHAT_CONVERSATION_ID_KEY = "chatConversationId";
 
 function record(value: unknown): Record<string, unknown> {
@@ -24,11 +24,11 @@ const UUID_PATTERN = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{
  * messages is an inbound chat message of a conversation other than
  * `conversationId`.
  */
-export function deferredWakeHoldsNoOtherConversation(companyId: string, conversationId: string): SQL {
+export function deferredWakeHoldsNoOtherConversation(spaceId: string, conversationId: string): SQL {
   const ids = sql`${agentWakeupRequests.payload} -> ${DEFERRED_WAKE_CONTEXT_KEY}::text -> 'wakeCommentIds'`;
   return sql`not exists (
     select 1 from ${chatMessageLinks}
-    where ${chatMessageLinks.companyId} = ${companyId}
+    where ${chatMessageLinks.spaceId} = ${spaceId}
       and ${chatMessageLinks.direction} = 'inbound'
       and ${chatMessageLinks.conversationId}::text <> ${conversationId}
       and ${chatMessageLinks.commentId} = any(array(
@@ -42,7 +42,7 @@ export function deferredWakeHoldsNoOtherConversation(companyId: string, conversa
 /** The ids among `commentIds` that are inbound chat messages of a conversation other than `conversationId`. */
 export async function otherConversationCommentIds(
   tx: Db,
-  input: { companyId: string; conversationId: string; commentIds: string[] },
+  input: { spaceId: string; conversationId: string; commentIds: string[] },
 ): Promise<string[]> {
   const queryable = input.commentIds.filter((id) => isUuidLike(id));
   if (queryable.length === 0) return [];
@@ -50,7 +50,7 @@ export async function otherConversationCommentIds(
     .selectDistinct({ commentId: chatMessageLinks.commentId })
     .from(chatMessageLinks)
     .where(and(
-      eq(chatMessageLinks.companyId, input.companyId),
+      eq(chatMessageLinks.spaceId, input.spaceId),
       eq(chatMessageLinks.direction, "inbound"),
       inArray(chatMessageLinks.commentId, queryable),
       ne(sql`${chatMessageLinks.conversationId}::text`, input.conversationId),
@@ -72,15 +72,15 @@ export async function otherConversationCommentIds(
 export async function splitOtherConversationMessages(
   tx: Db,
   row: typeof agentWakeupRequests.$inferSelect,
-  input: { companyId: string; issueId: string; conversationId: string; queuedCommentIds: string[]; payload: Record<string, unknown> },
+  input: { spaceId: string; issueId: string; conversationId: string; queuedCommentIds: string[]; payload: Record<string, unknown> },
 ): Promise<boolean> {
   const moved = await otherConversationCommentIds(tx, {
-    companyId: input.companyId, conversationId: input.conversationId, commentIds: input.queuedCommentIds,
+    spaceId: input.spaceId, conversationId: input.conversationId, commentIds: input.queuedCommentIds,
   });
   if (moved.length === 0) return false;
   const kept = input.queuedCommentIds.filter((id) => !moved.includes(id));
   const now = new Date();
-  const deferred = and(eq(agentWakeupRequests.companyId, input.companyId), eq(agentWakeupRequests.id, row.id),
+  const deferred = and(eq(agentWakeupRequests.spaceId, input.spaceId), eq(agentWakeupRequests.id, row.id),
     eq(agentWakeupRequests.status, "deferred_issue_execution"));
   if (kept.length === 0) {
     // Every message belongs to another conversation. Keep the wake and its id
@@ -101,7 +101,7 @@ export async function splitOtherConversationMessages(
   if (updated.length === 0) return true;
   const latest = moved.at(-1)!;
   await tx.insert(agentWakeupRequests).values({
-    companyId: input.companyId, agentId: row.agentId, source: "automation", triggerDetail: "system",
+    spaceId: input.spaceId, agentId: row.agentId, source: "automation", triggerDetail: "system",
     reason: "issue_commented", status: "deferred_issue_execution",
     requestedByActorType: row.requestedByActorType, requestedByActorId: row.requestedByActorId,
     requestedAt: new Date(row.requestedAt.getTime() - 1), updatedAt: now,

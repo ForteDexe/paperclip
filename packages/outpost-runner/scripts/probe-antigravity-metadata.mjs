@@ -159,7 +159,7 @@ function safeMetadata(result, distribution) {
   if (result.agentInfo.version !== distribution.version) throw new Error("antigravity_initialize_version_mismatch");
   if (!plainObject(result.agentCapabilities) || !Array.isArray(result.authMethods)) throw new Error("antigravity_malformed_initialize_capabilities");
   const capabilities = result.agentCapabilities;
-  if (distribution.patchVersion && capabilities._meta?.antigravity?.paperclipAdmission !== 1) throw new Error("antigravity_native_admission_patch_not_advertised");
+  if (distribution.patchVersion && capabilities._meta?.antigravity?.outpostAdmission !== 1) throw new Error("antigravity_native_admission_patch_not_advertised");
   const flag = (object, key) => plainObject(object) && object[key] === true;
   const present = (object, key) => plainObject(object) && Object.hasOwn(object, key) && plainObject(object[key]);
   return {
@@ -173,7 +173,7 @@ function safeMetadata(result, distribution) {
       mcpCapabilities: Object.fromEntries(["http", "sse"].map(key => [key, flag(capabilities.mcpCapabilities, key)])),
       sessionCapabilities: Object.fromEntries(["list", "resume"].map(key => [key, present(capabilities.sessionCapabilities, key)])),
       logout: present(capabilities.auth, "logout"),
-      antigravity: { tier: flag(capabilities._meta?.antigravity, "tier"), systemPromptAppend: flag(capabilities._meta?.antigravity?.systemPrompt, "append"), paperclipAdmission: 1 },
+      antigravity: { tier: flag(capabilities._meta?.antigravity, "tier"), systemPromptAppend: flag(capabilities._meta?.antigravity?.systemPrompt, "append"), outpostAdmission: 1 },
     },
     authMethodIds: AUTH_METHOD_IDS.filter(id => result.authMethods.some(method => plainObject(method) && method.id === id)),
     requestsSent: ["initialize"], authenticateRequestsSent: 0, sessionRequestsSent: 0, promptRequestsSent: 0,
@@ -187,7 +187,7 @@ export async function probeAntigravityMetadata(options = {}) {
   const distribution = await antigravityDistribution(options.platform, options.architecture);
   const runtimeDirectory = antigravityRuntimeCachePath(distribution.closureSha256, distribution.platform, distribution.architecture, options.home);
   await verifyAntigravityDistribution(runtimeDirectory, distribution);
-  const root = await mkdtemp(join(tmpdir(), "paperclip-antigravity-metadata-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-antigravity-metadata-"));
   let child, rpc, result, shutdown, failure, cleanupFailure;
   try {
     const env = antigravityMetadataEnvironment(root, runtimeDirectory);

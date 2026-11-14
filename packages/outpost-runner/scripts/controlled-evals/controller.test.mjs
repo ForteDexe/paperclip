@@ -450,7 +450,7 @@ test('campaign collection retains and audits private archives, while public proj
   await rm(f.manifest.outputDirectory, { recursive: true });
   const input = { catalogPath, downloadsRoot: join(f.root, 'downloads'), evalsRoot: f.root,
     runsOut: join(f.root, 'collected'), campaignOut: join(f.root, 'campaign.json'),
-    source: { paperclip: { sha: f.manifest.sourceRevision }, evals: { sha: f.manifest.definitionsRevision } },
+    source: { outpost: { sha: f.manifest.sourceRevision }, evals: { sha: f.manifest.definitionsRevision } },
     controllerArchiveCli: process.env.OUTPOST_CONTROLLER_TEST_RUNTIME ? join(process.env.OUTPOST_CONTROLLER_TEST_RUNTIME, 'archive.mjs') : undefined };
   const result = await aggregateProtocolEvalCampaign(input);
   assert.equal(result.controlledCosts.knownUsd, '0.000068000');
@@ -695,7 +695,7 @@ test('hosted context requires a manifest identity and rejects invalid or later-a
   }
   const hosted = { repository: 'paperclipai/paperclip', runId: '12345', runAttempt: 1, workflowRevision: 'c'.repeat(40) };
   f.manifest.campaignId = 'gha-12345-1';
-  for (const change of [{ repository: '' }, { repository: 'paperclip' }, { runId: 12345 }, { runId: '012345' },
+  for (const change of [{ repository: '' }, { repository: 'outpost' }, { runId: 12345 }, { runId: '012345' },
     { runAttempt: 2 }, { workflowRevision: 'master' }, { workflowRevision: ['c'.repeat(40)] }, { unexpected: true }]) {
     f.manifest.hosted = { ...hosted, ...change };
     assert.throws(() => validateManifest(f.manifest), /hosted controller identity|controller fields/);

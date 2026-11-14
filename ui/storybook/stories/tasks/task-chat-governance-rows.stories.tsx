@@ -281,7 +281,7 @@ const meta = {
           "Auto-review decisions and hook outcomes as small grey activity rows. Built from canonical `safety.review.*` and `hook.*` provider events.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "tasks/discussion",
         "runs-adapters/runs"

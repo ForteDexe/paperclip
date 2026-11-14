@@ -2,10 +2,10 @@
 name: prepare-mcp-integration
 description: >
   Prepare MCP/vendor integrations through cited research, a content PR,
-  exact-revision human approval, and one governed Outpost connector PR per
+  exact-revision human approval, and one controlled Outpost connector PR per
   approved connection. Use for new integration research and delivery; not for
   ad hoc connector coding that bypasses the playbooks.
-key: paperclipai/optional/software-development/prepare-mcp-integration
+key: outpost/optional/software-development/prepare-mcp-integration
 recommendedForRoles:
   - engineer
   - product-manager
@@ -26,16 +26,16 @@ requires:
 # Prepare MCP Integration
 
 Take an input link or vendor brief through two separate phases: a reviewable
-research PR in `paperclip-content`, then connector implementation in Outpost
+research PR in `outpost-content`, then connector implementation in Outpost
 App only after a human accepts the exact research revision and connection set.
 
 ## Preserve These Boundaries
 
-- Treat `paperclip-content/integrations/README.md` as the research contract and
-  `paperclip-content/integrations/skills/integration-harness/SKILL.md` as its
+- Treat `outpost-content/integrations/README.md` as the research contract and
+  `outpost-content/integrations/skills/integration-harness/SKILL.md` as its
   entrypoint. Reference and run them; do not copy their schemas, templates,
   state machines, reconciliation rules, or internal gates into this skill.
-- Treat `paperclip/doc/connections/CONNECTOR-PLAYBOOK.md` on the implementation
+- Treat `outpost/doc/connections/CONNECTOR-PLAYBOOK.md` on the implementation
   target branch as the connector contract. Follow it end to end; do not
   substitute remembered behavior or the examples in this skill.
 - Finish Phase A with a research-only PR. Do not create an App implementation
@@ -65,7 +65,7 @@ App only after a human accepts the exact research revision and connection set.
   setup without opening them. When a provider truly requires an explicit
   advanced choice, document the exception and explain it in plain language
   instead of exposing protocol details by default.
-- Treat vendor permission breadth and Outpost execution governance as
+- Treat vendor permission breadth and Outpost execution approvals as
   separate layers. Do not reduce requested vendor permissions merely to stand
   in for missing action review, approval, quarantine, or audit policy.
 
@@ -73,7 +73,7 @@ App only after a human accepts the exact research revision and connection set.
 
 1. Load the current Outpost skill for checkout, comments, interactions,
    durable state, and final disposition. Load the standard PR-preparation skill
-   (`prepare-paperclip-pr` for Outpost agents) before opening any PR.
+   (`prepare-outpost-pr` for Outpost agents) before opening any PR.
 2. Resolve the input URL(s), vendor/platform, intended MCP endpoint or API,
    target repositories and branches, and the Outpost issue that owns the
    work. Ask only when these cannot be determined safely from the brief.
@@ -115,7 +115,7 @@ interactions before creating anything. Reuse semantic matches. Never duplicate
 catalog entities, regress terminal pipeline phases, reuse stale acceptance, or
 open a second PR for the same connection accidentally.
 
-## Phase A: Research In paperclip-content
+## Phase A: Research In outpost-content
 
 1. Create an isolated worktree and branch from the refreshed content target.
    Preserve unrelated local changes.
@@ -138,7 +138,7 @@ open a second PR for the same connection accidentally.
    current App code. Reconcile before creating, update required indexes/logs,
    and preserve lineage, timestamps, immutable slugs, and absorbing phases as
    required by the research contract.
-5. Open one research-only PR to `paperclip-content`. Include the full planning
+5. Open one research-only PR to `outpost-content`. Include the full planning
    package and any tightly coupled content-playbook correction, but no
    Outpost App implementation.
 6. Run focused validation and the required PR workflow. Do not present the gate
@@ -174,7 +174,7 @@ its commit before writing code. For each accepted connection:
    AppDefinitions and connector code first.
 2. Follow the Connector Playbook's current decisions for catalog entry versus
    plugin, reuse path, AppDefinition, transport, credential refs, resource
-   filters, action catalog, governance, wizard behavior, health/catalog,
+   filters, action catalog, approvals, wizard behavior, health/catalog,
    availability, revocation, audit, and validation.
 3. Derive OAuth behavior from evidence. In particular, do not ship a complete
    authorization/token endpoint pair for a discovery-capable MCP vendor unless
@@ -188,7 +188,7 @@ its commit before writing code. For each accepted connection:
    administrator setup.
 5. Add focused automated tests and the production-like validation hook for
    connect, catalog discovery, an allowed read, an ask-first write, a
-   denied/quarantined action, revoke, and audit. Include negative company,
+   denied/quarantined action, revoke, and audit. Include negative space,
    actor, resource, and changed-schema cases where applicable.
 6. If real credentials, vendor consent, or browser evidence are unavailable,
    report the missing input and required evidence on the current task. Preserve

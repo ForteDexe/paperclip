@@ -48,7 +48,7 @@ const meta = {
           "Production pages and components. Start with **01 Journey / Settings**, then use the actual contextual sidebar to visit Access, Reviews, and Conversations. Try editing instructions, switch tabs, and save or discard the shared draft. **01 Journey / Connected** opens the production confirmation modal over the same bot Settings. Close it with Done, the ×, or Escape and continue editing Settings. **02 States** covers empty, loading, recoverable error, long content, and mobile. **03 Components** isolates the policy editor, people access, repository access, review rows and detail, pending review, and conversations. Provider operations use isolated fixture APIs; these stories are not live GitHub evidence.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "chat-channels/providers",
         "chat-channels/conversation",
@@ -70,7 +70,7 @@ const meta = {
     <FixtureApi key={state} state={state}>
       <PluginLauncherProvider>
         <Routes>
-          <Route path="/:companyPrefix" element={<Layout />}>
+          <Route path="/:spacePrefix" element={<Layout />}>
             <Route path="apps/chat/connect" element={<GitHubChatSetup />} />
             <Route
               path="apps/chat/:endpointId/reviews/:reviewId"
@@ -185,7 +185,7 @@ function People() {
     <FixtureApi>
       <GitHubAccessEditor
         endpointId={endpoint.id}
-        companyId={endpoint.companyId}
+        spaceId={endpoint.spaceId}
         configuration={config}
         onChange={setConfig}
       />
@@ -208,7 +208,7 @@ function RepositoryExample() {
   return (
     <GitHubRepositoryAccess
       endpointId={endpoint.id}
-      companyId={endpoint.companyId}
+      spaceId={endpoint.spaceId}
       managementUrl="https://github.com/settings/installations"
       pending={pending}
       onRefresh={() => {}}

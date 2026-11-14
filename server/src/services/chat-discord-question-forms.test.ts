@@ -12,7 +12,7 @@ import type {
   ChatSdkStateRecord,
 } from "./chat-sdk-state.js";
 
-const scope = { companyId: "company", endpointId: "endpoint" };
+const scope = { spaceId: "space", endpointId: "endpoint" };
 const owner = {
   principalId: "principal",
   userId: "member",
@@ -27,8 +27,8 @@ const optionId = `pcfo:${"O".repeat(22)}`;
 const submitActionId = `pcfs:${"A".repeat(22)}`;
 function fixture() {
   const rows = new Map<string, ChatSdkStateRecord>();
-  const key = (scope: { companyId: string; endpointId: string }, key: string) =>
-    JSON.stringify([scope.companyId, scope.endpointId, key]);
+  const key = (scope: { spaceId: string; endpointId: string }, key: string) =>
+    JSON.stringify([scope.spaceId, scope.endpointId, key]);
   const persistence: ChatSdkStatePersistence = {
     async read(scope, id) {
       return rows.get(key(scope, id)) ?? null;
@@ -93,20 +93,20 @@ describe("Discord actor-scoped correction drafts", () => {
       input,
       now,
     );
-    expect(response.paperclipDiscordCorrection.actionId).toMatch(
+    expect(response.outpostDiscordCorrection.actionId).toMatch(
       /^pcfr:[\w-]{43}$/,
     );
-    expect(response.paperclipDiscordCorrection.message).toContain(
+    expect(response.outpostDiscordCorrection.message).toContain(
       "Release note: Too long",
     );
-    expect(response.paperclipDiscordCorrection.message).toContain(
+    expect(response.outpostDiscordCorrection.message).toContain(
       "shortened to 12",
     );
-    expect(response.paperclipDiscordCorrection.message).not.toContain(inputId);
+    expect(response.outpostDiscordCorrection.message).not.toContain(inputId);
     const draft = await loadDiscordQuestionFormCorrection(
       persistence,
       scope,
-      response.paperclipDiscordCorrection.actionId,
+      response.outpostDiscordCorrection.actionId,
       owner,
       threadId,
       now,
@@ -122,8 +122,8 @@ describe("Discord actor-scoped correction drafts", () => {
       { ...input, values: { [inputId]: "New note" } },
       now,
     );
-    expect(retried.paperclipDiscordCorrection.actionId).toBe(
-      response.paperclipDiscordCorrection.actionId,
+    expect(retried.outpostDiscordCorrection.actionId).toBe(
+      response.outpostDiscordCorrection.actionId,
     );
     expect(rows.size).toBe(1);
     expect(JSON.stringify([...rows])).not.toContain("foreign");
@@ -133,7 +133,7 @@ describe("Discord actor-scoped correction drafts", () => {
   });
 
   it.each([
-    "company",
+    "space",
     "endpoint",
     "principal",
     "member",
@@ -150,7 +150,7 @@ describe("Discord actor-scoped correction drafts", () => {
     );
     const readScope = { ...scope };
     const readOwner = { ...owner };
-    if (kind === "company") readScope.companyId = "other";
+    if (kind === "space") readScope.spaceId = "other";
     if (kind === "endpoint") readScope.endpointId = "other";
     if (kind === "principal") readOwner.principalId = "other";
     if (kind === "member") readOwner.userId = "other";
@@ -161,7 +161,7 @@ describe("Discord actor-scoped correction drafts", () => {
         readScope,
         kind === "handle"
           ? `pcfr:${"X".repeat(43)}`
-          : response.paperclipDiscordCorrection.actionId,
+          : response.outpostDiscordCorrection.actionId,
         readOwner,
         kind === "thread" ? "other" : threadId,
         now,
@@ -181,7 +181,7 @@ describe("Discord actor-scoped correction drafts", () => {
       await loadDiscordQuestionFormCorrection(
         persistence,
         scope,
-        response.paperclipDiscordCorrection.actionId,
+        response.outpostDiscordCorrection.actionId,
         owner,
         threadId,
         new Date(input.parentExpiresAt),
@@ -213,7 +213,7 @@ describe("Discord actor-scoped correction drafts", () => {
     const draft = await loadDiscordQuestionFormCorrection(
       persistence,
       scope,
-      response.paperclipDiscordCorrection.actionId,
+      response.outpostDiscordCorrection.actionId,
       owner,
       threadId,
       now,

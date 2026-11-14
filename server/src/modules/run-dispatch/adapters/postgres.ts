@@ -23,7 +23,7 @@ import {
   agentWakeupRequests,
   agents,
   budgetReservations,
-  companies,
+  spaces,
   connectionIntentDeliveries,
   heartbeatRuns,
   issueRecoveryActions,
@@ -106,7 +106,7 @@ type LoadGateFactsInput = {
   conversationContinuation: boolean;
   responsibleUserId: string | null;
   runId: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   contextSnapshot: Record<string, unknown>;
   scheduledRetryReason: string | null;
@@ -120,7 +120,7 @@ type LoadStalenessFactsInput = {
   responsibleUserId: string | null;
   conversationContinuation: boolean;
   runId: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   issueId: string;
   contextSnapshot: Record<string, unknown>;
@@ -128,7 +128,7 @@ type LoadStalenessFactsInput = {
 };
 type CancelSuppressedRetryInput = {
   runId: string;
-  companyId: string;
+  spaceId: string;
   now: Date;
   reason: string;
   errorCode: string;
@@ -147,7 +147,7 @@ const NO_REVIEW_PARTICIPANT: ReviewParticipantFacts = {
 };
 
 async function readNativeReviewParticipantFacts(db: Db, input: {
-  companyId: string; issueId: string; agentId: string; contextSnapshot: unknown;
+  spaceId: string; issueId: string; agentId: string; contextSnapshot: unknown;
 }): Promise<ReviewParticipantFacts | null> {
   const review = await getNativeReviewAssignment(db, input);
   return review ? {
@@ -188,7 +188,7 @@ function buildReviewParticipantFacts(input: {
 function queuedEffect(run: HeartbeatRun): PostCommitEffect {
   return {
     kind: "run_queued",
-    companyId: run.companyId,
+    spaceId: run.spaceId,
     runId: run.id,
     agentId: run.agentId,
     invocationSource: run.invocationSource,
@@ -200,7 +200,7 @@ function queuedEffect(run: HeartbeatRun): PostCommitEffect {
 function statusEffect(run: HeartbeatRun, previousStatus: string | null): PostCommitEffect {
   return {
     kind: "run_status_published",
-    companyId: run.companyId,
+    spaceId: run.spaceId,
     runId: run.id,
     agentId: run.agentId,
     status: run.status,
@@ -225,7 +225,7 @@ export function createPostgresRunDispatchAdapter(
   const issuesSvc = issueService(db);
 
   async function withRunOwnershipLocks<T>(
-    input: { runId: string; companyId: string; recoveryLeaseOwner?: string; enforceContinuationOwnership?: boolean },
+    input: { runId: string; spaceId: string; recoveryLeaseOwner?: string; enforceContinuationOwnership?: boolean },
     onMissing: () => T,
     operation: (tx: Db, run: HeartbeatRun, publications: ActivityPublication[]) => Promise<T>,
     mode: "accounting" | "ownership",
@@ -239,8 +239,8 @@ export function createPostgresRunDispatchAdapter(
       const hint = await db
         .select({ contextSnapshot: heartbeatRuns.contextSnapshot, agentId: heartbeatRuns.agentId, projectId: budgetReservations.projectId })
         .from(heartbeatRuns)
-        .leftJoin(budgetReservations, and(eq(budgetReservations.runId, heartbeatRuns.id), eq(budgetReservations.companyId, heartbeatRuns.companyId)))
-        .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId)))
+        .leftJoin(budgetReservations, and(eq(budgetReservations.runId, heartbeatRuns.id), eq(budgetReservations.spaceId, heartbeatRuns.spaceId)))
+        .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId)))
         .then((rows) => rows[0] ?? null);
       if (!hint) return onMissing();
       // Already-admitted ordinary work owes the budget/run gate, not another
@@ -251,18 +251,18 @@ export function createPostgresRunDispatchAdapter(
 
       const locked = async (typedTx: Db, publications: ActivityPublication[]) => {
         if (mode === "accounting") {
-          await lockBudgetAdmissionControls(typedTx, input.companyId, hint.projectId);
+          await lockBudgetAdmissionControls(typedTx, input.spaceId, hint.projectId);
           await typedTx.select({ id: agents.id }).from(agents)
-            .where(and(eq(agents.id, hint.agentId), eq(agents.companyId, input.companyId))).for("share");
+            .where(and(eq(agents.id, hint.agentId), eq(agents.spaceId, input.spaceId))).for("share");
         }
         // Recovery keeps coordinator -> issue -> run order after the shared
         // dispatch-control fences. Settlement never uses these authority locks.
-        await lockRunBudgetRecoveryOwnerInTransaction(typedTx, input.companyId, input.runId, input.recoveryLeaseOwner);
+        await lockRunBudgetRecoveryOwnerInTransaction(typedTx, input.spaceId, input.runId, input.recoveryLeaseOwner);
         if (hintedIssueId) {
           await typedTx
             .select({ id: issues.id })
             .from(issues)
-            .where(and(eq(issues.id, hintedIssueId), eq(issues.companyId, input.companyId)))
+            .where(and(eq(issues.id, hintedIssueId), eq(issues.spaceId, input.spaceId)))
             .for("update");
         }
 
@@ -270,7 +270,7 @@ export function createPostgresRunDispatchAdapter(
           .select()
           .from(heartbeatRuns)
           .where(
-            and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId)),
+            and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId)),
           )
           // Keep the run status stable through the semantic decision and any
           // resulting mutation and synchronous dispatch handoff. Never await
@@ -285,7 +285,7 @@ export function createPostgresRunDispatchAdapter(
         return { kind: "value" as const, value: await operation(typedTx, run, publications) };
       };
       const result: { kind: "missing" | "retry" } | { kind: "value"; value: T } = mode === "accounting"
-        ? await withOperationAccountingTransaction(db, input.companyId, locked,
+        ? await withOperationAccountingTransaction(db, input.spaceId, locked,
           isolation === "read committed" ? { isolationLevel: "read committed" } : {})
         : await db.transaction(tx => locked(tx as unknown as Db, []));
 
@@ -307,7 +307,7 @@ export function createPostgresRunDispatchAdapter(
    * issue/run locks, budget exposure is one statement, and its ownership phase
    * re-reads the staleness facts at READ COMMITTED under the same locks. */
   function withIssueThenRunLocks<T>(
-    input: { runId: string; companyId: string; recoveryLeaseOwner?: string; enforceContinuationOwnership?: boolean },
+    input: { runId: string; spaceId: string; recoveryLeaseOwner?: string; enforceContinuationOwnership?: boolean },
     onMissing: () => T,
     operation: (tx: Db, run: HeartbeatRun, publications: ActivityPublication[]) => Promise<T>,
     isolation: "snapshot" | "read committed" = "snapshot",
@@ -332,7 +332,7 @@ export function createPostgresRunDispatchAdapter(
     const agent = await dbOrTx
       .select()
       .from(agents)
-      .where(and(eq(agents.id, input.agentId), eq(agents.companyId, input.companyId)))
+      .where(and(eq(agents.id, input.agentId), eq(agents.spaceId, input.spaceId)))
       .then((rows) => rows[0] ?? null);
     if (!agent) {
       return { agentFound: false, issueId: readNonEmptyString(input.contextSnapshot.issueId) };
@@ -380,7 +380,7 @@ export function createPostgresRunDispatchAdapter(
     };
     const isBlocked = () => !decideScheduledRetryGate(facts, now).allowed;
 
-    const budgetBlock = await budgetsForRead.getInvocationBlock(input.companyId, input.agentId, {
+    const budgetBlock = await budgetsForRead.getInvocationBlock(input.spaceId, input.agentId, {
       issueId,
       projectId: readNonEmptyString(input.contextSnapshot.projectId),
     });
@@ -405,7 +405,7 @@ export function createPostgresRunDispatchAdapter(
     const issueQuery = dbOrTx
       .select({
         id: issues.id,
-        companyId: issues.companyId,
+        spaceId: issues.spaceId,
         projectId: issues.projectId,
         status: issues.status,
         assigneeAgentId: issues.assigneeAgentId,
@@ -417,7 +417,7 @@ export function createPostgresRunDispatchAdapter(
         monitorNextCheckAt: issues.monitorNextCheckAt,
       })
       .from(issues)
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, input.companyId)));
+      .where(and(eq(issues.id, issueId), eq(issues.spaceId, input.spaceId)));
     // Locking the row here, only when a caller opened a transaction for the
     // promote-or-cancel write, is what makes that write's decision hold: a
     // concurrent reassignment, pause, or status change blocks on this lock
@@ -438,7 +438,7 @@ export function createPostgresRunDispatchAdapter(
         issue, input.responsibleUserId, input.runId);
     }
     facts.reviewParticipant = await readNativeReviewParticipantFacts(dbOrTx, {
-      companyId: input.companyId, issueId, agentId: input.agentId,
+      spaceId: input.spaceId, issueId, agentId: input.agentId,
       contextSnapshot: input.contextSnapshot,
     }) ?? buildReviewParticipantFacts({
       isInReview: issue.status === "in_review",
@@ -466,13 +466,13 @@ export function createPostgresRunDispatchAdapter(
         const sourceId = readNonEmptyString(input.contextSnapshot.dispositionRepairSourceRunId)
           ?? readNonEmptyString(input.contextSnapshot.retryOfRunId);
         const source = sourceId ? await dbOrTx.select().from(heartbeatRuns).where(and(
-          eq(heartbeatRuns.id, sourceId), eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.id, sourceId), eq(heartbeatRuns.spaceId, input.spaceId),
         )).limit(1).then(rows => rows[0]) : null;
         validSource = Boolean(source && source.status === "succeeded" && source.agentId === input.agentId
           && (source.contextSnapshot?.issueId ?? source.contextSnapshot?.taskId) === issueId
           && legacyDispositionEpisode(source).id === episode.id
           && episode.attempt >= 1 && episode.attempt <= episode.maxAttempts);
-        currentFingerprint = legacyDispositionFingerprint(input.companyId, issueId, input.agentId, episode.id);
+        currentFingerprint = legacyDispositionFingerprint(input.spaceId, issueId, input.agentId, episode.id);
       }
       facts.dispositionRepair = {
         expectedFingerprintPresent: expectedFingerprint !== null,
@@ -486,25 +486,25 @@ export function createPostgresRunDispatchAdapter(
     }
     if (isBlocked()) return { agentFound: true, facts };
 
-    const activePauseHold = await treeControlForRead.getActivePauseHoldGate(input.companyId, issueId);
+    const activePauseHold = await treeControlForRead.getActivePauseHoldGate(input.spaceId, issueId);
     facts.activePauseHold = activePauseHold
       ? { holdId: activePauseHold.holdId, rootIssueId: activePauseHold.rootIssueId }
       : null;
     if (isBlocked()) return { agentFound: true, facts };
 
-    const dependencyReadiness = await issuesSvcForRead.listDependencyReadiness(input.companyId, [issueId]);
+    const dependencyReadiness = await issuesSvcForRead.listDependencyReadiness(input.spaceId, [issueId]);
     const readiness = dependencyReadiness.get(issueId);
     // A verified stall wake runs while its stalled dependency is unresolved,
     // including after a resource wait replaced it with a scheduled retry.
     const stallAdmitted = readiness && !readiness.isDependencyReady && input.contextSnapshot.blockerStall
-      ? await verifyBlockerStallWake(db, { companyId: input.companyId, issueId, contextSnapshot: input.contextSnapshot,
+      ? await verifyBlockerStallWake(db, { spaceId: input.spaceId, issueId, contextSnapshot: input.contextSnapshot,
           requestedByActorType: input.wakeupRequestId ? await db.select({ actor: agentWakeupRequests.requestedByActorType })
-            .from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, input.companyId),
+            .from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, input.spaceId),
               eq(agentWakeupRequests.id, input.wakeupRequestId))).then(rows => rows[0]?.actor ?? null) : null })
       : false;
     const responseAdmitted = readiness && !readiness.isDependencyReady
       && input.contextSnapshot.dependencyBlockedInteraction === true
-      && await isVerifiedDependencyInteractionResponse(dbOrTx, { companyId: input.companyId,
+      && await isVerifiedDependencyInteractionResponse(dbOrTx, { spaceId: input.spaceId,
         issueId, agentId: input.agentId, context: input.contextSnapshot });
     const preparationWait = input.contextSnapshot.preparationWait;
     const preparationWaitAdmitted = Boolean(readiness && !readiness.isDependencyReady
@@ -526,7 +526,7 @@ export function createPostgresRunDispatchAdapter(
     const run = await db
       .select()
       .from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId)))
+      .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId)))
       .then((rows) => rows[0] ?? null);
     if (!run) {
       throw new RunDispatchApplicationError(
@@ -537,7 +537,7 @@ export function createPostgresRunDispatchAdapter(
     const factsResult = await loadGateFacts(
       {
         runId: run.id,
-        companyId: run.companyId,
+        spaceId: run.spaceId,
         agentId: run.agentId,
         conversationContinuation: run.runtimeMode === "legacy" && hasConversationContinuationPolicy(run.resultJson),
         responsibleUserId: run.responsibleUserId,
@@ -590,7 +590,7 @@ export function createPostgresRunDispatchAdapter(
 
     return rows.map((row) => ({
       runId: row.id,
-      companyId: row.companyId,
+      spaceId: row.spaceId,
     }));
   }
 
@@ -606,7 +606,7 @@ export function createPostgresRunDispatchAdapter(
     const issueQuery = dbOrTx
       .select({
         id: issues.id,
-        companyId: issues.companyId,
+        spaceId: issues.spaceId,
         projectId: issues.projectId,
         assigneeUserId: issues.assigneeUserId,
         status: issues.status,
@@ -616,7 +616,7 @@ export function createPostgresRunDispatchAdapter(
         executionState: issues.executionState,
       })
       .from(issues)
-      .where(and(eq(issues.id, issueId), eq(issues.companyId, input.companyId)));
+      .where(and(eq(issues.id, issueId), eq(issues.spaceId, input.spaceId)));
     const issue = await (tx ? issueQuery.for("update") : issueQuery).then(
       (rows) => rows[0] ?? null,
     );
@@ -645,9 +645,9 @@ export function createPostgresRunDispatchAdapter(
     let continuationSummaryBody: string | null = null;
     let continuationParksExecutor = false;
     if (continuationParkApplies) {
-      const queuedWake = parseObject(context.paperclipWake);
+      const queuedWake = parseObject(context.outpostWake);
       const queuedContinuationSummary =
-        readNonEmptyString(parseObject(context.paperclipContinuationSummary).body) ??
+        readNonEmptyString(parseObject(context.outpostContinuationSummary).body) ??
         readNonEmptyString(parseObject(queuedWake.continuationSummary).body);
       const currentContinuationSummary = queuedContinuationSummary
         ? null
@@ -665,7 +665,7 @@ export function createPostgresRunDispatchAdapter(
             .where(
               and(
                 eq(issueRecoveryActions.id, recoveryActionId),
-                eq(issueRecoveryActions.companyId, input.companyId),
+                eq(issueRecoveryActions.spaceId, input.spaceId),
                 eq(issueRecoveryActions.sourceIssueId, issue.id),
                 eq(issueRecoveryActions.ownerAgentId, input.agentId),
                 inArray(issueRecoveryActions.status, ["active", "escalated"]),
@@ -679,10 +679,10 @@ export function createPostgresRunDispatchAdapter(
     // Dependency edges can change after scheduled promotion without changing
     // the displayed status. Read them again under the queued/final issue lock.
     const replacementReadiness = issue && retryReasonKind === "native_safe_replacement"
-      ? (await issueService(dbOrTx).listDependencyReadiness(input.companyId, [issueId])).get(issueId)
+      ? (await issueService(dbOrTx).listDependencyReadiness(input.spaceId, [issueId])).get(issueId)
       : null;
     const readiness = replacementReadiness && !replacementReadiness.isDependencyReady && context.blockerStall
-      && await verifyBlockerStallWake(dbOrTx as unknown as Db, { companyId: input.companyId, issueId,
+      && await verifyBlockerStallWake(dbOrTx as unknown as Db, { spaceId: input.spaceId, issueId,
         contextSnapshot: context, requestedByActorType: null })
       ? null : replacementReadiness;
     return {
@@ -705,13 +705,13 @@ export function createPostgresRunDispatchAdapter(
       isResolvedInteractionContinuation,
       isDependencyBlockedInteractionResponse: Boolean(isResolvedInteractionContinuation && issue?.status === "blocked"
         && context.dependencyBlockedInteraction === true
-        && await isVerifiedDependencyInteractionResponse(dbOrTx, { companyId: input.companyId, issueId,
+        && await isVerifiedDependencyInteractionResponse(dbOrTx, { spaceId: input.spaceId, issueId,
           agentId: input.agentId, context })),
       isAgentBlockingQuestionAnswer: Boolean(isResolvedInteractionContinuation && issue?.status === "blocked"
-        && await agentBlockingQuestionState(dbOrTx, { companyId: input.companyId, issueId,
+        && await agentBlockingQuestionState(dbOrTx, { spaceId: input.spaceId, issueId,
           agentId: input.agentId, context })),
       isUnstartedTaskQuestionAnswer: Boolean(isResolvedInteractionContinuation && issue?.status === "todo" &&
-        await isUnstartedTaskQuestionAnswer(dbOrTx, { companyId: input.companyId, issueId, interactionId: context.interactionId })),
+        await isUnstartedTaskQuestionAnswer(dbOrTx, { spaceId: input.spaceId, issueId, interactionId: context.interactionId })),
       isConnectionContinuation: (isResolvedInteractionContinuation && context.interactionKind === "connection_intent")
         || context.source === "connection_tools.refreshed",
       isInteractionWake,
@@ -720,7 +720,7 @@ export function createPostgresRunDispatchAdapter(
       resumeIntent,
       wakeCommentIdPresent: Boolean(wakeCommentId),
       isCompletedOnboardingHandoffWake: await isCompletedOnboardingHandoffWake(dbOrTx, {
-        companyId: input.companyId, issueId, agentId: input.agentId,
+        spaceId: input.spaceId, issueId, agentId: input.agentId,
         reason: wakeReason, contextSnapshot: context,
       }),
       continuationParkApplies,
@@ -730,7 +730,7 @@ export function createPostgresRunDispatchAdapter(
       retryReason,
       reviewParticipant: issue
         ? await readNativeReviewParticipantFacts(dbOrTx, {
-            companyId: input.companyId, issueId, agentId: input.agentId,
+            spaceId: input.spaceId, issueId, agentId: input.agentId,
             contextSnapshot: context,
           }) ?? buildReviewParticipantFacts({
             isInReview: issue.status === "in_review",
@@ -748,11 +748,11 @@ export function createPostgresRunDispatchAdapter(
     | { applied: true; run: HeartbeatRun; postCommitEffects: PostCommitEffect[] }
     | { applied: false }
   > {
-    await notifyExecutionRunWork(tx, { companyId: input.companyId, runId: input.runId });
-    await notifyInstructionCollection(tx, { companyId: input.companyId, runId: input.runId });
-    await notifyCancelledWorkspacePreservation(tx, { companyId: input.companyId, runId: input.runId });
-    await notifyScheduledRetryCancellation(tx, { companyId: input.companyId, runId: input.runId });
-    await notifyChatRunMilestones(tx, { companyId: input.companyId, issueId: issueId ?? undefined, runId: input.runId });
+    await notifyExecutionRunWork(tx, { spaceId: input.spaceId, runId: input.runId });
+    await notifyInstructionCollection(tx, { spaceId: input.spaceId, runId: input.runId });
+    await notifyCancelledWorkspacePreservation(tx, { spaceId: input.spaceId, runId: input.runId });
+    await notifyScheduledRetryCancellation(tx, { spaceId: input.spaceId, runId: input.runId });
+    await notifyChatRunMilestones(tx, { spaceId: input.spaceId, issueId: issueId ?? undefined, runId: input.runId });
     const [row] = await tx
       .update(heartbeatRuns)
       .set({
@@ -764,7 +764,7 @@ export function createPostgresRunDispatchAdapter(
       .where(
         and(
           eq(heartbeatRuns.id, input.runId),
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
           eq(heartbeatRuns.status, "scheduled_retry"),
           lte(heartbeatRuns.scheduledRetryAt, input.now),
         ),
@@ -773,7 +773,7 @@ export function createPostgresRunDispatchAdapter(
     if (!row) return { applied: false };
 
     await appendHeartbeatRunEvent(tx as unknown as Db, {
-      companyId: row.companyId,
+      spaceId: row.spaceId,
       runId: row.id,
       agentId: row.agentId,
       eventType: "lifecycle",
@@ -801,17 +801,17 @@ export function createPostgresRunDispatchAdapter(
       // so release either sees the refused retry or the retry sees no pause.
       // Under a released pause the retry stays parked for the next promotion.
       const [active] = await tx.select({ id: issueTreeHolds.id }).from(issueTreeHolds).where(and(
-        eq(issueTreeHolds.companyId, input.companyId), eq(issueTreeHolds.id, pauseHoldId),
+        eq(issueTreeHolds.spaceId, input.spaceId), eq(issueTreeHolds.id, pauseHoldId),
         eq(issueTreeHolds.status, "active"))).for("share");
       if (!active) return { applied: false };
     }
-    await notifyExecutionRunWork(tx, { companyId: input.companyId, runId: input.runId });
-    await notifyInstructionCollection(tx, { companyId: input.companyId, runId: input.runId });
-    await notifyExternalAgentSettlement(tx, { companyId: input.companyId, runId: input.runId });
-    await notifyCancelledWorkspacePreservation(tx, { companyId: input.companyId, runId: input.runId });
-    await notifyScheduledRetryCancellation(tx, { companyId: input.companyId, runId: input.runId });
-    await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: input.companyId, issueId: input.issueId ?? undefined });
-    await notifyChatRunMilestones(tx, { companyId: input.companyId, issueId: input.issueId ?? undefined, runId: input.runId });
+    await notifyExecutionRunWork(tx, { spaceId: input.spaceId, runId: input.runId });
+    await notifyInstructionCollection(tx, { spaceId: input.spaceId, runId: input.runId });
+    await notifyExternalAgentSettlement(tx, { spaceId: input.spaceId, runId: input.runId });
+    await notifyCancelledWorkspacePreservation(tx, { spaceId: input.spaceId, runId: input.runId });
+    await notifyScheduledRetryCancellation(tx, { spaceId: input.spaceId, runId: input.runId });
+    await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: input.spaceId, issueId: input.issueId ?? undefined });
+    await notifyChatRunMilestones(tx, { spaceId: input.spaceId, issueId: input.issueId ?? undefined, runId: input.runId });
     const pauseSuppression = pauseHoldId ? pauseSuppressionResult({
       holdId: pauseHoldId, rootIssueId: readNonEmptyString(input.details.rootIssueId),
     }) : null;
@@ -830,7 +830,7 @@ export function createPostgresRunDispatchAdapter(
       .where(
         and(
           eq(heartbeatRuns.id, input.runId),
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
           eq(heartbeatRuns.status, "scheduled_retry"),
           lte(heartbeatRuns.scheduledRetryAt, input.now),
         ),
@@ -845,7 +845,7 @@ export function createPostgresRunDispatchAdapter(
         .where(
           and(
             eq(agentWakeupRequests.id, row.wakeupRequestId),
-            eq(agentWakeupRequests.companyId, row.companyId),
+            eq(agentWakeupRequests.spaceId, row.spaceId),
           ),
         );
     }
@@ -861,7 +861,7 @@ export function createPostgresRunDispatchAdapter(
         })
         .where(
           and(
-            eq(issues.companyId, row.companyId),
+            eq(issues.spaceId, row.spaceId),
             eq(issues.id, input.issueId),
             eq(issues.executionRunId, row.id),
           ),
@@ -869,7 +869,7 @@ export function createPostgresRunDispatchAdapter(
     }
 
     await appendHeartbeatRunEvent(tx as unknown as Db, {
-      companyId: row.companyId,
+      spaceId: row.spaceId,
       runId: row.id,
       agentId: row.agentId,
       eventType: "lifecycle",
@@ -906,7 +906,7 @@ export function createPostgresRunDispatchAdapter(
       const factsResult = await loadGateFacts(
         {
           runId: run.id,
-          companyId: run.companyId,
+          spaceId: run.spaceId,
           agentId: run.agentId,
           conversationContinuation: run.runtimeMode === "legacy" && hasConversationContinuationPolicy(run.resultJson),
           responsibleUserId: run.responsibleUserId,
@@ -923,7 +923,7 @@ export function createPostgresRunDispatchAdapter(
       if (!factsResult.agentFound) {
         const cancelled = await cancelSuppressedRetryInTx(tx as unknown as Db, {
           runId: input.runId,
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           now,
           reason: "Scheduled retry suppressed because the agent no longer exists",
           errorCode: "agent_not_invokable",
@@ -958,7 +958,7 @@ export function createPostgresRunDispatchAdapter(
       if (!gate.allowed && !isLegacyMissingIssueException) {
         const cancelled = await cancelSuppressedRetryInTx(tx as unknown as Db, {
           runId: input.runId,
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           now,
           reason: gate.reason,
           errorCode: gate.errorCode,
@@ -987,7 +987,7 @@ export function createPostgresRunDispatchAdapter(
 
       const promoted = await promoteDueRetryInTx(tx as unknown as Db, {
         runId: input.runId,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         now,
       }, issueId);
       return promoted.applied
@@ -1030,7 +1030,7 @@ export function createPostgresRunDispatchAdapter(
     const chainRunIds: string[] = [], chainWakeIds: string[] = [];
     for (let hop = 0; hop < 8 && current.retryOfRunId; hop++) {
       const [parent] = await tx.select().from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.agentId, run.agentId),
+        eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.agentId, run.agentId),
         eq(heartbeatRuns.id, current.retryOfRunId), eq(heartbeatRuns.status, "cancelled"),
         sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${issueId}`,
       )).for("update");
@@ -1042,7 +1042,7 @@ export function createPostgresRunDispatchAdapter(
         || (parent.errorCode === "execution_reconciliation_required" && await isPreDispatchExecutionWaitVerified(tx, parent));
       if (!unstarted) return null;
       const [wake] = await tx.select().from(agentWakeupRequests).where(and(
-        eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+        eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
         eq(agentWakeupRequests.id, parent.wakeupRequestId), eq(agentWakeupRequests.runId, parent.id),
       )).for("update");
       if (!wake) return null;
@@ -1058,11 +1058,11 @@ export function createPostgresRunDispatchAdapter(
     if (!run.wakeupRequestId || !await isPreDispatchExecutionWaitVerified(tx, run)) return null;
     const wait = parseObject(run.resultJson?.executionWait);
     const [preservation] = await tx.select().from(issueRecoveryActions).where(and(
-      eq(issueRecoveryActions.companyId, run.companyId), eq(issueRecoveryActions.sourceIssueId, issueId),
+      eq(issueRecoveryActions.spaceId, run.spaceId), eq(issueRecoveryActions.sourceIssueId, issueId),
       sql`${issueRecoveryActions.id}::text = ${wait.recoveryActionId}`,
     )).for("update");
     const [source] = preservation ? await tx.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.agentId, run.agentId),
+      eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.agentId, run.agentId),
       eq(heartbeatRuns.nativeIssueId, issueId), eq(heartbeatRuns.runtimeMode, "native"), inArray(heartbeatRuns.status, ["cancelled", "failed"]),
       sql`${heartbeatRuns.id}::text = ${preservation.evidence.runId}`,
     )) : [];
@@ -1078,7 +1078,7 @@ export function createPostgresRunDispatchAdapter(
     const commentIds = queuedCommentIdsFromRunContext(runContext);
     if (!commentId || !commentIds.includes(commentId)) return null;
     const [ownWake] = await tx.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+      eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
       eq(agentWakeupRequests.id, run.wakeupRequestId), eq(agentWakeupRequests.runId, run.id),
       inArray(agentWakeupRequests.status, ["queued", "claimed"]),
     )).for("update");
@@ -1097,7 +1097,7 @@ export function createPostgresRunDispatchAdapter(
     if (!wake.requestedByActorId || payload.issueId !== issueId ||
         !originalCommentId || !commentIds.includes(originalCommentId)) return null;
     const comments = await tx.select().from(issueComments).where(and(
-      eq(issueComments.companyId, run.companyId), eq(issueComments.issueId, issueId),
+      eq(issueComments.spaceId, run.spaceId), eq(issueComments.issueId, issueId),
       inArray(issueComments.id, commentIds), eq(issueComments.authorType, "user"),
       sql`${issueComments.deletedAt} is null`, sql`${issueComments.createdByRunId} is null`,
     ));
@@ -1111,7 +1111,7 @@ export function createPostgresRunDispatchAdapter(
     if (sourceIds !== undefined && (!Array.isArray(sourceIds) || sourceIds.some(id => typeof id !== "string" || !isUuidLike(id)))) return null;
     const sourceWakeIds = Array.isArray(sourceIds) ? [...new Set(sourceIds as string[])] : [];
     const adopted = sourceWakeIds.length ? await tx.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+      eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
       inArray(agentWakeupRequests.runId, runIds), eq(agentWakeupRequests.status, "coalesced"),
       inArray(agentWakeupRequests.id, sourceWakeIds),
       sql`${agentWakeupRequests.payload} ->> 'issueId' = ${issueId}`,
@@ -1119,7 +1119,7 @@ export function createPostgresRunDispatchAdapter(
     if (adopted.length !== sourceWakeIds.length) return null;
     const mergeTargets = [...new Set([wake.id, ownWake.id, ...(origin?.chainWakeIds ?? []), ...adopted.map(receipt => receipt.id)])];
     const coalesced = await tx.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+      eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
       eq(agentWakeupRequests.status, "coalesced"), eq(agentWakeupRequests.requestedByActorType, "user"),
       sql`${agentWakeupRequests.payload} ->> 'issueId' = ${issueId}`,
       or(and(inArray(agentWakeupRequests.runId, runIds), eq(agentWakeupRequests.reason, "issue_execution_same_name")),
@@ -1134,13 +1134,13 @@ export function createPostgresRunDispatchAdapter(
         recordedCommentId && authors.get(recordedCommentId) === actorId ? [recordedCommentId] : [];
     }));
     if (commentIds.some(id => !recordedCommentIds.has(id))) return null;
-    await notifyDeferredExecutionWork(tx, { companyId: run.companyId, requestId: wake.id });
+    await notifyDeferredExecutionWork(tx, { spaceId: run.spaceId, requestId: wake.id });
     const [deferred] = await tx.update(agentWakeupRequests).set({
       status: "deferred_issue_execution", runId: null, claimedAt: null, finishedAt: null, error: null,
-      payload: withQueuedCommentIdsInWakePayload({ ...payload, _paperclipWakeContext: context,
+      payload: withQueuedCommentIdsInWakePayload({ ...payload, _outpostWakeContext: context,
         executionWait: { ...parseObject(run.resultJson?.executionWait), reason: "execution_recovery",
           message: "Waiting for execution recovery. Your message is saved." } }, commentIds), updatedAt: now,
-    }).where(and(eq(agentWakeupRequests.id, wake.id), eq(agentWakeupRequests.companyId, run.companyId),
+    }).where(and(eq(agentWakeupRequests.id, wake.id), eq(agentWakeupRequests.spaceId, run.spaceId),
       eq(agentWakeupRequests.agentId, run.agentId), eq(agentWakeupRequests.runId, receiptRunId),
       inArray(agentWakeupRequests.status, origin ? ["cancelled", "skipped"] : ["queued", "claimed"])))
       .returning({ id: agentWakeupRequests.id });
@@ -1156,13 +1156,13 @@ export function createPostgresRunDispatchAdapter(
     now: Date,
     providerDispatchNotStarted = false,
   ): Promise<CancelStaleQueuedRunOutcome> {
-      await notifyExecutionRunWork(tx, { companyId: run.companyId, agentId: run.agentId, runId: run.id });
-      await notifyInstructionCollection(tx, { companyId: run.companyId, runId: run.id });
-      await notifyExternalAgentSettlement(tx, { companyId: run.companyId, runId: run.id });
-      await notifyCancelledWorkspacePreservation(tx, { companyId: run.companyId, runId: run.id });
-      await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, run.companyId);
-      await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: run.companyId, issueId });
-      await notifyChatRunMilestones(tx, { companyId: run.companyId, issueId });
+      await notifyExecutionRunWork(tx, { spaceId: run.spaceId, agentId: run.agentId, runId: run.id });
+      await notifyInstructionCollection(tx, { spaceId: run.spaceId, runId: run.id });
+      await notifyExternalAgentSettlement(tx, { spaceId: run.spaceId, runId: run.id });
+      await notifyCancelledWorkspacePreservation(tx, { spaceId: run.spaceId, runId: run.id });
+      await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, run.spaceId);
+      await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: run.spaceId, issueId });
+      await notifyChatRunMilestones(tx, { spaceId: run.spaceId, issueId });
       const [row] = await tx
         .update(heartbeatRuns)
         .set({
@@ -1189,7 +1189,7 @@ export function createPostgresRunDispatchAdapter(
         .where(
           and(
             eq(heartbeatRuns.id, run.id),
-            eq(heartbeatRuns.companyId, run.companyId),
+            eq(heartbeatRuns.spaceId, run.spaceId),
             eq(heartbeatRuns.status, expectedStatus),
           ),
         )
@@ -1210,7 +1210,7 @@ export function createPostgresRunDispatchAdapter(
           .where(
             and(
               eq(agentWakeupRequests.id, row.wakeupRequestId),
-              eq(agentWakeupRequests.companyId, row.companyId),
+              eq(agentWakeupRequests.spaceId, row.spaceId),
               eq(agentWakeupRequests.agentId, row.agentId),
               eq(agentWakeupRequests.runId, row.id),
               inArray(agentWakeupRequests.status, ["queued", "claimed"]),
@@ -1226,7 +1226,7 @@ export function createPostgresRunDispatchAdapter(
         // this skipped receipt. Rearm atomically so restored access or a later
         // answer can resume the untouched request after a restart.
         await tx.update(connectionIntentDeliveries).set({ deliveredAt: null, nextAttemptAt: now }).where(and(
-          eq(connectionIntentDeliveries.companyId, row.companyId),
+          eq(connectionIntentDeliveries.spaceId, row.spaceId),
           eq(connectionIntentDeliveries.interactionId, context.interactionId),
         ));
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.connection);
@@ -1242,14 +1242,14 @@ export function createPostgresRunDispatchAdapter(
         })
         .where(
           and(
-            eq(issues.companyId, row.companyId),
+            eq(issues.spaceId, row.spaceId),
             eq(issues.id, issueId),
             eq(issues.executionRunId, row.id),
           ),
         );
 
       await appendHeartbeatRunEvent(tx as unknown as Db, {
-        companyId: row.companyId,
+        spaceId: row.spaceId,
         runId: row.id,
         agentId: row.agentId,
         eventType: "lifecycle",
@@ -1274,7 +1274,7 @@ export function createPostgresRunDispatchAdapter(
     if (typeof contextSnapshot.workspaceReconstructionActionId === "string") {
       try {
         await validateReconstructedWorkspaceDispatch(tx, run);
-        const current = await loadGateFacts({ runId: run.id, companyId: run.companyId, agentId: run.agentId,
+        const current = await loadGateFacts({ runId: run.id, spaceId: run.spaceId, agentId: run.agentId,
           responsibleUserId: run.responsibleUserId, conversationContinuation: true, contextSnapshot,
           scheduledRetryReason: run.scheduledRetryReason, retryReasonOverride: "native_safe_replacement", wakeupRequestId: run.wakeupRequestId,
         }, now, tx, publications);
@@ -1289,8 +1289,8 @@ export function createPostgresRunDispatchAdapter(
       }
     }
     // A native run's own scheduled resume is not a hold against that run: the
-    // same-run attempt is how its saved state (e.g. a governed wait) settles.
-    const recovery = await getExecutionBlocker(tx, run.companyId, issueId, {
+    // same-run attempt is how its saved state (e.g. a controlled wait) settles.
+    const recovery = await getExecutionBlocker(tx, run.spaceId, issueId, {
       conversationResetCommentId: deriveCommentId(contextSnapshot),
       resumingNativeRunId: run.runtimeMode === "native" ? run.id : null,
     });
@@ -1301,7 +1301,7 @@ export function createPostgresRunDispatchAdapter(
     const facts = await loadStalenessFacts(
       {
         runId: run.id,
-        companyId: run.companyId,
+        spaceId: run.spaceId,
         agentId: run.agentId,
         responsibleUserId: run.responsibleUserId,
         conversationContinuation: run.runtimeMode === "legacy" && hasConversationContinuationPolicy(run.resultJson),
@@ -1337,15 +1337,15 @@ export function createPostgresRunDispatchAdapter(
     // Use the dispatch gate's observation when supplied. A second read could
     // see cleanup finish and accidentally cancel the retry for the old hold.
     const blocker = observedBlocker === undefined
-      ? await getExecutionBlocker(tx, run.companyId, issueId)
+      ? await getExecutionBlocker(tx, run.spaceId, issueId)
       : observedBlocker;
     if (blocker?.cause !== "execution_owner_active") return null;
 
     const previousWait = parseObject(run.resultJson?.executionWait);
     const scheduledRetryAt = new Date(now.getTime() + 30_000);
     const executionWait = { issueId, runId: blocker.runId, cause: blocker.cause };
-    await notifyScheduledRetryCancellation(tx, { companyId: run.companyId, runId: run.id });
-    if (run.status === "queued") await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: run.companyId, issueId });
+    await notifyScheduledRetryCancellation(tx, { spaceId: run.spaceId, runId: run.id });
+    if (run.status === "queued") await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: run.spaceId, issueId });
     const [waiting] = await tx.update(heartbeatRuns)
       .set({
         status: "scheduled_retry",
@@ -1356,7 +1356,7 @@ export function createPostgresRunDispatchAdapter(
       })
       .where(and(
         eq(heartbeatRuns.id, run.id),
-        eq(heartbeatRuns.companyId, run.companyId),
+        eq(heartbeatRuns.spaceId, run.spaceId),
         eq(heartbeatRuns.status, run.status),
       ))
       .returning();
@@ -1364,7 +1364,7 @@ export function createPostgresRunDispatchAdapter(
     // Repeated sweeps retain one wait diagnostic, not a new attempt or event.
     if (previousWait.cause !== blocker.cause || previousWait.runId !== blocker.runId) {
       await appendHeartbeatRunEvent(tx, {
-        companyId: run.companyId,
+        spaceId: run.spaceId,
         runId: run.id,
         agentId: run.agentId,
         eventType: "lifecycle",
@@ -1393,7 +1393,7 @@ export function createPostgresRunDispatchAdapter(
               ...parseObject(run.runnerProfileJson),
               aiConnectionNonAssigneeCommentWake: facts.issueAssigneeAgentId !== run.agentId,
             },
-          }).where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId)));
+          }).where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId)));
         }
         return { outcome: "not_stale" as const };
       }
@@ -1436,7 +1436,7 @@ export function createPostgresRunDispatchAdapter(
             ? await tx
                 .select({ executionRunId: issues.executionRunId })
                 .from(issues)
-                .where(and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)))
+                .where(and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId)))
                 .then((rows) => rows[0] ?? null)
                 .then((issue) =>
                   issue?.executionRunId === run.id
@@ -1488,7 +1488,7 @@ export function createPostgresRunDispatchAdapter(
       const claim = { reservationId: input.reservationId, recoveryLeaseOwner, admittedAt: new Date().toISOString() };
       await tx.update(heartbeatRuns).set({
         usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb) || ${JSON.stringify({ budgetDispatch: claim })}::jsonb`,
-      }).where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId)));
+      }).where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId)));
       return { dispatched: true as const, claim };
     };
 
@@ -1505,7 +1505,7 @@ export function createPostgresRunDispatchAdapter(
     );
     if (!admission.dispatched) return admission;
     // Accounting has committed. Close the separate issue/run ownership race
-    // under short row locks, without reacquiring company accounting or awaiting
+    // under short row locks, without reacquiring space accounting or awaiting
     // provider work. Mutating budget evaluation never runs in this second phase.
     return withRunOwnershipLocks<DispatchResolvedInteractionOutcome<T>>(input, () => ({ dispatched: false as const,
       cancellation: { outcome: "lost_race" as const } }), async (tx, run) => {
@@ -1516,19 +1516,19 @@ export function createPostgresRunDispatchAdapter(
         || claim.admittedAt !== admission.claim.admittedAt || claim.handedOffAt)
         return { dispatched: false as const, cancellation: { outcome: "lost_race" as const } };
 
-      const [scope] = await tx.select({ companyStatus: companies.status, agentStatus: agents.status,
+      const [scope] = await tx.select({ spaceStatus: spaces.status, agentStatus: agents.status,
         lifecycleState: agents.lifecycleState, reservationId: budgetReservations.id,
         projectId: budgetReservations.projectId, currentProjectId: projects.id, projectPausedAt: projects.pausedAt })
-        .from(companies).innerJoin(agents, and(eq(agents.companyId, companies.id), eq(agents.id, run.agentId)))
-        .leftJoin(budgetReservations, and(eq(budgetReservations.companyId, companies.id), eq(budgetReservations.runId, run.id),
+        .from(spaces).innerJoin(agents, and(eq(agents.spaceId, spaces.id), eq(agents.id, run.agentId)))
+        .leftJoin(budgetReservations, and(eq(budgetReservations.spaceId, spaces.id), eq(budgetReservations.runId, run.id),
           eq(budgetReservations.id, input.reservationId), eq(budgetReservations.agentId, run.agentId), eq(budgetReservations.state, "held")))
-        .leftJoin(projects, and(eq(projects.companyId, companies.id), eq(projects.id, budgetReservations.projectId)))
-        .where(eq(companies.id, run.companyId));
+        .leftJoin(projects, and(eq(projects.spaceId, spaces.id), eq(projects.id, budgetReservations.projectId)))
+        .where(eq(spaces.id, run.spaceId));
       if (!scope || scope.reservationId !== input.reservationId)
         return { dispatched: false as const, admissionBlockReason: "Provider dispatch no longer owns a held budget reservation" };
       if (!stopRecovery && scope.projectId && !scope.currentProjectId)
         return { dispatched: false as const, admissionBlockReason: "Reserved project no longer exists" };
-      if (!stopRecovery && (scope.companyStatus !== "active" || scope.projectPausedAt || scope.lifecycleState !== "ready"
+      if (!stopRecovery && (scope.spaceStatus !== "active" || scope.projectPausedAt || scope.lifecycleState !== "ready"
         || ["paused", "terminated", "pending_approval"].includes(scope.agentStatus)))
         return { dispatched: false as const, admissionBlockReason: "Execution scope is paused or no longer ready for work" };
 
@@ -1539,7 +1539,7 @@ export function createPostgresRunDispatchAdapter(
           // These facts read current issue authority. The reconstruction/source
           // coordinator validation remains in the accounting phase, avoiding a
           // source coordinator lock after issue/run in this final phase.
-          const facts = await loadStalenessFacts({ runId: run.id, companyId: run.companyId, agentId: run.agentId,
+          const facts = await loadStalenessFacts({ runId: run.id, spaceId: run.spaceId, agentId: run.agentId,
             responsibleUserId: run.responsibleUserId,
             conversationContinuation: run.runtimeMode === "legacy" && hasConversationContinuationPolicy(run.resultJson),
             issueId, contextSnapshot, scheduledRetryReason: run.scheduledRetryReason }, input.now, tx);
@@ -1553,19 +1553,19 @@ export function createPostgresRunDispatchAdapter(
             cancellation: await cancelStaleRunInTx(tx, run, issueId, decision, input.expectedStatus, input.now, true) };
         }
       }
-      const budgetBlock = stopRecovery ? null : await recheckAdmittedRunBudgetReadOnly(tx, { companyId: run.companyId, agentId: run.agentId,
+      const budgetBlock = stopRecovery ? null : await recheckAdmittedRunBudgetReadOnly(tx, { spaceId: run.spaceId, agentId: run.agentId,
         runId: run.id, projectId: scope.projectId, reservationId: input.reservationId,
         admittedRecovery: Boolean(input.recoveryLeaseOwner) });
       if (budgetBlock) return { dispatched: false as const, admissionBlockReason: budgetBlock };
       if (input.recoveryLeaseOwner) {
         const [owner] = run.runtimeMode === "native" ? await tx.select({ id: nativeRunFinalizations.runId }).from(nativeRunFinalizations).where(and(
-          eq(nativeRunFinalizations.companyId, run.companyId), eq(nativeRunFinalizations.runId, run.id),
+          eq(nativeRunFinalizations.spaceId, run.spaceId), eq(nativeRunFinalizations.runId, run.id),
           eq(nativeRunFinalizations.leaseOwner, input.recoveryLeaseOwner), sql`${nativeRunFinalizations.leaseExpiresAt} > clock_timestamp()`)) : [];
         if (!owner) return { dispatched: false as const, admissionBlockReason: "Native recovery no longer owns provider dispatch" };
       }
       await tx.update(heartbeatRuns).set({ usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb)
         || ${JSON.stringify({ budgetDispatch: { ...claim, handedOffAt: new Date().toISOString() } })}::jsonb` })
-        .where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId)));
+        .where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId)));
       let resultPromise: Promise<T>;
       try { resultPromise = Promise.resolve(input.dispatch(() => {})); }
       catch (error) { resultPromise = Promise.reject(error); }

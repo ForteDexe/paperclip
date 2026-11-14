@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { agents, authUsers, companyMemberships, environments, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
+import { agents, authUsers, spaceMemberships, environments, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
 import { beforeAll, expect, it, vi } from "vitest";
 import { heartbeatService } from "../services/heartbeat.js";
 import { classifyEnvironmentCapabilities, environmentRuntimeService } from "../services/environment-runtime.js";
@@ -12,8 +12,8 @@ import { describeEmbeddedPostgres, nativeRestartFixture } from "./helpers/native
 
 describeEmbeddedPostgres("heartbeat native session resume environment failure", () => {
   const fixture = nativeRestartFixture();
-  let companyId: string, agentId: string;
-  beforeAll(() => { ({ companyId, agentId } = fixture.current); });
+  let spaceId: string, agentId: string;
+  beforeAll(() => { ({ spaceId, agentId } = fixture.current); });
 
   it("releases the resume owner when the resumed run cannot acquire its environment lease", async () => {
     const label = `RESUME-LEASE-FAILURE-${randomUUID()}`;
@@ -25,11 +25,11 @@ describeEmbeddedPostgres("heartbeat native session resume environment failure", 
       const userId = randomUUID();
       await db.insert(authUsers).values({ id: userId, name: "Operator", email: `${userId}@example.invalid`,
         createdAt: new Date(), updatedAt: new Date() });
-      await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "owner" });
+      await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "owner" });
       await db.insert(environments).values({ id: environmentId, name: "Managed computer", driver: "sandbox",
         config: { provider: "fake", image: "fixture:test" } });
       await db.update(agents).set({ defaultEnvironmentId: environmentId }).where(eq(agents.id, agentId));
-      const execution = buildNativeExecutionInput({ companyId, agentId, runId: f.runId,
+      const execution = buildNativeExecutionInput({ spaceId, agentId, runId: f.runId,
         issue: { id: f.issueId, identifier: `NRR-${label}`, title: "Resume after a sandbox failure",
           description: null, workMode: "standard" },
         taskPrompt: "Continue the original task.", provider: "codex",
@@ -37,7 +37,7 @@ describeEmbeddedPostgres("heartbeat native session resume environment failure", 
         normalizedSessionId: f.native.normalizedSessionId, runtimeContext: nativeRuntimeContextFixture(),
         completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1",
           contract: { revision: "1", objective: "Resume", criteria: [{ id: "objective", requirement: "Resume the session" }] } } });
-      const identity = { companyId, issueId: f.issueId, runId: f.runId, agentId, sessionId: f.native.normalizedSessionId };
+      const identity = { spaceId, issueId: f.issueId, runId: f.runId, agentId, sessionId: f.native.normalizedSessionId };
       // An earlier provider failure left a retryable, result-less run for same-run resume.
       await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date(), errorCode: "native_session_interrupted",
         runnerProfileJson: { ...f.preparedProfile, nativeExecutionInput: execution,
@@ -48,8 +48,8 @@ describeEmbeddedPostgres("heartbeat native session resume environment failure", 
         .where(eq(nativeRunFinalizations.runId, f.runId));
       // The task already has an open incident, so releasing the issue lock does
       // not open another one and therefore never settles the coordinator.
-      await issueRecoveryActionService(db).upsertSourceScoped({ companyId, sourceIssueId: f.issueId,
-        kind: "active_run_watchdog", ownerType: "board", returnOwnerAgentId: agentId, cause: "native_session_interrupted",
+      await issueRecoveryActionService(db).upsertSourceScoped({ spaceId, sourceIssueId: f.issueId,
+        kind: "active_run_watchdog", ownerType: "operator", returnOwnerAgentId: agentId, cause: "native_session_interrupted",
         fingerprint: `native-interruption:${f.runId}`, evidence: { runId: f.runId },
         nextAction: "Re-pair the computer connection.", maxAttempts: 3, wakePolicy: null, supersedeOnIdentityChange: true });
 

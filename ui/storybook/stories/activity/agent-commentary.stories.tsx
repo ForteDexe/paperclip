@@ -7,7 +7,7 @@ import { PluginLauncherProvider } from "@/plugins/launchers";
 import { commentaryEntries, prepareCommentaryFixtures } from "../../support/agent-commentary/fixtures";
 
 function CommentaryJourney() {
-  return <PluginLauncherProvider><Routes><Route path="/:companyPrefix" element={<Layout />}><Route path="activity/commentary" element={<AuditHub section="commentary" />} /><Route path="activity" element={<AuditHub section="activity" />} /></Route></Routes></PluginLauncherProvider>;
+  return <PluginLauncherProvider><Routes><Route path="/:spacePrefix" element={<Layout />}><Route path="activity/commentary" element={<AuditHub section="commentary" />} /><Route path="activity" element={<AuditHub section="activity" />} /></Route></Routes></PluginLauncherProvider>;
 }
 
 const meta = {
@@ -17,7 +17,7 @@ const meta = {
   parameters: {
     layout: "fullscreen",
     initialEntries: ["/PAP/activity/commentary"],
-    paperclip: {
+    outpost: {
       capabilities: ["activity/agent-commentary"],
       status: "current",
       implementation: "production",

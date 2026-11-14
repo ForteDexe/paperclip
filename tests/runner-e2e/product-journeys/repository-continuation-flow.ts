@@ -18,7 +18,7 @@ const id = "repository-continuation";
 /** Attached and managed targets share the browser story and byte/Git oracle. */
 export async function runRepositoryContinuation(context: JourneyContext, session: TargetSession, campaignId: string,
   evidence: JourneyEvidence, options: { deadlineAt: number; directory: string }) {
-  const { api, page, company, agent } = context;
+  const { api, page, space, agent } = context;
   const observations = createObservedReader(api, options.deadlineAt);
   const readObserved = observations.get;
   try {
@@ -33,7 +33,7 @@ export async function runRepositoryContinuation(context: JourneyContext, session
     };
     const projectName = `Journey QA repository ${campaignId}`;
     await session.own({ kind: "project", name: projectName, journeyId: id });
-    const project = await api.post<Row>(`/api/companies/${company.id}/projects`, {
+    const project = await api.post<Row>(`/api/spaces/${space.id}/projects`, {
       name: projectName, description: "Disposable read-only public repository continuation fixture.",
       executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", sharedWorkspaceConcurrency: "serialize",
         allowIssueOverride: false, environmentId: context.environmentId, workspaceStrategy: { type: "project_primary" } },
@@ -42,11 +42,11 @@ export async function runRepositoryContinuation(context: JourneyContext, session
     await session.own({ kind: "project", name: projectName, id: project.id, journeyId: id });
     const configured = await readObserved<Row>(`/api/projects/${project.id}`);
     const projectWorkspaces = configured.workspaces?.filter((workspace: Row) => workspace.repoUrl === source.url && workspace.repoRef === source.commit && workspace.isPrimary);
-    if (configured.companyId !== company.id || !Array.isArray(projectWorkspaces) || projectWorkspaces.length !== 1)
+    if (configured.spaceId !== space.id || !Array.isArray(projectWorkspaces) || projectWorkspaces.length !== 1)
       throw new JourneyError("failed", "repository_project_source_mismatch");
     const projectWorkspaceId = projectWorkspaces[0]!.id;
     const title = `Journey QA repository continuation ${campaignId}`;
-    const created = await createTaskThroughUi({ page, origin: api.origin, issuePrefix: company.issuePrefix,
+    const created = await createTaskThroughUi({ page, origin: api.origin, issuePrefix: space.issuePrefix,
       agentName: agent.name, projectName, title, prompt: story.first, workMode: "standard", requireExplicitTitle: true,
       beforeDispatch: () => session.own({ kind: "issue", name: title, journeyId: id }) });
     await session.own({ kind: "issue", name: title, id: created.issueId, journeyId: id });
@@ -95,7 +95,7 @@ export async function runRepositoryContinuation(context: JourneyContext, session
     const file = (name: string) => readObserved<WorkspaceFileContent>(`${route}/file-resources/content?workspace=execution&path=${encodeURIComponent(name)}`);
     const first = await settled(1), firstRun = first.taskRuns[0]!;
     const initialView = await readObserved<Row>(`${route}/workspace`), workspaceId = initialView.workspace?.id;
-    const binding = (issue: Row, view: Row, runs: Row[]) => repositoryWorkspaceBindingMatches({ companyId: company.id,
+    const binding = (issue: Row, view: Row, runs: Row[]) => repositoryWorkspaceBindingMatches({ spaceId: space.id,
       issueId: created.issueId, projectId: project.id, projectWorkspaceId, workspaceId, repoUrl: source.url, issue, view, runs });
     check("repository-configured-source-bound", binding(first.currentIssue, initialView, first.taskRuns));
     const [referenceArtifact] = await readRegisteredArtifacts(artifactApi, created.issueId, firstRun.id, [files.context]);
@@ -110,7 +110,7 @@ export async function runRepositoryContinuation(context: JourneyContext, session
       && repositoryWorkspaceFileMatches(await file("README"), workspaceId, "README", source.readme));
     await retain("repository-first-observation.json", { source, projectId: project.id, workspaceId, issueId: created.issueId,
       runId: firstRun.id, referenceArtifact, initialGit, bundle: { attachmentId: firstBundle.attachmentId, sha256: firstBundle.sha256 } });
-    const url = `${api.origin}/${company.issuePrefix}/issues/${first.currentIssue.identifier ?? created.issueId}`;
+    const url = `${api.origin}/${space.issuePrefix}/issues/${first.currentIssue.identifier ?? created.issueId}`;
     await page.goto(url, { waitUntil: "domcontentloaded" });
     await page.reload();
     await browserDownload(firstBundle, "first-bundle");

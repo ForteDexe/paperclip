@@ -1,7 +1,7 @@
 import type { VoiceCallbackPreference } from "@outpost/shared";
 import { api } from "./client";
-const path = (companyId: string, endpointId: string) => `/companies/${encodeURIComponent(companyId)}/voice-callbacks/${encodeURIComponent(endpointId)}`;
+const path = (spaceId: string, endpointId: string) => `/spaces/${encodeURIComponent(spaceId)}/voice-callbacks/${encodeURIComponent(endpointId)}`;
 export const voiceCallbacksApi = {
-  get: (companyId: string, endpointId: string) => api.get<VoiceCallbackPreference | null>(path(companyId, endpointId), { cache: "no-store" }),
-  save: (companyId: string, endpointId: string, preference: VoiceCallbackPreference) => api.put<VoiceCallbackPreference>(path(companyId, endpointId), preference),
+  get: (spaceId: string, endpointId: string) => api.get<VoiceCallbackPreference | null>(path(spaceId, endpointId), { cache: "no-store" }),
+  save: (spaceId: string, endpointId: string, preference: VoiceCallbackPreference) => api.put<VoiceCallbackPreference>(path(spaceId, endpointId), preference),
 };

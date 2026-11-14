@@ -23,14 +23,14 @@ export async function readIdleRoutineSchedule(tx: Pick<Db, "execute">, ownerId: 
   ) AS blocked`);
   if (unknown.length !== 1 || unknown[0]?.blocked !== false) return { blocked: true };
   const rows = await tx.execute<{
-    id: string; routine_id: string; company_id: string; kind: string;
+    id: string; routine_id: string; space_id: string; kind: string;
     setup_pending: boolean; cron_expression: string | null; timezone: string | null;
     next_run_at: Date | string | null; routine_updated: Date | string; trigger_updated: Date | string;
     scoped: boolean;
-  }>(sql`SELECT t.id, t.routine_id, t.company_id, t.kind, t.setup_pending,
+  }>(sql`SELECT t.id, t.routine_id, t.space_id, t.kind, t.setup_pending,
       t.cron_expression, t.timezone, t.next_run_at,
       r.updated_at AS routine_updated, t.updated_at AS trigger_updated,
-      (t.company_id = r.company_id) AS scoped
+      (t.space_id = r.space_id) AS scoped
     FROM routine_triggers t JOIN routines r ON r.id = t.routine_id
     WHERE r.status = 'active' AND t.enabled AND NOT t.archived
     ORDER BY t.id LIMIT ${limit + 1}`);

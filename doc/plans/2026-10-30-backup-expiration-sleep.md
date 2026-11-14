@@ -19,13 +19,13 @@ run, coalesced native-task/task, agent and lease references, including protected
 backups. Ordinary task, run, lease and process-release notifications retain
 these identities and inspect only affected roots. New run or lease references
 resolve through the owner's database relationships. Local publication retains
-its exact digest. Explicit company or instance configuration changes can still
+its exact digest. Explicit space or instance configuration changes can still
 reconstruct their whole affected scope. Roots without backup or cleanup tombstones
 perform no backup SQL. After discovery and all obligations settle, there is no
 recurring SQL or filesystem scan. Startup reconstructs future work; inspecting a
 source never changes its business timestamps. Runtime task close/reopen and
 retention timestamp changes, native environment and retained session writes,
-local backup publication, and process release invalidate the company or digest.
+local backup publication, and process release invalidate the space or digest.
 Signals from database producers register before writes inside their owning
 transaction, including caller-owned transactions and nested savepoints.
 

@@ -4,7 +4,7 @@ import type { ChatCatalogCase } from "../chat-catalog-contract.js";
 import { pollUntil } from "../api.js";
 import { collectRunEvents } from "../run-observations.js";
 import { fixtureWorker, makeDefinition } from "./internal-definition.js";
-import { checks, companyPath, entity, hasLink, internalResultLink, observation, observeInternal, project, verifyInternalResult, type Entity, type InternalObservation } from "./internal-support.js";
+import { checks, spacePath, entity, hasLink, internalResultLink, observation, observeInternal, project, verifyInternalResult, type Entity, type InternalObservation } from "./internal-support.js";
 
 interface RoutineRun extends Entity { routineId?: string; source?: string; triggeredAt?: string; completedAt?: string | null; linkedIssueId?: string | null; failureReason?: string | null }
 interface RunEvent { seq?: number; eventType?: string; payload?: Record<string, unknown> | null }
@@ -44,14 +44,14 @@ export function callApiInputDigest(input: Record<string, unknown>) { return crea
 /**
  * call_api inputs whose response carries this routine's run records (status and failure reason): its runs
  * (the server clamps any limit to 1..200 and the fixture has one run, so every integer limit up to 10000,
- * as a number or string, counts), its detail (recent runs), or the company routine list
- * (last run), unfiltered or filtered to the routine's project. The company path parameter may be omitted;
- * the server fills it from the caller's company. Empty query/path objects are equivalent to omitted ones.
+ * as a number or string, counts), its detail (recent runs), or the space routine list
+ * (last run), unfiltered or filtered to the routine's project. The space path parameter may be omitted;
+ * the server fills it from the caller's space. Empty query/path objects are equivalent to omitted ones.
  */
 const readCache = new Map<string, ReadonlySet<string>>();
-export function routineExecutionReads(companyId: string, routineId: string, projectId?: string): ReadonlySet<string> {
-  const key = JSON.stringify([companyId, routineId, projectId ?? null]); const cached = readCache.get(key); if (cached) return cached;
-  const list = "GET /api/companies/{companyId}/routines"; const runs = "GET /api/routines/{id}/runs"; const detail = "GET /api/routines/{id}";
+export function routineExecutionReads(spaceId: string, routineId: string, projectId?: string): ReadonlySet<string> {
+  const key = JSON.stringify([spaceId, routineId, projectId ?? null]); const cached = readCache.get(key); if (cached) return cached;
+  const list = "GET /api/spaces/{spaceId}/routines"; const runs = "GET /api/routines/{id}/runs"; const detail = "GET /api/routines/{id}";
   const variants = (operationId: string, paths: Array<Record<string, unknown> | undefined>, queries: Array<Record<string, unknown> | undefined>) =>
     paths.flatMap(pathParams => queries.map(query => ({ operationId, ...(pathParams ? { pathParams } : {}), ...(query ? { query } : {}) })));
   const limits = Array.from({ length: 10_001 }, (_, index) => index).flatMap(limit => [{ limit }, { limit: String(limit) }]);
@@ -59,7 +59,7 @@ export function routineExecutionReads(companyId: string, routineId: string, proj
   const reads = new Set([
     ...variants(runs, routinePath, [undefined, {}, ...limits]),
     ...variants(detail, routinePath, [undefined, {}]),
-    ...variants(list, [{ companyId }, undefined, {}], [undefined, {}, ...(projectId ? [{ projectId }] : [])]),
+    ...variants(list, [{ spaceId }, undefined, {}], [undefined, {}, ...(projectId ? [{ projectId }] : [])]),
   ].map(callApiInputDigest));
   readCache.set(key, reads); return reads;
 }
@@ -96,18 +96,18 @@ export function gradeRoutineAudit(value: unknown) {
   if (!o || !o.routine || !Array.isArray(o.routineRuns) || !Array.isArray(o.leadEvents) || typeof o.state.timezone !== "string" || typeof o.state.failedRunId !== "string") return c.result();
   const zone = o.state.timezone; const original = entity(o.state, "routine"); const failed = o.routineRuns.find(row => row.id === o.state.failedRunId);
   const edit = o.activity.find(row => row.id === o.state.editEventId);
-  c.add("real-edit-then-failed-morning-run", o.routine.companyId === o.companyId && !!failed && failed.routineId === original.id && failed.source === "schedule" && failed.status === "failed"
+  c.add("real-edit-then-failed-morning-run", o.routine.spaceId === o.spaceId && !!failed && failed.routineId === original.id && failed.source === "schedule" && failed.status === "failed"
     && morning(failed.triggeredAt, zone, o.observedAt) && !!failed.linkedIssueId && o.executionTask?.id === failed.linkedIssueId && o.executionTask.status === "blocked"
     && !!edit && edit.entityId === original.id && edit.action === "routine.updated" && edit.actorType === "user" && !!edit.createdAt && Date.parse(edit.createdAt) < Date.parse(failed.triggeredAt!)
     && !o.routineRuns.some(row => (row.status === "completed" || row.status === "succeeded") && morning(row.triggeredAt ?? row.createdAt, zone, o.observedAt)),
-  "A person edited the current-company routine before its real scheduled run this morning (person's timezone); that run failed because its execution task was blocked, and no morning run succeeded.");
+  "A person edited the current-space routine before its real scheduled run this morning (person's timezone); that run failed because its execution task was blocked, and no morning run succeeded.");
   c.add("read-only-definition-and-execution", original.updatedAt === o.routine.updatedAt && original.description === o.routine.description
     && o.routineRuns.length === Number(o.state.routineRunCount) && o.executionTask?.status === "blocked"
     && !o.activity.some(row => row.agentId === o.leadId && (row.entityId === original.id || row.entityId === failed?.linkedIssueId)),
   "The audit neither manufactures a run, edits the routine, nor changes the failed execution's task.");
   // The reply's claims are read by a person, not matched by wording: the checks above and below prove the
   // saved outcome, that the chat run read it, and that the person can open the evidence from the answer.
-  c.add("read-actual-execution-record", readFailedExecution(o.leadEvents, o.state.failedRunId, routineExecutionReads(o.companyId, original.id, (o.state.project as Entity | undefined)?.id)),
+  c.add("read-actual-execution-record", readFailedExecution(o.leadEvents, o.state.failedRunId, routineExecutionReads(o.spaceId, original.id, (o.state.project as Entity | undefined)?.id)),
     "The chat run read the routine's run records (runs, detail recent runs or list last run), not only the definition or edit history.");
   c.add("routine-or-execution-linked", routineLinks(o, original.id).length > 0 || (!!o.executionTask && hasLink(o, "issues", o.executionTask)),
     "The answer links the real routine or the failed run's execution task, so the person can inspect the evidence.");
@@ -125,16 +125,16 @@ function routineAudit(): ChatCatalogCase {
     const browserTimezone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
     if (browserTimezone !== timezone) throw new Error(`Browser timezone override did not apply (${browserTimezone})`);
     const p = await project(ctx, "Launch"); const worker = await fixtureWorker(ctx);
-    // The harness funds the company and lead before setup; fund the routine's worker the same way so its
+    // The harness funds the space and lead before setup; fund the routine's worker the same way so its
     // unpriced setup turn does not budget-pause it before the query.
-    await api.post(`${companyPath(ctx)}/budgets/policies`, { scopeType: "agent", scopeId: worker.id, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
-    const routine = await api.post<Entity>(`${companyPath(ctx)}/routines`, { title: "Daily launch readiness", projectId: p.id, assigneeAgentId: worker.id, description: ORIGINAL_DESCRIPTION });
+    await api.post(`${spacePath(ctx)}/budgets/policies`, { scopeType: "agent", scopeId: worker.id, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+    const routine = await api.post<Entity>(`${spacePath(ctx)}/routines`, { title: "Daily launch readiness", projectId: p.id, assigneeAgentId: worker.id, description: ORIGINAL_DESCRIPTION });
     // A daily schedule in the person's timezone, firing at the next real minute that leaves room for the edit.
     const fireAt = new Date(Date.now() + (new Date().getUTCSeconds() >= 45 ? 180_000 : 120_000)); const fire = localClock(fireAt, timezone);
     if (fire.hour >= 12) throw new Error("Scheduled morning run would fall after noon");
     const trigger = await api.post<Entity & { nextRunAt?: string }>(`/api/routines/${routine.id}/triggers`, { kind: "schedule", cronExpression: `${fire.minute} ${fire.hour} * * *`, timezone, enabled: true });
     await api.patch(`/api/routines/${routine.id}`, { description: EDITED_DESCRIPTION });
-    const edit = (await api.get<Entity[]>(`${companyPath(ctx)}/activity?limit=1000`)).find(row => row.entityId === routine.id && row.action === "routine.updated" && row.actorType === "user");
+    const edit = (await api.get<Entity[]>(`${spacePath(ctx)}/activity?limit=1000`)).find(row => row.entityId === routine.id && row.action === "routine.updated" && row.actorType === "user");
     if (!edit) throw new Error("Real routine edit was not recorded");
     const invocation = await pollUntil({ label: "real scheduled morning routine invocation", deadlineAt: Date.now() + 240_000, intervalMs: 2000,
       load: () => api.get<RoutineRun[]>(`/api/routines/${routine.id}/runs`), accept: rows => rows.some(row => row.source === "schedule" && !!row.linkedIssueId),
@@ -151,7 +151,7 @@ function routineAudit(): ChatCatalogCase {
     const now = new Date().toISOString(); const failed = outcome.runs.find(row => row.id === scheduled.id)!;
     if (!morning(failed.triggeredAt, timezone, now) || Date.parse(edit.createdAt!) >= Date.parse(failed.triggeredAt!)) throw new Error("Scheduled run is not a real morning run after the edit");
     const saved = await api.get<Entity>(`/api/routines/${routine.id}`);
-    await ctx.input.evidence("chat-catalog-routine-audit-setup.json", { companyId: ctx.input.fixtures.company.id, timezone, trigger, edit, runs: outcome.runs, task: outcome.task, now });
+    await ctx.input.evidence("chat-catalog-routine-audit-setup.json", { spaceId: ctx.input.fixtures.space.id, timezone, trigger, edit, runs: outcome.runs, task: outcome.task, now });
     return { project: p, worker: { id: worker.id }, routine: saved, timezone, editEventId: edit.id, failedRunId: failed.id, executionTaskId: failed.linkedIssueId, routineRunCount: outcome.runs.length, now };
   }, gradeRoutineAudit);
   return { ...base, oracleVersion: "outpost.chat-catalog.internal.routine-audit.v6", authentication: "human-session", expectedRunCount: 2, minimumRunCount: 2, attemptTimeoutMs: 720_000,

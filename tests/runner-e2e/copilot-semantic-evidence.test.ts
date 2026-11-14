@@ -12,20 +12,20 @@ const rawInput = { summary: "EXACT-MARKER", reportedWorkDisposition: "done", com
 const validation = validatePrpStructuredRunResult(rawInput);
 if (!validation.ok) throw new Error("Semantic fixture input must pass the production validator");
 const result = validation.result;
-const receipt = { schema: "outpost.semantic_tool_receipt.v2", operationId: "paperclip_finish", callIdentitySha256: hash("3"), inputSha256: hash(canonical(rawInput)), normalizedInputSha256: hash(canonical(result)), resultSha256: hash("opaque original returned encoding"), outcome: "returned" };
+const receipt = { schema: "outpost.semantic_tool_receipt.v2", operationId: "outpost_finish", callIdentitySha256: hash("3"), inputSha256: hash(canonical(rawInput)), normalizedInputSha256: hash(canonical(result)), resultSha256: hash("opaque original returned encoding"), outcome: "returned" };
 function row(seq: number, eventType: string, payload: any, overrides: any = {}) {
   const e = { schema: "outpost.orp.event.v1", eventType, runId: "run", turnId: "turn", normalizedSessionId: "normalized", sourceInstanceId: "source", sourceKind: "runner", sourceSeq: seq, emittedAt: "2026-09-30T12:00:00Z", payload, ...overrides };
-  return { companyId: "company", runId: "run", seq, eventType, sourceInstanceId: e.sourceInstanceId, sourceSeq: e.sourceSeq, payload: { orpEvent: e } };
+  return { spaceId: "space", runId: "run", seq, eventType, sourceInstanceId: e.sourceInstanceId, sourceSeq: e.sourceSeq, payload: { orpEvent: e } };
 }
 function notice(seq: number, toolCallId: string, status: string, fields: any = {}) {
   return row(seq, "provider.notice.recorded", { schema: "outpost.provider.notice.v1", category: "copilot_tool_evidence_v1", scope: "turn", provenance: { method: "session/update", eventType: "tool", sessionId: "native", turnId: "turn" }, details: Object.entries({ stage: "tool", toolCallId, status, ...fields }).map(([name, value]) => ({ name, value: String(value) })) });
 }
 function fixture() {
   const rows = [notice(1, "command", "pending", { operation: "execute" }), notice(2, "finish-native", "pending"), row(3, "run.result.proposed", structuredClone(result), { itemId: "item-run" }),
-    row(4, "provider.notice.recorded", { schema: "outpost.provider.notice.v1", category: "paperclip_semantic_tool_receipt_v2", scope: "turn", provenance: { method: "paperclip/semantic_tool_result", eventType: "semantic_result", sessionId: "native", turnId: "turn" }, details: Object.entries({ stage: "semantic_result", ...receipt }).map(([name, value]) => ({ name, value })) }),
+    row(4, "provider.notice.recorded", { schema: "outpost.provider.notice.v1", category: "outpost_semantic_tool_receipt_v2", scope: "turn", provenance: { method: "outpost/semantic_tool_result", eventType: "semantic_result", sessionId: "native", turnId: "turn" }, details: Object.entries({ stage: "semantic_result", ...receipt }).map(([name, value]) => ({ name, value })) }),
     notice(5, "finish-native", "completed", { semanticOperationId: receipt.operationId, semanticCallIdentitySha256: receipt.callIdentitySha256, semanticInputSha256: receipt.inputSha256, semanticNormalizedInputSha256: receipt.normalizedInputSha256, semanticResultSha256: receipt.resultSha256, semanticOutcome: receipt.outcome }),
     row(6, "turn.completed", {}), row(7, "run.result.accepted", { result: structuredClone(result) }, { sourceKind: "control_plane", sourceInstanceId: "source:control", sourceSeq: 1 })];
-  const expected = { companyId: "company", runId: "run", turnId: "turn", nativeSessionId: "native", command: readCopilotToolEvidence(rows, "run")[0]!, summary: "EXACT-MARKER" };
+  const expected = { spaceId: "space", runId: "run", turnId: "turn", nativeSessionId: "native", command: readCopilotToolEvidence(rows, "run")[0]!, summary: "EXACT-MARKER" };
   return { rows, expected };
 }
 const frame = (r: any) => r.payload.orpEvent;
@@ -35,7 +35,7 @@ describe("Copilot semantic completion public-event oracle", () => {
     const retained = JSON.parse(await readFile(new URL("./fixtures/copilot-context-attached-completion-v15.json", import.meta.url), "utf8"));
     const notices = readCopilotToolEvidence(retained.rows, retained.rows[0].runId);
     const command = notices.find(n => n.operation === "execute" && n.status === "pending")!;
-    const proof = readCopilotSemanticCompletion(retained.rows, { companyId: retained.rows[0].companyId,
+    const proof = readCopilotSemanticCompletion(retained.rows, { spaceId: retained.rows[0].spaceId,
       runId: command.runId, turnId: command.turnId, nativeSessionId: command.sessionId, command,
       summary: retained.summary, requireContextRead: true });
     expect(proof).toMatchObject({ schema: "outpost.e2e.copilot-semantic-completion.v4", contextRead: { canonicalSeqs: expect.any(Array) } });
@@ -59,7 +59,7 @@ describe("Copilot semantic completion public-event oracle", () => {
       if (invalid === "not-read-only") frame(canonical).payload.readOnly = false;
       if (invalid === "source-sequence-drift") { frame(canonical).sourceSeq = command.seq + 1; canonical.sourceSeq = command.seq + 1; }
       if (invalid === "extra-context-call") rows.push(structuredClone(rows.find((r: any) => r.seq === proof.contextRead!.completedSeq)));
-      expect(() => readCopilotSemanticCompletion(rows, { companyId: rows[0].companyId,
+      expect(() => readCopilotSemanticCompletion(rows, { spaceId: rows[0].spaceId,
         runId: command.runId, turnId: command.turnId, nativeSessionId: command.sessionId, command,
         summary: retained.summary, requireContextRead: true }), invalid).toThrow();
     }
@@ -113,7 +113,7 @@ describe("Copilot semantic completion public-event oracle", () => {
   });
   it.each(["only", "alongside-v2"])("rejects legacy v1 authority %s as fresh qualification", mode => {
     const f = fixture(), old = structuredClone(f.rows[3]!);
-    frame(old).payload.category = "paperclip_semantic_tool_receipt_v1";
+    frame(old).payload.category = "outpost_semantic_tool_receipt_v1";
     setField(old, "schema", "outpost.semantic_tool_receipt.v1");
     frame(old).payload.details = frame(old).payload.details.filter((d: any) => d.name !== "normalizedInputSha256");
     if (mode === "only") f.rows[3] = old; else f.rows.push(old);
@@ -125,16 +125,16 @@ describe("Copilot semantic completion public-event oracle", () => {
   });
   it.each([0, 1, 2, 3, 4, 5, 6])("rejects missing required row %s", index => { const f = fixture(); f.rows.splice(index, 1); expect(() => readCopilotSemanticCompletion(f.rows, f.expected)).toThrow(); });
   it.each([1, 2, 3, 4, 5, 6])("rejects duplicate required row %s", index => { const f = fixture(); f.rows.push(structuredClone(f.rows[index]!)); expect(() => readCopilotSemanticCompletion(f.rows, f.expected)).toThrow(); });
-  it.each(["companyId", "runId"])("rejects foreign durable %s", key => { const f = fixture(); (f.rows[3] as any)[key] = "foreign"; expect(() => readCopilotSemanticCompletion(f.rows, f.expected)).toThrow(); });
+  it.each(["spaceId", "runId"])("rejects foreign durable %s", key => { const f = fixture(); (f.rows[3] as any)[key] = "foreign"; expect(() => readCopilotSemanticCompletion(f.rows, f.expected)).toThrow(); });
   it.each(["turnId", "normalizedSessionId", "sourceInstanceId", "sourceKind", "eventType", "schema"])("rejects foreign or malformed envelope %s", key => {
     for (const index of [1, 2, 3, 4, 5, 6]) { const f = fixture(); (frame(f.rows[index]!))[key] = "foreign"; expect(() => readCopilotSemanticCompletion(f.rows, f.expected)).toThrow(); }
   });
   it.each([null, undefined])("rejects missing envelope turn %s even with native provenance intact", turn => { const f = fixture(); frame(f.rows[4]!).turnId = turn; expect(() => readCopilotSemanticCompletion(f.rows, f.expected)).toThrow(); });
   it.each(["sessionId", "turnId", "method", "eventType"])("rejects authoritative provenance %s mismatch", key => { const f = fixture(); frame(f.rows[3]!).payload.provenance[key] = "foreign"; expect(() => readCopilotSemanticCompletion(f.rows, f.expected)).toThrow(); });
   it.each(["callIdentitySha256", "inputSha256", "normalizedInputSha256", "resultSha256", "operationId", "outcome"])("rejects native %s disagreement", key => { const f = fixture(); setField(f.rows[4], `semantic${key[0]!.toUpperCase()}${key.slice(1)}`, key.endsWith("Sha256") ? "a".repeat(64) : "wrong"); expect(() => readCopilotSemanticCompletion(f.rows, f.expected)).toThrow(); });
-  it("does not infer acceptance from returned receipt or a tool named paperclip_finish", () => {
+  it("does not infer acceptance from returned receipt or a tool named outpost_finish", () => {
     const f = fixture(); frame(f.rows[6]!).payload.result = { accepted: false, summary: "EXACT-MARKER" }; expect(() => readCopilotSemanticCompletion(f.rows, f.expected)).toThrow();
-    const g = fixture(); frame(g.rows[4]!).payload.title = "paperclip_finish"; frame(g.rows[4]!).payload.details = frame(g.rows[4]!).payload.details.filter((d: any) => !d.name.startsWith("semantic")); expect(() => readCopilotSemanticCompletion(g.rows, g.expected)).toThrow();
+    const g = fixture(); frame(g.rows[4]!).payload.title = "outpost_finish"; frame(g.rows[4]!).payload.details = frame(g.rows[4]!).payload.details.filter((d: any) => !d.name.startsWith("semantic")); expect(() => readCopilotSemanticCompletion(g.rows, g.expected)).toThrow();
   });
   it.each(["failed", "cancelled", "interrupted"])("rejects %s terminal", status => { const f = fixture(); f.rows[5]!.eventType = `turn.${status}`; frame(f.rows[5]!).eventType = `turn.${status}`; expect(() => readCopilotSemanticCompletion(f.rows, f.expected)).toThrow(); });
   it("rejects changed accepted body, forged call ID, wrong summary and rejected result", () => {
@@ -177,7 +177,7 @@ describe("Copilot semantic completion public-event oracle", () => {
     const f = attachedFixture();
     expect(copilotAttachedFinishReady(f.notices, f.command)).toMatchObject({ toolCallId: f.proof.nativeToolCallId, status: "pending" });
     for (const changed of [{ turnId: "foreign" }, { sessionId: "foreign" }, { semanticOutcome: "error" }]) {
-      const partial = f.notices.map(n => n.semanticOperationId === "paperclip_finish" ? { ...n, ...changed } : n);
+      const partial = f.notices.map(n => n.semanticOperationId === "outpost_finish" ? { ...n, ...changed } : n);
       expect(copilotAttachedFinishReady(partial as any, f.command)).toBeUndefined();
     }
     const incomplete = f.notices.filter(n => !(n.toolCallId === f.proof.nativeToolCallId && n.status === "pending"));
@@ -200,7 +200,7 @@ describe("Copilot semantic completion public-event oracle", () => {
   it("rejects shell-read evidence from a different durable stream despite matching native identity", () => {
     const f = attachedFixture(), r = f.rows.find(r => r.seq === 52)!;
     frame(r).sourceInstanceId = "foreign"; r.sourceInstanceId = "foreign";
-    expect(() => readCopilotSemanticCompletion(f.rows, { companyId: "company", runId: "run", turnId: "turn", nativeSessionId: "native", command: f.command, summary: "EXACT-MARKER" })).toThrow();
+    expect(() => readCopilotSemanticCompletion(f.rows, { spaceId: "space", runId: "run", turnId: "turn", nativeSessionId: "native", command: f.command, summary: "EXACT-MARKER" })).toThrow();
   });
   it.each(["missing-pending", "missing-terminal", "duplicate-pending", "duplicate-terminal", "extra-completed-only", "extra-complete-read", "wrong-shell", "wrong-command", "failed", "nonzero", "reordered", "late", "wrong-operation", "mutation", "read-path", "foreign-session", "foreign-turn", "foreign-run", "permission", "semantic-fields", "normalized-semantic-field"])("rejects invalid shell-read lifecycle: %s", failure => {
     const f = attachedFixture(), start = f.notices.find(n => n.toolCallId === "shell-read" && n.status === "pending")!, end = f.notices.find(n => n.toolCallId === "shell-read" && n.status === "completed")!;

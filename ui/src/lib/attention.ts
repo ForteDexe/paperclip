@@ -156,7 +156,7 @@ export function attentionStatus(item: AttentionItem): "blocked" | "in_review" {
  * `relatedIssue` wins when both are present: it is the *other* record, so it
  * is the one the subject alone can't tell you about.
  *
- * Returns null for rows genuinely not attached to a task — a hire approval, an
+ * Returns null for rows genuinely not attached to a task — a create approval, an
  * agent error — which should show no key rather than a borrowed one.
  *
  * Known gap (server-side, not resolvable here): an approval can carry
@@ -267,7 +267,7 @@ export function attentionImageUrl(assetId: string): string {
  * The sidebar badge: distinct items that either surfaced today or carry an
  * explicit decide-by deadline that is due today/past. The server computes this
  * before pagination (`deskBadgeCount`), so badge polling can fetch a small
- * first page without losing the company-wide signal.
+ * first page without losing the space-wide signal.
  */
 export function attentionBadgeCount(feed: AttentionFeed | null | undefined): number {
   return feed?.deskBadgeCount ?? 0;
@@ -571,10 +571,10 @@ export interface AttentionFilterOptions {
   hasNoWorkspace: boolean;
 }
 
-export const ATTENTION_GROUP_BY_KEY = "paperclip:attention:group-by";
-export const ATTENTION_SORT_KEY = "paperclip:attention:sort";
-export const ATTENTION_FILTERS_KEY_PREFIX = "paperclip:attention:filters";
-export const ATTENTION_COLLAPSED_GROUPS_KEY_PREFIX = "paperclip:attention:collapsed-groups";
+export const ATTENTION_GROUP_BY_KEY = "outpost:attention:group-by";
+export const ATTENTION_SORT_KEY = "outpost:attention:sort";
+export const ATTENTION_FILTERS_KEY_PREFIX = "outpost:attention:filters";
+export const ATTENTION_COLLAPSED_GROUPS_KEY_PREFIX = "outpost:attention:collapsed-groups";
 
 function isAttentionGroupBy(value: unknown): value is AttentionGroupBy {
   return value === "none" || value === "date" || value === "type" || value === "project" || value === "severity";
@@ -614,14 +614,14 @@ export function saveAttentionSortOrder(order: AttentionSortOrder) {
   }
 }
 
-function getAttentionFiltersStorageKey(companyId: string | null | undefined): string | null {
-  if (!companyId) return null;
-  return `${ATTENTION_FILTERS_KEY_PREFIX}:${companyId}`;
+function getAttentionFiltersStorageKey(spaceId: string | null | undefined): string | null {
+  if (!spaceId) return null;
+  return `${ATTENTION_FILTERS_KEY_PREFIX}:${spaceId}`;
 }
 
-function getAttentionCollapsedGroupsStorageKey(companyId: string | null | undefined): string | null {
-  if (!companyId) return null;
-  return `${ATTENTION_COLLAPSED_GROUPS_KEY_PREFIX}:${companyId}`;
+function getAttentionCollapsedGroupsStorageKey(spaceId: string | null | undefined): string | null {
+  if (!spaceId) return null;
+  return `${ATTENTION_COLLAPSED_GROUPS_KEY_PREFIX}:${spaceId}`;
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -631,8 +631,8 @@ function normalizeStringArray(value: unknown): string[] {
 
 const ALL_SEVERITIES: AttentionSeverity[] = ["critical", "high", "medium", "low"];
 
-export function loadAttentionFilters(companyId: string | null | undefined): AttentionFilterState {
-  const storageKey = getAttentionFiltersStorageKey(companyId);
+export function loadAttentionFilters(spaceId: string | null | undefined): AttentionFilterState {
+  const storageKey = getAttentionFiltersStorageKey(spaceId);
   if (!storageKey) return { ...defaultAttentionFilterState };
   try {
     const raw = localStorage.getItem(storageKey);
@@ -652,10 +652,10 @@ export function loadAttentionFilters(companyId: string | null | undefined): Atte
 }
 
 export function saveAttentionFilters(
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   filters: AttentionFilterState,
 ) {
-  const storageKey = getAttentionFiltersStorageKey(companyId);
+  const storageKey = getAttentionFiltersStorageKey(spaceId);
   if (!storageKey) return;
   try {
     localStorage.setItem(storageKey, JSON.stringify(filters));
@@ -664,8 +664,8 @@ export function saveAttentionFilters(
   }
 }
 
-export function loadCollapsedAttentionGroupKeys(companyId: string | null | undefined): Set<string> {
-  const storageKey = getAttentionCollapsedGroupsStorageKey(companyId);
+export function loadCollapsedAttentionGroupKeys(spaceId: string | null | undefined): Set<string> {
+  const storageKey = getAttentionCollapsedGroupsStorageKey(spaceId);
   if (!storageKey) return new Set();
   try {
     const raw = localStorage.getItem(storageKey);
@@ -678,10 +678,10 @@ export function loadCollapsedAttentionGroupKeys(companyId: string | null | undef
 }
 
 export function saveCollapsedAttentionGroupKeys(
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   groupKeys: ReadonlySet<string>,
 ) {
-  const storageKey = getAttentionCollapsedGroupsStorageKey(companyId);
+  const storageKey = getAttentionCollapsedGroupsStorageKey(spaceId);
   if (!storageKey) return;
   try {
     localStorage.setItem(storageKey, JSON.stringify([...groupKeys]));

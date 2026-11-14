@@ -15,7 +15,7 @@ export const executionWorkspaceRestorePoints = pgTable(
   "execution_workspace_restore_points",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull(),
+    spaceId: uuid("space_id").notNull(),
     executionWorkspaceId: uuid("execution_workspace_id").notNull(),
     sourceIssueId: uuid("source_issue_id"),
     generation: integer("generation").notNull(),
@@ -39,8 +39,8 @@ export const executionWorkspaceRestorePoints = pgTable(
       .on(table.executionWorkspaceId, table.generation, table.checkoutName)
       .where(sql`${table.status} in ('pending', 'active', 'expiring')`),
     statusDeleteAfterIdx: index("execution_workspace_restore_points_status_delete_after_idx").on(table.status, table.deleteAfter),
-    companyIdx: index("execution_workspace_restore_points_company_idx").on(table.companyId),
-    sourceIssueIdx: index("execution_workspace_restore_points_source_issue_idx").on(table.companyId, table.sourceIssueId),
+    spaceIdx: index("execution_workspace_restore_points_space_idx").on(table.spaceId),
+    sourceIssueIdx: index("execution_workspace_restore_points_source_issue_idx").on(table.spaceId, table.sourceIssueId),
     activeSourceIdx: index("execution_workspace_restore_points_active_source_idx").on(table.sourceIssueId)
       .where(sql`${table.status} = 'active'`),
   }),

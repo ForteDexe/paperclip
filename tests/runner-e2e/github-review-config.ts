@@ -7,9 +7,9 @@ import { parseJourneyCredentialBinding, type JourneyCredentialBinding } from "./
 export interface GitHubReviewJourneyConfig {
   version: 1;
   setupId: string;
-  hosting: "self-hosted" | "paperclip-cloud";
+  hosting: "self-hosted" | "outpost-cloud";
   executionEnvironment: "local" | "daytona";
-  target: Extract<ConnectionConfig["target"], { mode: "attach" }> & { companyId: string; environmentId: string };
+  target: Extract<ConnectionConfig["target"], { mode: "attach" }> & { spaceId: string; environmentId: string };
   browser: ConnectionConfig["browser"];
   authentication?: { module: string; configFile: string };
   agent: { id: string; name: string; skill: string; model: string; provider: string; runtimeMode: "native" | "legacy" };
@@ -30,9 +30,9 @@ function text(v: unknown, pattern?: RegExp): string {
 export function parseGitHubReviewJourneyConfig(input: unknown): GitHubReviewJourneyConfig {
   try {
     const v = object(input, ["version", "setupId", "hosting", "executionEnvironment", "target", "browser", "authentication", "agent", "github", "deadlineMs", "maximumRuns"]);
-    if (v.version !== 1 || !["self-hosted", "paperclip-cloud"].includes(v.hosting)) return invalid();
+    if (v.version !== 1 || !["self-hosted", "outpost-cloud"].includes(v.hosting)) return invalid();
     if (v.executionEnvironment !== undefined && !["local", "daytona"].includes(v.executionEnvironment)) return invalid();
-    const target = object(v.target, ["mode", "baseURL", "expectedCommit", "deploymentMode", "companyId", "environmentId"]);
+    const target = object(v.target, ["mode", "baseURL", "expectedCommit", "deploymentMode", "spaceId", "environmentId"]);
     if (target.mode !== "attach") return invalid();
     const common = parseConnectionConfig({ target, browser: v.browser });
     if (common.target.mode !== "attach" || !common.browser.profileDir) return invalid();
@@ -47,7 +47,7 @@ export function parseGitHubReviewJourneyConfig(input: unknown): GitHubReviewJour
     const authentication = v.authentication === undefined ? undefined : object(v.authentication, ["module", "configFile"]);
     if (authentication && (!path.isAbsolute(text(authentication.module)) || !path.isAbsolute(text(authentication.configFile)))) return invalid();
     return { version: 1, setupId: text(v.setupId, /^[a-z0-9-]{1,80}$/), hosting: v.hosting, executionEnvironment: v.executionEnvironment ?? "local",
-      target: { ...common.target, baseURL: targetOrigin(common.target.baseURL), companyId: text(target.companyId, uuid), environmentId: text(target.environmentId, uuid) }, browser: common.browser,
+      target: { ...common.target, baseURL: targetOrigin(common.target.baseURL), spaceId: text(target.spaceId, uuid), environmentId: text(target.environmentId, uuid) }, browser: common.browser,
       ...(authentication ? { authentication: { module: authentication.module, configFile: authentication.configFile } } : {}),
       agent: { id: text(agent.id, uuid), name: text(agent.name), skill: text(agent.skill, /^[a-z0-9-]+$/), model: text(agent.model), provider: text(agent.provider), runtimeMode: agent.runtimeMode },
       github: { repository: text(github.repository, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/), ownerType: github.ownerType, appOwner: text(github.appOwner, /^[A-Za-z0-9-]+$/),

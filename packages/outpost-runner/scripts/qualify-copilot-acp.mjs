@@ -56,7 +56,7 @@ export async function runProbe(packInput, output, scenario, token) {
   const lease = await install.openCommand();
   let root;
   try {
-    root = await mkdtemp("/tmp/paperclip-copilot-live-probe-");
+    root = await mkdtemp("/tmp/outpost-copilot-live-probe-");
     root = await realpath(root);
   } catch (error) {
     try { if (root) await rm(root, { recursive: true, force: true }); }
@@ -148,7 +148,7 @@ export async function runProbe(packInput, output, scenario, token) {
           if (entry) { clearTimeout(entry.timer); pending.delete(message.id); message.error ? entry.reject(new Error(`provider_rpc_error:${message.error.code}`)) : entry.resolve(message.result); }
         }
       });
-      const initialized = await request("initialize", { protocolVersion: 1, clientInfo: { name: "paperclip-real-service-risk-qualification", version: "1" }, clientCapabilities: COPILOT_ACP_CLIENT_CAPABILITIES });
+      const initialized = await request("initialize", { protocolVersion: 1, clientInfo: { name: "outpost-real-service-risk-qualification", version: "1" }, clientCapabilities: COPILOT_ACP_CLIENT_CAPABILITIES });
       assert.equal(initialized.agentInfo?.version, "1.0.88", "wrong provider version");
       evidence.agentCapabilities = initialized.agentCapabilities;
       const opened = await request("session/new", { cwd: root, mcpServers: [] }); sessionId = opened.sessionId;

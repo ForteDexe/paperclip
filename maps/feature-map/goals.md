@@ -4,7 +4,7 @@ navigation: {"section":"Projects and execution","sectionOrder":40,"order":20}
 
 # Goals and work alignment
 
-People define company and lower-level goals and connect projects and tasks to the outcome they serve.
+People define space and lower-level goals and connect projects and tasks to the outcome they serve.
 
 Feature ID: `goals`.
 
@@ -15,7 +15,7 @@ Agent access: [companion](../agent-access-map/goals.md).
 ## Sub-features
 
 - `hierarchy`: `goals/hierarchy` — create and inspect goal level, parent, owner, and status.
-- `alignment`: `goals/alignment` — associate work with a valid goal in the same company.
+- `alignment`: `goals/alignment` — associate work with a valid goal in the same space.
 - `navigation`: `goals/navigation` — follow goal/project/task context to understand why work exists.
 
 ## How to get to it (user POV)
@@ -28,9 +28,9 @@ Open `/goals`, create a goal, and enter `/goals/:goalId`.
 
 Inspect the goal context from a project or task and compare explicit versus inherited context.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
-Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Prepare two goals and a disposable project/task in the selected company.
+Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Prepare two goals and a disposable project/task in the selected space.
 
 ### `goal-detail`
 
@@ -41,7 +41,7 @@ create a parent. Open it and choose **Sub Goal** to create a child with the
 parent preselected. Change status in Properties and reload; follow the Parent
 Goal link and inspect Sub-Goals. Owner is currently display-only in this UI.
 Link a project and task through the offered controls, follow their goal context,
-and verify a cross-company or invalid relationship is rejected.
+and verify a cross-space or invalid relationship is rejected.
 
 ### `task-goal-context`
 
@@ -62,7 +62,7 @@ Capability ID: `goals/alignment`.
 
 Scope: ui
 Storybook: Project/task goal selection, explicit/inherited context and invalid association error.
-Production: Persist same-company valid association, reject invalid/cross-company reference, verify explicit versus inherited server context after reload.
+Production: Persist same-space valid association, reject invalid/cross-space reference, verify explicit versus inherited server context after reload.
 Sources: Source: [ProjectProperties.tsx](../../ui/src/components/ProjectProperties.tsx), [GoalDetail.tsx](../../ui/src/pages/GoalDetail.tsx). Tests: [project-goal-validation.test.ts](../../server/src/__tests__/project-goal-validation.test.ts), [issues-goal-context-routes.test.ts](../../server/src/__tests__/issues-goal-context-routes.test.ts), [issue-goal-fallback.test.ts](../../server/src/__tests__/issue-goal-fallback.test.ts), [project-goal.test.ts](../../cli/src/__tests__/project-goal.test.ts)
 
 #### `navigation`

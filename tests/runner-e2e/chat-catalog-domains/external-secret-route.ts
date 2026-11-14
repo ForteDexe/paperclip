@@ -3,7 +3,7 @@ export async function visibleSecretSettingsURL(page:Page,reply:{body:string;comm
  if(!reply.commentId)return;
  const comment=page.locator(`[id=${JSON.stringify(`comment-${reply.commentId}`)}]`);
  await comment.waitFor({state:"visible",timeout});
- const supported=(candidate:string)=>{try{const url=new URL(candidate,origin);return url.origin===origin&&url.pathname===`/${prefix}/company/settings/secrets`&&!url.username&&!url.password&&!url.hash&&(definitionId?Array.from(url.searchParams.keys()).every(key=>key==="definition")&&url.searchParams.getAll("definition").length<=1&&(!url.searchParams.has("definition")||url.searchParams.get("definition")===definitionId):!url.search)?url.href:undefined;}catch{return;}};
+ const supported=(candidate:string)=>{try{const url=new URL(candidate,origin);return url.origin===origin&&url.pathname===`/${prefix}/space/settings/secrets`&&!url.username&&!url.password&&!url.hash&&(definitionId?Array.from(url.searchParams.keys()).every(key=>key==="definition")&&url.searchParams.getAll("definition").length<=1&&(!url.searchParams.has("definition")||url.searchParams.get("definition")===definitionId):!url.search)?url.href:undefined;}catch{return;}};
  const routes=(text:string)=>(text.match(/https?:\/\/[^\s`<>"']+|(?<![\w/:])\/[^\s`<>"']+/g)??[]).map(value=>value.replace(/[.,;!?\])}]+$/,"")).map(supported).filter((value):value is string=>!!value);
  const ordinaryScroll=async(node:Locator)=>{
   if(!await node.isVisible())return;

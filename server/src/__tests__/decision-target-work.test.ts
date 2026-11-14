@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, authUsers, companies, companyMemberships, createDb, subscribeDatabaseWork, decisionEffectExecutions,
+import { activityLog, agents, authUsers, spaces, spaceMemberships, createDb, subscribeDatabaseWork, decisionEffectExecutions,
   decisions, decisionRetention, decisionTargetIssues, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
@@ -15,7 +15,7 @@ import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordin
 import { issueService } from "../services/issues.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
-import { deleteCompany } from "../services/company-deletion.js";
+import { deleteSpace } from "../services/space-deletion.js";
 import { notifyDecisionTargetIssueRemoval } from "../services/decision-targets.js";
 
 const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_DECISION_TARGETS_TEST_DATABASE_URL");
@@ -23,7 +23,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 (support.supported ? describe : describe.skip)("decision target worker", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: ReturnType<typeof createDb>;
-  let companyId: string, agentId: string, originId: string, targetId: string, runId: string, userId: string;
+  let spaceId: string, agentId: string, originId: string, targetId: string, runId: string, userId: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let draining: boolean;
   let recovery: ReturnType<typeof decisionService>;
@@ -37,16 +37,16 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   }, 30_000);
   beforeEach(async () => {
     vi.stubEnv("OUTPOST_DECISION_SIGNING_SECRET", "0123456789abcdef0123456789abcdef");
-    companyId = randomUUID(); agentId = randomUUID(); originId = randomUUID(); targetId = randomUUID(); runId = randomUUID(); userId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Recovery", issuePrefix: `R${companyId.slice(0, 6)}`, requireBoardApprovalForNewAgents: false });
+    spaceId = randomUUID(); agentId = randomUUID(); originId = randomUUID(); targetId = randomUUID(); runId = randomUUID(); userId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Recovery", issuePrefix: `R${spaceId.slice(0, 6)}`, requireOperatorApprovalForNewAgents: false });
     await db.insert(authUsers).values({ id: userId, name: "Decider", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Proposer", role: "engineer", status: "active", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Proposer", role: "engineer", status: "active", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
     await db.insert(issues).values([
-      { id: originId, companyId, title: "Origin", status: "in_progress", priority: "medium", assigneeAgentId: agentId, responsibleUserId: userId },
-      { id: targetId, companyId, title: "Target", status: "todo", priority: "medium", responsibleUserId: userId },
+      { id: originId, spaceId, title: "Origin", status: "in_progress", priority: "medium", assigneeAgentId: agentId, responsibleUserId: userId },
+      { id: targetId, spaceId, title: "Target", status: "todo", priority: "medium", responsibleUserId: userId },
     ]);
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", responsibleUserId: userId, contextSnapshot: { issueId: originId } });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", responsibleUserId: userId, contextSnapshot: { issueId: originId } });
     await Promise.all(Array.from({ length: 6 }, () => db.execute(sql`select pg_sleep(0.01)`)));
     draining = false; errors.length = 0; wake.mockReset();
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"], shouldAdvanceTime: true });
@@ -58,16 +58,16 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     await db.execute(sql`drop function if exists decision_target_expire_fail()`);
     await db.delete(decisionEffectExecutions); await db.delete(decisionTargetIssues); await db.delete(decisions);
     await db.delete(decisionRetention); await db.delete(activityLog); await db.delete(issueComments); await db.delete(heartbeatRuns);
-    await db.delete(issues); await db.delete(agents); await db.delete(companyMemberships); await db.delete(authUsers); await db.delete(companies);
+    await db.delete(issues); await db.delete(agents); await db.delete(spaceMemberships); await db.delete(authUsers); await db.delete(spaces);
     expect(errors).toEqual([]);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
 
-  const actor = () => ({ type: "agent" as const, companyId, agentId, runId, source: "agent_jwt" as const,
-    onBehalfOfUserId: userId, onBehalfOfMemberships: [{ companyId, membershipRole: "member", status: "active" }] });
-  const board = () => ({ type: "board" as const, userId, companyIds: [companyId], source: "session" as const,
-    memberships: [{ companyId, membershipRole: "member", status: "active" }] });
-  const create = (staleness: "strict" | "lenient" = "strict") => service().create({ companyId, agentId, runId, actor: actor(), title: "Comment?", body: "Body",
+  const actor = () => ({ type: "agent" as const, spaceId, agentId, runId, source: "agent_jwt" as const,
+    onBehalfOfUserId: userId, onBehalfOfMemberships: [{ spaceId, membershipRole: "member", status: "active" }] });
+  const operator = () => ({ type: "operator" as const, userId, spaceIds: [spaceId], source: "session" as const,
+    memberships: [{ spaceId, membershipRole: "member", status: "active" }] });
+  const create = (staleness: "strict" | "lenient" = "strict") => service().create({ spaceId, agentId, runId, actor: actor(), title: "Comment?", body: "Body",
     continuationPolicy: "wake_origin_agent", options: [{ id: "yes", label: "Yes", effects: [
       { type: "comment_on_issue", targetIssueId: targetId, staleness, bodyMarkdown: "hello" },
     ] }] });
@@ -128,7 +128,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
       options: [{ id: "yes", label: "Yes", effects: [{ type: "comment_on_issue" as const, targetIssueId: originId, staleness: "strict" as const, bodyMarkdown: "hello" }] }],
     }));
     await db.insert(decisions).values([...valid, { ...seed, id: invalidId }]);
-    await db.insert(decisionTargetIssues).values({ companyId, decisionId: invalidId, issueId: targetId });
+    await db.insert(decisionTargetIssues).values({ spaceId, decisionId: invalidId, issueId: targetId });
     const owner = service();
     await owner.sweepInvalidTargets();
     expect(owner.hasDecisionTargetWork()).toBe(true);
@@ -172,22 +172,22 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   it("does not signal target work for removal with no linked decisions", async () => {
     await create();
     const unrelatedId = randomUUID();
-    await db.insert(issues).values({ id: unrelatedId, companyId, title: "Unrelated", status: "todo", responsibleUserId: userId });
+    await db.insert(issues).values({ id: unrelatedId, spaceId, title: "Unrelated", status: "todo", responsibleUserId: userId });
     const settled = vi.fn();
     const unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.decisionTargets, event => { if (event === "settled") settled(); });
     try { await issueService(db).remove(unrelatedId); expect(settled).not.toHaveBeenCalled(); }
     finally { unsubscribe(); }
   });
 
-  it("does not launch global target work after deleting an empty company", async () => {
-    const emptyCompanyId = randomUUID();
-    await db.insert(companies).values({ id: emptyCompanyId, name: "Empty", issuePrefix: `E${emptyCompanyId.slice(0, 6)}` });
-    const home = await mkdtemp(join(tmpdir(), "decision-target-company-"));
+  it("does not launch global target work after deleting an empty space", async () => {
+    const emptySpaceId = randomUUID();
+    await db.insert(spaces).values({ id: emptySpaceId, name: "Empty", issuePrefix: `E${emptySpaceId.slice(0, 6)}` });
+    const home = await mkdtemp(join(tmpdir(), "decision-target-space-"));
     vi.stubEnv("OUTPOST_HOME", home);
     const settled = vi.fn();
     const unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.decisionTargets, event => { if (event === "settled") settled(); });
     try {
-      expect(await deleteCompany(db, emptyCompanyId)).toMatchObject({ id: emptyCompanyId });
+      expect(await deleteSpace(db, emptySpaceId)).toMatchObject({ id: emptySpaceId });
       expect(settled).not.toHaveBeenCalled();
     } finally { unsubscribe(); await rm(home, { recursive: true, force: true }); }
   });
@@ -219,8 +219,8 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 
   it("includes a strict secondary effect reference in notification scope", async () => {
     const blockerId = randomUUID();
-    await db.insert(issues).values({ id: blockerId, companyId, title: "Blocker", status: "todo", responsibleUserId: userId });
-    const row = await service().create({ companyId, actor: actor(), agentId, runId, title: "Follow up?", body: "Body",
+    await db.insert(issues).values({ id: blockerId, spaceId, title: "Blocker", status: "todo", responsibleUserId: userId });
+    const row = await service().create({ spaceId, actor: actor(), agentId, runId, title: "Follow up?", body: "Body",
       continuationPolicy: "wake_origin_agent", options: [{ id: "yes", label: "Yes", effects: [
         { type: "create_issue", targetIssueId: targetId, staleness: "strict", draft: { title: "Next", blockedByIssueIds: [blockerId] } },
       ] }] });
@@ -230,8 +230,8 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 
   it("waits for the last strict target to complete", async () => {
     const blockerId = randomUUID();
-    await db.insert(issues).values({ id: blockerId, companyId, title: "Blocker", status: "todo", responsibleUserId: userId });
-    const row = await service().create({ companyId, actor: actor(), agentId, runId, title: "Follow up?", body: "Body",
+    await db.insert(issues).values({ id: blockerId, spaceId, title: "Blocker", status: "todo", responsibleUserId: userId });
+    const row = await service().create({ spaceId, actor: actor(), agentId, runId, title: "Follow up?", body: "Body",
       continuationPolicy: "wake_origin_agent", options: [{ id: "yes", label: "Yes", effects: [
         { type: "create_issue", targetIssueId: targetId, staleness: "strict", draft: { title: "Next", blockedByIssueIds: [blockerId] } },
       ] }] });
@@ -257,7 +257,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 
   it.each([true, false])("preserves a deletion mixed with a scoped hint in one transaction, deleteFirst=%s", async deleteFirst => {
     const row = await create(); const otherId = randomUUID();
-    await db.insert(issues).values({ id: otherId, companyId, title: "Unrelated", status: "todo", responsibleUserId: userId });
+    await db.insert(issues).values({ id: otherId, spaceId, title: "Unrelated", status: "todo", responsibleUserId: userId });
     await start(); await quiet();
     await db.transaction(async tx => {
       const scoped = issueService(tx as unknown as typeof db);
@@ -326,8 +326,8 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 
   it("does not inspect unrelated open decisions on an ordinary scoped change", async () => {
     const unrelated = await create();
-    const otherId = randomUUID(); await db.insert(issues).values({ id: otherId, companyId, title: "Other", status: "todo", responsibleUserId: userId });
-    const affected = await service().create({ companyId, actor: actor(), agentId, runId, title: "Other?", body: "Body",
+    const otherId = randomUUID(); await db.insert(issues).values({ id: otherId, spaceId, title: "Other", status: "todo", responsibleUserId: userId });
+    const affected = await service().create({ spaceId, actor: actor(), agentId, runId, title: "Other?", body: "Body",
       continuationPolicy: "wake_origin_agent", options: [{ id: "yes", label: "Yes", effects: [
         { type: "comment_on_issue", targetIssueId: otherId, staleness: "strict", bodyMarkdown: "hello" },
       ] }] });

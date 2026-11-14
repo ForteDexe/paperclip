@@ -38,7 +38,7 @@ export function createHeartbeatQueueTestDependencies(db: Db): QueueTestDependenc
     issuesSvc: {
       getDependencyReadiness: vi.fn<HeartbeatQueueDependencies["issuesSvc"]["getDependencyReadiness"]>(),
       listDependencyReadiness: vi.fn(async () => new Map()),
-      updateForCompany: vi.fn<HeartbeatQueueDependencies["issuesSvc"]["updateForCompany"]>(async () => {
+      updateForSpace: vi.fn<HeartbeatQueueDependencies["issuesSvc"]["updateForSpace"]>(async () => {
         throw new Error("Unexpected task reopen");
       }),
     },

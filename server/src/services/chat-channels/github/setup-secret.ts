@@ -17,7 +17,7 @@ import type { Db } from "@outpost/db";
 
 import {
   chatEndpoints,
-  companySecretBindings,
+  spaceSecretBindings,
   toolConnections,
 } from "@outpost/db";
 import type {
@@ -134,8 +134,8 @@ export function createGitHubSetupSecret(db: Db, options: GitHubSetupSecretOption
           await managementContext?.reauthorize();
           await credentialLease.assertOwned(tx);
           await writeSetupSecretActivity(tx as unknown as Db, {
-            companyId: endpoint.companyId,
-            ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "board" }),
+            spaceId: endpoint.spaceId,
+            ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "operator" }),
             action: "chat_endpoint.setup_secret_rotation_started",
             entityType: "tool_connection",
             entityId: endpoint.connectionId,
@@ -262,8 +262,8 @@ export function createGitHubSetupSecret(db: Db, options: GitHubSetupSecretOption
           }
         } catch (error) {
           await writeSetupSecretActivity(db, {
-            companyId: endpoint.companyId,
-            ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "board" }),
+            spaceId: endpoint.spaceId,
+            ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "operator" }),
             action: "chat_endpoint.setup_secret_rotation_failed",
             entityType: "tool_connection",
             entityId: endpoint.connectionId,
@@ -285,8 +285,8 @@ export function createGitHubSetupSecret(db: Db, options: GitHubSetupSecretOption
             await managementContext?.reauthorize();
           await credentialLease.assertOwned(tx);
             await writeSetupSecretActivity(tx as unknown as Db, {
-              companyId: endpoint.companyId,
-              ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "board" }),
+              spaceId: endpoint.spaceId,
+              ...(managementContext?.audit ?? { actorType: "user" as const, actorId: actorUserId ?? "operator" }),
               action: "chat_endpoint.setup_secret_generated",
               entityType: "tool_connection",
               entityId: endpoint.connectionId,
@@ -316,25 +316,25 @@ export function createGitHubSetupSecret(db: Db, options: GitHubSetupSecretOption
             .select({ refs: toolConnections.credentialSecretRefs })
             .from(toolConnections)
             .innerJoin(
-              companySecretBindings,
+              spaceSecretBindings,
               and(
-                eq(companySecretBindings.companyId, initial.endpoint.companyId),
-                eq(companySecretBindings.targetType, "tool_connection"),
+                eq(spaceSecretBindings.spaceId, initial.endpoint.spaceId),
+                eq(spaceSecretBindings.targetType, "tool_connection"),
                 eq(
-                  companySecretBindings.targetId,
+                  spaceSecretBindings.targetId,
                   initial.endpoint.connectionId,
                 ),
-                eq(companySecretBindings.configPath, committedRef.configPath),
-                eq(companySecretBindings.secretId, committedRef.secretId),
+                eq(spaceSecretBindings.configPath, committedRef.configPath),
+                eq(spaceSecretBindings.secretId, committedRef.secretId),
                 eq(
-                  companySecretBindings.versionSelector,
+                  spaceSecretBindings.versionSelector,
                   String(committedRef.versionSelector ?? "latest"),
                 ),
               ),
             )
             .where(
               and(
-                eq(toolConnections.companyId, initial.endpoint.companyId),
+                eq(toolConnections.spaceId, initial.endpoint.spaceId),
                 eq(toolConnections.id, initial.endpoint.connectionId),
               ),
             )

@@ -10,9 +10,9 @@ import { CostDataQualityNotice } from "./CostDataQualityNotice";
 
 const mocks = vi.hoisted(() => ({ dataQuality: vi.fn(), retryAccounting: vi.fn() }));
 vi.mock("../api/costs", () => ({ costsApi: mocks }));
-vi.mock("../context/CompanyContext", () => ({ useCompany: () => ({ selectedCompany: { issuePrefix: "PAP" } }) }));
+vi.mock("../context/SpaceContext", () => ({ useSpace: () => ({ selectedSpace: { issuePrefix: "PAP" } }) }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-const key = ["costs", "company", "2026-10-01", "2026-10-09"];
+const key = ["costs", "space", "2026-10-01", "2026-10-09"];
 function item(reason: CostDataQualityReason): CostDataQualityItem {
   return { id: reason, runId: `${reason}-run`, agentId: "codie", agentName: "Codie", occurredAt: "2026-10-09T12:00:00Z", provider: "openai", model: "gpt-6-astra", reason };
 }
@@ -34,7 +34,7 @@ describe("actionable cost notices", () => {
   afterEach(() => { act(() => root.unmount()); client.clear(); container.remove(); });
   async function render(counts: { unpricedCount?: number; pendingCount?: number; unknownBillingCount?: number } = {}) {
     await act(async () => root.render(<MemoryRouter initialEntries={["/PAP/activity/costs"]}><QueryClientProvider client={client}><ToastProvider><ToastStatus />
-      <CostDataQualityNotice companyId="company" from="2026-10-01" to="2026-10-09" reportKey={key} unpricedCount={12} pendingCount={4} unknownBillingCount={9} {...counts} />
+      <CostDataQualityNotice spaceId="space" from="2026-10-01" to="2026-10-09" reportKey={key} unpricedCount={12} pendingCount={4} unknownBillingCount={9} {...counts} />
     </ToastProvider></QueryClientProvider></MemoryRouter>));
   }
   function button(text: string) { return [...container.querySelectorAll("button")].find(button => button.textContent === text)!; }
@@ -48,7 +48,7 @@ describe("actionable cost notices", () => {
     expect(container.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
     expect(container.querySelector('[role="alert"]')).toBeNull();
     await click("16 run costs unavailable"); await loaded();
-    expect(mocks.dataQuality).toHaveBeenCalledExactlyOnceWith("company", "2026-10-01", "2026-10-09");
+    expect(mocks.dataQuality).toHaveBeenCalledExactlyOnceWith("space", "2026-10-01", "2026-10-09");
     expect(button("16 run costs unavailable").getAttribute("aria-expanded")).toBe("true");
     const details = document.getElementById(button("16 run costs unavailable").getAttribute("aria-controls")!)!;
     expect(details.textContent).not.toContain("Totals include known charges only.");
@@ -59,7 +59,7 @@ describe("actionable cost notices", () => {
     expect(container.textContent).toBe("16 run costs unavailable");
   });
 
-  it("explains future configuration fixes and links to the affected runs in the active company", async () => {
+  it("explains future configuration fixes and links to the affected runs in the active space", async () => {
     await render(); await click("16 run costs unavailable"); await loaded();
     const row = (label: string) => [...container.querySelectorAll('[data-slot="badge"]')].find(badge => badge.textContent === label)!.closest("li")!;
     const billing = row("Billing category unknown");
@@ -123,7 +123,7 @@ describe("actionable cost notices", () => {
     expect(container.textContent).not.toContain("Includes 12 estimated charges.");
   });
 
-  it("records saved costs without rerunning work and refreshes every period for this company", async () => {
+  it("records saved costs without rerunning work and refreshes every period for this space", async () => {
     let finish!: (result: { accounted: boolean }) => void;
     mocks.retryAccounting.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
     await render(); await click("16 run costs unavailable"); await loaded();
@@ -134,9 +134,9 @@ describe("actionable cost notices", () => {
     expect(mocks.retryAccounting).toHaveBeenCalledTimes(1);
     await act(async () => finish({ accounted: true }));
     await act(async () => vi.waitFor(() => expect(container.textContent).toContain("Costs recorded.")));
-    expect(mocks.retryAccounting).toHaveBeenCalledExactlyOnceWith("company", "retryable-run");
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["costs", "company"] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["cost-subscriptions", "company"] });
+    expect(mocks.retryAccounting).toHaveBeenCalledExactlyOnceWith("space", "retryable-run");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["costs", "space"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["cost-subscriptions", "space"] });
   });
 
   it("keeps retry confirmation after the refreshed report removes the run and the notice unmounts", async () => {

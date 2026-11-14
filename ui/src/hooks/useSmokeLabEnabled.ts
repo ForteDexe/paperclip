@@ -18,7 +18,7 @@ function getDetachedClient(): QueryClient {
 /**
  * Smoke Lab experimental flag (PAP-13343 / S2, plan §D3).
  *
- * Wraps the board-readable experimental-settings GET (same query the sidebar
+ * Wraps the operator-readable experimental-settings GET (same query the sidebar
  * and `InstanceExperimentalSettings` use) so the Smoke Lab tab, its sidebar
  * nav item, and the dashboard card share one gate. `enabled` stays false while
  * the query is in flight (no flash of gated UI, matching the sidebar's

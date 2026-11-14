@@ -4,7 +4,7 @@ import { activeFollowupBoundary, type ActiveFollowupBoundary } from "./active-fo
 
 type Row = Record<string, any>;
 export interface StopWorkBoundary extends ActiveFollowupBoundary {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   issueId: string;
   turnId: string;
@@ -26,7 +26,7 @@ export function activeStopWorkBoundary(run: Row, events: Row[]): StopWorkBoundar
   const accounting = run.usageJson;
   if (!text(turnId) || !text(issueId) || !text(accounting?.accountingReceiptSourceId)
     || !Number.isSafeInteger(accounting.accountingReceiptSequence) || accounting.accountingReceiptSequence <= 0) return null;
-  const binding = { runId: run.id, companyId: run.companyId, agentId: run.agentId };
+  const binding = { runId: run.id, spaceId: run.spaceId, agentId: run.agentId };
   const bound = (row: Row) => isBoundNativePrpEventRow(row, binding, command.sourceInstanceId);
   const turnStart = events.findLast(row => bound(row) && row.eventType === "turn.started");
   if (!turnStart || turnStart.payload.orpEvent.turnId !== turnId || turnStart.seq >= command.startedSeq) return null;
@@ -39,7 +39,7 @@ export function activeStopWorkBoundary(run: Row, events: Row[]): StopWorkBoundar
     || ![delta.inputTokens, delta.outputTokens].every(value => Number.isSafeInteger(value) && value >= 0)
     || !Object.entries(delta).every(([key, value]) => !key.endsWith("Tokens") || Number.isSafeInteger(value) && Number(value) >= 0)
     || !Object.entries(delta).some(([key, value]) => key.endsWith("Tokens") && Number(value) > 0)) return null;
-  return { ...command, companyId: run.companyId, agentId: run.agentId, issueId, turnId,
+  return { ...command, spaceId: run.spaceId, agentId: run.agentId, issueId, turnId,
     usageSeq: usage.seq, usageRowSha256: createHash("sha256").update(JSON.stringify(usage)).digest("hex"),
     accountingSourceId: accounting.accountingReceiptSourceId, accountingSequence: accounting.accountingReceiptSequence };
 }
@@ -51,7 +51,7 @@ export function activeStopWorkBoundary(run: Row, events: Row[]): StopWorkBoundar
  */
 export function stoppedRunAccountingFinalized(run: Row, before: StopWorkBoundary): boolean {
   const usage = run.usageJson;
-  return run.id === before.runId && run.companyId === before.companyId && run.agentId === before.agentId
+  return run.id === before.runId && run.spaceId === before.spaceId && run.agentId === before.agentId
     && (run.nativeIssueId ?? run.issueId ?? run.contextSnapshot?.issueId) === before.issueId
     && run.runtimeMode === "native" && run.status === "cancelled"
     && run.costAccountingPending === false && Number.isFinite(time(run.costAccountedAt))

@@ -9,7 +9,7 @@ import { createDb } from '@outpost/db';
 import { resolveExternalTestDatabaseUrl } from './helpers/external-test-database.js';
 import { prepareMaintenanceRuntime } from './helpers/maintenance/runtime-build.js';
 import { startMaintenanceServer, withMaintenanceProvider } from './helpers/maintenance/server-harness.js';
-import { managedSleepConfiguration, managedSleepServerOptions, managedTenantActor, provisionManagedSleepCompany } from './helpers/maintenance/managed-profile.js';
+import { managedSleepConfiguration, managedSleepServerOptions, managedTenantActor, provisionManagedSleepSpace } from './helpers/maintenance/managed-profile.js';
 import { createMaintenanceS3Boundary } from './helpers/maintenance/s3-boundary.js';
 import { stabilizeEarlyDiagnostics } from './helpers/maintenance/early-diagnostic-stabilization.js';
 import { CLOUD_CONTROL_AUDIENCE, CLOUD_CONTROL_HEADER, CLOUD_CONTROL_JWS_TYPE, CLOUD_RUNTIME_IDENTITY_ISSUER } from '../services/cloud-runtime-identity.js';
@@ -47,11 +47,11 @@ describe.skipIf(!requested)('actual managed fixture preflight (no browser, coold
         try {
           await writeFile(path.join(server.directory, 'managed-preflight-startup.json'), JSON.stringify({ configuration, snapshot: await server.snapshot(), s3: s3.snapshot() }, null, 2));
           expect(s3.snapshot().errors).toEqual([]);
-          const company = await provisionManagedSleepCompany(server, fixture);
-          await expect(server.api('POST', '/companies', { name: 'Must remain platform managed' })).rejects.toThrow('cloud_managed');
+          const space = await provisionManagedSleepSpace(server, fixture);
+          await expect(server.api('POST', '/spaces', { name: 'Must remain platform managed' })).rejects.toThrow('cloud_managed');
           // Reuse the combined case's real vault/continuity/enrollment owners.
           // The strict broker capability is unavailable before event-wake enrollment.
-          const github = await server.prepareGitHub(company.id);
+          const github = await server.prepareGitHub(space.id);
           await server.api('PATCH', `/tool-connections/${github.connectionId}`, { enabled: true });
           const githubContinuity = await server.settleGitHub(github);
           await writeFile(path.join(server.directory, 'managed-preflight-binding.json'), JSON.stringify({ githubContinuity, brokerBinding: await broker.binding(), boundary: broker.boundary }, null, 2));
@@ -59,18 +59,18 @@ describe.skipIf(!requested)('actual managed fixture preflight (no browser, coold
           const brokerBinding = await broker.binding();
           await writeFile(path.join(server.directory, 'managed-preflight-binding.json'), JSON.stringify({ githubContinuity, brokerBinding, boundary: broker.boundary }, null, 2));
           expect(brokerBinding?.instanceId).toBe(broker.variables.OUTPOST_CLOUD_CONNECTOR_INSTANCE_ID);
-          expect(brokerBinding?.bindings).toEqual([[`${github.grantId}_101`, company.id, managedTenantActor.userId,
+          expect(brokerBinding?.bindings).toEqual([[`${github.grantId}_101`, space.id, managedTenantActor.userId,
             'github.code', '101', github.connectionId, github.grantId]]);
-          const agent = await server.api<{ id: string }>('POST', `/companies/${company.id}/agents`, { name: 'Managed preflight process', role: 'general', adapterType: 'process',
+          const agent = await server.api<{ id: string }>('POST', `/spaces/${space.id}/agents`, { name: 'Managed preflight process', role: 'general', adapterType: 'process',
             adapterConfig: { command: process.execPath, args: ['-e', "console.log('managed-preflight-useful-work')"], cwd: server.directory }, runtimeConfig: { heartbeat: { enabled: true, intervalSec: 0, wakeOnDemand: true } } });
           const key = await server.api<{ id: string; token: string }>('POST', `/agents/${agent.id}/keys`, { name: 'Actual managed preflight key' });
-          const issue = await server.api<{ id: string }>('POST', `/companies/${company.id}/issues`, { title: 'One actual managed process run', status: 'todo', assigneeAgentId: agent.id }, { Authorization: `Bearer ${key.token}` });
+          const issue = await server.api<{ id: string }>('POST', `/spaces/${space.id}/issues`, { title: 'One actual managed process run', status: 'todo', assigneeAgentId: agent.id }, { Authorization: `Bearer ${key.token}` });
           await expect.poll(async () => { const [run] = await fixture.$client`select status from heartbeat_runs where issue_id=${issue.id} order by created_at desc limit 1`; return run?.status; }, { timeout: 30_000 }).toBe('succeeded');
           await server.api('PATCH', `/issues/${issue.id}`, { status: 'done' });
           const [executions] = await fixture.$client`select count(*)::int as count from heartbeat_runs where issue_id=${issue.id}`; expect(executions.count).toBe(1);
           await server.api('GET', '/agents/me', undefined, { Authorization: `Bearer ${key.token}` }); const apiSucceededAt = performance.now();
           const activity = await server.snapshot();
-          await writeFile(path.join(server.directory, 'managed-preflight-setup.json'), JSON.stringify({ company, githubContinuity, brokerBinding,
+          await writeFile(path.join(server.directory, 'managed-preflight-setup.json'), JSON.stringify({ space, githubContinuity, brokerBinding,
             agentId: agent.id, keyId: key.id, issueId: issue.id, executions: executions.count, activity, s3: s3.snapshot() }, null, 2));
           expect(activity.managed?.apiActivityActive).toBe(true);
           await server.settled(500, 0, { managedSetupRecovery: true });
@@ -80,7 +80,7 @@ describe.skipIf(!requested)('actual managed fixture preflight (no browser, coold
             const read = () => server.api<any>('GET', `/instance/task-drain?idleSleepSafety=1&idleSleepDiagnostics=1&scheduledWake=domain-deadlines-v1&ownerId=${drain.ownerId}`, undefined, control('task-drain:read', capabilities));
             const proof = await stabilizeEarlyDiagnostics(server, { ownerId: drain.ownerId, apiSucceededAt, read,
               persist: observations => writeFile(path.join(server.directory, 'managed-preflight-diagnostic-attempts.json'), JSON.stringify(observations, null, 2)) });
-            await writeFile(path.join(server.directory, 'managed-preflight-receipt.json'), JSON.stringify({ companyId: company.id, proof, s3: s3.snapshot(), collectorRequests,
+            await writeFile(path.join(server.directory, 'managed-preflight-receipt.json'), JSON.stringify({ spaceId: space.id, proof, s3: s3.snapshot(), collectorRequests,
               boundary: 'Actual managed startup/provisioning/key activity/process outcome; no browser, real cooldown/quiet, eligibility, provider suspension or durable S3 claim' }, null, 2));
           } finally { await server.api('DELETE', `/instance/task-drain?ownerId=${drain.ownerId}`, undefined, control('task-drain:stop')); }
         } catch (error) { failure = { error }; throw error; }

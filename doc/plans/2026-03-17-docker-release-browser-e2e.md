@@ -2,18 +2,18 @@
 
 ## Context
 
-Today release smoke testing for published Paperclip packages is manual and shell-driven:
+Today release smoke testing for published Outpost packages is manual and shell-driven:
 
 ```sh
-HOST_PORT=3232 DATA_DIR=./data/release-smoke-canary PAPERCLIPAI_VERSION=canary ./scripts/docker-onboard-smoke.sh
-HOST_PORT=3233 DATA_DIR=./data/release-smoke-stable PAPERCLIPAI_VERSION=latest ./scripts/docker-onboard-smoke.sh
+HOST_PORT=3232 DATA_DIR=./data/release-smoke-canary OUTPOST_VERSION=canary ./scripts/docker-onboard-smoke.sh
+HOST_PORT=3233 DATA_DIR=./data/release-smoke-stable OUTPOST_VERSION=latest ./scripts/docker-onboard-smoke.sh
 ```
 
 That is useful because it exercises the same public install surface users hit:
 
 - Docker
-- `npx paperclipai@canary`
-- `npx paperclipai@latest`
+- `npx @outpost/cli@canary`
+- `npx @outpost/cli@latest`
 - authenticated bootstrap flow
 
 But it still leaves the most important release questions to a human with a browser:
@@ -53,7 +53,7 @@ Turn the current Docker smoke script into a machine-friendly test harness, add a
 
 `tests/e2e/onboarding.spec.ts` already proves the onboarding wizard can:
 
-- create a company
+- create a space
 - create a CEO agent
 - create an initial issue
 - optionally observe task progress
@@ -65,11 +65,11 @@ That is a good base, but it does not validate the public npm package, Docker pat
 `scripts/docker-onboard-smoke.sh` already does useful setup work:
 
 - builds `Dockerfile.onboard-smoke`
-- runs `paperclipai@${PAPERCLIPAI_VERSION}` inside Docker
+- runs `@outpost/cli@${OUTPOST_VERSION}` inside Docker
 - waits for health
 - signs up or signs in a smoke admin user
 - generates and accepts the bootstrap CEO invite in authenticated mode
-- verifies a board session and `/api/companies`
+- verifies a board session and `/api/spaces`
 
 That means the hard bootstrap problem is mostly solved already. The main gap is that the script is human-oriented and never hands control to a browser test.
 
@@ -106,7 +106,7 @@ Later we can add a second credentialed smoke lane for real model-backed agents.
 The current defaults in `scripts/docker-onboard-smoke.sh` should be treated as stable test fixtures:
 
 - email: `smoke-admin@outpost.local`
-- password: `paperclip-smoke-password`
+- password: `outpost-smoke-password`
 
 The browser test should log in with those exact values unless overridden by env vars.
 
@@ -167,14 +167,14 @@ The first release-smoke scenario should validate:
 1. open `/`
 2. unauthenticated user is redirected to `/auth`
 3. sign in using the smoke credentials
-4. authenticated user lands on onboarding when no companies exist
+4. authenticated user lands on onboarding when no spaces exist
 5. onboarding wizard appears with the expected step labels
-6. create a company
+6. create a space
 7. create the first agent using `process`
 8. create the initial issue
 9. finish onboarding and open the created issue
 10. verify via API:
-    - company exists
+    - space exists
     - CEO agent exists
     - issue exists and is assigned to the CEO
 11. verify the first heartbeat run was triggered:
@@ -214,7 +214,7 @@ Recommended triggers:
 
 Recommended inputs:
 
-- `paperclip_version`
+- `outpost_version`
   - `canary` or `latest`
 - `host_port`
   - optional, default runner-safe port
@@ -254,7 +254,7 @@ First ship the workflow as manual-only so the harness and test can be stabilized
 
 After `publish_canary` succeeds in `.github/workflows/release.yml`, call the reusable release-smoke workflow with:
 
-- `paperclip_version=canary`
+- `outpost_version=canary`
 
 This proves the just-published public canary really boots and onboards.
 
@@ -262,7 +262,7 @@ This proves the just-published public canary really boots and onboards.
 
 After `publish_stable` succeeds, call the same workflow with:
 
-- `paperclip_version=latest`
+- `outpost_version=latest`
 
 This gives us post-publish confirmation that the stable dist-tag is healthy.
 
@@ -328,8 +328,8 @@ Tasks:
 Acceptance:
 
 - the suite passes locally against both:
-  - `PAPERCLIPAI_VERSION=canary`
-  - `PAPERCLIPAI_VERSION=latest`
+  - `OUTPOST_VERSION=canary`
+  - `OUTPOST_VERSION=latest`
 
 ## Phase 3: GitHub Actions workflow
 
@@ -384,8 +384,8 @@ This should stay optional until the token-free lane is trustworthy.
 
 The plan is complete when the implemented system can demonstrate all of the following:
 
-1. A published `paperclipai@canary` Docker install can be smoke-tested by Playwright in CI.
-2. A published `paperclipai@latest` Docker install can be smoke-tested by Playwright in CI.
+1. A published `@outpost/cli@canary` Docker install can be smoke-tested by Playwright in CI.
+2. A published `@outpost/cli@latest` Docker install can be smoke-tested by Playwright in CI.
 3. The test logs into authenticated mode with the smoke credentials.
 4. The test sees onboarding for a fresh instance.
 5. The test completes onboarding in the browser.

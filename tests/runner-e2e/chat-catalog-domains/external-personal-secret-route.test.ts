@@ -1,7 +1,7 @@
 import {expect,it} from "vitest";
 import {chromium} from "@playwright/test";
 import {personalSecretSetupURL} from "./external-personal-secret.js";
-const origin="https://outpost.example",path="/RUN/company/settings/secrets",definition="current-definition";
+const origin="https://outpost.example",path="/RUN/space/settings/secrets",definition="current-definition";
 const body=`Open \`${path}?definition=${definition}\` → My secrets → PERSONAL_PUBLISHING_KEY → Set my value, then save. Please don't paste the key in chat. Morgan's PUBLISHING_API_KEY runtime reference is already configured.`;
 it.skipIf(process.env.OUTPOST_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("admits the visible own-definition route from4716 and rejects unbound or unsafe routes",async()=>{
  const browser=await chromium.launch({headless:true,...process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE?{executablePath:process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE}:{}}),page=await browser.newPage();
@@ -15,7 +15,7 @@ it.skipIf(process.env.OUTPOST_CHAT_EVAL_SECRET_ROUTE_CANARY!=="1")("admits the v
   expect(await personalSecretSetupURL(page,{body,commentId:"native"},origin,"RUN",definition,1000)).toBe(origin+path+"?definition="+definition);
   await render("",`<a href="${path}?definition=${definition}">My secrets</a>`);
   expect(await personalSecretSetupURL(page,{body,commentId:"native"},origin,"RUN",definition,1000)).toBe(origin+path+"?definition="+definition);
-  for(const route of ["/OTHER/company/settings/secrets?definition="+definition,"https://foreign.example"+path+"?definition="+definition,path+"?definition=other","/api/companies/current/secrets",""]){
+  for(const route of ["/OTHER/space/settings/secrets?definition="+definition,"https://foreign.example"+path+"?definition="+definition,path+"?definition=other","/api/spaces/current/secrets",""]){
    await render(route);expect(await personalSecretSetupURL(page,{body:body.replace(path+"?definition="+definition,route),commentId:"native"},origin,"RUN",definition,1000)).toBeUndefined();
   }
   await render("",`<code hidden>${path}?definition=${definition}</code>`);

@@ -8,13 +8,13 @@
 
 ## Application
 
-1. Read the current `paperclip-content/integrations/README.md` and integration
+1. Read the current `outpost-content/integrations/README.md` and integration
    harness from the content target commit.
 2. Research the official Notion MCP, OAuth, scopes, tools, limits, and admin
    setup. Record URLs and access dates, and mark unknowns rather than guessing.
 3. Reconcile existing Notion integration artifacts and open PRs before adding
    or changing catalog content.
-4. Open a research-only `paperclip-content` PR containing the planning package
+4. Open a research-only `outpost-content` PR containing the planning package
    required by the integrations playbook.
 5. Record the research PR head SHA and proposed connection set in an issue
    document, then request confirmation against that exact revision.

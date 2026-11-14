@@ -56,12 +56,12 @@ export async function captureRemoteNativeProviderArtifacts<T>(
   },
   publish: (source: NativeProviderArtifactSource) => Promise<T>,
 ): Promise<T> {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-provider-launch-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-provider-launch-"));
   let ownedByOperation = false;
   try {
     const exportParent = posix.join(
       input.remoteCwd,
-      ".paperclip-runtime",
+      ".outpost-runtime",
       "outpost-runner",
       "provider-artifact-export",
     );

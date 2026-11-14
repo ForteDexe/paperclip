@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { CompanyPatternIcon } from "@/components/CompanyPatternIcon";
+import { SpacePatternIcon } from "@/components/SpacePatternIcon";
 import { useResilientFetch } from "@/hooks/useResilientFetch";
 import { api } from "../api/client";
 import { describeError } from "../api/errors";
@@ -52,7 +52,7 @@ export function McpDevicePage({ initialCode }: { initialCode?: string } = {}) {
 
 function McpConnectRequest({ id, device = false, agentPairingOnly = false, onEditCode }: { id: string; device?: boolean; agentPairingOnly?: boolean; onEditCode?: () => void }) {
   const requestPrefix = agentPairingOnly ? "/dot-mcp/requests" : "/mcp/requests";
-  const [companyId, setCompanyId] = useState("");
+  const [spaceId, setSpaceId] = useState("");
   const [pairingCode, setPairingCode] = useState("");
   const [writeEnabled, setWriteEnabled] = useState(true);
   const [deviceResult, setDeviceResult] = useState<"approved" | "denied" | null>(null);
@@ -72,20 +72,20 @@ function McpConnectRequest({ id, device = false, agentPairingOnly = false, onEdi
   });
   const pairingPreview = previewEnabled && (preview.view.kind === "ready" || preview.view.kind === "stale") ? preview.data ?? null : null;
   const previewPending = previewEnabled && (preview.view.kind === "loading" || preview.view.kind === "reconnecting");
-  const selectedCompanyId = data?.requestedCompanyId ?? (companyId || data?.companies[0]?.id || "");
+  const selectedSpaceId = data?.requestedSpaceId ?? (spaceId || data?.spaces[0]?.id || "");
   // Pin the default once loaded so a refetch cannot silently switch organizations.
   useEffect(() => {
-    if (!companyId && !data?.requestedCompanyId && data?.companies[0]) setCompanyId(data.companies[0].id);
-  }, [companyId, data]);
+    if (!spaceId && !data?.requestedSpaceId && data?.spaces[0]) setSpaceId(data.spaces[0].id);
+  }, [spaceId, data]);
   const clientName = data?.clientName.trim();
   const assistantName = clientName && !/^(assistant|mcp client)$/i.test(clientName) ? clientName : "your assistant";
   const clientOrigin = data?.clientOrigin || data?.redirectOrigin;
-  const company = data?.companies.find((item) => item.id === selectedCompanyId);
-  const canApproveWrites = Boolean(!data?.agentConnection && company?.canWrite && writeEnabled);
+  const space = data?.spaces.find((item) => item.id === selectedSpaceId);
+  const canApproveWrites = Boolean(!data?.agentConnection && space?.canWrite && writeEnabled);
   const allowWrites = Boolean(data?.requestedWrite && canApproveWrites);
   const allowConfiguration = Boolean(data?.requestedConfigure && canApproveWrites);
   const consent = useMutation({
-    mutationFn: (decision: "approve" | "deny") => api.post<{ redirectUrl?: string; status?: "approved" | "denied" }>(device ? "/mcp/device/consent" : `/mcp/requests/${encodeURIComponent(id)}/consent`, { decision, companyId: selectedCompanyId || undefined, allowWrites: decision === "approve" && allowWrites, allowConfiguration: decision === "approve" && allowConfiguration, ...(device ? { userCode: id } : {}) }),
+    mutationFn: (decision: "approve" | "deny") => api.post<{ redirectUrl?: string; status?: "approved" | "denied" }>(device ? "/mcp/device/consent" : `/mcp/requests/${encodeURIComponent(id)}/consent`, { decision, spaceId: selectedSpaceId || undefined, allowWrites: decision === "approve" && allowWrites, allowConfiguration: decision === "approve" && allowConfiguration, ...(device ? { userCode: id } : {}) }),
     onSuccess: ({ redirectUrl, status }) => { if (device && status) setDeviceResult(status); else if (redirectUrl) window.location.assign(redirectUrl); },
   });
   const pairDot = useMutation({
@@ -112,9 +112,9 @@ function McpConnectRequest({ id, device = false, agentPairingOnly = false, onEdi
         <label htmlFor="dot-pairing-code" className="text-sm">Pairing code</label>
         <Input id="dot-pairing-code" type="password" autoComplete="off" value={pairingCode} onChange={event => setPairingCode(event.target.value)} required maxLength={32} />
         {previewPending && <p role="status" className="text-sm text-muted-foreground">Checking pairing code…</p>}
-        {pairingPreview?.providerKind === "grok_bot" && <p className="text-sm font-medium">Allow this connection to work as {pairingPreview.agent.name} in {pairingPreview.company.name}.</p>}
+        {pairingPreview?.providerKind === "grok_bot" && <p className="text-sm font-medium">Allow this connection to work as {pairingPreview.agent.name} in {pairingPreview.space.name}.</p>}
         {pairingPreview && <dl className="space-y-2 rounded-md border border-border p-3 text-sm">
-          <div><dt className="text-muted-foreground">Outpost</dt><dd>{pairingPreview.company.name} <span className="text-xs text-muted-foreground">({pairingPreview.company.id})</span></dd></div>
+          <div><dt className="text-muted-foreground">Outpost</dt><dd>{pairingPreview.space.name} <span className="text-xs text-muted-foreground">({pairingPreview.space.id})</span></dd></div>
           <div><dt className="text-muted-foreground">Agent</dt><dd>{pairingPreview.agent.name} <span className="text-xs text-muted-foreground">({pairingPreview.agent.id})</span></dd></div>
           <div><dt className="text-muted-foreground">Permissions</dt><dd>{pairingPreview.permissions}</dd></div>
           {pairingPreview.authorizingPerson && <div><dt className="text-muted-foreground">Authorized by</dt><dd>{pairingPreview.authorizingPerson}</dd></div>}
@@ -126,33 +126,33 @@ function McpConnectRequest({ id, device = false, agentPairingOnly = false, onEdi
       </form>}
       {data && <>
         {data.requiresSignIn ? <Button asChild><Link to={`/auth?next=${encodeURIComponent(returnPath)}`}>Sign in / Create account</Link></Button> : <>
-          {data.requestedCompanyId ? <div className="flex items-center gap-4 rounded-md border border-border p-4">
-            {company && <CompanyPatternIcon companyName={company.name} logoUrl={company.logoUrl} className="size-14 shrink-0 rounded-lg text-xl" />}
+          {data.requestedSpaceId ? <div className="flex items-center gap-4 rounded-md border border-border p-4">
+            {space && <SpacePatternIcon spaceName={space.name} logoUrl={space.logoUrl} className="size-14 shrink-0 rounded-lg text-xl" />}
             <div className="min-w-0 space-y-1">
               <p className="text-xs text-muted-foreground">Outpost</p>
-              {company ? <p className="break-words text-lg font-semibold">{company.name}</p> : <p className="text-sm text-destructive">The selected outpost is no longer available to this account. Cancel and reconnect from your assistant to choose an outpost you can access.</p>}
+              {space ? <p className="break-words text-lg font-semibold">{space.name}</p> : <p className="text-sm text-destructive">The selected outpost is no longer available to this account. Cancel and reconnect from your assistant to choose an outpost you can access.</p>}
             </div>
           </div> : <fieldset className="space-y-2" disabled={consent.isPending}>
             <legend className="mb-2 text-sm font-medium">Outpost</legend>
-            {data.companies.map((item) => <label key={item.id} className="flex items-center gap-3 rounded-md border border-border p-3 text-sm">
-              <input type="radio" name="company" aria-label={item.name} value={item.id} checked={selectedCompanyId === item.id} onChange={() => setCompanyId(item.id)} />
-              <CompanyPatternIcon companyName={item.name} logoUrl={item.logoUrl} className="size-12 shrink-0 rounded-lg" />
+            {data.spaces.map((item) => <label key={item.id} className="flex items-center gap-3 rounded-md border border-border p-3 text-sm">
+              <input type="radio" name="space" aria-label={item.name} value={item.id} checked={selectedSpaceId === item.id} onChange={() => setSpaceId(item.id)} />
+              <SpacePatternIcon spaceName={item.name} logoUrl={item.logoUrl} className="size-12 shrink-0 rounded-lg" />
               <span className="min-w-0 break-words font-medium">{item.name}</span>
             </label>)}
-            {!data.companies.length && <p className="text-sm text-muted-foreground">This account has no available outposts. Ask an outpost owner to add you, then reconnect from your assistant.</p>}
+            {!data.spaces.length && <p className="text-sm text-muted-foreground">This account has no available outposts. Ask an outpost owner to add you, then reconnect from your assistant.</p>}
           </fieldset>}
           <p className="text-sm">{data.agentConnection ? "Connect Dot as an Outpost agent. Pair it with an agent after connecting; assigned work uses that agent’s permissions." : "Read all of your Outpost data"}</p>
           {(data.requestedWrite || data.requestedConfigure) && !data.agentConnection && <label htmlFor="mcp-allow-writes" className="flex items-start gap-3 text-sm leading-6">
             <span className="flex h-6 shrink-0 items-center">
-              <Checkbox id="mcp-allow-writes" checked={canApproveWrites} disabled={!company?.canWrite || consent.isPending} onCheckedChange={(checked) => setWriteEnabled(checked === true)} />
+              <Checkbox id="mcp-allow-writes" checked={canApproveWrites} disabled={!space?.canWrite || consent.isPending} onCheckedChange={(checked) => setWriteEnabled(checked === true)} />
             </span>
             <span>Write all of your Outpost data</span>
           </label>}
-          {company && !company.canWrite && <p className="text-sm text-muted-foreground">Your role in this outpost is read-only.</p>}
+          {space && !space.canWrite && <p className="text-sm text-muted-foreground">Your role in this outpost is read-only.</p>}
           {consent.error && <p role="alert" className="text-sm text-destructive">{describeError(consent.error).body}</p>}
           <div className="flex items-center justify-between gap-3">
             <Button variant="outline" disabled={consent.isPending} onClick={() => consent.mutate("deny")}>Cancel</Button>
-            <Button className="h-auto min-h-10 min-w-0 shrink whitespace-normal" disabled={!company || (data.agentConnection && !company.canWrite) || consent.isPending} onClick={() => consent.mutate("approve")}>{consent.isPending ? "Connecting…" : data.agentConnection ? "Connect Dot agent" : "Connect outpost"}</Button>
+            <Button className="h-auto min-h-10 min-w-0 shrink whitespace-normal" disabled={!space || (data.agentConnection && !space.canWrite) || consent.isPending} onClick={() => consent.mutate("approve")}>{consent.isPending ? "Connecting…" : data.agentConnection ? "Connect Dot agent" : "Connect outpost"}</Button>
           </div>
         </>}
       </>}
@@ -178,10 +178,10 @@ export function AssistantConnectionsPage() {
     {active?.length === 0 && <p className="text-sm">No assistant connections.</p>}
     {active?.map((connection) => <Card key={connection.id} className="block space-y-2 p-4">
       <h2 className="font-medium"><Identity name={assistantConnectionDisplayName(connection)} avatarUrl={connection.user?.image} initials={deriveInitials(connection.user?.name ?? "You")} /></h2>
-      <p className="text-sm text-muted-foreground">Outpost: {connection.companyName}</p>
-      {connection.agent && <p className="text-sm">Works as <Link className="underline" to={`/${connection.companyPrefix ?? connection.companyId}/agents/${connection.agent.id}/runtime`}>{connection.agent.name}</Link>{connection.user ? ` · Authorized by ${connection.user.name}` : ""}</p>}
-      <p className="text-sm">{connection.scopes.includes("paperclip:agent") ? "Agent connection" : connection.scopes.includes("paperclip:write") ? "Read and edit work" : "Read only"}</p>
-      {connection.scopes.includes("paperclip:configure") && <p className="text-sm">Configure agents, projects and skills</p>}
+      <p className="text-sm text-muted-foreground">Outpost: {connection.spaceName}</p>
+      {connection.agent && <p className="text-sm">Works as <Link className="underline" to={`/${connection.spacePrefix ?? connection.spaceId}/agents/${connection.agent.id}/runtime`}>{connection.agent.name}</Link>{connection.user ? ` · Authorized by ${connection.user.name}` : ""}</p>}
+      <p className="text-sm">{connection.scopes.includes("outpost:agent") ? "Agent connection" : connection.scopes.includes("outpost:write") ? "Read and edit work" : "Read only"}</p>
+      {connection.scopes.includes("outpost:configure") && <p className="text-sm">Configure agents, projects and skills</p>}
       <Button variant="outline" disabled={revoke.isPending} onClick={() => revoke.mutate(connection.id)}>Revoke connection</Button>
     </Card>)}
     <Link className="text-sm underline" to="/">Back to Outpost</Link>

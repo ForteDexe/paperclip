@@ -25,7 +25,7 @@ async function fixture() {
     await writeFile(join(dir, "package.json"), content); await writeFile(join(dir, entry), "// compiled");
     return { root: dir, packageSha256: hash(content), entry, entrySha256: hash("// compiled") };
   }
-  const plugin = await pkg("@outpost/plugin-daytona", "0.1.1", { "@outpost/plugin-sdk": sdkVersion, "@daytonaio/sdk": "0.203.0" }, { paperclipPlugin: { manifest: "./dist/manifest.js", worker: "./dist/worker.js" } });
+  const plugin = await pkg("@outpost/plugin-daytona", "0.1.1", { "@outpost/plugin-sdk": sdkVersion, "@daytonaio/sdk": "0.203.0" }, { outpostPlugin: { manifest: "./dist/manifest.js", worker: "./dist/worker.js" } });
   await writeFile(join(plugin.root, "dist/manifest.js"), "// manifest"); await writeFile(join(plugin.root, "dist/worker.js"), "// worker");
   const authority: InstalledDaytonaPluginAuthority = { schema: "outpost.e2e.installed-daytona-plugin/v1", graphRoot: root, plugin: { ...plugin, manifestSha256: hash("// manifest"), workerSha256: hash("// worker") }, sdk: await pkg("@outpost/plugin-sdk", sdkVersion, { "@outpost/shared": "0.3.1" }), shared: await pkg("@outpost/shared", "0.3.1"), daytona: await pkg("@daytonaio/sdk", "0.203.0") };
   const authorityPath = join(root, "authority.json");
@@ -64,7 +64,7 @@ it("rejects stale authority, worker, manifest and dependency entry bytes", async
 });
 it("rejects source exports and workspace dependency versions even with refreshed pins", async () => {
   const f = await fixture(); const p = join(f.authority.plugin.root,"package.json");
-  const original = { name:"@outpost/plugin-daytona",version:"0.1.1",exports:{".":{import:"./dist/index.js"}},paperclipPlugin:{manifest:"./dist/manifest.js",worker:"./dist/worker.js"},dependencies:{"@outpost/plugin-sdk":sdkVersion,"@daytonaio/sdk":"0.203.0"} };
+  const original = { name:"@outpost/plugin-daytona",version:"0.1.1",exports:{".":{import:"./dist/index.js"}},outpostPlugin:{manifest:"./dist/manifest.js",worker:"./dist/worker.js"},dependencies:{"@outpost/plugin-sdk":sdkVersion,"@daytonaio/sdk":"0.203.0"} };
   for (const manifest of [{ ...original, exports:{".":{import:"./src/index.ts"}} }, { ...original, dependencies:{ ...original.dependencies,"@outpost/plugin-sdk":"workspace:*" } }]) {
     const bytes=JSON.stringify(manifest);await writeFile(p,bytes);f.authority.plugin.packageSha256=hash(bytes);await f.seal();await expect(verifyInstalledDaytonaPlugin(f.env,[cell])).rejects.toThrow(/compiled package exports|dependency identity/);
   }
@@ -73,7 +73,7 @@ it("rejects linked or escaped roots and a shadowed foreign resolved dependency",
   const f = await fixture(); const other = await fixture();
   f.authority.shared=other.authority.shared;await f.seal();await expect(verifyInstalledDaytonaPlugin(f.env,[cell])).rejects.toThrow("escapes");
   f.authority.shared={...other.authority.shared,root:join(f.root,"node_modules/@outpost/shared")};await f.seal();
-  const nested=join(f.authority.plugin.root,"node_modules/@paperclipai");await mkdir(nested,{recursive:true});await symlink(other.authority.sdk.root,join(nested,"plugin-sdk"));
+  const nested=join(f.authority.plugin.root,"node_modules/@outpost");await mkdir(nested,{recursive:true});await symlink(other.authority.sdk.root,join(nested,"plugin-sdk"));
   await expect(verifyInstalledDaytonaPlugin(f.env,[cell])).rejects.toThrow("foreign dependency");
   await rm(nested,{recursive:true});await rm(f.authority.shared.root,{recursive:true});await symlink(other.authority.shared.root,f.authority.shared.root);
   await expect(verifyInstalledDaytonaPlugin(f.env,[cell])).rejects.toThrow("canonical and unlinked");

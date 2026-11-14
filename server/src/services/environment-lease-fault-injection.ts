@@ -41,7 +41,7 @@ const counts = new Map<string, number>();
 
 /** The staging shapes: Daytona's acquisition deadline, and a failed control-plane query. */
 export function leaseFaultError(kind: LeaseFaultControl["kind"], input: {
-  companyId: string; environmentId: string; heartbeatRunId: string;
+  spaceId: string; environmentId: string; heartbeatRunId: string;
 }): Error {
   if (kind === "database") {
     return new Error("Failed query: insert into \"environment_leases\" (\"id\") values ($1)\nparams: <chaos>", {
@@ -50,19 +50,19 @@ export function leaseFaultError(kind: LeaseFaultControl["kind"], input: {
   }
   const error = new JsonRpcCallError({ code: PLUGIN_RPC_ERROR_CODES.WORKER_ERROR,
     message: "Daytona lease acquisition timed out; allocation cleanup is pending",
-    data: { schema: "paperclip/environment-creation-cleanup/v1",
-      cleanup: { providerLeaseId: `chaos-ep1-${input.heartbeatRunId.slice(0, 8)}`, companyId: input.companyId,
+    data: { schema: "outpost/environment-creation-cleanup/v1",
+      cleanup: { providerLeaseId: `chaos-ep1-${input.heartbeatRunId.slice(0, 8)}`, spaceId: input.spaceId,
         environmentId: input.environmentId, runId: input.heartbeatRunId, attemptId: input.heartbeatRunId,
         accountFingerprint: "0".repeat(64), labels: {} },
       acquisitionDiagnostic: { phase: "create", elapsedMs: 300_000, budgetMs: 300_000, providerState: "creating" } } });
-  captureEnvironmentAcquisitionDiagnostic(error, { companyId: input.companyId, environmentId: input.environmentId,
+  captureEnvironmentAcquisitionDiagnostic(error, { spaceId: input.spaceId, environmentId: input.environmentId,
     runId: input.heartbeatRunId }, readEnvironmentAcquisitionDiagnostic(error));
   return error;
 }
 
 /** Throws the armed fault for this acquisition; a single null check when disarmed. */
 export function injectLeaseAcquisitionFault(input: {
-  companyId: string; environmentId: string; heartbeatRunId: string; issueId: string | null;
+  spaceId: string; environmentId: string; heartbeatRunId: string; issueId: string | null;
 }): void {
   if (controlPath === null || !input.issueId) return;
   let control: LeaseFaultControl | null;

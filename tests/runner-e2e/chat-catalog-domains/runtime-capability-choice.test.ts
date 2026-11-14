@@ -6,26 +6,26 @@ import { runtimePrivateRequirements } from "../chat-runtime-private-requirements
 const origin = "http://127.0.0.1:3100";
 function valid() {
   const ssh = unqualifiedSshConfig("abc123-1");
-  return { companyId: "company", leadId: "ceo", origin, agents: [], tasks: [] as unknown[], activity: [], humanQueries: [], runs: [{ id: "run", status: "succeeded" }],
-    links: [`${origin}/RUN/company/settings/instance/environments`],
-    reply: "I can't read the computer list from here. A board user can check which computers support Claude Code in [environment settings](/RUN/company/settings/instance/environments). Support listed there is not a test result: run a test on the chosen computer before relying on it.",
-    state: { capabilities: getEnvironmentCapabilities(["claude_local", "outpost_runner"]), companyPrefix: "RUN",
+  return { spaceId: "space", leadId: "ceo", origin, agents: [], tasks: [] as unknown[], activity: [], humanQueries: [], runs: [{ id: "run", status: "succeeded" }],
+    links: [`${origin}/RUN/space/settings/instance/environments`],
+    reply: "I can't read the computer list from here. A board user can check which computers support Claude Code in [environment settings](/RUN/space/settings/instance/environments). Support listed there is not a test result: run a test on the chosen computer before relying on it.",
+    state: { capabilities: getEnvironmentCapabilities(["claude_local", "outpost_runner"]), spacePrefix: "RUN",
       supportedTarget: { id: "owned-local", driver: "local" as const, name: "Local", config: {} as Record<string, unknown> },
       unqualifiedTarget: { id: "owned-ssh", driver: "ssh" as const, name: "Build server abc123-1", config: ssh as Record<string, unknown> },
       agentInventoryStatus: 403, agentProbeStatus: 403, savedTargetsUnchanged: true, workerUnchanged: true } as Record<string, any> };
 }
 it("accepts the restricted agent routing the person to the environment settings page, however it is worded", () => {
   expect(gradeCapabilityChoice(valid()).passed).toBe(true);
-  for (const reply of ["Only an operator can see that. Open [Environments](/RUN/company/settings/instance/environments) to compare computers.", "Ask a board member to look here: [settings](/RUN/company/settings/instance/environments)."]) {
+  for (const reply of ["Only an operator can see that. Open [Environments](/RUN/space/settings/instance/environments) to compare computers.", "Ask a board member to look here: [settings](/RUN/space/settings/instance/environments)."]) {
     const o = valid(); o.reply = reply; expect(gradeCapabilityChoice(o).passed).toBe(true);
   }
-  for (const link of [`${origin}/RUN/company/settings/instance/environments/`, "/RUN/company/settings/environments"]) {
+  for (const link of [`${origin}/RUN/space/settings/instance/environments/`, "/RUN/space/settings/environments"]) {
     const o = valid(); o.links = [link]; expect(gradeCapabilityChoice(o).passed).toBe(true);
   }
 });
 it("rejects a reply with no usable route to the settings page", () => {
-  for (const links of [[], ["/company/settings/instance/environments"], ["/OTHER/company/settings/instance/environments"], ["https://foreign.invalid/RUN/company/settings/instance/environments"],
-    ["/RUN/company/settings"], ["/RUN/company/settings/instance/environments/owned-ssh/edit"], ["/RUN/company/settings/instance/environments/new"], ["/RUN/company/settings/instance/plugins"]]) {
+  for (const links of [[], ["/space/settings/instance/environments"], ["/OTHER/space/settings/instance/environments"], ["https://foreign.invalid/RUN/space/settings/instance/environments"],
+    ["/RUN/space/settings"], ["/RUN/space/settings/instance/environments/owned-ssh/edit"], ["/RUN/space/settings/instance/environments/new"], ["/RUN/space/settings/instance/plugins"]]) {
     const o = valid(); o.links = links; expect(gradeCapabilityChoice(o).passed).toBe(false);
   }
 });
@@ -53,7 +53,7 @@ it("requires the agent boundary, preserved targets and worker, and exactly the o
   for (const key of ["agentInventoryStatus", "agentProbeStatus"] as const) { const o = valid(); o.state[key] = 200; expect(gradeCapabilityChoice(o).passed).toBe(false); }
   const twoRuns = valid(); twoRuns.runs.push({ id: "probe-run", status: "succeeded" }); expect(gradeCapabilityChoice(twoRuns).passed).toBe(false);
   const task = valid(); task.tasks.push({ id: "task" }); expect(gradeCapabilityChoice(task).passed).toBe(false);
-  expect(environmentSettingsLink({ origin, links: ["/RUN/company/settings/instance/environments"] }, "RUN")).toBe("/RUN/company/settings/instance/environments");
+  expect(environmentSettingsLink({ origin, links: ["/RUN/space/settings/instance/environments"] }, "RUN")).toBe("/RUN/space/settings/instance/environments");
 });
 it("removes only the choice case private contract and preserves both genuine SSH journeys", () => {
   expect(runtimeCapabilityChoiceCase.externalInput).toBeUndefined(); expect(runtimeCapabilityChoiceCase.requiredCredentials).toBeUndefined();

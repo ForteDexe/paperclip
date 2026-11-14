@@ -447,12 +447,12 @@ describe("Photon durable event recovery", () => {
       server.forceShutdown();
     }
   });
-  it("keeps state company scoped and rejects corrupt cursor envelopes", async () => {
+  it("keeps state space scoped and rejects corrupt cursor envelopes", async () => {
     const f = photonFixture();
     await f.state.update("checkpoint", () => ({ sequence: 1 }));
     expect(
       await new PhotonState(
-        { ...f.state.scope, companyId: "other" },
+        { ...f.state.scope, spaceId: "other" },
         f.persistence,
       ).read("checkpoint"),
     ).toBeNull();

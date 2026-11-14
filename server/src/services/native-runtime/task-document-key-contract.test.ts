@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { Db } from "@outpost/db";
 import { issueDocumentKeySchema } from "@outpost/shared";
 import { documentService } from "../documents.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { RUNNER_BRIDGE_SCHEMAS, runnerBridgeDefinitions } from "./runner-bridge-tools.js";
 
 const binding = {
-  companyId: "00000000-0000-4000-8000-000000000001",
+  spaceId: "00000000-0000-4000-8000-000000000001",
   agentId: "00000000-0000-4000-8000-000000000002",
   issueId: "00000000-0000-4000-8000-000000000003",
   runId: "00000000-0000-4000-8000-000000000004",
@@ -39,7 +39,7 @@ const keys = [
 ];
 const operations = ["read_document", "write_document", "list_document_revisions"] as const;
 const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true, strict: false });
-const definitions = new PaperclipRunnerToolAuthority({} as Db, binding).definitions();
+const definitions = new OutpostRunnerToolAuthority({} as Db, binding).definitions();
 const bridgeDefinitions = runnerBridgeDefinitions({ workspace: false, skills: false, api: true, mode: "standard" });
 const bridgeKeys = [...keys, " ".repeat(36) + "a".repeat(64), " ".repeat(37) + "a".repeat(64)];
 function input(operation: string, key: string) {

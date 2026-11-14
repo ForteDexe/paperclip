@@ -12,7 +12,7 @@ vi.mock("@outpost/shared/telemetry", () => ({
   trackErrorHandlerCrash: trackErrorHandlerCrashMock,
 }));
 
-const principal = { actor: { type: "board", userId: "user-1" } } as unknown as McpPrincipal;
+const principal = { actor: { type: "operator", userId: "user-1" } } as unknown as McpPrincipal;
 
 // The internal dispatch runs each public MCP call in its own Express app, so
 // the shutdown flag set on the main app must reach that app's error handler.
@@ -35,7 +35,7 @@ describe("public MCP dispatch during database shutdown", () => {
   it("does not report a call that outlived the database pool", async () => {
     const parentLocals: Record<string, unknown> = {};
     const dispatch = createMcpApiDispatch(endedPoolApi(), parentLocals);
-    parentLocals.paperclipDatabaseClosing = true;
+    parentLocals.outpostDatabaseClosing = true;
 
     await expect(dispatch(principal, "GET", "/tasks", undefined)).rejects.toMatchObject({ status: 503 });
     expect(captureExceptionMock).not.toHaveBeenCalled();

@@ -135,7 +135,7 @@ product's own constant for that place (see `references/questions-and-defaults.md
 Flags you will use: `--names a,b,c` for stated names, `--group
 Components|Pages|Layouts|Patterns` (Components when the grep hits
 `ui/src/components`), `--capabilities area/key,...` (validated against
-`maps/feature-map`; omit for `[]` plus an exception sentence), `--company
+`maps/feature-map`; omit for `[]` plus an exception sentence), `--space
 name:PREFIX` (default `acmehats:ACM`), `--landing auto|all|today|<id>`,
 `--ports dev,preview` (the generator picks free ones), `--keep-on-failure` to
 inspect a failed scaffold.
@@ -218,7 +218,7 @@ and the repo's tracked skills were added with `git add -f`.
 
 `new` writes `ui/storybook/stories/design-proposals/<slug>-directions.stories.tsx`
 with meta id `design-<slug>-directions`, title `Design proposals/<Group>/<Title>
-directions/Compare`, a literal `parameters.paperclip` block (`status:
+directions/Compare`, a literal `parameters.outpost` block (`status:
 "proposed"`, `home: "design-proposals"`, `implementation: "prototype"`,
 `boundary: "fixtures"`, capabilities, exception, notes) and stories Compare,
 Today, one per direction, and `TodayProductionPalette` (the decorator themes
@@ -253,7 +253,7 @@ Tonio says yes.
 - Rename a direction, add a surface, or move a direction through the
   lifecycle: by hand, following `references/lab-anatomy.md` section 5 and 8
   and `references/lifecycle.md`.
-- Publish: build with `<SLUG>_DIRECTIONS_OUT_DIR=<dir>/paperclip-<slug>-directions`,
+- Publish: build with `<SLUG>_DIRECTIONS_OUT_DIR=<dir>/outpost-<slug>-directions`,
   remove `sw.js` from the output, `vercel deploy <that dir> --prod --yes` from
   its parent; the basename names the project and the alias is the public URL.
   `references/today-fixtures-and-build.md` section 11 has the details.

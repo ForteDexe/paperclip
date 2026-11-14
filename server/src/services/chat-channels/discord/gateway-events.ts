@@ -165,7 +165,7 @@ export function createDiscordGatewayEvents(db: Db, options: DiscordGatewayEvents
           current.setup.step === "complete" ? "active" : "verifying";
         await notifyChatReceiver(tx, current);
         await notifyDiscordCommandRegistration(tx, { kind: "endpoint", id: current.id });
-        if (status !== current.status) await notifyChatEndpointWork(tx, current.connectionId, current.companyId);
+        if (status !== current.status) await notifyChatEndpointWork(tx, current.connectionId, current.spaceId);
         await tx
           .update(chatEndpoints)
           .set({
@@ -242,7 +242,7 @@ export function createDiscordGatewayEvents(db: Db, options: DiscordGatewayEvents
           .set({ availability: "unavailable", updatedAt: now })
           .where(
             and(
-              eq(chatEndpointResources.companyId, current.companyId),
+              eq(chatEndpointResources.spaceId, current.spaceId),
               eq(chatEndpointResources.endpointId, current.id),
             ),
           );
@@ -251,7 +251,7 @@ export function createDiscordGatewayEvents(db: Db, options: DiscordGatewayEvents
           .set({ state: "unavailable", updatedAt: now })
           .where(
             and(
-              eq(chatConversations.companyId, current.companyId),
+              eq(chatConversations.spaceId, current.spaceId),
               eq(chatConversations.endpointId, current.id),
               inArray(chatConversations.state, ["active", "waiting"]),
             ),

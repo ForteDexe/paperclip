@@ -1,4 +1,4 @@
-import { takeCompanyWorkBatch } from "../../company-work-batch.js";
+import { takeSpaceWorkBatch } from "../../space-work-batch.js";
 import type { createDeliveryWorkCoordinator } from "../../delivery-work-coordinator.js";
 import { DELIVERY_QUEUES } from "../../delivery-work-notifications.js";
 import type { CommandRegistrationDeadline, discordCommandSchedule } from "./command-schedule.js";
@@ -8,14 +8,14 @@ function decodeScope(hint: string): CommandRegistrationScope | undefined {
   if (hint === "*") return undefined;
   const separator = hint.indexOf(":");
   const kind = hint.slice(0, separator), id = hint.slice(separator + 1);
-  if (kind !== "endpoint" && kind !== "connection" && kind !== "company")
+  if (kind !== "endpoint" && kind !== "connection" && kind !== "space")
     throw new Error("Unknown command registration scope");
   return { kind, id };
 }
 
 function matches(entry: CommandRegistrationDeadline, scope?: CommandRegistrationScope) {
   if (!scope) return true;
-  return (scope.kind === "endpoint" ? entry.id : scope.kind === "connection" ? entry.connectionId : entry.companyId) === scope.id;
+  return (scope.kind === "endpoint" ? entry.id : scope.kind === "connection" ? entry.connectionId : entry.spaceId) === scope.id;
 }
 
 export function registerDiscordCommandWork(
@@ -28,7 +28,7 @@ export function registerDiscordCommandWork(
   const failures = new Map<string, { count: number; retryAt: number }>();
   const retryMs = 30_000;
   let earliest = 0;
-  let lastCompany: string | null = null;
+  let lastSpace: string | null = null;
   function next() {
     let at: number | null = dirty.size ? earliest : null;
     for (const entry of deadlines.values()) {
@@ -70,8 +70,8 @@ export function registerDiscordCommandWork(
         .filter(entry => !unavailable.some(scope => matches(entry, scope)) &&
           Math.max(entry.dueAt, failures.get(entry.id)?.retryAt ?? 0) <= Date.now())
         .sort((a, b) => a.dueAt - b.dueAt || a.id.localeCompare(b.id));
-      const batch = takeCompanyWorkBatch(due, 25, lastCompany);
-      lastCompany = batch.lastCompany;
+      const batch = takeSpaceWorkBatch(due, 25, lastSpace);
+      lastSpace = batch.lastSpace;
       for (const entry of batch.entries) {
         if (signal.aborted || !canRun()) break;
         try {

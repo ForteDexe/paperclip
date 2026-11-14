@@ -280,12 +280,12 @@ async function prepareClaudeRemoteManagedHome(
   const bypassPermissions = resolveAcpPermissionMode(input.config) === "approve-all";
   const claudeConfigSeedDir = input.config.managedAiConnection
     ? explicitClaudeConfigDir
-    : await prepareClaudeConfigSeed(process.env, onLog, input.companyId, {
+    : await prepareClaudeConfigSeed(process.env, onLog, input.spaceId, {
       permissionDefaultMode: bypassPermissions ? "bypassPermissions" : "default",
     });
   // Ship the per-run skill bundle, staged only when the run selected at
   // least one skill. The bundle directory holds a plain copy of each
-  // selected skill's files (`materializePaperclipSkillCopy` never copies a
+  // selected skill's files (`materializeOutpostSkillCopy` never copies a
   // symbolic link, at the root or at any depth). So the bundle asset stages
   // with `followSymlinks: false`: staging never needs to carry a symbolic
   // link's target content, and refusing to follow one stops a link planted
@@ -302,7 +302,7 @@ async function prepareClaudeRemoteManagedHome(
 
   const remoteClaudeRuntimeRoot =
     stagedRuntime.runtimeRootDir ??
-    path.posix.join(stagedRuntime.workspaceRemoteDir ?? input.workspaceLocalDir, ".paperclip-runtime", "claude");
+    path.posix.join(stagedRuntime.workspaceRemoteDir ?? input.workspaceLocalDir, ".outpost-runtime", "claude");
   const remoteClaudeConfigSeedDir =
     stagedRuntime.assetDirs["config-seed"] ?? path.posix.join(remoteClaudeRuntimeRoot, "config-seed");
   const remoteClaudeConfigDir = path.posix.join(remoteClaudeRuntimeRoot, "config");
@@ -964,7 +964,7 @@ export async function testClaudeAcpEnvironment(
         runId,
         target,
         cwd,
-        companyId: ctx.companyId,
+        spaceId: ctx.spaceId,
         env: probeEnv,
         installCommand: SANDBOX_INSTALL_COMMAND,
         detectCommand: "claude",

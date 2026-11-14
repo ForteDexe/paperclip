@@ -40,7 +40,7 @@ through a recovery consumer or stale persisted row.
 | Durable completed/cancelled disposition | No additional task execution |
 | Pending question/approval, unresolved dependency, valid blocker/review/monitor path | Leave continuation to that existing owner/event |
 | Existing active run, queued wake, routine, plugin-owned lifecycle or recovery owner | Do not create a competing path |
-| Stopped, paused, budget-blocked, changed owner or invalid company/task/run binding | Do not dispatch |
+| Stopped, paused, budget-blocked, changed owner or invalid space/task/run binding | Do not dispatch |
 | Ordinary conversation with its turn settled | No task-disposition repair |
 | Eligible successful task run still lacks both a durable disposition and an owned next path | Bounded disposition repair |
 | Failed/interrupted run | Existing typed failure/cancellation policy; no prose-based promotion to runnable work |
@@ -129,8 +129,8 @@ Keep this section even if this slice incidentally resolves some assertions.
 | Missing-comment policy ownership | Coverage boundary | Existing typed retry policy remains; review separately if consolidating all post-run compliance into one disposition contract |
 | Maintain CI and prepare App/Evals review | Pending | Promote fixed invariants into maintained cheap gates; paid suites remain explicit |
 
-Reference reports moved to `paperclip-evals`; see the
-[results index](../../tests/lifecycle-baseline/README.md#recorded-results-moved-to-paperclip-evals)
+Reference reports moved to `outpost-evals`; see the
+[results index](../../tests/lifecycle-baseline/README.md#recorded-results-moved-to-outpost-evals)
 for the initial baseline, live baseline, and live fixes.
 Live follow-up: 40/40 Product E2E passed on App `331e89bb3`; original protocol
 correction: 8/8 passed. Those results do not establish prose-free authority.

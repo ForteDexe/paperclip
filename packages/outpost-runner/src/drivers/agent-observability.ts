@@ -29,7 +29,7 @@ export function providerObservabilityEnvironment(source: NodeJS.ProcessEnv | und
   const names: readonly string[] = agent === "claude" ? AGENT_OBSERVABILITY_ENV_KEYS.filter(key => key !== "OUTPOST_OBSERVABILITY_CODEX_CONFIG")
     : ["OTEL_EXPORTER_OTLP_LOGS_TIMEOUT", "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT", "OTEL_EXPORTER_OTLP_LOGS_HEADERS", "OTEL_EXPORTER_OTLP_TRACES_HEADERS", "OUTPOST_OBSERVABILITY_CODEX_CONFIG"];
   for (const key of names) if (source[key] !== undefined) {
-    // Codex carries two percent-encoded header maps. A valid 16-KiB company
+    // Codex carries two percent-encoded header maps. A valid 16-KiB space
     // header set can exceed 64 KiB after encoding and duplication.
     const maxBytes = key === "OUTPOST_OBSERVABILITY_CODEX_CONFIG" ? 128 * 1024 : 65536;
     if (source[key]!.includes("\0") || Buffer.byteLength(source[key]!) > maxBytes) throw new Error("Invalid observability launch environment");

@@ -41,7 +41,7 @@
 //     integration's own `breadcrumbs` option.
 //
 // A failed secret-sensitive request (chat setup, provider webhooks, MCP,
-// company observability settings, and similar routes) reports only the
+// space observability settings, and similar routes) reports only the
 // generic `Secret-sensitive request failed` error, with its own stack and
 // default grouping. `SecretSensitiveRequestError` adds `secret_route_family`,
 // `http_method`, `http_status` and `error_kind` tags, optional `errno_code`
@@ -132,7 +132,7 @@ export function captureException(error: unknown, reference?: SentryRunReference)
   try {
     const tags = reference ? {
       run_id: reference.runId,
-      ...(reference.companyId ? { company_id: reference.companyId } : {}),
+      ...(reference.spaceId ? { space_id: reference.spaceId } : {}),
       ...(reference.agentId ? { agent_id: reference.agentId } : {}),
     } : {};
     const storageFailure = storageFailureDiagnosticsFor(error);
@@ -207,7 +207,7 @@ export type RunFailureStatus = "failed" | "timed_out" | "cancelled";
  */
 export interface RunFailureEvent {
   taskId: string | null;
-  companyId?: string;
+  spaceId?: string;
   agentId?: string;
   /** The `heartbeat_runs` row id. */
   runId: string;
@@ -291,11 +291,11 @@ function captureRunFailureEvent(event: RunFailureEvent): string | null {
     const phase = diagnostics?.execution.failurePhase;
     const failurePhase = phase === "setup" || phase === "execute" ? phase : undefined;
     const contexts: Record<string, Record<string, unknown>> = {};
-    if (event.companyId && event.agentId) {
+    if (event.spaceId && event.agentId) {
       const runPath = `/api/heartbeat-runs/${encodeURIComponent(event.runId)}`;
-      contexts.paperclip = {
+      contexts.outpost = {
         schemaVersion: 1,
-        companyId: event.companyId,
+        spaceId: event.spaceId,
         agentId: event.agentId,
         runPath,
         eventsPath: `${runPath}/events`,
@@ -345,7 +345,7 @@ function captureRunFailureEvent(event: RunFailureEvent): string | null {
         ...(failurePhase ? { failure_phase: failurePhase } : {}),
         run_id: event.runId,
         ...(event.taskId ? { task_id: event.taskId } : {}),
-        ...(event.companyId ? { company_id: event.companyId } : {}),
+        ...(event.spaceId ? { space_id: event.spaceId } : {}),
         ...(event.agentId ? { agent_id: event.agentId } : {}),
         error_code: errorCode,
         agent_adapter: event.agentAdapter,
@@ -398,8 +398,8 @@ function confirmTaskInterruptionDelivery(eventId: string | undefined, statusCode
 }
 
 export function captureTaskInterruptionFailure(event: Pick<RunFailureEvent,
-  "companyId" | "agentId" | "taskId" | "runId" | "runStatus" | "agentAdapter" | "runErrorCode"> & { intentId: string | null }): void {
-  const key = JSON.stringify([event.companyId, event.taskId, event.runId, event.intentId]);
+  "spaceId" | "agentId" | "taskId" | "runId" | "runStatus" | "agentAdapter" | "runErrorCode"> & { intentId: string | null }): void {
+  const key = JSON.stringify([event.spaceId, event.taskId, event.runId, event.intentId]);
   if (reportedTaskInterruptions.has(key)) return;
   const now = Date.now();
   if ((pendingTaskInterruptions.get(key)?.retryAt ?? 0) > now) return;
@@ -407,7 +407,7 @@ export function captureTaskInterruptionFailure(event: Pick<RunFailureEvent,
     if (pending.retryAt <= now) forgetPendingTaskInterruption(pendingKey);
   }
   const eventId = captureRunFailureEvent({
-    companyId: event.companyId,
+    spaceId: event.spaceId,
     agentId: event.agentId,
     taskId: event.taskId,
     runId: event.runId,

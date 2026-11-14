@@ -26,7 +26,7 @@ export interface SlackCloudEvent {
 }
 
 export interface CurrentSlackCloudBinding {
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   publicId: string;
   connectionId: string;
@@ -45,7 +45,7 @@ export async function receiveSlackCloudEvent(event: SlackCloudEvent, current: Cu
   const packet = value as Record<string, unknown>;
   if (event.provider !== "slack" || event.event !== "event_callback" || packet.version !== 1)
     throw new SlackCloudReceiptError("unsupported_receipt", "attention");
-  if (packet.bindingId !== current.bindingId || packet.companyId !== current.companyId
+  if (packet.bindingId !== current.bindingId || packet.spaceId !== current.spaceId
     || packet.endpointId !== current.endpointId || packet.publicId !== current.publicId
     || packet.connectionId !== current.connectionId || packet.runtimeGeneration !== current.runtimeGeneration
     || packet.teamId !== current.teamId || packet.appId !== current.appId) return;

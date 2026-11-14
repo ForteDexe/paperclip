@@ -14,18 +14,18 @@
   "sourceProof": {
     "identicalTrackedFiles": 8242,
     "changedTrackedPaths": [
-      "skills/paperclip/SKILL.md",
-      "skills/paperclip/references/issue-documents.md",
+      "skills/outpost/SKILL.md",
+      "skills/outpost/references/issue-documents.md",
       "tests/runner-e2e/opencode-skill-routing-comparison.json"
     ],
     "onlyProductionDifferences": [
       {
-        "path": "skills/paperclip/SKILL.md",
+        "path": "skills/outpost/SKILL.md",
         "candidateSha256": "6ca593effe18704f8014ac4e8155f7513c0701aa3c61d3cf0b96d3366c92f0e1",
         "baselineSha256": "768522e081c1ec43dee4a5794539f7b597ee3708c634d05e388c874df283cc53"
       },
       {
-        "path": "skills/paperclip/references/issue-documents.md",
+        "path": "skills/outpost/references/issue-documents.md",
         "candidateSha256": "a6141e8ba4510b683418197d58598d5a14db2641c49c869ae8aca4e2b05aca97",
         "baselineSha256": "353845a406b1b4948487c348c86eb7b8c89a55ae67afe203100eee10aee46336"
       }
@@ -45,12 +45,12 @@
       ],
       "onlyChangedProductionSources": [
         {
-          "path": "skills/paperclip/SKILL.md",
+          "path": "skills/outpost/SKILL.md",
           "candidateSha256": "6ca593effe18704f8014ac4e8155f7513c0701aa3c61d3cf0b96d3366c92f0e1",
           "baselineSha256": "768522e081c1ec43dee4a5794539f7b597ee3708c634d05e388c874df283cc53"
         },
         {
-          "path": "skills/paperclip/references/issue-documents.md",
+          "path": "skills/outpost/references/issue-documents.md",
           "candidateSha256": "a6141e8ba4510b683418197d58598d5a14db2641c49c869ae8aca4e2b05aca97",
           "baselineSha256": "353845a406b1b4948487c348c86eb7b8c89a55ae67afe203100eee10aee46336"
         }
@@ -65,7 +65,7 @@
           "model": "openrouter/deepseek/deepseek-v4-flash-0731"
         },
         {
-          "executionId": "stock-harness.legacy-opencode.local.assigned-skill-paperclip-document",
+          "executionId": "stock-harness.legacy-opencode.local.assigned-skill-outpost-document",
           "fixtureConfigSha256": "4924cbbcb8768fdbff70d9f53c20835dba28626278da77fb5edcc09c1700fd5f",
           "model": "openrouter/deepseek/deepseek-v4-flash-0731"
         }
@@ -162,7 +162,7 @@
             "expected": true
           },
           "passed": true,
-          "detail": "Public company and agent records must both retain the 1,000-cent monthly hard stops."
+          "detail": "Public space and agent records must both retain the 1,000-cent monthly hard stops."
         },
         {
           "matcher": {
@@ -319,7 +319,7 @@
           "documentApiCall": false,
           "statusApiCall": false,
           "ordinal": 5,
-          "skill": "paperclip"
+          "skill": "outpost"
         },
         {
           "tool": "bash",
@@ -423,7 +423,7 @@
     },
     {
       "variant": "baseline",
-      "caseId": "assigned-skill-paperclip-document",
+      "caseId": "assigned-skill-outpost-document",
       "source": {
         "sha": "0d7ecfa96d72fba79b7f0a25052b42c0686c0488",
         "ref": "refs/heads/codex/opencode-pre-routing-skill",
@@ -528,7 +528,7 @@
             "expected": true
           },
           "passed": true,
-          "detail": "Public company and agent records must both retain the 1,000-cent monthly hard stops."
+          "detail": "Public space and agent records must both retain the 1,000-cent monthly hard stops."
         },
         {
           "matcher": {
@@ -648,7 +648,7 @@
           "documentApiCall": false,
           "statusApiCall": false,
           "ordinal": 2,
-          "skill": "paperclip"
+          "skill": "outpost"
         },
         {
           "tool": "bash",
@@ -839,7 +839,7 @@
             "expected": true
           },
           "passed": true,
-          "detail": "Public company and agent records must both retain the 1,000-cent monthly hard stops."
+          "detail": "Public space and agent records must both retain the 1,000-cent monthly hard stops."
         },
         {
           "matcher": {
@@ -959,7 +959,7 @@
           "documentApiCall": false,
           "statusApiCall": false,
           "ordinal": 2,
-          "skill": "paperclip"
+          "skill": "outpost"
         },
         {
           "tool": "bash",
@@ -1050,7 +1050,7 @@
     },
     {
       "variant": "candidate",
-      "caseId": "assigned-skill-paperclip-document",
+      "caseId": "assigned-skill-outpost-document",
       "source": {
         "sha": "fe9dc1e3c518825242ed889ab9c8352986f8c2ed",
         "ref": "refs/heads/codex/opencode-stock-routing-qualified",
@@ -1155,7 +1155,7 @@
             "expected": true
           },
           "passed": true,
-          "detail": "Public company and agent records must both retain the 1,000-cent monthly hard stops."
+          "detail": "Public space and agent records must both retain the 1,000-cent monthly hard stops."
         },
         {
           "matcher": {
@@ -1275,7 +1275,7 @@
           "documentApiCall": false,
           "statusApiCall": false,
           "ordinal": 2,
-          "skill": "paperclip"
+          "skill": "outpost"
         },
         {
           "tool": "read",
@@ -1409,7 +1409,7 @@
   "limitations": [
     "One trial per cell cannot establish fix causality, robust non-regression or general coding quality.",
     "Both original case link defects are outside the preserved durable-document oracle.",
-    "Explicit wording now requires clickable company-prefixed UI link and is not a direct repeat of prior usable-link cohorts.",
+    "Explicit wording now requires clickable space-prefixed UI link and is not a direct repeat of prior usable-link cohorts.",
     "Skill metadata improves stock selection but does not guarantee invocation on every harness.",
     "API writes/revisions/comments and screenshot rendering were inspected; authenticated click navigation against cleaned-up instances was not replayed.",
     "Runtime is unmetered; reported LLM receipts do not establish actual external bill.",

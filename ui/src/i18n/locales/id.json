@@ -1,9 +1,9 @@
 {
   "app": {
-    "noCompanies": {
+    "noSpaces": {
       "title": "Buat perusahaan pertama Anda",
       "description": "Mulai dengan membuat perusahaan.",
-      "newCompany": "Perusahaan Baru"
+      "newSpace": "Perusahaan Baru"
     }
   }
 }

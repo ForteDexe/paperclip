@@ -51,7 +51,7 @@ export function caseHandoffDeliveryService(db: Db, options: { heartbeat: Heartbe
     // Preserve its immediate deadline rather than overwriting it with backoff.
     const nextAttemptAt = row.state === "awaiting_release" && row.sourceRunId ? sql<Date>`case when exists (
       select 1 from ${heartbeatRuns} released where released.id = ${row.sourceRunId}::uuid
-        and released.company_id = ${row.companyId}::uuid
+        and released.space_id = ${row.spaceId}::uuid
         and released.result_json->'caseHandoffExecutionReleased'->>'schema' = 'outpost.case-handoff-release.v1'
         and released.result_json->'caseHandoffExecutionReleased'->>'runId' = ${row.sourceRunId}
         and released.result_json->'caseHandoffExecutionReleased'->>'issueId' = ${row.issueId}
@@ -65,11 +65,11 @@ export function caseHandoffDeliveryService(db: Db, options: { heartbeat: Heartbe
   async function accepted(row: CaseHandoffRow) {
     if (row.destinationKind !== "agent" || !row.toAgentId) return false;
     const [receipt] = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.id, row.wakeupRequestId), eq(agentWakeupRequests.companyId, row.companyId),
+      eq(agentWakeupRequests.id, row.wakeupRequestId), eq(agentWakeupRequests.spaceId, row.spaceId),
       eq(agentWakeupRequests.agentId, row.toAgentId),
       or(inArray(agentWakeupRequests.status, ACCEPTED), sql`exists (
         select 1 from ${heartbeatRuns} admitted where admitted.id = ${agentWakeupRequests.runId}
-          and admitted.company_id = ${row.companyId}::uuid and admitted.agent_id = ${row.toAgentId}::uuid
+          and admitted.space_id = ${row.spaceId}::uuid and admitted.agent_id = ${row.toAgentId}::uuid
           and admitted.wakeup_request_id = ${row.wakeupRequestId}::uuid
           and (admitted.native_issue_id = ${row.issueId}::uuid or admitted.issue_id = ${row.issueId}::uuid
             or admitted.context_snapshot->>'issueId' = ${row.issueId})
@@ -83,8 +83,8 @@ export function caseHandoffDeliveryService(db: Db, options: { heartbeat: Heartbe
     // First recover the commit/ack gap. A recipient may already have advanced
     // task status since this receipt was accepted.
     if (await accepted(row)) { await settle(row, "delivered"); return; }
-    const [issue] = await db.select().from(issues).where(and(eq(issues.id, row.issueId), eq(issues.companyId, row.companyId)));
-    const [caseRow] = await db.select().from(cases).where(and(eq(cases.id, row.caseId), eq(cases.companyId, row.companyId)));
+    const [issue] = await db.select().from(issues).where(and(eq(issues.id, row.issueId), eq(issues.spaceId, row.spaceId)));
+    const [caseRow] = await db.select().from(cases).where(and(eq(cases.id, row.caseId), eq(cases.spaceId, row.spaceId)));
     if (!issue || !caseRow || caseRow.workIssueId !== row.issueId || caseRow.handoffVersion !== row.version ||
         !["todo", "in_progress"].includes(issue.status)) { await settle(row, "cancelled"); return; }
     if (row.state === "pending_dispatch" && (issue.assigneeAgentId !== row.toAgentId || issue.assigneeUserId || issue.statusVersion !== row.appliedIssueStatusVersion)) {

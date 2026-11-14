@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useQueryClient } from "@tanstack/react-query";
 import { KeyRound } from "lucide-react";
 import type {
-  CompanySecret,
+  SpaceSecret,
   EnvBinding,
   Routine,
   RoutineEnvConfig,
@@ -13,14 +13,14 @@ import type {
 import { EnvironmentVariablesEditor } from "@/components/environment-variables-editor";
 import { RoutineHistoryTab } from "@/components/RoutineHistoryTab";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { queryKeys } from "@/lib/queryKeys";
-import { storybookCompanies, storybookSecrets } from "../../fixtures/paperclipData";
+import { storybookSpaces, storybookSecrets } from "../../fixtures/outpostData";
 
-const COMPANY_ID = "company-storybook";
+const SPACE_ID = "space-storybook";
 
 if (typeof window !== "undefined") {
-  window.localStorage.setItem("outpost.selectedCompanyId", COMPANY_ID);
+  window.localStorage.setItem("outpost.selectedSpaceId", SPACE_ID);
 }
 
 function StorybookRoutineFixtures({
@@ -31,18 +31,18 @@ function StorybookRoutineFixtures({
   children: ReactNode;
 }) {
   const queryClient = useQueryClient();
-  queryClient.setQueryData(queryKeys.companies.all, { companies: storybookCompanies, unauthorized: false });
-  queryClient.setQueryData(queryKeys.secrets.list(COMPANY_ID), storybookSecrets);
+  queryClient.setQueryData(queryKeys.spaces.all, { spaces: storybookSpaces, unauthorized: false });
+  queryClient.setQueryData(queryKeys.secrets.list(SPACE_ID), storybookSecrets);
   queryClient.setQueryData(queryKeys.routines.revisions("routine-storybook"), revisions);
 
-  const { selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { selectedSpaceId, setSelectedSpaceId } = useSpace();
   useEffect(() => {
-    if (selectedCompanyId !== COMPANY_ID) {
-      setSelectedCompanyId(COMPANY_ID);
+    if (selectedSpaceId !== SPACE_ID) {
+      setSelectedSpaceId(SPACE_ID);
     }
-  }, [selectedCompanyId, setSelectedCompanyId]);
+  }, [selectedSpaceId, setSelectedSpaceId]);
 
-  if (selectedCompanyId !== COMPANY_ID) return null;
+  if (selectedSpaceId !== SPACE_ID) return null;
   return <>{children}</>;
 }
 
@@ -52,7 +52,7 @@ const meta: Meta = {
   parameters: {
     layout: "fullscreen",
     a11y: { test: "off" },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "routines/definition",
         "secrets/runtime-delivery"
@@ -93,7 +93,7 @@ function SecretsTabSurface({
         </p>
         <EnvironmentVariablesEditor
           value={env}
-          secrets={storybookSecrets as CompanySecret[]}
+          secrets={storybookSecrets as SpaceSecret[]}
           onCreateSecret={async (name) => ({
             ...storybookSecrets[0]!,
             id: `secret-${Math.random().toString(36).slice(2, 8)}`,
@@ -154,7 +154,7 @@ function makeSnapshot(env: RoutineEnvConfig | null): RoutineRevisionSnapshotV1 {
     version: 1,
     routine: {
       id: "routine-storybook",
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       projectId: null,
       goalId: null,
       parentIssueId: null,
@@ -167,7 +167,7 @@ function makeSnapshot(env: RoutineEnvConfig | null): RoutineRevisionSnapshotV1 {
       concurrencyPolicy: "coalesce_if_active",
       catchUpPolicy: "skip_missed",
       activityGatePolicy: "always",
-      activityGateScope: "company",
+      activityGateScope: "space",
       variables: [],
       env,
     },
@@ -178,7 +178,7 @@ function makeSnapshot(env: RoutineEnvConfig | null): RoutineRevisionSnapshotV1 {
 function makeRoutine(latestRevisionId: string, latestRevisionNumber: number): Routine {
   return {
     id: "routine-storybook",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     projectId: null,
     goalId: null,
     parentIssueId: null,
@@ -191,7 +191,7 @@ function makeRoutine(latestRevisionId: string, latestRevisionNumber: number): Ro
     concurrencyPolicy: "coalesce_if_active",
     catchUpPolicy: "skip_missed",
     activityGatePolicy: "always",
-    activityGateScope: "company",
+    activityGateScope: "space",
     variables: [],
     env: makeSnapshot({
       OPENAI_API_KEY: { type: "secret_ref", secretId: "secret-openai", version: "latest" },
@@ -216,7 +216,7 @@ export const HistoryDiffWithEnv: Story = {
     const revisions: RoutineRevision[] = [
       {
         id: "rev-2",
-        companyId: COMPANY_ID,
+        spaceId: SPACE_ID,
         routineId: "routine-storybook",
         revisionNumber: 2,
         title: "Nightly digest",
@@ -234,7 +234,7 @@ export const HistoryDiffWithEnv: Story = {
       },
       {
         id: "rev-1",
-        companyId: COMPANY_ID,
+        spaceId: SPACE_ID,
         routineId: "routine-storybook",
         revisionNumber: 1,
         title: "Nightly digest",
@@ -262,7 +262,7 @@ export const HistoryDiffWithEnv: Story = {
             onSaveEdits={() => {}}
             agents={new Map()}
             projects={new Map()}
-            secrets={storybookSecrets as CompanySecret[]}
+            secrets={storybookSecrets as SpaceSecret[]}
             onRestoreSecretMaterials={() => {}}
           />
         </div>

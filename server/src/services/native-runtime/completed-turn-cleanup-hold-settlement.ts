@@ -90,15 +90,15 @@ function settledHoldAwaitingBlockedStatusCondition(runId: SQL | string): SQL {
 export function completedTurnCleanupHoldWhere(): SQL {
   return and(
     isNull(nativeRunFinalizations.leaseOwner),
-    sql`exists (select 1 from heartbeat_runs run where run.company_id = ${nativeRunFinalizations.companyId}
+    sql`exists (select 1 from heartbeat_runs run where run.space_id = ${nativeRunFinalizations.spaceId}
       and run.id = ${nativeRunFinalizations.runId} and run.runtime_mode = 'native' and run.status = 'failed'
       and run.error_code = ${NATIVE_SESSION_CLEANUP_QUARANTINED} and ${COMPLETED_TURN_CHECKPOINT})`,
     or(
-      sql`exists (select 1 from ${issueRecoveryActions} where ${issueRecoveryActions.companyId} = ${nativeRunFinalizations.companyId}
+      sql`exists (select 1 from ${issueRecoveryActions} where ${issueRecoveryActions.spaceId} = ${nativeRunFinalizations.spaceId}
         and ${settleableHoldCondition(sql`${nativeRunFinalizations.runId}`)})`,
       sql`exists (select 1 from ${issueRecoveryActions} join ${issues} on ${issues.id} = ${issueRecoveryActions.sourceIssueId}
-          and ${issues.companyId} = ${issueRecoveryActions.companyId}
-        where ${issueRecoveryActions.companyId} = ${nativeRunFinalizations.companyId}
+          and ${issues.spaceId} = ${issueRecoveryActions.spaceId}
+        where ${issueRecoveryActions.spaceId} = ${nativeRunFinalizations.spaceId}
           and ${issueRecoveryActions.sourceIssueId} = ${nativeRunFinalizations.issueId} and ${issues.status} = 'blocked'
           and ${settledHoldAwaitingBlockedStatusCondition(sql`${nativeRunFinalizations.runId}`)})`,
     ),
@@ -108,7 +108,7 @@ export function completedTurnCleanupHoldWhere(): SQL {
 /** Continues the task through the ordinary resume path
  * (`resumeRemoteStopComments`), which still applies every task gate. The
  * heartbeat service registers it. */
-type SettledHoldResumer = (input: { companyId: string; runId: string }) => Promise<void>;
+type SettledHoldResumer = (input: { spaceId: string; runId: string }) => Promise<void>;
 let settledHoldResumer: SettledHoldResumer | null = null;
 
 export function registerCompletedTurnCleanupResumer(resumer: SettledHoldResumer): void {
@@ -121,18 +121,18 @@ export function registerCompletedTurnCleanupResumer(resumer: SettledHoldResumer)
  * changed since, is not settled. */
 export async function settleCompletedTurnCleanupHolds(db: Db, record: InProgressRecord,
   context: { now: Date; proof: OwnerProof }): Promise<SettleOutcome> {
-  if (!record.companyId) return { settled: false, reason: "run_has_no_company" };
-  const companyId = record.companyId;
+  if (!record.spaceId) return { settled: false, reason: "run_has_no_space" };
+  const spaceId = record.spaceId;
   const now = context.now;
   const settled = await db.transaction(async tx => {
     const [coordinator] = await tx.select({ runId: nativeRunFinalizations.runId, issueId: nativeRunFinalizations.issueId })
-      .from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, companyId),
+      .from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.spaceId, spaceId),
         eq(nativeRunFinalizations.runId, record.recordId), completedTurnCleanupHoldWhere())).for("update");
     if (!coordinator) return null;
-    const [issue] = await tx.select().from(issues).where(and(eq(issues.companyId, companyId),
+    const [issue] = await tx.select().from(issues).where(and(eq(issues.spaceId, spaceId),
       eq(issues.id, coordinator.issueId))).for("update");
     const [run] = await tx.select().from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, coordinator.runId)));
+      .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, coordinator.runId)));
     if (!issue || !run) return null;
     const holds = await tx.update(issueRecoveryActions).set({
       outcome: "restored", ownerType: "system", updatedAt: now,
@@ -140,24 +140,24 @@ export async function settleCompletedTurnCleanupHolds(db: Db, record: InProgress
       evidence: sql`(${issueRecoveryActions.evidence} - 'automaticRecovery') || ${JSON.stringify({
         completedTurnCleanupSettlement: { runId: coordinator.runId, settledAt: now.toISOString(), ownerProof: context.proof.reason },
       })}::jsonb`,
-    }).where(and(eq(issueRecoveryActions.companyId, companyId), eq(issueRecoveryActions.sourceIssueId, coordinator.issueId),
+    }).where(and(eq(issueRecoveryActions.spaceId, spaceId), eq(issueRecoveryActions.sourceIssueId, coordinator.issueId),
       settleableHoldCondition(coordinator.runId))).returning({ id: issueRecoveryActions.id });
     if (holds.length) {
-      await logActivity(tx as unknown as Db, { companyId, actorType: "system", actorId: "system",
+      await logActivity(tx as unknown as Db, { spaceId, actorType: "system", actorId: "system",
         action: "issue.recovery_action_resolved", entityType: "issue", entityId: coordinator.issueId,
         agentId: run.agentId, runId: coordinator.runId,
         details: { reason: "native_completed_turn_cleanup_settled", recoveryActionIds: holds.map(hold => hold.id),
           ownerProof: context.proof.reason },
       });
     }
-    const decided = await decideBlockedStatus(tx as unknown as Db, { companyId, issue, run, now });
+    const decided = await decideBlockedStatus(tx as unknown as Db, { spaceId, issue, run, now });
     return holds.length || decided ? coordinator.runId : null;
   });
   if (!settled) return { settled: false, reason: "hold_changed_since_proof" };
   // Settling starts no turn itself. Saved input, the recorded continuation and
   // the task's own wait continue through normal admission, which still checks
   // every other gate.
-  await settledHoldResumer?.({ companyId, runId: settled }).catch(error => {
+  await settledHoldResumer?.({ spaceId, runId: settled }).catch(error => {
     logger.warn({ err: error, runId: settled }, "settled completed-turn cleanup hold could not resume saved input");
   });
   return { settled: true, reason: context.proof.reason };
@@ -180,11 +180,11 @@ const WORKSPACE_EVIDENCE = "Workspace recovery verified this run's saved files, 
  * transaction with the issue row locked. Returns whether a decision was
  * recorded.
  */
-async function decideBlockedStatus(tx: Db, input: { companyId: string; now: Date;
+async function decideBlockedStatus(tx: Db, input: { spaceId: string; now: Date;
   issue: typeof issues.$inferSelect; run: typeof heartbeatRuns.$inferSelect }): Promise<boolean> {
-  const { companyId, issue, run, now } = input;
+  const { spaceId, issue, run, now } = input;
   if (issue.status !== "blocked") return false;
-  const settledHolds = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, companyId),
+  const settledHolds = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, spaceId),
     eq(issueRecoveryActions.sourceIssueId, issue.id), settledHoldAwaitingBlockedStatusCondition(run.id)))
     .orderBy(issueRecoveryActions.createdAt, issueRecoveryActions.id).for("update");
   if (!settledHolds.length) return false;
@@ -196,7 +196,7 @@ async function decideBlockedStatus(tx: Db, input: { companyId: string; now: Date
   const ownsTask = Boolean(owner && issue.assigneeAgentId && issue.assigneeAgentId === run.agentId);
   // The shared dependency rule: an unfinished blocker task keeps the task
   // Blocked, and its completion wakes it (issue_blockers_resolved).
-  const readiness = ownsTask ? await issueService(tx).listDependencyReadiness(companyId, [issue.id], tx) : null;
+  const readiness = ownsTask ? await issueService(tx).listDependencyReadiness(spaceId, [issue.id], tx) : null;
   const decision: BlockedStatusDecision = !ownsTask ? "not_owned"
     : readiness?.get(issue.id)?.isDependencyReady === true ? "released" : "dependency_wait";
   // Saved user input continues the task itself through normal admission (the
@@ -207,7 +207,7 @@ async function decideBlockedStatus(tx: Db, input: { companyId: string; now: Date
   // (retry_authority_denied), so it is not a dead end either; a second,
   // automatic continuation could race that Retry once access returns.
   const [waitingInput] = decision === "released" ? await tx.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests)
-    .where(and(eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
+    .where(and(eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
       eq(agentWakeupRequests.requestedByActorType, "user"), sql`${agentWakeupRequests.payload}->>'issueId' = ${issue.id}`))
     .limit(1) : [];
   const continuationHoldId = decision === "released" && !waitingInput ? owner!.id : null;
@@ -216,8 +216,8 @@ async function decideBlockedStatus(tx: Db, input: { companyId: string; now: Date
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionContinuation);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-    await notifyStatusCardIssueChange(tx, companyId);
-    await notifyRoutineExecutionStatus(tx, issue.id, companyId);
+    await notifyStatusCardIssueChange(tx, spaceId);
+    await notifyRoutineExecutionStatus(tx, issue.id, spaceId);
   }
   const reconciliation: ExecutionReconciliation = { runId: run.id, providerStopped: true, actionOutcome: "completed",
     outcomeEvidence: CONTINUATION_EVIDENCE, workspaceRepairEvidence: WORKSPACE_EVIDENCE };
@@ -231,12 +231,12 @@ async function decideBlockedStatus(tx: Db, input: { companyId: string; now: Date
           executionReconciliation: { ...reconciliation, actorId: "completed-turn-cleanup", recordedAt: now.toISOString() },
           continuationDelivery: "pending" })}::jsonb`,
       } : { evidence: marked }),
-    }).where(and(eq(issueRecoveryActions.companyId, companyId), eq(issueRecoveryActions.id, hold.id)));
+    }).where(and(eq(issueRecoveryActions.spaceId, spaceId), eq(issueRecoveryActions.id, hold.id)));
   }
   if (decision !== "released") return true;
   await tx.update(issues).set({ status: "todo", unblockDescriptor: null, blockedTransitionAt: null,
-    blockedOwnerNotifiedAt: null, updatedAt: now }).where(and(eq(issues.companyId, companyId), eq(issues.id, issue.id)));
-  await logActivity(tx, { companyId, actorType: "system", actorId: "system", action: "issue.updated",
+    blockedOwnerNotifiedAt: null, updatedAt: now }).where(and(eq(issues.spaceId, spaceId), eq(issues.id, issue.id)));
+  await logActivity(tx, { spaceId, actorType: "system", actorId: "system", action: "issue.updated",
     entityType: "issue", entityId: issue.id, agentId: run.agentId, runId: run.id,
     details: { status: "todo", previousStatus: "blocked", reason: "native_completed_turn_cleanup_continued",
       recoveryActionId: owner!.id, continuation: continuationHoldId ? "recorded" : "saved_input", _previous: { status: "blocked" } } });

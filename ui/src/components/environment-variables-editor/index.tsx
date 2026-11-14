@@ -10,7 +10,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { AlertCircle, KeyRound, Plus, RotateCcw, Save, UserRound } from "lucide-react";
-import type { CompanySecret, EnvBinding, UserSecretDefinition } from "@outpost/shared";
+import type { SpaceSecret, EnvBinding, UserSecretDefinition } from "@outpost/shared";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useOptionalToastActions } from "@/context/ToastContext";
@@ -118,15 +118,15 @@ function rowDirtyFields(row: EnvRow, committedRow: EnvRow | undefined): Environm
 export interface EnvironmentVariablesEditorProps {
   value: Record<string, EnvBinding>;
   onChange: (next: Record<string, EnvBinding> | undefined) => void;
-  secrets: readonly CompanySecret[];
+  secrets: readonly SpaceSecret[];
   /**
-   * Optional company user-secret definitions. When present, the "User secret"
+   * Optional space user-secret definitions. When present, the "User secret"
    * source becomes a picker; otherwise operators can type the definition key.
    */
   userSecretDefinitions?: readonly UserSecretDefinition[];
-  onCreateSecret: (name: string, value: string) => Promise<CompanySecret>;
+  onCreateSecret: (name: string, value: string) => Promise<SpaceSecret>;
   /** Optional "Recently used" picker group + quick-bind chips. */
-  recentlyUsedSecrets?: readonly CompanySecret[];
+  recentlyUsedSecrets?: readonly SpaceSecret[];
   /** Read-only rendering. */
   disabled?: boolean;
   /** Prefixes flagged as reserved/auto-provided. Default `["OUTPOST_"]`. */
@@ -378,7 +378,7 @@ export const EnvironmentVariablesEditor = forwardRef<EnvironmentVariablesEditorH
     return true;
   }
 
-  function bindRecentSecret(secret: CompanySecret) {
+  function bindRecentSecret(secret: SpaceSecret) {
     const next = rows.map((row) => ({ ...row }));
     const trailing = next[next.length - 1];
     let target: EnvRow;

@@ -69,7 +69,7 @@ export function createVercelCredentialService(db: Db, now: () => Date, vercelCon
     const derived = deriveVercelConnectSubject({
       credential,
       connectionId: connection.id,
-      companyId: connection.companyId,
+      spaceId: connection.spaceId,
       grantKind: grant.kind,
       subjectUserId: grant.subjectUserId,
     });
@@ -77,7 +77,7 @@ export function createVercelCredentialService(db: Db, now: () => Date, vercelCon
       credential,
       grant,
       connectionId: connection.id,
-      companyId: connection.companyId,
+      spaceId: connection.spaceId,
       resources: vercelConnectResourcesFor(connection),
     });
     try {
@@ -107,7 +107,7 @@ export function createVercelCredentialService(db: Db, now: () => Date, vercelCon
         .where(
           and(
             eq(connectionGrants.id, grant.id),
-            eq(connectionGrants.companyId, connection.companyId),
+            eq(connectionGrants.spaceId, connection.spaceId),
             eq(connectionGrants.connectionId, connection.id),
           ),
         );
@@ -128,7 +128,7 @@ export function createVercelCredentialService(db: Db, now: () => Date, vercelCon
           .where(
             and(
               eq(connectionGrants.id, grant.id),
-              eq(connectionGrants.companyId, connection.companyId),
+              eq(connectionGrants.spaceId, connection.spaceId),
             ),
           );
       }
@@ -148,7 +148,7 @@ export function createVercelCredentialService(db: Db, now: () => Date, vercelCon
         .from(connectionGrants)
         .where(
           and(
-            eq(connectionGrants.companyId, connection.companyId),
+            eq(connectionGrants.spaceId, connection.spaceId),
             eq(connectionGrants.connectionId, connection.id),
             eq(connectionGrants.kind, "user"),
             eq(connectionGrants.subjectUserId, actorUserId),
@@ -162,7 +162,7 @@ export function createVercelCredentialService(db: Db, now: () => Date, vercelCon
       .from(connectionGrants)
       .where(
         and(
-          eq(connectionGrants.companyId, connection.companyId),
+          eq(connectionGrants.spaceId, connection.spaceId),
           eq(connectionGrants.connectionId, connection.id),
           eq(connectionGrants.kind, "organization"),
           eq(connectionGrants.isDefault, true),

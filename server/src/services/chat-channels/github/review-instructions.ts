@@ -6,25 +6,25 @@ import type { GitHubReviewPolicy } from "@outpost/shared";
 
 /** Only processed, task-bound deliveries can supply review instructions. */
 export async function resolveGitHubReviewInstructions(input: {
-  db: Db; companyId: string; agentId: string; issueId: string; commentIds: string[];
+  db: Db; spaceId: string; agentId: string; issueId: string; commentIds: string[];
 }): Promise<Array<{ key: string; instructions: string }>> {
   const rows = await input.db.select({ endpointId: chatEndpoints.id, conversationId: chatConversations.id,
       commentId: chatMessageLinks.commentId, event: chatDeliveries.normalizedEvent })
     .from(chatMessageLinks)
     .innerJoin(chatDeliveries, and(
-      eq(chatDeliveries.companyId, chatMessageLinks.companyId),
+      eq(chatDeliveries.spaceId, chatMessageLinks.spaceId),
       eq(chatDeliveries.endpointId, chatMessageLinks.endpointId),
       eq(chatDeliveries.conversationId, chatMessageLinks.conversationId),
       eq(chatDeliveries.id, chatMessageLinks.deliveryId),
     ))
     .innerJoin(chatConversations, and(
-      eq(chatConversations.companyId, chatMessageLinks.companyId),
+      eq(chatConversations.spaceId, chatMessageLinks.spaceId),
       eq(chatConversations.endpointId, chatMessageLinks.endpointId),
       eq(chatConversations.id, chatMessageLinks.conversationId),
     ))
-    .innerJoin(chatEndpoints, and(eq(chatEndpoints.companyId, chatConversations.companyId), eq(chatEndpoints.id, chatConversations.endpointId)))
+    .innerJoin(chatEndpoints, and(eq(chatEndpoints.spaceId, chatConversations.spaceId), eq(chatEndpoints.id, chatConversations.endpointId)))
     .where(and(
-      eq(chatMessageLinks.companyId, input.companyId), eq(chatMessageLinks.direction, "inbound"),
+      eq(chatMessageLinks.spaceId, input.spaceId), eq(chatMessageLinks.direction, "inbound"),
       eq(chatConversations.issueId, input.issueId), eq(chatEndpoints.assignedAgentId, input.agentId),
       eq(chatEndpoints.provider, "github"), eq(chatDeliveries.state, "processed"),
       ...(input.commentIds.length ? [inArray(chatMessageLinks.commentId, input.commentIds)] : []),

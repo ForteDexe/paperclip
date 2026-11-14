@@ -12,7 +12,7 @@ afterEach(async () => { for (const stop of stops.splice(0)) await stop(); vi.use
 function fixture() {
   vi.useFakeTimers(); vi.setSystemTime(1_000_000);
   const dialect = new PgDialect();
-  const rows = { issues: [] as Array<{ id: string; companyId: string }>, watchdogs: [] as Array<{ id: string; companyId: string }>, blockers: [] as Array<{ id: string; companyId: string }>, actions: [] as Array<{ id: string; companyId: string }> };
+  const rows = { issues: [] as Array<{ id: string; spaceId: string }>, watchdogs: [] as Array<{ id: string; spaceId: string }>, blockers: [] as Array<{ id: string; spaceId: string }>, actions: [] as Array<{ id: string; spaceId: string }> };
   const execute = vi.fn(async (query: any) => {
     if (dialect.sqlToQuery(query).sql.includes("pg_current_xact_id")) return [{ xid: "42" }];
     throw new Error("unexpected SQL");
@@ -40,7 +40,7 @@ function fixture() {
   const worker = registerIssueRecoveryWork(db, coordinator, owner, () => !state.draining && !state.standby);
   stops.push(() => coordinator.stop());
   return { db, rows, state, check, load, coordinator, worker, orphanBlockers, recoveryActions, suppression,
-    notify: () => db.transaction((tx: any) => notifyIssueRecovery(tx, { companyId: "selected" })),
+    notify: () => db.transaction((tx: any) => notifyIssueRecovery(tx, { spaceId: "selected" })),
     settle: () => vi.advanceTimersByTimeAsync(1_000) };
 }
 describe("issue recovery obligation lifecycle", () => {
@@ -52,7 +52,7 @@ describe("issue recovery obligation lifecycle", () => {
   });
   it("reads scheduling suppression once per pass instead of once per issue", async () => {
     const f = fixture();
-    f.rows.issues.push(...Array.from({ length: 25 }, (_, index) => ({ id: `issue-${index}`, companyId: "selected" })));
+    f.rows.issues.push(...Array.from({ length: 25 }, (_, index) => ({ id: `issue-${index}`, spaceId: "selected" })));
     await f.worker.ready;
     expect(f.check).toHaveBeenCalledTimes(75);
     expect(f.suppression).toHaveBeenCalledTimes(6);
@@ -68,22 +68,22 @@ describe("issue recovery obligation lifecycle", () => {
   });
   it("normalizes a wide scope with cyclic SQL objects before publishing work hints", async () => {
     const f = fixture(); await f.worker.ready;
-    const wide = { companyId: "selected", endpointId: issueRecoveryActions.id, table: issueRecoveryActions };
+    const wide = { spaceId: "selected", endpointId: issueRecoveryActions.id, table: issueRecoveryActions };
     await f.db.transaction((tx: object) => notifyIssueRecovery(tx, wide)); await f.settle();
     expect(f.coordinator.nextWakeAt()).toBeNull();
     const loads = f.load.mock.calls.length;
     await vi.advanceTimersByTimeAsync(20 * 60_000); expect(f.load).toHaveBeenCalledTimes(loads);
   });
   it("runs orphan blocker and action duties without assignment entries", async () => {
-    const f = fixture(); f.rows.blockers.push({ id: "selected", companyId: "selected" });
-    f.rows.actions.push({ id: "selected", companyId: "selected" }); await f.worker.ready;
+    const f = fixture(); f.rows.blockers.push({ id: "selected", spaceId: "selected" });
+    f.rows.actions.push({ id: "selected", spaceId: "selected" }); await f.worker.ready;
     expect(f.check).not.toHaveBeenCalled();
-    expect(f.orphanBlockers).toHaveBeenCalledExactlyOnceWith({ companyId: "selected" });
-    expect(f.recoveryActions).toHaveBeenCalledExactlyOnceWith({ companyId: "selected" });
+    expect(f.orphanBlockers).toHaveBeenCalledExactlyOnceWith({ spaceId: "selected" });
+    expect(f.recoveryActions).toHaveBeenCalledExactlyOnceWith({ spaceId: "selected" });
     expect(f.coordinator.nextWakeAt()).toBeNull();
   });
-  it("coalesces repeated company reconstruction without delaying an existing lease deadline", async () => {
-    const f = fixture(); f.rows.issues.push({ id: "issue", companyId: "selected" });
+  it("coalesces repeated space reconstruction without delaying an existing lease deadline", async () => {
+    const f = fixture(); f.rows.issues.push({ id: "issue", spaceId: "selected" });
     f.state.deadline = 1_015_000; await f.worker.ready;
     await f.notify(); await f.settle(); const loaded = f.load.mock.calls.length, checked = f.check.mock.calls.length;
     for (let index = 0; index < 100; index++) { await f.notify(); await vi.advanceTimersByTimeAsync(10); }
@@ -96,8 +96,8 @@ describe("issue recovery obligation lifecycle", () => {
     expect(f.coordinator.nextWakeAt()).toBeNull();
   });
   it("retains exact grace and lease deadlines without early owner probes", async () => {
-    const f = fixture(); f.rows.issues.push({ id: "issue", companyId: "selected" });
-    f.rows.watchdogs.push({ id: "watchdog", companyId: "selected" }); f.state.deadline = 1_015_000;
+    const f = fixture(); f.rows.issues.push({ id: "issue", spaceId: "selected" });
+    f.rows.watchdogs.push({ id: "watchdog", spaceId: "selected" }); f.state.deadline = 1_015_000;
     await f.worker.ready; expect(f.coordinator.nextWakeAt()).toBe(1_015_000);
     const checked = f.check.mock.calls.length;
     await vi.advanceTimersByTimeAsync(14_999); expect(f.check).toHaveBeenCalledTimes(checked);
@@ -106,7 +106,7 @@ describe("issue recovery obligation lifecycle", () => {
   });
   it("releases settled producer holds during domain drain while coordinator remains open", async () => {
     const f = fixture(); await f.worker.ready; f.state.draining = true;
-    f.rows.issues.push({ id: "issue", companyId: "selected" });
+    f.rows.issues.push({ id: "issue", spaceId: "selected" });
     await f.notify(); await f.settle(); const loaded = f.load.mock.calls.length;
     await vi.advanceTimersByTimeAsync(90_000);
     expect(f.load).toHaveBeenCalledTimes(loaded); expect(f.check).not.toHaveBeenCalled();
@@ -114,8 +114,8 @@ describe("issue recovery obligation lifecycle", () => {
     f.state.draining = false; f.worker.wake(); await f.settle();
     expect(f.check).toHaveBeenCalled(); expect(f.coordinator.nextWakeAt()).toBeNull();
   });
-  it("retries concrete failed entries and then disarms without reloading the company", async () => {
-    const f = fixture(); f.rows.issues.push({ id: "issue", companyId: "selected" }); f.state.fail = true;
+  it("retries concrete failed entries and then disarms without reloading the space", async () => {
+    const f = fixture(); f.rows.issues.push({ id: "issue", spaceId: "selected" }); f.state.fail = true;
     await f.worker.ready; const loaded = f.load.mock.calls.length;
     expect(f.coordinator.nextWakeAt()).toBe(1_030_000);
     await vi.advanceTimersByTimeAsync(29_999); const checked = f.check.mock.calls.length;
@@ -124,7 +124,7 @@ describe("issue recovery obligation lifecycle", () => {
     expect(f.coordinator.nextWakeAt()).toBeNull();
   });
   it("retries a recovery-action pass whose blocker stall wake failed to enqueue", async () => {
-    const f = fixture(); f.rows.actions.push({ id: "selected", companyId: "selected" });
+    const f = fixture(); f.rows.actions.push({ id: "selected", spaceId: "selected" });
     f.recoveryActions.mockResolvedValueOnce({ blockerStallWakeFailures: 1 } as never);
     await f.worker.ready;
     expect(f.recoveryActions).toHaveBeenCalledTimes(1);
@@ -134,7 +134,7 @@ describe("issue recovery obligation lifecycle", () => {
     expect(f.coordinator.nextWakeAt()).toBeNull();
   });
   it("comes back for a stall held while its agent takes no wakes", async () => {
-    const f = fixture(); f.rows.actions.push({ id: "selected", companyId: "selected" });
+    const f = fixture(); f.rows.actions.push({ id: "selected", spaceId: "selected" });
     f.recoveryActions.mockResolvedValueOnce({ blockerStallRetryAt: 1_600_000 } as never);
     await f.worker.ready;
     expect(f.coordinator.nextWakeAt()).toBe(1_600_000);
@@ -143,7 +143,7 @@ describe("issue recovery obligation lifecycle", () => {
     expect(f.coordinator.nextWakeAt()).toBeNull();
   });
   it("keeps an incomplete watchdog subtree as concrete retry debt", async () => {
-    const f = fixture(); f.rows.watchdogs.push({ id: "watchdog", companyId: "selected" }); f.state.incomplete = true;
+    const f = fixture(); f.rows.watchdogs.push({ id: "watchdog", spaceId: "selected" }); f.state.incomplete = true;
     await f.worker.ready; expect(f.coordinator.nextWakeAt()).toBe(1_030_000);
     const loaded = f.load.mock.calls.length; f.state.incomplete = false;
     await vi.advanceTimersByTimeAsync(30_000);
@@ -151,7 +151,7 @@ describe("issue recovery obligation lifecycle", () => {
     expect(f.coordinator.nextWakeAt()).toBeNull();
   });
   it("keeps a concurrent producer dirty until the in-flight owner has completed", async () => {
-    const f = fixture(); f.rows.issues.push({ id: "issue", companyId: "selected" }); await f.worker.ready;
+    const f = fixture(); f.rows.issues.push({ id: "issue", spaceId: "selected" }); await f.worker.ready;
     let release!: () => void; const held = new Promise<void>(resolve => { release = resolve; });
     f.check.mockImplementationOnce(() => held);
     await f.notify(); await f.settle(); await f.notify(); release(); await f.settle(); await vi.advanceTimersByTimeAsync(30_000);
@@ -159,7 +159,7 @@ describe("issue recovery obligation lifecycle", () => {
     expect(f.check.mock.calls.length).toBeGreaterThan(3);
   });
   it("retains startup work on standby and cancels future deadlines on shutdown", async () => {
-    const f = fixture(); f.state.standby = true; f.rows.watchdogs.push({ id: "watchdog", companyId: "selected" });
+    const f = fixture(); f.state.standby = true; f.rows.watchdogs.push({ id: "watchdog", spaceId: "selected" });
     await f.worker.ready; await vi.advanceTimersByTimeAsync(90_000); expect(f.load).not.toHaveBeenCalled();
     f.state.standby = false; f.state.deadline = Date.now() + 60_000; f.worker.wake(); await f.settle();
     expect(f.check).toHaveBeenCalledOnce(); await f.worker.stop();

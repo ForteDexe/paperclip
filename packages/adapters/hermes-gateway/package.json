@@ -15,7 +15,7 @@
   },
   "homepage": "https://github.com/paperclipai/paperclip/tree/master/packages/adapters/hermes#readme",
   "keywords": [
-    "paperclip",
+    "outpost",
     "hermes",
     "gateway",
     "adapter",
@@ -28,7 +28,7 @@
     "./cli": "./src/cli/index.ts",
     "./ui-parser": "./ui-parser.cjs"
   },
-  "paperclip": {
+  "outpost": {
     "adapterUiParser": "1.0.0"
   },
   "publishConfig": {

@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "tool_gateway_sessions" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "agent_id" uuid NOT NULL,
   "run_id" uuid NOT NULL,
   "issue_id" uuid,
@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS "tool_gateway_sessions" (
 );--> statement-breakpoint
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_gateway_sessions_company_id_companies_id_fk') THEN
-    ALTER TABLE "tool_gateway_sessions" ADD CONSTRAINT "tool_gateway_sessions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_gateway_sessions_space_id_spaces_id_fk') THEN
+    ALTER TABLE "tool_gateway_sessions" ADD CONSTRAINT "tool_gateway_sessions_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_gateway_sessions_agent_id_agents_id_fk') THEN
     ALTER TABLE "tool_gateway_sessions" ADD CONSTRAINT "tool_gateway_sessions_agent_id_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agents"("id") ON DELETE cascade ON UPDATE no action;
@@ -32,7 +32,7 @@ DO $$ BEGIN
 END $$;--> statement-breakpoint
 
 CREATE UNIQUE INDEX IF NOT EXISTS "tool_gateway_sessions_token_hash_uq" ON "tool_gateway_sessions" USING btree ("token_hash");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_gateway_sessions_company_agent_idx" ON "tool_gateway_sessions" USING btree ("company_id", "agent_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_gateway_sessions_company_expires_idx" ON "tool_gateway_sessions" USING btree ("company_id", "expires_at");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_gateway_sessions_run_idx" ON "tool_gateway_sessions" USING btree ("company_id", "run_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_gateway_sessions_issue_idx" ON "tool_gateway_sessions" USING btree ("company_id", "issue_id");
+CREATE INDEX IF NOT EXISTS "tool_gateway_sessions_space_agent_idx" ON "tool_gateway_sessions" USING btree ("space_id", "agent_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tool_gateway_sessions_space_expires_idx" ON "tool_gateway_sessions" USING btree ("space_id", "expires_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tool_gateway_sessions_run_idx" ON "tool_gateway_sessions" USING btree ("space_id", "run_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tool_gateway_sessions_issue_idx" ON "tool_gateway_sessions" USING btree ("space_id", "issue_id");

@@ -1,7 +1,7 @@
 import { it, expect } from "vitest";
 import { admittedModelFailure, unavailableNativeModel } from "./runtime-native-failure.js";
-function valid() { return { companyId: "company", agentId: "morgan", issueId: "website", model: "unavailable",
-  run: { id: "actual", companyId: "company", agentId: "morgan", runtimeMode: "native", status: "failed", startedAt: "2026-10-26T00:00:00Z",
+function valid() { return { spaceId: "space", agentId: "morgan", issueId: "website", model: "unavailable",
+  run: { id: "actual", spaceId: "space", agentId: "morgan", runtimeMode: "native", status: "failed", startedAt: "2026-10-26T00:00:00Z",
     errorCode: "native_provider_model_rejected", error: "The selected model was rejected", nativeIssueId: "website",
     runnerProfileJson: { nativeExecutionInput: { provider: { kind: "codex", model: "unavailable" } } } },
   events: [{ seq: 1, eventType: "run.terminal" }] }; }
@@ -15,7 +15,7 @@ it("rejects absent durable terminal events", () => { const o = valid(); o.events
 
 it("uses an explicit unavailable OpenRouter ID and requires actual OpenCode admission, never a Codex failure", () => {
   const model = unavailableNativeModel("opencode", "owned-nonce");
-  expect(model).toBe("openrouter/paperclip-eval/paperclip-eval-unavailable-owned-nonce");
+  expect(model).toBe("openrouter/outpost-eval/outpost-eval-unavailable-owned-nonce");
   const o = { ...valid(), provider: "opencode" as const, model };
   o.run.runnerProfileJson.nativeExecutionInput.provider = { kind: "opencode", model };
   expect(admittedModelFailure(o)).toBe(true);

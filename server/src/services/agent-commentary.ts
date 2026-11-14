@@ -8,7 +8,7 @@ import { persistActivity, publishActivity } from "./activity-log.js";
 import { createRunSecretRedactionRegistry } from "./run-secret-redaction.js";
 import { agentRunWritesRevoked } from "../agent-run-cancellation.js";
 
-type CommentaryActor = { companyId: string; agentId: string; runId: string; agentApiKeyId?: string | null };
+type CommentaryActor = { spaceId: string; agentId: string; runId: string; agentApiKeyId?: string | null };
 
 function boundIssue(run: typeof heartbeatRuns.$inferSelect): string | null {
   const snapshot = run.contextSnapshot ?? {};
@@ -30,7 +30,7 @@ export async function submitAgentCommentary(
 ): Promise<AgentCommentaryAcknowledgement | null> {
   const parsed = submitAgentCommentarySchema.safeParse(value);
   if (!parsed.success) throw badRequest("Feedback requires a kind, nonempty body of at most 524288 characters, and a retry key of at most 240 characters; no other fields are accepted");
-  if (![actor.companyId, actor.agentId, actor.runId].every(isUuidLike)) {
+  if (![actor.spaceId, actor.agentId, actor.runId].every(isUuidLike)) {
     throw forbidden("Feedback requires an authenticated agent run");
   }
   const input = parsed.data;
@@ -40,13 +40,13 @@ export async function submitAgentCommentary(
       const scopedDb = tx as unknown as Db;
       // Native authority locks issue before run. Legacy follows the same lock order.
       if (authorizeNative) await authorizeNative(scopedDb);
-      const predicate = and(eq(heartbeatRuns.id, actor.runId), eq(heartbeatRuns.companyId, actor.companyId), eq(heartbeatRuns.agentId, actor.agentId));
+      const predicate = and(eq(heartbeatRuns.id, actor.runId), eq(heartbeatRuns.spaceId, actor.spaceId), eq(heartbeatRuns.agentId, actor.agentId));
       const [initialRun] = await tx.select().from(heartbeatRuns).where(predicate);
       if (!initialRun) throw forbidden("Feedback requires an authenticated agent run");
       const issueId = boundIssue(initialRun);
-      const [issue] = issueId ? await tx.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, actor.companyId))).for("update") : [];
+      const [issue] = issueId ? await tx.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, actor.spaceId))).for("update") : [];
       const [context] = await tx.select({ run: heartbeatRuns, agent: agents }).from(heartbeatRuns)
-        .innerJoin(agents, and(eq(agents.id, heartbeatRuns.agentId), eq(agents.companyId, heartbeatRuns.companyId)))
+        .innerJoin(agents, and(eq(agents.id, heartbeatRuns.agentId), eq(agents.spaceId, heartbeatRuns.spaceId)))
         .where(predicate).for("update");
       if (!context || context.run.status !== "running"
         || agentRunWritesRevoked(context.run)
@@ -60,11 +60,11 @@ export async function submitAgentCommentary(
       if (context.run.runtimeMode === "native") {
         if (!authorizeNative) throw forbidden("Native runs submit feedback through their bound tools");
         const [finished] = await tx.select({ id: nativeRunResults.id }).from(nativeRunResults)
-          .where(and(eq(nativeRunResults.companyId, actor.companyId), eq(nativeRunResults.runId, actor.runId), eq(nativeRunResults.schemaStatus, "accepted"))).limit(1);
+          .where(and(eq(nativeRunResults.spaceId, actor.spaceId), eq(nativeRunResults.runId, actor.runId), eq(nativeRunResults.schemaStatus, "accepted"))).limit(1);
         if (finished) throw forbidden("Feedback must be submitted before finishing the run");
       }
       const [prior] = await tx.select().from(agentCommentary).where(and(
-        eq(agentCommentary.companyId, actor.companyId), eq(agentCommentary.runId, actor.runId), eq(agentCommentary.idempotencyKey, input.idempotencyKey),
+        eq(agentCommentary.spaceId, actor.spaceId), eq(agentCommentary.runId, actor.runId), eq(agentCommentary.idempotencyKey, input.idempotencyKey),
       ));
       if (prior) {
         if (prior.payloadHash !== payloadHash) {
@@ -74,13 +74,13 @@ export async function submitAgentCommentary(
         return { result: { id: prior.id, kind: prior.kind, createdAt: prior.createdAt.toISOString(), replayed: true }, publication: null };
       }
       if (options?.receiptOnly) return { result: null, publication: null };
-      const body = redactSensitiveText(await createRunSecretRedactionRegistry(scopedDb).redactForRun(actor.companyId, actor.runId, input.body));
+      const body = redactSensitiveText(await createRunSecretRedactionRegistry(scopedDb).redactForRun(actor.spaceId, actor.runId, input.body));
       const [row] = await tx.insert(agentCommentary).values({
-        companyId: actor.companyId, agentId: actor.agentId, runId: actor.runId,
+        spaceId: actor.spaceId, agentId: actor.agentId, runId: actor.runId,
         issueId, kind: input.kind, body, idempotencyKey: input.idempotencyKey, payloadHash,
       }).returning({ id: agentCommentary.id, kind: agentCommentary.kind, createdAt: agentCommentary.createdAt });
       const { publication } = await persistActivity(scopedDb, {
-        companyId: actor.companyId, actorType: "agent", actorId: actor.agentId, agentId: actor.agentId,
+        spaceId: actor.spaceId, actorType: "agent", actorId: actor.agentId, agentId: actor.agentId,
         runId: actor.runId, agentApiKeyId: actor.agentApiKeyId, issueId,
         action: "agent.commentary_submitted", entityType: "agent_commentary", entityId: row.id,
         details: { kind: row.kind },

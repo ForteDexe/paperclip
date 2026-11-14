@@ -8,7 +8,7 @@ export const announcementPublications = pgTable("announcement_publications", {
 });
 
 // Instance-wide personal preference, like user_sidebar_preferences. No auth
-// foreign key: local_trusted uses the synthetic local-board principal.
+// foreign key: local_trusted uses the synthetic local-operator principal.
 export const announcementDismissals = pgTable("announcement_dismissals", {
   userId: text("user_id").notNull(),
   announcementId: text("announcement_id").notNull(),

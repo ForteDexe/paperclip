@@ -68,7 +68,7 @@ describe("connection eval real-server fixtures", () => {
     const first = await server.fixture({ connectionScenario: "ready", reset: true });
     const second = await server.fixture({ connectionScenario: "fresh", reset: true });
     expect(second.responsibleUserId).toBe(first.responsibleUserId);
-    expect(second.companyId).toBe(first.companyId);
+    expect(second.spaceId).toBe(first.spaceId);
     expect((await second.snapshot()).connections).toEqual([]);
     await expect(server.fixture({ connectionScenario: "unknown" as never })).rejects.toThrow("Unknown connection eval scenario");
   });

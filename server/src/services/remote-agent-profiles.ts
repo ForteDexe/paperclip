@@ -146,25 +146,25 @@ function assertQualifiedRevisionUnchanged(
 }
 
 export function remoteAgentProfileService(db: Db) {
-  async function list(companyId: string, service?: RemoteAgentService) {
+  async function list(spaceId: string, service?: RemoteAgentService) {
     return db
       .select()
       .from(remoteAgentProfiles)
       .where(
         service
-          ? and(eq(remoteAgentProfiles.companyId, companyId), eq(remoteAgentProfiles.service, service))
-          : eq(remoteAgentProfiles.companyId, companyId),
+          ? and(eq(remoteAgentProfiles.spaceId, spaceId), eq(remoteAgentProfiles.service, service))
+          : eq(remoteAgentProfiles.spaceId, spaceId),
       )
       .orderBy(asc(remoteAgentProfiles.displayName));
   }
 
-  async function get(companyId: string, profileIdOrKey: string) {
+  async function get(spaceId: string, profileIdOrKey: string) {
     const isUuid = UUID_RE.test(profileIdOrKey);
     const rows = await db
       .select()
       .from(remoteAgentProfiles)
       .where(and(
-        eq(remoteAgentProfiles.companyId, companyId),
+        eq(remoteAgentProfiles.spaceId, spaceId),
         isUuid
           ? eq(remoteAgentProfiles.id, profileIdOrKey)
           : eq(remoteAgentProfiles.profileKey, profileIdOrKey),
@@ -173,12 +173,12 @@ export function remoteAgentProfileService(db: Db) {
     return rows[0] ?? null;
   }
 
-  async function getByProfileKey(companyId: string, profileKey: string) {
+  async function getByProfileKey(spaceId: string, profileKey: string) {
     const rows = await db
       .select()
       .from(remoteAgentProfiles)
       .where(and(
-        eq(remoteAgentProfiles.companyId, companyId),
+        eq(remoteAgentProfiles.spaceId, spaceId),
         eq(remoteAgentProfiles.profileKey, profileKey),
       ))
       .limit(1);
@@ -186,11 +186,11 @@ export function remoteAgentProfileService(db: Db) {
   }
 
   async function requireQualified(
-    companyId: string,
+    spaceId: string,
     profileIdOrKey: string,
     service?: RemoteAgentService,
   ) {
-    const profile = await get(companyId, profileIdOrKey);
+    const profile = await get(spaceId, profileIdOrKey);
     if (!profile || (service && profile.service !== service)) {
       throw notFound("Remote Agent profile not found");
     }
@@ -222,7 +222,7 @@ export function remoteAgentProfileService(db: Db) {
     return profile;
   }
 
-  async function upsert(companyId: string, input: RemoteAgentProfileInput) {
+  async function upsert(spaceId: string, input: RemoteAgentProfileInput) {
     if ("credentialSecretId" in (input as unknown as Record<string, unknown>)) {
       throw unprocessable("AWS AgentCore profiles use workload identity, not a credential secret");
     }
@@ -247,7 +247,7 @@ export function remoteAgentProfileService(db: Db) {
       { required: input.enabled },
     );
 
-    const existing = await getByProfileKey(companyId, profileKey);
+    const existing = await getByProfileKey(spaceId, profileKey);
 
     const qualifiedRevision = qualificationAttested
       ? computeRemoteAgentProfileRevision({
@@ -260,7 +260,7 @@ export function remoteAgentProfileService(db: Db) {
     assertQualifiedRevisionUnchanged(existing, qualifiedRevision);
 
     const values = {
-      companyId,
+      spaceId,
       profileKey,
       displayName,
       service: input.service,
@@ -279,7 +279,7 @@ export function remoteAgentProfileService(db: Db) {
       .insert(remoteAgentProfiles)
       .values(values)
       .onConflictDoUpdate({
-        target: [remoteAgentProfiles.companyId, remoteAgentProfiles.profileKey],
+        target: [remoteAgentProfiles.spaceId, remoteAgentProfiles.profileKey],
         set: values,
       })
       .returning();

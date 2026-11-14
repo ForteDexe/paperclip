@@ -34,7 +34,7 @@ export function PrivacyPage({
   return (
     <PluginLauncherProvider>
       <Routes>
-        <Route path="/:companyPrefix" element={<Layout />}>
+        <Route path="/:spacePrefix" element={<Layout />}>
           <Route path="issues" element={<Issues />} />
           <Route path="issues/:issueId" element={<IssueDetail />} />
           <Route path="projects" element={<Projects />} />
@@ -50,7 +50,7 @@ const meta = {
   excludeStories: ["PrivacyPage"],
   decorators: [privacyDecorator],
   parameters: { ...privacyParameters, waitForViewport: true,
-    paperclip: {
+    outpost: {
       "capabilities": [
         "access/resources",
         "tasks/properties",
@@ -202,8 +202,8 @@ export const ProjectVisibilityAutosaveCompletes: Story = {
     const page = within(canvasElement.ownerDocument.body);
     await userEvent.click(await page.findByRole("switch", { name: "Private project" }, { timeout: 15000 }));
     const dialog = await page.findByRole("alertdialog");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Open to company" }));
-    await expect(await page.findByText(/Everyone in the company can discover this project/)).toBeVisible();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Open to space" }));
+    await expect(await page.findByText(/Everyone in the space can discover this project/)).toBeVisible();
   },
 };
 export const MobileProjectVisibilityThroughAutosave: Story = { ...ProjectVisibilityThroughAutosave, globals: mobile };

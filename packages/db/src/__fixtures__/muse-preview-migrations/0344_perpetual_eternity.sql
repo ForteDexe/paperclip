@@ -1,6 +1,6 @@
 CREATE TABLE "external_agent_holds" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"provider" text NOT NULL,
 	"assignment_id" uuid NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE "external_agent_holds" (
 --> statement-breakpoint
 CREATE TABLE "muse_agent_bindings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"operator_id" text NOT NULL,
 	"generation" integer DEFAULT 1 NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE "muse_agent_bindings" (
 --> statement-breakpoint
 CREATE TABLE "muse_credentials" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"binding_id" uuid NOT NULL,
 	"binding_generation" integer NOT NULL,
 	"kind" text NOT NULL,
@@ -60,7 +60,7 @@ CREATE TABLE "muse_credentials" (
 --> statement-breakpoint
 CREATE TABLE "muse_idle_receipts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"binding_id" uuid NOT NULL,
 	"binding_generation" integer NOT NULL,
 	"request_id" uuid NOT NULL,
@@ -71,7 +71,7 @@ CREATE TABLE "muse_idle_receipts" (
 --> statement-breakpoint
 CREATE TABLE "muse_input_deliveries" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"assignment_id" uuid NOT NULL,
 	"request_id" text NOT NULL,
 	"turn_id" text NOT NULL,
@@ -85,7 +85,7 @@ CREATE TABLE "muse_input_deliveries" (
 --> statement-breakpoint
 CREATE TABLE "muse_mailbox_items" (
 	"id" bigserial PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"binding_id" uuid NOT NULL,
 	"binding_generation" integer NOT NULL,
 	"assignment_id" uuid,
@@ -97,7 +97,7 @@ CREATE TABLE "muse_mailbox_items" (
 --> statement-breakpoint
 CREATE TABLE "muse_receiver_contact_buckets" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"binding_id" uuid NOT NULL,
 	"binding_generation" integer NOT NULL,
 	"replica_id" uuid NOT NULL,
@@ -112,7 +112,7 @@ CREATE TABLE "muse_receiver_contact_buckets" (
 --> statement-breakpoint
 CREATE TABLE "muse_runner_assignments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"binding_id" uuid NOT NULL,
 	"binding_generation" integer NOT NULL,
 	"run_id" uuid NOT NULL,
@@ -137,7 +137,7 @@ CREATE TABLE "muse_runner_assignments" (
 --> statement-breakpoint
 CREATE TABLE "muse_runner_operations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"assignment_id" uuid NOT NULL,
 	"request_id" uuid NOT NULL,
 	"digest" text NOT NULL,
@@ -149,30 +149,30 @@ CREATE TABLE "muse_runner_operations" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "external_agent_holds" ADD CONSTRAINT "external_agent_holds_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "external_agent_holds" ADD CONSTRAINT "external_agent_holds_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "external_agent_holds" ADD CONSTRAINT "external_agent_holds_agent_id_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "muse_agent_bindings" ADD CONSTRAINT "muse_agent_bindings_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "muse_agent_bindings" ADD CONSTRAINT "muse_agent_bindings_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "muse_agent_bindings" ADD CONSTRAINT "muse_agent_bindings_agent_id_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "muse_credentials" ADD CONSTRAINT "muse_credentials_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "muse_credentials" ADD CONSTRAINT "muse_credentials_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "muse_credentials" ADD CONSTRAINT "muse_credentials_binding_id_muse_agent_bindings_id_fk" FOREIGN KEY ("binding_id") REFERENCES "public"."muse_agent_bindings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "muse_idle_receipts" ADD CONSTRAINT "muse_idle_receipts_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "muse_idle_receipts" ADD CONSTRAINT "muse_idle_receipts_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "muse_idle_receipts" ADD CONSTRAINT "muse_idle_receipts_binding_id_muse_agent_bindings_id_fk" FOREIGN KEY ("binding_id") REFERENCES "public"."muse_agent_bindings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "muse_input_deliveries" ADD CONSTRAINT "muse_input_deliveries_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "muse_input_deliveries" ADD CONSTRAINT "muse_input_deliveries_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "muse_input_deliveries" ADD CONSTRAINT "muse_input_deliveries_assignment_id_muse_runner_assignments_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."muse_runner_assignments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "muse_mailbox_items" ADD CONSTRAINT "muse_mailbox_items_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "muse_mailbox_items" ADD CONSTRAINT "muse_mailbox_items_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "muse_mailbox_items" ADD CONSTRAINT "muse_mailbox_items_binding_id_muse_agent_bindings_id_fk" FOREIGN KEY ("binding_id") REFERENCES "public"."muse_agent_bindings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "muse_mailbox_items" ADD CONSTRAINT "muse_mailbox_items_assignment_id_muse_runner_assignments_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."muse_runner_assignments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "muse_receiver_contact_buckets" ADD CONSTRAINT "muse_receiver_contact_buckets_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "muse_receiver_contact_buckets" ADD CONSTRAINT "muse_receiver_contact_buckets_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "muse_receiver_contact_buckets" ADD CONSTRAINT "muse_receiver_contact_buckets_binding_id_muse_agent_bindings_id_fk" FOREIGN KEY ("binding_id") REFERENCES "public"."muse_agent_bindings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "muse_runner_assignments" ADD CONSTRAINT "muse_runner_assignments_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "muse_runner_assignments" ADD CONSTRAINT "muse_runner_assignments_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "muse_runner_assignments" ADD CONSTRAINT "muse_runner_assignments_binding_id_muse_agent_bindings_id_fk" FOREIGN KEY ("binding_id") REFERENCES "public"."muse_agent_bindings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "muse_runner_assignments" ADD CONSTRAINT "muse_runner_assignments_run_id_heartbeat_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."heartbeat_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "muse_runner_assignments" ADD CONSTRAINT "muse_runner_assignments_agent_id_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "muse_runner_operations" ADD CONSTRAINT "muse_runner_operations_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "muse_runner_operations" ADD CONSTRAINT "muse_runner_operations_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "muse_runner_operations" ADD CONSTRAINT "muse_runner_operations_assignment_id_muse_runner_assignments_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."muse_runner_assignments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "external_holds_assignment_uq" ON "external_agent_holds" USING btree ("provider","assignment_id");--> statement-breakpoint
-CREATE INDEX "external_holds_agent_idx" ON "external_agent_holds" USING btree ("company_id","agent_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "muse_bindings_active_agent_uq" ON "muse_agent_bindings" USING btree ("company_id","agent_id") WHERE "muse_agent_bindings"."revoked_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "external_holds_agent_idx" ON "external_agent_holds" USING btree ("space_id","agent_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "muse_bindings_active_agent_uq" ON "muse_agent_bindings" USING btree ("space_id","agent_id") WHERE "muse_agent_bindings"."revoked_at" IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "muse_bindings_ticket_uq" ON "muse_agent_bindings" USING btree ("ticket_hash");--> statement-breakpoint
 CREATE UNIQUE INDEX "muse_credentials_hash_uq" ON "muse_credentials" USING btree ("token_hash");--> statement-breakpoint
 CREATE INDEX "muse_credentials_binding_idx" ON "muse_credentials" USING btree ("binding_id","binding_generation");--> statement-breakpoint
@@ -184,5 +184,5 @@ CREATE INDEX "muse_mailbox_cursor_idx" ON "muse_mailbox_items" USING btree ("bin
 CREATE UNIQUE INDEX "muse_contact_bucket_uq" ON "muse_receiver_contact_buckets" USING btree ("binding_id","binding_generation","replica_id","bucket_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "muse_assignments_turn_uq" ON "muse_runner_assignments" USING btree ("run_id","turn_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "muse_assignments_live_binding_uq" ON "muse_runner_assignments" USING btree ("binding_id") WHERE "muse_runner_assignments"."status" IN ('offered','claimed','accepted');--> statement-breakpoint
-CREATE INDEX "muse_assignments_company_idx" ON "muse_runner_assignments" USING btree ("company_id");--> statement-breakpoint
+CREATE INDEX "muse_assignments_space_idx" ON "muse_runner_assignments" USING btree ("space_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "muse_operations_request_uq" ON "muse_runner_operations" USING btree ("assignment_id","request_id");

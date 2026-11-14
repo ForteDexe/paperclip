@@ -32,10 +32,10 @@ import {
   resolveAdapterExecutionTargetTimeout,
   resolveReferencedSourceIgnore,
   runAdapterExecutionTargetShellCommand,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
   startAdapterExecutionTargetProcessSessionBridge,
   type AdapterExecutionTarget,
-  type AdapterExecutionTargetPaperclipBridgeHandle,
+  type AdapterExecutionTargetOutpostBridgeHandle,
   type AdapterExecutionTargetProcessSessionBridgeHandle,
   type AdapterExecutionTargetProcessSessionTerminalEvidence,
   type AdapterExecutionTargetTimeoutResolution,
@@ -74,26 +74,26 @@ import {
   buildOutpostEnv,
   ensureAbsoluteDirectory,
   ensurePathInEnv,
-  ensurePaperclipSkillSymlink,
+  ensureOutpostSkillSymlink,
   isForbiddenConfigEnvKey,
-  isPaperclipExternalChatTurn,
+  isOutpostExternalChatTurn,
   isOutpostRuntimeEnvKey,
   joinPromptSections,
-  materializePaperclipSkillCopy,
+  materializeOutpostSkillCopy,
   parseObject,
-  isPaperclipSkillSourceMissing,
-  readPaperclipRuntimeSkillEntries,
-  readPaperclipIssueWorkModeFromContext,
+  isOutpostSkillSourceMissing,
+  readOutpostRuntimeSkillEntries,
+  readOutpostIssueWorkModeFromContext,
   renderTemplate,
-  resolvePaperclipInstanceRootForAdapter,
+  resolveOutpostInstanceRootForAdapter,
   hydrateFreshSessionHandoff,
   selectInitialCommunicationGuidance,
-  selectPaperclipPromptSections,
-  resolveLegacyPaperclipDesiredSkillNames,
+  selectOutpostPromptSections,
+  resolveLegacyOutpostDesiredSkillNames,
   removeMaintainerOnlySkillSymlinks,
   rewriteWorkspaceCwdEnvVarsForExecution,
   shapeOutpostWorkspaceEnvForExecution,
-  type PaperclipSkillEntry,
+  type OutpostSkillEntry,
 } from "@outpost/adapter-utils/server-utils";
 import { shellQuote } from "@outpost/adapter-utils/ssh";
 import { createEphemeralSessionEnvironmentStore } from "./ephemeral-session-environment.js";
@@ -184,7 +184,7 @@ import {
 } from "./startup-timing.js";
 
 const defaultModuleDir = path.dirname(fileURLToPath(import.meta.url));
-const OUTPOST_MANAGED_CODEX_SKILLS_MANIFEST = ".paperclip-managed-skills.json";
+const OUTPOST_MANAGED_CODEX_SKILLS_MANIFEST = ".outpost-managed-skills.json";
 const BENIGN_NES_CLOSE_STDERR = /method: ['"]nes\/close['"].*-32601/;
 
 function routeChildStderr(state: ChildStderrState, chunk: string) {
@@ -214,7 +214,7 @@ function flushChildStderr(state: ChildStderrState) {
   state.pendingLiveLine = "";
 }
 
-type PaperclipAcpRuntimeOptions = AcpRuntimeOptions & AcpxAgentSpawnHooks & {
+type OutpostAcpRuntimeOptions = AcpRuntimeOptions & AcpxAgentSpawnHooks & {
   onAgentSpawn?: (meta: AcpxAgentProcessIdentity) => Promise<void>;
   // Return the current-run parent-context token. It is the `task.run` token
   // during startup and after the turn, and the `agent.turn` token during the
@@ -223,13 +223,13 @@ type PaperclipAcpRuntimeOptions = AcpRuntimeOptions & AcpxAgentSpawnHooks & {
   getRuntimeParentContext?: () => StartupSpanContext | undefined;
 };
 
-type AcpxRuntimeFactory = (options: PaperclipAcpRuntimeOptions) => AcpRuntime;
+type AcpxRuntimeFactory = (options: OutpostAcpRuntimeOptions) => AcpRuntime;
 
 /**
  * A remote runner-backed session's staged runtime, kept warm across runs so a
  * compatible resume reuses it instead of re-shipping the workspace / re-seeding
  * the managed home (PR 3: "stage once per session"). Keyed by the session's
- * `sessionKey` (`paperclip:companyId:agentId:taskKey:fingerprint`) — the SAME
+ * `sessionKey` (`outpost:spaceId:agentId:taskKey:fingerprint`) — the SAME
  * fingerprint scoping the warm handle uses — so one session can never read
  * another session's staged credentials: a different agent/task/config hashes to
  * a different key, misses this cache, and stages its own home.
@@ -313,7 +313,7 @@ export interface AcpxEngineBillingIdentity {
  */
 export interface AcpxRemoteManagedHomeContext {
   acpxAgent: string;
-  companyId: string;
+  spaceId: string;
   runId: string;
   config: Record<string, unknown>;
   /** The runner-backed remote sandbox target the workspace stages into. */
@@ -487,7 +487,7 @@ interface AcpxPreparedRuntime {
   agentCommand: string | null;
   agentRegistry: AcpAgentRegistry;
   processSessionBridge: AdapterExecutionTargetProcessSessionBridgeHandle | null;
-  paperclipBridge: AdapterExecutionTargetPaperclipBridgeHandle | null;
+  outpostBridge: AdapterExecutionTargetOutpostBridgeHandle | null;
   // The workspace/runtime staged into a runner-backed remote sandbox (null for
   // local runs and the runner-less ACP→CLI fallback). PR 1 stages the workspace
   // + cwd only; the `assetDirs`/`runtimeRootDir`/`restoreWorkspace` it carries
@@ -520,7 +520,7 @@ interface AcpxPreparedRuntime {
   skillPromptInstructions: string;
   skillsIdentity: Record<string, unknown>;
   childStderrLogPath: string | null;
-  paperclipClaudeSettings: PaperclipClaudeSettingsResult | null;
+  outpostClaudeSettings: OutpostClaudeSettingsResult | null;
   mcpServers: NonNullable<AcpRuntimeOptions["mcpServers"]>;
   mcpIdentity: Array<{ name: string; url: string; connectionId: string }>;
   // Per-step round-trip / provider-duration readers sourced from the sandbox
@@ -561,7 +561,7 @@ function shortHash(value: unknown): string {
 
 /**
  * Hash the session fingerprint. The builder accepts only a
- * `SessionFingerprintIdentity`, so no company, agent, or task identifier can
+ * `SessionFingerprintIdentity`, so no space, agent, or task identifier can
  * enter the hash. Those identifiers scope the outer session key only (see
  * `SessionKeyIdentity`).
  */
@@ -571,13 +571,13 @@ export function buildSessionFingerprint(identity: SessionFingerprintIdentity): s
 
 /**
  * Build the session key from the fingerprint and the outer-key identity. The key
- * form is `paperclip:companyId:agentId:taskKey:fingerprint`.
+ * form is `outpost:spaceId:agentId:taskKey:fingerprint`.
  */
 export function buildSessionKey(identity: SessionKeyIdentity, fingerprint: string): string {
-  return `paperclip:${identity.companyId}:${identity.agentId}:${identity.taskKey}:${fingerprint}`;
+  return `outpost:${identity.spaceId}:${identity.agentId}:${identity.taskKey}:${fingerprint}`;
 }
 
-// ACPX runs inside the long-lived Paperclip server process. A local child needs
+// ACPX runs inside the long-lived Outpost server process. A local child needs
 // a small amount of host context (PATH, locale, certificate/proxy settings, and
 // provider authentication), but it must not inherit the server's complete
 // environment. A runner-backed remote sandbox inherits no ambient host context
@@ -823,25 +823,25 @@ export async function referencedSourceContentSignature(
   return hash.digest("hex").slice(0, 16);
 }
 
-function defaultPaperclipInstanceDir(): string {
-  const home = process.env.OUTPOST_HOME?.trim() || path.join(os.homedir(), ".paperclip");
+function defaultOutpostInstanceDir(): string {
+  const home = process.env.OUTPOST_HOME?.trim() || path.join(os.homedir(), ".outpost");
   const instanceId = process.env.OUTPOST_INSTANCE_ID?.trim() || "default";
-  return resolvePaperclipInstanceRootForAdapter({
+  return resolveOutpostInstanceRootForAdapter({
     homeDir: home,
     instanceId,
   });
 }
 
-function defaultStateDir(companyId: string, agentId: string): string {
-  return path.join(defaultPaperclipInstanceDir(), "companies", companyId, "acp-engine", "agents", agentId);
+function defaultStateDir(spaceId: string, agentId: string): string {
+  return path.join(defaultOutpostInstanceDir(), "spaces", spaceId, "acp-engine", "agents", agentId);
 }
 
-function resolveManagedCodexHomeDir(companyId: string): string {
-  return path.join(defaultPaperclipInstanceDir(), "companies", companyId, "codex-home");
+function resolveManagedCodexHomeDir(spaceId: string): string {
+  return path.join(defaultOutpostInstanceDir(), "spaces", spaceId, "codex-home");
 }
 
-function resolveManagedCodexApiKeyHomeDir(companyId: string, agentId: string): string {
-  return path.join(defaultStateDir(companyId, agentId), "codex-home");
+function resolveManagedCodexApiKeyHomeDir(spaceId: string, agentId: string): string {
+  return path.join(defaultStateDir(spaceId, agentId), "codex-home");
 }
 
 // Mirrors `resolveManagedGrokHomeDir` in
@@ -850,8 +850,8 @@ function resolveManagedCodexApiKeyHomeDir(companyId: string, agentId: string): s
 // direction), so the path scheme is duplicated here, the same way
 // `resolveManagedCodexHomeDir` above duplicates the Codex adapter's own
 // helper.
-function resolveManagedGrokHomeDir(companyId: string): string {
-  return path.join(defaultPaperclipInstanceDir(), "companies", companyId, "grok-home");
+function resolveManagedGrokHomeDir(spaceId: string): string {
+  return path.join(defaultOutpostInstanceDir(), "spaces", spaceId, "grok-home");
 }
 
 // Walk up from startDir looking for `node_modules/.bin/<binName>`. This matches
@@ -1035,7 +1035,7 @@ async function ensureCopiedFile(target: string, source: string): Promise<void> {
 }
 
 async function prepareManagedCodexHome(input: {
-  companyId: string;
+  spaceId: string;
   sourceHome: string;
   targetHome: string;
   apiKey?: string;
@@ -1116,11 +1116,11 @@ async function hashPathContents(
 }
 
 async function buildSkillSetKey(input: {
-  skills: PaperclipSkillEntry[];
+  skills: OutpostSkillEntry[];
   label: string;
 }): Promise<string> {
   const hash = createHash("sha256");
-  hash.update(`paperclip-acpx-${input.label}-skills:v1\n`);
+  hash.update(`outpost-acpx-${input.label}-skills:v1\n`);
   const sorted = [...input.skills].sort((left, right) => left.runtimeName.localeCompare(right.runtimeName));
   for (const entry of sorted) {
     hash.update(`skill:${entry.key}:${entry.runtimeName}\n`);
@@ -1132,9 +1132,9 @@ async function buildSkillSetKey(input: {
 async function resolveSelectedRuntimeSkills(
   config: Record<string, unknown>,
   moduleDir: string,
-): Promise<{ allSkills: PaperclipSkillEntry[]; selectedSkills: PaperclipSkillEntry[]; desiredSkillNames: string[] }> {
-  const allSkills = await readPaperclipRuntimeSkillEntries(config, moduleDir);
-  const desiredSkillNames = resolveLegacyPaperclipDesiredSkillNames(config, allSkills);
+): Promise<{ allSkills: OutpostSkillEntry[]; selectedSkills: OutpostSkillEntry[]; desiredSkillNames: string[] }> {
+  const allSkills = await readOutpostRuntimeSkillEntries(config, moduleDir);
+  const desiredSkillNames = resolveLegacyOutpostDesiredSkillNames(config, allSkills);
   const desiredSet = new Set(desiredSkillNames);
   return {
     allSkills,
@@ -1142,7 +1142,7 @@ async function resolveSelectedRuntimeSkills(
     // selected entry's path contents, and a nonexistent source would abort
     // runtime construction over one broken skill.
     selectedSkills: allSkills.filter(
-      (entry) => desiredSet.has(entry.key) && !isPaperclipSkillSourceMissing(entry),
+      (entry) => desiredSet.has(entry.key) && !isOutpostSkillSourceMissing(entry),
     ),
     desiredSkillNames,
   };
@@ -1184,7 +1184,7 @@ async function prepareClaudeSkillRuntime(input: {
   for (const entry of selectedSkills) {
     const target = path.join(skillsHome, entry.runtimeName);
     try {
-      const result = await materializePaperclipSkillCopy(entry.source, target);
+      const result = await materializeOutpostSkillCopy(entry.source, target);
       const skillMdStat = await fs.stat(path.join(target, "SKILL.md")).catch(() => null);
       if (!skillMdStat?.isFile()) {
         await fs.rm(target, { recursive: true, force: true });
@@ -1280,8 +1280,8 @@ async function removeSkillTarget(target: string): Promise<boolean> {
 
 async function reconcileManagedCodexSkills(input: {
   skillsHome: string;
-  allSkills: PaperclipSkillEntry[];
-  selectedSkills: PaperclipSkillEntry[];
+  allSkills: OutpostSkillEntry[];
+  selectedSkills: OutpostSkillEntry[];
   onLog: AdapterExecutionContext["onLog"];
 }): Promise<void> {
   const desired = new Set(input.selectedSkills.map((entry) => entry.runtimeName));
@@ -1318,7 +1318,7 @@ async function reconcileManagedCodexSkills(input: {
 }
 
 async function prepareCodexSkillRuntime(input: {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   config: Record<string, unknown>;
   env: Record<string, string>;
@@ -1350,14 +1350,14 @@ async function prepareCodexSkillRuntime(input: {
       : path.join(os.homedir(), ".codex");
   const apiKey = input.env.OPENAI_API_KEY?.trim() || input.env.CODEX_API_KEY?.trim()
     || process.env.OPENAI_API_KEY?.trim() || process.env.CODEX_API_KEY?.trim();
-  // Keep API-key auth separate from the company home used by subscription
+  // Keep API-key auth separate from the space home used by subscription
   // agents, so one agent cannot switch another agent's login on its next turn.
   const managedCodexHome = apiKey
-    ? resolveManagedCodexApiKeyHomeDir(input.companyId, input.agentId)
-    : resolveManagedCodexHomeDir(input.companyId);
+    ? resolveManagedCodexApiKeyHomeDir(input.spaceId, input.agentId)
+    : resolveManagedCodexHomeDir(input.spaceId);
   const effectiveCodexHome = configuredCodexHome ??
     await prepareManagedCodexHome({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       sourceHome: sourceCodexHome,
       targetHome: managedCodexHome,
       apiKey,
@@ -1371,7 +1371,7 @@ async function prepareCodexSkillRuntime(input: {
     else {
       try {
         launchCodexHome = await prepareAcpxCodexObservabilityHome(effectiveCodexHome, input.observability, input.agentId);
-      } catch { await input.onLog("stderr", "[outpost] Outpost observability configuration could not be prepared; execution continues without company export.\n"); }
+      } catch { await input.onLog("stderr", "[outpost] Outpost observability configuration could not be prepared; execution continues without space export.\n"); }
     }
   }
   const { allSkills, selectedSkills, desiredSkillNames } = await resolveSelectedRuntimeSkills(input.config, input.moduleDir);
@@ -1401,7 +1401,7 @@ async function prepareCodexSkillRuntime(input: {
   for (const entry of selectedSkills) {
     const target = path.join(skillsHome, entry.runtimeName);
     try {
-      const result = await materializePaperclipSkillCopy(entry.source, target);
+      const result = await materializeOutpostSkillCopy(entry.source, target);
       if (result.skippedSymlinks.length > 0) {
         await input.onLog(
           "stdout",
@@ -1460,7 +1460,7 @@ async function prepareGeminiSkillRuntime(input: {
   for (const entry of selectedSkills) {
     const target = path.join(skillsHome, entry.runtimeName);
     try {
-      const result = await ensurePaperclipSkillSymlink(entry.source, target);
+      const result = await ensureOutpostSkillSymlink(entry.source, target);
       if (result === "created" || result === "repaired") {
         await input.onLog(
           "stdout",
@@ -1469,7 +1469,7 @@ async function prepareGeminiSkillRuntime(input: {
       }
     } catch (err) {
       if (isErrnoException(err, "EPERM")) {
-        const result = await materializePaperclipSkillCopy(entry.source, target);
+        const result = await materializeOutpostSkillCopy(entry.source, target);
         await input.onLog(
           "stdout",
           `[outpost] Copied ACPX Gemini skill "${entry.runtimeName}" into ${skillsHome} because symlinks are unavailable.${result.skippedSymlinks.length > 0 ? ` Skipped ${result.skippedSymlinks.length} nested symlink(s).` : ""}\n`,
@@ -1637,7 +1637,7 @@ function buildSessionParams(input: {
   };
 }
 
-interface PaperclipClaudeSettingsResult {
+interface OutpostClaudeSettingsResult {
   filePath: string;
   allow: string[];
   additionalDirectories: string[];
@@ -1654,28 +1654,28 @@ function uniqueSorted(values: Array<string | null | undefined>): string[] {
 // `.claude/settings.local.json` we override the user's potentially-restrictive
 // `~/.claude/settings.json` (e.g. `defaultMode: "dontAsk"`, which silently
 // denies every non-allowlisted tool and never reaches `canUseTool`), and we
-// widen the SDK's Read sandbox to include the Paperclip state dirs the agent
+// widen the SDK's Read sandbox to include the Outpost state dirs the agent
 // needs to talk to its own control plane.
-async function writePaperclipClaudeSettings(input: {
+async function writeOutpostClaudeSettings(input: {
   cwd: string;
   stateDir: string;
   agentHome: string;
-  companyId: string;
-}): Promise<PaperclipClaudeSettingsResult> {
+  spaceId: string;
+}): Promise<OutpostClaudeSettingsResult> {
   const filePath = path.join(input.cwd, ".claude", "settings.local.json");
-  const instanceRoot = defaultPaperclipInstanceDir();
-  const companyRoot = path.join(instanceRoot, "companies", input.companyId);
-  const paperclipAdditionalDirectories = uniqueSorted([
+  const instanceRoot = defaultOutpostInstanceDir();
+  const spaceRoot = path.join(instanceRoot, "spaces", input.spaceId);
+  const outpostAdditionalDirectories = uniqueSorted([
     input.stateDir,
     input.agentHome,
-    companyRoot,
+    spaceRoot,
   ]);
-  const paperclipAllow = uniqueSorted([
+  const outpostAllow = uniqueSorted([
     "Bash(curl:*)",
     "Bash(env:*)",
     "Bash(env)",
-    `Bash(${input.cwd}/scripts/paperclip-issue-update.sh:*)`,
-    `Bash(${input.cwd}/scripts/paperclip:*)`,
+    `Bash(${input.cwd}/scripts/outpost-issue-update.sh:*)`,
+    `Bash(${input.cwd}/scripts/outpost:*)`,
   ]);
 
   let existing: Record<string, unknown> = {};
@@ -1698,10 +1698,10 @@ async function writePaperclipClaudeSettings(input: {
   const existingAdditionalDirectories = Array.isArray(existingPerms.additionalDirectories)
     ? (existingPerms.additionalDirectories as unknown[]).filter((value): value is string => typeof value === "string")
     : [];
-  const mergedAllow = uniqueSorted([...existingAllow, ...paperclipAllow]);
+  const mergedAllow = uniqueSorted([...existingAllow, ...outpostAllow]);
   const mergedAdditionalDirectories = uniqueSorted([
     ...existingAdditionalDirectories,
-    ...paperclipAdditionalDirectories,
+    ...outpostAdditionalDirectories,
   ]);
   const existingDefaultMode =
     typeof existingPerms.defaultMode === "string" ? (existingPerms.defaultMode as string) : "";
@@ -1868,8 +1868,8 @@ async function buildRuntime(input: {
   // first instrumented boundary (step 1 `workspace.resolve`, below) so every
   // `measureStartupStep` call in this function shares one deterministic clock.
   const nowMs = input.deps.now ?? (() => Date.now());
-  const workspaceContext = parseObject(context.paperclipWorkspace);
-  const secretsContext = parseObject(context.paperclipSecrets);
+  const workspaceContext = parseObject(context.outpostWorkspace);
+  const secretsContext = parseObject(context.outpostSecrets);
   const secretManifest = Array.isArray(secretsContext.manifest) ? secretsContext.manifest : [];
   const workspaceCwd = asString(workspaceContext.cwd, "");
   const workspaceSource = asString(workspaceContext.source, "");
@@ -1949,8 +1949,8 @@ async function buildRuntime(input: {
   // list joins the anchor project's alternative workspaces with the referenced (mentioned) projects.
   // On the confined sandbox lane the run repoints each referenced hint at its staged directory after
   // staging below. Empty unless run prep resolved referenced projects or alternative workspaces.
-  const workspaceHints = Array.isArray(context.paperclipWorkspaces)
-    ? context.paperclipWorkspaces.filter(
+  const workspaceHints = Array.isArray(context.outpostWorkspaces)
+    ? context.outpostWorkspaces.filter(
         (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
       )
     : [];
@@ -2021,7 +2021,7 @@ async function buildRuntime(input: {
     asNumber(config.timeoutSec, DEFAULT_ACP_ENGINE_TIMEOUT_SEC),
   );
   const timeoutSec = timeoutResolution.timeoutSec;
-  const stateDir = path.resolve(asString(config.stateDir, "") || defaultStateDir(agent.companyId, agent.id));
+  const stateDir = path.resolve(asString(config.stateDir, "") || defaultStateDir(agent.spaceId, agent.id));
   await fs.mkdir(stateDir, { recursive: true });
 
   const envConfig = parseObject(config.env);
@@ -2040,7 +2040,7 @@ async function buildRuntime(input: {
   const linkedIssueIds = Array.isArray(context.issueIds)
     ? context.issueIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     : [];
-  const issueWorkMode = readPaperclipIssueWorkModeFromContext(context);
+  const issueWorkMode = readOutpostIssueWorkModeFromContext(context);
   if (wakeTaskId) env.OUTPOST_TASK_ID = wakeTaskId;
   if (issueWorkMode) env.OUTPOST_ISSUE_WORK_MODE = issueWorkMode;
   if (wakeReason) env.OUTPOST_WAKE_REASON = wakeReason;
@@ -2074,7 +2074,7 @@ async function buildRuntime(input: {
   // `env` above and are never present in shapedEnvConfig, so they inherently
   // stay out of the hash and don't reset the session every heartbeat.
   const resolvedAdapterEnv: Record<string, string> = {};
-  const scratch = parseObject(context.paperclipScratch);
+  const scratch = parseObject(context.outpostScratch);
   const scratchKeys = scratch.type === "heartbeat_run" && typeof scratch.dir === "string"
     ? new Set(["OUTPOST_RUN_SCRATCH_DIR", "OUTPOST_TASK_SCRATCH_DIR", "OUTPOST_SCRATCH_DIR", "OUTPOST_TMPDIR",
       ...(Array.isArray(scratch.tempKeysApplied) ? scratch.tempKeysApplied.filter((key): key is string =>
@@ -2083,9 +2083,9 @@ async function buildRuntime(input: {
   for (const [key, value] of Object.entries(shapedEnvConfig)) {
     if (typeof value !== "string") continue;
     // Runtime OUTPOST_* always wins over config: skip a OUTPOST_* key that
-    // Paperclip has already assigned this run. OUTPOST_API_KEY is never
+    // Outpost has already assigned this run. OUTPOST_API_KEY is never
     // accepted from config — the harness-minted run token is the only source.
-    // A OUTPOST_* key Paperclip did NOT set is stable per-run config, so it
+    // A OUTPOST_* key Outpost did NOT set is stable per-run config, so it
     // applies and feeds the fingerprint hash below.
     if (isForbiddenConfigEnvKey(key)) continue;
     if (isOutpostRuntimeEnvKey(key) && key in env) continue;
@@ -2150,7 +2150,7 @@ async function buildRuntime(input: {
   // below, after `placeWorkspace` returns). This field is `null` for every
   // non-Claude agent, and for a Claude run with no skill selected.
   let claudeSkillsBundleDir: string | null = null;
-  let paperclipClaudeSettings: PaperclipClaudeSettingsResult | null = null;
+  let outpostClaudeSettings: OutpostClaudeSettingsResult | null = null;
   if (acpxAgent === "claude") {
     const preparedSkills = await prepareClaudeSkillRuntime({
       stateDir,
@@ -2162,20 +2162,20 @@ async function buildRuntime(input: {
     skillsIdentity = preparedSkills.identity;
     skillCommandNotes.push(...preparedSkills.commandNotes);
     claudeSkillsBundleDir = preparedSkills.bundleDir;
-    paperclipClaudeSettings = await writePaperclipClaudeSettings({
+    outpostClaudeSettings = await writeOutpostClaudeSettings({
       cwd,
       stateDir,
       // A run's writable AGENT_HOME moves, but the existing permission root
       // must not invalidate its resumable conversation. Run copies are covered
-      // by the company root already granted in these settings; the process env
+      // by the space root already granted in these settings; the process env
       // still receives this run's actual AGENT_HOME.
       agentHome: asString(workspaceContext.agentHomeForPermissions, agentHome),
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
     });
     skillCommandNotes.push(
-      `Wrote Outpost-managed Claude settings to ${paperclipClaudeSettings.filePath} (defaultMode=${paperclipClaudeSettings.defaultMode}${
-        paperclipClaudeSettings.overrodeDontAsk ? "; overrode user dontAsk" : ""
-      }, +${paperclipClaudeSettings.additionalDirectories.length} read root(s), +${paperclipClaudeSettings.allow.length} allow rule(s)).`,
+      `Wrote Outpost-managed Claude settings to ${outpostClaudeSettings.filePath} (defaultMode=${outpostClaudeSettings.defaultMode}${
+        outpostClaudeSettings.overrodeDontAsk ? "; overrode user dontAsk" : ""
+      }, +${outpostClaudeSettings.additionalDirectories.length} read root(s), +${outpostClaudeSettings.allow.length} allow rule(s)).`,
     );
   } else if (acpxAgent === "codex") {
     // Step 2 — codex-home.seed: the codex managed-home + skills preparation.
@@ -2183,7 +2183,7 @@ async function buildRuntime(input: {
     // threaded onEvent/now seam.
     const preparedSkills = await measureStartupStep(input.ctx, nowMs, "codex-home.seed", () =>
       prepareCodexSkillRuntime({
-        companyId: agent.companyId,
+        spaceId: agent.spaceId,
         agentId: agent.id,
         config,
         env,
@@ -2207,17 +2207,17 @@ async function buildRuntime(input: {
     skillsIdentity = preparedSkills.identity;
     skillCommandNotes.push(...preparedSkills.commandNotes);
   } else {
-    // A minimal, separate Grok seam: only the company-scoped `GROK_HOME`
+    // A minimal, separate Grok seam: only the space-scoped `GROK_HOME`
     // binding, so a Grok run authenticates from the credential a completed
     // device login wrote. This never touches `prepareCodexSkillRuntime` above
     // — that function stays Codex-only — and every other custom ACPX agent
     // (for example `kimi`) falls through this branch unaffected.
     if (acpxAgent === "grok" && !config.managedAiConnection) {
-      env.GROK_HOME = resolveManagedGrokHomeDir(agent.companyId);
+      env.GROK_HOME = resolveManagedGrokHomeDir(agent.spaceId);
     }
-    const desired = resolveLegacyPaperclipDesiredSkillNames(
+    const desired = resolveLegacyOutpostDesiredSkillNames(
       config,
-      await readPaperclipRuntimeSkillEntries(config, input.engine.moduleDir),
+      await readOutpostRuntimeSkillEntries(config, input.engine.moduleDir),
     );
     skillsIdentity = { mode: "custom_unsupported", desiredSkillNames: desired };
     if (desired.length > 0) {
@@ -2289,7 +2289,7 @@ async function buildRuntime(input: {
       : acpxAgent === "gemini" && !executionTargetIsRemote
         ? await fs.realpath(cwd)
         : cwd;
-  // The 17 fields the session fingerprint hashes. Company, agent, and task
+  // The 17 fields the session fingerprint hashes. Space, agent, and task
   // identifiers are NOT here; they scope the outer session key only (see
   // `keyIdentity`). The fingerprint builder accepts only this identity.
   const fingerprintIdentity: SessionFingerprintIdentity = {
@@ -2311,11 +2311,11 @@ async function buildRuntime(input: {
     additionalSourcesIdentity: additionalSourcesIdentity as unknown as Record<string, unknown>,
     skillsIdentity,
     skillPromptInstructions,
-    paperclipClaudeSettings: paperclipClaudeSettings
+    outpostClaudeSettings: outpostClaudeSettings
       ? {
-          allow: paperclipClaudeSettings.allow,
-          additionalDirectories: paperclipClaudeSettings.additionalDirectories,
-          defaultMode: paperclipClaudeSettings.defaultMode,
+          allow: outpostClaudeSettings.allow,
+          additionalDirectories: outpostClaudeSettings.additionalDirectories,
+          defaultMode: outpostClaudeSettings.defaultMode,
         }
       : null,
     // Qualified built-in ACP harnesses reconnect to the supplied MCP servers
@@ -2333,10 +2333,10 @@ async function buildRuntime(input: {
   };
   const fingerprint = buildSessionFingerprint(fingerprintIdentity);
   const taskKey = asString(input.ctx.runtime.taskKey, "") || wakeTaskId || workspaceId || "default";
-  // Company, agent, and task identity for the outer session key. These parts
+  // Space, agent, and task identity for the outer session key. These parts
   // stay out of the fingerprint hash.
   const keyIdentity: SessionKeyIdentity = {
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     agentId: agent.id,
     taskKey,
   };
@@ -2359,7 +2359,7 @@ async function buildRuntime(input: {
   // this exact `sessionKey` reuses the already-staged in-sandbox runtime — no
   // workspace re-ship, no home re-seed — while an incompatible fingerprint (a
   // different key) misses the cache and stages fresh. The `sessionKey`
-  // (`companyId:agentId:taskKey:fingerprint`) is the single scoping key, so one
+  // (`spaceId:agentId:taskKey:fingerprint`) is the single scoping key, so one
   // session can never read another session's staged credentials. The cache is
   // populated by the executor only after a clean turn and dropped on
   // failure/cancel/timeout, so it always holds a known-good staged runtime.
@@ -2370,7 +2370,7 @@ async function buildRuntime(input: {
   //     warm-handle path uses). A fresh invocation with missing/cleared
   //     `sessionParams` starts a new ACP session via `session/new`, so it must
   //     NOT inherit the prior session's staged home/credentials — it stages
-  //     fresh even when company/agent/task/fingerprint (and hence sessionKey)
+  //     fresh even when space/agent/task/fingerprint (and hence sessionKey)
   //     collide.
   //   * Per-key staging lock: the stage-or-reuse decision runs under a
   //     `sessionKey` mutex so two overlapping runs of the same session can never
@@ -2431,7 +2431,7 @@ async function buildRuntime(input: {
         ? async (stage) => {
             const seeded = await input.deps.prepareRemoteManagedHome!({
               acpxAgent,
-              companyId: agent.companyId,
+              spaceId: agent.spaceId,
               runId,
               config,
               executionTarget: remoteTarget,
@@ -2479,7 +2479,7 @@ async function buildRuntime(input: {
           "[outpost] Reusing the staged in-sandbox runtime for this resumed session (no workspace re-ship / managed-home re-seed).\n",
         ),
       startOutpostBridge: (runtimeRootDir) =>
-        startAdapterExecutionTargetPaperclipBridge({
+        startAdapterExecutionTargetOutpostBridge({
           runId,
           target: { ...remoteTarget, streamRunLogs: false },
           runtimeRootDir,
@@ -2553,7 +2553,7 @@ async function buildRuntime(input: {
       stagedRuntime.assetDirs.skills ??
       path.posix.join(
         stagedRuntime.runtimeRootDir ??
-          path.posix.join(stagedRuntime.workspaceRemoteDir ?? cwd, ".paperclip-runtime", acpxAgent),
+          path.posix.join(stagedRuntime.workspaceRemoteDir ?? cwd, ".outpost-runtime", acpxAgent),
         "skills",
       );
     const rebaseToSandbox = (value: string) => value.split(claudeSkillsBundleDir!).join(inSandboxSkillsRoot);
@@ -2569,24 +2569,24 @@ async function buildRuntime(input: {
     }
   }
   // Both bridge starts run under one try so a failure at EITHER — including the
-  // paperclip callback bridge — fires the same abandon-path cleanup. The
-  // paperclip bridge starts after the workspace + managed home were already
+  // outpost callback bridge — fires the same abandon-path cleanup. The
+  // outpost bridge starts after the workspace + managed home were already
   // staged and the per-session staging lease is already held, so leaving it
   // outside the catch would strand the lease (and the staged temp) on a
   // start failure and deadlock the next run of this session.
-  let paperclipBridge: AdapterExecutionTargetPaperclipBridgeHandle | null = null;
+  let outpostBridge: AdapterExecutionTargetOutpostBridgeHandle | null = null;
   let processSessionBridge: AdapterExecutionTargetProcessSessionBridgeHandle | null = null;
   let runtimeEnv: Record<string, string> = {};
   const startTransportStart = nowMs();
   try {
     if (useRemoteProcessSession && sandboxSite) {
       // The sandbox run site brings up both host-side bridges concurrently, keeps
-      // the one paperclip-env → process-session-launch dependency at a single
+      // the one outpost-env → process-session-launch dependency at a single
       // sequencing point, settles both starts, and returns the started handles
       // plus the finalized launch env. On a partial failure it stops nothing and
       // rethrows; the catch below stops whichever bridge the site started.
       const transport = await sandboxSite.startTransport({ sessionKey } as unknown as AcpRunContext);
-      paperclipBridge = transport.controlBridge;
+      outpostBridge = transport.controlBridge;
       processSessionBridge = transport.agentBridge;
       runtimeEnv = transport.launchEnv;
       await emitRunPhaseTiming(input.ctx, "start_transport", nowMs() - startTransportStart, "ok");
@@ -2605,7 +2605,7 @@ async function buildRuntime(input: {
     // bridge leaks (mirrors the settlement `stopTransport` step). The site sets its
     // started bridges before it rethrows, so read them from the site here (the
     // local handles stay null when `startTransport` throws before it returns).
-    const startedControl = sandboxSite?.controlBridge ?? paperclipBridge;
+    const startedControl = sandboxSite?.controlBridge ?? outpostBridge;
     const startedAgent = sandboxSite?.agentBridge ?? processSessionBridge;
     await Promise.allSettled([startedControl?.stop(), startedAgent?.stop()]);
     // The staged home / copy-back teardown must run even if a bridge fails to
@@ -2649,9 +2649,9 @@ async function buildRuntime(input: {
       `Skill root for this run: ${currentSkillRoot}`,
       `Selected skills: ${skillsIdentity.selectedSkills.join(", ")}`,
       "When a task calls for one of these skills, read its SKILL.md from this root and follow it. Resolve referenced scripts and files relative to that skill. Use this run's root even when an earlier turn used a different path.",
-      ...(acpxAgent === "gemini" && skillsIdentity.selectedSkills.includes("paperclip")
+      ...(acpxAgent === "gemini" && skillsIdentity.selectedSkills.includes("outpost")
         ? [
-          "Before calling Outpost APIs or delivering task artifacts, read the selected paperclip skill's SKILL.md and its referenced artifact workflow. A completion comment does not upload an artifact or change task status.",
+          "Before calling Outpost APIs or delivering task artifacts, read the selected outpost skill's SKILL.md and its referenced artifact workflow. A completion comment does not upload an artifact or change task status.",
           "Gemini's shell tool rejects command substitution. Write JSON request bodies to a workspace file and use curl --data-binary @file, or use the selected skill's helpers, instead of constructing a body with command substitution.",
         ]
         : []),
@@ -2707,7 +2707,7 @@ async function buildRuntime(input: {
     agentCommand,
     agentRegistry,
     processSessionBridge,
-    paperclipBridge,
+    outpostBridge,
     stagedRuntime,
     remoteManagedHomeTeardown,
     remoteStagingDispose,
@@ -2720,7 +2720,7 @@ async function buildRuntime(input: {
       commandNotes: skillCommandNotes,
     },
     childStderrLogPath,
-    paperclipClaudeSettings,
+    outpostClaudeSettings,
     mcpServers,
     mcpIdentity,
     stepMetrics,
@@ -2869,7 +2869,7 @@ function mergeRuntimeEnvironment(
 async function stopRunTransport(prepared: AcpxPreparedRuntime): Promise<void> {
   await Promise.allSettled([
     prepared.processSessionBridge?.stop(),
-    prepared.paperclipBridge?.stop(),
+    prepared.outpostBridge?.stop(),
   ]);
 }
 
@@ -3079,13 +3079,13 @@ function guardEnsureSession(params: {
 }
 
 function renderOutpostEnvNote(env: Record<string, string>): string {
-  const paperclipKeys = Object.keys(env)
+  const outpostKeys = Object.keys(env)
     .filter((key) => key.startsWith("OUTPOST_"))
     .sort();
-  if (paperclipKeys.length === 0) return "";
+  if (outpostKeys.length === 0) return "";
   return [
     "Outpost runtime note:",
-    `The following OUTPOST_* environment variables are available in this run: ${paperclipKeys.join(", ")}`,
+    `The following OUTPOST_* environment variables are available in this run: ${outpostKeys.join(", ")}`,
     "Do not assume these variables are missing without checking your shell environment.",
   ].join("\n");
 }
@@ -3103,7 +3103,7 @@ function renderApiAccessNote(env: Record<string, string>): string {
   if (env.OUTPOST_TASK_ID) {
     lines.push(
       "Scoped issue comment example:",
-      `  curl -s -X POST -H "Authorization: Bearer $OUTPOST_API_KEY" -H "Content-Type: application/json" -H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID" -d '{"body":"Status update from agent."}' "$OUTPOST_API_BASE/api/issues/$OUTPOST_TASK_ID/comments"`,
+      `  curl -s -X POST -H "Authorization: Bearer $OUTPOST_API_KEY" -H "Content-Type: application/json" -H "X-Outpost-Run-Id: $OUTPOST_RUN_ID" -d '{"body":"Status update from agent."}' "$OUTPOST_API_BASE/api/issues/$OUTPOST_TASK_ID/comments"`,
     );
   } else {
     lines.push("Use a real issue id from the current context before making issue write requests.");
@@ -3152,9 +3152,9 @@ async function buildPrompt(ctx: AdapterExecutionContext, resumedSession: boolean
   const bootstrapPromptTemplate = asString(config.bootstrapPromptTemplate, "");
   const templateData = {
     agentId: agent.id,
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     runId,
-    company: { id: agent.companyId },
+    space: { id: agent.spaceId },
     agent,
     run: { id: runId, source: "on_demand" },
     context,
@@ -3164,15 +3164,15 @@ async function buildPrompt(ctx: AdapterExecutionContext, resumedSession: boolean
       ? renderTemplate(bootstrapPromptTemplate, templateData).trim()
       : "";
   await hydrateFreshSessionHandoff(ctx, { resumedSession });
-  const { taskContextNote, wakePrompt } = selectPaperclipPromptSections(context, { resumedSession, includeCommunicationGuidance: false });
-  const externalChatTurn = isPaperclipExternalChatTurn(context.paperclipWake);
+  const { taskContextNote, wakePrompt } = selectOutpostPromptSections(context, { resumedSession, includeCommunicationGuidance: false });
+  const externalChatTurn = isOutpostExternalChatTurn(context.outpostWake);
   const shouldUseResumeDeltaPrompt = resumedSession && wakePrompt.length > 0;
   const promptInstructionsPrefix = shouldUseResumeDeltaPrompt ? "" : instructionsPrefix;
   const renderedPrompt =
     shouldUseResumeDeltaPrompt || (externalChatTurn && !hasCustomPromptTemplate)
       ? ""
       : renderTemplate(promptTemplate, templateData);
-  const sessionHandoffNote = asString(context.paperclipSessionHandoffMarkdown, "").trim();
+  const sessionHandoffNote = asString(context.outpostSessionHandoffMarkdown, "").trim();
   const outpostEnvNote = externalChatTurn ? "" : renderOutpostEnvNote(env);
   const apiAccessNote = externalChatTurn ? "" : renderApiAccessNote(env);
   const prompt = joinPromptSections([
@@ -3208,7 +3208,7 @@ async function emitAcpxLog(ctx: AdapterExecutionContext, payload: Record<string,
 }
 
 /**
- * Build the short run summary that Paperclip may auto-post as an issue comment
+ * Build the short run summary that Outpost may auto-post as an issue comment
  * when the agent leaves no comment of its own.
  *
  * Prefer the last non-empty *output* segment after a tool call. Intermediate
@@ -4076,7 +4076,7 @@ function openTurnSpan(
 
 export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
   const createRuntime = deps.createRuntime
-    ?? ((options: PaperclipAcpRuntimeOptions) => {
+    ?? ((options: OutpostAcpRuntimeOptions) => {
       assertNoHostAcpxAuthEnvironment();
       const { getRuntimeParentContext: _parentContext, ...acpx } = stockAcpRuntimeOptions(options);
       return createAcpRuntime(acpx);
@@ -4115,7 +4115,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
       idleMs: warmIdleMs,
       closeWarmEntry: async (entry) => {
         await entry.runtime
-          .close({ handle: entry.handle, reason: "paperclip idle cleanup", discardPersistentState: false })
+          .close({ handle: entry.handle, reason: "outpost idle cleanup", discardPersistentState: false })
           .catch(() => {});
         flushChildStderr(entry.childStderrState);
       },
@@ -4530,7 +4530,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
         // conversation record without mutating the live runtime's options.
         const runtimeStore = createEphemeralSessionEnvironmentStore(persistedRuntimeStore, prepared.env);
         const launchSink = processIdentitySink;
-        const runtimeOptions: PaperclipAcpRuntimeOptions = {
+        const runtimeOptions: OutpostAcpRuntimeOptions = {
           cwd: prepared.cwd,
           // Host-only spawn cwd for the relay proxy on the remote process-session
           // lane; `undefined` elsewhere so acpx falls back to `cwd` (byte-identical).
@@ -4549,7 +4549,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
           // benefit from doubling the log volume.
           verbose: prepared.acpxAgent === "claude",
           // The engine passes a complete, sanitized launch environment. ACPX
-          // must not merge the Paperclip server's ambient environment back in
+          // must not merge the Outpost server's ambient environment back in
           // when it spawns the provider child, so the spawn uses exactly it.
           agentEnvironment: () => launchSink.launchEnvironment ?? {},
           // ACPX enables Grok's API-key login only when the agent would inherit
@@ -4629,7 +4629,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
         const ensureSessionPhaseStart = now();
         resumedSession = Boolean(handle ?? resumeSessionId);
         const isHandshakeTransportLost = (): boolean =>
-          prepared.paperclipBridge?.readRunDisposition?.().failed ?? false;
+          prepared.outpostBridge?.readRunDisposition?.().failed ?? false;
         // The fence's own close, for a real handle that resolves after
         // `endSession` already sealed. `endSession` closed the synthetic
         // placeholder by then (or skipped closing because the channel was
@@ -4646,7 +4646,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
           void runtime
             .close({
               handle: lateHandle,
-              reason: "paperclip late handshake cleanup",
+              reason: "outpost late handshake cleanup",
               discardPersistentState: false,
             })
             .catch(() =>
@@ -4794,7 +4794,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
           runtimeSettlement = {
             mode: "direct",
             handle: handle ?? syntheticCloseHandle(),
-            reason: "paperclip handshake cleanup",
+            reason: "outpost handshake cleanup",
             discardPersistentState: false,
             dropWarmEntry: true,
             recordCloseError: true,
@@ -4844,7 +4844,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
           runtimeSettlement = {
             mode: "direct",
             handle: syntheticCloseHandle(),
-            reason: "paperclip missing-handle cleanup",
+            reason: "outpost missing-handle cleanup",
             discardPersistentState: false,
             dropWarmEntry: false,
             recordCloseError: true,
@@ -4934,7 +4934,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
         runtimeSettlement = {
           mode: "direct",
           handle: sessionHandle,
-          reason: "paperclip config cleanup",
+          reason: "outpost config cleanup",
           discardPersistentState: false,
           dropWarmEntry: true,
           recordCloseError: true,
@@ -5150,10 +5150,10 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
             }, duplexLossCancelDeadlineMs);
           }
         };
-        const bridge = prepared.paperclipBridge;
+        const bridge = prepared.outpostBridge;
         if (bridge?.onLoss) {
           const cancelForLoss = (reason: DuplexLossReason) => {
-            void turn.cancel({ reason: `paperclip sandbox duplex channel lost (${reason})` }).catch(() => {});
+            void turn.cancel({ reason: `outpost sandbox duplex channel lost (${reason})` }).catch(() => {});
             armCancelDeadline();
           };
           removeLossListener = bridge.onLoss(cancelForLoss);
@@ -5211,7 +5211,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
               "stderr",
               `[outpost] A pending tool call (kind ${stalledTool.kind}) had no update for ${Math.round(stalledTool.silentMs / 1000)}s; ending the turn. Its permission request ${stalledTool.permissionRequested ? "reached" : "did not reach"} Outpost.\n`,
             ).catch(() => {});
-            void turn.cancel({ reason: "paperclip stalled tool watchdog" }).catch(() => {});
+            void turn.cancel({ reason: "outpost stalled tool watchdog" }).catch(() => {});
             armCancelDeadline();
           }, stalledToolCheckIntervalMs);
           stalledToolTimer.unref?.();
@@ -5249,7 +5249,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
       // to build the reported failure and its message.
       const cancelDeadlineTerminal = (): AcpRuntimeTurnResult => ({
         status: "cancelled",
-        stopReason: stalledTool ? "paperclip_stalled_tool_deadline" : "paperclip_duplex_loss_deadline",
+        stopReason: stalledTool ? "outpost_stalled_tool_deadline" : "outpost_duplex_loss_deadline",
       });
       const stepEventRelay = async (): Promise<AcpRuntimeTurnResult> => {
         const turn = activeTurn as AcpRuntimeTurn;
@@ -5309,7 +5309,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
           // both the close call and the drain it unblocks before this step
           // returns, so no late runtime event can still mutate shared state
           // (output segments, tool inventory) after finalization reads it.
-          await turn.closeStream({ reason: stalledTool ? "paperclip stalled tool cancel deadline" : "paperclip duplex loss cancel deadline" }).catch(() => {});
+          await turn.closeStream({ reason: stalledTool ? "outpost stalled tool cancel deadline" : "outpost duplex loss cancel deadline" }).catch(() => {});
           await drainEvents.catch(() => {});
           flushOutputSegment();
           return cancelDeadlineTerminal();
@@ -5359,7 +5359,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
         // nominally completed terminal. The file bridge path never sets this
         // method, so the optional call no-ops there.
         let duplexLossReason: DuplexLossReason | null = null;
-        const disposition = prepared.paperclipBridge?.settleRunDisposition?.() ?? null;
+        const disposition = prepared.outpostBridge?.settleRunDisposition?.() ?? null;
         if (disposition?.failed) {
           duplexLossReason = disposition.lossReason ?? "other";
         }
@@ -5426,14 +5426,14 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
           mode: "warm_or_close",
           handle: sessionHandle,
           reason: timedOut
-            ? "paperclip timeout cleanup"
+            ? "outpost timeout cleanup"
             : channelLost
-              ? "paperclip duplex channel lost cleanup"
+              ? "outpost duplex channel lost cleanup"
               : toolStalled
-                ? "paperclip stalled tool cleanup"
+                ? "outpost stalled tool cleanup"
                 : failedTurn
-                  ? `paperclip turn ${terminal.status}`
-                  : "paperclip completed turn cleanup",
+                  ? `outpost turn ${terminal.status}`
+                  : "outpost completed turn cleanup",
           discardPersistentState: sessionUnavailable || (terminal.status === "cancelled" && !preserveInterruptedSession) || timedOut || channelLost,
           dropWarmEntry: false,
           recordCloseError: false,
@@ -5617,7 +5617,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
         runtimeSettlement = {
           mode: "direct",
           handle: sessionHandle,
-          reason: timedOut ? "paperclip timeout cleanup" : "paperclip error cleanup",
+          reason: timedOut ? "outpost timeout cleanup" : "outpost error cleanup",
           discardPersistentState: timedOut,
           dropWarmEntry: true,
           recordCloseError: true,
@@ -5686,7 +5686,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
       // run-minted API key is never revoked, so it stays valid and forces a
       // close-and-relaunch. It is a non-secret marker; the settlement reads only its
       // presence, and no report or reuse payload carries it.
-      const LIVE_RUN_SCOPED_API_KEY = "paperclip-run-scoped-api-key";
+      const LIVE_RUN_SCOPED_API_KEY = "outpost-run-scoped-api-key";
       // Record the final per-resource disposition report where a test can observe
       // it. The engine never reads it back.
       const recordDispositionReport = (report: SettlementDispositionReport): void => {
@@ -5733,7 +5733,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
           const baseSettlement: RuntimeSettlementPlan = runtimeSettlement ?? {
             mode: "direct",
             handle: syntheticCloseHandle(),
-            reason: "paperclip cleanup",
+            reason: "outpost cleanup",
             discardPersistentState: false,
             dropWarmEntry: false,
             recordCloseError: true,
@@ -5759,7 +5759,7 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
           // channel that is dead by now. The read is non-mutating and only
           // adds a later-observed loss; it never clears the snapshot's `true`.
           const remoteChannelLost =
-            settlement.skipRemoteClose || (prepared.paperclipBridge?.readRunDisposition?.().failed ?? false);
+            settlement.skipRemoteClose || (prepared.outpostBridge?.readRunDisposition?.().failed ?? false);
           // The control channel is already known lost, so no remote call can
           // reach the backend. Release the local bookkeeping only and place no
           // `runtime.close(...)` call — that call has no deadline of its own

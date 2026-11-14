@@ -98,7 +98,7 @@ async function main() {
       await field.waitFor();
       if ((await field.inputValue()) !== input.callbackURL)
         throw new Error(
-          "Slack's saved Request URL differs from the actual owned Paperclip endpoint",
+          "Slack's saved Request URL differs from the actual owned Outpost endpoint",
         );
       const retry = page.getByRole("button", { name: "Retry", exact: true });
       if (await retry.isVisible()) await retry.click();

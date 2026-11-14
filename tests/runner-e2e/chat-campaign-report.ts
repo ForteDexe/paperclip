@@ -59,8 +59,8 @@ export function extractCampaignStages(scenario: CampaignScenario, attempt: Campa
     }
   }
   const setup = value("chat-catalog-setup-boundary.json");
-  if (!query || typeof source.id !== "string" || typeof source.companyId !== "string" || (!legacy && !Array.isArray(setup.humanCommentIds))) return stages;
-  const comments = array(conversation.comments).map(object).filter(comment => typeof comment.id === "string" && comment.issueId === source.id && comment.companyId === source.companyId && !comment.authorAgentId && !!comment.authorUserId && (!source.conversationUserId || comment.authorUserId === source.conversationUserId) && comment.body === query && !array(setup.humanCommentIds).includes(comment.id));
+  if (!query || typeof source.id !== "string" || typeof source.spaceId !== "string" || (!legacy && !Array.isArray(setup.humanCommentIds))) return stages;
+  const comments = array(conversation.comments).map(object).filter(comment => typeof comment.id === "string" && comment.issueId === source.id && comment.spaceId === source.spaceId && !comment.authorAgentId && !!comment.authorUserId && (!source.conversationUserId || comment.authorUserId === source.conversationUserId) && comment.body === query && !array(setup.humanCommentIds).includes(comment.id));
   if (comments.length !== 1) return stages;
   const proofNames = ["result.json", "chat-catalog-definition.json", conversationName, ...(!legacy ? ["chat-catalog-query-binding.json", "chat-catalog-setup-boundary.json"] : []), ...(documents["chat-catalog-query-attachments-before-send.json"] ? ["chat-catalog-query-attachments-before-send.json"] : [])];
   use(stages.canonicalPersisted, ...proofNames); use(stages.canonicalDispatch, ...proofNames);
@@ -69,7 +69,7 @@ export function extractCampaignStages(scenario: CampaignScenario, attempt: Campa
   if (returnedGrade) use(stages.featureGradingReturned, ...proofNames, observationName);
   // A saved comment can precede a failed wake/admission (actual HTTP409 case).
   // A native run must bind this exact source and new human comment.
-  if (array(conversation.runs).map(object).some(run => run.companyId === source.companyId && (!source.conversationAgentId || run.agentId === source.conversationAgentId) && run.runtimeMode === "native" && object(run.contextSnapshot).issueId === source.id && object(run.contextSnapshot).commentId === comments[0]!.id && !array(setup.runIds).includes(run.id))) use(stages.canonicalNativeAdmission, ...proofNames);
+  if (array(conversation.runs).map(object).some(run => run.spaceId === source.spaceId && (!source.conversationAgentId || run.agentId === source.conversationAgentId) && run.runtimeMode === "native" && object(run.contextSnapshot).issueId === source.id && object(run.contextSnapshot).commentId === comments[0]!.id && !array(setup.runIds).includes(run.id))) use(stages.canonicalNativeAdmission, ...proofNames);
   return stages;
 }
 

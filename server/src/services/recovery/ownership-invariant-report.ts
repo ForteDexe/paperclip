@@ -48,7 +48,7 @@ export type InvariantViolation = {
   rule: InvariantRule;
   kind: string;
   recordId: string;
-  companyId: string | null;
+  spaceId: string | null;
   runId: string | null;
   issueId: string | null;
   reason: string;
@@ -195,7 +195,7 @@ async function classify(owner: RecordOwner, runProofs: Map<string, Classificatio
 }
 
 /**
- * A board confirmation that a record's unrecorded owner stopped proves that owner gone
+ * A operator confirmation that a record's unrecorded owner stopped proves that owner gone
  * (`operator_attested`), but only while the prover still finds the owner unprovable for a legacy
  * reason and the record is unchanged since recovery asked. A live or provable owner always wins.
  */
@@ -332,14 +332,14 @@ async function checkAdmissionIndependence(db: Db, state: OwnershipReportState, n
   let backlog = false;
   let position = state.admissionWakeCursor ?? start;
   for (let page = 0; page < 10; page++) {
-    const rows = await db.select({ id: agentWakeupRequests.id, companyId: agentWakeupRequests.companyId, runId: agentWakeupRequests.runId,
+    const rows = await db.select({ id: agentWakeupRequests.id, spaceId: agentWakeupRequests.spaceId, runId: agentWakeupRequests.runId,
       issueId: sql<string | null>`${agentWakeupRequests.payload}->>'issueId'`, updatedAt: sql<string>`${agentWakeupRequests.updatedAt}::text` })
       .from(agentWakeupRequests).where(and(
         sql`(${agentWakeupRequests.updatedAt}, ${agentWakeupRequests.id}) > (${position.at}::timestamptz, ${position.id}::uuid)`,
         sql`${wakeText} ~* ${ACCOUNTING_HOLD_PATTERN}`))
       .orderBy(asc(agentWakeupRequests.updatedAt), asc(agentWakeupRequests.id)).limit(limit);
     for (const row of rows) violations.push({ rule: "I3_admission_independent", kind: "wake_request", recordId: row.id,
-      companyId: row.companyId, runId: row.runId, issueId: row.issueId, reason: "refused_for_accounting_hold" });
+      spaceId: row.spaceId, runId: row.runId, issueId: row.issueId, reason: "refused_for_accounting_hold" });
     if (rows.length > 0) position = { at: rows[rows.length - 1]!.updatedAt, id: rows[rows.length - 1]!.id };
     if (rows.length < limit) break;
     if (page === 9) backlog = true;
@@ -347,14 +347,14 @@ async function checkAdmissionIndependence(db: Db, state: OwnershipReportState, n
   state.admissionWakeCursor = position;
   position = state.admissionRunCursor ?? start;
   for (let page = 0; page < 10; page++) {
-    const rows = await db.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, issueId: heartbeatRuns.issueId,
+    const rows = await db.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, issueId: heartbeatRuns.issueId,
       updatedAt: sql<string>`${heartbeatRuns.updatedAt}::text` })
       .from(heartbeatRuns).where(and(
         sql`(${heartbeatRuns.updatedAt}, ${heartbeatRuns.id}) > (${position.at}::timestamptz, ${position.id}::uuid)`,
         inArray(heartbeatRuns.status, ["cancelled", "failed"]), sql`${runText} ~* ${ACCOUNTING_HOLD_PATTERN}`))
       .orderBy(asc(heartbeatRuns.updatedAt), asc(heartbeatRuns.id)).limit(limit);
     for (const row of rows) violations.push({ rule: "I3_admission_independent", kind: "queued_run", recordId: row.id,
-      companyId: row.companyId, runId: row.id, issueId: row.issueId, reason: "refused_for_accounting_hold" });
+      spaceId: row.spaceId, runId: row.id, issueId: row.issueId, reason: "refused_for_accounting_hold" });
     if (rows.length > 0) position = { at: rows[rows.length - 1]!.updatedAt, id: rows[rows.length - 1]!.id };
     if (rows.length < limit) break;
     if (page === 9) backlog = true;
@@ -368,32 +368,32 @@ async function checkAdmissionIndependence(db: Db, state: OwnershipReportState, n
  * cleared missed its release event (invariant 4). */
 const DEFERRED_PROMOTION_GRACE_MS = 5 * 60_000;
 
-/** Deferred pause refusals whose pause has lifted (company active, agent not paused)
+/** Deferred pause refusals whose pause has lifted (space active, agent not paused)
  * but that no release event promoted. The reconciliation worker promotes them
  * through `promoteDeferredWorkIntents` as a backstop. */
 async function checkDeferredIntentsPromoted(db: Db, now: Date, limit: number): Promise<{ violations: InvariantViolation[]; nextDueAt: Date | null }> {
   // Only messages the pause path saved, whose hold this check can read
   // exactly. Each read is capped like every other check in this report.
   const pauseRefusal = sql`${agentWakeupRequests.payload}->'executionWait'->>'trigger' = 'pause_lifted'
-    and ${agentWakeupRequests.payload}->'executionWait'->>'reason' in ('company.inactive', 'agent.not_invokable')`;
-  const holdCleared = sql`exists (select 1 from companies c where c.id = ${agentWakeupRequests.companyId} and c.status = 'active')
+    and ${agentWakeupRequests.payload}->'executionWait'->>'reason' in ('space.inactive', 'agent.not_invokable')`;
+  const holdCleared = sql`exists (select 1 from spaces c where c.id = ${agentWakeupRequests.spaceId} and c.status = 'active')
     and exists (select 1 from agents a where a.id = ${agentWakeupRequests.agentId} and a.status not in ('paused', 'terminated', 'pending_approval'))
     -- A message saved behind a live run or a held lock still has an owner.
     and not exists (select 1 from issues i where i.id::text = ${agentWakeupRequests.payload}->>'issueId'
-      and i.company_id = ${agentWakeupRequests.companyId} and i.execution_run_id is not null)
-    and not exists (select 1 from heartbeat_runs live_run where live_run.company_id = ${agentWakeupRequests.companyId}
+      and i.space_id = ${agentWakeupRequests.spaceId} and i.execution_run_id is not null)
+    and not exists (select 1 from heartbeat_runs live_run where live_run.space_id = ${agentWakeupRequests.spaceId}
       and (live_run.context_snapshot->>'issueId' = ${agentWakeupRequests.payload}->>'issueId'
         or live_run.native_issue_id::text = ${agentWakeupRequests.payload}->>'issueId')
       and live_run.status in ('queued', 'running', 'scheduled_retry'))`;
   const graceStart = new Date(now.getTime() - DEFERRED_PROMOTION_GRACE_MS);
-  const rows = await db.select({ id: agentWakeupRequests.id, companyId: agentWakeupRequests.companyId,
+  const rows = await db.select({ id: agentWakeupRequests.id, spaceId: agentWakeupRequests.spaceId,
     issueId: sql<string | null>`${agentWakeupRequests.payload}->>'issueId'` }).from(agentWakeupRequests)
     .where(and(eq(agentWakeupRequests.status, "deferred_issue_execution"), pauseRefusal,
       lt(agentWakeupRequests.updatedAt, graceStart), holdCleared))
     .orderBy(asc(agentWakeupRequests.id)).limit(Math.min(limit, MAX_RECORDS_PER_KIND));
   // A cleared hold inside its grace window is a saved deadline: the worker
   // checks again when it ends. A hold still in force needs no deadline; its
-  // release (company or agent lifecycle change) wakes the worker.
+  // release (space or agent lifecycle change) wakes the worker.
   const pending = await db.select({ at: agentWakeupRequests.updatedAt }).from(agentWakeupRequests)
     .where(and(eq(agentWakeupRequests.status, "deferred_issue_execution"), pauseRefusal,
       sql`${agentWakeupRequests.updatedAt} >= ${graceStart.toISOString()}::timestamptz`, holdCleared))
@@ -401,7 +401,7 @@ async function checkDeferredIntentsPromoted(db: Db, now: Date, limit: number): P
   const due = pending.length ? { at: new Date(Math.min(...pending.map(row => new Date(row.at).getTime()))) } : null;
   return {
     violations: rows.map(row => ({ rule: "I4_exactly_once_intent" as const, kind: "wake_request_deferred", recordId: row.id,
-      companyId: row.companyId, runId: null, issueId: row.issueId, reason: DEFERRED_INTENT_NOT_PROMOTED })),
+      spaceId: row.spaceId, runId: null, issueId: row.issueId, reason: DEFERRED_INTENT_NOT_PROMOTED })),
     nextDueAt: due?.at ? new Date(new Date(due.at).getTime() + DEFERRED_PROMOTION_GRACE_MS) : null,
   };
 }
@@ -416,14 +416,14 @@ export const USER_COMMENT_DROPPED_BY_STALE_RUN = "user_comment_dropped_by_stale_
 /** Whether a run of comment `c`'s task matches `condition`. A run belongs to
  * the task by its legacy context or its native column. Each binding is a
  * separate indexed probe per comment: one OR across both lets PostgreSQL hash
- * every run of the company and read each run's context. `offset 0` keeps each
+ * every run of the space and read each run's context. `offset 0` keeps each
  * probe a per-row index lookup; without it PostgreSQL can also build a hashed
- * subplan or a hash join over all runs of the company. */
+ * subplan or a hash join over all runs of the space. */
 function taskRuns(alias: string, condition: SQL) {
   const run = sql.raw(alias);
-  return sql`(exists (select 1 from heartbeat_runs ${run} where ${run}.company_id = c.company_id
+  return sql`(exists (select 1 from heartbeat_runs ${run} where ${run}.space_id = c.space_id
       and ${run}.context_snapshot->>'issueId' = c.issue_id::text and ${condition} offset 0)
-    or exists (select 1 from heartbeat_runs ${run} where ${run}.company_id = c.company_id
+    or exists (select 1 from heartbeat_runs ${run} where ${run}.space_id = c.space_id
       and ${run}.native_issue_id = c.issue_id and ${condition} offset 0))`;
 }
 
@@ -441,27 +441,27 @@ export async function checkStaleDroppedComments(db: Db, now: Date, limit: number
   // cancellation dropped and that no open wake carries. These are rare, so the
   // run probes (taskRuns) read only these few comments. `offset 0` keeps the
   // stale-wake lookup a per-comment index probe; without it PostgreSQL can
-  // hash every wake request of the company and read each payload.
-  const rows = await db.execute<{ id: string; company_id: string; issue_id: string; agent_id: string }>(sql`
+  // hash every wake request of the space and read each payload.
+  const rows = await db.execute<{ id: string; space_id: string; issue_id: string; agent_id: string }>(sql`
     with dropped as materialized (
-      select c.id, c.company_id, c.issue_id, c.created_at, i.assignee_agent_id as agent_id from issue_comments c
-      join issues i on i.id = c.issue_id and i.company_id = c.company_id
+      select c.id, c.space_id, c.issue_id, c.created_at, i.assignee_agent_id as agent_id from issue_comments c
+      join issues i on i.id = c.issue_id and i.space_id = c.space_id
       where c.author_user_id is not null and c.deleted_at is null
         and c.author_agent_id is null and c.created_by_run_id is null and c.created_at >= ${since}::timestamptz
         and i.status = 'done' and i.assignee_agent_id is not null and i.conversation_agent_id is null
-        and ${taskClosedByAgentSql(sql`c.company_id`, sql`c.issue_id`)}
-        and exists (select 1 from agent_wakeup_requests stale where stale.company_id = c.company_id
+        and ${taskClosedByAgentSql(sql`c.space_id`, sql`c.issue_id`)}
+        and exists (select 1 from agent_wakeup_requests stale where stale.space_id = c.space_id
           and stale.payload->>'issueId' = c.issue_id::text and stale.status = 'cancelled'
           and stale.error = 'continuation_task_ownership_changed'
           and (stale.payload->>'commentId' = c.id::text
-            or coalesce(stale.payload#>'{_paperclipWakeContext,wakeCommentIds}', '[]'::jsonb) ? c.id::text) offset 0)
-        and not exists (select 1 from agent_wakeup_requests open_wake where open_wake.company_id = c.company_id
+            or coalesce(stale.payload#>'{_outpostWakeContext,wakeCommentIds}', '[]'::jsonb) ? c.id::text) offset 0)
+        and not exists (select 1 from agent_wakeup_requests open_wake where open_wake.space_id = c.space_id
           and open_wake.payload->>'issueId' = c.issue_id::text
           and open_wake.status not in ('cancelled', 'skipped', 'failed', 'coalesced')
           and (open_wake.payload->>'commentId' = c.id::text
-            or coalesce(open_wake.payload#>'{_paperclipWakeContext,wakeCommentIds}', '[]'::jsonb) ? c.id::text))
+            or coalesce(open_wake.payload#>'{_outpostWakeContext,wakeCommentIds}', '[]'::jsonb) ? c.id::text))
     )
-    select c.id, c.company_id, c.issue_id, c.agent_id from dropped c
+    select c.id, c.space_id, c.issue_id, c.agent_id from dropped c
     where ${taskRuns("closing", sql`closing.agent_id = c.agent_id and closing.status = 'succeeded'
         and closing.started_at < c.created_at and closing.finished_at >= c.created_at`)}
       and not ${taskRuns("r", sql`r.status in ('queued', 'running', 'scheduled_retry')`)}
@@ -471,12 +471,12 @@ export async function checkStaleDroppedComments(db: Db, now: Date, limit: number
   // task history of another message's turn.
   const owed: typeof rows[number][] = [];
   for (const row of rows) {
-    const delivered = await deliveredQueuedCommentIds(db, { companyId: row.company_id, issueId: row.issue_id,
+    const delivered = await deliveredQueuedCommentIds(db, { spaceId: row.space_id, issueId: row.issue_id,
       agentId: row.agent_id, commentIds: [row.id] });
     if (!delivered.has(row.id)) owed.push(row);
   }
   return owed.map(row => ({ rule: "I4_exactly_once_intent" as const, kind: "issue_comment", recordId: row.id,
-    companyId: row.company_id, runId: null, issueId: row.issue_id, reason: USER_COMMENT_DROPPED_BY_STALE_RUN }));
+    spaceId: row.space_id, runId: null, issueId: row.issue_id, reason: USER_COMMENT_DROPPED_BY_STALE_RUN }));
 }
 
 /** Invariant 4, reconciler-owned rule: an undelivered user comment newer than
@@ -489,36 +489,36 @@ export async function checkUserCommentsWithoutWake(db: Db, now: Date, limit: num
   const since = new Date(now.getTime() - INTENT_LOOKBACK_MS).toISOString();
   // Run lookups are taskRuns probes. `offset 0` also keeps the steer check's
   // event lookup a per-row index lookup; without it PostgreSQL can build a
-  // hash join over all events of the company.
+  // hash join over all events of the space.
   // Three stages, cheapest first. Most user comments have a wake (stage one)
   // or a later run (stage two). Only the few comments left reach the steer
   // check, which reads run event payloads.
-  const rows = await db.execute<{ id: string; company_id: string; issue_id: string; created_at: string }>(sql`
+  const rows = await db.execute<{ id: string; space_id: string; issue_id: string; created_at: string }>(sql`
     with unwoken as materialized (
-      select c.id, c.company_id, c.issue_id, c.created_at from issue_comments c
-      join issues i on i.id = c.issue_id and i.company_id = c.company_id
+      select c.id, c.space_id, c.issue_id, c.created_at from issue_comments c
+      join issues i on i.id = c.issue_id and i.space_id = c.space_id
       where c.author_user_id is not null and c.deleted_at is null
         and c.author_agent_id is null and c.created_by_run_id is null
         and c.created_at >= ${since}::timestamptz
         and i.assignee_agent_id is not null and i.conversation_agent_id is null
         and (i.status in ('todo', 'in_progress')
-          or (i.status = 'done' and ${taskClosedByAgentSql(sql`c.company_id`, sql`c.issue_id`)}))
+          or (i.status = 'done' and ${taskClosedByAgentSql(sql`c.space_id`, sql`c.issue_id`)}))
         and i.execution_run_id is null
-        and not exists (select 1 from agent_wakeup_requests w where w.company_id = c.company_id
+        and not exists (select 1 from agent_wakeup_requests w where w.space_id = c.space_id
           and w.payload->>'issueId' = c.issue_id::text
           and (w.payload->>'commentId' = c.id::text
-            or coalesce(w.payload#>'{_paperclipWakeContext,wakeCommentIds}', '[]'::jsonb) ? c.id::text))
+            or coalesce(w.payload#>'{_outpostWakeContext,wakeCommentIds}', '[]'::jsonb) ? c.id::text))
     ), candidate as materialized (
-      select c.id, c.company_id, c.issue_id, c.created_at from unwoken c
+      select c.id, c.space_id, c.issue_id, c.created_at from unwoken c
       where not ${taskRuns("r", sql`(r.status in ('queued', 'running', 'scheduled_retry')
           or coalesce(r.started_at, r.created_at) >= c.created_at)`)}
         and ${taskRuns("prior", sql`true`)}
     )
-    select c.id, c.company_id, c.issue_id, c.created_at::text as created_at from candidate c
+    select c.id, c.space_id, c.issue_id, c.created_at::text as created_at from candidate c
     where not ${taskRuns("steered", sql`coalesce(steered.started_at, steered.created_at) <= c.created_at
       and (steered.finished_at is null or steered.finished_at >= c.created_at)
       and exists (select 1 from heartbeat_run_events steer_event
-        where steer_event.company_id = steered.company_id and steer_event.run_id = steered.id
+        where steer_event.space_id = steered.space_id and steer_event.run_id = steered.id
           and steer_event.event_type in ('item.started', 'item.completed')
           and steer_event.created_at >= c.created_at
           and strpos(steer_event.payload::text, c.id::text) > 0 offset 0)`)}
@@ -532,7 +532,7 @@ export async function checkUserCommentsWithoutWake(db: Db, now: Date, limit: num
   return {
     violations: [...rows].filter(row => new Date(row.created_at).getTime() < graceEnd)
       .map(row => ({ rule: "I4_exactly_once_intent" as const, kind: "issue_comment", recordId: row.id,
-        companyId: row.company_id, runId: null, issueId: row.issue_id, reason: USER_COMMENT_WITHOUT_WAKE })),
+        spaceId: row.space_id, runId: null, issueId: row.issue_id, reason: USER_COMMENT_WITHOUT_WAKE })),
     nextDueAt: young.length ? new Date(Math.min(...young) + COMMENT_WAKE_GRACE_MS) : null,
   };
 }
@@ -551,7 +551,7 @@ async function checkExactlyOnceIntents(db: Db, state: OwnershipReportState, now:
   const violations: InvariantViolation[] = [];
   let position = cursor;
   for (let page = 0; page < 10; page++) {
-    const rows = await db.select({ id: agentWakeupRequests.id, companyId: agentWakeupRequests.companyId,
+    const rows = await db.select({ id: agentWakeupRequests.id, spaceId: agentWakeupRequests.spaceId,
       runId: agentWakeupRequests.runId, updatedAt: sql<string>`${agentWakeupRequests.updatedAt}::text` })
       .from(agentWakeupRequests).where(and(inArray(agentWakeupRequests.status, ["skipped", "failed"]),
         sql`(${agentWakeupRequests.updatedAt}, ${agentWakeupRequests.id}) > (${position.at}::timestamptz, ${position.id}::uuid)`,
@@ -561,10 +561,10 @@ async function checkExactlyOnceIntents(db: Db, state: OwnershipReportState, now:
           and coalesce(${agentWakeupRequests.error}, '') ~* 'hard-stop|no reliable price')`,
         or(eq(agentWakeupRequests.requestedByActorType, "user"),
           sql`${agentWakeupRequests.payload} ? 'commentId'`,
-          sql`jsonb_typeof(${agentWakeupRequests.payload}#>'{_paperclipWakeContext,wakeCommentIds}') = 'array'`)))
+          sql`jsonb_typeof(${agentWakeupRequests.payload}#>'{_outpostWakeContext,wakeCommentIds}') = 'array'`)))
       .orderBy(asc(agentWakeupRequests.updatedAt), asc(agentWakeupRequests.id)).limit(limit);
     for (const row of rows) {
-      violations.push({ rule: "I4_exactly_once_intent", kind: "wake_request", recordId: row.id, companyId: row.companyId,
+      violations.push({ rule: "I4_exactly_once_intent", kind: "wake_request", recordId: row.id, spaceId: row.spaceId,
         runId: row.runId, issueId: null, reason: "terminal_on_temporary_refusal" });
     }
     if (rows.length > 0) position = { at: rows[rows.length - 1]!.updatedAt, id: rows[rows.length - 1]!.id };
@@ -580,22 +580,22 @@ async function checkExactlyOnceIntents(db: Db, state: OwnershipReportState, now:
  * no open recovery action has no next action (invariant 7). Issues still in
  * their grace window return the time they become checkable. */
 async function checkVisibleNextAction(db: Db, now: Date, limit: number): Promise<{ violations: InvariantViolation[]; nextDueAt: Date | null }> {
-  const rows: Array<{ id: string; companyId: string; executionRunId: string | null; updatedAt: Date }> = [];
+  const rows: Array<{ id: string; spaceId: string; executionRunId: string | null; updatedAt: Date }> = [];
   for (let offset = 0; offset < MAX_RECORDS_PER_KIND; offset += limit) {
-    const page = await db.select({ id: issues.id, companyId: issues.companyId, executionRunId: issues.executionRunId,
+    const page = await db.select({ id: issues.id, spaceId: issues.spaceId, executionRunId: issues.executionRunId,
     updatedAt: issues.updatedAt })
     .from(issues).where(and(eq(issues.status, "in_progress"), isNotNull(issues.assigneeAgentId),
       // A saved monitor deadline is a first-class wait path (doc/execution-semantics.md §8).
       or(isNull(issues.monitorNextCheckAt), lt(issues.monitorNextCheckAt, now)),
       notExists(db.select({ one: sql`1` }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, issues.companyId), inArray(heartbeatRuns.status, ACTIVE_RUN_STATUSES),
+        eq(heartbeatRuns.spaceId, issues.spaceId), inArray(heartbeatRuns.status, ACTIVE_RUN_STATUSES),
         or(eq(heartbeatRuns.issueId, issues.id), eq(heartbeatRuns.nativeIssueId, issues.id))))),
       notExists(db.select({ one: sql`1` }).from(agentWakeupRequests).where(and(
-        eq(agentWakeupRequests.companyId, issues.companyId),
+        eq(agentWakeupRequests.spaceId, issues.spaceId),
         inArray(agentWakeupRequests.status, ["queued", "deferred_issue_execution", "claimed"]),
         sql`${agentWakeupRequests.payload}->>'issueId' = ${issues.id}::text`))),
       notExists(db.select({ one: sql`1` }).from(issueRecoveryActions).where(and(
-        eq(issueRecoveryActions.companyId, issues.companyId), eq(issueRecoveryActions.sourceIssueId, issues.id),
+        eq(issueRecoveryActions.spaceId, issues.spaceId), eq(issueRecoveryActions.sourceIssueId, issues.id),
         isNull(issueRecoveryActions.resolvedAt)))),
     )).orderBy(asc(issues.updatedAt), asc(issues.id)).limit(limit).offset(offset);
     rows.push(...page);
@@ -606,7 +606,7 @@ async function checkVisibleNextAction(db: Db, now: Date, limit: number): Promise
   let nextDueAt: Date | null = null;
   for (const row of rows) {
     if (row.updatedAt.getTime() < cutoff) {
-      violations.push({ rule: "I7_visible_next_action", kind: "issue", recordId: row.id, companyId: row.companyId,
+      violations.push({ rule: "I7_visible_next_action", kind: "issue", recordId: row.id, spaceId: row.spaceId,
         runId: row.executionRunId, issueId: row.id, reason: row.executionRunId ? "lock_without_live_run" : "no_owner_no_wake" });
     } else {
       // Rows are ordered by updated_at, so the first one in grace is earliest.
@@ -677,7 +677,7 @@ export async function runOwnershipReconciliationPass(db: Db, options: {
       const proof = proofs[index]!;
       report.verdicts[proof.verdict] += 1;
       report.reasons[proof.reason] = (report.reasons[proof.reason] ?? 0) + 1;
-      const base = { kind: kind.id, recordId: record.recordId, companyId: record.companyId,
+      const base = { kind: kind.id, recordId: record.recordId, spaceId: record.spaceId,
         runId: record.runId, issueId: record.issueId };
       if (kind.invariantChecks.includes(1) && record.owner.kind === "none") {
         violations.push({ ...base, rule: "I1_owned", reason: "no_owner_stamp" });
@@ -766,10 +766,10 @@ export async function runOwnershipReconciliationPass(db: Db, options: {
   const newViolations = violations.filter(violation => !state.reported.has(violationKey(violation)));
   if (options.record !== false) {
     for (const violation of newViolations) {
-      if (!violation.companyId) continue;
+      if (!violation.spaceId) continue;
       try {
         await persistActivity(db, {
-          companyId: violation.companyId, actorType: "system", actorId: OWNERSHIP_RECONCILER_ACTOR_ID,
+          spaceId: violation.spaceId, actorType: "system", actorId: OWNERSHIP_RECONCILER_ACTOR_ID,
           action: OWNERSHIP_INVARIANT_VIOLATION_ACTION, entityType: "ownership_record", entityId: violation.recordId,
           details: { rule: violation.rule, kind: violation.kind, reason: violation.reason,
             runId: violation.runId, issueId: violation.issueId, mode: "report_only" }, // violations are reported, never repaired
@@ -779,7 +779,7 @@ export async function runOwnershipReconciliationPass(db: Db, options: {
         const key = violationKey(violation);
         const attempts = (state.unwritten.get(key)?.attempts ?? 0) + 1;
         if (attempts >= MAX_WRITE_ATTEMPTS) {
-          // A poison row (for example a company that no longer exists) must
+          // A poison row (for example a space that no longer exists) must
           // not keep the report retrying for the life of the process.
           state.unwritten.delete(key);
           state.reported.add(key);
@@ -793,11 +793,11 @@ export async function runOwnershipReconciliationPass(db: Db, options: {
       state.reported.add(violationKey(violation));
     }
     for (const violation of newViolations) {
-      if (violation.companyId) continue;
-      // No company to attach an activity row to (for example an unreadable
+      if (violation.spaceId) continue;
+      // No space to attach an activity row to (for example an unreadable
       // spool file): the server log is the only record.
       logger.warn({ rule: violation.rule, kind: violation.kind, recordId: violation.recordId, reason: violation.reason },
-        "ownership invariant violation without a company");
+        "ownership invariant violation without a space");
       state.reported.add(violationKey(violation));
     }
   }

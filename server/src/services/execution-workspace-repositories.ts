@@ -103,7 +103,7 @@ export function resolveTaskRepository(request: PrepareWorkspaceRepository["repos
 }
 
 export function taskRepositoryRelativePath(identity: string) {
-  return `.paperclip-repositories/task-repo-${createHash("sha256").update(identity).digest("hex").slice(0, 24)}`;
+  return `.outpost-repositories/task-repo-${createHash("sha256").update(identity).digest("hex").slice(0, 24)}`;
 }
 
 export function assertRepositoryRetryMatches(row: Pick<RepositoryRow, "repositoryIdentity" | "requestedRef">, identity: string, ref: string) {
@@ -113,9 +113,9 @@ export function assertRepositoryRetryMatches(row: Pick<RepositoryRow, "repositor
 }
 
 export function executionWorkspaceRepositoryService(db: Db) {
-  async function catalog(companyId: string, userId: string | null, localTrusted: boolean, requiredRepositoryIds: string[] = []) {
+  async function catalog(spaceId: string, userId: string | null, localTrusted: boolean, requiredRepositoryIds: string[] = []) {
     return measureRunPhase("workspace.repository.catalog", async () =>
-      (await toolAccessService(db).listProjectRepositories(companyId, userId, localTrusted, { requiredRepositoryIds })).repositories);
+      (await toolAccessService(db).listProjectRepositories(spaceId, userId, localTrusted, { requiredRepositoryIds })).repositories);
   }
   async function requiresAnonymousAcquisition(reader: Db | DbTransaction, input: {
     issue: typeof issues.$inferSelect; workspace: Pick<typeof executionWorkspaces.$inferSelect, "projectId"> | null;
@@ -124,62 +124,62 @@ export function executionWorkspaceRepositoryService(db: Db) {
     return measureRunPhase("workspace.repository.current_policy", async () => {
       const { issue, workspace } = input;
       const agentId = input.agentId ?? issue.assigneeAgentId;
-      const [agent] = agentId ? await measureRunPhase("workspace.repository.db.agent", () => reader.select().from(agents).where(and(eq(agents.id, agentId), eq(agents.companyId, issue.companyId)))) : [];
+      const [agent] = agentId ? await measureRunPhase("workspace.repository.db.agent", () => reader.select().from(agents).where(and(eq(agents.id, agentId), eq(agents.spaceId, issue.spaceId)))) : [];
       if (agentId && !agent) throw forbidden("Task repository agent is unavailable");
-      const [project] = issue.projectId ? await measureRunPhase("workspace.repository.db.project", () => reader.select().from(projects).where(and(eq(projects.id, issue.projectId!), eq(projects.companyId, issue.companyId)))) : [];
-      const [workspaceSourceProject] = workspace?.projectId ? await measureRunPhase("workspace.repository.db.project", () => reader.select().from(projects).where(and(eq(projects.id, workspace.projectId!), eq(projects.companyId, issue.companyId)))) : [];
+      const [project] = issue.projectId ? await measureRunPhase("workspace.repository.db.project", () => reader.select().from(projects).where(and(eq(projects.id, issue.projectId!), eq(projects.spaceId, issue.spaceId)))) : [];
+      const [workspaceSourceProject] = workspace?.projectId ? await measureRunPhase("workspace.repository.db.project", () => reader.select().from(projects).where(and(eq(projects.id, workspace.projectId!), eq(projects.spaceId, issue.spaceId)))) : [];
       const runId = input.runId ?? issue.executionRunId;
-      const [run] = runId ? await measureRunPhase("workspace.repository.db.run", () => reader.select(taskRepositoryRunColumns).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, issue.companyId)))) : [];
-      return requiresAnonymousRepositoryAcquisition({ companyId: issue.companyId, issue, agent, project,
+      const [run] = runId ? await measureRunPhase("workspace.repository.db.run", () => reader.select(taskRepositoryRunColumns).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, issue.spaceId)))) : [];
+      return requiresAnonymousRepositoryAcquisition({ spaceId: issue.spaceId, issue, agent, project,
         workspaceSourceProject, run, agentId, runId, explicitRunId: input.runId });
     });
   }
-  async function assertCurrentControllerAcquisition(input: { companyId: string; issueId: string; workspaceId: string; agentId: string; runId: string }) {
+  async function assertCurrentControllerAcquisition(input: { spaceId: string; issueId: string; workspaceId: string; agentId: string; runId: string }) {
     return measureRunPhase("workspace.repository.acquisition", async () => {
-      const [issue] = await measureRunPhase("workspace.repository.db.issue", () => db.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId))));
-      const [workspace] = await measureRunPhase("workspace.repository.db.workspace", () => db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.companyId, input.companyId))));
+      const [issue] = await measureRunPhase("workspace.repository.db.issue", () => db.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId))));
+      const [workspace] = await measureRunPhase("workspace.repository.db.workspace", () => db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.spaceId, input.spaceId))));
       if (!issue || !workspace || issue.executionWorkspaceId !== workspace.id) throw forbidden("Task repository workspace binding is unavailable");
       if (await requiresAnonymousAcquisition(db, { issue, workspace, agentId: input.agentId, runId: input.runId })) throw forbidden(controllerAcquisitionMessage);
     });
   }
-  async function request(input: { companyId: string; issueId: string; actor: AuthorizationActor; request: PrepareWorkspaceRepository }) {
+  async function request(input: { spaceId: string; issueId: string; actor: AuthorizationActor; request: PrepareWorkspaceRepository }) {
     const parsed = prepareWorkspaceRepositorySchema.parse(input.request);
-    const [requestedIssue] = await db.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId), await issueReadSqlCondition(db, input.actor)));
+    const [requestedIssue] = await db.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId), await issueReadSqlCondition(db, input.actor)));
     if (!requestedIssue) throw notFound("Task not found");
-    const issueResource = (issue: typeof issues.$inferSelect) => ({ type: "issue" as const, companyId: issue.companyId, issueId: issue.id,
+    const issueResource = (issue: typeof issues.$inferSelect) => ({ type: "issue" as const, spaceId: issue.spaceId, issueId: issue.id,
       status: issue.status, assigneeAgentId: issue.assigneeAgentId, assigneeUserId: issue.assigneeUserId });
     const decision = await authorizationService(db).decide({ actor: input.actor, action: "issue:mutate", resource: issueResource(requestedIssue) });
     if (!decision.allowed) throw forbidden("Task workspace modification is not allowed");
     let userId = input.actor.userId ?? null;
     let localTrusted = input.actor.source === "local_implicit";
     if (input.actor.type === "agent") {
-      if (input.actor.source !== "agent_jwt" || !input.actor.agentId || !input.actor.runId || input.actor.companyId !== input.companyId) throw forbidden("Repository preparation requires an authenticated task run");
-      const identity = await captureRunIdentity(db, { companyId: input.companyId, agentId: input.actor.agentId, runId: input.actor.runId }, { readScope: "task_authorization" });
+      if (input.actor.source !== "agent_jwt" || !input.actor.agentId || !input.actor.runId || input.actor.spaceId !== input.spaceId) throw forbidden("Repository preparation requires an authenticated task run");
+      const identity = await captureRunIdentity(db, { spaceId: input.spaceId, agentId: input.actor.agentId, runId: input.actor.runId }, { readScope: "task_authorization" });
       const runIssueId = identity.run.nativeIssueId ?? identity.run.contextSnapshot?.issueId;
       if (runIssueId !== input.issueId) throw forbidden("Repository preparation is scoped to the current task");
       userId = identity.run.responsibleUserId;
-      localTrusted = userId === "local-board";
+      localTrusted = userId === "local-operator";
       if (!userId) throw forbidden("Repository access requires a responsible user");
     }
-    const available = await catalog(input.companyId, userId, localTrusted);
+    const available = await catalog(input.spaceId, userId, localTrusted);
     const requestedRef = parsed.ref ?? "HEAD";
     const receipt = await measureRunTransaction(db, "workspace", async tx => {
-      const [issue] = await measureRunPhase("workspace.sources.inventory", async () => tx.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId), await issueReadSqlCondition(tx, input.actor))).for("no key update"));
+      const [issue] = await measureRunPhase("workspace.sources.inventory", async () => tx.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId), await issueReadSqlCondition(tx, input.actor))).for("no key update"));
       if (!issue) throw notFound("Task not found");
       const currentDecision = await authorizationService(tx).decide({ actor: input.actor, action: "issue:mutate", resource: issueResource(issue) });
       if (!currentDecision.allowed) throw forbidden("Task workspace modification is not allowed");
       if (input.actor.type === "agent" && !["standard", "skill_test"].includes(issue.workMode)) throw forbidden("Repository preparation is unavailable in Ask or Plan mode");
       if (!issue.executionWorkspaceId) throw conflict("The task has no admitted workspace yet. Start it once before preparing a repository.");
-      const [workspace] = await measureRunPhase("workspace.sources.inventory", async () => tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, issue.executionWorkspaceId!), eq(executionWorkspaces.companyId, input.companyId), taskWorkspaceSelectableCondition())).for("no key update"));
+      const [workspace] = await measureRunPhase("workspace.sources.inventory", async () => tx.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, issue.executionWorkspaceId!), eq(executionWorkspaces.spaceId, input.spaceId), taskWorkspaceSelectableCondition())).for("no key update"));
       if (!workspace) throw conflict("Execution workspace is unavailable");
-      await assertTaskWorkspaceExecutionAccess(tx, input.actor, input.companyId, { issueId: input.issueId, workspaceId: workspace.id });
+      await assertTaskWorkspaceExecutionAccess(tx, input.actor, input.spaceId, { issueId: input.issueId, workspaceId: workspace.id });
       if (workspace.providerType === "adapter_managed") throw conflict("Repository preparation is unavailable for this environment-owned workspace");
       const anonymousOnly = await requiresAnonymousAcquisition(tx, { issue, workspace,
         agentId: input.actor.agentId, runId: input.actor.runId });
       const source = resolveAcquisitionSource(parsed.repository, available, anonymousOnly);
       if (!workspace.cwd) throw conflict("The task workspace has no directory for repository preparation");
       if (anonymousOnly) throw forbidden(controllerAcquisitionMessage);
-      const existing = await measureRunPhase("workspace.sources.inventory", async () => tx.select().from(executionWorkspaceRepositories).where(and(eq(executionWorkspaceRepositories.companyId, input.companyId), eq(executionWorkspaceRepositories.executionWorkspaceId, workspace.id), or(eq(executionWorkspaceRepositories.repositoryIdentity, source.repositoryIdentity), sql`${executionWorkspaceRepositories.requestKeys} ? ${parsed.requestKey}`))));
+      const existing = await measureRunPhase("workspace.sources.inventory", async () => tx.select().from(executionWorkspaceRepositories).where(and(eq(executionWorkspaceRepositories.spaceId, input.spaceId), eq(executionWorkspaceRepositories.executionWorkspaceId, workspace.id), or(eq(executionWorkspaceRepositories.repositoryIdentity, source.repositoryIdentity), sql`${executionWorkspaceRepositories.requestKeys} ? ${parsed.requestKey}`))));
       for (const row of existing) assertAcquisitionReceipt(row, anonymousOnly);
       if (existing.length === 1 && existing[0].repositoryIdentity === source.repositoryIdentity && existing[0].requestedRef !== requestedRef
         && await refCorrectionAllowed(existing[0], workspace)) {
@@ -190,7 +190,7 @@ export function executionWorkspaceRepositoryService(db: Db) {
         }).where(and(eq(executionWorkspaceRepositories.id, row.id), eq(executionWorkspaceRepositories.state, "needs_repair"),
           eq(executionWorkspaceRepositories.requestedRef, row.requestedRef), isNull(executionWorkspaceRepositories.pinnedCommit))).returning());
         if (!corrected) throw conflict(repositoryRetryConflictMessage);
-        await measureRunPhase("workspace.write", () => tx.insert(activityLog).values({ companyId: input.companyId, actorType: input.actor.type === "agent" ? "agent" : "user", actorId: input.actor.agentId ?? input.actor.userId ?? "local-board", action: "workspace.repository.ref_corrected", entityType: "execution_workspace", entityId: workspace.id, runId: input.actor.runId ?? null, responsibleUserId: userId, details: { repositoryId: row.id, issueId: input.issueId, previousRef: row.requestedRef, requestedRef, applies: "next_normal_admission" } }));
+        await measureRunPhase("workspace.write", () => tx.insert(activityLog).values({ spaceId: input.spaceId, actorType: input.actor.type === "agent" ? "agent" : "user", actorId: input.actor.agentId ?? input.actor.userId ?? "local-operator", action: "workspace.repository.ref_corrected", entityType: "execution_workspace", entityId: workspace.id, runId: input.actor.runId ?? null, responsibleUserId: userId, details: { repositoryId: row.id, issueId: input.issueId, previousRef: row.requestedRef, requestedRef, applies: "next_normal_admission" } }));
         return corrected;
       }
       for (const row of existing) assertRepositoryRetryMatches(row, source.repositoryIdentity, requestedRef);
@@ -202,8 +202,8 @@ export function executionWorkspaceRepositoryService(db: Db) {
         }
         return row;
       }
-      const [row] = await measureRunPhase("workspace.write", () => tx.insert(executionWorkspaceRepositories).values({ companyId: input.companyId, executionWorkspaceId: workspace.id, requestedByIssueId: input.issueId, ...source, relativePath: taskRepositoryRelativePath(source.repositoryIdentity), requestedRef, requestKey: parsed.requestKey, requestKeys: [parsed.requestKey] }).returning());
-      await measureRunPhase("workspace.write", () => tx.insert(activityLog).values({ companyId: input.companyId, actorType: input.actor.type === "agent" ? "agent" : "user", actorId: input.actor.agentId ?? input.actor.userId ?? "local-board", action: "workspace.repository.requested", entityType: "execution_workspace", entityId: workspace.id, runId: input.actor.runId ?? null, responsibleUserId: userId, details: { repositoryId: row.id, issueId: input.issueId, applies: "next_normal_admission" } }));
+      const [row] = await measureRunPhase("workspace.write", () => tx.insert(executionWorkspaceRepositories).values({ spaceId: input.spaceId, executionWorkspaceId: workspace.id, requestedByIssueId: input.issueId, ...source, relativePath: taskRepositoryRelativePath(source.repositoryIdentity), requestedRef, requestKey: parsed.requestKey, requestKeys: [parsed.requestKey] }).returning());
+      await measureRunPhase("workspace.write", () => tx.insert(activityLog).values({ spaceId: input.spaceId, actorType: input.actor.type === "agent" ? "agent" : "user", actorId: input.actor.agentId ?? input.actor.userId ?? "local-operator", action: "workspace.repository.requested", entityType: "execution_workspace", entityId: workspace.id, runId: input.actor.runId ?? null, responsibleUserId: userId, details: { repositoryId: row.id, issueId: input.issueId, applies: "next_normal_admission" } }));
       return row;
     });
     return { kind: "requires_next_admission" as const, applies: "next_normal_admission" as const, operationId: receipt.id, repository: receipt, reason: "immutable_admitted_workspace" };
@@ -216,39 +216,39 @@ export function executionWorkspaceRepositoryService(db: Db) {
    * acquisition path, with the subtask's own access checks. Nothing is copied
    * from the parent's checkout: no pinned commit, branch, or files.
    */
-  async function inheritSelections(input: { companyId: string; issueId: string; workspaceId: string }) {
+  async function inheritSelections(input: { spaceId: string; issueId: string; workspaceId: string }) {
     return db.transaction(async tx => {
       const [workspace] = await tx.select({ id: executionWorkspaces.id, sourceIssueId: executionWorkspaces.sourceIssueId })
         .from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.workspaceId),
-          eq(executionWorkspaces.companyId, input.companyId))).for("update");
+          eq(executionWorkspaces.spaceId, input.spaceId))).for("update");
       if (!workspace || workspace.sourceIssueId !== input.issueId) return 0;
       const [existing] = await tx.select({ id: executionWorkspaceRepositories.id }).from(executionWorkspaceRepositories)
-        .where(and(eq(executionWorkspaceRepositories.companyId, input.companyId),
+        .where(and(eq(executionWorkspaceRepositories.spaceId, input.spaceId),
           eq(executionWorkspaceRepositories.executionWorkspaceId, input.workspaceId))).limit(1);
       if (existing) return 0;
       const [task] = await tx.select({ parentId: issues.parentId, privacyParentIssueId: issues.privacyParentIssueId,
         projectId: issues.projectId })
-        .from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId)));
+        .from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId)));
       const sourceIssueId = task?.privacyParentIssueId ?? task?.parentId;
       if (!sourceIssueId) return 0;
       const [source] = await tx.select({ executionWorkspaceId: issues.executionWorkspaceId, projectId: issues.projectId })
-        .from(issues).where(and(eq(issues.id, sourceIssueId), eq(issues.companyId, input.companyId)));
+        .from(issues).where(and(eq(issues.id, sourceIssueId), eq(issues.spaceId, input.spaceId)));
       if (!source?.executionWorkspaceId || source.executionWorkspaceId === input.workspaceId) return 0;
       // Repositories belong to the source's project. A task in another project
       // takes its own project's defaults instead, like a top-level task there.
       if (task?.projectId !== source.projectId) return 0;
       const requested = await tx.select().from(executionWorkspaceRepositories).where(and(
-        eq(executionWorkspaceRepositories.companyId, input.companyId),
+        eq(executionWorkspaceRepositories.spaceId, input.spaceId),
         eq(executionWorkspaceRepositories.executionWorkspaceId, source.executionWorkspaceId)));
       if (!requested.length) return 0;
       const rows = await tx.insert(executionWorkspaceRepositories).values(requested.map(row => {
         const requestKey = `inherited:${row.id}`;
-        return { companyId: input.companyId, executionWorkspaceId: input.workspaceId, requestedByIssueId: input.issueId,
+        return { spaceId: input.spaceId, executionWorkspaceId: input.workspaceId, requestedByIssueId: input.issueId,
           repositoryIdentity: row.repositoryIdentity, catalogRepositoryId: row.catalogRepositoryId, repoUrl: row.repoUrl,
           relativePath: row.relativePath, requestedRef: row.requestedRef, requestKey, requestKeys: [requestKey] };
       })).onConflictDoNothing().returning({ id: executionWorkspaceRepositories.id });
       if (rows.length) {
-        await tx.insert(activityLog).values({ companyId: input.companyId, actorType: "system", actorId: "workspace-preparation",
+        await tx.insert(activityLog).values({ spaceId: input.spaceId, actorType: "system", actorId: "workspace-preparation",
           action: "workspace.repository.requested", entityType: "execution_workspace", entityId: input.workspaceId,
           details: { issueId: input.issueId, inheritedFromIssueId: sourceIssueId, repositoryIds: rows.map(row => row.id),
             applies: "current_admission" } });
@@ -256,24 +256,24 @@ export function executionWorkspaceRepositoryService(db: Db) {
       return rows.length;
     });
   }
-  async function list(companyId: string, workspaceId: string) {
-    return measureRunPhase("workspace.repository.receipts", () => db.select().from(executionWorkspaceRepositories).where(and(eq(executionWorkspaceRepositories.companyId, companyId), eq(executionWorkspaceRepositories.executionWorkspaceId, workspaceId))));
+  async function list(spaceId: string, workspaceId: string) {
+    return measureRunPhase("workspace.repository.receipts", () => db.select().from(executionWorkspaceRepositories).where(and(eq(executionWorkspaceRepositories.spaceId, spaceId), eq(executionWorkspaceRepositories.executionWorkspaceId, workspaceId))));
   }
-  type PublicationInput = { companyId: string; issueId: string; workspaceId: string; cwd: string; agentId: string; runId: string; responsibleUserId?: string | null };
+  type PublicationInput = { spaceId: string; issueId: string; workspaceId: string; cwd: string; agentId: string; runId: string; responsibleUserId?: string | null };
   async function currentRunActor(reader: Db | DbTransaction, input: PublicationInput): Promise<AuthorizationActor> {
     const [run] = await measureRunPhase("workspace.repository.db.run", () => reader.select(taskRepositoryRunColumns).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId))));
+      eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId))));
     if (!run || run.agentId !== input.agentId) throw forbidden("Task repository run identity is unavailable");
     if ("responsibleUserId" in input && run.responsibleUserId !== input.responsibleUserId) {
       throw forbidden("Task repository responsible user identity is unavailable");
     }
-    return { type: "agent", source: "agent_jwt", companyId: input.companyId, agentId: input.agentId,
-      runId: input.runId, onBehalfOfUserId: run.responsibleUserId === "local-board" ? null : run.responsibleUserId };
+    return { type: "agent", source: "agent_jwt", spaceId: input.spaceId, agentId: input.agentId,
+      runId: input.runId, onBehalfOfUserId: run.responsibleUserId === "local-operator" ? null : run.responsibleUserId };
   }
   async function publicationBinding(reader: Db | DbTransaction, input: PublicationInput, verifyDirectory = true) {
     return measureRunPhase("workspace.repository.binding", async () => {
-      const [issue] = await measureRunPhase("workspace.repository.db.issue", () => reader.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId))));
-      const [workspace] = await measureRunPhase("workspace.repository.db.workspace", () => reader.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.companyId, input.companyId))));
+      const [issue] = await measureRunPhase("workspace.repository.db.issue", () => reader.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId))));
+      const [workspace] = await measureRunPhase("workspace.repository.db.workspace", () => reader.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.spaceId, input.spaceId))));
       const remoteAuthority = readRemoteWorkspaceAuthority(workspace?.metadata);
       if (!issue || !workspace || issue.executionWorkspaceId !== workspace.id || !workspace.cwd
         || (verifyDirectory && (remoteAuthority
@@ -284,7 +284,7 @@ export function executionWorkspaceRepositoryService(db: Db) {
       }
       const acquisitionRestricted = await requiresAnonymousAcquisition(reader, { issue, workspace, agentId: input.agentId, runId: input.runId });
       const actor = await currentRunActor(reader, input);
-      await assertTaskWorkspaceExecutionAccess(reader, actor, input.companyId, { issueId: issue.id, workspaceId: workspace.id });
+      await assertTaskWorkspaceExecutionAccess(reader, actor, input.spaceId, { issueId: issue.id, workspaceId: workspace.id });
       return { issue, workspace, actor, acquisitionRestricted };
     });
   }
@@ -294,27 +294,27 @@ export function executionWorkspaceRepositoryService(db: Db) {
   async function prepareConfiguredRepositoryCopy(input: PublicationInput & { sourceCwd: string; projectWorkspaceId?: string | null }): Promise<() => Promise<void>> {
     const sourceRoot = await fs.realpath(input.sourceCwd);
     const destinationRoot = await canonicalRepositoryRoot(input.cwd);
-    const [selectedIssue] = await db.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId)));
+    const [selectedIssue] = await db.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId)));
     if (!selectedIssue) throw forbidden("Task repository copy identity is unavailable");
     const [selectedWorkspace] = await db.select({ projectId: executionWorkspaces.projectId,
       projectWorkspaceId: executionWorkspaces.projectWorkspaceId }).from(executionWorkspaces).where(and(
-      eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.companyId, input.companyId)));
+      eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.spaceId, input.spaceId)));
     const selectionSource = selectedIssue.workspaceSelection?.selection;
     const anchorSourceId = selectedWorkspace?.projectWorkspaceId ?? selectedIssue.projectWorkspaceId
       ?? (selectionSource?.kind === "configured_source" ? selectionSource.projectWorkspaceId : null);
     const selectedSourceId = input.projectWorkspaceId ?? anchorSourceId;
     const [selectedSource] = selectedSourceId ? await db.select().from(projectWorkspaces).where(and(
-      eq(projectWorkspaces.id, selectedSourceId), eq(projectWorkspaces.companyId, input.companyId))) : [];
+      eq(projectWorkspaces.id, selectedSourceId), eq(projectWorkspaces.spaceId, input.spaceId))) : [];
     if (selectedSourceId && !selectedSource) throw forbidden("Task repository copy source is unavailable");
     const verify = async () => {
       if (await fs.realpath(input.sourceCwd) !== sourceRoot || await canonicalRepositoryRoot(input.cwd) !== destinationRoot) {
         throw conflict("Repository copy source or destination changed during preparation");
       }
-      const [issue] = await db.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId)));
+      const [issue] = await db.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId)));
       if (!issue || issue.projectWorkspaceId !== selectedIssue.projectWorkspaceId || issue.projectId !== selectedIssue.projectId) {
         throw conflict("Repository copy configuration changed during preparation");
       }
-      const [workspace] = await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.companyId, input.companyId)));
+      const [workspace] = await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.spaceId, input.spaceId)));
       if (selectedWorkspace && (!workspace || workspace.projectId !== selectedWorkspace.projectId
         || workspace.projectWorkspaceId !== selectedWorkspace.projectWorkspaceId)) {
         throw conflict("Repository copy workspace configuration changed during preparation");
@@ -325,34 +325,34 @@ export function executionWorkspaceRepositoryService(db: Db) {
       if (currentAnchorSourceId !== anchorSourceId) throw conflict("Repository copy configuration changed during preparation");
       await requiresAnonymousAcquisition(db, { issue, workspace: workspace ?? null, agentId: input.agentId, runId: input.runId });
       const actor = await currentRunActor(db, input);
-      const access = await assertTaskWorkspaceExecutionAccess(db, actor, input.companyId, { issueId: issue.id,
+      const access = await assertTaskWorkspaceExecutionAccess(db, actor, input.spaceId, { issueId: issue.id,
         ...(workspace ? { workspaceId: workspace.id } : {}), projectWorkspaceId: anchorSourceId });
       if (selectedSource && selectedSource.projectId !== (access.source?.projectId ?? access.workspace?.projectId ?? access.task.projectId)) {
         throw forbidden("Repository copy source is outside the selected project");
       }
       if (workspace) await publicationBinding(db, input);
       if (selectedSource) {
-        const [source] = await db.select().from(projectWorkspaces).where(and(eq(projectWorkspaces.id, selectedSource.id), eq(projectWorkspaces.companyId, input.companyId)));
+        const [source] = await db.select().from(projectWorkspaces).where(and(eq(projectWorkspaces.id, selectedSource.id), eq(projectWorkspaces.spaceId, input.spaceId)));
         if (!source || source.cwd !== selectedSource.cwd || source.repoUrl !== selectedSource.repoUrl || source.repoRef !== selectedSource.repoRef
           || source.projectId !== selectedSource.projectId || source.sourceType !== selectedSource.sourceType) {
           throw conflict("Repository copy configuration changed during preparation");
         }
-        await assertTaskWorkspaceSourceProjectAccess(db, actor, input.companyId, source.projectId);
+        await assertTaskWorkspaceSourceProjectAccess(db, actor, input.spaceId, source.projectId);
       }
     };
     await verify();
     return verify;
   }
   async function assertRecoveryBinding(input: PublicationInput) {
-    const [issue] = await db.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId)));
-    const [workspace] = await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.companyId, input.companyId)));
-    const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId)));
+    const [issue] = await db.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId)));
+    const [workspace] = await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, input.workspaceId), eq(executionWorkspaces.spaceId, input.spaceId)));
+    const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId)));
     if (!issue || !run || run.agentId !== input.agentId) throw forbidden("Task repository recovery identity is unavailable");
     let execution;
     try { execution = parseNativeExecutionInput(run.runnerProfileJson?.nativeExecutionInput); } catch { /* Old non-native runs have no native input. */ }
     const binding = execution?.binding;
     if (run.runtimeMode === "native") {
-      if (!binding || binding.companyId !== input.companyId || binding.runId !== input.runId
+      if (!binding || binding.spaceId !== input.spaceId || binding.runId !== input.runId
         || binding.agentId !== input.agentId || binding.issueId !== input.issueId || binding.executionWorkspaceId !== input.workspaceId
         || (!workspace && input.workspaceId !== input.runId)) {
         throw forbidden("Task repository recovery identity is unavailable");
@@ -363,8 +363,8 @@ export function executionWorkspaceRepositoryService(db: Db) {
     await requiresAnonymousAcquisition(db, { issue, workspace: workspace ?? null, agentId: input.agentId, runId: input.runId });
     const actor = await currentRunActor(db, input);
     // Recovery uses the native run's immutable binding rather than the task's latest workspace pointer.
-    await assertTaskWorkspaceExecutionAccess(db, actor, input.companyId, { issueId: issue.id });
-    if (workspace?.projectId) await assertTaskWorkspaceSourceProjectAccess(db, actor, input.companyId, workspace.projectId);
+    await assertTaskWorkspaceExecutionAccess(db, actor, input.spaceId, { issueId: issue.id });
+    if (workspace?.projectId) await assertTaskWorkspaceSourceProjectAccess(db, actor, input.spaceId, workspace.projectId);
   }
   async function sharedPublicationPin(input: { row: RepositoryRow; root: string; ownership: { repositoryId?: unknown; pinnedCommit?: unknown } | null }) {
     const validPin = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{40,64}$/.test(value);
@@ -383,8 +383,8 @@ export function executionWorkspaceRepositoryService(db: Db) {
     // not authority to disclose its originating workspace or task.
     const [owner] = await measureRunPhase("workspace.repository.receipts", () => db.select({ repository: executionWorkspaceRepositories, workspace: executionWorkspaces })
       .from(executionWorkspaceRepositories).innerJoin(executionWorkspaces, eq(executionWorkspaces.id, executionWorkspaceRepositories.executionWorkspaceId))
-      .where(and(eq(executionWorkspaceRepositories.id, ownerId), eq(executionWorkspaceRepositories.companyId, input.row.companyId),
-        eq(executionWorkspaces.companyId, input.row.companyId))));
+      .where(and(eq(executionWorkspaceRepositories.id, ownerId), eq(executionWorkspaceRepositories.spaceId, input.row.spaceId),
+        eq(executionWorkspaces.spaceId, input.row.spaceId))));
     if (!owner || !owner.workspace.cwd) return pin;
     const { repository, workspace } = owner;
     if (repository.repositoryIdentity !== input.row.repositoryIdentity || repository.relativePath !== input.row.relativePath
@@ -399,12 +399,12 @@ export function executionWorkspaceRepositoryService(db: Db) {
     if (pin && pin !== candidatePin) throw conflict("Shared repository publication receipts disagree; repair is required before reuse");
     return candidatePin;
   }
-  async function prepareForAdmission(input: { companyId: string; issueId: string; workspaceId: string; cwd: string; agentId: string; runId: string; responsibleUserId: string | null;
+  async function prepareForAdmission(input: { spaceId: string; issueId: string; workspaceId: string; cwd: string; agentId: string; runId: string; responsibleUserId: string | null;
     remoteTarget?: AdapterExecutionTarget | null; remoteLease?: EnvironmentLease; assertOwned?: () => Promise<void>;
     inheritRepositorySelections?: boolean }) {
     const { acquisitionRestricted, workspace } = await publicationBinding(db, input, false);
     if (input.inheritRepositorySelections) await inheritSelections(input);
-    const rows = await list(input.companyId, input.workspaceId);
+    const rows = await list(input.spaceId, input.workspaceId);
     if (!rows.length) return [];
     await publicationBinding(db, input);
     if (acquisitionRestricted && rows.some(row => row.state !== "ready" || !row.pinnedCommit || !/^[a-f0-9]{40,64}$/.test(row.pinnedCommit))) {
@@ -412,9 +412,9 @@ export function executionWorkspaceRepositoryService(db: Db) {
     }
     if (readRemoteWorkspaceAuthority(workspace.metadata)) {
       if (!input.remoteTarget || !input.remoteLease) throw conflict("Remote repository preparation requires its bound sandbox");
-      const available = acquisitionRestricted ? [] : await catalog(input.companyId, input.responsibleUserId, input.responsibleUserId === "local-board",
+      const available = acquisitionRestricted ? [] : await catalog(input.spaceId, input.responsibleUserId, input.responsibleUserId === "local-operator",
         rows.flatMap(row => row.catalogRepositoryId ? [row.catalogRepositoryId] : []));
-      const resolveAuth = createGitRemoteAuthProvider(db, input.companyId, { issueId: input.issueId, heartbeatRunId: input.runId,
+      const resolveAuth = createGitRemoteAuthProvider(db, input.spaceId, { issueId: input.issueId, heartbeatRunId: input.runId,
         agentId: input.agentId, responsibleUserId: input.responsibleUserId });
       const prepared: Array<{ id: string; cwd: string; repoUrl: string; relativePath: string; pinnedCommit: string; branchName: string | null }> = [];
       let requiresSave = false;
@@ -431,7 +431,7 @@ export function executionWorkspaceRepositoryService(db: Db) {
           await publicationBinding(db, input);
           if (!acquisitionRestricted) await assertCurrentControllerAcquisition(input);
           if (source.catalogRepositoryId) {
-            const current = await catalog(input.companyId, input.responsibleUserId, input.responsibleUserId === "local-board", [source.catalogRepositoryId]);
+            const current = await catalog(input.spaceId, input.responsibleUserId, input.responsibleUserId === "local-operator", [source.catalogRepositoryId]);
             const authorized = resolveAcquisitionSource({ kind: "catalog", id: source.catalogRepositoryId }, current, false);
             if (authorized.repositoryIdentity !== row.repositoryIdentity) throw conflict("Repository catalog authorization changed");
           }
@@ -454,7 +454,7 @@ export function executionWorkspaceRepositoryService(db: Db) {
           prepared.push({ ...result, id: row.id, repoUrl: row.repoUrl, relativePath: row.relativePath });
         } catch (error) {
           await db.update(executionWorkspaceRepositories).set({ state: "needs_repair", failureCode: "repository_preparation_failed", updatedAt: new Date() })
-            .where(and(eq(executionWorkspaceRepositories.id, row.id), eq(executionWorkspaceRepositories.companyId, input.companyId)));
+            .where(and(eq(executionWorkspaceRepositories.id, row.id), eq(executionWorkspaceRepositories.spaceId, input.spaceId)));
           throw error;
         }
       }
@@ -469,32 +469,32 @@ export function executionWorkspaceRepositoryService(db: Db) {
         } catch (error) {
           for (const result of prepared) await db.update(executionWorkspaceRepositories)
             .set({ state: "needs_repair", failureCode: "repository_preparation_failed", updatedAt: new Date() })
-            .where(and(eq(executionWorkspaceRepositories.id, result.id), eq(executionWorkspaceRepositories.companyId, input.companyId)));
+            .where(and(eq(executionWorkspaceRepositories.id, result.id), eq(executionWorkspaceRepositories.spaceId, input.spaceId)));
           throw error;
         }
       }
       for (const result of prepared) {
         await db.update(executionWorkspaceRepositories).set({ state: "ready", pinnedCommit: result.pinnedCommit,
           branchName: result.branchName, failureCode: null, updatedAt: new Date() })
-          .where(and(eq(executionWorkspaceRepositories.id, result.id), eq(executionWorkspaceRepositories.companyId, input.companyId)));
+          .where(and(eq(executionWorkspaceRepositories.id, result.id), eq(executionWorkspaceRepositories.spaceId, input.spaceId)));
       }
       return prepared;
     }
     const root = await measureRunPhase("workspace.repository.paths", () => fs.realpath(input.cwd));
-    const available = acquisitionRestricted ? [] : await catalog(input.companyId, input.responsibleUserId, input.responsibleUserId === "local-board",
+    const available = acquisitionRestricted ? [] : await catalog(input.spaceId, input.responsibleUserId, input.responsibleUserId === "local-operator",
       rows.flatMap(row => row.catalogRepositoryId ? [row.catalogRepositoryId] : []));
-    const resolveAuth = createGitRemoteAuthProvider(db, input.companyId, { issueId: input.issueId, heartbeatRunId: input.runId, agentId: input.agentId, responsibleUserId: input.responsibleUserId });
+    const resolveAuth = createGitRemoteAuthProvider(db, input.spaceId, { issueId: input.issueId, heartbeatRunId: input.runId, agentId: input.agentId, responsibleUserId: input.responsibleUserId });
     const sources = rows.map(row => {
       assertAcquisitionReceipt(row, acquisitionRestricted);
       return resolveAcquisitionSource(row.catalogRepositoryId ? { kind: "catalog", id: row.catalogRepositoryId } : { kind: "url", url: row.repoUrl }, available, acquisitionRestricted);
     });
     const stagingParent = await measureRunPhase("workspace.repository.fs_prepare", async () => {
-      const repositoryRoot = path.join(root, ".paperclip-repositories");
+      const repositoryRoot = path.join(root, ".outpost-repositories");
       if (!acquisitionRestricted) await fs.mkdir(repositoryRoot, { recursive: true });
       if ((await fs.lstat(repositoryRoot)).isSymbolicLink() || await fs.realpath(repositoryRoot) !== repositoryRoot) throw conflict("Repository directory escapes the task workspace");
       let stagingParent = root;
       if (!acquisitionRestricted) {
-        for (const name of [".paperclip-runtime", "repository-staging"]) {
+        for (const name of [".outpost-runtime", "repository-staging"]) {
           stagingParent = path.join(stagingParent, name);
           await fs.mkdir(stagingParent, { mode: 0o700 }).catch((error: NodeJS.ErrnoException) => {
             if (error.code !== "EEXIST") throw error;
@@ -534,7 +534,7 @@ export function executionWorkspaceRepositoryService(db: Db) {
         // A ref correction can commit after the receipts were listed. Use the
         // current receipt so admission never checks out a discarded ref.
         const [row] = await measureRunPhase("workspace.repository.receipts", () => db.select().from(executionWorkspaceRepositories)
-          .where(and(eq(executionWorkspaceRepositories.id, listedRow.id), eq(executionWorkspaceRepositories.companyId, input.companyId))));
+          .where(and(eq(executionWorkspaceRepositories.id, listedRow.id), eq(executionWorkspaceRepositories.spaceId, input.spaceId))));
         if (!row || row.repositoryIdentity !== listedRow.repositoryIdentity || row.relativePath !== listedRow.relativePath) {
           throw conflict("Repository preparation receipt changed during admission");
         }
@@ -559,7 +559,7 @@ export function executionWorkspaceRepositoryService(db: Db) {
           if (!claimed) throw conflict("Repository preparation receipt changed during admission");
         }
         try {
-          const ownershipPath = path.join(cwd, ".git", "paperclip-workspace-owner.json");
+          const ownershipPath = path.join(cwd, ".git", "outpost-workspace-owner.json");
           const readOwnership = () => measureRunPhase("workspace.repository.ownership_read", async () => {
             const handle = await fs.open(ownershipPath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK).catch(() => null);
             if (!handle) return null;
@@ -587,13 +587,13 @@ export function executionWorkspaceRepositoryService(db: Db) {
                 await assertCurrentControllerAcquisition(input);
                 await assertPublicationAllowed(input);
                 if (source.catalogRepositoryId) {
-                  const currentCatalog = await catalog(input.companyId, input.responsibleUserId, input.responsibleUserId === "local-board", [source.catalogRepositoryId]);
+                  const currentCatalog = await catalog(input.spaceId, input.responsibleUserId, input.responsibleUserId === "local-operator", [source.catalogRepositoryId]);
                   const currentSource = resolveAcquisitionSource({ kind: "catalog", id: source.catalogRepositoryId }, currentCatalog, false);
                   if (currentSource.repositoryIdentity !== row.repositoryIdentity) throw conflict("Repository preparation receipt does not match its source");
                 }
                 const pinnedCommit = await measureRunPhase("workspace.repository.git_commit", async () =>
                   (await execFile("git", ["-C", cloneCwd, "rev-parse", "HEAD"], { timeout: 30_000 })).stdout.trim());
-                await measureRunPhase("workspace.repository.ownership_write", () => fs.writeFile(path.join(cloneCwd, ".git", "paperclip-workspace-owner.json"), JSON.stringify({ version: 1, repositoryId: row.id, pinnedCommit }), { flag: "wx", mode: 0o600 }));
+                await measureRunPhase("workspace.repository.ownership_write", () => fs.writeFile(path.join(cloneCwd, ".git", "outpost-workspace-owner.json"), JSON.stringify({ version: 1, repositoryId: row.id, pinnedCommit }), { flag: "wx", mode: 0o600 }));
               },
             }));
             if (result.warning) throw conflict(result.warning);
@@ -610,7 +610,7 @@ export function executionWorkspaceRepositoryService(db: Db) {
           if (!acquisitionRestricted) {
             await assertCurrentControllerAcquisition(input);
             if (source.catalogRepositoryId) {
-              const currentCatalog = await catalog(input.companyId, input.responsibleUserId, input.responsibleUserId === "local-board", [source.catalogRepositoryId]);
+              const currentCatalog = await catalog(input.spaceId, input.responsibleUserId, input.responsibleUserId === "local-operator", [source.catalogRepositoryId]);
               const currentSource = resolveAcquisitionSource({ kind: "catalog", id: source.catalogRepositoryId }, currentCatalog, false);
               if (currentSource.repositoryIdentity !== row.repositoryIdentity) throw conflict("Repository preparation receipt does not match its source");
             }
@@ -622,7 +622,7 @@ export function executionWorkspaceRepositoryService(db: Db) {
               if (!metadata.isDirectory() || metadata.isSymbolicLink() || await fs.realpath(gitDir) !== gitDir) {
                 throw conflict("Repository Git metadata escapes the managed checkout");
               }
-              const temporaryOwnershipPath = path.join(gitDir, `.paperclip-workspace-owner-${randomUUID()}.tmp`);
+              const temporaryOwnershipPath = path.join(gitDir, `.outpost-workspace-owner-${randomUUID()}.tmp`);
               try {
                 await fs.writeFile(temporaryOwnershipPath, JSON.stringify({ version: 1, repositoryId: row.id, pinnedCommit }), { flag: "wx", mode: 0o600 });
                 // Keep bounded ownership lookup attached to a receipt for this root,

@@ -1,11 +1,11 @@
 # Runner E2E security for a public repository
 
 The explicit `onboarding-approval-history` suite uses only synthetic garden-club
-facts in an owned disposable onboarding company. The human selects drafting and
+facts in an owned disposable onboarding space. The human selects drafting and
 clears publishing; the scenario forbids external publication. The hired writer
 must use the lead's existing provider/AI connection through normal hiring.
 Credentials remain in the existing encrypted fixture path. It makes no direct
-database writes and changes no shared company. Public first-task projection
+database writes and changes no shared space. Public first-task projection
 retains synthetic checkbox option IDs/labels, selected IDs, plan document/revision
 IDs, task/agent/run bindings, and the exact saved output revision's agent/run
 authorship so the approval history can be regraded. Provider
@@ -56,7 +56,7 @@ do not establish provider permissions or a live acceptance result.
 
 The explicit [chat feature evals](CHAT-FEATURES.md) use synthetic project briefs
 and either a privately supplied Codex subscription login through the existing
-isolated company staging helper or the OpenCode profile's encrypted OpenRouter
+isolated space staging helper or the OpenCode profile's encrypted OpenRouter
 secret reference. Only source-chat screenshots are captured. Task, document
 and run evidence stays behind the existing sanitizer and publication allowlist;
 the YAML catalog contains no credentials. The suite's accounted-work budgets do
@@ -102,7 +102,7 @@ signed-in browser user must own the exact pre-existing personal default Google
 grant. No provider secret or OAuth code enters test configuration or prompts,
 and no MCP connection is required. Ownership receipts, actual authenticated
 screenshots and concrete account/session bindings stay private and receive no
-public-fixture marker. Recovery validates target/company/execution and immutable
+public-fixture marker. Recovery validates target/space/execution and immutable
 owned resources, stops only owned work and retains the supplied Google account
 and default grant. It neither resets the attached instance nor clears accounting
 holds. Two work turns, finite deadlines and zero automatic retries bound the
@@ -153,7 +153,7 @@ retention and cleanup rules continue to apply.
 The isolated server's private restart request may delay its replacement by at
 most five minutes. This fault injection never stops a hosted instance or a
 provider sandbox. The explicit Daytona continuity suite has one attempt and
-1,000-cent company and agent hard stops.
+1,000-cent space and agent hard stops.
 
 Set `RUNNER_E2E_ALLOWED_ACTOR_IDS` to a non-empty JSON array of numeric GitHub
 user IDs. Keep the list equal to the owners of `.github/**` in
@@ -211,7 +211,7 @@ rejects mutable tag or branch references.
 ## Secrets and protected environments
 
 Kimi's explicit-only `kimi-qualification` cells use `KIMI_API_KEY`, delivered
-through the launcher's normal encrypted company-secret fixture path. All ambient
+through the launcher's normal encrypted space-secret fixture path. All ambient
 `KIMI_*` values, including legacy model keys and login-home aliases, are removed
 from the product server environment. Neither the catalog nor evidence stores
 the key. The maintained Code profile does not borrow an ambient OAuth cache or
@@ -222,7 +222,7 @@ separate change.
 Explicit Grok subscription campaigns may select `GROK_AUTH_JSON` from the same
 protected paid environment. Deliver it only to that subscription profile's paid
 test step. Prefer a dedicated test-account login and refresh it before a campaign.
-The fixture stores only the selected login in its disposable company home, rejects
+The fixture stores only the selected login in its disposable space home, rejects
 ambient/redirected homes, and removes the login during teardown. Token fragments
 and account identifiers inside its JSON join the evidence redaction set. The
 subscription suite remains manual-only and never falls back to `XAI_API_KEY`.
@@ -258,12 +258,12 @@ other suites retain the persisted-state scanner. The `first-task` suite omits
 private home/workspace credential-persistence scanning so its evaluation focuses
 on onboarding behavior. Artifact redaction and publication scanning remain in
 force for every suite.
-The Paperclip server process also receives none; the browser posts each value
-once to the encrypted company secret API and agents/environments retain only
+The Outpost server process also receives none; the browser posts each value
+once to the encrypted space secret API and agents/environments retain only
 secret references.
 
 The explicit managed first-task cell observes the wizard's two owned setup
-responses only to correlate their exact lease IDs with same-company environment
+responses only to correlate their exact lease IDs with same-space environment
 records. Raw probe/setup responses, account references, opaque provider lease
 identities and setup screenshots remain private. Public first-task evidence
 continues through the existing projection. Missing or foreign lease identities
@@ -288,7 +288,7 @@ the actor gate, environment branch restriction, and protected default branch.
 
 When `RUNNER_E2E_AWS_ENABLED=true`, paid matrix cells, reusable runner builds,
 and Daytona image builds use the exact RunsOn fleet
-selector `runs-on/fleet=paperclip-public-pr-x64/env=public-ci`, matching the AWS
+selector `runs-on/fleet=outpost-public-pr-x64/env=public-ci`, matching the AWS
 fleet selected by `pr-trusted.yml` only after its stable numeric-ID trust gate.
 Any other or missing toggle value falls back to the GitHub-hosted
 `ubuntu-latest` runner and its lower concurrency ceiling. The workflow chooses
@@ -345,7 +345,7 @@ directory.
 Landlock hides a path by leaving its ancestors ungranted, and an ungranted
 directory accepts no new entries. Agents must keep creating files in `/tmp`, so
 a sandboxed attempt creates its root in `/var/tmp` instead of `/tmp`. The
-agent's workspace, home and Paperclip home stay readable inside that root. If
+agent's workspace, home and Outpost home stay readable inside that root. If
 harness material would stay under the shared temporary directory or contain the
 agent's state, the launcher fails the attempt in CI and warns elsewhere. The E2E server entry starts each `outpost-runnerd` (through `spawn`,
 `spawnSync`, `execFile` or `execFileSync`, by absolute path or PATH; a shell
@@ -403,7 +403,7 @@ scenarios and graders are public on GitHub, and agents have network access for
 their model provider. Daytona cells run the agent in a remote sandbox that holds only the
 staged runnerd and provider pack, not the checkout.
 
-Fixture names that an agent can read (company, agent, environment, secret,
+Fixture names that an agent can read (space, agent, environment, secret,
 connection and project) use a neutral word and a digest suffix. They do not
 contain case ids, suite names, "E2E" or "test". The digest is salted per
 process, so public catalog ids cannot be hashed back to a case.
@@ -487,7 +487,7 @@ CloudFront-backed S3 history also publishes one
 synthetic campaign-summary PNG generated by trusted publisher code solely from
 fixed catalog labels and sanitized numeric/status fields. Video, archives,
 generated Playwright/blob/HTML report trees, SVG or other active content,
-credentials, Paperclip homes, databases, workspaces, master keys,
+credentials, Outpost homes, databases, workspaces, master keys,
 raw/unredacted logs, unmarked images, and unallowlisted files are not public.
 Per-attempt JSON snapshots, result copies, logs, Markdown, and text files stay
 in the retained Actions artifact. Credential redaction does not remove hidden
@@ -498,7 +498,7 @@ The normalized result may also contain the reviewed `taskChat` projection:
 task titles/briefs, complete saved comments, visible question/approval copy and
 recorded answers, agent display names, timestamps, and explicitly classified
 native assistant progress. It is captured only from the disposable fixture
-company and credential-redacted before retention. Only these presentation
+space and credential-redacted before retention. Only these presentation
 fields are admitted by the closed result validator. Arbitrary interaction
 payloads, tool arguments/results, provider/session identities, reasoning and
 raw event envelopes are excluded. No per-attempt snapshot or log becomes public
@@ -556,9 +556,9 @@ The explicit-only `extended-harnesses` launcher removes ambient candidate
 admission, then authorizes only selected candidate/model pairs in its isolated
 server process. The server never reads admission from agent configuration,
 resolved credential bindings, or provider environment. Invalid, duplicate and
-mismatched authorization fails closed. Verified packaging and normal company
+mismatched authorization fails closed. Verified packaging and normal space
 and tool governance still apply. `CURSOR_AUTH_TOKEN` and
-`COPILOT_GITHUB_TOKEN` enter via encrypted company secret references, and all
+`COPILOT_GITHUB_TOKEN` enter via encrypted space secret references, and all
 Cursor, Copilot, GitHub and GH environment variables are stripped from the
 server environment. GitHub PAT shapes are included in retained-evidence scans.
 Candidates have no automatic infrastructure retries; spending must be reconciled
@@ -573,7 +573,7 @@ owned socket/child in cleanup, and never signals API-reported PIDs. Directory
 watch loss makes the denial oracle incomplete; it must not become a no-effect pass. A run-only Stop without provider dispatch qualifies the denial's
 completed-provider branch only when its exact canonical completion was actually
 read and retained before Stop. A blocked unfinished task additionally requires
-pre-Stop retained missing-result evidence and the exact company/issue/run recovery
+pre-Stop retained missing-result evidence and the exact space/issue/run recovery
 binding. Neither exception qualifies definitely-active cancellation, permits
 extra runs or mutations, or manufactures a receipt for a historical failure.
 
@@ -609,23 +609,23 @@ The private resource-admission marker and raw cleanup results control recovery-s
 
 The explicit task-workspaces cells fetch the existing public octocat/Hello-World
 repository through normal anonymous repository preparation. They do not clone the
-Paperclip checkout, copy its Git credentials, create remote repositories or push.
+Outpost checkout, copy its Git credentials, create remote repositories or push.
 The agent's synthetic commit remains in the disposable task workspace. Independent
 Git reads validate that workspace's canonical path is inside the isolated instance
 before examining history. The existing credential redactor, private evidence
 packager and task-only screenshot allowlist remain authoritative. Each cell has a
-single attempt, three requested turns and company/agent budget hard stops.
+single attempt, three requested turns and space/agent budget hard stops.
 
 The explicit local case-handoff subscription cells accept `CODEX_AUTH_JSON`
 only as a private subscription fixture input. The launcher redaction set includes its individual
 JSON token values; the server process environment excludes the raw input.
 Fixture setup validates a subscription-shaped payload and writes only a new
-mode-0600 `auth.json` inside the isolated company's mode-0700 production Codex
+mode-0600 `auth.json` inside the isolated space's mode-0700 production Codex
 home. It rejects redirected roots, API-key payloads and existing login files.
-Teardown removes refreshed company login state along with the disposable
+Teardown removes refreshed space login state along with the disposable
 instance. Login bytes, account identity, provider sessions and raw native event
 payloads are not workflow evidence. The separate API-key receipt cell accepts
-`OPENAI_API_KEY` through the ordinary encrypted company-secret fixture and binds
+`OPENAI_API_KEY` through the ordinary encrypted space-secret fixture and binds
 only secret references to both provider key aliases. It neither stages nor
 inherits an operator subscription login. The raw key is excluded from child
 server environments and public attempt evidence by the existing credential
@@ -648,7 +648,7 @@ Case screenshots use the exact case ID/identifier returned by that fixture's
 public kickoff, in addition to its ordinary task route. Other cases, setup,
 settings and external hosts remain outside the public screenshot allowlist.
 
-Receipt smoke uses a fresh isolated company with 100-cent company/agent budgets,
+Receipt smoke uses a fresh isolated space with 100-cent space/agent budgets,
 90-second work-run timeouts, low reasoning effort and daily task-run caps of
 one/two/one for triage/builder/verifier. Its work contract is exactly four task
 runs and one five-minute attempt. Production lifecycle hello probes occur
@@ -669,7 +669,7 @@ The public screenshot allowlist is unchanged.
 
 ## Eval feedback capture
 
-`snapshots/agent-feedback.json` retains company-wide complaint/suggestion bodies
+`snapshots/agent-feedback.json` retains space-wide complaint/suggestion bodies
 and attributed invocation outcomes in the access-controlled Actions artifact.
 It passes the existing credential scanner and is excluded from public history
 like other snapshots. Normalized results and campaign attempt receipts contain
@@ -695,7 +695,7 @@ incomplete.
 
 Braintrust export requires an explicit eval project UUID. Native capture includes
 prompts, responses, and tool content only after that opt-in configures the isolated
-company's observability destination. The ingestion credential crosses the public API via
+space's observability destination. The ingestion credential crosses the public API via
 Node fetch, outside Playwright tracing, and is included in launcher evidence
 redaction. Orchestration spans contain identifiers, phase timing, outcome, and
 feedback counts; they never contain provider credentials or feedback bodies.
@@ -712,7 +712,7 @@ byte or time allowance is exhausted. It is not an attempt-level row permission.
 
 The worker environment removes upstream provider/Braintrust credentials before
 inserting the model and OTLP relay tokens. Ambient relay URLs are discarded, and
-the fixture server receives the selected endpoint through company settings.
+the fixture server receives the selected endpoint through space settings.
 Both tokens participate in evidence redaction. Private OTLP receipts retain
 metadata only, and persistence errors stop further admission. The relay closes
 with the model gateway before controller finalization. The controller's direct
@@ -762,17 +762,17 @@ home after graceful handoff. Its read-only observer does not create recovery
 authority. Provider credentials still enter through encrypted fixture secrets.
 Local rolling smoke receipts explicitly exclude active-agent and hosted proof.
 
-The personal inbox journey requires a separately authenticated, registered QA human author. Its target provider exposes one controlled comment operation on the exact campaign-owned task. The public oracle independently reads the saved comment and verifies its distinct human author, exact content, company, task, and absence of an agent run. The private provider closes the isolated author context during evidence-first cleanup. No provider or native run is allowed for this browser-only journey; agent cross-task execution guards remain intact.
+The personal inbox journey requires a separately authenticated, registered QA human author. Its target provider exposes one controlled comment operation on the exact campaign-owned task. The public oracle independently reads the saved comment and verifies its distinct human author, exact content, space, task, and absence of an agent run. The private provider closes the isolated author context during evidence-first cleanup. No provider or native run is allowed for this browser-only journey; agent cross-task execution guards remain intact.
 The `routine-scheduled-run` journey uses one campaign-owned routine, project, and scheduled task. It enables a minute schedule only for the bounded observation. Cleanup must pause the routine, disable its triggers, and reconcile scheduler-created tasks before stopping agent work. Private recovery repeats these checks after a lost response. Retain task and routine history; never leave a recurring trigger enabled after an attempt.
 
 ## Authenticated prerequisite people
 
 Twenty explicitly selected OpenCode/local chat journeys use ordinary public
-signup and instance-admin company-access management to prepare a fresh second
+signup and instance-admin space-access management to prepare a fresh second
 person. The setup verifies the administrator's real session, assigns only the
-requested company and its existing operator/viewer role grants, and independently
+requested space and its existing operator/viewer role grants, and independently
 reads the saved membership and grant attribution. The person's own session must
-prove company access and denial of instance administration. Setup consumes the
+prove space access and denial of instance administration. Setup consumes the
 original observation clock and neither dispatches native work nor performs the
 human action under evaluation. Private-resource and other-person boundaries
 remain part of each journey's independent oracle.
@@ -817,14 +817,14 @@ discovery remains under its existing UUID-filtered authorized catalog. This
 identity correction does not release or rerun the exhausted SDK canary, change
 SDK/compiler/scanner behavior, or authorize the other five cases.
 
-The isolated `onboarding.new-company` native1017 candidate keeps its original
-source-company chat and ordinary human company creation. Only its credential
+The isolated `onboarding.new-space` native1017 candidate keeps its original
+source-space chat and ordinary human space creation. Only its credential
 setup runs in the existing standalone private child. It uses the real saved
-company's public `agents/new` route, same first-agent setup ID, personal
+space's public `agents/new` route, same first-agent setup ID, personal
 OpenRouter account grant, exact local environment, native hello and public hire.
-No draft/localStorage write, legacy CLI fallback or source-company account
+No draft/localStorage write, legacy CLI fallback or source-space account
 substitution is allowed. Partial created connection IDs are retained privately
-for public cleanup before the new company is removed. Native probe usage stays
+for public cleanup before the new space is removed. Native probe usage stays
 unknown outside heartbeat accounting, never zero. This candidate includes only
 the focused local native-probe prerequisite from core PR18103; all candidate
 outcomes are separate from frozen39e qualification. Source acceptance is not

@@ -40,7 +40,7 @@ export const notionAssignmentExternalCases = [definition("connection-setup.notio
     const rows = await decisions(ctx); state.beforeGrantReadCount = rows.reduce((count, row) => count + row.decisions.filter(decision => decision.invocation.connectionId === state.connectionId && decision.invocation.status === "succeeded").length, 0);
     state.initialAccessExplanation = /assign|access|permission|not.*available|not.*connect/i.test(o.reply) && /notion|morgan/i.test(o.reply);
     const page = (state.pages as NotionPageOracle[])[0]!; state.initialResearchClaim = !!notionFactSpan(o.reply, page.fact);
-    const prefix = `/${ctx.input.fixtures.company.issuePrefix}/apps/${state.connectionId}`;
+    const prefix = `/${ctx.input.fixtures.space.issuePrefix}/apps/${state.connectionId}`;
     const href = o.links.find(link => { try { const url = new URL(link, o.origin); return url.origin === o.origin && (url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)); } catch { return false; } });
     if (!href) throw new Error("Chat did not provide the existing account's supported access-management handoff");
     const source = ctx.input.page.url(); await ctx.input.page.goto(new URL(href, o.origin).href, { waitUntil: "domcontentloaded" }); await expect(ctx.input.page.getByRole("main")).toContainText("Launch Notion"); state.humanManagementVisible = true;

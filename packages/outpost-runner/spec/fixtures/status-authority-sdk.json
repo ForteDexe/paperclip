@@ -58,12 +58,12 @@
       "replay": { "attempts": 2, "sameDecisionDigest": true, "maxSemanticDecisions": 1, "maxDomainEffectsPerKey": 1 }
     },
     {
-      "id": "required-governed-review",
+      "id": "required-controlled-review",
       "mode": "native",
       "covers": { "decisionRows": ["SD-04"], "terminalRows": [], "attentionRows": ["ATT-08"], "livenessRows": [], "reconciliationRows": [], "compatibilityRows": [], "migrationRows": [] },
       "tags": ["required_review", "excessive_human_request"],
-      "given": { "priorIssueStatus": "in_progress", "turnTerminalState": "completed", "runTerminalState": "succeeded", "reportedWorkDisposition": "needs_review", "nativeFinalization": "present", "completionState": "governed_gate_pending", "trigger": "runner_finalizer" },
-      "expected": { "runStatus": "succeeded", "statusAction": "in_review", "reasonCode": "governed_gate_pending", "requiredEffects": ["create_interaction", "notify_owner"], "forbiddenEffects": ["attention_routed_to_agent"], "livePathKind": "interaction", "preserveClaim": true, "nativeRecords": true, "decisionCount": 1, "maxWakeCount": 1, "maxNotificationCount": 1 },
+      "given": { "priorIssueStatus": "in_progress", "turnTerminalState": "completed", "runTerminalState": "succeeded", "reportedWorkDisposition": "needs_review", "nativeFinalization": "present", "completionState": "controlled_gate_pending", "trigger": "runner_finalizer" },
+      "expected": { "runStatus": "succeeded", "statusAction": "in_review", "reasonCode": "controlled_gate_pending", "requiredEffects": ["create_interaction", "notify_owner"], "forbiddenEffects": ["attention_routed_to_agent"], "livePathKind": "interaction", "preserveClaim": true, "nativeRecords": true, "decisionCount": 1, "maxWakeCount": 1, "maxNotificationCount": 1 },
       "replay": { "attempts": 2, "sameDecisionDigest": true, "maxSemanticDecisions": 1, "maxDomainEffectsPerKey": 1 }
     },
     {
@@ -265,11 +265,11 @@
       "replay": { "attempts": 2, "sameDecisionDigest": true, "maxSemanticDecisions": 1, "maxDomainEffectsPerKey": 1 }
     },
     {
-      "id": "cross-company-attention-rejected",
+      "id": "cross-space-attention-rejected",
       "mode": "native",
       "covers": { "decisionRows": [], "terminalRows": [], "attentionRows": ["ATT-09"], "livenessRows": [], "reconciliationRows": [], "compatibilityRows": [], "migrationRows": [] },
       "tags": ["excessive_human_request"],
-      "given": { "priorIssueStatus": "in_progress", "turnTerminalState": "completed", "runTerminalState": "succeeded", "reportedWorkDisposition": "yielded", "nativeFinalization": "present", "completionState": "cross_company_target", "trigger": "attention_candidate" },
+      "given": { "priorIssueStatus": "in_progress", "turnTerminalState": "completed", "runTerminalState": "succeeded", "reportedWorkDisposition": "yielded", "nativeFinalization": "present", "completionState": "cross_space_target", "trigger": "attention_candidate" },
       "expected": { "runStatus": "succeeded", "statusAction": "preserve", "reasonCode": "result_schema_rejected", "requiredEffects": ["record_finalization_error"], "forbiddenEffects": ["create_interaction", "notify_owner", "enqueue_continuation"], "livePathKind": "recovery", "preserveClaim": true, "nativeRecords": true, "decisionCount": 1, "maxWakeCount": 0, "maxNotificationCount": 0 },
       "replay": { "attempts": 2, "sameDecisionDigest": true, "maxSemanticDecisions": 1, "maxDomainEffectsPerKey": 1 }
     },
@@ -449,7 +449,7 @@
       "mode": "native",
       "covers": { "decisionRows": [], "terminalRows": [], "attentionRows": [], "livenessRows": [], "reconciliationRows": [], "compatibilityRows": [], "migrationRows": ["MIG-06"] },
       "tags": ["atomic_liveness", "native_legacy_distinction"],
-      "given": { "priorIssueStatus": "in_progress", "turnTerminalState": "completed", "runTerminalState": "succeeded", "reportedWorkDisposition": "yielded", "nativeFinalization": "present", "completionState": "allowlisted_company_adapter_policy", "trigger": "runner_finalizer" },
+      "given": { "priorIssueStatus": "in_progress", "turnTerminalState": "completed", "runTerminalState": "succeeded", "reportedWorkDisposition": "yielded", "nativeFinalization": "present", "completionState": "allowlisted_space_adapter_policy", "trigger": "runner_finalizer" },
       "expected": { "runStatus": "succeeded", "statusAction": "in_progress", "reasonCode": "live_continuation_registered", "requiredEffects": ["enqueue_continuation", "record_mode_native"], "forbiddenEffects": ["mode_switch_mid_run"], "livePathKind": "continuation", "preserveClaim": true, "nativeRecords": true, "decisionCount": 1, "maxWakeCount": 1, "maxNotificationCount": 0 },
       "replay": { "attempts": 2, "sameDecisionDigest": true, "maxSemanticDecisions": 1, "maxDomainEffectsPerKey": 1 }
     },

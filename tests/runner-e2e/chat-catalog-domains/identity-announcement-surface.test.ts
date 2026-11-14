@@ -28,15 +28,15 @@ function fixture(fault?: "modal" | "unsettled projects" | "missing secondary pub
     return p;
   }
   const person = { id: "riley", dispose: async () => {}, context: { newPage: async () => page(true) }, request: async (_path: string, method?: string) => ({ status: method === "POST" ? 404 : 200, json: async () => publication, body: { cancel: async () => {} } }) };
-  const ctx = { input: { nonce: "owned", fixtures: { company: { id: "company", issuePrefix: "RUN" }, agent: { id: "ceo" } }, privateSecrets: [], page: page(), api: {
+  const ctx = { input: { nonce: "owned", fixtures: { space: { id: "space", issuePrefix: "RUN" }, agent: { id: "ceo" } }, privateSecrets: [], page: page(), api: {
     get: async (path: string) => path === "/api/auth/get-session" ? { user: { id: "alex" } } : path === "/api/announcements/current" ? (dismissed ? null : publication) : Promise.reject(Error("Unexpected read")),
-    post: async (path: string) => { expect(path).toBe("/api/companies"); return { id: "birch", issuePrefix: "BIR" }; }, delete: async () => {},
+    post: async (path: string) => { expect(path).toBe("/api/spaces"); return { id: "birch", issuePrefix: "BIR" }; }, delete: async () => {},
   }, evidence: async () => {} } } as unknown as ChatCatalogContext;
   return { ctx, visits, definition: navigationBoundaryIdentityCases[1]! };
 }
-it("the actual dismissal setup uses a settled ordinary second-company surface, then preserves real reload and independent-person proof", async () => {
+it("the actual dismissal setup uses a settled ordinary second-space surface, then preserves real reload and independent-person proof", async () => {
   const f = fixture(); const state = await f.definition.setup(f.ctx);
-  expect(state.secondaryVisible).toBe(true); expect(state.invalidAuditCompanyStatus).toBe(404);
+  expect(state.secondaryVisible).toBe(true); expect(state.invalidAuditSpaceStatus).toBe(404);
   await f.definition.act!(f.ctx, state);
   expect(f.visits.filter(x => x.startsWith("/BIR/"))).toEqual(["/BIR/projects", "/BIR/projects"]);
   expect(f.visits).toContain("reload:/BIR/projects");

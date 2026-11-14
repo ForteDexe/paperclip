@@ -106,7 +106,7 @@ export function canonicalRunnerToolName(name: string): string {
   if (trimmed === ORP_COMPLETION_TOOL_NAME || trimmed === ORP_BLOCK_TOOL_NAME) {
     return trimmed;
   }
-  for (const prefix of ["paperclip__", "paperclip_", "outpost."]) {
+  for (const prefix of ["outpost__", "outpost_", "outpost."]) {
     if (trimmed.startsWith(prefix)) return trimmed.slice(prefix.length);
   }
   return trimmed;

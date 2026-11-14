@@ -49,8 +49,8 @@ export function connectionLifecycleType(
 type ActivityCursor = { createdAt: Date; id: string };
 
 type ListConnectionLifecycleEventsInput = {
-  companyId: string;
-  /** Omit for every connection in the company. An empty list returns no rows. */
+  spaceId: string;
+  /** Omit for every connection in the space. An empty list returns no rows. */
   connectionIds?: string[];
   agentId?: string | null;
   since?: Date | null;
@@ -62,7 +62,7 @@ type ListConnectionLifecycleEventsInput = {
 };
 
 function userFallbackName(userId: string): string {
-  if (userId === "local-board") return "Board";
+  if (userId === "local-operator") return "Operator";
   return userId;
 }
 
@@ -79,12 +79,12 @@ export async function listConnectionLifecycleEvents(
 
   const safeLimit = Math.max(1, Math.min(101, Math.floor(input.limit)));
   const activityConditions: SQL[] = [
-    eq(activityLog.companyId, input.companyId),
+    eq(activityLog.spaceId, input.spaceId),
     eq(activityLog.entityType, "tool_connection"),
     inArray(activityLog.action, [...CONNECTION_LIFECYCLE_ACTIONS]),
   ];
   const quarantineConditions: SQL[] = [
-    eq(toolAccessAuditEvents.companyId, input.companyId),
+    eq(toolAccessAuditEvents.spaceId, input.spaceId),
     eq(toolAccessAuditEvents.action, "tool_connection.catalog_refresh"),
     sql`(${toolAccessAuditEvents.details}->>'quarantinedCount')::int > 0`,
   ];
@@ -193,14 +193,14 @@ export async function listConnectionLifecycleEvents(
   for (const item of limited) {
     if (item.agentId) agentIds.add(item.agentId);
     if (item.actorType === "agent" && item.actorId) agentIds.add(item.actorId);
-    if (item.actorType === "user" && item.actorId && item.actorId !== "board") userIds.add(item.actorId);
+    if (item.actorType === "user" && item.actorId && item.actorId !== "operator") userIds.add(item.actorId);
   }
   const [agentRows, userRows] = await Promise.all([
     agentIds.size
       ? db
         .select({ id: agents.id, name: agents.name })
         .from(agents)
-        .where(and(eq(agents.companyId, input.companyId), inArray(agents.id, [...agentIds])))
+        .where(and(eq(agents.spaceId, input.spaceId), inArray(agents.id, [...agentIds])))
       : [],
     userIds.size
       ? db
@@ -220,8 +220,8 @@ export async function listConnectionLifecycleEvents(
     else if (item.actorType === "agent" && item.actorId) {
       actorDisplayName = agentNames.get(item.actorId) ?? null;
     } else if (item.actorType === "user" && item.actorId) {
-      actorDisplayName = item.actorId === "board"
-        ? "The board"
+      actorDisplayName = item.actorId === "operator"
+        ? "The operator"
         : userNames.get(item.actorId) ?? userFallbackName(item.actorId);
     }
     return { ...item, actorDisplayName };

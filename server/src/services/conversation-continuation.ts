@@ -34,7 +34,7 @@ function conversationRunPredicate() {
     sql`${heartbeatRuns.resultJson}->>'conversationContinuation' = ${CONVERSATION_CONTINUATION_POLICY}`,
     sql`exists (
       select 1 from ${heartbeatRunEvents}
-      where ${heartbeatRunEvents.companyId} = ${heartbeatRuns.companyId}
+      where ${heartbeatRunEvents.spaceId} = ${heartbeatRuns.spaceId}
         and ${heartbeatRunEvents.runId} = ${heartbeatRuns.id}
         and ${heartbeatRunEvents.eventType} = 'adapter.invoke'
         and ${inArray(sql`${heartbeatRunEvents.payload}->>'adapterType'`, [...CONVERSATION_ADAPTER_TYPES])}
@@ -44,11 +44,11 @@ function conversationRunPredicate() {
 
 /** Recovery must not infer the old adapter from the agent's mutable settings. */
 export async function historicalAdapterType(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "runnerProfileJson">): Promise<string | null> {
+  "id" | "spaceId" | "runnerProfileJson">): Promise<string | null> {
   const selected = claimedAdapterType(run);
   if (selected) return selected;
   const [invocation] = await db.select({ payload: heartbeatRunEvents.payload }).from(heartbeatRunEvents)
-    .where(and(eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    .where(and(eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
       eq(heartbeatRunEvents.eventType, "adapter.invoke")))
     .orderBy(desc(heartbeatRunEvents.seq)).limit(1);
   const adapterType = invocation?.payload?.adapterType;
@@ -71,7 +71,7 @@ export function conversationRecoveryActionPredicate() {
     eq(issueRecoveryActions.cause, "legacy_execution_requires_reconciliation"),
     sql`exists (
       select 1 from ${heartbeatRuns}
-      where ${heartbeatRuns.companyId} = ${issueRecoveryActions.companyId}
+      where ${heartbeatRuns.spaceId} = ${issueRecoveryActions.spaceId}
         and ${heartbeatRuns.id} = ${canonicalExecutionUuid(sql`${issueRecoveryActions.evidence}->>'runId'`)}
         and ${or(
           eq(heartbeatRuns.nativeIssueId, issueRecoveryActions.sourceIssueId),
@@ -105,9 +105,9 @@ function processMayBeAlive(pid: number): boolean {
 /** A terminal conversation row does not prove that its execution authority ended.
  * Other adapters keep their existing bootstrap and ownership protocols.
  */
-export async function getConversationOwnershipBlocker(db: Db, companyId: string, issueId: string) {
+export async function getConversationOwnershipBlocker(db: Db, spaceId: string, issueId: string) {
   const activeLease = sql`exists (select 1 from ${environmentLeases}
-    where ${environmentLeases.companyId} = "heartbeat_runs"."company_id"
+    where ${environmentLeases.spaceId} = "heartbeat_runs"."space_id"
       and ${environmentLeases.heartbeatRunId} = "heartbeat_runs"."id"
       and (${environmentLeases.releasedAt} is null
         or ${environmentLeases.status} = 'pending_cleanup'
@@ -121,7 +121,7 @@ export async function getConversationOwnershipBlocker(db: Db, companyId: string,
     resultJson: heartbeatRuns.resultJson,
   }, activeLease }).from(heartbeatRuns)
     .where(and(
-      eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.runtimeMode, "legacy"),
+      eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.runtimeMode, "legacy"),
       conversationRunPredicate(),
       or(
         eq(heartbeatRuns.nativeIssueId, canonicalExecutionUuid(sql`${issueId}::text`)),
@@ -134,7 +134,7 @@ export async function getConversationOwnershipBlocker(db: Db, companyId: string,
   for (const { run, activeLease: leaseHeld } of candidates) {
     if (hasRequiredWorkspaceRecovery(run.resultJson)) {
       const leases = await db.select().from(environmentLeases).where(and(
-        eq(environmentLeases.companyId, companyId), eq(environmentLeases.heartbeatRunId, run.id),
+        eq(environmentLeases.spaceId, spaceId), eq(environmentLeases.heartbeatRunId, run.id),
       ));
       const retainedIds = (run.resultJson!.workspaceRestoreRecovery as { leaseIds?: unknown }).leaseIds;
       const remoteLeases = leases.filter(lease => lease.provider !== "local");

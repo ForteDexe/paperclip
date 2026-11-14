@@ -26,14 +26,14 @@ it("requires an unstarted terminal suppression on the same terminal task", () =>
 
 
 const identity = {
-  companyId: "10000000-0000-4000-8000-000000000001", agentId: "10000000-0000-4000-8000-000000000002",
+  spaceId: "10000000-0000-4000-8000-000000000001", agentId: "10000000-0000-4000-8000-000000000002",
   issueId: "10000000-0000-4000-8000-000000000003", commentId: "10000000-0000-4000-8000-000000000004",
   actionId: "10000000-0000-4000-8000-000000000005", waitId: "10000000-0000-4000-8000-000000000006",
   stopId: "10000000-0000-4000-8000-000000000007", wakeId: "10000000-0000-4000-8000-000000000008",
 };
 function admissionFixture() {
   const row: Record<string, any> = {
-    id: identity.waitId, companyId: identity.companyId, agentId: identity.agentId, issueId: identity.issueId,
+    id: identity.waitId, spaceId: identity.spaceId, agentId: identity.agentId, issueId: identity.issueId,
     wakeupRequestId: identity.wakeId, invocationSource: "on_demand", triggerDetail: "manual", responsibleUserId: "board",
     status: "cancelled", runtimeMode: "legacy", errorCode: "execution_reconciliation_required", error: "Recovering saved work…",
     runnerProfileJson: null, nextEventSeq: 2, logCompressed: false,
@@ -49,22 +49,22 @@ function admissionFixture() {
     "completionContractSha256", "nativePhase", "sessionIdBefore", "sessionIdAfter", "controllerBootId",
     "controllerLeaseExpiresAt", "executionStage", "processPid", "processGroupId", "processStartedAt", "logStore",
     "logRef", "logBytes", "logSha256", "stdoutExcerpt", "stderrExcerpt", "usageJson", "exitCode", "signal", "externalRunId"]) row[key] = null;
-  const event: Record<string, any> = { seq: 1, runId: row.id, companyId: row.companyId, agentId: row.agentId,
+  const event: Record<string, any> = { seq: 1, runId: row.id, spaceId: row.spaceId, agentId: row.agentId,
     eventType: "lifecycle", stream: "system", level: "warn", message: row.error, payload: { ...row.resultJson.executionWait } };
   for (const key of ["sourceInstanceId", "sourceEventId", "sourceSeq", "sourcePayloadSha256", "protocolSchemaVersion"]) event[key] = null;
-  const stopped = { id: identity.stopId, companyId: identity.companyId, agentId: identity.agentId,
+  const stopped = { id: identity.stopId, spaceId: identity.spaceId, agentId: identity.agentId,
     nativeIssueId: identity.issueId, contextSnapshot: { issueId: identity.issueId }, runtimeMode: "native", status: "cancelled", finishedAt: "2026-10-30T00:00:01Z",
     resultJson: { nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: identity.stopId,
-      companyId: identity.companyId, issueId: identity.issueId, scope: "run", reasonCode: "cancellation_run_only",
+      spaceId: identity.spaceId, issueId: identity.issueId, scope: "run", reasonCode: "cancellation_run_only",
       dispatchState: "acknowledged", dispatched: true } } };
   const seed = { ...stopped, id: "10000000-0000-4000-8000-000000000009", status: "succeeded", resultJson: {} };
-  const reset = { id: "10000000-0000-4000-8000-000000000010", companyId: identity.companyId, agentId: identity.agentId,
+  const reset = { id: "10000000-0000-4000-8000-000000000010", spaceId: identity.spaceId, agentId: identity.agentId,
     runtimeMode: "legacy", status: "succeeded", startedAt: "2026-10-30T00:00:05Z", finishedAt: "2026-10-30T00:00:06Z",
     contextSnapshot: { conversationReset: true, wakeCommentId: identity.commentId, commentId: identity.commentId,
       conversationSessionGeneration: 1 }, resultJson: { conversationReset: true } };
   const fresh = { ...seed, id: "10000000-0000-4000-8000-000000000011", startedAt: "2026-10-30T00:00:07Z",
     sessionIdBefore: null, contextSnapshot: { issueId: identity.issueId, conversationSessionGeneration: 1 } };
-  const action = { id: identity.actionId, companyId: identity.companyId, sourceIssueId: identity.issueId,
+  const action = { id: identity.actionId, spaceId: identity.spaceId, sourceIssueId: identity.issueId,
     status: "resolved", outcome: "cancelled", resolvedAt: "2026-10-30T00:00:05Z", fingerprint: `native-workspace:${identity.stopId}`, evidence: { runId: identity.stopId,
       automaticRecovery: { policy: "preserve_without_replay_v1", replay: "explicit_user_continuation", runId: identity.stopId },
       explicitUserContinuation: { previousRunId: identity.stopId, commentId: identity.commentId, actorId: "board",
@@ -74,10 +74,10 @@ function admissionFixture() {
       workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: identity.stopId, status: "recovered" } } };
   return { row, event, final: { runs: [seed, stopped, row, reset, fresh],
     runEvidence: [{ runId: row.id, log: null, logOmissionReason: "pre_dispatch_execution_wait", events: [event] }],
-    companyId: identity.companyId, agentId: identity.agentId, stoppedRunId: identity.stopId,
-    issue: { id: identity.issueId, companyId: identity.companyId, assigneeAgentId: identity.agentId,
+    spaceId: identity.spaceId, agentId: identity.agentId, stoppedRunId: identity.stopId,
+    issue: { id: identity.issueId, spaceId: identity.spaceId, assigneeAgentId: identity.agentId,
       conversationSessionGeneration: 1, conversationBoundaryCommentId: identity.commentId },
-    comments: [{ id: identity.commentId, companyId: identity.companyId, issueId: identity.issueId, body: "/new",
+    comments: [{ id: identity.commentId, spaceId: identity.spaceId, issueId: identity.issueId, body: "/new",
       authorType: "user", deletedAt: null, authorUserId: "board", authorAgentId: null, createdByRunId: null, createdAt: "2026-10-30T00:00:02Z" }],
     recoverySources: [{ runId: identity.stopId, recoveryActionId: identity.actionId, response: { actions: [action],
       sourceInspection: { schema: "outpost.workspace-source-inspection.v1", actionId: identity.actionId,
@@ -101,7 +101,7 @@ it("requires complete receipt and rejects provider authority rather than filteri
     expect(classifyPreDispatchExecutionWait({ ...row, ...patch }, [event]), JSON.stringify(patch)).toBeNull();
   }
   for (const patch of [{ stream: "stdout" }, { sourceEventId: "native-event" }, { seq: 2 }, { runId: identity.stopId },
-    { companyId: identity.stopId }, { eventType: "provider.event" }, { payload: { issueId: identity.issueId, recoveryActionId: identity.stopId } }]) {
+    { spaceId: identity.stopId }, { eventType: "provider.event" }, { payload: { issueId: identity.issueId, recoveryActionId: identity.stopId } }]) {
     const { row, event } = admissionFixture();
     expect(classifyPreDispatchExecutionWait(row, [{ ...event, ...patch }]), JSON.stringify(patch)).toBeNull();
   }
@@ -133,7 +133,7 @@ it("rejects incomplete, cross-scope or unrecovered final proof without treating 
     f => { f.runs[4].sessionIdBefore = "old"; }, f => { f.runs.push({ ...f.runs[4], id: identity.wakeId }); },
     f => { f.runs.push(structuredClone(f.runs[2])); }, f => { f.runEvidence[0].log = {}; },
     f => { f.recoverySources = []; }, f => { f.recoverySources[0].runId = identity.waitId; },
-    f => { f.recoverySources[0].response.actions[0].companyId = identity.waitId; },
+    f => { f.recoverySources[0].response.actions[0].spaceId = identity.waitId; },
     f => { f.recoverySources[0].response.actions[0].sourceIssueId = identity.waitId; },
     f => { f.recoverySources[0].response.actions[0].evidence.runId = identity.waitId; },
     f => { f.recoverySources[0].response.actions[0].evidence.systemRecovery.state = "awaiting_evidence"; },

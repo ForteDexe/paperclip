@@ -8,7 +8,7 @@ import { bundledRemoteProviderPackManifestPath, bundledRemoteRunnerBinary } from
 const roots: string[] = [];
 afterEach(() => roots.splice(0).forEach(root => rmSync(root, { recursive: true, force: true })));
 function release(target: "linux-x64" | "linux-arm64" = "linux-x64") {
-  const root = mkdtempSync(join(tmpdir(), "paperclip-remote-release-")); roots.push(root);
+  const root = mkdtempSync(join(tmpdir(), "outpost-remote-release-")); roots.push(root);
   const output = join(root, "dist/vendor/outpost-runner"), binary = join(output, `bin/${target}/outpost-runnerd`);
   mkdirSync(join(output, `bin/${target}`), { recursive: true });
   const bytes = Buffer.alloc(64); Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1]).copy(bytes); bytes.writeUInt16LE(target === "linux-arm64" ? 183 : 62, 18);

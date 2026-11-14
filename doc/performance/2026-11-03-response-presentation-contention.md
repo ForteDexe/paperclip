@@ -1,6 +1,6 @@
 # Avoid self-contention during accepted-response recovery
 
-Baseline: `82c033ed127d07862e6765aa4b69a3cf339bde81`. This change prevents the response-presentation worker from recovering different tasks on a shared chat endpoint or principal at the same time. It preserves task order, current transactional authorization, company boundaries, NOWAIT locks, and retry/drain behavior. Endpoint and principal IDs are scheduling hints from a company-scoped wake-action join. Missing hints retain task order and every eligibility check.
+Baseline: `82c033ed127d07862e6765aa4b69a3cf339bde81`. This change prevents the response-presentation worker from recovering different tasks on a shared chat endpoint or principal at the same time. It preserves task order, current transactional authorization, space boundaries, NOWAIT locks, and retry/drain behavior. Endpoint and principal IDs are scheduling hints from a space-scoped wake-action join. Missing hints retain task order and every eligibility check.
 
 ## Evidence and limits
 
@@ -12,7 +12,7 @@ Other controls cover external-lock failure and rollback, recovery after release,
 
 ## Initial endpoint-only comparison
 
-Five alternating pairs compared the actual archived baseline worker/query with the initial endpoint-only treatment on source base `82c033ed`. This study preceded the principal-hint review fix below. It measures the earlier candidate, not final-head CPU. The final endpoint fixture has four distinct principals, so the added principal key does not change its groups; its constant extra hint processing was not CPU-measured. Each used fresh equivalent four-response fixtures and real PostgreSQL. No artificial database sleep or advisory gate was used in this comparison. Validation checked one comment per run, the exact accepted text, and one publication with the matching text/company/task/conversation/comment association. Validation ran after timing and capture counters stopped.
+Five alternating pairs compared the actual archived baseline worker/query with the initial endpoint-only treatment on source base `82c033ed`. This study preceded the principal-hint review fix below. It measures the earlier candidate, not final-head CPU. The final endpoint fixture has four distinct principals, so the added principal key does not change its groups; its constant extra hint processing was not CPU-measured. Each used fresh equivalent four-response fixtures and real PostgreSQL. No artificial database sleep or advisory gate was used in this comparison. Validation checked one comment per run, the exact accepted text, and one publication with the matching text/space/task/conversation/comment association. Validation ran after timing and capture counters stopped.
 
 The actual Vitest child recorded Node **v24.22.2** and executable `/Users/dotta/.npm/_npx/387698761821791d/node_modules/node/bin/node`. This is a shared-host measurement: the coordinator reported 18 logical CPUs and about 10.5 one-minute load, with unrelated Node/VM work. Other campaign agents paused heavy jobs. No unrelated process was stopped.
 
@@ -37,7 +37,7 @@ Median instrumented process CPU was 177.157 â†’ 98.164 ms, with ranges 141.654â€
 
 ## Final shared-principal work-count comparison
 
-Review identified a second shared lock: the source-authority path takes a company/principal try-advisory lock before endpoint checks. Two valid Slack bot endpoints in the same workspace can share one external-principal row. The final code also groups that principal hint from the same company-scoped wake-action join. The hint never grants authority.
+Review identified a second shared lock: the source-authority path takes a space/principal try-advisory lock before endpoint checks. Two valid Slack bot endpoints in the same workspace can share one external-principal row. The final code also groups that principal hint from the same space-scoped wake-action join. The hint never grants authority.
 
 A real PostgreSQL regression asserts distinct endpoints and identical source principal IDs. Before the fix, one response completed on the first pass and the other failed with `NativeChatReviewPresentationContentionError`. The advisory SQL itself returned successfully, so query-error count was zero. After the fix, both exact responses and their correctly associated publications completed on the first pass. This counts-only experiment used a short real comment-transaction hold to reproduce overlap. It measured no CPU or wall-time benefit.
 
@@ -67,7 +67,7 @@ pnpm --filter @outpost/plugin-sdk ensure-build-deps
 node server/scripts/benchmark-response-presentation.mjs /tmp/presentation-results
 ```
 
-The helper checks the actual child runtime, writes each pair immediately, and restores temporary fixture/baseline files in `finally`. Its output includes the baseline/treatment revisions, exact benchmark fragment, baseline modules, child preflight, JSONL and Vitest log. Review `server/scripts/benchmark-response-presentation.mjs` for the measurement boundary. Initial study artifacts remain under `/private/tmp/paperclip-perf-batch-20261102/campaign-10h/presentation-benchmark/`; the table above makes all ten measured runs (five pairs) inspectable without that workspace.
+The helper checks the actual child runtime, writes each pair immediately, and restores temporary fixture/baseline files in `finally`. Its output includes the baseline/treatment revisions, exact benchmark fragment, baseline modules, child preflight, JSONL and Vitest log. Review `server/scripts/benchmark-response-presentation.mjs` for the measurement boundary. Initial study artifacts remain under `/private/tmp/outpost-perf-batch-20261102/campaign-10h/presentation-benchmark/`; the table above makes all ten measured runs (five pairs) inspectable without that workspace.
 
 Initial offline install lacked a cached tarball; frozen network install passed. The first test import lacked built plugin-sdk; its existing build helper resolved that. The intentionally failing same-endpoint regression is retained. A Date-only benchmark clock failed to settle. A corrected run passed but lost console metrics, so it supplies no numbers. The next retained run used inherited Node 26; it is superseded and is not the table above. The final run checked the actual Node 24 child, verified its file sink, and retained each pair immediately. An early broad check inherited global pnpm 11 and failed its version-switch signature fetch; the corrected checks use the pinned Node 24/pnpm 9 PATH. These setup failures are not reported as verification passes.
 

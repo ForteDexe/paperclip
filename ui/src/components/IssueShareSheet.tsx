@@ -160,7 +160,7 @@ function RowShell({
 
 export function IssueShareSheet({
   issueId,
-  companyId,
+  spaceId,
   canManage,
   open,
   onOpenChange,
@@ -170,7 +170,7 @@ export function IssueShareSheet({
   initialAddSelection = "",
 }: {
   issueId: string;
-  companyId: string;
+  spaceId: string;
   canManage: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -193,13 +193,13 @@ export function IssueShareSheet({
     enabled: open,
   });
   const directoryQuery = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(companyId),
-    queryFn: () => accessApi.listUserDirectory(companyId),
+    queryKey: queryKeys.access.spaceUserDirectory(spaceId),
+    queryFn: () => accessApi.listUserDirectory(spaceId),
     enabled: open && view === "add" && canManage,
   });
   const agentsQuery = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
     enabled: open && view === "add" && canManage,
   });
 

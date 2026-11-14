@@ -14,14 +14,14 @@ async function fixture() {
   vi.stubEnv("OUTPOST_AGENT_JWT_SECRET", "synthetic-jwt-secret-for-unit-test"); vi.stubEnv("OUTPOST_INSTANCE_ID", "unit");
   const cwd = path.join(await realpath(root), "task"); await mkdir(cwd);
   const runId = "11111111-1111-1111-1111-111111111111";
-  const run = { id: runId, companyId: "company", agentId: "morgan", status: "running", startedAt: "2026-10-28T01:00:00Z", responsibleUserId: "user", contextSnapshot: { issueId: "task" } };
+  const run = { id: runId, spaceId: "space", agentId: "morgan", status: "running", startedAt: "2026-10-28T01:00:00Z", responsibleUserId: "user", contextSnapshot: { issueId: "task" } };
   const runs = [{ id: runId, agentId: "morgan", status: "running" }, { id: "22222222-2222-2222-2222-222222222222", agentId: "morgan", status: "succeeded" }];
-  const task = { id: "task", companyId: "company", assigneeAgentId: "morgan", parentId: null as string | null, originIssueId: "source", executionWorkspaceId: "workspace" };
-  const workspace = { id: "workspace", companyId: "company", cwd };
-  const agent = { id: "morgan", companyId: "company", adapterType: "outpost_runner" };
+  const task = { id: "task", spaceId: "space", assigneeAgentId: "morgan", parentId: null as string | null, originIssueId: "source", executionWorkspaceId: "workspace" };
+  const workspace = { id: "workspace", spaceId: "space", cwd };
+  const agent = { id: "morgan", spaceId: "space", adapterType: "outpost_runner" };
   const privateSecrets: string[] = [];
-  const get = async (url: string) => url.startsWith("/api/companies/company/heartbeat-runs") ? runs : url.startsWith("/api/heartbeat-runs/") ? run : url === "/api/agents/morgan" ? agent : url.endsWith("/workspace") ? { workspace } : task;
-  const ctx = { scenario: { id: "secrets.least-scope-delivery" }, input: { nonce: "owned-test", execution: { environment: { id: "local" } }, fixtures: { company: { id: "company" } }, privateSecrets, api: { baseURL: "http://fixture.invalid", get } }, issue: () => ({ id: "source" }) } as unknown as ChatCatalogContext;
+  const get = async (url: string) => url.startsWith("/api/spaces/space/heartbeat-runs") ? runs : url.startsWith("/api/heartbeat-runs/") ? run : url === "/api/agents/morgan" ? agent : url.endsWith("/workspace") ? { workspace } : task;
+  const ctx = { scenario: { id: "secrets.least-scope-delivery" }, input: { nonce: "owned-test", execution: { environment: { id: "local" } }, fixtures: { space: { id: "space" } }, privateSecrets, api: { baseURL: "http://fixture.invalid", get } }, issue: () => ({ id: "source" }) } as unknown as ChatCatalogContext;
   return { ctx, cwd, root, run, runs, task, workspace, privateSecrets };
 }
 it("binds only the actual active Morgan run, delegated task and its persisted owned workspace", async () => {
@@ -29,13 +29,13 @@ it("binds only the actual active Morgan run, delegated task and its persisted ow
   await expect(readSecretEndpointTaskBinding(f.ctx, "morgan", f.run.id, "task")).resolves.toEqual({ taskId: "task", workspaceId: "workspace", taskWorkspaceMatched: true });
   await expect(readSecretEndpointConsumerRun(f.ctx, "morgan")).resolves.toMatchObject({ run: { id: f.run.id }, taskId: "task", workspaceId: "workspace", taskWorkspaceMatched: true });
 });
-it.each(["CEO", "wrong task", "wrong origin chat", "workspace outside attempt", "foreign company", "wrong workspace", "unstarted", "settled"])("rejects %s before endpoint success", async invalid => {
+it.each(["CEO", "wrong task", "wrong origin chat", "workspace outside attempt", "foreign space", "wrong workspace", "unstarted", "settled"])("rejects %s before endpoint success", async invalid => {
   const f = await fixture();
   if (invalid === "CEO") f.run.agentId = "ceo";
   if (invalid === "wrong task") f.run.contextSnapshot.issueId = "other";
   if (invalid === "wrong origin chat") f.task.originIssueId = "other";
   if (invalid === "workspace outside attempt") f.workspace.cwd = tmpdir();
-  if (invalid === "foreign company") f.workspace.companyId = "foreign";
+  if (invalid === "foreign space") f.workspace.spaceId = "foreign";
   if (invalid === "wrong workspace") f.task.executionWorkspaceId = "other";
   if (invalid === "unstarted") f.run.startedAt = "invalid";
   if (invalid === "settled") f.run.status = "succeeded";
@@ -48,13 +48,13 @@ it.each(["none", "two"])("rejects a consumer with %s running runs", async count 
   await expect(readSecretEndpointConsumerRun(f.ctx, "morgan")).rejects.toThrow();
 });
 it("actual inline helper needs only the bound credential and emits sanitized status, never credential bytes", async () => {
-  const f = await fixture(), endpoint = await secretTestEndpoint(f.ctx, "morgan", "synthetic-deployment-value", "DEPLOYMENT_API_KEY", { boundSecretId: "bound", unrelatedCompanyKey: "unrelated-company-key", instanceKey: "custody_probe" }, { taskBound: true });
+  const f = await fixture(), endpoint = await secretTestEndpoint(f.ctx, "morgan", "synthetic-deployment-value", "DEPLOYMENT_API_KEY", { boundSecretId: "bound", unrelatedSpaceKey: "unrelated-space-key", instanceKey: "custody_probe" }, { taskBound: true });
   try {
     expect(endpoint.scriptPath).toBe(""); expect(endpoint.command).not.toContain(f.cwd); expect(endpoint.command).not.toContain("synthetic-deployment-value");
-    expect(endpoint.command).not.toMatch(/OUTPOST_|x-paperclip/);
+    expect(endpoint.command).not.toMatch(/OUTPOST_|x-outpost/);
     const code = endpoint.command.slice("node --input-type=module -e '".length, -1).replace(/'\\''/g, "'");
     const output: string[] = [], requests: Array<{ headers: Record<string, string> }> = [];
-    // A native runner shell: only the configured credential, no Paperclip run identity.
+    // A native runner shell: only the configured credential, no Outpost run identity.
     const fakeProcess = { env: { DEPLOYMENT_API_KEY: "synthetic-deployment-value" }, cwd: () => f.cwd, stdout: { write: (text: string) => output.push(text) }, exitCode: 0 };
     const execute = new (Object.getPrototypeOf(async () => {}).constructor)("process", "fetch", code);
     await execute(fakeProcess, async (_url: string, options: { headers: Record<string, string>; redirect: string }) => { expect(options.redirect).toBe("error"); requests.push(options); return { ok: true, status: 200, json: async () => ({ ok: true, privateData: "synthetic-deployment-value" }) }; });
@@ -64,10 +64,10 @@ it("actual inline helper needs only the bound credential and emits sanitized sta
   } finally { await endpoint.close(); }
 });
 it("actual endpoint binds the server's running Morgan run, probes with its own authority and rejects unauthorized scope", async () => {
-  const f = await fixture(), endpoint = await secretTestEndpoint(f.ctx, "morgan", "synthetic-deployment-value", "DEPLOYMENT_API_KEY", { boundSecretId: "bound", unrelatedCompanyKey: "unrelated-company-key", instanceKey: "custody_probe" }, { taskBound: true });
+  const f = await fixture(), endpoint = await secretTestEndpoint(f.ctx, "morgan", "synthetic-deployment-value", "DEPLOYMENT_API_KEY", { boundSecretId: "bound", unrelatedSpaceKey: "unrelated-space-key", instanceKey: "custody_probe" }, { taskBound: true });
   const statuses: number[] = [], output: string[] = [], bearers: string[] = [];
   let deniedStatus = 200;
-  vi.stubGlobal("fetch", vi.fn(async (url: URL, init: { headers: Record<string, string> }) => { bearers.push(init.headers.authorization); return new Response(JSON.stringify(url.pathname === "/api/agents/me" ? { id: "morgan", companyId: "company" } : url.pathname === "/api/agents/me/secrets" ? { secrets: [{ key: "openrouter_api_key", secretRef: "provider" }, { key: "deployment-api-key", secretRef: "bound" }] } : {}), { status: url.pathname.endsWith("/value") ? deniedStatus : 200 }); }));
+  vi.stubGlobal("fetch", vi.fn(async (url: URL, init: { headers: Record<string, string> }) => { bearers.push(init.headers.authorization); return new Response(JSON.stringify(url.pathname === "/api/agents/me" ? { id: "morgan", spaceId: "space" } : url.pathname === "/api/agents/me/secrets" ? { secrets: [{ key: "openrouter_api_key", secretRef: "provider" }, { key: "deployment-api-key", secretRef: "bound" }] } : {}), { status: url.pathname.endsWith("/value") ? deniedStatus : 200 }); }));
   const invoke = (authorization: string) => handlers[0]!({ headers: { authorization }, method: "GET", url: "/publishing-check" }, { writeHead: (status: number) => statuses.push(status), end: (text: string) => output.push(text) });
   try {
     await invoke("Bearer synthetic-deployment-value"); expect(statuses.at(-1)).toBe(403);
@@ -75,11 +75,11 @@ it("actual endpoint binds the server's running Morgan run, probes with its own a
     await invoke("Bearer wrong-value"); expect(statuses.at(-1)).toBe(403);
     f.run.status = "succeeded"; await invoke("Bearer synthetic-deployment-value"); expect(statuses.at(-1)).toBe(403); f.run.status = "running";
     await invoke("Bearer synthetic-deployment-value"); expect(statuses.at(-1)).toBe(200);
-    expect(endpoint.scopeReceipts.at(-1)).toMatchObject({ runId: f.run.id, agentId: "morgan", tokenRunMatched: true, taskId: "task", workspaceId: "workspace", taskWorkspaceMatched: true, catalogKeys: ["openrouter_api_key", "deployment-api-key"], companyDeniedStatus: 403, instanceDeniedStatus: 403 });
+    expect(endpoint.scopeReceipts.at(-1)).toMatchObject({ runId: f.run.id, agentId: "morgan", tokenRunMatched: true, taskId: "task", workspaceId: "workspace", taskWorkspaceMatched: true, catalogKeys: ["openrouter_api_key", "deployment-api-key"], spaceDeniedStatus: 403, instanceDeniedStatus: 403 });
     expect(endpoint.calls.filter(call => call.authorized)).toHaveLength(3);
     const token = bearers.at(-1)!.slice("Bearer ".length);
     const claims = JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString("utf8"));
-    expect(claims).toMatchObject({ sub: "morgan", company_id: "company", run_id: f.run.id, adapter_type: "outpost_runner", responsible_user_id: "user" });
+    expect(claims).toMatchObject({ sub: "morgan", space_id: "space", run_id: f.run.id, adapter_type: "outpost_runner", responsible_user_id: "user" });
     expect(f.privateSecrets).toContain(token);
     expect(JSON.stringify({ calls: endpoint.calls, receipts: endpoint.scopeReceipts, output })).not.toContain(token);
     expect(JSON.stringify({ calls: endpoint.calls, receipts: endpoint.scopeReceipts, output })).not.toContain("synthetic-deployment-value");
@@ -90,18 +90,18 @@ it("active-run consumer mode attributes the bound credential to the server's one
   f.ctx.scenario.id = "secrets.vault-reference";
   const endpoint = await secretTestEndpoint(f.ctx, "morgan", "synthetic-deployment-value", "DEPLOYMENT_API_KEY", undefined, { forbidAwsRuntimeAuthority: true, activeRunConsumer: true });
   const statuses: number[] = [];
-  const invoke = (authorization: string, headers: Record<string, string> = {}) => handlers[0]!({ headers: { authorization, "x-paperclip-no-aws": "true", ...headers }, method: "GET", url: "/publishing-check" }, { writeHead: (status: number) => statuses.push(status), end: () => {} });
+  const invoke = (authorization: string, headers: Record<string, string> = {}) => handlers[0]!({ headers: { authorization, "x-outpost-no-aws": "true", ...headers }, method: "GET", url: "/publishing-check" }, { writeHead: (status: number) => statuses.push(status), end: () => {} });
   try {
     expect(endpoint.command).not.toContain("synthetic-deployment-value");
     const { readFile } = await import("node:fs/promises");
-    expect(await readFile(endpoint.scriptPath, "utf8")).not.toMatch(/OUTPOST_AGENT_ID|OUTPOST_RUN_ID|x-paperclip-agent|x-paperclip-run/);
+    expect(await readFile(endpoint.scriptPath, "utf8")).not.toMatch(/OUTPOST_AGENT_ID|OUTPOST_RUN_ID|x-outpost-agent|x-outpost-run/);
     await invoke("Bearer synthetic-deployment-value"); expect(statuses.at(-1)).toBe(200);
     expect(endpoint.calls.at(-1)).toMatchObject({ authorized: true, agentId: "morgan", runId: f.run.id, awsAuthorityAbsent: true });
     // Forged shell headers are ignored: identity comes from the server.
-    await invoke("Bearer synthetic-deployment-value", { "x-paperclip-agent": "ceo", "x-paperclip-run": "33333333-3333-3333-3333-333333333333" });
+    await invoke("Bearer synthetic-deployment-value", { "x-outpost-agent": "ceo", "x-outpost-run": "33333333-3333-3333-3333-333333333333" });
     expect(endpoint.calls.at(-1)).toMatchObject({ agentId: "morgan", runId: f.run.id });
     await invoke("Bearer wrong-value"); expect(statuses.at(-1)).toBe(403);
-    await invoke("Bearer synthetic-deployment-value", { "x-paperclip-no-aws": "false" }); expect(statuses.at(-1)).toBe(403);
+    await invoke("Bearer synthetic-deployment-value", { "x-outpost-no-aws": "false" }); expect(statuses.at(-1)).toBe(403);
     f.runs[0]!.status = "succeeded"; await invoke("Bearer synthetic-deployment-value"); expect(statuses.at(-1)).toBe(403);
     f.runs[0]!.status = "running"; f.runs[1]!.status = "running"; await invoke("Bearer synthetic-deployment-value"); expect(statuses.at(-1)).toBe(403);
     f.runs[1]!.status = "succeeded"; f.run.agentId = "ceo"; await invoke("Bearer synthetic-deployment-value"); expect(statuses.at(-1)).toBe(403);

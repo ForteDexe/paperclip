@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Routes, Route } from "@/lib/router";
 import { AuthPage } from "@/pages/Auth";
-import { Companies } from "@/pages/Companies";
+import { Spaces } from "@/pages/Spaces";
 import { expect, userEvent, within, waitFor } from "storybook/test";
-import { storybookAuthSession } from "../../fixtures/paperclipData";
+import { storybookAuthSession } from "../../fixtures/outpostData";
 import {
   prepareFixtureApi,
   type FixtureState,
@@ -12,8 +12,8 @@ function SignIn() {
   return (
     <Routes>
       <Route path="/auth" element={<AuthPage />} />
-      <Route path="/companies" element={<Companies />} />
-      <Route path="/PAP/companies" element={<Companies />} />
+      <Route path="/spaces" element={<Spaces />} />
+      <Route path="/PAP/spaces" element={<Spaces />} />
     </Routes>
   );
 }
@@ -23,15 +23,15 @@ const meta = {
   component: SignIn,
   parameters: {
     layout: "fullscreen",
-    initialEntries: ["/auth?next=/companies"],
-    paperclip: {
+    initialEntries: ["/auth?next=/spaces"],
+    outpost: {
       "capabilities": [
         "access/login"
       ],
       "status": "current",
       "implementation": "production",
       "boundary": "fixtures",
-      "notes": "AuthPage email form, session read loading/error, submission pending/failure and navigation to Companies after a fixture session. Real authentication, bootstrap claim and sign-out remain separate."
+      "notes": "AuthPage email form, session read loading/error, submission pending/failure and navigation to Spaces after a fixture session. Real authentication, bootstrap claim and sign-out remain separate."
     },
   },
   beforeEach: ({ parameters }) => {

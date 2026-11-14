@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { createRequire } from "node:module";
-import { applyCompanyPrefix } from "../../../ui/src/lib/company-routes.js";
+import { applySpacePrefix } from "../../../ui/src/lib/space-routes.js";
 import { parseIssueReferenceFromHref, remarkLinkIssueReferences } from "../../../ui/src/lib/issue-reference.js";
 import { JourneyError } from "./types.js";
 
@@ -28,7 +28,7 @@ export function hireDelegateNames(campaignId: string) {
     checklist: `Checklist ${campaignId}`, review: `Review ${campaignId}` };
 }
 export interface HireScope {
-  companyId: string; leadId: string; chatId: string; projectId: string; campaignId: string;
+  spaceId: string; leadId: string; chatId: string; projectId: string; campaignId: string;
   origin: string; issuePrefix: string;
   model: string; provider: string; environmentId: string; connectionBinding: unknown;
   connectionChoice?: HireConnectionChoice;
@@ -37,24 +37,24 @@ export interface HireConnectionChoice {
   connectionId: string; grantId: string; provider: string; method: string; responsibleUserId: string;
 }
 export async function readHireConnectionChoice(api: { get<T = Row>(route: string): Promise<T> },
-  input: { companyId: string; responsibleUserId: string; binding: unknown; hiredId?: string }): Promise<HireConnectionChoice | undefined> {
+  input: { spaceId: string; responsibleUserId: string; binding: unknown; hiredId?: string }): Promise<HireConnectionChoice | undefined> {
   const binding = input.binding as Row | undefined;
   if (binding?.mode !== "delegated") return;
   const fail = (): never => { throw new JourneyError("failed", "hire_connection_choice_mismatch"); };
   if (![binding.connectionId, binding.grantId, binding.provider, binding.method, input.responsibleUserId]
     .every(value => typeof value === "string" && value)) fail();
-  const listed = await api.get<Row>(`/api/companies/${input.companyId}/ai-connections`);
+  const listed = await api.get<Row>(`/api/spaces/${input.spaceId}/ai-connections`);
   if (listed.currentUserId !== input.responsibleUserId || !Array.isArray(listed.connections)
-    || listed.connections.some((row: Row) => !row || row.companyId !== input.companyId)) fail();
+    || listed.connections.some((row: Row) => !row || row.spaceId !== input.spaceId)) fail();
   const defaults = listed.connections.filter((row: Row) => row.provider === binding.provider && row.isDefault === true);
   const selected = defaults[0];
-  if (defaults.length !== 1 || selected.companyId !== input.companyId || selected.id !== binding.connectionId
+  if (defaults.length !== 1 || selected.spaceId !== input.spaceId || selected.id !== binding.connectionId
     || selected.grantId !== binding.grantId || selected.method !== binding.method || selected.status !== "connected"
     || selected.ownership !== "personal" || selected.ownerUserId !== input.responsibleUserId || selected.unavailableReason) fail();
   if (input.hiredId) {
     const installed = await api.get<Row>(`/api/tool-connections/${binding.connectionId}/installs`);
     if (installed.connectionId !== binding.connectionId || !Array.isArray(installed.installs)
-      || installed.installs.some((row: Row) => row.companyId !== input.companyId)
+      || installed.installs.some((row: Row) => row.spaceId !== input.spaceId)
       || installed.installs.filter((row: Row) => row.targetType === "agent" && row.targetId === input.hiredId).length !== 1) fail();
   }
   return { connectionId: binding.connectionId, grantId: binding.grantId, provider: binding.provider,
@@ -83,14 +83,14 @@ export function assertHireAuditCoverage(activity: Row[], leadRuns: Row[]) {
 
 export function observedHireResources<A extends Row, T extends Row>(scope: HireScope, state: { agents: A[]; tasks: T[]; activity: Row[]; leadRuns: Row[] }) {
   const names = hireDelegateNames(scope.campaignId);
-  const authored = (row: Row, actions: string[]) => state.activity.some(event => event.companyId === scope.companyId
+  const authored = (row: Row, actions: string[]) => state.activity.some(event => event.spaceId === scope.spaceId
     && event.actorType === "agent" && event.actorId === scope.leadId && event.agentId === scope.leadId
     && event.entityId === row.id && actions.includes(event.action)
     && state.leadRuns.some(run => run.id === event.runId && run.agentId === scope.leadId
-      && run.companyId === scope.companyId && hireRunIssueId(run) === scope.chatId));
+      && run.spaceId === scope.spaceId && hireRunIssueId(run) === scope.chatId));
   const agents = state.agents.filter(agent => authored(agent, ["agent.hire_created", "agent.created"]));
   const tasks = state.tasks.filter(task => authored(task, ["issue.created", "issue.child_created"]));
-  const ownable = (row: Row, name: unknown) => row.companyId === scope.companyId && typeof row.id === "string" && row.id
+  const ownable = (row: Row, name: unknown) => row.spaceId === scope.spaceId && typeof row.id === "string" && row.id
     && typeof name === "string" && Boolean(name);
   const ownedAgents = agents.filter(agent => ownable(agent, agent.name)), ownedTasks = tasks.filter(task => ownable(task, task.title));
   return { agents: ownedAgents, tasks: ownedTasks, hires: ownedAgents.filter(agent => agent.name === names.hire),
@@ -105,7 +105,7 @@ export function assertHireBinding(scope: HireScope, agents: Row[], hiredId?: str
   const hires = agents.filter(agent => agent.name === names.hire);
   if (agents.length !== 1 || hires.length !== 1) throw new JourneyError("failed", "exactly_one_native_hire_required");
   const hired = hires[0]!;
-  if (hired.id === scope.leadId || hiredId && hired.id !== hiredId || hired.companyId !== scope.companyId
+  if (hired.id === scope.leadId || hiredId && hired.id !== hiredId || hired.spaceId !== scope.spaceId
     || hired.reportsTo !== scope.leadId || hired.adapterType !== "outpost_runner" || hired.adapterConfig?.model !== scope.model
     || !scope.connectionBinding || (!isDeepStrictEqual(hired.runtimeConfig?.aiConnection, scope.connectionBinding)
       && !approvedFallback(scope, hired.runtimeConfig?.aiConnection))) {
@@ -115,12 +115,12 @@ export function assertHireBinding(scope: HireScope, agents: Row[], hiredId?: str
 }
 export function assertHireTaskCreation(scope: HireScope, hiredId: string | undefined, tasks: Row[], activity: Row[], leadRuns: Row[]) {
   for (const task of tasks) {
-    const created = activity.filter(event => event.companyId === scope.companyId && event.actorType === "agent"
+    const created = activity.filter(event => event.spaceId === scope.spaceId && event.actorType === "agent"
       && event.actorId === scope.leadId && event.agentId === scope.leadId && event.entityType === "issue"
       && event.entityId === task.id && ["issue.created", "issue.child_created"].includes(event.action)
-      && leadRuns.some(run => run.id === event.runId && run.companyId === scope.companyId && run.agentId === scope.leadId
+      && leadRuns.some(run => run.id === event.runId && run.spaceId === scope.spaceId && run.agentId === scope.leadId
         && run.runtimeMode === "native" && hireRunIssueId(run) === scope.chatId));
-    if (!hiredId || task.companyId !== scope.companyId || !created.length
+    if (!hiredId || task.spaceId !== scope.spaceId || !created.length
       || created.some(event => event.details?.assigneeAgentId !== hiredId || event.details?.assigneeUserId !== null)) {
       throw new JourneyError("failed", "hire_initial_assignee_mismatch");
     }
@@ -129,7 +129,7 @@ export function assertHireTaskCreation(scope: HireScope, hiredId: string | undef
 export function hireResultLinkMatches(scope: Pick<HireScope, "origin" | "issuePrefix">, task: Row, href: string, source = false) {
   try {
     const reference = source ? parseIssueReferenceFromHref(href) : null;
-    const url = new URL(reference ? applyCompanyPrefix(reference.href, scope.issuePrefix) : href, scope.origin);
+    const url = new URL(reference ? applySpacePrefix(reference.href, scope.issuePrefix) : href, scope.origin);
     return url.origin === scope.origin && [task.id, task.identifier].some(id => typeof id === "string"
       && url.pathname === `/${scope.issuePrefix}/issues/${id}`);
   } catch { return false; }
@@ -143,7 +143,7 @@ export function assertHireRuns(scope: HireScope, hiredId: string | undefined, ta
   let callbackCount = 0, completionRepliesReady = true;
   for (const run of runs) {
     const issueId = hireRunIssueId(run), provider = run.runnerProfileJson?.nativeExecutionInput?.provider;
-    if (!bindings.has(issueId) || !bindings.get(issueId) || run.companyId !== scope.companyId || run.agentId !== bindings.get(issueId)) {
+    if (!bindings.has(issueId) || !bindings.get(issueId) || run.spaceId !== scope.spaceId || run.agentId !== bindings.get(issueId)) {
       throw new JourneyError("failed", "hire_run_scope_mismatch");
     }
     if (requestedCommentIds && run.agentId === scope.leadId) {
@@ -164,7 +164,7 @@ export function assertHireRuns(scope: HireScope, hiredId: string | undefined, ta
           }
           if (run.status === "succeeded" && comments) {
             const replies = comments.filter(comment => comment.createdByRunId === run.id);
-            if (replies.some(comment => comment.companyId !== scope.companyId || comment.issueId !== scope.chatId
+            if (replies.some(comment => comment.spaceId !== scope.spaceId || comment.issueId !== scope.chatId
               || comment.authorAgentId !== scope.leadId || comment.authorUserId)) throw new JourneyError("failed", "hire_completion_reply_mismatch");
             const task = tasks.find(task => task.id === updates[0].id)!;
             if (!replies.some(comment => typeof comment.body === "string"
@@ -200,8 +200,8 @@ export function assertHireRuns(scope: HireScope, hiredId: string | undefined, ta
 export function assertHireDocument(scope: HireScope, task: Row, document: Row, revisions: Row[], runs: Row[], marker: string, hiredId: string) {
   const work = runs.filter(run => hireRunIssueId(run) === task.id);
   const revision = revisions.find(row => row.id === document.latestRevisionId);
-  if (task.companyId !== scope.companyId || task.assigneeAgentId !== hiredId || task.status !== "done" || task.projectId !== scope.projectId
-    || work.length !== 1 || work[0]?.status !== "succeeded" || document.issueId !== task.id || document.companyId !== scope.companyId
+  if (task.spaceId !== scope.spaceId || task.assigneeAgentId !== hiredId || task.status !== "done" || task.projectId !== scope.projectId
+    || work.length !== 1 || work[0]?.status !== "succeeded" || document.issueId !== task.id || document.spaceId !== scope.spaceId
     || document.key === "plan" || !document.body?.includes(marker) || !revision || revision.body !== document.body
     || revision.createdByAgentId !== hiredId || revision.createdByRunId !== work[0]?.id) {
     throw new JourneyError("failed", "hired_document_provenance_mismatch");

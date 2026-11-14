@@ -39,7 +39,7 @@ export async function settleClaimedWakeRequest(db: Db, record: InProgressRecord,
     const tx = transaction as unknown as Db;
     // Lock the run row, as native terminal projection does, so its final
     // outcome cannot change between this read and the wake write.
-    const [run] = await tx.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId,
+    const [run] = await tx.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId,
       agentId: heartbeatRuns.agentId, status: heartbeatRuns.status, runtimeMode: heartbeatRuns.runtimeMode,
       nativePhase: heartbeatRuns.nativePhase, finishedAt: heartbeatRuns.finishedAt, error: heartbeatRuns.error })
       .from(heartbeatRuns)
@@ -58,14 +58,14 @@ export async function settleClaimedWakeRequest(db: Db, record: InProgressRecord,
         return { settled: false, reason: "native_projection_pending" };
       }
     }
-    const claim = and(eq(agentWakeupRequests.id, record.recordId), eq(agentWakeupRequests.companyId, run.companyId),
+    const claim = and(eq(agentWakeupRequests.id, record.recordId), eq(agentWakeupRequests.spaceId, run.spaceId),
       eq(agentWakeupRequests.runId, run.id), eq(agentWakeupRequests.status, "claimed"));
     const [current] = await tx.select({ agentId: agentWakeupRequests.agentId }).from(agentWakeupRequests)
       .where(claim).for("update");
     if (!current) return { settled: false, reason: "claim_no_longer_held" };
     // Work intents before the write they announce (sleep-aware background work).
-    await notifyExternalConversationSettlement(tx, { companyId: run.companyId });
-    await notifyStrandedAgentStatus(tx, { companyId: run.companyId, agentId: current.agentId });
+    await notifyExternalConversationSettlement(tx, { spaceId: run.spaceId });
+    await notifyStrandedAgentStatus(tx, { spaceId: run.spaceId, agentId: current.agentId });
     const updated = await tx.update(agentWakeupRequests).set({
       status: wakeStatusFor(run.status),
       finishedAt: run.finishedAt, error: run.error, updatedAt: context.now,

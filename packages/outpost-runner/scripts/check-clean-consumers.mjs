@@ -23,7 +23,7 @@ const scratchParent = process.env.OUTPOST_RUN_SCRATCH_DIR
   ?? process.env.OUTPOST_SCRATCH_DIR
   ?? tmpdir();
 await mkdir(scratchParent, { recursive: true });
-const scratchRoot = await mkdtemp(join(scratchParent, "paperclip-package-consumer-"));
+const scratchRoot = await mkdtemp(join(scratchParent, "outpost-package-consumer-"));
 const artifactsRoot = resolve(scratchRoot, "artifacts");
 const publicationRoot = process.env.OUTPOST_CLEAN_CONSUMER_OUTPUT_DIR === undefined
   ? undefined
@@ -213,7 +213,7 @@ import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultCapabilityRunnerdBinary } from "@outpost/outpost-runner";
-import { parsePaperclipRunnerdBuildMetadata, OUTPOST_RUNNER_BUILD_METADATA } from "@outpost/outpost-runner/evals";
+import { parseOutpostRunnerdBuildMetadata, OUTPOST_RUNNER_BUILD_METADATA } from "@outpost/outpost-runner/evals";
 // This is the installed package's default lookup. The separate eval artifact
 // below must not hide an unusable bundled daemon or repair its permissions.
 const bundledRunnerd = defaultCapabilityRunnerdBinary();
@@ -233,7 +233,7 @@ const bundledMetadata = JSON.parse(execFileSync(bundledRunnerd, ["--build-metada
   encoding: "utf8", timeout: 15_000, maxBuffer: 1024 * 1024,
   env: { PATH: process.env.PATH, HOME: process.cwd() },
 }));
-if (parsePaperclipRunnerdBuildMetadata(bundledMetadata).binaryContractVersion !== OUTPOST_RUNNER_BUILD_METADATA.contracts.runnerdArtifact) {
+if (parseOutpostRunnerdBuildMetadata(bundledMetadata).binaryContractVersion !== OUTPOST_RUNNER_BUILD_METADATA.contracts.runnerdArtifact) {
   throw new Error("installed default runnerd did not start with the expected contract");
 }
 
@@ -262,7 +262,7 @@ const report = await testing.runControlPlanePortConformance({
 });
 if (report.eventCount !== 3) throw new Error("packed conformance kit returned the wrong event count");
 
-const nativeBundle = await evals.loadPaperclipNativeExecutionFixture();
+const nativeBundle = await evals.loadOutpostNativeExecutionFixture();
 if (nativeBundle.schema !== "outpost-runner/native-execution/v1") {
   throw new Error("packed native execution fixture is unavailable");
 }
@@ -270,7 +270,7 @@ if (nativeBundle.semanticTools.results[0]?.outcome !== "denied") {
   throw new Error("native execution fixture lost its rejected tool effect");
 }
 
-runtime.assertPaperclipRunnerCompatibility({
+runtime.assertOutpostRunnerCompatibility({
   consumer: "outpost-runner-clean-consumer",
   components: { catalog: 1, protocol: 1, runnerClient: 1, controlPlaneAdapter: 1, testkit: 1 },
   requiredOperationIds: ["finish_task"],
@@ -284,11 +284,11 @@ if (!driverConformance.checks.transcriptCompleteness || driverConformance.semant
   throw new Error("packed harness-driver conformance did not cover transcript/tools");
 }
 
-const runnerd = await evals.resolvePaperclipRunnerdArtifact({
+const runnerd = await evals.resolveOutpostRunnerdArtifact({
   executablePath: process.env.OUTPOST_RUNNERD_ARTIFACT,
   expectedSha256: process.env.OUTPOST_RUNNERD_SHA256,
 });
-const evalCompatibility = evals.assertPaperclipRunnerEvalCompatibility({
+const evalCompatibility = evals.assertOutpostRunnerEvalCompatibility({
   consumer: "outpost-runner-clean-consumer",
   packageVersion: evals.OUTPOST_RUNNER_BUILD_METADATA.package.version,
   runnerd: runnerd.buildMetadata,
@@ -306,7 +306,7 @@ if (evalCompatibility.negotiatedPrpVersion !== 1) {
 }
 let mismatchFailedClosed = false;
 try {
-  evals.assertPaperclipRunnerEvalCompatibility({
+  evals.assertOutpostRunnerEvalCompatibility({
     consumer: "incompatible-runner-clean-consumer",
     packageVersion: evals.OUTPOST_RUNNER_BUILD_METADATA.package.version,
     runnerd: { ...runnerd.buildMetadata, binaryContractVersion: 999 },

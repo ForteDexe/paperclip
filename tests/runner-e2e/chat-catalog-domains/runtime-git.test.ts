@@ -4,7 +4,7 @@ function valid() {
   const task = { id: "website", title: "Website task", status: "done", assigneeAgentId: "morgan" };
   const workspaceBefore = { workspace: { id: "actual", cwd: "/isolated/actual" } };
   const diff = "diff --git a/header.html b/header.html\n-Launch later\n+Launch sooner\ndiff --git a/existing-notes.txt b/existing-notes.txt\n+Existing unrelated human amendment";
-  return { scenarioId: "workspaces.inspect-git", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  return { scenarioId: "workspaces.inspect-git", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { task, workspaceBefore, workspaceAfter: structuredClone(workspaceBefore), nativeInspectionCwd: "/isolated/actual", noRemote: true,
       diffBefore: diff, diffAfter: diff, statusBefore: " M header.html\n M existing-notes.txt", statusAfter: " M header.html\n M existing-notes.txt",
       headBefore: "baseline", headAfter: "baseline", headerBefore: "Launch sooner", headerAfter: "Launch sooner", notesBefore: "Amended notes", notesAfter: "Amended notes" },

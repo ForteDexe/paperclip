@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
+import { agents, spaces, createDb, applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
   environments, environmentLeases, executionWorkspaces, heartbeatRuns, plugins, type Db } from "@outpost/db";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { requireServerAdapter } from "../adapters/index.js";
@@ -22,7 +22,7 @@ describe.skipIf(!support.supported)("Cursor Cloud API controller activation", ()
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
   let home: string;
-  let companyId: string;
+  let spaceId: string;
   const workers: ReturnType<typeof configureAgentLifecycle>[] = [];
   const config = { provider: "cursor_cloud", model: "caller-model", repoUrl: "https://github.com/example/qualification",
     lifecycleMode: "per_turn", env: { CURSOR_API_KEY: "synthetic-cursor-key" } };
@@ -34,14 +34,14 @@ describe.skipIf(!support.supported)("Cursor Cloud API controller activation", ()
   });
 
   beforeAll(async () => {
-    home = await mkdtemp(join(tmpdir(), "paperclip-provider-api-lifecycle-"));
+    home = await mkdtemp(join(tmpdir(), "outpost-provider-api-lifecycle-"));
     vi.stubEnv("OUTPOST_HOME", home);
     vi.stubEnv("OUTPOST_MANAGED_CONFIG", undefined);
     vi.stubEnv("OUTPOST_SETTING_DEFAULTS", undefined);
     vi.stubEnv("OUTPOST_PUBLIC_URL", "https://callback.example.test");
     if (externalDatabaseUrl) await applyPendingMigrations(externalDatabaseUrl);
     database = externalDatabaseUrl ? { connectionString: externalDatabaseUrl, cleanup: async () => {} }
-      : await startEmbeddedPostgresTestDatabase("paperclip-provider-api-lifecycle-");
+      : await startEmbeddedPostgresTestDatabase("outpost-provider-api-lifecycle-");
     db = createDb(database.connectionString);
     await db.execute(sql`set client_min_messages = warning`);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
@@ -49,10 +49,10 @@ describe.skipIf(!support.supported)("Cursor Cloud API controller activation", ()
   beforeEach(async () => {
     for (const worker of workers) await worker.stop();
     await instanceSettingsService(db).update({ defaultEnvironmentId: null });
-    await db.execute(sql`truncate table companies, plugins, environments restart identity cascade`);
+    await db.execute(sql`truncate table spaces, plugins, environments restart identity cascade`);
     await instanceSettingsService(db).updateGeneral({ executionMode: "any" });
     await instanceSettingsService(db).updateExperimental({ enableManagedSandboxOnly: true, enableNativeRunner: true });
-    [companyId] = await db.insert(companies).values({ name: "API controller activation", issuePrefix: "API" }).returning({ id: companies.id }).then(rows => rows.map(row => row.id));
+    [spaceId] = await db.insert(spaces).values({ name: "API controller activation", issuePrefix: "API" }).returning({ id: spaces.id }).then(rows => rows.map(row => row.id));
     fetch.mockClear();
     vi.stubGlobal("fetch", fetch);
   });
@@ -67,7 +67,7 @@ describe.skipIf(!support.supported)("Cursor Cloud API controller activation", ()
 
   const current = (id: string) => db.select().from(agents).where(eq(agents.id, id)).then(rows => rows[0]!);
   async function saved(adapterType = "outpost_runner", adapterConfig = config) {
-    return (await db.insert(agents).values({ companyId, name: "Saved controller", adapterType, adapterConfig,
+    return (await db.insert(agents).values({ spaceId, name: "Saved controller", adapterType, adapterConfig,
       status: "paused", lifecycleState: "verifying" }).returning())[0]!;
   }
   async function noComputerWork() {
@@ -85,14 +85,14 @@ describe.skipIf(!support.supported)("Cursor Cloud API controller activation", ()
         config: { pluginKey: pluginId, driverKey: "tasks", driverConfig: {} } }).returning();
       await instanceSettingsService(db).update({ defaultEnvironmentId: computer.id });
     }
-    expect(await environmentService(db).findManagedSandboxEnvironment(companyId)).toBeNull();
+    expect(await environmentService(db).findManagedSandboxEnvironment(spaceId)).toBeNull();
     const lifecycle = createAgentLifecycle(db);
-    const draft = await lifecycle.requestHire(companyId, { name: "Cursor setup", adapterType: "outpost_runner",
+    const draft = await lifecycle.requestCreation(spaceId, { name: "Cursor setup", adapterType: "outpost_runner",
       adapterConfig: { provider: "cursor_cloud" } }, { setupOnly: true, runnerResolved: true });
     expect(draft).toMatchObject({ status: "paused", lifecycleState: "paused", lifecycleHolds: ["setup"], defaultEnvironmentId: null });
     await lifecycle.updateConfiguration(draft.id, { adapterConfig: config, runtimeConfig: { heartbeat: { enabled: false } } });
     expect(await current(draft.id)).toMatchObject({ lifecycleState: "paused", lifecycleHolds: ["setup"] });
-    const finished = await lifecycle.requestHire(companyId, { id: draft.id, name: draft.name, adapterType: "outpost_runner",
+    const finished = await lifecycle.requestCreation(spaceId, { id: draft.id, name: draft.name, adapterType: "outpost_runner",
       adapterConfig: config, runtimeConfig: { heartbeat: { enabled: false } }, defaultEnvironmentId: null }, { setupAgentId: draft.id, runnerResolved: true });
     expect(finished.id).toBe(draft.id);
     expect(finished.adapterConfig.lifecycleMode).toBe("per_turn");
@@ -122,7 +122,7 @@ describe.skipIf(!support.supported)("Cursor Cloud API controller activation", ()
     const [computer] = await db.insert(environments).values({ name: "Required Computer", driver: "plugin", status: "active",
       config: { pluginKey: pluginId, driverKey: "tasks", driverConfig: {} } }).returning();
     await instanceSettingsService(db).update({ defaultEnvironmentId: computer.id });
-    const draft = await createAgentLifecycle(db).requestHire(companyId, { name: "Codex setup", adapterType: "outpost_runner",
+    const draft = await createAgentLifecycle(db).requestCreation(spaceId, { name: "Codex setup", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex", model: "gpt-5.6-luna", lifecycleMode: "per_turn" } }, { setupOnly: true, runnerResolved: true });
     expect(draft).toMatchObject({ status: "paused", lifecycleState: "preparing", lifecycleHolds: ["setup"], adapterConfig: { lifecycleMode: "warm" } });
     expect(fetch).not.toHaveBeenCalled();
@@ -142,7 +142,7 @@ describe.skipIf(!support.supported)("Cursor Cloud API controller activation", ()
     await expect(agentHarnessVerificationService(db, {} as never).verify(agent)).rejects.toMatchObject({
       status: 422, details: { code: "provider_api_kubernetes_execution_unsupported" },
     });
-    await expect(createAgentLifecycle(db).requestHire(companyId, { name: "Forbidden hire", adapterType: "outpost_runner", adapterConfig: config }, { runnerResolved: true }))
+    await expect(createAgentLifecycle(db).requestCreation(spaceId, { name: "Forbidden create", adapterType: "outpost_runner", adapterConfig: config }, { runnerResolved: true }))
       .rejects.toMatchObject({ status: 422, details: { code: "provider_api_kubernetes_execution_unsupported" } });
     expect(fetch).not.toHaveBeenCalled();
     await noComputerWork();

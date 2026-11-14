@@ -4,11 +4,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { gradeInfrastructureRetry, isHumanRetryRequest, releasedRetryListener, retriesOriginalRun } from "./runtime-infrastructure-retry.js";
 function valid() {
-  return { scenarioId: "recovery.retry-exhausted", origin: "http://outpost.test", companyId: "company", leadId: "ceo", agents: [], links: ["/COM/issues/COM-2"], humanQueries: [], reply: "", tasks: [{ id: "website", status: "done" }], activity: [],
+  return { scenarioId: "recovery.retry-exhausted", origin: "http://outpost.test", spaceId: "space", leadId: "ceo", agents: [], links: ["/COM/issues/COM-2"], humanQueries: [], reply: "", tasks: [{ id: "website", status: "done" }], activity: [],
     runs: [{ id: "exhausted", status: "failed" }, ...["canonical", "held", "retry", "final"].map(id => ({ id, status: "succeeded" }))],
     state: { task: { id: "website", identifier: "COM-2" }, queryRecoveryRead: true, heldRecoveryRead: true, finalRecoveryRead: true, worker: { id: "morgan" }, failure: { id: "exhausted", status: "failed", nativePhase: "terminal_failure" },
-      recoveryBefore: { id: "recovery", companyId: "company", sourceIssueId: "website", kind: "active_run_watchdog", cause: "native_session_retry_exhausted", ownerType: "board", ownerAgentId: null, returnOwnerAgentId: "morgan", recoveryIssueId: null,
-        evidence: { runId: "exhausted", coordinatorAttempt: 3, recoveryDisposition: "native_session_retry_exhausted" }, maxAttempts: 3, wakePolicy: null, nextAction: "Inspect provider trace and explicitly choose replacement." }, queryReply: "Use the Retry button on the original failed run; this requires your human board session and rechecks current gates.", retryVisible: true,
+      recoveryBefore: { id: "recovery", spaceId: "space", sourceIssueId: "website", kind: "active_run_watchdog", cause: "native_session_retry_exhausted", ownerType: "operator", ownerAgentId: null, returnOwnerAgentId: "morgan", recoveryIssueId: null,
+        evidence: { runId: "exhausted", coordinatorAttempt: 3, recoveryDisposition: "native_session_retry_exhausted" }, maxAttempts: 3, wakePolicy: null, nextAction: "Inspect provider trace and explicitly choose replacement." }, queryReply: "Use the Retry button on the original failed run; this requires your human operator session and rechecks current gates.", retryVisible: true,
       budgetHeldBeforeRetry: true, heldRetryStatus: 202, noDuplicateRetryWhileHeld: true, noAdmissionUnderBudget: true, failedRunVisibleWhileHeld: true, heldReplyAttributed: true,
       heldReply: "The retry could not start because Morgan's current budget hold blocks admission. The previous native failure remains visible.",
       budgetRestoredByHuman: true, retryBoundToOriginal: true, retryRunCount: 1, retryAdmissionAfterGateClear: true,
@@ -59,8 +59,8 @@ it("binds the brief to the released Retry's own workspace, and only that one", a
     const fresh = path.join(root, "isolated-workspace-attempts", "retry"); await mkdir(fresh, { recursive: true });
     await writeFile(path.join(fresh, "brief.txt.waiting"), "waiting");
     await writeFile(path.join(outside, "brief.txt.waiting"), "waiting");
-    const expected = { companyId: "company", workerId: "morgan", taskId: "website", originalRunId: "exhausted", gateName: "brief.txt" };
-    const run = (cwd: string, patch: Record<string, unknown> = {}) => ({ id: "retry", companyId: "company", agentId: "morgan", retryOfRunId: null,
+    const expected = { spaceId: "space", workerId: "morgan", taskId: "website", originalRunId: "exhausted", gateName: "brief.txt" };
+    const run = (cwd: string, patch: Record<string, unknown> = {}) => ({ id: "retry", spaceId: "space", agentId: "morgan", retryOfRunId: null,
       contextSnapshot: { issueId: "website", previousRunId: "exhausted", executionContinuation: { trigger: { reason: "task_retry", sourceRunId: "exhausted" } } }, runnerProfileJson: { nativeExecutionInput: { workspace: { cwd }, binding: { executionWorkspaceId: "fresh-ws" } } }, ...patch }) as never;
     expect(await releasedRetryListener(run(fresh), expected, root)).toEqual({ gate: path.join(await import("node:fs/promises").then(fs => fs.realpath(fresh)), "brief.txt"), workspaceId: "fresh-ws" });
     expect(await releasedRetryListener(run(fresh, { contextSnapshot: { issueId: "website", previousRunId: "other",

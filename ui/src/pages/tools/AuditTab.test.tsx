@@ -15,15 +15,15 @@ const listAgentsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api/tools", () => ({
   toolsApi: {
-    listActivity: (companyId: string, params: unknown) => listActivityMock(companyId, params),
-    listApplications: (companyId: string) => listApplicationsMock(companyId),
-    listPolicies: (companyId: string) => listPoliciesMock(companyId),
+    listActivity: (spaceId: string, params: unknown) => listActivityMock(spaceId, params),
+    listApplications: (spaceId: string) => listApplicationsMock(spaceId),
+    listPolicies: (spaceId: string) => listPoliciesMock(spaceId),
   },
 }));
 
 vi.mock("@/api/agents", () => ({
   agentsApi: {
-    list: (companyId: string) => listAgentsMock(companyId),
+    list: (spaceId: string) => listAgentsMock(spaceId),
   },
 }));
 
@@ -58,7 +58,7 @@ async function flushReact() {
 function event(overrides: Record<string, unknown> = {}) {
   return {
     id: "evt-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     action: "tool_gateway.call_denied",
     actorType: "agent",
     actorId: "agent-1",
@@ -111,7 +111,7 @@ describe("AuditTab", () => {
     await act(async () => {
       root.render(
         <QueryClientProvider client={client}>
-          <AuditTab companyId="company-1" />
+          <AuditTab spaceId="space-1" />
         </QueryClientProvider>,
       );
     });
@@ -135,7 +135,7 @@ describe("AuditTab", () => {
     expect(container.textContent).toContain("Gmail");
     expect(container.textContent).toContain("Blocked");
     expect(container.textContent).not.toContain("Recorded by Outpost — entries can't be edited.");
-    expect(listActivityMock).toHaveBeenCalledWith("company-1", expect.objectContaining({ window: "all" }));
+    expect(listActivityMock).toHaveBeenCalledWith("space-1", expect.objectContaining({ window: "all" }));
     // Vocabulary gate: no raw tool ID or ops terms in the sentence list.
     expect(container.textContent).not.toContain("mail:send_email");
     expect(container.textContent).not.toContain("server-authoritative");
@@ -202,7 +202,7 @@ describe("AuditTab", () => {
               httpMethod: "POST",
               endpoint: "https://mcp.zapier.com/api/mcp",
               mcpMethod: "tools/call",
-              requestId: "paperclip-tool-request-1",
+              requestId: "outpost-tool-request-1",
               dispatched: true,
             },
             response: {
@@ -307,7 +307,7 @@ describe("AuditTab", () => {
   });
 
   it("loads more when a cursor is returned", async () => {
-    listActivityMock.mockImplementation((_companyId: string, params: { cursor?: string }) => {
+    listActivityMock.mockImplementation((_spaceId: string, params: { cursor?: string }) => {
       if (params.cursor === "cursor-2") {
         return Promise.resolve({ events: [event({ id: "evt-2", toolDisplayName: "Read Email" })], nextCursor: null });
       }

@@ -14,7 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { agents } from "./agents.js";
 import { assets } from "./assets.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { documents } from "./documents.js";
 import { issues } from "./issues.js";
 import { labels } from "./labels.js";
@@ -26,7 +26,7 @@ export const cases = pgTable(
   "cases",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
     workIssueId: uuid("work_issue_id").references(() => issues.id, { onDelete: "restrict" }),
     phase: text("phase"),
@@ -48,13 +48,13 @@ export const cases = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyCaseNumberUq: uniqueIndex("cases_company_case_number_uq").on(table.companyId, table.caseNumber),
+    spaceCaseNumberUq: uniqueIndex("cases_space_case_number_uq").on(table.spaceId, table.caseNumber),
     identifierUq: uniqueIndex("cases_identifier_uq").on(table.identifier),
     workIssueUq: uniqueIndex("cases_work_issue_uq").on(table.workIssueId).where(sql`${table.workIssueId} is not null`),
-    companyTypeKeyUq: uniqueIndex("cases_company_type_key_uq").on(table.companyId, table.caseType, table.key),
-    companyStatusIdx: index("cases_company_status_idx").on(table.companyId, table.status),
-    companyTypeIdx: index("cases_company_type_idx").on(table.companyId, table.caseType),
-    companyProjectIdx: index("cases_company_project_idx").on(table.companyId, table.projectId),
+    spaceTypeKeyUq: uniqueIndex("cases_space_type_key_uq").on(table.spaceId, table.caseType, table.key),
+    spaceStatusIdx: index("cases_space_status_idx").on(table.spaceId, table.status),
+    spaceTypeIdx: index("cases_space_type_idx").on(table.spaceId, table.caseType),
+    spaceProjectIdx: index("cases_space_project_idx").on(table.spaceId, table.projectId),
     parentIdx: index("cases_parent_idx").on(table.parentCaseId),
     titleSearchIdx: index("cases_title_search_idx").using("gin", table.title.op("gin_trgm_ops")),
     identifierSearchIdx: index("cases_identifier_search_idx").using("gin", table.identifier.op("gin_trgm_ops")),
@@ -70,7 +70,7 @@ export const caseIssueLinks = pgTable(
   "case_issue_links",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
     issueId: uuid("issue_id").notNull().references(() => issues.id, { onDelete: "cascade" }),
     role: text("role").notNull(),
@@ -80,7 +80,7 @@ export const caseIssueLinks = pgTable(
   },
   (table) => ({
     caseIssueUq: uniqueIndex("case_issue_links_case_issue_uq").on(table.caseId, table.issueId),
-    companyCaseIdx: index("case_issue_links_company_case_idx").on(table.companyId, table.caseId),
+    spaceCaseIdx: index("case_issue_links_space_case_idx").on(table.spaceId, table.caseId),
     issueIdx: index("case_issue_links_issue_idx").on(table.issueId),
     roleCheck: check("case_issue_links_role_check", sql`${table.role} in ('origin', 'work', 'reference')`),
   }),
@@ -90,7 +90,7 @@ export const caseEvents = pgTable(
   "case_events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
     kind: text("kind").notNull(),
     actorType: text("actor_type").notNull(),
@@ -103,7 +103,7 @@ export const caseEvents = pgTable(
   },
   (table) => ({
     caseCreatedIdx: index("case_events_case_created_idx").on(table.caseId, table.createdAt),
-    companyCaseIdx: index("case_events_company_case_idx").on(table.companyId, table.caseId),
+    spaceCaseIdx: index("case_events_space_case_idx").on(table.spaceId, table.caseId),
     kindCheck: check(
       "case_events_kind_check",
       sql`${table.kind} in (
@@ -133,7 +133,7 @@ export const caseDocuments = pgTable(
   "case_documents",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
     documentId: uuid("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
@@ -141,9 +141,9 @@ export const caseDocuments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyCaseKeyUq: uniqueIndex("case_documents_company_case_key_uq").on(table.companyId, table.caseId, table.key),
+    spaceCaseKeyUq: uniqueIndex("case_documents_space_case_key_uq").on(table.spaceId, table.caseId, table.key),
     documentUq: uniqueIndex("case_documents_document_uq").on(table.documentId),
-    companyCaseUpdatedIdx: index("case_documents_company_case_updated_idx").on(table.companyId, table.caseId, table.updatedAt),
+    spaceCaseUpdatedIdx: index("case_documents_space_case_updated_idx").on(table.spaceId, table.caseId, table.updatedAt),
   }),
 );
 
@@ -151,7 +151,7 @@ export const caseLabels = pgTable(
   "case_labels",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
     labelId: uuid("label_id").notNull().references(() => labels.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -159,7 +159,7 @@ export const caseLabels = pgTable(
   },
   (table) => ({
     caseLabelUq: uniqueIndex("case_labels_case_label_uq").on(table.caseId, table.labelId),
-    companyCaseIdx: index("case_labels_company_case_idx").on(table.companyId, table.caseId),
+    spaceCaseIdx: index("case_labels_space_case_idx").on(table.spaceId, table.caseId),
     labelIdx: index("case_labels_label_idx").on(table.labelId),
   }),
 );
@@ -168,14 +168,14 @@ export const caseAttachments = pgTable(
   "case_attachments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
     assetId: uuid("asset_id").notNull().references(() => assets.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyCaseIdx: index("case_attachments_company_case_idx").on(table.companyId, table.caseId),
+    spaceCaseIdx: index("case_attachments_space_case_idx").on(table.spaceId, table.caseId),
     assetUq: uniqueIndex("case_attachments_asset_uq").on(table.assetId),
   }),
 );
@@ -183,14 +183,14 @@ export const caseAttachments = pgTable(
 /** Sources are logical references: deleting a source must never publish its case. */
 export const caseAccessSources = pgTable("case_access_sources", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
   sourceKind: text("source_kind").$type<"issue" | "project">().notNull(),
   sourceId: uuid("source_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   sourceUq: uniqueIndex("case_access_sources_case_source_uq").on(table.caseId, table.sourceKind, table.sourceId),
-  companyCaseIdx: index("case_access_sources_company_case_idx").on(table.companyId, table.caseId),
+  spaceCaseIdx: index("case_access_sources_space_case_idx").on(table.spaceId, table.caseId),
   kindCheck: check("case_access_sources_kind_check", sql`${table.sourceKind} in ('issue', 'project')`),
 }));
 
@@ -199,7 +199,7 @@ export const caseHandoffs = pgTable("case_handoffs", {
   workflowPrompt: text("workflow_prompt"),
   baseWorkflowDocumentRevisionId: uuid("base_workflow_document_revision_id"),
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
   issueId: uuid("issue_id").notNull().references(() => issues.id, { onDelete: "restrict" }),
   version: integer("version").notNull(),
@@ -232,13 +232,13 @@ export const caseHandoffs = pgTable("case_handoffs", {
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
-  versionUq: uniqueIndex("case_handoffs_case_version_uq").on(table.companyId, table.caseId, table.version),
-  idempotencyUq: uniqueIndex("case_handoffs_actor_idempotency_uq").on(table.companyId, table.actorType, table.actorId, table.idempotencyKey),
+  versionUq: uniqueIndex("case_handoffs_case_version_uq").on(table.spaceId, table.caseId, table.version),
+  idempotencyUq: uniqueIndex("case_handoffs_actor_idempotency_uq").on(table.spaceId, table.actorType, table.actorId, table.idempotencyKey),
   pendingCaseUq: uniqueIndex("case_handoffs_pending_case_uq").on(table.caseId).where(sql`${table.state} in ('awaiting_release', 'pending_dispatch', 'awaiting_completion')`),
   pendingIssueUq: uniqueIndex("case_handoffs_pending_issue_uq").on(table.issueId).where(sql`${table.state} in ('awaiting_release', 'pending_dispatch', 'awaiting_completion')`),
   pendingAttemptIdx: index("case_handoffs_pending_attempt_idx").on(table.nextAttemptAt).where(sql`${table.state} in ('awaiting_release', 'pending_dispatch')`),
   caseCreatedIdx: index("case_handoffs_case_created_idx").on(table.caseId, table.createdAt),
-  sourceRunIdx: index("case_handoffs_source_run_idx").on(table.companyId, table.sourceRunId).where(sql`${table.sourceRunId} is not null`),
+  sourceRunIdx: index("case_handoffs_source_run_idx").on(table.spaceId, table.sourceRunId).where(sql`${table.sourceRunId} is not null`),
   wakeupRequestUq: uniqueIndex("case_handoffs_wakeup_request_uq").on(table.wakeupRequestId),
   stateCheck: check("case_handoffs_state_check", sql`${table.state} in ('awaiting_release', 'pending_dispatch', 'delivered', 'awaiting_completion', 'completed', 'cancelled')`),
   destinationCheck: check("case_handoffs_destination_check", sql`(${table.destinationKind} = 'agent' and ${table.toAgentId} is not null) or (${table.destinationKind} = 'done' and ${table.toAgentId} is null)`),

@@ -6,26 +6,26 @@ import { completeHistoryUsage, genuineHistoryWork, routineHistoryAccountingReady
 
 function phase(failed: boolean) {
   const prefix = failed ? "failed" : "completed";
-  const identity: HistoryWorkIdentity = { companyId: "company", agentId: "worker", issueId: `${prefix}-task`, runId: `${prefix}-native`, routineId: "routine", invocationId: `${prefix}-invocation`, connectionId: "notes", writeEntryId: "write-entry" };
+  const identity: HistoryWorkIdentity = { spaceId: "space", agentId: "worker", issueId: `${prefix}-task`, runId: `${prefix}-native`, routineId: "routine", invocationId: `${prefix}-invocation`, connectionId: "notes", writeEntryId: "write-entry" };
   const at = failed ? "2026-10-26T12:00:00Z" : "2026-10-26T13:00:00Z";
   const requestId = `${prefix}-http-request`;
-  const run = { id: identity.runId, companyId: "company", agentId: "worker", runtimeMode: "native", status: "succeeded", startedAt: at, finishedAt: at,
+  const run = { id: identity.runId, spaceId: "space", agentId: "worker", runtimeMode: "native", status: "succeeded", startedAt: at, finishedAt: at,
     contextSnapshot: { issueId: identity.issueId }, costAccountingPending: false, costAccountedAt: at,
     usageJson: { accountingReceiptReady: true, accountingReceiptSourceId: `${prefix}-source`, accountingReceiptId: `${prefix}-receipt`, accountingReceiptSequence: 2, accountingReceiptReceivedAt: at,
       usageSource: "per_run", provider: "opencode", biller: "openrouter", model: "actual-model", billingType: "metered_api", inputTokens: 100, outputTokens: 20, costUsd: 0.01 } };
-  const task = { id: identity.issueId, companyId: "company", identifier: failed ? "ACORN-1" : "ACORN-2", title: "Morning Launch summary", status: failed ? "blocked" : "done", assigneeAgentId: "worker" };
-  const snapshot = { run, task, invocation: { id: identity.invocationId, companyId: "company", routineId: "routine", source: "manual", status: failed ? "failed" : "completed", linkedIssueId: identity.issueId, triggeredAt: at, completedAt: at },
+  const task = { id: identity.issueId, spaceId: "space", identifier: failed ? "ACORN-1" : "ACORN-2", title: "Morning Launch summary", status: failed ? "blocked" : "done", assigneeAgentId: "worker" };
+  const snapshot = { run, task, invocation: { id: identity.invocationId, spaceId: "space", routineId: "routine", source: "manual", status: failed ? "failed" : "completed", linkedIssueId: identity.issueId, triggeredAt: at, completedAt: at },
     decisions: { runId: run.id, decisions: [{ invocation: { id: `${prefix}-tool-invocation`, ...identity, policyDecision: "allow", status: failed ? "failed" : "succeeded", errorCode: failed ? "tool_error" : null, startedAt: at, completedAt: at, argumentsHash: "arguments-hash", resultHash: failed ? null : "result-hash", catalogEntryId: identity.writeEntryId },
-      auditEvents: [{ invocationId: `${prefix}-tool-invocation`, companyId: "company", agentId: "worker", issueId: task.id, runId: run.id, connectionId: "notes", catalogEntryId: "write-entry", outcome: failed ? "failure" : "success", decision: failed ? "deny" : "allow", reasonCode: failed ? "tool_error" : "tool_completed",
+      auditEvents: [{ invocationId: `${prefix}-tool-invocation`, spaceId: "space", agentId: "worker", issueId: task.id, runId: run.id, connectionId: "notes", catalogEntryId: "write-entry", outcome: failed ? "failure" : "success", decision: failed ? "deny" : "allow", reasonCode: failed ? "tool_error" : "tool_completed",
         metadata: { execution: { transport: "mcp_remote", request: { dispatched: true, upstreamToolName: "launch_update", mcpMethod: "tools/call", requestId }, response: { httpStatus: 200 } } } }] }] },
     comments: [{ id: `${prefix}-comment`, issueId: task.id, authorAgentId: "worker", createdByRunId: run.id, body: failed ? "The synthetic Notes publish failed; task blocked." : "Published the Launch summary." }],
-    activity: [{ id: `${prefix}-activity`, companyId: "company", entityId: task.id, runId: run.id, action: "issue.updated", actorType: "system", actorId: "native-status-committer", details: { source: "native_status_decision", toStatus: task.status } }] } as unknown as HistoryWorkSnapshot;
+    activity: [{ id: `${prefix}-activity`, spaceId: "space", entityId: task.id, runId: run.id, action: "issue.updated", actorType: "system", actorId: "native-status-committer", details: { source: "native_status_decision", toStatus: task.status } }] } as unknown as HistoryWorkSnapshot;
   const calls = [{ method: "tools/call", name: "launch_update", authorized: true, sequence: failed ? 1 : 2, requestIdSha256: createHash("sha256").update(requestId).digest("hex"), responseHttpStatus: 200, toolError: failed }];
   return { identity, snapshot, calls };
 }
 function valid() {
   const f = phase(true), s = phase(false);
-  return { scenarioId: "routines.read-history", origin: "https://fixture.test", companyId: "company", leadId: "ceo", expectedProvider: "opencode",
+  return { scenarioId: "routines.read-history", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", expectedProvider: "opencode",
     state: { worker: { id: "worker" }, failedIssueId: f.identity.issueId, completedIssueId: s.identity.issueId, failedInvocationId: f.identity.invocationId, completedInvocationId: s.identity.invocationId,
       failedIdentity: f.identity, completedIdentity: s.identity, failedWork: f.snapshot, completedWork: s.snapshot, failedCalls: f.calls, completedCalls: s.calls,
       failedWritten: null, completedWritten: "Launch payment approval remains pending.", completedNativeRunId: s.identity.runId, weekStart: Date.parse("2026-10-26T00:00:00Z"), weekEnd: Date.parse("2026-11-02T00:00:00Z") },
@@ -33,7 +33,7 @@ function valid() {
     projects: [], goals: [], comments: [], documents: [], revisions: [], activity: [], humanQueries: [], links: ["/ACORN/issues/ACORN-1", "/ACORN/issues/ACORN-2"], reply: "ACORN-1 failed. ACORN-2 completed successfully. These are manual runs this week." };
 }
 function overview() {
-  return { companyId: "company", policies: ["company", "agent"].map(scopeType => ({ companyId: "company", scopeType, scopeId: scopeType === "company" ? "company" : "worker", isActive: true, amount: 500, remainingAmount: 499, hardStopEnabled: true, unpricedUsagePolicy: "allow", pendingRunCount: 0, paused: false, status: "ok" })) } as BudgetOverview;
+  return { spaceId: "space", policies: ["space", "agent"].map(scopeType => ({ spaceId: "space", scopeType, scopeId: scopeType === "space" ? "space" : "worker", isActive: true, amount: 500, remainingAmount: 499, hardStopEnabled: true, unpricedUsagePolicy: "allow", pendingRunCount: 0, paused: false, status: "ok" })) } as BudgetOverview;
 }
 describe("real routine work failure with successful native turns", () => {
   it("accepts authoritative provider failure, blocked task and failed invocation, then independent success", () => {
@@ -42,7 +42,7 @@ describe("real routine work failure with successful native turns", () => {
     expect(gradeIntegratorRoutineHistory(valid()).passed).toBe(true);
   });
   const mutations: Array<[string, (p: ReturnType<typeof phase>) => void]> = [
-    ["foreign company", p => { p.snapshot.run!.companyId = "foreign"; }],
+    ["foreign space", p => { p.snapshot.run!.spaceId = "foreign"; }],
     ["foreign worker", p => { p.snapshot.run!.agentId = "other"; }],
     ["foreign task", p => { p.snapshot.run!.contextSnapshot!.issueId = "other"; }],
     ["failed native provider", p => { p.snapshot.run!.status = "failed"; }],
@@ -116,7 +116,7 @@ describe("complete normal accounting stays mandatory", () => {
     expect(routineHistoryAccountingReady(p.identity, [p.snapshot.run!], overview())).toBe(false);
     u.accountingReceiptReady = true; p.snapshot.run!.costAccountingPending = true;
     expect(routineHistoryAccountingReady(p.identity, [p.snapshot.run!], overview())).toBe(false);
-    p.snapshot.run!.costAccountingPending = false; p.snapshot.run!.companyId = "foreign";
+    p.snapshot.run!.costAccountingPending = false; p.snapshot.run!.spaceId = "foreign";
     expect(routineHistoryAccountingReady(p.identity, [p.snapshot.run!], overview())).toBe(false);
   });
   it("does not infer free work, bypass scoped pending/hard-stop policy or accept foreign accounting", () => {

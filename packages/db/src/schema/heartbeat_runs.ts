@@ -15,7 +15,7 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { agents } from "./agents.js";
 import { agentWakeupRequests } from "./agent_wakeup_requests.js";
 import { issues } from "./issues.js";
@@ -32,18 +32,18 @@ export const heartbeatRuns = pgTable(
   "heartbeat_runs",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     agentId: uuid("agent_id").notNull().references(() => agents.id),
     scopeKind: text("scope_kind")
-      .$type<"company" | "issue">()
+      .$type<"space" | "issue">()
       .notNull()
-      .default("company"),
+      .default("space"),
     issueId: uuid("issue_id").references((): AnyPgColumn => issues.id, { onDelete: "set null" }),
     invocationSource: text("invocation_source").notNull().default("on_demand"),
     triggerDetail: text("trigger_detail"),
     status: text("status").notNull().default("queued"),
     responsibleUserId: text("responsible_user_id"),
-    // The service validates the company/run boundary; avoid a cyclic schema import.
+    // The service validates the space/run boundary; avoid a cyclic schema import.
     activeIdentityContextId: uuid("active_identity_context_id"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
@@ -133,9 +133,9 @@ export const heartbeatRuns = pgTable(
   },
   (table) => ({
     nativeUnpresentedResponseIdx: index("heartbeat_runs_native_unpresented_response_idx")
-      .on(table.companyId, table.nativeIssueId, table.id)
+      .on(table.spaceId, table.nativeIssueId, table.id)
       .where(sql`${table.runtimeMode} = 'native' AND ${table.status} in ('succeeded', 'failed', 'timed_out') AND ${table.finishedAt} is not null AND jsonb_typeof(${table.resultJson} #> '{presentationDecision,commentId}') is distinct from 'string'`),
-    cancelledWorkspacePreservationIdx: index("heartbeat_runs_cancelled_workspace_preservation_idx").on(table.id, table.companyId)
+    cancelledWorkspacePreservationIdx: index("heartbeat_runs_cancelled_workspace_preservation_idx").on(table.id, table.spaceId)
       .where(sql`${table.runtimeMode} = 'native' AND ${table.status} = 'cancelled'
         AND ${table.runnerProfileJson}->'nativeWorkspaceSync'->>'state' = 'prepared'
         AND ${table.resultJson}->'nativeCancellation'->>'dispatchState' = 'acknowledged'
@@ -147,7 +147,7 @@ export const heartbeatRuns = pgTable(
         and ${table.status} in ('failed', 'interrupted', 'timed_out', 'cancelled', 'succeeded')`),
     scopeBindingCheck: check(
       "heartbeat_runs_scope_binding_check",
-      sql`(${table.scopeKind} = 'company' AND ${table.issueId} IS NULL)
+      sql`(${table.scopeKind} = 'space' AND ${table.issueId} IS NULL)
         OR ${table.scopeKind} = 'issue'`,
     ),
     scheduledRetryCancellationIdx: index("heartbeat_runs_scheduled_retry_cancellation_idx").on(table.id)
@@ -157,13 +157,13 @@ export const heartbeatRuns = pgTable(
     // budget worker, run control, and the idle check read only these few rows
     // instead of every run's result JSON.
     pendingBudgetCancellationIdx: index("heartbeat_runs_pending_budget_cancellation_idx")
-      .on(table.companyId)
+      .on(table.spaceId)
       .where(sql`jsonb_typeof(${table.resultJson}->'startupCancellation'->'budgetEnforcement') = 'object'
         and ${table.resultJson}->'startupCancellation'->'budgetEnforcement'->>'deliveredAt' is null`)
       .concurrently(),
     // Runs a dispatch gate refused for a pause; that hold's release resumes them.
     treeHoldSuppressionIdx: index("heartbeat_runs_tree_hold_suppression_idx")
-      .on(table.companyId, sql`(${table.resultJson}->'treeHoldSuppression'->>'holdId')`)
+      .on(table.spaceId, sql`(${table.resultJson}->'treeHoldSuppression'->>'holdId')`)
       .where(sql`${table.status} = 'cancelled' and ${table.resultJson} ? 'treeHoldSuppression'`),
     // The `legacy_controller_lease` ownership kind (reconciler listing and
     // settle watch): outstanding legacy controller leases of running runs.
@@ -173,105 +173,105 @@ export const heartbeatRuns = pgTable(
     // Runs woken by one chat comment. Not partial: the planner ignores the
     // expression statistics of a partial index and would then walk the run
     // history by creation time to satisfy `order by created_at limit 1`.
-    companyWakeCommentIdx: index("heartbeat_runs_company_wake_comment_idx")
-      .on(table.companyId, sql`(${table.contextSnapshot}->>'wakeCommentId')`)
+    spaceWakeCommentIdx: index("heartbeat_runs_space_wake_comment_idx")
+      .on(table.spaceId, sql`(${table.contextSnapshot}->>'wakeCommentId')`)
       .concurrently(),
     costAccountingPendingIdx: index("heartbeat_runs_cost_accounting_pending_idx").on(table.updatedAt, table.id).where(sql`${table.costAccountingPending} = true`),
     costDataQualityIdx: index("heartbeat_runs_cost_data_quality_idx")
-      .on(table.companyId, sql`coalesce(${table.finishedAt}, ${table.createdAt}) desc`, table.id)
+      .on(table.spaceId, sql`coalesce(${table.finishedAt}, ${table.createdAt}) desc`, table.id)
       .where(sql`${table.costAccountingPending} = true and ${table.status} in ('succeeded','failed','timed_out','cancelled','interrupted')`),
     executionStatusDeliveryIdx: index("heartbeat_runs_execution_status_delivery_idx")
       .on(table.executionStatusDeliveryId).where(sql`${table.executionStatusDeliveryId} is not null`),
     executionControlDeadlineIdx: index("heartbeat_runs_execution_control_deadline_idx")
       .on(table.executionControlDeadlineAt).where(sql`${table.executionControlDeadlineAt} is not null`),
     nativeReplacementPredecessorUq: uniqueIndex("heartbeat_runs_native_replacement_predecessor_uq")
-      .on(table.companyId, table.retryOfRunId)
+      .on(table.spaceId, table.retryOfRunId)
       .where(sql`${table.scheduledRetryReason} = 'native_safe_replacement'`),
-    companyNativeIssueRunUq: unique("heartbeat_runs_company_native_issue_id_uq").on(
-      table.companyId,
+    spaceNativeIssueRunUq: unique("heartbeat_runs_space_native_issue_id_uq").on(
+      table.spaceId,
       table.nativeIssueId,
       table.id,
     ),
-    companyNativeIssueRunContractUq: unique(
-      "heartbeat_runs_company_native_issue_contract_id_uq",
+    spaceNativeIssueRunContractUq: unique(
+      "heartbeat_runs_space_native_issue_contract_id_uq",
     ).on(
-      table.companyId,
+      table.spaceId,
       table.nativeIssueId,
       table.id,
       table.completionContractId,
     ),
-    companyAgentStartedIdx: index("heartbeat_runs_company_agent_started_idx").on(
-      table.companyId,
+    spaceAgentStartedIdx: index("heartbeat_runs_space_agent_started_idx").on(
+      table.spaceId,
       table.agentId,
       table.startedAt,
     ),
-    companyNativeWorkspaceIdx: index("heartbeat_runs_company_native_workspace_idx")
-      .on(table.companyId, sql`(${table.runnerProfileJson}->'nativeWorkspaceSync'->>'workspaceId')`)
+    spaceNativeWorkspaceIdx: index("heartbeat_runs_space_native_workspace_idx")
+      .on(table.spaceId, sql`(${table.runnerProfileJson}->'nativeWorkspaceSync'->>'workspaceId')`)
       .concurrently(),
     // Runs of one native session. Retention, recovery and resume reads filter
-    // by company and session; without this they walk the agent's run history.
-    companyNativeSessionIdx: index("heartbeat_runs_company_native_session_idx")
-      .on(table.companyId, table.nativeSessionId)
+    // by space and session; without this they walk the agent's run history.
+    spaceNativeSessionIdx: index("heartbeat_runs_space_native_session_idx")
+      .on(table.spaceId, table.nativeSessionId)
       .where(sql`${table.nativeSessionId} is not null`)
       .concurrently(),
-    companyIssueCreatedIdx: index("heartbeat_runs_company_issue_created_idx").on(
-      table.companyId,
+    spaceIssueCreatedIdx: index("heartbeat_runs_space_issue_created_idx").on(
+      table.spaceId,
       table.issueId,
       table.createdAt,
     ),
-    companyResponsibleUserIdx: index("heartbeat_runs_company_responsible_user_idx").on(
-      table.companyId,
+    spaceResponsibleUserIdx: index("heartbeat_runs_space_responsible_user_idx").on(
+      table.spaceId,
       table.responsibleUserId,
       table.createdAt,
     ),
-    companyLivenessIdx: index("heartbeat_runs_company_liveness_idx").on(
-      table.companyId,
+    spaceLivenessIdx: index("heartbeat_runs_space_liveness_idx").on(
+      table.spaceId,
       table.livenessState,
       table.createdAt,
     ),
-    companyStatusLastOutputIdx: index("heartbeat_runs_company_status_last_output_idx").on(
-      table.companyId,
+    spaceStatusLastOutputIdx: index("heartbeat_runs_space_status_last_output_idx").on(
+      table.spaceId,
       table.status,
       table.lastOutputAt,
     ),
-    companyStatusProcessStartedIdx: index("heartbeat_runs_company_status_process_started_idx").on(
-      table.companyId,
+    spaceStatusProcessStartedIdx: index("heartbeat_runs_space_status_process_started_idx").on(
+      table.spaceId,
       table.status,
       table.processStartedAt,
     ),
-    companyCreatedAtDescIdx: index("heartbeat_runs_company_created_at_desc_idx").on(
-      table.companyId,
+    spaceCreatedAtDescIdx: index("heartbeat_runs_space_created_at_desc_idx").on(
+      table.spaceId,
       table.createdAt.desc(),
     ),
-    companyCtxIssueCreatedIdx: index("heartbeat_runs_company_ctx_issue_created_idx").on(
-      table.companyId,
+    spaceCtxIssueCreatedIdx: index("heartbeat_runs_space_ctx_issue_created_idx").on(
+      table.spaceId,
       sql`(${table.contextSnapshot} ->> 'issueId')`,
       table.createdAt.desc(),
     ),
-    companyCtxTaskCreatedIdx: index("heartbeat_runs_company_ctx_task_created_idx").on(
-      table.companyId,
+    spaceCtxTaskCreatedIdx: index("heartbeat_runs_space_ctx_task_created_idx").on(
+      table.spaceId,
       sql`(${table.contextSnapshot} ->> 'taskId')`,
       table.createdAt.desc(),
     ),
-    companyCtxTaskKeyCreatedIdx: index("heartbeat_runs_company_ctx_taskkey_created_idx").on(
-      table.companyId,
+    spaceCtxTaskKeyCreatedIdx: index("heartbeat_runs_space_ctx_taskkey_created_idx").on(
+      table.spaceId,
       sql`(${table.contextSnapshot} ->> 'taskKey')`,
       table.createdAt.desc(),
     ),
     // Runs that recorded an execution workspace in their legacy context. Workspace
     // activity and cleanup checks probe it instead of decoding every run context.
     // Partial, so it serves only queries that repeat the predicate and never
-    // competes with other company-scoped indexes.
-    companyCtxExecutionWorkspaceIdx: index("heartbeat_runs_company_ctx_execution_workspace_idx")
-      .on(table.companyId, sql`(${table.contextSnapshot} ->> 'executionWorkspaceId')`)
+    // competes with other space-scoped indexes.
+    spaceCtxExecutionWorkspaceIdx: index("heartbeat_runs_space_ctx_execution_workspace_idx")
+      .on(table.spaceId, sql`(${table.contextSnapshot} ->> 'executionWorkspaceId')`)
       .where(sql`${table.contextSnapshot} ? 'executionWorkspaceId'`)
       .concurrently(),
-    companyCtxPaperclipIssueCreatedIdx: index("heartbeat_runs_company_ctx_paperclip_issue_created_idx")
-      .on(table.companyId, sql`(${table.contextSnapshot} -> 'paperclipIssue' ->> 'id')`, table.createdAt.desc())
+    spaceCtxOutpostIssueCreatedIdx: index("heartbeat_runs_space_ctx_outpost_issue_created_idx")
+      .on(table.spaceId, sql`(${table.contextSnapshot} -> 'outpostIssue' ->> 'id')`, table.createdAt.desc())
       .concurrently(),
     // Match creation provenance precedence, including empty legacy IDs.
-    companyOriginIssueIdx: index("heartbeat_runs_company_origin_issue_idx")
-      .on(table.companyId, sql`coalesce(
+    spaceOriginIssueIdx: index("heartbeat_runs_space_origin_issue_idx")
+      .on(table.spaceId, sql`coalesce(
         ${table.nativeIssueId}::text,
         nullif(${table.contextSnapshot}->>'issueId', ''),
         nullif(${table.contextSnapshot}->>'taskId', ''),

@@ -230,7 +230,7 @@ export function SystemNoticeUxLab() {
       >
         <div className="space-y-4 rounded-2xl border border-border/70 bg-background/70 p-4">
           <MockUserBubble
-            authorName="Riley Board"
+            authorName="Riley Operator"
             body="Why does this issue keep waking back up without a clear next step?"
             alignEnd
           />
@@ -259,7 +259,7 @@ export function SystemNoticeUxLab() {
                     kind: "agent",
                     label: "Owner",
                     name: "Engineering Lead",
-                    href: "/PAP/agents/cto",
+                    href: "/PAP/agents/engineering_lead",
                   },
                 ],
               },
@@ -278,7 +278,7 @@ export function SystemNoticeUxLab() {
             ]}
           />
           <MockUserBubble
-            authorName="Riley Board"
+            authorName="Riley Operator"
             body="Thanks — assigning the recovery owner now."
             alignEnd
           />

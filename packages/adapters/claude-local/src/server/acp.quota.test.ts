@@ -25,7 +25,7 @@ async function executeFailure(
   extraEnv: Record<string, string> = {},
   details?: string,
 ) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-acp-quota-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-acp-quota-"));
   roots.push(root);
   const failureFile = path.join(root, "failure.json");
   await fs.writeFile(failureFile, JSON.stringify({ title, category, details }));
@@ -33,7 +33,7 @@ async function executeFailure(
   const execute = createClaudeAcpExecutor({ now: () => now.getTime(), createRuntime });
   const result = await execute({
     runId: "typed-quota",
-    agent: { id: "quota-agent", companyId: "quota-company" },
+    agent: { id: "quota-agent", spaceId: "quota-space" },
     runtime: {},
     config: {
       agentCommand: `${JSON.stringify(process.execPath.replaceAll("\\", "/"))} ${JSON.stringify(fixture.replaceAll("\\", "/"))}`,

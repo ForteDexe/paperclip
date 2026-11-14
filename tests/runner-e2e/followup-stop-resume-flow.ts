@@ -31,14 +31,14 @@ export async function runFollowupStopResumeFlow(input: {
   const contextPath = path.join(workspace, files.context);
   await writeFile(contextPath, source, { flag: "wx" });
   let issue: Row | undefined, runs: Row[] = [];
-  const observation: FollowupStopObservation = { binding: { companyId: fixtures.company.id, agentId: fixtures.agent.id, issueId: "" },
+  const observation: FollowupStopObservation = { binding: { spaceId: fixtures.space.id, agentId: fixtures.agent.id, issueId: "" },
     initial: null, followup: null, stop: null, final: null };
   const runEvents = (id: string) => collectRunEvents<Row>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${id}/events?afterSeq=${afterSeq}&limit=${limit}`));
   const orpEvents = (rows: Row[], runId: string) => rows.flatMap(row => row.payload?.orpEvent?.runId === runId ? [row.payload.orpEvent] : []);
   async function refresh() {
     if (!issue) return;
     const [current, listed] = await Promise.all([api.get<Row>(`/api/issues/${issue.id}`),
-      api.get<Row[]>(`/api/companies/${fixtures.company.id}/heartbeat-runs?agentId=${fixtures.agent.id}&limit=20`)]);
+      api.get<Row[]>(`/api/spaces/${fixtures.space.id}/heartbeat-runs?agentId=${fixtures.agent.id}&limit=20`)]);
     issue = current;
     runs = await Promise.all(listed.map(run => api.get<Row>(`/api/heartbeat-runs/${run.id}`)));
     if (runs.some(run => !stopRunBelongsToTask(run, observation.binding)))
@@ -47,7 +47,7 @@ export async function runFollowupStopResumeFlow(input: {
   }
   function retainedRuntime(run: Row) {
     const native = run.runnerProfileJson?.nativeExecutionInput, provider = native?.provider;
-    if (native?.binding?.runId !== run.id || native.binding.companyId !== fixtures.company.id || native.binding.issueId !== issue!.id ||
+    if (native?.binding?.runId !== run.id || native.binding.spaceId !== fixtures.space.id || native.binding.issueId !== issue!.id ||
         native.binding.agentId !== fixtures.agent.id || provider?.model !== execution.profile.model ||
         (provider.kind === "acpx" ? `acpx:${provider.agent}` : provider.kind) !== (execution.profile.provider === "codex" ? "codex" : "acpx:claude"))
       throw new Error("Stop/resume runtime did not retain its task, owner, provider and model");
@@ -64,18 +64,18 @@ export async function runFollowupStopResumeFlow(input: {
     await submitTaskReply(page, body);
     const added = await pollUntil({ label: "one persisted ordinary user message", deadlineAt: input.deadlineAt, intervalMs: 100,
       load: async () => (await api.get<Row[]>(`/api/issues/${issue!.id}/comments`)).filter(comment => !before.some(prior => prior.id === comment.id) &&
-        comment.issueId === issue!.id && comment.companyId === fixtures.company.id && comment.authorUserId && !comment.authorAgentId && comment.body === body),
+        comment.issueId === issue!.id && comment.spaceId === fixtures.space.id && comment.authorUserId && !comment.authorAgentId && comment.body === body),
       accept: rows => rows.length === 1, reject: rows => rows.length > 1 ? "Duplicate ordinary user message" : undefined });
     return { commentIds: added.map(comment => comment.id), submittedAt };
   }
   const automaticPath = () => Boolean(issue?.executionRunId || issue?.scheduledRetry || issue?.activeRecoveryAction || issue?.monitorNextCheckAt ||
     runs.some(run => ["queued", "running", "scheduled_retry"].includes(run.status)));
   try {
-    await api.patch(`/api/companies/${fixtures.company.id}/budgets`, { budgetMonthlyCents: 1000 });
+    await api.patch(`/api/spaces/${fixtures.space.id}/budgets`, { budgetMonthlyCents: 1000 });
     await api.patch(`/api/agents/${fixtures.agent.id}/budgets`, { budgetMonthlyCents: 1000 });
-    const stock = await captureStockHarness({ api, companyId: fixtures.company.id, agentId: fixtures.agent.id, generation: "native", runIds: [] });
+    const stock = await captureStockHarness({ api, spaceId: fixtures.space.id, agentId: fixtures.agent.id, generation: "native", runIds: [] });
     if (gradeStockHire(stock).some(check => !check.passed)) throw new Error("Stop/resume requires production hire instructions and both hard stops");
-    const created = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name,
+    const created = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name,
       projectName: fixtures.project.name, title: execution.task.buildTitle(input.nonce), prompt: execution.task.buildPrompt(input.nonce),
       workMode: "standard", requireExplicitTitle: true });
     issue = await api.get<Row>(`/api/issues/${created.issueId}`);
@@ -101,7 +101,7 @@ export async function runFollowupStopResumeFlow(input: {
         return true;
       }, accept: Boolean, reject: () => runs.length > 1 || runs.some(run => ["succeeded", "failed", "cancelled", "timed_out"].includes(run.status))
         ? "Active checkpoint boundary was not exercised" : undefined });
-    await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
+    await page.goto(`/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
     const followup = await submit(`Use ${files.finalLabel} as the label in the final result instead of the initial label. Keep the saved context file and finish the ongoing work.`);
     await refresh();
     const active = runs.find(run => run.id === observation.initial!.runId)!;
@@ -119,7 +119,7 @@ export async function runFollowupStopResumeFlow(input: {
       accept: run => run?.status === "cancelled" && !automaticPath(),
       reject: run => runs.length !== 1 ? "Stop admitted another run" : run && ["succeeded", "failed", "timed_out"].includes(run.status) ? "Stop did not cancel the original active work" : undefined });
     const stopped = runs[0]!, stop = stopped.resultJson?.nativeCancellation;
-    const acknowledged = stop?.schema === "outpost.native-cancellation.v1" && stop.companyId === fixtures.company.id &&
+    const acknowledged = stop?.schema === "outpost.native-cancellation.v1" && stop.spaceId === fixtures.space.id &&
       stop.issueId === issue.id && stop.runId === stopped.id && stop.scope === "run" && stop.dispatched === true &&
       stop.dispatchState === "acknowledged" && stop.reasonCode === "cancellation_run_only" && typeof stop.intentId === "string" &&
       typeof stop.intentAuditId === "string" && typeof stop.acknowledgementAuditId === "string" && stop.intentAuditId !== stop.acknowledgementAuditId;
@@ -144,7 +144,7 @@ export async function runFollowupStopResumeFlow(input: {
       accept: rows => rows.length === 1 && rows[0]!.status === "succeeded" && rows[0]!.nativePhase === "committed" && issue!.status === "done",
       reject: rows => rows.length > 1 ? "Explicit resumption duplicated work" : rows.some(run => ["failed", "cancelled", "timed_out"].includes(run.status)) ? "Explicit resumption failed" : undefined });
     const resumedRun = runs.find(run => run.id !== active.id)!;
-    const delivered = await waitForRunDelivery({ binding: { companyId: fixtures.company.id, issueId: issue.id, runId: resumedRun.id },
+    const delivered = await waitForRunDelivery({ binding: { spaceId: fixtures.space.id, issueId: issue.id, runId: resumedRun.id },
       agentId: fixtures.agent.id, deadlineAt: input.deadlineAt, load: async () => {
         await refresh();
         const [comments, attachments] = await Promise.all([api.get<Row[]>(`/api/issues/${issue!.id}/comments`),
@@ -154,9 +154,9 @@ export async function runFollowupStopResumeFlow(input: {
       } });
     const [artifact] = await readRegisteredArtifacts(api, issue.id, resumedRun.id, [files.result]);
     const [interactions, view, allIssues] = await Promise.all([api.get<Row[]>(`/api/issues/${issue.id}/interactions`),
-      api.get<Row>(`/api/issues/${issue.id}/workspace`), api.get<Row[]>(`/api/companies/${fixtures.company.id}/issues?limit=100`)]);
+      api.get<Row>(`/api/issues/${issue.id}/workspace`), api.get<Row[]>(`/api/spaces/${fixtures.space.id}/issues?limit=100`)]);
     if (allIssues.length !== 1 || await realpath(view.workspace.cwd) !== workspace) throw new Error("Explicit resumption changed its task or configured workspace");
-    await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
+    await page.goto(`/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
     const downloadPath = await downloadTaskTextArtifact(page, artifact!.attachmentId, files.result);
     if (!exactSyntheticJson(await readFile(downloadPath, "utf8"), { reference: source.trimEnd(), label: files.finalLabel }))
       throw new Error("Browser download did not retain the independently seeded context and earlier follow-up");

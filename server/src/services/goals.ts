@@ -6,25 +6,25 @@ import { unprocessable } from "../errors.js";
 
 type GoalReader = Pick<Db, "select">;
 
-async function assertParentCompany(
+async function assertParentSpace(
   db: GoalReader,
-  companyId: string,
+  spaceId: string,
   parentId: string | null | undefined,
 ) {
   if (!parentId) return;
   const [parent] = await db.select({ id: goals.id }).from(goals)
-    .where(and(eq(goals.id, parentId), eq(goals.companyId, companyId))).for("key share");
-  if (!parent) throw unprocessable("Parent north star not found in this company");
+    .where(and(eq(goals.id, parentId), eq(goals.spaceId, spaceId))).for("key share");
+  if (!parent) throw unprocessable("Parent north star not found in this space");
 }
 
-export async function getDefaultCompanyGoal(db: GoalReader, companyId: string) {
+export async function getDefaultSpaceGoal(db: GoalReader, spaceId: string) {
   const activeRootGoal = await db
     .select()
     .from(goals)
     .where(
       and(
-        eq(goals.companyId, companyId),
-        eq(goals.level, "company"),
+        eq(goals.spaceId, spaceId),
+        eq(goals.level, "space"),
         eq(goals.status, "active"),
         isNull(goals.parentId),
       ),
@@ -38,8 +38,8 @@ export async function getDefaultCompanyGoal(db: GoalReader, companyId: string) {
     .from(goals)
     .where(
       and(
-        eq(goals.companyId, companyId),
-        eq(goals.level, "company"),
+        eq(goals.spaceId, spaceId),
+        eq(goals.level, "space"),
         isNull(goals.parentId),
       ),
     )
@@ -50,14 +50,14 @@ export async function getDefaultCompanyGoal(db: GoalReader, companyId: string) {
   return db
     .select()
     .from(goals)
-    .where(and(eq(goals.companyId, companyId), eq(goals.level, "company")))
+    .where(and(eq(goals.spaceId, spaceId), eq(goals.level, "space")))
     .orderBy(asc(goals.createdAt))
     .then((rows) => rows[0] ?? null);
 }
 
 export function goalService(db: Db) {
   return {
-    list: (companyId: string) => db.select().from(goals).where(eq(goals.companyId, companyId)),
+    list: (spaceId: string) => db.select().from(goals).where(eq(goals.spaceId, spaceId)),
 
     getById: (id: string) =>
       db
@@ -66,33 +66,33 @@ export function goalService(db: Db) {
         .where(eq(goals.id, id))
         .then((rows) => rows[0] ?? null),
 
-    getDefaultCompanyGoal: (companyId: string) => getDefaultCompanyGoal(db, companyId),
+    getDefaultSpaceGoal: (spaceId: string) => getDefaultSpaceGoal(db, spaceId),
 
-    create: (companyId: string, data: Omit<typeof goals.$inferInsert, "companyId">) =>
+    create: (spaceId: string, data: Omit<typeof goals.$inferInsert, "spaceId">) =>
       db.transaction(async (tx) => {
-        await assertParentCompany(tx, companyId, data.parentId);
+        await assertParentSpace(tx, spaceId, data.parentId);
         return tx
           .insert(goals)
-          .values({ ...data, companyId })
+          .values({ ...data, spaceId })
           .returning()
           .then((rows) => rows[0]);
       }),
 
     update: (id: string, data: UpdateGoal) =>
       db.transaction(async (tx) => {
-        const [existing] = await tx.select({ companyId: goals.companyId }).from(goals)
+        const [existing] = await tx.select({ spaceId: goals.spaceId }).from(goals)
           .where(eq(goals.id, id)).for("no key update");
         if (!existing) return null;
         const parsed = updateGoalSchema.safeParse(data);
         if (!parsed.success) {
           throw unprocessable("Invalid north star update", parsed.error.issues);
         }
-        const requestedCompanyId = (data as Record<string, unknown>).companyId;
-        if (requestedCompanyId !== undefined && requestedCompanyId !== existing.companyId) {
-          throw unprocessable("North Star company cannot be changed");
+        const requestedSpaceId = (data as Record<string, unknown>).spaceId;
+        if (requestedSpaceId !== undefined && requestedSpaceId !== existing.spaceId) {
+          throw unprocessable("North Star space cannot be changed");
         }
         const patch = parsed.data;
-        await assertParentCompany(tx, existing.companyId, patch.parentId);
+        await assertParentSpace(tx, existing.spaceId, patch.parentId);
         return tx
           .update(goals)
           .set({ ...patch, updatedAt: new Date() })

@@ -26,7 +26,7 @@ import { createObjectByteJournal } from "../src/services/object-byte-journal.js"
 import { createHeartbeatRunOutput } from "../src/services/heartbeat/run-output.js";
 import { createAgentIdentityRedactor } from "../src/services/agent-identity-redaction.js";
 import { appendHeartbeatRunEvent } from "../src/services/heartbeat-run-events.js";
-import { PaperclipControlPlanePort } from "../src/services/native-runtime/paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "../src/services/native-runtime/outpost-control-plane-port.js";
 import { formatNativeRunLogEvent } from "../src/services/native-runtime/native-run-log-export.js";
 import { createNativeRunLogTestTables } from "../src/__tests__/helpers/native-run-log-database.js";
 
@@ -43,7 +43,7 @@ type Config = {
   schema: string;
   bucket: string;
   checkpoint: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   runId: string;
   sessionId: string;
@@ -58,7 +58,7 @@ const config: Config = childMode
       schema: `native_log_proof_${randomUUID().replaceAll("-", "")}`,
       bucket: `pc-native-proof-${randomUUID()}`,
       checkpoint: "",
-      companyId: randomUUID(),
+      spaceId: randomUUID(),
       agentId: randomUUID(),
       runId: randomUUID(),
       sessionId: randomUUID(),
@@ -117,7 +117,7 @@ if (childMode) {
   const [row] = await db
     .select({
       id: heartbeatRuns.id,
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
       agentId: heartbeatRuns.agentId,
       status: heartbeatRuns.status,
       runtimeMode: heartbeatRuns.runtimeMode,
@@ -140,7 +140,7 @@ if (childMode) {
     getCurrentUserRedactionOptions: async () => ({ enabled: false }),
     appendRunEvent: async (_run, event) => {
       await appendHeartbeatRunEvent(db, {
-        companyId: config.companyId,
+        spaceId: config.spaceId,
         agentId: config.agentId,
         runId: config.runId,
         ...event,
@@ -158,7 +158,7 @@ if (childMode) {
   const record = async (event: Parameters<typeof formatNativeRunLogEvent>[0], cursor: number) => {
     await handlers.onPersistedNativeLog!(cursor, formatNativeRunLogEvent(event));
   };
-  const persistence = new PaperclipControlPlanePort(
+  const persistence = new OutpostControlPlanePort(
     db,
     {
       ...config,
@@ -281,7 +281,7 @@ if (childMode) {
     await db.execute(sql.raw(`set search_path=${config.schema}`));
     await createNativeRunLogTestTables(db);
     await db.execute(
-      sql`insert into heartbeat_runs(id,company_id,agent_id,status) values(${config.runId},${config.companyId},${config.agentId},'running')`,
+      sql`insert into heartbeat_runs(id,space_id,agent_id,status) values(${config.runId},${config.spaceId},${config.agentId},'running')`,
     );
     await client.send(new CreateBucketCommand({ Bucket: config.bucket }));
     bucketCreated = true;
@@ -350,7 +350,7 @@ if (childMode) {
     );
     const journal = createObjectByteJournal({
       provider,
-      prefix: `logs/segments-v1/${config.companyId}/${config.agentId}/${config.runId}`,
+      prefix: `logs/segments-v1/${config.spaceId}/${config.agentId}/${config.runId}`,
     });
     const before = (await journal.head())!.head;
     assert(
@@ -381,7 +381,7 @@ if (childMode) {
       content = (
         await store.read({
           store: "s3_segments",
-          logRef: `${config.companyId}/${config.agentId}/${config.runId}`,
+          logRef: `${config.spaceId}/${config.agentId}/${config.runId}`,
         })
       ).content;
     const events = content
@@ -403,7 +403,7 @@ if (childMode) {
     process.stdout.write(
       `${JSON.stringify({
         result: "passed",
-        source: "real Rust recovery fixture and PaperclipControlPlanePort",
+        source: "real Rust recovery fixture and OutpostControlPlanePort",
         acknowledgedBeforeKill: 32,
         objectSourceCursorBeforeKill: before.sourceCursor,
         controllerLoss: "SIGKILL",

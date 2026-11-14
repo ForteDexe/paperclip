@@ -40,7 +40,7 @@ function RevisionByline({ revision }: { revision: CaseDocumentRevision }) {
 }
 
 function getRevisionLabel(revision: CaseDocumentRevision) {
-  const actor = revision.actorAgentName ?? (revision.createdByAgentId ? "agent" : revision.createdByUserId ? "board" : "system");
+  const actor = revision.actorAgentName ?? (revision.createdByAgentId ? "agent" : revision.createdByUserId ? "operator" : "system");
   return `rev ${revision.revisionNumber} - ${relativeTime(revision.createdAt)} - ${actor}`;
 }
 

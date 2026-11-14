@@ -19,17 +19,17 @@ import type { AuthorizationActor, AuthorizationDecision } from "../services/auth
 // a stub here, so a test asserts the exact gate behavior for a sandbox target, an SSH target, and
 // the remote kill switch.
 
-const buildActor = (companyId: string): AuthorizationActor => ({
+const buildActor = (spaceId: string): AuthorizationActor => ({
   type: "agent",
   agentId: randomUUID(),
-  companyId,
+  spaceId,
   source: "agent_key",
 });
 
 const decision = (allowed: boolean): AuthorizationDecision => ({
   allowed,
   action: "project:read",
-  reason: allowed ? "allow_company_agent" : "deny_company_boundary",
+  reason: allowed ? "allow_space_agent" : "deny_space_boundary",
   explanation: "test decision",
 });
 
@@ -37,7 +37,7 @@ const decision = (allowed: boolean): AuthorizationDecision => ({
 // The referenced-project record only needs an `id` here; the workspace resolution is stubbed, so no
 // other field is read. The cast keeps the stub minimal without restating the full project row shape.
 const listByIdsStub: ResolveAdditionalRunWorkspacesOptions["projects"] = {
-  listByIds: async (_companyId, ids) =>
+  listByIds: async (_spaceId, ids) =>
     ids.map(
       (id) =>
         ({ id, name: `Project ${id}`, status: "in_progress" }) as Awaited<
@@ -90,13 +90,13 @@ const recordingResolveProjectWorkspace = (): {
 };
 
 const baseOpts = (
-  companyId: string,
+  spaceId: string,
   overrides: Partial<ResolveAdditionalRunWorkspacesOptions> &
     Pick<ResolveAdditionalRunWorkspacesOptions, "issues" | "access" | "resolveProjectWorkspace">,
 ): ResolveAdditionalRunWorkspacesOptions => ({
   enabled: true,
-  companyId,
-  actor: buildActor(companyId),
+  spaceId,
+  actor: buildActor(spaceId),
   projects: listByIdsStub,
   ...overrides,
 });
@@ -140,7 +140,7 @@ describe("remote referenced-project kill switch", () => {
 
 describe("resolveAdditionalRunWorkspaces remote gate", () => {
   it("resolves and authorizes referenced workspaces on a sandbox target with the remote flag on", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const mentionedProjectId = randomUUID();
@@ -150,7 +150,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
     const result = await resolveAdditionalRunWorkspaces(
       issueId,
       anchorProjectId,
-      baseOpts(companyId, {
+      baseOpts(spaceId, {
         executionTargetIsRemote: true,
         targetStagesConfined: true,
         remoteReferencedSyncEnabled: true,
@@ -170,7 +170,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
   });
 
   it("fails closed on a sandbox target when the remote flag is off (no authorization, no staging)", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const mentionedProjectId = randomUUID();
@@ -180,7 +180,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
     const result = await resolveAdditionalRunWorkspaces(
       issueId,
       anchorProjectId,
-      baseOpts(companyId, {
+      baseOpts(spaceId, {
         executionTargetIsRemote: true,
         targetStagesConfined: true,
         remoteReferencedSyncEnabled: false,
@@ -199,7 +199,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
   });
 
   it("drops referenced projects on an SSH target whether the remote flag is on or off", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const mentionedProjectId = randomUUID();
@@ -211,7 +211,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
       const result = await resolveAdditionalRunWorkspaces(
         issueId,
         anchorProjectId,
-        baseOpts(companyId, {
+        baseOpts(spaceId, {
           executionTargetIsRemote: true,
           // The SSH transport does not confine its staging path, so it stays out of scope.
           targetStagesConfined: false,
@@ -230,7 +230,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
   });
 
   it("drops a referenced project the run agent cannot read on a sandbox target", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const readableProjectId = randomUUID();
@@ -244,7 +244,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
     const result = await resolveAdditionalRunWorkspaces(
       issueId,
       anchorProjectId,
-      baseOpts(companyId, {
+      baseOpts(spaceId, {
         executionTargetIsRemote: true,
         targetStagesConfined: true,
         remoteReferencedSyncEnabled: true,
@@ -265,7 +265,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
   });
 
   it("never authorizes the anchor project on a sandbox target", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     const mentionedProjectId = randomUUID();
@@ -275,7 +275,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
     await resolveAdditionalRunWorkspaces(
       issueId,
       anchorProjectId,
-      baseOpts(companyId, {
+      baseOpts(spaceId, {
         executionTargetIsRemote: true,
         targetStagesConfined: true,
         remoteReferencedSyncEnabled: true,
@@ -293,7 +293,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
   });
 
   it("holds the admitted-project cap on a sandbox target", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     // One more mention than the admitted cap.
@@ -307,7 +307,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
     const result = await resolveAdditionalRunWorkspaces(
       issueId,
       anchorProjectId,
-      baseOpts(companyId, {
+      baseOpts(spaceId, {
         executionTargetIsRemote: true,
         targetStagesConfined: true,
         remoteReferencedSyncEnabled: true,
@@ -327,7 +327,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
   });
 
   it("holds the candidate-evaluation cap on a sandbox target", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const anchorProjectId = randomUUID();
     // Flood the run with denied mentions past the evaluation cap. Every candidate is denied, so the
@@ -342,7 +342,7 @@ describe("resolveAdditionalRunWorkspaces remote gate", () => {
     const result = await resolveAdditionalRunWorkspaces(
       issueId,
       anchorProjectId,
-      baseOpts(companyId, {
+      baseOpts(spaceId, {
         executionTargetIsRemote: true,
         targetStagesConfined: true,
         remoteReferencedSyncEnabled: true,

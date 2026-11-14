@@ -62,7 +62,7 @@ Greptile setup.
 - `packages/plugins/`: plugin system packages
 - `packages/skills-catalog/`: app-shipped skills catalog (`@outpost/skills-catalog`)
 - `packages/teams-catalog/`: app-shipped teams catalog (`@outpost/teams-catalog`)
-- `cli/`: `paperclipai` CLI package (published bin, agent-facing commands)
+- `cli/`: `@outpost/cli` package (published bin, agent-facing commands)
 - `skills/`: Outpost runtime/operational skills (not part of the app catalog)
 - `doc/`: operational and product docs
 - `doc/plans/`: dated repo plan docs, named `YYYY-MM-DD-slug.md`. A plan for an Outpost task goes in the task's `plan` document instead.
@@ -82,7 +82,7 @@ preflight", "Start Dev", "Quick Health Checks", and "Database in Dev" in
 ## 5. Core Engineering Rules
 
 1. **Keep changes Space-scoped.**
-   Every domain entity should be scoped to a Space and Space boundaries must be enforced in routes/services. Internal APIs and schemas retain the compatibility term `company`; the few instance-wide exceptions are listed in [`rules/company-scope-exceptions.mdc`](rules/company-scope-exceptions.mdc). Do not add another without adding it to that list.
+   Every domain entity should be scoped to a Space and Space boundaries must be enforced in routes/services. Internal APIs and schemas retain the compatibility term `space`; the few instance-wide exceptions are listed in [`rules/space-scope-exceptions.mdc`](rules/space-scope-exceptions.mdc). Do not add another without adding it to that list.
 
 2. **Keep contracts synchronized.**
    If you change schema/API behavior, update all impacted layers:
@@ -187,7 +187,7 @@ returns consistent HTTP errors. See [`rules/api-route-expectations.mdc`](rules/a
 ## 9. UI Expectations
 
 - Keep routes and nav aligned with available API surface
-- Use the existing company selection context for Space-scoped pages; `company`
+- Use the existing space selection context for Space-scoped pages; `space`
   remains the internal compatibility name
 - Surface failures clearly; do not silently ignore API errors
 - Follow `DESIGN.md` for every UI design decision, including the token-only rule and form footers.

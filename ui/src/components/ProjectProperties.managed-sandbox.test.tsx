@@ -26,15 +26,15 @@ vi.mock("../api/secrets", () => ({ secretsApi: { list: vi.fn().mockResolvedValue
 vi.mock("../api/environments", () => ({ environmentsApi: { list: vi.fn().mockResolvedValue([]) } }));
 vi.mock("../api/instanceSettings", () => ({ instanceSettingsApi: { getExperimental: vi.fn().mockResolvedValue({}) } }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({ companies: [{ id: "company-1", issuePrefix: "PAP" }], selectedCompanyId: "company-1", setSelectedCompanyId: vi.fn() }),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({ spaces: [{ id: "space-1", issuePrefix: "PAP" }], selectedSpaceId: "space-1", setSelectedSpaceId: vi.fn() }),
 }));
 
 vi.mock("./environment-variables-editor", () => ({ EnvironmentVariablesEditor: () => null }));
 vi.mock("./InlineEditor", () => ({ InlineEditor: ({ value }: { value?: ReactNode }) => <div>{value}</div> }));
 
-const LOCAL_FOLDER = "/Users/paperclip/projects/test-project";
-const MANAGED_FOLDER = "/var/paperclip/checkouts/test-project";
+const LOCAL_FOLDER = "/Users/outpost/projects/test-project";
+const MANAGED_FOLDER = "/var/outpost/checkouts/test-project";
 
 function makeCodebase(overrides: Partial<ProjectCodebase> = {}): ProjectCodebase {
   return {

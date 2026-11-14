@@ -21,7 +21,7 @@ function artifact() {
     providerSessionId: "private-session-canary",
     snapshot: {
       networkEvidence: {
-        realPaperclipRequests: 0,
+        realOutpostRequests: 0,
         childOutpostEnvironmentKeys: [],
       },
     },
@@ -91,9 +91,9 @@ test("projects only isolated recorded messages and bounded tool facts", () => {
   validatePublicChatPayload(payload());
   for (const networkEvidence of [
     undefined,
-    { realPaperclipRequests: 1, childOutpostEnvironmentKeys: [] },
+    { realOutpostRequests: 1, childOutpostEnvironmentKeys: [] },
     {
-      realPaperclipRequests: 0,
+      realOutpostRequests: 0,
       childOutpostEnvironmentKeys: ["OUTPOST_API_KEY"],
     },
   ]) {

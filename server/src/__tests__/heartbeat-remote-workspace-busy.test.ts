@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
+import { agents, authUsers, spaces, spaceMemberships, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
   environmentLeases, environments, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, type Db } from "@outpost/db";
 import { readRemoteWorkspaceAuthority } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -49,28 +49,28 @@ describe.skipIf(!support.supported)("inherited remote workspace heartbeat wait",
     const userId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Workspace owner", email: `${userId}@example.test`,
       createdAt: new Date(), updatedAt: new Date() });
-    const [company] = await db.insert(companies).values({ name: "Remote writer wait", issuePrefix: `W${randomUUID().slice(0, 6)}`,
-      requireBoardApprovalForNewAgents: false, defaultResponsibleUserId: userId }).returning();
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: userId,
+    const [space] = await db.insert(spaces).values({ name: "Remote writer wait", issuePrefix: `W${randomUUID().slice(0, 6)}`,
+      requireOperatorApprovalForNewAgents: false, defaultResponsibleUserId: userId }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: userId,
       status: "active", membershipRole: "owner" });
     const [environment] = await db.insert(environments).values({ name: `Remote wait ${randomUUID()}`,
       driver: "sandbox", status: "active", config: { provider: "daytona" } }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Native worker", status: "idle",
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Native worker", status: "idle",
       adapterType: "outpost_runner", defaultEnvironmentId: environment.id,
       adapterConfig: { provider: "codex", model: "gpt-6.1-sol" }, runtimeConfig: { heartbeat: { maxConcurrentRuns: 2 } } }).returning();
-    const [parent] = await db.insert(issues).values({ companyId: company.id, title: "Running coordinator",
+    const [parent] = await db.insert(issues).values({ spaceId: space.id, title: "Running coordinator",
       status: "in_progress", assigneeAgentId: agent.id, responsibleUserId: userId }).returning();
-    const [writer] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const [writer] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       nativeIssueId: parent.id, runtimeMode: "native", status: "running", startedAt: new Date(), lastOutputAt: new Date() }).returning();
     const authority = { schema: "outpost.remote-workspace.v1" as const, epoch: 3, snapshotId: randomUUID(),
       source: { kind: "empty" as const }, location: null, writerRunId: writer.id, dirty: true };
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: company.id, sourceIssueId: parent.id,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: space.id, sourceIssueId: parent.id,
       name: "Inherited remote workspace", mode, strategyType: "project_primary", providerType: "cloud_sandbox",
       cwd: `/workspaces/${randomUUID()}`, metadata: { remoteWorkspace: authority } }).returning();
     await db.update(issues).set({ executionWorkspaceId: workspace.id }).where(eq(issues.id, parent.id));
     // An unrelated task that explicitly shares the running task's workspace. A
     // child bound this way would get its own workspace at admission instead.
-    const [child] = await db.insert(issues).values({ companyId: company.id,
+    const [child] = await db.insert(issues).values({ spaceId: space.id,
       title: "Use the shared files", status: "todo", assigneeAgentId: agent.id, responsibleUserId: userId,
       executionWorkspaceId: workspace.id, executionWorkspacePreference: "reuse_existing", executionWorkspaceSettings: { mode } }).returning();
     const originalTransaction = db.transaction.bind(db);
@@ -79,7 +79,7 @@ describe.skipIf(!support.supported)("inherited remote workspace heartbeat wait",
       try { return await originalTransaction(callback, config); }
       catch (error) {
         if (action === "reassignment" && error instanceof RemoteWorkspaceWriterActiveError) {
-          const [replacement] = await db.insert(agents).values({ companyId: company.id,
+          const [replacement] = await db.insert(agents).values({ spaceId: space.id,
             name: "New task owner", adapterType: "process" }).returning();
           await db.update(issues).set({ assigneeAgentId: replacement.id }).where(eq(issues.id, child.id));
           reassignmentInjected = true;
@@ -119,26 +119,26 @@ describe.skipIf(!support.supported)("inherited remote workspace heartbeat wait",
     const userId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Workspace owner", email: `${userId}@example.test`,
       createdAt: new Date(), updatedAt: new Date() });
-    const [company] = await db.insert(companies).values({ name: "Settling writer", issuePrefix: `S${randomUUID().slice(0, 6)}`,
-      requireBoardApprovalForNewAgents: false, defaultResponsibleUserId: userId }).returning();
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: userId,
+    const [space] = await db.insert(spaces).values({ name: "Settling writer", issuePrefix: `S${randomUUID().slice(0, 6)}`,
+      requireOperatorApprovalForNewAgents: false, defaultResponsibleUserId: userId }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: userId,
       status: "active", membershipRole: "owner" });
     const [environment] = await db.insert(environments).values({ name: `Settling ${randomUUID()}`,
       driver: "sandbox", status: "active", config: { provider: "daytona" } }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Native worker", status: "idle",
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Native worker", status: "idle",
       adapterType: "outpost_runner", defaultEnvironmentId: environment.id,
       adapterConfig: { provider: "codex", model: "gpt-6.1-sol" }, runtimeConfig: { heartbeat: { maxConcurrentRuns: 2 } } }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Continue after a failed save",
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Continue after a failed save",
       status: "todo", assigneeAgentId: agent.id, responsibleUserId: userId }).returning();
     // The previous run on this task ended, but its workspace save and sandbox
     // release have not settled: the writer hold and unsaved files remain.
-    const [writer] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const [writer] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       nativeIssueId: issue.id, runtimeMode: "native", status: "failed", errorCode: "provider_transport_failed",
       startedAt: new Date(finishedAt.getTime() - 60_000), lastOutputAt: new Date(finishedAt.getTime() - 30_000),
       finishedAt }).returning();
     const authority = { schema: "outpost.remote-workspace.v1" as const, epoch: 5, snapshotId: randomUUID(),
       source: { kind: "empty" as const }, location: null, writerRunId: writer.id, dirty: true };
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: company.id, sourceIssueId: issue.id,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: space.id, sourceIssueId: issue.id,
       name: "Task workspace", mode: "isolated_workspace", strategyType: "project_primary", providerType: "cloud_sandbox",
       cwd: `/workspaces/${randomUUID()}`, metadata: { remoteWorkspace: authority } }).returning();
     await db.update(issues).set({ executionWorkspaceId: workspace.id, executionWorkspacePreference: "reuse_existing",
@@ -165,9 +165,9 @@ describe.skipIf(!support.supported)("inherited remote workspace heartbeat wait",
     expect(readRemoteWorkspaceAuthority(f.current.metadata)).toEqual(f.authority);
   });
 
-  async function workspaceBusyRunIds(companyId: string) {
+  async function workspaceBusyRunIds(spaceId: string) {
     return (await db.select({ id: heartbeatRuns.id, status: heartbeatRuns.status, errorCode: heartbeatRuns.errorCode })
-      .from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId)))
+      .from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId)))
       .filter(row => row.status === "cancelled" && row.errorCode === "workspace_busy").map(row => row.id);
   }
 
@@ -189,7 +189,7 @@ describe.skipIf(!support.supported)("inherited remote workspace heartbeat wait",
       expect(recheckAt.getTime()).toBeLessThanOrEqual(f.writer.finishedAt!.getTime() + 60 * 60_000 + 1_000);
       checkAt = new Date(recheckAt.getTime() + 1_000);
     }
-    expect(await workspaceBusyRunIds(f.run.companyId)).toEqual([f.run.id]);
+    expect(await workspaceBusyRunIds(f.run.spaceId)).toEqual([f.run.id]);
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.retryOfRunId, retry.id))).toEqual([]);
 
     // The save settles: the writer hold is released.
@@ -198,7 +198,7 @@ describe.skipIf(!support.supported)("inherited remote workspace heartbeat wait",
     expect((await heartbeat.promoteDueScheduledRetries(checkAt)).runIds).toContain(retry.id);
     await heartbeat.cancelRun(retry.id);
     await heartbeat.drainActiveRunExecutions();
-    expect(await workspaceBusyRunIds(f.run.companyId)).toEqual([f.run.id]);
+    expect(await workspaceBusyRunIds(f.run.spaceId)).toEqual([f.run.id]);
   });
 
   it("stops parking behind an ended writer once its unsettled save reaches the holder cutoff", async () => {
@@ -215,11 +215,11 @@ describe.skipIf(!support.supported)("inherited remote workspace heartbeat wait",
     await heartbeat.drainActiveRunExecutions();
   });
 
-  // A writer stopped by reassignment whose retained files Paperclip is still
+  // A writer stopped by reassignment whose retained files Outpost is still
   // saving (an in-progress workspace recovery) is still settling, even after the
   // one-hour cutoff from its end. A waiter already parked for it stays parked
   // instead of being released into a setup failure; the save's own retry budget
-  // bounds the wait. A finished or board-handed-off save no longer extends it.
+  // bounds the wait. A finished or operator-handed-off save no longer extends it.
   it.each([
     { state: undefined, waits: true },
     { state: "scheduled", waits: true },
@@ -234,8 +234,8 @@ describe.skipIf(!support.supported)("inherited remote workspace heartbeat wait",
     const endedAt = new Date(Date.now() - 2 * 60 * 60_000);
     await db.update(heartbeatRuns).set({ status: "cancelled", errorCode: "issue_reassigned", finishedAt: endedAt,
       startedAt: new Date(endedAt.getTime() - 60_000), lastOutputAt: endedAt }).where(eq(heartbeatRuns.id, f.writer.id));
-    await db.insert(issueRecoveryActions).values({ companyId: f.run.companyId, sourceIssueId: f.workspace.sourceIssueId!,
-      kind: "active_run_watchdog", status: "resolved", outcome: "blocked", ownerType: "board",
+    await db.insert(issueRecoveryActions).values({ spaceId: f.run.spaceId, sourceIssueId: f.workspace.sourceIssueId!,
+      kind: "active_run_watchdog", status: "resolved", outcome: "blocked", ownerType: "operator",
       cause: "native_continuation_requires_reconciliation", fingerprint: `native-workspace:${f.writer.id}`,
       resolvedAt: new Date(), updatedAt: new Date(Date.now() - 60_000), nextAction: "Save the retained files.",
       evidence: { runId: f.writer.id, workspaceRestoreFailure: "restore_failed",

@@ -52,14 +52,14 @@ export function sandboxStateTransitionFailure(error: unknown): boolean {
 export async function reusableSandboxReplacementIsSafe(input: {
   db: Db;
   lease: EnvironmentLease;
-  companyId: string;
+  spaceId: string;
   heartbeatRunId: string | null;
   executionWorkspaceId: string | null;
   adapterType: string | null | undefined;
   cause: unknown;
 }): Promise<boolean> {
   const { db, lease } = input;
-  if (!input.heartbeatRunId || !lease.providerLeaseId || lease.companyId !== input.companyId) return false;
+  if (!input.heartbeatRunId || !lease.providerLeaseId || lease.spaceId !== input.spaceId) return false;
   if (lease.status !== "released" && lease.status !== "retained") return false;
   if (!input.executionWorkspaceId || lease.executionWorkspaceId !== input.executionWorkspaceId) return false;
   // A replacement cannot succeed where the resume was refused for access, and
@@ -72,12 +72,12 @@ export async function reusableSandboxReplacementIsSafe(input: {
   // A run that still holds the sandbox may have work on it.
   if (lease.heartbeatRunId && lease.heartbeatRunId !== input.heartbeatRunId) {
     const [owner] = await db.select({ status: heartbeatRuns.status }).from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, lease.heartbeatRunId)));
+      .where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, lease.heartbeatRunId)));
     if (owner && ["queued", "scheduled_retry", "running"].includes(owner.status)) return false;
   }
 
   const [workspace] = await db.select({ metadata: executionWorkspaces.metadata }).from(executionWorkspaces)
-    .where(and(eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.id, input.executionWorkspaceId)));
+    .where(and(eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.id, input.executionWorkspaceId)));
   let authority: ReturnType<typeof readRemoteWorkspaceAuthority>;
   try {
     authority = readRemoteWorkspaceAuthority(workspace?.metadata);
@@ -88,7 +88,7 @@ export async function reusableSandboxReplacementIsSafe(input: {
   if (authority.writerRunId !== null && authority.writerRunId !== input.heartbeatRunId) return false;
   if (authority.location && authority.location.providerLeaseId !== lease.providerLeaseId) return false;
   const [snapshot] = await db.select({ id: executionWorkspaceSnapshots.id }).from(executionWorkspaceSnapshots).where(and(
-    eq(executionWorkspaceSnapshots.companyId, input.companyId),
+    eq(executionWorkspaceSnapshots.spaceId, input.spaceId),
     eq(executionWorkspaceSnapshots.executionWorkspaceId, input.executionWorkspaceId),
     eq(executionWorkspaceSnapshots.id, authority.snapshotId),
     eq(executionWorkspaceSnapshots.status, "committed"),
@@ -97,7 +97,7 @@ export async function reusableSandboxReplacementIsSafe(input: {
 
   const scope = lease.metadata?.reusableSandboxLease as { adapterType?: unknown } | undefined;
   if ((input.adapterType === "outpost_runner" || scope?.adapterType === "outpost_runner")
-    && !await verifyRecoverableNativeHarnessBackup({ db, companyId: lease.companyId,
+    && !await verifyRecoverableNativeHarnessBackup({ db, spaceId: lease.spaceId,
       stamp: lease.metadata?.nativeHarnessBackup, providerLeaseId: lease.providerLeaseId })) return false;
 
   return true;
@@ -113,7 +113,7 @@ export async function reusableSandboxReplacementIsSafe(input: {
 export async function retireReplacedReusableSandboxLease(input: {
   db: Db;
   lease: EnvironmentLease;
-  companyId: string;
+  spaceId: string;
   heartbeatRunId: string;
 }): Promise<boolean> {
   const { db, lease } = input;
@@ -128,7 +128,7 @@ export async function retireReplacedReusableSandboxLease(input: {
     updatedAt: now,
   }).where(and(
     eq(environmentLeases.id, lease.id),
-    eq(environmentLeases.companyId, input.companyId),
+    eq(environmentLeases.spaceId, input.spaceId),
     eq(environmentLeases.providerLeaseId, lease.providerLeaseId!),
     inArray(environmentLeases.status, ["released", "retained"]),
     sql`coalesce(${environmentLeases.metadata}->>'pendingCleanupInFlight', 'false') != 'true'`,
@@ -138,6 +138,6 @@ export async function retireReplacedReusableSandboxLease(input: {
         AND ${heartbeatRuns.id} <> ${input.heartbeatRunId}
         AND ${heartbeatRuns.status} IN ('queued', 'scheduled_retry', 'running')
     )`,
-  )).returning({ id: environmentLeases.id }), { companyId: input.companyId, runId: lease.heartbeatRunId ?? undefined });
+  )).returning({ id: environmentLeases.id }), { spaceId: input.spaceId, runId: lease.heartbeatRunId ?? undefined });
   return Boolean(claimed);
 }

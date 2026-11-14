@@ -10,14 +10,14 @@ const { normalizeAgentRows } = agentRecordQueries(undefined as unknown as Parame
 const recoveryError = lifecycleFailureMessage({ stage: "host", phase: "verifying" }, { code: "harness_probe_timed_out" });
 const repairError = lifecycleFailureMessage({ stage: "host", phase: "verifying" }, { code: "harness_auth_failed" });
 function fixture(state: (now: number) => Record<string, unknown>, executionId = selected, deadlineAt = 120_000) {
-  const worker = { id: "worker", companyId: "company", name: "Morgan" };
+  const worker = { id: "worker", spaceId: "space", name: "Morgan" };
   const get = vi.fn(async () => normalizeAgentRows([{
     ...worker, status: "paused", reportsTo: null, permissions: {}, appearance: null, ...state(Date.now()),
   } as unknown as Parameters<typeof normalizeAgentRows>[0][number]])[0]);
   const evidence = vi.fn(async () => {});
   const ctx = { observationDeadlineAt: deadlineAt, input: {
     execution: { id: executionId, environment: { id: "local" }, profile: { buildAgent: () => ({}), credential: "OPENROUTER_API_KEY" } },
-    fixtures: { company: { id: "company" }, agent: { id: "lead" }, environment: { id: "environment" }, secretRefs: {} },
+    fixtures: { space: { id: "space" }, agent: { id: "lead" }, environment: { id: "environment" }, secretRefs: {} },
     workspacePath: "/fixture", nonce: "fixture", api: { get, post: async () => worker }, evidence,
   } } as unknown as ChatCatalogContext;
   return { ctx, get, evidence, worker };

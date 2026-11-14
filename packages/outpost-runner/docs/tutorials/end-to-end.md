@@ -21,7 +21,7 @@ semantic completion tools, and the same reducer/replay proof used by fixtures.
 SDK freezes that browser transport and reducer projection as public SDK
 subpaths, then proves them with a reference console and a second consumer.
 Standalone consumes the public runner contract from Outpost behind a default-off
-flag while preserving server-owned workspace, governance, and status authority.
+flag while preserving server-owned workspace, approvals, and status authority.
 
 ## Current end-to-end path
 
@@ -48,7 +48,7 @@ flag while preserving server-owned workspace, governance, and status authority.
 16. Run the fake lifecycle in both consumers, then confirm the mini consumer
     reaches `Replay parity: match` after reconnect and replay.
 17. Run the safe real-Codex browser smoke.
-18. Follow [Standalone: Run the Thin Outpost Adapter](standalone-thin-paperclip-adapter.md).
+18. Follow [Standalone: Run the Thin Outpost Adapter](standalone-thin-outpost-adapter.md).
 19. Run the unchanged port conformance suite against mock and database-backed
     Outpost ports, then inspect one local feature-flagged task.
 20. Disable the flag and confirm a fresh task selects legacy while persisted

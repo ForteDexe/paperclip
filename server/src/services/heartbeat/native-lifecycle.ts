@@ -1,4 +1,4 @@
-import { OUTPOST_RUNNER_IDLE_TIMEOUT_DEFAULT_MS, resolvePaperclipRunnerIdleTimeoutMs } from "@outpost/adapter-utils";
+import { OUTPOST_RUNNER_IDLE_TIMEOUT_DEFAULT_MS, resolveOutpostRunnerIdleTimeoutMs } from "@outpost/adapter-utils";
 import type { NativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 import {
   defaultsRemoteSandboxRunToWarm, defaultsToWarmFollowUp, supportsManagedNativeWarmSession,
@@ -45,8 +45,8 @@ export function resolveHeartbeatNativeLifecyclePolicy(input: {
   // uses the window the environment view forwards to the provider: the
   // environment's, then the agent's.
   const agentPolicy: NativeLifecyclePolicy = agentMode === "warm"
-    ? { mode: "warm", idleTimeoutMs: explicit ? resolvePaperclipRunnerIdleTimeoutMs(input.agentIdleTimeoutMs)
-      : remoteDefault ? resolvePaperclipRunnerIdleTimeoutMs(input.remoteSandboxTarget?.idleTimeoutMs ?? input.agentIdleTimeoutMs)
+    ? { mode: "warm", idleTimeoutMs: explicit ? resolveOutpostRunnerIdleTimeoutMs(input.agentIdleTimeoutMs)
+      : remoteDefault ? resolveOutpostRunnerIdleTimeoutMs(input.remoteSandboxTarget?.idleTimeoutMs ?? input.agentIdleTimeoutMs)
         : OUTPOST_RUNNER_IDLE_TIMEOUT_DEFAULT_MS }
     : { mode: "per_turn", idleTimeoutMs: null };
   const supportsManagedWarm = input.adapterType === "outpost_runner" && (input.taskOwned ||

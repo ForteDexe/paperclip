@@ -9,13 +9,13 @@ const MAX_CAS_ATTEMPTS = 32;
 
 type StateKind = "cache" | "list" | "lock" | "queue" | "subscription";
 
-/** Company + endpoint boundary applied to every Chat SDK state operation. */
+/** Space + endpoint boundary applied to every Chat SDK state operation. */
 export interface ChatSdkStateScope {
-  companyId: string;
+  spaceId: string;
   endpointId: string;
 }
 
-/** A versioned row returned by the Paperclip persistence implementation. */
+/** A versioned row returned by the Outpost persistence implementation. */
 export interface ChatSdkStateRecord {
   expiresAt: Date | null;
   value: unknown;
@@ -38,7 +38,7 @@ export interface ChatSdkStateDeleteInput extends ChatSdkStateScope {
 /**
  * Narrow database port used by the Chat SDK adapter.
  *
- * The production implementation is responsible for company scoping and for
+ * The production implementation is responsible for space scoping and for
  * making compare-and-set/delete atomic in the database transaction. Keeping
  * those two primitives below this adapter lets every higher-level Chat SDK
  * operation (locks, queues, subscriptions, lists, and cache entries) share the
@@ -59,7 +59,7 @@ interface StateEnvelope {
   value: unknown;
 }
 
-export interface PaperclipChatSdkStateOptions extends ChatSdkStateScope {
+export interface OutpostChatSdkStateOptions extends ChatSdkStateScope {
   maxValueBytes?: number;
   now?: () => Date;
   persistence: ChatSdkStatePersistence;
@@ -111,21 +111,21 @@ function decodeEnvelope(
 }
 
 /**
- * Chat SDK StateAdapter backed by Paperclip's injected, company-scoped CAS
+ * Chat SDK StateAdapter backed by Outpost's injected, space-scoped CAS
  * persistence. Instances are endpoint-scoped and never own or close the shared
  * database connection.
  */
-export class PaperclipChatSdkStateAdapter implements StateAdapter {
+export class OutpostChatSdkStateAdapter implements StateAdapter {
   private readonly scope: ChatSdkStateScope;
   private readonly persistence: ChatSdkStatePersistence;
   private readonly now: () => Date;
   private readonly maxValueBytes: number;
   private connected = false;
 
-  constructor(options: PaperclipChatSdkStateOptions) {
+  constructor(options: OutpostChatSdkStateOptions) {
     assertBoundedIdentifier(
-      "companyId",
-      options.companyId,
+      "spaceId",
+      options.spaceId,
       MAX_SCOPE_ID_LENGTH,
     );
     assertBoundedIdentifier(
@@ -134,7 +134,7 @@ export class PaperclipChatSdkStateAdapter implements StateAdapter {
       MAX_SCOPE_ID_LENGTH,
     );
     this.scope = {
-      companyId: options.companyId,
+      spaceId: options.spaceId,
       endpointId: options.endpointId,
     };
     this.persistence = options.persistence;
@@ -470,7 +470,7 @@ export class PaperclipChatSdkStateAdapter implements StateAdapter {
   private ensureConnected(): void {
     if (!this.connected) {
       throw new Error(
-        "PaperclipChatSdkStateAdapter is not connected. Call connect() first.",
+        "OutpostChatSdkStateAdapter is not connected. Call connect() first.",
       );
     }
   }
@@ -602,8 +602,8 @@ export class PaperclipChatSdkStateAdapter implements StateAdapter {
   }
 }
 
-export function createPaperclipChatSdkState(
-  options: PaperclipChatSdkStateOptions,
-): PaperclipChatSdkStateAdapter {
-  return new PaperclipChatSdkStateAdapter(options);
+export function createOutpostChatSdkState(
+  options: OutpostChatSdkStateOptions,
+): OutpostChatSdkStateAdapter {
+  return new OutpostChatSdkStateAdapter(options);
 }

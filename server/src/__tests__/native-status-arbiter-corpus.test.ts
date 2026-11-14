@@ -1,5 +1,5 @@
 import { retainedNativeSessionCleanupWork } from "../services/native-runtime/retained-native-session-cleanup-work.js";
-import { pendingNativeGovernance } from "../services/native-runtime/native-governance.js";
+import { pendingNativePolicy } from "../services/native-runtime/native-policy.js";
 import { withNativeWorkspaceFinalizationOwnership } from "../services/native-runtime/native-workspace-finalization-ownership.js";
 import { ensureNativeCompletionContract } from "../services/native-runtime/completion-contracts.js";
 import { nativeStatusReassessmentWork } from "../services/native-runtime/native-status-reassessment-work.js";
@@ -27,7 +27,7 @@ import {
   issueApprovals,
   issueComments,
   agentWakeupRequests,
-  companies,
+  spaces,
   completionContracts,
   executionWorkspaces,
   issueRelations,
@@ -268,11 +268,11 @@ const nativeStatusEffectKinds = new Set<NativeStatusEffect["kind"]>([
 
 const supersedingDecisionStates = new Set([
   "new_evidence_satisfies_contract", "dependency_now_done", "explicit_resume_capability",
-  "board_cancelled_before_cas", "authorized_writer_incremented_version",
+  "operator_cancelled_before_cas", "authorized_writer_incremented_version",
 ]);
 
 const liveReconciliationStates = new Set([
-  "board_cancelled_before_cas", "new_evidence_satisfies_contract", "policy_version_changed",
+  "operator_cancelled_before_cas", "new_evidence_satisfies_contract", "policy_version_changed",
 ]);
 
 function initialRunStatus(fixture: Fixture) {
@@ -299,35 +299,35 @@ function failpointFor(fixture: Fixture): NativeStatusCommitFailpoint | undefined
   return undefined;
 }
 
-function attentionFactsFor(completionState: string, summary: string, governanceGate: { kind: "interaction"; id: string } | null) {
+function attentionFactsFor(completionState: string, summary: string, policyGate: { kind: "interaction"; id: string } | null) {
   switch (completionState) {
     case "alternate_track_runnable":
-      return { companyScopeValid: true, responseState: "none" as const, route: "alternate_track" as const, summary };
+      return { spaceScopeValid: true, responseState: "none" as const, route: "alternate_track" as const, summary };
     case "context_answer_current":
-      return { companyScopeValid: true, responseState: "resolved" as const, route: "context" as const, summary };
+      return { spaceScopeValid: true, responseState: "resolved" as const, route: "context" as const, summary };
     case "ordinary_domain_expertise":
-      return { companyScopeValid: true, responseState: "none" as const, route: "agent" as const, summary };
+      return { spaceScopeValid: true, responseState: "none" as const, route: "agent" as const, summary };
     case "intentional_human_judgment":
-      return { companyScopeValid: true, responseState: "none" as const, route: "human" as const, summary };
+      return { spaceScopeValid: true, responseState: "none" as const, route: "human" as const, summary };
     case "equivalent_attention_family":
-      return { companyScopeValid: true, responseState: "none" as const, route: "duplicate" as const, summary };
+      return { spaceScopeValid: true, responseState: "none" as const, route: "duplicate" as const, summary };
     case "resolver_budget_exhausted":
-      return { companyScopeValid: true, responseState: "none" as const, route: "recovery" as const, summary, budgetExhausted: true };
+      return { spaceScopeValid: true, responseState: "none" as const, route: "recovery" as const, summary, budgetExhausted: true };
     case "transient_retry_then_success":
-      return { companyScopeValid: true, responseState: "resolved" as const, route: "retry" as const, summary };
-    case "cross_company_target":
-      return { companyScopeValid: false, responseState: "none" as const, route: "agent" as const, summary };
+      return { spaceScopeValid: true, responseState: "resolved" as const, route: "retry" as const, summary };
+    case "cross_space_target":
+      return { spaceScopeValid: false, responseState: "none" as const, route: "agent" as const, summary };
     case "response_after_supersession":
-      return { companyScopeValid: true, responseState: "stale" as const, route: "context" as const, summary };
+      return { spaceScopeValid: true, responseState: "stale" as const, route: "context" as const, summary };
     case "interaction_expired":
-      return { companyScopeValid: true, responseState: "expired" as const, route: "human" as const, summary };
-    case "governed_gate_pending":
+      return { spaceScopeValid: true, responseState: "expired" as const, route: "human" as const, summary };
+    case "controlled_gate_pending":
       return {
-        companyScopeValid: true,
+        spaceScopeValid: true,
         responseState: "none" as const,
         route: "human" as const,
         summary,
-        governanceGate,
+        policyGate,
       };
     default:
       return null;
@@ -341,7 +341,7 @@ function reconciliationFactsFor(completionState: string) {
     case "reused_id_changed_material": return { callerMaterialConflict: true };
     case "result_preserved": return { workspaceOperationPending: true };
     case "decision_committed_delivery_pending": return { undeliveredEffectCount: 1 };
-    case "board_cancelled_before_cas": return { authoritativeStatusChanged: true };
+    case "operator_cancelled_before_cas": return { authoritativeStatusChanged: true };
     case "new_evidence_satisfies_contract": return { newEvidenceSatisfiesContract: true };
     case "dependency_now_done": return { dependencyResolved: true };
     case "explicit_resume_capability": return { authorizedResume: true };
@@ -365,7 +365,7 @@ function migrationFactsFor(completionState: string) {
   switch (completionState) {
     case "shadow_compute": return { shadowMaterialization: true };
     case "classified_native_legacy_divergence": return { classifiedDivergence: true };
-    case "allowlisted_company_adapter_policy": return { applicationEnabled: true };
+    case "allowlisted_space_adapter_policy": return { applicationEnabled: true };
     case "cohort_policy_pinned": return { policyPinned: true };
     case "kill_switch_during_active_native_run": return { killSwitchActiveForNewRuns: true };
     default: return null;
@@ -405,29 +405,29 @@ type ReconciledRun = Awaited<ReturnType<typeof reconcileNativeFinalizations>>[nu
 describe("P6-31 Section 18.13 executable status-authority corpus", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   const delegateAgentId = randomUUID();
-  const outsideCompanyId = randomUUID();
+  const outsideSpaceId = randomUUID();
   const outsideAgentId = randomUUID();
 
   beforeAll(async () => {
     const external = resolveExternalTestDatabaseUrl("OUTPOST_STATUS_CORPUS_TEST_DATABASE_URL");
-    if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-status-corpus-");
+    if (!external) temporary = await startEmbeddedPostgresTestDatabase("outpost-status-corpus-");
     db = createDb(external ?? temporary!.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Status corpus", issuePrefix: `PSC${companyId.replaceAll("-", "").toUpperCase()}` });
-    await db.insert(companies).values({ id: outsideCompanyId, name: "Outside corpus", issuePrefix: `OUT${outsideCompanyId.replaceAll("-", "").toUpperCase()}` });
+    await db.insert(spaces).values({ id: spaceId, name: "Status corpus", issuePrefix: `PSC${spaceId.replaceAll("-", "").toUpperCase()}` });
+    await db.insert(spaces).values({ id: outsideSpaceId, name: "Outside corpus", issuePrefix: `OUT${outsideSpaceId.replaceAll("-", "").toUpperCase()}` });
     await db.insert(agents).values([
       {
         id: agentId,
-        companyId,
+        spaceId,
         name: "Status corpus agent",
         adapterType: "codex_local",
         status: "running",
       },
       {
         id: delegateAgentId,
-        companyId,
+        spaceId,
         name: "Eligible status corpus delegate",
         adapterType: "codex_local",
         status: "idle",
@@ -435,8 +435,8 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       },
       {
         id: outsideAgentId,
-        companyId: outsideCompanyId,
-        name: "Outside-company agent",
+        spaceId: outsideSpaceId,
+        name: "Outside-space agent",
         adapterType: "codex_local",
         status: "idle",
       },
@@ -445,8 +445,8 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
 
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
 
-  async function seedFixture(fixture: Fixture, tenant = { companyId, agentId }) {
-    const { companyId, agentId } = tenant;
+  async function seedFixture(fixture: Fixture, tenant = { spaceId, agentId }) {
+    const { spaceId, agentId } = tenant;
     const issueId = randomUUID();
     const runId = randomUUID();
     const contractId = randomUUID();
@@ -460,7 +460,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
 
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: fixture.id,
       status: priorStatus,
       assigneeAgentId: agentId,
@@ -478,7 +478,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
 
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: initialRunStatus(fixture),
       runtimeMode: "native",
@@ -490,7 +490,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     });
     await db.insert(completionContracts).values({
       id: contractId,
-      companyId,
+      spaceId,
       issueId,
       revision: 1,
       schemaVersion: "outpost.completion-contract.v1",
@@ -505,7 +505,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     });
     await db.insert(nativeRunResults).values({
       id: resultId,
-      companyId,
+      spaceId,
       issueId,
       runId,
       completionContractId: contractId,
@@ -547,10 +547,10 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     });
     await db.insert(issueWorkProducts).values({
       id: workProductId,
-      companyId,
+      spaceId,
       issueId,
       type: "artifact",
-      provider: "paperclip",
+      provider: "outpost",
       title: `${fixture.id} evidence`,
       status: "ready_for_review",
       reviewState: completionState === "new_evidence_satisfies_contract" ? "none" : "approved",
@@ -559,14 +559,14 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     });
     await db.insert(workAssessments).values({
       id: assessmentId,
-      companyId,
+      spaceId,
       issueId,
       runId,
       contractId,
       resultId,
       triggerKind: "native_result",
-      triggerActorCompanyId: companyId,
-      priorIssueStatus: completionState === "board_cancelled_before_cas" ? "in_progress" : priorStatus,
+      triggerActorSpaceId: spaceId,
+      priorIssueStatus: completionState === "operator_cancelled_before_cas" ? "in_progress" : priorStatus,
       priorStatusVersion: 0,
       policyVersion: completionState === "policy_version_changed"
         ? "phase6-v1"
@@ -580,7 +580,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     });
     await db.insert(nativeRunFinalizations).values({
       runId,
-      companyId,
+      spaceId,
       issueId,
       phase: "assessing",
       resultId,
@@ -617,18 +617,18 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       expect(mode.authorityDecision.effects.some((effect) => effect.kind === "record_mode_native"), `${fixture.id}:native runtime authority`).toBe(true);
     }
 
-    let governanceGate: { kind: "interaction"; id: string } | null = null;
-    if (seeded.nativeRecords && completionState === "governed_gate_pending") {
+    let policyGate: { kind: "interaction"; id: string } | null = null;
+    if (seeded.nativeRecords && completionState === "controlled_gate_pending") {
       const interactionId = randomUUID();
       await db.insert(issueThreadInteractions).values({
         id: interactionId,
-        companyId,
+        spaceId,
         issueId: seeded.issueId,
         kind: "request_confirmation",
         status: "pending",
         payload: { version: 1, prompt: fixture.id },
       });
-      governanceGate = { kind: "interaction", id: interactionId };
+      policyGate = { kind: "interaction", id: interactionId };
     }
 
     const pushDecisionConsumer = (
@@ -651,7 +651,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     let consumerDecision: NativeStatusDecision | null = null;
     let liveEntrypointCommitted = false;
     let liveAttentionInteractionId: string | null = null;
-    const attentionFacts = attentionFactsFor(completionState, fixture.id, governanceGate);
+    const attentionFacts = attentionFactsFor(completionState, fixture.id, policyGate);
     if (
       seeded.nativeRecords
       && options.disableLiveEntrypoint !== "attention"
@@ -665,7 +665,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         await db.insert(issueThreadInteractions).values([
           {
             id: canonicalRequestId,
-            companyId,
+            spaceId,
             issueId: seeded.issueId,
             kind: "request_confirmation",
             status: "pending",
@@ -674,7 +674,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
           },
           {
             id: liveAttentionInteractionId,
-            companyId,
+            spaceId,
             issueId: seeded.issueId,
             kind: "request_confirmation",
             status: "expired",
@@ -688,7 +688,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         liveAttentionInteractionId = randomUUID();
         await db.insert(issueThreadInteractions).values({
           id: liveAttentionInteractionId,
-          companyId,
+          spaceId,
           issueId: seeded.issueId,
           kind: "request_confirmation",
           status: "expired",
@@ -700,7 +700,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         liveAttentionInteractionId = randomUUID();
         await db.insert(issueThreadInteractions).values({
           id: liveAttentionInteractionId,
-          companyId,
+          spaceId,
           issueId: seeded.issueId,
           kind: "ask_user_questions",
           status: "pending",
@@ -710,12 +710,12 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       const target = attentionFacts.route === "agent"
         ? {
             ownerClass: "agent",
-            agentId: completionState === "cross_company_target" ? outsideAgentId : delegateAgentId,
-            companyId: completionState === "cross_company_target" ? outsideCompanyId : companyId,
+            agentId: completionState === "cross_space_target" ? outsideAgentId : delegateAgentId,
+            spaceId: completionState === "cross_space_target" ? outsideSpaceId : spaceId,
           }
         : attentionFacts.route === "human"
-          ? { ownerClass: "board_user", companyId }
-          : { ownerClass: "current_agent", companyId };
+          ? { ownerClass: "operator_user", spaceId }
+          : { ownerClass: "current_agent", spaceId };
       const requestedCapability = attentionFacts.route === "context"
         ? "context_lookup"
         : attentionFacts.route === "retry"
@@ -741,12 +741,12 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
             attentionRequests: [{
               id: `attention:${fixture.id}`,
               requestedCapability,
-              requiredAuthority: attentionFacts.route === "human" ? "board" : "agent",
+              requiredAuthority: attentionFacts.route === "human" ? "operator" : "agent",
               target,
               summary: attentionFacts.summary,
               responseState: attentionFacts.responseState,
               budgetExhausted: attentionFacts.budgetExhausted === true,
-              governanceGate: attentionFacts.governanceGate,
+              policyGate: attentionFacts.policyGate,
               targetInteractionId: liveAttentionInteractionId,
               canonicalRequestId,
             }],
@@ -812,7 +812,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         await expect(db.select().from(workAssessments)
           .where(eq(workAssessments.runId, seeded.runId)).then((rows) => rows.length)).resolves.toBe(assessmentCount);
       }
-      if (attentionFacts.route === "agent" && completionState !== "cross_company_target") {
+      if (attentionFacts.route === "agent" && completionState !== "cross_space_target") {
         expect(receipt.resolvedTargetAgentId, `${fixture.id}:eligible delegate`).toBe(delegateAgentId);
       }
     }
@@ -949,7 +949,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         semanticConsumer = "native-migration-status";
         consumerDecision = pushDecisionConsumer(
           semanticConsumer,
-          completionState === "allowlisted_company_adapter_policy" && mode.kind === "native"
+          completionState === "allowlisted_space_adapter_policy" && mode.kind === "native"
             ? mode.authorityDecision
             : resolveNativeMigrationStatus({ facts: migrationFacts, priorIssueStatus, agentId }),
         );
@@ -994,7 +994,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       && liveReconciliationStates.has(completionState)
     ) {
       const [priorDecision] = await db.insert(statusDecisions).values({
-        companyId,
+        spaceId,
         runId: seeded.runId,
         issueId: seeded.issueId,
         assessmentId: seeded.assessmentId,
@@ -1002,8 +1002,8 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         policyVersion: completionState === "policy_version_changed"
           ? "phase6-v1"
           : NATIVE_STATUS_ARBITER_POLICY_VERSION,
-        fromStatus: completionState === "board_cancelled_before_cas" ? "in_progress" : priorIssueStatus,
-        toStatus: completionState === "board_cancelled_before_cas" ? "in_progress" : priorIssueStatus,
+        fromStatus: completionState === "operator_cancelled_before_cas" ? "in_progress" : priorIssueStatus,
+        toStatus: completionState === "operator_cancelled_before_cas" ? "in_progress" : priorIssueStatus,
         reasonCode: "prior_fixture_decision",
         decisionJson: { superseded: true },
         decisionDigest: `prior-decision:${fixture.id}`,
@@ -1026,7 +1026,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       }
       if (completionState === "policy_version_changed") {
         await db.insert(workspaceOperations).values({
-          companyId, heartbeatRunId: seeded.runId, issueId: seeded.issueId,
+          spaceId, heartbeatRunId: seeded.runId, issueId: seeded.issueId,
           phase: "workspace_finalize", status: "succeeded", exitCode: 0, cwd: process.cwd(), finishedAt: new Date(),
         });
       }
@@ -1085,7 +1085,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         : `work_product:${randomUUID()}`;
       assessment = await classifyNativeEvidence({
         db,
-        companyId,
+        spaceId,
         issueId: seeded.issueId,
         runId: seeded.runId,
         contract: { revision: "corpus-v1", criteria: [{ id: "objective" }] },
@@ -1104,7 +1104,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
           blocker: fixture.given.reportedWorkDisposition === "blocked"
             ? {
                 scope: completionState === "task_wide_owner_action_bound" ? "task_wide" : "current_track",
-                owner: { kind: "board" },
+                owner: { kind: "operator" },
                 unblockAction: `Resolve ${fixture.id}`,
               }
             : null,
@@ -1129,7 +1129,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
           ? "failed"
           : fixture.given.runTerminalState === "cancelled" ? "cancelled" : "succeeded",
         workspaceFinalizeStatus: fixture.given.fault === "workspace_finalize_failure" ? "failed" : "succeeded",
-        governanceGate,
+        policyGate,
         completionClaimPolicyAccepted: completionState === "low_risk_policy_claim",
         allowIncompleteContinuation: completionState !== "no_durable_continuation",
         agentId,
@@ -1155,7 +1155,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       && consumerDecision?.effects.some((effect) => effect.kind === "resume_workspace_operation")
     ) {
       await db.insert(workspaceOperations).values({
-        companyId,
+        spaceId,
         heartbeatRunId: seeded.runId,
         issueId: seeded.issueId,
         phase: "workspace_finalize",
@@ -1185,7 +1185,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       await db.insert(issueThreadInteractions).values([
         {
           id: canonicalInteractionId,
-          companyId,
+          spaceId,
           issueId: seeded.issueId,
           kind: "request_confirmation",
           status: "pending",
@@ -1194,7 +1194,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         },
         {
           id: liveAttentionInteractionId,
-          companyId,
+          spaceId,
           issueId: seeded.issueId,
           kind: "request_confirmation",
           status: "expired",
@@ -1213,7 +1213,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       liveAttentionInteractionId = randomUUID();
       await db.insert(issueThreadInteractions).values({
         id: liveAttentionInteractionId,
-        companyId,
+        spaceId,
         issueId: seeded.issueId,
         kind: "request_confirmation",
         status: "expired",
@@ -1224,7 +1224,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     }
     if (!liveEntrypointCommitted && seeded.nativeRecords && consumerDecision?.effects.some((effect) => effect.kind === "record_expiry")) {
       await db.insert(issueThreadInteractions).values({
-        companyId,
+        spaceId,
         issueId: seeded.issueId,
         kind: "ask_user_questions",
         status: "pending",
@@ -1233,7 +1233,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     }
     if (seeded.nativeRecords && completionState === "decision_committed_delivery_pending") {
       const [priorDecision] = await db.insert(statusDecisions).values({
-        companyId,
+        spaceId,
         runId: seeded.runId,
         issueId: seeded.issueId,
         assessmentId: seeded.assessmentId,
@@ -1248,7 +1248,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         appliedAt: new Date(),
       }).returning({ id: statusDecisions.id });
       const [pendingWake] = await db.insert(agentWakeupRequests).values({
-        companyId,
+        spaceId,
         agentId,
         source: "automation",
         triggerDetail: "system",
@@ -1265,7 +1265,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         idempotencyKey: `delivery-pending:${seeded.issueId}`,
       }).returning({ id: agentWakeupRequests.id });
       await db.insert(statusDecisionEffects).values({
-        companyId,
+        spaceId,
         issueId: seeded.issueId,
         decisionId: priorDecision!.id,
         ordinal: 1,
@@ -1298,7 +1298,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       if (interactionEffect && liveAttentionInteractionId) {
         const projection = await materializeNativeInteractionResponses({
           db,
-          companyId,
+          spaceId,
           issueId: seeded.issueId,
           runId: seeded.runId,
           agentId,
@@ -1312,7 +1312,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       } else {
         const targets = await applyNativeAttentionStatusDecision({
           db,
-          companyId,
+          spaceId,
           issueId: seeded.issueId,
           runId: seeded.runId,
           decision: consumerDecision,
@@ -1340,13 +1340,13 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         const priorAssessmentId = randomUUID();
         await db.insert(workAssessments).values({
           id: priorAssessmentId,
-          companyId,
+          spaceId,
           issueId: seeded.issueId,
           runId: seeded.runId,
           contractId: seeded.contractId!,
           resultId: seeded.resultId!,
           triggerKind: "prior_fixture_fact",
-          triggerActorCompanyId: companyId,
+          triggerActorSpaceId: spaceId,
           priorIssueStatus,
           priorStatusVersion: 0,
           policyVersion: "phase6-v1",
@@ -1354,7 +1354,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
           inputDigest: `prior-assessment:${fixture.id}`,
         });
         const [priorDecision] = await db.insert(statusDecisions).values({
-          companyId,
+          spaceId,
           runId: seeded.runId,
           issueId: seeded.issueId,
           assessmentId: priorAssessmentId,
@@ -1380,7 +1380,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       try {
         const committed = await commitNativeStatusDecision({
           db,
-          companyId,
+          spaceId,
           issueId: seeded.issueId,
           runId: seeded.runId,
           assessmentId: seeded.assessmentId,
@@ -1392,7 +1392,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         });
         const replayed = await commitNativeStatusDecision({
           db,
-          companyId,
+          spaceId,
           issueId: seeded.issueId,
           runId: seeded.runId,
           assessmentId: seeded.assessmentId,
@@ -1442,11 +1442,11 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       const resolved = ["attention_response", "interaction"].includes(String(fixture.given.trigger));
       await db.insert(issueThreadInteractions).values({
         id: interactionId,
-        companyId,
+        spaceId,
         issueId: seeded.issueId,
         kind: "ask_user_questions",
         status: resolved ? "answered" : completionState === "interaction_expired" ? "expired" : "pending",
-        resolvedByUserId: resolved ? "board-user" : null,
+        resolvedByUserId: resolved ? "operator-user" : null,
         resolvedAt: resolved ? new Date() : null,
         payload: {
           version: 1,
@@ -1456,7 +1456,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       });
       const projected = await materializeNativeInteractionResponses({
         db,
-        companyId,
+        spaceId,
         issueId: seeded.issueId,
         runId: seeded.runId,
         agentId,
@@ -1471,21 +1471,21 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       });
     }
 
-    const boardTarget = completionState === "explicit_resume_capability"
+    const operatorTarget = completionState === "explicit_resume_capability"
         ? "in_progress"
         : completionState === "authorized_status_write"
           ? "in_review"
           : completionState === "authorized_writer_incremented_version"
             ? String(fixture.given.priorIssueStatus ?? "in_progress")
             : null;
-    if (boardTarget) {
+    if (operatorTarget) {
       const currentVersion = await db.select({ statusVersion: issues.statusVersion })
         .from(issues).where(eq(issues.id, seeded.issueId))
         .then((rows) => Number(rows[0]?.statusVersion ?? 0));
       const updated = (await issueService(db).update(seeded.issueId, {
-        status: boardTarget,
+        status: operatorTarget,
         statusVersion: currentVersion + 1,
-        actorUserId: "status-corpus-board",
+        actorUserId: "status-corpus-operator",
         actorAgentId: null,
       }))!;
       consumerExecutions.push({
@@ -1521,7 +1521,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     }
 
     const reconciliationRows = fixture.covers.reconciliationRows ?? [];
-    if (reconciliationRows.length > 0 || ["authorized_agent", "board_user"].includes(String(fixture.given.trigger))) {
+    if (reconciliationRows.length > 0 || ["authorized_agent", "operator_user"].includes(String(fixture.given.trigger))) {
       const disposition = nativeSessionFailureDisposition(
         completionState === "resolver_budget_exhausted" ? 3 : 1,
         new Date("2026-08-09T00:00:00.000Z"),
@@ -1534,7 +1534,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
 
     if (["migration", "read_model", "shadow_comparator"].includes(String(fixture.given.trigger))) {
       const persistedIssue = await db.select({ status: issues.status, statusVersion: issues.statusVersion })
-        .from(issues).where(and(eq(issues.id, seeded.issueId), eq(issues.companyId, companyId)))
+        .from(issues).where(and(eq(issues.id, seeded.issueId), eq(issues.spaceId, spaceId)))
         .then((rows) => rows[0] ?? null);
       consumerExecutions.push({
         consumer: "migration-compatibility-read",
@@ -1555,7 +1555,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       db.select({ id: nativeRunResults.id, resultJson: nativeRunResults.resultJson })
         .from(nativeRunResults).where(eq(nativeRunResults.issueId, seeded.issueId)),
       db.select({ id: agentWakeupRequests.id, payload: agentWakeupRequests.payload })
-        .from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId)),
+        .from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId)),
       db.select({ id: issueRecoveryActions.id }).from(issueRecoveryActions)
         .where(eq(issueRecoveryActions.sourceIssueId, seeded.issueId)),
       db.select({
@@ -1948,7 +1948,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
 
     expect(resolveNativeAttentionStatus({
       facts: {
-        companyScopeValid: true,
+        spaceScopeValid: true,
         responseState: "none",
         route: "agent",
         summary: "delegate",
@@ -1988,7 +1988,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const pendingFixture = byId("crash-after-decision-commit");
     const seeded = await seedFixture(pendingFixture);
     const [decision] = await db.insert(statusDecisions).values({
-      companyId,
+      spaceId,
       runId: seeded.runId,
       issueId: seeded.issueId,
       assessmentId: seeded.assessmentId,
@@ -2003,7 +2003,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       appliedAt: new Date(),
     }).returning({ id: statusDecisions.id });
     const [wake] = await db.insert(agentWakeupRequests).values({
-      companyId,
+      spaceId,
       agentId,
       source: "automation",
       triggerDetail: "system",
@@ -2014,7 +2014,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       idempotencyKey: `pending-negative:${seeded.issueId}`,
     }).returning({ id: agentWakeupRequests.id });
     await db.insert(statusDecisionEffects).values({
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       decisionId: decision!.id,
       ordinal: 1,
@@ -2056,7 +2056,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     await db.update(workAssessments).set({ supersedesAssessmentId: previousAssessmentId })
       .where(eq(workAssessments.id, seeded.assessmentId));
     const committed = await (options.commit ?? commitNativeStatusDecision)({
-      db, companyId, issueId: seeded.issueId, runId: seeded.runId,
+      db, spaceId, issueId: seeded.issueId, runId: seeded.runId,
       assessmentId: seeded.assessmentId, priorStatus, priorStatusVersion: 0, priorDecisionId: null,
       decision: {
         policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
@@ -2072,7 +2072,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const [interaction] = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.issueId, seeded.issueId));
     const [decision] = await db.select().from(statusDecisions).where(eq(statusDecisions.id, committed.decision.id));
     await db.insert(workspaceOperations).values({
-      companyId, heartbeatRunId: seeded.runId, issueId: seeded.issueId,
+      spaceId, heartbeatRunId: seeded.runId, issueId: seeded.issueId,
       phase: "workspace_finalize", status: "succeeded", exitCode: 0, cwd: process.cwd(), finishedAt: new Date(),
     });
     return { ...seeded, decision: decision!, interaction: interaction! };
@@ -2084,7 +2084,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     let admitted = true;
     const errors: unknown[] = [];
     beforeEach(async () => {
-      await db.update(statusDecisionEffects).set({ deliveryState: "delivered" }).where(eq(statusDecisionEffects.companyId, companyId));
+      await db.update(statusDecisionEffects).set({ deliveryState: "delivered" }).where(eq(statusDecisionEffects.spaceId, spaceId));
       admitted = true; errors.length = 0;
       vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     });
@@ -2092,12 +2092,12 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       await coordinator?.stop(); coordinator = undefined;
       vi.useRealTimers(); vi.restoreAllMocks(); expect(errors).toEqual([]);
     });
-    async function seedEffects(state = "pending", tenant = { companyId, agentId }) {
-      const { companyId } = tenant;
+    async function seedEffects(state = "pending", tenant = { spaceId, agentId }) {
+      const { spaceId } = tenant;
       const template = corpus.fixtures.find(candidate => candidate.mode === "native")!;
       const f = await seedFixture({ ...template, id: `pending-effects-${randomUUID()}`,
         given: { ...template.given, priorIssueStatus: "in_progress", completionState: "pending_effect_recovery" } }, tenant);
-      const commitInput: Parameters<typeof commitNativeStatusDecision>[0] = { db, companyId, issueId: f.issueId, runId: f.runId,
+      const commitInput: Parameters<typeof commitNativeStatusDecision>[0] = { db, spaceId, issueId: f.issueId, runId: f.runId,
         assessmentId: f.assessmentId, priorStatus: "in_progress", priorStatusVersion: 0, priorDecisionId: null,
         decision: { policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, statusAction: "preserve", toStatus: "in_progress",
           reasonCode: "live_continuation_registered", unblockDescriptor: null, effects: [{ kind: "release_checkout" }] } };
@@ -2179,7 +2179,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     });
     it("limits a committed run wake to its owner and recovers other durable work on restart", async () => {
       const local = await seedEffects();
-      const other = await seedEffects("pending", { companyId: outsideCompanyId, agentId: outsideAgentId });
+      const other = await seedEffects("pending", { spaceId: outsideSpaceId, agentId: outsideAgentId });
       for (const f of [local, other]) await db.update(nativeRunFinalizations).set({ phase: "terminal_failure" })
         .where(eq(nativeRunFinalizations.runId, f.runId));
       await start(); await flush();
@@ -2233,7 +2233,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       const due = new Date(Date.now() + 300_000);
       await db.update(nativeRunFinalizations).set({ leaseOwner: "release-owner", leaseExpiresAt: due }).where(eq(nativeRunFinalizations.runId, f.runId));
       await start(); expect(coordinator!.nextWakeAt()).toBe(due.getTime()); await quiet();
-      const store = new NativeRunCoordinatorStore(db, { companyId, issueId: f.issueId, runId: f.runId, agentId,
+      const store = new NativeRunCoordinatorStore(db, { spaceId, issueId: f.issueId, runId: f.runId, agentId,
         normalizedSessionId: "pending-effects", runnerSourceInstanceId: "pending-effects", completionContractId: f.contractId!,
         completionContractSha256: "test", completionContractRevision: "test", completionContractCriterionIds: [] });
       if (change === "shortens") await store.claimFinalization({ leaseOwner: "release-owner", leaseTtlMs: 1000 });
@@ -2495,7 +2495,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       const seeded = await seedAutomaticReview();
       await dismissAutomaticCompletionReviews(db, seeded.issueId);
       const [source] = await db.select({
-        runId: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+        runId: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
         issueId: issues.id, issueStatus: issues.status, issueStatusVersion: issues.statusVersion,
         issueDecisionId: issues.lastStatusDecisionId, coordinatorPhase: nativeRunFinalizations.phase,
         assessmentId: nativeRunFinalizations.assessmentId, decisionId: nativeRunFinalizations.decisionId,
@@ -2519,7 +2519,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       const newBarrierId = randomUUID();
       const replacementRunId = randomUUID();
       if (changed === "task execution") await db.insert(heartbeatRuns).values({
-        id: replacementRunId, companyId, agentId, status: "running", runtimeMode: "native",
+        id: replacementRunId, spaceId, agentId, status: "running", runtimeMode: "native",
         nativeIssueId: seeded.issueId, contextSnapshot: { issueId: seeded.issueId },
       });
       const originalEffects = await db.select().from(statusDecisionEffects).where(eq(statusDecisionEffects.decisionId, selected.decisionId!)).orderBy(statusDecisionEffects.ordinal);
@@ -2529,7 +2529,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       let releaseWriter: (() => void) | undefined;
       let writer: Promise<void> | undefined;
       const writeContract = async (owner: typeof db) => {
-        const saved = await ensureNativeCompletionContract({ db: owner, companyId,
+        const saved = await ensureNativeCompletionContract({ db: owner, spaceId,
           issue: { id: seeded.issueId, title: "New direction", description: "Verify the revised objective" }, actorId: agentId });
         newContractId = saved.row.id;
       };
@@ -2547,7 +2547,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         if (changed === "workspace status") await db.update(workspaceOperations).set({ status: "failed" })
           .where(eq(workspaceOperations.id, originalBarrier.id));
         if (changed === "workspace operation") await db.insert(workspaceOperations).values({
-          id: newBarrierId, companyId, heartbeatRunId: seeded.runId, issueId: seeded.issueId,
+          id: newBarrierId, spaceId, heartbeatRunId: seeded.runId, issueId: seeded.issueId,
           phase: "workspace_finalize", status: "running", cwd: process.cwd(),
           createdAt: new Date(Math.max(Date.now(), originalBarrier.createdAt.getTime() + 1)),
         });
@@ -2560,7 +2560,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
           let entered!: () => void;
           const ready = new Promise<void>(resolve => { entered = resolve; });
           const released = new Promise<void>(resolve => { releaseWriter = resolve; });
-          writer = withNativeWorkspaceFinalizationOwnership({ db, companyId, runId: seeded.runId }, async () => {
+          writer = withNativeWorkspaceFinalizationOwnership({ db, spaceId, runId: seeded.runId }, async () => {
             entered(); await released;
           }).then(() => undefined);
           await Promise.race([ready, writer]);
@@ -2642,11 +2642,11 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
   );
 
   it.each(["execution policy", "approval link", "approval reopening", "interaction", "approval writer", "interaction writer", "question history writer"] as const)(
-    "fences reassessment against changed governance: %s", async changed => {
+    "fences reassessment against changed policy: %s", async changed => {
       const seeded = await seedAutomaticReview();
       await dismissAutomaticCompletionReviews(db, seeded.issueId);
       const [source] = await db.select({
-        runId: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+        runId: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
         issueId: issues.id, issueStatus: issues.status, issueStatusVersion: issues.statusVersion,
         issueDecisionId: issues.lastStatusDecisionId, coordinatorPhase: nativeRunFinalizations.phase,
         assessmentId: nativeRunFinalizations.assessmentId, decisionId: nativeRunFinalizations.decisionId,
@@ -2658,12 +2658,12 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       const approvalId = randomUUID(), interactionId = randomUUID(), commentId = randomUUID();
       const approvalCase = changed.startsWith("approval");
       if (approvalCase) {
-        await db.insert(approvals).values({ id: approvalId, companyId, type: "approve_ceo_strategy", payload: {},
+        await db.insert(approvals).values({ id: approvalId, spaceId, type: "approve_lead_strategy", payload: {},
           status: changed === "approval link" ? "pending" : "approved" });
-        if (changed !== "approval link") await db.insert(issueApprovals).values({ companyId, issueId: seeded.issueId, approvalId });
+        if (changed !== "approval link") await db.insert(issueApprovals).values({ spaceId, issueId: seeded.issueId, approvalId });
       }
       if (changed === "interaction writer" || changed === "question history writer") {
-        await db.insert(issueThreadInteractions).values({ id: interactionId, companyId, issueId: seeded.issueId,
+        await db.insert(issueThreadInteractions).values({ id: interactionId, spaceId, issueId: seeded.issueId,
           sourceRunId: seeded.runId, kind: changed === "question history writer" ? "ask_user_questions" : "request_confirmation",
           status: changed === "question history writer" ? "pending" : "accepted",
           payload: changed === "question history writer"
@@ -2672,26 +2672,26 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
             : { version: 1, prompt: "Review" },
           createdAt: new Date(Date.now() - 2000) });
         if (changed === "question history writer") await db.insert(issueComments).values({ id: commentId,
-          companyId, issueId: seeded.issueId, authorUserId: "operator", authorType: "user", body: "Continue with the new direction" });
+          spaceId, issueId: seeded.issueId, authorUserId: "operator", authorType: "user", body: "Continue with the new direction" });
       }
-      const scope = { companyId, issueId: seeded.issueId, runId: seeded.runId, executionState: null };
-      expect(await pendingNativeGovernance({ db, ...scope })).toBeNull();
+      const scope = { spaceId, issueId: seeded.issueId, runId: seeded.runId, executionState: null };
+      expect(await pendingNativePolicy({ db, ...scope })).toBeNull();
       const transaction = db.transaction.bind(db);
       let release!: () => void;
       let writer: Promise<void> | undefined;
       const intercept = vi.spyOn(db, "transaction").mockImplementationOnce((async (callback, options) => {
         if (changed === "execution policy") await db.update(issues).set({ executionState: { status: "pending" } })
           .where(eq(issues.id, seeded.issueId));
-        if (changed === "approval link") await db.insert(issueApprovals).values({ companyId, issueId: seeded.issueId, approvalId });
+        if (changed === "approval link") await db.insert(issueApprovals).values({ spaceId, issueId: seeded.issueId, approvalId });
         if (changed === "approval reopening") await db.update(approvals).set({ status: "revision_requested" }).where(eq(approvals.id, approvalId));
         if (changed === "interaction") await db.insert(issueThreadInteractions).values({ id: interactionId,
-          companyId, issueId: seeded.issueId, sourceRunId: seeded.runId, kind: "request_confirmation",
+          spaceId, issueId: seeded.issueId, sourceRunId: seeded.runId, kind: "request_confirmation",
           status: "pending", payload: { version: 1, prompt: "Review" } });
         if (changed.endsWith("writer")) {
           let entered!: () => void;
           const ready = new Promise<void>(resolve => { entered = resolve; });
           const released = new Promise<void>(resolve => { release = resolve; });
-          const rollback = new Error("rollback governance writer");
+          const rollback = new Error("rollback policy writer");
           writer = transaction(async tx => {
             if (changed === "approval writer") await tx.update(approvals).set({ status: "revision_requested" }).where(eq(approvals.id, approvalId));
             if (changed === "interaction writer") await tx.update(issueThreadInteractions).set({ status: "pending" }).where(eq(issueThreadInteractions.id, interactionId));
@@ -2724,7 +2724,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       const seeded = await seedAutomaticReview();
       await dismissAutomaticCompletionReviews(db, seeded.issueId);
       const [source] = await db.select({
-        runId: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+        runId: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
         issueId: issues.id, issueStatus: issues.status, issueStatusVersion: issues.statusVersion,
         issueDecisionId: issues.lastStatusDecisionId, coordinatorPhase: nativeRunFinalizations.phase,
         assessmentId: nativeRunFinalizations.assessmentId, decisionId: nativeRunFinalizations.decisionId,
@@ -2735,21 +2735,21 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       const selected = { ...source, assessmentId: source.assessmentId!, nativeStatusWakeIntentId: null };
       const blockerId = randomUUID(), workspaceId = randomUUID(), operationId = randomUUID();
       const workspaceCase = changed.startsWith("workspace");
-      if (workspaceCase) await db.insert(executionWorkspaces).values({ id: workspaceId, companyId,
+      if (workspaceCase) await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId,
         mode: "isolated", strategyType: "git_worktree", name: "Dependency workspace" });
-      await db.insert(issues).values({ id: blockerId, companyId, title: "Prerequisite",
+      await db.insert(issues).values({ id: blockerId, spaceId, title: "Prerequisite",
         status: changed === "new blocker" ? "todo" : "done", executionWorkspaceId: workspaceCase ? workspaceId : null });
-      if (changed !== "new blocker") await db.insert(issueRelations).values({ companyId, issueId: blockerId, relatedIssueId: seeded.issueId, type: "blocks" });
+      if (changed !== "new blocker") await db.insert(issueRelations).values({ spaceId, issueId: blockerId, relatedIssueId: seeded.issueId, type: "blocks" });
       if (changed === "workspace status" || changed === "workspace writer") await db.insert(workspaceOperations).values({
-        id: operationId, companyId, issueId: blockerId, executionWorkspaceId: workspaceId, phase: "workspace_finalize", status: "succeeded" });
+        id: operationId, spaceId, issueId: blockerId, executionWorkspaceId: workspaceId, phase: "workspace_finalize", status: "succeeded" });
       expect((await issueService(db).getDependencyReadiness(seeded.issueId)).isDependencyReady).toBe(true);
       const transaction = db.transaction.bind(db);
       let release!: () => void;
       let writer: Promise<void> | undefined;
-      const pendingOperation = { id: operationId, companyId, executionWorkspaceId: workspaceId,
+      const pendingOperation = { id: operationId, spaceId, executionWorkspaceId: workspaceId,
         phase: "workspace_finalize", status: "running" };
       const intercept = vi.spyOn(db, "transaction").mockImplementationOnce((async (callback, options) => {
-        if (changed === "new blocker") await db.insert(issueRelations).values({ companyId, issueId: blockerId, relatedIssueId: seeded.issueId, type: "blocks" });
+        if (changed === "new blocker") await db.insert(issueRelations).values({ spaceId, issueId: blockerId, relatedIssueId: seeded.issueId, type: "blocks" });
         if (changed === "reopened blocker") await db.update(issues).set({ status: "todo" }).where(eq(issues.id, blockerId));
         if (changed === "workspace operation") await db.insert(workspaceOperations).values(pendingOperation);
         if (changed === "workspace status") await db.update(workspaceOperations).set({ status: "failed" }).where(eq(workspaceOperations.id, operationId));
@@ -2789,32 +2789,32 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       await dismissAutomaticCompletionReviews(db, seeded.issueId);
       const evidenceId = randomUUID(), assetId = randomUUID(), caseId = randomUUID();
       let ref = `work_product:${seeded.workProductId}`;
-      const attachment = { id: evidenceId, companyId, issueId: seeded.issueId, assetId };
-      const event = { companyId, agentId, runId: seeded.runId, seq: 90001, eventType: "evidence.recorded",
+      const attachment = { id: evidenceId, spaceId, issueId: seeded.issueId, assetId };
+      const event = { spaceId, agentId, runId: seeded.runId, seq: 90001, eventType: "evidence.recorded",
         payload: { orpEvent: { sourceKind: "control_plane", payload: { evidenceOutcome: "accepted" } } } };
       if (kind === "approval") {
         ref = `approval:${evidenceId}`;
-        await db.insert(approvals).values({ id: evidenceId, companyId, type: "hire_agent", status: "approved", payload: {} });
-        await db.insert(issueApprovals).values({ companyId, issueId: seeded.issueId, approvalId: evidenceId });
+        await db.insert(approvals).values({ id: evidenceId, spaceId, type: "create_agent", status: "approved", payload: {} });
+        await db.insert(issueApprovals).values({ spaceId, issueId: seeded.issueId, approvalId: evidenceId });
       }
       if (kind === "interaction") {
         ref = `interaction:${evidenceId}`;
-        await db.insert(issueThreadInteractions).values({ id: evidenceId, companyId, issueId: seeded.issueId,
+        await db.insert(issueThreadInteractions).values({ id: evidenceId, spaceId, issueId: seeded.issueId,
           kind: "request_confirmation", status: "accepted", payload: { version: 1, prompt: "Evidence accepted" } });
       }
       if (kind === "attachment") {
         ref = `attachment:${evidenceId}`;
-        await db.insert(assets).values({ id: assetId, companyId, provider: "local_disk", objectKey: assetId,
+        await db.insert(assets).values({ id: assetId, spaceId, provider: "local_disk", objectKey: assetId,
           contentType: "text/plain", byteSize: 1, sha256: assetId });
         await db.insert(issueAttachments).values(attachment);
       }
       if (kind === "event") { ref = "event:90001"; await db.insert(heartbeatRunEvents).values(event); }
       if (kind === "handoff") {
         ref = `case-handoff:${evidenceId}`;
-        const existing = await db.select({ id: cases.id }).from(cases).where(eq(cases.companyId, companyId));
-        await db.insert(cases).values({ id: caseId, companyId, caseNumber: existing.length + 1,
+        const existing = await db.select({ id: cases.id }).from(cases).where(eq(cases.spaceId, spaceId));
+        await db.insert(cases).values({ id: caseId, spaceId, caseNumber: existing.length + 1,
           identifier: caseId, caseType: "evidence", title: "Handoff evidence" });
-        await db.insert(caseHandoffs).values({ id: evidenceId, companyId, caseId, issueId: seeded.issueId,
+        await db.insert(caseHandoffs).values({ id: evidenceId, spaceId, caseId, issueId: seeded.issueId,
           version: 1, destinationKind: "done", phase: "complete", instructions: "Complete", actorType: "system",
           actorId: "test", sourceRunId: seeded.runId, wakeupRequestId: randomUUID(), idempotencyKey: evidenceId,
           inputFingerprint: evidenceId, state: "completed" });
@@ -2826,7 +2826,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         verification: [{ commandOrCheck: "evidence", status: "passed", artifactRef: ref }],
       } } }).where(eq(nativeRunResults.id, seeded.resultId!));
       const [source] = await db.select({
-        runId: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+        runId: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
         issueId: issues.id, issueStatus: issues.status, issueStatusVersion: issues.statusVersion,
         issueDecisionId: issues.lastStatusDecisionId, coordinatorPhase: nativeRunFinalizations.phase,
         assessmentId: nativeRunFinalizations.assessmentId, decisionId: nativeRunFinalizations.decisionId,
@@ -2887,7 +2887,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     expect((await issueService(db).getById(seeded.issueId))!.status).toBe("in_review");
     expect(await db.select().from(statusDecisions).where(eq(statusDecisions.issueId, seeded.issueId))).toHaveLength(1);
     const work = nativeStatusReassessmentWork(db);
-    const [pending] = await work.load({ companyId, issueId: seeded.issueId, runId: seeded.runId });
+    const [pending] = await work.load({ spaceId, issueId: seeded.issueId, runId: seeded.runId });
     expect(pending).toBeDefined();
     expect(await work.check(pending)).toBeNull();
     expect((await issueService(db).getById(seeded.issueId))!.status).toBe("done");
@@ -2895,7 +2895,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
   });
 
   describe("native status reassessment work", () => {
-    const selectedScope = (seeded: { issueId: string; runId: string }) => ({ companyId, issueId: seeded.issueId, runId: seeded.runId });
+    const selectedScope = (seeded: { issueId: string; runId: string }) => ({ spaceId, issueId: seeded.issueId, runId: seeded.runId });
 
     it.each(["retired review", "new evidence", "task status"] as const)("discovers and settles %s without revisiting settled history", async trigger => {
       const seeded = await seedAutomaticReview();
@@ -3018,13 +3018,13 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       const seeded = await seedAutomaticReview();
       const intentId = randomUUID();
       await db.insert(agentWakeupRequests).values({
-        id: intentId, companyId, agentId, source: "automation", triggerDetail: "system",
+        id: intentId, spaceId, agentId, source: "automation", triggerDetail: "system",
         reason: delivery === "deferred_issue_execution" ? "issue_execution_deferred" : "issue_children_completed",
         requestedByActorType: "system", requestedByActorId: delivery === "deferred_issue_execution"
           ? `native-status-wake-dispatch:${randomUUID()}` : "native-status-committer",
         status: delivery.startsWith("current_") ? "claimed" : delivery,
         runId: delivery === "current_run" ? seeded.runId : null,
-        payload: { issueId: seeded.issueId, _paperclipWakeContext: {
+        payload: { issueId: seeded.issueId, _outpostWakeContext: {
           wakeReason: "issue_children_completed", nativeChildCompletionDecisionId: randomUUID(),
         } },
       });
@@ -3052,9 +3052,9 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       const pending = await original(...args);
       expect(pending).toBe(false);
       await db.insert(agentWakeupRequests).values({
-        companyId, agentId, source: "automation", triggerDetail: "system", reason: "issue_children_completed",
+        spaceId, agentId, source: "automation", triggerDetail: "system", reason: "issue_children_completed",
         requestedByActorType: "system", requestedByActorId: "native-status-committer", status: "queued",
-        payload: { issueId: seeded.issueId, _paperclipWakeContext: { nativeChildCompletionDecisionId: randomUUID() } },
+        payload: { issueId: seeded.issueId, _outpostWakeContext: { nativeChildCompletionDecisionId: randomUUID() } },
       });
       return pending;
     });
@@ -3086,9 +3086,9 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     await db.update(issueWorkProducts).set({ updatedAt: new Date(Date.now() + 1_000) })
       .where(eq(issueWorkProducts.id, seeded.workProductId));
     await db.insert(agentWakeupRequests).values({
-      companyId, agentId, source: "automation", triggerDetail: "system", reason: "issue_children_completed",
+      spaceId, agentId, source: "automation", triggerDetail: "system", reason: "issue_children_completed",
       requestedByActorType: "system", requestedByActorId: "native-status-committer", status: delivery,
-      payload: { issueId: seeded.issueId, _paperclipWakeContext: { nativeChildCompletionDecisionId: randomUUID() } },
+      payload: { issueId: seeded.issueId, _outpostWakeContext: { nativeChildCompletionDecisionId: randomUUID() } },
     });
     const results = await reconcileNativeFinalizations(db, [seeded.runId]);
     expect(results).toEqual([expect.objectContaining({ reconciliationAction: delivery === "queued"
@@ -3103,7 +3103,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     await db.update(heartbeatRuns).set({ status: "running", finishedAt: null, errorCode: "adapter_failed",
       error: "provider_transport_failed: runner did not durably suspend before checkpoint" })
       .where(eq(heartbeatRuns.id, seeded.runId));
-    const cleanup = vi.fn(async (input: { companyId: string; runId: string }) => {
+    const cleanup = vi.fn(async (input: { spaceId: string; runId: string }) => {
       await db.update(nativeRunFinalizations).set({ recoveryHistory: [{ kind: "native_cleanup_maintenance", phase: "settled" }] })
         .where(eq(nativeRunFinalizations.runId, input.runId));
       return { runId: input.runId, status: "settled" as const };
@@ -3139,7 +3139,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
         skipNativeResponsePresentation: true, skipNativeReviewResponse: true });
       expect(consumedBeforeProjection).toBe(true);
       await flush();
-      expect(cleanup).toHaveBeenCalledExactlyOnceWith({ companyId, runId: seeded.runId });
+      expect(cleanup).toHaveBeenCalledExactlyOnceWith({ spaceId, runId: seeded.runId });
       expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, seeded.runId)))[0].status).toBe("succeeded");
       expect(errors).toEqual([]);
     } finally { boundary.mockRestore(); worker.stop(); await coordinator.stop(); }
@@ -3153,7 +3153,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     await db.insert(heartbeatRuns).values({ ...sourceRun!, id: runId, status: "running", finishedAt: null });
     await db.insert(nativeRunResults).values({ ...sourceResult!, id: resultId, runId,
       serverFingerprint: randomUUID(), canonicalSha256: randomUUID() });
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId: seeded.issueId,
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId: seeded.issueId,
       phase: "workspace_finalizing", resultId });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, seeded.issueId));
     await finalizeNativeRun({ db, runId, workspaceFinalizeStatus: "succeeded" });
@@ -3161,7 +3161,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     expect((await issueThreadInteractionService(db).getById(seeded.interaction.id))!.status).toBe("cancelled");
 
     const incomplete = await seedFixture({ ...corpus.fixtures[0]!, id: `incomplete-retry-${randomUUID()}` });
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId, agentId,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId, agentId,
       source: "automation", triggerDetail: "system", reason: "issue_status_changed", status: "consumed",
       payload: { continuationIdempotencyKey: "native-completion-incomplete" } }).returning();
     await db.update(heartbeatRuns).set({ wakeupRequestId: wake!.id }).where(eq(heartbeatRuns.id, incomplete.runId));
@@ -3305,7 +3305,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
   it("keeps review status when a separate request still needs a response", async () => {
     const seeded = await seedPolicyReview();
     await db.insert(issueThreadInteractions).values({
-      companyId, issueId: seeded.issueId, kind: "request_confirmation", status: "pending",
+      spaceId, issueId: seeded.issueId, kind: "request_confirmation", status: "pending",
       payload: { version: 1, prompt: "Approve publishing the release." },
     });
     await dismissObsoleteNativePolicyReviews(db, [seeded.runId]);
@@ -3396,7 +3396,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
 
     const first = await commitNativeStatusDecision({
       db,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: seeded.runId,
       assessmentId: seeded.assessmentId,
@@ -3408,13 +3408,13 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const supersedingAssessmentId = randomUUID();
     await db.insert(workAssessments).values({
       id: supersedingAssessmentId,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: seeded.runId,
       contractId: seeded.contractId!,
       resultId: seeded.resultId!,
       triggerKind: "reconciliation",
-      triggerActorCompanyId: companyId,
+      triggerActorSpaceId: spaceId,
       priorIssueStatus: priorStatus,
       priorStatusVersion: 0,
       priorDecisionId: null,
@@ -3425,7 +3425,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     });
     const second = await commitNativeStatusDecision({
       db,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: seeded.runId,
       assessmentId: supersedingAssessmentId,
@@ -3459,7 +3459,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const priorAssessmentId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: priorRunId,
-      companyId,
+      spaceId,
       agentId,
       status: "succeeded",
       runtimeMode: "native",
@@ -3471,7 +3471,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     });
     await db.insert(nativeRunResults).values({
       id: priorResultId,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: priorRunId,
       completionContractId: seeded.contractId!,
@@ -3482,13 +3482,13 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     });
     await db.insert(workAssessments).values({
       id: priorAssessmentId,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: priorRunId,
       contractId: seeded.contractId!,
       resultId: priorResultId,
       triggerKind: "native_result",
-      triggerActorCompanyId: companyId,
+      triggerActorSpaceId: spaceId,
       priorIssueStatus: "in_progress",
       priorStatusVersion: 0,
       policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
@@ -3498,7 +3498,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const [priorDecision] = await db
       .insert(statusDecisions)
       .values({
-        companyId,
+        spaceId,
         issueId: seeded.issueId,
         runId: priorRunId,
         assessmentId: priorAssessmentId,
@@ -3525,13 +3525,13 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const reassessmentId = randomUUID();
     await db.insert(workAssessments).values({
       id: reassessmentId,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: seeded.runId,
       contractId: seeded.contractId!,
       resultId: seeded.resultId!,
       triggerKind: "reconciliation",
-      triggerActorCompanyId: companyId,
+      triggerActorSpaceId: spaceId,
       priorIssueStatus: "in_review",
       priorStatusVersion: 1,
       priorDecisionId: priorDecision!.id,
@@ -3542,7 +3542,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     });
     const committed = await commitNativeStatusDecision({
       db,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: seeded.runId,
       assessmentId: reassessmentId,
@@ -3569,7 +3569,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     ]);
     const replayed = await commitNativeStatusDecision({
       db,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: seeded.runId,
       assessmentId: reassessmentId,
@@ -3622,7 +3622,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const [priorDecision] = await db
       .insert(statusDecisions)
       .values({
-        companyId,
+        spaceId,
         issueId: seeded.issueId,
         runId: seeded.runId,
         assessmentId: seeded.assessmentId,
@@ -3650,13 +3650,13 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     await db.insert(workAssessments).values([
       {
         id: intermediateAssessmentId,
-        companyId,
+        spaceId,
         issueId: seeded.issueId,
         runId: seeded.runId,
         contractId: seeded.contractId!,
         resultId: seeded.resultId!,
         triggerKind: "reconciliation",
-        triggerActorCompanyId: companyId,
+        triggerActorSpaceId: spaceId,
         priorIssueStatus: "in_review",
         priorStatusVersion: 1,
         priorDecisionId: priorDecision!.id,
@@ -3667,13 +3667,13 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       },
       {
         id: reassessmentId,
-        companyId,
+        spaceId,
         issueId: seeded.issueId,
         runId: seeded.runId,
         contractId: seeded.contractId!,
         resultId: seeded.resultId!,
         triggerKind: "reconciliation",
-        triggerActorCompanyId: companyId,
+        triggerActorSpaceId: spaceId,
         priorIssueStatus: "in_review",
         priorStatusVersion: 1,
         priorDecisionId: priorDecision!.id,
@@ -3685,7 +3685,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     ]);
     const committed = await commitNativeStatusDecision({
       db,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: seeded.runId,
       assessmentId: reassessmentId,
@@ -3728,7 +3728,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const seeded = await seedFixture(fixture);
     const priorStatus = String(fixture.given.priorIssueStatus ?? "in_progress");
     const [historicalDecision] = await db.insert(statusDecisions).values({
-      companyId,
+      spaceId,
       runId: seeded.runId,
       issueId: seeded.issueId,
       assessmentId: seeded.assessmentId,
@@ -3745,13 +3745,13 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const authoritativeAssessmentId = randomUUID();
     await db.insert(workAssessments).values({
       id: authoritativeAssessmentId,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: seeded.runId,
       contractId: seeded.contractId!,
       resultId: seeded.resultId!,
       triggerKind: "reconciliation",
-      triggerActorCompanyId: companyId,
+      triggerActorSpaceId: spaceId,
       priorIssueStatus: priorStatus,
       priorStatusVersion: 1,
       priorDecisionId: historicalDecision!.id,
@@ -3761,7 +3761,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
       supersedesAssessmentId: seeded.assessmentId,
     });
     const [authoritativeDecision] = await db.insert(statusDecisions).values({
-      companyId,
+      spaceId,
       runId: seeded.runId,
       issueId: seeded.issueId,
       assessmentId: authoritativeAssessmentId,
@@ -3813,7 +3813,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
           resultId, inputDigest: `later-run:${priorRunId}` });
       }
       const [prior] = await db.insert(statusDecisions).values({
-        companyId, issueId: seeded.issueId, runId: priorRunId, assessmentId: priorAssessmentId,
+        spaceId, issueId: seeded.issueId, runId: priorRunId, assessmentId: priorAssessmentId,
         decisionVersion: 1, policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
         fromStatus: "in_progress", toStatus: "blocked", reasonCode: "prior_authoritative_decision",
         decisionJson: { statusAction: "blocked" }, decisionDigest: `prior:${seeded.issueId}`,
@@ -3829,25 +3829,25 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const supersedingAssessmentId = randomUUID();
     await db.insert(workAssessments).values({
       id: supersedingAssessmentId,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: seeded.runId,
       contractId: seeded.contractId!,
       resultId: seeded.resultId!,
       triggerKind: "reconciliation",
-      triggerActorCompanyId: companyId,
+      triggerActorSpaceId: spaceId,
       priorIssueStatus: "blocked",
       priorStatusVersion: 1,
       priorDecisionId,
       policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
-      assessmentJson: { reason: "board_transition_without_native_decision" },
-      inputDigest: `board-transition-assessment:${seeded.issueId}`,
+      assessmentJson: { reason: "operator_transition_without_native_decision" },
+      inputDigest: `operator-transition-assessment:${seeded.issueId}`,
       supersedesAssessmentId: seeded.assessmentId,
     });
 
     const committed = await commitNativeStatusDecision({
       db,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: seeded.runId,
       assessmentId: supersedingAssessmentId,
@@ -3879,12 +3879,12 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const fixture = { ...template, id: "in-feed-tools-refresh", given: { ...template.given, priorIssueStatus: "in_progress" } };
     const seeded = await seedFixture(fixture);
     const key = `connection-intent:tools:${seeded.runId}:fixture-digest`;
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId, agentId, source: "assignment", status: "queued", idempotencyKey: key,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId, agentId, source: "assignment", status: "queued", idempotencyKey: key,
       payload: { issueId: seeded.issueId, mutation: "connection_tools_refreshed" } }).returning();
     const decision: NativeStatusDecision = { policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, statusAction: "in_progress", toStatus: "in_progress",
       reasonCode: "live_continuation_registered", unblockDescriptor: null,
       effects: [{ kind: "enqueue_continuation", continuationKind: "same_agent", summary: "Use updated tools", idempotencyKey: key, agentId }] };
-    await commitNativeStatusDecision({ db, companyId, issueId: seeded.issueId, runId: seeded.runId, assessmentId: seeded.assessmentId,
+    await commitNativeStatusDecision({ db, spaceId, issueId: seeded.issueId, runId: seeded.runId, assessmentId: seeded.assessmentId,
       priorStatus: "in_progress", priorStatusVersion: 0, priorDecisionId: null, decision });
     const effects = await db.select().from(statusDecisionEffects).where(eq(statusDecisionEffects.issueId, seeded.issueId));
     expect(effects.filter((effect) => effect.effectKind === "enqueue_continuation")).toEqual([expect.objectContaining({ targetId: wake!.id, targetType: "agent_wakeup_request" })]);
@@ -3906,7 +3906,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
     const decision: NativeStatusDecision = { policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
       statusAction: "preserve", toStatus: "in_progress", reasonCode: "scheduled_monitor_waiting",
       unblockDescriptor: null, effects: [{ kind: "release_checkout" }] };
-    const commit = () => commitNativeStatusDecision({ db, companyId, issueId: seeded.issueId, runId: seeded.runId,
+    const commit = () => commitNativeStatusDecision({ db, spaceId, issueId: seeded.issueId, runId: seeded.runId,
       assessmentId: seeded.assessmentId, priorStatus: "in_progress", priorStatusVersion: 0, priorDecisionId: null,
       decision, requireMonitorWait: { agentId, nextCheckAt } });
     if (state !== "scheduled") {
@@ -3939,7 +3939,7 @@ describe("P6-31 Section 18.13 executable status-authority corpus", () => {
 
     await expect(commitNativeStatusDecision({
       db,
-      companyId,
+      spaceId,
       issueId: seeded.issueId,
       runId: seeded.runId,
       assessmentId: seeded.assessmentId,

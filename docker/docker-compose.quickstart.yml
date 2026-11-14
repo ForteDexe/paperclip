@@ -1,4 +1,4 @@
-# Quickstart: single-container Paperclip with embedded database.
+# Quickstart: single-container Outpost with embedded database.
 # Copy this file and set the required env vars before running.
 #
 #   cd docker
@@ -9,7 +9,7 @@
 #   docker compose -f docker-compose.quickstart.yml up --build
 #
 services:
-  paperclip:
+  outpost:
     build:
       context: ..
       dockerfile: Dockerfile
@@ -24,7 +24,7 @@ services:
       - "${OUTPOST_PORT:-3100}:3100"
     environment:
       HOST: "0.0.0.0"
-      OUTPOST_HOME: "/paperclip"
+      OUTPOST_HOME: "/outpost"
 
       # ── LLM provider keys (at least one is needed for agents to work) ──
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
@@ -47,4 +47,4 @@ services:
       OUTPOST_TOOL_ACTION_SIGNING_SECRET: "${OUTPOST_TOOL_ACTION_SIGNING_SECRET:-}"
     volumes:
       # Persistent data directory (database, agent workspaces, uploads)
-      - "${OUTPOST_DATA_DIR:-../data/docker-paperclip}:/paperclip"
+      - "${OUTPOST_DATA_DIR:-../data/docker-outpost}:/outpost"

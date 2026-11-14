@@ -55,7 +55,7 @@ export function retainedHoldFallbackEligible(evidence: Record<string, unknown> |
 // canonical (lowercase) form. `run.id = sourceRunId` matches exactly the rows
 // `run.id::text = evidence->>'runId'` matched, and it uses the run's primary
 // key. The text comparison cannot, so each probe read every run (or
-// finalizer, or lease) of the company.
+// finalizer, or lease) of the space.
 const sourceRunId = canonicalExecutionUuid(sql`${issueRecoveryActions.evidence}->>'runId'`);
 const stopProofMarker = sql`${issueRecoveryActions.evidence}->${STOP_PROOF_RECOVERY_KEY}`;
 const stopProofRearms = sql`case when ${stopProofMarker}->>'schema' = ${STOP_PROOF_RECOVERY_SCHEMA}
@@ -70,7 +70,7 @@ const exhaustedStopProofWait = sql`(${issueRecoveryActions.evidence}#>>'{systemR
 // of a finished coordinator (lapsedFinishedCoordinatorOwner), because no
 // settlement ever would.
 const staleUnfinishedFinalizerOwner = sql`exists (select 1 from native_run_finalizations finalizer
-  where finalizer.company_id = ${issueRecoveryActions.companyId} and finalizer.run_id = ${sourceRunId}
+  where finalizer.space_id = ${issueRecoveryActions.spaceId} and finalizer.run_id = ${sourceRunId}
     and finalizer.lease_owner is not null and coalesce(finalizer.lease_expires_at <= now(), true)
     and finalizer.phase not in (${list(FINISHED_COORDINATOR_PHASES)}))`;
 
@@ -98,9 +98,9 @@ export function stopProofRearmDueAt() {
 /** The latest expiry of a controller or finalizer lease the source run holds (0 = none). */
 function sourceRunLeasesExpireAt() {
   return sql`greatest(coalesce((select (extract(epoch from source.controller_lease_expires_at) * 1000)::bigint from heartbeat_runs source
-      where source.company_id = ${issueRecoveryActions.companyId} and source.id = ${sourceRunId}), 0),
+      where source.space_id = ${issueRecoveryActions.spaceId} and source.id = ${sourceRunId}), 0),
     coalesce((select max((extract(epoch from finalizer.lease_expires_at) * 1000)::bigint) from native_run_finalizations finalizer
-      where finalizer.company_id = ${issueRecoveryActions.companyId} and finalizer.run_id = ${sourceRunId}
+      where finalizer.space_id = ${issueRecoveryActions.spaceId} and finalizer.run_id = ${sourceRunId}
         and finalizer.lease_owner is not null), 0))`;
 }
 
@@ -138,7 +138,7 @@ const check = sql`${issueRecoveryActions.evidence}->${RETAINED_SOURCE_FALLBACK_C
 // late provider stop receipt) after the last deferred check reconsiders the
 // hold once, even after its bounded checks are spent.
 const leaseChangedSinceCheck = sql`(jsonb_typeof(${check}->'checkedAt') = 'number' and exists (
-  select 1 from environment_leases lease where lease.company_id = ${issueRecoveryActions.companyId}
+  select 1 from environment_leases lease where lease.space_id = ${issueRecoveryActions.spaceId}
     and lease.heartbeat_run_id = ${sourceRunId}
     and lease.updated_at > to_timestamp((${check}->>'checkedAt')::bigint / 1000.0)))`;
 
@@ -157,16 +157,16 @@ export function retainedSourceFallbackPendingCondition() {
     and ((${retainedFileHoldCondition()}
         and ${issueRecoveryActions.evidence}#>>'{systemRecovery,failure,code}' in (${list(UNVERIFIABLE_SOURCE_CODES)})
         and ${issueRecoveryActions.evidence}#>>'{systemRecovery,failure,retryClass}' in (${list(PERMANENT_SOURCE_RETRY_CLASSES)})
-        and exists (select 1 from heartbeat_runs source where source.company_id = ${issueRecoveryActions.companyId}
+        and exists (select 1 from heartbeat_runs source where source.space_id = ${issueRecoveryActions.spaceId}
           and source.id = ${sourceRunId}
           and source.runner_profile_json#>>'{remoteWorkspace,state}' = 'prepared'))
       or (${retainedFileHoldCondition()} and ${exhaustedStopProofWait} and ${stopProofRearms} >= ${STOP_PROOF_MAX_REARMS}
-        and exists (select 1 from heartbeat_runs source where source.company_id = ${issueRecoveryActions.companyId}
+        and exists (select 1 from heartbeat_runs source where source.space_id = ${issueRecoveryActions.spaceId}
           and source.id = ${sourceRunId}
           and source.runner_profile_json#>>'{remoteWorkspace,state}' = 'prepared'))
       or ((${issueRecoveryActions.status} in ('active', 'escalated') or ${retainedFileHoldCondition()})
         and exists (select 1 from issue_recovery_actions sibling
-        where sibling.company_id = ${issueRecoveryActions.companyId} and sibling.source_issue_id = ${issueRecoveryActions.sourceIssueId}
+        where sibling.space_id = ${issueRecoveryActions.spaceId} and sibling.source_issue_id = ${issueRecoveryActions.sourceIssueId}
           and sibling.id <> ${issueRecoveryActions.id} and sibling.evidence->>'runId' = ${issueRecoveryActions.evidence}->>'runId'
           and sibling.evidence#>>'{systemRecovery,state}' = 'complete'
           and sibling.evidence#>>'{workspaceRecovery,status}' = 'recovered')))

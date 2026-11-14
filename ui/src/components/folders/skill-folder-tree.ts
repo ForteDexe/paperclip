@@ -9,8 +9,8 @@ import type { FolderListItem, FolderListResult } from "@outpost/shared";
  *   - `my`       → "My Skills" (personal folders live beneath it as `my:<userId>`)
  *   - `projects` → "Projects"  (auto-created project folders `project:<id>`)
  *   - `bundled`  → "Bundled"   (read-only; categories `bundled:<slug>`)
- * Everything else at the top level is a plain company folder and is grouped
- * under the virtual "Company" heading in the rail.
+ * Everything else at the top level is a plain space folder and is grouped
+ * under the virtual "Space" heading in the rail.
  */
 
 export interface FolderTreeNode {
@@ -23,8 +23,8 @@ export type ReservedRootKey = "my" | "projects" | "bundled";
 export interface SkillFolderTreeModel {
   /** "My Skills" reserved root, or null when it hasn't been provisioned yet. */
   my: FolderTreeNode | null;
-  /** Non-reserved top-level folders, shown under the "Company" heading. */
-  company: FolderTreeNode[];
+  /** Non-reserved top-level folders, shown under the "Space" heading. */
+  space: FolderTreeNode[];
   /** "Projects" reserved root. */
   projects: FolderTreeNode | null;
   /** "Bundled" reserved root (read-only subtree). */
@@ -33,7 +33,7 @@ export interface SkillFolderTreeModel {
   byId: Map<string, FolderListItem>;
   /** Direct child nodes for a given folder id. */
   childrenById: Map<string, FolderTreeNode[]>;
-  /** All top-level nodes in reserved-then-company order (for move pickers). */
+  /** All top-level nodes in reserved-then-space order (for move pickers). */
   roots: FolderTreeNode[];
 }
 
@@ -82,7 +82,7 @@ export function buildSkillFolderTree(folders: FolderListItem[]): SkillFolderTree
   let my: FolderTreeNode | null = null;
   let projects: FolderTreeNode | null = null;
   let bundled: FolderTreeNode | null = null;
-  const company: FolderTreeNode[] = [];
+  const space: FolderTreeNode[] = [];
   for (const node of roots) {
     switch (node.folder.systemKey) {
       case "my":
@@ -95,21 +95,21 @@ export function buildSkillFolderTree(folders: FolderListItem[]): SkillFolderTree
         bundled = node;
         break;
       default:
-        company.push(node);
+        space.push(node);
     }
   }
 
   const childrenById = new Map<string, FolderTreeNode[]>();
   for (const [id, node] of nodeById) childrenById.set(id, node.children);
 
-  // Ordered roots: reserved first (My → Projects → Bundled), then company folders.
+  // Ordered roots: reserved first (My → Projects → Bundled), then space folders.
   const orderedRoots: FolderTreeNode[] = [];
   if (my) orderedRoots.push(my);
-  orderedRoots.push(...company);
+  orderedRoots.push(...space);
   if (projects) orderedRoots.push(projects);
   if (bundled) orderedRoots.push(bundled);
 
-  return { my, company, projects, bundled, byId, childrenById, roots: orderedRoots };
+  return { my, space, projects, bundled, byId, childrenById, roots: orderedRoots };
 }
 
 /** Folder id + every descendant id (the subtree rooted at `folderId`). */

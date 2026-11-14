@@ -24,7 +24,7 @@ import { VOICE_RESULT_NOTIFICATION } from "@outpost/shared";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { applyPendingMigrations, chatActions, instanceUserRoles, principalPermissionGrants, environments, chatVoiceInboundCalls, chatVoicePhoneLines, chatVoiceReports, heartbeatRuns, toolProfileBindings, chatVoiceCallbacks, agentWakeupRequests, issueThreadInteractions, issueQuestionResponseDeliveries, issueComments, agents, chatConversations, chatDeliveries, chatEndpoints, chatPublications, chatVoiceReplies, chatVoiceSessions, chatVoiceToolCalls, companies, companyMemberships, companySecrets, connectionGrants, connectionGrantMembers, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, issues, toolApplications, toolConnections, toolConnectionInstalls } from "@outpost/db";
+import { applyPendingMigrations, chatActions, instanceUserRoles, principalPermissionGrants, environments, chatVoiceInboundCalls, chatVoicePhoneLines, chatVoiceReports, heartbeatRuns, toolProfileBindings, chatVoiceCallbacks, agentWakeupRequests, issueThreadInteractions, issueQuestionResponseDeliveries, issueComments, agents, chatConversations, chatDeliveries, chatEndpoints, chatPublications, chatVoiceReplies, chatVoiceSessions, chatVoiceToolCalls, spaces, spaceMemberships, spaceSecrets, connectionGrants, connectionGrantMembers, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, issues, toolApplications, toolConnections, toolConnectionInstalls } from "@outpost/db";
 import { configureSpekoSessionTools } from "../services/voice/speko-tool-setup.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { chatChannelService } from "../services/chat-channels.js";
@@ -38,7 +38,7 @@ import type { SpekoToolEnvelope } from "../services/voice/speko-protocol.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
 import { liveVoiceExecutionGuidance } from "../services/voice/voice-execution-guidance.js";
-import { buildPaperclipRuntimeMcpServers } from "../services/heartbeat.js";
+import { buildOutpostRuntimeMcpServers } from "../services/heartbeat.js";
 import { createToolGatewayService } from "../services/tool-gateway.js";
 import { initializeRunIdentity } from "../services/run-identity.js";
 import { syncSpekoVoiceTools, spekoToolsForSession, executeSpekoVoiceTool } from "../services/voice/speko-agent-tools.js";
@@ -50,30 +50,30 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   let db: ReturnType<typeof createDb>;
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   beforeAll(async () => {
-    if (!external) database = await startEmbeddedPostgresTestDatabase("paperclip-speko-store-");
+    if (!external) database = await startEmbeddedPostgresTestDatabase("outpost-speko-store-");
     if (external && !historyExternal) await applyPendingMigrations(external);
     db = createDb(external ?? database!.connectionString, { idleTimeoutSeconds: 0, maxLifetimeSeconds: 0, ...(historyExternal ? { maxConnections: 4 } : {}) });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await database?.cleanup(); });
 
-  // Issue prefixes are unique across companies. About a hundred fixtures share
+  // Issue prefixes are unique across spaces. About a hundred fixtures share
   // this database, so seven random hex digits alone could collide; the
   // sequence keeps each prefix in this run distinct within the ten characters
   // an issue mention allows.
-  let companySequence = 0;
+  let spaceSequence = 0;
   async function fixture() {
-    const companyId = randomUUID(), endpointId = randomUUID(), agentId = randomUUID(), applicationId = randomUUID(), connectionId = randomUUID(), issueId = randomUUID(), conversationId = randomUUID(), callerId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Voice test", issuePrefix: `V${(++companySequence).toString(36).padStart(3, "0")}${companyId.slice(0, 6)}`.toUpperCase() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: callerId, status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Existing agent", role: "operator", status: "idle", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Existing task", assigneeAgentId: agentId, status: "in_progress" });
-    await db.insert(toolApplications).values({ id: applicationId, companyId, applicationKey: `chat:speko:${endpointId}`, name: "Speko", type: "chat", status: "active" });
-    await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "Speko", uid: endpointId, connectionPurpose: "channel", transport: "voice", config: { provider: "speko" }, status: "active", enabled: true });
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId, connectionId, provider: "speko", publicId: randomUUID(), assignedAgentId: agentId, status: "active", setup: { step: "complete", runtimeGeneration: 1 } as InternalSetupState });
-    await db.insert(chatConversations).values({ id: conversationId, companyId, endpointId, issueId, externalConversationId: `speko:${conversationId}`, externalThreadId: `speko:${conversationId}`, externalLabel: "Voice", isDirectMessage: true });
+    const spaceId = randomUUID(), endpointId = randomUUID(), agentId = randomUUID(), applicationId = randomUUID(), connectionId = randomUUID(), issueId = randomUUID(), conversationId = randomUUID(), callerId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Voice test", issuePrefix: `V${(++spaceSequence).toString(36).padStart(3, "0")}${spaceId.slice(0, 6)}`.toUpperCase() });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: callerId, status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Existing agent", role: "operator", status: "idle", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Existing task", assigneeAgentId: agentId, status: "in_progress" });
+    await db.insert(toolApplications).values({ id: applicationId, spaceId, applicationKey: `chat:speko:${endpointId}`, name: "Speko", type: "chat", status: "active" });
+    await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "Speko", uid: endpointId, connectionPurpose: "channel", transport: "voice", config: { provider: "speko" }, status: "active", enabled: true });
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId, provider: "speko", publicId: randomUUID(), assignedAgentId: agentId, status: "active", setup: { step: "complete", runtimeGeneration: 1 } as InternalSetupState });
+    await db.insert(chatConversations).values({ id: conversationId, spaceId, endpointId, issueId, externalConversationId: `speko:${conversationId}`, externalThreadId: `speko:${conversationId}`, externalLabel: "Voice", isDirectMessage: true });
     const store = voiceSessionStore(db, { allowLocalBoard: false });
     const prepareBinding = vi.fn(async () => ({ issueId, conversationId }));
-    const request = { companyId, endpointId, caller: { id: callerId, authority: "member" as const }, idempotencyKey: randomUUID(), requestFingerprint: "request", maxDurationSeconds: 600, prepareBinding };
+    const request = { spaceId, endpointId, caller: { id: callerId, authority: "member" as const }, idempotencyKey: randomUUID(), requestFingerprint: "request", maxDurationSeconds: 600, prepareBinding };
     const reserved = await store.reserve(request);
     if (!reserved.created) throw new Error("Expected reservation");
     const sessionId = reserved.session.id, providerSessionId = randomUUID();
@@ -81,13 +81,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const accept = vi.fn(store.stageDelivery);
     const toolInput = (tool: SpekoToolEnvelope["tool"], args: SpekoToolEnvelope["args"], toolId = randomUUID()) => {
       const envelope = { session_id: providerSessionId, tool_call_id: toolId, idempotency_key: `${providerSessionId}:${toolId}`, tool, args } as SpekoToolEnvelope;
-      return { companyId, endpointId, sessionId, token: reserved.token, envelope, webhookId: `msg_${toolId}`, fingerprint: createHash("sha256").update(JSON.stringify(envelope)).digest("hex"), accept };
+      return { spaceId, endpointId, sessionId, token: reserved.token, envelope, webhookId: `msg_${toolId}`, fingerprint: createHash("sha256").update(JSON.stringify(envelope)).digest("hex"), accept };
     };
     async function publication(state: "streaming" | "published" = "published") {
-      const [row] = await db.insert(chatPublications).values({ companyId, endpointId, conversationId, issueId, idempotencyKey: randomUUID(), state, publishedAt: state === "published" ? new Date() : null, payload: { text: "Approved result" } }).returning();
+      const [row] = await db.insert(chatPublications).values({ spaceId, endpointId, conversationId, issueId, idempotencyKey: randomUUID(), state, publishedAt: state === "published" ? new Date() : null, payload: { text: "Approved result" } }).returning();
       return row;
     }
-    return { companyId, endpointId, agentId, connectionId, issueId, conversationId, callerId, sessionId, store, request, reserved, accept, toolInput, publication };
+    return { spaceId, endpointId, agentId, connectionId, issueId, conversationId, callerId, sessionId, store, request, reserved, accept, toolInput, publication };
   }
 
   it("keeps saved report deadlines quiet across repeated voice connection saves", async () => {
@@ -100,7 +100,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       ...seed, id, callerId: randomUUID(), idempotencyKey: id, providerSessionId: randomUUID(),
       state: "ended" as const, endedAt,
     })));
-    await db.insert(chatVoiceReports).values(ids.map(sessionId => ({ companyId: f.companyId, sessionId, nextCheckAt: new Date(deadline) })));
+    await db.insert(chatVoiceReports).values(ids.map(sessionId => ({ spaceId: f.spaceId, sessionId, nextCheckAt: new Date(deadline) })));
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     const onError = vi.fn(), coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError });
     const settle = () => vi.waitFor(async () => {
@@ -135,14 +135,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       } finally { reads.mockRestore(); }
     } finally {
       await coordinator.stop(); vi.useRealTimers(); vi.restoreAllMocks();
-      await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.companyId, f.companyId));
+      await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.spaceId, f.spaceId));
     }
   });
 
   it.each(["hangup", "signed callback", "reply ended"])("wakes report refresh from real %s and advances it on a later callback", async trigger => {
     const f = await inboundFixture();
     await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.id, f.sessionId));
-    await f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller,
+    await f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller,
       { approve: true, approvalCode: f.call.approvalCode, issueId: f.issueId });
     const [bound] = await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.id, f.call.id));
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
@@ -156,14 +156,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     try {
       await f.service.registerReportWork(coordinator, () => true).ready;
       await settle(); expect(coordinator.nextWakeAt()).toBeNull(); await quiet();
-      if (trigger === "hangup") await f.service.end(f.companyId, bound.sessionId!, f.input.caller);
+      if (trigger === "hangup") await f.service.end(f.spaceId, bound.sessionId!, f.input.caller);
       else if (trigger === "signed callback") {
         const ended = f.sign({ type: "call.status", call_id: f.call.providerSessionId, status: "ended" });
         await f.service.inbound.lifecycle(f.endpoint.publicId, ended.body, ended.headers);
       } else {
-        const publication = await f.publication(); await f.store.enqueuePublication(f.companyId, publication.id);
+        const publication = await f.publication(); await f.store.enqueuePublication(f.spaceId, publication.id);
         f.transport.sendCallMessage.mockRejectedValueOnce(new SpekoProviderError("provider_unavailable", false, 409));
-        await f.service.pushReplies(25, f.companyId, f.endpointId);
+        await f.service.pushReplies(25, f.spaceId, f.endpointId);
         expect(f.transport.sendCallMessage).toHaveBeenCalledOnce();
       }
       await settle(); expect(f.transport.callReport).toHaveBeenCalledOnce();
@@ -177,14 +177,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         .filter(row => row.kind === "speko_lifecycle_receipt");
       expect(receipts.length).toBeGreaterThan(0);
       for (const receipt of receipts) expect(await chatHistoryActionBlocks(db, receipt.id)).toBe(true);
-      await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.companyId, f.companyId));
-      expect(await voiceCallReports(db, f.transport.callReport).load({ kind: "company", id: f.companyId })).toEqual([]);
+      await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.spaceId, f.spaceId));
+      expect(await voiceCallReports(db, f.transport.callReport).load({ kind: "space", id: f.spaceId })).toEqual([]);
       for (const receipt of receipts) expect(await chatHistoryActionBlocks(db, receipt.id)).toBe(false);
     } finally {
       await coordinator.stop(); vi.useRealTimers();
       const ended = f.sign({ type: "call.status", call_id: f.call.providerSessionId, status: "ended" });
       await f.service.inbound.lifecycle(f.endpoint.publicId, ended.body, ended.headers);
-      await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.companyId, f.companyId));
+      await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.spaceId, f.spaceId));
     }
   });
 
@@ -213,7 +213,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       expect(f.transport.callReport).toHaveBeenCalledTimes(2); expect(onError).not.toHaveBeenCalled();
     } finally {
       await coordinator.stop(); vi.useRealTimers();
-      await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.companyId, f.companyId));
+      await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.spaceId, f.spaceId));
     }
   });
 
@@ -260,7 +260,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       } finally { reads.mockRestore(); }
     } finally {
       await coordinator.stop(); vi.useRealTimers(); vi.restoreAllMocks();
-      await db.delete(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.companyId, f.companyId));
+      await db.delete(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.spaceId, f.spaceId));
     }
   });
 
@@ -274,7 +274,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const [saved] = await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.providerSessionId, id));
       expect(hints).toEqual([`admission:${saved.id}`]);
     } finally {
-      unsubscribe(); await db.delete(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.companyId, f.companyId));
+      unsubscribe(); await db.delete(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.spaceId, f.spaceId));
     }
   });
 
@@ -312,7 +312,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         await f.service.inbound.lifecycle(f.endpoint.publicId, ended.body, ended.headers);
       } else {
         await f.service.inbound.registerCleanupWork(coordinator, () => true).ready;
-        await f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller,
+        await f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller,
           { approve: false, approvalCode: f.call.approvalCode });
         await settle();
         expect(f.transport.endSession).toHaveBeenCalledWith(f.call.providerSessionId);
@@ -334,14 +334,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const pendingProvider = new Promise<void>(resolve => { release = resolve; });
     f.transport.verifyAgent.mockImplementation(async () => {
       await pendingProvider;
-      return { id: "agent_test", organizationId: `org_${f.companyId}`, name: "Test voice" };
+      return { id: "agent_test", organizationId: `org_${f.spaceId}`, name: "Test voice" };
     });
     const onError = vi.fn(), coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError });
     let denial: ReturnType<typeof f.service.inbound.decide> | undefined;
     try {
       await f.service.inbound.registerCleanupWork(coordinator, () => true).ready;
       let returned = false;
-      denial = f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller,
+      denial = f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller,
         { approve: false, approvalCode: f.call.approvalCode }).then(result => { returned = true; return result; });
       await vi.waitFor(() => expect(returned).toBe(true), { timeout: 2000 });
       expect(await denial).toMatchObject({ state: "denied" });
@@ -406,7 +406,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("retains rejected inbound cleanup across provider failure and history retention", async () => {
     const f = await inboundFixture(true);
     f.transport.endSession.mockRejectedValueOnce(new Error("provider unavailable"));
-    const result = await f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller,
+    const result = await f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller,
       { approve: false, approvalCode: f.call.approvalCode });
     expect(result.state).toBe("ended");
     await f.service.inbound.reconcile(1000);
@@ -432,7 +432,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await inboundFixture();
     f.credentials.mockResolvedValue({ apiKey: "key-for-another-account", agentId: "other-agent" });
     f.transport.verifyAgent.mockResolvedValue({ id: "other-agent", organizationId: "another-account", name: "Other voice" });
-    await f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller,
+    await f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller,
       { approve: false, approvalCode: f.call.approvalCode });
     await f.service.inbound.reconcile(1000);
     expect(f.transport.inspectSession).not.toHaveBeenCalled(); expect(f.transport.endSession).not.toHaveBeenCalled();
@@ -440,7 +440,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(pending.cleanupConfirmedAt).toBeNull(); expect(pending.cleanupNextAttemptAt).not.toBeNull();
     // A usable key for the saved account restores cleanup without redialing.
     f.credentials.mockResolvedValue({ apiKey: "restored-account-key", agentId: "agent_test" });
-    f.transport.verifyAgent.mockResolvedValue({ id: "agent_test", organizationId: `org_${f.companyId}`, name: "Test voice" });
+    f.transport.verifyAgent.mockResolvedValue({ id: "agent_test", organizationId: `org_${f.spaceId}`, name: "Test voice" });
     await db.update(chatVoiceInboundCalls).set({ cleanupNextAttemptAt: new Date(0) }).where(eq(chatVoiceInboundCalls.id, f.call.id));
     await f.service.inbound.reconcile(1000);
     expect(f.transport.endSession).toHaveBeenCalledWith(f.call.providerSessionId);
@@ -450,7 +450,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("restores blocked replies through the production live-call recovery wiring", async () => {
     const f = await pushFixture();
-    await db.update(companyMemberships).set({ status: "suspended" }).where(eq(companyMemberships.principalId, f.callerId));
+    await db.update(spaceMemberships).set({ status: "suspended" }).where(eq(spaceMemberships.principalId, f.callerId));
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     const onError = vi.fn();
     const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError });
@@ -465,7 +465,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       await settle();
       expect(coordinator.nextWakeAt()).toBeNull();
       expect(f.transport.sendCallMessage).not.toHaveBeenCalled();
-      await db.update(companyMemberships).set({ status: "active" }).where(eq(companyMemberships.principalId, f.callerId));
+      await db.update(spaceMemberships).set({ status: "active" }).where(eq(spaceMemberships.principalId, f.callerId));
       await f.service.registerRecoveryWork(coordinator, () => true).ready;
       await vi.advanceTimersByTimeAsync(31_000);
       await vi.waitFor(async () => {
@@ -515,7 +515,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       expect(f.transport.createBrowserSession).toHaveBeenCalledOnce();
       expect(f.transport.inspectSession).not.toHaveBeenCalled();
       if (reason === "hangup") f.transport.inspectSession.mockResolvedValue({ status: "ended", endedAt: new Date().toISOString() });
-      if (reason === "revocation") await db.update(companyMemberships).set({ status: "removed" }).where(eq(companyMemberships.principalId, f.callerId));
+      if (reason === "revocation") await db.update(spaceMemberships).set({ status: "removed" }).where(eq(spaceMemberships.principalId, f.callerId));
       if (reason === "feature disable") await instanceSettingsService(db).updateExperimental({ enableChatConnectors: false });
       if (reason === "endpoint pause") {
         const chat = chatChannelService(db, { heartbeat: { wakeup: vi.fn() } });
@@ -612,20 +612,20 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("rejects Backlog voice work before claiming that it was accepted", async () => {
     const f = await fixture();
     await db.update(issues).set({status: "backlog"}).where(eq(issues.id, f.issueId));
-    await expect(f.store.runTool(f.toolInput("submit_request", {text: "Inspect disk space"}))).rejects.toMatchObject({status: 409, message: "Move this task to Todo in Paperclip before requesting voice work."});
+    await expect(f.store.runTool(f.toolInput("submit_request", {text: "Inspect disk space"}))).rejects.toMatchObject({status: 409, message: "Move this task to Todo in Outpost before requesting voice work."});
     expect(await db.select().from(chatDeliveries).where(eq(chatDeliveries.endpointId, f.endpointId))).toHaveLength(0);
     expect(await db.select().from(chatVoiceToolCalls).where(eq(chatVoiceToolCalls.sessionId, f.sessionId))).toHaveLength(0);
   });
 
   it("delivers urgent live-call guidance only after accepted work and retires it after hangup or revocation", async () => {
-    const f = await fixture(), scope = { companyId: f.companyId, issueId: f.issueId, agentId: f.agentId };
+    const f = await fixture(), scope = { spaceId: f.spaceId, issueId: f.issueId, agentId: f.agentId };
     expect(await liveVoiceExecutionGuidance(db, scope)).toBeNull();
     await f.store.runTool(f.toolInput("submit_request", { text: "Inspect disk space" }));
     expect(await liveVoiceExecutionGuidance(db, scope)).toContain("Get a useful spoken response to them as quickly as possible");
     await db.update(chatEndpoints).set({status: "verifying"}).where(eq(chatEndpoints.id, f.endpointId));
     expect(await liveVoiceExecutionGuidance(db, scope)).toContain("Live voice request");
     await db.update(chatEndpoints).set({status: "active"}).where(eq(chatEndpoints.id, f.endpointId));
-    expect(await liveVoiceExecutionGuidance(db, { ...scope, companyId: randomUUID() })).toBeNull();
+    expect(await liveVoiceExecutionGuidance(db, { ...scope, spaceId: randomUUID() })).toBeNull();
     expect(await liveVoiceExecutionGuidance(db, { ...scope, agentId: randomUUID() })).toBeNull();
     expect(await liveVoiceExecutionGuidance(db, scope, new Date(Date.now() + 900_000))).toBeNull();
     await db.update(chatEndpoints).set({setup: {step: "complete", runtimeGeneration: 2} as InternalSetupState}).where(eq(chatEndpoints.id, f.endpointId));
@@ -644,11 +644,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const accepted = await f.store.runTool(f.toolInput("submit_request", {text: "Check disk space"}));
     expect(await read()).toMatchObject({work: {state: "queued"}, updates: []});
     // A different task's running agent must not become this call's status.
-    const [otherTask] = await db.insert(issues).values({companyId: f.companyId, title: "Private other task", assigneeAgentId: f.agentId}).returning();
-    await db.insert(heartbeatRuns).values({companyId: f.companyId, agentId: f.agentId, issueId: otherTask.id, status: "running", error: "private log"});
+    const [otherTask] = await db.insert(issues).values({spaceId: f.spaceId, title: "Private other task", assigneeAgentId: f.agentId}).returning();
+    await db.insert(heartbeatRuns).values({spaceId: f.spaceId, agentId: f.agentId, issueId: otherTask.id, status: "running", error: "private log"});
     expect(await read()).toMatchObject({work: {state: "queued"}});
     await db.update(chatDeliveries).set({state: "processed"}).where(eq(chatDeliveries.id, accepted.requestId as string));
-    const [run] = await db.insert(heartbeatRuns).values({companyId: f.companyId, agentId: f.agentId, issueId: f.issueId, status: "running", contextSnapshot: {issueId: f.issueId}, error: "private log"}).returning();
+    const [run] = await db.insert(heartbeatRuns).values({spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId, status: "running", contextSnapshot: {issueId: f.issueId}, error: "private log"}).returning();
     await db.update(issues).set({executionRunId: run.id}).where(eq(issues.id, f.issueId));
     expect(await read()).toMatchObject({work: {state: "running", followUpQueued: false}});
     const followUp = await f.store.runTool(f.toolInput("submit_request", {text: "Please also report free space"}));
@@ -659,7 +659,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(waiting).toMatchObject({status: "pending", work: {state: "awaiting_reply"}, updates: []});
     expect(JSON.stringify(waiting)).not.toContain("private log");
     expect(JSON.stringify(waiting)).not.toContain("Execution finished");
-    const publication = await f.publication(); await f.store.enqueuePublication(f.companyId, publication.id);
+    const publication = await f.publication(); await f.store.enqueuePublication(f.spaceId, publication.id);
     expect(await read()).toMatchObject({status: "updates", updates: [{text: "Approved result"}]});
     await db.update(heartbeatRuns).set({status: "failed", error: "secret provider credentials"}).where(eq(heartbeatRuns.id, run.id));
     const failed = await read(); expect(failed).toMatchObject({work: {state: "failed"}});
@@ -679,12 +679,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(await f.store.runTool(f.toolInput("get_updates", {cursor: 0, repeat: true}))).not.toHaveProperty("nextAction");
     await db.update(chatVoiceSessions).set({mode: "browser"}).where(eq(chatVoiceSessions.id, f.sessionId));
     expect(await read()).not.toHaveProperty("nextAction");
-    await db.insert(chatVoiceCallbacks).values({companyId: f.companyId, endpointId: f.endpointId, userId: f.callerId, phoneNumber: "+12015551234", enabled: true});
+    await db.insert(chatVoiceCallbacks).values({spaceId: f.spaceId, endpointId: f.endpointId, userId: f.callerId, phoneNumber: "+12015551234", enabled: true});
     await db.update(chatVoiceSessions).set({mode: "outbound_phone"}).where(eq(chatVoiceSessions.id, f.sessionId));
     expect(await read()).not.toHaveProperty("nextAction");
     await db.update(chatDeliveries).set({state: "failed"}).where(eq(chatDeliveries.id, accepted.requestId as string));
     expect(await read()).not.toHaveProperty("nextAction");
-    const publication = await f.publication(); await f.store.enqueuePublication(f.companyId, publication.id);
+    const publication = await f.publication(); await f.store.enqueuePublication(f.spaceId, publication.id);
     const delivered = await read();
     expect(delivered).toMatchObject({status: "updates", updates: [{text: "Approved result"}]});
     expect(delivered).not.toHaveProperty("nextAction");
@@ -701,34 +701,34 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("repeats only an already delivered answer and retains truthful playback evidence", async () => {
     const f = await fixture(); const first = await f.publication();
-    await f.store.enqueuePublication(f.companyId, first.id);
+    await f.store.enqueuePublication(f.spaceId, first.id);
     expect(await f.store.runTool(f.toolInput("get_updates", { cursor: 0, repeat: true }))).toMatchObject({ status: "pending", updates: [] });
     const delivered = await f.store.runTool(f.toolInput("get_updates", { cursor: 0 }));
-    const next = await f.publication(); await f.store.enqueuePublication(f.companyId, next.id);
+    const next = await f.publication(); await f.store.enqueuePublication(f.spaceId, next.id);
     const repeated = await f.store.runTool(f.toolInput("get_updates", { cursor: 1, repeat: true }));
     expect(repeated).toMatchObject({ repeated: true, playback: "unknown", updates: delivered.updates });
     expect(await f.store.runTool(f.toolInput("get_updates", { cursor: 1 }))).toMatchObject({ updates: [{ publicationId: next.id }] });
     const rows = await db.select().from(chatVoiceReplies).where(eq(chatVoiceReplies.sessionId, f.sessionId));
     expect(rows).toHaveLength(2); expect(rows.every(row => row.deliveredAt && row.spokenAt === null)).toBe(true);
     expect(f.accept).not.toHaveBeenCalled();
-    await db.update(companyMemberships).set({ status: "suspended" }).where(eq(companyMemberships.companyId, f.companyId));
+    await db.update(spaceMemberships).set({ status: "suspended" }).where(eq(spaceMemberships.spaceId, f.spaceId));
     await expect(f.store.runTool(f.toolInput("get_updates", { cursor: 2, repeat: true }))).rejects.toMatchObject({ status: 403 });
   });
 
   it("does not restore legacy access when a managed connection loses its final install", async () => {
     const f = await fixture();
-    await db.insert(connectionGrants).values({ companyId: f.companyId, connectionId: f.connectionId, kind: "organization", isDefault: true });
-    const [install] = await db.insert(toolConnectionInstalls).values({ companyId: f.companyId, connectionId: f.connectionId, targetType: "agent", targetId: f.agentId }).returning();
-    await expect(f.store.notification(f.companyId, f.sessionId, f.callerId)).resolves.toBeNull();
+    await db.insert(connectionGrants).values({ spaceId: f.spaceId, connectionId: f.connectionId, kind: "organization", isDefault: true });
+    const [install] = await db.insert(toolConnectionInstalls).values({ spaceId: f.spaceId, connectionId: f.connectionId, targetType: "agent", targetId: f.agentId }).returning();
+    await expect(f.store.notification(f.spaceId, f.sessionId, f.callerId)).resolves.toBeNull();
     await db.delete(toolConnectionInstalls).where(eq(toolConnectionInstalls.id, install.id));
-    await expect(f.store.notification(f.companyId, f.sessionId, f.callerId)).rejects.toMatchObject({ status: 403 });
+    await expect(f.store.notification(f.spaceId, f.sessionId, f.callerId)).rejects.toMatchObject({ status: 403 });
     await expect(f.store.runTool(f.toolInput("submit_request", { text: "Unauthorized after uninstall" }))).rejects.toMatchObject({ status: 403 });
     expect(f.accept).not.toHaveBeenCalled();
   });
 
   it("does not replay an old tool receipt after its approved publication changes", async () => {
     const f = await fixture(); const publication = await f.publication();
-    await f.store.enqueuePublication(f.companyId, publication.id);
+    await f.store.enqueuePublication(f.spaceId, publication.id);
     const request = f.toolInput("get_updates", { cursor: 0 });
     await f.store.runTool(request);
     await db.update(chatPublications).set({ payload: { text: "Corrected approved response" } }).where(eq(chatPublications.id, publication.id));
@@ -737,7 +737,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("repeats a missed audible answer after rejoining, without replaying it automatically or crossing callers", async () => {
     const f = await fixture(); const publication = await f.publication();
-    await f.store.enqueuePublication(f.companyId, publication.id);
+    await f.store.enqueuePublication(f.spaceId, publication.id);
     await f.store.runTool(f.toolInput("get_updates", { cursor: 0 }));
     await db.update(chatVoiceSessions).set({ state: "ended", endedAt: new Date() }).where(eq(chatVoiceSessions.id, f.sessionId));
     async function rejoin(callerId: string) {
@@ -745,28 +745,28 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       if (!reserved.created) throw new Error("Expected a new media call");
       const providerSessionId = randomUUID(), toolId = randomUUID();
       await db.update(chatVoiceSessions).set({ state: "active", providerSessionId }).where(eq(chatVoiceSessions.id, reserved.session.id));
-      expect(await f.store.notification(f.companyId, reserved.session.id, callerId)).toBeNull();
+      expect(await f.store.notification(f.spaceId, reserved.session.id, callerId)).toBeNull();
       const envelope = { session_id: providerSessionId, tool_call_id: toolId, idempotency_key: `${providerSessionId}:${toolId}`, tool: "get_updates" as const, args: { cursor: 0, repeat: true } };
       return f.store.runTool({ ...f.toolInput("get_updates", { cursor: 0 }), sessionId: reserved.session.id, token: reserved.token, envelope, webhookId: toolId, fingerprint: createHash("sha256").update(JSON.stringify(envelope)).digest("hex") });
     }
     expect(await rejoin(f.callerId)).toMatchObject({ updates: [{ publicationId: publication.id }], repeated: true, playback: "unknown" });
     const otherCaller = randomUUID();
-    await db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: otherCaller, status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: otherCaller, status: "active", membershipRole: "member" });
     expect(await rejoin(otherCaller)).toMatchObject({ status: "pending", updates: [] });
   });
 
   it.each(["dispatching", "unknown", "completed"])("does not recollect a prior call's %s delivery or accepted prefix on rejoin", async status => {
     const f = await fixture(), publication = await f.publication();
-    await f.store.enqueuePublication(f.companyId, publication.id);
+    await f.store.enqueuePublication(f.spaceId, publication.id);
     const [reply] = await db.select().from(chatVoiceReplies).where(eq(chatVoiceReplies.sessionId, f.sessionId));
-    await db.insert(chatActions).values({companyId: f.companyId, endpointId: f.endpointId, conversationId: f.conversationId,
+    await db.insert(chatActions).values({spaceId: f.spaceId, endpointId: f.endpointId, conversationId: f.conversationId,
       kind: "speko_voice_reply_push", providerActionId: `voice_reply_push:${reply.id}`, status,
       payload: {sessionId: f.sessionId, replyId: reply.id, publicationId: publication.id, partIndex: 0, partCount: 2, questionNotification: false}});
     await db.update(chatVoiceSessions).set({state: "ended", endedAt: new Date()}).where(eq(chatVoiceSessions.id, f.sessionId));
     const reserved = await f.store.reserve({...f.request, idempotencyKey: randomUUID()});
     await db.update(chatVoiceSessions).set({state: "active", providerSessionId: randomUUID()}).where(eq(chatVoiceSessions.id, reserved.session.id));
-    expect(await f.store.notification(f.companyId, reserved.session.id, f.callerId)).toBeNull();
-    await f.store.enqueuePublication(f.companyId, publication.id);
+    expect(await f.store.notification(f.spaceId, reserved.session.id, f.callerId)).toBeNull();
+    await f.store.enqueuePublication(f.spaceId, publication.id);
     expect(await db.select().from(chatVoiceReplies).where(eq(chatVoiceReplies.sessionId, reserved.session.id))).toHaveLength(0);
   });
   it("marks media active only after a valid session-scoped provider request", async () => {
@@ -788,9 +788,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(await f.store.runTool(request)).toMatchObject({ status: "accepted" });
   });
 
-  it("never substitutes company, session, or token authority", async () => {
+  it("never substitutes space, session, or token authority", async () => {
     const a = await fixture(), b = await fixture(), request = a.toolInput("submit_request", { text: "Private work" });
-    await expect(a.store.runTool({ ...request, companyId: b.companyId })).rejects.toMatchObject({ status: 404 });
+    await expect(a.store.runTool({ ...request, spaceId: b.spaceId })).rejects.toMatchObject({ status: 404 });
     await expect(a.store.runTool({ ...request, endpointId: b.endpointId })).rejects.toMatchObject({ status: 403 });
     await expect(a.store.runTool({ ...request, token: b.reserved.token })).rejects.toMatchObject({ status: 403 });
     await expect(a.store.runTool({ ...request, envelope: { ...request.envelope, session_id: b.reserved.session.id } })).rejects.toMatchObject({ status: 403 });
@@ -814,62 +814,62 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("retires active calls when a latest credential rotates without changing its reference", async () => {
     const f = await fixture();
-    const [secret] = await db.insert(companySecrets).values({ companyId: f.companyId, key: "SPEKO_TEST", name: "Speko fixture" }).returning();
+    const [secret] = await db.insert(spaceSecrets).values({ spaceId: f.spaceId, key: "SPEKO_TEST", name: "Speko fixture" }).returning();
     const refs = [{ configPath: "apiKey", secretId: secret.id, versionSelector: "latest" as const }];
     await db.update(toolConnections).set({ credentialSecretRefs: refs }).where(eq(toolConnections.id, f.connectionId));
-    await db.update(chatVoiceSessions).set({ credentialFingerprint: await currentVoiceCredentialFingerprint(db, f.companyId, refs) }).where(eq(chatVoiceSessions.id, f.sessionId));
+    await db.update(chatVoiceSessions).set({ credentialFingerprint: await currentVoiceCredentialFingerprint(db, f.spaceId, refs) }).where(eq(chatVoiceSessions.id, f.sessionId));
     await expect(f.store.runTool(f.toolInput("get_updates", { cursor: 0 }))).resolves.toMatchObject({ status: "pending" });
-    await db.update(companySecrets).set({ latestVersion: 2 }).where(eq(companySecrets.id, secret.id));
+    await db.update(spaceSecrets).set({ latestVersion: 2 }).where(eq(spaceSecrets.id, secret.id));
     await expect(f.store.runTool(f.toolInput("get_updates", { cursor: 0 }))).rejects.toMatchObject({ status: 403 });
-    await expect(f.store.notification(f.companyId, f.sessionId, f.callerId)).rejects.toMatchObject({ status: 403 });
+    await expect(f.store.notification(f.spaceId, f.sessionId, f.callerId)).rejects.toMatchObject({ status: 403 });
   });
 
   it("honors the credential's current human audience and revoked grants", async () => {
     const f = await fixture();
-    const [grant] = await db.insert(connectionGrants).values({ companyId: f.companyId, connectionId: f.connectionId, kind: "organization", isDefault: true }).returning();
-    await db.insert(toolConnectionInstalls).values({ companyId: f.companyId, connectionId: f.connectionId, targetType: "agent", targetId: f.agentId });
-    const [member] = await db.insert(connectionGrantMembers).values({ companyId: f.companyId, grantId: grant.id, subjectType: "user", subjectId: "another-person" }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId: f.spaceId, connectionId: f.connectionId, kind: "organization", isDefault: true }).returning();
+    await db.insert(toolConnectionInstalls).values({ spaceId: f.spaceId, connectionId: f.connectionId, targetType: "agent", targetId: f.agentId });
+    const [member] = await db.insert(connectionGrantMembers).values({ spaceId: f.spaceId, grantId: grant.id, subjectType: "user", subjectId: "another-person" }).returning();
     await expect(f.store.runTool(f.toolInput("submit_request", { text: "Denied" }))).rejects.toMatchObject({ status: 403 });
     expect(f.accept).not.toHaveBeenCalled();
     await db.update(connectionGrantMembers).set({ subjectId: f.callerId }).where(eq(connectionGrantMembers.id, member.id));
     await expect(f.store.runTool(f.toolInput("submit_request", { text: "Allowed" }))).resolves.toMatchObject({ status: "accepted" });
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, grant.id));
     await expect(f.store.reserve(f.request)).rejects.toMatchObject({ status: 403 });
-    await expect(f.store.notification(f.companyId, f.sessionId, f.callerId)).rejects.toMatchObject({ status: 403 });
+    await expect(f.store.notification(f.spaceId, f.sessionId, f.callerId)).rejects.toMatchObject({ status: 403 });
   });
 
   it("rechecks membership and rejects read-only users and unapproved callers", async () => {
     const f = await fixture();
-    await db.update(companyMemberships).set({ membershipRole: "viewer" }).where(eq(companyMemberships.principalId, f.callerId));
+    await db.update(spaceMemberships).set({ membershipRole: "viewer" }).where(eq(spaceMemberships.principalId, f.callerId));
     await expect(f.store.runTool(f.toolInput("get_updates", { cursor: 0 }))).rejects.toMatchObject({ status: 403 });
-    await db.update(companyMemberships).set({ membershipRole: "member" }).where(eq(companyMemberships.principalId, f.callerId));
+    await db.update(spaceMemberships).set({ membershipRole: "member" }).where(eq(spaceMemberships.principalId, f.callerId));
     await db.update(chatVoiceSessions).set({ callerAuthority: "pending_approval" }).where(eq(chatVoiceSessions.id, f.sessionId));
     await expect(f.store.runTool(f.toolInput("get_updates", { cursor: 0 }))).rejects.toMatchObject({ status: 403 });
-    await expect(f.store.reserve({ ...f.request, caller: { id: "local-board", authority: "local_board" } })).rejects.toMatchObject({ status: 403 });
+    await expect(f.store.reserve({ ...f.request, caller: { id: "local-operator", authority: "local_board" } })).rejects.toMatchObject({ status: 403 });
   });
 
   it("preserves accepted work after hangup but still enforces revoked access", async () => {
     const f = await fixture();
     await f.store.runTool(f.toolInput("submit_request", { text: "Finish this after I hang up" }));
     await db.update(chatVoiceSessions).set({ state: "ended", endedAt: new Date() }).where(eq(chatVoiceSessions.id, f.sessionId));
-    expect(await db.transaction((tx) => f.store.authorizePrincipal(tx, f.companyId, f.endpointId, `voice:${f.sessionId}`))).toMatchObject({ allowed: true, userId: f.callerId });
+    expect(await db.transaction((tx) => f.store.authorizePrincipal(tx, f.spaceId, f.endpointId, `voice:${f.sessionId}`))).toMatchObject({ allowed: true, userId: f.callerId });
     await expect(f.store.runTool(f.toolInput("submit_request", { text: "Late replay" }))).rejects.toMatchObject({ status: 403 });
-    await db.update(companyMemberships).set({ status: "removed" }).where(eq(companyMemberships.principalId, f.callerId));
-    await expect(db.transaction((tx) => f.store.authorizePrincipal(tx, f.companyId, f.endpointId, `voice:${f.sessionId}`))).rejects.toMatchObject({ status: 403 });
+    await db.update(spaceMemberships).set({ status: "removed" }).where(eq(spaceMemberships.principalId, f.callerId));
+    await expect(db.transaction((tx) => f.store.authorizePrincipal(tx, f.spaceId, f.endpointId, `voice:${f.sessionId}`))).rejects.toMatchObject({ status: 403 });
   });
 
   it("publishes each approved answer once, preserves retry receipts, and never assumes speech", async () => {
     const f = await fixture(), publication = await f.publication("streaming");
-    await Promise.all([f.store.enqueuePublication(f.companyId, publication.id), f.store.enqueuePublication(f.companyId, publication.id)]);
-    expect(await f.store.notification(f.companyId, f.sessionId, f.callerId)).toBeNull();
+    await Promise.all([f.store.enqueuePublication(f.spaceId, publication.id), f.store.enqueuePublication(f.spaceId, publication.id)]);
+    expect(await f.store.notification(f.spaceId, f.sessionId, f.callerId)).toBeNull();
     expect(await f.store.runTool(f.toolInput("get_updates", { cursor: 0 }))).toMatchObject({ status: "pending", updates: [] });
     await db.update(chatPublications).set({ state: "published" }).where(eq(chatPublications.id, publication.id));
-    expect(await f.store.notification(f.companyId, f.sessionId, f.callerId)).toEqual({ sessionId: f.sessionId, generation: 1, publicationId: publication.id, attempt: 0 });
+    expect(await f.store.notification(f.spaceId, f.sessionId, f.callerId)).toEqual({ sessionId: f.sessionId, generation: 1, publicationId: publication.id, attempt: 0 });
     const request = f.toolInput("get_updates", { cursor: 0 }), reply = await f.store.runTool(request);
     expect(reply).toMatchObject({ cursor: 1, updates: [{ text: "Approved result", publicationId: publication.id }] });
     expect(await f.store.runTool(request)).toEqual(reply);
     expect(await f.store.runTool(f.toolInput("get_updates", { cursor: 0 }))).toMatchObject({ status: "pending", updates: [] });
-    expect(await f.store.notification(f.companyId, f.sessionId, f.callerId)).toBeNull();
+    expect(await f.store.notification(f.spaceId, f.sessionId, f.callerId)).toBeNull();
     const records = await db.select().from(chatVoiceReplies).where(eq(chatVoiceReplies.sessionId, f.sessionId));
     expect(records).toHaveLength(1);
     expect(records[0].deliveredAt).toBeInstanceOf(Date);
@@ -880,17 +880,17 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("skips routine progress and retries the oldest unclaimed answer without duplicating delivery", async () => {
     const f = await fixture(), progress = await f.publication();
     await db.update(chatPublications).set({ payload: { text: "Working", progressState: "working" } }).where(eq(chatPublications.id, progress.id));
-    await f.store.enqueuePublication(f.companyId, progress.id);
-    expect(await f.store.notification(f.companyId, f.sessionId, f.callerId)).toBeNull();
+    await f.store.enqueuePublication(f.spaceId, progress.id);
+    expect(await f.store.notification(f.spaceId, f.sessionId, f.callerId)).toBeNull();
     const first = await f.publication(), second = await f.publication();
-    await f.store.enqueuePublication(f.companyId, first.id);
-    await f.store.enqueuePublication(f.companyId, second.id);
+    await f.store.enqueuePublication(f.spaceId, first.id);
+    await f.store.enqueuePublication(f.spaceId, second.id);
     await db.update(chatVoiceReplies).set({ createdAt: new Date(Date.now() - 21_000) }).where(eq(chatVoiceReplies.publicationId, first.id));
-    expect(await f.store.notification(f.companyId, f.sessionId, f.callerId)).toMatchObject({ publicationId: first.id, attempt: 2 });
+    expect(await f.store.notification(f.spaceId, f.sessionId, f.callerId)).toMatchObject({ publicationId: first.id, attempt: 2 });
     const reply = await f.store.runTool(f.toolInput("get_updates", { cursor: 0 }));
     expect(reply).toMatchObject({ cursor: 2, updates: [{ publicationId: first.id }, { publicationId: second.id }] });
     expect(await f.store.runTool(f.toolInput("get_updates", { cursor: 2 }))).toMatchObject({ status: "pending", updates: [] });
-    expect(await f.store.notification(f.companyId, f.sessionId, f.callerId)).toBeNull();
+    expect(await f.store.notification(f.spaceId, f.sessionId, f.callerId)).toBeNull();
     expect(await f.store.runTool(f.toolInput("get_updates", { cursor: 0 }))).toMatchObject({ status: "pending", updates: [] });
   });
 
@@ -899,20 +899,20 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const publications = [];
     for (let index = 0; index < 10; index++) {
       const publication = await f.publication(); publications.push(publication);
-      await f.store.enqueuePublication(f.companyId, publication.id);
+      await f.store.enqueuePublication(f.spaceId, publication.id);
     }
     await db.update(chatPublications).set({ payload: { text: "Please clarify", interactionId: randomUUID() } }).where(eq(chatPublications.id, publications[2]!.id));
     const first = await f.store.runTool(f.toolInput("get_updates", { cursor: 0 }));
     expect(first).toMatchObject({ cursor: 3, updates: publications.slice(0, 3).map(p => ({ publicationId: p.id })) });
-    expect(await f.store.notification(f.companyId, f.sessionId, f.callerId)).toMatchObject({ publicationId: publications[3]!.id });
+    expect(await f.store.notification(f.spaceId, f.sessionId, f.callerId)).toMatchObject({ publicationId: publications[3]!.id });
     const next = await f.store.runTool(f.toolInput("get_updates", { cursor: 3 }));
     expect(next).toMatchObject({ cursor: 10, updates: publications.slice(3).map(p => ({ publicationId: p.id })) });
-    expect(await f.store.notification(f.companyId, f.sessionId, f.callerId)).toBeNull();
+    expect(await f.store.notification(f.spaceId, f.sessionId, f.callerId)).toBeNull();
   });
 
   it("leaves excess replies pending after a bounded batch", async () => {
     const f = await fixture();
-    for (let index = 0; index < 9; index++) { const p = await f.publication(); await f.store.enqueuePublication(f.companyId, p.id); }
+    for (let index = 0; index < 9; index++) { const p = await f.publication(); await f.store.enqueuePublication(f.spaceId, p.id); }
     const first = await f.store.runTool(f.toolInput("get_updates", { cursor: 0 }));
     expect(first.cursor).toBe(8); expect(first.updates).toHaveLength(8);
     const next = await f.store.runTool(f.toolInput("get_updates", { cursor: 8 }));
@@ -921,56 +921,56 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("delivers an earlier stream that completes after a newer answer without moving the cursor backwards", async () => {
     const f = await fixture(), slow = await f.publication("streaming"), ready = await f.publication();
-    await f.store.enqueuePublication(f.companyId, slow.id);
-    await f.store.enqueuePublication(f.companyId, ready.id);
+    await f.store.enqueuePublication(f.spaceId, slow.id);
+    await f.store.enqueuePublication(f.spaceId, ready.id);
     expect(await f.store.runTool(f.toolInput("get_updates", { cursor: 0 }))).toMatchObject({ cursor: 2, updates: [{ publicationId: ready.id }] });
     await db.update(chatPublications).set({ state: "published" }).where(eq(chatPublications.id, slow.id));
     expect(await f.store.runTool(f.toolInput("get_updates", { cursor: 2 }))).toMatchObject({ cursor: 2, updates: [{ cursor: 1, publicationId: slow.id }] });
-    expect(await f.store.notification(f.companyId, f.sessionId, f.callerId)).toBeNull();
+    expect(await f.store.notification(f.spaceId, f.sessionId, f.callerId)).toBeNull();
   });
 
   it("denies changed task assignment, expired calls, and another caller's notification feed", async () => {
     const f = await fixture();
-    await expect(f.store.notification(f.companyId, f.sessionId, randomUUID())).rejects.toMatchObject({ status: 403 });
+    await expect(f.store.notification(f.spaceId, f.sessionId, randomUUID())).rejects.toMatchObject({ status: 403 });
     await db.update(issues).set({ assigneeAgentId: null }).where(eq(issues.id, f.issueId));
     await expect(f.store.runTool(f.toolInput("submit_request", { text: "Wrong agent" }))).rejects.toMatchObject({ status: 403 });
     await db.update(issues).set({ assigneeAgentId: f.agentId }).where(eq(issues.id, f.issueId));
     await db.update(chatVoiceSessions).set({ createdAt: new Date(Date.now() - 120_000), expiresAt: new Date(Date.now() - 1) }).where(eq(chatVoiceSessions.id, f.sessionId));
     await expect(f.store.runTool(f.toolInput("get_updates", { cursor: 0 }))).rejects.toMatchObject({ status: 403 });
   });
-  it("rechecks same-company private task access on tools, notifications, retries and queued work", async () => {
+  it("rechecks same-space private task access on tools, notifications, retries and queued work", async () => {
     const f = await fixture();
     await f.store.runTool(f.toolInput("submit_request", { text: "Accepted before privacy changes" }));
     await db.update(issues).set({ visibility: "private" }).where(eq(issues.id, f.issueId));
     await expect(f.store.reserve(f.request)).rejects.toMatchObject({ status: 403 });
-    await expect(f.store.notification(f.companyId, f.sessionId, f.callerId)).rejects.toMatchObject({ status: 403 });
+    await expect(f.store.notification(f.spaceId, f.sessionId, f.callerId)).rejects.toMatchObject({ status: 403 });
     await expect(f.store.runTool(f.toolInput("get_updates", { cursor: 0 }))).rejects.toMatchObject({ status: 403 });
-    await expect(db.transaction(tx => f.store.authorizePrincipal(tx, f.companyId, f.endpointId, `voice:${f.sessionId}`))).rejects.toMatchObject({ status: 403 });
+    await expect(db.transaction(tx => f.store.authorizePrincipal(tx, f.spaceId, f.endpointId, `voice:${f.sessionId}`))).rejects.toMatchObject({ status: 403 });
   });
 
   it("recovers results completed after hangup without replaying already delivered results", async () => {
     const f = await fixture(), delivered = await f.publication();
-    await f.store.enqueuePublication(f.companyId, delivered.id);
+    await f.store.enqueuePublication(f.spaceId, delivered.id);
     await f.store.runTool(f.toolInput("get_updates", { cursor: 0 }));
     await db.update(chatVoiceSessions).set({ state: "ended", endedAt: new Date() }).where(eq(chatVoiceSessions.id, f.sessionId));
     const missed = await f.publication();
-    await f.store.enqueuePublication(f.companyId, missed.id);
+    await f.store.enqueuePublication(f.spaceId, missed.id);
     const resumed = await f.store.reserve({ ...f.request, idempotencyKey: randomUUID() });
     await db.update(chatVoiceSessions).set({ state: "active", providerSessionId: randomUUID() }).where(eq(chatVoiceSessions.id, resumed.session.id));
-    expect(await f.store.notification(f.companyId, resumed.session.id, f.callerId)).toMatchObject({ publicationId: missed.id });
+    expect(await f.store.notification(f.spaceId, resumed.session.id, f.callerId)).toMatchObject({ publicationId: missed.id });
     const replies = await db.select().from(chatVoiceReplies).where(eq(chatVoiceReplies.sessionId, resumed.session.id));
     expect(replies.map(r => r.publicationId)).toEqual([missed.id]);
   });
 
   async function questionFixture() {
     const f = await fixture(), id = randomUUID();
-    await db.insert(issueThreadInteractions).values({ id, companyId: f.companyId, issueId: f.issueId, kind: "ask_user_questions",
+    await db.insert(issueThreadInteractions).values({ id, spaceId: f.spaceId, issueId: f.issueId, kind: "ask_user_questions",
       createdByAgentId: f.agentId, addresseeUserId: f.callerId, effectiveResolverPolicy: "human_only",
       payload: { version: 1, questions: [{ id: "color", prompt: "Which color?", selectionMode: "single", required: true,
         allowOther: false, options: [{ id: "cobalt", label: "Cobalt" }] }] } });
     const publication = await f.publication();
     await db.update(chatPublications).set({ payload: { text: "Which color?", interactionId: id, progressState: "waiting_for_input" } }).where(eq(chatPublications.id, publication.id));
-    await f.store.enqueuePublication(f.companyId, publication.id);
+    await f.store.enqueuePublication(f.spaceId, publication.id);
     const answer = f.toolInput("answer_question", { interactionId: id, answers: [{ questionId: "color", optionIds: ["cobalt"] }] });
     return { ...f, id, answer };
   }
@@ -999,7 +999,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       return f.store.runTool({...f.toolInput(name, args), sessionId: resumed.session.id, token: resumed.token,
         envelope, webhookId: toolId, fingerprint: createHash("sha256").update(JSON.stringify(envelope)).digest("hex")});
     };
-    expect(await f.store.notification(f.companyId, resumed.session.id, f.callerId)).not.toBeNull();
+    expect(await f.store.notification(f.spaceId, resumed.session.id, f.callerId)).not.toBeNull();
     expect(await tool("get_updates", {cursor: 0})).toMatchObject({updates: [{question: {interactionId: f.id}}]});
     expect(await tool("answer_question", {interactionId: f.id, answers: [{questionId: "color", optionIds: ["cobalt"]}]})).toMatchObject({status: "answered"});
     expect(await db.select().from(issueQuestionResponseDeliveries).where(eq(issueQuestionResponseDeliveries.interactionId, f.id))).toHaveLength(1);
@@ -1034,34 +1034,34 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     };
     const credentials = vi.fn(async () => ({ apiKey: "server-only-key", agentId: "agent_test" }));
     const service = voiceSessionService(db, { allowLocalBoard: false, credentials, provider: () => transport, onQuestionAnswered: vi.fn() });
-    const input = { companyId: f.companyId, endpointId: f.endpointId, issueId: f.issueId, caller: f.request.caller, idempotencyKey: randomUUID(), maxDurationSeconds: 600 };
+    const input = { spaceId: f.spaceId, endpointId: f.endpointId, issueId: f.issueId, caller: f.request.caller, idempotencyKey: randomUUID(), maxDurationSeconds: 600 };
     return { ...f, service, transport, credentials, input };
   }
 
   it("loads history and starts calls for Cloud owners without local admin roles, retaining membership revocation", async () => {
     await instanceSettingsService(db).updateExperimental({ enableChatConnectors: true });
     const f = await nativeServiceFixture();
-    await db.update(companyMemberships).set({ membershipRole: "owner" }).where(eq(companyMemberships.principalId, f.callerId));
+    await db.update(spaceMemberships).set({ membershipRole: "owner" }).where(eq(spaceMemberships.principalId, f.callerId));
     expect(await db.select().from(instanceUserRoles).where(eq(instanceUserRoles.userId, f.callerId))).toEqual([]);
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "cloud_tenant", userId: f.callerId, isInstanceAdmin: true, companyIds: [f.companyId] };
+      req.actor = { type: "operator", source: "cloud_tenant", userId: f.callerId, isInstanceAdmin: true, spaceIds: [f.spaceId] };
       next();
     });
     app.use("/api", voiceSessionRoutes(db, f.service));
     app.use(errorHandler);
-    const historyPath = `/api/companies/${f.companyId}/voice-history/${f.endpointId}`;
+    const historyPath = `/api/spaces/${f.spaceId}/voice-history/${f.endpointId}`;
     const history = await request(app).get(historyPath).expect(200);
     expect(history.body).toHaveLength(1);
-    const started = await request(app).post(`/api/companies/${f.companyId}/voice-sessions`)
+    const started = await request(app).post(`/api/spaces/${f.spaceId}/voice-sessions`)
       .send({ endpointId: f.endpointId, issueId: f.issueId, idempotencyKey: randomUUID() }).expect(201);
     const [persisted] = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.id, started.body.session.id));
-    expect(persisted).toMatchObject({ callerId: f.callerId, callerAuthority: "member", companyId: f.companyId });
+    expect(persisted).toMatchObject({ callerId: f.callerId, callerAuthority: "member", spaceId: f.spaceId });
     expect(f.transport.createBrowserSession).toHaveBeenCalledTimes(1);
-    await db.update(companyMemberships).set({ status: "removed" }).where(eq(companyMemberships.principalId, f.callerId));
+    await db.update(spaceMemberships).set({ status: "removed" }).where(eq(spaceMemberships.principalId, f.callerId));
     await request(app).get(historyPath).expect(403);
-    await request(app).post(`/api/companies/${f.companyId}/voice-sessions`)
+    await request(app).post(`/api/spaces/${f.spaceId}/voice-sessions`)
       .send({ endpointId: f.endpointId, issueId: f.issueId, idempotencyKey: randomUUID() }).expect(403);
     expect(f.transport.createBrowserSession).toHaveBeenCalledTimes(1);
   });
@@ -1072,8 +1072,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const {session} = await f.service.start(f.input);
     await db.update(chatVoiceSessions).set({mode: "inbound_phone", state: "active"}).where(eq(chatVoiceSessions.id, session.id));
     const publication = await f.publication();
-    await f.store.enqueuePublication(f.companyId, publication.id);
-    const push = () => f.service.pushReplies(25, f.companyId, f.endpointId);
+    await f.store.enqueuePublication(f.spaceId, publication.id);
+    const push = () => f.service.pushReplies(25, f.spaceId, f.endpointId);
     return {...f, session, publication, push};
   }
   function replyInventoryReads() {
@@ -1101,9 +1101,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const onError = vi.fn();
     const coordinator = createDeliveryWorkCoordinator({ owner: db, canRun, canReconcile: () => true, onError });
     // This shared integration database retains unrelated fixtures. Scope startup
-    // to this company's real records so they cannot dispatch another test's work.
+    // to this space's real records so they cannot dispatch another test's work.
     const load = service.load;
-    service.load = (scope, signal) => load(scope ?? { kind: "company", id: f.companyId }, signal);
+    service.load = (scope, signal) => load(scope ?? { kind: "space", id: f.spaceId }, signal);
     await registerVoiceReplyWork(coordinator, service, canRun).ready;
     const settled = () => vi.waitFor(async () => {
       await vi.advanceTimersByTimeAsync(1000);
@@ -1172,17 +1172,17 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       await worker.settled(); await worker.quiet();
       const before = f.transport.sendCallMessage.mock.calls.length;
       await expect(db.transaction(async tx => {
-        const [publication] = await tx.insert(chatPublications).values({ companyId: f.companyId, endpointId: f.endpointId,
+        const [publication] = await tx.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpointId,
           conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(), state: "published", payload: { text: "Rolled back" } }).returning();
-        await voiceSessionStore(tx as unknown as typeof db, { allowLocalBoard: false }).enqueuePublication(f.companyId, publication.id);
+        await voiceSessionStore(tx as unknown as typeof db, { allowLocalBoard: false }).enqueuePublication(f.spaceId, publication.id);
         await vi.advanceTimersByTimeAsync(2000); expect(f.transport.sendCallMessage).toHaveBeenCalledTimes(before);
         throw new Error("rollback publication");
       })).rejects.toThrow("rollback publication");
       await worker.settled(); await worker.quiet(2000); expect(f.transport.sendCallMessage).toHaveBeenCalledTimes(before);
       await db.transaction(async tx => {
-        const [publication] = await tx.insert(chatPublications).values({ companyId: f.companyId, endpointId: f.endpointId,
+        const [publication] = await tx.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpointId,
           conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(), state: "published", payload: { text: "Committed answer" } }).returning();
-        await voiceSessionStore(tx as unknown as typeof db, { allowLocalBoard: false }).enqueuePublication(f.companyId, publication.id);
+        await voiceSessionStore(tx as unknown as typeof db, { allowLocalBoard: false }).enqueuePublication(f.spaceId, publication.id);
         await vi.advanceTimersByTimeAsync(2000); expect(f.transport.sendCallMessage).toHaveBeenCalledTimes(before);
       });
       await worker.settled(); expect(f.transport.sendCallMessage).toHaveBeenCalledTimes(before + 1);
@@ -1192,13 +1192,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   it("schedules the next phone answer when real get_updates consumes its question barrier", async () => {
     const f = await pushFixture(), interactionId = randomUUID();
-    await db.insert(issueThreadInteractions).values({ id: interactionId, companyId: f.companyId, issueId: f.issueId,
+    await db.insert(issueThreadInteractions).values({ id: interactionId, spaceId: f.spaceId, issueId: f.issueId,
       kind: "ask_user_questions", status: "pending", addresseeUserId: f.callerId, effectiveResolverPolicy: "human_only",
       payload: { version: 1, questions: [{ id: "color", prompt: "Which color?", selectionMode: "single", required: true, options: [{ id: "cobalt", label: "Cobalt" }] }] } });
     await db.update(chatPublications).set({ payload: { text: "Which color?", interactionId } }).where(eq(chatPublications.id, f.publication.id));
-    const [later] = await db.insert(chatPublications).values({ companyId: f.companyId, endpointId: f.endpointId,
+    const [later] = await db.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(), state: "published", payload: { text: "Later answer" } }).returning();
-    await f.store.enqueuePublication(f.companyId, later.id);
+    await f.store.enqueuePublication(f.spaceId, later.id);
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     const worker = await replyWorker(f);
     try {
@@ -1220,9 +1220,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const worker = await replyWorker(f, () => enabled);
     try {
       await worker.settled(); enabled = false;
-      const [publication] = await db.insert(chatPublications).values({ companyId: f.companyId, endpointId: f.endpointId,
+      const [publication] = await db.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpointId,
         conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(), state: "published", payload: { text: "After resume" } }).returning();
-      await f.store.enqueuePublication(f.companyId, publication.id);
+      await f.store.enqueuePublication(f.spaceId, publication.id);
       await vi.waitFor(async () => { await vi.advanceTimersByTimeAsync(1000); expect(idleWorkSnapshot().active).toBe(0); });
       const drained = idleWorkSnapshot();
       await worker.quiet(60_000); expect(idleWorkSnapshot()).toEqual(drained); expect(f.transport.sendCallMessage).toHaveBeenCalledOnce();
@@ -1235,12 +1235,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await pushFixture(); await f.push();
     const [source] = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.id, f.session.id));
     const identities = Array.from({ length: 105 }, () => ({ id: randomUUID(), conversationId: randomUUID() }));
-    await db.insert(chatConversations).values(identities.map(row => ({ id: row.conversationId, companyId: f.companyId,
+    await db.insert(chatConversations).values(identities.map(row => ({ id: row.conversationId, spaceId: f.spaceId,
       endpointId: f.endpointId, issueId: f.issueId, externalConversationId: row.conversationId,
       externalThreadId: row.conversationId, externalLabel: "Unrelated call", isDirectMessage: true })));
     await db.insert(chatVoiceSessions).values(identities.map(row => ({ ...source, ...row, callerId: row.id,
       providerSessionId: row.id, idempotencyKey: row.id, requestFingerprint: row.id })));
-    await db.insert(chatActions).values(identities.map(row => ({ companyId: f.companyId, endpointId: f.endpointId,
+    await db.insert(chatActions).values(identities.map(row => ({ spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: row.conversationId, kind: "speko_voice_reply_push", providerActionId: row.id, status: "dispatching",
       payload: { sessionId: row.id, replyId: randomUUID() }, updatedAt: new Date(Date.now() + 3_600_000) })));
     const chat = chatChannelService(db, { heartbeat: { wakeup: vi.fn() } });
@@ -1258,7 +1258,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       stopMeasurement = reads.stop;
       const before = f.transport.sendCallMessage.mock.calls.length;
       for (let index = 0; index < 5; index++) {
-        const [publication] = await db.insert(chatPublications).values({ companyId: f.companyId, endpointId: f.endpointId,
+        const [publication] = await db.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpointId,
           conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(),
           state: path === "normal publication" ? "pending" : "delivery_unknown", payload: { text: `Answer ${index}` } }).returning();
         if (path === "normal publication") await chat.processPendingPublications(25, { maintenance: false });
@@ -1307,7 +1307,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("bounds abandoned-dispatch pages and reconstructs the same service after a partial-scan restart", async () => {
     const f = await pushFixture();
     await db.update(chatVoiceSessions).set({ state: "ended", endedAt: new Date() }).where(eq(chatVoiceSessions.id, f.session.id));
-    await db.insert(chatActions).values(Array.from({ length: 105 }, () => ({ companyId: f.companyId, endpointId: f.endpointId,
+    await db.insert(chatActions).values(Array.from({ length: 105 }, () => ({ spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: f.conversationId, kind: "speko_voice_reply_push", providerActionId: randomUUID(), status: "dispatching",
       payload: { sessionId: f.session.id, replyId: randomUUID() }, updatedAt: new Date(Date.now() + 60_000) })));
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
@@ -1344,14 +1344,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       return { ...source, id, callerId: id, providerSessionId: id, idempotencyKey: id, requestFingerprint: id };
     }));
     const service = voiceReplySchedule(db, { store: f.store, push: vi.fn() });
-    const scope = { kind: "company", id: f.companyId } as const;
+    const scope = { kind: "space", id: f.spaceId } as const;
     expect((await service.load(scope)).complete).toBe(false);
     const id = `00000000-0000-0000-0000-${randomUUID().slice(-12)}`;
     await db.insert(chatVoiceSessions).values({ ...source, id, callerId: id, providerSessionId: id,
       idempotencyKey: id, requestFingerprint: id });
     const { rows } = await service.load({ kind: "session", id });
     expect(rows).toHaveLength(1);
-    await expect(db.transaction(tx => f.store.authorizeSession(tx, f.companyId, id))).rejects.toMatchObject({ status: 403 });
+    await expect(db.transaction(tx => f.store.authorizeSession(tx, f.spaceId, id))).rejects.toMatchObject({ status: 403 });
     expect(await service.check(rows[0])).toBeNull();
     while (!(await service.load(scope)).complete) {}
     const wake = vi.fn(), unsubscribe = subscribeDeliveryWork(db, DELIVERY_QUEUES.voiceReplies, wake);
@@ -1376,10 +1376,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   it("notifies phone questions once and waits for authorized retrieval before later answers", async () => {
     const f = await pushFixture(), interactionId = randomUUID();
-    await db.insert(issueThreadInteractions).values({id: interactionId, companyId: f.companyId, issueId: f.issueId, kind: "ask_user_questions", status: "pending", addresseeUserId: f.callerId, effectiveResolverPolicy: "human_only", payload: {version: 1, questions: [{id: "color", prompt: "Which color?", selectionMode: "single", required: true, options: [{id: "cobalt", label: "Cobalt"}]}]}});
+    await db.insert(issueThreadInteractions).values({id: interactionId, spaceId: f.spaceId, issueId: f.issueId, kind: "ask_user_questions", status: "pending", addresseeUserId: f.callerId, effectiveResolverPolicy: "human_only", payload: {version: 1, questions: [{id: "color", prompt: "Which color?", selectionMode: "single", required: true, options: [{id: "cobalt", label: "Cobalt"}]}]}});
     await db.update(chatPublications).set({payload: {text: "Which color?", interactionId}}).where(eq(chatPublications.id, f.publication.id));
-    const [later] = await db.insert(chatPublications).values({companyId: f.companyId, endpointId: f.endpointId, conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(), state: "published", payload: {text: "Approved later answer"}}).returning();
-    await f.store.enqueuePublication(f.companyId, later.id);
+    const [later] = await db.insert(chatPublications).values({spaceId: f.spaceId, endpointId: f.endpointId, conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(), state: "published", payload: {text: "Approved later answer"}}).returning();
+    await f.store.enqueuePublication(f.spaceId, later.id);
     await f.push(); await f.push();
     expect(f.transport.sendCallMessage).toHaveBeenCalledOnce();
     expect(f.transport.sendCallMessage.mock.calls[0]?.[1]).toContain("Call get_updates");
@@ -1397,8 +1397,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("sends long approved phone answers as durable ordered parts and resumes after a rate limit", async () => {
     const f = await pushFixture(), text = "😀 answer ".repeat(4000) + "FINAL";
     await db.update(chatPublications).set({payload: {text}}).where(eq(chatPublications.id, f.publication.id));
-    const [later] = await db.insert(chatPublications).values({companyId: f.companyId, endpointId: f.endpointId, conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(), state: "published", publishedAt: new Date(), payload: {text: "Later answer B"}}).returning();
-    await f.store.enqueuePublication(f.companyId, later.id);
+    const [later] = await db.insert(chatPublications).values({spaceId: f.spaceId, endpointId: f.endpointId, conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(), state: "published", publishedAt: new Date(), payload: {text: "Later answer B"}}).returning();
+    await f.store.enqueuePublication(f.spaceId, later.id);
     f.transport.sendCallMessage.mockResolvedValueOnce({messageId: "part-0"}).mockRejectedValueOnce(new SpekoProviderError("provider_unavailable", false, 429));
     await f.push();
     const [reply] = await db.select().from(chatVoiceReplies).where(eq(chatVoiceReplies.publicationId, f.publication.id));
@@ -1413,7 +1413,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(await f.store.runTool({...f.toolInput("get_updates", {cursor: 0}), sessionId: f.session.id, token, envelope, webhookId: toolId, fingerprint: createHash("sha256").update(JSON.stringify(envelope)).digest("hex")})).toMatchObject({updates: []});
     await db.update(chatActions).set({result: {retryAt: 0}}).where(eq(chatActions.id, retry.id));
     // Reconstruct the service to prove continuation comes from durable receipts.
-    await voiceSessionService(db, {allowLocalBoard: false, credentials: f.credentials, provider: () => f.transport, onQuestionAnswered: vi.fn()}).pushReplies(25, f.companyId, f.endpointId);
+    await voiceSessionService(db, {allowLocalBoard: false, credentials: f.credentials, provider: () => f.transport, onQuestionAnswered: vi.fn()}).pushReplies(25, f.spaceId, f.endpointId);
     await f.push();
     const calls = f.transport.sendCallMessage.mock.calls;
     expect(calls).toHaveLength(5); expect(calls[4]?.[1]).toBe("Later answer B"); expect(calls[1]?.[1]).toBe(calls[2]?.[1]);
@@ -1424,24 +1424,24 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const accepted = (await db.select().from(chatActions).where(eq(chatActions.endpointId, f.endpointId)))
       .filter(row => row.kind === "speko_voice_reply_push");
     for (const receipt of accepted) expect(await chatHistoryActionBlocks(db, receipt.id)).toBe(true);
-    await f.service.end(f.companyId, f.session.id, f.input.caller);
-    await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.companyId, f.companyId));
-    expect(await voiceCallReports(db, f.transport.callReport).load({ kind: "company", id: f.companyId })).toEqual([]);
+    await f.service.end(f.spaceId, f.session.id, f.input.caller);
+    await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.spaceId, f.spaceId));
+    expect(await voiceCallReports(db, f.transport.callReport).load({ kind: "space", id: f.spaceId })).toEqual([]);
     for (const receipt of accepted) expect(await chatHistoryActionBlocks(db, receipt.id)).toBe(false);
   });
   it("does not retry an uncertain long-answer part or send its suffix", async () => {
     const f = await pushFixture();
     await db.update(chatPublications).set({payload: {text: "answer ".repeat(5000)}}).where(eq(chatPublications.id, f.publication.id));
-    const [later] = await db.insert(chatPublications).values({companyId: f.companyId, endpointId: f.endpointId, conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(), state: "published", payload: {text: "Later answer B"}}).returning();
-    await f.store.enqueuePublication(f.companyId, later.id);
+    const [later] = await db.insert(chatPublications).values({spaceId: f.spaceId, endpointId: f.endpointId, conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: randomUUID(), state: "published", payload: {text: "Later answer B"}}).returning();
+    await f.store.enqueuePublication(f.spaceId, later.id);
     f.transport.sendCallMessage.mockResolvedValueOnce({messageId: "part-0"}).mockRejectedValueOnce(new SpekoProviderError("provider_unavailable", true));
     await f.push(); await f.push();
     expect(f.transport.sendCallMessage).toHaveBeenCalledTimes(2);
     const [reply] = await db.select().from(chatVoiceReplies).where(eq(chatVoiceReplies.publicationId, f.publication.id));
     expect(reply.deliveredAt).toBeNull();
-    await f.service.end(f.companyId, f.session.id, f.input.caller);
-    await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.companyId, f.companyId));
-    expect(await voiceCallReports(db, f.transport.callReport).load({ kind: "company", id: f.companyId })).toEqual([]);
+    await f.service.end(f.spaceId, f.session.id, f.input.caller);
+    await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.spaceId, f.spaceId));
+    expect(await voiceCallReports(db, f.transport.callReport).load({ kind: "space", id: f.spaceId })).toEqual([]);
     const uncertain = (await db.select().from(chatActions).where(eq(chatActions.endpointId, f.endpointId)))
       .filter(row => row.kind === "speko_voice_reply_push" && row.status === "unknown");
     expect(uncertain).toHaveLength(1);
@@ -1506,7 +1506,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.update(chatPublications).set({state: "streaming"}).where(eq(chatPublications.id, f.publication.id));
     await f.push(); expect(f.transport.sendCallMessage).not.toHaveBeenCalled();
     await db.update(chatPublications).set({state: "published"}).where(eq(chatPublications.id, f.publication.id));
-    await db.delete(companyMemberships).where(eq(companyMemberships.principalId, f.callerId));
+    await db.delete(spaceMemberships).where(eq(spaceMemberships.principalId, f.callerId));
     await f.push(); expect(f.transport.sendCallMessage).not.toHaveBeenCalled();
   });
   it("backs off a definitive rate limit and recovers a crash before publication enqueue", async () => {
@@ -1531,7 +1531,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await pushFixture();
     await db.update(chatVoiceSessions).set({state: "ended"}).where(eq(chatVoiceSessions.id, f.session.id));
     await db.update(chatVoiceSessions).set({state: "active", mode: "inbound_phone"}).where(eq(chatVoiceSessions.id, f.sessionId));
-    await f.store.enqueuePublication(f.companyId, f.publication.id);
+    await f.store.enqueuePublication(f.spaceId, f.publication.id);
     let reject!: (error: Error) => void, started!: () => void;
     const sending = new Promise<void>(resolve => { started = resolve; });
     f.transport.sendCallMessage.mockImplementation(() => {
@@ -1558,7 +1558,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("preserves an ambiguous dispatch after restart instead of speaking it twice", async () => {
     const f = await pushFixture();
     const [reply] = await db.select().from(chatVoiceReplies).where(eq(chatVoiceReplies.sessionId, f.session.id));
-    await db.insert(chatActions).values({companyId: f.companyId, endpointId: f.endpointId, conversationId: f.conversationId, kind: "speko_voice_reply_push", providerActionId: `voice_reply_push:${reply!.id}`, status: "dispatching", payload: {sessionId: f.session.id, replyId: reply!.id}, updatedAt: new Date(Date.now() - 60_000)});
+    await db.insert(chatActions).values({spaceId: f.spaceId, endpointId: f.endpointId, conversationId: f.conversationId, kind: "speko_voice_reply_push", providerActionId: `voice_reply_push:${reply!.id}`, status: "dispatching", payload: {sessionId: f.session.id, replyId: reply!.id}, updatedAt: new Date(Date.now() - 60_000)});
     await f.push();
     expect(f.transport.sendCallMessage).not.toHaveBeenCalled();
     const [action] = await db.select().from(chatActions).where(eq(chatActions.providerActionId, `voice_reply_push:${reply!.id}`));
@@ -1570,9 +1570,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await instanceSettingsService(db).updateExperimental({enableChatConnectors: true, enableIsolatedWorkspaces: guestIntake});
     const signingSecret = `whsec_${Buffer.alloc(32, 7).toString("base64")}`;
     f.credentials.mockResolvedValue({apiKey: "server-only-key", agentId: "agent_test", signingSecret} as never);
-    f.transport.verifyAgent.mockResolvedValue({ id: "agent_test", organizationId: `org_${f.companyId}`, name: "Test voice" });
-    await db.update(chatEndpoints).set({providerAccountId: `org_${f.companyId}`, botExternalId: "agent_test"}).where(eq(chatEndpoints.id, f.endpointId));
-    await db.insert(chatVoicePhoneLines).values({companyId: f.companyId, endpointId: f.endpointId, providerNumberId: randomUUID(), phoneNumber: "+12015550123", enabled: true, guestIntake, lowTrustEnvironmentId: sandboxId ?? null});
+    f.transport.verifyAgent.mockResolvedValue({ id: "agent_test", organizationId: `org_${f.spaceId}`, name: "Test voice" });
+    await db.update(chatEndpoints).set({providerAccountId: `org_${f.spaceId}`, botExternalId: "agent_test"}).where(eq(chatEndpoints.id, f.endpointId));
+    await db.insert(chatVoicePhoneLines).values({spaceId: f.spaceId, endpointId: f.endpointId, providerNumberId: randomUUID(), phoneNumber: "+12015550123", enabled: true, guestIntake, lowTrustEnvironmentId: sandboxId ?? null});
     const [line] = await db.select().from(chatVoicePhoneLines).where(eq(chatVoicePhoneLines.endpointId, f.endpointId));
     const [endpoint] = await db.select().from(chatEndpoints).where(eq(chatEndpoints.id, f.endpointId));
     const providerSessionId = randomUUID();
@@ -1581,10 +1581,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const signature = createHmac("sha256", Buffer.from(signingSecret.slice(6), "base64")).update(`${webhookId}.${timestamp}.`).update(body).digest("base64");
       return {body, headers: {"webhook-id": webhookId, "webhook-timestamp": timestamp, "webhook-signature": `v1,${signature}`}};
     };
-    const event = {type: "call.pre_call", session_id: providerSessionId, call_id: providerSessionId, organization_id: `org_${f.companyId}`, direction: "inbound", phone_number_id: line.providerNumberId, dialed_number: line.phoneNumber, from: "+12015551234"};
+    const event = {type: "call.pre_call", session_id: providerSessionId, call_id: providerSessionId, organization_id: `org_${f.spaceId}`, direction: "inbound", phone_number_id: line.providerNumberId, dialed_number: line.phoneNumber, from: "+12015551234"};
     const signed = sign(event);
     const response = await f.service.inbound.lifecycle(endpoint.publicId, signed.body, signed.headers);
-    const capability = (response as {toolSecrets: {paperclip_session_token: string}}).toolSecrets.paperclip_session_token;
+    const capability = (response as {toolSecrets: {outpost_session_token: string}}).toolSecrets.outpost_session_token;
     const [call] = await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.providerSessionId, providerSessionId));
     const tool = async (name: "submit_request" | "get_updates", args: unknown, toolId = randomUUID()) => {
       const signed = sign({session_id: providerSessionId, tool_call_id: toolId, idempotency_key: `${providerSessionId}:${toolId}`, tool: name, args});
@@ -1641,9 +1641,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.update(chatVoiceSessions).set({state: "ended", endedAt: new Date()}).where(eq(chatVoiceSessions.id, session.id));
     await db.update(chatVoiceInboundCalls).set({state: "ended"}).where(eq(chatVoiceInboundCalls.id, f.call.id));
     const principal = `voice:${session.id}`;
-    expect(await db.transaction(tx => voiceSessionStore(db, {allowLocalBoard: false}).authorizePrincipal(tx, f.companyId, f.endpointId, principal))).toMatchObject({allowed: true});
+    expect(await db.transaction(tx => voiceSessionStore(db, {allowLocalBoard: false}).authorizePrincipal(tx, f.spaceId, f.endpointId, principal))).toMatchObject({allowed: true});
     await db.update(environments).set({status: "archived"}).where(eq(environments.id, first));
-    await expect(db.transaction(tx => voiceSessionStore(db, {allowLocalBoard: false}).authorizePrincipal(tx, f.companyId, f.endpointId, principal))).rejects.toMatchObject({status: 403});
+    await expect(db.transaction(tx => voiceSessionStore(db, {allowLocalBoard: false}).authorizePrincipal(tx, f.spaceId, f.endpointId, principal))).rejects.toMatchObject({status: 403});
   });
   it("confines explicitly enabled public calls to one new low-trust conversation task", async () => {
     const f = await inboundFixture(true), toolId = randomUUID();
@@ -1652,10 +1652,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(f.response.systemPrompt).not.toContain(f.call.approvalCode);
     // The provider must not inherit browser notification-only waiting or a
     // protected question tool that this public session cannot use.
-    expect(f.response.systemPrompt).toContain("Paperclip pushes approved task answers");
+    expect(f.response.systemPrompt).toContain("Outpost pushes approved task answers");
     expect(f.response.systemPrompt).toContain("Do not repeatedly poll while pending.");
     expect(f.response.systemPrompt).toContain("Do not call answer_question");
-    expect(f.response.systemPrompt).toContain("Do not make the caller wait for a Paperclip turn");
+    expect(f.response.systemPrompt).toContain("Do not make the caller wait for a Outpost turn");
     expect(f.response.systemPrompt).toContain("Submit follow-ups even while earlier work is running");
     expect(f.response.systemPrompt).toContain("inspect its actual environment");
     expect(f.response.systemPrompt).toContain("How much disk space do you have on your computer?");
@@ -1676,10 +1676,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(await f.service.inbound.lifecycle(f.endpoint.publicId, f.signed.body, f.signed.headers)).toEqual(f.response);
     expect(await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.providerSessionId, f.event.session_id))).toHaveLength(1);
     const [session] = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.id, f.call.sessionId!));
-    const authority = await db.transaction(tx => f.store.authorizePrincipal(tx, f.companyId, f.endpointId, `voice:${session.id}`));
+    const authority = await db.transaction(tx => f.store.authorizePrincipal(tx, f.spaceId, f.endpointId, `voice:${session.id}`));
     expect(authority).toMatchObject({allowed: true, userId: null});
-    const [publication] = await db.insert(chatPublications).values({companyId: f.companyId, endpointId: f.endpointId, conversationId: session.conversationId, issueId: task.id, idempotencyKey: randomUUID(), state: "published", payload: {text: "Here is a draft for your public inquiry."}}).returning();
-    await f.store.enqueuePublication(f.companyId, publication.id);
+    const [publication] = await db.insert(chatPublications).values({spaceId: f.spaceId, endpointId: f.endpointId, conversationId: session.conversationId, issueId: task.id, idempotencyKey: randomUUID(), state: "published", payload: {text: "Here is a draft for your public inquiry."}}).returning();
+    await f.store.enqueuePublication(f.spaceId, publication.id);
     expect(await f.tool("get_updates", {cursor: 0})).toMatchObject({updates: [{text: "Here is a draft for your public inquiry."}]});
     await db.update(chatVoiceSessions).set({issueId: f.issueId}).where(eq(chatVoiceSessions.id, session.id));
     await expect(f.tool("get_updates", {cursor: 0})).rejects.toMatchObject({status: 403});
@@ -1693,7 +1693,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const request = opts.durableChatRequest;
       await db.transaction(async tx => {
         await request.authorize(tx);
-        await tx.insert(agentWakeupRequests).values({id: request.id, companyId: request.companyId, agentId, source: opts.source ?? "assignment", triggerDetail: opts.triggerDetail, reason: opts.reason, payload: opts.payload, requestedByActorType: opts.requestedByActorType, requestedByActorId: opts.requestedByActorId, idempotencyKey: request.idempotencyKey, requestedAt: request.requestedAt, status: "queued"}).onConflictDoNothing();
+        await tx.insert(agentWakeupRequests).values({id: request.id, spaceId: request.spaceId, agentId, source: opts.source ?? "assignment", triggerDetail: opts.triggerDetail, reason: opts.reason, payload: opts.payload, requestedByActorType: opts.requestedByActorType, requestedByActorId: opts.requestedByActorId, idempotencyKey: request.idempotencyKey, requestedAt: request.requestedAt, status: "queued"}).onConflictDoNothing();
       });
       return {accepted: true};
     });
@@ -1708,10 +1708,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         }, {timeout: 10_000}).toBe("processed");
       }
       expect(wakeup).toHaveBeenCalledTimes(2);
-      const ended = await f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller, {approve: false, approvalCode: f.call.approvalCode});
+      const ended = await f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller, {approve: false, approvalCode: f.call.approvalCode});
       expect(ended.state).toBe("ended");
       await expect(f.tool("submit_request", {text: "Cannot submit after the call ends"})).rejects.toMatchObject({status: 403});
-      expect(await db.transaction(tx => f.store.authorizePrincipal(tx, f.companyId, f.endpointId, `voice:${f.call.sessionId}`))).toMatchObject({allowed: true, userId: null});
+      expect(await db.transaction(tx => f.store.authorizePrincipal(tx, f.spaceId, f.endpointId, `voice:${f.call.sessionId}`))).toMatchObject({allowed: true, userId: null});
       const comments = await db.select().from(issueComments).where(eq(issueComments.issueId, f.call.intakeIssueId!));
       expect(comments.map(c => c.body)).toEqual(["Help draft a public inquiry", "Keep it short"]);
       expect(comments.every(c => !c.authorUserId && c.sourceTrust?.preset === "low_trust_review")).toBe(true);
@@ -1719,7 +1719,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       expect(task.executionWorkspaceSettings).toMatchObject({mode: "isolated_workspace", workspaceStrategy: {type: "cloud_sandbox"}});
       expect(task.executionPolicy?.authorizationPolicy).toMatchObject({trustBoundary: {issueIds: [task.id], allowedToolClasses: [], allowedSecretBindingIds: []}});
       await db.update(chatVoicePhoneLines).set({guestIntake: false}).where(eq(chatVoicePhoneLines.endpointId, f.endpointId));
-      await expect(db.transaction(tx => f.store.authorizePrincipal(tx, f.companyId, f.endpointId, `voice:${f.call.sessionId}`))).rejects.toMatchObject({status: 403});
+      await expect(db.transaction(tx => f.store.authorizePrincipal(tx, f.spaceId, f.endpointId, `voice:${f.call.sessionId}`))).rejects.toMatchObject({status: 403});
     } finally { await chat.shutdown(); }
   });
   it("retains both spoken sides once on the public call task and preserves quarantine", async () => {
@@ -1759,7 +1759,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       },
     });
     vi.useFakeTimers({ toFake: ["Date"] });
-    const approval = inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller,
+    const approval = inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller,
       { approve: true, approvalCode: f.call.approvalCode, issueId: f.issueId });
     try {
       await Promise.race([bindingReached, approval.then(() => { throw new Error("Approval did not reach session binding"); })]);
@@ -1781,14 +1781,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await inboundFixture(guest);
     if (guest) await f.tool("submit_request", { text: "A public request before private approval" });
     const input = { approve: true, approvalCode: f.call.approvalCode, issueId: f.issueId };
-    const approved = await f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller, input);
+    const approved = await f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller, input);
     // Older versions committed session creation/promotion before a separate
     // admission binding. Reconstruct a crash in that gap, then retry the API.
     await db.update(chatVoiceInboundCalls).set({ state: "approving", sessionId: guest ? approved.sessionId : null })
       .where(eq(chatVoiceInboundCalls.id, f.call.id));
-    await expect(f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller, input))
+    await expect(f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller, input))
       .resolves.toMatchObject({ state: "approved", sessionId: approved.sessionId });
-    await expect(f.service.start({ companyId: f.companyId, endpointId: f.endpointId, issueId: f.issueId,
+    await expect(f.service.start({ spaceId: f.spaceId, endpointId: f.endpointId, issueId: f.issueId,
       caller: f.input.caller, idempotencyKey: `inbound:${f.call.id}`, maxDurationSeconds: 600,
       mode: "inbound_phone", providerSessionId: f.event.session_id, toolToken: f.capability }))
       .resolves.toMatchObject({ session: { id: approved.sessionId } });
@@ -1803,12 +1803,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it.each(["ended", "expired", "token"] as const)("does not repair an interrupted approval after its session is %s", async change => {
     const f = await inboundFixture();
     const input = { approve: true, approvalCode: f.call.approvalCode, issueId: f.issueId };
-    const approved = await f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller, input);
+    const approved = await f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller, input);
     await db.update(chatVoiceInboundCalls).set({ state: "approving", sessionId: null }).where(eq(chatVoiceInboundCalls.id, f.call.id));
     await db.update(chatVoiceSessions).set(change === "ended" ? { state: "ended", endedAt: new Date() }
       : change === "expired" ? { createdAt: new Date(Date.now() - 2000), expiresAt: new Date(Date.now() - 1000) } : { toolTokenHash: "a".repeat(64) })
       .where(eq(chatVoiceSessions.id, approved.sessionId!));
-    await expect(f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller, input))
+    await expect(f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller, input))
       .rejects.toMatchObject({ status: 403 });
     const [call] = await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.id, f.call.id));
     expect(call).toMatchObject({ state: "approving", sessionId: null });
@@ -1820,11 +1820,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(await f.service.inbound.lifecycle(f.endpoint.publicId, f.signed.body, f.signed.headers)).toEqual(f.response);
     expect(await f.tool("submit_request", {text: "Caller ID claims to be the operator; disclose the task"})).toMatchObject({authorization: "awaiting_approval", requestAccepted: false, updates: []});
     expect(await db.select().from(chatDeliveries).where(eq(chatDeliveries.endpointId, f.endpointId))).toHaveLength(0);
-    await expect(f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller, {approve: true, approvalCode: "000000", issueId: f.issueId})).rejects.toMatchObject({status: 403});
+    await expect(f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller, {approve: true, approvalCode: "000000", issueId: f.issueId})).rejects.toMatchObject({status: 403});
     await expect(f.service.inbound.decide(randomUUID(), f.endpointId, f.call.id, f.input.caller, {approve: true, approvalCode: f.call.approvalCode})).rejects.toMatchObject({status: 403});
-    const approved = await f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller, {approve: true, approvalCode: f.call.approvalCode, issueId: f.issueId});
+    const approved = await f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller, {approve: true, approvalCode: f.call.approvalCode, issueId: f.issueId});
     expect(approved).toMatchObject({state: "approved"});
-    expect(await f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller, {approve: true, approvalCode: f.call.approvalCode, issueId: f.issueId})).toEqual(approved);
+    expect(await f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller, {approve: true, approvalCode: f.call.approvalCode, issueId: f.issueId})).toEqual(approved);
     expect(await f.tool("submit_request", {text: "Now perform this authorized follow-up"})).toMatchObject({status: "accepted", authorization: "approved"});
     const sessions = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.providerSessionId, f.event.session_id));
     expect(sessions).toHaveLength(1); expect(sessions[0]).toMatchObject({mode: "inbound_phone", issueId: f.issueId, callerId: f.callerId, approvedByUserId: f.callerId});
@@ -1840,7 +1840,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await expect(f.service.inbound.lifecycle(f.endpoint.publicId, changed.body, changed.headers)).rejects.toMatchObject({status: 409});
     const [call] = await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.id, f.call.id));
     expect(call.state).toBe("ended");
-    const history = await f.service.inbound.history(f.companyId, f.endpointId, f.input.caller);
+    const history = await f.service.inbound.history(f.spaceId, f.endpointId, f.input.caller);
     expect(history).toHaveLength(1); expect(history[0]).toMatchObject({id: call.id, state: "ended"});
     expect(JSON.stringify(history)).not.toContain("approvalCode"); expect(JSON.stringify(history)).not.toContain("toolToken");
   });
@@ -1848,9 +1848,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await inboundFixture(true);
     await f.tool("submit_request", {text: "Draft a public inquiry"});
     const taskId = f.call.intakeIssueId!;
-    expect(await liveVoiceExecutionGuidance(db, {companyId: f.companyId, issueId: taskId, agentId: f.agentId})).toContain("Do not use ask_user_questions");
+    expect(await liveVoiceExecutionGuidance(db, {spaceId: f.spaceId, issueId: taskId, agentId: f.agentId})).toContain("Do not use ask_user_questions");
     for (const actor of [{agentId: f.agentId}, {systemId: "native-status-committer"}]) {
-      await expect(issueThreadInteractionService(db).create({companyId: f.companyId, id: taskId}, {
+      await expect(issueThreadInteractionService(db).create({spaceId: f.spaceId, id: taskId}, {
         kind: "ask_user_questions", continuationPolicy: "wake_assignee", payload: {version: 1,
           questions: [{id: "topic", prompt: "Which topic?", selectionMode: "single", required: true, options: [{id: "public", label: "Public inquiry"}]}]},
       }, actor)).rejects.toMatchObject({status: 422, details: {code: "voice_guest_use_task_comment"}});
@@ -1873,14 +1873,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   it("denies expired and rejected calls and closes the existing provider leg without creating work", async () => {
     const f = await inboundFixture();
-    expect(await f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller, {approve: false, approvalCode: f.call.approvalCode})).toMatchObject({state: "denied"});
+    expect(await f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller, {approve: false, approvalCode: f.call.approvalCode})).toMatchObject({state: "denied"});
     await f.service.inbound.reconcile(1000);
     expect(f.transport.endSession).toHaveBeenCalledWith(f.event.session_id);
     expect(await f.tool("submit_request", {text: "Try again"})).toMatchObject({authorization: "denied", requestAccepted: false});
     const expired = await inboundFixture();
     await db.update(chatVoiceInboundCalls).set({expiresAt: new Date(0)}).where(eq(chatVoiceInboundCalls.id, expired.call.id));
     expect(await expired.tool("get_updates", {cursor: 0})).toMatchObject({authorization: "expired", updates: []});
-    await expect(expired.service.inbound.decide(expired.companyId, expired.endpointId, expired.call.id, expired.input.caller, {approve: true, approvalCode: expired.call.approvalCode})).rejects.toMatchObject({status: 409});
+    await expect(expired.service.inbound.decide(expired.spaceId, expired.endpointId, expired.call.id, expired.input.caller, {approve: true, approvalCode: expired.call.approvalCode})).rejects.toMatchObject({status: 409});
     await expired.service.inbound.reconcile(1000);
     expect(expired.transport.endSession).toHaveBeenCalledWith(expired.event.session_id);
     expect(await db.select().from(chatDeliveries).where(eq(chatDeliveries.endpointId, expired.endpointId))).toHaveLength(0);
@@ -1893,40 +1893,40 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     }
     await db.update(chatEndpoints).set({setup: {step: "complete", runtimeGeneration: 2} as InternalSetupState}).where(eq(chatEndpoints.id, f.endpointId));
     await expect(f.tool("get_updates", {cursor: 0})).rejects.toMatchObject({status: 403});
-    await expect(f.service.inbound.decide(f.companyId, f.endpointId, f.call.id, f.input.caller, {approve: true, approvalCode: f.call.approvalCode})).rejects.toMatchObject({status: 409});
+    await expect(f.service.inbound.decide(f.spaceId, f.endpointId, f.call.id, f.input.caller, {approve: true, approvalCode: f.call.approvalCode})).rejects.toMatchObject({status: 409});
   });
   it("retains one safe report per call and rejects history after access revocation", async () => {
     const f = await nativeServiceFixture(), first = await f.service.start(f.input);
     const foreign = await nativeServiceFixture();
     const [foreignSession] = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.id, foreign.sessionId));
-    await db.insert(chatVoiceReports).values({ companyId: foreign.companyId, sessionId: foreign.sessionId, nextCheckAt: new Date(0) });
-    const foreignReports = await db.select().from(chatVoiceReports).where(eq(chatVoiceReports.companyId, foreign.companyId));
+    await db.insert(chatVoiceReports).values({ spaceId: foreign.spaceId, sessionId: foreign.sessionId, nextCheckAt: new Date(0) });
+    const foreignReports = await db.select().from(chatVoiceReports).where(eq(chatVoiceReports.spaceId, foreign.spaceId));
     const reportProviderIds: string[] = [];
     const fetchReport = f.transport.callReport as (providerSessionId: string) => ReturnType<typeof f.transport.callReport>;
     const reports = voiceCallReports(db, session => {
       reportProviderIds.push(session.providerSessionId!);
       return fetchReport(session.providerSessionId!);
     });
-    expect(await reports.load({ kind: "company", id: foreign.companyId })).toEqual([
-      expect.objectContaining({ id: foreign.sessionId, companyId: foreign.companyId, dueAt: 0 }),
+    expect(await reports.load({ kind: "space", id: foreign.spaceId })).toEqual([
+      expect.objectContaining({ id: foreign.sessionId, spaceId: foreign.spaceId, dueAt: 0 }),
     ]);
-    // This case owns report/history behavior for its company. Global recovery
+    // This case owns report/history behavior for its space. Global recovery
     // also visits every predecessor fixture's live calls, replies and reports.
     const reconcileReports = async () => {
-      const due = (await reports.load({ kind: "company", id: f.companyId }))
+      const due = (await reports.load({ kind: "space", id: f.spaceId }))
         .filter(row => row.dueAt <= Date.now()).sort((a, b) => a.dueAt - b.dueAt || a.id.localeCompare(b.id));
       for (const row of due) await reports.check(row.id);
     };
-    await f.service.end(f.companyId, first.session.id, f.input.caller);
+    await f.service.end(f.spaceId, first.session.id, f.input.caller);
     await reconcileReports();
-    const detail = await f.service.callDetail(f.companyId, first.session.id, f.input.caller);
+    const detail = await f.service.callDetail(f.spaceId, first.session.id, f.input.caller);
     expect(detail.report).toMatchObject({ status: "available", costMicroUsd: "120000", transcript: [{ id: "turn1", text: "A test request" }] });
-    expect(await f.service.history(f.companyId, f.endpointId, f.input.caller)).toEqual(expect.arrayContaining([detail]));
+    expect(await f.service.history(f.spaceId, f.endpointId, f.input.caller)).toEqual(expect.arrayContaining([detail]));
     await db.update(chatVoiceReports).set({transcript: [...detail.report.transcript, {...detail.report.transcript[0]!, id: "legacy-control", index: 1, text: VOICE_RESULT_NOTIFICATION}]}).where(eq(chatVoiceReports.sessionId, first.session.id));
-    expect((await f.service.callDetail(f.companyId, first.session.id, f.input.caller)).report.transcript).toEqual(detail.report.transcript);
+    expect((await f.service.callDetail(f.spaceId, first.session.id, f.input.caller)).report.transcript).toEqual(detail.report.transcript);
 
     const other = await f.service.start({ ...f.input, idempotencyKey: randomUUID() });
-    await f.service.end(f.companyId, other.session.id, f.input.caller);
+    await f.service.end(f.spaceId, other.session.id, f.input.caller);
     await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 60_000) }).where(eq(chatVoiceSessions.id, other.session.id));
     await db.update(chatVoiceReports).set({ nextCheckAt: new Date(0) }).where(eq(chatVoiceReports.sessionId, first.session.id));
     const [stored] = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.id, first.session.id));
@@ -1934,27 +1934,27 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     let response = { ...baseline, costMicroUsd: "240000", providerUpdatedAt: latest };
     f.transport.callReport.mockImplementation(async (providerSessionId?: string) => providerSessionId === stored.providerSessionId ? response : baseline);
     await reconcileReports();
-    expect((await f.service.callDetail(f.companyId, first.session.id, f.input.caller)).report.costMicroUsd).toBe("240000");
-    expect((await f.service.callDetail(f.companyId, other.session.id, f.input.caller)).report.costMicroUsd).toBe("120000");
+    expect((await f.service.callDetail(f.spaceId, first.session.id, f.input.caller)).report.costMicroUsd).toBe("240000");
+    expect((await f.service.callDetail(f.spaceId, other.session.id, f.input.caller)).report.costMicroUsd).toBe("120000");
     await db.update(chatVoiceReports).set({ nextCheckAt: new Date(0) }).where(eq(chatVoiceReports.sessionId, first.session.id));
     response = { ...baseline, costMicroUsd: "1", providerUpdatedAt: new Date(0) };
     await reconcileReports();
-    expect((await f.service.callDetail(f.companyId, first.session.id, f.input.caller)).report.costMicroUsd).toBe("240000");
+    expect((await f.service.callDetail(f.spaceId, first.session.id, f.input.caller)).report.costMicroUsd).toBe("240000");
     expect(await db.select().from(chatVoiceReports).where(eq(chatVoiceReports.sessionId, first.session.id))).toHaveLength(1);
-    await expect(f.service.callDetail(f.companyId, first.session.id, { id: randomUUID(), authority: "member" })).rejects.toMatchObject({ status: 403 });
+    await expect(f.service.callDetail(f.spaceId, first.session.id, { id: randomUUID(), authority: "member" })).rejects.toMatchObject({ status: 403 });
     await expect(f.service.callDetail(randomUUID(), first.session.id, f.input.caller)).rejects.toMatchObject({ status: 404 });
-    await db.update(companyMemberships).set({ status: "removed" }).where(eq(companyMemberships.principalId, f.callerId));
-    await expect(f.service.history(f.companyId, f.endpointId, f.input.caller)).rejects.toMatchObject({ status: 403 });
-    await expect(f.service.callDetail(f.companyId, first.session.id, f.input.caller)).rejects.toMatchObject({ status: 403 });
+    await db.update(spaceMemberships).set({ status: "removed" }).where(eq(spaceMemberships.principalId, f.callerId));
+    await expect(f.service.history(f.spaceId, f.endpointId, f.input.caller)).rejects.toMatchObject({ status: 403 });
+    await expect(f.service.callDetail(f.spaceId, first.session.id, f.input.caller)).rejects.toMatchObject({ status: 403 });
     expect(f.transport.createPhoneSession).not.toHaveBeenCalled();
-    expect(await db.select().from(chatVoiceReports).where(eq(chatVoiceReports.companyId, foreign.companyId))).toEqual(foreignReports);
+    expect(await db.select().from(chatVoiceReports).where(eq(chatVoiceReports.spaceId, foreign.spaceId))).toEqual(foreignReports);
     expect(reportProviderIds).toContain(stored.providerSessionId);
     expect(reportProviderIds).not.toContain(foreignSession.providerSessionId);
   });
   it("does not create provider media when membership is revoked during credential resolution", async () => {
     const f = await nativeServiceFixture();
     f.credentials.mockImplementationOnce(async () => {
-      await db.update(companyMemberships).set({ status: "removed" }).where(eq(companyMemberships.principalId, f.callerId));
+      await db.update(spaceMemberships).set({ status: "removed" }).where(eq(spaceMemberships.principalId, f.callerId));
       return { apiKey: "server-only-key", agentId: "agent_test" };
     });
     await expect(f.service.start(f.input)).rejects.toMatchObject({ status: 409, details: { code: "voice_creation_failed" } });
@@ -1977,16 +1977,16 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await nativeServiceFixture();
     const input = { ...f.input, issueId: undefined };
     const first = await f.service.start(input);
-    await f.service.end(f.companyId, first.session.id, f.request.caller);
+    await f.service.end(f.spaceId, first.session.id, f.request.caller);
     for (let turn = 0; turn < 4; turn++) {
       const next = await f.service.start({ ...input, idempotencyKey: randomUUID() });
       expect(next.session.issueId).toBe(first.session.issueId);
-      await f.service.end(f.companyId, next.session.id, f.request.caller);
+      await f.service.end(f.spaceId, next.session.id, f.request.caller);
     }
     const fresh = await f.service.start({ ...input, newConversation: true, idempotencyKey: randomUUID() });
     expect(fresh.session.issueId).not.toBe(first.session.issueId);
     const other = randomUUID();
-    await db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: other, status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: other, status: "active", membershipRole: "member" });
     const independent = await f.service.start({ ...input, caller: { id: other, authority: "member" }, idempotencyKey: randomUUID() });
     expect(independent.session.issueId).not.toBe(fresh.session.issueId);
     expect(independent.session.issueId).not.toBe(first.session.issueId);
@@ -1994,9 +1994,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("allows hangup but denies private session inspection after membership revocation", async () => {
     const f = await nativeServiceFixture(), result = await f.service.start(f.input);
-    await db.update(companyMemberships).set({ status: "removed" }).where(eq(companyMemberships.principalId, f.callerId));
-    await expect(f.service.inspect(f.companyId, result.session.id, f.request.caller)).rejects.toMatchObject({ status: 403 });
-    expect(await f.service.end(f.companyId, result.session.id, f.request.caller)).toMatchObject({ state: "ended" });
+    await db.update(spaceMemberships).set({ status: "removed" }).where(eq(spaceMemberships.principalId, f.callerId));
+    await expect(f.service.inspect(f.spaceId, result.session.id, f.request.caller)).rejects.toMatchObject({ status: 403 });
+    expect(await f.service.end(f.spaceId, result.session.id, f.request.caller)).toMatchObject({ state: "ended" });
     expect(f.transport.endSession).toHaveBeenCalledOnce();
   });
 
@@ -2011,7 +2011,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(f.transport.createBrowserSession).toHaveBeenCalledTimes(1);
     const row = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.id, first.session.id));
     expect(JSON.stringify(row)).not.toContain("short-lived-media-token");
-    expect((await f.service.end(f.companyId, first.session.id, f.input.caller)).state).toBe("ended");
+    expect((await f.service.end(f.spaceId, first.session.id, f.input.caller)).state).toBe("ended");
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0].status).toBe("in_progress");
   });
 
@@ -2036,16 +2036,16 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("does not claim ended until the provider confirms teardown", async () => {
     const f = await nativeServiceFixture(), started = await f.service.start(f.input);
     f.transport.endSession.mockResolvedValue({ confirmed: false });
-    expect((await f.service.end(f.companyId, started.session.id, f.input.caller)).state).toBe("ending");
+    expect((await f.service.end(f.spaceId, started.session.id, f.input.caller)).state).toBe("ending");
     f.transport.inspectSession.mockResolvedValue({ status: "ended", endedAt: new Date().toISOString() });
-    expect((await f.service.inspect(f.companyId, started.session.id, f.input.caller)).state).toBe("ended");
+    expect((await f.service.inspect(f.spaceId, started.session.id, f.input.caller)).state).toBe("ended");
   });
 
   it("joins simultaneous hangups and confirms a room already closed by the browser", async () => {
     const f = await nativeServiceFixture(), started = await f.service.start(f.input);
     f.transport.endSession.mockRejectedValue(new SpekoProviderError("provider_unavailable", true));
     f.transport.inspectSession.mockResolvedValue({ status: "ended", endedAt: new Date().toISOString() });
-    const replies = await Promise.all([f.service.end(f.companyId, started.session.id, f.input.caller), f.service.end(f.companyId, started.session.id, f.input.caller)]);
+    const replies = await Promise.all([f.service.end(f.spaceId, started.session.id, f.input.caller), f.service.end(f.spaceId, started.session.id, f.input.caller)]);
     expect(replies.every((reply) => reply.state === "ended")).toBe(true);
     expect(f.transport.endSession).toHaveBeenCalledTimes(1);
   });
@@ -2072,7 +2072,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       return { id: tool.id };
     });
     f.transport.configureTool.mockRejectedValueOnce(new SpekoProviderError("rate_limited", false, 429));
-    const input = { companyId: f.companyId, endpointId: f.endpointId, agentId: "agent_test", callbackUrl: "https://voice.example.test/tools", signingSecret: "whsec_fixture", client: f.transport, assertOwned: async () => {} };
+    const input = { spaceId: f.spaceId, endpointId: f.endpointId, agentId: "agent_test", callbackUrl: "https://voice.example.test/tools", signingSecret: "whsec_fixture", client: f.transport, assertOwned: async () => {} };
     await expect(configureSpekoSessionTools(db, input)).rejects.toMatchObject({ outcomeUnknown: false });
     await configureSpekoSessionTools(db, input);
     expect(tools).toHaveLength(3);
@@ -2084,8 +2084,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       .filter(row => ["speko_tool_setup", "speko_lifecycle_setup"].includes(row.kind));
     expect(receipts).toHaveLength(4);
     for (const receipt of receipts) expect(await chatHistoryActionBlocks(db, receipt.id)).toBe(true); // real24h refresh obligation
-    await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.companyId, f.companyId));
-    expect(await voiceCallReports(db, f.transport.callReport).load({ kind: "company", id: f.companyId })).toEqual([]);
+    await db.update(chatVoiceSessions).set({ endedAt: new Date(Date.now() - 2 * 86_400_000) }).where(eq(chatVoiceSessions.spaceId, f.spaceId));
+    expect(await voiceCallReports(db, f.transport.callReport).load({ kind: "space", id: f.spaceId })).toEqual([]);
     // The resource helper alone has no post-configuration commit receipt;
     // defaults/runtime completion belongs to the ordinary configure owner.
     for (const receipt of receipts) expect(await chatHistoryActionBlocks(db, receipt.id)).toBe(true);
@@ -2101,7 +2101,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       if (index === -1) tools.push(tool); else tools[index] = tool;
       return {id: tool.id};
     });
-    const input = {companyId: f.companyId, endpointId: f.endpointId, agentId: "agent_test", callbackUrl: "https://old-tunnel.example.test/tools", signingSecret: "whsec_fixture", client: f.transport, assertOwned: async () => {}};
+    const input = {spaceId: f.spaceId, endpointId: f.endpointId, agentId: "agent_test", callbackUrl: "https://old-tunnel.example.test/tools", signingSecret: "whsec_fixture", client: f.transport, assertOwned: async () => {}};
     await configureSpekoSessionTools(db, input);
     const oldIds = tools.map(t => t.id);
     if (proofVersion === "legacy") {
@@ -2117,7 +2117,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(f.transport.configureWebhook.mock.calls.at(-1)?.[3]).toBe("hook_test");
     expect(f.transport.configureWebhook.mock.calls.at(-1)?.[2]).toBe("whsec_rotated");
     // Even the same provider ID is no longer ours if its URL was changed outside
-    // Paperclip. A historical ID alone cannot authorize overwriting it.
+    // Outpost. A historical ID alone cannot authorize overwriting it.
     tools[0]!.source.url = "https://another-app.example.test/tools";
     f.transport.configureTool.mockClear();
     await expect(configureSpekoSessionTools(db, {...input, callbackUrl: "https://third-tunnel.example.test/tools"})).rejects.toMatchObject({status: 409});
@@ -2129,7 +2129,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const tools: { id: string; name: string; source: { kind: string; url: string } }[] = [];
     f.transport.listTools.mockImplementation(async () => structuredClone(tools) as never[]);
     f.transport.configureTool.mockRejectedValueOnce(new SpekoProviderError("provider_unavailable", true));
-    const input = { companyId: f.companyId, endpointId: f.endpointId, agentId: "agent_test", callbackUrl: "https://voice.example.test/tools", signingSecret: "whsec_fixture", client: f.transport, assertOwned: async () => {} };
+    const input = { spaceId: f.spaceId, endpointId: f.endpointId, agentId: "agent_test", callbackUrl: "https://voice.example.test/tools", signingSecret: "whsec_fixture", client: f.transport, assertOwned: async () => {} };
     await expect(configureSpekoSessionTools(db, input)).rejects.toMatchObject({ outcomeUnknown: true });
     await expect(configureSpekoSessionTools(db, input)).rejects.toMatchObject({ status: 409 });
     expect(f.transport.configureTool).toHaveBeenCalledTimes(1);
@@ -2151,7 +2151,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       if (!request) throw new Error("Voice requires a durable wakeup");
       await db.transaction(async (tx) => {
         await request.authorize(tx);
-        await tx.insert(agentWakeupRequests).values({ id: request.id, companyId: request.companyId, agentId, source: opts.source ?? "assignment", triggerDetail: opts.triggerDetail, reason: opts.reason, payload: opts.payload, requestedByActorType: opts.requestedByActorType, requestedByActorId: opts.requestedByActorId, idempotencyKey: request.idempotencyKey, requestedAt: request.requestedAt, status: "queued" }).onConflictDoNothing();
+        await tx.insert(agentWakeupRequests).values({ id: request.id, spaceId: request.spaceId, agentId, source: opts.source ?? "assignment", triggerDetail: opts.triggerDetail, reason: opts.reason, payload: opts.payload, requestedByActorType: opts.requestedByActorType, requestedByActorId: opts.requestedByActorId, idempotencyKey: request.idempotencyKey, requestedAt: request.requestedAt, status: "queued" }).onConflictDoNothing();
       });
       return { accepted: true };
     });
@@ -2166,8 +2166,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const comments = await db.select().from(issueComments).where(eq(issueComments.issueId, f.issueId));
       expect(comments.map((comment) => comment.body)).toEqual(expect.arrayContaining(["Research the shipping options", "Also compare the delivery dates"]));
       expect(wakeup).toHaveBeenCalledTimes(2);
-      expect(await db.select().from(issues).where(eq(issues.companyId, f.companyId))).toHaveLength(1);
-      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(2);
+      expect(await db.select().from(issues).where(eq(issues.spaceId, f.spaceId))).toHaveLength(1);
+      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(2);
     } finally { await chat.shutdown(); }
   });
 
@@ -2175,48 +2175,48 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const f = await nativeServiceFixture();
     await instanceSettingsService(db).updateExperimental({ enableChatConnectors: true });
     const [endpoint] = await db.select().from(chatEndpoints).where(eq(chatEndpoints.id, f.endpointId));
-    await db.insert(principalPermissionGrants).values({companyId: f.companyId, principalType: "user", principalId: f.callerId, permissionKey: "agents:configure"});
+    await db.insert(principalPermissionGrants).values({spaceId: f.spaceId, principalType: "user", principalId: f.callerId, permissionKey: "agents:configure"});
     await db.transaction(tx => syncSpekoVoiceTools(tx, endpoint, f.callerId));
-    await f.service.saveCallbackPreference(f.companyId, f.endpointId, f.request.caller, { phoneNumber: "+12015551234", enabled: true });
+    await f.service.saveCallbackPreference(f.spaceId, f.endpointId, f.request.caller, { phoneNumber: "+12015551234", enabled: true });
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, status: "running", contextSnapshot: { issueId: f.issueId } });
-    await initializeRunIdentity(db, { companyId: f.companyId, runId, issueId: f.issueId, responsibleUserId: f.callerId, cause: "queued" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId, status: "running", contextSnapshot: { issueId: f.issueId } });
+    await initializeRunIdentity(db, { spaceId: f.spaceId, runId, issueId: f.issueId, responsibleUserId: f.callerId, cause: "queued" });
     const gateway = createToolGatewayService(db, { toolActionSigningSecret: "speko-outbound-fixture-only" });
-    const gatewaySession = await gateway.createSession({ companyId: f.companyId, agentId: f.agentId, runId, issueId: f.issueId });
+    const gatewaySession = await gateway.createSession({ spaceId: f.spaceId, agentId: f.agentId, runId, issueId: f.issueId });
     return { ...f, runId, gateway, gatewaySession };
   }
   it("keeps personal callback preferences separate from authorized agent tool installation", async () => {
     const f = await nativeServiceFixture();
     const [endpoint] = await db.select().from(chatEndpoints).where(eq(chatEndpoints.id, f.endpointId));
-    for (const enabled of [false, true]) await f.service.saveCallbackPreference(f.companyId, f.endpointId, f.request.caller, {phoneNumber: "+12015551234", enabled});
+    for (const enabled of [false, true]) await f.service.saveCallbackPreference(f.spaceId, f.endpointId, f.request.caller, {phoneNumber: "+12015551234", enabled});
     expect(await db.select().from(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, f.connectionId))).toHaveLength(0);
     expect(await db.select().from(toolProfileBindings).where(eq(toolProfileBindings.targetId, f.agentId))).toHaveLength(0);
     await expect(db.transaction(tx => syncSpekoVoiceTools(tx, endpoint, f.callerId))).rejects.toMatchObject({status: 403});
     expect(await db.select().from(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, f.connectionId))).toHaveLength(0);
-    await db.insert(principalPermissionGrants).values({companyId: f.companyId, principalType: "user", principalId: f.callerId, permissionKey: "agents:configure"});
+    await db.insert(principalPermissionGrants).values({spaceId: f.spaceId, principalType: "user", principalId: f.callerId, permissionKey: "agents:configure"});
     await db.transaction(tx => syncSpekoVoiceTools(tx, endpoint, f.callerId));
     expect(await db.select().from(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, f.connectionId))).toHaveLength(1);
   });
   it("delivers Speko guidance to existing agents only while the connection remains assigned and enabled", async () => {
     const f = await phoneToolFixture();
-    const binding = { companyId: f.companyId, agentId: f.agentId };
+    const binding = { spaceId: f.spaceId, agentId: f.agentId };
     const assigned = async () => (await resolveConnectorAssignments(db, binding)).filter(item => item.key === "speko");
     const assignments = await assigned();
-    expect(assignments).toMatchObject([{ skillKey: "paperclipai/paperclip/speko", resources: [{ id: f.endpointId, connectionId: f.connectionId }], tools: [] }]);
+    expect(assignments).toMatchObject([{ skillKey: "outpost/outpost/speko", resources: [{ id: f.endpointId, connectionId: f.connectionId }], tools: [] }]);
     const config = await applyConnectorSkills({}, [], assignments);
-    const skill = config.paperclipRuntimeSkills[0];
+    const skill = config.outpostRuntimeSkills[0];
     const markdown = await readFile(join(skill.source, "SKILL.md"), "utf8");
     expect(markdown).toContain("one focused clarification");
-    expect(markdown).toContain("durable Paperclip continuation");
+    expect(markdown).toContain("durable Outpost continuation");
     expect(markdown).toContain("never blindly redial");
     expect(markdown).not.toContain("+12015551234");
     for (const adapter of ["outpost_runner", "claude_local", "codex_local"]) {
-      expect((await prepareConnectorSkillDelivery({ ...config, engine: "cli" }, adapter)).config.paperclipRuntimeSkills).toEqual([skill]);
+      expect((await prepareConnectorSkillDelivery({ ...config, engine: "cli" }, adapter)).config.outpostRuntimeSkills).toEqual([skill]);
     }
     expect((await prepareConnectorSkillDelivery(config, "cursor_local")).instructions).toContain("name: speko");
     expect((await prepareConnectorSkillDelivery(config, "outpost_runner")).instructions).toContain("name: speko");
     expect((await resolveConnectorAssignments(db, { ...binding, agentId: randomUUID() })).filter(item => item.key === "speko")).toEqual([]);
-    expect((await resolveConnectorAssignments(db, { ...binding, companyId: randomUUID() })).filter(item => item.key === "speko")).toEqual([]);
+    expect((await resolveConnectorAssignments(db, { ...binding, spaceId: randomUUID() })).filter(item => item.key === "speko")).toEqual([]);
     // Browser voice guidance remains available when phone callbacks are disabled.
     await db.update(chatVoiceCallbacks).set({ enabled: false }).where(eq(chatVoiceCallbacks.endpointId, f.endpointId));
     expect(await assigned()).toHaveLength(1);
@@ -2234,20 +2234,20 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(await assigned()).toHaveLength(1);
     await db.delete(toolProfileBindings).where(eq(toolProfileBindings.targetId, f.agentId));
     expect(await assigned()).toEqual([]);
-    const removed = await applyConnectorSkills(config, config.paperclipRuntimeSkills, []);
-    expect(removed.paperclipRuntimeSkills).toEqual([]);
+    const removed = await applyConnectorSkills(config, config.outpostRuntimeSkills, []);
+    expect(removed.outpostRuntimeSkills).toEqual([]);
   });
 
-  it.each([false, true])("makes call_my_phone discoverable through the governed gateway and reuses a durable attempt (continued: %s)", async continued => {
+  it.each([false, true])("makes call_my_phone discoverable through the controlled gateway and reuses a durable attempt (continued: %s)", async continued => {
     const f = await phoneToolFixture();
     if (continued) {
       await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.runId));
-      const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running", nativeIssueId: f.issueId, contextSnapshot: {} }).returning();
-      await initializeRunIdentity(db, { companyId: f.companyId, runId: run.id, issueId: f.issueId, responsibleUserId: f.callerId, parentRunId: f.runId, cause: "monitor" });
-      f.gatewaySession = await f.gateway.createSession({ companyId: f.companyId, agentId: f.agentId, runId: run.id });
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "running", nativeIssueId: f.issueId, contextSnapshot: {} }).returning();
+      await initializeRunIdentity(db, { spaceId: f.spaceId, runId: run.id, issueId: f.issueId, responsibleUserId: f.callerId, parentRunId: f.runId, cause: "monitor" });
+      f.gatewaySession = await f.gateway.createSession({ spaceId: f.spaceId, agentId: f.agentId, runId: run.id });
     }
     const tools = await f.gateway.listToolsForSession(f.gatewaySession.token);
-    const tool = tools.find(tool => tool.providerType === "paperclip_speko_voice");
+    const tool = tools.find(tool => tool.providerType === "outpost_speko_voice");
     expect(tool).toMatchObject({ upstreamToolName: "call_my_phone", connectionId: f.connectionId });
     const call = { sessionToken: f.gatewaySession.token, tool: tool!.name, parameters: {}, idempotencyKey: randomUUID() };
     const result = await f.gateway.executeTool(call);
@@ -2264,27 +2264,27 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("does not restore an agent's removed tool binding when callback settings are saved again", async () => {
     const f = await phoneToolFixture();
     await db.delete(toolProfileBindings).where(eq(toolProfileBindings.targetId, f.agentId));
-    await f.service.saveCallbackPreference(f.companyId, f.endpointId, f.request.caller, { phoneNumber: "+12015551234", enabled: true });
-    expect((await f.gateway.listToolsForSession(f.gatewaySession.token)).some(t => t.providerType === "paperclip_speko_voice")).toBe(false);
+    await f.service.saveCallbackPreference(f.spaceId, f.endpointId, f.request.caller, { phoneNumber: "+12015551234", enabled: true });
+    expect((await f.gateway.listToolsForSession(f.gatewaySession.token)).some(t => t.providerType === "outpost_speko_voice")).toBe(false);
   });
-  it("requires the current task requester, company, active endpoint, opt-in and agent assignment", async () => {
+  it("requires the current task requester, space, active endpoint, opt-in and agent assignment", async () => {
     const f = await phoneToolFixture();
     expect(await spekoToolsForSession(db, f.gatewaySession)).toHaveLength(1);
     await expect(executeSpekoVoiceTool(db, f.gatewaySession, f.endpointId, { to: "+12015559999" }, randomUUID())).rejects.toThrow();
-    expect(await spekoToolsForSession(db, { ...f.gatewaySession, companyId: randomUUID() })).toHaveLength(0);
+    expect(await spekoToolsForSession(db, { ...f.gatewaySession, spaceId: randomUUID() })).toHaveLength(0);
     expect(await spekoToolsForSession(db, { ...f.gatewaySession, issueId: randomUUID() })).toHaveLength(0);
     expect(await spekoToolsForSession(db, { ...f.gatewaySession, identityContextId: randomUUID() })).toHaveLength(0);
-    await f.service.saveCallbackPreference(f.companyId, f.endpointId, f.request.caller, { phoneNumber: "+12015551234", enabled: false });
+    await f.service.saveCallbackPreference(f.spaceId, f.endpointId, f.request.caller, { phoneNumber: "+12015551234", enabled: false });
     expect(await spekoToolsForSession(db, f.gatewaySession)).toHaveLength(0);
     await expect(executeSpekoVoiceTool(db, f.gatewaySession, f.endpointId, {}, randomUUID())).rejects.toMatchObject({ status: 403 });
     expect(f.transport.createPhoneSession).not.toHaveBeenCalled();
   });
-  it("keeps callback numbers personal and refuses callers from another company", async () => {
+  it("keeps callback numbers personal and refuses callers from another space", async () => {
     const f = await phoneToolFixture();
     const secondUser = randomUUID();
-    await db.insert(companyMemberships).values({ companyId: f.companyId, principalId: secondUser, principalType: "user", status: "active", membershipRole: "member" });
-    expect(await f.service.callbackPreference(f.companyId, f.endpointId, { id: secondUser, authority: "member" })).toBeNull();
-    await expect(f.service.callbackPreference(f.companyId, f.endpointId, { id: randomUUID(), authority: "member" })).rejects.toMatchObject({ status: 403 });
+    await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalId: secondUser, principalType: "user", status: "active", membershipRole: "member" });
+    expect(await f.service.callbackPreference(f.spaceId, f.endpointId, { id: secondUser, authority: "member" })).toBeNull();
+    await expect(f.service.callbackPreference(f.spaceId, f.endpointId, { id: randomUUID(), authority: "member" })).rejects.toMatchObject({ status: 403 });
     await expect(f.service.callbackPreference(randomUUID(), f.endpointId, f.request.caller)).rejects.toMatchObject({ status: 404 });
   });
   it("never redials a phone call whose creation response was lost", async () => {
@@ -2299,14 +2299,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("isolates signed outbound polling from browser hints without creating an admission", async () => {
     const f = await inboundFixture();
-    const event = {type: "call.pre_call", session_id: randomUUID(), organization_id: `org_${f.companyId}`, direction: "outbound"};
+    const event = {type: "call.pre_call", session_id: randomUUID(), organization_id: `org_${f.spaceId}`, direction: "outbound"};
     const signed = f.sign(event);
     const response = await f.service.inbound.lifecycle(f.endpoint.publicId, signed.body, signed.headers);
     expect(response).toMatchObject({idleRePrompts: {enabled: true}});
     expect(response).not.toHaveProperty("toolSecrets");
     const web = f.sign({...event, direction: "web"});
     expect(await f.service.inbound.lifecycle(f.endpoint.publicId, web.body, web.headers)).toEqual({idleRePrompts: {enabled: false}});
-    expect(await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.companyId, f.companyId))).toHaveLength(1);
+    expect(await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.spaceId, f.spaceId))).toHaveLength(1);
   });
 
   it("delivers the phone tool to the assigned agent's actual runtime MCP server", async () => {
@@ -2314,7 +2314,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const previousUrl = process.env.OUTPOST_API_URL;
     process.env.OUTPOST_API_URL = "http://127.0.0.1:3100";
     try {
-      const servers = await buildPaperclipRuntimeMcpServers({ db, agent: { id: f.agentId, companyId: f.companyId, name: "Phone tool agent" }, runId: f.runId });
+      const servers = await buildOutpostRuntimeMcpServers({ db, agent: { id: f.agentId, spaceId: f.spaceId, name: "Phone tool agent" }, runId: f.runId });
       expect(servers).toHaveLength(1);
       expect(servers[0]).toMatchObject({ url: expect.stringContaining("/mcp/gateways/") });
     } finally { if (previousUrl === undefined) delete process.env.OUTPOST_API_URL; else process.env.OUTPOST_API_URL = previousUrl; }

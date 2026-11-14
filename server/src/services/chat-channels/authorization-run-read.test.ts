@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { agents, companies, createDb, heartbeatRuns } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns } from "@outpost/db";
 import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } from "../../__tests__/helpers/full-database-response-capture.js";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -11,15 +11,15 @@ const support = await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("chat authorization run reads", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  let companyId: string;
+  let spaceId: string;
   let agentId: string;
 
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("chat-authorization-read-");
     db = createDb(database.connectionString);
-    const [company] = await db.insert(companies).values({ name: "Chat authorization fixture", issuePrefix: "CAR" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Chat agent", adapterType: "process" }).returning();
-    companyId = company.id;
+    const [space] = await db.insert(spaces).values({ name: "Chat authorization fixture", issuePrefix: "CAR" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Chat agent", adapterType: "process" }).returning();
+    spaceId = space.id;
     agentId = agent.id;
   }, 60_000);
 
@@ -30,9 +30,9 @@ describe.skipIf(!support.supported)("chat authorization run reads", () => {
 
   async function seed(contextSnapshot: unknown = {}) {
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId, agentId, contextSnapshot: contextSnapshot as Record<string, unknown> | null,
+      spaceId, agentId, contextSnapshot: contextSnapshot as Record<string, unknown> | null,
     }).returning();
-    return { companyId, agentId, failedRunId: run.id };
+    return { spaceId, agentId, failedRunId: run.id };
   }
 
   it("reads committed authority below the byte budget and keeps complete retry evidence", async () => {
@@ -82,14 +82,14 @@ describe.skipIf(!support.supported)("chat authorization run reads", () => {
     expect((await readChatAuthorizationRun(db, scope, false)).run?.contextSnapshot).toEqual(context);
   });
 
-  it("reads current authority and fails closed for another company or agent", async () => {
+  it("reads current authority and fails closed for another space or agent", async () => {
     const scope = await seed({ source: "chat:slack", taskKey: "CAR-1" });
     expect((await readChatAuthorizationRun(db, scope, true)).run?.contextSnapshot).toEqual({ source: "chat:slack", taskKey: "CAR-1" });
     await db.update(heartbeatRuns).set({ contextSnapshot: { source: "chat:discord", taskKey: "CAR-2" } })
       .where(eq(heartbeatRuns.id, scope.failedRunId));
     expect((await readChatAuthorizationRun(db, scope, true)).run?.contextSnapshot).toEqual({ source: "chat:discord", taskKey: "CAR-2" });
     for (const committed of [true, false]) {
-      expect((await readChatAuthorizationRun(db, { ...scope, companyId: randomUUID() }, committed)).run).toBeUndefined();
+      expect((await readChatAuthorizationRun(db, { ...scope, spaceId: randomUUID() }, committed)).run).toBeUndefined();
       expect((await readChatAuthorizationRun(db, { ...scope, agentId: randomUUID() }, committed)).run).toBeUndefined();
       expect((await readChatAuthorizationRun(db, { ...scope, failedRunId: randomUUID() }, committed)).run).toBeUndefined();
     }

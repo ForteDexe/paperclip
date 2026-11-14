@@ -200,7 +200,7 @@ function createTransportBackedNativeSessionBackend(
       }),
       conversationMode: preparedContext ? "prepared" : "task",
       runnerInstanceId:
-        options.runnerInstanceId ?? `paperclip-native-${input.binding.runId}`,
+        options.runnerInstanceId ?? `outpost-native-${input.binding.runId}`,
       onSpawn: options.onSpawn,
       transportFactory: transportFactory
         ? (context) => transportFactory({ ...context, baseInstructions })
@@ -289,7 +289,7 @@ export function createCodexNativeSessionBackend(
 }
 
 /**
- * How a planning run hands its proposal to Paperclip. The harness's own
+ * How a planning run hands its proposal to Outpost. The harness's own
  * proposed-plan surface becomes the task's Plan document and approval gate, so
  * the proposal must land before the completion report.
  */

@@ -12,7 +12,7 @@ async function makeTempDir(prefix: string): Promise<string> {
 }
 
 describe("opencode local skill sync", () => {
-  const paperclipKey = "paperclipai/paperclip/paperclip";
+  const outpostKey = "outpost/outpost/outpost";
   const cleanupDirs = new Set<string>();
 
   afterEach(async () => {
@@ -20,13 +20,13 @@ describe("opencode local skill sync", () => {
     cleanupDirs.clear();
   });
 
-  it("defaults and installs the operational Paperclip skill in the shared Claude/OpenCode skills home", async () => {
-    const home = await makeTempDir("paperclip-opencode-skill-sync-");
+  it("defaults and installs the operational Outpost skill in the shared Claude/OpenCode skills home", async () => {
+    const home = await makeTempDir("outpost-opencode-skill-sync-");
     cleanupDirs.add(home);
 
     const ctx = {
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "opencode_local",
       config: {
         env: {
@@ -38,11 +38,11 @@ describe("opencode local skill sync", () => {
     const before = await listOpenCodeSkills(ctx);
     expect(before.mode).toBe("persistent");
     expect(before.warnings).toContain("OpenCode currently uses the shared Claude skills home (~/.claude/skills).");
-    expect(before.desiredSkills).toContain(paperclipKey);
-    expect(before.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("missing");
+    expect(before.desiredSkills).toContain(outpostKey);
+    expect(before.entries.find((entry) => entry.key === outpostKey)?.state).toBe("missing");
 
-    const after = await syncOpenCodeSkills(ctx, [paperclipKey]);
-    expect(after.entries.find((entry) => entry.key === paperclipKey)?.state).toBe("installed");
-    expect((await fs.lstat(path.join(home, ".claude", "skills", "paperclip"))).isSymbolicLink()).toBe(true);
+    const after = await syncOpenCodeSkills(ctx, [outpostKey]);
+    expect(after.entries.find((entry) => entry.key === outpostKey)?.state).toBe("installed");
+    expect((await fs.lstat(path.join(home, ".claude", "skills", "outpost"))).isSymbolicLink()).toBe(true);
   });
 });

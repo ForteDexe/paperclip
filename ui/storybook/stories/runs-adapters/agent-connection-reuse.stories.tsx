@@ -26,7 +26,7 @@ function ConnectionStory({
         </div>
       ) : (
         <AgentProviderConnection
-          companyId="company-storybook"
+          spaceId="space-storybook"
           adapterType={adapterType}
           environmentId={STORYBOOK_SANDBOX_ENVIRONMENT_ID}
           canLogin
@@ -59,7 +59,7 @@ const meta = {
           "Production agent connection component with fixture API responses. Provider tests and subsequent hiring are simulated. Choose subscription or API key, reuse a saved connection, or enter a new key.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "runs-adapters/validation",
         "agents/hire"

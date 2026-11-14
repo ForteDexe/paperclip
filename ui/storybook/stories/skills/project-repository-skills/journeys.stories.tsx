@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useQueryClient } from '@tanstack/react-query';
 import { Layout } from '@/components/Layout';
 import { SkillSources } from '@/pages/SkillSources';
-import { CompanySkills } from '@/pages/CompanySkills';
+import { SpaceSkills } from '@/pages/SpaceSkills';
 import { Projects } from '@/pages/Projects';
 import { ProjectDetail } from '@/pages/ProjectDetail';
 import { RoutineDetail } from '@/pages/RoutineDetail';
@@ -23,12 +23,12 @@ function Journey({ scenario = 'ready' }: { scenario?: Scenario }) {
     setReady(true); return cleanup;
   }, [scenario, client]);
   if (!ready) return null;
-  return <PluginLauncherProvider><Routes><Route path="/:companyPrefix" element={<Layout />}>
+  return <PluginLauncherProvider><Routes><Route path="/:spacePrefix" element={<Layout />}>
     <Route path="projects" element={<Projects />} />
     <Route path="projects/:projectId/*" element={<ProjectDetail />} />
     <Route path="skills/sources" element={<SkillSources />} />
     <Route path="skills/sources/:sourceId" element={<SkillSources />} />
-    <Route path="skills/*" element={<CompanySkills />} />
+    <Route path="skills/*" element={<SpaceSkills />} />
     <Route path="routines/:routineId" element={<RoutineDetail />} />
     <Route path="routines/:routineId/:section" element={<RoutineDetail />} />
     <Route path="routines" element={<Routines />} />
@@ -36,7 +36,7 @@ function Journey({ scenario = 'ready' }: { scenario?: Scenario }) {
   </Route></Routes></PluginLauncherProvider>;
 }
 const meta = { id: 'skills-project-repository-skills-02-journeys', title: 'Agents and reusable capabilities/Skills and Skill Studio/Project repository skills/02 Journeys', component: Journey, tags: ['!autodocs'],
-  parameters: { paperclip: {"capabilities": ["skills/discovery", "skills/versions", "projects/repositories", "routines/run-now", "routines/history"], "status": "current", "implementation": "production", "boundary": "fixtures", "notes": "Production app shell and pages exercise project creation/attachment, legacy and existing-source adoption, refresh/repair and routine revision journeys with in-memory GitHub and execution fixtures. Live authorization and GitHub-to-run delivery are verified separately."}, layout: 'fullscreen', docs: { description: { component: 'Production pages and app shell. Imports, GitHub responses, background refresh and routine executions are in-memory fixtures. Start with Create project or Legacy adoption; all actions remain interactive. Live integration is verified separately.' } } },
+  parameters: { outpost: {"capabilities": ["skills/discovery", "skills/versions", "projects/repositories", "routines/run-now", "routines/history"], "status": "current", "implementation": "production", "boundary": "fixtures", "notes": "Production app shell and pages exercise project creation/attachment, legacy and existing-source adoption, refresh/repair and routine revision journeys with in-memory GitHub and execution fixtures. Live authorization and GitHub-to-run delivery are verified separately."}, layout: 'fullscreen', docs: { description: { component: 'Production pages and app shell. Imports, GitHub responses, background refresh and routine executions are in-memory fixtures. Start with Create project or Legacy adoption; all actions remain interactive. Live integration is verified separately.' } } },
 } satisfies Meta<typeof Journey>;
 export default meta;
 type Story = StoryObj<typeof meta>;

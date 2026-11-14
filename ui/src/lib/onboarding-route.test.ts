@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  companyPrefixFromOnboardingPath,
+  spacePrefixFromOnboardingPath,
   isOnboardingPath,
   isOnboardingWizardActive,
-  onboardingStepForCompany,
+  onboardingStepForSpace,
   resolveRouteOnboardingOptions,
-  shouldRedirectCompanylessRouteToOnboarding,
-  shouldRouteAgentlessCompanyToOnboarding,
+  shouldRedirectSpacelessRouteToOnboarding,
+  shouldRouteAgentlessSpaceToOnboarding,
   ONBOARDING_AGENT_STEP,
 } from "./onboarding-route";
 
@@ -15,7 +15,7 @@ describe("isOnboardingPath", () => {
     expect(isOnboardingPath("/onboarding")).toBe(true);
   });
 
-  it("matches a company-prefixed onboarding route", () => {
+  it("matches a space-prefixed onboarding route", () => {
     expect(isOnboardingPath("/pap/onboarding")).toBe(true);
   });
 
@@ -25,60 +25,60 @@ describe("isOnboardingPath", () => {
 });
 
 describe("resolveRouteOnboardingOptions", () => {
-  it("opens company creation for the global onboarding route", () => {
+  it("opens space creation for the global onboarding route", () => {
     expect(
       resolveRouteOnboardingOptions({
         pathname: "/onboarding",
-        companies: [],
+        spaces: [],
       }),
     ).toEqual({ initialStep: 1 });
   });
 
-  it("opens agent creation when the prefixed company exists", () => {
+  it("opens agent creation when the prefixed space exists", () => {
     expect(
       resolveRouteOnboardingOptions({
         pathname: "/pap/onboarding",
-        companyPrefix: "pap",
-        companies: [{ id: "company-1", issuePrefix: "PAP" }],
+        spacePrefix: "pap",
+        spaces: [{ id: "space-1", issuePrefix: "PAP" }],
       }),
-    ).toEqual({ initialStep: ONBOARDING_AGENT_STEP, companyId: "company-1" });
+    ).toEqual({ initialStep: ONBOARDING_AGENT_STEP, spaceId: "space-1" });
   });
 
-  it("falls back to company creation when the prefixed company is missing", () => {
+  it("falls back to space creation when the prefixed space is missing", () => {
     expect(
       resolveRouteOnboardingOptions({
         pathname: "/pap/onboarding",
-        companyPrefix: "pap",
-        companies: [],
+        spacePrefix: "pap",
+        spaces: [],
       }),
     ).toEqual({ initialStep: 1 });
   });
 });
 
-describe("shouldRedirectCompanylessRouteToOnboarding", () => {
-  it("redirects companyless entry routes into onboarding", () => {
+describe("shouldRedirectSpacelessRouteToOnboarding", () => {
+  it("redirects spaceless entry routes into onboarding", () => {
     expect(
-      shouldRedirectCompanylessRouteToOnboarding({
+      shouldRedirectSpacelessRouteToOnboarding({
         pathname: "/",
-        hasCompanies: false,
+        hasSpaces: false,
       }),
     ).toBe(true);
   });
 
   it("does not redirect when already on onboarding", () => {
     expect(
-      shouldRedirectCompanylessRouteToOnboarding({
+      shouldRedirectSpacelessRouteToOnboarding({
         pathname: "/onboarding",
-        hasCompanies: false,
+        hasSpaces: false,
       }),
     ).toBe(false);
   });
 
-  it("does not redirect when companies exist", () => {
+  it("does not redirect when spaces exist", () => {
     expect(
-      shouldRedirectCompanylessRouteToOnboarding({
+      shouldRedirectSpacelessRouteToOnboarding({
         pathname: "/issues",
-        hasCompanies: true,
+        hasSpaces: true,
       }),
     ).toBe(false);
   });
@@ -104,97 +104,97 @@ describe("isOnboardingWizardActive", () => {
   });
 });
 
-describe("companyPrefixFromOnboardingPath", () => {
-  it("reads the prefix from a company onboarding path", () => {
-    expect(companyPrefixFromOnboardingPath("/PC7409/onboarding")).toBe("PC7409");
+describe("spacePrefixFromOnboardingPath", () => {
+  it("reads the prefix from a space onboarding path", () => {
+    expect(spacePrefixFromOnboardingPath("/PC7409/onboarding")).toBe("PC7409");
   });
 
   it("keeps the prefix as written so the caller decides how to compare it", () => {
     // resolveRouteOnboardingOptions already matches case-insensitively.
     // Normalising here as well would hide which half owns the comparison.
-    expect(companyPrefixFromOnboardingPath("/pc7409/Onboarding")).toBe("pc7409");
+    expect(spacePrefixFromOnboardingPath("/pc7409/Onboarding")).toBe("pc7409");
   });
 
   it("has no prefix to read on the unprefixed route", () => {
-    expect(companyPrefixFromOnboardingPath("/onboarding")).toBeUndefined();
+    expect(spacePrefixFromOnboardingPath("/onboarding")).toBeUndefined();
   });
 
   it("ignores paths that only look like onboarding", () => {
-    expect(companyPrefixFromOnboardingPath("/PC7409/onboarding/extra")).toBeUndefined();
-    expect(companyPrefixFromOnboardingPath("/PC7409/dashboard")).toBeUndefined();
-    expect(companyPrefixFromOnboardingPath("/")).toBeUndefined();
+    expect(spacePrefixFromOnboardingPath("/PC7409/onboarding/extra")).toBeUndefined();
+    expect(spacePrefixFromOnboardingPath("/PC7409/dashboard")).toBeUndefined();
+    expect(spacePrefixFromOnboardingPath("/")).toBeUndefined();
   });
 
   it("agrees with isOnboardingPath about what an onboarding path is", () => {
     // The two parse the same shape. If they ever disagree the wizard would
-    // open on a path that resolves no company, or resolve a company on a path
+    // open on a path that resolves no space, or resolve a space on a path
     // that is not onboarding.
     for (const pathname of ["/onboarding", "/PC1/onboarding", "/PC1/dash", "/a/b/c"]) {
-      const prefix = companyPrefixFromOnboardingPath(pathname);
+      const prefix = spacePrefixFromOnboardingPath(pathname);
       if (prefix !== undefined) expect(isOnboardingPath(pathname)).toBe(true);
     }
   });
 
   it("feeds resolveRouteOnboardingOptions the prefix useParams cannot supply", () => {
     // The regression this fixes: the wizard renders beside <Routes>, so
-    // useParams() returned nothing and every company route opened at step 1.
-    const companies = [{ id: "c1", issuePrefix: "PC7409" }];
+    // useParams() returned nothing and every space route opened at step 1.
+    const spaces = [{ id: "c1", issuePrefix: "PC7409" }];
     const pathname = "/PC7409/onboarding";
 
     expect(
-      resolveRouteOnboardingOptions({ pathname, companyPrefix: undefined, companies }),
+      resolveRouteOnboardingOptions({ pathname, spacePrefix: undefined, spaces }),
     ).toEqual({ initialStep: 1 });
 
     expect(
       resolveRouteOnboardingOptions({
         pathname,
-        companyPrefix: companyPrefixFromOnboardingPath(pathname),
-        companies,
+        spacePrefix: spacePrefixFromOnboardingPath(pathname),
+        spaces,
       }),
-    ).toEqual({ initialStep: ONBOARDING_AGENT_STEP, companyId: "c1" });
+    ).toEqual({ initialStep: ONBOARDING_AGENT_STEP, spaceId: "c1" });
   });
 });
 
-describe("navigating away from a company's onboarding route", () => {
-  const companies = [{ id: "c1", issuePrefix: "PC1" }];
+describe("navigating away from a space's onboarding route", () => {
+  const spaces = [{ id: "c1", issuePrefix: "PC1" }];
 
   // The wizard is a persistent overlay, so it survives navigation and keeps
-  // its state. Once the route can supply a companyId - which it could not
-  // before companyPrefixFromOnboardingPath existed - leaving that route has to
-  // withdraw it, or the wizard shows "create a company" while still holding
+  // its state. Once the route can supply a spaceId - which it could not
+  // before spacePrefixFromOnboardingPath existed - leaving that route has to
+  // withdraw it, or the wizard shows "create a space" while still holding
   // the previous one.
-  it("stops supplying a company once the path no longer names one", () => {
-    const onCompanyRoute = resolveRouteOnboardingOptions({
+  it("stops supplying a space once the path no longer names one", () => {
+    const onSpaceRoute = resolveRouteOnboardingOptions({
       pathname: "/PC1/onboarding",
-      companyPrefix: companyPrefixFromOnboardingPath("/PC1/onboarding"),
-      companies,
+      spacePrefix: spacePrefixFromOnboardingPath("/PC1/onboarding"),
+      spaces,
     });
-    expect(onCompanyRoute).toEqual({ initialStep: ONBOARDING_AGENT_STEP, companyId: "c1" });
+    expect(onSpaceRoute).toEqual({ initialStep: ONBOARDING_AGENT_STEP, spaceId: "c1" });
 
     const afterNavigating = resolveRouteOnboardingOptions({
       pathname: "/onboarding",
-      companyPrefix: companyPrefixFromOnboardingPath("/onboarding"),
-      companies,
+      spacePrefix: spacePrefixFromOnboardingPath("/onboarding"),
+      spaces,
     });
     expect(afterNavigating).toEqual({ initialStep: 1 });
-    expect(afterNavigating?.companyId).toBeUndefined();
+    expect(afterNavigating?.spaceId).toBeUndefined();
   });
 
-  it("supplies no company for a prefix that matches nothing", () => {
+  it("supplies no space for a prefix that matches nothing", () => {
     expect(
       resolveRouteOnboardingOptions({
         pathname: "/NOPE/onboarding",
-        companyPrefix: companyPrefixFromOnboardingPath("/NOPE/onboarding"),
-        companies,
+        spacePrefix: spacePrefixFromOnboardingPath("/NOPE/onboarding"),
+        spaces,
       }),
     ).toEqual({ initialStep: 1 });
   });
 });
 
-describe("shouldRouteAgentlessCompanyToOnboarding", () => {
-  it("sends a company with no agents to onboarding", () => {
+describe("shouldRouteAgentlessSpaceToOnboarding", () => {
+  it("sends a space with no agents to onboarding", () => {
     expect(
-      shouldRouteAgentlessCompanyToOnboarding({
+      shouldRouteAgentlessSpaceToOnboarding({
         pathname: "/PC1/dashboard",
         agentsLoaded: true,
         agentCount: 0,
@@ -202,9 +202,9 @@ describe("shouldRouteAgentlessCompanyToOnboarding", () => {
     ).toBe(true);
   });
 
-  it("leaves a company that has agents alone", () => {
+  it("leaves a space that has agents alone", () => {
     expect(
-      shouldRouteAgentlessCompanyToOnboarding({
+      shouldRouteAgentlessSpaceToOnboarding({
         pathname: "/PC1/dashboard",
         agentsLoaded: true,
         agentCount: 1,
@@ -217,7 +217,7 @@ describe("shouldRouteAgentlessCompanyToOnboarding", () => {
     // Deciding here would bounce every user through onboarding on each cold
     // load — the count is zero only because nothing has arrived yet.
     expect(
-      shouldRouteAgentlessCompanyToOnboarding({
+      shouldRouteAgentlessSpaceToOnboarding({
         pathname: "/PC1/dashboard",
         agentsLoaded: false,
         agentCount: 0,
@@ -226,12 +226,12 @@ describe("shouldRouteAgentlessCompanyToOnboarding", () => {
   });
 
   it("does not trust a cached empty list while it is being refreshed", () => {
-    // The wizard hires the first agent and lands on the first task. A
+    // The wizard creations the first agent and lands on the first task. A
     // dashboard reached from there can still hold the empty list it cached
-    // before the hire, with the refetch in flight — offering on it reopens
-    // "Create your first agent" for a company that just got one.
+    // before the create, with the refetch in flight — offering on it reopens
+    // "Create your first agent" for a space that just got one.
     expect(
-      shouldRouteAgentlessCompanyToOnboarding({
+      shouldRouteAgentlessSpaceToOnboarding({
         pathname: "/PC1/dashboard",
         agentsLoaded: true,
         agentsRefreshing: true,
@@ -239,7 +239,7 @@ describe("shouldRouteAgentlessCompanyToOnboarding", () => {
       }),
     ).toBe(false);
     expect(
-      shouldRouteAgentlessCompanyToOnboarding({
+      shouldRouteAgentlessSpaceToOnboarding({
         pathname: "/PC1/dashboard",
         agentsLoaded: true,
         agentsRefreshing: false,
@@ -253,7 +253,7 @@ describe("shouldRouteAgentlessCompanyToOnboarding", () => {
     // that ignored the current path would send you straight back in.
     for (const pathname of ["/onboarding", "/PC1/onboarding"]) {
       expect(
-        shouldRouteAgentlessCompanyToOnboarding({
+        shouldRouteAgentlessSpaceToOnboarding({
           pathname,
           agentsLoaded: true,
           agentCount: 0,
@@ -264,68 +264,68 @@ describe("shouldRouteAgentlessCompanyToOnboarding", () => {
 });
 
 describe("resolveRouteOnboardingOptions — the agent step", () => {
-  const companies = [{ id: "c1", issuePrefix: "PC1" }];
+  const spaces = [{ id: "c1", issuePrefix: "PC1" }];
 
-  it("opens an existing company on the agent step", () => {
+  it("opens an existing space on the agent step", () => {
     expect(
       resolveRouteOnboardingOptions({
         pathname: "/PC1/onboarding",
-        companyPrefix: "PC1",
-        companies,
+        spacePrefix: "PC1",
+        spaces,
       }),
-    ).toEqual({ initialStep: ONBOARDING_AGENT_STEP, companyId: "c1" });
+    ).toEqual({ initialStep: ONBOARDING_AGENT_STEP, spaceId: "c1" });
   });
 
   it("never resolves into the create wizard on a managed stack", () => {
-    // POST /companies is a 403 floor on Cloud-managed stacks — a create wizard
+    // POST /spaces is a 403 floor on Cloud-managed stacks — a create wizard
     // there is a dead end wearing a form. A managed stack holds exactly one
-    // company, so the useful reading of a bare or unmatched onboarding path is
-    // that company's agent arc.
+    // space, so the useful reading of a bare or unmatched onboarding path is
+    // that space's agent arc.
     const one = [{ id: "c1", issuePrefix: "PC1" }];
     expect(
       resolveRouteOnboardingOptions({
         pathname: "/onboarding",
-        companies: one,
+        spaces: one,
         cloudManaged: true,
       }),
-    ).toEqual({ initialStep: ONBOARDING_AGENT_STEP, companyId: "c1" });
+    ).toEqual({ initialStep: ONBOARDING_AGENT_STEP, spaceId: "c1" });
     expect(
       resolveRouteOnboardingOptions({
         pathname: "/NOPE/onboarding",
-        companyPrefix: "NOPE",
-        companies: one,
+        spacePrefix: "NOPE",
+        spaces: one,
         cloudManaged: true,
       }),
-    ).toEqual({ initialStep: ONBOARDING_AGENT_STEP, companyId: "c1" });
+    ).toEqual({ initialStep: ONBOARDING_AGENT_STEP, spaceId: "c1" });
   });
 
-  it("opens nothing on a managed stack whose companies are not exactly one", () => {
-    // Zero companies means the list is still loading or errored — offering
+  it("opens nothing on a managed stack whose spaces are not exactly one", () => {
+    // Zero spaces means the list is still loading or errored — offering
     // creation would 403; opening an arc would name nobody. Do neither.
-    for (const companies of [[], [{ id: "c1", issuePrefix: "PC1" }, { id: "c2", issuePrefix: "PC2" }]]) {
+    for (const spaces of [[], [{ id: "c1", issuePrefix: "PC1" }, { id: "c2", issuePrefix: "PC2" }]]) {
       expect(
         resolveRouteOnboardingOptions({
           pathname: "/onboarding",
-          companies,
+          spaces,
           cloudManaged: true,
         }),
       ).toBeNull();
     }
   });
 
-  it("keeps sending an unmatched prefix to company creation", () => {
+  it("keeps sending an unmatched prefix to space creation", () => {
     expect(
       resolveRouteOnboardingOptions({
         pathname: "/NOPE/onboarding",
-        companyPrefix: "NOPE",
-        companies,
+        spacePrefix: "NOPE",
+        spaces,
       }),
     ).toEqual({ initialStep: 1 });
   });
 });
 
-describe("onboardingStepForCompany", () => {
-  it("opens an existing company on the agent step", () => {
-    expect(onboardingStepForCompany()).toBe(ONBOARDING_AGENT_STEP);
+describe("onboardingStepForSpace", () => {
+  it("opens an existing space on the agent step", () => {
+    expect(onboardingStepForSpace()).toBe(ONBOARDING_AGENT_STEP);
   });
 });

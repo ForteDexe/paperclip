@@ -6,10 +6,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   applyPendingMigrations,
   agents,
-  companySecretBindings,
-  companySecrets,
-  companies,
-  companyMemberships,
+  spaceSecretBindings,
+  spaceSecrets,
+  spaces,
+  spaceMemberships,
   createDb,
   connectionGrantDelegations,
   connectionGrantMembers,
@@ -28,16 +28,16 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 import { accessService } from "../services/access.js";
-import { grantsForHumanRole } from "../services/company-member-roles.js";
+import { grantsForHumanRole } from "../services/space-member-roles.js";
 import { backfillPrincipalAccessCompatibility } from "../services/principal-access-compatibility.js";
 
 const externalTestDatabaseUrl = resolveExternalTestDatabaseUrl("OUTPOST_ACCESS_TEST_DATABASE_URL");
 const embeddedPostgresSupport = externalTestDatabaseUrl ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
-async function createCompanyWithOwner(db: ReturnType<typeof createDb>) {
-  const company = await db
-    .insert(companies)
+async function createSpaceWithOwner(db: ReturnType<typeof createDb>) {
+  const space = await db
+    .insert(spaces)
     .values({
       name: `Access Service ${randomUUID()}`,
       issuePrefix: `AS${randomUUID().slice(0, 6).toUpperCase()}`,
@@ -46,9 +46,9 @@ async function createCompanyWithOwner(db: ReturnType<typeof createDb>) {
     .then((rows) => rows[0]!);
 
   const owner = await db
-    .insert(companyMemberships)
+    .insert(spaceMemberships)
     .values({
-      companyId: company.id,
+      spaceId: space.id,
       principalType: "user",
       principalId: `owner-${randomUUID()}`,
       status: "active",
@@ -57,7 +57,7 @@ async function createCompanyWithOwner(db: ReturnType<typeof createDb>) {
     .returning()
     .then((rows) => rows[0]!);
 
-  return { company, owner };
+  return { space, owner };
 }
 
 describeEmbeddedPostgres("access service", () => {
@@ -65,7 +65,7 @@ describeEmbeddedPostgres("access service", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    if (!externalTestDatabaseUrl) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-access-service-");
+    if (!externalTestDatabaseUrl) tempDb = await startEmbeddedPostgresTestDatabase("outpost-access-service-");
     if (externalTestDatabaseUrl) await applyPendingMigrations(externalTestDatabaseUrl);
     db = createDb(externalTestDatabaseUrl ?? tempDb!.connectionString);
   }, 20_000);
@@ -73,20 +73,20 @@ describeEmbeddedPostgres("access service", () => {
   afterEach(async () => {
     await db.delete(toolAccessAuditEvents);
     await db.delete(userSecretDeclarations);
-    await db.delete(companySecretBindings);
+    await db.delete(spaceSecretBindings);
     await db.delete(connectionGrantDelegations);
     await db.delete(connectionGrantMembers);
     await db.delete(connectionGrants);
     await db.delete(toolConnections);
     await db.delete(toolApplications);
-    await db.delete(companySecrets);
+    await db.delete(spaceSecrets);
     await db.delete(userSecretDefinitions);
     await db.delete(issues);
     await db.delete(principalPermissionGrants);
     await db.delete(instanceUserRoles);
     await db.delete(agents);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -95,12 +95,12 @@ describeEmbeddedPostgres("access service", () => {
   });
 
   it("rejects combined access updates that would demote the last active owner", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
+    const { space, owner } = await createSpaceWithOwner(db);
     const access = accessService(db);
 
     await expect(
       access.updateMemberAndPermissions(
-        company.id,
+        space.id,
         owner.id,
         { membershipRole: "admin", grants: [] },
         "admin-user",
@@ -109,34 +109,34 @@ describeEmbeddedPostgres("access service", () => {
 
     const unchanged = await db
       .select()
-      .from(companyMemberships)
-      .where(eq(companyMemberships.id, owner.id))
+      .from(spaceMemberships)
+      .where(eq(spaceMemberships.id, owner.id))
       .then((rows) => rows[0]!);
     expect(unchanged.membershipRole).toBe("owner");
   });
 
   it("rejects role-only updates that would suspend the last active owner", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
+    const { space, owner } = await createSpaceWithOwner(db);
     const access = accessService(db);
 
     await expect(
-      access.updateMember(company.id, owner.id, { status: "suspended" }),
+      access.updateMember(space.id, owner.id, { status: "suspended" }),
     ).rejects.toThrow("Cannot remove the last active owner");
 
     const unchanged = await db
       .select()
-      .from(companyMemberships)
-      .where(eq(companyMemberships.id, owner.id))
+      .from(spaceMemberships)
+      .where(eq(spaceMemberships.id, owner.id))
       .then((rows) => rows[0]!);
     expect(unchanged.status).toBe("active");
   });
 
   it("archives members, clears grants, and reassigns open issues without deleting history", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
+    const { space, owner } = await createSpaceWithOwner(db);
     const member = await db
-      .insert(companyMemberships)
+      .insert(spaceMemberships)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         principalType: "user",
         principalId: `member-${randomUUID()}`,
         status: "active",
@@ -145,7 +145,7 @@ describeEmbeddedPostgres("access service", () => {
       .returning()
       .then((rows) => rows[0]!);
     await db.insert(principalPermissionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       principalType: "user",
       principalId: member.principalId,
       permissionKey: "tasks:assign",
@@ -154,7 +154,7 @@ describeEmbeddedPostgres("access service", () => {
     const openIssue = await db
       .insert(issues)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         title: "Open assigned issue",
         status: "in_progress",
         assigneeUserId: member.principalId,
@@ -164,7 +164,7 @@ describeEmbeddedPostgres("access service", () => {
     const doneIssue = await db
       .insert(issues)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         title: "Historical assigned issue",
         status: "done",
         assigneeUserId: member.principalId,
@@ -173,15 +173,15 @@ describeEmbeddedPostgres("access service", () => {
       .then((rows) => rows[0]!);
 
     const access = accessService(db);
-    const result = await access.archiveMember(company.id, member.id, {
+    const result = await access.archiveMember(space.id, member.id, {
       reassignment: { assigneeUserId: owner.principalId },
     });
 
     expect(result?.reassignedIssueCount).toBe(1);
     const archived = await db
       .select()
-      .from(companyMemberships)
-      .where(eq(companyMemberships.id, member.id))
+      .from(spaceMemberships)
+      .where(eq(spaceMemberships.id, member.id))
       .then((rows) => rows[0]!);
     expect(archived.status).toBe("archived");
 
@@ -207,18 +207,18 @@ describeEmbeddedPostgres("access service", () => {
     expect(historicalIssue.assigneeUserId).toBe(member.principalId);
   });
 
-  it("rejects instance-level company access removal for self and protected users", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
+  it("rejects instance-level space access removal for self and protected users", async () => {
+    const { space, owner } = await createSpaceWithOwner(db);
     const access = accessService(db);
 
     await expect(
-      access.setUserCompanyAccess(owner.principalId, [], { actorUserId: owner.principalId }),
+      access.setUserSpaceAccess(owner.principalId, [], { actorUserId: owner.principalId }),
     ).rejects.toThrow("You cannot remove yourself");
 
     const admin = await db
-      .insert(companyMemberships)
+      .insert(spaceMemberships)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         principalType: "user",
         principalId: `admin-${randomUUID()}`,
         status: "active",
@@ -228,13 +228,13 @@ describeEmbeddedPostgres("access service", () => {
       .then((rows) => rows[0]!);
 
     await expect(
-      access.setUserCompanyAccess(admin.principalId, [], { actorUserId: owner.principalId }),
-    ).rejects.toThrow("Owners and admins cannot be removed from company access");
+      access.setUserSpaceAccess(admin.principalId, [], { actorUserId: owner.principalId }),
+    ).rejects.toThrow("Owners and admins cannot be removed from space access");
 
     const operator = await db
-      .insert(companyMemberships)
+      .insert(spaceMemberships)
       .values({
-        companyId: company.id,
+        spaceId: space.id,
         principalType: "user",
         principalId: `operator-${randomUUID()}`,
         status: "active",
@@ -248,35 +248,35 @@ describeEmbeddedPostgres("access service", () => {
     });
 
     await expect(
-      access.setUserCompanyAccess(operator.principalId, [], { actorUserId: owner.principalId }),
-    ).rejects.toThrow("Instance admins cannot be removed from company access");
+      access.setUserSpaceAccess(operator.principalId, [], { actorUserId: owner.principalId }),
+    ).rejects.toThrow("Instance admins cannot be removed from space access");
   });
 
-  it("sweeps personal grants when instance-level company access is removed", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
-    const member = await db.insert(companyMemberships).values({
-      companyId: company.id,
+  it("sweeps personal grants when instance-level space access is removed", async () => {
+    const { space, owner } = await createSpaceWithOwner(db);
+    const member = await db.insert(spaceMemberships).values({
+      spaceId: space.id,
       principalType: "user",
       principalId: `member-${randomUUID()}`,
       status: "active",
       membershipRole: "member",
     }).returning().then((rows) => rows[0]!);
     const agent = await db.insert(agents).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Instance access delegated agent",
       role: "worker",
       adapterType: "process",
       adapterConfig: {},
     }).returning().then((rows) => rows[0]!);
     const application = await db.insert(toolApplications).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationKey: `instance-access-${randomUUID()}`,
       name: "Instance access app",
       type: "mcp_http",
       status: "active",
     }).returning().then((rows) => rows[0]!);
     const connection = await db.insert(toolConnections).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationId: application.id,
       name: "Instance access connection",
       uid: `instance-access-${randomUUID()}`,
@@ -289,24 +289,24 @@ describeEmbeddedPostgres("access service", () => {
       enabled: true,
     }).returning().then((rows) => rows[0]!);
     const grant = await db.insert(connectionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       connectionId: connection.id,
       kind: "user",
       subjectUserId: member.principalId,
       status: "active",
     }).returning().then((rows) => rows[0]!);
     await db.insert(connectionGrantDelegations).values({
-      companyId: company.id,
+      spaceId: space.id,
       grantId: grant.id,
       agentId: agent.id,
       createdByUserId: member.principalId,
     });
 
-    await accessService(db).setUserCompanyAccess(member.principalId, [], {
+    await accessService(db).setUserSpaceAccess(member.principalId, [], {
       actorUserId: owner.principalId,
     });
 
-    expect(await db.select().from(companyMemberships).where(eq(companyMemberships.id, member.id)))
+    expect(await db.select().from(spaceMemberships).where(eq(spaceMemberships.id, member.id)))
       .toEqual([expect.objectContaining({ status: "archived" })]);
     expect(await db.select().from(connectionGrantDelegations)).toHaveLength(0);
     expect(await db.select().from(connectionGrants).where(eq(connectionGrants.id, grant.id)))
@@ -314,30 +314,30 @@ describeEmbeddedPostgres("access service", () => {
   });
 
   it("revokes personal connection access and destroys user-scoped secrets when membership is archived", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
-    const member = await db.insert(companyMemberships).values({
-      companyId: company.id,
+    const { space, owner } = await createSpaceWithOwner(db);
+    const member = await db.insert(spaceMemberships).values({
+      spaceId: space.id,
       principalType: "user",
       principalId: `member-${randomUUID()}`,
       status: "active",
       membershipRole: "member",
     }).returning().then((rows) => rows[0]!);
     const agent = await db.insert(agents).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Delegated agent",
       role: "worker",
       adapterType: "process",
       adapterConfig: {},
     }).returning().then((rows) => rows[0]!);
     const application = await db.insert(toolApplications).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationKey: `app-${randomUUID()}`,
       name: "Personal mail",
       type: "mcp_http",
       status: "active",
     }).returning().then((rows) => rows[0]!);
     const connection = await db.insert(toolConnections).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationId: application.id,
       name: "Mail",
       uid: `mail-${randomUUID()}`,
@@ -351,12 +351,12 @@ describeEmbeddedPostgres("access service", () => {
       healthCheckedAt: new Date(),
     }).returning().then((rows) => rows[0]!);
     const definition = await db.insert(userSecretDefinitions).values({
-      companyId: company.id,
+      spaceId: space.id,
       key: `oauth-${randomUUID()}`,
       name: "Personal OAuth token",
     }).returning().then((rows) => rows[0]!);
-    const secret = await db.insert(companySecrets).values({
-      companyId: company.id,
+    const secret = await db.insert(spaceSecrets).values({
+      spaceId: space.id,
       scope: "user",
       ownerUserId: member.principalId,
       userSecretDefinitionId: definition.id,
@@ -367,22 +367,22 @@ describeEmbeddedPostgres("access service", () => {
       credentialSecretRefs: [{ secretId: secret.id, configPath: "oauth.access_token" }],
     }).where(eq(toolConnections.id, connection.id));
     const grant = await db.insert(connectionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       connectionId: connection.id,
       kind: "user",
       subjectUserId: member.principalId,
       credentialSecretRefs: [{ secretId: secret.id, configPath: "oauth.access_token" }],
     }).returning().then((rows) => rows[0]!);
     await db.insert(connectionGrantDelegations).values({
-      companyId: company.id,
+      spaceId: space.id,
       grantId: grant.id,
       agentId: agent.id,
       createdByUserId: member.principalId,
     });
-    const health = await startToolHealthWorker(db, company.id);
+    const health = await startToolHealthWorker(db, space.id);
     try {
       await health.expectDeadline(connection.healthCheckedAt!.getTime() + 900_000);
-      await accessService(db).archiveMember(company.id, member.id, {
+      await accessService(db).archiveMember(space.id, member.id, {
         reassignment: { assigneeUserId: owner.principalId },
       });
       await health.expectDeadline(null);
@@ -391,7 +391,7 @@ describeEmbeddedPostgres("access service", () => {
 
     expect(await db.select().from(connectionGrantDelegations)).toHaveLength(0);
     expect(await db.select().from(connectionGrantMembers)).toHaveLength(0);
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, secret.id))).toHaveLength(0);
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, secret.id))).toHaveLength(0);
     expect(await db.select().from(connectionGrants).where(eq(connectionGrants.id, grant.id)))
       .toEqual([expect.objectContaining({ status: "revoked", credentialSecretRefs: [] })]);
     expect(await db.select().from(toolConnections).where(eq(toolConnections.id, connection.id)))
@@ -407,17 +407,17 @@ describeEmbeddedPostgres("access service", () => {
   });
 
   it("retains a personal credential while another member grant still uses it", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
-    const [departing, surviving] = await db.insert(companyMemberships).values([
+    const { space, owner } = await createSpaceWithOwner(db);
+    const [departing, surviving] = await db.insert(spaceMemberships).values([
       {
-        companyId: company.id,
+        spaceId: space.id,
         principalType: "user" as const,
         principalId: `departing-${randomUUID()}`,
         status: "active" as const,
         membershipRole: "member" as const,
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         principalType: "user" as const,
         principalId: `surviving-${randomUUID()}`,
         status: "active" as const,
@@ -425,14 +425,14 @@ describeEmbeddedPostgres("access service", () => {
       },
     ]).returning();
     const application = await db.insert(toolApplications).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationKey: `shared-personal-${randomUUID()}`,
       name: "Shared personal app",
       type: "mcp_http",
       status: "active",
     }).returning().then((rows) => rows[0]!);
     const connection = await db.insert(toolConnections).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationId: application.id,
       name: "Shared personal connection",
       uid: `shared-personal-${randomUUID()}`,
@@ -445,12 +445,12 @@ describeEmbeddedPostgres("access service", () => {
       enabled: true,
     }).returning().then((rows) => rows[0]!);
     const definition = await db.insert(userSecretDefinitions).values({
-      companyId: company.id,
+      spaceId: space.id,
       key: `shared-personal-${randomUUID()}`,
       name: "Shared personal token",
     }).returning().then((rows) => rows[0]!);
-    const secret = await db.insert(companySecrets).values({
-      companyId: company.id,
+    const secret = await db.insert(spaceSecrets).values({
+      spaceId: space.id,
       scope: "user",
       ownerUserId: departing!.principalId,
       userSecretDefinitionId: definition.id,
@@ -461,7 +461,7 @@ describeEmbeddedPostgres("access service", () => {
     await db.update(toolConnections).set({ credentialSecretRefs }).where(eq(toolConnections.id, connection.id));
     const [departingGrant, survivingGrant] = await db.insert(connectionGrants).values([
       {
-        companyId: company.id,
+        spaceId: space.id,
         connectionId: connection.id,
         kind: "user" as const,
         subjectUserId: departing!.principalId,
@@ -469,7 +469,7 @@ describeEmbeddedPostgres("access service", () => {
         credentialSecretRefs,
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         connectionId: connection.id,
         kind: "user" as const,
         subjectUserId: surviving!.principalId,
@@ -478,11 +478,11 @@ describeEmbeddedPostgres("access service", () => {
       },
     ]).returning();
 
-    await accessService(db).archiveMember(company.id, departing!.id, {
+    await accessService(db).archiveMember(space.id, departing!.id, {
       reassignment: { assigneeUserId: owner.principalId },
     });
 
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, secret.id)))
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, secret.id)))
       .toHaveLength(1);
     expect(await db.select().from(connectionGrants).where(eq(connectionGrants.id, departingGrant!.id)))
       .toEqual([expect.objectContaining({ status: "revoked", credentialSecretRefs: [] })]);
@@ -493,44 +493,44 @@ describeEmbeddedPostgres("access service", () => {
   });
 
   it("keeps a mixed connection active when an unaffected organization credential survives", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
-    const departing = await db.insert(companyMemberships).values({
-      companyId: company.id,
+    const { space, owner } = await createSpaceWithOwner(db);
+    const departing = await db.insert(spaceMemberships).values({
+      spaceId: space.id,
       principalType: "user",
       principalId: `departing-mixed-${randomUUID()}`,
       status: "active",
       membershipRole: "member",
     }).returning().then((rows) => rows[0]!);
     const application = await db.insert(toolApplications).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationKey: `mixed-${randomUUID()}`,
       name: "Mixed credential app",
       type: "mcp_http",
       status: "active",
     }).returning().then((rows) => rows[0]!);
     const definition = await db.insert(userSecretDefinitions).values({
-      companyId: company.id,
+      spaceId: space.id,
       key: `mixed-personal-${randomUUID()}`,
       name: "Mixed personal token",
     }).returning().then((rows) => rows[0]!);
-    const personalSecret = await db.insert(companySecrets).values({
-      companyId: company.id,
+    const personalSecret = await db.insert(spaceSecrets).values({
+      spaceId: space.id,
       scope: "user",
       ownerUserId: departing.principalId,
       userSecretDefinitionId: definition.id,
       key: `mixed-personal-${randomUUID()}`,
       name: "Mixed personal token",
     }).returning().then((rows) => rows[0]!);
-    const organizationSecret = await db.insert(companySecrets).values({
-      companyId: company.id,
-      scope: "company",
+    const organizationSecret = await db.insert(spaceSecrets).values({
+      spaceId: space.id,
+      scope: "space",
       key: `mixed-organization-${randomUUID()}`,
       name: "Mixed organization token",
     }).returning().then((rows) => rows[0]!);
     const personalRef = { secretId: personalSecret.id, configPath: "credentials.personal" };
     const organizationRef = { secretId: organizationSecret.id, configPath: "credentials.organization" };
     const connection = await db.insert(toolConnections).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationId: application.id,
       name: "Mixed credential connection",
       uid: `mixed-${randomUUID()}`,
@@ -545,14 +545,14 @@ describeEmbeddedPostgres("access service", () => {
       credentialSecretRefs: [personalRef, organizationRef],
     }).returning().then((rows) => rows[0]!);
     const personalGrant = await db.insert(connectionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       connectionId: connection.id,
       kind: "user",
       subjectUserId: departing.principalId,
       credentialSecretRefs: [personalRef],
     }).returning().then((rows) => rows[0]!);
     const organizationGrant = await db.insert(connectionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       connectionId: connection.id,
       kind: "organization",
       status: "active",
@@ -560,13 +560,13 @@ describeEmbeddedPostgres("access service", () => {
       credentialSecretRefs: [organizationRef],
     }).returning().then((rows) => rows[0]!);
 
-    await accessService(db).archiveMember(company.id, departing.id, {
+    await accessService(db).archiveMember(space.id, departing.id, {
       reassignment: { assigneeUserId: owner.principalId },
     });
 
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, personalSecret.id)))
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, personalSecret.id)))
       .toHaveLength(0);
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, organizationSecret.id)))
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, organizationSecret.id)))
       .toHaveLength(1);
     expect(await db.select().from(connectionGrants).where(eq(connectionGrants.id, personalGrant.id)))
       .toEqual([expect.objectContaining({ status: "revoked", credentialSecretRefs: [] })]);
@@ -583,23 +583,23 @@ describeEmbeddedPostgres("access service", () => {
   });
 
   it("keeps a sole organization audience dormant until its member is reactivated", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
-    const departing = await db.insert(companyMemberships).values({
-      companyId: company.id,
+    const { space, owner } = await createSpaceWithOwner(db);
+    const departing = await db.insert(spaceMemberships).values({
+      spaceId: space.id,
       principalType: "user",
       principalId: `departing-org-${randomUUID()}`,
       status: "active",
       membershipRole: "member",
     }).returning().then((rows) => rows[0]!);
     const application = await db.insert(toolApplications).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationKey: `shared-org-${randomUUID()}`,
       name: "Shared organization app",
       type: "mcp_http",
       status: "active",
     }).returning().then((rows) => rows[0]!);
     const connection = await db.insert(toolConnections).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationId: application.id,
       name: "Shared organization connection",
       uid: `shared-org-${randomUUID()}`,
@@ -612,12 +612,12 @@ describeEmbeddedPostgres("access service", () => {
       enabled: true,
     }).returning().then((rows) => rows[0]!);
     const definition = await db.insert(userSecretDefinitions).values({
-      companyId: company.id,
+      spaceId: space.id,
       key: `shared-org-${randomUUID()}`,
       name: "Shared organization token",
     }).returning().then((rows) => rows[0]!);
-    const secret = await db.insert(companySecrets).values({
-      companyId: company.id,
+    const secret = await db.insert(spaceSecrets).values({
+      spaceId: space.id,
       scope: "user",
       ownerUserId: departing.principalId,
       userSecretDefinitionId: definition.id,
@@ -627,7 +627,7 @@ describeEmbeddedPostgres("access service", () => {
     const credentialSecretRefs = [{ secretId: secret.id, configPath: "oauth.access_token" }];
     await db.update(toolConnections).set({ credentialSecretRefs }).where(eq(toolConnections.id, connection.id));
     await db.insert(connectionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       connectionId: connection.id,
       kind: "user",
       subjectUserId: departing.principalId,
@@ -635,7 +635,7 @@ describeEmbeddedPostgres("access service", () => {
       credentialSecretRefs,
     });
     const organizationGrant = await db.insert(connectionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       connectionId: connection.id,
       kind: "organization",
       status: "active",
@@ -643,17 +643,17 @@ describeEmbeddedPostgres("access service", () => {
       credentialSecretRefs,
     }).returning().then((rows) => rows[0]!);
     await db.insert(connectionGrantMembers).values({
-      companyId: company.id,
+      spaceId: space.id,
       grantId: organizationGrant.id,
       subjectType: "user",
       subjectId: departing.principalId,
     });
 
-    await accessService(db).archiveMember(company.id, departing.id, {
+    await accessService(db).archiveMember(space.id, departing.id, {
       reassignment: { assigneeUserId: owner.principalId },
     });
 
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, secret.id)))
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, secret.id)))
       .toHaveLength(1);
     expect(await db.select().from(connectionGrants).where(eq(connectionGrants.id, organizationGrant.id)))
       .toEqual([expect.objectContaining({ status: "active", isDefault: true, credentialSecretRefs })]);
@@ -662,41 +662,41 @@ describeEmbeddedPostgres("access service", () => {
     expect(await db.select().from(toolConnections).where(eq(toolConnections.id, connection.id)))
       .toEqual([expect.objectContaining({ status: "active", enabled: true, credentialSecretRefs })]);
 
-    await accessService(db).setUserCompanyAccess(departing.principalId, [company.id]);
+    await accessService(db).setUserSpaceAccess(departing.principalId, [space.id]);
 
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, secret.id)))
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, secret.id)))
       .toHaveLength(1);
-    expect(await db.select().from(companyMemberships).where(eq(companyMemberships.id, departing.id)))
+    expect(await db.select().from(spaceMemberships).where(eq(spaceMemberships.id, departing.id)))
       .toEqual([expect.objectContaining({ status: "active" })]);
     expect(await db.select().from(connectionGrants).where(eq(connectionGrants.id, organizationGrant.id)))
       .toEqual([expect.objectContaining({ status: "active", credentialSecretRefs })]);
   });
 
   it("revokes delegated personal connection access when membership is suspended", async () => {
-    const { company } = await createCompanyWithOwner(db);
-    const member = await db.insert(companyMemberships).values({
-      companyId: company.id,
+    const { space } = await createSpaceWithOwner(db);
+    const member = await db.insert(spaceMemberships).values({
+      spaceId: space.id,
       principalType: "user",
       principalId: `member-${randomUUID()}`,
       status: "active",
       membershipRole: "member",
     }).returning().then((rows) => rows[0]!);
     const agent = await db.insert(agents).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Delegated agent",
       role: "worker",
       adapterType: "process",
       adapterConfig: {},
     }).returning().then((rows) => rows[0]!);
     const application = await db.insert(toolApplications).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationKey: `app-${randomUUID()}`,
       name: "Personal mail",
       type: "mcp_http",
       status: "active",
     }).returning().then((rows) => rows[0]!);
     const connection = await db.insert(toolConnections).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationId: application.id,
       name: "Mail",
       uid: `mail-${randomUUID()}`,
@@ -707,12 +707,12 @@ describeEmbeddedPostgres("access service", () => {
       credentialPolicy: "per_user",
     }).returning().then((rows) => rows[0]!);
     const definition = await db.insert(userSecretDefinitions).values({
-      companyId: company.id,
+      spaceId: space.id,
       key: `oauth-${randomUUID()}`,
       name: "Personal OAuth token",
     }).returning().then((rows) => rows[0]!);
-    const secret = await db.insert(companySecrets).values({
-      companyId: company.id,
+    const secret = await db.insert(spaceSecrets).values({
+      spaceId: space.id,
       scope: "user",
       ownerUserId: member.principalId,
       userSecretDefinitionId: definition.id,
@@ -720,50 +720,50 @@ describeEmbeddedPostgres("access service", () => {
       name: `OAuth ${randomUUID()}`,
     }).returning().then((rows) => rows[0]!);
     const grant = await db.insert(connectionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       connectionId: connection.id,
       kind: "user",
       subjectUserId: member.principalId,
       credentialSecretRefs: [{ secretId: secret.id, configPath: "oauth.access_token" }],
     }).returning().then((rows) => rows[0]!);
     await db.insert(connectionGrantDelegations).values({
-      companyId: company.id,
+      spaceId: space.id,
       grantId: grant.id,
       agentId: agent.id,
       createdByUserId: member.principalId,
     });
 
-    await accessService(db).updateMember(company.id, member.id, { status: "suspended" });
+    await accessService(db).updateMember(space.id, member.id, { status: "suspended" });
 
     expect(await db.select().from(connectionGrantDelegations)).toHaveLength(0);
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, secret.id))).toHaveLength(0);
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, secret.id))).toHaveLength(0);
     expect(await db.select().from(connectionGrants).where(eq(connectionGrants.id, grant.id)))
       .toEqual([expect.objectContaining({ status: "revoked", credentialSecretRefs: [] })]);
   });
 
   it("preserves personal grant secrets used by surviving declarations and bindings", async () => {
-    const { company } = await createCompanyWithOwner(db);
-    const member = await db.insert(companyMemberships).values({
-      companyId: company.id,
+    const { space } = await createSpaceWithOwner(db);
+    const member = await db.insert(spaceMemberships).values({
+      spaceId: space.id,
       principalType: "user",
       principalId: `member-${randomUUID()}`,
       status: "active",
       membershipRole: "member",
     }).returning().then((rows) => rows[0]!);
     const application = await db.insert(toolApplications).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationKey: `app-${randomUUID()}`,
       name: "Personal shared credentials",
       type: "mcp_http",
       status: "active",
     }).returning().then((rows) => rows[0]!);
     const definitions = await db.insert(userSecretDefinitions).values([
-      { companyId: company.id, key: `agent-declared-${randomUUID()}`, name: "Agent-declared credential" },
-      { companyId: company.id, key: `environment-declared-${randomUUID()}`, name: "Environment-declared credential" },
-      { companyId: company.id, key: `bound-${randomUUID()}`, name: "Bound credential" },
+      { spaceId: space.id, key: `agent-declared-${randomUUID()}`, name: "Agent-declared credential" },
+      { spaceId: space.id, key: `environment-declared-${randomUUID()}`, name: "Environment-declared credential" },
+      { spaceId: space.id, key: `bound-${randomUUID()}`, name: "Bound credential" },
     ]).returning();
-    const secrets = await db.insert(companySecrets).values(definitions.map((definition, index) => ({
-      companyId: company.id,
+    const secrets = await db.insert(spaceSecrets).values(definitions.map((definition, index) => ({
+      spaceId: space.id,
       scope: "user",
       ownerUserId: member.principalId,
       userSecretDefinitionId: definition.id,
@@ -771,7 +771,7 @@ describeEmbeddedPostgres("access service", () => {
       name: `Shared credential ${index}`,
     }))).returning();
     const connection = await db.insert(toolConnections).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationId: application.id,
       name: "Shared personal connection",
       uid: `shared-${randomUUID()}`,
@@ -788,7 +788,7 @@ describeEmbeddedPostgres("access service", () => {
       })),
     }).returning().then((rows) => rows[0]!);
     const grant = await db.insert(connectionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       connectionId: connection.id,
       kind: "user",
       subjectUserId: member.principalId,
@@ -799,7 +799,7 @@ describeEmbeddedPostgres("access service", () => {
     }).returning().then((rows) => rows[0]!);
     await db.insert(userSecretDeclarations).values([
       {
-        companyId: company.id,
+        spaceId: space.id,
         userSecretDefinitionId: definitions[0]!.id,
         targetType: "agent",
         targetId: `surviving-agent-${randomUUID()}`,
@@ -807,7 +807,7 @@ describeEmbeddedPostgres("access service", () => {
         envKey: "AGENT_TOKEN",
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         userSecretDefinitionId: definitions[1]!.id,
         targetType: "environment",
         targetId: `surviving-environment-${randomUUID()}`,
@@ -815,16 +815,16 @@ describeEmbeddedPostgres("access service", () => {
         envKey: "ENVIRONMENT_TOKEN",
       },
     ]);
-    await db.insert(companySecretBindings).values([
+    await db.insert(spaceSecretBindings).values([
       ...secrets.map((secret, index) => ({
-        companyId: company.id,
+        spaceId: space.id,
         secretId: secret.id,
         targetType: "tool_connection",
         targetId: connection.id,
         configPath: `credentials.shared_${index}`,
       })),
       {
-        companyId: company.id,
+        spaceId: space.id,
         secretId: secrets[2]!.id,
         targetType: "environment",
         targetId: `surviving-environment-${randomUUID()}`,
@@ -832,9 +832,9 @@ describeEmbeddedPostgres("access service", () => {
       },
     ]);
 
-    await accessService(db).updateMember(company.id, member.id, { status: "suspended" });
+    await accessService(db).updateMember(space.id, member.id, { status: "suspended" });
 
-    expect(await db.select().from(companySecrets).where(inArray(companySecrets.id, secrets.map((secret) => secret.id))))
+    expect(await db.select().from(spaceSecrets).where(inArray(spaceSecrets.id, secrets.map((secret) => secret.id))))
       .toHaveLength(3);
     expect(await db.select().from(connectionGrants).where(eq(connectionGrants.id, grant.id)))
       .toEqual([expect.objectContaining({ status: "revoked", credentialSecretRefs: [] })]);
@@ -844,7 +844,7 @@ describeEmbeddedPostgres("access service", () => {
         enabled: false,
         credentialSecretRefs: [],
       })]);
-    expect(await db.select().from(companySecretBindings)).toEqual([
+    expect(await db.select().from(spaceSecretBindings)).toEqual([
       expect.objectContaining({
         secretId: secrets[2]!.id,
         targetType: "environment",
@@ -854,29 +854,29 @@ describeEmbeddedPostgres("access service", () => {
   });
 
   it("preserves unrelated user-scoped secrets when membership is suspended", async () => {
-    const { company } = await createCompanyWithOwner(db);
-    const member = await db.insert(companyMemberships).values({
-      companyId: company.id,
+    const { space } = await createSpaceWithOwner(db);
+    const member = await db.insert(spaceMemberships).values({
+      spaceId: space.id,
       principalType: "user",
       principalId: `member-${randomUUID()}`,
       status: "active",
       membershipRole: "member",
     }).returning().then((rows) => rows[0]!);
     const definition = await db.insert(userSecretDefinitions).values({
-      companyId: company.id,
+      spaceId: space.id,
       key: `oauth-${randomUUID()}`,
       name: "Personal OAuth token",
     }).returning().then((rows) => rows[0]!);
-    const unrelatedSecret = await db.insert(companySecrets).values({
-      companyId: company.id,
+    const unrelatedSecret = await db.insert(spaceSecrets).values({
+      spaceId: space.id,
       scope: "user",
       ownerUserId: member.principalId,
       userSecretDefinitionId: definition.id,
       key: `oauth-${randomUUID()}`,
       name: "Environment API key",
     }).returning().then((rows) => rows[0]!);
-    const otherUserSecret = await db.insert(companySecrets).values({
-      companyId: company.id,
+    const otherUserSecret = await db.insert(spaceSecrets).values({
+      spaceId: space.id,
       scope: "user",
       ownerUserId: "another-user",
       userSecretDefinitionId: definition.id,
@@ -884,23 +884,23 @@ describeEmbeddedPostgres("access service", () => {
       name: "Another user's credential",
     }).returning().then((rows) => rows[0]!);
 
-    await accessService(db).updateMember(company.id, member.id, { status: "suspended" });
+    await accessService(db).updateMember(space.id, member.id, { status: "suspended" });
 
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, unrelatedSecret.id)))
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, unrelatedSecret.id)))
       .toHaveLength(1);
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, otherUserSecret.id)))
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, otherUserSecret.id)))
       .toHaveLength(1);
   });
 
   it("allows owner, admin, and operator role-default grants to manage environments", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
+    const { space, owner } = await createSpaceWithOwner(db);
     const access = accessService(db);
     const roles = ["admin", "operator", "viewer"] as const;
     const members = await db
-      .insert(companyMemberships)
+      .insert(spaceMemberships)
       .values(
         roles.map((role) => ({
-          companyId: company.id,
+          spaceId: space.id,
           principalType: "user" as const,
           principalId: `${role}-${randomUUID()}`,
           status: "active" as const,
@@ -910,7 +910,7 @@ describeEmbeddedPostgres("access service", () => {
       .returning();
 
     await access.setPrincipalGrants(
-      company.id,
+      space.id,
       "user",
       owner.principalId,
       grantsForHumanRole("owner"),
@@ -918,7 +918,7 @@ describeEmbeddedPostgres("access service", () => {
     );
     for (const member of members) {
       await access.setPrincipalGrants(
-        company.id,
+        space.id,
         "user",
         member.principalId,
         grantsForHumanRole(member.membershipRole as "admin" | "operator" | "viewer"),
@@ -930,25 +930,25 @@ describeEmbeddedPostgres("access service", () => {
     const operator = members.find((member) => member.membershipRole === "operator")!;
     const viewer = members.find((member) => member.membershipRole === "viewer")!;
 
-    await expect(access.canUser(company.id, owner.principalId, "environments:manage")).resolves.toBe(true);
-    await expect(access.canUser(company.id, admin.principalId, "environments:manage")).resolves.toBe(true);
-    await expect(access.canUser(company.id, operator.principalId, "environments:manage")).resolves.toBe(true);
-    await expect(access.canUser(company.id, viewer.principalId, "environments:manage")).resolves.toBe(false);
+    await expect(access.canUser(space.id, owner.principalId, "environments:manage")).resolves.toBe(true);
+    await expect(access.canUser(space.id, admin.principalId, "environments:manage")).resolves.toBe(true);
+    await expect(access.canUser(space.id, operator.principalId, "environments:manage")).resolves.toBe(true);
+    await expect(access.canUser(space.id, viewer.principalId, "environments:manage")).resolves.toBe(false);
   });
 
-  it("allows default operators to edit agents and company work without administering membership", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
+  it("allows default operators to edit agents and space work without administering membership", async () => {
+    const { space, owner } = await createSpaceWithOwner(db);
     const access = accessService(db);
-    const operator = await access.ensureMembership(company.id, "user", `operator-${randomUUID()}`, "operator");
+    const operator = await access.ensureMembership(space.id, "user", `operator-${randomUUID()}`, "operator");
     const agent = await db.insert(agents).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Operator-editable agent",
       role: "engineer",
       adapterType: "process",
       adapterConfig: {},
     }).returning().then((rows) => rows[0]!);
     await access.setPrincipalGrants(
-      company.id,
+      space.id,
       "user",
       operator.principalId,
       grantsForHumanRole("operator"),
@@ -961,50 +961,50 @@ describeEmbeddedPostgres("access service", () => {
       "tools:manage_profiles", "tools:manage_runtime", "tools:use", "tools:admin",
       "tools:view_audit", "audit:view_agent_actions",
     ] as const) {
-      await expect(access.canUser(company.id, operator.principalId, permissionKey)).resolves.toBe(true);
+      await expect(access.canUser(space.id, operator.principalId, permissionKey)).resolves.toBe(true);
     }
     for (const permissionKey of ["joins:approve", "users:manage_permissions"] as const) {
-      await expect(access.canUser(company.id, operator.principalId, permissionKey)).resolves.toBe(false);
+      await expect(access.canUser(space.id, operator.principalId, permissionKey)).resolves.toBe(false);
     }
     await expect(access.decide({
-      actor: { type: "board", userId: operator.principalId, source: "session" },
+      actor: { type: "operator", userId: operator.principalId, source: "session" },
       action: "agent_config:update",
-      resource: { type: "agent", companyId: company.id, agentId: agent.id },
+      resource: { type: "agent", spaceId: space.id, agentId: agent.id },
     })).resolves.toMatchObject({ allowed: true, reason: "allow_direct_change" });
 
-    const otherCompany = await createCompanyWithOwner(db);
-    await expect(access.canUser(otherCompany.company.id, operator.principalId, "agents:configure")).resolves.toBe(false);
+    const otherSpace = await createSpaceWithOwner(db);
+    await expect(access.canUser(otherSpace.space.id, operator.principalId, "agents:configure")).resolves.toBe(false);
   });
 
   it("backfills pre-upgrade human memberships with missing role grants without replacing custom grants", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
+    const { space, owner } = await createSpaceWithOwner(db);
     const scopedEnvironmentGrant = { environmentId: "env-1" };
     const humanRows = await db
-      .insert(companyMemberships)
+      .insert(spaceMemberships)
       .values([
         {
-          companyId: company.id,
+          spaceId: space.id,
           principalType: "user",
           principalId: `admin-${randomUUID()}`,
           status: "active",
           membershipRole: "admin",
         },
         {
-          companyId: company.id,
+          spaceId: space.id,
           principalType: "user",
           principalId: `operator-${randomUUID()}`,
           status: "active",
           membershipRole: "operator",
         },
         {
-          companyId: company.id,
+          spaceId: space.id,
           principalType: "user",
           principalId: `viewer-${randomUUID()}`,
           status: "active",
           membershipRole: "viewer",
         },
         {
-          companyId: company.id,
+          spaceId: space.id,
           principalType: "user",
           principalId: `legacy-${randomUUID()}`,
           status: "active",
@@ -1018,7 +1018,7 @@ describeEmbeddedPostgres("access service", () => {
     const legacyMember = humanRows[3]!;
 
     await db.insert(principalPermissionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       principalType: "user",
       principalId: owner.principalId,
       permissionKey: "environments:manage",
@@ -1031,17 +1031,17 @@ describeEmbeddedPostgres("access service", () => {
 
     expect(first.humanGrantsInserted).toBeGreaterThan(0);
     expect(second.humanGrantsInserted).toBe(0);
-    await expect(accessService(db).canUser(company.id, admin.principalId, "environments:manage")).resolves.toBe(true);
-    await expect(accessService(db).canUser(company.id, operator.principalId, "tasks:assign")).resolves.toBe(true);
-    await expect(accessService(db).canUser(company.id, legacyMember.principalId, "tasks:assign")).resolves.toBe(true);
-    await expect(accessService(db).canUser(company.id, viewer.principalId, "tasks:assign")).resolves.toBe(false);
+    await expect(accessService(db).canUser(space.id, admin.principalId, "environments:manage")).resolves.toBe(true);
+    await expect(accessService(db).canUser(space.id, operator.principalId, "tasks:assign")).resolves.toBe(true);
+    await expect(accessService(db).canUser(space.id, legacyMember.principalId, "tasks:assign")).resolves.toBe(true);
+    await expect(accessService(db).canUser(space.id, viewer.principalId, "tasks:assign")).resolves.toBe(false);
 
     const ownerEnvironmentGrants = await db
       .select()
       .from(principalPermissionGrants)
       .where(
         and(
-          eq(principalPermissionGrants.companyId, company.id),
+          eq(principalPermissionGrants.spaceId, space.id),
           eq(principalPermissionGrants.principalId, owner.principalId),
           eq(principalPermissionGrants.permissionKey, "environments:manage"),
         ),
@@ -1051,13 +1051,13 @@ describeEmbeddedPostgres("access service", () => {
     expect(ownerEnvironmentGrants[0]?.grantedByUserId).toBe("custom-author");
   });
 
-  it("backfills non-terminal agents as active company members without reviving pending or terminated agents", async () => {
-    const { company } = await createCompanyWithOwner(db);
+  it("backfills non-terminal agents as active space members without reviving pending or terminated agents", async () => {
+    const { space } = await createSpaceWithOwner(db);
     const agentRows = await db
       .insert(agents)
       .values([
         {
-          companyId: company.id,
+          spaceId: space.id,
           name: `Idle ${randomUUID()}`,
           role: "engineer",
           status: "idle",
@@ -1066,7 +1066,7 @@ describeEmbeddedPostgres("access service", () => {
           runtimeConfig: {},
         },
         {
-          companyId: company.id,
+          spaceId: space.id,
           name: `Running ${randomUUID()}`,
           role: "engineer",
           status: "running",
@@ -1075,7 +1075,7 @@ describeEmbeddedPostgres("access service", () => {
           runtimeConfig: {},
         },
         {
-          companyId: company.id,
+          spaceId: space.id,
           name: `Pending ${randomUUID()}`,
           role: "engineer",
           status: "pending_approval",
@@ -1084,7 +1084,7 @@ describeEmbeddedPostgres("access service", () => {
           runtimeConfig: {},
         },
         {
-          companyId: company.id,
+          spaceId: space.id,
           name: `Terminated ${randomUUID()}`,
           role: "engineer",
           status: "terminated",
@@ -1106,8 +1106,8 @@ describeEmbeddedPostgres("access service", () => {
     expect(second.agentMembershipsInserted).toBe(0);
     const memberships = await db
       .select()
-      .from(companyMemberships)
-      .where(eq(companyMemberships.principalType, "agent"));
+      .from(spaceMemberships)
+      .where(eq(spaceMemberships.principalType, "agent"));
     expect(memberships.map((membership) => membership.principalId).sort()).toEqual([
       idleAgent.id,
       runningAgent.id,
@@ -1118,13 +1118,13 @@ describeEmbeddedPostgres("access service", () => {
     expect(memberships.some((membership) => membership.principalId === terminatedAgent.id)).toBe(false);
   });
 
-  it("copies active user memberships with role-default grants for safe company imports", async () => {
-    const source = await createCompanyWithOwner(db);
-    const target = await createCompanyWithOwner(db);
+  it("copies active user memberships with role-default grants for safe space imports", async () => {
+    const source = await createSpaceWithOwner(db);
+    const target = await createSpaceWithOwner(db);
     const admin = await db
-      .insert(companyMemberships)
+      .insert(spaceMemberships)
       .values({
-        companyId: source.company.id,
+        spaceId: source.space.id,
         principalType: "user",
         principalId: `admin-${randomUUID()}`,
         status: "active",
@@ -1134,15 +1134,15 @@ describeEmbeddedPostgres("access service", () => {
       .then((rows) => rows[0]!);
 
     const access = accessService(db);
-    await access.copyActiveUserMemberships(source.company.id, target.company.id);
+    await access.copyActiveUserMemberships(source.space.id, target.space.id);
 
     const copiedOwnerGrants = await access.listPrincipalGrants(
-      target.company.id,
+      target.space.id,
       "user",
       source.owner.principalId,
     );
     const copiedAdminGrants = await access.listPrincipalGrants(
-      target.company.id,
+      target.space.id,
       "user",
       admin.principalId,
     );
@@ -1155,10 +1155,10 @@ describeEmbeddedPostgres("access service", () => {
   });
 
   it("preserves explicit scoped environment grants when backfilling owner and admin defaults", async () => {
-    const { company, owner } = await createCompanyWithOwner(db);
+    const { space, owner } = await createSpaceWithOwner(db);
     const scopedGrant = { environmentId: "env-1" };
     await db.insert(principalPermissionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       principalType: "user",
       principalId: owner.principalId,
       permissionKey: "environments:manage",
@@ -1168,7 +1168,7 @@ describeEmbeddedPostgres("access service", () => {
 
     await db.execute(sql.raw(`
       INSERT INTO "principal_permission_grants" (
-        "company_id",
+        "space_id",
         "principal_type",
         "principal_id",
         "permission_key",
@@ -1178,7 +1178,7 @@ describeEmbeddedPostgres("access service", () => {
         "updated_at"
       )
       SELECT
-        "company_id",
+        "space_id",
         'user',
         "principal_id",
         'environments:manage',
@@ -1186,12 +1186,12 @@ describeEmbeddedPostgres("access service", () => {
         NULL,
         now(),
         now()
-      FROM "company_memberships"
+      FROM "space_memberships"
       WHERE "principal_type" = 'user'
         AND "status" = 'active'
         AND "membership_role" IN ('owner', 'admin')
       ON CONFLICT (
-        "company_id",
+        "space_id",
         "principal_type",
         "principal_id",
         "permission_key"
@@ -1203,7 +1203,7 @@ describeEmbeddedPostgres("access service", () => {
       .from(principalPermissionGrants)
       .where(
         and(
-          eq(principalPermissionGrants.companyId, company.id),
+          eq(principalPermissionGrants.spaceId, space.id),
           eq(principalPermissionGrants.principalId, owner.principalId),
           eq(principalPermissionGrants.permissionKey, "environments:manage"),
         ),

@@ -7,7 +7,7 @@ const meta = {
   title: "Automation and structured work/Routines, schedules, and triggers/Product/Routines/Webhooks",
   component: WebhookReview,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "routines/triggers",
         "routines/history",

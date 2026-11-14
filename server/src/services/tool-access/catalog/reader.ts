@@ -9,7 +9,7 @@ import { toolCatalogEntries, toolConnections } from "@outpost/db";
 import type { ToolCatalogEntry } from "@outpost/shared";
 
 import type { RefreshConnectionCatalog } from "./contracts.js";
-export function createToolCatalogReader(db: Db, options: { catalogCacheTtlMs?: number }, now: () => Date, getConnectionRow: (idOrUid: string, companyId?: string) => Promise<typeof toolConnections.$inferSelect>, refreshCatalog: RefreshConnectionCatalog, toCatalogEntryForConnection: (row: typeof toolCatalogEntries.$inferSelect, connection: typeof toolConnections.$inferSelect) => ToolCatalogEntry) {
+export function createToolCatalogReader(db: Db, options: { catalogCacheTtlMs?: number }, now: () => Date, getConnectionRow: (idOrUid: string, spaceId?: string) => Promise<typeof toolConnections.$inferSelect>, refreshCatalog: RefreshConnectionCatalog, toCatalogEntryForConnection: (row: typeof toolCatalogEntries.$inferSelect, connection: typeof toolConnections.$inferSelect) => ToolCatalogEntry) {
   const catalogRefreshFlights = new Map<string, Promise<unknown>>();
   const catalogCacheTtlMs = Math.max(
     0,
@@ -18,10 +18,10 @@ export function createToolCatalogReader(db: Db, options: { catalogCacheTtlMs?: n
   return {
     listCatalog: async (
       connectionId: string,
-      companyId?: string,
+      spaceId?: string,
       actor?: ActorInfo,
     ): Promise<ToolCatalogEntry[]> => {
-      const connection = await getConnectionRow(connectionId, companyId);
+      const connection = await getConnectionRow(connectionId, spaceId);
       let rows = await db
         .select()
         .from(toolCatalogEntries)

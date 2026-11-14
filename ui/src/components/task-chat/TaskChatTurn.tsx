@@ -53,7 +53,7 @@ export function turnSummaryText(summary: TaskChatTurnItem["summary"]): string {
 }
 
 /**
- * One agent turn's activity behind a single expandable header row. Paperclip
+ * One agent turn's activity behind a single expandable header row. Outpost
  * Runner turns opt into the chronological-timeline branch below instead.
  *
  * While the turn is live and carries `liveStatus`, that status line (whimsy or

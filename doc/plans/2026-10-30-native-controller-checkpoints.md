@@ -6,7 +6,7 @@ Source inspected: `0c70cedce9a803bdc201324528abb35e423e7cd0` in the current task
 
 ## Goal and finish line
 
-Make native controller state independent of the main Paperclip webserver's disk,
+Make native controller state independent of the main Outpost webserver's disk,
 as one prerequisite for zero-downtime webserver deployments. A person starts a
 task, the webserver is replaced, and the same remote execution continues. After
 completion, another replacement can continue the retained session without the
@@ -39,10 +39,10 @@ has since landed. Build on it instead of introducing another checkpoint store.
 
 | Existing capability | Owner / evidence inspected |
 | --- | --- |
-| Encrypted, company/task/run-bound ORP checkpoints in Postgres | [`native-runner-checkpoint.ts`](../../server/src/services/native-runtime/native-runner-checkpoint.ts), [`native_runner_checkpoints`](../../packages/db/src/schema/native_runner_checkpoints.ts); landed in `09ad9adce2` / PR #17439 |
+| Encrypted, space/task/run-bound ORP checkpoints in Postgres | [`native-runner-checkpoint.ts`](../../server/src/services/native-runtime/native-runner-checkpoint.ts), [`native_runner_checkpoints`](../../packages/db/src/schema/native_runner_checkpoints.ts); landed in `09ad9adce2` / PR #17439 |
 | Opaque checkpoint codec, restore, authenticated replay cursor and persistence-before-effect barriers | [`durable-orp-control-plane.ts`](../../packages/outpost-runner/src/control-plane/durable-orp-control-plane.ts) |
 | Expiring ownership, controller generations, stale-writer fencing and isolated renewal/checkpoint pools | [`native-restart-recovery.ts`](../../server/src/services/native-runtime/native-restart-recovery.ts), [`native-execution-lease.ts`](../../server/src/services/native-runtime/native-execution-lease.ts) |
-| Active remote reattachment from DB state and the admitted Runner artifact | [`native-session-executor.ts`](../../server/src/services/native-runtime/native-session-executor.ts), `executePaperclipNativeSessionWithinScope` |
+| Active remote reattachment from DB state and the admitted Runner artifact | [`native-session-executor.ts`](../../server/src/services/native-runtime/native-session-executor.ts), `executeOutpostNativeSessionWithinScope` |
 | Bounded database discovery of prior task/session checkpoints | [`native-session-resume.ts`](../../server/src/services/native-runtime/native-session-resume.ts) |
 | Empty-controller-directory, receipt-recovery, concurrency, retention and SQL-cost tests | [`native-runner-restart-recovery.integration.test.ts`](../../server/src/services/native-runtime/native-runner-restart-recovery.integration.test.ts), [continuity runbook](../testing-native-remote-continuity.md) |
 | Read-only active-run upgrade eligibility | [`heartbeat/upgrade-readiness.ts`](../../server/src/services/heartbeat/upgrade-readiness.ts); landed in `567c043b17` / PR #18037 |
@@ -109,7 +109,7 @@ module rather than expanding the executor or creating a generic recovery system.
 
 Use the exact active run for restart adoption. For a subsequent turn, use the
 existing task/session pointer and `native-session-resume.ts` selection policy to
-locate the eligible prior run. Validate company, task, agent, normalized session,
+locate the eligible prior run. Validate space, task, agent, normalized session,
 workspace scope, admitted execution, provider configuration and current authority.
 Retain the existing progress barriers: a newer incompatible or incomplete record
 must not make recovery select an older convenient checkpoint.
@@ -133,20 +133,20 @@ run/session records cannot express a required durable lookup or concurrency chec
 The private `nativeControllerRecovery` envelope is limited to 4 KiB serialized.
 It contains a format version, digest of the exact redacted stored snapshot,
 native configuration digest, process-configuration digest or explicit absence,
-and ORP attachment/checkpoint binding. Run/company/task/agent/session identity is
+and ORP attachment/checkpoint binding. Run/space/task/agent/session identity is
 validated against existing records and the snapshot, not duplicated execution
 inputs. Keep credentials in the
 existing encrypted authority; persist logical resource identities, not secret
 values or host paths. Any newly sensitive recovery material uses the existing
 encryption provider and remains excluded from public run projections.
 
-`PaperclipControlPlanePort.checkpointSession` already persists the snapshot before
+`OutpostControlPlanePort.checkpointSession` already persists the snapshot before
 the local supervisor callback. Add the envelope to that same transaction and
 update; do not introduce a second snapshot writer. Compute stable compatibility
 inputs once per admission/attachment, preserve unrelated profile fields, and
 recheck durable ownership after lock waits with the established lock ordering.
 Keep legitimate post-result suspension/cleanup checkpoints permitted. The generic
-Runner persistence port must not learn Paperclip database fields. Remote local
+Runner persistence port must not learn Outpost database fields. Remote local
 files become projections; local-only consumers retain authoritative files.
 
 The recovery owner resolves, validates, materializes and attaches through existing
@@ -288,7 +288,7 @@ default branch and reconcile the active upgrades chat before writing source.
 | Completed warm and per-turn sessions | B can discover the correct source from DB; a later C continues it after B's controller storage is removed; no new provider session solely because a marker was missing |
 | Warm config changes | Verified close/suspend and permitted saved-history resume; never incorrectly reuse changed credentials, tool contract or workspace |
 | Old and new server overlap | B respects A's live lease; only one successor wins; delayed A cannot checkpoint, ACK, dispatch or finalize after losing ownership |
-| Stop, revoked access, pause and cross-company attempts | Saved intent and current authorization prevail; no recovery bypass or delayed mutation |
+| Stop, revoked access, pause and cross-space attempts | Saved intent and current authorization prevail; no recovery bypass or delayed mutation |
 | Corrupt/missing checkpoint, key or unsupported version | Precise ineligibility/hold; no silent fallback, replay, key generation or destruction of the last recoverable copy |
 | Existing records and rollback | Valid local state can be imported under authority; unsupported state stays explicit; compatible prior release reads newly written records |
 | Cleanup and idle | Selected checkpoints survive cleanup races; settled/idle states issue no new recurring SQL or network work; next legitimate producer reactivates recovery |
@@ -370,7 +370,7 @@ attempts when adding later passes. The rollback floor must include the idle-goal
 reader fix; an envelope-only reader is insufficient.
 
 Implementation is underway on `codex/native-controller-disk-independent-recovery`.
-The related Cloud policy work merged as paperclip-cloud PR #1048; it retains
+The related Cloud policy work merged as outpost-cloud PR #1048; it retains
 compatibility checks and drain fallback and does not implement this component.
 Verified locally: metadata/source-selection/lock-wait checks (21 tests), readiness
 and recovery scheduling (55 tests), durable discovery/import/inventory (7 tests),
@@ -421,8 +421,8 @@ uses the existing admission snapshot rebinder, which its warm-only predecessor
 omitted. The first benchmark attempts lacked ES-module setup and the observer's
 pg_stat_statements extension; the isolated Linux pilot needed its native Sharp
 dependency. No database-load acceptance claim has been made from failed attempts.
-There is no Paperclip issue bound to this local chat; this versioned source plan
-is the handoff, rather than an upload to an unrelated company or issue.
+There is no Outpost issue bound to this local chat; this versioned source plan
+is the handoff, rather than an upload to an unrelated space or issue.
 
 The remaining native qualification and compatibility cells require reproducible
 measurements and a reviewed PR. Full-home application

@@ -19,11 +19,11 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `GET /api/companies/{companyId}/dashboard`.
+- `GET /api/spaces/{spaceId}/dashboard`.
 
 Agent access: `available` — REST / native call_api / CLI dashboard.
 
-Policy: Same company plus visibility/audit/cost/run permissions where the route requires
+Policy: Same space plus visibility/audit/cost/run permissions where the route requires
 them.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/activity.ts#L224) at
@@ -31,7 +31,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Dashboard data is accessible; live-work rendering and event streaming are separate
@@ -45,18 +45,18 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `GET /api/companies/{companyId}/activity`.
+- `GET /api/spaces/{spaceId}/activity`.
 - `GET /api/issues/{id}/activity` (UUID or issue identifier).
-- `GET /api/companies/{companyId}/audit/agent-actions?actorScope=all&entityType=case&entityId={caseRef}`
+- `GET /api/spaces/{spaceId}/audit/agent-actions?actorScope=all&entityType=case&entityId={caseRef}`
   (case UUID or identifier).
 
-Agent access: `partial` — REST / native call_api / CLI activity for company
+Agent access: `partial` — REST / native call_api / CLI activity for space
 activity. Sandbox agents can use GET issue activity through the default
 [callback bridge](../../packages/adapter-utils/src/sandbox-callback-bridge.ts).
-The bridge still rejects company activity and company audit routes.
+The bridge still rejects space activity and space audit routes.
 
-Policy: Company activity requires same-company access and `company_scope:read`,
-with issue visibility filtering. Issue activity requires same-company resource
+Policy: Space activity requires same-space access and `space_scope:read`,
+with issue visibility filtering. Issue activity requires same-space resource
 access and `issue:read` for the resolved issue. The sandbox transport does not
 replace those controller checks or permit activity writes.
 
@@ -67,23 +67,23 @@ Issue activity transport reviewed at `89770ba707fb1ebd4cabd184eec2e7fee226e0c3`;
 other operations retain the baseline source review above.
 
 Verification: `not-run` — no live agent-credential proof. Local route and bridge
-regressions pass: permitted agent issue read, denied company/resource scope,
-denied writes, extra path segments, and company audit routes. With a real
+regressions pass: permitted agent issue read, denied space/resource scope,
+denied writes, extra path segments, and space audit routes. With a real
 sandbox agent, read an authorized issue's activity, then verify denial for an
-inaccessible issue, another company, and company-wide audit.
+inaccessible issue, another space, and space-wide audit.
 
 Gaps: Audit export and raw activity creation have extra restrictions; do not
 equate them with issue activity reading. Live sandbox access remains unverified.
 
 Working-tree case history update (2026-10-20): the all-actors Audit endpoint
-accepts case resource/action/date filters for ordinary company readers who can
+accepts case resource/action/date filters for ordinary space readers who can
 read those cases. Agent, responsible-person and run attribution filters still
 require `audit:view_agent_actions`; the basic tier still strips those fields and
 details. `case_events` mutations lacking an activity-log counterpart are merged
 with logged case events before the retained-source permission predicate and
 cursor limit. Case snippets are enriched only after that filter. Missing,
-inaccessible and other-company cases return no rows; exact identifiers are
-case-insensitive. The raw company activity API remains its existing stored-log
+inaccessible and other-space cases return no rows; exact identifiers are
+case-insensitive. The raw space activity API remains its existing stored-log
 view.
 
 Local verification: real temporary-Postgres
@@ -101,8 +101,8 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `GET /api/companies/{companyId}/heartbeat-runs`.
-- `GET /api/companies/{companyId}/live-runs`.
+- `GET /api/spaces/{spaceId}/heartbeat-runs`.
+- `GET /api/spaces/{spaceId}/live-runs`.
 - `GET /api/heartbeat-runs/{runId}`.
 - `GET /api/heartbeat-runs/{runId}/events`.
 - `GET /api/heartbeat-runs/{runId}/log`.
@@ -116,7 +116,7 @@ use these diagnostic GET paths through the default queue and HTTP/2
 [callback bridge](../../packages/adapter-utils/src/sandbox-callback-bridge.ts).
 Use the injected run credential and the access contract below.
 
-Policy: Same-company and `company_scope:read` checks apply to company run
+Policy: Same-space and `space_scope:read` checks apply to space run
 inventory. Run content requires run/task visibility; private run list entries
 may be redacted stubs. Task run/recovery reads require `issue:read`. Run-linked
 tasks also pass the caller's task-read SQL predicate individually, including
@@ -126,7 +126,7 @@ provider-trace administration authority.
 
 The recovery-actions GET also accepts `inspectSourceRunId` and optional
 `inspectSourceActionId`. The explicit path requires the same readable task and
-exact company/task/run/action binding, including resolved retained actions.
+exact space/task/run/action binding, including resolved retained actions.
 Run-only selection lists at most 20 actions; action selection observes current
 recorded-source identity with an eight-lease ceiling. This path does not run
 read revalidation, mutate recovery/Retry state, call providers or inspect files.
@@ -148,12 +148,12 @@ Verification: `not-run` for a deployed sandbox agent with these new routes.
 Isolated regressions cover admitted GETs, denied writes/extra segments, query
 forwarding, controller denials, private run stubs, and mixed public/private task
 links. They do not qualify a live run. After deployment, use a real agent run to
-read an authorized failure and assert denial/redaction for another company,
+read an authorized failure and assert denial/redaction for another space,
 private tasks and restricted key modes. Do not count a skipped database suite
 as successful verification.
 
 Gaps: Telemetry/run visibility is checked independently from seeing the source task.
-Company heartbeat history defaults to 200 rows and caps explicit limits at 1,000
+Space heartbeat history defaults to 200 rows and caps explicit limits at 1,000
 in both the route and service. The response remains an array. Scope, visibility,
 and secret redaction checks apply to the bounded result set.
 Live updated-bridge admission and useful incident diagnosis remain unverified.
@@ -170,7 +170,7 @@ API: `present` — representative operation IDs:
 
 Agent access: `available` — REST / native call_api / CLI routine runs.
 
-Policy: Same company plus visibility/audit/cost/run permissions where the route requires
+Policy: Same space plus visibility/audit/cost/run permissions where the route requires
 them.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/activity.ts#L224) at
@@ -178,7 +178,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Routine execution history is distinct from configuration revisions and scheduling
@@ -192,18 +192,18 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `GET /api/companies/{companyId}/timeline`.
+- `GET /api/spaces/{spaceId}/timeline`.
 
 Agent access: `available` — REST / native call_api.
 
-Policy: Same company plus visibility/audit/cost/run permissions where the route requires
+Policy: Same space plus visibility/audit/cost/run permissions where the route requires
 them.
 
-Evidence: `source-only` — [implementation](../../server/src/routes/companies.ts).
+Evidence: `source-only` — [implementation](../../server/src/routes/spaces.ts).
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: API exists; no dedicated timeline tool is necessary for this requirement.
@@ -214,23 +214,23 @@ Capability ID: `activity/agent-commentary`.
 
 Review: `baseline`.
 
-API: `present` — `GET /api/companies/{companyId}/agent-commentary` and
-`GET /api/companies/{companyId}/agent-commentary/{id}`.
+API: `present` — `GET /api/spaces/{spaceId}/agent-commentary` and
+`GET /api/spaces/{spaceId}/agent-commentary/{id}`.
 
 Agent access: `restricted` — the browsing API is board-only. Agent submission
 continues through the existing POST and native submit tools.
 
-Policy: Company membership, `commentary:view`, and source-task visibility. All human company roles,
+Policy: Space membership, `commentary:view`, and source-task visibility. All human space roles,
 including viewers, receive the permission by default, with an upgrade grant for existing active human members.
 Human invitation approval adds the default to older saved grant lists without widening existing scopes.
 Agent-action audit access remains separate. Counts and previews
-use the same visibility predicate as full messages; cross-company IDs return 404.
+use the same visibility predicate as full messages; cross-space IDs return 404.
 Feedback stays hidden after source-task deletion, even when its task foreign key clears.
 
 Evidence: `source-only` — [routes](../../server/src/routes/agent-commentary.ts) and
 [reader](../../server/src/services/agent-commentary-reader.ts).
 
 Verification: `not-run` for a deployed instance. Test list/detail denials with
-agent credentials, another company, and an unreadable task.
+agent credentials, another space, and an unreadable task.
 
 Gaps: Storybook simulates the API and does not qualify deployed authorization.

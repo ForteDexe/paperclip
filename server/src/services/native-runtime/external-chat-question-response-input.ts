@@ -29,7 +29,7 @@ export async function materializeExternalChatQuestionResponseInput(input: {
         .where(
           and(
             eq(issues.id, binding.issueId),
-            eq(issues.companyId, binding.companyId),
+            eq(issues.spaceId, binding.spaceId),
           ),
         )
         .for("update", { noWait: true });
@@ -39,7 +39,7 @@ export async function materializeExternalChatQuestionResponseInput(input: {
         .where(
           and(
             eq(heartbeatRuns.id, binding.runId),
-            eq(heartbeatRuns.companyId, binding.companyId),
+            eq(heartbeatRuns.spaceId, binding.spaceId),
             eq(heartbeatRuns.agentId, binding.agentId),
           ),
         )
@@ -50,7 +50,7 @@ export async function materializeExternalChatQuestionResponseInput(input: {
         .where(
           and(
             eq(agents.id, binding.agentId),
-            eq(agents.companyId, binding.companyId),
+            eq(agents.spaceId, binding.spaceId),
           ),
         )
         .for("update", { noWait: true });
@@ -86,7 +86,7 @@ export async function materializeExternalChatQuestionResponseInput(input: {
       );
       const responses = await materializeNativeInteractionResponses({
         db: tx,
-        companyId: binding.companyId,
+        spaceId: binding.spaceId,
         issueId: binding.issueId,
         runId: binding.runId,
         agentId: binding.agentId,

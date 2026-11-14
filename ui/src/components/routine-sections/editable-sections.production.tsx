@@ -84,7 +84,7 @@ const activityGatePolicyOptions = [
 
 const activityGateScopeOptions = [
   {
-    value: "company",
+    value: "space",
     title: "Outpost-wide",
     description: "Any activity across the Outpost counts as a reason to run.",
   },
@@ -99,7 +99,7 @@ const triggerKinds = ["schedule", "webhook"];
 const signingModes = ["app_webhook", "bearer", "hmac_sha256", "github_hmac", "none"];
 const signingModeDescriptions: Record<string, string> = {
   bearer: "Send Authorization: Bearer <secret> with each request.",
-  hmac_sha256: "Send X-Paperclip-Timestamp and X-Paperclip-Signature: sha256=<hex>, signing timestamp + a dot + the exact JSON body.",
+  hmac_sha256: "Send X-Outpost-Timestamp and X-Outpost-Signature: sha256=<hex>, signing timestamp + a dot + the exact JSON body.",
   github_hmac: "Accept GitHub-style X-Hub-Signature-256 header (HMAC over raw body, no timestamp).",
   app_webhook: "Accept a bearer token or an HMAC-SHA256 signature over the exact request body in X-Hub-Signature or X-Hub-Signature-256.",
   fireflies_hmac: "Signed webhook (legacy).",
@@ -656,7 +656,7 @@ export function SecretsSection() {
   const ctx = useRoutineDetail();
   const { editDraft, setEditDraft, availableSecrets, createSecret } = ctx;
 
-  // Project/company-scoped secrets that already see real usage, surfaced as
+  // Project/space-scoped secrets that already see real usage, surfaced as
   // quick-bind chips (§3.4). Ranked by reference count then recency.
   const recentlyUsedSecrets = useMemo(
     () =>

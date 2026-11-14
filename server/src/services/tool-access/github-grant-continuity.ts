@@ -7,9 +7,9 @@ import { measureRunPhase } from "../execution-preparation-timing.js";
 import { measureRunTransaction } from "../execution-transaction-timing.js";
 import { and, eq, sql, or, isNull, ne } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { companies, connectionGrants, toolConnections } from "@outpost/db";
+import { spaces, connectionGrants, toolConnections } from "@outpost/db";
 import { conflict, HttpError, notFound, unprocessable } from "../../errors.js";
-import { isPaperclipCloudConnectorStrategy, PaperclipCloudConnectorError, type PaperclipCloudConnector } from "../paperclip-cloud-connector.js";
+import { isOutpostCloudConnectorStrategy, OutpostCloudConnectorError, type OutpostCloudConnector } from "../outpost-cloud-connector.js";
 
 import type { createOAuthGrantRefresh } from "./oauth/grant-refresh.js";
 import type { OAuthCredentialStore } from "./oauth/credential-store.js";
@@ -23,7 +23,7 @@ type RecordGitHubAttempt = (grant: typeof connectionGrants.$inferSelect) => void
 
 type GitHubContinuityDependencies = {
   now: () => Date;
-  currentCloudConnector: () => PaperclipCloudConnector | null;
+  currentCloudConnector: () => OutpostCloudConnector | null;
   refreshOAuthGrantCredentials: ReturnType<typeof createOAuthGrantRefresh>;
   resolveOAuthGrantSecret: OAuthCredentialStore["resolveOAuthGrantSecret"];
 };
@@ -56,7 +56,7 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
           .where(
             and(
               eq(connectionGrants.id, initialGrant.id),
-              eq(connectionGrants.companyId, connection.companyId),
+              eq(connectionGrants.spaceId, connection.spaceId),
               eq(connectionGrants.connectionId, connection.id),
             ),
           ));
@@ -74,7 +74,7 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
   ) {
     await actor?.managementContext?.reauthorize();
     let grant = await measureRunPhase("connectors.github.credentials", () => refreshOAuthGrantCredentials({
-      companyId: connection.companyId,
+      spaceId: connection.spaceId,
       connectionId: connection.id,
       grantId: initialGrant.id,
       actor,
@@ -114,7 +114,7 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
       // expiring token pair exists, rotate it once under the same durable lease
       // and CAS path, then repeat /user before surfacing reconnect-required.
       grant = await measureRunPhase("connectors.github.credentials", () => refreshOAuthGrantCredentials({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         grantId: initialGrant.id,
         forceRefresh: true,
@@ -140,7 +140,7 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
             .where(
               and(
                 eq(connectionGrants.id, grant.id),
-                eq(connectionGrants.companyId, grant.companyId),
+                eq(connectionGrants.spaceId, grant.spaceId),
               ),
             ));
         }
@@ -155,7 +155,7 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
         .where(
           and(
             eq(connectionGrants.id, grant.id),
-            eq(connectionGrants.companyId, grant.companyId),
+            eq(connectionGrants.spaceId, grant.spaceId),
           ),
         )
         .for("update")
@@ -204,7 +204,7 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
         .where(
           and(
             eq(connectionGrants.id, grant.id),
-            eq(connectionGrants.companyId, grant.companyId),
+            eq(connectionGrants.spaceId, grant.spaceId),
           ),
         )
         .returning());
@@ -227,7 +227,7 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
     if (!initialGrant.providerTenant?.github?.bindingSync) return initialGrant;
     if (!cloudConnector) throw unprocessable("GitHub webhook delivery is not configured");
     const grant = accessToken || initialGrant.providerTenant.github.installationIds.length === 0 ? initialGrant : await refreshOAuthGrantCredentials({
-      companyId: connection.companyId, connectionId: connection.id, grantId: initialGrant.id, actor,
+      spaceId: connection.spaceId, connectionId: connection.id, grantId: initialGrant.id, actor,
     });
     const accessRef = grant.credentialSecretRefs.find(ref => ref.configPath === "oauth.access_token");
     if (!accessRef && grant.providerTenant?.github?.installationIds.length) throw unprocessable("GitHub authorization must be reconnected", { code: "oauth_reauthorization_required" });
@@ -235,21 +235,21 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
     // Serialize external binding changes with grant/connection lifecycle writes.
     // Requests occur only for saved debt; no idle lock or connection is retained.
     return db.transaction(async tx => {
-      // Company deletion locks its parent before cascading to grants/connections.
+      // Space deletion locks its parent before cascading to grants/connections.
       // Keep that order while retaining admission through the external handoff.
-      const [company] = await tx.select({ status: companies.status }).from(companies)
-        .where(eq(companies.id, connection.companyId)).for("share").limit(1);
-      if (!company) return grant;
+      const [space] = await tx.select({ status: spaces.status }).from(spaces)
+        .where(eq(spaces.id, connection.spaceId)).for("share").limit(1);
+      if (!space) return grant;
       const [current] = await tx.select().from(connectionGrants).where(and(
-        eq(connectionGrants.id, grant.id), eq(connectionGrants.companyId, connection.companyId),
+        eq(connectionGrants.id, grant.id), eq(connectionGrants.spaceId, connection.spaceId),
         eq(connectionGrants.connectionId, connection.id),
       )).for("update").limit(1);
       if (!current || current.status !== "active") return current ?? grant;
       const [liveConnection] = await tx.select().from(toolConnections).where(and(
-        eq(toolConnections.id, connection.id), eq(toolConnections.companyId, connection.companyId),
+        eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, connection.spaceId),
       )).for("update").limit(1);
       if (!liveConnection || liveConnection.status !== "active" || !liveConnection.enabled) return current;
-      if (company.status !== "active") return current;
+      if (space.status !== "active") return current;
       const github = current.providerTenant?.github;
       if (!github?.bindingSync || github.bindingSync.id !== grant.providerTenant?.github?.bindingSync?.id) return current;
       const subject = current.kind === "agent" && current.subjectAgentId ? `agent:${current.subjectAgentId}`
@@ -263,7 +263,7 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
       ];
       for (let offset = 0; offset < changes.length; offset += 4) {
         const outcomes = await Promise.allSettled(changes.slice(offset, offset + 4).map(change => cloudConnector.setWebhookBinding({
-          subject, companyId: connection.companyId, id: `${current.id}_${change.installationId}`,
+          subject, spaceId: connection.spaceId, id: `${current.id}_${change.installationId}`,
           installationId: change.installationId, connectionId: connection.id, grantId: current.id,
           ...change.active ? { active: true, accessToken: token! } : { active: false },
         })));
@@ -274,7 +274,7 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
       const [settled] = await tx.update(connectionGrants).set({
         providerTenant: sql`${connectionGrants.providerTenant} #- '{github,bindingSync}' #- '{github,continuityRetry}'`,
         updatedAt: now(),
-      }).where(and(eq(connectionGrants.id, current.id), eq(connectionGrants.companyId, connection.companyId))).returning();
+      }).where(and(eq(connectionGrants.id, current.id), eq(connectionGrants.spaceId, connection.spaceId))).returning();
       return settled!;
     });
   }
@@ -282,13 +282,13 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
   async function retainRetry(connection: typeof toolConnections.$inferSelect, grantId: string, attemptedRevision: string, error?: unknown, minimumMs = 30_000) {
     await db.transaction(async tx => {
       const [current] = await tx.select().from(connectionGrants).where(and(
-        eq(connectionGrants.id, grantId), eq(connectionGrants.companyId, connection.companyId),
+        eq(connectionGrants.id, grantId), eq(connectionGrants.spaceId, connection.spaceId),
         eq(connectionGrants.connectionId, connection.id), eq(connectionGrants.status, "active"),
       )).for("update").limit(1);
       // Backoff belongs to the attempted credential/installation revision.
       if (!current?.providerTenant?.github || githubContinuityRevision(current) !== attemptedRevision) return;
       const attempts = Math.min(16, (current.providerTenant.github.continuityRetry?.attempts ?? 0) + 1);
-      const advised = error instanceof PaperclipCloudConnectorError ? error.retryAt
+      const advised = error instanceof OutpostCloudConnectorError ? error.retryAt
         : error instanceof HttpError ? asRecord(error.details).retryAt : undefined;
       const at = new Date(Math.max(now().getTime() + Math.max(minimumMs, Math.min(60 * 60_000, 30_000 * 2 ** Math.min(attempts - 1, 7))),
         typeof advised === "number" ? advised : 0)).toISOString();
@@ -298,40 +298,40 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
           at, attempts, revision: attemptedRevision,
         })}::jsonb)`,
         updatedAt: now(),
-      }).where(and(eq(connectionGrants.id, current.id), eq(connectionGrants.companyId, connection.companyId)));
+      }).where(and(eq(connectionGrants.id, current.id), eq(connectionGrants.spaceId, connection.spaceId)));
     });
   }
 
-  async function continuityRows(companyId?: string) {
+  async function continuityRows(spaceId?: string) {
     return db
       .select({ grant: connectionGrants, connection: toolConnections })
       .from(connectionGrants)
       .innerJoin(toolConnections, and(
         eq(toolConnections.id, connectionGrants.connectionId),
-        eq(toolConnections.companyId, connectionGrants.companyId),
+        eq(toolConnections.spaceId, connectionGrants.spaceId),
       ))
       .where(and(
-        companyId ? eq(connectionGrants.companyId, companyId) : undefined,
+        spaceId ? eq(connectionGrants.spaceId, spaceId) : undefined,
         eq(connectionGrants.status, "active"),
         eq(toolConnections.status, "active"),
         eq(toolConnections.enabled, true),
         sql`${toolConnections.config}->>'sourceTemplateKey' = 'github'`,
         sql`${toolConnections.config}->'oauth'->>'connectorProfile' = 'github.code'`,
         sql`${connectionGrants.providerTenant}->'github' is not null`,
-        sql`exists (select 1 from companies where id = ${connectionGrants.companyId} and status = 'active')`,
+        sql`exists (select 1 from spaces where id = ${connectionGrants.spaceId} and status = 'active')`,
       ));
   }
 
-  async function nextGitHubConnectionContinuityAt(companyId?: string): Promise<number | null> {
-    const deadlines = (await continuityRows(companyId)).flatMap(({ grant, connection }) => {
+  async function nextGitHubConnectionContinuityAt(spaceId?: string): Promise<number | null> {
+    const deadlines = (await continuityRows(spaceId)).flatMap(({ grant, connection }) => {
       const deadline = githubGrantContinuityDeadline(connection, grant);
       return deadline === null ? [] : [deadline];
     });
     return deadlines.length ? Math.min(...deadlines) : null;
   }
 
-  async function sweepGitHubConnectionContinuity(companyId?: string) {
-    const rows = await continuityRows(companyId);
+  async function sweepGitHubConnectionContinuity(spaceId?: string) {
+    const rows = await continuityRows(spaceId);
     const due = rows.filter(({ grant, connection }) => {
       const deadline = githubGrantContinuityDeadline(connection, grant);
       return deadline !== null && deadline <= now().getTime();
@@ -358,13 +358,13 @@ export function createGitHubGrantContinuity(db: Db, { now, currentCloudConnector
     }
     return { checked: rows.length, due: due.length, refreshed, failed };
   }
-  async function githubConnectionContinuitySchedule(companyId?: string) {
+  async function githubConnectionContinuitySchedule(spaceId?: string) {
     const schedule = new Map<string, number>();
-    for (const { grant, connection } of await continuityRows(companyId)) {
+    for (const { grant, connection } of await continuityRows(spaceId)) {
       const dueAt = githubGrantContinuityDeadline(connection, grant);
-      if (dueAt !== null) schedule.set(connection.companyId, Math.min(schedule.get(connection.companyId) ?? Infinity, dueAt));
+      if (dueAt !== null) schedule.set(connection.spaceId, Math.min(schedule.get(connection.spaceId) ?? Infinity, dueAt));
     }
-    return [...schedule].map(([companyId, dueAt]) => ({ id: companyId, companyId, dueAt }));
+    return [...schedule].map(([spaceId, dueAt]) => ({ id: spaceId, spaceId, dueAt }));
   }
   return { githubConnectionContinuitySchedule, refreshManagedGitHubGrantAccess, syncGitHubGrantBindings, sweepGitHubConnectionContinuity, nextGitHubConnectionContinuityAt };
 }
@@ -399,11 +399,11 @@ export function githubContinuityRevision(grant: Pick<typeof connectionGrants.$in
 
 export async function readIdleGitHubGrantContinuity(tx: Pick<Db, "select">, now: number,
   checkBudget: () => void = () => {}) {
-  const rows = await tx.select({ grant: connectionGrants, connection: toolConnections, companyStatus: companies.status })
+  const rows = await tx.select({ grant: connectionGrants, connection: toolConnections, spaceStatus: spaces.status })
     .from(connectionGrants).leftJoin(toolConnections, eq(toolConnections.id, connectionGrants.connectionId))
-    .leftJoin(companies, eq(companies.id, connectionGrants.companyId))
+    .leftJoin(spaces, eq(spaces.id, connectionGrants.spaceId))
     .where(and(eq(connectionGrants.status, "active"), sql`${connectionGrants.providerTenant}->'github' IS NOT NULL`,
-      or(isNull(toolConnections.id), ne(toolConnections.companyId, connectionGrants.companyId),
+      or(isNull(toolConnections.id), ne(toolConnections.spaceId, connectionGrants.spaceId),
         sql`${toolConnections.config}->>'sourceTemplateKey' = 'github'`)))
     .orderBy(connectionGrants.id).limit(10_001);
   const proof = projectIdleGitHubGrantContinuity(rows, now, checkBudget);
@@ -421,25 +421,25 @@ function managedGitHubContinuityConnection(connection: typeof toolConnections.$i
     || connection.credentialSource === "vercel_connect") return "unrelated";
   if (typeof oauth.connectorProfile !== "string" || !oauth.connectorProfile) return "invalid";
   if (oauth.connectorProfile !== "github.code") return "unrelated";
-  return isPaperclipCloudConnectorStrategy(oauth.strategy) ? "managed" : "invalid";
+  return isOutpostCloudConnectorStrategy(oauth.strategy) ? "managed" : "invalid";
 }
 export function projectIdleGitHubGrantContinuity(rows: {
   grant: typeof connectionGrants.$inferSelect;
   connection: typeof toolConnections.$inferSelect | null;
-  companyStatus: string | null;
+  spaceStatus: string | null;
 }[], now: number, checkBudget: () => void = () => {}) {
   const deadlines: number[] = [];
   const connectionIds = new Set<string>();
   const blocked = () => ({ blocked: true, state: rows, deadlines: [], connectionIds: [] as string[] });
   if (rows.length > 10_000) return blocked();
-  for (const { grant, connection, companyStatus } of rows) {
+  for (const { grant, connection, spaceStatus } of rows) {
     checkBudget();
-    if (!connection || connection.companyId !== grant.companyId || !companyStatus
-      || !["active", "paused", "archived"].includes(companyStatus)
+    if (!connection || connection.spaceId !== grant.spaceId || !spaceStatus
+      || !["active", "paused", "archived"].includes(spaceStatus)
       || !["draft", "active", "disabled", "archived"].includes(connection.status)
       || !["oauth", "api_key", "none"].includes(connection.authKind)
-      || !["paperclip_vault", "vercel_connect"].includes(connection.credentialSource)) return blocked();
-    if (companyStatus !== "active" || connection.status !== "active" || !connection.enabled) continue;
+      || !["outpost_vault", "vercel_connect"].includes(connection.credentialSource)) return blocked();
+    if (spaceStatus !== "active" || connection.status !== "active" || !connection.enabled) continue;
     const ownership = managedGitHubContinuityConnection(connection);
     if (ownership === "invalid") return blocked();
     if (ownership === "unrelated") continue;

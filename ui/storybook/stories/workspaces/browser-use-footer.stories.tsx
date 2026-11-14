@@ -26,7 +26,7 @@ const meta = {
           "The quiet footer: contextual Stop browsing and an options menu with automatic fitting and fixed viewport presets. Costs are recorded on the task and hidden here. Countdown appears only at five minutes or less. Keep browsing resets idle time; it cannot extend the provider’s lifetime limit.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "workspaces/services",
         "tasks/discussion"

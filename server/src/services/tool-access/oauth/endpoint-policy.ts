@@ -6,15 +6,15 @@ export function createOAuthEndpointPolicy(allowPrivateRemoteEndpoints: () => boo
   /**
    * OAuth endpoint scheme/transport gate (PAP-17099).
    *
-   * Every OAuth endpoint Paperclip acts on is attacker-influenced: discovered
+   * Every OAuth endpoint Outpost acts on is attacker-influenced: discovered
    * metadata, a `WWW-Authenticate` hint, a pasted config, or a gallery default.
    * The authorization endpoint is the sharpest one because it is handed to the
    * operator's browser as a top-level navigation, so `javascript:`/`data:` there
-   * would run in the board's origin. `checkOAuthEndpointUrl` is the single place
+   * would run in the operator's origin. `checkOAuthEndpointUrl` is the single place
    * that decides; loopback `http:` is accepted only under the same
    * local-development policy that governs private remote endpoints, and
-   * Paperclip's own origin is exempt from the transport rule because a
-   * first-party endpoint (the smoke-lab fixture) is served exactly as the board
+   * Outpost's own origin is exempt from the transport rule because a
+   * first-party endpoint (the smoke-lab fixture) is served exactly as the operator
    * itself is.
    */
   function oauthEndpointRejected(
@@ -28,7 +28,7 @@ export function createOAuthEndpointPolicy(allowPrivateRemoteEndpoints: () => boo
   }
 
   /**
-   * Origins that are Paperclip itself: this deployment's configured public URL,
+   * Origins that are Outpost itself: this deployment's configured public URL,
    * plus the callback origin of the request in hand when there is one. Only the
    * plaintext-transport rule is relaxed for these.
    */
@@ -63,7 +63,7 @@ export function createOAuthEndpointPolicy(allowPrivateRemoteEndpoints: () => boo
     return origins;
   }
 
-  /** Throws unless `value` is an endpoint Paperclip may use (and navigate to). */
+  /** Throws unless `value` is an endpoint Outpost may use (and navigate to). */
   function assertOAuthEndpointUrl(
     kind: OAuthEndpointKind,
     value: unknown,

@@ -23,17 +23,17 @@ it("recovers real saved complaints and suggestions after their producer is kille
     const fixture = await server.fixture({ disableWakeOnDemand: true });
     await server.db.update(heartbeatRuns).set({ runtimeMode: "legacy", nativeIssueId: null }).where(eq(heartbeatRuns.id, fixture.runId));
     await server.db.update(agents).set({ adapterType: "codex_local" }).where(eq(agents.id, fixture.agentId));
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "codex_local", fixture.runId)!;
+    const token = createLocalAgentJwt(fixture.agentId, fixture.spaceId, "codex_local", fixture.runId)!;
     const caseDirectory = path.join(root, "case");
     const snapshots = path.join(caseDirectory, "snapshots");
     const identity = { campaignId: randomUUID(), attemptId: randomUUID(), executionId: "synthetic.interruption.local" };
     await mkdir(snapshots, { recursive: true });
-    await writeFile(path.join(snapshots, "fixtures.json"), JSON.stringify({ executionId: identity.executionId, companyId: fixture.companyId }));
+    await writeFile(path.join(snapshots, "fixtures.json"), JSON.stringify({ executionId: identity.executionId, spaceId: fixture.spaceId }));
     worker = spawn(process.execPath, ["--input-type=module", "-e", `
       for (const kind of ['complaint', 'suggestion']) {
         const response = await fetch(process.env.FEEDBACK_URL, {
           method: 'POST', headers: { 'content-type': 'application/json',
-            authorization: 'Bearer ' + process.env.FEEDBACK_TOKEN, 'X-Paperclip-Run-Id': process.env.FEEDBACK_RUN },
+            authorization: 'Bearer ' + process.env.FEEDBACK_TOKEN, 'X-Outpost-Run-Id': process.env.FEEDBACK_RUN },
           body: JSON.stringify({ kind, body: 'Synthetic interrupted producer ' + kind, idempotencyKey: kind }),
         });
         if (response.status !== 201) throw new Error('Synthetic feedback submission failed: ' + response.status);
@@ -42,7 +42,7 @@ it("recovers real saved complaints and suggestions after their producer is kille
       process.send({ saved: 2 });
       setInterval(() => {}, 1000);
     `], { stdio: ["ignore", "pipe", "pipe", "ipc"], env: {
-      PATH: process.env.PATH, FEEDBACK_URL: `${server.apiUrl}/api/companies/${fixture.companyId}/agent-commentary`,
+      PATH: process.env.PATH, FEEDBACK_URL: `${server.apiUrl}/api/spaces/${fixture.spaceId}/agent-commentary`,
       FEEDBACK_TOKEN: token, FEEDBACK_RUN: fixture.runId,
     } });
     const saved = await Promise.race([

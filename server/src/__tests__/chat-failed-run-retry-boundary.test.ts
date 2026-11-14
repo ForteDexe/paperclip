@@ -43,7 +43,7 @@ describe("failed chat retry service lifetime", () => {
     const shutdown = service.shutdown();
     expect(runtimeShutdown).not.toHaveBeenCalled();
     candidate.resolve([{
-      id: "retry-action", companyId: "company", status: "issued",
+      id: "retry-action", spaceId: "space", status: "issued",
       payload: { issueId: "issue" }, result: {}, updatedAt: new Date(0),
     }]);
     await expect(first).resolves.toMatchObject({ actionId: "retry-action", status: "queued" });
@@ -74,7 +74,7 @@ describe("failed chat retry service lifetime", () => {
     services.delete(first);
     const readFailure = new Error("replacement authority reached current source reads");
     const tx = { select: () => { throw readFailure; } } as unknown as Db;
-    const input = { companyId: "company", issueId: "issue", agentId: "agent", runId: "run", resultId: "result" };
+    const input = { spaceId: "space", issueId: "issue", agentId: "agent", runId: "run", resultId: "result" };
     await expect(authorizeCommittedChatResponse(db, tx, input)).rejects.toBe(readFailure);
     await replacement.shutdown();
     services.delete(replacement);

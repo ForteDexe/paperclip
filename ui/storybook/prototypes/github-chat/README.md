@@ -6,17 +6,17 @@
 > Use the running app and `ui/src/pages/apps/chat/GitHubChatSetup.tsx` for the current flow.
 
 Open **Apps / GitHub chat & reviews / 00 · Start here**. All provider handoffs,
-identity events, tool probes, GitHub output, and Paperclip tasks are fixtures.
+identity events, tool probes, GitHub output, and Outpost tasks are fixtures.
 No production route, credential storage, runtime, or provider call is changed.
 
-The preview reuses Paperclip primitives and the shared setup navigation/footer.
+The preview reuses Outpost primitives and the shared setup navigation/footer.
 The assigned agent, responsible user, bot-owned GitHub connection, and linked
-Paperclip task remain visible throughout. Review configuration is local state.
+Outpost task remain visible throughout. Review configuration is local state.
 The interactive start story supports Save & exit and refresh/resume through
 sessionStorage; only non-secret settings are stored. Reset preview clears it.
 Individual state stories start independently and do not persist settings.
 
-The real setup's **Copy setup prompt** includes the current Paperclip origin.
+The real setup's **Copy setup prompt** includes the current Outpost origin.
 For this preview, start Storybook with `OUTPOST_STORYBOOK_API_URL` set to the
 real instance URL. The copied prompt then includes that instance instead of the
 Storybook address. Without that setting, it asks for the instance URL.
@@ -27,7 +27,7 @@ Storybook address. Without that setting, it asks for the instance URL.
    returning from GitHub. Tool and identity verification are separate gates.
 2. Open Settings, change repository scope, edit an override, and reset it.
 3. Open Access and try sponsored guest permissions.
-4. Open Reviews, inspect GitHub output, and open the underlying Paperclip task.
+4. Open Reviews, inspect GitHub output, and open the underlying Outpost task.
 5. Inspect the unavailable-tool, permission, webhook, expired-registration,
    save-error, incomplete-review, and mobile stories.
 
@@ -45,7 +45,7 @@ approval. The implementation contract is doc/plans/2026-09-19-github-chat-review
 Installation and repository selection are separate steps. The repository picker
 uses the regular GitHub connection's Refresh access and Configure access on GitHub
 patterns. Its list represents the bot App installation inventory, independently
-of Paperclip's enabled repository subset. The simulated GitHub configuration adds
+of Outpost's enabled repository subset. The simulated GitHub configuration adds
 acme/mobile; refreshing makes it available but leaves it disabled. Empty and
 failed-refresh stories provide recovery paths. Settings reuses the same picker.
 
@@ -82,12 +82,12 @@ workspace integration checks follow design approval.
 
 ## Approved access model
 
-Access now includes all linked company members or an explicit member list, plus
+Access now includes all linked space members or an explicit member list, plus
 specific external GitHub accounts confirmed through a simulated lookup. External
 accounts require a sponsor and use the restricted guest profile. Newly added
 people can mention the bot; automatic PR reviews start off and are controlled
 separately per person. Existing members must link their own GitHub account before
-being selected. Add-member is not a company invitation or identity-link operation.
+being selected. Add-member is not a space invitation or identity-link operation.
 Open-anyone access is deferred. Reviews stays as a view over task/run outputs.
 
 The browser interaction stories cover external-account confirmation, required

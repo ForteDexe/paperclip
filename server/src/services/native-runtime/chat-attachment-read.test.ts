@@ -22,8 +22,8 @@ import {
   chatIdentityLinks,
   chatMessageLinks,
   chatPublications,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   heartbeatRuns,
   issueAttachments,
@@ -39,7 +39,7 @@ import { createStorageService } from "../../storage/service.js";
 import type { StorageService } from "../../storage/types.js";
 import { issueService } from "../issues.js";
 import { NativeChatAttachmentReadScope } from "./chat-attachment-read.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 const stagingControl = vi.hoisted(() => ({
   beforeStage: undefined as (() => Promise<void>) | undefined,
@@ -69,7 +69,7 @@ describe("native same-conversation historical attachment reading", () => {
   let db: ReturnType<typeof createDb>;
   let storage: ReturnType<typeof createStorageService>;
 
-  const companyId = "10000000-0000-4000-8000-000000000101";
+  const spaceId = "10000000-0000-4000-8000-000000000101";
   const agentId = "10000000-0000-4000-8000-000000000102";
   const issueId = "10000000-0000-4000-8000-000000000103";
   const runId = "10000000-0000-4000-8000-000000000104";
@@ -91,22 +91,22 @@ describe("native same-conversation historical attachment reading", () => {
     temporary = await startEmbeddedPostgresTestDatabase("native-chat-reuse-");
     db = createDb(temporary.connectionString);
     workspaceRoot = await mkdtemp(
-      path.join(tmpdir(), "paperclip-chat-read-workspace-"),
+      path.join(tmpdir(), "outpost-chat-read-workspace-"),
     );
     const storageRoot = await mkdtemp(
-      path.join(tmpdir(), "paperclip-chat-reuse-"),
+      path.join(tmpdir(), "outpost-chat-reuse-"),
     );
     await mkdir(storageRoot, { recursive: true });
     storage = createStorageService(createLocalDiskStorageProvider(storageRoot));
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Native chat attachment reuse",
       issuePrefix: "NCR",
       issueCounter: 1,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Native chat agent",
       adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" },
@@ -115,7 +115,7 @@ describe("native same-conversation historical attachment reading", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       issueNumber: 1,
       identifier: "NCR-1",
       title: "Reuse the earlier file",
@@ -125,7 +125,7 @@ describe("native same-conversation historical attachment reading", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       runtimeMode: "native",
@@ -143,7 +143,7 @@ describe("native same-conversation historical attachment reading", () => {
     const connectionId = randomUUID();
     await db.insert(toolApplications).values({
       id: applicationId,
-      companyId,
+      spaceId,
       applicationKey: `chat:discord:${endpointId}`,
       name: "Discord reuse",
       type: "chat",
@@ -151,7 +151,7 @@ describe("native same-conversation historical attachment reading", () => {
     });
     await db.insert(toolConnections).values({
       id: connectionId,
-      companyId,
+      spaceId,
       applicationId,
       name: "Discord reuse",
       uid: `chat-discord-${endpointId}`,
@@ -162,7 +162,7 @@ describe("native same-conversation historical attachment reading", () => {
     });
     await db.insert(chatEndpoints).values({
       id: endpointId,
-      companyId,
+      spaceId,
       connectionId,
       provider: "discord",
       publicId: randomUUID(),
@@ -173,7 +173,7 @@ describe("native same-conversation historical attachment reading", () => {
     });
     await db.insert(chatEndpointResources).values({
       id: resourceId,
-      companyId,
+      spaceId,
       endpointId,
       type: "channel",
       providerResourceId: "channel-1",
@@ -183,7 +183,7 @@ describe("native same-conversation historical attachment reading", () => {
     });
     await db.insert(chatConversations).values({
       id: conversationId,
-      companyId,
+      spaceId,
       endpointId,
       resourceId,
       issueId,
@@ -194,21 +194,21 @@ describe("native same-conversation historical attachment reading", () => {
     });
     await db.insert(chatExternalPrincipals).values({
       id: principalId,
-      companyId,
+      spaceId,
       provider: "discord",
       providerAccountId: "guild-1",
       externalId: "discord-user-1",
       kind: "user",
     });
     await db.insert(chatIdentityLinks).values({
-      companyId,
+      spaceId,
       endpointId,
       principalId,
-      paperclipUserId: userId,
+      outpostUserId: userId,
       status: "linked",
     });
-    await db.insert(companyMemberships).values({
-      companyId,
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "user",
       principalId: userId,
       status: "active",
@@ -222,7 +222,7 @@ describe("native same-conversation historical attachment reading", () => {
     );
     sourceCommentId = sourceComment.id;
     const stored = await storage.putFile({
-      companyId,
+      spaceId,
       namespace: `issues/${issueId}`,
       originalFilename: "earlier.txt",
       contentType: "text/plain",
@@ -243,7 +243,7 @@ describe("native same-conversation historical attachment reading", () => {
     const sourceDeliveryId = randomUUID();
     await db.insert(chatDeliveries).values({
       id: sourceDeliveryId,
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       principalId,
@@ -256,7 +256,7 @@ describe("native same-conversation historical attachment reading", () => {
       processedAt: new Date(),
     });
     await db.insert(chatMessageLinks).values({
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       deliveryId: sourceDeliveryId,
@@ -274,7 +274,7 @@ describe("native same-conversation historical attachment reading", () => {
     const currentDeliveryId = randomUUID();
     await db.insert(chatDeliveries).values({
       id: currentDeliveryId,
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       principalId,
@@ -287,7 +287,7 @@ describe("native same-conversation historical attachment reading", () => {
       processedAt: new Date(),
     });
     await db.insert(chatMessageLinks).values({
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       deliveryId: currentDeliveryId,
@@ -300,10 +300,10 @@ describe("native same-conversation historical attachment reading", () => {
       .set({
         contextSnapshot: {
           source: "chat:discord",
-          paperclipHarnessCheckedOut: true,
+          outpostHarnessCheckedOut: true,
           wakeCommentIds: [currentCommentId],
           commentId: currentCommentId,
-          paperclipWake: {
+          outpostWake: {
             reason: "External chat message received",
             externalChatProvider: "discord",
             checkedOutByHarness: true,
@@ -319,7 +319,7 @@ describe("native same-conversation historical attachment reading", () => {
     await temporary?.cleanup();
   });
 
-  const binding = { companyId, agentId, issueId, runId };
+  const binding = { spaceId, agentId, issueId, runId };
   function scope(
     overrides: Partial<
       ConstructorParameters<typeof NativeChatAttachmentReadScope>[0]
@@ -381,11 +381,11 @@ describe("native same-conversation historical attachment reading", () => {
 
   it("stages authorized historical bytes through the bound remote writer and cleans them on close", async () => {
     const cleanup = vi.fn(async () => undefined);
-    const stageRemoteAttachment = vi.fn(async () => ({ workspaceRelativePath: ".paperclip-inbound/remote-history/content", cleanup }));
+    const stageRemoteAttachment = vi.fn(async () => ({ workspaceRelativePath: ".outpost-inbound/remote-history/content", cleanup }));
     const reader = scope({ executionTargetKind: "remote", workspaceRoot: "/remote/workspace", stageRemoteAttachment });
     const result = await reader.read(selection());
     expect(stageRemoteAttachment).toHaveBeenCalledExactlyOnceWith({ body: sourceBody, contentType: "text/plain" });
-    expect(result).toMatchObject({ contentAccess: "staged_workspace_file", workspaceRelativePath: ".paperclip-inbound/remote-history/content", selectedForPublication: false });
+    expect(result).toMatchObject({ contentAccess: "staged_workspace_file", workspaceRelativePath: ".outpost-inbound/remote-history/content", selectedForPublication: false });
     await reader.close();
     expect(cleanup).toHaveBeenCalledOnce();
 
@@ -407,7 +407,7 @@ describe("native same-conversation historical attachment reading", () => {
       sha256: createHash("sha256").update(sourceBody).digest("hex"),
     });
     expect(result).not.toHaveProperty("objectKey");
-    expect(result.workspaceRelativePath).toMatch(/^\.paperclip-inbound\//);
+    expect(result.workspaceRelativePath).toMatch(/^\.outpost-inbound\//);
     const stagedPath = path.join(workspaceRoot, result.workspaceRelativePath!);
     expect(await readFile(stagedPath)).toEqual(sourceBody);
     expect(await db.select().from(issueAttachments)).toEqual(before);
@@ -446,17 +446,17 @@ describe("native same-conversation historical attachment reading", () => {
   it("rejects revoked current membership and disabled destination access before opening bytes", async () => {
     const member = scope();
     await db
-      .update(companyMemberships)
+      .update(spaceMemberships)
       .set({ status: "suspended" })
-      .where(eq(companyMemberships.principalId, userId));
+      .where(eq(spaceMemberships.principalId, userId));
     try {
       await expect(member.read(selection())).rejects.toThrow("not_authorized");
     } finally {
       await member.close();
       await db
-        .update(companyMemberships)
+        .update(spaceMemberships)
         .set({ status: "active" })
-        .where(eq(companyMemberships.principalId, userId));
+        .where(eq(spaceMemberships.principalId, userId));
     }
     const disabled = scope();
     await db
@@ -483,9 +483,9 @@ describe("native same-conversation historical attachment reading", () => {
         getObject: async (...args: Parameters<StorageService["getObject"]>) => {
           const object = await storage.getObject(...args);
           await db
-            .update(companyMemberships)
+            .update(spaceMemberships)
             .set({ status: "suspended" })
-            .where(eq(companyMemberships.principalId, userId));
+            .where(eq(spaceMemberships.principalId, userId));
           return object;
         },
       },
@@ -495,9 +495,9 @@ describe("native same-conversation historical attachment reading", () => {
     } finally {
       await reader.close();
       await db
-        .update(companyMemberships)
+        .update(spaceMemberships)
         .set({ status: "active" })
-        .where(eq(companyMemberships.principalId, userId));
+        .where(eq(spaceMemberships.principalId, userId));
     }
   });
 
@@ -560,12 +560,12 @@ describe("native same-conversation historical attachment reading", () => {
 
   it("rejects a symlinked staging root without touching its target", async () => {
     const unsafeRoot = await mkdtemp(
-      path.join(tmpdir(), "paperclip-chat-read-symlink-"),
+      path.join(tmpdir(), "outpost-chat-read-symlink-"),
     );
     const outside = await mkdtemp(
-      path.join(tmpdir(), "paperclip-chat-read-outside-"),
+      path.join(tmpdir(), "outpost-chat-read-outside-"),
     );
-    await symlink(outside, path.join(unsafeRoot, ".paperclip-inbound"));
+    await symlink(outside, path.join(unsafeRoot, ".outpost-inbound"));
     const reader = scope({ workspaceRoot: unsafeRoot });
     try {
       await expect(reader.read(selection())).rejects.toThrow("path_denied");
@@ -614,7 +614,7 @@ describe("native same-conversation historical attachment reading", () => {
     await db
       .update(heartbeatRuns)
       .set({
-        contextSnapshot: { source: "board", prompt: "pretend chat:discord" },
+        contextSnapshot: { source: "operator", prompt: "pretend chat:discord" },
       })
       .where(eq(heartbeatRuns.id, runId));
     try {
@@ -628,7 +628,7 @@ describe("native same-conversation historical attachment reading", () => {
     }
     const privateComment = await issueService(db).addComment(
       issueId,
-      "Private board note",
+      "Private operator note",
       { userId },
     );
     const privateReader = scope();
@@ -683,7 +683,7 @@ describe("native same-conversation historical attachment reading", () => {
       },
     };
     const reader = scope({ storage: emptyStorage });
-    const authority = new PaperclipRunnerToolAuthority(db, {
+    const authority = new OutpostRunnerToolAuthority(db, {
       ...binding,
       workspaceRoot,
       executionTargetKind: "local",
@@ -735,7 +735,7 @@ describe("native same-conversation historical attachment reading", () => {
           arguments: { ...selection(), workspaceRoot: "/" },
         }),
       ).rejects.toThrow("arguments_invalid");
-      const unbound = new PaperclipRunnerToolAuthority(db, {
+      const unbound = new OutpostRunnerToolAuthority(db, {
         ...binding,
         workspaceRoot,
       });
@@ -953,7 +953,7 @@ describe("native same-conversation historical attachment reading", () => {
     }
   });
 
-  it("releases governance and source locks before staging filesystem bytes", async () => {
+  it("releases policy and source locks before staging filesystem bytes", async () => {
     const reader = scope();
     let checked = false;
     stagingControl.beforeStage = async () => {
@@ -970,8 +970,8 @@ describe("native same-conversation historical attachment reading", () => {
           .for("update", { noWait: true });
         await tx
           .select()
-          .from(companyMemberships)
-          .where(eq(companyMemberships.principalId, userId))
+          .from(spaceMemberships)
+          .where(eq(spaceMemberships.principalId, userId))
           .for("update", { noWait: true });
         await tx
           .select()
@@ -1018,7 +1018,7 @@ describe("native same-conversation historical attachment reading", () => {
     "lists, reads and prepares exact unnamed $contentType bytes without widening publication scope",
     async ({ originalFilename, contentType, extension, body }) => {
       const stored = await storage.putFile({
-        companyId,
+        spaceId,
         namespace: `issues/${issueId}`,
         originalFilename,
         contentType,
@@ -1037,7 +1037,7 @@ describe("native same-conversation historical attachment reading", () => {
       });
       const filename = `attachment-${attachment.id}.${extension}`;
       const reader = scope();
-      const authority = new PaperclipRunnerToolAuthority(db, {
+      const authority = new OutpostRunnerToolAuthority(db, {
         ...binding,
         workspaceRoot,
         executionTargetKind: "local",
@@ -1111,7 +1111,7 @@ describe("native same-conversation historical attachment reading", () => {
           sha256: stored.sha256,
           originatingRunId: runId,
         });
-        const object = await storage.getObject(companyId, prepared!.objectKey);
+        const object = await storage.getObject(spaceId, prepared!.objectKey);
         const chunks: Buffer[] = [];
         for await (const chunk of object.stream)
           chunks.push(Buffer.from(chunk));

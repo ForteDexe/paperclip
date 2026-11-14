@@ -5,12 +5,12 @@ import { useEffect, useState } from "react";
 import { OnboardingWizard } from "@/components/OnboardingWizard";
 import { PillGuy } from "@/components/onboarding/PillGuy";
 import { Stepper } from "@/components/onboarding/Stepper";
-import { storybookHiredAgent } from "../../fixtures/paperclipData";
-import { useCompanyListQuery } from "@/api/companies-query";
+import { storybookHiredAgent } from "../../fixtures/outpostData";
+import { useSpaceListQuery } from "@/api/spaces-query";
 import { useDialog } from "@/context/DialogContext";
 import {
   ONBOARDING_ARC_ENTRY_STEP,
-  STORYBOOK_COMPANY_ID,
+  STORYBOOK_SPACE_ID,
   clearOnboardingDraft,
   seedOnboardingDraft,
 } from "../../fixtures/onboardingDraft";
@@ -36,7 +36,7 @@ const meta = {
   id: "onboarding-agent-arc",
   title: "Getting started and access/Onboarding and first work/Onboarding/Agent arc",
   parameters: { layout: "centered",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "onboarding/adapter",
         "onboarding/first-task"
@@ -61,9 +61,9 @@ export default meta;
  * once, on first render, so a draft written after mount arrives too late to
  * matter.
  *
- * `createdCompanyId` has to be a company the fixtures report as owned.
+ * `createdSpaceId` has to be a space the fixtures report as owned.
  * `restoreOnboardingState` treats restoring as an authorization decision and
- * discards the whole blob when the saved company is not in the list — correctly,
+ * discards the whole blob when the saved space is not in the list — correctly,
  * since localStorage is per-origin and would otherwise hand one account's draft
  * to another.
  *
@@ -88,7 +88,7 @@ function WizardArc() {
 
   useEffect(() => clearOnboardingDraft, []);
 
-  // Nothing is mounted until the companies list has settled, and that ordering
+  // Nothing is mounted until the spaces list has settled, and that ordering
   // is load-bearing rather than tidiness. The wizard's own mount gate waits on
   // `isFetching`, but this query is *disabled* until the account settles, and a
   // disabled query is not fetching — so mounting immediately gets an inner
@@ -96,15 +96,15 @@ function WizardArc() {
   // instead, and then persist that back over the seed. A real session does not
   // hit this because the dashboard has already loaded the list by the time
   // anyone opens onboarding.
-  const companies = useCompanyListQuery();
-  const ready = companies.isSuccess && companies.data !== undefined;
+  const spaces = useSpaceListQuery();
+  const ready = spaces.isSuccess && spaces.data !== undefined;
 
   const { openOnboarding } = useDialog();
   useEffect(() => {
     if (!seeded || !ready) return;
     openOnboarding({
       initialStep: ONBOARDING_ARC_ENTRY_STEP,
-      companyId: STORYBOOK_COMPANY_ID,
+      spaceId: STORYBOOK_SPACE_ID,
     });
   }, [seeded, ready, openOnboarding]);
 
@@ -115,7 +115,7 @@ function WizardArc() {
 /**
  * Every wait here is given an explicit timeout because the library's default is
  * one second, and every wait in this file outlasts it: the wizard does not mount
- * until the companies query settles, the hire runs four requests end to end. A
+ * until the spaces query settles, the hire runs four requests end to end. A
  * default-timeout wait gives up, the play function fails, and the story renders
  * the step it started on — which looks exactly like a story that was written to
  * open there. That is the failure this whole file exists to avoid, so it is
@@ -173,7 +173,7 @@ async function pickFirstSource() {
 
 /**
  * Naming the organization — the step before the arc, and the one a self-hosted
- * run starts on. It carries no draft and no company: this is where a company is
+ * run starts on. It carries no draft and no space: this is where a space is
  * created, so seeding either would be describing a run that had already been
  * here.
  *
@@ -184,13 +184,13 @@ async function pickFirstSource() {
  */
 function NamingStep() {
   useEffect(() => clearOnboardingDraft, []);
-  const companies = useCompanyListQuery();
-  const ready = companies.isSuccess && companies.data !== undefined;
+  const spaces = useSpaceListQuery();
+  const ready = spaces.isSuccess && spaces.data !== undefined;
   const { openOnboarding } = useDialog();
   useEffect(() => {
     if (!ready) return;
-    // No `companyId`: this step is where one is created, and naming the run's
-    // company here would be handing it the thing it exists to ask for.
+    // No `spaceId`: this step is where one is created, and naming the run's
+    // space here would be handing it the thing it exists to ask for.
     openOnboarding({ initialStep: 1 });
   }, [ready, openOnboarding]);
   if (!ready) return null;
@@ -204,7 +204,7 @@ export const NameYourOrganization: StoryObj = {
 /**
  * The arc's first step, and the one place Back is correctly absent: a run
  * entering here has nowhere behind it that belongs to it — step 1 creates a
- * company, and this run already holds one.
+ * space, and this run already holds one.
  */
 export const CreateYourAgent: StoryObj = {
   render: () => <WizardArc />,
@@ -412,7 +412,7 @@ function claudeLoginFailureStory(failure: "failed" | "timed_out"): StoryObj {
     beforeEach: () => {
       const reset = signedOutConnectionFixture();
       const previous = window.fetch;
-      const base = `/api/companies/${STORYBOOK_COMPANY_ID}/setup-token-login-sessions`;
+      const base = `/api/spaces/${STORYBOOK_SPACE_ID}/setup-token-login-sessions`;
       let attempts = 0;
       let setupAgent: Record<string, unknown> | null = null;
       const released = new Set<string>();
@@ -423,7 +423,7 @@ function claudeLoginFailureStory(failure: "failed" | "timed_out"): StoryObj {
           sessionId: id, environmentId: "environment-storybook-sandbox", status,
           expiresAt: new Date(Date.now() + 600_000).toISOString(), failure: null,
         });
-        if (url.pathname === `/api/companies/${STORYBOOK_COMPANY_ID}/agents`) {
+        if (url.pathname === `/api/spaces/${STORYBOOK_SPACE_ID}/agents`) {
           if (method === "GET") return Response.json(setupAgent ? [setupAgent] : []);
           if (method === "POST") {
             const body = JSON.parse(typeof init?.body === "string" ? init.body : input instanceof Request ? await input.clone().text() : "{}");
@@ -431,7 +431,7 @@ function claudeLoginFailureStory(failure: "failed" | "timed_out"): StoryObj {
             return Response.json(setupAgent, { status: 201 });
           }
         }
-        if (setupAgent && url.pathname === `/api/agents/${setupAgent.id}` && url.searchParams.get("companyId") === STORYBOOK_COMPANY_ID) {
+        if (setupAgent && url.pathname === `/api/agents/${setupAgent.id}` && url.searchParams.get("spaceId") === STORYBOOK_SPACE_ID) {
           if (method === "PATCH") {
             const body = JSON.parse(typeof init?.body === "string" ? init.body : input instanceof Request ? await input.clone().text() : "{}");
             setupAgent = { ...setupAgent, ...body };
@@ -629,26 +629,26 @@ function installCodexPlatformFixture(outcome: CodexPlatformFixtureOutcome) {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.origin);
     const method = init?.method ?? (input instanceof Request ? input.method : "GET");
     const payload = async (): Promise<Record<string, unknown>> => JSON.parse(typeof init?.body === "string" ? init.body : input instanceof Request ? await input.clone().text() : "{}");
-    if (url.pathname === `/api/companies/${STORYBOOK_COMPANY_ID}/environments` && method === "GET") {
+    if (url.pathname === `/api/spaces/${STORYBOOK_SPACE_ID}/environments` && method === "GET") {
       const response = await previous(input, init);
       const environments = await response.json();
       return Response.json(environments.map((environment: { id: string; config: Record<string, unknown> }) => ({ ...environment,
-        config: { ...environment.config, image: `registry.example.test/paperclip@sha256:${"a".repeat(64)}` },
+        config: { ...environment.config, image: `registry.example.test/outpost@sha256:${"a".repeat(64)}` },
       })));
     }
-    if (url.pathname === "/api/adapters" && url.searchParams.get("companyId") === STORYBOOK_COMPANY_ID) {
+    if (url.pathname === "/api/adapters" && url.searchParams.get("spaceId") === STORYBOOK_SPACE_ID) {
       if (url.searchParams.get("environmentId") !== "environment-storybook-sandbox") return Response.json({ error: "Discovery requires the selected environment." }, { status: 400 });
       receipt.calls.push(qualified ? "discovery-after" : "discovery-before");
       const response = await previous(input, init);
       const adapters = (await response.json()).map((adapter: { type: string }) => adapter.type === "codex_local" ? { ...adapter,
-        defaultRunner: qualified && outcome === "native" ? "paperclip" : "legacy",
-        supportedRunners: qualified && outcome === "native" ? ["paperclip", "legacy"] : ["legacy"],
+        defaultRunner: qualified && outcome === "native" ? "outpost" : "legacy",
+        supportedRunners: qualified && outcome === "native" ? ["outpost", "legacy"] : ["legacy"],
       } : adapter);
       return Response.json([...adapters, { type: "outpost_runner", loaded: true, disabled: false, source: "builtin", label: "Outpost Runner", modelsCount: 0 }]);
     }
     if (url.pathname === "/api/environments/environment-storybook-sandbox/probe" && method === "POST") {
       receipt.calls.push("platform");
-      if (url.searchParams.get("companyId") !== STORYBOOK_COMPANY_ID) return Response.json({ error: "The probe requires this company's context." }, { status: 403 });
+      if (url.searchParams.get("spaceId") !== STORYBOOK_SPACE_ID) return Response.json({ error: "The probe requires this space's context." }, { status: 403 });
       if (outcome === "permission") return Response.json({ error: diagnostic }, { status: 403 });
       if (outcome === "cleanup") return Response.json({ ok: false, driver: "sandbox", summary: diagnostic,
         details: { platformQualificationRecorded: false, leaseId: "storybook-platform-lease", platformQualificationDiagnostic: diagnostic } });
@@ -656,14 +656,14 @@ function installCodexPlatformFixture(outcome: CodexPlatformFixtureOutcome) {
       return Response.json({ ok: true, driver: "sandbox", summary: "The immutable image was measured and its setup lease released.",
         details: { platformQualificationRecorded: true, leaseId: "storybook-platform-lease" } });
     }
-    if (url.pathname === `/api/companies/${STORYBOOK_COMPANY_ID}/adapters/codex_local/test-environment` && method === "POST") {
+    if (url.pathname === `/api/spaces/${STORYBOOK_SPACE_ID}/adapters/codex_local/test-environment` && method === "POST") {
       receipt.calls.push("adapter");
       receipt.testRequests.push(await payload());
       const response = await previous(input, init);
       const result = await response.json();
       return Response.json({ ...result, adapterType: outcome === "native" && qualified ? "outpost_runner" : "codex_local" });
     }
-    if (url.pathname === `/api/companies/${STORYBOOK_COMPANY_ID}/agent-hires` && method === "POST") {
+    if (url.pathname === `/api/spaces/${STORYBOOK_SPACE_ID}/agent-hires` && method === "POST") {
       receipt.calls.push("hire");
       const request = await payload();
       receipt.hireRequests.push(request);

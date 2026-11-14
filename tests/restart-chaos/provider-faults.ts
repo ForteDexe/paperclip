@@ -2,7 +2,7 @@
  * Provider message faults (PV1 delay, PV2 drop, PV3 duplicate): the third fault
  * family, next to control-plane restarts (K*) and storage faults (ST*). The
  * provider stays alive; one chosen protocol message on the real path between the
- * Paperclip runner and the Codex app-server is late, missing or repeated.
+ * Outpost runner and the Codex app-server is late, missing or repeated.
  *
  * Seam: `provider-shim/codex-resolve-hook.mjs` is loaded into the wave's server
  * through NODE_OPTIONS. It answers the server's lookup of
@@ -25,7 +25,7 @@ export const PROVIDER_FAULT_KINDS = ["PV1", "PV2", "PV3"] as const;
 export type ProviderFaultKind = (typeof PROVIDER_FAULT_KINDS)[number];
 export const PROVIDER_FAULT_ACTIONS: Record<ProviderFaultKind, "delay" | "drop" | "duplicate"> = { PV1: "delay", PV2: "drop", PV3: "duplicate" };
 
-/** `terminal`: the turn/completed that follows a turn/interrupt. `interrupt_ack`: the response to that turn/interrupt. `tool_completed`: Codex's item/completed for the first non-terminal Paperclip tool call. */
+/** `terminal`: the turn/completed that follows a turn/interrupt. `interrupt_ack`: the response to that turn/interrupt. `tool_completed`: Codex's item/completed for the first non-terminal Outpost tool call. */
 export const PROVIDER_MESSAGES = ["terminal", "interrupt_ack", "tool_completed"] as const;
 export type ProviderMessage = (typeof PROVIDER_MESSAGES)[number];
 export const UNINTERRUPTED_PROVIDER_MESSAGES: readonly ProviderMessage[] = ["tool_completed"];

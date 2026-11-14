@@ -1,6 +1,6 @@
 # LLM Wiki Maintainer Skills
 
-This folder is the plugin-level source for LLM Wiki managed company skills. Outpost installs these skills into the company skill library and syncs them onto the Wiki Maintainer agent. The Wiki Maintainer's identity and operating loop live in `agents/wiki-maintainer/AGENTS.md`; the wiki-root `AGENTS.md` remains the wiki schema for page layout, citation style, and log format.
+This folder is the plugin-level source for LLM Wiki managed space skills. Outpost installs these skills into the space skill library and syncs them onto the Wiki Maintainer agent. The Wiki Maintainer's identity and operating loop live in `agents/wiki-maintainer/AGENTS.md`; the wiki-root `AGENTS.md` remains the wiki schema for page layout, citation style, and log format.
 
 Each skill is an isolated SKILL.md describing one job — when to invoke it, the inputs that must be true before starting, the steps, and the durable output the operation must leave behind.
 
@@ -12,7 +12,7 @@ Each skill is an isolated SKILL.md describing one job — when to invoke it, the
 | [`wiki-ingest`](./wiki-ingest/SKILL.md) | A new file landed in `raw/` and the operation issue says "ingest" — turn the source into durable wiki pages. |
 | [`wiki-query`](./wiki-query/SKILL.md) | The user asked the wiki a question; answer with citations and offer to file durable synthesis back into `wiki/`. |
 | [`wiki-lint`](./wiki-lint/SKILL.md) | A lint or health-check operation — audit for contradictions, orphan pages, weak provenance, broken links, missing concept pages. |
-| [`paperclip-distill`](./paperclip-distill/SKILL.md) | Cursor-window, distill, or backfill operation on Outpost activity — write a wiki-insightful project page, decisions log, and history note. |
+| [`outpost-distill`](./outpost-distill/SKILL.md) | Cursor-window, distill, or backfill operation on Outpost activity — write a wiki-insightful project page, decisions log, and history note. |
 | [`index-refresh`](./index-refresh/SKILL.md) | Refresh `wiki/index.md` so each entry has a tight, scannable summary; flag drift between the index and recent log activity. |
 
 ## Layering
@@ -20,7 +20,7 @@ Each skill is an isolated SKILL.md describing one job — when to invoke it, the
 ```
 AGENTS.md (wiki root)                              ← schema for the wiki itself: page conventions, frontmatter, voice
   agents/wiki-maintainer/AGENTS.md                 ← agent identity and operating loop
-  skills/<skill>/SKILL.md                          ← plugin-managed company skills installed onto the maintainer
+  skills/<skill>/SKILL.md                          ← plugin-managed space skills installed onto the maintainer
 ```
 
 When a skill conflicts with the wiki-root `AGENTS.md`, the wiki schema wins for page format/voice and the skill wins for operation flow. When a skill conflicts with the agent's `AGENTS.md`, the agent file wins for identity and the skill wins for the operation procedure.

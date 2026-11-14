@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://outpost.dev/schemas/runner/v1/runtime-context.schema.json",
-  "title": "Paperclip native runtime context",
+  "title": "Outpost native runtime context",
   "description": "The runtime context that the controller sends in native execution input and in sidecar session.open. Every object is closed; parseNativeRuntimeContext rejects unknown fields with field lists generated from this schema.",
   "$ref": "#/$defs/runtimeContext",
   "$defs": {

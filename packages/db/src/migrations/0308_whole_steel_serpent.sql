@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "agent_identity_keys" (
 	"agent_id" uuid PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"algorithm" text NOT NULL,
 	"key_id" text NOT NULL,
 	"public_key_pem" text NOT NULL,
@@ -15,6 +15,6 @@ DO $$ BEGIN
     WHERE conrelid = 'public.agent_identity_keys'::regclass
       AND conname = 'agent_identity_keys_owner_fk'
   ) THEN
-    ALTER TABLE "agent_identity_keys" ADD CONSTRAINT "agent_identity_keys_owner_fk" FOREIGN KEY ("company_id","agent_id") REFERENCES "public"."agents"("company_id","id") ON DELETE cascade ON UPDATE no action;
+    ALTER TABLE "agent_identity_keys" ADD CONSTRAINT "agent_identity_keys_owner_fk" FOREIGN KEY ("space_id","agent_id") REFERENCES "public"."agents"("space_id","id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;

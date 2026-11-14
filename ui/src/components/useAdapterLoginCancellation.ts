@@ -18,37 +18,37 @@ export function matchesAdapterLoginTarget(session: AdapterLoginSession, target: 
 const pendingCancellations = new Map<string, Promise<unknown>>();
 const sessionCancellations = new Map<string, Promise<unknown>>();
 
-export function cancelAdapterLoginSession(companyId: string, adapterType: string, submittedCode: boolean, sessionId: string) {
-  const key = JSON.stringify([companyId, adapterType, sessionId]);
+export function cancelAdapterLoginSession(spaceId: string, adapterType: string, submittedCode: boolean, sessionId: string) {
+  const key = JSON.stringify([spaceId, adapterType, sessionId]);
   const previous = sessionCancellations.get(key);
   if (previous) return previous;
   const request = (submittedCode
-    ? agentsApi.cancelClaudeSetupTokenLogin(companyId, sessionId)
-    : agentsApi.cancelAdapterAuthLogin(companyId, adapterType, sessionId)).catch(() => {});
+    ? agentsApi.cancelClaudeSetupTokenLogin(spaceId, sessionId)
+    : agentsApi.cancelAdapterAuthLogin(spaceId, adapterType, sessionId)).catch(() => {});
   sessionCancellations.set(key, request);
   void request.then(() => { if (sessionCancellations.get(key) === request) sessionCancellations.delete(key); });
   return request;
 }
 
-export function cancelPendingAdapterLogin(companyId: string, adapterType: string, submittedCode: boolean, target: AdapterLoginTarget, pending: Promise<unknown>[] = [], discover = true) {
-  const key = JSON.stringify([companyId, adapterType]);
+export function cancelPendingAdapterLogin(spaceId: string, adapterType: string, submittedCode: boolean, target: AdapterLoginTarget, pending: Promise<unknown>[] = [], discover = true) {
+  const key = JSON.stringify([spaceId, adapterType]);
   const previous = pendingCancellations.get(key);
   const cleanup = Promise.allSettled([...(previous ? [previous] : []), ...pending]).then(async () => {
     if (!discover) return;
     const session = submittedCode
-      ? await agentsApi.getActiveClaudeSetupTokenLoginSession(companyId, { fresh: true })
-      : await agentsApi.getActiveAdapterAuthLoginSession(companyId, adapterType, { fresh: true });
-    if (session && matchesAdapterLoginTarget(session, target)) await cancelAdapterLoginSession(companyId, adapterType, submittedCode, session.sessionId);
+      ? await agentsApi.getActiveClaudeSetupTokenLoginSession(spaceId, { fresh: true })
+      : await agentsApi.getActiveAdapterAuthLoginSession(spaceId, adapterType, { fresh: true });
+    if (session && matchesAdapterLoginTarget(session, target)) await cancelAdapterLoginSession(spaceId, adapterType, submittedCode, session.sessionId);
   }).catch(() => {});
   pendingCancellations.set(key, cleanup);
   void cleanup.then(() => { if (pendingCancellations.get(key) === cleanup) pendingCancellations.delete(key); });
   return cleanup;
 }
 
-export function useAdapterLoginCancellation(active: boolean, companyId: string, adapterType: string, submittedCode: boolean, sessionId: string | null, target: AdapterLoginTarget) {
+export function useAdapterLoginCancellation(active: boolean, spaceId: string, adapterType: string, submittedCode: boolean, sessionId: string | null, target: AdapterLoginTarget) {
   const queryClient = useQueryClient();
-  const ownerKey = JSON.stringify([companyId, adapterType]);
-  const targetKey = JSON.stringify([companyId, adapterType, target.environmentId, connectionTargetKey(target.aiConnection)]);
+  const ownerKey = JSON.stringify([spaceId, adapterType]);
+  const targetKey = JSON.stringify([spaceId, adapterType, target.environmentId, connectionTargetKey(target.aiConnection)]);
   const attemptTarget = useMemo(() => target, [targetKey]);
   const scope = useRef({ active, generation: 0, targetKey });
   if (scope.current.active !== active || scope.current.targetKey !== targetKey) scope.current = { active, generation: scope.current.generation + 1, targetKey };
@@ -57,10 +57,10 @@ export function useAdapterLoginCancellation(active: boolean, companyId: string, 
   const cancel = useCallback((id: string) => {
     const previous = cancelled.current.get(id);
     if (previous) return previous;
-    const request = cancelAdapterLoginSession(companyId, adapterType, submittedCode, id);
+    const request = cancelAdapterLoginSession(spaceId, adapterType, submittedCode, id);
     cancelled.current.set(id, request);
     return request;
-  }, [companyId, adapterType, submittedCode]);
+  }, [spaceId, adapterType, submittedCode]);
 
   const accept = useCallback(<T extends AdapterLoginSession>(request: () => Promise<T | null>, resumed = false): Promise<T | null> => {
     const generation = scope.current.generation;
@@ -83,12 +83,12 @@ export function useAdapterLoginCancellation(active: boolean, companyId: string, 
   useEffect(() => {
     if (active) return;
     const keys = submittedCode
-      ? [["claude-setup-token-active-session", companyId], ["claude-setup-token-status", companyId], ["claude-setup-token-prompt", companyId]]
-      : [["adapter-login-active-session", companyId, adapterType], ["adapter-login-status", companyId, adapterType]];
+      ? [["claude-setup-token-active-session", spaceId], ["claude-setup-token-status", spaceId], ["claude-setup-token-prompt", spaceId]]
+      : [["adapter-login-active-session", spaceId, adapterType], ["adapter-login-status", spaceId, adapterType]];
     for (const queryKey of keys) void queryClient.cancelQueries({ queryKey });
-    void cancelPendingAdapterLogin(companyId, adapterType, submittedCode, attemptTarget,
+    void cancelPendingAdapterLogin(spaceId, adapterType, submittedCode, attemptTarget,
       [...requests.current, ...(sessionId ? [cancel(sessionId)] : [])], !sessionId);
-  }, [active, companyId, adapterType, submittedCode, sessionId, queryClient, cancel, ownerKey, attemptTarget]);
+  }, [active, spaceId, adapterType, submittedCode, sessionId, queryClient, cancel, ownerKey, attemptTarget]);
 
   return { accept, resume: <T extends AdapterLoginSession>(request: () => Promise<T | null>) => accept(request, true), isActive: () => scope.current.active };
 }

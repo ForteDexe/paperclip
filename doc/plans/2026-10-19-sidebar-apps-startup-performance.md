@@ -6,7 +6,7 @@ staging deployment. PR: https://github.com/paperclipai/paperclip/pull/16851
 
 ## Implementation
 
-- The five-ID summary route applies existing company/task authorization, omits
+- The five-ID summary route applies existing space/task authorization, omits
   unavailable IDs and uses a dedicated projection with no detail/workspace
   enrichment. The bound applies before deduplication. Responses are private/no-store.
 - Recent history uses one account-scoped query. Successful omissions apply only
@@ -139,8 +139,8 @@ Running preview: http://127.0.0.1:3214/APP/apps
 The final production UI and compiled server use the PR head, with the TS loader
 for workspace dependency exports. The performance comparison used `085f7a6f1e`.
 The final preview also includes the strict query guard. Configuration/evidence:
-`/tmp/paperclip-apps-perf-20261019/`; disposable database port 55489. Fixture:
-one synthetic company, five tasks, a disabled draft connector and a paused agent
+`/tmp/outpost-apps-perf-20261019/`; disposable database port 55489. Fixture:
+one synthetic space, five tasks, a disabled draft connector and a paused agent
 with heartbeat disabled. Only this task's own preview/test processes were stopped.
 Native PostgreSQL package symlinks were restored with its install hook.
 

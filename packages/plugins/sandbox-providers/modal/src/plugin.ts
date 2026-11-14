@@ -25,7 +25,7 @@ import type {
   PluginEnvironmentValidationResult,
 } from "@outpost/plugin-sdk";
 
-const DEFAULT_WORKDIR = "/workspace/paperclip";
+const DEFAULT_WORKDIR = "/workspace/outpost";
 const DEFAULT_SANDBOX_TIMEOUT_MS = 3_600_000;
 const DEFAULT_EXEC_TIMEOUT_MS = 300_000;
 const MAX_SANDBOX_TIMEOUT_MS = 86_400_000;
@@ -94,7 +94,7 @@ function resolveAuth(config: ModalDriverConfig): { tokenId: string; tokenSecret:
   // The plugin worker runs in a child process that does not inherit host env
   // vars (see PluginWorkerManager.spawnProcess), so MODAL_TOKEN_ID /
   // MODAL_TOKEN_SECRET cannot be read here. Credentials must come from the
-  // environment config, which Paperclip stores as company secrets.
+  // environment config, which Outpost stores as space secrets.
   const tokenId = config.tokenId ?? "";
   const tokenSecret = config.tokenSecret ?? "";
   if (!tokenId && !tokenSecret) return null;
@@ -147,17 +147,17 @@ function buildSandboxCreateParams(input: {
 }
 
 function buildSandboxTags(input: {
-  companyId: string;
+  spaceId: string;
   environmentId: string;
   runId?: string;
   reuseLease: boolean;
 }): Record<string, string> {
   return {
-    "paperclip-provider": "modal",
-    "paperclip-company-id": input.companyId,
-    "paperclip-environment-id": input.environmentId,
-    "paperclip-reuse-lease": input.reuseLease ? "true" : "false",
-    ...(input.runId ? { "paperclip-run-id": input.runId } : {}),
+    "outpost-provider": "modal",
+    "outpost-space-id": input.spaceId,
+    "outpost-environment-id": input.environmentId,
+    "outpost-reuse-lease": input.reuseLease ? "true" : "false",
+    ...(input.runId ? { "outpost-run-id": input.runId } : {}),
   };
 }
 
@@ -393,7 +393,7 @@ const plugin = definePlugin({
   ): Promise<PluginEnvironmentProbeResult> {
     const config = parseDriverConfig(params.config);
     const tags = buildSandboxTags({
-      companyId: params.companyId,
+      spaceId: params.spaceId,
       environmentId: params.environmentId,
       reuseLease: false,
     });
@@ -403,9 +403,9 @@ const plugin = definePlugin({
       const sandbox = await createSandboxFor(client, app, config, tags);
       try {
         await ensureRemoteWorkspace(sandbox, config.workdir);
-        const proc = await sandbox.exec(["sh", "-lc", "printf paperclip-probe"]);
+        const proc = await sandbox.exec(["sh", "-lc", "printf outpost-probe"]);
         const { stdout, exitCode } = await readProcessStreams(proc);
-        if (exitCode !== 0 || stdout.trim() !== "paperclip-probe") {
+        if (exitCode !== 0 || stdout.trim() !== "outpost-probe") {
           return {
             ok: false,
             summary: `Modal sandbox probe failed: exit ${exitCode}, stdout=${JSON.stringify(stdout)}`,
@@ -460,7 +460,7 @@ const plugin = definePlugin({
     try {
       const app = await resolveApp(client, config);
       const tags = buildSandboxTags({
-        companyId: params.companyId,
+        spaceId: params.spaceId,
         environmentId: params.environmentId,
         runId: params.runId,
         reuseLease: config.reuseLease,
@@ -611,7 +611,7 @@ const plugin = definePlugin({
         };
       }
       const stdinPath = params.stdin != null
-        ? `/tmp/paperclip-stdin-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+        ? `/tmp/outpost-stdin-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
         : null;
       try {
         if (stdinPath && params.stdin != null) {

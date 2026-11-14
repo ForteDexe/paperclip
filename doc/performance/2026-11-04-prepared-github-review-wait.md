@@ -10,7 +10,7 @@ serialization CPU, not total server CPU.
 ## Change and preserved contract
 
 The GitHub owner prepares the existing Drizzle selector once per exact supplied
-`Db` object. A `WeakMap` retains only the compiled query and decoders. Company,
+`Db` object. A `WeakMap` retains only the compiled query and decoders. Space,
 issue, agent and source-comment IDs are placeholders filled on every execution.
 Database transactions and nested savepoints have different object identities
 and therefore own separate prepared queries and sessions. No database rows,
@@ -18,7 +18,7 @@ results, promises or authorization decisions are cached.
 
 Provenance still runs before the selector, and publication still runs after it.
 The SQL, field order, JSON `->'reviewedCommit'` projection, latest-review ordering,
-company boundaries, connection/repository/agent checks and publication lookup
+space boundaries, connection/repository/agent checks and publication lookup
 are unchanged. This does not change postgres.js driver preparation settings.
 
 ## Reproduction
@@ -84,9 +84,9 @@ production request latency percentage or measure database execution savings.
 ## Correctness and setup record
 
 The focused real-PostgreSQL suite covers malformed JSON and strict type equality,
-current connection/publication/provenance changes, company and agent boundaries,
+current connection/publication/provenance changes, space and agent boundaries,
 repository/thread checks, a newer queued head after a warm completed review,
-changing company/issue/agent/comment bindings on a shared handle, and independent
+changing space/issue/agent/comment bindings on a shared handle, and independent
 transaction/savepoint visibility through rollback.
 
 An initial sandbox run could not bind loopback. The next run exposed missing

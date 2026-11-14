@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { ACPX_QUALIFICATION_ENV, ANTIGRAVITY_CANDIDATE_ADMISSION_ENV, resolveAcpxQualification, resolveKimiCandidateAdmission } from "./acpx-qualification.js";
 import { QUALIFIED_ACPX_PROFILES, KIMI_DISTRIBUTION_CLOSURE_SHA256 } from "../../vendor/outpost-runner/index.js";
 import type { NativeExecutionInput } from "../../vendor/outpost-runner/index.js";
-import { resolvePaperclipRunnerProviderProfile, resolvePaperclipRunnerNativeProviderInput } from "./provider-profile.js";
+import { resolveOutpostRunnerProviderProfile, resolveOutpostRunnerNativeProviderInput } from "./provider-profile.js";
 
 const provider = { kind: "acpx", agent: "copilot", model: "exact-model", permissionMode: "approve-all" } as Extract<NativeExecutionInput["provider"], { kind: "acpx" }>;
 const authorize = (value: unknown) => ({ [ACPX_QUALIFICATION_ENV]: JSON.stringify(value) });
@@ -16,11 +16,11 @@ describe("host ACPX qualification admission", () => {
     const config = { provider: "acpx", acpxAgent: "kimi", model: "kimi-for-coding" };
     expect(QUALIFIED_ACPX_PROFILES.kimi.agentProfileVersion).toBe(17);
     expect(QUALIFIED_ACPX_PROFILES.kimi.qualificationStatus).not.toBe("pending");
-    expect(resolveKimiCandidateAdmission({ companyId: "candidate-company", model: config.model })).toBeUndefined();
-    expect(resolvePaperclipRunnerProviderProfile(config, { companyId: "candidate-company" })).toMatchObject(config);
-    expect(resolvePaperclipRunnerNativeProviderInput({ companyId: "candidate-company", backend: "acpx_runtime", adapterConfig: config }))
+    expect(resolveKimiCandidateAdmission({ spaceId: "candidate-space", model: config.model })).toBeUndefined();
+    expect(resolveOutpostRunnerProviderProfile(config, { spaceId: "candidate-space" })).toMatchObject(config);
+    expect(resolveOutpostRunnerNativeProviderInput({ spaceId: "candidate-space", backend: "acpx_runtime", adapterConfig: config }))
       .toMatchObject({ ...config, acpxPermissionMode: "approve-all" });
-    expect(() => resolvePaperclipRunnerProviderProfile({ ...config, model: "" }))
+    expect(() => resolveOutpostRunnerProviderProfile({ ...config, model: "" }))
       .toThrow(expect.objectContaining({ code: "outpost_runner_acpx_model_required" }));
   });
 
@@ -29,8 +29,8 @@ describe("host ACPX qualification admission", () => {
       vi.stubEnv(ACPX_QUALIFICATION_ENV, host);
       const config = { provider: "acpx", acpxAgent: "antigravity", model: "exact-model",
         env: { [ACPX_QUALIFICATION_ENV]: JSON.stringify([{ agent: "antigravity", model: "exact-model" }]) } };
-      for (const resolve of [() => resolvePaperclipRunnerProviderProfile(config),
-        () => resolvePaperclipRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig: config })]) {
+      for (const resolve of [() => resolveOutpostRunnerProviderProfile(config),
+        () => resolveOutpostRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig: config })]) {
         expect(resolve).toThrow(expect.objectContaining({ code: "outpost_runner_acpx_agent_unavailable" }));
         expect(resolve).toThrow("Google Antigravity is awaiting native Runner acceptance");
       }
@@ -41,13 +41,13 @@ describe("host ACPX qualification admission", () => {
     const config = { provider: "acpx", acpxAgent: "pi", model: "openrouter/deepseek/deepseek-v4-flash-0731" };
     for (const authorization of [undefined, "malformed unrelated candidate authorization"]) {
       vi.stubEnv(ACPX_QUALIFICATION_ENV, authorization);
-      expect(resolvePaperclipRunnerProviderProfile(config)).toMatchObject(config);
-      for (const acpxPermissionMode of [undefined, "approve-all", "approve-paperclip", "approve-reads", "deny-all"]) {
-        expect(resolvePaperclipRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig: { ...config, acpxPermissionMode } }))
+      expect(resolveOutpostRunnerProviderProfile(config)).toMatchObject(config);
+      for (const acpxPermissionMode of [undefined, "approve-all", "approve-outpost", "approve-reads", "deny-all"]) {
+        expect(resolveOutpostRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig: { ...config, acpxPermissionMode } }))
           .toMatchObject({ ...config, acpxPermissionMode: acpxPermissionMode ?? "approve-all" });
       }
       for (const model of [undefined, ""]) {
-        expect(() => resolvePaperclipRunnerProviderProfile({ ...config, model }))
+        expect(() => resolveOutpostRunnerProviderProfile({ ...config, model }))
           .toThrow(expect.objectContaining({ code: "outpost_runner_acpx_model_required" }));
       }
     }
@@ -62,20 +62,20 @@ describe("host ACPX qualification admission", () => {
   it("admits Cursor through ordinary configuration and ignores unrelated qualification authority", () => {
     const config = { provider: "acpx", acpxAgent: "cursor", model: "exact-cursor-model" };
     vi.stubEnv(ACPX_QUALIFICATION_ENV, JSON.stringify([{ agent: "pi", model: "pi-model" }]));
-    expect(resolvePaperclipRunnerProviderProfile(config)).toMatchObject({ acpxAgent: "cursor", model: config.model });
-    expect(resolvePaperclipRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig: config })).toMatchObject({ acpxAgent: "cursor", model: config.model });
+    expect(resolveOutpostRunnerProviderProfile(config)).toMatchObject({ acpxAgent: "cursor", model: config.model });
+    expect(resolveOutpostRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig: config })).toMatchObject({ acpxAgent: "cursor", model: config.model });
     expect(resolveAcpxQualification({ ...provider, agent: "cursor" } as typeof provider, authorize([]))).toBeUndefined();
-    expect(() => resolvePaperclipRunnerProviderProfile({ ...config, model: "" })).toThrow(expect.objectContaining({ code: "outpost_runner_acpx_model_required" }));
+    expect(() => resolveOutpostRunnerProviderProfile({ ...config, model: "" })).toThrow(expect.objectContaining({ code: "outpost_runner_acpx_model_required" }));
   });
   it.each([undefined, "malformed", JSON.stringify([{agent:"pi",model:"pi-model"}])])("admits ordinary Copilot without host overrides (%s)", host => {
     vi.stubEnv(ACPX_QUALIFICATION_ENV,host);
     const config={provider:"acpx",acpxAgent:"copilot",model:"gpt-5.6-luna"};
-    expect(resolvePaperclipRunnerProviderProfile(config)).toMatchObject({acpxAgent:"copilot",model:config.model});
-    expect(resolvePaperclipRunnerNativeProviderInput({backend:"acpx_runtime",adapterConfig:config})).toMatchObject({acpxAgent:"copilot",model:config.model});
+    expect(resolveOutpostRunnerProviderProfile(config)).toMatchObject({acpxAgent:"copilot",model:config.model});
+    expect(resolveOutpostRunnerNativeProviderInput({backend:"acpx_runtime",adapterConfig:config})).toMatchObject({acpxAgent:"copilot",model:config.model});
     expect(resolveAcpxQualification({...provider,model:config.model},{})).toBe("copilot");
   });
   it.each(["", " ", "auto", "default"])("refuses implicit Copilot model %s",model=>{
-    expect(()=>resolvePaperclipRunnerProviderProfile({provider:"acpx",acpxAgent:"copilot",model})).toThrow(expect.objectContaining({code:"outpost_runner_acpx_model_required"}));
+    expect(()=>resolveOutpostRunnerProviderProfile({provider:"acpx",acpxAgent:"copilot",model})).toThrow(expect.objectContaining({code:"outpost_runner_acpx_model_required"}));
     expect(()=>resolveAcpxQualification({...provider,model},{})).toThrow("explicit available model");
   });
   it("does not alter existing qualified providers", () => {
@@ -83,20 +83,20 @@ describe("host ACPX qualification admission", () => {
   });
   it.each(["claude", "codex", "grok", "cursor", "pi"])("keeps %s model selection open to native verification", (acpxAgent) => {
     const adapterConfig = { provider: "acpx", acpxAgent, model: "explicit-new-model" };
-    expect(resolvePaperclipRunnerProviderProfile(adapterConfig))
+    expect(resolveOutpostRunnerProviderProfile(adapterConfig))
       .toMatchObject({ acpxAgent, model: "explicit-new-model" });
-    expect(resolvePaperclipRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig }))
+    expect(resolveOutpostRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig }))
       .toMatchObject({ acpxAgent, model: "explicit-new-model" });
   });
   it("requires an explicit Codex ACP selection", () => {
     for (const model of [undefined, "", " "]) {
-      expect(() => resolvePaperclipRunnerProviderProfile({ provider: "acpx", acpxAgent: "codex", model }))
+      expect(() => resolveOutpostRunnerProviderProfile({ provider: "acpx", acpxAgent: "codex", model }))
         .toThrow(expect.objectContaining({ code: "outpost_runner_acpx_model_unqualified" }));
     }
   });
   it("preserves product defaults separately from qualification examples", () => {
     for (const [acpxAgent, model] of [["claude", "claude-opus-5-5"], ["grok", "grok-4.7"]]) {
-      expect(resolvePaperclipRunnerProviderProfile({ provider: "acpx", acpxAgent }))
+      expect(resolveOutpostRunnerProviderProfile({ provider: "acpx", acpxAgent }))
         .toMatchObject({ acpxAgent, model });
     }
   });
@@ -109,12 +109,12 @@ describe("host ACPX qualification admission", () => {
 
 it.each([undefined, "off", "low", "high", "max"] as const)("validates saved Pi thinking %s and projects it explicitly", piThinkingLevel => {
   const adapterConfig = { provider: "acpx", acpxAgent: "pi", model: "openrouter/deepseek/deepseek-v4-flash-0731", piThinkingLevel };
-  expect(resolvePaperclipRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig })).toMatchObject({ piThinkingLevel: piThinkingLevel ?? "low" });
-  for (const alias of ["medium", "minimal", "xhigh"]) expect(() => resolvePaperclipRunnerProviderProfile({ ...adapterConfig, piThinkingLevel: alias })).toThrow(expect.objectContaining({ code: "outpost_runner_pi_thinking_invalid" }));
+  expect(resolveOutpostRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig })).toMatchObject({ piThinkingLevel: piThinkingLevel ?? "low" });
+  for (const alias of ["medium", "minimal", "xhigh"]) expect(() => resolveOutpostRunnerProviderProfile({ ...adapterConfig, piThinkingLevel: alias })).toThrow(expect.objectContaining({ code: "outpost_runner_pi_thinking_invalid" }));
 });
 
 function kimiAdmission(platform: "darwin" | "linux", architecture: "arm64" | "x64") {
-  return { schema: "outpost.acpx-candidate-admission.v1", companyId: "candidate-company", agent: "kimi", model: "kimi-for-coding",
+  return { schema: "outpost.acpx-candidate-admission.v1", spaceId: "candidate-space", agent: "kimi", model: "kimi-for-coding",
     platform, architecture, expiresAt: Date.now() + 60_000, profileDigest: QUALIFIED_ACPX_PROFILES.kimi.commandDigest,
     nativeClosureDigest: `sha256:${KIMI_DISTRIBUTION_CLOSURE_SHA256[`${platform}-${architecture}` as "darwin-arm64" | "linux-x64"]}` };
 }

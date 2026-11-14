@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MuseConnection, MuseBinding, MusePairing, MusePairingInput, MuseAttestStopInput, MuseDetectorCleanupAttestationInput } from "@outpost/shared";
 import { museInvitationsApi } from "@/api/museInvitations";
-import { useAccountIdentity } from "@/api/companies-query";
+import { useAccountIdentity } from "@/api/spaces-query";
 import type { MuseConnectionState } from "@/components/new-agent/ExternalAgentInviteContent";
 
 export function museConnectionState(connection: MuseConnection | undefined,
@@ -42,41 +42,41 @@ export function museBindingRevision(binding: MuseBinding) {
 }
 
 /** Read queries contain only public evidence. Pairing results live in this mounted hook. */
-export function useMuseConnection(companyId: string | undefined, agentId: string | undefined, enabled = true) {
+export function useMuseConnection(spaceId: string | undefined, agentId: string | undefined, enabled = true) {
   const cache = useQueryClient();
   const identity = useAccountIdentity();
-  const key = ["muse-binding", companyId, identity.userId, agentId];
-  const scope = `${companyId}:${agentId}:${identity.userId}`;
+  const key = ["muse-binding", spaceId, identity.userId, agentId];
+  const scope = `${spaceId}:${agentId}:${identity.userId}`;
   const currentScope = useRef(scope); currentScope.current = scope;
   const [pairing, setPairing] = useState<MusePairing | null>(null);
-  const state = useQuery({ queryKey: key, enabled: enabled && identity.settled && !!companyId && !!agentId,
-    queryFn: ({ signal }) => museInvitationsApi.connection(companyId!, agentId!, signal), staleTime: 0,
+  const state = useQuery({ queryKey: key, enabled: enabled && identity.settled && !!spaceId && !!agentId,
+    queryFn: ({ signal }) => museInvitationsApi.connection(spaceId!, agentId!, signal), staleTime: 0,
     refetchInterval: query => query.state.error ? false
       : query.state.data?.binding || query.state.data?.agentStatus === "pending_approval" ? 5000 : false });
   const refresh = () => cache.invalidateQueries({ queryKey: key });
   const pair = useMutation({ mutationFn: async (input: MusePairingInput) => {
     const requestScope = scope;
-    const result = await museInvitationsApi.pair(companyId!, agentId!, input);
+    const result = await museInvitationsApi.pair(spaceId!, agentId!, input);
     if (currentScope.current === requestScope) setPairing(result);
     // Returning void prevents the transient capability entering the mutation cache.
   }, onSuccess: () => { void refresh(); }, onError: () => { setPairing(null); void state.refetch(); }, gcTime: 0 });
   const verify = useMutation({ mutationFn: async (binding: MuseBinding) => {
-    await museInvitationsApi.verify(companyId!, agentId!, museBindingRevision(binding));
+    await museInvitationsApi.verify(spaceId!, agentId!, museBindingRevision(binding));
   }, onSuccess: () => { void refresh(); }, onError: () => { void state.refetch(); } });
   const revoke = useMutation({ mutationFn: async (binding: MuseBinding) => {
-    await museInvitationsApi.revoke(companyId!, agentId!, museBindingRevision(binding));
+    await museInvitationsApi.revoke(spaceId!, agentId!, museBindingRevision(binding));
   }, onSuccess: () => { setPairing(null); void refresh(); } });
-  const attest = useMutation({ mutationFn: (input: MuseAttestStopInput) => museInvitationsApi.attestStop(companyId!, agentId!, input),
+  const attest = useMutation({ mutationFn: (input: MuseAttestStopInput) => museInvitationsApi.attestStop(spaceId!, agentId!, input),
     onSuccess: () => { void refresh(); }, onError: () => { void state.refetch(); } });
   const attestDetector = useMutation({ mutationFn: async (input: MuseDetectorCleanupAttestationInput) => {
     const requestScope = scope;
     const current = await state.refetch({ throwOnError: true });
     const b = current.data?.binding;
     if (currentScope.current !== requestScope || !b || !b.cleanup.attestationEligible || b.id !== input.bindingId || b.generation !== input.generation || b.revision !== input.expectedRevision || (b.qualification?.id ?? null) !== input.qualificationId || b.cleanup.hookScript !== input.hookScript) throw new Error("Connection changed. Refresh before recording detector cleanup.");
-    await museInvitationsApi.attestDetectorCleanup(companyId!, agentId!, input);
+    await museInvitationsApi.attestDetectorCleanup(spaceId!, agentId!, input);
     await state.refetch({ throwOnError: true });
   }, onError: () => { void state.refetch(); } });
-  useEffect(() => { setPairing(null); }, [companyId, agentId, identity.userId]);
+  useEffect(() => { setPairing(null); }, [spaceId, agentId, identity.userId]);
   useEffect(() => {
     if (!pairing) return;
     const timer = window.setTimeout(() => setPairing(null), Math.max(0, Date.parse(pairing.expiresAt) - Date.now()));

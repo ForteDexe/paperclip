@@ -31,7 +31,7 @@ const pair = generateKeyPairSync("ed25519"),
   foreign = generateKeyPairSync("ed25519"),
   kid = "dot-control-unit";
 const origin = "https://unit-dot.example.test",
-  companyId = "11111111-1111-4111-8111-111111111111",
+  spaceId = "11111111-1111-4111-8111-111111111111",
   grantId = "22222222-2222-4222-8222-222222222222";
 const body: DotPrincipalControlBody = {
   accessToken: "original-unit-access",
@@ -57,21 +57,21 @@ function fixture(ownerPresent = true) {
   const principal: McpPrincipal = {
     grant: {
       id: grantId,
-      companyId,
+      spaceId,
       userId: body.selectingUserId,
       clientId: body.upstreamClientId,
       resource: body.canonicalVerifiedResource,
       purpose: "agent",
       agentId: null,
-      scopes: ["paperclip:agent"],
+      scopes: ["outpost:agent"],
       revokedAt: null,
       revocationRevision: 0,
       revocationIndexReceipt: null,
       createdAt: new Date(0),
     },
-    actor: { type: "none", source: "mcp_oauth", companyId },
-    company: {
-      id: companyId,
+    actor: { type: "none", source: "mcp_oauth", spaceId },
+    space: {
+      id: spaceId,
       name: "Unit",
       issuePrefix: "UNIT",
       status: "active",
@@ -232,7 +232,7 @@ describe("Dot private principal HTTP+real crypto UNIT; controlled OAuth/identity
       canonicalOrigin: origin,
       principal: {
         userId: body.selectingUserId,
-        companyId,
+        spaceId,
         grantId,
         clientId: body.upstreamClientId,
         resource: body.canonicalVerifiedResource,
@@ -310,11 +310,11 @@ describe("Dot private principal HTTP+real crypto UNIT; controlled OAuth/identity
     expect(f.authenticate).not.toHaveBeenCalled();
     expect(f.readAuthority).not.toHaveBeenCalled();
   });
-  it("retains requested-company restriction and does not grant other HTTP methods", async () => {
+  it("retains requested-space restriction and does not grant other HTTP methods", async () => {
     const f = fixture(),
       restricted = {
         ...body,
-        requestedCompanyId: "33333333-3333-4333-8333-333333333333",
+        requestedSpaceId: "33333333-3333-4333-8333-333333333333",
       };
     const result = await request(f.app)
       .post(dotPrincipalControlPath)
@@ -396,7 +396,7 @@ describe("Dot private principal HTTP+real crypto UNIT; controlled OAuth/identity
     ).toBe(503);
     expect(f.authenticate).not.toHaveBeenCalled();
   });
-  it.each(["clientId", "userId", "companyId"] as const)(
+  it.each(["clientId", "userId", "spaceId"] as const)(
     "preserves current OAuth principal %s restriction",
     async (field) => {
       const f = fixture();

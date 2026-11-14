@@ -1,4 +1,4 @@
-import type { CompanySecret, EnvBinding, SecretVersionSelector, UserSecretDefinition } from "@outpost/shared";
+import type { SpaceSecret, EnvBinding, SecretVersionSelector, UserSecretDefinition } from "@outpost/shared";
 
 export type RowSource = "text" | "secret" | "user_secret";
 
@@ -241,7 +241,7 @@ export interface SecretHealth {
 }
 
 /** Per-row secret-binding health (plan §6.8). Null when healthy or not a bound ref. */
-export function computeRowHealth(row: EnvRow, secrets: readonly CompanySecret[]): SecretHealth | null {
+export function computeRowHealth(row: EnvRow, secrets: readonly SpaceSecret[]): SecretHealth | null {
   if (row.source !== "secret" || !row.secretId) return null;
   const secret = secrets.find((candidate) => candidate.id === row.secretId);
   if (!secret) {

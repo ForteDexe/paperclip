@@ -114,7 +114,7 @@ const meta = {
   title: "Getting started and access/Login, invitations, and access/Private tasks/04 References and blockers",
   decorators: [privacyDecorator],
   parameters: { ...privacyParameters, docs: { description: { component: "Task references, parent navigation and blockers redact unreadable task content. Inspect all existing reference variants and mobile." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "access/resources",
         "tasks/properties"

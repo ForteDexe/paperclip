@@ -25,7 +25,7 @@ with result.retryable=true whose saved retryAt is due, oldest-created first,
 limit 10. `tryAcknowledge` records attempts and exponential retryAt capped at
 five minutes; existing policy stops automatic retries after eight attempts.
 403 authorization changes cancel the action. Preserve that current policy,
-company/endpoint/principal authority, generation fencing, and lease ownership.
+space/endpoint/principal authority, generation fencing, and lease ownership.
 Do not infer successful delivery from a missing row or an SDK return alone.
 
 Acknowledgement can deliberately defer to a fast response while its request or
@@ -82,7 +82,7 @@ rows without assessments when a matching cancelled stale-head check receipt
 exists. This repairs admission that commits after cancellation. Both writers
 must signal it; late review insert and cancellation are separate commits.
 Extract this duty from publication dispatch rather than keep a global update
-on every check wake. Preserve exact company/endpoint/delivery/event identity.
+on every check wake. Preserve exact space/endpoint/delivery/event identity.
 
 All four duties still need real producer tests, startup reconstruction, scoped
 fair progress, rollback/commit, drain/resume, and quiet retained-history tests.
@@ -131,7 +131,7 @@ that same received action. A received action waiting on fast-response publicatio
 needs either the saved fast-response expiry, publication outcome changes, or
 concrete unresolved claim recovery. Never return now indefinitely for it.
 
-Most ordinary publication terminal writers already supply company/issue scope to
+Most ordinary publication terminal writers already supply space/issue scope to
 `notifyChatPublicationWork`; provider retry/unknown and stale-stream quarantine
 paths sometimes omit it. Specifically inspect `publications/failures.ts`,
 `worker.ts::settlePublicationPreparationFailure`, and queue quarantine. A fast
@@ -158,7 +158,7 @@ point still performs both initial and terminal response recovery.
 The durable source remains `chat_actions.kind = github_response_comment`.
 Received actions and retryable failed actions are reconstructed on startup in
 100-row ID pages. The shared scoped-deadline helper dispatches a fair batch of
-25 across companies. Exact delivery, conversation, issue, and repository-lease
+25 across spaces. Exact delivery, conversation, issue, and repository-lease
 hints restrict reconstruction. Processed/cancelled actions and exhausted failures
 leave this worker's inventory; retained response history does not arm a timer.
 No new queue table or changed automatic retry limit is introduced.

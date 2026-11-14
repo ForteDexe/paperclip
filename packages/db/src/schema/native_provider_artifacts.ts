@@ -14,7 +14,7 @@ export const nativeProviderArtifacts = pgTable(
   "native_provider_artifacts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull(),
+    spaceId: uuid("space_id").notNull(),
     closureDigest: text("closure_digest").notNull(),
     status: text("status").notNull().default("pending"),
     uploadToken: uuid("upload_token"),
@@ -28,8 +28,8 @@ export const nativeProviderArtifacts = pgTable(
       .defaultNow(),
   },
   (table) => ({
-    digest: uniqueIndex("native_provider_artifacts_company_digest_idx")
-      .on(table.companyId, table.closureDigest)
+    digest: uniqueIndex("native_provider_artifacts_space_digest_idx")
+      .on(table.spaceId, table.closureDigest)
       .where(sql`${table.status} = 'ready'`),
   }),
 );
@@ -38,7 +38,7 @@ export const nativeProviderArtifactReferences = pgTable(
   "native_provider_artifact_references",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull(),
+    spaceId: uuid("space_id").notNull(),
     artifactId: uuid("artifact_id")
       .notNull()
       .references(() => nativeProviderArtifacts.id, { onDelete: "restrict" }),
@@ -52,14 +52,14 @@ export const nativeProviderArtifactReferences = pgTable(
   },
   (table) => ({
     artifact: index("native_provider_artifact_references_artifact_idx").on(
-      table.companyId,
+      table.spaceId,
       table.artifactId,
     ),
     run: uniqueIndex("native_provider_artifact_references_run_idx")
-      .on(table.companyId, table.runId, table.artifactId)
+      .on(table.spaceId, table.runId, table.artifactId)
       .where(sql`${table.backupId} is null`),
     backup: uniqueIndex("native_provider_artifact_references_backup_idx")
-      .on(table.companyId, table.artifactId, table.backupId)
+      .on(table.spaceId, table.artifactId, table.backupId)
       .where(sql`${table.backupId} is not null`),
   }),
 );

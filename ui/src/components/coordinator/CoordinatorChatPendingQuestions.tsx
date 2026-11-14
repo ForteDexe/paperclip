@@ -34,7 +34,7 @@ export function CoordinatorChatPendingQuestion({ item }: { item: AttentionItem }
   return <section data-testid="coordinator-chat-pending-question" className="space-y-3">
     <p className="text-sm text-muted-foreground">{item.originAgentName ?? "Your agent"} needs your input on {task.title ?? task.identifier ?? "this task"}.</p>
     <article className="coordinator-decision-card space-y-4 rounded-xl border border-border bg-card p-6">
-      <AttentionInteractionResolver companyId={task.companyId} issueId={task.id} interactionId={item.subject.id} currentUserId={userId} presentation="coordinator-decision" footerSlot={<Link to={href} className="flex max-w-full items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+      <AttentionInteractionResolver spaceId={task.spaceId} issueId={task.id} interactionId={item.subject.id} currentUserId={userId} presentation="coordinator-decision" footerSlot={<Link to={href} className="flex max-w-full items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
         <span className="shrink-0">{task.identifier ?? "Open task"}</span><span className="truncate">{task.title}</span><ArrowUpRight className="size-4 shrink-0" />
       </Link>} />
 

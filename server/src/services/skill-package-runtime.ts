@@ -2,7 +2,7 @@ import { measureRunPhase } from "./execution-preparation-timing.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { Db } from "@outpost/db";
-import type { CompanySkillVersionFileInventoryEntry } from "@outpost/shared";
+import type { SpaceSkillVersionFileInventoryEntry } from "@outpost/shared";
 import { skillPackageStore, type StoredSkillVersion } from "./skill-package-store.js";
 import { assertSkillPackageFileSize, packageSha256, verifySkillPackageDirectory, relocateSkillPackageVerification, type SkillPackageFile, type SkillPackageManifest } from "./skill-package-files.js";
 import { REPOSITORY_CONTENT_DIR, repositorySkillProjection } from "./skill-repository-package.js";
@@ -44,7 +44,7 @@ export function skillPackageRuntime(db: Db) {
   async function inventory(version: StoredSkillVersion) {
     const id = version.repositorySnapshotId ?? version.packageSnapshotId;
     if (!id) throw new Error("Skill version has no package");
-    const manifest = await store.manifest(version.companyId, id);
+    const manifest = await store.manifest(version.spaceId, id);
     const files = originalFiles(version, manifest).map(({ path, kind }) => ({ path, kind }));
     if (version.repositorySnapshotId) {
       files.unshift({ path: "SKILL.md", kind: "skill" });
@@ -57,8 +57,8 @@ export function skillPackageRuntime(db: Db) {
   async function projection(version: StoredSkillVersion, maxBytes?: number): Promise<ProjectedFile[]> {
     const id = version.repositorySnapshotId ?? version.packageSnapshotId;
     if (!id) throw new Error("Skill version has no package");
-    const manifest = await store.manifest(version.companyId, id);
-    const key = `${version.companyId}:${version.id}:${manifest.contentHash}`;
+    const manifest = await store.manifest(version.spaceId, id);
+    const key = `${version.spaceId}:${version.id}:${manifest.contentHash}`;
     const files = originalFiles(version, manifest);
     const cached = projections.get(key);
     if (cached) return [...files, ...cached.files];
@@ -67,7 +67,7 @@ export function skillPackageRuntime(db: Db) {
       if (!version.repositorySkillPath) throw new Error("Repository skill entrypoint is missing");
       const wanted = new Set([version.repositorySkillPath, path.posix.join(path.posix.dirname(version.repositorySkillPath), "agents/openai.yaml")]);
       for (const file of manifest.files.filter(file => wanted.has(file.path))) assertSkillPackageFileSize(file.size, maxBytes);
-      const selected: CompanySkillVersionFileInventoryEntry[] = [];
+      const selected: SpaceSkillVersionFileInventoryEntry[] = [];
       for (const file of manifest.files.filter(file => wanted.has(file.path))) {
         const original = await readOriginalFile(version, file.path, maxBytes);
         if (!original) throw new Error("Repository skill file is missing");
@@ -96,7 +96,7 @@ export function skillPackageRuntime(db: Db) {
     const parent = path.dirname(directory);
     await ensureSkillCacheDirectory(parent, true);
     if (await measureRunPhase("skills.version.verify", () => verifySkillPackageDirectory(directory, files), { fileCount: files.length })) return directory;
-    return store.withPackage(version.companyId, (version.repositorySnapshotId ?? version.packageSnapshotId)!, async root => {
+    return store.withPackage(version.spaceId, (version.repositorySnapshotId ?? version.packageSnapshotId)!, async root => {
       const staging = await fs.mkdtemp(path.join(parent, `.${version.id}-`));
       try {
         for (const file of files) {
@@ -116,7 +116,7 @@ export function skillPackageRuntime(db: Db) {
   }
   async function readFile(version: StoredSkillVersion, relative: string, maxBytes?: number) {
     const id = (version.repositorySnapshotId ?? version.packageSnapshotId)!;
-    const manifest = await store.manifest(version.companyId, id);
+    const manifest = await store.manifest(version.spaceId, id);
     const file = originalFiles(version, manifest).find(file => file.path === relative)
       ?? (await projection(version, maxBytes)).find(file => file.path === relative);
     if (!file) return null;

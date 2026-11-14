@@ -1,7 +1,7 @@
 import { PERMISSION_KEYS } from "@outpost/shared";
-import type { HumanCompanyMembershipRole } from "@outpost/shared";
+import type { HumanSpaceMembershipRole } from "@outpost/shared";
 import { NEW_STANDARD_AGENT_DEFAULT_GRANT_KEYS, newStandardAgentGrantScope } from "../lib/agent-permissions.js";
-import { grantsForHumanRole } from "./company-member-roles.js";
+import { grantsForHumanRole } from "./space-member-roles.js";
 
 export function grantsFromDefaults(
   defaultsPayload: Record<string, unknown> | null | undefined,
@@ -58,7 +58,7 @@ export function agentJoinGrantsFromDefaults(
 
 export function humanJoinGrantsFromDefaults(
   defaultsPayload: Record<string, unknown> | null | undefined,
-  membershipRole: HumanCompanyMembershipRole
+  membershipRole: HumanSpaceMembershipRole
 ): Array<{
   permissionKey: (typeof PERMISSION_KEYS)[number];
   scope: Record<string, unknown> | null;

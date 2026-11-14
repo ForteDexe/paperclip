@@ -1,7 +1,7 @@
 WITH migrated_agents AS (
   SELECT
     "id",
-    "company_id",
+    "space_id",
     CASE lower(COALESCE(NULLIF("adapter_config" ->> 'agent', ''), 'claude'))
       WHEN 'codex' THEN 'codex_local'
       ELSE 'claude_local'
@@ -74,14 +74,14 @@ updated_agents AS (
   WHERE "agents"."id" = migrated_agents."id"
   RETURNING
     "agents"."id",
-    "agents"."company_id",
+    "agents"."space_id",
     migrated_agents."next_adapter_type"
 ),
 cleared_task_sessions AS (
   DELETE FROM "agent_task_sessions"
   USING updated_agents
   WHERE "agent_task_sessions"."agent_id" = updated_agents."id"
-    AND "agent_task_sessions"."company_id" = updated_agents."company_id"
+    AND "agent_task_sessions"."space_id" = updated_agents."space_id"
     AND "agent_task_sessions"."adapter_type" = 'acpx_local'
   RETURNING "agent_task_sessions"."id"
 )
@@ -94,4 +94,4 @@ SET
   "updated_at" = now()
 FROM updated_agents
 WHERE "agent_runtime_state"."agent_id" = updated_agents."id"
-  AND "agent_runtime_state"."company_id" = updated_agents."company_id";
+  AND "agent_runtime_state"."space_id" = updated_agents."space_id";

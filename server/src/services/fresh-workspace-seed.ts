@@ -21,16 +21,16 @@ const PRIOR_WORKSPACE_FILE_LIMIT = 50;
  * writer. It reads Git status through the shared scan scheduler with optional
  * locks disabled, so it cannot change the index of the retained directory. */
 export async function describeRetainedPriorWorkspace(db: Db, input: {
-  companyId: string; issueId: string; sourceRunId: string; successorRunId: string; freshCwd: string;
+  spaceId: string; issueId: string; sourceRunId: string; successorRunId: string; freshCwd: string;
 }): Promise<NonNullable<ExecutionContinuationEnvelope["priorWorkspace"]> | null> {
   const [prior] = await db.select({ workspace: executionWorkspaces,
     source: { id: heartbeatRuns.id, finishedAt: heartbeatRuns.finishedAt, resultJson: heartbeatRuns.resultJson } })
     .from(environmentLeases).innerJoin(executionWorkspaces, and(
-      eq(executionWorkspaces.companyId, environmentLeases.companyId),
+      eq(executionWorkspaces.spaceId, environmentLeases.spaceId),
       eq(executionWorkspaces.id, environmentLeases.executionWorkspaceId),
-    )).innerJoin(heartbeatRuns, and(eq(heartbeatRuns.companyId, environmentLeases.companyId),
+    )).innerJoin(heartbeatRuns, and(eq(heartbeatRuns.spaceId, environmentLeases.spaceId),
       eq(heartbeatRuns.id, environmentLeases.heartbeatRunId)))
-    .where(and(eq(environmentLeases.companyId, input.companyId), eq(environmentLeases.heartbeatRunId, input.sourceRunId),
+    .where(and(eq(environmentLeases.spaceId, input.spaceId), eq(environmentLeases.heartbeatRunId, input.sourceRunId),
       eq(environmentLeases.provider, "local")))
     .limit(1);
   const workspace = prior?.workspace;
@@ -38,12 +38,12 @@ export async function describeRetainedPriorWorkspace(db: Db, input: {
       path.resolve(workspace.cwd) === path.resolve(input.freshCwd)) return null;
   const holds = await db.select({ cause: issueRecoveryActions.cause, evidence: issueRecoveryActions.evidence })
     .from(issueRecoveryActions).where(and(
-      eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.sourceIssueId, input.issueId),
+      eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.sourceIssueId, input.issueId),
       sql`${issueRecoveryActions.evidence}->>'runId' = ${input.sourceRunId}`));
   if (sourceNeedsWorkspaceRepair(null, prior.source.resultJson) || holds.some(hold =>
     !recoveryGenerationSettled(hold.evidence, input.sourceRunId) || sourceNeedsWorkspaceRepair(hold.cause, null))) return null;
   // A tree that another writer may still change is not a recovery source.
-  if (await workspaceHasOtherWriter(db, { companyId: input.companyId, workspaceId: workspace.id,
+  if (await workspaceHasOtherWriter(db, { spaceId: input.spaceId, workspaceId: workspace.id,
     successorRunId: input.successorRunId, stoppedSource: prior.source })) return null;
   const stat = await lstat(workspace.cwd).catch(() => null);
   const real = stat?.isDirectory() && !stat.isSymbolicLink() ? await realpath(workspace.cwd).catch(() => null) : null;
@@ -57,7 +57,7 @@ export async function describeRetainedPriorWorkspace(db: Db, input: {
     changedFilesKnown: false, changedFileCount: 0, changedFiles: [] };
   const scan = (args: string[], operation: string) => workspaceGitOperationScheduler.run({
     workspacePath: priorCwd, args, operation, cacheTtlMs: 0, bypassSingleFlight: true, timeoutMs: 15_000,
-    maxStdoutBytes: 4 * 1024 * 1024, fairnessKeys: [`company:${input.companyId}`, `workspace:${workspace.id}`],
+    maxStdoutBytes: 4 * 1024 * 1024, fairnessKeys: [`space:${input.spaceId}`, `workspace:${workspace.id}`],
   }).then(result => result.stdout, () => null);
   const status = await scan(["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
     "retry.prior_workspace_status");
@@ -86,11 +86,11 @@ export function parsePorcelainZ(status: string) {
  * --no-local also prevents shared objects/hardlinks and copied Git authority.
  * The caller authorizes the source before calling this function. */
 export async function materializeFreshWorkspaceSeed(input: {
-  companyId: string; issueId: string; runId: string; sourceCwd: string; baseRef?: string | null; repoUrl?: string | null;
+  spaceId: string; issueId: string; runId: string; sourceCwd: string; baseRef?: string | null; repoUrl?: string | null;
   beforeCopy?(sourceCwd: string, targetCwd: string): Promise<void>;
 }) {
   const root = await materializeIsolatedTaskDirectory({
-    companyId: input.companyId, issueId: input.issueId, attemptId: input.runId,
+    spaceId: input.spaceId, issueId: input.issueId, attemptId: input.runId,
   });
   const destination = path.join(root, "workspace");
   const receiptPath = path.join(root, "seed.json");
@@ -104,7 +104,7 @@ export async function materializeFreshWorkspaceSeed(input: {
     const receiptStat = await lstat(receiptPath);
     if (!receiptStat.isFile() || receiptStat.isSymbolicLink()) throw new Error("Fresh workspace seed receipt changed");
     const receipt = JSON.parse(await readFile(receiptPath, "utf8"));
-    if (receipt.runId !== input.runId || receipt.companyId !== input.companyId || receipt.issueId !== input.issueId)
+    if (receipt.runId !== input.runId || receipt.spaceId !== input.spaceId || receipt.issueId !== input.issueId)
       throw new Error("Fresh workspace seed receipt changed");
     return destination;
   }
@@ -132,7 +132,7 @@ export async function materializeFreshWorkspaceSeed(input: {
       if (input.repoUrl) await execFile("git", ["-C", staging, "remote", "add", "origin", input.repoUrl], gitOptions);
     }
     await writeFile(receiptPath, JSON.stringify({
-      schema: "outpost.fresh-workspace-seed.v1", companyId: input.companyId,
+      schema: "outpost.fresh-workspace-seed.v1", spaceId: input.spaceId,
       issueId: input.issueId, runId: input.runId, commit,
     }), { mode: 0o600 });
     await rename(staging, destination);

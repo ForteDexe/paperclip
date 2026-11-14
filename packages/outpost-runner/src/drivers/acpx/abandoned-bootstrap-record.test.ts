@@ -59,7 +59,7 @@ describe("a saved ACPX record from a bootstrap that stopped before any prompt", 
   async function abandonBootstrap(dir: string) {
     // The first bootstrap opens a session, then its runner stops before a turn.
     await withRuntime(dir, "abandoned-", async ({ runtime, methods }) => {
-      const handle = await runtime.ensureSession({ sessionKey: "paperclip-session-key", agent: "claude", mode: "persistent", cwd: dir });
+      const handle = await runtime.ensureSession({ sessionKey: "outpost-session-key", agent: "claude", mode: "persistent", cwd: dir });
       expect(handle.backendSessionId).toBe("abandoned-0");
       expect(methods).toContain("session/new");
       await runtime.close({ handle, reason: "runner stopped before a turn" });
@@ -71,7 +71,7 @@ describe("a saved ACPX record from a bootstrap that stopped before any prompt", 
     try {
       await abandonBootstrap(dir);
       await withRuntime(dir, "retry-", async ({ runtime, methods }) => {
-        const handle = await runtime.ensureSession({ sessionKey: "paperclip-session-key", agent: "claude", mode: "persistent", cwd: dir });
+        const handle = await runtime.ensureSession({ sessionKey: "outpost-session-key", agent: "claude", mode: "persistent", cwd: dir });
         expect(handle.backendSessionId).toBe("abandoned-0");
         const result = await prompt(runtime, handle);
         expect(result.status).toBe("failed");
@@ -88,9 +88,9 @@ describe("a saved ACPX record from a bootstrap that stopped before any prompt", 
     const dir = await mkdtemp(join(tmpdir(), "acpx-abandoned-record-"));
     try {
       await abandonBootstrap(dir);
-      expect(await resetAbandonedBootstrapRecord(createRuntimeStore({ stateDir: join(dir, "state") }), "paperclip-session-key")).toBe(true);
+      expect(await resetAbandonedBootstrapRecord(createRuntimeStore({ stateDir: join(dir, "state") }), "outpost-session-key")).toBe(true);
       await withRuntime(dir, "retry-", async ({ runtime, methods }) => {
-        const handle = await runtime.ensureSession({ sessionKey: "paperclip-session-key", agent: "claude", mode: "persistent", cwd: dir });
+        const handle = await runtime.ensureSession({ sessionKey: "outpost-session-key", agent: "claude", mode: "persistent", cwd: dir });
         expect(handle.backendSessionId).toBe("retry-0");
         expect(await prompt(runtime, handle)).toMatchObject({ status: "completed" });
         expect(methods).toContain("session/new");
@@ -99,7 +99,7 @@ describe("a saved ACPX record from a bootstrap that stopped before any prompt", 
         await runtime.close({ handle, reason: "fixture cleanup" });
       });
       // The used session now holds a conversation, so a later reset leaves it alone.
-      expect(await resetAbandonedBootstrapRecord(createRuntimeStore({ stateDir: join(dir, "state") }), "paperclip-session-key")).toBe(false);
+      expect(await resetAbandonedBootstrapRecord(createRuntimeStore({ stateDir: join(dir, "state") }), "outpost-session-key")).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

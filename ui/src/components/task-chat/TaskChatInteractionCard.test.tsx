@@ -69,7 +69,7 @@ function createRequestConfirmation(
 ): RequestConfirmationInteraction {
   return {
     id: "confirmation-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     kind: "request_confirmation",
     title: "Approve the plan",
@@ -82,8 +82,8 @@ function createRequestConfirmation(
     resolverPolicyProvenance: "inherited",
     effectiveResolverPolicySource: "requested",
     legacyResolverPolicyAliases: {
-      requested: "board_or_agents",
-      effective: "board_or_agents",
+      requested: "operator_or_agents",
+      effective: "operator_or_agents",
     },
     createdByAgentId: "agent-1",
     createdByUserId: null,
@@ -522,7 +522,7 @@ describe("TaskChatInteractionCard", () => {
 
     const link = container.querySelector('a[href="/issues/PAP-42#document-preview"]');
     expect(link?.textContent).toBe("two screenshots");
-    const prompt = link?.closest(".paperclip-markdown");
+    const prompt = link?.closest(".outpost-markdown");
     expect(prompt?.querySelector("strong")?.textContent).toBe("Accept");
     expect(prompt?.querySelector("code")?.textContent).toBe("preview.png");
     expect(prompt?.querySelector("img")).toBeNull();
@@ -531,7 +531,7 @@ describe("TaskChatInteractionCard", () => {
       .toContain("Image: Review image (https://provider.invalid/review.png)");
     expect(prompt?.querySelector("pre code.language-mermaid")?.textContent)
       .toContain("flowchart LR");
-    expect(prompt?.querySelector(".paperclip-mermaid")).toBeNull();
+    expect(prompt?.querySelector(".outpost-mermaid")).toBeNull();
     expect(prompt?.querySelectorAll("li")).toHaveLength(2);
     expect(prompt?.textContent).not.toContain("[two screenshots]");
     expect(accept).not.toHaveBeenCalled();
@@ -571,12 +571,12 @@ describe("TaskChatInteractionCard", () => {
       });
 
     render({ type: "custom", key: "github:paperclipai/paperclip-desktop:pull:16" });
-    expect(container.textContent).not.toContain("github:paperclipai");
+    expect(container.textContent).not.toContain("github:outpost");
     const prompt = Array.from(container.querySelectorAll("p")).find((node) =>
       node.textContent?.startsWith("The change is open"),
     );
     expect(prompt?.className).not.toContain("flex-1");
-    expect(prompt?.closest(".paperclip-markdown")?.querySelectorAll("p")).toHaveLength(2);
+    expect(prompt?.closest(".outpost-markdown")?.querySelectorAll("p")).toHaveLength(2);
     expect(prompt?.parentElement?.className).not.toContain("justify-between");
 
     render({
@@ -589,7 +589,7 @@ describe("TaskChatInteractionCard", () => {
       'a[href="https://github.com/paperclipai/paperclip-desktop/pull/16"]',
     );
     expect(link?.textContent).toBe("PR #16");
-    expect(container.textContent).not.toContain("github:paperclipai");
+    expect(container.textContent).not.toContain("github:outpost");
   });
 
   it("stacks the checkbox confirmation prompt full-width and hides unlabeled custom target keys", () => {
@@ -615,12 +615,12 @@ describe("TaskChatInteractionCard", () => {
       });
 
     render({ type: "custom", key: "github:paperclipai/paperclip-desktop:pull:16" });
-    expect(container.textContent).not.toContain("github:paperclipai");
+    expect(container.textContent).not.toContain("github:outpost");
     const prompt = Array.from(container.querySelectorAll("p")).find((node) =>
       node.textContent?.startsWith("Pick the drafts"),
     );
     expect(prompt?.className).not.toContain("flex-1");
-    expect(prompt?.closest(".paperclip-markdown")?.querySelectorAll("p")).toHaveLength(2);
+    expect(prompt?.closest(".outpost-markdown")?.querySelectorAll("p")).toHaveLength(2);
     expect(prompt?.parentElement?.className).not.toContain("justify-between");
 
     render({
@@ -633,7 +633,7 @@ describe("TaskChatInteractionCard", () => {
       'a[href="https://github.com/paperclipai/paperclip-desktop/pull/16"]',
     );
     expect(link?.textContent).toBe("PR #16");
-    expect(container.textContent).not.toContain("github:paperclipai");
+    expect(container.textContent).not.toContain("github:outpost");
   });
 
   it("keeps the plan revision in the header and hides the prompt while requesting changes", async () => {
@@ -917,7 +917,7 @@ describe("TaskChatInteractionCard", () => {
           required: true,
           options: [
             {
-              id: "__paperclip_text__",
+              id: "__outpost_text__",
               label: "Enter an integer",
               freeText: true,
             },

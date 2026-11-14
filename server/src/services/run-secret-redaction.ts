@@ -21,9 +21,9 @@ function withoutSqlRunError<T>(value: T): T {
   return error === record.error ? value : { ...record, error } as T;
 }
 
-const REGISTRY_KEY = "paperclipSecretRedactions";
+const REGISTRY_KEY = "outpostSecretRedactions";
 // Project only the registry: run contexts can contain megabytes of prompt data.
-const registrySnapshot = sql`jsonb_build_object('paperclipSecretRedactions', ${heartbeatRuns.contextSnapshot} -> 'paperclipSecretRedactions')`;
+const registrySnapshot = sql`jsonb_build_object('outpostSecretRedactions', ${heartbeatRuns.contextSnapshot} -> 'outpostSecretRedactions')`;
 
 type RegistryEntry = {
   fingerprintSha256: string;
@@ -88,36 +88,36 @@ export function createRunSecretRedactionRegistry(db: Db) {
     return values.sort((left, right) => right.length - left.length);
   }
 
-  async function valuesForRun(companyId: string, runId: string, viewerUserId: string | null) {
+  async function valuesForRun(spaceId: string, runId: string, viewerUserId: string | null) {
     const rows = await db.select({ contextSnapshot: registrySnapshot, credentialConnectionName: credentialAccessConnectionNameSql(viewerUserId) })
       .from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId)));
+      .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId)));
     return { values: await valuesForRuns(rows), credentialConnectionName: rows[0]?.credentialConnectionName ?? null };
   }
 
-  async function valuesForIssue(companyId: string, issueId: string) {
+  async function valuesForIssue(spaceId: string, issueId: string) {
     const rows = await db.select({ contextSnapshot: registrySnapshot })
       .from(heartbeatRuns)
       .where(and(
-        eq(heartbeatRuns.companyId, companyId),
+        eq(heartbeatRuns.spaceId, spaceId),
         or(
           sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' = ${issueId}`,
-          sql`${heartbeatRuns.contextSnapshot} -> 'paperclipIssue' ->> 'id' = ${issueId}`,
+          sql`${heartbeatRuns.contextSnapshot} -> 'outpostIssue' ->> 'id' = ${issueId}`,
         ),
       ));
     return valuesForRuns(rows);
   }
 
   return {
-    redactionValuesForRun: async (companyId: string, runId: string) => valuesForRuns(await db
+    redactionValuesForRun: async (spaceId: string, runId: string) => valuesForRuns(await db
       .select({ contextSnapshot: registrySnapshot }).from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId)))),
-    register: async (companyId: string, runId: string, value: string) => {
+      .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId)))),
+    register: async (spaceId: string, runId: string, value: string) => {
       const fingerprintSha256 = createHash("sha256").update(value).digest("hex");
       await db.transaction(async (tx) => {
         const row = await tx.select({ contextSnapshot: heartbeatRuns.contextSnapshot })
           .from(heartbeatRuns)
-          .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId)))
+          .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId)))
           .for("update")
           .then((rows) => rows[0] ?? null);
         if (!row) throw new Error("Heartbeat run redaction registration failed");
@@ -135,14 +135,14 @@ export function createRunSecretRedactionRegistry(db: Db) {
             contextSnapshot: { ...contextSnapshot, [REGISTRY_KEY]: [...currentEntries, entry] },
             updatedAt: new Date(),
           })
-          .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId)));
+          .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId)));
       });
     },
-    redactForRuns: async <T extends { id: string }>(companyId: string, runs: T[], viewerUserId: string | null = null): Promise<T[]> => {
+    redactForRuns: async <T extends { id: string }>(spaceId: string, runs: T[], viewerUserId: string | null = null): Promise<T[]> => {
       if (runs.length === 0) return [];
       const rows = await db.select({ id: heartbeatRuns.id, contextSnapshot: registrySnapshot, credentialConnectionName: credentialAccessConnectionNameSql(viewerUserId) })
         .from(heartbeatRuns)
-        .where(and(eq(heartbeatRuns.companyId, companyId), inArray(heartbeatRuns.id, runs.map((run) => run.id))));
+        .where(and(eq(heartbeatRuns.spaceId, spaceId), inArray(heartbeatRuns.id, runs.map((run) => run.id))));
       // Resolve each encrypted value once per request, but apply only each run's
       // own registry. Do not retain plaintext secrets across requests.
       const resolved = new Map<string, Promise<string>>();
@@ -162,15 +162,15 @@ export function createRunSecretRedactionRegistry(db: Db) {
         return redactRegisteredSecretValues(withoutSqlRunError(run), disclosure?.values ?? [], disclosure?.credentialConnectionName ?? null);
       });
     },
-    redactorForRun: async (companyId: string, runId: string, viewerUserId: string | null = null) => {
-      const disclosure = await valuesForRun(companyId, runId, viewerUserId);
+    redactorForRun: async (spaceId: string, runId: string, viewerUserId: string | null = null) => {
+      const disclosure = await valuesForRun(spaceId, runId, viewerUserId);
       return <T>(value: T): T => redactRegisteredSecretValues(withoutSqlRunError(value), disclosure.values, disclosure.credentialConnectionName);
     },
-    redactForRun: async <T>(companyId: string, runId: string, value: T, viewerUserId: string | null = null): Promise<T> => {
-      const disclosure = await valuesForRun(companyId, runId, viewerUserId);
+    redactForRun: async <T>(spaceId: string, runId: string, value: T, viewerUserId: string | null = null): Promise<T> => {
+      const disclosure = await valuesForRun(spaceId, runId, viewerUserId);
       return redactRegisteredSecretValues(withoutSqlRunError(value), disclosure.values, disclosure.credentialConnectionName);
     },
-    redactForIssue: async <T>(companyId: string, issueId: string, value: T): Promise<T> =>
-      redactRegisteredSecretValues(value, await valuesForIssue(companyId, issueId)),
+    redactForIssue: async <T>(spaceId: string, issueId: string, value: T): Promise<T> =>
+      redactRegisteredSecretValues(value, await valuesForIssue(spaceId, issueId)),
   };
 }

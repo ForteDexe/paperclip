@@ -149,7 +149,7 @@ async function probeGateway(input: {
               maxProtocol: 4,
               client: {
                 id: "gateway-client",
-                version: "paperclip-probe",
+                version: "outpost-probe",
                 platform: process.platform,
                 mode: "probe",
               },

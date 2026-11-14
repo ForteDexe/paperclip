@@ -9,9 +9,9 @@ import { copilotEditOriginForPermission, readCopilotToolEvidence } from "./copil
 import { bootstrapReadExecutionId, withoutProvenBootstrapReads, type BootstrapReadProof } from "./native-bootstrap-read-proof.js";
 
 type Row = Record<string, any>;
-export interface ActiveStopCaller { type: "board"; userId: "local-board"; source: "local_implicit" }
+export interface ActiveStopCaller { type: "board"; userId: "local-operator"; source: "local_implicit" }
 export type ActiveStopProvider = "copilot";
-export interface ActiveStopScope { provider: ActiveStopProvider; companyId: string; issueId: string; runId: string; target: string; commandSha256?: string; requireContextRead?: boolean }
+export interface ActiveStopScope { provider: ActiveStopProvider; spaceId: string; issueId: string; runId: string; target: string; commandSha256?: string; requireContextRead?: boolean }
 export interface ActiveStopPending {
   schema: "outpost.e2e.native-active-stop-pending.v2";
   caller: ActiveStopCaller; scope: ActiveStopScope; requestId: string; toolCallId: string; nativeSessionId: string; turnId: string;
@@ -28,13 +28,13 @@ function fail(condition: unknown, reason: string): asserts condition { if (!cond
  * the same public session observed by the API client, never infer a null actor. */
 export function readActiveStopCaller(health: unknown, authentication: unknown): ActiveStopCaller {
   const session = rec(rec(authentication).session);
-  fail(rec(health).deploymentMode === "local_trusted" && session.userId === "local-board"
-    && session.id === "paperclip:local_implicit:local-board", "expected isolated board caller missing");
-  return { type: "board", userId: "local-board", source: "local_implicit" };
+  fail(rec(health).deploymentMode === "local_trusted" && session.userId === "local-operator"
+    && session.id === "outpost:local_implicit:local-operator", "expected isolated board caller missing");
+  return { type: "board", userId: "local-operator", source: "local_implicit" };
 }
 function isActiveStopCaller(caller: unknown): caller is ActiveStopCaller {
   const value = rec(caller);
-  return value.type === "board" && value.userId === "local-board" && value.source === "local_implicit";
+  return value.type === "board" && value.userId === "local-operator" && value.source === "local_implicit";
 }
 function canonicalRows(events: readonly unknown[], scope: ActiveStopScope) {
   fail(events.length <= 20_000 && events.length > 0, "bounded durable evidence required");
@@ -42,7 +42,7 @@ function canonicalRows(events: readonly unknown[], scope: ActiveStopScope) {
   const seen = new Set<number>(), source = new Set<string>();
   for (const row of rows) {
     const e = rec(rec(row.payload).orpEvent);
-    fail(row.companyId === scope.companyId && row.runId === scope.runId && isValidNativePrpEnvelope(e, row.protocolSchemaVersion)
+    fail(row.spaceId === scope.spaceId && row.runId === scope.runId && isValidNativePrpEnvelope(e, row.protocolSchemaVersion)
       && e.sourceKind === "runner" && e.runId === scope.runId
       && e.eventType === row.eventType && Number.isSafeInteger(row.seq) && row.seq > 0 && !seen.has(row.seq)
       && id(e.sourceInstanceId) && Number.isSafeInteger(e.sourceSeq) && e.sourceSeq > 0
@@ -61,7 +61,7 @@ function canonicalRows(events: readonly unknown[], scope: ActiveStopScope) {
 const terminals = new Set(["turn.completed", "turn.failed", "turn.cancelled", "turn.interrupted"]);
 const closures = new Set(["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"]);
 function origin(events: readonly unknown[], scope: ActiveStopScope, bootstrap?: BootstrapReadProof) {
-  fail([scope.companyId, scope.issueId, scope.runId, scope.target].every(id) && scope.provider === "copilot", "exact scope required");
+  fail([scope.spaceId, scope.issueId, scope.runId, scope.target].every(id) && scope.provider === "copilot", "exact scope required");
   const rows = canonicalRows(events, scope);
   const notices = readCopilotToolEvidence(events, scope.runId);
   const target = copilotEditOriginForPermission(notices, scope.target);
@@ -119,8 +119,8 @@ function origin(events: readonly unknown[], scope: ActiveStopScope, bootstrap?: 
 }
 export function observeActiveStopPending(input: { events: readonly unknown[]; run: Row; issue: Row; scope: ActiveStopScope; caller: ActiveStopCaller; cancellationRequestId: string; bootstrap?: BootstrapReadProof }): ActiveStopPending {
   const { run, issue, scope } = input, proof = origin(input.events, scope, input.bootstrap);
-  fail(isActiveStopCaller(input.caller) && uuid(input.cancellationRequestId) && run.id === scope.runId && run.companyId === scope.companyId && run.nativeIssueId === scope.issueId
-    && run.status === "running" && run.runtimeMode === "native" && issue.id === scope.issueId && issue.companyId === scope.companyId && issue.status === "in_progress"
+  fail(isActiveStopCaller(input.caller) && uuid(input.cancellationRequestId) && run.id === scope.runId && run.spaceId === scope.spaceId && run.nativeIssueId === scope.issueId
+    && run.status === "running" && run.runtimeMode === "native" && issue.id === scope.issueId && issue.spaceId === scope.spaceId && issue.status === "in_progress"
     && run.resultJson?.startupCancellation == null && run.resultJson?.nativeCancellation == null, "run is not fresh active work");
   fail(!(readCopilotToolEvidence(input.events, scope.runId)).some(n => n.stage === "permission_delivered" && n.requestId === proof.notice.requestId), "permission already answered");
   fail(!proof.rows.some(x => terminals.has(x.event.eventType) || (closures.has(x.event.eventType) && rec(x.event.payload).requestId === proof.notice.requestId)), "request or provider already settled");
@@ -164,15 +164,15 @@ export function readActiveStopSettlement(input: { events: readonly unknown[]; ru
     || (x.event.eventType === "provider.notice.recorded" && rec(x.event.payload).category === "copilot_tool_evidence_v1"))
     .every(x => x.event.sourceSeq < t.event.sourceSeq), "native operation after provider cancellation");
   const stop = rec(rec(run.resultJson).nativeCancellation);
-  fail(run.id === before.scope.runId && run.companyId === before.scope.companyId && run.nativeIssueId === before.scope.issueId && run.runtimeMode === "native" && run.status === "cancelled"
-    && issue.id === before.scope.issueId && issue.companyId === before.scope.companyId && issue.status === "in_progress"
-    && stop.schema === "outpost.native-cancellation.v1" && stop.companyId === before.scope.companyId && stop.runId === run.id && stop.issueId === issue.id
+  fail(run.id === before.scope.runId && run.spaceId === before.scope.spaceId && run.nativeIssueId === before.scope.issueId && run.runtimeMode === "native" && run.status === "cancelled"
+    && issue.id === before.scope.issueId && issue.spaceId === before.scope.spaceId && issue.status === "in_progress"
+    && stop.schema === "outpost.native-cancellation.v1" && stop.spaceId === before.scope.spaceId && stop.runId === run.id && stop.issueId === issue.id
     && stop.scope === "run" && stop.dispatched === true && stop.dispatchState === "acknowledged" && stop.reasonCode === "cancellation_run_only"
     && Array.isArray(stop.effects) && stop.effects.length === 1 && stop.effects[0] === "release_run_resources"
     && id(stop.intentAuditId) && id(stop.acknowledgementAuditId) && stop.intentAuditId !== stop.acknowledgementAuditId,
   "same-scope caller Stop acknowledgement missing");
   assertCopilotStopAcknowledgement(input.stopAcknowledgement, run,
-    { companyId: before.scope.companyId, issueId: before.scope.issueId, runId: before.scope.runId, callerUserId: before.caller.userId }, before.cancellationRequestId, input.dispatchMonotonicNs);
+    { spaceId: before.scope.spaceId, issueId: before.scope.issueId, runId: before.scope.runId, callerUserId: before.caller.userId }, before.cancellationRequestId, input.dispatchMonotonicNs);
   return { schema: "outpost.e2e.native-active-stop-settlement.v3", pending: before, dispatchMonotonicNs: input.dispatchMonotonicNs, stopAcknowledgement: input.stopAcknowledgement,
     branch: "pending_permission_cancelled" as const, closedRequestSourceSeq: c.event.sourceSeq, terminalSourceSeq: t.event.sourceSeq,
     closedRequestRowSha256: hash(c.row), terminalRowSha256: hash(t.row), intentId: stop.intentId as string,
@@ -189,14 +189,14 @@ export interface ActiveStopRemoteObservation {
 /** A per-turn Daytona observer seals itself when the owned tree retires. The
  * host may retrieve that receipt later; retrieval is not a fresh observation. */
 export function readActiveStopRemoteRetirement(input: {
-  scope: Pick<ActiveStopScope, "companyId" | "runId" | "target">; observations: readonly ActiveStopRemoteObservation[];
+  scope: Pick<ActiveStopScope, "spaceId" | "runId" | "target">; observations: readonly ActiveStopRemoteObservation[];
 }) {
   const observations = input.observations;
   fail(observations.length === 3
     && observations.map(o => `${o.phase}:${o.source}`).join(",") === "before-request:live-snapshot,pending:live-snapshot,owned-process-retirement:retirement-seal",
   "remote seal cannot stand in for a fresh causal sample");
   const [baseline, pending, terminal] = observations.map(o => o.snapshot) as [CopilotRemoteSnapshot, CopilotRemoteSnapshot, CopilotRemoteSnapshot];
-  fail(baseline.binding.companyId === input.scope.companyId && baseline.binding.runId === input.scope.runId, "remote observation belongs to another run");
+  fail(baseline.binding.spaceId === input.scope.spaceId && baseline.binding.runId === input.scope.runId, "remote observation belongs to another run");
   for (const snapshot of [baseline, pending, terminal]) {
     fail(!copilotRemoteDeniedSample(snapshot, baseline, input.scope.target, "pending").exists, "remote target changed");
   }

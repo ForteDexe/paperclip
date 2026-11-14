@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, toolApplications, toolConnections, toolCatalogEntries, toolProfiles, toolProfileBindings, toolProfileEntries, type Db } from "@outpost/db";
+import { agents, spaces, createDb, toolApplications, toolConnections, toolCatalogEntries, toolProfiles, toolProfileBindings, toolProfileEntries, type Db } from "@outpost/db";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { toolAccessService } from "../services/tool-access.js";
@@ -12,17 +12,17 @@ const describeDatabase = support.supported ? describe : describe.skip;
 describeDatabase("catalog publication", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
-  let companyId: string;
+  let spaceId: string;
   let applicationId: string;
   let connectionId: string;
-  beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("paperclip-catalog-publication-"); db = createDb(database.connectionString); }, 90_000);
+  beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("outpost-catalog-publication-"); db = createDb(database.connectionString); }, 90_000);
   afterAll(async () => { await database?.cleanup(); });
   afterEach(() => vi.restoreAllMocks());
   beforeEach(async () => {
-    companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Catalog fixture", issuePrefix: `C${companyId.slice(0, 6)}` });
-    const [application] = await db.insert(toolApplications).values({ companyId, name: "Fixture MCP", type: "mcp_http" }).returning(); applicationId = application.id;
-    const [connection] = await db.insert(toolConnections).values({ companyId, applicationId, name: "Fixture connection", uid: randomUUID(), transport: "mcp_remote", authKind: "none", enabled: true, status: "active", config: { url: "https://mcp.example.test/mcp" } }).returning(); connectionId = connection.id;
+    spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Catalog fixture", issuePrefix: `C${spaceId.slice(0, 6)}` });
+    const [application] = await db.insert(toolApplications).values({ spaceId, name: "Fixture MCP", type: "mcp_http" }).returning(); applicationId = application.id;
+    const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId, name: "Fixture connection", uid: randomUUID(), transport: "mcp_remote", authKind: "none", enabled: true, status: "active", config: { url: "https://mcp.example.test/mcp" } }).returning(); connectionId = connection.id;
   });
 
   const serviceWithTools = (tools: unknown[]) => toolAccessService(db, {
@@ -106,10 +106,10 @@ describeDatabase("catalog publication", () => {
   it.each(["new", "quarantined"] as const)("does not restore an Off action after overlapping refreshes of a %s tool", async state => {
     await serviceWithTools([]).refreshCatalog(connectionId);
     if (state === "quarantined") await db.insert(toolCatalogEntries).values({
-      companyId, applicationId, connectionId, name: "search", toolName: "search", riskLevel: "read",
+      spaceId, applicationId, connectionId, name: "search", toolName: "search", riskLevel: "read",
       status: "quarantined", versionHash: "fixture-version", schemaHash: "fixture-schema", quarantineReason: "pending_review", quarantinedAt: new Date("2020-01-01T00:00:00Z"),
     });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Catalog permission fixture", role: "engineer", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Catalog permission fixture", role: "engineer", adapterType: "process", adapterConfig: {}, runtimeConfig: {} }).returning();
     const service = serviceWithTools([{ name: "search", annotations: { readOnlyHint: true } }]);
     const transaction = db.transaction.bind(db);
     let paused = false;
@@ -124,7 +124,7 @@ describeDatabase("catalog publication", () => {
       await vi.waitFor(() => expect(paused).toBe(true), { timeout: 5000 });
       const first = await service.refreshCatalog(connectionId, undefined, { enableAllByDefault: true });
       const entry = first.catalog[0];
-      const decide = () => toolAccessPolicyService(db).decide({ companyId, actor: { actorType: "agent", actorId: agent.id }, request: { connectionId, catalogEntryId: entry.id, toolName: entry.toolName, arguments: {} } });
+      const decide = () => toolAccessPolicyService(db).decide({ spaceId, actor: { actorType: "agent", actorId: agent.id }, request: { connectionId, catalogEntryId: entry.id, toolName: entry.toolName, arguments: {} } });
       await expect(decide()).resolves.toMatchObject({ decision: "allow", reasonCode: "allow_profile" });
       const [selection] = await db.select().from(toolProfileEntries).where(eq(toolProfileEntries.catalogEntryId, entry.id));
       await service.deleteProfileEntry(selection.id);
@@ -158,11 +158,11 @@ describeDatabase("catalog publication", () => {
     failProfile = true;
     await expect(service.refreshCatalog(connectionId)).rejects.toThrow("profile binding failed");
     expect(await db.select().from(toolCatalogEntries).where(eq(toolCatalogEntries.connectionId, connectionId))).toHaveLength(501);
-    expect(await db.select().from(toolProfiles).where(eq(toolProfiles.companyId, companyId))).toHaveLength(0);
-    expect(await db.select().from(toolProfileBindings).where(eq(toolProfileBindings.companyId, companyId))).toHaveLength(0);
+    expect(await db.select().from(toolProfiles).where(eq(toolProfiles.spaceId, spaceId))).toHaveLength(0);
+    expect(await db.select().from(toolProfileBindings).where(eq(toolProfileBindings.spaceId, spaceId))).toHaveLength(0);
     transactionSpy.mockRestore();
     await service.refreshCatalog(connectionId);
-    expect(await db.select().from(toolProfiles).where(eq(toolProfiles.companyId, companyId))).toHaveLength(1);
+    expect(await db.select().from(toolProfiles).where(eq(toolProfiles.spaceId, spaceId))).toHaveLength(1);
   });
 
   it("waits for application publication before changing catalog rows", async () => {

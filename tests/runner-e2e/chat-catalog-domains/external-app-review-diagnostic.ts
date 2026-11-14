@@ -3,12 +3,12 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { createDb, type Db } from "../../../packages/db/src/index.js";
 import { agents, issues, heartbeatRuns, toolActionRequests, toolInvocations, toolActionDeliveries, agentWakeupRequests } from "../../../packages/db/src/index.js";
-import { paperclipConfigSchema } from "../../../packages/shared/src/config-schema.js";
+import { outpostConfigSchema } from "../../../packages/shared/src/config-schema.js";
 const { and, eq, or, inArray, sql }: typeof import("../../../packages/db/node_modules/drizzle-orm/index.js") =
   createRequire(new URL("../../../packages/db/package.json", import.meta.url))("drizzle-orm");
 
 export interface ReviewAdmissionBinding {
-  companyId: string; issueId: string; agentId: string; actionRequestId: string;
+  spaceId: string; issueId: string; agentId: string; actionRequestId: string;
   invocationId: string; sourceRunId: string; interactionId: string;
 }
 /** Failure evidence only. No payloads, tool arguments, provider text or credentials. */
@@ -23,22 +23,22 @@ export async function readReviewAdmissionSnapshot(db: Db, b: ReviewAdmissionBind
     }).from(toolActionRequests).innerJoin(toolInvocations, eq(toolInvocations.id, toolActionRequests.invocationId))
       .innerJoin(heartbeatRuns, eq(heartbeatRuns.id, toolInvocations.runId)).innerJoin(issues, eq(issues.id, toolActionRequests.issueId))
       .innerJoin(agents, eq(agents.id, toolInvocations.agentId)).where(and(
-        eq(toolActionRequests.id, b.actionRequestId), eq(toolActionRequests.companyId, b.companyId),
+        eq(toolActionRequests.id, b.actionRequestId), eq(toolActionRequests.spaceId, b.spaceId),
         eq(toolActionRequests.issueId, b.issueId), eq(toolActionRequests.interactionId, b.interactionId), eq(toolActionRequests.requestedByAgentId, b.agentId),
-        eq(toolInvocations.id, b.invocationId), eq(toolInvocations.companyId, b.companyId), eq(toolInvocations.issueId, b.issueId),
-        eq(toolInvocations.agentId, b.agentId), eq(heartbeatRuns.id, b.sourceRunId), eq(heartbeatRuns.companyId, b.companyId),
+        eq(toolInvocations.id, b.invocationId), eq(toolInvocations.spaceId, b.spaceId), eq(toolInvocations.issueId, b.issueId),
+        eq(toolInvocations.agentId, b.agentId), eq(heartbeatRuns.id, b.sourceRunId), eq(heartbeatRuns.spaceId, b.spaceId),
         eq(heartbeatRuns.agentId, b.agentId),
         or(eq(heartbeatRuns.issueId, b.issueId), eq(heartbeatRuns.nativeIssueId, b.issueId), sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${b.issueId}`),
-        eq(issues.companyId, b.companyId), eq(agents.companyId, b.companyId),
+        eq(issues.spaceId, b.spaceId), eq(agents.spaceId, b.spaceId),
       )).limit(1);
     if (!owner) return { available: false as const, reason: "binding_mismatch" as const };
     const [delivery] = await tx.select({ createdAt: toolActionDeliveries.createdAt, deliveredAt: toolActionDeliveries.deliveredAt })
-      .from(toolActionDeliveries).where(and(eq(toolActionDeliveries.companyId, b.companyId), eq(toolActionDeliveries.actionRequestId, b.actionRequestId),
+      .from(toolActionDeliveries).where(and(eq(toolActionDeliveries.spaceId, b.spaceId), eq(toolActionDeliveries.actionRequestId, b.actionRequestId),
         eq(toolActionDeliveries.issueId, b.issueId), eq(toolActionDeliveries.interactionId, b.interactionId))).limit(1);
     const wakeRows = await tx.select({ id: agentWakeupRequests.id, status: agentWakeupRequests.status,
       runId: agentWakeupRequests.runId, coalescedCount: agentWakeupRequests.coalescedCount,
       requestedAt: agentWakeupRequests.requestedAt, finishedAt: agentWakeupRequests.finishedAt,
-    }).from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, b.companyId), eq(agentWakeupRequests.agentId, b.agentId),
+    }).from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, b.spaceId), eq(agentWakeupRequests.agentId, b.agentId),
       or(eq(agentWakeupRequests.idempotencyKey, `tool-action-response:${b.actionRequestId}`),
         sql`${agentWakeupRequests.payload}->'toolActionRequestIds' @> ${JSON.stringify([b.actionRequestId])}::jsonb`)))
       .orderBy(agentWakeupRequests.createdAt, agentWakeupRequests.id).limit(8);
@@ -46,7 +46,7 @@ export async function readReviewAdmissionSnapshot(db: Db, b: ReviewAdmissionBind
     const runRows = await tx.select({ id: heartbeatRuns.id, status: heartbeatRuns.status, runtimeMode: heartbeatRuns.runtimeMode,
       nativePhase: heartbeatRuns.nativePhase, wakeupRequestId: heartbeatRuns.wakeupRequestId,
       startedAt: heartbeatRuns.startedAt, finishedAt: heartbeatRuns.finishedAt,
-    }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, b.companyId), eq(heartbeatRuns.agentId, b.agentId),
+    }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, b.spaceId), eq(heartbeatRuns.agentId, b.agentId),
       or(eq(heartbeatRuns.issueId, b.issueId), eq(heartbeatRuns.nativeIssueId, b.issueId), sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${b.issueId}`),
       or(ids.length ? inArray(heartbeatRuns.id, ids) : sql`false`,
         sql`${heartbeatRuns.contextSnapshot}->'toolActionRequestIds' @> ${JSON.stringify([b.actionRequestId])}::jsonb`)))
@@ -63,9 +63,9 @@ export async function observeReviewAdmission(b: ReviewAdmissionBinding, env: Nod
     if (!env.OUTPOST_CONFIG || !env.OUTPOST_RUNNER_E2E_TEMP_ROOT) return { available: false as const, reason: "owned_config_unavailable" as const };
     const [root, filename] = await Promise.all([realpath(env.OUTPOST_RUNNER_E2E_TEMP_ROOT), realpath(env.OUTPOST_CONFIG)]);
     if (!filename.startsWith(`${root}${path.sep}`)) return { available: false as const, reason: "owned_config_unavailable" as const };
-    const config = paperclipConfigSchema.parse(JSON.parse(await readFile(filename, "utf8")));
+    const config = outpostConfigSchema.parse(JSON.parse(await readFile(filename, "utf8")));
     const url = config.database.mode === "postgres" ? config.database.connectionString
-      : `postgres://paperclip:paperclip@127.0.0.1:${config.database.embeddedPostgresPort}/paperclip`;
+      : `postgres://outpost:outpost@127.0.0.1:${config.database.embeddedPostgresPort}/outpost`;
     if (!url) return { available: false as const, reason: "owned_config_unavailable" as const };
     db = createDb(url, { maxConnections: 1, connectTimeoutSeconds: 3 });
     return await readReviewAdmissionSnapshot(db, b);

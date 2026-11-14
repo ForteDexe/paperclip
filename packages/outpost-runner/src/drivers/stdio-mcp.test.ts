@@ -37,7 +37,7 @@ describe("assigned stdio MCP bindings", () => {
     ["relative command", (b: Record<string, unknown>) => { b.command = "cua-driver"; }],
     ["invalid arguments", (b: Record<string, unknown>) => { b.args = ["mcp", 1]; }],
     ["invalid environment", (b: Record<string, unknown>) => { b.env = { HOME: "bad\0value" }; }],
-    ["reserved task bridge", (b: Record<string, unknown>) => { b.name = "paperclip"; }],
+    ["reserved task bridge", (b: Record<string, unknown>) => { b.name = "outpost"; }],
     ["reserved preconfigured bridge", (b: Record<string, unknown>) => { b.name = "outpost_runner_forged"; }],
     ["unknown fields", (b: Record<string, unknown>) => { b.autoApprove = true; }],
   ])("rejects %s", (_name, mutate) => {

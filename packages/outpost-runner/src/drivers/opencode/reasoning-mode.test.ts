@@ -14,7 +14,7 @@ describe("per-turn OpenCode reasoning", () => {
     expect(() => parseOpenCodeReasoningMode(value)).toThrow("turn.reasoningMode");
   });
   it("selects reasoning independently on successive turns and sends instructions once", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-turn-reasoning-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-turn-reasoning-"));
     const fixture = join(root, "fake-opencode-server.mjs");
     const submitted: Array<{ variant?: string; system?: string; parts: Array<{ text: string }> }> = [];
     const instructions = "Unique shared agent instructions. Keep the requested scope.";
@@ -42,7 +42,7 @@ describe("per-turn OpenCode reasoning", () => {
         await session.startTurn({ message: { role: "user", text: "Reply Hi." }, reasoningMode });
         for await (const event of session.events()) if (event.eventType === "turn.completed") break;
       }
-      expect(submitted.map(body => body.variant)).toEqual(["paperclip-default", "paperclip-no-reasoning", "paperclip-default"]);
+      expect(submitted.map(body => body.variant)).toEqual(["outpost-default", "outpost-no-reasoning", "outpost-default"]);
       expect(submitted[0]!.system).toBe(instructions);
       for (const body of submitted) {
         expect(body.system).toBe(instructions);
@@ -50,10 +50,10 @@ describe("per-turn OpenCode reasoning", () => {
       }
       const envelope = JSON.parse(submitted[0]!.parts[0].text);
       expect(envelope.task.completionContract.revision).toBe("17");
-      expect(envelope.task.constraints).toEqual(["Use Paperclip MCP tools for semantic operations."]);
+      expect(envelope.task.constraints).toEqual(["Use Outpost MCP tools for semantic operations."]);
       const config = JSON.parse(await readFile(join(root, "reasoning/config/opencode/opencode.json"), "utf8"));
       expect(config.provider.openrouter.models["deepseek/deepseek-v4-flash-0731"]).toMatchObject({
-        variants: { "paperclip-default": {}, "paperclip-no-reasoning": { reasoning: { enabled: false } } },
+        variants: { "outpost-default": {}, "outpost-no-reasoning": { reasoning: { enabled: false } } },
       });
       expect(config.provider.openrouter.models["deepseek/deepseek-v4-flash-0731"].options).toBeUndefined();
     } finally {

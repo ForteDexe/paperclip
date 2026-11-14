@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { check, index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { projects } from "./projects.js";
 
 /** Authorization membership for private projects; unrelated to sidebar project_memberships. */
@@ -8,7 +8,7 @@ export const projectAccessMembers = pgTable(
   "project_access_members",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
     subjectType: text("subject_type").notNull(),
     subjectId: text("subject_id").notNull(),
@@ -25,7 +25,7 @@ export const projectAccessMembers = pgTable(
       table.subjectId,
     ),
     subjectLookupIdx: index("project_access_members_subject_lookup_idx").on(
-      table.companyId,
+      table.spaceId,
       table.subjectType,
       table.subjectId,
       table.projectId,

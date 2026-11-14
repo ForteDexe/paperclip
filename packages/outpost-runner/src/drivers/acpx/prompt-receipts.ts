@@ -55,12 +55,12 @@ export function createAcpxPromptReceiptCollector(agent: QualifiedAcpxAgent) {
       if (!active || active.invalid || active.result === null) return {};
       const result = active.result;
       if (agent === "pi") {
-        const receipt = parsePiPromptReceipt(record(record(result.usage)._meta).paperclipPi);
+        const receipt = parsePiPromptReceipt(record(record(result.usage)._meta).outpostPi);
         return receipt ? { piPromptReceipt: { request_id: active.requestId, receipt } } : {};
       }
       // Cursor's receipt is diagnostic and only meaningful for a settled turn.
       if (result.stopReason !== "end_turn" && result.stopReason !== "cancelled") return {};
-      const receipt = record(result._meta).paperclipCursorUsage;
+      const receipt = record(result._meta).outpostCursorUsage;
       return receipt === undefined ? {} : { cursorPromptReceipt: { request_id: active.requestId, receipt: structuredClone(receipt) } };
     },
   };

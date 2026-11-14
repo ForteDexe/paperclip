@@ -6,7 +6,7 @@ type SmokeRunStepStatus = "pass" | "fail" | "skipped";
 const SCREENSHOT_DIR = "test-results/smoke-lab";
 
 type Json = Record<string, unknown>;
-type Seed = { companyId: string; prefix: string };
+type Seed = { spaceId: string; prefix: string };
 type Scout = { id: string; name: string };
 type SmokeRun = { id: string; status: string };
 type SmokeRunStepResult = {
@@ -58,16 +58,16 @@ async function expectError(response: Awaited<ReturnType<APIRequestContext["get"]
   return body;
 }
 
-async function newCompany(request: APIRequestContext, label: string): Promise<Seed> {
+async function newSpace(request: APIRequestContext, label: string): Promise<Seed> {
   const body = await json<{ id: string; issuePrefix?: string; prefix?: string; urlKey?: string }>(
-    await request.post("/api/companies", { data: { name: `Smoke Lab ${label} ${Date.now()}` } }),
+    await request.post("/api/spaces", { data: { name: `Smoke Lab ${label} ${Date.now()}` } }),
   );
-  return { companyId: body.id, prefix: body.issuePrefix ?? body.prefix ?? body.urlKey ?? "E2E" };
+  return { spaceId: body.id, prefix: body.issuePrefix ?? body.prefix ?? body.urlKey ?? "E2E" };
 }
 
-async function createScout(request: APIRequestContext, companyId: string): Promise<Scout> {
+async function createScout(request: APIRequestContext, spaceId: string): Promise<Scout> {
   const body = await json<{ id: string; name: string }>(
-    await request.post(`/api/companies/${companyId}/agents`, {
+    await request.post(`/api/spaces/${spaceId}/agents`, {
       data: {
         name: `Smoke Scout ${Date.now()}`,
         role: "qa",
@@ -85,9 +85,9 @@ async function enableSmokeLab(request: APIRequestContext) {
   await json(await request.patch("/api/instance/settings/experimental", { data: { enableSmokeLab: true } }));
 }
 
-async function createSmokeRun(request: APIRequestContext, companyId: string, scenarioCount: number) {
+async function createSmokeRun(request: APIRequestContext, spaceId: string, scenarioCount: number) {
   const result = await json<{ run: SmokeRun }>(
-    await request.post(`/api/companies/${companyId}/smoke-lab/runs`, {
+    await request.post(`/api/spaces/${spaceId}/smoke-lab/runs`, {
       data: {
         trigger: "ci",
         summary: {
@@ -102,19 +102,19 @@ async function createSmokeRun(request: APIRequestContext, companyId: string, sce
 
 async function updateSmokeRun(
   request: APIRequestContext,
-  companyId: string,
+  spaceId: string,
   runId: string,
   status: "passed" | "failed",
   summary: Json,
 ) {
-  await json(await request.patch(`/api/companies/${companyId}/smoke-lab/runs/${runId}`, {
+  await json(await request.patch(`/api/spaces/${spaceId}/smoke-lab/runs/${runId}`, {
     data: { status, summary },
   }));
 }
 
 async function recordStep(
   request: APIRequestContext,
-  companyId: string,
+  spaceId: string,
   runId: string,
   input: {
     path: SmokeRunStepPath;
@@ -126,7 +126,7 @@ async function recordStep(
   },
 ): Promise<SmokeRunStepResult> {
   return await json<SmokeRunStepResult>(
-    await request.post(`/api/companies/${companyId}/smoke-lab/runs/${runId}/steps`, {
+    await request.post(`/api/spaces/${spaceId}/smoke-lab/runs/${runId}/steps`, {
       data: {
         path: input.path,
         scenarioStep: input.scenarioStep,
@@ -187,7 +187,7 @@ async function runRecordedStep(
   try {
     const screenshotHint = await action();
     const screenshotPath = captureSuccessScreenshot ? await screenshot(page, scenario, step) : null;
-    await recordStep(request, seed.companyId, runId, {
+    await recordStep(request, seed.spaceId, runId, {
       path: scenario.path,
       scenarioStep: step,
       status: "pass",
@@ -197,7 +197,7 @@ async function runRecordedStep(
     });
   } catch (error) {
     const screenshotPath = await screenshot(page, scenario, `${step}-failed`).catch(() => null);
-    await recordStep(request, seed.companyId, runId, {
+    await recordStep(request, seed.spaceId, runId, {
       path: scenario.path,
       scenarioStep: step,
       status: "fail",
@@ -209,12 +209,12 @@ async function runRecordedStep(
   }
 }
 
-async function startSmokeLabServices(request: APIRequestContext, companyId: string) {
-  await json(await request.post(`/api/companies/${companyId}/smoke-lab/services/start`));
+async function startSmokeLabServices(request: APIRequestContext, spaceId: string) {
+  await json(await request.post(`/api/spaces/${spaceId}/smoke-lab/services/start`));
 }
 
-async function installFixtures(request: APIRequestContext, companyId: string): Promise<FixtureInstall> {
-  return await json<FixtureInstall>(await request.post(`/api/companies/${companyId}/smoke-lab/install-fixtures`));
+async function installFixtures(request: APIRequestContext, spaceId: string): Promise<FixtureInstall> {
+  return await json<FixtureInstall>(await request.post(`/api/spaces/${spaceId}/smoke-lab/install-fixtures`));
 }
 
 function connectionForScenario(fixtures: FixtureInstall, scenario: SmokeLabScenario): ToolConnection {
@@ -244,7 +244,7 @@ async function testCall(
 
 async function policy(
   request: APIRequestContext,
-  companyId: string,
+  spaceId: string,
   body: {
     name: string;
     policyType: "allow" | "block" | "require_approval";
@@ -252,12 +252,12 @@ async function policy(
     selectors: Record<string, unknown>;
   },
 ) {
-  return await json<{ id: string }>(await request.post(`/api/companies/${companyId}/tools/policies`, { data: body }));
+  return await json<{ id: string }>(await request.post(`/api/spaces/${spaceId}/tools/policies`, { data: body }));
 }
 
-async function approveActionRequest(request: APIRequestContext, companyId: string, actionRequestId: string) {
+async function approveActionRequest(request: APIRequestContext, spaceId: string, actionRequestId: string) {
   await json(await request.post(`/api/tool-gateway/action-requests/${actionRequestId}/approve`, {
-    data: { companyId },
+    data: { spaceId },
   }));
 }
 
@@ -279,28 +279,28 @@ async function pollTestCall(
 
 async function expectAuditEvent(
   request: APIRequestContext,
-  companyId: string,
+  spaceId: string,
   options: { connectionId: string; agentId: string; search: string },
 ) {
   const audit = await json<{ events: Array<Json> }>(
     await request.get(
-      `/api/tool-gateway/audit?companyId=${companyId}&app=${options.connectionId}&agent=${options.agentId}&search=${encodeURIComponent(options.search)}&limit=50`,
+      `/api/tool-gateway/audit?spaceId=${spaceId}&app=${options.connectionId}&agent=${options.agentId}&search=${encodeURIComponent(options.search)}&limit=50`,
     ),
   );
   expect(audit.events.length, `expected audit/activity row matching ${options.search}`).toBeGreaterThan(0);
 }
 
-async function createGatewaySession(request: APIRequestContext, companyId: string, scout: Scout): Promise<GatewaySession> {
+async function createGatewaySession(request: APIRequestContext, spaceId: string, scout: Scout): Promise<GatewaySession> {
   const invoked = await json<{ id: string }>(await request.post(`/api/agents/${scout.id}/heartbeat/invoke`));
   return await json<GatewaySession>(
     await request.post("/api/tool-gateway/sessions", {
-      data: { companyId, agentId: scout.id, runId: invoked.id, ttlMs: 60_000 },
+      data: { spaceId, agentId: scout.id, runId: invoked.id, ttlMs: 60_000 },
     }),
   );
 }
 
 async function gatewayFetch(request: APIRequestContext, path: string, token: string, data?: Json) {
-  const headers = { "x-paperclip-tool-gateway-token": token };
+  const headers = { "x-outpost-tool-gateway-token": token };
   if (data) return await request.post(path, { headers, data });
   return await request.get(path, { headers });
 }
@@ -314,18 +314,18 @@ export const defineSmokeLabSuite = (label: string, scenarios: SmokeLabScenario[]
   test.setTimeout(360_000);
 
   test(`records the ${label} CI-safe Smoke Lab lifecycle into the results API @smoke-lab`, async ({ page, request }) => {
-    const seed = await newCompany(request, "catalog");
-    const scout = await createScout(request, seed.companyId);
+    const seed = await newSpace(request, "catalog");
+    const scout = await createScout(request, seed.spaceId);
     await enableSmokeLab(request);
-    const smokeRun = await createSmokeRun(request, seed.companyId, scenarios.length);
+    const smokeRun = await createSmokeRun(request, seed.spaceId, scenarios.length);
     const failed: string[] = [];
     const isPartialRun = scenarios.length < ciSmokeLabScenarios.length;
 
     try {
-      await startSmokeLabServices(request, seed.companyId);
+      await startSmokeLabServices(request, seed.spaceId);
 
       for (const scenario of scenarios) {
-        const fixtures = await installFixtures(request, seed.companyId);
+        const fixtures = await installFixtures(request, seed.spaceId);
         const connection = connectionForScenario(fixtures, scenario);
 
         await runRecordedStep(page, request, seed, smokeRun.id, scenario, "connect", async () => {
@@ -343,7 +343,7 @@ export const defineSmokeLabSuite = (label: string, scenarios: SmokeLabScenario[]
           const read = await testCall(request, connection.id, scout, scenario.lifecycle.allowedRead);
           expect(read.decision).toBe("allowed");
           expect(read.error).toBeUndefined();
-          await expectAuditEvent(request, seed.companyId, {
+          await expectAuditEvent(request, seed.spaceId, {
             connectionId: connection.id,
             agentId: scout.id,
             search: scenario.lifecycle.allowedRead.name,
@@ -353,7 +353,7 @@ export const defineSmokeLabSuite = (label: string, scenarios: SmokeLabScenario[]
         });
 
         await runRecordedStep(page, request, seed, smokeRun.id, scenario, "ask-first-write-approved", async () => {
-          await policy(request, seed.companyId, {
+          await policy(request, seed.spaceId, {
             name: `${scenario.path} require approval ${Date.now()}`,
             policyType: "require_approval",
             priority: 10,
@@ -363,13 +363,13 @@ export const defineSmokeLabSuite = (label: string, scenarios: SmokeLabScenario[]
           expect(pending.decision).toBe("ask_first");
           expect(pending.actionRequestId).toBeTruthy();
           await page.goto(`/${seed.prefix}/apps/${connection.id}/review`);
-          await approveActionRequest(request, seed.companyId, pending.actionRequestId!);
+          await approveActionRequest(request, seed.spaceId, pending.actionRequestId!);
           await pollTestCall(request, connection.id, pending.actionRequestId!, "done");
           return `Approved ask-first call ${scenario.lifecycle.askFirstWrite.name}`;
         });
 
         await runRecordedStep(page, request, seed, smokeRun.id, scenario, "denied-blocked-call", async () => {
-          await policy(request, seed.companyId, {
+          await policy(request, seed.spaceId, {
             name: `${scenario.path} block ${Date.now()}`,
             policyType: "block",
             priority: 1,
@@ -390,7 +390,7 @@ export const defineSmokeLabSuite = (label: string, scenarios: SmokeLabScenario[]
           await json<ToolConnection>(await request.patch(`/api/tool-connections/${connection.id}`, {
             data: { config: { ...(connection.config ?? {}), quarantineNewEntries: true } },
           }));
-          await policy(request, seed.companyId, {
+          await policy(request, seed.spaceId, {
             name: `${scenario.path} allow schema flip ${Date.now()}`,
             policyType: "allow",
             priority: 5,
@@ -409,11 +409,11 @@ export const defineSmokeLabSuite = (label: string, scenarios: SmokeLabScenario[]
 
         await runRecordedStep(page, request, seed, smokeRun.id, scenario, "revoke", async () => {
           if (scenario.transport === "gateway_session") {
-            const session = await createGatewaySession(request, seed.companyId, scout);
+            const session = await createGatewaySession(request, seed.spaceId, scout);
             const listed = await gatewayFetch(request, session.toolsUrl, session.token);
             expect(listed.ok()).toBe(true);
             await json(await request.post(`/api/tool-gateway/sessions/${session.sessionId}/revoke`, {
-              data: { companyId: seed.companyId },
+              data: { spaceId: seed.spaceId },
             }));
             await expectError(await gatewayFetch(request, session.toolsUrl, session.token), 401);
             await page.goto(`/${seed.prefix}/activity?action=tool_`);
@@ -431,7 +431,7 @@ export const defineSmokeLabSuite = (label: string, scenarios: SmokeLabScenario[]
         });
 
         await runRecordedStep(page, request, seed, smokeRun.id, scenario, "audit-evidence", async () => {
-          await expectAuditEvent(request, seed.companyId, {
+          await expectAuditEvent(request, seed.spaceId, {
             connectionId: connection.id,
             agentId: scout.id,
             search: scenario.lifecycle.allowedRead.name,
@@ -444,7 +444,7 @@ export const defineSmokeLabSuite = (label: string, scenarios: SmokeLabScenario[]
       failed.push(error instanceof Error ? error.message : String(error));
       throw error;
     } finally {
-      await updateSmokeRun(request, seed.companyId, smokeRun.id, failed.length > 0 ? "failed" : "passed", {
+      await updateSmokeRun(request, seed.spaceId, smokeRun.id, failed.length > 0 ? "failed" : "passed", {
         catalog: "tests/e2e/smoke-lab.catalog.ts",
         scenarioCount: scenarios.length,
         catalogScenarioCount: ciSmokeLabScenarios.length,
@@ -457,7 +457,7 @@ export const defineSmokeLabSuite = (label: string, scenarios: SmokeLabScenario[]
       run: SmokeRun;
       steps: Array<{ path: string; scenarioStep: string; status: string; screenshotArtifactRef: Json | null }>;
     }>(
-      await request.get(`/api/companies/${seed.companyId}/smoke-lab/runs/${smokeRun.id}`),
+      await request.get(`/api/spaces/${seed.spaceId}/smoke-lab/runs/${smokeRun.id}`),
     );
     expect(completed.run.status).toBe("passed");
     for (const scenario of scenarios) {

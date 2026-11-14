@@ -38,9 +38,9 @@ function createDeferred(): Deferred {
 }
 
 /**
- * Minimum time between two flushes of the ambient lane. Company-wide lists and
+ * Minimum time between two flushes of the ambient lane. Space-wide lists and
  * projections (sidebar task summaries, the agent list, issue lists, badges)
- * change on almost every run or task event in a busy company. After the lane
+ * change on almost every run or task event in a busy space. After the lane
  * has been quiet for this interval, an event refreshes them within one normal
  * batch. An event inside the interval waits until the interval ends, so the
  * lane flushes at most once per interval instead of on every batch.

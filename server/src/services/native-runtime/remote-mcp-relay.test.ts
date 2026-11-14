@@ -31,7 +31,7 @@ describe("native remote MCP relay", () => {
     let active = true;
     const release = registerRemoteMcpRelay({ runId: "run", socketPath, token, expiresAt: Date.now() + 60_000, authorized: async () => active });
     cleanup.push(release);
-    const body = { jsonrpc: "2.0", id: 0, method: "tools/call", params: { name: "paperclip_finish", arguments: {} } };
+    const body = { jsonrpc: "2.0", id: 0, method: "tools/call", params: { name: "outpost_finish", arguments: {} } };
     const invoke = (authorization = `Bearer ${token}`) => forwardRemoteMcpRequest({ runId: "run", authorization, scopeAuthorization, body });
     expect((await invoke("Bearer forged")).status).toBe(401);
     const response = await invoke();

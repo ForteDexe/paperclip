@@ -83,9 +83,9 @@ export function prepareHeartbeatRuntimeServiceIntents(input: {
     runtimeServiceCount: runtimeServiceIntents.length,
   });
   if (runtimeServiceIntents.length > 0) {
-    context.paperclipRuntimeServiceIntents = runtimeServiceIntents;
+    context.outpostRuntimeServiceIntents = runtimeServiceIntents;
   } else {
-    delete context.paperclipRuntimeServiceIntents;
+    delete context.outpostRuntimeServiceIntents;
   }
 }
 
@@ -104,7 +104,7 @@ export async function startHeartbeatRuntimeServices(db: Db, input: RuntimeServic
     agent: {
       id: agent.id,
       name: agent.name,
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
     },
     issue: issueRef,
     workspace: executionWorkspace,
@@ -119,8 +119,8 @@ export async function startHeartbeatRuntimeServices(db: Db, input: RuntimeServic
     recorder: workspaceOperationRecorder,
   });
   if (runtimeServices.length > 0) {
-    context.paperclipRuntimeServices = runtimeServices;
-    context.paperclipRuntimePrimaryUrl =
+    context.outpostRuntimeServices = runtimeServices;
+    context.outpostRuntimePrimaryUrl =
       runtimeServices.find((service) => readNonEmptyString(service.url))
         ?.url ?? null;
     await db
@@ -169,7 +169,7 @@ export async function recordHeartbeatAdapterRuntimeServices(db: Db, input: Runti
         agent: {
           id: agent.id,
           name: agent.name,
-          companyId: agent.companyId,
+          spaceId: agent.spaceId,
         },
         issue: issueRef,
         workspace: executionWorkspace,
@@ -181,8 +181,8 @@ export async function recordHeartbeatAdapterRuntimeServices(db: Db, input: Runti
       ...runtimeServices,
       ...adapterManagedRuntimeServices,
     ];
-    context.paperclipRuntimeServices = combinedRuntimeServices;
-    context.paperclipRuntimePrimaryUrl =
+    context.outpostRuntimeServices = combinedRuntimeServices;
+    context.outpostRuntimePrimaryUrl =
       combinedRuntimeServices.find((service) =>
         readNonEmptyString(service.url),
       )?.url ?? null;

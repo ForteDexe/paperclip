@@ -10,7 +10,7 @@ import {
 const snowflake = z.string().regex(/^[1-9][0-9]{16,19}$/);
 const sourceScope = z
   .object({
-    companyId: z.uuid(),
+    spaceId: z.uuid(),
     endpointId: z.uuid(),
     applicationId: snowflake,
     guildId: snowflake,
@@ -41,7 +41,7 @@ const rawCommand = z
       .object({
         id: snowflake,
         type: z.literal(1),
-        name: z.literal("paperclip"),
+        name: z.literal("outpost"),
         options: z.tuple([
           z
             .object({
@@ -105,7 +105,7 @@ export function parseDiscordNativeCommand(
     callback.event.user.userId !== raw.user.id ||
     callback.event.user.isBot ||
     callback.event.user.isMe ||
-    callback.event.command !== `/paperclip ${command}` ||
+    callback.event.command !== `/outpost ${command}` ||
     callback.event.text !== "" ||
     raw.channel_id !== raw.channel.id
   )
@@ -151,7 +151,7 @@ export function parseDiscordNativeCommand(
     guildId: isDm ? null : scope.guildId,
   };
   const digest = createHash("sha256")
-    .update(JSON.stringify([scope.companyId, scope.endpointId, invocation]))
+    .update(JSON.stringify([scope.spaceId, scope.endpointId, invocation]))
     .digest("hex");
   return Object.freeze({ ...invocation, digest });
 }
@@ -171,7 +171,7 @@ export function isCurrentDiscordCommandRegistration(
     return false;
   const row = action as Record<string, unknown>;
   if (
-    row.companyId !== scope.companyId ||
+    row.spaceId !== scope.spaceId ||
     row.endpointId !== scope.endpointId ||
     row.conversationId !== null ||
     row.kind !== "discord_command_registration" ||
@@ -232,7 +232,7 @@ export function parseDiscordNativeCommandReceipt(
     return null;
   const row = action as Record<string, unknown>;
   if (
-    row.companyId !== scope.companyId ||
+    row.spaceId !== scope.spaceId ||
     row.endpointId !== scope.endpointId ||
     row.kind !== "discord_native_command" ||
     row.providerActionId !==

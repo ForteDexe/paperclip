@@ -8,7 +8,7 @@ Per-turn remote sandboxes are the default (warm reuse, #20048, is on hold).
 Each follow-up turn gets a fresh Daytona sandbox, and the controller uploads the
 workspace into it again.
 
-Measured on the paperclip repository clone (Daytona, Codex, per-turn), from the
+Measured on the outpost repository clone (Daytona, Codex, per-turn), from the
 run log's `workspace_sync.*` spans (baseline `ws-daytona-phases2`):
 
 | Span | Cold turn | Follow-up turn |
@@ -86,9 +86,9 @@ to the seed.
 ## Next step: one bounded experiment
 
 Before building anything, measure both seed locations with the existing harness
-(`tests/restart-chaos/ttft-baseline.ts --env daytona --workspace-repo <paperclip clone>`):
+(`tests/restart-chaos/ttft-baseline.ts --env daytona --workspace-repo <outpost clone>`):
 
-1. Time to create a Daytona snapshot from the paperclip seed, and time to create
+1. Time to create a Daytona snapshot from the outpost seed, and time to create
    a sandbox from it.
 2. Time to mount a volume holding the seed archive and extract it inside a
    sandbox.
@@ -101,8 +101,8 @@ slot.
 ## Experiment results (2026-11-08)
 
 Setup:
-- Daytona `us`, 2 vCPU sandboxes, runner image `paperclip-daytona-runner@sha256:4b13c70a…`.
-- The seed is a git archive of the paperclip clone: 58.7 MB gzip, 14,766 files.
+- Daytona `us`, 2 vCPU sandboxes, runner image `outpost-daytona-runner@sha256:4b13c70a…`.
+- The seed is a git archive of the outpost clone: 58.7 MB gzip, 14,766 files.
 - Timed with the Daytona SDK from the controller host, using a restricted key with snapshot and volume permissions.
 - Every resource was deleted, and an account-wide listing confirmed none remained.
 

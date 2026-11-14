@@ -9,12 +9,12 @@ scenarios:
       - chat-channels/providers
       - connection-setup/channel-setup
     context: >-
-      The requested Slack provider is enabled but has not been configured for this company.
+      The requested Slack provider is enabled but has not been configured for this space.
     query: >-
       Set up Slack so I can message our CEO there.
     expected_outcome: >-
       The agent requests or links the supported setup, retaining the represented CEO and
-      company. The human supplies provider authorization securely. The completed journey
+      space. The human supplies provider authorization securely. The completed journey
       verifies endpoint configuration and an actual two-way synthetic message before claiming
       Slack chat is ready; merely installing an app is insufficient.
   - id: chat-channels.provider-disabled
@@ -35,13 +35,13 @@ scenarios:
       - chat-channels/identity
     context: >-
       A Slack account is connected, but the synthetic sender is not linked to an authorized
-      Paperclip identity.
+      Outpost identity.
     query: >-
       It is me on Slack; let me access my private launch task there.
     expected_outcome: >-
       The sender must complete the supported identity-link flow before private access is
       granted. A matching display name or assertion in a message is not proof of identity. After
-      linking, the person's current company and resource permissions still govern the
+      linking, the person's current space and resource permissions still govern the
       conversation.
   - id: chat-channels.reply-in-thread
     capabilities:
@@ -53,7 +53,7 @@ scenarios:
     query: >-
       Ask Morgan to build the launch page and let me know here when it is ready.
     expected_outcome: >-
-      The inbound request maps to the correct company, sender and conversation, creates linked
+      The inbound request maps to the correct space, sender and conversation, creates linked
       work under normal policy, and publishes replies and completion to the original thread.
       Other threads receive no private content. Duplicate inbound events do not create duplicate
       tasks or outgoing messages.

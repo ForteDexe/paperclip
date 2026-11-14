@@ -4,7 +4,7 @@ export const recoveryKinds = ["accounting-receipts", "quota-credential-recovery"
 
 export function classifyRecoveryEntry(kind, depth, entry) {
   if (entry === "file") return "unverifiedFiles";
-  if (entry === "company-directory" && kind === "quota-credential-recovery" && depth === 0) return "descend";
+  if (entry === "space-directory" && kind === "quota-credential-recovery" && depth === 0) return "descend";
   return "unknownEntries";
 }
 

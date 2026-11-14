@@ -14,9 +14,9 @@ function Message({ id }: { id: string }) {
   const ref = useAgentChatRead(id, "2026-10-30T12:00:00.123Z", true);
   return <div ref={ref}>Digest</div>;
 }
-async function render(ids = [first], companyId = "company-1", userId = "human-1", issueId = "chat-1") {
+async function render(ids = [first], spaceId = "space-1", userId = "human-1", issueId = "chat-1") {
   await act(async () => root.render(<QueryClientProvider client={client}>
-    <AgentChatReadProvider issueId={issueId} companyId={companyId} userId={userId}>
+    <AgentChatReadProvider issueId={issueId} spaceId={spaceId} userId={userId}>
       <div className="task-chat-scroll-viewport">{ids.map(id => <Message key={id} id={id} />)}</div>
     </AgentChatReadProvider>
   </QueryClientProvider>));
@@ -111,14 +111,14 @@ it("stops after bounded retries and recovers the retained cutoff on reconnect", 
   expect(markRead).toHaveBeenLastCalledWith("chat-1", first);
   expect(container.querySelector('[role="alert"]')).toBeNull();
 });
-it.each(["company", "human", "chat", "unmount"])("cancels a pending retry after %s changes", async kind => {
+it.each(["space", "human", "chat", "unmount"])("cancels a pending retry after %s changes", async kind => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   markRead.mockRejectedValue(new TypeError("Network unavailable"));
   await render();
   expect(markRead).toHaveBeenCalledTimes(1);
   focused = false;
   if (kind === "unmount") await act(async () => { root.render(null); });
-  else await render([first], kind === "company" ? "company-2" : "company-1", kind === "human" ? "human-2" : "human-1", kind === "chat" ? "chat-2" : "chat-1");
+  else await render([first], kind === "space" ? "space-2" : "space-1", kind === "human" ? "human-2" : "human-1", kind === "chat" ? "chat-2" : "chat-1");
   await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
   expect(markRead).toHaveBeenCalledTimes(1);
 });
@@ -150,7 +150,7 @@ it("discards an in-flight failure after the human changes", async () => {
   let fail!: (cause: Error) => void;
   markRead.mockImplementationOnce(() => new Promise<void>((_, reject) => { fail = reject; }));
   await render();
-  focused = false; await render([first], "company-1", "human-2");
+  focused = false; await render([first], "space-1", "human-2");
   await act(async () => { fail(new TypeError("Network unavailable")); });
   await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
   expect(markRead).toHaveBeenCalledTimes(1);

@@ -5,7 +5,7 @@ import { agentsApi } from "../api/agents";
 /** Readiness alone does not authenticate a provider. Reuse the provider's key
  * verification when present, otherwise retain the existing CLI hello probe. */
 export async function testAgentSetup(input: {
-  companyId: string;
+  spaceId: string;
   agentId?: string;
   adapterType: string;
   runner?: import("@outpost/shared").AgentRunnerChoice;
@@ -24,7 +24,7 @@ export async function testAgentSetup(input: {
     environmentId: input.environmentId,
   };
   const runtime = await agentsApi.testEnvironment(
-    input.companyId,
+    input.spaceId,
     input.adapterType,
     payload,
   );
@@ -40,7 +40,7 @@ export async function testAgentSetup(input: {
   )
     return runtime;
   const provider = await agentsApi.testEnvironment(
-    input.companyId,
+    input.spaceId,
     input.providerAdapter,
     {
       ...payload,
@@ -49,7 +49,7 @@ export async function testAgentSetup(input: {
         ...input.adapterConfig,
         engine: "cli",
         ...(input.adapterType === "outpost_runner" && input.providerAdapter === "grok_local"
-          ? { command: "/opt/paperclip/providers/grok/1.0.13/grok" }
+          ? { command: "/opt/outpost/providers/grok/1.0.13/grok" }
           : {}),
       },
     },

@@ -40,7 +40,7 @@ and on-use authorization rules remain unchanged.
 Unknown outcomes with no live attempt are passive review evidence. Unused consent
 is owned by the separate consent-expiry worker. Neither keeps attempt recovery
 querying. Failed loads, locks or projections retain bounded retry work; fair
-batches allow healthy rows and other companies to progress. Worker errors redact
+batches allow healthy rows and other spaces to progress. Worker errors redact
 SQL parameters and private transfer envelopes.
 
 ## Lifecycle and ownership

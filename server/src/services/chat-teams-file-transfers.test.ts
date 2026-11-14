@@ -22,7 +22,7 @@ import {
   chatExternalPrincipals,
   chatPublications,
   chatTeamsFileTransfers,
-  companies,
+  spaces,
   createDb,
   getEmbeddedPostgresTestSupport,
   issueAttachments,
@@ -75,7 +75,7 @@ suite(
       if (external) db = createDb(external);
       else {
         temporary = await startEmbeddedPostgresTestDatabase(
-          "paperclip-teams-transfers-",
+          "outpost-teams-transfers-",
         );
         db = createDb(temporary.connectionString);
       }
@@ -91,13 +91,13 @@ suite(
       consentLifetimeMs = 60_000,
       originalFilename: string | null = "file.txt",
     ) {
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const agentId = randomUUID();
       const applicationId = randomUUID();
       const connectionId = randomUUID();
       const attachmentId = randomUUID();
       const a: TeamsFileTransferAuthority = {
-        companyId,
+        spaceId,
         endpointId: randomUUID(),
         conversationId: randomUUID(),
         issueId: randomUUID(),
@@ -105,7 +105,7 @@ suite(
         commentId: randomUUID(),
         attachmentId,
         principalId: randomUUID(),
-        authorizedUserId: "board-user",
+        authorizedUserId: "operator-user",
         runtimeGeneration: 3,
         credentialFingerprint: "c".repeat(64),
         conversationGeneration: 2,
@@ -119,23 +119,23 @@ suite(
         byteSize: bytes.length,
         filename: originalFilename ?? `attachment-${attachmentId}`,
       };
-      await db.insert(companies).values({
-        id: companyId,
+      await db.insert(spaces).values({
+        id: spaceId,
         name: "Teams transfer fixture",
-        issuePrefix: `T${companyId.slice(0, 7)}`,
+        issuePrefix: `T${spaceId.slice(0, 7)}`,
       });
       await db.insert(agents).values({
         id: agentId,
-        companyId,
+        spaceId,
         name: "Teams test",
         adapterType: "codex_local",
       });
       await db
         .insert(toolApplications)
-        .values({ id: applicationId, companyId, name: "Teams", type: "chat" });
+        .values({ id: applicationId, spaceId, name: "Teams", type: "chat" });
       await db.insert(toolConnections).values({
         id: connectionId,
-        companyId,
+        spaceId,
         applicationId,
         uid: randomUUID(),
         name: "Teams",
@@ -144,7 +144,7 @@ suite(
       });
       await db.insert(chatEndpoints).values({
         id: a.endpointId,
-        companyId,
+        spaceId,
         connectionId,
         provider: "microsoft-teams",
         publicId: randomUUID(),
@@ -155,10 +155,10 @@ suite(
       });
       await db
         .insert(issues)
-        .values({ id: a.issueId, companyId, title: "Exact file output" });
+        .values({ id: a.issueId, spaceId, title: "Exact file output" });
       await db.insert(chatConversations).values({
         id: a.conversationId,
-        companyId,
+        spaceId,
         endpointId: a.endpointId,
         issueId: a.issueId,
         externalConversationId: a.providerConversationId,
@@ -169,14 +169,14 @@ suite(
       });
       await db.insert(chatExternalPrincipals).values({
         id: a.principalId,
-        companyId,
+        spaceId,
         provider: "microsoft-teams",
         providerAccountId: a.tenantId,
         externalId: a.aadObjectId,
       });
       await db.insert(issueComments).values({
         id: a.commentId,
-        companyId,
+        spaceId,
         issueId: a.issueId,
         body: "Share this exact file",
         authorUserId: a.authorizedUserId,
@@ -184,7 +184,7 @@ suite(
       const assetId = randomUUID();
       await db.insert(assets).values({
         id: assetId,
-        companyId,
+        spaceId,
         provider: "local_disk",
         objectKey: `test/${assetId}`,
         contentType: "text/plain",
@@ -194,14 +194,14 @@ suite(
       });
       await db.insert(issueAttachments).values({
         id: a.attachmentId,
-        companyId,
+        spaceId,
         issueId: a.issueId,
         assetId,
         issueCommentId: a.commentId,
       });
       await db.insert(chatPublications).values({
         id: a.publicationId,
-        companyId,
+        spaceId,
         endpointId: a.endpointId,
         conversationId: a.conversationId,
         issueId: a.issueId,
@@ -243,7 +243,7 @@ suite(
       const privateContext = async () => {
         const row = await read();
         return {
-          companyId,
+          spaceId,
           endpointId: a.endpointId,
           transferId: row.id,
           authorityDigest: row.authorityDigest,
@@ -270,7 +270,7 @@ suite(
             },
           } satisfies TeamsConsentApp,
           {
-            companyId,
+            spaceId,
             endpointId: a.endpointId,
             tenantId: a.tenantId,
             botAppId: a.botAppId,
@@ -350,17 +350,17 @@ suite(
       }
       async function abandon(f: Awaited<ReturnType<typeof transfer>>, stage = "consent") {
         if (stage !== "consent") {
-          await f.service().process(f.a.companyId, f.created.id);
+          await f.service().process(f.a.spaceId, f.created.id);
           await f.service().recordConsent(await f.event());
-          if (stage === "file_info") await f.service().process(f.a.companyId, f.created.id);
+          if (stage === "file_info") await f.service().process(f.a.spaceId, f.created.id);
         }
         const outcome = stage === "consent" ? "awaiting_consent" : stage === "upload" ? "file_info_pending" : "delivered";
         f.opts.project = async (_tx, row) => { if (row.phase === outcome) throw new Error("receipt projection interrupted"); };
-        await expect(f.service().process(f.a.companyId, f.created.id)).rejects.toThrow("receipt projection interrupted");
+        await expect(f.service().process(f.a.spaceId, f.created.id)).rejects.toThrow("receipt projection interrupted");
         delete f.opts.project;
         return (await f.read()).attemptExpiresAt!.getTime();
       }
-      function worker(recover: (companyId: string, id: string) => Promise<boolean>) {
+      function worker(recover: (spaceId: string, id: string) => Promise<boolean>) {
         vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
         coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => enabled, canReconcile: () => true, onError: error => errors.push(error) });
         const work = teamsAttemptRecoveryWork(db, recover);
@@ -376,7 +376,7 @@ suite(
       }
       it("leaves unused consent and retained terminal history quiet", async () => {
         const f = await transfer(), cancelled = await transfer();
-        await cancelled.service().cancel(cancelled.a.companyId, cancelled.created.id);
+        await cancelled.service().cancel(cancelled.a.spaceId, cancelled.created.id);
         await worker(f.service().recoverAbandonedAttempt).ready; await settled();
         expect(coordinator!.nextWakeAt()).toBeNull(); await quiet(180_000);
         expect((await f.read()).phase).toBe("consent_pending"); expect(errors).toEqual([]);
@@ -400,7 +400,7 @@ suite(
         f.opts.postConsent = vi.fn(async () => { entered(); await hold; return { id: "card-1" }; });
         await worker(f.service().recoverAbandonedAttempt).ready; await settled();
         expect(coordinator!.nextWakeAt()).toBeNull();
-        const send = f.service().process(f.a.companyId, f.created.id);
+        const send = f.service().process(f.a.spaceId, f.created.id);
         try {
           await ready; await settled(); const row = await f.read();
           expect(coordinator!.nextWakeAt()).toBe(row.attemptExpiresAt!.getTime()); await quiet();
@@ -415,7 +415,7 @@ suite(
         let release!: () => void, entered!: () => void;
         const hold = new Promise<void>(resolve => { release = resolve; }), ready = new Promise<void>(resolve => { entered = resolve; });
         f.opts.postConsent = vi.fn(async () => { entered(); await hold; return { id: "late-card" }; });
-        const send = f.service().process(f.a.companyId, f.created.id);
+        const send = f.service().process(f.a.spaceId, f.created.id);
         try {
           await ready; await f.service().recordConsent(await f.event());
           await f.service().recordConsent(await f.event("decline"));
@@ -446,7 +446,7 @@ suite(
         const hold = new Promise<void>(resolve => { release = resolve; }), ready = new Promise<void>(resolve => { entered = resolve; });
         f.opts.postConsent = vi.fn(async () => { entered(); await hold; return { id: "late-card" }; });
         await worker(f.service().recoverAbandonedAttempt).ready;
-        const send = f.service().process(f.a.companyId, f.created.id);
+        const send = f.service().process(f.a.spaceId, f.created.id);
         try {
           await ready; await f.service().recordConsent(await f.event());
           await f.service().recordConsent(await f.event("decline"));
@@ -463,7 +463,7 @@ suite(
         const hold = new Promise<void>(resolve => { release = resolve; }), ready = new Promise<void>(resolve => { entered = resolve; });
         f.opts.project = async (_tx, row) => { if (row.phase === "consent_sending") { entered(); await hold; throw new Error("claim rolled back"); } };
         await worker(f.service().recoverAbandonedAttempt).ready; await settled();
-        const send = f.service().process(f.a.companyId, f.created.id);
+        const send = f.service().process(f.a.spaceId, f.created.id);
         const failure = expect(send).rejects.toThrow("claim rolled back");
         try {
           await ready; await vi.advanceTimersByTimeAsync(10_000);
@@ -487,11 +487,11 @@ suite(
         expect((await f.read()).phase).toBe("consent_sending");
         vi.setSystemTime(changed); expect(await work.check(entry)).toBeNull(); expect((await f.read()).phase).toBe("consent_unknown");
       });
-      it("pages and drains healthy attempts across companies while a corrupt claim retains recovery", async () => {
+      it("pages and drains healthy attempts across spaces while a corrupt claim retains recovery", async () => {
         const f = await transfer(), other = await transfer(); await abandon(f); await abandon(other);
         for (let index = 0; index < 100; index++) {
           const publicationId = randomUUID();
-          await db.insert(chatPublications).values({ id: publicationId, companyId: f.a.companyId,
+          await db.insert(chatPublications).values({ id: publicationId, spaceId: f.a.spaceId,
             endpointId: f.a.endpointId, conversationId: f.a.conversationId, issueId: f.a.issueId,
             commentId: f.a.commentId, idempotencyKey: `attempt-page:${publicationId}`,
             payload: { text: "Same authorized file", attachmentIds: [f.a.attachmentId] } });
@@ -499,7 +499,7 @@ suite(
           const service = teamsFileTransferService(db, { ...f.opts, authorize: async () => a,
             project: async (_tx, row) => { if (row.phase === "awaiting_consent") throw new Error("receipt interrupted"); } });
           const created = await service.issue(a, new Date(Date.now() + 600_000)); transferIds.push(created.id);
-          await expect(service.process(a.companyId, created.id)).rejects.toThrow("receipt interrupted");
+          await expect(service.process(a.spaceId, created.id)).rejects.toThrow("receipt interrupted");
         }
         await db.update(chatTeamsFileTransfers).set({ authorityDigest: "0".repeat(64) }).where(eq(chatTeamsFileTransfers.id, f.created.id));
         const { work, ready } = worker(f.service().recoverAbandonedAttempt); await ready;
@@ -542,7 +542,7 @@ suite(
         f.opts.now = () => new Date();
         return f;
       }
-      function worker(expire: (companyId: string, id: string) => Promise<boolean>) {
+      function worker(expire: (spaceId: string, id: string) => Promise<boolean>) {
         vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
         coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => enabled, canReconcile: () => true, onError: error => errors.push(error) });
         const work = teamsConsentExpiryWork(db, expire);
@@ -562,7 +562,7 @@ suite(
         await db.update(chatTeamsFileTransfers).set({ expiresAt: new Date(due) }).where(eq(chatTeamsFileTransfers.id, f.created.id));
         for (let index = 0; index < 104; index++) {
           const publicationId = randomUUID();
-          await db.insert(chatPublications).values({ id: publicationId, companyId: f.a.companyId,
+          await db.insert(chatPublications).values({ id: publicationId, spaceId: f.a.spaceId,
             endpointId: f.a.endpointId, conversationId: f.a.conversationId, issueId: f.a.issueId,
             commentId: f.a.commentId, idempotencyKey: `expiry-restart:${publicationId}`,
             payload: { text: "Same authorized file", attachmentIds: [f.a.attachmentId] } });
@@ -610,7 +610,7 @@ suite(
         } finally { reads.mockRestore(); }
       }, 30_000);
       it("is quiet with configured endpoints and cancelled history", async () => {
-        const f = await transfer(); await f.service().cancel(f.a.companyId, f.created.id);
+        const f = await transfer(); await f.service().cancel(f.a.spaceId, f.created.id);
         const expire = vi.fn(f.service().expireUnusedConsent);
         await worker(expire).ready; await settled();
         expect(coordinator!.nextWakeAt()).toBeNull(); await quiet(180_000);
@@ -618,7 +618,7 @@ suite(
       });
       it.each(["consent_pending", "awaiting_consent", "upload_pending"])("restores the saved %s expiry without an early scan or provider effect", async phase => {
         const f = await transfer();
-        if (phase !== "consent_pending") await f.service().process(f.a.companyId, f.created.id);
+        if (phase !== "consent_pending") await f.service().process(f.a.spaceId, f.created.id);
         if (phase === "upload_pending") await f.service().recordConsent(await f.event());
         expect((await f.read()).phase).toBe(phase);
         const providerCalls = vi.mocked(f.opts.postConsent).mock.calls.length;
@@ -635,18 +635,18 @@ suite(
       });
       it("reactivates from real issuance and disarms on cancellation", async () => {
         let f: Awaited<ReturnType<typeof transfer>>;
-        await worker((companyId, id) => f.service().expireUnusedConsent(companyId, id)).ready;
+        await worker((spaceId, id) => f.service().expireUnusedConsent(spaceId, id)).ready;
         await settled(); expect(coordinator!.nextWakeAt()).toBeNull(); await quiet();
         f = await transfer(); await settled();
         expect(coordinator!.nextWakeAt()).toBe((await f.read()).expiresAt.getTime());
-        await f.service().cancel(f.a.companyId, f.created.id); await settled();
+        await f.service().cancel(f.a.spaceId, f.created.id); await settled();
         expect(coordinator!.nextWakeAt()).toBeNull(); await quiet(180_000);
         expect(f.opts.postConsent).not.toHaveBeenCalled();
       });
       it("keeps first committed work through drain without passive SQL", async () => {
         enabled = false;
         let f: Awaited<ReturnType<typeof transfer>>;
-        await worker((companyId, id) => f.service().expireUnusedConsent(companyId, id)).ready;
+        await worker((spaceId, id) => f.service().expireUnusedConsent(spaceId, id)).ready;
         f = await transfer(); await quiet(90_000);
         expect((await f.read()).phase).toBe("consent_pending");
         enabled = true; await vi.advanceTimersByTimeAsync(30_000); await settled();
@@ -711,12 +711,12 @@ suite(
           expect(await work.load()).toEqual([]);
         }
       });
-      it("pages and drains more than 100 obligations without starving another company behind a corrupt row", async () => {
+      it("pages and drains more than 100 obligations without starving another space behind a corrupt row", async () => {
         const f = await transfer(), other = await transfer();
         const due = new Date(Date.now() + 60_000);
         for (let index = 0; index < 100; index++) {
           const publicationId = randomUUID();
-          await db.insert(chatPublications).values({ id: publicationId, companyId: f.a.companyId,
+          await db.insert(chatPublications).values({ id: publicationId, spaceId: f.a.spaceId,
             endpointId: f.a.endpointId, conversationId: f.a.conversationId, issueId: f.a.issueId,
             commentId: f.a.commentId, idempotencyKey: `expiry-page:${publicationId}`,
             payload: { text: "Same authorized file", attachmentIds: [f.a.attachmentId] } });
@@ -755,9 +755,9 @@ suite(
         const f = await transfer();
         // Restore fixture time so the explicit maintenance operation sees it due.
         f.opts.now = () => new Date(Date.parse(f.created.expiresAt) + 1);
-        expect(await f.service().recoverAbandonedAttempts(f.a.companyId)).toMatchObject({ scanned: 0, recovered: 0 });
+        expect(await f.service().recoverAbandonedAttempts(f.a.spaceId)).toMatchObject({ scanned: 0, recovered: 0 });
         expect((await f.read()).phase).toBe("consent_pending");
-        expect(await f.service().expireUnusedConsent(f.a.companyId, f.created.id)).toBe(true);
+        expect(await f.service().expireUnusedConsent(f.a.spaceId, f.created.id)).toBe(true);
         expect((await f.read()).phase).toBe("expired");
       });
     });
@@ -770,7 +770,7 @@ suite(
         filename: expected,
       });
       expect(
-        await f.service().process(f.a.companyId, f.created.id),
+        await f.service().process(f.a.spaceId, f.created.id),
       ).toMatchObject({
         phase: "awaiting_consent",
         filename: expected,
@@ -782,7 +782,7 @@ suite(
       // Each service() is a new instance; no normalized name is cached or
       // written back to the immutable source asset during recovery.
       expect(
-        await f.service().process(f.a.companyId, f.created.id),
+        await f.service().process(f.a.spaceId, f.created.id),
       ).toMatchObject({
         phase: "awaiting_consent",
         filename: expected,
@@ -811,7 +811,7 @@ suite(
           .where(eq(assets.id, f.assetId));
         const before = await f.read();
         await expect(
-          f.service().process(f.a.companyId, f.created.id),
+          f.service().process(f.a.spaceId, f.created.id),
         ).rejects.toThrow("Teams file transfer authority or state changed");
         expect(await f.read()).toEqual(before);
         expect(f.opts.postConsent).not.toHaveBeenCalled();
@@ -826,7 +826,7 @@ suite(
         .service()
         .issue(f.a, new Date(Date.now() + 120_000));
       expect(again.id).toBe(f.created.id);
-      const state = await f.service().process(f.a.companyId, f.created.id);
+      const state = await f.service().process(f.a.spaceId, f.created.id);
       expect(state).toMatchObject({
         phase: "awaiting_consent",
         consentConfirmed: true,
@@ -844,15 +844,15 @@ suite(
 
     it("restarts between upload and file-info without repeating PUT or losing exact bytes", async () => {
       const f = await fixture();
-      await f.service().process(f.a.companyId, f.created.id);
+      await f.service().process(f.a.spaceId, f.created.id);
       expect(await f.service().recordConsent(await f.event())).toBe("recorded");
       expect(
-        (await f.service().process(f.a.companyId, f.created.id)).phase,
+        (await f.service().process(f.a.spaceId, f.created.id)).phase,
       ).toBe("file_info_pending");
       expect(
-        (await f.service().process(f.a.companyId, f.created.id)).phase,
+        (await f.service().process(f.a.spaceId, f.created.id)).phase,
       ).toBe("delivered");
-      await f.service().process(f.a.companyId, f.created.id);
+      await f.service().process(f.a.spaceId, f.created.id);
       expect(f.opts.uploadRequest).toHaveBeenCalledTimes(1);
       expect(f.opts.postFileInfo).toHaveBeenCalledTimes(1);
       expect(vi.mocked(f.opts.uploadRequest!).mock.calls[0]![1]!.body).toEqual(
@@ -889,7 +889,7 @@ suite(
           if (lostAck) throw new Error("PRIVATE-ERROR");
           return { id: "card-1" };
         });
-        const work = f.service().process(f.a.companyId, f.created.id);
+        const work = f.service().process(f.a.spaceId, f.created.id);
         await entered;
         const event = await f.event("accept", { replyToId: undefined });
         expect(await f.service().recordConsent(event)).toBe("recorded");
@@ -900,7 +900,7 @@ suite(
         expect((await f.read()).consentMessageId).toBe(
           lostAck ? null : "card-1",
         );
-        await f.service().process(f.a.companyId, f.created.id);
+        await f.service().process(f.a.spaceId, f.created.id);
         expect(f.opts.postConsent).toHaveBeenCalledTimes(1);
         expect(f.opts.uploadRequest).toHaveBeenCalledTimes(1);
       },
@@ -915,7 +915,7 @@ suite(
 
     it("deduplicates callback delivery and quarantines conflicting accepted capability", async () => {
       const f = await fixture();
-      await f.service().process(f.a.companyId, f.created.id);
+      await f.service().process(f.a.spaceId, f.created.id);
       const event = await f.event();
       expect(await f.service().recordConsent(event)).toBe("recorded");
       expect(await f.service().recordConsent(event)).toBe("ignored");
@@ -923,18 +923,18 @@ suite(
         "denied",
       );
       expect((await f.read()).phase).toBe("conflict");
-      await f.service().process(f.a.companyId, f.created.id);
+      await f.service().process(f.a.spaceId, f.created.id);
       expect(f.opts.uploadRequest).not.toHaveBeenCalled();
     });
 
     it("reads exact conflict cancellation readiness without authorization, mutation or provider work", async () => {
       const f = await fixture();
-      await f.service().process(f.a.companyId, f.created.id);
+      await f.service().process(f.a.spaceId, f.created.id);
       await f.service().recordConsent(await f.event());
       await f.service().recordConsent(await f.event("decline"));
       const before = await f.read();
       const input = {
-        companyId: f.a.companyId,
+        spaceId: f.a.spaceId,
         endpointId: f.a.endpointId,
         conversationId: f.a.conversationId,
         publicationId: f.a.publicationId,
@@ -943,7 +943,7 @@ suite(
       const authorizations = vi.mocked(f.opts.authorize).mock.calls.length;
       await expect(f.service().canCancelConflict(input)).resolves.toBe(true);
       for (const key of [
-        "companyId",
+        "spaceId",
         "endpointId",
         "conversationId",
         "publicationId",
@@ -975,7 +975,7 @@ suite(
       "does not offer conflict cancellation for %s evidence",
       async (fault) => {
         const f = await fixture();
-        await f.service().process(f.a.companyId, f.created.id);
+        await f.service().process(f.a.spaceId, f.created.id);
         await f.service().recordConsent(await f.event());
         await f.service().recordConsent(await f.event("decline"));
         const row = await f.read();
@@ -1012,7 +1012,7 @@ suite(
         const before = await f.read();
         await expect(
           f.service().canCancelConflict({
-            companyId: f.a.companyId,
+            spaceId: f.a.spaceId,
             endpointId: f.a.endpointId,
             conversationId: f.a.conversationId,
             publicationId: f.a.publicationId,
@@ -1030,7 +1030,7 @@ suite(
       "rejects %s ownership at the database boundary before it can affect conflict readiness",
       async (fault) => {
         const f = await fixture();
-        await f.service().process(f.a.companyId, f.created.id);
+        await f.service().process(f.a.spaceId, f.created.id);
         await f.service().recordConsent(await f.event());
         await f.service().recordConsent(await f.event("decline"));
         const before = await f.read();
@@ -1052,7 +1052,7 @@ suite(
         expect(await f.read()).toEqual(before);
         await expect(
           f.service().canCancelConflict({
-            companyId: f.a.companyId,
+            spaceId: f.a.spaceId,
             endpointId: f.a.endpointId,
             conversationId: f.a.conversationId,
             publicationId: f.a.publicationId,
@@ -1065,7 +1065,7 @@ suite(
     it("preserves ambiguity after lost PUT or file-info ACK and never blindly retries", async () => {
       for (const stage of ["upload", "file_info"] as const) {
         const f = await fixture();
-        await f.service().process(f.a.companyId, f.created.id);
+        await f.service().process(f.a.spaceId, f.created.id);
         await f.service().recordConsent(await f.event());
         if (stage === "upload")
           f.opts.uploadRequest = vi.fn(async () => {
@@ -1075,17 +1075,17 @@ suite(
           f.opts.postFileInfo = vi.fn(async () => {
             throw new Error(uploadUrl);
           });
-        await f.service().process(f.a.companyId, f.created.id);
+        await f.service().process(f.a.spaceId, f.created.id);
         if (stage === "file_info")
-          await f.service().process(f.a.companyId, f.created.id);
+          await f.service().process(f.a.spaceId, f.created.id);
         for (let i = 0; i < 2; i++)
-          await f.service().process(f.a.companyId, f.created.id);
+          await f.service().process(f.a.spaceId, f.created.id);
         expect((await f.read()).phase).toBe(
           stage === "upload" ? "upload_unknown" : "file_info_unknown",
         );
         expect(f.opts.uploadRequest).toHaveBeenCalledTimes(1);
         f.advance(120_000);
-        await f.service().expireAndRecover(f.a.companyId);
+        await f.service().expireAndRecover(f.a.spaceId);
         expect((await f.read()).phase).toBe(
           stage === "upload" ? "upload_unknown" : "file_info_unknown",
         );
@@ -1105,7 +1105,7 @@ suite(
       "providerUserId",
     ] as const)("denies changed %s before a new effect", async (field) => {
       const f = await fixture();
-      await f.service().process(f.a.companyId, f.created.id);
+      await f.service().process(f.a.spaceId, f.created.id);
       await f.service().recordConsent(await f.event());
       f.setCurrent({
         [field]: field.endsWith("Generation")
@@ -1117,7 +1117,7 @@ suite(
               : "foreign-user",
       });
       await expect(
-        f.service().process(f.a.companyId, f.created.id),
+        f.service().process(f.a.spaceId, f.created.id),
       ).rejects.toThrow();
       expect(f.opts.uploadRequest).not.toHaveBeenCalled();
     });
@@ -1126,7 +1126,7 @@ suite(
       "preserves evidence but denies deleted/changed %s",
       async (change) => {
         const f = await fixture();
-        await f.service().process(f.a.companyId, f.created.id);
+        await f.service().process(f.a.spaceId, f.created.id);
         await f.service().recordConsent(await f.event());
         if (change === "attachment")
           await db
@@ -1143,19 +1143,19 @@ suite(
             .where(eq(assets.id, f.assetId));
         expect((await f.read()).phase).toBe("upload_pending");
         await expect(
-          f.service().process(f.a.companyId, f.created.id),
+          f.service().process(f.a.spaceId, f.created.id),
         ).rejects.toThrow();
         expect(f.opts.uploadRequest).not.toHaveBeenCalled();
       },
     );
 
-    it("authenticates ciphertext to exact company/endpoint/transfer/authority and purpose", async () => {
+    it("authenticates ciphertext to exact space/endpoint/transfer/authority and purpose", async () => {
       const f = await fixture();
       const row = await f.read();
       const ctx = await f.privateContext();
       const material = row.privateState.binding as Record<string, unknown>;
       for (const changed of [
-        { companyId: randomUUID() },
+        { spaceId: randomUUID() },
         { endpointId: randomUUID() },
         { transferId: randomUUID() },
         { authorityDigest: "b".repeat(64) },
@@ -1188,23 +1188,23 @@ suite(
 
     it("decline/expiry are terminal without uploaded bytes; expiry cannot erase unknown POST", async () => {
       const f = await fixture();
-      await f.service().process(f.a.companyId, f.created.id);
+      await f.service().process(f.a.spaceId, f.created.id);
       await f.service().recordConsent(await f.event("decline"));
       expect((await f.read()).phase).toBe("declined");
-      await f.service().process(f.a.companyId, f.created.id);
+      await f.service().process(f.a.spaceId, f.created.id);
       expect(f.opts.uploadRequest).not.toHaveBeenCalled();
       const waiting = await fixture();
-      await waiting.service().process(waiting.a.companyId, waiting.created.id);
+      await waiting.service().process(waiting.a.spaceId, waiting.created.id);
       waiting.advance(61_000);
-      await waiting.service().expireAndRecover(waiting.a.companyId);
+      await waiting.service().expireAndRecover(waiting.a.spaceId);
       expect((await waiting.read()).phase).toBe("expired");
       const lost = await fixture();
       lost.opts.postConsent = vi.fn(async () => {
         throw new Error("lost ACK");
       });
-      await lost.service().process(lost.a.companyId, lost.created.id);
+      await lost.service().process(lost.a.spaceId, lost.created.id);
       lost.advance(61_000);
-      await lost.service().expireAndRecover(lost.a.companyId);
+      await lost.service().expireAndRecover(lost.a.spaceId);
       expect((await lost.read()).phase).toBe("consent_unknown");
     });
 
@@ -1223,11 +1223,11 @@ suite(
         await hold;
         return { id: "different-card" };
       });
-      const work = f.service().process(f.a.companyId, f.created.id);
+      const work = f.service().process(f.a.spaceId, f.created.id);
       await entered;
       await f.service().recordConsent(await f.event());
       expect(
-        (await f.service().process(f.a.companyId, f.created.id)).phase,
+        (await f.service().process(f.a.spaceId, f.created.id)).phase,
       ).toBe("consent_sending");
       release();
       expect((await work).phase).toBe("conflict");
@@ -1259,7 +1259,7 @@ suite(
         await held;
       });
       const pid = await ready;
-      const work = f.service().process(f.a.companyId, f.created.id);
+      const work = f.service().process(f.a.spaceId, f.created.id);
       void work.catch(() => {});
       try {
         await expect
@@ -1311,14 +1311,14 @@ suite(
         await hold;
         return { id: "late-card" };
       });
-      const work = f.service().process(f.a.companyId, f.created.id);
+      const work = f.service().process(f.a.spaceId, f.created.id);
       await entered;
       f.advance(91_000);
-      await f.service().expireAndRecover(f.a.companyId);
+      await f.service().expireAndRecover(f.a.spaceId);
       release();
       expect((await work).phase).toBe("consent_unknown");
       expect((await f.read()).consentMessageId).toBeNull();
-      await f.service().process(f.a.companyId, f.created.id);
+      await f.service().process(f.a.spaceId, f.created.id);
       expect(f.opts.postConsent).toHaveBeenCalledTimes(1);
     });
 
@@ -1329,7 +1329,7 @@ suite(
         return { id: "card-1" };
       });
       expect(
-        (await f.service().process(f.a.companyId, f.created.id)).phase,
+        (await f.service().process(f.a.spaceId, f.created.id)).phase,
       ).toBe("awaiting_consent");
       await expect(
         f.service().recordConsent(await f.event()),
@@ -1340,11 +1340,11 @@ suite(
 
     it("rejects changed bytes loaded after consent, before network", async () => {
       const f = await fixture();
-      await f.service().process(f.a.companyId, f.created.id);
+      await f.service().process(f.a.spaceId, f.created.id);
       await f.service().recordConsent(await f.event());
       f.opts.loadBytes = vi.fn(async () => Buffer.from("different bytes"));
       expect(
-        await f.service().process(f.a.companyId, f.created.id),
+        await f.service().process(f.a.spaceId, f.created.id),
       ).toMatchObject({
         phase: "upload_pending",
         reason: "provider_not_attempted",
@@ -1352,7 +1352,7 @@ suite(
       expect(f.opts.uploadRequest).not.toHaveBeenCalled();
     });
 
-    it("enforces company/publication FK and rejects ciphertext copied from another transfer", async () => {
+    it("enforces space/publication FK and rejects ciphertext copied from another transfer", async () => {
       const left = await fixture();
       const right = await fixture();
       const source = await left.read();
@@ -1369,7 +1369,7 @@ suite(
         .set({ privateState: source.privateState })
         .where(eq(chatTeamsFileTransfers.id, right.created.id));
       await expect(
-        right.service().process(right.a.companyId, right.created.id),
+        right.service().process(right.a.spaceId, right.created.id),
       ).rejects.toThrow();
       expect(right.opts.postConsent).not.toHaveBeenCalled();
     });
@@ -1378,18 +1378,18 @@ suite(
       "resolves file-info ambiguity transactionally: %s",
       async (action) => {
         const f = await fixture();
-        await f.service().process(f.a.companyId, f.created.id);
+        await f.service().process(f.a.spaceId, f.created.id);
         await f.service().recordConsent(await f.event());
-        await f.service().process(f.a.companyId, f.created.id);
+        await f.service().process(f.a.spaceId, f.created.id);
         f.opts.postFileInfo = vi.fn(async () => {
           throw new Error("lost ACK");
         });
-        await f.service().process(f.a.companyId, f.created.id);
+        await f.service().process(f.a.spaceId, f.created.id);
         const before = await f.read();
         const resolve = () =>
           db.transaction((tx) =>
             f.service().resolveInTransaction(tx, {
-              companyId: f.a.companyId,
+              spaceId: f.a.spaceId,
               publicationId: f.a.publicationId,
               transferId: f.created.id,
               expectedVersion: before.version,
@@ -1411,7 +1411,7 @@ suite(
         if (action === "retry_anyway") {
           f.opts.postFileInfo = vi.fn(async () => ({ id: "confirmed-info" }));
           expect(
-            (await f.service().process(f.a.companyId, f.created.id)).phase,
+            (await f.service().process(f.a.spaceId, f.created.id)).phase,
           ).toBe("delivered");
         }
         expect(f.opts.uploadRequest).toHaveBeenCalledTimes(1);
@@ -1432,20 +1432,20 @@ suite(
           f.opts.postConsent = vi.fn(async () => {
             throw new Error("lost ACK");
           });
-        await f.service().process(f.a.companyId, f.created.id);
+        await f.service().process(f.a.spaceId, f.created.id);
         if (phase === "upload_unknown") {
           await f.service().recordConsent(await f.event());
           f.opts.uploadRequest = vi.fn(async () => {
             throw new Error("lost ACK");
           });
-          await f.service().process(f.a.companyId, f.created.id);
+          await f.service().process(f.a.spaceId, f.created.id);
         }
         const before = await f.read();
         for (const action of ["mark_delivered", "retry_anyway"] as const) {
           await expect(
             db.transaction((tx) =>
               f.service().resolveInTransaction(tx, {
-                companyId: f.a.companyId,
+                spaceId: f.a.spaceId,
                 publicationId: f.a.publicationId,
                 transferId: f.created.id,
                 expectedVersion: before.version,
@@ -1458,7 +1458,7 @@ suite(
         await db
           .transaction(async (tx) => {
             const result = await f.service().resolveInTransaction(tx, {
-              companyId: f.a.companyId,
+              spaceId: f.a.spaceId,
               publicationId: f.a.publicationId,
               transferId: f.created.id,
               expectedVersion: before.version,
@@ -1480,12 +1480,12 @@ suite(
 
     it("recovers final file-info from confirmed upload after consent expiry", async () => {
       const f = await fixture();
-      await f.service().process(f.a.companyId, f.created.id);
+      await f.service().process(f.a.spaceId, f.created.id);
       await f.service().recordConsent(await f.event());
-      await f.service().process(f.a.companyId, f.created.id);
+      await f.service().process(f.a.spaceId, f.created.id);
       f.advance(61_000);
       expect(
-        (await f.service().process(f.a.companyId, f.created.id)).phase,
+        (await f.service().process(f.a.spaceId, f.created.id)).phase,
       ).toBe("delivered");
       expect(f.opts.uploadRequest).toHaveBeenCalledTimes(1);
     });
@@ -1497,7 +1497,7 @@ suite(
           throw new Error("public projection failed");
       });
       await expect(
-        f.service().process(f.a.companyId, f.created.id),
+        f.service().process(f.a.spaceId, f.created.id),
       ).rejects.toThrow("public projection failed");
       expect((await f.read()).phase).toBe("consent_pending");
       expect((await f.read()).attemptId).toBeNull();
@@ -1508,7 +1508,7 @@ suite(
       const f = await fixture();
       f.opts.project = vi.fn(async (_tx, transfer) => {
         expect(transfer).toMatchObject({
-          companyId: f.a.companyId,
+          spaceId: f.a.spaceId,
           endpointId: f.a.endpointId,
           conversationId: f.a.conversationId,
           issueId: f.a.issueId,
@@ -1521,13 +1521,13 @@ suite(
           throw new Error("public receipt failed");
       });
       await expect(
-        f.service().process(f.a.companyId, f.created.id),
+        f.service().process(f.a.spaceId, f.created.id),
       ).rejects.toThrow("public receipt failed");
       expect((await f.read()).phase).toBe("consent_sending");
       f.advance(91_000);
-      await f.service().expireAndRecover(f.a.companyId);
+      await f.service().expireAndRecover(f.a.spaceId);
       expect(
-        (await f.service().process(f.a.companyId, f.created.id)).phase,
+        (await f.service().process(f.a.spaceId, f.created.id)).phase,
       ).toBe("consent_unknown");
       expect(f.opts.postConsent).toHaveBeenCalledTimes(1);
     });
@@ -1539,7 +1539,7 @@ suite(
         const publicationId = randomUUID();
         await db.insert(chatPublications).values({
           id: publicationId,
-          companyId: f.a.companyId,
+          spaceId: f.a.spaceId,
           endpointId: f.a.endpointId,
           conversationId: f.a.conversationId,
           issueId: f.a.issueId,
@@ -1573,12 +1573,12 @@ suite(
         .where(inArray(chatTeamsFileTransfers.id, ids.slice(0, 2)));
       f.advance(61_000);
       for (let index = 0; index < 2; index++) {
-        const result = await f.service().expireAndRecover(f.a.companyId, 1);
+        const result = await f.service().expireAndRecover(f.a.spaceId, 1);
         expect(result).toMatchObject({ scanned: 1, recovered: 0, failed: 1 });
         expect(JSON.stringify(result)).not.toContain("POISON-SWEEP-CANARY");
       }
       expect(
-        await f.service().expireAndRecover(f.a.companyId, 1),
+        await f.service().expireAndRecover(f.a.spaceId, 1),
       ).toMatchObject({ scanned: 1, recovered: 1, failed: 0 });
       const [healthy] = await db
         .select()
@@ -1593,7 +1593,7 @@ suite(
       ).toEqual(poisonedBefore);
       // The cursor wraps, but neither mutates nor interprets the poisoned rows.
       expect(
-        await f.service().expireAndRecover(f.a.companyId, 1),
+        await f.service().expireAndRecover(f.a.spaceId, 1),
       ).toMatchObject({ scanned: 1, recovered: 0, failed: 1 });
       expect(f.opts.postConsent).not.toHaveBeenCalled();
       expect(f.opts.uploadRequest).not.toHaveBeenCalled();
@@ -1617,7 +1617,7 @@ suite(
         if (transfer.phase === "awaiting_consent")
           throw new Error("receipt projection rollback");
       });
-      const work = f.service().process(f.a.companyId, f.created.id);
+      const work = f.service().process(f.a.spaceId, f.created.id);
       void work.catch(() => {});
       await started;
       try {
@@ -1631,7 +1631,7 @@ suite(
         await expect(work).rejects.toThrow("receipt projection rollback");
         expect(await f.read()).toEqual(buffered);
         f.advance(91_000);
-        await f.service().expireAndRecover(f.a.companyId);
+        await f.service().expireAndRecover(f.a.spaceId);
         const unknown = await f.read();
         expect(unknown).toMatchObject({
           phase: "consent_unknown",
@@ -1644,7 +1644,7 @@ suite(
         expect(f.opts.uploadRequest).not.toHaveBeenCalled(); // sweep performs no effects
         f.opts.project = undefined;
         expect(
-          (await f.service().process(f.a.companyId, f.created.id)).phase,
+          (await f.service().process(f.a.spaceId, f.created.id)).phase,
         ).toBe("file_info_pending");
         expect(f.opts.postConsent).toHaveBeenCalledTimes(1);
         expect(f.opts.uploadRequest).toHaveBeenCalledTimes(1);
@@ -1675,7 +1675,7 @@ suite(
         await hold;
       });
       await ready;
-      const sweep = f.service().expireAndRecover(f.a.companyId, 1);
+      const sweep = f.service().expireAndRecover(f.a.spaceId, 1);
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         const result = await Promise.race([
@@ -1696,7 +1696,7 @@ suite(
         await sweep;
       }
       expect(
-        await f.service().expireAndRecover(f.a.companyId, 1),
+        await f.service().expireAndRecover(f.a.spaceId, 1),
       ).toMatchObject({ scanned: 1, recovered: 1, failed: 0 });
       expect((await f.read()).phase).toBe("expired");
       expect(f.opts.postConsent).not.toHaveBeenCalled();
@@ -1718,7 +1718,7 @@ suite(
         .where(eq(toolConnections.id, originalEndpoint!.connectionId));
       await db.insert(toolConnections).values({
         id: connectionId,
-        companyId: f.a.companyId,
+        spaceId: f.a.spaceId,
         applicationId: originalConnection!.applicationId,
         uid: randomUUID(),
         name: "Other Teams fixture",
@@ -1727,7 +1727,7 @@ suite(
       });
       await db.insert(chatEndpoints).values({
         id: endpointId,
-        companyId: f.a.companyId,
+        spaceId: f.a.spaceId,
         connectionId,
         provider: "microsoft-teams",
         publicId: randomUUID(),
@@ -1736,7 +1736,7 @@ suite(
       });
       await db.insert(chatConversations).values({
         id: conversationId,
-        companyId: f.a.companyId,
+        spaceId: f.a.spaceId,
         endpointId,
         issueId: f.a.issueId,
         externalConversationId: "a:other-personal",
@@ -1747,7 +1747,7 @@ suite(
       });
       await db.insert(chatPublications).values({
         id: publicationId,
-        companyId: f.a.companyId,
+        spaceId: f.a.spaceId,
         endpointId,
         conversationId,
         issueId: f.a.issueId,
@@ -1795,7 +1795,7 @@ suite(
       });
       await ready;
       const before = await f.read();
-      const sweep = f.service().expireAndRecover(f.a.companyId, 2);
+      const sweep = f.service().expireAndRecover(f.a.spaceId, 2);
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         expect(
@@ -1825,7 +1825,7 @@ suite(
         await sweep;
       }
       expect(
-        await f.service().expireAndRecover(f.a.companyId, 2),
+        await f.service().expireAndRecover(f.a.spaceId, 2),
       ).toMatchObject({ scanned: 1, recovered: 1, failed: 0 });
       expect((await f.read()).phase).toBe("expired");
       expect(f.opts.postConsent).not.toHaveBeenCalled();
@@ -1846,7 +1846,7 @@ suite(
         await hold;
         return { id: "late-card" };
       });
-      const work = f.service().process(f.a.companyId, f.created.id);
+      const work = f.service().process(f.a.spaceId, f.created.id);
       await entered;
       try {
         await f.service().recordConsent(await f.event());
@@ -1858,7 +1858,7 @@ suite(
         expect(conflict.attemptId).not.toBeNull();
         const readiness = (version: number) =>
           f.service().canCancelConflict({
-            companyId: f.a.companyId,
+            spaceId: f.a.spaceId,
             endpointId: f.a.endpointId,
             conversationId: f.a.conversationId,
             publicationId: f.a.publicationId,
@@ -1868,7 +1868,7 @@ suite(
         const cancel = (version: number) =>
           db.transaction((tx) =>
             f.service().resolveInTransaction(tx, {
-              companyId: f.a.companyId,
+              spaceId: f.a.spaceId,
               publicationId: f.a.publicationId,
               transferId: f.created.id,
               expectedVersion: version,
@@ -1882,7 +1882,7 @@ suite(
         expect((await f.read()).consentMessageId).toBeNull();
         f.advance(91_000);
         expect(await readiness(conflict.version)).toBe(true);
-        await f.service().expireAndRecover(f.a.companyId);
+        await f.service().expireAndRecover(f.a.spaceId);
         const expired = await f.read();
         expect(expired.phase).toBe("conflict");
         expect(expired.attemptId).toBeNull();

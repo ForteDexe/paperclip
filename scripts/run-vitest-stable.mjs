@@ -43,15 +43,15 @@ const nonServerProjects = [
   "@outpost/plugin-sdk",
   "@outpost/create-outpost-plugin",
   "@outpost/ui",
-  "paperclipai",
+  "@outpost/cli",
 ];
 const routeTestPattern = /[^/]*(?:route|routes|authz)[^/]*\.test\.ts$/;
 const additionalSerializedServerTests = new Set([
   "server/src/__tests__/approval-routes-idempotency.test.ts",
   "server/src/__tests__/assets.test.ts",
-  "server/src/__tests__/authz-company-access.test.ts",
-  "server/src/__tests__/companies-route-path-guard.test.ts",
-  "server/src/__tests__/company-portability.test.ts",
+  "server/src/__tests__/authz-space-access.test.ts",
+  "server/src/__tests__/spaces-route-path-guard.test.ts",
+  "server/src/__tests__/space-portability.test.ts",
   "server/src/__tests__/costs-service.test.ts",
   "server/src/__tests__/express5-auth-wildcard.test.ts",
   "server/src/__tests__/health-dev-server-token.test.ts",
@@ -111,7 +111,7 @@ const nativeRunnerSuites = [
   "server/src/services/native-runtime/plugin-runner-eviction.integration.test.ts",
 ];
 // In the PR workflow (pr.yml, the caller of pr-trusted.yml — reusable
-// workflows inherit the caller's GITHUB_WORKFLOW), the last Verify Paperclip
+// workflows inherit the caller's GITHUB_WORKFLOW), the last Verify Outpost
 // Runner vitest shard runs the native-runner group instead, because those
 // lanes restore the shared release-runner-v2 Rust cache (see
 // packages/outpost-runner/scripts/run-pr-vitest-lane.mjs). Every other
@@ -138,7 +138,7 @@ function excludedServerSuites(groupName) {
 const generalWorkspacesAGroupName = "general-workspaces-a";
 const generalWorkspacesBGroupName = "general-workspaces-b";
 const generalWorkspacesCGroupName = "general-workspaces-c";
-const generalWorkspacesAProjects = ["@outpost/ui", "paperclipai"];
+const generalWorkspacesAProjects = ["@outpost/ui", "@outpost/cli"];
 // The db project runs in its own lane. Its vitest invocation took 168-250s
 // of a 436-513s workspaces-b job (PR runs 38084171761, 38083084276 and
 // 38083020834, 2026-10-10), which made workspaces-b the slowest check once
@@ -421,9 +421,9 @@ async function runVitest(args, label, testShard = null, exactFiles = false) {
     ...process.env,
     NODE_ENV: "test",
     OUTPOST_TEST_HOST_HOME: process.env.OUTPOST_TEST_HOST_HOME
-      ?? (process.env.OUTPOST_HOME?.trim() || path.join(os.homedir(), ".paperclip")),
+      ?? (process.env.OUTPOST_HOME?.trim() || path.join(os.homedir(), ".outpost")),
     OUTPOST_HOME: path.join(testRoot, "h"),
-    // Config discovery otherwise prefers the checkout's .paperclip/config.json
+    // Config discovery otherwise prefers the checkout's .outpost/config.json
     // over OUTPOST_HOME, importing preview scheduling policy into unit tests.
     OUTPOST_CONFIG: path.join(testRoot, "h", "config.json"),
     OUTPOST_INSTANCE_ID: `vt-${process.pid}-${invocationIndex}`,

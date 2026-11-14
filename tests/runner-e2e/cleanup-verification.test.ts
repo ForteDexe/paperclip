@@ -38,12 +38,12 @@ it("collects remote proof before environment destruction, preserving every clean
   expect(result.checks).toContainEqual({ id: "sealed", passed: true, detail: "sealed before deletion" });
 });
 
-it("cancels only independently listed active owned-company runs", () => {
+it("cancels only independently listed active owned-space runs", () => {
   expect(ownedActiveCleanupRunIds([
-    { id: "owned", companyId: "attempt-company", status: "running" },
-    { id: "foreign", companyId: "other-company", status: "running" },
+    { id: "owned", spaceId: "attempt-space", status: "running" },
+    { id: "foreign", spaceId: "other-space", status: "running" },
     { id: "unscoped", status: "running" },
-    { id: "finished", companyId: "attempt-company", status: "succeeded" },
-    { id: "owned", companyId: "attempt-company", status: "running" },
-  ], "attempt-company", new Set(["succeeded"]))).toEqual(["owned"]);
+    { id: "finished", spaceId: "attempt-space", status: "succeeded" },
+    { id: "owned", spaceId: "attempt-space", status: "running" },
+  ], "attempt-space", new Set(["succeeded"]))).toEqual(["owned"]);
 });

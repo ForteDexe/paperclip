@@ -2,7 +2,7 @@ import { idleWorkSnapshot } from "../services/task-admission.js";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, companies, costEvents, createDb, databaseWorkPending, heartbeatRuns, issues } from "@outpost/db";
+import { agents, spaces, costEvents, createDb, databaseWorkPending, heartbeatRuns, issues } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { issueService } from "../services/issues.js";
@@ -37,7 +37,7 @@ describe.skipIf(!support.supported)("run dispatch production wiring (controlled 
     await Promise.all(Array.from({ length: 6 }, () => db.execute(sql`select pg_sleep(0.01)`)));
   }, 90_000);
   beforeEach(async () => {
-    await db.execute(sql`TRUNCATE companies CASCADE`);
+    await db.execute(sql`TRUNCATE spaces CASCADE`);
     heartbeat = heartbeatService(db); draining = false; errors.length = 0;
     reads = vi.spyOn(db, "select");
   });
@@ -57,18 +57,18 @@ describe.skipIf(!support.supported)("run dispatch production wiring (controlled 
     await worker.ready;
   }
   async function fixture() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Dispatch", issuePrefix: `D${companyId.slice(0, 7)}`,
-      requireBoardApprovalForNewAgents: false, defaultResponsibleUserId: "dispatch-user" });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Controlled process", role: "engineer", status: "idle",
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Dispatch", issuePrefix: `D${spaceId.slice(0, 7)}`,
+      requireOperatorApprovalForNewAgents: false, defaultResponsibleUserId: "dispatch-user" });
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Controlled process", role: "engineer", status: "idle",
       adapterType: "process", adapterConfig: { command: process.execPath, args: ["-e", "console.log('dispatch-proof')"], cwd: process.cwd() },
       runtimeConfig: { heartbeat: { enabled: true, intervalSec: 0, wakeOnDemand: true } },
     }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId: agent.id, status: "failed",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agent.id, status: "failed",
       responsibleUserId: "dispatch-user", errorCode: "codex_transient_upstream", finishedAt: new Date(),
       resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } }, contextSnapshot: {},
     }).returning();
-    return { companyId, agentId: agent.id, runId: run.id };
+    return { spaceId, agentId: agent.id, runId: run.id };
   }
   async function quiet() {
     await heartbeat.drainActiveRunExecutions();
@@ -100,7 +100,7 @@ describe.skipIf(!support.supported)("run dispatch production wiring (controlled 
   });
   it.each(["agent", "issue"] as const)("does not scan global scheduled retries for repeated ordinary %s edits", async kind => {
     const f = await fixture();
-    const [issue] = await db.insert(issues).values({ companyId: f.companyId, title: "Edit source", status: "backlog" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Edit source", status: "backlog" }).returning();
     await start(); await quiet();
     const before = retryQueries.length;
     expect(before).toBeGreaterThan(0); // The passive observer saw real startup retry SQL.
@@ -114,7 +114,7 @@ describe.skipIf(!support.supported)("run dispatch production wiring (controlled 
   });
   it.each([false, true])("observes a native capacity retry only after its transaction settles (rollback=%s)", async rollback => {
     const f = await fixture();
-    const [issue] = await db.insert(issues).values({ companyId: f.companyId, title: "Capacity retry", status: "in_progress",
+    const [issue] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Capacity retry", status: "in_progress",
       assigneeAgentId: f.agentId }).returning();
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issue.id }).where(eq(heartbeatRuns.id, f.runId));
     await start(); await quiet();
@@ -148,7 +148,7 @@ describe.skipIf(!support.supported)("run dispatch production wiring (controlled 
     expect(Date.now()).toBeLessThan(result.dueAt.getTime());
     expect((await status(result.run.id)).status).toBe("scheduled_retry");
     await completed(result.run.id);
-    expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.retryOfRunId, f.runId)))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.retryOfRunId, f.runId)))).toHaveLength(1);
     await quiet();
   });
   it("reconstructs an overdue retry after process restart without a periodic tick", async () => {
@@ -182,28 +182,28 @@ describe.skipIf(!support.supported)("run dispatch production wiring (controlled 
     draining = false; worker!.wake();
     await completed(scheduled.run.id); await quiet();
   });
-  it("uses a committed budget raise to resume a queued run in the company it paused", async () => {
+  it("uses a committed budget raise to resume a queued run in the space it paused", async () => {
     const f = await fixture();
     const budgets = budgetService(db);
-    await budgets.upsertPolicy(f.companyId, { scopeType: "company", scopeId: f.companyId, amount: 100,
+    await budgets.upsertPolicy(f.spaceId, { scopeType: "space", scopeId: f.spaceId, amount: 100,
       metric: "billed_cents", windowKind: "lifetime", hardStopEnabled: true }, "dispatch-user");
-    const [cost] = await db.insert(costEvents).values({ companyId: f.companyId, agentId: f.agentId,
+    const [cost] = await db.insert(costEvents).values({ spaceId: f.spaceId, agentId: f.agentId,
       provider: "fixture", biller: "fixture", model: "controlled", inputTokens: 0, outputTokens: 0,
       costCents: 125, occurredAt: new Date() }).returning();
     await budgets.evaluateCostEvent(cost);
-    await flushBudgetEvaluationWork(db, { companyId: f.companyId });
-    expect((await db.select().from(companies).where(eq(companies.id, f.companyId)))[0].status).toBe("paused");
-    const [queued] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+    await flushBudgetEvaluationWork(db, { spaceId: f.spaceId });
+    expect((await db.select().from(spaces).where(eq(spaces.id, f.spaceId)))[0].status).toBe("paused");
+    const [queued] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
       status: "queued", responsibleUserId: "dispatch-user", invocationSource: "automation", contextSnapshot: {} }).returning();
     await start(); await quiet(); expect((await status(queued.id)).status).toBe("queued");
-    await budgets.upsertPolicy(f.companyId, { scopeType: "company", scopeId: f.companyId, amount: 10_000,
+    await budgets.upsertPolicy(f.spaceId, { scopeType: "space", scopeId: f.spaceId, amount: 10_000,
       metric: "billed_cents", windowKind: "lifetime", hardStopEnabled: true }, "dispatch-user");
     await completed(queued.id); await quiet();
   });
   it("clearing an agent error wakes saved queue work only after its own transaction commits", async () => {
     const f = await fixture(); await start(); await quiet();
     await db.update(agents).set({ status: "error" }).where(eq(agents.id, f.agentId));
-    const [queued] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+    const [queued] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
       status: "queued", responsibleUserId: "dispatch-user", invocationSource: "automation", contextSnapshot: {} }).returning();
     let writing: ReturnType<ReturnType<typeof agentService>["clearError"]> | undefined;
     try {
@@ -244,7 +244,7 @@ describe.skipIf(!support.supported)("run dispatch production wiring (controlled 
     expect((await db.select().from(agents).where(eq(agents.id, f.agentId)))[0].status).toBe("error");
     await quiet();
   });
-  it("keeps a foreign company's future retry intact while concurrent workers claim one due retry", async () => {
+  it("keeps a foreign space's future retry intact while concurrent workers claim one due retry", async () => {
     const selected = await fixture(), foreign = await fixture(); await start();
     const later = await heartbeat.scheduleBoundedRetry(foreign.runId, { delayMs: 600_000 });
     const due = await heartbeat.scheduleBoundedRetry(selected.runId, { delayMs: 500 });
@@ -268,7 +268,7 @@ describe.skipIf(!support.supported)("run dispatch production wiring (controlled 
     const writing = db.transaction(async tx => {
       await tx.transaction(async nested => {
         await notifyRunDispatch(nested);
-        const [row] = await nested.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+        const [row] = await nested.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
           responsibleUserId: "dispatch-user", status: "queued", contextSnapshot: {} }).returning();
         queuedId = row.id;
       });
@@ -279,10 +279,10 @@ describe.skipIf(!support.supported)("run dispatch production wiring (controlled 
     expect(await status(queuedId)).toBeUndefined();
     release(); await writing; await completed(queuedId); await quiet();
     await expect(db.transaction(async tx => {
-      await tx.transaction(async nested => { await notifyRunDispatch(nested); await nested.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "queued" }); });
+      await tx.transaction(async nested => { await notifyRunDispatch(nested); await nested.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "queued" }); });
       throw new Error("rollback outer");
     })).rejects.toThrow("rollback outer");
     await quiet();
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(2);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(2);
   });
 });

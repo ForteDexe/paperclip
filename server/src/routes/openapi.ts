@@ -46,7 +46,7 @@ import {
   agentAppearanceSchema,
   setAgentAvatarSchema,
   createAgentSchema,
-  createAgentHireSchema,
+  createAgentCreationSchema,
   updateAgentSchema,
   updatePrimaryAgentSchema,
   updateAgentPermissionsSchema,
@@ -99,12 +99,12 @@ import {
   addProjectAccessMemberSchema,
   createProjectWorkspaceSchema,
   updateProjectWorkspaceSchema,
-  // Company
-  createCompanySchema,
-  updateCompanySchema,
-  updateCompanyBrandingSchema,
-  companyArtifactsQuerySchema,
-  companyArtifactsResponseSchema,
+  // Space
+  createSpaceSchema,
+  updateSpaceSchema,
+  updateSpaceBrandingSchema,
+  spaceArtifactsQuerySchema,
+  spaceArtifactsResponseSchema,
   // Decisions
   addDecisionQueueItemSchema,
   createDecisionQueueSchema,
@@ -182,7 +182,7 @@ import {
   updateEnvironmentSchema,
   probeEnvironmentConfigSchema,
   startEnvironmentCustomImageSetupSessionSchema,
-  // Company skills
+  // Space skills
   skillSourceDiscoverySchema,
   skillSourcePreviewSchema,
   skillSourceCreateSchema,
@@ -190,22 +190,22 @@ import {
   skillSourceSettingsSchema,
   skillSourceBranchesQuerySchema,
   projectSkillSourceAdoptSchema,
-  companySkillCreateSchema,
-  companySkillFileDeleteSchema,
-  companySkillFileUpdateSchema,
-  companySkillImportSchema,
-  companySkillProjectBrowseRequestSchema,
-  companySkillProjectBrowseResultSchema,
-  companySkillProjectScanRequestSchema,
-  companySkillProjectScanResultSchema,
-  companySkillRenameResultSchema,
-  companySkillRenameSchema,
-  companySkillTestInputCreateSchema,
-  companySkillTestInputUpdateSchema,
-  companySkillTestRunCreateSchema,
-  companySkillTestRunListQuerySchema,
-  companySkillTestRunTemplateCreateSchema,
-  companySkillTestRunTemplateUpdateSchema,
+  spaceSkillCreateSchema,
+  spaceSkillFileDeleteSchema,
+  spaceSkillFileUpdateSchema,
+  spaceSkillImportSchema,
+  spaceSkillProjectBrowseRequestSchema,
+  spaceSkillProjectBrowseResultSchema,
+  spaceSkillProjectScanRequestSchema,
+  spaceSkillProjectScanResultSchema,
+  spaceSkillRenameResultSchema,
+  spaceSkillRenameSchema,
+  spaceSkillTestInputCreateSchema,
+  spaceSkillTestInputUpdateSchema,
+  spaceSkillTestRunCreateSchema,
+  spaceSkillTestRunListQuerySchema,
+  spaceSkillTestRunTemplateCreateSchema,
+  spaceSkillTestRunTemplateUpdateSchema,
   evaluateSkillPolicySchema,
   replaceSkillPolicySchema,
   updateInboxAgentPolicySchema,
@@ -224,23 +224,23 @@ import {
   submitIssueThreadInteractionVerdictsSchema,
   withdrawIssueThreadInteractionSchema,
   // Auth / profile
-  // Company portability (legacy routes)
-  companyPortabilityExportSchema,
-  companyPortabilityPreviewSchema,
-  companyPortabilityImportSchema,
+  // Space portability (legacy routes)
+  spacePortabilityExportSchema,
+  spacePortabilityPreviewSchema,
+  spacePortabilityImportSchema,
   // Access / membership
   acceptInviteSchema,
-  createCompanyInviteSchema,
+  createSpaceInviteSchema,
   createOpenClawInvitePromptSchema,
   claimJoinRequestApiKeySchema,
   createCliAuthChallengeSchema,
   resolveCliAuthChallengeSchema,
   createBoardApiKeySchema,
-  updateCompanyMemberSchema,
-  updateCompanyMemberWithPermissionsSchema,
-  archiveCompanyMemberSchema,
+  updateSpaceMemberSchema,
+  updateSpaceMemberWithPermissionsSchema,
+  archiveSpaceMemberSchema,
   updateMemberPermissionsSchema,
-  updateUserCompanyAccessSchema,
+  updateUserSpaceAccessSchema,
   // Instance settings
   patchInstanceGeneralSettingsSchema,
   patchInstanceExperimentalSettingsSchema,
@@ -352,9 +352,9 @@ import {
 import { aggregatorAppsSyncSchema, aggregatorAppsRefreshSchema, arcadeDiscoverySetupSchema } from "@outpost/shared/aggregator-apps";
 import { composioAppsSyncSchema, composioAppsRefreshSchema, composioAppSetupSchema, composioAppAccountSchema } from "@outpost/shared/composio-app-setup";
 import {
-  COMPANY_IMPORT_TRANSFERS_API_PATH,
-  companyImportTransferDeclarationSchema,
-} from "@outpost/shared/company-import-transfer";
+  SPACE_IMPORT_TRANSFERS_API_PATH,
+  spaceImportTransferDeclarationSchema,
+} from "@outpost/shared/space-import-transfer";
 
 type JsonSchema = Record<string, unknown>;
 type OpenApiResponse = Record<string, unknown>;
@@ -764,8 +764,8 @@ const jsonBody = (schema: z.ZodTypeAny) => ({
   required: true as const,
 });
 
-// The company import + preview routes accept the inline JSON body or the raw
-// company package as a compressed zip upload. Document both content types: the
+// The space import + preview routes accept the inline JSON body or the raw
+// space package as a compressed zip upload. Document both content types: the
 // JSON variant keeps its zod schema; the multipart variant carries the zip in a
 // `package` file field plus the other import fields as a JSON `meta` field.
 const importRequestBody = (schema: z.ZodTypeAny) => ({
@@ -778,7 +778,7 @@ const importRequestBody = (schema: z.ZodTypeAny) => ({
           package: {
             type: "string",
             format: "binary",
-            description: "The company package as a compressed .zip.",
+            description: "The space package as a compressed .zip.",
           },
           meta: {
             type: "string",
@@ -886,7 +886,7 @@ const chatEndpointCredentialHandoffSchema = z.object({
   requiredUserAction: z.object({
     kind: z.literal("enter_credentials"),
     userId: z.string(),
-    resource: z.object({ type: z.literal("chat_endpoint"), id: z.string().uuid(), companyId: z.string().uuid() }),
+    resource: z.object({ type: z.literal("chat_endpoint"), id: z.string().uuid(), spaceId: z.string().uuid() }),
     setupPath: z.string(),
     reason: z.string(),
     continuation: z.string(),
@@ -896,7 +896,7 @@ const chatEndpointCredentialHandoffSchema = z.object({
 const chatEndpointResponseSchema = z
   .object({
     id: z.string().uuid(),
-    companyId: z.string().uuid(),
+    spaceId: z.string().uuid(),
     connectionId: z.string().uuid(),
     publicationMode: z.enum(["automatic", "explicit"]),
     externalExecutionPolicy: z.enum(["restricted", "agent"]),
@@ -933,7 +933,7 @@ const chatEndpointResponseSchema = z
 const chatEndpointResourceResponseSchema = z
   .object({
     id: z.string().uuid(),
-    companyId: z.string().uuid(),
+    spaceId: z.string().uuid(),
     endpointId: z.string().uuid(),
     type: z.string(),
     providerResourceId: z.string(),
@@ -956,9 +956,9 @@ const chatPrincipalLinkResponseSchema = z
     principalId: z.string().uuid(),
     externalLabel: z.string(),
     externalDetail: z.string(),
-    paperclipUserId: z.string().nullable(),
-    paperclipUserLabel: z.string().nullable(),
-    paperclipUserImage: z.string().nullable(),
+    outpostUserId: z.string().nullable(),
+    outpostUserLabel: z.string().nullable(),
+    outpostUserImage: z.string().nullable(),
     status: chatIdentityLinkStatusSchema,
   })
   .strict();
@@ -975,9 +975,9 @@ const chatIdentityLinkPreviewResponseSchema = z
     selfService: z.boolean().optional(),
     canConfirm: z.boolean().optional(),
     endpointId: z.string().uuid(),
-    companyId: z.string().uuid(),
-    companyName: z.string(),
-    companyPrefix: z.string(),
+    spaceId: z.string().uuid(),
+    spaceName: z.string(),
+    spacePrefix: z.string(),
     provider: chatProviderSchema,
     providerAccountLabel: z.string().nullable(),
     botLabel: z.string().nullable(),
@@ -997,7 +997,7 @@ const chatIdentityLinkConfirmationResponseSchema = z
 const chatConversationResponseSchema = z
   .object({
     id: z.string().uuid(),
-    companyId: z.string().uuid(),
+    spaceId: z.string().uuid(),
     endpointId: z.string().uuid(),
     resourceId: z.string().uuid().nullable(),
     issueId: z.string().uuid(),
@@ -1114,7 +1114,7 @@ const safeChatPublicationPayloadResponseSchema = z
 const chatPublicationResponseSchema = z
   .object({
     id: z.string().uuid(),
-    companyId: z.string().uuid(),
+    spaceId: z.string().uuid(),
     endpointId: z.string().uuid(),
     conversationId: z.string().uuid(),
     issueId: z.string().uuid(),
@@ -1156,14 +1156,14 @@ const startAdapterLoginSessionSchema =
     adapterType: true,
   });
 
-const environmentCustomImageCompanyQuerySchema = z
+const environmentCustomImageSpaceQuerySchema = z
   .object({
-    companyId: z.string().optional(),
+    spaceId: z.string().optional(),
   })
   .strict();
 
 const disableEnvironmentCustomImageTemplateQuerySchema =
-  environmentCustomImageCompanyQuerySchema.extend({
+  environmentCustomImageSpaceQuerySchema.extend({
     deleteProviderTemplate: z.enum(["true", "false"]).optional(),
   });
 
@@ -1304,8 +1304,8 @@ function paramsSchemaFromPath(
 }
 
 function registerCurrentRoute(input: {
-  "x-paperclip-transport"?: "rest" | "protocol";
-  "x-paperclip-connection-management"?: string;
+  "x-outpost-transport"?: "rest" | "protocol";
+  "x-outpost-connection-management"?: string;
   method: string;
   path: string;
   tags: string[];
@@ -1327,7 +1327,7 @@ function registerCurrentRoute(input: {
   registry.registerPath({
     method: input.method,
     path: input.path,
-    ...(input["x-paperclip-transport"] ? { "x-paperclip-transport": input["x-paperclip-transport"], "x-paperclip-connection-management": input["x-paperclip-connection-management"] } : {}),
+    ...(input["x-outpost-transport"] ? { "x-outpost-transport": input["x-outpost-transport"], "x-outpost-connection-management": input["x-outpost-connection-management"] } : {}),
     tags: input.tags,
     summary: input.summary,
     ...(input.description ? { description: input.description } : {}),
@@ -1347,11 +1347,11 @@ type OpenApiAuthLevel =
   | "agent_heartbeat"
   | "runtime_tools"
   | "authenticated"
-  | "board"
+  | "operator"
   | "instance_admin";
 
-const BOARD_SESSION_AUTH_SCHEME = "BoardSessionAuth";
-const BOARD_API_KEY_AUTH_SCHEME = "BoardApiKeyAuth";
+const OPERATOR_SESSION_AUTH_SCHEME = "OperatorSessionAuth";
+const OPERATOR_API_KEY_AUTH_SCHEME = "OperatorApiKeyAuth";
 const AGENT_BEARER_AUTH_SCHEME = "AgentBearerAuth";
 const AGENT_RUN_AUTH_SCHEME = "AgentRunAuth";
 const RUNTIME_TOOLS_BEARER_AUTH_SCHEME = "RuntimeToolsBearerAuth";
@@ -1360,13 +1360,13 @@ function securityRequirement(name: string): Record<string, string[]> {
   return { [name]: [] };
 }
 
-const BOARD_SECURITY: Array<Record<string, string[]>> = [
-  securityRequirement(BOARD_SESSION_AUTH_SCHEME),
-  securityRequirement(BOARD_API_KEY_AUTH_SCHEME),
+const OPERATOR_SECURITY: Array<Record<string, string[]>> = [
+  securityRequirement(OPERATOR_SESSION_AUTH_SCHEME),
+  securityRequirement(OPERATOR_API_KEY_AUTH_SCHEME),
 ];
 
 const AUTHENTICATED_SECURITY: Array<Record<string, string[]>> = [
-  ...BOARD_SECURITY,
+  ...OPERATOR_SECURITY,
   securityRequirement(AGENT_BEARER_AUTH_SCHEME),
 ];
 
@@ -1390,7 +1390,7 @@ const PUBLIC_OPERATIONS = new Set([
   "GET /api/ready",
   "HEAD /api/ready",
   "GET /api/openapi.json",
-  "GET /api/board-claim/{token}",
+  "GET /api/operator-claim/{token}",
   "POST /api/cli-auth/challenges",
   "GET /api/cli-auth/challenges/{id}",
   "POST /api/cli-auth/challenges/{id}/cancel",
@@ -1409,8 +1409,8 @@ const PUBLIC_OPERATIONS = new Set([
   "POST /api/tool-gateway/gateways/{gatewayId}/mcp",
 ]);
 
-const BOARD_ONLY_PREFIXES = [
-  "/api/companies/{companyId}/accounting/",
+const OPERATOR_ONLY_PREFIXES = [
+  "/api/spaces/{spaceId}/accounting/",
   "/api/announcements/",
   "/api/auth/",
   "/api/admin/",
@@ -1425,19 +1425,19 @@ const browserUseOperations = [
   ["post", "/api/issues/{issueId}/browsers/{browserId}/control", "Control a task browser", browserUseControlSchema],
   ["post", "/api/issues/{issueId}/browsers/{browserId}/viewport", "Set the browser viewport", browserUseViewportSchema],
   ["post", "/api/issues/{issueId}/browsers/{browserId}/viewport/release", "Release viewport ownership", browserUseViewerSchema],
-  ["get", "/api/companies/{companyId}/browser-use-cloud/grants/{grantId}/profiles", "List available browser profiles", undefined],
-  ["get", "/api/companies/{companyId}/browser-use-cloud/grants/{grantId}/settings", "Read browser credential settings", undefined],
-  ["put", "/api/companies/{companyId}/browser-use-cloud/grants/{grantId}/settings", "Update browser credential settings", browserUseSettingsSchema],
+  ["get", "/api/spaces/{spaceId}/browser-use-cloud/grants/{grantId}/profiles", "List available browser profiles", undefined],
+  ["get", "/api/spaces/{spaceId}/browser-use-cloud/grants/{grantId}/settings", "Read browser credential settings", undefined],
+  ["put", "/api/spaces/{spaceId}/browser-use-cloud/grants/{grantId}/settings", "Update browser credential settings", browserUseSettingsSchema],
 ] as const;
 
-const BOARD_ONLY_OPERATIONS = new Set([
+const OPERATOR_ONLY_OPERATIONS = new Set([
   "PATCH /api/agents/{id}/permission-grants",
-  // Budget changes are board-only (assertBoard in routes/costs.ts).
-  "POST /api/companies/{companyId}/budgets/policies",
-  "POST /api/companies/{companyId}/budget-incidents/{incidentId}/resolve",
-  "PATCH /api/companies/{companyId}/budgets",
+  // Budget changes are operator-only (assertOperator in routes/costs.ts).
+  "POST /api/spaces/{spaceId}/budgets/policies",
+  "POST /api/spaces/{spaceId}/budget-incidents/{incidentId}/resolve",
+  "PATCH /api/spaces/{spaceId}/budgets",
   "PATCH /api/agents/{agentId}/budgets",
-  // Approval decisions are board-only (assertBoard in routes/approvals.ts).
+  // Approval decisions are operator-only (assertOperator in routes/approvals.ts).
   "POST /api/approvals/{id}/approve",
   "POST /api/approvals/{id}/reject",
   "GET /api/agents/{id}/project-access",
@@ -1445,90 +1445,90 @@ const BOARD_ONLY_OPERATIONS = new Set([
   "GET /api/issues/{id}/pending-questions",
   "GET /api/issues/{id}/decision-receipts",
   "GET /api/issues/{id}/chat-handoffs",
-  "GET /api/companies/{companyId}/attention/history",
-  "GET /api/companies/{companyId}/attention/summary",
-  "GET /api/companies/{companyId}/attention/tasks",
+  "GET /api/spaces/{spaceId}/attention/history",
+  "GET /api/spaces/{spaceId}/attention/summary",
+  "GET /api/spaces/{spaceId}/attention/tasks",
   "POST /api/issues/{id}/interactions/{interactionId}/dismiss",
   "POST /api/issues/{id}/retry",
-  "GET /api/companies/{companyId}/prompt-injection-prevention",
-  "PUT /api/companies/{companyId}/prompt-injection-prevention",
-  "GET /api/companies/{companyId}/prompt-injection-prevention/models",
-  "POST /api/companies/{companyId}/prompt-injection-prevention/test",
+  "GET /api/spaces/{spaceId}/prompt-injection-prevention",
+  "PUT /api/spaces/{spaceId}/prompt-injection-prevention",
+  "GET /api/spaces/{spaceId}/prompt-injection-prevention/models",
+  "POST /api/spaces/{spaceId}/prompt-injection-prevention/test",
   "POST /api/chat-endpoints/{endpointId}/conversations/{conversationId}/publications",
   "POST /api/chat-endpoints/{endpointId}/publications/{publicationId}/replay",
   "POST /api/chat-endpoints/{endpointId}/deliveries/{deliveryId}/replay",
-  "GET /api/companies/{companyId}/fast-response",
-  "PUT /api/companies/{companyId}/fast-response",
-  "GET /api/companies/{companyId}/fast-response/models",
-  "GET /api/companies/{companyId}/fast-response/availability",
-  "POST /api/companies/{companyId}/fast-response/test",
-  "GET /api/companies/{companyId}/decision-model",
-  "PUT /api/companies/{companyId}/decision-model",
-  "POST /api/companies/{companyId}/decision-model/test",
+  "GET /api/spaces/{spaceId}/fast-response",
+  "PUT /api/spaces/{spaceId}/fast-response",
+  "GET /api/spaces/{spaceId}/fast-response/models",
+  "GET /api/spaces/{spaceId}/fast-response/availability",
+  "POST /api/spaces/{spaceId}/fast-response/test",
+  "GET /api/spaces/{spaceId}/decision-model",
+  "PUT /api/spaces/{spaceId}/decision-model",
+  "POST /api/spaces/{spaceId}/decision-model/test",
   ...browserUseOperations.map(([method, path]) => `${method.toUpperCase()} ${path}`),
-  "POST /api/companies/{companyId}/ai-connections/local/attempts/{sessionId}/code",
+  "POST /api/spaces/{spaceId}/ai-connections/local/attempts/{sessionId}/code",
 
-  "GET /api/companies/{companyId}/project-repositories",
+  "GET /api/spaces/{spaceId}/project-repositories",
   "PUT /api/projects/{id}/repositories",
   "GET /api/projects/{id}/git-authorization",
   "PUT /api/projects/{id}/git-authorization",
   "DELETE /api/issues/{id}/documents/{key}",
-  "GET /api/companies/{companyId}/decisions",
+  "GET /api/spaces/{spaceId}/decisions",
   "GET /api/cloud/stacks",
-  "GET /api/companies",
-  "POST /api/companies",
-  "GET /api/companies/stats",
-  "GET /api/companies/issues",
-  "GET /api/companies/import/jobs/{jobId}",
-  "POST /api/board-claim/{token}/claim",
+  "GET /api/spaces",
+  "POST /api/spaces",
+  "GET /api/spaces/stats",
+  "GET /api/spaces/issues",
+  "GET /api/spaces/import/jobs/{jobId}",
+  "POST /api/operator-claim/{token}/claim",
   "GET /api/cli-auth/me",
-  "POST /api/companies/{companyId}/openclaw/invite-prompt",
-  "PATCH /api/companies/{companyId}/members/{memberId}",
-  "PATCH /api/companies/{companyId}/members/{memberId}/role-and-grants",
-  "POST /api/companies/{companyId}/members/{memberId}/archive",
-  "PATCH /api/companies/{companyId}/members/{memberId}/permissions",
-  "GET /api/companies/{companyId}/user-directory",
-  "GET /api/companies/{companyId}/managed-agent-profiles",
-  "POST /api/companies/{companyId}/managed-agent-profiles",
-  "GET /api/companies/{companyId}/remote-agent-profiles",
-  "POST /api/companies/{companyId}/remote-agent-profiles",
+  "POST /api/spaces/{spaceId}/openclaw/invite-prompt",
+  "PATCH /api/spaces/{spaceId}/members/{memberId}",
+  "PATCH /api/spaces/{spaceId}/members/{memberId}/role-and-grants",
+  "POST /api/spaces/{spaceId}/members/{memberId}/archive",
+  "PATCH /api/spaces/{spaceId}/members/{memberId}/permissions",
+  "GET /api/spaces/{spaceId}/user-directory",
+  "GET /api/spaces/{spaceId}/managed-agent-profiles",
+  "POST /api/spaces/{spaceId}/managed-agent-profiles",
+  "GET /api/spaces/{spaceId}/remote-agent-profiles",
+  "POST /api/spaces/{spaceId}/remote-agent-profiles",
   "POST /api/execution-workspaces/{id}/reconcile-branch",
   "POST /api/execution-workspaces/{id}/login-handoff",
-  "GET /api/board-api-keys",
-  "POST /api/board-api-keys",
-  "DELETE /api/board-api-keys/{keyId}",
+  "GET /api/operator-api-keys",
+  "POST /api/operator-api-keys",
+  "DELETE /api/operator-api-keys/{keyId}",
   "POST /api/bootstrap/claim",
-  "GET /api/companies/{companyId}/resource-memberships/me",
+  "GET /api/spaces/{spaceId}/resource-memberships/me",
   "GET /api/workspace-preferences/me",
-  "PUT /api/companies/{companyId}/workspace-preferences/me",
-  "GET /api/companies/{companyId}/primary-agent/me",
-  "PUT /api/companies/{companyId}/primary-agent/me",
-  "PUT /api/companies/{companyId}/resource-memberships/me/agents/{agentId}",
-  "PUT /api/companies/{companyId}/resource-memberships/me/documents/{documentId}",
-  "PUT /api/companies/{companyId}/resource-memberships/me/projects/{projectId}",
+  "PUT /api/spaces/{spaceId}/workspace-preferences/me",
+  "GET /api/spaces/{spaceId}/primary-agent/me",
+  "PUT /api/spaces/{spaceId}/primary-agent/me",
+  "PUT /api/spaces/{spaceId}/resource-memberships/me/agents/{agentId}",
+  "PUT /api/spaces/{spaceId}/resource-memberships/me/documents/{documentId}",
+  "PUT /api/spaces/{spaceId}/resource-memberships/me/projects/{projectId}",
   "POST /api/projects/{id}/access-members",
   "DELETE /api/projects/{id}/access-members/{memberId}",
-  "GET /api/companies/{companyId}/secret-provider-configs",
-  "POST /api/companies/{companyId}/secret-provider-configs",
-  "GET /api/companies/{companyId}/secret-providers/health",
-  "POST /api/companies/{companyId}/secret-provider-configs/discovery/preview",
+  "GET /api/spaces/{spaceId}/secret-provider-configs",
+  "POST /api/spaces/{spaceId}/secret-provider-configs",
+  "GET /api/spaces/{spaceId}/secret-providers/health",
+  "POST /api/spaces/{spaceId}/secret-provider-configs/discovery/preview",
   "GET /api/secret-provider-configs/{id}",
   "PATCH /api/secret-provider-configs/{id}",
   "DELETE /api/secret-provider-configs/{id}",
   "POST /api/secret-provider-configs/{id}/default",
   "POST /api/secret-provider-configs/{id}/health",
-  "GET /api/companies/{companyId}/user-secret-definitions",
-  "POST /api/companies/{companyId}/user-secret-definitions",
-  "PATCH /api/companies/{companyId}/user-secret-definitions/{definitionId}",
-  "DELETE /api/companies/{companyId}/user-secret-definitions/{definitionId}",
-  "GET /api/companies/{companyId}/user-secret-definitions/{definitionId}/coverage",
-  "GET /api/companies/{companyId}/me/user-secrets",
-  "POST /api/companies/{companyId}/me/user-secrets",
-  "PATCH /api/companies/{companyId}/me/user-secrets/{secretId}",
-  "POST /api/companies/{companyId}/me/user-secrets/{secretId}/rotate",
-  "DELETE /api/companies/{companyId}/me/user-secrets/{secretId}",
-  "POST /api/companies/{companyId}/secrets/remote-import",
-  "POST /api/companies/{companyId}/secrets/remote-import/preview",
+  "GET /api/spaces/{spaceId}/user-secret-definitions",
+  "POST /api/spaces/{spaceId}/user-secret-definitions",
+  "PATCH /api/spaces/{spaceId}/user-secret-definitions/{definitionId}",
+  "DELETE /api/spaces/{spaceId}/user-secret-definitions/{definitionId}",
+  "GET /api/spaces/{spaceId}/user-secret-definitions/{definitionId}/coverage",
+  "GET /api/spaces/{spaceId}/me/user-secrets",
+  "POST /api/spaces/{spaceId}/me/user-secrets",
+  "PATCH /api/spaces/{spaceId}/me/user-secrets/{secretId}",
+  "POST /api/spaces/{spaceId}/me/user-secrets/{secretId}/rotate",
+  "DELETE /api/spaces/{spaceId}/me/user-secrets/{secretId}",
+  "POST /api/spaces/{spaceId}/secrets/remote-import",
+  "POST /api/spaces/{spaceId}/secrets/remote-import/preview",
   "GET /api/secrets/{id}/usage",
   "GET /api/secrets/{id}/access-events",
   "POST /api/health/dev-server/restart",
@@ -1541,7 +1541,7 @@ const BOARD_ONLY_OPERATIONS = new Set([
   "POST /api/issues/{id}/interactions/{interactionId}/respond",
   "POST /api/issues/{id}/interactions/{interactionId}/skip",
   "POST /api/issues/{id}/interactions/{interactionId}/withdraw",
-  "POST /api/companies/{companyId}/tools/examples/{id}/smoke",
+  "POST /api/spaces/{spaceId}/tools/examples/{id}/smoke",
   "POST /api/agents/me/connections/{connectionId}/token",
   "GET /api/tools/oauth/callback",
   "GET /api/tools/vercel-connect/callback",
@@ -1550,23 +1550,23 @@ const BOARD_ONLY_OPERATIONS = new Set([
   "POST /api/connection-intents/{interactionId}/complete",
   "POST /api/agents/{id}/connection-intents/{interactionId}/adopt",
   "POST /api/connection-intents/{interactionId}/decline",
-  "POST /api/companies/{companyId}/tools/action-requests/{actionRequestId}/trust-rule",
-  "GET /api/companies/{companyId}/tools/stdio-templates",
-  "POST /api/companies/{companyId}/tools/stdio-templates",
-  "POST /api/companies/{companyId}/tools/stdio-templates/{templateId}/disable",
-  "POST /api/companies/{companyId}/tools/mcp/import-json",
+  "POST /api/spaces/{spaceId}/tools/action-requests/{actionRequestId}/trust-rule",
+  "GET /api/spaces/{spaceId}/tools/stdio-templates",
+  "POST /api/spaces/{spaceId}/tools/stdio-templates",
+  "POST /api/spaces/{spaceId}/tools/stdio-templates/{templateId}/disable",
+  "POST /api/spaces/{spaceId}/tools/mcp/import-json",
   "POST /api/tool-gateway/action-requests/{id}/approve",
   "POST /api/tool-gateway/action-requests/{id}/decline",
-  "POST /api/companies/{companyId}/email/deliveries/{publicationId}/resolve",
+  "POST /api/spaces/{spaceId}/email/deliveries/{publicationId}/resolve",
   // Chat endpoints expose provider credentials, identity mappings, access
-  // policy, and replay controls. Every mounted handler asserts a board actor;
+  // policy, and replay controls. Every mounted handler asserts a operator actor;
   // keep the generated security contract equally restrictive.
   "GET /api/slack/search/callback",
-  "GET /api/companies/{companyId}/slack/endpoints/{endpointId}/capabilities",
-  "GET /api/companies/{companyId}/slack/endpoints/{endpointId}/search",
-  "PUT /api/companies/{companyId}/slack/endpoints/{endpointId}/search",
-  "POST /api/companies/{companyId}/slack/endpoints/{endpointId}/search/connect",
-  "DELETE /api/companies/{companyId}/slack/endpoints/{endpointId}/search",
+  "GET /api/spaces/{spaceId}/slack/endpoints/{endpointId}/capabilities",
+  "GET /api/spaces/{spaceId}/slack/endpoints/{endpointId}/search",
+  "PUT /api/spaces/{spaceId}/slack/endpoints/{endpointId}/search",
+  "POST /api/spaces/{spaceId}/slack/endpoints/{endpointId}/search/connect",
+  "DELETE /api/spaces/{spaceId}/slack/endpoints/{endpointId}/search",
   "POST /api/chat-endpoints/{endpointId}/github/identity",
   "POST /api/chat-endpoints/{endpointId}/github/identity/confirm",
   "POST /api/chat-identity-links/confirm",
@@ -1574,7 +1574,7 @@ const BOARD_ONLY_OPERATIONS = new Set([
   "POST /api/chat-identity-links/request-access",
   "POST /api/chat-endpoints/{endpointId}/publications/{publicationId}/resolve",
   "POST /api/chat-endpoints/{endpointId}/actions/{actionId}/resolve",
-  // Task-tree pause, cancel and resume controls are board-only (assertBoard in routes/issue-tree-control.ts).
+  // Task-tree pause, cancel and resume controls are operator-only (assertOperator in routes/issue-tree-control.ts).
   "GET /api/issues/{id}/tree-control/state",
   "POST /api/issues/{id}/tree-control/preview",
   "GET /api/issues/{id}/tree-holds",
@@ -1584,36 +1584,36 @@ const BOARD_ONLY_OPERATIONS = new Set([
 ]);
 
 const INSTANCE_ADMIN_OPERATIONS = new Set([
-  "POST /api/companies",
+  "POST /api/spaces",
   "POST /api/plugins/install",
   "POST /api/instance/database-backups",
   "POST /api/admin/users/{userId}/promote-instance-admin",
   "POST /api/admin/users/{userId}/demote-instance-admin",
-  "PUT /api/admin/users/{userId}/company-access",
+  "PUT /api/admin/users/{userId}/space-access",
 ]);
 
 const CREATED_OPERATIONS = new Set([
   "POST /api/adapters/install",
-  "POST /api/companies/{companyId}/agent-hires",
-  "POST /api/companies/{companyId}/agents",
+  "POST /api/spaces/{spaceId}/agent-creations",
+  "POST /api/spaces/{spaceId}/agents",
   "POST /api/agents/{id}/keys",
-  "POST /api/companies/{companyId}/approvals",
+  "POST /api/spaces/{spaceId}/approvals",
   "POST /api/approvals/{id}/comments",
-  "POST /api/companies/{companyId}/assets/images",
-  "POST /api/companies/{companyId}/logo",
-  "POST /api/companies/{companyId}/onboarding-seed",
+  "POST /api/spaces/{spaceId}/assets/images",
+  "POST /api/spaces/{spaceId}/logo",
+  "POST /api/spaces/{spaceId}/onboarding-seed",
   "POST /api/cli-auth/challenges",
-  "POST /api/board-api-keys",
-  "POST /api/companies",
-  "POST /api/companies/{companyId}/invites",
-  "POST /api/companies/{companyId}/openclaw/invite-prompt",
-  "POST /api/companies/{companyId}/cost-events",
-  "POST /api/companies/{companyId}/finance-events",
-  "POST /api/companies/{companyId}/secret-provider-configs",
-  "POST /api/companies/{companyId}/environments",
+  "POST /api/operator-api-keys",
+  "POST /api/spaces",
+  "POST /api/spaces/{spaceId}/invites",
+  "POST /api/spaces/{spaceId}/openclaw/invite-prompt",
+  "POST /api/spaces/{spaceId}/cost-events",
+  "POST /api/spaces/{spaceId}/finance-events",
+  "POST /api/spaces/{spaceId}/secret-provider-configs",
+  "POST /api/spaces/{spaceId}/environments",
   "POST /api/environments/{environmentId}/custom-image-setup-sessions",
-  "POST /api/companies/{companyId}/goals",
-  "POST /api/companies/{companyId}/labels",
+  "POST /api/spaces/{spaceId}/goals",
+  "POST /api/spaces/{spaceId}/labels",
   "POST /api/issues/{id}/documents/{key}/annotations",
   "POST /api/issues/{id}/documents/{key}/annotations/{threadId}/comments",
   "POST /api/routines/{id}/description/annotations",
@@ -1621,34 +1621,34 @@ const CREATED_OPERATIONS = new Set([
   "POST /api/issues/{id}/work-products",
   "POST /api/issues/{id}/low-trust/promotions",
   "POST /api/issues/{id}/approvals",
-  "POST /api/companies/{companyId}/issues",
+  "POST /api/spaces/{spaceId}/issues",
   "POST /api/issues/{id}/children",
   "POST /api/issues/{id}/interactions",
   "POST /api/issues/{id}/comments",
-  "POST /api/companies/{companyId}/issues/{issueId}/attachments",
-  "POST /api/companies/{companyId}/projects",
+  "POST /api/spaces/{spaceId}/issues/{issueId}/attachments",
+  "POST /api/spaces/{spaceId}/projects",
   "POST /api/projects/{id}/access-members",
   "POST /api/projects/{id}/workspaces",
-  "POST /api/companies/{companyId}/routines",
-  "POST /api/companies/{companyId}/folders",
-  "POST /api/companies/{companyId}/folders/ensure-my",
+  "POST /api/spaces/{spaceId}/routines",
+  "POST /api/spaces/{spaceId}/folders",
+  "POST /api/spaces/{spaceId}/folders/ensure-my",
   "POST /api/routines/{id}/triggers",
-  "POST /api/companies/{companyId}/secrets",
-  "POST /api/companies/{companyId}/user-secret-definitions",
-  "POST /api/companies/{companyId}/me/user-secrets",
-  "POST /api/companies/{companyId}/skills",
-  "POST /api/companies/{companyId}/skills/import",
+  "POST /api/spaces/{spaceId}/secrets",
+  "POST /api/spaces/{spaceId}/user-secret-definitions",
+  "POST /api/spaces/{spaceId}/me/user-secrets",
+  "POST /api/spaces/{spaceId}/skills",
+  "POST /api/spaces/{spaceId}/skills/import",
   "POST /api/join-requests/{requestId}/claim-api-key",
   "POST /api/admin/users/{userId}/promote-instance-admin",
   "POST /api/plugins/install",
   "POST /api/instance/database-backups",
-  "POST /api/companies/{companyId}/tools/action-requests/{actionRequestId}/trust-rule",
+  "POST /api/spaces/{spaceId}/tools/action-requests/{actionRequestId}/trust-rule",
   "POST /api/tool-gateway/sessions",
 ]);
 
 const ACCEPTED_OPERATIONS = new Set([
-  "POST /api/companies/{companyId}/email/send",
-  "POST /api/companies/import",
+  "POST /api/spaces/{spaceId}/email/send",
+  "POST /api/spaces/import",
   "POST /api/health/dev-server/restart",
   "POST /api/invites/{token}/accept",
 ]);
@@ -1666,13 +1666,13 @@ function operationKey(method: string, path: string) {
   return `${method.toUpperCase()} ${path}`;
 }
 
-function isVoiceSessionOperation(path: string) { return /^\/api\/companies\/\{companyId\}\/voice-(sessions|callbacks|phone|history)(?:\/|$)/.test(path); }
+function isVoiceSessionOperation(path: string) { return /^\/api\/spaces\/\{spaceId\}\/voice-(sessions|callbacks|phone|history)(?:\/|$)/.test(path); }
 
 function isBoardOnlyOperation(method: string, path: string) {
   if (isVoiceSessionOperation(path)) return true;
   const key = operationKey(method, path);
-  if (BOARD_ONLY_OPERATIONS.has(key)) return true;
-  return BOARD_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix));
+  if (OPERATOR_ONLY_OPERATIONS.has(key)) return true;
+  return OPERATOR_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
 function resolveOperationAuthLevel(
@@ -1686,26 +1686,26 @@ function resolveOperationAuthLevel(
       || key === "GET /api/dot-mcp/requests/{id}"
       || key === "POST /api/dot-mcp/requests/{id}/dot-pairing"
       || key === "POST /api/dot-mcp/requests/{id}/dot-pairing/preview") return "public";
-  if (path === "/api/mcp/setup" || path === "/api/mcp/device/consent" || path.startsWith("/api/mcp/requests/") || path.startsWith("/api/mcp/connections")) return "board";
-  if (/^\/api\/companies\/\{companyId\}\/agents\/\{agentId\}\/dot-binding(?:\/event-test)?$/.test(path)) return "board";
-  if (path === "/api/companies/{companyId}/dot-invitations") return "board";
-  if (path === "/api/companies/{companyId}/muse-invitations"
-      || /^\/api\/companies\/\{companyId\}\/agents\/\{agentId\}\/muse-binding(?:\/(?:verify|revoke|attest-stop|attest-detector-cleanup|qualification))?$/.test(path)) return "board";
-  if (path === "/api/companies/{companyId}/grok-invitations"
-      || /^\/api\/companies\/\{companyId\}\/agents\/\{agentId\}\/grok-binding(?:\/(?:routine|verify|retry|stop|recover))?$/.test(path)) return "board";
+  if (path === "/api/mcp/setup" || path === "/api/mcp/device/consent" || path.startsWith("/api/mcp/requests/") || path.startsWith("/api/mcp/connections")) return "operator";
+  if (/^\/api\/spaces\/\{spaceId\}\/agents\/\{agentId\}\/dot-binding(?:\/event-test)?$/.test(path)) return "operator";
+  if (path === "/api/spaces/{spaceId}/dot-invitations") return "operator";
+  if (path === "/api/spaces/{spaceId}/muse-invitations"
+      || /^\/api\/spaces\/\{spaceId\}\/agents\/\{agentId\}\/muse-binding(?:\/(?:verify|revoke|attest-stop|attest-detector-cleanup|qualification))?$/.test(path)) return "operator";
+  if (path === "/api/spaces/{spaceId}/grok-invitations"
+      || /^\/api\/spaces\/\{spaceId\}\/agents\/\{agentId\}\/grok-binding(?:\/(?:routine|verify|retry|stop|recover))?$/.test(path)) return "operator";
   if (PUBLIC_OPERATIONS.has(key)) return "public";
-  if (key === "POST /api/companies/{companyId}/agent-commentary") return "agent_heartbeat";
+  if (key === "POST /api/spaces/{spaceId}/agent-commentary") return "agent_heartbeat";
   if (key === "POST /api/agents/me/chat/messages") return "agent_heartbeat";
   // Agents may read their own commentary, or all of it with commentary:view; the routes enforce that.
-  if (method.toUpperCase() === "GET" && path.startsWith("/api/companies/{companyId}/agent-commentary")) return "authenticated";
-  if (key === "POST /api/mcp/project-tools" || key === "POST /api/companies/{companyId}/slack/tasks/{issueId}/tools") return "agent_run";
+  if (method.toUpperCase() === "GET" && path.startsWith("/api/spaces/{spaceId}/agent-commentary")) return "authenticated";
+  if (key === "POST /api/mcp/project-tools" || key === "POST /api/spaces/{spaceId}/slack/tasks/{issueId}/tools") return "agent_run";
   if (RUNTIME_TOOLS_OPERATIONS.has(key)) return "runtime_tools";
   if (INSTANCE_ADMIN_OPERATIONS.has(key)) return "instance_admin";
   if (
     isBoardOnlyOperation(method, path) ||
-    experimentalApiMetadata[`${method.toUpperCase()} ${path}`]?.boardOnly
+    experimentalApiMetadata[`${method.toUpperCase()} ${path}`]?.operatorOnly
   )
-    return "board";
+    return "operator";
   return "authenticated";
 }
 
@@ -1723,19 +1723,19 @@ function applyOperationStatusOverride(
 function applyDocumentFixups(document: any): any {
   document.components ??= {};
   document.components.securitySchemes = {
-    [BOARD_SESSION_AUTH_SCHEME]: {
+    [OPERATOR_SESSION_AUTH_SCHEME]: {
       type: "apiKey",
       in: "cookie",
-      name: "paperclip_session",
+      name: "outpost_session",
       description:
-        "Board session cookie in authenticated mode. Outpost uses Better Auth; cookie transport may vary by deployment.",
+        "Operator session cookie in authenticated mode. Outpost uses Better Auth; cookie transport may vary by deployment.",
     },
-    [BOARD_API_KEY_AUTH_SCHEME]: {
+    [OPERATOR_API_KEY_AUTH_SCHEME]: {
       type: "http",
       scheme: "bearer",
-      bearerFormat: "Board API Key",
+      bearerFormat: "Operator API Key",
       description:
-        "Board API key presented in the Authorization bearer header.",
+        "Operator API key presented in the Authorization bearer header.",
     },
     [AGENT_BEARER_AUTH_SCHEME]: {
       type: "http",
@@ -1755,7 +1755,7 @@ function applyDocumentFixups(document: any): any {
       type: "http",
       scheme: "bearer",
       bearerFormat: "Task-bound agent JWT",
-      description: "Outpost-issued JWT bound to an active task run. Agent API keys, board sessions, and connection-only tokens are rejected.",
+      description: "Outpost-issued JWT bound to an active task run. Agent API keys, operator sessions, and connection-only tokens are rejected.",
     },
   };
   document.security = AUTHENTICATED_SECURITY;
@@ -1764,7 +1764,7 @@ function applyDocumentFixups(document: any): any {
     for (const [method, operation] of Object.entries(
       pathItem as Record<string, any>,
     )) {
-      const authLevel = operation["x-paperclip-connection-management"] ? "authenticated" : resolveOperationAuthLevel(method, path);
+      const authLevel = operation["x-outpost-connection-management"] ? "authenticated" : resolveOperationAuthLevel(method, path);
       if (authLevel === "public") {
         operation.security = [];
       } else if (authLevel === "agent_run") {
@@ -1776,14 +1776,14 @@ function applyDocumentFixups(document: any): any {
       } else if (authLevel === "authenticated") {
         operation.security = AUTHENTICATED_SECURITY;
       } else {
-        operation.security = BOARD_SECURITY;
+        operation.security = OPERATOR_SECURITY;
       }
 
-      operation["x-paperclip-authorization"] =
+      operation["x-outpost-authorization"] =
         authLevel === "instance_admin"
-          ? { actor: "board", instanceAdmin: true }
-          : authLevel === "board"
-            ? { actor: "board" }
+          ? { actor: "operator", instanceAdmin: true }
+          : authLevel === "operator"
+            ? { actor: "operator" }
             : authLevel === "agent_run"
               ? { actor: "agent", heartbeatBound: true, taskBound: true }
             : authLevel === "agent_heartbeat"
@@ -1791,12 +1791,12 @@ function applyDocumentFixups(document: any): any {
             : authLevel === "runtime_tools"
               ? { actor: "runtime_tools", heartbeatBound: true }
               : authLevel === "authenticated"
-                ? { actor: "board_or_agent" }
+                ? { actor: "operator_or_agent" }
                 : { actor: "public" };
 
       if (isVoiceSessionOperation(path)) {
-        operation.security = [{[BOARD_SESSION_AUTH_SCHEME]: []}];
-        operation["x-paperclip-authorization"] = {actor: "board", sessionBound: true};
+        operation.security = [{[OPERATOR_SESSION_AUTH_SCHEME]: []}];
+        operation["x-outpost-authorization"] = {actor: "operator", sessionBound: true};
       }
 
       const key = operationKey(method, path);
@@ -1865,7 +1865,7 @@ registry.registerPath({
 });
 
 // Shared by the healthy and database-unreachable responses: full details
-// (including serverInfo) ride only on board/agent-actor responses.
+// (including serverInfo) ride only on operator/agent-actor responses.
 const healthServerInfoSchema = z
   .object({
     processStartedAt: z.string().datetime(),
@@ -1927,7 +1927,7 @@ registry.registerPath({
         cloud: z
           .object({
             managed: z.literal(true),
-            managedBy: z.literal("paperclip-cloud"),
+            managedBy: z.literal("outpost-cloud"),
             stackSlug: z.string().nullable(),
             stackDisplayName: z.string().optional(),
             cloudBaseUrl: z.string().nullable(),
@@ -1986,7 +1986,7 @@ registry.registerPath({
     ),
     // The database-unreachable body still carries version and commit so
     // deployment tooling can verify the running build during an outage;
-    // serverInfo rides only on full-details (board/agent) responses.
+    // serverInfo rides only on full-details (operator/agent) responses.
     503: {
       description: "Service unavailable",
       content: {
@@ -2035,7 +2035,7 @@ registry.registerPath({
   responses: { 200: r.ok() },
 });
 
-// ─── Companies ───────────────────────────────────────────────────────────────
+// ─── Spaces ───────────────────────────────────────────────────────────────
 
 registry.registerPath({
   method: "get",
@@ -2054,11 +2054,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies",
-  tags: ["companies"],
-  summary: "List companies",
+  path: "/api/spaces",
+  tags: ["spaces"],
+  summary: "List spaces",
   description:
-    "Requires a board user. Instance admins can list the full directory; scope=accessible limits the list to companies the caller can enter.",
+    "Requires a operator user. Instance admins can list the full directory; scope=accessible limits the list to spaces the caller can enter.",
   request: {
     query: z.object({ scope: z.enum(["accessible"]).optional() }),
   },
@@ -2072,45 +2072,45 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies",
-  tags: ["companies"],
-  summary: "Create a company",
-  request: { body: jsonBody(createCompanySchema) },
+  path: "/api/spaces",
+  tags: ["spaces"],
+  summary: "Create a space",
+  request: { body: jsonBody(createSpaceSchema) },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/stats",
-  tags: ["companies"],
+  path: "/api/spaces/stats",
+  tags: ["spaces"],
   summary: "Outpost stats",
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}",
-  tags: ["companies"],
-  summary: "Get a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  path: "/api/spaces/{spaceId}",
+  tags: ["spaces"],
+  summary: "Get a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/artifacts",
-  tags: ["companies"],
-  summary: "List company artifacts",
+  path: "/api/spaces/{spaceId}/artifacts",
+  tags: ["spaces"],
+  summary: "List space artifacts",
   request: {
-    params: z.object({ companyId: z.string() }),
-    query: companyArtifactsQuerySchema,
+    params: z.object({ spaceId: z.string() }),
+    query: spaceArtifactsQuerySchema,
   },
   responses: {
     200: {
       description: "Outpost artifact projection",
       content: {
         "application/json": {
-          schema: companyArtifactsResponseSchema,
+          schema: spaceArtifactsResponseSchema,
         },
       },
     },
@@ -2120,12 +2120,12 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/timeline",
-  tags: ["companies"],
-  summary: "Get company work timeline",
-  description: "Read-only company-scoped progress history for a requested time window. Inspect visible work spans and saved ownership or delegation events, then follow source issue activity for recorded actors and status transitions. Comments and run outcomes alone do not establish who reassigned work or why it paused. A failed verification command can occur within a successful run. Preserve the requested window, source links and task visibility boundaries.",
+  path: "/api/spaces/{spaceId}/timeline",
+  tags: ["spaces"],
+  summary: "Get space work timeline",
+  description: "Read-only space-scoped progress history for a requested time window. Inspect visible work spans and saved ownership or delegation events, then follow source issue activity for recorded actors and status transitions. Comments and run outcomes alone do not establish who reassigned work or why it paused. A failed verification command can occur within a successful run. Preserve the requested window, source links and task visibility boundaries.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     query: workTimelineQuerySchema,
   },
   responses: {
@@ -2138,12 +2138,12 @@ registry.registerPath({
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}",
-  tags: ["companies"],
-  summary: "Update a company",
+  path: "/api/spaces/{spaceId}",
+  tags: ["spaces"],
+  summary: "Update a space",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(updateCompanySchema.partial()),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(updateSpaceSchema.partial()),
   },
   responses: {
     200: r.ok(),
@@ -2155,82 +2155,82 @@ registry.registerPath({
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/branding",
-  tags: ["companies"],
-  summary: "Update company branding",
+  path: "/api/spaces/{spaceId}/branding",
+  tags: ["spaces"],
+  summary: "Update space branding",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(updateCompanyBrandingSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(updateSpaceBrandingSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/archive",
-  tags: ["companies"],
-  summary: "Archive a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  path: "/api/spaces/{spaceId}/archive",
+  tags: ["spaces"],
+  summary: "Archive a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "delete",
-  path: "/api/companies/{companyId}",
-  tags: ["companies"],
-  summary: "Delete a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  path: "/api/spaces/{spaceId}",
+  tags: ["spaces"],
+  summary: "Delete a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/exports",
-  tags: ["companies"],
-  summary: "Export company data",
-  description: "Omitting include exports only the company and agents (projects, skills and issues default to false); set include.projects and include.skills for a reusable company setup.",
+  path: "/api/spaces/{spaceId}/exports",
+  tags: ["spaces"],
+  summary: "Export space data",
+  description: "Omitting include exports only the space and agents (projects, skills and issues default to false); set include.projects and include.skills for a reusable space setup.",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companyPortabilityExportSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spacePortabilityExportSchema),
   },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/exports/preview",
-  tags: ["companies"],
-  summary: "Preview company export",
-  description: "Omitting include exports only the company and agents (projects, skills and issues default to false); set include.projects and include.skills for a reusable company setup.",
+  path: "/api/spaces/{spaceId}/exports/preview",
+  tags: ["spaces"],
+  summary: "Preview space export",
+  description: "Omitting include exports only the space and agents (projects, skills and issues default to false); set include.projects and include.skills for a reusable space setup.",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companyPortabilityExportSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spacePortabilityExportSchema),
   },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/imports/preview",
-  tags: ["companies"],
-  summary: "Preview company import",
-  description: "Safe import into this company only: target must be { mode: \"existing_company\", companyId } for the route company or a new company, and collisionStrategy may be \"rename\" or \"skip\" (\"replace\" is rejected, so an existing agent is never overwritten). nameOverrides maps an incoming agent, project or issue slug to the name it should get. Preview never changes the company; apply creates or reuses resources and returns them.",
+  path: "/api/spaces/{spaceId}/imports/preview",
+  tags: ["spaces"],
+  summary: "Preview space import",
+  description: "Safe import into this space only: target must be { mode: \"existing_space\", spaceId } for the route space or a new space, and collisionStrategy may be \"rename\" or \"skip\" (\"replace\" is rejected, so an existing agent is never overwritten). nameOverrides maps an incoming agent, project or issue slug to the name it should get. Preview never changes the space; apply creates or reuses resources and returns them.",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companyPortabilityPreviewSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spacePortabilityPreviewSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/imports/apply",
-  tags: ["companies"],
-  summary: "Apply company import",
-  description: "Safe import into this company only: target must be { mode: \"existing_company\", companyId } for the route company or a new company, and collisionStrategy may be \"rename\" or \"skip\" (\"replace\" is rejected, so an existing agent is never overwritten). nameOverrides maps an incoming agent, project or issue slug to the name it should get. Preview never changes the company; apply creates or reuses resources and returns them.",
+  path: "/api/spaces/{spaceId}/imports/apply",
+  tags: ["spaces"],
+  summary: "Apply space import",
+  description: "Safe import into this space only: target must be { mode: \"existing_space\", spaceId } for the route space or a new space, and collisionStrategy may be \"rename\" or \"skip\" (\"replace\" is rejected, so an existing agent is never overwritten). nameOverrides maps an incoming agent, project or issue slug to the name it should get. Preview never changes the space; apply creates or reuses resources and returns them.",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companyPortabilityImportSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spacePortabilityImportSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
@@ -2243,41 +2243,41 @@ for (const [method, path, summary, body] of browserUseOperations) {
   });
 }
 
-// Voice endpoints accept current authenticated board sessions (or local implicit board),
-// never agent keys or board API keys. Provider callbacks use signatures and are
-// intentionally documented separately from this board API contract.
-const voiceSessionResponseSchema = z.object({id:z.string().uuid(), companyId:z.string().uuid(), endpointId:z.string().uuid(), issueId:z.string().uuid(), assignedAgentId:z.string().uuid(), state:z.enum(VOICE_SESSION_STATES), mode:z.enum(["browser","inbound_phone","outbound_phone"]), generation:z.number().int(), callerAuthority:z.enum(["member","instance_admin","local_board","guest_intake","pending_approval"]), replyCursor:z.number().int(), createdAt:z.string(), expiresAt:z.string(), endedAt:z.string().nullable(), errorCode:z.string().nullable()}).strict();
+// Voice endpoints accept current authenticated operator sessions (or local implicit operator),
+// never agent keys or operator API keys. Provider callbacks use signatures and are
+// intentionally documented separately from this operator API contract.
+const voiceSessionResponseSchema = z.object({id:z.string().uuid(), spaceId:z.string().uuid(), endpointId:z.string().uuid(), issueId:z.string().uuid(), assignedAgentId:z.string().uuid(), state:z.enum(VOICE_SESSION_STATES), mode:z.enum(["browser","inbound_phone","outbound_phone"]), generation:z.number().int(), callerAuthority:z.enum(["member","instance_admin","local_board","guest_intake","pending_approval"]), replyCursor:z.number().int(), createdAt:z.string(), expiresAt:z.string(), endedAt:z.string().nullable(), errorCode:z.string().nullable()}).strict();
 const voiceMediaResponseSchema = z.object({sessionId:z.string().uuid(), generation:z.number().int(), transportToken:z.string(), transportUrl:z.string()}).strict();
 const voiceStartResponseSchema = z.object({session:voiceSessionResponseSchema, media:voiceMediaResponseSchema.optional()}).strict();
 for (const [method,path,summary,body,response] of [
-  ["post","/api/companies/{companyId}/voice-sessions","Create or resume a caller-bound voice session",startVoiceSessionSchema,voiceStartResponseSchema],
-  ["get","/api/companies/{companyId}/voice-sessions/{sessionId}","Inspect your current voice session",undefined,voiceSessionResponseSchema],
-  ["post","/api/companies/{companyId}/voice-sessions/{sessionId}/end","End your call while preserving task work",undefined,voiceSessionResponseSchema],
-  ["get","/api/companies/{companyId}/voice-sessions/{sessionId}/notification","Check for an approved reply notification",undefined,undefined],
-  ["get","/api/companies/{companyId}/voice-sessions/{sessionId}/report","Read the safe transcript and separate provider charge",undefined,undefined],
-  ["get","/api/companies/{companyId}/voice-history/{endpointId}","List your permitted completed and active calls",undefined,undefined],
-  ["get","/api/companies/{companyId}/voice-callbacks/{endpointId}","Read your own saved callback preference",undefined,voiceCallbackPreferenceSchema],
-  ["put","/api/companies/{companyId}/voice-callbacks/{endpointId}","Save your own number and callback consent",voiceCallbackPreferenceSchema,voiceCallbackPreferenceSchema],
-  ["get","/api/companies/{companyId}/voice-phone/{endpointId}","Inspect the company's existing Speko number inventory",undefined,undefined],
-  ["put","/api/companies/{companyId}/voice-phone/{endpointId}","Configure private calls or restricted guest intake",voicePhoneConfigurationSchema,undefined],
-  ["get","/api/companies/{companyId}/voice-phone/{endpointId}/incoming","List current live calls awaiting authenticated approval",undefined,undefined],
-  ["get","/api/companies/{companyId}/voice-phone/{endpointId}/history","List unapproved calls without private task bindings",undefined,undefined],
-  ["post","/api/companies/{companyId}/voice-phone/{endpointId}/incoming/{callId}","Approve or deny this exact live call",voiceInboundDecisionSchema,undefined],
+  ["post","/api/spaces/{spaceId}/voice-sessions","Create or resume a caller-bound voice session",startVoiceSessionSchema,voiceStartResponseSchema],
+  ["get","/api/spaces/{spaceId}/voice-sessions/{sessionId}","Inspect your current voice session",undefined,voiceSessionResponseSchema],
+  ["post","/api/spaces/{spaceId}/voice-sessions/{sessionId}/end","End your call while preserving task work",undefined,voiceSessionResponseSchema],
+  ["get","/api/spaces/{spaceId}/voice-sessions/{sessionId}/notification","Check for an approved reply notification",undefined,undefined],
+  ["get","/api/spaces/{spaceId}/voice-sessions/{sessionId}/report","Read the safe transcript and separate provider charge",undefined,undefined],
+  ["get","/api/spaces/{spaceId}/voice-history/{endpointId}","List your permitted completed and active calls",undefined,undefined],
+  ["get","/api/spaces/{spaceId}/voice-callbacks/{endpointId}","Read your own saved callback preference",undefined,voiceCallbackPreferenceSchema],
+  ["put","/api/spaces/{spaceId}/voice-callbacks/{endpointId}","Save your own number and callback consent",voiceCallbackPreferenceSchema,voiceCallbackPreferenceSchema],
+  ["get","/api/spaces/{spaceId}/voice-phone/{endpointId}","Inspect the space's existing Speko number inventory",undefined,undefined],
+  ["put","/api/spaces/{spaceId}/voice-phone/{endpointId}","Configure private calls or restricted guest intake",voicePhoneConfigurationSchema,undefined],
+  ["get","/api/spaces/{spaceId}/voice-phone/{endpointId}/incoming","List current live calls awaiting authenticated approval",undefined,undefined],
+  ["get","/api/spaces/{spaceId}/voice-phone/{endpointId}/history","List unapproved calls without private task bindings",undefined,undefined],
+  ["post","/api/spaces/{spaceId}/voice-phone/{endpointId}/incoming/{callId}","Approve or deny this exact live call",voiceInboundDecisionSchema,undefined],
 ] as const) {
-  registry.registerPath({method,path,tags:["voice-sessions"],summary,description:"Experimental Speko connection. Requires a current authenticated board session (or local implicit board), company membership and current task/connection authority. Agent keys and board API keys cannot act as a caller. Caller ID grants no private access. Media tokens are short-lived; durable provider credentials are never returned. Ending your owned call remains available after losing task access.",request:{params:z.object(Object.fromEntries([...path.matchAll(/\{([^}]+)\}/g)].map(m=>[m[1],z.string().uuid()]))),...(body?{body:jsonBody(body)}:{})},responses:{200:r.ok(response),...(method==="post" && path.endsWith("voice-sessions")?{201:r.ok(voiceStartResponseSchema)}:{}),400:r.badRequest,401:r.unauthorized,403:r.forbidden,404:r.notFound,409:r.conflict,422:r.unprocessable,429:{description:"Voice attempt limit reached"}}});
+  registry.registerPath({method,path,tags:["voice-sessions"],summary,description:"Experimental Speko connection. Requires a current authenticated operator session (or local implicit operator), space membership and current task/connection authority. Agent keys and operator API keys cannot act as a caller. Caller ID grants no private access. Media tokens are short-lived; durable provider credentials are never returned. Ending your owned call remains available after losing task access.",request:{params:z.object(Object.fromEntries([...path.matchAll(/\{([^}]+)\}/g)].map(m=>[m[1],z.string().uuid()]))),...(body?{body:jsonBody(body)}:{})},responses:{200:r.ok(response),...(method==="post" && path.endsWith("voice-sessions")?{201:r.ok(voiceStartResponseSchema)}:{}),400:r.badRequest,401:r.unauthorized,403:r.forbidden,404:r.notFound,409:r.conflict,422:r.unprocessable,429:{description:"Voice attempt limit reached"}}});
 }
 
-// Explicit task-bound email. Board setup and agent actions share the same vaulted
+// Explicit task-bound email. Operator setup and agent actions share the same vaulted
 // connection, while automatic chat publication never applies to these endpoints.
 registry.registerPath({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/email/connections/{connectionId}/check-address",
+  path: "/api/spaces/{spaceId}/email/connections/{connectionId}/check-address",
   tags: ["Email"],
   summary: "Check for an existing AgentMail address using a saved credential",
-  description: "Requires a board connection manager and enabled chat connectors. Read-only: does not create or reserve an inbox. A missing inbox returns unknown because AgentMail hides resources outside the credential scope; it is never proof of availability.",
+  description: "Requires a operator connection manager and enabled chat connectors. Read-only: does not create or reserve an inbox. A missing inbox returns unknown because AgentMail hides resources outside the credential scope; it is never proof of availability.",
   request: {
-    params: z.object({ companyId: z.string().uuid(), connectionId: z.string().uuid() }),
+    params: z.object({ spaceId: z.string().uuid(), connectionId: z.string().uuid() }),
     body: jsonBody(emailAddressCheckSchema),
   },
   responses: {
@@ -2288,22 +2288,22 @@ registry.registerPath({
   },
 });
 for (const [method, path, summary, body, success] of [
-  ["get", "/api/companies/{companyId}/email/connections", "List accessible saved AgentMail API keys (metadata only)", undefined, 200],
-  ["post", "/api/companies/{companyId}/email/connections", "Save AgentMail credential and access", emailConnectionSchema, 201],
-  ["post", "/api/companies/{companyId}/email/connections/{connectionId}/inspect", "Inspect inboxes using a saved AgentMail credential", undefined, 200],
-  ["get", "/api/companies/{companyId}/email/inboxes", "List authorized AgentMail inboxes", undefined, 200],
-  ["post", "/api/companies/{companyId}/email/inspect", "Inspect AgentMail inboxes and verified domains for setup", z.object({ apiKey: z.string().min(1).max(4096) }).strict(), 200],
-  ["post", "/api/companies/{companyId}/email/inboxes", "Create or attach an agent email inbox", emailEndpointSetupSchema, 201],
+  ["get", "/api/spaces/{spaceId}/email/connections", "List accessible saved AgentMail API keys (metadata only)", undefined, 200],
+  ["post", "/api/spaces/{spaceId}/email/connections", "Save AgentMail credential and access", emailConnectionSchema, 201],
+  ["post", "/api/spaces/{spaceId}/email/connections/{connectionId}/inspect", "Inspect inboxes using a saved AgentMail credential", undefined, 200],
+  ["get", "/api/spaces/{spaceId}/email/inboxes", "List authorized AgentMail inboxes", undefined, 200],
+  ["post", "/api/spaces/{spaceId}/email/inspect", "Inspect AgentMail inboxes and verified domains for setup", z.object({ apiKey: z.string().min(1).max(4096) }).strict(), 200],
+  ["post", "/api/spaces/{spaceId}/email/inboxes", "Create or attach an agent email inbox", emailEndpointSetupSchema, 201],
   ["post", "/api/email/inboxes/{endpointId}/control", "Pause, resume or disconnect an email inbox", z.object({ action: z.enum(["pause", "resume", "remove"]) }).strict(), 200],
   ["post", "/api/email/inboxes/{endpointId}/reconnect", "Reconnect the same email inbox", z.object({ apiKey: z.string().min(1).max(4096), receiveMode: z.enum(["websocket", "webhook"]) }).strict(), 200],
-  ["post", "/api/companies/{companyId}/email/send", "Explicitly send email: start a child task or reply to a bound conversation", emailSendSchema, 202],
-  ["get", "/api/companies/{companyId}/email/tasks/{issueId}", "Read a task's email thread, full text context, recipients and delivery outcomes", undefined, 200],
-  ["get", "/api/companies/{companyId}/email/deliveries/{publicationId}", "Check queued, sent, delivered, failed or uncertain email delivery", undefined, 200],
-  ["post", "/api/companies/{companyId}/email/deliveries/{publicationId}/resolve", "Resolve uncertain email after checking the provider", z.object({ outcome: z.enum(["sent", "failed"]), providerMessageId: z.string().min(1).max(998).optional() }).strict(), 200],
+  ["post", "/api/spaces/{spaceId}/email/send", "Explicitly send email: start a child task or reply to a bound conversation", emailSendSchema, 202],
+  ["get", "/api/spaces/{spaceId}/email/tasks/{issueId}", "Read a task's email thread, full text context, recipients and delivery outcomes", undefined, 200],
+  ["get", "/api/spaces/{spaceId}/email/deliveries/{publicationId}", "Check queued, sent, delivered, failed or uncertain email delivery", undefined, 200],
+  ["post", "/api/spaces/{spaceId}/email/deliveries/{publicationId}/resolve", "Resolve uncertain email after checking the provider", z.object({ outcome: z.enum(["sent", "failed"]), providerMessageId: z.string().min(1).max(998).optional() }).strict(), 200],
 ] as const) {
   registry.registerPath({ method, path, tags: ["Email"], summary,
     ...(!path.includes("/send") && !path.includes("/tasks/") && !path.includes("/deliveries/") && !(method === "get" && path.endsWith("/inboxes"))
-      ? { "x-paperclip-transport": "rest", "x-paperclip-connection-management": method === "get" ? "connections:read" : "connections:configure" } : {}),
+      ? { "x-outpost-transport": "rest", "x-outpost-connection-management": method === "get" ? "connections:read" : "connections:configure" } : {}),
     description: "AgentMail email connection. Available without the experimental chat setting. Internal comments never send email. Agent sends require assigned inbox and task ownership, active run authority, and configured action policies. Preserve the same idempotencyKey and payload across retries. New conversations create an email child task; replies require conversationId and replyToMessageId. Reply-all is deliberate and never includes Bcc.",
     request: { params: z.object(Object.fromEntries([...path.matchAll(/\{([^}]+)\}/g)].map(match => [match[1], z.string().uuid()]))), ...(body ? { body: jsonBody(body) } : {}) },
     responses: { [success]: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
@@ -2311,17 +2311,17 @@ for (const [method, path, summary, body, success] of [
 }
 
 // Slack bot tools use the verified task/run identity; setup and search grants
-// remain board-only and company/endpoint scoped.
+// remain operator-only and space/endpoint scoped.
 for (const [method, path, summary, body] of [
-  ["get", "/api/companies/{companyId}/slack/endpoints/{endpointId}/capabilities", "Inspect Slack bot capabilities and missing scopes", undefined],
-  ["get", "/api/companies/{companyId}/slack/endpoints/{endpointId}/search", "Read personal Slack search authorization status", undefined],
-  ["put", "/api/companies/{companyId}/slack/endpoints/{endpointId}/search", "Configure optional Slack search OAuth credentials", slackSearchConfigSchema],
-  ["post", "/api/companies/{companyId}/slack/endpoints/{endpointId}/search/connect", "Begin personal Slack search authorization", undefined],
-  ["delete", "/api/companies/{companyId}/slack/endpoints/{endpointId}/search", "Disconnect personal Slack search and invalidate pending authorization", undefined],
-  ["post", "/api/companies/{companyId}/slack/tasks/{issueId}/tools", "Execute a task-bound Slack bot tool", slackToolCallSchema],
+  ["get", "/api/spaces/{spaceId}/slack/endpoints/{endpointId}/capabilities", "Inspect Slack bot capabilities and missing scopes", undefined],
+  ["get", "/api/spaces/{spaceId}/slack/endpoints/{endpointId}/search", "Read personal Slack search authorization status", undefined],
+  ["put", "/api/spaces/{spaceId}/slack/endpoints/{endpointId}/search", "Configure optional Slack search OAuth credentials", slackSearchConfigSchema],
+  ["post", "/api/spaces/{spaceId}/slack/endpoints/{endpointId}/search/connect", "Begin personal Slack search authorization", undefined],
+  ["delete", "/api/spaces/{spaceId}/slack/endpoints/{endpointId}/search", "Disconnect personal Slack search and invalidate pending authorization", undefined],
+  ["post", "/api/spaces/{spaceId}/slack/tasks/{issueId}/tools", "Execute a task-bound Slack bot tool", slackToolCallSchema],
 ] as const) {
   registry.registerPath({ method, path, tags: ["chat-channels"], summary,
-    description: "Experimental Slack task tools. Current company, endpoint, linked requester, task/run authority and action permissions are revalidated. Bot credentials remain server-side. Search grants never authorize writes or expand bot membership. Native search is unavailable until the runtime qualifies transient result handling.",
+    description: "Experimental Slack task tools. Current space, endpoint, linked requester, task/run authority and action permissions are revalidated. Bot credentials remain server-side. Search grants never authorize writes or expand bot membership. Native search is unavailable until the runtime qualifies transient result handling.",
     request: { params: z.object(Object.fromEntries([...path.matchAll(/\{([^}]+)\}/g)].map(match => [match[1], z.string().uuid()]))), ...(body ? { body: jsonBody(body) } : {}) },
     responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
   });
@@ -2335,15 +2335,15 @@ registry.registerPath({ method: "get", path: "/api/slack/search/callback", tags:
 // ─── Chat Channels ─────────────────────────────────────────────────────────
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/chat-endpoints",
+  path: "/api/spaces/{spaceId}/chat-endpoints",
   tags: ["chat-channels"],
-  summary: "List chat endpoints in a company",
+  summary: "List chat endpoints in a space",
   description:
-    "Lists non-archived provider bot endpoints visible to the current board user. Endpoints are company-scoped.",
-  request: { params: z.object({ companyId: z.string().uuid() }) },
+    "Lists non-archived provider bot endpoints visible to the current operator user. Endpoints are space-scoped.",
+  request: { params: z.object({ spaceId: z.string().uuid() }) },
   responses: {
     200: r.ok(z.array(chatEndpointResponseSchema)),
     401: r.unauthorized,
@@ -2352,18 +2352,18 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/chat-endpoints",
+  path: "/api/spaces/{spaceId}/chat-endpoints",
   tags: ["chat-channels"],
   summary: "Create a chat endpoint",
   description:
     "Creates one provider bot endpoint bound permanently to one Outpost agent. Provider setup and verification happen in later calls. "
-    + "Chat providers need Chat connectors, and GitHub needs GitHub review bots, turned on by an instance admin in Experimental settings at /<prefix>/company/settings/instance/experimental. "
-    + "While that setting is off, connections_search shows the provider as unavailable and this call is refused; agents cannot change it. Link that page as [Experimental settings](/<prefix>/company/settings/instance/experimental) and reply.",
+    + "Chat providers need Chat connectors, and GitHub needs GitHub review bots, turned on by an instance admin in Experimental settings at /<prefix>/space/settings/instance/experimental. "
+    + "While that setting is off, connections_search shows the provider as unavailable and this call is refused; agents cannot change it. Link that page as [Experimental settings](/<prefix>/space/settings/instance/experimental) and reply.",
   request: {
-    params: z.object({ companyId: z.string().uuid() }),
+    params: z.object({ spaceId: z.string().uuid() }),
     body: jsonBody(createChatEndpointSchema),
   },
   responses: {
@@ -2377,14 +2377,14 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
   path: "/api/chat-endpoints/{endpointId}",
   tags: ["chat-channels"],
   summary: "Get a chat endpoint",
   description:
-    "Returns a chat endpoint only when it belongs to a company accessible to the current board user; an inaccessible endpoint is reported as not found.",
+    "Returns a chat endpoint only when it belongs to a space accessible to the current operator user; an inaccessible endpoint is reported as not found.",
   request: { params: z.object({ endpointId: z.string().uuid() }) },
   responses: {
     200: r.ok(chatEndpointResponseSchema),
@@ -2395,7 +2395,7 @@ registry.registerPath({
 });
 
 const githubConfigurationResponseSchema = z.object({
-  companyId: z.string().uuid(),
+  spaceId: z.string().uuid(),
   endpointId: z.string().uuid(),
   revision: z.number().int().nonnegative(),
   configuration: githubChatConfigurationSchema,
@@ -2416,7 +2416,7 @@ const githubWizardResponseSchema = z.object({
   restartableRegistrationId: z.string().uuid().optional(),
 });
 const githubReviewResponseSchema = z.object({
-      id: z.string().uuid(), companyId: z.string().uuid(), endpointId: z.string().uuid(),
+      id: z.string().uuid(), spaceId: z.string().uuid(), endpointId: z.string().uuid(),
       issueId: z.string().uuid(), runId: z.string().uuid().nullable(), repositoryId: z.string(),
       repository: z.string(), pullNumber: z.number().int(), headSha: z.string(),
       configurationRevision: z.number().int(), state: z.enum(["queued", "running", "completed", "incomplete", "error", "superseded", "manual_required"]),
@@ -2436,12 +2436,12 @@ const githubBotOperations: Array<{
 }> = [
   {
     method: "get", suffix: "configuration", summary: "Read GitHub bot review configuration",
-    description: "Returns saved company-scoped configuration and its revision, or disabled defaults for an existing chat connection. Requires connection-management access.",
+    description: "Returns saved space-scoped configuration and its revision, or disabled defaults for an existing chat connection. Requires connection-management access.",
     response: githubConfigurationResponseSchema,
   },
   {
     method: "put", suffix: "configuration", summary: "Save GitHub bot review configuration",
-    description: "Compares the configuration revision and rechecks members, sponsors, repositories, and agent tool governance. Does not change the bot's assigned agent or enable formal reviews implicitly.",
+    description: "Compares the configuration revision and rechecks members, sponsors, repositories, and agent tool policy. Does not change the bot's assigned agent or enable formal reviews implicitly.",
     body: updateGitHubChatConfigurationSchema, response: githubConfigurationResponseSchema,
   },
   {
@@ -2462,7 +2462,7 @@ const githubBotOperations: Array<{
   },
   {
     method: "get", suffix: "personal-connections", summary: "List the current user's GitHub identity connections",
-    description: "Lists only the signed-in user's GitHub grants in this company. Shared and agent credentials cannot prove a person's identity.",
+    description: "Lists only the signed-in user's GitHub grants in this space. Shared and agent credentials cannot prove a person's identity.",
     response: z.array(z.object({ connectionId: z.string().uuid(), name: z.string(), status: z.string(), login: z.string().nullable(), enabled: z.boolean() })),
   },
   {
@@ -2478,7 +2478,7 @@ const githubBotOperations: Array<{
   },
   {
     method: "post", suffix: "registration", summary: "Prepare GitHub App manifest registration",
-    description: "Starts or resumes a private App under a personal account or organization. Supplying ownerType uses the two-screen wizard and Cloud callbacks, including localhost; omitting it preserves legacy direct registration. State remains bound to the member, company, draft, connection, agent, and trusted origin. Credentials are never returned.",
+    description: "Starts or resumes a private App under a personal account or organization. Supplying ownerType uses the two-screen wizard and Cloud callbacks, including localhost; omitting it preserves legacy direct registration. State remains bound to the member, space, draft, connection, agent, and trusted origin. Credentials are never returned.",
     body: githubWizardInputSchema.partial({ ownerType: true }).refine(value => value.ownerType !== "organization" || !!value.ownerLogin, "Enter the GitHub organization"),
     response: z.union([z.object({ expiresAt: z.string(), registrationUrl: z.string().url(), manifest: z.record(z.string(), z.unknown()) }), githubWizardResponseSchema]),
   },
@@ -2500,7 +2500,7 @@ const githubBotOperations: Array<{
   },
   {
     method: "get", suffix: "reviews/{reviewId}", summary: "Get a GitHub review by ID",
-    description: "Returns a review only within this accessible company and endpoint, including reviews older than the newest list page.",
+    description: "Returns a review only within this accessible space and endpoint, including reviews older than the newest list page.",
     response: githubReviewResponseSchema,
   },
   {
@@ -2511,7 +2511,7 @@ const githubBotOperations: Array<{
   },
   {
     method: "put", suffix: "repositories/access", summary: "Enable or disable all GitHub bot repositories",
-    description: "Board connection managers only. Applies to every repository in this company-scoped endpoint regardless of search or pagination; unavailable repositories cannot be enabled.",
+    description: "Operator connection managers only. Applies to every repository in this space-scoped endpoint regardless of search or pagination; unavailable repositories cannot be enabled.",
     body: toggleAllGitHubRepositoriesSchema, response: z.object({ success: z.literal(true) }),
   },
 ];
@@ -2519,7 +2519,7 @@ for (const operation of githubBotOperations) {
   registry.registerPath({
     method: operation.method,
     path: `/api/chat-endpoints/{endpointId}/github/${operation.suffix}`,
-    ...(!["identity", "identity/confirm"].includes(operation.suffix) ? { "x-paperclip-transport": "rest", "x-paperclip-connection-management": operation.method === "get" ? "connections:read" : "connections:configure" } : {}),
+    ...(!["identity", "identity/confirm"].includes(operation.suffix) ? { "x-outpost-transport": "rest", "x-outpost-connection-management": operation.method === "get" ? "connections:read" : "connections:configure" } : {}),
     tags: ["chat-channels"], summary: operation.summary, description: operation.description,
     request: {
       params: z.object({ endpointId: z.string().uuid(), ...(operation.suffix.includes("{reviewId}") ? { reviewId: z.string().uuid() } : {}) }),
@@ -2536,21 +2536,21 @@ for (const operation of githubBotOperations) {
 }
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
   path: "/api/chat-endpoints/{endpointId}/provider-work/{actionId}/retry",
   tags: ["chat-channels"],
   summary: "Retry retained provider receipt work",
-  description: "Requires current company connection-management access. Rearms only the same authorized retained Slack receipt or cleanup responsibility. Does not create a new form or spend a trigger. Revoked, foreign, or changed ownership is refused.",
+  description: "Requires current space connection-management access. Rearms only the same authorized retained Slack receipt or cleanup responsibility. Does not create a new form or spend a trigger. Revoked, foreign, or changed ownership is refused.",
   request: { params: z.object({ endpointId: z.string().uuid(), actionId: z.string().uuid() }), body: jsonBody(z.object({}).strict()) },
   responses: { 200: r.ok(z.object({ actionId: z.string().uuid(), state: z.enum(["scheduled", "already_scheduled", "complete"]) })),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "patch",
   path: "/api/chat-endpoints/{endpointId}",
   tags: ["chat-channels"],
@@ -2571,8 +2571,8 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
   path: "/api/chat-endpoints/{endpointId}/setup",
   tags: ["chat-channels"],
@@ -2598,51 +2598,51 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
-  method: "get", path: "/api/companies/{companyId}/chat-slack/setup-options", tags: ["chat-channels"],
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
+  method: "get", path: "/api/spaces/{spaceId}/chat-slack/setup-options", tags: ["chat-channels"],
   summary: "Discover Slack setup methods and the current user's authorized workspaces",
-  description: "Managed setup is advertised only for approved Cloud deployments with the broker profile enabled. Self-hosted discovery makes no hosted-service requests. Grants are personal and company scoped.",
-  request: { params: z.object({ companyId: z.string().uuid() }) }, responses: { 200: r.ok(slackSetupOptionsSchema), 401: r.unauthorized, 403: r.forbidden },
+  description: "Managed setup is advertised only for approved Cloud deployments with the broker profile enabled. Self-hosted discovery makes no hosted-service requests. Grants are personal and space scoped.",
+  request: { params: z.object({ spaceId: z.string().uuid() }) }, responses: { 200: r.ok(slackSetupOptionsSchema), 401: r.unauthorized, 403: r.forbidden },
 });
 for (const action of ["authorize", "provision"] as const) registry.registerPath({
-  method: "post", path: `/api/chat-endpoints/{endpointId}/slack/managed/${action}`, "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:configure", tags: ["chat-channels"],
+  method: "post", path: `/api/chat-endpoints/{endpointId}/slack/managed/${action}`, "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:configure", tags: ["chat-channels"],
   summary: action === "authorize" ? "Authorize a personal Slack manager workspace grant" : "Provision the saved managed Slack app",
-  description: "Requires the selected managed method, company membership, connection-management permission and Cloud availability. Authorization state is actor/session bound and single use. Provisioning accepts a personal grant ID and idempotent request ID; no provider credentials or arbitrary manifests are accepted. Explicit reconnect uses reconnect=true with a fresh request ID to reinstall the saved app. Repeating that reconnect request returns its saved result without reinstalling a healthy connection.",
+  description: "Requires the selected managed method, space membership, connection-management permission and Cloud availability. Authorization state is actor/session bound and single use. Provisioning accepts a personal grant ID and idempotent request ID; no provider credentials or arbitrary manifests are accepted. Explicit reconnect uses reconnect=true with a fresh request ID to reinstall the saved app. Repeating that reconnect request returns its saved result without reinstalling a healthy connection.",
   request: { params: z.object({ endpointId: z.string().uuid() }), body: jsonBody(action === "authorize" ? slackSetupActionSchema : slackManagedProvisionSchema) },
   responses: { 200: r.ok(action === "authorize" ? slackManagerAuthorizationSchema : slackManagedResultSchema), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable },
 });
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
-  method: "delete", path: "/api/companies/{companyId}/chat-slack/manager-grants/{grantId}", tags: ["chat-channels"],
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
+  method: "delete", path: "/api/spaces/{spaceId}/chat-slack/manager-grants/{grantId}", tags: ["chat-channels"],
   summary: "Revoke the current user's workspace grant for future managed provisioning",
   description: "Removes local manager credentials and invalidates pending manager authorization. Installed bots remain connected; this does not uninstall Slack apps.",
-  request: { params: z.object({ companyId: z.string().uuid(), grantId: z.string().uuid() }) }, responses: { 204: { description: "Personal manager grant revoked" }, 401: r.unauthorized, 403: r.forbidden },
+  request: { params: z.object({ spaceId: z.string().uuid(), grantId: z.string().uuid() }) }, responses: { 204: { description: "Personal manager grant revoked" }, 401: r.unauthorized, 403: r.forbidden },
 });
 registry.registerPath({
   method: "get", path: "/api/chat-slack/managed/oauth/callback", tags: ["chat-channels"],
   summary: "Redeem a sealed manager authorization and return to Slack setup",
-  description: "Authenticated, same-origin continuation with company, actor, session, endpoint revision and configured-origin checks. The broker handoff is single use; credentials are never returned to the browser. Explicit local development qualification accepts a Slack code instead of a broker claim; production ignores code.",
+  description: "Authenticated, same-origin continuation with space, actor, session, endpoint revision and configured-origin checks. The broker handoff is single use; credentials are never returned to the browser. Explicit local development qualification accepts a Slack code instead of a broker claim; production ignores code.",
   request: { query: z.object({ state: z.string(), claim_id: z.string().optional(), code: z.string().optional(), error: z.string().optional() }) },
   responses: { 200: { description: "Same-origin continuation page" }, 303: { description: "Return to saved setup" }, 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 409: r.conflict },
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:test",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:test",
   method: "post", path: "/api/chat-endpoints/{endpointId}/slack/test-message", tags: ["chat-channels"],
   summary: "Connect the current user's Slack identity and send a test DM",
-  description: "Requires a board connection manager and active company membership. Reuses only the actor's verified identity in the same workspace; otherwise returns paginated account choices and sends a private connection challenge. The account holder must confirm it while signed in before linking or test delivery. Revoked and conflicting links cannot be overwritten. The request ID prevents duplicate or ambiguous sends from being replayed.",
+  description: "Requires a operator connection manager and active space membership. Reuses only the actor's verified identity in the same workspace; otherwise returns paginated account choices and sends a private connection challenge. The account holder must confirm it while signed in before linking or test delivery. Revoked and conflicting links cannot be overwritten. The request ID prevents duplicate or ambiguous sends from being replayed.",
   request: { params: z.object({ endpointId: z.string().uuid() }), body: jsonBody(slackTestMessageSchema) },
   responses: { 200: r.ok(slackTestMessageResultSchema), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable, 429: { description: "Wait before sending another test message" } },
 });
 
 for (const action of ["registration", "install", "resume"] as const) {
   registry.registerPath({
-    method: "post", path: `/api/chat-endpoints/{endpointId}/slack/${action}`, "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:configure", tags: ["chat-channels"],
+    method: "post", path: `/api/chat-endpoints/{endpointId}/slack/${action}`, "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:configure", tags: ["chat-channels"],
     summary: { registration: "Create a Slack app for a saved draft", install: "Authorize installation of the saved Slack app", resume: "Connect already-vaulted Slack installation credentials" }[action],
-    description: "Requires a board session, company membership, connection-management permission, and the chat connector rollout gate. Secrets are never returned. Creation request IDs are idempotent; uncertain creation requires an explicit checked-no-app confirmation before a new attempt. OAuth installation is bound to the initiating actor/session and expires in ten minutes.",
+    description: "Requires a operator session, space membership, connection-management permission, and the chat connector rollout gate. Secrets are never returned. Creation request IDs are idempotent; uncertain creation requires an explicit checked-no-app confirmation before a new attempt. OAuth installation is bound to the initiating actor/session and expires in ten minutes.",
     request: { params: z.object({ endpointId: z.string().uuid() }), body: jsonBody(action === "registration" ? slackRegistrationSchema : slackSetupActionSchema) },
     responses: { 200: r.ok(action === "install" ? slackInstallAuthorizationSchema : chatEndpointResponseSchema), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable },
   });
@@ -2656,8 +2656,8 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
   path: "/api/chat-endpoints/{endpointId}/setup-secret",
   tags: ["chat-channels"],
@@ -2677,14 +2677,14 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
   path: "/api/chat-endpoints/{endpointId}/photon/inspect",
   tags: ["chat-channels"],
   summary: "Inspect Photon shared project or dedicated numbers for channel setup",
   description:
-    "Requires a board user with connection-management access. The project secret is write-only input. Returns the project's actual allocation and eligibility for shared DMs or dedicated lines, never project secrets or minted line tokens. Responses are not cached. Inspection alone does not activate the channel.",
+    "Requires a operator user with connection-management access. The project secret is write-only input. Returns the project's actual allocation and eligibility for shared DMs or dedicated lines, never project secrets or minted line tokens. Responses are not cached. Inspection alone does not activate the channel.",
   request: {
     params: z.object({ endpointId: z.string().uuid() }),
     body: jsonBody(inspectPhotonProjectSchema),
@@ -2714,8 +2714,8 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post", path: "/api/chat-endpoints/{endpointId}/finish", tags: ["chat-channels"],
   summary: "Finish Slack or GitHub onboarding with an optional conversation test",
   description: "Requires verified provider delivery and an authorized identity linked to the current user. GitHub also checks the assigned agent’s current bot capabilities. Records that a full conversation test was not required.",
@@ -2723,8 +2723,8 @@ registry.registerPath({
   responses: { 200: r.ok(chatEndpointResponseSchema), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get", path: "/api/chat-endpoints/{endpointId}/test-status", tags: ["chat-channels"],
   summary: "Check for the current user's first setup message",
   request: { params: z.object({ endpointId: z.string().uuid() }) },
@@ -2732,15 +2732,15 @@ registry.registerPath({
 });
 registry.registerPath({
   method: "post", path: "/api/chat-identity-links/request-access", tags: ["chat-channels"],
-  summary: "Request company membership using a private Slack identity link",
+  summary: "Request space membership using a private Slack identity link",
   description: "Creates a pending human join request for admin approval. Requires a valid, unexpired self-service token and a signed-in user. Does not grant access or link an identity.",
   request: { body: jsonBody(confirmChatIdentityLinkSchema) },
   responses: { 200: r.ok(z.object({ status: z.enum(["member", "pending_approval"]) })), 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable },
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
   path: "/api/chat-endpoints/{endpointId}/test",
   tags: ["chat-channels"],
@@ -2758,8 +2758,8 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
   path: "/api/chat-endpoints/{endpointId}/resources",
   tags: ["chat-channels"],
@@ -2776,8 +2776,8 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "put",
   path: "/api/chat-endpoints/{endpointId}/resources",
   tags: ["chat-channels"],
@@ -2800,8 +2800,8 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
   path: "/api/chat-endpoints/{endpointId}/principals",
   tags: ["chat-channels"],
@@ -2818,8 +2818,8 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
   path: "/api/chat-endpoints/{endpointId}/principals/{principalId}/link-intent",
   tags: ["chat-channels"],
@@ -2845,8 +2845,8 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "delete",
   path: "/api/chat-endpoints/{endpointId}/principals/{principalId}/link",
   tags: ["chat-channels"],
@@ -2873,7 +2873,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Preview an external identity-link intent",
   description:
-    "Returns the company and provider identity that a valid, unexpired confirmation token would link. Admin-created links require company access. Private links issued to a signed Slack sender allow a signed-in recipient to preview that identity and request company access.",
+    "Returns the space and provider identity that a valid, unexpired confirmation token would link. Admin-created links require space access. Private links issued to a signed Slack sender allow a signed-in recipient to preview that identity and request space access.",
   request: {
     query: z.object({ token: z.string().min(32).max(4096) }).strict(),
   },
@@ -2892,7 +2892,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Confirm an external identity link",
   description:
-    "Links the token's external identity to the currently signed-in Outpost user after rechecking active company membership and canonical-link conflicts.",
+    "Links the token's external identity to the currently signed-in Outpost user after rechecking active space membership and canonical-link conflicts.",
   request: { body: jsonBody(confirmChatIdentityLinkSchema) },
   responses: {
     200: r.ok(chatIdentityLinkConfirmationResponseSchema),
@@ -2905,8 +2905,8 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
   path: "/api/chat-endpoints/{endpointId}/conversations",
   tags: ["chat-channels"],
@@ -2923,8 +2923,8 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:audit",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:audit",
   method: "get",
   path: "/api/chat-endpoints/{endpointId}/activity",
   tags: ["chat-channels"],
@@ -3041,7 +3041,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Publish an Outpost task comment to an external conversation",
   description:
-    "Explicitly projects an eligible comment from the bound Outpost task into the provider conversation. The endpoint, conversation, and comment must belong to the same binding. A Board send with an already-bound attachment returns 409 with code chat_board_send_attachments_already_bound and request-scoped details (endpointId, conversationId, idempotencyKey, attachmentIds). This durable rejection queues no publication and is replayed for the same key even if the file later becomes unbound. Correcting it requires an explicit new send identity. Other errors do not establish non-delivery.",
+    "Explicitly projects an eligible comment from the bound Outpost task into the provider conversation. The endpoint, conversation, and comment must belong to the same binding. A Operator send with an already-bound attachment returns 409 with code chat_board_send_attachments_already_bound and request-scoped details (endpointId, conversationId, idempotencyKey, attachmentIds). This durable rejection queues no publication and is replayed for the same key even if the file later becomes unbound. Correcting it requires an explicit new send identity. Other errors do not establish non-delivery.",
   request: {
     params: z.object({
       endpointId: z.string().uuid(),
@@ -3061,13 +3061,13 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:read",
   method: "get",
   path: "/api/issues/{issueId}/chat-binding",
   tags: ["chat-channels", "issues"],
   summary: "Get a task's external chat binding",
   description:
-    "Returns the task's current external conversation binding, or `null` when it has none. Requires a task UUID; synthetic agent-chat view IDs are invalid. A binding in another company is reported as not found.",
+    "Returns the task's current external conversation binding, or `null` when it has none. Requires a task UUID; synthetic agent-chat view IDs are invalid. A binding in another space is reported as not found.",
   request: { params: z.object({ issueId: z.string().uuid() }) },
   responses: {
     200: r.ok(externalChannelBindingResponseSchema.nullable()),
@@ -3079,12 +3079,12 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:test",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:test",
   method: "get",
   path: "/api/chat-endpoints/{endpointId}/conversations/{conversationId}/publications/{publicationId}/status",
   tags: ["chat-channels"],
-  summary: "Read authoritative delivery status for a Board publication batch",
+  summary: "Read authoritative delivery status for a Operator publication batch",
   description:
     "Returns the complete ordered batch, its first unresolved part and separate delivered, waiting, declined, expired and cancelled counts. Dismissal is allowed only when every part is settled; a consent card or upload receipt is not final file delivery. This read-only endpoint never retries or sends provider messages. The original publication ID remains a stable batch anchor.",
   request: {
@@ -3143,9 +3143,9 @@ registry.registerPath({
 /** Ready-made teams are found here, so these entries must match how people ask for them. */
 const TEAM_CATALOG_DESCRIPTIONS: Record<string, string> = {
   "/api/teams/catalog":
-    "Lists Outpost's ready-made teams: installable team packages, not agents already in a company. Each entry gives its name, description, roles (agentSlugs), project and routine counts, required skills (requiredSkills) and configuration inputs (envInputs). This catalog is the only source of ready-made teams; choose by description and roles rather than an exact name. Optional q filters by text in names, descriptions and tags. The web app has no teams catalog page; people browse it with the paperclipai teams browse CLI command.",
-  "/api/companies/{companyId}/teams/catalog/{catalogId}/preview":
-    "Shows what installing a catalog team would add to this company: planned agents, projects, routines and skills, and any name or slug conflicts with existing resources. Creates no resources, so it is also allowed in Ask and Plan modes. Outpost members and agents in the company can preview.",
+    "Lists Outpost's ready-made teams: installable team packages, not agents already in a space. Each entry gives its name, description, roles (agentSlugs), project and routine counts, required skills (requiredSkills) and configuration inputs (envInputs). This catalog is the only source of ready-made teams; choose by description and roles rather than an exact name. Optional q filters by text in names, descriptions and tags. The web app has no teams catalog page; people browse it with the outpost teams browse CLI command.",
+  "/api/spaces/{spaceId}/teams/catalog/{catalogId}/preview":
+    "Shows what installing a catalog team would add to this space: planned agents, projects, routines and skills, and any name or slug conflicts with existing resources. Creates no resources, so it is also allowed in Ask and Plan modes. Outpost members and agents in the space can preview.",
 };
 
 for (const route of [
@@ -3154,17 +3154,17 @@ for (const route of [
   ["get", "/api/teams/catalog/{catalogId}", "Get catalog team"],
   [
     "get",
-    "/api/companies/{companyId}/teams/catalog/installed",
+    "/api/spaces/{spaceId}/teams/catalog/installed",
     "List installed catalog teams",
   ],
   [
     "post",
-    "/api/companies/{companyId}/teams/catalog/{catalogId}/preview",
+    "/api/spaces/{spaceId}/teams/catalog/{catalogId}/preview",
     "Preview catalog team install",
   ],
   [
     "post",
-    "/api/companies/{companyId}/teams/catalog/{catalogId}/install",
+    "/api/spaces/{spaceId}/teams/catalog/{catalogId}/install",
     "Install catalog team",
   ],
 ] as const) {
@@ -3184,7 +3184,7 @@ for (const route of [
     } : {}),
     ...(TEAM_CATALOG_DESCRIPTIONS[route[1]] ? { description: TEAM_CATALOG_DESCRIPTIONS[route[1]] } : {}),
     ...(route[1].endsWith("/install") ? {
-      description: "Installs a catalog team into this company. Requires a board user with permission to create agents, or an agent with permission to create agents; without it, a board user can run paperclipai teams install <team id> --company-id <companyId>. Imports team resources; HTTP success does not prove every required skill is ready. Read warnings for post-import failures and skillPreparations for required sources; a preparation plan is not proof of installation. Report unresolved requirements as partial completion and preserve existing resources. Use the actual returned portabilityImport agents and projects for company-scoped resource links. Before repeating an uncertain install, inspect installed teams and saved resource identities rather than creating another copy. resourceLinks provides canonical company-scoped hrefs for actual saved agents, projects and routines, including reused resources; share these links with the installation outcome.",
+      description: "Installs a catalog team into this space. Requires a operator user with permission to create agents, or an agent with permission to create agents; without it, a operator user can run outpost teams install <team id> --space-id <spaceId>. Imports team resources; HTTP success does not prove every required skill is ready. Read warnings for post-import failures and skillPreparations for required sources; a preparation plan is not proof of installation. Report unresolved requirements as partial completion and preserve existing resources. Use the actual returned portabilityImport agents and projects for space-scoped resource links. Before repeating an uncertain install, inspect installed teams and saved resource identities rather than creating another copy. resourceLinks provides canonical space-scoped hrefs for actual saved agents, projects and routines, including reused resources; share these links with the installation outcome.",
       responses: { 201: r.ok(z.object({ resourceLinks: z.array(z.object({
         kind: z.enum(["agent", "project", "routine"]), id: z.string(), name: z.string(), href: z.string(),
       })) }).passthrough()), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
@@ -3197,12 +3197,12 @@ for (const route of [
 registry.register("AgentAppearance", agentAppearanceSchema);
 registry.registerPath({
   method: "put",
-  path: "/api/companies/{companyId}/agents/{agentId}/avatar",
+  path: "/api/spaces/{spaceId}/agents/{agentId}/avatar",
   tags: ["agents"],
   summary: "Upload or reset an agent profile avatar",
-  description: "Board users require agent_config:update permission to change company agent avatars. Agents can update only their own avatar. Task bridge and skill test credentials cannot change profiles. Upload a base64 raster image, or null to restore the preset portrait. Stored avatars use company-scoped private assets.",
+  description: "Operator users require agent_config:update permission to change space agent avatars. Agents can update only their own avatar. Task bridge and skill test credentials cannot change profiles. Upload a base64 raster image, or null to restore the preset portrait. Stored avatars use space-scoped private assets.",
   request: {
-    params: z.object({ companyId: z.string().uuid(), agentId: z.string().uuid() }),
+    params: z.object({ spaceId: z.string().uuid(), agentId: z.string().uuid() }),
     body: jsonBody(setAgentAvatarSchema),
   },
   responses: {
@@ -3220,7 +3220,7 @@ registry.registerPath({
   path: "/api/agent-avatars/{version}/{palette}/{file}",
   tags: ["agents"],
   summary: "Render or retrieve a public preset agent portrait",
-  description: "On-demand PNG artwork; no agent or company lookup. Logical size determines face detail independently of density. Background defaults to transparent; paperclip-dark supplies the opaque Outpost dark-mode background for Slack exports. Successful URLs are immutable for one year and return a content-derived ETag. Cache entries regenerate after deletion.",
+  description: "On-demand PNG artwork; no agent or space lookup. Logical size determines face detail independently of density. Background defaults to transparent; outpost-dark supplies the opaque Outpost dark-mode background for Slack exports. Successful URLs are immutable for one year and return a content-derived ETag. Cache entries regenerate after deletion.",
   request: {
     params: z.object({
       version: z.literal("cap-v1"),
@@ -3230,7 +3230,7 @@ registry.registerPath({
     query: z.object({
       size: z.enum(AGENT_AVATAR_SIZES.map(String)).optional().default("512"),
       scale: z.enum(["1", "2"]).optional().default("1"),
-      background: z.enum(["transparent", "paperclip-dark"]).optional().default("transparent"),
+      background: z.enum(["transparent", "outpost-dark"]).optional().default("transparent"),
     }).strict(),
   },
   responses: {
@@ -3244,10 +3244,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/built-in-agents",
+  path: "/api/spaces/{spaceId}/built-in-agents",
   tags: ["agents"],
   summary: "List built-in agent provisioning state",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: {
     200: r.ok(),
     401: r.unauthorized,
@@ -3258,10 +3258,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/built-in-agents/{key}/status",
+  path: "/api/spaces/{spaceId}/built-in-agents/{key}/status",
   tags: ["agents"],
   summary: "Get built-in agent bundle status",
-  request: { params: z.object({ companyId: z.string(), key: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), key: z.string() }) },
   responses: {
     200: r.ok(),
     401: r.unauthorized,
@@ -3272,11 +3272,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/built-in-agents/{key}/reconcile",
+  path: "/api/spaces/{spaceId}/built-in-agents/{key}/reconcile",
   tags: ["agents"],
   summary: "Reconcile built-in agent managed resources",
   request: {
-    params: z.object({ companyId: z.string(), key: z.string() }),
+    params: z.object({ spaceId: z.string(), key: z.string() }),
     body: jsonBody(builtInAgentEmptyMutationSchema),
   },
   responses: {
@@ -3292,11 +3292,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/built-in-agents/{key}/provision",
+  path: "/api/spaces/{spaceId}/built-in-agents/{key}/provision",
   tags: ["agents"],
   summary: "Provision a built-in agent",
   request: {
-    params: z.object({ companyId: z.string(), key: z.string() }),
+    params: z.object({ spaceId: z.string(), key: z.string() }),
     body: jsonBody(builtInAgentProvisionSchema),
   },
   responses: {
@@ -3312,10 +3312,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/built-in-agents/{key}/reset",
+  path: "/api/spaces/{spaceId}/built-in-agents/{key}/reset",
   tags: ["agents"],
   summary: "Reset a built-in agent",
-  request: { params: z.object({ companyId: z.string(), key: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), key: z.string() }) },
   responses: {
     200: r.ok(),
     401: r.unauthorized,
@@ -3332,12 +3332,12 @@ for (const route of [
 ] as const) {
   registry.registerPath({
     method: "post",
-    path: `/api/companies/{companyId}/built-in-agents/{key}/routines/{routineKey}/${route[0]}`,
+    path: `/api/spaces/{spaceId}/built-in-agents/{key}/routines/{routineKey}/${route[0]}`,
     tags: ["agents"],
     summary: route[1],
     request: {
       params: z.object({
-        companyId: z.string(),
+        spaceId: z.string(),
         key: z.string(),
         routineKey: z.string(),
       }),
@@ -3356,14 +3356,14 @@ for (const route of [
 }
 
 const summarySlotParams = z.object({
-  companyId: z.string(),
+  spaceId: z.string(),
   scopeKind: z.string(),
   slotKey: z.string(),
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/summary-slots/{scopeKind}/{slotKey}",
+  path: "/api/spaces/{spaceId}/summary-slots/{scopeKind}/{slotKey}",
   tags: ["summaries"],
   summary: "Get a summary slot with its latest document and generation state",
   request: { params: summarySlotParams },
@@ -3378,7 +3378,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/summary-slots/{scopeKind}/{slotKey}/revisions",
+  path: "/api/spaces/{spaceId}/summary-slots/{scopeKind}/{slotKey}/revisions",
   tags: ["summaries"],
   summary: "List dated revisions for a summary slot",
   request: { params: summarySlotParams },
@@ -3393,7 +3393,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/summary-slots/{scopeKind}/{slotKey}/generate",
+  path: "/api/spaces/{spaceId}/summary-slots/{scopeKind}/{slotKey}/generate",
   tags: ["summaries"],
   summary: "Manually generate (or refresh) a summary slot",
   request: {
@@ -3414,7 +3414,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "put",
-  path: "/api/companies/{companyId}/summary-slots/{scopeKind}/{slotKey}",
+  path: "/api/spaces/{spaceId}/summary-slots/{scopeKind}/{slotKey}",
   tags: ["summaries"],
   summary: "Write a summary revision (Summarizer built-in agent only)",
   request: {
@@ -3434,10 +3434,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/status-cards",
+  path: "/api/spaces/{spaceId}/status-cards",
   tags: ["status-cards"],
   summary: "List status cards",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: {
     200: r.ok(),
     401: r.unauthorized,
@@ -3448,15 +3448,15 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/status-cards",
+  path: "/api/spaces/{spaceId}/status-cards",
   tags: ["status-cards"],
   summary: "Create a status card",
-  description: "Creates a saved status card on the company's Status page: a live summary of the tasks the interestPrompt describes. "
+  description: "Creates a saved status card on the space's Status page: a live summary of the tasks the interestPrompt describes. "
     + "agentId names the agent that writes its summary; without it the built-in Summarizer is used when configured. "
     + "The response is returned before any summary exists: the card's summarizer compiles its query and writes the first summary in its own run. "
     + "Do not wait or poll for it; reply now with the returned href as a Markdown link, which opens the card at /<prefix>/status/<cardId>.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createStatusCardSchema),
   },
   responses: {
@@ -3498,7 +3498,7 @@ registerCurrentRoute({
   tags: ["status-cards"],
   summary: "Update, archive, or restore a status card",
   description: "Archiving (archived: true) hides the card from the active list but keeps the card, its summary and its update history; it is not deleted. "
-    + "A person views and restores archived cards on the company's Status page (Show archived, then Restore); give them the returned href as a Markdown link. "
+    + "A person views and restores archived cards on the space's Status page (Show archived, then Restore); give them the returned href as a Markdown link. "
     + "Restoring (archived: false) starts a fresh full summary for a card with a compiled query, so restored content is regenerated before it is current.",
   body: patchStatusCardSchema,
 });
@@ -3533,20 +3533,20 @@ registerCurrentRoute({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/agents",
+  path: "/api/spaces/{spaceId}/agents",
   tags: ["agents"],
-  summary: "List agents in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List agents in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/agents",
+  path: "/api/spaces/{spaceId}/agents",
   tags: ["agents"],
   summary: "Create an agent",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createAgentSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -3554,31 +3554,31 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/agent-hires",
+  path: "/api/spaces/{spaceId}/agent-creations",
   tags: ["agents"],
-  summary: "Hire an agent",
+  summary: "Create an agent",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(createAgentHireSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(createAgentCreationSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/agent-configurations",
+  path: "/api/spaces/{spaceId}/agent-configurations",
   tags: ["agents"],
-  summary: "List agent configurations for a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List agent configurations for a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/org",
+  path: "/api/spaces/{spaceId}/org",
   tags: ["agents"],
   summary: "Get org chart data",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -3668,7 +3668,7 @@ registry.registerPath({
   method: "post",
   path: "/api/agents/me/secret-proposals",
   tags: ["secrets"],
-  summary: "Propose a company secret or agent secret binding",
+  summary: "Propose a space secret or agent secret binding",
   request: { body: jsonBody(createAgentSecretProposalSchema) },
   responses: {
     201: r.ok(),
@@ -3766,7 +3766,7 @@ registry.registerPath({
   path: "/api/agents/me/inbox/mine",
   tags: ["agents"],
   summary: "List a person's Mine inbox tasks",
-  description: "Agent read of one board user's personal inbox: the tasks that person participated in and has not archived, the same set as their Mine list, which they open at /<prefix>/inbox/mine. Use it when a person asks what is in their inbox or needs their attention; it is not your own work queue (GET /api/agents/me/inbox-lite) and a company-wide task search is not a substitute. userId is required: use the person's user id, such as the authorUserId of their message.",
+  description: "Agent read of one operator user's personal inbox: the tasks that person participated in and has not archived, the same set as their Mine list, which they open at /<prefix>/inbox/mine. Use it when a person asks what is in their inbox or needs their attention; it is not your own work queue (GET /api/agents/me/inbox-lite) and a space-wide task search is not a substitute. userId is required: use the person's user id, such as the authorUserId of their message.",
   request: {
     query: z.object({
       userId: z.string().min(1).describe("The person's user id, such as the authorUserId of their message. Required."),
@@ -3847,13 +3847,13 @@ registry.registerPath({
   path: "/api/agents/{id}/permission-grants",
   tags: ["agents"],
   summary: "Grant or revoke one explicit agent permission",
-  description: "Board-only. Requires users:manage_permissions in the agent's company. Enables an unscoped grant or removes that permission key without replacing other grants. Does not reactivate inactive memberships or start agent work. Writes an activity record in the same transaction.",
+  description: "Operator-only. Requires users:manage_permissions in the agent's space. Enables an unscoped grant or removes that permission key without replacing other grants. Does not reactivate inactive memberships or start agent work. Writes an activity record in the same transaction.",
   request: { params: z.object({ id: z.string().uuid() }), body: jsonBody(updateAgentPermissionGrantSchema) },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 
 const agentInteractionPermissionsResponse = z.object({
-  agentId: z.string().uuid(), companyId: z.string().uuid(), overrides: agentInteractionPermissionsSchema,
+  agentId: z.string().uuid(), spaceId: z.string().uuid(), overrides: agentInteractionPermissionsSchema,
   effective: agentInteractionPermissionsSchema.required(),
 });
 registry.registerPath({
@@ -3866,7 +3866,7 @@ registry.registerPath({
 registry.registerPath({
   method: "patch", path: "/api/agents/{id}/interaction-permissions", tags: ["agents"],
   summary: "Set individual agent interaction restrictions",
-  description: "Human permission managers only: requires board authentication and users:manage_permissions. A partial map sets true/false; null removes the override. Missing values preserve existing behavior. Does not change grants or start work. Every change is audited atomically.",
+  description: "Human permission managers only: requires operator authentication and users:manage_permissions. A partial map sets true/false; null removes the override. Missing values preserve existing behavior. Does not change grants or start work. Every change is audited atomically.",
   request: { params: z.object({ id: z.string().uuid() }), body: jsonBody(updateAgentInteractionPermissionsSchema) },
   responses: { 200: r.ok(agentInteractionPermissionsResponse), 400: r.badRequest, 401: r.unauthorized,
     403: r.forbidden, 404: r.notFound, 409: r.conflict },
@@ -3886,7 +3886,7 @@ registry.registerPath({
   path: "/api/agents/{id}/project-access",
   tags: ["agents"],
   summary: "Add allowed projects without replacing an agent's other permissions",
-  description: "Requires board access and agents:create in the agent's company. Accepts 1 to 100 project IDs. Selected projects must be readable and in that company. Locks the low-trust agent, preserves existing containment, audits new additions, and rejects pending-approval agents or changed trust settings. Repeated additions are idempotent. Saving does not start or retry a task.",
+  description: "Requires operator access and agents:create in the agent's space. Accepts 1 to 100 project IDs. Selected projects must be readable and in that space. Locks the low-trust agent, preserves existing containment, audits new additions, and rejects pending-approval agents or changed trust settings. Repeated additions are idempotent. Saving does not start or retry a task.",
   request: { params: z.object({ id: z.string() }), body: jsonBody(addAgentProjectAccessSchema) },
   responses: { 200: r.ok(agentProjectAccessResponse), 400: r.badRequest, 401: r.unauthorized,
     403: r.forbidden, 404: r.notFound, 409: r.conflict },
@@ -4118,7 +4118,7 @@ registry.registerPath({
   tags: ["agents"],
   summary: "Wake up an agent",
   description:
-    "Board failed-run retries supply failedRunId with reason retry_failed_run. Outpost derives the exact request and current authorization; a chat retry may return a durable queued/deferred receipt before a run exists. Caller task/comment markers and fresh-session overrides do not authorize replay.",
+    "Operator failed-run retries supply failedRunId with reason retry_failed_run. Outpost derives the exact request and current authorization; a chat retry may return a durable queued/deferred receipt before a run exists. Caller task/comment markers and fresh-session overrides do not authorize replay.",
   request: {
     params: z.object({ id: z.string() }),
     body: jsonBody(wakeAgentSchema),
@@ -4196,12 +4196,12 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/adapters/{type}/models",
+  path: "/api/spaces/{spaceId}/adapters/{type}/models",
   tags: ["adapters"],
   summary: "List models for an adapter type and runner provider",
   description: "Answers which models an agent's runtime can select. For a outpost_runner agent, pass its adapterConfig.provider, its adapterConfig.acpxAgent when the provider is acpx, and its defaultEnvironmentId; the response is that runtime's own list. An OpenCode agent whose model starts with openrouter/ uses an OpenRouter key: list those choices with type opencode_local and provider=openrouter. That list is OpenRouter's public catalog, so whether a model works depends on the key's account and is not a qualification. With those inputs, these calls answer the question: report the options with that caveat and reply, rather than enumerating providers through other routes, the shell or the web.",
   request: {
-    params: z.object({ companyId: z.string(), type: z.string() }),
+    params: z.object({ spaceId: z.string(), type: z.string() }),
     query: z.object({
       provider: z
         .enum(["codex", "acpx", "opencode", "claude_managed", "aws_agentcore", "openrouter"])
@@ -4215,20 +4215,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/adapters/{type}/detect-model",
+  path: "/api/spaces/{spaceId}/adapters/{type}/detect-model",
   tags: ["adapters"],
   summary: "Detect active model for an adapter",
-  request: { params: z.object({ companyId: z.string(), type: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), type: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/adapters/{type}/test-environment",
+  path: "/api/spaces/{spaceId}/adapters/{type}/test-environment",
   tags: ["adapters"],
-  summary: "Validate adapter environment access for a company",
+  summary: "Validate adapter environment access for a space",
   request: {
-    params: z.object({ companyId: z.string(), type: z.string() }),
+    params: z.object({ spaceId: z.string(), type: z.string() }),
     body: jsonBody(testAdapterEnvironmentSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -4246,26 +4246,26 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/adapters/{type}/auth-signal",
+  path: "/api/spaces/{spaceId}/adapters/{type}/auth-signal",
   tags: ["adapters"],
   summary:
     "Read the cheap host-local authentication signal for an adapter type",
   request: {
-    params: z.object({ companyId: z.string(), type: z.string() }),
+    params: z.object({ spaceId: z.string(), type: z.string() }),
     query: z.object({ environmentId: z.string().optional() }),
   },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/adapters/{type}/login-sessions",
+  path: "/api/spaces/{spaceId}/adapters/{type}/login-sessions",
   tags: ["adapters"],
-  summary: "Start a company-scoped adapter device login",
+  summary: "Start a space-scoped adapter device login",
   description: "For a managed AI Connection, omit agentId to select an eligible computer in the sign-in environment.",
   request: {
-    params: z.object({ companyId: z.string(), type: z.string() }),
+    params: z.object({ spaceId: z.string(), type: z.string() }),
     body: jsonBody(startAdapterLoginSessionSchema),
   },
   responses: {
@@ -4278,13 +4278,13 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/adapters/{type}/login-sessions/active",
+  path: "/api/spaces/{spaceId}/adapters/{type}/login-sessions/active",
   tags: ["adapters"],
   summary: "Read the caller's active adapter device login session",
   request: {
-    params: z.object({ companyId: z.string(), type: z.string() }),
+    params: z.object({ spaceId: z.string(), type: z.string() }),
   },
   responses: {
     200: r.ok(),
@@ -4295,14 +4295,14 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/adapters/{type}/login-sessions/{sessionId}",
+  path: "/api/spaces/{spaceId}/adapters/{type}/login-sessions/{sessionId}",
   tags: ["adapters"],
   summary: "Read an adapter device login session",
   request: {
     params: z.object({
-      companyId: z.string(),
+      spaceId: z.string(),
       type: z.string(),
       sessionId: z.string(),
     }),
@@ -4316,14 +4316,14 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/adapters/{type}/login-sessions/{sessionId}/cancel",
+  path: "/api/spaces/{spaceId}/adapters/{type}/login-sessions/{sessionId}/cancel",
   tags: ["adapters"],
   summary: "Cancel an adapter device login session",
   request: {
     params: z.object({
-      companyId: z.string(),
+      spaceId: z.string(),
       type: z.string(),
       sessionId: z.string(),
     }),
@@ -4340,43 +4340,43 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/chats",
+  path: "/api/spaces/{spaceId}/chats",
   tags: ["issues"],
-  summary: "List the current board user's agent conversations",
-  description: "Requires Agent Chat to be enabled. Returns accessible conversations in the company, ordered by most recent activity. Each agent has one conversation per user.",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List the current operator user's agent conversations",
+  description: "Requires Agent Chat to be enabled. Returns accessible conversations in the space, ordered by most recent activity. Each agent has one conversation per user.",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/inbox/mine",
+  path: "/api/spaces/{spaceId}/inbox/mine",
   tags: ["issues"],
-  summary: "Get the board user's initial Mine inbox and required task context",
-  description: "Board-only presentation read. Returns userId, issues, contextIssues, failureRuns and verified failureIssueIds. Uses the existing company, private-task, run-read and secret-redaction policies. Optional failureError or contextError retains successful task rows. The initial task page is bounded to 100 and failed-run history to 200. No query parameters are accepted. This GET shares issue-list coalescing and admission limits; it creates no work.",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "Get the operator user's initial Mine inbox and required task context",
+  description: "Operator-only presentation read. Returns userId, issues, contextIssues, failureRuns and verified failureIssueIds. Uses the existing space, private-task, run-read and secret-redaction policies. Optional failureError or contextError retains successful task rows. The initial task page is bounded to 100 and failed-run history to 200. No query parameters are accepted. This GET shares issue-list coalescing and admission limits; it creates no work.",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 429: r.tooManyRequests },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/issues",
+  path: "/api/spaces/{spaceId}/issues",
   tags: ["issues"],
-  summary: "List issues in a company",
+  summary: "List issues in a space",
   description:
-    "Use view=index for collection membership/order without task bodies or diagnostic enrichment; view=rows enriches visible rows without task bodies. These responses include listProjection and cannot stand in for a full issue. view=compact retains the board row compatibility contract. The default response remains the broad compatibility contract. All projections enforce company and task access. Results are paged: limit defaults to 500 (maximum 1000) and offset to 0. For actors who can read the whole company's task list, every page sets X-Paperclip-Has-More (true when more results exist) and X-Paperclip-Limit; a capped page also sets X-Paperclip-Next-Offset, or X-Paperclip-Next-After-Id for sortField=id&sortDir=asc cursor paging (not with oneChildPerParent). Actors whose rows are filtered by task access, such as low-trust agents, get no pagination headers. Agent call_api results carry these as pagination.hasMore/nextOffset/nextAfterId. A page whose hasMore is true is not the complete list: repeat the request with the same filters and the next offset or afterId until hasMore is false.",
+    "Use view=index for collection membership/order without task bodies or diagnostic enrichment; view=rows enriches visible rows without task bodies. These responses include listProjection and cannot stand in for a full issue. view=compact retains the operator row compatibility contract. The default response remains the broad compatibility contract. All projections enforce space and task access. Results are paged: limit defaults to 500 (maximum 1000) and offset to 0. For actors who can read the whole space's task list, every page sets X-Outpost-Has-More (true when more results exist) and X-Outpost-Limit; a capped page also sets X-Outpost-Next-Offset, or X-Outpost-Next-After-Id for sortField=id&sortDir=asc cursor paging (not with oneChildPerParent). Actors whose rows are filtered by task access, such as low-trust agents, get no pagination headers. Agent call_api results carry these as pagination.hasMore/nextOffset/nextAfterId. A page whose hasMore is true is not the complete list: repeat the request with the same filters and the next offset or afterId until hasMore is false.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     query: z.object({
       view: z.enum(["compact", "index", "rows"]).optional(),
       ids: z.string().optional().describe("One to 100 comma-separated task UUIDs; requires index or rows without attention."),
       parentIds: z.string().optional().describe("One to 100 comma-separated parent UUIDs; requires index or rows without attention."),
       oneChildPerParent: z.boolean().optional().describe("Return at most one readable child per parent; requires view=index and parentIds."),
-      limit: z.number().int().min(1).max(1000).optional().describe("Page size; defaults to 500, at most 1000. Check X-Paperclip-Has-More (call_api: pagination.hasMore) for more results."),
-      offset: z.number().int().min(0).optional().describe("Rows to skip; use X-Paperclip-Next-Offset (call_api: pagination.nextOffset) from the previous page."),
+      limit: z.number().int().min(1).max(1000).optional().describe("Page size; defaults to 500, at most 1000. Check X-Outpost-Has-More (call_api: pagination.hasMore) for more results."),
+      offset: z.number().int().min(0).optional().describe("Rows to skip; use X-Outpost-Next-Offset (call_api: pagination.nextOffset) from the previous page."),
       sortField: z.enum(["updated", "created", "id"]).optional(),
       sortDir: z.enum(["asc", "desc"]).optional(),
-      afterId: z.string().uuid().optional().describe("Cursor paging: return rows after this task UUID; requires sortField=id, sortDir=asc and no offset. Use X-Paperclip-Next-After-Id (call_api: pagination.nextAfterId)."),
+      afterId: z.string().uuid().optional().describe("Cursor paging: return rows after this task UUID; requires sortField=id, sortDir=asc and no offset. Use X-Outpost-Next-After-Id (call_api: pagination.nextAfterId)."),
     }).passthrough(),
   },
   responses: {
@@ -4388,12 +4388,12 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/issues/summaries",
+  path: "/api/spaces/{spaceId}/issues/summaries",
   tags: ["issues"],
   summary: "Get authorized recent-task summaries",
   description: "Accepts only the ids query parameter: one to fifty comma-separated UUIDs, bounded before deduplication. IDs are trimmed and normalized to lowercase. Repeated, array and nested query syntax is rejected, including mixed forms. Returns accessible, visible tasks in request order; unavailable IDs are omitted. This private, no-store read excludes full task and workspace enrichment.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     query: z.object({ ids: z.string().min(1).describe("One to fifty comma-separated task UUIDs; repeated query parameters are rejected") }),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden },
@@ -4401,12 +4401,12 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/issues/chat-bootstrap",
+  path: "/api/spaces/{spaceId}/issues/chat-bootstrap",
   tags: ["issues"],
   summary: "Read what the task chat needs before its first frame, for up to ten tasks",
   description: "Accepts only the ids query parameter: one to ten comma-separated task UUIDs or identifiers, normalized (UUID lowercase, identifier uppercase) and deduplicated. Returns { items } in request order; each item has the normalized ref plus issue (GET /issues/{id}?view=core), recentComments (/recent-comments), commentInputFacts (/activity?view=comment-inputs for the recent comments), recentActivity (/activity?view=recent), recentRuns (/runs?view=recent), interactions, attachments, liveRuns and activeRun, each in that endpoint's shape. Missing, foreign and unreadable tasks are omitted. Read-only, without break-glass; private, no-store. Task-bridge keys are rejected.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     query: z.object({ ids: z.string().min(1).describe("One to ten comma-separated task UUIDs or identifiers; other query parameters are rejected") }),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden },
@@ -4417,19 +4417,19 @@ registry.registerPath({
   path: "/api/issues/{ref}/chat-bootstrap",
   tags: ["issues"],
   summary: "Read what the task chat needs before its first frame, for one task",
-  description: "The single-task form of /companies/{companyId}/issues/chat-bootstrap for a hard load of a task URL. Returns one item (not wrapped in items), identical to the batch item for the same ref. 404 when the task is missing or unreadable. Read-only, without break-glass; private, no-store.",
+  description: "The single-task form of /spaces/{spaceId}/issues/chat-bootstrap for a hard load of a task URL. Returns one item (not wrapped in items), identical to the batch item for the same ref. 404 when the task is missing or unreadable. Read-only, without break-glass; private, no-store.",
   request: { params: z.object({ ref: z.string().describe("A task UUID or identifier") }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/issues",
+  path: "/api/spaces/{spaceId}/issues",
   tags: ["issues"],
   summary: "Create an issue",
   description: "Title is optional when description contains the task prompt. The server seeds a provisional title from the first 120 characters of the whitespace-normalized prompt and asks the assigned agent to refine it early. Explicit titles are preserved.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createIssueSchema),
   },
   responses: {
@@ -4465,7 +4465,7 @@ registry.registerPath({
   tags: ["issues"],
   summary: "Update an issue",
   description:
-    "When posting a comment, attachmentIds selects up to 20 unique uploaded attachments from this exact task and company. The comment, attachment binding, and issue update commit atomically. attachmentIds without a comment is rejected; Markdown links alone do not bind uploads. For a prepared backlog task, send exactly status=todo and expectedStatusVersion from the task response. The locked promotion returns 409 if the status or assignment changed. Other mutation fields with this guard return 422.",
+    "When posting a comment, attachmentIds selects up to 20 unique uploaded attachments from this exact task and space. The comment, attachment binding, and issue update commit atomically. attachmentIds without a comment is rejected; Markdown links alone do not bind uploads. For a prepared backlog task, send exactly status=todo and expectedStatusVersion from the task response. The locked promotion returns 409 if the status or assignment changed. Other mutation fields with this guard return 422.",
   request: {
     params: z.object({ id: z.string() }),
     body: jsonBody(updateIssueSchema.partial()),
@@ -4742,7 +4742,7 @@ registry.registerPath({
   tags: ["issues"],
   summary: "Get an exact issue document revision",
   description:
-    "Available to board users and agents with current issue read access. Returns the specified revision only when its document is linked to this issue under the given key. Document keys are trimmed and lowercased before validation. The response also carries the document's current latestRevisionId and latestRevisionNumber, and isLatest says whether this revision is still current; to read the current text, use GET /api/issues/{id}/documents/{key}. This read does not restore or modify the document.",
+    "Available to operator users and agents with current issue read access. Returns the specified revision only when its document is linked to this issue under the given key. Document keys are trimmed and lowercased before validation. The response also carries the document's current latestRevisionId and latestRevisionNumber, and isLatest says whether this revision is still current; to read the current text, use GET /api/issues/{id}/documents/{key}. This read does not restore or modify the document.",
   request: {
     params: z.object({
       id: z.string(),
@@ -4790,7 +4790,7 @@ registry.registerPath({
   path: "/api/issues/{id}/comments",
   tags: ["issues"],
   summary: "List issue comments",
-  description: "Lists discussion comments, not complete status or assignment history. For progress walkthroughs and handoff attribution, use GET /api/companies/{companyId}/timeline for the requested interval and GET /api/issues/{id}/activity for saved transitions and their recorded actors. Do not infer prior ownership from the current assignee or from successful runs.",
+  description: "Lists discussion comments, not complete status or assignment history. For progress walkthroughs and handoff attribution, use GET /api/spaces/{spaceId}/timeline for the requested interval and GET /api/issues/{id}/activity for saved transitions and their recorded actors. Do not infer prior ownership from the current assignee or from successful runs.",
   request: { params: z.object({ id: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
@@ -5065,20 +5065,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/labels",
+  path: "/api/spaces/{spaceId}/labels",
   tags: ["issues"],
-  summary: "List labels in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List labels in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/labels",
+  path: "/api/spaces/{spaceId}/labels",
   tags: ["issues"],
   summary: "Create a label",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createIssueLabelSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -5097,11 +5097,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/project-environments",
+  path: "/api/spaces/{spaceId}/project-environments",
   tags: ["projects"],
   summary: "List compatible project environments and the caller's default",
   description: "Groups configured environments by repository storage owner. Returns names and IDs without provider configuration. Creation revalidates environmentId and stores its storage owner without overriding agent execution environments.",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: {
     200: r.ok(z.object({
       groups: z.array(z.object({
@@ -5117,12 +5117,12 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/project-repositories",
+  path: "/api/spaces/{spaceId}/project-repositories",
   tags: ["projects"],
-  summary: "Discover GitHub repositories available to the current board user",
+  summary: "Discover GitHub repositories available to the current operator user",
   description:
-    "Deduplicates repositories across usable personal and company-shared GitHub connections. Failed connections are reported without discarding successful results.",
-  request: { params: z.object({ companyId: z.string() }) },
+    "Deduplicates repositories across usable personal and space-shared GitHub connections. Failed connections are reported without discarding successful results.",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: {
     200: r.ok(
       z.object({
@@ -5158,7 +5158,7 @@ registry.registerPath({
 registry.registerPath({
   method: "put", path: "/api/projects/{id}/git-authorization", tags: ["projects"],
   summary: "Authorize or revoke a personal GitHub grant for background project work",
-  description: "Board project workspace writers can select only their own active company-installed grant. No task authority or token is stored.",
+  description: "Operator project workspace writers can select only their own active space-installed grant. No task authority or token is stored.",
   request: { params: z.object({ id: z.string() }), body: jsonBody(z.object({ grantId: z.string().uuid().nullable() }).strict()) },
   responses: { 200: r.ok(projectGitAuthorizationResponse), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
@@ -5188,22 +5188,22 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/projects",
+  path: "/api/spaces/{spaceId}/projects",
   tags: ["projects"],
-  summary: "List projects in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List projects in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/projects",
+  path: "/api/spaces/{spaceId}/projects",
   tags: ["projects"],
   summary: "Create a project",
   description:
-    "The optional repositoryIds field selects GitHub source repositories and requires a board caller. It cannot be combined with workspace. All selections are validated before the project and repository workspaces are created atomically.",
+    "The optional repositoryIds field selects GitHub source repositories and requires a operator caller. It cannot be combined with workspace. All selections are validated before the project and repository workspaces are created atomically.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createProjectSchema),
   },
   responses: {
@@ -5340,20 +5340,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/routines",
+  path: "/api/spaces/{spaceId}/routines",
   tags: ["routines"],
-  summary: "List routines in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List routines in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/routines",
+  path: "/api/spaces/{spaceId}/routines",
   tags: ["routines"],
   summary: "Create a routine",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createRoutineSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -5364,9 +5364,9 @@ registry.registerPath({
 const PLUGIN_MANAGED_ROUTINE_GUIDANCE =
   "A routine with a non-null `managedByPlugin` is a plugin-managed routine: that plugin created it and owns its definition "
   + "(title, instructions, schedule, assignee), and the plugin can reset it to its manifest defaults. "
-  + "It is changed through the settings that plugin exposes, which a board user opens at "
-  + "[plugin settings](/<prefix>/company/settings/instance/plugins/<pluginId>), with `managedByPlugin.pluginId` as <pluginId> "
-  + "and this conversation's company prefix as <prefix>. "
+  + "It is changed through the settings that plugin exposes, which a operator user opens at "
+  + "[plugin settings](/<prefix>/space/settings/instance/plugins/<pluginId>), with `managedByPlugin.pluginId` as <pluginId> "
+  + "and this conversation's space prefix as <prefix>. "
   + "Do not rewrite, detach or duplicate a plugin-managed routine to imitate a change, and do not search for another route: "
   + "reply now with that link and the routine's page link.";
 // When the hosting operator hides plugin management, that settings page redirects
@@ -5505,8 +5505,8 @@ registry.registerPath({
   request: {
     params: z.object({ publicId: z.string() }),
     headers: z.object({
-      "X-Paperclip-Source-Run-Token": z.string().optional().describe("Optional current Outpost run JWT. It establishes creation provenance only; the trigger still requires its own authentication."),
-      "X-Paperclip-Idempotency-Scope": z.enum(["trigger", "routine"]).optional().describe("Scope of a stable Idempotency-Key. Default: trigger. Timestamped HMAC always uses trigger scope."),
+      "X-Outpost-Source-Run-Token": z.string().optional().describe("Optional current Outpost run JWT. It establishes creation provenance only; the trigger still requires its own authentication."),
+      "X-Outpost-Idempotency-Scope": z.enum(["trigger", "routine"]).optional().describe("Scope of a stable Idempotency-Key. Default: trigger. Timestamped HMAC always uses trigger scope."),
       "Idempotency-Key": z.string().optional().describe("Stable sender event identity, reused on retries."),
     }),
     body: jsonBody(z.record(z.string(), z.unknown())),
@@ -5519,20 +5519,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/goals",
+  path: "/api/spaces/{spaceId}/goals",
   tags: ["goals"],
-  summary: "List north stars in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List north stars in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/goals",
+  path: "/api/spaces/{spaceId}/goals",
   tags: ["goals"],
   summary: "Create a north star",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createGoalSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -5572,41 +5572,41 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/secret-providers",
+  path: "/api/spaces/{spaceId}/secret-providers",
   tags: ["secrets"],
   summary: "List secret providers",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/secrets/catalog",
+  path: "/api/spaces/{spaceId}/secrets/catalog",
   tags: ["secrets"],
   summary:
     "List secret metadata (id, name, key, status) — accessible to agents",
-  description: "Discover stored company credential metadata, never values. To add a company credential, direct the human to the company-prefixed /company/settings/secrets page and New secret, then bind only the intended agent's environment reference in its configuration. Secure storage of an already-requested key does not require connecting a new external service. Never request the value in chat or claim it is saved or bound before observing the authorized changes.",
-  request: { params: z.object({ companyId: z.string() }) },
+  description: "Discover stored space credential metadata, never values. To add a space credential, direct the human to the space-prefixed /space/settings/secrets page and New secret, then bind only the intended agent's environment reference in its configuration. Secure storage of an already-requested key does not require connecting a new external service. Never request the value in chat or claim it is saved or bound before observing the authorized changes.",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/secrets",
+  path: "/api/spaces/{spaceId}/secrets",
   tags: ["secrets"],
-  summary: "List secrets in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List secrets in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/secrets",
+  path: "/api/spaces/{spaceId}/secrets",
   tags: ["secrets"],
-  summary: "Create a company secret credential",
-  description: "Board-only secure credential entry. An agent cannot create the value on behalf of the human. Direct the human to New secret on the company-prefixed /company/settings/secrets page; never request the value in chat. After entry, use only the intended consumer's secret reference, not plaintext or a grant to every agent. A saved credential is not proof of runtime delivery.",
+  summary: "Create a space secret credential",
+  description: "Operator-only secure credential entry. An agent cannot create the value on behalf of the human. Direct the human to New secret on the space-prefixed /space/settings/secrets page; never request the value in chat. After entry, use only the intended consumer's secret reference, not plaintext or a grant to every agent. A saved credential is not proof of runtime delivery.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createSecretSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -5614,11 +5614,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/secret-proposals",
+  path: "/api/spaces/{spaceId}/secret-proposals",
   tags: ["secrets"],
-  summary: "List company secret proposals for board review",
+  summary: "List space secret proposals for operator review",
   request: {
-    params: z.object({ companyId: z.string().guid() }),
+    params: z.object({ spaceId: z.string().guid() }),
     query: z.object({
       status: z
         .enum(["pending", "approved", "rejected", "withdrawn", "expired"])
@@ -5630,11 +5630,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/secret-proposals/{id}/approve",
+  path: "/api/spaces/{spaceId}/secret-proposals/{id}/approve",
   tags: ["secrets"],
-  summary: "Approve and execute a secret proposal as the approving board user",
+  summary: "Approve and execute a secret proposal as the approving operator user",
   request: {
-    params: z.object({ companyId: z.string().guid(), id: z.string().guid() }),
+    params: z.object({ spaceId: z.string().guid(), id: z.string().guid() }),
     body: jsonBody(approveSecretProposalSchema),
   },
   responses: {
@@ -5650,11 +5650,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/secret-proposals/{id}/reject",
+  path: "/api/spaces/{spaceId}/secret-proposals/{id}/reject",
   tags: ["secrets"],
   summary: "Reject a pending secret proposal and dependent bindings",
   request: {
-    params: z.object({ companyId: z.string().guid(), id: z.string().guid() }),
+    params: z.object({ spaceId: z.string().guid(), id: z.string().guid() }),
     body: jsonBody(rejectSecretProposalSchema),
   },
   responses: {
@@ -5703,21 +5703,21 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/user-secret-definitions",
+  path: "/api/spaces/{spaceId}/user-secret-definitions",
   tags: ["secrets"],
   summary: "List personal credential definitions (user secrets)",
-  description: "Board-only company-admin metadata for personal credential definitions, not their values. Agents cannot read this list using the human's identity. For an existing required personal credential, direct the current person to the company-prefixed /company/settings/secrets page, My secrets, then Set my value for the matching definition. Outpost admins can also open definition details with ?definition=<definitionId> when its ID is already known; other members use My secrets and Set my value. Only that signed-in person's value is set; another person's value cannot satisfy it. Never request values in chat. Storing a credential for an existing definition does not require choosing or connecting a new external provider.",
-  request: { params: z.object({ companyId: z.string() }) },
+  description: "Operator-only space-admin metadata for personal credential definitions, not their values. Agents cannot read this list using the human's identity. For an existing required personal credential, direct the current person to the space-prefixed /space/settings/secrets page, My secrets, then Set my value for the matching definition. Outpost admins can also open definition details with ?definition=<definitionId> when its ID is already known; other members use My secrets and Set my value. Only that signed-in person's value is set; another person's value cannot satisfy it. Never request values in chat. Storing a credential for an existing definition does not require choosing or connecting a new external provider.",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/user-secret-definitions",
+  path: "/api/spaces/{spaceId}/user-secret-definitions",
   tags: ["secrets"],
   summary: "Create a user secret definition",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createUserSecretDefinitionSchema),
   },
   responses: {
@@ -5730,11 +5730,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/user-secret-definitions/{definitionId}",
+  path: "/api/spaces/{spaceId}/user-secret-definitions/{definitionId}",
   tags: ["secrets"],
   summary: "Update a user secret definition",
   request: {
-    params: z.object({ companyId: z.string(), definitionId: z.string() }),
+    params: z.object({ spaceId: z.string(), definitionId: z.string() }),
     body: jsonBody(updateUserSecretDefinitionSchema),
   },
   responses: {
@@ -5748,11 +5748,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "delete",
-  path: "/api/companies/{companyId}/user-secret-definitions/{definitionId}",
+  path: "/api/spaces/{spaceId}/user-secret-definitions/{definitionId}",
   tags: ["secrets"],
   summary: "Delete a user secret definition",
   request: {
-    params: z.object({ companyId: z.string(), definitionId: z.string() }),
+    params: z.object({ spaceId: z.string(), definitionId: z.string() }),
   },
   responses: {
     200: r.ok(),
@@ -5764,11 +5764,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/user-secret-definitions/{definitionId}/coverage",
+  path: "/api/spaces/{spaceId}/user-secret-definitions/{definitionId}/coverage",
   tags: ["secrets"],
   summary: "Get user secret definition coverage",
   request: {
-    params: z.object({ companyId: z.string(), definitionId: z.string() }),
+    params: z.object({ spaceId: z.string(), definitionId: z.string() }),
   },
   responses: {
     200: r.ok(),
@@ -5780,21 +5780,21 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/me/user-secrets",
+  path: "/api/spaces/{spaceId}/me/user-secrets",
   tags: ["secrets"],
   summary: "List my personal credential definitions and value metadata",
-  description: "Board-only current-person metadata. An agent cannot impersonate the person or list another owner's values. The signed-in person uses My secrets on the company-prefixed /company/settings/secrets page and Set my value for an existing definition; never send the value in chat. This secure entry is separate from connecting an external service. Confirm availability only after authorized entry and the intended task's required delivery have been observed.",
-  request: { params: z.object({ companyId: z.string() }) },
+  description: "Operator-only current-person metadata. An agent cannot impersonate the person or list another owner's values. The signed-in person uses My secrets on the space-prefixed /space/settings/secrets page and Set my value for an existing definition; never send the value in chat. This secure entry is separate from connecting an external service. Confirm availability only after authorized entry and the intended task's required delivery have been observed.",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/me/user-secrets",
+  path: "/api/spaces/{spaceId}/me/user-secrets",
   tags: ["secrets"],
   summary: "Create my user secret value",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createUserSecretValueSchema),
   },
   responses: {
@@ -5808,11 +5808,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/me/user-secrets/{secretId}",
+  path: "/api/spaces/{spaceId}/me/user-secrets/{secretId}",
   tags: ["secrets"],
   summary: "Update my user secret value",
   request: {
-    params: z.object({ companyId: z.string(), secretId: z.string() }),
+    params: z.object({ spaceId: z.string(), secretId: z.string() }),
     body: jsonBody(updateUserSecretValueSchema),
   },
   responses: {
@@ -5826,11 +5826,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/me/user-secrets/{secretId}/rotate",
+  path: "/api/spaces/{spaceId}/me/user-secrets/{secretId}/rotate",
   tags: ["secrets"],
   summary: "Rotate my user secret value",
   request: {
-    params: z.object({ companyId: z.string(), secretId: z.string() }),
+    params: z.object({ spaceId: z.string(), secretId: z.string() }),
     body: jsonBody(rotateUserSecretValueSchema),
   },
   responses: {
@@ -5844,11 +5844,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "delete",
-  path: "/api/companies/{companyId}/me/user-secrets/{secretId}",
+  path: "/api/spaces/{spaceId}/me/user-secrets/{secretId}",
   tags: ["secrets"],
   summary: "Delete my user secret value",
   request: {
-    params: z.object({ companyId: z.string(), secretId: z.string() }),
+    params: z.object({ spaceId: z.string(), secretId: z.string() }),
   },
   responses: {
     200: r.ok(),
@@ -5862,20 +5862,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/approvals",
+  path: "/api/spaces/{spaceId}/approvals",
   tags: ["approvals"],
-  summary: "List approvals in a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List approvals in a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/approvals",
+  path: "/api/spaces/{spaceId}/approvals",
   tags: ["approvals"],
   summary: "Create an approval",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createApprovalSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -5942,9 +5942,9 @@ registry.registerPath({
   summary: "Revise and resubmit a changes-requested approval",
   description:
     "Replace the payload of an approval whose status is revision_requested, or resubmit its existing payload. " +
-    "Use this operation to revise a changes-requested hire proposal, such as changing its agent configuration to a cheaper model, and send it back for board review. " +
-    "An agent must be the original requesting agent; board callers still need access to the company and approval. " +
-    "The approval returns to pending. This operation does not approve the request or create or execute the hire.",
+    "Use this operation to revise a changes-requested create proposal, such as changing its agent configuration to a cheaper model, and send it back for operator review. " +
+    "An agent must be the original requesting agent; operator callers still need access to the space and approval. " +
+    "The approval returns to pending. This operation does not approve the request or create or execute the create.",
   request: {
     params: z.object({ id: z.string() }),
     body: jsonBody(resubmitApprovalSchema),
@@ -5977,21 +5977,21 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/agent-commentary",
+  path: "/api/spaces/{spaceId}/agent-commentary",
   tags: ["agents"],
   summary: "Browse agent suggestions and complaints",
-  description: "Board members need company membership and commentary:view, granted by default to all human company roles. An agent may list only its own commentary (agentId set to itself) unless it holds commentary:view, which is never a default agent grant; otherwise it gets 403 with a remediation naming the Commentary page. Source-task privacy filters both previews and counts. Returns items, total, limit and offset; previews contain at most 280 characters and omit full bodies.",
-  request: { params: z.object({ companyId: z.string() }), query: agentCommentaryQuerySchema },
+  description: "Operator members need space membership and commentary:view, granted by default to all human space roles. An agent may list only its own commentary (agentId set to itself) unless it holds commentary:view, which is never a default agent grant; otherwise it gets 403 with a remediation naming the Commentary page. Source-task privacy filters both previews and counts. Returns items, total, limit and offset; previews contain at most 280 characters and omit full bodies.",
+  request: { params: z.object({ spaceId: z.string() }), query: agentCommentaryQuerySchema },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/agent-commentary/{id}",
+  path: "/api/spaces/{spaceId}/agent-commentary/{id}",
   tags: ["agents"],
   summary: "Read a full agent commentary message",
-  description: "Same permission and task-privacy gates as the list. An agent may read its own entry, or any entry with commentary:view; another agent's entry returns 403 with a remediation. Returns the full body with agent, task and run context. Foreign-company and invisible entries return 404.",
-  request: { params: z.object({ companyId: z.string(), id: z.string().uuid() }) },
+  description: "Same permission and task-privacy gates as the list. An agent may read its own entry, or any entry with commentary:view; another agent's entry returns 403 with a remediation. Returns the full body with agent, task and run context. Foreign-space and invisible entries return 404.",
+  request: { params: z.object({ spaceId: z.string(), id: z.string().uuid() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 
@@ -6013,12 +6013,12 @@ const agentCommentaryAcknowledgementSchema = z.object({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/agent-commentary",
+  path: "/api/spaces/{spaceId}/agent-commentary",
   tags: ["agents"],
   summary: "Submit internally attributed agent feedback",
-  description: "Requires an active legacy agent run: a run-bound agent JWT, or an agent API key with X-Paperclip-Run-Id. Attribution is derived from authority; ownership fields are rejected. Equivalent replay returns the existing acknowledgement. Native runs use their bound feedback tools. Failure must not interrupt the primary task or trigger retries.",
+  description: "Requires an active legacy agent run: a run-bound agent JWT, or an agent API key with X-Outpost-Run-Id. Attribution is derived from authority; ownership fields are rejected. Equivalent replay returns the existing acknowledgement. Native runs use their bound feedback tools. Failure must not interrupt the primary task or trigger retries.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(submitAgentCommentarySchema),
   },
   responses: {
@@ -6057,17 +6057,17 @@ const costSummaryPaths = [
 
 /** Reports whose rows count usage that has no known price. */
 const UNPRICED_COUNT_COST_REPORTS = new Set<string>(["summary", "by-agent", "by-user", "by-agent-model", "by-provider", "by-biller", "by-project"]);
-export const UNPRICED_COST_REPORT_DESCRIPTION = "costCents counts priced usage only. A row whose unpricedEventCount is above 0 includes usage with no known price, so its real cost is unknown, not zero: report that usage as unpriced and its total as incomplete, never as $0.00. To find that usage, list the agent's runs with GET /api/companies/{companyId}/heartbeat-runs?agentId=<agentId>: a run whose usageJson.costStatus is \"unpriced\" is one, and its usageJson.ledgerScope.issueId names its task. Link each run you cite at /<prefix>/agents/<agentId>/runs/<runId>, or its task.";
+export const UNPRICED_COST_REPORT_DESCRIPTION = "costCents counts priced usage only. A row whose unpricedEventCount is above 0 includes usage with no known price, so its real cost is unknown, not zero: report that usage as unpriced and its total as incomplete, never as $0.00. To find that usage, list the agent's runs with GET /api/spaces/{spaceId}/heartbeat-runs?agentId=<agentId>: a run whose usageJson.costStatus is \"unpriced\" is one, and its usageJson.ledgerScope.issueId names its task. Link each run you cite at /<prefix>/agents/<agentId>/runs/<runId>, or its task.";
 
 for (const segment of costSummaryPaths) {
   registry.registerPath({
     method: "get",
-    path: `/api/companies/{companyId}/costs/${segment}`,
+    path: `/api/spaces/{spaceId}/costs/${segment}`,
     tags: ["costs"],
     summary: `Cost report: ${segment}`,
     ...(UNPRICED_COUNT_COST_REPORTS.has(segment) ? { description: UNPRICED_COST_REPORT_DESCRIPTION } : {}),
     request: {
-      params: z.object({ companyId: z.string() }),
+      params: z.object({ spaceId: z.string() }),
       ...(!["window-spend", "quota-windows"].includes(segment) ? {
         query: segment === "finance-events" ? costReportQuerySchema.extend({ limit: z.coerce.number().int().min(1).max(500).optional() }) : costReportQuerySchema,
       } : {}),
@@ -6076,41 +6076,41 @@ for (const segment of costSummaryPaths) {
   });
 }
 
-registry.registerPath({ method: "post", path: "/api/companies/{companyId}/costs/retry-accounting", tags: ["costs"],
+registry.registerPath({ method: "post", path: "/api/spaces/{spaceId}/costs/retry-accounting", tags: ["costs"],
   summary: "Retry recording a run's saved cost data",
-  description: "Requires company cost-read and board write access. Viewers and agents cannot retry. Replays accounting evidence only; never starts provider work or invents missing usage. A board user retries with Retry cost recording on the run's row on the [Costs page](/<prefix>/activity/costs).",
-  request: { params: z.object({ companyId: z.string() }), body: jsonBody(retryAccountingSchema) },
+  description: "Requires space cost-read and operator write access. Viewers and agents cannot retry. Replays accounting evidence only; never starts provider work or invents missing usage. A operator user retries with Retry cost recording on the run's row on the [Costs page](/<prefix>/activity/costs).",
+  request: { params: z.object({ spaceId: z.string() }), body: jsonBody(retryAccountingSchema) },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 
-registry.registerPath({ method: "post", path: "/api/companies/{companyId}/costs/subscriptions/refresh", tags: ["costs"],
+registry.registerPath({ method: "post", path: "/api/spaces/{spaceId}/costs/subscriptions/refresh", tags: ["costs"],
   summary: "Refresh connected subscription estimates in the background",
-  description: "Board members only. Probes only credentials the caller can use. Successful observations are cached for six hours; provider failures retain prior estimates. No inference requests, invoices, or budget charges are created.",
-  request: { params: z.object({ companyId: z.string() }) },
+  description: "Operator members only. Probes only credentials the caller can use. Successful observations are cached for six hours; provider failures retain prior estimates. No inference requests, invoices, or budget charges are created.",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 202: { description: "Background refresh accepted" }, 401: r.unauthorized, 403: r.forbidden,
     429: { description: "Discovery capacity is full; retry the request later" } },
 });
-registry.registerPath({ method: "patch", path: "/api/companies/{companyId}/costs/subscriptions/{subscriptionId}", tags: ["costs"],
+registry.registerPath({ method: "patch", path: "/api/spaces/{spaceId}/costs/subscriptions/{subscriptionId}", tags: ["costs"],
   summary: "Set a subscription price or end tracking",
   description: "Owner only for personal subscriptions; connection managers for shared subscriptions. Appends price history from now. Expected revision prevents lost updates. Ending tracking does not cancel provider billing. Monthly estimates never change recorded charges or agent budgets.",
-  request: { params: z.object({ companyId: z.string(), subscriptionId: z.string().uuid() }), body: jsonBody(subscriptionPriceSchema) },
+  request: { params: z.object({ spaceId: z.string(), subscriptionId: z.string().uuid() }), body: jsonBody(subscriptionPriceSchema) },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
-registry.registerPath({ method: "post", path: "/api/companies/{companyId}/costs/subscriptions/{subscriptionId}/link", tags: ["costs"],
+registry.registerPath({ method: "post", path: "/api/spaces/{spaceId}/costs/subscriptions/{subscriptionId}/link", tags: ["costs"],
   summary: "Link duplicate subscription accounts",
-  description: "Requires editing permission on both accounts in this company. Combines their usage, counts the fee once, and keeps the target price. Historical run IDs and price history are preserved.",
-  request: { params: z.object({ companyId: z.string(), subscriptionId: z.string().uuid() }), body: jsonBody(mergeSubscriptionsSchema) },
+  description: "Requires editing permission on both accounts in this space. Combines their usage, counts the fee once, and keeps the target price. Historical run IDs and price history are preserved.",
+  request: { params: z.object({ spaceId: z.string(), subscriptionId: z.string().uuid() }), body: jsonBody(mergeSubscriptionsSchema) },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/cost-events",
+  path: "/api/spaces/{spaceId}/cost-events",
   tags: ["costs"],
   summary: "Record a cost event",
   description: "Amounts are USD cents, including fractional cents. Decimal strings preserve exact nanodollar precision. Reuse the idempotency key and original receipt on retries; conflicting reuse returns 409.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createCostEventSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 409: r.conflict },
@@ -6118,12 +6118,12 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/finance-events",
+  path: "/api/spaces/{spaceId}/finance-events",
   tags: ["costs"],
   summary: "Record a finance event",
   description: "Amounts accept exact decimal cents in the recorded currency. Credits use a nonnegative amount with direction credit. No currency conversion is inferred. Receipt-key conflicts return 409.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createFinanceEventSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 409: r.conflict },
@@ -6137,9 +6137,9 @@ for (const [suffix, summary] of [
   ["events/{eventId}/adjustments", "Read append-only correction history and prior pricing evidence"],
 ] as const) {
   registry.registerPath({
-    method: "get", path: `/api/companies/{companyId}/accounting/${suffix}`, tags: ["costs"], summary,
-    description: "Outpost-scoped board access is required. Board viewers may inspect; agents cannot access operator accounting evidence.",
-    request: { params: z.object({ companyId: z.string(),
+    method: "get", path: `/api/spaces/{spaceId}/accounting/${suffix}`, tags: ["costs"], summary,
+    description: "Outpost-scoped operator access is required. Operator viewers may inspect; agents cannot access operator accounting evidence.",
+    request: { params: z.object({ spaceId: z.string(),
       ...(suffix.includes("invoiceId") ? { invoiceId: z.string() } : {}),
       ...(suffix.includes("eventId") ? { eventId: z.string() } : {}),
     }) },
@@ -6149,26 +6149,26 @@ for (const [suffix, summary] of [
 
 for (const operation of [
   { suffix: "repair", schema: repairAccountingSchema, status: 200, summary: "Repair reviewed ledger projections", description: "Requires an audit reason and the current inspection fingerprint. A stale inspection returns 409. Missing evidence is never invented." },
-  { suffix: "retry", schema: retryAccountingSchema, status: 200, summary: "Retry accounting for a company-owned run", description: "Retries accounting only. Provider work is never re-executed; incomplete evidence remains pending." },
-  { suffix: "provider-costs/import", schema: importProviderCostsSchema, status: 200, summary: "Import a scoped provider cost report", description: "Reads up to 31 completed UTC days from OpenAI or Anthropic with a company admin credential. Requires explicit provider account and project/workspace identifiers. All pages validate before writing. Reimports append only the difference; run costs are not repriced. Report totals remain separate from invoices." },
-  { suffix: "invoices", schema: importBillingInvoiceSchema, status: 201, summary: "Import normalized invoice evidence", description: "Idempotent by company, biller, and external invoice ID. Conflicting reuse returns 409. Import atomically creates finance timeline events and does not reprice run costs." },
+  { suffix: "retry", schema: retryAccountingSchema, status: 200, summary: "Retry accounting for a space-owned run", description: "Retries accounting only. Provider work is never re-executed; incomplete evidence remains pending." },
+  { suffix: "provider-costs/import", schema: importProviderCostsSchema, status: 200, summary: "Import a scoped provider cost report", description: "Reads up to 31 completed UTC days from OpenAI or Anthropic with a space admin credential. Requires explicit provider account and project/workspace identifiers. All pages validate before writing. Reimports append only the difference; run costs are not repriced. Report totals remain separate from invoices." },
+  { suffix: "invoices", schema: importBillingInvoiceSchema, status: 201, summary: "Import normalized invoice evidence", description: "Idempotent by space, biller, and external invoice ID. Conflicting reuse returns 409. Import atomically creates finance timeline events and does not reprice run costs." },
   { suffix: "events/{eventId}/adjustments", schema: adjustCostSchema, status: 201, summary: "Apply a reviewed cost correction", description: "Requires the expected exact cents, an idempotency key, reason, and pricing evidence. Original amounts and pricing revisions remain in history. Stale reviews return 409; ambiguous or contradictory invoice evidence returns 422." },
 ] as const) {
   registry.registerPath({
-    method: "post", path: `/api/companies/{companyId}/accounting/${operation.suffix}`, tags: ["costs"],
-    summary: operation.summary, description: `${operation.description} Outpost-scoped board write access is required; viewers and agents cannot mutate accounting.`,
-    request: { params: z.object({ companyId: z.string(), ...(operation.suffix.includes("eventId") ? { eventId: z.string() } : {}) }), body: jsonBody(operation.schema) },
+    method: "post", path: `/api/spaces/{spaceId}/accounting/${operation.suffix}`, tags: ["costs"],
+    summary: operation.summary, description: `${operation.description} Outpost-scoped operator write access is required; viewers and agents cannot mutate accounting.`,
+    request: { params: z.object({ spaceId: z.string(), ...(operation.suffix.includes("eventId") ? { eventId: z.string() } : {}) }), body: jsonBody(operation.schema) },
     responses: { [operation.status]: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable },
   });
 }
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/budgets/policies",
+  path: "/api/spaces/{spaceId}/budgets/policies",
   tags: ["costs"],
   summary: "Create or update a budget policy",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(upsertBudgetPolicySchema),
   },
   responses: {
@@ -6181,12 +6181,12 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/budget-incidents/{incidentId}/resolve",
+  path: "/api/spaces/{spaceId}/budget-incidents/{incidentId}/resolve",
   tags: ["costs"],
   summary: "Resolve a budget incident",
-  description: "Board only: agent credentials get 403, so an agent cannot raise a limit or resume a budget-stopped agent. A board user chooses the new amount and resumes on the Budgets page: link [Open budgets](/<prefix>/activity/budgets) with this conversation's company prefix as <prefix>, and reply.",
+  description: "Operator only: agent credentials get 403, so an agent cannot raise a limit or resume a budget-stopped agent. A operator user chooses the new amount and resumes on the Budgets page: link [Open budgets](/<prefix>/activity/budgets) with this conversation's space prefix as <prefix>, and reply.",
   request: {
-    params: z.object({ companyId: z.string(), incidentId: z.string() }),
+    params: z.object({ spaceId: z.string(), incidentId: z.string() }),
     body: jsonBody(resolveBudgetIncidentSchema),
   },
   responses: {
@@ -6199,20 +6199,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/budgets/overview",
+  path: "/api/spaces/{spaceId}/budgets/overview",
   tags: ["costs"],
   summary: "Get budget overview",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/budgets",
+  path: "/api/spaces/{spaceId}/budgets",
   tags: ["costs"],
-  summary: "Update company budget",
+  summary: "Update space budget",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(updateBudgetSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -6223,7 +6223,7 @@ registry.registerPath({
   path: "/api/agents/{agentId}/budgets",
   tags: ["costs"],
   summary: "Update agent budget",
-  description: "Board only: agent credentials get 403. A board user changes the limit on the agent's budget tab: link [Open budget](/<prefix>/agents/<agentId>/budgets) with this conversation's company prefix as <prefix>, and reply.",
+  description: "Operator only: agent credentials get 403. A operator user changes the limit on the agent's budget tab: link [Open budget](/<prefix>/agents/<agentId>/budgets) with this conversation's space prefix as <prefix>, and reply.",
   request: {
     params: z.object({ agentId: z.string() }),
     body: jsonBody(updateBudgetSchema),
@@ -6235,20 +6235,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/activity",
+  path: "/api/spaces/{spaceId}/activity",
   tags: ["activity"],
-  summary: "List company activity",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List space activity",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/audit/agent-actions",
+  path: "/api/spaces/{spaceId}/audit/agent-actions",
   tags: ["activity"],
   summary: "List agent action audit entries",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     query: z.object({
       agentId: z.string().guid().optional(),
       responsibleUserId: z.string().min(1).optional(),
@@ -6273,11 +6273,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/audit/agent-actions.csv",
+  path: "/api/spaces/{spaceId}/audit/agent-actions.csv",
   tags: ["activity"],
   summary: "Export agent action audit entries as CSV",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     query: z.object({
       agentId: z.string().guid().optional(),
       responsibleUserId: z.string().min(1).optional(),
@@ -6305,11 +6305,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/activity",
+  path: "/api/spaces/{spaceId}/activity",
   tags: ["activity"],
   summary: "Create an activity entry",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(
       z.object({
         actorType: z.enum(["agent", "user", "system", "plugin"]).optional(),
@@ -6360,7 +6360,7 @@ registry.registerPath({
   path: "/api/issues/{id}/context/compact",
   tags: ["issues"],
   summary: "Ask the assignee agent to compact its context window",
-  description: "Board only. Queues a short run that resumes the assignee's runner session and compacts it (Codex and Claude on the Outpost runner). Unavailable while the agent is running on the task.",
+  description: "Operator only. Queues a short run that resumes the assignee's runner session and compacts it (Codex and Claude on the Outpost runner). Unavailable while the agent is running on the task.",
   request: { params: z.object({ id: z.string() }) },
   responses: { 202: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable },
 });
@@ -6378,20 +6378,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/dashboard",
+  path: "/api/spaces/{spaceId}/dashboard",
   tags: ["dashboard"],
   summary: "Get dashboard data",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/recovery-observability",
+  path: "/api/spaces/{spaceId}/recovery-observability",
   tags: ["dashboard"],
   summary: "Get recovery observability report",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     query: z.object({
       weeks: z.string().optional(),
       threshold: z.string().optional(),
@@ -6404,20 +6404,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/sidebar-badges",
+  path: "/api/spaces/{spaceId}/sidebar-badges",
   tags: ["sidebar"],
   summary: "Get sidebar badge counts",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/attention",
+  path: "/api/spaces/{spaceId}/attention",
   tags: ["inbox"],
   summary: "List decision-only attention feed items",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     query: z.object({
       includeDismissed: z.enum(["true", "false"]).optional(),
       archived: z.enum(["true", "false"]).optional(),
@@ -6434,7 +6434,7 @@ registry.registerPath({
 });
 
 const attentionSummaryResponseSchema = z.object({
-  companyId: z.string().uuid(),
+  spaceId: z.string().uuid(),
   generatedAt: z.string().datetime(),
   totalCount: z.number().int().nonnegative(),
   deskBadgeCount: z.number().int().nonnegative(),
@@ -6447,11 +6447,11 @@ for (const [projection, responseSchema] of [
 ] as const) {
   registry.registerPath({
     method: "get",
-    path: `/api/companies/{companyId}/attention/${projection}`,
+    path: `/api/spaces/{spaceId}/attention/${projection}`,
     tags: ["inbox"],
     summary: projection === "summary" ? "Get canonical attention counts" : "Get complete attention task membership",
-    description: "Requires a board user with company access. Reads the complete canonical attention set with current task privacy, addressee, dismissal, snooze, and archive rules. Returns counts without decision cards, images, plan bodies, or pagination. The tasks projection also returns distinct accessible task IDs. This read grants no resolution authority.",
-    request: { params: z.object({ companyId: z.string() }) },
+    description: "Requires a operator user with space access. Reads the complete canonical attention set with current task privacy, addressee, dismissal, snooze, and archive rules. Returns counts without decision cards, images, plan bodies, or pagination. The tasks projection also returns distinct accessible task IDs. This read grants no resolution authority.",
+    request: { params: z.object({ spaceId: z.string() }) },
     responses: { 200: r.ok(responseSchema), 401: r.unauthorized, 403: r.forbidden },
   });
 }
@@ -6460,13 +6460,13 @@ for (const [projection, responseSchema] of [
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/attention/history",
+  path: "/api/spaces/{spaceId}/attention/history",
   tags: ["inbox"],
-  summary: "List recorded decisions visible to the current board user",
+  summary: "List recorded decisions visible to the current operator user",
   description:
-    "Requires a board user with company access. Returns a DecisionHistoryPage with current task and decision audience access enforced. Only the declared filters are accepted. The default page size is 40, sorted newest first.",
+    "Requires a operator user with space access. Returns a DecisionHistoryPage with current task and decision audience access enforced. Only the declared filters are accepted. The default page size is 40, sorted newest first.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     query: z.object({
       cursor: z.string().max(1000).optional(),
       limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -6503,7 +6503,7 @@ const decisionQueueSeedRuleSchema = z
 const decisionQueueSchema = z
   .object({
     id: z.string(),
-    companyId: z.string(),
+    spaceId: z.string(),
     key: z.string(),
     title: z.string(),
     description: z.string().nullable(),
@@ -6523,7 +6523,7 @@ const decisionQueueSchema = z
 const decisionQueueItemSchema = z
   .object({
     id: z.string(),
-    companyId: z.string(),
+    spaceId: z.string(),
     queueId: z.string(),
     sourceKind: decisionAttentionSourceKindSchema,
     sourceId: z.string(),
@@ -6539,7 +6539,7 @@ const decisionQueueItemSchema = z
 const decisionTriageSchema = z
   .object({
     id: z.string(),
-    companyId: z.string(),
+    spaceId: z.string(),
     sourceKind: decisionAttentionSourceKindSchema,
     sourceId: z.string(),
     decideBy: z.string().nullable(),
@@ -6558,7 +6558,7 @@ const decisionTriageSchema = z
 const decisionRetentionSchema = z
   .object({
     id: z.string(),
-    companyId: z.string(),
+    spaceId: z.string(),
     sourceKind: decisionAttentionSourceKindSchema,
     sourceId: z.string(),
     sourceActivityAt: z.string().datetime(),
@@ -6578,7 +6578,7 @@ const decisionRetentionSchema = z
 
 registerCurrentRoute({
   method: "get",
-  path: "/api/companies/{companyId}/decision-queue-seed-rules",
+  path: "/api/spaces/{spaceId}/decision-queue-seed-rules",
   tags: ["decision-queues"],
   summary: "List built-in decision queue seed rules",
   responses: {
@@ -6590,7 +6590,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "get",
-  path: "/api/companies/{companyId}/decision-queues",
+  path: "/api/spaces/{spaceId}/decision-queues",
   tags: ["decision-queues"],
   summary: "List decision queues",
   responses: {
@@ -6602,7 +6602,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/decision-queues",
+  path: "/api/spaces/{spaceId}/decision-queues",
   tags: ["decision-queues"],
   summary: "Create a decision queue",
   body: createDecisionQueueSchema,
@@ -6617,7 +6617,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "patch",
-  path: "/api/companies/{companyId}/decision-queues/{key}",
+  path: "/api/spaces/{spaceId}/decision-queues/{key}",
   tags: ["decision-queues"],
   summary: "Update a decision queue",
   body: updateDecisionQueueSchema,
@@ -6632,7 +6632,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "get",
-  path: "/api/companies/{companyId}/decision-queues/{key}/items",
+  path: "/api/spaces/{spaceId}/decision-queues/{key}/items",
   tags: ["decision-queues"],
   summary: "List visible items in a decision queue",
   responses: {
@@ -6645,7 +6645,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/decision-queues/{key}/items",
+  path: "/api/spaces/{spaceId}/decision-queues/{key}/items",
   tags: ["decision-queues"],
   summary: "Add an item to a decision queue",
   body: addDecisionQueueItemSchema,
@@ -6661,7 +6661,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "delete",
-  path: "/api/companies/{companyId}/decision-queues/{key}/items/{sourceKind}/{sourceId}",
+  path: "/api/spaces/{spaceId}/decision-queues/{key}/items/{sourceKind}/{sourceId}",
   tags: ["decision-queues"],
   summary: "Remove an item from a decision queue",
   body: removeDecisionQueueItemSchema,
@@ -6676,7 +6676,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "get",
-  path: "/api/companies/{companyId}/decision-triage/{sourceKind}/{sourceId}",
+  path: "/api/spaces/{spaceId}/decision-triage/{sourceKind}/{sourceId}",
   tags: ["decision-queues"],
   summary: "Get decision triage for an attention source",
   responses: {
@@ -6690,7 +6690,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "put",
-  path: "/api/companies/{companyId}/decision-triage/{sourceKind}/{sourceId}",
+  path: "/api/spaces/{spaceId}/decision-triage/{sourceKind}/{sourceId}",
   tags: ["decision-queues"],
   summary: "Set decision triage for an attention source",
   body: updateDecisionTriageSchema,
@@ -6706,7 +6706,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "patch",
-  path: "/api/companies/{companyId}/decision-retention/{sourceKind}/{sourceId}",
+  path: "/api/spaces/{spaceId}/decision-retention/{sourceKind}/{sourceId}",
   tags: ["decision-queues"],
   summary: "Set Keep for an attention source",
   body: updateDecisionRetentionSchema,
@@ -6722,7 +6722,7 @@ registerCurrentRoute({
 for (const action of ["archive", "revive"] as const) {
   registerCurrentRoute({
     method: "post",
-    path: `/api/companies/{companyId}/decision-retention/{sourceKind}/{sourceId}/${action}`,
+    path: `/api/spaces/{spaceId}/decision-retention/{sourceKind}/{sourceId}/${action}`,
     tags: ["decision-queues"],
     summary:
       action === "archive"
@@ -6740,7 +6740,7 @@ for (const action of ["archive", "revive"] as const) {
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/decision-archive-proposals",
+  path: "/api/spaces/{spaceId}/decision-archive-proposals",
   tags: ["decisions"],
   summary: "Propose one signed bulk archive decision",
   body: createDecisionArchiveProposalSchema,
@@ -6772,7 +6772,7 @@ const createDecisionBodySchema = z
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/decisions",
+  path: "/api/spaces/{spaceId}/decisions",
   tags: ["decisions"],
   summary: "Propose a decision",
   body: createDecisionBodySchema,
@@ -6787,7 +6787,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/decision-bundles",
+  path: "/api/spaces/{spaceId}/decision-bundles",
   tags: ["decisions"],
   summary: "Propose a decision bundle",
   body: z
@@ -6808,7 +6808,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "get",
-  path: "/api/companies/{companyId}/decisions",
+  path: "/api/spaces/{spaceId}/decisions",
   tags: ["decisions"],
   summary: "List decisions",
   query: z.object({
@@ -6828,7 +6828,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "get",
-  path: "/api/companies/{companyId}/decisions/stats",
+  path: "/api/spaces/{spaceId}/decisions/stats",
   tags: ["decisions"],
   summary: "Get decision telemetry grouped by rule key",
   query: z.object({
@@ -6921,7 +6921,7 @@ const decisionTrainingSourceKindSchema = z.enum([
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/decision-training",
+  path: "/api/spaces/{spaceId}/decision-training",
   tags: ["decision-training"],
   summary: "Capture a decision training example",
   body: z
@@ -6944,7 +6944,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/decision-training/preview",
+  path: "/api/spaces/{spaceId}/decision-training/preview",
   tags: ["decision-training"],
   summary: "Preview a decision training snapshot",
   body: z
@@ -6966,7 +6966,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "get",
-  path: "/api/companies/{companyId}/decision-training",
+  path: "/api/spaces/{spaceId}/decision-training",
   tags: ["decision-training"],
   summary: "List decision training examples",
   query: z.object({
@@ -6979,7 +6979,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "get",
-  path: "/api/companies/{companyId}/decision-training/export.jsonl",
+  path: "/api/spaces/{spaceId}/decision-training/export.jsonl",
   tags: ["decision-training"],
   summary: "Export decision training examples as JSONL",
 });
@@ -7029,9 +7029,9 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "put",
-  path: "/api/companies/{companyId}/workspace-preferences/me",
+  path: "/api/spaces/{spaceId}/workspace-preferences/me",
   tags: ["workspace-preferences"],
-  summary: "Update your personal workspace or time zone; active company membership provides audit context",
+  summary: "Update your personal workspace or time zone; active space membership provides audit context",
   body: updateWorkspacePreferenceSchema,
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
@@ -7055,27 +7055,27 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/sidebar-preferences/me",
+  path: "/api/spaces/{spaceId}/sidebar-preferences/me",
   tags: ["sidebar"],
-  summary: "Get sidebar preferences for company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "Get sidebar preferences for space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "put",
-  path: "/api/companies/{companyId}/sidebar-preferences/me",
+  path: "/api/spaces/{spaceId}/sidebar-preferences/me",
   tags: ["sidebar"],
-  summary: "Update sidebar preferences for company",
+  summary: "Update sidebar preferences for space",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(upsertSidebarOrderPreferenceSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 const primaryAgentPreferenceResponse = z.object({
-  companyId: z.string().uuid(),
+  spaceId: z.string().uuid(),
   userId: z.string(),
   primaryAgentId: z.string().uuid().nullable(),
   initialized: z.boolean(),
@@ -7084,12 +7084,12 @@ const primaryAgentPreferenceResponse = z.object({
 for (const method of ["get", "put"] as const) {
   registry.registerPath({
     method,
-    path: "/api/companies/{companyId}/primary-agent/me",
+    path: "/api/spaces/{spaceId}/primary-agent/me",
     tags: ["agents"],
     summary: method === "get" ? "Get the default agent" : "Set the default agent",
-    description: "Uses the Space-wide default agent while retaining the legacy /me path and primaryAgentId field for client compatibility. Active Space members may read it; changing it requires agents:configure authority for the chosen agent. Agent credentials cannot access this board route. In the human UI, open the chosen agent's profile and select Set as default agent. Confirm the replacement when a default is already set. The default receives new tasks when no assignee is selected and is the initial Chat fallback; it does not gain rank or permissions. The selected agent must be visible, approved, and non-terminated.",
+    description: "Uses the Space-wide default agent while retaining the legacy /me path and primaryAgentId field for client compatibility. Active Space members may read it; changing it requires agents:configure authority for the chosen agent. Agent credentials cannot access this operator route. In the human UI, open the chosen agent's profile and select Set as default agent. Confirm the replacement when a default is already set. The default receives new tasks when no assignee is selected and is the initial Chat fallback; it does not gain rank or permissions. The selected agent must be visible, approved, and non-terminated.",
     request: {
-      params: z.object({ companyId: z.string().uuid() }),
+      params: z.object({ spaceId: z.string().uuid() }),
       ...(method === "put" ? { body: jsonBody(updatePrimaryAgentSchema) } : {}),
     },
     responses: {
@@ -7114,7 +7114,7 @@ registry.registerPath({
   path: "/api/announcements/current",
   tags: ["announcements"],
   summary: "Get the current user's eligible announcement",
-  description: "Returns null for dismissed, disabled, unavailable, expired or incompatible content. Dismissals follow the board user across companies within this instance; no-login installations use local-board.",
+  description: "Returns null for dismissed, disabled, unavailable, expired or incompatible content. Dismissals follow the operator user across spaces within this instance; no-login installations use local-operator.",
   responses: {
     200: { ...r.ok(announcementSchema.nullable()), headers: announcementResponseHeaders },
     401: r.unauthorized,
@@ -7152,7 +7152,7 @@ registry.registerPath({
   path: "/api/announcements/{id}/animation",
   tags: ["announcements"],
   summary: "Get the current announcement's isolated HTML/CSS animation",
-  description: "Board-only, validated content-addressed HTML. Scripts, links, forms and embedded resources are rejected; CSP sandbox and resource restrictions also apply to direct visits. Missing or invalid assets return 404 and the card uses its static image.",
+  description: "Operator-only, validated content-addressed HTML. Scripts, links, forms and embedded resources are rejected; CSP sandbox and resource restrictions also apply to direct visits. Missing or invalid assets return 404 and the card uses its static image.",
   request: { params: z.object({ id: announcementIdSchema }) },
   responses: {
     200: {
@@ -7169,7 +7169,7 @@ registry.registerPath({
   path: "/api/announcements/{id}/dismiss",
   tags: ["announcements"],
   summary: "Dismiss an announcement for the current user",
-  description: "Idempotently saves a personal preference. The supplied company is validated audit context; viewers may dismiss their own announcement. The first dismissal and its audit entry commit together. IDs from a previously validated feed remain valid for offline retries; unknown IDs return 404 without creating records.",
+  description: "Idempotently saves a personal preference. The supplied space is validated audit context; viewers may dismiss their own announcement. The first dismissal and its audit entry commit together. IDs from a previously validated feed remain valid for offline retries; unknown IDs return 404 without creating records.",
   request: {
     params: z.object({ id: announcementIdSchema }),
     body: jsonBody(dismissAnnouncementSchema),
@@ -7188,20 +7188,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/inbox-dismissals",
+  path: "/api/spaces/{spaceId}/inbox-dismissals",
   tags: ["inbox"],
   summary: "List inbox dismissals",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/inbox-dismissals",
+  path: "/api/spaces/{spaceId}/inbox-dismissals",
   tags: ["inbox"],
   summary: "Create an inbox dismissal or snooze",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(
       z.object({
         itemKey: z
@@ -7222,10 +7222,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "delete",
-  path: "/api/companies/{companyId}/inbox-dismissals/{itemKey}",
+  path: "/api/spaces/{spaceId}/inbox-dismissals/{itemKey}",
   tags: ["inbox"],
   summary: "Restore an inbox dismissal or snooze",
-  request: { params: z.object({ companyId: z.string(), itemKey: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), itemKey: z.string() }) },
   responses: { 204: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
@@ -7233,8 +7233,8 @@ registry.registerPath({
 
 // Agents cannot read or write experimental settings; the person turns a feature on in the UI.
 const EXPERIMENTAL_SETTINGS_PAGE = "Instance experimental features (for example Cases via enableCases) are turned on or off by an instance admin in "
-  + "Experimental settings at /<prefix>/company/settings/instance/experimental. Agent credentials cannot read or change these settings, "
-  + "so do not claim a change: link that page as [Experimental settings](/<prefix>/company/settings/instance/experimental), name the feature's setting, and reply.";
+  + "Experimental settings at /<prefix>/space/settings/instance/experimental. Agent credentials cannot read or change these settings, "
+  + "so do not claim a change: link that page as [Experimental settings](/<prefix>/space/settings/instance/experimental), name the feature's setting, and reply.";
 // When the hosting operator hides the Experimental page, it redirects away, so name the operator instead.
 const EXPERIMENTAL_SETTINGS_OPERATOR_GUIDANCE = "Instance experimental features (for example Cases via enableCases) are controlled by the hosting operator on this instance, "
   + "so no Outpost page offers that change. Agent credentials cannot read or change these settings, "
@@ -7345,7 +7345,7 @@ registry.registerPath({
   path: "/api/instance/lifecycle",
   tags: ["instance"],
   summary:
-    "Read the Cloud-pinned primary company's lifecycle status and how many other companies are not archived; 404 when the instance is not Cloud-managed",
+    "Read the Cloud-pinned primary space's lifecycle status and how many other spaces are not archived; 404 when the instance is not Cloud-managed",
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 
@@ -7354,7 +7354,7 @@ registry.registerPath({
   path: "/api/instance/lifecycle/unarchive-primary",
   tags: ["instance"],
   summary:
-    "Unarchive the Cloud-pinned primary company (idempotent); used by the Cloud control plane while restoring an archived stack",
+    "Unarchive the Cloud-pinned primary space (idempotent); used by the Cloud control plane while restoring an archived stack",
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 
@@ -7362,57 +7362,57 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/invites",
+  path: "/api/spaces/{spaceId}/invites",
   tags: ["access"],
-  summary: "List company invites",
-  description: "Board members or agents holding users:invite in this company. Lists invite records; it never returns invite tokens.",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List space invites",
+  description: "Operator members or agents holding users:invite in this space. Lists invite records; it never returns invite tokens.",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/invites",
+  path: "/api/spaces/{spaceId}/invites",
   tags: ["access"],
-  summary: "Create a company invite",
-  description: "Board members or agents holding users:invite in this company. Creates a shareable join link (inviteUrl) that the person who should join opens; it does not send email and has no email field. Write the returned inviteUrl as a Markdown link in your reply. Membership starts only after the person accepts the link (and a join request is approved when required). humanRole defaults to operator.",
+  summary: "Create a space invite",
+  description: "Operator members or agents holding users:invite in this space. Creates a shareable join link (inviteUrl) that the person who should join opens; it does not send email and has no email field. Write the returned inviteUrl as a Markdown link in your reply. Membership starts only after the person accepts the link (and a join request is approved when required). humanRole defaults to operator.",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(createCompanyInviteSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(createSpaceInviteSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/join-requests",
+  path: "/api/spaces/{spaceId}/join-requests",
   tags: ["access"],
-  summary: "List company join requests",
-  description: "Board members or agents holding joins:approve in this company.",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List space join requests",
+  description: "Operator members or agents holding joins:approve in this space.",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/join-requests/{requestId}/approve",
+  path: "/api/spaces/{spaceId}/join-requests/{requestId}/approve",
   tags: ["access"],
-  summary: "Approve a company join request",
-  description: "Board members or agents holding joins:approve in this company.",
+  summary: "Approve a space join request",
+  description: "Operator members or agents holding joins:approve in this space.",
   request: {
-    params: z.object({ companyId: z.string(), requestId: z.string() }),
+    params: z.object({ spaceId: z.string(), requestId: z.string() }),
   },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/join-requests/{requestId}/reject",
+  path: "/api/spaces/{spaceId}/join-requests/{requestId}/reject",
   tags: ["access"],
-  summary: "Reject a company join request",
-  description: "Board members or agents holding joins:approve in this company.",
+  summary: "Reject a space join request",
+  description: "Operator members or agents holding joins:approve in this space.",
   request: {
-    params: z.object({ companyId: z.string(), requestId: z.string() }),
+    params: z.object({ spaceId: z.string(), requestId: z.string() }),
   },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
@@ -7454,23 +7454,23 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/members",
+  path: "/api/spaces/{spaceId}/members",
   tags: ["access"],
-  summary: "List company members",
+  summary: "List space members",
   description: "Internal compatibility endpoint for actors holding users:manage_permissions. Returns each member's role, status and explicit grants. Outpost no longer exposes human member management in the product UI.",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/members/{memberId}",
+  path: "/api/spaces/{spaceId}/members/{memberId}",
   tags: ["access"],
-  summary: "Update a company member status or role",
-  description: "Internal compatibility endpoint. Board-only; Outpost no longer exposes human member management in the product UI.",
+  summary: "Update a space member status or role",
+  description: "Internal compatibility endpoint. Operator-only; Outpost no longer exposes human member management in the product UI.",
   request: {
-    params: z.object({ companyId: z.string(), memberId: z.string() }),
-    body: jsonBody(updateCompanyMemberSchema),
+    params: z.object({ spaceId: z.string(), memberId: z.string() }),
+    body: jsonBody(updateSpaceMemberSchema),
   },
   responses: {
     200: r.ok(),
@@ -7482,13 +7482,13 @@ registry.registerPath({
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/members/{memberId}/role-and-grants",
+  path: "/api/spaces/{spaceId}/members/{memberId}/role-and-grants",
   tags: ["access"],
-  summary: "Update a company member role and explicit grants",
-  description: "Internal compatibility endpoint. Board-only; Outpost no longer exposes human member management in the product UI.",
+  summary: "Update a space member role and explicit grants",
+  description: "Internal compatibility endpoint. Operator-only; Outpost no longer exposes human member management in the product UI.",
   request: {
-    params: z.object({ companyId: z.string(), memberId: z.string() }),
-    body: jsonBody(updateCompanyMemberWithPermissionsSchema),
+    params: z.object({ spaceId: z.string(), memberId: z.string() }),
+    body: jsonBody(updateSpaceMemberWithPermissionsSchema),
   },
   responses: {
     200: r.ok(),
@@ -7500,13 +7500,13 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/members/{memberId}/archive",
+  path: "/api/spaces/{spaceId}/members/{memberId}/archive",
   tags: ["access"],
-  summary: "Archive a company member",
-  description: "Internal compatibility endpoint. Board-only; Outpost no longer exposes human member management in the product UI.",
+  summary: "Archive a space member",
+  description: "Internal compatibility endpoint. Operator-only; Outpost no longer exposes human member management in the product UI.",
   request: {
-    params: z.object({ companyId: z.string(), memberId: z.string() }),
-    body: jsonBody(archiveCompanyMemberSchema),
+    params: z.object({ spaceId: z.string(), memberId: z.string() }),
+    body: jsonBody(archiveSpaceMemberSchema),
   },
   responses: {
     200: r.ok(),
@@ -7518,12 +7518,12 @@ registry.registerPath({
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/members/{memberId}/permissions",
+  path: "/api/spaces/{spaceId}/members/{memberId}/permissions",
   tags: ["access"],
-  summary: "Update explicit company member permissions",
-  description: "Internal compatibility endpoint. Board-only; Outpost no longer exposes human member management in the product UI.",
+  summary: "Update explicit space member permissions",
+  description: "Internal compatibility endpoint. Operator-only; Outpost no longer exposes human member management in the product UI.",
   request: {
-    params: z.object({ companyId: z.string(), memberId: z.string() }),
+    params: z.object({ spaceId: z.string(), memberId: z.string() }),
     body: jsonBody(updateMemberPermissionsSchema),
   },
   responses: {
@@ -7536,10 +7536,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/user-directory",
+  path: "/api/spaces/{spaceId}/user-directory",
   tags: ["access"],
-  summary: "Get company user directory",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "Get space user directory",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -7548,17 +7548,17 @@ registry.registerPath({
   path: "/api/cli-auth/me",
   tags: ["access"],
   summary: "Get current CLI auth session",
-  description: "Board-credential read used by `npx paperclipai auth whoami` in the person's own terminal. Agent API keys receive 401: an agent cannot sign a terminal in as a person. To connect someone's terminal, see POST /api/cli-auth/challenges.",
+  description: "Operator-credential read used by `npx @outpost/cli auth whoami` in the person's own terminal. Agent API keys receive 401: an agent cannot sign a terminal in as a person. To connect someone's terminal, see POST /api/cli-auth/challenges.",
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/openclaw/invite-prompt",
+  path: "/api/spaces/{spaceId}/openclaw/invite-prompt",
   tags: ["access"],
   summary: "Create an OpenClaw invite prompt bundle",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createOpenClawInvitePromptSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -7569,7 +7569,7 @@ registry.registerPath({
   path: "/api/cli-auth/challenges",
   tags: ["access"],
   summary: "Connect a person's terminal to Outpost: create a CLI auth challenge for terminal login",
-  description: "Called by the Outpost CLI in a person's own terminal, never by an agent on their behalf. To connect someone's terminal to Outpost as themselves, tell them to run `npx paperclipai auth login --api-base <this Outpost URL>` in that terminal (add `--company-id <companyId>` to name the company). The URL is the address the person already opens Outpost at in their browser; leave it as that placeholder instead of looking it up, because addresses an agent can see (such as a runner-local API URL) may not be reachable from the person's machine. The CLI prints an approval link; they open it in a browser where they are signed in, review the requesting command, company and Board access, and approve. Only that CLI receives the resulting Board credential. `npx paperclipai auth whoami` confirms who it is signed in as and `npx paperclipai auth logout` revokes it. Agent API keys are a separate identity: never hand out an agent key, create or approve a challenge yourself, or ask for the person's password in chat.",
+  description: "Called by the Outpost CLI in a person's own terminal, never by an agent on their behalf. To connect someone's terminal to Outpost as themselves, tell them to run `npx @outpost/cli auth login --api-base <this Outpost URL>` in that terminal (add `--space-id <spaceId>` to name the space). The URL is the address the person already opens Outpost at in their browser; leave it as that placeholder instead of looking it up, because addresses an agent can see (such as a runner-local API URL) may not be reachable from the person's machine. The CLI prints an approval link; they open it in a browser where they are signed in, review the requesting command, space and Operator access, and approve. Only that CLI receives the resulting Operator credential. `npx @outpost/cli auth whoami` confirms who it is signed in as and `npx @outpost/cli auth logout` revokes it. Agent API keys are a separate identity: never hand out an agent key, create or approve a challenge yourself, or ask for the person's password in chat.",
   request: { body: jsonBody(createCliAuthChallengeSchema) },
   responses: { 200: r.ok(), 400: r.badRequest },
 });
@@ -7579,7 +7579,7 @@ registry.registerPath({
   path: "/api/cli-auth/challenges/{id}/approve",
   tags: ["access"],
   summary: "Approve a CLI auth challenge",
-  description: "Only the signed-in person approves, from the approval page their own CLI printed; agent API keys receive 401. To connect someone's terminal, give them the `npx paperclipai auth login` command (see POST /api/cli-auth/challenges).",
+  description: "Only the signed-in person approves, from the approval page their own CLI printed; agent API keys receive 401. To connect someone's terminal, give them the `npx @outpost/cli auth login` command (see POST /api/cli-auth/challenges).",
   request: {
     params: z.object({ id: cliAuthChallengeIdParamSchema }),
     body: jsonBody(resolveCliAuthChallengeSchema),
@@ -7609,7 +7609,7 @@ registry.registerPath({
   path: "/api/cli-auth/revoke-current",
   tags: ["access"],
   summary: "Revoke current CLI auth session",
-  description: "Used by `npx paperclipai auth logout` with the CLI's own Board credential; it revokes only that credential and leaves agent API keys untouched.",
+  description: "Used by `npx @outpost/cli auth logout` with the CLI's own Operator credential; it revokes only that credential and leaves agent API keys untouched.",
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -7670,28 +7670,28 @@ registry.registerPath({
   path: "/api/auth/get-session",
   tags: ["auth"],
   summary: "Get current session",
-  description: "Authenticated board sessions can include an optional same-user boardBootstrap with accessible companies and boardAccess. Existing session fields are unchanged; clients retain ordinary company and access reads when the optional projection is absent.",
+  description: "Authenticated operator sessions can include an optional same-user operatorBootstrap with accessible spaces and operatorAccess. Existing session fields are unchanged; clients retain ordinary space and access reads when the optional projection is absent.",
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/managed-agent-profiles",
+  path: "/api/spaces/{spaceId}/managed-agent-profiles",
   tags: ["agents"],
-  summary: "List Claude Managed Agent profiles for a company",
-  description: "Board only: agent credentials get 403. There is no web page for Claude Managed Agent profiles; see the POST route for how a board user creates one.",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List Claude Managed Agent profiles for a space",
+  description: "Operator only: agent credentials get 403. There is no web page for Claude Managed Agent profiles; see the POST route for how a operator user creates one.",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/managed-agent-profiles",
+  path: "/api/spaces/{spaceId}/managed-agent-profiles",
   tags: ["agents"],
   summary: "Create or operator-attest a Claude Managed Agent profile",
-  description: "Board only: agent credentials get 403. A Claude Managed Agent runs on Anthropic's managed-agents beta. A board operator creates the company profile with an Anthropic API-key secret and a limited environment (no hosts, no packages), attests its qualification and explicitly acknowledges stateful retention before it can be enabled. There is no web page for this: the board user runs the CLI command `paperclipai managed-agent setup --company-id <companyId> --profile-key <key> --display-name <name> --api-key-secret-id <secretId> --acknowledge-retention` with ANTHROPIC_API_KEY set in their shell (add --probe for a read-only qualification check first). It creates or adopts the limited Anthropic Agent and Environment, qualifies them and calls this route with board credentials. The secret itself is added on the company Secrets page, /<prefix>/company/settings/secrets.",
+  description: "Operator only: agent credentials get 403. A Claude Managed Agent runs on Anthropic's managed-agents beta. A operator operator creates the space profile with an Anthropic API-key secret and a limited environment (no hosts, no packages), attests its qualification and explicitly acknowledges stateful retention before it can be enabled. There is no web page for this: the operator user runs the CLI command `outpost managed-agent setup --space-id <spaceId> --profile-key <key> --display-name <name> --api-key-secret-id <secretId> --acknowledge-retention` with ANTHROPIC_API_KEY set in their shell (add --probe for a read-only qualification check first). It creates or adopts the limited Anthropic Agent and Environment, qualifies them and calls this route with operator credentials. The secret itself is added on the space Secrets page, /<prefix>/space/settings/secrets.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(
       z.object({
         profileKey: z.string(),
@@ -7729,11 +7729,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/remote-agent-profiles",
+  path: "/api/spaces/{spaceId}/remote-agent-profiles",
   tags: ["agents"],
-  summary: "List remote AgentCore profiles for a company",
+  summary: "List remote AgentCore profiles for a space",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     query: z.object({
       service: z.literal("aws_bedrock_agentcore_harness").optional(),
     }),
@@ -7748,11 +7748,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/remote-agent-profiles",
+  path: "/api/spaces/{spaceId}/remote-agent-profiles",
   tags: ["agents"],
   summary: "Create or operator-attest a remote AgentCore profile",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(
       z.object({
         profileKey: z.string(),
@@ -7781,11 +7781,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/heartbeat-runs",
+  path: "/api/spaces/{spaceId}/heartbeat-runs",
   tags: ["runs"],
-  summary: "List heartbeat runs for a company",
+  summary: "List heartbeat runs for a space",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     query: z.object({
       agentId: z.string().optional(),
       limit: z.coerce.number().int().min(1).max(1000).default(200),
@@ -7798,19 +7798,19 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/provider-traces",
+  path: "/api/spaces/{spaceId}/provider-traces",
   tags: ["runs"],
   summary: "List provider trace metadata for selected runs",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/live-runs",
+  path: "/api/spaces/{spaceId}/live-runs",
   tags: ["runs"],
-  summary: "List live runs for a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List live runs for a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -8219,9 +8219,9 @@ registry.registerPath({
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
-// Company-and-environment Claude setup-token login session routes. The owner
+// Space-and-environment Claude setup-token login session routes. The owner
 // user starts one session for one adapter in one environment. The scope carries
-// no agent id, so a hire flow with no agent still starts one session. The owner
+// no agent id, so a create flow with no agent still starts one session. The owner
 // reads the login prompt, submits the browser code from the browser, and reads
 // the completion claim. The prompt, code, and completion responses require a
 // confidential transport; the guard returns 403 when the transport is not
@@ -8234,11 +8234,11 @@ registry.registerPath({
 // so the read discloses no existence distinction. The response is `no-store`.
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/claude-oauth-token-status",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/claude-oauth-token-status",
+  tags: ["spaces"],
   summary:
     "Read the stored Claude OAuth token status for the authenticated owner",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: {
     200: r.ok(claudeOAuthTokenStatusResponseSchema),
     401: r.unauthorized,
@@ -8248,14 +8248,14 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/setup-token-login-sessions",
-  tags: ["companies"],
-  summary: "Start a company-and-environment Claude setup-token login session",
+  path: "/api/spaces/{spaceId}/setup-token-login-sessions",
+  tags: ["spaces"],
+  summary: "Start a space-and-environment Claude setup-token login session",
   description: "For a managed AI Connection, omit agentId to select an eligible computer in the sign-in environment.",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(startClaudeSetupTokenSessionRequestSchema),
   },
   responses: {
@@ -8269,12 +8269,12 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/setup-token-login-sessions/active",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/setup-token-login-sessions/active",
+  tags: ["spaces"],
   summary: "Read the caller's active Claude setup-token login session",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: {
     200: r.ok(claudeSetupTokenSessionOwnerResponseSchema),
     401: r.unauthorized,
@@ -8284,13 +8284,13 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/setup-token-login-sessions/{sessionId}",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/setup-token-login-sessions/{sessionId}",
+  tags: ["spaces"],
   summary: "Read the status of a Claude setup-token login session",
   request: {
-    params: z.object({ companyId: z.string(), sessionId: z.string() }),
+    params: z.object({ spaceId: z.string(), sessionId: z.string() }),
   },
   responses: {
     200: r.ok(claudeSetupTokenSessionResponseSchema),
@@ -8301,13 +8301,13 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/setup-token-login-sessions/{sessionId}/prompt",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/setup-token-login-sessions/{sessionId}/prompt",
+  tags: ["spaces"],
   summary: "Read the login prompt for a Claude setup-token login session",
   request: {
-    params: z.object({ companyId: z.string(), sessionId: z.string() }),
+    params: z.object({ spaceId: z.string(), sessionId: z.string() }),
   },
   responses: {
     200: r.ok(claudeSetupTokenSessionPromptSchema),
@@ -8320,11 +8320,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/setup-token-login-sessions/{sessionId}/code",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/setup-token-login-sessions/{sessionId}/code",
+  tags: ["spaces"],
   summary: "Submit the browser code for a Claude setup-token login session",
   request: {
-    params: z.object({ companyId: z.string(), sessionId: z.string() }),
+    params: z.object({ spaceId: z.string(), sessionId: z.string() }),
     body: jsonBody(submitBrowserCodeRequestSchema),
   },
   responses: {
@@ -8337,13 +8337,13 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/setup-token-login-sessions/{sessionId}/completion",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/setup-token-login-sessions/{sessionId}/completion",
+  tags: ["spaces"],
   summary: "Read the completion claim of a Claude setup-token login session",
   request: {
-    params: z.object({ companyId: z.string(), sessionId: z.string() }),
+    params: z.object({ spaceId: z.string(), sessionId: z.string() }),
   },
   responses: {
     200: r.ok(claudeSetupTokenCompletionResponseSchema),
@@ -8355,18 +8355,18 @@ registry.registerPath({
 });
 
 registry.registerPath({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/setup-token-login-sessions/{sessionId}/cancel",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/setup-token-login-sessions/{sessionId}/cancel",
+  tags: ["spaces"],
   summary: "Cancel a Claude setup-token login session",
-  // The 404 is reserved for the pre-scope non-member gate. The company-access
+  // The 404 is reserved for the pre-scope non-member gate. The space-access
   // gate runs before the cancel logic and returns a fixed 404 for a non-member.
-  // Cancel itself is idempotent and stays uniform: a same-company owner-scoped
+  // Cancel itself is idempotent and stays uniform: a same-space owner-scoped
   // missing, terminal, or foreign session id all return 200. So the route never
   // confirms a session exists for the owner.
   request: {
-    params: z.object({ companyId: z.string(), sessionId: z.string() }),
+    params: z.object({ spaceId: z.string(), sessionId: z.string() }),
   },
   responses: {
     200: r.ok(),
@@ -8379,12 +8379,12 @@ registry.registerPath({
 // ─── Issue interactions & tree ───────────────────────────────────────────────
 
 const conversationQuestionSubjectSchema = z.object({
-  kind: z.string(), id: z.string(), companyId: z.string(), title: z.string().nullable(),
+  kind: z.string(), id: z.string(), spaceId: z.string(), title: z.string().nullable(),
   identifier: z.string().nullable(), status: z.string().nullable(), href: z.string().nullable(),
 }).passthrough();
 const conversationPendingQuestionSchema = z.object({
   id: z.string(),
-  companyId: z.string(),
+  spaceId: z.string(),
   sourceKind: z.literal("issue_thread_interaction"),
   subject: conversationQuestionSubjectSchema,
   relatedIssue: conversationQuestionSubjectSchema,
@@ -8400,7 +8400,7 @@ registry.registerPath({
   tags: ["issues"],
   summary: "List pending task questions for your conversation",
   description:
-    "Requires a board user who owns and can read the conversation. Returns AttentionItem[] containing canonical pending ask_user_questions from readable tasks handed off in the current session, plus ordinary tasks created by this user and currently assigned to this conversation's agent. Ordinary-task questions remain current obligations across chat resets. Tasks linked to any chat handoff never enter through the ordinary-task scope. Excludes the conversation's own questions. Uses the same audience, dismissal, snooze and archive rules as Needs You. Accepts no query parameters. Reads one complete authorized company attention snapshot and filters it to these tasks, so cost scales with company attention; it retains existing attention queue/retention bookkeeping and creates no copied questions or agent turns. This endpoint is intended for event-driven refresh, not polling.",
+    "Requires a operator user who owns and can read the conversation. Returns AttentionItem[] containing canonical pending ask_user_questions from readable tasks handed off in the current session, plus ordinary tasks created by this user and currently assigned to this conversation's agent. Ordinary-task questions remain current obligations across chat resets. Tasks linked to any chat handoff never enter through the ordinary-task scope. Excludes the conversation's own questions. Uses the same audience, dismissal, snooze and archive rules as Needs You. Accepts no query parameters. Reads one complete authorized space attention snapshot and filters it to these tasks, so cost scales with space attention; it retains existing attention queue/retention bookkeeping and creates no copied questions or agent turns. This endpoint is intended for event-driven refresh, not polling.",
   request: { params: z.object({ id: z.string() }) },
   responses: { 200: r.ok(z.array(conversationPendingQuestionSchema)), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
@@ -8411,7 +8411,7 @@ registry.registerPath({
   tags: ["issues"],
   summary: "List decision receipts for your conversation",
   description:
-    "Requires a board user who owns the conversation and has current issue read access. Returns a DecisionHistoryPage for tasks handed off in the current conversation session, plus ordinary tasks created by this user and currently assigned to this conversation's agent. Ordinary-task receipts are limited to resolutions since the current session's boundary comment (or conversation creation for its initial session); missing reset provenance omits ordinary-task history. Tasks linked to any chat handoff retain their original session scope. Both sources are merged newest first under the same cursor, with current task and decision audience access enforced. Accepts only cursor and limit; the default page size is 40. Reading receipts does not copy messages, create handoffs, or wake agents.",
+    "Requires a operator user who owns the conversation and has current issue read access. Returns a DecisionHistoryPage for tasks handed off in the current conversation session, plus ordinary tasks created by this user and currently assigned to this conversation's agent. Ordinary-task receipts are limited to resolutions since the current session's boundary comment (or conversation creation for its initial session); missing reset provenance omits ordinary-task history. Tasks linked to any chat handoff retain their original session scope. Both sources are merged newest first under the same cursor, with current task and decision audience access enforced. Accepts only cursor and limit; the default page size is 40. Reading receipts does not copy messages, create handoffs, or wake agents.",
   request: {
     params: z.object({ id: z.string() }),
     query: z.object({
@@ -8434,7 +8434,7 @@ registry.registerPath({
   tags: ["issues"],
   summary: "List tasks created from your conversation",
   description:
-    "Requires a board user who owns the conversation and has current issue read access. Returns a ConversationTaskHandoffPage for the current conversation session, newest first, omitting tasks the user can no longer read. Accepts only cursor and limit; the default page size is 40. This read does not create tasks or wake agents.",
+    "Requires a operator user who owns the conversation and has current issue read access. Returns a ConversationTaskHandoffPage for the current conversation session, newest first, omitting tasks the user can no longer read. Accepts only cursor and limit; the default page size is 40. This read does not create tasks or wake agents.",
   request: {
     params: z.object({ id: z.string() }),
     query: z.object({
@@ -8456,7 +8456,7 @@ registry.registerPath({
   path: "/api/issues/{id}/interactions",
   tags: ["issues"],
   summary: "List issue thread interactions",
-  description: "A connection_intent interaction is a connection request card addressed to one person, its addresseeUserId. Only that person can connect or decline it; no other member, board user or agent can resolve it for them.",
+  description: "A connection_intent interaction is a connection request card addressed to one person, its addresseeUserId. Only that person can connect or decline it; no other member, operator user or agent can resolve it for them.",
   request: { params: z.object({ id: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
@@ -8467,7 +8467,7 @@ registry.registerPath({
   tags: ["issues"],
   summary: "Create an issue thread interaction",
   description:
-    "Resolver policy defaults to canonical `anyone` for every interaction kind. `not_creator` and `human_only` are opt-in restrictions; deprecated `board_or_agents` and `board_only` inputs are accepted as compatibility aliases.",
+    "Resolver policy defaults to canonical `anyone` for every interaction kind. `not_creator` and `human_only` are opt-in restrictions; deprecated `operator_or_agents` and `operator_only` inputs are accepted as compatibility aliases.",
   request: {
     params: z.object({ id: z.string() }),
     body: jsonBody(createIssueThreadInteractionSchema),
@@ -8636,7 +8636,7 @@ registry.registerPath({
   path: "/api/issues/{id}/tree-holds",
   tags: ["issues"],
   summary: "Create an issue tree hold",
-  description: "Board-only. An agent cannot pause, cancel or resume a task tree, and this denial is final for agents. A person pauses the parent task and all of its subtasks on the company-prefixed task page /{prefix}/issues/{identifier}: More task actions, then Pause subtree. The person resumes it later on the same page with Resume subtree. Link that task page. Moving tasks to backlog or changing assignees is not a tree pause.",
+  description: "Operator-only. An agent cannot pause, cancel or resume a task tree, and this denial is final for agents. A person pauses the parent task and all of its subtasks on the space-prefixed task page /{prefix}/issues/{identifier}: More task actions, then Pause subtree. The person resumes it later on the same page with Resume subtree. Link that task page. Moving tasks to backlog or changing assignees is not a tree pause.",
   request: {
     params: z.object({ id: z.string() }),
     body: jsonBody(createIssueTreeHoldSchema),
@@ -8669,10 +8669,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/issues/{issueId}/attachments",
+  path: "/api/spaces/{spaceId}/issues/{issueId}/attachments",
   tags: ["assets"],
   summary: "Upload an attachment to an issue",
-  request: { params: z.object({ companyId: z.string(), issueId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), issueId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
@@ -8702,28 +8702,28 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/assets/images",
+  path: "/api/spaces/{spaceId}/assets/images",
   tags: ["assets"],
   summary: "Upload an image asset",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/logo",
+  path: "/api/spaces/{spaceId}/logo",
   tags: ["assets"],
-  summary: "Upload company logo",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "Upload space logo",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/onboarding-seed",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/onboarding-seed",
+  tags: ["spaces"],
   summary: "Apply the onboarding seed Outpost Cloud collected at signup",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 422: r.unprocessable },
 });
 
@@ -8740,65 +8740,65 @@ registry.registerPath({
   },
 });
 
-// ─── Company skills ───────────────────────────────────────────────────────────
+// ─── Space skills ───────────────────────────────────────────────────────────
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skills",
+  path: "/api/spaces/{spaceId}/skills",
   tags: ["skills"],
-  summary: "List skills for a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List skills for a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skills/{skillId}",
+  path: "/api/spaces/{spaceId}/skills/{skillId}",
   tags: ["skills"],
-  summary: "Get a company skill",
-  request: { params: z.object({ companyId: z.string(), skillId: z.string() }) },
+  summary: "Get a space skill",
+  request: { params: z.object({ spaceId: z.string(), skillId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skills/{skillId}/update-status",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/update-status",
   tags: ["skills"],
   summary: "Get skill update status",
-  request: { params: z.object({ companyId: z.string(), skillId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), skillId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skills/{skillId}/update-diff",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/update-diff",
   tags: ["skills"],
   summary: "Show what a pending skill source update changes (diff installed vs latest revision)",
   description: "For a skill installed from a tracked GitHub source, compares the installed source revision (currentRef) with the latest tracked revision (latestRef) and returns each changed package file with a unified line diff: lines starting with \"-\" exist only in the installed revision and lines starting with \"+\" only in the latest one. hasUpdate is false and files is empty when the installed revision is already the latest. A file with change \"not_compared\" was left out of a revision's scan, and diffUnavailable says why a file has no diff. truncated is true when the response reached its size budget. Read-only; it does not apply the update. Use this to review an update before installing it.",
-  request: { params: z.object({ companyId: z.string(), skillId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), skillId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skills/{skillId}/files",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/files",
   tags: ["skills"],
   summary: "List skill files",
-  request: { params: z.object({ companyId: z.string(), skillId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), skillId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills/{skillId}/rename",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/rename",
   tags: ["skills"],
-  summary: "Rename a managed company skill",
+  summary: "Rename a managed space skill",
   request: {
-    params: z.object({ companyId: z.string(), skillId: z.string() }),
-    body: jsonBody(companySkillRenameSchema),
+    params: z.object({ spaceId: z.string(), skillId: z.string() }),
+    body: jsonBody(spaceSkillRenameSchema),
   },
   responses: {
-    200: r.ok(companySkillRenameResultSchema),
+    200: r.ok(spaceSkillRenameResultSchema),
     400: r.badRequest,
     401: r.unauthorized,
     403: r.forbidden,
@@ -8810,73 +8810,73 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills",
+  path: "/api/spaces/{spaceId}/skills",
   tags: ["skills"],
-  summary: "Create a company skill",
+  summary: "Create a space skill",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companySkillCreateSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spaceSkillCreateSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/skills/{skillId}/files",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/files",
   tags: ["skills"],
   summary: "Update a skill file (optional expectedVersionId and idempotencyKey guard agent retries)",
   request: {
-    params: z.object({ companyId: z.string(), skillId: z.string() }),
-    body: jsonBody(companySkillFileUpdateSchema),
+    params: z.object({ spaceId: z.string(), skillId: z.string() }),
+    body: jsonBody(spaceSkillFileUpdateSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 409: r.conflict },
 });
 
 registry.registerPath({
   method: "delete",
-  path: "/api/companies/{companyId}/skills/{skillId}/files",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/files",
   tags: ["skills"],
   summary: "Delete a skill file or folder",
   request: {
-    params: z.object({ companyId: z.string(), skillId: z.string() }),
-    body: jsonBody(companySkillFileDeleteSchema),
+    params: z.object({ spaceId: z.string(), skillId: z.string() }),
+    body: jsonBody(spaceSkillFileDeleteSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skills/{skillId}/test-inputs",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/test-inputs",
   tags: ["skills"],
   summary: "List skill test inputs",
-  request: { params: z.object({ companyId: z.string(), skillId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), skillId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills/{skillId}/test-inputs",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/test-inputs",
   tags: ["skills"],
   summary: "Create a skill test input",
   request: {
-    params: z.object({ companyId: z.string(), skillId: z.string() }),
-    body: jsonBody(companySkillTestInputCreateSchema),
+    params: z.object({ spaceId: z.string(), skillId: z.string() }),
+    body: jsonBody(spaceSkillTestInputCreateSchema),
   },
   responses: { 201: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/skills/{skillId}/test-inputs/{inputId}",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/test-inputs/{inputId}",
   tags: ["skills"],
   summary: "Update a skill test input",
   request: {
     params: z.object({
-      companyId: z.string(),
+      spaceId: z.string(),
       skillId: z.string(),
       inputId: z.string(),
     }),
-    body: jsonBody(companySkillTestInputUpdateSchema),
+    body: jsonBody(spaceSkillTestInputUpdateSchema),
   },
   responses: {
     200: r.ok(),
@@ -8888,12 +8888,12 @@ registry.registerPath({
 
 registry.registerPath({
   method: "delete",
-  path: "/api/companies/{companyId}/skills/{skillId}/test-inputs/{inputId}",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/test-inputs/{inputId}",
   tags: ["skills"],
   summary: "Delete a skill test input",
   request: {
     params: z.object({
-      companyId: z.string(),
+      spaceId: z.string(),
       skillId: z.string(),
       inputId: z.string(),
     }),
@@ -8903,33 +8903,33 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skill-test-run-templates",
+  path: "/api/spaces/{spaceId}/skill-test-run-templates",
   tags: ["skills"],
   summary: "List skill test-run templates",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skill-test-run-templates",
+  path: "/api/spaces/{spaceId}/skill-test-run-templates",
   tags: ["skills"],
   summary: "Create a skill test-run template",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companySkillTestRunTemplateCreateSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spaceSkillTestRunTemplateCreateSchema),
   },
   responses: { 201: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "patch",
-  path: "/api/companies/{companyId}/skill-test-run-templates/{templateId}",
+  path: "/api/spaces/{spaceId}/skill-test-run-templates/{templateId}",
   tags: ["skills"],
   summary: "Update a skill test-run template",
   request: {
-    params: z.object({ companyId: z.string(), templateId: z.string() }),
-    body: jsonBody(companySkillTestRunTemplateUpdateSchema),
+    params: z.object({ spaceId: z.string(), templateId: z.string() }),
+    body: jsonBody(spaceSkillTestRunTemplateUpdateSchema),
   },
   responses: {
     200: r.ok(),
@@ -8941,35 +8941,35 @@ registry.registerPath({
 
 registry.registerPath({
   method: "delete",
-  path: "/api/companies/{companyId}/skill-test-run-templates/{templateId}",
+  path: "/api/spaces/{spaceId}/skill-test-run-templates/{templateId}",
   tags: ["skills"],
   summary: "Delete a skill test-run template",
   request: {
-    params: z.object({ companyId: z.string(), templateId: z.string() }),
+    params: z.object({ spaceId: z.string(), templateId: z.string() }),
   },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skills/{skillId}/test-runs",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/test-runs",
   tags: ["skills"],
   summary: "List skill test runs",
   request: {
-    params: z.object({ companyId: z.string(), skillId: z.string() }),
-    query: companySkillTestRunListQuerySchema,
+    params: z.object({ spaceId: z.string(), skillId: z.string() }),
+    query: spaceSkillTestRunListQuerySchema,
   },
   responses: { 200: r.ok(), 401: r.unauthorized, 422: r.unprocessable },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skills/{skillId}/test-runs/{runId}",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/test-runs/{runId}",
   tags: ["skills"],
   summary: "Get a skill test run",
   request: {
     params: z.object({
-      companyId: z.string(),
+      spaceId: z.string(),
       skillId: z.string(),
       runId: z.string(),
     }),
@@ -8979,24 +8979,24 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills/{skillId}/test-runs",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/test-runs",
   tags: ["skills"],
   summary: "Create a skill test run",
   request: {
-    params: z.object({ companyId: z.string(), skillId: z.string() }),
-    body: jsonBody(companySkillTestRunCreateSchema),
+    params: z.object({ spaceId: z.string(), skillId: z.string() }),
+    body: jsonBody(spaceSkillTestRunCreateSchema),
   },
   responses: { 201: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills/{skillId}/test-runs/{runId}/cancel",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/test-runs/{runId}/cancel",
   tags: ["skills"],
   summary: "Cancel a skill test run",
   request: {
     params: z.object({
-      companyId: z.string(),
+      spaceId: z.string(),
       skillId: z.string(),
       runId: z.string(),
     }),
@@ -9006,12 +9006,12 @@ registry.registerPath({
 
 registry.registerPath({
   method: "delete",
-  path: "/api/companies/{companyId}/skills/{skillId}/test-runs/{runId}",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/test-runs/{runId}",
   tags: ["skills"],
   summary: "Delete a skill test run",
   request: {
     params: z.object({
-      companyId: z.string(),
+      spaceId: z.string(),
       skillId: z.string(),
       runId: z.string(),
     }),
@@ -9021,28 +9021,28 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills/import",
+  path: "/api/spaces/{spaceId}/skills/import",
   tags: ["skills"],
   summary: "Import an existing skill from a source",
-  description: "Import existing SKILL.md content from an allowed local skill directory or a supported remote source. Retain its source provenance instead of authoring new content with create_skill. Local paths must satisfy the company workspace and managed-root boundary checks. Remote imports keep their source access checks. Importing does not assign the skill to an agent. Outpost skill policy still applies.",
+  description: "Import existing SKILL.md content from an allowed local skill directory or a supported remote source. Retain its source provenance instead of authoring new content with create_skill. Local paths must satisfy the space workspace and managed-root boundary checks. Remote imports keep their source access checks. Importing does not assign the skill to an agent. Outpost skill policy still applies.",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companySkillImportSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spaceSkillImportSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills/browse-project",
+  path: "/api/spaces/{spaceId}/skills/browse-project",
   tags: ["skills"],
   summary: "Browse a project workspace for skills",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companySkillProjectBrowseRequestSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spaceSkillProjectBrowseRequestSchema),
   },
   responses: {
-    200: r.ok(companySkillProjectBrowseResultSchema),
+    200: r.ok(spaceSkillProjectBrowseResultSchema),
     400: r.badRequest,
     401: r.unauthorized,
   },
@@ -9050,15 +9050,15 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills/scan-projects",
+  path: "/api/spaces/{spaceId}/skills/scan-projects",
   tags: ["skills"],
   summary: "Scan project for skills",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companySkillProjectScanRequestSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spaceSkillProjectScanRequestSchema),
   },
   responses: {
-    200: r.ok(companySkillProjectScanResultSchema),
+    200: r.ok(spaceSkillProjectScanResultSchema),
     400: r.badRequest,
     401: r.unauthorized,
   },
@@ -9066,38 +9066,38 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skills/{skillId}/install-update",
+  path: "/api/spaces/{spaceId}/skills/{skillId}/install-update",
   tags: ["skills"],
   summary: "Install a skill update",
-  request: { params: z.object({ companyId: z.string(), skillId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string(), skillId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "delete",
-  path: "/api/companies/{companyId}/skills/{skillId}",
+  path: "/api/spaces/{spaceId}/skills/{skillId}",
   tags: ["skills"],
-  summary: "Delete a company skill",
-  request: { params: z.object({ companyId: z.string(), skillId: z.string() }) },
+  summary: "Delete a space skill",
+  request: { params: z.object({ spaceId: z.string(), skillId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/skill-policy",
+  path: "/api/spaces/{spaceId}/skill-policy",
   tags: ["skills"],
-  summary: "Get the effective company skill policy",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "Get the effective space skill policy",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({
   method: "put",
-  path: "/api/companies/{companyId}/skill-policy",
+  path: "/api/spaces/{spaceId}/skill-policy",
   tags: ["skills"],
-  summary: "Replace the company skill policy",
+  summary: "Replace the space skill policy",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(replaceSkillPolicySchema),
   },
   responses: {
@@ -9111,20 +9111,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "delete",
-  path: "/api/companies/{companyId}/skill-policy",
+  path: "/api/spaces/{spaceId}/skill-policy",
   tags: ["skills"],
-  summary: "Reset the company skill policy to the open default",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "Reset the space skill policy to the open default",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/skill-policy/evaluate",
+  path: "/api/spaces/{spaceId}/skill-policy/evaluate",
   tags: ["skills"],
-  summary: "Evaluate a company skill policy decision",
+  summary: "Evaluate a space skill policy decision",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(evaluateSkillPolicySchema),
   },
   responses: {
@@ -9137,20 +9137,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/users/me/inbox-agent-policy",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/users/me/inbox-agent-policy",
+  tags: ["spaces"],
   summary: "Get the current user's inbox agent policy",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({
   method: "put",
-  path: "/api/companies/{companyId}/users/me/inbox-agent-policy",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/users/me/inbox-agent-policy",
+  tags: ["spaces"],
   summary: "Update the current user's inbox agent policy",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(updateInboxAgentPolicySchema),
   },
   responses: {
@@ -9163,20 +9163,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/users/{userId}/inbox-agent-policy",
-  tags: ["companies"],
-  summary: "Get a company user's inbox agent policy",
-  request: { params: z.object({ companyId: z.string(), userId: z.string() }) },
+  path: "/api/spaces/{spaceId}/users/{userId}/inbox-agent-policy",
+  tags: ["spaces"],
+  summary: "Get a space user's inbox agent policy",
+  request: { params: z.object({ spaceId: z.string(), userId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({
   method: "put",
-  path: "/api/companies/{companyId}/users/{userId}/inbox-agent-policy",
-  tags: ["companies"],
-  summary: "Update a company user's inbox agent policy",
+  path: "/api/spaces/{spaceId}/users/{userId}/inbox-agent-policy",
+  tags: ["spaces"],
+  summary: "Update a space user's inbox agent policy",
   request: {
-    params: z.object({ companyId: z.string(), userId: z.string() }),
+    params: z.object({ spaceId: z.string(), userId: z.string() }),
     body: jsonBody(updateInboxAgentPolicySchema),
   },
   responses: {
@@ -9191,20 +9191,20 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/execution-workspaces",
+  path: "/api/spaces/{spaceId}/execution-workspaces",
   tags: ["execution-workspaces"],
-  summary: "List execution workspaces for a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List execution workspaces for a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/workspace-overview",
+  path: "/api/spaces/{spaceId}/workspace-overview",
   tags: ["execution-workspaces"],
-  summary: "List bounded execution workspace overview rows for a company",
+  summary: "List bounded execution workspace overview rows for a space",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     query: workspaceOverviewQuerySchema,
   },
   responses: { 200: r.ok(), 401: r.unauthorized, 422: r.unprocessable },
@@ -9274,7 +9274,7 @@ registry.registerPath({
   description:
     "Mints a short-lived, single-use ticket the isolated workspace exchanges for its own " +
     "instance-scoped session, so opening a managed workspace does not depend on a cloned " +
-    "password. Board actors only. The response `url` must be navigated to, not stored: the " +
+    "password. Operator actors only. The response `url` must be navigated to, not stored: the " +
     "workspace answers it with a redirect so the ticket never enters browser history. A refusal " +
     "carries a machine `reason` and, where the control plane probed it, the workspace's own " +
     "readiness.",
@@ -9329,29 +9329,29 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/environments",
+  path: "/api/spaces/{spaceId}/environments",
   tags: ["environments"],
-  summary: "List environments for a company",
-  request: { params: z.object({ companyId: z.string() }) },
+  summary: "List environments for a space",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/environments/capabilities",
+  path: "/api/spaces/{spaceId}/environments/capabilities",
   tags: ["environments"],
   summary: "Get environment capabilities",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/environments",
+  path: "/api/spaces/{spaceId}/environments",
   tags: ["environments"],
   summary: "Create an environment",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(createEnvironmentSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -9385,7 +9385,7 @@ registry.registerPath({
   path: "/api/environments/{id}/secret-refs",
   tags: ["environments"],
   summary:
-    "Describe an environment's config secret refs (name, status, owning company — never values)",
+    "Describe an environment's config secret refs (name, status, owning space — never values)",
   request: { params: z.object({ id: z.string() }) },
   responses: {
     200: r.ok(),
@@ -9451,11 +9451,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/environments/probe-config",
+  path: "/api/spaces/{spaceId}/environments/probe-config",
   tags: ["environments"],
   summary: "Probe environment config",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(probeEnvironmentConfigSchema),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
@@ -9469,7 +9469,7 @@ registry.registerPath({
     "Get the active customImage template and setup status for an environment",
   request: {
     params: z.object({ environmentId: z.string() }),
-    query: environmentCustomImageCompanyQuerySchema,
+    query: environmentCustomImageSpaceQuerySchema,
   },
   responses: {
     200: r.ok(environmentCustomImageOverviewSchema),
@@ -9485,7 +9485,7 @@ registry.registerPath({
   summary: "Start an interactive environment customImage setup session",
   request: {
     params: z.object({ environmentId: z.string() }),
-    query: environmentCustomImageCompanyQuerySchema,
+    query: environmentCustomImageSpaceQuerySchema,
     body: jsonBody(startEnvironmentCustomImageSetupSessionSchema),
   },
   responses: {
@@ -9577,7 +9577,7 @@ registry.registerPath({
     "Roll back an environment customImage template to the previous captured template",
   request: {
     params: z.object({ environmentId: z.string() }),
-    query: environmentCustomImageCompanyQuerySchema,
+    query: environmentCustomImageSpaceQuerySchema,
   },
   responses: {
     200: r.ok(environmentCustomImageTemplateRollbackResultSchema),
@@ -9595,7 +9595,7 @@ registry.registerPath({
     "Relink a detached environment customImage template to the current config",
   request: {
     params: z.object({ environmentId: z.string() }),
-    query: environmentCustomImageCompanyQuerySchema,
+    query: environmentCustomImageSpaceQuerySchema,
     body: jsonBody(relinkEnvironmentCustomImageTemplateSchema),
   },
   responses: {
@@ -9759,7 +9759,7 @@ registry.registerPath({
         runContext: z.object({
           agentId: z.string(),
           runId: z.string(),
-          companyId: z.string(),
+          spaceId: z.string(),
           projectId: z.string().nullable().optional(),
         }),
       }),
@@ -9852,10 +9852,10 @@ registry.registerPath({
   method: "get",
   path: "/api/plugins/{pluginId}/config",
   tags: ["plugins"],
-  summary: "Get company-scoped plugin config",
+  summary: "Get space-scoped plugin config",
   request: {
     params: z.object({ pluginId: z.string() }),
-    query: z.object({ companyId: z.string() }),
+    query: z.object({ spaceId: z.string() }),
   },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
@@ -9864,12 +9864,12 @@ registry.registerPath({
   method: "post",
   path: "/api/plugins/{pluginId}/config",
   tags: ["plugins"],
-  summary: "Set company-scoped plugin config",
+  summary: "Set space-scoped plugin config",
   request: {
     params: z.object({ pluginId: z.string() }),
     body: jsonBody(
       z.object({
-        companyId: z.string(),
+        spaceId: z.string(),
         configJson: z.record(z.string(), z.unknown()),
       }),
     ),
@@ -9881,12 +9881,12 @@ registry.registerPath({
   method: "post",
   path: "/api/plugins/{pluginId}/config/test",
   tags: ["plugins"],
-  summary: "Test company-scoped plugin config",
+  summary: "Test space-scoped plugin config",
   request: {
     params: z.object({ pluginId: z.string() }),
     body: jsonBody(
       z.object({
-        companyId: z.string(),
+        spaceId: z.string(),
         configJson: z.record(z.string(), z.unknown()),
       }),
     ),
@@ -9951,7 +9951,7 @@ registry.registerPath({
     body: jsonBody(
       z.object({
         key: z.string(),
-        companyId: z.string().optional(),
+        spaceId: z.string().optional(),
         params: z.record(z.string(), z.unknown()).optional(),
       }),
     ),
@@ -9969,7 +9969,7 @@ registry.registerPath({
     body: jsonBody(
       z.object({
         key: z.string(),
-        companyId: z.string().optional(),
+        spaceId: z.string().optional(),
         params: z.record(z.string(), z.unknown()).optional(),
       }),
     ),
@@ -9986,7 +9986,7 @@ registry.registerPath({
     params: z.object({ pluginId: z.string(), key: z.string() }),
     body: jsonBody(
       z.object({
-        companyId: z.string().optional(),
+        spaceId: z.string().optional(),
         params: z.record(z.string(), z.unknown()).optional(),
       }),
     ),
@@ -10003,7 +10003,7 @@ registry.registerPath({
     params: z.object({ pluginId: z.string(), key: z.string() }),
     body: jsonBody(
       z.object({
-        companyId: z.string().optional(),
+        spaceId: z.string().optional(),
         params: z.record(z.string(), z.unknown()).optional(),
       }),
     ),
@@ -10018,7 +10018,7 @@ registry.registerPath({
   path: "/api/instance/database-backups",
   tags: ["instance"],
   summary: "Trigger a database backup",
-  description: "Instance admins only: agent credentials receive 403, and cloud-managed instances run backups for you. Automatic gzip-compressed backups run about hourly by default; instance admins set how long they are kept in the Backup retention section of the company-prefixed /company/settings page. The web UI has no control that creates or restores a backup. For a backup now, an instance admin calls this endpoint, or an operator with shell access to the server runs `paperclipai db:backup` (add --json for metadata). The result names a gzip-compressed SQL file (backupFile) on the server host and its size. Outpost has no restore endpoint or command: to check a backup, an operator restores the file with psql into a separate, empty PostgreSQL database, never over the live one, and then checks the restored data.",
+  description: "Instance admins only: agent credentials receive 403, and cloud-managed instances run backups for you. Automatic gzip-compressed backups run about hourly by default; instance admins set how long they are kept in the Backup retention section of the space-prefixed /space/settings page. The web UI has no control that creates or restores a backup. For a backup now, an instance admin calls this endpoint, or an operator with shell access to the server runs `outpost db:backup` (add --json for metadata). The result names a gzip-compressed SQL file (backupFile) on the server host and its size. Outpost has no restore endpoint or command: to check a backup, an operator restores the file with psql into a separate, empty PostgreSQL database, never over the live one, and then checks the restored data.",
   responses: { 201: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
@@ -10065,7 +10065,7 @@ registry.registerPath({
   path: "/api/issues",
   tags: ["issues"],
   summary:
-    "Legacy — returns error directing to /api/companies/{companyId}/issues",
+    "Legacy — returns error directing to /api/spaces/{spaceId}/issues",
   responses: { 400: r.badRequest },
 });
 
@@ -10080,11 +10080,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/link-preview",
-  tags: ["companies"],
-  summary: "Read optional link metadata for the current board user",
-  description: "Outpost access and board authentication are required. This read uses a viewer-scoped cache and returns a quiet null preview when provider access is unavailable. It does not change tasks or schedule background work.",
-  request: { params: z.object({ companyId: z.string() }), query: z.object({ url: z.string().max(2048) }) },
+  path: "/api/spaces/{spaceId}/link-preview",
+  tags: ["spaces"],
+  summary: "Read optional link metadata for the current operator user",
+  description: "Outpost access and operator authentication are required. This read uses a viewer-scoped cache and returns a quiet null preview when provider access is unavailable. It does not change tasks or schedule background work.",
+  request: { params: z.object({ spaceId: z.string() }), query: z.object({ url: z.string().max(2048) }) },
   responses: {
     200: r.ok(z.object({
       preview: z.object({
@@ -10128,11 +10128,11 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/issues/external-object-summaries",
+  path: "/api/spaces/{spaceId}/issues/external-object-summaries",
   tags: ["issues"],
   summary: "Get external object status summaries for issues",
   request: {
-    params: z.object({ companyId: z.string() }),
+    params: z.object({ spaceId: z.string() }),
     body: jsonBody(externalObjectSummariesBodySchema),
   },
   responses: {
@@ -10179,66 +10179,66 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/org.svg",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/org.svg",
+  tags: ["spaces"],
   summary: "Get org chart as SVG",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: { description: "SVG image" }, 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/org.png",
-  tags: ["companies"],
+  path: "/api/spaces/{spaceId}/org.png",
+  tags: ["spaces"],
   summary: "Get org chart as PNG",
-  request: { params: z.object({ companyId: z.string() }) },
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: { description: "PNG image" }, 401: r.unauthorized },
 });
 
-// ─── Company portability (legacy routes) ─────────────────────────────────────
+// ─── Space portability (legacy routes) ─────────────────────────────────────
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/issues",
-  tags: ["companies"],
+  path: "/api/spaces/issues",
+  tags: ["spaces"],
   summary: "Legacy — returns error directing to correct issues path",
   responses: { 400: r.badRequest },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/{companyId}/export",
-  tags: ["companies"],
-  summary: "Export a company (legacy singular form)",
+  path: "/api/spaces/{spaceId}/export",
+  tags: ["spaces"],
+  summary: "Export a space (legacy singular form)",
   request: {
-    params: z.object({ companyId: z.string() }),
-    body: jsonBody(companyPortabilityExportSchema),
+    params: z.object({ spaceId: z.string() }),
+    body: jsonBody(spacePortabilityExportSchema),
   },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/{companyId}/export/fidelity",
-  tags: ["companies"],
-  summary: "Report company data that an export bundle does not include",
-  request: { params: z.object({ companyId: z.string() }) },
+  path: "/api/spaces/{spaceId}/export/fidelity",
+  tags: ["spaces"],
+  summary: "Report space data that an export bundle does not include",
+  request: { params: z.object({ spaceId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/import/preview",
-  tags: ["companies"],
-  summary: "Preview a company import (legacy route)",
+  path: "/api/spaces/import/preview",
+  tags: ["spaces"],
+  summary: "Preview a space import (legacy route)",
   description:
-    "Accepts either the inline JSON body (`application/json`) or the raw company " +
+    "Accepts either the inline JSON body (`application/json`) or the raw space " +
     "package uploaded as a compressed zip (`multipart/form-data` with a `package` " +
     "file field plus a JSON `meta` field carrying the other import fields, or a bare " +
     "`application/zip` body with the `meta` JSON in the `meta` query parameter). The " +
     'zip is unzipped server-side into the same `{ source: { type: "inline", ... } }` ' +
     "bundle the JSON body carries.",
-  request: { body: importRequestBody(companyPortabilityPreviewSchema) },
+  request: { body: importRequestBody(spacePortabilityPreviewSchema) },
   responses: {
     200: r.ok(),
     400: r.badRequest,
@@ -10249,24 +10249,24 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/companies/import",
-  tags: ["companies"],
-  summary: "Apply a company import (legacy route)",
+  path: "/api/spaces/import",
+  tags: ["spaces"],
+  summary: "Apply a space import (legacy route)",
   description:
-    "Accepts either the inline JSON body (`application/json`) or the raw company package " +
+    "Accepts either the inline JSON body (`application/json`) or the raw space package " +
     "uploaded as a compressed zip (`multipart/form-data` with a `package` file field plus a " +
     "JSON `meta` field, or a bare `application/zip` body with the `meta` JSON in the `meta` " +
     "query parameter); the zip is unzipped server-side into the same import bundle. " +
     "Callers can opt into asynchronous processing: trusted Cloud tenants set the " +
-    "`x-paperclip-cloud-async-import: 1` header (browsers cannot — the Cloud harness proxy " +
-    "strips inbound `x-paperclip-cloud-*` headers), while board sessions use the proxy-safe " +
+    "`x-outpost-cloud-async-import: 1` header (browsers cannot — the Cloud harness proxy " +
+    "strips inbound `x-outpost-cloud-*` headers), while operator sessions use the proxy-safe " +
     "`?async=1` query parameter. Either way the server responds 202 with a job id and status " +
-    "URL instead of holding the connection open for the whole import. While a board actor " +
+    "URL instead of holding the connection open for the whole import. While a operator actor " +
     "already has an async job running, a resubmit returns 409 carrying the running job's id " +
     "and status URL. Jobs are held in memory and are lost on restart.",
   request: {
     query: z.object({ async: z.enum(["1"]).optional() }),
-    body: importRequestBody(companyPortabilityImportSchema),
+    body: importRequestBody(spacePortabilityImportSchema),
   },
   responses: {
     200: r.ok(),
@@ -10282,15 +10282,15 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: COMPANY_IMPORT_TRANSFERS_API_PATH,
-  tags: ["companies"],
-  summary: "Declare a chunked company import transfer",
+  path: SPACE_IMPORT_TRANSFERS_API_PATH,
+  tags: ["spaces"],
+  summary: "Declare a chunked space import transfer",
   description:
-    "Declares the caller's existing company package .zip as content-addressed byte-range parts " +
+    "Declares the caller's existing space package .zip as content-addressed byte-range parts " +
     "(whole-file plus per-part sha256). Re-declaring the same zip resumes the prior transfer " +
     "with its uploaded parts intact; the response carries the transfer id and the part indexes " +
     "still missing.",
-  request: { body: jsonBody(companyImportTransferDeclarationSchema) },
+  request: { body: jsonBody(spaceImportTransferDeclarationSchema) },
   responses: {
     200: r.ok(),
     400: r.badRequest,
@@ -10301,9 +10301,9 @@ registry.registerPath({
 
 registry.registerPath({
   method: "put",
-  path: `${COMPANY_IMPORT_TRANSFERS_API_PATH}/{transferId}/parts/{partIndex}`,
-  tags: ["companies"],
-  summary: "Upload one declared part of a company import transfer",
+  path: `${SPACE_IMPORT_TRANSFERS_API_PATH}/{transferId}/parts/{partIndex}`,
+  tags: ["spaces"],
+  summary: "Upload one declared part of a space import transfer",
   description:
     "Raw part bytes as the request body. The upload is verified against the declared byte size " +
     "and sha256 before it is spooled; re-uploading an already completed part is a no-op success. " +
@@ -10338,9 +10338,9 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: `${COMPANY_IMPORT_TRANSFERS_API_PATH}/{transferId}`,
-  tags: ["companies"],
-  summary: "Get company import transfer progress",
+  path: `${SPACE_IMPORT_TRANSFERS_API_PATH}/{transferId}`,
+  tags: ["spaces"],
+  summary: "Get space import transfer progress",
   description:
     "Resume polling for a chunked import transfer: the transfer status plus which declared " +
     "parts are completed and which are still missing.",
@@ -10350,9 +10350,9 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: `${COMPANY_IMPORT_TRANSFERS_API_PATH}/{transferId}/preview`,
-  tags: ["companies"],
-  summary: "Preview a completed company import transfer",
+  path: `${SPACE_IMPORT_TRANSFERS_API_PATH}/{transferId}/preview`,
+  tags: ["spaces"],
+  summary: "Preview a completed space import transfer",
   description:
     "Runs the import preview against the assembled spool without consuming the transfer: the " +
     "ledger run stays open and the parts stay spooled, so the subsequent apply reuses them " +
@@ -10360,7 +10360,7 @@ registry.registerPath({
     "route's `meta` field (include, target, collisionStrategy, ...).",
   request: {
     params: z.object({ transferId: z.string() }),
-    body: jsonBody(companyPortabilityPreviewSchema.omit({ source: true })),
+    body: jsonBody(spacePortabilityPreviewSchema.omit({ source: true })),
   },
   responses: {
     200: r.ok(),
@@ -10380,9 +10380,9 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: `${COMPANY_IMPORT_TRANSFERS_API_PATH}/{transferId}/apply`,
-  tags: ["companies"],
-  summary: "Apply a completed company import transfer",
+  path: `${SPACE_IMPORT_TRANSFERS_API_PATH}/{transferId}/apply`,
+  tags: ["spaces"],
+  summary: "Apply a completed space import transfer",
   description:
     "Assembles the spooled parts back into the original zip, verifies the whole file against " +
     "the declared hash fail-closed, and runs it through the same import pipeline as the " +
@@ -10393,7 +10393,7 @@ registry.registerPath({
   request: {
     params: z.object({ transferId: z.string() }),
     query: z.object({ async: z.enum(["1"]).optional() }),
-    body: jsonBody(companyPortabilityImportSchema.omit({ source: true })),
+    body: jsonBody(spacePortabilityImportSchema.omit({ source: true })),
   },
   responses: {
     200: r.ok(),
@@ -10412,22 +10412,22 @@ registry.registerPath({
   },
 });
 
-// ─── Board claim & CLI auth ───────────────────────────────────────────────────
+// ─── Operator claim & CLI auth ───────────────────────────────────────────────────
 
 registry.registerPath({
   method: "get",
-  path: "/api/board-claim/{token}",
+  path: "/api/operator-claim/{token}",
   tags: ["access"],
-  summary: "Get board claim details by token",
+  summary: "Get operator claim details by token",
   request: { params: z.object({ token: z.string() }) },
   responses: { 200: r.ok(), 404: r.notFound },
 });
 
 registry.registerPath({
   method: "post",
-  path: "/api/board-claim/{token}/claim",
+  path: "/api/operator-claim/{token}/claim",
   tags: ["access"],
-  summary: "Claim a board token",
+  summary: "Claim a operator token",
   request: { params: z.object({ token: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 404: r.notFound },
 });
@@ -10447,7 +10447,7 @@ registry.registerPath({
   method: "get",
   path: "/api/invites/{token}/logo",
   tags: ["access"],
-  summary: "Get company logo for an invite",
+  summary: "Get space logo for an invite",
   request: { params: z.object({ token: z.string() }) },
   responses: { 200: { description: "Image file" }, 404: r.notFound },
 });
@@ -10504,21 +10504,21 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/admin/users/{userId}/company-access",
+  path: "/api/admin/users/{userId}/space-access",
   tags: ["admin"],
-  summary: "Get company access for a user (admin)",
+  summary: "Get space access for a user (admin)",
   request: { params: z.object({ userId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({
   method: "put",
-  path: "/api/admin/users/{userId}/company-access",
+  path: "/api/admin/users/{userId}/space-access",
   tags: ["admin"],
-  summary: "Set company access for a user (admin)",
+  summary: "Set space access for a user (admin)",
   request: {
     params: z.object({ userId: z.string() }),
-    body: jsonBody(updateUserCompanyAccessSchema),
+    body: jsonBody(updateUserSpaceAccessSchema),
   },
   responses: {
     200: r.ok(),
@@ -10640,7 +10640,7 @@ registerCurrentRoute({
   path: "/api/health/dev-server/restart",
   tags: ["health"],
   summary: "Request a managed dev-server instance restart",
-  description: "Request a restart of this Outpost instance through its managed development-server supervisor. In authenticated deployments this requires a board identity; an agent credential does not inherit board access from its responsible user or from a chat request. Hand that operation to an authorized board/operator when the route denies the current agent. Returns 404 when no managed supervisor is available and 409 when no restart is required. Acceptance is not proof that the restart completed. This operation does not delete stored conversations or task comments.",
+  description: "Request a restart of this Outpost instance through its managed development-server supervisor. In authenticated deployments this requires a operator identity; an agent credential does not inherit operator access from its responsible user or from a chat request. Hand that operation to an authorized operator/operator when the route denies the current agent. Returns 404 when no managed supervisor is available and 409 when no restart is required. Acceptance is not proof that the restart completed. This operation does not delete stored conversations or task comments.",
   responses: {
     202: r.ok(),
     403: r.forbidden,
@@ -10664,35 +10664,35 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "get",
-  path: "/api/board-api-keys",
+  path: "/api/operator-api-keys",
   tags: ["access"],
-  summary: "List board API keys",
+  summary: "List operator API keys",
   responses: { 200: r.ok(), 401: r.unauthorized },
 });
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/board-api-keys",
+  path: "/api/operator-api-keys",
   tags: ["access"],
-  summary: "Create a named board API key",
+  summary: "Create a named operator API key",
   body: createBoardApiKeySchema,
   responses: { 201: r.ok(), 400: r.badRequest, 401: r.unauthorized },
 });
 
 registerCurrentRoute({
   method: "delete",
-  path: "/api/board-api-keys/{keyId}",
+  path: "/api/operator-api-keys/{keyId}",
   tags: ["access"],
-  summary: "Revoke a board API key",
+  summary: "Revoke a operator API key",
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/companies/import/jobs/{jobId}",
-  tags: ["companies"],
-  summary: "Get company import job status",
+  path: "/api/spaces/import/jobs/{jobId}",
+  tags: ["spaces"],
+  summary: "Get space import job status",
   description:
-    "A job is readable only by the actor that created it — the board user or the trusted Cloud " +
+    "A job is readable only by the actor that created it — the operator user or the trusted Cloud " +
     "tenant identity from the async import submission. Any other caller gets the same 404 as an " +
     "unknown id. Jobs are held in memory: they are dropped a few minutes after finishing and do " +
     "not survive a server restart.",
@@ -10706,37 +10706,37 @@ registry.registerPath({
 });
 
 for (const route of [
-  ["get", "/api/companies/{companyId}/search", "Search company data"],
+  ["get", "/api/spaces/{spaceId}/search", "Search space data"],
   [
     "get",
-    "/api/companies/{companyId}/search/extract",
-    "Extract company search matches",
+    "/api/spaces/{spaceId}/search/extract",
+    "Extract space search matches",
   ],
   [
     "get",
-    "/api/companies/{companyId}/issues/count",
-    "Count issues in a company",
+    "/api/spaces/{spaceId}/issues/count",
+    "Count issues in a space",
   ],
 ] as const) {
   registerCurrentRoute({
     method: route[0],
     path: route[1],
-    tags: ["companies"],
+    tags: ["spaces"],
     summary: route[2],
   });
 }
 
 registerCurrentRoute({
   method: "get",
-  path: "/api/companies/{companyId}/folders",
+  path: "/api/spaces/{spaceId}/folders",
   tags: ["folders"],
-  summary: "List folders for a company item kind",
+  summary: "List folders for a space item kind",
   query: z.object({ kind: folderKindSchema }),
 });
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/folders",
+  path: "/api/spaces/{spaceId}/folders",
   tags: ["folders"],
   summary: "Create a folder",
   body: createFolderSchema,
@@ -10744,7 +10744,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/folders/ensure-my",
+  path: "/api/spaces/{spaceId}/folders/ensure-my",
   tags: ["folders"],
   summary: "Ensure the current user's personal skill folder exists",
   body: ensureMySkillFolderSchema,
@@ -10752,7 +10752,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "patch",
-  path: "/api/companies/{companyId}/folders/{folderId}",
+  path: "/api/spaces/{spaceId}/folders/{folderId}",
   tags: ["folders"],
   summary: "Update a folder",
   body: updateFolderSchema,
@@ -10760,7 +10760,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/folders/items/move",
+  path: "/api/spaces/{spaceId}/folders/items/move",
   tags: ["folders"],
   summary: "Move an item into or out of a folder",
   body: moveFolderItemSchema,
@@ -10768,7 +10768,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/folders/{folderId}/move",
+  path: "/api/spaces/{spaceId}/folders/{folderId}/move",
   tags: ["folders"],
   summary: "Move or reorder a folder",
   body: moveFolderSchema,
@@ -10776,7 +10776,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "delete",
-  path: "/api/companies/{companyId}/folders/{folderId}",
+  path: "/api/spaces/{spaceId}/folders/{folderId}",
   tags: ["folders"],
   summary: "Delete a folder",
 });
@@ -10790,7 +10790,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "put",
-  path: "/api/companies/{companyId}/resource-memberships/me/documents/{documentId}",
+  path: "/api/spaces/{spaceId}/resource-memberships/me/documents/{documentId}",
   tags: ["resource-memberships"],
   summary: "Star or unstar a document resource",
   body: updateDocumentResourceMembershipSchema,
@@ -10799,17 +10799,17 @@ registerCurrentRoute({
 for (const route of [
   [
     "get",
-    "/api/companies/{companyId}/resource-memberships/me",
+    "/api/spaces/{spaceId}/resource-memberships/me",
     "List current user's resource memberships",
   ],
   [
     "put",
-    "/api/companies/{companyId}/resource-memberships/me/agents/{agentId}",
+    "/api/spaces/{spaceId}/resource-memberships/me/agents/{agentId}",
     "Join or leave an agent resource",
   ],
   [
     "put",
-    "/api/companies/{companyId}/resource-memberships/me/projects/{projectId}",
+    "/api/spaces/{spaceId}/resource-memberships/me/projects/{projectId}",
     "Join or leave a project resource",
   ],
 ] as const) {
@@ -10825,12 +10825,12 @@ for (const route of [
 for (const route of [
   [
     "get",
-    "/api/companies/{companyId}/secret-providers/health",
+    "/api/spaces/{spaceId}/secret-providers/health",
     "Check configured secret providers",
   ],
   [
     "get",
-    "/api/companies/{companyId}/secret-provider-configs",
+    "/api/spaces/{spaceId}/secret-provider-configs",
     "List secret provider configurations",
   ],
   [
@@ -10866,7 +10866,7 @@ for (const route of [
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/secret-provider-configs",
+  path: "/api/spaces/{spaceId}/secret-provider-configs",
   tags: ["secrets"],
   summary: "Create a secret provider configuration",
   body: createSecretProviderConfigSchema,
@@ -10888,7 +10888,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/secret-provider-configs/discovery/preview",
+  path: "/api/spaces/{spaceId}/secret-provider-configs/discovery/preview",
   tags: ["secrets"],
   summary: "Preview secret provider discovery",
   body: secretProviderConfigDiscoveryPreviewSchema,
@@ -10896,7 +10896,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/secrets/remote-import/preview",
+  path: "/api/spaces/{spaceId}/secrets/remote-import/preview",
   tags: ["secrets"],
   summary: "Preview remote secret import",
   body: remoteSecretImportPreviewSchema,
@@ -10904,7 +10904,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/secrets/remote-import",
+  path: "/api/spaces/{spaceId}/secrets/remote-import",
   tags: ["secrets"],
   summary: "Import remote secrets",
   body: remoteSecretImportSchema,
@@ -10916,83 +10916,83 @@ for (const route of [
   ["get", "/api/skills/catalog/{catalogId}/files", "List catalog skill files"],
   [
     "post",
-    "/api/companies/{companyId}/skills/install-catalog",
+    "/api/spaces/{spaceId}/skills/install-catalog",
     "Install a catalog skill",
   ],
   [
     "get",
-    "/api/companies/{companyId}/skills/categories",
-    "List company skill categories",
+    "/api/spaces/{spaceId}/skills/categories",
+    "List space skill categories",
   ],
   [
     "post",
-    "/api/companies/{companyId}/skills/{skillId}/audit",
-    "Audit a company skill",
+    "/api/spaces/{spaceId}/skills/{skillId}/audit",
+    "Audit a space skill",
   ],
   [
     "patch",
-    "/api/companies/{companyId}/skills/{skillId}",
-    "Update a company skill",
+    "/api/spaces/{spaceId}/skills/{skillId}",
+    "Update a space skill",
   ],
   [
     "get",
-    "/api/companies/{companyId}/skills/{skillId}/versions",
+    "/api/spaces/{spaceId}/skills/{skillId}/versions",
     "List skill versions",
   ],
   [
     "post",
-    "/api/companies/{companyId}/skills/{skillId}/versions",
+    "/api/spaces/{spaceId}/skills/{skillId}/versions",
     "Create a skill version",
   ],
   [
     "get",
-    "/api/companies/{companyId}/skills/{skillId}/versions/{versionId}",
+    "/api/spaces/{spaceId}/skills/{skillId}/versions/{versionId}",
     "Get a skill version",
   ],
   [
     "post",
-    "/api/companies/{companyId}/skills/{skillId}/star",
-    "Star a company skill",
+    "/api/spaces/{spaceId}/skills/{skillId}/star",
+    "Star a space skill",
   ],
   [
     "delete",
-    "/api/companies/{companyId}/skills/{skillId}/star",
-    "Unstar a company skill",
+    "/api/spaces/{spaceId}/skills/{skillId}/star",
+    "Unstar a space skill",
   ],
   [
     "get",
-    "/api/companies/{companyId}/skills/{skillId}/fork-precheck",
-    "Preview company skill fork impact",
+    "/api/spaces/{spaceId}/skills/{skillId}/fork-precheck",
+    "Preview space skill fork impact",
   ],
   [
     "post",
-    "/api/companies/{companyId}/skills/{skillId}/fork",
-    "Fork a company skill",
+    "/api/spaces/{spaceId}/skills/{skillId}/fork",
+    "Fork a space skill",
   ],
   [
     "get",
-    "/api/companies/{companyId}/skills/{skillId}/comments",
+    "/api/spaces/{spaceId}/skills/{skillId}/comments",
     "List skill comments",
   ],
   [
     "post",
-    "/api/companies/{companyId}/skills/{skillId}/comments",
+    "/api/spaces/{spaceId}/skills/{skillId}/comments",
     "Create a skill comment",
   ],
   [
     "patch",
-    "/api/companies/{companyId}/skills/{skillId}/comments/{commentId}",
+    "/api/spaces/{spaceId}/skills/{skillId}/comments/{commentId}",
     "Update a skill comment",
   ],
   [
     "delete",
-    "/api/companies/{companyId}/skills/{skillId}/comments/{commentId}",
+    "/api/spaces/{spaceId}/skills/{skillId}/comments/{commentId}",
     "Delete a skill comment",
   ],
   [
     "post",
-    "/api/companies/{companyId}/skills/{skillId}/reset",
-    "Reset a company skill",
+    "/api/spaces/{spaceId}/skills/{skillId}/reset",
+    "Reset a space skill",
   ],
 ] as const) {
   registerCurrentRoute({
@@ -11300,7 +11300,7 @@ registerCurrentRoute({
   method: "post",
   path: "/api/issues/{id}/interactions/{interactionId}/dismiss",
   tags: ["issues"],
-  summary: "Defer a request to conversation history (human board users only)",
+  summary: "Defer a request to conversation history (human operator users only)",
 });
 
 registerCurrentRoute({
@@ -11391,22 +11391,22 @@ const pluginLocalFolderRequestSchema = z.object({
 for (const route of [
   [
     "get",
-    "/api/plugins/{pluginId}/companies/{companyId}/local-folders",
+    "/api/plugins/{pluginId}/spaces/{spaceId}/local-folders",
     "List plugin local folders",
   ],
   [
     "get",
-    "/api/plugins/{pluginId}/companies/{companyId}/local-folders/{folderKey}/status",
+    "/api/plugins/{pluginId}/spaces/{spaceId}/local-folders/{folderKey}/status",
     "Get plugin local folder status",
   ],
   [
     "post",
-    "/api/plugins/{pluginId}/companies/{companyId}/local-folders/{folderKey}/validate",
+    "/api/plugins/{pluginId}/spaces/{spaceId}/local-folders/{folderKey}/validate",
     "Validate a plugin local folder",
   ],
   [
     "put",
-    "/api/plugins/{pluginId}/companies/{companyId}/local-folders/{folderKey}",
+    "/api/plugins/{pluginId}/spaces/{spaceId}/local-folders/{folderKey}",
     "Save a plugin local folder",
   ],
 ] as const) {
@@ -11490,7 +11490,7 @@ registerCurrentRoute({
 });
 
 const ADDRESSED_CONNECTION_REQUEST = "Person-only: a connection request card is addressed to one person, its addresseeUserId. "
-  + "Only that person, signed in to their own browser, can open its setup, connect their account or decline it. The server refuses every other member, board user and agent, so nobody can finish it for them. "
+  + "Only that person, signed in to their own browser, can open its setup, connect their account or decline it. The server refuses every other member, operator user and agent, so nobody can finish it for them. "
   + "When someone else offers to finish it, tell them the addressee must connect their own account from the card on its task, linked as [<identifier>](/<prefix>/issues/<identifier>). "
   + "Do not create another request for the addressee and do not search for another route.";
 
@@ -11562,20 +11562,20 @@ registerCurrentRoute({
 // --- AI runtime connections -------------------------------------------------
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/ai-connection-pools",
+  path: "/api/spaces/{spaceId}/ai-connection-pools",
   tags: ["ai-connections"],
-  summary: "List company AI connection pools for connection managers",
+  summary: "List space AI connection pools for connection managers",
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/ai-connection-pools",
+  path: "/api/spaces/{spaceId}/ai-connection-pools",
   tags: ["ai-connections"],
   summary: "Create or revise an experimental plugin-owned connection pool",
   body: z.object({ pluginKey: z.string().min(1), id: z.string().uuid().optional(), expectedRevision: z.number().int().positive().optional(), config: aiConnectionPoolConfigSchema }).strict(),
@@ -11583,10 +11583,10 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "delete",
-  path: "/api/companies/{companyId}/ai-connection-pools/{poolId}",
+  path: "/api/spaces/{spaceId}/ai-connection-pools/{poolId}",
   tags: ["ai-connections"],
   summary: "Delete a connection pool while retaining task and run records",
   body: z.object({ expectedRevision: z.number().int().positive() }).strict(),
@@ -11594,20 +11594,20 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/ai-connection-pools/{poolId}/inspection",
+  path: "/api/spaces/{spaceId}/ai-connection-pools/{poolId}/inspection",
   tags: ["ai-connections"],
   summary: "Inspect authorized pool members and fresh cached usage without probing",
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/ai-connections/{connectionId}/identity",
+  path: "/api/spaces/{spaceId}/ai-connections/{connectionId}/identity",
   tags: ["ai-connections"],
   summary: "Read the selected authorized AI account's provider email and organization",
   query: z.object({ grantId: z.string().uuid().optional() }),
@@ -11615,10 +11615,10 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/ai-connections/{connectionId}/usage",
+  path: "/api/spaces/{spaceId}/ai-connections/{connectionId}/usage",
   tags: ["ai-connections"],
   summary: "Probe the selected AI account’s provider usage limits on demand",
   query: z.object({ grantId: z.string().uuid().optional() }),
@@ -11626,10 +11626,10 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/ai-connections",
+  path: "/api/spaces/{spaceId}/ai-connections",
   tags: ["ai-connections"],
   summary: "List available AI connections, personal defaults, and connection-manager access",
   query: z.object({ agentId: z.string().uuid().optional() }),
@@ -11637,10 +11637,10 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/ai-connections",
+  path: "/api/spaces/{spaceId}/ai-connections",
   tags: ["ai-connections"],
   summary: "Validate and connect an AI API key, or reconnect its existing grant",
   body: createAiConnectionSchema,
@@ -11648,10 +11648,10 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "put",
-  path: "/api/companies/{companyId}/ai-connections/default",
+  path: "/api/spaces/{spaceId}/ai-connections/default",
   tags: ["ai-connections"],
   summary: "Set the signed-in owner’s personal AI default",
   body: z.object({ grantId: z.string().uuid() }),
@@ -11659,47 +11659,47 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/ai-connections/{connectionId}/active-runs",
+  path: "/api/spaces/{spaceId}/ai-connections/{connectionId}/active-runs",
   tags: ["ai-connections"],
   summary: "List active runs attributed to an AI connection",
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 422: r.unprocessable },
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/ai-connections/login/{sessionId}",
+  path: "/api/spaces/{spaceId}/ai-connections/login/{sessionId}",
   tags: ["ai-connections"],
   summary: "Get the connection saved by an owned completed login",
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 422: r.unprocessable },
 });
 
 registerCurrentRoute({
-  method: "get", path: "/api/companies/{companyId}/ai-connections/login/{sessionId}/setup",
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:read",
+  method: "get", path: "/api/spaces/{spaceId}/ai-connections/login/{sessionId}/setup",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:read",
   tags: ["ai-connections"], summary: "Reopen an owned saved AI sign-in with its original account and environment",
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 
 // --- Tool access -------------------------------------------------------------
 
-/** Where a person manages a company model service; agents relay this page instead of guessing a settings route. */
-function companyModelServiceSettingsPage(section: string, condition = "") {
-  return `People who manage connections configure, enable and test this in the ${section} section of the company-prefixed /company/settings/connections page; link it as a Markdown link to /<prefix>/company/settings/connections, not the general /company/settings page.${condition} Agent credentials cannot change or test it.`;
+/** Where a person manages a space model service; agents relay this page instead of guessing a settings route. */
+function spaceModelServiceSettingsPage(section: string, condition = "") {
+  return `People who manage connections configure, enable and test this in the ${section} section of the space-prefixed /space/settings/connections page; link it as a Markdown link to /<prefix>/space/settings/connections, not the general /space/settings page.${condition} Agent credentials cannot change or test it.`;
 }
 
 for (const [method, suffix, summary] of [
   ["get", "", "Get prompt injection settings and eligible shared OpenRouter connections; non-managers receive no settings or choices"],
-  ["put", "", "Configure opt-in prompt injection model checks as a board connection manager"],
-  ["get", "/models", "List OpenRouter model suggestions for an authorized shared connection as a board connection manager"],
-  ["post", "/test", "Classify two fixed billed samples using saved settings as a board connection manager; fallback is not a passing model test"],
+  ["put", "", "Configure opt-in prompt injection model checks as a operator connection manager"],
+  ["get", "/models", "List OpenRouter model suggestions for an authorized shared connection as a operator connection manager"],
+  ["post", "/test", "Classify two fixed billed samples using saved settings as a operator connection manager; fallback is not a passing model test"],
 ] as const) registerCurrentRoute({
-  method, path: `/api/companies/{companyId}/prompt-injection-prevention${suffix}`,
-  tags: ["prompt-injection-prevention"], summary, description: companyModelServiceSettingsPage("Prompt Injection Prevention"),
+  method, path: `/api/spaces/{spaceId}/prompt-injection-prevention${suffix}`,
+  tags: ["prompt-injection-prevention"], summary, description: spaceModelServiceSettingsPage("Prompt Injection Prevention"),
   ...(method === "put" ? { body: updatePromptInjectionPreventionSchema } : {}),
   ...(method === "post" ? { body: z.object({}).strict() } : {}),
   ...(suffix === "/models" ? { query: z.object({ connectionId: z.string().uuid() }) } : {}),
@@ -11708,61 +11708,61 @@ for (const [method, suffix, summary] of [
 
 for (const [method, suffix, summary] of [
   ["get", "", "Get fast response settings and compatible shared API connections"],
-  ["put", "", "Configure the company fast response model"],
+  ["put", "", "Configure the space fast response model"],
   ["get", "/models", "List models for an authorized API connection"],
   ["get", "/availability", "Check fast response configuration without contacting the provider"],
   ["post", "/test", "Generate a fixed billed fast response sample"],
   ["get", "/history", "List fast response accounting and publication outcomes"],
-] as const) registerCurrentRoute({ method, path: `/api/companies/{companyId}/fast-response${suffix}`, tags: ["fast-responses"], summary,
-  description: companyModelServiceSettingsPage("Fast response", " The section is shown only while an instance admin has fast responses turned on in /<prefix>/company/settings/instance/experimental."),
+] as const) registerCurrentRoute({ method, path: `/api/spaces/{spaceId}/fast-response${suffix}`, tags: ["fast-responses"], summary,
+  description: spaceModelServiceSettingsPage("Fast response", " The section is shown only while an instance admin has fast responses turned on in /<prefix>/space/settings/instance/experimental."),
   ...(method === "put" ? { body: updateFastResponseSchema } : {}), responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable } });
 
 registerCurrentRoute({
-  method: "get", path: "/api/companies/{companyId}/decision-model", tags: ["decision-models"],
-  description: companyModelServiceSettingsPage("Decision model"),
+  method: "get", path: "/api/spaces/{spaceId}/decision-model", tags: ["decision-models"],
+  description: spaceModelServiceSettingsPage("Decision model"),
   summary: "Get decision settings, compatible connections, and manager capability",
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 registerCurrentRoute({
-  method: "put", path: "/api/companies/{companyId}/decision-model", tags: ["decision-models"],
-  description: companyModelServiceSettingsPage("Decision model"),
-  summary: "Configure the company decision model as a connection manager", body: updateDecisionModelSchema,
+  method: "put", path: "/api/spaces/{spaceId}/decision-model", tags: ["decision-models"],
+  description: spaceModelServiceSettingsPage("Decision model"),
+  summary: "Configure the space decision model as a connection manager", body: updateDecisionModelSchema,
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable },
 });
 registerCurrentRoute({
-  method: "get", path: "/api/companies/{companyId}/decision-model/availability", tags: ["decision-models"],
-  description: companyModelServiceSettingsPage("Decision model"),
+  method: "get", path: "/api/spaces/{spaceId}/decision-model/availability", tags: ["decision-models"],
+  description: spaceModelServiceSettingsPage("Decision model"),
   summary: "Check local decision configuration and caller authorization without contacting a provider",
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 registerCurrentRoute({
-  method: "post", path: "/api/companies/{companyId}/decision-model/test", tags: ["decision-models"],
-  description: companyModelServiceSettingsPage("Decision model"),
+  method: "post", path: "/api/spaces/{spaceId}/decision-model/test", tags: ["decision-models"],
+  description: spaceModelServiceSettingsPage("Decision model"),
   summary: "Run the fixed billed three-question setup test as a connection manager",
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 registerCurrentRoute({
-  method: "get", path: "/api/companies/{companyId}/decision-model/history", tags: ["decision-models"],
-  description: companyModelServiceSettingsPage("Decision model"),
+  method: "get", path: "/api/spaces/{spaceId}/decision-model/history", tags: ["decision-models"],
+  description: spaceModelServiceSettingsPage("Decision model"),
   summary: "List decision metadata and charges with authorized task links",
   query: costReportQuerySchema.extend({ limit: z.coerce.number().int().min(1).max(500).optional() }),
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden },
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/tools/gallery",
+  path: "/api/spaces/{spaceId}/tools/gallery",
   tags: ["tool-access"],
   summary: "List tool app gallery entries",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/tools/apps/{galleryKey}/preflight",
+  path: "/api/spaces/{spaceId}/tools/apps/{galleryKey}/preflight",
   tags: ["tool-access"],
   summary:
     "Inspect a curated app's public MCP and OAuth metadata without credentials or registration",
@@ -11772,10 +11772,10 @@ const OWN_MCP_SERVER_KEY = "When a person's own MCP server needs an API key, the
   + "An agent cannot enter the key and must not ask for it in chat. Link that page and reply instead of creating the connection here.";
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/tools/apps/connect",
+  path: "/api/spaces/{spaceId}/tools/apps/connect",
   tags: ["tool-access"],
   summary: "Create a draft app connection from gallery input",
   description: OWN_MCP_SERVER_KEY,
@@ -11791,10 +11791,10 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/tools/apps/{connectionId}/finish",
+  path: "/api/spaces/{spaceId}/tools/apps/{connectionId}/finish",
   tags: ["tool-access"],
   summary: "Finish a gallery app connection and profile setup",
   body: finishToolAppSchema,
@@ -11809,12 +11809,12 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/tools/apps/{connectionId}/finalize-oauth-access",
+  path: "/api/spaces/{spaceId}/tools/apps/{connectionId}/finalize-oauth-access",
   tags: ["tool-access"],
-  summary: "Choose personal or company-wide access after OAuth sign-in",
+  summary: "Choose personal or space-wide access after OAuth sign-in",
   body: finalizeOAuthAccessSchema,
   responses: {
     200: r.ok(),
@@ -11828,42 +11828,42 @@ registerCurrentRoute({
 
 const QUARANTINED_ACTION_REVIEW = "Catalog entries with status quarantined are new actions that a catalog refresh found and holds for a person's review. "
   + "No agent can call a quarantined action, through this connection or any other transport, until a person who manages the connection allows it on the app's Permissions page, "
-  + "[Permissions](/<prefix>/apps/<connectionId>/permissions), with this conversation's company prefix and the connection's id. Allowing it is that person's decision, not an agent's. "
+  + "[Permissions](/<prefix>/apps/<connectionId>/permissions), with this conversation's space prefix and the connection's id. Allowing it is that person's decision, not an agent's. "
   + "When asked to use a quarantined action, say it is waiting for review, link that page and reply; do not search for another route.";
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/tools/apps/attention",
+  path: "/api/spaces/{spaceId}/tools/apps/attention",
   tags: ["tool-access"],
   summary: "List tool apps needing attention",
   description: QUARANTINED_ACTION_REVIEW,
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/tools/action-requests",
+  path: "/api/spaces/{spaceId}/tools/action-requests",
   tags: ["tool-access"],
   summary: "List pending tool action requests",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/tools/examples",
+  path: "/api/spaces/{spaceId}/tools/examples",
   tags: ["tool-access"],
   summary: "List installable tool examples",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/tools/examples/{id}/install",
+  path: "/api/spaces/{spaceId}/tools/examples/{id}/install",
   tags: ["tool-access"],
   summary: "Install a safe tool example",
   responses: {
@@ -11878,9 +11878,9 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/tools/examples/{id}/smoke",
+  path: "/api/spaces/{spaceId}/tools/examples/{id}/smoke",
   tags: ["tool-access"],
-  summary: "Run tool example governance smoke checks",
+  summary: "Run tool example policy smoke checks",
   responses: {
     200: r.ok(),
     400: r.badRequest,
@@ -11891,19 +11891,19 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/tools/applications",
+  path: "/api/spaces/{spaceId}/tools/applications",
   tags: ["tool-access"],
   summary: "List tool applications",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/tools/applications",
+  path: "/api/spaces/{spaceId}/tools/applications",
   tags: ["tool-access"],
   summary: "Create a tool application",
   body: createToolApplicationSchema,
@@ -11916,8 +11916,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "patch",
   path: "/api/tool-applications/{applicationId}",
   tags: ["tool-access"],
@@ -11926,8 +11926,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "delete",
   path: "/api/tool-applications/{applicationId}",
   tags: ["tool-access"],
@@ -11935,22 +11935,22 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/tools/connections",
+  path: "/api/spaces/{spaceId}/tools/connections",
   tags: ["tool-access"],
   summary: "List tool connections",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/tools/connections",
+  path: "/api/spaces/{spaceId}/tools/connections",
   tags: ["tool-access"],
   summary: "Create a tool connection",
-  description: "Saves a connection as given without checking that its server answers. To connect an MCP server from its URL, use POST /api/companies/{companyId}/tools/apps/connect with link instead: it checks the server first, and a fresh setup saves no connection when the server cannot be reached. "
+  description: "Saves a connection as given without checking that its server answers. To connect an MCP server from its URL, use POST /api/spaces/{spaceId}/tools/apps/connect with link instead: it checks the server first, and a fresh setup saves no connection when the server cannot be reached. "
     + OWN_MCP_SERVER_KEY,
   body: createToolConnectionSchema,
   responses: {
@@ -11962,8 +11962,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
   path: "/api/tool-connections/{connectionId}",
   tags: ["tool-access"],
@@ -11971,17 +11971,17 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/tools/connections/{connectionId}/start-authorization",
+  path: "/api/spaces/{spaceId}/tools/connections/{connectionId}/start-authorization",
   tags: ["tool-access"],
   summary: "Start user authorization for a tool connection",
   body: startConnectionAuthorizationSchema,
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:configure",
   method: "post",
   path: "/api/agents/me/connections/{connectionId}/start-authorization",
   tags: ["tool-access"],
@@ -11990,8 +11990,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
   path: "/api/tool-connections/{connectionId}/grants",
   tags: ["tool-access"],
@@ -11999,8 +11999,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "post",
   path: "/api/tool-connections/{connectionId}/grants/installations",
   tags: ["tool-access"],
@@ -12015,8 +12015,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "post",
   path: "/api/tool-connections/{connectionId}/grants/{grantId}/delegations",
   tags: ["tool-access"],
@@ -12032,8 +12032,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "delete",
   path: "/api/tool-connections/{connectionId}/grants/{grantId}/delegations/{delegationId}",
   tags: ["tool-access"],
@@ -12041,8 +12041,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "delete",
   path: "/api/tool-connections/{connectionId}/grants/{grantId}",
   tags: ["tool-access"],
@@ -12050,8 +12050,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
   path: "/api/tool-connections/{connectionId}/review-counts",
   tags: ["tool-access"],
@@ -12060,8 +12060,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
   path: "/api/tool-connections/{connectionId}/usage",
   tags: ["tool-access"],
@@ -12069,8 +12069,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "put",
   path: "/api/tool-connections/{connectionId}/grants/{grantId}/members",
   tags: ["tool-access"],
@@ -12078,8 +12078,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
   path: "/api/tool-connections/{connectionId}/railway/ssh",
   tags: ["tool-access"],
@@ -12097,8 +12097,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "get",
   path: "/api/tool-connections/{connectionId}/installs",
   tags: ["tool-access"],
@@ -12106,8 +12106,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "put",
   path: "/api/tool-connections/{connectionId}/installs",
   tags: ["tool-access"],
@@ -12116,8 +12116,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "patch",
   path: "/api/tool-connections/{connectionId}",
   tags: ["tool-access"],
@@ -12126,8 +12126,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "delete",
   path: "/api/tool-connections/{connectionId}",
   tags: ["tool-access"],
@@ -12135,8 +12135,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
   path: "/api/tool-connections/{connectionId}/health-check",
   tags: ["tool-access"],
@@ -12144,8 +12144,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
   path: "/api/tool-connections/{connectionId}/reconnect",
   tags: ["tool-access"],
@@ -12161,8 +12161,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
   path: "/api/tool-connections/{connectionId}/catalog/refresh",
   tags: ["tool-access"],
@@ -12170,8 +12170,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
   path: "/api/tool-connections/{connectionId}/catalog",
   tags: ["tool-access"],
@@ -12180,8 +12180,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:audit",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:audit",
   method: "get",
   path: "/api/tool-connections/{connectionId}/activity",
   tags: ["tool-access"],
@@ -12190,48 +12190,48 @@ registerCurrentRoute({
 
 for (const provider of ["aggregator", "composio"] as const) {
   registerCurrentRoute({
-    "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:read",
+    "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:read",
     method: "get", path: `/api/tool-connections/{connectionId}/${provider}/apps`, tags: ["tool-access"],
     summary: "List upstream account observations for the current connection manager",
   });
   registerCurrentRoute({
-    "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:configure",
+    "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:configure",
     method: "post", path: `/api/tool-connections/{connectionId}/${provider}/apps/sync`, tags: ["tool-access"],
     summary: "Start upstream account discovery without changing tool access",
     body: provider === "aggregator" ? aggregatorAppsSyncSchema : composioAppsSyncSchema,
   });
   registerCurrentRoute({
-    "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:configure",
+    "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:configure",
     method: "post", path: `/api/tool-connections/{connectionId}/${provider}/apps/refresh`, tags: ["tool-access"],
     summary: "Refresh upstream account observations",
     body: provider === "aggregator" ? aggregatorAppsRefreshSchema : composioAppsRefreshSchema,
   });
 }
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "put", path: "/api/tool-connections/{connectionId}/aggregator/discovery", tags: ["tool-access"],
   summary: "Save manager-owned optional Arcade account discovery credentials",
   body: arcadeDiscoverySetupSchema,
 });
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post", path: "/api/tool-connections/{connectionId}/composio/apps/{toolkit}/setup", tags: ["tool-access"],
   summary: "Start or verify Composio app authorization through a saved gateway",
   body: composioAppSetupSchema,
 });
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post", path: "/api/tool-connections/{connectionId}/composio/apps/{toolkit}/accounts", tags: ["tool-access"],
   summary: "Manage a Composio account through a saved gateway",
   body: composioAppAccountSchema,
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
   path: "/api/tool-connections/{connectionId}/test-agents",
   tags: ["tool-access"],
@@ -12239,8 +12239,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:read",
   method: "get",
   path: "/api/tool-connections/{connectionId}/test-agents/{agentId}/access",
   tags: ["tool-access"],
@@ -12248,8 +12248,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:test",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:test",
   method: "post",
   path: "/api/tool-connections/{connectionId}/test-calls",
   tags: ["tool-access"],
@@ -12267,8 +12267,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:test",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:test",
   method: "get",
   path: "/api/tool-connections/{connectionId}/test-calls/{actionRequestId}",
   tags: ["tool-access"],
@@ -12284,8 +12284,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
   path: "/api/tools/oauth/{connectionId}/start",
   tags: ["tool-access"],
@@ -12309,7 +12309,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "get",
-  path: "/api/tools/oauth/paperclip-id/callback",
+  path: "/api/tools/oauth/outpost-id/callback",
   tags: ["tool-access"],
   summary: "Handle a legacy brokered Outpost ID OAuth callback",
 });
@@ -12327,7 +12327,7 @@ registerCurrentRoute({
   tags: ["tool-access"],
   summary: "Start Outpost Cloud connector enrollment",
   body: z
-    .object({ companyId: z.string().min(1), label: z.string().optional() })
+    .object({ spaceId: z.string().min(1), label: z.string().optional() })
     .strict(),
   responses: {
     201: r.ok(),
@@ -12360,8 +12360,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "get",
   path: "/api/tool-connections/{connectionId}/profile-configuration",
   tags: ["tool-access"],
@@ -12369,19 +12369,19 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "get",
-  path: "/api/companies/{companyId}/tools/profiles",
+  path: "/api/spaces/{spaceId}/tools/profiles",
   tags: ["tool-access"],
   summary: "List tool access profiles with entries and bindings",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "post",
-  path: "/api/companies/{companyId}/tools/profiles",
+  path: "/api/spaces/{spaceId}/tools/profiles",
   tags: ["tool-access"],
   summary: "Create a tool access profile",
   body: createToolProfileWithEntriesSchema,
@@ -12394,17 +12394,17 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "get",
-  path: "/api/companies/{companyId}/tools/profiles/effective/agents/{agentId}",
+  path: "/api/spaces/{spaceId}/tools/profiles/effective/agents/{agentId}",
   tags: ["tool-access"],
   summary: "Resolve effective tool access profiles for an agent",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "get",
   path: "/api/tool-profiles/{profileId}/new-tools",
   tags: ["tool-access"],
@@ -12412,8 +12412,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "patch",
   path: "/api/tool-profiles/{profileId}",
   tags: ["tool-access"],
@@ -12422,8 +12422,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "post",
   path: "/api/tool-profiles/{profileId}/duplicate",
   tags: ["tool-access"],
@@ -12438,8 +12438,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "delete",
   path: "/api/tool-profiles/{profileId}",
   tags: ["tool-access"],
@@ -12454,8 +12454,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "post",
   path: "/api/tool-profiles/{profileId}/new-tools/review",
   tags: ["tool-access"],
@@ -12470,8 +12470,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "post",
   path: "/api/tool-profiles/{profileId}/entries",
   tags: ["tool-access"],
@@ -12486,8 +12486,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "patch",
   path: "/api/tool-profile-entries/{entryId}",
   tags: ["tool-access"],
@@ -12496,8 +12496,8 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "delete",
   path: "/api/tool-profile-entries/{entryId}",
   tags: ["tool-access"],
@@ -12505,13 +12505,13 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "post",
-  path: "/api/companies/{companyId}/tools/profiles/{profileId}/bind",
+  path: "/api/spaces/{spaceId}/tools/profiles/{profileId}/bind",
   tags: ["tool-access"],
   summary:
-    "Bind a tool access profile to a company, agent, project, routine, or issue",
+    "Bind a tool access profile to a space, agent, project, routine, or issue",
   body: createToolProfileBindingForProfileSchema,
   responses: {
     201: r.ok(),
@@ -12523,94 +12523,94 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "post",
-  path: "/api/companies/{companyId}/tools/profiles/{profileId}/unbind",
+  path: "/api/spaces/{spaceId}/tools/profiles/{profileId}/unbind",
   tags: ["tool-access"],
   summary:
-    "Unbind a tool access profile from a company, agent, project, routine, or issue",
+    "Unbind a tool access profile from a space, agent, project, routine, or issue",
   body: unbindToolProfileBindingSchema,
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:runtime",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:runtime",
   method: "get",
-  path: "/api/companies/{companyId}/tools/runtime-slots",
+  path: "/api/spaces/{spaceId}/tools/runtime-slots",
   tags: ["tool-access"],
   summary: "List MCP runtime slots",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:runtime",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:runtime",
   method: "post",
-  path: "/api/companies/{companyId}/tools/runtime-slots/{id}/stop",
+  path: "/api/spaces/{spaceId}/tools/runtime-slots/{id}/stop",
   tags: ["tool-access"],
   summary: "Stop a local stdio MCP runtime slot",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:runtime",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:runtime",
   method: "post",
-  path: "/api/companies/{companyId}/tools/runtime-slots/{id}/restart",
+  path: "/api/spaces/{spaceId}/tools/runtime-slots/{id}/restart",
   tags: ["tool-access"],
   summary: "Restart a local stdio MCP runtime slot",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:runtime",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:runtime",
   method: "get",
-  path: "/api/companies/{companyId}/tools/runtime-health",
+  path: "/api/spaces/{spaceId}/tools/runtime-health",
   tags: ["tool-access"],
   summary: "Summarize MCP runtime health and alert recommendations",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:audit",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:audit",
   method: "get",
-  path: "/api/companies/{companyId}/tools/runs/{runId}/decisions",
+  path: "/api/spaces/{spaceId}/tools/runs/{runId}/decisions",
   tags: ["tool-access"],
-  summary: "Get governed tool decisions for a run transcript",
+  summary: "Get controlled tool decisions for a run transcript",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "get",
-  path: "/api/companies/{companyId}/tools/trust-rules",
+  path: "/api/spaces/{spaceId}/tools/trust-rules",
   tags: ["tool-access"],
   summary: "List tool trust rules",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "get",
-  path: "/api/companies/{companyId}/tools/policies",
+  path: "/api/spaces/{spaceId}/tools/policies",
   tags: ["tool-access"],
   summary: "List tool policies",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "post",
-  path: "/api/companies/{companyId}/tools/policies/reorder",
+  path: "/api/spaces/{spaceId}/tools/policies/reorder",
   tags: ["tool-access"],
   summary: "Reorder tool policies",
   body: reorderToolPoliciesSchema,
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "post",
-  path: "/api/companies/{companyId}/tools/policies",
+  path: "/api/spaces/{spaceId}/tools/policies",
   tags: ["tool-access"],
   summary: "Create a tool policy",
   body: createToolPolicySchema,
@@ -12623,10 +12623,10 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "post",
-  path: "/api/companies/{companyId}/tools/policies/{policyId}/duplicate",
+  path: "/api/spaces/{spaceId}/tools/policies/{policyId}/duplicate",
   tags: ["tool-access"],
   summary: "Duplicate a tool policy",
   body: duplicateToolPolicySchema,
@@ -12639,27 +12639,27 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "patch",
-  path: "/api/companies/{companyId}/tools/policies/{policyId}",
+  path: "/api/spaces/{spaceId}/tools/policies/{policyId}",
   tags: ["tool-access"],
   summary: "Update a tool policy",
   body: updateToolPolicySchema,
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "delete",
-  path: "/api/companies/{companyId}/tools/policies/{policyId}",
+  path: "/api/spaces/{spaceId}/tools/policies/{policyId}",
   tags: ["tool-access"],
   summary: "Delete a tool policy",
 });
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/tools/action-requests/{actionRequestId}/trust-rule",
+  path: "/api/spaces/{spaceId}/tools/action-requests/{actionRequestId}/trust-rule",
   tags: ["tool-access"],
   summary: "Create a tool trust rule from an action request",
   body: createToolTrustRuleFromActionRequestSchema,
@@ -12672,26 +12672,26 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:profiles",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:profiles",
   method: "post",
-  path: "/api/companies/{companyId}/tools/trust-rules/{policyId}/revoke",
+  path: "/api/spaces/{spaceId}/tools/trust-rules/{policyId}/revoke",
   tags: ["tool-access"],
   summary: "Revoke a tool trust rule",
   body: revokeToolTrustRuleSchema,
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest", "x-paperclip-connection-management": "connections:read",
+  "x-outpost-transport": "rest", "x-outpost-connection-management": "connections:read",
   method: "get",
-  path: "/api/companies/{companyId}/tools/stdio-templates",
+  path: "/api/spaces/{spaceId}/tools/stdio-templates",
   tags: ["tool-access"],
   summary: "List approved stdio MCP templates",
 });
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/tools/stdio-templates",
+  path: "/api/spaces/{spaceId}/tools/stdio-templates",
   tags: ["tool-access"],
   summary: "Create an approved stdio MCP template",
   body: createToolStdioCommandTemplateSchema,
@@ -12706,7 +12706,7 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/tools/stdio-templates/{templateId}/disable",
+  path: "/api/spaces/{spaceId}/tools/stdio-templates/{templateId}/disable",
   tags: ["tool-access"],
   summary: "Disable an approved stdio MCP template",
   body: disableToolStdioCommandTemplateSchema,
@@ -12721,17 +12721,17 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/tools/mcp/import-json",
+  path: "/api/spaces/{spaceId}/tools/mcp/import-json",
   tags: ["tool-access"],
   summary: "Preview MCP JSON import",
   body: importMcpJsonSchema,
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/tools/policy/test",
+  path: "/api/spaces/{spaceId}/tools/policy/test",
   tags: ["tool-access"],
   summary: "Test tool policy decision",
   body: toolPolicyTestRequestSchema,
@@ -12740,7 +12740,7 @@ registerCurrentRoute({
 // --- Tool gateway ------------------------------------------------------------
 
 const toolGatewaySessionSchema = z.object({
-  companyId: z.string().optional(),
+  spaceId: z.string().optional(),
   agentId: z.string().optional(),
   runId: z.string().optional(),
   issueId: z.string().nullable().optional(),
@@ -12756,12 +12756,12 @@ const toolGatewayCallSchema = z.object({
   idempotencyKey: z.string().optional(),
 });
 
-const toolGatewayCompanyQuerySchema = z.object({
-  companyId: z.string().optional(),
+const toolGatewaySpaceQuerySchema = z.object({
+  spaceId: z.string().optional(),
 });
-const toolGatewayCompanyBodySchema = z
+const toolGatewaySpaceBodySchema = z
   .object({
-    companyId: z.string(),
+    spaceId: z.string(),
   })
   .passthrough();
 
@@ -12792,19 +12792,19 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:gateway",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:gateway",
   method: "get",
-  path: "/api/companies/{companyId}/tools/gateways",
+  path: "/api/spaces/{spaceId}/tools/gateways",
   tags: ["tool-gateway"],
   summary: "List named MCP gateways",
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:gateway",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:gateway",
   method: "post",
-  path: "/api/companies/{companyId}/tools/gateways",
+  path: "/api/spaces/{spaceId}/tools/gateways",
   tags: ["tool-gateway"],
   summary: "Create a named MCP gateway",
   description: "Creates a gateway that exposes a tool access profile to external MCP clients. Agents with delegated connection management may create it; agent responses also include gatewayPath (/<prefix>/apps/gateways/<gatewayId>/overview) and tokensPath (/<prefix>/apps/gateways/<gatewayId>/tokens). Link the person to them as Markdown links. A client needs a gateway client token to connect; see POST /api/tool-gateway/gateways/{gatewayId}/tokens.",
@@ -12819,13 +12819,13 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:gateway",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:gateway",
   method: "patch",
   path: "/api/tool-gateway/gateways/{gatewayId}",
   tags: ["tool-gateway"],
   summary: "Update a named MCP gateway",
-  body: toolGatewayCompanyBodySchema,
+  body: toolGatewaySpaceBodySchema,
   responses: {
     200: r.ok(),
     400: r.badRequest,
@@ -12837,14 +12837,14 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:gateway",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:gateway",
   method: "post",
   path: "/api/tool-gateway/gateways/{gatewayId}/tokens",
   tags: ["tool-gateway"],
   summary: "Create a named MCP gateway token",
   description: "Creates a client token for an external MCP client. A person caller receives the token value once in the response. An agent with delegated connection management may create the token for its responsible person, but receives only metadata (id, tokenPrefix, expiresAt, pendingReveal: true) plus tokensPath, the gateway's Tokens page (/<prefix>/apps/gateways/<gatewayId>/tokens). The value does not exist until that person reveals it there; send the person to tokensPath as a Markdown link, and never ask for, accept, or repeat token values in chat. To rotate, create the replacement and leave the old token active in that turn: its client keeps working on it until the person installs the new value. Revoke the old token only after the person says the client works with the new one, or let them revoke it on the Tokens page.",
-  body: toolGatewayCompanyBodySchema,
+  body: toolGatewaySpaceBodySchema,
   responses: {
     201: r.ok(),
     400: r.badRequest,
@@ -12856,13 +12856,13 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
+  "x-outpost-transport": "rest",
   method: "post",
   path: "/api/tool-gateway/gateway-tokens/{tokenId}/reveal",
   tags: ["tool-gateway"],
   summary: "Reveal an agent-created MCP gateway token value",
   description: "Person-only. Generates the value of an agent-created client token that is pending reveal and returns it once. Only the token's responsible person can reveal it; a second reveal, or a reveal after the token expired or was revoked, returns 409. Agent callers receive 403 gateway_token_requires_person.",
-  body: toolGatewayCompanyQuerySchema.required({ companyId: true }),
+  body: toolGatewaySpaceQuerySchema.required({ spaceId: true }),
   responses: {
     200: r.ok(),
     400: r.badRequest,
@@ -12874,14 +12874,14 @@ registerCurrentRoute({
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:gateway",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:gateway",
   method: "post",
   path: "/api/tool-gateway/gateway-tokens/{tokenId}/revoke",
   tags: ["tool-gateway"],
   summary: "Revoke a named MCP gateway token",
   description: "Revokes a gateway client token immediately; clients using it stop working. Agents with delegated connection management may revoke. When rotating, revoke the old token only after the replacement works.",
-  body: toolGatewayCompanyQuerySchema.required({ companyId: true }),
+  body: toolGatewaySpaceQuerySchema.required({ spaceId: true }),
   responses: {
     200: r.ok(),
     400: r.badRequest,
@@ -12891,18 +12891,18 @@ registerCurrentRoute({
   },
 });
 
-const museBindingPath = "/api/companies/{companyId}/agents/{agentId}/muse-binding";
+const museBindingPath = "/api/spaces/{spaceId}/agents/{agentId}/muse-binding";
 const museBindingIdentitySchema = z.object({ bindingId: z.uuid(), generation: z.number().int().positive(), expectedRevision: z.number().int().positive() }).strict();
 const museQualificationIdentitySchema = z.object({ bindingId: z.uuid(), qualificationId: z.uuid() }).strict();
 const museManagementErrors = { 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable };
 registerCurrentRoute({
-  method: "get", path: "/api/companies/{companyId}/muse-invitations", tags: ["agents"],
+  method: "get", path: "/api/spaces/{spaceId}/muse-invitations", tags: ["agents"],
   summary: "Resume the signed-in operator's unfinished personal Muse invitation",
   responses: { 200: r.ok(), ...museManagementErrors },
 });
 registerCurrentRoute({
-  method: "post", path: "/api/companies/{companyId}/muse-invitations", tags: ["agents"],
-  summary: "Create or resume a personal Muse invitation with company hiring approvals",
+  method: "post", path: "/api/spaces/{spaceId}/muse-invitations", tags: ["agents"],
+  summary: "Create or resume a personal Muse invitation with space creation approvals",
   body: z.object({ name: z.string().trim().min(1).max(100), role: z.string().trim().min(1).max(100) }).strict(),
   responses: { 200: r.ok(), ...museManagementErrors },
 });
@@ -12966,113 +12966,113 @@ const dotInvitationResponseSchema = z.object({
   }).nullable(),
 });
 registerCurrentRoute({
-  method: "get", path: "/api/companies/{companyId}/dot-invitations", tags: ["agents"],
+  method: "get", path: "/api/spaces/{spaceId}/dot-invitations", tags: ["agents"],
   summary: "Resume the signed-in operator's unfinished Dot invitation",
   responses: { 200: r.ok(dotInvitationResponseSchema.nullable()), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden },
 });
 registerCurrentRoute({
-  method: "post", path: "/api/companies/{companyId}/dot-invitations", tags: ["agents"],
-  summary: "Create or resume a Dot invitation with company hire approval gates",
+  method: "post", path: "/api/spaces/{spaceId}/dot-invitations", tags: ["agents"],
+  summary: "Create or resume a Dot invitation with space create approval gates",
   body: z.object({}).strict(),
   responses: { 200: r.ok(dotInvitationResponseSchema), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 409: r.conflict },
 });
 
 registerCurrentRoute({
-  method: "get", path: "/api/companies/{companyId}/agents/{agentId}/dot-binding", tags: ["agents"],
+  method: "get", path: "/api/spaces/{spaceId}/agents/{agentId}/dot-binding", tags: ["agents"],
   summary: "Read the experimental Dot agent connection and event readiness",
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 registerCurrentRoute({
-  method: "post", path: "/api/companies/{companyId}/agents/{agentId}/dot-binding", tags: ["agents"],
-  summary: "Create a one-use Dot pairing code as a company operator",
+  method: "post", path: "/api/spaces/{spaceId}/agents/{agentId}/dot-binding", tags: ["agents"],
+  summary: "Create a one-use Dot pairing code as a space operator",
   body: z.object({ dotUrl: z.string().max(2048).optional(), replaceBindingId: z.string().uuid().optional() }).strict(),
   responses: { 201: r.ok(z.object({ bindingId: z.string().uuid(), pairingCode: z.string(), expiresAt: z.string().datetime(), instructions: z.string() })),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 registerCurrentRoute({
-  method: "post", path: "/api/companies/{companyId}/agents/{agentId}/dot-binding/event-test", tags: ["agents"],
-  summary: "Request a harmless Dot readiness challenge as a company operator",
+  method: "post", path: "/api/spaces/{spaceId}/agents/{agentId}/dot-binding/event-test", tags: ["agents"],
+  summary: "Request a harmless Dot readiness challenge as a space operator",
   body: z.object({ bindingId: z.string().uuid().optional() }).strict(),
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 registerCurrentRoute({
-  method: "delete", path: "/api/companies/{companyId}/agents/{agentId}/dot-binding", tags: ["agents"],
+  method: "delete", path: "/api/spaces/{spaceId}/agents/{agentId}/dot-binding", tags: ["agents"],
   summary: "Revoke a Dot connection and fence its active Outpost assignments",
   responses: { 204: { description: "Dot connection revoked; external stop is unconfirmed" },
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 
 registerCurrentRoute({
-  method: "get", path: "/api/companies/{companyId}/grok-invitations", tags: ["agents"],
+  method: "get", path: "/api/spaces/{spaceId}/grok-invitations", tags: ["agents"],
   summary: "Resume this operator's unfinished Grok Bot setup",
   responses: { 200: r.ok(),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 registerCurrentRoute({
-  method: "post", path: "/api/companies/{companyId}/grok-invitations", tags: ["agents"],
-  summary: "Create Grok Bot agent setup under normal hire approval gates",
+  method: "post", path: "/api/spaces/{spaceId}/grok-invitations", tags: ["agents"],
+  summary: "Create Grok Bot agent setup under normal create approval gates",
   body: createGrokInvitationSchema,
   responses: { 201: r.ok(),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 registerCurrentRoute({
-  method: "get", path: "/api/companies/{companyId}/agents/{agentId}/grok-binding", tags: ["agents"],
+  method: "get", path: "/api/spaces/{spaceId}/agents/{agentId}/grok-binding", tags: ["agents"],
   summary: "Read Grok connection health and visible task activity",
   responses: { 200: r.ok(),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 registerCurrentRoute({
-  method: "post", path: "/api/companies/{companyId}/agents/{agentId}/grok-binding", tags: ["agents"],
+  method: "post", path: "/api/spaces/{spaceId}/agents/{agentId}/grok-binding", tags: ["agents"],
   summary: "Create a one-use Grok agent browser pairing code",
   body: pairGrokBindingSchema,
   responses: { 201: r.ok(),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 registerCurrentRoute({
-  method: "put", path: "/api/companies/{companyId}/agents/{agentId}/grok-binding/routine", tags: ["agents"],
+  method: "put", path: "/api/spaces/{spaceId}/agents/{agentId}/grok-binding/routine", tags: ["agents"],
   summary: "Store encrypted Grok routine credentials under the current configuration revision",
   body: configureGrokRoutineSchema,
   responses: { 200: r.ok(),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 registerCurrentRoute({
-  method: "post", path: "/api/companies/{companyId}/agents/{agentId}/grok-binding/verify", tags: ["agents"],
+  method: "post", path: "/api/spaces/{spaceId}/agents/{agentId}/grok-binding/verify", tags: ["agents"],
   summary: "Verify routine delivery and authenticated agent reply",
   body: verifyGrokRoutineSchema,
   responses: { 200: r.ok(),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 registerCurrentRoute({
-  method: "post", path: "/api/companies/{companyId}/agents/{agentId}/grok-binding/retry", tags: ["agents"],
+  method: "post", path: "/api/spaces/{spaceId}/agents/{agentId}/grok-binding/retry", tags: ["agents"],
   summary: "Explicitly retry a confirmed rejected routine delivery",
   body: retryGrokDeliverySchema,
   responses: { 200: r.ok(),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 registerCurrentRoute({
-  method: "post", path: "/api/companies/{companyId}/agents/{agentId}/grok-binding/stop", tags: ["agents"],
+  method: "post", path: "/api/spaces/{spaceId}/agents/{agentId}/grok-binding/stop", tags: ["agents"],
   summary: "Revoke Outpost work-session authority without confirming remote termination",
   body: stopGrokWorkSchema,
   responses: { 200: r.ok(),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 registerCurrentRoute({
-  method: "post", path: "/api/companies/{companyId}/agents/{agentId}/grok-binding/recover", tags: ["agents"],
+  method: "post", path: "/api/spaces/{spaceId}/agents/{agentId}/grok-binding/recover", tags: ["agents"],
   summary: "Record remote inspection and require fresh verification",
   body: recoverGrokRoutineSchema,
   responses: { 200: r.ok(),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 registerCurrentRoute({
-  method: "delete", path: "/api/companies/{companyId}/agents/{agentId}/grok-binding", tags: ["agents"],
+  method: "delete", path: "/api/spaces/{spaceId}/agents/{agentId}/grok-binding", tags: ["agents"],
   summary: "Disconnect the Grok agent and fence its work sessions",
   responses: { 204: { description: "Grok agent authority revoked; remote execution is unconfirmed" },
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 
 const ASSISTANT_CONNECTION_SETUP_PERSON_ONLY = "Person-only: a person connects their own assistant, such as Claude, ChatGPT or another MCP client, in their browser on "
-  + "[Assistant connections](/<prefix>/apps/assistant-connection), with this conversation's company prefix as <prefix>. "
-  + "That page gives the invitation and server URL to paste into the assistant; the assistant then opens an Outpost consent screen where the person picks the company and approves access. "
+  + "[Assistant connections](/<prefix>/apps/assistant-connection), with this conversation's space prefix as <prefix>. "
+  + "That page gives the invitation and server URL to paste into the assistant; the assistant then opens an Outpost consent screen where the person picks the space and approves access. "
   + "The consent screen offers only access within that person's own role: a read-only member can grant read access but not writes. "
   + "An agent cannot read this setup or approve consent for anyone: these routes accept only the person's own signed-in browser session. "
   + "Do not search for another route; link that page, say the person approves access there themselves, and reply.";
@@ -13136,7 +13136,7 @@ registerCurrentRoute({
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden },
 });
 const ASSISTANT_CONNECTIONS_PERSON_ONLY = "Personal and person-only: only the signed-in person can list or revoke their own assistant connections, in their browser on "
-  + "[Assistant connections](/<prefix>/apps/assistant-connection), with this conversation's company prefix as <prefix>. "
+  + "[Assistant connections](/<prefix>/apps/assistant-connection), with this conversation's space prefix as <prefix>. "
   + "An agent cannot do it for them: these routes accept only the person's own signed-in browser session, and the only other revocation is OAuth token revocation sent by the connected assistant itself with its own token. "
   + "Do not search for another route; link that page and tell the person which connection to revoke. "
   + "Revoking stops that assistant's further calls; tasks it already created keep their assignees and running work.";
@@ -13196,7 +13196,7 @@ registerCurrentRoute({
   path: "/api/tool-gateway/sessions/{sessionId}/revoke",
   tags: ["tool-gateway"],
   summary: "Revoke a tool gateway session",
-  body: toolGatewayCompanyQuerySchema,
+  body: toolGatewaySpaceQuerySchema,
   responses: {
     200: r.ok(),
     400: r.badRequest,
@@ -13233,8 +13233,8 @@ registerCurrentRoute({
   path: "/api/tool-gateway/action-requests/{id}/approve",
   tags: ["tool-gateway"],
   summary: "Approve a deferred tool gateway action request",
-  query: toolGatewayCompanyQuerySchema,
-  body: z.object({ companyId: z.string().optional() }),
+  query: toolGatewaySpaceQuerySchema,
+  body: z.object({ spaceId: z.string().optional() }),
 });
 
 registerCurrentRoute({
@@ -13242,51 +13242,51 @@ registerCurrentRoute({
   path: "/api/tool-gateway/action-requests/{id}/decline",
   tags: ["tool-gateway"],
   summary: "Decline a deferred tool gateway action request",
-  query: toolGatewayCompanyQuerySchema,
-  body: z.object({ companyId: z.string().optional() }),
+  query: toolGatewaySpaceQuerySchema,
+  body: z.object({ spaceId: z.string().optional() }),
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:runtime",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:runtime",
   method: "get",
   path: "/api/tool-gateway/runtime-slots",
   tags: ["tool-gateway"],
   summary: "List gateway runtime slots",
-  query: toolGatewayCompanyQuerySchema,
+  query: toolGatewaySpaceQuerySchema,
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:runtime",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:runtime",
   method: "post",
   path: "/api/tool-gateway/runtime-slots/{slotId}/stop",
   tags: ["tool-gateway"],
   summary: "Stop a gateway runtime slot",
-  query: toolGatewayCompanyQuerySchema,
-  body: z.object({ companyId: z.string().optional() }),
+  query: toolGatewaySpaceQuerySchema,
+  body: z.object({ spaceId: z.string().optional() }),
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:runtime",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:runtime",
   method: "post",
   path: "/api/tool-gateway/runtime-slots/{slotId}/restart",
   tags: ["tool-gateway"],
   summary: "Restart a gateway runtime slot",
-  query: toolGatewayCompanyQuerySchema,
-  body: z.object({ companyId: z.string().optional() }),
+  query: toolGatewaySpaceQuerySchema,
+  body: z.object({ spaceId: z.string().optional() }),
 });
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:audit",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:audit",
   method: "get",
   path: "/api/tool-gateway/audit",
   tags: ["tool-gateway"],
   summary: "List tool gateway audit events",
   query: z.object({
-    companyId: z.string().optional(),
+    spaceId: z.string().optional(),
     limit: z.number().int().positive().optional(),
     app: z.string().optional(),
     agent: z.string().optional(),
@@ -13308,10 +13308,10 @@ const caseHandoffApiBodySchema = z.union([
   agentCaseHandoffSchema.safeExtend({ case: agentCaseHandoffSchema.shape.case.options[0] }),
   doneCaseHandoffSchema,
 ]);
-registry.registerPath({ method: "post", path: "/api/companies/{companyId}/case-handoffs", tags: ["Cases"],
+registry.registerPath({ method: "post", path: "/api/spaces/{spaceId}/case-handoffs", tags: ["Cases"],
   summary: "Start or hand off a case using its primary task",
-  description: "Requires enableCases and standard work mode. Kickoff requires either workflowId or workflow_document_text. Workflows are reusable name-and-prompt definitions; phases are free text. On later agent handoffs, omit workflowId to preserve instructions, supply an ID to adopt its latest prompt (including refresh of the current ID), or null to detach while keeping instructions. Acceptance snapshots the selected prompt. Transfer applies workflow, phase and task-document revision together after outgoing execution settles; a document revision conflict holds the handoff for recovery. Workflow and other initial document bodies together must total at most 200000 characters. Inline callers remain supported. Current company, case, task assignment, source-trust and run authority apply. Reuses the primary task; self-handoffs also yield. An idempotent replay returns the existing authorized receipt.",
-  request: { params: z.object({ companyId: z.string().uuid() }), body: jsonBody(caseHandoffApiBodySchema) },
+  description: "Requires enableCases and standard work mode. Kickoff requires either workflowId or workflow_document_text. Workflows are reusable name-and-prompt definitions; phases are free text. On later agent handoffs, omit workflowId to preserve instructions, supply an ID to adopt its latest prompt (including refresh of the current ID), or null to detach while keeping instructions. Acceptance snapshots the selected prompt. Transfer applies workflow, phase and task-document revision together after outgoing execution settles; a document revision conflict holds the handoff for recovery. Workflow and other initial document bodies together must total at most 200000 characters. Inline callers remain supported. Current space, case, task assignment, source-trust and run authority apply. Reuses the primary task; self-handoffs also yield. An idempotent replay returns the existing authorized receipt.",
+  request: { params: z.object({ spaceId: z.string().uuid() }), body: jsonBody(caseHandoffApiBodySchema) },
   responses: { 200: r.ok(), 202: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden,
     404: r.notFound, 409: r.conflict, 422: r.unprocessable } });
 registry.registerPath({ method: "get", path: "/api/cases/{caseId}/handoffs", tags: ["Cases"],
@@ -13325,14 +13325,14 @@ for (const action of ["retry", "cancel"] as const) registry.registerPath({ metho
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict } });
 
 for (const [method, path, body, summary] of [
-  ["get", "/api/companies/{companyId}/workflows", undefined, "List reusable workflow metadata"],
-  ["post", "/api/companies/{companyId}/workflows", createWorkflowSchema, "Create a reusable workflow"],
+  ["get", "/api/spaces/{spaceId}/workflows", undefined, "List reusable workflow metadata"],
+  ["post", "/api/spaces/{spaceId}/workflows", createWorkflowSchema, "Create a reusable workflow"],
   ["get", "/api/workflows/{id}", undefined, "Read a reusable workflow and its Markdown prompt"],
   ["patch", "/api/workflows/{id}", updateWorkflowSchema, "Update a reusable workflow for future adoptions"],
 ] as const) registry.registerPath({ method, path, tags: ["Cases"], summary,
-  description: "Requires enableCases and company access. Definitions are company-shared. Writes enforce the current agent run fence and source-trust policy. Editing a definition does not change existing case task documents. Individual reads return an ETag containing a SHA-256 content fingerprint; pass it without quotes or the optional W/ prefix as snapshot to reject a changed definition with 409.",
-  request: { params: path.includes("{companyId}") ? z.object({ companyId: z.string().uuid() }) : z.object({ id: z.string().uuid() }),
-    ...(body ? { body: jsonBody(body) } : {}), ...(method === "get" ? { query: path.includes("{companyId}") ? listWorkflowsSchema : readWorkflowQuerySchema } : {}) },
+  description: "Requires enableCases and space access. Definitions are space-shared. Writes enforce the current agent run fence and source-trust policy. Editing a definition does not change existing case task documents. Individual reads return an ETag containing a SHA-256 content fingerprint; pass it without quotes or the optional W/ prefix as snapshot to reject a changed definition with 409.",
+  request: { params: path.includes("{spaceId}") ? z.object({ spaceId: z.string().uuid() }) : z.object({ id: z.string().uuid() }),
+    ...(body ? { body: jsonBody(body) } : {}), ...(method === "get" ? { query: path.includes("{spaceId}") ? listWorkflowsSchema : readWorkflowQuerySchema } : {}) },
   responses: { [method === "post" ? 201 : 200]: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict } });
 
 for (const [method, path, body] of experimentalApiPaths) {
@@ -13424,37 +13424,37 @@ export function openApiRoutes() {
 }
 
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/ai-connections/local",
+  path: "/api/spaces/{spaceId}/ai-connections/local",
   tags: ["ai-connections"],
   summary: "Verify and save an owned local subscription sign-in",
   body: localAiConnectionSchema,
   responses: { 201: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable },
 });
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/ai-connections/local/attempts",
+  path: "/api/spaces/{spaceId}/ai-connections/local/attempts",
   tags: ["ai-connections"], summary: "Prepare an isolated local subscription sign-in",
   body: localAiLoginStartSchema,
   responses: { 201: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable },
 });
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "delete",
-  path: "/api/companies/{companyId}/ai-connections/local/attempts/{sessionId}",
+  path: "/api/spaces/{spaceId}/ai-connections/local/attempts/{sessionId}",
   tags: ["ai-connections"], summary: "Cancel an owned local subscription sign-in",
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 registerCurrentRoute({
-  "x-paperclip-transport": "rest",
-  "x-paperclip-connection-management": "connections:configure",
+  "x-outpost-transport": "rest",
+  "x-outpost-connection-management": "connections:configure",
   method: "post",
-  path: "/api/companies/{companyId}/ai-connections/local/check",
+  path: "/api/spaces/{spaceId}/ai-connections/local/check",
   tags: ["ai-connections"], summary: "Check an owned local subscription sign-in without saving a connection",
   body: localAiConnectionSchema,
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 422: r.unprocessable },
@@ -13462,26 +13462,26 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "post",
-  path: "/api/companies/{companyId}/ai-connections/local/attempts/{sessionId}/code",
+  path: "/api/spaces/{spaceId}/ai-connections/local/attempts/{sessionId}/code",
   tags: ["ai-connections"], summary: "Submit the browser code for an owned local Claude sign-in",
   body: z.object({ browserCode: browserCodeSchema }),
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 422: r.unprocessable },
 });
 
 for (const [method, path, summary] of [
-  ["get", "/api/companies/{companyId}/skill-sources", "List GitHub skill sources"],
-  ["get", "/api/companies/{companyId}/skill-sources/project-repositories", "List accessible project repositories and skill import status"],
-  ["post", "/api/companies/{companyId}/skill-sources/adopt-project", "Import all skills from an accessible project repository"],
-  ["patch", "/api/companies/{companyId}/skill-sources/{sourceId}/settings", "Set automatic skill updates and authorized refresh connection"],
-  ["get", "/api/companies/{companyId}/skill-sources/{sourceId}/branches", "List authorized repository branches, including the default branch"],
-  ["get", "/api/companies/{companyId}/skill-sources/repositories", "Browse authorized GitHub repositories for skills"],
-  ["get", "/api/companies/{companyId}/skill-sources/{sourceId}", "Get a skill source and entries"],
-  ["post", "/api/companies/{companyId}/skill-sources/discover", "Discover and validate repository skills"],
-  ["post", "/api/companies/{companyId}/skill-sources/preview", "Preview an audited skill package file at an immutable commit"],
-  ["post", "/api/companies/{companyId}/skill-sources", "Import a GitHub skill source"],
-  ["patch", "/api/companies/{companyId}/skill-sources/{sourceId}", "Save skill source selection and connection"],
-  ["post", "/api/companies/{companyId}/skill-sources/{sourceId}/refresh", "Refresh installed source skills"],
-  ["delete", "/api/companies/{companyId}/skill-sources/{sourceId}", "Disconnect a skill source and retain installed skills"],
+  ["get", "/api/spaces/{spaceId}/skill-sources", "List GitHub skill sources"],
+  ["get", "/api/spaces/{spaceId}/skill-sources/project-repositories", "List accessible project repositories and skill import status"],
+  ["post", "/api/spaces/{spaceId}/skill-sources/adopt-project", "Import all skills from an accessible project repository"],
+  ["patch", "/api/spaces/{spaceId}/skill-sources/{sourceId}/settings", "Set automatic skill updates and authorized refresh connection"],
+  ["get", "/api/spaces/{spaceId}/skill-sources/{sourceId}/branches", "List authorized repository branches, including the default branch"],
+  ["get", "/api/spaces/{spaceId}/skill-sources/repositories", "Browse authorized GitHub repositories for skills"],
+  ["get", "/api/spaces/{spaceId}/skill-sources/{sourceId}", "Get a skill source and entries"],
+  ["post", "/api/spaces/{spaceId}/skill-sources/discover", "Discover and validate repository skills"],
+  ["post", "/api/spaces/{spaceId}/skill-sources/preview", "Preview an audited skill package file at an immutable commit"],
+  ["post", "/api/spaces/{spaceId}/skill-sources", "Import a GitHub skill source"],
+  ["patch", "/api/spaces/{spaceId}/skill-sources/{sourceId}", "Save skill source selection and connection"],
+  ["post", "/api/spaces/{spaceId}/skill-sources/{sourceId}/refresh", "Refresh installed source skills"],
+  ["delete", "/api/spaces/{spaceId}/skill-sources/{sourceId}", "Disconnect a skill source and retain installed skills"],
 ] as const) registerCurrentRoute({
   method, path, tags: ["skills"], summary,
   ...(method === "get" && path.endsWith("/branches") ? { query: skillSourceBranchesQuerySchema }

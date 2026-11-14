@@ -72,7 +72,7 @@ reconciliation. During a live process, failed completion writes retain their
 exact result and retry. This does not invent exactly-once external execution.
 
 Plugin definitions remain instance-scoped, as on the base branch. The separate
-company-scoped job proposal is not implemented here. Plugin configuration and
+space-scoped job proposal is not implemented here. Plugin configuration and
 worker authorization retain their existing owners.
 
 The Cloud sleep proof remains conservative for plugin work. An internal cron

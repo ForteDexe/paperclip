@@ -18,8 +18,8 @@ candidate, check status and final acceptance decision.
 ## Hosted placement correction — 2026-10-30
 
 Native Cursor Cloud uses a provider API controller. Cursor hosts the model and
-commands; Paperclip runs only its qualified API client and bounded private artifact
-stager. This placement has no Paperclip Computer, lease, task checkout or host
+commands; Outpost runs only its qualified API client and bounded private artifact
+stager. This placement has no Outpost Computer, lease, task checkout or host
 provisioning command. It is derived from the validated native Cursor profile and
 persisted with the admitted run; recovery retains that backend and placement.
 Earlier Cursor profiles retain their admitted workspace binding as identity;
@@ -63,7 +63,7 @@ window after a status-read timeout. Stop-3 does not establish Stop-2's cause.
 
 Final review corrections cover semantic planning, bounded status-read recovery,
 atomic artifact staging and checkpoint acquisition. The planning repair retains
-the pinned Paperclip context and tool restrictions while using the Cloud default
+the pinned Outpost context and tool restrictions while using the Cloud default
 harness. Its two separate rejection gates have RED/GREEN proof; 2,390 affected
 tests and Core typecheck pass, with an additional real-Rust/private-facade Plan
 control. The Cloud driver, checkpoint and artifact suites pass 45, 38 and 15
@@ -139,8 +139,8 @@ continuation/full replay passes. Both PRs stay draft while gates remain open.
 
 An operator selects Cursor Cloud in native Runner, saves an API-key binding and
 explicit model, assigns an ordinary task, sees real provider activity, and gets
-an independently verified result through Paperclip. Cursor executes in its hosted
-environment; the first Paperclip controller/Runner acceptance environment is the
+an independently verified result through Outpost. Cursor executes in its hosted
+environment; the first Outpost controller/Runner acceptance environment is the
 local development stack. Local-first does not mean that Cursor's model or tools
 execute on the operator's computer.
 
@@ -155,13 +155,13 @@ the effective model or instruction digest before starting the first prompt.
 Proceed with explicit submitted model selection, recorded exact instruction
 content/digest, visible experimental treatment, and honest evidence labels.
 Do not describe a submitted value or an SDK echo as a native acknowledgment.
-This exception does not relax company authorization, semantic-tool policy,
+This exception does not relax space authorization, semantic-tool policy,
 credential isolation, Stop fencing, result acceptance, or existing budget gates.
 
 Native Cursor permission requests, native questions, native plan decisions, and
-fixed per-run dollar enforcement are unsupported in this release. Paperclip
+fixed per-run dollar enforcement are unsupported in this release. Outpost
 semantic tools remain a distinct contract. Cursor-native tools are not governed
-by a Paperclip per-command approval callback.
+by a Outpost per-command approval callback.
 
 Authentication uses an explicitly bound Cursor user/service-account API key.
 Authenticated catalog, repository access and real hosted execution were observed
@@ -193,17 +193,17 @@ available. Diagnose the first divergence before another paid attempt.
   record the relay's authentication, reachability, expiry, and cleanup contract
   before a live run. Do not substitute SDK in-process custom tools: those are
   local-agent functionality.
-- The controller remains authoritative for company/run/session identity,
+- The controller remains authoritative for space/run/session identity,
   authorization, audit, revisions, budgets, task completion, and durable effects.
   A replayed or late remote call must pass current source-run authority.
 - New provider-neutral shared fields require a concrete consumer and an absent/
   disabled-provider behavior. Keep Cursor payloads and SDK types in provider code.
 - Persist the durable Cloud agent ID separately from each Cloud run ID and the
-  local Paperclip run/session identity. Recovery must observe the existing run
+  local Outpost run/session identity. Recovery must observe the existing run
   before creating paid work. Refresh scoped MCP credentials on continuation.
 - Stop must cancel the owned Cloud run, verify provider terminal state, close
   local stream/relay resources, and fence later effects. A local socket close or
-  terminal Paperclip row alone does not prove remote work stopped.
+  terminal Outpost row alone does not prove remote work stopped.
 - Preserve legacy direct invocations, transcripts, cancellation, and finalization.
   A direct run starts no runnerd process or ORP connection. Visiting/saving an
   existing agent does not change its runtime.
@@ -302,8 +302,8 @@ the exact inspected 1.0.28 package.
 | Native permission approval | Cloud v1 | No API callback | Native tools auto-run | No interception | Explicit limitation | Unverified | Unsupported |
 | Native question | Cloud v1 | No response contract found | No API callback | None | No supported claim | Unverified | Unsupported |
 | Native plan decision | Cloud v1 | No response contract found | No API callback | None | No supported claim | Unverified | Unsupported |
-| Semantic tool authorization | Paperclip native | Existing controller contract | Run/session/company/agent/epoch-bound relay | Normal semantic dispatcher | Durable audit/effects | C2 accepted effects; controlled negative/expiry checks | No parallel authorization path |
-| Semantic questions/approval/plans | Paperclip native | Separate existing contracts | Normal semantic relay | Structured question delivered | Real browser answer persisted | Question and answer observed in C3 | Complete continuation still unqualified; no native equivalence or broader decision claim |
+| Semantic tool authorization | Outpost native | Existing controller contract | Run/session/space/agent/epoch-bound relay | Normal semantic dispatcher | Durable audit/effects | C2 accepted effects; controlled negative/expiry checks | No parallel authorization path |
+| Semantic questions/approval/plans | Outpost native | Separate existing contracts | Normal semantic relay | Structured question delivered | Real browser answer persisted | Question and answer observed in C3 | Complete continuation still unqualified; no native equivalence or broader decision claim |
 | Todos/plans/revisions | Cloud v1 | Rich events not qualified | Provider translation | No invented capability | Existing generic surface only | Unverified | Outside required cells |
 | Active steering/queue | Cloud v1; SDK absent | Provider API documented | Not exposed by this driver | Descriptor explicitly disables both | No active steering/queue promise | Unsupported in this release | Ordinary follow-up is separate |
 | Ordinary follow-up | Cloud v1 | Documented | Existing Agent/new Run | Stable session identity and refreshed callback | Same task continuation | Controlled same-Agent and governed-yield tests | Required C3 awaits live confirmation of the bounded timing repair |
@@ -321,7 +321,7 @@ the exact inspected 1.0.28 package.
 | Per-run dollar ceiling | Cloud v1 | No enforcement contract | No admitted native cap | Existing budget gates only | Explicit limitation | Unverified | Unsupported |
 | Idle/heartbeat/retry behavior | Cloud v1 | Partial documentation | Stream/recovery policy | Bounded activity | Quiet idle state | Unverified | No idle polling loop claim |
 | Cancel/terminal status | Cloud v1 | Cancellation and terminal API reads observed | Exact Run cancel plus lookup | Unconfirmed termination stays fenced | Durable cancellation | Cleanup observed; native Stop/recovery controls pass | Required active-work C4 unrun |
-| Late callbacks/effects | Paperclip native | Existing authority contract | Expiry/revocation and current actor authority | Fence stopped generation | Stale mutation rejected | Controlled relay/authority checks | C4 still requires bounded live observation |
+| Late callbacks/effects | Outpost native | Existing authority contract | Expiry/revocation and current actor authority | Fence stopped generation | Stale mutation rejected | Controlled relay/authority checks | C4 still requires bounded live observation |
 | Native process/VM cleanup | Cloud v1 | Hosted lifecycle opaque | Delete plus independent exact Agent/Run 404 | No host-PID proof | Exact API absence recorded | Observed after retained campaigns | No physical remote VM cleanup claim |
 | Local relay/stream cleanup | New integration | Exact owned process exit observed | Socket close/expiry | Bounded shutdown and receipt acknowledgment | No lingering owned local work | Packaged/native controls and live cleanup | Required C4 still unrun |
 | Config/command discovery | Cloud v1 | Limited API inventory | Provider-specific | No arbitrary CLI promise | Normal configuration | Unverified | Outside required cells |
@@ -342,7 +342,7 @@ evidence-impact decision before carrying a prior pass forward.
 | C3 Continuation | Follow-up on existing task/session | Same Cloud agent, distinct Cloud run; current instructions/tool grants; visible reply and durable result without duplicate work | Seven failed live campaigns (1/2/3/4/7/9/10) retain original grades. Attempts 5/6/8 stopped at local infrastructure. Sonnet-10 completed the first turn and accounting settlement but failed local authority rotation before a second native create; the cold-handoff repair passes controlled real-boundary checks. The separate stale-response repair passed 60 Cloud cases, including 14 old-driver red controls | Unqualified | Build and freeze the combined candidate, then one bounded Sonnet-11 attempt; no automatic paid retry |
 | C4 Stop | Stop while provider work is actually pending | Cancel exact run; observe provider terminal state; close local resources; later relay calls/replays cannot mutate task; bounded observation recorded | Supporting controlled cancellation and race checks pass; no live active-command Stop has been attempted | Unqualified; live cell unattempted | After C3/full C5 passes, verify real pending command identity before ordinary UI Stop |
 | C5 Replay | Disconnect/reconnect and retention expiry | Resume cursor; stable order; no duplicate effect/reply; expired stream reconciles through known run without a new paid prompt | Failed campaigns retain exact cuts/cursors and ordered unique events. Sonnet-10 recorded one cut, matching-cursor 200 reconnect and 61 unique ordered canonical events, but failed before second-turn admission | Partial transport proof; unqualified | Requires normal two-turn completion on the new frozen candidate |
-| C6 Artifact | Download provider-produced result | Listed relative artifact; safe retrieval; independently verified bytes; usable Paperclip result access after settlement; cleanup recorded | Same Sonnet-2 result as C2; one registered/downloaded artifact, exact 24-byte fixture and MIME verified; SHA-256 `475af2a29ebe3347d92d24efaa58ee6e50a96c1e25297a4410ea12407aa5c1d9`; exact owned Agent and Run each returned 404 after cleanup | Passed on recorded candidate | Keep the original artifact bytes/receipt and repeat if the output path changes |
+| C6 Artifact | Download provider-produced result | Listed relative artifact; safe retrieval; independently verified bytes; usable Outpost result access after settlement; cleanup recorded | Same Sonnet-2 result as C2; one registered/downloaded artifact, exact 24-byte fixture and MIME verified; SHA-256 `475af2a29ebe3347d92d24efaa58ee6e50a96c1e25297a4410ea12407aa5c1d9`; exact owned Agent and Run each returned 404 after cleanup | Passed on recorded candidate | Keep the original artifact bytes/receipt and repeat if the output path changes |
 
 Pre-qualification snapshot total: **3 passed on recorded candidates and 3
 unqualified of 6 required**. See Product PR #18069 Verification for the later
@@ -375,7 +375,7 @@ Required supporting verification, reported separately from those six cells:
   duplicates, transient errors, unavailable features, cancellation races, unknown
   usage, replay expiry, and malformed provider data. They must exercise the
   selected implementation rather than mirror its internals.
-- Semantic relay checks prove source-run/company binding, denied operations,
+- Semantic relay checks prove source-run/space binding, denied operations,
   credential expiry/revocation, tool-result delivery, and no late mutation.
 - Focused regressions preserve legacy Cursor Cloud and another existing native
   provider, with absent/disabled integration behavior.
@@ -597,7 +597,7 @@ All three direct controls had one create POST, no cancel or DELETE, no
 mutation retry, no accepted Run identity and no remaining active owned work.
 No Run lookup was fabricated when the provider supplied no Run identity.
 
-These controls show that the failure persists without Paperclip MCP, across
+These controls show that the failure persists without Outpost MCP, across
 both successful authentication schemes, and across Sonnet and the selected
 Mini model. They do not identify an account, repository, entitlement,
 provisioning or service root cause. Read-only account UI inspection showed a
@@ -736,7 +736,7 @@ browser answer. The committed matching `turn.interrupted` carried
 `error: null` and `status: interrupted`; native cancellation was confirmed and
 the exact owned Node process had exited. Nevertheless, Core emitted incomplete
 Cursor accounting because numeric usage was absent. The run remained pending
-with no accounting receipt, and the normal budget gate paused the company.
+with no accounting receipt, and the normal budget gate paused the space.
 The original ordinary result is FAIL/candidate_failure, SHA-256
 `0326c611f99557fbcd0fb6dcda6bacdbcda6f4fe8079189abef2f0cd748d9596`.
 Cleanup passed; independent final Agent/Run reads returned 404, the exact
@@ -750,12 +750,12 @@ usage. Missing or mismatched terminals, explicitly unconfirmed provider
 termination and capture failures must remain pending. Receipt, ledger and
 budget enforcement retain their existing contracts. Prove these boundaries
 through the actual accounting path before another paid campaign; do not mutate
-the failed measured company to bypass its pending incident.
+the failed measured space to bypass its pending incident.
 
 The second continuation campaign on `9683ba4678ee` found the run-bound catalog,
 created the required structured question and received the real browser answer.
-Its next run could not enqueue because the fixture company and agent policies
-blocked unpriced usage. A budget incident paused the company after the first
+Its next run could not enqueue because the fixture space and agent policies
+blocked unpriced usage. A budget incident paused the space after the first
 unknown-cost turn; retrying the response could not bypass that policy. The
 original result remains FAIL/candidate_failure, SHA-256
 `1dfdd92bef4e69dd09bfde0eb7294f219d5a8bfd8e9803b4e747c2e33791aa93`.
@@ -765,7 +765,7 @@ restored. C5 again exercised a real cut/reconnect, but no second turn completed.
 This is a qualification-policy mismatch, not a reason to change production
 budget enforcement. The bounded fixtures now require explicit
 `OUTPOST_CURSOR_CLOUD_ALLOW_UNPRICED_QUALIFICATION=1`, upsert only their owned
-company and agent monthly billed-cent policies, and verify both saved policies
+space and agent monthly billed-cent policies, and verify both saved policies
 before dispatch. Each remains active with a 1,000-cent known-cost hard stop;
 unknown pricing is explicitly allowed under the user's test-spending approval.
 It is not a provider dollar cap. Cost reporting remains unknown. Missing opt-in,
@@ -777,12 +777,12 @@ readback; its actual vendor cost remains unknown.
 
 Only fixture policy/evidence changed after `9683ba4678ee`; the model prompt,
 provider CJS and native daemon are unchanged. Retain all prior grades at their
-original definition hashes and run a fresh company/Agent campaign. Do not
-unpause the failed measured company or relabel its result.
+original definition hashes and run a fresh space/Agent campaign. Do not
+unpause the failed measured space or relabel its result.
 
 The first live continuation/replay campaign failed its required question on
 `62fb0252e931`. Cursor queried unrelated inherited account MCP namespaces, both
-requiring authentication, and never selected the injected `paperclip` server.
+requiring authentication, and never selected the injected `outpost` server.
 It then ended with objective unsatisfied and no structured question. The
 ordinary fixture retained its failed grade and cleanup passed; exact Agent/Run
 reads returned 404. No second run or Stop attempt occurred. One real SSE cut
@@ -926,7 +926,7 @@ and Run were independently absent after cleanup.
 
 Campaign 6 (`3050fa41a933`, same Mini model) independently downloaded and verified
 the expected native file. Cursor made no semantic task calls and ended with
-Paperclip requiring review. The ordinary 600-second fixture deadline graded
+Outpost requiring review. The ordinary 600-second fixture deadline graded
 the attempt FAIL; its cleanup matcher passed and exact owned native Agent/Run
 lookups returned 404. File creation/download alone does not pass C2 or C6.
 
@@ -952,7 +952,7 @@ opened and closed successfully: 175 loaded modules remained inside that
 consumer, no vendor request occurred, exit was zero and the owned socket was
 removed. A sandboxed listener attempt failed with EPERM; the unchanged check
 passed with local-listener permission. This is package-boundary proof, not a
-public Paperclip install or a passing live task. Rebuild identity after the
+public Outpost install or a passing live task. Rebuild identity after the
 pending stager repair before carrying it forward.
 
 The Core PR uses fixed fetched master `d30c8f42b842` and independent dependencies.
@@ -1114,7 +1114,7 @@ The clean private Runner candidate tarball contained 1,696 entries and no
 framing, exact synthetic tool input/result, controlled HTTP/SSE terminal lookup,
 confirmed shutdown, socket cleanup and exit zero. Both proxy bundles matched
 source and referenced only Node builtins. This proves that candidate's runtime
-closure, not an ordinary public Paperclip installation or live Cursor work.
+closure, not an ordinary public Outpost installation or live Cursor work.
 
 | Candidate artifact | SHA-256 |
 | --- | --- |

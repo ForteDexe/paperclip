@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // plain in-process Express app with fake services -- no database, no
 // sandbox provider, and no adapter execution.
 
-const COMPANY_1 = "company-1";
-const OTHER_COMPANY = "company-2";
+const SPACE_1 = "space-1";
+const OTHER_SPACE = "space-2";
 const OWNER_A = "user-a";
 const ENVIRONMENT_1 = "11111111-1111-4111-8111-111111111111";
 
@@ -26,8 +26,8 @@ const mockAccessService = vi.hoisted(() => ({
 }));
 
 const mockSecretService = vi.hoisted(() => ({
-  normalizeAdapterConfigForPersistence: vi.fn(async (_companyId: string, config: Record<string, unknown>) => config),
-  resolveAdapterConfigForRuntime: vi.fn(async (_companyId: string, config: Record<string, unknown>) => ({ config })),
+  normalizeAdapterConfigForPersistence: vi.fn(async (_spaceId: string, config: Record<string, unknown>) => config),
+  resolveAdapterConfigForRuntime: vi.fn(async (_spaceId: string, config: Record<string, unknown>) => ({ config })),
   collectMissingRuntimeBindings: vi.fn(async () => [] as Array<Record<string, unknown>>),
   resolveEnvBindings: vi.fn(async () => ({
     env: {} as Record<string, string>,
@@ -40,7 +40,7 @@ const mockSecretService = vi.hoisted(() => ({
 const mockEnvironmentService = vi.hoisted(() => ({
   getById: vi.fn(),
   releaseLease: vi.fn(),
-  listBoundCompanyIds: vi.fn(async () => [] as string[]),
+  listBoundSpaceIds: vi.fn(async () => [] as string[]),
 }));
 
 const mockEnvironmentRuntime = vi.hoisted(() => ({
@@ -65,8 +65,8 @@ vi.mock("../services/index.js", () => ({
   agentInstructionsService: () => ({}),
   accessService: () => mockAccessService,
   approvalService: () => ({}),
-  builtInAgentService: () => ({ ensureCompanyDefaultAgentGrants: vi.fn() }),
-  companySkillService: () => ({
+  builtInAgentService: () => ({ ensureSpaceDefaultAgentGrants: vi.fn() }),
+  spaceSkillService: () => ({
     listRuntimeSkillEntries: vi.fn(async () => []),
     resolveRequestedSkillKeys: vi.fn(async () => []),
   }),
@@ -116,11 +116,11 @@ let currentActor: Record<string, unknown>;
 let agentRoutes: typeof import("../routes/agents.js").agentRoutes;
 let errorHandler: typeof import("../middleware/index.js").errorHandler;
 
-function boardActor(userId: string, companyIds: string[] = [COMPANY_1, OTHER_COMPANY]): Record<string, unknown> {
+function operatorActor(userId: string, spaceIds: string[] = [SPACE_1, OTHER_SPACE]): Record<string, unknown> {
   return {
-    type: "board",
+    type: "operator",
     userId,
-    companyIds,
+    spaceIds,
     source: "local_implicit",
     isInstanceAdmin: false,
   };
@@ -138,14 +138,14 @@ async function createApp() {
   return app;
 }
 
-const authSignalPath = (companyId: string, type: string, environmentId?: string) =>
-  `/api/companies/${companyId}/adapters/${type}/auth-signal${environmentId ? `?environmentId=${environmentId}` : ""}`;
+const authSignalPath = (spaceId: string, type: string, environmentId?: string) =>
+  `/api/spaces/${spaceId}/adapters/${type}/auth-signal${environmentId ? `?environmentId=${environmentId}` : ""}`;
 
 describe("adapter auth-signal route", () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
-    currentActor = boardActor(OWNER_A);
+    currentActor = operatorActor(OWNER_A);
     mockAccessService.decide.mockResolvedValue({
       allowed: true,
       reason: "allow_explicit_grant",
@@ -153,14 +153,14 @@ describe("adapter auth-signal route", () => {
     });
     mockEnvironmentService.getById.mockResolvedValue({
       id: ENVIRONMENT_1,
-      companyId: COMPANY_1,
+      spaceId: SPACE_1,
       name: "Sandbox QA",
       driver: "sandbox",
       status: "active",
       config: { provider: "fake-plugin" },
       envVars: {},
     });
-    mockEnvironmentService.listBoundCompanyIds.mockResolvedValue([]);
+    mockEnvironmentService.listBoundSpaceIds.mockResolvedValue([]);
     mockSecretService.resolveEnvBindings.mockResolvedValue({
       env: {},
       secretKeys: new Set<string>(),
@@ -196,12 +196,12 @@ describe("adapter auth-signal route", () => {
     });
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "codex_local"));
+    const res = await request(app).get(authSignalPath(SPACE_1, "codex_local"));
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toEqual({ status: "present" });
     expect(mockEvaluateCodexCredentialReadiness).toHaveBeenCalledWith(
-      expect.objectContaining({ companyId: COMPANY_1 }),
+      expect.objectContaining({ spaceId: SPACE_1 }),
     );
   });
 
@@ -215,7 +215,7 @@ describe("adapter auth-signal route", () => {
     });
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "codex_local"));
+    const res = await request(app).get(authSignalPath(SPACE_1, "codex_local"));
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toEqual({ status: "absent" });
@@ -225,7 +225,7 @@ describe("adapter auth-signal route", () => {
     mockEvaluateCodexCredentialReadiness.mockRejectedValueOnce(new Error("boom"));
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "codex_local"));
+    const res = await request(app).get(authSignalPath(SPACE_1, "codex_local"));
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toEqual({ status: "unknown" });
@@ -244,7 +244,7 @@ describe("adapter auth-signal route", () => {
     });
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "codex_local", ENVIRONMENT_1));
+    const res = await request(app).get(authSignalPath(SPACE_1, "codex_local", ENVIRONMENT_1));
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toEqual({ status: "unknown" });
@@ -254,7 +254,7 @@ describe("adapter auth-signal route", () => {
   it("returns present for codex_local on a sandbox environment that holds its own API key", async () => {
     mockEnvironmentService.getById.mockResolvedValue({
       id: ENVIRONMENT_1,
-      companyId: COMPANY_1,
+      spaceId: SPACE_1,
       name: "Sandbox QA",
       driver: "sandbox",
       status: "active",
@@ -270,7 +270,7 @@ describe("adapter auth-signal route", () => {
     });
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "codex_local", ENVIRONMENT_1));
+    const res = await request(app).get(authSignalPath(SPACE_1, "codex_local", ENVIRONMENT_1));
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toEqual({ status: "present" });
@@ -280,7 +280,7 @@ describe("adapter auth-signal route", () => {
   it("uses the host readiness predictor for codex_local on a local-driver environment", async () => {
     mockEnvironmentService.getById.mockResolvedValue({
       id: ENVIRONMENT_1,
-      companyId: COMPANY_1,
+      spaceId: SPACE_1,
       name: "Local host",
       driver: "local",
       status: "active",
@@ -296,19 +296,19 @@ describe("adapter auth-signal route", () => {
     });
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "codex_local", ENVIRONMENT_1));
+    const res = await request(app).get(authSignalPath(SPACE_1, "codex_local", ENVIRONMENT_1));
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toEqual({ status: "present" });
     expect(mockEvaluateCodexCredentialReadiness).toHaveBeenCalledWith(
-      expect.objectContaining({ companyId: COMPANY_1 }),
+      expect.objectContaining({ spaceId: SPACE_1 }),
     );
   });
 
   it("returns present for claude_local when the environment holds a non-empty token", async () => {
     mockEnvironmentService.getById.mockResolvedValue({
       id: ENVIRONMENT_1,
-      companyId: COMPANY_1,
+      spaceId: SPACE_1,
       name: "Sandbox QA",
       driver: "sandbox",
       status: "active",
@@ -324,7 +324,7 @@ describe("adapter auth-signal route", () => {
     });
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "claude_local", ENVIRONMENT_1));
+    const res = await request(app).get(authSignalPath(SPACE_1, "claude_local", ENVIRONMENT_1));
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toEqual({ status: "present" });
@@ -338,17 +338,17 @@ describe("adapter auth-signal route", () => {
     });
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "claude_local", ENVIRONMENT_1));
+    const res = await request(app).get(authSignalPath(SPACE_1, "claude_local", ENVIRONMENT_1));
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toEqual({ status: "present" });
-    expect(mockSecretService.readClaudeOAuthUserSecretStatus).toHaveBeenCalledWith(COMPANY_1, OWNER_A);
+    expect(mockSecretService.readClaudeOAuthUserSecretStatus).toHaveBeenCalledWith(SPACE_1, OWNER_A);
   });
 
   it("returns absent for claude_local when neither source holds a value", async () => {
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "claude_local"));
+    const res = await request(app).get(authSignalPath(SPACE_1, "claude_local"));
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toEqual({ status: "absent" });
@@ -357,7 +357,7 @@ describe("adapter auth-signal route", () => {
   it("returns unknown for an adapter type that has no cheap signal", async () => {
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "cursor_local"));
+    const res = await request(app).get(authSignalPath(SPACE_1, "cursor_local"));
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toEqual({ status: "unknown" });
@@ -365,18 +365,18 @@ describe("adapter auth-signal route", () => {
     expect(mockSecretService.readClaudeOAuthUserSecretStatus).not.toHaveBeenCalled();
   });
 
-  it("rejects an environment that belongs to another company", async () => {
-    mockEnvironmentService.listBoundCompanyIds.mockResolvedValueOnce([OTHER_COMPANY]);
+  it("rejects an environment that belongs to another space", async () => {
+    mockEnvironmentService.listBoundSpaceIds.mockResolvedValueOnce([OTHER_SPACE]);
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "claude_local", ENVIRONMENT_1));
+    const res = await request(app).get(authSignalPath(SPACE_1, "claude_local", ENVIRONMENT_1));
 
     expect(res.status, JSON.stringify(res.body)).toBe(403);
     expect(mockSecretService.resolveEnvBindings).not.toHaveBeenCalled();
     expect(mockSecretService.readClaudeOAuthUserSecretStatus).not.toHaveBeenCalled();
   });
 
-  it("rejects a caller who cannot create agents for the company", async () => {
+  it("rejects a caller who cannot create agents for the space", async () => {
     mockAccessService.decide.mockResolvedValue({
       allowed: false,
       reason: "deny_no_grant",
@@ -384,7 +384,7 @@ describe("adapter auth-signal route", () => {
     });
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "claude_local"));
+    const res = await request(app).get(authSignalPath(SPACE_1, "claude_local"));
 
     expect(res.status, JSON.stringify(res.body)).toBe(403);
     expect(mockEnvironmentService.getById).not.toHaveBeenCalled();
@@ -401,7 +401,7 @@ describe("adapter auth-signal route", () => {
     });
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "codex_local"));
+    const res = await request(app).get(authSignalPath(SPACE_1, "codex_local"));
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(Object.keys(res.body)).toEqual(["status"]);
@@ -410,7 +410,7 @@ describe("adapter auth-signal route", () => {
   it("takes no sandbox lease and starts no model process", async () => {
     const app = await createApp();
 
-    const res = await request(app).get(authSignalPath(COMPANY_1, "codex_local", ENVIRONMENT_1));
+    const res = await request(app).get(authSignalPath(SPACE_1, "codex_local", ENVIRONMENT_1));
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockEnvironmentRuntime.acquireRunLease).not.toHaveBeenCalled();

@@ -14,7 +14,7 @@ vi.mock("@tanstack/react-query", () => ({
     ? {
         data: {
           id: "decision-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           originAgentId: "agent-1",
           originIssueId: "origin-1",
           status: "open",
@@ -54,8 +54,8 @@ vi.mock("@tanstack/react-query", () => ({
   },
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompany: { issuePrefix: "PAP" } }),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpace: { issuePrefix: "PAP" } }),
 }));
 
 vi.mock("./DecisionCard", () => ({
@@ -90,20 +90,20 @@ describe("DecisionResolver", () => {
 
   it("refreshes resolved target status when an issue query changes", () => {
     const root = createRoot(container);
-    flushSync(() => root.render(<DecisionResolver companyId="company-1" decisionId="decision-1" />));
+    flushSync(() => root.render(<DecisionResolver spaceId="space-1" decisionId="decision-1" />));
     expect(container.querySelector('[data-testid="resolved-status"]')?.textContent).toBe("todo");
 
     state.issueStatus = "done";
-    flushSync(() => root.render(<DecisionResolver companyId="company-1" decisionId="decision-1" />));
+    flushSync(() => root.render(<DecisionResolver spaceId="space-1" decisionId="decision-1" />));
     expect(container.querySelector('[data-testid="resolved-status"]')?.textContent).toBe("done");
 
     flushSync(() => root.unmount());
   });
 
   it("renders a fresh terminal record instead of an older open decision in the shared cache", () => {
-    const record = { id: "decision-1", companyId: "company-1", status: "decided", options: [], targetSnapshots: {}, executions: [] } as unknown as DecisionOutcome;
+    const record = { id: "decision-1", spaceId: "space-1", status: "decided", options: [], targetSnapshots: {}, executions: [] } as unknown as DecisionOutcome;
     const root = createRoot(container);
-    flushSync(() => root.render(<DecisionResolver companyId="company-1" decisionId="decision-1" recordedDecision={record} />));
+    flushSync(() => root.render(<DecisionResolver spaceId="space-1" decisionId="decision-1" recordedDecision={record} />));
     expect(container.querySelector('[data-testid="decision-status"]')?.textContent).toBe("decided");
     expect(state.queriedIssueIds).toEqual([]);
     flushSync(() => root.unmount());
@@ -111,7 +111,7 @@ describe("DecisionResolver", () => {
 
   it("loads every primary and secondary effect target", () => {
     const root = createRoot(container);
-    flushSync(() => root.render(<DecisionResolver companyId="company-1" decisionId="decision-1" />));
+    flushSync(() => root.render(<DecisionResolver spaceId="space-1" decisionId="decision-1" />));
 
     expect(state.queriedIssueIds).toEqual(expect.arrayContaining([
       "target-1",

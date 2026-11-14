@@ -19,7 +19,7 @@ export function createLifecycleWorker(store: LifecycleStore, driver: LifecycleDr
       const owner = randomUUID();
       const agent = await attempt({ stage: "claim", agentId: id }, () => store.claim(id, owner, new Date()));
       if (!agent || !isLifecycleWorkPending(agent.lifecycleState)) return;
-      const context = { agentId: agent.id, companyId: agent.companyId, phase: agent.lifecycleState,
+      const context = { agentId: agent.id, spaceId: agent.spaceId, phase: agent.lifecycleState,
         operationId: agent.lifecycleOperation?.id, version: agent.lifecycleVersion,
         attempts: agent.lifecycleOperation?.attempts };
       let failureContext: LifecycleFailure = { ...context, stage: "host" };

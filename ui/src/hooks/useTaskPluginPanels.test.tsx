@@ -19,7 +19,7 @@ const plugin = vi.hoisted(() => ({ connected: true, slots: [] as ResolvedPluginS
 vi.mock("@/plugins/slots", () => ({ usePluginSlots: () => plugin }));
 vi.mock("@/context/LiveUpdatesProvider", () => ({ useTaskRunLiveUpdates: vi.fn(() => plugin.connected), useTranscriptLiveStream: (_ids: string[], _options: unknown, handler: (event: LiveEvent) => void) => { plugin.handler = handler; return { healthy: plugin.healthy, epoch: plugin.epoch }; } }));
 const slot = { pluginId: "example-plugin", pluginKey: "example.live-view", id: "screen", pluginVersion: "1.0.0", taskSidePanel: { availabilityPath: "/agents/:entityId/view/availability", activation: { namespace: "example.runtime", activityKey: "desktop.used" } } } as ResolvedPluginSlot;
-const issue = { id: "task", companyId: "company", executionRunId: "run", assigneeAgentId: "agent" } as Issue;
+const issue = { id: "task", spaceId: "space", executionRunId: "run", assigneeAgentId: "agent" } as Issue;
 const run = { id: "run", agentId: "agent", status: "running" } as LiveRunForIssue;
 let root: Root, container: HTMLDivElement, client: QueryClient;
 let panels: TaskPluginPanel[];
@@ -186,7 +186,7 @@ it("uses each plugin's own availability path and excludes only the failing contr
 
 
 function event(overrides: Record<string, unknown> = {}): LiveEvent {
-  return { id: 1, companyId: "company", type: "heartbeat.run.event", createdAt: "2099-01-01T00:00:00.000Z",
+  return { id: 1, spaceId: "space", type: "heartbeat.run.event", createdAt: "2099-01-01T00:00:00.000Z",
     payload: { runId: "run", agentId: "agent", issueId: "task", eventType: "runtime.activity.recorded",
       payload: { orpEvent: { eventType: "runtime.activity.recorded", sourceKind: "runner", payload: { ...slot.taskSidePanel!.activation } } }, ...overrides } } as LiveEvent;
 }
@@ -200,7 +200,7 @@ it("does no availability polling or Launcher discovery until this run activates 
   await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
   expect(get).not.toHaveBeenCalled(); expect(history).toHaveBeenCalledTimes(1);
   for (const overrides of [{ runId: "other" }, { agentId: "other" }, { issueId: "other" }, { eventType: "item.completed" }]) await emit(event(overrides));
-  await emit({ ...event(), companyId: "other" });
+  await emit({ ...event(), spaceId: "other" });
   await emit(event({ payload: { pluginKey: "example.other", slotId: "screen" } }));
   for (const native of [
     { eventType: "runtime.activity.recorded", sourceKind: "control_plane", payload: { ...slot.taskSidePanel!.activation } },
@@ -327,7 +327,7 @@ it("does not automatically open a task view without a declared activity mapping"
 
 it("observes run lifecycle updates using the same UUID key as panel discovery", async () => {
   await render({ ...issue, identifier: "DEMO-1" });
-  expect(useTaskRunLiveUpdates).toHaveBeenLastCalledWith({ companyId: "company", issueId: "task", issueQueryRef: "task", assigneeAgentId: "agent" });
+  expect(useTaskRunLiveUpdates).toHaveBeenLastCalledWith({ spaceId: "space", issueId: "task", issueQueryRef: "task", assigneeAgentId: "agent" });
 });
 
 it.each(["initial", "reconnect"])("reads again after pending history settles across %s subscription", async phase => {
@@ -478,7 +478,7 @@ it.each(["route", "installation"])("rechecks readiness after a same-version %s c
 it.each(["computer", "local"])("gates manual task views using the running agent's %s environment", async environmentId => {
   const restricted = { ...slot, agentEnvironmentDriver: "tasks" };
   plugin.slots = [restricted];
-  vi.spyOn(agentsApi, "get").mockResolvedValue({ id: "agent", companyId: "company", defaultEnvironmentId: environmentId } as Awaited<ReturnType<typeof agentsApi.get>>);
+  vi.spyOn(agentsApi, "get").mockResolvedValue({ id: "agent", spaceId: "space", defaultEnvironmentId: environmentId } as Awaited<ReturnType<typeof agentsApi.get>>);
   vi.spyOn(environmentsApi, "list").mockResolvedValue([{ id: "computer", name: "Computer", description: null, driver: "plugin", status: "active", config: {}, pluginDriver: { pluginKey: slot.pluginKey, driverKey: "tasks" }, envVars: {}, metadata: null, createdAt: new Date(0), updatedAt: new Date(0) }]);
   await render();
   expect(panels.map(panel => panel.slot)).toEqual(environmentId === "computer" ? [restricted] : []);
@@ -489,7 +489,7 @@ it.each(["computer", "local"])("gates manual task views using the running agent'
 it("gates an idle task view using its assigned agent's environment", async () => {
   const restricted = { ...slot, agentEnvironmentDriver: "tasks" };
   plugin.slots = [restricted]; list.mockResolvedValue([]);
-  vi.spyOn(agentsApi, "get").mockResolvedValue({ id: "agent", companyId: "company", defaultEnvironmentId: "local" } as Awaited<ReturnType<typeof agentsApi.get>>);
+  vi.spyOn(agentsApi, "get").mockResolvedValue({ id: "agent", spaceId: "space", defaultEnvironmentId: "local" } as Awaited<ReturnType<typeof agentsApi.get>>);
   vi.spyOn(environmentsApi, "list").mockResolvedValue([]);
   await render(); expect(panels).toEqual([]);
 });

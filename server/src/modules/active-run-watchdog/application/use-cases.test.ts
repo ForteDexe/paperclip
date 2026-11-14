@@ -16,7 +16,7 @@ describe("application", () => {
   function makeRun(overrides: Partial<RunSnapshot> = {}): RunSnapshot {
     return {
       id: "run-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "agent-1",
       status: "running",
       lastOutputAt: null,
@@ -37,7 +37,7 @@ describe("application", () => {
   function makeReader(overrides: Partial<WatchdogRunReader> = {}): WatchdogRunReader {
     return {
       findCandidateSilentRuns: async () => [],
-      findRunForCompany: async () => null,
+      findRunForSpace: async () => null,
       isRuntimeSettlementPending: async () => false,
       findLatestDecision: async () => ({ quietUntilDecision: null, dismissedFalsePositive: false }),
       findOpenStaleRunEvaluation: async () => null,
@@ -59,7 +59,7 @@ describe("application", () => {
           identifier: "PAP-9",
           status: "todo",
           assigneeAgentId: "agent-2",
-          companyId: "company-1",
+          spaceId: "space-1",
           originKind: "stale_active_run_evaluation",
           originId: run.id,
           hiddenAt: null,
@@ -138,8 +138,8 @@ describe("application", () => {
     it("does not terminate a process or settle the run while its runtime owns finalization", async () => {
       const calls: string[] = [];
       const fold = createFoldSourceResolvedRun({
-        reader: makeReader({ isRuntimeSettlementPending: async (companyId, runId) => {
-          expect([companyId, runId]).toEqual(["company-1", "run-1"]);
+        reader: makeReader({ isRuntimeSettlementPending: async (spaceId, runId) => {
+          expect([spaceId, runId]).toEqual(["space-1", "run-1"]);
           return true;
         } }),
         processController: { cleanupRunProcess: async () => {
@@ -169,9 +169,9 @@ describe("application", () => {
         recordDecision: async () => {
           throw new Error("not used in this test");
         },
-        foldSourceResolvedRun: async (companyId, input) => {
+        foldSourceResolvedRun: async (spaceId, input) => {
           calls.push("fold");
-          expect(companyId).toBe("company-1");
+          expect(spaceId).toBe("space-1");
           expect(input.cleanup).toMatchObject({ outcome: "terminated" });
           return { kind: "folded", evaluationIssueId: null };
         },
@@ -228,9 +228,9 @@ describe("application", () => {
 
   function makeDecisionWriter(overrides: Partial<WatchdogWriter> = {}): WatchdogWriter {
     return {
-      recordDecision: async (companyId, input) => ({
+      recordDecision: async (spaceId, input) => ({
         id: "decision-1",
-        companyId,
+        spaceId,
         runId: input.runId,
         evaluationIssueId: input.evaluationIssueId,
         decision: input.decision,
@@ -249,38 +249,38 @@ describe("application", () => {
   }
 
   describe("createRecordWatchdogDecision", () => {
-    it("records snooze, continue, and false-positive decisions with company scope", async () => {
+    it("records snooze, continue, and false-positive decisions with space scope", async () => {
       const now = new Date("2026-01-01T05:00:00.000Z");
       const snoozedUntil = new Date("2026-01-01T06:00:00.000Z");
       const recordWatchdogDecision = createRecordWatchdogDecision({
-        reader: makeReader({ findRunForCompany: async () => makeRun() }),
+        reader: makeReader({ findRunForSpace: async () => makeRun() }),
         writer: makeDecisionWriter(),
         continueRearmMs: CONTINUE_REARM_MS,
       });
 
       const snooze = await recordWatchdogDecision({
-        companyId: "company-1",
+        spaceId: "space-1",
         runId: "run-1",
-        actor: { type: "board" },
+        actor: { type: "operator" },
         decision: "snooze",
         snoozedUntil,
         now,
       });
-      expect(snooze).toMatchObject({ companyId: "company-1", runId: "run-1", decision: "snooze", snoozedUntil });
+      expect(snooze).toMatchObject({ spaceId: "space-1", runId: "run-1", decision: "snooze", snoozedUntil });
 
       const continueDecision = await recordWatchdogDecision({
-        companyId: "company-1",
+        spaceId: "space-1",
         runId: "run-1",
-        actor: { type: "board" },
+        actor: { type: "operator" },
         decision: "continue",
         now,
       });
       expect(continueDecision.snoozedUntil?.toISOString()).toBe(new Date(now.getTime() + CONTINUE_REARM_MS).toISOString());
 
       const dismissed = await recordWatchdogDecision({
-        companyId: "company-1",
+        spaceId: "space-1",
         runId: "run-1",
-        actor: { type: "board" },
+        actor: { type: "operator" },
         decision: "dismissed_false_positive",
         now,
       });
@@ -289,13 +289,13 @@ describe("application", () => {
 
     it("rejects an agent decision with no target evaluation issue", async () => {
       const recordWatchdogDecision = createRecordWatchdogDecision({
-        reader: makeReader({ findRunForCompany: async () => makeRun() }),
+        reader: makeReader({ findRunForSpace: async () => makeRun() }),
         writer: makeDecisionWriter(),
         continueRearmMs: CONTINUE_REARM_MS,
       });
 
       await expect(recordWatchdogDecision({
-        companyId: "company-1",
+        spaceId: "space-1",
         runId: "run-1",
         actor: { type: "agent", agentId: "agent-9" },
         decision: "continue",
@@ -305,13 +305,13 @@ describe("application", () => {
 
     it("rejects an agent decision when the agent is not the evaluation issue's assignee", async () => {
       const reader = makeReader({
-        findRunForCompany: async () => makeRun(),
+        findRunForSpace: async () => makeRun(),
         findEvaluationIssueById: async () => ({
           id: "eval-1",
           identifier: "PAP-2",
           status: "todo",
           assigneeAgentId: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           originKind: "stale_active_run_evaluation",
           originId: "run-1",
           hiddenAt: null,
@@ -324,7 +324,7 @@ describe("application", () => {
       });
 
       await expect(recordWatchdogDecision({
-        companyId: "company-1",
+        spaceId: "space-1",
         runId: "run-1",
         actor: { type: "agent", agentId: "agent-9" },
         decision: "continue",
@@ -335,13 +335,13 @@ describe("application", () => {
 
     it("accepts an agent decision when the agent is the assigned recovery owner", async () => {
       const reader = makeReader({
-        findRunForCompany: async () => makeRun(),
+        findRunForSpace: async () => makeRun(),
         findEvaluationIssueById: async () => ({
           id: "eval-1",
           identifier: "PAP-2",
           status: "todo",
           assigneeAgentId: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           originKind: "stale_active_run_evaluation",
           originId: "run-1",
           hiddenAt: null,
@@ -354,7 +354,7 @@ describe("application", () => {
       });
 
       const decision = await recordWatchdogDecision({
-        companyId: "company-1",
+        spaceId: "space-1",
         runId: "run-1",
         actor: { type: "agent", agentId: "agent-1" },
         decision: "continue",
@@ -365,17 +365,17 @@ describe("application", () => {
       expect(decision).toMatchObject({ evaluationIssueId: "eval-1", createdByAgentId: "agent-1" });
     });
 
-    it("reports run_not_found when the run does not exist in the company", async () => {
+    it("reports run_not_found when the run does not exist in the space", async () => {
       const recordWatchdogDecision = createRecordWatchdogDecision({
-        reader: makeReader({ findRunForCompany: async () => null }),
+        reader: makeReader({ findRunForSpace: async () => null }),
         writer: makeDecisionWriter(),
         continueRearmMs: CONTINUE_REARM_MS,
       });
 
       await expect(recordWatchdogDecision({
-        companyId: "company-1",
+        spaceId: "space-1",
         runId: "missing-run",
-        actor: { type: "board" },
+        actor: { type: "operator" },
         decision: "snooze",
         snoozedUntil: new Date("2026-01-01T06:00:00.000Z"),
         now: new Date("2026-01-01T05:00:00.000Z"),
@@ -384,15 +384,15 @@ describe("application", () => {
 
     it("reports evaluation_issue_not_found without encoding an HTTP status", async () => {
       const recordWatchdogDecision = createRecordWatchdogDecision({
-        reader: makeReader({ findRunForCompany: async () => makeRun() }),
+        reader: makeReader({ findRunForSpace: async () => makeRun() }),
         writer: makeDecisionWriter(),
         continueRearmMs: CONTINUE_REARM_MS,
       });
 
       const error = await recordWatchdogDecision({
-        companyId: "company-1",
+        spaceId: "space-1",
         runId: "run-1",
-        actor: { type: "board" },
+        actor: { type: "operator" },
         decision: "continue",
         evaluationIssueId: "missing-evaluation",
         now: new Date("2026-01-01T05:00:00.000Z"),
@@ -442,7 +442,7 @@ describe("application", () => {
       expect(result).toMatchObject({ scanned: 1, snoozed: 1, created: 0, escalated: 0, skipped: 0 });
     });
 
-    it("applies the optional company scope and the issue-date cutoff to the candidate query", async () => {
+    it("applies the optional space scope and the issue-date cutoff to the candidate query", async () => {
       let seenInput: unknown = null;
       const now = new Date("2026-01-01T05:00:00.000Z");
       const cutoff = new Date("2026-01-01T00:00:00.000Z");
@@ -458,20 +458,20 @@ describe("application", () => {
         suspicionThresholdMs: SUSPICION_THRESHOLD_MS,
       });
 
-      await scanSilentActiveRuns({ now, companyId: "company-9", issueCreatedAtGte: cutoff });
+      await scanSilentActiveRuns({ now, spaceId: "space-9", issueCreatedAtGte: cutoff });
 
       expect(seenInput).toMatchObject({
-        companyId: "company-9",
+        spaceId: "space-9",
         suspicionBefore: new Date(now.getTime() - SUSPICION_THRESHOLD_MS),
         issueCreatedAtGte: cutoff,
       });
     });
 
-    it("skips a run whose running agent belongs to a different company", async () => {
+    it("skips a run whose running agent belongs to a different space", async () => {
       const run = makeRun({ sourceIssueId: "issue-1" });
       const reader = makeReader({
         findCandidateSilentRuns: async () => [run],
-        findRunningAgent: async () => ({ id: "agent-1", companyId: "other-company", adapterType: "codex_local" }),
+        findRunningAgent: async () => ({ id: "agent-1", spaceId: "other-space", adapterType: "codex_local" }),
       });
       const scanSilentActiveRuns = createScanSilentActiveRuns({
         reader,
@@ -488,7 +488,7 @@ describe("application", () => {
       const run = makeRun({ sourceIssueId: "issue-1" });
       const reader = makeReader({
         findCandidateSilentRuns: async () => [run],
-        findRunningAgent: async () => ({ id: "agent-1", companyId: "company-1", adapterType: "codex_local" }),
+        findRunningAgent: async () => ({ id: "agent-1", spaceId: "space-1", adapterType: "codex_local" }),
         findSourceIssue: async () => ({
           id: "issue-1",
           identifier: "PAP-1",

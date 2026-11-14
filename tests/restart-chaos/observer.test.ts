@@ -12,7 +12,7 @@ import type { TaskPlan } from "./types.js";
 import { BENCH_EXPECTED, parseBenchRecord } from "./workloads.js";
 
 process.env.RESTART_CHAOS_QUIET = "1";
-const lab: ChaosLab = { companyId: "c1", environmentId: "e1", environmentKind: "local", projectId: "p1", fixtureRepositoryPath: "/tmp/none",
+const lab: ChaosLab = { spaceId: "c1", environmentId: "e1", environmentKind: "local", projectId: "p1", fixtureRepositoryPath: "/tmp/none",
   agents: { codex: { id: "a1", name: "Chaos codex" }, claude: { id: "a2", name: "Chaos claude" }, opencode: { id: "a3", name: "Chaos opencode" } } };
 const plan: TaskPlan = { taskId: "t01", index: 0, workload: "C1", adapter: "codex", fault: "K1", fireAfterMs: 999_999,
   holdMs: 0, followUpAfterMs: 1_000, nonce: "abcd1234" };
@@ -20,7 +20,7 @@ const ready = { serverReady: true, faultInProgress: false };
 const directories: string[] = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map(directory => rm(directory, { recursive: true, force: true }))); });
 
-/** Fake board API: a C1 issue whose first run already finished. */
+/** Fake operator API: a C1 issue whose first run already finished. */
 function fakeApi(overrides: Partial<Record<string, (route: string) => unknown>> = {}, status = "done") {
   const posted: string[] = [];
   const api = {
@@ -111,12 +111,12 @@ describe("TaskObserver", () => {
   it("clicks the board Retry on a blocked subtask, as a user would, and keeps watching the parent", async () => {
     let childStatus = "blocked";
     const base = fakeApi({ "parentIds=": () => [{ id: "c1", parentId: "i1", status: "done" }, { id: "c2", parentId: "i1", status: childStatus }],
-      "/documents/": () => null, "/recovery-actions": () => ({ active: { id: "a1", status: "active", ownerType: "board" }, actions: [] }), "/api/issues/c2": () => ({ id: "c2", status: childStatus,
+      "/documents/": () => null, "/recovery-actions": () => ({ active: { id: "a1", status: "active", ownerType: "operator" }, actions: [] }), "/api/issues/c2": () => ({ id: "c2", status: childStatus,
         interruption: { canRetry: childStatus === "blocked", observedRunId: "child-run" } }) }, "blocked");
     const childRetries: string[] = [];
     const api = { ...base.api, async get(route: string) {
         if (route === "/api/issues/i1") return { id: "i1", status: "blocked", stalledDependencies: childStatus === "blocked"
-          ? [{ stalledIssueId: "c2", relation: "child", recoveryAction: { id: "a1", status: "active", ownerType: "board" } }] : [] };
+          ? [{ stalledIssueId: "c2", relation: "child", recoveryAction: { id: "a1", status: "active", ownerType: "operator" } }] : [] };
         return base.api.get(route);
       },
       async post(route: string, body: unknown) {
@@ -151,7 +151,7 @@ describe("TaskObserver", () => {
     const api = { ...base.api, async get(route: string, timeoutMs?: number) {
         if (route === "/api/issues/i1") {
           if (timeoutMs === undefined && failNextStallRead) { failNextStallRead = false; throw new Error("503"); }
-          return { id: "i1", status: "blocked", stalledDependencies: [{ stalledIssueId: "c2", relation: "child", recoveryAction: { id: "a1", ownerType: "board" } }] };
+          return { id: "i1", status: "blocked", stalledDependencies: [{ stalledIssueId: "c2", relation: "child", recoveryAction: { id: "a1", ownerType: "operator" } }] };
         }
         return base.api.get(route);
       }, post: base.api.post.bind(base.api) } as unknown as ChaosApi;

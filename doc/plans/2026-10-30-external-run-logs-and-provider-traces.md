@@ -11,7 +11,7 @@ Parent effort: near-zero-downtime Railway deployment of the main web/API server.
 
 ## Goal and boundary
 
-After the main Paperclip web server and its local filesystem disappear, a
+After the main Outpost web server and its local filesystem disappear, a
 replacement connected to the same Postgres, object storage, and secrets can
 read all acknowledged run-log output and retained provider traces, then continue
 recording the same remote execution without gaps or duplicate records.
@@ -33,7 +33,7 @@ Firm requirements:
   explicitly selected this on 2026-10-30. Do not shorten existing retention.
 - A successful durable append survives abrupt process and disk loss. An orderly
   shutdown flush is useful but insufficient evidence.
-- Preserve company/task authorization, redaction, stable log byte offsets,
+- Preserve space/task authorization, redaction, stable log byte offsets,
   trace integrity checks, opt-in capture, existing limits, expiry, and deletion.
 - Store log and raw trace payloads directly in S3-compatible object storage.
   Postgres holds small ownership/lifecycle/reference records only; no new
@@ -98,7 +98,7 @@ network and storage work. Upload each newly sealed segment once instead.
 | Browser live stream / bounded server memory | Immediate progress display; not a durable receipt |
 | Existing native control event source / Runner outbox | Existing committed native records survive ACK; unacknowledged events remain replayable at the Runner |
 | S3-compatible storage | Immutable log/trace segments and bounded manifest/index pages |
-| Postgres | Existing company/run ownership, backend/reference, final status and expiry/deletion state; no per-batch writes |
+| Postgres | Existing space/run ownership, backend/reference, final status and expiry/deletion state; no per-batch writes |
 | Disposable web disk | Optional bounded buffer/read cache; never the only acknowledged copy |
 
 Existing structured `heartbeat_run_events`, task results, usage, and controller
@@ -158,10 +158,10 @@ legacy mode, without redirecting unrelated product file storage.
 Reuse the existing instance storage configuration without additional switches.
 Cloud already provisions a bucket and bucket-scoped credentials per stack.
 Preserve any configured storage prefix and place journals in `run-logs/` and
-`provider-traces/`, with company/run namespaces underneath. New journals must not
+`provider-traces/`, with space/run namespaces underneath. New journals must not
 use a separately configured legacy mirror bucket. Configuration
 errors fail explicitly; never select local-only persistence silently. Add only
-small company/run-bound stream metadata, with unique identities and constraints.
+small space/run-bound stream metadata, with unique identities and constraints.
 There are **no proposed run-log payload-chunk or raw-trace payload tables**.
 
 Selected publication protocol after the local operational experiment:
@@ -193,7 +193,7 @@ remain referenced, avoiding an obsolete index object for every flush. Metadata m
 not grow with the number or size of individual text records: segment descriptors
 and source indexes live in S3. Keep lifecycle/audit metadata bounded.
 
-Use a company/agent/run prefix with a generation-fenced head. A stale owner may finish an upload,
+Use a space/agent/run prefix with a generation-fenced head. A stale owner may finish an upload,
 but cannot publish it after takeover. A successor adopts the last published
 manifest and replays its uncommitted tail. Per-stream prefix tracking plus scoped,
 paginated enumeration must recover unpublished-object cleanup after a crash;
@@ -286,7 +286,7 @@ than assuming AWS guarantees for every compatible backend.
 
 Use the same batched object-payload mechanism with trace-specific ownership.
 Keep capture opt-in, existing secret/identity suppression, admin access,
-company/task-read checks, no-store responses, reveal/download audit, and trusted
+space/task-read checks, no-store responses, reveal/download audit, and trusted
 workspace-diff reprojection. Raw bytes never enter ordinary events, live logs,
 activity payloads, or general attachments. Provider parsing remains in drivers.
 
@@ -300,7 +300,7 @@ blocking task/accounting settlement. Qualify all currently supported producer
 families; do not silently advertise a legacy path-only producer as durable.
 
 Encrypt raw trace objects with the existing stable-key facilities and bind them
-to company/trace/channel/segment identity. Keep only metadata and the appropriate
+to space/trace/channel/segment identity. Keep only metadata and the appropriate
 key reference in Postgres. Preserve the existing 24-hour expiry from original
 capture and 64 MiB capture limit, with separate bounds for encoded/index overhead.
 Restart/import never extends expiry. Historical imports preserve exact bytes,
@@ -360,7 +360,7 @@ changes; keep incidental storage mechanics out of normal product controls.
    cannot stop an old binary from mishandling new rows. The deployment/rollback
    preflight must reject binaries older than that floor: a pre-feature binary
    cannot be expected to understand a newly introduced DB guard.
-2. Inventory every retained run log and unexpired trace by company/run. Classify
+2. Inventory every retained run log and unexpired trace by space/run. Classify
    local complete files, remote mirrors, active files, missing payloads, conflicting
    copies, and expired/deleted traces. A mirror may be a partial prefix: verify
    against authoritative bytes/metadata, never assume it is complete.
@@ -440,7 +440,7 @@ claim live-provider or fleet evidence from deterministic fixtures.
 - Configuration follow-up: shared storage resolution now serves product files,
   run logs and traces. S3 instances need no extra switches or connection fields.
   Cloud's existing per-stack bucket and credentials remain the isolation
-  boundary; existing prefixes and company/run subfolders are preserved. The
+  boundary; existing prefixes and space/run subfolders are preserved. The
   configuration regression failed before the change, then 70 affected tests
   passed, including real S3-compatible bucket/prefix isolation and cleanup tests.
   Four existing Cloud environment-contract tests also passed without Cloud code
@@ -513,7 +513,7 @@ claim live-provider or fleet evidence from deterministic fixtures.
   The native Postgres package initially lacked its postinstall-created library
   symlinks; its standard hydration helper repaired that local test prerequisite.
 - Native pending-tail qualification passed with the real Rust recovery fixture,
-  `PaperclipControlPlanePort`, production recorder, real Postgres and Moto. A
+  `OutpostControlPlanePort`, production recorder, real Postgres and Moto. A
   received ACK released 32 records from the Runner while S3's source cursor was
   still zero. After `SIGKILL` and deletion of the old controller directory, B
   exported all 64 records once while the same Runner PID continued. Snapshot and
@@ -563,5 +563,5 @@ claim live-provider or fleet evidence from deterministic fixtures.
   environment or volume was changed.
 - Next gate: finish fresh-source checks and PR review; retain actual-provider,
   live remote capture, and parent cutover gates before any volume-free rollout.
-- No Paperclip issue/run context was supplied. This repository plan is the state
+- No Outpost issue/run context was supplied. This repository plan is the state
   record; no issue work product or production migration is claimed.

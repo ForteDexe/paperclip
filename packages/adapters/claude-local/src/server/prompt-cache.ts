@@ -4,12 +4,12 @@ import path from "node:path";
 import { createHash, type Hash } from "node:crypto";
 import type { AdapterExecutionContext } from "@outpost/adapter-utils";
 import {
-  ensurePaperclipSkillSymlink,
-  resolvePaperclipInstanceRootForAdapter,
-  type PaperclipSkillEntry,
+  ensureOutpostSkillSymlink,
+  resolveOutpostInstanceRootForAdapter,
+  type OutpostSkillEntry,
 } from "@outpost/adapter-utils/server-utils";
 
-type SkillEntry = PaperclipSkillEntry;
+type SkillEntry = OutpostSkillEntry;
 
 export interface ClaudePromptBundle {
   bundleKey: string;
@@ -24,17 +24,17 @@ function nonEmpty(value: string | undefined): string | null {
 
 function resolveManagedClaudePromptCacheRoot(
   env: NodeJS.ProcessEnv,
-  companyId: string,
+  spaceId: string,
 ): string {
-  const instanceRoot = resolvePaperclipInstanceRootForAdapter({
+  const instanceRoot = resolveOutpostInstanceRootForAdapter({
     homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
     instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
   return path.resolve(
     instanceRoot,
-    "companies",
-    companyId,
+    "spaces",
+    spaceId,
     "claude-prompt-cache",
   );
 }
@@ -90,7 +90,7 @@ async function buildClaudePromptBundleKey(input: {
   instructionsContents: string | null;
 }): Promise<string> {
   const hash = createHash("sha256");
-  hash.update("paperclip-claude-prompt-bundle:v1\n");
+  hash.update("outpost-claude-prompt-bundle:v1\n");
   if (input.instructionsContents) {
     hash.update("instructions\n");
     hash.update(input.instructionsContents);
@@ -132,24 +132,24 @@ async function ensureReadableFile(targetPath: string, contents: string): Promise
 }
 
 export async function prepareClaudePromptBundle(input: {
-  companyId: string;
+  spaceId: string;
   skills: SkillEntry[];
   instructionsContents: string | null;
   onLog: AdapterExecutionContext["onLog"];
 }): Promise<ClaudePromptBundle> {
-  const { companyId, skills, instructionsContents, onLog } = input;
+  const { spaceId, skills, instructionsContents, onLog } = input;
   const bundleKey = await buildClaudePromptBundleKey({
     skills,
     instructionsContents,
   });
-  const rootDir = path.join(resolveManagedClaudePromptCacheRoot(process.env, companyId), bundleKey);
+  const rootDir = path.join(resolveManagedClaudePromptCacheRoot(process.env, spaceId), bundleKey);
   const skillsHome = path.join(rootDir, ".claude", "skills");
   await fs.mkdir(skillsHome, { recursive: true });
 
   for (const entry of skills) {
     const target = path.join(skillsHome, entry.runtimeName);
     try {
-      await ensurePaperclipSkillSymlink(entry.source, target);
+      await ensureOutpostSkillSymlink(entry.source, target);
     } catch (err) {
       await onLog(
         "stderr",

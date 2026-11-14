@@ -108,7 +108,7 @@ describe("Pi installation factory", () => {
     });
     try {
       const initialized = await call("initialize", { protocolVersion: 1, clientCapabilities: { elicitation: { form: {} } } });
-      expect(initialized.agentCapabilities._meta.paperclipPi.steering).toBe(true);
+      expect(initialized.agentCapabilities._meta.outpostPi.steering).toBe(true);
       expect(initialized.authMethods).toEqual([]);
       await expect(call("session/new", { cwd: workspace, mcpServers: [] })).rejects.toThrow("Bind the configured OpenRouter API credential");
     } finally {

@@ -79,7 +79,7 @@ type DiscordCommandsOptions = {
   lockCurrentPrincipalAuthorization: (tx: DbOrTransaction, endpoint: EndpointRow, principalId: string) => Promise<{ allowed: boolean; userId: string | null }>;
   getDiscordGatewayOwnership: (endpointId: string) => { leaseKey: string; token: string } | undefined;
   discordGatewayRuntimeIsCurrent: (endpointId: string, context: RuntimeContext) => boolean;
-  stageAuthorizedTaskControlPublication: (tx: DbOrTransaction, input: { companyId: string; conversationId: string; endpointId: string; idempotencyKey: string; issueId: string; payload: SafeChatPublicationPayload; principalId: string }) => Promise<{ id: string }>;
+  stageAuthorizedTaskControlPublication: (tx: DbOrTransaction, input: { spaceId: string; conversationId: string; endpointId: string; idempotencyKey: string; issueId: string; payload: SafeChatPublicationPayload; principalId: string }) => Promise<{ id: string }>;
   scheduleMessageProcessing: (task: () => Promise<void>) => void;
   processPendingPublications: () => Promise<unknown>;
 };
@@ -108,7 +108,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
       )
         return;
       const scope = {
-        companyId: record.endpoint.companyId,
+        spaceId: record.endpoint.spaceId,
         endpointId,
         applicationId: record.endpoint.botExternalId,
         guildId: record.endpoint.providerAccountId,
@@ -120,7 +120,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
           .from(chatEndpoints)
           .where(
             and(
-              eq(chatEndpoints.companyId, scope.companyId),
+              eq(chatEndpoints.spaceId, scope.spaceId),
               eq(chatEndpoints.id, scope.endpointId),
             ),
           )
@@ -140,7 +140,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
           .from(toolConnections)
           .where(
             and(
-              eq(toolConnections.companyId, scope.companyId),
+              eq(toolConnections.spaceId, scope.spaceId),
               eq(toolConnections.id, endpoint.connectionId),
             ),
           )
@@ -161,7 +161,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
           .from(chatEndpoints)
           .where(
             and(
-              eq(chatEndpoints.companyId, scope.companyId),
+              eq(chatEndpoints.spaceId, scope.spaceId),
               eq(chatEndpoints.id, endpointId),
             ),
           )
@@ -184,12 +184,12 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
           })
           .where(
             and(
-              eq(chatEndpoints.companyId, scope.companyId),
+              eq(chatEndpoints.spaceId, scope.spaceId),
               eq(chatEndpoints.id, endpointId),
             ),
           );
         await logActivity(tx as unknown as Db, {
-          companyId: scope.companyId,
+          spaceId: scope.spaceId,
           actorType: "system",
           actorId: "system",
           action: registered
@@ -266,7 +266,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
     )
       return denied;
     const scope = {
-      companyId: record.endpoint.companyId,
+      spaceId: record.endpoint.spaceId,
       endpointId: record.endpoint.id,
       applicationId: record.endpoint.botExternalId ?? "",
       guildId: record.endpoint.providerAccountId ?? "",
@@ -299,7 +299,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
           );
           if (
             !endpoint ||
-            endpoint.companyId !== scope.companyId ||
+            endpoint.spaceId !== scope.spaceId ||
             endpoint.provider !== "discord" ||
             endpoint.botExternalId !== scope.applicationId ||
             endpoint.providerAccountId !== scope.guildId ||
@@ -311,7 +311,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
             .from(toolConnections)
             .where(
               and(
-                eq(toolConnections.companyId, scope.companyId),
+                eq(toolConnections.spaceId, scope.spaceId),
                 eq(toolConnections.id, endpoint.connectionId),
               ),
             )
@@ -340,7 +340,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
             .from(chatActions)
             .where(
               and(
-                eq(chatActions.companyId, scope.companyId),
+                eq(chatActions.spaceId, scope.spaceId),
                 eq(chatActions.endpointId, scope.endpointId),
                 eq(chatActions.providerActionId, providerActionId),
               ),
@@ -368,7 +368,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
                   .from(chatConversations)
                   .where(
                     and(
-                      eq(chatConversations.companyId, scope.companyId),
+                      eq(chatConversations.spaceId, scope.spaceId),
                       eq(chatConversations.endpointId, scope.endpointId),
                       eq(chatConversations.id, receipt.target.conversationId),
                     ),
@@ -382,7 +382,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
                   .from(chatConversations)
                   .where(
                     and(
-                      eq(chatConversations.companyId, scope.companyId),
+                      eq(chatConversations.spaceId, scope.spaceId),
                       eq(chatConversations.endpointId, scope.endpointId),
                       eq(
                         chatConversations.externalConversationId,
@@ -423,7 +423,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
                   .from(chatEndpointResources)
                   .where(
                     and(
-                      eq(chatEndpointResources.companyId, scope.companyId),
+                      eq(chatEndpointResources.spaceId, scope.spaceId),
                       eq(chatEndpointResources.endpointId, scope.endpointId),
                       eq(
                         chatEndpointResources.providerResourceId,
@@ -456,7 +456,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
                 .from(issues)
                 .where(
                   and(
-                    eq(issues.companyId, scope.companyId),
+                    eq(issues.spaceId, scope.spaceId),
                     eq(issues.id, conversation.issueId),
                   ),
                 )
@@ -475,7 +475,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
             .from(chatEndpointLeases)
             .where(
               and(
-                eq(chatEndpointLeases.companyId, scope.companyId),
+                eq(chatEndpointLeases.spaceId, scope.spaceId),
                 eq(chatEndpointLeases.endpointId, scope.endpointId),
                 eq(chatEndpointLeases.leaseKey, ownership.leaseKey),
                 eq(chatEndpointLeases.token, ownership.token),
@@ -555,7 +555,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
             const publication = await stageAuthorizedTaskControlPublication(
               tx,
               {
-                companyId: scope.companyId,
+                spaceId: scope.spaceId,
                 endpointId: scope.endpointId,
                 conversationId: conversation.id,
                 issueId: issue.id,
@@ -574,7 +574,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
           const inserted = await tx
             .insert(chatActions)
             .values({
-              companyId: scope.companyId,
+              spaceId: scope.spaceId,
               endpointId: scope.endpointId,
               conversationId: target?.conversationId ?? null,
               principalId: principal.principal.id,
@@ -600,7 +600,7 @@ export function createDiscordCommands(db: Db, options: DiscordCommandsOptions) {
             .returning({ id: chatActions.id });
           if (!inserted.length) throw authorityChanged;
           await logActivity(tx as unknown as Db, {
-            companyId: scope.companyId,
+            spaceId: scope.spaceId,
             actorType: authorization.userId ? "user" : "system",
             actorId: authorization.userId ?? `chat:${principal.principal.id}`,
             action: "chat.discord_command_recorded",

@@ -1,5 +1,5 @@
 {
-  "schema": "paperclip-cursor-offline-pack-proof/v1",
+  "schema": "outpost-cursor-offline-pack-proof/v1",
   "capturedAt": "2026-09-28T20:18:46.105Z",
   "runnerSourceRevision": "25fb1b5b317e52a8ad50208d7681a1ee34bd939c",
   "packDigest": "sha256:38bc6dd39c13b0f5478a1018e26deb61b0333ab0242f3d857e3c79d3a34b7682",
@@ -43,7 +43,7 @@
           }
         },
         "clientInfo": {
-          "name": "paperclip-offline-pack-probe",
+          "name": "outpost-offline-pack-probe",
           "version": "1"
         }
       }

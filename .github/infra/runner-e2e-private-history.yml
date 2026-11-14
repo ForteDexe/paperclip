@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Private bounded Paperclip eval evidence and reports; no CDN reader
+Description: Private bounded Outpost eval evidence and reports; no CDN reader
 Parameters:
   BucketName:
     Type: String

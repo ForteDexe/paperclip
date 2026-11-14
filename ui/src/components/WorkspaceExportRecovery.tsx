@@ -28,7 +28,7 @@ function ReportRecoveryControl({ owns, onChange }: { owns: boolean; onChange?: (
 const CONTROLLER_HOST_UNVERIFIED = "native_controller_host_unverified";
 const OWNER_UNPROVABLE = "ownership_owner_unprovable";
 
-/** What the stuck record is, by ownership kind, for the board's confirmation. */
+/** What the stuck record is, by ownership kind, for the operator's confirmation. */
 const OWNER_GONE_RESOURCE: Record<string, { what: string; releasing: string }> = {
   environment_run_lease_active: { what: "A sandbox lease from this task’s earlier run", releasing: "Releasing the sandbox lease…" },
   legacy_controller_lease: { what: "This task’s earlier run", releasing: "Recovering the run…" },
@@ -41,7 +41,7 @@ const OWNER_GONE_RESOURCE: Record<string, { what: string; releasing: string }> =
 };
 const OWNER_GONE_DEFAULT = { what: "A resource from this task’s earlier run", releasing: "Releasing the resource…" };
 
-/** Causes whose one action is the board's previous-server stop confirmation;
+/** Causes whose one action is the operator's previous-server stop confirmation;
  * the generic recovery card must not offer other resolutions for them. */
 export function isPreviousServerStopCause(cause: string | null | undefined) {
   return cause === "native_workspace_finalization_owner_unverified" || cause === CONTROLLER_HOST_UNVERIFIED
@@ -49,30 +49,30 @@ export function isPreviousServerStopCause(cause: string | null | undefined) {
 }
 
 /** Requests preservation; the existing worker owns stop, copyback and verification. */
-export function WorkspaceExportRecovery({ action, className, issueId, companyId, showStatus = true, onRecoveryControlChange }: {
-  className?: string; action: IssueRecoveryAction | null; issueId?: string; companyId?: string; showStatus?: boolean;
+export function WorkspaceExportRecovery({ action, className, issueId, spaceId, showStatus = true, onRecoveryControlChange }: {
+  className?: string; action: IssueRecoveryAction | null; issueId?: string; spaceId?: string; showStatus?: boolean;
   onRecoveryControlChange?: (owns: boolean) => void;
 }) {
   // A restart killed the copyback owner of retained saved-work recovery. Recovery
   // and any accepted Retry wait on its receipt; the confirmation is the one action.
-  const retainedOwnerToken = action && issueId && companyId && isRetainedExport(action, issueId, companyId)
+  const retainedOwnerToken = action && issueId && spaceId && isRetainedExport(action, issueId, spaceId)
     ? retainedOwnerStopToken(action) : null;
-  if (action && issueId && companyId && retainedOwnerToken) {
+  if (action && issueId && spaceId && retainedOwnerToken) {
     return <><ReportRecoveryControl owns onChange={onRecoveryControlChange} />
       <PreviousServerStopConfirmation key={`${action.id}:${String(action.evidence.runId)}:${retainedOwnerToken}`}
-        action={action} ownerToken={retainedOwnerToken} issueId={issueId} companyId={companyId} className={className} /></>;
+        action={action} ownerToken={retainedOwnerToken} issueId={issueId} spaceId={spaceId} className={className} /></>;
   }
-  if (action && issueId && companyId && isRetainedExport(action, issueId, companyId)) {
-    return <RetainedFilesRecovery key={`${companyId}:${issueId}:${action.id}:${action.evidence.runId}`}
-      action={action} issueId={issueId} companyId={companyId} className={className}
+  if (action && issueId && spaceId && isRetainedExport(action, issueId, spaceId)) {
+    return <RetainedFilesRecovery key={`${spaceId}:${issueId}:${action.id}:${action.evidence.runId}`}
+      action={action} issueId={issueId} spaceId={spaceId} className={className}
       onRecoveryControlChange={onRecoveryControlChange} />;
   }
   // An ephemeral server cannot judge a pre-upgrade controller row by PID.
-  if (action?.cause === CONTROLLER_HOST_UNVERIFIED && issueId && companyId
-    && isControllerStopRequired(action, issueId, companyId)) {
+  if (action?.cause === CONTROLLER_HOST_UNVERIFIED && issueId && spaceId
+    && isControllerStopRequired(action, issueId, spaceId)) {
     return <><ReportRecoveryControl owns onChange={onRecoveryControlChange} />
       <PreviousServerStopConfirmation key={`${action.id}:${String(action.evidence.runId)}`}
-        action={action} issueId={issueId} companyId={companyId} className={className}
+        action={action} issueId={issueId} spaceId={spaceId} className={className}
         confirmStop={stopEvidence => issuesApi.confirmControllerStopped(issueId, {
           actionId: action.id, runId: action.evidence.runId as string, stopEvidence })}
         copy={{ waiting: "This run’s previous server was recorded before Outpost stored which host it ran on, so Outpost can’t verify that it stopped. The run’s saved state is kept.",
@@ -80,14 +80,14 @@ export function WorkspaceExportRecovery({ action, className, issueId, companyId,
           placeholder: "For example: the old server container was replaced and is no longer running.",
           resuming: "Controller stop recorded. Checking recovery…" }} /></>;
   }
-  // A resource held by a server recorded before Paperclip stored which server held it.
-  if (action?.cause === OWNER_UNPROVABLE && issueId && companyId && isOwnerGoneRequired(action, issueId, companyId)) {
+  // A resource held by a server recorded before Outpost stored which server held it.
+  if (action?.cause === OWNER_UNPROVABLE && issueId && spaceId && isOwnerGoneRequired(action, issueId, spaceId)) {
     const resource = OWNER_GONE_RESOURCE[String(action.evidence.kind)] ?? OWNER_GONE_DEFAULT;
     return <><ReportRecoveryControl owns onChange={onRecoveryControlChange} />
       {/* Keyed by the record version: a request refreshed to a newer version resets an open form, so
-          the board never confirms a version it was not shown. */}
+          the operator never confirms a version it was not shown. */}
       <PreviousServerStopConfirmation key={`${action.id}:${String(action.evidence.recordId)}:${String(action.evidence.recordUpdatedAt ?? "")}`}
-        action={action} issueId={issueId} companyId={companyId} className={className}
+        action={action} issueId={issueId} spaceId={spaceId} className={className}
         confirmStop={stopEvidence => issuesApi.confirmOwnerGone(issueId, {
           actionId: action.id, recordId: action.evidence.recordId as string, stopEvidence,
           // The version shown here: a request refreshed since must be confirmed again.
@@ -99,14 +99,14 @@ export function WorkspaceExportRecovery({ action, className, issueId, companyId,
   }
   const ownerRecovery = action?.cause === "native_workspace_finalization_owner_unverified";
   // The task's interruption names this wait; the confirmation is its one action.
-  if (ownerRecovery && issueId && companyId && isOwnerStopRequired(action, issueId, companyId)) {
+  if (ownerRecovery && issueId && spaceId && isOwnerStopRequired(action, issueId, spaceId)) {
     return <><ReportRecoveryControl owns onChange={onRecoveryControlChange} />
       <PreviousServerStopConfirmation key={`${action.id}:${String(action.evidence.runId)}`}
         action={action} ownerToken={asObject(action.evidence.owner).token as string}
-        issueId={issueId} companyId={companyId} className={className} /></>;
+        issueId={issueId} spaceId={spaceId} className={className} /></>;
   }
   if (!showStatus) return <ReportRecoveryControl owns={false} onChange={onRecoveryControlChange} />;
-  if (!action || (!ownerRecovery && !isNativeWorkspaceExportRepairCause(action.cause)) || action.ownerType !== "board"
+  if (!action || (!ownerRecovery && !isNativeWorkspaceExportRepairCause(action.cause)) || action.ownerType !== "operator"
     || !["active", "escalated"].includes(action.status) || typeof action.evidence.runId !== "string")
     return <ReportRecoveryControl owns={false} onChange={onRecoveryControlChange} />;
   const queued = !!action.evidence.workspaceOwnerStop || action.wakePolicy?.kind === "resume_native_run";
@@ -117,10 +117,10 @@ export function WorkspaceExportRecovery({ action, className, issueId, companyId,
     </p></>;
 }
 
-function isRetainedExport(action: IssueRecoveryAction, issueId: string, companyId: string) {
-  return action.companyId === companyId && action.sourceIssueId === issueId
+function isRetainedExport(action: IssueRecoveryAction, issueId: string, spaceId: string) {
+  return action.spaceId === spaceId && action.sourceIssueId === issueId
     && action.kind === "active_run_watchdog" && ["active", "escalated"].includes(action.status)
-    && ["board", "system"].includes(action.ownerType)
+    && ["operator", "system"].includes(action.ownerType)
     && isRetainedWorkspaceExportCause(action.cause)
     && typeof action.evidence.runId === "string" && action.evidence.runId.length > 0;
 }
@@ -133,21 +133,21 @@ function isSandboxDiskFullRest(action: IssueRecoveryAction) {
     && asObject(failure.cause).label === "sandbox_disk_full";
 }
 
-function isControllerStopRequired(action: IssueRecoveryAction, issueId: string, companyId: string) {
-  return action.companyId === companyId && action.sourceIssueId === issueId
-    && action.ownerType === "board" && ["active", "escalated"].includes(action.status)
+function isControllerStopRequired(action: IssueRecoveryAction, issueId: string, spaceId: string) {
+  return action.spaceId === spaceId && action.sourceIssueId === issueId
+    && action.ownerType === "operator" && ["active", "escalated"].includes(action.status)
     && typeof action.evidence.runId === "string" && !action.evidence.controllerStop;
 }
 
-function isOwnerGoneRequired(action: IssueRecoveryAction, issueId: string, companyId: string) {
-  return action.companyId === companyId && action.sourceIssueId === issueId
-    && action.ownerType === "board" && ["active", "escalated"].includes(action.status)
+function isOwnerGoneRequired(action: IssueRecoveryAction, issueId: string, spaceId: string) {
+  return action.spaceId === spaceId && action.sourceIssueId === issueId
+    && action.ownerType === "operator" && ["active", "escalated"].includes(action.status)
     && typeof action.evidence.recordId === "string" && !action.evidence.ownerGone;
 }
 
-function isOwnerStopRequired(action: IssueRecoveryAction, issueId: string, companyId: string) {
-  return action.companyId === companyId && action.sourceIssueId === issueId
-    && action.ownerType === "board" && ["active", "escalated"].includes(action.status)
+function isOwnerStopRequired(action: IssueRecoveryAction, issueId: string, spaceId: string) {
+  return action.spaceId === spaceId && action.sourceIssueId === issueId
+    && action.ownerType === "operator" && ["active", "escalated"].includes(action.status)
     && typeof action.evidence.runId === "string" && typeof asObject(action.evidence.owner).token === "string"
     && !action.evidence.workspaceOwnerStop && asObject(action.evidence.workspaceOwnerRecovery).state !== "resuming";
 }
@@ -161,9 +161,9 @@ function retainedOwnerStopToken(action: IssueRecoveryAction): string | null {
 }
 
 /** A previous server that can no longer report cannot confirm its own stop.
- * The board confirms it once; the saved result then finishes without another agent turn. */
-export function PreviousServerStopConfirmation({ action, runId: givenRunId, formId: givenFormId, ownerToken, issueId, companyId, className, confirmStop, copy }: {
-  action?: IssueRecoveryAction; runId?: string; formId?: string; issueId: string; companyId: string; className?: string;
+ * The operator confirms it once; the saved result then finishes without another agent turn. */
+export function PreviousServerStopConfirmation({ action, runId: givenRunId, formId: givenFormId, ownerToken, issueId, spaceId, className, confirmStop, copy }: {
+  action?: IssueRecoveryAction; runId?: string; formId?: string; issueId: string; spaceId: string; className?: string;
   /** Saved-work copyback owner; used when no custom confirmation is given. */
   ownerToken?: string;
   confirmStop?: (stopEvidence: string) => Promise<unknown>;
@@ -177,8 +177,8 @@ export function PreviousServerStopConfirmation({ action, runId: givenRunId, form
   const access = useQuery({ queryKey: queryKeys.access.currentBoardAccess,
     queryFn: () => accessApi.getCurrentBoardAccess() });
   const accessView = useQueryView(access);
-  const canConfirm = (accessView.kind === "ready" || accessView.kind === "stale") && canBoardConfirmOwnerStop(companyId, access.data);
-  const confirm = useMutation({ retry: false, // query-error-ok: an explicit board confirmation; the error is shown below.
+  const canConfirm = (accessView.kind === "ready" || accessView.kind === "stale") && canBoardConfirmOwnerStop(spaceId, access.data);
+  const confirm = useMutation({ retry: false, // query-error-ok: an explicit operator confirmation; the error is shown below.
     mutationFn: () => confirmStop ? confirmStop(evidence.trim())
       : issuesApi.resumeWorkspaceFinalization(issueId, { actionId: action!.id, runId, ownerToken: ownerToken!,
         controllerAndCopybackStopped: true, stopEvidence: evidence.trim() }),
@@ -226,8 +226,8 @@ function unverifiedSourceText(inspected: WorkspaceSourceInspection | undefined):
     : `Outpost can’t verify the saved files’ recorded source (${code}).`;
 }
 
-function RetainedFilesRecovery({ action, issueId, companyId, className, onRecoveryControlChange }: {
-  action: IssueRecoveryAction; issueId: string; companyId: string; className?: string;
+function RetainedFilesRecovery({ action, issueId, spaceId, className, onRecoveryControlChange }: {
+  action: IssueRecoveryAction; issueId: string; spaceId: string; className?: string;
   onRecoveryControlChange?: (owns: boolean) => void;
 }) {
   const runId = action.evidence.runId as string;
@@ -244,12 +244,12 @@ function RetainedFilesRecovery({ action, issueId, companyId, className, onRecove
   const accessReady = accessView.kind === "ready" || accessView.kind === "stale";
   const canMutate = Boolean(accessReady && owner && (access.data?.source === "local_implicit"
     || owner !== "signed-out" && access.data?.userId === owner)
-    && canBoardResolveRecoveryAction(companyId, access.data));
+    && canBoardResolveRecoveryAction(spaceId, access.data));
   const source = useQuery({ queryKey: queryKeys.issues.recoveryActions(issueId, action.id, runId),
     queryFn: () => issuesApi.recoveryActions(issueId, { runId, actionId: action.id }), enabled: canMutate });
   const sourceView = useQueryView(source);
   const sourceReady = sourceView.kind === "ready" || sourceView.kind === "stale";
-  const storageKey = owner ? pendingSendKeyFor(`workspace-file-recovery:${companyId}:${issueId}:${action.id}:${runId}`, owner) : null;
+  const storageKey = owner ? pendingSendKeyFor(`workspace-file-recovery:${spaceId}:${issueId}:${action.id}:${runId}`, owner) : null;
   const matchesInput = (value: unknown): value is RecoveryInput => {
     const input = asObject(value);
     return input.actionId === action.id && input.runId === runId;
@@ -263,7 +263,7 @@ function RetainedFilesRecovery({ action, issueId, companyId, className, onRecove
     const current = data?.actions.find(item => item.id === action.id);
     const inspected = data?.sourceInspection;
     const state = asObject(current?.evidence.workspaceRecovery);
-    return current && isRetainedExport(current, issueId, companyId) && current.evidence.runId === runId
+    return current && isRetainedExport(current, issueId, spaceId) && current.evidence.runId === runId
       && state.runId === runId && state.schema === "outpost.workspace-recovery.v1"
       && inspected?.actionId === action.id && inspected.runId === runId ? current : null;
   }
@@ -355,7 +355,7 @@ function RetainedFilesRecovery({ action, issueId, companyId, className, onRecove
   // which saves the files again and then applies the saved result. Its note
   // names Retry, so this panel offers no separate control for it.
   const diskFullRest = isSandboxDiskFullRest(current ?? action);
-  // A verified source makes this panel the governed recovery path. Otherwise the
+  // A verified source makes this panel the controlled recovery path. Otherwise the
   // task's own Retry (renewed, re-verified recovery) remains the next action.
   const ownsRecoveryControl = canMutate && !diskFullRest && (sourceLoading || Boolean(current && verified && !saved));
   // `waiting` already excludes a failed accepted request, so the reason stays

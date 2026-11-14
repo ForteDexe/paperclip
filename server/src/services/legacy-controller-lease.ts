@@ -48,22 +48,22 @@ export function legacyControllerClaim(runtimeMode: string) {
   };
 }
 
-type RenewalTarget = Pick<Run, "id" | "companyId"> & { stage?: "dispatching" };
+type RenewalTarget = Pick<Run, "id" | "spaceId"> & { stage?: "dispatching" };
 type RenewalOutcome = "renewed" | "rejected" | "busy";
 
 async function renewLegacyControllerLeasesInTransaction(
   tx: Db,
   targets: RenewalTarget[],
 ): Promise<Map<string, RenewalOutcome>> {
-  const requested = sql.join(targets.map(target => sql`(${target.id}::uuid, ${target.companyId}::uuid)`), sql`, `);
+  const requested = sql.join(targets.map(target => sql`(${target.id}::uuid, ${target.spaceId}::uuid)`), sql`, `);
   const dispatching = targets.filter(target => target.stage === "dispatching").map(target => sql`${target.id}::uuid`);
   const stage = dispatching.length
     ? sql`case when r.id in (${sql.join(dispatching, sql`, `)}) then 'dispatching' else r.execution_stage end`
     : sql`r.execution_stage`;
   const rows = await tx.execute<{ id: string; renewed: boolean; examined: boolean }>(sql`
-    with requested(id, company_id) as (values ${requested}),
+    with requested(id, space_id) as (values ${requested}),
     examined as (
-      select r.id from ${heartbeatRuns} r join requested q on r.id = q.id and r.company_id = q.company_id
+      select r.id from ${heartbeatRuns} r join requested q on r.id = q.id and r.space_id = q.space_id
       for update of r skip locked
     ),
     renewed as (
@@ -85,11 +85,11 @@ async function renewLegacyControllerLeasesInTransaction(
 
 export async function renewLegacyControllerLease(
   db: Db,
-  run: Pick<Run, "id" | "companyId" | "controllerBootId">,
+  run: Pick<Run, "id" | "spaceId" | "controllerBootId">,
   stage?: "dispatching",
 ): Promise<boolean> {
   const outcomes = await db.transaction(tx => renewLegacyControllerLeasesInTransaction(tx as unknown as Db,
-    [{ id: run.id, companyId: run.companyId, stage }]));
+    [{ id: run.id, spaceId: run.spaceId, stage }]));
   return outcomes.get(run.id) === "renewed";
 }
 
@@ -147,8 +147,8 @@ async function flushRenewals(db: Db, batch: RenewalBatch) {
           return renewLegacyControllerLeasesInTransaction(tx as unknown as Db, [...targets.values()]);
         });
         for (const request of requests) {
-          const sameCompany = targets.get(request.target.id)!.companyId === request.target.companyId;
-          request.resolve(sameCompany ? outcomes.get(request.target.id) ?? "rejected" : "rejected");
+          const sameSpace = targets.get(request.target.id)!.spaceId === request.target.spaceId;
+          request.resolve(sameSpace ? outcomes.get(request.target.id) ?? "rejected" : "rejected");
         }
       } catch (error) {
         for (const request of requests) request.reject(error);
@@ -162,7 +162,7 @@ async function flushRenewals(db: Db, batch: RenewalBatch) {
 export async function liveLegacyControllerExpiresAt(db: Db, run: Run): Promise<Date | null> {
   if (run.runtimeMode === "native" || !run.controllerBootId) return null;
   const [owner] = await db.select({ expiresAt: heartbeatRuns.controllerLeaseExpiresAt }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId),
+    eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId),
     eq(heartbeatRuns.status, "running"),
     gt(heartbeatRuns.controllerLeaseExpiresAt, sql`clock_timestamp()`),
   ));
@@ -189,12 +189,12 @@ export async function revokeExpiredLegacyControllerWithState(
   }
   const controllerBootId = run.controllerBootId;
   const [revoked] = await db.transaction(async tx => {
-    await notifyLiveRunRecovery(tx, { companyId: run.companyId, runId: run.id });
+    await notifyLiveRunRecovery(tx, { spaceId: run.spaceId, runId: run.id });
     return tx.update(heartbeatRuns).set({
     controllerBootId: randomUUID(),
     controllerLeaseExpiresAt: sql`clock_timestamp() + interval '60 seconds'`,
   }).where(and(
-    eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId),
+    eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId),
     eq(heartbeatRuns.status, "running"),
     eq(heartbeatRuns.controllerBootId, controllerBootId),
     lte(heartbeatRuns.controllerLeaseExpiresAt, sql`clock_timestamp()`),
@@ -239,10 +239,10 @@ export async function legacyControllerProvenGone(
  * its runs and exits with their leases unexpired; nothing of that controller is
  * left to unwind a Stop.
  */
-export async function provenGoneLegacyControllerBootId(db: Db, companyId: string, runId: string): Promise<string | null> {
+export async function provenGoneLegacyControllerBootId(db: Db, spaceId: string, runId: string): Promise<string | null> {
   const [run] = await db.select({ runtimeMode: heartbeatRuns.runtimeMode, controllerBootId: heartbeatRuns.controllerBootId,
     controllerProcess: heartbeatRuns.controllerProcess }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.runtimeMode, "legacy"),
+    eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.runtimeMode, "legacy"),
     gt(heartbeatRuns.controllerLeaseExpiresAt, sql`clock_timestamp()`)));
   if (!run?.controllerBootId) return null;
   return await legacyControllerProvenGone(run) ? run.controllerBootId : null;
@@ -259,16 +259,16 @@ export async function provenGoneLegacyControllerBootId(db: Db, companyId: string
  */
 export async function settleLegacyControllerLease(db: Db, record: InProgressRecord,
   context: { now: Date; proof: OwnerProof }): Promise<SettleOutcome> {
-  if (record.owner.kind !== "process" || !record.companyId) return { settled: false, reason: "owner_not_a_process" };
+  if (record.owner.kind !== "process" || !record.spaceId) return { settled: false, reason: "owner_not_a_process" };
   const stamp = record.owner.stamp;
   if (!stamp.bootId) return { settled: false, reason: "owner_not_a_process" };
-  const companyId = record.companyId;
+  const spaceId = record.spaceId;
   const bootId = stamp.bootId;
   return db.transaction(async transaction => {
     const tx = transaction as unknown as Db;
     const [row] = await tx.select({ agentId: heartbeatRuns.agentId, controllerProcess: heartbeatRuns.controllerProcess,
       controllerBootId: heartbeatRuns.controllerBootId })
-      .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, record.recordId), eq(heartbeatRuns.companyId, companyId),
+      .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, record.recordId), eq(heartbeatRuns.spaceId, spaceId),
         eq(heartbeatRuns.runtimeMode, "legacy"), eq(heartbeatRuns.status, "running"),
         eq(heartbeatRuns.controllerBootId, bootId), gt(heartbeatRuns.controllerLeaseExpiresAt, sql`clock_timestamp()`)))
       .for("update");
@@ -280,9 +280,9 @@ export async function settleLegacyControllerLease(db: Db, record: InProgressReco
       return { settled: false, reason: "owner_changed_since_proof" };
     }
     // Work intent before the write it announces (sleep-aware background work).
-    await notifyLiveRunRecovery(tx, { companyId, runId: record.recordId, agentId: row.agentId });
+    await notifyLiveRunRecovery(tx, { spaceId, runId: record.recordId, agentId: row.agentId });
     const updated = await tx.update(heartbeatRuns).set({ controllerLeaseExpiresAt: sql`clock_timestamp()` })
-      .where(and(eq(heartbeatRuns.id, record.recordId), eq(heartbeatRuns.companyId, companyId),
+      .where(and(eq(heartbeatRuns.id, record.recordId), eq(heartbeatRuns.spaceId, spaceId),
         eq(heartbeatRuns.status, "running"), eq(heartbeatRuns.controllerBootId, bootId),
         gt(heartbeatRuns.controllerLeaseExpiresAt, sql`clock_timestamp()`)))
       .returning({ id: heartbeatRuns.id });
@@ -356,7 +356,7 @@ export function watchLegacyControllerLease(
       for (;;) {
         attemptStartedAt = Date.now();
         try {
-          const outcome = await renewThroughBatch(db, { id: run.id, companyId: run.companyId, stage },
+          const outcome = await renewThroughBatch(db, { id: run.id, spaceId: run.spaceId, stage },
             renewalStatementTimeoutMs);
           if (outcome !== "busy") return outcome === "renewed";
           await new Promise((resolve) => setTimeout(resolve, LEGACY_CONTROLLER_RENEWAL_BUSY_RETRY_DELAY_MS));

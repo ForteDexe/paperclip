@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   agents, agentWakeupRequests, authUsers, chatConversations, chatEndpoints, chatMessageLinks,
-  chatPublications, connectionIntentDeliveries, companies, companyMemberships, closeRegisteredClients, createDb, heartbeatRuns,
+  chatPublications, connectionIntentDeliveries, spaces, spaceMemberships, closeRegisteredClients, createDb, heartbeatRuns,
   issueComments, issueThreadInteractions, issues, toolApplications, toolConnections,
 } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
@@ -22,45 +22,45 @@ describe("chat interaction continuation delivery", () => {
   }, 30_000);
   afterAll(async () => { await temporary?.cleanup(); if (externalUrl) await closeRegisteredClients(externalUrl); });
   async function fixture(kind = "request_checkbox_confirmation", status = "accepted") {
-    const [company] = await db.insert(companies).values({ name: "Continuation", issuePrefix: randomUUID().slice(0, 8) }).returning();
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: "requester", status: "active", membershipRole: "owner" });
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Worker", adapterType: "outpost_runner" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Repository QA", status: "in_progress", assigneeAgentId: agent.id, responsibleUserId: "requester" }).returning();
-    const [application] = await db.insert(toolApplications).values({ companyId: company.id, applicationKey: randomUUID(), name: "Slack", type: "chat" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId: company.id, applicationId: application.id, name: "Slack", uid: randomUUID(), connectionPurpose: "channel", transport: "chat_sdk" }).returning();
-    const [endpoint] = await db.insert(chatEndpoints).values({ companyId: company.id, connectionId: connection.id, provider: "slack", publicId: randomUUID(), assignedAgentId: agent.id, status: "active" }).returning();
-    const [conversation] = await db.insert(chatConversations).values({ companyId: company.id, endpointId: endpoint.id, issueId: issue.id, externalConversationId: "test-channel", externalThreadId: randomUUID(), externalLabel: "QA" }).returning();
-    const [comment] = await db.insert(issueComments).values({ companyId: company.id, issueId: issue.id, authorType: "user", authorUserId: "requester", body: "QA the runner migration" }).returning();
-    await db.insert(chatMessageLinks).values({ companyId: company.id, endpointId: endpoint.id, conversationId: conversation.id, commentId: comment.id, providerMessageId: randomUUID(), direction: "inbound" });
-    const [source] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const [space] = await db.insert(spaces).values({ name: "Continuation", issuePrefix: randomUUID().slice(0, 8) }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: "requester", status: "active", membershipRole: "owner" });
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Worker", adapterType: "outpost_runner" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Repository QA", status: "in_progress", assigneeAgentId: agent.id, responsibleUserId: "requester" }).returning();
+    const [application] = await db.insert(toolApplications).values({ spaceId: space.id, applicationKey: randomUUID(), name: "Slack", type: "chat" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId: space.id, applicationId: application.id, name: "Slack", uid: randomUUID(), connectionPurpose: "channel", transport: "chat_sdk" }).returning();
+    const [endpoint] = await db.insert(chatEndpoints).values({ spaceId: space.id, connectionId: connection.id, provider: "slack", publicId: randomUUID(), assignedAgentId: agent.id, status: "active" }).returning();
+    const [conversation] = await db.insert(chatConversations).values({ spaceId: space.id, endpointId: endpoint.id, issueId: issue.id, externalConversationId: "test-channel", externalThreadId: randomUUID(), externalLabel: "QA" }).returning();
+    const [comment] = await db.insert(issueComments).values({ spaceId: space.id, issueId: issue.id, authorType: "user", authorUserId: "requester", body: "QA the runner migration" }).returning();
+    await db.insert(chatMessageLinks).values({ spaceId: space.id, endpointId: endpoint.id, conversationId: conversation.id, commentId: comment.id, providerMessageId: randomUUID(), direction: "inbound" });
+    const [source] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "succeeded", responsibleUserId: "requester", contextSnapshot: {
         source: "chat:slack", issueId: issue.id, endpointId: endpoint.id, wakeCommentId: comment.id,
       } }).returning();
-    const [interaction] = await db.insert(issueThreadInteractions).values({ companyId: company.id, issueId: issue.id,
+    const [interaction] = await db.insert(issueThreadInteractions).values({ spaceId: space.id, issueId: issue.id,
       kind, status, sourceRunId: source.id, payload: { version: 1 } as never,
       result: { version: 1, outcome: "resolved", complete: status === "answered", items: [{ id: "one", verdict: "approve" }] } as never,
     }).returning();
     const isConnection = kind === "connection_intent";
-    if (isConnection) await db.insert(connectionIntentDeliveries).values({ companyId: company.id, interactionId: interaction.id });
+    if (isConnection) await db.insert(connectionIntentDeliveries).values({ spaceId: space.id, interactionId: interaction.id });
     const isVerdicts = kind === "request_item_verdicts";
     const payload = { issueId: issue.id, interactionId: interaction.id, interactionKind: kind,
       interactionStatus: status, ...(isConnection ? {} : { sourceRunId: source.id }), mutation: "interaction",
       ...(isVerdicts ? { newlyResolvedItemIds: ["one"] } : {}),
     };
     const sourceName = isVerdicts ? "verdicts" : status === "rejected" ? "reject" : status === "cancelled" ? "cancel" : "accept";
-    const [successor] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const [successor] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "running", responsibleUserId: "requester", contextSnapshot: { ...payload, source: isConnection ? "connection_intent.resolved" : `issue.interaction.${sourceName}` },
     }).returning();
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: company.id, agentId: agent.id,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: space.id, agentId: agent.id,
       source: "automation", reason: "issue_commented", status: "claimed", runId: successor.id, payload,
       idempotencyKey: isConnection ? `connection-intent:${interaction.id}:${status}` : isVerdicts ? `request_item_verdicts:${issue.id}:${interaction.id}:123` : `interaction:${interaction.id}:${status}`,
     }).returning();
-    await db.insert(chatPublications).values({ companyId: company.id, issueId: issue.id, endpointId: endpoint.id,
+    await db.insert(chatPublications).values({ spaceId: space.id, issueId: issue.id, endpointId: endpoint.id,
       conversationId: conversation.id, state: "published", idempotencyKey: `interaction:${interaction.id}:${endpoint.id}`,
       payload: { interactionId: interaction.id, text: "Please review the QA result" },
     });
-    const bindings = () => resolveChatOriginPublicationBindings(db, company.id, issue.id, successor.id);
-    return { company, agent, issue, endpoint, conversation, source, successor, wake, interaction, bindings };
+    const bindings = () => resolveChatOriginPublicationBindings(db, space.id, issue.id, successor.id);
+    return { space, agent, issue, endpoint, conversation, source, successor, wake, interaction, bindings };
   }
 
   it.each([
@@ -71,9 +71,9 @@ describe("chat interaction continuation delivery", () => {
     ["request_item_verdicts", "answered"], ["request_item_verdicts", "pending"],
   ])("delivers the final response after %s becomes %s", async (kind, status) => {
     const f = await fixture(kind, status);
-    expect(await f.bindings()).toEqual([{ companyId: f.company.id, endpointId: f.endpoint.id, conversationId: f.conversation.id }]);
+    expect(await f.bindings()).toEqual([{ spaceId: f.space.id, endpointId: f.endpoint.id, conversationId: f.conversation.id }]);
     const authorization = isChatOriginPublicationCandidate(f.successor.contextSnapshot)
-      ? await resolveChatRunPresentationAuthorizationReason(db, { companyId: f.company.id, issueId: f.issue.id, runId: f.successor.id }) : null;
+      ? await resolveChatRunPresentationAuthorizationReason(db, { spaceId: f.space.id, issueId: f.issue.id, runId: f.successor.id }) : null;
     expect(authorization).toBe(CHAT_RUN_PRESENTATION_AUTHORIZATION_REASON);
     const resolved = resolveHeartbeatRunResponse({ resultJson: {},
       existingComment: { id: "bookkeeping", body: "Saved the review." },
@@ -93,11 +93,11 @@ describe("chat interaction continuation delivery", () => {
     if (fault === "wake") await db.update(agentWakeupRequests).set({ runId: null }).where(eq(agentWakeupRequests.id, f.wake.id));
     if (fault === "source") await db.update(issueThreadInteractions).set({ sourceRunId: null }).where(eq(issueThreadInteractions.id, f.interaction.id));
     if (fault === "agent") {
-      const [other] = await db.insert(agents).values({ companyId: f.company.id, name: "Other", adapterType: "process" }).returning();
+      const [other] = await db.insert(agents).values({ spaceId: f.space.id, name: "Other", adapterType: "process" }).returning();
       await db.update(agentWakeupRequests).set({ agentId: other.id }).where(eq(agentWakeupRequests.id, f.wake.id));
     }
     if (fault === "conversation") {
-      const [other] = await db.insert(issues).values({ companyId: f.company.id, title: "Unrelated task" }).returning();
+      const [other] = await db.insert(issues).values({ spaceId: f.space.id, title: "Unrelated task" }).returning();
       await db.update(chatConversations).set({ issueId: other.id }).where(eq(chatConversations.id, f.conversation.id));
     }
     if (fault === "internal") await db.update(heartbeatRuns).set({ contextSnapshot: { ...f.successor.contextSnapshot, source: "issue.assigned" } }).where(eq(heartbeatRuns.id, f.successor.id));
@@ -115,8 +115,8 @@ describe("chat interaction continuation delivery", () => {
   it.each(["accepted", "rejected"])("delivers an automation-origin connection %s through its published Slack prompt", async status => {
     const f = await fixture("connection_intent", status);
     await db.update(heartbeatRuns).set({ contextSnapshot: { source: "automation", issueId: f.issue.id } }).where(eq(heartbeatRuns.id, f.source.id));
-    expect(await f.bindings()).toEqual([{ companyId: f.company.id, endpointId: f.endpoint.id, conversationId: f.conversation.id }]);
-    expect(await resolveChatRunPresentationAuthorizationReason(db, { companyId: f.company.id, issueId: f.issue.id, runId: f.successor.id })).toBe(CHAT_RUN_PRESENTATION_AUTHORIZATION_REASON);
+    expect(await f.bindings()).toEqual([{ spaceId: f.space.id, endpointId: f.endpoint.id, conversationId: f.conversation.id }]);
+    expect(await resolveChatRunPresentationAuthorizationReason(db, { spaceId: f.space.id, issueId: f.issue.id, runId: f.successor.id })).toBe(CHAT_RUN_PRESENTATION_AUTHORIZATION_REASON);
     await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, f.successor.id));
   });
 

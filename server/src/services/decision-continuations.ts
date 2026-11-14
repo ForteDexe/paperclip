@@ -2,7 +2,7 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { databaseWorkScopeKey, decisions, type Db } from "@outpost/db";
 
 export type DecisionContinuationWake = (input: {
-  companyId: string; agentId: string; issueId: string; decisionId: string;
+  spaceId: string; agentId: string; issueId: string; decisionId: string;
   outcome: "decided" | "expired" | "cancelled";
 }) => Promise<unknown>;
 
@@ -25,7 +25,7 @@ export function decisionContinuationService(db: Db, wake: DecisionContinuationWa
     const attempt = (async () => {
       const [decision] = await db.select().from(decisions).where(and(eq(decisions.id, id), ready));
       if (!decision) return;
-      await wake({ companyId: decision.companyId, agentId: decision.originAgentId,
+      await wake({ spaceId: decision.spaceId, agentId: decision.originAgentId,
         issueId: decision.originIssueId, decisionId: id,
         outcome: decision.status === "expired" ? "expired" : decision.status === "cancelled" ? "cancelled" : "decided" });
       await db.update(decisions).set({

@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { agents, companies, createDb, heartbeatRuns, type Db } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, type Db } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -11,20 +11,20 @@ const support = await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("recovery result PostgreSQL projection", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  let companyId: string;
+  let spaceId: string;
   let agentId: string;
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("recovery-result-read-");
     db = createDb(database.connectionString);
-    const [company] = await db.insert(companies).values({ name: "Recovery fixture", issuePrefix: "RR" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Recovery agent", adapterType: "process" }).returning();
-    companyId = company.id;
+    const [space] = await db.insert(spaces).values({ name: "Recovery fixture", issuePrefix: "RR" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Recovery agent", adapterType: "process" }).returning();
+    spaceId = space.id;
     agentId = agent.id;
   }, 60_000);
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
   async function read(resultJson: unknown, errorCode: string | null = null) {
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "succeeded", errorCode,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "succeeded", errorCode,
       resultJson: resultJson as Record<string, unknown> | null }).returning();
     const [selected] = await db.select({ resultJson: recoveryRunResultColumn }).from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id));
     return { run, selected };
@@ -33,7 +33,7 @@ describe.skipIf(!support.supported)("recovery result PostgreSQL projection", () 
   it("keeps typed recovery receipts without returning execution output or modifying history", async () => {
     const evidence = { errorFamily: "transient_upstream", workspaceValidation: { fingerprint: "workspace" },
       configurationIncomplete: { reason: "workspace_unavailable", fingerprint: "configuration" },
-      cancelledByActorType: "board", retryNotBefore: "2099-01-01T00:00:00Z", transientRetryNotBefore: 123,
+      cancelledByActorType: "operator", retryNotBefore: "2099-01-01T00:00:00Z", transientRetryNotBefore: 123,
       providerQuotaRetryNotBefore: null, finalizationReasonCode: "conversation_turn_finished" };
     const payload = randomBytes(512 * 1024).toString("base64");
     const result = { ...evidence, summary: payload, output: payload, providerResponse: { output: payload } };

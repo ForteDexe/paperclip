@@ -38,7 +38,7 @@
           "legal_entities.readonly",
           "cards.readonly",
           "cards",
-          "companies.readonly",
+          "spaces.readonly",
           "budgets.readonly",
           "travel.trips.readonly",
           "expenses.card.readonly",

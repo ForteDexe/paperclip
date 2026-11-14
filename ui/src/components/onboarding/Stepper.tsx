@@ -2,7 +2,7 @@ import { cn } from "../../lib/utils";
 
 /**
  * The agent arc — create the agent, connect it, review — is the part of the
- * wizard a customer walks as a numbered sequence. Company creation happens in
+ * wizard a customer walks as a numbered sequence. Space creation happens in
  * Cloud before the tenant is ever reached, so it is not one of these steps.
  */
 export const AGENT_ARC_TOTAL_STEPS = 3;
@@ -60,8 +60,8 @@ export function onboardingStepPositionFor(step: number): number {
  *
  * The two numbering schemes exist for different reasons and must not be
  * conflated: the wizard's own step numbers include entries the customer may
- * never see (the front door, and the company/mission steps that are skipped
- * when Cloud already created the company), while the strip counts only what
+ * never see (the front door, and the space/mission steps that are skipped
+ * when Cloud already created the space), while the strip counts only what
  * this leg of the walk actually shows. Deriving one from the other with
  * arithmetic would silently produce "Step 0 of 3" the first time a step is
  * inserted ahead of the arc.

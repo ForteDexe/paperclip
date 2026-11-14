@@ -12,9 +12,9 @@ The historical pre-integration proof parent was #16099 at `8e955181d8a3776acc86e
 | Retired case 207 |13710–13749| `re-enqueues recovery when the latest in-progress continuation made progress but left no live path` |
 | Keeper case 239 |15632–15706| `does not treat a productive terminal run as healthy when in-progress work has no live path` |
 
-Each seeds `seedStrandedIssueFixture({status: "in_progress", runStatus: "succeeded", livenessState: "advanced"})`, creates one heartbeat service, and reconciles once. No optional fixture input differs. The keeper's extra precondition queries are reads. They confirm the source owner and the absence of active company runs and live company wakes.
+Each seeds `seedStrandedIssueFixture({status: "in_progress", runStatus: "succeeded", livenessState: "advanced"})`, creates one heartbeat service, and reconciles once. No optional fixture input differs. The keeper's extra precondition queries are reads. They confirm the source owner and the absence of active space runs and live space wakes.
 
-The keeper retains its complete original checks. It receives the exact successful/continuation/escalation counters, post-reconcile issue state, two wakes, the original agent-only run count, and the conditional settlement wait. Both the agent-only and company+agent query boundaries remain. Full retry issue/task/source/ancestor identity and the absent modelProfile remain. Crash, ownership, persistence, restart, cancellation, error and distinct liveness scenarios outside this exact fixture are unchanged.
+The keeper retains its complete original checks. It receives the exact successful/continuation/escalation counters, post-reconcile issue state, two wakes, the original agent-only run count, and the conditional settlement wait. Both the agent-only and space+agent query boundaries remain. Full retry issue/task/source/ancestor identity and the absent modelProfile remain. Crash, ownership, persistence, restart, cancellation, error and distinct liveness scenarios outside this exact fixture are unchanged.
 
 ## Historical sequential exact-parent controls
 
@@ -59,7 +59,7 @@ has identical bytes in both revisions.
 ```sh
 base=ef04ba1592a5932d2d971e09b09467f878572d7a
 candidate=1daaa7496b67c9d38eb7ee4f3eec9e1a3e27cd86
-git fetch https://github.com/paperclipai/outpost.git "$base" "$candidate"
+git fetch https://github.com/outpostai/outpost.git "$base" "$candidate"
 git diff --check "$base" "$candidate"
 git diff --numstat "$base" "$candidate" -- server/src/__tests__/heartbeat-process-recovery.test.ts
 git show "$base":server/src/__tests__/heartbeat-process-recovery.test.ts | shasum -a 256

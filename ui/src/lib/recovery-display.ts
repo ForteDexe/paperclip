@@ -85,21 +85,21 @@ export function deriveRecoveryDisplayState(
     timeoutAt: action.timeoutAt,
     nativeRunActivity: action.nativeRunActivity,
   }, context);
-  // An explicit board retry may retain its old owner/budget while the exact
+  // An explicit operator retry may retain its old owner/budget while the exact
   // native run is already making progress. Actual activity wins over that
-  // historical repair state, but a merely scheduled board retry does not.
+  // historical repair state, but a merely scheduled operator retry does not.
   if (lineage?.lane === "native_run" && lineage.liveRunId) return "in_progress";
   if (action.status === "escalated") return "escalated";
   if (action.kind === "active_run_watchdog") {
     // Native finalization shares the watchdog kind, but resumes a failed
-    // coordinator rather than observing a live agent turn. Preserve board
+    // coordinator rather than observing a live agent turn. Preserve operator
     // ownership and only describe recovery as active while its retry is live.
-    if (action.ownerType === "board") return "needed";
+    if (action.ownerType === "operator") return "needed";
     if (lineage) return lineage.hasDurablePath ? "in_progress" : "needed";
     if (action.cause?.startsWith("native_")) return "needed";
     return "observe_only";
   }
-  if (lineage && lineage.lane !== "board" && lineage.hasDurablePath) return "in_progress";
+  if (lineage && lineage.lane !== "operator" && lineage.hasDurablePath) return "in_progress";
   if (action.outcome === "delegated") return "in_progress";
   return "needed";
 }

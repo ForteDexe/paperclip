@@ -1,21 +1,21 @@
 import { randomUUID } from "node:crypto";
-import { agents, companies, createDb, issues, issueComments, toolApplications,
+import { agents, spaces, createDb, issues, issueComments, toolApplications,
   toolConnections, chatEndpoints, chatEndpointResources, chatConversations,
-  chatExternalPrincipals, chatIdentityLinks, companyMemberships, chatDeliveries,
+  chatExternalPrincipals, chatIdentityLinks, spaceMemberships, chatDeliveries,
   chatMessageLinks, type Db } from "@outpost/db";
 export async function seedBoundChatAuthorization(db: Db) {
-  const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(),
+  const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(),
     otherIssueId = randomUUID(), runId = randomUUID(), endpointId = randomUUID(),
     resourceId = randomUUID(), conversationId = randomUUID(), principalId = randomUUID(),
     commentId = randomUUID(), deliveryId = randomUUID();
   const provider = "slack", userId = "prepared-chat-user";
-  const binding = { companyId, agentId, issueId, runId };
-  const context = { source: "chat:slack", paperclipHarnessCheckedOut: true,
+  const binding = { spaceId, agentId, issueId, runId };
+  const context = { source: "chat:slack", outpostHarnessCheckedOut: true,
     wakeCommentIds: [commentId] };
   await db
-    .insert(companies)
+    .insert(spaces)
     .values({
-      id: companyId,
+      id: spaceId,
       name: "Reviewed chat",
       issuePrefix: "RCB",
       issueCounter: 1,
@@ -24,7 +24,7 @@ export async function seedBoundChatAuthorization(db: Db) {
     .insert(agents)
     .values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Chat runner",
       adapterType: "outpost_runner",
       adapterConfig: { provider: "codex" },
@@ -34,7 +34,7 @@ export async function seedBoundChatAuthorization(db: Db) {
     .insert(issues)
     .values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Reviewed conversation",
       issueNumber: 1,
       identifier: "RCB-1",
@@ -44,7 +44,7 @@ export async function seedBoundChatAuthorization(db: Db) {
     });
   await db.insert(issues).values({
     id: otherIssueId,
-    companyId,
+    spaceId,
     title: "Unrelated conversation",
     issueNumber: 2,
     identifier: "RCB-2",
@@ -57,7 +57,7 @@ export async function seedBoundChatAuthorization(db: Db) {
     .insert(toolApplications)
     .values({
       id: applicationId,
-      companyId,
+      spaceId,
       applicationKey: `chat:${provider}:${endpointId}`,
       name: "Discord",
       type: "chat",
@@ -67,7 +67,7 @@ export async function seedBoundChatAuthorization(db: Db) {
     .insert(toolConnections)
     .values({
       id: connectionId,
-      companyId,
+      spaceId,
       applicationId,
       name: "Discord",
       uid: `chat-${provider}-${endpointId}`,
@@ -80,7 +80,7 @@ export async function seedBoundChatAuthorization(db: Db) {
     .insert(chatEndpoints)
     .values({
       id: endpointId,
-      companyId,
+      spaceId,
       connectionId,
       provider,
       publicId: randomUUID(),
@@ -93,7 +93,7 @@ export async function seedBoundChatAuthorization(db: Db) {
     .insert(chatEndpointResources)
     .values({
       id: resourceId,
-      companyId,
+      spaceId,
       endpointId,
       type: "channel",
       providerResourceId: "channel-1",
@@ -105,7 +105,7 @@ export async function seedBoundChatAuthorization(db: Db) {
     .insert(chatConversations)
     .values({
       id: conversationId,
-      companyId,
+      spaceId,
       endpointId,
       resourceId,
       issueId,
@@ -118,7 +118,7 @@ export async function seedBoundChatAuthorization(db: Db) {
     .insert(chatExternalPrincipals)
     .values({
       id: principalId,
-      companyId,
+      spaceId,
       provider,
       providerAccountId: "guild-1",
       externalId: "user-1",
@@ -127,16 +127,16 @@ export async function seedBoundChatAuthorization(db: Db) {
   await db
     .insert(chatIdentityLinks)
     .values({
-      companyId,
+      spaceId,
       endpointId,
       principalId,
-      paperclipUserId: userId,
+      outpostUserId: userId,
       status: "linked",
     });
   await db
-    .insert(companyMemberships)
+    .insert(spaceMemberships)
     .values({
-      companyId,
+      spaceId,
       principalType: "user",
       principalId: userId,
       status: "active",
@@ -146,7 +146,7 @@ export async function seedBoundChatAuthorization(db: Db) {
     .insert(issueComments)
     .values({
       id: commentId,
-      companyId,
+      spaceId,
       issueId,
       authorType: "user",
       authorUserId: userId,
@@ -156,7 +156,7 @@ export async function seedBoundChatAuthorization(db: Db) {
     .insert(chatDeliveries)
     .values({
       id: deliveryId,
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       principalId,
@@ -171,7 +171,7 @@ export async function seedBoundChatAuthorization(db: Db) {
   await db
     .insert(chatMessageLinks)
     .values({
-      companyId,
+      spaceId,
       endpointId,
       conversationId,
       deliveryId,
@@ -179,6 +179,6 @@ export async function seedBoundChatAuthorization(db: Db) {
       providerMessageId: "review-message",
       direction: "inbound",
     });
-  return { binding, context, companyId, agentId, issueId, otherIssueId, runId,
+  return { binding, context, spaceId, agentId, issueId, otherIssueId, runId,
     endpointId, resourceId, conversationId, principalId, commentId, deliveryId, userId };
 }

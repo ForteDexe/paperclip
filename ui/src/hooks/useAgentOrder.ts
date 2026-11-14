@@ -10,7 +10,7 @@ import {
 
 type UseAgentOrderParams = {
   agents: Agent[];
-  companyId: string | null | undefined;
+  spaceId: string | null | undefined;
   userId: string | null | undefined;
 };
 
@@ -31,11 +31,11 @@ function buildOrderIds(agents: Agent[], orderedIds: string[]) {
   return sortAgentsByStoredOrder(agents, orderedIds).map((agent) => agent.id);
 }
 
-export function useAgentOrder({ agents, companyId, userId }: UseAgentOrderParams) {
+export function useAgentOrder({ agents, spaceId, userId }: UseAgentOrderParams) {
   const storageKey = useMemo(() => {
-    if (!companyId) return null;
-    return getAgentOrderStorageKey(companyId, userId);
-  }, [companyId, userId]);
+    if (!spaceId) return null;
+    return getAgentOrderStorageKey(spaceId, userId);
+  }, [spaceId, userId]);
 
   const [orderedIds, setOrderedIds] = useState<string[]>(() => {
     if (!storageKey) return agents.map((agent) => agent.id);

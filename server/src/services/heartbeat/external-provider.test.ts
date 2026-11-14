@@ -5,10 +5,10 @@ import { nativeRuntimeContextFixture } from "../native-runtime/runtime-context.t
 import { heartbeatExternalProvider, nativeRuntimeHasInstructionFilesystem, nativeExecutionUsesTaskWorkspace } from "./external-provider.js";
 
 function execution(provider: "muse" | "openai_dot" | "grok_bot" | "codex") {
-  const companyId = randomUUID(), agentId = randomUUID();
-  const binding = { companyId, agentId, bindingId: randomUUID(), bindingGeneration: 1,
+  const spaceId = randomUUID(), agentId = randomUUID();
+  const binding = { spaceId, agentId, bindingId: randomUUID(), bindingGeneration: 1,
     acceptByUnixMs: Date.now() + 60_000, expiresAtUnixMs: Date.now() + 600_000 };
-  return buildNativeExecutionInput({ companyId, agentId, runId: randomUUID(), provider,
+  return buildNativeExecutionInput({ spaceId, agentId, runId: randomUUID(), provider,
     ...(provider === "muse" ? { museBinding: binding } : provider === "openai_dot" || provider === "grok_bot" ? { dotBinding: binding } : {}),
     issue: { id: randomUUID(), identifier: "EXT-1", title: "Bound task", description: null, workMode: "standard" },
     taskPrompt: "Complete the task", normalizedSessionId: randomUUID(),

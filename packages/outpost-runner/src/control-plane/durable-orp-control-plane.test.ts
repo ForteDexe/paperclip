@@ -27,7 +27,7 @@ import { NativeSessionProtocolIntegrityError } from "../contracts/native-session
 import { createCapabilityRunnerdCodexTransport, createCapabilityRunnerdProviderEnvironment } from "../live/runnerd-codex-transport.js";
 import { ACPX_CREDENTIAL_BINDING_ENV, createAcpxSidecarHostEnvironment } from "../drivers/acpx/environment.js";
 import { validatePrpEvent } from "../protocol/replay-contract.js";
-import { digestPaperclipSemanticContent } from "../semantic-tools/receipts.js";
+import { digestOutpostSemanticContent } from "../semantic-tools/receipts.js";
 import {
   DurablePrpControlPlane,
   decodeDurablePrpCheckpoint,
@@ -276,7 +276,7 @@ it("persists an undispatched source-to-target attachment before bootstrap and pr
     expect(restored.store.state.commands).toEqual([]);
     expect(() => restored!.stageRunAttachment({ ...target, itemId: "foreign" }, template)).toThrow("conflicts");
     expect(() => restored!.queueCommand("turn.start", {})).toThrow("maintenance only");
-    expect(() => restored!.queueCommand("run.attach", { ...template, paperclipNextAuthority: { identity: { ...target, itemId: "foreign" } } })).toThrow("conflicts");
+    expect(() => restored!.queueCommand("run.attach", { ...template, outpostNextAuthority: { identity: { ...target, itemId: "foreign" } } })).toThrow("conflicts");
     const corruptedRecords = new Map(checkpoint.records);
     corruptedRecords.set("staged-attachment-template", JSON.stringify({ provider: { command: "changed" } }));
     expect(() => decodeDurablePrpCheckpoint(corruptedRecords)).toThrow("native_runner_checkpoint_invalid");
@@ -295,7 +295,7 @@ it("persists an undispatched source-to-target attachment before bootstrap and pr
     expect(checkpoint.changedRecords.has("staged-attachment-template")).toBe(false);
     await core.start(); client = await authenticate(core, core.issueBootstrapTicket());
     expect(client).not.toBeNull();
-    core.queueCommand("run.attach", { ...template, paperclipNextAuthority: { identity: target,
+    core.queueCommand("run.attach", { ...template, outpostNextAuthority: { identity: target,
       connection: { mode: "connect", connectUrl: core.connectUrl } } }, "staged-next-attach");
     await core.flushCheckpoint();
     expect(templateWrites).toBe(1);
@@ -763,7 +763,7 @@ it("rebuilds a queued checkpoint after the preceding write fails", async () => {
   }
 });
 
-it.each(["get_task_context", "paperclip_finish", "paperclip_block"].flatMap(operationId =>
+it.each(["get_task_context", "outpost_finish", "outpost_block"].flatMap(operationId =>
   [false, true].map(callbacksConfigured => ({ operationId, callbacksConfigured })),
 ))(
   "retains unseen $operationId input without dispatch or reply (callbacks: $callbacksConfigured)",
@@ -3285,7 +3285,7 @@ describe("DurablePrpControlPlane", () => {
     "retains unanswered semantic input across the bounded event window (%s)",
     async (mode) => {
       const root = mkdtempSync(
-        resolve(tmpdir(), "paperclip-orp-semantic-window-"),
+        resolve(tmpdir(), "outpost-orp-semantic-window-"),
       );
       const onCommittedEvent = vi.fn(async () => undefined);
       const onSemanticToolInput = vi.fn(
@@ -3434,7 +3434,7 @@ describe("DurablePrpControlPlane", () => {
     "promptly fails the real transport request and notification paths on authenticated bad semantic input (throwing observer: %s)",
     async (throwingObserver) => {
       const root = mkdtempSync(
-        resolve(tmpdir(), "paperclip-orp-transport-integrity-"),
+        resolve(tmpdir(), "outpost-orp-transport-integrity-"),
       );
       let authority: DurablePrpControlPlane | undefined;
       let launched = false;
@@ -3540,7 +3540,7 @@ describe("DurablePrpControlPlane", () => {
     async ({ input, digest, eventType }) => {
       // The JSON transport normalizes negative zero before the receiver sees it.
       const wireInput = JSON.parse(JSON.stringify(input)) as Record<string, unknown>;
-      const root = mkdtempSync(resolve(tmpdir(), "paperclip-orp-raw-input-"));
+      const root = mkdtempSync(resolve(tmpdir(), "outpost-orp-raw-input-"));
       const onProtocolIntegrityError = vi.fn();
       const onSemanticToolInput = vi.fn(async () => ({ result: { ok: true } }));
       const core = new DurablePrpControlPlane({
@@ -3578,7 +3578,7 @@ describe("DurablePrpControlPlane", () => {
   ] as const)(
     "rejects invalid raw semantic integrity without commit, dispatch or ACK: %s",
     async (fault) => {
-      const root = mkdtempSync(resolve(tmpdir(), "paperclip-orp-raw-integrity-"));
+      const root = mkdtempSync(resolve(tmpdir(), "outpost-orp-raw-integrity-"));
       const onProtocolIntegrityError = vi.fn();
       const onCommittedEvent = vi.fn(async () => undefined);
       const onSemanticToolInput = vi.fn(async () => ({ result: { ok: true } }));
@@ -3592,14 +3592,14 @@ describe("DurablePrpControlPlane", () => {
         const input = { password: "fixture-before", safe: true };
         const event = semanticInputEvent(1, input);
         const semantic = (event.payload as any).payload.semantic_tool;
-        const redactedDigest = digestPaperclipSemanticContent(input);
+        const redactedDigest = digestOutpostSemanticContent(input);
         expect(redactedDigest).not.toBe(semantic.content.digest);
         if (fault === "redacted_digest") semantic.content.digest = redactedDigest;
         if (fault === "forged_digest") semantic.content.digest = `sha256:${"0".repeat(64)}`;
         if (fault === "protected_field_tampering") {
           semantic.input = { ...input, password: "fixture-after" };
           // Redacted receipt hashes intentionally cannot prove byte integrity.
-          expect(digestPaperclipSemanticContent(semantic.input)).toBe(redactedDigest);
+          expect(digestOutpostSemanticContent(semantic.input)).toBe(redactedDigest);
         }
         if (fault === "over_node_limit") semantic.input = { values: Array(10_001).fill(0) };
         if (fault === "over_depth_limit") {
@@ -3638,7 +3638,7 @@ describe("DurablePrpControlPlane", () => {
   it.each(["authentication", "envelope", "event", "correlation"] as const)(
     "rejects raw semantic input outside its exact authenticated scope: %s",
     async (boundary) => {
-      const root = mkdtempSync(resolve(tmpdir(), "paperclip-orp-raw-scope-"));
+      const root = mkdtempSync(resolve(tmpdir(), "outpost-orp-raw-scope-"));
       const onProtocolIntegrityError = vi.fn();
       const onCommittedEvent = vi.fn(async () => undefined);
       const onSemanticToolInput = vi.fn(async () => ({ result: { ok: true } }));
@@ -3672,7 +3672,7 @@ describe("DurablePrpControlPlane", () => {
   );
 
   it.each(["dispatch", "retain_only"] as const)("latches an authenticated semantic integrity fault without ACK or dispatch and still permits suspension (%s)", async semanticInputMode => {
-    const root = mkdtempSync(resolve(tmpdir(), "paperclip-orp-integrity-"));
+    const root = mkdtempSync(resolve(tmpdir(), "outpost-orp-integrity-"));
     const onProtocolIntegrityError = vi.fn();
     const onCommittedEvent = vi.fn(async () => undefined);
     const onSemanticToolInput = vi.fn(async () => ({ result: { ok: true } }));
@@ -3761,7 +3761,7 @@ describe("DurablePrpControlPlane", () => {
     "preserves a typed integrity fault from the trusted commit boundary (%s)",
     async (reason) => {
       const root = mkdtempSync(
-        resolve(tmpdir(), "paperclip-orp-typed-commit-integrity-"),
+        resolve(tmpdir(), "outpost-orp-typed-commit-integrity-"),
       );
       const error = new NativeSessionProtocolIntegrityError(reason);
       const onProtocolIntegrityError = vi.fn();
@@ -3800,7 +3800,7 @@ describe("DurablePrpControlPlane", () => {
 
   it("latches an authenticated replay conflict against exactly committed bytes", async () => {
     const root = mkdtempSync(
-      resolve(tmpdir(), "paperclip-orp-replay-integrity-"),
+      resolve(tmpdir(), "outpost-orp-replay-integrity-"),
     );
     const onProtocolIntegrityError = vi.fn();
     const onCommittedEvent = vi.fn(async () => undefined);
@@ -3879,7 +3879,7 @@ describe("DurablePrpControlPlane", () => {
     "rejects %s malformed input without poisoning the legitimate owner",
     async (mismatch) => {
       const root = mkdtempSync(
-        resolve(tmpdir(), "paperclip-orp-unbound-integrity-"),
+        resolve(tmpdir(), "outpost-orp-unbound-integrity-"),
       );
       const onProtocolIntegrityError = vi.fn();
       const onCommittedEvent = vi.fn(async () => undefined);
@@ -3967,7 +3967,7 @@ describe("DurablePrpControlPlane", () => {
 
   it("does not dispatch an earlier in-flight commit after a replacement connection proves an integrity fault", async () => {
     const root = mkdtempSync(
-      resolve(tmpdir(), "paperclip-orp-integrity-commit-race-"),
+      resolve(tmpdir(), "outpost-orp-integrity-commit-race-"),
     );
     let releaseCommit!: () => void;
     const commitBarrier = new Promise<void>((resolveCommit) => {
@@ -4008,7 +4008,7 @@ describe("DurablePrpControlPlane", () => {
 
   it("does not turn a missing semantic handler into an integrity fault", async () => {
     const root = mkdtempSync(
-      resolve(tmpdir(), "paperclip-orp-integrity-no-handler-"),
+      resolve(tmpdir(), "outpost-orp-integrity-no-handler-"),
     );
     const onProtocolIntegrityError = vi.fn();
     const core = new DurablePrpControlPlane({
@@ -4040,7 +4040,7 @@ describe("DurablePrpControlPlane", () => {
     "keeps a non-typed commit failure retryable on the same authenticated authority (%s)",
     async (commitFailure) => {
       const root = mkdtempSync(
-        resolve(tmpdir(), "paperclip-orp-transient-commit-"),
+        resolve(tmpdir(), "outpost-orp-transient-commit-"),
       );
       const onProtocolIntegrityError = vi.fn();
       const onCommittedEvent = vi
@@ -4083,7 +4083,7 @@ describe("DurablePrpControlPlane", () => {
 
   it("requires a fresh bootstrap to replace a v1 lease with v2 on the same authority", async () => {
     const root = mkdtempSync(
-      resolve(tmpdir(), "paperclip-orp-version-bootstrap-"),
+      resolve(tmpdir(), "outpost-orp-version-bootstrap-"),
     );
     const core = new DurablePrpControlPlane({
       stateDirectory: root,
@@ -4145,7 +4145,7 @@ describe("DurablePrpControlPlane", () => {
     }
   });
   it("exchanges a one-use bootstrap for a run-bound reconnect lease", async () => {
-    const root = mkdtempSync(resolve(tmpdir(), "paperclip-orp-auth-"));
+    const root = mkdtempSync(resolve(tmpdir(), "outpost-orp-auth-"));
     const controlPlane = new DurablePrpControlPlane({
       stateDirectory: root,
       identity,
@@ -4205,7 +4205,7 @@ describe("DurablePrpControlPlane", () => {
   });
 
   it("delivers a large lossless result without copying its large input into the command", async () => {
-    const root = mkdtempSync(resolve(tmpdir(), "paperclip-large-tool-result-"));
+    const root = mkdtempSync(resolve(tmpdir(), "outpost-large-tool-result-"));
     const content = "日本語🦀".repeat(34_000) + "END";
     const args = { content };
     const handler = vi.fn(async () => ({ result: { content } }));
@@ -4244,7 +4244,7 @@ describe("DurablePrpControlPlane", () => {
   });
 
   it("reports an oversized semantic result without exposing its content or redispatching", async () => {
-    const root = mkdtempSync(resolve(tmpdir(), "paperclip-result-limit-"));
+    const root = mkdtempSync(resolve(tmpdir(), "outpost-result-limit-"));
     const handler = vi.fn(async () => ({ result: { privateContent: "x".repeat(600_000) } }));
     const core = new DurablePrpControlPlane({ stateDirectory: root, identity,
       expectedRunnerVersion, expectedRunnerDigest, onSemanticToolInput: handler });
@@ -4265,7 +4265,7 @@ describe("DurablePrpControlPlane", () => {
   });
 
   it.each(["before_dispatch", "during_effect"] as const)("settles only proven pre-dispatch cancellation (%s)", async (stage) => {
-    const root = mkdtempSync(resolve(tmpdir(), "paperclip-tool-dispatch-boundary-"));
+    const root = mkdtempSync(resolve(tmpdir(), "outpost-tool-dispatch-boundary-"));
     const handler = vi.fn(async () => {
       if (stage === "before_dispatch") throw new SemanticToolNotDispatchedError();
       throw new Error("connection lost after possibly committing a write");
@@ -4293,7 +4293,7 @@ describe("DurablePrpControlPlane", () => {
   });
 
   it("retains an uncertain semantic outcome without redispatching after a coordinator restart", async () => {
-    const root = mkdtempSync(resolve(tmpdir(), "paperclip-orp-recovery-"));
+    const root = mkdtempSync(resolve(tmpdir(), "outpost-orp-recovery-"));
     let firstCalls = 0;
     const first = new DurablePrpControlPlane({
       stateDirectory: root,
@@ -4369,7 +4369,7 @@ describe("DurablePrpControlPlane", () => {
   });
 
   it("does not acknowledge an event before the caller commits it", async () => {
-    const root = mkdtempSync(resolve(tmpdir(), "paperclip-orp-commit-order-"));
+    const root = mkdtempSync(resolve(tmpdir(), "outpost-orp-commit-order-"));
     const first = new DurablePrpControlPlane({
       stateDirectory: root,
       identity,
@@ -4420,7 +4420,7 @@ describe("DurablePrpControlPlane", () => {
   });
 
   it("keeps a recovered runner attached when it reports an indeterminate command", async () => {
-    const root = mkdtempSync(resolve(tmpdir(), "paperclip-orp-indeterminate-"));
+    const root = mkdtempSync(resolve(tmpdir(), "outpost-orp-indeterminate-"));
     const controlPlane = new DurablePrpControlPlane({
       stateDirectory: root,
       identity,
@@ -4515,7 +4515,7 @@ describe("DurablePrpControlPlane", () => {
 
   it("retains an old warm attach result replay lane when its result ACK is lost after core rotation", async () => {
     const root = mkdtempSync(
-      resolve(tmpdir(), "paperclip-orp-attach-result-ack-loss-"),
+      resolve(tmpdir(), "outpost-orp-attach-result-ack-loss-"),
     );
     const controlPlane = new DurablePrpControlPlane({
       stateDirectory: root,
@@ -4541,7 +4541,7 @@ describe("DurablePrpControlPlane", () => {
       const command = controlPlane.queueCommand(
         "run.attach",
         {
-          paperclipNextAuthority: {
+          outpostNextAuthority: {
             identity: nextIdentity,
             connection: {
               mode: "connect",
@@ -4627,7 +4627,7 @@ describe("DurablePrpControlPlane", () => {
       return authenticate(...args);
     };
     const root = mkdtempSync(
-      resolve(tmpdir(), "paperclip-orp-attach-transition-"),
+      resolve(tmpdir(), "outpost-orp-attach-transition-"),
     );
     let externalCheckpoint: DurablePrpCheckpoint | undefined;
     let core = new DurablePrpControlPlane({
@@ -4659,7 +4659,7 @@ describe("DurablePrpControlPlane", () => {
         "run.attach",
         {
           provider: { kind: "mock", run: "next" },
-          paperclipNextAuthority: {
+          outpostNextAuthority: {
             identity: nextIdentity,
             connection: { mode: "connect", connectUrl: core.connectUrl },
           },
@@ -5133,7 +5133,7 @@ describe("DurablePrpControlPlane", () => {
 
   it("fails closed after a warm receipt rename when parent directory fsync fails", async () => {
     const root = mkdtempSync(
-      resolve(tmpdir(), "paperclip-orp-transition-fsync-"),
+      resolve(tmpdir(), "outpost-orp-transition-fsync-"),
     );
     const rootInode = nodeFs.statSync(root).ino;
     let core = new DurablePrpControlPlane({
@@ -5152,7 +5152,7 @@ describe("DurablePrpControlPlane", () => {
       const command = core.queueCommand(
         "run.attach",
         {
-          paperclipNextAuthority: {
+          outpostNextAuthority: {
             identity: {
               ...identity,
               runId: "fsync-next",
@@ -5243,7 +5243,7 @@ describe("DurablePrpControlPlane", () => {
     "rejects a held old authentication proof after warm preparation (%s)",
     async (mode) => {
       const root = mkdtempSync(
-        resolve(tmpdir(), "paperclip-orp-transition-held-auth-"),
+        resolve(tmpdir(), "outpost-orp-transition-held-auth-"),
       );
       let release!: () => void;
       let entered!: () => void;
@@ -5278,7 +5278,7 @@ describe("DurablePrpControlPlane", () => {
         const command = core.queueCommand(
           "run.attach",
           {
-            paperclipNextAuthority: {
+            outpostNextAuthority: {
               identity: {
                 ...identity,
                 runId: "held-next-run",
@@ -5340,7 +5340,7 @@ describe("DurablePrpControlPlane", () => {
   );
 
   it("delivers a fresh suspension after a rejected one on the same connection", async () => {
-    const root = mkdtempSync(resolve(tmpdir(), "paperclip-orp-rejected-suspend-"));
+    const root = mkdtempSync(resolve(tmpdir(), "outpost-orp-rejected-suspend-"));
     const controlPlane = new DurablePrpControlPlane({
       stateDirectory: root,
       identity,
@@ -5383,7 +5383,7 @@ describe("DurablePrpControlPlane", () => {
     // execution_indeterminate and then exits as suspended. Shipped Runners
     // compare the acknowledgement with their journal status and exited with
     // "terminal command result acknowledgement changed its durable identity".
-    const root = mkdtempSync(resolve(tmpdir(), "paperclip-orp-indeterminate-suspend-"));
+    const root = mkdtempSync(resolve(tmpdir(), "outpost-orp-indeterminate-suspend-"));
     const controlPlane = new DurablePrpControlPlane({
       stateDirectory: root,
       identity,
@@ -5426,7 +5426,7 @@ describe("DurablePrpControlPlane", () => {
   });
 
   it("acknowledges terminal command results after persisting them", async () => {
-    const root = mkdtempSync(resolve(tmpdir(), "paperclip-orp-terminal-ack-"));
+    const root = mkdtempSync(resolve(tmpdir(), "outpost-orp-terminal-ack-"));
     const controlPlane = new DurablePrpControlPlane({
       stateDirectory: root,
       identity,
@@ -5588,7 +5588,7 @@ describe("host-tool callback orphaned by a server restart", () => {
 
   // The server's recovery (SessionAuthorityEpoch.recover): replay a durable
   // receipt, else settle a callback whose owner is gone. These tools keep no
-  // receipt, so the authority returns null, as PaperclipRunnerToolAuthority does.
+  // receipt, so the authority returns null, as OutpostRunnerToolAuthority does.
   const serverRecovery = (authorityRecover: () => Promise<{ result: unknown } | null> = async () => null) =>
     vi.fn((call: RecoveryCall) => recoverToolCallback({ runId: call.correlation.runId, admission: call.admission,
       call: { tool: call.operationId, callId: call.callId, arguments: call.input }, recover: authorityRecover }));
@@ -5630,7 +5630,7 @@ describe("host-tool callback orphaned by a server restart", () => {
 
   it.each([
     // An assigned app tool call, adopted after the restart.
-    { operationId: "paperclip_call_assigned_tool", callId: "exec-d7e28482-f90d-48e6-abdd-c8a0a94dbfb0" },
+    { operationId: "outpost_call_assigned_tool", callId: "exec-d7e28482-f90d-48e6-abdd-c8a0a94dbfb0" },
     // A connection search, adopted after a later restart.
     { operationId: "connections_search", callId: "exec-0c3b0462-a1e1-488a-a4ee-e4748f30ce29" },
   ])("settles $operationId as interrupted after the turn completed, so close drains", async ({ operationId, callId }) => {
@@ -5710,7 +5710,7 @@ describe("host-tool callback orphaned by a server restart", () => {
     let finish!: (value: { result: unknown }) => void;
     const running = dispatchToolCallback(identity.runId, callId,
       () => new Promise<{ result: unknown }>(resolveCall => { finish = resolveCall; }));
-    const { root, options, leaseToken } = await restartWithPendingCallback("paperclip_call_assigned_tool", callId, () => running);
+    const { root, options, leaseToken } = await restartWithPendingCallback("outpost_call_assigned_tool", callId, () => running);
     const recover = serverRecovery();
     const replacement = new DurablePrpControlPlane({ ...options, recoverSemanticToolInput: recover });
     try {

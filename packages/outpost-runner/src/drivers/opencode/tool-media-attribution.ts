@@ -7,7 +7,7 @@
  * the user." The model sees that as the person speaking and derails: it redoes
  * finished work or tells the person about an error they never caused.
  *
- * Every OpenCode request for an OpenRouter or Paperclip-connection model goes
+ * Every OpenCode request for an OpenRouter or Outpost-connection model goes
  * through the runner's provider proxy, so the proxy moves that notice back
  * into the tool result it came from, worded as a tool outcome. Real user
  * messages (including images a person attached) are never touched, and the

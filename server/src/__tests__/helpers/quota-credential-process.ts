@@ -12,7 +12,7 @@ globalThis.fetch = (url, init) => {
 };
 try {
   const service = aiConnectionService(db);
-  const [row] = await service.quotaAccounts(process.env.CREDENTIAL_TEST_COMPANY_ID!, process.env.CREDENTIAL_TEST_OWNER!);
+  const [row] = await service.quotaAccounts(process.env.CREDENTIAL_TEST_SPACE_ID!, process.env.CREDENTIAL_TEST_OWNER!);
   await service.refreshQuotaCredential(row, await service.credential(row), new AbortController().signal);
   process.exitCode = 0;
 } catch { process.exitCode = 1; }

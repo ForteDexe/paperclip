@@ -30,7 +30,7 @@ export function InstanceGeneralSettings({ embedded = false }: { embedded?: boole
   useEffect(() => {
     if (embedded) return;
     setBreadcrumbs([
-      { label: "Settings", href: "/company/settings" },
+      { label: "Settings", href: "/space/settings" },
       { label: "General" },
     ]);
   }, [embedded, setBreadcrumbs]);
@@ -128,9 +128,9 @@ export function InstanceGeneralSettings({ embedded = false }: { embedded?: boole
           </div>
           <div className="text-sm text-muted-foreground">
             {healthQuery.data?.deploymentMode === "local_trusted"
-              ? "Local trusted mode is optimized for a local operator. Browser requests run as local board context and no sign-in is required."
+              ? "Local trusted mode is optimized for a local operator. Browser requests run as local operator context and no sign-in is required."
               : healthQuery.data?.deploymentExposure === "public"
-                ? "Authenticated public mode requires sign-in for board access and is intended for public URLs."
+                ? "Authenticated public mode requires sign-in for operator access and is intended for public URLs."
                 : "Authenticated private mode requires sign-in and is intended for LAN, VPN, or other private-network deployments."}
           </div>
           <div className="grid gap-3 md:grid-cols-3">

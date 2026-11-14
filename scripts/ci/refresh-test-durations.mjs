@@ -52,7 +52,7 @@ export function parseTimings(log, inventory) {
     }
     // Bootstrap from pre-reporter runs. These values omit import/setup cost;
     // structured measurements take precedence as soon as master emits them.
-    const match = line.match(/@paperclipai\/server\s+([^\s]+\.test\.[cm]?[jt]s)\s+\(\d+ tests?[^)]*\)\s+(\d+)ms\s*$/);
+    const match = line.match(/@outpost\/server\s+([^\s]+\.test\.[cm]?[jt]s)\s+\(\d+ tests?[^)]*\)\s+(\d+)ms\s*$/);
     if (!match) continue;
     const file = `server/${match[1]}`, ms = Number(match[2]);
     if (inventory.has(file) && ms <= 3_600_000) fallback.set(file, Math.max(fallback.get(file) ?? 0, ms));

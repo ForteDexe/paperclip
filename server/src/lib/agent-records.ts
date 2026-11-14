@@ -58,11 +58,11 @@ export interface RevisionMetadata {
  * with no login round trip. It is distinct from `allowInternalBindingOverride`,
  * which does no ownership check.
  *
- * The `inheritedFromAgentId` field is the hire-inheritance path. The route
- * sets it only for an authenticated agent actor whose hire request inherited
+ * The `inheritedFromAgentId` field is the create-inheritance path. The route
+ * sets it only for an authenticated agent actor whose create request inherited
  * the fixed reference from that named parent. The service re-reads the parent
  * agent inside the write transaction and binds the fixed reference only when
- * the parent exists, is in the same company, is a `claude_local` agent, and
+ * the parent exists, is in the same space, is a `claude_local` agent, and
  * already holds the exact fixed binding.
  */
 export interface ClaudeLoginContext {
@@ -82,15 +82,15 @@ export interface UpdateAgentOptions {
   claudeLogin?: ClaudeLoginContext;
 }
 
-export type CreateAgentData = Omit<typeof agents.$inferInsert, "companyId" | "lifecycleState" | "lifecycleRequiredPluginIds" | "lifecycleHolds" | "lifecycleVersion" | "lifecycleError" | "lifecycleOperation"> & { runner?: AgentRunnerChoice };
+export type CreateAgentData = Omit<typeof agents.$inferInsert, "spaceId" | "lifecycleState" | "lifecycleRequiredPluginIds" | "lifecycleHolds" | "lifecycleVersion" | "lifecycleError" | "lifecycleOperation"> & { runner?: AgentRunnerChoice };
 export type AgentConfigurationRecord = typeof agents.$inferSelect;
 export const AGENT_CONFIGURATION_FIELDS = [...CONFIG_REVISION_FIELDS, "permissions"] as const;
 export type AgentConfigurationPatch = Partial<Pick<typeof agents.$inferInsert, typeof AGENT_CONFIGURATION_FIELDS[number]>>;
-export type AgentHireRecord = Pick<typeof agents.$inferSelect, "id" | "companyId" | "adapterType" | "adapterConfig" | "permissions" | "metadata" | "status">;
+export type AgentCreationRecord = Pick<typeof agents.$inferSelect, "id" | "spaceId" | "adapterType" | "adapterConfig" | "permissions" | "metadata" | "status">;
 
 export interface CreateAgentOptions {
   createdByAgentId?: string | null;
-  createdByAgentCompanyId?: string;
+  createdByAgentSpaceId?: string;
   interactionTexts?: readonly string[];
   initialBudgetPolicyUserId?: string;
   setupOnly?: boolean;
@@ -103,7 +103,7 @@ export interface CreateAgentOptions {
   claudeLogin?: ClaudeLoginContext;
 }
 
-type AgentEligibilityRow = Pick<typeof agents.$inferSelect, "id" | "companyId" | "name" | "status" | "reportsTo">;
+type AgentEligibilityRow = Pick<typeof agents.$inferSelect, "id" | "spaceId" | "name" | "status" | "reportsTo">;
 
 interface AgentShortnameRow {
   id: string;
@@ -338,18 +338,18 @@ export function agentRecordQueries(db: Db) {
     });
   }
 
-  function toEligibilityAgent(row: Pick<typeof agents.$inferSelect, "id" | "companyId" | "name" | "status" | "reportsTo">): AgentEligibilityAgent {
+  function toEligibilityAgent(row: Pick<typeof agents.$inferSelect, "id" | "spaceId" | "name" | "status" | "reportsTo">): AgentEligibilityAgent {
     return {
       id: row.id,
-      companyId: row.companyId,
+      spaceId: row.spaceId,
       name: row.name,
       status: row.status,
       reportsTo: row.reportsTo,
     };
   }
 
-  function normalizeAgentRows(rows: (typeof agents.$inferSelect)[], allCompanyRows: AgentEligibilityRow[] = rows) {
-    const eligibilityAgents = allCompanyRows.map(toEligibilityAgent);
+  function normalizeAgentRows(rows: (typeof agents.$inferSelect)[], allSpaceRows: AgentEligibilityRow[] = rows) {
+    const eligibilityAgents = allSpaceRows.map(toEligibilityAgent);
     return rows.map((row) => {
       const base = normalizeAgentBaseRow(row);
       const appearance = resolveAgentAppearance(row.appearance, row.id);
@@ -365,20 +365,20 @@ export function agentRecordQueries(db: Db) {
     });
   }
 
-  function normalizeAgentRow(row: typeof agents.$inferSelect, allCompanyRows?: AgentEligibilityRow[]) {
-    return normalizeAgentRows([row], allCompanyRows)[0]!;
+  function normalizeAgentRow(row: typeof agents.$inferSelect, allSpaceRows?: AgentEligibilityRow[]) {
+    return normalizeAgentRows([row], allSpaceRows)[0]!;
   }
 
-  async function listCompanyAgentRows(companyId: string) {
-    return db.select().from(agents).where(eq(agents.companyId, companyId));
+  async function listSpaceAgentRows(spaceId: string) {
+    return db.select().from(agents).where(eq(agents.spaceId, spaceId));
   }
 
-  async function listCompanyAgentEligibilityRows(companyId: string): Promise<AgentEligibilityRow[]> {
-    return db.select({ id: agents.id, companyId: agents.companyId, name: agents.name,
-      status: agents.status, reportsTo: agents.reportsTo }).from(agents).where(eq(agents.companyId, companyId));
+  async function listSpaceAgentEligibilityRows(spaceId: string): Promise<AgentEligibilityRow[]> {
+    return db.select({ id: agents.id, spaceId: agents.spaceId, name: agents.name,
+      status: agents.status, reportsTo: agents.reportsTo }).from(agents).where(eq(agents.spaceId, spaceId));
   }
 
-  async function getMonthlySpendByAgentIds(companyId: string, agentIds: string[]) {
+  async function getMonthlySpendByAgentIds(spaceId: string, agentIds: string[]) {
     if (agentIds.length === 0) return new Map<string, number>();
     const { start, end } = currentUtcMonthWindow();
     const rows = await db
@@ -389,7 +389,7 @@ export function agentRecordQueries(db: Db) {
       .from(costEvents)
       .where(
         and(
-          eq(costEvents.companyId, companyId),
+          eq(costEvents.spaceId, spaceId),
           inArray(costEvents.agentId, agentIds),
           gte(costEvents.occurredAt, start),
           lt(costEvents.occurredAt, end),
@@ -399,11 +399,11 @@ export function agentRecordQueries(db: Db) {
     return new Map(rows.map((row) => [row.agentId, Number(row.spentMonthlyCents ?? 0)]));
   }
 
-  async function hydrateAgentSpend<T extends { id: string; companyId: string; spentMonthlyCents: number }>(rows: T[]) {
+  async function hydrateAgentSpend<T extends { id: string; spaceId: string; spentMonthlyCents: number }>(rows: T[]) {
     const agentIds = rows.map((row) => row.id);
-    const companyId = rows[0]?.companyId;
-    if (!companyId || agentIds.length === 0) return rows;
-    const spendByAgentId = await getMonthlySpendByAgentIds(companyId, agentIds);
+    const spaceId = rows[0]?.spaceId;
+    if (!spaceId || agentIds.length === 0) return rows;
+    const spendByAgentId = await getMonthlySpendByAgentIds(spaceId, agentIds);
     return rows.map((row) => ({
       ...row,
       spentMonthlyCents: spendByAgentId.get(row.id) ?? 0,
@@ -417,18 +417,18 @@ export function agentRecordQueries(db: Db) {
       .where(eq(agents.id, id))
       .then((rows) => rows[0] ?? null);
     if (!row) return null;
-    const [companyRows, hydrated] = await Promise.all([
-      listCompanyAgentEligibilityRows(row.companyId),
+    const [spaceRows, hydrated] = await Promise.all([
+      listSpaceAgentEligibilityRows(row.spaceId),
       hydrateAgentSpend([row]).then((rows) => rows[0]!),
     ]);
-    return normalizeAgentRow(hydrated, companyRows);
+    return normalizeAgentRow(hydrated, spaceRows);
   }
 
-  async function ensureManager(companyId: string, managerId: string) {
+  async function ensureManager(spaceId: string, managerId: string) {
     const manager = await getById(managerId);
     if (!manager) throw notFound("Manager not found");
-    if (manager.companyId !== companyId) {
-      throw unprocessable("Manager must belong to same company");
+    if (manager.spaceId !== spaceId) {
+      throw unprocessable("Manager must belong to same space");
     }
     return manager;
   }
@@ -445,8 +445,8 @@ export function agentRecordQueries(db: Db) {
     }
   }
 
-  async function assertCompanyShortnameAvailable(
-    companyId: string,
+  async function assertSpaceShortnameAvailable(
+    spaceId: string,
     candidateName: string,
     options?: AgentShortnameCollisionOptions,
   ) {
@@ -460,12 +460,12 @@ export function agentRecordQueries(db: Db) {
         status: agents.status,
       })
       .from(agents)
-      .where(eq(agents.companyId, companyId));
+      .where(eq(agents.spaceId, spaceId));
 
     const hasCollision = hasAgentShortnameCollision(candidateName, existingAgents, options);
     if (hasCollision) {
       throw conflict(
-        `Agent shortname '${candidateShortname}' is already in use in this company`,
+        `Agent shortname '${candidateShortname}' is already in use in this space`,
       );
     }
   }
@@ -485,6 +485,6 @@ export function agentRecordQueries(db: Db) {
     });
   }
 
-  return { normalizeAgentRows, normalizeAgentRow, listCompanyAgentRows, listCompanyAgentEligibilityRows, hydrateAgentSpend,
-    getById, ensureManager, assertNoCycle, assertCompanyShortnameAvailable, assertBuiltInAgentMetadataMutationAllowed };
+  return { normalizeAgentRows, normalizeAgentRow, listSpaceAgentRows, listSpaceAgentEligibilityRows, hydrateAgentSpend,
+    getById, ensureManager, assertNoCycle, assertSpaceShortnameAvailable, assertBuiltInAgentMetadataMutationAllowed };
 }

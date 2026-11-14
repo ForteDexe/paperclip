@@ -40,11 +40,11 @@ export function retriesOriginalRun(run: Pick<HeartbeatRun, "retryOfRunId" | "con
  * retry of the original run for this task, inside the owned attempt root, and
  * its script must already wait for the brief there.
  */
-export async function releasedRetryListener(run: HeartbeatRun, expected: { companyId: string; workerId: string; taskId: string; originalRunId: string; gateName: string },
+export async function releasedRetryListener(run: HeartbeatRun, expected: { spaceId: string; workerId: string; taskId: string; originalRunId: string; gateName: string },
   root = process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT) {
   const profile = (run as { runnerProfileJson?: { nativeExecutionInput?: { workspace?: { cwd?: unknown }; binding?: { executionWorkspaceId?: unknown } } } }).runnerProfileJson;
   const cwd = profile?.nativeExecutionInput?.workspace?.cwd, workspaceId = profile?.nativeExecutionInput?.binding?.executionWorkspaceId;
-  if (!root || run.companyId !== expected.companyId || run.agentId !== expected.workerId || !retriesOriginalRun(run, expected.originalRunId)
+  if (!root || run.spaceId !== expected.spaceId || run.agentId !== expected.workerId || !retriesOriginalRun(run, expected.originalRunId)
     || ![run.contextSnapshot?.issueId, run.contextSnapshot?.taskId].includes(expected.taskId) || typeof cwd !== "string" || typeof workspaceId !== "string") return null;
   const real = await realpath(cwd).catch(() => null), ownedRoot = await realpath(root);
   if (!real || !real.startsWith(`${ownedRoot}${path.sep}`)) return null;
@@ -56,7 +56,7 @@ export function gradeInfrastructureRetry(value: unknown) {
   const c = checks(), o = runtimeObservation(value);
   c.add("actual-exhausted-retry-and-current-gates", !!o, "The genuine exhausted native run, real human Retry controls and independently observed admission gates are required."); if (!o) return c.result();
   const s = o.state;
-  c.add("actual-original-infrastructure-exhaustion", !!s.failure && isExhaustedNativeRecovery(s.recoveryBefore as IssueRecoveryAction, s.failure as NativeFaultRun, o.companyId, (s.task as Entity).id, (s.worker as Entity).id),
+  c.add("actual-original-infrastructure-exhaustion", !!s.failure && isExhaustedNativeRecovery(s.recoveryBefore as IssueRecoveryAction, s.failure as NativeFaultRun, o.spaceId, (s.task as Entity).id, (s.worker as Entity).id),
     "The original task really exposes the exhausted three-attempt native infrastructure action; an unavailable-model failure is insufficient.");
   // Reply wording is not graded: each declared phase is bound to its own
   // controller run, which must have read the task's saved recovery record or
@@ -88,8 +88,8 @@ export const runtimeInfrastructureRetryCases = [runtimeDefinition("recovery.retr
     const initial = await pollUntil({ label: "Canonical human Retry guidance after actual infrastructure exhaustion", deadlineAt: chatCatalogNativePhaseDeadline(ctx, Date.now() + 150_000),
       load: async () => { await ctx.refreshIssue(); return { source: ctx.issue(), runs: await ctx.allRuns() }; },
       accept: v => chatCatalogNativePhaseIsTimely(ctx) && (v.source?.conversationState === "waiting" && v.runs.length === 2 && v.runs.some(row => row.id === state.workerRunId && row.status === "failed") && v.runs.some(row => row.agentId === ctx.input.fixtures.agent.id && row.status === "succeeded")) });
-    state.queryReply = (await observeRuntime(ctx, state)).reply; const source = ctx.input.page.url(), root = `/api/companies/${ctx.input.fixtures.company.id}`;
-    const taskURL = `/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`;
+    state.queryReply = (await observeRuntime(ctx, state)).reply; const source = ctx.input.page.url(), root = `/api/spaces/${ctx.input.fixtures.space.id}`;
+    const taskURL = `/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`;
     await ctx.input.page.goto(taskURL, { waitUntil: "domcontentloaded" });
     const retry = humanRetryControl(ctx.input.page); await expect(retry).toBeVisible(); state.retryVisible = true;
     // A zero amount disables enforcement. Hold with a real cap and one explicit
@@ -151,7 +151,7 @@ export const runtimeInfrastructureRetryCases = [runtimeDefinition("recovery.retr
       load: async () => {
         const retries = (await ctx.allRuns()).filter(row => row.agentId === worker.id && row.id !== state.workerRunId);
         const run = retries.length === 1 ? await ctx.input.api.get<HeartbeatRun>(`/api/heartbeat-runs/${retries[0]!.id}`) : null;
-        return { retries: retries.length, listener: run ? await releasedRetryListener(run, { companyId: ctx.input.fixtures.company.id, workerId: worker.id,
+        return { retries: retries.length, listener: run ? await releasedRetryListener(run, { spaceId: ctx.input.fixtures.space.id, workerId: worker.id,
           taskId: task.id, originalRunId: String(state.workerRunId), gateName }) : null };
       },
       accept: v => v.retries === 1 && !!v.listener,
@@ -182,7 +182,7 @@ export const runtimeInfrastructureRetryCases = [runtimeDefinition("recovery.retr
     state.actualRetryResult = o.revisions.some(row => row.createdByRunId === state.retryRunId && row.createdByAgentId === (state.worker as Entity).id && (row.body ?? "").includes(`Retry website ${ctx.input.nonce}`)
       && o.documents.some(doc => doc.id === row.documentId && doc.latestRevisionId === row.id)); return o; },
   async verifyResult(ctx, state) { const source = ctx.input.page.url(), task = state.task as Issue;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" }); await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" }); await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("button", { name: "Change status (current: Done)", exact: true }).first()).toBeVisible(); await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" }); },
   cleanup: async (_ctx, state) => releaseRuntimeWorker(state),
 })];

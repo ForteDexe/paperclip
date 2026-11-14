@@ -3,7 +3,7 @@ import { api } from "./client";
 
 /**
  * Decisions v1 (PAP-14939 §4). Standalone decision objects proposed by agents
- * and resolved by the board. Open decisions surface in the attention feed as a
+ * and resolved by the operator. Open decisions surface in the attention feed as a
  * `decision` source; decided/expired history is fetched directly here. Response
  * DTOs mirror the P3 service (`server/src/services/decisions.ts`) and are kept
  * UI-local rather than in `@outpost/shared` on purpose — only the option /
@@ -27,7 +27,7 @@ export interface DecisionTargetSnapshot {
 
 export interface Decision {
   id: string;
-  companyId: string;
+  spaceId: string;
   bundleId: string | null;
   originAgentId: string;
   originIssueId: string;
@@ -103,8 +103,8 @@ function listQuery(filter: DecisionListFilter): string {
 }
 
 export const decisionsApi = {
-  list: (companyId: string, filter: DecisionListFilter = {}) =>
-    api.get<DecisionListItem[]>(`/companies/${companyId}/decisions${listQuery(filter)}`),
+  list: (spaceId: string, filter: DecisionListFilter = {}) =>
+    api.get<DecisionListItem[]>(`/spaces/${spaceId}/decisions${listQuery(filter)}`),
   get: (id: string) => api.get<DecisionOutcome>(`/decisions/${id}`),
   decide: (id: string, input: DecideInput) =>
     api.post<DecisionOutcome>(`/decisions/${id}/decide`, input),

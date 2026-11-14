@@ -2,7 +2,7 @@ import type { DbTransaction } from "../types.js";
 import { captureRunIdentity, runIdentityBrokerFields } from "../../run-identity.js";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { connectionTokenIssuances, companyMemberships, heartbeatRuns, toolConnections, toolProfileBindings, toolProfileEntries, toolProfiles } from "@outpost/db";
+import { connectionTokenIssuances, spaceMemberships, heartbeatRuns, toolConnections, toolProfileBindings, toolProfileEntries, toolProfiles } from "@outpost/db";
 import type { ConnectionTokenIssuancePath } from "@outpost/shared";
 import { forbidden, HttpError } from "../../../errors.js";
 import { narrowestScopeBindings, profileIdsInBindingOrder } from "../../tool-profile-binding-precedence.js";
@@ -18,23 +18,23 @@ const ACTIVE_BROKER_RUN_STATUSES = new Set(["running"]);
 
 export async function lockAuthorizedBrokerResponsibleMembership(
   input: {
-    companyId: string;
+    spaceId: string;
     responsibleUserId: string;
   },
   tx: DbTransaction,
 ) {
   const membership = await tx
     .select({
-      id: companyMemberships.id,
-      status: companyMemberships.status,
-      membershipRole: companyMemberships.membershipRole,
+      id: spaceMemberships.id,
+      status: spaceMemberships.status,
+      membershipRole: spaceMemberships.membershipRole,
     })
-    .from(companyMemberships)
+    .from(spaceMemberships)
     .where(
       and(
-        eq(companyMemberships.companyId, input.companyId),
-        eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.principalId, input.responsibleUserId),
+        eq(spaceMemberships.spaceId, input.spaceId),
+        eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.principalId, input.responsibleUserId),
       ),
     )
     .limit(1)
@@ -48,7 +48,7 @@ export async function lockAuthorizedBrokerResponsibleMembership(
   ) {
     throw new HttpError(
       403,
-      "Responsible user is no longer authorized for company write access",
+      "Responsible user is no longer authorized for space write access",
       {
         code: "responsible_user_unauthorized",
       },
@@ -70,7 +70,7 @@ export function createTokenBrokerAdmission(db: Db, now: () => Date) {
   }
 
   async function loadBrokerRunContext(input: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     runId: string;
   }) {
@@ -83,7 +83,7 @@ export function createTokenBrokerAdmission(db: Db, now: () => Date) {
       : initialRun;
     if (
       !run ||
-      run.companyId !== input.companyId ||
+      run.spaceId !== input.spaceId ||
       run.agentId !== input.agentId
     ) {
       throw forbidden(
@@ -94,7 +94,7 @@ export function createTokenBrokerAdmission(db: Db, now: () => Date) {
       throw forbidden("Agent run is not active");
     }
     const snapshot = asRecord(run.contextSnapshot);
-    const paperclipIssue = asRecord(snapshot.paperclipIssue);
+    const outpostIssue = asRecord(snapshot.outpostIssue);
     const responsibleUserId = run.activeIdentityContextId
       ? run.responsibleUserId
       : (runSnapshotString(
@@ -103,7 +103,7 @@ export function createTokenBrokerAdmission(db: Db, now: () => Date) {
           "responsible_user_id",
         ) ??
         runSnapshotString(
-          paperclipIssue,
+          outpostIssue,
           "responsibleUserId",
           "responsible_user_id",
         ) ??
@@ -115,15 +115,15 @@ export function createTokenBrokerAdmission(db: Db, now: () => Date) {
     }
     const responsibleMembership = await db
       .select({
-        status: companyMemberships.status,
-        membershipRole: companyMemberships.membershipRole,
+        status: spaceMemberships.status,
+        membershipRole: spaceMemberships.membershipRole,
       })
-      .from(companyMemberships)
+      .from(spaceMemberships)
       .where(
         and(
-          eq(companyMemberships.companyId, run.companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, responsibleUserId),
+          eq(spaceMemberships.spaceId, run.spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, responsibleUserId),
         ),
       )
       .then((rows) => rows[0] ?? null);
@@ -134,17 +134,17 @@ export function createTokenBrokerAdmission(db: Db, now: () => Date) {
       responsibleMembership.membershipRole === "viewer"
     ) {
       throw forbidden(
-        "Responsible user is no longer authorized for company write access",
+        "Responsible user is no longer authorized for space write access",
       );
     }
     return {
       run,
       issueId:
         runSnapshotString(snapshot, "issueId") ??
-        runSnapshotString(paperclipIssue, "id"),
+        runSnapshotString(outpostIssue, "id"),
       projectId:
         runSnapshotString(snapshot, "projectId") ??
-        runSnapshotString(paperclipIssue, "projectId"),
+        runSnapshotString(outpostIssue, "projectId"),
       routineId: runSnapshotString(snapshot, "routineId"),
       responsibleUserId,
     };
@@ -167,7 +167,7 @@ export function createTokenBrokerAdmission(db: Db, now: () => Date) {
       .from(connectionTokenIssuances)
       .where(
         and(
-          eq(connectionTokenIssuances.companyId, input.connection.companyId),
+          eq(connectionTokenIssuances.spaceId, input.connection.spaceId),
           eq(connectionTokenIssuances.connectionId, input.connection.id),
           eq(connectionTokenIssuances.agentId, input.agentId),
           eq(connectionTokenIssuances.outcome, "success"),
@@ -186,7 +186,7 @@ export function createTokenBrokerAdmission(db: Db, now: () => Date) {
   }
 
   async function hasExplicitConnectionTokenMintProfileGrant(input: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     issueId: string | null;
     projectId: string | null;
@@ -195,10 +195,10 @@ export function createTokenBrokerAdmission(db: Db, now: () => Date) {
     const bindings = await db
       .select()
       .from(toolProfileBindings)
-      .where(eq(toolProfileBindings.companyId, input.companyId));
+      .where(eq(toolProfileBindings.spaceId, input.spaceId));
     const matchingBindings = bindings.filter((binding) => {
-      if (binding.targetType === "company")
-        return binding.targetId === input.companyId;
+      if (binding.targetType === "space")
+        return binding.targetId === input.spaceId;
       if (binding.targetType === "agent")
         return binding.targetId === input.agentId;
       if (binding.targetType === "issue")
@@ -218,7 +218,7 @@ export function createTokenBrokerAdmission(db: Db, now: () => Date) {
       .from(toolProfiles)
       .where(
         and(
-          eq(toolProfiles.companyId, input.companyId),
+          eq(toolProfiles.spaceId, input.spaceId),
           inArray(toolProfiles.id, profileIds),
         ),
       );
@@ -231,7 +231,7 @@ export function createTokenBrokerAdmission(db: Db, now: () => Date) {
       .from(toolProfileEntries)
       .where(
         and(
-          eq(toolProfileEntries.companyId, input.companyId),
+          eq(toolProfileEntries.spaceId, input.spaceId),
           inArray(toolProfileEntries.profileId, activeProfileIds),
         ),
       );

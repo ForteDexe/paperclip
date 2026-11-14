@@ -47,7 +47,7 @@ export function createProviderLimitWait(db: Db, deps: ProviderLimitWaitDependenc
     if (parseObject(parseObject(agent.runtimeConfig).aiConnection).mode === "router") return false;
     const now = new Date();
     const cooldown = await agentProviderLimitCooldown(db, {
-      companyId: run.companyId, agentId: run.agentId, runId: run.id, now,
+      spaceId: run.spaceId, agentId: run.agentId, runId: run.id, now,
     }).catch((err: unknown) => {
       // Missing evidence must not stop work; the provider still reports its own limit.
       logger.warn({ err, runId: run.id }, "provider limit evidence unavailable before dispatch");

@@ -14,7 +14,7 @@ import {
   type AttentionSortOrder,
 } from "@/lib/attention";
 
-const companyId = "company-storybook";
+const spaceId = "space-storybook";
 
 // Base "now" resolved once at module load so date buckets are stable per render.
 const NOW = Date.parse("2026-07-10T12:00:00Z");
@@ -36,12 +36,12 @@ function item(
   const now = new Date("2026-07-09T12:00:00Z");
   return {
     id,
-    companyId,
+    spaceId,
     sourceKind,
     subject: {
       kind: "issue",
       id: `${id}-subject`,
-      companyId,
+      spaceId,
       title,
       identifier: null,
       status: "pending",
@@ -66,7 +66,7 @@ function item(
     relatedIssue: {
       kind: "issue",
       id: "issue-1000",
-      companyId,
+      spaceId,
       title: "Ship the attention queue",
       identifier: "PAP-1000",
       status: "in_progress",
@@ -114,7 +114,7 @@ const POPULATED: AttentionItem[] = [
     "critical",
     "Run watchdog escalated — agent stalled 40m",
     "Recovery action escalated and needs a human decision.",
-    { subject: { kind: "recovery_action", id: "r1", companyId, title: "Run watchdog escalated — agent stalled 40m", identifier: null, status: "escalated", href: "/PAP/issues/PAP-1000", metadata: {} } },
+    { subject: { kind: "recovery_action", id: "r1", spaceId, title: "Run watchdog escalated — agent stalled 40m", identifier: null, status: "escalated", href: "/PAP/issues/PAP-1000", metadata: {} } },
   ),
   item(
     "appr-1",
@@ -124,7 +124,7 @@ const POPULATED: AttentionItem[] = [
     "Approval is pending a board decision.",
     {
       inlineResolvable: true,
-      subject: { kind: "approval", id: "approval-1", companyId, title: "Hire agent: Research Analyst", identifier: null, status: "pending", href: "/PAP/approvals/approval-1", metadata: { type: "hire_agent" } },
+      subject: { kind: "approval", id: "approval-1", spaceId, title: "Hire agent: Research Analyst", identifier: null, status: "pending", href: "/PAP/approvals/approval-1", metadata: { type: "create_agent" } },
       relatedIssue: null,
       decisionVerbs: [
         { id: "approve", label: "Approve", description: null },
@@ -141,7 +141,7 @@ const POPULATED: AttentionItem[] = [
     "Questions need answers on an issue thread.",
     {
       inlineResolvable: true,
-      subject: { kind: "interaction", id: "interaction-1", companyId, title: "Which rollout order should we use?", identifier: null, status: "pending", href: "/PAP/issues/PAP-1000#interaction-1", metadata: { kind: "ask_user_questions", issueId: "issue-1000" } },
+      subject: { kind: "interaction", id: "interaction-1", spaceId, title: "Which rollout order should we use?", identifier: null, status: "pending", href: "/PAP/issues/PAP-1000#interaction-1", metadata: { kind: "ask_user_questions", issueId: "issue-1000" } },
       decisionVerbs: [{ id: "respond", label: "Respond", description: null }],
     },
   ),
@@ -167,7 +167,7 @@ const POPULATED: AttentionItem[] = [
     "Join request is pending approval.",
     {
       inlineResolvable: true,
-      subject: { kind: "join_request", id: "join-1", companyId, title: "alex@acme.dev wants to join", identifier: null, status: "pending_approval", href: "/PAP/settings/access", metadata: {} },
+      subject: { kind: "join_request", id: "join-1", spaceId, title: "alex@acme.dev wants to join", identifier: null, status: "pending_approval", href: "/PAP/settings/access", metadata: {} },
       relatedIssue: null,
     },
   ),
@@ -183,7 +183,7 @@ const POPULATED: AttentionItem[] = [
     "budget-1",
     "budget_alert",
     "low",
-    "Company budget crossed 85%",
+    "Space budget crossed 85%",
     "Budget crossed the 85% threshold.",
     { relatedIssue: null, inlineResolvable: false },
   ),
@@ -232,7 +232,7 @@ const SHOWCASE: AttentionItem[] = [
   {
     ...item("plan-1", "issue_thread_interaction", "high", "Approve plan: Attention queue redesign", "A plan is awaiting your approval.", {
       inlineResolvable: true,
-      subject: { kind: "interaction", id: "intx-plan", companyId, title: "Approve plan: Attention queue redesign", identifier: null, status: "pending", href: "/PAP/issues/PAP-1000#plan", metadata: { kind: "request_confirmation", issueId: "issue-1000" } },
+      subject: { kind: "interaction", id: "intx-plan", spaceId, title: "Approve plan: Attention queue redesign", identifier: null, status: "pending", href: "/PAP/issues/PAP-1000#plan", metadata: { kind: "request_confirmation", issueId: "issue-1000" } },
       decisionVerbs: [
         { id: "approve", label: "Approve plan", description: null },
         { id: "request_changes", label: "Request changes", description: null },
@@ -245,7 +245,7 @@ const SHOWCASE: AttentionItem[] = [
   {
     ...item("conf-1", "approval", "medium", "Confirm: publish release notes", "A confirmation is pending.", {
       inlineResolvable: true,
-      subject: { kind: "approval", id: "appr-conf", companyId, title: "Confirm: publish release notes", identifier: null, status: "pending", href: "/PAP/approvals/appr-conf", metadata: {} },
+      subject: { kind: "approval", id: "appr-conf", spaceId, title: "Confirm: publish release notes", identifier: null, status: "pending", href: "/PAP/approvals/appr-conf", metadata: {} },
       relatedIssue: null,
       decisionVerbs: [
         { id: "approve", label: "Approve", description: null },
@@ -259,7 +259,7 @@ const SHOWCASE: AttentionItem[] = [
   {
     ...item("qs-1", "issue_thread_interaction", "medium", "Answer 2 questions on rollout", "Questions need answers.", {
       inlineResolvable: true,
-      subject: { kind: "interaction", id: "intx-qs", companyId, title: "Answer 2 questions on rollout", identifier: null, status: "pending", href: "/PAP/issues/PAP-1000#qs", metadata: { kind: "ask_user_questions", issueId: "issue-1000" } },
+      subject: { kind: "interaction", id: "intx-qs", spaceId, title: "Answer 2 questions on rollout", identifier: null, status: "pending", href: "/PAP/issues/PAP-1000#qs", metadata: { kind: "ask_user_questions", issueId: "issue-1000" } },
       decisionVerbs: [{ id: "respond", label: "Answer", description: null }],
       project: PROJECTS["intx-1"],
     }),
@@ -275,7 +275,7 @@ const SHOWCASE: AttentionItem[] = [
     detail: { kind: "failed_run", agentName: "Deployer", failureReasonExcerpt: "exit code 1 running migrate", images: [IMAGES[3]] },
   },
   {
-    ...item("budg-2", "budget_alert", "low", "Company budget crossed 85%", "Budget threshold crossed.", {
+    ...item("budg-2", "budget_alert", "low", "Space budget crossed 85%", "Budget threshold crossed.", {
       inlineResolvable: false,
       relatedIssue: null,
     }),
@@ -285,7 +285,7 @@ const SHOWCASE: AttentionItem[] = [
   {
     ...item("join-2", "join_request", "medium", "alex@acme.dev wants to join", "Join request pending.", {
       inlineResolvable: true,
-      subject: { kind: "join_request", id: "join-2", companyId, title: "alex@acme.dev wants to join", identifier: null, status: "pending_approval", href: "/PAP/settings/access", metadata: {} },
+      subject: { kind: "join_request", id: "join-2", spaceId, title: "alex@acme.dev wants to join", identifier: null, status: "pending_approval", href: "/PAP/settings/access", metadata: {} },
       relatedIssue: null,
     }),
     activityAt: new Date(NOW - 6 * HOUR).toISOString(),
@@ -307,7 +307,7 @@ const IMAGE_ROWS: AttentionItem[] = [
   {
     ...item("img-questions", "issue_thread_interaction", "medium", "Answer 2 questions on rollout", "Questions need answers.", {
       inlineResolvable: true,
-      subject: { kind: "interaction", id: "intx-img", companyId, title: "Answer 2 questions on rollout", identifier: null, status: "pending", href: "/PAP/issues/PAP-1000#qs", metadata: { kind: "ask_user_questions", issueId: "issue-1000" } },
+      subject: { kind: "interaction", id: "intx-img", spaceId, title: "Answer 2 questions on rollout", identifier: null, status: "pending", href: "/PAP/issues/PAP-1000#qs", metadata: { kind: "ask_user_questions", issueId: "issue-1000" } },
       decisionVerbs: [{ id: "respond", label: "Answer", description: null }],
       project: { id: "proj-alpha", name: "Alpha", urlKey: "alpha", color: "#0f766e", icon: "rocket" },
     }),
@@ -426,7 +426,7 @@ function Queue({
                     <AttentionQueueRow
                       key={it.id}
                       item={it}
-                      companyId={companyId}
+                      spaceId={spaceId}
                       expanded={expandedId === it.id}
                       onToggleExpand={() => setExpandedId((p) => (p === it.id ? null : it.id))}
                       onDismiss={(d) => setCleared((prev) => new Set(prev).add(d.id))}
@@ -447,7 +447,7 @@ function Queue({
                     <AttentionQueueRow
                       key={it.id}
                       item={it}
-                      companyId={companyId}
+                      spaceId={spaceId}
                       variant="hidden"
                       expanded={false}
                       onToggleExpand={() => {}}
@@ -469,7 +469,7 @@ function Queue({
                     <AttentionQueueRow
                       key={it.id}
                       item={it}
-                      companyId={companyId}
+                      spaceId={spaceId}
                       variant="hidden"
                       expanded={false}
                       onToggleExpand={() => {}}
@@ -492,7 +492,7 @@ const meta: Meta<typeof Queue> = {
   title: "Tasks and conversations/Inbox, decisions, and search/Pages/Decisions",
   component: Queue,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "inbox-search/decisions"
       ],

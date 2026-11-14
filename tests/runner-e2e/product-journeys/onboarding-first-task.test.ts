@@ -23,13 +23,13 @@ function fixture(options: Options = {}) {
   const events: string[] = [];
   const title = "Artifact campaign-1";
   const run = (id: string, issueId: string): Row => ({
-    id, companyId: "company", agentId: "agent", nativeIssueId: issueId, runtimeMode: "native", status: "succeeded",
+    id, spaceId: "space", agentId: "agent", nativeIssueId: issueId, runtimeMode: "native", status: "succeeded",
     startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:00:01Z", usageJson: { inputTokens: 1, outputTokens: 1 },
     contextSnapshot: { issueId, aiConnection: { connectionId: "connection", method: "api_key" }, outpostEnvironment: { id: "environment" } },
   });
   const state = () => {
     const accepted = phase === "accepted";
-    const parent = { id: "parent", identifier: "QA-1", title: "Paperclip onboarding", originKind: "onboarding_first_task", description: "/first-task", assigneeAgentId: "agent", status: accepted ? "done" : "in_review" };
+    const parent = { id: "parent", identifier: "QA-1", title: "Outpost onboarding", originKind: "onboarding_first_task", description: "/first-task", assigneeAgentId: "agent", status: accepted ? "done" : "in_review" };
     const opening = { id: "opening", kind: "ask_user_questions", status: phase === "opening" ? "pending" : "answered", payload: { submitLabel: "Continue", questions: [{ id: "first-task-opening", options: [{ id: "task", label: "I have a task in mind", freeText: true }] }] } };
     const proposal = { id: "proposal", kind: options.plan ? "request_checkbox_confirmation" : "request_confirmation", status: accepted ? "accepted" : "pending", payload: { prompt: `Create one child task: ${title}`, ...(options.plan ? { options: [{ id: "scope", label: "One artifact task" }], target: { type: "issue_document", key: "plan", revisionId: "revision" } } : {}) } };
     const result = {
@@ -47,11 +47,11 @@ function fixture(options: Options = {}) {
     origin: "https://qa.example.test",
     async get(route: string) {
       const current = state();
-      if (route.startsWith("/api/companies/company/issues?")) {
+      if (route.startsWith("/api/spaces/space/issues?")) {
         expect(route).toContain("includeAgentCreatedTasks=true");
         return current.tasks;
       }
-      if (route === "/api/companies/company/heartbeat-runs?limit=1000") return current.runs.map(row => ({ id: row.id }));
+      if (route === "/api/spaces/space/heartbeat-runs?limit=1000") return current.runs.map(row => ({ id: row.id }));
       if (route.startsWith("/api/heartbeat-runs/")) return current.runs.find(row => row.id === route.split("/").at(-1));
       if (route === "/api/issues/parent/interactions") return current.interactions;
       if (route === "/api/issues/parent/comments?order=asc") return current.comments;
@@ -84,7 +84,7 @@ function fixture(options: Options = {}) {
   };
   const own = vi.fn(async (resource: { name: string; id?: string }) => { events.push(`own:${resource.id ?? resource.name}`); });
   const observeRun = vi.fn(async (row: Row) => { events.push(`run:${row.id}`); });
-  const input = { context: { api, page, company: { id: "company", issuePrefix: "QA" }, environmentId: "environment" },
+  const input = { context: { api, page, space: { id: "space", issuePrefix: "QA" }, environmentId: "environment" },
     agent: { id: "agent" }, connectionId: "connection", proof, campaignId: "campaign-1", maxRuns: 8,
     deadlineAt: Date.now() + 60_000, own, observeRun } as unknown as OnboardingFirstTaskInput;
   return { input, own, observeRun, events };
@@ -516,7 +516,7 @@ describe("Cloud canonical onboarding first task", () => {
   });
   it.each([
     ["ambiguous successor", (child: Row, state: { runs: Row[] }) => { state.runs.push({ ...child, id: "duplicate-retry" }); }],
-    ["wrong company", (child: Row) => { child.companyId = "other-company"; }],
+    ["wrong space", (child: Row) => { child.spaceId = "other-space"; }],
     ["wrong agent", (child: Row) => { child.agentId = "other-agent"; }],
     ["conflicting issue", (child: Row) => { child.contextSnapshot.issueId = "parent"; }],
     ["missing context lineage", (child: Row) => { delete child.contextSnapshot.retryOfRunId; }],
@@ -601,12 +601,12 @@ function linkWorkspaceRetry(run: Row, sourceId = "workspace-wait", attempt = 1) 
 }
 
 function workspaceDeferral(): Row {
-  return { id: "workspace-wait", companyId: "company", agentId: "agent", issueId: "child",
+  return { id: "workspace-wait", spaceId: "space", agentId: "agent", issueId: "child",
     status: "cancelled", errorCode: "workspace_busy", runtimeMode: "legacy", runtimeModeResolvedAt: null,
     nativeIssueId: null, nativeSessionId: null, runnerInstanceId: null, processPid: null, processGroupId: null,
     processStartedAt: null, sessionIdAfter: null, externalRunId: null, exitCode: null, signal: null,
     startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:00:01Z", lastOutputSeq: 0,
-    usageJson: { ledgerScope: { companyId: "company", agentId: "agent", issueId: "child" } }, costUsd: null,
+    usageJson: { ledgerScope: { spaceId: "space", agentId: "agent", issueId: "child" } }, costUsd: null,
     runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner" } },
     contextSnapshot: { issueId: "child" }, resultJson: {
       executionRecovery: { kind: "workspace_wait", providerWorkStarted: false },

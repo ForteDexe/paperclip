@@ -8,15 +8,15 @@ test.use({ trace: "retain-on-failure" });
 for (const cloudOrigin of ["https://my.outpost.app", "https://my-staging.outpost.app"]) {
   for (const entry of ["auth", "task"] as const) {
     test(`Cloud recovery preserves the task (${cloudOrigin}, ${entry})`, async ({ page, request, baseURL }, testInfo) => {
-      const companyResponse = await request.post("/api/companies", { data: { name: `Cloud auth ${randomUUID()}` } });
-      expect(companyResponse.ok()).toBe(true);
-      const company = await companyResponse.json();
-      const issueResponse = await request.post(`/api/companies/${company.id}/issues`, {
+      const spaceResponse = await request.post("/api/spaces", { data: { name: `Cloud auth ${randomUUID()}` } });
+      expect(spaceResponse.ok()).toBe(true);
+      const space = await spaceResponse.json();
+      const issueResponse = await request.post(`/api/spaces/${space.id}/issues`, {
         data: { title: "Return here after Cloud sign-in", status: "backlog" },
       });
       expect(issueResponse.ok()).toBe(true);
       const issue = await issueResponse.json();
-      const target = `/${company.issuePrefix}/issues/${issue.identifier}?view=activity#recovered`;
+      const target = `/${space.issuePrefix}/issues/${issue.identifier}?view=activity#recovered`;
       let authenticated = false;
       let handoffs = 0;
       let formWasRendered = false;
@@ -32,11 +32,11 @@ for (const cloudOrigin of ["https://my.outpost.app", "https://my-staging.outpost
         const response = await route.fetch();
         await route.fulfill({ response, json: {
           ...await response.json(), deploymentMode: "authenticated", bootstrapStatus: "ready",
-          cloud: { managed: true, managedBy: "paperclip-cloud", cloudBaseUrl: cloudOrigin, stackSlug: "test-workspace" },
+          cloud: { managed: true, managedBy: "outpost-cloud", cloudBaseUrl: cloudOrigin, stackSlug: "test-workspace" },
         } });
       });
       await page.route("**/api/auth/get-session", (route) => route.fulfill(authenticated ? {
-        json: { session: { id: "test-session", userId: "local-board" }, user: { id: "local-board", email: "test@example.test", name: "Test user", image: null }, sentryDsn: null },
+        json: { session: { id: "test-session", userId: "local-operator" }, user: { id: "local-operator", email: "test@example.test", name: "Test user", image: null }, sentryDsn: null },
       } : { status: 401, json: { error: "Board authentication required" } }));
       await page.route(`${cloudOrigin}/v1/stacks/test-workspace/entry-redirect?**`, async (route) => {
         handoffs++;
@@ -63,6 +63,6 @@ for (const cloudOrigin of ["https://my.outpost.app", "https://my-staging.outpost
 test("self-hosted auth still shows the instance sign-in form", async ({ page }) => {
   await page.route("**/api/auth/get-session", (route) => route.fulfill({ status: 401, json: { error: "Board authentication required" } }));
   await page.goto("/auth");
-  await expect(page.getByRole("heading", { name: "Sign in to Paperclip", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to Outpost", exact: true })).toBeVisible();
   await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
 });

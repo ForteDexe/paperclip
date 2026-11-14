@@ -8,7 +8,7 @@ export const TASK_DEPENDENCY_RESUME_CHECKS = [
 ] as const;
 
 export interface DependencyScope {
-  companyId: string; userId: string; agentId: string; environmentId: string; provider: string; model: string;
+  spaceId: string; userId: string; agentId: string; environmentId: string; provider: string; model: string;
   blockerId: string; blockerIdentifier: string; blockerTitle: string; blockerDescription: string;
   dependentId: string; dependentTitle: string; prompt: string; reference: string; documentKey: string;
 }
@@ -25,7 +25,7 @@ export interface DependencyEvidence {
 const nonempty = (value: unknown): value is string => typeof value === "string" && value.length > 0;
 const date = (value: unknown) => typeof value === "string" ? Date.parse(value) : NaN;
 const exactId = (rows: unknown, id: string) => Array.isArray(rows) && rows.length === 1 && rows[0] === id;
-const runFacts = (run: Row) => JSON.stringify([run.id, run.companyId, run.agentId, dependencyRunIssueId(run), run.status,
+const runFacts = (run: Row) => JSON.stringify([run.id, run.spaceId, run.agentId, dependencyRunIssueId(run), run.status,
   run.runtimeMode, run.nativePhase, run.invocationSource, run.triggerDetail, run.startedAt,
   run.contextSnapshot?.wakeReason, run.contextSnapshot?.source, run.contextSnapshot?.resolvedBlockerIssueId,
   run.contextSnapshot?.blockerIssueIds, run.contextSnapshot?.outpostEnvironment?.id,
@@ -60,15 +60,15 @@ export function gradeTaskDependencyResume(value: DependencyEvidence | undefined)
       || [p.blockerRuns, p.dependentRuns, p.agentRuns, p.activity].some(rows => !Array.isArray(rows)))) return fail();
   const startingIds = startingAgentRuns.map(run => run.id);
   const historyComplete = startingIds.every(nonempty) && new Set(startingIds).size === startingIds.length
-    && startingAgentRuns.every(run => run.companyId === s.companyId && run.agentId === s.agentId
+    && startingAgentRuns.every(run => run.spaceId === s.spaceId && run.agentId === s.agentId
       && ["succeeded", "failed", "cancelled", "timed_out"].includes(run.status)
       && ![s.blockerId, s.dependentId].includes(dependencyRunIssueId(run) ?? ""))
     && points.every(p => new Set(p.agentRuns.map(run => run.id)).size === p.agentRuns.length
-      && p.agentRuns.every(run => nonempty(run.id) && run.companyId === s.companyId && run.agentId === s.agentId)
+      && p.agentRuns.every(run => nonempty(run.id) && run.spaceId === s.spaceId && run.agentId === s.agentId)
       && startingAgentRuns.every(prior => p.agentRuns.some(run => runFacts(run) === runFacts(prior))));
   const newRuns = (point: DependencyPoint) => dependencyNewAgentRuns(point.agentRuns, startingAgentRuns);
   const scoped = historyComplete && points.every(p => p.blocker.id === s.blockerId && p.dependent.id === s.dependentId
-    && p.blocker.companyId === s.companyId && p.dependent.companyId === s.companyId
+    && p.blocker.spaceId === s.spaceId && p.dependent.spaceId === s.spaceId
     && p.blocker.title === s.blockerTitle && p.dependent.title === s.dependentTitle
     && p.blocker.description === s.blockerDescription && p.dependent.description === s.prompt
     && p.blocker.createdByUserId === s.userId && p.dependent.createdByUserId === s.userId
@@ -89,7 +89,7 @@ export function gradeTaskDependencyResume(value: DependencyEvidence | undefined)
     && released.observedAt >= value.releaseRequestedAt && finished.observedAt >= released.observedAt && reopened.observedAt >= finished.observedAt;
   const completedByBoard = held && [released, finished, reopened].every(p => p.blocker.status === "done"
     && Number.isFinite(date(p.blocker.completedAt)))
-    && reopened.activity.filter(row => row.companyId === s.companyId && row.entityType === "issue"
+    && reopened.activity.filter(row => row.spaceId === s.spaceId && row.entityType === "issue"
       && row.entityId === s.blockerId && row.action === "issue.updated" && row.actorType === "user"
       && row.actorId === s.userId && row.details?.status === "done").length === 1;
   const run = finished.dependentRuns[0];
@@ -99,20 +99,20 @@ export function gradeTaskDependencyResume(value: DependencyEvidence | undefined)
     && finished.dependentRuns.length === 1 && reopened.dependentRuns.length === 1
     && newRuns(finished).length === 1 && newRuns(reopened).length === 1
     && nonempty(run?.id) && [reopened.dependentRuns[0], newRuns(finished)[0], newRuns(reopened)[0]].every(row => runFacts(row) === runFacts(run))
-    && run.companyId === s.companyId && run.agentId === s.agentId && dependencyRunIssueId(run) === s.dependentId
+    && run.spaceId === s.spaceId && run.agentId === s.agentId && dependencyRunIssueId(run) === s.dependentId
     && run.status === "succeeded" && run.invocationSource === "automation" && run.triggerDetail === "system"
     && run.contextSnapshot?.wakeReason === "issue_blockers_resolved" && run.contextSnapshot?.source === "issue.blockers_resolved"
     && run.contextSnapshot?.resolvedBlockerIssueId === s.blockerId && exactId(run.contextSnapshot?.blockerIssueIds, s.blockerId)
     && Number.isFinite(date(run.startedAt)) && date(run.startedAt) >= date(released.blocker.completedAt);
   const boundRun = scoped && [run, reopened.dependentRuns[0], newRuns(finished)[0], newRuns(reopened)[0]].every(row =>
-    nonempty(row?.id) && row.id === run?.id && row.companyId === s.companyId && row.agentId === s.agentId
+    nonempty(row?.id) && row.id === run?.id && row.spaceId === s.spaceId && row.agentId === s.agentId
     && dependencyRunIssueId(row) === s.dependentId);
   const runtime = boundRun && run?.runtimeMode === "native" && run.nativePhase === "committed"
     && run.runnerProfileJson?.nativeExecutionInput?.provider?.kind === s.provider
     && run.runnerProfileJson?.nativeExecutionInput?.provider?.model === s.model
     && run.contextSnapshot?.outpostEnvironment?.id === s.environmentId;
   const documentMatches = (p: DependencyPoint) => p.document && p.revision
-    && nonempty(p.document.id) && p.document.companyId === s.companyId && p.document.issueId === s.dependentId
+    && nonempty(p.document.id) && p.document.spaceId === s.spaceId && p.document.issueId === s.dependentId
     && p.document.key === s.documentKey && p.document.createdByAgentId === s.agentId && p.document.createdByUserId === null
     && p.document.latestRevisionId === p.revision.id && p.revision.documentId === p.document.id
     && p.revision.createdByAgentId === s.agentId && p.revision.createdByUserId === null && p.revision.createdByRunId === run?.id

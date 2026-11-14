@@ -10,7 +10,7 @@ import { notifyStatusCardIssueChange } from "../status-card-notifications.js";
 export const LEGACY_WORKSPACE_REHOME_SCHEMA = "outpost.legacy-workspace-rehome.v1";
 export const LEGACY_WORKSPACE_REHOME_OUTCOME = "legacy_shared_workspace_rehomed";
 const STRANDED_KIND = "stranded_assigned_issue";
-const BOARD_ESCALATION_POLICY = "board_escalation_no_takeover_v1";
+const OPERATOR_ESCALATION_POLICY = "operator_escalation_no_takeover_v1";
 const PAGE_SIZE = 25;
 const REHOME_WAKE_RETRY_BASE_MS = 5 * 60_000;
 const REHOME_WAKE_RETRY_MAX_MS = 60 * 60_000;
@@ -31,33 +31,33 @@ type RehomeWakeup = (agentId: string, options: {
  * A subtask that an older release bound to its parent's (or another
  * relative's) execution workspace could not start while another task held
  * that workspace. Its run failed setup before any provider work, and
- * stranded-work recovery handed the blocked task to the board. That failure
+ * stranded-work recovery handed the blocked task to the operator. That failure
  * belongs to the legacy binding, which the next admission would release anyway
  * (#19860). This pass does the release now, in one transaction: the task gets
- * its own workspace from the project base, the board escalation resolves with
+ * its own workspace from the project base, the operator escalation resolves with
  * a named outcome, the task returns to `todo`, and a pending wake is recorded.
- * After commit the assignee is woken once, like a board restore; a wake lost
+ * After commit the assignee is woken once, like a operator restore; a wake lost
  * to a crash stays pending and the next pass delivers it. The parent and the shared
  * workspace are never changed. Bounded and idempotent: a resolved escalation
  * is never revisited, and a failed guard leaves the task as it is. Returns the
  * IDs of the tasks that were moved and when the next owed wake is due.
  */
 export async function rehomeStrandedLegacyWorkspaceTasks(db: Db, wake: RehomeWakeup | null,
-  scope: { companyId?: string; issueId?: string } = {}) {
+  scope: { spaceId?: string; issueId?: string } = {}) {
   const rehomed: string[] = [];
   // Page by action id, so escalations the guards reject never hide later eligible ones.
   let cursor: string | null = null;
   for (;;) {
-    const candidates: Array<{ actionId: string; companyId: string; issueId: string }> = await db.select({
-      actionId: issueRecoveryActions.id, companyId: issueRecoveryActions.companyId, issueId: issueRecoveryActions.sourceIssueId,
+    const candidates: Array<{ actionId: string; spaceId: string; issueId: string }> = await db.select({
+      actionId: issueRecoveryActions.id, spaceId: issueRecoveryActions.spaceId, issueId: issueRecoveryActions.sourceIssueId,
     }).from(issueRecoveryActions)
-      .innerJoin(issues, and(eq(issues.companyId, issueRecoveryActions.companyId), eq(issues.id, issueRecoveryActions.sourceIssueId)))
+      .innerJoin(issues, and(eq(issues.spaceId, issueRecoveryActions.spaceId), eq(issues.id, issueRecoveryActions.sourceIssueId)))
       .where(and(
-        scope.companyId ? eq(issueRecoveryActions.companyId, scope.companyId) : undefined,
+        scope.spaceId ? eq(issueRecoveryActions.spaceId, scope.spaceId) : undefined,
         scope.issueId ? eq(issueRecoveryActions.sourceIssueId, scope.issueId) : undefined,
         cursor ? gt(issueRecoveryActions.id, cursor) : undefined,
         eq(issueRecoveryActions.kind, STRANDED_KIND), inArray(issueRecoveryActions.status, ["active", "escalated"]),
-        sql`${issueRecoveryActions.evidence}->>'routingPolicy' = ${BOARD_ESCALATION_POLICY}`,
+        sql`${issueRecoveryActions.evidence}->>'routingPolicy' = ${OPERATOR_ESCALATION_POLICY}`,
         sql`${issueRecoveryActions.evidence}->>'latestRunErrorCode' = 'setup_failed'`,
         eq(issues.status, "blocked"), isNull(issues.hiddenAt), isNull(issues.assigneeUserId),
         sql`${issues.assigneeAgentId} is not null`, sql`${issues.executionWorkspaceId} is not null`,
@@ -86,29 +86,29 @@ export async function rehomeStrandedLegacyWorkspaceTasks(db: Db, wake: RehomeWak
 const wakeRetryAt = sql`coalesce((${issueRecoveryActions.evidence}#>>'{legacyWorkspaceRehome,wakeRetryAt}')::bigint, 0)`;
 
 /** Delivers due pending wakes; returns when the earliest one still pending is due (epoch ms), or null. */
-async function deliverPendingRehomeWakes(db: Db, wake: RehomeWakeup, scope: { companyId?: string; issueId?: string }) {
+async function deliverPendingRehomeWakes(db: Db, wake: RehomeWakeup, scope: { spaceId?: string; issueId?: string }) {
   const pendingIn = and(
-    scope.companyId ? eq(issueRecoveryActions.companyId, scope.companyId) : undefined,
+    scope.spaceId ? eq(issueRecoveryActions.spaceId, scope.spaceId) : undefined,
     scope.issueId ? eq(issueRecoveryActions.sourceIssueId, scope.issueId) : undefined,
     eq(issueRecoveryActions.kind, STRANDED_KIND), eq(issueRecoveryActions.status, "resolved"),
     sql`${issueRecoveryActions.evidence}#>>'{legacyWorkspaceRehome,wake}' = 'pending'`);
-  const pending = await db.select({ actionId: issueRecoveryActions.id, companyId: issueRecoveryActions.companyId,
+  const pending = await db.select({ actionId: issueRecoveryActions.id, spaceId: issueRecoveryActions.spaceId,
     issueId: issueRecoveryActions.sourceIssueId, agentId: issues.assigneeAgentId,
     wakeFailures: sql<number>`coalesce((${issueRecoveryActions.evidence}#>>'{legacyWorkspaceRehome,wakeFailures}')::int, 0)`,
   }).from(issueRecoveryActions)
-    .innerJoin(issues, and(eq(issues.companyId, issueRecoveryActions.companyId), eq(issues.id, issueRecoveryActions.sourceIssueId)))
+    .innerJoin(issues, and(eq(issues.spaceId, issueRecoveryActions.spaceId), eq(issues.id, issueRecoveryActions.sourceIssueId)))
     // A wake that was refused waits for its retry time, so it cannot hold up the others.
     .where(and(pendingIn, sql`${wakeRetryAt} <= ${Date.now()}::bigint`))
     .orderBy(wakeRetryAt, issueRecoveryActions.id).limit(PAGE_SIZE);
   for (const row of pending) {
     // A task that changed since the move no longer owes this wake.
     const [task] = await db.select({ status: issues.status, assigneeAgentId: issues.assigneeAgentId }).from(issues)
-      .where(and(eq(issues.companyId, row.companyId), eq(issues.id, row.issueId)));
+      .where(and(eq(issues.spaceId, row.spaceId), eq(issues.id, row.issueId)));
     const owed = task?.status === "todo" && Boolean(task.assigneeAgentId) && task.assigneeAgentId === row.agentId;
     let accepted = !owed;
     try {
       // Only a created run settles the wake; a refusal (for example a paused
-      // company or disabled on-demand wakes) returns null and is retried.
+      // space or disabled on-demand wakes) returns null and is retried.
       if (owed) accepted = Boolean(await wake(row.agentId!, {
         source: "automation", triggerDetail: "system", reason: "issue_recovery_action_restored",
         payload: { issueId: row.issueId, recoveryActionId: row.actionId, mutation: "recovery_action_resolution" },
@@ -121,7 +121,7 @@ async function deliverPendingRehomeWakes(db: Db, wake: RehomeWakeup, scope: { co
     } catch (error) {
       logger.warn({ err: error, issueId: row.issueId }, "Moved task wake failed; it stays pending");
     }
-    const owner = and(eq(issueRecoveryActions.companyId, row.companyId), eq(issueRecoveryActions.id, row.actionId),
+    const owner = and(eq(issueRecoveryActions.spaceId, row.spaceId), eq(issueRecoveryActions.id, row.actionId),
       sql`${issueRecoveryActions.evidence}#>>'{legacyWorkspaceRehome,wake}' = 'pending'`);
     if (accepted) {
       await db.update(issueRecoveryActions).set({ evidence: sql`jsonb_set(${issueRecoveryActions.evidence},
@@ -139,17 +139,17 @@ async function deliverPendingRehomeWakes(db: Db, wake: RehomeWakeup, scope: { co
   return next?.at === null || next?.at === undefined ? null : Math.max(Number(next.at), Date.now());
 }
 
-async function rehomeOne(tx: Db, input: { actionId: string; companyId: string; issueId: string }) {
+async function rehomeOne(tx: Db, input: { actionId: string; spaceId: string; issueId: string }) {
   // Lock order: task, then recovery action (the binding release locks the task again).
-  const [issue] = await tx.select().from(issues).where(and(eq(issues.companyId, input.companyId), eq(issues.id, input.issueId))).for("update");
-  const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, input.companyId),
+  const [issue] = await tx.select().from(issues).where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, input.issueId))).for("update");
+  const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, input.spaceId),
     eq(issueRecoveryActions.id, input.actionId))).for("update");
   if (!issue || !action || issue.status !== "blocked" || issue.hiddenAt || issue.assigneeUserId || !issue.assigneeAgentId
     || !issue.executionWorkspaceId || action.sourceIssueId !== issue.id || action.kind !== STRANDED_KIND
-    || !["active", "escalated"].includes(action.status) || action.evidence.routingPolicy !== BOARD_ESCALATION_POLICY) return null;
+    || !["active", "escalated"].includes(action.status) || action.evidence.routingPolicy !== OPERATOR_ESCALATION_POLICY) return null;
   const latestRunId = action.evidence.latestRunId;
   if (typeof latestRunId !== "string") return null;
-  const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId),
+  const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId),
     eq(heartbeatRuns.id, latestRunId)));
   // Only a setup failure on a held workspace, before any provider work, by the current assignee.
   const recovery = (run?.resultJson?.executionRecovery ?? null) as { kind?: unknown; providerWorkStarted?: unknown } | null;
@@ -163,25 +163,25 @@ async function rehomeOne(tx: Db, input: { actionId: string; companyId: string; i
   // A status decision after the block owns the status now; an earlier one does not matter.
   if (issue.lastStatusDecisionId) {
     const [decision] = await tx.select({ createdAt: statusDecisions.createdAt }).from(statusDecisions).where(and(
-      eq(statusDecisions.companyId, input.companyId), eq(statusDecisions.id, issue.lastStatusDecisionId)));
+      eq(statusDecisions.spaceId, input.spaceId), eq(statusDecisions.id, issue.lastStatusDecisionId)));
     if (!decision || decision.createdAt.getTime() >= blockedAt) return null;
   }
   // The shared dependency rule: any blocker that still forbids work keeps the task blocked.
-  const readiness = await issueService(tx).listDependencyReadiness(input.companyId, [issue.id], tx);
+  const readiness = await issueService(tx).listDependencyReadiness(input.spaceId, [issue.id], tx);
   if (readiness.get(issue.id)?.isDependencyReady !== true) return null;
   const previousExecutionWorkspaceId = issue.executionWorkspaceId;
-  if (!await releaseAncestorWorkspaceBinding(tx as never, { companyId: input.companyId, issueId: issue.id })) return null;
+  if (!await releaseAncestorWorkspaceBinding(tx as never, { spaceId: input.spaceId, issueId: issue.id })) return null;
   const now = new Date();
   await tx.update(issueRecoveryActions).set({ status: "resolved", outcome: "restored", resolvedAt: now, updatedAt: now,
     ownerType: "system", ownerAgentId: null, ownerUserId: null, returnOwnerAgentId: issue.assigneeAgentId,
     resolutionNote: LEGACY_WORKSPACE_REHOME_OUTCOME, nextAction: LEGACY_WORKSPACE_REHOME_NOTE, wakePolicy: null, monitorPolicy: null,
     evidence: { ...action.evidence, legacyWorkspaceRehome: { schema: LEGACY_WORKSPACE_REHOME_SCHEMA, previousExecutionWorkspaceId,
       runId: run.id, recordedAt: now.toISOString(), wake: "pending" } },
-  }).where(and(eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, action.id)));
+  }).where(and(eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, action.id)));
   await tx.update(issues).set({ status: "todo", unblockDescriptor: null, blockedTransitionAt: null,
-    blockedOwnerNotifiedAt: null, updatedAt: now }).where(and(eq(issues.companyId, input.companyId), eq(issues.id, issue.id)));
-  await notifyStatusCardIssueChange(tx, input.companyId);
-  const activity = await persistActivity(tx, { companyId: input.companyId, actorType: "system", actorId: "legacy-workspace-rehome",
+    blockedOwnerNotifiedAt: null, updatedAt: now }).where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, issue.id)));
+  await notifyStatusCardIssueChange(tx, input.spaceId);
+  const activity = await persistActivity(tx, { spaceId: input.spaceId, actorType: "system", actorId: "legacy-workspace-rehome",
     action: "issue.legacy_workspace_rehomed", entityType: "issue", entityId: issue.id, runId: run.id,
     details: { recoveryActionId: action.id, previousExecutionWorkspaceId, status: "todo", note: LEGACY_WORKSPACE_REHOME_NOTE,
       _previous: { status: "blocked" } } });

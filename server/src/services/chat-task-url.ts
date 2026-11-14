@@ -2,7 +2,7 @@ import { readConfigFile } from "../config-file.js";
 import { runtimeCanonicalOrigin } from "./cloud-runtime-identity.js";
 import { sanitizeExternalChatUrl } from "./chat-publication-projection.js";
 
-/** Omit unusable board links without weakening external publication safety. */
+/** Omit unusable operator links without weakening external publication safety. */
 export function safeChatTaskUrl(
   baseUrl: string | null | undefined,
   issueId: string,

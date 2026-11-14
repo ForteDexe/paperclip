@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 
 const env = process.env;
-const headers = { Authorization: `Bearer ${env.OUTPOST_API_KEY}`, "X-Paperclip-Run-Id": env.OUTPOST_RUN_ID, "Content-Type": "application/json" };
+const headers = { Authorization: `Bearer ${env.OUTPOST_API_KEY}`, "X-Outpost-Run-Id": env.OUTPOST_RUN_ID, "Content-Type": "application/json" };
 const api = async (route, method = "GET", body) => {
   const response = await fetch(`${env.OUTPOST_API_URL}/api${route}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   assert(response.ok, `${response.status}: ${await response.clone().text()}`);
@@ -14,25 +14,25 @@ const api = async (route, method = "GET", body) => {
 };
 const run = await api(`/heartbeat-runs/${env.OUTPOST_RUN_ID}`);
 assert.equal(run.contextSnapshot.outpostEnvironment.driver, "local");
-const services = run.contextSnapshot.paperclipRuntimeServices;
+const services = run.contextSnapshot.outpostRuntimeServices;
 assert.equal(services.length, 1);
 assert.equal(services[0].serviceName, "fixture-web");
-assert.equal(run.contextSnapshot.paperclipRuntimePrimaryUrl, services[0].url);
+assert.equal(run.contextSnapshot.outpostRuntimePrimaryUrl, services[0].url);
 assert.equal(await fetch(services[0].url).then(response => response.text()), "workspace runtime service ready");
 const issueId = run.contextSnapshot.issueId;
 const issue = await api(`/issues/${issueId}`);
-assert.equal(run.contextSnapshot.paperclipIssue.id, issue.id);
-assert.equal(run.contextSnapshot.paperclipIssue.description, issue.description);
+assert.equal(run.contextSnapshot.outpostIssue.id, issue.id);
+assert.equal(run.contextSnapshot.outpostIssue.description, issue.description);
 // The fixture's title equals its description; compact prompts keep the title.
 const descriptionSection = `\nIssue description:\n\`\`\`text\n${issue.description}\n\`\`\``;
-assert(run.contextSnapshot.paperclipTaskMarkdown.includes(descriptionSection));
-assert(run.contextSnapshot.paperclipTaskMarkdownAssignment.includes(descriptionSection));
-assert(!run.contextSnapshot.paperclipTaskMarkdownCompact.includes(descriptionSection));
-assert(!run.contextSnapshot.paperclipTaskMarkdownAssignmentCompact.includes(descriptionSection));
-assert.equal(run.contextSnapshot.paperclipTurnContext.assignment.description.revision,
+assert(run.contextSnapshot.outpostTaskMarkdown.includes(descriptionSection));
+assert(run.contextSnapshot.outpostTaskMarkdownAssignment.includes(descriptionSection));
+assert(!run.contextSnapshot.outpostTaskMarkdownCompact.includes(descriptionSection));
+assert(!run.contextSnapshot.outpostTaskMarkdownAssignmentCompact.includes(descriptionSection));
+assert.equal(run.contextSnapshot.outpostTurnContext.assignment.description.revision,
   createHash("sha256").update(issue.description.trim()).digest("hex"));
-const repositories = await readdir(path.join(process.cwd(), ".paperclip-repositories"));
-const repo = path.join(process.cwd(), ".paperclip-repositories", repositories.find((name) => !name.includes(".clone-")));
+const repositories = await readdir(path.join(process.cwd(), ".outpost-repositories"));
+const repo = path.join(process.cwd(), ".outpost-repositories", repositories.find((name) => !name.includes(".clone-")));
 assert.equal(await readFile(path.join(repo, "README.md"), "utf8"), "Existing uncommitted work\n");
 await assert.rejects(access(path.join(repo, "private.secret")));
 await writeFile(path.join(repo, "recovery-proof.txt"), "Workspace recovered; existing work preserved; private files excluded.\n", { flag: "wx" });

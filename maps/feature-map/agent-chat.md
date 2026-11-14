@@ -26,7 +26,7 @@ Task and routine results can arrive proactively in the agent's standing chat.
 Each message has a source-task link; the agent row and Chat navigation indicate
 unread messages, including first delivery before any human chat. Foreground
 messages at the bottom of the chat are marked read with a comment cutoff.
-The existing ordering and per-human/company isolation remain in effect.
+The existing ordering and per-human/space isolation remain in effect.
 
 Open `/chats`, choose an agent, or use `/chats/:agentRef` and its conversation sidebar.
 
@@ -40,7 +40,7 @@ Coordinator answer receipts from this conversation jump to the answer bubble wit
 
 Ask for project work in Agent Chat and follow its created project/task links. New tasks and accepted task suggestions default to the agent in that conversation. An explicitly requested agent or person takes precedence; no best-fit agent routing is inferred. Ordinary task creation outside chat keeps its existing assignment behavior.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Enable the applicable chat feature, use a configured test agent, and distinguish model replies from a mocked conversation fixture.
 
@@ -72,7 +72,7 @@ Send it once, reload, and confirm the file and message remain.
 Manual: Start a conversation, send a recognizable request, and inspect its reply.
 Navigate away and reopen the same history. Use `/new` for a fresh session within
 the same standing conversation. Test an unavailable historical agent and an
-inaccessible saved conversation; verify no cross-user or cross-company history appears.
+inaccessible saved conversation; verify no cross-user or cross-space history appears.
 
 ### `project-handoff`
 
@@ -89,7 +89,7 @@ Explicit live evals: [chat feature journeys](../../tests/runner-e2e/CHAT-FEATURE
 send natural requests to save a backlog task or delegate an announcement. They
 check project/assignee, execution or non-execution, saved output, return to chat,
 and click the actual same-instance task link after reload. Registration alone
-does not establish a pass. Production chat guidance uses company-prefixed relative
+does not establish a pass. Production chat guidance uses space-prefixed relative
 task links unless the platform supplied a verified absolute origin.
 
 Manual: Ask the configured agent to create bounded project work, inspect the proposed/created target, and open the resulting task. Verify the request context and intended project survived and the task produces a useful output.

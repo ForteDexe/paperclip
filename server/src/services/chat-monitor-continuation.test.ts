@@ -5,7 +5,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   agents, agentWakeupRequests, authUsers, chatConversations, chatEndpoints, chatMessageLinks,
-  chatPublications, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issueComments, issues, nativeRunFinalizations, nativeRunResults,
+  chatPublications, spaces, spaceMemberships, completionContracts, createDb, heartbeatRuns, issueComments, issues, nativeRunFinalizations, nativeRunResults,
   statusDecisions, statusDecisionEffects, toolApplications, toolConnections,
 } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
@@ -27,7 +27,7 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
   beforeAll(async () => {
     if (external) db = createDb(external);
     else {
-      temporary = await startEmbeddedPostgresTestDatabase("paperclip-monitor-publications-");
+      temporary = await startEmbeddedPostgresTestDatabase("outpost-monitor-publications-");
       db = createDb(temporary.connectionString);
     }
     await db.insert(authUsers).values({ id: "requester", name: "Requester", email: "requester@example.test", createdAt: new Date(), updatedAt: new Date() });
@@ -35,37 +35,37 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
   afterAll(async () => { await temporary?.cleanup(); });
 
   async function fixture() {
-    const [company] = await db.insert(companies).values({ name: "Continuation", issuePrefix: randomUUID().slice(0, 8) }).returning();
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: "requester", status: "active", membershipRole: "owner" });
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Worker", adapterType: "outpost_runner" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Repository QA", status: "in_progress", assigneeAgentId: agent.id, responsibleUserId: "requester" }).returning();
-    const [application] = await db.insert(toolApplications).values({ companyId: company.id, applicationKey: randomUUID(), name: "Slack", type: "chat" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId: company.id, applicationId: application.id, name: "Slack", uid: randomUUID(), connectionPurpose: "channel", transport: "chat_sdk" }).returning();
-    const [endpoint] = await db.insert(chatEndpoints).values({ companyId: company.id, connectionId: connection.id, provider: "slack", publicId: randomUUID(), assignedAgentId: agent.id, status: "active" }).returning();
-    const [conversation] = await db.insert(chatConversations).values({ companyId: company.id, endpointId: endpoint.id, issueId: issue.id, externalConversationId: "test-channel", externalThreadId: randomUUID(), externalLabel: "QA" }).returning();
-    const [comment] = await db.insert(issueComments).values({ companyId: company.id, issueId: issue.id, authorType: "user", authorUserId: "requester", body: "QA the runner migration" }).returning();
-    await db.insert(chatMessageLinks).values({ companyId: company.id, endpointId: endpoint.id, conversationId: conversation.id, commentId: comment.id, providerMessageId: randomUUID(), direction: "inbound" });
+    const [space] = await db.insert(spaces).values({ name: "Continuation", issuePrefix: randomUUID().slice(0, 8) }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: "requester", status: "active", membershipRole: "owner" });
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Worker", adapterType: "outpost_runner" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Repository QA", status: "in_progress", assigneeAgentId: agent.id, responsibleUserId: "requester" }).returning();
+    const [application] = await db.insert(toolApplications).values({ spaceId: space.id, applicationKey: randomUUID(), name: "Slack", type: "chat" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId: space.id, applicationId: application.id, name: "Slack", uid: randomUUID(), connectionPurpose: "channel", transport: "chat_sdk" }).returning();
+    const [endpoint] = await db.insert(chatEndpoints).values({ spaceId: space.id, connectionId: connection.id, provider: "slack", publicId: randomUUID(), assignedAgentId: agent.id, status: "active" }).returning();
+    const [conversation] = await db.insert(chatConversations).values({ spaceId: space.id, endpointId: endpoint.id, issueId: issue.id, externalConversationId: "test-channel", externalThreadId: randomUUID(), externalLabel: "QA" }).returning();
+    const [comment] = await db.insert(issueComments).values({ spaceId: space.id, issueId: issue.id, authorType: "user", authorUserId: "requester", body: "QA the runner migration" }).returning();
+    await db.insert(chatMessageLinks).values({ spaceId: space.id, endpointId: endpoint.id, conversationId: conversation.id, commentId: comment.id, providerMessageId: randomUUID(), direction: "inbound" });
     const nextCheckAt = new Date(Date.now() + 60_000).toISOString();
     const receipt = { operationId: "set_task_monitor", result: { taskId: issue.id, monitor: { status: "scheduled", nextCheckAt } } };
-    const [source] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, nativeIssueId: issue.id, runtimeMode: "native", status: "succeeded", responsibleUserId: "requester",
+    const [source] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, nativeIssueId: issue.id, runtimeMode: "native", status: "succeeded", responsibleUserId: "requester",
       contextSnapshot: { source: "chat:slack", issueId: issue.id, endpointId: endpoint.id, wakeCommentId: comment.id },
       resultJson: { semanticToolReceipts: { schedule: receipt } },
     }).returning();
-    const [successor] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, nativeIssueId: issue.id, runtimeMode: "native", status: "running", responsibleUserId: "requester",
+    const [successor] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, nativeIssueId: issue.id, runtimeMode: "native", status: "running", responsibleUserId: "requester",
       contextSnapshot: { source: "issue.monitor", issueId: issue.id, wakeReason: "issue_monitor_due", nextCheckAt },
     }).returning();
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: company.id, agentId: agent.id, source: "automation", reason: "issue_monitor_due", status: "claimed", runId: successor.id,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: space.id, agentId: agent.id, source: "automation", reason: "issue_monitor_due", status: "claimed", runId: successor.id,
       idempotencyKey: `issue-monitor:${issue.id}:${nextCheckAt}`, payload: { issueId: issue.id, nextCheckAt },
     }).returning();
-    const bindings = (runId = successor.id) => resolveChatOriginPublicationBindings(db, company.id, issue.id, runId);
-    return { company, agent, issue, endpoint, conversation, source, successor, wake, receipt, bindings };
+    const bindings = (runId = successor.id) => resolveChatOriginPublicationBindings(db, space.id, issue.id, runId);
+    return { space, agent, issue, endpoint, conversation, source, successor, wake, receipt, bindings };
   }
 
   it("retains the exact originating conversation through the admitted monitor receipt", async () => {
     const f = await fixture();
     expect(await f.bindings(f.source.id)).toHaveLength(1);
     expect(await f.bindings()).toEqual(await f.bindings(f.source.id));
-    expect(await resolveChatRunPresentationAuthorizationReason(db, { companyId: f.company.id, issueId: f.issue.id, runId: f.successor.id }))
+    expect(await resolveChatRunPresentationAuthorizationReason(db, { spaceId: f.space.id, issueId: f.issue.id, runId: f.successor.id }))
       .toBe(CHAT_RUN_PRESENTATION_AUTHORIZATION_REASON);
     expect(await enqueueChatRunMilestones(db)).toBe(1);
     expect(await enqueueChatRunMilestones(db)).toBe(0);
@@ -82,11 +82,11 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
       await db.update(heartbeatRuns).set({ status: "succeeded", resultJson: { semanticToolReceipts: {
         schedule: { operationId: "set_task_monitor", result: { taskId: f.issue.id, monitor: { status: "scheduled", nextCheckAt } } },
       } } }).where(eq(heartbeatRuns.id, previous.id));
-      const [next] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id,
+      const [next] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id,
         nativeIssueId: f.issue.id, runtimeMode: "native", status: "running", responsibleUserId: "requester",
         contextSnapshot: { source: "issue.monitor", issueId: f.issue.id, nextCheckAt },
       }).returning();
-      await db.insert(agentWakeupRequests).values({ companyId: f.company.id, agentId: f.agent.id,
+      await db.insert(agentWakeupRequests).values({ spaceId: f.space.id, agentId: f.agent.id,
         source: "automation", reason: "issue_monitor_due", status: "claimed", runId: next.id,
         idempotencyKey: `issue-monitor:${f.issue.id}:${nextCheckAt}`, payload: { issueId: f.issue.id, nextCheckAt },
       });
@@ -103,12 +103,12 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
     if (fault === "wake") await db.update(agentWakeupRequests).set({ runId: null }).where(eq(agentWakeupRequests.id, f.wake.id));
     if (fault === "requester") await db.update(heartbeatRuns).set({ responsibleUserId: "another-person" }).where(eq(heartbeatRuns.id, f.successor.id));
     if (fault === "agent") {
-      const [other] = await db.insert(agents).values({ companyId: f.company.id, name: "Other", adapterType: "outpost_runner" }).returning();
+      const [other] = await db.insert(agents).values({ spaceId: f.space.id, name: "Other", adapterType: "outpost_runner" }).returning();
       await db.update(heartbeatRuns).set({ agentId: other.id }).where(eq(heartbeatRuns.id, f.source.id));
     }
     if (fault === "schedule") await db.update(agentWakeupRequests).set({ idempotencyKey: randomUUID() }).where(eq(agentWakeupRequests.id, f.wake.id));
     if (fault === "task") {
-      const [other] = await db.insert(issues).values({ companyId: f.company.id, title: "Private task" }).returning();
+      const [other] = await db.insert(issues).values({ spaceId: f.space.id, title: "Private task" }).returning();
       await db.update(heartbeatRuns).set({ resultJson: { semanticToolReceipts: { schedule: {
         ...f.receipt, result: { ...f.receipt.result, taskId: other.id },
       } } } }).where(eq(heartbeatRuns.id, f.source.id));
@@ -119,14 +119,14 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
   it("rejects a cycle of otherwise matching monitor receipts", async () => {
     const f = await fixture();
     const createdAt = new Date(Date.now() - 1000);
-    await db.update(heartbeatRuns).set({ createdAt }).where(eq(heartbeatRuns.companyId, f.company.id));
+    await db.update(heartbeatRuns).set({ createdAt }).where(eq(heartbeatRuns.spaceId, f.space.id));
     const nextCheckAt = new Date(Date.now() + 120_000).toISOString();
     await db.update(heartbeatRuns).set({ contextSnapshot: { source: "issue.monitor", issueId: f.issue.id } })
       .where(eq(heartbeatRuns.id, f.source.id));
     await db.update(heartbeatRuns).set({ resultJson: { semanticToolReceipts: {
       schedule: { operationId: "set_task_monitor", result: { taskId: f.issue.id, monitor: { status: "scheduled", nextCheckAt } } },
     } } }).where(eq(heartbeatRuns.id, f.successor.id));
-    await db.insert(agentWakeupRequests).values({ companyId: f.company.id, agentId: f.agent.id,
+    await db.insert(agentWakeupRequests).values({ spaceId: f.space.id, agentId: f.agent.id,
       source: "automation", reason: "issue_monitor_due", status: "claimed", runId: f.source.id,
       idempotencyKey: `issue-monitor:${f.issue.id}:${nextCheckAt}`, payload: { issueId: f.issue.id, nextCheckAt },
     });
@@ -145,7 +145,7 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
 
   async function continuedTaskFixture() {
     const f = await fixture();
-    const [contract] = await db.insert(completionContracts).values({ companyId: f.company.id, issueId: f.issue.id,
+    const [contract] = await db.insert(completionContracts).values({ spaceId: f.space.id, issueId: f.issue.id,
       revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "test", objective: "Verify repository migration", criteria: [] }, canonicalSha256: "workspace-contract",
@@ -157,7 +157,7 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
     }).where(eq(heartbeatRuns.id, f.source.id));
     await db.update(issues).set({ executionRunId: f.source.id }).where(eq(issues.id, f.issue.id));
     await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.successor.id));
-    const port = new NativeRunCoordinatorStore(db, { companyId: f.company.id, issueId: f.issue.id,
+    const port = new NativeRunCoordinatorStore(db, { spaceId: f.space.id, issueId: f.issue.id,
       runId: f.source.id, agentId: f.agent.id, normalizedSessionId: sessionId, completionContractId: contract.id,
       completionContractSha256: contract.canonicalSha256, runnerSourceInstanceId: runnerId,
       completionContractRevision: "test", completionContractCriterionIds: [],
@@ -169,14 +169,14 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
       evidence: [], verification: [], attentionRequests: [], artifacts: [],
     }, terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: "yielded" }, turnId: "prepare-turn" });
     await finalizeNativeRun({ db, runId: f.source.id, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
-    const [wake] = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, f.company.id), eq(agentWakeupRequests.reason, "issue_status_changed")));
+    const [wake] = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, f.space.id), eq(agentWakeupRequests.reason, "issue_status_changed")));
     expect(wake).toBeDefined();
     const deps = createHeartbeatQueueTestDependencies(db);
     deps.getAgent.mockImplementation(async id => (await db.select().from(agents).where(eq(agents.id, id)))[0] ?? null);
     deps.instanceSettings.getExperimental.mockImplementation(() => instanceSettingsService(db).getExperimental());
     await db.update(agents).set({ runtimeConfig: { heartbeat: { wakeOnDemand: true } } }).where(eq(agents.id, f.agent.id));
     const queue = createHeartbeatQueue(db, deps);
-    expect(await queue.dispatchPendingNativeStatusWakeups({ companyId: f.company.id })).toMatchObject({ dispatched: 1 });
+    expect(await queue.dispatchPendingNativeStatusWakeups({ spaceId: f.space.id })).toMatchObject({ dispatched: 1 });
     await queue.startNextQueuedRunForAgent(f.agent.id);
     await Promise.all([...deps.activeRunExecutionPromises]);
     const [delivered] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wake.id));
@@ -185,7 +185,7 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
     const [successor] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, delivered.runId!));
     expect(successor.responsibleUserId).toBe("requester");
     return { ...f, successor, continuationWake: delivered, summary,
-      bindings: (runId = successor.id) => resolveChatOriginPublicationBindings(db, f.company.id, f.issue.id, runId) };
+      bindings: (runId = successor.id) => resolveChatOriginPublicationBindings(db, f.space.id, f.issue.id, runId) };
   }
 
   it("delivers the saved setup explanation and retains chat through the committed automatic continuation", async () => {
@@ -198,7 +198,7 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
     const publications = await db.select().from(chatPublications).where(eq(chatPublications.issueId, f.issue.id));
     expect(publications.some(p => p.payload.text === f.summary && p.conversationId === f.conversation.id)).toBe(true);
     expect(publications.some(p => p.payload.progressState === "working" && p.conversationId === f.conversation.id)).toBe(true);
-    expect(await repairCommittedNativeChatResponse(db, { companyId: f.company.id, issueId: f.issue.id, runId: f.source.id })).toBe(false);
+    expect(await repairCommittedNativeChatResponse(db, { spaceId: f.space.id, issueId: f.issue.id, runId: f.source.id })).toBe(false);
     expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, f.source.id))).toHaveLength(1);
   });
 
@@ -214,7 +214,7 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
   it("selects the continued chat run's completed answer over an earlier bookkeeping comment", async () => {
     const f = await continuedTaskFixture();
     const authorization = isChatOriginPublicationCandidate(f.successor.contextSnapshot)
-      ? await resolveChatRunPresentationAuthorizationReason(db, { companyId: f.company.id, issueId: f.issue.id, runId: f.successor.id }) : null;
+      ? await resolveChatRunPresentationAuthorizationReason(db, { spaceId: f.space.id, issueId: f.issue.id, runId: f.successor.id }) : null;
     const context = isExternalChatPresentationContext(f.successor.contextSnapshot, authorization === CHAT_RUN_PRESENTATION_AUTHORIZATION_REASON);
     const answer = "Migration QA is complete. The verified report is available at the attached result.";
     const resolved = resolveHeartbeatRunResponse({ resultJson: {},
@@ -228,14 +228,14 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
 
   it.each(["effect", "decision", "wake", "dispatch", "requester", "agent"])("rejects automatic continuation when %s authority is no longer valid", async fault => {
     const f = await continuedTaskFixture();
-    if (fault === "effect") await db.update(statusDecisionEffects).set({ targetId: randomUUID() }).where(eq(statusDecisionEffects.companyId, f.company.id));
-    if (fault === "decision") await db.update(statusDecisions).set({ applicationState: "proposed" }).where(eq(statusDecisions.companyId, f.company.id));
+    if (fault === "effect") await db.update(statusDecisionEffects).set({ targetId: randomUUID() }).where(eq(statusDecisionEffects.spaceId, f.space.id));
+    if (fault === "decision") await db.update(statusDecisions).set({ applicationState: "proposed" }).where(eq(statusDecisions.spaceId, f.space.id));
     if (fault === "wake") await db.update(agentWakeupRequests).set({ idempotencyKey: randomUUID() }).where(eq(agentWakeupRequests.id, f.continuationWake.id));
     if (fault === "dispatch") await db.update(agentWakeupRequests).set({ requestedByActorId: "unrelated-dispatch" }).where(and(
-      eq(agentWakeupRequests.companyId, f.company.id), eq(agentWakeupRequests.requestedByActorId, `native-status-wake-dispatch:${f.continuationWake.id}`)));
+      eq(agentWakeupRequests.spaceId, f.space.id), eq(agentWakeupRequests.requestedByActorId, `native-status-wake-dispatch:${f.continuationWake.id}`)));
     if (fault === "requester") await db.update(heartbeatRuns).set({ responsibleUserId: "another-person" }).where(eq(heartbeatRuns.id, f.successor.id));
     if (fault === "agent") {
-      const [other] = await db.insert(agents).values({ companyId: f.company.id, name: "Other", adapterType: "outpost_runner" }).returning();
+      const [other] = await db.insert(agents).values({ spaceId: f.space.id, name: "Other", adapterType: "outpost_runner" }).returning();
       await db.update(heartbeatRuns).set({ agentId: other.id }).where(eq(heartbeatRuns.id, f.source.id));
     }
     expect(await f.bindings()).toEqual([]);
@@ -246,10 +246,10 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
     const executionPayload = randomBytes(128 * 1024).toString("base64");
     await db.update(heartbeatRuns).set({
       contextSnapshot: { ...f.source.contextSnapshot, largePrompt: executionPayload,
-        paperclipWake: { prompt: executionPayload } },
+        outpostWake: { prompt: executionPayload } },
       runnerProfileJson: { instructions: executionPayload }, stdoutExcerpt: executionPayload,
     }).where(eq(heartbeatRuns.id, f.source.id));
-    const [contract] = await db.insert(completionContracts).values({ companyId: f.company.id, issueId: f.issue.id,
+    const [contract] = await db.insert(completionContracts).values({ spaceId: f.space.id, issueId: f.issue.id,
       revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "test", objective: "Verify repository migration", criteria: [] }, canonicalSha256: "monitor-contract",
@@ -263,7 +263,7 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
     await db.update(issues).set({ executionRunId: f.source.id, monitorNextCheckAt: new Date(f.receipt.result.monitor.nextCheckAt),
       monitorScheduledBy: "assignee", executionPolicy: { monitor: { nextCheckAt: f.receipt.result.monitor.nextCheckAt, notes: "Continue QA" } },
     }).where(eq(issues.id, f.issue.id));
-    const port = new NativeRunCoordinatorStore(db, { companyId: f.company.id, issueId: f.issue.id,
+    const port = new NativeRunCoordinatorStore(db, { spaceId: f.space.id, issueId: f.issue.id,
       runId: f.source.id, agentId: f.agent.id, normalizedSessionId: sessionId, completionContractId: contract.id,
       completionContractSha256: contract.canonicalSha256, runnerSourceInstanceId: runnerId,
       completionContractRevision: "test", completionContractCriterionIds: [],
@@ -275,7 +275,7 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
       evidence: [], verification: [], attentionRequests: [], artifacts: [],
     }, terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: "yielded" }, turnId: "work-turn" });
     await finalizeNativeRun({ db, runId: f.source.id, workspaceFinalizeStatus: "failed", projectRunStatus: true });
-    const repair = () => repairCommittedNativeChatResponse(db, { companyId: f.company.id, issueId: f.issue.id, runId: f.source.id });
+    const repair = () => repairCommittedNativeChatResponse(db, { spaceId: f.space.id, issueId: f.issue.id, runId: f.source.id });
     expect(await repair()).toBe(false);
     await finalizeNativeRun({ db, runId: f.source.id, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
     const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.source.id));
@@ -287,7 +287,7 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
     expect(settledRun.stdoutExcerpt).toBe(executionPayload);
     const priorComments = await db.select({ body: issueComments.body }).from(issueComments).where(eq(issueComments.createdByRunId, f.source.id));
     expect(priorComments).toEqual([{ body: summary }]);
-    expect(await nativeResponsePresentationWork(db).load({ companyId: f.company.id, runId: f.source.id })).toEqual([]);
+    expect(await nativeResponsePresentationWork(db).load({ spaceId: f.space.id, runId: f.source.id })).toEqual([]);
     if (missingPresentation) {
       await db.transaction(async tx => {
         await tx.delete(chatPublications).where(eq(chatPublications.issueId, f.issue.id));
@@ -296,17 +296,17 @@ if (!support.supported) console.warn(`Monitor publication database unavailable: 
           .where(eq(heartbeatRuns.id, f.source.id));
       });
       const work = nativeResponsePresentationWork(db);
-      const entries = await work.load({ companyId: f.company.id, runId: f.source.id });
+      const entries = await work.load({ spaceId: f.space.id, runId: f.source.id });
       expect(entries).toHaveLength(1);
       await expect(work.check(entries[0])).resolves.toBeNull();
-      expect(await work.load({ companyId: f.company.id, runId: f.source.id })).toEqual([]);
+      expect(await work.load({ spaceId: f.space.id, runId: f.source.id })).toEqual([]);
     }
     expect(await repair()).toBe(false);
     expect(await repair()).toBe(false);
     const comments = await db.select().from(issueComments).where(eq(issueComments.createdByRunId, f.source.id));
     expect(comments.map(comment => comment.body)).toEqual([summary]);
     expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, f.source.id))).toHaveLength(1);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.company.id))).toHaveLength(1);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.space.id))).toHaveLength(1);
     const publications = await db.select().from(chatPublications).where(eq(chatPublications.issueId, f.issue.id));
     expect(publications).toHaveLength(1);
     expect(publications[0]).toMatchObject({ conversationId: f.conversation.id, payload: { text: summary } });

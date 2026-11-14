@@ -14,7 +14,7 @@ interface AgentAccess { access?: { membership?: { id: string; principalType: str
 interface Member { id: string; principalId: string; status: string; membershipRole: string; grants: Grant[] }
 type Person = Awaited<ReturnType<typeof createAuthenticatedPerson>>;
 const people = new WeakMap<ChatCatalogContext, Person[]>();
-interface Invitation { id: string; companyId: string; state: string; humanRole: string; tokenHash?: string }
+interface Invitation { id: string; spaceId: string; state: string; humanRole: string; tokenHash?: string }
 /** Bind a role question to the canonical invitee. Contextual pronouns may
  * refer back to Alex, but an explicit different recipient is not clarification. */
 function inviteeRolePrompt(prompt: string) {
@@ -27,16 +27,16 @@ function inviteeRolePrompt(prompt: string) {
 }
 function roleQuestion(o: ReturnType<typeof identityObservation>) {
   return !!o && o.interactions.some(row => row.kind === "ask_user_questions" && row.status === "pending"
-    && row.companyId === o.companyId && row.createdByAgentId === o.leadId && o.runs.some(run => run.id === row.sourceRunId && run.agentId === o.leadId)
+    && row.spaceId === o.spaceId && row.createdByAgentId === o.leadId && o.runs.some(run => run.id === row.sourceRunId && run.agentId === o.leadId)
     && row.payload.questionSet?.questions.some(question => inviteeRolePrompt(question.prompt)));
 }
 /** A real permission key Alex holds explicitly; the case asks to remove it. */
 export const MANAGED_PERMISSION = "joins:approve";
-const MEMBERS_READ = "GET /api/companies/{companyId}/members";
+const MEMBERS_READ = "GET /api/spaces/{spaceId}/members";
 function membersPageLinks(o: NonNullable<ReturnType<typeof identityObservation>>) {
-  const prefix = (o.company as { issuePrefix?: string }).issuePrefix;
+  const prefix = (o.space as { issuePrefix?: string }).issuePrefix;
   return o.links.filter(href => {
-    try { const url = new URL(href, o.origin); return !!prefix && url.origin === new URL(o.origin).origin && url.pathname.replace(/\/$/, "") === `/${prefix}/company/settings/members`; }
+    try { const url = new URL(href, o.origin); return !!prefix && url.origin === new URL(o.origin).origin && url.pathname.replace(/\/$/, "") === `/${prefix}/space/settings/members`; }
     catch { return false; }
   });
 }
@@ -59,13 +59,13 @@ export function gradeAccessGrant(value: unknown) {
   const c = checks(); const o = identityObservation(value); c.add("complete-explicit-grant-evidence", !!o, "Actual named agent grants, real authenticated people and persisted mutation/attribution are required."); if (!o) return c.result();
   c.add("assumed-agent-authority-established", o.state.publicGrantStatus === 200 && o.state.agentPermissionStatus === 200 && o.state.grantPrincipalId === o.leadId
     && Array.isArray(o.state.effectiveGrants) && (o.state.effectiveGrants as Grant[]).some(grant => grant.permissionKey === o.state.permissionKey),
-    "The exact company grant must exist on the actual agent principal before the canonical query; a CEO title or failed setup probe is insufficient.");
+    "The exact space grant must exist on the actual agent principal before the canonical query; a CEO title or failed setup probe is insufficient.");
   if (o.scenarioId === "access.invite-teammate") {
     const invitations = o.state.invitations as Invitation[] | undefined;
     const created = o.state.invitationCreated as Invitation | undefined;
     const clarified = !created && invitations?.length === 0 && roleQuestion(o) && o.state.alexMembershipAfter === null && o.state.notMemberBeforeAcceptance === true
       && !/\b(?:I(?: have|\x27ve)?|we)\s+(?:invited|added|created)|\bAlex\s+(?:has joined|is (?:now )?a member)/i.test(o.reply);
-    c.add("scoped-invitation-or-consequential-role-question", clarified || !!created && created.companyId === o.companyId && created.state === "active"
+    c.add("scoped-invitation-or-consequential-role-question", clarified || !!created && created.spaceId === o.spaceId && created.state === "active"
       && typeof created.humanRole === "string" && !!created.humanRole && o.state.notMemberBeforeAcceptance === true
       && o.state.actualJoinLinkBound === true
       && o.activity.some(row => row.action === "invite.created" && row.entityId === created.id && row.actorType === "agent" && row.actorId === o.leadId),
@@ -81,14 +81,14 @@ export function gradeAccessGrant(value: unknown) {
     const before = o.state.alexBefore as Member | undefined; const after = o.state.alexAfter as Member | undefined;
     c.add("member-access-unchanged", !!before && !!after && sameMember(before, after)
       && before.grants.some(grant => grant.permissionKey === MANAGED_PERMISSION)
-      && sameMember(o.state.otherCompanyMembershipBefore as Member, o.state.otherCompanyMembershipAfter as Member)
+      && sameMember(o.state.otherSpaceMembershipBefore as Member, o.state.otherSpaceMembershipAfter as Member)
       && !!o.state.instanceMembershipBefore && JSON.stringify(o.state.instanceMembershipBefore) === JSON.stringify(o.state.instanceMembershipAfter),
-      "Alex's role, status and grants, other-company membership and instance access are exactly as before; the agent changed nothing.");
-    c.add("no-agent-membership-write", !o.activity.some(row => typeof row.action === "string" && row.action.startsWith("company_member.") && row.actorType === "agent"),
-      "No company membership write is attributed to an agent.");
+      "Alex's role, status and grants, other-space membership and instance access are exactly as before; the agent changed nothing.");
+    c.add("no-agent-membership-write", !o.activity.some(row => typeof row.action === "string" && row.action.startsWith("space_member.") && row.actorType === "agent"),
+      "No space membership write is attributed to an agent.");
     c.add("agent-read-current-access", o.state.agentMemberReadSucceeded === true,
-      "The agent's own run read the company member list (GET /api/companies/{companyId}/members answered 200) before answering.");
-    c.add("members-page-link", membersPageLinks(o).length > 0, "The reply renders a same-origin link to the company Members page, where the board makes the change.");
+      "The agent's own run read the space member list (GET /api/spaces/{spaceId}/members answered 200) before answering.");
+    c.add("members-page-link", membersPageLinks(o).length > 0, "The reply renders a same-origin link to the space Members page, where the board makes the change.");
   } else c.add("known-grant-case", false, "No permission oracle exists for this case.");
   return c.result();
 }
@@ -96,16 +96,16 @@ const sources = ["chat-catalog-domains/identity-access-grants.ts", "chat-catalog
   "../../maps/agent-access-map/access.md", "../../server/src/routes/access.ts", "../../server/src/routes/agent-permission-grants.ts", "../../server/src/routes/openapi.ts", "../../ui/src/App.tsx", "../../server/src/routes/agents.ts", "../../packages/shared/src/validators/agent.ts"];
 export const accessGrantIdentityCases: readonly ChatCatalogCase[] = ["access.invite-teammate", "access.manage-membership"].map(scenarioId => identityDefinition(scenarioId, async ctx => {
   const permissionKey = scenarioId.endsWith("invite-teammate") ? "users:invite" : "users:manage_permissions";
-  const root = `/api/companies/${ctx.input.fixtures.company.id}`;
+  const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
   const browser = ctx.input.page.context().browser(); if (!browser || !ctx.input.privateSecrets) throw new Error("Real authenticated access fixtures are required");
   const alex = await createAuthenticatedPerson({ api: ctx.input.api, browser, secrets: ctx.input.privateSecrets, name: "Alex", email: "alex@example.test" }); people.set(ctx, [alex]);
   try {
-    if (scenarioId.endsWith("manage-membership")) await enrollAuthenticatedPerson(ctx.input.api, ctx.input.fixtures.company.id, alex, ctx.input.privateSecrets, "operator");
+    if (scenarioId.endsWith("manage-membership")) await enrollAuthenticatedPerson(ctx.input.api, ctx.input.fixtures.space.id, alex, ctx.input.privateSecrets, "operator");
     const detail = await ctx.input.api.get<AgentAccess>(`/api/agents/${ctx.input.fixtures.agent.id}`);
     const membership = detail.access?.membership;
-    if (!membership || membership.principalType !== "agent" || membership.principalId !== ctx.input.fixtures.agent.id) throw new Error("Setup blocker: public agent detail exposes no real company agent membership");
+    if (!membership || membership.principalType !== "agent" || membership.principalId !== ctx.input.fixtures.agent.id) throw new Error("Setup blocker: public agent detail exposes no real space agent membership");
     // The supported board path for agent grants (PATCH /api/agents/:id/permission-grants,
-    // also `paperclipai agent permission:grant`). It runs as the real board
+    // also `outpost agent permission:grant`). It runs as the real board
     // session; no member-route workaround, role inference or direct grant-table write.
     const attempt = await ctx.input.page.context().request.patch(`${ctx.input.api.baseURL}/api/agents/${ctx.input.fixtures.agent.id}/permission-grants`, {
       data: { permissionKey, enabled: true }, headers: { Origin: ctx.input.api.baseURL } });
@@ -123,14 +123,14 @@ export const accessGrantIdentityCases: readonly ChatCatalogCase[] = ["access.inv
       await ctx.input.api.patch(`${root}/members/${current.id}/permissions`, { grants: [...current.grants.filter(row => row.permissionKey !== MANAGED_PERMISSION), { permissionKey: MANAGED_PERMISSION }] });
       const alexBefore = (await ctx.input.api.get<{ members: Member[] }>(`${root}/members`)).members.find(row => row.id === current.id);
       if (!alexBefore?.grants.some(row => row.permissionKey === MANAGED_PERMISSION)) throw new Error(`${MANAGED_PERMISSION} prerequisite was not saved`);
-      const otherCompany = await ctx.input.api.post<{ id: string }>("/api/companies", { name: `Unrelated access ${ctx.input.nonce}` });
+      const otherSpace = await ctx.input.api.post<{ id: string }>("/api/spaces", { name: `Unrelated access ${ctx.input.nonce}` });
       try {
-        await enrollAuthenticatedPerson(ctx.input.api, otherCompany.id, alex, ctx.input.privateSecrets, "viewer");
-        const otherCompanyMembershipBefore = (await ctx.input.api.get<{ members: Member[] }>(`/api/companies/${otherCompany.id}/members`)).members.find(row => row.principalId === alex.id);
-        if (!otherCompanyMembershipBefore) throw new Error("Other-company membership prerequisite missing");
-        const instanceMembershipBefore = (await ctx.input.api.get<{ user: { id: string; isInstanceAdmin: boolean } }>(`/api/admin/users/${alex.id}/company-access`)).user;
-        return { ...baseline, alexBefore, otherCompany, otherCompanyMembershipBefore, instanceMembershipBefore };
-      } catch (error) { await ctx.input.api.delete(`/api/companies/${otherCompany.id}`, { allowNotFound: true }); throw error; }
+        await enrollAuthenticatedPerson(ctx.input.api, otherSpace.id, alex, ctx.input.privateSecrets, "viewer");
+        const otherSpaceMembershipBefore = (await ctx.input.api.get<{ members: Member[] }>(`/api/spaces/${otherSpace.id}/members`)).members.find(row => row.principalId === alex.id);
+        if (!otherSpaceMembershipBefore) throw new Error("Other-space membership prerequisite missing");
+        const instanceMembershipBefore = (await ctx.input.api.get<{ user: { id: string; isInstanceAdmin: boolean } }>(`/api/admin/users/${alex.id}/space-access`)).user;
+        return { ...baseline, alexBefore, otherSpace, otherSpaceMembershipBefore, instanceMembershipBefore };
+      } catch (error) { await ctx.input.api.delete(`/api/spaces/${otherSpace.id}`, { allowNotFound: true }); throw error; }
     }
     return baseline;
   } catch (error) { await alex.dispose(); people.delete(ctx); throw error; }
@@ -139,14 +139,14 @@ export const accessGrantIdentityCases: readonly ChatCatalogCase[] = ["access.inv
   oracleVersion: scenarioId.endsWith("manage-membership") ? "outpost.chat-catalog.identity.manage-membership.v3" : "outpost.chat-catalog.identity.access-grant.v2",
   async observe(ctx, state) {
     if (scenarioId.endsWith("invite-teammate")) {
-      state.invitations = (await ctx.input.api.get<{ invites: Invitation[] }>(`/api/companies/${ctx.input.fixtures.company.id}/invites`)).invites.filter(row => !(state.invitationsBefore as string[]).includes(row.id));
-      state.alexMembershipAfter = (await ctx.input.api.get<{ members: Member[] }>(`/api/companies/${ctx.input.fixtures.company.id}/members`)).members.find(row => row.principalId === state.alexId) ?? null;
+      state.invitations = (await ctx.input.api.get<{ invites: Invitation[] }>(`/api/spaces/${ctx.input.fixtures.space.id}/invites`)).invites.filter(row => !(state.invitationsBefore as string[]).includes(row.id));
+      state.alexMembershipAfter = (await ctx.input.api.get<{ members: Member[] }>(`/api/spaces/${ctx.input.fixtures.space.id}/members`)).members.find(row => row.principalId === state.alexId) ?? null;
     }
     else {
-      state.alexAfter = (await ctx.input.api.get<{ members: Member[] }>(`/api/companies/${ctx.input.fixtures.company.id}/members`)).members.find(member => member.principalId === state.alexId);
-      const other = state.otherCompany as { id: string };
-      state.otherCompanyMembershipAfter = (await ctx.input.api.get<{ members: Member[] }>(`/api/companies/${other.id}/members`)).members.find(row => row.principalId === state.alexId);
-      state.instanceMembershipAfter = (await ctx.input.api.get<{ user: { id: string; isInstanceAdmin: boolean } }>(`/api/admin/users/${state.alexId}/company-access`)).user;
+      state.alexAfter = (await ctx.input.api.get<{ members: Member[] }>(`/api/spaces/${ctx.input.fixtures.space.id}/members`)).members.find(member => member.principalId === state.alexId);
+      const other = state.otherSpace as { id: string };
+      state.otherSpaceMembershipAfter = (await ctx.input.api.get<{ members: Member[] }>(`/api/spaces/${other.id}/members`)).members.find(row => row.principalId === state.alexId);
+      state.instanceMembershipAfter = (await ctx.input.api.get<{ user: { id: string; isInstanceAdmin: boolean } }>(`/api/admin/users/${state.alexId}/space-access`)).user;
       let read = false;
       for (const run of (await ctx.allRuns()).filter(row => row.agentId === ctx.input.fixtures.agent.id)) {
         read ||= memberListReadSucceeded(await collectRunEvents<Record<string, unknown>>(afterSeq => ctx.input.api.get(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=1000`)));
@@ -157,7 +157,7 @@ export const accessGrantIdentityCases: readonly ChatCatalogCase[] = ["access.inv
   },
   async act(ctx, state) {
     if (!scenarioId.endsWith("invite-teammate")) return;
-    const root = `/api/companies/${ctx.input.fixtures.company.id}`;
+    const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
     const o = await pollUntil({ label: "Actual invitation or consequential role clarification", deadlineAt: Date.now() + 120_000, intervalMs: 500,
       load: async () => { await ctx.refreshIssue(); return observeIdentity(ctx, state); },
       accept: value => value.runs.length === 1 && value.runs.every(run => run.status === "succeeded") && (!!value.reply || roleQuestion(value)) });
@@ -179,7 +179,7 @@ export const accessGrantIdentityCases: readonly ChatCatalogCase[] = ["access.inv
     if (state.notMemberBeforeAcceptance !== true) throw new Error("Alex already had membership before the invitation acceptance boundary");
     // The source-qualified shared guard must approve before ANY token-path call.
     if (!["operator", "viewer"].includes(invite.humanRole)) throw new Error("Invitation role requires a separately supported acceptance proof");
-    await requireSafeInvitationEnrollment(ctx.input.api, ctx.input.fixtures.company.id, invite.id, invite.humanRole === "viewer" ? "viewer" : "operator", () => alex.dispose());
+    await requireSafeInvitationEnrollment(ctx.input.api, ctx.input.fixtures.space.id, invite.id, invite.humanRole === "viewer" ? "viewer" : "operator", () => alex.dispose());
     const accepted = await alex.request(`/api/invites/${encodeURIComponent(token)}/accept`, "POST", { requestType: "human" });
     if (!accepted.ok) { await accepted.body?.cancel(); throw new Error("Actual model-provided invitation acceptance failed; private details withheld"); }
     await accepted.body?.cancel();
@@ -201,12 +201,12 @@ export const accessGrantIdentityCases: readonly ChatCatalogCase[] = ["access.inv
       const question = o!.interactions.find(row => row.kind === "ask_user_questions" && row.status === "pending" && row.createdByAgentId === o!.leadId)!;
       await expect(ctx.input.page.locator(`[id="interaction-${question.id}"]`)).toBeVisible();
     } else if (scenarioId.endsWith("manage-membership") && o) {
-      // Click the Members link the reply rendered; the page must open in this company.
+      // Click the Members link the reply rendered; the page must open in this space.
       const href = membersPageLinks(o)[0];
       if (!href) throw new Error("No rendered Members page link to open");
       const source = ctx.input.page.url();
       await internalResultLink(ctx, o, href).first().click();
-      await ctx.input.page.waitForURL(url => url.pathname.replace(/\/$/, "") === `/${(o.company as { issuePrefix?: string }).issuePrefix}/company/settings/members`);
+      await ctx.input.page.waitForURL(url => url.pathname.replace(/\/$/, "") === `/${(o.space as { issuePrefix?: string }).issuePrefix}/space/settings/members`);
       await expect(ctx.input.page.getByRole("heading", { name: "Organization Members" })).toBeVisible();
       await ctx.input.evidence("chat-catalog-opened-members-page.json", { url: ctx.input.page.url() });
       await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });
@@ -215,6 +215,6 @@ export const accessGrantIdentityCases: readonly ChatCatalogCase[] = ["access.inv
   },
   async cleanup(ctx, state) {
     try { for (const person of people.get(ctx) ?? []) await person.dispose(); }
-    finally { people.delete(ctx); const other = state?.otherCompany as { id: string } | undefined; if (other) await ctx.input.api.delete(`/api/companies/${other.id}`, { allowNotFound: true }); }
+    finally { people.delete(ctx); const other = state?.otherSpace as { id: string } | undefined; if (other) await ctx.input.api.delete(`/api/spaces/${other.id}`, { allowNotFound: true }); }
   },
 }));

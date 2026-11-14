@@ -59,13 +59,13 @@ import { fileURLToPath } from "node:url";
 
 import type {
   AskUserQuestionsInteraction,
-  PaperclipPluginManifestV1,
+  OutpostPluginManifestV1,
   RequestCheckboxConfirmationInteraction,
   RequestConfirmationInteraction,
   SuggestTasksInteraction,
 } from "@outpost/shared";
 
-import type { PaperclipPlugin } from "./define-plugin.js";
+import type { OutpostPlugin } from "./define-plugin.js";
 import type {
   PluginApiRequestInput,
   PluginHealthDiagnostics,
@@ -169,7 +169,7 @@ export interface WorkerRpcHostOptions {
    *
    * The worker entrypoint should import its plugin and pass it here.
    */
-  plugin: PaperclipPlugin;
+  plugin: OutpostPlugin;
 
   /**
    * Input stream to read JSON-RPC messages from.
@@ -298,7 +298,7 @@ export interface RunWorkerOptions {
  * ```
  */
 export function runWorker(
-  plugin: PaperclipPlugin,
+  plugin: OutpostPlugin,
   moduleUrl: string,
   options?: RunWorkerOptions,
 ): WorkerRpcHost | void {
@@ -353,12 +353,12 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
   let initialized = false;
   const idleDrain = createPluginIdleDrain();
   const unsettledHostCalls = new Map<string | number, () => void>();
-  let manifest: PaperclipPluginManifestV1 | null = null;
+  let manifest: OutpostPluginManifestV1 | null = null;
   let currentConfig: Record<string, unknown> = {};
-  // The company whose config was last applied via configChanged. Used to fail
+  // The space whose config was last applied via configChanged. Used to fail
   // closed when a single-tenant plugin would be collapsed onto a second,
-  // distinct company's config. `null` until the first company-scoped delivery.
-  let configCompanyId: string | null = null;
+  // distinct space's config. `null` until the first space-scoped delivery.
+  let configSpaceId: string | null = null;
   let databaseNamespace: string | null = null;
   const invocationContextStorage = new AsyncLocalStorage<PluginInvocationContext>();
   const canRecordSpans = () => Boolean(invocationContextStorage.getStore()?.traceparent)
@@ -472,7 +472,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
         const activeInvocation = invocationContextStorage.getStore();
         const request = {
           ...createRequest(method, params, id),
-          ...(activeInvocation ? { paperclipInvocationId: activeInvocation.id } : {}),
+          ...(activeInvocation ? { outpostInvocationId: activeInvocation.id } : {}),
         };
         sendMessage(request);
       } catch (err) {
@@ -491,7 +491,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       const activeInvocation = invocationContextStorage.getStore();
       sendMessage({
         ...createNotification(method, params),
-        ...(activeInvocation ? { paperclipInvocationId: activeInvocation.id } : {}),
+        ...(activeInvocation ? { outpostInvocationId: activeInvocation.id } : {}),
       });
     } catch {
       // Swallow — the host may have closed stdin
@@ -510,8 +510,8 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       },
 
       config: {
-        async get(companyId?: string) {
-          return callHost("config.get", companyId ? { companyId } : {});
+        async get(spaceId?: string) {
+          return callHost("config.get", spaceId ? { spaceId } : {});
         },
       },
 
@@ -523,7 +523,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
 
         async configure(input) {
           return callHost("localFolders.configure", {
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             folderKey: input.folderKey,
             path: input.path,
             access: input.access,
@@ -532,13 +532,13 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           });
         },
 
-        async status(companyId: string, folderKey: string) {
-          return callHost("localFolders.status", { companyId, folderKey });
+        async status(spaceId: string, folderKey: string) {
+          return callHost("localFolders.status", { spaceId, folderKey });
         },
 
-        async list(companyId: string, folderKey: string, options = {}) {
+        async list(spaceId: string, folderKey: string, options = {}) {
           return callHost("localFolders.list", {
-            companyId,
+            spaceId,
             folderKey,
             relativePath: options.relativePath,
             recursive: options.recursive,
@@ -546,30 +546,30 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           });
         },
 
-        async readText(companyId: string, folderKey: string, relativePath: string) {
-          return callHost("localFolders.readText", { companyId, folderKey, relativePath });
+        async readText(spaceId: string, folderKey: string, relativePath: string) {
+          return callHost("localFolders.readText", { spaceId, folderKey, relativePath });
         },
 
-        async writeTextAtomic(companyId: string, folderKey: string, relativePath: string, contents: string) {
+        async writeTextAtomic(spaceId: string, folderKey: string, relativePath: string, contents: string) {
           return callHost("localFolders.writeTextAtomic", {
-            companyId,
+            spaceId,
             folderKey,
             relativePath,
             contents,
           });
         },
 
-        async deleteFile(companyId: string, folderKey: string, relativePath: string) {
-          return callHost("localFolders.deleteFile", { companyId, folderKey, relativePath });
+        async deleteFile(spaceId: string, folderKey: string, relativePath: string) {
+          return callHost("localFolders.deleteFile", { spaceId, folderKey, relativePath });
         },
       },
 
       events: {
-        async listLifecycle(companyId: string, limit?: number, afterId?: string) {
-          return callHost("events.listLifecycle", { companyId, limit, afterId });
+        async listLifecycle(spaceId: string, limit?: number, afterId?: string) {
+          return callHost("events.listLifecycle", { spaceId, limit, afterId });
         },
-        async acknowledgeLifecycle(companyId: string, eventId: string) {
-          await callHost("events.acknowledgeLifecycle", { companyId, eventId });
+        async acknowledgeLifecycle(spaceId: string, eventId: string) {
+          await callHost("events.acknowledgeLifecycle", { spaceId, eventId });
         },
         on(
           name: string,
@@ -597,8 +597,8 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           };
         },
 
-        async emit(name: string, companyId: string, payload: unknown): Promise<void> {
-          await callHost("events.emit", { name, companyId, payload });
+        async emit(name: string, spaceId: string, payload: unknown): Promise<void> {
+          await callHost("events.emit", { name, spaceId, payload });
         },
       },
 
@@ -670,7 +670,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
         async resolve(secretRef, options = {}): Promise<string> {
           return callHost("secrets.resolve", {
             secretRef,
-            companyId: options.companyId,
+            spaceId: options.spaceId,
             configPath: options.configPath,
           });
         },
@@ -679,7 +679,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       activity: {
         async log(entry): Promise<void> {
           await callHost("activity.log", {
-            companyId: entry.companyId,
+            spaceId: entry.spaceId,
             message: entry.message,
             entityType: entry.entityType,
             entityId: entry.entityId,
@@ -744,126 +744,126 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       },
 
       projects: {
-        async resolveGitCredential(projectId, workspaceId, companyId) {
-          return callHost("projects.resolveGitCredential", { projectId, workspaceId, companyId });
+        async resolveGitCredential(projectId, workspaceId, spaceId) {
+          return callHost("projects.resolveGitCredential", { projectId, workspaceId, spaceId });
         },
         async list(input) {
           return callHost("projects.list", {
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             limit: input.limit,
             offset: input.offset,
           });
         },
 
-        async get(projectId: string, companyId: string) {
-          return callHost("projects.get", { projectId, companyId });
+        async get(projectId: string, spaceId: string) {
+          return callHost("projects.get", { projectId, spaceId });
         },
-        async getInstanceSecrets(projectId, companyId) {
-          return callHost("projects.getInstanceSecrets", { projectId, companyId });
+        async getInstanceSecrets(projectId, spaceId) {
+          return callHost("projects.getInstanceSecrets", { projectId, spaceId });
         },
-        async readSnapshots(projectIds, companyId, entityType) {
+        async readSnapshots(projectIds, spaceId, entityType) {
           try {
-            return await callHost("projects.readSnapshots", { projectIds, companyId, entityType });
+            return await callHost("projects.readSnapshots", { projectIds, spaceId, entityType });
           } catch (error) {
             if (error instanceof JsonRpcCallError && error.code === JSONRPC_ERROR_CODES.METHOD_NOT_FOUND) return null;
             throw error;
           }
         },
 
-        async listWorkspaces(projectId: string, companyId: string) {
-          return callHost("projects.listWorkspaces", { projectId, companyId });
+        async listWorkspaces(projectId: string, spaceId: string) {
+          return callHost("projects.listWorkspaces", { projectId, spaceId });
         },
 
-        async getPrimaryWorkspace(projectId: string, companyId: string) {
-          return callHost("projects.getPrimaryWorkspace", { projectId, companyId });
+        async getPrimaryWorkspace(projectId: string, spaceId: string) {
+          return callHost("projects.getPrimaryWorkspace", { projectId, spaceId });
         },
 
-        async getWorkspaceForIssue(issueId: string, companyId: string) {
-          return callHost("projects.getWorkspaceForIssue", { issueId, companyId });
+        async getWorkspaceForIssue(issueId: string, spaceId: string) {
+          return callHost("projects.getWorkspaceForIssue", { issueId, spaceId });
         },
 
         managed: {
-          async get(projectKey: string, companyId: string) {
-            return callHost("projects.managed.get", { projectKey, companyId });
+          async get(projectKey: string, spaceId: string) {
+            return callHost("projects.managed.get", { projectKey, spaceId });
           },
-          async reconcile(projectKey: string, companyId: string) {
-            return callHost("projects.managed.reconcile", { projectKey, companyId });
+          async reconcile(projectKey: string, spaceId: string) {
+            return callHost("projects.managed.reconcile", { projectKey, spaceId });
           },
-          async reset(projectKey: string, companyId: string) {
-            return callHost("projects.managed.reset", { projectKey, companyId });
+          async reset(projectKey: string, spaceId: string) {
+            return callHost("projects.managed.reset", { projectKey, spaceId });
           },
         },
       },
 
       executionWorkspaces: {
-        async get(workspaceId: string, companyId: string) {
-          return callHost("executionWorkspaces.get", { workspaceId, companyId });
+        async get(workspaceId: string, spaceId: string) {
+          return callHost("executionWorkspaces.get", { workspaceId, spaceId });
         },
       },
 
       routines: {
         managed: {
-          async get(routineKey: string, companyId: string) {
-            return callHost("routines.managed.get", { routineKey, companyId });
+          async get(routineKey: string, spaceId: string) {
+            return callHost("routines.managed.get", { routineKey, spaceId });
           },
           async reconcile(
             routineKey: string,
-            companyId: string,
+            spaceId: string,
             overrides?: { assigneeAgentId?: string | null; projectId?: string | null },
           ) {
-            return callHost("routines.managed.reconcile", { routineKey, companyId, ...overrides });
+            return callHost("routines.managed.reconcile", { routineKey, spaceId, ...overrides });
           },
           async reset(
             routineKey: string,
-            companyId: string,
+            spaceId: string,
             overrides?: { assigneeAgentId?: string | null; projectId?: string | null },
           ) {
-            return callHost("routines.managed.reset", { routineKey, companyId, ...overrides });
+            return callHost("routines.managed.reset", { routineKey, spaceId, ...overrides });
           },
-          async update(routineKey: string, companyId: string, patch: { status?: string }) {
-            return callHost("routines.managed.update", { routineKey, companyId, ...patch });
+          async update(routineKey: string, spaceId: string, patch: { status?: string }) {
+            return callHost("routines.managed.update", { routineKey, spaceId, ...patch });
           },
           async run(
             routineKey: string,
-            companyId: string,
+            spaceId: string,
             overrides?: { assigneeAgentId?: string | null; projectId?: string | null },
           ) {
-            return callHost("routines.managed.run", { routineKey, companyId, ...overrides });
+            return callHost("routines.managed.run", { routineKey, spaceId, ...overrides });
           },
         },
       },
 
       skills: {
         managed: {
-          async get(skillKey: string, companyId: string) {
-            return callHost("skills.managed.get", { skillKey, companyId });
+          async get(skillKey: string, spaceId: string) {
+            return callHost("skills.managed.get", { skillKey, spaceId });
           },
-          async reconcile(skillKey: string, companyId: string) {
-            return callHost("skills.managed.reconcile", { skillKey, companyId });
+          async reconcile(skillKey: string, spaceId: string) {
+            return callHost("skills.managed.reconcile", { skillKey, spaceId });
           },
-          async reset(skillKey: string, companyId: string) {
-            return callHost("skills.managed.reset", { skillKey, companyId });
+          async reset(skillKey: string, spaceId: string) {
+            return callHost("skills.managed.reset", { skillKey, spaceId });
           },
         },
       },
 
-      companies: {
+      spaces: {
         async list(input) {
-          return callHost("companies.list", {
+          return callHost("spaces.list", {
             limit: input?.limit,
             offset: input?.offset,
           });
         },
 
-        async get(companyId: string) {
-          return callHost("companies.get", { companyId });
+        async get(spaceId: string) {
+          return callHost("spaces.get", { spaceId });
         },
       },
 
       issues: {
         async list(input) {
           return callHost("issues.list", {
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             projectId: input.projectId,
             assigneeAgentId: input.assigneeAgentId,
             originKind: input.originKind,
@@ -876,13 +876,13 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           });
         },
 
-        async get(issueId: string, companyId: string) {
-          return callHost("issues.get", { issueId, companyId });
+        async get(issueId: string, spaceId: string) {
+          return callHost("issues.get", { issueId, spaceId });
         },
 
         async create(input) {
           return callHost("issues.create", {
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             projectId: input.projectId,
             goalId: input.goalId,
             parentId: input.parentId,
@@ -911,7 +911,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           });
         },
 
-        async update(issueId: string, patch, companyId: string, actor) {
+        async update(issueId: string, patch, spaceId: string, actor) {
           return callHost("issues.update", {
             issueId,
             patch: {
@@ -920,7 +920,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
               actorUserId: actor?.actorUserId,
               actorRunId: actor?.actorRunId,
             },
-            companyId,
+            spaceId,
           });
         },
 
@@ -928,10 +928,10 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           return callHost("issues.assertCheckoutOwner", input);
         },
 
-        async getSubtree(issueId: string, companyId: string, options) {
+        async getSubtree(issueId: string, spaceId: string, options) {
           return callHost("issues.getSubtree", {
             issueId,
-            companyId,
+            spaceId,
             includeRoot: options?.includeRoot,
             includeRelations: options?.includeRelations,
             includeDocuments: options?.includeDocuments,
@@ -940,10 +940,10 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           });
         },
 
-        async requestWakeup(issueId: string, companyId: string, options) {
+        async requestWakeup(issueId: string, spaceId: string, options) {
           return callHost("issues.requestWakeup", {
             issueId,
-            companyId,
+            spaceId,
             reason: options?.reason,
             contextSource: options?.contextSource,
             idempotencyKey: options?.idempotencyKey,
@@ -953,10 +953,10 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           });
         },
 
-        async requestWakeups(issueIds: string[], companyId: string, options) {
+        async requestWakeups(issueIds: string[], spaceId: string, options) {
           return callHost("issues.requestWakeups", {
             issueIds,
-            companyId,
+            spaceId,
             reason: options?.reason,
             contextSource: options?.contextSource,
             idempotencyKeyPrefix: options?.idempotencyKeyPrefix,
@@ -966,29 +966,29 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           });
         },
 
-        async listComments(issueId: string, companyId: string) {
-          return callHost("issues.listComments", { issueId, companyId });
+        async listComments(issueId: string, spaceId: string) {
+          return callHost("issues.listComments", { issueId, spaceId });
         },
 
         async createComment(
           issueId: string,
           body: string,
-          companyId: string,
+          spaceId: string,
           options?: { authorAgentId?: string; actorUserId?: string },
         ) {
           return callHost("issues.createComment", {
             issueId,
             body,
-            companyId,
+            spaceId,
             authorAgentId: options?.authorAgentId,
             actorUserId: options?.actorUserId,
           });
         },
 
-        async createInteraction(issueId: string, interaction, companyId: string, options?: { authorAgentId?: string }) {
+        async createInteraction(issueId: string, interaction, spaceId: string, options?: { authorAgentId?: string }) {
           return callHost("issues.createInteraction", {
             issueId,
-            companyId,
+            spaceId,
             interaction,
             authorAgentId: options?.authorAgentId,
           });
@@ -997,12 +997,12 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
         async suggestTasks(
           issueId: string,
           interaction,
-          companyId: string,
+          spaceId: string,
           options?: { authorAgentId?: string },
         ): Promise<SuggestTasksInteraction> {
           return callHost("issues.createInteraction", {
             issueId,
-            companyId,
+            spaceId,
             interaction: {
               ...interaction,
               kind: "suggest_tasks",
@@ -1014,12 +1014,12 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
         async askUserQuestions(
           issueId: string,
           interaction,
-          companyId: string,
+          spaceId: string,
           options?: { authorAgentId?: string },
         ): Promise<AskUserQuestionsInteraction> {
           return callHost("issues.createInteraction", {
             issueId,
-            companyId,
+            spaceId,
             interaction: {
               ...interaction,
               kind: "ask_user_questions",
@@ -1031,12 +1031,12 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
         async requestConfirmation(
           issueId: string,
           interaction,
-          companyId: string,
+          spaceId: string,
           options?: { authorAgentId?: string },
         ): Promise<RequestConfirmationInteraction> {
           return callHost("issues.createInteraction", {
             issueId,
-            companyId,
+            spaceId,
             interaction: {
               ...interaction,
               kind: "request_confirmation",
@@ -1048,12 +1048,12 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
         async requestCheckboxConfirmation(
           issueId: string,
           interaction,
-          companyId: string,
+          spaceId: string,
           options?: { authorAgentId?: string },
         ): Promise<RequestCheckboxConfirmationInteraction> {
           return callHost("issues.createInteraction", {
             issueId,
-            companyId,
+            spaceId,
             interaction: {
               ...interaction,
               kind: "request_checkbox_confirmation",
@@ -1062,49 +1062,49 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           }) as Promise<RequestCheckboxConfirmationInteraction>;
         },
 
-        async listInteractions(issueId: string, companyId: string) {
-          return callHost("issues.listInteractions", { issueId, companyId });
+        async listInteractions(issueId: string, spaceId: string) {
+          return callHost("issues.listInteractions", { issueId, spaceId });
         },
 
         async respondInteraction(
           issueId: string,
           interactionId: string,
           input: { action: "accept" | "reject"; actorUserId?: string; reason?: string | null },
-          companyId: string,
+          spaceId: string,
         ) {
           return callHost("issues.respondInteraction", {
             issueId,
             interactionId,
-            companyId,
+            spaceId,
             action: input.action,
             actorUserId: input.actorUserId,
             reason: input.reason,
           });
         },
 
-        async listAttachments(issueId: string, companyId: string) {
-          return callHost("issues.listAttachments", { issueId, companyId });
+        async listAttachments(issueId: string, spaceId: string) {
+          return callHost("issues.listAttachments", { issueId, spaceId });
         },
 
         async getAttachmentContent(
           attachmentId: string,
-          companyId: string,
+          spaceId: string,
           options?: { maxBytes?: number | null },
         ) {
           return callHost("issues.getAttachmentContent", {
             attachmentId,
-            companyId,
+            spaceId,
             maxBytes: options?.maxBytes ?? null,
           });
         },
 
         documents: {
-          async list(issueId: string, companyId: string) {
-            return callHost("issues.documents.list", { issueId, companyId });
+          async list(issueId: string, spaceId: string) {
+            return callHost("issues.documents.list", { issueId, spaceId });
           },
 
-          async get(issueId: string, key: string, companyId: string) {
-            return callHost("issues.documents.get", { issueId, key, companyId });
+          async get(issueId: string, key: string, spaceId: string) {
+            return callHost("issues.documents.get", { issueId, key, spaceId });
           },
 
           async upsert(input) {
@@ -1112,27 +1112,27 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
               issueId: input.issueId,
               key: input.key,
               body: input.body,
-              companyId: input.companyId,
+              spaceId: input.spaceId,
               title: input.title,
               format: input.format,
               changeSummary: input.changeSummary,
             });
           },
 
-          async delete(issueId: string, key: string, companyId: string) {
-            return callHost("issues.documents.delete", { issueId, key, companyId });
+          async delete(issueId: string, key: string, spaceId: string) {
+            return callHost("issues.documents.delete", { issueId, key, spaceId });
           },
         },
 
         relations: {
-          async get(issueId: string, companyId: string) {
-            return callHost("issues.relations.get", { issueId, companyId });
+          async get(issueId: string, spaceId: string) {
+            return callHost("issues.relations.get", { issueId, spaceId });
           },
 
-          async setBlockedBy(issueId: string, blockedByIssueIds: string[], companyId: string, actor) {
+          async setBlockedBy(issueId: string, blockedByIssueIds: string[], spaceId: string, actor) {
             return callHost("issues.relations.setBlockedBy", {
               issueId,
-              companyId,
+              spaceId,
               blockedByIssueIds,
               actorAgentId: actor?.actorAgentId,
               actorUserId: actor?.actorUserId,
@@ -1140,10 +1140,10 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
             });
           },
 
-          async addBlockers(issueId: string, blockerIssueIds: string[], companyId: string, actor) {
+          async addBlockers(issueId: string, blockerIssueIds: string[], spaceId: string, actor) {
             return callHost("issues.relations.addBlockers", {
               issueId,
-              companyId,
+              spaceId,
               blockerIssueIds,
               actorAgentId: actor?.actorAgentId,
               actorUserId: actor?.actorUserId,
@@ -1151,10 +1151,10 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
             });
           },
 
-          async removeBlockers(issueId: string, blockerIssueIds: string[], companyId: string, actor) {
+          async removeBlockers(issueId: string, blockerIssueIds: string[], spaceId: string, actor) {
             return callHost("issues.relations.removeBlockers", {
               issueId,
-              companyId,
+              spaceId,
               blockerIssueIds,
               actorAgentId: actor?.actorAgentId,
               actorUserId: actor?.actorUserId,
@@ -1171,25 +1171,25 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       },
 
       approvals: {
-        async list(input: { companyId: string; status?: string | null }) {
+        async list(input: { spaceId: string; status?: string | null }) {
           return callHost("approvals.list", {
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             status: input.status,
           });
         },
 
-        async get(approvalId: string, companyId: string) {
-          return callHost("approvals.get", { approvalId, companyId });
+        async get(approvalId: string, spaceId: string) {
+          return callHost("approvals.get", { approvalId, spaceId });
         },
 
         async decide(
           approvalId: string,
           input: { action: "approve" | "reject"; actorUserId?: string; decisionNote?: string | null },
-          companyId: string,
+          spaceId: string,
         ) {
           return callHost("approvals.decide", {
             approvalId,
-            companyId,
+            spaceId,
             action: input.action,
             actorUserId: input.actorUserId,
             decisionNote: input.decisionNote,
@@ -1198,66 +1198,66 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       },
 
       agents: {
-        async getRuntimeIdentity(agentId, companyId) {
-          return callHost("agents.getRuntimeIdentity", { agentId, companyId });
+        async getRuntimeIdentity(agentId, spaceId) {
+          return callHost("agents.getRuntimeIdentity", { agentId, spaceId });
         },
-        async getRuntime(agentId, companyId, environmentId, installEnvironmentSkills) {
-          return callHost("agents.getRuntime", { agentId, companyId, ...(environmentId ? { environmentId } : {}), ...(installEnvironmentSkills ? { installEnvironmentSkills: true } : {}) });
+        async getRuntime(agentId, spaceId, environmentId, installEnvironmentSkills) {
+          return callHost("agents.getRuntime", { agentId, spaceId, ...(environmentId ? { environmentId } : {}), ...(installEnvironmentSkills ? { installEnvironmentSkills: true } : {}) });
         },
         async list(input) {
           return callHost("agents.list", {
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             status: input.status,
             limit: input.limit,
             offset: input.offset,
           });
         },
 
-        async get(agentId: string, companyId: string) {
-          return callHost("agents.get", { agentId, companyId });
+        async get(agentId: string, spaceId: string) {
+          return callHost("agents.get", { agentId, spaceId });
         },
 
-        async pause(agentId: string, companyId: string) {
-          return callHost("agents.pause", { agentId, companyId });
+        async pause(agentId: string, spaceId: string) {
+          return callHost("agents.pause", { agentId, spaceId });
         },
 
-        async resume(agentId: string, companyId: string) {
-          return callHost("agents.resume", { agentId, companyId });
+        async resume(agentId: string, spaceId: string) {
+          return callHost("agents.resume", { agentId, spaceId });
         },
 
-        async invoke(agentId: string, companyId: string, opts: { prompt: string; reason?: string }) {
-          return callHost("agents.invoke", { agentId, companyId, prompt: opts.prompt, reason: opts.reason });
+        async invoke(agentId: string, spaceId: string, opts: { prompt: string; reason?: string }) {
+          return callHost("agents.invoke", { agentId, spaceId, prompt: opts.prompt, reason: opts.reason });
         },
 
         managed: {
-          async get(agentKey: string, companyId: string) {
-            return callHost("agents.managed.get", { agentKey, companyId });
+          async get(agentKey: string, spaceId: string) {
+            return callHost("agents.managed.get", { agentKey, spaceId });
           },
 
-          async reconcile(agentKey: string, companyId: string) {
-            return callHost("agents.managed.reconcile", { agentKey, companyId });
+          async reconcile(agentKey: string, spaceId: string) {
+            return callHost("agents.managed.reconcile", { agentKey, spaceId });
           },
 
-          async reset(agentKey: string, companyId: string) {
-            return callHost("agents.managed.reset", { agentKey, companyId });
+          async reset(agentKey: string, spaceId: string) {
+            return callHost("agents.managed.reset", { agentKey, spaceId });
           },
         },
 
         sessions: {
-          async create(agentId: string, companyId: string, opts?: { taskKey?: string; reason?: string }) {
+          async create(agentId: string, spaceId: string, opts?: { taskKey?: string; reason?: string }) {
             return callHost("agents.sessions.create", {
               agentId,
-              companyId,
+              spaceId,
               taskKey: opts?.taskKey,
               reason: opts?.reason,
             });
           },
 
-          async list(agentId: string, companyId: string) {
-            return callHost("agents.sessions.list", { agentId, companyId });
+          async list(agentId: string, spaceId: string) {
+            return callHost("agents.sessions.list", { agentId, spaceId });
           },
 
-          async sendMessage(sessionId: string, companyId: string, opts: {
+          async sendMessage(sessionId: string, spaceId: string, opts: {
             prompt: string;
             reason?: string;
             onEvent?: (event: AgentSessionEvent) => void;
@@ -1268,7 +1268,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
             try {
               return await callHost("agents.sessions.sendMessage", {
                 sessionId,
-                companyId,
+                spaceId,
                 prompt: opts.prompt,
                 reason: opts.reason,
               });
@@ -1278,9 +1278,9 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
             }
           },
 
-          async close(sessionId: string, companyId: string) {
+          async close(sessionId: string, spaceId: string) {
             sessionEventCallbacks.delete(sessionId);
-            await callHost("agents.sessions.close", { sessionId, companyId });
+            await callHost("agents.sessions.close", { sessionId, spaceId });
           },
         },
       },
@@ -1288,7 +1288,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       goals: {
         async list(input) {
           return callHost("goals.list", {
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             level: input.level,
             status: input.status,
             limit: input.limit,
@@ -1296,13 +1296,13 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           });
         },
 
-        async get(goalId: string, companyId: string) {
-          return callHost("goals.get", { goalId, companyId });
+        async get(goalId: string, spaceId: string) {
+          return callHost("goals.get", { goalId, spaceId });
         },
 
         async create(input) {
           return callHost("goals.create", {
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             title: input.title,
             description: input.description,
             level: input.level,
@@ -1312,11 +1312,11 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           });
         },
 
-        async update(goalId: string, patch, companyId: string) {
+        async update(goalId: string, patch, spaceId: string) {
           return callHost("goals.update", {
             goalId,
             patch: patch as Record<string, unknown>,
-            companyId,
+            spaceId,
           });
         },
       },
@@ -1325,24 +1325,24 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
         members: {
           async list(input) {
             return callHost("access.members.list", {
-              companyId: input.companyId,
+              spaceId: input.spaceId,
               includeArchived: input.includeArchived,
             });
           },
 
-          async get(memberId: string, companyId: string) {
-            return callHost("access.members.get", { memberId, companyId });
+          async get(memberId: string, spaceId: string) {
+            return callHost("access.members.get", { memberId, spaceId });
           },
 
-          async update(memberId: string, patch, companyId: string) {
-            return callHost("access.members.update", { memberId, patch, companyId });
+          async update(memberId: string, patch, spaceId: string) {
+            return callHost("access.members.update", { memberId, patch, spaceId });
           },
         },
 
         invites: {
           async list(input) {
             return callHost("access.invites.list", {
-              companyId: input.companyId,
+              spaceId: input.spaceId,
               state: input.state,
               limit: input.limit,
               offset: input.offset,
@@ -1351,7 +1351,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
 
           async create(input) {
             return callHost("access.invites.create", {
-              companyId: input.companyId,
+              spaceId: input.spaceId,
               allowedJoinTypes: input.allowedJoinTypes,
               humanRole: input.humanRole,
               defaultsPayload: input.defaultsPayload,
@@ -1359,8 +1359,8 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
             });
           },
 
-          async revoke(inviteId: string, companyId: string) {
-            return callHost("access.invites.revoke", { inviteId, companyId });
+          async revoke(inviteId: string, spaceId: string) {
+            return callHost("access.invites.revoke", { inviteId, spaceId });
           },
         },
       },
@@ -1376,8 +1376,8 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
         },
 
         policies: {
-          async summary(companyId: string) {
-            return callHost("authorization.policies.summary", { companyId });
+          async summary(spaceId: string) {
+            return callHost("authorization.policies.summary", { spaceId });
           },
           async get(input) {
             return callHost("authorization.policies.get", input);
@@ -1416,21 +1416,21 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       },
 
       streams: (() => {
-        // Track channel → companyId so emit/close don't require companyId
-        const channelCompanyMap = new Map<string, string>();
+        // Track channel → spaceId so emit/close don't require spaceId
+        const channelSpaceMap = new Map<string, string>();
         return {
-          open(channel: string, companyId: string): void {
-            channelCompanyMap.set(channel, companyId);
-            notifyHost("streams.open", { channel, companyId });
+          open(channel: string, spaceId: string): void {
+            channelSpaceMap.set(channel, spaceId);
+            notifyHost("streams.open", { channel, spaceId });
           },
           emit(channel: string, event: unknown): void {
-            const companyId = channelCompanyMap.get(channel) ?? "";
-            notifyHost("streams.emit", { channel, companyId, event });
+            const spaceId = channelSpaceMap.get(channel) ?? "";
+            notifyHost("streams.emit", { channel, spaceId, event });
           },
           close(channel: string): void {
-            const companyId = channelCompanyMap.get(channel) ?? "";
-            channelCompanyMap.delete(channel);
-            notifyHost("streams.close", { channel, companyId });
+            const spaceId = channelSpaceMap.get(channel) ?? "";
+            channelSpaceMap.delete(channel);
+            notifyHost("streams.close", { channel, spaceId });
           },
         };
       })(),
@@ -1440,8 +1440,8 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           // Emit one incremental output chunk of the active execute call.
           // `notifyHost` stamps the active invocation id from the invocation
           // context, so the host correlates the chunk to the host-owned execute
-          // route for that call. The notification carries no company id; the
-          // host binds the company from its own execute route. A chunk sent with
+          // route for that call. The notification carries no space id; the
+          // host binds the space from its own execute route. A chunk sent with
           // no active invocation carries no id and the host drops it.
           if (typeof chunk !== "string" || chunk.length === 0) return;
           notifyHost("execute.log", { stream, chunk });
@@ -1642,8 +1642,8 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
         done = idleDrain.begin();
       }
       const invoke = () => withSpan("plugin.worker", () => dispatchMethod(method, params));
-      const result = request.paperclipInvocation
-        ? await invocationContextStorage.run(request.paperclipInvocation, invoke)
+      const result = request.outpostInvocation
+        ? await invocationContextStorage.run(request.outpostInvocation, invoke)
         : await invoke();
       sendMessage(createSuccessResponse(id, result ?? null));
     } catch (err) {
@@ -1959,51 +1959,51 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
   }
 
   async function handleConfigChanged(params: ConfigChangedParams): Promise<void> {
-    const incomingCompanyId = params.companyId ?? null;
+    const incomingSpaceId = params.spaceId ?? null;
 
     // Fail-closed cross-tenant guard.
     //
-    // A worker is spawned once per plugin (not per company), so a proactive
+    // A worker is spawned once per plugin (not per space), so a proactive
     // plugin that keeps a single worker-global config would silently collapse
-    // onto whichever company's config was delivered last if configChanged is
-    // called for more than one distinct company — for example the startup
-    // config replay fanning out every stored company's config, or two operators
-    // saving configs for different companies. That is a cross-tenant identity /
-    // secret confusion bug (one company's bot token applied to another's work).
+    // onto whichever space's config was delivered last if configChanged is
+    // called for more than one distinct space — for example the startup
+    // config replay fanning out every stored space's config, or two operators
+    // saving configs for different spaces. That is a cross-tenant identity /
+    // secret confusion bug (one space's bot token applied to another's work).
     //
-    // Reject the second, distinct company unless the plugin explicitly declares
-    // it handles multiple companies in one worker (multiCompanyConfig). An
-    // idempotent replay of the *same* config for a different company id is
+    // Reject the second, distinct space unless the plugin explicitly declares
+    // it handles multiple spaces in one worker (multiSpaceConfig). An
+    // idempotent replay of the *same* config for a different space id is
     // harmless (single-tenant plugins commonly have duplicate scope rows that
     // all embed the same config), so it is allowed.
     if (
-      !plugin.definition.multiCompanyConfig &&
-      incomingCompanyId !== null &&
-      configCompanyId !== null &&
-      configCompanyId !== incomingCompanyId &&
+      !plugin.definition.multiSpaceConfig &&
+      incomingSpaceId !== null &&
+      configSpaceId !== null &&
+      configSpaceId !== incomingSpaceId &&
       !configsEqual(params.config, currentConfig)
     ) {
       throw Object.assign(
         new Error(
-          `configChanged: refusing to overwrite configuration for company ` +
-            `"${configCompanyId}" with a different configuration for company ` +
-            `"${incomingCompanyId}". This plugin is single-tenant and cannot ` +
-            `safely serve multiple companies from one worker. If multi-company ` +
-            `support is intended, set multiCompanyConfig: true on the plugin ` +
-            `definition and key per-company state on context.companyId.`,
+          `configChanged: refusing to overwrite configuration for space ` +
+            `"${configSpaceId}" with a different configuration for space ` +
+            `"${incomingSpaceId}". This plugin is single-tenant and cannot ` +
+            `safely serve multiple spaces from one worker. If multi-space ` +
+            `support is intended, set multiSpaceConfig: true on the plugin ` +
+            `definition and key per-space state on context.spaceId.`,
         ),
         { code: PLUGIN_RPC_ERROR_CODES.CROSS_TENANT_CONFIG },
       );
     }
 
     currentConfig = params.config;
-    if (incomingCompanyId !== null) {
-      configCompanyId = incomingCompanyId;
+    if (incomingSpaceId !== null) {
+      configSpaceId = incomingSpaceId;
     }
 
     if (plugin.definition.onConfigChanged) {
       await plugin.definition.onConfigChanged(params.config, {
-        companyId: incomingCompanyId,
+        spaceId: incomingSpaceId,
       });
     }
   }
@@ -2077,7 +2077,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
     }
     return handler({
       ...params.params,
-      ...(params.companyId === undefined ? {} : { companyId: params.companyId }),
+      ...(params.spaceId === undefined ? {} : { spaceId: params.spaceId }),
       ...(params.renderEnvironment === undefined ? {} : { renderEnvironment: params.renderEnvironment }),
     });
   }
@@ -2099,11 +2099,11 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       userId: stringOrNull(rawActor?.userId),
       agentId: stringOrNull(rawActor?.agentId),
       runId: stringOrNull(rawActor?.runId),
-      companyId: stringOrNull(rawActor?.companyId),
+      spaceId: stringOrNull(rawActor?.spaceId),
     });
     return Object.freeze({
       actor,
-      companyId: actor.companyId,
+      spaceId: actor.spaceId,
     });
   }
 
@@ -2115,7 +2115,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
     return handler(
       {
         ...params.params,
-        ...(params.companyId === undefined ? {} : { companyId: params.companyId }),
+        ...(params.spaceId === undefined ? {} : { spaceId: params.spaceId }),
         ...(params.renderEnvironment === undefined ? {} : { renderEnvironment: params.renderEnvironment }),
       },
       actionContextFromParams(params),
@@ -2342,9 +2342,9 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
   function allowsEvent(filter: EventFilter, event: PluginEvent): boolean {
     const payload = event.payload as Record<string, unknown> | undefined;
 
-    if (filter.companyId !== undefined) {
-      const companyId = event.companyId ?? String(payload?.companyId ?? "");
-      if (companyId !== filter.companyId) return false;
+    if (filter.spaceId !== undefined) {
+      const spaceId = event.spaceId ?? String(payload?.spaceId ?? "");
+      if (spaceId !== filter.spaceId) return false;
     }
 
     if (filter.projectId !== undefined) {
@@ -2434,7 +2434,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
       const runNotification = async (fn: () => void | Promise<void>) => {
         const done = idleDrain.begin();
         try {
-          await (notif.paperclipInvocation ? invocationContextStorage.run(notif.paperclipInvocation, fn) : fn());
+          await (notif.outpostInvocation ? invocationContextStorage.run(notif.outpostInvocation, fn) : fn());
         } finally { done(); }
       };
       if (notif.method === "releaseIdleSleep" && notif.params) {

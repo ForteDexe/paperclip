@@ -1,7 +1,7 @@
 import type { Page, Response, Request } from "@playwright/test";
 import { JourneyError } from "./types.js";
 
-export const onboardingServerCodes = ["agent_runner_config_incompatible", "agent_runner_unavailable", "agent_runner_platform_probe_failed", "managed_sandbox_unavailable", "environment_company_mismatch"] as const;
+export const onboardingServerCodes = ["agent_runner_config_incompatible", "agent_runner_unavailable", "agent_runner_platform_probe_failed", "managed_sandbox_unavailable", "environment_space_mismatch"] as const;
 export const onboardingCheckCodes = ["adapter_auth_missing", "codex_hello_probe_failed", "codex_hello_probe_passed", "codex_hello_probe_timeout", "codex_hello_probe_auth_required", "environment_lease_acquire_failed", "environment_workspace_realize_failed", "environment_target_failed", "environment_target_unsupported", "environment_not_found", "environment_target_unavailable", "managed_sandbox_unavailable", "environment_env_binding_missing", "environment_env_resolution_failed", "ai_connection_api_key_rejected", "ai_connection_verification_failed", "sandbox_test_identity"] as const;
 const checkpoints = ["connect", "validation", "hire", "review", "agent-verification"] as const;
 const states = ["missing", "pending", "json", "unreadable", "oversized"] as const;
@@ -39,7 +39,7 @@ export function validateOnboardingConnectEvidence(value: unknown): void {
 }
 
 /** Observe only responses to this Connect action; never retain bodies, text, headers or browser errors. */
-export async function onboardingConnect(input: { page: Page; origin: string; companyId: string; deadlineAt: number; retain(value: OnboardingConnectEvidence): void }): Promise<OnboardingConnectEvidence> {
+export async function onboardingConnect(input: { page: Page; origin: string; spaceId: string; deadlineAt: number; retain(value: OnboardingConnectEvidence): void }): Promise<OnboardingConnectEvidence> {
   const { page } = input, receipt: OnboardingConnectEvidence = { version: 1, checkpoint: "connect", validation: blank(), hire: blank() };
   input.retain(receipt);
   let active = true, failure: JourneyError | undefined;
@@ -56,7 +56,7 @@ export async function onboardingConnect(input: { page: Page; origin: string; com
     try {
       const url = new URL(request.url());
       if (request.method() !== "POST" || url.origin !== input.origin || url.search || url.hash) return null;
-      const prefix = `/api/companies/${encodeURIComponent(input.companyId)}`;
+      const prefix = `/api/spaces/${encodeURIComponent(input.spaceId)}`;
       if (url.pathname === `${prefix}/agent-hires`) return { kind: "hire", adapter: null };
       for (const adapter of ["codex_local", "outpost_runner"] as const) if (url.pathname === `${prefix}/adapters/${adapter}/test-environment`) return { kind: "validation", adapter };
     } catch { /* An unrelated or malformed URL is not this action's evidence. */ }

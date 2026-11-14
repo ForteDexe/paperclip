@@ -71,10 +71,10 @@ import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useLocation, useNavigate, useParams } from "@/lib/router";
 import { useDialog } from "../context/DialogContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { ApiError } from "../api/client";
-import { companiesApi } from "../api/companies";
-import { useCompanyListQuery } from "../api/companies-query";
+import { spacesApi } from "../api/spaces";
+import { useSpaceListQuery } from "../api/spaces-query";
 import { goalsApi } from "../api/goals";
 import { agentsApi } from "../api/agents";
 import { approvalsApi } from "../api/approvals";
@@ -112,7 +112,7 @@ import { onboardingDraftStorage, restoreOnboardingState } from "../lib/onboardin
 import {
   buildOnboardingIssuePayload,
   buildOnboardingProjectPayload,
-  selectDefaultCompanyGoalId,
+  selectDefaultSpaceGoalId,
   selectReusableOnboardingProject,
 } from "../lib/onboarding-launch";
 import { buildNewAgentRuntimeConfig } from "../lib/new-agent-runtime-config";
@@ -124,7 +124,7 @@ import { DEFAULT_OPENCODE_LOCAL_MODEL, isValidOpenCodeModelId } from "@outpost/a
 import {
   canGoBackFromOnboardingStep,
   canJumpToOnboardingStep,
-  companyPrefixFromOnboardingPath,
+  spacePrefixFromOnboardingPath,
   resolveRouteOnboardingOptions,
 } from "../lib/onboarding-route";
 import { useCloudInstance } from "../hooks/useCloudInstance";
@@ -171,11 +171,11 @@ function restoreOnboardingAdapterType(savedAdapterType: unknown, provider?: unkn
 }
 
 /**
- * True when an adapter-test result blocks a hire. A `fail` status always
+ * True when an adapter-test result blocks a create. A `fail` status always
  * blocks. A `warn` or a `pass` status blocks too when a check reports
  * `ADAPTER_AUTH_MISSING_CHECK_CODE`. That check means the agent has no
  * working authentication, so it cannot run. A `warn` with no such check
- * still lets the hire proceed. The wizard widened the gate for missing
+ * still lets the create proceed. The wizard widened the gate for missing
  * authentication only, not for every other warning.
  */
 function blocksAgentCreate(result: AdapterEnvironmentTestResult): boolean {
@@ -195,7 +195,7 @@ const ANTHROPIC_API_KEY_ENV_KEY = "ANTHROPIC_API_KEY";
  * The server rejects that key together with the fixed Claude login binding
  * (see `assertClaudeOAuthBindingInvariant` in `server/src/services/secrets.ts`).
  * This checks the built configuration first, so onboarding never sends a
- * hire the server would reject.
+ * create the server would reject.
  */
 function adapterConfigHasAnthropicApiKey(config: Record<string, unknown>): boolean {
   if (!isEnvRecord(config.env)) return false;
@@ -290,12 +290,12 @@ const INCOMPLETE_ONBOARDING_STATE_MESSAGE =
  * ~20 `useState(saved?.x ?? default)` initializers only read `saved` on their
  * very first render, so it must never mount before the restored draft is
  * final, otherwise every field locks to its default and the draft is lost
- * for good. restoreOnboardingState requires the SETTLED companies list (see
- * its JSDoc), so when a saved blob exists we wait for `companiesLoading` to
+ * for good. restoreOnboardingState requires the SETTLED spaces list (see
+ * its JSDoc), so when a saved blob exists we wait for `spacesLoading` to
  * clear before computing `saved` and mounting the inner component at all.
  */
 export function OnboardingWizard() {
-  // Deliberately does not call `useCompany()`. The list it exposes is the
+  // Deliberately does not call `useSpace()`. The list it exposes is the
   // shared cache, which is what this gate must not trust - see below.
 
   // Parsed once (not re-parsed by the cleanup effect below) so the restored
@@ -310,7 +310,7 @@ export function OnboardingWizard() {
     }
   }, []);
   // The ownership gate is closed after the initial validation succeeds, or
-  // when no validation is needed. A later company-list invalidation is
+  // when no validation is needed. A later space-list invalidation is
   // ordinary background work. If it unmounted the inner wizard then, all of
   // its live useState values would be reconstructed from `rawBlob` above —
   // the value from page load, not the draft the customer just typed — and a
@@ -323,21 +323,21 @@ export function OnboardingWizard() {
     rawBlob === undefined || rawBlob === null,
   );
 
-  // Whether this account owns the company the draft names is an authorization
+  // Whether this account owns the space the draft names is an authorization
   // question, and the answer has to be about the account asking now.
   //
-  // The shared company cache could not answer it at all: one entry for every
+  // The shared space cache could not answer it at all: one entry for every
   // account, served for thirty seconds after a switch with no loading state and
   // no error, so a check that trusted "not loading, no error" handed one
   // account's draft to the next. The entry is keyed by account now, and that
   // trap is gone with it.
   //
   // What survives is smaller and still worth a request. A cached list is the
-  // right account's but can be thirty seconds old, so a company created moments
+  // right account's but can be thirty seconds old, so a space created moments
   // ago in another tab is missing from it — and missing reads as "you do not own
   // this", which deletes the draft rather than withholding it. So this still
   // asks for a list fetched for this mount.
-  const companiesQuery = useCompanyListQuery({
+  const spacesQuery = useSpaceListQuery({
     staleTime: 0,
     // Only a *parseable* saved draft poses the question. Without one there is
     // nothing to authorize, and this must not add a request to every wizard
@@ -360,32 +360,32 @@ export function OnboardingWizard() {
   // refetch, and a retained list is not evidence about now.
   //
   // `staleTime: 0` on the query, still: a cached list is the right account's but
-  // can be thirty seconds old, and a company created moments ago in another tab
-  // would be missing from it — which reads as "this draft belongs to a company
+  // can be thirty seconds old, and a space created moments ago in another tab
+  // would be missing from it — which reads as "this draft belongs to a space
   // you do not own" and deletes it.
   //
   // `unauthorized`: the query folds 401 and 403 into
-  // `{ companies: [], unauthorized: true }` rather than throwing, so an auth
+  // `{ spaces: [], unauthorized: true }` rather than throwing, so an auth
   // blip arrives as a *successful* fetch of an empty list and would otherwise
   // read as "this account owns nothing" and delete the draft.
   const ownershipDecidable =
-    companiesQuery.isSuccess &&
-    companiesQuery.data !== undefined &&
-    !companiesQuery.data.unauthorized;
+    spacesQuery.isSuccess &&
+    spacesQuery.data !== undefined &&
+    !spacesQuery.data.unauthorized;
 
   const { saved, staleStateDetected } = useMemo(() => {
     if (rawBlob === undefined) return { saved: null, staleStateDetected: false };
     // Unreadable, so junk regardless of who owns what. Judged before the
     // ownership check rather than after it, so clearing it does not wait on a
-    // company request that cannot change the answer.
+    // space request that cannot change the answer.
     if (rawBlob === null) return { saved: null, staleStateDetected: true };
     // Not decidable yet, or not decidable at all. Either way: restore nothing,
     // delete nothing. A draft withheld is recoverable on the next load; a
     // draft deleted, or one handed to the wrong account, is not.
     if (!ownershipDecidable) return { saved: null, staleStateDetected: false };
-    const restored = restoreOnboardingState(rawBlob, companiesQuery.data!.companies);
+    const restored = restoreOnboardingState(rawBlob, spacesQuery.data!.spaces);
     return { saved: restored, staleStateDetected: restored === null };
-  }, [rawBlob, ownershipDecidable, companiesQuery.data]);
+  }, [rawBlob, ownershipDecidable, spacesQuery.data]);
 
   // A discarded/malformed state should not sit in storage waiting to confuse
   // the next onboarding attempt (e.g. a different signed-in user).
@@ -406,8 +406,8 @@ export function OnboardingWizard() {
   // persist effect would overwrite the customer's own draft with defaults
   // before the answer arrived. `isFetching` covers the refetch too.
   //
-  // While in flight, not on failure. The companies query sets `retry: false`,
-  // so a failed fetch stays failed; and with no companies the dashboard offers
+  // While in flight, not on failure. The spaces query sets `retry: false`,
+  // so a failed fetch stays failed; and with no spaces the dashboard offers
   // a "Get Started" button wired to onboarding, which a gate that returned null
   // here would make do nothing at all.
   //
@@ -416,17 +416,17 @@ export function OnboardingWizard() {
   // wizard writes nothing. If the wizard is open the customer is onboarding
   // right now, which supersedes the draft anyway.
   const waitForInitialDraftValidation =
-    !initialDraftValidationComplete && rawBlob !== undefined && companiesQuery.isFetching;
+    !initialDraftValidationComplete && rawBlob !== undefined && spacesQuery.isFetching;
 
   useEffect(() => {
     if (
       !initialDraftValidationComplete &&
       ownershipDecidable &&
-      !companiesQuery.isFetching
+      !spacesQuery.isFetching
     ) {
       setInitialDraftValidationComplete(true);
     }
-  }, [initialDraftValidationComplete, ownershipDecidable, companiesQuery.isFetching]);
+  }, [initialDraftValidationComplete, ownershipDecidable, spacesQuery.isFetching]);
 
   if (waitForInitialDraftValidation) {
     return null;
@@ -447,43 +447,43 @@ function OnboardingWizardInner({
     onboardingRouteDismissed: routeDismissed,
     setOnboardingRouteDismissed: setRouteDismissed,
   } = useDialog();
-  const { companies, setSelectedCompanyId, loading: companiesLoading } = useCompany();
+  const { spaces, setSelectedSpaceId, loading: spacesLoading } = useSpace();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
-  const { companyPrefix: matchedCompanyPrefix } = useParams<{ companyPrefix?: string }>();
+  const { spacePrefix: matchedSpacePrefix } = useParams<{ spacePrefix?: string }>();
   // This component renders beside `<Routes>`, not inside it (`App.tsx`), so it
   // has no route match and `useParams()` gives nothing. Read the prefix from
   // the pathname, which `useLocation()` supplies without a match. The param is
   // kept first so a future move inside the route tree needs no change here.
-  const companyPrefix =
-    matchedCompanyPrefix ?? companyPrefixFromOnboardingPath(location.pathname);
+  const spacePrefix =
+    matchedSpacePrefix ?? spacePrefixFromOnboardingPath(location.pathname);
   // Managed stacks create organizations on Cloud, so the route below never
   // resolves into the create wizard there — see resolveRouteOnboardingOptions.
   const cloudInstance = useCloudInstance();
 
   // Support opening the wizard from a route (e.g. /onboarding or an existing
-  // company's "add agent" entry point) in addition to the dialog context.
-  // The company the path names, resolved before the mission lookup below so it
+  // space's "add agent" entry point) in addition to the dialog context.
+  // The space the path names, resolved before the mission lookup below so it
   // has something to ask about. Same match the resolver makes.
-  const routeMatchedCompanyId =
-    companyPrefix && !companiesLoading
-      ? companies.find(
-          (company) => company.issuePrefix.toUpperCase() === companyPrefix.toUpperCase(),
+  const routeMatchedSpaceId =
+    spacePrefix && !spacesLoading
+      ? spaces.find(
+          (space) => space.issuePrefix.toUpperCase() === spacePrefix.toUpperCase(),
         )?.id ?? null
       : null;
   // The mission lookup used to gate this: the step was applied once and not
   // revised, so opening before the answer arrived left the customer on the
   // wrong step. The step no longer depends on the answer, so the wait bought
-  // nothing but a slower open. Companies still gate it — the resolver needs
+  // nothing but a slower open. Spaces still gate it — the resolver needs
   // them to match the prefix at all.
   const routeOnboardingOptions =
-    companyPrefix && companiesLoading
+    spacePrefix && spacesLoading
       ? null
       : resolveRouteOnboardingOptions({
           pathname: location.pathname,
-          companyPrefix,
-          companies,
+          spacePrefix,
+          spaces,
           cloudManaged: Boolean(cloudInstance),
         });
   const effectiveOnboardingOpen =
@@ -502,14 +502,14 @@ function OnboardingWizardInner({
   // front door and its own step 0 are gone: there is one path now, so the
   // wizard drops the customer straight onto the first real question.
   const initialStep = effectiveOnboardingOptions.initialStep ?? 1;
-  const existingCompanyId = effectiveOnboardingOptions.companyId;
+  const existingSpaceId = effectiveOnboardingOptions.spaceId;
 
   const [step, setStep] = useState<Step>((saved?.step as Step) ?? initialStep);
   // The step this run *entered* on, which bounds how far back it can walk.
   // Captured once, when the wizard opens, for the same reason the step itself
   // is: it derives from queries, so a live read would move the floor under a
   // customer mid-flow — and here that would quietly re-open the "create a
-  // company" step to a run that already holds one.
+  // space" step to a run that already holds one.
   const [entryStep, setEntryStep] = useState<number>((saved?.step as Step) ?? initialStep);
   /**
    * A page that opens straight onto the agent step — a cloud-managed
@@ -537,7 +537,7 @@ function OnboardingWizardInner({
   const [modelSearch, setModelSearch] = useState("");
 
   // Step 1
-  const [companyName, setCompanyName] = useState((saved?.companyName as string) ?? "");
+  const [spaceName, setSpaceName] = useState((saved?.spaceName as string) ?? "");
 
   // Step 2
   // The name is not defaulted: a pre-filled "Chief of staff" is a choice made
@@ -547,14 +547,14 @@ function OnboardingWizardInner({
   const [agentAppearance, setAgentAppearance] = useState(() => agentAppearanceSchema.safeParse(saved?.agentAppearance).data ?? randomAgentAppearance());
   // Defaults to `general` rather than empty. The arc stopped asking for a role
   // — a customer naming their first agent is describing what it does, not
-  // filing it — but the hire still needs one, and the guard below returns
+  // filing it — but the create still needs one, and the guard below returns
   // silently when it is missing. An unset role there would mean Connect
-  // appearing to work and hiring nobody.
+  // appearing to work and creation nobody.
   const [agentRole, setAgentRole] = useState<AgentRole>(
     // `||`, not `??`: the empty string was this field's default before the arc
     // stopped asking for a role, so every draft saved by an earlier build holds
     // `agentRole: ""`. `??` passes that straight through, and an empty role
-    // reaches the silent return in the hire — the exact failure the default
+    // reaches the silent return in the create — the exact failure the default
     // exists to prevent, arriving through a restored draft instead of a fresh
     // one.
     (saved?.agentRole as AgentRole) || DEFAULT_AGENT_ROLE,
@@ -563,15 +563,15 @@ function OnboardingWizardInner({
   const [adapterType, setAdapterType] = useState<AdapterType>(() =>
     restoreOnboardingAdapterType(saved?.adapterType, saved?.runnerProvider, saved?.onboardingCopilot),
   );
-  const [runner, setRunner] = useState<AgentRunnerChoice>(() => savedCopilotDraft ? "auto" : saved?.runner === "legacy" || saved?.runner === "paperclip"
-    ? saved.runner : saved?.adapterType === "outpost_runner" && (saved?.runnerProvider === undefined || ["codex", "claude", "acpx", "opencode", "pi"].includes(String(saved?.runnerProvider))) ? "paperclip" : "auto");
+  const [runner, setRunner] = useState<AgentRunnerChoice>(() => savedCopilotDraft ? "auto" : saved?.runner === "legacy" || saved?.runner === "outpost"
+    ? saved.runner : saved?.adapterType === "outpost_runner" && (saved?.runnerProvider === undefined || ["codex", "claude", "acpx", "opencode", "pi"].includes(String(saved?.runnerProvider))) ? "outpost" : "auto");
   /**
    * Whether a model source has been chosen, as opposed to which one
    * `adapterType` happens to hold.
    *
    * The two are not the same, and reading the second as the first is what made
    * this step arrive with a tile already lit and its input already open: the
-   * hire needs an adapter, so `adapterType` always carries one, restored or
+   * create needs an adapter, so `adapterType` always carries one, restored or
    * defaulted. A customer who never touched the row could reach the end of the
    * step having chosen nothing.
    *
@@ -584,13 +584,13 @@ function OnboardingWizardInner({
    * no way to begin from there without either starting a server session
    * unbidden or leaving the button to do a job the row is supposed to do.
    *
-   * `adapterType` still restores; it is what the hire needs. This is only about
+   * `adapterType` still restores; it is what the create needs. This is only about
    * whether the row has been *answered* on this visit.
    */
   const [sourcePicked, setSourcePicked] = useState(false);
   const [setupNameConflict, setSetupNameConflict] = useState<string | null>(null);
   const [gatewayConnection, setGatewayConnection] = useState<{
-    companyId: string; adapterType: string; binding: AiConnectionBinding;
+    spaceId: string; adapterType: string; binding: AiConnectionBinding;
   }>();
   const savedNativeRunnerDraft = saved?.adapterType === "outpost_runner" && !savedCopilotDraft;
   const [cwd, setCwd] = useState((saved?.cwd as string) ?? "");
@@ -652,22 +652,22 @@ function OnboardingWizardInner({
   const [submitLoginCode, setSubmitLoginCode] = useState<(() => void) | null>(null);
   /**
    * The key itself, held only for as long as the wizard is open. It is written
-   * into the adapter config at hire time and never into the draft — a draft is
+   * into the adapter config at create time and never into the draft — a draft is
    * `localStorage`, and a provider key does not belong there.
    */
   const [apiKey, setApiKey] = useState("");
-  // The owner's stored Claude subscription login, read right before the hire
+  // The owner's stored Claude subscription login, read right before the create
   // (see handleGiveHeartbeat). Onboarding applies it with no extra control,
   // so nothing else reads this state yet.
   const [claudeOAuthStatus, setClaudeOAuthStatus] =
     useState<ClaudeOAuthTokenStatusResponse | null>(null);
 
-  // Created entity IDs — pre-populate from existing company when skipping step 1
-  const [createdCompanyId, setCreatedCompanyId] = useState<string | null>(
-    existingCompanyId ?? (saved?.createdCompanyId as string) ?? null
+  // Created entity IDs — pre-populate from existing space when skipping step 1
+  const [createdSpaceId, setCreatedSpaceId] = useState<string | null>(
+    existingSpaceId ?? (saved?.createdSpaceId as string) ?? null
   );
   const savedKeys = useSavedProviderKeys(
-    createdCompanyId,
+    createdSpaceId,
     apiKeyEnvKeyFor(adapterType),
     effectiveOnboardingOpen && step === 4,
   );
@@ -675,8 +675,8 @@ function OnboardingWizardInner({
   // otherwise only reuse an unambiguous account, regardless of list ordering.
   const savedSubscription = savedKeys.subscriptions.find((option) => option.aiConnection?.mode === "responsible_user")
     ?? (savedKeys.subscriptions.length === 1 ? savedKeys.subscriptions[0] : undefined);
-  const [selectedSavedKey, setSelectedSavedKey] = useState<{ companyId: string; envKey: string; id: string } | null>(null);
-  const selectedApiKeyId = selectedSavedKey?.companyId === createdCompanyId && selectedSavedKey?.envKey === apiKeyEnvKeyFor(adapterType)
+  const [selectedSavedKey, setSelectedSavedKey] = useState<{ spaceId: string; envKey: string; id: string } | null>(null);
+  const selectedApiKeyId = selectedSavedKey?.spaceId === createdSpaceId && selectedSavedKey?.envKey === apiKeyEnvKeyFor(adapterType)
     ? selectedSavedKey.id
     : savedKeys.options[0]?.id;
   const selectedApiKey = savedKeys.options.find((option) => option.id === selectedApiKeyId);
@@ -684,9 +684,9 @@ function OnboardingWizardInner({
     (savedKeys.subscriptions.length > 0 || (adapterType === "claude_local" && savedKeys.storedLogin.data))
       ? "subscription" : savedKeys.options.length || adapterType === "opencode_local" ? "api" : "subscription"
   );
-  const [createdCompanyPrefix, setCreatedCompanyPrefix] = useState<
+  const [createdSpacePrefix, setCreatedSpacePrefix] = useState<
     string | null
-  >((saved?.createdCompanyPrefix as string) ?? null);
+  >((saved?.createdSpacePrefix as string) ?? null);
   const [createdAgentId, setCreatedAgentId] = useState<string | null>((saved?.createdAgentId as string) ?? null);
   const [setupAgentId, setSetupAgentId] = useState<string | null>((saved?.setupAgentId as string) ?? null);
   const [setupPrepared, setSetupPrepared] = useState(false);
@@ -695,8 +695,8 @@ function OnboardingWizardInner({
   const preparingSetup = useRef(new Set<string>());
   const [restoredSetup, setRestoredSetup] = useState<Agent | null>(null);
   const setupSave = useRef<Promise<unknown>>(Promise.resolve());
-  const [createdCompanyGoalId, setCreatedCompanyGoalId] = useState<string | null>(
-    (saved?.createdCompanyGoalId as string) ?? null
+  const [createdSpaceGoalId, setCreatedSpaceGoalId] = useState<string | null>(
+    (saved?.createdSpaceGoalId as string) ?? null
   );
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(
     (saved?.createdProjectId as string) ?? null
@@ -705,72 +705,72 @@ function OnboardingWizardInner({
     (saved?.createdIssueRef as string) ?? null
   );
 
-  // The company the *route* last supplied, so a navigation that stops naming
-  // one can drop it without touching a company the wizard created itself.
-  const routeCompanyIdRef = useRef<string | null>(null);
-  // The current company, mirrored so the sync effect can read it without
+  // The space the *route* last supplied, so a navigation that stops naming
+  // one can drop it without touching a space the wizard created itself.
+  const routeSpaceIdRef = useRef<string | null>(null);
+  // The current space, mirrored so the sync effect can read it without
   // taking it as a dependency. Depending on it would re-run the effect on
-  // every company change, and the effect also calls setStep - it would drag
+  // every space change, and the effect also calls setStep - it would drag
   // the user back to the route's initial step mid-flow.
-  const createdCompanyIdRef = useRef<string | null>(null);
+  const createdSpaceIdRef = useRef<string | null>(null);
   // In flight, synchronously. `loading` cannot answer this: it is state, so a
   // second caller in the same tick — key repeat holding Enter down — reads the
-  // value the first has not written yet. `createdCompanyId` cannot answer it
+  // value the first has not written yet. `createdSpaceId` cannot answer it
   // either, because it is not set until the request it guards has resolved. A
   // ref is written before the request goes out, so the second caller sees it.
-  const creatingCompanyRef = useRef(false);
-  // Same shape for the hire. Greptile (round-3 PR): with "Test now" gone the
+  const creatingSpaceRef = useRef(false);
+  // Same shape for the create. Greptile (round-3 PR): with "Test now" gone the
   // Connect handler re-runs a cached failed probe — and two overlapping
-  // submissions could then both pass the fresh probe and both hire. `loading`
+  // submissions could then both pass the fresh probe and both create. `loading`
   // cannot stop the second caller for the same reason as above.
-  const hiringAgentRef = useRef<number | null>(null);
+  const creatingAgentRef = useRef<number | null>(null);
   const connectAttemptRef = useRef(0);
   const autoConnectStartedRef = useRef(false);
   // True when the last `adapterEnvResult` came from a config that carried
-  // the fixed Claude login binding (see `hireAdapterConfig` in
+  // the fixed Claude login binding (see `creationAdapterConfig` in
   // `handleGiveHeartbeat`). A cached result from a config that did not carry
   // the binding cannot answer for a config that now does — see the reuse
   // check in `handleGiveHeartbeat`.
   const adapterEnvResultAppliedStoredLoginRef = useRef(false);
   /**
    * The secret a key typed on this step was stored as, remembered for the key it
-   * holds. Connect can be pressed more than once — a hire that fails leaves the
+   * holds. Connect can be pressed more than once — a create that fails leaves the
    * customer on the step to try again — and without this each press would store
    * another copy of the same credential.
    */
-  const apiKeySecretRef = useRef<{ key: string; companyId: string; envKey: string; grantId?: string; binding?: Awaited<ReturnType<typeof storeProviderApiKey>>["binding"]; aiConnection?: AiConnectionBinding } | null>(null);
-  const managedSubscriptionRef = useRef<{ companyId: string; binding: AiConnectionBinding; grantId?: string; sessionId?: string } | null>(null);
+  const apiKeySecretRef = useRef<{ key: string; spaceId: string; envKey: string; grantId?: string; binding?: Awaited<ReturnType<typeof storeProviderApiKey>>["binding"]; aiConnection?: AiConnectionBinding } | null>(null);
+  const managedSubscriptionRef = useRef<{ spaceId: string; binding: AiConnectionBinding; grantId?: string; sessionId?: string } | null>(null);
   const defaultSelectionsRef = useRef(new Map<string, { pending: Promise<unknown>; queued: number; revision: number; grantId?: string | null }>());
   const managedProvider = aiProviderForAdapter(adapterType);
   const managedSubscriptionProvider = managedProvider === "anthropic" || managedProvider === "openai" || managedProvider === "xai" ? managedProvider : undefined;
   function managedBindingForStep(): AiConnectionBinding | undefined {
-    if (credentialMode === "api" && gatewayConnection?.companyId === createdCompanyId && gatewayConnection.adapterType === adapterType) return gatewayConnection.binding;
-    const restoredBinding = restoredSetup?.companyId === createdCompanyId
+    if (credentialMode === "api" && gatewayConnection?.spaceId === createdSpaceId && gatewayConnection.adapterType === adapterType) return gatewayConnection.binding;
+    const restoredBinding = restoredSetup?.spaceId === createdSpaceId
       && agentHarnessType(restoredSetup.adapterType, restoredSetup.adapterConfig) === agentHarnessType(adapterType, {})
       ? restoredSetup.runtimeConfig?.aiConnection as AiConnectionBinding | undefined : undefined;
     if (!selectedSavedKey && !apiKey.trim()) {
       if (restoredBinding?.method === (credentialMode === "api" ? "api_key" : "subscription")) return restoredBinding;
-      const savedEnv = restoredSetup?.companyId === createdCompanyId
+      const savedEnv = restoredSetup?.spaceId === createdSpaceId
         && agentHarnessType(restoredSetup.adapterType, restoredSetup.adapterConfig) === agentHarnessType(adapterType, {})
         ? restoredSetup.adapterConfig.env as Record<string, unknown> | undefined : undefined;
       if (savedEnv?.[credentialMode === "api" ? apiKeyEnvKeyFor(adapterType) : "CODEX_HOME"]) return undefined;
     }
     if (credentialMode === "api") return selectedApiKey?.aiConnection ?? (
-      !selectedApiKey && apiKeySecretRef.current?.companyId === createdCompanyId && apiKeySecretRef.current.envKey === apiKeyEnvKeyFor(adapterType)
+      !selectedApiKey && apiKeySecretRef.current?.spaceId === createdSpaceId && apiKeySecretRef.current.envKey === apiKeyEnvKeyFor(adapterType)
         ? apiKeySecretRef.current.aiConnection : undefined);
-    return savedSubscription?.aiConnection ?? (managedSubscriptionRef.current?.companyId === createdCompanyId && managedSubscriptionRef.current.binding.provider === managedProvider ? managedSubscriptionRef.current.binding : undefined);
+    return savedSubscription?.aiConnection ?? (managedSubscriptionRef.current?.spaceId === createdSpaceId && managedSubscriptionRef.current.binding.provider === managedProvider ? managedSubscriptionRef.current.binding : undefined);
   }
   const connectionModelState = useConnectionModelsState(
-    effectiveOnboardingOpen && step === 4 && credentialMode === "api" ? createdCompanyId : null,
+    effectiveOnboardingOpen && step === 4 && credentialMode === "api" ? createdSpaceId : null,
     managedBindingForStep(), adapterType,
   );
   const connectionModels = connectionModelState.connectionModels;
-  const hasGatewaySelection = credentialMode === "api" && gatewayConnection?.companyId === createdCompanyId && gatewayConnection.adapterType === adapterType;
-  const connectionSelection = JSON.stringify([createdCompanyId, adapterType, runner, model, command, args, url, credentialMode, apiKey, selectedSavedKey, gatewayConnection]);
+  const hasGatewaySelection = credentialMode === "api" && gatewayConnection?.spaceId === createdSpaceId && gatewayConnection.adapterType === adapterType;
+  const connectionSelection = JSON.stringify([createdSpaceId, adapterType, runner, model, command, args, url, credentialMode, apiKey, selectedSavedKey, gatewayConnection]);
   const connectedSelectionRef = useRef<{ agentId: string; selection: string; defaultRevision: number } | null>(null);
   function rememberConnectedSelection(agentId: string) {
     connectedSelectionRef.current = { agentId, selection: connectionSelection,
-      defaultRevision: defaultSelectionsRef.current.get(JSON.stringify([createdCompanyId, managedProvider]))?.revision ?? 0 };
+      defaultRevision: defaultSelectionsRef.current.get(JSON.stringify([createdSpaceId, managedProvider]))?.revision ?? 0 };
   }
   if (createdAgentId && connectedSelectionRef.current?.agentId !== createdAgentId) {
     rememberConnectedSelection(createdAgentId);
@@ -780,39 +780,39 @@ function OnboardingWizardInner({
   const connectionModelReady = (!hasGatewaySelection && !connectionModels) || Boolean(connectionModels
     && (!hasGatewaySelection || (!connectionModelState.error && !connectionModelState.refreshing))
     && model.trim() && (connectionModels.models.length === 0 || connectionModels.models.some(entry => entry.id === model.trim())));
-  createdCompanyIdRef.current = createdCompanyId;
+  createdSpaceIdRef.current = createdSpaceId;
 
   // The step the request wants, mirrored for the same reason. `initialStep` is
-  // *derived* - from the company list - so its value changes whenever that
+  // *derived* - from the space list - so its value changes whenever that
   // query does: a retry, a background refetch, a cache invalidation. An effect that
   // depended on it would re-run on every such change and call setStep, moving
   // a customer who is already mid-flow. Reading it through a ref breaks that
-  // dependency, so the effect runs when the wizard *opens* or when the company
+  // dependency, so the effect runs when the wizard *opens* or when the space
   // changes, and takes whatever the step is at that moment.
   const initialStepRef = useRef<Step | undefined>(undefined);
   initialStepRef.current = effectiveOnboardingOptions.initialStep;
-  const openingRequestRef = useRef<{ open: boolean; companyId: string | null; hasOpened: boolean } | null>(null);
+  const openingRequestRef = useRef<{ open: boolean; spaceId: string | null; hasOpened: boolean } | null>(null);
 
   /**
-   * Forget everything that describes one particular company.
+   * Forget everything that describes one particular space.
    *
-   * Called when the wizard stops holding a company - the route replaced it, or
+   * Called when the wizard stops holding a space - the route replaced it, or
    * withdrew it. Both are the same event, and clearing only part of it is what
-   * lets the next company skip work it has not done: a kept goal id reads as
-   * "this company's mission is already written", and the launch path would
-   * link the next company's project to the previous company's goal.
+   * lets the next space skip work it has not done: a kept goal id reads as
+   * "this space's mission is already written", and the launch path would
+   * link the next space's project to the previous space's goal.
    *
    * The name and the prefix are cleared here too and backfilled again from the
-   * company list by the effects below, so they always describe the company in
+   * space list by the effects below, so they always describe the space in
    * hand rather than the one before it.
    */
-  function clearCompanyScopedState() {
+  function clearSpaceScopedState() {
     setRestoredSetup(null);
     setGatewayConnection(undefined);
     setAgentAppearance(randomAgentAppearance());
-    setCreatedCompanyPrefix(null);
-    setCompanyName("");
-    setCreatedCompanyGoalId(null);
+    setCreatedSpacePrefix(null);
+    setSpaceName("");
+    setCreatedSpaceGoalId(null);
     setCreatedProjectId(null);
     setCreatedIssueRef(null);
     setCreatedAgentId(null);
@@ -821,123 +821,123 @@ function OnboardingWizardInner({
     setSetupError(false);
   }
 
-  // Sync step and company when onboarding opens with explicit options.
+  // Sync step and space when onboarding opens with explicit options.
   // Only override saved state when explicit options provide values.
   //
   // The step belongs to the request that opened the wizard, not to the latest
   // value of the expression that produced it - see `initialStepRef` above for
   // why those differ. This effect is therefore keyed on the two things that
-  // make a *new* request: the wizard opening, and the company changing.
-  // Navigating from one company's onboarding path to another re-decides the
+  // make a *new* request: the wizard opening, and the space changing.
+  // Navigating from one space's onboarding path to another re-decides the
   // step; the same request re-deriving a fresher value does not.
   useEffect(() => {
-    const routeCompanyId = effectiveOnboardingOptions.companyId ?? null;
+    const routeSpaceId = effectiveOnboardingOptions.spaceId ?? null;
     const previousRequest = openingRequestRef.current;
-    openingRequestRef.current = { open: effectiveOnboardingOpen, companyId: routeCompanyId,
+    openingRequestRef.current = { open: effectiveOnboardingOpen, spaceId: routeSpaceId,
       hasOpened: previousRequest?.hasOpened === true || effectiveOnboardingOpen };
     if (!effectiveOnboardingOpen) return;
-    if (previousRequest?.open && previousRequest.companyId === routeCompanyId) return;
+    if (previousRequest?.open && previousRequest.spaceId === routeSpaceId) return;
     const initialRequest = previousRequest?.hasOpened !== true;
     const resumesRouteDraft = initialRequest && !onboardingOpen && saved !== null
       && typeof saved.step === "number" && saved.step >= 1 && saved.step <= 5
-      && (routeCompanyId ? routeCompanyId === saved.createdCompanyId : !companyPrefix);
+      && (routeSpaceId ? routeSpaceId === saved.createdSpaceId : !spacePrefix);
     if (initialStepRef.current && !resumesRouteDraft) {
       setStep(initialStepRef.current);
       setEntryStep(initialStepRef.current);
     }
-    if (routeCompanyId) {
-      // Claim ownership only when the route *introduces* a company. A route
+    if (routeSpaceId) {
+      // Claim ownership only when the route *introduces* a space. A route
       // that merely names the one already in hand - the wizard created it,
-      // then the user navigated to that company's onboarding path - has not
+      // then the user navigated to that space's onboarding path - has not
       // supplied anything, so it must not take ownership of it. Otherwise
       // navigating on to `/onboarding` would clear work the wizard did.
-      if (routeCompanyId !== createdCompanyIdRef.current
-        || (initialRequest && typeof saved?.createdCompanyId === "string"
-          && routeCompanyId !== saved.createdCompanyId)) {
-        setCreatedCompanyId(routeCompanyId);
-        clearCompanyScopedState();
+      if (routeSpaceId !== createdSpaceIdRef.current
+        || (initialRequest && typeof saved?.createdSpaceId === "string"
+          && routeSpaceId !== saved.createdSpaceId)) {
+        setCreatedSpaceId(routeSpaceId);
+        clearSpaceScopedState();
       }
       // Ownership is recorded either way, including when the route merely
-      // names the company already in hand. Only the clearing above is
+      // names the space already in hand. Only the clearing above is
       // conditional.
       //
       // This is a deliberate change to the rule the comment above described.
       // Not recording ownership there protected wizard-created work from a
-      // later `/onboarding`, but it also meant that company was never
-      // withdrawn: create a company on step 1, visit its own onboarding path,
-      // then go to `/onboarding`, and the wizard shows "create a company"
+      // later `/onboarding`, but it also meant that space was never
+      // withdrawn: create a space on step 1, visit its own onboarding path,
+      // then go to `/onboarding`, and the wizard shows "create a space"
       // while still holding the previous one. The next confirmation then
-      // writes that customer's new mission into the old company - which is
+      // writes that customer's new mission into the old space - which is
       // exactly the failure the withdrawal branch below was written to
       // prevent, reached by a path it could not see.
       //
       // Losing the step-1 progress on `/onboarding` is the better error:
-      // `/onboarding` is a request to start a company, so honouring it beats
+      // `/onboarding` is a request to start a space, so honouring it beats
       // silently writing into a different one.
-      routeCompanyIdRef.current = routeCompanyId;
+      routeSpaceIdRef.current = routeSpaceId;
       return;
     }
-    if (routeCompanyIdRef.current || (initialRequest && companyPrefix && saved?.createdCompanyId)) {
-      // The route named a company and now does not - the user navigated from
-      // an existing company's onboarding to `/onboarding`, or to a prefix that
+    if (routeSpaceIdRef.current || (initialRequest && spacePrefix && saved?.createdSpaceId)) {
+      // The route named a space and now does not - the user navigated from
+      // an existing space's onboarding to `/onboarding`, or to a prefix that
       // matches nothing. Drop it. Keeping it leaves the wizard showing step 1,
-      // "create a company", while still holding the previous one, so the next
-      // confirmation writes into that company instead of making a new one.
+      // "create a space", while still holding the previous one, so the next
+      // confirmation writes into that space instead of making a new one.
       //
-      // Only a company this route supplied is cleared. One the wizard created
+      // Only a space this route supplied is cleared. One the wizard created
       // itself, or restored from saved state, is left alone: the ref is null
       // in those cases, and clearing them would discard real progress.
       //
-      // Withdrawing a company clears the same state that replacing one does.
-      // The two are the same event - this company is no longer the wizard's -
-      // and clearing only half of it leaves ids that make the *next* company
+      // Withdrawing a space clears the same state that replacing one does.
+      // The two are the same event - this space is no longer the wizard's -
+      // and clearing only half of it leaves ids that make the *next* space
       // skip work it has not done.
-      setCreatedCompanyId(null);
-      routeCompanyIdRef.current = null;
-      clearCompanyScopedState();
+      setCreatedSpaceId(null);
+      routeSpaceIdRef.current = null;
+      clearSpaceScopedState();
     }
-  }, [effectiveOnboardingOpen, effectiveOnboardingOptions.companyId]);
+  }, [effectiveOnboardingOpen, effectiveOnboardingOptions.spaceId]);
 
-  // Backfill issue prefix for an existing company once companies are loaded.
+  // Backfill issue prefix for an existing space once spaces are loaded.
   useEffect(() => {
-    if (!effectiveOnboardingOpen || !createdCompanyId || createdCompanyPrefix) return;
-    const company = companies.find((c) => c.id === createdCompanyId);
-    if (company) setCreatedCompanyPrefix(company.issuePrefix);
-  }, [effectiveOnboardingOpen, createdCompanyId, createdCompanyPrefix, companies]);
+    if (!effectiveOnboardingOpen || !createdSpaceId || createdSpacePrefix) return;
+    const space = spaces.find((c) => c.id === createdSpaceId);
+    if (space) setCreatedSpacePrefix(space.issuePrefix);
+  }, [effectiveOnboardingOpen, createdSpaceId, createdSpacePrefix, spaces]);
 
-  // Backfill the name too, for the same company and the same reason.
+  // Backfill the name too, for the same space and the same reason.
   //
-  // `companyName` is otherwise only ever typed on step 1, so a company that
+  // `spaceName` is otherwise only ever typed on step 1, so a space that
   // enters the wizard further along has none. That is a dead end rather than a
   // cosmetic gap: the mission step prints the name in its own copy, and both
   // ways forward from that step - the button and the Enter key - require
-  // `companyName.trim()`. An existing company opened on the mission step could
+  // `spaceName.trim()`. An existing space opened on the mission step could
   // not leave it. Nothing reached that state until the dashboard started
-  // opening agentless companies there.
+  // opening agentless spaces there.
   useEffect(() => {
-    if (!effectiveOnboardingOpen || !createdCompanyId || companyName) return;
-    const company = companies.find((c) => c.id === createdCompanyId);
-    if (company) setCompanyName(company.name);
-  }, [effectiveOnboardingOpen, createdCompanyId, companyName, companies]);
+    if (!effectiveOnboardingOpen || !createdSpaceId || spaceName) return;
+    const space = spaces.find((c) => c.id === createdSpaceId);
+    if (space) setSpaceName(space.name);
+  }, [effectiveOnboardingOpen, createdSpaceId, spaceName, spaces]);
 
   // Persist wizard state to localStorage on every change
   useEffect(() => {
     if (!effectiveOnboardingOpen) return;
     const state = {
-      step, companyName,
+      step, spaceName,
       agentName, agentAppearance, agentRole, adapterType, runner, cwd, model, command, args, url,
       // The mode, never the key: this blob is localStorage.
       credentialMode, credentialModeChoice,
-      createdCompanyId, createdCompanyPrefix, createdAgentId, setupAgentId,
-      createdCompanyGoalId, createdProjectId, createdIssueRef,
+      createdSpaceId, createdSpacePrefix, createdAgentId, setupAgentId,
+      createdSpaceGoalId, createdProjectId, createdIssueRef,
     };
     onboardingDraftStorage.write(JSON.stringify(state));
   }, [
-    effectiveOnboardingOpen, step, companyName,
+    effectiveOnboardingOpen, step, spaceName,
     agentName, agentAppearance, agentRole, adapterType, runner, cwd, model, command, args, url,
     credentialMode, credentialModeChoice,
-    createdCompanyId, createdCompanyPrefix, createdAgentId, setupAgentId,
-    createdCompanyGoalId, createdProjectId, createdIssueRef,
+    createdSpaceId, createdSpacePrefix, createdAgentId, setupAgentId,
+    createdSpaceGoalId, createdProjectId, createdIssueRef,
   ]);
 
   const getCapabilities = useAdapterCapabilities();
@@ -950,11 +950,11 @@ function OnboardingWizardInner({
   // must not throw, so a resolver error yields no login environment rather
   // than an error boundary.
   const { data: loginEnvironmentList = [], isSuccess: loginEnvironmentsReady, isFetching: loginEnvironmentsFetching, isError: loginEnvironmentsFailed, refetch: refetchLoginEnvironments } = useQuery({
-    queryKey: createdCompanyId
-      ? queryKeys.environments.list(createdCompanyId)
+    queryKey: createdSpaceId
+      ? queryKeys.environments.list(createdSpaceId)
       : ["environments", "none"],
-    queryFn: () => environmentsApi.list(createdCompanyId!),
-    enabled: Boolean(createdCompanyId) && effectiveOnboardingOpen && step === 4,
+    queryFn: () => environmentsApi.list(createdSpaceId!),
+    enabled: Boolean(createdSpaceId) && effectiveOnboardingOpen && step === 4,
   });
   const { data: instanceSettingsForLogin, isSuccess: loginSettingsReady, isFetching: loginSettingsFetching, isError: loginSettingsFailed, refetch: refetchLoginSettings } = useQuery({
     queryKey: queryKeys.instance.settings,
@@ -972,7 +972,7 @@ function OnboardingWizardInner({
   const loginEnvironmentResolution = useMemo(() => {
     try {
       return { environmentId: resolveAdapterTestEnvironmentId({
-        agentDefaultEnvironmentId: restoredSetup?.companyId === createdCompanyId ? restoredSetup.defaultEnvironmentId : null,
+        agentDefaultEnvironmentId: restoredSetup?.spaceId === createdSpaceId ? restoredSetup.defaultEnvironmentId : null,
         instanceDefaultEnvironmentId: instanceSettingsForLogin?.defaultEnvironmentId ?? null,
         localDefaultEnvironmentId: resolveLocalDefaultEnvironmentId(loginEnvironmentList),
         managedSandboxOnly: experimentalSettingsForLogin?.enableManagedSandboxOnly === true,
@@ -983,7 +983,7 @@ function OnboardingWizardInner({
       return { environmentId: null, error: error instanceof Error ? error.message : "Could not resolve the execution environment." };
     }
   }, [
-    restoredSetup, createdCompanyId,
+    restoredSetup, createdSpaceId,
     instanceSettingsForLogin?.defaultEnvironmentId,
     loginEnvironmentList,
     experimentalSettingsForLogin?.enableManagedSandboxOnly,
@@ -992,9 +992,9 @@ function OnboardingWizardInner({
   const loginEnvironmentSettingsReady = loginEnvironmentsReady && loginSettingsReady && loginPolicyReady
     && !loginEnvironmentsFetching && !loginSettingsFetching && !loginPolicyFetching;
   const runnerDiscovery = useQuery({
-    queryKey: queryKeys.adapters.availability(createdCompanyId, resolvedLoginEnvironmentId),
-    queryFn: () => adaptersApi.list({ companyId: createdCompanyId!, environmentId: resolvedLoginEnvironmentId }),
-    enabled: Boolean(createdCompanyId) && effectiveOnboardingOpen && step === 4
+    queryKey: queryKeys.adapters.availability(createdSpaceId, resolvedLoginEnvironmentId),
+    queryFn: () => adaptersApi.list({ spaceId: createdSpaceId!, environmentId: resolvedLoginEnvironmentId }),
+    enabled: Boolean(createdSpaceId) && effectiveOnboardingOpen && step === 4
       && loginEnvironmentSettingsReady,
   });
   const runnerDiscoveryView = useQueryView(runnerDiscovery);
@@ -1004,14 +1004,14 @@ function OnboardingWizardInner({
     isLoading: adapterModelsLoading,
     isFetching: adapterModelsFetching,
   } = useQuery({
-    queryKey: createdCompanyId ? queryKeys.agents.adapterModels(createdCompanyId, adapterType, null) : ["agents", "none", "adapter-models", adapterType, null],
-    queryFn: () => agentsApi.adapterModels(createdCompanyId!, adapterType, { environmentId: null }),
-    enabled: Boolean(createdCompanyId) && effectiveOnboardingOpen && step === 4 && ONBOARDING_ADAPTER_TYPES.has(adapterType),
+    queryKey: createdSpaceId ? queryKeys.agents.adapterModels(createdSpaceId, adapterType, null) : ["agents", "none", "adapter-models", adapterType, null],
+    queryFn: () => agentsApi.adapterModels(createdSpaceId!, adapterType, { environmentId: null }),
+    enabled: Boolean(createdSpaceId) && effectiveOnboardingOpen && step === 4 && ONBOARDING_ADAPTER_TYPES.has(adapterType),
     });
   // Automatic selection uses native Claude/Codex on qualified execution targets and
   // silently falls back to legacy on Windows, keeping the same onboarding UI.
   // When Windows native execution is qualified, enable it in
-  // paperclipRunnerSupportsPlatform so Windows onboarding defaults to native too.
+  // outpostRunnerSupportsPlatform so Windows onboarding defaults to native too.
   const needsRunnerDiscovery = ["codex_local", "claude_local", "opencode_local", "pi_local"].includes(adapterType) && runner === "auto";
   const resolvedRunner = runner === "auto"
     ? runnerDiscovery.data?.find(item => item.type === adapterType)?.defaultRunner
@@ -1034,7 +1034,7 @@ function OnboardingWizardInner({
     }
   }
   const visibleAdapterEnvError = adapterEnvError ?? runnerDiscoveryError;
-  const runnerSelectionKey = JSON.stringify([createdCompanyId, resolvedLoginEnvironmentId, adapterType, runner, adapterType === "codex_local" && runner === "auto" ? undefined : resolvedRunner]);
+  const runnerSelectionKey = JSON.stringify([createdSpaceId, resolvedLoginEnvironmentId, adapterType, runner, adapterType === "codex_local" && runner === "auto" ? undefined : resolvedRunner]);
   const runnerSelectionRef = useRef(runnerSelectionKey);
   runnerSelectionRef.current = runnerSelectionKey;
   const resolvedLoginEnvironment = useMemo(
@@ -1043,7 +1043,7 @@ function OnboardingWizardInner({
       null,
     [loginEnvironmentList, resolvedLoginEnvironmentId],
   );
-  const claudeSetupSelectionKey = JSON.stringify([createdCompanyId, adapterType, runner, resolvedRunner, model, command,
+  const claudeSetupSelectionKey = JSON.stringify([createdSpaceId, adapterType, runner, resolvedRunner, model, command,
     args, url, credentialMode, apiKey, selectedSavedKey, selectedApiKey?.binding, savedSubscription?.binding,
     resolvedLoginEnvironmentId, resolvedLoginEnvironment?.config]);
   const claudeSetupSelectionRef = useRef(claudeSetupSelectionKey);
@@ -1054,7 +1054,7 @@ function OnboardingWizardInner({
     if (!active || active.selection === claudeSetupSelectionKey) return;
     activeClaudeQualification.current = null;
     connectAttemptRef.current++;
-    hiringAgentRef.current = null;
+    creatingAgentRef.current = null;
     autoConnectStartedRef.current = true;
     setLoading(false);
     setAdapterEnvLoading(false);
@@ -1063,18 +1063,18 @@ function OnboardingWizardInner({
   const adapterSetupSelectionRef = useRef("");
   const adapterEnvErrorSelectionRef = useRef<string | null>(null);
   adapterSetupSelectionRef.current = adapterType === "codex_local" && runner === "auto" && resolvedLoginEnvironment?.driver === "sandbox"
-    ? JSON.stringify([createdCompanyId, adapterType, runner, model, command, args, url, credentialMode, apiKey,
+    ? JSON.stringify([createdSpaceId, adapterType, runner, model, command, args, url, credentialMode, apiKey,
       selectedSavedKey, selectedApiKey?.binding, savedSubscription?.binding, resolvedLoginEnvironmentId, resolvedLoginEnvironment.config]) : "";
   // Sandbox provider capabilities for the login pseudo-terminal gate, loaded
   // only when the adapter declares a login capability — the same query the
   // agent configuration form runs (AgentConfigForm.tsx:652-658).
   const { data: loginEnvironmentCapabilities } = useQuery({
-    queryKey: createdCompanyId
-      ? queryKeys.environments.capabilities(createdCompanyId)
+    queryKey: createdSpaceId
+      ? queryKeys.environments.capabilities(createdSpaceId)
       : ["environment-capabilities", "none"],
-    queryFn: () => environmentsApi.capabilities(createdCompanyId!),
+    queryFn: () => environmentsApi.capabilities(createdSpaceId!),
     enabled:
-      Boolean(createdCompanyId) &&
+      Boolean(createdSpaceId) &&
       adapterCaps.login != null &&
       effectiveOnboardingOpen &&
       step === 4,
@@ -1094,7 +1094,7 @@ function OnboardingWizardInner({
   // could ever apply to the current adapter and environment.
   const localLoginHealth = useQuery({ queryKey: queryKeys.health, queryFn: healthApi.get });
   const canUseLocalLogin = Boolean(managedSubscriptionProvider) && resolvedLoginEnvironment?.driver === "local" && (localLoginHealth.data?.localAiLoginSupported ?? localLoginHealth.data?.deploymentMode === "local_trusted");
-  const localLogin = useLocalAiLogin(createdCompanyId, {
+  const localLogin = useLocalAiLogin(createdSpaceId, {
     provider: managedSubscriptionProvider ?? "anthropic", method: "subscription",
     name: `My ${CONNECT_SOURCE_NAMES[adapterType] ?? managedProvider} subscription`,
     ownership: "personal", agentIds: [], allAgents: true,
@@ -1103,19 +1103,19 @@ function OnboardingWizardInner({
   );
   useEffect(() => {
     autoConnectStartedRef.current = false;
-    hiringAgentRef.current = null;
+    creatingAgentRef.current = null;
     if (step === 4) {
       setLoading(false);
       setAdapterEnvLoading(false);
     }
     return () => { connectAttemptRef.current++; };
-  }, [effectiveOnboardingOpen, createdCompanyId, adapterType, credentialMode, step]);
+  }, [effectiveOnboardingOpen, createdSpaceId, adapterType, credentialMode, step]);
 
   const canShowAdapterLogin = Boolean(
     adapterCaps.login != null &&
       resolvedLoginEnvironment?.driver === "sandbox" &&
       resolvedLoginEnvironmentId &&
-      createdCompanyId &&
+      createdSpaceId &&
       loginProviderSupportsPty,
   );
   // The cheap signal, re-read whenever the adapter type or the resolved login
@@ -1126,17 +1126,17 @@ function OnboardingWizardInner({
   // the owner could already sign in — the panel then shows for one extra step
   // it did not strictly need, never the reverse.
   const authSignalQuery = useQuery({
-    queryKey: createdCompanyId
-      ? queryKeys.agents.authSignal(createdCompanyId, adapterType, resolvedLoginEnvironmentId)
+    queryKey: createdSpaceId
+      ? queryKeys.agents.authSignal(createdSpaceId, adapterType, resolvedLoginEnvironmentId)
       : ["agents", "none", "auth-signal", adapterType, resolvedLoginEnvironmentId],
     queryFn: () =>
       agentsApi.getAdapterAuthSignal(
-        createdCompanyId!,
+        createdSpaceId!,
         adapterType,
         resolvedLoginEnvironmentId ?? undefined,
       ),
     enabled:
-      Boolean(createdCompanyId) && effectiveOnboardingOpen && step === 4 && canShowAdapterLogin,
+      Boolean(createdSpaceId) && effectiveOnboardingOpen && step === 4 && canShowAdapterLogin,
   });
   const authSignalStatus = authSignalQuery.data?.status ?? null;
   const showAdapterLoginPanel =
@@ -1156,18 +1156,18 @@ function OnboardingWizardInner({
     : undefined;
   const loginTarget = { environmentId: resolvedLoginEnvironmentId ?? "", aiConnection: managedSubscriptionIntent };
   const dismissedLoginResumes = useRef(new Set<string>());
-  const loginResumeKey = JSON.stringify([createdCompanyId, adapterType]);
+  const loginResumeKey = JSON.stringify([createdSpaceId, adapterType]);
   const activeLoginSessionQuery = useQuery({
-    queryKey: createdCompanyId
-      ? queryKeys.agents.activeLoginSession(createdCompanyId, adapterType)
+    queryKey: createdSpaceId
+      ? queryKeys.agents.activeLoginSession(createdSpaceId, adapterType)
       : ["agents", "none", "active-login-session", adapterType],
     queryFn: async ({ signal }) => {
       try {
         const session = adapterCaps.login?.panelMode === "submitted_browser_code"
-          ? await agentsApi.getActiveClaudeSetupTokenLoginSession(createdCompanyId!, { signal })
-          : await agentsApi.getActiveAdapterAuthLoginSession(createdCompanyId!, adapterType, { signal });
+          ? await agentsApi.getActiveClaudeSetupTokenLoginSession(createdSpaceId!, { signal })
+          : await agentsApi.getActiveAdapterAuthLoginSession(createdSpaceId!, adapterType, { signal });
         if (session && dismissedLoginResumes.current.has(loginResumeKey)) {
-          if (matchesAdapterLoginTarget(session, loginTarget)) await cancelAdapterLoginSession(createdCompanyId!, adapterType,
+          if (matchesAdapterLoginTarget(session, loginTarget)) await cancelAdapterLoginSession(createdSpaceId!, adapterType,
             adapterCaps.login?.panelMode === "submitted_browser_code", session.sessionId);
           return null;
         }
@@ -1178,7 +1178,7 @@ function OnboardingWizardInner({
       }
     },
     enabled:
-      Boolean(createdCompanyId) && effectiveOnboardingOpen && step === 4 && canShowAdapterLogin && !dismissedLoginResumes.current.has(loginResumeKey),
+      Boolean(createdSpaceId) && effectiveOnboardingOpen && step === 4 && canShowAdapterLogin && !dismissedLoginResumes.current.has(loginResumeKey),
   });
   useEffect(() => {
     if (dismissedLoginResumes.current.has(loginResumeKey) || !activeLoginSessionQuery.data || credentialMode === "api" || savedSubscription || savedKeys.storedLogin.data) return;
@@ -1250,7 +1250,7 @@ function OnboardingWizardInner({
    * One predicate, because there are two ways to advance and they drifted. The
    * button's condition and Cmd+Enter's were written out separately, so when the
    * button gained `sourceSelected` and `adapterEnvLoading` the keyboard kept the
-   * older, shorter list — and hired against a source the row had never shown.
+   * older, shorter list — and created against a source the row had never shown.
    * The same defect the button was just fixed for, one path over.
    *
    * `loading` is deliberately not here. The keyboard handler returns on it
@@ -1261,23 +1261,23 @@ function OnboardingWizardInner({
    * Anything that gates this step belongs in here, so the next one is added
    * once rather than twice.
    */
-  const restoredApiCredential = restoredSetup?.companyId === createdCompanyId
+  const restoredApiCredential = restoredSetup?.spaceId === createdSpaceId
     && agentHarnessType(restoredSetup.adapterType, restoredSetup.adapterConfig) === agentHarnessType(adapterType)
     && !selectedSavedKey && (restoredSetup.adapterConfig.env as Record<string, unknown> | undefined)?.[apiKeyEnvKeyFor(adapterType)];
   const connectStepReady = Boolean(setupPrepared || createdAgentId) && sourceSelected && !adapterEnvLoading && !savedKeys.loading && runnerDiscoveryReady && connectionModelReady;
 
   useEffect(() => {
-    if (step !== 4 || !createdCompanyId || !agentName.trim() || !adapterRegistryLoaded
-      || createdAgentId || setupPrepared || preparingSetup.current.has(createdCompanyId) || setupError
-      || (!sourceSelected && setupNameConflict === JSON.stringify([createdCompanyId, agentName.trim().toLowerCase()]))) return;
-    const companyId = createdCompanyId;
-    preparingSetup.current.add(companyId);
+    if (step !== 4 || !createdSpaceId || !agentName.trim() || !adapterRegistryLoaded
+      || createdAgentId || setupPrepared || preparingSetup.current.has(createdSpaceId) || setupError
+      || (!sourceSelected && setupNameConflict === JSON.stringify([createdSpaceId, agentName.trim().toLowerCase()]))) return;
+    const spaceId = createdSpaceId;
+    preparingSetup.current.add(spaceId);
     const id = setupAgentId ?? crypto.randomUUID();
     let restoring = Boolean(setupAgentId);
     void (async () => {
       if (!setupAgentId) {
         // Only a persisted setup ID identifies an unfinished record for reuse.
-        const sameName = (await agentsApi.list(companyId)).filter(agent =>
+        const sameName = (await agentsApi.list(spaceId)).filter(agent =>
           agent.status !== "terminated" && agent.pauseReason !== "setup"
           && agent.name.trim().toLowerCase() === agentName.trim().toLowerCase());
         const existing = sourceSelected ? sameName.find(agent => agentHarnessType(agent.adapterType, agent.adapterConfig)
@@ -1285,16 +1285,16 @@ function OnboardingWizardInner({
         if (existing) { restoring = true; return existing; }
         // A same-name record may already be complete; choose its provider before adopting it.
         if (!sourceSelected && sameName.length) {
-          setSetupNameConflict(JSON.stringify([companyId, agentName.trim().toLowerCase()]));
+          setSetupNameConflict(JSON.stringify([spaceId, agentName.trim().toLowerCase()]));
           return null;
         }
       }
       const provisionalAdapter = disabledTypes.has("process") ? recommendedAdapters[0]?.type : "process";
       if (!sourceSelected && !provisionalAdapter) throw new Error("No agent adapters are available on this instance.");
       const createAdapter = sourceSelected ? adapterType : provisionalAdapter!;
-      if (!stillTheSameCompany(companyId)) return null;
+      if (!stillTheSameSpace(spaceId)) return null;
       setSetupAgentId(id);
-      return agentsApi.create(companyId, {
+      return agentsApi.create(spaceId, {
       setupId: id, name: agentName.trim() || AGENT_ROLE_LABELS[agentRole], appearance: agentAppearance,
       role: agentRole, adapterType: createAdapter,
       // The name-only record is held in setup and has no selected harness yet.
@@ -1306,7 +1306,7 @@ function OnboardingWizardInner({
       onboardingFirstAgent: true, runtimeConfig: buildNewAgentRuntimeConfig({ heartbeatEnabled: false }),
       });
     })().then(agent => {
-      if (!agent || !stillTheSameCompany(companyId)) return;
+      if (!agent || !stillTheSameSpace(spaceId)) return;
       if (agent.pauseReason === "setup" || agent.status === "pending_approval") {
         setSetupAgentId(agent.id);
         if (!restoring && agent.name) setAgentName(current => current.trim() === agentName.trim() ? agent.name : current);
@@ -1329,7 +1329,7 @@ function OnboardingWizardInner({
             setArgs(Array.isArray(config.args) ? config.args.join(" ") : "");
             setUrl(typeof config.url === "string" ? config.url : "");
             setRunner(ONBOARDING_ADAPTER_TYPES.has(agentHarnessType(agent.adapterType, config))
-              ? agent.adapterType === "outpost_runner" ? "paperclip" : "legacy" : "auto");
+              ? agent.adapterType === "outpost_runner" ? "outpost" : "legacy" : "auto");
             const binding = agent.runtimeConfig?.aiConnection as AiConnectionBinding | undefined;
             if (binding) setCredentialMode(binding.method === "api_key" ? "api" : "subscription");
             else if ((config.env as Record<string, unknown> | undefined)?.[apiKeyEnvKeyFor(adapterType)]) setCredentialMode("api");
@@ -1339,24 +1339,24 @@ function OnboardingWizardInner({
         }
       } else setCreatedAgentId(agent.id);
       setSetupPrepared(true);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(spaceId) });
     }).catch(cause => {
-      if (!stillTheSameCompany(companyId)) return;
+      if (!stillTheSameSpace(spaceId)) return;
       setSetupError(true);
       setError(cause instanceof Error ? cause.message : "Could not create agent setup.");
     }).finally(() => {
-      preparingSetup.current.delete(companyId);
+      preparingSetup.current.delete(spaceId);
       setSetupAttempt(attempt => attempt + 1);
     });
-  }, [step, createdCompanyId, agentName, adapterRegistryLoaded, sourceSelected, setupNameConflict, runnerDiscoveryReady, createdAgentId, setupPrepared, setupAttempt]);
+  }, [step, createdSpaceId, agentName, adapterRegistryLoaded, sourceSelected, setupNameConflict, runnerDiscoveryReady, createdAgentId, setupPrepared, setupAttempt]);
 
   /**
-   * Whether this step has a sign-in to do before it can hire.
+   * Whether this step has a sign-in to do before it can create.
    *
    * The same four conditions the card itself renders on, named once so the
    * footer button and the card cannot disagree about whether a login is
    * happening. When it is false — an API key, a source already signed in on the
-   * sandbox, or a local CLI account — Connect verifies credentials before the hire.
+   * sandbox, or a local CLI account — Connect verifies credentials before the create.
    */
   const connectStepNeedsLogin = Boolean(
     credentialMode !== "api" &&
@@ -1369,7 +1369,7 @@ function OnboardingWizardInner({
         !(adapterType === "claude_local" && savedKeys.storedLogin.data)
       )) &&
       !savedKeys.loading &&
-      createdCompanyId &&
+      createdSpaceId &&
       resolvedLoginEnvironmentId,
   );
 
@@ -1435,7 +1435,7 @@ function OnboardingWizardInner({
    *
    * Two facts because they now arrive at different times. The button says
    * "Connecting" the moment a code is pasted, but the credential only exists
-   * once the server confirms it, a poll and a completion read later. The hire
+   * once the server confirms it, a poll and a completion read later. The create
    * waits for both: the stored login, and two seconds of "Connecting" counted
    * from the paste — so a fast server still shows the state, and a slow one
    * does not have the hold added on top of its own wait.
@@ -1489,7 +1489,7 @@ function OnboardingWizardInner({
     }
     if (connectPhase === "connecting") {
       // Not before the login is stored. "Connecting" starts at the paste now,
-      // ahead of the server confirming anything, so a hire from here would go
+      // ahead of the server confirming anything, so a create from here would go
       // out against a source with no credential to run on.
       if (!connectCredentialStored || !runnerDiscoveryReady) return;
       // No success state: the step advances. The hold is so "Connecting" is
@@ -1499,10 +1499,10 @@ function OnboardingWizardInner({
       // spent confirming counts toward it instead of being added to it.
       //
       // A beat rather than a bare timer because Back stays live through it. A
-      // dropped handle hired two seconds after the customer had backed out,
+      // dropped handle created two seconds after the customer had backed out,
       // landing them on Review having asked for the opposite; `handleGiveHeartbeat`
       // has no notion of the phase and could not refuse it. Leaving the phase —
-      // Back, the step changing, unmount — now cancels the hire with it.
+      // Back, the step changing, unmount — now cancels the create with it.
       const shownFor =
         connectingSinceRef.current === null ? 0 : Date.now() - connectingSinceRef.current;
       const t = setTimeout(
@@ -1536,7 +1536,7 @@ function OnboardingWizardInner({
    * The button's four faces, and which of them can be pressed.
    *
    * It is only live where there is something for it to do: a sign-in to open, a
-   * key to submit, or a hire to run. Through the waits it is the step reporting
+   * key to submit, or a create to run. Through the waits it is the step reporting
    * rather than offering — see `FooterNav`, where the label cross-fades over an
    * easing width so those changes read as one control rather than four.
    */
@@ -1571,13 +1571,13 @@ function OnboardingWizardInner({
   function unwindConnectStep() {
     localLogin.cancel();
     dismissedLoginResumes.current.add(loginResumeKey);
-    if (createdCompanyId) {
-      void queryClient.cancelQueries({ queryKey: queryKeys.agents.activeLoginSession(createdCompanyId, adapterType) });
-      if (canShowAdapterLogin && credentialMode !== "api") void cancelPendingAdapterLogin(createdCompanyId, adapterType,
+    if (createdSpaceId) {
+      void queryClient.cancelQueries({ queryKey: queryKeys.agents.activeLoginSession(createdSpaceId, adapterType) });
+      if (canShowAdapterLogin && credentialMode !== "api") void cancelPendingAdapterLogin(createdSpaceId, adapterType,
         adapterCaps.login?.panelMode === "submitted_browser_code", loginTarget);
     }
     connectAttemptRef.current++;
-    hiringAgentRef.current = null;
+    creatingAgentRef.current = null;
     setLoading(false);
     setAdapterEnvLoading(false);
     setConnectAuthUrl(null);
@@ -1596,8 +1596,8 @@ function OnboardingWizardInner({
    *
    * One function rather than the condition written twice. The keyboard path
    * has drifted from the button here before — the comment on its `step === 4`
-   * branch is about exactly that — and the gap it left was a hire that skipped
-   * a check. This one would be worse: Cmd+Enter would hire before the sign-in
+   * branch is about exactly that — and the gap it left was a create that skipped
+   * a check. This one would be worse: Cmd+Enter would create before the sign-in
    * it is meant to start, against a source with no credential.
    */
   function openConnectAuthorization() {
@@ -1627,8 +1627,8 @@ function OnboardingWizardInner({
       openConnectAuthorization();
       return;
     }
-    // The hold owns the hire once "Connecting" is showing. That now starts at
-    // the paste, before the credential exists, so Cmd+Enter here would hire
+    // The hold owns the create once "Connecting" is showing. That now starts at
+    // the paste, before the credential exists, so Cmd+Enter here would create
     // against a source with nothing to run on.
     if (connectPhase === "connecting") return;
     if (connectStepLoggingIn) return;
@@ -1723,19 +1723,19 @@ function OnboardingWizardInner({
   // Throw the cached probe away whenever the thing it probed changes. Every
   // input to `buildAdapterConfig` belongs in this list, `credentialMode` and
   // `apiKey` included: the Connect handler reuses a passing result instead of
-  // re-probing, so a dependency missing here is a hire that skips the check.
+  // re-probing, so a dependency missing here is a create that skips the check.
   //
-  // That is reachable rather than theoretical. The hire runs after the probe
-  // inside one try/catch, so a hire that fails — a network error, a server
+  // That is reachable rather than theoretical. The create runs after the probe
+  // inside one try/catch, so a create that fails — a network error, a server
   // error — leaves the pass sitting in state. Switch to an API key, paste one,
-  // press Connect again, and without these two the wizard would hire against a
+  // press Connect again, and without these two the wizard would create against a
   // key nothing ever tested.
   useEffect(() => {
     if (step !== 4) return;
     setAdapterEnvResult(null);
     adapterEnvResultAppliedStoredLoginRef.current = false;
     if (adapterEnvErrorSelectionRef.current !== adapterSetupSelectionRef.current) setAdapterEnvError(null);
-  }, [step, adapterType, runner, model, command, args, url, credentialMode, apiKey, selectedSavedKey, selectedApiKey?.id, savedSubscription?.id, createdCompanyId, gatewayConnection, resolvedLoginEnvironmentId, runner === "auto" ? runnerDiscovery.data?.find(item => item.type === adapterType)?.defaultRunner : undefined]);
+  }, [step, adapterType, runner, model, command, args, url, credentialMode, apiKey, selectedSavedKey, selectedApiKey?.id, savedSubscription?.id, createdSpaceId, gatewayConnection, resolvedLoginEnvironmentId, runner === "auto" ? runnerDiscovery.data?.find(item => item.type === adapterType)?.defaultRunner : undefined]);
 
   /**
    * Leaving the step puts the row back to a question.
@@ -1815,9 +1815,9 @@ function OnboardingWizardInner({
     setStep(1);
     setLoading(false);
     setError(null);
-    setCompanyName("");
+    setSpaceName("");
     // Back to the mount defaults: an empty name (the step's only question, and
-    // what its CTA gates on) and the neutral role every onboarding hire uses.
+    // what its CTA gates on) and the neutral role every onboarding create uses.
     setAgentName("");
     setAgentAppearance(randomAgentAppearance());
     setAgentRole(DEFAULT_AGENT_ROLE);
@@ -1834,13 +1834,13 @@ function OnboardingWizardInner({
     setForceUnsetAnthropicApiKey(false);
     setUnsetAnthropicLoading(false);
     setClaudeOAuthStatus(null);
-    setCreatedCompanyId(null);
-    setCreatedCompanyPrefix(null);
+    setCreatedSpaceId(null);
+    setCreatedSpacePrefix(null);
     setCreatedAgentId(null);
     setSetupAgentId(null);
     setSetupPrepared(false);
     setSetupError(false);
-    setCreatedCompanyGoalId(null);
+    setCreatedSpaceGoalId(null);
     setCreatedProjectId(null);
     setCreatedIssueRef(null);
   }
@@ -1856,36 +1856,36 @@ function OnboardingWizardInner({
   }
 
   /**
-   * Whether the company an async handler started for is still the one in hand.
+   * Whether the space an async handler started for is still the one in hand.
    *
-   * A route change can switch companies while a request is in flight, and the
-   * switch clears the created resource ids so the new company starts clean. A
-   * write that lands afterwards would put them back, and hand that company the
+   * A route change can switch spaces while a request is in flight, and the
+   * switch clears the created resource ids so the new space starts clean. A
+   * write that lands afterwards would put them back, and hand that space the
    * previous one's goal, project, issue or agent — which is exactly what the
    * clearing exists to prevent.
    *
    * Every async write below asks this before it attributes anything. It never
    * cancels the server work, which is done and correct either way; it declines
-   * only to record it against a company it does not belong to.
+   * only to record it against a space it does not belong to.
    */
-  function stillTheSameCompany(companyIdAtStart: string | null) {
-    return createdCompanyIdRef.current === companyIdAtStart;
+  function stillTheSameSpace(spaceIdAtStart: string | null) {
+    return createdSpaceIdRef.current === spaceIdAtStart;
   }
 
   /**
-   * Whether a just-created company can still be committed to this wizard.
+   * Whether a just-created space can still be committed to this wizard.
    *
-   * Company-list refreshes can make the surrounding app adopt the POST result
+   * Space-list refreshes can make the surrounding app adopt the POST result
    * before the continuation runs. That is the same successful transition, not
    * a takeover. A different id still means navigation moved the wizard to a
    * different organization while the request was in flight.
    */
-  function canCommitCreatedCompany(
-    companyIdAtStart: string | null,
-    returnedCompanyId: string,
+  function canCommitCreatedSpace(
+    spaceIdAtStart: string | null,
+    returnedSpaceId: string,
   ) {
-    const companyIdNow = createdCompanyIdRef.current;
-    if (companyIdNow === companyIdAtStart || companyIdNow === returnedCompanyId) {
+    const spaceIdNow = createdSpaceIdRef.current;
+    if (spaceIdNow === spaceIdAtStart || spaceIdNow === returnedSpaceId) {
       return true;
     }
     setError("Outpost created, but onboarding switched to another outpost.");
@@ -1893,43 +1893,43 @@ function OnboardingWizardInner({
   }
 
   async function handleLaunchToDashboard() {
-    if (!createdCompanyId || !createdAgentId) {
+    if (!createdSpaceId || !createdAgentId) {
       setError(INCOMPLETE_ONBOARDING_STATE_MESSAGE);
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      let goalId = createdCompanyGoalId;
+      let goalId = createdSpaceGoalId;
       if (!goalId) {
-        const goals = await goalsApi.list(createdCompanyId);
-        goalId = selectDefaultCompanyGoalId(goals);
-        if (stillTheSameCompany(createdCompanyId)) setCreatedCompanyGoalId(goalId);
+        const goals = await goalsApi.list(createdSpaceId);
+        goalId = selectDefaultSpaceGoalId(goals);
+        if (stillTheSameSpace(createdSpaceId)) setCreatedSpaceGoalId(goalId);
       }
 
       let projectId = createdProjectId;
       if (!projectId) {
-        const projects = await projectsApi.list(createdCompanyId);
+        const projects = await projectsApi.list(createdSpaceId);
         const existingOnboardingProject = selectReusableOnboardingProject(projects);
         if (existingOnboardingProject) {
           projectId = existingOnboardingProject.id;
         } else {
           const project = await projectsApi.create(
-            createdCompanyId,
+            createdSpaceId,
             buildOnboardingProjectPayload(goalId)
           );
           projectId = project.id;
           queryClient.invalidateQueries({
-            queryKey: queryKeys.projects.all(createdCompanyId)
+            queryKey: queryKeys.projects.all(createdSpaceId)
           });
         }
-        if (stillTheSameCompany(createdCompanyId)) setCreatedProjectId(projectId);
+        if (stillTheSameSpace(createdSpaceId)) setCreatedProjectId(projectId);
       }
 
       let issueRef = createdIssueRef;
       if (!issueRef) {
         const issue = await issuesApi.create(
-          createdCompanyId,
+          createdSpaceId,
           buildOnboardingIssuePayload({
             title: DEFAULT_TASK_TITLE,
             assigneeAgentId: createdAgentId,
@@ -1938,26 +1938,26 @@ function OnboardingWizardInner({
           })
         );
         issueRef = issue.identifier ?? issue.id;
-        if (stillTheSameCompany(createdCompanyId)) setCreatedIssueRef(issueRef);
+        if (stillTheSameSpace(createdSpaceId)) setCreatedIssueRef(issueRef);
         queryClient.invalidateQueries({
-          queryKey: queryKeys.issues.list(createdCompanyId)
+          queryKey: queryKeys.issues.list(createdSpaceId)
         });
       }
 
-      // Everything above is server work and stands on its own: the company has
+      // Everything above is server work and stands on its own: the space has
       // its goal, its onboarding project and its first task. What follows is
-      // this wizard finishing — selecting a company, discarding its own state
+      // this wizard finishing — selecting a space, discarding its own state
       // and navigating. None of that is right for a customer who has moved to
-      // another company in the meantime: it would take them back, and `reset()`
+      // another space in the meantime: it would take them back, and `reset()`
       // would discard the progress they had started there.
-      if (!stillTheSameCompany(createdCompanyId)) return;
+      if (!stillTheSameSpace(createdSpaceId)) return;
 
-      const prefix = createdCompanyPrefix;
-      // Select the new company as a route sync, not a manual switch: the
+      const prefix = createdSpacePrefix;
+      // Select the new space as a route sync, not a manual switch: the
       // explicit navigate below is the intended destination, so page-memory's
       // "restore last page" (which falls back to /dashboard) must not fire and
       // clobber the first-task URL. See PAP-404.
-      setSelectedCompanyId(createdCompanyId, { source: "route_sync" });
+      setSelectedSpaceId(createdSpaceId, { source: "route_sync" });
       reset();
       closeOnboarding();
       // Drop the user straight into the first task's detail page (not the
@@ -1974,40 +1974,40 @@ function OnboardingWizardInner({
    * Store the typed key as the customer's own user secret, and report whether it
    * is in place.
    *
-   * A user secret rather than a company one, to match the subscription half of
+   * A user secret rather than a space one, to match the subscription half of
    * this very step: signing in stores the Claude token as a user secret and
    * binds a `user_secret_ref`. Two credential modes on one step that scoped
    * their secrets differently would be hard to justify and easy to get wrong
    * later. It also keeps the key to the person who typed it instead of exposing
-   * it to everyone with company secret access, and agent runs still resolve it
-   * through the company's responsible user.
+   * it to everyone with space secret access, and agent runs still resolve it
+   * through the space's responsible user.
    *
    * A user secret needs a definition to hang off. The Claude token's is fixed
    * and server-owned; there is no such definition for API keys, so onboarding
-   * creates a distinct definition for each new key, preserving existing keys. That needs company owner or admin rights, which
-   * whoever just created this company in onboarding has.
+   * creates a distinct definition for each new key, preserving existing keys. That needs space owner or admin rights, which
+   * whoever just created this space in onboarding has.
    *
    * Returns false on failure, having set the error. Callers must treat false as
    * a stop: there is deliberately no path that hands the raw key back, because
    * the only thing left to do with it would be to embed it.
    */
-  async function storeApiKeyUserSecret(companyId: string, isCurrent = () => true): Promise<boolean> {
+  async function storeApiKeyUserSecret(spaceId: string, isCurrent = () => true): Promise<boolean> {
     const key = apiKey.trim();
     const envKey = apiKeyEnvKeyFor(adapterType);
-    const stored = apiKeySecretRef.current?.key === key && apiKeySecretRef.current.companyId === companyId && apiKeySecretRef.current.envKey === envKey
+    const stored = apiKeySecretRef.current?.key === key && apiKeySecretRef.current.spaceId === spaceId && apiKeySecretRef.current.envKey === envKey
       ? apiKeySecretRef.current : null;
     if (stored?.binding) return true;
     try {
       if (managedProvider) {
-        const grantId = stored?.grantId ?? (await aiConnectionsApi.create(companyId, { provider: managedProvider, method: "api_key", name: `My ${CONNECT_SOURCE_NAMES[adapterType] ?? managedProvider} API`, ownership: "personal", apiKey: key, agentIds: [], allAgents: true })).grantId;
-        apiKeySecretRef.current = { key, companyId, envKey, grantId };
+        const grantId = stored?.grantId ?? (await aiConnectionsApi.create(spaceId, { provider: managedProvider, method: "api_key", name: `My ${CONNECT_SOURCE_NAMES[adapterType] ?? managedProvider} API`, ownership: "personal", apiKey: key, agentIds: [], allAgents: true })).grantId;
+        apiKeySecretRef.current = { key, spaceId, envKey, grantId };
         if (!isCurrent()) return false;
-        if (!await selectManagedDefault(companyId, managedProvider, grantId, isCurrent)) return false;
-        apiKeySecretRef.current = { key, companyId, envKey, grantId, aiConnection: { provider: managedProvider, method: "api_key", mode: "responsible_user" } };
+        if (!await selectManagedDefault(spaceId, managedProvider, grantId, isCurrent)) return false;
+        apiKeySecretRef.current = { key, spaceId, envKey, grantId, aiConnection: { provider: managedProvider, method: "api_key", mode: "responsible_user" } };
         return true;
       }
-      const legacyStored = await storeProviderApiKey(companyId, envKey, key);
-      apiKeySecretRef.current = { key, companyId, envKey, binding: legacyStored.binding };
+      const legacyStored = await storeProviderApiKey(spaceId, envKey, key);
+      apiKeySecretRef.current = { key, spaceId, envKey, binding: legacyStored.binding };
       return true;
     } catch (err) {
       if (isCurrent()) setError(
@@ -2019,8 +2019,8 @@ function OnboardingWizardInner({
     }
   }
 
-  function selectManagedDefault(companyId: string, provider: string, grantId: string, isCurrent: () => boolean, visibleDefault?: string) {
-    const key = JSON.stringify([companyId, provider]);
+  function selectManagedDefault(spaceId: string, provider: string, grantId: string, isCurrent: () => boolean, visibleDefault?: string) {
+    const key = JSON.stringify([spaceId, provider]);
     let selection = defaultSelectionsRef.current.get(key);
     if (!selection) {
       selection = { pending: Promise.resolve(), queued: 0, revision: 0 };
@@ -2034,10 +2034,10 @@ function OnboardingWizardInner({
       if (visibleDefault === grantId && (state.grantId === undefined || state.grantId === grantId)) return true;
       state.grantId = null;
       try {
-        await aiConnectionsApi.setDefault(companyId, grantId);
+        await aiConnectionsApi.setDefault(spaceId, grantId);
         state.grantId = grantId;
       } finally {
-        void queryClient.invalidateQueries({ queryKey: ["ai-connections", companyId] });
+        void queryClient.invalidateQueries({ queryKey: ["ai-connections", spaceId] });
       }
       return isCurrent();
     }).finally(() => { state.queued--; });
@@ -2045,18 +2045,18 @@ function OnboardingWizardInner({
     return request;
   }
 
-  async function selectManagedSubscription(companyId: string, isCurrent: () => boolean) {
+  async function selectManagedSubscription(spaceId: string, isCurrent: () => boolean) {
     const binding = managedBindingForStep();
     if (binding?.mode !== "responsible_user") return;
-    const cached = managedSubscriptionRef.current?.companyId === companyId
+    const cached = managedSubscriptionRef.current?.spaceId === spaceId
       && managedSubscriptionRef.current.binding.provider === binding.provider ? managedSubscriptionRef.current : null;
     let grantId = cached?.grantId;
-    if (!grantId && cached?.sessionId) grantId = (await aiConnectionsApi.loginResult(companyId, cached.sessionId)).grantId;
+    if (!grantId && cached?.sessionId) grantId = (await aiConnectionsApi.loginResult(spaceId, cached.sessionId)).grantId;
     const visibleDefault = savedSubscription?.aiConnection?.mode === "responsible_user" && savedSubscription.id.startsWith("ai:")
       ? savedSubscription.id.slice(3) : undefined;
     grantId ??= visibleDefault;
     if (!grantId) {
-      const accounts = await aiConnectionsApi.list(companyId);
+      const accounts = await aiConnectionsApi.list(spaceId);
       if (!isCurrent()) return;
       const subscriptions = accounts.connections.filter(account => account.provider === binding.provider && account.method === "subscription"
         && account.ownership === "personal" && account.ownerUserId === accounts.currentUserId && account.status === "connected");
@@ -2065,14 +2065,14 @@ function OnboardingWizardInner({
     }
     if (!isCurrent()) return;
     if (!grantId) throw new Error("Choose a subscription account in Connections, then retry setup.");
-    managedSubscriptionRef.current = { companyId, binding, grantId };
-    await selectManagedDefault(companyId, binding.provider, grantId, isCurrent, visibleDefault);
+    managedSubscriptionRef.current = { spaceId, binding, grantId };
+    await selectManagedDefault(spaceId, binding.provider, grantId, isCurrent, visibleDefault);
   }
 
   function buildAdapterConfig(bindApiKey = false, setupRunner?: AgentRunner, existingAgent?: Agent): Record<string, unknown> {
     const adapter = getUIAdapter(adapterType);
     const savedAgent = existingAgent ?? restoredSetup;
-    const savedConfig = savedAgent?.companyId === createdCompanyId
+    const savedConfig = savedAgent?.spaceId === createdSpaceId
       && agentHarnessType(savedAgent.adapterType, savedAgent.adapterConfig) === agentHarnessType(adapterType)
       ? savedAgent.adapterConfig : {};
     const builtConfig = adapter.buildAdapterConfig({
@@ -2125,9 +2125,9 @@ function OnboardingWizardInner({
       env.ANTHROPIC_API_KEY = { type: "plain", value: "" };
       config.env = env;
     }
-    // A key typed on this step is the credential the agent is being hired with,
-    // so it has to reach the configuration the hire sends — and the same one the
-    // environment test probes, or the test would pass on a config the hire does
+    // A key typed on this step is the credential the agent is being created with,
+    // so it has to reach the configuration the create sends — and the same one the
+    // environment test probes, or the test would pass on a config the create does
     // not use. Only when the mode asks for it: leaving a stale reference in the
     // config after switching back to a subscription is what the server rejects
     // alongside the Claude OAuth binding.
@@ -2140,7 +2140,7 @@ function OnboardingWizardInner({
     //
     // Guarded on the caller having stored the secret, not on the key being
     // present. If storing failed this stays false, and the right outcome is a
-    // configuration with no credential — which the hire then blocks on — rather
+    // configuration with no credential — which the create then blocks on — rather
     // than one that quietly falls back to embedding the value.
     if (!managedBindingForStep() && credentialMode === "api" && (bindApiKey || selectedApiKey)
       && (!((savedConfig.env as Record<string, unknown> | undefined)?.[apiKeyEnvKeyFor(adapterType)])
@@ -2160,7 +2160,7 @@ function OnboardingWizardInner({
 
   function buildSetupRuntimeConfig(heartbeatEnabled: boolean, existingAgent?: Agent) {
     const savedAgent = existingAgent ?? restoredSetup;
-    const { aiConnection: _savedBinding, ...runtimeConfig } = savedAgent?.companyId === createdCompanyId ? savedAgent.runtimeConfig : {};
+    const { aiConnection: _savedBinding, ...runtimeConfig } = savedAgent?.spaceId === createdSpaceId ? savedAgent.runtimeConfig : {};
     const binding = managedBindingForStep();
     return { ...runtimeConfig, ...(!existingAgent ? buildNewAgentRuntimeConfig({ heartbeatEnabled }) : {}), ...(binding ? { aiConnection: binding } : {}) };
   }
@@ -2176,17 +2176,17 @@ function OnboardingWizardInner({
     })
     : null;
   useEffect(() => {
-    if (!setupSnapshot || !setupAgentId || !createdCompanyId) return;
-    const companyId = createdCompanyId;
+    if (!setupSnapshot || !setupAgentId || !createdSpaceId) return;
+    const spaceId = createdSpaceId;
     const id = setupAgentId;
     setupSave.current = setupSave.current.catch(() => {}).then(async () => {
-      if (!stillTheSameCompany(companyId) || hiringAgentRef.current !== null) return;
-      await agentsApi.update(id, JSON.parse(setupSnapshot), companyId);
+      if (!stillTheSameSpace(spaceId) || creatingAgentRef.current !== null) return;
+      await agentsApi.update(id, JSON.parse(setupSnapshot), spaceId);
     });
     void setupSave.current.catch(cause => {
-      if (stillTheSameCompany(companyId)) setError(cause instanceof Error ? cause.message : "Could not save agent setup.");
+      if (stillTheSameSpace(spaceId)) setError(cause instanceof Error ? cause.message : "Could not save agent setup.");
     });
-  }, [setupSnapshot, setupAgentId, createdCompanyId]);
+  }, [setupSnapshot, setupAgentId, createdSpaceId]);
 
   async function runAdapterEnvironmentTest(
     adapterConfigOverride?: Record<string, unknown>,
@@ -2196,7 +2196,7 @@ function OnboardingWizardInner({
     existingAgent?: Agent,
   ): Promise<AdapterEnvironmentTestResult | null> {
     if (!runnerDiscoveryReady) return null;
-    if (!createdCompanyId) {
+    if (!createdSpaceId) {
       setAdapterEnvError(
         "Create or select an outpost before testing adapter environment."
       );
@@ -2219,8 +2219,8 @@ function OnboardingWizardInner({
         try {
           const [list, generalSettings, experimentalSettings] = await Promise.all([
             queryClient.ensureQueryData({
-              queryKey: queryKeys.environments.list(createdCompanyId),
-              queryFn: () => environmentsApi.list(createdCompanyId),
+              queryKey: queryKeys.environments.list(createdSpaceId),
+              queryFn: () => environmentsApi.list(createdSpaceId),
             }),
             queryClient.ensureQueryData({
               queryKey: queryKeys.instance.settings,
@@ -2247,7 +2247,7 @@ function OnboardingWizardInner({
         // resolver throws when no managed sandbox is available, which the outer
         // catch surfaces as a fail-closed error rather than a local host probe.
         const environmentId = resolveAdapterTestEnvironmentId({
-          agentDefaultEnvironmentId: savedAgent?.companyId === createdCompanyId ? savedAgent.defaultEnvironmentId : null,
+          agentDefaultEnvironmentId: savedAgent?.spaceId === createdSpaceId ? savedAgent.defaultEnvironmentId : null,
           instanceDefaultEnvironmentId: settings?.defaultEnvironmentId ?? null,
           localDefaultEnvironmentId: resolveLocalDefaultEnvironmentId(environmentList),
           managedSandboxOnly,
@@ -2265,19 +2265,19 @@ function OnboardingWizardInner({
           && selectedEnvironment?.driver === "sandbox" && typeof selectedConfig?.image === "string"
           && /^[^\s@]+@sha256:[a-f0-9]{64}$/.test(selectedConfig.image)
           && !selectedConfig.snapshot && !selectedConfig.template && !selectedConfig.templateRef) {
-          const availabilityKey = queryKeys.adapters.availability(createdCompanyId, environmentId);
+          const availabilityKey = queryKeys.adapters.availability(createdSpaceId, environmentId);
           const adapters = await queryClient.fetchQuery({ queryKey: availabilityKey, staleTime: 0,
-            queryFn: () => adaptersApi.list({ companyId: createdCompanyId, environmentId }, { signal }) });
+            queryFn: () => adaptersApi.list({ spaceId: createdSpaceId, environmentId }, { signal }) });
           if (!testIsCurrent()) return null;
           const codex = adapters.find(adapter => adapter.type === "codex_local");
           const native = adapters.find(adapter => adapter.type === "outpost_runner");
-          if (!codex || (codex.defaultRunner !== "paperclip" && codex.defaultRunner !== "legacy")
+          if (!codex || (codex.defaultRunner !== "outpost" && codex.defaultRunner !== "legacy")
             || !codex.supportedRunners?.includes(codex.defaultRunner)) {
             throw new Error("Could not confirm Codex runner availability for this environment. Retry setup.");
           }
-          if (codex.defaultRunner !== "paperclip" && !codex?.disabled && !codex?.overriddenBuiltin
+          if (codex.defaultRunner !== "outpost" && !codex?.disabled && !codex?.overriddenBuiltin
             && !native?.disabled && !native?.overriddenBuiltin) {
-            const probe = await environmentsApi.probe(environmentId!, createdCompanyId, { signal });
+            const probe = await environmentsApi.probe(environmentId!, createdSpaceId, { signal });
             if (!testIsCurrent()) return null;
             if (probe.ok !== true || probe.details?.platformQualificationRecorded !== true
               || typeof probe.details.leaseId !== "string" || !probe.details.leaseId) {
@@ -2286,11 +2286,11 @@ function OnboardingWizardInner({
                 : probe.summary || "The environment's platform qualification could not be confirmed. Retry the connection probe.");
             }
             const refreshed = await queryClient.fetchQuery({ queryKey: availabilityKey, staleTime: 0,
-              queryFn: () => adaptersApi.list({ companyId: createdCompanyId, environmentId }, { signal }) });
+              queryFn: () => adaptersApi.list({ spaceId: createdSpaceId, environmentId }, { signal }) });
             if (!testIsCurrent()) return null;
             const refreshedCodex = refreshed.find(adapter => adapter.type === "codex_local");
             const defaultRunner = refreshedCodex?.defaultRunner;
-            if ((defaultRunner !== "paperclip" && defaultRunner !== "legacy")
+            if ((defaultRunner !== "outpost" && defaultRunner !== "legacy")
               || !refreshedCodex?.supportedRunners?.includes(defaultRunner)) {
               throw new Error("Could not confirm the environment's default runner. Retry setup.");
             }
@@ -2300,8 +2300,8 @@ function OnboardingWizardInner({
         const selection = { adapterType, runner, savedAgentId: createdAgentId,
           environment: environmentList.find(environment => environment.id === environmentId) };
         const qualified = await qualifyClaudeSetup({ ...selection,
-          readAdapters: () => adaptersApi.list({ companyId: createdCompanyId, environmentId }, { signal }),
-          probeEnvironment: () => environmentsApi.probe(environmentId!, createdCompanyId, { signal }),
+          readAdapters: () => adaptersApi.list({ spaceId: createdSpaceId, environmentId }, { signal }),
+          probeEnvironment: () => environmentsApi.probe(environmentId!, createdSpaceId, { signal }),
           isCurrent: testIsCurrent,
         });
         if (!testIsCurrent() || (needsClaudeSetupQualification(selection) && !qualified)) return null;
@@ -2314,11 +2314,11 @@ function OnboardingWizardInner({
           onQualifiedConfig?.(testedConfig, qualified.adapters, environmentId);
         }
         const result = await agentsApi.testEnvironment(
-          createdCompanyId,
+          createdSpaceId,
           adapterType,
           {
             adapterConfig: testedConfig,
-            ...(savedAgent?.companyId === createdCompanyId ? { agentId: savedAgent.id } : {}),
+            ...(savedAgent?.spaceId === createdSpaceId ? { agentId: savedAgent.id } : {}),
             ...(["codex_local", "claude_local", "opencode_local", "pi_local"].includes(adapterType) && testRunner !== "auto" ? { runner: testRunner } : {}),
             ...(managedBindingForStep() ? { aiConnection: managedBindingForStep() } : {}),
             environmentId,
@@ -2348,67 +2348,67 @@ function OnboardingWizardInner({
   // No goal is written here: the mission is collected later, in the chat with
   // the first agent, so writing an empty one now would only give the
   // organization a goal it did not choose.
-  async function handleCreateCompany() {
-    if (createdCompanyId) {
+  async function handleCreateSpace() {
+    if (createdSpaceId) {
       setStep(3);
       return;
     }
-    if (creatingCompanyRef.current) return;
-    creatingCompanyRef.current = true;
+    if (creatingSpaceRef.current) return;
+    creatingSpaceRef.current = true;
     setLoading(true);
     setError(null);
-    const companyIdAtStart = createdCompanyIdRef.current;
+    const spaceIdAtStart = createdSpaceIdRef.current;
     try {
-      const company = await companiesApi.create({ name: companyName.trim() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+      const space = await spacesApi.create({ name: spaceName.trim() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all });
       // Nothing was in hand when this started, so "unchanged" means still
-      // nothing. A route that supplied a company while the request was open has
-      // taken over the wizard, and adopting the company just created would
-      // fight it — and would leave the customer on a company they never
+      // nothing. A route that supplied a space while the request was open has
+      // taken over the wizard, and adopting the space just created would
+      // fight it — and would leave the customer on a space they never
       // navigated to.
-      if (!canCommitCreatedCompany(companyIdAtStart, company.id)) return;
-      setCreatedCompanyId(company.id);
+      if (!canCommitCreatedSpace(spaceIdAtStart, space.id)) return;
+      setCreatedSpaceId(space.id);
       // Keep the mirror current rather than waiting for the next render:
-      // anything downstream that asks `stillTheSameCompany` in this tick would
+      // anything downstream that asks `stillTheSameSpace` in this tick would
       // otherwise be told no.
-      createdCompanyIdRef.current = company.id;
-      setCreatedCompanyPrefix(company.issuePrefix);
-      setSelectedCompanyId(company.id);
+      createdSpaceIdRef.current = space.id;
+      setCreatedSpacePrefix(space.issuePrefix);
+      setSelectedSpaceId(space.id);
       setStep(3);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create outpost");
     } finally {
-      creatingCompanyRef.current = false;
+      creatingSpaceRef.current = false;
       setLoading(false);
     }
   }
 
 
-  // Step 4 → 5 ("Give it a heartbeat"): hire the lead agent + seed its
+  // Step 4 → 5 ("Give it a heartbeat"): create the lead agent + seed its
   // instructions, then advance to Review. Guarded so revisiting step 4
-  // doesn't hire a second agent.
+  // doesn't create a second agent.
   async function handleGiveHeartbeat() {
-    if (!createdCompanyId) return;
+    if (!createdSpaceId) return;
     if (!setupPrepared && !createdAgentId) return;
     if (!connectionModelReady) {
       setError("Choose a model for this gateway connection before connecting your agent.");
       return;
     }
-    const defaultSelection = defaultSelectionsRef.current.get(JSON.stringify([createdCompanyId, managedProvider]));
+    const defaultSelection = defaultSelectionsRef.current.get(JSON.stringify([createdSpaceId, managedProvider]));
     if (createdAgentId && connectedSelectionRef.current?.selection === connectionSelection
       && !defaultSelection?.queued && connectedSelectionRef.current.defaultRevision === (defaultSelection?.revision ?? 0)) {
       setStep(5);
       return;
     }
-    if (!runnerDiscoveryReady || hiringAgentRef.current !== null) return;
+    if (!runnerDiscoveryReady || creatingAgentRef.current !== null) return;
     const attempt = ++connectAttemptRef.current;
     const guardClaudeSetup = adapterType === "claude_local" && runner === "auto";
     const setupSelection = claudeSetupSelectionRef.current;
     activeClaudeQualification.current = guardClaudeSetup ? { attempt, selection: setupSelection } : null;
-    const isCurrent = () => connectAttemptRef.current === attempt && stillTheSameCompany(createdCompanyId)
+    const isCurrent = () => connectAttemptRef.current === attempt && stillTheSameSpace(createdSpaceId)
       && runnerSelectionRef.current === runnerSelectionKey
       && (!guardClaudeSetup || claudeSetupSelectionRef.current === setupSelection);
-    hiringAgentRef.current = attempt;
+    creatingAgentRef.current = attempt;
     autoConnectStartedRef.current = true;
     setLoading(true);
     setError(null);
@@ -2449,7 +2449,7 @@ function OnboardingWizardInner({
 
       // Onboarding applies a stored Claude subscription login automatically,
       // with no extra control. A new user who signs in, leaves, and returns
-      // should not sign in a second time — that is the board's direction.
+      // should not sign in a second time — that is the operator's direction.
       // The binding is a reference to the owner's stored value, never the
       // value itself (see buildFixedClaudeOAuthBinding). The server rejects
       // that binding together with a configured ANTHROPIC_API_KEY, so this
@@ -2458,31 +2458,31 @@ function OnboardingWizardInner({
       //
       // Read the stored-login status before the environment test below, and
       // fold it into one adapter configuration. The test must probe the same
-      // configuration the hire sends — a config without the binding can
+      // configuration the create sends — a config without the binding can
       // report missing authentication for a user the binding would have
       // covered.
       // Store the key before anything is built from it, so both the probe and the
-      // hire describe it the same way — as a reference. A failure here stops the
-      // hire rather than falling through to a configuration with no credential.
+      // create describe it the same way — as a reference. A failure here stops the
+      // create rather than falling through to a configuration with no credential.
       let apiKeyStored = false;
       if (credentialMode === "api" && !selectedApiKey && apiKey.trim()) {
-        apiKeyStored = await storeApiKeyUserSecret(createdCompanyId, isCurrent);
+        apiKeyStored = await storeApiKeyUserSecret(createdSpaceId, isCurrent);
         if (!apiKeyStored || !isCurrent()) return;
       }
       if (credentialMode === "api" && selectedApiKey?.aiConnection?.mode === "responsible_user") {
         const grantId = selectedApiKey.id.startsWith("ai:") ? selectedApiKey.id.slice(3) : undefined;
         if (!grantId) throw new Error("Choose a connected API account before continuing.");
-        if (!await selectManagedDefault(createdCompanyId, selectedApiKey.aiConnection.provider, grantId, isCurrent, grantId)) return;
+        if (!await selectManagedDefault(createdSpaceId, selectedApiKey.aiConnection.provider, grantId, isCurrent, grantId)) return;
       }
       if (credentialMode !== "api" && canUseLocalLogin && managedProvider && !managedBindingForStep() && !savedSubscription && !savedKeys.storedLogin.data) {
         const account = await localLogin.connect();
         if (!isCurrent()) return;
-        managedSubscriptionRef.current = { companyId: createdCompanyId, binding: { provider: managedProvider, method: "subscription", mode: "responsible_user" }, grantId: account.grantId };
+        managedSubscriptionRef.current = { spaceId: createdSpaceId, binding: { provider: managedProvider, method: "subscription", mode: "responsible_user" }, grantId: account.grantId };
       }
-      if (credentialMode === "subscription") await selectManagedSubscription(createdCompanyId, isCurrent);
+      if (credentialMode === "subscription") await selectManagedSubscription(createdSpaceId, isCurrent);
       if (!isCurrent()) return;
       const managedBinding = managedBindingForStep();
-      const existingAgent = createdAgentId ? await agentsApi.get(createdAgentId, createdCompanyId) : undefined;
+      const existingAgent = createdAgentId ? await agentsApi.get(createdAgentId, createdSpaceId) : undefined;
       if (!isCurrent()) return;
       if (existingAgent?.runtimeConfig.aiConnection && credentialMode === "api" && selectedApiKey?.binding && !managedBinding) {
         throw new Error("Choose a connected API account or Enter a new API key to replace this agent’s connected account.");
@@ -2496,7 +2496,7 @@ function OnboardingWizardInner({
         !adapterConfigHasAnthropicApiKey(baseAdapterConfig)
       ) {
         try {
-          storedClaudeLogin = await agentsApi.getClaudeOAuthTokenStatus(createdCompanyId);
+          storedClaudeLogin = await agentsApi.getClaudeOAuthTokenStatus(createdSpaceId);
         } catch (err) {
           // A fixed 404 means the owner has no stored value. It is not a
           // failure.
@@ -2507,7 +2507,7 @@ function OnboardingWizardInner({
         setClaudeOAuthStatus(storedClaudeLogin);
       }
       const shouldApplyStoredClaudeLogin = storedClaudeLogin !== null;
-      let hireAdapterConfig = shouldApplyStoredClaudeLogin
+      let creationAdapterConfig = shouldApplyStoredClaudeLogin
         ? {
             ...baseAdapterConfig,
             env: {
@@ -2519,8 +2519,8 @@ function OnboardingWizardInner({
 
       if (isLocalAdapter) {
         // A cached result is reusable only when it tested the same
-        // configuration the hire below sends, and only when it does not
-        // block the hire — see blocksAgentCreate. With the "Test now" card
+        // configuration the create below sends, and only when it does not
+        // block the create — see blocksAgentCreate. With the "Test now" card
         // gone, this button is the only way to re-probe. Reusing a stale
         // blocking result, or a result from a config that did not carry the
         // stored login, would lock out a customer who has since fixed the
@@ -2533,10 +2533,10 @@ function OnboardingWizardInner({
             : null;
         const result =
           cachedUsable ??
-          (await runAdapterEnvironmentTest(hireAdapterConfig, shouldApplyStoredClaudeLogin, isCurrent,
-            (config, adapters, environmentId) => { hireAdapterConfig = config; qualifiedDiscovery = { adapters, environmentId }; }, existingAgent));
+          (await runAdapterEnvironmentTest(creationAdapterConfig, shouldApplyStoredClaudeLogin, isCurrent,
+            (config, adapters, environmentId) => { creationAdapterConfig = config; qualifiedDiscovery = { adapters, environmentId }; }, existingAgent));
         if (!result || !isCurrent()) return;
-        // Block the hire on a failed environment test. Also block it on a
+        // Block the create on a failed environment test. Also block it on a
         // pass or a warn result that reports missing authentication — the
         // agent cannot run without one of those.
         if (blocksAgentCreate(result)) {
@@ -2546,8 +2546,8 @@ function OnboardingWizardInner({
             nativeCodexError || (result.status === "fail"
               ? cloudInstance
                 ? "Outpost couldn't finish connecting this agent. Try connecting again."
-                : "The environment test failed. Fix the reported checks before you hire this agent."
-              : "No working authentication was found. Fix the reported checks before you hire this agent."),
+                : "The environment test failed. Fix the reported checks before you create this agent."
+              : "No working authentication was found. Fix the reported checks before you create this agent."),
           );
           return;
         }
@@ -2555,90 +2555,90 @@ function OnboardingWizardInner({
 
       // `agentRole` always holds a value now (see its default), so this is a
       // type narrowing rather than a gate — but it stays, because a future
-      // path that clears the role must not reach a hire that silently no-ops.
+      // path that clears the role must not reach a create that silently no-ops.
       if (!agentRole || !isCurrent()) return;
 
-      const hireName = agentName.trim() || AGENT_ROLE_LABELS[agentRole];
+      const creationName = agentName.trim() || AGENT_ROLE_LABELS[agentRole];
       if (createdAgentId && existingAgent) {
         await setupSave.current.catch(() => {});
         if (!isCurrent()) return;
         await agentsApi.update(createdAgentId, {
           adapterType,
-          adapterConfig: hireAdapterConfig,
+          adapterConfig: creationAdapterConfig,
           ...(["codex_local", "claude_local", "opencode_local", "pi_local"].includes(adapterType) && (runner !== "auto" || existingRunner) ? { runner: existingRunner ?? runner } : {}),
           runtimeConfig: buildSetupRuntimeConfig(true, existingAgent),
-        }, createdCompanyId);
+        }, createdSpaceId);
         if (!isCurrent()) return;
         rememberConnectedSelection(createdAgentId);
-        void queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(createdCompanyId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(createdSpaceId) });
         void queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(createdAgentId) });
         setStep(5);
         return;
       }
 
-      // The company may already hold this agent. A wizard that reopens on the
-      // agent step after the hire — the dashboard's agentless offer on a stale
+      // The space may already hold this agent. A wizard that reopens on the
+      // agent step after the create — the dashboard's agentless offer on a stale
       // list, a restored run — has no `createdAgentId` to stop it, and the
       // server accepts a repeat name by numbering it, so the customer who
       // walks the step twice ends up with "Ada" and "Ada 2". An agent with the
       // same name on the same source is that agent: adopt it and move on to
-      // Review, the way a run that remembers its hire does.
-      const existingAgents = setupAgentId ? null : await agentsApi.list(createdCompanyId).catch(() => null);
+      // Review, the way a run that remembers its create does.
+      const existingAgents = setupAgentId ? null : await agentsApi.list(createdSpaceId).catch(() => null);
       if (!isCurrent()) return;
       const existing = existingAgents?.find(
         (agent) =>
           agent.id !== setupAgentId &&
-          agent.name.trim().toLowerCase() === hireName.toLowerCase() &&
-          agentHarnessType(agent.adapterType, agent.adapterConfig) === agentHarnessType(adapterType, hireAdapterConfig),
+          agent.name.trim().toLowerCase() === creationName.toLowerCase() &&
+          agentHarnessType(agent.adapterType, agent.adapterConfig) === agentHarnessType(adapterType, creationAdapterConfig),
       );
       if (existing) {
         if (!isCurrent()) return;
         setCreatedAgentId(existing.id);
         setAgentAppearance(resolveAgentAppearance(existing.appearance, existing.id));
         queryClient.invalidateQueries({
-          queryKey: queryKeys.agents.list(createdCompanyId)
+          queryKey: queryKeys.agents.list(createdSpaceId)
         });
         setStep(5);
         return;
       }
 
-      // Invalidation prevents sending a hire for an abandoned verification.
+      // Invalidation prevents sending a create for an abandoned verification.
       // Once submitted, this existing API has no rollback contract; navigation
-      // can only suppress its completion, just as it does for a manual hire.
+      // can only suppress its completion, just as it does for a manual create.
       await setupSave.current.catch(() => {});
       if (!isCurrent()) return;
-      const hire = await agentsApi.hire(createdCompanyId, {
+      const create = await agentsApi.requestCreation(createdSpaceId, {
         ...(setupAgentId ? { setupAgentId } : {}),
         // The name is optional; an agent that reaches here without one is
-        // named for the job it was hired to do rather than left blank.
-        name: hireName,
+        // named for the job it was created to do rather than left blank.
+        name: creationName,
         appearance: agentAppearance,
         role: agentRole,
-        ...(restoredSetup?.companyId === createdCompanyId ? { reportsTo: restoredSetup.reportsTo } : {}),
+        ...(restoredSetup?.spaceId === createdSpaceId ? { reportsTo: restoredSetup.reportsTo } : {}),
         adapterType,
-        adapterConfig: hireAdapterConfig,
+        adapterConfig: creationAdapterConfig,
         ...(["codex_local", "claude_local", "opencode_local", "pi_local"].includes(adapterType) && runner !== "auto" ? { runner } : {}),
         ...(shouldApplyStoredClaudeLogin ? { applyStoredClaudeLogin: true } : {}),
         // The server owns what the first agent is told now: this marker seeds
         // the chief-of-staff persona over the agent's entry instruction file.
         // The wizard no longer composes or overwrites it.
         onboardingFirstAgent: true,
-        ...(restoredSetup?.companyId === createdCompanyId && restoredSetup.defaultEnvironmentId ? { defaultEnvironmentId: resolvedLoginEnvironmentId } : {}),
+        ...(restoredSetup?.spaceId === createdSpaceId && restoredSetup.defaultEnvironmentId ? { defaultEnvironmentId: resolvedLoginEnvironmentId } : {}),
         runtimeConfig: buildSetupRuntimeConfig(true)
       });
       if (!isCurrent()) return;
-      if (hire.approval) {
+      if (create.approval) {
         await approvalsApi.approve(
-          hire.approval.id,
+          create.approval.id,
           "Approved during onboarding first-agent setup."
         );
         queryClient.invalidateQueries({
-          queryKey: queryKeys.approvals.list(createdCompanyId)
+          queryKey: queryKeys.approvals.list(createdSpaceId)
         });
       }
-      const agent = hire.agent;
+      const agent = create.agent;
       queryClient.invalidateQueries({
-        queryKey: queryKeys.agents.list(createdCompanyId)
+        queryKey: queryKeys.agents.list(createdSpaceId)
       });
       // The agent's instruction file is seeded server-side from the
       // `onboardingFirstAgent` marker above (the chief-of-staff persona). The
@@ -2648,21 +2648,21 @@ function OnboardingWizardInner({
       setCreatedAgentId(agent.id);
       rememberConnectedSelection(agent.id);
       // Advance to the Review step — the lead is now online. The user drives
-      // strategy + hiring from the planning chat after "Get started".
+      // strategy + creation from the planning chat after "Get started".
       setStep(5);
     } catch (err) {
       if (!isCurrent()) return;
       setError(err instanceof Error ? err.message : "Failed to create agent");
     } finally {
-      if (hiringAgentRef.current === attempt) hiringAgentRef.current = null;
+      if (creatingAgentRef.current === attempt) creatingAgentRef.current = null;
       if (activeClaudeQualification.current?.attempt === attempt) activeClaudeQualification.current = null;
       if (isCurrent()) {
         if (qualifiedDiscovery) queryClient.setQueryData(
-          queryKeys.adapters.availability(createdCompanyId, qualifiedDiscovery.environmentId), qualifiedDiscovery.adapters,
+          queryKeys.adapters.availability(createdSpaceId, qualifiedDiscovery.environmentId), qualifiedDiscovery.adapters,
         );
         setLoading(false);
       }
-      // Authentication is already saved. A failed probe or hire must offer a
+      // Authentication is already saved. A failed probe or create must offer a
       // retry with that account, rather than keep the completed login busy.
       if (connectCredentialStored && isCurrent()) {
         connectingSinceRef.current = null;
@@ -2673,7 +2673,7 @@ function OnboardingWizardInner({
   }
 
   async function handleUnsetAnthropicApiKey() {
-    if (!createdCompanyId || unsetAnthropicLoading) return;
+    if (!createdSpaceId || unsetAnthropicLoading) return;
     setUnsetAnthropicLoading(true);
     setError(null);
     setAdapterEnvError(null);
@@ -2697,10 +2697,10 @@ function OnboardingWizardInner({
         await agentsApi.update(
           createdAgentId,
           { adapterConfig: configWithUnset },
-          createdCompanyId
+          createdSpaceId
         );
         queryClient.invalidateQueries({
-          queryKey: queryKeys.agents.list(createdCompanyId)
+          queryKey: queryKeys.agents.list(createdSpaceId)
         });
       }
 
@@ -2722,12 +2722,12 @@ function OnboardingWizardInner({
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    // Something nearer the key already dealt with it. The company-name field
+    // Something nearer the key already dealt with it. The space-name field
     // handles Enter itself and does not check for a modifier, so Cmd+Enter in
     // that field reaches both handlers — and both would start creating a
-    // company. The `loading` guard below cannot catch that: `setLoading(true)`
+    // space. The `loading` guard below cannot catch that: `setLoading(true)`
     // has not landed while the same event is still bubbling, so the second
-    // caller reads the value the first one has not written yet. Two companies,
+    // caller reads the value the first one has not written yet. Two spaces,
     // one keystroke.
     if (e.defaultPrevented) return;
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -2735,12 +2735,12 @@ function OnboardingWizardInner({
       // Every button below is disabled while a request is in flight. The
       // keyboard has to honour the same rule, or a second Enter re-enters a
       // handler whose guard is a piece of state the first one has not set
-      // yet — two organizations for one name, two agents for one hire.
+      // yet — two organizations for one name, two agents for one create.
       if (loading) return;
-      if (step === 1 && companyName.trim()) void handleCreateCompany();
+      if (step === 1 && spaceName.trim()) void handleCreateSpace();
       else if (step === 3 && agentName.trim()) setStep(4);
       // `connectStepReady`, the same predicate the step's button uses. Spelling
-      // the condition out here again is what let this path hire against a
+      // the condition out here again is what let this path create against a
       // source the tile row had never shown, after the button was gated and
       // this was not.
       // Also gated on `connectStepLoggingIn`, the way the button is: a sign-in
@@ -2760,7 +2760,7 @@ function OnboardingWizardInner({
   if (!effectiveOnboardingOpen) return null;
 
   // The arc strip stands in for the full-length bar only when the run began on
-  // the arc — the Cloud-first path, where the company already exists and step 1
+  // the arc — the Cloud-first path, where the space already exists and step 1
   // never happens. A run that started at step 1 keeps one continuous count.
 
   // Back lands on whatever came before this step *for this run*, which is not
@@ -2782,14 +2782,14 @@ function OnboardingWizardInner({
    * customer is on is four steps and this is the second.
    *
    * A self-hosted run that enters at the agent step is a different case with
-   * the same `entryStep`: an existing company that has no agents yet. There was
+   * the same `entryStep`: an existing space that has no agents yet. There was
    * no naming screen before it, so its walk really is three, and it keeps the
    * shorter strip.
    */
   const enteredFromCloud = experimentalSettingsForLogin?.enableManagedSandboxOnly === true;
   const showsAgentArcStepper = isAgentArcStep && entryStep >= 3 && !enteredFromCloud;
 
-  const launchStateIncomplete = step === 5 && (!createdCompanyId || !createdAgentId);
+  const launchStateIncomplete = step === 5 && (!createdSpaceId || !createdAgentId);
   /**
    * Whether the step hand-off plays out. Under reduced motion — and where the
    * platform cannot be asked, which `beatDelay` reads the same way — the next
@@ -2899,7 +2899,7 @@ function OnboardingWizardInner({
               )}
 
               {/* The agent arc's progress strip. Numbered 1–3 over the wizard's
-                  steps 3–5, because company creation already happened in Cloud
+                  steps 3–5, because space creation already happened in Cloud
                   and the mission step is skipped when it did. */}
               {showsAgentArcStepper && (
                 <Stepper
@@ -2953,7 +2953,7 @@ function OnboardingWizardInner({
                       transition={capsuleHeroMotion.transition}
                       className="flex flex-col items-center gap-2 pb-6"
                     >
-                      {/* Dozing and gray until the agent is actually hired.
+                      {/* Dozing and gray until the agent is actually created.
                           Review is the first step where one exists, so that is
                           where it wakes and takes its colour — the arc's
                           payoff, not a flourish along it. The sequence itself
@@ -3032,12 +3032,12 @@ function OnboardingWizardInner({
                       id="onboarding-outpost-name"
                       className="h-(--sz-44px) rounded-lg border-transparent bg-muted shadow-none dark:bg-muted"
                       placeholder="e.g. Northwind Labs"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
+                      value={spaceName}
+                      onChange={(e) => setSpaceName(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && companyName.trim()) {
+                        if (e.key === "Enter" && spaceName.trim()) {
                           e.preventDefault();
-                          void handleCreateCompany();
+                          void handleCreateSpace();
                         }
                       }}
                       autoFocus
@@ -3049,7 +3049,7 @@ function OnboardingWizardInner({
               {/* Step 3: the name, and only the name. The role picker went with
                   the question it was asking — a customer naming their first
                   agent is describing what it does, and the placeholder carries
-                  the range of answers that fit. Hiring uses the neutral
+                  the range of answers that fit. Creation uses the neutral
                   `general` role; a specific one can be set later, where there
                   is context to choose it in. */}
               {step === 3 && (
@@ -3204,7 +3204,7 @@ function OnboardingWizardInner({
                         {!hasGatewaySelection && <SavedProviderKeySelect {...savedKeys} disabled={loading || adapterEnvLoading} value={selectedApiKey?.id ?? ""} onChange={(id) => {
                           setGatewayConnection(undefined);
                           if (connectionModels) setModel("");
-                          setSelectedSavedKey(createdCompanyId ? { companyId: createdCompanyId, envKey: apiKeyEnvKeyFor(adapterType), id } : null);
+                          setSelectedSavedKey(createdSpaceId ? { spaceId: createdSpaceId, envKey: apiKeyEnvKeyFor(adapterType), id } : null);
                           setApiKey("");
                         }} />}
                         {!selectedApiKey && !hasGatewaySelection && !connectionModels && <OnboardingCardField
@@ -3217,7 +3217,7 @@ function OnboardingWizardInner({
                           autoFocus
                           value={apiKey}
                           onChange={(value) => {
-                            setSelectedSavedKey(createdCompanyId ? { companyId: createdCompanyId, envKey: apiKeyEnvKeyFor(adapterType), id: "" } : null);
+                            setSelectedSavedKey(createdSpaceId ? { spaceId: createdSpaceId, envKey: apiKeyEnvKeyFor(adapterType), id: "" } : null);
                             setApiKey(value);
                           }}
                           onSubmit={() => handleConnectStepPrimary()}
@@ -3237,23 +3237,23 @@ function OnboardingWizardInner({
                           creatable={connectionModels.models.length === 0} presentation="native" />}
                         {(hasGatewaySelection || connectionModels) && <Button type="button" variant="ghost" disabled={loading || adapterEnvLoading} onClick={() => {
                           setGatewayConnection(undefined);
-                          setSelectedSavedKey({ companyId: createdCompanyId!, envKey: apiKeyEnvKeyFor(adapterType), id: "" });
+                          setSelectedSavedKey({ spaceId: createdSpaceId!, envKey: apiKeyEnvKeyFor(adapterType), id: "" });
                           setModel("");
                         }}>Use a different API key</Button>}
                       </OnboardingLoginCard>
                     ) : connectStepNeedsLogin &&
-                      createdCompanyId &&
+                      createdSpaceId &&
                       resolvedLoginEnvironmentId ? (
                       /* The same panel the agent configuration form shows after
                          a test — see AdapterLoginPanel in AgentConfigForm.tsx —
                          in the connect step's chrome. It owns the session; the
                          step owns the sequence around it.
 
-                         No "Use saved login" control: the hire step already
+                         No "Use saved login" control: the create step already
                          applies a stored login on its own. */
                       <AdapterLoginPanel
                         key={`${adapterType}:${resolvedLoginEnvironmentId}`}
-                        companyId={createdCompanyId}
+                        spaceId={createdSpaceId}
                         adapterType={adapterType}
                         environmentId={resolvedLoginEnvironmentId}
                         chrome="onboarding"
@@ -3299,12 +3299,12 @@ function OnboardingWizardInner({
                           );
                         }}
                         onConnected={(sessionId) => {
-                          if (managedSubscriptionProvider) managedSubscriptionRef.current = { companyId: createdCompanyId, binding: { provider: managedSubscriptionProvider, method: "subscription", mode: "responsible_user" }, sessionId };
+                          if (managedSubscriptionProvider) managedSubscriptionRef.current = { spaceId: createdSpaceId, binding: { provider: managedSubscriptionProvider, method: "subscription", mode: "responsible_user" }, sessionId };
                           setConnectAuthUrl(null);
                           // Not into a card the customer has left. The panel is
                           // still mounted through Back's exit, and a login that
                           // finished there pulled the step back into "Connecting"
-                          // and on into a hire they had just backed away from.
+                          // and on into a create they had just backed away from.
                           // The login is stored either way; what this refuses is
                           // only the step moving forward after they chose to go.
                           if (
@@ -3317,7 +3317,7 @@ function OnboardingWizardInner({
                           }
                           // The hold before the step advances is the phase's own
                           // beat, above, so that backing out during it cancels
-                          // the hire. It counts from the paste when there was
+                          // the create. It counts from the paste when there was
                           // one, and from here for a login that finished without
                           // one — a resumed session, or a code handed out rather
                           // than pasted back.
@@ -3330,7 +3330,7 @@ function OnboardingWizardInner({
                         onStored={() => {
                           queryClient.invalidateQueries({
                             queryKey: queryKeys.agents.authSignal(
-                              createdCompanyId,
+                              createdSpaceId,
                               adapterType,
                               resolvedLoginEnvironmentId,
                             ),
@@ -3344,15 +3344,15 @@ function OnboardingWizardInner({
                     ) : null}
                   </motion.div>
 
-                  {sourceSelected && connectCardLive && connectCardMounted && !connectProgress && credentialMode === "api" && createdCompanyId && (adapterType === "codex_local" || adapterType === "claude_local") && (
+                  {sourceSelected && connectCardLive && connectCardMounted && !connectProgress && credentialMode === "api" && createdSpaceId && (adapterType === "codex_local" || adapterType === "claude_local") && (
                     <details className="space-y-3">
                       <summary className="cursor-pointer text-sm text-muted-foreground">Advanced</summary>
                       <OnboardingGatewaySetup
-                        companyId={createdCompanyId} agentId={setupAgentId ?? undefined} environmentId={resolvedLoginEnvironmentId ?? undefined}
+                        spaceId={createdSpaceId} agentId={setupAgentId ?? undefined} environmentId={resolvedLoginEnvironmentId ?? undefined}
                         adapterType={adapterType} disabled={loading || adapterEnvLoading}
                         className="-ml-3"
                         onComplete={binding => {
-                          setGatewayConnection({ companyId: createdCompanyId, adapterType, binding });
+                          setGatewayConnection({ spaceId: createdSpaceId, adapterType, binding });
                           setApiKey("");
                           setModel("");
                           setError(null);
@@ -3363,8 +3363,8 @@ function OnboardingWizardInner({
                   {/* Conditional adapter fields */}
 
                   {/* Progress is shown above; failed checks remain actionable here. */}
-                  {/* Not while the hire is in flight. The probe's result lands
-                      before the hire it gates has finished, so a warn that does
+                  {/* Not while the create is in flight. The probe's result lands
+                      before the create it gates has finished, so a warn that does
                       not block — the identity and target INFO checks, which
                       every run reports — rendered a block of diagnostics for the
                       moment between the probe returning and the step advancing.
@@ -3373,7 +3373,7 @@ function OnboardingWizardInner({
 
                       `loading` is the right gate rather than the connect phase:
                       it is false again by the time a blocking result has stopped
-                      the hire, because `handleGiveHeartbeat` clears it in its
+                      the create, because `handleGiveHeartbeat` clears it in its
                       `finally` after the early return — so a genuine block still
                       shows its checks, which is the whole reason this is here. */}
                   {isLocalAdapter && !loading && (visibleAdapterEnvError || (adapterEnvResult && adapterEnvResult.status !== "pass")) && (
@@ -3405,7 +3405,7 @@ function OnboardingWizardInner({
                             <span className="font-medium">Passed</span>
                           </div>
                           {/* Show the checks on a pass too, so the target and the
-                              auth signals stay visible before the hire. */}
+                              auth signals stay visible before the create. */}
                           <AdapterEnvironmentResult result={adapterEnvResult} showHints={localLoginHealth.isSuccess && !cloudInstance} />
                         </div>
                       ) : adapterEnvResult ? (
@@ -3547,7 +3547,7 @@ function OnboardingWizardInner({
                         ? () => setStep(backStepFrom(step))
                         : undefined
                   }
-                  // The prototype's cloud flow hires on this step and calls the
+                  // The prototype's cloud flow creations on this step and calls the
                   // action "Create". Here the model step sits between, so this
                   // one advances — which is exactly the distinction the
                   // prototype's own local flow draws with "Next".
@@ -3578,7 +3578,7 @@ function OnboardingWizardInner({
                   loading={step === 3 || step === 4 ? false : loading}
                   primaryDisabled={
                     step === 1
-                      ? !companyName.trim() || loading
+                      ? !spaceName.trim() || loading
                       : step === 3
                         ? !agentName.trim()
                         : step === 4
@@ -3586,9 +3586,9 @@ function OnboardingWizardInner({
                           : loading || launchStateIncomplete
                   }
                   onPrimary={() => {
-                    if (step === 1) void handleCreateCompany();
+                    if (step === 1) void handleCreateSpace();
                     else if (step === 3) setStep(4);
-                    // One button, two jobs — start the sign-in, or hire — and
+                    // One button, two jobs — start the sign-in, or create — and
                     // Cmd+Enter has to do the same thing. See
                     // `handleConnectStepPrimary`.
                     else if (step === 4) handleConnectStepPrimary();

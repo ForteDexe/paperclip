@@ -21,7 +21,7 @@ export function useDismissedInboxAlerts() {
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== "paperclip:inbox:dismissed") return;
+      if (event.key !== "outpost:inbox:dismissed") return;
       setDismissed(loadDismissedInboxAlerts());
     };
     window.addEventListener("storage", handleStorage);
@@ -40,29 +40,29 @@ export function useDismissedInboxAlerts() {
   return { dismissed, dismiss };
 }
 
-export function useInboxDismissals(companyId: string | null | undefined) {
+export function useInboxDismissals(spaceId: string | null | undefined) {
   const queryClient = useQueryClient();
-  const queryKey = companyId
-    ? queryKeys.inboxDismissals(companyId)
+  const queryKey = spaceId
+    ? queryKeys.inboxDismissals(spaceId)
     : ["inbox-dismissals", "__disabled__"] as const;
 
   const { data: dismissals = [], isLoading, error } = useQuery({
     queryKey,
-    queryFn: () => inboxDismissalsApi.list(companyId!),
-    enabled: !!companyId,
+    queryFn: () => inboxDismissalsApi.list(spaceId!),
+    enabled: !!spaceId,
   });
 
   const dismissMutation = useMutation({
-    mutationFn: ({ itemKey }: { itemKey: string }) => inboxDismissalsApi.dismiss(companyId!, itemKey),
+    mutationFn: ({ itemKey }: { itemKey: string }) => inboxDismissalsApi.dismiss(spaceId!, itemKey),
     onMutate: async ({ itemKey }) => {
-      if (!companyId) return { previous: [] as typeof dismissals };
+      if (!spaceId) return { previous: [] as typeof dismissals };
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<typeof dismissals>(queryKey) ?? [];
       const now = new Date();
       queryClient.setQueryData(queryKey, [
         {
           id: `optimistic:${itemKey}`,
-          companyId,
+          spaceId,
           userId: "me",
           itemKey,
           dismissedAt: now,
@@ -78,28 +78,28 @@ export function useInboxDismissals(companyId: string | null | undefined) {
       queryClient.setQueryData(queryKey, context.previous);
     },
     onSettled: () => {
-      if (!companyId) return;
+      if (!spaceId) return;
       invalidateDismissalConsumers();
     },
   });
 
   function invalidateDismissalConsumers() {
-    if (!companyId) return;
+    if (!spaceId) return;
     queryClient.invalidateQueries({ queryKey });
-    queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(spaceId) });
     // The attention feed derives its rows from server-side dismissals, so any
     // dismiss/snooze/restore must re-pull it to keep the queue and curtains in sync.
-    queryClient.invalidateQueries({ queryKey: queryKeys.attention(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.attention(spaceId) });
   }
 
   const snoozeMutation = useMutation({
     mutationFn: ({ itemKey, snoozedUntil }: { itemKey: string; snoozedUntil: string }) =>
-      inboxDismissalsApi.snooze(companyId!, itemKey, snoozedUntil),
+      inboxDismissalsApi.snooze(spaceId!, itemKey, snoozedUntil),
     onSettled: invalidateDismissalConsumers,
   });
 
   const restoreMutation = useMutation({
-    mutationFn: ({ itemKey }: { itemKey: string }) => inboxDismissalsApi.restore(companyId!, itemKey),
+    mutationFn: ({ itemKey }: { itemKey: string }) => inboxDismissalsApi.restore(spaceId!, itemKey),
     onSettled: invalidateDismissalConsumers,
   });
 
@@ -165,19 +165,19 @@ export function useReadInboxItems() {
   return { readItems, markRead, markUnread };
 }
 
-export function useInboxBadge(companyId: string | null | undefined) {
-  const locallyArchivedIssueIds = useLocalInboxArchiveIssueIds(companyId);
-  const badgeQueryKey = queryKeys.sidebarBadges(companyId ?? "__disabled__");
+export function useInboxBadge(spaceId: string | null | undefined) {
+  const locallyArchivedIssueIds = useLocalInboxArchiveIssueIds(spaceId);
+  const badgeQueryKey = queryKeys.sidebarBadges(spaceId ?? "__disabled__");
   const sharedBadges = useSharedPollingQuery({
-    companyId,
+    spaceId,
     resourceKey: "inbox-badge",
     queryKey: badgeQueryKey,
-    enabled: !!companyId,
+    enabled: !!spaceId,
   });
   const { data: badges, dataUpdatedAt } = useQuery({
     queryKey: badgeQueryKey,
-    queryFn: () => sidebarBadgesApi.get(companyId!),
-    enabled: !!companyId,
+    queryFn: () => sidebarBadgesApi.get(spaceId!),
+    enabled: !!spaceId,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   });

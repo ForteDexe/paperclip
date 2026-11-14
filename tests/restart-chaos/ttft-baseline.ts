@@ -95,7 +95,7 @@ async function steerQueuedComment(api: ChaosApi, issueId: string, commentId: str
 let projectScopedTasks = false;
 
 async function createTask(api: ChaosApi, lab: ChaosLab, adapter: AdapterId, title: string, description: string) {
-  const issue = await api.post<Json>(`/api/companies/${lab.companyId}/issues`, {
+  const issue = await api.post<Json>(`/api/spaces/${lab.spaceId}/issues`, {
     title, description, status: "todo", priority: "medium", assigneeAgentId: lab.agents[adapter].id,
     ...(projectScopedTasks ? { projectId: lab.projectId } : {}),
   });
@@ -216,7 +216,7 @@ function report(runs: BaselineRun[], faults: BaselineFault[]): string {
   lines.push("", "| Pre-turn step | n | p50 | p95 | Adapters |", "|---|---|---|---|---|");
   for (const step of rankPreTurnSteps(runs).slice(0, 25)) lines.push(`| \`${step.step}\` | ${step.n} | ${ms(step.p50)} | ${ms(step.p95)} | ${step.adapters.join(", ")} |`);
   const samples = recoverySamples(runs, faults);
-  lines.push("", "| Adapter | Fault | Disposition | n | Recovery p50 | Recovery p95 | Paperclip share p50 / p95 | No provider event |", "|---|---|---|---|---|---|---|---|");
+  lines.push("", "| Adapter | Fault | Disposition | n | Recovery p50 | Recovery p95 | Outpost share p50 / p95 | No provider event |", "|---|---|---|---|---|---|---|---|");
   const groups = new Map<string, typeof samples>();
   for (const sample of samples) {
     const key = `${sample.adapter}|${sample.kind}|${sample.disposition}`;
@@ -249,7 +249,7 @@ async function main() {
     "midturn-fault": { type: "string" },
     // verify phase: fault the control plane while a newly hired agent runs harness verification.
     "verify-fault": { type: "string" },
-    // A real repository (for example a fresh clone of paperclip) as the project's
+    // A real repository (for example a fresh clone of outpost) as the project's
     // primary workspace; every task then runs in its isolated git worktree.
     "workspace-repo": { type: "string" },
     // local (default) or daytona; daytona needs --daytona-image (the signed Runner image).
@@ -363,7 +363,7 @@ async function main() {
       adapters: requested, concurrency: requested.length, budgetCents: 3000,
       masks: ["rc06"], fixtureRoot: supervisor.paths.temporaryRoot, waveId, timeline, adapterConfigOverrides, workspaceRepo,
       onEnvironment: owned => {
-        sweeper = new DaytonaWaveSweeper({ apiKey: process.env.DAYTONA_API_KEY!, companyId: owned.companyId, environmentId: owned.environmentId, api });
+        sweeper = new DaytonaWaveSweeper({ apiKey: process.env.DAYTONA_API_KEY!, spaceId: owned.spaceId, environmentId: owned.environmentId, api });
       } });
     const adapters = await readyAdapters(api, lab, requested, timeline);
     if (!adapters.length) throw new Error("No agent passed lifecycle verification");
@@ -412,9 +412,9 @@ async function main() {
       if (!source.body) continue;
       for (let index = 0; index < samples; index += 1) {
         const nonce = `${adapter}-v${index}-${Date.now().toString(36)}`;
-        const hired = await api.post<Json>(`/api/companies/${lab.companyId}/agents`, { ...source.body, name: `${source.name} verify ${nonce}` });
+        const hired = await api.post<Json>(`/api/spaces/${lab.spaceId}/agents`, { ...source.body, name: `${source.name} verify ${nonce}` });
         const agentId = String(hired.id);
-        const issue = await api.post<Json>(`/api/companies/${lab.companyId}/issues`, {
+        const issue = await api.post<Json>(`/api/spaces/${lab.spaceId}/issues`, {
           title: `TTFT verify ${nonce}`, description: coldTask(nonce), status: "todo", priority: "medium", assigneeAgentId: agentId,
           ...(projectScopedTasks ? { projectId: lab.projectId } : {}) });
         const issueId = String(issue.id);

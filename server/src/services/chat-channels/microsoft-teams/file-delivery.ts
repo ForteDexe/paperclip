@@ -81,7 +81,7 @@ export function createTeamsFileDelivery(db: Db, options: TeamsFileDeliveryOption
       const record = await endpointRecord(authority.endpointId);
       if (
         !record ||
-        record.endpoint.companyId !== authority.companyId ||
+        record.endpoint.spaceId !== authority.spaceId ||
         record.endpoint.provider !== "microsoft-teams" ||
         record.endpoint.status !== "active"
       )
@@ -126,7 +126,7 @@ export function createTeamsFileDelivery(db: Db, options: TeamsFileDeliveryOption
           .from(chatPublications)
           .where(
             and(
-              eq(chatPublications.companyId, expected.companyId),
+              eq(chatPublications.spaceId, expected.spaceId),
               eq(chatPublications.endpointId, expected.endpointId),
               eq(chatPublications.id, expected.publicationId),
             ),
@@ -147,7 +147,7 @@ export function createTeamsFileDelivery(db: Db, options: TeamsFileDeliveryOption
                 .from(chatTeamsFileTransfers)
                 .where(
                   and(
-                    eq(chatTeamsFileTransfers.companyId, expected.companyId),
+                    eq(chatTeamsFileTransfers.spaceId, expected.spaceId),
                     eq(chatTeamsFileTransfers.endpointId, expected.endpointId),
                     eq(
                       chatTeamsFileTransfers.conversationId,
@@ -193,7 +193,7 @@ export function createTeamsFileDelivery(db: Db, options: TeamsFileDeliveryOption
           .from(chatPublications)
           .where(
             and(
-              eq(chatPublications.companyId, authority.companyId),
+              eq(chatPublications.spaceId, authority.spaceId),
               eq(chatPublications.endpointId, authority.endpointId),
               eq(chatPublications.id, authority.publicationId),
             ),
@@ -272,7 +272,7 @@ export function createTeamsFileDelivery(db: Db, options: TeamsFileDeliveryOption
       .from(chatTeamsFileTransfers)
       .where(
         and(
-          eq(chatTeamsFileTransfers.companyId, selected.companyId),
+          eq(chatTeamsFileTransfers.spaceId, selected.spaceId),
           eq(chatTeamsFileTransfers.publicationId, selected.id),
         ),
       );
@@ -302,7 +302,7 @@ export function createTeamsFileDelivery(db: Db, options: TeamsFileDeliveryOption
                 .from(chatPublications)
                 .where(
                   and(
-                    eq(chatPublications.companyId, selected.companyId),
+                    eq(chatPublications.spaceId, selected.spaceId),
                     eq(chatPublications.id, selected.id),
                   ),
                 )
@@ -337,7 +337,7 @@ export function createTeamsFileDelivery(db: Db, options: TeamsFileDeliveryOption
               .from(chatPublications)
               .where(
                 and(
-                  eq(chatPublications.companyId, selected.companyId),
+                  eq(chatPublications.spaceId, selected.spaceId),
                   eq(chatPublications.id, selected.id),
                 ),
               );
@@ -347,7 +347,7 @@ export function createTeamsFileDelivery(db: Db, options: TeamsFileDeliveryOption
             )
               break;
             const result = await protocol.process(
-              selected.companyId,
+              selected.spaceId,
               transferId,
             );
             if (
@@ -375,11 +375,11 @@ export function createTeamsFileDelivery(db: Db, options: TeamsFileDeliveryOption
   }
 
   function registerTeamsConsentExpiryWork(coordinator: ReturnType<typeof createDeliveryWorkCoordinator>, canRun: () => boolean) {
-    return teamsConsentExpiryWork(db, (companyId, id) => teamsTransferProtocol().expireUnusedConsent(companyId, id))
+    return teamsConsentExpiryWork(db, (spaceId, id) => teamsTransferProtocol().expireUnusedConsent(spaceId, id))
       .register(coordinator, () => !isShuttingDown() && canRun());
   }
   function registerTeamsAttemptRecoveryWork(coordinator: ReturnType<typeof createDeliveryWorkCoordinator>, canRun: () => boolean) {
-    return teamsAttemptRecoveryWork(db, (companyId, id) => teamsTransferProtocol().recoverAbandonedAttempt(companyId, id))
+    return teamsAttemptRecoveryWork(db, (spaceId, id) => teamsTransferProtocol().recoverAbandonedAttempt(spaceId, id))
       .register(coordinator, () => !isShuttingDown() && canRun());
   }
   return { registerTeamsAttemptRecoveryWork, registerTeamsConsentExpiryWork, teamsTransferProtocol, handleTeamsFileConsent, tryProcessTeamsFilePublication };

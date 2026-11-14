@@ -139,20 +139,20 @@ describe("issue-thread interaction resolver audience", () => {
     })).toMatchObject({ allowed: true, effectiveResolverPolicy: "not_creator" });
   });
 
-  it("keeps governed actions independently human-only", () => {
+  it("keeps controlled actions independently human-only", () => {
     const decision = evaluateIssueThreadInteractionResolverAudience({
       actor: agent,
       interaction: interaction(),
-      governedAction: true,
+      controlledAction: true,
     });
-    expect(decision).toMatchObject({ allowed: false, code: "interaction_governed_action_denied" });
+    expect(decision).toMatchObject({ allowed: false, code: "interaction_controlled_action_denied" });
   });
 
-  it("preserves legacy inherited board_or_agents creator separation", () => {
+  it("preserves legacy inherited operator_or_agents creator separation", () => {
     const decision = evaluateIssueThreadInteractionResolverAudience({
       actor: agent,
       interaction: interaction({
-        effectiveResolverPolicy: "board_or_agents",
+        effectiveResolverPolicy: "operator_or_agents",
         resolverPolicyProvenance: "legacy_inherited_restriction",
       }),
     });
@@ -225,15 +225,15 @@ describe("issue-thread interaction resolver audience", () => {
 
     it.each([
       ["no relay", { actor: agent }],
-      ["a company cap", { interaction: humanOnly({ effectiveResolverPolicySource: "company_cap" }) }],
-      ["a governed-action source", { interaction: humanOnly({ effectiveResolverPolicySource: "governed_action" }) }],
+      ["a space cap", { interaction: humanOnly({ effectiveResolverPolicySource: "space_cap" }) }],
+      ["a controlled-action source", { interaction: humanOnly({ effectiveResolverPolicySource: "controlled_action" }) }],
       ["an unknown legacy source", { interaction: humanOnly({ effectiveResolverPolicySource: null }) }],
-      ["a governed action", { governedAction: true }],
+      ["a controlled action", { controlledAction: true }],
       ["an issue-review restriction", { additionalRestriction: "human_only" as const }],
       ["another addressed user", { interaction: humanOnly({ addresseeUserId: "user-2" }) }],
       ["a human-created card", { interaction: humanOnly({ createdByAgentId: null, createdByUserId: "user-1" }) }],
       ["another agent's card", { interaction: humanOnly({ createdByAgentId: "agent-2" }) }],
-      ["an inherited company default", { interaction: humanOnly({ resolverPolicyProvenance: "inherited" }) }],
+      ["an inherited space default", { interaction: humanOnly({ resolverPolicyProvenance: "inherited" }) }],
     ])("still denies %s", (_name, override) => {
       const decision = evaluateIssueThreadInteractionResolverAudience({ actor: relay, interaction: humanOnly(), ...override });
       expect(decision).toMatchObject({ allowed: false });

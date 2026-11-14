@@ -4,20 +4,20 @@ function valid() {
   const run = (id: string, agentId: string, issueId: string) => ({
       id,
       agentId,
-      companyId: "company",
+      spaceId: "space",
       runtimeMode: "native",
       status: "succeeded",
       contextSnapshot: { issueId },
     }),
     query =
-      "Please say your exact Paperclip agent name and confirm you can reply in this same Slack conversation. Do not start a separate task.";
+      "Please say your exact Outpost agent name and confirm you can reply in this same Slack conversation. Do not start a separate task.";
   const source = {
     query,
     endpointId: "endpoint",
     conversationId: "conversation",
     issueId: "slack-source",
     humanCommentId: "human",
-    linkedPaperclipUserId: "person",
+    linkedOutpostUserId: "person",
     providerCalls: 1,
     provider: {
       workspaceId: "T123",
@@ -29,7 +29,7 @@ function valid() {
   };
   return {
     scenarioId: "connection-setup.channel-prerequisites",
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     origin: "http://127.0.0.1:3100",
     reply: "Slack is ready; you can talk to Morgan there.",
@@ -78,7 +78,7 @@ function valid() {
     slackSetup: {
       endpoint: {
         id: "endpoint",
-        companyId: "company",
+        spaceId: "space",
         provider: "slack",
         assignedAgentId: "morgan",
         providerAccountId: "T123",
@@ -103,7 +103,7 @@ function valid() {
         identityUiVisible: true,
         activationUiVisible: true,
         endpointActive: true,
-        paperclipUserId: "person",
+        outpostUserId: "person",
         processIsolation: true,
         testRunnerAttached: false,
       },
@@ -157,7 +157,7 @@ it("rejects plausible credential-only, wrong-human/agent, missing callback, acti
       o.state.createdByHumanUi = false;
     },
     (o: ReturnType<typeof valid>) => {
-      o.slackSetup.endpoint.companyId = "other";
+      o.slackSetup.endpoint.spaceId = "other";
     },
     (o: ReturnType<typeof valid>) => {
       o.slackSetup.endpoint.assignedAgentId = "ceo";

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { createServer } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Agent, Company, InstanceExperimentalSettings } from "@outpost/shared";
+import type { Agent, Space, InstanceExperimentalSettings } from "@outpost/shared";
 import {
   assertTestDriveDatabaseIsolation,
   bootstrapTestDrive,
@@ -19,22 +19,22 @@ import {
   type TestDriveHarness,
 } from "../commands/test-drive.js";
 import type { RunOptions, StartedServer } from "../commands/run.js";
-import type { PaperclipConfig } from "../config/schema.js";
-import { PaperclipApiClient } from "../client/http.js";
+import type { OutpostConfig } from "../config/schema.js";
+import { OutpostApiClient } from "../client/http.js";
 
 const ORIGINAL_ENV = { ...process.env };
 const cleanupDirectories: string[] = [];
 
-function company(id = "company-1", name = "Test Company"): Company {
-  return { id, name } as Company;
+function space(id = "space-1", name = "Test Space"): Space {
+  return { id, name } as Space;
 }
 
 function agent(overrides: Partial<Agent> = {}): Agent {
   return {
     id: "agent-1",
-    companyId: "company-1",
-    name: "CEO",
-    role: "ceo",
+    spaceId: "space-1",
+    name: "Default agent",
+    role: "lead",
     adapterType: "claude_local",
     adapterConfig: {},
     ...overrides,
@@ -59,7 +59,7 @@ function freshBootstrapApi(input?: { failAgent?: boolean }) {
     }),
     post: vi.fn(async <T>(requestPath: string, body?: unknown) => {
       calls.push({ method: "POST", path: requestPath, body });
-      if (requestPath === "/api/companies") return company() as T;
+      if (requestPath === "/api/spaces") return space() as T;
       if (requestPath.endsWith("/agents")) {
         if (input?.failAgent) throw new Error("agent setup failed");
         const payload = body as { name: string; adapterType: Agent["adapterType"]; adapterConfig: Record<string, unknown> };
@@ -90,7 +90,7 @@ afterEach(() => {
 
 describe("test-drive data isolation", () => {
   it.each([false, true])("reuses the saved port, with occupied=%s", async (occupied) => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-test-drive-port-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-test-drive-port-"));
     cleanupDirectories.push(root);
     const listener = createServer();
     await new Promise<void>((resolve) => listener.listen(0, "127.0.0.1", resolve));
@@ -128,7 +128,7 @@ describe("test-drive data isolation", () => {
   });
 
   it("resolves an explicit reusable directory without resetting it", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-test-drive-explicit-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-test-drive-explicit-"));
     cleanupDirectories.push(root);
     const marker = path.join(root, "keep.txt");
     fs.writeFileSync(marker, "keep");
@@ -137,8 +137,8 @@ describe("test-drive data isolation", () => {
     expect(fs.readFileSync(marker, "utf8")).toBe("keep");
   });
 
-  it("discards inherited Paperclip routing while preserving a custom key source", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-test-drive-env-"));
+  it("discards inherited Outpost routing while preserving a custom key source", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-test-drive-env-"));
     cleanupDirectories.push(root);
     process.env.OUTPOST_HOME = "/normal/home";
     process.env.OUTPOST_CONFIG = "/normal/config.json";
@@ -184,7 +184,7 @@ describe("test-drive data isolation", () => {
   it("rejects an explicitly reused PostgreSQL configuration", () => {
     const externalConfig = {
       database: { mode: "postgres" },
-    } as PaperclipConfig;
+    } as OutpostConfig;
     expect(() => assertTestDriveDatabaseIsolation(
       "/tmp/reused/config.json",
       {},
@@ -195,7 +195,7 @@ describe("test-drive data isolation", () => {
   it("accepts an embedded configuration", () => {
     const embeddedConfig = {
       database: { mode: "embedded-postgres" },
-    } as PaperclipConfig;
+    } as OutpostConfig;
     expect(() => assertTestDriveDatabaseIsolation(
       "/tmp/reused/config.json",
       {},
@@ -208,8 +208,8 @@ describe("test-drive bootstrap validation", () => {
   it("uses Claude defaults and the canonical environment credential", () => {
     const resolved = resolveTestDriveBootstrap({}, { ANTHROPIC_API_KEY: "anthropic-secret" });
     expect(resolved).toMatchObject({
-      companyName: "Test Company",
-      agentName: "CEO",
+      spaceName: "Test Space",
+      agentName: "Default agent",
       adapterType: "claude_local",
       credentialTarget: "ANTHROPIC_API_KEY",
       credential: "anthropic-secret",
@@ -296,14 +296,14 @@ describe("test-drive bootstrap validation", () => {
   });
 
   it("removes literal keys from the JavaScript argv view", () => {
-    const splitArgv = ["node", "paperclipai", "test-drive", "--api-key", "literal-secret"];
-    const joinedArgv = ["node", "paperclipai", "test-drive", "--api-key=literal-secret"];
+    const splitArgv = ["node", "outpost", "test-drive", "--api-key", "literal-secret"];
+    const joinedArgv = ["node", "outpost", "test-drive", "--api-key=literal-secret"];
 
     redactTestDriveArgv("literal-secret", splitArgv);
     redactTestDriveArgv("literal-secret", joinedArgv);
 
-    expect(splitArgv).toEqual(["node", "paperclipai", "test-drive", "--api-key", "[REDACTED]"]);
-    expect(joinedArgv).toEqual(["node", "paperclipai", "test-drive", "--api-key=[REDACTED]"]);
+    expect(splitArgv).toEqual(["node", "outpost", "test-drive", "--api-key", "[REDACTED]"]);
+    expect(joinedArgv).toEqual(["node", "outpost", "test-drive", "--api-key=[REDACTED]"]);
   });
 });
 
@@ -312,7 +312,7 @@ describe("test-drive API bootstrap", () => {
     ["claude", "claude_local", "ANTHROPIC_API_KEY", undefined],
     ["codex", "codex_local", "OPENAI_API_KEY", undefined],
     ["opencode", "opencode_local", "OPENROUTER_API_KEY", "openrouter/anthropic/claude-sonnet-4.5"],
-  ] as const)("creates exactly one company and one CEO for %s", async (
+  ] as const)("creates exactly one space and one Default agent for %s", async (
     harness,
     adapterType,
     credentialTarget,
@@ -328,20 +328,20 @@ describe("test-drive API bootstrap", () => {
     });
 
     expect(result.reused).toBe(false);
-    expect(result.agent?.role).toBe("ceo");
+    expect(result.agent?.role).toBe("lead");
     expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([
-      "GET /api/companies",
-      "POST /api/companies",
-      "POST /api/companies/company-1/user-secret-definitions",
-      "POST /api/companies/company-1/me/user-secrets",
-      "POST /api/companies/company-1/agents",
+      "GET /api/spaces",
+      "POST /api/spaces",
+      "POST /api/spaces/space-1/user-secret-definitions",
+      "POST /api/spaces/space-1/me/user-secrets",
+      "POST /api/spaces/space-1/agents",
     ]);
     const secretValueCall = calls.find((call) => call.path.endsWith("/me/user-secrets"));
     expect(secretValueCall?.body).toEqual({ definitionKey: credentialTarget, value: "secret" });
     const agentCall = calls.find((call) => call.path.endsWith("/agents"));
     expect(agentCall?.body).toEqual({
-      name: "CEO",
-      role: "ceo",
+      name: "Default agent",
+      role: "lead",
       adapterType,
       adapterConfig: {
         ...(model ? { model } : {}),
@@ -358,7 +358,7 @@ describe("test-drive API bootstrap", () => {
     expect(calls.some((call) => /issues|projects|goals|tasks|heartbeat/.test(call.path))).toBe(false);
   });
 
-  it("rejects invalid OpenCode configuration before creating a company", async () => {
+  it("rejects invalid OpenCode configuration before creating a space", async () => {
     const { api, calls } = freshBootstrapApi();
     await expect(bootstrapTestDrive({
       api,
@@ -367,12 +367,12 @@ describe("test-drive API bootstrap", () => {
       instanceId: "default",
       env: { OPENROUTER_API_KEY: "secret" },
     })).rejects.toThrow(/require --model openrouter/);
-    expect(calls).toEqual([{ method: "GET", path: "/api/companies" }]);
+    expect(calls).toEqual([{ method: "GET", path: "/api/spaces" }]);
   });
 
   it("preserves seeded data and ignores every bootstrap flag", async () => {
     const get = vi.fn(async <T>(requestPath: string) => {
-      if (requestPath === "/api/companies") return [company("existing", "Existing Company")] as T;
+      if (requestPath === "/api/spaces") return [space("existing", "Existing Space")] as T;
       throw new Error(`Unexpected GET ${requestPath}`);
     });
     const api = {
@@ -384,19 +384,19 @@ describe("test-drive API bootstrap", () => {
 
     const result = await bootstrapTestDrive({
       api,
-      options: { harness: "opencode", companyName: "Ignored" },
+      options: { harness: "opencode", spaceName: "Ignored" },
       linkedWorktree: false,
       instanceId: "default",
       env: {},
     });
 
-    expect(result).toMatchObject({ reused: true, company: { id: "existing" }, agent: null });
+    expect(result).toMatchObject({ reused: true, space: { id: "existing" }, agent: null });
     expect(api.post).not.toHaveBeenCalled();
     expect(api.patch).not.toHaveBeenCalled();
     expect(api.delete).not.toHaveBeenCalled();
   });
 
-  it("deletes only the newly-created company when fresh bootstrap fails", async () => {
+  it("deletes only the newly-created space when fresh bootstrap fails", async () => {
     const { api, calls } = freshBootstrapApi({ failAgent: true });
     await expect(bootstrapTestDrive({
       api,
@@ -405,7 +405,7 @@ describe("test-drive API bootstrap", () => {
       instanceId: "default",
       env: { ANTHROPIC_API_KEY: "secret" },
     })).rejects.toThrow("agent setup failed");
-    expect(calls.at(-1)).toEqual({ method: "DELETE", path: "/api/companies/company-1" });
+    expect(calls.at(-1)).toEqual({ method: "DELETE", path: "/api/spaces/space-1" });
   });
 });
 
@@ -496,19 +496,19 @@ describe("test-drive foreground lifecycle", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
       const url = String(input);
       requests.push(url);
-      return url === `${origin}/api/companies`
-        ? new Response(JSON.stringify([company("existing", "Existing")]), { status: 200 })
+      return url === `${origin}/api/spaces`
+        ? new Response(JSON.stringify([space("existing", "Existing")]), { status: 200 })
         : new Response(JSON.stringify({ error: "Unexpected bootstrap URL" }), { status: 404 });
     });
     const openBrowser = vi.fn(async () => true);
 
     await testDriveCommand({ dataDir: "/tmp/test-drive-public-callback" }, {
       run: async options => options.afterStart?.(publicServer),
-      createApi: apiBase => new PaperclipApiClient({ apiBase }),
+      createApi: apiBase => new OutpostApiClient({ apiBase }),
       openBrowser,
     });
 
-    expect(requests).toEqual([`${origin}/api/companies`]);
+    expect(requests).toEqual([`${origin}/api/spaces`]);
     expect(openBrowser).toHaveBeenCalledExactlyOnceWith(origin);
     expect(publicServer.apiUrl).toBe("https://callbacks.example.test");
   });
@@ -523,7 +523,7 @@ describe("test-drive foreground lifecycle", () => {
     const api = {
       get: vi.fn(async <T>() => {
         events.push("initialized");
-        return [company("existing", "Existing")] as T;
+        return [space("existing", "Existing")] as T;
       }),
       post: vi.fn(),
       patch: vi.fn(),
@@ -548,7 +548,7 @@ describe("test-drive foreground lifecycle", () => {
       bind: "loopback",
       installService: false,
       skipServiceManagerCheck: true,
-      introLabel: "paperclipai test-drive",
+      introLabel: "outpost test-drive",
     });
     expect(events).toEqual(["listening", "initialized", "browser"]);
   });
@@ -559,7 +559,7 @@ describe("test-drive foreground lifecycle", () => {
     process.env.OUTPOST_IN_WORKTREE = "false";
     let runOptions: RunOptions | undefined;
     const api = {
-      get: vi.fn(async <T>() => [company("existing", "Existing")] as T),
+      get: vi.fn(async <T>() => [space("existing", "Existing")] as T),
       post: vi.fn(),
       patch: vi.fn(),
       delete: vi.fn(),
@@ -578,7 +578,7 @@ describe("test-drive foreground lifecycle", () => {
   });
 
   it("uses the credential snapshot captured before downstream server initialization", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-test-drive-credential-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-test-drive-credential-"));
     cleanupDirectories.push(root);
     process.env.OUTPOST_HOME = root;
     process.env.OUTPOST_INSTANCE_ID = "default";
@@ -642,7 +642,7 @@ describe("test-drive foreground lifecycle", () => {
     process.env.OUTPOST_INSTANCE_ID = "default";
     process.env.OUTPOST_IN_WORKTREE = "false";
     const api = {
-      get: vi.fn(async <T>() => [company("existing", "Existing")] as T),
+      get: vi.fn(async <T>() => [space("existing", "Existing")] as T),
       post: vi.fn(),
       patch: vi.fn(),
       delete: vi.fn(),

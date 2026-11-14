@@ -126,7 +126,7 @@ it.each([["connect", "owned"], ["listen", "owned"], ["external", "owned"], ["con
     finally { clearTimeout(timer); }
   };
   const dead = (pid: number) => { try { process.kill(pid, 0); return false; } catch (error) { return (error as NodeJS.ErrnoException).code === "ESRCH"; } };
-  // Each boundary uses a fresh company-free fixture so no previous command or
+  // Each boundary uses a fresh space-free fixture so no previous command or
   // activation can satisfy a later assertion.
   try {
     for (const boundary of ["queued", "prepared", "activated", "completed"] as const) {

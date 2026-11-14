@@ -24,28 +24,28 @@ export async function openDocumentAuthoring({ page }: JourneyContext) {
 }
 
 export async function reopenTaskDocument(context: JourneyContext, issue: { title: string }) {
-  const { page, api, company } = context;
-  await page.goto(`${api.origin}/${company.issuePrefix}/issues?view=backlog&q=${encodeURIComponent(issue.title)}`);
+  const { page, api, space } = context;
+  await page.goto(`${api.origin}/${space.issuePrefix}/issues?view=backlog&q=${encodeURIComponent(issue.title)}`);
   await page.getByRole("link").filter({ hasText: issue.title }).first().click();
   await page.reload();
   await openDocumentAuthoring(context);
 }
 
 export async function taskDocumentPersistence(context: JourneyContext, _session: TargetSession, campaignId: string, evidence: JourneyEvidence) {
-  const { page, api, company, user } = context;
+  const { page, api, space, user } = context;
   const issue = context.fixtures?.backlogTask;
   if (!issue?.id || !issue.identifier) throw new JourneyError("blocked", "missing_prepared_backlog_task");
   const route = `/api/issues/${issue.id}`;
   const key = "qa-note";
   const documentRoute = `${route}/documents/${key}`;
-  const original: TaskDocumentExpectation = { companyId: company.id, issueId: issue.id, userId: user.id, key,
+  const original: TaskDocumentExpectation = { spaceId: space.id, issueId: issue.id, userId: user.id, key,
     title: `QA document ${campaignId}`, body: `Original task note for ${campaignId}.` };
   const revised = { ...original, title: `${original.title} revised`, body: `Persisted document ${campaignId}: revised text survives a reload.` };
   if ((await api.get<TaskDocumentSnapshot[]>(`${route}/documents`)).some(document => document.key === key)) {
     throw new JourneyError("failed", "task_document_fixture_not_fresh");
   }
 
-  await page.goto(`${api.origin}/${company.issuePrefix}/issues/${issue.identifier}`);
+  await page.goto(`${api.origin}/${space.issuePrefix}/issues/${issue.identifier}`);
   await openDocumentAuthoring(context);
   await page.getByRole("button", { name: "New document", exact: true }).click();
   const form = page.getByPlaceholder("Document key", { exact: true }).locator("..");
@@ -89,10 +89,10 @@ export async function taskDocumentPersistence(context: JourneyContext, _session:
   await expect(document.getByText(revised.title, { exact: true })).toBeVisible();
   await expect(document.getByText(revised.body, { exact: true })).toBeVisible();
   const reopened = await api.get<TaskDocumentSnapshot>(documentRoute);
-  const savedIssue = await api.get<{ companyId: string; status: string }>(route);
+  const savedIssue = await api.get<{ spaceId: string; status: string }>(route);
   if (!taskDocumentMatches(reopened, revised) || reopened.latestRevisionId !== current.latestRevisionId
     || reopened.latestRevisionNumber !== current.latestRevisionNumber) throw new JourneyError("failed", "task_document_reload_mismatch");
-  if (savedIssue.companyId !== company.id || savedIssue.status !== "backlog" || (await api.get<unknown[]>(`${route}/runs`)).length) {
+  if (savedIssue.spaceId !== space.id || savedIssue.status !== "backlog" || (await api.get<unknown[]>(`${route}/runs`)).length) {
     throw new JourneyError("failed", "browser_only_journey_started_agent_work");
   }
   evidence.checks.push({ id: "document-reopened-after-reload", passed: true }, { id: "no-agent-work", passed: true });

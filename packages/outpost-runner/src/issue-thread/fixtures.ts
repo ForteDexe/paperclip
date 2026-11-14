@@ -58,7 +58,7 @@ export const CAPABILITY_DEFAULT_FIXTURE_PROFILE = "hb-baseline";
 
 const FIXTURE_CLOCK = "2026-08-09T09:00:00.000Z";
 const AGENT = "Mock Engineer";
-const BOARD_USER = "You (board user)";
+const OPERATOR_USER = "You (operator)";
 
 function at(minute: number, second = 0): string {
   const stamp = new Date(Date.UTC(2026, 7, 9, 9, minute, second));
@@ -94,7 +94,7 @@ function baseEvidence(): CapabilityEvidenceModel {
             operationId: "request_human_input",
             disposition: "always_agent_tool",
             grant: null,
-            description: "Open a typed interaction for the board user.",
+            description: "Open a typed interaction for the operator.",
           },
           {
             operationId: "register_deliverable",
@@ -355,7 +355,7 @@ function baseEvidence(): CapabilityEvidenceModel {
         id: "trace-1",
         turnId: "turn-1",
         capabilityId: "hb-context-01",
-        sourceAnchor: "skills/paperclip/SKILL.md#heartbeat-context",
+        sourceAnchor: "skills/outpost/SKILL.md#heartbeat-context",
         caseId: "hb-context-01",
         group: "heartbeat",
         browserEvidenceRecipe: "hb/hb-context-01",
@@ -367,7 +367,7 @@ function baseEvidence(): CapabilityEvidenceModel {
         id: "trace-2",
         turnId: "turn-2",
         capabilityId: "dp-plan-doc-01",
-        sourceAnchor: "skills/paperclip/reference/documents.md#plan-documents",
+        sourceAnchor: "skills/outpost/reference/documents.md#plan-documents",
         caseId: "dp-plan-doc-01",
         group: "documents",
         browserEvidenceRecipe: "dp/dp-plan-doc-01",
@@ -431,7 +431,7 @@ function baselineTurns(): CapabilityThreadTurn[] {
           kind: "user_message",
           id: "item-user-1",
           at: at(0, 5),
-          author: BOARD_USER,
+          author: OPERATOR_USER,
           body: "Pick up MCK-31 and tell me where the runner spike stands.",
         },
         {
@@ -489,7 +489,7 @@ function baselineTurns(): CapabilityThreadTurn[] {
           kind: "user_message",
           id: "item-user-2",
           at: at(2),
-          author: BOARD_USER,
+          author: OPERATOR_USER,
           body: "Draft the plan revision with the two open questions folded in.",
         },
         {
@@ -525,7 +525,7 @@ function baselineTurns(): CapabilityThreadTurn[] {
           kind: "user_message",
           id: "item-user-3",
           at: at(4),
-          author: BOARD_USER,
+          author: OPERATOR_USER,
           body: "Good. Summarise what changed.",
         },
         {
@@ -724,7 +724,7 @@ const BUILDERS: Partial<Record<CapabilityUiShotSlug, () => CapabilityIssueThread
           kind: "user_message",
           id: "item-user-4",
           at: at(6),
-          author: BOARD_USER,
+          author: OPERATOR_USER,
           body: "Now check whether any dependent task is still open.",
         },
         {
@@ -1155,7 +1155,7 @@ type ProviderFixtureFamily = Extract<CapabilityThreadItem, { kind: "provider_act
 const PROVIDER_SCENARIOS: Record<string, { family: ProviderFixtureFamily; eventType: string; title: string; payload: Record<string, CapabilityJsonValue> }> = {
   "pe-structured-plan": { family: "plan", eventType: "plan.updated", title: "Plan", payload: { schema: "outpost.plan.updated.v1", planId: "plan-1", revision: 2, explanation: "Implementation plan regenerated after review.", complete: true, syncStatus: "conflict", documentRevision: 4, steps: [{ stepId: "step-1", body: "Add canonical schemas", status: "completed" }, { stepId: "step-2", body: "Wire provider normalization", status: "in_progress" }, { stepId: "step-3", body: "Resolve concurrent plan edit", status: "blocked" }] } },
   "te-command-execution": { family: "tool_execution", eventType: "tool.execution.completed", title: "Run", payload: { schema: "outpost.tool.execution.v1", executionId: "exec-1", transport: "process", operation: "execute", name: "pnpm test", target: null, namespace: null, readOnly: false, status: "completed", durationMs: 1842, exitCode: 0, progress: null, output: "Tests: 48 passed\nOutput retained at the canonical boundary.", outputBytes: 58, outputTruncated: false, outputDigest: "sha256:fixture" } },
-  "mp-mcp-progress": { family: "tool_execution", eventType: "tool.execution.progressed", title: "MCP · search_tasks", payload: { schema: "outpost.tool.execution.v1", executionId: "mcp-1", transport: "mcp", operation: "search", name: "search_tasks", target: null, namespace: "paperclip", readOnly: true, status: "running", durationMs: 340, exitCode: null, progress: "Scanned 18 authorized tasks", output: "", outputBytes: 0, outputTruncated: false, outputDigest: "sha256:fixture" } },
+  "mp-mcp-progress": { family: "tool_execution", eventType: "tool.execution.progressed", title: "MCP · search_tasks", payload: { schema: "outpost.tool.execution.v1", executionId: "mcp-1", transport: "mcp", operation: "search", name: "search_tasks", target: null, namespace: "outpost", readOnly: true, status: "running", durationMs: 340, exitCode: null, progress: "Scanned 18 authorized tasks", output: "", outputBytes: 0, outputTruncated: false, outputDigest: "sha256:fixture" } },
   "rs-web-research": { family: "research", eventType: "research.completed", title: "Research", payload: { schema: "outpost.research.v1", researchId: "research-1", action: "search", status: "completed", query: "ORP event streaming", url: null, pattern: null, sources: [{ sourceId: "source-1", url: "https://example.com/orp", title: "Protocol notes", snippet: "Provider-reported source excerpt." }, { sourceId: "source-bad", url: null, title: "Unavailable malformed source", snippet: null }] } },
   "da-subagent-delegation": { family: "delegation", eventType: "delegation.updated", title: "Delegation", payload: { schema: "outpost.delegation.v1", delegationId: "delegate-1", action: "wait", status: "waiting", children: [{ childId: "child-1", role: "Protocol mapper", model: "gpt-5", status: "completed", summary: "Mapped notifications", activitySummary: "12 events" }, { childId: "child-2", role: "UI verifier", model: "gpt-5", status: "running", summary: "Checking mobile layout", activitySummary: "2 scenarios" }] } },
   "mr-model-routing": { family: "model_identity", eventType: "model.route.changed", title: "Model rerouted", payload: { schema: "outpost.model.route_changed.v1", routeId: "route-1", provider: "openai", requestedModel: "gpt-5", fromModel: "gpt-5", effectiveModel: "gpt-5.1", reason: "Capacity routing", usageBoundaryId: "usage-2" } },
@@ -1163,7 +1163,7 @@ const PROVIDER_SCENARIOS: Record<string, { family: ProviderFixtureFamily; eventT
   "ag-generated-artifact": { family: "artifact", eventType: "artifact.generated", title: "Generated artifact", payload: { schema: "outpost.artifact.generated.v1", artifactId: "artifact-1", status: "completed", reference: "artifacts/architecture.png", mediaType: "image/png", registered: true, transparentBackground: false, failure: null } },
   "rv-review-mode": { family: "review", eventType: "review.mode.changed", title: "Provider review mode", payload: { schema: "outpost.review.mode_changed.v1", reviewId: "review-1", state: "entered", scope: "workspace changes" } },
   "hk-hook-lifecycle": { family: "hook", eventType: "hook.completed", title: "Hook", payload: { schema: "outpost.hook.v1", hookId: "hook-1", event: "post-tool", scope: "workspace", status: "failed", blocking: true, durationMs: 81, summary: "Formatting policy rejected the change." } },
-  "mc-memory-citations": { family: "memory", eventType: "memory.citation.referenced", title: "Memory citation", payload: { schema: "outpost.memory.citation.v1", citationId: "citation-1", messageItemId: "message-1", label: "Prior architecture decision", available: true, reference: "paperclip://memory/decision-4" } },
+  "mc-memory-citations": { family: "memory", eventType: "memory.citation.referenced", title: "Memory citation", payload: { schema: "outpost.memory.citation.v1", citationId: "citation-1", messageItemId: "message-1", label: "Prior architecture decision", available: true, reference: "outpost://memory/decision-4" } },
   "sr-safety-review": { family: "safety", eventType: "safety.review.completed", title: "Safety review", payload: { schema: "outpost.safety.review.v1", reviewId: "safety-1", targetExecutionId: "exec-4", status: "completed", decision: "denied", summary: "Execution requires user approval." } },
   "ti-terminal-input": { family: "terminal", eventType: "terminal.input.sent", title: "Terminal input", payload: { schema: "outpost.terminal.input_sent.v1", executionId: "exec-5", origin: "agent", inputClass: "control", byteCount: 1 } },
   "wt-intentional-wait": { family: "wait", eventType: "wait.completed", title: "Intentional wait", payload: { schema: "outpost.wait.v1", waitId: "wait-1", reason: "timer", status: "interrupted", plannedDurationMs: 30000, elapsedDurationMs: 8200 } },

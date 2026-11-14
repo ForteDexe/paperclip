@@ -15,31 +15,31 @@ function app(actor: express.Request["actor"]) {
   });
   return { server, get };
 }
-const board = { type: "board", source: "session", userId: "alice", companyIds: ["company-a"] } as const;
-const path = "/companies/company-a/link-preview";
+const operator = { type: "operator", source: "session", userId: "alice", spaceIds: ["space-a"] } as const;
+const path = "/spaces/space-a/link-preview";
 
 describe("link preview routes", () => {
   it("passes the authenticated viewer and disables shared HTTP caching", async () => {
-    const { server, get } = app({ ...board, companyIds: [...board.companyIds] });
+    const { server, get } = app({ ...operator, spaceIds: [...operator.spaceIds] });
     const response = await request(server).get(path).query({ url: "https://github.com/acme/web/pull/42" });
     expect(response.status).toBe(200);
     expect(response.headers["cache-control"]).toBe("private, no-store");
-    expect(get).toHaveBeenCalledWith({ companyId: "company-a", userId: "alice" }, "https://github.com/acme/web/pull/42");
+    expect(get).toHaveBeenCalledWith({ spaceId: "space-a", userId: "alice" }, "https://github.com/acme/web/pull/42");
   });
-  it("checks company access before consulting any cache or provider", async () => {
-    const { server, get } = app({ ...board, companyIds: ["company-b"] });
+  it("checks space access before consulting any cache or provider", async () => {
+    const { server, get } = app({ ...operator, spaceIds: ["space-b"] });
     expect((await request(server).get(path).query({ url: "https://github.com/acme/web/pull/42" })).status).toBe(403);
     expect(get).not.toHaveBeenCalled();
   });
   it("rejects agents and unauthenticated requests", async () => {
-    for (const actor of [{ type: "none" }, { type: "agent", agentId: "agent-a", companyId: "company-a" }] as express.Request["actor"][]) {
+    for (const actor of [{ type: "none" }, { type: "agent", agentId: "agent-a", spaceId: "space-a" }] as express.Request["actor"][]) {
       const { server, get } = app(actor);
       expect([401, 403]).toContain((await request(server).get(path).query({ url: "https://github.com/acme/web/pull/42" })).status);
       expect(get).not.toHaveBeenCalled();
     }
   });
   it("bounds and validates the URL input", async () => {
-    const { server, get } = app({ ...board, companyIds: [...board.companyIds] });
+    const { server, get } = app({ ...operator, spaceIds: [...operator.spaceIds] });
     for (const query of [{}, { url: "x".repeat(2049) }, { url: ["a", "b"] }]) {
       expect((await request(server).get(path).query(query)).status).toBe(400);
     }

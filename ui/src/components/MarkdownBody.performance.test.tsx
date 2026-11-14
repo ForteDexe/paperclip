@@ -12,7 +12,7 @@ vi.mock("@/lib/router", () => ({
   Link: ({ to, ...props }: ComponentProps<"a"> & { to: string }) => <a href={to} {...props} />,
   useCaseHref: () => () => "",
 }));
-vi.mock("../context/CompanyContext", () => ({ useOptionalCompany: () => null }));
+vi.mock("../context/SpaceContext", () => ({ useOptionalSpace: () => null }));
 
 afterEach(() => vi.clearAllMocks());
 

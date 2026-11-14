@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { companies, companySkills, companySkillVersions as versions, companySkillRepositorySnapshots as snapshots, skillPackageDeletions, createDb } from "@outpost/db";
+import { spaces, spaceSkills, spaceSkillVersions as versions, spaceSkillRepositorySnapshots as snapshots, skillPackageDeletions, createDb } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { createStorageService } from "../storage/service.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
@@ -33,7 +33,7 @@ describe.skipIf(!support.supported)("automatic skill package work", () => {
     storage = createStorageService(createLocalDiskStorageProvider(path.join(home, "objects")));
   });
   beforeEach(async () => {
-    await db.execute(sql`truncate companies cascade`);
+    await db.execute(sql`truncate spaces cascade`);
     await db.execute(sql`truncate skill_package_deletions`);
   });
   afterEach(async () => { await coordinator?.stop(); coordinator = undefined; vi.useRealTimers(); vi.restoreAllMocks(); });
@@ -42,13 +42,13 @@ describe.skipIf(!support.supported)("automatic skill package work", () => {
     await db?.$client.end({ timeout: 1 }); await database?.cleanup();
     if (home) await fs.rm(home, { recursive: true, force: true });
   });
-  async function company() {
+  async function space() {
     const id = randomUUID();
-    await db.insert(companies).values({ id, name: "Migration", issuePrefix: "MIG" });
+    await db.insert(spaces).values({ id, name: "Migration", issuePrefix: "MIG" });
     return id;
   }
   it("stops querying after empty startup and retains a first committed wake through drain", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     let draining = false;
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => !draining, canReconcile: () => true, onError: error => { throw error; } });
     const work = skillPackageWork(db, storage).start(coordinator);
@@ -65,7 +65,7 @@ describe.skipIf(!support.supported)("automatic skill package work", () => {
       let id: string;
       await db.transaction(async tx => {
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.skillPackages);
-        [id] = (await tx.insert(snapshots).values({ companyId, contentHash: skillSnapshotHash(files), fileInventory: files }).returning({ id: snapshots.id })).map(row => row.id);
+        [id] = (await tx.insert(snapshots).values({ spaceId, contentHash: skillSnapshotHash(files), fileInventory: files }).returning({ id: snapshots.id })).map(row => row.id);
       });
       await vi.advanceTimersByTimeAsync(0);
       await vi.waitFor(() => expect(idleWorkSnapshot().active).toBe(0));
@@ -83,8 +83,8 @@ describe.skipIf(!support.supported)("automatic skill package work", () => {
     } finally { db.$client.options.debug = debug; }
   });
   it("keeps legacy contents on failure, persists a retry and resumes after restart", async () => {
-    const companyId = await company();
-    const [row] = await db.insert(snapshots).values({ companyId, contentHash: skillSnapshotHash(files), fileInventory: files }).returning();
+    const spaceId = await space();
+    const [row] = await db.insert(snapshots).values({ spaceId, contentHash: skillSnapshotHash(files), fileInventory: files }).returning();
     const upload = vi.spyOn(storage, "putFile").mockRejectedValue(new Error("offline"));
     const service = skillPackageWork(db, storage);
     await service.tick(new AbortController().signal);
@@ -98,30 +98,30 @@ describe.skipIf(!support.supported)("automatic skill package work", () => {
     const [saved] = await db.select().from(snapshots).where(eq(snapshots.id, row!.id));
     expect(saved!.fileInventory).toEqual([]);
     expect(saved!.migrationAt).toBeNull();
-    expect(await skillPackageStore(db, storage).files(companyId, row!.id)).toEqual(files);
+    expect(await skillPackageStore(db, storage).files(spaceId, row!.id)).toEqual(files);
   });
   it("reports a safe conversion failure reason without logging the legacy payload", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     const legacy = [{ ...files[0]!, content: "private payload" }];
-    const [row] = await db.insert(snapshots).values({ companyId, contentHash: skillSnapshotHash(files), fileInventory: legacy, migrationAt: new Date(0) }).returning();
+    const [row] = await db.insert(snapshots).values({ spaceId, contentHash: skillSnapshotHash(files), fileInventory: legacy, migrationAt: new Date(0) }).returning();
     const warning = vi.spyOn(logger, "warn").mockImplementation(() => {});
     await skillPackageWork(db, storage).tick(new AbortController().signal);
     expect(warning).toHaveBeenCalledWith({ packageId: row!.id, failure: { reason: "legacy_hash_mismatch", errorCode: "unknown" } }, expect.any(String));
     expect(JSON.stringify(warning.mock.calls)).not.toContain("private payload");
   });
   it.each(["manifest.json", "files.tar.gz"])("stops conversion during a stalled %s read and retains legacy bytes", async object => {
-    const companyId = await company();
-    const packageId = await skillPackageStore(db, storage).prepare(companyId, files);
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "legacy", slug: "legacy", name: "Legacy", markdown: files[0]!.content }).returning();
-    const [version] = await db.insert(versions).values({ companyId, companySkillId: skill!.id, revisionNumber: 1, fileInventory: files, migrationAt: new Date(0),
+    const spaceId = await space();
+    const packageId = await skillPackageStore(db, storage).prepare(spaceId, files);
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "legacy", slug: "legacy", name: "Legacy", markdown: files[0]!.content }).returning();
+    const [version] = await db.insert(versions).values({ spaceId, spaceSkillId: skill!.id, revisionNumber: 1, fileInventory: files, migrationAt: new Date(0),
       ...(object === "manifest.json" ? { repositorySnapshotId: packageId, repositorySkillPath: "SKILL.md" } : { packageSnapshotId: packageId }) }).returning();
     const get = storage.getObject.bind(storage);
     let signalStarted!: () => void;
     const started = new Promise<void>(resolve => { signalStarted = resolve; });
     let pendingSignal: AbortSignal | undefined;
     let releasePending: () => void = () => {};
-    vi.spyOn(storage, "getObject").mockImplementation(async (companyId, key, options) => {
-      if (!key.endsWith(object)) return get(companyId, key, options);
+    vi.spyOn(storage, "getObject").mockImplementation(async (spaceId, key, options) => {
+      if (!key.endsWith(object)) return get(spaceId, key, options);
       pendingSignal = options?.signal;
       signalStarted();
       return new Promise<never>((_resolve, reject) => {
@@ -147,9 +147,9 @@ describe.skipIf(!support.supported)("automatic skill package work", () => {
   it.each([
     ["deleteObject", "stop"], ["headObject", "stop"], ["deleteObject", "deadline"], ["headObject", "deadline"],
   ] as const)("releases a stalled %s on %s and retains its deletion receipt", async (method, cancellation) => {
-    const companyId = await company();
-    const [receipt] = await db.insert(skillPackageDeletions).values({ companyId, provider: "local_disk",
-      archiveKey: `${companyId}/expired/archive`, manifestKey: `${companyId}/expired/manifest`, deleteAfter: new Date(0) }).returning();
+    const spaceId = await space();
+    const [receipt] = await db.insert(skillPackageDeletions).values({ spaceId, provider: "local_disk",
+      archiveKey: `${spaceId}/expired/archive`, manifestKey: `${spaceId}/expired/manifest`, deleteAfter: new Date(0) }).returning();
     const provider = createLocalDiskStorageProvider(path.join(home, "objects"));
     let signalStarted: () => void = () => {};
     const started = new Promise<void>(resolve => { signalStarted = resolve; });

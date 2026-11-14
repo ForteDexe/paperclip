@@ -26,7 +26,7 @@ type SnapshotRow = typeof executionWorkspaceSnapshots.$inferSelect;
 export interface WorkspaceSnapshotRef {
   schema: typeof SCHEMA;
   id: string;
-  companyId: string;
+  spaceId: string;
   workspaceId: string;
   generation: number;
   objectKey: string;
@@ -35,24 +35,24 @@ export interface WorkspaceSnapshotRef {
   key: StoredSecretVersionMaterial;
   manifestDigest: string;
 }
-type UploadAttempt = Omit<WorkspaceSnapshotRef, "schema" | "companyId" | "workspaceId" | "generation" | "id">;
+type UploadAttempt = Omit<WorkspaceSnapshotRef, "schema" | "spaceId" | "workspaceId" | "generation" | "id">;
 function failure(reason: string): never { throw new Error(`remote_workspace_snapshot_${reason}`); }
-const aad = (ref: Pick<WorkspaceSnapshotRef, "companyId" | "workspaceId" | "id" | "generation">) =>
-  Buffer.from(JSON.stringify([SCHEMA, ref.companyId, ref.workspaceId, ref.id, ref.generation]));
-const scope = (input: { companyId: string; workspaceId: string; snapshotId: string }) => and(
-  eq(executionWorkspaceSnapshots.id, input.snapshotId), eq(executionWorkspaceSnapshots.companyId, input.companyId),
+const aad = (ref: Pick<WorkspaceSnapshotRef, "spaceId" | "workspaceId" | "id" | "generation">) =>
+  Buffer.from(JSON.stringify([SCHEMA, ref.spaceId, ref.workspaceId, ref.id, ref.generation]));
+const scope = (input: { spaceId: string; workspaceId: string; snapshotId: string }) => and(
+  eq(executionWorkspaceSnapshots.id, input.snapshotId), eq(executionWorkspaceSnapshots.spaceId, input.spaceId),
   eq(executionWorkspaceSnapshots.executionWorkspaceId, input.workspaceId),
 );
 function reference(row: SnapshotRow): WorkspaceSnapshotRef {
   if (!row.objectKey || !row.sha256 || !row.byteSize || !row.key || !row.manifestDigest) failure("not_uploaded");
-  const value = { schema: SCHEMA, id: row.id, companyId: row.companyId, workspaceId: row.executionWorkspaceId,
+  const value = { schema: SCHEMA, id: row.id, spaceId: row.spaceId, workspaceId: row.executionWorkspaceId,
     generation: row.generation, objectKey: row.objectKey!, sha256: row.sha256!, byteSize: row.byteSize!, key: row.key!, manifestDigest: row.manifestDigest! } as WorkspaceSnapshotRef;
   validateReference(value);
   return value;
 }
 function validateReference(ref: WorkspaceSnapshotRef) {
   if (ref.schema !== SCHEMA || !Number.isSafeInteger(ref.generation) || ref.generation < 1
-    || !ref.objectKey.startsWith(`${ref.companyId}/workspace-snapshots/${ref.workspaceId}/${ref.id}/`)
+    || !ref.objectKey.startsWith(`${ref.spaceId}/workspace-snapshots/${ref.workspaceId}/${ref.id}/`)
     || !/^[a-f0-9]{64}$/.test(ref.sha256) || !/^[a-f0-9]{64}$/.test(ref.manifestDigest)
     || !Number.isSafeInteger(ref.byteSize) || ref.byteSize < MAGIC.length + 12 + 16
     || !ref.key || typeof ref.key !== "object") failure("reference_invalid");
@@ -63,11 +63,11 @@ async function digestFile(file: string, signal?: AbortSignal) {
   return { sha256: digest.digest("hex"), byteSize };
 }
 async function verifyStoredSize(storage: StorageService, ref: WorkspaceSnapshotRef, signal?: AbortSignal) {
-  const head = await storage.headObject(ref.companyId, ref.objectKey, { signal });
+  const head = await storage.headObject(ref.spaceId, ref.objectKey, { signal });
   if (!head.exists || head.contentLength !== ref.byteSize) failure("object_size_mismatch");
 }
 async function verifyObject(storage: StorageService, ref: WorkspaceSnapshotRef, signal?: AbortSignal) {
-  const object = await storage.getObject(ref.companyId, ref.objectKey, { signal });
+  const object = await storage.getObject(ref.spaceId, ref.objectKey, { signal });
   const digest = createHash("sha256"); let size = 0;
   try {
     for await (const chunk of object.stream) {
@@ -80,19 +80,19 @@ async function verifyObject(storage: StorageService, ref: WorkspaceSnapshotRef, 
 }
 
 export async function beginWorkspaceSnapshot(db: Db, input: {
-  companyId: string; workspaceId: string; operationId: string; runId?: string | null;
+  spaceId: string; workspaceId: string; operationId: string; runId?: string | null;
   parentSnapshotId?: string | null; generation: number; epoch: number;
 }) {
   if (!Number.isSafeInteger(input.generation) || input.generation < 1 || !Number.isSafeInteger(input.epoch) || input.epoch < 0) failure("generation_invalid");
   await db.transaction(async tx => {
     await notifyRemoteWorkspaceSnapshots(tx, `workspace:${input.workspaceId}`);
-    await tx.insert(executionWorkspaceSnapshots).values({ companyId: input.companyId, executionWorkspaceId: input.workspaceId,
+    await tx.insert(executionWorkspaceSnapshots).values({ spaceId: input.spaceId, executionWorkspaceId: input.workspaceId,
       sourceOperationId: input.operationId, sourceRunId: input.runId ?? null, parentSnapshotId: input.parentSnapshotId ?? null,
       generation: input.generation, epoch: input.epoch, format: FORMAT,
       deleteAfter: new Date(Date.now() + REMOTE_WORKSPACE_SNAPSHOT_GRACE_MS) }).onConflictDoNothing();
   });
   const [row] = await db.select().from(executionWorkspaceSnapshots).where(and(
-    eq(executionWorkspaceSnapshots.companyId, input.companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, input.workspaceId),
+    eq(executionWorkspaceSnapshots.spaceId, input.spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, input.workspaceId),
     eq(executionWorkspaceSnapshots.sourceOperationId, input.operationId),
   ));
   if (!row || row.generation !== input.generation || row.epoch !== input.epoch || row.parentSnapshotId !== (input.parentSnapshotId ?? null)
@@ -100,7 +100,7 @@ export async function beginWorkspaceSnapshot(db: Db, input: {
   return row!;
 }
 
-export async function getWorkspaceSnapshot(db: Db, input: { companyId: string; workspaceId: string; snapshotId: string }) {
+export async function getWorkspaceSnapshot(db: Db, input: { spaceId: string; workspaceId: string; snapshotId: string }) {
   const [row] = await db.select().from(executionWorkspaceSnapshots).where(scope(input));
   return row && ["uploaded", "committed", "superseded"].includes(row.status) ? reference(row) : null;
 }
@@ -116,7 +116,7 @@ export async function findUnchangedWorkspaceSnapshot(input: {
       || snapshot.metadata?.uploads !== undefined
         && (!Array.isArray(snapshot.metadata.uploads) || snapshot.metadata.uploads.length !== 0)) return null;
     const [parent] = await input.db.select().from(executionWorkspaceSnapshots).where(and(
-      eq(executionWorkspaceSnapshots.companyId, snapshot.companyId),
+      eq(executionWorkspaceSnapshots.spaceId, snapshot.spaceId),
       eq(executionWorkspaceSnapshots.executionWorkspaceId, snapshot.executionWorkspaceId),
       eq(executionWorkspaceSnapshots.id, snapshot.parentSnapshotId),
       eq(executionWorkspaceSnapshots.status, "committed"),
@@ -125,13 +125,13 @@ export async function findUnchangedWorkspaceSnapshot(input: {
     const ref = reference(parent);
     const key = await snapshotKey(ref);
     if (key.plaintextSha256 !== input.archiveSha256 || key.plaintextBytes !== input.archiveBytes) return null;
-    const head = await input.storage.headObject(ref.companyId, ref.objectKey);
+    const head = await input.storage.headObject(ref.spaceId, ref.objectKey);
     return head.exists && head.contentLength === ref.byteSize ? ref : null;
   });
 }
 
 export async function recoverWorkspaceSnapshotUpload(input: {
-  db: Db; storage: StorageService; snapshotId: string; companyId: string; workspaceId: string;
+  db: Db; storage: StorageService; snapshotId: string; spaceId: string; workspaceId: string;
   signal?: AbortSignal;
 }): Promise<WorkspaceSnapshotRef | null> {
   const [row] = await input.db.select().from(executionWorkspaceSnapshots).where(scope(input));
@@ -143,17 +143,17 @@ export async function recoverWorkspaceSnapshotUpload(input: {
   const attempts = Array.isArray(row!.metadata?.uploads) ? row!.metadata!.uploads as UploadAttempt[] : [];
   for (const attempt of attempts) {
     input.signal?.throwIfAborted();
-    const ref: WorkspaceSnapshotRef = { schema: SCHEMA, ...attempt, id: row!.id, companyId: row!.companyId,
+    const ref: WorkspaceSnapshotRef = { schema: SCHEMA, ...attempt, id: row!.id, spaceId: row!.spaceId,
       workspaceId: row!.executionWorkspaceId, generation: row!.generation };
     validateReference(ref);
-    if (!(await input.storage.headObject(ref.companyId, ref.objectKey, { signal: input.signal })).exists) continue;
+    if (!(await input.storage.headObject(ref.spaceId, ref.objectKey, { signal: input.signal })).exists) continue;
     return ref;
   }
   return null;
 }
 
 export async function recoverWorkspaceSnapshotArchive(input: {
-  db: Db; storage: StorageService; snapshotId: string; companyId: string; workspaceId: string;
+  db: Db; storage: StorageService; snapshotId: string; spaceId: string; workspaceId: string;
   targetPath: string; signal?: AbortSignal;
 }): Promise<WorkspaceSnapshotRef | null> {
   const ref = await recoverWorkspaceSnapshotUpload(input);
@@ -194,7 +194,7 @@ function withRequestStats<T>(timing: WorkspaceSnapshotStorageTiming | undefined,
 }
 
 type WorkspaceSnapshotUpload = {
-  db: Db; storage: StorageService; snapshotId: string; companyId: string; workspaceId: string;
+  db: Db; storage: StorageService; snapshotId: string; spaceId: string; workspaceId: string;
   archivePath: string; manifestDigest: string; signal?: AbortSignal; verifiedArchivePath?: string;
   // Only an owner with an immutable logical source may replace an unavailable,
   // unpublished capture. A recoverable or concurrently published attempt wins,
@@ -286,7 +286,7 @@ async function uploadVerifiedWorkspaceSnapshot(input: WorkspaceSnapshotUpload, v
       || current.key !== null || current.manifestDigest !== null) failure("not_unpublished");
   };
   if (recapture) requireUnpublished(row!);
-  const identity = { id: row!.id, companyId: row!.companyId, workspaceId: row!.executionWorkspaceId, generation: row!.generation };
+  const identity = { id: row!.id, spaceId: row!.spaceId, workspaceId: row!.executionWorkspaceId, generation: row!.generation };
   const publish = async (attempt: UploadAttempt) => {
     const updated = await input.db.transaction(async tx => {
       await notifyRemoteWorkspaceSnapshots(tx, `workspace:${input.workspaceId}`);
@@ -296,7 +296,7 @@ async function uploadVerifiedWorkspaceSnapshot(input: WorkspaceSnapshotUpload, v
     const winning = updated ?? (await input.db.select().from(executionWorkspaceSnapshots).where(scope(input)))[0];
     if (!winning || !["uploaded", "committed", "superseded"].includes(winning.status)) failure("publication_changed");
     const saved = reference(winning!);
-    if (updated) await abortSnapshotAttemptUploads(input.storage, saved.companyId, snapshotAttemptKeys(updated));
+    if (updated) await abortSnapshotAttemptUploads(input.storage, saved.spaceId, snapshotAttemptKeys(updated));
     if (!recapture && saved.manifestDigest !== input.manifestDigest) failure("operation_content_changed");
     if (saved.objectKey !== attempt.objectKey) await verifyTimed(saved);
     return saved;
@@ -309,7 +309,7 @@ async function uploadVerifiedWorkspaceSnapshot(input: WorkspaceSnapshotUpload, v
       if (!recapture && attempt.manifestDigest !== input.manifestDigest) failure("operation_content_changed");
       const ref = { schema: SCHEMA, ...identity, ...attempt } as WorkspaceSnapshotRef;
       validateReference(ref);
-      if ((await input.storage.headObject(ref.companyId, ref.objectKey, { signal: input.signal })).exists) {
+      if ((await input.storage.headObject(ref.spaceId, ref.objectKey, { signal: input.signal })).exists) {
         await verifyTimed(ref); return attempt;
       }
     }
@@ -349,7 +349,7 @@ async function uploadVerifiedWorkspaceSnapshot(input: WorkspaceSnapshotUpload, v
       sha256: ciphertextDigest.digest("hex"), byteSize: ciphertextBytes,
     }));
     if (input.timing) input.timing.bytes = content.byteSize;
-    const attempt: UploadAttempt = { objectKey: `${identity.companyId}/workspace-snapshots/${identity.workspaceId}/${identity.id}/${randomUUID()}.pcws`,
+    const attempt: UploadAttempt = { objectKey: `${identity.spaceId}/workspace-snapshots/${identity.workspaceId}/${identity.id}/${randomUUID()}.pcws`,
       ...content, key: material, manifestDigest: input.manifestDigest };
     // Recheck after encryption, then bind admission to the unchanged ledger.
     // Remote I/O stays outside the row lock. An older upload completing after
@@ -379,7 +379,7 @@ async function uploadVerifiedWorkspaceSnapshot(input: WorkspaceSnapshotUpload, v
     // overwrite an object already used by a committed generation.
     let stored: Awaited<ReturnType<StorageService["putFile"]>>;
     try {
-      stored = await timedStep(input.timing, "putMs", "storage.snapshot.put", () => input.storage.putFile({ companyId: identity.companyId, namespace: "workspace-snapshots", objectKey: attempt.objectKey,
+      stored = await timedStep(input.timing, "putMs", "storage.snapshot.put", () => input.storage.putFile({ spaceId: identity.spaceId, namespace: "workspace-snapshots", objectKey: attempt.objectKey,
         originalFilename: null, contentType: "application/octet-stream", body: createReadStream(encrypted, { highWaterMark: WORKSPACE_ARCHIVE_IO_BUFFER_BYTES }),
         byteSize: attempt.byteSize, sha256: attempt.sha256, sourceFile: encrypted, signal: input.signal }));
     } catch (error) {
@@ -406,7 +406,7 @@ async function uploadVerifiedWorkspaceSnapshot(input: WorkspaceSnapshotUpload, v
 async function snapshotKey(ref: WorkspaceSnapshotRef) {
   validateReference(ref);
   const wrapped = JSON.parse(await localEncryptedProvider.resolveVersion({ material: ref.key, externalRef: null }));
-  if (wrapped.schema !== KEY_SCHEMA || wrapped.companyId !== ref.companyId || wrapped.workspaceId !== ref.workspaceId
+  if (wrapped.schema !== KEY_SCHEMA || wrapped.spaceId !== ref.spaceId || wrapped.workspaceId !== ref.workspaceId
     || wrapped.id !== ref.id || wrapped.generation !== ref.generation || !/^[a-f0-9]{64}$/.test(wrapped.plaintextSha256 ?? "")
     || !Number.isSafeInteger(wrapped.plaintextBytes) || wrapped.plaintextBytes < 0) failure("key_binding_invalid");
   return wrapped;
@@ -446,7 +446,7 @@ async function loadWorkspaceSnapshotArchiveTimed(input: Parameters<typeof loadWo
           received = 0; digest = createHash("sha256");
           await rm(ciphertext, { force: true });
         }
-        const object = await input.storage.getObject(ref.companyId, ref.objectKey, { signal });
+        const object = await input.storage.getObject(ref.spaceId, ref.objectKey, { signal });
         const bounded = new Transform({ transform(bytes, _encoding, callback) {
           if (bytes.length > 0) timer.refresh();
           received += bytes.length; digest.update(bytes);
@@ -550,7 +550,7 @@ async function openObjectRange(storage: StorageService, ref: WorkspaceSnapshotRe
   const combined = signal ? AbortSignal.any([signal, idle.signal]) : idle.signal;
   let object: Awaited<ReturnType<StorageService["getObject"]>>;
   try {
-    object = await sendThroughStorageOutage(() => storage.getObject(ref.companyId, ref.objectKey, {
+    object = await sendThroughStorageOutage(() => storage.getObject(ref.spaceId, ref.objectKey, {
       range: { start, end: start + length - 1 }, signal: combined }), combined);
   } catch (error) { clearTimeout(timer); throw idle.signal.aborted ? stalled : error; }
   let received = 0;

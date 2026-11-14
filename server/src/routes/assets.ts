@@ -13,9 +13,9 @@ import {
   isInlineAttachmentContentType,
   MAX_ATTACHMENT_BYTES,
 } from "../attachment-types.js";
-import { assertCompanyAccess, getAccessibleResource, getActorInfo } from "./authz.js";
+import { assertSpaceAccess, getAccessibleResource, getActorInfo } from "./authz.js";
 const SVG_CONTENT_TYPE = "image/svg+xml";
-const ALLOWED_COMPANY_LOGO_CONTENT_TYPES = new Set([
+const ALLOWED_SPACE_LOGO_CONTENT_TYPES = new Set([
   "image/png",
   "image/jpeg",
   "image/jpg",
@@ -95,7 +95,7 @@ export function assetRoutes(db: Db, storage: StorageService) {
     storage: multer.memoryStorage(),
     limits: { fileSize: MAX_ATTACHMENT_BYTES, files: 1 },
   });
-  const companyLogoUpload = multer({
+  const spaceLogoUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: MAX_ATTACHMENT_BYTES, files: 1 },
   });
@@ -113,9 +113,9 @@ export function assetRoutes(db: Db, storage: StorageService) {
     });
   }
 
-  router.post("/companies/:companyId/assets/images", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.post("/spaces/:spaceId/assets/images", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
 
     try {
       await runSingleFileUpload(assetUpload, req, res);
@@ -170,14 +170,14 @@ export function assetRoutes(db: Db, storage: StorageService) {
 
     const actor = getActorInfo(req);
     const stored = await storage.putFile({
-      companyId,
+      spaceId,
       namespace: `assets/${namespaceSuffix}`,
       originalFilename: file.originalname || null,
       contentType,
       body: fileBody,
     });
 
-    const asset = await svc.create(companyId, {
+    const asset = await svc.create(spaceId, {
       provider: stored.provider,
       objectKey: stored.objectKey,
       contentType: stored.contentType,
@@ -189,7 +189,7 @@ export function assetRoutes(db: Db, storage: StorageService) {
     });
 
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -207,7 +207,7 @@ export function assetRoutes(db: Db, storage: StorageService) {
 
     res.status(201).json({
       assetId: asset.id,
-      companyId: asset.companyId,
+      spaceId: asset.spaceId,
       provider: asset.provider,
       objectKey: asset.objectKey,
       contentType: asset.contentType,
@@ -222,12 +222,12 @@ export function assetRoutes(db: Db, storage: StorageService) {
     });
   });
 
-  router.post("/companies/:companyId/logo", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.post("/spaces/:spaceId/logo", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
 
     try {
-      await runSingleFileUpload(companyLogoUpload, req, res);
+      await runSingleFileUpload(spaceLogoUpload, req, res);
     } catch (err) {
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
@@ -249,7 +249,7 @@ export function assetRoutes(db: Db, storage: StorageService) {
     }
 
     const contentType = (file.mimetype || "").toLowerCase();
-    if (!ALLOWED_COMPANY_LOGO_CONTENT_TYPES.has(contentType)) {
+    if (!ALLOWED_SPACE_LOGO_CONTENT_TYPES.has(contentType)) {
       res.status(422).json({ error: `Unsupported image type: ${contentType || "unknown"}` });
       return;
     }
@@ -271,14 +271,14 @@ export function assetRoutes(db: Db, storage: StorageService) {
 
     const actor = getActorInfo(req);
     const stored = await storage.putFile({
-      companyId,
-      namespace: "assets/companies",
+      spaceId,
+      namespace: "assets/spaces",
       originalFilename: file.originalname || null,
       contentType,
       body: fileBody,
     });
 
-    const asset = await svc.create(companyId, {
+    const asset = await svc.create(spaceId, {
       provider: stored.provider,
       objectKey: stored.objectKey,
       contentType: stored.contentType,
@@ -290,7 +290,7 @@ export function assetRoutes(db: Db, storage: StorageService) {
     });
 
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -303,13 +303,13 @@ export function assetRoutes(db: Db, storage: StorageService) {
         originalFilename: asset.originalFilename,
         contentType: asset.contentType,
         byteSize: asset.byteSize,
-        namespace: "assets/companies",
+        namespace: "assets/spaces",
       },
     });
 
     res.status(201).json({
       assetId: asset.id,
-      companyId: asset.companyId,
+      spaceId: asset.spaceId,
       provider: asset.provider,
       objectKey: asset.objectKey,
       contentType: asset.contentType,
@@ -347,7 +347,7 @@ export function assetRoutes(db: Db, storage: StorageService) {
       return;
     }
     const range = Array.isArray(ranges) ? ranges[0] : undefined;
-    const object = await storage.getObject(asset.companyId, asset.objectKey, range ? { range } : undefined);
+    const object = await storage.getObject(asset.spaceId, asset.objectKey, range ? { range } : undefined);
     const responseContentType = asset.contentType || object.contentType || "application/octet-stream";
     const mediaType = responseContentType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
     const inlineSafe = mediaType !== SVG_CONTENT_TYPE

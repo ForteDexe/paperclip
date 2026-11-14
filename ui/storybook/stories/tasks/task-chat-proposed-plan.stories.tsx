@@ -12,7 +12,7 @@ import {
 import type { TaskChatProtocolStep, TaskChatProviderActivityItem } from "@/components/task-chat/task-chat-model";
 import { issueThreadInteractionFixtureMeta } from "@/fixtures/issueThreadInteractionFixtures";
 import { composerAgentAppearance, composerAgents } from "../../prototypes/composer-model-picker/fixtures";
-import { storybookAgentMap, storybookIssueDocuments } from "../../fixtures/paperclipData";
+import { storybookAgentMap, storybookIssueDocuments } from "../../fixtures/outpostData";
 
 /*
  * Proposed plans that can be approved (harness signal #9).
@@ -75,11 +75,11 @@ function liveDraft(lineCount: number): TaskChatProviderActivityItem {
 
 const basePlanConfirmation = {
   id: "interaction-proposed-plan",
-  companyId: issueThreadInteractionFixtureMeta.companyId,
+  spaceId: issueThreadInteractionFixtureMeta.spaceId,
   issueId: ISSUE_ID,
   kind: "request_confirmation" as const,
   title: "Review plan revision 1",
-  summary: "Review the synchronized Paperclip plan.",
+  summary: "Review the synchronized Outpost plan.",
   status: "pending" as const,
   continuationPolicy: "wake_assignee" as const,
   sourceRunId: "run-plan-1",
@@ -307,7 +307,7 @@ function Approved() {
 
 /**
  * Proposed: the agent's own switch into plan mode in a Standard task (Claude
- * EnterPlanMode, or a Paperclip plan request from any harness). Prototype row.
+ * EnterPlanMode, or a Outpost plan request from any harness). Prototype row.
  */
 function ModeSwitchRow({ children }: { children: ReactNode }) {
   return (
@@ -380,7 +380,7 @@ const meta = {
           "A harness-native proposed plan (Codex `plan` item, Claude ExitPlanMode) becomes the task's Plan document and is approved or sent back from the composer takeover.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "tasks/discussion",
         "runs-adapters/runs"

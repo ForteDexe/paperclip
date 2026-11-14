@@ -1,7 +1,7 @@
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../delivery-work-notifications.js";
 import { notifyGitHubWebhookRecovery } from "./github/webhook-recovery-notifications.js";
 import { notifyVoiceChange } from "../voice/voice-recovery-notifications.js";
-import { notifyChatReceiver, notifyChatConnectionReceiver, notifyChatCompanyReceivers } from "./runtime/receiver-work-notifications.js";
+import { notifyChatReceiver, notifyChatConnectionReceiver, notifyChatSpaceReceivers } from "./runtime/receiver-work-notifications.js";
 import type { ChatProvider, ToolConnectionTransport } from "@outpost/shared";
 import { notifyDiscordCommandRegistration } from "./discord/command-work-notifications.js";
 
@@ -30,9 +30,9 @@ export async function notifyChatConnectionObservation(transaction: object, conne
   }
 }
 
-export async function notifyChatCompanyConfiguration(transaction: object, companyId: string) {
-  await notifyVoiceChange(transaction, { kind: "company", id: companyId });
-  await notifyChatCompanyReceivers(transaction, companyId);
-  await notifyGitHubWebhookRecovery(transaction, { kind: "company", id: companyId });
-  await notifyDiscordCommandRegistration(transaction, { kind: "company", id: companyId });
+export async function notifyChatSpaceConfiguration(transaction: object, spaceId: string) {
+  await notifyVoiceChange(transaction, { kind: "space", id: spaceId });
+  await notifyChatSpaceReceivers(transaction, spaceId);
+  await notifyGitHubWebhookRecovery(transaction, { kind: "space", id: spaceId });
+  await notifyDiscordCommandRegistration(transaction, { kind: "space", id: spaceId });
 }

@@ -20,29 +20,29 @@ const pushToastMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api/tools", () => ({
   toolsApi: {
-    listGateways: (companyId: string) => listGatewaysMock(companyId),
-    listProfiles: (companyId: string) => listProfilesMock(companyId),
-    listConnections: (companyId: string) => listConnectionsMock(companyId),
-    listApplications: (companyId: string) => listApplicationsMock(companyId),
+    listGateways: (spaceId: string) => listGatewaysMock(spaceId),
+    listProfiles: (spaceId: string) => listProfilesMock(spaceId),
+    listConnections: (spaceId: string) => listConnectionsMock(spaceId),
+    listApplications: (spaceId: string) => listApplicationsMock(spaceId),
     createGateway: vi.fn(),
     updateGateway: vi.fn(),
   },
 }));
 
 vi.mock("@/api/agents", () => ({
-  agentsApi: { list: (companyId: string) => listAgentsMock(companyId) },
+  agentsApi: { list: (spaceId: string) => listAgentsMock(spaceId) },
 }));
 
 vi.mock("@/api/projects", () => ({
-  projectsApi: { list: (companyId: string) => listProjectsMock(companyId) },
+  projectsApi: { list: (spaceId: string) => listProjectsMock(spaceId) },
 }));
 
 vi.mock("@/lib/router", () => ({
   useNavigate: () => navigateMock,
 }));
 
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 
 vi.mock("@/context/BreadcrumbContext", () => ({
@@ -76,13 +76,13 @@ async function flushReact() {
 function gateway(): ToolMcpGatewayWithTokens {
   return {
     id: "gateway-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Dotta's MacBook",
     displaySlug: "dottas-macbook",
     slug: "dottas-macbook",
     status: "active",
     profileId: "profile-1",
-    contextScopeType: "company",
+    contextScopeType: "space",
     contextScopeId: null,
     agentId: null,
     projectId: null,

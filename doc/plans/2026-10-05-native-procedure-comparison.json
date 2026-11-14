@@ -29,9 +29,9 @@
     ],
     "cellsPerVariant": 6,
     "maximumAttemptsPerCell": 1,
-    "companyHardStopCents": 1000,
+    "spaceHardStopCents": 1000,
     "leadHardStopCents": 1000,
-    "workerIndividualHardStop": "not asserted; company hard stop applies",
+    "workerIndividualHardStop": "not asserted; space hard stop applies",
     "cellDeadlineMs": 720000,
     "maximumStoryRunRecordsPerCell": 12
   },
@@ -5423,7 +5423,7 @@
   "limitations": [
     "Single trials do not establish causation, general equivalence, coding quality, speed or cost trends.",
     "All graded results retain their original measured sources. No paid result measured the integrated PR head.",
-    "Original setup used a company cap but left the lead budget at zero. Corrected setup applied both company and lead caps.",
+    "Original setup used a space cap but left the lead budget at zero. Corrected setup applied both space and lead caps.",
     "Unknown total activity and missing final result/ledger/cleanup for two interrupted jobs remain missing, not silently passed.",
     "Configured model identity is not independent proof of provider-side execution identity.",
     "ACPX provider-execution IDs are not proven mapped to host-call IDs. Never join by name, order or count.",

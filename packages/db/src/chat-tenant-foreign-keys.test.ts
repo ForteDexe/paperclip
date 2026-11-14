@@ -12,10 +12,10 @@ const describeDatabase = support.supported ? describe : describe.skip;
 
 describeDatabase("chat tenant foreign keys", () => {
   it(
-    "rejects cross-company references without breaking nullable-link deletion",
+    "rejects cross-space references without breaking nullable-link deletion",
     async () => {
       const database = await startEmbeddedPostgresTestDatabase(
-        "paperclip-chat-tenant-fks-",
+        "outpost-chat-tenant-fks-",
       );
       const sql = postgres(database.connectionString, {
         max: 1,
@@ -25,7 +25,7 @@ describeDatabase("chat tenant foreign keys", () => {
         const make = async () => {
           const ids = Object.fromEntries(
             [
-              "company",
+              "space",
               "agent",
               "application",
               "connection",
@@ -40,19 +40,19 @@ describeDatabase("chat tenant foreign keys", () => {
               "link",
             ].map((key) => [key, randomUUID()]),
           );
-          await sql`INSERT INTO companies (id,name,issue_prefix) VALUES (${ids.company},'Tenant fixture',${ids.company})`;
-          await sql`INSERT INTO agents (id,company_id,name) VALUES (${ids.agent},${ids.company},'Agent')`;
-          await sql`INSERT INTO tool_applications (id,company_id,name,type) VALUES (${ids.application},${ids.company},'Fixture','mcp_http')`;
-          await sql`INSERT INTO tool_connections (id,company_id,application_id,uid,name,transport) VALUES (${ids.connection},${ids.company},${ids.application},${randomUUID()},'Fixture','rest_api')`;
-          await sql`INSERT INTO chat_endpoints (id,company_id,connection_id,provider,public_id,assigned_agent_id) VALUES (${ids.endpoint},${ids.company},${ids.connection},'slack',${randomUUID()},${ids.agent})`;
-          await sql`INSERT INTO issues (id,company_id,title) VALUES (${ids.issue},${ids.company},'Fixture')`;
-          await sql`INSERT INTO issue_comments (id,company_id,issue_id,body) VALUES (${ids.comment},${ids.company},${ids.issue},'Fixture')`;
-          await sql`INSERT INTO chat_conversations (id,company_id,endpoint_id,issue_id,external_conversation_id,external_label) VALUES (${ids.conversation},${ids.company},${ids.endpoint},${ids.issue},'C1','Fixture')`;
-          await sql`INSERT INTO chat_external_principals (id,company_id,provider,provider_account_id,external_id,kind,display_name) VALUES (${ids.principal},${ids.company},'slack','T1','U1','user','Fixture')`;
-          await sql`INSERT INTO chat_deliveries (id,company_id,endpoint_id,conversation_id,principal_id,provider_event_id,deduplication_key,event_kind,normalized_event) VALUES (${ids.delivery},${ids.company},${ids.endpoint},${ids.conversation},${ids.principal},'E1','E1','message','{}')`;
-          await sql`INSERT INTO chat_publications (id,company_id,endpoint_id,conversation_id,issue_id,comment_id,idempotency_key,payload) VALUES (${ids.publication},${ids.company},${ids.endpoint},${ids.conversation},${ids.issue},${ids.comment},'P1','{}')`;
-          await sql`INSERT INTO chat_actions (id,company_id,endpoint_id,delivery_id,conversation_id,principal_id,kind,provider_action_id) VALUES (${ids.action},${ids.company},${ids.endpoint},${ids.delivery},${ids.conversation},${ids.principal},'fixture','A1')`;
-          await sql`INSERT INTO chat_message_links (id,company_id,endpoint_id,conversation_id,delivery_id,publication_id,comment_id,provider_message_id,direction) VALUES (${ids.link},${ids.company},${ids.endpoint},${ids.conversation},${ids.delivery},${ids.publication},${ids.comment},'M1','outbound')`;
+          await sql`INSERT INTO spaces (id,name,issue_prefix) VALUES (${ids.space},'Tenant fixture',${ids.space})`;
+          await sql`INSERT INTO agents (id,space_id,name) VALUES (${ids.agent},${ids.space},'Agent')`;
+          await sql`INSERT INTO tool_applications (id,space_id,name,type) VALUES (${ids.application},${ids.space},'Fixture','mcp_http')`;
+          await sql`INSERT INTO tool_connections (id,space_id,application_id,uid,name,transport) VALUES (${ids.connection},${ids.space},${ids.application},${randomUUID()},'Fixture','rest_api')`;
+          await sql`INSERT INTO chat_endpoints (id,space_id,connection_id,provider,public_id,assigned_agent_id) VALUES (${ids.endpoint},${ids.space},${ids.connection},'slack',${randomUUID()},${ids.agent})`;
+          await sql`INSERT INTO issues (id,space_id,title) VALUES (${ids.issue},${ids.space},'Fixture')`;
+          await sql`INSERT INTO issue_comments (id,space_id,issue_id,body) VALUES (${ids.comment},${ids.space},${ids.issue},'Fixture')`;
+          await sql`INSERT INTO chat_conversations (id,space_id,endpoint_id,issue_id,external_conversation_id,external_label) VALUES (${ids.conversation},${ids.space},${ids.endpoint},${ids.issue},'C1','Fixture')`;
+          await sql`INSERT INTO chat_external_principals (id,space_id,provider,provider_account_id,external_id,kind,display_name) VALUES (${ids.principal},${ids.space},'slack','T1','U1','user','Fixture')`;
+          await sql`INSERT INTO chat_deliveries (id,space_id,endpoint_id,conversation_id,principal_id,provider_event_id,deduplication_key,event_kind,normalized_event) VALUES (${ids.delivery},${ids.space},${ids.endpoint},${ids.conversation},${ids.principal},'E1','E1','message','{}')`;
+          await sql`INSERT INTO chat_publications (id,space_id,endpoint_id,conversation_id,issue_id,comment_id,idempotency_key,payload) VALUES (${ids.publication},${ids.space},${ids.endpoint},${ids.conversation},${ids.issue},${ids.comment},'P1','{}')`;
+          await sql`INSERT INTO chat_actions (id,space_id,endpoint_id,delivery_id,conversation_id,principal_id,kind,provider_action_id) VALUES (${ids.action},${ids.space},${ids.endpoint},${ids.delivery},${ids.conversation},${ids.principal},'fixture','A1')`;
+          await sql`INSERT INTO chat_message_links (id,space_id,endpoint_id,conversation_id,delivery_id,publication_id,comment_id,provider_message_id,direction) VALUES (${ids.link},${ids.space},${ids.endpoint},${ids.conversation},${ids.delivery},${ids.publication},${ids.comment},'M1','outbound')`;
           return ids;
         };
         const own = await make();
@@ -78,7 +78,7 @@ describeDatabase("chat tenant foreign keys", () => {
             ]),
             `${table}.${column}`,
           ).rejects.toMatchObject({ code: "23503" });
-          // A same-company reference remains valid after the rejected statement.
+          // A same-space reference remains valid after the rejected statement.
           await sql.unsafe(
             `UPDATE "${table}" SET "${column}" = $1 WHERE id = $2`,
             [own[target], own[row]],
@@ -88,16 +88,16 @@ describeDatabase("chat tenant foreign keys", () => {
         await sql`DELETE FROM chat_publications WHERE id = ${own.publication}`;
         await sql`DELETE FROM chat_deliveries WHERE id = ${own.delivery}`;
         const [link] =
-          await sql`SELECT company_id, comment_id, publication_id, delivery_id FROM chat_message_links WHERE id = ${own.link}`;
+          await sql`SELECT space_id, comment_id, publication_id, delivery_id FROM chat_message_links WHERE id = ${own.link}`;
         expect(link).toEqual({
-          company_id: own.company,
+          space_id: own.space,
           comment_id: null,
           publication_id: null,
           delivery_id: null,
         });
         const [action] =
-          await sql`SELECT company_id, delivery_id FROM chat_actions WHERE id = ${own.action}`;
-        expect(action).toEqual({ company_id: own.company, delivery_id: null });
+          await sql`SELECT space_id, delivery_id FROM chat_actions WHERE id = ${own.action}`;
+        expect(action).toEqual({ space_id: own.space, delivery_id: null });
         // Durable action references retain their original conversation/principal;
         // unlike delivery_id these parents had no legacy SET NULL behavior.
         await expect(
@@ -114,15 +114,15 @@ describeDatabase("chat tenant foreign keys", () => {
           sql`DELETE FROM issues WHERE id = ${own.issue}`,
         ).rejects.toMatchObject({ code: "23001" });
         const [conversation] =
-          await sql`SELECT company_id, issue_id FROM chat_conversations WHERE id = ${own.conversation}`;
+          await sql`SELECT space_id, issue_id FROM chat_conversations WHERE id = ${own.conversation}`;
         expect(conversation).toEqual({
-          company_id: own.company,
+          space_id: own.space,
           issue_id: own.issue,
         });
-        // Existing company deletion requires its service's explicit child cleanup.
+        // Existing space deletion requires its service's explicit child cleanup.
         // A direct rejected delete must not partially cascade into chat history.
         await expect(
-          sql`DELETE FROM companies WHERE id = ${foreign.company}`,
+          sql`DELETE FROM spaces WHERE id = ${foreign.space}`,
         ).rejects.toMatchObject({ code: "23503" });
         expect(
           await sql`SELECT id FROM chat_actions WHERE id = ${foreign.action}`,
@@ -140,8 +140,8 @@ describeDatabase("chat tenant foreign keys", () => {
         ]) {
           expect(
             await sql.unsafe(
-              `SELECT id FROM "${table}" WHERE company_id = $1`,
-              [foreign.company],
+              `SELECT id FROM "${table}" WHERE space_id = $1`,
+              [foreign.space],
             ),
             table,
           ).toHaveLength(0);
@@ -152,36 +152,36 @@ describeDatabase("chat tenant foreign keys", () => {
         const nullable = await make();
         await sql`DELETE FROM chat_actions WHERE id = ${nullable.action}`;
         const resourceId = randomUUID();
-        await sql`INSERT INTO chat_endpoint_resources (id,company_id,endpoint_id,type,provider_resource_id,label) VALUES (${resourceId},${nullable.company},${nullable.endpoint},'channel','C1','Fixture')`;
+        await sql`INSERT INTO chat_endpoint_resources (id,space_id,endpoint_id,type,provider_resource_id,label) VALUES (${resourceId},${nullable.space},${nullable.endpoint},'channel','C1','Fixture')`;
         await sql`UPDATE chat_conversations SET resource_id = ${resourceId} WHERE id = ${nullable.conversation}`;
         await sql`DELETE FROM chat_endpoint_resources WHERE id = ${resourceId}`;
         expect(
           (
-            await sql`SELECT company_id, resource_id FROM chat_conversations WHERE id = ${nullable.conversation}`
+            await sql`SELECT space_id, resource_id FROM chat_conversations WHERE id = ${nullable.conversation}`
           )[0],
-        ).toEqual({ company_id: nullable.company, resource_id: null });
+        ).toEqual({ space_id: nullable.space, resource_id: null });
         await sql`DELETE FROM chat_conversations WHERE id = ${nullable.conversation}`;
         expect(
           (
-            await sql`SELECT company_id, conversation_id FROM chat_deliveries WHERE id = ${nullable.delivery}`
+            await sql`SELECT space_id, conversation_id FROM chat_deliveries WHERE id = ${nullable.delivery}`
           )[0],
-        ).toEqual({ company_id: nullable.company, conversation_id: null });
+        ).toEqual({ space_id: nullable.space, conversation_id: null });
         await sql`DELETE FROM chat_external_principals WHERE id = ${nullable.principal}`;
         expect(
           (
-            await sql`SELECT company_id, principal_id FROM chat_deliveries WHERE id = ${nullable.delivery}`
+            await sql`SELECT space_id, principal_id FROM chat_deliveries WHERE id = ${nullable.delivery}`
           )[0],
-        ).toEqual({ company_id: nullable.company, principal_id: null });
+        ).toEqual({ space_id: nullable.space, principal_id: null });
         const resourceBound = await make();
         const boundResourceId = randomUUID();
-        await sql`INSERT INTO chat_endpoint_resources (id,company_id,endpoint_id,type,provider_resource_id,label) VALUES (${boundResourceId},${resourceBound.company},${resourceBound.endpoint},'channel','C1','Fixture')`;
+        await sql`INSERT INTO chat_endpoint_resources (id,space_id,endpoint_id,type,provider_resource_id,label) VALUES (${boundResourceId},${resourceBound.space},${resourceBound.endpoint},'channel','C1','Fixture')`;
         await sql`UPDATE chat_conversations SET resource_id = ${boundResourceId} WHERE id = ${resourceBound.conversation}`;
         await sql`DELETE FROM chat_endpoints WHERE id = ${resourceBound.endpoint}`;
         expect(
-          await sql`SELECT id FROM chat_conversations WHERE company_id = ${resourceBound.company}`,
+          await sql`SELECT id FROM chat_conversations WHERE space_id = ${resourceBound.space}`,
         ).toHaveLength(0);
         expect(
-          await sql`SELECT id FROM chat_message_links WHERE company_id = ${resourceBound.company}`,
+          await sql`SELECT id FROM chat_message_links WHERE space_id = ${resourceBound.space}`,
         ).toHaveLength(0);
       } finally {
         try {

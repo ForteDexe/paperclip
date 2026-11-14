@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildHistoricalWebsiteImport, gradeArtifactSearch, historicalWebsitePreviewMatches, readReturnedWebsiteFiles } from "./internal-artifact-search.js";
 import { parse } from "yaml";
-import { companyPortabilityService } from "../../../server/src/services/company-portability.js";
+import { spacePortabilityService } from "../../../server/src/services/space-portability.js";
 function valid() {
-  const target = { id: "final-task", companyId: "company", title: "Final launch website delivery", status: "done", completedAt: "2026-10-21T12:00:00.000Z" };
-  const hidden = { id: "hidden-task", companyId: "company", title: "Restricted final website NIGHTJAR", status: "done" };
-  const file = { companyId: "company", byteSize: 115, originalFilename: "final-website.html", id: "file", issueId: "final-task", assetId: "asset", issueCommentId: "delivery", sha256: "a".repeat(64), contentPath: "/api/attachments/file/content", createdAt: "2026-10-26T12:00:00.000Z" };
+  const target = { id: "final-task", spaceId: "space", title: "Final launch website delivery", status: "done", completedAt: "2026-10-21T12:00:00.000Z" };
+  const hidden = { id: "hidden-task", spaceId: "space", title: "Restricted final website NIGHTJAR", status: "done" };
+  const file = { spaceId: "space", byteSize: 115, originalFilename: "final-website.html", id: "file", issueId: "final-task", assetId: "asset", issueCommentId: "delivery", sha256: "a".repeat(64), contentPath: "/api/attachments/file/content", createdAt: "2026-10-26T12:00:00.000Z" };
   const history = [{ issueId: target.id, comments: [{ id: "delivery", body: "original", createdAt: target.completedAt }], attachments: [structuredClone(file)] }, { issueId: hidden.id, comments: [], attachments: [] }];
-  return { chatIssueId: "chat", returnedFiles: [{ attachment: structuredClone(file), downloadedHash: file.sha256, byteSize: 115 }], sourceHistory: structuredClone(history), scenarioId: "documents-artifacts.find-artifact", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { task: structuredClone(target), privateTask: hidden, privateMarker: hidden.title, privateAttachment: { id: "hidden-file", assetId: "hidden-asset" }, finalAttachment: structuredClone(file), finalHash: file.sha256, deliveryAt: target.completedAt, weekStart: Date.parse("2026-10-19T00:00:00Z"), weekEnd: Date.parse("2026-10-26T00:00:00Z"), originalHistory: structuredClone(history), originalTasks: structuredClone([target, hidden]), distractors: [hidden] },
-    tasks: [target, hidden], projects: [], goals: [], comments: [], activity: [{ id: "import", action: "company.imported", createdAt: "2026-10-26T12:00:01.000Z" }], documents: [], revisions: [], runs: [{ id: "source-run", status: "succeeded" }], humanQueries: [],
+  return { chatIssueId: "chat", returnedFiles: [{ attachment: structuredClone(file), downloadedHash: file.sha256, byteSize: 115 }], sourceHistory: structuredClone(history), scenarioId: "documents-artifacts.find-artifact", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { task: structuredClone(target), privateTask: hidden, privateMarker: hidden.title, privateAttachment: { id: "hidden-file", assetId: "hidden-asset" }, finalAttachment: structuredClone(file), finalHash: file.sha256, deliveryAt: target.completedAt, weekStart: Date.parse("2026-10-19T00:00:00Z"), weekEnd: Date.parse("2026-10-26T00:00:00Z"), originalHistory: structuredClone(history), originalTasks: structuredClone([target, hidden]), distractors: [hidden] },
+    tasks: [target, hidden], projects: [], goals: [], comments: [], activity: [{ id: "import", action: "space.imported", createdAt: "2026-10-26T12:00:01.000Z" }], documents: [], revisions: [], runs: [{ id: "source-run", status: "succeeded" }], humanQueries: [],
     reply: "This is the final approved website delivered last week; the import uploaded the preserved file again today.", links: ["/RUN/issues/final-task", "/api/attachments/file/content?download=1"],
     finalAttachment: file, currentSource: target, downloadedHash: file.sha256, deliveryComments: [{ id: "delivery", createdAt: target.completedAt, body: `Final approved website delivered, SHA256 ${file.sha256}.` }], searchStatus: 200, searchResults: [{ id: "final-task" }], privateFileStatus: 403 };
 }
@@ -30,7 +30,7 @@ describe("migrated historical website artifact calibration", () => {
     expect(gradeArtifactSearch(o).passed).toBe(true);
     for (const change of [
       { downloadedHash: "b".repeat(64) }, { byteSize: 114 },
-      { attachment: { ...copy, companyId: "foreign" } }, { attachment: { ...copy, issueId: "other-chat" } },
+      { attachment: { ...copy, spaceId: "foreign" } }, { attachment: { ...copy, issueId: "other-chat" } },
       { attachment: { ...copy, createdByAgentId: "other" } }, { attachment: { ...copy, originatingRunId: "old-run" } },
       { attachment: { ...copy, sha256: "b".repeat(64) } }, { attachment: { ...copy, originalFilename: "draft.html" } },
     ]) { const wrong = structuredClone(o); wrong.returnedFiles[0] = { ...wrong.returnedFiles[0]!, ...change }; expect(gradeArtifactSearch(wrong).passed).toBe(false); }
@@ -47,7 +47,7 @@ describe("migrated historical website artifact calibration", () => {
     ]) { const o = valid(); mutate(o); expect(gradeArtifactSearch(o).passed).toBe(false); }
   });
   it("allows other sources as linked context but never returns their files as the delivery", () => {
-    const o = valid(); const draft = { id: "draft-task", companyId: "company", title: "Latest launch website draft", status: "backlog" };
+    const o = valid(); const draft = { id: "draft-task", spaceId: "space", title: "Latest launch website draft", status: "backlog" };
     const draftFile = { ...o.finalAttachment, id: "draft-file", issueId: "draft-task", sha256: "c".repeat(64), originalFilename: "website-draft.html", contentPath: "/api/attachments/draft-file/content" };
     o.state.distractors.push(draft); o.state.originalTasks.push(draft as never); o.tasks.push(draft as never);
     o.state.originalHistory.push({ issueId: draft.id, comments: [], attachments: [draftFile] }); o.sourceHistory.push({ issueId: draft.id, comments: [], attachments: [structuredClone(draftFile)] });
@@ -59,7 +59,7 @@ describe("migrated historical website artifact calibration", () => {
   it("observes the actual rendered copy with authenticated byte reads and no raw-request fallback", async () => {
     const o = valid(); const body = Buffer.from("actual copied file"); const hash = (await import("node:crypto")).createHash("sha256").update(body).digest("hex");
     o.state.finalHash = hash; o.state.finalAttachment.byteSize = body.length;
-    const copy = { ...o.finalAttachment, companyId: "company", id: "copy", issueId: "chat", contentPath: "/api/attachments/copy/content", sha256: hash, byteSize: body.length };
+    const copy = { ...o.finalAttachment, spaceId: "space", id: "copy", issueId: "chat", contentPath: "/api/attachments/copy/content", sha256: hash, byteSize: body.length };
     o.links = [copy.contentPath]; const read = vi.fn().mockResolvedValue(body); const raw = vi.fn(() => { throw new Error("raw transport forbidden"); });
     const ctx = { issue: () => ({ id: "chat" }), input: { api: { get: vi.fn().mockImplementation((path: string) => Promise.resolve(path.includes("/chat/") ? [copy] : [o.finalAttachment])), getAttachmentContent: read, request: { get: raw } } } };
     const result = await readReturnedWebsiteFiles(ctx as never, o as never);
@@ -70,9 +70,9 @@ describe("migrated historical website artifact calibration", () => {
   it("builds real inline migration files with SHA-bound bytes and comment linkage", () => { const bundle = buildHistoricalWebsiteImport("2026-10-21T12:00:00.000Z", "ORCHID"); const yaml = parse(bundle.files[".outpost.yaml"] as string); expect(yaml.schemaVersion).toBe(7); for (const row of bundle.receipts) { expect(bundle.files[`blobs/${row.sha256}`]).toMatchObject({ encoding: "base64" }); expect(yaml.tasks[row.slug].attachments[0]).toMatchObject({ sha256: row.sha256, commentIndex: 0 }); } expect(yaml.tasks["final-website"].completedAt).toBe("2026-10-21T12:00:00.000Z"); });
   it("passes the actual production portability parser with all original dates/comments/attachments and no database access", async () => {
     const bundle = buildHistoricalWebsiteImport("2026-10-21T12:00:00.000Z", "ORCHID");
-    const noDatabase = new Proxy({}, { get(_target, key) { throw new Error(`Offline preview must not access database property ${String(key)}`); } }) as Parameters<typeof companyPortabilityService>[0];
-    const service = companyPortabilityService(noDatabase);
-    const request = { source: { type: "inline" as const, files: bundle.files }, include: { company: false, agents: false, projects: false, issues: true, skills: false }, target: { mode: "new_company" as const }, collisionStrategy: "rename" as const };
+    const noDatabase = new Proxy({}, { get(_target, key) { throw new Error(`Offline preview must not access database property ${String(key)}`); } }) as Parameters<typeof spacePortabilityService>[0];
+    const service = spacePortabilityService(noDatabase);
+    const request = { source: { type: "inline" as const, files: bundle.files }, include: { space: false, agents: false, projects: false, issues: true, skills: false }, target: { mode: "new_space" as const }, collisionStrategy: "rename" as const };
     const preview = await service.previewImport(request);
     expect(historicalWebsitePreviewMatches(preview, bundle)).toBe(true);
     const jsonRoot = { ...request, source: { ...request.source, files: { ...bundle.files, ".outpost.yaml": JSON.stringify(parse(bundle.files[".outpost.yaml"] as string)) } } };
@@ -85,7 +85,7 @@ describe("migrated historical website artifact calibration", () => {
     const wrongComment = structuredClone(preview); wrongComment.manifest.issues.find(row => row.slug === "final-website")!.attachments![0]!.commentIndex = 1;
     expect(historicalWebsitePreviewMatches(wrongComment, bundle)).toBe(false);
   });
-  it("accepts an explicitly qualified link to older authorized history", () => { const o = valid(); const old = { id: "old-task", companyId: "company", title: "Earlier website final", status: "done" }; o.state.distractors.push(old); o.links.push("/RUN/issues/old-task"); o.reply += "\n[Earlier website final](/RUN/issues/old-task) is older history outside last week."; expect(gradeArtifactSearch(o).passed).toBe(true); });
+  it("accepts an explicitly qualified link to older authorized history", () => { const o = valid(); const old = { id: "old-task", spaceId: "space", title: "Earlier website final", status: "done" }; o.state.distractors.push(old); o.links.push("/RUN/issues/old-task"); o.reply += "\n[Earlier website final](/RUN/issues/old-task) is older history outside last week."; expect(gradeArtifactSearch(o).passed).toBe(true); });
   it("rejects treating today's import as last week's delivery", () => { const o = valid(); o.currentSource.completedAt = "2026-10-26T12:00:00.000Z"; expect(gradeArtifactSearch(o).passed).toBe(false); });
   it("rejects invented attachment-bound source history", () => { const o = valid(); o.deliveryComments[0]!.id = "wrong-comment"; expect(gradeArtifactSearch(o).passed).toBe(false); const noImport = valid(); noImport.activity = []; expect(gradeArtifactSearch(noImport).passed).toBe(false); });
   it("rejects private snippets or copied private file links", () => { const o = valid(); o.searchResults.push({ id: "hidden-task" }); expect(gradeArtifactSearch(o).passed).toBe(false); const leak = valid(); leak.links.push("/api/attachments/hidden-file/content"); expect(gradeArtifactSearch(leak).passed).toBe(false); });

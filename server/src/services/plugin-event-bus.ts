@@ -1,5 +1,5 @@
 /**
- * PluginEventBus — typed in-process event bus for the Paperclip plugin system.
+ * PluginEventBus — typed in-process event bus for the Outpost plugin system.
  *
  * Responsibilities:
  * - Deliver core domain events to subscribing plugin workers (server-side).
@@ -76,8 +76,8 @@ function matchesPattern(eventType: string, pattern: string): boolean {
  *   (e.g. `project.created`) and secondary events that embed a project reference in
  *   their payload (e.g. `issue.created` with `payload.projectId`).
  *
- * - `companyId` — always resolved from `payload.companyId`. Core domain events that
- *   belong to a company embed the company ID in their payload.
+ * - `spaceId` — always resolved from `payload.spaceId`. Core domain events that
+ *   belong to a space embed the space ID in their payload.
  *
  * - `agentId` — checked against `event.entityId` when `entityType === "agent"`,
  *   otherwise against `payload.agentId`. Covers both direct agent lifecycle events
@@ -98,8 +98,8 @@ function passesFilter(event: PluginEvent, filter: EventFilter | null): boolean {
     if (projectId !== filter.projectId) return false;
   }
 
-  if (filter.companyId !== undefined) {
-    if (event.companyId !== filter.companyId) return false;
+  if (filter.spaceId !== undefined) {
+    if (event.spaceId !== filter.spaceId) return false;
   }
 
   if (filter.agentId !== undefined) {
@@ -248,13 +248,13 @@ export function createPluginEventBus(): PluginEventBus {
        * @throws {Error} if `name` already contains the `plugin.` prefix
        *   (prevents cross-namespace spoofing).
        */
-      async emit(name: string, companyId: string, payload: unknown): Promise<PluginEventBusEmitResult> {
+      async emit(name: string, spaceId: string, payload: unknown): Promise<PluginEventBusEmitResult> {
         if (!name || name.trim() === "") {
           throw new Error(`Plugin "${pluginId}" must provide a non-empty event name.`);
         }
 
-        if (!companyId || companyId.trim() === "") {
-          throw new Error(`Plugin "${pluginId}" must provide a companyId when emitting events.`);
+        if (!spaceId || spaceId.trim() === "") {
+          throw new Error(`Plugin "${pluginId}" must provide a spaceId when emitting events.`);
         }
 
         if (name.startsWith("plugin.")) {
@@ -268,7 +268,7 @@ export function createPluginEventBus(): PluginEventBus {
         const event: PluginEvent = {
           eventId: crypto.randomUUID(),
           eventType,
-          companyId,
+          spaceId,
           occurredAt: new Date().toISOString(),
           actorType: "plugin",
           actorId: pluginId,
@@ -397,13 +397,13 @@ export interface ScopedPluginEventBus {
    *
    * @param name  Bare event name (e.g. `"sync-done"`). Must be non-empty and
    *   must not include the `plugin.` prefix — the bus adds that automatically.
-   * @param companyId  UUID of the company this event belongs to.
+   * @param spaceId  UUID of the space this event belongs to.
    * @param payload  Arbitrary JSON-serializable data to attach to the event.
    *
    * @throws {Error} if `name` is empty or whitespace-only.
    * @throws {Error} if `name` starts with `"plugin."` (namespace spoofing guard).
    */
-  emit(name: string, companyId: string, payload: unknown): Promise<PluginEventBusEmitResult>;
+  emit(name: string, spaceId: string, payload: unknown): Promise<PluginEventBusEmitResult>;
 
   /**
    * Remove all subscriptions registered by this plugin.

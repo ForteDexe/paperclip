@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-  agents, budgetPolicies, budgetReservations, companies, costEvents, createDb, environmentLeases, heartbeatRuns, issues,
+  agents, budgetPolicies, budgetReservations, spaces, costEvents, createDb, environmentLeases, heartbeatRuns, issues,
   nativeRunFinalizations, type Db,
 } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -35,37 +35,37 @@ const support = await getEmbeddedPostgresTestSupport();
     recoveryState?: string; history?: Array<Record<string, unknown>>; bootId?: string; remote?: boolean;
     overBudget?: boolean;
   } = {}) {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Time jump", issuePrefix: `T${companyId.slice(0, 4)}`.toUpperCase() });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Codex", role: "engineer", status: "idle",
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Time jump", issuePrefix: `T${spaceId.slice(0, 4)}`.toUpperCase() });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Codex", role: "engineer", status: "idle",
       adapterType: "outpost_runner" });
-    const [issue] = await db.insert(issues).values({ companyId, title: "Resumed task", status: "in_progress",
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Resumed task", status: "in_progress",
       assigneeAgentId: agentId }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, invocationSource: "assignment",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, invocationSource: "assignment",
       issueId: issue!.id, nativeIssueId: issue!.id, runtimeMode: "native", status: "running",
       contextSnapshot: { issueId: issue!.id } }).returning();
     const leaseOwner = `${controller.bootId}:${GENERATION}:${randomUUID()}`;
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId: issue!.id, runId: run!.id, phase: "observed",
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId: issue!.id, runId: run!.id, phase: "observed",
       attempt: 1, leaseOwner, leaseExpiresAt: sql`clock_timestamp() - interval '40 minutes'`,
       controllerBootId: options.bootId ?? controller.bootId, controllerPid: controller.pid,
       controllerProcessStartedAt: controller.processStartedAt, controllerGeneration: GENERATION,
       recoveryState: options.recoveryState ?? "resuming_session", recoveryHistory: options.history ?? [claimEntry()] });
-    if (options.remote) await db.insert(environmentLeases).values({ companyId, issueId: issue!.id,
+    if (options.remote) await db.insert(environmentLeases).values({ spaceId, issueId: issue!.id,
       heartbeatRunId: run!.id, provider: "daytona" });
     if (options.overBudget) {
-      await db.insert(budgetPolicies).values({ companyId, scopeType: "company", scopeId: companyId, metric: "billed_cents",
+      await db.insert(budgetPolicies).values({ spaceId, scopeType: "space", scopeId: spaceId, metric: "billed_cents",
         windowKind: "calendar_month_utc", amount: 100, hardStopEnabled: true, notifyEnabled: false });
-      await db.insert(costEvents).values({ companyId, agentId, provider: "openai", model: "gpt", costCents: 250,
+      await db.insert(costEvents).values({ spaceId, agentId, provider: "openai", model: "gpt", costCents: 250,
         occurredAt: new Date(), costStatus: "reported" });
     }
     const coordinator = async () => (await db.select().from(nativeRunFinalizations)
       .where(eq(nativeRunFinalizations.runId, run!.id)))[0]!;
-    return { companyId, runId: run!.id, leaseOwner, coordinator };
+    return { spaceId, runId: run!.id, leaseOwner, coordinator };
   }
 
   it("takes back the lease of its own restart claim and admits the resume", async () => {
     const f = await seed();
-    const reserved = await reserveRunBudget(db, f.companyId, f.runId, null, {}, f.leaseOwner);
+    const reserved = await reserveRunBudget(db, f.spaceId, f.runId, null, {}, f.leaseOwner);
     expect(reserved).not.toHaveProperty("admissionBlockReason");
     const saved = await f.coordinator();
     expect(saved.leaseOwner).toBe(f.leaseOwner);
@@ -75,7 +75,7 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("still refuses a resume that is over its hard-stop budget", async () => {
     const f = await seed({ overBudget: true });
-    const refusal = await reserveRunBudget(db, f.companyId, f.runId, null, {}, f.leaseOwner)
+    const refusal = await reserveRunBudget(db, f.spaceId, f.runId, null, {}, f.leaseOwner)
       .then(result => "admissionBlockReason" in result ? String(result.admissionBlockReason) : null,
         (error: Error) => error.message);
     expect(refusal).toMatch(/budget/i);
@@ -84,7 +84,7 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("takes the lease back at the dispatch gate only when the resume is admitted", async () => {
     const admitted = await seed();
-    const [reservation] = await db.insert(budgetReservations).values({ companyId: admitted.companyId, runId: admitted.runId,
+    const [reservation] = await db.insert(budgetReservations).values({ spaceId: admitted.spaceId, runId: admitted.runId,
       agentId: (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, admitted.runId)))[0]!.agentId,
       amountCents: "0", state: "held", providerStartedAt: new Date() }).returning();
     const gate = async (f: Awaited<ReturnType<typeof seed>>, reservationId: string) => db.transaction(async tx => {
@@ -95,7 +95,7 @@ const support = await getEmbeddedPostgresTestSupport();
     expect((await admitted.coordinator()).leaseExpiresAt!.getTime()).toBeGreaterThan(Date.now() + 15 * 60_000);
 
     const fenced = await seed({ recoveryState: "awaiting_evidence" });
-    const [fencedReservation] = await db.insert(budgetReservations).values({ companyId: fenced.companyId, runId: fenced.runId,
+    const [fencedReservation] = await db.insert(budgetReservations).values({ spaceId: fenced.spaceId, runId: fenced.runId,
       agentId: (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, fenced.runId)))[0]!.agentId,
       amountCents: "0", state: "held", providerStartedAt: new Date() }).returning();
     const before = await fenced.coordinator();
@@ -117,14 +117,14 @@ const support = await getEmbeddedPostgresTestSupport();
   ])("stays fenced out when %s", async (_name, options) => {
     const f = await seed(options());
     const before = await f.coordinator();
-    await expect(reserveRunBudget(db, f.companyId, f.runId, null, {}, f.leaseOwner))
+    await expect(reserveRunBudget(db, f.spaceId, f.runId, null, {}, f.leaseOwner))
       .rejects.toThrow("Native recovery no longer owns provider dispatch");
     expect(await f.coordinator()).toEqual(before);
   });
 
   it("stays fenced out when another owner holds the claim", async () => {
     const f = await seed();
-    await expect(reserveRunBudget(db, f.companyId, f.runId, null, {}, `${controller.bootId}:${GENERATION}:${randomUUID()}`))
+    await expect(reserveRunBudget(db, f.spaceId, f.runId, null, {}, `${controller.bootId}:${GENERATION}:${randomUUID()}`))
       .rejects.toThrow("Native recovery no longer owns provider dispatch");
   });
 });

@@ -34,7 +34,7 @@ export async function runAutomaticRepositoryFlow(input: {
   async function refresh() {
     if (!issue) return;
     issue = await api.get<Row>(`/api/issues/${issue.id}`);
-    const listed = await api.get<Row[]>(`/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100`);
+    const listed = await api.get<Row[]>(`/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100`);
     runs = (await Promise.all(listed.map(row => api.get<Row>(`/api/heartbeat-runs/${row.id}`))))
       .filter(row => row.agentId === fixtures.agent.id && [row.nativeIssueId, row.issueId, row.contextSnapshot?.issueId, row.contextSnapshot?.taskId].includes(issue!.id))
       .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)) || a.id.localeCompare(b.id));
@@ -78,26 +78,26 @@ export async function runAutomaticRepositoryFlow(input: {
     if (fixtures.project || execution.profile.generation !== "native") throw new Error("Automatic repository requires a projectless native fixture");
     const agent = await api.get<Row>(`/api/agents/${fixtures.agent.id}`);
     if (agent.adapterConfig?.cwd) throw new Error("Automatic repository must not inherit an operator cwd");
-    await api.patch(`/api/companies/${fixtures.company.id}/budgets`, { budgetMonthlyCents: 1000 });
+    await api.patch(`/api/spaces/${fixtures.space.id}/budgets`, { budgetMonthlyCents: 1000 });
     await api.patch(`/api/agents/${fixtures.agent.id}/budgets`, { budgetMonthlyCents: 1000 });
-    const companyBudget = await api.get<Row>(`/api/companies/${fixtures.company.id}`);
+    const spaceBudget = await api.get<Row>(`/api/spaces/${fixtures.space.id}`);
     const agentBudget = await api.get<Row>(`/api/agents/${fixtures.agent.id}`);
-    if (companyBudget.budgetMonthlyCents !== 1000 || agentBudget.budgetMonthlyCents !== 1000)
+    if (spaceBudget.budgetMonthlyCents !== 1000 || agentBudget.budgetMonthlyCents !== 1000)
       throw new Error("Automatic repository hard-stop budgets were not retained");
-    const created = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name,
+    const created = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name,
       title: execution.task.buildTitle(nonce), prompt: execution.task.buildPrompt(nonce), workMode: "standard", requireExplicitTitle: true });
     issue = await api.get<Row>(`/api/issues/${created.issueId}`);
-    await page.goto(`/${encodeURIComponent(fixtures.company.issuePrefix!)}/issues/${encodeURIComponent(issue.identifier ?? issue.id)}`);
+    await page.goto(`/${encodeURIComponent(fixtures.space.issuePrefix!)}/issues/${encodeURIComponent(issue.identifier ?? issue.id)}`);
     await pollUntil({ label: "repository setup and automatic result delivery", deadlineAt: input.deadlineAt, intervalMs: 750,
       load: async () => { await refresh(); return { issue, runs }; },
       accept: () => observation.issueDone && observation.successfulCommittedRuns === 2,
       reject: state => state.issue ? automaticRepositoryStopReason({ status: state.issue.status }, state.runs.map(run => ({ status: run.status }))) : undefined });
     const view = await api.get<Row>(`/api/issues/${issue.id}/workspace`);
     const cwd = await realpath(view.workspace.cwd), isolated = await realpath(input.temporaryRoot);
-    if (!cwd.startsWith(`${isolated}${path.sep}`) || !cwd.endsWith(`/isolated-workspaces/${fixtures.company.id}/${issue.id}`))
+    if (!cwd.startsWith(`${isolated}${path.sep}`) || !cwd.endsWith(`/isolated-workspaces/${fixtures.space.id}/${issue.id}`))
       throw new Error("Repository oracle requires the confined task directory");
     const repositories = view.repositories.filter((repo: Row) => repo.state === "ready" && repo.repoUrl === "https://github.com/octocat/Hello-World");
-    if (repositories.length !== 1 || !/^\.paperclip-repositories\/task-repo-[a-f0-9]{24}$/.test(repositories[0].relativePath))
+    if (repositories.length !== 1 || !/^\.outpost-repositories\/task-repo-[a-f0-9]{24}$/.test(repositories[0].relativePath))
       throw new Error("Expected one contained prepared repository");
     const checkout = await realpath(path.join(cwd, repositories[0].relativePath));
     if (!checkout.startsWith(`${cwd}${path.sep}`)) throw new Error("Prepared repository escaped the task directory");

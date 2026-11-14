@@ -1,5 +1,5 @@
 import { ArrowUpDown, Check } from "lucide-react";
-import { COMPANY_SEARCH_SORTS, type CompanySearchSort } from "@outpost/shared";
+import { SPACE_SEARCH_SORTS, type SpaceSearchSort } from "@outpost/shared";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,8 +16,8 @@ export function SearchSortMenu({
   value,
   onChange,
 }: {
-  value: CompanySearchSort;
-  onChange: (next: CompanySearchSort) => void;
+  value: SpaceSearchSort;
+  onChange: (next: SpaceSearchSort) => void;
 }) {
   return (
     <DropdownMenu>
@@ -31,7 +31,7 @@ export function SearchSortMenu({
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuLabel className="text-xs text-muted-foreground">Sort by</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {COMPANY_SEARCH_SORTS.map((sort) => (
+        {SPACE_SEARCH_SORTS.map((sort) => (
           <DropdownMenuItem key={sort} onSelect={() => onChange(sort)} className="gap-2 text-sm">
             <Check className={cn("h-3.5 w-3.5", sort === value ? "opacity-100 text-primary" : "opacity-0")} />
             {SORT_LABELS[sort]}

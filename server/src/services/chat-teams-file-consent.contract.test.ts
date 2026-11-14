@@ -8,7 +8,7 @@ import {
 
 const tenantId = "11111111-1111-4111-8111-111111111111";
 const appId = "22222222-2222-4222-8222-222222222222";
-const companyId = "33333333-3333-4333-8333-333333333333";
+const spaceId = "33333333-3333-4333-8333-333333333333";
 const endpointId = "44444444-4444-4444-8444-444444444444";
 const userId = "29:synthetic-consent-user";
 const aadObjectId = "55555555-5555-4555-8555-555555555555";
@@ -55,7 +55,7 @@ function invoke(action: "accept" | "decline") {
 
 // Real pinned adapter HTTP bridge + Microsoft Teams App router. Only its
 // service-token validator is replaced. This is NOT live tenant/JWT proof or
-// Paperclip DB authorization. No request may contact any external service.
+// Outpost DB authorization. No request may contact any external service.
 describe("pinned Teams file-consent invoke boundary", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -117,7 +117,7 @@ describe("pinned Teams file-consent invoke boundary", () => {
       (event: unknown) => Promise<"recorded" | "ignored" | "denied">
     >(async () => "recorded");
     installTeamsFileConsentHook(app as unknown as TeamsConsentApp, {
-      companyId,
+      spaceId,
       endpointId,
       tenantId,
       botAppId: appId,
@@ -146,7 +146,7 @@ describe("pinned Teams file-consent invoke boundary", () => {
       expect(check).toHaveBeenCalledTimes(1);
       expect(callback).toHaveBeenCalledTimes(1);
       expect(callback.mock.calls[0]![0]).toMatchObject({
-        companyId,
+        spaceId,
         endpointId,
         action,
         conversationId,
@@ -176,7 +176,7 @@ describe("pinned Teams file-consent invoke boundary", () => {
     [
       "foreign tenant",
       (a: ReturnType<typeof invoke>) => {
-        a.channelData.tenant.id = companyId;
+        a.channelData.tenant.id = spaceId;
       },
     ],
     [

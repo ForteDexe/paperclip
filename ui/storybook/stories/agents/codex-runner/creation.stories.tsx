@@ -3,7 +3,7 @@ import { expect, userEvent, within, waitFor } from "storybook/test";
 import { NewAgent } from "@/pages/NewAgent";
 import { AgentBasicsDialog } from "@/components/new-agent/AgentBasicsDialog";
 import { models } from "@outpost/adapter-codex-local";
-import { storybookHiredAgent } from "../../../fixtures/paperclipData";
+import { storybookHiredAgent } from "../../../fixtures/outpostData";
 import { resetOnboardingFixtureState, setOnboardingFixtureState } from "../../../fixtures/onboardingEnvironment";
 
 function installCodexCreationFixture({ setupFailure = false, nativeRunnerEnabled = false, unqualifiedTarget = false }: { setupFailure?: boolean; nativeRunnerEnabled?: boolean; unqualifiedTarget?: boolean } = {}) {
@@ -25,13 +25,13 @@ function installCodexCreationFixture({ setupFailure = false, nativeRunnerEnabled
     }
     if (url.pathname === "/api/adapters") {
       const response = await previous(input, init);
-      const adapters = (await response.json()).map((adapter: { type: string }) => adapter.type === "codex_local" ? { ...adapter, supportedRunners: unqualifiedTarget ? ["legacy"] : ["paperclip", "legacy"], defaultRunner: unqualifiedTarget ? "legacy" : "paperclip" } : adapter);
+      const adapters = (await response.json()).map((adapter: { type: string }) => adapter.type === "codex_local" ? { ...adapter, supportedRunners: unqualifiedTarget ? ["legacy"] : ["outpost", "legacy"], defaultRunner: unqualifiedTarget ? "legacy" : "outpost" } : adapter);
       return Response.json(nativeRunnerEnabled || unqualifiedTarget ? [...adapters, { type: "outpost_runner", label: "Outpost Runner", source: "builtin", loaded: true, disabled: false, modelsCount: 0 }] : adapters);
     }
     if (url.pathname.endsWith("/adapters/codex_local/models")) return Response.json(models);
     if (url.pathname.endsWith("/adapters/codex_local/test-environment")) {
       const request = body();
-      const native = request.runner === "paperclip" || request.adapterType === "outpost_runner"
+      const native = request.runner === "outpost" || request.adapterType === "outpost_runner"
         || (request.runner !== "legacy" && !unqualifiedTarget);
       return Response.json({ adapterType: native ? "outpost_runner" : "codex_local", testedAt: new Date(0).toISOString(), status: setupFailure && native ? "fail" : "pass",
         checks: setupFailure && native ? [{ code: "runner_missing", level: "error", message: "Outpost Runner is missing from this environment.", hint: "Install the runner in the selected environment, then retry setup." }]
@@ -40,7 +40,7 @@ function installCodexCreationFixture({ setupFailure = false, nativeRunnerEnabled
     }
     if (url.pathname.endsWith("/agent-hires")) {
       const request = body();
-      const native = request.runner === "paperclip" || request.adapterType === "outpost_runner"
+      const native = request.runner === "outpost" || request.adapterType === "outpost_runner"
         || (request.runner !== "legacy" && !unqualifiedTarget);
       created = { ...storybookHiredAgent, ...request, adapterType: native ? "outpost_runner" : "codex_local", adapterConfig: { ...request.adapterConfig, ...(native ? { provider: "codex" } : {}) } };
       return Response.json({ agent: created, approval: null });
@@ -60,7 +60,7 @@ const meta = {
     layout: "fullscreen",
     initialEntries: ["/PAP/agents/new?name=Nova&adapterType=codex_local"],
     docs: { description: { component: "Production NewAgent page and shared pickers. Accounts and API replies use isolated Storybook fixtures; these stories establish UI behavior, not live execution qualification. The native default works with the old experimental gate off." } },
-    paperclip: {
+    outpost: {
       capabilities: ["agents/hire", "runs-adapters/validation"],
       status: "current",
       implementation: "production",

@@ -1,35 +1,35 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import type { CompactIssue, HeartbeatRun, InboxMineSnapshot } from "../../../packages/shared/src/index.js";
 
-type Company = { id: string; issuePrefix: string; [key: string]: unknown };
+type Space = { id: string; issuePrefix: string; [key: string]: unknown };
 type Task = { id: string; identifier: string; title: string };
-let company: Company;
-let otherCompany: Company;
+let space: Space;
+let otherSpace: Space;
 let child: Task;
 let failureTask: Task;
-const userId = "local-board";
+const userId = "local-operator";
 
 async function json<T>(request: APIRequestContext, method: string, url: string, data?: unknown): Promise<T> {
   const response = await request.fetch(url, { method, data });
   expect(response.ok(), `${method} ${url}: ${response.status()}`).toBeTruthy();
   return response.status() === 204 ? undefined as T : response.json();
 }
-const minePath = () => `/api/companies/${company.id}/inbox/mine`;
+const minePath = () => `/api/spaces/${space.id}/inbox/mine`;
 const childLink = (page: Page) => page.locator(`[data-inbox-issue-link][href$="/${child.identifier}"]`);
 const twoFrames = (page: Page) => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
 test.beforeAll(async ({ request }) => {
-  company = await json(request, "POST", "/api/companies", { name: "Inbox startup regressions" });
-  otherCompany = await json(request, "POST", "/api/companies", { name: "Other inbox startup scope" });
-  await json(request, "PUT", `/api/companies/${company.id}/workspace-preferences/me`, { coordinatorWorkspaceEnabled: true });
-  const parent = await json<Task>(request, "POST", `/api/companies/${company.id}/issues`, { title: "Archived required parent", status: "done" });
-  child = await json(request, "POST", `/api/companies/${company.id}/issues`, { title: "Inbox startup child", status: "todo", parentId: parent.id });
-  failureTask = await json(request, "POST", `/api/companies/${company.id}/issues`, { title: "Saved failed attempt task", status: "done" });
+  space = await json(request, "POST", "/api/spaces", { name: "Inbox startup regressions" });
+  otherSpace = await json(request, "POST", "/api/spaces", { name: "Other inbox startup scope" });
+  await json(request, "PUT", `/api/spaces/${space.id}/workspace-preferences/me`, { coordinatorWorkspaceEnabled: true });
+  const parent = await json<Task>(request, "POST", `/api/spaces/${space.id}/issues`, { title: "Archived required parent", status: "done" });
+  child = await json(request, "POST", `/api/spaces/${space.id}/issues`, { title: "Inbox startup child", status: "todo", parentId: parent.id });
+  failureTask = await json(request, "POST", `/api/spaces/${space.id}/issues`, { title: "Saved failed attempt task", status: "done" });
   for (const task of [parent, failureTask]) await json(request, "POST", `/api/issues/${task.id}/inbox-archive`, {});
 });
 test.afterAll(async ({ request }) => {
-  for (const value of [company, otherCompany]) if (value) {
-    const response = await request.delete(`/api/companies/${value.id}`);
+  for (const value of [space, otherSpace]) if (value) {
+    const response = await request.delete(`/api/spaces/${value.id}`);
     expect(response.ok(), `Fixture cleanup: ${response.status()}`).toBeTruthy();
   }
 });
@@ -39,7 +39,7 @@ test.afterAll(async ({ request }) => {
 for (const bootstrap of ["embedded", "absent", "wrong-user"] as const) {
   test(`authenticated startup uses ${bootstrap} session bootstrap correctly`, async ({ page }) => {
     const reads: URL[] = [];
-    const isLegacyBootstrap = (url: URL) => url.pathname === "/api/companies" || url.pathname === "/api/cli-auth/me";
+    const isLegacyBootstrap = (url: URL) => url.pathname === "/api/spaces" || url.pathname === "/api/cli-auth/me";
     let legacyResponses = 0;
     page.on("request", request => {
       const url = new URL(request.url());
@@ -65,16 +65,16 @@ for (const bootstrap of ["embedded", "absent", "wrong-user"] as const) {
         session: { id: "simulated-local-session", userId }, sentryDsn: null,
         ...(bootstrap === "absent" ? {} : { boardBootstrap: {
           userId: bootstrap === "wrong-user" ? "previous-user" : userId,
-          companies: bootstrap === "wrong-user" ? [otherCompany] : [company],
+          spaces: bootstrap === "wrong-user" ? [otherSpace] : [space],
           boardAccess: { userId: bootstrap === "wrong-user" ? "previous-user" : userId,
-            isInstanceAdmin: false, companyIds: bootstrap === "wrong-user" ? [otherCompany.id] : [company.id] },
+            isInstanceAdmin: false, spaceIds: bootstrap === "wrong-user" ? [otherSpace.id] : [space.id] },
         } }),
       } });
     });
     const sessionRequest = page.waitForRequest(request => new URL(request.url()).pathname === "/api/auth/get-session");
     try {
       try {
-        await page.goto(`/${company.issuePrefix}/inbox/mine`);
+        await page.goto(`/${space.issuePrefix}/inbox/mine`);
         await sessionRequest;
         expect(await page.locator("[data-inbox-item]").count()).toBe(0);
         expect(reads.some(url => url.pathname === minePath())).toBe(false);
@@ -85,11 +85,11 @@ for (const bootstrap of ["embedded", "absent", "wrong-user"] as const) {
       // Bootstrap must reveal Mine without waiting for their held responses.
       if (bootstrap === "embedded") expect(legacyResponses).toBe(0);
       else {
-        expect(legacy.some(url => url.pathname === "/api/companies")).toBe(true);
+        expect(legacy.some(url => url.pathname === "/api/spaces")).toBe(true);
         expect(legacy.some(url => url.pathname === "/api/cli-auth/me")).toBe(true);
       }
       expect(reads.some(url => url.pathname === minePath())).toBe(true);
-      expect(reads.some(url => url.pathname.startsWith(`/api/companies/${otherCompany.id}/`))).toBe(false);
+      expect(reads.some(url => url.pathname.startsWith(`/api/spaces/${otherSpace.id}/`))).toBe(false);
       expect(reads.filter(url => url.pathname === "/api/auth/get-session")).toHaveLength(1);
       await test.info().attach("authenticated-startup-readiness", { contentType: "application/json", body: Buffer.from(JSON.stringify({
         bootstrap, legacyRequestsAtRows: legacy.map(url => url.pathname), legacyResponsesAtRows: legacyResponses,
@@ -102,7 +102,7 @@ for (const bootstrap of ["embedded", "absent", "wrong-user"] as const) {
 function failedRun(): HeartbeatRun {
   const now = new Date();
   return {
-    id: "browser-failed-attempt", issueId: failureTask.id, scopeKind: "issue", companyId: company.id,
+    id: "browser-failed-attempt", issueId: failureTask.id, scopeKind: "issue", spaceId: space.id,
     agentId: "browser-fixture-agent", responsibleUserId: userId, invocationSource: "assignment", triggerDetail: null,
     status: "failed", error: "Synthetic attempt stopped", wakeupRequestId: null, exitCode: null, signal: null,
     usageJson: null, resultJson: null, sessionIdBefore: null, sessionIdAfter: null, logStore: null, logRef: null,
@@ -117,7 +117,7 @@ function failedRun(): HeartbeatRun {
 for (const failure of ["failureError", "contextError"] as const) {
   test(`partial ${failure} keeps rows readable and retries the assembled source`, async ({ page, request }) => {
     const source = await json<InboxMineSnapshot>(request, "GET", minePath());
-    const failureRows = await json<CompactIssue[]>(request, "GET", `/api/companies/${company.id}/issues?view=rows&includeRoutineExecutions=true&limit=1&ids=${failureTask.id}`);
+    const failureRows = await json<CompactIssue[]>(request, "GET", `/api/spaces/${space.id}/issues?view=rows&includeRoutineExecutions=true&limit=1&ids=${failureTask.id}`);
     expect(failureRows).toHaveLength(1);
     const run = failedRun();
     const resolved: CompactIssue = { ...failureRows[0]!, interruption: {
@@ -140,7 +140,7 @@ for (const failure of ["failureError", "contextError"] as const) {
       }
     });
     try {
-      await page.goto(`/${company.issuePrefix}/inbox/mine`);
+      await page.goto(`/${space.issuePrefix}/inbox/mine`);
       await expect(childLink(page)).toBeVisible();
       await expect(page.getByText("Some inbox items couldn’t load. Showing available items.", { exact: true })).toBeVisible();
       const node = await childLink(page).elementHandle();
@@ -168,11 +168,11 @@ test("an initial Mine 429 has a scoped retry and does not take the app offline",
     if (busy) await route.fulfill({ status: 429, headers: { "Retry-After": "1" }, json: { error: "Inbox source is busy" } });
     else await route.continue();
   });
-  await page.goto(`/${company.issuePrefix}/inbox/mine`);
+  await page.goto(`/${space.issuePrefix}/inbox/mine`);
   // Keep the inherited 429 backoff and Retry-After policy. The explicit Retry
   // action appears after that bounded automatic retry window is exhausted.
   await expect(page.getByText("Unable to load the inbox: Inbox source is busy", { exact: true })).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByText("Reconnecting to Paperclip", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Reconnecting to Outpost", { exact: true })).toHaveCount(0);
   busy = false;
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(childLink(page)).toBeVisible();
@@ -187,7 +187,7 @@ test("a background Mine 429 preserves readable rows and a retry does not duplica
       await route.fulfill({ status: 429, headers: { "Retry-After": "1" }, json: { error: "Inbox source is busy" } });
     } else await route.continue();
   });
-  await page.goto(`/${company.issuePrefix}/inbox/mine`);
+  await page.goto(`/${space.issuePrefix}/inbox/mine`);
   await expect(childLink(page)).toBeVisible();
   const node = await childLink(page).elementHandle();
   busy = true;
@@ -195,7 +195,7 @@ test("a background Mine 429 preserves readable rows and a retry does not duplica
   await expect.poll(() => busyReads).toBeGreaterThan(0);
   await expect(childLink(page)).toBeVisible();
   expect(await node!.evaluate(element => element.isConnected)).toBe(true);
-  await expect(page.getByText("Reconnecting to Paperclip", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Reconnecting to Outpost", { exact: true })).toHaveCount(0);
   const retry = page.getByRole("button", { name: "Retry missing items", exact: true });
   await expect(retry).toBeVisible({ timeout: 45_000 });
   await expect(childLink(page)).toBeVisible();
@@ -210,7 +210,7 @@ test("a background Mine 429 preserves readable rows and a retry does not duplica
 });
 
 test("Mine archive and Undo persist through the assembled source and reload", async ({ page, request }) => {
-  await page.goto(`/${company.issuePrefix}/inbox/mine`);
+  await page.goto(`/${space.issuePrefix}/inbox/mine`);
   const link = childLink(page);
   await expect(link).toBeVisible();
   const row = page.locator("[data-inbox-item]").filter({ has: link });

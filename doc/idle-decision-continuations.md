@@ -160,7 +160,7 @@ sweeps for six sequential cancellations. The worker now uses the existing
 reconciles promptly, and subsequent notifications in that window share its end
 deadline. Foreground continuation delivery is unchanged and immediate. Recovery
 can wait up to thirty seconds, matching the prior maintenance cadence. This
-bounds global scan frequency; it does not make queries company-scoped or add a
+bounds global scan frequency; it does not make queries space-scoped or add a
 cross-process notification contract.
 
 The regression verifies one scan during repeated real create/cancel writes,

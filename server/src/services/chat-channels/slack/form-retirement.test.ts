@@ -7,13 +7,13 @@ import { assertSlackFormRetirementWorkAuthority, verifyRetainedSlackFormRetireme
 import { verifySlackFormFinalizedReceipt, verifySlackFormRetirementReceipt } from "./receipt-authority.js";
 import { projectSlackFormRetainedOwner } from "./form-session.js";
 
-const binding = parseSlackFormBinding({ version: 1, instanceId: "instance", companyId: "company", endpointId: "endpoint", publicId: "p".repeat(43), connectionId: "connection",
+const binding = parseSlackFormBinding({ version: 1, instanceId: "instance", spaceId: "space", endpointId: "endpoint", publicId: "p".repeat(43), connectionId: "connection",
   runtimeGeneration: 1, teamId: "TTEST", appId: "ATEST", eventBindingId: "slack-event:" + "a".repeat(64), credentialFingerprint: "b".repeat(64) });
 const { credentialFingerprint, eventBindingId, ...base } = binding;
 const enrollment = { ...base, bindingId: eventBindingId }, identity = { instanceId: "instance", environment: "test" as const };
 const receipt = slackFormRetirementReceipt(binding, "test", "original-actor");
 function row(): typeof chatActions.$inferSelect {
-  return { id: "11111111-1111-4111-8111-111111111111", companyId: "company", endpointId: "endpoint", deliveryId: null,
+  return { id: "11111111-1111-4111-8111-111111111111", spaceId: "space", endpointId: "endpoint", deliveryId: null,
     conversationId: null, principalId: null, kind: "slack_form_owner", providerActionId: `slack-form-owner:${createHash("sha256").update(JSON.stringify(enrollment)).digest("hex")}`,
     payload: { enrollment, binding, environment: "test", subject: "original-actor" }, status: "issued", result: { phase: "retired_cleanup", nextAttemptAt: null },
     createdAt: new Date(0), updatedAt: new Date(0) };
@@ -22,7 +22,7 @@ function signed(value: unknown = receipt) {
   const pair = generateKeyPairSync("ed25519"), kid = "retirement-unit";
   const env = { OUTPOST_CLOUD_STACK_ID: "instance", OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS: JSON.stringify({ keys: [{ ...pair.publicKey.export({ format: "jwk" }), kid, use: "sig", alg: "EdDSA" }] }) };
   const enc = (input: unknown) => Buffer.from(JSON.stringify(input)).toString("base64url");
-  const body = enc({ alg: "EdDSA", typ: "paperclip-connector-ack-receipt+jwt", kid }) + "." + enc({ v: 1, iss: "paperclip-cloud", aud: "paperclip-connector-ack-receipt/v1", sub: "instance", receipt: value });
+  const body = enc({ alg: "EdDSA", typ: "outpost-connector-ack-receipt+jwt", kid }) + "." + enc({ v: 1, iss: "outpost-cloud", aud: "outpost-connector-ack-receipt/v1", sub: "instance", receipt: value });
   return { compactJws: body + "." + sign(null, Buffer.from(body), pair.privateKey).toString("base64url"), env };
 }
 afterEach(() => vi.unstubAllEnvs());
@@ -42,9 +42,9 @@ it("fails closed on changed canonical identity, extra keys and oversized origina
   expect(() => parseSlackFormRetirementReceipt({ ...receipt, extra: true })).toThrow();
   expect(() => slackFormRetirementReceipt(binding, "test", "x".repeat(201))).toThrow();
 });
-it("requires exact local company, immutable original subject, fingerprint and owner action", () => {
+it("requires exact local space, immutable original subject, fingerprint and owner action", () => {
   const current = row(); expect(() => assertSlackFormRetirementWorkAuthority(current, identity, receipt)).not.toThrow();
-  for (const changed of [{ ...current, companyId: "foreign" }, { ...current, payload: { ...current.payload, subject: "replacement" } },
+  for (const changed of [{ ...current, spaceId: "foreign" }, { ...current, payload: { ...current.payload, subject: "replacement" } },
     { ...current, payload: { ...current.payload, binding: { ...binding, credentialFingerprint: "c".repeat(64) } } }, { ...current, providerActionId: "foreign-action" }])
     expect(() => assertSlackFormRetirementWorkAuthority(changed, identity, receipt)).toThrow();
   expect(() => assertSlackFormRetirementWorkAuthority(current, { ...identity, instanceId: "foreign" }, receipt)).toThrow();
@@ -57,7 +57,7 @@ it("key outage remains retryable and invalid signature is visible attention", ()
 });
 it("accepted retirement retains normal polling identity without granting new-use delivery authority", () => {
   const current = row(), input = signed(); current.result = { phase: "retirement_accepted", retirementReceipt: receipt, retirementReceiptJws: input.compactJws, nextAttemptAt: new Date(0).toISOString() };
-  expect(projectSlackFormRetainedOwner(current, identity.instanceId, identity.environment)).toEqual({ subject: "github-bot-events", companyId: current.companyId, binding, requiresDelivery: false });
+  expect(projectSlackFormRetainedOwner(current, identity.instanceId, identity.environment)).toEqual({ subject: "github-bot-events", spaceId: current.spaceId, binding, requiresDelivery: false });
   const missingBinding = { ...current, payload: { enrollment, environment: "test", subject: "original-actor" } };
   expect(projectSlackFormRetainedOwner(missingBinding, identity.instanceId, identity.environment)).not.toBeNull();
   expect(() => projectSlackFormRetainedOwner({ ...current, result: { ...current.result, retirementReceiptJws: "invalid" } }, identity.instanceId, identity.environment)).toThrow();
@@ -68,7 +68,7 @@ it("only exact committed transfer discharges history and its retained consumer",
   current.result = { phase: "transferred", nextAttemptAt: null, retirement };
   expect(slackFormRetirementHistoryReceipt(current)).toEqual(receipt);
   expect(projectSlackFormRetainedOwner(current, identity.instanceId, identity.environment)).toBeNull();
-  expect(() => slackFormRetirementHistoryReceipt({ ...current, companyId: "foreign" })).toThrow();
+  expect(() => slackFormRetirementHistoryReceipt({ ...current, spaceId: "foreign" })).toThrow();
   expect(() => slackFormRetirementHistoryReceipt({ ...current, result: { ...current.result, retirement: { ...retirement, receiptDigest: "0".repeat(64) } } })).toThrow();
   expect(() => slackFormRetirementHistoryReceipt({ ...current, result: { phase: "transferred", nextAttemptAt: null } })).toThrow();
 });

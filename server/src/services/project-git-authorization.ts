@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import {
-  companyMemberships,
+  spaceMemberships,
   connectionGrants,
   heartbeatRuns,
   issues,
@@ -32,24 +32,24 @@ function transientGitToken(token: string | undefined): string {
 
 /** Consent is for this exact personal grant, independent of tasks and agent delegation. */
 export function projectGitAuthorizationService(db: Db) {
-  async function project(companyId: string, projectId: string, allowArchived = false) {
+  async function project(spaceId: string, projectId: string, allowArchived = false) {
     const [row] = await db
       .select()
       .from(projects)
-      .where(and(eq(projects.companyId, companyId), eq(projects.id, projectId)));
+      .where(and(eq(projects.spaceId, spaceId), eq(projects.id, projectId)));
     if (!row || (!allowArchived && row.archivedAt)) throw notFound("Active project not found");
     return row;
   }
-  async function eligible(companyId: string, userId: string) {
+  async function eligible(spaceId: string, userId: string) {
     const [member] = await db
       .select()
-      .from(companyMemberships)
+      .from(spaceMemberships)
       .where(
         and(
-          eq(companyMemberships.companyId, companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, userId),
-          eq(companyMemberships.status, "active"),
+          eq(spaceMemberships.spaceId, spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, userId),
+          eq(spaceMemberships.status, "active"),
         ),
       );
     if (!member || member.membershipRole === "viewer") return [];
@@ -58,20 +58,20 @@ export function projectGitAuthorizationService(db: Db) {
       .from(connectionGrants)
       .innerJoin(
         toolConnections,
-        and(eq(toolConnections.id, connectionGrants.connectionId), eq(toolConnections.companyId, companyId)),
+        and(eq(toolConnections.id, connectionGrants.connectionId), eq(toolConnections.spaceId, spaceId)),
       )
       .innerJoin(
         toolConnectionInstalls,
         and(
           eq(toolConnectionInstalls.connectionId, toolConnections.id),
-          eq(toolConnectionInstalls.companyId, companyId),
-          eq(toolConnectionInstalls.targetType, "company"),
-          eq(toolConnectionInstalls.targetId, companyId),
+          eq(toolConnectionInstalls.spaceId, spaceId),
+          eq(toolConnectionInstalls.targetType, "space"),
+          eq(toolConnectionInstalls.targetId, spaceId),
         ),
       )
       .where(
         and(
-          eq(connectionGrants.companyId, companyId),
+          eq(connectionGrants.spaceId, spaceId),
           eq(connectionGrants.kind, "user"),
           eq(connectionGrants.subjectUserId, userId),
           eq(connectionGrants.status, "active"),
@@ -87,12 +87,12 @@ export function projectGitAuthorizationService(db: Db) {
         grant.providerTenant.github.installationCount > 0,
     );
   }
-  async function read(companyId: string, projectId: string, userId: string): Promise<ProjectGitAuthorization> {
-    const row = await project(companyId, projectId, true);
+  async function read(spaceId: string, projectId: string, userId: string): Promise<ProjectGitAuthorization> {
+    const row = await project(spaceId, projectId, true);
     return {
       grantId: row.gitAuthorizationGrantId,
       authorizedByUserId: row.gitAuthorizedByUserId,
-      options: (await eligible(companyId, userId)).map(({ grant, connection }) => ({
+      options: (await eligible(spaceId, userId)).map(({ grant, connection }) => ({
         grantId: grant.id,
         connectionName: connection.name,
         login: grant.providerTenant!.github!.login,
@@ -101,16 +101,16 @@ export function projectGitAuthorizationService(db: Db) {
   }
   return {
     read,
-    async set(companyId: string, projectId: string, userId: string, grantId: string | null) {
+    async set(spaceId: string, projectId: string, userId: string, grantId: string | null) {
       const publication = await db.transaction(async (tx) => {
         const [row] = await tx
           .select()
           .from(projects)
-          .where(and(eq(projects.companyId, companyId), eq(projects.id, projectId)))
+          .where(and(eq(projects.spaceId, spaceId), eq(projects.id, projectId)))
           .for("update");
         if (!row || (row.archivedAt && grantId)) throw notFound("Active project not found");
-        if (grantId && !(await eligible(companyId, userId)).some(({ grant }) => grant.id === grantId)) {
-          throw forbidden("Select your own active company-installed GitHub authorization");
+        if (grantId && !(await eligible(spaceId, userId)).some(({ grant }) => grant.id === grantId)) {
+          throw forbidden("Select your own active space-installed GitHub authorization");
         }
         await tx
           .update(projects)
@@ -120,9 +120,9 @@ export function projectGitAuthorizationService(db: Db) {
             updatedAt: new Date(),
           })
           .where(eq(projects.id, row.id));
-        await recordProjectLifecycleEvent(tx as unknown as Db, companyId, projectId);
+        await recordProjectLifecycleEvent(tx as unknown as Db, spaceId, projectId);
         const { publication } = await persistActivity(tx as unknown as Db, {
-          companyId,
+          spaceId,
           actorType: "user",
           actorId: userId,
           action: grantId ? "project.git_authorized" : "project.git_authorization_revoked",
@@ -133,10 +133,10 @@ export function projectGitAuthorizationService(db: Db) {
         return publication;
       });
       publishActivity(publication);
-      return read(companyId, projectId, userId);
+      return read(spaceId, projectId, userId);
     },
     async resolve(
-      input: { companyId: string; projectId: string; workspaceId: string; expectedRepository?: string },
+      input: { spaceId: string; projectId: string; workspaceId: string; expectedRepository?: string },
       scope?: {
         projectId: string;
         workspaceId?: string;
@@ -153,13 +153,13 @@ export function projectGitAuthorizationService(db: Db) {
         throw forbidden("Git credentials require a matching host project operation");
       const cleanup = scope.workspaceId === input.workspaceId && !scope.runId && !scope.agentId &&
         (scope.operation === "inspect" || scope.operation === "remove");
-      const row = await project(input.companyId, input.projectId, cleanup);
+      const row = await project(input.spaceId, input.projectId, cleanup);
       const [workspace] = await db
         .select()
         .from(projectWorkspaces)
         .where(
           and(
-            eq(projectWorkspaces.companyId, input.companyId),
+            eq(projectWorkspaces.spaceId, input.spaceId),
             eq(projectWorkspaces.projectId, input.projectId),
             eq(projectWorkspaces.id, input.workspaceId),
           ),
@@ -168,7 +168,7 @@ export function projectGitAuthorizationService(db: Db) {
       const repo = normalizeProjectRepositoryUrl(workspace.repoUrl);
       if (input.expectedRepository && repo.fullName.toLowerCase() !== input.expectedRepository.toLowerCase())
         throw forbidden("Project repository changed before GitHub authorization");
-      const isPrivate = await projectRepositoryIsPrivate(db, input.companyId, workspace);
+      const isPrivate = await projectRepositoryIsPrivate(db, input.spaceId, workspace);
       if (scope.runId || scope.agentId) {
         if (!scope.runId || !scope.agentId) throw forbidden("Incomplete foreground Git identity");
         const [run] = await db
@@ -184,7 +184,7 @@ export function projectGitAuthorizationService(db: Db) {
           .where(
             and(
               eq(heartbeatRuns.id, scope.runId),
-              eq(heartbeatRuns.companyId, input.companyId),
+              eq(heartbeatRuns.spaceId, input.spaceId),
               eq(heartbeatRuns.agentId, scope.agentId),
             ),
           );
@@ -194,20 +194,20 @@ export function projectGitAuthorizationService(db: Db) {
             ? await db
                 .select({ executionWorkspaceId: issues.executionWorkspaceId })
                 .from(issues)
-                .where(and(eq(issues.id, issueId), eq(issues.companyId, input.companyId)))
+                .where(and(eq(issues.id, issueId), eq(issues.spaceId, input.spaceId)))
             : [];
         if (!run || run.status !== "running" || !issue || typeof issueId !== "string")
           throw forbidden("Active task run is unavailable");
         await assertTaskWorkspaceExecutionAccess(db, {
-          type: "agent", source: "agent_jwt", companyId: input.companyId,
+          type: "agent", source: "agent_jwt", spaceId: input.spaceId,
           agentId: scope.agentId, runId: scope.runId,
-          onBehalfOfUserId: run.responsibleUserId === "local-board" ? null : run.responsibleUserId,
-        }, input.companyId, {
+          onBehalfOfUserId: run.responsibleUserId === "local-operator" ? null : run.responsibleUserId,
+        }, input.spaceId, {
           issueId, workspaceId: issue.executionWorkspaceId, projectWorkspaceId: workspace.id,
         });
         if (!isPrivate) return null;
         const result = await resolveGitHubOperationCredentials(db, {
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           runId: scope.runId,
           agentId: scope.agentId,
         });
@@ -219,7 +219,7 @@ export function projectGitAuthorizationService(db: Db) {
         throw forbidden("Authorize this project's GitHub connection before provisioning private repositories");
       const selected =
         row.gitAuthorizedByUserId &&
-        (await eligible(input.companyId, row.gitAuthorizedByUserId)).find(
+        (await eligible(input.spaceId, row.gitAuthorizedByUserId)).find(
           ({ grant }) => grant.id === row.gitAuthorizationGrantId,
         );
       if (!row.gitAuthorizedByUserId || !selected)
@@ -228,9 +228,9 @@ export function projectGitAuthorizationService(db: Db) {
       const isInstanceAdmin = cloud && await isCurrentCloudOwnerInstanceAdmin(db, row.gitAuthorizedByUserId,
         await loadCurrentCloudOwnerAuthority(row.gitAuthorizedByUserId));
       await assertTaskWorkspaceSourceProjectAccess(db, {
-        type: "board", source: cloud ? "cloud_tenant" : "session", userId: row.gitAuthorizedByUserId, isInstanceAdmin,
-      }, input.companyId, row.id);
-      if (resolveCoreTrustPreset({ companyId: input.companyId, workspaceSourceProject: row }).kind !== "standard")
+        type: "operator", source: cloud ? "cloud_tenant" : "session", userId: row.gitAuthorizedByUserId, isInstanceAdmin,
+      }, input.spaceId, row.id);
+      if (resolveCoreTrustPreset({ spaceId: input.spaceId, workspaceSourceProject: row }).kind !== "standard")
         throw forbidden("GitHub credentials are not available to low-trust or unverified projects");
       // Project consent follows this connection's repository access, including future project sources.
       if (
@@ -240,7 +240,7 @@ export function projectGitAuthorizationService(db: Db) {
       ) {
         throw forbidden("Project GitHub authorization does not include this repository; refresh Connector access");
       }
-      const resolved = await resolveManagedGitHubCredential(db, secretService(db), input.companyId, {
+      const resolved = await resolveManagedGitHubCredential(db, secretService(db), input.spaceId, {
         responsibleUserId: row.gitAuthorizedByUserId,
         explicitGrantId: row.gitAuthorizationGrantId,
         allowStandingDelegation: false,

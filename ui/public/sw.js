@@ -7,7 +7,7 @@
 const BUILD_ID = "__OUTPOST_BUILD_ID__";
 const OFFLINE_STYLES = "__OUTPOST_OFFLINE_STYLES__";
 // Separate this allowlisted cache from older workers that cached arbitrary URLs.
-const CACHE_NAME = `paperclip-public-assets-${BUILD_ID}`;
+const CACHE_NAME = `outpost-public-assets-${BUILD_ID}`;
 const privateRequests = new Set();
 const privateCacheControl = /(?:^|,)\s*(?:no-store|private)(?:\s*(?:,|=)|\s*$)/i;
 
@@ -18,10 +18,10 @@ function offlineNavigationResponse() {
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark"><title>Outpost is offline</title>
 <style>${OFFLINE_STYLES}</style></head>
-<body class="paperclip-offline"><main aria-labelledby="offline-title">
-<div class="paperclip-offline-message">
-<div class="paperclip-offline-identity">
-<svg class="paperclip-offline-character" aria-hidden="true" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+<body class="outpost-offline"><main aria-labelledby="offline-title">
+<div class="outpost-offline-message">
+<div class="outpost-offline-identity">
+<svg class="outpost-offline-character" aria-hidden="true" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
 <defs>
 <linearGradient id="cliplab-e0abb94d-3507-4338-9704-4a0b0c63dfde-body-gradient" gradientUnits="userSpaceOnUse" color-interpolation="linearRGB" x1="52.54562" y1="529.74149" x2="838.98378" y2="632.13774">
 <stop stop-color="var(--offline-character-outer-start)"/>

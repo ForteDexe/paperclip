@@ -10,7 +10,7 @@ Keep the session cache, durable-root admission and compatibility retirement in
 their current coordinator. They share process and instruction-copy ownership;
 this fix does not move their lifetime or weaken their gates. Cache each actual
 owner's heartbeat run ID and require it to match the durable prior-run identity.
-Keep company/session/workspace/environment checks and the terminal database
+Keep space/session/workspace/environment checks and the terminal database
 check. Let the later compatibility step decide reuse versus retirement, and
 continue to reject unconfirmed retirement before another provider executes.
 

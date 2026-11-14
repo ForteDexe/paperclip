@@ -15,14 +15,14 @@ vi.mock("./installation-integrity.js", async importOriginal => ({
 afterEach(() => vi.restoreAllMocks());
 
 const now = 1_800_000_000_000;
-const expected = { companyId: "company-candidate", agent: "antigravity", model: "gemini-3.8-flash-low" };
+const expected = { spaceId: "space-candidate", agent: "antigravity", model: "gemini-3.8-flash-low" };
 const candidate = (): AcpxCandidateAdmission => ({ schema: "outpost.acpx-candidate-admission.v1", ...expected, agent: "antigravity",
   profileDigest: resolveQualifiedAcpxProfile("antigravity", expected.model).commandDigest,
   nativeClosureDigest: `sha256:${ANTIGRAVITY_DISTRIBUTION_PINS["darwin-arm64"].closureSha256}`,
   platform: "darwin", architecture: "arm64", expiresAt: now + 60_000 });
 
 describe("operator candidate execution admission", () => {
-  it("binds an exact company/model/profile/native closure without changing release admission", () => {
+  it("binds an exact space/model/profile/native closure without changing release admission", () => {
     const source = candidate();
     const value = parseAcpxCandidateAdmission(source, expected, now);
     expect(value).toEqual(source);
@@ -32,7 +32,7 @@ describe("operator candidate execution admission", () => {
   });
 
   it.each([
-    { companyId: "another-company" }, { agent: "codex" }, { model: "gemini-3.8-flash-high" },
+    { spaceId: "another-space" }, { agent: "codex" }, { model: "gemini-3.8-flash-high" },
     { profileDigest: `sha256:${"a".repeat(64)}` }, { nativeClosureDigest: `sha256:${"b".repeat(64)}` },
     { platform: "linux" }, { architecture: "x64" }, { expiresAt: now }, { expiresAt: now + 86_400_001 },
     { expiresAt: "1800000060000" }, { unknown: true }, { runId: "injected-run" }, { model: "auto" },
@@ -66,7 +66,7 @@ describe("operator candidate execution admission", () => {
 
 describe("candidate installation remains cryptographically verified", () => {
   const profile = resolveQualifiedAcpxProfile("antigravity", "gemini-3.8-flash-low");
-  const admission = () => bindAcpxCandidateAdmission({ schema: "outpost.acpx-candidate-admission.v1", companyId: "company-candidate", agent: "antigravity", model: profile.qualificationModel,
+  const admission = () => bindAcpxCandidateAdmission({ schema: "outpost.acpx-candidate-admission.v1", spaceId: "space-candidate", agent: "antigravity", model: profile.qualificationModel,
     profileDigest: profile.commandDigest, nativeClosureDigest: `sha256:${ANTIGRAVITY_DISTRIBUTION_PINS["darwin-arm64"].closureSha256}`,
     platform: "darwin", architecture: "arm64", expiresAt: Date.now() + 60_000 }, { runId: "run-candidate", normalizedSessionId: "session-candidate" });
 
@@ -100,7 +100,7 @@ describe("candidate installation remains cryptographically verified", () => {
 
 
 describe("trusted Kimi candidate admission", () => {
-  const kimiExpected = { companyId: "company-kimi", agent: "kimi", model: "kimi-for-coding" };
+  const kimiExpected = { spaceId: "space-kimi", agent: "kimi", model: "kimi-for-coding" };
   const kimiCandidate = (target: "darwin-arm64" | "linux-x64"): AcpxCandidateAdmission => ({
     schema: "outpost.acpx-candidate-admission.v1", ...kimiExpected, agent: "kimi",
     profileDigest: resolveQualifiedAcpxProfile("kimi", kimiExpected.model).commandDigest,
@@ -124,7 +124,7 @@ describe("trusted Kimi candidate admission", () => {
     }
     const other = target === "darwin-arm64" ? "linux-x64" : "darwin-arm64";
     for (const change of [
-      { companyId: "foreign-company" }, { agent: "antigravity" }, { model: "another-model" },
+      { spaceId: "foreign-space" }, { agent: "antigravity" }, { model: "another-model" },
       { model: "auto" }, { model: "default" }, { model: " kimi-for-coding" },
       { profileDigest: `sha256:${"0".repeat(64)}` },
       { nativeClosureDigest: `sha256:${KIMI_DISTRIBUTION_CLOSURE_SHA256[other]}` },

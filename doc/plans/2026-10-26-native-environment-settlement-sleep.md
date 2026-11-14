@@ -25,8 +25,8 @@ its existing states. No schema, migration, independent timer, or job table is ad
 
 A candidate has all of the following:
 
-- A native run bound to the same company and issue as its finalization.
-- An accepted result bound to that exact run, company, issue, and finalization.
+- A native run bound to the same space and issue as its finalization.
+- An accepted result bound to that exact run, space, issue, and finalization.
 - A terminal run status. Running/unknown execution ownership is excluded.
 - Either a committed finalization, or an exhausted workspace-finalization failure
   identified by its existing `workspaceFinalizeAttempt` receipt.
@@ -65,7 +65,7 @@ before an automatic release; the original release owner retains its own guards.
 | Worktree execution setting | Existing settings transaction, global reactivation hint |
 | Startup/restart | Reconstruct from existing records without requiring a remembered hint |
 
-Hints serialize only the company/run/issue identifiers. They are awaited before
+Hints serialize only the space/run/issue identifiers. They are awaited before
 writes, and the shared database signal protocol owns outer transactions,
 savepoints, rollback, and uncertain commit outcomes. No per-call recovery counter
 is threaded through routes. No private Muse contract is used for environment work.
@@ -99,7 +99,7 @@ remote stop acknowledgment retain their owners.
 - Cases cover empty/retained history, first acquisition after finalization,
   finalizer-produced release, restart, outer commit/rollback, swallowed release
   failures, writes during an active release, drain/resume with zero SQL,
-  running/unverified owners, exact company scope, pending cleanup deadlines,
+  running/unverified owners, exact space scope, pending cleanup deadlines,
   worktree/restore suppression, settings reactivation, keep-running retention,
   exhausted workspace failure, and partial periodic delegation.
 - The combined run passed 127 tests: 17 new cases, 28 existing native notice and
@@ -210,7 +210,7 @@ discoveries: startup plus one after every successful release. Each discovery als
 recomputed remaining run deadlines. This was unnecessary database activity during
 real work, even though the worker eventually became quiet.
 
-The existing cleanup helpers now accept the native worker's existing company/run
+The existing cleanup helpers now accept the native worker's existing space/run
 scope. Lease writers pass identity from their own lease/run records. Release,
 bulk run release, cleanup claims and receipts, export recovery, stopped-sandbox
 handoffs, recovery cleanup, plugin task failure, and harness/workspace metadata
@@ -222,7 +222,7 @@ No caller receives a new lifecycle object or manual recovery wrapper.
 The generic environment-cleanup and historical-cleanup topics retain their prior
 contracts. Startup and broad custom-image cleanup changes still allow global
 native discovery because they have no single run scope. Lease writes no longer
-cause cross-company global reloads. The worker, deadlines, cleanup authority,
+cause cross-space global reloads. The worker, deadlines, cleanup authority,
 provider operations, and supported process-local writer model are unchanged.
 
 Evidence:
@@ -259,7 +259,7 @@ No package or live provider qualification is added by this slice.
 
 The new database regression exposes the quiet-path requirement. Moving only
 the new environment notification outside the issue/run guard makes three
-routine company-only finalization hints perform three environment candidate
+routine space-only finalization hints perform three environment candidate
 SELECTs. That controlled baseline fails the quiet assertion. With the guard
 retained, the same test passes with zero candidate SELECTs. It then commits real
 native work, creates an eligible lease through the owning service, observes

@@ -11,7 +11,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 /**
  * Did this error come from the OAuth endpoint gate (PAP-17099)? Such a refusal
- * is Paperclip's own decision about an unsafe address, so it must keep its code
+ * is Outpost's own decision about an unsafe address, so it must keep its code
  * and its 422 instead of being folded into a generic upstream failure.
  */
 export function isOAuthEndpointRejection(error: unknown): boolean {
@@ -140,7 +140,7 @@ export function sanitizeHttpFailure(error: unknown): {
         code: "secret_missing",
       };
     }
-    return { status: "error", message: error.message, code: "paperclip_error" };
+    return { status: "error", message: error.message, code: "outpost_error" };
   }
   if (error instanceof Error) {
     return {
@@ -179,7 +179,7 @@ export function unreachableServerRemediation(
   const detail = reason ? UNREACHABLE_SERVER_REASONS[reason] : undefined;
   if (!detail) return {};
   return {
-    remediation: `Outpost could not reach this MCP server at its saved URL: ${detail}. This result is final until the person fixes it: they must correct the URL, or start the server or make it reachable from Outpost, and then check it again. Retrying now will not connect it, and you must not contact other hosts, ports or network addresses yourself as a workaround. Reply now: tell the person the server could not be reached and what they need to fix, do not say it is connected, and link [Open Connectors](/<prefix>/apps), with this conversation's company prefix as <prefix>, where they can fix or remove the connection or set it up again.`,
+    remediation: `Outpost could not reach this MCP server at its saved URL: ${detail}. This result is final until the person fixes it: they must correct the URL, or start the server or make it reachable from Outpost, and then check it again. Retrying now will not connect it, and you must not contact other hosts, ports or network addresses yourself as a workaround. Reply now: tell the person the server could not be reached and what they need to fix, do not say it is connected, and link [Open Connectors](/<prefix>/apps), with this conversation's space prefix as <prefix>, where they can fix or remove the connection or set it up again.`,
   };
 }
 

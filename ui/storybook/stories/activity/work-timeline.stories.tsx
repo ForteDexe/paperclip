@@ -11,11 +11,11 @@ import {
   zoomScaleForLevel,
 } from "@/components/timeline/WorkTimelineChart";
 import { Button } from "@/components/ui/button";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import sampleJson from "../../fixtures/workTimeline.sample.json";
 import humanSampleJson from "../../fixtures/workTimeline.human.sample.json";
 
-const COMPANY_ID = "company-storybook";
+const SPACE_ID = "space-storybook";
 const STORYBOOK_USER_AVATAR =
   "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=96&q=80";
 
@@ -47,21 +47,21 @@ const sample = withStorybookTimelineDetails(sampleJson as unknown as WorkTimelin
 // `/timeline` endpoint that DOES carry human events — Dotta's created / commented /
 // approved / delegated actions provide human participation and kickoff context.
 const humanSample = withStorybookTimelineDetails(humanSampleJson as unknown as WorkTimelineResult);
-// The fixture is a real slice of PAP company activity (2026-07-02 14:00–15:50Z);
+// The fixture is a real slice of PAP space activity (2026-07-02 14:00–15:50Z);
 // pin "now" to the window end so in-progress runs fade correctly.
 const NOW = new Date("2026-07-02T15:45:00.000Z").getTime();
 
 function FullPageTimelineHarness() {
-  const { selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { selectedSpaceId, setSelectedSpaceId } = useSpace();
 
   useEffect(() => {
-    window.localStorage.setItem("outpost.selectedCompanyId", COMPANY_ID);
-    if (selectedCompanyId !== COMPANY_ID) {
-      setSelectedCompanyId(COMPANY_ID);
+    window.localStorage.setItem("outpost.selectedSpaceId", SPACE_ID);
+    if (selectedSpaceId !== SPACE_ID) {
+      setSelectedSpaceId(SPACE_ID);
     }
-  }, [selectedCompanyId, setSelectedCompanyId]);
+  }, [selectedSpaceId, setSelectedSpaceId]);
 
-  if (selectedCompanyId !== COMPANY_ID) {
+  if (selectedSpaceId !== SPACE_ID) {
     return null;
   }
 
@@ -150,7 +150,7 @@ function TimelineHarness({
           </div>
           <p className="text-xs text-muted-foreground">
             {data.spans.length} runs · {data.actors.length} actors · {data.events.length} human/instant events · real
-            company data
+            space data
           </p>
         </div>
       </div>
@@ -163,7 +163,7 @@ const meta: Meta<typeof TimelineHarness> = {
   title: "Oversight and operation/Dashboards and audit trails/Pages/Work Timeline",
   component: TimelineHarness,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "activity/timeline"
       ],

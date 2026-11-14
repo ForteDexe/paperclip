@@ -42,11 +42,11 @@ export async function applyObservedFenceProviderProof(db: Db, records: readonly 
 }
 
 export async function settleObservedWorkspaceFence(db: Db, record: InProgressRecord): Promise<SettleOutcome> {
-  if (!record.companyId || !record.runId) return { settled: false, reason: "owner_not_provable" };
+  if (!record.spaceId || !record.runId) return { settled: false, reason: "owner_not_provable" };
   const { ObservedWorkspacePreservationBusyError, settleStoppedObservedWorkspace } =
     await import("../native-runtime/native-observed-workspace-preservation.js");
   try {
-    return await settleStoppedObservedWorkspace(db, record.companyId, record.runId)
+    return await settleStoppedObservedWorkspace(db, record.spaceId, record.runId)
       ? { settled: true, reason: "provider_stopped" } : { settled: false, reason: "fence_not_settleable" };
   } catch (error) {
     if (error instanceof ObservedWorkspacePreservationBusyError) return { settled: false, reason: "source_busy" };

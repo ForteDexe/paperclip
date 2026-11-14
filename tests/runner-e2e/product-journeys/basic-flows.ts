@@ -7,15 +7,15 @@ import { JourneyError, type JourneyContext, type JourneyEvidence, type TargetSes
 export async function taskCreate(context: JourneyContext, session: TargetSession, campaignId: string, evidence: JourneyEvidence) {
   const title = `Journey QA create ${campaignId}`;
   const prompt = "Keep this task for me to review. No agent work is required.";
-  const created = await createTaskThroughUi({ page: context.page, origin: context.api.origin, issuePrefix: context.company.issuePrefix,
+  const created = await createTaskThroughUi({ page: context.page, origin: context.api.origin, issuePrefix: context.space.issuePrefix,
     agentName: "Me", title, prompt, workMode: "standard", requireExplicitTitle: true,
     beforeDispatch: () => session.own({ kind: "issue", name: title }) });
   await session.own({ kind: "issue", name: title, id: created.issueId });
   const route = `/api/issues/${created.issueId}`;
   const issue = await context.api.get(route);
-  if (issue.companyId !== context.company.id || issue.title !== title || issue.description !== prompt
+  if (issue.spaceId !== context.space.id || issue.title !== title || issue.description !== prompt
     || issue.assigneeUserId !== context.user.id || issue.assigneeAgentId !== null) throw new JourneyError("failed", "created_task_mismatch");
-  await context.page.goto(`${context.api.origin}/${context.company.issuePrefix}/issues`);
+  await context.page.goto(`${context.api.origin}/${context.space.issuePrefix}/issues`);
   await context.page.getByRole("link").filter({ hasText: title }).first().click();
   await context.page.reload();
   await expect(context.page.getByText(title, { exact: true }).first()).toBeVisible();
@@ -34,7 +34,7 @@ export async function askQuestion(context: JourneyContext, session: TargetSessio
   const nonce = campaignId.replace(/-/g, "_");
   const title = `Journey QA ask ${campaignId}`;
   const marker = fixture.buildVisibleMarker(nonce);
-  const created = await createTaskThroughUi({ page: context.page, origin: context.api.origin, issuePrefix: context.company.issuePrefix,
+  const created = await createTaskThroughUi({ page: context.page, origin: context.api.origin, issuePrefix: context.space.issuePrefix,
     agentName: agent.name, title, prompt: fixture.buildPrompt(nonce), workMode: "ask", requireExplicitTitle: true,
     beforeDispatch: () => session.own({ kind: "issue", name: title }) });
   await session.own({ kind: "issue", name: title, id: created.issueId });
@@ -45,11 +45,11 @@ export async function askQuestion(context: JourneyContext, session: TargetSessio
     const runs = await Promise.all(summaries.map(run => context.api.get<Record<string, any>>(`/api/heartbeat-runs/${run.runId}`)));
     if (runs.length > 1 || runs.some(run => ["failed", "cancelled", "timed_out"].includes(run.status))) throw new JourneyError("failed", "question_run_failed");
     const comments = await context.api.get(`${route}/comments`);
-    return questionEvidencePasses({ companyId: context.company.id, agentId: agent.id, environmentId: context.environmentId,
+    return questionEvidencePasses({ spaceId: context.space.id, agentId: agent.id, environmentId: context.environmentId,
       marker, model: agent.model, provider: agent.provider, runtimeMode: agent.runtimeMode, issue, runs, comments });
   }, { timeout: 240_000, intervals: [1000, 2000, 3000] }).toBe(true);
   const issue = await context.api.get(route);
-  await context.page.goto(`${context.api.origin}/${context.company.issuePrefix}/issues/${issue.identifier}`);
+  await context.page.goto(`${context.api.origin}/${context.space.issuePrefix}/issues/${issue.identifier}`);
   await context.page.reload();
   await expect(context.page.getByText(marker, { exact: true }).last()).toBeVisible();
   evidence.checks.push({ id: "question-answer-persisted", passed: true }, { id: "one-bound-successful-run", passed: true }, { id: "configured-model-and-environment", passed: true });

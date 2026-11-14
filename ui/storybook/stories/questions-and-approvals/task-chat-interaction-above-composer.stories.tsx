@@ -20,7 +20,7 @@ import {
   issueThreadInteractionFixtureMeta,
 } from "@/fixtures/issueThreadInteractionFixtures";
 import { composerAgentAppearance, composerAgents } from "../../prototypes/composer-model-picker/fixtures";
-import { storybookAgentMap } from "../../fixtures/paperclipData";
+import { storybookAgentMap } from "../../fixtures/outpostData";
 
 const agentMap = new Map(composerAgents.map((agent) => [agent.id, {
   id: agent.id,
@@ -150,7 +150,7 @@ const meta = {
     layout: "fullscreen",
     options: { showPanel: false },
     docs: { description: { component: "The production task interaction card and composer shown together. Dismissed questions do not contribute a composer pending indicator; other unresolved inputs retain one. Skip or a decision resolves the card. This local composition does not model persisted dismissal or the thread's history entry; use Task Chat Unanswered Questions for that fixture journey." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "questions-and-approvals/questions",
         "questions-and-approvals/confirmations",

@@ -5,17 +5,17 @@ import { expect } from "vitest";
 
 export async function verifyCommittedReplayPayloadReads(
   db: Db,
-  binding: { runId: string; companyId: string; agentId: string },
+  binding: { runId: string; spaceId: string; agentId: string },
   replay: () => Promise<void>,
 ) {
-  const { runId, companyId, agentId } = binding;
+  const { runId, spaceId, agentId } = binding;
   const bulk = "saved-native-input-sentinel🙂".repeat(40_000);
   const [original] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
   await db.update(heartbeatRuns).set({
     contextSnapshot: { ...original.contextSnapshot, savedInput: bulk },
     runnerProfileJson: { savedInput: bulk, nativeExecutionInput: {
       schema: "outpost.native-execution-input.v8", savedInput: bulk,
-      provider: { kind: "muse", binding: { companyId, agentId, bindingId: runId } },
+      provider: { kind: "muse", binding: { spaceId, agentId, bindingId: runId } },
     } }, stdoutExcerpt: bulk, stderrExcerpt: bulk,
   }).where(eq(heartbeatRuns.id, runId));
   const [before] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));

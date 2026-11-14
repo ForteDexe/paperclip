@@ -8,7 +8,7 @@ export async function prepareDiscordRuntimeCommand(db: Db, endpoint: EndpointRow
             endpoint.botExternalId &&
             endpoint.providerAccountId
               ? await readRegisteredDiscordCommandRegistration(db, {
-                  companyId: endpoint.companyId,
+                  spaceId: endpoint.spaceId,
                   endpointId: endpoint.id,
                   applicationId: endpoint.botExternalId,
                   guildId: endpoint.providerAccountId,

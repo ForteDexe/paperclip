@@ -23,7 +23,7 @@ describe.skipIf(!endpoint)("encrypted object provider traces (S3 integration)", 
   it.each(["environment", "existing key file"])(
     "restores both sidecars on a new host, preserves exact downloads, and removes ciphertext (%s)",
     async (source) => {
-      const bucket = `paperclip-trace-test-${randomUUID()}`;
+      const bucket = `outpost-trace-test-${randomUUID()}`;
       const client = new S3Client({ endpoint, region: "us-east-1", forcePathStyle: true });
       await client.send(new CreateBucketCommand({ Bucket: bucket }));
       const directory = await fs.mkdtemp(path.join(tmpdir(), "object-trace-"));
@@ -33,7 +33,7 @@ describe.skipIf(!endpoint)("encrypted object provider traces (S3 integration)", 
       if (source === "existing key file")
         await fs.writeFile(keyFile, "a".repeat(64), { mode: 0o600 });
       const filename = `${randomUUID()}.ndjson`,
-        ref = `s3-segments-v1:company/run/${filename}`;
+        ref = `s3-segments-v1:space/run/${filename}`;
       const bytes = Buffer.from('{"kind":"frame","rawBase64":"cHJpdmF0ZQ=="}\n');
       const interpretation = Buffer.from('{"kind":"interpretation","frameId":1}\n');
       const provider = createS3StorageProvider({
@@ -143,7 +143,7 @@ describe("encrypted object provider trace reads under load", () => {
       const provider = memory(),
         store = createProviderTraceObjectStore(provider),
         file = path.join(directory, "trace.ndjson"),
-        ref = `s3-segments-v1:company/run/${randomUUID()}.ndjson`,
+        ref = `s3-segments-v1:space/run/${randomUUID()}.ndjson`,
         bytes = Buffer.from('{"kind":"frame","frameId":1}\n');
       await store.open(ref, file, async () => undefined);
       await fs.appendFile(file, bytes);

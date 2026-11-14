@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getAppDefinitionForApplicationKey } from "./connector-identity.js";
 
 describe("saved connector identity", () => {
-  it("resolves known catalog keys and company-scoped gallery keys", () => {
+  it("resolves known catalog keys and space-scoped gallery keys", () => {
     expect(getAppDefinitionForApplicationKey("fireflies")?.slug).toBe("fireflies");
     expect(getAppDefinitionForApplicationKey("app-gallery:fireflies:44444444-4444-4444-8444-444444444444")?.slug).toBe("fireflies");
   });

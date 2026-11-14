@@ -1,9 +1,9 @@
 {
   "app": {
-    "noCompanies": {
+    "noSpaces": {
       "title": "अपनी पहली कंपनी बनाएं",
       "description": "कंपनी बनाकर शुरुआत करें.",
-      "newCompany": "नई कंपनी"
+      "newSpace": "नई कंपनी"
     }
   }
 }

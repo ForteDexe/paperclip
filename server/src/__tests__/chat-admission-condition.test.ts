@@ -24,14 +24,14 @@ describe("unadmitted chat wakeup condition", () => {
   async function seed() {
     const f = await seedGitHubReviewWait(db);
     const otherConversationId = randomUUID();
-    await db.insert(chatConversations).values({ id: otherConversationId, companyId: f.companyId,
+    await db.insert(chatConversations).values({ id: otherConversationId, spaceId: f.spaceId,
       endpointId: f.endpointId, resourceId: f.resourceId, issueId: f.issueId, externalConversationId: "other",
       externalThreadId: `other:${otherConversationId}`, externalLabel: "Other" });
     let tick = 0;
     const action = async (input: { status: string; kind?: string; issueId?: unknown; agentId?: string;
-      conversationId?: string; companyId?: string; endpointId?: string; payload?: Record<string, unknown> }) => {
+      conversationId?: string; spaceId?: string; endpointId?: string; payload?: Record<string, unknown> }) => {
       const id = randomUUID();
-      await db.insert(chatActions).values({ id, companyId: input.companyId ?? f.companyId,
+      await db.insert(chatActions).values({ id, spaceId: input.spaceId ?? f.spaceId,
         endpointId: input.endpointId ?? f.endpointId, conversationId: input.conversationId ?? f.conversationId,
         kind: input.kind ?? "inbound_wakeup", providerActionId: id, status: input.status,
         createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, tick++)),
@@ -39,14 +39,14 @@ describe("unadmitted chat wakeup condition", () => {
           sessionGeneration: 1, ...input.payload } });
       return id;
     };
-    const admit = (id: string, status = "queued", agentId = f.agentId, companyId = f.companyId) =>
-      db.insert(agentWakeupRequests).values({ id, companyId, agentId, source: "automation", status });
+    const admit = (id: string, status = "queued", agentId = f.agentId, spaceId = f.spaceId) =>
+      db.insert(agentWakeupRequests).values({ id, spaceId, agentId, source: "automation", status });
     const held = async () => (await db.select({ id: issues.id }).from(issues).where(and(
-      eq(issues.id, f.issueId), eq(issues.companyId, f.companyId),
-      unadmittedChatWakeupCondition(issues.id, issues.companyId))).limit(1)).length === 1;
+      eq(issues.id, f.issueId), eq(issues.spaceId, f.spaceId),
+      unadmittedChatWakeupCondition(issues.id, issues.spaceId))).limit(1)).length === 1;
     const reset = async () => {
-      await db.delete(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId));
-      await db.delete(chatActions).where(eq(chatActions.companyId, f.companyId));
+      await db.delete(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId));
+      await db.delete(chatActions).where(eq(chatActions.spaceId, f.spaceId));
     };
     return { ...f, otherConversationId, action, admit, held, reset };
   }
@@ -71,10 +71,10 @@ describe("unadmitted chat wakeup condition", () => {
     expect(await s.held()).toBe(false);
   });
 
-  it("accepts only a receipt for the same company and agent that was not skipped", async () => {
+  it("accepts only a receipt for the same space and agent that was not skipped", async () => {
     const s = await seed();
     const otherAgentId = randomUUID();
-    await db.insert(agents).values({ id: otherAgentId, companyId: s.companyId, name: "Other", adapterType: "process" });
+    await db.insert(agents).values({ id: otherAgentId, spaceId: s.spaceId, name: "Other", adapterType: "process" });
     const pending = await s.action({ status: "processing" });
     await s.admit(pending, "skipped");
     expect(await s.held()).toBe(true);
@@ -86,15 +86,15 @@ describe("unadmitted chat wakeup condition", () => {
 
     const other = await seedGitHubReviewWait(db);
     await s.reset();
-    const crossCompany = await s.action({ status: "processing" });
-    await s.admit(crossCompany, "queued", other.agentId, other.companyId);
+    const crossSpace = await s.action({ status: "processing" });
+    await s.admit(crossSpace, "queued", other.agentId, other.spaceId);
     expect(await s.held()).toBe(true);
   });
 
-  it("compares the issue id as company-scoped canonical text", async () => {
+  it("compares the issue id as space-scoped canonical text", async () => {
     const s = await seed();
     const other = await seedGitHubReviewWait(db);
-    await s.action({ status: "preparing", companyId: other.companyId, endpointId: other.endpointId,
+    await s.action({ status: "preparing", spaceId: other.spaceId, endpointId: other.endpointId,
       conversationId: other.conversationId });
     await s.action({ status: "preparing", issueId: s.issueId.toUpperCase() });
     await s.action({ status: "preparing", issueId: [s.issueId] });
@@ -148,16 +148,16 @@ describe("unadmitted chat wakeup condition", () => {
     void failed;
   });
 
-  it("finds the issue's chat input through the company and issue index", async () => {
+  it("finds the issue's chat input through the space and issue index", async () => {
     const s = await seed();
-    await db.$client.unsafe(`insert into chat_actions (company_id, endpoint_id, kind, provider_action_id, status, payload)
+    await db.$client.unsafe(`insert into chat_actions (space_id, endpoint_id, kind, provider_action_id, status, payload)
       select $1::uuid, $2::uuid, case when g % 3 = 0 then 'github_review_check' else 'inbound_wakeup' end,
         'noise-' || g, 'processed', jsonb_build_object('issueId', gen_random_uuid()::text, 'body', repeat('x', 200))
-      from generate_series(1, 3000) g`, [s.companyId, s.endpointId]);
+      from generate_series(1, 3000) g`, [s.spaceId, s.endpointId]);
     await db.$client.unsafe("analyze chat_actions");
     await s.action({ status: "failed" });
     const query = db.select({ id: issues.id }).from(issues).where(and(eq(issues.id, s.issueId),
-      eq(issues.companyId, s.companyId), unadmittedChatWakeupCondition(issues.id, issues.companyId))).limit(1).toSQL();
+      eq(issues.spaceId, s.spaceId), unadmittedChatWakeupCondition(issues.id, issues.spaceId))).limit(1).toSQL();
     const [row] = await db.$client.unsafe(`EXPLAIN (FORMAT JSON) ${query.sql}`, query.params as never[]);
     const scans: string[] = [];
     const walk = (node: Record<string, unknown>) => {
@@ -166,6 +166,6 @@ describe("unadmitted chat wakeup condition", () => {
     };
     walk((row!["QUERY PLAN"] as Array<{ Plan: Record<string, unknown> }>)[0]!.Plan);
     expect(scans.length).toBeGreaterThan(0);
-    for (const scan of scans) expect(scan).toMatch(/Index.*Scan:chat_actions_company_issue_kind_idx/);
+    for (const scan of scans) expect(scan).toMatch(/Index.*Scan:chat_actions_space_issue_kind_idx/);
   });
 });

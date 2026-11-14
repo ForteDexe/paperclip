@@ -9,12 +9,12 @@ import { ExecutionWorkspaceCloseDialog } from "./ExecutionWorkspaceCloseDialog";
 import { ProjectWorkspaceSummaryCard } from "./ProjectWorkspaceSummaryCard";
 
 export function ProjectWorkspacesContent({
-  companyId,
+  spaceId,
   projectId,
   projectRef,
   summaries,
 }: {
-  companyId: string;
+  spaceId: string;
   projectId: string | null;
   projectRef: string | null;
   summaries: ProjectWorkspaceSummary[];
@@ -36,19 +36,19 @@ export function ProjectWorkspacesContent({
       setRuntimeActionKey(`${input.key}:${input.action}`);
       if (input.kind === "project_workspace") {
         if (!projectId) throw new Error("Project workspace has no project");
-        return await projectsApi.controlWorkspaceRuntimeServices(projectId, input.workspaceId, input.action, companyId);
+        return await projectsApi.controlWorkspaceRuntimeServices(projectId, input.workspaceId, input.action, spaceId);
       }
       return await executionWorkspacesApi.controlRuntimeServices(input.workspaceId, input.action);
     },
     onSettled: () => {
       setRuntimeActionKey(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.overview(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.list(companyId) });
-      if (projectId) queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.list(companyId, { projectId }) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.overview(spaceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.list(spaceId) });
+      if (projectId) queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.list(spaceId, { projectId }) });
       if (projectId) queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(projectId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId) });
-      if (projectId) queryClient.invalidateQueries({ queryKey: queryKeys.issues.listByProject(companyId, projectId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(spaceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(spaceId) });
+      if (projectId) queryClient.invalidateQueries({ queryKey: queryKeys.issues.listByProject(spaceId, projectId) });
     },
   });
 
@@ -106,13 +106,13 @@ export function ProjectWorkspacesContent({
             if (!open) setClosingWorkspace(null);
           }}
           onClosed={() => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.overview(companyId) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.list(companyId) });
-            if (projectId) queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.list(companyId, { projectId }) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.overview(spaceId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.list(spaceId) });
+            if (projectId) queryClient.invalidateQueries({ queryKey: queryKeys.executionWorkspaces.list(spaceId, { projectId }) });
             if (projectId) queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(projectId) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(companyId) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId) });
-            if (projectId) queryClient.invalidateQueries({ queryKey: queryKeys.issues.listByProject(companyId, projectId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(spaceId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(spaceId) });
+            if (projectId) queryClient.invalidateQueries({ queryKey: queryKeys.issues.listByProject(spaceId, projectId) });
             setClosingWorkspace(null);
           }}
         />

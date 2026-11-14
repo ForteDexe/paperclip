@@ -17,13 +17,13 @@ test("AgentMail setup and email work through the normal task conversation", asyn
     data: { enableChatConnectors: false },
   });
   expect(settings.ok()).toBeTruthy();
-  const created = await request.post("/api/companies", {
+  const created = await request.post("/api/spaces", {
     data: { name: `AgentMail browser ${Date.now()}` },
   });
   expect(created.ok()).toBeTruthy();
-  const company = await created.json();
+  const space = await created.json();
   const agentResponse = await request.post(
-    `/api/companies/${company.id}/agents`,
+    `/api/spaces/${space.id}/agents`,
     {
       data: {
         name: "Mail agent",
@@ -39,14 +39,14 @@ test("AgentMail setup and email work through the normal task conversation", asyn
   expect(agentResponse.ok()).toBeTruthy();
   const agent = await agentResponse.json();
   const taskResponse = await request.post(
-    `/api/companies/${company.id}/issues`,
+    `/api/spaces/${space.id}/issues`,
     { data: { title: "Customer email", status: "backlog" } },
   );
   expect(taskResponse.ok()).toBeTruthy();
   const task = await taskResponse.json();
   const inbox = {
     id: randomUUID(),
-    companyId: company.id,
+    spaceId: space.id,
     connectionId: randomUUID(),
     assignedAgentId: agent.id,
     address: "agent@agentmail.to",
@@ -60,7 +60,7 @@ test("AgentMail setup and email work through the normal task conversation", asyn
   let reservedInbox: typeof inbox | null = null;
   const setupRequests: { idempotencyKey: string; username?: string }[] = [];
   const addressTakenError = "This email address is already in use. Choose a different address.";
-  const permissionError = "AgentMail did not allow Paperclip to create an inbox-scoped API key. Check your API key permissions and AgentMail account limits, then try again.";
+  const permissionError = "AgentMail did not allow Outpost to create an inbox-scoped API key. Check your API key permissions and AgentMail account limits, then try again.";
   const sends: any[] = [];
   const conversationId = randomUUID();
   const thread = {
@@ -91,13 +91,13 @@ test("AgentMail setup and email work through the normal task conversation", asyn
   await page.route("**/api/instance/settings/experimental", (route) =>
     fulfill(route, { enableChatConnectors: false }),
   );
-  await page.route(`**/api/companies/${company.id}/tools/connections`, route =>
+  await page.route(`**/api/spaces/${space.id}/tools/connections`, route =>
     fulfill(route, { connections: [{
       id: organizationConnectionId, name: "AgentMail", status: "active", enabled: true,
       config: { provider: "agentmail", emailCredential: true }, createdAt: "2026-09-30T14:00:00Z",
     }] }),
   );
-  await page.route(`**/api/companies/${company.id}/chat-endpoints`, route =>
+  await page.route(`**/api/spaces/${space.id}/chat-endpoints`, route =>
     fulfill(route, reservedInbox ? [{ ...reservedInbox, provider: "agentmail", assignedAgentName: agent.name,
       providerAccountLabel: reservedInbox.address }] : []),
   );
@@ -197,7 +197,7 @@ test("AgentMail setup and email work through the normal task conversation", asyn
       botExternalId: inbox.address,
     }),
   );
-  await page.goto(`/${company.issuePrefix}/apps`);
+  await page.goto(`/${space.issuePrefix}/apps`);
   await page.getByRole("button", { name: /^(Connect|Add connection) AgentMail$/ }).click();
   await expect(
     page.getByRole("heading", { name: "Give an agent an email address" }),
@@ -283,7 +283,7 @@ test("AgentMail setup and email work through the normal task conversation", asyn
   await expect(page.getByRole("button", { name: "Reconnect inbox", exact: true })).toHaveCount(0);
   await navigation.getByRole("link", { name: "Conversations", exact: true }).click();
   await expect(page.getByRole("list", { name: "Conversations" })).toBeVisible();
-  await expect(page.getByRole("list", { name: "Conversations" }).locator(`a[href="/${company.issuePrefix}/issues/${task.id}"]`)).toHaveAttribute("href", `/${company.issuePrefix}/issues/${task.id}`);
+  await expect(page.getByRole("list", { name: "Conversations" }).locator(`a[href="/${space.issuePrefix}/issues/${task.id}"]`)).toHaveAttribute("href", `/${space.issuePrefix}/issues/${task.id}`);
   await page.reload();
   await expect(page.getByRole("list", { name: "Conversations" })).toBeVisible();
   await navigation.getByRole("link", { name: "Activity", exact: true }).click();
@@ -306,7 +306,7 @@ test("AgentMail setup and email work through the normal task conversation", asyn
   await expect(page.getByLabel("New API key", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Reconnect inbox", exact: true })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("agentmail-settings-reconnect.png"), fullPage: true });
-  await page.goto(`/${company.issuePrefix}/issues/${task.identifier}`);
+  await page.goto(`/${space.issuePrefix}/issues/${task.identifier}`);
   const email = page.getByRole("article", { name: "Email received", exact: true });
   await expect(email).toBeVisible();
   await expect(email.getByText("Can you help?", { exact: true })).toBeVisible();

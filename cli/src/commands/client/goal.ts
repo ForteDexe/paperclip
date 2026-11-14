@@ -12,11 +12,11 @@ import {
 } from "./common.js";
 
 interface GoalListOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
 }
 
 interface GoalCreateOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   title: string;
   description?: string;
   level?: string;
@@ -44,12 +44,12 @@ export function registerGoalCommands(program: Command): void {
   addCommonClientOptions(
     goal
       .command("list")
-      .description("List north stars for a company")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .description("List north stars for a space")
+      .option("-C, --space-id <id>", "Outpost ID")
       .action(async (opts: GoalListOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const rows = (await ctx.api.get<Goal[]>(apiPath`/api/companies/${ctx.companyId}/goals`)) ?? [];
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const rows = (await ctx.api.get<Goal[]>(apiPath`/api/spaces/${ctx.spaceId}/goals`)) ?? [];
           if (ctx.json) {
             printOutput(rows, { json: true });
             return;
@@ -72,7 +72,7 @@ export function registerGoalCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
@@ -95,7 +95,7 @@ export function registerGoalCommands(program: Command): void {
     goal
       .command("create")
       .description("Create a north star")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--title <title>", "North Star title")
       .option("--description <text>", "North Star description")
       .option("--level <level>", "North Star level")
@@ -104,7 +104,7 @@ export function registerGoalCommands(program: Command): void {
       .option("--owner-agent-id <id>", "Owner agent ID")
       .action(async (opts: GoalCreateOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const payload = createGoalSchema.parse({
             title: opts.title,
             description: opts.description,
@@ -113,13 +113,13 @@ export function registerGoalCommands(program: Command): void {
             parentId: parseNullableString(opts.parentId),
             ownerAgentId: parseNullableString(opts.ownerAgentId),
           });
-          const created = await ctx.api.post<Goal>(apiPath`/api/companies/${ctx.companyId}/goals`, payload);
+          const created = await ctx.api.post<Goal>(apiPath`/api/spaces/${ctx.spaceId}/goals`, payload);
           printOutput(created, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(

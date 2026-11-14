@@ -75,7 +75,7 @@ async function recordRunReceipt(
     })
     .where(
       and(
-        eq(heartbeatRuns.companyId, owner.companyId),
+        eq(heartbeatRuns.spaceId, owner.spaceId),
         eq(heartbeatRuns.id, owner.authorityRunId),
       ),
     );
@@ -104,7 +104,7 @@ async function artifactOwnerFence(
     .from(heartbeatRuns)
     .where(
       and(
-        eq(heartbeatRuns.companyId, owner.companyId),
+        eq(heartbeatRuns.spaceId, owner.spaceId),
         eq(heartbeatRuns.id, owner.authorityRunId),
       ),
     )
@@ -123,7 +123,7 @@ async function artifactOwnerFence(
     receipt?.schema !== "outpost.native-provider-pack-admission.v1" ||
     receipt.stage !== "session_admitted" ||
     receipt.authority !== "core_verified_selection" ||
-    receipt.companyId !== owner.companyId ||
+    receipt.spaceId !== owner.spaceId ||
     receipt.runId !== run.id ||
     receipt.agentId !== run.agentId ||
     receipt.sessionId !== run.sessionId ||
@@ -162,14 +162,14 @@ export async function retainNativeProviderArtifacts(input: {
     const selected = await input.db.transaction(async (tx) => {
       await artifactOwnerFence(tx, input.owner, input.source.manifest);
       await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtextextended(${`${input.owner.companyId}:${closureDigest}`}, 0))`,
+        sql`select pg_advisory_xact_lock(hashtextextended(${`${input.owner.spaceId}:${closureDigest}`}, 0))`,
       );
       let [row] = await tx
         .select()
         .from(nativeProviderArtifacts)
         .where(
           and(
-            eq(nativeProviderArtifacts.companyId, input.owner.companyId),
+            eq(nativeProviderArtifacts.spaceId, input.owner.spaceId),
             eq(nativeProviderArtifacts.closureDigest, closureDigest),
             eq(nativeProviderArtifacts.status, "ready"),
           ),
@@ -188,11 +188,11 @@ export async function retainNativeProviderArtifacts(input: {
           )
           .where(
             and(
-              eq(nativeProviderArtifacts.companyId, input.owner.companyId),
+              eq(nativeProviderArtifacts.spaceId, input.owner.spaceId),
               eq(nativeProviderArtifacts.status, "pending"),
               eq(
-                nativeProviderArtifactReferences.companyId,
-                input.owner.companyId,
+                nativeProviderArtifactReferences.spaceId,
+                input.owner.spaceId,
               ),
               eq(nativeProviderArtifactReferences.runId, input.owner.runId),
             ),
@@ -202,7 +202,7 @@ export async function retainNativeProviderArtifacts(input: {
         [row] = await tx
           .insert(nativeProviderArtifacts)
           .values({
-            companyId: input.owner.companyId,
+            spaceId: input.owner.spaceId,
             closureDigest,
             descriptor,
             uploadToken,
@@ -218,7 +218,7 @@ export async function retainNativeProviderArtifacts(input: {
       await tx
         .insert(nativeProviderArtifactReferences)
         .values({
-          companyId: input.owner.companyId,
+          spaceId: input.owner.spaceId,
           artifactId: row.id,
           runId: input.owner.runId,
         })
@@ -248,7 +248,7 @@ export async function retainNativeProviderArtifacts(input: {
       const plaintext = await fileDigest(archive, input.signal),
         iv = randomBytes(12);
       const cipher = createCipheriv("aes-256-gcm", key, iv);
-      cipher.setAAD(aad(input.owner.companyId, selected.id, closureDigest));
+      cipher.setAAD(aad(input.owner.spaceId, selected.id, closureDigest));
       await pipeline(
         createReadStream(archive),
         cipher,
@@ -257,15 +257,15 @@ export async function retainNativeProviderArtifacts(input: {
       );
       const reference: BlobReference = {
         schema,
-        companyId: input.owner.companyId,
+        spaceId: input.owner.spaceId,
         artifactId: selected.id,
         closureDigest,
-        objectKey: `${input.owner.companyId}/native-provider-artifacts/${selected.id}/${uploadToken}.pcpa`,
+        objectKey: `${input.owner.spaceId}/native-provider-artifacts/${selected.id}/${uploadToken}.pcpa`,
         ...(await fileDigest(encrypted, input.signal)),
         material: createLocalEncryptedCipher("write").encrypt(
           JSON.stringify({
             schema,
-            companyId: input.owner.companyId,
+            spaceId: input.owner.spaceId,
             artifactId: selected.id,
             closureDigest,
             key: key.toString("base64"),
@@ -282,7 +282,7 @@ export async function retainNativeProviderArtifacts(input: {
           .set({ reference, updatedAt: new Date() })
           .where(
             and(
-              eq(nativeProviderArtifacts.companyId, input.owner.companyId),
+              eq(nativeProviderArtifacts.spaceId, input.owner.spaceId),
               eq(nativeProviderArtifacts.id, selected.id),
               eq(nativeProviderArtifacts.uploadToken, uploadToken),
               eq(nativeProviderArtifacts.status, "pending"),
@@ -292,7 +292,7 @@ export async function retainNativeProviderArtifacts(input: {
         if (!owned) fail("owner_changed");
       });
       await input.storage.putFile({
-        companyId: input.owner.companyId,
+        spaceId: input.owner.spaceId,
         namespace: "native-provider-artifacts",
         objectKey: reference.objectKey,
         originalFilename: null,
@@ -313,14 +313,14 @@ export async function retainNativeProviderArtifacts(input: {
       const published = await input.db.transaction(async (tx) => {
         await artifactOwnerFence(tx, input.owner, input.source.manifest);
         await tx.execute(
-          sql`select pg_advisory_xact_lock(hashtextextended(${`${input.owner.companyId}:${closureDigest}`}, 0))`,
+          sql`select pg_advisory_xact_lock(hashtextextended(${`${input.owner.spaceId}:${closureDigest}`}, 0))`,
         );
         const [winner] = await tx
           .select({ id: nativeProviderArtifacts.id })
           .from(nativeProviderArtifacts)
           .where(
             and(
-              eq(nativeProviderArtifacts.companyId, input.owner.companyId),
+              eq(nativeProviderArtifacts.spaceId, input.owner.spaceId),
               eq(nativeProviderArtifacts.closureDigest, closureDigest),
               eq(nativeProviderArtifacts.status, "ready"),
             ),
@@ -330,7 +330,7 @@ export async function retainNativeProviderArtifacts(input: {
           await tx
             .insert(nativeProviderArtifactReferences)
             .values({
-              companyId: input.owner.companyId,
+              spaceId: input.owner.spaceId,
               artifactId: winner.id,
               runId: input.owner.runId,
             })
@@ -352,7 +352,7 @@ export async function retainNativeProviderArtifacts(input: {
           })
           .where(
             and(
-              eq(nativeProviderArtifacts.companyId, input.owner.companyId),
+              eq(nativeProviderArtifacts.spaceId, input.owner.spaceId),
               eq(nativeProviderArtifacts.id, selected.id),
               eq(nativeProviderArtifacts.uploadToken, uploadToken),
               eq(nativeProviderArtifacts.status, "pending"),
@@ -369,7 +369,7 @@ export async function retainNativeProviderArtifacts(input: {
       });
       if (!published) {
         await input.storage.deleteObject(
-          input.owner.companyId,
+          input.owner.spaceId,
           reference.objectKey,
           { allVersions: true, signal: input.signal },
         );
@@ -377,7 +377,7 @@ export async function retainNativeProviderArtifacts(input: {
       }
       if (published !== selected.id) {
         await input.storage.deleteObject(
-          input.owner.companyId,
+          input.owner.spaceId,
           reference.objectKey,
           { allVersions: true, signal: input.signal },
         );
@@ -387,8 +387,8 @@ export async function retainNativeProviderArtifacts(input: {
             .where(
               and(
                 eq(
-                  nativeProviderArtifactReferences.companyId,
-                  input.owner.companyId,
+                  nativeProviderArtifactReferences.spaceId,
+                  input.owner.spaceId,
                 ),
                 eq(nativeProviderArtifactReferences.artifactId, selected.id),
               ),
@@ -397,7 +397,7 @@ export async function retainNativeProviderArtifacts(input: {
             .delete(nativeProviderArtifacts)
             .where(
               and(
-                eq(nativeProviderArtifacts.companyId, input.owner.companyId),
+                eq(nativeProviderArtifacts.spaceId, input.owner.spaceId),
                 eq(nativeProviderArtifacts.id, selected.id),
                 eq(nativeProviderArtifacts.status, "pending"),
               ),
@@ -436,7 +436,7 @@ export async function retainExistingNativeProviderArtifacts(input: {
       .from(nativeProviderArtifacts)
       .where(
         and(
-          eq(nativeProviderArtifacts.companyId, input.owner.companyId),
+          eq(nativeProviderArtifacts.spaceId, input.owner.spaceId),
           eq(nativeProviderArtifacts.id, input.receipt.artifactId),
           eq(
             nativeProviderArtifacts.closureDigest,
@@ -456,7 +456,7 @@ export async function retainExistingNativeProviderArtifacts(input: {
     await tx
       .insert(nativeProviderArtifactReferences)
       .values({
-        companyId: input.owner.companyId,
+        spaceId: input.owner.spaceId,
         artifactId: row.id,
         runId: input.owner.runId,
       })
@@ -468,7 +468,7 @@ export async function retainExistingNativeProviderArtifacts(input: {
 export async function restoreNativeProviderArtifacts(input: {
   db: Db;
   storage: StorageService;
-  companyId: string;
+  spaceId: string;
   receipt: NativeProviderArtifactReceipt;
   targetRoot: string;
   signal?: AbortSignal;
@@ -485,7 +485,7 @@ export async function restoreNativeProviderArtifacts(input: {
     .from(nativeProviderArtifacts)
     .where(
       and(
-        eq(nativeProviderArtifacts.companyId, input.companyId),
+        eq(nativeProviderArtifacts.spaceId, input.spaceId),
         eq(nativeProviderArtifacts.id, receipt.artifactId),
         eq(nativeProviderArtifacts.closureDigest, receipt.closureDigest),
         eq(nativeProviderArtifacts.status, "ready"),
@@ -494,7 +494,7 @@ export async function restoreNativeProviderArtifacts(input: {
   if (!row?.reference) fail("unavailable");
   const reference = artifactReference(
     row.reference!,
-    input.companyId,
+    input.spaceId,
     row.id,
     receipt.closureDigest,
   );
@@ -514,7 +514,7 @@ export async function restoreNativeProviderArtifacts(input: {
   );
   if (
     wrapped.schema !== schema ||
-    wrapped.companyId !== input.companyId ||
+    wrapped.spaceId !== input.spaceId ||
     wrapped.artifactId !== row.id ||
     wrapped.closureDigest !== receipt.closureDigest
   )
@@ -534,7 +534,7 @@ export async function restoreNativeProviderArtifacts(input: {
       key,
       Buffer.from(wrapped.iv, "base64"),
     );
-    decipher.setAAD(aad(input.companyId, row.id, receipt.closureDigest));
+    decipher.setAAD(aad(input.spaceId, row.id, receipt.closureDigest));
     decipher.setAuthTag(Buffer.from(wrapped.tag, "base64"));
     await pipeline(
       createReadStream(encrypted),
@@ -606,7 +606,7 @@ export async function restoreNativeProviderArtifacts(input: {
 export async function pinNativeProviderArtifactsForBackup(
   tx: Parameters<Parameters<Db["transaction"]>[0]>[0],
   input: {
-    companyId: string;
+    spaceId: string;
     runId: string;
     backupId: string;
     receipt: NativeProviderArtifactReceipt;
@@ -617,7 +617,7 @@ export async function pinNativeProviderArtifactsForBackup(
     .from(nativeProviderArtifacts)
     .where(
       and(
-        eq(nativeProviderArtifacts.companyId, input.companyId),
+        eq(nativeProviderArtifacts.spaceId, input.spaceId),
         eq(nativeProviderArtifacts.id, input.receipt.artifactId),
         eq(nativeProviderArtifacts.closureDigest, input.receipt.closureDigest),
         eq(nativeProviderArtifacts.status, "ready"),
@@ -628,7 +628,7 @@ export async function pinNativeProviderArtifactsForBackup(
   await tx
     .insert(nativeProviderArtifactReferences)
     .values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       artifactId: artifact.id,
       runId: input.runId,
       backupId: input.backupId,
@@ -639,7 +639,7 @@ export async function pinNativeProviderArtifactsForBackup(
 export async function releaseRetiredNativeProviderArtifacts(input: {
   db: Db;
   storage: StorageService;
-  companyId: string;
+  spaceId: string;
   runId: string;
   backupId?: string;
   receipt: Pick<NativeProviderArtifactReceipt, "artifactId" | "closureDigest">;
@@ -651,7 +651,7 @@ export async function releaseRetiredNativeProviderArtifacts(input: {
       .from(nativeRunFinalizations)
       .where(
         and(
-          eq(nativeRunFinalizations.companyId, input.companyId),
+          eq(nativeRunFinalizations.spaceId, input.spaceId),
           eq(nativeRunFinalizations.runId, input.runId),
         ),
       )
@@ -661,7 +661,7 @@ export async function releaseRetiredNativeProviderArtifacts(input: {
       .from(heartbeatRuns)
       .where(
         and(
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
           eq(heartbeatRuns.id, input.runId),
         ),
       )
@@ -671,7 +671,7 @@ export async function releaseRetiredNativeProviderArtifacts(input: {
       .from(nativeProviderArtifacts)
       .where(
         and(
-          eq(nativeProviderArtifacts.companyId, input.companyId),
+          eq(nativeProviderArtifacts.spaceId, input.spaceId),
           eq(nativeProviderArtifacts.id, input.receipt.artifactId),
         ),
       )
@@ -684,7 +684,7 @@ export async function releaseRetiredNativeProviderArtifacts(input: {
       .from(environmentLeases)
       .where(
         and(
-          eq(environmentLeases.companyId, input.companyId),
+          eq(environmentLeases.spaceId, input.spaceId),
           eq(environmentLeases.heartbeatRunId, input.runId),
         ),
       )
@@ -708,7 +708,7 @@ export async function releaseRetiredNativeProviderArtifacts(input: {
     )
       fail("retained_owner_unsettled");
     const ownedReferences = and(
-      eq(nativeProviderArtifactReferences.companyId, input.companyId),
+      eq(nativeProviderArtifactReferences.spaceId, input.spaceId),
       eq(nativeProviderArtifactReferences.artifactId, artifact.id),
       eq(nativeProviderArtifactReferences.runId, input.runId),
       input.backupId
@@ -720,7 +720,7 @@ export async function releaseRetiredNativeProviderArtifacts(input: {
       .from(nativeProviderArtifactReferences)
       .where(
         and(
-          eq(nativeProviderArtifactReferences.companyId, input.companyId),
+          eq(nativeProviderArtifactReferences.spaceId, input.spaceId),
           eq(nativeProviderArtifactReferences.artifactId, artifact.id),
           not(ownedReferences!),
         ),
@@ -743,7 +743,7 @@ export async function releaseRetiredNativeProviderArtifacts(input: {
       reference: artifact.reference
         ? artifactReference(
             artifact.reference,
-            input.companyId,
+            input.spaceId,
             artifact.id,
             artifact.closureDigest,
           )
@@ -754,7 +754,7 @@ export async function releaseRetiredNativeProviderArtifacts(input: {
   if (!deletion) return;
   if (deletion.reference)
     await input.storage.deleteObject(
-      input.companyId,
+      input.spaceId,
       deletion.reference.objectKey,
       { allVersions: true, signal: input.signal },
     );
@@ -764,7 +764,7 @@ export async function releaseRetiredNativeProviderArtifacts(input: {
       .from(nativeProviderArtifacts)
       .where(
         and(
-          eq(nativeProviderArtifacts.companyId, input.companyId),
+          eq(nativeProviderArtifacts.spaceId, input.spaceId),
           eq(nativeProviderArtifacts.id, deletion.id),
           eq(nativeProviderArtifacts.status, "retiring"),
         ),
@@ -776,7 +776,7 @@ export async function releaseRetiredNativeProviderArtifacts(input: {
         .delete(nativeProviderArtifactReferences)
         .where(
           and(
-            eq(nativeProviderArtifactReferences.companyId, input.companyId),
+            eq(nativeProviderArtifactReferences.spaceId, input.spaceId),
             eq(nativeProviderArtifactReferences.artifactId, artifact.id),
             inArray(nativeProviderArtifactReferences.id, deletion.pins),
           ),
@@ -786,7 +786,7 @@ export async function releaseRetiredNativeProviderArtifacts(input: {
       .from(nativeProviderArtifactReferences)
       .where(
         and(
-          eq(nativeProviderArtifactReferences.companyId, input.companyId),
+          eq(nativeProviderArtifactReferences.spaceId, input.spaceId),
           eq(nativeProviderArtifactReferences.artifactId, artifact.id),
         ),
       )
@@ -801,7 +801,7 @@ export async function releaseRetiredNativeProviderArtifacts(input: {
 export async function releaseExpiredNativeProviderArtifactRun(input: {
   db: Db;
   storage: StorageService;
-  companyId: string;
+  spaceId: string;
   runId: string;
   signal?: AbortSignal;
 }) {
@@ -820,8 +820,8 @@ export async function releaseExpiredNativeProviderArtifactRun(input: {
     )
     .where(
       and(
-        eq(nativeProviderArtifactReferences.companyId, input.companyId),
-        eq(nativeProviderArtifacts.companyId, input.companyId),
+        eq(nativeProviderArtifactReferences.spaceId, input.spaceId),
+        eq(nativeProviderArtifacts.spaceId, input.spaceId),
         eq(nativeProviderArtifactReferences.runId, input.runId),
         sql`${nativeProviderArtifactReferences.backupId} is null`,
       ),

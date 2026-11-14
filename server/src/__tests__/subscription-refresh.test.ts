@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "@outpost/db";
-import { refreshCompanySubscriptions, refreshSubscriptionConnection } from "../services/subscription-refresh.js";
+import { refreshSpaceSubscriptions, refreshSubscriptionConnection } from "../services/subscription-refresh.js";
 import type { SubscriptionConnection } from "../services/subscriptions.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 
@@ -20,7 +20,7 @@ function database() {
     select: () => ({ from: () => ({ where: async () => [{ credentialKey: "fixture-key" }] }) }),
   } as unknown as Db;
 }
-const input = (id: string): SubscriptionConnection => ({ companyId: id, connectionId: id, grantId: id, provider: "openai", name: id, ownerUserId: "alice", credential: "fixture" });
+const input = (id: string): SubscriptionConnection => ({ spaceId: id, connectionId: id, grantId: id, provider: "openai", name: id, ownerUserId: "alice", credential: "fixture" });
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -54,10 +54,10 @@ describe("subscription discovery capacity", () => {
     const db = database(), accounts = deferred<[]>();
     const before = idleWorkSnapshot();
     mocks.accounts.mockReturnValue(accounts.promise);
-    const task = refreshCompanySubscriptions(db, "tracked-company", "alice");
+    const task = refreshSpaceSubscriptions(db, "tracked-space", "alice");
     try {
       expect(idleWorkSnapshot().active).toBe(before.active + 1);
-      expect(refreshCompanySubscriptions(db, "tracked-company", "alice")).toBe(task);
+      expect(refreshSpaceSubscriptions(db, "tracked-space", "alice")).toBe(task);
       expect(idleWorkSnapshot().active).toBe(before.active + 1);
     } finally { accounts.resolve([]); await task; }
     expect(idleWorkSnapshot().active).toBe(before.active);
@@ -82,7 +82,7 @@ describe("subscription discovery capacity", () => {
     try {
       await vi.waitFor(() => expect(started).toBe(4));
       let completed = false;
-      discovery = refreshCompanySubscriptions(db, "fifth", "alice").then(() => { completed = true; });
+      discovery = refreshSpaceSubscriptions(db, "fifth", "alice").then(() => { completed = true; });
       await vi.waitFor(() => expect(mocks.register).toHaveBeenCalledWith(expect.objectContaining({ grantId: "fifth" })));
       expect(started).toBe(4);
       expect(completed).toBe(false);
@@ -101,16 +101,16 @@ describe("subscription discovery capacity", () => {
   it("rejects excess discovery with a retryable error, deduplicates accepted work, and releases capacity", async () => {
     const db = database(), gate = deferred<[]>();
     mocks.accounts.mockReturnValue(gate.promise);
-    const accepted = Array.from({ length: 20 }, (_, i) => refreshCompanySubscriptions(db, "company", `user-${i}`));
+    const accepted = Array.from({ length: 20 }, (_, i) => refreshSpaceSubscriptions(db, "space", `user-${i}`));
     try {
-      expect(refreshCompanySubscriptions(db, "company", "user-0")).toBe(accepted[0]);
+      expect(refreshSpaceSubscriptions(db, "space", "user-0")).toBe(accepted[0]);
       expect(mocks.accounts).toHaveBeenCalledTimes(20);
-      expect(() => refreshCompanySubscriptions(db, "company", "overflow")).toThrow(expect.objectContaining({ status: 429 }));
+      expect(() => refreshSpaceSubscriptions(db, "space", "overflow")).toThrow(expect.objectContaining({ status: 429 }));
     } finally {
       gate.resolve([]);
       await Promise.all(accepted);
     }
-    await refreshCompanySubscriptions(db, "company", "overflow");
+    await refreshSpaceSubscriptions(db, "space", "overflow");
     expect(mocks.accounts).toHaveBeenCalledTimes(21);
   });
 });

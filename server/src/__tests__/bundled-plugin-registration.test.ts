@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { rmSync, mkdirSync, writeFileSync, cpSync, readFileSync, existsSync, mkdtempSync } from "node:fs";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { applyPendingMigrations, closeRegisteredClients, companies, createDb, plugins } from "@outpost/db";
+import { applyPendingMigrations, closeRegisteredClients, spaces, createDb, plugins } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import type { PluginRecord } from "@outpost/shared";
 import { createPluginWorkerManager } from "../services/plugin-worker-manager.js";
@@ -45,7 +45,7 @@ describePostgres("bundled image registration in PostgreSQL", () => {
   }, 90_000);
   afterEach(async () => {
     await db.delete(plugins);
-    await db.delete(companies);
+    await db.delete(spaces);
     for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
   });
   afterAll(async () => { await database?.cleanup(); });
@@ -72,7 +72,7 @@ describePostgres("bundled image registration in PostgreSQL", () => {
     }, services);
   }
 
-  it("starts current-image workers after losing the old home and retains each company's config", async () => {
+  it("starts current-image workers after losing the old home and retains each space's config", async () => {
     const old = fixture();
     const first = fixture();
     const second = fixture();
@@ -80,11 +80,11 @@ describePostgres("bundled image registration in PostgreSQL", () => {
     const registry = pluginRegistryService(db);
     let row = (await registry.getByKey(old.manifest.id))!;
     await registry.updateStatus(row.id, { status: "ready" });
-    const [companyA, companyB, unconfigured] = await db.insert(companies).values([
-      { name: "Company A", issuePrefix: "CFA" }, { name: "Company B", issuePrefix: "CFB" }, { name: "Unconfigured", issuePrefix: "CFC" },
+    const [spaceA, spaceB, unconfigured] = await db.insert(spaces).values([
+      { name: "Space A", issuePrefix: "CFA" }, { name: "Space B", issuePrefix: "CFB" }, { name: "Unconfigured", issuePrefix: "CFC" },
     ]).returning();
-    await registry.upsertConfig(row.id, companyA!.id, { companyId: companyA!.id, configJson: { token: "only-A" } });
-    await registry.upsertConfig(row.id, companyB!.id, { companyId: companyB!.id, configJson: { token: "only-B" } });
+    await registry.upsertConfig(row.id, spaceA!.id, { spaceId: spaceA!.id, configJson: { token: "only-A" } });
+    await registry.upsertConfig(row.id, spaceB!.id, { spaceId: spaceB!.id, configJson: { token: "only-B" } });
     row = (await registry.getById(row.id))!;
     rmSync(old.root, { recursive: true });
     const original = { ...row };
@@ -95,25 +95,25 @@ describePostgres("bundled image registration in PostgreSQL", () => {
       expect(result.success).toBe(true);
       expect(current.output).toEqual([expect.stringContaining(image.packageRoot)]);
       expect(current.services.workerManager.startWorker).toHaveBeenCalledWith(row.id, expect.objectContaining({
-        entrypointPath: path.join(image.packageRoot, "dist", "worker.js"), config: {}, proactiveCompanyScopes: [companyA!.id, companyB!.id].sort(),
+        entrypointPath: path.join(image.packageRoot, "dist", "worker.js"), config: {}, proactiveSpaceScopes: [spaceA!.id, spaceB!.id].sort(),
       }));
       expect(current.services.workerManager.call.mock.calls).toEqual(expect.arrayContaining([
-        [row.id, "configChanged", { companyId: companyA!.id, config: { token: "only-A" } }],
-        [row.id, "configChanged", { companyId: companyB!.id, config: { token: "only-B" } }],
+        [row.id, "configChanged", { spaceId: spaceA!.id, config: { token: "only-A" } }],
+        [row.id, "configChanged", { spaceId: spaceB!.id, config: { token: "only-B" } }],
       ]));
       expect(current.services.workerManager.call).toHaveBeenCalledTimes(2);
       expect(await registry.getConfig(row.id, unconfigured!.id)).toBeNull();
       const app = express();
       app.use((req, _res, next) => {
-        req.actor = { type: "board", userId: "fixture-user", source: "session", isInstanceAdmin: false, companyIds: [companyA!.id] };
+        req.actor = { type: "operator", userId: "fixture-user", source: "session", isInstanceAdmin: false, spaceIds: [spaceA!.id] };
         next();
       });
       app.use(pluginUiStaticRoutes(db, { localPluginDir: path.join(image.root, "lost-home"), resolvePackageRoot: image.resolver.resolve }));
       app.use(errorHandler);
-      const served = await request(app).get(`/_plugins/${row.id}/ui/index.js`).query({ companyId: companyA!.id });
+      const served = await request(app).get(`/_plugins/${row.id}/ui/index.js`).query({ spaceId: spaceA!.id });
       expect(served.status).toBe(200);
       expect(served.text).toContain("current-image");
-      expect((await request(app).get(`/_plugins/${row.id}/ui/index.js`).query({ companyId: companyB!.id })).status).toBe(403);
+      expect((await request(app).get(`/_plugins/${row.id}/ui/index.js`).query({ spaceId: spaceB!.id })).status).toBe(403);
 
     }
     expect(await registry.getById(row.id)).toEqual(original);
@@ -258,7 +258,7 @@ describePostgres("bundled image registration in PostgreSQL", () => {
     const image = bundledImageFixture(npmManifest);
     roots.push(image.root);
     const localPluginDir = path.join(image.root, "npm-home");
-    const packageRoot = path.join(localPluginDir, "node_modules", "@paperclipai", "plugin-daytona");
+    const packageRoot = path.join(localPluginDir, "node_modules", "@outpost", "plugin-daytona");
     mkdirSync(path.dirname(packageRoot), { recursive: true });
     cpSync(image.packageRoot, packageRoot, { recursive: true });
     const metadata = JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8"));

@@ -1,7 +1,7 @@
 import type { QueueEntry } from "chat";
 import { describe, expect, it } from "vitest";
 import {
-  createPaperclipChatSdkState,
+  createOutpostChatSdkState,
   type ChatSdkStateCompareAndSetInput,
   type ChatSdkStateDeleteInput,
   type ChatSdkStatePersistence,
@@ -14,7 +14,7 @@ class MemoryCasPersistence implements ChatSdkStatePersistence {
   readonly writes: ChatSdkStateCompareAndSetInput[] = [];
 
   private id(scope: ChatSdkStateScope, key: string): string {
-    return `${scope.companyId}\0${scope.endpointId}\0${key}`;
+    return `${scope.spaceId}\0${scope.endpointId}\0${key}`;
   }
 
   async read(
@@ -55,8 +55,8 @@ class MemoryCasPersistence implements ChatSdkStatePersistence {
 function fixture(now: Date = new Date("2026-09-04T12:00:00.000Z")) {
   const persistence = new MemoryCasPersistence();
   let currentTime = now;
-  const state = createPaperclipChatSdkState({
-    companyId: "company-1",
+  const state = createOutpostChatSdkState({
+    spaceId: "space-1",
     endpointId: "endpoint-1",
     persistence,
     now: () => currentTime,
@@ -70,7 +70,7 @@ function fixture(now: Date = new Date("2026-09-04T12:00:00.000Z")) {
   };
 }
 
-describe("PaperclipChatSdkStateAdapter", () => {
+describe("OutpostChatSdkStateAdapter", () => {
   it("requires Chat SDK lifecycle connection before state operations", async () => {
     const { state } = fixture();
     await expect(state.get("key")).rejects.toThrow("is not connected");
@@ -89,7 +89,7 @@ describe("PaperclipChatSdkStateAdapter", () => {
     expect(persistence.writes).toHaveLength(1);
     const [write] = persistence.writes;
     expect(write).toMatchObject({
-      companyId: "company-1",
+      spaceId: "space-1",
       endpointId: "endpoint-1",
     });
     expect(write?.key).toMatch(/^cache:[a-f0-9]{64}$/);
@@ -174,8 +174,8 @@ describe("PaperclipChatSdkStateAdapter", () => {
 
   it("rejects unversioned state and oversized values", async () => {
     const persistence = new MemoryCasPersistence();
-    const state = createPaperclipChatSdkState({
-      companyId: "company-1",
+    const state = createOutpostChatSdkState({
+      spaceId: "space-1",
       endpointId: "endpoint-1",
       persistence,
       maxValueBytes: 64,
@@ -185,15 +185,15 @@ describe("PaperclipChatSdkStateAdapter", () => {
       "byte limit",
     );
 
-    const valid = createPaperclipChatSdkState({
-      companyId: "company-1",
+    const valid = createOutpostChatSdkState({
+      spaceId: "space-1",
       endpointId: "endpoint-1",
       persistence,
     });
     await valid.connect();
     await valid.set("corrupt", "before");
     const key = persistence.writes.at(-1)!.key;
-    const record = persistence.records.get(`company-1\0endpoint-1\0${key}`)!;
+    const record = persistence.records.get(`space-1\0endpoint-1\0${key}`)!;
     record.value = { value: "missing schema" };
     await expect(valid.get("corrupt")).rejects.toThrow(
       "Invalid Chat SDK state envelope",

@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { costEvents } from "./cost_events.js";
 
-export const companyDecisionModels = pgTable("company_decision_models", {
-  companyId: uuid("company_id").primaryKey().references(() => companies.id, { onDelete: "cascade" }),
-  // Retain company preferences when a connection/grant is deleted. Resolution
+export const spaceDecisionModels = pgTable("space_decision_models", {
+  spaceId: uuid("space_id").primaryKey().references(() => spaces.id, { onDelete: "cascade" }),
+  // Retain space preferences when a connection/grant is deleted. Resolution
   // fails closed for stale IDs; choosing a replacement preserves sponsorship.
   connectionId: uuid("connection_id"),
   grantId: uuid("grant_id"),
@@ -14,12 +14,12 @@ export const companyDecisionModels = pgTable("company_decision_models", {
   provider: text("provider"),
   model: text("model"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, t => ({ configured: check("company_decisions_configured", sql`(${t.connectionId} is null) = (${t.grantId} is null) and (not ${t.enabled} or (${t.connectionId} is not null and ${t.provider} is not null and ${t.model} is not null))`) }));
+}, t => ({ configured: check("space_decisions_configured", sql`(${t.connectionId} is null) = (${t.grantId} is null) and (not ${t.enabled} or (${t.connectionId} is not null and ${t.provider} is not null and ${t.model} is not null))`) }));
 
 /** Attribution references are archival: history survives deleted runs and connections. No input or answer content. */
 export const decisionInvocations = pgTable("decision_invocations", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   feature: text("feature").notNull(),
   actorType: text("actor_type").notNull(),
   actorId: text("actor_id").notNull(),
@@ -44,7 +44,7 @@ export const decisionInvocations = pgTable("decision_invocations", {
   inputTokens: integer("input_tokens"),
   outputTokens: integer("output_tokens"),
 }, t => ({
-  history: index("decision_invocations_company_started_idx").on(t.companyId, t.startedAt, t.id),
+  history: index("decision_invocations_space_started_idx").on(t.spaceId, t.startedAt, t.id),
   pending: index("decision_invocations_pending_idx").on(t.startedAt).where(sql`${t.status} = 'running'`),
   cost: index("decision_invocations_cost_idx").on(t.costEventId),
   statusCheck: check("decision_invocations_status_check", sql`${t.status} in ('running', 'succeeded', 'failed', 'unknown')`),

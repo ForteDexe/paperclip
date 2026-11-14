@@ -71,7 +71,7 @@ test("pull request CI builds the canonical Evalbook viewer", async () => {
 
   assert.match(
     buildJob,
-    /name: Build Runner Evalbook viewer[\s\S]*pnpm --filter @paperclipai\/outpost-runner build:issue-thread/u,
+    /name: Build Runner Evalbook viewer[\s\S]*pnpm --filter @outpost\/outpost-runner build:issue-thread/u,
   );
 });
 
@@ -146,7 +146,7 @@ test("resolves both repositories immutably and bounds total matrix concurrency",
   assert.match(workflow, /matrix_1/u);
   assert.match(
     workflow,
-    /pnpm --filter @paperclipai\/outpost-runner deploy --prod/u,
+    /pnpm --filter @outpost\/outpost-runner deploy --prod/u,
   );
   assert.match(
     workflow,
@@ -331,7 +331,7 @@ test('controlled workers keep the required GitHub-hosted origin even when the le
   const root = await mkdtemp(resolve(tmpdir(), 'runner-controlled-origin-'));
   try {
     for (const [mode, aws, runner] of [['controlled', 'true', 'ubuntu-latest'], ['controlled', 'false', 'ubuntu-latest'],
-      ['legacy', 'true', 'runs-on/fleet=paperclip-public-pr-x64/env=public-ci'], ['legacy', 'false', 'ubuntu-latest']]) {
+      ['legacy', 'true', 'runs-on/fleet=outpost-public-pr-x64/env=public-ci'], ['legacy', 'false', 'ubuntu-latest']]) {
       const output = resolve(root, `${mode}-${aws}`);
       const result = spawnSync('bash', ['-euc', script], { encoding: 'utf8', env: { PATH: process.env.PATH,
         ACCOUNTING_MODE: mode, AWS_PAID_RUNNER_ENABLED: aws, GITHUB_OUTPUT: output } });

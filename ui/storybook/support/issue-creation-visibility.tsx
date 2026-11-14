@@ -6,16 +6,16 @@ import { IssuesList } from "@/components/IssuesList";
 import { defaultIssueFilterState } from "@/lib/issue-filters";
 import { saveTaskCollectionPreferences } from "@/lib/task-collection-preferences";
 import { queryKeys } from "@/lib/queryKeys";
-import { createIssue, storybookAgents, storybookAuthSession, storybookCompanies, storybookProjects } from "../fixtures/paperclipData";
+import { createIssue, storybookAgents, storybookAuthSession, storybookSpaces, storybookProjects } from "../fixtures/outpostData";
 
-const companyId = "company-storybook";
+const spaceId = "space-storybook";
 type Story = StoryObj;
 
 function hydrateStorybookQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.setQueryData(queryKeys.companies.all, { companies: storybookCompanies, unauthorized: false });
+  queryClient.setQueryData(queryKeys.spaces.all, { spaces: storybookSpaces, unauthorized: false });
   queryClient.setQueryData(queryKeys.auth.session, storybookAuthSession);
-  queryClient.setQueryData(queryKeys.agents.list(companyId), storybookAgents);
-  queryClient.setQueryData(queryKeys.projects.list(companyId), storybookProjects);
+  queryClient.setQueryData(queryKeys.agents.list(spaceId), storybookAgents);
+  queryClient.setQueryData(queryKeys.projects.list(spaceId), storybookProjects);
   queryClient.setQueryData(queryKeys.instance.experimentalSettings, { enableIsolatedWorkspaces: false, enableStreamlinedUi: true });
 }
 
@@ -35,18 +35,18 @@ function CreationVisibilityStory({ included = false }: { included?: boolean }) {
   const viewStateKey = `storybook:agent-created-tasks:${included ? "included" : "hidden"}`;
   useState(() => {
     hydrateStorybookQueries(queryClient);
-    saveTaskCollectionPreferences({ companyId, collectionKey: viewStateKey, legacyViewStorageKey: `${viewStateKey}:${companyId}` }, {
+    saveTaskCollectionPreferences({ spaceId, collectionKey: viewStateKey, legacyViewStorageKey: `${viewStateKey}:${spaceId}` }, {
       viewState: { ...defaultIssueFilterState, showAgentCreatedTasks: included, viewMode: "list", groupBy: "none", sortField: "updated", sortDir: "desc", nestingEnabled: true, collapsedParents: [], collapsedGroups: [] },
       columns: ["status", "id", "assignee", "updated"],
     });
-    const listKey = queryKeys.issues.list(companyId);
+    const listKey = queryKeys.issues.list(spaceId);
     const ancestor = creationVisibilityTasks.find((issue) => issue.id === "visibility-ancestor")!;
     queryClient.setQueryData([...listKey, "hierarchy-ancestors", ancestor.id], [ancestor]);
     queryClient.setQueryData([...listKey, "hierarchy-children", ["visibility-human", "visibility-human-child"], [], 100], { issues: [creationVisibilityTasks.find((issue) => issue.id === "visibility-child")!], hasMore: false });
     return true;
   });
   return (
-    <div className="paperclip-story min-h-screen bg-background p-6 text-foreground">
+    <div className="outpost-story min-h-screen bg-background p-6 text-foreground">
       <IssuesList
         issues={creationVisibilityTasks}
         agents={storybookAgents}

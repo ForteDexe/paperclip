@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { companies, type Db } from "@outpost/db";
+import { spaces, type Db } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import type {
   CatalogManifest,
@@ -11,23 +11,23 @@ import type {
   CatalogTeamKind,
   CatalogTeamSkillRequirement,
   CatalogTeamSkillRequirementType,
-  CompanyPortabilityAdapterOverride,
-  CompanyPortabilityAgentSelection,
-  CompanyPortabilityCollisionStrategy,
-  CompanyPortabilityFileEntry,
-  CompanyPortabilityImport,
-  CompanyPortabilityImportResult,
-  CompanyPortabilityInclude,
-  CompanyPortabilityPreview,
-  CompanyPortabilityPreviewResult,
-  CompanyPortabilitySource,
+  SpacePortabilityAdapterOverride,
+  SpacePortabilityAgentSelection,
+  SpacePortabilityCollisionStrategy,
+  SpacePortabilityFileEntry,
+  SpacePortabilityImport,
+  SpacePortabilityImportResult,
+  SpacePortabilityInclude,
+  SpacePortabilityPreview,
+  SpacePortabilityPreviewResult,
+  SpacePortabilitySource,
 } from "@outpost/shared";
 import { normalizeAgentUrlKey } from "@outpost/shared";
 import { parseFrontmatterMarkdown } from "@outpost/shared/frontmatter";
 import { conflict, forbidden, HttpError, notFound, unprocessable } from "../errors.js";
 import { agentService } from "./agents.js";
-import { companyPortabilityService } from "./company-portability.js";
-import { companySkillService } from "./company-skills.js";
+import { spacePortabilityService } from "./space-portability.js";
+import { spaceSkillService } from "./space-skills.js";
 import { logActivity } from "./activity-log.js";
 import { normalizePortablePath } from "./portable-path.js";
 
@@ -56,13 +56,13 @@ export interface CatalogTeamActorContext {
 export interface CatalogTeamImportOptions {
   targetManagerAgentId?: string | null;
   targetManagerSlug?: string | null;
-  include?: Partial<CompanyPortabilityInclude>;
-  agents?: CompanyPortabilityAgentSelection;
-  collisionStrategy?: CompanyPortabilityCollisionStrategy;
+  include?: Partial<SpacePortabilityInclude>;
+  agents?: SpacePortabilityAgentSelection;
+  collisionStrategy?: SpacePortabilityCollisionStrategy;
   nameOverrides?: Record<string, string>;
   selectedFiles?: string[];
-  adapterOverrides?: CompanyPortabilityImport["adapterOverrides"];
-  secretValues?: CompanyPortabilityImport["secretValues"];
+  adapterOverrides?: SpacePortabilityImport["adapterOverrides"];
+  secretValues?: SpacePortabilityImport["secretValues"];
   sourcePolicy?: CatalogTeamSourcePolicy;
   actor?: CatalogTeamActorContext | null;
 }
@@ -87,7 +87,7 @@ export interface CatalogTeamSkillPreparation {
 
 export interface CatalogTeamPreparedSource {
   team: CatalogTeam;
-  source: CompanyPortabilitySource & { type: "inline" };
+  source: SpacePortabilitySource & { type: "inline" };
   skillPreparations: CatalogTeamSkillPreparation[];
   warnings: string[];
   errors: string[];
@@ -100,7 +100,7 @@ interface CatalogTargetManagerReference {
 
 export interface CatalogTeamImportPreviewResult {
   team: CatalogTeam;
-  portabilityPreview: CompanyPortabilityPreviewResult;
+  portabilityPreview: SpacePortabilityPreviewResult;
   skillPreparations: CatalogTeamSkillPreparation[];
   warnings: string[];
   errors: string[];
@@ -109,7 +109,7 @@ export interface CatalogTeamImportPreviewResult {
 export interface CatalogTeamInstallResult {
   resourceLinks: SharedCatalogTeamInstallResult["resourceLinks"];
   team: CatalogTeam;
-  portabilityImport: CompanyPortabilityImportResult;
+  portabilityImport: SpacePortabilityImportResult;
   skillPreparations: CatalogTeamSkillPreparation[];
   warnings: string[];
 }
@@ -210,7 +210,7 @@ function searchText(team: CatalogTeam) {
     team.description,
     team.category,
     team.kind,
-    ...team.recommendedForCompanyTypes,
+    ...team.recommendedForSpaceTypes,
     ...team.tags,
   ].join("\n").toLowerCase();
 }
@@ -249,8 +249,8 @@ export function readCatalogTeamProvenance(
   metadata: Record<string, unknown> | null | undefined,
 ): CatalogTeamProvenance | null {
   if (!isPlainRecord(metadata)) return null;
-  const paperclip = isPlainRecord(metadata.paperclip) ? metadata.paperclip : null;
-  const catalogTeam = paperclip && isPlainRecord(outpost.catalogTeam) ? outpost.catalogTeam : null;
+  const outpost = isPlainRecord(metadata.outpost) ? metadata.outpost : null;
+  const catalogTeam = outpost && isPlainRecord(outpost.catalogTeam) ? outpost.catalogTeam : null;
   if (!catalogTeam) return null;
   const catalogId = readNonEmptyString(catalogTeam.catalogId);
   if (!catalogId) return null;
@@ -418,7 +418,7 @@ function renderYamlFile(value: Record<string, unknown>) {
   return `${renderYamlBlock(value).join("\n")}\n`;
 }
 
-function renderSyntheticCompanyMarkdown(team: CatalogTeam) {
+function renderSyntheticSpaceMarkdown(team: CatalogTeam) {
   const lines = [
     "---",
     `name: ${yamlScalar(team.name)}`,
@@ -468,7 +468,7 @@ async function renderCatalogProvenanceYaml(team: CatalogTeam, targetManager: Cat
         }
       : {}),
     metadata: {
-      paperclip: {
+      outpost: {
         catalogTeam: {
           catalogId: provenance.catalogId,
           catalogKey: provenance.catalogKey,
@@ -484,7 +484,7 @@ async function renderCatalogProvenanceYaml(team: CatalogTeam, targetManager: Cat
   });
 
   const extension: Record<string, unknown> = {
-    schema: "paperclip/v1",
+    schema: "outpost/v1",
     agents: Object.fromEntries(agentSlugs.map((slug) => [
       slug,
       renderEntity(slug, {
@@ -552,7 +552,7 @@ function collectCatalogSkillKeyMap(team: CatalogTeam) {
   return map;
 }
 
-function rewriteAgentCatalogSkillRefs(team: CatalogTeam, files: Record<string, CompanyPortabilityFileEntry>) {
+function rewriteAgentCatalogSkillRefs(team: CatalogTeam, files: Record<string, SpacePortabilityFileEntry>) {
   const keyMap = collectCatalogSkillKeyMap(team);
   if (keyMap.size === 0) return;
   for (const agentPath of Object.keys(files).filter((filePath) => filePath.endsWith("/AGENTS.md") || filePath === "AGENTS.md")) {
@@ -661,9 +661,9 @@ export function collectCatalogTeamSkillPreparations(
   return { preparations, warnings, errors };
 }
 
-async function readCatalogTeamSourceFiles(team: CatalogTeam): Promise<Record<string, CompanyPortabilityFileEntry>> {
-  const files: Record<string, CompanyPortabilityFileEntry> = {
-    "COMPANY.md": renderSyntheticCompanyMarkdown(team),
+async function readCatalogTeamSourceFiles(team: CatalogTeam): Promise<Record<string, SpacePortabilityFileEntry>> {
+  const files: Record<string, SpacePortabilityFileEntry> = {
+    "COMPANY.md": renderSyntheticSpaceMarkdown(team),
   };
   for (const file of team.files) {
     const resolved = resolveCatalogTeamFile(team, file.path);
@@ -694,7 +694,7 @@ function defaultSafeCatalogAdapterType() {
  * Bundled catalog agents declare no adapter in their `AGENTS.md` frontmatter, so
  * `parsePortableAgentFrontmatter` defaults them to `process` — which the
  * `agent_safe` importer rejects (see `IMPORT_FORBIDDEN_ADAPTER_TYPES` in
- * `company-portability`). Inject a safe per-agent adapter default for every
+ * `space-portability`). Inject a safe per-agent adapter default for every
  * catalog agent the caller did not explicitly override so default-trust teams
  * install without manual adapter flags. Explicit caller overrides win and are
  * left untouched (both `adapterType` and `adapterConfig`). This is scoped to the
@@ -702,10 +702,10 @@ function defaultSafeCatalogAdapterType() {
  */
 function withSafeCatalogAdapterDefaults(
   agentSlugs: string[],
-  callerOverrides: CompanyPortabilityImport["adapterOverrides"],
+  callerOverrides: SpacePortabilityImport["adapterOverrides"],
   defaultAdapterType: string,
-): Record<string, CompanyPortabilityAdapterOverride> {
-  const merged: Record<string, CompanyPortabilityAdapterOverride> = { ...(callerOverrides ?? {}) };
+): Record<string, SpacePortabilityAdapterOverride> {
+  const merged: Record<string, SpacePortabilityAdapterOverride> = { ...(callerOverrides ?? {}) };
   for (const slug of agentSlugs) {
     if (merged[slug]) continue;
     merged[slug] = { adapterType: defaultAdapterType };
@@ -714,10 +714,10 @@ function withSafeCatalogAdapterDefaults(
 }
 
 function buildPortabilityInput(
-  companyId: string,
-  source: CompanyPortabilitySource,
+  spaceId: string,
+  source: SpacePortabilitySource,
   options: CatalogTeamImportOptions,
-): CompanyPortabilityPreview {
+): SpacePortabilityPreview {
   const requestedInclude = options.include ?? {};
   return {
     source,
@@ -727,11 +727,11 @@ function buildPortabilityInput(
       issues: true,
       skills: true,
       ...requestedInclude,
-      company: false,
+      space: false,
     },
     target: {
-      mode: "existing_company",
-      companyId,
+      mode: "existing_space",
+      spaceId,
     },
     agents: options.agents,
     collisionStrategy: options.collisionStrategy ?? "rename",
@@ -741,18 +741,18 @@ function buildPortabilityInput(
 }
 
 export function teamsCatalogService(db: Db) {
-  const portability = companyPortabilityService(db);
-  const companySkills = companySkillService(db);
+  const portability = spacePortabilityService(db);
+  const spaceSkills = spaceSkillService(db);
   const agents = agentService(db);
 
   async function resolveTargetManagerReference(
-    companyId: string,
+    spaceId: string,
     options: CatalogTeamImportOptions,
   ): Promise<CatalogTargetManagerReference | null> {
     if (options.targetManagerSlug) {
       const slug = normalizeAgentUrlKey(options.targetManagerSlug);
       if (!slug) throw unprocessable("Target manager slug is invalid.");
-      const managers = await agents.list(companyId);
+      const managers = await agents.list(spaceId);
       const manager = managers.find((candidate) => normalizeAgentUrlKey(candidate.name) === slug);
       if (!manager) throw notFound("Target manager agent not found");
       return { agentId: manager.id, slug };
@@ -760,8 +760,8 @@ export function teamsCatalogService(db: Db) {
     if (!options.targetManagerAgentId) return null;
     const manager = await agents.getById(options.targetManagerAgentId);
     if (!manager) throw notFound("Target manager agent not found");
-    if (manager.companyId !== companyId) {
-      throw forbidden("Target manager agent must belong to the target company.");
+    if (manager.spaceId !== spaceId) {
+      throw forbidden("Target manager agent must belong to the target space.");
     }
     return {
       agentId: manager.id,
@@ -770,7 +770,7 @@ export function teamsCatalogService(db: Db) {
   }
 
   async function prepareCatalogTeamSource(
-    companyId: string,
+    spaceId: string,
     catalogRef: string,
     options: CatalogTeamImportOptions = {},
   ): Promise<CatalogTeamPreparedSource> {
@@ -792,7 +792,7 @@ export function teamsCatalogService(db: Db) {
     warnings.push(...skillPrep.warnings);
     errors.push(...skillPrep.errors);
 
-    const targetManager = await resolveTargetManagerReference(companyId, options);
+    const targetManager = await resolveTargetManagerReference(spaceId, options);
     const files = await readCatalogTeamSourceFiles(team);
     const existingExtension =
       typeof files[".outpost.yaml"] === "string"
@@ -816,21 +816,21 @@ export function teamsCatalogService(db: Db) {
 
   async function logCatalogEvent(
     action: string,
-    companyId: string,
+    spaceId: string,
     team: CatalogTeam,
     actor: CatalogTeamActorContext | null | undefined,
     details: Record<string, unknown>,
   ) {
     if (!actor) return;
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId ?? null,
       runId: actor.runId ?? null,
       action,
-      entityType: "company",
-      entityId: companyId,
+      entityType: "space",
+      entityId: spaceId,
       details: {
         catalogId: team.id,
         catalogKey: team.key,
@@ -842,19 +842,19 @@ export function teamsCatalogService(db: Db) {
   }
 
   async function previewCatalogTeamImport(
-    companyId: string,
+    spaceId: string,
     catalogRef: string,
     options: CatalogTeamImportOptions = {},
   ): Promise<CatalogTeamImportPreviewResult> {
-    const prepared = await prepareCatalogTeamSource(companyId, catalogRef, options);
-    const previewInput = buildPortabilityInput(companyId, prepared.source, options);
+    const prepared = await prepareCatalogTeamSource(spaceId, catalogRef, options);
+    const previewInput = buildPortabilityInput(spaceId, prepared.source, options);
     const portabilityPreview = await portability.previewImport(previewInput, {
       mode: "agent_safe",
-      sourceCompanyId: companyId,
+      sourceSpaceId: spaceId,
     });
     portabilityPreview.warnings.push(...prepared.warnings);
     portabilityPreview.errors.push(...prepared.errors);
-    await logCatalogEvent("company.team_catalog_previewed", companyId, prepared.team, options.actor, {
+    await logCatalogEvent("space.team_catalog_previewed", spaceId, prepared.team, options.actor, {
       warningCount: portabilityPreview.warnings.length,
       errorCount: portabilityPreview.errors.length,
     });
@@ -867,7 +867,7 @@ export function teamsCatalogService(db: Db) {
     };
   }
 
-  async function prepareSkillInstalls(companyId: string, prepared: CatalogTeamPreparedSource) {
+  async function prepareSkillInstalls(spaceId: string, prepared: CatalogTeamPreparedSource) {
     const warnings: string[] = [];
     for (const skill of prepared.skillPreparations) {
       if (skill.action === "blocked") {
@@ -880,7 +880,7 @@ export function teamsCatalogService(db: Db) {
           continue;
         }
         try {
-          const result = await companySkills.installFromCatalog(companyId, {
+          const result = await spaceSkills.installFromCatalog(spaceId, {
             catalogSkillId: skill.catalogSkillId,
           });
           warnings.push(...result.warnings);
@@ -892,7 +892,7 @@ export function teamsCatalogService(db: Db) {
       if (skill.action === "external_import_required") {
         const source = skill.sourceLocator ?? skill.ref;
         try {
-          const result = await companySkills.importFromSource(companyId, source);
+          const result = await spaceSkills.importFromSource(spaceId, source);
           warnings.push(...result.warnings);
         } catch (error) {
           warnings.push(`External skill source ${source} could not be imported after team import: ${formatError(error)}`);
@@ -903,20 +903,20 @@ export function teamsCatalogService(db: Db) {
   }
 
   async function installCatalogTeam(
-    companyId: string,
+    spaceId: string,
     catalogRef: string,
     options: CatalogTeamImportOptions = {},
   ): Promise<CatalogTeamInstallResult> {
-    const [company] = await db.select({ issuePrefix: companies.issuePrefix }).from(companies).where(eq(companies.id, companyId)).limit(1);
-    if (!company) throw notFound("Outpost not found");
-    const prepared = await prepareCatalogTeamSource(companyId, catalogRef, options);
+    const [space] = await db.select({ issuePrefix: spaces.issuePrefix }).from(spaces).where(eq(spaces.id, spaceId)).limit(1);
+    if (!space) throw notFound("Outpost not found");
+    const prepared = await prepareCatalogTeamSource(spaceId, catalogRef, options);
     if (prepared.errors.length > 0) {
       throw unprocessable(`Catalog team source preparation failed: ${prepared.errors.join("; ")}`);
     }
 
     const defaultAdapterType = defaultSafeCatalogAdapterType();
-    const importInput: CompanyPortabilityImport = {
-      ...buildPortabilityInput(companyId, prepared.source, options),
+    const importInput: SpacePortabilityImport = {
+      ...buildPortabilityInput(spaceId, prepared.source, options),
       adapterOverrides: withSafeCatalogAdapterDefaults(
         prepared.team.agentSlugs,
         options.adapterOverrides,
@@ -926,7 +926,7 @@ export function teamsCatalogService(db: Db) {
     };
     const importPreview = await portability.previewImport(importInput, {
       mode: "agent_safe",
-      sourceCompanyId: companyId,
+      sourceSpaceId: spaceId,
     });
     if (importPreview.errors.length > 0) {
       throw unprocessable(`Catalog team import preview has errors: ${importPreview.errors.join("; ")}`);
@@ -948,12 +948,12 @@ export function teamsCatalogService(db: Db) {
       options.actor?.userId ?? (options.actor?.actorType === "user" ? options.actor.actorId : null),
       {
         mode: "agent_safe",
-        sourceCompanyId: companyId,
+        sourceSpaceId: spaceId,
       },
     );
-    warnings.push(...await prepareSkillInstalls(companyId, prepared));
+    warnings.push(...await prepareSkillInstalls(spaceId, prepared));
     result.warnings.push(...warnings);
-    await logCatalogEvent("company.team_catalog_installed", companyId, prepared.team, options.actor, {
+    await logCatalogEvent("space.team_catalog_installed", spaceId, prepared.team, options.actor, {
       warningCount: result.warnings.length,
       agentCount: result.agents.length,
       projectCount: result.projects.length,
@@ -964,11 +964,11 @@ export function teamsCatalogService(db: Db) {
       portabilityImport: result,
       resourceLinks: [
         ...result.agents.flatMap(agent => agent.id ? [{ kind: "agent" as const, id: agent.id, name: agent.name,
-          href: `/${encodeURIComponent(company.issuePrefix)}/agents/${encodeURIComponent(agent.id)}` }] : []),
+          href: `/${encodeURIComponent(space.issuePrefix)}/agents/${encodeURIComponent(agent.id)}` }] : []),
         ...result.projects.flatMap(project => project.id ? [{ kind: "project" as const, id: project.id, name: project.name,
-          href: `/${encodeURIComponent(company.issuePrefix)}/projects/${encodeURIComponent(project.id)}` }] : []),
+          href: `/${encodeURIComponent(space.issuePrefix)}/projects/${encodeURIComponent(project.id)}` }] : []),
         ...(result.routines ?? []).flatMap(routine => routine.id ? [{ kind: "routine" as const, id: routine.id, name: routine.title,
-          href: `/${encodeURIComponent(company.issuePrefix)}/routines/${encodeURIComponent(routine.id)}` }] : []),
+          href: `/${encodeURIComponent(space.issuePrefix)}/routines/${encodeURIComponent(routine.id)}` }] : []),
       ],
       skillPreparations: prepared.skillPreparations,
       warnings: result.warnings,
@@ -976,13 +976,13 @@ export function teamsCatalogService(db: Db) {
   }
 
   /**
-   * Compare each company agent's installed catalog-team provenance against the
+   * Compare each space agent's installed catalog-team provenance against the
    * live catalog. Drives the Team Catalog `INSTALLED · N` group and the
    * out-of-date badge from a real server signal (design
    * [PAP-10238 §3.2 + §5]).
    */
-  async function listInstalledCatalogTeams(companyId: string): Promise<InstalledCatalogTeam[]> {
-    const companyAgents = await agents.list(companyId);
+  async function listInstalledCatalogTeams(spaceId: string): Promise<InstalledCatalogTeam[]> {
+    const spaceAgents = await agents.list(spaceId);
     const currentTeams = await getCatalogTeams();
     const currentById = new Map(currentTeams.map((team) => [team.id, team]));
 
@@ -994,7 +994,7 @@ export function teamsCatalogService(db: Db) {
     };
     const byCatalogId = new Map<string, Aggregate>();
 
-    for (const agent of companyAgents) {
+    for (const agent of spaceAgents) {
       const provenance = readCatalogTeamProvenance(
         agent.metadata as Record<string, unknown> | null,
       );

@@ -6,11 +6,11 @@ import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import {
   createDb,
-  companies,
+  spaces,
   projects,
   agents,
-  companyMemberships,
-  companyFastResponses,
+  spaceMemberships,
+  spaceFastResponses,
   costEvents,
   costAdjustments,
   activityLog,
@@ -48,14 +48,14 @@ let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | un
   home: string;
 beforeAll(async () => {
   home = await realpath(
-    await mkdtemp(path.join(os.tmpdir(), "paperclip-fast-response-")),
+    await mkdtemp(path.join(os.tmpdir(), "outpost-fast-response-")),
   );
   vi.stubEnv("OUTPOST_HOME", home);
   vi.stubEnv("OUTPOST_INSTANCE_ID", "fast-response-fixture");
   const external = process.env.OUTPOST_TEST_DATABASE_URL;
   if (external && !new URL(external).pathname.endsWith("_test")) throw new Error("Fast-response tests require a database ending in _test");
   database = external ? undefined : await startEmbeddedPostgresTestDatabase(
-    "paperclip-fast-response-db-",
+    "outpost-fast-response-db-",
   );
   db = createDb(external ?? database!.connectionString);
 }, 90000);
@@ -75,23 +75,23 @@ const outcome: FastResponseOutcome = {
 let sequence = 0;
 async function fixture() {
   await instanceSettingsService(db).updateExperimental({ enableFastResponses: true });
-  const companyId = randomUUID(),
+  const spaceId = randomUUID(),
     agentId = randomUUID(),
     issueId = randomUUID();
-  await db.insert(companies).values({
-    id: companyId,
+  await db.insert(spaces).values({
+    id: spaceId,
     name: "Fast response tests",
     issuePrefix: `FR${++sequence}`,
   });
   await db.insert(agents).values({
     id: agentId,
-    companyId,
+    spaceId,
     name: "Alex",
     adapterType: "codex_local",
   });
-  await db.insert(companyMemberships).values(
+  await db.insert(spaceMemberships).values(
     ["alice", "bob"].map((principalId) => ({
-      companyId,
+      spaceId,
       principalId,
       principalType: "user",
       status: "active",
@@ -99,7 +99,7 @@ async function fixture() {
     })),
   );
   const binding = await aiConnectionService(db).save(
-    companyId,
+    spaceId,
     "alice",
     {
       provider: "openrouter",
@@ -121,10 +121,10 @@ async function fixture() {
     model: "openai/gpt-oss-120b",
     allowSponsored: true,
   };
-  await service.configure(companyId, "alice", config);
+  await service.configure(spaceId, "alice", config);
   await db.insert(issues).values({
     id: issueId,
-    companyId,
+    spaceId,
     title: "Settings panel",
     status: "in_progress",
     assigneeAgentId: agentId,
@@ -132,14 +132,14 @@ async function fixture() {
   const [comment] = await db
     .insert(issueComments)
     .values({
-      companyId,
+      spaceId,
       issueId,
       authorUserId: "alice",
       body: "Fix the border styling",
     })
     .returning();
   const source = {
-    companyId,
+    spaceId,
     agentId,
     issueId,
     responsibleUserId: "alice",
@@ -155,11 +155,11 @@ async function fixture() {
       await db
         .select()
         .from(fastResponseRequests)
-        .where(eq(fastResponseRequests.companyId, companyId))
+        .where(eq(fastResponseRequests.spaceId, spaceId))
     )[0];
   };
   return {
-    companyId,
+    spaceId,
     agentId,
     issueId,
     comment,
@@ -174,14 +174,14 @@ async function fixture() {
 describe("fast response accepted turns", () => {
   it("returns acknowledgement text and a committed charge before slow budget stop delivery", async () => {
     const f = await fixture();
-    await db.insert(budgetPolicies).values({ companyId: f.companyId, scopeType: "company", scopeId: f.companyId,
+    await db.insert(budgetPolicies).values({ spaceId: f.spaceId, scopeType: "space", scopeId: f.spaceId,
       windowKind: "calendar_month_utc", amount: 1, notifyEnabled: false });
     f.provider.mockResolvedValue({ ...structuredClone(outcome), receipt: { ...outcome.receipt, costCents: "2.0000000" } });
     let release!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
     const cancelWorkForScope = vi.fn(() => gate);
     const service = fastResponseService(db, { provider: f.provider, budgetHooks: { cancelWorkForScope } });
-    const pending = service.test(f.companyId, "alice");
+    const pending = service.test(f.spaceId, "alice");
     let delivery: Promise<void> | undefined;
     let finished = false;
     void pending.then(() => { finished = true; }, () => { finished = true; });
@@ -190,22 +190,22 @@ describe("fast response accepted turns", () => {
       expect(await pending).toMatchObject({ status: "succeeded", text: outcome.text });
       expect(f.provider).toHaveBeenCalledOnce();
       expect(cancelWorkForScope).not.toHaveBeenCalled();
-      const events = await db.select().from(costEvents).where(eq(costEvents.companyId, f.companyId));
+      const events = await db.select().from(costEvents).where(eq(costEvents.spaceId, f.spaceId));
       expect(events).toHaveLength(1);
       expect(events[0]).toMatchObject({ usageKind: "fast_response", costCents: 2 });
-      await flushBudgetEvaluationWork(db, { companyId: f.companyId });
-      const [policy] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.companyId, f.companyId));
+      await flushBudgetEvaluationWork(db, { spaceId: f.spaceId });
+      const [policy] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.spaceId, f.spaceId));
       expect(policy.enforcementVersion).toBeGreaterThan(policy.enforcementDeliveredVersion);
-      delivery = deliverBudgetEnforcement(db, { cancelWorkForScope }, f.companyId);
+      delivery = deliverBudgetEnforcement(db, { cancelWorkForScope }, f.spaceId);
       await vi.waitFor(() => expect(cancelWorkForScope).toHaveBeenCalledOnce());
       expect((await db.select().from(budgetPolicies).where(eq(budgetPolicies.id, policy.id)))[0].enforcementDeliveredVersion).toBe(policy.enforcementDeliveredVersion);
       release(); await delivery;
       expect((await db.select().from(budgetPolicies).where(eq(budgetPolicies.id, policy.id)))[0].enforcementDeliveredVersion).toBe(policy.enforcementVersion);
     } finally { release(); await pending.catch(() => undefined); await delivery?.catch(() => undefined); }
   });
-  it.each(["company", "agent", "policy"] as const)("settles while an unrelated %s accounting row is locked", async locked => {
+  it.each(["space", "agent", "policy"] as const)("settles while an unrelated %s accounting row is locked", async locked => {
     const f = await fixture(), request = await f.enqueue();
-    const [policy] = await db.insert(budgetPolicies).values({ companyId: f.companyId, scopeType: "company", scopeId: f.companyId,
+    const [policy] = await db.insert(budgetPolicies).values({ spaceId: f.spaceId, scopeType: "space", scopeId: f.spaceId,
       windowKind: "calendar_month_utc", amount: 100, notifyEnabled: false }).returning();
     let providerEntered!: () => void, finishProvider!: () => void, unlock!: () => void, lockedRow!: () => void;
     const entered = new Promise<void>(resolve => { providerEntered = resolve; });
@@ -216,7 +216,7 @@ describe("fast response accepted turns", () => {
     const pending = f.service.process(request);
     await entered;
     const blocker = db.transaction(async tx => {
-      if (locked === "company") await tx.select().from(companies).where(eq(companies.id, f.companyId)).for("no key update");
+      if (locked === "space") await tx.select().from(spaces).where(eq(spaces.id, f.spaceId)).for("no key update");
       if (locked === "agent") await tx.select().from(agents).where(eq(agents.id, f.agentId)).for("no key update");
       if (locked === "policy") await tx.select().from(budgetPolicies).where(eq(budgetPolicies.id, policy.id)).for("no key update");
       lockedRow(); await lockGate;
@@ -227,23 +227,23 @@ describe("fast response accepted turns", () => {
       await acquired; finishProvider();
       await vi.waitFor(() => expect(finished).toBe(true), { timeout: 3000 });
       expect(await pending).toMatchObject({ status: "succeeded", text: outcome.text });
-      expect((await db.select().from(budgetReservations).where(eq(budgetReservations.companyId, f.companyId)))[0].state).toBe("settled");
+      expect((await db.select().from(budgetReservations).where(eq(budgetReservations.spaceId, f.spaceId)))[0].state).toBe("settled");
     } finally { unlock(); finishProvider(); await blocker; await pending.catch(() => undefined); }
   });
-  it.each(["company", "project"] as const)("denies paid admission when %s manual pause wins its control fence", async scope => {
+  it.each(["space", "project"] as const)("denies paid admission when %s manual pause wins its control fence", async scope => {
     const f = await fixture();
-    const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Control fence" }).returning();
+    const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Control fence" }).returning();
     await db.update(issues).set({ projectId: project.id }).where(eq(issues.id, f.issueId));
     const request = await f.enqueue();
     let unlock!: () => void, locked!: (pid: number) => void;
     const gate = new Promise<void>(resolve => { unlock = resolve; });
     const acquired = new Promise<number>(resolve => { locked = resolve; });
     const holding = db.transaction(async tx => {
-      if (scope === "company") await tx.select().from(companies).where(eq(companies.id, f.companyId)).for("no key update");
+      if (scope === "space") await tx.select().from(spaces).where(eq(spaces.id, f.spaceId)).for("no key update");
       else await tx.select().from(projects).where(eq(projects.id, project.id)).for("no key update");
       const [row] = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
       locked(row.pid); await gate;
-      if (scope === "company") await tx.update(companies).set({ status: "paused", pauseReason: "manual", pausedAt: new Date() }).where(eq(companies.id, f.companyId));
+      if (scope === "space") await tx.update(spaces).set({ status: "paused", pauseReason: "manual", pausedAt: new Date() }).where(eq(spaces.id, f.spaceId));
       else await tx.update(projects).set({ pauseReason: "manual", pausedAt: new Date() }).where(eq(projects.id, project.id));
     });
     const pid = await acquired;
@@ -256,7 +256,7 @@ describe("fast response accepted turns", () => {
       unlock(); await holding;
       expect(await pending).toMatchObject({ status: "unavailable" });
       expect(f.provider).not.toHaveBeenCalled();
-      expect(await db.select().from(costEvents).where(eq(costEvents.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(costEvents).where(eq(costEvents.spaceId, f.spaceId))).toHaveLength(0);
       expect((await db.select().from(fastResponseRequests).where(eq(fastResponseRequests.id, request.id)))[0].status).toBe("skipped");
     } finally { unlock(); await holding; await pending.catch(() => undefined); }
   });
@@ -279,20 +279,20 @@ describe("fast response accepted turns", () => {
     try {
       if (recoveryFirst) {
         await Promise.all([f.service.sweepPending(), f.service.sweepPending()]);
-        const [event] = await db.select().from(costEvents).where(eq(costEvents.companyId, f.companyId));
+        const [event] = await db.select().from(costEvents).where(eq(costEvents.spaceId, f.spaceId));
         expect(event.costStatus).toBe("unpriced"); originalHash = event.receiptHash;
-        if (corrected) await billingReconciliationService(db).adjust(f.companyId, event.id, { idempotencyKey: "invoice-before-receipt",
+        if (corrected) await billingReconciliationService(db).adjust(f.spaceId, event.id, { idempotencyKey: "invoice-before-receipt",
           expectedCents: "0", correctedCents: "0.005", reason: "Verified invoice before provider completed", pricing: { source: "operator" } }, "alice");
       }
       finishProvider();
       expect(await pending).toMatchObject({ status: "succeeded", text: outcome.text });
       await f.service.sweepPending();
-      const events = await db.select().from(costEvents).where(eq(costEvents.companyId, f.companyId));
+      const events = await db.select().from(costEvents).where(eq(costEvents.spaceId, f.spaceId));
       expect(events).toHaveLength(1);
       expect(events[0]).toMatchObject({ costStatus: priced ? "reported" : "unpriced", costCents: corrected ? 0.005 : priced ? 0.001 : 0 });
       expect(events[0]).toMatchObject({ inputTokens: 80, cachedInputTokens: 0, outputTokens: 16,
         providerRequestId: outcome.receipt.providerRequestId });
-      const corrections = await db.select().from(costAdjustments).where(eq(costAdjustments.companyId, f.companyId));
+      const corrections = await db.select().from(costAdjustments).where(eq(costAdjustments.spaceId, f.spaceId));
       expect(corrections).toHaveLength(recoveryFirst ? corrected ? 2 : 1 : 0);
       if (recoveryFirst) {
         expect(events[0]).toMatchObject({ receiptHash: originalHash, reportedCostCents: "0.0000000",
@@ -303,14 +303,14 @@ describe("fast response accepted turns", () => {
       }
       if (corrected) {
         expect(events[0].pricingProvenance).toEqual({ source: "operator" });
-        const observed = await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.companyId), eq(activityLog.action, "accounting.late_receipt_observed")));
+        const observed = await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.spaceId), eq(activityLog.action, "accounting.late_receipt_observed")));
         expect(observed).toHaveLength(1);
         expect(observed[0].details).toMatchObject({ effectiveCostCents: "0.0050000", costCents: "0.0010000", inputTokens: 80, outputTokens: 16 });
       }
       expect((await db.select().from(fastResponseRequests).where(eq(fastResponseRequests.id, request.id)))[0]).toMatchObject({
         status: "succeeded", costEventId: events[0].id, inputTokens: 80, outputTokens: 16 });
-      expect((await db.select().from(budgetReservations).where(eq(budgetReservations.companyId, f.companyId)))[0].state).toBe(priced ? "settled" : "held");
-      expect(await db.select().from(issueComments).where(and(eq(issueComments.companyId, f.companyId), eq(issueComments.origin, "fast_response"))))
+      expect((await db.select().from(budgetReservations).where(eq(budgetReservations.spaceId, f.spaceId)))[0].state).toBe(priced ? "settled" : "held");
+      expect(await db.select().from(issueComments).where(and(eq(issueComments.spaceId, f.spaceId), eq(issueComments.origin, "fast_response"))))
         .toHaveLength(recoveryFirst ? 0 : 1);
       expect(f.provider).toHaveBeenCalledOnce();
     } finally { finishProvider(); await pending.catch(() => undefined); }
@@ -319,8 +319,8 @@ describe("fast response accepted turns", () => {
     const f = await fixture();
     await instanceSettingsService(db).updateExperimental({ enableFastResponses: false });
     expect(await f.enqueue()).toBeUndefined();
-    expect(await f.service.availability(f.companyId, "alice")).toMatchObject({ available: false });
-    expect(await f.service.test(f.companyId, "alice")).toMatchObject({ status: "unavailable", reason: "disabled" });
+    expect(await f.service.availability(f.spaceId, "alice")).toMatchObject({ available: false });
+    expect(await f.service.test(f.spaceId, "alice")).toMatchObject({ status: "unavailable", reason: "disabled" });
     expect(f.provider).not.toHaveBeenCalled();
   });
 
@@ -354,7 +354,7 @@ describe("fast response accepted turns", () => {
     if (location === "source") {
       await db.update(issueComments).set({ body: untrusted, sourceTrust }).where(eq(issueComments.id, f.comment.id));
     } else {
-      await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId, authorAgentId: f.agentId,
+      await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId, authorAgentId: f.agentId,
         body: untrusted, sourceTrust, createdAt: new Date(f.source.acceptedAt.getTime() - 1) });
     }
     await f.service.process(await f.enqueue());
@@ -372,7 +372,7 @@ describe("fast response accepted turns", () => {
     const [run] = await db
       .insert(heartbeatRuns)
       .values({
-        companyId: f.companyId,
+        spaceId: f.spaceId,
         agentId: f.agentId,
         status: "running",
         contextSnapshot: { issueId: f.issueId, wakeCommentId: f.comment.id },
@@ -399,9 +399,9 @@ describe("fast response accepted turns", () => {
   it("starts disabled, and disabled turns have no request or cost", async () => {
     const f = await fixture();
     await db
-      .delete(companyFastResponses)
-      .where(eq(companyFastResponses.companyId, f.companyId));
-    expect(await f.service.settings(f.companyId)).toMatchObject({
+      .delete(spaceFastResponses)
+      .where(eq(spaceFastResponses.spaceId, f.spaceId));
+    expect(await f.service.settings(f.spaceId)).toMatchObject({
       enabled: false,
       allowSponsored: true,
     });
@@ -419,7 +419,7 @@ describe("fast response accepted turns", () => {
       .from(issueComments)
       .where(
         and(
-          eq(issueComments.companyId, f.companyId),
+          eq(issueComments.spaceId, f.spaceId),
           eq(issueComments.origin, "fast_response"),
         ),
       );
@@ -433,7 +433,7 @@ describe("fast response accepted turns", () => {
       await db
         .select()
         .from(heartbeatRuns)
-        .where(eq(heartbeatRuns.companyId, f.companyId)),
+        .where(eq(heartbeatRuns.spaceId, f.spaceId)),
     ).toHaveLength(0);
     await db
       .update(issues)
@@ -446,7 +446,7 @@ describe("fast response accepted turns", () => {
     const [run] = await db
       .insert(heartbeatRuns)
       .values({
-        companyId: f.companyId,
+        spaceId: f.spaceId,
         agentId: f.agentId,
         status: "succeeded",
         invocationSource: "on_demand",
@@ -457,7 +457,7 @@ describe("fast response accepted turns", () => {
     const [event] = await db
       .select()
       .from(costEvents)
-      .where(eq(costEvents.companyId, f.companyId));
+      .where(eq(costEvents.spaceId, f.spaceId));
     expect(event).toMatchObject({
       usageKind: "fast_response",
       heartbeatRunId: null,
@@ -486,7 +486,7 @@ describe("fast response accepted turns", () => {
     "revoke",
     "reset",
     "stream",
-    "board_stream",
+    "operator_stream",
   ])(
     "suppresses output after %s but retains its actual cost",
     async (change) => {
@@ -505,13 +505,13 @@ describe("fast response accepted turns", () => {
             .update(issues)
             .set({ conversationSessionGeneration: 1 })
             .where(eq(issues.id, f.issueId));
-        if (change === "board_stream")
-          await supersedeFastResponse(db, f.companyId, f.comment.id);
+        if (change === "operator_stream")
+          await supersedeFastResponse(db, f.spaceId, f.comment.id);
         if (change === "stream") {
           const [run] = await db
             .insert(heartbeatRuns)
             .values({
-              companyId: f.companyId,
+              spaceId: f.spaceId,
               agentId: f.agentId,
               status: "running",
               invocationSource: "on_demand",
@@ -522,7 +522,7 @@ describe("fast response accepted turns", () => {
             })
             .returning();
           await db.insert(heartbeatRunEvents).values({
-            companyId: f.companyId,
+            spaceId: f.spaceId,
             agentId: f.agentId,
             runId: run.id,
             seq: 1,
@@ -539,7 +539,7 @@ describe("fast response accepted turns", () => {
         }
         if (change === "reply")
           await db.insert(issueComments).values({
-            companyId: f.companyId,
+            spaceId: f.spaceId,
             issueId: f.issueId,
             authorAgentId: f.agentId,
             body: "I fixed the border.",
@@ -582,7 +582,7 @@ describe("fast response accepted turns", () => {
         await db
           .select()
           .from(costEvents)
-          .where(eq(costEvents.companyId, f.companyId)),
+          .where(eq(costEvents.spaceId, f.spaceId)),
       ).toHaveLength(1);
     },
   );
@@ -590,7 +590,7 @@ describe("fast response accepted turns", () => {
     const f = await fixture(),
       row = await f.enqueue();
     await db.insert(connectionGrantMembers).values({
-      companyId: f.companyId,
+      spaceId: f.spaceId,
       grantId: f.binding.grantId,
       subjectType: "user",
       subjectId: "bob",
@@ -630,7 +630,7 @@ describe("fast response accepted turns", () => {
           .where(eq(budgetReservations.fastResponseRequestId, row.id))
       )[0].state,
     ).toBe("held");
-    await expect(withAccountingTransaction(db, f.companyId, tx => deleteAgentDependencies(tx, f.companyId, f.agentId)))
+    await expect(withAccountingTransaction(db, f.spaceId, tx => deleteAgentDependencies(tx, f.spaceId, f.agentId)))
       .rejects.toMatchObject({ status: 409, details: { code: "agent_fast_response_accounting_pending" } });
   });
   it("sponsors accepted unlinked senders using only destination-authorized context", async () => {
@@ -651,7 +651,7 @@ describe("fast response accepted turns", () => {
     const [row] = await db
       .select()
       .from(fastResponseRequests)
-      .where(eq(fastResponseRequests.companyId, f.companyId));
+      .where(eq(fastResponseRequests.spaceId, f.spaceId));
     const authorizeExternal = vi.fn().mockResolvedValue({
       agentName: "Alex",
       message: "Review this border",
@@ -673,11 +673,11 @@ describe("fast response accepted turns", () => {
         await db
           .select()
           .from(costEvents)
-          .where(eq(costEvents.companyId, f.companyId))
+          .where(eq(costEvents.spaceId, f.spaceId))
       )[0],
     ).toMatchObject({ responsibleUserId: null, usageKind: "fast_response" });
   });
-  it("never treats a denied linked user as company sponsored", async () => {
+  it("never treats a denied linked user as space sponsored", async () => {
     const f = await fixture();
     await db.transaction((tx) =>
       enqueueFastResponse(tx as unknown as typeof db, {
@@ -689,7 +689,7 @@ describe("fast response accepted turns", () => {
     const [row] = await db
       .select()
       .from(fastResponseRequests)
-      .where(eq(fastResponseRequests.companyId, f.companyId));
+      .where(eq(fastResponseRequests.spaceId, f.spaceId));
     await f.service.process(row);
     expect(f.provider).not.toHaveBeenCalled();
   });
@@ -711,14 +711,14 @@ describe("fast response accepted turns", () => {
       )[0],
     ).toMatchObject({ status: "skipped", errorCode: "expired" });
   });
-  it("honors the company reservation budget before dispatch", async () => {
+  it("honors the space reservation budget before dispatch", async () => {
     const f = await fixture();
     await db
       .insert(budgetPolicies)
       .values({
-        companyId: f.companyId,
-        scopeType: "company",
-        scopeId: f.companyId,
+        spaceId: f.spaceId,
+        scopeType: "space",
+        scopeId: f.spaceId,
         windowKind: "calendar_month_utc",
         amount: 1,
         reservationCents: "2",
@@ -733,7 +733,7 @@ describe("fast response accepted turns", () => {
       await db
         .select()
         .from(costEvents)
-        .where(eq(costEvents.companyId, f.companyId)),
+        .where(eq(costEvents.spaceId, f.spaceId)),
     ).toHaveLength(0);
   });
   it("releases the reservation after a known provider rejection", async () => {
@@ -765,20 +765,20 @@ describe("fast response accepted turns", () => {
         await db
           .select()
           .from(costEvents)
-          .where(eq(costEvents.companyId, f.companyId))
+          .where(eq(costEvents.spaceId, f.spaceId))
       )[0].costCents,
     ).toBe(0);
   });
   it("tests the fixed sample without posting a conversation message", async () => {
     const f = await fixture();
-    const result = await f.service.test(f.companyId, "alice");
+    const result = await f.service.test(f.spaceId, "alice");
     expect(result.status).toBe("succeeded");
     expect(f.provider.mock.calls[0][0].prompt).toContain("settings panel");
     expect(
       await db
         .select()
         .from(issueComments)
-        .where(eq(issueComments.companyId, f.companyId)),
+        .where(eq(issueComments.spaceId, f.spaceId)),
     ).toHaveLength(1);
   });
 });

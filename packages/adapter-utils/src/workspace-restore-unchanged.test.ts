@@ -12,7 +12,7 @@ afterEach(async () => {
 });
 
 async function fixture(diskBacked: boolean) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-unchanged-restore-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-unchanged-restore-"));
   roots.push(root);
   vi.stubEnv("OUTPOST_HOME", path.join(root, "home"));
   const target = path.join(root, "target"), source = path.join(root, "source");

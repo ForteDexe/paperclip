@@ -417,7 +417,7 @@ export function readBuildStamp(): string | null {
  *
  * The lookup runs in the directory of this module, not the directory the
  * server process started in. `import.meta.url` points at `src` in dev mode and
- * `dist` in a built server; both sit inside the Paperclip checkout. A server
+ * `dist` in a built server; both sit inside the Outpost checkout. A server
  * launched from an unrelated directory, or from inside another repository,
  * would otherwise report a wrong commit or fall back.
  */
@@ -443,8 +443,8 @@ export function readGitCommit(): string | null {
  *   4. "unknown".
  * The build stamp wins over the environment variable, so a stale
  * `OTEL_SERVICE_VERSION` cannot mask the true built commit. `OTEL_SERVICE_VERSION`
- * is a Paperclip-specific variable, not an OpenTelemetry SDK variable, so
- * Paperclip controls this precedence.
+ * is a Outpost-specific variable, not an OpenTelemetry SDK variable, so
+ * Outpost controls this precedence.
  */
 export function resolveServiceVersion(
   buildStamp: string | null,
@@ -505,7 +505,7 @@ async function bootstrapOtel(endpoint: string): Promise<void> {
       metricReaders: [],
       logRecordProcessors: [],
       resource: resourceFromAttributes({
-        [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || "paperclip",
+        [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || "outpost",
         [ATTR_SERVICE_VERSION]: serviceVersion,
       }),
       // For the HTTP protocols OTEL_EXPORTER_OTLP_ENDPOINT is a *base* URL

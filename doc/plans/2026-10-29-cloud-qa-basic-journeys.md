@@ -12,7 +12,7 @@ the browser driver; the application and native agents remain on Cloud/Daytona.
 | Plan, revise, approve, complete | Persisted canonical Plan, a distinct revision-bound replacement confirmation, browser revision and approval, no premature completion, final native completion. |
 | Deliver and revise an artifact | Browser downloads of both versions, independent content validation, different hashes, original download still available. |
 | Approve and decline protected actions | Authenticated controlled service, zero accepted invocations before approval, exactly one after approval, zero after decline, saved UI decisions and truthful responses. |
-| Create and edit a company skill | Native skill-creation receipt, persisted owned skill, activity card, browser Skill Studio edit, reload and task readback. |
+| Create and edit a space skill | Native skill-creation receipt, persisted owned skill, activity card, browser Skill Studio edit, reload and task readback. |
 | Stop and redirect | Observed active native work, browser Stop, authoritative retirement of the original work, one saved new-direction message, correct new response, no old work continuing. |
 
 ## Ownership and delivery

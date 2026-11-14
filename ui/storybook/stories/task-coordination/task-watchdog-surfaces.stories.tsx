@@ -5,7 +5,7 @@ import {
   storybookExecutionWorkspaces,
   storybookIssueDocuments,
   storybookIssues,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 
 const issueDocumentSummaries = storybookIssueDocuments.map(({ body: _body, ...summary }) => summary);
 
@@ -20,7 +20,7 @@ const baseIssue: Issue = {
 function watchdog(overrides: Partial<IssueWatchdogSummary> = {}): IssueWatchdogSummary {
   return {
     id: "watchdog-1",
-    companyId: baseIssue.companyId,
+    spaceId: baseIssue.spaceId,
     issueId: baseIssue.id,
     watchdogAgentId: "agent-qa",
     instructions: "Keep this tree moving. Verify stopped leaves against tests and review state before accepting them.",
@@ -112,7 +112,7 @@ const meta = {
           "Surfaces the IssueProperties Watchdog row in empty / configured / triggered-and-linked variants for UX review of the task-watchdog configuration UI (PAP-11294).",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "task-coordination/tree-control"
       ],

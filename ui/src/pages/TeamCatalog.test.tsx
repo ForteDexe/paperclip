@@ -57,8 +57,8 @@ vi.mock("../context/ToastContext", () => ({
   useToastActions: () => ({ pushToast: mockPushToast }),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 
 // Drive the route deterministically: the team is preselected so the detail pane
@@ -101,11 +101,11 @@ if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
 
 describe("TeamCatalog routes", () => {
   it("round-trips file paths containing literal tildes", () => {
-    const route = teamRoute("paperclipai/bundled/test/team", "agents/a~b/AGENTS.md");
+    const route = teamRoute("outpost/bundled/test/team", "agents/a~b/AGENTS.md");
 
-    expect(route).toBe("/teams-catalog/paperclipai%2Fbundled%2Ftest%2Fteam/files/agents%7Ea~b%7EAGENTS.md");
+    expect(route).toBe("/teams-catalog/outpost%2Fbundled%2Ftest%2Fteam/files/agents%7Ea~b%7EAGENTS.md");
     expect(parseTeamRoute(route.replace("/teams-catalog/", ""))).toEqual({
-      catalogRef: "paperclipai/bundled/test/team",
+      catalogRef: "outpost/bundled/test/team",
       filePath: "agents/a~b/AGENTS.md",
     });
   });
@@ -144,17 +144,17 @@ async function flushReact() {
 function makeTeam(overrides: Partial<CatalogTeam> = {}): CatalogTeam {
   return {
     id: "team-no-deps",
-    key: "paperclipai/bundled/company-defaults/team-no-deps",
+    key: "outpost/bundled/space-defaults/team-no-deps",
     kind: "bundled",
-    category: "company-defaults",
+    category: "space-defaults",
     slug: "team-no-deps",
     name: "Core Exec Team",
-    description: "A starter executive team.",
-    path: "catalog/bundled/company-defaults/team-no-deps",
+    description: "A starter leadership team.",
+    path: "catalog/bundled/space-defaults/team-no-deps",
     entrypoint: "TEAM.md",
     schema: "agentcompanies/v1",
     defaultInstall: true,
-    recommendedForCompanyTypes: [],
+    recommendedForSpaceTypes: [],
     tags: ["exec"],
     counts: {
       agents: 2,
@@ -166,7 +166,7 @@ function makeTeam(overrides: Partial<CatalogTeam> = {}): CatalogTeam {
       externalSkillSources: 0,
     },
     rootAgentSlugs: [],
-    agentSlugs: ["ceo", "cto"],
+    agentSlugs: ["lead", "engineering_lead"],
     projectSlugs: ["launch"],
     requiredSkills: [],
     envInputs: [],
@@ -183,16 +183,16 @@ function makePreview(): CatalogTeamImportPreviewResult {
   return {
     team: makeTeam(),
     portabilityPreview: {
-      include: { company: false, agents: true, projects: true, issues: false, skills: true },
-      targetCompanyId: "company-1",
-      targetCompanyName: "Outpost",
+      include: { space: false, agents: true, projects: true, issues: false, skills: true },
+      targetSpaceId: "space-1",
+      targetSpaceName: "Outpost",
       collisionStrategy: "rename",
-      selectedAgentSlugs: ["ceo", "cto"],
+      selectedAgentSlugs: ["lead", "engineering_lead"],
       plan: {
-        companyAction: "none",
+        spaceAction: "none",
         agentPlans: [
-          { slug: "ceo", action: "create", plannedName: "CEO", existingAgentId: null, reason: null },
-          { slug: "cto", action: "create", plannedName: "CTO", existingAgentId: null, reason: null },
+          { slug: "lead", action: "create", plannedName: "Default agent", existingAgentId: null, reason: null },
+          { slug: "engineering_lead", action: "create", plannedName: "Engineering Lead", existingAgentId: null, reason: null },
         ],
         projectPlans: [
           { slug: "launch", action: "create", plannedName: "Launch", existingProjectId: null, reason: null },
@@ -203,8 +203,8 @@ function makePreview(): CatalogTeamImportPreviewResult {
         schemaVersion: 1,
         generatedAt: "2026-06-03T00:00:00.000Z",
         source: null,
-        includes: { company: false, agents: true, projects: true, issues: false, skills: true },
-        company: null,
+        includes: { space: false, agents: true, projects: true, issues: false, skills: true },
+        space: null,
         sidebar: null,
         agents: [],
         skills: [],
@@ -251,7 +251,7 @@ describe("TeamCatalog install preview path", () => {
     mockTeamCatalogApi.install.mockResolvedValue({
       team: makeTeam(),
       portabilityImport: {
-        company: { id: "company-1", name: "Outpost", action: "unchanged" },
+        space: { id: "space-1", name: "Outpost", action: "unchanged" },
         agents: [],
         projects: [],
         envInputs: [],
@@ -287,7 +287,7 @@ describe("TeamCatalog install preview path", () => {
   it("renders the detail pane for the selected team", async () => {
     await renderPage();
     expect(document.body.textContent).toContain("Core Exec Team");
-    expect(document.body.textContent).toContain("A starter executive team.");
+    expect(document.body.textContent).toContain("A starter leadership team.");
     // summary grid counts
     expect(document.body.textContent).toContain("Agents");
     expect(document.body.textContent).toContain("Projects");
@@ -308,13 +308,13 @@ describe("TeamCatalog install preview path", () => {
     // auto-loads the categorized preview.
     expect(mockTeamCatalogApi.preview).toHaveBeenCalledTimes(1);
     expect(mockTeamCatalogApi.preview).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "team-no-deps",
       expect.objectContaining({ collisionStrategy: "rename" }),
     );
     expect(document.body.textContent).toContain("Summary");
     // categorized plan rows
-    expect(document.body.textContent?.toLowerCase()).toContain("ceo");
+    expect(document.body.textContent?.toLowerCase()).toContain("lead");
     expect(document.body.textContent?.toLowerCase()).toContain("launch");
 
     // Submit install from the footer.
@@ -337,7 +337,7 @@ describe("TeamCatalog install preview path", () => {
       {
         key: "OPENAI_API_KEY",
         description: "OpenAI API key",
-        agentSlug: "ceo",
+        agentSlug: "lead",
         projectSlug: null,
         kind: "secret",
         requirement: "required",
@@ -375,11 +375,11 @@ describe("TeamCatalog install preview path", () => {
     await flushReact();
 
     expect(mockTeamCatalogApi.install).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "team-no-deps",
       expect.objectContaining({
         secretValues: {
-          "agent:ceo:OPENAI_API_KEY": "sk-imported",
+          "agent:lead:OPENAI_API_KEY": "sk-imported",
         },
       }),
     );
@@ -388,15 +388,15 @@ describe("TeamCatalog install preview path", () => {
   it("requires a target manager before continuing when the team has root agents", async () => {
     currentRoute = "team-with-root";
     mockTeamCatalogApi.catalogList.mockResolvedValue([
-      makeTeam({ id: "team-with-root", slug: "team-with-root", rootAgentSlugs: ["ceo"], agentSlugs: ["ceo", "cto"] }),
+      makeTeam({ id: "team-with-root", slug: "team-with-root", rootAgentSlugs: ["lead"], agentSlugs: ["lead", "engineering_lead"] }),
     ]);
     mockAgentsApi.list.mockResolvedValue([
       {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Founder",
         urlKey: "founder",
-        role: "ceo",
+        role: "lead",
         title: null,
         icon: null,
         status: "active",
@@ -437,7 +437,7 @@ describe("TeamCatalog install preview path", () => {
     mockTeamCatalogApi.installed.mockResolvedValue([
       {
         catalogId: "team-no-deps",
-        catalogKey: "paperclipai/bundled/company-defaults/team-no-deps",
+        catalogKey: "outpost/bundled/space-defaults/team-no-deps",
         present: true,
         currentContentHash: "sha256:deadbeefdeadbeefdeadbeef",
         installedOriginHashes: ["sha256:stale"],
@@ -465,7 +465,7 @@ describe("TeamCatalog install preview path", () => {
     mockTeamCatalogApi.installed.mockResolvedValue([
       {
         catalogId: "team-no-deps",
-        catalogKey: "paperclipai/bundled/company-defaults/team-no-deps",
+        catalogKey: "outpost/bundled/space-defaults/team-no-deps",
         present: true,
         currentContentHash: "sha256:deadbeefdeadbeefdeadbeef",
         installedOriginHashes: ["sha256:deadbeefdeadbeefdeadbeef"],

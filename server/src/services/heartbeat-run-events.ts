@@ -14,7 +14,7 @@ import { nativeSha256 } from "./native-runtime/canonical.js";
 export const RETRY_EXHAUSTION_MESSAGE_PREFIX = "Bounded retry exhausted";
 
 export interface AppendHeartbeatRunEventInput {
-  companyId: string;
+  spaceId: string;
   runId: string;
   agentId: string;
   eventType: string;
@@ -107,14 +107,14 @@ export async function appendHeartbeatRunEvent(
       set next_event_seq = ${heartbeatRuns.nextEventSeq} + 1,
           updated_at = ${sql.param(new Date(), heartbeatRuns.updatedAt)}
       where ${heartbeatRuns.id} = ${input.runId}
-        and ${heartbeatRuns.companyId} = ${input.companyId}
+        and ${heartbeatRuns.spaceId} = ${input.spaceId}
         and ${heartbeatRuns.agentId} = ${input.agentId}
-      returning company_id, id as run_id, agent_id, next_event_seq - 1 as seq
+      returning space_id, id as run_id, agent_id, next_event_seq - 1 as seq
     `);
     const appended = db.$with("appended_run_event", getTableColumns(heartbeatRunEvents)).as(sql`
       insert into ${heartbeatRunEvents}
-        (company_id, run_id, agent_id, seq, event_type, stream, level, color, message, payload)
-      select company_id, run_id, agent_id, seq,
+        (space_id, run_id, agent_id, seq, event_type, stream, level, color, message, payload)
+      select space_id, run_id, agent_id, seq,
         ${input.eventType}, ${input.stream ?? null}, ${input.level ?? null},
         ${input.color ?? null}, ${input.message ?? null},
         ${sql.param(input.payload ?? null, heartbeatRunEvents.payload)}
@@ -127,7 +127,7 @@ export async function appendHeartbeatRunEvent(
   }
   return db.transaction(async (tx) => {
     const run = await tx
-      .select({ companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+      .select({ spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
         // Only progress needs the task binding. Other native/recovery events
         // must not read a potentially large context snapshot to append a log.
         ...(projectsProgress || projectsResponse || projectsReassessment ? { runtimeMode: heartbeatRuns.runtimeMode } : {}),
@@ -141,7 +141,7 @@ export async function appendHeartbeatRunEvent(
       .for("no key update")
       .limit(1)
       .then((rows) => rows[0] ?? null);
-    if (!run || run.companyId !== input.companyId || run.agentId !== input.agentId) {
+    if (!run || run.spaceId !== input.spaceId || run.agentId !== input.agentId) {
       throw new Error("heartbeat_run_event_binding_mismatch");
     }
 
@@ -155,7 +155,7 @@ export async function appendHeartbeatRunEvent(
         .select()
         .from(heartbeatRunEvents)
         .where(and(
-          eq(heartbeatRunEvents.companyId, input.companyId),
+          eq(heartbeatRunEvents.spaceId, input.spaceId),
           eq(heartbeatRunEvents.runId, input.runId),
           eq(heartbeatRunEvents.agentId, input.agentId),
           eq(heartbeatRunEvents.eventType, "lifecycle"),
@@ -209,22 +209,22 @@ export async function appendHeartbeatRunEvent(
     }
 
     if (projectsReassessment && run.runtimeMode === "native") {
-      await notifyNativeStatusReassessment(tx, { companyId: run.companyId, runId: input.runId });
+      await notifyNativeStatusReassessment(tx, { spaceId: run.spaceId, runId: input.runId });
     }
     if (projectsProgress && run.runtimeMode === "native" && run.issueId) {
-      await notifyChatNativeProgress(tx, { companyId: run.companyId, issueId: run.issueId });
+      await notifyChatNativeProgress(tx, { spaceId: run.spaceId, issueId: run.issueId });
     }
     if (projectsResponse && run.runtimeMode === "native") {
-      await notifyNativeResponsePresentation(tx, { companyId: run.companyId, runId: input.runId });
+      await notifyNativeResponsePresentation(tx, { spaceId: run.spaceId, runId: input.runId });
     }
-    if (projectsRetention) await notifyAttentionRetentionWork(tx, { companyId: input.companyId, sourceKind: "failed_run" });
+    if (projectsRetention) await notifyAttentionRetentionWork(tx, { spaceId: input.spaceId, sourceKind: "failed_run" });
     const seq = await allocateHeartbeatRunEventSeq(
       tx as unknown as Db,
       input.runId,
       input.runUpdate,
     );
     const [row] = await tx.insert(heartbeatRunEvents).values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       runId: input.runId,
       agentId: input.agentId,
       seq,

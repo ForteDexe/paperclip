@@ -58,8 +58,8 @@ export const RUNNER_WORKFLOW_CATALOG: readonly RunnerWorkflowEvalCase[] = Object
     },
   }),
   workflow({
-    id: "governed-interaction",
-    title: "Park and resume governed interactions",
+    id: "controlled-interaction",
+    title: "Park and resume controlled interactions",
     tags: ["interaction", "wait", "continuation"],
     providers: [...ALL_PROVIDERS],
     steps: [

@@ -10,7 +10,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { isImageLikeOutput, isVideoLikeOutput } from "@/lib/issue-output";
 import { TaskChatBubble } from "@/components/task-chat/TaskChatBubble";
 import { workProductHref } from "@/lib/issue-artifacts";
-import { createIssue, storybookAgents } from "../../fixtures/paperclipData";
+import { createIssue, storybookAgents } from "../../fixtures/outpostData";
 import manila from "../../fixtures/artifact-media/manila-ledger.mp4?url";
 import night from "../../fixtures/artifact-media/night-pills.mp4?url";
 import tickets from "../../fixtures/artifact-media/ticket-board.mp4?url";
@@ -19,24 +19,24 @@ import trail from "../../fixtures/artifact-media/paper-trail.mp4?url";
 import manilaImage from "../../fixtures/artifact-media/manila-ledger.png?url";
 import nightImage from "../../fixtures/artifact-media/night-pills.png?url";
 
-const issue = createIssue({ id: "artifact-gallery-story", identifier: "DEMO-101", title: "Explore Paperclip Ships styles", status: "done" });
+const issue = createIssue({ id: "artifact-gallery-story", identifier: "DEMO-101", title: "Explore Outpost Ships styles", status: "done" });
 const date = new Date("2026-09-22T18:03:00Z");
 const media = [["Paper Trail", trail], ["Big Type", type], ["Ticket Board", tickets], ["Night Pills", night], ["Manila Ledger", manila]];
 function product(title: string, index: number, overrides: Partial<IssueWorkProduct> = {}): IssueWorkProduct {
   return {
-    id: `gallery-product-${index}`, companyId: issue.companyId, projectId: null, issueId: issue.id,
-    executionWorkspaceId: null, runtimeServiceId: null, type: "artifact", provider: "paperclip",
+    id: `gallery-product-${index}`, spaceId: issue.spaceId, projectId: null, issueId: issue.id,
+    executionWorkspaceId: null, runtimeServiceId: null, type: "artifact", provider: "outpost",
     externalId: null, title, url: null, status: "approved", reviewState: "none", isPrimary: false,
     healthStatus: "unknown", summary: null, metadata: null, createdByRunId: "style-exploration",
     createdAt: new Date(date.getTime() - index * 1000), updatedAt: date, ...overrides,
   } as IssueWorkProduct;
 }
-const videos = [...media, ["Motion concept — Sep 21", manila], ["Motion concept — Sep 19", night], ["Motion concept — Sep 18", tickets]].map(([name, src], index) => product(`Paperclip Ships — ${name}`, index, {
+const videos = [...media, ["Motion concept — Sep 21", manila], ["Motion concept — Sep 19", night], ["Motion concept — Sep 18", tickets]].map(([name, src], index) => product(`Outpost Ships — ${name}`, index, {
   createdByRunId: index < 5 ? "style-exploration" : "first-concepts",
   metadata: { contentType: "video/mp4", contentPath: src, openPath: src, originalFilename: `${name.toLowerCase().replaceAll(" ", "-")}.mp4`, byteSize: 128_000 },
 }));
 const files = [
-  product("Style exploration notes.txt", 20, { metadata: { contentType: "text/plain", byteSize: 2400, downloadPath: "data:text/plain,Five%20Paperclip%20Ships%20style%20directions", contentPath: "data:text/plain,Five%20Paperclip%20Ships%20style%20directions" } }),
+  product("Style exploration notes.txt", 20, { metadata: { contentType: "text/plain", byteSize: 2400, downloadPath: "data:text/plain,Five%20Outpost%20Ships%20style%20directions", contentPath: "data:text/plain,Five%20Outpost%20Ships%20style%20directions" } }),
   product("Preview the daily ships page", 21, { type: "preview_url", url: "https://outpost.ing", metadata: null }),
   product("Source package is still being prepared", 22, { status: "pending" }),
 ];
@@ -50,7 +50,7 @@ function workProductsForScenario(scenario: Scenario = "videos") {
 }
 function GalleryStory({ scenario = "videos", width = 480 }: { scenario?: Scenario; width?: number }) {
   const workProducts = workProductsForScenario(scenario);
-  const attachments = scenario === "mixed" ? [{ id: "loose-image", companyId: issue.companyId, issueId: issue.id, createdByAgentId: storybookAgents[0].id, contentPath: nightImage, contentType: "image/png", originalFilename: "Unpromoted agent attachment.png", objectKey: "cover.png", byteSize: 42000, createdAt: date } as IssueAttachment] : [];
+  const attachments = scenario === "mixed" ? [{ id: "loose-image", spaceId: issue.spaceId, issueId: issue.id, createdByAgentId: storybookAgents[0].id, contentPath: nightImage, contentType: "image/png", originalFilename: "Unpromoted agent attachment.png", objectKey: "cover.png", byteSize: 42000, createdAt: date } as IssueAttachment] : [];
   const [client] = useState(() => {
     const cache = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
     cache.setQueryData(queryKeys.issues.workProducts(issue.id), workProducts);
@@ -60,7 +60,7 @@ function GalleryStory({ scenario = "videos", width = 480 }: { scenario?: Scenari
       { runId: "style-exploration", agentId: storybookAgents[0].id, startedAt: date },
       { runId: "first-concepts", agentId: storybookAgents[0].id, startedAt: new Date("2026-09-22T17:43:00Z") },
     ]);
-    cache.setQueryData(queryKeys.agents.list(issue.companyId), [{ ...storybookAgents[0], name: "CodexRunner" }]);
+    cache.setQueryData(queryKeys.agents.list(issue.spaceId), [{ ...storybookAgents[0], name: "CodexRunner" }]);
     return cache;
   });
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
@@ -76,7 +76,7 @@ function GalleryStory({ scenario = "videos", width = 480 }: { scenario?: Scenari
           <div className="mx-auto flex max-w-6xl flex-wrap items-start gap-8">
             <div className="flex min-w-0 flex-1 flex-col gap-3" style={{ minWidth: 240 }}>
               <p className="font-mono text-xs text-muted-foreground">Media artifacts · Design review</p>
-              <h1 className="text-xl font-semibold">Paperclip Ships artifacts</h1>
+              <h1 className="text-xl font-semibold">Outpost Ships artifacts</h1>
               <p className="max-w-md text-sm text-muted-foreground">Eight video outputs across two runs. Compare previews at a glance, then click anywhere on a tile to watch it.</p>
               <p className="max-w-md text-xs text-muted-foreground">Illustrative offline clips inspired by the task’s five style directions. These stories use the production artifact components.</p>
               {scenario === "rows" ? <div className="flex flex-col gap-2"><TaskChatBubble item={{ id: "clip-comment", kind: "message", author: "agent", text: "Video ready to review." }} attachments={[{ id: "chat-clip", issueCommentId: "clip-comment", contentPath: trail, contentType: "video/mp4", originalFilename: "paper-trail.mp4", byteSize: 128000 } as IssueAttachment]} />{workProducts.map((wp) => <RichWorkProductCard key={wp.id} workProduct={wp} href={workProductHref(wp)} variant="compact" />)}</div> : null}
@@ -95,7 +95,7 @@ function GalleryStory({ scenario = "videos", width = 480 }: { scenario?: Scenari
 const meta = {
   id: "tasks-artifact-gallery",
   title: "Tasks and conversations/Documents, attachments, and work products/Tasks/Artifact Gallery", component: GalleryStory, parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "documents-artifacts/library",
         "documents-artifacts/work-products"

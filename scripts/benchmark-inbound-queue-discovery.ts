@@ -120,11 +120,11 @@ try {
         const unrelated = await f.delivery({ state: "filtered" });
         const other = await seedInboundDiscovery(db, 0);
         for (const input of [
-          { scope: "same-company-unrelated-delivery", companyId: f.companyId, endpointId: f.endpointId, deliveryId: unrelated.id },
-          { scope: "other-company", companyId: other.companyId, endpointId: other.endpointId, deliveryId: other.pending.id },
-          { scope: "null-delivery", companyId: f.companyId, endpointId: f.endpointId, deliveryId: null },
+          { scope: "same-space-unrelated-delivery", spaceId: f.spaceId, endpointId: f.endpointId, deliveryId: unrelated.id },
+          { scope: "other-space", spaceId: other.spaceId, endpointId: other.endpointId, deliveryId: other.pending.id },
+          { scope: "null-delivery", spaceId: f.spaceId, endpointId: f.endpointId, deliveryId: null },
         ]) {
-          const action = await f.action(input.deliveryId, { companyId: input.companyId, endpointId: input.endpointId, result: { retryAt: "invalid timestamp" } });
+          const action = await f.action(input.deliveryId, { spaceId: input.spaceId, endpointId: input.endpointId, result: { retryAt: "invalid timestamp" } });
           const before = await captureInboundQuery(db, f, "ready", oldQueue.createChatConversationDeliveryQueue, oldService.chatChannelService, f.pending.id);
           const after = await captureInboundQuery(db, f, "ready", undefined, undefined, f.pending.id);
           const outcome = async (query: typeof before) => {

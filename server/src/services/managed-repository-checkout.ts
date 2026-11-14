@@ -88,7 +88,7 @@ export async function materializeManagedProjectWorkspace(
     beforeCopy?: (cloneCwd: string) => Promise<void>;
     beforePublish?: (cloneCwd: string) => Promise<void>;
     stagingParent?: string;
-    objectCacheCompanyDirectory?: string;
+    objectCacheSpaceDirectory?: string;
   },
 ): Promise<{ cwd: string; warning: string | null }> {
   await retainCurrentWorkspaceSource(cwd);
@@ -132,9 +132,9 @@ export async function materializeManagedProjectWorkspace(
     ? path.join(input.stagingParent, `${path.basename(cwd)}.clone-`)
     : `${cwd}.clone-`);
   const cloneSource = input.localSource ?? input.repoUrl;
-  let objectCache = input.objectCacheCompanyDirectory && !input.localSource && !input.gitObjectSource
+  let objectCache = input.objectCacheSpaceDirectory && !input.localSource && !input.gitObjectSource
     ? await measureRunPhase("workspace.checkout.cache_lookup", async () => {
-      const cache = await resolveRepositoryObjectCache(input.objectCacheCompanyDirectory!, input.repoUrl!, auth);
+      const cache = await resolveRepositoryObjectCache(input.objectCacheSpaceDirectory!, input.repoUrl!, auth);
       if (!cache) recordRepositoryObjectCacheDetail({ outcome: "disabled" });
       return cache;
     }) : null;
@@ -183,7 +183,7 @@ export async function materializeManagedProjectWorkspace(
       if (!snapshot) throw new Error("Configured repository folder is not a Git checkout");
       let baseline;
       try {
-        baseline = await captureDirectorySnapshot(cloneTmpDir, { exclude: [".git", ".paperclip-runtime", PROJECT_REPOSITORIES_DIR], ignoredPaths: snapshot.ignoredPaths, diskBacked: true });
+        baseline = await captureDirectorySnapshot(cloneTmpDir, { exclude: [".git", ".outpost-runtime", PROJECT_REPOSITORIES_DIR], ignoredPaths: snapshot.ignoredPaths, diskBacked: true });
         await mergeDirectoryWithBaseline({ baseline, sourceDir: input.localSource, targetDir: cloneTmpDir });
       } finally {
         if (baseline) await disposeDirectorySnapshot(baseline);

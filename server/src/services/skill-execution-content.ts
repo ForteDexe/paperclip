@@ -11,21 +11,21 @@ import { skillFileBytes } from "./skill-snapshot.js";
 import { ensureSkillCacheDirectory, skillVersionCachePaths, touchSkillVersionCache, withSkillVersionCacheLock } from "./skill-version-cache.js";
 import { runVersionSnapshotFlight } from "./skill-version-retention.js";
 
-export type SkillContentReference = { companyId: string; skillId: string; versionId: string };
+export type SkillContentReference = { spaceId: string; skillId: string; versionId: string };
 
 export function skillExecutionContent(db: Db, options: { actor?: AuthorizationActor; packageDb?: Db } = {}) {
   const packages = skillPackageStore(options.packageDb ?? db);
   const runtime = skillPackageRuntime(options.packageDb ?? db);
   async function withVersion<T>(reference: SkillContentReference, consume: (directory: string) => Promise<T>): Promise<T> {
-    await skillAccessService(db, options.actor).assertSkill(reference.companyId, reference.skillId);
+    await skillAccessService(db, options.actor).assertSkill(reference.spaceId, reference.skillId);
     return withReadableVersion(reference, consume);
   }
   async function withReadableVersion<T>(reference: SkillContentReference, consume: (directory: string) => Promise<T>): Promise<T> {
-    const { companyId, skillId, versionId } = reference;
-    return withSkillVersionCacheLock(db, companyId, async () => {
-      const version = await packages.version(companyId, skillId, versionId);
+    const { spaceId, skillId, versionId } = reference;
+    return withSkillVersionCacheLock(db, spaceId, async () => {
+      const version = await packages.version(spaceId, skillId, versionId);
       if (!version) throw notFound("Skill version not found");
-      const { directory } = skillVersionCachePaths(companyId, skillId, versionId);
+      const { directory } = skillVersionCachePaths(spaceId, skillId, versionId);
       await runVersionSnapshotFlight(directory, async () => {
         if (version.repositorySnapshotId || version.packageSnapshotId) return runtime.materialize(version, directory);
         const files = await packages.versionFiles(version);
@@ -47,7 +47,7 @@ export function skillExecutionContent(db: Db, options: { actor?: AuthorizationAc
           return directory;
         } finally { await fs.rm(staging, { recursive: true, force: true }); }
       });
-      await touchSkillVersionCache(companyId, skillId, versionId);
+      await touchSkillVersionCache(spaceId, skillId, versionId);
       return consume(directory);
     });
   }

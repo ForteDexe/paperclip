@@ -63,7 +63,7 @@ const blockers = [
 
 const summaries: IssueSummary[] = [...blockers, terminal].map((blocker) => ({
   id: blocker.id,
-  companyId: "company-1",
+  spaceId: "space-1",
   title: blocker.title,
   identifier: blocker.identifier,
   status: blocker.status,
@@ -85,7 +85,7 @@ let root: Root;
 
 beforeEach(() => {
   mockSummaries.mockReset();
-  mockSummaries.mockImplementation(async (_companyId: string, ids: readonly string[]) => {
+  mockSummaries.mockImplementation(async (_spaceId: string, ids: readonly string[]) => {
     if (ids.length > ISSUE_SUMMARIES_MAX_IDS) throw new Error("Too many issue summary IDs");
     return summaries.filter((summary) => ids.includes(summary.id));
   });
@@ -107,7 +107,7 @@ async function renderStrip(streamlined: boolean) {
     root.render(
       <QueryClientProvider client={queryClient}>
         <TaskChatPresentationProvider mode={streamlined ? "streamlined" : "production"}>
-          <TaskChatLiveWorkLinks liveWork={liveWork} placement="bottom" companyId="company-1" />
+          <TaskChatLiveWorkLinks liveWork={liveWork} placement="bottom" spaceId="space-1" />
         </TaskChatPresentationProvider>
       </QueryClientProvider>,
     );

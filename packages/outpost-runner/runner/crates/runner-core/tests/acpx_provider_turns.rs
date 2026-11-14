@@ -96,7 +96,7 @@ fn starts_interrupts_and_settles_one_scoped_turn() {
             if event.event_type == "item.delta" && event.payload["text"] == "hello"
     ));
     session
-        .interrupt_turn("turn-1", "Paperclip interruption")
+        .interrupt_turn("turn-1", "Outpost interruption")
         .unwrap();
     assert_eq!(session.state().active_turn_id(), Some("turn-1"));
     let terminal = session.poll_event(Duration::from_secs(1)).unwrap().unwrap();
@@ -145,7 +145,7 @@ fn preserves_the_durable_turn_identity_boundary_through_the_sidecar() {
             if event.event_type == "item.delta" && event.payload["text"] == "hello"
     ));
     session
-        .interrupt_turn(&turn_id, "Paperclip interruption")
+        .interrupt_turn(&turn_id, "Outpost interruption")
         .unwrap();
     let terminal = session.poll_event(Duration::from_secs(1)).unwrap().unwrap();
     assert!(matches!(
@@ -308,7 +308,7 @@ fn rotates_settled_tool_receipts_between_reusable_turns() {
         assert!(matches!(
             &reserved_session.poll_event(Duration::from_secs(1)).unwrap().unwrap()[0],
             AcpxProviderStateEvent::ToolCall { operation_id, .. }
-                if operation_id == "paperclip_finish"
+                if operation_id == "outpost_finish"
         ));
         let result = reserved_session
             .poll_event(Duration::from_secs(1))
@@ -318,7 +318,7 @@ fn rotates_settled_tool_receipts_between_reusable_turns() {
             &result[0],
             AcpxProviderStateEvent::SemanticResult(result)
                 if result.call_id == "call-finish"
-                    && result.operation_id == "paperclip_finish"
+                    && result.operation_id == "outpost_finish"
         ));
         let terminal = reserved_session
             .poll_event(Duration::from_secs(1))
@@ -482,15 +482,15 @@ fn failed_semantic_results_preserve_error_status_and_release_pending_capacity() 
 #[test]
 fn reserved_terminal_results_require_an_authorized_correlated_invocation() {
     for (mode, operation_id, disposition) in [
-        ("turns-reserved-result-terminal", "paperclip_finish", "done"),
+        ("turns-reserved-result-terminal", "outpost_finish", "done"),
         (
             "turns-reserved-yielded-terminal",
-            "paperclip_finish",
+            "outpost_finish",
             "yielded",
         ),
         (
             "turns-reserved-block-terminal",
-            "paperclip_block",
+            "outpost_block",
             "blocked",
         ),
     ] {
@@ -503,7 +503,7 @@ fn reserved_terminal_results_require_an_authorized_correlated_invocation() {
         assert!(matches!(
             &invocation[0],
             AcpxProviderStateEvent::ToolCall { operation_id, .. }
-                if operation_id == "paperclip_finish" || operation_id == "paperclip_block"
+                if operation_id == "outpost_finish" || operation_id == "outpost_block"
         ));
         assert_eq!(
             session
@@ -546,13 +546,13 @@ fn reserved_completion_waits_for_feedback_and_allows_correction_in_same_turn() {
     assert!(matches!(
         &first[0],
         AcpxProviderStateEvent::ToolCall { call_id, operation_id, input }
-            if call_id == "call-finish" && operation_id == "paperclip_finish"
+            if call_id == "call-finish" && operation_id == "outpost_finish"
                 && input["reportedWorkDisposition"] == "needs_review"
     ));
     session
         .deliver_tool_result(&outpost_runner_core::provider_bridge::ToolResult {
             call_id: "call-finish".to_owned(),
-            operation_id: "paperclip_finish".to_owned(),
+            operation_id: "outpost_finish".to_owned(),
             result: json!({
                 "success":false,
                 "contentItems":[
@@ -567,13 +567,13 @@ fn reserved_completion_waits_for_feedback_and_allows_correction_in_same_turn() {
     assert!(matches!(
         &corrected[0],
         AcpxProviderStateEvent::ToolCall { call_id, operation_id, input }
-            if call_id == "call-finish-2" && operation_id == "paperclip_finish"
+            if call_id == "call-finish-2" && operation_id == "outpost_finish"
                 && input["reportedWorkDisposition"] == "done"
     ));
     session
         .deliver_tool_result(&outpost_runner_core::provider_bridge::ToolResult {
             call_id: "call-finish-2".to_owned(),
-            operation_id: "paperclip_finish".to_owned(),
+            operation_id: "outpost_finish".to_owned(),
             result: json!({
                 "schema":"outpost.run_result.v1",
                 "reportedWorkDisposition":"done",
@@ -653,7 +653,7 @@ fn fails_closed_before_returning_a_mismatched_reserved_result() {
     assert!(matches!(
         &session.poll_event(Duration::from_secs(1)).unwrap().unwrap()[0],
         AcpxProviderStateEvent::ToolCall { operation_id, .. }
-            if operation_id == "paperclip_finish"
+            if operation_id == "outpost_finish"
     ));
 
     let error = session
@@ -680,7 +680,7 @@ fn fails_closed_before_returning_a_malformed_reserved_result() {
         .unwrap_err()
         .to_string();
     assert!(
-        error.contains("failed the Paperclip result schema"),
+        error.contains("failed the Outpost result schema"),
         "{error}"
     );
     assert!(session.shutdown("already closed").is_ok());
@@ -809,14 +809,14 @@ fn lost_cancellation_reply_keeps_the_turn_terminal_and_the_transport() {
             .unwrap();
         let started = Instant::now();
         session
-            .interrupt_turn("turn-1", "Paperclip interruption")
+            .interrupt_turn("turn-1", "Outpost interruption")
             .unwrap_or_else(|error| panic!("{mode}: {error}"));
         assert!(started.elapsed() < Duration::from_secs(3), "{mode}");
         assert!(session.runtime_retired(), "{mode}");
         // A repeated Stop while the first cancel is unanswered must not block.
         let repeated = Instant::now();
         session
-            .interrupt_turn("turn-1", "Paperclip interruption again")
+            .interrupt_turn("turn-1", "Outpost interruption again")
             .unwrap_or_else(|error| panic!("{mode} repeat: {error}"));
         assert!(repeated.elapsed() < Duration::from_millis(200), "{mode}");
         let mut terminal = None;
@@ -1066,7 +1066,7 @@ fn an_interrupted_or_retired_turn_restarts_at_the_next_turn_start() {
     session.poll_event(Duration::from_secs(1)).unwrap().unwrap();
     assert!(!session.can_restart_after_turn());
     session
-        .interrupt_turn("turn-1", "Paperclip interruption")
+        .interrupt_turn("turn-1", "Outpost interruption")
         .unwrap();
     session.poll_event(Duration::from_secs(1)).unwrap().unwrap();
     let interrupted_pid = session.process_id();
@@ -1084,7 +1084,7 @@ fn an_interrupted_or_retired_turn_restarts_at_the_next_turn_start() {
         .start_turn("turn-1", "Please help", &std::env::temp_dir())
         .unwrap();
     retired
-        .interrupt_turn("turn-1", "Paperclip cancellation")
+        .interrupt_turn("turn-1", "Outpost cancellation")
         .unwrap();
     retired.poll_event(Duration::from_secs(1)).unwrap().unwrap();
     assert!(retired.state().active_turn_id().is_none());

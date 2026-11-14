@@ -45,13 +45,13 @@ type Release =
   /** A background pass found an expired owner and must prove it stopped. */
   | { kind: "expired_owner"; runId: string; leaseOwner: string; attempt: number; controllerGeneration: number }
   | { kind: "operator_containment"; runId: string; leaseOwner: string; attempt: number;
-      companyId: string; issueId: string; actionId: string; authorityDigest: string; actorId: string; controllerGeneration: number;
+      spaceId: string; issueId: string; actionId: string; authorityDigest: string; actorId: string; controllerGeneration: number;
       actionOutcome: ExecutionReconciliation["actionOutcome"]; outcomeEvidence: string };
 
 /** Environment leases that `agentExecutionsHaveStopped` would still treat as live. */
 const unsettledRunEnvironmentLease = sql`exists (
   select 1 from ${environmentLeases} lease
-  where lease.company_id = ${heartbeatRuns.companyId}
+  where lease.space_id = ${heartbeatRuns.spaceId}
     and lease.heartbeat_run_id = ${heartbeatRuns.id}
     and ((lease.released_at is null and not (lease.status = 'retained' and lease.cleanup_status = 'success'))
       or lease.status = 'pending_cleanup' or lease.cleanup_status = 'failed')
@@ -80,7 +80,7 @@ function abandonedOwnerCondition() {
 }
 
 /** Local owners retain their release deadline. Foreign owners retain the same
- * original deadline until expiry surfaces attention owned by the board. */
+ * original deadline until expiry surfaces attention owned by the operator. */
 async function localOwnerSpaceCondition() {
   const processSpace = currentProcessSpaceHash();
   const native = await currentNativeControllerIdentity();
@@ -100,18 +100,18 @@ export async function nextAbandonedNativeOwnerReleaseAt(db: Db): Promise<Date | 
   // completing the higher pages cannot consume its only wake.
   const [unattended] = await db.select({ at: nativeRunFinalizations.leaseExpiresAt }).from(nativeRunFinalizations)
     .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, nativeRunFinalizations.runId),
-      eq(heartbeatRuns.companyId, nativeRunFinalizations.companyId)))
+      eq(heartbeatRuns.spaceId, nativeRunFinalizations.spaceId)))
     .where(and(abandonedOwnerCondition(), sql`not coalesce(${local}, false)`,
       sql`${nativeRunFinalizations.leaseOwner} not like 'native-finalizer:%'`,
       sql`${nativeRunFinalizations.leaseOwner} not like 'native-cleanup:%'`,
       sql`not exists (select 1 from ${issueRecoveryActions} attention
-        where attention.company_id = ${nativeRunFinalizations.companyId}
+        where attention.space_id = ${nativeRunFinalizations.spaceId}
           and attention.source_issue_id = ${nativeRunFinalizations.issueId}
           and attention.status in ('active', 'escalated'))`,
     )).orderBy(asc(nativeRunFinalizations.leaseExpiresAt)).limit(1);
   const [row] = await db.select({ at: nativeRunFinalizations.leaseExpiresAt }).from(nativeRunFinalizations)
     .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, nativeRunFinalizations.runId),
-      eq(heartbeatRuns.companyId, nativeRunFinalizations.companyId)))
+      eq(heartbeatRuns.spaceId, nativeRunFinalizations.spaceId)))
     .where(and(abandonedOwnerCondition(), sql`coalesce(${local}, false)`))
     .orderBy(asc(nativeRunFinalizations.leaseExpiresAt)).limit(1);
   if (!unattended?.at) return row?.at ?? null;
@@ -162,18 +162,18 @@ async function settleFailedRunOwner(db: Db, release: Release, now: Date): Promis
     const tx = transaction as unknown as Db;
     const fallbacks: FallbackUse[] = [];
     await tx.execute(sql`select set_config('statement_timeout', '15000', true), set_config('lock_timeout', '1000', true)`);
-    const [binding] = await tx.select({ companyId: nativeRunFinalizations.companyId, issueId: nativeRunFinalizations.issueId })
+    const [binding] = await tx.select({ spaceId: nativeRunFinalizations.spaceId, issueId: nativeRunFinalizations.issueId })
       .from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, release.runId));
     if (!binding) return false;
     // Same issue-before-coordinator-before-run order as admission and failure settlement.
     const [task] = await tx.select({ id: issues.id, assigneeAgentId: issues.assigneeAgentId,
-      status: issues.status, executionRunId: issues.executionRunId, checkoutRunId: issues.checkoutRunId }).from(issues).where(and(eq(issues.companyId, binding.companyId),
+      status: issues.status, executionRunId: issues.executionRunId, checkoutRunId: issues.checkoutRunId }).from(issues).where(and(eq(issues.spaceId, binding.spaceId),
       eq(issues.id, binding.issueId))).for("update");
     const [coordinator] = await tx.select().from(nativeRunFinalizations).where(and(
-      eq(nativeRunFinalizations.companyId, binding.companyId), eq(nativeRunFinalizations.runId, release.runId),
+      eq(nativeRunFinalizations.spaceId, binding.spaceId), eq(nativeRunFinalizations.runId, release.runId),
       eq(nativeRunFinalizations.issueId, binding.issueId))).for("update");
     const [run] = await tx.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, binding.companyId), eq(heartbeatRuns.id, release.runId))).for("update");
+      eq(heartbeatRuns.spaceId, binding.spaceId), eq(heartbeatRuns.id, release.runId))).for("update");
     if (!coordinator || !run || run.runtimeMode !== "native"
       || !(RELEASABLE_RUN_STATUSES.includes(run.status) || (release.kind === "operator_containment" && run.status === "running"))
       || !(coordinator.phase === "observed" || (release.kind === "operator_containment" && coordinator.phase === "retryable_failure"))
@@ -182,7 +182,7 @@ async function settleFailedRunOwner(db: Db, release: Release, now: Date): Promis
     let containedExpiryEpoch: string | null = null;
     if (release.kind === "operator_containment") {
       const [action] = await tx.select().from(issueRecoveryActions).where(and(
-        eq(issueRecoveryActions.companyId, release.companyId), eq(issueRecoveryActions.sourceIssueId, release.issueId),
+        eq(issueRecoveryActions.spaceId, release.spaceId), eq(issueRecoveryActions.sourceIssueId, release.issueId),
         eq(issueRecoveryActions.id, release.actionId))).for("update");
       const [expiry] = await tx.select({ epoch: sql<string | null>`extract(epoch from ${nativeRunFinalizations.leaseExpiresAt})::numeric::text` })
         .from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, run.id));
@@ -192,13 +192,13 @@ async function settleFailedRunOwner(db: Db, release: Release, now: Date): Promis
         ? (authority as Record<string, unknown>).digest : null;
       if (!["completed", "not_performed", "mixed"].includes(release.actionOutcome)
         || release.outcomeEvidence.trim().length < 20 || release.outcomeEvidence.length > 12_000
-        || !task || !action || action.kind !== "active_run_watchdog" || action.ownerType !== "board"
+        || !task || !action || action.kind !== "active_run_watchdog" || action.ownerType !== "operator"
         || !["active", "escalated"].includes(action.status) || action.cause !== "native_restart_recovery_blocked"
         || action.fingerprint !== `native-controller-space:${run.id}:${release.authorityDigest}` || action.evidence.runId !== run.id
         || action.evidence.reason !== "controller_process_space_unverified"
         || recordedDigest !== release.authorityDigest || !expiry
         || nativeControllerAuthorityDigest(coordinator, expiry.epoch) !== release.authorityDigest
-        || coordinator.companyId !== release.companyId || coordinator.issueId !== release.issueId
+        || coordinator.spaceId !== release.spaceId || coordinator.issueId !== release.issueId
         || action.returnOwnerAgentId !== run.agentId || task.assigneeAgentId !== run.agentId
         || ["done", "cancelled"].includes(task.status)
         || (task.executionRunId !== run.id && !(task.executionRunId === null && RELEASABLE_RUN_STATUSES.includes(run.status)))
@@ -215,21 +215,21 @@ async function settleFailedRunOwner(db: Db, release: Release, now: Date): Promis
         // Issue lock serializes admission. A cleared failure pointer does not
         // authorize containment of an older/replaced source.
         const [newer] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-          eq(heartbeatRuns.companyId, run.companyId),
+          eq(heartbeatRuns.spaceId, run.spaceId),
           or(eq(heartbeatRuns.nativeIssueId, coordinator.issueId), sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${coordinator.issueId}`,
             sql`exists (select 1 from ${nativeRunFinalizations} newer_owner
-              where newer_owner.run_id = ${heartbeatRuns.id} and newer_owner.company_id = ${run.companyId}
+              where newer_owner.run_id = ${heartbeatRuns.id} and newer_owner.space_id = ${run.spaceId}
                 and newer_owner.issue_id = ${coordinator.issueId})`),
           ne(heartbeatRuns.id, run.id),
           sql`${heartbeatRuns.createdAt} >= (select source.created_at from ${heartbeatRuns} source
-            where source.id = ${run.id} and source.company_id = ${run.companyId})`,
+            where source.id = ${run.id} and source.space_id = ${run.spaceId})`,
         )).limit(1);
         if (newer) return false;
       }
       const [heldElsewhere] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
         .where(and(eq(heartbeatRuns.id, run.id), or(unsettledRunEnvironmentLease, pendingNativeStop))).limit(1);
       const [work] = await tx.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-        eq(workspaceOperations.companyId, run.companyId), eq(workspaceOperations.heartbeatRunId, run.id),
+        eq(workspaceOperations.spaceId, run.spaceId), eq(workspaceOperations.heartbeatRunId, run.id),
         inArray(workspaceOperations.status, ["queued", "running"]))).limit(1);
       if (heldElsewhere || work) return false;
       containedExpiryEpoch = expiry.epoch;
@@ -263,17 +263,17 @@ async function settleFailedRunOwner(db: Db, release: Release, now: Date): Promis
       return false;
     }
     const [accepted] = await tx.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-      eq(nativeRunResults.companyId, run.companyId), eq(nativeRunResults.runId, run.id),
+      eq(nativeRunResults.spaceId, run.spaceId), eq(nativeRunResults.runId, run.id),
       eq(nativeRunResults.schemaStatus, "accepted"))).limit(1);
     if (accepted) return false;
 
     const failureCode = release.kind === "operator_containment" ? "native_restart_recovery_blocked"
       : coordinator.failureCode ?? run.errorCode ?? FALLBACK_FAILURE_CODE;
-    const scope = { companyId: run.companyId, agentId: run.agentId, runId: run.id, issueId: coordinator.issueId };
+    const scope = { spaceId: run.spaceId, agentId: run.agentId, runId: run.id, issueId: coordinator.issueId };
     await notifyExecutionRunWork(tx, scope);
     await notifyNativeFinalizationWork(tx, scope);
     // A result-less `observed` owner holds pending cost accounting; settlement releases it.
-    await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, run.companyId);
+    await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, run.spaceId);
     const [updated] = await tx.update(nativeRunFinalizations).set({
       phase: "terminal_failure",
       leaseOwner: null,
@@ -294,7 +294,7 @@ async function settleFailedRunOwner(db: Db, release: Release, now: Date): Promis
               actionOutcome: release.actionOutcome, outcomeEvidence: release.outcomeEvidence,
               priorProcess: { pid: run.processPid, groupId: run.processGroupId, startedAt: run.processStartedAt?.toISOString() ?? null } }
           : { reason: release.kind, leaseOwner: release.leaseOwner, attempt: release.attempt },
-        recoveryOwner: { kind: "board" },
+        recoveryOwner: { kind: "operator" },
         nextAction: NEXT_ACTION,
       },
       updatedAt: now,
@@ -314,16 +314,16 @@ async function settleFailedRunOwner(db: Db, release: Release, now: Date): Promis
     if (!updated) return false;
     const [settledRun] = await tx.update(heartbeatRuns).set({ nativePhase: "terminal_failure", nativePhaseUpdatedAt: now, updatedAt: now,
       ...(release.kind === "operator_containment" ? { status: "failed", finishedAt: now,
-        errorCode: failureCode, error: "The original controller and provider were contained by a board operator. Review the recorded action outcomes before explicitly retrying.",
+        errorCode: failureCode, error: "The original controller and provider were contained by a operator operator. Review the recorded action outcomes before explicitly retrying.",
         processPid: null, processGroupId: null, processStartedAt: null, executionControlDeadlineAt: null } : {}),
     }).where(eq(heartbeatRuns.id, run.id)).returning();
     if (release.kind === "operator_containment" && settledRun) {
       await preserveNativeFailedWorkspace(tx, settledRun);
       await settleNativeTerminalWake(tx, settledRun);
       await notifyNativeStatusReassessment(tx, scope);
-      // Durable activity only: this call may be a savepoint of board resolution,
+      // Durable activity only: this call may be a savepoint of operator resolution,
       // so publishing a live event here would precede the outer commit.
-      await persistActivity(tx, { companyId: run.companyId, actorType: "user", actorId: release.actorId,
+      await persistActivity(tx, { spaceId: run.spaceId, actorType: "user", actorId: release.actorId,
         action: "native.controller_containment_recorded", entityType: "heartbeat_run", entityId: run.id,
         agentId: run.agentId, runId: run.id, details: { recoveryActionId: release.actionId,
           authorityDigest: release.authorityDigest, replay: "not_authorized" } });
@@ -333,7 +333,7 @@ async function settleFailedRunOwner(db: Db, release: Release, now: Date): Promis
       await recordLegacyHostFallbackProof(tx, run, { allowed: true, reason: use.reason, legacyHostFallback: true }, use.source);
     }
     await logActivity(tx, {
-      companyId: run.companyId, actorType: "system", actorId: ACTOR_ID,
+      spaceId: run.spaceId, actorType: "system", actorId: ACTOR_ID,
       action: "native.failed_run_owner_released", entityType: "heartbeat_run", entityId: run.id,
       agentId: run.agentId, runId: run.id, issueId: coordinator.issueId,
       details: { reason: release.kind, runStatus: run.status, failureCode, attempt: release.attempt,
@@ -386,7 +386,7 @@ export async function releaseAbandonedNativeOwners(db: Db, now = new Date(), pag
     controllerGeneration: nativeRunFinalizations.controllerGeneration,
   }).from(nativeRunFinalizations)
     .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, nativeRunFinalizations.runId),
-      eq(heartbeatRuns.companyId, nativeRunFinalizations.companyId)))
+      eq(heartbeatRuns.spaceId, nativeRunFinalizations.spaceId)))
     .where(and(abandonedOwnerCondition(), lte(nativeRunFinalizations.leaseExpiresAt, now),
       after ? gt(nativeRunFinalizations.runId, after) : undefined))
     .orderBy(asc(nativeRunFinalizations.runId))
@@ -408,16 +408,16 @@ export async function releaseAbandonedNativeOwners(db: Db, now = new Date(), pag
   return released;
 }
 
-/** This entry is called only by the board-authorized reconciliation owner.
+/** This entry is called only by the operator-authorized reconciliation owner.
  * Its opaque authority is reloaded and checked under the normal settlement
  * locks; the operator receipt never becomes a fabricated provider result. */
 export async function settleOperatorContainedNativeOwner(db: Db, input: {
-  companyId: string; issueId: string; runId: string; actionId: string;
+  spaceId: string; issueId: string; runId: string; actionId: string;
   authorityDigest: string; actorId: string;
   actionOutcome: ExecutionReconciliation["actionOutcome"]; outcomeEvidence: string;
 }): Promise<boolean> {
   const [owner] = await db.select().from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.issueId, input.issueId),
+    eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.issueId, input.issueId),
     eq(nativeRunFinalizations.runId, input.runId)));
   if (!owner?.leaseOwner) return false;
   return settleFailedRunOwner(db, { kind: "operator_containment", ...input,
@@ -441,7 +441,7 @@ export async function hasCommittedNativeControllerContainment(
     || run.runnerProfileJson?.nativeWorkspaceSync != null || run.runnerProfileJson?.remoteWorkspace != null
     || run.runnerProfileJson?.nativeControllerRecovery != null
     || run.resultJson?.[LEGACY_WORKSPACE_RECOVERY_KEY] != null) return false;
-  const [task] = await db.select().from(issues).where(and(eq(issues.companyId, run.companyId),
+  const [task] = await db.select().from(issues).where(and(eq(issues.spaceId, run.spaceId),
     eq(issues.id, issueId))).for("share", { noWait: true });
   if (!task || task.assigneeAgentId !== run.agentId || ["done", "cancelled"].includes(task.status)) return false;
   // This is a committed source-containment fact, not admission authority.
@@ -449,7 +449,7 @@ export async function hasCommittedNativeControllerContainment(
   // the exact admitted successor; a legitimate successor does not undo the
   // source's original-host containment.
   const [owner] = await db.select().from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, run.companyId), eq(nativeRunFinalizations.issueId, issueId),
+    eq(nativeRunFinalizations.spaceId, run.spaceId), eq(nativeRunFinalizations.issueId, issueId),
     eq(nativeRunFinalizations.runId, run.id))).for("share", { noWait: true });
   if (!owner || owner.phase !== "terminal_failure" || owner.recoveryState !== "blocked"
     || owner.failureCode !== "native_restart_recovery_blocked" || owner.leaseOwner || owner.leaseExpiresAt
@@ -469,11 +469,11 @@ export async function hasCommittedNativeControllerContainment(
     || receipt.outcomeEvidence.length > 12_000 || typeof receipt.actorId !== "string" || !receipt.actorId
     || typeof receipt.recordedAt !== "string" || !Number.isFinite(Date.parse(receipt.recordedAt))) return false;
   const [action] = await db.select().from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, run.companyId), eq(issueRecoveryActions.sourceIssueId, issueId),
+    eq(issueRecoveryActions.spaceId, run.spaceId), eq(issueRecoveryActions.sourceIssueId, issueId),
     eq(issueRecoveryActions.id, receipt.actionId))).for("share", { noWait: true });
   const authority = action?.evidence.controllerAuthority;
   const decision = action?.evidence.executionReconciliation;
-  if (!action || action.kind !== "active_run_watchdog" || action.ownerType !== "board"
+  if (!action || action.kind !== "active_run_watchdog" || action.ownerType !== "operator"
     || action.status !== "resolved" || action.outcome !== "restored" || !action.resolvedAt
     || action.returnOwnerAgentId !== run.agentId || action.cause !== "native_restart_recovery_blocked"
     || action.fingerprint !== `native-controller-space:${run.id}:${receipt.authorityDigest}`
@@ -488,7 +488,7 @@ export async function hasCommittedNativeControllerContainment(
     || reconciliation.controllerAuthorityDigest !== receipt.authorityDigest || reconciliation.actorId !== receipt.actorId
     || reconciliation.actionOutcome !== receipt.actionOutcome || reconciliation.outcomeEvidence !== receipt.outcomeEvidence) return false;
   const [audit] = await db.select({ id: activityLog.id }).from(activityLog).where(and(
-    eq(activityLog.companyId, run.companyId), eq(activityLog.entityType, "heartbeat_run"),
+    eq(activityLog.spaceId, run.spaceId), eq(activityLog.entityType, "heartbeat_run"),
     eq(activityLog.entityId, run.id), eq(activityLog.actorType, "user"), eq(activityLog.actorId, receipt.actorId),
     eq(activityLog.action, "native.controller_containment_recorded"),
     sql`${activityLog.details}->>'recoveryActionId' = ${action.id}`,
@@ -496,16 +496,16 @@ export async function hasCommittedNativeControllerContainment(
     sql`${activityLog.details}->>'replay' = 'not_authorized'`)).limit(1);
   if (!audit) return false;
   const [blocked] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.id, run.id),
+    eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.id, run.id),
     or(unsettledRunEnvironmentLease, pendingNativeStop))).limit(1);
   const [accepted] = await db.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-    eq(nativeRunResults.companyId, run.companyId), eq(nativeRunResults.runId, run.id),
+    eq(nativeRunResults.spaceId, run.spaceId), eq(nativeRunResults.runId, run.id),
     eq(nativeRunResults.schemaStatus, "accepted"))).limit(1);
   const [work] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, run.companyId), eq(workspaceOperations.heartbeatRunId, run.id),
+    eq(workspaceOperations.spaceId, run.spaceId), eq(workspaceOperations.heartbeatRunId, run.id),
     inArray(workspaceOperations.status, ["queued", "running"]))).limit(1);
   const [remote] = await db.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+    eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
     ne(environmentLeases.provider, "local"))).limit(1);
   return !blocked && !accepted && !work && !remote;
 }

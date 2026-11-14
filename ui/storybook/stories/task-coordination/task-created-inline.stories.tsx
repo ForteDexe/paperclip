@@ -4,7 +4,7 @@ import { expect, within } from "storybook/test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Issue, IssueComment, IssueDocumentSummary } from "@outpost/shared";
 import { TaskChatThread } from "@/components/TaskChatThread";
-import { storybookAgents, storybookIssues } from "../../fixtures/paperclipData";
+import { storybookAgents, storybookIssues } from "../../fixtures/outpostData";
 import { queryKeys } from "@/lib/queryKeys";
 
 const parent = storybookIssues[0]!;
@@ -21,10 +21,10 @@ const comments: IssueComment[] = [
 ].map((comment) => ({
   ...comment, authorType: comment.authorType as "user" | "agent",
   authorAgentId: comment.authorAgentId ?? null, authorUserId: comment.authorUserId ?? null,
-  presentation: null, metadata: null, companyId: parent.companyId, issueId: parent.id, updatedAt: comment.createdAt,
+  presentation: null, metadata: null, spaceId: parent.spaceId, issueId: parent.id, updatedAt: comment.createdAt,
 }));
 const report = {
-  id: "report", issueId: parent.id, companyId: parent.companyId, key: "batch-report", title: "Batch report",
+  id: "report", issueId: parent.id, spaceId: parent.spaceId, key: "batch-report", title: "Batch report",
   format: "markdown", latestRevisionNumber: 1, latestRevisionId: "report-1", createdAt: at(3), updatedAt: at(3),
 } as IssueDocumentSummary;
 
@@ -37,7 +37,7 @@ function TaskFeed({ multiple = false }: { multiple?: boolean }) {
   return <QueryClientProvider client={client}>
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col overflow-hidden bg-background px-4 text-foreground">
       <TaskChatThread
-        issueId={parent.id} companyId={parent.companyId} issueStatus="done" conversationMode={false}
+        issueId={parent.id} spaceId={parent.spaceId} issueStatus="done" conversationMode={false}
         comments={comments} documents={[report]}
         createdTasks={multiple ? [task, { ...task, id: "second-subtask", identifier: "PAP-43", title: "Verify the repair against the source evidence", status: "blocked", createdAt: at(2) }] : [task]}
         agentMap={new Map([["agent-1", { ...storybookAgents[0]!, id: "agent-1", name: "Researcher" }]])}
@@ -54,7 +54,7 @@ const meta = {
   component: TaskFeed,
   parameters: {
     layout: "fullscreen", initialEntries: ["/PAP/issues/parent"],
-    paperclip: {
+    outpost: {
       capabilities: ["task-coordination/delegation", "tasks/discussion"],
       implementation: "production", boundary: "fixtures",
       notes: "Production TaskChatThread assembles created task cards beside a saved document. Task reads and status are fixtures; no agent runs or task writes occur.",

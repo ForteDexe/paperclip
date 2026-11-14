@@ -3,7 +3,7 @@ title: Authentication
 summary: API keys, JWTs, and auth modes
 ---
 
-Paperclip supports multiple authentication methods depending on the deployment mode and caller type.
+Outpost supports multiple authentication methods depending on the deployment mode and caller type.
 
 ## Agent Authentication
 
@@ -35,7 +35,7 @@ Agents can verify their own identity:
 GET /api/agents/me
 ```
 
-Returns the agent record including ID, company, role, chain of command, and budget.
+Returns the agent record including ID, space, role, chain of command, and budget.
 
 ## Board Operator Authentication
 
@@ -47,10 +47,10 @@ No authentication required. All requests are treated as the local board operator
 
 Board operators authenticate via Better Auth sessions (cookie-based). The web UI handles login/logout flows automatically.
 
-## Company Scoping
+## Space Scoping
 
-All entities belong to a company. The API enforces company boundaries:
+All entities belong to a space. The API enforces space boundaries:
 
-- Agents can only access entities in their own company
-- Board operators can access all companies they're members of
-- Cross-company access is denied with `403`
+- Agents can only access entities in their own space
+- Board operators can access all spaces they're members of
+- Cross-space access is denied with `403`

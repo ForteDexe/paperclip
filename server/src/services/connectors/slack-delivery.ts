@@ -28,7 +28,7 @@ export async function slackDelivery(
     .where(
       and(
         eq(chatActions.id, actionId),
-        eq(chatActions.companyId, binding.companyId),
+        eq(chatActions.spaceId, binding.spaceId),
         eq(chatActions.endpointId, authority.endpoint.id),
         eq(chatActions.kind, "slack_tool_write"),
         sql`${chatActions.payload}->>'userId' = ${authority.userId}`,

@@ -23,9 +23,9 @@ migrated AS (
       OR (agent.adapter_config->>'provider' = 'acpx' AND agent.adapter_config->>'acpxAgent' = 'claude')
     )
     AND NOT EXISTS (SELECT 1 FROM explicit_per_turn WHERE explicit_per_turn.agent_id = agent.id)
-  RETURNING agent.company_id, agent.id
+  RETURNING agent.space_id, agent.id
 )
-INSERT INTO activity_log (company_id, actor_type, actor_id, action, entity_type, entity_id, details)
-SELECT company_id, 'system', 'migration:native-warm-follow-up-default', 'agent.updated', 'agent', id::text,
+INSERT INTO activity_log (space_id, actor_type, actor_id, action, entity_type, entity_id, details)
+SELECT space_id, 'system', 'migration:native-warm-follow-up-default', 'agent.updated', 'agent', id::text,
   '{"source":"migration","changedKeys":["adapterConfig.lifecycleMode"],"before":{"lifecycleMode":"per_turn"},"after":{"lifecycleMode":null},"reason":"The stored per_turn was the old creation default; the agent now follows the product lifecycle default. Choose Turn by turn in the Runner lifecycle field to restore it."}'::jsonb
 FROM migrated;

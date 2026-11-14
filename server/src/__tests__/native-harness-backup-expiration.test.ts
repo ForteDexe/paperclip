@@ -21,7 +21,7 @@ import { eq, sql } from "drizzle-orm";
 import {
   agents,
   agentTaskSessions,
-  companies,
+  spaces,
   createDb,
   environmentLeases,
   environments,
@@ -58,7 +58,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
   const now = new Date();
 
   beforeAll(async () => {
-    if (!external) tempDb = await startRecoveryPostgres("paperclip-native-backup-expiration-");
+    if (!external) tempDb = await startRecoveryPostgres("outpost-native-backup-expiration-");
     if (external) await applyPendingMigrations(external);
     db = createDb(external ?? tempDb!.connectionString);
   }, 20_000);
@@ -78,7 +78,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     await db.delete(heartbeatRuns);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     if (stateBase) await fs.rm(stateBase, { recursive: true, force: true });
     stateBase = "";
   });
@@ -89,7 +89,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
   });
 
   async function seedSession(input: {
-    companyId?: string; agentId?: string;
+    spaceId?: string; agentId?: string;
     issueStatus?: string;
     closedDaysAgo?: number;
     runStatus?: string;
@@ -98,15 +98,15 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     backupAgeDays?: number;
     cleanupActive?: boolean;
   } = {}) {
-    if (!stateBase) stateBase = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-durable-sessions-"));
-    const companyId = input.companyId ?? randomUUID();
-    if (!input.companyId) await db.insert(companies).values({ id: companyId, name: "Backups", issuePrefix: `B${companyId.slice(0, 6)}` });
+    if (!stateBase) stateBase = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-durable-sessions-"));
+    const spaceId = input.spaceId ?? randomUUID();
+    if (!input.spaceId) await db.insert(spaces).values({ id: spaceId, name: "Backups", issuePrefix: `B${spaceId.slice(0, 6)}` });
     const [agent] = input.agentId ? [{ id: input.agentId }]
-      : await db.insert(agents).values({ companyId, name: "Coder" }).returning();
+      : await db.insert(agents).values({ spaceId, name: "Coder" }).returning();
     const issueStatus = input.issueStatus ?? "done";
     const closedAt = new Date(now.getTime() - (input.closedDaysAgo ?? 10) * DAY_MS);
     const [issue] = await db.insert(issues).values({
-      companyId,
+      spaceId,
       title: "Closed work",
       status: issueStatus,
       completedAt: issueStatus === "done" ? closedAt : null,
@@ -115,7 +115,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     const sessionId = randomUUID();
     const runStatus = input.runStatus ?? "succeeded";
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId,
+      spaceId,
       agentId: agent!.id,
       status: runStatus,
       issueId: issue!.id,
@@ -124,7 +124,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
       finishedAt: ["queued", "running"].includes(runStatus) ? null : closedAt,
     }).returning();
     await db.insert(agentTaskSessions).values({
-      companyId,
+      spaceId,
       agentId: agent!.id,
       adapterType: "outpost_runner",
       taskKey: issue!.id,
@@ -134,7 +134,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     if (input.finalization) {
       await db.insert(nativeRunFinalizations).values({
         runId: run!.id,
-        companyId,
+        spaceId,
         issueId: issue!.id,
         phase: input.finalization.phase,
         recoveryState: input.finalization.recoveryState ?? null,
@@ -157,12 +157,12 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     if (input.cleanupActive) await fs.writeFile(path.join(root, "cleanup-activation.json"), "{}");
     if (input.leaseStatus) {
       await db.insert(environmentLeases).values({
-        companyId,
+        spaceId,
         status: input.leaseStatus,
         metadata: { nativeHarnessBackup: { sessionScopeSha256: scope } },
       });
     }
-    return { companyId, agentId: agent!.id, issueId: issue!.id, runId: run!.id, sessionId, scope, root, current };
+    return { spaceId, agentId: agent!.id, issueId: issue!.id, runId: run!.id, sessionId, scope, root, current };
   }
 
   function service() {
@@ -180,7 +180,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
 
   async function seedCheckpoint(session: Awaited<ReturnType<typeof seedSession>>) {
     await db.insert(nativeRunnerCheckpoints).values(["header", "cursor", "event:1"].map(part => ({
-      companyId: session.companyId, issueId: session.issueId, runId: session.runId, part, material: { encrypted: true },
+      spaceId: session.spaceId, issueId: session.issueId, runId: session.runId, part, material: { encrypted: true },
     })));
   }
 
@@ -325,10 +325,10 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
       await fs.rm(stateBase, { recursive: true, force: true });
       if (protection !== "resume") await db.delete(agentTaskSessions);
       if (protection === "lease") await db.insert(environmentLeases).values({
-        companyId: session.companyId, issueId: session.issueId, status: "retained",
+        spaceId: session.spaceId, issueId: session.issueId, status: "retained",
       });
       if (protection === "lease_stamp") await db.insert(environmentLeases).values({
-        companyId: session.companyId, status: "retained",
+        spaceId: session.spaceId, status: "retained",
         metadata: { nativeHarnessBackup: { normalizedSessionId: session.sessionId } },
       });
       if (protection === "recovery") await db.update(nativeRunFinalizations).set({ recoveryState: "pending" });
@@ -345,17 +345,17 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     },
   );
 
-  it("reads one company's session runs through the company/session index", async () => {
+  it("reads one space's session runs through the space/session index", async () => {
     const session = await seedSession({ finalization: { phase: "committed" } });
     await seedCheckpoint(session);
     await db.delete(agentTaskSessions);
     await fs.rm(stateBase, { recursive: true, force: true });
-    // Another company's live run with the same session ID must not protect it.
+    // Another space's live run with the same session ID must not protect it.
     const foreign = await seedSession({ runStatus: "running" });
     await db.update(heartbeatRuns).set({ nativeSessionId: session.sessionId }).where(eq(heartbeatRuns.id, foreign.runId));
     await db.delete(agentTaskSessions);
     // Another live run of the same agent in a different session must not either.
-    await db.insert(heartbeatRuns).values({ companyId: session.companyId, agentId: session.agentId, status: "running",
+    await db.insert(heartbeatRuns).values({ spaceId: session.spaceId, agentId: session.agentId, status: "running",
       issueId: session.issueId, nativeIssueId: session.issueId, nativeSessionId: randomUUID() });
     const statements: Array<{ sql: string; params: unknown[] }> = [];
     const prior = db.$client.options.debug;
@@ -370,10 +370,10 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
       await sql.unsafe("set local enable_seqscan = off");
       return JSON.stringify(await sql.unsafe(`explain (format json) ${lookup!.sql}`, lookup!.params as never[]));
     });
-    expect(plan).toContain("heartbeat_runs_company_native_session_idx");
+    expect(plan).toContain("heartbeat_runs_space_native_session_idx");
 
-    // A second live run of the same session, company and agent protects it.
-    await db.insert(heartbeatRuns).values({ companyId: session.companyId, agentId: session.agentId, status: "running",
+    // A second live run of the same session, space and agent protects it.
+    await db.insert(heartbeatRuns).values({ spaceId: session.spaceId, agentId: session.agentId, status: "running",
       issueId: session.issueId, nativeIssueId: session.issueId, nativeSessionId: session.sessionId });
     expect(await service().tickCheckpoints({ dryRun: true })).toMatchObject({ checkpointCandidates: 0, failed: 0 });
     expect(await db.select().from(nativeRunnerCheckpoints)).toHaveLength(3);
@@ -567,7 +567,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     scope: string,
     input: { stampedDaysAgo?: number; name?: string } = {},
   ) {
-    if (!stateBase) stateBase = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-durable-sessions-"));
+    if (!stateBase) stateBase = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-durable-sessions-"));
     const stampedAt = now.getTime() - (input.stampedDaysAgo ?? 10) * DAY_MS;
     const entry = path.join(
       stateBase,
@@ -590,7 +590,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
   }
 
   async function emptyStateBase() {
-    if (!stateBase) stateBase = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-durable-sessions-"));
+    if (!stateBase) stateBase = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-durable-sessions-"));
     return createHash("sha256").update(randomUUID()).digest("hex");
   }
 
@@ -636,7 +636,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
       const session = await seedSession();
       await fs.rm(path.join(session.root, "failover-backups"), { recursive: true });
       await db.insert(heartbeatRuns).values(Array.from({ length: 500 }, () => ({
-        companyId: session.companyId, agentId: session.agentId, status: "succeeded", issueId: session.issueId,
+        spaceId: session.spaceId, agentId: session.agentId, status: "succeeded", issueId: session.issueId,
         nativeIssueId: session.issueId, nativeSessionId: randomUUID(), finishedAt: now,
       })));
       for (let index = 0; index < 250; index++) await fs.mkdir(path.join(stateBase,
@@ -652,7 +652,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
   it("ordinary task close arms exact backup retention, deletes physical bytes and resume pointer, then stays quiet", async () => {
     const session = await seedSession({ issueStatus: "todo" });
     await startBackups(); await settled(); await quiet();
-    const closed = await issueService(db).update(session.issueId, { status: "done", companyGuard: session.companyId });
+    const closed = await issueService(db).update(session.issueId, { status: "done", spaceGuard: session.spaceId });
     const deadline = new Date(closed!.completedAt!).getTime() + 7 * DAY_MS + 1;
     await settled(deadline); await quiet(60_000);
     await vi.advanceTimersByTimeAsync(deadline - Date.now() - 1);
@@ -673,7 +673,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     await startBackups(); await settled(); await quiet();
     const publishedAt = Date.now();
     await fs.utimes(pendingRoot, new Date(publishedAt), new Date(publishedAt));
-    await publishNativeHarnessBackup({ db, companyId: session.companyId, scopeDigest: session.scope, backupRoot, pendingRoot });
+    await publishNativeHarnessBackup({ db, spaceId: session.spaceId, scopeDigest: session.scope, backupRoot, pendingRoot });
     const stat = await fs.stat(session.current);
     const due = stat.mtime.getTime() + 7 * DAY_MS + 1;
     await settled(due); await vi.advanceTimersByTimeAsync(due - Date.now()); await settled();
@@ -756,13 +756,13 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     expect(report.mock.calls.filter(call => call[1] === "native harness backup expiration")).toHaveLength(1);
     expect(await taskSessionCount(session.agentId)).toBe(1); expect(await exists(session.current)).toBe(true);
     await quiet();
-    noteNativeHarnessBackupChange(db, { companyId: session.companyId, scopeDigest: session.scope });
+    noteNativeHarnessBackupChange(db, { spaceId: session.spaceId, scopeDigest: session.scope });
     await settled();
     expect(report.mock.calls.filter(call => call[1] === "native harness backup expiration")).toHaveLength(2);
     await quiet();
   });
 
-  it("company-only notifications inspect only the indexed company's blocked backup sources", async () => {
+  it("space-only notifications inspect only the indexed space's blocked backup sources", async () => {
     const own = await seedSession({ issueStatus: "todo" });
     const other = await seedSession({ issueStatus: "todo" });
     await startBackups({ maxEntries: 1 }); await settled(); await quiet();
@@ -773,7 +773,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     try {
       const closed = await issueService(db).update(own.issueId, { status: "done" });
       await settled(new Date(closed!.completedAt!).getTime() + 7 * DAY_MS + 1);
-      const unrelated = [other.companyId, other.agentId, other.runId, other.sessionId, other.issueId];
+      const unrelated = [other.spaceId, other.agentId, other.runId, other.sessionId, other.issueId];
       expect(sql.filter(query => query.parameters.some(parameter =>
         unrelated.some(id => String(parameter).includes(id))))).toEqual([]);
       expect(directories.mock.calls.some(call => call[0] === stateBase
@@ -783,10 +783,10 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     await quiet();
   });
 
-  it("coalesces repeated task writes to one retained root in a large company with the same historical agent", async () => {
+  it("coalesces repeated task writes to one retained root in a large space with the same historical agent", async () => {
     const own = await seedSession({ issueStatus: "todo" });
     const unrelated: Awaited<ReturnType<typeof seedSession>>[] = [];
-    for (let index = 0; index < 80; index++) unrelated.push(await seedSession({ companyId: own.companyId,
+    for (let index = 0; index < 80; index++) unrelated.push(await seedSession({ spaceId: own.spaceId,
       agentId: own.agentId, issueStatus: index % 2 ? "todo" : "done", closedDaysAgo: 2,
       runStatus: index % 3 ? "succeeded" : "running" }));
     const due = now.getTime() + 5 * DAY_MS + 1;
@@ -816,15 +816,15 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
   it.each([false, true])("sandbox attachment reconciles only its retained root using durable run authority (explicit run: %s)", async explicitRun => {
     const own = await seedSession({ runStatus: "running" });
     const unrelated = [];
-    for (let index = 0; index < 16; index++) unrelated.push(await seedSession({ companyId: own.companyId,
+    for (let index = 0; index < 16; index++) unrelated.push(await seedSession({ spaceId: own.spaceId,
       agentId: own.agentId, issueStatus: "todo", runStatus: index % 2 ? "running" : "succeeded" }));
     const [environment] = await db.insert(environments).values({ name: randomUUID(), driver: "sandbox" }).returning();
     async function attach(runId: string) {
       const operationId = randomUUID();
-      await db.insert(sandboxCreationOperations).values({ id: operationId, companyId: own.companyId,
+      await db.insert(sandboxCreationOperations).values({ id: operationId, spaceId: own.spaceId,
         environmentId: environment!.id, originalEnvironmentId: environment!.id, runId,
         provider: "controlled", driverKey: "controlled", config: {}, metadata: {}, nextAttemptAt: new Date() });
-      return environmentService(db).acquireLease({ creationOperationId: operationId, companyId: own.companyId,
+      return environmentService(db).acquireLease({ creationOperationId: operationId, spaceId: own.spaceId,
         environmentId: environment!.id, ...(explicitRun ? { heartbeatRunId: runId } : {}) });
     }
     await startBackups(); await settled();
@@ -836,7 +836,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
       expect((await db.select().from(sandboxCreationOperations).where(eq(sandboxCreationOperations.leaseId, lease.id)))[0])
         .toMatchObject({ state: "attached", runId: own.runId });
       reads.mockClear();
-      const [run] = await db.insert(heartbeatRuns).values({ companyId: own.companyId, agentId: own.agentId, status: "running" }).returning();
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId: own.spaceId, agentId: own.agentId, status: "running" }).returning();
       await attach(run!.id); await settled();
       expect(reads).not.toHaveBeenCalled();
       expect(await exists(own.current)).toBe(true);
@@ -844,7 +844,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
       await quiet();
     } finally {
       reads.mockRestore();
-      await db.delete(sandboxCreationOperations).where(eq(sandboxCreationOperations.companyId, own.companyId));
+      await db.delete(sandboxCreationOperations).where(eq(sandboxCreationOperations.spaceId, own.spaceId));
       await db.delete(environmentLeases).where(eq(environmentLeases.environmentId, environment!.id));
       await db.delete(environments).where(eq(environments.id, environment!.id));
     }
@@ -852,16 +852,16 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
 
   it("indexes protected session relations so a new run, historical task close and exact process release reactivate only its backup", async () => {
     const own = await seedSession({ closedDaysAgo: 2 });
-    const other = await seedSession({ companyId: own.companyId, agentId: own.agentId, issueStatus: "todo" });
-    const [linked] = await db.insert(issues).values({ companyId: own.companyId, title: "New linked task", status: "todo" }).returning();
+    const other = await seedSession({ spaceId: own.spaceId, agentId: own.agentId, issueStatus: "todo" });
+    const [linked] = await db.insert(issues).values({ spaceId: own.spaceId, title: "New linked task", status: "todo" }).returning();
     const due = now.getTime() + 5 * DAY_MS + 1;
     await startBackups(); await settled(due); await quiet(60_000);
     const reads = vi.spyOn(fs, "readFile");
     const runId = randomUUID();
     try {
       await db.transaction(async tx => {
-        await notifyNativeEnvironmentSettlement(tx, { companyId: own.companyId, runId, issueId: linked!.id });
-        await tx.insert(heartbeatRuns).values({ id: runId, companyId: own.companyId, agentId: own.agentId,
+        await notifyNativeEnvironmentSettlement(tx, { spaceId: own.spaceId, runId, issueId: linked!.id });
+        await tx.insert(heartbeatRuns).values({ id: runId, spaceId: own.spaceId, agentId: own.agentId,
           nativeSessionId: own.sessionId, nativeIssueId: linked!.id, issueId: other.issueId, status: "running" });
       });
       await settled();
@@ -870,16 +870,16 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
       await issueService(db).update(linked!.id, { status: "done" }); await settled();
       expect(reads.mock.calls.every(call => String(call[0]).startsWith(own.root))).toBe(true); reads.mockClear();
       await db.transaction(async tx => {
-        await notifyRetainedNativeSessionCleanup(tx, { companyId: own.companyId, runId, agentId: own.agentId });
+        await notifyRetainedNativeSessionCleanup(tx, { spaceId: own.spaceId, runId, agentId: own.agentId });
         await tx.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, runId));
       });
       const [closed] = await db.select().from(issues).where(eq(issues.id, linked!.id));
       const later = new Date(closed!.completedAt!).getTime() + 7 * DAY_MS + 1;
       await settled(later); reads.mockClear();
-      const cleanupScope = { companyId: own.companyId, agentId: own.agentId };
+      const cleanupScope = { spaceId: own.spaceId, agentId: own.agentId };
       const observed = vi.fn(); const stop = onRetainedNativeSessionCleanupRelease(db, observed);
-      releaseRetainedNativeSessionCleanup(db, cleanupScope, { companyId: own.companyId, runId });
-      expect(observed).toHaveBeenCalledWith(cleanupScope, { companyId: own.companyId, runId }); stop();
+      releaseRetainedNativeSessionCleanup(db, cleanupScope, { spaceId: own.spaceId, runId });
+      expect(observed).toHaveBeenCalledWith(cleanupScope, { spaceId: own.spaceId, runId }); stop();
       await settled(later);
       expect(reads.mock.calls.every(call => String(call[0]).startsWith(own.root))).toBe(true);
       expect(reads).toHaveBeenCalled();
@@ -890,9 +890,9 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
 
   it("ordinary lease release without a run uses its source identity instead of other retained roots", async () => {
     const own = await seedSession({ leaseStatus: "retained" });
-    const other = await seedSession({ companyId: own.companyId, agentId: own.agentId, issueStatus: "todo" });
+    const other = await seedSession({ spaceId: own.spaceId, agentId: own.agentId, issueStatus: "todo" });
     await startBackups(); await settled(); await quiet(60_000);
-    const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, own.companyId));
+    const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, own.spaceId));
     const reads = vi.spyOn(fs, "readFile");
     try {
       await environmentService(db).releaseLease(lease!.id, "expired"); await settled();
@@ -904,9 +904,9 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
 
   it("retains the future deadline when a lease metadata edit removes its last backup reference", async () => {
     const own = await seedSession({ leaseStatus: "retained", closedDaysAgo: 2 });
-    const other = await seedSession({ companyId: own.companyId, agentId: own.agentId, issueStatus: "todo" });
+    const other = await seedSession({ spaceId: own.spaceId, agentId: own.agentId, issueStatus: "todo" });
     await startBackups(); await settled();
-    const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, own.companyId));
+    const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, own.spaceId));
     const reads = vi.spyOn(fs, "readFile"); const due = now.getTime() + 5 * DAY_MS + 1;
     try {
       await environmentService(db).updateLeaseMetadata(lease!.id, {}); await settled(due);
@@ -985,27 +985,27 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     await quiet();
   });
 
-  it("finds a backup root's leases by run, backup stamp and identity through indexes, within one company", async () => {
+  it("finds a backup root's leases by run, backup stamp and identity through indexes, within one space", async () => {
     const session = await seedSession({ leaseStatus: "retained" });
     const [stamped] = await db.select({ id: environmentLeases.id }).from(environmentLeases)
-      .where(eq(environmentLeases.companyId, session.companyId));
-    const [runLease] = await db.insert(environmentLeases).values({ companyId: session.companyId,
+      .where(eq(environmentLeases.spaceId, session.spaceId));
+    const [runLease] = await db.insert(environmentLeases).values({ spaceId: session.spaceId,
       heartbeatRunId: session.runId, status: "released", metadata: {} }).returning();
-    const [own] = await db.insert(environmentLeases).values({ companyId: session.companyId, status: "active",
+    const [own] = await db.insert(environmentLeases).values({ spaceId: session.spaceId, status: "active",
       metadata: { nativeHarnessBackup: { sessionScopeSha256: "0".repeat(64) } } }).returning();
     // Not references: another digest, a stamp that is not a string match, and
-    // the same digest in another company.
-    const otherCompanyId = randomUUID();
-    await db.insert(companies).values({ id: otherCompanyId, name: "Other", issuePrefix: `O${otherCompanyId.slice(0, 6)}` });
+    // the same digest in another space.
+    const otherSpaceId = randomUUID();
+    await db.insert(spaces).values({ id: otherSpaceId, name: "Other", issuePrefix: `O${otherSpaceId.slice(0, 6)}` });
     await db.insert(environmentLeases).values([
-      { companyId: session.companyId, status: "retained", metadata: { nativeHarnessBackup: { sessionScopeSha256: "f".repeat(64) } } },
-      { companyId: session.companyId, status: "retained", metadata: { nativeHarnessBackup: { sessionScopeSha256: [session.scope] } } },
-      { companyId: session.companyId, status: "retained", metadata: { sessionScopeSha256: session.scope } },
-      { companyId: otherCompanyId, status: "retained", metadata: { nativeHarnessBackup: { sessionScopeSha256: session.scope } } },
+      { spaceId: session.spaceId, status: "retained", metadata: { nativeHarnessBackup: { sessionScopeSha256: "f".repeat(64) } } },
+      { spaceId: session.spaceId, status: "retained", metadata: { nativeHarnessBackup: { sessionScopeSha256: [session.scope] } } },
+      { spaceId: session.spaceId, status: "retained", metadata: { sessionScopeSha256: session.scope } },
+      { spaceId: otherSpaceId, status: "retained", metadata: { nativeHarnessBackup: { sessionScopeSha256: session.scope } } },
     ]);
-    // Unrelated lease history, so the planner prefers indexes to a company scan.
-    await db.$client.unsafe(`insert into environment_leases (company_id, status, metadata)
-      select $1::uuid, 'released', jsonb_build_object('sandbox', repeat('x', 512)) from generate_series(1, 2000)`, [session.companyId]);
+    // Unrelated lease history, so the planner prefers indexes to a space scan.
+    await db.$client.unsafe(`insert into environment_leases (space_id, status, metadata)
+      select $1::uuid, 'released', jsonb_build_object('sandbox', repeat('x', 512)) from generate_series(1, 2000)`, [session.spaceId]);
     await db.$client.unsafe("analyze environment_leases");
     const statePath = path.join(session.root, "control-plane", "control-plane-state.json");
     await fs.writeFile(statePath, JSON.stringify({ identity: {
@@ -1018,7 +1018,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     try { reconciled = await service().reconcileBackup(session.scope); } finally { db.$client.options.debug = previous; }
     expect([...reconciled!.dependencies.leaseIds].sort()).toEqual([stamped!.id, runLease!.id, own!.id].sort());
 
-    // Every arm of the company's lease lookup must be index-backed, or the
+    // Every arm of the space's lease lookup must be index-backed, or the
     // planner reads each lease's metadata (environment_leases_native_backup_scope_idx).
     const lookup = queries.find(query => query.text.startsWith('select "id" from "environment_leases"')
       && query.text.includes("sessionScopeSha256"));
@@ -1082,12 +1082,12 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     await quiet();
   });
 
-  it("retains live lease references and only removes the owning company's backup after lease release", async () => {
+  it("retains live lease references and only removes the owning space's backup after lease release", async () => {
     const first = await seedSession({ leaseStatus: "retained" });
     const other = await seedSession({ leaseStatus: "retained" });
     await startBackups(); await settled(); await quiet();
     await writeEnvironmentCleanup(db, tx => tx.update(environmentLeases).set({ status: "expired" })
-      .where(eq(environmentLeases.companyId, first.companyId)), { companyId: first.companyId });
+      .where(eq(environmentLeases.spaceId, first.spaceId)), { spaceId: first.spaceId });
     await settled(); expect(await exists(first.current)).toBe(false); expect(await exists(other.current)).toBe(true);
     expect(await taskSessionCount(other.agentId)).toBe(1); await quiet();
   });
@@ -1134,7 +1134,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
     expect(saved!.status).toBe("todo");
   });
 
-  it("pages multiple company backups, preserves a busy one and wakes from process release", async () => {
+  it("pages multiple space backups, preserves a busy one and wakes from process release", async () => {
     const sessions = [await seedSession(), await seedSession(), await seedSession()]; let busy = true;
     await startBackups({ maxEntries: 1, maxRemovals: 1, isSessionBusy: digest => busy && digest === sessions[1]!.scope });
     await vi.waitFor(async () => { await vi.advanceTimersByTimeAsync(1000);
@@ -1142,7 +1142,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
       expect(backupErrors.length).toBeGreaterThan(0);
     });
     expect(await exists(sessions[1]!.current)).toBe(true); busy = false;
-    noteNativeHarnessBackupChange(db, { companyId: sessions[1]!.companyId });
+    noteNativeHarnessBackupChange(db, { spaceId: sessions[1]!.spaceId });
     await settled(); expect(await exists(sessions[1]!.current)).toBe(false); await quiet();
   });
 
@@ -1372,7 +1372,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
 
   it("skips symlinked evidence without following it", async () => {
     const session = await seedSession({ issueStatus: "in_progress" });
-    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-evidence-outside-"));
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-evidence-outside-"));
     try {
       await fs.writeFile(path.join(outside, "keep.txt"), "keep");
       const stampedAt = now.getTime() - 10 * DAY_MS;
@@ -1401,7 +1401,7 @@ describeEmbeddedPostgres("native harness backup expiration", () => {
 
   it("skips symlinked evidence folders without following them", async () => {
     const session = await seedSession({ issueStatus: "in_progress" });
-    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-evidence-outside-"));
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-evidence-outside-"));
     try {
       const stampedAt = now.getTime() - 10 * DAY_MS;
       const inside = path.join(outside, `${stampedAt}-${randomUUID()}`);

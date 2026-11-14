@@ -23,7 +23,7 @@ import {
   issueTreeControlService,
   logActivity,
 } from "../services/index.js";
-import { assertBoard, getAccessibleResource, getActorInfo } from "./authz.js";
+import { assertOperator, getAccessibleResource, getActorInfo } from "./authz.js";
 
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 
@@ -61,7 +61,7 @@ export function issueTreeControlRoutes(
 
   async function assertIssueReadAllowed(req: Request, res: Response, issue: {
     id: string;
-    companyId: string;
+    spaceId: string;
     projectId?: string | null;
     parentId?: string | null;
     assigneeAgentId?: string | null;
@@ -73,7 +73,7 @@ export function issueTreeControlRoutes(
       action: "issue:read",
       resource: {
         type: "issue",
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         issueId: issue.id,
         projectId: issue.projectId ?? null,
         parentIssueId: issue.parentId ?? null,
@@ -94,7 +94,7 @@ export function issueTreeControlRoutes(
   }
 
   async function resumePauseInterruptedWork(
-    root: { id: string; companyId: string },
+    root: { id: string; spaceId: string },
     holdId: string,
     actor: ReturnType<typeof getActorInfo>,
     /** Snapshot members already received an explicit wake. */
@@ -102,13 +102,13 @@ export function issueTreeControlRoutes(
   ) {
     // A pause Stop is an operator hold. Re-dispatch the work it interrupted
     // once, under current admission gates; never replay uncertain actions.
-    const hold = await treeControlSvc.getHold(root.companyId, holdId);
+    const hold = await treeControlSvc.getHold(root.spaceId, holdId);
     if (!hold || hold.mode !== "pause") return [];
     // Tasks under the tree now include ones added after the snapshot, whose
     // work an overlapping hold that was released earlier may have refused.
-    const currentTree = await treeControlSvc.listTreeIssues(root.companyId, hold.rootIssueId);
+    const currentTree = await treeControlSvc.listTreeIssues(root.spaceId, hold.rootIssueId);
     return resumeInterruptedWork(db, {
-      companyId: root.companyId,
+      spaceId: root.spaceId,
       issueIds: [...(options.skipMembers ? [] : (hold.members ?? []).map((member) => member.issueId)),
         ...currentTree.map((issue) => issue.id)],
       // Gates also refused work for this hold on tasks moved out of the tree since.
@@ -121,15 +121,15 @@ export function issueTreeControlRoutes(
   }
 
   router.post("/issues/:id/tree-control/preview", validate(previewIssueTreeControlSchema), async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const root = await getAccessibleResource(req, res, resolveRootIssue(req), "Root issue not found");
     if (!root) return;
     if (!(await assertIssueReadAllowed(req, res, root))) return;
 
-    const preview = await treeControlSvc.preview(root.companyId, root.id, req.body);
+    const preview = await treeControlSvc.preview(root.spaceId, root.id, req.body);
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId: root.companyId,
+      spaceId: root.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -149,7 +149,7 @@ export function issueTreeControlRoutes(
   });
 
   router.post("/issues/:id/tree-holds", validate(createIssueTreeHoldSchema), async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const root = await getAccessibleResource(req, res, resolveRootIssue(req), "Root issue not found");
     if (!root) return;
     if (!(await assertIssueReadAllowed(req, res, root))) return;
@@ -162,12 +162,12 @@ export function issueTreeControlRoutes(
       userId: actor.actorType === "user" ? actor.actorId : null,
       runId: actor.runId,
     };
-    let result = await treeControlSvc.createHold(root.companyId, root.id, {
+    let result = await treeControlSvc.createHold(root.spaceId, root.id, {
       ...req.body,
       actor: actorInput,
     });
     await logActivity(db, {
-      companyId: root.companyId,
+      spaceId: root.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -191,12 +191,12 @@ export function issueTreeControlRoutes(
       for (const heartbeatRunId of interruptedRunIds) {
         const cancellationTask = (async () => {
           try {
-            // This board-only operation is an intentional interruption, just
+            // This operator-only operation is an intentional interruption, just
             // like composer Stop. Preserve its actor so verified native stops
             // do not manufacture recovery incidents while the hold is active.
             await heartbeat.cancelRun(
               heartbeatRunId,
-              `Cancelled by a board operator's subtree ${result.hold.mode}`,
+              `Cancelled by a operator operator's subtree ${result.hold.mode}`,
               {
                 resultJson: {
                   cancelledByActorType: "user",
@@ -205,7 +205,7 @@ export function issueTreeControlRoutes(
               },
             );
             await logActivity(db, {
-              companyId: root.companyId,
+              spaceId: root.spaceId,
               actorType: actor.actorType,
               actorId: actor.actorId,
               agentId: actor.agentId,
@@ -222,7 +222,7 @@ export function issueTreeControlRoutes(
             });
           } catch (error) {
             await Promise.resolve(logActivity(db, {
-              companyId: root.companyId,
+              spaceId: root.spaceId,
               actorType: actor.actorType,
               actorId: actor.actorId,
               agentId: actor.agentId,
@@ -244,7 +244,7 @@ export function issueTreeControlRoutes(
       }
 
       const cancelledWakeups = await treeControlSvc.cancelUnclaimedWakeupsForTree(
-        root.companyId,
+        root.spaceId,
         root.id,
         result.hold.mode === "pause"
           ? "Cancelled because an active subtree pause hold was created"
@@ -252,7 +252,7 @@ export function issueTreeControlRoutes(
       );
       for (const wakeup of cancelledWakeups) {
         await logActivity(db, {
-          companyId: root.companyId,
+          spaceId: root.spaceId,
           actorType: actor.actorType,
           actorId: actor.actorId,
           agentId: actor.agentId,
@@ -272,9 +272,9 @@ export function issueTreeControlRoutes(
     }
 
     if (result.hold.mode === "cancel") {
-      const statusUpdate = await treeControlSvc.cancelIssueStatusesForHold(root.companyId, root.id, result.hold.id);
+      const statusUpdate = await treeControlSvc.cancelIssueStatusesForHold(root.spaceId, root.id, result.hold.id);
       await logActivity(db, {
-        companyId: root.companyId,
+        spaceId: root.spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         agentId: actor.agentId,
@@ -298,12 +298,12 @@ export function issueTreeControlRoutes(
     if (result.hold.mode === "restore") {
       let statusUpdate;
       try {
-        statusUpdate = await treeControlSvc.restoreIssueStatusesForHold(root.companyId, root.id, result.hold.id, {
+        statusUpdate = await treeControlSvc.restoreIssueStatusesForHold(root.spaceId, root.id, result.hold.id, {
           reason: result.hold.reason,
           actor: actorInput,
         });
       } catch (error) {
-        await treeControlSvc.releaseHold(root.companyId, root.id, result.hold.id, {
+        await treeControlSvc.releaseHold(root.spaceId, root.id, result.hold.id, {
           reason: "Restore operation failed before subtree status updates completed",
           metadata: {
             cleanup: "restore_failed_before_apply",
@@ -316,7 +316,7 @@ export function issueTreeControlRoutes(
         result = { ...result, hold: statusUpdate.restoreHold };
       }
       await logActivity(db, {
-        companyId: root.companyId,
+        spaceId: root.spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         agentId: actor.agentId,
@@ -363,7 +363,7 @@ export function issueTreeControlRoutes(
             .catch(() => null);
           if (!wakeRun) continue;
           await logActivity(db, {
-            companyId: root.companyId,
+            spaceId: root.spaceId,
             actorType: actor.actorType,
             actorId: actor.actorId,
             agentId: actor.agentId,
@@ -398,24 +398,24 @@ export function issueTreeControlRoutes(
   });
 
   router.get("/issues/:id/tree-control/state", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const issueId = req.params.id as string;
     const issue = await getAccessibleResource(req, res, issuesSvc.getById(issueId), "Issue not found");
     if (!issue) return;
     if (!(await assertIssueReadAllowed(req, res, issue))) return;
-    const activePauseHold = await treeControlSvc.getActivePauseHoldGate(issue.companyId, issue.id);
+    const activePauseHold = await treeControlSvc.getActivePauseHoldGate(issue.spaceId, issue.id);
     res.json({ activePauseHold });
   });
 
   router.get("/issues/:id/tree-holds", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const root = await getAccessibleResource(req, res, resolveRootIssue(req), "Root issue not found");
     if (!root) return;
     if (!(await assertIssueReadAllowed(req, res, root))) return;
     const statusParam = typeof req.query.status === "string" ? req.query.status : null;
     const modeParam = typeof req.query.mode === "string" ? req.query.mode : null;
     const includeMembers = req.query.includeMembers === "true";
-    const holds = await treeControlSvc.listHolds(root.companyId, root.id, {
+    const holds = await treeControlSvc.listHolds(root.spaceId, root.id, {
       status: statusParam === "active" || statusParam === "released" ? statusParam : undefined,
       mode:
         modeParam === "pause" || modeParam === "resume" || modeParam === "cancel" || modeParam === "restore"
@@ -427,7 +427,7 @@ export function issueTreeControlRoutes(
   });
 
   router.get("/issues/:id/tree-holds/:holdId", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const root = await getAccessibleResource(req, res, resolveRootIssue(req), "Root issue not found");
     if (!root) return;
     if (!(await assertIssueReadAllowed(req, res, root))) return;
@@ -438,7 +438,7 @@ export function issueTreeControlRoutes(
       return;
     }
 
-    const hold = await treeControlSvc.getHold(root.companyId, holdId);
+    const hold = await treeControlSvc.getHold(root.spaceId, holdId);
     if (!hold || hold.rootIssueId !== root.id) {
       res.status(404).json({ error: "Issue tree hold not found" });
       return;
@@ -450,7 +450,7 @@ export function issueTreeControlRoutes(
     "/issues/:id/tree-holds/:holdId/release",
     validate(releaseIssueTreeHoldSchema),
     async (req, res) => {
-      assertBoard(req);
+      assertOperator(req);
       const root = await getAccessibleResource(
         req,
         res,
@@ -469,7 +469,7 @@ export function issueTreeControlRoutes(
       // Releasing a pause does not authorize replay of uncertain provider actions.
       // Check before release so a rejected wake leaves the subtree paused.
       if (req.body.metadata?.wakeAgents === true) {
-        const activeHold = await treeControlSvc.getHold(root.companyId, holdId);
+        const activeHold = await treeControlSvc.getHold(root.spaceId, holdId);
         const issueIds =
           activeHold?.mode === "pause" && activeHold.rootIssueId === root.id
             ? (activeHold.members ?? []).map((member) => member.issueId)
@@ -477,18 +477,18 @@ export function issueTreeControlRoutes(
         if (issueIds.length > 0) {
           const candidates = await db.select({ id: issueRows.id, identifier: issueRows.identifier })
             .from(issueRows).where(and(
-              eq(issueRows.companyId, root.companyId), inArray(issueRows.id, issueIds),
+              eq(issueRows.spaceId, root.spaceId), inArray(issueRows.id, issueIds),
               inArray(issueRows.status, ISSUE_TREE_RESUME_EXECUTABLE_STATUSES), isNotNull(issueRows.assigneeAgentId),
             ));
           for (const task of candidates) {
-            const blocked = await getExecutionBlocker(db, root.companyId, task.id);
+            const blocked = await getExecutionBlocker(db, root.spaceId, task.id);
             if (blocked) throw conflict(`Cannot wake ${task.identifier ?? "this task"}: ${blocked.nextAction}`);
           }
         }
       }
       const actor = getActorInfo(req);
       const hold = await treeControlSvc.releaseHold(
-        root.companyId,
+        root.spaceId,
         root.id,
         holdId,
         {
@@ -503,7 +503,7 @@ export function issueTreeControlRoutes(
         },
       );
       await logActivity(db, {
-        companyId: root.companyId,
+        spaceId: root.spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         agentId: actor.agentId,
@@ -527,14 +527,14 @@ export function issueTreeControlRoutes(
             const issue = await issuesSvc.getById(member.issueId);
             if (
               !issue ||
-              issue.companyId !== root.companyId ||
+              issue.spaceId !== root.spaceId ||
               !issue.assigneeAgentId ||
               !ISSUE_TREE_RESUME_EXECUTABLE_STATUSES.includes(issue.status)
             )
               continue;
             // The snapshot may predate reopening a task or releasing another
             // pause. Current task state and remaining holds govern execution.
-            if (await treeControlSvc.getActivePauseHoldGate(root.companyId, issue.id)) continue;
+            if (await treeControlSvc.getActivePauseHoldGate(root.spaceId, issue.id)) continue;
             await heartbeat.wakeup(issue.assigneeAgentId, {
               source: "assignment",
               triggerDetail: "system",
@@ -560,7 +560,7 @@ export function issueTreeControlRoutes(
             wakeFailures.push({ issueId: member.issueId, message });
             await Promise.resolve(
               logActivity(db, {
-                companyId: root.companyId,
+                spaceId: root.spaceId,
                 actorType: actor.actorType,
                 actorId: actor.actorId,
                 agentId: actor.agentId,

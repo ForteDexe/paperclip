@@ -9,14 +9,14 @@ import { issueService } from "./issues.js";
  * it (covered → "in queue"), so a blocked task never looks different in a
  * sidebar than in its detail pane.
  *
- * The blocker walk is company-scoped, so the result carries only what the
+ * The blocker walk is space-scoped, so the result carries only what the
  * glyph needs: state, reason and counts. Blocker titles and IDs never leave
  * this helper. A sampled blocker identifier is kept only when the caller
  * confirms that the actor can read that blocker.
  */
 export async function listIssueStatusBlockerAttention(
   db: Db,
-  companyId: string,
+  spaceId: string,
   rows: ReadonlyArray<{ id: string; status: string }>,
   readableIssueIds?: (ids: string[]) => Promise<ReadonlySet<string>>,
 ): Promise<Map<string, IssueBlockerAttention>> {
@@ -24,7 +24,7 @@ export async function listIssueStatusBlockerAttention(
   if (blockedIds.length === 0) return new Map();
   const nodes = await db.select({
     id: issues.id,
-    companyId: issues.companyId,
+    spaceId: issues.spaceId,
     parentId: issues.parentId,
     identifier: issues.identifier,
     title: issues.title,
@@ -32,8 +32,8 @@ export async function listIssueStatusBlockerAttention(
     executionRunId: issues.executionRunId,
     assigneeAgentId: issues.assigneeAgentId,
     assigneeUserId: issues.assigneeUserId,
-  }).from(issues).where(and(eq(issues.companyId, companyId), inArray(issues.id, blockedIds)));
-  const attention = await issueService(db).listBlockerAttention(companyId, nodes);
+  }).from(issues).where(and(eq(issues.spaceId, spaceId), inArray(issues.id, blockedIds)));
+  const attention = await issueService(db).listBlockerAttention(spaceId, nodes);
   const sampledIds = [...new Set([...attention.values()].flatMap((item) => item.terminalBlocker ? [item.terminalBlocker.id] : []))];
   const readable = readableIssueIds && sampledIds.length > 0 ? await readableIssueIds(sampledIds) : new Set<string>();
 

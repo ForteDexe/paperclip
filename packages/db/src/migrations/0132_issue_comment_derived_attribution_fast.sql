@@ -45,7 +45,7 @@ BEGIN
 				AND c."author_user_id" IS NOT NULL
 				AND c."created_by_run_id" IS NOT NULL
 				AND (
-					c."author_user_id" = 'local-board'
+					c."author_user_id" = 'local-operator'
 					OR u."id" IS NULL
 				)
 			ORDER BY c."id"

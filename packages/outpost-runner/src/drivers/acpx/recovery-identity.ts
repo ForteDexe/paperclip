@@ -131,7 +131,7 @@ export async function createAcpxRecoveryBinding(input: {
       ...(grokEffort ? { grokEffort } : {}),
       ...(grokDisableWebSearch === undefined ? {} : { grokDisableWebSearch }),
     }),
-  ).replace("sha256:", "paperclip-");
+  ).replace("sha256:", "outpost-");
   return {
     normalizedSessionId: input.normalizedSessionId,
     workspacePath,
@@ -435,7 +435,7 @@ function isDigest(value: unknown): value is string {
 function isPermissionMode(value: unknown): value is NativeAcpxPermissionMode {
   return (
     typeof value === "string" &&
-    ["approve-all", "approve-paperclip", "approve-reads", "deny-all"].includes(value)
+    ["approve-all", "approve-outpost", "approve-reads", "deny-all"].includes(value)
   );
 }
 

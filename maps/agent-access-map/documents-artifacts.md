@@ -51,7 +51,7 @@ Policy: Task/resource visibility, mutation/checkout ownership, revision/lock gua
 permitted deliverable context.
 
 Native completion evidence accepts the server's relative link only for a document
-attached to the current company/task with a matching current-revision publication
+attached to the current space/task with a matching current-revision publication
 receipt. It can accompany a separately verified requested file; it cannot replace
 that file. The [native feedback regression](../../server/src/services/native-runtime/native-completion-feedback.test.ts)
 exercises the native write/register/finish boundary with local PostgreSQL and a
@@ -63,7 +63,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Supported. Native helpers focus on the active task; generic API or explicit
@@ -90,7 +90,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Annotation operations exist without a special annotation tool; check revision
@@ -104,7 +104,7 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `POST /api/companies/{companyId}/issues/{issueId}/attachments`.
+- `POST /api/spaces/{spaceId}/issues/{issueId}/attachments`.
 - `GET /api/assets/{assetId}/content`.
 
 Agent access: `available` — Native register_deliverable and API multipart/binary
@@ -118,12 +118,12 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Queue and HTTP/2 sandbox callbacks admit `GET /api/assets/{assetId}/content`,
 including screenshot references in task descriptions. The controller still checks
-company and task visibility before opening storage.
+space and task visibility before opening storage.
 
 Gaps: Native API uploads are bounded; attachment reading has target/provider and
 permission conditions.
@@ -150,7 +150,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: A registered reference does not prove uploaded bytes, external delivery, or
@@ -164,7 +164,7 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `GET /api/companies/{companyId}/artifacts`.
+- `GET /api/spaces/{spaceId}/artifacts`.
 
 Agent access: `available` — REST / native call_api.
 
@@ -176,7 +176,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Library search/filter uses the artifact API; no new tool needed merely to mirror

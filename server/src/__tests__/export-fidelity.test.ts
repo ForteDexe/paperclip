@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { companies, createDb, issueLabels, issueRelations, issues, labels } from "@outpost/db";
+import { spaces, createDb, issueLabels, issueRelations, issues, labels } from "@outpost/db";
 
 import { buildExportFidelityReport, collectExportFidelityCounts } from "../services/export-fidelity.js";
 import {
@@ -22,7 +22,7 @@ describeEmbeddedPostgres("export fidelity counts", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-export-fidelity-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-export-fidelity-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -31,43 +31,43 @@ describeEmbeddedPostgres("export fidelity counts", () => {
     await db.delete(issueRelations);
     await db.delete(labels);
     await db.delete(issues);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  it("counts labels, label references, blocker relations, and monitors scoped to the company", async () => {
-    const companyId = randomUUID();
-    const otherCompanyId = randomUUID();
-    await seedCompany(companyId);
-    await seedCompany(otherCompanyId);
+  it("counts labels, label references, blocker relations, and monitors scoped to the space", async () => {
+    const spaceId = randomUUID();
+    const otherSpaceId = randomUUID();
+    await seedSpace(spaceId);
+    await seedSpace(otherSpaceId);
 
     const issueA = randomUUID();
     const issueB = randomUUID();
     const otherIssue = randomUUID();
     await db.insert(issues).values([
-      issueRow({ id: issueA, companyId, identifier: "LOCAL-1" }),
-      issueRow({ id: issueB, companyId, identifier: "LOCAL-2", monitorScheduledBy: "agent" }),
-      issueRow({ id: otherIssue, companyId: otherCompanyId, identifier: "OTHER-1", monitorScheduledBy: "agent" }),
+      issueRow({ id: issueA, spaceId, identifier: "LOCAL-1" }),
+      issueRow({ id: issueB, spaceId, identifier: "LOCAL-2", monitorScheduledBy: "agent" }),
+      issueRow({ id: otherIssue, spaceId: otherSpaceId, identifier: "OTHER-1", monitorScheduledBy: "agent" }),
     ]);
 
     const labelId = randomUUID();
     const otherLabelId = randomUUID();
     await db.insert(labels).values([
-      { id: labelId, companyId, name: "bug", color: "#ff0000" },
-      { id: otherLabelId, companyId: otherCompanyId, name: "bug", color: "#00ff00" },
+      { id: labelId, spaceId, name: "bug", color: "#ff0000" },
+      { id: otherLabelId, spaceId: otherSpaceId, name: "bug", color: "#00ff00" },
     ]);
     await db.insert(issueLabels).values([
-      { issueId: issueA, labelId, companyId },
-      { issueId: otherIssue, labelId: otherLabelId, companyId: otherCompanyId },
+      { issueId: issueA, labelId, spaceId },
+      { issueId: otherIssue, labelId: otherLabelId, spaceId: otherSpaceId },
     ]);
     await db.insert(issueRelations).values([
-      { companyId, issueId: issueA, relatedIssueId: issueB, type: "blocks" as const },
+      { spaceId, issueId: issueA, relatedIssueId: issueB, type: "blocks" as const },
     ]);
 
-    const counts = await collectExportFidelityCounts(db, companyId);
+    const counts = await collectExportFidelityCounts(db, spaceId);
     expect(counts).toEqual({
       labelDefinitions: 1,
       issueLabelReferences: 1,
@@ -81,24 +81,24 @@ describeEmbeddedPostgres("export fidelity counts", () => {
       issueMonitors: 1,
     });
 
-    const otherCounts = await collectExportFidelityCounts(db, otherCompanyId);
+    const otherCounts = await collectExportFidelityCounts(db, otherSpaceId);
     expect(otherCounts.labelDefinitions).toBe(1);
     expect(otherCounts.issueBlockerRelations).toBe(0);
     expect(otherCounts.issueMonitors).toBe(1);
   });
 
   it("builds a report whose warnings reflect the collected counts", async () => {
-    const companyId = randomUUID();
-    await seedCompany(companyId);
+    const spaceId = randomUUID();
+    await seedSpace(spaceId);
     const issueId = randomUUID();
-    await db.insert(issues).values([issueRow({ id: issueId, companyId, identifier: "LOCAL-1" })]);
+    await db.insert(issues).values([issueRow({ id: issueId, spaceId, identifier: "LOCAL-1" })]);
     const labelId = randomUUID();
-    await db.insert(labels).values([{ id: labelId, companyId, name: "bug", color: "#ff0000" }]);
-    await db.insert(issueLabels).values([{ issueId, labelId, companyId }]);
+    await db.insert(labels).values([{ id: labelId, spaceId, name: "bug", color: "#ff0000" }]);
+    await db.insert(issueLabels).values([{ issueId, labelId, spaceId }]);
 
-    const report = buildExportFidelityReport(companyId, await collectExportFidelityCounts(db, companyId));
-    expect(report.schema).toBe("paperclip-export-fidelity-v1");
-    expect(report.companyId).toBe(companyId);
+    const report = buildExportFidelityReport(spaceId, await collectExportFidelityCounts(db, spaceId));
+    expect(report.schema).toBe("outpost-export-fidelity-v1");
+    expect(report.spaceId).toBe(spaceId);
     // Labels travel in the bundle now, so their counts stay informational.
     expect(report.counts.labelDefinitions).toBe(1);
     expect(report.counts.issueLabelReferences).toBe(1);
@@ -106,16 +106,16 @@ describeEmbeddedPostgres("export fidelity counts", () => {
     expect(Date.parse(report.generatedAt)).not.toBeNaN();
   });
 
-  async function seedCompany(companyId: string) {
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+  async function seedSpace(spaceId: string) {
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
   }
 
-  function issueRow(overrides: { id: string; companyId: string; identifier: string; monitorScheduledBy?: string }) {
+  function issueRow(overrides: { id: string; spaceId: string; identifier: string; monitorScheduledBy?: string }) {
     return {
       description: "",
       status: "todo",

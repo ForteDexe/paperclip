@@ -16,7 +16,7 @@ import { MCP_CONFIG_HELP_INSTRUCTIONS, MCP_CONFIG_HELP_PROMPT } from "@outpost/s
  * Compact question-mark help beside the Paste-a-config copy (PAP-17087, plan 3A).
  *
  * Purely static: it renders a constant prompt and copies it. It deliberately has
- * no props, no company id, and no access to the textarea, so opening or copying
+ * no props, no space id, and no access to the textarea, so opening or copying
  * it cannot create a connection, call an agent, submit the pasted config, or leak
  * anything the operator has typed.
  */

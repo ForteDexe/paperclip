@@ -5,7 +5,7 @@
   "name": "Budget cost stop reason",
   "description": "A terminal budget hard stop carries a safe usage aggregate, decision id, and stable stop receipt.",
   "identity": {
-    "schema": "outpost.orp.identity.v1", "companyId": "company_budget_stop", "issueId": "issue_budget_stop", "runId": "run_budget_stop",
+    "schema": "outpost.orp.identity.v1", "spaceId": "space_budget_stop", "issueId": "issue_budget_stop", "runId": "run_budget_stop",
     "environmentLeaseId": "lease_budget_stop", "runnerInstanceId": "runner_budget_stop", "normalizedSessionId": "session_budget_stop", "driverSessionId": "driver_budget_stop"
   },
   "capabilities": {
@@ -23,7 +23,7 @@
         "completionClaim": { "contractRevision": "semantic-receipts-v1", "objectiveSatisfied": false, "criteria": [], "remainingWork": [{ "description": "The budget owner must raise the limit or wait for reset.", "blocksCompletion": true }] },
         "evidence": [{ "decisionId": "budget_decision_stop" }],
         "verification": [{ "commandOrCheck": "budget aggregate receipt", "status": "passed" }],
-        "blocker": { "reasonCode": "budget_hard_stop", "owner": { "kind": "system", "name": "Paperclip budget policy" }, "unblockAction": "Raise the actor budget or wait for the monthly reset.", "scope": "task_wide" },
+        "blocker": { "reasonCode": "budget_hard_stop", "owner": { "kind": "system", "name": "Outpost budget policy" }, "unblockAction": "Raise the actor budget or wait for the monthly reset.", "scope": "task_wide" },
         "attentionRequests": [], "artifacts": []
       }
     },
@@ -49,7 +49,7 @@
     "completionClaim": { "contractRevision": "semantic-receipts-v1", "objectiveSatisfied": false, "criteria": [], "remainingWork": [{ "description": "The budget owner must raise the limit or wait for reset.", "blocksCompletion": true }] },
     "evidence": [{ "decisionId": "budget_decision_stop" }],
     "verification": [{ "commandOrCheck": "budget aggregate receipt", "status": "passed" }],
-    "blocker": { "reasonCode": "budget_hard_stop", "owner": { "kind": "system", "name": "Paperclip budget policy" }, "unblockAction": "Raise the actor budget or wait for the monthly reset.", "scope": "task_wide" },
+    "blocker": { "reasonCode": "budget_hard_stop", "owner": { "kind": "system", "name": "Outpost budget policy" }, "unblockAction": "Raise the actor budget or wait for the monthly reset.", "scope": "task_wide" },
     "attentionRequests": [], "artifacts": []
   }
 }

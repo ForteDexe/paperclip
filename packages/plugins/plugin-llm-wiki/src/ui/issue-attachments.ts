@@ -26,7 +26,7 @@ async function readUploadError(response: Response): Promise<string> {
 }
 
 export async function uploadIssueAttachmentFile(input: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   file: File;
   fetchImpl?: FetchLike;
@@ -35,7 +35,7 @@ export async function uploadIssueAttachmentFile(input: {
   const form = new FormData();
   form.append("file", input.file);
   const response = await fetchImpl(
-    `/api/companies/${encodeURIComponent(input.companyId)}/issues/${encodeURIComponent(input.issueId)}/attachments`,
+    `/api/spaces/${encodeURIComponent(input.spaceId)}/issues/${encodeURIComponent(input.issueId)}/attachments`,
     {
       method: "POST",
       credentials: "include",

@@ -13,13 +13,13 @@ import {
   decideStaleExposureReclaim,
 } from "./workspace-runtime.js";
 
-/** A persisted, running, pre-feature Paperclip App dev runtime. */
+/** A persisted, running, pre-feature Outpost App dev runtime. */
 function httpOnlyRunningRow(overrides: Partial<Parameters<typeof decideManagedRuntimeExposureBackfill>[0]> = {}) {
   return {
     mode: "auto" as const,
     brokerAvailable: true,
     provider: "local_process",
-    serviceName: "paperclip-dev",
+    serviceName: "outpost-dev",
     command: "pnpm dev --bind lan",
     status: "running",
     hasExposure: false,
@@ -125,7 +125,7 @@ describe("decideManagedRuntimeExposureBackfill", () => {
  * A server restart at 12:25:49 UTC deleted the operator-preserved `42000/52000`
  * Serve mappings by issuing broker removals for two stale `stopped` rows — 2 and
  * 3 days old, both claiming the same recycled pair — purely on those rows'
- * authority. The sweep spans every execution workspace and company on the host
+ * authority. The sweep spans every execution workspace and space on the host
  * and runs on every start, so "trust the row" is an unbounded delete primitive.
  * These pin the corroboration contract that replaced it.
  */

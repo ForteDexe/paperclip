@@ -31,11 +31,11 @@ export function gradeFirstWork(value: unknown) {
   const work = o.tasks[0]; const worker = entity(o.state, "worker"); const executor = [worker.id, o.leadId].includes(work?.assigneeAgentId ?? "") ? work!.assigneeAgentId! : undefined; const websites = o.state.websites as Website[] | undefined;
   const website = websites?.find(file => file.attachment.id === o.state.reviewedAttachmentId);
   c.add("actual-first-request-context", o.state.beforeSourceHumanComments === 0 && o.state.beforeSourceRuns === 0 && o.humanQueries.length === 1
-    && o.humanQueries[0]?.trim() === "Make me a simple website introducing our business.", "The canonical request is the first real human instruction in this ready company's conversation.");
-  c.add("separate-requested-ordinary-work", o.tasks.length === 1 && work?.companyId === o.companyId && !!executor && work.id !== o.state.sourceId && work.parentId == null
+    && o.humanQueries[0]?.trim() === "Make me a simple website introducing our business.", "The canonical request is the first real human instruction in this ready space's conversation.");
+  c.add("separate-requested-ordinary-work", o.tasks.length === 1 && work?.spaceId === o.spaceId && !!executor && work.id !== o.state.sourceId && work.parentId == null
     && work.status === "done" && hasLink(o, "issues", work) && o.state.sourceStillConversation === true
     && o.activity.some(row => row.action === "issue.created" && row.entityId === work.id && row.agentId === o.leadId), "The first chat creates one linked ordinary completed task; its standing conversation stays separate. Its delivered HTML (graded below), not its model-written title, proves it is the business website.");
-  c.add("actual-run-attributed-website", !!work && !!website && website.attachment.issueId === work.id && website.attachment.companyId === o.companyId
+  c.add("actual-run-attributed-website", !!work && !!website && website.attachment.issueId === work.id && website.attachment.spaceId === o.spaceId
     && website.sha256 === website.attachment.sha256 && !!executor && website.attachment.createdByAgentId === executor
     && o.runs.some(run => run.id === website.attachment.originatingRunId && run.agentId === executor && run.status === "succeeded"
       && (run.contextSnapshot?.issueId === work.id || (run as unknown as { nativeIssueId?: string }).nativeIssueId === work.id))

@@ -6,12 +6,12 @@ alone does not cover a shared project base or a private cache owned by another
 task. Unrelated remote work must continue.
 
 The source owner reads bounded, stable Git pointer, `commondir`, and alternates
-metadata. It maps each physical directory to the existing company/task source
-key or managed-project source key. It derives a transitive company cohort from
+metadata. It maps each physical directory to the existing space/task source
+key or managed-project source key. It derives a transitive space cohort from
 those owners and declared project sources. It rejects foreign physical aliases,
 unknown stores, bare repositories, symlink metadata, network alternates, and
 uncertain or excessive metadata. It preserves every object store; HEAD alone is
-not a source closure. The bounds are 1,000 company records, 256 cohort records,
+not a source closure. The bounds are 1,000 space records, 256 cohort records,
 128 source keys, 32 borrowed stores, and four alternate levels. Foreign minimal
 paths use the existing bounded scan of 256 records per page, at most 40 pages.
 
@@ -29,7 +29,7 @@ Arbitrary self-hosted Git paths and file URLs retain the genuine offline
 maintenance path; online migration requires a proven physical source owner.
 
 Physical exclusion enumerates both `cwd` and `providerRef` through one source
-path owner. Company/foreign alias checks, early admission, layout checks and
+path owner. Space/foreign alias checks, early admission, layout checks and
 filesystem mutation owners use that set. A managed or Git source in either
 locator requires a proven scope before the legacy fallback. Capture and display
 keep their existing preferred-path selection. Missing archived sources retain
@@ -82,7 +82,7 @@ remains in force; query optimization must preserve that alias coverage.
 Imported child paths come from the same exact completed migration/snapshot
 selector used by nested source verification. Their physical Git owners remain
 in the parent fence after their database rows become remote. The selector bounds
-company migration receipts to 10,240 and binds each child path, operation,
+space migration receipts to 10,240 and binds each child path, operation,
 snapshot, digest and Git metadata proof. Current remote child execution does not
 reacquire authority over those historical host files.
 

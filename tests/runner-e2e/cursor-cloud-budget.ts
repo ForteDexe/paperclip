@@ -3,7 +3,7 @@ import type { RunnerApi } from "./api.js";
 
 const optIn = "OUTPOST_CURSOR_CLOUD_ALLOW_UNPRICED_QUALIFICATION";
 const amount = 1_000;
-type QualificationPolicy = Pick<BudgetPolicySummary, "companyId" | "scopeType" | "scopeId" | "metric" | "windowKind"
+type QualificationPolicy = Pick<BudgetPolicySummary, "spaceId" | "scopeType" | "scopeId" | "metric" | "windowKind"
   | "amount" | "hardStopEnabled" | "isActive" | "unpricedUsagePolicy">;
 export interface CursorCloudQualificationBudget {
   schema: "outpost.e2e.cursor-cloud.qualification-budget.v1";
@@ -18,29 +18,29 @@ export function assertCursorCloudQualificationBudgetOptIn(environment: NodeJS.Pr
 }
 
 export async function configureCursorCloudQualificationBudget(input: {
-  api: Pick<RunnerApi, "get" | "post">; companyId: string; agentId: string;
+  api: Pick<RunnerApi, "get" | "post">; spaceId: string; agentId: string;
 }): Promise<CursorCloudQualificationBudget> {
   assertCursorCloudQualificationBudgetOptIn();
-  const { api, companyId, agentId } = input;
-  const scopes = [{ scopeType: "company", scopeId: companyId }, { scopeType: "agent", scopeId: agentId }] as const;
-  const companyPath = `/api/companies/${encodeURIComponent(companyId)}`;
+  const { api, spaceId, agentId } = input;
+  const scopes = [{ scopeType: "space", scopeId: spaceId }, { scopeType: "agent", scopeId: agentId }] as const;
+  const spacePath = `/api/spaces/${encodeURIComponent(spaceId)}`;
   for (const scope of scopes) {
-    await api.post(`${companyPath}/budgets/policies`, { ...scope, metric: "billed_cents", windowKind: "calendar_month_utc",
+    await api.post(`${spacePath}/budgets/policies`, { ...scope, metric: "billed_cents", windowKind: "calendar_month_utc",
       amount, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
   }
-  const overview = await api.get<BudgetOverview>(`${companyPath}/budgets/overview`);
-  if (!overview || overview.companyId !== companyId || !Array.isArray(overview.policies)) {
-    throw new Error("Cursor Cloud acceptance budget policy readback did not match the owned fixture company.");
+  const overview = await api.get<BudgetOverview>(`${spacePath}/budgets/overview`);
+  if (!overview || overview.spaceId !== spaceId || !Array.isArray(overview.policies)) {
+    throw new Error("Cursor Cloud acceptance budget policy readback did not match the owned fixture space.");
   }
   const policies = scopes.map(scope => {
     const matches = overview.policies.filter(policy => policy && policy.scopeType === scope.scopeType && policy.scopeId === scope.scopeId);
     const policy = matches[0];
-    if (matches.length !== 1 || !policy || policy.companyId !== companyId || policy.metric !== "billed_cents"
+    if (matches.length !== 1 || !policy || policy.spaceId !== spaceId || policy.metric !== "billed_cents"
       || policy.windowKind !== "calendar_month_utc" || policy.amount !== amount || policy.hardStopEnabled !== true
       || policy.isActive !== true || policy.unpricedUsagePolicy !== "allow") {
       throw new Error(`Cursor Cloud acceptance budget policy readback did not preserve the ${scope.scopeType} qualification limit.`);
     }
-    return { companyId: policy.companyId, scopeType: policy.scopeType, scopeId: policy.scopeId, metric: policy.metric,
+    return { spaceId: policy.spaceId, scopeType: policy.scopeType, scopeId: policy.scopeId, metric: policy.metric,
       windowKind: policy.windowKind, amount: policy.amount, hardStopEnabled: policy.hardStopEnabled,
       isActive: policy.isActive, unpricedUsagePolicy: policy.unpricedUsagePolicy };
   });

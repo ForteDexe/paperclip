@@ -46,7 +46,7 @@ export function aiProviderForAdapter(
   )[adapterType];
 }
 export function AiConnectionField({
-  companyId,
+  spaceId,
   agentId,
   agentName,
   adapterType,
@@ -59,7 +59,7 @@ export function AiConnectionField({
   preferAdvanced = false,
   routerAdapterType,
 }: {
-  companyId: string;
+  spaceId: string;
   agentId?: string;
   agentName: string;
   adapterType: string;
@@ -88,8 +88,8 @@ export function AiConnectionField({
   };
   const client = useQueryClient();
   const accounts = useQuery({
-    queryKey: ["ai-connections", companyId, agentId],
-    queryFn: () => aiConnectionsApi.list(companyId, agentId),
+    queryKey: ["ai-connections", spaceId, agentId],
+    queryFn: () => aiConnectionsApi.list(spaceId, agentId),
     enabled: Boolean(provider),
   });
   const accountsView = useQueryView(accounts);
@@ -103,11 +103,11 @@ export function AiConnectionField({
     mutationFn: async (result: NonNullable<typeof savedAccount>) => {
       // Reconnect retains the existing default and its access. A new account
       // must be selected explicitly before a responsible-user binding uses it.
-      if (!reconnecting) await aiConnectionsApi.setDefault(companyId, result.grantId);
+      if (!reconnecting) await aiConnectionsApi.setDefault(spaceId, result.grantId);
       return result;
     },
     onSuccess: async (result) => {
-      await client.invalidateQueries({ queryKey: ["ai-connections", companyId] });
+      await client.invalidateQueries({ queryKey: ["ai-connections", spaceId] });
       changeBinding({ provider: provider!, method: result.method, mode: "responsible_user" });
       setConnecting(false);
     },
@@ -156,7 +156,7 @@ export function AiConnectionField({
       {value?.mode !== "router" && <AiConnectionSelect
         adapterType={adapterType}
           model={model}
-        requirement={{ companyId, provider }}
+        requirement={{ spaceId, provider }}
         connections={accounts.data?.connections ?? []}
         value={value}
         currentUserId={accounts.data?.currentUserId ?? ""}
@@ -221,12 +221,12 @@ export function AiConnectionField({
             </DialogDescription>
           </DialogHeader>
           {advancedSetup ? <AiProviderSetup
-            companyId={companyId} agentId={agentId} environmentId={environmentId}
+            spaceId={spaceId} agentId={agentId} environmentId={environmentId}
             advancedOnly={preferAdvanced}
             initialProtocol={adapterType === "claude_local" ? "messages" : adapterType === "codex_local" ? "responses" : "chat"}
             onCancel={() => preferAdvanced ? setConnecting(false) : setAdvancedSetup(false)}
             onComplete={binding => {
-              void client.invalidateQueries({ queryKey: ["ai-connections", companyId] });
+              void client.invalidateQueries({ queryKey: ["ai-connections", spaceId] });
               setConnecting(false);
               changeBinding(binding);
             }}
@@ -242,7 +242,7 @@ export function AiConnectionField({
             </> : <p role="status" className="text-sm text-muted-foreground">Selecting your default account…</p>}
           </div> :
           <AiConnectionCredentialStep
-            companyId={companyId}
+            spaceId={spaceId}
             provider={provider}
             initialMethod={reconnecting?.method ?? method}
             fixedMethod={Boolean(reconnecting)}

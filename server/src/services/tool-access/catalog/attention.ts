@@ -13,7 +13,7 @@ function isAttentionHealthStatus(
 
 export function createToolAppAttention(db: Db, now: () => Date) {
   async function listAppsNeedingAttention(
-    companyId: string,
+    spaceId: string,
   ): Promise<ToolAppsAttentionResponse> {
     const generatedAt = now();
     const [
@@ -30,7 +30,7 @@ export function createToolAppAttention(db: Db, now: () => Date) {
         .from(toolConnections)
         .where(
           and(
-            eq(toolConnections.companyId, companyId),
+            eq(toolConnections.spaceId, spaceId),
             ne(toolConnections.status, "archived"),
           ),
         ),
@@ -39,7 +39,7 @@ export function createToolAppAttention(db: Db, now: () => Date) {
         .from(toolCatalogEntries)
         .where(
           and(
-            eq(toolCatalogEntries.companyId, companyId),
+            eq(toolCatalogEntries.spaceId, spaceId),
             eq(toolCatalogEntries.status, "quarantined"),
           ),
         ),
@@ -48,7 +48,7 @@ export function createToolAppAttention(db: Db, now: () => Date) {
         .from(toolActionRequests)
         .where(
           and(
-            eq(toolActionRequests.companyId, companyId),
+            eq(toolActionRequests.spaceId, spaceId),
             eq(toolActionRequests.status, "pending"),
             isNotNull(toolActionRequests.signedArguments),
           ),
@@ -56,21 +56,21 @@ export function createToolAppAttention(db: Db, now: () => Date) {
       db
         .select({ id: toolInvocations.id, connectionId: toolInvocations.connectionId })
         .from(toolInvocations)
-        .where(eq(toolInvocations.companyId, companyId)),
+        .where(eq(toolInvocations.spaceId, spaceId)),
       db
         .select()
         .from(toolProfiles)
-        .where(eq(toolProfiles.companyId, companyId)),
+        .where(eq(toolProfiles.spaceId, spaceId)),
       db
         .select()
         .from(toolProfileEntries)
-        .where(eq(toolProfileEntries.companyId, companyId)),
+        .where(eq(toolProfileEntries.spaceId, spaceId)),
       db
         .select(profileCatalogColumns)
         .from(toolCatalogEntries)
         .where(
           and(
-            eq(toolCatalogEntries.companyId, companyId),
+            eq(toolCatalogEntries.spaceId, spaceId),
             eq(toolCatalogEntries.status, "active"),
           ),
         ),

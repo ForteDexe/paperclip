@@ -19,7 +19,7 @@ let originalHome: string | undefined;
 
 beforeAll(async () => {
   originalHome = process.env.OUTPOST_HOME;
-  tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-managed-clone-"));
+  tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-managed-clone-"));
   process.env.OUTPOST_HOME = tempHome;
 });
 
@@ -30,10 +30,10 @@ afterAll(async () => {
 });
 
 async function createLocalSourceRepo() {
-  const sourceRepo = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-clone-source-"));
+  const sourceRepo = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-clone-source-"));
   await execFile("git", ["init"], { cwd: sourceRepo });
-  await execFile("git", ["config", "user.email", "paperclip@example.com"], { cwd: sourceRepo });
-  await execFile("git", ["config", "user.name", "Paperclip Test"], { cwd: sourceRepo });
+  await execFile("git", ["config", "user.email", "outpost@example.com"], { cwd: sourceRepo });
+  await execFile("git", ["config", "user.name", "Outpost Test"], { cwd: sourceRepo });
   await fs.writeFile(path.join(sourceRepo, "README.md"), "hello\n", "utf8");
   await execFile("git", ["add", "README.md"], { cwd: sourceRepo });
   await execFile("git", ["commit", "-m", "init"], { cwd: sourceRepo });
@@ -47,18 +47,18 @@ describe("ensureManagedProjectWorkspace clone credentials", () => {
     [null, "fatal: Authentication failed for 'https://example.test/team/repo.git/'\nfatal: bad config line 1 in file /tmp/config"],
     [null, "fatal: corrupt loose object"],
   ] as const)("preserves only proven outbound clone classification through the actionable wrapper: %s", async (reason, stderr) => {
-    const bin = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-fake-clone-"));
+    const bin = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-fake-clone-"));
     await fs.writeFile(path.join(bin, "git"), `#!/bin/sh
 printf '%s\\n' "$FIXTURE_CLONE_STDERR" >&2
 exit 128
 `, { mode: 0o755 });
     try {
       const failure = await ensureManagedProjectWorkspace({
-        companyId: "remote-clone-fixture", projectId: path.basename(bin),
+        spaceId: "remote-clone-fixture", projectId: path.basename(bin),
         repoUrl: "https://fixture-user:fixture-password@example.test/team/repo.git",
         resolveGitAuth: async () => ({
           configArgs: [], env: { PATH: bin, FIXTURE_CLONE_STDERR: stderr },
-          source: "company_secret", secretName: "GITHUB_TOKEN",
+          source: "space_secret", secretName: "GITHUB_TOKEN",
         }),
       }).catch((error: unknown) => error);
       expect(failure).toBeInstanceOf(Error);
@@ -68,7 +68,7 @@ exit 128
         schemaVersion: 1, provider: "git", operation: "clone", reason,
       } : null);
       const homeEntries = await fs.readdir(path.dirname(resolveManagedProjectWorkspaceDir({
-        companyId: "remote-clone-fixture", projectId: path.basename(bin), repoName: "repo",
+        spaceId: "remote-clone-fixture", projectId: path.basename(bin), repoName: "repo",
       })));
       expect(homeEntries.some((name) => name.includes(".clone-"))).toBe(false);
     } finally {
@@ -81,7 +81,7 @@ exit 128
       code: 128, stderr: "fatal: Authentication failed for 'https://example.test/repo.git'",
     });
     const caught = await ensureManagedProjectWorkspace({
-      companyId: "credential-provider-fixture", projectId: "project", repoUrl: "https://example.test/repo.git",
+      spaceId: "credential-provider-fixture", projectId: "project", repoUrl: "https://example.test/repo.git",
       resolveGitAuth: async () => { throw failure; },
     }).catch((error: unknown) => error);
     expect(caught).toBe(failure);
@@ -89,7 +89,7 @@ exit 128
   });
 
   it("does not transfer clone classification to a later local checkout failure", async () => {
-    const bin = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-fake-checkout-"));
+    const bin = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-fake-checkout-"));
     const previousPath = process.env.PATH;
     await fs.writeFile(path.join(bin, "git"), `#!/bin/sh
 if [ "$1" = clone ]; then
@@ -118,7 +118,7 @@ exit 128
     ["the ref still resolves", "exit 0"],
     ["the ref probe fails for another reason", "exit 128"],
   ])("keeps the original checkout failure when %s", async (_label, revParseExit) => {
-    const bin = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-fake-resolvable-ref-"));
+    const bin = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-fake-resolvable-ref-"));
     const previousPath = process.env.PATH;
     await fs.writeFile(path.join(bin, "git"), `#!/bin/sh
 if [ "$1" = clone ]; then
@@ -148,7 +148,7 @@ exit 1
     const first = await createLocalSourceRepo();
     const second = await createLocalSourceRepo();
     try {
-      const anchor = await ensureManagedProjectWorkspace({ companyId: "repo-only", projectId: "two", repoUrl: first });
+      const anchor = await ensureManagedProjectWorkspace({ spaceId: "repo-only", projectId: "two", repoUrl: first });
       await execFile("git", ["checkout", "-b", "project-branch"], { cwd: second });
       const resolveGitAuth = vi.fn(async () => null);
       const input = {
@@ -162,7 +162,7 @@ exit 1
       const additional = await prepareProjectRepositoryWorkspaces(input);
       expect(additional).toHaveLength(1);
       expect(additional[0]!.workspaceId).toBe("second");
-      expect(path.relative(anchor.cwd, additional[0]!.cwd)).toMatch(/^\.paperclip-repositories\//);
+      expect(path.relative(anchor.cwd, additional[0]!.cwd)).toMatch(/^\.outpost-repositories\//);
       expect((await execFile("git", ["branch", "--show-current"], { cwd: additional[0]!.cwd })).stdout.trim()).toBe("project-branch");
       expect(resolveGitAuth).toHaveBeenCalledWith(second);
       await fs.writeFile(path.join(additional[0]!.cwd, "README.md"), "work in progress");
@@ -176,12 +176,12 @@ exit 1
 
   it("clones a remote sibling with a missing configured cwd and rechecks destination access on reuse", async () => {
     const source = await createLocalSourceRepo();
-    const task = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-remote-sibling-"));
+    const task = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-remote-sibling-"));
     try {
       const remote = "https://example.test/remote.git";
       const resolveGitAuth = vi.fn(async () => ({
         configArgs: ["-c", `url.${pathToFileURL(source).href}.insteadOf=${remote}`],
-        env: {}, source: "company_secret" as const, secretName: "fixture",
+        env: {}, source: "space_secret" as const, secretName: "fixture",
       }));
       const prepareLocalSource = vi.fn(async (cwd: string) => {
         await fs.realpath(cwd);
@@ -216,7 +216,7 @@ exit 1
 
   it.each(["file_url", "absolute_path"] as const)("authorizes the actual %s fallback when the configured cwd is missing", async (transport) => {
     const source = await createLocalSourceRepo();
-    const task = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-local-sibling-"));
+    const task = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-local-sibling-"));
     try {
       let sourceReadable = false;
       const recheck = vi.fn(async () => {});
@@ -231,7 +231,7 @@ exit 1
           repoUrl: transport === "file_url" ? pathToFileURL(source).href : source, repoRef: null }],
       };
       await expect(prepareProjectRepositoryWorkspaces(input)).rejects.toThrow("Private source is not authorized");
-      expect(await fs.readdir(path.join(task, ".paperclip-repositories"))).toEqual([]);
+      expect(await fs.readdir(path.join(task, ".outpost-repositories"))).toEqual([]);
       sourceReadable = true;
       await fs.writeFile(path.join(source, "README.md"), "uncommitted source edits");
       const [repo] = await prepareProjectRepositoryWorkspaces(input);
@@ -247,7 +247,7 @@ exit 1
   it("fails task preparation when any attached repository cannot be cloned", async () => {
     const first = await createLocalSourceRepo();
     try {
-      const anchor = await ensureManagedProjectWorkspace({ companyId: "repo-failure", projectId: "two", repoUrl: first });
+      const anchor = await ensureManagedProjectWorkspace({ spaceId: "repo-failure", projectId: "two", repoUrl: first });
       await expect(prepareProjectRepositoryWorkspaces({
         cwd: anchor.cwd, anchorRepoUrl: first,
         workspaces: [{ id: "missing", repoUrl: path.join(first, "missing.git"), repoRef: null }],
@@ -261,7 +261,7 @@ exit 1
     const first = await createLocalSourceRepo();
     const second = await createLocalSourceRepo();
     try {
-      const anchor = await ensureManagedProjectWorkspace({ companyId: "local-project", projectId: "two", repoUrl: first });
+      const anchor = await ensureManagedProjectWorkspace({ spaceId: "local-project", projectId: "two", repoUrl: first });
       await fs.writeFile(path.join(second, "README.md"), "local changes");
       await fs.writeFile(path.join(second, ".gitignore"), "secret.txt\n");
       await fs.writeFile(path.join(second, "secret.txt"), "private");
@@ -281,7 +281,7 @@ exit 1
     const second = await createLocalSourceRepo();
     try {
       const results = await Promise.all([first, second].map((repoUrl) => ensureManagedProjectWorkspace({
-        companyId: "company-multiple", projectId: "project-multiple", repoUrl,
+        spaceId: "space-multiple", projectId: "project-multiple", repoUrl,
       })));
       expect(results[0]!.cwd).not.toBe(results[1]!.cwd);
       for (let i = 0; i < results.length; i++) {
@@ -295,9 +295,9 @@ exit 1
   it("rechecks the repository when another process wins the checkout rename", async () => {
     const first = await createLocalSourceRepo();
     const second = await createLocalSourceRepo();
-    const companyId = "cross-process-race";
+    const spaceId = "cross-process-race";
     const projectId = "same-name";
-    const sharedCwd = resolveManagedProjectWorkspaceDir({ companyId, projectId });
+    const sharedCwd = resolveManagedProjectWorkspaceDir({ spaceId, projectId });
     try {
       // A different process does not share managedCheckoutMaterializations. Publish
       // its completed checkout after this caller chose its destination, before rename.
@@ -307,7 +307,7 @@ exit 1
         }
         return null;
       });
-      const result = await ensureManagedProjectWorkspace({ companyId, projectId, repoUrl: first, resolveGitAuth });
+      const result = await ensureManagedProjectWorkspace({ spaceId, projectId, repoUrl: first, resolveGitAuth });
       expect((await execFile("git", ["remote", "get-url", "origin"], { cwd: result.cwd })).stdout.trim()).toBe(first);
       expect((await execFile("git", ["remote", "get-url", "origin"], { cwd: sharedCwd })).stdout.trim()).toBe(second);
       expect(result.cwd).not.toBe(sharedCwd);
@@ -320,7 +320,7 @@ exit 1
     const sourceRepo = await createLocalSourceRepo();
     try {
       const result = await ensureManagedProjectWorkspace({
-        companyId: "company-noauth",
+        spaceId: "space-noauth",
         projectId: "project-1",
         repoUrl: sourceRepo,
       });
@@ -337,7 +337,7 @@ exit 1
     const resolveGitAuth = vi.fn(async () => null);
     try {
       const result = await ensureManagedProjectWorkspace({
-        companyId: "company-nullauth",
+        spaceId: "space-nullauth",
         projectId: "project-1",
         repoUrl: sourceRepo,
         resolveGitAuth,
@@ -354,15 +354,15 @@ exit 1
     // The failure here is a missing local path, not an auth rejection — the error must not
     // claim the credential "was rejected". Attribution for genuinely auth-shaped failures is
     // covered by the describeGitAuthFailure unit tests in git-credentials.test.ts.
-    const missingRepo = path.join(os.tmpdir(), "paperclip-definitely-missing", "repo.git");
+    const missingRepo = path.join(os.tmpdir(), "outpost-definitely-missing", "repo.git");
     const resolveGitAuth = vi.fn(async () => ({
       configArgs: [],
       env: { [GIT_CREDENTIAL_TOKEN_ENV_KEY]: "token", GIT_TERMINAL_PROMPT: "0" },
-      source: "company_secret" as const,
+      source: "space_secret" as const,
       secretName: "GH_TOKEN",
     }));
     const error = await ensureManagedProjectWorkspace({
-      companyId: "company-authfail",
+      spaceId: "space-authfail",
       projectId: "project-1",
       repoUrl: missingRepo,
       resolveGitAuth,
@@ -371,7 +371,7 @@ exit 1
       (err: unknown) => err as Error,
     );
     expect(error.message).toContain("Failed to prepare managed checkout");
-    expect(error.message).not.toContain("GH_TOKEN company-secret GitHub credential");
+    expect(error.message).not.toContain("GH_TOKEN space-secret GitHub credential");
   });
 
   it("serializes concurrent materializations of the same managed checkout", async () => {
@@ -379,12 +379,12 @@ exit 1
     try {
       const [first, second] = await Promise.all([
         ensureManagedProjectWorkspace({
-          companyId: "company-concurrent",
+          spaceId: "space-concurrent",
           projectId: "project-1",
           repoUrl: sourceRepo,
         }),
         ensureManagedProjectWorkspace({
-          companyId: "company-concurrent",
+          spaceId: "space-concurrent",
           projectId: "project-1",
           repoUrl: sourceRepo,
         }),
@@ -405,9 +405,9 @@ exit 1
   it("does not mention credentials when an unauthenticated clone fails for non-auth reasons", async () => {
     // The Settings → Secrets hint is reserved for auth-shaped failures (covered in
     // git-credentials.test.ts); a plain missing-repo failure must not suggest credentials.
-    const missingRepo = path.join(os.tmpdir(), "paperclip-definitely-missing", "repo.git");
+    const missingRepo = path.join(os.tmpdir(), "outpost-definitely-missing", "repo.git");
     const error = await ensureManagedProjectWorkspace({
-      companyId: "company-noauthfail",
+      spaceId: "space-noauthfail",
       projectId: "project-1",
       repoUrl: missingRepo,
     }).then(
@@ -415,35 +415,35 @@ exit 1
       (err: unknown) => err as Error,
     );
     expect(error.message).toContain("Failed to prepare managed checkout");
-    expect(error.message).not.toContain("company secret");
+    expect(error.message).not.toContain("space secret");
   });
 
   it("leaves neither the target nor temp directories behind when the clone fails", async () => {
-    const missingRepo = path.join(os.tmpdir(), "paperclip-definitely-missing", "repo.git");
-    const companyId = "company-cleanup";
+    const missingRepo = path.join(os.tmpdir(), "outpost-definitely-missing", "repo.git");
+    const spaceId = "space-cleanup";
     const projectId = "project-1";
     await expect(ensureManagedProjectWorkspace({
-      companyId,
+      spaceId,
       projectId,
       repoUrl: missingRepo,
     })).rejects.toThrow();
     // Filesystem-path repo "URLs" derive no repo name, so the managed dir is the _default slot.
-    const cwd = resolveManagedProjectWorkspaceDir({ companyId, projectId });
+    const cwd = resolveManagedProjectWorkspaceDir({ spaceId, projectId });
     await expect(fs.stat(cwd)).rejects.toMatchObject({ code: "ENOENT" });
     const siblings = await fs.readdir(path.dirname(cwd));
     expect(siblings.filter((name) => name.includes(".clone-"))).toEqual([]);
   });
 
   it("keeps using a pre-existing non-git directory as-is without attempting a clone", async () => {
-    const companyId = "company-existing";
+    const spaceId = "space-existing";
     const projectId = "project-1";
     const sourceRepo = await createLocalSourceRepo();
     try {
-      const cwd = resolveManagedProjectWorkspaceDir({ companyId, projectId });
+      const cwd = resolveManagedProjectWorkspaceDir({ spaceId, projectId });
       await fs.mkdir(cwd, { recursive: true });
       await fs.writeFile(path.join(cwd, "keep.txt"), "operator data\n", "utf8");
       const result = await ensureManagedProjectWorkspace({
-        companyId,
+        spaceId,
         projectId,
         repoUrl: sourceRepo,
       });
@@ -460,7 +460,7 @@ exit 1
     // sanitizer strips every OUTPOST_* key, so the token env must be spread after it.
     const invocation = buildGitAuthInvocation({
       token: "tok",
-      source: "company_secret",
+      source: "space_secret",
       secretName: "GITHUB_TOKEN",
     });
     const cloneEnv: NodeJS.ProcessEnv = {

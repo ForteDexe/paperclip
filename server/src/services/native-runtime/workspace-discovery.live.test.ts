@@ -3,7 +3,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
-import { agents, companies, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
+import { agents, spaces, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issues } from "@outpost/db";
 import { expect, it } from "vitest";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
 import { createIsolatedTestHome } from "../../__tests__/helpers/isolated-test-home.js";
@@ -30,13 +30,13 @@ it.skipIf(process.env.OUTPOST_LIVE_WORKSPACE_DISCOVERY !== "true")("settles work
     process.env.OUTPOST_API_URL = server.apiUrl;
     const f = await server.fixture({ connectionScenario: "fresh" });
     const db = server.db;
-    await db.insert(executionWorkspaces).values(Array.from({ length: 2_000 }, (_, index) => ({ companyId: f.companyId,
+    await db.insert(executionWorkspaces).values(Array.from({ length: 2_000 }, (_, index) => ({ spaceId: f.spaceId,
       name: `Workspace ${index}`, mode: "shared_workspace", strategyType: "task_directory", cwd: `/tmp/${"repository/".repeat(20)}${index}` })));
     await db.update(issues).set({ executionRunId: null, executionWorkspaceSettings: { mode: "shared_workspace" },
-      title: "Verify paged workspace discovery", description: "Follow each latest comment. Use list_workspaces twice: request limit 2, then request limit 2 with its nextCursor. Confirm both pages have two distinct workspace IDs and hasMore true. Follow the comment's file step and finish this step with paperclip_finish, reportedWorkDisposition done. No external services or public writes are needed.",
+      title: "Verify paged workspace discovery", description: "Follow each latest comment. Use list_workspaces twice: request limit 2, then request limit 2 with its nextCursor. Confirm both pages have two distinct workspace IDs and hasMore true. Follow the comment's file step and finish this step with outpost_finish, reportedWorkDisposition done. No external services or public writes are needed.",
     }).where(eq(issues.id, f.issueId));
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.runId));
-    await db.update(companies).set({ defaultResponsibleUserId: f.userId }).where(eq(companies.id, f.companyId));
+    await db.update(spaces).set({ defaultResponsibleUserId: f.userId }).where(eq(spaces.id, f.spaceId));
     await db.update(agents).set({ adapterConfig: { provider: "codex", model: "gpt-6.1-sol", modelReasoningEffort: "high",
       cwd: f.workspace, workspaceStrategy: { type: "project_primary" }, env: { CODEX_HOME: codexHome }, timeoutSec: 180, lifecycleMode: "per_turn" },
       runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true, maxConcurrentRuns: 1 } },

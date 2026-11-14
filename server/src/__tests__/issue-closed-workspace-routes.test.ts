@@ -104,14 +104,14 @@ function registerServiceMocks() {
   }));
 
   vi.doMock("../services/index.js", () => ({
-    companyService: () => ({
-      getById: vi.fn(async () => ({ id: "company-1" })),
+    spaceService: () => ({
+      getById: vi.fn(async () => ({ id: "space-1" })),
     }),
     accessService: () => mockAccessService,
     agentService: () => ({
       getById: vi.fn(async () => null),
     }),
-    companySkillService: () => ({
+    spaceSkillService: () => ({
       completeTestRunForIssue: vi.fn(async () => null),
     }),
     documentAnnotationService: () => ({ remapOpenThreadsForDocument: async () => [] }),
@@ -122,7 +122,7 @@ function registerServiceMocks() {
       saveIssueVote: vi.fn(async () => ({ vote: null, consentEnabledNow: false, sharingEnabled: false })),
     }),
     goalService: () => ({
-      getDefaultCompanyGoal: vi.fn(async () => null),
+      getDefaultSpaceGoal: vi.fn(async () => null),
       getById: vi.fn(async () => null),
     }),
     heartbeatService: () => mockHeartbeatService,
@@ -134,7 +134,7 @@ function registerServiceMocks() {
           feedbackDataSharingPreference: "prompt",
         },
       })),
-      listCompanyIds: vi.fn(async () => ["company-1"]),
+      listSpaceIds: vi.fn(async () => ["space-1"]),
     }),
     issueApprovalService: () => ({}),
     issueReferenceService: () => ({
@@ -172,12 +172,12 @@ function registerServiceMocks() {
 function makeIssue() {
   return {
     id: issueId,
-    companyId: "company-1",
+    spaceId: "space-1",
     status: "todo",
     priority: "medium",
     assigneeAgentId: agentId,
     assigneeUserId: null,
-    createdByUserId: "local-board",
+    createdByUserId: "local-operator",
     identifier: "PAP-1085",
     title: "Closed worktree issue",
     projectId: null,
@@ -229,9 +229,9 @@ describe("closed isolated workspace issue routes", () => {
     app.use(express.json());
     app.use((req, _res, next) => {
       (req as any).actor = actor ?? {
-        type: "board",
-        userId: "local-board",
-        companyIds: ["company-1"],
+        type: "operator",
+        userId: "local-operator",
+        spaceIds: ["space-1"],
         source: "local_implicit",
         isInstanceAdmin: false,
       };
@@ -269,9 +269,9 @@ describe("closed isolated workspace issue routes", () => {
 
     expect(mockExecutionWorkspaceService.reopenClosedIsolatedExecutionWorkspaceForIssue).toHaveBeenCalledWith({
       workspaceId: closedWorkspaceId,
-      issue: { id: issueId, companyId: "company-1", projectId: null },
+      issue: { id: issueId, spaceId: "space-1", projectId: null },
       actor: expect.objectContaining({ actorType: "user" }),
-      authorizationActor: expect.objectContaining({ type: "board", source: "local_implicit" }),
+      authorizationActor: expect.objectContaining({ type: "operator", source: "local_implicit" }),
     });
     // The closed-workspace dead end is gone: the comment is accepted.
     expect(res.status).toBe(201);
@@ -364,7 +364,7 @@ describe("closed isolated workspace issue routes", () => {
     const agentActorWithoutRunId = {
       type: "agent",
       agentId,
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: null,
       source: "agent_key",
     };
@@ -498,7 +498,7 @@ describe("closed isolated workspace issue routes", () => {
     }, { timeout: REOPEN_PENDING_WAIT_TIMEOUT_MS });
   });
 
-  it("still allows non-comment board updates so the issue can be moved to a new workspace", async () => {
+  it("still allows non-comment operator updates so the issue can be moved to a new workspace", async () => {
     mockIssueService.update.mockResolvedValue({
       ...makeIssue(),
       executionWorkspaceId: nextWorkspaceId,

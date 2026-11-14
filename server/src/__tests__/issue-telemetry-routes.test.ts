@@ -46,8 +46,8 @@ function registerModuleMocks() {
   }));
 
   vi.doMock("../services/index.js", () => ({
-    companyService: () => ({
-      getById: vi.fn(async () => ({ id: "company-1" })),
+    spaceService: () => ({
+      getById: vi.fn(async () => ({ id: "space-1" })),
     }),
     accessService: () => ({
       canUser: vi.fn(),
@@ -60,7 +60,7 @@ function registerModuleMocks() {
       hasPermission: vi.fn(),
     }),
     agentService: () => mockAgentService,
-    companySkillService: () => ({
+    spaceSkillService: () => ({
       completeTestRunForIssue: vi.fn(async () => null),
     }),
     documentAnnotationService: () => ({ remapOpenThreadsForDocument: async () => [] }),
@@ -110,11 +110,11 @@ function registerModuleMocks() {
 function makeIssue(status: "todo" | "done") {
   return {
     id: "11111111-1111-4111-8111-111111111111",
-    companyId: "company-1",
+    spaceId: "space-1",
     status,
     assigneeAgentId: "agent-1",
     assigneeUserId: null,
-    createdByUserId: "local-board",
+    createdByUserId: "local-operator",
     identifier: "PAP-1018",
     title: "Telemetry test",
   };
@@ -163,10 +163,10 @@ describe("issue telemetry routes", () => {
     mockDbSelect.mockImplementation(() => ({ from: mockDbSelectFrom }));
     mockDbSelectFrom.mockImplementation((table: Parameters<typeof getTableName>[0]) => {
       const rows = getTableName(table) === "issues" ? [makeIssue("todo")]
-        : getTableName(table) === "agents" ? [{ id: "agent-1", companyId: "company-1", permissions: null }]
+        : getTableName(table) === "agents" ? [{ id: "agent-1", spaceId: "space-1", permissions: null }]
         : [{
           id: "22222222-2222-4222-8222-222222222222",
-          companyId: "company-1",
+          spaceId: "space-1",
           agentId: "agent-1",
           contextSnapshot: { issueId: "11111111-1111-4111-8111-111111111111" },
           permissions: null,
@@ -187,7 +187,7 @@ describe("issue telemetry routes", () => {
   it("emits task-completed telemetry with the agent role, adapter type, and model", async () => {
     mockAgentService.getById.mockResolvedValue({
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       role: "engineer",
       adapterType: "codex_local",
       adapterConfig: { model: "claude-sonnet-4-6" },
@@ -196,7 +196,7 @@ describe("issue telemetry routes", () => {
     const app = await createApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "22222222-2222-4222-8222-222222222222",
     });
     const res = await request(app)
@@ -215,11 +215,11 @@ describe("issue telemetry routes", () => {
     });
   }, 10_000);
 
-  it("does not emit agent task-completed telemetry for board-driven completions", async () => {
+  it("does not emit agent task-completed telemetry for operator-driven completions", async () => {
     const app = await createApp({
-      type: "board",
-      userId: "local-board",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "local-operator",
+      spaceIds: ["space-1"],
       source: "local_implicit",
       isInstanceAdmin: false,
     });

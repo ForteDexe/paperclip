@@ -70,7 +70,7 @@ describe("file-backed S3 multipart uploads under a request-rate limit", () => {
     const service = createStorageService(createS3StorageProvider({ bucket: "bucket", region: "us-east-1", forcePathStyle: true,
       endpoint: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
     try {
-      const result = await service.putFile({ companyId: "company", objectKey: "company/workspace-snapshots/throttled.pcws", namespace: "workspace-snapshots",
+      const result = await service.putFile({ spaceId: "space", objectKey: "space/workspace-snapshots/throttled.pcws", namespace: "workspace-snapshots",
         originalFilename: null, contentType: "application/octet-stream", body: Readable.from([Buffer.alloc(0)]), byteSize: source.size,
         sha256: createHash("sha256").update(await fs.readFile(source.file)).digest("hex"), sourceFile: source.file });
       expect(result.integrity).toBe("server_verified_md5");

@@ -10,7 +10,7 @@ import {
 import { NATIVE_RESPONSE_WAKE_WAITING_REASON } from "./status-arbiter.js";
 
 type Binding = {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   agentId: string;
@@ -27,7 +27,7 @@ export async function hasCommittedNativeResponseWakeWait(
       statusDecisions,
       and(
         eq(statusDecisions.id, nativeRunFinalizations.decisionId),
-        eq(statusDecisions.companyId, binding.companyId),
+        eq(statusDecisions.spaceId, binding.spaceId),
         eq(statusDecisions.issueId, binding.issueId),
         eq(statusDecisions.runId, binding.runId),
         eq(statusDecisions.applicationState, "applied"),
@@ -38,7 +38,7 @@ export async function hasCommittedNativeResponseWakeWait(
       heartbeatRuns,
       and(
         eq(heartbeatRuns.id, binding.runId),
-        eq(heartbeatRuns.companyId, binding.companyId),
+        eq(heartbeatRuns.spaceId, binding.spaceId),
         eq(heartbeatRuns.agentId, binding.agentId),
         eq(heartbeatRuns.nativeIssueId, binding.issueId),
         eq(heartbeatRuns.runtimeMode, "native"),
@@ -49,7 +49,7 @@ export async function hasCommittedNativeResponseWakeWait(
       issues,
       and(
         eq(issues.id, binding.issueId),
-        eq(issues.companyId, binding.companyId),
+        eq(issues.spaceId, binding.spaceId),
         eq(issues.assigneeAgentId, binding.agentId),
         eq(issues.status, "in_progress"),
         eq(issues.lastStatusDecisionId, statusDecisions.id),
@@ -59,7 +59,7 @@ export async function hasCommittedNativeResponseWakeWait(
     )
     .where(
       and(
-        eq(nativeRunFinalizations.companyId, binding.companyId),
+        eq(nativeRunFinalizations.spaceId, binding.spaceId),
         eq(nativeRunFinalizations.issueId, binding.issueId),
         eq(nativeRunFinalizations.runId, binding.runId),
         eq(nativeRunFinalizations.phase, "committed"),
@@ -72,7 +72,7 @@ export async function hasCommittedNativeResponseWakeWait(
     .from(issueComments)
     .where(
       and(
-        eq(issueComments.companyId, binding.companyId),
+        eq(issueComments.spaceId, binding.spaceId),
         eq(issueComments.issueId, binding.issueId),
         eq(issueComments.authorType, "user"),
         isNull(issueComments.createdByRunId),

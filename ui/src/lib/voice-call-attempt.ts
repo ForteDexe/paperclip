@@ -11,8 +11,8 @@ export interface VoiceCallJournal {
 }
 
 /** Tab-scoped recovery identity only. Never persist media tokens or transcripts. */
-export function voiceCallJournal(storage: Pick<Storage, "getItem" | "setItem" | "removeItem">, companyId: string, callerId: string): VoiceCallJournal {
-  const key = `paperclip:voice-attempt:${encodeURIComponent(companyId)}:${encodeURIComponent(callerId)}`;
+export function voiceCallJournal(storage: Pick<Storage, "getItem" | "setItem" | "removeItem">, spaceId: string, callerId: string): VoiceCallJournal {
+  const key = `outpost:voice-attempt:${encodeURIComponent(spaceId)}:${encodeURIComponent(callerId)}`;
   return {
     read() {
       const raw = storage.getItem(key);
@@ -32,7 +32,7 @@ export function voiceCallJournal(storage: Pick<Storage, "getItem" | "setItem" | 
 }
 
 /** Recover an uncertain request with the SAME input/key, then close its exact call. */
-export function createVoiceCallAttempt(companyId: string, client: typeof voiceSessionsApi, journal?: VoiceCallJournal) {
+export function createVoiceCallAttempt(spaceId: string, client: typeof voiceSessionsApi, journal?: VoiceCallJournal) {
   let attempt: VoiceCallAttempt | undefined;
   let recovering = false;
   return {
@@ -46,7 +46,7 @@ export function createVoiceCallAttempt(companyId: string, client: typeof voiceSe
       journal?.write(attempt);
       if (attempt.sessionId) throw new VoiceSessionStartError(attempt.sessionId);
       let result: Awaited<ReturnType<typeof client.start>>;
-      try { result = await client.start(companyId, attempt.request); }
+      try { result = await client.start(spaceId, attempt.request); }
       catch (error) {
         const body = error instanceof ApiError ? error.body as { details?: { sessionId?: string; code?: string } } | null : null;
         if (body?.details?.sessionId) {
@@ -70,7 +70,7 @@ export function createVoiceCallAttempt(companyId: string, client: typeof voiceSe
       return { ...result, media: result.media };
     },
     async end(sessionId: string) {
-      const result = await client.end(companyId, sessionId);
+      const result = await client.end(spaceId, sessionId);
       if (!["ended", "failed", "expired"].includes(result.state)) throw new Error("Speko has not confirmed hangup yet");
       const saved = journal?.read();
       if (!saved || saved.sessionId === sessionId || saved.request.idempotencyKey === attempt?.request.idempotencyKey) journal?.clear();

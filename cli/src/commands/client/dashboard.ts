@@ -10,7 +10,7 @@ import {
 } from "./common.js";
 
 interface DashboardGetOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
 }
 
 export function registerDashboardCommands(program: Command): void {
@@ -19,17 +19,17 @@ export function registerDashboardCommands(program: Command): void {
   addCommonClientOptions(
     dashboard
       .command("get")
-      .description("Get dashboard summary for a company")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .description("Get dashboard summary for a space")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .action(async (opts: DashboardGetOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const row = await ctx.api.get<DashboardSummary>(apiPath`/api/companies/${ctx.companyId}/dashboard`);
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const row = await ctx.api.get<DashboardSummary>(apiPath`/api/spaces/${ctx.spaceId}/dashboard`);
           printOutput(row, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }

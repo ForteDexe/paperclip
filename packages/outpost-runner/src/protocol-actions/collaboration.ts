@@ -13,7 +13,7 @@ import { searchTasksAction } from "./search-tasks.js";
 import { setDependenciesAction } from "./set-dependencies.js";
 import { deepFreezeProtocolAction } from "./freeze.js";
 
-/** Optional discovery, delegation, dependency, and governance actions. */
+/** Optional discovery, delegation, dependency, and approvals actions. */
 export const OUTPOST_COLLABORATION_PROTOCOL_ACTIONS = deepFreezeProtocolAction([
   commentOnApprovalAction,
   createTaskAction,

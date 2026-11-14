@@ -4,13 +4,13 @@ description: Optional content operations team with a lead agent, a recurring rev
 schema: agentcompanies/v1
 slug: content-machine
 category: content
-key: paperclipai/optional/content/content-machine
+key: outpost/optional/content/content-machine
 manager: agents/content-lead/AGENTS.md
 includes:
   - skills/content-calendar/SKILL.md
   - projects/content-operations/PROJECT.md
 defaultInstall: false
-recommendedForCompanyTypes:
+recommendedForSpaceTypes:
   - agency
   - marketing
 tags:

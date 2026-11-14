@@ -12,7 +12,7 @@ describe("prepared bound-chat authorization", () => {
   let db: Db;
   let fixture: Awaited<ReturnType<typeof seedBoundChatAuthorization>>;
   let binding: typeof fixture.binding, context: typeof fixture.context;
-  let companyId: string, issueId: string, otherIssueId: string, endpointId: string,
+  let spaceId: string, issueId: string, otherIssueId: string, endpointId: string,
     conversationId: string, principalId: string, commentId: string, deliveryId: string, userId: string;
   const authorize = (handle: Db = db, ids = [commentId]) =>
     authorizeChatConversationForBoundRun(handle, binding, { ...context, wakeCommentIds: ids }, "read");
@@ -21,7 +21,7 @@ describe("prepared bound-chat authorization", () => {
     temporary = await startEmbeddedPostgresTestDatabase("prepared-chat-");
     db = createDb(temporary.connectionString);
     fixture = await seedBoundChatAuthorization(db);
-    ({ binding, context, companyId, issueId, otherIssueId, endpointId, conversationId,
+    ({ binding, context, spaceId, issueId, otherIssueId, endpointId, conversationId,
       principalId, commentId, deliveryId, userId } = fixture);
   });
   afterAll(async () => {
@@ -33,18 +33,18 @@ describe("prepared bound-chat authorization", () => {
     await expect(authorize()).resolves.toEqual({ endpointId, conversationId });
     await expect(authorize(db, [commentId, commentId])).resolves.toEqual({ endpointId, conversationId });
     const secondCommentId = randomUUID(), secondDeliveryId = randomUUID();
-    await db.insert(issueComments).values({ id: secondCommentId, companyId, issueId,
+    await db.insert(issueComments).values({ id: secondCommentId, spaceId, issueId,
       authorType: "user", authorUserId: userId, body: "Another message" });
-    await db.insert(chatDeliveries).values({ id: secondDeliveryId, companyId, endpointId,
+    await db.insert(chatDeliveries).values({ id: secondDeliveryId, spaceId, endpointId,
       conversationId, principalId, providerEventId: secondDeliveryId, deduplicationKey: secondDeliveryId,
       eventKind: "message", normalizedEvent: {}, state: "processed", processedAt: new Date() });
-    await db.insert(chatMessageLinks).values({ companyId, endpointId, conversationId,
+    await db.insert(chatMessageLinks).values({ spaceId, endpointId, conversationId,
       deliveryId: secondDeliveryId, commentId: secondCommentId, providerMessageId: secondCommentId, direction: "inbound" });
     await expect(authorize(db, [secondCommentId])).resolves.toEqual({ endpointId, conversationId });
     await expect(authorize(db, [secondCommentId, commentId])).resolves.toEqual({ endpointId, conversationId });
     await expect(authorize(db, [commentId, randomUUID()])).rejects.toThrow(denied);
     await expect(authorize(db, [])).rejects.toThrow(denied);
-    for (const changed of [{ companyId: randomUUID() }, { issueId: otherIssueId },
+    for (const changed of [{ spaceId: randomUUID() }, { issueId: otherIssueId },
       { agentId: randomUUID() }]) {
       await expect(authorizeChatConversationForBoundRun(db, { ...binding, ...changed }, context, "read"))
         .rejects.toThrow(denied);

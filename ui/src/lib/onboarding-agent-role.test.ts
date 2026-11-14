@@ -4,8 +4,8 @@ import { DEFAULT_AGENT_NAME, nextAgentNameForRole } from "./onboarding-agent-rol
 
 describe("nextAgentNameForRole", () => {
   it("fills the name from the role when the field is empty", () => {
-    expect(nextAgentNameForRole({ currentName: "", nextRole: "cto" })).toBe(
-      AGENT_ROLE_LABELS.cto,
+    expect(nextAgentNameForRole({ currentName: "", nextRole: "engineering_lead" })).toBe(
+      AGENT_ROLE_LABELS.engineering_lead,
     );
   });
 
@@ -16,15 +16,15 @@ describe("nextAgentNameForRole", () => {
   });
 
   it("replaces a label left by a previous role", () => {
-    // Picking CTO then CMO should leave "CMO", not "CTO".
-    expect(nextAgentNameForRole({ currentName: AGENT_ROLE_LABELS.cto, nextRole: "cmo" })).toBe(
-      AGENT_ROLE_LABELS.cmo,
+    // Picking Engineering Lead then Product Lead should leave "Product Lead", not "Engineering Lead".
+    expect(nextAgentNameForRole({ currentName: AGENT_ROLE_LABELS.engineering_lead, nextRole: "product" })).toBe(
+      AGENT_ROLE_LABELS.product,
     );
   });
 
   it("keeps a name the customer typed", () => {
     // The failure this prevents is silent: the field still holds a plausible
-    // name afterwards, so the loss is invisible until the agent is hired.
+    // name afterwards, so the loss is invisible until the agent is created.
     expect(nextAgentNameForRole({ currentName: "Ada", nextRole: "engineer" })).toBe("Ada");
   });
 

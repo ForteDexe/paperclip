@@ -1,17 +1,17 @@
 import type { McpConnection, ToolConnection } from "@outpost/shared";
 import { humanizeConnectionDisplayName } from "@outpost/shared";
 import { Identity } from "@/components/Identity";
-import type { CompanyUserProfile } from "@/lib/company-members";
+import type { SpaceUserProfile } from "@/lib/space-members";
 
-export type ConnectionOwnerProfile = CompanyUserProfile;
+export type ConnectionOwnerProfile = SpaceUserProfile;
 
 export function connectionOwnerProfile(
   connection: Pick<ToolConnection, "createdByUserId">,
-  profiles: ReadonlyMap<string, CompanyUserProfile>,
+  profiles: ReadonlyMap<string, SpaceUserProfile>,
 ): ConnectionOwnerProfile | null {
   if (!connection.createdByUserId) return null;
   return profiles.get(connection.createdByUserId) ?? {
-    label: connection.createdByUserId === "local-board" ? "You" : "User",
+    label: connection.createdByUserId === "local-operator" ? "You" : "User",
     image: null,
   };
 }
@@ -29,7 +29,7 @@ function possessive(label: string): string {
 
 /**
  * Keep intentionally customized account names, while making the default app
- * name useful in a multi-user company ("Dotta’s Notion", "Sam’s Gmail").
+ * name useful in a multi-user space ("Dotta’s Notion", "Sam’s Gmail").
  */
 export function connectionDisplayNameForOwner(
   connection: Pick<ToolConnection, "name">,

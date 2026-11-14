@@ -159,13 +159,13 @@ function browserSafeValue(value: unknown, depth: number, budget: BrowserSafeBudg
 /**
  * Hides absolute host paths under any home root. The provider names its own
  * state directories in session context — `.codex/memories` as well as
- * `.paperclip` — and none of them mean anything to a browser.
+ * `.outpost` — and none of them mean anything to a browser.
  */
 function redactBrowserString(value: string): string {
   const truncated = value.length > MAX_BROWSER_STRING_CHARACTERS;
   const visible = truncated ? value.slice(0, MAX_BROWSER_STRING_CHARACTERS) : value;
   const redacted = redactStructuredBrowserCredentials(redactCodexDiagnostic(visible)).replace(
-    /\/(?:srv\/paperclip\/home|home\/[^/\s]+|Users\/[^/\s]+)\/\.[^\s"'<>),\]}]*/g,
+    /\/(?:srv\/outpost\/home|home\/[^/\s]+|Users\/[^/\s]+)\/\.[^\s"'<>),\]}]*/g,
     "<server-path>",
   );
   return truncated ? `${redacted}[TRUNCATED]` : redacted;
@@ -861,7 +861,7 @@ export class LiveConsoleDemoServer {
       fixtureName: "live-console-demo",
       identity: {
         schema: "outpost.orp.identity.v1" as const,
-        companyId: "package-local-demo",
+        spaceId: "package-local-demo",
         issueId: "live-console-demo",
         runId: entry.runId,
         environmentLeaseId: "package-local",

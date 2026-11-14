@@ -10,7 +10,7 @@ import { ChatEndpointDetail } from "@/pages/apps/chat/ChatEndpointDetail";
 import { ChatIdentityConfirm } from "@/pages/apps/chat/ChatIdentityConfirm";
 import type { ChatEndpoint } from "@/api/chatEndpoints";
 import { queryKeys } from "@/lib/queryKeys";
-import { spekoAgent, spekoCompanyId, spekoEndpoint } from "../../../support/speko/spekoNative";
+import { spekoAgent, spekoSpaceId, spekoEndpoint } from "../../../support/speko/spekoNative";
 import { callHistoryFixture } from "../../../support/speko/spekoCallHistory";
 import { voiceStoryLifecycle } from "../../../support/speko/voiceStoryLifecycle";
 
@@ -22,10 +22,10 @@ function PageFixture({ path, agents = [spekoAgent] }: { path: string; agents?: (
   const [client] = useState(() => {
     const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false, refetchOnWindowFocus: false } } });
     client.setQueryData(queryKeys.instance.experimentalSettings, { enableChatConnectors: true });
-    client.setQueryData(["chat-endpoint-setup-agents", spekoCompanyId], agents);
-    client.setQueryData(queryKeys.apps.gallery(spekoCompanyId), { apps: CONNECTABLE_APP_DEFINITIONS.filter((app) => app.slug === "speko") });
-    client.setQueryData(queryKeys.tools.applications(spekoCompanyId), []);
-    client.setQueryData(queryKeys.tools.connections(spekoCompanyId), []);
+    client.setQueryData(["chat-endpoint-setup-agents", spekoSpaceId], agents);
+    client.setQueryData(queryKeys.apps.gallery(spekoSpaceId), { apps: CONNECTABLE_APP_DEFINITIONS.filter((app) => app.slug === "speko") });
+    client.setQueryData(queryKeys.tools.applications(spekoSpaceId), []);
+    client.setQueryData(queryKeys.tools.connections(spekoSpaceId), []);
     return client;
   });
   useEffect(() => { navigate(path, { replace: true }); setOpened(true); }, [navigate, path]);
@@ -40,7 +40,7 @@ function PageFixture({ path, agents = [spekoAgent] }: { path: string; agents?: (
   </div></QueryClientProvider>;
 }
 const meta: Meta = {
-  ...voiceStoryLifecycle, id: "connections-speko-pages", title: "Apps, channels, and extensions/External chat and email/Speko/Pages", parameters: { layout: "fullscreen", paperclip: {"capabilities": ["chat-channels/providers", "chat-channels/lifecycle", "connection-setup/channel-setup", "connection-setup/draft-recovery"], "status": "current", "implementation": "production", "boundary": "fixtures", "notes": "Production setup and endpoint pages with fixture company, agent, session and credential responses. No provider verification, real billing or permission proof."} },
+  ...voiceStoryLifecycle, id: "connections-speko-pages", title: "Apps, channels, and extensions/External chat and email/Speko/Pages", parameters: { layout: "fullscreen", outpost: {"capabilities": ["chat-channels/providers", "chat-channels/lifecycle", "connection-setup/channel-setup", "connection-setup/draft-recovery"], "status": "current", "implementation": "production", "boundary": "fixtures", "notes": "Production setup and endpoint pages with fixture space, agent, session and credential responses. No provider verification, real billing or permission proof."} },
   beforeEach(context) {
     const cleanup = voiceStoryLifecycle.beforeEach(), original = window.fetch;
     const state = (context.parameters.speko ?? {}) as State;
@@ -66,7 +66,7 @@ const meta: Meta = {
         if (url.pathname.endsWith("/chat-endpoints")) return Response.json(init?.method === "POST" ? endpoint : [endpoint]);
         return Response.json(endpoint);
       }
-      if (url.pathname === "/api/chat-identity-links/preview") return Response.json({ companyId: spekoCompanyId, companyName: "Example company", companyPrefix: "PAP", endpointId: endpoint.id, provider: "speko", externalLabel: "Voice session identity", botLabel: endpoint.botLabel, expiresAt: "2026-09-12T13:00:00Z" });
+      if (url.pathname === "/api/chat-identity-links/preview") return Response.json({ spaceId: spekoSpaceId, spaceName: "Example space", spacePrefix: "PAP", endpointId: endpoint.id, provider: "speko", externalLabel: "Voice session identity", botLabel: endpoint.botLabel, expiresAt: "2026-09-12T13:00:00Z" });
       return original(input, init);
     };
     return () => { window.fetch = original; cleanup(); };
@@ -120,11 +120,11 @@ export const ChooseAgentEmpty: Story = {
 };
 export const ConfigureProvider = page(`/PAP/apps/chat/connect?provider=speko&resume=${spekoEndpoint.id}`, "Speko API key", { status: "draft", step: "provider_setup" });
 export const TestConversation = page(`/PAP/apps/chat/connect?provider=speko&resume=${spekoEndpoint.id}`, "Test your Speko voice connection", { status: "verifying", step: "test" });
-export const Active = page(detail("settings"), "Company Phone Agent in Speko");
-export const Paused = page(detail("settings"), "Company Phone Agent in Speko", { status: "paused" });
-export const Attention = page(detail("settings"), "Company Phone Agent in Speko", { status: "attention" });
-export const Revoked = page(detail("settings"), "Company Phone Agent in Speko", { status: "revoked" });
-export const Removed = page(detail("settings"), "Company Phone Agent in Speko", { status: "archived" });
+export const Active = page(detail("settings"), "Space Phone Agent in Speko");
+export const Paused = page(detail("settings"), "Space Phone Agent in Speko", { status: "paused" });
+export const Attention = page(detail("settings"), "Space Phone Agent in Speko", { status: "attention" });
+export const Revoked = page(detail("settings"), "Space Phone Agent in Speko", { status: "revoked" });
+export const Removed = page(detail("settings"), "Space Phone Agent in Speko", { status: "archived" });
 export const LoadingFailure = page(detail("settings"), "This chat connection could not be loaded", { failure: true });
 export const PrivateAccess = page(detail("access"), "Private voice access");
 export const Conversations = page(detail("conversations"), "Compare delivery options", { conversations: true });
@@ -147,10 +147,10 @@ export const PendingIncoming = page(detail("settings"), "Incoming call awaiting 
 export const GuestIntake = page(detail("settings"), "Incoming conversation", {incoming: "guest_intake"});
 export const WithCallHistory = page(detail("activity"), "Outgoing call · Completed", {history: true});
 export const SettingsWithoutCallHistory: Story = {
-  ...page(detail("settings"), "Company Phone Agent in Speko", {history: true}),
+  ...page(detail("settings"), "Space Phone Agent in Speko", {history: true}),
   play: async ({canvasElement}) => {
     const c = within(canvasElement);
-    await expect(await c.findByText("Company Phone Agent in Speko")).toBeVisible();
+    await expect(await c.findByText("Space Phone Agent in Speko")).toBeVisible();
     await expect(c.queryByRole("heading", {name: "Your calls"})).not.toBeInTheDocument();
     await expect(c.queryByRole("button", {name: "Start voice"})).not.toBeInTheDocument();
     await expect(c.queryByRole("combobox", {name: "Conversation"})).not.toBeInTheDocument();

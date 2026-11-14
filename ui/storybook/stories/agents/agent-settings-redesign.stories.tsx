@@ -13,7 +13,7 @@ const meta = {
           "Design review of the full agent settings. Uses the existing navigation and functional tab components with isolated, mutable Storybook fixtures. No production data is changed.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "agents/lifecycle",
         "agents/instructions"
@@ -61,7 +61,7 @@ export const Overview: Story = { args: { initialTab: "overview" } };
 export const Instructions: Story = { args: { initialTab: "instructions" } };
 export const Advanced: Story = {
   args: { initialTab: "advanced" },
-  parameters: { paperclip: {
+  parameters: { outpost: {
     capabilities: ["agents/instructions"], status: "current", implementation: "mixed", boundary: "fixtures",
     notes: "Production YAML editor inside the settings preview shell. Mutable fixtures simulate saves and revision conflicts; server authorization and secret restoration require integration verification.",
   } },

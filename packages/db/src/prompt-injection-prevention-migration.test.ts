@@ -14,7 +14,7 @@ const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => { while (cleanups.length) await cleanups.pop()?.(); });
 
 async function database() {
-  const database = await startEmbeddedPostgresTestDatabase("paperclip-injection-migration-");
+  const database = await startEmbeddedPostgresTestDatabase("outpost-injection-migration-");
   cleanups.push(database.cleanup);
   const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
   cleanups.push(async () => { await sql.end(); });
@@ -30,39 +30,39 @@ async function shape(sql: ReturnType<typeof postgres>) {
   return {
     columns: Array.from(await sql`SELECT table_name, column_name, udt_name, is_nullable, column_default
       FROM information_schema.columns WHERE table_schema = 'public'
-      AND table_name IN ('company_prompt_injection_prevention', 'prompt_injection_invocations', 'budget_reservations', 'cost_events')
+      AND table_name IN ('space_prompt_injection_prevention', 'prompt_injection_invocations', 'budget_reservations', 'cost_events')
       ORDER BY table_name, column_name`),
     constraints: Array.from(await sql`SELECT t.relname, c.conname, c.convalidated, pg_get_constraintdef(c.oid, true) AS definition
       FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace
       WHERE n.nspname = 'public'
-      AND t.relname IN ('company_prompt_injection_prevention', 'prompt_injection_invocations', 'budget_reservations', 'cost_events')
+      AND t.relname IN ('space_prompt_injection_prevention', 'prompt_injection_invocations', 'budget_reservations', 'cost_events')
       ORDER BY t.relname, c.conname`),
     indexes: Array.from(await sql`SELECT t.relname, i.indisvalid, i.indisready, pg_get_indexdef(i.indexrelid) AS definition
       FROM pg_index i JOIN pg_class t ON t.oid = i.indrelid JOIN pg_namespace n ON n.oid = t.relnamespace
       WHERE n.nspname = 'public'
-      AND t.relname IN ('company_prompt_injection_prevention', 'prompt_injection_invocations', 'budget_reservations', 'cost_events')
+      AND t.relname IN ('space_prompt_injection_prevention', 'prompt_injection_invocations', 'budget_reservations', 'cost_events')
       ORDER BY t.relname, definition`),
   };
 }
 async function seed(sql: ReturnType<typeof postgres>) {
-  const [company] = await sql`INSERT INTO companies (name, issue_prefix) VALUES ('Migration replay', 'PIM') RETURNING id`;
+  const [space] = await sql`INSERT INTO spaces (name, issue_prefix) VALUES ('Migration replay', 'PIM') RETURNING id`;
   const connectionId = randomUUID(), grantId = randomUUID();
-  await sql`INSERT INTO company_prompt_injection_prevention (company_id, connection_id, grant_id, enabled, model)
-    VALUES (${company.id}, ${connectionId}, ${grantId}, true, 'openai/gpt-oss-safeguard-20b')`;
+  await sql`INSERT INTO space_prompt_injection_prevention (space_id, connection_id, grant_id, enabled, model)
+    VALUES (${space.id}, ${connectionId}, ${grantId}, true, 'openai/gpt-oss-safeguard-20b')`;
   const [charge] = await sql`INSERT INTO cost_events
-    (company_id, usage_kind, provider, biller, billing_type, cost_status, model, cost_cents, occurred_at)
-    VALUES (${company.id}, 'prompt_injection', 'openai', 'openrouter', 'metered_api', 'unpriced', 'openai/gpt-oss-safeguard-20b', 0, now()) RETURNING id`;
+    (space_id, usage_kind, provider, biller, billing_type, cost_status, model, cost_cents, occurred_at)
+    VALUES (${space.id}, 'prompt_injection', 'openai', 'openrouter', 'metered_api', 'unpriced', 'openai/gpt-oss-safeguard-20b', 0, now()) RETURNING id`;
   const [invocation] = await sql`INSERT INTO prompt_injection_invocations
-    (company_id, source, actor_type, actor_id, connection_id, grant_id, policy_version, model, status, error_code, cost_event_id)
-    VALUES (${company.id}, 'gateway', 'system', 'retained-actor', ${connectionId}, ${grantId}, 'tool-result-v1',
+    (space_id, source, actor_type, actor_id, connection_id, grant_id, policy_version, model, status, error_code, cost_event_id)
+    VALUES (${space.id}, 'gateway', 'system', 'retained-actor', ${connectionId}, ${grantId}, 'tool-result-v1',
       'openai/gpt-oss-safeguard-20b', 'unknown', 'timeout', ${charge.id}) RETURNING id`;
-  await sql`INSERT INTO budget_reservations (company_id, prompt_injection_invocation_id, amount_cents, state)
-    VALUES (${company.id}, ${invocation.id}, 10, 'held')`;
-  return { companyId: company.id, invocationId: invocation.id, chargeId: charge.id };
+  await sql`INSERT INTO budget_reservations (space_id, prompt_injection_invocation_id, amount_cents, state)
+    VALUES (${space.id}, ${invocation.id}, 10, 'held')`;
+  return { spaceId: space.id, invocationId: invocation.id, chargeId: charge.id };
 }
 async function rows(sql: ReturnType<typeof postgres>) {
   return {
-    settings: Array.from(await sql`SELECT to_jsonb(t) AS row FROM company_prompt_injection_prevention t ORDER BY company_id`),
+    settings: Array.from(await sql`SELECT to_jsonb(t) AS row FROM space_prompt_injection_prevention t ORDER BY space_id`),
     invocations: Array.from(await sql`SELECT to_jsonb(t) AS row FROM prompt_injection_invocations t ORDER BY id`),
     charges: Array.from(await sql`SELECT to_jsonb(t) AS row FROM cost_events t ORDER BY id`),
     reservations: Array.from(await sql`SELECT to_jsonb(t) AS row FROM budget_reservations t ORDER BY id`),
@@ -79,16 +79,16 @@ describe("prompt injection migration replay", () => {
     expect(await shape(sql)).toEqual(before.shape);
     expect(await rows(sql)).toEqual(before.rows);
     expect(await history(sql)).toEqual(before.history);
-    await expect(sql`UPDATE company_prompt_injection_prevention SET grant_id = NULL WHERE company_id = ${fixture.companyId}`)
+    await expect(sql`UPDATE space_prompt_injection_prevention SET grant_id = NULL WHERE space_id = ${fixture.spaceId}`)
       .rejects.toMatchObject({ code: "23514" });
     await expect(sql`UPDATE prompt_injection_invocations SET status = 'invalid' WHERE id = ${fixture.invocationId}`)
       .rejects.toMatchObject({ code: "23514" });
     await expect(sql`UPDATE cost_events SET usage_kind = 'invalid' WHERE id = ${fixture.chargeId}`)
       .rejects.toMatchObject({ code: "23514" });
-    await expect(sql`UPDATE budget_reservations SET prompt_injection_invocation_id = NULL WHERE company_id = ${fixture.companyId}`)
+    await expect(sql`UPDATE budget_reservations SET prompt_injection_invocation_id = NULL WHERE space_id = ${fixture.spaceId}`)
       .rejects.toMatchObject({ code: "23514" });
-    await expect(sql`INSERT INTO budget_reservations (company_id, prompt_injection_invocation_id, amount_cents)
-      VALUES (${fixture.companyId}, ${fixture.invocationId}, 10)`).rejects.toMatchObject({ code: "23505" });
+    await expect(sql`INSERT INTO budget_reservations (space_id, prompt_injection_invocation_id, amount_cents)
+      VALUES (${fixture.spaceId}, ${fixture.invocationId}, 10)`).rejects.toMatchObject({ code: "23505" });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
   it("finishes partial unjournaled DDL without losing existing configuration or unresolved charges", async () => {
@@ -96,7 +96,7 @@ describe("prompt injection migration replay", () => {
     const expectedShape = await shape(sql);
     await sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash = ${migrationHash}`;
     await sql`DROP TABLE prompt_injection_invocations`;
-    await sql`DROP TABLE company_prompt_injection_prevention`;
+    await sql`DROP TABLE space_prompt_injection_prevention`;
     await sql`ALTER TABLE budget_reservations DROP CONSTRAINT budget_reservations_source_check`;
     await sql`ALTER TABLE budget_reservations DROP COLUMN prompt_injection_invocation_id`;
     await sql`ALTER TABLE cost_events DROP CONSTRAINT cost_events_usage_kind_check`;
@@ -104,8 +104,8 @@ describe("prompt injection migration replay", () => {
     // missing journal receipt must not cause any of those objects to collide.
     for (const statement of statements.slice(0, 2)) await sql.unsafe(statement);
     await sql.unsafe(statements.find(statement => statement.includes('ADD COLUMN') && statement.includes('prompt_injection_invocation_id'))!);
-    await sql.unsafe(statements.find(statement => statement.includes('CREATE INDEX') && statement.includes('prompt_injection_invocations_company_started_idx'))!);
-    await sql.unsafe(statements.find(statement => statement.includes('ADD CONSTRAINT "company_prompt_injection_prevention_company_id_companies_id_fk"'))!);
+    await sql.unsafe(statements.find(statement => statement.includes('CREATE INDEX') && statement.includes('prompt_injection_invocations_space_started_idx'))!);
+    await sql.unsafe(statements.find(statement => statement.includes('ADD CONSTRAINT "space_prompt_injection_prevention_space_id_spaces_id_fk"'))!);
     await seed(sql);
     const beforeRows = await rows(sql), beforeHistory = await history(sql);
     await applyPendingMigrations(url);
@@ -121,7 +121,7 @@ describe("prompt injection migration replay", () => {
     expect(await rows(sql)).toEqual(beforeRows);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
-  it("preserves the original SQL receipt when upgrading a company that already applied this PR", async () => {
+  it("preserves the original SQL receipt when upgrading a space that already applied this PR", async () => {
     const { sql, url } = await database();
     await seed(sql);
     await sql`UPDATE drizzle.__drizzle_migrations SET hash = ${originalMigrationHash} WHERE hash = ${migrationHash}`;

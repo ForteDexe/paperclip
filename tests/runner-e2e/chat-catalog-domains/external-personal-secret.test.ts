@@ -11,7 +11,7 @@ import {
 function valid() {
   return {
     scenarioId: "secrets.personal-secret",
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     reply:
       "Your personal publishing credential is configured and the publishing check succeeded.",
@@ -43,7 +43,7 @@ function valid() {
     runs: [
       { id: "initial", status: "succeeded" },
       {
-        id: "worker", companyId: "company", responsibleUserId: "person",
+        id: "worker", spaceId: "space", responsibleUserId: "person",
         startedAt: "2026-11-04T00:00:00.000Z", finishedAt: "2026-11-04T00:00:10.000Z",
         status: "succeeded",
         agentId: "morgan",
@@ -70,7 +70,7 @@ function valid() {
       storageClean: true,
       currentSecret: {
         id: "own-secret",
-        companyId: "company",
+        spaceId: "space",
         scope: "user",
         ownerUserId: "person",
         userSecretDefinitionId: "definition",
@@ -80,10 +80,10 @@ function valid() {
       taskAfterStatus: "done",
       workerReceiptBound: true,
       workerReceiptEvidence: {
-        task: { id: "task", companyId: "company", assigneeAgentId: "morgan", responsibleUserId: "person", status: "done" },
+        task: { id: "task", spaceId: "space", assigneeAgentId: "morgan", responsibleUserId: "person", status: "done" },
         calls: [{ authorized: true, agentId: "", runId: "", method: "GET", pathname: "/publishing-check", status: 200,
           createdAt: "2026-11-04T00:00:05.000Z", receiptId: "a".repeat(48) }],
-        events: [{ runId: "worker", companyId: "company", agentId: "morgan", seq: 1, eventType: "tool.execution.completed",
+        events: [{ runId: "worker", spaceId: "space", agentId: "morgan", seq: 1, eventType: "tool.execution.completed",
           createdAt: "2026-11-04T00:00:06.000Z", payload: { orpEvent: { runId: "worker", eventType: "tool.execution.completed",
             payload: { name: "bash", status: "completed", exitCode: 0, outputTruncated: false,
               output: JSON.stringify({ ok: true, status: 200, check: "publishing endpoint", receiptId: "a".repeat(48) }) } } } }],
@@ -187,22 +187,22 @@ it("handles natural warnings without accepting another-person reuse or negative/
 
 function answeredQuestionValue() {
   const base = valid();
-  const row = { id: "question", companyId: "company", issueId: "source", sourceRunId: "initial", createdByAgentId: "ceo",
+  const row = { id: "question", spaceId: "space", issueId: "source", sourceRunId: "initial", createdByAgentId: "ceo",
     addresseeUserId: "person", resolverPolicy: "human_only", continuationPolicy: "wake_assignee", kind: "ask_user_questions", status: "answered",
     resolvedByUserId: "person", resolvedAt: "2026-11-04T13:30:00Z", result: { version: 1, summaryMarkdown: null, answers: [{ questionId: "saved", optionIds: ["yes"] }] },
     payload: questionSetToAskUserQuestionsPayload({ schema: "outpost.question_set.v1", description: "Set your own personal publishing value securely in My secrets. Never paste your credential in chat.", questions: [{ id: "saved", prompt: "Have you saved your own value?", helpText: "Settings Secrets My secrets Set my value definition PERSONAL_PUBLISHING_KEY", answerMode: "single_select", required: true,
       options: [{ id: "yes", label: "Yes", description: "My personal value is saved." }, { id: "later", label: "Not yet" }] }] }),
   };
-  const admitted = personalSecretQuestionHandoff(row, { companyId: "company", issueId: "source", agentId: "ceo", userId: "person", runId: "initial", definitionId: "definition" }, "answered");
+  const admitted = personalSecretQuestionHandoff(row, { spaceId: "space", issueId: "source", agentId: "ceo", userId: "person", runId: "initial", definitionId: "definition" }, "answered");
   if (!admitted) throw Error("Invalid question test prerequisite");
   return { ...base, interactions: [row], comments: [
-    { id: "query", companyId: "company", issueId: "source", authorUserId: "person", body: "Set up my personal publishing credential for this task." },
-    { id: "reply", companyId: "company", issueId: "source", authorAgentId: "ceo", createdByRunId: "confirmed", body: base.reply },
+    { id: "query", spaceId: "space", issueId: "source", authorUserId: "person", body: "Set up my personal publishing credential for this task." },
+    { id: "reply", spaceId: "space", issueId: "source", authorAgentId: "ceo", createdByRunId: "confirmed", body: base.reply },
   ], activity: [...base.activity,
-    { companyId: "company", action: "issue.thread_interaction_answered", entityId: "source", actorType: "user", actorId: "person", details: { interactionId: "question", interactionKind: "ask_user_questions", interactionStatus: "answered" } },
-    { companyId: "company", action: "issue.question_response_delivered", entityId: "source", actorType: "system", actorId: "question-response-delivery", details: { interactionId: "question", sourceRunId: "initial", targetRunId: "confirmed", deliveryStatus: "delivered" } },
+    { spaceId: "space", action: "issue.thread_interaction_answered", entityId: "source", actorType: "user", actorId: "person", details: { interactionId: "question", interactionKind: "ask_user_questions", interactionStatus: "answered" } },
+    { spaceId: "space", action: "issue.question_response_delivered", entityId: "source", actorType: "system", actorId: "question-response-delivery", details: { interactionId: "question", sourceRunId: "initial", targetRunId: "confirmed", deliveryStatus: "delivered" } },
   ],
-    phaseReplies: base.phaseReplies.slice(1), runs: base.runs.map(run => run.id === "confirmed" ? { ...run, companyId: "company", agentId: "ceo", contextSnapshot: { issueId: "source", interactionId: "question" } } : run),
+    phaseReplies: base.phaseReplies.slice(1), runs: base.runs.map(run => run.id === "confirmed" ? { ...run, spaceId: "space", agentId: "ceo", contextSnapshot: { issueId: "source", interactionId: "question" } } : run),
     state: { ...base.state, sourceIssueId: "source", definitionId: "definition", initialQuestionId: row.id, initialQuestionOptionId: "yes", initialQuestionPayloadHash: admitted.payloadHash,
       currentSecret: { ...base.state.currentSecret, createdAt: "2026-11-04T13:29:00Z" } } };
 }
@@ -288,13 +288,13 @@ it("rejects an affirmative chat destination after an excluded destination", () =
 it("accepts a saved-value confirmation without a fabricated initial reply and rejects consumer-before-confirm or absent source proof", () => {
   const o = valid();
   const payload = { version: 1, prompt: "Open Settings Secrets, My secrets, Set my value for your personal publishing credential PERSONAL_PUBLISHING_KEY definition definition. Never paste the value in chat. When you have saved it, confirm this card.", acceptLabel: "Confirm" };
-  const row = { id: "confirmation", companyId: "company", issueId: "source", sourceRunId: "initial", createdByAgentId: "ceo", originCommentIds: ["human"], kind: "request_confirmation", status: "accepted", resolverPolicy: "anyone", continuationPolicy: "wake_assignee", resolvedByUserId: "person", resolvedAt: "2026-11-03T23:59:59Z", result: { version: 1, outcome: "accepted" }, payload };
+  const row = { id: "confirmation", spaceId: "space", issueId: "source", sourceRunId: "initial", createdByAgentId: "ceo", originCommentIds: ["human"], kind: "request_confirmation", status: "accepted", resolverPolicy: "anyone", continuationPolicy: "wake_assignee", resolvedByUserId: "person", resolvedAt: "2026-11-03T23:59:59Z", result: { version: 1, outcome: "accepted" }, payload };
   Object.assign(o.state, { sourceIssueId: "source", confirmationVisibleBeforeEntry: true, initialConfirmationId: row.id, initialConfirmationContinuationPolicy: row.continuationPolicy, canonicalHumanCommentId: "human", initialConfirmationPayloadHash: createHash("sha256").update(JSON.stringify(payload)).digest("hex") });
   Object.assign(o.state.currentSecret, { createdAt: "2026-11-03T23:59:58Z" });
   Object.assign(o.runs[2]!, { agentId: "ceo", contextSnapshot: { issueId: "source", interactionId: row.id } });
   o.phaseReplies.shift();
   (o.interactions as unknown[]).push(row);
-  (o.activity as unknown[]).push({ companyId: "company", entityId: "source", action: "issue.thread_interaction_accepted", actorType: "user", actorId: "person", details: { interactionId: row.id, interactionStatus: "accepted" } });
+  (o.activity as unknown[]).push({ spaceId: "space", entityId: "source", action: "issue.thread_interaction_accepted", actorType: "user", actorId: "person", details: { interactionId: row.id, interactionStatus: "accepted" } });
   expect(gradePersonalSecret(o).passed).toBe(true);
   const started = o.runs[1]!.startedAt; o.runs[1]!.startedAt = "2026-11-03T23:59:57Z";
   expect(gradePersonalSecret(o).passed).toBe(false); o.runs[1]!.startedAt = started;

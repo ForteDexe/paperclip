@@ -26,8 +26,8 @@ const resolvers: HandoffChipResolvers = {
     ["agent-qa", { name: "QA", icon: null }],
     ["agent-claude", { name: "ClaudeCoder", icon: null }],
   ]),
-  resolveUserLabel: (id) => (id === "user-board" ? "Riley Board" : null),
-  currentUserId: "user-board",
+  resolveUserLabel: (id) => (id === "user-operator" ? "Riley Operator" : null),
+  currentUserId: "user-operator",
 };
 
 async function act(callback: () => void | Promise<void>) {
@@ -73,11 +73,11 @@ describe("AssigneeChip", () => {
   });
 
   it("renders a user chip with '(you)' and a 'User' prefix — never an agent look", () => {
-    const host = mount(<AssigneeChip assignee={{ agentId: null, userId: "user-board" }} resolvers={resolvers} />);
+    const host = mount(<AssigneeChip assignee={{ agentId: null, userId: "user-operator" }} resolvers={resolvers} />);
     const chip = host.querySelector<HTMLElement>("[data-testid='handoff-assignee-chip']")!;
     expect(chip.dataset.kind).toBe("user");
     expect(chip.textContent).toContain("User");
-    expect(chip.textContent).toContain("Riley Board (you)");
+    expect(chip.textContent).toContain("Riley Operator (you)");
   });
 
   it("renders unassigned as italic text, not a chip", () => {
@@ -100,7 +100,7 @@ describe("HandoffWakeRow", () => {
   });
 
   it("B. user destination = no wake", () => {
-    const host = mount(<HandoffWakeRow to={{ agentId: null, userId: "user-board" }} resolvers={resolvers} />);
+    const host = mount(<HandoffWakeRow to={{ agentId: null, userId: "user-operator" }} resolvers={resolvers} />);
     const row = host.querySelector<HTMLElement>("[data-testid='handoff-wake-row']")!;
     expect(row.dataset.kind).toBe("user_handoff");
     expect(row.textContent).toContain("not created");

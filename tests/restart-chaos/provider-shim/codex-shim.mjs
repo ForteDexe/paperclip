@@ -8,7 +8,7 @@
 //   - "terminal": the `turn/completed` notification that follows a `turn/interrupt`
 //     request (a governed wait or a board Stop);
 //   - "interrupt_ack": the response to that `turn/interrupt` request;
-//   - "tool_completed": Codex's `item/completed` for a non-terminal Paperclip tool call.
+//   - "tool_completed": Codex's `item/completed` for a non-terminal Outpost tool call.
 // Rules are armed per task in the control file, by the task's nonce. A process is
 // bound to a nonce once the nonce appears in its traffic (the task's prompt or a
 // tool result). Every rule applies at most once per task (an exclusive marker file
@@ -119,7 +119,7 @@ child.stdin.on("error", () => undefined);
 const pendingTimers = new Map();
 function emit(line) { process.stdout.write(`${line}\n`); }
 
-const TERMINAL_TOOLS = new Set(["paperclip_finish", "paperclip_block"]);
+const TERMINAL_TOOLS = new Set(["outpost_finish", "outpost_block"]);
 
 function classify(message) {
   if (!message) return null;

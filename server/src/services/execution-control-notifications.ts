@@ -7,17 +7,17 @@ import { notifyRoutineExecutionStatus } from "./routine-execution-status-notific
 import type { Db } from "@outpost/db";
 import { DELIVERY_QUEUES, notifyDeliveryWork, type DeliveryQueue } from "./delivery-work-notifications.js";
 
-export type ExecutionWorkScope = { companyId: string; agentId?: string; runId?: string; issueId?: string };
+export type ExecutionWorkScope = { spaceId: string; agentId?: string; runId?: string; issueId?: string };
 
 export async function notifyExecutionRunWork(transaction: object, scope?: ExecutionWorkScope) {
   if (scope) {
     await notifyAttentionRetentionWork(transaction, scope);
     await notifyRunDispatch(transaction, scope);
-    await notifyStatusCardIssueChange(transaction, scope.companyId);
+    await notifyStatusCardIssueChange(transaction, scope.spaceId);
     await notifyDeferredExecutionEligibility(transaction, scope);
     await notifyLiveRunRecovery(transaction, scope);
     await notifyLiveResourceRecovery(transaction, scope);
-    await notifyRoutineExecutionStatus(transaction, scope.issueId, scope.companyId);
+    await notifyRoutineExecutionStatus(transaction, scope.issueId, scope.spaceId);
   }
   for (const queue of [DELIVERY_QUEUES.executionStatus, DELIVERY_QUEUES.executionFinalization,
     DELIVERY_QUEUES.executionReplacement, DELIVERY_QUEUES.executionDisposition, DELIVERY_QUEUES.issueMonitors,
@@ -35,9 +35,9 @@ export function writeExecutionControl<T>(
   return db.transaction(async transaction => {
     await notifyRunDispatch(transaction, scope);
     if (scope) {
-      await notifyStatusCardIssueChange(transaction, scope.companyId);
+      await notifyStatusCardIssueChange(transaction, scope.spaceId);
       await notifyAttentionRetentionWork(transaction, scope);
-      await notifyRoutineExecutionStatus(transaction, scope.issueId, scope.companyId);
+      await notifyRoutineExecutionStatus(transaction, scope.issueId, scope.spaceId);
       await notifyDeferredExecutionEligibility(transaction, scope);
       await notifyLiveRunRecovery(transaction, scope);
       await notifyLiveResourceRecovery(transaction, scope);

@@ -3,8 +3,8 @@
 export function completedTeamsAction(a: string): string {
   return `${a}.status = 'processed' AND ${a}.kind IN ('teams_file_effect_intent', 'teams_file_consent', 'teams_board_file_intent')
     AND EXISTS (SELECT 1 FROM chat_teams_file_transfers transfer JOIN chat_publications publication
-      ON publication.id = transfer.publication_id AND publication.company_id = transfer.company_id
-      WHERE transfer.company_id = ${a}.company_id AND transfer.endpoint_id = ${a}.endpoint_id
+      ON publication.id = transfer.publication_id AND publication.space_id = transfer.space_id
+      WHERE transfer.space_id = ${a}.space_id AND transfer.endpoint_id = ${a}.endpoint_id
         AND transfer.conversation_id = ${a}.conversation_id
         AND publication.id::text = ${a}.payload->>'publicationId'
         AND publication.endpoint_id = ${a}.endpoint_id AND publication.conversation_id = ${a}.conversation_id
@@ -23,7 +23,7 @@ export function completedTeamsAction(a: string): string {
           AND ${a}.payload->>'receiptDigest' = transfer.response_digest
           AND ${a}.payload->>'action' IN ('accept', 'decline')
           AND ${a}.principal_id IS NOT DISTINCT FROM transfer.principal_id
-        ELSE ${a}.payload->>'schema' = 'outpost.teams.board-file-intent.v1'
+        ELSE ${a}.payload->>'schema' = 'outpost.teams.operator-file-intent.v1'
           AND ${a}.provider_action_id = 'teams_board_file_intent:' || publication.id::text
           AND ${a}.payload->>'issueId' = transfer.issue_id::text
           AND ${a}.payload->>'attachmentId' = transfer.attachment_id::text

@@ -28,7 +28,7 @@ export async function rebindContinuationContract(
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, binding.companyId),
+          eq(issues.spaceId, binding.spaceId),
           eq(issues.id, binding.issueId),
         ),
       )
@@ -38,7 +38,7 @@ export async function rebindContinuationContract(
       .from(nativeRunFinalizations)
       .where(
         and(
-          eq(nativeRunFinalizations.companyId, binding.companyId),
+          eq(nativeRunFinalizations.spaceId, binding.spaceId),
           eq(nativeRunFinalizations.runId, binding.runId),
         ),
       )
@@ -48,7 +48,7 @@ export async function rebindContinuationContract(
       .from(heartbeatRuns)
       .where(
         and(
-          eq(heartbeatRuns.companyId, binding.companyId),
+          eq(heartbeatRuns.spaceId, binding.spaceId),
           eq(heartbeatRuns.id, binding.runId),
         ),
       )
@@ -76,7 +76,7 @@ export async function rebindContinuationContract(
       .from(nativeRunResults)
       .where(
         and(
-          eq(nativeRunResults.companyId, binding.companyId),
+          eq(nativeRunResults.spaceId, binding.spaceId),
           eq(nativeRunResults.runId, binding.runId),
         ),
       )

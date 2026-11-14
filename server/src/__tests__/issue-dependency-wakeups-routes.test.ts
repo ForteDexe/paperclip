@@ -34,8 +34,8 @@ const mockIssueService = vi.hoisted(() => ({
 }));
 
 vi.mock("../services/index.js", () => ({
-  companyService: () => ({
-    getById: vi.fn(async () => ({ id: "company-1" })),
+  spaceService: () => ({
+    getById: vi.fn(async () => ({ id: "space-1" })),
   }),
   accessService: () => ({
     canUser: vi.fn(),
@@ -50,7 +50,7 @@ vi.mock("../services/index.js", () => ({
   agentService: () => ({
     getById: vi.fn(),
   }),
-  companySkillService: () => ({
+  spaceSkillService: () => ({
     completeTestRunForIssue: vi.fn(async () => null),
   }),
   documentAnnotationService: () => ({ remapOpenThreadsForDocument: async () => [] }),
@@ -63,7 +63,7 @@ vi.mock("../services/index.js", () => ({
   feedbackService: () => ({}),
   goalService: () => ({
     getById: vi.fn(),
-    getDefaultCompanyGoal: vi.fn(),
+    getDefaultSpaceGoal: vi.fn(),
   }),
   heartbeatService: () => ({
     wakeup: mockWakeup,
@@ -72,7 +72,7 @@ vi.mock("../services/index.js", () => ({
   getIssueContinuationSummaryDocument: vi.fn(async () => null),
   instanceSettingsService: () => ({
     get: vi.fn(),
-    listCompanyIds: vi.fn(),
+    listSpaceIds: vi.fn(),
   }),
   issueApprovalService: () => ({}),
   issueReferenceService: () => ({
@@ -146,9 +146,9 @@ async function createApp() {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = {
-      type: "board",
-      userId: "local-board",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "local-operator",
+      spaceIds: ["space-1"],
       source: "local_implicit",
       isInstanceAdmin: false,
     };
@@ -192,7 +192,7 @@ describe("issue dependency wakeups in issue routes", () => {
   it("wakes dependents when the final blocker transitions to done", async () => {
     mockIssueService.getById.mockResolvedValue({
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PAP-100",
       title: "Finish blocker",
       description: null,
@@ -209,7 +209,7 @@ describe("issue dependency wakeups in issue routes", () => {
     });
     mockIssueService.update.mockResolvedValue({
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PAP-100",
       title: "Finish blocker",
       description: null,
@@ -253,7 +253,7 @@ describe("issue dependency wakeups in issue routes", () => {
     const childIssueId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
     mockIssueService.getById.mockResolvedValue({
       id: parentIssueId,
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PAP-200",
       title: "Blocked after completion",
       description: null,
@@ -270,7 +270,7 @@ describe("issue dependency wakeups in issue routes", () => {
     });
     mockIssueService.update.mockResolvedValue({
       id: parentIssueId,
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PAP-200",
       title: "Blocked after completion",
       description: null,
@@ -300,7 +300,7 @@ describe("issue dependency wakeups in issue routes", () => {
       .send({
         status: "blocked",
         blockedByIssueIds: [childIssueId],
-        unblockDescriptor: { owner: "board", action: "Review the restored dependency" },
+        unblockDescriptor: { owner: "operator", action: "Review the restored dependency" },
       });
 
     expect(res.status).toBe(200);
@@ -325,7 +325,7 @@ describe("issue dependency wakeups in issue routes", () => {
   it("wakes the parent when all direct children become terminal", async () => {
     mockIssueService.getById.mockResolvedValue({
       id: "child-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PAP-101",
       title: "Last child",
       description: null,
@@ -342,7 +342,7 @@ describe("issue dependency wakeups in issue routes", () => {
     });
     mockIssueService.update.mockResolvedValue({
       id: "child-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PAP-101",
       title: "Last child",
       description: null,
@@ -415,7 +415,7 @@ describe("issue dependency wakeups in issue routes", () => {
   function issueRecord(overrides: Record<string, unknown> = {}) {
     return {
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PAP-100",
       title: "Issue",
       description: null,
@@ -465,7 +465,7 @@ describe("issue dependency wakeups in issue routes", () => {
       expect(mockFindExistingIssueBlockersResolvedWakeForReadyState).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
-          companyId: "company-1",
+          spaceId: "space-1",
           dependentIssueId: releaseIssueId,
           blockerIssueIds: [reviewIssueId],
           blockedTransitionAt: releaseBlockedAt,
@@ -647,7 +647,7 @@ describe("issue dependency wakeups in issue routes", () => {
       .send({
         status: "blocked",
         blockedByIssueIds: [childIssueId],
-        unblockDescriptor: { owner: "board", action: "Review the restored dependency" },
+        unblockDescriptor: { owner: "operator", action: "Review the restored dependency" },
       });
 
     expect(res.status).toBe(200);

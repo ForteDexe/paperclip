@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, agentTaskSessions, authUsers, companies, companyMemberships, createDb, executionWorkspaces, environments, heartbeatRuns, issues, plugins, projects } from "@outpost/db";
+import { agents, agentTaskSessions, authUsers, spaces, spaceMemberships, createDb, executionWorkspaces, environments, heartbeatRuns, issues, plugins, projects } from "@outpost/db";
 import { registerServerAdapter, unregisterServerAdapter, type AdapterExecutionContext } from "../adapters/index.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
@@ -51,13 +51,13 @@ describePostgres("heartbeat session preparation through adapter dispatch", () =>
   });
 
   async function seed(runtimeConfig: Record<string, unknown> = {}) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Session fixture", issuePrefix: `S${companyId.slice(0, 6)}` });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Session fixture", issuePrefix: `S${spaceId.slice(0, 6)}` });
     await db.insert(authUsers).values({ id: userId, name: "Session owner", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Session reader", adapterType, status: "idle", adapterConfig: { model: "model-a" }, runtimeConfig });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Session fixture", status: "todo", assigneeAgentId: agentId, responsibleUserId: userId, issueNumber: 1 });
-    return { companyId, agentId, issueId, userId };
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Session reader", adapterType, status: "idle", adapterConfig: { model: "model-a" }, runtimeConfig });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Session fixture", status: "todo", assigneeAgentId: agentId, responsibleUserId: userId, issueNumber: 1 });
+    return { spaceId, agentId, issueId, userId };
   }
 
   async function execute(f: Awaited<ReturnType<typeof seed>>, context: Record<string, unknown> = {}) {
@@ -79,25 +79,25 @@ describePostgres("heartbeat session preparation through adapter dispatch", () =>
     const first = await execute(f);
     expect(first.input.runtime.sessionId).toBeNull();
     const stored = await db.select().from(agentTaskSessions).where(eq(agentTaskSessions.agentId, f.agentId)).then(rows => rows[0]);
-    expect(stored?.sessionParamsJson).toHaveProperty("__paperclipConfigFingerprint");
-    const resumed = await execute(f, { paperclipSessionHandoffMarkdown: "stale handoff", paperclipSessionRotationReason: "stale reason", paperclipPreviousSessionId: "stale session" });
+    expect(stored?.sessionParamsJson).toHaveProperty("__outpostConfigFingerprint");
+    const resumed = await execute(f, { outpostSessionHandoffMarkdown: "stale handoff", outpostSessionRotationReason: "stale reason", outpostPreviousSessionId: "stale session" });
     expect(resumed.input.runtime).toMatchObject({ sessionId: "saved-session", sessionDisplayId: "saved-session", taskKey: f.issueId });
     expect(resumed.input.runtime.sessionParams).toMatchObject({ sessionId: "saved-session", adapterState: "preserved" });
-    expect(resumed.input.runtime.sessionParams).not.toHaveProperty("__paperclipConfigFingerprint");
-    expect(resumed.input.context.paperclipSessionHandoffMarkdown).toBeUndefined();
-    expect(resumed.input.context.paperclipSessionRotationReason).toBeUndefined();
-    expect(resumed.input.context.paperclipPreviousSessionId).toBeUndefined();
+    expect(resumed.input.runtime.sessionParams).not.toHaveProperty("__outpostConfigFingerprint");
+    expect(resumed.input.context.outpostSessionHandoffMarkdown).toBeUndefined();
+    expect(resumed.input.context.outpostSessionRotationReason).toBeUndefined();
+    expect(resumed.input.context.outpostPreviousSessionId).toBeUndefined();
     expect(resumed.finished.sessionIdBefore).toBe("saved-session");
   });
 
   it("keeps a default-attached project policy stable after binding a repository-free workspace", async () => {
     const f = await seed();
-    const storage = await createPluginWorkspaceFixture(db, f.companyId);
+    const storage = await createPluginWorkspaceFixture(db, f.spaceId);
     const [plugin] = await db.select().from(plugins).where(eq(plugins.id, storage.pluginId));
     await db.update(plugins).set({ manifestJson: { ...plugin.manifestJson, workspaceProvider: {
       ...plugin.manifestJson.workspaceProvider!, defaultForProjects: { mode: "isolated_workspace", strategy: "git_worktree" },
     } } }).where(eq(plugins.id, storage.pluginId));
-    const [project] = await db.insert(projects).values({ companyId: f.companyId, name: "Directory project", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: storage.pluginId } }).returning();
+    const [project] = await db.insert(projects).values({ spaceId: f.spaceId, name: "Directory project", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: storage.pluginId } }).returning();
     await db.update(issues).set({ projectId: project.id }).where(eq(issues.id, f.issueId));
     try {
       const first = await execute(f);
@@ -120,7 +120,7 @@ describePostgres("heartbeat session preparation through adapter dispatch", () =>
     { settings: null, retry: true },
   ])("keeps a default-attached repository policy stable through binding ($settings, Retry: $retry)", async ({ settings, retry }) => {
     const f = await seed();
-    const storage = await createPluginWorkspaceFixture(db, f.companyId);
+    const storage = await createPluginWorkspaceFixture(db, f.spaceId);
     const [plugin] = await db.select().from(plugins).where(eq(plugins.id, storage.pluginId));
     const [environment] = await db.insert(environments).values({ name: `Storage tasks ${storage.pluginId}`, driver: "plugin", status: "active",
       config: { pluginKey: plugin.pluginKey, driverKey: "tasks", driverConfig: {} } }).returning();
@@ -173,13 +173,13 @@ describePostgres("heartbeat session preparation through adapter dispatch", () =>
         await db.update(heartbeatRuns).set({ status: "failed", errorCode: "setup_failed" })
           .where(eq(heartbeatRuns.id, first.finished.id));
         await db.update(issues).set({ status: "todo" }).where(eq(issues.id, f.issueId));
-        const receipt = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issueId,
+        const receipt = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issueId,
           actorId: f.userId, actorSource: "local_implicit", observedRunId: first.finished.id, idempotencyKey: randomUUID() });
         expect(receipt.accepted).toBe(true);
-        await heartbeat.resumeTaskRetry(f.companyId, receipt.requestId!);
+        await heartbeat.resumeTaskRetry(f.spaceId, receipt.requestId!);
         await heartbeat.drainActiveRunExecutions();
         const [resumed] = [...captured.values()].filter(input => input.context.issueId === f.issueId && input.runId !== first.finished.id);
-        expect(resumed?.context.paperclipWorkspace).toMatchObject({ branchName: workspace.branchName });
+        expect(resumed?.context.outpostWorkspace).toMatchObject({ branchName: workspace.branchName });
         expect(realizedBase.get(first.finished.id)).toBe("a".repeat(40));
         expect(realizedBase.get(resumed.runId)).toBe(realizedBase.get(first.finished.id));
         const preparations = storage.calls.filter(call => call.runId === resumed.runId && call.operation.kind === "prepare");
@@ -243,9 +243,9 @@ describePostgres("heartbeat session preparation through adapter dispatch", () =>
     const next = await execute(f);
     expect(next.input.runtime.sessionId).toBeNull();
     expect(next.input.runtime.sessionParams).toBeNull();
-    expect(next.input.context.paperclipPreviousSessionId).toBe("saved-session");
-    expect(next.input.context.paperclipSessionRotationReason).toBe("session exceeded 1 runs");
-    expect(next.input.context.paperclipSessionHandoffMarkdown).toEqual(expect.any(String));
+    expect(next.input.context.outpostPreviousSessionId).toBe("saved-session");
+    expect(next.input.context.outpostSessionRotationReason).toBe("session exceeded 1 runs");
+    expect(next.input.context.outpostSessionHandoffMarkdown).toEqual(expect.any(String));
     expect(next.finished.sessionIdBefore).toBeNull();
   });
 });

@@ -101,7 +101,7 @@
         "sse": false
       },
       "_meta": {
-        "paperclipPi": {
+        "outpostPi": {
           "version": 1,
           "steering": true,
           "queuedFollowUp": true,
@@ -140,7 +140,7 @@
   "runnerBuild": {
     "source": "f556110d588a9de9fefe676a9a62bf09e98afb85",
     "rustTree": "ebbff2a80ed8bce24df98de19cb9480c098e778e",
-    "binary": "/tmp/paperclip-rich-acp-paid-20260928/runnerd-pi-f556110d5-373848d2d7287b2c",
+    "binary": "/tmp/outpost-rich-acp-paid-20260928/runnerd-pi-f556110d5-373848d2d7287b2c",
     "sha256": "373848d2d7287b2c47b2cee422cb7bd25073a594a620a9ad574f2d3d51cd1670",
     "profileVersion": 4,
     "profileDigest": "sha256:2324d9b47650c12b16f8e2c44dc33637d52f1b22ba8e914623eac4049e7e1991",

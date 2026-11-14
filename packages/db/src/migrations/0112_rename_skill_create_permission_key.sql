@@ -1,5 +1,5 @@
 INSERT INTO "principal_permission_grants" (
-  "company_id",
+  "space_id",
   "principal_type",
   "principal_id",
   "permission_key",
@@ -9,7 +9,7 @@ INSERT INTO "principal_permission_grants" (
   "updated_at"
 )
 SELECT
-  "company_id",
+  "space_id",
   "principal_type",
   "principal_id",
   'skills:create',
@@ -20,7 +20,7 @@ SELECT
 FROM "principal_permission_grants"
 WHERE "permission_key" = 'skill:create'
 ON CONFLICT (
-  "company_id",
+  "space_id",
   "principal_type",
   "principal_id",
   "permission_key"

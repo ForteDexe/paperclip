@@ -23,7 +23,7 @@ async function campaign(t) {
   }
   const cells = f.requests.map(({ request }, index) => ({ cellId: `execution-${index}`, provider: request.provider, driver: 'codex_app_server', model: request.model }));
   const catalog = { schema: 'outpost.runner-protocol-eval.catalog/v1', campaignId: `gha-${runId}-1`,
-    source: { paperclipSha: f.manifest.sourceRevision, evalsSha: f.manifest.definitionsRevision },
+    source: { outpostSha: f.manifest.sourceRevision, evalsSha: f.manifest.definitionsRevision },
     cells, matrices: cells.map(cell => ({ include: [cell] })) };
   const catalogSha256 = sha256(canonical(catalog));
   for (const item of f.requests) { item.request.runnerd = { ...artifacts.runnerd, sha256: `sha256:${artifacts.runnerd.sha256}` }; item.request.acpxAgent = null; item.request.driver = 'codex_app_server'; await writeFile(item.requestPath, JSON.stringify(item.request)); }

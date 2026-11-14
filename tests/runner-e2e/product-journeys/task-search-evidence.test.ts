@@ -6,7 +6,7 @@ import { validateRetainedRunnerResult } from "../result-validation.js";
 import type { RunnerE2EResult } from "../types.js";
 
 function evidence(): Parameters<typeof taskSearchEvidencePasses>[0] {
-  const common = { companyId: "company-1", assigneeUserId: "user-1", assigneeAgentId: null } as const;
+  const common = { spaceId: "space-1", assigneeUserId: "user-1", assigneeAgentId: null } as const;
   const expected: SearchTask[] = [
     { ...common, id: "target", identifier: "QA-1", title: "needle-campaign target", description: "Exact target context.", status: "backlog" },
     { ...common, id: "status-control", identifier: "QA-2", title: "needle-campaign control", description: "Completed control context.", status: "done" },
@@ -47,7 +47,7 @@ describe("task search and filter independent evidence", () => {
   it.each(["titleVisible", "descriptionVisible"] as const)("requires visible saved %s", key => {
     expect(taskSearchEvidencePasses({ ...evidence(), [key]: false }).reopen).toBe(false);
   });
-  it.each(["id", "identifier", "companyId", "title", "description", "status", "assigneeUserId", "assigneeAgentId"] as const)("rejects changed saved %s", key => {
+  it.each(["id", "identifier", "spaceId", "title", "description", "status", "assigneeUserId", "assigneeAgentId"] as const)("rejects changed saved %s", key => {
     const input = evidence();
     Object.assign(input.saved[0]!, { [key]: "wrong" });
     expect(taskSearchEvidencePasses(input).reopen).toBe(false);

@@ -9,8 +9,8 @@ import {
   chatGitHubRegistrations,
   chatExternalPrincipals,
   chatIdentityLinks,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   toolConnections,
   type Db,
 } from "@outpost/db";
@@ -32,11 +32,11 @@ import {
 } from "./chat-github-webhook-config.js";
 import { githubChatManagementService } from "./chat-github-management.js";
 import {
-  createPaperclipCloudConnector,
+  createOutpostCloudConnector,
   outpostCloudConnectorConfigFromEnv,
-  type PaperclipCloudConnector,
-} from "./paperclip-cloud-connector.js";
-import { paperclipCloudConnectorEnrollmentStatus } from "./paperclip-cloud-connector-enrollment.js";
+  type OutpostCloudConnector,
+} from "./outpost-cloud-connector.js";
+import { outpostCloudConnectorEnrollmentStatus } from "./outpost-cloud-connector-enrollment.js";
 import { pollGitHubBotCloudSetupEvents } from "./chat-github-cloud-ingress.js";
 
 /** Loopback aliases are equivalent locally, but Cloud requires the approved exact origin. */
@@ -72,7 +72,7 @@ export function githubChatWizardService(
   options: {
     origin: () => string | null;
     fetch?: typeof fetch;
-    connector?: () => PaperclipCloudConnector | null;
+    connector?: () => OutpostCloudConnector | null;
     startDirect: (
       endpointId: string,
       userId: string,
@@ -127,7 +127,7 @@ export function githubChatWizardService(
     (() => {
       const config = outpostCloudConnectorConfigFromEnv();
       return config
-        ? createPaperclipCloudConnector({ config, request: fetchImpl })
+        ? createOutpostCloudConnector({ config, request: fetchImpl })
         : null;
     });
   const pending = new Map<string, Promise<GitHubAppWizardState>>();
@@ -142,17 +142,17 @@ export function githubChatWizardService(
       throw notFound("GitHub bot not found");
     const [member] = await db
       .select()
-      .from(companyMemberships)
+      .from(spaceMemberships)
       .where(
         and(
-          eq(companyMemberships.companyId, bot.companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, userId),
-          eq(companyMemberships.status, "active"),
+          eq(spaceMemberships.spaceId, bot.spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, userId),
+          eq(spaceMemberships.status, "active"),
         ),
       );
     if (!member || member.membershipRole === "viewer")
-      throw forbidden("An active company manager is required");
+      throw forbidden("An active space manager is required");
     return bot;
   }
   async function registration(bot: Endpoint) {
@@ -161,7 +161,7 @@ export function githubChatWizardService(
       .from(chatGitHubRegistrations)
       .where(
         and(
-          eq(chatGitHubRegistrations.companyId, bot.companyId),
+          eq(chatGitHubRegistrations.spaceId, bot.spaceId),
           eq(chatGitHubRegistrations.endpointId, bot.id),
         ),
       )
@@ -175,7 +175,7 @@ export function githubChatWizardService(
   ) {
     await db.transaction(async tx => {
       if (values.cloudRegistrationId !== undefined) {
-        await notifyDeliveryWork(tx, DELIVERY_QUEUES.connectionEvents, bot.companyId);
+        await notifyDeliveryWork(tx, DELIVERY_QUEUES.connectionEvents, bot.spaceId);
         await notifyGitHubWebhookRecovery(tx, { kind: "endpoint", id: bot.id });
       }
       await tx
@@ -187,20 +187,20 @@ export function githubChatWizardService(
         .where(
           and(
             eq(chatEndpoints.id, bot.id),
-            eq(chatEndpoints.companyId, bot.companyId),
+            eq(chatEndpoints.spaceId, bot.spaceId),
           ),
         );
     });
   }
   async function resume(bot: Endpoint) {
-    const [company] = await db
-      .select({ prefix: companies.issuePrefix })
-      .from(companies)
-      .where(eq(companies.id, bot.companyId));
-    return `${options.origin()}/${company!.prefix}/apps/chat/connect?provider=github&purpose=chat&resume=${bot.id}`;
+    const [space] = await db
+      .select({ prefix: spaces.issuePrefix })
+      .from(spaces)
+      .where(eq(spaces.id, bot.spaceId));
+    return `${options.origin()}/${space!.prefix}/apps/chat/connect?provider=github&purpose=chat&resume=${bot.id}`;
   }
   function origin() {
-    const enrollment = paperclipCloudConnectorEnrollmentStatus();
+    const enrollment = outpostCloudConnectorEnrollmentStatus();
     const value = githubWizardBrowserOrigin(
       options.origin(),
       enrollment.status === "active" ? enrollment.origins : [],
@@ -308,7 +308,7 @@ export function githubChatWizardService(
       const [created] = await tx
         .insert(chatGitHubRegistrations)
         .values({
-          companyId: bot.companyId,
+          spaceId: bot.spaceId,
           endpointId: id,
           userId,
           stateHash: hash(returnState),
@@ -317,11 +317,11 @@ export function githubChatWizardService(
           ownerLogin: input.ownerLogin,
           appName: input.name,
           expiresAt: new Date(Date.now() + 30 * 60_000),
-          handoff: { cloudId: nonce(), returnState, redemptionId: nonce(), ...(managementContext?.actor.type === "board" && managementContext.actor.sessionId ? { browserSessionId: managementContext.actor.sessionId } : {}) },
+          handoff: { cloudId: nonce(), returnState, redemptionId: nonce(), ...(managementContext?.actor.type === "operator" && managementContext.actor.sessionId ? { browserSessionId: managementContext.actor.sessionId } : {}) },
         })
         .returning();
       await logActivity(tx as unknown as Db, {
-        companyId: bot.companyId,
+        spaceId: bot.spaceId,
         ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }),
         action: "chat_github.registration_started",
         entityType: "tool_connection",
@@ -330,7 +330,7 @@ export function githubChatWizardService(
           endpointId: id,
           registrationId: created!.id,
           ownerType: input.ownerType,
-          transport: "paperclip_cloud",
+          transport: "outpost_cloud",
         },
       });
       return created!;
@@ -345,7 +345,7 @@ export function githubChatWizardService(
     });
     const state = await cloud.githubApp({
       subject: userId,
-      companyId: bot.companyId,
+      spaceId: bot.spaceId,
       binding: cloudStart(session),
     });
     return {
@@ -424,7 +424,7 @@ export function githubChatWizardService(
       throw conflict("Restore Outpost Cloud enrollment");
     const material = await cloud.claimGitHubApp({
       subject: session.userId,
-      companyId: session.companyId,
+      spaceId: session.spaceId,
       claimId,
       redemptionId: session.handoff.redemptionId,
     });
@@ -524,9 +524,9 @@ export function githubChatWizardService(
     const trustedOrigin = origin();
     const created = await db.transaction(async (tx) => {
       const [locked] = await tx.select().from(chatEndpoints)
-        .where(and(eq(chatEndpoints.id, id), eq(chatEndpoints.companyId, bot.companyId))).for("update");
+        .where(and(eq(chatEndpoints.id, id), eq(chatEndpoints.spaceId, bot.spaceId))).for("update");
       const [prior] = await tx.select().from(chatGitHubRegistrations)
-        .where(and(eq(chatGitHubRegistrations.endpointId, id), eq(chatGitHubRegistrations.companyId, bot.companyId)))
+        .where(and(eq(chatGitHubRegistrations.endpointId, id), eq(chatGitHubRegistrations.spaceId, bot.spaceId)))
         .orderBy(desc(chatGitHubRegistrations.createdAt)).limit(1).for("update");
       // A failed Cloud start still owns a durable replacement. Retrying the
       // original request must resume it instead of minting another App route.
@@ -542,14 +542,14 @@ export function githubChatWizardService(
         .where(eq(chatGitHubRegistrations.id, prior.id));
       const returnState = nonce();
       const [next] = await tx.insert(chatGitHubRegistrations).values({
-        companyId: bot.companyId, endpointId: id, userId,
+        spaceId: bot.spaceId, endpointId: id, userId,
         stateHash: hash(returnState), trustedOrigin,
         ownerType: prior.ownerType, ownerLogin: prior.ownerLogin, appName: prior.appName,
         expiresAt: new Date(Date.now() + 30 * 60_000),
         handoff: { cloudId: nonce(), returnState, redemptionId: nonce(), renewalOf: prior.id },
       }).returning();
       await logActivity(tx as unknown as Db, {
-        companyId: bot.companyId, ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }),
+        spaceId: bot.spaceId, ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }),
         action: "chat_github.registration_restarted", entityType: "tool_connection", entityId: bot.connectionId,
         details: { endpointId: id, registrationId: next!.id, previousRegistrationId: prior.id, appNotCreated: true },
       });
@@ -588,7 +588,7 @@ export function githubChatWizardService(
         })
         .where(eq(chatEndpoints.id, id));
       await logActivity(tx as unknown as Db, {
-        companyId: bot.companyId,
+        spaceId: bot.spaceId,
         ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }),
         action: "chat_github.draft_saved",
         entityType: "tool_connection",
@@ -610,14 +610,14 @@ export function githubChatWizardService(
       throw conflict(
         "Restore Outpost Cloud enrollment before reconnecting this App",
       );
-    const binding = { subject: userId, companyId: bot.companyId };
+    const binding = { subject: userId, spaceId: bot.spaceId };
     const state = await cloud.githubApp({
       ...binding,
       binding: cloudStart(session),
     });
     const { credentials, appJwt } = await githubBotCredentials(
       db,
-      bot.companyId,
+      bot.spaceId,
       id,
     );
     if (!credentials.webhookSecret)
@@ -625,7 +625,7 @@ export function githubChatWizardService(
     if (!state.webhookUrl)
       throw conflict("Restore this App's Cloud gateway before continuing");
     await logActivity(db, {
-      companyId: bot.companyId,
+      spaceId: bot.spaceId,
       ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }),
       action: "chat_github.webhook_repair_started",
       entityType: "tool_connection",
@@ -675,7 +675,7 @@ export function githubChatWizardService(
       /* Keep verification pending until a fresh provider-signed delivery arrives. */
     }
     await logActivity(db, {
-      companyId: bot.companyId,
+      spaceId: bot.spaceId,
       ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }),
       action: "chat_github.webhook_repaired",
       entityType: "tool_connection",
@@ -689,7 +689,7 @@ export function githubChatWizardService(
   ): Promise<GitHubAppWizardState> {
     await managementContext?.reauthorize();
     // Bind an agent-created handoff when its addressed human opens the saved setup.
-    if (managementContext?.actor.type === "board" && managementContext.actor.sessionId) {
+    if (managementContext?.actor.type === "operator" && managementContext.actor.sessionId) {
       const bot = await endpoint(id, userId);
       const session = await registration(bot);
       if (session && session.userId === userId && !session.handoff?.browserSessionId) {
@@ -741,7 +741,7 @@ export function githubChatWizardService(
         .where(
           and(
             eq(toolConnections.id, bot.connectionId),
-            eq(toolConnections.companyId, bot.companyId),
+            eq(toolConnections.spaceId, bot.spaceId),
           ),
         );
       const requiredCredentialKeys = session.handoff.manifestClaimId
@@ -754,7 +754,7 @@ export function githubChatWizardService(
             (ref) => ref.configPath === `credentials.${key}`,
           ),
         );
-      const binding = { subject: userId, companyId: bot.companyId };
+      const binding = { subject: userId, spaceId: bot.spaceId };
       const route = await cloud.githubApp({
         ...binding,
         binding: cloudStart(session),
@@ -773,7 +773,7 @@ export function githubChatWizardService(
           .where(
             and(
               eq(toolConnections.id, bot.connectionId),
-              eq(toolConnections.companyId, bot.companyId),
+              eq(toolConnections.spaceId, bot.spaceId),
             ),
           );
         hasAppCredentials = requiredCredentialKeys.every(
@@ -809,7 +809,7 @@ export function githubChatWizardService(
         };
       const { credentials: stored } = await githubBotCredentials(
         db,
-        bot.companyId,
+        bot.spaceId,
         id,
       );
       if (
@@ -867,7 +867,7 @@ export function githubChatWizardService(
     }
     if (bot.setup.github?.initialSetupPending) {
       try {
-        const stored = await githubBotCredentials(db, bot.companyId, id);
+        const stored = await githubBotCredentials(db, bot.spaceId, id);
         if (!stored.credentials.webhookSecret)
           throw conflict("The App webhook secret is missing");
       } catch {
@@ -992,8 +992,8 @@ export function githubChatWizardService(
         )
         .where(
           and(
-            eq(chatIdentityLinks.companyId, bot.companyId),
-            eq(chatIdentityLinks.paperclipUserId, userId),
+            eq(chatIdentityLinks.spaceId, bot.spaceId),
+            eq(chatIdentityLinks.outpostUserId, userId),
             eq(chatIdentityLinks.status, "linked"),
             eq(chatExternalPrincipals.provider, "github"),
           ),
@@ -1009,7 +1009,7 @@ export function githubChatWizardService(
       }
     }
     if (!linked) {
-      const { credentials } = await githubBotCredentials(db, bot.companyId, id);
+      const { credentials } = await githubBotCredentials(db, bot.spaceId, id);
       return {
         endpointId: id,
         state: "identity",
@@ -1048,9 +1048,9 @@ export function githubChatWizardService(
       .from(chatIdentityLinks)
       .where(
         and(
-          eq(chatIdentityLinks.companyId, bot.companyId),
+          eq(chatIdentityLinks.spaceId, bot.spaceId),
           eq(chatIdentityLinks.endpointId, bot.id),
-          eq(chatIdentityLinks.paperclipUserId, userId),
+          eq(chatIdentityLinks.outpostUserId, userId),
           eq(chatIdentityLinks.status, "linked"),
         ),
       )
@@ -1137,10 +1137,10 @@ export function githubChatWizardService(
     // callbacks always pass their actual browser actor before consuming state.
     if (!actor) return;
     const sessionId = identity ? session.handoff?.identitySessionId : session.handoff?.browserSessionId;
-    if (actor.type !== "board" || actor.userId !== session.userId || (sessionId && actor.sessionId !== sessionId)) throw forbidden("Open this saved setup in the configuring user's browser session");
+    if (actor.type !== "operator" || actor.userId !== session.userId || (sessionId && actor.sessionId !== sessionId)) throw forbidden("Open this saved setup in the configuring user's browser session");
     const bot = await endpoint(session.endpointId, session.userId);
     return connectionManagementService(db).authorize(actor, "connections:configure", {
-      type: "connection_management", companyId: bot.companyId, connectionId: bot.connectionId,
+      type: "connection_management", spaceId: bot.spaceId, connectionId: bot.connectionId,
       targetAgentId: bot.assignedAgentId, purpose: "chat", provider: "github", operation: "github.authentication.return",
     });
   }
@@ -1163,7 +1163,7 @@ export function githubChatWizardService(
       session = await registration(bot);
     if (!session || session.userId !== userId)
       throw forbidden("The configuring member must link their GitHub account");
-    const credentials = await githubBotCredentials(db, bot.companyId, id);
+    const credentials = await githubBotCredentials(db, bot.spaceId, id);
     if (
       !credentials.credentials.clientId ||
       !credentials.credentials.clientSecret
@@ -1181,7 +1181,7 @@ export function githubChatWizardService(
     await db
       .update(chatGitHubRegistrations)
       .set({
-        handoff: sql`(${chatGitHubRegistrations.handoff} - 'identity') || ${JSON.stringify({ ...(actor?.type === "board" && actor.sessionId ? { identitySessionId: actor.sessionId } : {}), identityStateHash: hash(state), identityExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), identityRedemptionId: nonce() })}::jsonb`,
+        handoff: sql`(${chatGitHubRegistrations.handoff} - 'identity') || ${JSON.stringify({ ...(actor?.type === "operator" && actor.sessionId ? { identitySessionId: actor.sessionId } : {}), identityStateHash: hash(state), identityExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), identityRedemptionId: nonce() })}::jsonb`,
       })
       .where(eq(chatGitHubRegistrations.id, session.id));
     const challenge = createHash("sha256").update(verifier).digest("base64url");
@@ -1190,7 +1190,7 @@ export function githubChatWizardService(
       if (!cloud) throw conflict("Restore Outpost Cloud enrollment");
       const result = await cloud.githubApp({
         subject: userId,
-        companyId: bot.companyId,
+        spaceId: bot.spaceId,
         binding: {
           action: "callback",
           id: session.handoff.cloudId,
@@ -1266,7 +1266,7 @@ export function githubChatWizardService(
       )
       .returning();
     if (!consumed) return resume(bot);
-    const material = await githubBotCredentials(db, bot.companyId, bot.id);
+    const material = await githubBotCredentials(db, bot.spaceId, bot.id);
     const response = await fetchImpl(
       "https://github.com/login/oauth/access_token",
       {
@@ -1395,7 +1395,7 @@ export function githubChatWizardService(
     if (!cloud) throw conflict("Restore Outpost Cloud enrollment");
     const opened = await cloud.claimGitHubApp({
       subject: session.userId,
-      companyId: session.companyId,
+      spaceId: session.spaceId,
       claimId,
       redemptionId:
         session.handoff.identityStateHash &&
@@ -1423,7 +1423,7 @@ export function githubChatWizardService(
       if (!cloud) throw forbidden("GitHub return did not match this instance");
       const current = await cloud.githubApp({
         subject: session.userId,
-        companyId: session.companyId,
+        spaceId: session.spaceId,
         binding: { action: "status", id: registrationId },
       });
       // A manager-authenticated Cloud lookup, rather than a callback parameter,
@@ -1440,7 +1440,7 @@ export function githubChatWizardService(
           ),
         );
       await logActivity(db, {
-        companyId: session.companyId,
+        spaceId: session.spaceId,
         actorType: "system",
         actorId: "chat-github-setup",
         action: "chat_github.registration_origin_recovered",
@@ -1466,7 +1466,7 @@ export function githubChatWizardService(
       }
       const route = await cloud.githubApp({
         subject: session.userId,
-        companyId: session.companyId,
+        spaceId: session.spaceId,
         binding: { action: "status", id: registrationId },
       });
       if (opened.redirectUri !== route.callbackUrls.oauth)

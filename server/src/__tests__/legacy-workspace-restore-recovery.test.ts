@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } from "./helpers/full-database-response-capture.js";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, environmentLeases, environments, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, projects } from "@outpost/db";
+import { agents, spaces, createDb, environmentLeases, environments, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, projects } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { recordLegacyWorkspaceRestoreFailure, legacyExecutionNeedsReconciliationWithEvidence, terminalizeLegacyExecution } from "../services/legacy-execution-recovery.js";
 import { hasConversationContinuationPolicy, conversationRecoveryActionPredicate } from "../services/conversation-continuation.js";
@@ -21,26 +21,26 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
     else { temporary = await startEmbeddedPostgresTestDatabase("legacy-workspace-recovery-"); db = createDb(temporary.connectionString); } }, 30_000);
   afterAll(async () => { await db?.$client.end(); await temporary?.cleanup(); });
   async function seed(options: { local?: boolean; taskDone?: boolean; reusable?: boolean } = {}) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Workspace recovery", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Engineer", role: "engineer", adapterType: "codex_local" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Restore files", status: options.taskDone ? "done" : "in_progress", assigneeAgentId: agentId });
-    const [project] = await db.insert(projects).values({ companyId, name: "Workspace project" }).returning();
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId, projectId: project.id,
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Workspace recovery", issuePrefix: spaceId.slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Engineer", role: "engineer", adapterType: "codex_local" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Restore files", status: options.taskDone ? "done" : "in_progress", assigneeAgentId: agentId });
+    const [project] = await db.insert(projects).values({ spaceId, name: "Workspace project" }).returning();
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId, projectId: project.id,
       sourceIssueId: issueId, mode: "isolated", strategyType: "git_worktree", name: "Fixture workspace", cwd: "/work/fixture",
     }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, status: "running", runtimeMode: "legacy",
+    const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, status: "running", runtimeMode: "legacy",
       contextSnapshot: { issueId, executionWorkspaceId: workspace.id },
     }).returning();
     if (options.local) await db.insert(environments).values({ name: "Local", driver: "local" }).onConflictDoNothing();
     const [environment] = options.local ? await db.select().from(environments).where(eq(environments.driver, "local"))
       : await db.insert(environments).values({ name: `Isolated test sandbox ${runId}`, driver: "sandbox" }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ companyId, issueId, executionWorkspaceId: workspace.id, heartbeatRunId: runId, environmentId: environment.id,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId, executionWorkspaceId: workspace.id, heartbeatRunId: runId, environmentId: environment.id,
       status: "active", leasePolicy: options.reusable ? "reuse_by_environment" : "ephemeral",
       provider: options.local ? "local" : "daytona", providerLeaseId: randomUUID(),
       metadata: { remoteCwd: "/work/fixture", workspaceRealization: { authoritativeRoot: "/work/fixture" }, driver: options.local ? "local" : "sandbox", pluginId: randomUUID(), sandboxProviderPlugin: !options.local },
     }).returning();
-    return { companyId, runId, issueId, run, lease };
+    return { spaceId, runId, issueId, run, lease };
   }
   const patch = { errorCode: "workspace_restore_failed", finishedAt: new Date(), resultJson: {
     workspaceRestoreFailure: "restore_failed", conversationContinuation: "continue_conversation_v1",
@@ -69,7 +69,7 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]).toEqual(returned);
     expect(await readLease(f.lease.id)).toMatchObject({ status: "pending_cleanup", leasePolicy: "retain_on_failure" });
     expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issueId)))
-      .toEqual([expect.objectContaining({ evidence: expect.objectContaining({ runId: f.runId }), ownerType: "board" })]);
+      .toEqual([expect.objectContaining({ evidence: expect.objectContaining({ runId: f.runId }), ownerType: "operator" })]);
     expect(JSON.stringify(events)).not.toContain(bulk.slice(0, 64));
   });
 
@@ -104,7 +104,7 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]).toEqual(returned);
     expect(await readLease(f.lease.id)).toMatchObject({ status: "pending_cleanup", leasePolicy: "retain_on_failure" });
     expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issueId)))
-      .toEqual([expect.objectContaining({ evidence: expect.objectContaining({ runId: f.runId }), ownerType: "board" })]);
+      .toEqual([expect.objectContaining({ evidence: expect.objectContaining({ runId: f.runId }), ownerType: "operator" })]);
     expect(JSON.stringify(events)).not.toContain(bulk.slice(0, 64));
   });
 
@@ -184,7 +184,7 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
     return stopped;
   }
 
-  it.each([false, true])("persists terminal status, stop-only source and board action atomically (task done=%s)", async taskDone => {
+  it.each([false, true])("persists terminal status, stop-only source and operator action atomically (task done=%s)", async taskDone => {
     const f = await seed({ taskDone, reusable: true });
     expect(await legacyExecutionNeedsReconciliationWithEvidence(db, { ...f.run, status: "failed", ...patch })).toBe(true);
     const failed = await terminalizeLegacyExecution({ db, run: f.run, status: "failed", patch });
@@ -193,15 +193,15 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
     expect(hasConversationContinuationPolicy(failed?.resultJson)).toBe(false);
     const lease = await readLease(f.lease.id);
     expect(lease).toMatchObject({ status: "pending_cleanup", leasePolicy: "retain_on_failure", metadata: {
-      sandboxStopAndRetain: { companyId: f.companyId, runId: f.runId, leaseId: f.lease.id, providerLeaseId: f.lease.providerLeaseId },
+      sandboxStopAndRetain: { spaceId: f.spaceId, runId: f.runId, leaseId: f.lease.id, providerLeaseId: f.lease.providerLeaseId },
       pendingCleanupInFlight: false,
     } });
     const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issueId));
-    expect(action).toMatchObject({ ownerType: "board", evidence: { workspaceRestoreRecovery: { leaseIds: [f.lease.id] } } });
+    expect(action).toMatchObject({ ownerType: "operator", evidence: { workspaceRestoreRecovery: { leaseIds: [f.lease.id] } } });
     expect(await db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.id, action.id), conversationRecoveryActionPredicate()))).toEqual([]);
     // A new controller uses the durable stop-only intent. It cannot turn a
     // successful stop into proof that the workspace files were restored.
-    const receipt = { schema: "outpost.remote-termination.v1", runId: f.runId, companyId: f.companyId,
+    const receipt = { schema: "outpost.remote-termination.v1", runId: f.runId, spaceId: f.spaceId,
       leaseId: lease.id, provider: lease.provider, providerLeaseId: lease.providerLeaseId, state: "stopped", confirmedAt: new Date().toISOString() };
     await settleStopOnlyCleanup(db, lease, { attemptId: String(lease.metadata?.pendingCleanupAttemptId), receipt });
     expect(await readLease(lease.id)).toMatchObject({ status: "released", leasePolicy: "retain_on_failure", metadata: { remoteExecutionTermination: { state: "stopped" } } });
@@ -238,7 +238,7 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
       releasedAt: stopped!.releasedAt, metadata: { remoteExecutionTermination: stopped!.metadata!.remoteExecutionTermination,
         sandboxStopAndRetainReceipt: stopped!.metadata!.sandboxStopAndRetainReceipt } });
     const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issueId));
-    expect(action).toMatchObject({ status: "resolved", outcome: "blocked", ownerType: "board",
+    expect(action).toMatchObject({ status: "resolved", outcome: "blocked", ownerType: "operator",
       evidence: { automaticRecovery: { replay: "blocked" }, workspaceRestoreRecovery: { leaseIds: [f.lease.id] } } });
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0].status).toBe("done");
     // A lost commit response can cause the exact adapter receipt to be recorded twice.
@@ -265,7 +265,7 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
       metadata: { sandboxStopAndRetainReceipt: stopped.metadata!.sandboxStopAndRetainReceipt } });
   });
 
-  it.each(["id", "companyId", "heartbeatRunId", "environmentId", "issueId", "executionWorkspaceId", "provider", "providerLeaseId", "acquiredAt", "pluginId", "remoteCwd", "workspaceRealization"])(
+  it.each(["id", "spaceId", "heartbeatRunId", "environmentId", "issueId", "executionWorkspaceId", "provider", "providerLeaseId", "acquiredAt", "pluginId", "remoteCwd", "workspaceRealization"])(
     "rejects a stopped source with a different original %s", async field => {
       const f = await seed();
       const stopped = await stopAndRetain(f);
@@ -350,7 +350,7 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
     expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issueId))).toEqual([]);
   });
 
-  it.each(["active", "stopped", "older_stopped", "older_destroyed"])("rejects a competing %s allocation owner across companies", async state => {
+  it.each(["active", "stopped", "older_stopped", "older_destroyed"])("rejects a competing %s allocation owner across spaces", async state => {
     const f = await seed(), other = await seed();
     const stopped = await stopAndRetain(f);
     [other.lease] = await db.update(environmentLeases).set({ providerLeaseId: f.lease.providerLeaseId,
@@ -402,13 +402,13 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
     const f = await seed({ reusable: true });
     await stopAndRetain(f);
     const newerRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: newerRunId, companyId: f.companyId, agentId: f.run.agentId,
+    await db.insert(heartbeatRuns).values({ id: newerRunId, spaceId: f.spaceId, agentId: f.run.agentId,
       status: "running", runtimeMode: "legacy", contextSnapshot: { issueId: f.issueId } });
     // The production handoff also checks the immutable task/agent scope.
     [f.lease] = await db.update(environmentLeases).set({ metadata: {
       ...(await readLease(f.lease.id)).metadata, agentId: f.run.agentId,
     } }).where(eq(environmentLeases.id, f.lease.id)).returning();
-    const newer = await environmentService(db).acquireLease({ companyId: f.companyId,
+    const newer = await environmentService(db).acquireLease({ spaceId: f.spaceId,
       environmentId: f.lease.environmentId!, issueId: f.issueId, executionWorkspaceId: f.lease.executionWorkspaceId, heartbeatRunId: newerRunId,
       leasePolicy: "reuse_by_environment", provider: f.lease.provider!, providerLeaseId: f.lease.providerLeaseId,
       metadata: { ...f.lease.metadata, agentId: f.run.agentId }, replacesReusableLeaseId: f.lease.id,
@@ -436,10 +436,10 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
   it("preserves newer task execution while retaining only the original stopped source", async () => {
     const f = await seed(), newerRunId = randomUUID();
     await stopAndRetain(f);
-    await db.insert(heartbeatRuns).values({ id: newerRunId, companyId: f.companyId, agentId: f.run.agentId,
+    await db.insert(heartbeatRuns).values({ id: newerRunId, spaceId: f.spaceId, agentId: f.run.agentId,
       status: "running", runtimeMode: "legacy", contextSnapshot: { issueId: f.issueId } });
     await db.update(issues).set({ executionRunId: newerRunId, checkoutRunId: newerRunId }).where(eq(issues.id, f.issueId));
-    const [newerLease] = await db.insert(environmentLeases).values({ companyId: f.companyId, issueId: f.issueId,
+    const [newerLease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, issueId: f.issueId,
       heartbeatRunId: newerRunId, environmentId: f.lease.environmentId, provider: "daytona", providerLeaseId: randomUUID(),
       status: "active", leasePolicy: "ephemeral", metadata: { driver: "sandbox", pluginId: randomUUID() },
     }).returning();
@@ -556,12 +556,12 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
       contextSnapshot: { issueId: f.issueId, conversationSessionGeneration: 0 },
       resultJson: { executionCancellation: { state: "acknowledged" }, conversationContinuation: "continue_conversation_v1" },
     }).where(eq(heartbeatRuns.id, f.runId));
-    if (scenario === "conversation_reset") await db.update(issues).set({ conversationAgentId: f.run.agentId, conversationUserId: "board-review-fixture", conversationState: "active",
+    if (scenario === "conversation_reset") await db.update(issues).set({ conversationAgentId: f.run.agentId, conversationUserId: "operator-review-fixture", conversationState: "active",
       conversationSessionGeneration: scenario === "conversation_reset" ? 1 : 0,
     }).where(eq(issues.id, f.issueId));
     if (scenario === "new_owner") {
       const id = randomUUID();
-      await db.insert(agents).values({ id, companyId: f.companyId, name: "New owner", role: "engineer", adapterType: "codex_local" });
+      await db.insert(agents).values({ id, spaceId: f.spaceId, name: "New owner", role: "engineer", adapterType: "codex_local" });
       await db.update(issues).set({ assigneeAgentId: id }).where(eq(issues.id, f.issueId));
     }
     await recordLegacyWorkspaceRestoreFailure(db, f.run, patch.resultJson);
@@ -572,7 +572,7 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
     await settleStopOnlyCleanup(db, lease, { attemptId: String(lease.metadata?.pendingCleanupAttemptId),
       receipt: { providerLeaseId: lease.providerLeaseId, state: "stopped" } });
     const { getExecutionBlocker } = await import("../services/execution-blocker.js");
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toMatchObject({
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toMatchObject({
       recoveryActionId: expect.any(String), canRetry: false, canContinue: false,
     });
     expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issueId)))
@@ -581,10 +581,10 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
 
   it("keeps a late source hold alongside a newer incident without replacing its execution", async () => {
     const f = await seed(), newerRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: newerRunId, companyId: f.companyId, agentId: f.run.agentId,
+    await db.insert(heartbeatRuns).values({ id: newerRunId, spaceId: f.spaceId, agentId: f.run.agentId,
       status: "running", runtimeMode: "legacy", contextSnapshot: { issueId: f.issueId } });
     await db.update(issues).set({ executionRunId: newerRunId, checkoutRunId: newerRunId }).where(eq(issues.id, f.issueId));
-    const [newerAction] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
+    const [newerAction] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
       kind: "active_run_watchdog", status: "active", cause: "another_incident", fingerprint: `newer:${newerRunId}`,
       evidence: { runId: newerRunId }, nextAction: "Inspect the current incident." }).returning();
     const failed = await terminalizeLegacyExecution({ db, run: f.run, status: "failed", patch });
@@ -595,13 +595,13 @@ const support = externalTestDatabaseUrl ? { supported: true } : await getEmbedde
     expect(actions).toHaveLength(2);
     expect(actions.find(a => a.id === newerAction.id)).toEqual(newerAction);
     const source = actions.find(a => a.evidence.runId === f.runId)!;
-    expect(source).toMatchObject({ status: "resolved", outcome: "blocked", ownerType: "board",
+    expect(source).toMatchObject({ status: "resolved", outcome: "blocked", ownerType: "operator",
       returnOwnerAgentId: null, attemptCount: 1, evidence: { automaticRecovery: { replay: "blocked" } } });
     const { markExecutionReconciliation } = await import("../services/execution-recovery-resolution.js");
     await markExecutionReconciliation(db, source, { runId: f.runId, providerStopped: true, actionOutcome: "mixed",
       outcomeEvidence: "The original provider's actions were inspected.",
       workspaceRepairEvidence: "The exact retained workspace was recovered and verified.",
-    }, "board-test", undefined, { workspaceRepairOnly: true });
+    }, "operator-test", undefined, { workspaceRepairOnly: true });
     await terminalizeLegacyExecution({ db, run: failed!, status: "failed", patch });
     const [repaired] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, source.id));
     expect(repaired.evidence.automaticRecovery).toBeUndefined();

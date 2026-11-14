@@ -14,7 +14,7 @@
  *   node --experimental-strip-types tests/e2e/smoke-lab-browser-runner.mts
  * Env (all optional except a reachable BASE):
  *   SMOKE_BASE=http://127.0.0.1:3211   target local_trusted, non-prod instance
- *   SMOKE_COMPANY_ID=<uuid>            reuse a company (else creates one)
+ *   SMOKE_SPACE_ID=<uuid>            reuse a space (else creates one)
  *   SMOKE_SHOT_DIR=/tmp/pap13350-shots screenshot output dir
  *   SMOKE_ONLY=P1,P3                   restrict to a subset of catalog paths
  *                                      (budget-bounding for the daily D5 routine;
@@ -57,12 +57,12 @@ async function api(method: string, path: string, body?: Json): Promise<any> {
   return text ? JSON.parse(text) : {};
 }
 
-async function uploadShot(companyId: string, file: string): Promise<string> {
+async function uploadShot(spaceId: string, file: string): Promise<string> {
   const buf = await fs.readFile(file);
   const form = new FormData();
   form.append("file", new Blob([buf], { type: "image/png" }), file.split("/").pop());
   form.append("namespace", "smoke-lab");
-  const res = await fetch(`${BASE}/api/companies/${companyId}/assets/images`, {
+  const res = await fetch(`${BASE}/api/spaces/${spaceId}/assets/images`, {
     method: "POST",
     headers: { origin: BASE },
     body: form as any,
@@ -76,32 +76,32 @@ async function uploadShot(companyId: string, file: string): Promise<string> {
 async function main() {
   await fs.mkdir(SHOT_DIR, { recursive: true });
 
-  // Company + scout
-  let companyId = process.env.SMOKE_COMPANY_ID ?? "";
+  // Space + scout
+  let spaceId = process.env.SMOKE_SPACE_ID ?? "";
   let prefix = "";
-  if (!companyId) {
-    const co = await api("POST", "/api/companies", { name: `Smoke Lab Browser Run ${Date.now()}` });
-    companyId = co.id;
+  if (!spaceId) {
+    const co = await api("POST", "/api/spaces", { name: `Smoke Lab Browser Run ${Date.now()}` });
+    spaceId = co.id;
     prefix = co.issuePrefix ?? co.urlKey ?? "SMO";
   } else {
-    const list = await api("GET", "/api/companies");
-    const co = (Array.isArray(list) ? list : list.companies ?? []).find((c: Json) => c.id === companyId);
+    const list = await api("GET", "/api/spaces");
+    const co = (Array.isArray(list) ? list : list.spaces ?? []).find((c: Json) => c.id === spaceId);
     prefix = co?.issuePrefix ?? co?.urlKey ?? "SMO";
   }
   await api("PATCH", "/api/instance/settings/experimental", { enableSmokeLab: true });
-  const scout = await api("POST", `/api/companies/${companyId}/agents`, {
+  const scout = await api("POST", `/api/spaces/${spaceId}/agents`, {
     name: `Smoke Scout ${Date.now()}`, role: "qa", title: "Smoke Lab scout",
     capabilities: "Runs deterministic Smoke Lab fixture calls.",
     adapterType: "process", adapterConfig: { command: "node", args: ["-e", "setTimeout(()=>{},1000)"] },
   });
-  console.log(`company=${companyId} prefix=${prefix} scout=${scout.id}`);
+  console.log(`space=${spaceId} prefix=${prefix} scout=${scout.id}`);
 
   const scenarios = ONLY.length
     ? ciSmokeLabScenarios.filter((s) => ONLY.includes(s.path))
     : ciSmokeLabScenarios;
   assert(scenarios.length, `SMOKE_ONLY=${ONLY.join(",")} matched no catalog paths`);
 
-  const run = (await api("POST", `/api/companies/${companyId}/smoke-lab/runs`, {
+  const run = (await api("POST", `/api/spaces/${spaceId}/smoke-lab/runs`, {
     trigger: TRIGGER,
     summary: { catalog: "tests/e2e/smoke-lab.catalog.ts", driver: "agent-browser (real chromium)", track: "D4 agent-driven browser", scenarioCount: scenarios.length, only: ONLY.length ? ONLY : undefined },
   })).run;
@@ -118,10 +118,10 @@ async function main() {
   const shot = async (scenario: Json, step: string) => {
     const file = `${SHOT_DIR}/${scenario.path.toLowerCase()}-${step}.png`;
     await page.screenshot({ path: file, fullPage: true });
-    return await uploadShot(companyId, file);
+    return await uploadShot(spaceId, file);
   };
   const record = async (scenario: Json, step: string, status: string, detail: string | null, url: string | null, ms: number) => {
-    await api("POST", `/api/companies/${companyId}/smoke-lab/runs/${run.id}/steps`, {
+    await api("POST", `/api/spaces/${spaceId}/smoke-lab/runs/${run.id}/steps`, {
       path: scenario.path, scenarioStep: step, status, detail,
       screenshotArtifactRef: url ? { kind: "agent_browser_screenshot", url } : null,
       durationMs: ms,
@@ -153,16 +153,16 @@ async function main() {
   };
 
   const auditHit = async (connId: string, search: string) => {
-    const a = await api("GET", `/api/tool-gateway/audit?companyId=${companyId}&app=${connId}&agent=${scout.id}&search=${encodeURIComponent(search)}&limit=50`);
+    const a = await api("GET", `/api/tool-gateway/audit?spaceId=${spaceId}&app=${connId}&agent=${scout.id}&search=${encodeURIComponent(search)}&limit=50`);
     assert((a.events?.length ?? 0) > 0, `audit row for ${search}`);
   };
 
   for (const scenario of scenarios) {
     console.log(`--- ${scenario.path}: ${scenario.title} ---`);
     // Fixtures (board UI action; idempotent). Start services then install.
-    const services = (await api("POST", `/api/companies/${companyId}/smoke-lab/services/start`)).services;
+    const services = (await api("POST", `/api/spaces/${spaceId}/smoke-lab/services/start`)).services;
     const oauthUrl = services.find((s: Json) => s.id === "fake-oauth")?.url as string;
-    const fx = await api("POST", `/api/companies/${companyId}/smoke-lab/install-fixtures`);
+    const fx = await api("POST", `/api/spaces/${spaceId}/smoke-lab/install-fixtures`);
     const preferStdio = scenario.transport === "local_stdio" || scenario.transport === "plugin";
     const wantTransport = preferStdio ? "local_stdio" : "mcp_remote";
     const conn = fx.connections.find((c: Json) => c.transport === wantTransport);
@@ -189,7 +189,7 @@ async function main() {
         const loc = resp.headers()["location"] ?? "";
         assert(resp.status() === 302 && /[?&]code=/.test(loc), `OAuth consent accepted creds → 302 with code (status ${resp.status()}, location ${loc.slice(0, 80)})`);
         // The 302 target is a dead loopback callback; let that failed navigation
-        // commit (chrome-error page) before navigating into the Paperclip UI.
+        // commit (chrome-error page) before navigating into the Outpost UI.
         await page.waitForLoadState("domcontentloaded").catch(() => {});
         await page.waitForTimeout(800);
         await gotoUI(scenario, conn.id);
@@ -222,7 +222,7 @@ async function main() {
 
     // ask-first-write-approved
     await doStep(scenario, "ask-first-write-approved", async () => {
-      await api("POST", `/api/companies/${companyId}/tools/policies`, {
+      await api("POST", `/api/spaces/${spaceId}/tools/policies`, {
         name: `${scenario.path} require approval ${Date.now()}`, policyType: "require_approval", priority: 10,
         selectors: { connectionId: conn.id, toolNames: [scenario.lifecycle.askFirstWrite.name] },
       });
@@ -232,7 +232,7 @@ async function main() {
       assert(pending.decision === "ask_first", `ask-first decision=${pending.decision}`);
       assert(pending.actionRequestId, "ask-first has actionRequestId");
       await page.goto(`${BASE}/${prefix}/apps/${conn.id}/review`, { waitUntil: "networkidle" });
-      await api("POST", `/api/tool-gateway/action-requests/${pending.actionRequestId}/approve`, { companyId });
+      await api("POST", `/api/tool-gateway/action-requests/${pending.actionRequestId}/approve`, { spaceId });
       let approved = false;
       for (let i = 0; i < 40; i++) {
         const st = await api("GET", `/api/tool-connections/${conn.id}/test-calls/${pending.actionRequestId}`);
@@ -248,7 +248,7 @@ async function main() {
 
     // denied-blocked-call
     await doStep(scenario, "denied-blocked-call", async () => {
-      await api("POST", `/api/companies/${companyId}/tools/policies`, {
+      await api("POST", `/api/spaces/${spaceId}/tools/policies`, {
         name: `${scenario.path} block ${Date.now()}`, policyType: "block", priority: 1,
         selectors: { connectionId: conn.id, toolNames: [scenario.lifecycle.deniedCall.name] },
       });
@@ -268,7 +268,7 @@ async function main() {
         return "Non-HTTP path records governance/quarantine evidence through fixture metadata.";
       }
       await api("PATCH", `/api/tool-connections/${conn.id}`, { config: { ...(conn.config ?? {}), quarantineNewEntries: true } });
-      await api("POST", `/api/companies/${companyId}/tools/policies`, {
+      await api("POST", `/api/spaces/${spaceId}/tools/policies`, {
         name: `${scenario.path} allow schema flip ${Date.now()}`, policyType: "allow", priority: 5,
         selectors: { connectionId: conn.id, toolNames: [scenario.lifecycle.schemaChangeQuarantine.name] },
       });
@@ -286,11 +286,11 @@ async function main() {
     await doStep(scenario, "revoke", async () => {
       if (scenario.transport === "gateway_session") {
         const invoked = await api("POST", `/api/agents/${scout.id}/heartbeat/invoke`);
-        const session = await api("POST", "/api/tool-gateway/sessions", { companyId, agentId: scout.id, runId: invoked.id, ttlMs: 60_000 });
-        const listRes = await fetch(`${BASE}${new URL(session.toolsUrl, BASE).pathname}`, { headers: { "x-paperclip-tool-gateway-token": session.token } });
+        const session = await api("POST", "/api/tool-gateway/sessions", { spaceId, agentId: scout.id, runId: invoked.id, ttlMs: 60_000 });
+        const listRes = await fetch(`${BASE}${new URL(session.toolsUrl, BASE).pathname}`, { headers: { "x-outpost-tool-gateway-token": session.token } });
         assert(listRes.ok, "gateway tools list ok pre-revoke");
-        await api("POST", `/api/tool-gateway/sessions/${session.sessionId}/revoke`, { companyId });
-        const after = await fetch(`${BASE}${new URL(session.toolsUrl, BASE).pathname}`, { headers: { "x-paperclip-tool-gateway-token": session.token } });
+        await api("POST", `/api/tool-gateway/sessions/${session.sessionId}/revoke`, { spaceId });
+        const after = await fetch(`${BASE}${new URL(session.toolsUrl, BASE).pathname}`, { headers: { "x-outpost-tool-gateway-token": session.token } });
         assert(after.status === 401, `revoked token cut off (got ${after.status})`);
         await page.goto(`${BASE}/${prefix}/activity?action=tool_`, { waitUntil: "networkidle" });
         return scenario.lifecycle.revoke;
@@ -321,7 +321,7 @@ async function main() {
   }
 
   // Finalize run + capture the run in the live Smoke Lab UI.
-  await api("PATCH", `/api/companies/${companyId}/smoke-lab/runs/${run.id}`, {
+  await api("PATCH", `/api/spaces/${spaceId}/smoke-lab/runs/${run.id}`, {
     status: failed.length ? "failed" : "passed",
     summary: { catalog: "tests/e2e/smoke-lab.catalog.ts", driver: "agent-browser (real chromium)", scenarioCount: scenarios.length, only: ONLY.length ? ONLY : undefined, failed },
   });
@@ -336,16 +336,16 @@ async function main() {
 
   await browser.close();
 
-  const finalRun = await api("GET", `/api/companies/${companyId}/smoke-lab/runs/${run.id}`);
+  const finalRun = await api("GET", `/api/spaces/${spaceId}/smoke-lab/runs/${run.id}`);
   const steps = finalRun.steps ?? [];
   const byPath: Record<string, number> = {};
   for (const s of steps) byPath[s.path] = (byPath[s.path] ?? 0) + 1;
   console.log("\n=== RESULT ===");
-  console.log(`companyId=${companyId} prefix=${prefix} runId=${run.id} status=${finalRun.run?.status}`);
+  console.log(`spaceId=${spaceId} prefix=${prefix} runId=${run.id} status=${finalRun.run?.status}`);
   console.log(`steps=${steps.length} perPath=${JSON.stringify(byPath)} failed=${failed.length}`);
   console.log(`withScreenshot=${steps.filter((s: Json) => s.screenshotArtifactRef?.url).length}/${steps.length}`);
   console.log(`tabShot=${tabFile} dashShot=${dashFile}`);
-  await fs.writeFile(`${SHOT_DIR}/result.json`, JSON.stringify({ companyId, prefix, runId: run.id, status: finalRun.run?.status, steps: steps.length, byPath, failed }, null, 2));
+  await fs.writeFile(`${SHOT_DIR}/result.json`, JSON.stringify({ spaceId, prefix, runId: run.id, status: finalRun.run?.status, steps: steps.length, byPath, failed }, null, 2));
   if (failed.length) process.exitCode = 2;
 }
 

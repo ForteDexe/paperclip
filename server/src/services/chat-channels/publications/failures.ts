@@ -269,7 +269,7 @@ export function createChatPublicationFailures(db: Db, options: PublicationFailur
               .from(chatConversations)
               .where(
                 and(
-                  eq(chatConversations.companyId, publication.companyId),
+                  eq(chatConversations.spaceId, publication.spaceId),
                   eq(chatConversations.endpointId, publication.endpointId),
                   eq(chatConversations.id, publication.conversationId),
                   inArray(chatConversations.state, ["active", "waiting"]),
@@ -297,7 +297,7 @@ export function createChatPublicationFailures(db: Db, options: PublicationFailur
           await tx
             .insert(chatPublications)
             .values({
-              companyId: publication.companyId,
+              spaceId: publication.spaceId,
               endpointId: publication.endpointId,
               conversationId: publication.conversationId,
               issueId: publication.issueId,

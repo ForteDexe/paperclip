@@ -15,20 +15,20 @@ import { createRunnerdCodexTransport, defaultCapabilityRunnerdBinary } from "./r
  * turn, and the resumed thread has no active turn either way.
  *
  * - "before": Codex never created the turn. The resumed thread's history ends
- *   at a turn Paperclip already settled (here: no turn at all), which proves the
+ *   at a turn Outpost already settled (here: no turn at all), which proves the
  *   start never happened. The same-run resume starts the turn exactly once.
  * - "after": Codex recorded the turn, then died. Its history names a turn
- *   Paperclip never settled. The turn may have done work, so the runner still
+ *   Outpost never settled. The turn may have done work, so the runner still
  *   fails closed and never starts it again by itself.
  */
 it.each(["before", "after"] as const)("resumes a run whose turn.start a restart cut off (provider stopped %s creating the turn)", async (stage) => {
   const root = await mkdtemp(join(tmpdir(), `runnerd-cut-turn-start-${stage}-`));
   const callsPath = join(root, "calls.log");
   const hangPath = join(root, "hang-turn-start");
-  const identity = { runId: "run-cut-start", sessionId: "session-cut-start", companyId: "company-cut-start", issueId: "issue-cut-start", agentId: "agent-cut-start" };
+  const identity = { runId: "run-cut-start", sessionId: "session-cut-start", spaceId: "space-cut-start", issueId: "issue-cut-start", agentId: "agent-cut-start" };
   const execution: NativeExecutionInputV1 = {
     schema: "outpost.native-execution-input.v1",
-    binding: { runId: identity.runId, companyId: identity.companyId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-cut-start" },
+    binding: { runId: identity.runId, spaceId: identity.spaceId, issueId: identity.issueId, agentId: identity.agentId, executionWorkspaceId: "workspace-cut-start" },
     session: { normalizedSessionId: identity.sessionId, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
     task: { identifier: "TEST-7", title: "Write the brief", description: null, prompt: "Write the brief with the answer marker.", workMode: "standard" },
     workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },

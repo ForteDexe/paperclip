@@ -29,7 +29,7 @@ describe("API responses during a restart", () => {
       status: 503,
       headers: { "Content-Type": "text/html", "Retry-After": "20" },
     })));
-    await expect(api.get("/companies")).rejects.toMatchObject({ name: "ApiUnavailableError", retryAfterMs: 20_000 });
+    await expect(api.get("/spaces")).rejects.toMatchObject({ name: "ApiUnavailableError", retryAfterMs: 20_000 });
   });
 
   it("does not replay a mutation after an HTML response", async () => {
@@ -48,7 +48,7 @@ describe("API responses during a restart", () => {
     const payload = {
       status: "starting",
       deploymentMode: "authenticated",
-      cloud: { managed: true, managedBy: "paperclip-cloud", stackSlug: "example", cloudBaseUrl: "https://example.com" },
+      cloud: { managed: true, managedBy: "outpost-cloud", stackSlug: "example", cloudBaseUrl: "https://example.com" },
     };
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(payload)));
     await expect(healthApi.get()).resolves.toEqual(payload);

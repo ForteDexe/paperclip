@@ -52,7 +52,7 @@ export type RecoveryHandoffSummary = {
   otherTakeover: number;
   /** Original agent recovered its own issue (owner == original assignee). */
   selfRecovery: number;
-  boardOwned: number;
+  operatorOwned: number;
   systemOwned: number;
   activeTakeovers: number;
   /** handedBack / (handedBack + ownerCompleted); null when no resolved takeovers. */
@@ -75,7 +75,7 @@ export type RecoveryCauseRouting = {
 
 export type RecoveryObservabilityReport = {
   historicalRecovery: Awaited<ReturnType<typeof historicalRecoveryCounts>>;
-  companyId: string;
+  spaceId: string;
   generatedAt: string;
   window: { weeks: number; since: string };
   thresholdPercent: number;
@@ -90,7 +90,7 @@ export type HandoffClass =
   | "self_recovery"
   | "handed_back"
   | "owner_completed"
-  | "board_owned"
+  | "operator_owned"
   | "system_owned"
   | "active"
   | "other";
@@ -121,7 +121,7 @@ const TERMINAL_ISSUE_STATUSES = new Set(["done"]);
 export function classifyRecoveryHandoff(facts: RecoveryActionFacts): HandoffClass {
   if (facts.ownerType === "system") return "system_owned";
   if (ACTIVE_STATUSES.has(facts.status)) return "active";
-  if (!facts.ownerAgentId) return "board_owned";
+  if (!facts.ownerAgentId) return "operator_owned";
   // Original agent recovered its own issue — the ideal per-cause routing, not a takeover.
   if (facts.ownerAgentId === facts.returnOwnerAgentId) return "self_recovery";
   // Genuine takeover: recovery owner differs from the original assignee.
@@ -168,7 +168,7 @@ function utcWeekStart(now: Date, weeksAgo: number): Date {
 
 export function recoveryObservabilityService(db: Db) {
   async function report(
-    companyId: string,
+    spaceId: string,
     opts?: { now?: Date; weeks?: number; thresholdPercent?: number },
   ): Promise<RecoveryObservabilityReport> {
     const now = opts?.now ?? new Date();
@@ -186,7 +186,7 @@ export function recoveryObservabilityService(db: Db) {
         to_char(date_trunc('week', ${heartbeatRuns.createdAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS week_start,
         count(*)::int AS runs
       FROM ${heartbeatRuns}
-      WHERE ${heartbeatRuns.companyId} = ${companyId}
+      WHERE ${heartbeatRuns.spaceId} = ${spaceId}
         AND ${heartbeatRuns.createdAt} >= ${sinceIso}::timestamptz
       GROUP BY week_start
     `)) as unknown as Iterable<{ week_start: string; runs: number | string }>;
@@ -197,7 +197,7 @@ export function recoveryObservabilityService(db: Db) {
         to_char(date_trunc('week', ${issueRecoveryActions.createdAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS week_start,
         count(*)::int AS actions
       FROM ${issueRecoveryActions}
-      WHERE ${issueRecoveryActions.companyId} = ${companyId}
+      WHERE ${issueRecoveryActions.spaceId} = ${spaceId}
         AND ${issueRecoveryActions.createdAt} >= ${sinceIso}::timestamptz
       GROUP BY week_start
     `)) as unknown as Iterable<{ week_start: string; actions: number | string }>;
@@ -231,7 +231,7 @@ export function recoveryObservabilityService(db: Db) {
         count(*) FILTER (WHERE ${issueRecoveryActions.status} = 'resolved')::int AS resolved_count,
         count(*) FILTER (WHERE ${issueRecoveryActions.status} = 'cancelled')::int AS cancelled_count
       FROM ${issueRecoveryActions}
-      WHERE ${issueRecoveryActions.companyId} = ${companyId}
+      WHERE ${issueRecoveryActions.spaceId} = ${spaceId}
         AND ${issueRecoveryActions.createdAt} >= ${sinceIso}::timestamptz
       GROUP BY cause, error_code
       ORDER BY count DESC
@@ -271,7 +271,7 @@ export function recoveryObservabilityService(db: Db) {
       .innerJoin(issues, eq(issues.id, issueRecoveryActions.sourceIssueId))
       .where(
         and(
-          eq(issueRecoveryActions.companyId, companyId),
+          eq(issueRecoveryActions.spaceId, spaceId),
           gte(issueRecoveryActions.createdAt, since),
         ),
       );
@@ -282,7 +282,7 @@ export function recoveryObservabilityService(db: Db) {
       ownerCompleted: 0,
       otherTakeover: 0,
       selfRecovery: 0,
-      boardOwned: 0,
+      operatorOwned: 0,
       systemOwned: 0,
       activeTakeovers: 0,
       handedBackRatio: null,
@@ -318,7 +318,7 @@ export function recoveryObservabilityService(db: Db) {
         routing.active += 1;
         if (row.status === "escalated") routing.escalated += 1;
         if (!row.ownerAgentId) {
-          handoff.boardOwned += 1;
+          handoff.operatorOwned += 1;
         } else if (row.ownerAgentId !== row.returnOwnerAgentId) {
           handoff.activeTakeovers += 1;
         }
@@ -349,8 +349,8 @@ export function recoveryObservabilityService(db: Db) {
           handoff.resolvedTakeovers += 1;
           routing.ownerCompleted += 1;
           break;
-        case "board_owned":
-          handoff.boardOwned += 1;
+        case "operator_owned":
+          handoff.operatorOwned += 1;
           break;
         default:
           if (row.ownerAgentId && row.ownerAgentId !== row.returnOwnerAgentId) {
@@ -369,7 +369,7 @@ export function recoveryObservabilityService(db: Db) {
     const perCauseRouting = Array.from(routingByCause.values()).sort((a, b) => b.total - a.total);
 
     return {
-      companyId,
+      spaceId,
       generatedAt: now.toISOString(),
       window: { weeks, since: sinceIso.slice(0, 10) },
       thresholdPercent,
@@ -378,7 +378,7 @@ export function recoveryObservabilityService(db: Db) {
       byCause,
       handoff,
       perCauseRouting,
-      historicalRecovery: await historicalRecoveryCounts(db, companyId),
+      historicalRecovery: await historicalRecoveryCounts(db, spaceId),
     };
   }
 

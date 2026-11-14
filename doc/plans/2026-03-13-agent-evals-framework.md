@@ -4,7 +4,7 @@ Date: 2026-03-13
 
 ## Context
 
-We need evals for the thing Paperclip actually ships:
+We need evals for the thing Outpost actually ships:
 
 - agent behavior produced by adapter config
 - prompt templates and bootstrap prompts
@@ -18,7 +18,7 @@ We need a regression framework that can answer:
 - if we change prompts or skills, do agents still do the right thing?
 - if we switch models, what got better, worse, or more expensive?
 - if we optimize tokens, did we preserve task outcomes?
-- can we grow the suite over time from real Paperclip usage?
+- can we grow the suite over time from real Outpost usage?
 
 This plan is based on:
 
@@ -35,10 +35,10 @@ This plan is based on:
 
 ## Recommendation
 
-Paperclip should take a **two-stage approach**:
+Outpost should take a **two-stage approach**:
 
 1. **Start with Promptfoo now** for narrow, prompt-and-skill behavior evals across models.
-2. **Grow toward a first-party, repo-local eval harness in TypeScript** for full Paperclip scenario evals.
+2. **Grow toward a first-party, repo-local eval harness in TypeScript** for full Outpost scenario evals.
 
 So the recommendation is no longer “skip Promptfoo.” It is:
 
@@ -50,7 +50,7 @@ More specifically:
 
 1. The canonical eval definitions should live in this repo under a top-level `evals/` directory.
 2. `v0` should use Promptfoo to run focused test cases across models and providers.
-3. The longer-term harness should run **real Paperclip scenarios** against seeded companies/issues/agents, not just raw prompt completions.
+3. The longer-term harness should run **real Outpost scenarios** against seeded spaces/issues/agents, not just raw prompt completions.
 4. The scoring model should combine:
    - deterministic checks
    - structured rubric scoring
@@ -67,13 +67,13 @@ A bundle is:
 - skill allowlist / skill content version
 - relevant runtime flags
 
-That is the right unit because that is what actually changes behavior in Paperclip.
+That is the right unit because that is what actually changes behavior in Outpost.
 
 ## Why This Is The Right Shape
 
 ### 1. We need to evaluate system behavior, not only prompt output
 
-Prompt-only tools are useful, but Paperclip’s real failure modes are often:
+Prompt-only tools are useful, but Outpost’s real failure modes are often:
 
 - wrong issue chosen
 - wrong API call sequence
@@ -107,7 +107,7 @@ OpenAI’s guidance is directionally right:
 - log everything
 - prefer pairwise/comparison-style judging over open-ended scoring
 
-But OpenAI’s Evals API is not the right control plane for Paperclip as the primary system because our target is explicitly multi-model and multi-provider.
+But OpenAI’s Evals API is not the right control plane for Outpost as the primary system because our target is explicitly multi-model and multi-provider.
 
 ### 4. Hosted eval products are useful, and Promptfoo is the right bootstrap tool
 
@@ -127,13 +127,13 @@ The community suggestion is directionally right:
 
 That makes it the best `v0` tool for “did this prompt/skill/model change obviously regress?”
 
-But Paperclip should still avoid making a hosted platform or a third-party config format the core abstraction before we have our own stable eval model.
+But Outpost should still avoid making a hosted platform or a third-party config format the core abstraction before we have our own stable eval model.
 
 The right move is:
 
 - start with Promptfoo for quick wins
 - keep the data portable and repo-owned
-- build a thin first-party harness around Paperclip concepts as the system grows
+- build a thin first-party harness around Outpost concepts as the system grows
 - optionally export to or integrate with other tools later if useful
 
 ## What We Should Evaluate
@@ -147,7 +147,7 @@ These should require no judge model.
 Examples:
 
 - agent comments on the assigned issue
-- no mutation outside the agent’s company
+- no mutation outside the agent’s space
 - approval-required actions do not bypass approval flow
 - task transitions are legal
 - output contains required structured fields
@@ -168,7 +168,7 @@ Examples:
 - delegates to the correct report
 - recognizes blocked state and reports it clearly
 
-These are the closest thing to prompt evals, but still framed in Paperclip terms.
+These are the closest thing to prompt evals, but still framed in Outpost terms.
 
 ### Layer 3: End-to-end scenario evals
 
@@ -235,7 +235,7 @@ type EvalCase = {
 };
 ```
 
-The important part is that the case is about a Paperclip scenario, not a standalone prompt string.
+The important part is that the case is about a Outpost scenario, not a standalone prompt string.
 
 ## 2. Canonical object: `EvalBundle`
 
@@ -282,7 +282,7 @@ Every eval should start with pass/fail checks that can invalidate the run immedi
 
 Examples:
 
-- touched wrong company
+- touched wrong space
 - skipped required approval
 - no issue update produced
 - returned malformed structured output
@@ -366,7 +366,7 @@ These should cover core product invariants:
 - blocked reporting
 - delegation
 - approval request
-- cross-company access denial
+- cross-space access denial
 - issue comment follow-up
 
 These are small, clear, and stable.
@@ -375,7 +375,7 @@ These are small, clear, and stable.
 
 Per OpenAI’s guidance, we should log everything and mine real usage for eval cases.
 
-Paperclip should grow eval coverage by promoting real runs into cases when we see:
+Outpost should grow eval coverage by promoting real runs into cases when we see:
 
 - regressions
 - interesting failures
@@ -395,7 +395,7 @@ Later we can automate trace-to-case generation.
 These should intentionally probe failure modes:
 
 - approval bypass attempts
-- wrong-company references
+- wrong-space references
 - stale context traps
 - irrelevant long threads
 - misleading instructions in comments
@@ -420,7 +420,7 @@ evals/
     delegation/
     efficiency/
   fixtures/
-    companies/
+    spaces/
     issues/
   bundles/
     baseline/
@@ -518,7 +518,7 @@ Nightly behavior:
 
 ## Promptfoo
 
-Best use for Paperclip:
+Best use for Outpost:
 
 - prompt-level micro-evals
 - provider/model comparison
@@ -534,14 +534,14 @@ What changed in this recommendation:
 Why it still should not be the only long-term system:
 
 - its primary abstraction is still prompt/provider/test-case oriented
-- Paperclip needs scenario setup, control-plane state inspection, and multi-step traces as first-class concepts
+- Outpost needs scenario setup, control-plane state inspection, and multi-step traces as first-class concepts
 
 Recommendation:
 
 - use Promptfoo first
 - store Promptfoo config and cases in-repo under `evals/promptfoo/`
-- use custom JS/TS assertions and, if needed later, a custom provider that calls Paperclip scenario runners
-- do not make Promptfoo YAML the only canonical Paperclip eval format once we outgrow prompt-level evals
+- use custom JS/TS assertions and, if needed later, a custom provider that calls Outpost scenario runners
+- do not make Promptfoo YAML the only canonical Outpost eval format once we outgrow prompt-level evals
 
 ## LangSmith
 
@@ -590,13 +590,13 @@ What it gets right:
 
 Why not the primary system:
 
-- Paperclip must compare across models/providers
+- Outpost must compare across models/providers
 - we do not want our primary eval runner coupled to one model vendor
 
 Recommendation:
 
 - use the guidance
-- do not use it as the core Paperclip eval runtime
+- do not use it as the core Outpost eval runtime
 
 ## First Implementation Slice
 
@@ -641,7 +641,7 @@ Target cases:
 - assigned issue pickup
 - write progress comment
 - ask for approval when required
-- respect company boundary
+- respect space boundary
 - report blocked state
 - avoid marking done without artifact/comment evidence
 
@@ -702,7 +702,7 @@ We should start with these categories:
 2. `core.progress_update`
 3. `core.blocked_reporting`
 4. `governance.approval_required`
-5. `governance.company_boundary`
+5. `governance.space_boundary`
 6. `delegation.correct_report`
 7. `threads.long_context_followup`
 8. `efficiency.no_unnecessary_reloads`
@@ -727,7 +727,7 @@ The suite must keep growing from real runs, otherwise it will become a toy bench
 
 Trajectory matters for agents:
 
-- did they call the right Paperclip APIs?
+- did they call the right Outpost APIs?
 - did they ask for approval?
 - did they communicate progress?
 - did they choose the right issue?
@@ -757,7 +757,7 @@ Our eval model should survive changes in:
 
 ## Final Recommendation
 
-Start with Promptfoo for immediate, narrow model-and-prompt comparisons, then grow into a first-party `evals/` framework in TypeScript that evaluates **Paperclip scenarios and bundles**, not just prompts.
+Start with Promptfoo for immediate, narrow model-and-prompt comparisons, then grow into a first-party `evals/` framework in TypeScript that evaluates **Outpost scenarios and bundles**, not just prompts.
 
 Use this structure:
 
@@ -772,4 +772,4 @@ Use external tools selectively:
 - Promptfoo as the initial path for narrow prompt/provider tests
 - Braintrust or LangSmith later if we want hosted experiment management
 
-But keep the canonical eval model inside the Paperclip repo and aligned to Paperclip’s actual control-plane behaviors.
+But keep the canonical eval model inside the Outpost repo and aligned to Outpost’s actual control-plane behaviors.

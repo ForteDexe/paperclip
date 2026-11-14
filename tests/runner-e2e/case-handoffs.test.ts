@@ -28,7 +28,7 @@ function valid(): CaseHandoffObservation {
   const phases = ["triage", "implementation", "verification", "revision"];
   const issue = { id: "task", status: "done", assigneeAgentId: agents.implementation };
   const caseRecord = { id: "case", workIssueId: "task", phase: "done", handoffVersion: 5, pendingHandoff: null, workflowId: "workflow-a" };
-  return { nonce: "nonce", companyId: "company", taskId: "task", caseId: "case", agents, workflowIds: { a: "workflow-a", b: "workflow-b" }, issue, caseRecord,
+  return { nonce: "nonce", spaceId: "space", taskId: "task", caseId: "case", agents, workflowIds: { a: "workflow-a", b: "workflow-b" }, issue, caseRecord,
     tasks: [issue], cases: [caseRecord], pendingInteractions: 0,
     handoffs: [...phases.map((phase, index) => ({ id: `handoff-${index}`, caseId: "case", issueId: "task", version: index + 1, phase,
       toAgentId: targets[index], fromAgentId: targets[index - 1] ?? null, sourceRunId: index ? `run-${index - 1}` : null, state: "delivered",
@@ -37,7 +37,7 @@ function valid(): CaseHandoffObservation {
       { id: "terminal", caseId: "case", issueId: "task", version: 5, phase: "done", destinationKind: "done", state: "completed",
         fromAgentId: agents.implementation, toAgentId: null, sourceRunId: "run-3", workflowTransition: {
           from: { workflowId: "workflow-a" }, to: { workflowId: "workflow-a" }, documentRevisionId: "rev-3" } }],
-    runs: targets.map((agentId, index) => ({ id: `run-${index}`, agentId, companyId: "company", nativeIssueId: "task", runtimeMode: "native", status: "succeeded" })),
+    runs: targets.map((agentId, index) => ({ id: `run-${index}`, agentId, spaceId: "space", nativeIssueId: "task", runtimeMode: "native", status: "succeeded" })),
     handoffToolRunIds: ["run-0", "run-1", "run-2", "run-3"],
     workflowReadRunIds: ["run-0", "run-1", "run-2", "run-3"],
     documents: Object.fromEntries([

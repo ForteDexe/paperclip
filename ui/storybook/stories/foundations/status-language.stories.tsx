@@ -23,7 +23,7 @@ import { resolveTaskChatLiveWork, TaskChatLiveWorkLinks } from "@/components/tas
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { queryKeys } from "@/lib/queryKeys";
 import { taskStatusIconProps, type TaskStatusPresentationInput } from "@/lib/task-status-presentation";
-import { createIssue } from "../../fixtures/paperclipData";
+import { createIssue } from "../../fixtures/outpostData";
 
 const sameStateAcrossViews: Array<{ label: string; state: TaskStatusPresentationInput }> = [
   {
@@ -53,7 +53,7 @@ const conversationBlockers: IssueRelationIssueSummary[] = [
 
 const conversationSummaries: IssueSummary[] = conversationBlockers.map((blocker) => ({
   id: blocker.id,
-  companyId: "company-storybook",
+  spaceId: "space-storybook",
   identifier: blocker.identifier,
   title: blocker.title,
   status: blocker.status,
@@ -68,11 +68,11 @@ function ConversationStatusSurfaces() {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } } });
     client.setQueryData(queryKeys.auth.session, { session: { id: "session-storybook", userId: "user-storybook" }, user: { id: "user-storybook" } });
     client.setQueryData(queryKeys.issues.detail("PAP-901"), {
-      id: "pap-901", identifier: "PAP-901", title: "Paperclip onboarding", status: "blocked", blockerAttention: conversationCovered,
+      id: "pap-901", identifier: "PAP-901", title: "Outpost onboarding", status: "blocked", blockerAttention: conversationCovered,
     });
     client.setQueryData(queryKeys.issues.detail("PAP-905"), { ...conversationSummaries[2] });
     client.setQueryData(
-      queryKeys.issues.summaryBatch("company-storybook", "user-storybook", conversationBlockers.map((b) => b.id).sort()),
+      queryKeys.issues.summaryBatch("space-storybook", "user-storybook", conversationBlockers.map((b) => b.id).sort()),
       conversationSummaries,
     );
     return client;
@@ -98,7 +98,7 @@ function ConversationStatusSurfaces() {
         </div>
         <div className="space-y-3 rounded-lg border border-border bg-background/70 p-4">
           <div className="text-sm font-medium">Waiting on live work strip</div>
-          {liveWork ? <TaskChatLiveWorkLinks liveWork={liveWork} placement="bottom" companyId="company-storybook" /> : null}
+          {liveWork ? <TaskChatLiveWorkLinks liveWork={liveWork} placement="bottom" spaceId="space-storybook" /> : null}
         </div>
       </div>
     </QueryClientProvider>
@@ -115,9 +115,9 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="paperclip-story__frame overflow-hidden">
+    <section className="outpost-story__frame overflow-hidden">
       <div className="border-b border-border px-5 py-4">
-        <div className="paperclip-story__label">{eyebrow}</div>
+        <div className="outpost-story__label">{eyebrow}</div>
         <h2 className="mt-1 text-xl font-semibold">{title}</h2>
       </div>
       <div className="p-5">{children}</div>
@@ -463,10 +463,10 @@ function StatusLanguage() {
   const [priority, setPriority] = useState("high");
 
   return (
-    <div className="paperclip-story">
-      <main className="paperclip-story__inner space-y-6">
-        <section className="paperclip-story__frame p-6">
-          <div className="paperclip-story__label">Language</div>
+    <div className="outpost-story">
+      <main className="outpost-story__inner space-y-6">
+        <section className="outpost-story__frame p-6">
+          <div className="outpost-story__label">Language</div>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Status, priority, identity, and metrics</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
             These components carry the operational vocabulary of the board: who is acting, what state work is in,
@@ -675,7 +675,7 @@ function StatusLanguage() {
                 <CardDescription>Green, warning, and hard-stop-adjacent progress treatments.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                <QuotaBar label="Company budget" percentUsed={27} leftLabel="$675 used" rightLabel="$2,500 cap" />
+                <QuotaBar label="Space budget" percentUsed={27} leftLabel="$675 used" rightLabel="$2,500 cap" />
                 <QuotaBar label="Project budget" percentUsed={86} leftLabel="$1,031 used" rightLabel="$1,200 cap" />
                 <QuotaBar label="Agent budget" percentUsed={108} leftLabel="$432 used" rightLabel="$400 cap" showDeficitNotch />
               </CardContent>
@@ -708,7 +708,7 @@ const meta = {
           "Status-language stories show the reusable operational labels, identity chips, metrics, and capacity indicators used throughout the board.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "developer-labs/design"
       ],

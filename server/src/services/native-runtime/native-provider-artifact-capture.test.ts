@@ -16,7 +16,7 @@ it.each(["stop", "deadline"])(
     const context = new NativeExecutionContext(
       {
         binding: {
-          companyId: randomUUID(),
+          spaceId: randomUUID(),
           runId: randomUUID(),
           agentId: randomUUID(),
         },

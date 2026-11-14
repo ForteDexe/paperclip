@@ -158,7 +158,7 @@ export type QueuedRunFacts = {
 
   resumeIntent: boolean;
   wakeCommentIdPresent: boolean;
-  /** Verified from current company-scoped parent/child state immediately before dispatch. */
+  /** Verified from current space-scoped parent/child state immediately before dispatch. */
   isCompletedOnboardingHandoffWake?: boolean;
 
   /** True when the run's wake or retry reason asks for a continuation the parked-summary check must inspect. */

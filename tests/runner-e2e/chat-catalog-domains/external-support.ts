@@ -8,7 +8,7 @@ export interface ExternalObservation extends InternalObservation {
   connections: Entity[]; profiles: Entity[]; secrets: Entity[]; endpoints: Entity[];
   interactions: Array<Entity & { kind: string; payload?: Record<string, unknown>; resolvedByUserId?: string; resolvedByAgentId?: string }>;
 }
-export const root = (ctx: ChatCatalogContext) => `/api/companies/${ctx.input.fixtures.company.id}`;
+export const root = (ctx: ChatCatalogContext) => `/api/spaces/${ctx.input.fixtures.space.id}`;
 export async function observeExternal(ctx: ChatCatalogContext, state: Record<string, unknown>): Promise<ExternalObservation> {
   const o = await observeInternal(ctx, state);
   const [connections, profiles, secrets, endpoints, interactions] = await Promise.all([
@@ -23,7 +23,7 @@ export async function observeExternal(ctx: ChatCatalogContext, state: Record<str
 }
 export function externalObservation(value: unknown): ExternalObservation | undefined {
   const o = value as ExternalObservation | undefined;
-  return o && typeof o.scenarioId === "string" && typeof o.reply === "string" && typeof o.companyId === "string" && !!o.state
+  return o && typeof o.scenarioId === "string" && typeof o.reply === "string" && typeof o.spaceId === "string" && !!o.state
     && [o.phaseReplies, o.connections, o.profiles, o.secrets, o.endpoints, o.interactions, o.activity, o.links, o.runs, o.humanQueries].every(Array.isArray) ? o : undefined;
 }
 export function definition(id: string, setup: ChatCatalogCase["setup"], grade: ChatCatalogCase["grade"], extra: Partial<ChatCatalogCase> = {}): ChatCatalogCase {

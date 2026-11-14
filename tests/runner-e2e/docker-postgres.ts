@@ -148,7 +148,7 @@ async function privateRoot(root: string) {
   if (!path.basename(root).startsWith("outpost-runner-e2e-") || await realpath(root) !== root || !s.isDirectory() || s.mode & 0o077 || s.uid !== process.getuid?.()) throw new Error("Docker database requires the exact owned private attempt root");
 }
 function assertReceipt(value: DockerDatabaseReceipt, root: string) {
-  if (value?.schemaVersion !== 1 || value.lane !== "owned-docker-postgres" || value.temporaryRoot !== root || !uuidHex(value.nonce) || value.containerName !== `paperclip-e2e-pg-${value.nonce}` || value.volumeName !== `paperclip-e2e-pg-data-${value.nonce}`
+  if (value?.schemaVersion !== 1 || value.lane !== "owned-docker-postgres" || value.temporaryRoot !== root || !uuidHex(value.nonce) || value.containerName !== `outpost-e2e-pg-${value.nonce}` || value.volumeName !== `outpost-e2e-pg-data-${value.nonce}`
     || !reviewedPostgresReceiptIdentity(value) || value.imageVersion !== POSTGRES_VERSION || !/^[a-z][a-z0-9_]{1,60}$/.test(value.username) || !/^[a-z][a-z0-9_]{1,60}$/.test(value.database)) throw new Error("Invalid private Docker database receipt");
 }
 async function readPrivateDockerReceipt(filename: string, root: string) {
@@ -199,7 +199,7 @@ export async function startOwnedDockerDatabase(input: { temporaryRoot: string; p
   };
   const engine = await currentDockerEngine(run), nonce = randomBytes(16).toString("hex"), password = randomBytes(32).toString("hex"), directory = path.join(root, "docker-postgres-private"), filename = path.join(directory, "receipt.json");
   await mkdir(directory, { mode: 0o700 });
-  const receipt: DockerDatabaseReceipt = { schemaVersion: 1, lane: "owned-docker-postgres", temporaryRoot: root, nonce, engine, containerId: null, containerName: `paperclip-e2e-pg-${nonce}`, volumeName: `paperclip-e2e-pg-data-${nonce}`, image: artifact.image, imageId: artifact.imageId, imageVersion: POSTGRES_VERSION, ...(artifact.architecture === "amd64" ? { architecture: artifact.architecture } : {}), username: `pc_${nonce.slice(0, 20)}`, database: `pc_${nonce.slice(0, 20)}`, status: "creating", startedAt: new Date().toISOString() };
+  const receipt: DockerDatabaseReceipt = { schemaVersion: 1, lane: "owned-docker-postgres", temporaryRoot: root, nonce, engine, containerId: null, containerName: `outpost-e2e-pg-${nonce}`, volumeName: `outpost-e2e-pg-data-${nonce}`, image: artifact.image, imageId: artifact.imageId, imageVersion: POSTGRES_VERSION, ...(artifact.architecture === "amd64" ? { architecture: artifact.architecture } : {}), username: `pc_${nonce.slice(0, 20)}`, database: `pc_${nonce.slice(0, 20)}`, status: "creating", startedAt: new Date().toISOString() };
   input.privateSecrets.push(password); await writeFile(path.join(directory, "password"), password, { mode: 0o600, flag: "wx" });
   const persist = () => writeFile(filename, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 }); await persist();
   const command = async (args: string[], timeout?: number) => { await pinnedEngine(engine, run); return run(["--context", engine.context, ...args], timeout); };
@@ -272,7 +272,7 @@ export async function startOwnedDockerDatabase(input: { temporaryRoot: string; p
 }
 
 /** Supervisor consumes the private receipt, then removes both admission keys
- * before constructing the actual Paperclip/native environment. */
+ * before constructing the actual Outpost/native environment. */
 export async function dockerDatabaseSupervisorEnvironment(input: { temporaryRoot: string; env: NodeJS.ProcessEnv; run?: DockerRun }) {
   const lane = selectedDatabaseLane(input.env), source = { ...input.env }, filename = source[DOCKER_DATABASE_ENV];
   delete source[DOCKER_DATABASE_ENV]; delete source[DATABASE_LANE_ENV]; delete source[POSTGRES_ARTIFACT_ENV]; delete source[POSTGRES_IMAGE_ID_ENV];

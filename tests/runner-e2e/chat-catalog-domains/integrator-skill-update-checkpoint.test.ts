@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 const port = vi.hoisted(() => ({ observe: () => ({} as Record<string, unknown>), versions: (_id: string): unknown[] => [], send: () => {} }));
 vi.mock("./integrator-support.js", async original => ({ ...await original<typeof import("./integrator-support.js")>(), observeInternal: async () => port.observe() }));
-vi.mock("./integrator-skill-versions.js", () => ({ readSkillVersionHistory: async (_api: unknown, _company: string, id: string) => port.versions(id) }));
+vi.mock("./integrator-skill-versions.js", () => ({ readSkillVersionHistory: async (_api: unknown, _space: string, id: string) => port.versions(id) }));
 vi.mock("../chat-flow.js", () => ({ sendChatMessage: async () => port.send() }));
 vi.mock("../codex-subscription-fixture.js", () => ({ codexSubscriptionAgentConfig: (value: unknown) => value }));
 import { SkillSourceUpdateReadError } from "../api.js";
@@ -15,19 +15,19 @@ function fixture(failAt?: number) {
   vi.useFakeTimers(); vi.setSystemTime(10_000);
   let phase = 0, changed = 0, wrongVersion = false, missingHistory = false, earlyCalls = 0, mutable = false, foreignRepo = false, noInstall = false;
   const ready = () => Date.now() >= (phase ? 19_000 : 15_000), installed = () => phase === 1 && ready() && !noInstall;
-  const upstream = () => ({ id: "up", companyId: "company", editable: false, sourceRef: installed() ? pins.newCommit : pins.oldCommit,
+  const upstream = () => ({ id: "up", spaceId: "space", editable: false, sourceRef: installed() ? pins.newCommit : pins.oldCommit,
     currentVersionId: installed() ? "new" : "old", markdown: installed() && !wrongVersion ? next : old });
-  const local = { id: "fork", companyId: "company", editable: true, forkedFromSkillId: "up", currentVersionId: "local", markdown: old + "\nLocal notes" };
+  const local = { id: "fork", spaceId: "space", editable: true, forkedFromSkillId: "up", currentVersionId: "local", markdown: old + "\nLocal notes" };
   const versions = () => missingHistory ? [] : [{ id: "old", fileInventory: [{ path: "SKILL.md", content: old }] }, ...(installed() ? [{ id: "new", fileInventory: [{ path: "SKILL.md", content: next }] }] : [])];
   port.versions = id => id === "up" ? versions() : [{ id: "local" }];
-  const source = () => ({ id: "source", companyId: "company", fullName: foreignRepo ? "foreign/repository" : "KreerC/ACCESSIBILITY.md", revision: changed, lastScanCommit: installed() ? pins.newCommit : pins.oldCommit, trackingRef: mutable ? "main" : pins.newCommit, automaticUpdates: false });
+  const source = () => ({ id: "source", spaceId: "space", fullName: foreignRepo ? "foreign/repository" : "KreerC/ACCESSIBILITY.md", revision: changed, lastScanCommit: installed() ? pins.newCommit : pins.oldCommit, trackingRef: mutable ? "main" : pins.newCommit, automaticUpdates: false });
   const preview = "The currently installed version is 0.4. The new revision adds continuous accessibility regression tests and splits long forms into smaller steps. I have not applied it.";
   const state: Record<string, unknown> = { upstream: upstream(), localFork: local, source: source(), localVersions: [{ id: "local" }] };
   const runs = () => Array.from({ length: phase ? 2 : 1 }, (_, i) => ({ id: "native-" + i, status: i === phase && !ready() ? "running" : "succeeded" }));
-  port.observe = () => ({ scenarioId: "skills.review-update", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state, runs: runs(),
+  port.observe = () => ({ scenarioId: "skills.review-update", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state, runs: runs(),
     reply: installed() ? preview + "\nI updated the accessibility skill; the local copy is unchanged." : preview,
     tasks: [], projects: [], goals: [], documents: [], revisions: [], comments: [], humanQueries: [], links: [],
-    activity: installed() ? [{ agentId: "ceo", action: "company.skill_source_refreshed", entityId: "source" }] : [] });
+    activity: installed() ? [{ agentId: "ceo", action: "space.skill_source_refreshed", entityId: "source" }] : [] });
   port.send = () => { phase = 1; };
   const provider = vi.fn(async () => {
     if (!ready()) earlyCalls++;
@@ -35,7 +35,7 @@ function fixture(failAt?: number) {
     return { supported: true, hasUpdate: !installed(), currentRef: installed() ? pins.newCommit : pins.oldCommit, latestRef: pins.newCommit, trackingRef: pins.newCommit };
   });
   const localReads: string[] = [];
-  const ctx = { observationDeadlineAt: 520_000, input: { fixtures: { company: { id: "company" } }, page: {}, evidence: async () => {}, api: {
+  const ctx = { observationDeadlineAt: 520_000, input: { fixtures: { space: { id: "space" } }, page: {}, evidence: async () => {}, api: {
     get: async (path: string) => { localReads.push(path); if (path.endsWith("/skills/up")) return upstream(); if (path.endsWith("/skills/fork")) return local;
       if (path.endsWith("/skill-sources/source")) return source(); throw Error("Unexpected nonlocal read"); }, getSkillSourceUpdateStatus: provider,
   } }, issue: () => ({ conversationState: ready() ? "waiting" : "active" }), refreshIssue: async () => {}, allRuns: async () => runs() } as unknown as ChatCatalogContext;

@@ -47,17 +47,17 @@ describe("readTransientEnvironmentProviderFailure", () => {
 
   it("reads the validated plugin RPC envelope", () => {
     const rpcError = Object.assign(new Error("rpc failed"), {
-      data: { schema: "paperclip/environment-acquire-error/v1", providerDiagnostic: { httpStatus: 429 } },
+      data: { schema: "outpost/environment-acquire-error/v1", providerDiagnostic: { httpStatus: 429 } },
     });
     expect(readTransientEnvironmentProviderFailure(rpcError)).toEqual({ httpStatus: 429 });
   });
 
   const stagingLeaseTimeout = (diagnostic: { phase: string; elapsedMs: number; budgetMs: number; providerState?: string }) =>
     Object.assign(new Error("Daytona lease acquisition timed out; allocation cleanup is pending"), {
-      data: { schema: "paperclip/environment-creation-cleanup/v1",
-        cleanup: { providerLeaseId: "paperclip-create-05f81d77", companyId: "company", environmentId: "environment",
+      data: { schema: "outpost/environment-creation-cleanup/v1",
+        cleanup: { providerLeaseId: "outpost-create-05f81d77", spaceId: "space", environmentId: "environment",
           runId: "f41857b6", attemptId: "05f81d77", accountFingerprint: "a".repeat(64),
-          labels: { "paperclip-provider": "daytona", "paperclip-create-attempt": "05f81d77" } },
+          labels: { "outpost-provider": "daytona", "outpost-create-attempt": "05f81d77" } },
         acquisitionDiagnostic: diagnostic },
     });
 
@@ -93,7 +93,7 @@ describe("EnvironmentProviderUnavailableError", () => {
 
   it("names an acquisition timeout in plain words", () => {
     const error = new EnvironmentProviderUnavailableError({
-      environmentName: "Paperclip Sandbox", driver: "sandbox", evidence: { acquisitionTimedOut: true }, cause: null,
+      environmentName: "Outpost Sandbox", driver: "sandbox", evidence: { acquisitionTimedOut: true }, cause: null,
     });
     expect(error.providerFailure).toMatchObject({ category: "timeout", retryability: "transient", phase: "startup" });
     expect(error.providerFailure.message).toContain("did not finish starting");
@@ -117,15 +117,15 @@ describe("EnvironmentProviderUnavailableError", () => {
 });
 
 describe("readTransientLeaseAcquisitionFailure", () => {
-  const run = { id: "run-1", companyId: "company-1" };
+  const run = { id: "run-1", spaceId: "space-1" };
   const creationFailure = (elapsedMs: number, runId = run.id) => {
     const error = new JsonRpcCallError({ code: PLUGIN_RPC_ERROR_CODES.WORKER_ERROR,
       message: "Daytona lease acquisition timed out; allocation cleanup is pending",
-      data: { schema: "paperclip/environment-creation-cleanup/v1",
-        cleanup: { providerLeaseId: "paperclip-create-1", companyId: run.companyId, environmentId: "env-1", runId,
+      data: { schema: "outpost/environment-creation-cleanup/v1",
+        cleanup: { providerLeaseId: "outpost-create-1", spaceId: run.spaceId, environmentId: "env-1", runId,
           attemptId: "attempt-1", accountFingerprint: "a".repeat(64), labels: {} },
         acquisitionDiagnostic: { phase: "create", elapsedMs, budgetMs: 300_000 } } });
-    captureEnvironmentAcquisitionDiagnostic(error, { companyId: run.companyId, environmentId: "env-1", runId },
+    captureEnvironmentAcquisitionDiagnostic(error, { spaceId: run.spaceId, environmentId: "env-1", runId },
       readEnvironmentAcquisitionDiagnostic(error));
     return error;
   };
@@ -183,7 +183,7 @@ describe("readTransientLeaseAcquisitionFailure", () => {
     expect(readTransientLeaseAcquisitionFailure(new Error("Daytona lease acquisition timed out"), run)).toBeNull();
   });
 
-  it("names the reason in the board-facing failure", () => {
+  it("names the reason in the operator-facing failure", () => {
     const error = new EnvironmentProviderUnavailableError({ environmentName: "Sandbox", driver: "daytona",
       evidence: { reason: "database_error" }, cause: null });
     expect(error.providerFailure).toMatchObject({ category: "overloaded", providerCode: "database_error" });

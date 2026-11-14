@@ -11,7 +11,7 @@ import { heartbeatService } from "./heartbeat.js";
 import { readFreshWorkspaceReadiness } from "./fresh-workspace-continuation.js";
 import { recoverRetainedWorkspace } from "./workspace-recovery.js";
 import { createSavedWorkspaceLoader } from "./remote-workspaces.js";
-import { boardRecoveryApp, db, failedRemotePreparation, receiptOnlyRecoveryApp, run, useWorkspaceRecoveryFixture } from "./__tests__/workspace-recovery-fixture.js";
+import { operatorRecoveryApp, db, failedRemotePreparation, receiptOnlyRecoveryApp, run, useWorkspaceRecoveryFixture } from "./__tests__/workspace-recovery-fixture.js";
 
 const targets = vi.hoisted(() => new Map<string, AdapterSandboxExecutionTarget>());
 vi.mock("./environment-execution-target.js", async importOriginal => {
@@ -26,7 +26,7 @@ describe("recovered scheduled preparation", () => {
   async function scheduledPreparation(warning = false) {
     const f = await failedRemotePreparation("retained", false, warning), source = await run(f.runId);
     const events = await db.select().from(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, f.runId)).orderBy(heartbeatRunEvents.seq);
-    const [parent] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: source.agentId,
+    const [parent] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: source.agentId,
       issueId: f.issueId, status: "failed", finishedAt: new Date(source.createdAt.getTime() - 1000),
       createdAt: new Date(source.createdAt.getTime() - 2000) }).returning();
     const due = new Date(Date.now() - 1000), reason = "ai_connection_pool_wait";
@@ -37,11 +37,11 @@ describe("recovered scheduled preparation", () => {
     }).where(eq(heartbeatRuns.id, f.runId));
     await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, f.runId));
     await db.update(heartbeatRuns).set({ nextEventSeq: 1 }).where(eq(heartbeatRuns.id, f.runId));
-    await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.runId, agentId: source.agentId,
+    await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.runId, agentId: source.agentId,
       eventType: "lifecycle", stream: "system", level: "info",
       message: "Scheduled retry became due and was promoted to the queued run pool",
       payload: { scheduledRetryAt: due.toISOString(), scheduledRetryAttempt: 1, scheduledRetryReason: reason } });
-    for (const event of events) await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.runId,
+    for (const event of events) await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.runId,
       agentId: source.agentId, eventType: event.eventType, stream: event.stream, level: event.level,
       message: event.message, payload: event.payload });
     await recoverRetainedWorkspace(f.input);
@@ -50,11 +50,11 @@ describe("recovered scheduled preparation", () => {
 
   it.each([false, true])("delivers one HTTP Retry after a scheduled setup failure has recovered files (warning=%s)", async warning => {
     const f = await scheduledPreparation(warning), source = await run(f.runId), heartbeat = heartbeatService(db);
-    const intent = { observedRunId: f.runId, idempotencyKey: randomUUID() }, app = boardRecoveryApp();
+    const intent = { observedRunId: f.runId, idempotencyKey: randomUUID() }, app = operatorRecoveryApp();
     const receipt = (await request(app).post(`/api/issues/${f.issueId}/retry`).send(intent).expect(202)).body;
-    await Promise.all([heartbeat.resumeTaskRetry(f.companyId, receipt.requestId), heartbeat.resumeTaskRetry(f.companyId, receipt.requestId)]);
+    await Promise.all([heartbeat.resumeTaskRetry(f.spaceId, receipt.requestId), heartbeat.resumeTaskRetry(f.spaceId, receipt.requestId)]);
     expect((await request(app).post(`/api/issues/${f.issueId}/retry`).send(intent).expect(202)).body.requestId).toBe(receipt.requestId);
-    const successors = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId),
+    const successors = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId),
       sql`${heartbeatRuns.contextSnapshot}->>'taskRetryRequestId' = ${receipt.requestId}`));
     expect(successors).toHaveLength(1);
     expect(successors[0]).toMatchObject({ status: "queued", contextSnapshot: { previousRunId: f.runId,
@@ -64,7 +64,7 @@ describe("recovered scheduled preparation", () => {
       .toMatchObject({ status: "coalesced", runId: successors[0].id });
     expect(await run(f.runId)).toEqual(source);
     const remote = source.runnerProfileJson!.remoteWorkspace as { snapshotId: string };
-    const saved = await createSavedWorkspaceLoader(db)({ companyId: f.companyId,
+    const saved = await createSavedWorkspaceLoader(db)({ spaceId: f.spaceId,
       workspaceId: f.workspaceId, snapshotId: remote.snapshotId });
     try { expect(await readFile(path.join(saved.root, "saved.txt"), "utf8")).toBe("finished work\n"); }
     finally { await saved.cleanup(); }
@@ -86,15 +86,15 @@ describe("recovered scheduled preparation", () => {
       if (gate === "parent") await db.update(heartbeatRuns).set({ retryOfRunId: null }).where(eq(heartbeatRuns.id, f.runId));
       if (gate === "foreign") await db.update(heartbeatRunEvents).set({ sourceEventId: randomUUID() })
         .where(and(eq(heartbeatRunEvents.runId, f.runId), eq(heartbeatRunEvents.seq, 1)));
-      if (gate === "provider") await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.runId,
+      if (gate === "provider") await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.runId,
         agentId: source.agentId, eventType: "adapter.invoke", stream: "system", message: "provider dispatch" });
       if (gate === "controller") await db.update(heartbeatRuns).set({ controllerLeaseExpiresAt: new Date(Date.now() + 60_000) })
         .where(eq(heartbeatRuns.id, f.runId));
       if (gate === "stop") await db.update(heartbeatRuns).set({ resultJson: { ...source.resultJson,
-        cancellation: { source: "operator", expected: true, initiator: { type: "user", userId: "local-board" },
+        cancellation: { source: "operator", expected: true, initiator: { type: "user", userId: "local-operator" },
           reason: "Stop", recordedAt: new Date().toISOString() } } }).where(eq(heartbeatRuns.id, f.runId));
-      await heartbeatService(db).resumeTaskRetry(f.companyId, receipt.requestId);
-      expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId),
+      await heartbeatService(db).resumeTaskRetry(f.spaceId, receipt.requestId);
+      expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId),
         sql`${heartbeatRuns.contextSnapshot}->>'taskRetryRequestId' = ${receipt.requestId}`))).toHaveLength(0);
       expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, receipt.requestId)))[0].runId).toBeNull();
     }, 30_000);

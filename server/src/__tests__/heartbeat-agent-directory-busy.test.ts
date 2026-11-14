@@ -5,8 +5,8 @@ import {
   agentWakeupRequests,
   agents,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   closeRegisteredClients,
   heartbeatRuns,
@@ -61,7 +61,7 @@ describeEmbeddedPostgres("a new run that meets a busy agent directory", () => {
   beforeAll(async () => {
     if (externalTestDatabaseUrl) db = createDb(externalTestDatabaseUrl);
     else {
-      tempDb = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-agent-directory-busy-");
+      tempDb = await startEmbeddedPostgresTestDatabase("outpost-heartbeat-agent-directory-busy-");
       db = createDb(tempDb.connectionString);
     }
     heartbeat = heartbeatService(db);
@@ -84,37 +84,37 @@ describeEmbeddedPostgres("a new run that meets a busy agent directory", () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompanyAndAgent() {
-    const companyId = randomUUID(), agentId = randomUUID();
+  async function seedSpaceAndAgent() {
+    const spaceId = randomUUID(), agentId = randomUUID();
     const now = new Date();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: `B${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false, defaultResponsibleUserId: "busy-directory-user" });
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: `B${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false, defaultResponsibleUserId: "busy-directory-user" });
     await db.insert(authUsers).values({ id: "busy-directory-user", name: "Responsible user", email: "busy-directory@example.test",
       createdAt: now, updatedAt: now }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "busy-directory-user",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "busy-directory-user",
       status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "BusyCoder", role: "engineer", status: "idle", adapterType: ADAPTER,
+    await db.insert(agents).values({ id: agentId, spaceId, name: "BusyCoder", role: "engineer", status: "idle", adapterType: ADAPTER,
       adapterConfig: {}, runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } }, permissions: {} });
-    return { companyId, agentId };
+    return { spaceId, agentId };
   }
 
   it("keeps a user's continuation when its run waits for a busy agent directory", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID(), runId = randomUUID(), wakeupRequestId = randomUUID(), sourceRunId = randomUUID(), commentId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId, agentId, status: "failed",
+    await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId, agentId, status: "failed",
       createdAt: new Date("2020-01-01T00:00:00Z"), finishedAt: new Date("2020-01-01T00:00:01Z"), contextSnapshot: { issueId } });
-    await db.insert(agentWakeupRequests).values({ id: wakeupRequestId, companyId, agentId, source: "automation", triggerDetail: "system",
+    await db.insert(agentWakeupRequests).values({ id: wakeupRequestId, spaceId, agentId, source: "automation", triggerDetail: "system",
       reason: "issue_commented", payload: { issueId, commentId }, status: "queued", runId, requestedByActorType: "user",
       requestedByActorId: "busy-directory-user" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "automation", triggerDetail: "system",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "automation", triggerDetail: "system",
       status: "queued", wakeupRequestId, contextSnapshot: { issueId, taskId: issueId, wakeReason: "issue_commented", wakeCommentId: commentId,
         previousRunId: sourceRunId, explicitUserContinuation: { previousRunId: sourceRunId, commentId } } });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Continue repair", status: "in_progress", priority: "medium",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Continue repair", status: "in_progress", priority: "medium",
       responsibleUserId: "busy-directory-user", assigneeAgentId: agentId, checkoutRunId: runId, executionRunId: runId, issueNumber: 2 });
     await db.update(heartbeatRuns).set({ scopeKind: "issue", issueId }).where(eq(heartbeatRuns.id, runId));
-    const [comment] = await db.insert(issueComments).values({ id: commentId, companyId, issueId, authorType: "user",
+    const [comment] = await db.insert(issueComments).values({ id: commentId, spaceId, issueId, authorType: "user",
       authorUserId: "busy-directory-user", body: "Continue the task." }).returning();
-    await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId, kind: "active_run_watchdog",
+    await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId, kind: "active_run_watchdog",
       cause: "legacy_execution_requires_reconciliation", fingerprint: sourceRunId, status: "resolved", outcome: "cancelled",
       nextAction: "User continued.", evidence: { explicitUserContinuation: { runId, previousRunId: sourceRunId, commentId,
         actorId: "busy-directory-user", recordedAt: new Date().toISOString(), commentUpdatedAt: comment!.updatedAt.toISOString(),
@@ -141,38 +141,38 @@ describeEmbeddedPostgres("a new run that meets a busy agent directory", () => {
   });
 
   it("keeps a user comment undelivered when the run that carried it only waited for agent files", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID(), runId = randomUUID(), commentId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Message during a wait", status: "in_progress", priority: "medium",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Message during a wait", status: "in_progress", priority: "medium",
       responsibleUserId: "busy-directory-user", assigneeAgentId: agentId, issueNumber: 3 });
-    await db.insert(issueComments).values({ id: commentId, companyId, issueId, authorType: "user",
+    await db.insert(issueComments).values({ id: commentId, spaceId, issueId, authorType: "user",
       authorUserId: "busy-directory-user", body: "Please also check the logs." });
     const now = new Date();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "cancelled", runtimeMode: "legacy",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "cancelled", runtimeMode: "legacy",
       startedAt: now, finishedAt: now, errorCode: AGENT_DIRECTORY_BUSY_ERROR_CODE,
       contextSnapshot: { issueId, wakeReason: "issue_commented", wakeCommentId: commentId },
       resultJson: { executionRecovery: { kind: "agent_directory_wait", providerWorkStarted: false },
         cancellation: { source: "control_plane", expected: true, initiator: { type: "system" },
           reason: "Waiting for another run of this agent to finish with its files", recordedAt: now.toISOString() } } });
-    expect(await undeliveredLegacyUserCommentIds(db, companyId, issueId, agentId, [commentId])).toEqual([commentId]);
+    expect(await undeliveredLegacyUserCommentIds(db, spaceId, issueId, agentId, [commentId])).toEqual([commentId]);
     await db.update(heartbeatRuns).set({ errorCode: "operator_cancelled",
       resultJson: { cancellation: { source: "operator", expected: true } } }).where(eq(heartbeatRuns.id, runId));
-    expect(await undeliveredLegacyUserCommentIds(db, companyId, issueId, agentId, [commentId])).toEqual([]);
+    expect(await undeliveredLegacyUserCommentIds(db, spaceId, issueId, agentId, [commentId])).toEqual([]);
   });
 
   it.each(["parked", "reassigned"] as const)("keeps an accepted interaction continuation's gates across a directory wait: %s", async change => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const otherAgentId = randomUUID();
-    await db.insert(agents).values({ id: otherAgentId, companyId, name: "OtherCoder", role: "engineer", status: "idle", adapterType: ADAPTER,
+    await db.insert(agents).values({ id: otherAgentId, spaceId, name: "OtherCoder", role: "engineer", status: "idle", adapterType: ADAPTER,
       adapterConfig: {}, runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } }, permissions: {} });
     const issueId = randomUUID(), runId = randomUUID(), wakeupRequestId = randomUUID(), interactionId = randomUUID();
     const context = { issueId, taskId: issueId, wakeReason: "issue_commented", mutation: "interaction", interactionId,
       interactionKind: "request_confirmation", interactionStatus: "accepted" };
-    await db.insert(agentWakeupRequests).values({ id: wakeupRequestId, companyId, agentId, source: "automation", triggerDetail: "system",
+    await db.insert(agentWakeupRequests).values({ id: wakeupRequestId, spaceId, agentId, source: "automation", triggerDetail: "system",
       reason: "issue_commented", payload: { issueId }, status: "queued", runId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "automation", triggerDetail: "system",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "automation", triggerDetail: "system",
       status: "queued", wakeupRequestId, contextSnapshot: context });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Approved plan", status: "in_progress", priority: "medium",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Approved plan", status: "in_progress", priority: "medium",
       responsibleUserId: "busy-directory-user", assigneeAgentId: agentId, executionRunId: runId, issueNumber: 4 });
     await db.update(heartbeatRuns).set({ scopeKind: "issue", issueId }).where(eq(heartbeatRuns.id, runId));
     busyPrepares.remaining = 1;
@@ -202,13 +202,13 @@ describeEmbeddedPostgres("a new run that meets a busy agent directory", () => {
   });
 
   it("keeps an accepted non-assignee mention through a directory wait and runs it once files are free", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const assigneeId = randomUUID(), issueId = randomUUID();
-    await db.insert(agents).values({ id: assigneeId, companyId, name: "AssigneeCoder", role: "engineer", status: "idle", adapterType: ADAPTER,
+    await db.insert(agents).values({ id: assigneeId, spaceId, name: "AssigneeCoder", role: "engineer", status: "idle", adapterType: ADAPTER,
       adapterConfig: {}, runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } }, permissions: {} });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Shared review", status: "in_progress", priority: "medium",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Shared review", status: "in_progress", priority: "medium",
       responsibleUserId: "busy-directory-user", assigneeAgentId: assigneeId, issueNumber: 5 });
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, invocationSource: "on_demand", status: "queued",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, invocationSource: "on_demand", status: "queued",
       responsibleUserId: "busy-directory-user",
       contextSnapshot: { issueId, wakeReason: "issue_comment_mentioned", commentId: randomUUID() } }).returning();
     busyPrepares.remaining = 1;
@@ -233,11 +233,11 @@ describeEmbeddedPostgres("a new run that meets a busy agent directory", () => {
   });
 
   it("does not let the previous assignee restart after the task is reassigned during preparation", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const newOwnerId = randomUUID(), issueId = randomUUID();
-    await db.insert(agents).values({ id: newOwnerId, companyId, name: "NewOwner", role: "engineer", status: "idle", adapterType: ADAPTER,
+    await db.insert(agents).values({ id: newOwnerId, spaceId, name: "NewOwner", role: "engineer", status: "idle", adapterType: ADAPTER,
       adapterConfig: {}, runtimeConfig: { heartbeat: { wakeOnDemand: false, maxConcurrentRuns: 1 } }, permissions: {} });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Handed over", status: "in_progress", priority: "medium",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Handed over", status: "in_progress", priority: "medium",
       responsibleUserId: "busy-directory-user", assigneeAgentId: agentId, issueNumber: 6 });
     busyPrepares.remaining = 1;
     busyPrepares.calls = 0;
@@ -265,15 +265,15 @@ describeEmbeddedPostgres("a new run that meets a busy agent directory", () => {
   });
 
   it("answers a plain comment on a dependency-blocked task after a directory wait, as it would without one", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const blockerId = randomUUID(), issueId = randomUUID(), commentId = randomUUID();
     await db.insert(issues).values([
-      { id: blockerId, companyId, title: "Prerequisite", status: "todo", priority: "medium", responsibleUserId: "busy-directory-user", issueNumber: 7 },
-      { id: issueId, companyId, title: "Waits on prerequisite", status: "todo", priority: "medium", responsibleUserId: "busy-directory-user",
+      { id: blockerId, spaceId, title: "Prerequisite", status: "todo", priority: "medium", responsibleUserId: "busy-directory-user", issueNumber: 7 },
+      { id: issueId, spaceId, title: "Waits on prerequisite", status: "todo", priority: "medium", responsibleUserId: "busy-directory-user",
         assigneeAgentId: agentId, issueNumber: 8 },
     ]);
-    await db.insert(issueRelations).values({ companyId, issueId: blockerId, relatedIssueId: issueId, type: "blocks" });
-    await db.insert(issueComments).values({ id: commentId, companyId, issueId, authorType: "user", authorUserId: "busy-directory-user",
+    await db.insert(issueRelations).values({ spaceId, issueId: blockerId, relatedIssueId: issueId, type: "blocks" });
+    await db.insert(issueComments).values({ id: commentId, spaceId, issueId, authorType: "user", authorUserId: "busy-directory-user",
       body: "What is this waiting on?" });
     busyPrepares.remaining = 1;
     busyPrepares.calls = 0;
@@ -298,9 +298,9 @@ describeEmbeddedPostgres("a new run that meets a busy agent directory", () => {
   });
 
   it("defers the first run of a task instead of failing it, then runs it", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Daily repair", status: "in_progress", priority: "medium",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Daily repair", status: "in_progress", priority: "medium",
       responsibleUserId: "busy-directory-user", assigneeAgentId: agentId, issueNumber: 1 });
     busyPrepares.remaining = 1;
     busyPrepares.calls = 0;

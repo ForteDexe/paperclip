@@ -14,9 +14,9 @@ import { sanitizeRuntimeServiceBaseEnv } from "./runtime-service-env.js";
 
 const execFile = promisify(execFileCallback);
 const NESTED_WORKTREE_GIT_TIMEOUT_MS = 10 * 60 * 1000;
-const NESTED_WORKTREE_BRANCH = /^paperclip\/[a-f0-9]{12}\/./;
+const NESTED_WORKTREE_BRANCH = /^outpost\/[a-f0-9]{12}\/./;
 export const OWNED_NESTED_REF_LIMIT = 64;
-export const DETACHED_REPOSITORIES_DIR = path.join(".paperclip-runtime", "detached-repositories");
+export const DETACHED_REPOSITORIES_DIR = path.join(".outpost-runtime", "detached-repositories");
 
 export type LinkedNestedCheckout = { checkout: string; base: string; gitDir: string; admin: string; branchPrefix: string };
 type GitInvocation = { configArgs?: string[]; env?: Record<string, string>; timeout?: number };
@@ -62,8 +62,8 @@ export async function readWorktreePointer(admin: string) {
   } finally { await handle.close(); }
 }
 
-export function nestedRepositoryBaseCandidates(input: { companyId: string; projectId: string; repoUrl: string }) {
-  const root = resolveManagedProjectWorkspaceDir({ companyId: input.companyId, projectId: input.projectId,
+export function nestedRepositoryBaseCandidates(input: { spaceId: string; projectId: string; repoUrl: string }) {
+  const root = resolveManagedProjectWorkspaceDir({ spaceId: input.spaceId, projectId: input.projectId,
     repoName: deriveRepoNameFromRepoUrl(input.repoUrl) });
   return [root, `${root}-${createHash("sha256").update(input.repoUrl).digest("hex").slice(0, 12)}`];
 }
@@ -82,7 +82,7 @@ export async function recordedNestedRepositoryBase(recorded: string, candidates:
 
 export async function nestedWorktreeBranchPrefix(checkout: string) {
   const id = createHash("sha256").update(await canonicalPath(checkout)).digest("hex").slice(0, 12);
-  return `paperclip/${id}/`;
+  return `outpost/${id}/`;
 }
 
 export function isNestedWorktreeBranchName(name: string) {
@@ -249,9 +249,9 @@ export async function restoreNestedRepositoryWorktree(input: {
     await git(input.base, ["worktree", "add", "--quiet", "--detach", cwd, input.commit], { timeout: NESTED_WORKTREE_GIT_TIMEOUT_MS });
     try {
       for (const commit of input.preserved ?? []) {
-        await git(cwd, ["update-ref", "--no-deref", "-m", "paperclip: restore preserved history", "HEAD", commit]);
+        await git(cwd, ["update-ref", "--no-deref", "-m", "outpost: restore preserved history", "HEAD", commit]);
       }
-      if (input.preserved?.length) await git(cwd, ["update-ref", "--no-deref", "-m", "paperclip: restore saved commit", "HEAD", input.commit]);
+      if (input.preserved?.length) await git(cwd, ["update-ref", "--no-deref", "-m", "outpost: restore saved commit", "HEAD", input.commit]);
       if (input.branchName) {
         await git(cwd, existing ? ["checkout", "--quiet", input.branchName] : ["checkout", "--quiet", "-b", input.branchName]);
         const rest = input.branchName.slice(prefix.length);

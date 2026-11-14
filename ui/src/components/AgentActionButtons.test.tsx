@@ -26,7 +26,7 @@ const mockAgentsApi = vi.hoisted(() => ({
   instructionsBundle: vi.fn(),
   instructionsFile: vi.fn(),
   create: vi.fn(),
-  hire: vi.fn(),
+  requestCreation: vi.fn(),
 }));
 
 vi.mock("@/lib/router", () => ({
@@ -69,7 +69,7 @@ async function flushReact() {
 function makeAgent(overrides: Partial<Agent> = {}): Agent {
   return {
     id: "agent-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Alpha Agent",
     urlKey: "alpha",
     role: "engineer",
@@ -133,7 +133,7 @@ describe("AgentActionButtons", () => {
     root ??= createRoot(container);
     root.render(
       <QueryClientProvider client={queryClient}>
-        <AgentActionButtons agent={agent} companyId="company-1" runLabel="Run Heartbeat" {...props} />
+        <AgentActionButtons agent={agent} spaceId="space-1" runLabel="Run Heartbeat" {...props} />
       </QueryClientProvider>,
     );
   }
@@ -146,7 +146,7 @@ describe("AgentActionButtons", () => {
     expect([...container.querySelectorAll("button")].some(button => button.textContent === "Resume")).toBe(false);
     await act(() => finish!.click());
     expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining("setupAgentId=agent-1"));
-    expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining(`runner=${adapterType === "outpost_runner" ? "paperclip" : "legacy"}`));
+    expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining(`runner=${adapterType === "outpost_runner" ? "outpost" : "legacy"}`));
     expect(mockAgentsApi.resume).not.toHaveBeenCalled();
   });
   it("reopens the saved pending Antigravity choice while its execution adapter remains held", async () => {
@@ -171,7 +171,7 @@ describe("AgentActionButtons", () => {
     await act(() => finish[0].click());
     const target = new URL(mockNavigate.mock.calls[0][0], "https://example.test");
     expect(target.pathname).toBe("/agents/new");
-    expect(Object.fromEntries(target.searchParams)).toMatchObject({ setupAgentId: "agent-1", adapterType: "outpost_runner", runnerProvider: "claude", runner: "paperclip" });
+    expect(Object.fromEntries(target.searchParams)).toMatchObject({ setupAgentId: "agent-1", adapterType: "outpost_runner", runnerProvider: "claude", runner: "outpost" });
     expect(mockAgentsApi.invoke).not.toHaveBeenCalled();
     expect(mockAgentsApi.resume).not.toHaveBeenCalled();
   });
@@ -188,23 +188,23 @@ describe("AgentActionButtons", () => {
     mockAgentsApi.get.mockResolvedValueOnce(draft);
     function LiveActions() {
       const lifecycle = useAgentLifecycleStatus(draft);
-      return <AgentActionButtons agent={{ ...draft, ...lifecycle.data }} companyId="company-1" runLabel="Run Heartbeat" />;
+      return <AgentActionButtons agent={{ ...draft, ...lifecycle.data }} spaceId="space-1" runLabel="Run Heartbeat" />;
     }
     root = createRoot(container);
     root.render(<QueryClientProvider client={queryClient}><LiveActions /></QueryClientProvider>);
     await flushReact();
     expect(container.textContent).toContain("Finish setup");
     mockAgentsApi.get.mockResolvedValue({ ...draft, status: "idle", lifecycleState: "ready", lifecycleVersion: 2, pauseReason: null, pausedAt: null, adapterConfig: { model: "updated-on-server" } });
-    await act(async () => { await queryClient.invalidateQueries({ queryKey: [...queryKeys.agents.detail(draft.id), "lifecycle", draft.companyId] }); });
+    await act(async () => { await queryClient.invalidateQueries({ queryKey: [...queryKeys.agents.detail(draft.id), "lifecycle", draft.spaceId] }); });
     await flushReact();
     expect(container.textContent).not.toContain("Finish setup");
     const run = [...container.querySelectorAll("button")].find(button => button.textContent === "Run Heartbeat");
     expect(run?.disabled).toBe(false);
     expect(queryClient.getQueryData<Agent>(queryKeys.agents.detail("alpha"))?.adapterConfig).toEqual({ model: "saved-model" });
-    expect(mockAgentsApi.get).toHaveBeenLastCalledWith("agent-1", "company-1");
+    expect(mockAgentsApi.get).toHaveBeenLastCalledWith("agent-1", "space-1");
     await act(() => run!.click());
     await flushReact();
-    expect(mockAgentsApi.invoke).toHaveBeenCalledWith("agent-1", "company-1");
+    expect(mockAgentsApi.invoke).toHaveBeenCalledWith("agent-1", "space-1");
   });
 
   it("checks unsaved changes before leaving to finish setup", async () => {
@@ -236,7 +236,7 @@ describe("AgentActionButtons", () => {
     expect(run?.disabled).toBe(false);
     await act(() => run!.click());
     await flushReact();
-    expect(mockAgentsApi.invoke).toHaveBeenCalledWith("agent-1", "company-1");
+    expect(mockAgentsApi.invoke).toHaveBeenCalledWith("agent-1", "space-1");
   });
 
   it.each(["preparing", "verifying", "resuming"] as const)("offers pause rather than resume during %s", async lifecycleState => {
@@ -248,7 +248,7 @@ describe("AgentActionButtons", () => {
     expect(pause.disabled).toBe(false);
     await act(async () => pause.click());
     await flushReact();
-    expect(mockAgentsApi.pause).toHaveBeenCalledWith("agent-1", "company-1");
+    expect(mockAgentsApi.pause).toHaveBeenCalledWith("agent-1", "space-1");
   });
 
   it.each(["pausing", "terminating", "cleaning_up", "terminated", "rejected"] as const)("disables pause and resume during %s", async lifecycleState => {
@@ -309,7 +309,7 @@ describe("AgentActionButtons", () => {
       document.body.querySelector<HTMLButtonElement>('[aria-label="Clear error and return agent to idle"]')?.click();
     });
     await flushReact();
-    expect(mockAgentsApi.clearError).toHaveBeenCalledWith("agent-1", "company-1");
+    expect(mockAgentsApi.clearError).toHaveBeenCalledWith("agent-1", "space-1");
   });
 
   it("keeps Finish setup as the one button while setup is pending in menu mode", async () => {
@@ -338,14 +338,14 @@ describe("AgentActionButtons", () => {
     });
     await flushReact();
 
-    expect(mockAgentsApi.clearError).toHaveBeenCalledWith("agent-1", "company-1");
+    expect(mockAgentsApi.clearError).toHaveBeenCalledWith("agent-1", "space-1");
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "detail", "agent-1"] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "detail", "alpha"] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "runtime-state", "agent-1"] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "task-sessions", "agent-1"] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "company-1"] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["live-runs", "company-1"] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["heartbeats", "company-1", "agent-1"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "space-1"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["live-runs", "space-1"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["heartbeats", "space-1", "agent-1"] });
   });
 
   it("keeps the normal pause action for non-error agents", async () => {
@@ -369,7 +369,7 @@ describe("AgentActionButtons", () => {
     });
     await flushReact();
 
-    expect(mockAgentsApi.invoke).toHaveBeenCalledExactlyOnceWith("agent-1", "company-1");
+    expect(mockAgentsApi.invoke).toHaveBeenCalledExactlyOnceWith("agent-1", "space-1");
     expect(mockNavigate).toHaveBeenCalledWith("/agents/alpha/runs/run-1");
   });
 
@@ -387,13 +387,13 @@ describe("AgentActionButtons", () => {
     await flushReact();
     await act(async () => { Array.from(document.body.querySelectorAll("button")).find(button => button.textContent?.includes("Terminate"))!.click(); });
     await flushReact();
-    expect(mockAgentsApi.terminate).toHaveBeenCalledWith("agent-1", "company-1");
+    expect(mockAgentsApi.terminate).toHaveBeenCalledWith("agent-1", "space-1");
     expect(onTerminateSuccess).toHaveBeenCalledWith(expect.objectContaining({
       id: "agent-1",
       lifecycleState,
     }));
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "detail", "agent-1"] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "company-1"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "space-1"] });
   });
 
   it("keeps the detail page open and reports a failed termination", async () => {
@@ -433,14 +433,14 @@ describe("AgentActionButtons", () => {
     });
     await flushReact();
 
-    expect(mockAgentsApi.terminate).toHaveBeenCalledWith("agent-1", "company-1");
+    expect(mockAgentsApi.terminate).toHaveBeenCalledWith("agent-1", "space-1");
     expect(onTerminateSuccess).toHaveBeenCalledWith(expect.objectContaining({
       id: "agent-1",
       status: "terminated",
     }));
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "detail", "agent-1"] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "detail", "alpha"] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "company-1"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["agents", "space-1"] });
   });
 
   it("does not terminate when navigation away from a dirty detail page is rejected", async () => {

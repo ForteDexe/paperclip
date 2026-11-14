@@ -28,13 +28,13 @@ The audit's remaining alternatives were classified against actual reader fields:
 | Task-retry, preserved-result and fresh-workspace receipts | Distinct task_retry/strategy metadata; actual successor run admission/finalization is covered. |
 | Dot/Muse assignment follow-up receipts | Board conversation/issue-comment paths; they do not establish external lifecycle lineage merely by sharing an issue. |
 | Slack Board reply bindings | Source issue.comment uses its own response path; it is excluded from lifecycle candidate sources. |
-| GitHub configuration | The only configuration writer upserts; deletion is endpoint/company teardown rather than restoration. Upgrading disables automatic queued/working notices. Guest/sponsor changes can restore post-close authority and now signal before mutation in the existing locked transaction. |
-| Initial local-board membership / agent compatibility backfill | Startup precedes worker reconstruction; agent-only memberships do not restore human authority. Live Cloud and board-claim human restoration now has signals. |
+| GitHub configuration | The only configuration writer upserts; deletion is endpoint/space teardown rather than restoration. Upgrading disables automatic queued/working notices. Guest/sponsor changes can restore post-close authority and now signal before mutation in the existing locked transaction. |
+| Initial local-operator membership / agent compatibility backfill | Startup precedes worker reconstruction; agent-only memberships do not restore human authority. Live Cloud and board-claim human restoration now has signals. |
 
 This table complements the real producer cases and chronological audit below;
 it does not claim independent SQL writers or another replica are covered.
 The source of truth remains existing rows and the original 24-hour run window.
-Company hints are used only for broader configuration/authority operations;
+Space hints are used only for broader configuration/authority operations;
 issue hints cover lineage and its descendants. Settled projection does not retain
 periodic discovery merely because history or configuration exists.
 
@@ -50,7 +50,7 @@ Latest local evidence:
   retained history, first producer, outer rollback/commit, retry, restart,
   drain/resume and shutdown tests; not every case runs the full HTTP app.
 - All 16 project-chat Playwright cases pass against a fresh assembled app at
-  port 32658, database paperclip_sleep28_production_e2e_20261025_test.
+  port 32658, database outpost_sleep28_production_e2e_20261025_test.
   Log /tmp/sleep28-production-e2e.log; traces /tmp/sleep28-production-e2e-results.
   This includes split-handoff cancellation and experiment restoration, but local
   success does not resolve the observed remote cancellation deadlock.
@@ -110,7 +110,7 @@ from recoverable lock contention and dependency changes.
 Current pagination uses JavaScript Date for run updated_at and native event
 created_at cursors. Audit precision when preserving or replacing it; PostgreSQL
 submillisecond values must not duplicate/skip candidates or pin a page. Preserve
-company fairness, bounded work and existing publication deduplication.
+space fairness, bounded work and existing publication deduplication.
 
 ## Required next investigation
 
@@ -163,7 +163,7 @@ owners to audit; it does not claim those signals are already installed.
 | Inbound comment links and conversation binding | Ingress and conversation owners. The run's source string alone grants no authority. Endpoint assignment, publication mode, conversation state/issue and verified comment links matter. |
 | Continuation wake/decision/effect receipts | `native-continuation-delivery.ts` reads applied status decisions, delivered continuation effects, the original wake and dispatched wake, plus responsible-user continuity. Audit their writers; a run notification before these commits is too early. |
 | Monitor wake and source semantic receipt | `native-monitor-delivery.ts` requires an admitted monitor wake plus the source run's exact saved `set_task_monitor` receipt. Audit both writers, including late completion. |
-| Board reply identity and provider configuration | `slackBoardReplyBindings`, endpoint configuration, and upgraded GitHub configuration affect selection. Scope configuration invalidation to its company/endpoints; preserve each provider's existing policy. |
+| Board reply identity and provider configuration | `slackBoardReplyBindings`, endpoint configuration, and upgraded GitHub configuration affect selection. Scope configuration invalidation to its space/endpoints; preserve each provider's existing policy. |
 
 `resolveChatOriginPublicationBindings` also follows arbitrarily long verified
 lineage with cycle rejection. Changing an ancestor can affect a successor; a
@@ -201,9 +201,9 @@ has different lock/contention behavior and must not inherit that conclusion.
 
 Parent #17592 at `f53ae3d6d27c2642e7dfe647a2c0a9bbf2d582ac` now has passing
 Actions/security/Greptile gates, no inline review findings, and a neutral
-Paperclip Review result. Neutral is not a completed positive review. #17590 at
-`e501d6c99d721d6428f8c490206417765c76f4f6` has passing gates with Paperclip Review
-queued at inspection. #17586 also has a neutral Paperclip Review. Final review
+Outpost Review result. Neutral is not a completed positive review. #17590 at
+`e501d6c99d721d6428f8c490206417765c76f4f6` has passing gates with Outpost Review
+queued at inspection. #17586 also has a neutral Outpost Review. Final review
 acceptance remains separate. Refreshed master is `2e47c42fad`; stack reconciliation
 remains required. No stack PR was merged.
 
@@ -213,25 +213,25 @@ remains required. No stack PR was merged.
 `chat-run-milestone-work.ts` now reuses `registerScopedDeadlineWork`. Its loader
 shares the lifecycle candidate selector with the explicit projector, retaining
 all existing SQL eligibility fences and timestamp precision. It reconstructs
-one entry per company/issue, with a bounded 100-publication projection batch.
+one entry per space/issue, with a bounded 100-publication projection batch.
 A full batch remains immediately due; a short batch has exhausted the selector
 and disarms, including currently suppressed lineage. Real selection/write
 failures retain the shared retry backoff. The scheduler owns coalescing,
-company fairness, first writes during drain, concurrent changes, and shutdown.
+space fairness, first writes during drain, concurrent changes, and shutdown.
 No new persistent queue or independent timer is introduced.
 
-`notifyChatRunMilestones` carries only company/issue identity through the existing
+`notifyChatRunMilestones` carries only space/issue identity through the existing
 outer-transaction protocol. Issue-scoped invalidation includes descendants;
-company scope is available for broader configuration or lifecycle changes.
-Unrelated issues/companies are not reconstructed for an issue hint.
+space scope is available for broader configuration or lifecycle changes.
+Unrelated issues/spaces are not reconstructed for an issue hint.
 
 Initial production integrations now await intent before writing:
 
 - `heartbeat/run-lifecycle.ts::writeRunStatus`: both shared status transition
-  callers signal the known company in their existing transaction. This is a
-  conservative company hint; it is not proof that all raw run writes are covered.
+  callers signal the known space in their existing transaction. This is a
+  conservative space hint; it is not proof that all raw run writes are covered.
 - `heartbeat/run-completion.ts`: the late presentation-decision write now owns
-  a short transaction and signals its issue (company fallback when unbound).
+  a short transaction and signals its issue (space fallback when unbound).
   Provider execution and presentation generation remain outside that transaction.
 - `question-response-delivery.ts::recordTerminal`: the existing transaction
   signals the issue before recording the durable target run and outcome.
@@ -252,9 +252,9 @@ remain unchanged.
 15 real-PostgreSQL worker cases pass in
 `/tmp/sleep28-worker-question-tests.log`. They cover configured idle/internal
 runs/old history, startup and restart, first committed work, outer commit and
-nested rollback, first wake during drain, issue/company isolation, suppressed
+nested rollback, first wake during drain, issue/space isolation, suppressed
 lineage reactivation, late presentation eligibility, 205 notices plus another
-company, selection failure through drain, publication-write retry, a concurrent
+space, selection failure through drain, publication-write retry, a concurrent
 commit during projection, shutdown, real cancellation and real question delivery.
 Quiet assertions advance two minutes and observe zero DB selects/transactions.
 The deadline test verifies no scans during the ten seconds before retry.
@@ -283,7 +283,7 @@ Preserved fixture failures:
 1. `/tmp/sleep28-worker-tests.log`: all 11 initial cases failed setup because the
    fixture used provider name `slack` as connection transport. The schema requires
    `chat_sdk`; no production transport change was made.
-2. `/tmp/sleep28-worker-fixed-tests.log`: ten passed; the same-company isolation
+2. `/tmp/sleep28-worker-fixed-tests.log`: ten passed; the same-space isolation
    fixture violated the application-name uniqueness constraint. Fixture names now
    include their identity.
 3. `/tmp/sleep28-worker-producer-tests.log`: eleven passed; cancellation required
@@ -311,7 +311,7 @@ transactions before failure recording, committed terminal projection, and the
 normal final run projection. All three committed-response repair branches signal
 only after their authorization/no-op guards and immediately before comment and
 presentation writes. The status arbiter, provider interpretation, and execution
-policy remain with their native owners; the milestone signal carries only company
+policy remain with their native owners; the milestone signal carries only space
 and issue identity.
 
 Governed review-presentation restoration also signals an actual change. Previously
@@ -320,7 +320,7 @@ The owner now locks the run, compares the exact proposed JSON merge against the
 current result, and returns successfully without a write or signal when unchanged.
 It still returns true for an already valid projection: callers may need to
 materialize the response even when its metadata is already present. Existing
-coordinator/proof/digest/company checks remain before this decision.
+coordinator/proof/digest/space checks remain before this decision.
 
 Evidence at this checkpoint:
 
@@ -353,7 +353,7 @@ reconciliation remain required; no PR has been merged by this checkpoint.
 
 ## Native decision and effect-receipt checkpoint
 
-`commitNativeStatusDecision` registers company/issue milestone intent after the
+`commitNativeStatusDecision` registers space/issue milestone intent after the
 existing committed/replayed-decision exits, before inserting or applying a new
 decision and its effects. `dispatchPendingNativeStatusEffects` registers intent
 only when pending/failed effects exist and their targets have passed validation,
@@ -410,16 +410,16 @@ an intent or update. The added selection follows the same run-first locking orde
 as the previous UPDATE; it is not a periodic discovery query.
 
 The wake-queue PostgreSQL admission adapter owns coalesced run-context writes and
-signals from that existing transaction. Its port carries company identity, so
-this writer uses company-scoped reconstruction rather than adding feature fields
+signals from that existing transaction. Its port carries space identity, so
+this writer uses space-scoped reconstruction rather than adding feature fields
 to the module contract or interpreting chat/provider payloads. The actual
 conversation/lineage decision remains in the chat projection owner.
 
-The fallback company-run admission/coalescing branch of `heartbeat/queue.ts` is
+The fallback space-run admission/coalescing branch of `heartbeat/queue.ts` is
 outside the issue-bound path and cannot create a chat milestone. It intentionally
 has no new notification or wrapper. Any later task-binding writer still needs
 its own signal. This is separate from claiming a historically bound run, for
-which a missing context issue ID conservatively uses company scope.
+which a missing context issue ID conservatively uses space scope.
 
 Verification and failures:
 
@@ -444,7 +444,7 @@ Verification and failures:
   `/tmp/sleep28-queue-module-tests.log`. The queue module now accepts the standard
   guarded external test URL through `OUTPOST_QUEUE_TEST_DATABASE_URL`; its
   destructive per-case fixture reset ran only on the new isolated database
-  `paperclip_sleep28_queue_claim_20261025_test`. Embedded tests remain the default.
+  `outpost_sleep28_queue_claim_20261025_test`. Embedded tests remain the default.
 - Server production typecheck passes: `/tmp/sleep28-queue-producers-typecheck.log`.
   This excludes test files and is not workspace/PR acceptance.
 
@@ -466,7 +466,7 @@ The run-dispatch PostgreSQL adapter now signals before due-retry promotion,
 suppressed-retry cancellation, and stale-run cancellation. Its existing locked
 state/gate checks still own authorization and no-op exits. Promotion passes the
 already-resolved issue identity to its private writer; no application port or
-provider contract changes. Missing issue identity uses company reconstruction.
+provider contract changes. Missing issue identity uses space reconstruction.
 Repeated attempts after settlement do not schedule another milestone sweep.
 
 The wake-queue transaction now signals before deferred promotion inserts its
@@ -505,7 +505,7 @@ repairs an interrupted dispatch receipt, coalesces another same-scope intent,
 or records the result of fresh admission. Each receipt UPDATE has a narrow
 transaction; enqueue/provider execution remains outside it. Existing status,
 claim, provenance, and update guards are unchanged. The parsed issue identity
-already owned by this dispatcher scopes the notification (company fallback
+already owned by this dispatcher scopes the notification (space fallback
 when absent). Claims, retry timestamps, and rejected targets do not acquire
 milestone intent just because they were inspected.
 
@@ -555,16 +555,16 @@ attempts against a settled run exit before signaling.
 
 Superseded case handoffs previously cancelled with a root-client UPDATE. That
 single status change now owns a narrow transaction, locks/selects the still-queued
-run, and registers company-scoped intent before updating it. The company scope
+run, and registers space-scoped intent before updating it. The space scope
 avoids trusting a superseded handoff's issue identity as the run's current chat
-binding. Status/company guards and the existing post-update wake-status callback
+binding. Status/space guards and the existing post-update wake-status callback
 remain unchanged. A repeated claim finds no queued row and creates no intent.
 The added run-first lock does not enclose provider I/O or introduce an issue lock.
 
 Admission's stale scheduled-retry and reassigned execution-owner cancellations
 also signal before their existing transaction writes. Those transactions may
 later insert/notify a replacement run, but that later intent is insufficient for
-the protocol's before-first-write requirement. Company/issue identity comes from
+the protocol's before-first-write requirement. Space/issue identity comes from
 the owning admission state; no new module port or provider branch is added.
 
 Evidence:
@@ -608,7 +608,7 @@ that authoritative queue. It is recovery/compatibility coverage, not a claim tha
 ordinary reordering introduces new comment identities. The discard regression
 uses the actual use case and adapter inside a caller-owned transaction and proves
 that intent settles only at outer commit. Existing adapter tests retain rollback
-and company/issue authorization coverage. Reference/external-object callbacks in
+and space/issue authorization coverage. Reference/external-object callbacks in
 these fixtures are no-ops; this does not claim their integration behavior.
 
 The previously outstanding native-review claim test now exercises the real
@@ -633,7 +633,7 @@ Evidence:
 - The existing queued-comment adapter tests now accept guarded
   `OUTPOST_QUEUED_COMMENT_TEST_DATABASE_URL` and close their client. Their broad
   fixture cleanup ran only on freshly created/migrated
-  `paperclip_sleep28_queued_comment_20261025_test`; embedded mode remains default.
+  `outpost_sleep28_queued_comment_20261025_test`; embedded mode remains default.
 
 The queued-comment producer and native reviewer claim gaps are closed for this
 slice. Publication/interaction, conversation/configuration, question claim/retry,
@@ -681,7 +681,7 @@ Verification:
 Existing question-delivery tests now support guarded
 `OUTPOST_QUESTION_DELIVERY_TEST_DATABASE_URL`, retaining embedded mode by default
 and closing their client. Their broad cleanup ran only on the dedicated migrated
-`paperclip_sleep28_question_delivery_20261025_test` database. Milestone fixtures
+`outpost_sleep28_question_delivery_20261025_test` database. Milestone fixtures
 used their separate dedicated database.
 
 Fresh origin/master inspected at `8c6bd5a83b`; reconciliation of the stack remains
@@ -692,7 +692,7 @@ removal are still pending, so this checkpoint is not a completed migration PR.
 ## Monitor receipt ordering checkpoint
 
 The normal native monitor owner does not need another milestone signal when it
-saves a schedule. `PaperclipRunnerToolAuthority.#setTaskMonitor` writes the issue
+saves a schedule. `OutpostRunnerToolAuthority.#setTaskMonitor` writes the issue
 monitor and its semantic tool receipt inside the same `#withMutationReceipt`
 transaction. The future deadline cannot be consumed before that commit. A later
 monitor wake's real queue admission already signals the issue scope, and the
@@ -721,12 +721,12 @@ instead of manufacturing a missing signal for an unsupported ordering.
 
 Remote gates refreshed at this checkpoint: #17490 at `31bcd1988823` still has
 failed E2E shard 3 and aggregate checks; #17590 at `e501d6c99d72` still has queued
-Paperclip Review; #17592 at `f53ae3d6d27c` still has neutral Paperclip Review.
+Outpost Review; #17592 at `f53ae3d6d27c` still has neutral Outpost Review.
 These are not claimed ready and no merge was attempted.
 
 ## Publication outcome and operator-resolution checkpoint
 
-`notifyChatPublicationWork` now accepts an optional company/issue scope. It
+`notifyChatPublicationWork` now accepts an optional space/issue scope. It
 retains its existing delivery and receipt notifications. Callers supply that
 scope when a publication outcome can change run lineage or release the run's
 provider response slot. The shared scheduler still receives only a domain scope;
@@ -767,8 +767,8 @@ Real PostgreSQL regression evidence:
   cases passed. The three arbitration cases did not run because their embedded
   PostgreSQL setup failed after its own startup retries. That suite now supports
   guarded `OUTPOST_ARBITRATION_TEST_DATABASE_URL`, closes its client, and uses
-  unique company prefixes. `/tmp/sleep28-arbitration-tests.log` shows all three
-  pass against dedicated `paperclip_sleep28_arbitration_20261025_test`.
+  unique space prefixes. `/tmp/sleep28-arbitration-tests.log` shows all three
+  pass against dedicated `outpost_sleep28_arbitration_20261025_test`.
 - `/tmp/sleep28-publication-acceptance.log`: four existing chat integration cases
   pass: malformed/transient preparation, parsed Discord question continuation,
   expired provider-accepted receipt ownership, and ambiguous close confirmation.
@@ -808,12 +808,12 @@ The actual answer transaction now owns its notification without reopening work.
 - `/tmp/sleep28-interaction-transitions-tests.log`: notice assertions pass after
   the fix; cancel/withdraw still fail the missing chat-action cleanup. Cleanup
   now deletes this fixture's actions before its conversations. The old
-  `paperclip_sleep28_worker_final_20261025_test` database retains partial failed
+  `outpost_sleep28_worker_final_20261025_test` database retains partial failed
   fixtures and must not be reused for global worker quiet assertions.
 - `/tmp/sleep28-interaction-final-tests.log`: all 160 cases pass across the full
   milestone and existing interaction-service suites, on fresh separate databases
-  `paperclip_sleep28_interaction_worker_20261025_test` and
-  `paperclip_sleep28_interaction_service_20261025_test`. The former is the new
+  `outpost_sleep28_interaction_worker_20261025_test` and
+  `outpost_sleep28_interaction_service_20261025_test`. The former is the new
   self-cleaning milestone test database; the latter is exclusive to the service
   suite's broad cleanup.
 - `/tmp/sleep28-interaction-typecheck.log`: production server typecheck passes;
@@ -924,7 +924,7 @@ explicitly disabled; the actual repair selects and expires the older one.
   after extracting only shared fixture creation/cleanup into
   `__tests__/helpers/chat-milestone-fixtures.ts`. Worker, clock and quiet assertions
   remain in the tests; cleanup still occurs after coordinator shutdown. The
-  helper tracks only fixture company/user IDs and now cleans fixture documents.
+  helper tracks only fixture space/user IDs and now cleans fixture documents.
 - `/tmp/sleep28-terminal-interactions-before.log`: all seven new cases reach
   the correct terminal interaction state but fail to produce the eligible
   failure notice: document change/deletion, stale accept/reject, two deleted-
@@ -968,9 +968,9 @@ No provider execution, signing policy or request ownership changed.
 
 `chat-run-milestone-governed-work.test.ts` is a separate cohesive suite using
 `OUTPOST_MILESTONE_GOVERNED_TEST_DATABASE_URL`, currently the dedicated migrated
-`paperclip_sleep28_governed_worker_20261025_test` database. It reuses only the
-company/chat fixture helper; worker startup, clock, settlement and quiet assertions
-remain explicit. Cleanup is company-scoped and runs after worker shutdown.
+`outpost_sleep28_governed_worker_20261025_test` database. It reuses only the
+space/chat fixture helper; worker startup, clock, settlement and quiet assertions
+remain explicit. Cleanup is space-scoped and runs after worker shutdown.
 
 - `/tmp/sleep28-governed-before.log`: all four ordinary binding transitions
   fail to produce the newly eligible notice before the fix.
@@ -992,7 +992,7 @@ remain explicit. Cleanup is company-scoped and runs after worker shutdown.
   worker, 9 governed producer, 106 interaction integration and 13 interaction
   unit cases on separate isolated PostgreSQL databases.
 - `/tmp/sleep28-tool-review-acceptance.log`: all 109 existing tool-gateway cases
-  pass on newly migrated `paperclip_sleep28_tool_review_20261025_test`, selected
+  pass on newly migrated `outpost_sleep28_tool_review_20261025_test`, selected
   through its existing OUTPOST_TOOL_REVIEW_TEST_DATABASE_URL guard.
 - `/tmp/sleep28-governed-typecheck.log`: production server typecheck passes;
   it excludes tests. `git diff --check` passes.
@@ -1148,7 +1148,7 @@ locks the unavailable bindings it will reopen, signals their distinct issue
 scopes before mutation, and retains the existing availability/completed-history
 rules. Both inventory and lifecycle callers use it. Unchanged inventory produces
 no milestone intent; status/health metadata is not indiscriminately promoted to
-company-wide milestone scans. No shared scheduler contract or provider protocol
+space-wide milestone scans. No shared scheduler contract or provider protocol
 changes. The tests use the real credential lease and nested resource transaction,
 prove savepoint release does not publish, prove outer rollback leaves the worker
 quiet, and prove outer commit creates the expected publication. Completed history
@@ -1165,7 +1165,7 @@ Slack membership/reinstall, Slack archive/unarchive, Teams/Telegram lifecycle,
 GitHub resource identity preservation, durable lifecycle retry, and canonical
 Chat SDK resource identifiers. Server typecheck passes in
 /tmp/sleep28-resource-typecheck.log. The dedicated resource database is
-paperclip_sleep28_resource_20261025_test.
+outpost_sleep28_resource_20261025_test.
 
 The earlier three configuration-owner drain repairs are now propagated. All 109
 health/Discord/receiver cases pass together at 9775b2bc4a in
@@ -1180,7 +1180,7 @@ GitHub-specific repository/installation restoration, other conversation rebindin
 late authority/lineage recovery, and remaining producer dispositions still need
 review before production registration and retirement of the lifecycle scan.
 Endpoint status/health are not direct milestone selector predicates; changing
-them alone does not justify wiring a broad company wake to every health check.
+them alone does not justify wiring a broad space wake to every health check.
 The delivery owner retains its current authority checks.
 
 Final resource checkpoint: all 20 projection units pass at the corrected path in
@@ -1271,7 +1271,7 @@ passes 12 cases: ordinary ingress reactivation, three existing Slack/Teams/Teleg
 reach-revocation cases, and eight Telegram migration cases
 (/tmp/sleep28-inbound-acceptance.log; 1,419 deselected). Server production
 typecheck/build pass in /tmp/sleep28-inbound-{typecheck,build}.log. The isolated
-DB is paperclip_sleep28_inbound_20261025_test. Existing resource and lifecycle
+DB is outpost_sleep28_inbound_20261025_test. Existing resource and lifecycle
 proofs remain recorded at their prior checkpoints; the whole integration file
 was not run locally for this edit.
 
@@ -1390,7 +1390,7 @@ and classification but produced no notice after the worker exhausted startup.
 
 Classification now registers the issue intent in its own short write transaction.
 All four original-assignee/review-participant classification paths pass their
-already-owned issue identity. The update is company scoped and preserves its
+already-owned issue identity. The update is space scoped and preserves its
 JSON merge so concurrent workspace receipts remain intact. Provider execution,
 classification policy, monitor deadlines, escalation and existing recovery
 ownership are unchanged. Repeated recovery with an existing quota monitor is
@@ -1400,7 +1400,7 @@ Evidence: /tmp/sleep28-classification-before.log fails on the missing notice;
 /tmp/sleep28-classification-tests.log passes all three recovery milestone cases.
 All 89 existing recovery-action cases pass in
 /tmp/sleep28-recovery-actions-acceptance.log. Their guarded external DB harness
-uses paperclip_sleep28_recovery_actions_20261025_test, separately from worker
+uses outpost_sleep28_recovery_actions_20261025_test, separately from worker
 fixtures. Server typecheck/build pass in
 /tmp/sleep28-classification-{typecheck,build}.log. The earlier 40 stale-lock and
 43 identity/credential cases passed at their recorded checkpoints and were not
@@ -1421,12 +1421,12 @@ Restoring one of those facts can make a retained notice eligible without a run
 transition. Nine real service-owner cases now cover that change after the worker
 has exhausted startup: connection enablement, resource selection, unlinked reach,
 identity confirmation, updateMember, updateMemberAndPermissions, ensureMembership,
-setUserCompanyAccess, and task visibility. All keep the original authorization
+setUserSpaceAccess, and task visibility. All keep the original authorization
 reader and exact admitted source proof. No new run is dispatched to get a notice.
 
 Owner changes:
 - The existing notifyChatEndpointWork contract now requires the already-known
-  company identity and also wakes milestones. Its configuration/status callers
+  space identity and also wakes milestones. Its configuration/status callers
   pass that identity; ordinary health-only callbacks still use the narrower
   notifyChatEndpointConfiguration/notifyChatConnectionConfiguration contracts.
   This is a bounded wake on an actual configuration operation, not a health poll.
@@ -1461,12 +1461,12 @@ Evidence and corrected failures:
   behavior. Explicit connection updates retain their configuration wake.
 - /tmp/sleep28-access-acceptance.log: all 18 access service regressions pass.
 - /tmp/sleep28-authority-action-tests.log: all six action-worker cases pass.
-- Initial typecheck caught a caller using connection.companyId that its query
-  did not select. It now uses the owning operation's companyId. Final server
+- Initial typecheck caught a caller using connection.spaceId that its query
+  did not select. It now uses the owning operation's spaceId. Final server
   typecheck/build pass in /tmp/sleep28-authority-final-{typecheck,build}.log.
 
 Alternate human-membership producers remain: middleware/auth.ts Cloud trusted-
-header synchronization and board-claim.ts. Startup local-board insertion runs
+header synchronization and board-claim.ts. Startup local-operator insertion runs
 before worker reconstruction; compatibility backfill only inserts agent members.
 Cloud sign-in and board claim can restore humans while a worker is running and
 must be covered before removing its poll. Credential rotation advances the
@@ -1480,10 +1480,10 @@ scope are still required; this checkpoint is not a completed sleep migration.
 
 Cloud trusted-header membership synchronization now owns a short transaction for
 its existing membership upsert. It locks the existing membership while comparing
-its authority and registers a company-scoped milestone intent before a new,
+its authority and registers a space-scoped milestone intent before a new,
 reactivated, or formerly viewer membership becomes active. Profile-only syncs
 remain silent even when the debounce is bypassed by a changed profile. The
-trusted-header roles already exclude viewer; existing authentication, company
+trusted-header roles already exclude viewer; existing authentication, space
 provisioning, stale instance-admin removal and default-grant behavior are retained.
 This adds one indexed membership read and a transaction per actual debounced sync,
 not an idle timer. Provider calls are not wrapped in a transaction.
@@ -1557,11 +1557,11 @@ Evidence:
 - `/tmp/sleep28-voice-callback-before.log`: reproduces the renamed-callback error.
 - `/tmp/sleep28-review-fixed.log`: all 40 stale-lock tests pass; one unscoped
   signal assertion observed another fixture's notification. The two GitHub
-  transaction assertions now filter the actual company scope; both pass in
+  transaction assertions now filter the actual space scope; both pass in
   `/tmp/sleep28-review-github-scoped.log`.
 - `/tmp/sleep28-voice-callback-fixed.log`: 28 failures on a reused database with
   retained voice sessions/reports. Preserve this failed run. The full suite on
-  fresh migrated `paperclip_sleep28_review_voice_20261025_test` passes all 122
+  fresh migrated `outpost_sleep28_review_voice_20261025_test` passes all 122
   cases (`/tmp/sleep28-review-voice-fresh.log`). Global reconstruction tests need
   an isolated database; reusing a previous suite's retained obligations is invalid.
 - `/tmp/sleep28-review-cloud-fakes-final.log`: 38 Cloud-auth/session tests pass.
@@ -1569,7 +1569,7 @@ Evidence:
   still verifies the exact own-user/active filter on the authorization read.
 - `/tmp/sleep28-review-long-board.log`: reproduces the `Owner 1` fixture leak.
 - `/tmp/sleep28-review-chat-isolation.log`: 28 cases pass together on fresh
-  `paperclip_sleep28_review_chat_20261025_test`: all ten authority-restoration
+  `outpost_sleep28_review_chat_20261025_test`: all ten authority-restoration
   cases, both GitHub signal cases, and all 16 long-publication cases.
 - `/tmp/sleep28-review-typecheck.log` and `/tmp/sleep28-review-build.log`: server
   production typecheck and build pass. Test files are not typechecked.
@@ -1604,7 +1604,7 @@ The original failures remain in `/tmp/sleep-master-credentials-tests.log` and
 ### Slack setup identity producer correction (2026-10-27)
 
 The extracted Slack setup service's `linkSlackAccount` callback was missing the
-milestone intent before its identity upsert. It now uses the existing company-
+milestone intent before its identity upsert. It now uses the existing space-
 scoped notification after lease/membership/conflict checks and before the write.
 An already linked account returns without a notification. No polling, new storage,
 or caller wrapper is added; downstream milestone consumers retain their own scope

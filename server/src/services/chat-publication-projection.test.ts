@@ -35,7 +35,7 @@ describe("chat publication projection", () => {
     const input = [
       `token: ${slackTokenCanary}`,
       `key ${openAiKeyCanary}`,
-      "database postgresql://paperclip:hunter2@example.com/db",
+      "database postgresql://outpost:hunter2@example.com/db",
       "-----BEGIN PRIVATE KEY-----",
       "definitely-private",
       "-----END PRIVATE KEY-----",
@@ -85,7 +85,7 @@ describe("chat publication projection", () => {
 
   it("uses a safe fallback if only private material remains", () => {
     expect(projectSafeChatPublicationText("<thinking>all private</thinking>")).toBe(
-      "Update available in Paperclip.",
+      "Update available in Outpost.",
     );
   });
 
@@ -107,7 +107,7 @@ describe("chat publication projection", () => {
             { type: "callback", actionId: "choice.one", label: "First", style: "primary" },
             {
               type: "link",
-              label: "Open Paperclip",
+              label: "Open Outpost",
               url: "https://outpost.example/tasks/123?handoff=secret#private",
             },
             { type: "link", label: "Unsafe", url: "javascript:alert(1)" },
@@ -130,7 +130,7 @@ describe("chat publication projection", () => {
           { type: "callback", actionId: "choice.one", label: "First", style: "primary" },
           {
             type: "link",
-            label: "Open Paperclip",
+            label: "Open Outpost",
             url: "https://outpost.example/tasks/123",
           },
         ],
@@ -144,7 +144,7 @@ describe("chat publication projection", () => {
         classification: "external",
         source: "agent_comment",
         text: "Result",
-        attachmentIds: ["../../other-company-secret"],
+        attachmentIds: ["../../other-space-secret"],
       }),
     ).toThrow(UnsafeChatPublicationError);
 
@@ -207,7 +207,7 @@ describe("chat publication projection", () => {
     expect(projectSafeChatPublicationText(source)).toBe(source);
   });
 
-  it("preserves expansion from sanitizing a maximum Board body", () => {
+  it("preserves expansion from sanitizing a maximum Operator body", () => {
     const source = "@here ".repeat(16_666);
     const result = projectSafeChatPublicationText(source);
     expect(result).toBe(source.replaceAll("@here", "@\u200bhere").trim());

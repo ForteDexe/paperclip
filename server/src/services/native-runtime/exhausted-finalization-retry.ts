@@ -22,10 +22,10 @@ export function exhaustedNativeFinalizationCondition(): SQL<boolean> {
   return sql<boolean>`(${heartbeatRuns.runtimeMode} = 'native' and ${heartbeatRuns.status} = 'succeeded'
     and exists (select 1 from ${nativeRunFinalizations}
       inner join ${nativeRunResults} on ${nativeRunResults.id} = ${nativeRunFinalizations.resultId}
-        and ${nativeRunResults.companyId} = ${nativeRunFinalizations.companyId}
+        and ${nativeRunResults.spaceId} = ${nativeRunFinalizations.spaceId}
         and ${nativeRunResults.runId} = ${nativeRunFinalizations.runId}
         and ${nativeRunResults.schemaStatus} = 'accepted'
-      where ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId}
+      where ${nativeRunFinalizations.spaceId} = ${heartbeatRuns.spaceId}
         and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
         and ${nativeRunFinalizations.issueId} = ${heartbeatRuns.nativeIssueId}
         and ${nativeRunFinalizations.phase} = 'terminal_failure'
@@ -42,7 +42,7 @@ export function exhaustedNativeFinalizationCondition(): SQL<boolean> {
 export function savedResultRetryPendingCondition(): SQL<boolean> {
   return sql<boolean>`(${heartbeatRuns.runtimeMode} = 'native' and ${heartbeatRuns.status} = 'succeeded'
     and exists (select 1 from ${nativeRunFinalizations}
-      where ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId}
+      where ${nativeRunFinalizations.spaceId} = ${heartbeatRuns.spaceId}
         and ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
         and ${nativeRunFinalizations.resultId} is not null
         and ${nativeRunFinalizations.phase} not in ('committed', 'terminal_failure')
@@ -61,11 +61,11 @@ export function savedResultRetryPendingCondition(): SQL<boolean> {
  * - `not_eligible`: the caller keeps its ordinary Retry.
  */
 export async function rearmExhaustedNativeFinalization(tx: Db, input: {
-  companyId: string; issueId: string; runId: string; generationId: string; actorId: string;
+  spaceId: string; issueId: string; runId: string; generationId: string; actorId: string;
 }): Promise<{ kind: "rearmed" } | { kind: "joined"; generationId: string | null; finalizing: boolean }
   | { kind: "not_eligible" }> {
   const [eligible] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId),
+    eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId),
     eq(heartbeatRuns.nativeIssueId, input.issueId), exhaustedNativeFinalizationCondition(),
   )).limit(1);
   // The caller holds the task row. The finalizer locks coordinator then task,
@@ -73,7 +73,7 @@ export async function rearmExhaustedNativeFinalization(tx: Db, input: {
   // and lock it only when it rests terminal, where no finalizer holds it.
   const readCoordinator = (lock: boolean) => {
     const query = tx.select().from(nativeRunFinalizations).where(and(
-      eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.runId, input.runId),
+      eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.runId, input.runId),
       eq(nativeRunFinalizations.issueId, input.issueId)));
     return (lock ? query.for("update") : query).then(rows => rows[0]);
   };
@@ -100,7 +100,7 @@ export async function rearmExhaustedNativeFinalization(tx: Db, input: {
   const now = new Date();
   const nextAttemptAt = new Date(now.getTime() + REFINALIZATION_FALLBACK_DELAY_MS);
   const phase = coordinator.assessmentId ? "arbitrating" : "workspace_finalizing";
-  await notifyNativeFinalizationWork(tx, { companyId: input.companyId, runId: input.runId, issueId: input.issueId });
+  await notifyNativeFinalizationWork(tx, { spaceId: input.spaceId, runId: input.runId, issueId: input.issueId });
   await tx.update(nativeRunFinalizations).set({
     phase, nextAttemptAt, failureCode: null, failureDetail: null, updatedAt: now,
     recoveryHistory: [...coordinator.recoveryHistory, {
@@ -108,13 +108,13 @@ export async function rearmExhaustedNativeFinalization(tx: Db, input: {
       resultId: coordinator.resultId, previousFailureCode: coordinator.failureCode,
       previousFailureDetail: coordinator.failureDetail, at: now.toISOString(),
     }],
-  }).where(and(eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.runId, input.runId),
+  }).where(and(eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.runId, input.runId),
     eq(nativeRunFinalizations.phase, "terminal_failure")));
-  // The board card asked for this Retry. A new failure raises its own card.
+  // The operator card asked for this Retry. A new failure raises its own card.
   // Loaded on use: task presentation reads this module's condition.
   const { issueRecoveryActionService } = await import("../issue-recovery-actions.js");
   await issueRecoveryActionService(tx).resolveActiveForIssue({
-    companyId: input.companyId, sourceIssueId: input.issueId, kind: "active_run_watchdog",
+    spaceId: input.spaceId, sourceIssueId: input.issueId, kind: "active_run_watchdog",
     cause: EXHAUSTED_FINALIZATION_FAILURE_CODE,
     fingerprint: nativeSha256({ runId: input.runId, failureCode: EXHAUSTED_FINALIZATION_FAILURE_CODE }),
     status: "resolved", outcome: "handed_back",
@@ -126,7 +126,7 @@ export async function rearmExhaustedNativeFinalization(tx: Db, input: {
     resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) || ${JSON.stringify({
       finalizationPhase: phase, finalizationFailureCount: 0, failureCode: null, nextAttemptAt: nextAttemptAt.toISOString(),
     })}::jsonb`,
-  }).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId)));
+  }).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId)));
   return { kind: "rearmed" };
 }
 
@@ -135,9 +135,9 @@ export async function rearmExhaustedNativeFinalization(tx: Db, input: {
  * committed. Same-run finalization only: it keeps the provider attempt count
  * and records a failure through the finalizer's own bounded budget.
  */
-export async function refinalizeSavedNativeResult(db: Db, input: { companyId: string; runId: string }) {
+export async function refinalizeSavedNativeResult(db: Db, input: { spaceId: string; runId: string }) {
   const [barrier] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.heartbeatRunId, input.runId),
+    eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.heartbeatRunId, input.runId),
     eq(workspaceOperations.phase, "workspace_finalize"), eq(workspaceOperations.status, "succeeded"),
   )).limit(1);
   // Without a saved workspace the reconciler resumes the workspace step first.

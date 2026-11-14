@@ -8,9 +8,9 @@ import { validate } from "../middleware/validate.js";
 import { getActorInfo } from "./authz.js";
 import { logActivity, resourceMembershipService } from "../services/index.js";
 
-function requireBoardUserId(req: Request, res: Response): string | null {
-  if (req.actor.type !== "board" || !req.actor.userId) {
-    res.status(403).json({ error: "Board user access required" });
+function requireOperatorUserId(req: Request, res: Response): string | null {
+  if (req.actor.type !== "operator" || !req.actor.userId) {
+    res.status(403).json({ error: "Operator user access required" });
     return null;
   }
   return req.actor.userId;
@@ -20,7 +20,7 @@ async function logMembershipChange(
   db: Db,
   req: Request,
   input: {
-    companyId: string;
+    spaceId: string;
     userId: string;
     resourceType: "project" | "agent" | "document";
     resourceId: string;
@@ -32,7 +32,7 @@ async function logMembershipChange(
 ) {
   const actor = getActorInfo(req);
   await logActivity(db, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     actorType: actor.actorType,
     actorId: actor.actorId,
     agentId: actor.agentId,
@@ -57,23 +57,23 @@ export function resourceMembershipRoutes(db: Db) {
   const router = Router();
   const svc = resourceMembershipService(db);
 
-  router.get("/companies/:companyId/resource-memberships/me", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    const userId = requireBoardUserId(req, res);
+  router.get("/spaces/:spaceId/resource-memberships/me", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    const userId = requireOperatorUserId(req, res);
     if (!userId) return;
-    res.json(await svc.listForUser(companyId, userId, req.actor));
+    res.json(await svc.listForUser(spaceId, userId, req.actor));
   });
 
   router.put(
-    "/companies/:companyId/resource-memberships/me/projects/:projectId",
+    "/spaces/:spaceId/resource-memberships/me/projects/:projectId",
     validate(updateResourceMembershipSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const projectId = req.params.projectId as string;
-      const userId = requireBoardUserId(req, res);
+      const userId = requireOperatorUserId(req, res);
       if (!userId) return;
       const result = await svc.updateProject({
-        companyId,
+        spaceId,
         projectId,
         userId,
         state: req.body.state,
@@ -82,7 +82,7 @@ export function resourceMembershipRoutes(db: Db) {
       });
       if (result.changed && result.changeKind) {
         await logMembershipChange(db, req, {
-          companyId,
+          spaceId,
           userId,
           resourceType: "project",
           resourceId: projectId,
@@ -98,15 +98,15 @@ export function resourceMembershipRoutes(db: Db) {
   );
 
   router.put(
-    "/companies/:companyId/resource-memberships/me/agents/:agentId",
+    "/spaces/:spaceId/resource-memberships/me/agents/:agentId",
     validate(updateResourceMembershipSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const agentId = req.params.agentId as string;
-      const userId = requireBoardUserId(req, res);
+      const userId = requireOperatorUserId(req, res);
       if (!userId) return;
       const result = await svc.updateAgent({
-        companyId,
+        spaceId,
         agentId,
         userId,
         state: req.body.state,
@@ -115,7 +115,7 @@ export function resourceMembershipRoutes(db: Db) {
       });
       if (result.changed && result.changeKind) {
         await logMembershipChange(db, req, {
-          companyId,
+          spaceId,
           userId,
           resourceType: "agent",
           resourceId: agentId,
@@ -131,15 +131,15 @@ export function resourceMembershipRoutes(db: Db) {
   );
 
   router.put(
-    "/companies/:companyId/resource-memberships/me/documents/:documentId",
+    "/spaces/:spaceId/resource-memberships/me/documents/:documentId",
     validate(updateDocumentResourceMembershipSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const documentId = req.params.documentId as string;
-      const userId = requireBoardUserId(req, res);
+      const userId = requireOperatorUserId(req, res);
       if (!userId) return;
       const result = await svc.updateDocument({
-        companyId,
+        spaceId,
         documentId,
         userId,
         starred: req.body.starred,
@@ -147,7 +147,7 @@ export function resourceMembershipRoutes(db: Db) {
       });
       if (result.changed && result.changeKind) {
         await logMembershipChange(db, req, {
-          companyId,
+          spaceId,
           userId,
           resourceType: "document",
           resourceId: documentId,

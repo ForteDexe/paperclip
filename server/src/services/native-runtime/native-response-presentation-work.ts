@@ -15,7 +15,7 @@ export function registerNativeResponsePresentationWork(db: Db,
   return nativeResponsePresentationWork(db).register(coordinator, canRun);
 }
 
-type Entry = { id: string; companyId: string; issueId: string; agentId: string; endpointId?: string | null; principalId?: string | null; dueAt: number };
+type Entry = { id: string; spaceId: string; issueId: string; agentId: string; endpointId?: string | null; principalId?: string | null; dueAt: number };
 
 type Candidate = { nextAttemptAt: Date | null; publicationNextAttemptAt: string | null };
 function dueAt(row: Candidate) {
@@ -38,7 +38,7 @@ export function nativeResponsePresentationWork(db: Db) {
     let after: string | undefined;
     while (canRun() && !signal?.aborted) {
       const rows = await measureRunPhase("response.resolve", () => candidates(scope, after));
-      for (const row of rows) entries.push({ id: row.id, companyId: row.companyId, issueId: row.issueId, agentId: row.agentId, endpointId: row.endpointId, principalId: row.principalId, dueAt: dueAt(row) });
+      for (const row of rows) entries.push({ id: row.id, spaceId: row.spaceId, issueId: row.issueId, agentId: row.agentId, endpointId: row.endpointId, principalId: row.principalId, dueAt: dueAt(row) });
       if (rows.length < 100) return entries;
       after = rows[rows.length - 1].id;
     }
@@ -49,7 +49,7 @@ export function nativeResponsePresentationWork(db: Db) {
   }
   async function checkWithinTrace(entry: Entry, signal?: AbortSignal): Promise<Entry | null> {
     if (signal?.aborted) throw new Error("Native response presentation recovery stopped");
-    const scope = { companyId: entry.companyId, issueId: entry.issueId };
+    const scope = { spaceId: entry.spaceId, issueId: entry.issueId };
     const [current] = await measureRunPhase("response.resolve", () => candidates(scope, undefined, entry.id));
     if (!current) return null;
     if (dueAt(current) > Date.now()) return { ...entry, dueAt: dueAt(current) };
@@ -74,7 +74,7 @@ export function nativeResponsePresentationWork(db: Db) {
     // The accepted reply is still unpublished after a due attempt. Never drop
     // it silently: schedule a bounded retry or record the named failure.
     const attempt = await recordNativeResponsePublicationAttempt(db, {
-      companyId: entry.companyId, issueId: entry.issueId, runId: entry.id,
+      spaceId: entry.spaceId, issueId: entry.issueId, runId: entry.id,
       reason: failure ? "publication_error" : "publication_refused", error: failure,
     });
     return attempt?.state === "retrying" ? { ...entry, dueAt: attempt.nextAttemptAt } : null;
@@ -85,12 +85,12 @@ export function nativeResponsePresentationWork(db: Db) {
       // Endpoint and principal IDs are only dispatch hints. Recovery still locks and checks
       // the complete current source authority inside its own transaction.
       concurrentChecks: { limit: 4, admitDueWhileActive: true, key: (entry: Entry) => [
-        `issue:${entry.companyId}:${entry.issueId}`,
-        ...(entry.endpointId ? [`endpoint:${entry.companyId}:${entry.endpointId}`] : []),
-        ...(entry.principalId ? [`principal:${entry.companyId}:${entry.principalId}`] : []),
+        `issue:${entry.spaceId}:${entry.issueId}`,
+        ...(entry.endpointId ? [`endpoint:${entry.spaceId}:${entry.endpointId}`] : []),
+        ...(entry.principalId ? [`principal:${entry.spaceId}:${entry.principalId}`] : []),
       ] },
       decodeScope: (hint: string): NativeResponsePresentationScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
-      matches: (entry: Entry, scope?: NativeResponsePresentationScope) => !scope || entry.companyId === scope.companyId && (!scope.issueId || entry.issueId === scope.issueId) && (!scope.runId || entry.id === scope.runId) && (!scope.agentId || entry.agentId === scope.agentId),
+      matches: (entry: Entry, scope?: NativeResponsePresentationScope) => !scope || entry.spaceId === scope.spaceId && (!scope.issueId || entry.issueId === scope.issueId) && (!scope.runId || entry.id === scope.runId) && (!scope.agentId || entry.agentId === scope.agentId),
       load: (scope, signal) => load(scope, signal, canRun),
       check: (entry, signal) => {
         if (!canRun()) throw new Error("Native response presentation recovery paused");

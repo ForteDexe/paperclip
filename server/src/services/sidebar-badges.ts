@@ -27,7 +27,7 @@ export function sidebarBadgeService(db: Db) {
   const authorization = authorizationService(db);
   return {
     get: async (
-      companyId: string,
+      spaceId: string,
       extra?: {
         currentUserId?: string | null;
         dismissals?: ReadonlyMap<string, number>;
@@ -42,7 +42,7 @@ export function sidebarBadgeService(db: Db) {
         .from(approvals)
         .where(
           and(
-            eq(approvals.companyId, companyId),
+            eq(approvals.spaceId, spaceId),
             inArray(approvals.status, ACTIONABLE_APPROVAL_STATUSES),
             extra?.approvalReadCondition,
           ),
@@ -65,8 +65,8 @@ export function sidebarBadgeService(db: Db) {
         .innerJoin(agents, eq(heartbeatRuns.agentId, agents.id))
         .where(
           and(
-            eq(heartbeatRuns.companyId, companyId),
-            eq(agents.companyId, companyId),
+            eq(heartbeatRuns.spaceId, spaceId),
+            eq(agents.spaceId, spaceId),
             not(eq(agents.status, "terminated")),
           ),
         )
@@ -97,8 +97,8 @@ export function sidebarBadgeService(db: Db) {
         ? undefined
         : !extra.currentUserId
           ? sql<boolean>`false`
-          : extra.currentUserId === "local-board"
-            ? or(eq(rankedRuns.responsibleUserId, "local-board"), isNull(rankedRuns.responsibleUserId), eq(rankedRuns.responsibleUserId, ""))
+          : extra.currentUserId === "local-operator"
+            ? or(eq(rankedRuns.responsibleUserId, "local-operator"), isNull(rankedRuns.responsibleUserId), eq(rankedRuns.responsibleUserId, ""))
             : eq(rankedRuns.responsibleUserId, extra.currentUserId);
       const candidates = await db.select({
         id: rankedRuns.id,
@@ -114,7 +114,7 @@ export function sidebarBadgeService(db: Db) {
         !isDismissed(extra?.dismissals ?? new Map(), `run:${row.id}`, row.createdAt),
       );
       const failedRuns = extra?.actor
-        ? (await getHeartbeatRunReadDecisions(db, authorization, extra.actor, failures.map((row) => ({ ...row, companyId })))).filter(Boolean).length
+        ? (await getHeartbeatRunReadDecisions(db, authorization, extra.actor, failures.map((row) => ({ ...row, spaceId })))).filter(Boolean).length
         : failures.length;
 
       const joinRequests = (extra?.joinRequests ?? []).filter((row) =>

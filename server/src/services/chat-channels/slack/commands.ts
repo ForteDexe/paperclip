@@ -64,7 +64,7 @@ export function slackCommandForAgent(agentName: string, publicId: string): strin
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "")
     .slice(0, 6);
-  return `/${slug || "paperclip"}-${suffix || "agent"}`;
+  return `/${slug || "outpost"}-${suffix || "agent"}`;
 }
 
 type SlackCommandsOptions = {
@@ -137,15 +137,15 @@ export function createSlackCommands(db: Db, options: SlackCommandsOptions) {
     if (text.toLowerCase() === "connect") {
       // Discovery must work before identity and channel access are granted.
       // It records no task and grants no permissions; linking still requires
-      // explicit confirmation by a company member in the board.
+      // explicit confirmation by a space member in the operator.
       if (principal.principal.kind !== "user" || principal.principal.isBot) return;
       const effect = await db.transaction(async (tx) => {
         if (!(await runtimeCallbackEndpoint(tx, event.endpointId, runtimeContext, ["verifying", "active"]))) {
           throw conflict("This Slack connection changed; send the connect command again");
         }
-        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`chat-identity:${record.endpoint.companyId}:${principal.principal.id}`}, 0))`);
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`chat-identity:${record.endpoint.spaceId}:${principal.principal.id}`}, 0))`);
         const inserted = await tx.insert(chatActions).values({
-          companyId: record.endpoint.companyId, endpointId: event.endpointId,
+          spaceId: record.endpoint.spaceId, endpointId: event.endpointId,
           principalId: principal.principal.id, kind: "slack_connect",
           providerActionId: `slack_connect:${providerCommandId}`,
           payload: { version: 1, channelId: event.event.channel.id, userId: event.event.user.userId },
@@ -161,11 +161,11 @@ export function createSlackCommands(db: Db, options: SlackCommandsOptions) {
           const tokenHash = createHash("sha256").update(token).digest("hex");
           const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
           await tx.insert(chatIdentityLinks).values({
-            companyId: record.endpoint.companyId, endpointId: event.endpointId, principalId: principal.principal.id,
+            spaceId: record.endpoint.spaceId, endpointId: event.endpointId, principalId: principal.principal.id,
             status: "pending", confirmationTokenHash: tokenHash, expiresAt,
           }).onConflictDoUpdate({
             target: [chatIdentityLinks.endpointId, chatIdentityLinks.principalId],
-            set: { paperclipUserId: null, status: "pending", confirmationTokenHash: tokenHash, expiresAt, confirmedAt: null, revokedAt: null, updatedAt: new Date() },
+            set: { outpostUserId: null, status: "pending", confirmationTokenHash: tokenHash, expiresAt, confirmedAt: null, revokedAt: null, updatedAt: new Date() },
           });
           await tx.update(chatActions).set({ payload: {
             version: 1, channelId: event.event.channel.id, userId: event.event.user.userId, identityLinkHash: tokenHash,
@@ -176,7 +176,7 @@ export function createSlackCommands(db: Db, options: SlackCommandsOptions) {
             : "Return to the Outpost setup wizard to confirm your Slack account. No agent work has started.";
         }
         await logActivity(tx as unknown as Db, {
-          companyId: record.endpoint.companyId, actorType: "system", actorId: `chat:${principal.principal.id}`,
+          spaceId: record.endpoint.spaceId, actorType: "system", actorId: `chat:${principal.principal.id}`,
           action: "chat.slack_identity_discovered", entityType: "chat_endpoint", entityId: event.endpointId,
           details: { principalId: principal.principal.id },
         });
@@ -233,7 +233,7 @@ export function createSlackCommands(db: Db, options: SlackCommandsOptions) {
       if (!slashIsDirectMessage) {
         // Slack slash-command payloads are channel-scoped and do not carry a
         // thread timestamp, so they cannot safely identify one of several
-        // Paperclip tasks in the channel. Native @mention threads remain the
+        // Outpost tasks in the channel. Native @mention threads remain the
         // task-management surface there; the control vocabulary is exact only
         // in a DM, whose provider channel identity is stable.
         await queueSlackNotice(
@@ -244,7 +244,7 @@ export function createSlackCommands(db: Db, options: SlackCommandsOptions) {
       }
       const endpointRuntime =
         runtime.get(event.endpointId) ?? (await runtimeFor(record.endpoint));
-      // A slash-command task starts a real Slack root and binds Paperclip to
+      // A slash-command task starts a real Slack root and binds Outpost to
       // that returned thread id. Later slash controls carry only the DM channel
       // id, so target the most recently active task instead of synthesizing an
       // unrelated base-DM thread that cannot find the binding.
@@ -331,7 +331,7 @@ export function createSlackCommands(db: Db, options: SlackCommandsOptions) {
           return tx
             .insert(chatActions)
             .values({
-              companyId: record.endpoint.companyId,
+              spaceId: record.endpoint.spaceId,
               endpointId: record.endpoint.id,
               principalId: principal.principal.id,
               kind: "slash_task_start",
@@ -364,7 +364,7 @@ export function createSlackCommands(db: Db, options: SlackCommandsOptions) {
         .then((rows) => rows[0] ?? null));
     if (!action) throw new Error("Slack command admission was not persisted");
     // Slack has a tight acknowledgement budget. The unique action row is the
-    // durable receipt; provider publication and Paperclip admission run behind
+    // durable receipt; provider publication and Outpost admission run behind
     // the acknowledgement under an atomic `received -> resolving` claim.
     // Duplicate callbacks schedule the same id and converge without waiting
     // on Slack's Web API or creating a second root.

@@ -11,7 +11,7 @@ type Run = typeof heartbeatRuns.$inferSelect;
 /** The host's realized lease snapshot from before adapter execution. Never
  * reconstruct this identity from a terminal status or a search of old leases. */
 export type LegacyWorkspaceRestoreSource = Pick<typeof environmentLeases.$inferSelect,
-  "id" | "companyId" | "heartbeatRunId" | "environmentId" | "issueId" | "executionWorkspaceId"
+  "id" | "spaceId" | "heartbeatRunId" | "environmentId" | "issueId" | "executionWorkspaceId"
   | "provider" | "providerLeaseId" | "acquiredAt" | "leasePolicy" | "metadata">;
 
 function needsRemoteRestore(run: Run): boolean {
@@ -20,7 +20,7 @@ function needsRemoteRestore(run: Run): boolean {
 }
 
 function leaseScope(run: Run, source?: LegacyWorkspaceRestoreSource) {
-  return and(eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+  return and(eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
     or(eq(environmentLeases.status, "active"), and(
       sql`${environmentLeases.metadata}->'workspaceRestoreRecovery'->>'schema' = ${LEGACY_WORKSPACE_RECOVERY_SCHEMA}`,
       sql`${environmentLeases.metadata}->'workspaceRestoreRecovery'->>'runId' = ${run.id}`),
@@ -45,8 +45,8 @@ function matchesOriginalSource(lease: typeof environmentLeases.$inferSelect, run
   }
   return source.leasePolicy === "ephemeral"
     && lease.leasePolicy === source.leasePolicy
-    && source.companyId === run.companyId && source.heartbeatRunId === run.id && source.issueId === issueId
-    && (["id", "companyId", "heartbeatRunId", "environmentId", "issueId", "executionWorkspaceId", "provider", "providerLeaseId"] as const)
+    && source.spaceId === run.spaceId && source.heartbeatRunId === run.id && source.issueId === issueId
+    && (["id", "spaceId", "heartbeatRunId", "environmentId", "issueId", "executionWorkspaceId", "provider", "providerLeaseId"] as const)
       .every(key => lease[key] === source[key])
     && lease.acquiredAt.getTime() === source.acquiredAt.getTime()
     && (["pluginId", "sandboxProviderPlugin", "remoteCwd", "workspaceRealization"] as const)
@@ -64,7 +64,7 @@ export async function hasUnrestoredRemoteWorkspace(db: Db, run: Run): Promise<bo
 
 /** Call in the terminal-status transaction. No cleanup worker may observe the
  * failed run without its exact stop-only intent. The original allocation must
- * not enter warm reuse; it belongs to the board's workspace repair action. */
+ * not enter warm reuse; it belongs to the operator's workspace repair action. */
 export async function preserveLegacyWorkspaceRestoreSources(db: Db, run: Run, source?: LegacyWorkspaceRestoreSource): Promise<string[]> {
   if (!needsRemoteRestore(run) || (run.runtimeMode === "native" && !source)) return [];
   const rows = await db.select({ lease: environmentLeases }).from(environmentLeases)
@@ -93,7 +93,7 @@ export async function preserveLegacyWorkspaceRestoreSources(db: Db, run: Run, so
       )).limit(1);
       // An ephemeral source has no legitimate reuse history. Any other physical
       // owner makes retention ambiguous, including an older owner that later
-      // destroyed the allocation. Do not expose cross-company owner identity.
+      // destroyed the allocation. Do not expose cross-space owner identity.
       if (other) continue;
       await db.update(environmentLeases).set({ leasePolicy: "retain_on_failure",
         metadata: sql`${environmentLeases.metadata} || ${JSON.stringify({ workspaceRestoreRecovery: {
@@ -117,7 +117,7 @@ export async function preserveLegacyWorkspaceRestoreSources(db: Db, run: Run, so
         schema: LEGACY_WORKSPACE_RECOVERY_SCHEMA, runId: run.id, originalLeasePolicy: lease.leasePolicy,
       } })}::jsonb`,
     }).where(and(
-      eq(environmentLeases.id, prepared.id), eq(environmentLeases.companyId, run.companyId),
+      eq(environmentLeases.id, prepared.id), eq(environmentLeases.spaceId, run.spaceId),
       eq(environmentLeases.heartbeatRunId, run.id), eq(environmentLeases.status, "pending_cleanup"),
     ));
     retained.push(lease.id);

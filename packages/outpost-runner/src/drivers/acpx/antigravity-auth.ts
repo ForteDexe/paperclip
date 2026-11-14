@@ -188,7 +188,7 @@ export function startAntigravityBrowserLogin(home: string): AntigravityBrowserLo
             if (phase === 1) {
               const initialized = record(message.result), info = record(initialized.agentInfo);
               if (initialized.protocolVersion !== 1 || info.name !== "antigravity-acp" || info.version !== "1.4.3"
-                || record(record(record(initialized.agentCapabilities)._meta).antigravity).paperclipAdmission !== 1
+                || record(record(record(initialized.agentCapabilities)._meta).antigravity).outpostAdmission !== 1
                 || !Array.isArray(initialized.authMethods) || !initialized.authMethods.some(method => record(method).id === "oauth-personal")) { fail(); return; }
               phase = 2; send(2);
             } else { phase = 3; resolve(); }

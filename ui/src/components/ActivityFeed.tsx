@@ -8,7 +8,7 @@ import { activityApi } from "../api/activity";
 import { agentsApi } from "../api/agents";
 import { issuesApi } from "../api/issues";
 import { queryKeys } from "../lib/queryKeys";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { FeedCard } from "./FeedCard";
 import { cn } from "../lib/utils";
 import { Button } from "@/components/ui/button";
@@ -80,12 +80,12 @@ const ACTION_TIER: Record<string, EventTier> = {
   "agent.terminated": 2,
   "approval.requester_wakeup_queued": 3,
   "approval.requester_wakeup_failed": 3,
-  "company.created": 3,
-  "company.updated": 3,
-  "company.archived": 3,
-  "company.budget_updated": 3,
-  "company.skill_created": 3,
-  "company.skill_deleted": 3,
+  "space.created": 3,
+  "space.updated": 3,
+  "space.archived": 3,
+  "space.budget_updated": 3,
+  "space.skill_created": 3,
+  "space.skill_deleted": 3,
   "project.created": 2,
   "project.updated": 3,
   "project.deleted": 3,
@@ -321,7 +321,7 @@ interface ActivityFeedProps {
 }
 
 export function ActivityFeed({ className }: ActivityFeedProps) {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const [filter, setFilter] = useState<FilterValue>("all");
   const [groupMode, setGroupMode] = useState<GroupMode>("flat");
   const [showAllActivity, setShowAllActivity] = useState(false);
@@ -340,21 +340,21 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
     document.head.appendChild(style);
   }, []);
 
-  // Fetch company-level activity. Poll ~5s when the tab is focused; slow/stop in the
+  // Fetch space-level activity. Poll ~5s when the tab is focused; slow/stop in the
   // background so restored tabs don't storm the activity endpoint (PAP-12556).
   const activityRefetchInterval = useVisibilityRefetchInterval({ visibleMs: 5000 });
-  const activityQueryKey = queryKeys.activity(selectedCompanyId ?? "");
+  const activityQueryKey = queryKeys.activity(selectedSpaceId ?? "");
   const sharedActivity = useSharedPollingQuery({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     resourceKey: "activity",
     queryKey: activityQueryKey,
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
     refetchInterval: activityRefetchInterval,
     leaderOnly: true,
   });
   const { data: activity, dataUpdatedAt: activityUpdatedAt } = useQuery({
     queryKey: activityQueryKey,
-    queryFn: ({ signal }) => activityApi.list(selectedCompanyId!, undefined, { signal }),
+    queryFn: ({ signal }) => activityApi.list(selectedSpaceId!, undefined, { signal }),
     enabled: sharedActivity.enabled,
     refetchInterval: sharedActivity.refetchInterval,
   });
@@ -362,16 +362,16 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
 
   // Fetch agents for name resolution + empty state
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId ?? ""),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId ?? ""),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   // Fetch issues for name resolution
   const { data: issues } = useQuery({
-    queryKey: queryKeys.issues.list(selectedCompanyId ?? ""),
-    queryFn: () => issuesApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.issues.list(selectedSpaceId ?? ""),
+    queryFn: () => issuesApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const agentMap = useMemo(() => {

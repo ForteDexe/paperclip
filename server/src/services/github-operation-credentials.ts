@@ -45,24 +45,24 @@ async function allowsGitHubCredentialExport(
   )
     return false;
   const [agent] = await db
-    .select({ companyId: agents.companyId, permissions: agents.permissions })
+    .select({ spaceId: agents.spaceId, permissions: agents.permissions })
     .from(agents)
     .where(
-      and(eq(agents.id, run.agentId), eq(agents.companyId, run.companyId)),
+      and(eq(agents.id, run.agentId), eq(agents.spaceId, run.spaceId)),
     );
   if (!agent) return false;
   const [issue] =
     typeof issueId === "string"
       ? await db
           .select({
-            companyId: issues.companyId,
+            spaceId: issues.spaceId,
             projectId: issues.projectId,
             executionPolicy: issues.executionPolicy,
             sourceTrust: issues.sourceTrust,
           })
           .from(issues)
           .where(
-            and(eq(issues.id, issueId), eq(issues.companyId, run.companyId)),
+            and(eq(issues.id, issueId), eq(issues.spaceId, run.spaceId)),
           )
       : [];
   if (issueId !== undefined && issueId !== null && !issue) return false;
@@ -78,26 +78,26 @@ async function allowsGitHubCredentialExport(
     typeof projectId === "string"
       ? await db
           .select({
-            companyId: projects.companyId,
+            spaceId: projects.spaceId,
             executionWorkspacePolicy: projects.executionWorkspacePolicy,
           })
           .from(projects)
           .where(
             and(
               eq(projects.id, projectId),
-              eq(projects.companyId, run.companyId),
+              eq(projects.spaceId, run.spaceId),
             ),
           )
       : [];
   if (projectId !== undefined && projectId !== null && !project) return false;
   return (
     resolveCoreTrustPreset({
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       agent,
       project,
       issue,
       run: {
-        companyId: run.companyId,
+        spaceId: run.spaceId,
         executionPolicy: run.contextSnapshot?.executionPolicy,
       },
     }).kind === "standard"
@@ -116,11 +116,11 @@ async function saveGitHubSummary(
     .where(eq(runIdentityContexts.id, context.id));
 }
 
-/** No company secrets or ambient credentials are consulted by this path. */
+/** No space secrets or ambient credentials are consulted by this path. */
 export async function resolveGitHubOperationCredentials(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     runId: string;
   },
@@ -151,13 +151,13 @@ export async function resolveGitHubOperationCredentials(
     const resolved = await resolveManagedGitHubCredential(
       db,
       secretService(db),
-      input.companyId,
+      input.spaceId,
       {
         agentId: input.agentId,
         heartbeatRunId: input.runId,
         allowStandingDelegation: false,
         responsibleUserId:
-          context?.cause === "company_default"
+          context?.cause === "space_default"
             ? null
             : (context?.responsibleUserId ?? null),
         issueId:

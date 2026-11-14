@@ -12,7 +12,7 @@ function fixture(count: number) {
   const endpoints = Array.from({ length: count }, (_, i) => ({
     endpoint: {
       id: `endpoint-${i}`,
-      companyId: "company",
+      spaceId: "space",
       status: "active",
       activatedAt: new Date(0),
       botExternalId: `bot-${i}`,
@@ -29,13 +29,13 @@ function fixture(count: number) {
   }));
   const registrations = endpoints.map(({ endpoint }) => ({
     endpointId: endpoint.id,
-    companyId: endpoint.companyId,
+    spaceId: endpoint.spaceId,
     userId: "owner",
     cloudId: endpoint.setup.github.cloudRegistrationId,
   }));
   const tuples = registrations.map((row) => [
     `github-app:${row.cloudId}`,
-    row.companyId,
+    row.spaceId,
     row.userId,
     "github.bot",
     `gateway:${row.cloudId}`,
@@ -118,7 +118,7 @@ describe("bounded incoming wake owner projection", () => {
       if (fault === "foreign")
         registrations = registrations.map((r) => ({
           ...r,
-          companyId: "foreign",
+          spaceId: "foreign",
         }));
       if (fault === "missing") registrations = [];
       const sql = database([() => [], () => f.endpoints, () => registrations]);

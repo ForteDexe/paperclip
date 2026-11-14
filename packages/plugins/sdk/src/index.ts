@@ -1,5 +1,5 @@
 /**
- * `@outpost/plugin-sdk` — Paperclip plugin worker-side SDK.
+ * `@outpost/plugin-sdk` — Outpost plugin worker-side SDK.
  *
  * This is the main entrypoint for plugin worker code.  For plugin UI bundles,
  * import from `@outpost/plugin-sdk/ui` instead.
@@ -22,10 +22,10 @@
  *       // ... sync implementation
  *     });
  *
- *     ctx.data.register("sync-health", async ({ companyId }) => {
+ *     ctx.data.register("sync-health", async ({ spaceId }) => {
  *       const state = await ctx.state.get({
- *         scopeKind: "company",
- *         scopeId: String(companyId),
+ *         scopeKind: "space",
+ *         scopeId: String(spaceId),
  *         stateKey: "last-sync-at",
  *       });
  *       return { lastSync: state };
@@ -98,7 +98,7 @@ export {
 // Plugin definition and lifecycle types
 export type {
   PluginDefinition,
-  PaperclipPlugin,
+  OutpostPlugin,
   PluginHealthDiagnostics,
   PluginConfigChangeContext,
   PluginConfigValidationResult,
@@ -263,7 +263,7 @@ export type {
   PluginProjectsClient,
   PluginExecutionWorkspacesClient,
   PluginSkillsClient,
-  PluginCompaniesClient,
+  PluginSpacesClient,
   PluginIssuesClient,
   PluginIssueMutationActor,
   PluginIssueRelationsClient,
@@ -331,7 +331,7 @@ export type {
   PluginWorkspace,
   PluginProjectSnapshot,
   PluginExecutionWorkspaceMetadata,
-  Company,
+  Space,
   Project,
   Issue,
   IssueComment,
@@ -342,7 +342,7 @@ export type {
   PrincipalPermissionGrant,
   PrincipalType,
   PluginDatabaseClient,
-  HumanCompanyMembershipRole,
+  HumanSpaceMembershipRole,
   MembershipStatus,
   EnvSecretRefBinding,
 } from "./types.js";
@@ -351,7 +351,7 @@ export type {
 // Plugin authors import manifest types from here so they have a single
 // dependency (@outpost/plugin-sdk) for all plugin authoring needs.
 export type {
-  PaperclipPluginManifestV1,
+  OutpostPluginManifestV1,
   PluginJobDeclaration,
   PluginWebhookDeclaration,
   PluginToolDeclaration,
@@ -366,7 +366,7 @@ export type {
   PluginManagedSkillDeclaration,
   PluginManagedSkillFileDeclaration,
   PluginManagedSkillResolution,
-  CompanySkill,
+  SpaceSkill,
   PluginManagedResourceKind,
   PluginManagedResourceRef,
   PluginUiSlotDeclaration,
@@ -376,10 +376,10 @@ export type {
   PluginLauncherDeclaration,
   PluginMinimumHostVersion,
   PluginDatabaseDeclaration,
-  PluginApiRouteCompanyResolution,
+  PluginApiRouteSpaceResolution,
   PluginApiRouteDeclaration,
   PluginLocalFolderDeclaration,
-  PluginCompanySettings,
+  PluginSpaceSettings,
   PluginObjectReferenceRefreshPolicy,
   PluginObjectReferenceProviderDeclaration,
   PluginRecord,
@@ -453,7 +453,7 @@ export {
   PLUGIN_CAPABILITIES,
   PLUGIN_UI_SLOT_TYPES,
   PLUGIN_UI_SLOT_ENTITY_TYPES,
-  PLUGIN_RESERVED_COMPANY_SETTINGS_ROUTE_SEGMENTS,
+  PLUGIN_RESERVED_SPACE_SETTINGS_ROUTE_SEGMENTS,
   PLUGIN_STATE_SCOPE_KINDS,
   PLUGIN_JOB_STATUSES,
   PLUGIN_JOB_RUN_STATUSES,
@@ -462,8 +462,8 @@ export {
   PLUGIN_EVENT_TYPES,
   PLUGIN_BRIDGE_ERROR_CODES,
   PERMISSION_KEYS,
-  HUMAN_COMPANY_MEMBERSHIP_ROLES,
-  HUMAN_COMPANY_MEMBERSHIP_ROLE_LABELS,
+  HUMAN_SPACE_MEMBERSHIP_ROLES,
+  HUMAN_SPACE_MEMBERSHIP_ROLE_LABELS,
   MEMBERSHIP_STATUSES,
   PRINCIPAL_TYPES,
 } from "@outpost/shared";

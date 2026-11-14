@@ -10,16 +10,16 @@ const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 const target = `${process.platform}-${process.arch}`;
 const enabled = process.env.OUTPOST_TEST_KIMI_INSTALLED_RUNTIME === "1";
 
-test("real installed Kimi acknowledges instructions/model/create/load and exits after EOF without model prompts", { skip: !enabled && "Set OUTPOST_TEST_KIMI_INSTALLED_RUNTIME=1 after paperclipai runtime setup kimi; uses no provider credential or model calls", timeout: 45_000 }, async t => {
+test("real installed Kimi acknowledges instructions/model/create/load and exits after EOF without model prompts", { skip: !enabled && "Set OUTPOST_TEST_KIMI_INSTALLED_RUNTIME=1 after outpost runtime setup kimi; uses no provider credential or model calls", timeout: 45_000 }, async t => {
   const assets = join(packageRoot, "provider-assets/kimi", target);
   try { await access(join(assets, "native-closure.json")); }
-  catch (error) { if (error.code === "ENOENT") { t.skip(`Pinned Kimi assets are not installed for ${target}; run paperclipai runtime setup kimi`); return; } throw error; }
+  catch (error) { if (error.code === "ENOENT") { t.skip(`Pinned Kimi assets are not installed for ${target}; run outpost runtime setup kimi`); return; } throw error; }
   const { tsImport } = await import("tsx/esm/api");
   const { verifyKimiInstallation } = await tsImport("../src/drivers/acpx/kimi-installation.ts", import.meta.url);
   const { QUALIFIED_ACPX_PROFILES } = await tsImport("../src/drivers/acpx/qualified-profiles.ts", import.meta.url);
   const { kimiManagedConfiguration } = await tsImport("../src/drivers/acpx/kimi-config.ts", import.meta.url);
   const { kimiInstructionBinding } = await tsImport("../src/drivers/acpx/kimi-instructions.ts", import.meta.url);
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-kimi-installed-runtime-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-kimi-installed-runtime-")));
   const home = join(root, "home"), workspace = join(root, "workspace");
   await mkdir(home); await mkdir(workspace);
   const model = "kimi-for-coding";
@@ -36,7 +36,7 @@ test("real installed Kimi acknowledges instructions/model/create/load and exits 
       const lease = await installation.openCommand();
       const child = lease.spawn([], { cwd: workspace, env: {
         PATH: "/usr/bin:/bin", LANG: "C.UTF-8", KIMI_CODE_HOME: home,
-        KIMI_CODE_NO_AUTO_UPDATE: "1", KIMI_API_KEY: "paperclip-offline-placeholder",
+        KIMI_CODE_NO_AUTO_UPDATE: "1", KIMI_API_KEY: "outpost-offline-placeholder",
         OUTPOST_KIMI_INSTRUCTIONS: binding.payload, CI: "1", NO_COLOR: "1", TERM: "dumb",
       }, stdio: "pipe" });
       let buffer = "", total = 0;
@@ -81,14 +81,14 @@ test("real installed Kimi acknowledges instructions/model/create/load and exits 
         finally { clearTimeout(term); clearTimeout(kill); await lease.close(); connections.delete(close); }
       })();
       connections.add(close);
-      const initialize = await request("initialize", { protocolVersion: 1, clientCapabilities: {}, clientInfo: { name: "paperclip-installed-package-test", version: "1" } });
+      const initialize = await request("initialize", { protocolVersion: 1, clientCapabilities: {}, clientInfo: { name: "outpost-installed-package-test", version: "1" } });
       assert.equal(initialize.agentInfo.version, "2.3.3");
       return { request, close };
     };
     const first = await connect();
     const created = await first.request("session/new", { cwd: workspace, mcpServers: [] });
     const assertBinding = (result, sessionId) => {
-      const ack = result._meta.paperclipKimiInstructions;
+      const ack = result._meta.outpostKimiInstructions;
       assert.equal(ack.sessionId, sessionId); assert.equal(ack.digest, binding.digest); assert.equal(ack.byteLength, binding.byteLength);
       assert.match(ack.effectiveDigest, /^sha256:[a-f0-9]{64}$/);
     };

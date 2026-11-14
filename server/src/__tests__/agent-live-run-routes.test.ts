@@ -37,13 +37,13 @@ const mockInstanceSettingsService = vi.hoisted(() => ({
   get: vi.fn(),
   getExperimental: vi.fn(),
   getGeneral: vi.fn(),
-  listCompanyIds: vi.fn(),
+  listSpaceIds: vi.fn(),
 }));
 
 const mockRunSecretRedactionRegistry = vi.hoisted(() => ({
-  redactForRuns: vi.fn(async (_companyId: string, values: unknown[]) => values),
+  redactForRuns: vi.fn(async (_spaceId: string, values: unknown[]) => values),
   redactForRun: vi.fn(
-    async (_companyId: string, _runId: string, value: unknown) => value,
+    async (_spaceId: string, _runId: string, value: unknown) => value,
   ),
 }));
 
@@ -136,8 +136,8 @@ function registerModuleMocks() {
     agentInstructionsService: () => ({}),
     accessService: () => mockAccessService,
     approvalService: () => ({}),
-    builtInAgentService: () => ({ ensureCompanyDefaultAgentGrants: vi.fn() }),
-    companySkillService: () => ({ listRuntimeSkillEntries: vi.fn() }),
+    builtInAgentService: () => ({ ensureSpaceDefaultAgentGrants: vi.fn() }),
+    spaceSkillService: () => ({ listRuntimeSkillEntries: vi.fn() }),
     budgetService: () => ({}),
     heartbeatService: () => mockHeartbeatService,
     issueApprovalService: () => ({}),
@@ -163,9 +163,9 @@ let errorHandler: typeof import("../middleware/index.js")["errorHandler"];
 async function createApp(
   db: Record<string, unknown> = {},
   actor: Record<string, unknown> = {
-    type: "board",
-    userId: "local-board",
-    companyIds: ["company-1"],
+    type: "operator",
+    userId: "local-operator",
+    spaceIds: ["space-1"],
     source: "local_implicit",
     isInstanceAdmin: false,
   },
@@ -277,11 +277,11 @@ describe("agent live run routes", () => {
   it.each([
     ["", 200], ["?limit=10&agentId=agent-1&summary=true", 10],
     ["?limit=99999", 1000], ["?limit=invalid", 200], ["?limit=-10", 1],
-  ])("bounds company history reads for %s", async (query, limit) => {
+  ])("bounds space history reads for %s", async (query, limit) => {
     const app = await createApp({});
-    const response = await requestApp(app, baseUrl => request(baseUrl).get(`/api/companies/company-1/heartbeat-runs${query}`));
+    const response = await requestApp(app, baseUrl => request(baseUrl).get(`/api/spaces/space-1/heartbeat-runs${query}`));
     expect(response.status).toBe(200);
-    expect(mockHeartbeatService.list).toHaveBeenCalledWith("company-1", query.includes("agentId") ? "agent-1" : undefined,
+    expect(mockHeartbeatService.list).toHaveBeenCalledWith("space-1", query.includes("agentId") ? "agent-1" : undefined,
       limit, { summary: query.includes("summary=true") });
     expect(mockRunSecretRedactionRegistry.redactForRuns).toHaveBeenCalled();
   });
@@ -311,7 +311,7 @@ describe("agent live run routes", () => {
     mockAccessService.hasPermission.mockResolvedValue(true);
     mockIssueService.getByIdentifier.mockResolvedValue({
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       executionRunId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       assigneeAgentId: "agent-1",
       status: "in_progress",
@@ -319,7 +319,7 @@ describe("agent live run routes", () => {
     mockIssueService.getById.mockResolvedValue(null);
     mockAgentService.getById.mockResolvedValue({
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Builder",
       adapterType: "codex_local",
     });
@@ -335,7 +335,7 @@ describe("agent live run routes", () => {
       censorUsernameInLogs: false,
       feedbackDataSharingPreference: "prompt",
     });
-    mockInstanceSettingsService.listCompanyIds.mockResolvedValue(["company-1"]);
+    mockInstanceSettingsService.listSpaceIds.mockResolvedValue(["space-1"]);
     mockHeartbeatService.buildRunOutputSilence.mockResolvedValue(null);
     mockHeartbeatService.decorateActiveRunStatus.mockImplementation((run) => ({
       ...run,
@@ -361,20 +361,20 @@ describe("agent live run routes", () => {
     mockHeartbeatService.buildRunOutputSilence.mockResolvedValue(null);
     mockHeartbeatService.getRunReadAccess.mockResolvedValue({
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
-      scopeKind: "company",
+      spaceId: "space-1",
+      scopeKind: "space",
       issueId: null,
     });
     mockHeartbeatService.getRunLogAccess.mockResolvedValue({
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
-      scopeKind: "company",
+      spaceId: "space-1",
+      scopeKind: "space",
       issueId: null,
       logStore: "local_file",
       logRef: "logs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.ndjson",
     });
     mockHeartbeatService.getRunWorkspaceAccess.mockResolvedValue({
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", companyId: "company-1", scopeKind: "company", issueId: null,
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId: "space-1", scopeKind: "space", issueId: null,
       executionWorkspaceId: null,
     });
     mockHeartbeatService.readLog.mockResolvedValue({
@@ -386,7 +386,7 @@ describe("agent live run routes", () => {
     });
     mockHeartbeatService.wakeup.mockResolvedValue({
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "agent-1",
       status: "queued",
       invocationSource: "on_demand",
@@ -394,13 +394,13 @@ describe("agent live run routes", () => {
     });
     mockHeartbeatService.getRun.mockResolvedValue({
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "agent-1",
       status: "succeeded",
     });
     mockWorkspaceOperationService.getById.mockResolvedValue({
       id: "operation-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     });
     mockQueueRuntimeRequestResolution.mockReturnValue({
@@ -476,15 +476,15 @@ describe("agent live run routes", () => {
       expect(mockHeartbeatService.getRunLogAccess).toHaveBeenCalledWith(runId);
     });
 
-    it.each(["get", "log", "events"])("keeps missing and cross-company %s lookups indistinguishable", async (kind) => {
+    it.each(["get", "log", "events"])("keeps missing and cross-space %s lookups indistinguishable", async (kind) => {
       const lookup = kind === "events"
         ? mockHeartbeatService.getRunReadAccess
         : kind === "log" ? mockHeartbeatService.getRunLogAccess : mockHeartbeatService.getRun;
       const suffix = kind === "get" ? "" : `/${kind}`;
       const app = await createApp({}, {
-        type: "board", userId: "test-user", source: "session", companyIds: ["company-1"],
+        type: "operator", userId: "test-user", source: "session", spaceIds: ["space-1"],
       });
-      for (const result of [null, { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", companyId: "company-2" }]) {
+      for (const result of [null, { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId: "space-2" }]) {
         lookup.mockResolvedValueOnce(result);
         const response = await requestApp(app, (url) =>
           request(url).get(`/api/heartbeat-runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa${suffix}`),
@@ -496,8 +496,8 @@ describe("agent live run routes", () => {
       expect(mockHeartbeatService.readLog).not.toHaveBeenCalled();
     });
 
-    it("keeps board and instance-admin checks ahead of malformed-ID validation", async () => {
-      const app = await createApp({}, { type: "agent", companyId: "company-1", agentId: routeAgentId });
+    it("keeps operator and instance-admin checks ahead of malformed-ID validation", async () => {
+      const app = await createApp({}, { type: "agent", spaceId: "space-1", agentId: routeAgentId });
       for (const [method, suffix] of routes.filter(([, suffix]) =>
         suffix === "/cancel" || suffix === "/runtime-requests/approval-1/resolve" || suffix.startsWith("/provider-trace"),
       )) {
@@ -604,10 +604,10 @@ describe("agent live run routes", () => {
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockHeartbeatService.decorateActiveRunStatus).toHaveBeenCalledWith(
       expect.objectContaining({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", issueId: "issue-1" }),
-      { companyId: "company-1", issueId: "issue-1" },
+      { spaceId: "space-1", issueId: "issue-1" },
     );
     expect(mockExecutionProjection.executionProjectionForRun).toHaveBeenCalledWith(
-      expect.anything(), "company-1", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      expect.anything(), "space-1", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     );
     expect(res.body).toMatchObject({
       execution: null,
@@ -631,8 +631,8 @@ describe("agent live run routes", () => {
     expect(mockHeartbeatService.readLog).toHaveBeenCalledWith(
       {
         id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        companyId: "company-1",
-      scopeKind: "company",
+        spaceId: "space-1",
+      scopeKind: "space",
       issueId: null,
         logStore: "local_file",
         logRef: "logs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.ndjson",
@@ -671,9 +671,9 @@ describe("agent live run routes", () => {
       keyPrefix: "logs",
       assertWriterAuthority: async () => undefined,
     });
-    const handle = { store: "s3_segments" as const, logRef: "company-1/agent-1/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+    const handle = { store: "s3_segments" as const, logRef: "space-1/agent-1/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
     mockHeartbeatService.getRunLogAccess.mockResolvedValue({
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", companyId: "company-1", scopeKind: "company", issueId: null,
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId: "space-1", scopeKind: "space", issueId: null,
       logStore: handle.store, logRef: handle.logRef,
     });
     mockHeartbeatService.readLog.mockImplementation(async () => store.read(handle));
@@ -686,9 +686,9 @@ describe("agent live run routes", () => {
     if (status === 404) expect(res.body).toEqual({ error: "Run log not found" });
   });
 
-  it("does not read an object run log for another company", async () => {
+  it("does not read an object run log for another space", async () => {
     const res = await requestApp(await createApp({}, {
-      type: "board", userId: "board-user", companyIds: ["company-2"], source: "session", isInstanceAdmin: false,
+      type: "operator", userId: "operator-user", spaceIds: ["space-2"], source: "session", isInstanceAdmin: false,
     }), (baseUrl) => request(baseUrl).get("/api/heartbeat-runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/log"));
 
     expect(res.status).toBe(404);
@@ -696,20 +696,20 @@ describe("agent live run routes", () => {
   });
 
   it.each(["skill_test", "task_bridge"])(
-    "denies %s keys from company-wide run and workspace logs",
+    "denies %s keys from space-wide run and workspace logs",
     async (kind) => {
       mockAccessService.decide.mockImplementation(async (input: { action?: string }) => ({
-        allowed: input.action !== "company_scope:read",
+        allowed: input.action !== "space_scope:read",
         action: input.action,
-        reason: input.action === "company_scope:read" ? "deny_key_scope" : "allow_explicit_grant",
-        explanation: input.action === "company_scope:read"
-          ? "Restricted keys cannot read company-wide run telemetry."
+        reason: input.action === "space_scope:read" ? "deny_key_scope" : "allow_explicit_grant",
+        explanation: input.action === "space_scope:read"
+          ? "Restricted keys cannot read space-wide run telemetry."
           : "Allowed by test grant.",
       }));
       const actor = {
         type: "agent",
         agentId: routeAgentId,
-        companyId: "company-1",
+        spaceId: "space-1",
         source: "agent_key",
         keyScope: kind === "skill_test"
           ? { kind, issueId: "issue-1" }
@@ -717,8 +717,8 @@ describe("agent live run routes", () => {
       };
       const app = await createApp({}, actor);
       const paths = [
-        "/api/companies/company-1/heartbeat-runs",
-        "/api/companies/company-1/live-runs",
+        "/api/spaces/space-1/heartbeat-runs",
+        "/api/spaces/space-1/live-runs",
         "/api/heartbeat-runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         "/api/heartbeat-runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/events",
         "/api/heartbeat-runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/events?view=plugin-panels",
@@ -736,8 +736,8 @@ describe("agent live run routes", () => {
       expect(mockHeartbeatService.readLog).not.toHaveBeenCalled();
       expect(mockWorkspaceOperationService.readLog).not.toHaveBeenCalled();
       expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
-        action: "company_scope:read",
-        resource: { type: "company", companyId: "company-1" },
+        action: "space_scope:read",
+        resource: { type: "space", spaceId: "space-1" },
       }));
     },
   );
@@ -752,7 +752,7 @@ describe("agent live run routes", () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual([{ pluginKey: "example.live-view", slotId: "screen" }]);
     expect(limit).toHaveBeenCalledWith(128);
-    expect(mockRunSecretRedactionRegistry.redactForRun).toHaveBeenCalledWith("company-1", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", [{ pluginKey: "example.live-view", slotId: "screen" }]);
+    expect(mockRunSecretRedactionRegistry.redactForRun).toHaveBeenCalledWith("space-1", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", [{ pluginKey: "example.live-view", slotId: "screen" }]);
     mockHeartbeatService.getRunReadAccess.mockResolvedValue(null);
     const denied = await requestApp(await createApp(db), url => request(url).get(
       "/api/heartbeat-runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/events?view=plugin-panels"));
@@ -761,7 +761,7 @@ describe("agent live run routes", () => {
 
   it("lists workspace operations using narrow current run access", async () => {
     mockHeartbeatService.getRunWorkspaceAccess.mockResolvedValue({
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", companyId: "company-1", scopeKind: "company", issueId: null,
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", spaceId: "space-1", scopeKind: "space", issueId: null,
       executionWorkspaceId: " workspace-one ",
     });
     mockWorkspaceOperationService.listForRun.mockResolvedValue([]);
@@ -774,10 +774,10 @@ describe("agent live run routes", () => {
     expect(mockWorkspaceOperationService.listForRun).toHaveBeenCalledWith("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "workspace-one");
   });
 
-  it("caps company live run polling by default", async () => {
+  it("caps space live run polling by default", async () => {
     const rows = Array.from({ length: 75 }, (_, index) => ({
       id: `run-${index}`,
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "running",
       invocationSource: "on_demand",
       triggerDetail: "manual",
@@ -800,13 +800,13 @@ describe("agent live run routes", () => {
       lastOutputStream: null,
       lastOutputBytes: 0,
       processStartedAt: null,
-      scopeKind: "company",
+      scopeKind: "space",
       issueId: null,
     }));
     const { db, limit } = createLiveRunsDbStub(rows);
 
     const res = await requestApp(await createApp(db), (baseUrl) =>
-      request(baseUrl).get("/api/companies/company-1/live-runs"),
+      request(baseUrl).get("/api/spaces/space-1/live-runs"),
     );
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -822,7 +822,7 @@ describe("agent live run routes", () => {
   it("treats explicit zero or invalid live run limit as the capped default", async () => {
     const rows = Array.from({ length: 75 }, (_, index) => ({
       id: `run-${index}`,
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "running",
       invocationSource: "on_demand",
       triggerDetail: "manual",
@@ -845,14 +845,14 @@ describe("agent live run routes", () => {
       lastOutputStream: null,
       lastOutputBytes: 0,
       processStartedAt: null,
-      scopeKind: "company",
+      scopeKind: "space",
       issueId: null,
     }));
     const { db, limit } = createLiveRunsDbStub(rows);
 
     const res = await requestApp(await createApp(db), (baseUrl) =>
       request(baseUrl).get(
-        "/api/companies/company-1/live-runs?limit=0&minCount=0",
+        "/api/spaces/space-1/live-runs?limit=0&minCount=0",
       ),
     );
 
@@ -866,7 +866,7 @@ describe("agent live run routes", () => {
   it("does not pad with recent runs when no minCount is requested", async () => {
     const liveRows = Array.from({ length: 8 }, (_, index) => ({
       id: `run-live-${index}`,
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "running",
       invocationSource: "on_demand",
       triggerDetail: "manual",
@@ -889,7 +889,7 @@ describe("agent live run routes", () => {
       lastOutputStream: null,
       lastOutputBytes: 0,
       processStartedAt: null,
-      scopeKind: "company",
+      scopeKind: "space",
       issueId: null,
     }));
 
@@ -916,7 +916,7 @@ describe("agent live run routes", () => {
     };
 
     const res = await requestApp(await createApp(db), (baseUrl) =>
-      request(baseUrl).get("/api/companies/company-1/live-runs"),
+      request(baseUrl).get("/api/spaces/space-1/live-runs"),
     );
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -927,7 +927,7 @@ describe("agent live run routes", () => {
   it("pads with recent runs when minCount is explicitly requested", async () => {
     const liveRows = Array.from({ length: 2 }, (_, index) => ({
       id: `run-live-${index}`,
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "running",
       invocationSource: "on_demand",
       triggerDetail: "manual",
@@ -950,12 +950,12 @@ describe("agent live run routes", () => {
       lastOutputStream: null,
       lastOutputBytes: 0,
       processStartedAt: null,
-      scopeKind: "company",
+      scopeKind: "space",
       issueId: null,
     }));
     const recentRows = Array.from({ length: 4 }, (_, index) => ({
       id: `run-recent-${index}`,
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "succeeded",
       invocationSource: "on_demand",
       triggerDetail: "manual",
@@ -978,7 +978,7 @@ describe("agent live run routes", () => {
       lastOutputStream: null,
       lastOutputBytes: 0,
       processStartedAt: null,
-      scopeKind: "company",
+      scopeKind: "space",
       issueId: null,
     }));
 
@@ -1003,7 +1003,7 @@ describe("agent live run routes", () => {
     };
 
     const res = await requestApp(await createApp(db), (baseUrl) =>
-      request(baseUrl).get("/api/companies/company-1/live-runs?minCount=4"),
+      request(baseUrl).get("/api/spaces/space-1/live-runs?minCount=4"),
     );
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -1015,7 +1015,7 @@ describe("agent live run routes", () => {
     const res = await requestApp(await createApp(), (baseUrl) =>
       request(baseUrl)
         .post(
-          `/api/agents/${routeAgentId}/heartbeat/invoke?companyId=company-1`,
+          `/api/agents/${routeAgentId}/heartbeat/invoke?spaceId=space-1`,
         )
         .send({
           reason: "issue_assigned",
@@ -1042,11 +1042,11 @@ describe("agent live run routes", () => {
         taskKey: "issue-1",
       },
       requestedByActorType: "user",
-      requestedByActorId: "local-board",
+      requestedByActorId: "local-operator",
       contextSnapshot: {
-        triggeredBy: "board",
-        actorId: "local-board",
-        responsibleUserId: "local-board",
+        triggeredBy: "operator",
+        actorId: "local-operator",
+        responsibleUserId: "local-operator",
         originIdentityContextId: null,
         forceFreshSession: true,
       },
@@ -1057,7 +1057,7 @@ describe("agent live run routes", () => {
     const res = await requestApp(await createApp(), (baseUrl) =>
       request(baseUrl)
         .post(
-          `/api/agents/${routeAgentId}/heartbeat/invoke?companyId=company-1`,
+          `/api/agents/${routeAgentId}/heartbeat/invoke?spaceId=space-1`,
         )
         .send({}),
     );
@@ -1068,11 +1068,11 @@ describe("agent live run routes", () => {
       source: "on_demand",
       triggerDetail: "manual",
       requestedByActorType: "user",
-      requestedByActorId: "local-board",
+      requestedByActorId: "local-operator",
       contextSnapshot: {
-        triggeredBy: "board",
-        actorId: "local-board",
-        responsibleUserId: "local-board",
+        triggeredBy: "operator",
+        actorId: "local-operator",
+        responsibleUserId: "local-operator",
         originIdentityContextId: null,
       },
     });
@@ -1083,7 +1083,7 @@ describe("agent live run routes", () => {
       allowed: action === "agent:wake", explanation: "Missing permission: agents:create",
     }));
     const res = await requestApp(await createApp(undefined, {
-      type: "board", userId: "operator", source: "session", companyIds: ["company-1"],
+      type: "operator", userId: "operator", source: "session", spaceIds: ["space-1"],
     }), url => request(url).post(`/api/agents/${routeAgentId}/${endpoint}`).send({}));
     expect(res.status, JSON.stringify(res.body)).toBe(202);
     expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({ action: "agent:wake" }));
@@ -1096,28 +1096,28 @@ describe("agent live run routes", () => {
       nativeReviewDecisionId: "66666666-6666-4666-8666-666666666666",
     };
     const selectedRun = {
-      id: failedChatRunId, companyId: "company-1", agentId: routeAgentId,
+      id: failedChatRunId, spaceId: "space-1", agentId: routeAgentId,
       status: "failed", runtimeMode: "native", errorCode: "native_provider_model_rejected",
       nativeIssueId: failedChatIssueId,
       contextSnapshot: { issueId: failedChatIssueId, ...reviewContext },
     };
-    const selectedIssue = { id: failedChatIssueId, companyId: "company-1", status: "in_review", assigneeAgentId: "worker", assigneeUserId: null };
+    const selectedIssue = { id: failedChatIssueId, spaceId: "space-1", status: "in_review", assigneeAgentId: "worker", assigneeUserId: null };
     const retryBody = { failedRunId: failedChatRunId, reason: "retry_failed_run" };
     beforeEach(() => {
-      mockAgentService.getById.mockResolvedValue({ id: routeAgentId, companyId: "company-1" });
+      mockAgentService.getById.mockResolvedValue({ id: routeAgentId, spaceId: "space-1" });
       mockHeartbeatService.getRun.mockResolvedValue(selectedRun);
       mockIssueService.getById.mockResolvedValue(selectedIssue);
       mockNativeReviewAssignment.mockResolvedValue({ interaction: { status: "pending" } });
     });
 
-    it("permits the Board to retry the exact pending review using only saved context", async () => {
+    it("permits the Operator to retry the exact pending review using only saved context", async () => {
       const fixture = createFailedChatRetryDb(false);
       const res = await requestApp(await createApp(fixture.db), url => request(url).post(`/api/agents/${routeAgentId}/wakeup`).send({
         ...retryBody, payload: { issueId: "forged", nativeReviewInteractionId: "forged", nativeReviewDecisionId: "forged" },
       }));
       expect(res.status, JSON.stringify(res.body)).toBe(202);
       expect(mockNativeReviewAssignment).toHaveBeenCalledExactlyOnceWith(fixture.db, {
-        companyId: "company-1", issueId: failedChatIssueId, agentId: routeAgentId, contextSnapshot: reviewContext,
+        spaceId: "space-1", issueId: failedChatIssueId, agentId: routeAgentId, contextSnapshot: reviewContext,
       });
       expect(mockHeartbeatService.wakeup).toHaveBeenCalledExactlyOnceWith(routeAgentId, expect.objectContaining({
         failedRunId: failedChatRunId, reason: "retry_failed_run", payload: { issueId: failedChatIssueId },
@@ -1126,12 +1126,12 @@ describe("agent live run routes", () => {
       expect(JSON.stringify(mockHeartbeatService.wakeup.mock.calls)).not.toContain("forged");
     });
 
-    it.each(["agent-caller", "denied-task", "foreign-company", "foreign-agent", "foreign-issue", "legacy", "unknown-error", "missing-context", "stale", "resolved", "changed-reviewer"])(
+    it.each(["agent-caller", "denied-task", "foreign-space", "foreign-agent", "foreign-issue", "legacy", "unknown-error", "missing-context", "stale", "resolved", "changed-reviewer"])(
       "rejects an ineligible exact review retry (%s)", async scenario => {
         let actor: Record<string, unknown> | undefined;
-        if (scenario === "agent-caller") actor = { type: "agent", agentId: routeAgentId, companyId: "company-1" };
+        if (scenario === "agent-caller") actor = { type: "agent", agentId: routeAgentId, spaceId: "space-1" };
         if (scenario === "denied-task") mockAccessService.decide.mockImplementation(async ({ action }) => ({ allowed: action !== "issue:comment", explanation: "Denied" }));
-        if (scenario === "foreign-company") mockHeartbeatService.getRun.mockResolvedValue({ ...selectedRun, companyId: "company-2" });
+        if (scenario === "foreign-space") mockHeartbeatService.getRun.mockResolvedValue({ ...selectedRun, spaceId: "space-2" });
         if (scenario === "foreign-agent") mockHeartbeatService.getRun.mockResolvedValue({ ...selectedRun, agentId: "other-reviewer" });
         if (scenario === "foreign-issue") mockHeartbeatService.getRun.mockResolvedValue({ ...selectedRun, nativeIssueId: "other-task" });
         if (scenario === "legacy") mockHeartbeatService.getRun.mockResolvedValue({ ...selectedRun, runtimeMode: "legacy" });
@@ -1143,9 +1143,9 @@ describe("agent live run routes", () => {
         const res = await requestApp(await createApp(fixture.db, actor), url => request(url).post(`/api/agents/${routeAgentId}/wakeup`).send({
           ...retryBody, payload: { ...reviewContext },
         }));
-        expect(res.status).toBe(["agent-caller", "denied-task"].includes(scenario) ? 403 : ["foreign-company", "foreign-agent"].includes(scenario) ? 404 : 409);
+        expect(res.status).toBe(["agent-caller", "denied-task"].includes(scenario) ? 403 : ["foreign-space", "foreign-agent"].includes(scenario) ? 404 : 409);
         expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
-        if (["agent-caller", "denied-task", "foreign-company", "foreign-agent", "foreign-issue", "legacy", "unknown-error", "missing-context"].includes(scenario)) {
+        if (["agent-caller", "denied-task", "foreign-space", "foreign-agent", "foreign-issue", "legacy", "unknown-error", "missing-context"].includes(scenario)) {
           expect(mockNativeReviewAssignment).not.toHaveBeenCalled();
         }
       },
@@ -1159,7 +1159,7 @@ describe("agent live run routes", () => {
     };
     const selectedRun = {
       id: failedChatRunId,
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: routeAgentId,
       status: "failed",
       contextSnapshot: {
@@ -1174,11 +1174,11 @@ describe("agent live run routes", () => {
     beforeEach(() => {
       mockAgentService.getById.mockResolvedValue({
         id: routeAgentId,
-        companyId: "company-1",
+        spaceId: "space-1",
       });
       mockHeartbeatService.getRun.mockResolvedValue(selectedRun);
       mockIssueService.getById.mockResolvedValue({
-        id: failedChatIssueId, companyId: "company-1", assigneeAgentId: routeAgentId,
+        id: failedChatIssueId, spaceId: "space-1", assigneeAgentId: routeAgentId,
         assigneeUserId: null, projectId: null, parentId: null, status: "blocked",
       });
       mockChatRunRetries.prepareFailedChatRunRetry.mockResolvedValue({
@@ -1198,7 +1198,7 @@ describe("agent live run routes", () => {
       mockHeartbeatService.getRun.mockResolvedValue({ ...selectedRun,
         runtimeMode: "native", errorCode: "native_session_cleanup_quarantined" });
       const res = await requestApp(await createApp(fixture.db, {
-        type: "board", userId: "operator", source: "session", companyIds: ["company-1"],
+        type: "operator", userId: "operator", source: "session", spaceIds: ["space-1"],
       }), url => request(url).post(`/api/agents/${routeAgentId}/wakeup`).send(retryBody));
       expect(res.status).toBe(409);
       expect(res.body).toMatchObject({ error: expect.stringContaining("still shutting down") });
@@ -1215,12 +1215,12 @@ describe("agent live run routes", () => {
         allowed: action === "issue:comment" || action === "agent:wake", explanation: "Missing permission: agents:create",
       }));
       const res = await requestApp(await createApp(fixture.db, {
-        type: "board", userId: "operator", source: "session", companyIds: ["company-1"],
+        type: "operator", userId: "operator", source: "session", spaceIds: ["space-1"],
       }), url => request(url).post(`/api/agents/${routeAgentId}/wakeup`).send(retryBody));
       expect(res.status, JSON.stringify(res.body)).toBe(202);
       expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
         action: "issue:comment", resource: expect.objectContaining({
-          type: "issue", companyId: "company-1", issueId: failedChatIssueId,
+          type: "issue", spaceId: "space-1", issueId: failedChatIssueId,
         }),
       }));
       expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(routeAgentId, expect.objectContaining({
@@ -1238,8 +1238,8 @@ describe("agent live run routes", () => {
         ...(generation > 0 ? { conversationSessionGeneration: generation } : {}),
       } });
       mockIssueService.getById.mockResolvedValue({
-        id: failedChatIssueId, companyId: "company-1", assigneeAgentId: routeAgentId,
-        conversationAgentId: routeAgentId, conversationUserId: "local-board",
+        id: failedChatIssueId, spaceId: "space-1", assigneeAgentId: routeAgentId,
+        conversationAgentId: routeAgentId, conversationUserId: "local-operator",
         status: "in_review", conversationState: "waiting", conversationSessionGeneration: generation,
       });
       const res = await requestApp(await createApp(fixture.db), url =>
@@ -1265,8 +1265,8 @@ describe("agent live run routes", () => {
         ...(generation === undefined ? {} : { conversationSessionGeneration: generation }),
       } });
       mockIssueService.getById.mockResolvedValue({
-        id: failedChatIssueId, companyId: "company-1", assigneeAgentId: routeAgentId,
-        conversationAgentId: routeAgentId, conversationUserId: "local-board",
+        id: failedChatIssueId, spaceId: "space-1", assigneeAgentId: routeAgentId,
+        conversationAgentId: routeAgentId, conversationUserId: "local-operator",
         conversationSessionGeneration: 3,
       });
       const res = await requestApp(await createApp(fixture.db), url =>
@@ -1277,7 +1277,7 @@ describe("agent live run routes", () => {
       expect(mockChatRunRetries.prepareFailedChatRunRetry).not.toHaveBeenCalled();
     });
 
-    it.each(["viewer", "missing", "other-company", "reassigned", "other-chat-owner"])(
+    it.each(["viewer", "missing", "other-space", "reassigned", "other-chat-owner"])(
       "rejects a %s task retry without dispatching or requiring agent creation", async (fault) => {
         const fixture = createFailedChatRetryDb(false);
         mockHeartbeatService.getRun.mockResolvedValue({ ...selectedRun, contextSnapshot: { issueId: failedChatIssueId } });
@@ -1285,7 +1285,7 @@ describe("agent live run routes", () => {
           allowed: false, explanation: "Viewer membership does not grant issue:comment.",
         });
         else mockIssueService.getById.mockResolvedValue(fault === "missing" ? null : {
-          id: failedChatIssueId, companyId: fault === "other-company" ? "elsewhere" : "company-1",
+          id: failedChatIssueId, spaceId: fault === "other-space" ? "elsewhere" : "space-1",
           assigneeAgentId: "other-agent", assigneeUserId: null, projectId: null, parentId: null, status: "blocked",
           ...(fault === "other-chat-owner" ? { conversationAgentId: routeAgentId, conversationUserId: "someone-else" } : {}),
         });
@@ -1354,11 +1354,11 @@ describe("agent live run routes", () => {
         expect(
           mockChatRunRetries.prepareFailedChatRunRetry,
         ).toHaveBeenCalledExactlyOnceWith(fixture.tx, {
-          companyId: "company-1",
+          spaceId: "space-1",
           issueId: failedChatIssueId,
           agentId: routeAgentId,
           failedRunId: failedChatRunId,
-          initiatedByUserId: "local-board",
+          initiatedByUserId: "local-operator",
         });
         expect(
           mockChatRunRetries.processFailedChatRunRetry,
@@ -1366,8 +1366,8 @@ describe("agent live run routes", () => {
         expect(fixture.order).toEqual(["begin", "stage", "commit", "dispatch"]);
         expect(fixture.predicates).toEqual([
           {
-            sql: '("chat_conversations"."company_id" = $1 and "chat_conversations"."issue_id" = $2)',
-            params: ["company-1", failedChatIssueId],
+            sql: '("chat_conversations"."space_id" = $1 and "chat_conversations"."issue_id" = $2)',
+            params: ["space-1", failedChatIssueId],
             typings: ["uuid", "uuid"],
           },
         ]);
@@ -1407,7 +1407,7 @@ describe("agent live run routes", () => {
 
     it.each([
       null,
-      { ...selectedRun, companyId: "other-company" },
+      { ...selectedRun, spaceId: "other-space" },
       { ...selectedRun, agentId: "other-agent" },
     ])(
       "does not retry a missing or wrong-scope selected run: %j",
@@ -1457,7 +1457,7 @@ describe("agent live run routes", () => {
       },
     );
 
-    it.each(["agent", "company", "permission"])(
+    it.each(["agent", "space", "permission"])(
       "denies %s authority before retry admission",
       async (denial) => {
         const fixture = createFailedChatRetryDb();
@@ -1466,13 +1466,13 @@ describe("agent live run routes", () => {
             ? {
                 type: "agent",
                 agentId: routeAgentId,
-                companyId: "company-1",
+                spaceId: "space-1",
                 source: "agent_key",
               }
             : {
-                type: "board",
+                type: "operator",
                 userId: "member",
-                companyIds: denial === "company" ? [] : ["company-1"],
+                spaceIds: denial === "space" ? [] : ["space-1"],
                 source: "session",
               };
         if (denial === "permission")
@@ -1621,7 +1621,7 @@ describe("agent live run routes", () => {
       const fixture = createFailedChatRetryDb(false);
       mockHeartbeatService.getRun.mockResolvedValue({
         ...selectedRun,
-        contextSnapshot: { ...selectedRun.contextSnapshot, source: "board" },
+        contextSnapshot: { ...selectedRun.contextSnapshot, source: "operator" },
       });
       const res = await requestApp(
         await createApp(fixture.db, undefined, {
@@ -1661,7 +1661,7 @@ describe("agent live run routes", () => {
     const res = await requestApp(await createApp(), (baseUrl) =>
       request(baseUrl)
         .post(
-          `/api/agents/${routeAgentId}/heartbeat/invoke?companyId=company-1`,
+          `/api/agents/${routeAgentId}/heartbeat/invoke?spaceId=space-1`,
         )
         .send({ debug: { providerTrace: "raw" } }),
     );
@@ -1672,7 +1672,7 @@ describe("agent live run routes", () => {
       expect.objectContaining({
         contextSnapshot: expect.objectContaining({
           debug: { providerTrace: "raw" },
-          providerTraceRequestedBy: "local-board",
+          providerTraceRequestedBy: "local-operator",
         }),
       }),
     );
@@ -1682,7 +1682,7 @@ describe("agent live run routes", () => {
     const issueId = "22222222-2222-4222-8222-222222222222";
     const res = await requestApp(await createApp(), (baseUrl) =>
       request(baseUrl)
-        .post(`/api/agents/${routeAgentId}/wakeup?companyId=company-1`)
+        .post(`/api/agents/${routeAgentId}/wakeup?spaceId=space-1`)
         .send({
           source: "on_demand",
           triggerDetail: "manual",
@@ -1704,14 +1704,14 @@ describe("agent live run routes", () => {
     );
   });
 
-  it("rejects raw provider tracing for ordinary board members", async () => {
+  it("rejects raw provider tracing for ordinary operator members", async () => {
     const res = await requestApp(
       await createApp(
         {},
         {
-          type: "board",
+          type: "operator",
           userId: "member-user",
-          companyIds: ["company-1"],
+          spaceIds: ["space-1"],
           source: "session",
           isInstanceAdmin: false,
         },
@@ -1719,7 +1719,7 @@ describe("agent live run routes", () => {
       (baseUrl) =>
         request(baseUrl)
           .post(
-            `/api/agents/${routeAgentId}/heartbeat/invoke?companyId=company-1`,
+            `/api/agents/${routeAgentId}/heartbeat/invoke?spaceId=space-1`,
           )
           .send({ debug: { providerTrace: "raw" } }),
     );
@@ -1731,7 +1731,7 @@ describe("agent live run routes", () => {
   it("does not let an ordinary member downgrade a persisted approval into a question", async () => {
     mockHeartbeatService.getRun.mockResolvedValue({
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "agent-1",
       status: "running",
       runtimeMode: "native",
@@ -1757,9 +1757,9 @@ describe("agent live run routes", () => {
       },
     });
     const app = await createApp(db, {
-      type: "board",
+      type: "operator",
       userId: "ordinary-member",
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -1779,7 +1779,7 @@ describe("agent live run routes", () => {
   it("queues an admin resolution with canonical request and actor bindings", async () => {
     mockHeartbeatService.getRun.mockResolvedValue({
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       agentId: "agent-1",
       status: "running",
       runtimeMode: "native",
@@ -1805,9 +1805,9 @@ describe("agent live run routes", () => {
       },
     });
     const app = await createApp(db, {
-      type: "board",
+      type: "operator",
       userId: "instance-admin",
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
       source: "session",
       isInstanceAdmin: true,
     });
@@ -1822,10 +1822,10 @@ describe("agent live run routes", () => {
 
     expect(res.status, JSON.stringify(res.body)).toBe(202);
     expect(mockQueueRuntimeRequestResolution).toHaveBeenCalledWith({
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       pendingRequest: {
-        companyId: "company-1",
+        spaceId: "space-1",
         runId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         requestId: "approval-1",
         requestKind: "permission_approval",
@@ -1842,7 +1842,7 @@ describe("agent live run routes", () => {
   });
 
   it.each([
-    ["get", "/api/companies/company-1/provider-traces?runIds=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
+    ["get", "/api/spaces/space-1/provider-traces?runIds=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
     ["get", "/api/heartbeat-runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/provider-trace"],
     ["post", "/api/heartbeat-runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/provider-trace/frames/1/reveal"],
     ["get", "/api/heartbeat-runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/provider-trace/download"],
@@ -1853,9 +1853,9 @@ describe("agent live run routes", () => {
       const app = await createApp(
         {},
         {
-          type: "board",
+          type: "operator",
           userId: "member-user",
-          companyIds: ["company-1"],
+          spaceIds: ["space-1"],
           source: "session",
           isInstanceAdmin: false,
         },
@@ -1875,14 +1875,14 @@ describe("agent live run routes", () => {
         schema: "outpost.provider_trace_metadata.v1",
         id: "trace-1",
         runId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        companyId: "company-1",
+        spaceId: "space-1",
         status: "complete",
         provider: "codex",
         frameCount: 70,
         byteCount: 4096,
         digest: `sha256:${"a".repeat(64)}`,
         reason: null,
-        requestedBy: "local-board",
+        requestedBy: "local-operator",
         createdAt: new Date("2026-08-22T12:00:00.000Z"),
         expiresAt: new Date("2026-08-23T12:00:00.000Z"),
         deletedAt: null,
@@ -1891,13 +1891,13 @@ describe("agent live run routes", () => {
 
     const res = await requestApp(await createApp(), (baseUrl) =>
       request(baseUrl).get(
-        "/api/companies/company-1/provider-traces?runIds=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "/api/spaces/space-1/provider-traces?runIds=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       ),
     );
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockProviderTraceStore.listMetadataForRuns).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
     );
     expect(res.body[0]).not.toHaveProperty("rawBase64");
@@ -1937,7 +1937,7 @@ describe("agent live run routes", () => {
     );
   });
 
-  it("lets a board member reproject only retained workspace diffs", async () => {
+  it("lets a operator member reproject only retained workspace diffs", async () => {
     mockProviderTraceStore.getByRun.mockResolvedValue({
       id: "trace-1",
       status: "complete",
@@ -1968,7 +1968,7 @@ describe("agent live run routes", () => {
       expect.objectContaining({
         traceId: "trace-1",
         runId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        companyId: "company-1",
+        spaceId: "space-1",
         agentId: "agent-1",
         projection,
       }),
@@ -2055,7 +2055,7 @@ describe("agent live run routes", () => {
         {
           type: "agent",
           agentId: "agent-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           runId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
           source: "agent_key",
         },

@@ -4,7 +4,7 @@ import { uploadFactualQueryAttachment } from "../chat-query-attachments.js";
 /** Actual selected-source facts, also delivered as a genuine human query file.
  * Conversation description persistence alone is not native wake delivery. */
 export async function saveSkillConversationContext(ctx: ChatCatalogContext, input: { projectId?: string; description: string; document?: { key: string; title: string; body: string } }) {
-  await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/chats/${ctx.input.fixtures.agent.id}`);
+  await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/chats/${ctx.input.fixtures.agent.id}`);
   await ctx.refreshIssue(); const source = ctx.issue();
   if (!source) throw new Error("Skill selection requires the actual standing conversation");
   await ctx.input.api.patch(`/api/issues/${source.id}`, { ...(input.projectId ? { projectId: input.projectId } : {}), description: input.description });

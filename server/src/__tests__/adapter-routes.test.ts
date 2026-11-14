@@ -69,7 +69,7 @@ function resetAdapterMocks() {
   mockAdapterPluginStore.addAdapterPlugin.mockResolvedValue(undefined);
   mockAdapterPluginStore.removeAdapterPlugin.mockReturnValue(false);
   mockAdapterPluginStore.getAdapterPluginByType.mockReturnValue(undefined);
-  mockAdapterPluginStore.getAdapterPluginsDir.mockReturnValue("/tmp/paperclip-adapter-routes-test");
+  mockAdapterPluginStore.getAdapterPluginsDir.mockReturnValue("/tmp/outpost-adapter-routes-test");
   mockAdapterPluginStore.getDisabledAdapterTypes.mockReturnValue([]);
   mockAdapterPluginStore.setAdapterDisabled.mockReturnValue(false);
   mockPluginLoader.buildExternalAdapters.mockResolvedValue([]);
@@ -87,9 +87,9 @@ function createApp(
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = {
-      type: "board",
-      userId: "local-board",
-      companyIds: [],
+      type: "operator",
+      userId: "local-operator",
+      spaceIds: [],
       source: "local_implicit",
       isInstanceAdmin: false,
       ...actorOverrides,
@@ -163,7 +163,7 @@ describe("adapter routes", () => {
   it("keeps ordinary adapter discovery available after candidate startup authority expires", async () => {
     mockCandidateAdmission.mockImplementation(() => { throw new Error("ACPX candidate startup authorization expired"); });
     const app = createApp({}, { resolveRunnerTarget: async () => ({ driver: "local" }) });
-    const response = await request(app).get("/api/adapters?companyId=company-1");
+    const response = await request(app).get("/api/adapters?spaceId=space-1");
     expect(response.status).toBe(200);
     expect(response.body.some((adapter: any) => adapter.type === "claude_local")).toBe(true);
     expect(response.body.every((adapter: any) => adapter.candidateHarnesses === undefined)).toBe(true);
@@ -175,11 +175,11 @@ describe("adapter routes", () => {
     const app = createApp({}, { resolveRunnerTarget: async () => ({ driver: "local" }) });
     try {
       mockCandidateAdmission.mockImplementation(() => { throw new Error("ACPX candidate startup authorization expired"); });
-      expect((await request(app).get("/api/adapters?companyId=company-1")).status).toBe(200);
+      expect((await request(app).get("/api/adapters?spaceId=space-1")).status).toBe(200);
       expect(warn).not.toHaveBeenCalled();
       mockCandidateAdmission.mockImplementation(() => { throw new Error("Invalid Antigravity candidate admission"); });
       for (let index = 0; index < 2; index++) {
-        const response = await request(app).get("/api/adapters?companyId=company-1");
+        const response = await request(app).get("/api/adapters?spaceId=space-1");
         expect(response.status).toBe(200);
         expect(response.body.every((adapter: any) => adapter.candidateHarnesses === undefined)).toBe(true);
       }
@@ -188,45 +188,45 @@ describe("adapter routes", () => {
   });
 
   it.each<[RunnerTarget, string]>([
-    [{ driver: "ssh", platform: "linux", architecture: "x64" }, "paperclip"],
-    [{ driver: "ssh", platform: "darwin", architecture: "arm64" }, "paperclip"],
-    [{ driver: "ssh", platform: "darwin", architecture: "x64" }, "paperclip"],
-    [{ driver: "ssh", platform: "linux", architecture: "arm64" }, "paperclip"],
+    [{ driver: "ssh", platform: "linux", architecture: "x64" }, "outpost"],
+    [{ driver: "ssh", platform: "darwin", architecture: "arm64" }, "outpost"],
+    [{ driver: "ssh", platform: "darwin", architecture: "x64" }, "outpost"],
+    [{ driver: "ssh", platform: "linux", architecture: "arm64" }, "outpost"],
     [{ driver: "ssh", platform: "linux", architecture: "arm" }, "legacy"],
     [{ driver: "local", platform: "win32", architecture: "x64" }, "legacy"],
-    [{ driver: "sandbox", platform: "linux", architecture: "arm64", libc: "glibc", glibcVersion: "2.39" }, "paperclip"],
+    [{ driver: "sandbox", platform: "linux", architecture: "arm64", libc: "glibc", glibcVersion: "2.39" }, "outpost"],
   ])("projects the selected environment once for the whole adapter inventory (%s)", async (target, defaultRunner) => {
     const resolveRunnerTarget = vi.fn(async () => target);
-    const response = await request(createApp({}, { resolveRunnerTarget })).get("/api/adapters?companyId=company-1&environmentId=selected");
+    const response = await request(createApp({}, { resolveRunnerTarget })).get("/api/adapters?spaceId=space-1&environmentId=selected");
     expect(response.status).toBe(200);
-    expect(resolveRunnerTarget).toHaveBeenCalledExactlyOnceWith("company-1", "selected");
+    expect(resolveRunnerTarget).toHaveBeenCalledExactlyOnceWith("space-1", "selected");
     expect(response.body.find((adapter: any) => adapter.type === "codex_local")).toMatchObject({ defaultRunner });
     expect(response.body.find((adapter: any) => adapter.type === "claude_local")).toMatchObject({ defaultRunner: "legacy" });
   });
 
-  it("uses the company's effective default environment when discovery omits an override", async () => {
+  it("uses the space's effective default environment when discovery omits an override", async () => {
     const resolveRunnerTarget = vi.fn(async () => ({ driver: "sandbox" }));
-    const response = await request(createApp({}, { resolveRunnerTarget })).get("/api/adapters?companyId=company-1");
+    const response = await request(createApp({}, { resolveRunnerTarget })).get("/api/adapters?spaceId=space-1");
     expect(response.status).toBe(200);
-    expect(resolveRunnerTarget).toHaveBeenCalledExactlyOnceWith("company-1", undefined);
+    expect(resolveRunnerTarget).toHaveBeenCalledExactlyOnceWith("space-1", undefined);
     expect(response.body.find((adapter: any) => adapter.type === "codex_local")).toMatchObject({ defaultRunner: "legacy" });
   });
 
-  it("keeps unscoped inventory independent of company target discovery", async () => {
+  it("keeps unscoped inventory independent of space target discovery", async () => {
     const resolveRunnerTarget = vi.fn();
     const response = await request(createApp({}, { resolveRunnerTarget })).get("/api/adapters");
     expect(response.status).toBe(200);
     expect(resolveRunnerTarget).not.toHaveBeenCalled();
   });
 
-  it("rejects a foreign company before selecting or probing an environment", async () => {
+  it("rejects a foreign space before selecting or probing an environment", async () => {
     const resolveRunnerTarget = vi.fn();
-    const response = await request(createApp({ source: "session", companyIds: ["allowed"] }, { resolveRunnerTarget })).get("/api/adapters?companyId=foreign&environmentId=selected");
+    const response = await request(createApp({ source: "session", spaceIds: ["allowed"] }, { resolveRunnerTarget })).get("/api/adapters?spaceId=foreign&environmentId=selected");
     expect(response.status).toBe(403);
     expect(resolveRunnerTarget).not.toHaveBeenCalled();
   });
 
-  it.each(["environmentId=selected", "companyId=", "companyId=one&companyId=two", "companyId=one&environmentId="])("rejects malformed discovery scope before resolution (%s)", async query => {
+  it.each(["environmentId=selected", "spaceId=", "spaceId=one&spaceId=two", "spaceId=one&environmentId="])("rejects malformed discovery scope before resolution (%s)", async query => {
     const resolveRunnerTarget = vi.fn();
     const response = await request(createApp({}, { resolveRunnerTarget })).get(`/api/adapters?${query}`);
     expect(response.status).toBe(400);
@@ -476,7 +476,7 @@ describe("adapter routes", () => {
     const app = createApp({
       userId: "outsider-1",
       source: "session",
-      companyIds: [],
+      spaceIds: [],
       memberships: [],
       isInstanceAdmin: false,
     });

@@ -59,7 +59,7 @@ export { CHAT_RUN_PRESENTATION_AUTHORIZATION_REASON };
  */
 export async function resolveChatRunPresentationAuthorizationReason(
   db: Db,
-  input: { companyId: string; issueId: string; runId: string },
+  input: { spaceId: string; issueId: string; runId: string },
 ): Promise<
   typeof CHAT_RUN_PRESENTATION_AUTHORIZATION_REASON | "internal_agent_write"
 > {
@@ -69,12 +69,12 @@ export async function resolveChatRunPresentationAuthorizationReason(
     .where(
       and(
         eq(heartbeatRuns.id, input.runId),
-        eq(heartbeatRuns.companyId, input.companyId),
+        eq(heartbeatRuns.spaceId, input.spaceId),
       ),
     )
     .limit(1);
   if (
-    run?.resultJson?.finalizationReasonCode === "governed_response_waiting" &&
+    run?.resultJson?.finalizationReasonCode === "controlled_response_waiting" &&
     !(await authorizeNativeChatReviewPresentation(db, {
       ...input,
       resultJson: run.resultJson,
@@ -84,14 +84,14 @@ export async function resolveChatRunPresentationAuthorizationReason(
   }
   const bindings = await resolveChatOriginPublicationBindings(
     db,
-    input.companyId,
+    input.spaceId,
     input.issueId,
     input.runId,
   );
   if (bindings.length === 0) return "internal_agent_write";
   // A native question/confirmation is the provider-visible result of its
   // originating run. Keep the runner's final presentation as an internal
-  // Paperclip comment even if a fast provider answer resolves the interaction
+  // Outpost comment even if a fast provider answer resolves the interaction
   // before this check; otherwise model metadata can appear as a noisy sibling
   // beside the card or its continuation response.
   if (await hasChatRunOwnedProviderInteraction(db, input)) {
@@ -103,11 +103,11 @@ export async function resolveChatRunPresentationAuthorizationReason(
     .select({ id: chatEndpoints.id })
     .from(chatEndpoints)
     .innerJoin(chatGitHubConfigurations, and(
-      eq(chatGitHubConfigurations.companyId, chatEndpoints.companyId),
+      eq(chatGitHubConfigurations.spaceId, chatEndpoints.spaceId),
       eq(chatGitHubConfigurations.endpointId, chatEndpoints.id),
     ))
     .where(and(
-      eq(chatEndpoints.companyId, input.companyId),
+      eq(chatEndpoints.spaceId, input.spaceId),
       eq(chatEndpoints.provider, "github"),
       inArray(chatEndpoints.id, bindings.map(binding => binding.endpointId)),
     ));
@@ -120,7 +120,7 @@ export async function resolveChatRunPresentationAuthorizationReason(
 /** A missing receipt is not proof that a provider write never arrived. */
 export async function githubRunReplyState(
   db: Db,
-  input: { companyId: string; issueId: string; runId: string; endpointId: string; sourceCommentId?: string; requireSettled?: boolean },
+  input: { spaceId: string; issueId: string; runId: string; endpointId: string; sourceCommentId?: string; requireSettled?: boolean },
 ): Promise<"none" | "unsettled" | "confirmed"> {
   const actions = await db
     .select({
@@ -136,26 +136,26 @@ export async function githubRunReplyState(
     .from(chatActions)
     .innerJoin(chatConversations, and(
       eq(chatConversations.id, chatActions.conversationId),
-      eq(chatConversations.companyId, input.companyId),
+      eq(chatConversations.spaceId, input.spaceId),
       eq(chatConversations.endpointId, input.endpointId),
       eq(chatConversations.issueId, input.issueId),
     ))
     .innerJoin(chatEndpoints, and(
       eq(chatEndpoints.id, input.endpointId),
-      eq(chatEndpoints.companyId, input.companyId),
+      eq(chatEndpoints.spaceId, input.spaceId),
       eq(chatEndpoints.provider, "github"),
       sql`${chatEndpoints.assignedAgentId}::text = ${chatActions.payload}->'session'->>'agentId'`,
     ))
     .where(and(
-      eq(chatActions.companyId, input.companyId),
+      eq(chatActions.spaceId, input.spaceId),
       eq(chatActions.endpointId, input.endpointId),
       eq(chatActions.kind, "github_review_publication"),
-      sql`${chatActions.payload}->'session'->>'companyId' = ${input.companyId}`,
+      sql`${chatActions.payload}->'session'->>'spaceId' = ${input.spaceId}`,
       sql`${chatActions.payload}->'session'->>'issueId' = ${input.issueId}`,
       sql`${chatActions.payload}->'session'->>'runId' = ${input.runId}`,
       sql`${chatActions.payload}->>'operation' in ('comment', 'formal_review', 'assessment')`,
       input.sourceCommentId ? sql`exists (select 1 from chat_message_links source_link
-        where source_link.company_id = ${chatActions.companyId} and source_link.endpoint_id = ${chatActions.endpointId}
+        where source_link.space_id = ${chatActions.spaceId} and source_link.endpoint_id = ${chatActions.endpointId}
           and source_link.conversation_id = ${chatActions.conversationId} and source_link.delivery_id = ${chatActions.deliveryId}
           and source_link.direction = 'inbound' and source_link.comment_id = ${input.sourceCommentId}::uuid)` : undefined,
     ));
@@ -171,7 +171,7 @@ export async function githubRunReplyState(
         .select({ receipts: chatGitHubReviews.publicationReceipts })
         .from(chatGitHubReviews)
         .where(and(
-          eq(chatGitHubReviews.companyId, input.companyId),
+          eq(chatGitHubReviews.spaceId, input.spaceId),
           eq(chatGitHubReviews.endpointId, input.endpointId),
           eq(chatGitHubReviews.runId, input.runId),
           eq(chatGitHubReviews.issueId, input.issueId),
@@ -208,7 +208,7 @@ type ChatRunMilestoneCandidate = {
   runErrorCode: string | null;
   runUpdatedAt: string;
   issueId: string;
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   conversationId: string;
   agentName: string;
@@ -292,16 +292,16 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
     select 1
     from issue_question_response_deliveries question_delivery
     inner join issue_thread_interactions question_interaction
-      on question_interaction.company_id = question_delivery.company_id
+      on question_interaction.space_id = question_delivery.space_id
       and question_interaction.issue_id = question_delivery.issue_id
       and question_interaction.id = question_delivery.interaction_id
     inner join chat_publications question_prompt
-      on question_prompt.company_id = question_delivery.company_id
+      on question_prompt.space_id = question_delivery.space_id
       and question_prompt.issue_id = question_delivery.issue_id
       and question_prompt.payload ->> 'interactionId' = question_delivery.interaction_id::text
       and question_prompt.idempotency_key = 'interaction:' || question_delivery.interaction_id::text || ':' || question_prompt.endpoint_id::text
       and question_prompt.state = 'published'
-    where question_delivery.company_id = ${heartbeatRuns.companyId}
+    where question_delivery.space_id = ${heartbeatRuns.spaceId}
       and question_delivery.issue_id::text = ${issueIdFromContext}
       and question_delivery.target_run_id = ${heartbeatRuns.id}
       and question_delivery.status in ('delivered', 'fallback_queued')
@@ -312,13 +312,13 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
     select 1
     from issue_thread_interactions interaction
     inner join chat_publications interaction_prompt
-      on interaction_prompt.company_id = interaction.company_id
+      on interaction_prompt.space_id = interaction.space_id
       and interaction_prompt.issue_id = interaction.issue_id
       and interaction_prompt.payload ->> 'interactionId' = interaction.id::text
       and interaction_prompt.idempotency_key = 'interaction:' || interaction.id::text || ':' || interaction_prompt.endpoint_id::text
       and interaction_prompt.state = 'published'
     inner join agent_wakeup_requests continuation_wake
-      on continuation_wake.company_id = interaction.company_id
+      on continuation_wake.space_id = interaction.space_id
       and continuation_wake.run_id = ${heartbeatRuns.id}
       and continuation_wake.agent_id = ${heartbeatRuns.agentId}
       and continuation_wake.status <> 'skipped'
@@ -333,7 +333,7 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
           then 'question-response:' || interaction.id::text
         else 'interaction:' || interaction.id::text || ':' || interaction.status
       end)
-    where interaction.company_id = ${heartbeatRuns.companyId}
+    where interaction.space_id = ${heartbeatRuns.spaceId}
       and interaction.issue_id::text = ${issueIdFromContext}
       and interaction.id::text = ${heartbeatRuns.contextSnapshot} ->> 'interactionId'
       and interaction.source_run_id::text = ${heartbeatRuns.contextSnapshot} ->> 'sourceRunId'
@@ -356,12 +356,12 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
     ${heartbeatRuns.contextSnapshot}->>'source' = 'connection_intent.resolved' and exists (
       select 1 from connection_intent_deliveries delivery
       inner join issue_thread_interactions interaction on interaction.id = delivery.interaction_id
-        and interaction.company_id = delivery.company_id
-      inner join agent_wakeup_requests wake on wake.company_id = delivery.company_id
+        and interaction.space_id = delivery.space_id
+      inner join agent_wakeup_requests wake on wake.space_id = delivery.space_id
         and wake.run_id = ${heartbeatRuns.id} and wake.agent_id = ${heartbeatRuns.agentId}
         and wake.idempotency_key = 'connection-intent:' || interaction.id::text || ':' || interaction.status
         and wake.status <> 'skipped'
-      where delivery.company_id = ${heartbeatRuns.companyId}
+      where delivery.space_id = ${heartbeatRuns.spaceId}
         and interaction.issue_id::text = ${issueIdFromContext}
         and interaction.id::text = ${heartbeatRuns.contextSnapshot}->>'interactionId'
     )
@@ -369,7 +369,7 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
   const hasMonitorContinuation = sql<boolean>`(
     ${heartbeatRuns.contextSnapshot}->>'source' = 'issue.monitor' and exists (
       select 1 from agent_wakeup_requests monitor_wake
-      where monitor_wake.company_id = ${heartbeatRuns.companyId}
+      where monitor_wake.space_id = ${heartbeatRuns.spaceId}
         and monitor_wake.run_id = ${heartbeatRuns.id}
         and monitor_wake.agent_id = ${heartbeatRuns.agentId}
         and monitor_wake.reason = 'issue_monitor_due'
@@ -382,7 +382,7 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
   const hasTaskContinuation = sql<boolean>`(
     ${heartbeatRuns.contextSnapshot}->>'source' = 'native_status_decision' and exists (
       select 1 from agent_wakeup_requests continuation_wake
-      where continuation_wake.company_id = ${heartbeatRuns.companyId}
+      where continuation_wake.space_id = ${heartbeatRuns.spaceId}
         and continuation_wake.run_id = ${heartbeatRuns.id}
         and continuation_wake.agent_id = ${heartbeatRuns.agentId}
         and continuation_wake.reason = 'issue_status_changed'
@@ -400,7 +400,7 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
         // rejected page whose updated_at has submillisecond digits.
         runUpdatedAt: sql<string>`${heartbeatRuns.updatedAt}::text`,
         issueId: chatConversations.issueId,
-        companyId: chatConversations.companyId,
+        spaceId: chatConversations.spaceId,
         endpointId: chatConversations.endpointId,
         conversationId: chatConversations.id,
         agentName: agents.name,
@@ -409,7 +409,7 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
       .innerJoin(
         chatConversations,
         and(
-          eq(chatConversations.companyId, heartbeatRuns.companyId),
+          eq(chatConversations.spaceId, heartbeatRuns.spaceId),
           sql`${issueIdFromContext} = ${chatConversations.issueId}::text`,
           inArray(chatConversations.state, ["active", "waiting"]),
         ),
@@ -417,7 +417,7 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
       .innerJoin(
         chatEndpoints,
         and(
-          eq(chatEndpoints.companyId, chatConversations.companyId),
+          eq(chatEndpoints.spaceId, chatConversations.spaceId),
           eq(chatEndpoints.id, chatConversations.endpointId),
           eq(chatEndpoints.publicationMode, "automatic"),
           eq(chatEndpoints.assignedAgentId, heartbeatRuns.agentId),
@@ -427,7 +427,7 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
       .leftJoin(
         chatPublications,
         and(
-          eq(chatPublications.companyId, heartbeatRuns.companyId),
+          eq(chatPublications.spaceId, heartbeatRuns.spaceId),
           eq(chatPublications.endpointId, chatConversations.endpointId),
           sql`${chatPublications.idempotencyKey} = 'run:' || ${heartbeatRuns.id}::text || ':' || ${milestoneFromStatus} || ':' || ${chatConversations.endpointId}::text`,
         ),
@@ -497,13 +497,13 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
                 .innerJoin(
                   issueComments,
                   and(
-                    eq(issueComments.companyId, chatPublications.companyId),
+                    eq(issueComments.spaceId, chatPublications.spaceId),
                     eq(issueComments.id, chatPublications.commentId),
                   ),
                 )
                 .where(
                   and(
-                    eq(chatPublications.companyId, heartbeatRuns.companyId),
+                    eq(chatPublications.spaceId, heartbeatRuns.spaceId),
                     eq(
                       chatPublications.endpointId,
                       chatConversations.endpointId,
@@ -523,7 +523,7 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
             sql`exists (
               select 1
               from ${chatMessageLinks}
-              where ${chatMessageLinks.companyId} = ${heartbeatRuns.companyId}
+              where ${chatMessageLinks.spaceId} = ${heartbeatRuns.spaceId}
                 and ${chatMessageLinks.conversationId} = ${chatConversations.id}
                 and ${chatMessageLinks.direction} = 'inbound'
                 and (
@@ -535,7 +535,7 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
             sql`exists (
               select 1
               from chat_publications prompt
-              where prompt.company_id = ${heartbeatRuns.companyId}
+              where prompt.space_id = ${heartbeatRuns.spaceId}
                 and prompt.conversation_id = ${chatConversations.id}
                 and prompt.issue_id = ${chatConversations.issueId}
                 and prompt.state = 'published'
@@ -546,18 +546,18 @@ function lifecycleMilestonePages(db: Db, since: Date, scope?: ChatRunMilestoneSc
               select 1
               from issue_question_response_deliveries target_delivery
               inner join chat_publications target_prompt
-                on target_prompt.company_id = target_delivery.company_id
+                on target_prompt.space_id = target_delivery.space_id
                 and target_prompt.issue_id = target_delivery.issue_id
                 and target_prompt.conversation_id = ${chatConversations.id}
                 and target_prompt.payload ->> 'interactionId' = target_delivery.interaction_id::text
                 and target_prompt.idempotency_key = 'interaction:' || target_delivery.interaction_id::text || ':' || target_prompt.endpoint_id::text
                 and target_prompt.state = 'published'
-              where target_delivery.company_id = ${heartbeatRuns.companyId}
+              where target_delivery.space_id = ${heartbeatRuns.spaceId}
                 and target_delivery.target_run_id = ${heartbeatRuns.id}
                 and target_delivery.status in ('delivered', 'fallback_queued')
             )`,
           ),
-          scope ? eq(heartbeatRuns.companyId, scope.companyId) : undefined,
+          scope ? eq(heartbeatRuns.spaceId, scope.spaceId) : undefined,
           scope?.issueId ? eq(chatConversations.issueId, scope.issueId) : undefined,
           gte(heartbeatRuns.updatedAt, since),
           isNull(chatPublications.id),
@@ -586,14 +586,14 @@ export async function loadChatRunLifecycleMilestoneScopes(
   db: Db,
   scope?: ChatRunMilestoneScope,
   signal?: AbortSignal,
-): Promise<Array<{ companyId: string; issueId: string }>> {
+): Promise<Array<{ spaceId: string; issueId: string }>> {
   const pages = lifecycleMilestonePages(db, chatRunProjectionWindow({}).since, scope);
-  const scopes = new Map<string, { companyId: string; issueId: string }>();
+  const scopes = new Map<string, { spaceId: string; issueId: string }>();
   let cursor: ChatRunMilestoneCursor | null = null;
   for (;;) {
     signal?.throwIfAborted();
     const rows = await pages(100, cursor);
-    for (const row of rows) scopes.set(`${row.companyId}:${row.issueId}`, { companyId: row.companyId, issueId: row.issueId });
+    for (const row of rows) scopes.set(`${row.spaceId}:${row.issueId}`, { spaceId: row.spaceId, issueId: row.issueId });
     if (rows.length < 100) return [...scopes.values()];
     cursor = milestoneCursor(rows[rows.length - 1]);
   }
@@ -601,7 +601,7 @@ export async function loadChatRunLifecycleMilestoneScopes(
 
 /**
  * Project only coarse run lifecycle into bound external conversations. Raw
- * output, errors, tool events, and reasoning stay in Paperclip. Idempotency is
+ * output, errors, tool events, and reasoning stay in Outpost. Idempotency is
  * keyed by run, milestone, and endpoint so polling and restarts are harmless.
  */
 export async function enqueueChatRunLifecycleMilestones(
@@ -629,12 +629,12 @@ export async function enqueueChatRunLifecycleMilestones(
       if (inserted >= limit) break;
       const milestone = milestoneForStatus(row.runStatus, row.runErrorCode);
       if (!milestone) continue;
-      const bindingCacheKey = `${row.companyId}:${row.issueId}:${row.runId}`;
+      const bindingCacheKey = `${row.spaceId}:${row.issueId}:${row.runId}`;
       let bindings = bindingsCache.get(bindingCacheKey);
       if (!bindings) {
         bindings = await resolveChatOriginPublicationBindings(
           db,
-          row.companyId,
+          row.spaceId,
           row.issueId,
           row.runId,
         );
@@ -656,7 +656,7 @@ export async function enqueueChatRunLifecycleMilestones(
           hasProviderInteraction = await hasChatRunOwnedProviderInteraction(
             db,
             {
-              companyId: row.companyId,
+              spaceId: row.spaceId,
               issueId: row.issueId,
               runId: row.runId,
             },
@@ -672,13 +672,13 @@ export async function enqueueChatRunLifecycleMilestones(
           .innerJoin(
             issueComments,
             and(
-              eq(issueComments.companyId, chatPublications.companyId),
+              eq(issueComments.spaceId, chatPublications.spaceId),
               eq(issueComments.id, chatPublications.commentId),
             ),
           )
           .where(
             and(
-              eq(chatPublications.companyId, row.companyId),
+              eq(chatPublications.spaceId, row.spaceId),
               eq(chatPublications.endpointId, row.endpointId),
               eq(chatPublications.conversationId, row.conversationId),
               eq(issueComments.authorType, "agent"),
@@ -691,13 +691,13 @@ export async function enqueueChatRunLifecycleMilestones(
       }
       const result = await db.transaction(async (tx) => {
         if (milestone === "working") {
-          await notifyChatNativeProgress(tx, { companyId: row.companyId, issueId: row.issueId });
+          await notifyChatNativeProgress(tx, { spaceId: row.spaceId, issueId: row.issueId });
         }
         await notifyChatPublicationWork(tx);
         return tx
           .insert(chatPublications)
           .values({
-            companyId: row.companyId,
+            spaceId: row.spaceId,
             endpointId: row.endpointId,
             conversationId: row.conversationId,
             issueId: row.issueId,

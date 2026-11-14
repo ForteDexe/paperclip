@@ -26,7 +26,7 @@ export function captureResultFromItem(
   if (state.conversationMode === "direct") return true;
   // Runnerd is the semantic authority for its canonical ORP stream. Its
   // normalized activity items can still contain schema-shaped assistant
-  // text after paperclip_finish, but re-parsing that text here would create
+  // text after outpost_finish, but re-parsing that text here would create
   // a second, potentially conflicting result from one provider turn.
   if ((item as Record<PropertyKey, unknown>)[RUNNERD_CANONICAL_ITEM] === true)
     return true;
@@ -111,7 +111,7 @@ const ACPX_RESTART_CLOSED_TURN_CODE = "acpx_active_turn_recovery_closed";
  * The restored runner reports a turn lost on restore when it cannot prove the
  * turn's outcome itself, and ACPX closes the turn when its runner already
  * recorded the accepted result. In both cases a restart lost only the provider
- * turn. When Paperclip already holds the semantic result this exact turn
+ * turn. When Outpost already holds the semantic result this exact turn
  * proposed, that result is the turn's outcome: the turn settles as completed
  * instead of failing the run and rerunning finished work. Live notifications
  * and recovery reads use the same rule. Any other terminal, or a lost turn

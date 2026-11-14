@@ -55,18 +55,18 @@ suite("remote workspace snapshot storage", () => {
   });
   afterEach(async () => { vi.unstubAllEnvs(); await db.delete(executionWorkspaceSnapshots); await fs.rm(root, { recursive: true, force: true }); });
   async function fixture(content: string | Buffer = "acknowledged workspace content\n") {
-    const companyId = randomUUID(), workspaceId = randomUUID(), operationId = randomUUID();
+    const spaceId = randomUUID(), workspaceId = randomUUID(), operationId = randomUUID();
     const cwd = path.join(root, "source"), archivePath = path.join(root, "archive.pcws"); await fs.mkdir(cwd);
     await fs.writeFile(path.join(cwd, "saved.txt"), content);
     const captured = await captureRemoteWorkspaceDirectory({ cwd, archivePath });
-    const row = await beginWorkspaceSnapshot(db, { companyId, workspaceId, operationId, generation: 1, epoch: 3 });
-    const upload = { db, storage, snapshotId: row.id, companyId, workspaceId, archivePath, manifestDigest: captured.manifestDigest };
-    return { companyId, workspaceId, operationId, cwd, archivePath, captured, row, upload };
+    const row = await beginWorkspaceSnapshot(db, { spaceId, workspaceId, operationId, generation: 1, epoch: 3 });
+    const upload = { db, storage, snapshotId: row.id, spaceId, workspaceId, archivePath, manifestDigest: captured.manifestDigest };
+    return { spaceId, workspaceId, operationId, cwd, archivePath, captured, row, upload };
   }
   it("streams encrypted saved data through the real ledger and filesystem object backend", async () => {
     const f = await fixture(), ref = await uploadWorkspaceSnapshot(f.upload);
     expect(ref.byteSize).toBeGreaterThan(f.captured.byteSize);
-    const object = await storage.getObject(f.companyId, ref.objectKey); const parts: Buffer[] = [];
+    const object = await storage.getObject(f.spaceId, ref.objectKey); const parts: Buffer[] = [];
     for await (const part of object.stream) parts.push(part);
     expect(Buffer.concat(parts).includes(Buffer.from("acknowledged workspace content"))).toBe(false);
     await fs.rm(f.cwd, { recursive: true }); await fs.rm(f.archivePath);
@@ -199,7 +199,7 @@ suite("remote workspace snapshot storage", () => {
     const ref = await uploadWorkspaceSnapshot(f.upload);
     expect(sourceFile).toMatch(/archive\.encrypted$/);
     expect(get).not.toHaveBeenCalled();
-    expect(head).toHaveBeenCalledWith(f.companyId, ref.objectKey, expect.anything());
+    expect(head).toHaveBeenCalledWith(f.spaceId, ref.objectKey, expect.anything());
     const restoredArchive = path.join(root, "restored-verified.pcws");
     await loadWorkspaceSnapshotArchive({ storage, reference: ref, targetPath: restoredArchive });
     expect((await fs.readFile(restoredArchive)).equals(await fs.readFile(f.archivePath))).toBe(true);
@@ -246,7 +246,7 @@ suite("remote workspace snapshot storage", () => {
   });
   it("aborts the incomplete upload of an attempt a restart cut off once a retried save publishes", async () => {
     const f = await fixture(), put = storage.putFile.bind(storage), incomplete = new Set<string>();
-    storage.abortIncompleteUploads = vi.fn(async (_companyId: string, key: string) => Number(incomplete.delete(key)));
+    storage.abortIncompleteUploads = vi.fn(async (_spaceId: string, key: string) => Number(incomplete.delete(key)));
     storage.putFile = async input => { incomplete.add(input.objectKey!); throw new Error("process killed mid UploadPart"); };
     await expect(uploadWorkspaceSnapshot(f.upload)).rejects.toThrow("process killed mid UploadPart");
     const [cut] = [...incomplete];
@@ -254,7 +254,7 @@ suite("remote workspace snapshot storage", () => {
     const ref = await uploadWorkspaceSnapshot(f.upload);
     expect(ref.objectKey).not.toBe(cut);
     expect(storage.abortIncompleteUploads).toHaveBeenCalledTimes(1);
-    expect(storage.abortIncompleteUploads).toHaveBeenCalledWith(f.companyId, cut, expect.anything());
+    expect(storage.abortIncompleteUploads).toHaveBeenCalledWith(f.spaceId, cut, expect.anything());
     expect(incomplete.size).toBe(0);
     await uploadWorkspaceSnapshot(f.upload);
     expect(storage.abortIncompleteUploads).toHaveBeenCalledTimes(1);
@@ -269,14 +269,14 @@ suite("remote workspace snapshot storage", () => {
       if (!first) return put(input);
       first = false; aborted = input.objectKey!; started(); return gate;
     };
-    storage.abortIncompleteUploads = vi.fn(async (_companyId: string, key: string) => {
+    storage.abortIncompleteUploads = vi.fn(async (_spaceId: string, key: string) => {
       if (key === aborted) release(Object.assign(new Error("NoSuchUpload"), { name: "NoSuchUpload" }));
       return 1;
     });
     const loser = uploadWorkspaceSnapshot(f.upload);
     await blocked;
     const winner = await uploadWorkspaceSnapshot(f.upload);
-    expect(storage.abortIncompleteUploads).toHaveBeenCalledWith(f.companyId, aborted, expect.anything());
+    expect(storage.abortIncompleteUploads).toHaveBeenCalledWith(f.spaceId, aborted, expect.anything());
     expect(await loser).toEqual(winner);
   });
   it("retains an unsuccessful operation and rejects a content-changing retry", async () => {
@@ -428,15 +428,15 @@ suite("remote workspace snapshot storage", () => {
     expect(await getWorkspaceSnapshot(db, { ...f, snapshotId: f.row.id })).toBeNull();
     await restoreRemoteWorkspaceArchive({ archivePath: targetPath, targetDir: path.join(root, "restored"), expectedManifestDigest: ref!.manifestDigest });
     expect(await fs.readFile(path.join(root, "restored", "saved.txt"), "utf8")).toBe("acknowledged workspace content\n");
-    await expect(recoverWorkspaceSnapshotArchive({ ...f.upload, companyId: randomUUID(), targetPath: path.join(root, "wrong-company.pcws") }))
+    await expect(recoverWorkspaceSnapshotArchive({ ...f.upload, spaceId: randomUUID(), targetPath: path.join(root, "wrong-space.pcws") }))
       .rejects.toThrow("remote_workspace_snapshot_missing");
   });
-  it("keeps operation identity and company/workspace scope exact", async () => {
+  it("keeps operation identity and space/workspace scope exact", async () => {
     const f = await fixture();
     expect((await beginWorkspaceSnapshot(db, { ...f, generation: 1, epoch: 3 })).id).toBe(f.row.id);
     await expect(beginWorkspaceSnapshot(db, { ...f, generation: 1, epoch: 4 })).rejects.toThrow("operation_binding_changed");
     await uploadWorkspaceSnapshot(f.upload);
-    expect(await getWorkspaceSnapshot(db, { ...f, snapshotId: f.row.id, companyId: randomUUID() })).toBeNull();
+    expect(await getWorkspaceSnapshot(db, { ...f, snapshotId: f.row.id, spaceId: randomUUID() })).toBeNull();
     expect(await getWorkspaceSnapshot(db, { ...f, snapshotId: f.row.id, workspaceId: randomUUID() })).toBeNull();
   });
   it("rejects object corruption and leaves the requested plaintext path unpublished", async () => {
@@ -489,7 +489,7 @@ suite("remote workspace snapshot storage", () => {
       },
       destroy(error, callback) { closed = true; callback(error); },
     });
-    storage.getObject = vi.fn(async (_companyId, _objectKey, options) => {
+    storage.getObject = vi.fn(async (_spaceId, _objectKey, options) => {
       expect(options?.signal).toBeInstanceOf(AbortSignal);
       expect(options?.signal?.aborted).toBe(false);
       return { stream: body, contentLength: ciphertext.length };

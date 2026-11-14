@@ -9,7 +9,7 @@ import type { AdapterExecutionContext, AdapterRuntimeMcpAccess } from "@outpost/
 import {
   DEFAULT_REMOTE_SANDBOX_ADAPTER_TIMEOUT_SEC,
   prepareAdapterExecutionTargetRuntime,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
   startAdapterExecutionTargetProcessSessionBridge,
 } from "@outpost/adapter-utils/execution-target";
 
@@ -23,7 +23,7 @@ vi.mock("@outpost/adapter-utils/execution-target", async (importActual) => {
   return {
     ...actual,
     prepareAdapterExecutionTargetRuntime: vi.fn(actual.prepareAdapterExecutionTargetRuntime),
-    startAdapterExecutionTargetPaperclipBridge: vi.fn(actual.startAdapterExecutionTargetPaperclipBridge),
+    startAdapterExecutionTargetOutpostBridge: vi.fn(actual.startAdapterExecutionTargetOutpostBridge),
     startAdapterExecutionTargetProcessSessionBridge: vi.fn(actual.startAdapterExecutionTargetProcessSessionBridge),
   };
 });
@@ -66,7 +66,7 @@ const tempRoots: string[] = [];
 let defaultGeminiTestHome: string | undefined;
 
 async function makeTempRoot() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-acpx-skills-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-acpx-skills-"));
   tempRoots.push(root);
   return root;
 }
@@ -102,7 +102,7 @@ async function createSkill(root: string, name: string, body = `---\nrequired: fa
   await fs.mkdir(skillDir, { recursive: true });
   await fs.writeFile(path.join(skillDir, "SKILL.md"), body, "utf8");
   return {
-    key: `paperclipai/test/${name}`,
+    key: `outpost/test/${name}`,
     runtimeName: name,
     source: skillDir,
     required: false,
@@ -226,7 +226,7 @@ async function runExecutor(
     runId: "run-1",
     agent: {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
     },
       runtime: options.runtime ?? {},
       config,
@@ -428,7 +428,7 @@ describe("shared ACPX engine runtime behavior", () => {
     expect(result.summary).toBe("end_turn");
     expect(result.sessionParams?.configFingerprint).toBeTypeOf("string");
     expect((result.sessionParams?.configFingerprint as string).length).toBeGreaterThan(0);
-    expect(result.sessionParams?.sessionKey).toBe(`paperclip:company-1:agent-1:default:${result.sessionParams?.configFingerprint}`);
+    expect(result.sessionParams?.sessionKey).toBe(`outpost:space-1:agent-1:default:${result.sessionParams?.configFingerprint}`);
   });
 
   it.each(["agentCommand", "cwd", "model", "thinkingEffort", "mode", "fastMode"] as const)(
@@ -439,7 +439,7 @@ describe("shared ACPX engine runtime behavior", () => {
         agent: dimension === "fastMode" ? "codex" : "custom", agentCommand: "node ./fake-acp.js",
         stateDir: path.join(root, "state"), cwd: root,
         env: { CODEX_HOME: path.join(root, "codex-home") },
-        paperclipRuntimeSkills: [], paperclipSkillSync: { desiredSkills: [] },
+        outpostRuntimeSkills: [], outpostSkillSync: { desiredSkills: [] },
       };
       const changed: Record<string, unknown> = {
         agentCommand: "node ./other-acp.js", cwd: path.join(root, "other-workspace"), model: "test-model",
@@ -558,7 +558,7 @@ describe("shared ACPX engine runtime behavior", () => {
     };
     const context = {
       taskId: "issue-1",
-      paperclipWorkspace: { cwd: root },
+      outpostWorkspace: { cwd: root },
     };
     const firstOnSpawn = vi.fn(async (meta: unknown) => {
       expect(meta).toEqual({ pid: processPid, processGroupId: null, startedAt });
@@ -566,7 +566,7 @@ describe("shared ACPX engine runtime behavior", () => {
     });
     const first = await execute({
       runId: "run-process-identity-1",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config,
       context,
@@ -587,7 +587,7 @@ describe("shared ACPX engine runtime behavior", () => {
     });
     const second = await execute({
       runId: "run-process-identity-2",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: { sessionParams: first.sessionParams },
       config,
       context,
@@ -604,7 +604,7 @@ describe("shared ACPX engine runtime behavior", () => {
     expect(turnStartedBeforeProcessIdentity).toBe(false);
   });
 
-  it("keeps company export config outside ACPX Codex argv and caller-owned home files", async () => {
+  it("keeps space export config outside ACPX Codex argv and caller-owned home files", async () => {
     const root = await makeTempRoot();
     const home = path.join(root, "caller-codex-home");
     await fs.mkdir(home, { recursive: true });
@@ -617,10 +617,10 @@ describe("shared ACPX engine runtime behavior", () => {
     expect(JSON.stringify(meta)).not.toContain("export-secret-canary");
   });
 
-  it.each([true, false])("applies company export to a server-managed Codex credential home (enabled=%s)", async (enabled) => {
+  it.each([true, false])("applies space export to a server-managed Codex credential home (enabled=%s)", async (enabled) => {
     const root = await makeTempRoot();
     const home = path.join(root, "server-credential-projection", "provider");
-    const original = 'model = "managed-model"\n[model_providers.paperclip]\nname = "Managed provider"\n[mcp_servers.fixture]\nurl = "https://tools.example.test/mcp"\n';
+    const original = 'model = "managed-model"\n[model_providers.outpost]\nname = "Managed provider"\n[mcp_servers.fixture]\nurl = "https://tools.example.test/mcp"\n';
     await fs.mkdir(home, { recursive: true });
     await fs.writeFile(path.join(home, "config.toml"), original);
     await fs.writeFile(path.join(home, "auth.json"), '{"OPENAI_API_KEY":"fake-managed-provider-key"}');
@@ -631,7 +631,7 @@ describe("shared ACPX engine runtime behavior", () => {
     const run = await runExecutor({
       agent: "codex", agentCommand: "node ./fake-acp.js", cwd: root, stateDir: path.join(root, "state"),
       env: { CODEX_HOME: home }, managedAiConnection: { provider: "openai", method: "api_key", identity: "server-resolved-credential" },
-      paperclipRuntimeSkills: [], paperclipSkillSync: { desiredSkills: [] },
+      outpostRuntimeSkills: [], outpostSkillSync: { desiredSkills: [] },
     }, { observability: { kind: "codex", compatibilityKey: enabled ? "enabled" : "disabled", otelConfig, environment: {} } });
     expect(run.result.exitCode).toBe(0);
     const env = (run.sessionInputs[0]!.sessionOptions as { env: Record<string, string> }).env;
@@ -639,7 +639,7 @@ describe("shared ACPX engine runtime behavior", () => {
     const config = parseToml(await fs.readFile(path.join(env.CODEX_HOME!, "config.toml"), "utf8"));
     expect(config.otel).toEqual(otelConfig);
     expect(config.model).toBe("managed-model");
-    expect(config.model_providers).toEqual({ paperclip: { name: "Managed provider" } });
+    expect(config.model_providers).toEqual({ outpost: { name: "Managed provider" } });
     expect(config.mcp_servers).toEqual({ fixture: { url: "https://tools.example.test/mcp" } });
     expect(await fs.readFile(path.join(home, "config.toml"), "utf8")).toBe(original);
     expect(await fs.realpath(path.join(env.CODEX_HOME!, "auth.json"))).toBe(await fs.realpath(path.join(home, "auth.json")));
@@ -649,10 +649,10 @@ describe("shared ACPX engine runtime behavior", () => {
 
   it("changes the ACPX Codex configuration home while resuming the same conversation after export changes", async () => {
     const root = await makeTempRoot();
-    vi.stubEnv("OUTPOST_HOME", path.join(root, "paperclip"));
+    vi.stubEnv("OUTPOST_HOME", path.join(root, "outpost"));
     vi.stubEnv("CODEX_HOME", path.join(root, "source"));
     try {
-      const config = { agent: "codex", agentCommand: "node ./fake-acp.js", cwd: root, stateDir: path.join(root, "state"), paperclipRuntimeSkills: [], paperclipSkillSync: { desiredSkills: [] } };
+      const config = { agent: "codex", agentCommand: "node ./fake-acp.js", cwd: root, stateDir: path.join(root, "state"), outpostRuntimeSkills: [], outpostSkillSync: { desiredSkills: [] } };
       const launch = (key: string) => ({ kind: "codex" as const, compatibilityKey: key, otelConfig: { exporter: "none", trace_exporter: "none", metrics_exporter: "none" }, environment: {} });
       const first = await runExecutor(config, { observability: launch("first") });
       const second = await runExecutor(config, { observability: launch("second"), runtime: { sessionParams: first.result.sessionParams } });
@@ -811,8 +811,8 @@ describe("shared ACPX engine runtime behavior", () => {
     expect(prompt).toContain("You are agent agent-1");
     expect(prompt).toContain("Connection tools:");
     expect(prompt).not.toContain("Execution contract:");
-    expect(prompt).toContain(context.paperclipTaskMarkdownAssignment);
-    expect(prompt).toContain(context.paperclipTaskCommunicationGuidance);
+    expect(prompt).toContain(context.outpostTaskMarkdownAssignment);
+    expect(prompt).toContain(context.outpostTaskCommunicationGuidance);
     expect(prompt).not.toContain('"objective":');
     expect(prompt).not.toContain("### Issue description");
     expect(prompt).toContain('"id":"comment-first"');
@@ -825,8 +825,8 @@ describe("shared ACPX engine runtime behavior", () => {
     expect(resumed.sessionInputs[0]?.resumeSessionId).toBe(fresh.result.sessionId);
     const resumedPrompt = String(resumed.turnInputs[0]?.text ?? "");
     expect(resumedPrompt).not.toContain("Execution contract:");
-    expect(resumedPrompt).toContain(context.paperclipTaskMarkdownAssignmentCompact);
-    expect(resumedPrompt).not.toContain(context.paperclipTaskCommunicationGuidance);
+    expect(resumedPrompt).toContain(context.outpostTaskMarkdownAssignmentCompact);
+    expect(resumedPrompt).not.toContain(context.outpostTaskCommunicationGuidance);
     expect(resumedPrompt).not.toContain('"id":"comment-first"');
     expect(resumedPrompt).toContain('"id":"comment-second"');
     const reset = await runExecutor(config, { context });
@@ -834,7 +834,7 @@ describe("shared ACPX engine runtime behavior", () => {
     const resetPrompt = String(reset.turnInputs[0]?.text ?? "");
     expect(resetPrompt).toContain("You are agent agent-1");
     expect(resetPrompt).toContain("Connection tools:");
-    expect(resetPrompt).toContain(context.paperclipTaskMarkdownAssignment);
+    expect(resetPrompt).toContain(context.outpostTaskMarkdownAssignment);
     expect(resetPrompt).not.toContain("Execution contract:");
   });
 
@@ -846,7 +846,7 @@ describe("shared ACPX engine runtime behavior", () => {
         context: {
           taskId: "issue-1",
           wakeReason: "issue_assigned",
-          paperclipWake: {
+          outpostWake: {
             reason: "issue_assigned",
             issue: { id: "issue-1", identifier: "TEST-1" },
           },
@@ -860,13 +860,13 @@ describe("shared ACPX engine runtime behavior", () => {
     expect(prompt).toContain("OUTPOST_AGENT_ID");
     expect(prompt).toContain("OUTPOST_API_KEY");
     expect(prompt).not.toContain("OUTPOST_WAKE_PAYLOAD_JSON");
-    expect(prompt).toContain("## Paperclip Wake Payload");
+    expect(prompt).toContain("## Outpost Wake Payload");
     expect(prompt).toContain("TEST-1");
     expect(prompt).toContain("Outpost API access note:");
     expect(prompt).toContain('OUTPOST_API_BASE="${OUTPOST_API_URL%/}"; OUTPOST_API_BASE="${OUTPOST_API_BASE%/api}"');
     expect(prompt).toContain("$OUTPOST_API_BASE/api/agents/me");
     expect(prompt).toContain("$OUTPOST_API_BASE/api/issues/$OUTPOST_TASK_ID");
-    expect(prompt).toContain("X-Paperclip-Run-Id");
+    expect(prompt).toContain("X-Outpost-Run-Id");
     expect(prompt).not.toContain("$OUTPOST_API_URL/api/");
     expect(prompt).not.toContain("/api/issues/{id}");
     expect(prompt).not.toContain("-d '{...}'");
@@ -891,21 +891,21 @@ describe("shared ACPX engine runtime behavior", () => {
       result: { text: `Completed action ${index}` },
     }));
     const continuation = {
-      version: 1, companyId: "company-1", issueId: "issue-1",
+      version: 1, spaceId: "space-1", issueId: "issue-1",
       trigger: { reason: "issue_commented", interactionId: null, sourceRunId: null },
       originCommentIds: [messages[49]!.id], objective: "Preserve all context", messages,
       interactionOutcomes: [], unresolvedInteractionIds: [], completedWork: null,
       completedActions, coverage: { kind: "full_task_history", throughCommentId: messages[49]!.id, summaryThroughCommentId: null },
     };
     expect(Buffer.byteLength(JSON.stringify(continuation))).toBeGreaterThan(128 * 1024);
-    const context = { taskId: "issue-1", paperclipWake: {
+    const context = { taskId: "issue-1", outpostWake: {
       reason: "issue_commented", issue: { id: "issue-1" }, executionContinuation: continuation,
     } };
     const fresh = await runExecutor(config, { context });
     const changedMessage = { ...messages[49]!, body: "Updated direction: preserve approval gates." };
     const resumed = await runExecutor(config, {
       runtime: { sessionParams: fresh.result.sessionParams },
-      context: { ...context, paperclipWake: { ...context.paperclipWake, executionContinuation: {
+      context: { ...context, outpostWake: { ...context.outpostWake, executionContinuation: {
         ...continuation, resumeDelta: { baseRunId: "run-1", messages: [changedMessage] },
       } } },
     });
@@ -936,10 +936,10 @@ describe("shared ACPX engine runtime behavior", () => {
     const context = {
       conversationMode: true,
       taskId: "chat-1",
-      paperclipTaskMarkdown: chatDirective,
-      paperclipTaskMarkdownCompact: chatDirective,
-      paperclipTaskCommunicationGuidance: "Frozen Slack communication preference.",
-      paperclipWake: {
+      outpostTaskMarkdown: chatDirective,
+      outpostTaskMarkdownCompact: chatDirective,
+      outpostTaskCommunicationGuidance: "Frozen Slack communication preference.",
+      outpostWake: {
         reason: "issue_commented",
         issue: { id: "chat-1", workMode: "planning", status: "in_progress" },
         interactionKind: "request_confirmation",
@@ -983,8 +983,8 @@ describe("shared ACPX engine runtime behavior", () => {
         authToken: "runtime-secret-token",
         context: {
           taskId: "issue-chat-1",
-          paperclipTaskMarkdown: "# CHAT-1 — Answer the provider message",
-          paperclipWake: {
+          outpostTaskMarkdown: "# CHAT-1 — Answer the provider message",
+          outpostWake: {
             reason: "External chat message received",
             externalChatProvider: "discord",
             checkedOutByHarness: true,
@@ -1038,8 +1038,8 @@ describe("shared ACPX engine runtime behavior", () => {
         authToken: "runtime-secret-token",
         context: {
           taskId: "issue-chat-overflow",
-          paperclipTaskMarkdown: "# CHAT-2 — Answer every queued message",
-          paperclipWake: {
+          outpostTaskMarkdown: "# CHAT-2 — Answer every queued message",
+          outpostWake: {
             reason: "External chat message received",
             externalChatProvider: "slack",
             checkedOutByHarness: true,
@@ -1087,7 +1087,7 @@ describe("shared ACPX engine runtime behavior", () => {
       {
         context: {
           taskId: "issue-chat-1",
-          paperclipWake: {
+          outpostWake: {
             reason: "External chat message received",
             externalChatProvider: "telegram",
             checkedOutByHarness: true,
@@ -1163,7 +1163,7 @@ describe("shared ACPX engine runtime behavior", () => {
       runId: "run-streaming-text-delta",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
       },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir },
@@ -1250,7 +1250,7 @@ describe("shared ACPX engine runtime behavior", () => {
 
     const result = await execute({
       runId: "run-default-traits-pin",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir },
       context: {},
@@ -1349,7 +1349,7 @@ describe("shared ACPX engine runtime behavior", () => {
 
     const result = await execute({
       runId: "run-summary-last-segment",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: {
         agent: "custom",
@@ -1418,7 +1418,7 @@ describe("shared ACPX engine runtime behavior", () => {
 
     const result = await execute({
       runId: "run-summary-statusless-tool-call",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir },
       context: {},
@@ -1505,7 +1505,7 @@ describe("shared ACPX engine runtime behavior", () => {
 
     const result = await execute({
       runId: "run-tool-call-coalesce",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: {
         agent: "custom",
@@ -1595,7 +1595,7 @@ describe("shared ACPX engine runtime behavior", () => {
       onUsage,
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
       },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir },
@@ -1653,7 +1653,7 @@ describe("shared ACPX engine runtime behavior", () => {
     const onUsage = vi.fn(async (receipt: { complete: boolean }) => {
       if (failedSave === "checkpoint" || receipt.complete) throw new Error("Receipt storage unavailable");
     });
-    const result = await execute({ runId: `failed-${failedSave}-save`, agent: { id: "agent-1", companyId: "company-1" },
+    const result = await execute({ runId: `failed-${failedSave}-save`, agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {}, config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
       context: {}, onMeta: async () => {}, onLog: async () => {}, onUsage } as never);
     expect(result).toMatchObject({ exitCode: 1, usageBasis: "per_run", usageComplete: failedSave === "terminal",
@@ -1700,7 +1700,7 @@ describe("shared ACPX engine runtime behavior", () => {
       runId: "run-usage-event-fallback",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
       },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir },
@@ -1750,7 +1750,7 @@ describe("shared ACPX engine runtime behavior", () => {
       runId: "run-usage-event-fallback",
       agent: {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
       },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir },
@@ -1789,8 +1789,8 @@ describe("shared ACPX engine runtime behavior", () => {
     const { meta } = await runExecutor({
       agent: "claude",
       stateDir,
-      paperclipRuntimeSkills: [skill],
-      paperclipSkillSync: { desiredSkills: [skill.key] },
+      outpostRuntimeSkills: [skill],
+      outpostSkillSync: { desiredSkills: [skill.key] },
     });
 
     const mountedRoot = await onlyChildDir(path.join(stateDir, "runtime-skills", "claude"));
@@ -1818,18 +1818,18 @@ describe("shared ACPX engine runtime behavior", () => {
       agent: "codex",
       stateDir: path.join(root, "state"),
       env: { CODEX_HOME: codexHome },
-      paperclipRuntimeSkills: [keep, remove],
+      outpostRuntimeSkills: [keep, remove],
     };
 
     await runExecutor({
       ...baseConfig,
-      paperclipSkillSync: { desiredSkills: [keep.key, remove.key] },
+      outpostSkillSync: { desiredSkills: [keep.key, remove.key] },
     });
     expect(await pathExists(path.join(codexHome, "skills", remove.runtimeName, "SKILL.md"))).toBe(true);
 
     await runExecutor({
       ...baseConfig,
-      paperclipSkillSync: { desiredSkills: [keep.key] },
+      outpostSkillSync: { desiredSkills: [keep.key] },
     });
 
     expect(await pathExists(path.join(codexHome, "skills", keep.runtimeName, "SKILL.md"))).toBe(true);
@@ -1843,16 +1843,16 @@ describe("shared ACPX engine runtime behavior", () => {
     const skillRoot = path.join(root, "skills");
     const codexHome = path.join(root, "codex-home");
     const operational = {
-      ...await createSkill(skillRoot, "paperclip"),
-      key: "paperclipai/paperclip/paperclip",
+      ...await createSkill(skillRoot, "outpost"),
+      key: "outpost/outpost/outpost",
     };
 
     await runExecutor({
       agent: "codex",
       stateDir: path.join(root, "state"),
       env: { CODEX_HOME: codexHome },
-      paperclipRuntimeSkills: [operational],
-      paperclipSkillSync: { desiredSkills: [] },
+      outpostRuntimeSkills: [operational],
+      outpostSkillSync: { desiredSkills: [] },
     });
 
     expect(await pathExists(path.join(codexHome, "skills", operational.runtimeName, "SKILL.md"))).toBe(true);
@@ -1861,8 +1861,8 @@ describe("shared ACPX engine runtime behavior", () => {
   it.each(["codex", "gemini"])("refreshes the %s skill root when a connection home changes between turns", async (agent) => {
     const root = await makeTempRoot();
     const operational = {
-      ...await createSkill(path.join(root, "skills"), "paperclip"),
-      key: "paperclipai/paperclip/paperclip",
+      ...await createSkill(path.join(root, "skills"), "outpost"),
+      key: "outpost/outpost/outpost",
     };
     const homes = [path.join(root, "first-home"), path.join(root, "next-home")];
     for (const home of homes) {
@@ -1870,8 +1870,8 @@ describe("shared ACPX engine runtime behavior", () => {
         agent,
         stateDir: path.join(root, "state"),
         env: agent === "codex" ? { CODEX_HOME: home } : { HOME: home },
-        paperclipRuntimeSkills: [operational],
-        paperclipSkillSync: { desiredSkills: [] },
+        outpostRuntimeSkills: [operational],
+        outpostSkillSync: { desiredSkills: [] },
       });
       const skillsHome = agent === "codex" ? path.join(home, "skills") : path.join(home, ".gemini", "skills");
       expect(String(meta[0]?.prompt ?? "")).toContain(`Skill root for this run: ${skillsHome}`);
@@ -1894,8 +1894,8 @@ describe("shared ACPX engine runtime behavior", () => {
       agent: "codex",
       stateDir: path.join(root, "state"),
       env: { CODEX_HOME: codexHome },
-      paperclipRuntimeSkills: [legacy],
-      paperclipSkillSync: { desiredSkills: [] },
+      outpostRuntimeSkills: [legacy],
+      outpostSkillSync: { desiredSkills: [] },
     });
 
     expect(await pathExists(path.join(skillsHome, legacy.runtimeName))).toBe(false);
@@ -1904,14 +1904,14 @@ describe("shared ACPX engine runtime behavior", () => {
   it.skipIf(process.platform === "win32")("replaces stale managed Codex auth files with source symlinks", async () => {
     const root = await makeTempRoot();
     const sourceCodexHome = path.join(root, "source-codex-home");
-    const paperclipHome = path.join(root, "paperclip-home");
-    const paperclipInstanceId = "test-instance";
+    const outpostHome = path.join(root, "outpost-home");
+    const outpostInstanceId = "test-instance";
     const managedCodexHome = path.join(
-      paperclipHome,
+      outpostHome,
       "instances",
-      paperclipInstanceId,
-      "companies",
-      "company-1",
+      outpostInstanceId,
+      "spaces",
+      "space-1",
       "codex-home",
     );
     await fs.mkdir(sourceCodexHome, { recursive: true });
@@ -1922,25 +1922,25 @@ describe("shared ACPX engine runtime behavior", () => {
     await fs.writeFile(managedAuth, "{\"stale\":true}", "utf8");
 
     const previousCodexHome = process.env.CODEX_HOME;
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
-    const previousPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
+    const previousOutpostHome = process.env.OUTPOST_HOME;
+    const previousOutpostInstanceId = process.env.OUTPOST_INSTANCE_ID;
     try {
       process.env.CODEX_HOME = sourceCodexHome;
-      process.env.OUTPOST_HOME = paperclipHome;
-      process.env.OUTPOST_INSTANCE_ID = paperclipInstanceId;
+      process.env.OUTPOST_HOME = outpostHome;
+      process.env.OUTPOST_INSTANCE_ID = outpostInstanceId;
       await runExecutor({
         agent: "codex",
         stateDir: path.join(root, "state"),
-        paperclipRuntimeSkills: [],
-        paperclipSkillSync: { desiredSkills: [] },
+        outpostRuntimeSkills: [],
+        outpostSkillSync: { desiredSkills: [] },
       });
     } finally {
       if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
       else process.env.CODEX_HOME = previousCodexHome;
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
-      if (previousPaperclipInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
-      else process.env.OUTPOST_INSTANCE_ID = previousPaperclipInstanceId;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
+      if (previousOutpostInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+      else process.env.OUTPOST_INSTANCE_ID = previousOutpostInstanceId;
     }
 
     const authStat = await fs.lstat(managedAuth);
@@ -1953,12 +1953,12 @@ describe("shared ACPX engine runtime behavior", () => {
     async (keyName) => {
       const root = await makeTempRoot();
       const sourceCodexHome = path.join(root, "source-codex-home");
-      const paperclipHome = path.join(root, "paperclip-home");
+      const outpostHome = path.join(root, "outpost-home");
       await fs.mkdir(sourceCodexHome, { recursive: true });
       const sourceAuth = path.join(sourceCodexHome, "auth.json");
       await fs.writeFile(sourceAuth, JSON.stringify({ tokens: "host-login" }), "utf8");
       const managedHome = path.join(
-        paperclipHome, "instances", "test-instance", "companies", "company-1",
+        outpostHome, "instances", "test-instance", "spaces", "space-1",
         "acp-engine", "agents", "agent-1", "codex-home",
       );
       await fs.mkdir(managedHome, { recursive: true });
@@ -1970,7 +1970,7 @@ describe("shared ACPX engine runtime behavior", () => {
       }
 
       vi.stubEnv("CODEX_HOME", sourceCodexHome);
-      vi.stubEnv("OUTPOST_HOME", paperclipHome);
+      vi.stubEnv("OUTPOST_HOME", outpostHome);
       vi.stubEnv("OUTPOST_INSTANCE_ID", "test-instance");
       vi.stubEnv("OPENAI_API_KEY", "");
       vi.stubEnv("CODEX_API_KEY", "");
@@ -1979,8 +1979,8 @@ describe("shared ACPX engine runtime behavior", () => {
           agent: "codex",
           stateDir: path.join(root, "state"),
           env: { [keyName]: "sk-acp-test-key" },
-          paperclipRuntimeSkills: [],
-          paperclipSkillSync: { desiredSkills: [] },
+          outpostRuntimeSkills: [],
+          outpostSkillSync: { desiredSkills: [] },
         });
         const sessionEnv = (sessionInputs[0]!.sessionOptions as { env: Record<string, string> }).env;
         expect(sessionEnv.CODEX_HOME).toBe(managedHome);
@@ -1997,13 +1997,13 @@ describe("shared ACPX engine runtime behavior", () => {
     },
   );
 
-  it("sets GROK_HOME for a Grok run from the company Grok home, and leaves CODEX_HOME unchanged for a Codex run", async () => {
+  it("sets GROK_HOME for a Grok run from the space Grok home, and leaves CODEX_HOME unchanged for a Codex run", async () => {
     const root = await makeTempRoot();
-    const paperclipHome = path.join(root, "paperclip-home");
-    const previousPaperclipHome = process.env.OUTPOST_HOME;
-    const previousPaperclipInstanceId = process.env.OUTPOST_INSTANCE_ID;
+    const outpostHome = path.join(root, "outpost-home");
+    const previousOutpostHome = process.env.OUTPOST_HOME;
+    const previousOutpostInstanceId = process.env.OUTPOST_INSTANCE_ID;
     try {
-      process.env.OUTPOST_HOME = paperclipHome;
+      process.env.OUTPOST_HOME = outpostHome;
       process.env.OUTPOST_INSTANCE_ID = "default";
 
       const grokRun = await runExecutor({
@@ -2014,11 +2014,11 @@ describe("shared ACPX engine runtime behavior", () => {
       expect(grokRun.sessionInputs[0]?.sessionOptions).toMatchObject({
         env: expect.objectContaining({
           GROK_HOME: path.join(
-            paperclipHome,
+            outpostHome,
             "instances",
             "default",
-            "companies",
-            "company-1",
+            "spaces",
+            "space-1",
             "grok-home",
           ),
         }),
@@ -2029,18 +2029,18 @@ describe("shared ACPX engine runtime behavior", () => {
         agent: "codex",
         stateDir: path.join(root, "state-codex"),
         env: { CODEX_HOME: codexHome },
-        paperclipRuntimeSkills: [],
-        paperclipSkillSync: { desiredSkills: [] },
+        outpostRuntimeSkills: [],
+        outpostSkillSync: { desiredSkills: [] },
       });
       const codexEnv = (codexRun.sessionInputs[0]?.sessionOptions as { env: Record<string, string> })
         .env;
       expect(codexEnv.CODEX_HOME).toBe(codexHome);
       expect(codexEnv.GROK_HOME).toBeUndefined();
     } finally {
-      if (previousPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-      else process.env.OUTPOST_HOME = previousPaperclipHome;
-      if (previousPaperclipInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
-      else process.env.OUTPOST_INSTANCE_ID = previousPaperclipInstanceId;
+      if (previousOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+      else process.env.OUTPOST_HOME = previousOutpostHome;
+      if (previousOutpostInstanceId === undefined) delete process.env.OUTPOST_INSTANCE_ID;
+      else process.env.OUTPOST_INSTANCE_ID = previousOutpostInstanceId;
     }
   });
 
@@ -2119,8 +2119,8 @@ describe("shared ACPX engine runtime behavior", () => {
           CODEX_HOME: codexHome,
           [apiKeyName]: "sk-acp-test-key",
         },
-        paperclipRuntimeSkills: [],
-        paperclipSkillSync: { desiredSkills: [] },
+        outpostRuntimeSkills: [],
+        outpostSkillSync: { desiredSkills: [] },
       });
 
       const env = (sessionInputs[0]!.sessionOptions as { env: Record<string, string> }).env;
@@ -2145,8 +2145,8 @@ describe("shared ACPX engine runtime behavior", () => {
           agent: "codex",
           stateDir: path.join(root, "state"),
           env: { CODEX_HOME: codexHome },
-          paperclipRuntimeSkills: [],
-          paperclipSkillSync: { desiredSkills: [] },
+          outpostRuntimeSkills: [],
+          outpostSkillSync: { desiredSkills: [] },
         });
 
         const env = (sessionInputs[0]!.sessionOptions as { env: Record<string, string> }).env;
@@ -2195,7 +2195,7 @@ describe("shared ACPX engine runtime behavior", () => {
       return runExecutor({ ...config, env: {
         OUTPOST_RUN_SCRATCH_DIR: dir, OUTPOST_TASK_SCRATCH_DIR: dir,
         OUTPOST_SCRATCH_DIR: dir, OUTPOST_TMPDIR: dir, TEMP: dir, TMP: dir, TMPDIR: userTemp,
-      } }, { context: { taskId: "issue-1", paperclipScratch: { type: "heartbeat_run", dir, tempKeysApplied: ["TEMP", "TMP"] } } });
+      } }, { context: { taskId: "issue-1", outpostScratch: { type: "heartbeat_run", dir, tempKeysApplied: ["TEMP", "TMP"] } } });
     }
     const first = await withScratch(path.join(root, "run-1"), "/custom/tmp-1");
     const second = await withScratch(path.join(root, "run-2"), "/custom/tmp-1");
@@ -2243,7 +2243,7 @@ describe("shared ACPX engine runtime behavior", () => {
       context: {
         taskId: "issue-1",
         wakeReason: "issue_assigned",
-        paperclipWorkspace: { cwd, realization: { additional } },
+        outpostWorkspace: { cwd, realization: { additional } },
       },
     });
     const projectA = {
@@ -2304,7 +2304,7 @@ describe("shared ACPX engine runtime behavior", () => {
         context: {
           taskId: "issue-1",
           wakeReason: "issue_assigned",
-          paperclipWorkspace: {
+          outpostWorkspace: {
             cwd,
             realization: {
               additional: projectPaths.map((localPath, index) => ({
@@ -2351,7 +2351,7 @@ describe("shared ACPX engine runtime behavior", () => {
       context: {
         taskId: "issue-1",
         wakeReason: "issue_assigned",
-        paperclipWorkspace: { cwd, realization: { additional: [referencedProject] } },
+        outpostWorkspace: { cwd, realization: { additional: [referencedProject] } },
       },
     });
     const fp = (r: { result: { sessionParams?: unknown } }) =>
@@ -2403,7 +2403,7 @@ describe("shared ACPX engine runtime behavior", () => {
       context: {
         taskId: "issue-1",
         wakeReason: "issue_assigned",
-        paperclipWorkspace: { cwd, realization: { additional: [referencedProject] } },
+        outpostWorkspace: { cwd, realization: { additional: [referencedProject] } },
       },
     });
     const fp = (r: { result: { sessionParams?: unknown } }) =>
@@ -2507,7 +2507,7 @@ describe("shared ACPX engine runtime behavior", () => {
     const remoteCwd = "/workspace/remote";
     const { sessionInputs, runtimeOptions } = await runExecutor(
       { agent: "custom", agentCommand: "node ./fake-acp.js", cwd: localCwd, stateDir: path.join(root, "state") },
-      { context: { paperclipWorkspace: { cwd: localCwd, workspaceWorktreePath: localCwd } }, executionTarget: { kind: "remote", transport: "ssh", remoteCwd } },
+      { context: { outpostWorkspace: { cwd: localCwd, workspaceWorktreePath: localCwd } }, executionTarget: { kind: "remote", transport: "ssh", remoteCwd } },
     );
     const env = (sessionInputs[0]!.sessionOptions as { env: Record<string, string> }).env;
     expect(env.OUTPOST_WORKSPACE_CWD).toBe(localCwd);
@@ -2567,7 +2567,7 @@ describe("shared ACPX engine runtime behavior", () => {
         });
         const result = await execute({
           runId: "run-1",
-          agent: { id: "agent-1", companyId: "company-1" },
+          agent: { id: "agent-1", spaceId: "space-1" },
           runtime: {},
           config: {
             agent: "custom",
@@ -2603,7 +2603,7 @@ describe("shared ACPX engine runtime behavior", () => {
       });
       return execute({
         runId: "run-1",
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
         context: {},
@@ -2664,7 +2664,7 @@ describe("shared ACPX engine runtime behavior", () => {
 
     const result = await execute({
       runId: "run-1",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: {
         agent: "custom",
@@ -2765,7 +2765,7 @@ describe("shared ACPX engine runtime behavior", () => {
     expect(runtimeOptions[0]!.spawnCwd).toBe(localCwd);
     const proxyCommand = (runtimeOptions[0]!.agentRegistry as { resolve(name: string): string }).resolve("custom");
     expect(proxyCommand.startsWith(`${JSON.stringify(process.execPath.replaceAll("\\", "/"))} `)).toBe(true);
-    expect(proxyCommand).toContain("paperclip-process-session-proxy.mjs");
+    expect(proxyCommand).toContain("outpost-process-session-proxy.mjs");
     expect(runtimeOptions[0]!.spawnCwd).not.toBe(sessionInputs[0]!.cwd);
     const payloadEnv = ((sessionPayload as Record<string, unknown> | null)?.env ?? {}) as Record<string, unknown>;
     expect(payloadEnv).toMatchObject({
@@ -2834,7 +2834,7 @@ describe("shared ACPX engine runtime behavior", () => {
       },
     });
     const result = await execute({
-      runId: "run-environment", agent: { id: "agent-1", companyId: "company-1" }, runtime: {},
+      runId: "run-environment", agent: { id: "agent-1", spaceId: "space-1" }, runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state"), cwd: root },
       context: {}, onLog: async () => {}, onMeta: async () => {},
     } as never);
@@ -2864,7 +2864,7 @@ describe("shared ACPX engine runtime behavior", () => {
     try {
       const result = await execute({
         runId: "run-nes-close-1",
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir },
         context: {},
@@ -2906,7 +2906,7 @@ describe("shared ACPX engine runtime behavior", () => {
     };
     const first = await execute({
       runId: "run-warm-1",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config,
       context: {},
@@ -2915,7 +2915,7 @@ describe("shared ACPX engine runtime behavior", () => {
     } as never);
     const second = await execute({
       runId: "run-warm-2",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: { sessionParams: first.sessionParams },
       config,
       context: {},
@@ -2949,7 +2949,7 @@ describe("shared ACPX engine runtime behavior", () => {
       delete process.env.OUTPOST_API_KEY;
       const result = await execute({
         runId: "run-1",
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js" },
         context: {},
@@ -2966,7 +2966,7 @@ describe("shared ACPX engine runtime behavior", () => {
     }
   });
 
-  it("writes a Outpost-managed .claude/settings.local.json for the claude agent so it can reach the Paperclip API", async () => {
+  it("writes a Outpost-managed .claude/settings.local.json for the claude agent so it can reach the Outpost API", async () => {
     const root = await makeTempRoot();
     const stateDir = path.join(root, "state");
     const cwd = path.join(root, "worktree");
@@ -2974,7 +2974,7 @@ describe("shared ACPX engine runtime behavior", () => {
 
     const { meta } = await runExecutor(
       { agent: "claude", stateDir, cwd },
-      { context: { paperclipWorkspace: { cwd, agentHome: path.join(root, "agent-home") } } },
+      { context: { outpostWorkspace: { cwd, agentHome: path.join(root, "agent-home") } } },
     );
 
     const settingsPath = path.join(cwd, ".claude", "settings.local.json");
@@ -2989,7 +2989,7 @@ describe("shared ACPX engine runtime behavior", () => {
     const allow = written.permissions?.allow;
     expect(Array.isArray(allow)).toBe(true);
     expect(allow).toContain("Bash(curl:*)");
-    expect(allow).toContain(`Bash(${cwd}/scripts/paperclip-issue-update.sh:*)`);
+    expect(allow).toContain(`Bash(${cwd}/scripts/outpost-issue-update.sh:*)`);
     const additionalDirectories = written.permissions?.additionalDirectories as string[] | undefined;
     expect(Array.isArray(additionalDirectories)).toBe(true);
     expect(additionalDirectories).toContain(stateDir);
@@ -3001,7 +3001,7 @@ describe("shared ACPX engine runtime behavior", () => {
     expect(note).toBeTruthy();
   });
 
-  it("merges Paperclip allowlist into an existing .claude/settings.local.json without losing user entries", async () => {
+  it("merges Outpost allowlist into an existing .claude/settings.local.json without losing user entries", async () => {
     const root = await makeTempRoot();
     const stateDir = path.join(root, "state");
     const cwd = path.join(root, "worktree");
@@ -3025,7 +3025,7 @@ describe("shared ACPX engine runtime behavior", () => {
 
     await runExecutor(
       { agent: "claude", stateDir, cwd },
-      { context: { paperclipWorkspace: { cwd } } },
+      { context: { outpostWorkspace: { cwd } } },
     );
 
     const written = JSON.parse(
@@ -3059,7 +3059,7 @@ describe("shared ACPX engine runtime behavior", () => {
 
     const { meta } = await runExecutor(
       { agent: "claude", stateDir, cwd },
-      { context: { paperclipWorkspace: { cwd } } },
+      { context: { outpostWorkspace: { cwd } } },
     );
 
     const written = JSON.parse(
@@ -3089,13 +3089,13 @@ describe("shared ACPX engine runtime behavior", () => {
       });
       const result = await execute({
         runId: `run-${agent}`,
-        agent: { id: `agent-${agent}`, companyId: "company-1" },
+        agent: { id: `agent-${agent}`, spaceId: "space-1" },
         runtime: {},
         config:
           agent === "custom"
             ? { agent, agentCommand: "node ./fake-acp.js", stateDir: path.join(root, `state-${agent}`), cwd }
             : { agent, stateDir: path.join(root, `state-${agent}`), cwd },
-        context: { paperclipWorkspace: { cwd } },
+        context: { outpostWorkspace: { cwd } },
         onLog: async () => {},
         onMeta: async () => {},
       } as never);
@@ -3116,7 +3116,7 @@ describe("shared ACPX engine runtime behavior", () => {
 
     await runExecutor(
       { agent: "codex", stateDir, cwd },
-      { context: { paperclipWorkspace: { cwd } } },
+      { context: { outpostWorkspace: { cwd } } },
     );
 
     expect(await pathExists(path.join(cwd, ".claude", "settings.local.json"))).toBe(false);
@@ -3132,7 +3132,7 @@ describe("shared ACPX engine runtime behavior", () => {
 
     const first = await runExecutor(baseConfig, {
       context: {
-        paperclipSecrets: {
+        outpostSecrets: {
           manifest: [
             {
               configPath: "env.API_TOKEN",
@@ -3149,7 +3149,7 @@ describe("shared ACPX engine runtime behavior", () => {
     });
     const second = await runExecutor(baseConfig, {
       context: {
-        paperclipSecrets: {
+        outpostSecrets: {
           manifest: [
             {
               configPath: "env.API_TOKEN",
@@ -3174,7 +3174,7 @@ describe("shared ACPX engine runtime behavior", () => {
     const root = await makeTempRoot();
     // This fixture injects its runtime. Keep session identity independent of
     // host CLI discovery/version probes while testing MCP credential changes.
-    const config = { agent, agentCommand: "node ./fake-acp.js", cwd: root, stateDir: path.join(root, "state"), paperclipRuntimeSkills: [], paperclipSkillSync: { desiredSkills: [] } };
+    const config = { agent, agentCommand: "node ./fake-acp.js", cwd: root, stateDir: path.join(root, "state"), outpostRuntimeSkills: [], outpostSkillSync: { desiredSkills: [] } };
     const first = await runExecutor(config);
     const server = { name: "github", url: "https://example.test/github/mcp", connectionId: "github", token: "current-token" };
     const second = await runExecutor(config, {
@@ -3191,7 +3191,7 @@ describe("shared ACPX engine runtime behavior", () => {
   });
 
   it("bounds Claude MCP tool calls only when runtime MCP servers are attached", async () => {
-    const server = { name: "paperclip-assigned", url: "https://example.test/mcp/gateways/g", connectionId: "assignment:x", token: "t" };
+    const server = { name: "outpost-assigned", url: "https://example.test/mcp/gateways/g", connectionId: "assignment:x", token: "t" };
     const runtimeMcp = { getServers: () => [server] };
     const envOf = (run: { meta: Array<Record<string, unknown>> }) => run.meta[0]?.env as Record<string, string>;
 
@@ -3260,7 +3260,7 @@ describe("findAncestorBin", () => {
 
   it("finds the binary in the start directory's own node_modules/.bin", async () => {
     const root = await makeTempRoot();
-    const packageDir = path.join(root, "node_modules", "@paperclipai", "adapter-utils");
+    const packageDir = path.join(root, "node_modules", "@outpost", "adapter-utils");
     await fs.mkdir(packageDir, { recursive: true });
     const expectedBin = await writeFakeBin(packageDir, "claude-agent-acp");
 
@@ -3271,7 +3271,7 @@ describe("findAncestorBin", () => {
 
   it("finds the binary hoisted to an ancestor node_modules/.bin", async () => {
     const root = await makeTempRoot();
-    const packageDir = path.join(root, "node_modules", "@paperclipai", "adapter-utils");
+    const packageDir = path.join(root, "node_modules", "@outpost", "adapter-utils");
     await fs.mkdir(packageDir, { recursive: true });
     const expectedBin = await writeFakeBin(root, "claude-agent-acp");
 
@@ -3282,7 +3282,7 @@ describe("findAncestorBin", () => {
 
   it("returns null when the binary is not present in any ancestor", async () => {
     const root = await makeTempRoot();
-    const packageDir = path.join(root, "node_modules", "@paperclipai", "adapter-utils");
+    const packageDir = path.join(root, "node_modules", "@outpost", "adapter-utils");
     await fs.mkdir(packageDir, { recursive: true });
 
     const resolved = await findAncestorBin(packageDir, "claude-agent-acp");
@@ -3506,7 +3506,7 @@ describe("gemini ACP flag selection", () => {
           runtimeSessionName: "runtime-session",
         }),
         startTurn: () => ({
-          // Never yields on its own: only the Paperclip wall-clock timer's
+          // Never yields on its own: only the Outpost wall-clock timer's
           // cancel unblocks the turn, simulating a hung run.
           events: (async function* () {
             await turnCancelled;
@@ -3523,7 +3523,7 @@ describe("gemini ACP flag selection", () => {
 
     const result = await execute({
       runId: "run-timeout-1",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: {
         agent: "custom",
@@ -3566,7 +3566,7 @@ describe("ACP activity diagnostics", () => {
           } } } } }) }) } as never;
       },
     });
-    const result = await execute({ runId: "invalid-definition", agent: { id: "agent-1", companyId: "company-1" }, runtime: {},
+    const result = await execute({ runId: "invalid-definition", agent: { id: "agent-1", spaceId: "space-1" }, runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state"), cwd, env: { SECRET: "128" } },
       context: {}, onMeta: async () => {}, onLog: async () => {} } as never);
     expect(result).toMatchObject({ errorCode: "provider_tool_definition_invalid", errorFamily: "configuration" });
@@ -3607,7 +3607,7 @@ describe("ACP activity diagnostics", () => {
         }) as never,
       });
       const result = await execute({
-        runId: "activity-run", agent: { id: "agent-1", companyId: "company-1" }, runtime: {},
+        runId: "activity-run", agent: { id: "agent-1", spaceId: "space-1" }, runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state"), cwd },
         context: {}, onMeta: async () => {},
         onLog: async (_stream: string, text: string) => {
@@ -3656,7 +3656,7 @@ describe("ACP activity diagnostics", () => {
       }) as never,
     });
     const result = await execute({
-      runId: "silent-timeout", agent: { id: "agent-1", companyId: "company-1" }, runtime: {},
+      runId: "silent-timeout", agent: { id: "agent-1", spaceId: "space-1" }, runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state"), cwd, timeoutSec: 1 },
       context: {}, onMeta: async () => {}, onLog: async () => {},
     } as never);
@@ -3699,7 +3699,7 @@ describe("ACP activity diagnostics", () => {
       }) as never,
     });
     const result = await execute({
-      runId: "cancel-closes-tool", agent: { id: "agent-1", companyId: "company-1" }, runtime: {},
+      runId: "cancel-closes-tool", agent: { id: "agent-1", spaceId: "space-1" }, runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state"), cwd, timeoutSec: 1 },
       context: {}, onMeta: async () => {}, onLog: async () => {},
     } as never);
@@ -3766,11 +3766,11 @@ describe("ACP activity diagnostics", () => {
       }) as never,
     });
     const result = await execute({
-      runId: "stalled-tool", agent: { id: "agent-1", companyId: "company-1" }, runtime: {},
+      runId: "stalled-tool", agent: { id: "agent-1", spaceId: "space-1" }, runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state"), cwd },
       context: {}, onMeta: async () => {}, onLog: async (_stream: string, text: string) => { logs.push(text); },
     } as never);
-    expect(cancelReasons).toEqual(["paperclip stalled tool watchdog"]);
+    expect(cancelReasons).toEqual(["outpost stalled tool watchdog"]);
     expect(result.timedOut).toBe(false);
     expect(result.exitCode).toBe(1);
     expect(result.errorCode).toBe("acpx_tool_stalled");
@@ -3790,7 +3790,7 @@ describe("ACP activity diagnostics", () => {
     // The host only observes the request; ACPX's permission mode decides it.
     expect(permissionDecisions).toEqual([undefined]);
     expect(logs.join("")).toContain(
-      "[outpost] A pending tool call (kind other) had no update for 6s; ending the turn. Its permission request did not reach Paperclip.",
+      "[outpost] A pending tool call (kind other) had no update for 6s; ending the turn. Its permission request did not reach Outpost.",
     );
     const diagnostics = Object.fromEntries(Object.entries(result.resultJson ?? {}).filter(([key]) => key.startsWith("acp")));
     expect(JSON.stringify(diagnostics)).not.toContain("private");
@@ -3829,15 +3829,15 @@ describe("ACP activity diagnostics", () => {
       }) as never,
     });
     const result = await execute({
-      runId: "stalled-tool-silent-agent", agent: { id: "agent-1", companyId: "company-1" }, runtime: {},
+      runId: "stalled-tool-silent-agent", agent: { id: "agent-1", spaceId: "space-1" }, runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state"), cwd },
       context: {}, onMeta: async () => {}, onLog: async () => {},
     } as never);
-    expect(closeStreamReasons).toEqual(["paperclip stalled tool cancel deadline"]);
+    expect(closeStreamReasons).toEqual(["outpost stalled tool cancel deadline"]);
     expect(result.errorCode).toBe("acpx_tool_stalled");
     expect(result.resultJson).toMatchObject({
       status: "failed",
-      stopReason: "paperclip_stalled_tool_deadline",
+      stopReason: "outpost_stalled_tool_deadline",
       acpStalledToolKind: "other",
     });
   }, 15_000);
@@ -3874,7 +3874,7 @@ describe("ACP activity diagnostics", () => {
       }) as never,
     });
     const result = await execute({
-      runId: "stalled-tool-after-permission", agent: { id: "agent-1", companyId: "company-1" }, runtime: {},
+      runId: "stalled-tool-after-permission", agent: { id: "agent-1", spaceId: "space-1" }, runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state"), cwd },
       context: {}, onMeta: async () => {}, onLog: async (_stream: string, text: string) => { logs.push(text); },
     } as never);
@@ -3886,7 +3886,7 @@ describe("ACP activity diagnostics", () => {
       acpSettledSameKindToolCount: 0,
       acpSettledSameKindToolPermissionRequestedCount: 0,
     });
-    expect(logs.join("")).toContain("Its permission request reached Paperclip.");
+    expect(logs.join("")).toContain("Its permission request reached Outpost.");
   }, 15_000);
 
   it("leaves a turn alone while its long-running tool keeps receiving updates", async () => {
@@ -3921,7 +3921,7 @@ describe("ACP activity diagnostics", () => {
       }) as never,
     });
     const result = await execute({
-      runId: "live-tool", agent: { id: "agent-1", companyId: "company-1" }, runtime: {},
+      runId: "live-tool", agent: { id: "agent-1", spaceId: "space-1" }, runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state"), cwd },
       context: {}, onMeta: async () => {}, onLog: async () => {},
     } as never);
@@ -3964,7 +3964,7 @@ describe("ACP activity diagnostics", () => {
       }) as never,
     });
     const result = await execute({
-      runId: "queued-tool", agent: { id: "agent-1", companyId: "company-1" }, runtime: {},
+      runId: "queued-tool", agent: { id: "agent-1", spaceId: "space-1" }, runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state"), cwd },
       context: {}, onMeta: async () => {}, onLog: async () => {},
     } as never);
@@ -4001,7 +4001,7 @@ describe("ACP activity diagnostics", () => {
       }) as never,
     });
     const result = await execute({
-      runId: "stall-watchdog-off", agent: { id: "agent-1", companyId: "company-1" }, runtime: {},
+      runId: "stall-watchdog-off", agent: { id: "agent-1", spaceId: "space-1" }, runtime: {},
       config: {
         agent: "claude", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state"), cwd,
         stalledToolTimeoutSec: 0, timeoutSec: 1,
@@ -4010,7 +4010,7 @@ describe("ACP activity diagnostics", () => {
     } as never);
     // Only the wall-clock timeout ended this turn.
     expect(cancelReasons).toHaveLength(1);
-    expect(cancelReasons[0]).not.toBe("paperclip stalled tool watchdog");
+    expect(cancelReasons[0]).not.toBe("outpost stalled tool watchdog");
     expect(result.timedOut).toBe(true);
     expect(result.errorCode).toBe("acpx_timeout");
   }, 15_000);
@@ -4263,12 +4263,12 @@ describe("ACPX engine remote sandbox staging seam (PR 1: workspace + cwd)", () =
     expect(stageArgs.installCommand ?? null).toBeNull();
 
     // Both bridges receive the real (non-null) runtimeRootDir from staging.
-    const paperclipArgs = vi.mocked(startAdapterExecutionTargetPaperclipBridge).mock.calls[0]![0];
+    const outpostArgs = vi.mocked(startAdapterExecutionTargetOutpostBridge).mock.calls[0]![0];
     const processArgs = vi.mocked(startAdapterExecutionTargetProcessSessionBridge).mock.calls[0]![0];
-    expect(paperclipArgs.runtimeRootDir).toBeTruthy();
+    expect(outpostArgs.runtimeRootDir).toBeTruthy();
     expect(processArgs.runtimeRootDir).toBeTruthy();
-    expect(String(paperclipArgs.runtimeRootDir)).toContain(".paperclip-runtime");
-    expect(processArgs.runtimeRootDir).toBe(paperclipArgs.runtimeRootDir);
+    expect(String(outpostArgs.runtimeRootDir)).toContain(".outpost-runtime");
+    expect(processArgs.runtimeRootDir).toBe(outpostArgs.runtimeRootDir);
 
     // The workspace really landed in the sandbox workspace dir.
     await expect(fs.readFile(path.join(remoteCwd, "hello.txt"), "utf8")).resolves.toBe("hi");
@@ -4302,13 +4302,13 @@ describe("ACPX engine remote sandbox staging seam (PR 1: workspace + cwd)", () =
     );
 
     // The process-session bridge receives its launch env as a DEFERRED thunk —
-    // the seam that lets its env-independent setup overlap the paperclip bridge
+    // the seam that lets its env-independent setup overlap the outpost bridge
     // start instead of running strictly after it.
     const processArgs = vi.mocked(startAdapterExecutionTargetProcessSessionBridge).mock.calls[0]![0];
     expect(typeof processArgs.env).toBe("function");
 
-    // ...and despite the overlap the launch still observes the MERGED paperclip
-    // env: the paperclip-`env` → process-session-launch hand-off stays sequenced
+    // ...and despite the overlap the launch still observes the MERGED outpost
+    // env: the outpost-`env` → process-session-launch hand-off stays sequenced
     // under concurrency (bridge base URL + minted bridge token both present, and
     // the token is NOT the host run JWT).
     const payloadEnv = ((launchPayload as Record<string, unknown> | null)?.env ?? {}) as Record<
@@ -4354,7 +4354,7 @@ describe("ACPX engine remote sandbox staging seam (PR 1: workspace + cwd)", () =
         context: {
           taskId: "issue-1",
           wakeReason: "issue_assigned",
-          paperclipWorkspace: {
+          outpostWorkspace: {
             cwd: localCwd,
             realization: {
               additional: [
@@ -4370,7 +4370,7 @@ describe("ACPX engine remote sandbox staging seam (PR 1: workspace + cwd)", () =
           },
           // The plural workspace-hints channel the agent reads. The referenced hint points at the
           // host path today; on a remote target the run must repoint it at the staged directory.
-          paperclipWorkspaces: [
+          outpostWorkspaces: [
             {
               workspaceId: "ws-a",
               cwd: referencedProjectDir,
@@ -4397,14 +4397,14 @@ describe("ACPX engine remote sandbox staging seam (PR 1: workspace + cwd)", () =
     expect(referencedHint!.cwd).not.toBe(referencedProjectDir);
   });
 
-  it("stops the process-session bridge when the paperclip bridge fails under concurrency", async () => {
+  it("stops the process-session bridge when the outpost bridge fails under concurrency", async () => {
     const { stateDir, localCwd, executionTarget } = await setupRemoteSandbox();
-    // The paperclip bridge fails; the process-session bridge — started CONCURRENTLY
+    // The outpost bridge fails; the process-session bridge — started CONCURRENTLY
     // with it — still resolves a live handle. The abandon path must stop that
     // handle so no started bridge leaks on partial failure.
     const stop = vi.fn(async () => {});
-    vi.mocked(startAdapterExecutionTargetPaperclipBridge).mockImplementationOnce(async () => {
-      throw new Error("paperclip bridge boom");
+    vi.mocked(startAdapterExecutionTargetOutpostBridge).mockImplementationOnce(async () => {
+      throw new Error("outpost bridge boom");
     });
     vi.mocked(startAdapterExecutionTargetProcessSessionBridge).mockImplementationOnce(
       async () => ({ agentCommand: null, stop }) as never,
@@ -4417,7 +4417,7 @@ describe("ACPX engine remote sandbox staging seam (PR 1: workspace + cwd)", () =
     await expect(
       execute({
         runId: "run-bridge-fail",
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir, cwd: localCwd },
         context: {},
@@ -4427,7 +4427,7 @@ describe("ACPX engine remote sandbox staging seam (PR 1: workspace + cwd)", () =
         onMeta: async () => {},
         onEvent: async () => {},
       } as never),
-    ).rejects.toThrow("paperclip bridge boom");
+    ).rejects.toThrow("outpost bridge boom");
 
     // The concurrently-started process-session bridge was stopped exactly once.
     expect(stop).toHaveBeenCalledTimes(1);
@@ -4470,7 +4470,7 @@ describe("ACPX engine remote sandbox staging seam (PR 1: workspace + cwd)", () =
       },
     });
     const base = {
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       config: {
         agent: "custom",
         agentCommand: "node ./fake-acp.js",
@@ -4521,7 +4521,7 @@ describe("ACPX engine remote sandbox staging seam (PR 1: workspace + cwd)", () =
     // A local (non-remote) run never crosses the staging seam or starts a
     // bridge, and session/new stays on the HOST cwd — byte-identical to today.
     expect(vi.mocked(prepareAdapterExecutionTargetRuntime)).not.toHaveBeenCalled();
-    expect(vi.mocked(startAdapterExecutionTargetPaperclipBridge)).not.toHaveBeenCalled();
+    expect(vi.mocked(startAdapterExecutionTargetOutpostBridge)).not.toHaveBeenCalled();
     expect(vi.mocked(startAdapterExecutionTargetProcessSessionBridge)).not.toHaveBeenCalled();
     expect(sessionInputs[0]?.cwd).toBe(localCwd);
     expect(runtimeOptions[0]?.cwd).toBe(localCwd);
@@ -4588,7 +4588,7 @@ describe("ACPX engine remote managed-home seam (PR 2: per-adapter home seed)", (
     const context = captured as unknown as Record<string, unknown>;
     // Only generic, adapter-agnostic inputs cross the boundary...
     expect(context.acpxAgent).toBe("custom");
-    expect(context.companyId).toBe("company-1");
+    expect(context.spaceId).toBe("space-1");
     expect(context.runId).toBe("run-1");
     expect(context.workspaceLocalDir).toBe(localCwd);
     expect(context.executionTarget).toMatchObject({ kind: "remote", transport: "sandbox" });
@@ -4640,7 +4640,7 @@ describe("ACPX engine remote managed-home seam (PR 2: per-adapter home seed)", (
     await expect(fs.readFile(path.join(remoteAssetDir, "config.json"), "utf8")).resolves.toBe("{}");
     // ...the staged asset dir resolves under the run's managed runtime root (an
     // in-sandbox path), not the host managed-home dir.
-    expect(remoteAssetDir).toContain(".paperclip-runtime");
+    expect(remoteAssetDir).toContain(".outpost-runtime");
     expect(remoteAssetDir).not.toBe(managedHomeDir);
     expect(path.isAbsolute(remoteAssetDir)).toBe(true);
   });
@@ -4794,13 +4794,13 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
     const cwd = path.join(root, "worktree");
     const stateDir = path.join(root, "state");
     await fs.mkdir(cwd, { recursive: true });
-    const skill = await createSkill(path.join(root, "sources"), "paperclip--versioned", [
+    const skill = await createSkill(path.join(root, "sources"), "outpost--versioned", [
       "---", "description: >-", "  Use for Outpost-managed tasks", "  and durable task documents.",
       "---", "PRIVATE_SKILL_BODY_RECIPE", "",
     ].join("\n"));
     const { meta, result } = await runExecutor({
       agent: "claude", agentCommand: "node ./fake-acp.js", stateDir, cwd,
-      paperclipRuntimeSkills: [skill], paperclipSkillSync: { desiredSkills: [skill.key] },
+      outpostRuntimeSkills: [skill], outpostSkillSync: { desiredSkills: [skill.key] },
     });
     const bundle = await onlyChildDir(path.join(stateDir, "runtime-skills", "claude"));
     const stagedFile = path.join(bundle, ".claude", "skills", skill.runtimeName, "SKILL.md");
@@ -4824,7 +4824,7 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
     const skills = [bounded, absent, malformed];
     const { meta } = await runExecutor({
       agent: "claude", agentCommand: "node ./fake-acp.js", stateDir, cwd,
-      paperclipRuntimeSkills: skills, paperclipSkillSync: { desiredSkills: skills.map((skill) => skill.key) },
+      outpostRuntimeSkills: skills, outpostSkillSync: { desiredSkills: skills.map((skill) => skill.key) },
     });
     const prompt = String(meta[0]?.prompt ?? "");
     expect(prompt).toContain(`- bounded: ${"x".repeat(512)} (file: `);
@@ -4844,8 +4844,8 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
         agentCommand: "node ./fake-acp.js",
         stateDir,
         cwd: localCwd,
-        paperclipRuntimeSkills: [skill],
-        paperclipSkillSync: { desiredSkills: [skill.key] },
+        outpostRuntimeSkills: [skill],
+        outpostSkillSync: { desiredSkills: [skill.key] },
       },
       { authToken: "real-run-jwt", executionTarget, prepareRemoteManagedHome: stagingClaudeSeam() },
     );
@@ -4880,8 +4880,8 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
       agentCommand: "node ./fake-acp.js",
       stateDir,
       cwd: localCwd,
-      paperclipRuntimeSkills: [skill],
-      paperclipSkillSync: { desiredSkills: [skill.key] },
+      outpostRuntimeSkills: [skill],
+      outpostSkillSync: { desiredSkills: [skill.key] },
     };
     const seamWithOverriddenSkillsDir = (
       overridePath: string,
@@ -4923,8 +4923,8 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
         agentCommand: "node ./fake-acp.js",
         stateDir,
         cwd: localCwd,
-        paperclipRuntimeSkills: [],
-        paperclipSkillSync: { desiredSkills: [] },
+        outpostRuntimeSkills: [],
+        outpostSkillSync: { desiredSkills: [] },
       },
       { authToken: "real-run-jwt", executionTarget, prepareRemoteManagedHome: stagingClaudeSeam() },
     );
@@ -4939,7 +4939,7 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
     const skillsRoot = path.join(localCwd, "skills");
     const review = await createSkill(skillsRoot, "review");
 
-    // A skill whose source is a symlink. `materializePaperclipSkillCopy`
+    // A skill whose source is a symlink. `materializeOutpostSkillCopy`
     // refuses a symlinked skill root, so this skill's copy fails while its
     // source still exists (it does not hit the separate missing-source
     // filter).
@@ -4949,7 +4949,7 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
     const brokenSource = path.join(skillsRoot, "broken");
     await fs.symlink(linkedTarget, brokenSource, "dir");
     const broken = {
-      key: "paperclipai/test/broken",
+      key: "outpost/test/broken",
       runtimeName: "broken",
       source: brokenSource,
       required: false,
@@ -4961,8 +4961,8 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
         agentCommand: "node ./fake-acp.js",
         stateDir,
         cwd: localCwd,
-        paperclipRuntimeSkills: [review, broken],
-        paperclipSkillSync: { desiredSkills: [review.key, broken.key] },
+        outpostRuntimeSkills: [review, broken],
+        outpostSkillSync: { desiredSkills: [review.key, broken.key] },
       },
       { authToken: "real-run-jwt", executionTarget, prepareRemoteManagedHome: stagingClaudeSeam() },
     );
@@ -4988,7 +4988,7 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
     const brokenSource = path.join(skillsRoot, "broken");
     await fs.symlink(linkedTarget, brokenSource, "dir");
     const broken = {
-      key: "paperclipai/test/broken",
+      key: "outpost/test/broken",
       runtimeName: "broken",
       source: brokenSource,
       required: false,
@@ -5000,8 +5000,8 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
         agentCommand: "node ./fake-acp.js",
         stateDir,
         cwd: localCwd,
-        paperclipRuntimeSkills: [broken],
-        paperclipSkillSync: { desiredSkills: [broken.key] },
+        outpostRuntimeSkills: [broken],
+        outpostSkillSync: { desiredSkills: [broken.key] },
       },
       { authToken: "real-run-jwt", executionTarget, prepareRemoteManagedHome: stagingClaudeSeam() },
     );
@@ -5017,7 +5017,7 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
     const review = await createSkill(skillsRoot, "review");
 
     // A skill root that is a real directory (so the copy itself does not
-    // throw), but whose `SKILL.md` is a symlink. `materializePaperclipSkillCopy`
+    // throw), but whose `SKILL.md` is a symlink. `materializeOutpostSkillCopy`
     // skips a symlinked file entry instead of copying it, so the staged
     // directory ends up with no `SKILL.md`.
     const linkedSkillMdTarget = path.join(skillsRoot, "linked-skill-md-target.md");
@@ -5026,7 +5026,7 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
     await fs.mkdir(symlinkedSkillMdSource, { recursive: true });
     await fs.symlink(linkedSkillMdTarget, path.join(symlinkedSkillMdSource, "SKILL.md"), "file");
     const symlinkedSkillMd = {
-      key: "paperclipai/test/symlinked-skill-md",
+      key: "outpost/test/symlinked-skill-md",
       runtimeName: "symlinked-skill-md",
       source: symlinkedSkillMdSource,
       required: false,
@@ -5037,7 +5037,7 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
     await fs.mkdir(noSkillMdSource, { recursive: true });
     await fs.writeFile(path.join(noSkillMdSource, "notes.md"), "# notes\n", "utf8");
     const noSkillMd = {
-      key: "paperclipai/test/no-skill-md",
+      key: "outpost/test/no-skill-md",
       runtimeName: "no-skill-md",
       source: noSkillMdSource,
       required: false,
@@ -5049,8 +5049,8 @@ describe("ACPX engine Claude skill bundle staging (remote ACP lane)", () => {
         agentCommand: "node ./fake-acp.js",
         stateDir,
         cwd: localCwd,
-        paperclipRuntimeSkills: [review, symlinkedSkillMd, noSkillMd],
-        paperclipSkillSync: { desiredSkills: [review.key, symlinkedSkillMd.key, noSkillMd.key] },
+        outpostRuntimeSkills: [review, symlinkedSkillMd, noSkillMd],
+        outpostSkillSync: { desiredSkills: [review.key, symlinkedSkillMd.key, noSkillMd.key] },
       },
       { authToken: "real-run-jwt", executionTarget, prepareRemoteManagedHome: stagingClaudeSeam() },
     );
@@ -5130,7 +5130,7 @@ describe("ACPX engine remote session-lifecycle re-staging (PR 3: stage once / re
     env?: Record<string, string>;
   }) {
     return {
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       config: {
         agent: "custom",
         agentCommand: "node ./fake-acp.js",
@@ -5353,7 +5353,7 @@ describe("ACPX engine remote session-lifecycle re-staging (PR 3: stage once / re
   });
 
   // Greptile P1 "Cache Reuse Bypasses Session Compatibility": a fresh invocation
-  // that shares company/agent/task/fingerprint (hence sessionKey) with a prior
+  // that shares space/agent/task/fingerprint (hence sessionKey) with a prior
   // run but carries NO sessionParams starts a new ACP session — it must NOT
   // inherit the prior session's staged workspace + managed home.
   it("test_acp_reuse_requires_compatible_resume_not_just_session_key", async () => {
@@ -5649,12 +5649,12 @@ describe("ACPX engine remote session-lifecycle re-staging (PR 3: stage once / re
 
     // Run B resumes the same session and borrows the cached staged runtime, but a
     // bridge fails during bring-up.
-    vi.mocked(startAdapterExecutionTargetPaperclipBridge).mockImplementationOnce(async () => {
-      throw new Error("paperclip bridge boom");
+    vi.mocked(startAdapterExecutionTargetOutpostBridge).mockImplementationOnce(async () => {
+      throw new Error("outpost bridge boom");
     });
     await expect(
       execute({ runId: "run-b", runtime: { sessionParams: first.sessionParams }, ...base } as never),
-    ).rejects.toThrow("paperclip bridge boom");
+    ).rejects.toThrow("outpost bridge boom");
 
     // The rollback removed the borrowed cache entry through the identity guard, so a
     // later resume can never reuse an entry whose host staged-temp was disposed...
@@ -6023,7 +6023,7 @@ describe("ACPX engine sandbox-start spans (opt-in root + child parenting)", () =
 
     const result = await execute({
       runId: "run-getter",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: {
         agent: "codex",
@@ -6181,15 +6181,15 @@ describe("ACPX engine sandbox-start spans (opt-in root + child parenting)", () =
 
     const rootSpan = spans.find((span) => span.name === "sandbox.startup");
     expect(rootSpan).toBeTruthy();
-    const paperclip = spans.find((span) => span.name === "bridge.outpost");
+    const outpost = spans.find((span) => span.name === "bridge.outpost");
     const processSession = spans.find((span) => span.name === "bridge.process-session");
-    expect(paperclip?.parent).toBe(rootSpan);
+    expect(outpost?.parent).toBe(rootSpan);
     expect(processSession?.parent).toBe(rootSpan);
     // Both bridge spans carry the same batch tag, so the trace marks them as one
     // parallel batch.
-    expect(paperclip?.attributes[A.batch]).toBe("bridge");
+    expect(outpost?.attributes[A.batch]).toBe("bridge");
     expect(processSession?.attributes[A.batch]).toBe("bridge");
-    expect(paperclip?.attributes[A.batch]).toBe(processSession?.attributes[A.batch]);
+    expect(outpost?.attributes[A.batch]).toBe(processSession?.attributes[A.batch]);
 
     const handshake = spans.find((span) => span.name === "acp.handshake");
     expect(handshake).toBeTruthy();
@@ -6226,7 +6226,7 @@ describe("ACPX engine sandbox-start spans (opt-in root + child parenting)", () =
 
     const result = await execute({
       runId: "run-handshake-fail",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir, cwd: localCwd },
       context: {},
@@ -6375,7 +6375,7 @@ describe("ACPX engine sandbox-start spans (opt-in root + child parenting)", () =
 
     const result = await execute({
       runId: "run-e2e-tree",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: {
         agent: "codex",
@@ -6479,7 +6479,7 @@ describe("ACPX engine sandbox-start spans (opt-in root + child parenting)", () =
 
     const result = await execute({
       runId: "run-sync-back-span",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: {
         agent: "codex",
@@ -6587,7 +6587,7 @@ describe("ACPX engine sandbox-start spans (opt-in root + child parenting)", () =
 
     const result = await execute({
       runId: "run-e2e-http",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: {
         agent: "codex",
@@ -6781,7 +6781,7 @@ describe("ACPX engine per-step startup timing (run.startup.step events)", () => 
       runtimeOptions = options;
       return runtime as never;
     } });
-    const base = { agent: { id: "agent-1", companyId: "company-1" },
+    const base = { agent: { id: "agent-1", spaceId: "space-1" },
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state"), mode: "persistent" },
       context: {}, onLog: async () => {}, onMeta: async () => {} };
     const first = await execute({ ...base, runId: "reuse-first", runtime: {} } as never);
@@ -6822,7 +6822,7 @@ describe("ACPX engine per-step startup timing (run.startup.step events)", () => 
     };
     const first = await execute({
       runId: "run-warm-1",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config,
       context: {},
@@ -6835,7 +6835,7 @@ describe("ACPX engine per-step startup timing (run.startup.step events)", () => 
     // acp.handshake event whose outcome is not `skipped`.
     await execute({
       runId: "run-warm-2",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: { sessionParams: (first as { sessionParams?: unknown }).sessionParams },
       config,
       context: {},
@@ -6912,7 +6912,7 @@ describe("ACPX engine run lifecycle corrections (F1: settle every failure after 
     });
     const result = await execute({
       runId: "run-create-fail",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
       context: {},
@@ -6930,10 +6930,10 @@ describe("ACPX engine run lifecycle corrections (F1: settle every failure after 
   it.each(["create_failure", "relay_respawn", "stalled_receipt"])(
     "keeps remote provider evidence unknown and releases the staging lease on %s", async (scenario) => {
       const { stateDir, localCwd, executionTarget } = await setupRemoteSandbox();
-      const paperclipStop = vi.fn(async () => {});
+      const outpostStop = vi.fn(async () => {});
       const processStop = vi.fn(async () => {});
-      vi.mocked(startAdapterExecutionTargetPaperclipBridge).mockImplementationOnce(
-        async () => ({ env: {}, stop: paperclipStop }) as never,
+      vi.mocked(startAdapterExecutionTargetOutpostBridge).mockImplementationOnce(
+        async () => ({ env: {}, stop: outpostStop }) as never,
       );
       vi.mocked(startAdapterExecutionTargetProcessSessionBridge).mockImplementationOnce(
         async () => ({ agentCommand: null, stop: processStop }) as never,
@@ -6963,7 +6963,7 @@ describe("ACPX engine run lifecycle corrections (F1: settle every failure after 
 
       const execution = execute({
         runId: "run-create-fail-remote",
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir, cwd: localCwd },
         context: {},
@@ -7000,7 +7000,7 @@ describe("ACPX engine run lifecycle corrections (F1: settle every failure after 
         layers: { provider_process: { state: "unknown", reason: "evidence_missing" } },
       });
       // Both live bridges stop exactly once.
-      expect(paperclipStop).toHaveBeenCalledTimes(1);
+      expect(outpostStop).toHaveBeenCalledTimes(1);
       expect(processStop).toHaveBeenCalledTimes(1);
       // The per-session staging lease released, so the lock map does not strand the
       // next same-session run.
@@ -7028,7 +7028,7 @@ describe("ACPX engine run lifecycle corrections (F1: settle every failure after 
     // A throwing accessor on a field only `buildPrompt` reads makes the prompt
     // build fail after the session handshake succeeds.
     const context: Record<string, unknown> = {};
-    Object.defineProperty(context, "paperclipSessionHandoffMarkdown", {
+    Object.defineProperty(context, "outpostSessionHandoffMarkdown", {
       enumerable: false,
       get() {
         if (failure === "prompt") throw new Error("prompt build boom");
@@ -7038,7 +7038,7 @@ describe("ACPX engine run lifecycle corrections (F1: settle every failure after 
 
     const result = await execute({
       runId: "run-prepare-fail",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
       context,
@@ -7099,7 +7099,7 @@ describe("ACPX engine run lifecycle corrections (F1: settle every failure after 
 
       await execute({
         runId: `run-span-${scenario.name.replace(/\s+/g, "-")}`,
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir, cwd: localCwd },
         context: {},
@@ -7166,7 +7166,7 @@ describe("ACPX engine run lifecycle corrections (F2: close the runtime for every
 
     const first = await execute({
       runId: "warm-handshake-1",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config,
       context: {},
@@ -7184,7 +7184,7 @@ describe("ACPX engine run lifecycle corrections (F2: close the runtime for every
     // while persisting process identity.
     const second = await execute({
       runId: "warm-handshake-2",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: { sessionParams: first.sessionParams },
       config,
       context: {},
@@ -7222,7 +7222,7 @@ describe("ACPX engine run lifecycle corrections (F2: close the runtime for every
 
     const result = await execute({
       runId: "missing-handle",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
       context: {},
@@ -7276,7 +7276,7 @@ describe("ACPX engine run lifecycle corrections (F2: close the runtime for every
 
     const first = await execute({
       runId: "warm-timer-1",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config,
       context: {},
@@ -7294,7 +7294,7 @@ describe("ACPX engine run lifecycle corrections (F2: close the runtime for every
     // while persisting process identity; runtime #2 closes.
     const second = await execute({
       runId: "warm-timer-2",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: { sessionParams: first.sessionParams },
       config,
       context: {},
@@ -7312,7 +7312,7 @@ describe("ACPX engine run lifecycle corrections (F2: close the runtime for every
     // A later heartbeat also finds no warm entry and constructs a fresh runtime.
     const third = await execute({
       runId: "warm-timer-3",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: { sessionParams: first.sessionParams },
       config,
       context: {},
@@ -7357,11 +7357,11 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
   // Stub both sandbox bridges with stop spies collected per start, so a test can
   // assert the bridges stopped without running the real bridge transport.
   function stubBridges() {
-    const paperclipStops: Array<ReturnType<typeof vi.fn>> = [];
+    const outpostStops: Array<ReturnType<typeof vi.fn>> = [];
     const processStops: Array<ReturnType<typeof vi.fn>> = [];
-    vi.mocked(startAdapterExecutionTargetPaperclipBridge).mockImplementation(async () => {
+    vi.mocked(startAdapterExecutionTargetOutpostBridge).mockImplementation(async () => {
       const stop = vi.fn(async () => {});
-      paperclipStops.push(stop);
+      outpostStops.push(stop);
       return { env: {}, stop } as never;
     });
     vi.mocked(startAdapterExecutionTargetProcessSessionBridge).mockImplementation(async () => {
@@ -7373,12 +7373,12 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
       stops.some((stop) => stop.mock.calls.length > 0);
     const stoppedCount = (stops: Array<ReturnType<typeof vi.fn>>) =>
       stops.filter((stop) => stop.mock.calls.length > 0).length;
-    return { paperclipStops, processStops, anyStopped, stoppedCount };
+    return { outpostStops, processStops, anyStopped, stoppedCount };
   }
 
   function throwingHandoffContext(): Record<string, unknown> {
     const context: Record<string, unknown> = {};
-    Object.defineProperty(context, "paperclipSessionHandoffMarkdown", {
+    Object.defineProperty(context, "outpostSessionHandoffMarkdown", {
       enumerable: false,
       get() {
         throw new Error("prompt build boom");
@@ -7412,7 +7412,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
     overrides: Record<string, unknown> = {},
   ) {
     return {
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir, cwd: localCwd },
       context: {},
@@ -7437,7 +7437,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
       const block = () => { entered(); return gate; };
       const scopes = new Map<symbol, string>();
       if (blockedPhase === "stop_transport") {
-        vi.mocked(startAdapterExecutionTargetPaperclipBridge).mockImplementation(async () => ({ env: {}, stop: block }) as never);
+        vi.mocked(startAdapterExecutionTargetOutpostBridge).mockImplementation(async () => ({ env: {}, stop: block }) as never);
       }
       const execute = createAcpxEngineExecutor({
         createRuntime: () => ({
@@ -7537,7 +7537,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
     // and the seam teardown, and read the still-held lease during the sync-back.
     const { stateDir, localCwd, executionTarget } = await setupRemoteSandbox();
     const order: string[] = [];
-    vi.mocked(startAdapterExecutionTargetPaperclipBridge).mockImplementation(async () => ({
+    vi.mocked(startAdapterExecutionTargetOutpostBridge).mockImplementation(async () => ({
       env: {},
       stop: vi.fn(async () => {
         order.push("bridge-stop");
@@ -7600,9 +7600,9 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
       discard: boolean;
       exitCode: number;
     }> = [
-      { status: "completed", reason: "paperclip completed turn cleanup", discard: false, exitCode: 0 },
-      { status: "failed", reason: "paperclip turn failed", discard: false, exitCode: 1 },
-      { status: "cancelled", reason: "paperclip turn cancelled", discard: true, exitCode: 1 },
+      { status: "completed", reason: "outpost completed turn cleanup", discard: false, exitCode: 0 },
+      { status: "failed", reason: "outpost turn failed", discard: false, exitCode: 1 },
+      { status: "cancelled", reason: "outpost turn cancelled", discard: true, exitCode: 1 },
     ];
 
     for (const testCase of cases) {
@@ -7630,7 +7630,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
 
       const result = await execute({
         runId: `terminal-${testCase.status}`,
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
         context: {},
@@ -7650,7 +7650,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
 
   it("collects instructions after confirmed close on a thrown provider turn, before workspace restore", async () => {
     const { stateDir, localCwd, executionTarget } = await setupRemoteSandbox();
-    const { paperclipStops, anyStopped } = stubBridges();
+    const { outpostStops, anyStopped } = stubBridges();
     const order: string[] = [];
     const execute = createAcpxEngineExecutor({
       stagingLocks: new Map(), warmHandles: new Map(), stagedRuntimes: new Map(),
@@ -7659,7 +7659,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
     });
     const result = await execute({ runId: "instruction-stop-failure",
       ...remoteArgs(stateDir, localCwd, executionTarget, { onProviderStopped: async () => {
-        expect(anyStopped(paperclipStops)).toBe(true);
+        expect(anyStopped(outpostStops)).toBe(true);
         order.push("collect");
       } }),
     } as never);
@@ -7669,7 +7669,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
 
   it("test_teardown_continues_after_one_teardown_step_fails", async () => {
     const { stateDir, localCwd, executionTarget } = await setupRemoteSandbox();
-    const { paperclipStops, processStops, anyStopped } = stubBridges();
+    const { outpostStops, processStops, anyStopped } = stubBridges();
     const stagingLocks = new Map<string, Promise<unknown>>();
     const collectInstructions = vi.fn(async () => {});
     const logs: Array<{ stream: string; text: string }> = [];
@@ -7701,7 +7701,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
     expect(result.exitCode).toBe(1);
     expect(collectInstructions).not.toHaveBeenCalled();
     // The close failure did not stop the bridge stops or the lease release.
-    expect(anyStopped(paperclipStops)).toBe(true);
+    expect(anyStopped(outpostStops)).toBe(true);
     expect(anyStopped(processStops)).toBe(true);
     expect(stagingLocks.size).toBe(0);
     // The close failure was recorded, not silently dropped.
@@ -7712,7 +7712,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
 
   it("restores managed home and releases the lease when instruction collection rejects", async () => {
     const { stateDir, localCwd, executionTarget } = await setupRemoteSandbox();
-    const { paperclipStops, processStops, anyStopped } = stubBridges();
+    const { outpostStops, processStops, anyStopped } = stubBridges();
     const stagingLocks = new Map<string, Promise<unknown>>();
     const order: string[] = [];
     const logs: string[] = [];
@@ -7733,7 +7733,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
     } as never);
     expect(result.exitCode).toBe(1);
     expect(order).toEqual(["close", "collect", "restore"]);
-    expect(anyStopped(paperclipStops)).toBe(true);
+    expect(anyStopped(outpostStops)).toBe(true);
     expect(anyStopped(processStops)).toBe(true);
     expect(stagingLocks.size).toBe(0);
     expect(logs.some(text => text.includes('teardown step "instruction-collection" failed: Instruction collection failed'))).toBe(true);
@@ -7821,7 +7821,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
 
   it("test_result_emission_failure_does_not_skip_teardown", async () => {
     const { stateDir, localCwd, executionTarget } = await setupRemoteSandbox();
-    const { paperclipStops, processStops, anyStopped } = stubBridges();
+    const { outpostStops, processStops, anyStopped } = stubBridges();
     const stagingLocks = new Map<string, Promise<unknown>>();
     const execute = createAcpxEngineExecutor({
       stagingLocks,
@@ -7845,14 +7845,14 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
       }),
     } as never).catch(() => {});
 
-    expect(anyStopped(paperclipStops)).toBe(true);
+    expect(anyStopped(outpostStops)).toBe(true);
     expect(anyStopped(processStops)).toBe(true);
     expect(stagingLocks.size).toBe(0);
   });
 
   it("test_result_mapping_throw_after_close_does_not_rerun_teardown", async () => {
     const { stateDir, localCwd, executionTarget } = await setupRemoteSandbox();
-    const { paperclipStops, processStops, stoppedCount } = stubBridges();
+    const { outpostStops, processStops, stoppedCount } = stubBridges();
     let closeCount = 0;
     const execute = createAcpxEngineExecutor({
       warmHandles: new Map(),
@@ -7888,7 +7888,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
     // The completed turn closed the runtime once; the mapping throw did not re-run
     // the teardown through the turn catch.
     expect(closeCount).toBe(1);
-    expect(stoppedCount(paperclipStops)).toBe(1);
+    expect(stoppedCount(outpostStops)).toBe(1);
     expect(stoppedCount(processStops)).toBe(1);
   });
 
@@ -7939,7 +7939,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
 
       for (const scenario of scenarios) {
         const root = await makeTempRoot();
-        const marker = `paperclip-flush-probe-${scenario.name}`;
+        const marker = `outpost-flush-probe-${scenario.name}`;
         const execute = createAcpxEngineExecutor({
           createRuntime: (options) => {
             const opts = options as {
@@ -7963,7 +7963,7 @@ describe("ACPX engine run lifecycle corrections (F3: one teardown error policy)"
 
         await execute({
           runId: `flush-${scenario.name}`,
-          agent: { id: "agent-1", companyId: "company-1" },
+          agent: { id: "agent-1", spaceId: "space-1" },
           runtime: {},
           config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
           context: scenario.context,
@@ -8197,7 +8197,7 @@ describe("ACPX engine sandbox bridge run-disposition seam (fail-closed)", () => 
     deps: Partial<AcpxEngineExecutorOptions> = {},
     processSessionBridge: Record<string, unknown> = {},
   ) {
-    vi.mocked(startAdapterExecutionTargetPaperclipBridge).mockImplementationOnce(
+    vi.mocked(startAdapterExecutionTargetOutpostBridge).mockImplementationOnce(
       async () => handle as never,
     );
     vi.mocked(startAdapterExecutionTargetProcessSessionBridge).mockImplementationOnce(
@@ -8209,7 +8209,7 @@ describe("ACPX engine sandbox bridge run-disposition seam (fail-closed)", () => 
     });
     return await execute({
       runId: "run-duplex-seam",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: {
         agent: "custom",
@@ -8637,7 +8637,7 @@ describe("ACPX startup handshake guard and late-completion fence", () => {
       vi.useFakeTimers();
       const resultPromise = execute({
         runId: "run-handshake-timeout",
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
         context: {},
@@ -8683,7 +8683,7 @@ describe("ACPX startup handshake guard and late-completion fence", () => {
       vi.useFakeTimers();
       const resultPromise = execute({
         runId: "run-no-promotion",
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
         context: {},
@@ -8746,7 +8746,7 @@ describe("ACPX startup handshake guard and late-completion fence", () => {
       });
       const resultPromise = execute({
         runId: "run-fence-close",
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
         context: {},
@@ -8809,7 +8809,7 @@ describe("ACPX startup handshake guard and late-completion fence", () => {
       vi.useFakeTimers();
       const resultPromise = execute({
         runId: "run-discard-reuse",
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: {
           agent: "custom",
@@ -8858,7 +8858,7 @@ describe("ACPX startup handshake guard and late-completion fence", () => {
 
     const result = await execute({
       runId: "run-session-mismatch",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
       context: {},
@@ -8909,7 +8909,7 @@ describe("ACPX startup handshake guard and late-completion fence", () => {
       });
       const resultPromise = execute({
         runId: "run-late-rejection",
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
         context: {},
@@ -8973,7 +8973,7 @@ describe("ACPX startup handshake guard and late-completion fence", () => {
       vi.useFakeTimers();
       const resultPromise = execute({
         runId: "run-guard-timeout",
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir },
         context: {},
@@ -9040,7 +9040,7 @@ describe("ACPX startup handshake guard and late-completion fence", () => {
       markOrderlyCompletion: () => {},
       stop: async () => {},
     };
-    vi.mocked(startAdapterExecutionTargetPaperclipBridge).mockImplementationOnce(
+    vi.mocked(startAdapterExecutionTargetOutpostBridge).mockImplementationOnce(
       async () => bridgeHandle as never,
     );
     vi.mocked(startAdapterExecutionTargetProcessSessionBridge).mockImplementationOnce(
@@ -9069,7 +9069,7 @@ describe("ACPX startup handshake guard and late-completion fence", () => {
     // timers. The loss is ordered up front, before `ensureSession` ever runs.
     const resultPromise = execute({
       runId: "run-guard-transport-lost",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir, cwd: localCwd },
       context: {},
@@ -9131,7 +9131,7 @@ describe("ACPX startup handshake guard and late-completion fence", () => {
       });
       const resultPromise = execute({
         runId: "run-late-close-rejection",
-        agent: { id: "agent-1", companyId: "company-1" },
+        agent: { id: "agent-1", spaceId: "space-1" },
         runtime: {},
         config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
         context: {},

@@ -38,7 +38,7 @@ export type AttentionSeverity = "critical" | "high" | "medium" | "low";
 export interface AttentionSubject {
   kind: AttentionSubjectKind;
   id: string;
-  companyId: string;
+  spaceId: string;
   title: string | null;
   identifier: string | null;
   status: string | null;
@@ -220,7 +220,7 @@ export interface AttentionResolverAudience {
 
 export interface AttentionItem {
   id: string;
-  companyId: string;
+  spaceId: string;
   sourceKind: AttentionSourceKind;
   subject: AttentionSubject;
   whyNow: string;
@@ -255,20 +255,20 @@ export interface AttentionItem {
   trainingExampleId: string | null;
   /**
    * Set for `issue_thread_interaction` rows only. Absent on every other source
-   * kind, whose decisions are not governed by a resolver policy.
+   * kind, whose decisions are not controlled by a resolver policy.
    */
   resolverAudience?: AttentionResolverAudience | null;
 }
 
 export interface AttentionFeed {
-  companyId: string;
+  spaceId: string;
   generatedAt: string;
   totalCount: number;
   /**
    * The sidebar badge: distinct items that either surfaced today ("new today")
    * or carry an explicit decide-by deadline that is due today/past ("overdue").
    * Computed before pagination so a small first page still reflects the
-   * company-wide load. The desk no longer editorializes about what "can wait".
+   * space-wide load. The desk no longer editorializes about what "can wait".
    */
   deskBadgeCount: number;
   nextCursor: string | null;

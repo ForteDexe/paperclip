@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "issue_tree_holds" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"root_issue_id" uuid NOT NULL,
 	"mode" text NOT NULL,
 	"status" text DEFAULT 'active' NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS "issue_tree_holds" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "issue_tree_hold_members" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"hold_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"parent_issue_id" uuid,
@@ -41,8 +41,8 @@ CREATE TABLE IF NOT EXISTS "issue_tree_hold_members" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
- IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'issue_tree_holds_company_id_companies_id_fk') THEN
-  ALTER TABLE "issue_tree_holds" ADD CONSTRAINT "issue_tree_holds_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'issue_tree_holds_space_id_spaces_id_fk') THEN
+  ALTER TABLE "issue_tree_holds" ADD CONSTRAINT "issue_tree_holds_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
  END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -71,8 +71,8 @@ DO $$ BEGIN
  END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
- IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'issue_tree_hold_members_company_id_companies_id_fk') THEN
-  ALTER TABLE "issue_tree_hold_members" ADD CONSTRAINT "issue_tree_hold_members_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'issue_tree_hold_members_space_id_spaces_id_fk') THEN
+  ALTER TABLE "issue_tree_hold_members" ADD CONSTRAINT "issue_tree_hold_members_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
  END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -100,8 +100,8 @@ DO $$ BEGIN
   ALTER TABLE "issue_tree_hold_members" ADD CONSTRAINT "issue_tree_hold_members_active_run_id_heartbeat_runs_id_fk" FOREIGN KEY ("active_run_id") REFERENCES "public"."heartbeat_runs"("id") ON DELETE set null ON UPDATE no action;
  END IF;
 END $$;--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "issue_tree_holds_company_root_status_idx" ON "issue_tree_holds" USING btree ("company_id","root_issue_id","status");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "issue_tree_holds_company_status_mode_idx" ON "issue_tree_holds" USING btree ("company_id","status","mode");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "issue_tree_holds_space_root_status_idx" ON "issue_tree_holds" USING btree ("space_id","root_issue_id","status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "issue_tree_holds_space_status_mode_idx" ON "issue_tree_holds" USING btree ("space_id","status","mode");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "issue_tree_hold_members_hold_issue_uq" ON "issue_tree_hold_members" USING btree ("hold_id","issue_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "issue_tree_hold_members_company_issue_idx" ON "issue_tree_hold_members" USING btree ("company_id","issue_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "issue_tree_hold_members_space_issue_idx" ON "issue_tree_hold_members" USING btree ("space_id","issue_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "issue_tree_hold_members_hold_depth_idx" ON "issue_tree_hold_members" USING btree ("hold_id","depth");

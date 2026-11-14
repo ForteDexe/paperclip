@@ -11,7 +11,7 @@ import { turnResponseCards, type TurnResponseCard } from "./turn-response-card.j
 
 /** A review card that ended the turn returns the draft when it is bound to the draft's exact saved revision on this chat. */
 function draftReviewCard(o: IdentityObservation, draft: Entity): TurnResponseCard | undefined {
-  return turnResponseCards({ companyId: o.companyId, leadId: o.leadId, runs: o.runs, interactions: o.interactions }).find(card => card.kind === "request_confirmation"
+  return turnResponseCards({ spaceId: o.spaceId, leadId: o.leadId, runs: o.runs, interactions: o.interactions }).find(card => card.kind === "request_confirmation"
     && card.target?.type === "issue_document" && card.target.key === draft.key && card.target.revisionId === draft.latestRevisionId
     && (card.target.issueId === undefined || card.target.issueId === o.state.sourceId));
 }
@@ -24,7 +24,7 @@ function gradePlanReviewOutcome(value: unknown) {
     && original.payload.target?.revisionId === plan?.latestRevisionId,
     "The actual current request retains the reviewed source document revision without authorizing another version.");
   if (o.scenarioId === "questions-and-approvals.review-plan") {
-    c.add("ordinary-linked-execution", o.tasks.length === 1 && saved?.companyId === o.companyId && saved.id !== o.state.sourceId && saved.parentId == null
+    c.add("ordinary-linked-execution", o.tasks.length === 1 && saved?.spaceId === o.spaceId && saved.id !== o.state.sourceId && saved.parentId == null
     && saved.assigneeAgentId === worker?.id && hasLink(o, "issues", saved) && o.activity.some(row => row.action === "issue.created" && row.entityId === saved.id && row.agentId === o.leadId)
     && o.state.sourceRetainsConversation === true && o.runs.some(run => run.agentId === worker?.id && (run.contextSnapshot?.issueId === saved.id || (run as unknown as { nativeIssueId?: string }).nativeIssueId === saved.id)),
     "The agent creates one linked ordinary task assigned to the real Morgan, whose actual admitted execution is bound to that task; chat remains a conversation.");
@@ -76,13 +76,13 @@ export function planDecisionSourceComplete(value: unknown) {
   const o = identityObservation(value); if (!o || typeof o.state.sourceId !== "string" || !o.state.sourceId || !Array.isArray(o.state.planDecisionComments) || !o.runs.length || o.runs.length > 3 || new Set(o.runs.map(run => run.id)).size !== o.runs.length) return false;
   const comments = o.state.planDecisionComments as PlanComment[], humans = comments.filter(row => !row.authorAgentId);
   if (humans.length !== 1 || typeof o.state.personId !== "string" || humans[0]!.authorUserId !== o.state.personId || humans[0]!.id !== o.state.canonicalCommentId || !humans[0]!.matchesQuery) return false;
-  if (o.runs.some(run => run.companyId !== o.companyId || run.runtimeMode !== "native" || !["queued", "running", "succeeded"].includes(run.status))) return false;
+  if (o.runs.some(run => run.spaceId !== o.spaceId || run.runtimeMode !== "native" || !["queued", "running", "succeeded"].includes(run.status))) return false;
   const ceos = o.runs.filter(run => run.agentId === o.leadId && run.contextSnapshot?.issueId === o.state.sourceId);
   const initial = ceos.filter(run => run.contextSnapshot?.commentId === humans[0]!.id);
   if (initial.length !== 1 || initial[0]!.status !== "succeeded" || !(stamp(humans[0]!.createdAt) <= stamp(initial[0]!.startedAt))) return false;
   const worker = o.state.worker as Entity | undefined;
   const others = o.runs.filter(run => !ceos.includes(run));
-  if (others.length > 1 || others.some(run => run.agentId !== worker?.id || !o.tasks.some(task => task.id === run.contextSnapshot?.issueId && task.companyId === o.companyId && task.assigneeAgentId === worker?.id))) return false;
+  if (others.length > 1 || others.some(run => run.agentId !== worker?.id || !o.tasks.some(task => task.id === run.contextSnapshot?.issueId && task.spaceId === o.spaceId && task.assigneeAgentId === worker?.id))) return false;
   if (ceos.length === 1) return o.runs.length === ceos.length + others.length;
   if (ceos.length !== 2 || others.length !== 1 || others[0]!.status !== "succeeded") return false;
   const completion = ceos.find(run => run.id !== initial[0]!.id)!;
@@ -95,7 +95,7 @@ export function planDecisionSourceComplete(value: unknown) {
   const savedResponse = comments.filter(row => row.authorAgentId === o.leadId && row.createdByRunId === completion.id && row.bodyPresent && stamp(row.createdAt) >= continuationAt);
   const savedOutput = o.documents.some(doc => doc.issueId === task.id && !!doc.body?.trim() && !!doc.latestRevisionId
     && o.revisions.some(revision => revision.id === doc.latestRevisionId && revision.documentId === doc.id && revision.createdByRunId === others[0]!.id && revision.createdByAgentId === worker?.id))
-    || o.comments.some(comment => comment.companyId === o.companyId && comment.issueId === task.id && comment.authorAgentId === worker?.id && comment.createdByRunId === others[0]!.id && !!comment.body?.trim());
+    || o.comments.some(comment => comment.spaceId === o.spaceId && comment.issueId === task.id && comment.authorAgentId === worker?.id && comment.createdByRunId === others[0]!.id && !!comment.body?.trim());
   return savedResponse.length === 1 && savedOutput;
 }
 export function gradePlanReview(value: unknown) {
@@ -128,7 +128,7 @@ async function observePlanReview(ctx: ChatCatalogContext, state: Record<string, 
     for (const issueId of documentIssueIds) {
       const docs = await ctx.input.api.get<IssueDocumentSummary[]>(`/api/issues/${issueId}/documents`);
       const full = await Promise.all(docs.map(doc => ctx.input.api.get<IssueDocument>(`/api/issues/${issueId}/documents/${encodeURIComponent(doc.key)}`)));
-      if (full.some(doc => doc.companyId !== ctx.input.fixtures.company.id || doc.issueId !== issueId)) throw new Error("Plan document readback escaped the selected source task");
+      if (full.some(doc => doc.spaceId !== ctx.input.fixtures.space.id || doc.issueId !== issueId)) throw new Error("Plan document readback escaped the selected source task");
       o.documents.push(...full.map(doc => ({ id: doc.id, issueId: doc.issueId, key: doc.key, body: doc.body, latestRevisionId: doc.latestRevisionId ?? undefined })));
     }
     // Normal task comments are also inspectable saved work; completion does not
@@ -136,12 +136,12 @@ async function observePlanReview(ctx: ChatCatalogContext, state: Record<string, 
     // the protected original so existing privacy/evidence checks still apply.
     for (const task of o.tasks) {
       const comments = await ctx.input.api.get<Entity[]>(`/api/issues/${task.id}/comments?order=asc`);
-      if (comments.some(comment => comment.companyId !== ctx.input.fixtures.company.id || comment.issueId !== task.id)) throw new Error("Plan output comment escaped the selected source task");
+      if (comments.some(comment => comment.spaceId !== ctx.input.fixtures.space.id || comment.issueId !== task.id)) throw new Error("Plan output comment escaped the selected source task");
       o.comments.push(...comments);
     }
     for (const issueId of [ctx.issue()!.id, ...o.tasks.map(task => task.id)]) {
       const products = await ctx.input.api.get<IssueWorkProduct[]>(`/api/issues/${issueId}/work-products`);
-      published ||= products.some(product => !["document", "artifact"].includes(product.type) || product.provider !== "paperclip"
+      published ||= products.some(product => !["document", "artifact"].includes(product.type) || product.provider !== "outpost"
         || product.url != null && new URL(product.url, ctx.input.api.baseURL).origin !== ctx.input.api.baseURL);
     }
     const revisions = (await Promise.all(o.documents.map(row => ctx.input.api.get<DocumentRevision[]>(`/api/issues/${row.issueId}/documents/${encodeURIComponent(row.key!)}/revisions`)))).flat();
@@ -206,7 +206,7 @@ export const planReviewIdentityCases: readonly ChatCatalogCase[] = ["questions-a
     }
     // A separate additional review opens before its actual public document edit.
     // The first canonical approval's source plan is never rewritten by this check.
-    const target = await ctx.input.api.post<Entity>(`/api/companies/${ctx.input.fixtures.company.id}/issues`, { title: "Separate stale review fixture", status: "backlog" });
+    const target = await ctx.input.api.post<Entity>(`/api/spaces/${ctx.input.fixtures.space.id}/issues`, { title: "Separate stale review fixture", status: "backlog" });
     state.staleTaskId = target.id;
     const old = await putDocument(ctx, target.id, "Old review: unrestricted publication.");
     const stale = await ctx.input.api.post<Interaction>(`/api/issues/${target.id}/interactions`, createIssueThreadInteractionSchema.parse({ kind: "request_confirmation", title: "Review before edit", resolverPolicy: "human_only", continuationPolicy: "none",
@@ -216,9 +216,9 @@ export const planReviewIdentityCases: readonly ChatCatalogCase[] = ["questions-a
     state.staleAttemptStatus = response.status(); const body = await response.json() as { code?: string; details?: { code?: string } }; state.staleErrorCode = body.details?.code ?? body.code;
     state.staleRevisionId = old.latestRevisionId; state.newerRevisionId = current.latestRevisionId;
     const interactions = await ctx.input.api.get<Interaction[]>(`/api/issues/${target.id}/interactions`); state.staleExpired = interactions.find(row => row.id === stale.id)?.status === "expired";
-    const source = ctx.input.page.url(); await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${target.identifier ?? target.id}`, { waitUntil: "domcontentloaded" });
+    const source = ctx.input.page.url(); await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${target.identifier ?? target.id}`, { waitUntil: "domcontentloaded" });
     // The supported plan deep link expands the real current document, not text fabricated by the harness.
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${target.identifier ?? target.id}#document-plan&viewer=full`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${target.identifier ?? target.id}#document-plan&viewer=full`, { waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByText("Newer review: local draft only, do not publish.", { exact: false }).first()).toBeVisible(); state.newerRevisionVisible = true;
     await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });
     await ctx.input.evidence("identity-stale-plan-review.json", { oldRevisionId: old.latestRevisionId, newRevisionId: current.latestRevisionId, staleAttemptStatus: state.staleAttemptStatus, staleErrorCode: state.staleErrorCode, newerRevisionVisible: true });

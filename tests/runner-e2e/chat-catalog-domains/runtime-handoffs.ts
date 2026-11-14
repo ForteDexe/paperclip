@@ -74,7 +74,7 @@ export const runtimeHandoffCases = [runtimeDefinition("agent-chat.track-delegate
   const phase = await pollUntil({ label: "Actual conversation-created Morgan handoff", deadlineAt: chatCatalogNativePhaseDeadline(ctx, Date.now() + 180_000),
     load: async () => {
       await ctx.refreshIssue();
-      const tasks = await ctx.input.api.get<Entity[]>(`${prepared.company}/issues?includeAgentCreatedTasks=true&limit=1000`);
+      const tasks = await ctx.input.api.get<Entity[]>(`${prepared.space}/issues?includeAgentCreatedTasks=true&limit=1000`);
       const candidates = tasks.filter(task => task.id !== source.id && task.assigneeAgentId === prepared.worker.id);
       const runs = await ctx.allRuns();
       // The task has no execution workspace until Morgan's run starts, so only then can the gate be bound.
@@ -90,7 +90,7 @@ export const runtimeHandoffCases = [runtimeDefinition("agent-chat.track-delegate
       : value.runs.every(run => run.agentId !== prepared.worker.id && run.status === "succeeded") && value.candidates.length === 1
         && ["backlog", "blocked", "cancelled", "done"].includes(String(value.candidates[0]!.status)) ? `Prior native handoff left the Website task ${value.candidates[0]!.status}; Morgan never started` : undefined });
   const task = phase.tasks.find(task => task.id !== source.id)!;
-  const created = await ctx.input.api.get<Entity[]>(`${prepared.company}/issues?createdFromIssueId=${source.id}&includeAgentCreatedTasks=true&limit=1000`);
+  const created = await ctx.input.api.get<Entity[]>(`${prepared.space}/issues?createdFromIssueId=${source.id}&includeAgentCreatedTasks=true&limit=1000`);
   if (task.assigneeAgentId !== prepared.worker.id || created.length !== 1 || created[0]?.id !== task.id) throw new Error("The saved work task is not the actual source conversation handoff");
   const workerRun = phase.runs.find(run => run.agentId === prepared.worker.id)!;
   if (![workerRun.contextSnapshot?.issueId, (workerRun as typeof workerRun & { nativeIssueId?: string }).nativeIssueId].includes(task.id)) throw new Error("Native worker attribution does not match the actual handoff task");
@@ -107,9 +107,9 @@ export const runtimeHandoffCases = [runtimeDefinition("agent-chat.track-delegate
     const run = (await ctx.allRuns()).find(row => row.id === state.workerRunId);
     c.add("lead-ready", lead.lifecycleState === "ready" && ["active", "idle"].includes(lead.status ?? ""), "The speaking agent is genuinely ready after its prior handoff.");
     c.add("native-handoff-owner", worker.lifecycleState === "ready" && ["active", "running"].includes(worker.status ?? "")
-      && run?.status === "running" && run.agentId === worker.id && run.companyId === ctx.input.fixtures.company.id,
+      && run?.status === "running" && run.agentId === worker.id && run.spaceId === ctx.input.fixtures.space.id,
     "Morgan remains the genuine active native owner; no shared setup forces the worker idle.");
-    const created = await ctx.input.api.get<Entity[]>(`/api/companies/${ctx.input.fixtures.company.id}/issues?createdFromIssueId=${state.sourceId}&includeAgentCreatedTasks=true&limit=1000`);
+    const created = await ctx.input.api.get<Entity[]>(`/api/spaces/${ctx.input.fixtures.space.id}/issues?createdFromIssueId=${state.sourceId}&includeAgentCreatedTasks=true&limit=1000`);
     c.add("real-source-provenance", created.length === 1 && created[0]?.id === (state.task as Entity).id,
     "The public source provenance filter independently confirms this conversation created the actual work task.");
     return c.result();
@@ -144,7 +144,7 @@ export const runtimeHandoffCases = [runtimeDefinition("agent-chat.track-delegate
   },
   async verifyResult(ctx, state) {
     const source = ctx.input.page.url(); const task = state.task as Entity;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("heading", { name: task.title!, exact: true }).first()).toBeVisible();
     await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });

@@ -17,32 +17,32 @@ import { NewGoalDialog } from "@/components/NewGoalDialog";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
 import { NewProjectDialog } from "@/components/NewProjectDialog";
 import { PathInstructionsModal } from "@/components/PathInstructionsModal";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useDialog } from "@/context/DialogContext";
 import { queryKeys } from "@/lib/queryKeys";
 import type { Agent } from "@outpost/shared";
 import {
   storybookAgents,
   storybookAuthSession,
-  storybookCompanies,
+  storybookSpaces,
   storybookExecutionWorkspaces,
   storybookIssueDocuments,
   storybookIssueLabels,
   storybookIssues,
   storybookProjects,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 
-const COMPANY_ID = "company-storybook";
-const SELECTED_COMPANY_STORAGE_KEY = "outpost.selectedCompanyId";
-const ISSUE_DRAFT_STORAGE_KEY = `paperclip:issue-draft:${storybookAuthSession.user!.id}`;
+const SPACE_ID = "space-storybook";
+const SELECTED_SPACE_STORAGE_KEY = "outpost.selectedSpaceId";
+const ISSUE_DRAFT_STORAGE_KEY = `outpost:issue-draft:${storybookAuthSession.user!.id}`;
 
 const storybookGoals: Goal[] = [
   {
-    id: "goal-company",
-    companyId: COMPANY_ID,
-    title: "Build Paperclip",
-    description: "Make autonomous companies easier to run and govern.",
-    level: "company",
+    id: "goal-space",
+    spaceId: SPACE_ID,
+    title: "Build Outpost",
+    description: "Make autonomous spaces easier to run and govern.",
+    level: "space",
     status: "active",
     parentId: null,
     ownerAgentId: "agent-cto",
@@ -51,24 +51,24 @@ const storybookGoals: Goal[] = [
   },
   {
     id: "goal-storybook",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     title: "Complete Storybook coverage",
     description: "Expose dense board UI states for review before release.",
     level: "team",
     status: "active",
-    parentId: "goal-company",
+    parentId: "goal-space",
     ownerAgentId: "agent-codex",
     createdAt: new Date("2026-04-17T09:00:00.000Z"),
     updatedAt: new Date("2026-04-20T11:10:00.000Z"),
   },
   {
     id: "goal-governance",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     title: "Tighten governance review",
     description: "Make review and approval gates visible in every operator flow.",
     level: "team",
     status: "planned",
-    parentId: "goal-company",
+    parentId: "goal-space",
     ownerAgentId: "agent-cto",
     createdAt: new Date("2026-04-18T09:00:00.000Z"),
     updatedAt: new Date("2026-04-20T11:15:00.000Z"),
@@ -78,7 +78,7 @@ const storybookGoals: Goal[] = [
 const documentRevisions: DocumentRevision[] = [
   {
     id: "revision-plan-1",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     documentId: "document-plan-storybook",
     issueId: "issue-storybook-1",
     key: "plan",
@@ -99,7 +99,7 @@ const documentRevisions: DocumentRevision[] = [
   },
   {
     id: "revision-plan-2",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     documentId: "document-plan-storybook",
     issueId: "issue-storybook-1",
     key: "plan",
@@ -121,7 +121,7 @@ const documentRevisions: DocumentRevision[] = [
   },
   {
     id: "revision-plan-3",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     documentId: "document-plan-storybook",
     issueId: "issue-storybook-1",
     key: "plan",
@@ -172,7 +172,7 @@ const closeReadinessReady: ExecutionWorkspaceCloseReadiness = {
       kind: "git_worktree_remove",
       label: "Remove git worktree",
       description: "Removes the issue worktree from the local worktree parent directory.",
-      command: "git worktree remove .paperclip/worktrees/PAP-1641-create-super-detailed-storybooks-for-our-project",
+      command: "git worktree remove .outpost/worktrees/PAP-1641-create-super-detailed-storybooks-for-our-project",
     },
     {
       kind: "archive_record",
@@ -185,8 +185,8 @@ const closeReadinessReady: ExecutionWorkspaceCloseReadiness = {
   isSharedWorkspace: false,
   isProjectPrimaryWorkspace: false,
   git: {
-    repoRoot: "/Users/dotta/paperclip",
-    workspacePath: "/Users/dotta/paperclip/.paperclip/worktrees/PAP-1641-create-super-detailed-storybooks-for-our-project",
+    repoRoot: "/Users/dotta/outpost",
+    workspacePath: "/Users/dotta/outpost/.outpost/worktrees/PAP-1641-create-super-detailed-storybooks-for-our-project",
     branchName: "PAP-1641-create-super-detailed-storybooks-for-our-project",
     baseRef: "master",
     hasDirtyTrackedFiles: true,
@@ -215,7 +215,7 @@ const closeReadinessBlocked: ExecutionWorkspaceCloseReadiness = {
 const galleryImages: IssueAttachment[] = [
   {
     id: "attachment-storybook-dashboard",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     issueId: "issue-storybook-1",
     issueCommentId: null,
     assetId: "asset-dashboard",
@@ -234,7 +234,7 @@ const galleryImages: IssueAttachment[] = [
   },
   {
     id: "attachment-storybook-diff",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     issueId: "issue-storybook-1",
     issueCommentId: null,
     assetId: "asset-diff",
@@ -265,9 +265,9 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="paperclip-story__frame overflow-hidden">
+    <section className="outpost-story__frame overflow-hidden">
       <div className="border-b border-border px-5 py-4">
-        <div className="paperclip-story__label">{eyebrow}</div>
+        <div className="outpost-story__label">{eyebrow}</div>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">{title}</h2>
@@ -284,8 +284,8 @@ function Section({
 
 function StoryShell({ children }: { children: ReactNode }) {
   return (
-    <div className="paperclip-story">
-      <main className="paperclip-story__inner space-y-6">{children}</main>
+    <div className="outpost-story">
+      <main className="outpost-story__inner space-y-6">{children}</main>
     </div>
   );
 }
@@ -331,26 +331,26 @@ function DialogBackdropFrame({
 }
 
 function hydrateDialogQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.setQueryData(queryKeys.companies.all, { companies: storybookCompanies, unauthorized: false });
+  queryClient.setQueryData(queryKeys.spaces.all, { spaces: storybookSpaces, unauthorized: false });
   queryClient.setQueryData(queryKeys.auth.session, storybookAuthSession);
-  queryClient.setQueryData(queryKeys.agents.list(COMPANY_ID), storybookAgents);
-  queryClient.setQueryData(queryKeys.projects.list(COMPANY_ID), storybookProjects);
-  queryClient.setQueryData(queryKeys.projects.environments(COMPANY_ID), {
+  queryClient.setQueryData(queryKeys.agents.list(SPACE_ID), storybookAgents);
+  queryClient.setQueryData(queryKeys.projects.list(SPACE_ID), storybookProjects);
+  queryClient.setQueryData(queryKeys.projects.environments(SPACE_ID), {
     groups: [
-      { storageProviderPluginId: null, environments: [{ id: "sandbox", name: "Paperclip Sandbox" }, { id: "local", name: "Local" }] },
+      { storageProviderPluginId: null, environments: [{ id: "sandbox", name: "Outpost Sandbox" }, { id: "local", name: "Local" }] },
       { storageProviderPluginId: "computer-storage", environments: [{ id: "computers", name: "Agent computers" }] },
     ],
     defaultEnvironmentId: "sandbox", error: null,
   });
-  queryClient.setQueryData(queryKeys.goals.list(COMPANY_ID), storybookGoals);
-  queryClient.setQueryData(queryKeys.issues.list(COMPANY_ID), storybookIssues);
-  queryClient.setQueryData(queryKeys.issues.labels(COMPANY_ID), storybookIssueLabels);
+  queryClient.setQueryData(queryKeys.goals.list(SPACE_ID), storybookGoals);
+  queryClient.setQueryData(queryKeys.issues.list(SPACE_ID), storybookIssues);
+  queryClient.setQueryData(queryKeys.issues.labels(SPACE_ID), storybookIssueLabels);
   queryClient.setQueryData(queryKeys.issues.documents("issue-storybook-1"), storybookIssueDocuments);
   queryClient.setQueryData(queryKeys.issues.documentRevisions("issue-storybook-1", "plan"), documentRevisions);
   queryClient.setQueryData(queryKeys.executionWorkspaces.closeReadiness("execution-workspace-storybook"), closeReadinessReady);
   queryClient.setQueryData(queryKeys.executionWorkspaces.closeReadiness("execution-workspace-blocked"), closeReadinessBlocked);
   queryClient.setQueryData(
-    queryKeys.executionWorkspaces.list(COMPANY_ID, {
+    queryKeys.executionWorkspaces.list(SPACE_ID, {
       projectId: "project-board-ui",
       projectWorkspaceId: "workspace-board-ui",
       reuseEligible: true,
@@ -361,7 +361,7 @@ function hydrateDialogQueries(queryClient: ReturnType<typeof useQueryClient>) {
     enableIsolatedWorkspaces: true,
     enableRoutineTriggers: true,
   });
-  queryClient.setQueryData(queryKeys.access.companyUserDirectory(COMPANY_ID), {
+  queryClient.setQueryData(queryKeys.access.spaceUserDirectory(SPACE_ID), {
     users: [
       {
         principalId: "user-board",
@@ -376,7 +376,7 @@ function hydrateDialogQueries(queryClient: ReturnType<typeof useQueryClient>) {
     ],
   });
   queryClient.setQueryData(
-    queryKeys.sidebarPreferences.projectOrder(COMPANY_ID, storybookAuthSession.user.id),
+    queryKeys.sidebarPreferences.projectOrder(SPACE_ID, storybookAuthSession.user.id),
     { orderedIds: storybookProjects.map((project) => project.id), updatedAt: null },
   );
   queryClient.setQueryData(queryKeys.adapters.all, [
@@ -411,7 +411,7 @@ function hydrateDialogQueries(queryClient: ReturnType<typeof useQueryClient>) {
       },
     },
   ]);
-  queryClient.setQueryData(queryKeys.agents.adapterModels(COMPANY_ID, "codex_local"), [
+  queryClient.setQueryData(queryKeys.agents.adapterModels(SPACE_ID, "codex_local"), [
     { id: "gpt-5.4", label: "GPT-5.4" },
     { id: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
   ]);
@@ -421,7 +421,7 @@ function StorybookDialogFixtures({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [ready] = useState(() => {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(SELECTED_COMPANY_STORAGE_KEY, COMPANY_ID);
+      window.localStorage.setItem(SELECTED_SPACE_STORAGE_KEY, SPACE_ID);
       window.localStorage.removeItem(ISSUE_DRAFT_STORAGE_KEY);
     }
     hydrateDialogQueries(queryClient);
@@ -444,7 +444,7 @@ function useIssueCreateErrorMock(enabled: boolean) {
             ? input.href
             : input.url;
       const url = new URL(rawUrl, window.location.origin);
-      if (url.pathname === `/api/companies/${COMPANY_ID}/issues` && init?.method === "POST") {
+      if (url.pathname === `/api/spaces/${SPACE_ID}/issues` && init?.method === "POST") {
         return Response.json(
           { error: "Validation failed: add a reviewer before creating governed release work." },
           { status: 422 },
@@ -480,19 +480,19 @@ function clickButtonByText(text: string) {
   button?.click();
 }
 
-function useOpenWhenCompanyReady(open: () => void) {
-  const { selectedCompanyId, setSelectedCompanyId } = useCompany();
+function useOpenWhenSpaceReady(open: () => void) {
+  const { selectedSpaceId, setSelectedSpaceId } = useSpace();
   const didOpenRef = useRef(false);
 
   useLayoutEffect(() => {
-    if (selectedCompanyId !== COMPANY_ID) {
-      setSelectedCompanyId(COMPANY_ID);
+    if (selectedSpaceId !== SPACE_ID) {
+      setSelectedSpaceId(SPACE_ID);
       return;
     }
     if (didOpenRef.current) return;
     didOpenRef.current = true;
     open();
-  }, [open, selectedCompanyId, setSelectedCompanyId]);
+  }, [open, selectedSpaceId, setSelectedSpaceId]);
 }
 
 function IssueDialogOpener({
@@ -503,7 +503,7 @@ function IssueDialogOpener({
   const { openNewIssue } = useDialog();
   useIssueCreateErrorMock(variant === "validation");
 
-  useOpenWhenCompanyReady(() => {
+  useOpenWhenSpaceReady(() => {
     openNewIssue(
       variant === "empty"
         ? {}
@@ -540,7 +540,7 @@ function IssueDialogOpener({
 function AgentDialogOpener({ variant = "recommendation" }: { variant?: "recommendation" | "advanced" | "invite" }) {
   const { openNewAgent } = useDialog();
 
-  useOpenWhenCompanyReady(() => {
+  useOpenWhenSpaceReady(() => {
     openNewAgent();
   });
 
@@ -558,8 +558,8 @@ function AgentDialogOpener({ variant = "recommendation" }: { variant?: "recommen
 function GoalDialogOpener({ populated }: { populated?: boolean }) {
   const { openNewGoal } = useDialog();
 
-  useOpenWhenCompanyReady(() => {
-    openNewGoal(populated ? { parentId: "goal-company" } : {});
+  useOpenWhenSpaceReady(() => {
+    openNewGoal(populated ? { parentId: "goal-space" } : {});
   });
 
   useEffect(() => {
@@ -576,7 +576,7 @@ function GoalDialogOpener({ populated }: { populated?: boolean }) {
 function ProjectDialogOpener({ populated }: { populated?: boolean }) {
   const { openNewProject } = useDialog();
 
-  useOpenWhenCompanyReady(() => {
+  useOpenWhenSpaceReady(() => {
     openNewProject();
   });
 
@@ -585,7 +585,7 @@ function ProjectDialogOpener({ populated }: { populated?: boolean }) {
     const timer = window.setTimeout(() => {
       fillFirstField("input[placeholder='Project name']", "Storybook review workspace");
       fillFirstField("input[placeholder='https://github.com/org/repo']", "https://github.com/paperclipai/paperclip");
-      fillFirstField("input[placeholder='/absolute/path/to/workspace']", "/Users/dotta/paperclip/ui");
+      fillFirstField("input[placeholder='/absolute/path/to/workspace']", "/Users/dotta/outpost/ui");
       fillFirstField("input[type='date']", "2026-04-30");
     }, 250);
     return () => window.clearTimeout(timer);
@@ -687,10 +687,10 @@ const meta = {
     docs: {
       description: {
         component:
-          "Open-state stories for Paperclip creation dialogs, workspace confirmations, document diffing, image attachments, and path helper modals.",
+          "Open-state stories for Outpost creation dialogs, workspace confirmations, document diffing, image attachments, and path helper modals.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "tasks/create",
         "agents/hire",
@@ -873,7 +873,7 @@ export const NewGoalWithParent: Story = {
     <DialogStory
       eyebrow="NewGoalDialog"
       title="Goal creation with parent context"
-      description="Populated goal creation state with a seeded title and company-level parent goal selected."
+      description="Populated goal creation state with a seeded title and space-level parent goal selected."
       badges={["populated", "sub-goal", "parent selected"]}
     >
       <GoalDialogOpener populated />

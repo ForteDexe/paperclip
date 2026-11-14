@@ -1,6 +1,6 @@
 import { ChevronLeft, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { useNavigate } from "@/lib/router";
 import {
@@ -28,13 +28,13 @@ export function ContextualSidebarFrame({
   children: ReactNode;
 }) {
   const navigate = useNavigate();
-  const { selectedCompany } = useCompany();
+  const { selectedSpace } = useSpace();
   const { isMobile, setSidebarOpen } = useSidebar();
 
   function goBack() {
     navigate(readContextualSidebarOrigin({
       surface,
-      companyPrefix: selectedCompany?.issuePrefix,
+      spacePrefix: selectedSpace?.issuePrefix,
       fallbackTo,
     }));
     if (isMobile) setSidebarOpen(false);
@@ -55,7 +55,7 @@ export function ContextualSidebarFrame({
               aria-label={`Back from ${title}`}
             >
               <ChevronLeft className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">{selectedCompany?.name ?? "Outpost"}</span>
+              <span className="truncate">{selectedSpace?.name ?? "Outpost"}</span>
             </button>
             <div className="flex min-w-0 items-center gap-2 px-2 py-1">
               {Icon ? <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" /> : null}

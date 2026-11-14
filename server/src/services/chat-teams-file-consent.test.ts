@@ -30,7 +30,7 @@ const uuid = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const bytes = Buffer.from([0, 10, 13, 128, 255, 65]);
 const binding = createTeamsFileConsentBinding({
-  companyId: uuid(1),
+  spaceId: uuid(1),
   endpointId: uuid(2),
   issueId: uuid(3),
   publicationId: uuid(4),
@@ -162,7 +162,7 @@ describe("Teams personal file consent foundation", () => {
       },
     });
     for (const privateField of [
-      binding.companyId,
+      binding.spaceId,
       binding.attachmentId,
       binding.issueId,
       "uploadUrl",
@@ -264,7 +264,7 @@ describe("Teams personal file consent foundation", () => {
       activityId: "activity-1",
     });
     for (const [key, value] of Object.entries({
-      companyId: uuid(91),
+      spaceId: uuid(91),
       endpointId: uuid(92),
       issueId: uuid(93),
       publicationId: uuid(94),

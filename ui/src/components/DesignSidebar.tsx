@@ -1,8 +1,8 @@
 import type { Issue } from "@outpost/shared";
 import { Boxes, CircleCheck, CirclePlus, FolderOpen, History, LayoutDashboard, MessageCircle, Package, Repeat, Search, Users } from "lucide-react";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { SidebarAccountMenu } from "./SidebarAccountMenu";
-import { SidebarCompanyMenu } from "./SidebarCompanyMenu";
+import { SidebarSpaceMenu } from "./SidebarSpaceMenu";
 import { SidebarNavExpandedProvider, SidebarNavItem } from "./SidebarNavItem";
 import { SidebarSection } from "./SidebarSection";
 import { RecentTaskNavItem, recentTaskPathRef } from "./RecentTaskNavItem";
@@ -12,19 +12,19 @@ import { FlyoutAppearanceProvider } from "./ui/flyout";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { useScrollbarWhileScrolling } from "./side-panel/use-scrollbar-while-scrolling";
 
-export type DesignSidebarRecentTask = Pick<Issue, "id" | "companyId" | "identifier" | "title">;
+export type DesignSidebarRecentTask = Pick<Issue, "id" | "spaceId" | "identifier" | "title">;
 
-/** Shared staged sidebar. The caller supplies company-scoped recent tasks and actions. */
+/** Shared staged sidebar. The caller supplies space-scoped recent tasks and actions. */
 export function DesignSidebar({ onNewTask, recentTasks = [] }: { onNewTask: () => void; recentTasks?: readonly DesignSidebarRecentTask[] }) {
-  const { selectedCompany } = useCompany();
-  const root = `/${selectedCompany?.issuePrefix ?? "PAP"}`;
-  const companyRecentTasks = recentTasks.filter(task => task.companyId === selectedCompany?.id);
+  const { selectedSpace } = useSpace();
+  const root = `/${selectedSpace?.issuePrefix ?? "PAP"}`;
+  const spaceRecentTasks = recentTasks.filter(task => task.spaceId === selectedSpace?.id);
   const handleRecentScroll = useScrollbarWhileScrolling();
   return (
     <FlyoutAppearanceProvider><TruncatedTextMarqueeProvider><SidebarNavExpandedProvider>
       <div className="design-sidebar">
         <div className="design-sidebar-brand">
-          <SidebarCompanyMenu showChevron={false} />
+          <SidebarSpaceMenu showChevron={false} />
           <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" className="design-sidebar-search" aria-label="Global search" onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true }))}><Search aria-hidden /></Button></TooltipTrigger><TooltipContent side="right">Search tasks, agents, projects</TooltipContent></Tooltip>
         </div>
         <nav className="design-sidebar-navigation" aria-label="Main navigation">
@@ -44,10 +44,10 @@ export function DesignSidebar({ onNewTask, recentTasks = [] }: { onNewTask: () =
             <SidebarNavItem className="design-sidebar-item" to={`${root}/skills`} label="Skills" icon={Boxes} />
             <SidebarNavItem className="design-sidebar-item" to={`${root}/activity`} label="Audit" icon={History} />
           </SidebarSection>
-          {companyRecentTasks.length > 0 ? <div className="design-sidebar-recents">
+          {spaceRecentTasks.length > 0 ? <div className="design-sidebar-recents">
             <SidebarSection label="Recent Tasks">
               <div onScroll={handleRecentScroll} className="design-sidebar-recent-list scrollbar-while-scrolling" role="region" aria-label="Recent tasks" tabIndex={0}>
-              {companyRecentTasks.map(issue => <RecentTaskNavItem key={issue.id} task={issue} className="design-sidebar-item" to={`${root}/issues/${recentTaskPathRef(issue)}`} label={issue.title} />)}
+              {spaceRecentTasks.map(issue => <RecentTaskNavItem key={issue.id} task={issue} className="design-sidebar-item" to={`${root}/issues/${recentTaskPathRef(issue)}`} label={issue.title} />)}
               </div>
             </SidebarSection>
           </div> : null}

@@ -37,7 +37,7 @@ export async function qualifyRunnerEnvironment(input: {
   const validate = (adapters: AdapterInfo[]) => {
     const harness = adapters.find(adapter => adapter.type === input.adapterType);
     const runner = harness?.defaultRunner;
-    if (!harness || (runner !== "paperclip" && runner !== "legacy") || !harness.supportedRunners?.includes(runner)) {
+    if (!harness || (runner !== "outpost" && runner !== "legacy") || !harness.supportedRunners?.includes(runner)) {
       throw new Error("Could not confirm runner availability for this environment. Retry setup.");
     }
     return { runner, harness };
@@ -46,7 +46,7 @@ export async function qualifyRunnerEnvironment(input: {
   if (!input.isCurrent()) return undefined;
   const selected = validate(adapters);
   const native = adapters.find(adapter => adapter.type === "outpost_runner");
-  if (selected.runner === "paperclip" || selected.harness.disabled || selected.harness.overriddenBuiltin
+  if (selected.runner === "outpost" || selected.harness.disabled || selected.harness.overriddenBuiltin
     || !native || native.disabled || native.overriddenBuiltin) return { runner: selected.runner, adapters };
   const probe = await input.probeEnvironment();
   if (!input.isCurrent()) return undefined;

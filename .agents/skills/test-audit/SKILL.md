@@ -21,7 +21,7 @@ attribution is in [NOTICE.md](NOTICE.md).
 - Multiple owners, agents, or PRs: also read [CAMPAIGN.md](CAMPAIGN.md). Declare
   whether the work is a targeted sweep or an exhaustive subsystem audit.
 - Validation and cost claims: read [references/validation.md](references/validation.md).
-- Paperclip commands, invariants, and delivery: read
+- Outpost commands, invariants, and delivery: read
   [references/outpost.md](references/outpost.md) alongside repository instructions.
 
 ## Decision gate

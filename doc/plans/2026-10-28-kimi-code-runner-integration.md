@@ -35,7 +35,7 @@ and their history retain their current execution path.
 - Model: explicit caller-selected identifier, acknowledged before the first
   prompt. Qualification uses authenticated `kimi-for-coding`;
   discovery is never a product allowlist.
-- Authentication: explicit company-secret `KIMI_API_KEY` environment binding.
+- Authentication: explicit space-secret `KIMI_API_KEY` environment binding.
   Qualification uses only the active global login's short-lived access token;
   the provider accepted a real model/tool turn. Refresh tokens and login homes
   are never transferred. Managed Kimi account connections are deferred.
@@ -76,7 +76,7 @@ cases, not twenty.
 
 The repair records an atomic server-owned handoff on both lease rows. Recovery
 accepts only the complete backward chain of inactive, finalized native owners
-with matching company, task, agent, workspace, provider and allocation. Missing,
+with matching space, task, agent, workspace, provider and allocation. Missing,
 foreign, active, conflicting or additional owners remain blocked. The exact
 producer regression fails before the repair and passes with real file copyback;
 all 114 owning recovery tests pass. This is deterministic recovery evidence,
@@ -104,7 +104,7 @@ stay unchanged; the diagnostic has no acceptance credit.
 A credential-free owner regression reproduces the cold restore error. New-run
 startup authority validates, but the saved launch digest still binds the prior-run
 grant. The reviewed native repair proves that exact prior digest by changing only
-the candidate run binding, retains full company/model/profile/closure/expiry/session
+the candidate run binding, retains full space/model/profile/closure/expiry/session
 and artifact checks, and separates bare cold attach from authenticated warm rotation.
 Its exact-final baseline fails; five focused tests and all thirty-five owning backend
 tests pass. The initial sandbox TCP-bind failures remain recorded separately from
@@ -171,7 +171,7 @@ The actual accepted pending16 evidence and final qualified limitations must be
 recorded before the eventual qualified-source commit and artifact build.
 
 Pending qualification uses the existing trusted startup-admission channel with
-exact company, model, profile, platform closure, expiry, run and session bindings.
+exact space, model, profile, platform closure, expiry, run and session bindings.
 A warm handoff may rotate only the authenticated run identity through the normal
 Runner authority transition. Saved agent configuration cannot grant candidate
 authority. Ordinary installed and hosted qualified setup must work without that
@@ -217,7 +217,7 @@ as a later source or suite. Original material failures remain failed.
 The final local Stop/new/resume result and cleanup passed. Its original strict
 audit rejected the server-only `/new` record because that row retains the default
 legacy field. A separate reviewed classification verifies the saved human command,
-company/task/session generation, the complete two-event terminal record, and the
+space/task/session generation, the complete two-event terminal record, and the
 unchanged server branch that returns before provider selection or execution. It
 also checks all three actual provider runs against the exact native Kimi11 model,
 profile and scope. The original audit remains failed; the derived classification
@@ -254,7 +254,7 @@ PostgreSQL 18.1 exhausted macOS System V semaphores. Qualification uses a verifi
 official PostgreSQL 18.6 build with named POSIX semaphores through an isolated,
 recorded worktree dependency binding. A fresh migrated control plane reached
 health 200 at the actual source revision; a same-cluster SQL check confirmed its
-version, database and empty company schema. Owned processes and ports closed.
+version, database and empty space schema. Owned processes and ports closed.
 The binding must be restored before normal package validation. Earlier PostgreSQL
 18.1 evidence retains its original environment identity.
 
@@ -701,7 +701,7 @@ content identity is `4560ebf62a9640e43aff893b1a6dd497746eeb2787732818b62acd911cd
 Create/load instruction acknowledgments and bounded EOF passed without prompts or
 credentials. Local collection verified the full archive, source, profile,
 closure, pack and daemon hashes. Its published immutable reference is
-`public.ecr.aws/q2k8x0v0/paperclip/kimi-qualification-eed3@sha256:bad9994dadf1a55743dabed3cd3f785210131938d4407c8b0ca92a30a922c177`.
+`public.ecr.aws/q2k8x0v0/outpost/kimi-qualification-eed3@sha256:bad9994dadf1a55743dabed3cd3f785210131938d4407c8b0ca92a30a922c177`.
 A real credential-free Daytona import/native smoke passed in 122.4 seconds on
 Linux x64 with 4 CPU, 4 GiB memory and 10 GiB disk, then its exact sandbox was
 deleted and checked404. It verified native create/load/model/instruction/EOF
@@ -767,7 +767,7 @@ it is not applied and does not count as qualification.
   subscribed. Those failures remain failures; no cost counters were available.
 - The first entitled turn completed native execution and called the exact MCP
   echo with the instruction-only nonce. Its smoke observer incorrectly expected
-  `paperclip_echo` at a handler that receives canonical `echo`. Native arguments,
+  `outpost_echo` at a handler that receives canonical `echo`. Native arguments,
   MCP receiver error, and terminal completion establish a grading/observer failure,
   not a successful tool round trip. The corrected observer then passed a real
   authenticated semantic echo, native terminal completion, and physical cleanup.
@@ -925,7 +925,7 @@ destruction for five minutes later. The test's 120-second environment-delete
 wait ended before that ordinary cleanup deadline.
 
 A separate recovery restored the same captured control-plane state to an
-isolated working copy and used the normal server, company-secret rotation,
+isolated working copy and used the normal server, space-secret rotation,
 cleanup scheduler, and environment DELETE route. Cleanup became successful,
 DELETE returned its documented HTTP 200, and the environment was absent from
 the database. No model turn, new run, new lease, or direct domain SQL update was

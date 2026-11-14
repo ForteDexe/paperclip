@@ -16,7 +16,7 @@ import type { Db } from "@outpost/db";
 import { sql, type SQLWrapper } from "drizzle-orm";
 import { createIdleSleepDiagnostics, type IdleSleepDiagnosticSink, type IdleSleepDiagnostics } from "./idle-sleep-diagnostics.js";
 import { verifiedResourceCleanup } from "./cleanup-verification-proof.js";
-import { companyHoldMismatch } from "../modules/agent-lifecycle/index.js";
+import { spaceHoldMismatch } from "../modules/agent-lifecycle/index.js";
 import { pendingBudgetRunCancellationExistsQuery } from "./heartbeat/budget-cancellation.js";
 import { nativeResponsePresentationPendingQuery } from "./native-runtime/native-response-presentation-query.js";
 import { passiveIdleConversation } from "./conversation-idle-proof.js";
@@ -101,14 +101,14 @@ const WORK_CHECKS = [
   // Persistent machine credentials can receive work without a human opening
   // the instance. They need an ingress wake contract before we can sleep.
   workCheck("agent_api_keys", incomingWakeWorkQuery("agent_api_keys")!),
-  workCheck("board_api_keys", incomingWakeWorkQuery("board_api_keys")!),
+  workCheck("operator_api_keys", incomingWakeWorkQuery("operator_api_keys")!),
   // Coalescing consumes a request into another run. Retain it as work until
-  // both the request and that exact company/agent's run have finished.
+  // both the request and that exact space/agent's run have finished.
   workCheck("agent_wakeup_requests", `SELECT 1 FROM agent_wakeup_requests w WHERE
     w.status NOT IN ('completed', 'failed', 'cancelled', 'skipped', 'timed_out', 'coalesced')
     OR (w.status = 'coalesced' AND (w.finished_at IS NULL OR NOT EXISTS (
       SELECT 1 FROM heartbeat_runs r WHERE r.id = w.run_id
-        AND r.company_id = w.company_id AND r.agent_id = w.agent_id
+        AND r.space_id = w.space_id AND r.agent_id = w.agent_id
         AND ${finishedRun("r")})))`),
   workCheck("issues", ordinaryIssues),
   // A completed issue can still need its first watchdog review, including a
@@ -162,21 +162,21 @@ const WORK_CHECKS = [
   // listener. Keep local processes, channels and GitHub webhook bindings awake;
   // accepted calls, credential recovery and delivery work have separate fences.
   workCheck("tool_connections", incomingWakeWorkQuery("tool_connections")!),
-  // An explicit board escalation has no automatic retry. Retain the visible
-  // action and all execution/cleanup checks while the board decides what to do.
+  // An explicit operator escalation has no automatic retry. Retain the visible
+  // action and all execution/cleanup checks while the operator decides what to do.
   workCheck("issue_recovery_actions", `SELECT 1 FROM issue_recovery_actions a WHERE a.status NOT IN ('resolved', 'cancelled')
     AND (${passiveBoardRecovery('a')}) IS NOT TRUE`),
   workCheck("status_cards", `SELECT 1 FROM status_cards WHERE archived_at IS NULL`),
   workCheck("external_objects", `SELECT 1 FROM external_objects WHERE NOT is_terminal OR next_refresh_at IS NOT NULL`),
   // Login history keeps its provider reference after teardown. A terminal
   // label alone is insufficient: require a finished, unclaimed session and
-  // positive cleanup evidence for its resource in the same company/environment.
+  // positive cleanup evidence for its resource in the same space/environment.
   // Cast only UUID-shaped session references, leaving both lease indexes usable.
   workCheck("adapter_auth_sessions", `SELECT 1 FROM adapter_auth_sessions s WHERE
     s.status NOT IN ('authenticated', 'completed', 'failed', 'timed_out', 'cancelled')
     OR s.finished_at IS NULL OR s.promotion_expires_at IS NOT NULL
     OR (s.provider_lease_id IS NOT NULL AND NOT EXISTS (
-      SELECT 1 FROM environment_leases l WHERE l.company_id = s.company_id
+      SELECT 1 FROM environment_leases l WHERE l.space_id = s.space_id
         AND l.environment_id = s.environment_id
         AND (l.provider_lease_id = s.provider_lease_id OR l.id = CASE
           WHEN s.provider_lease_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
@@ -185,7 +185,7 @@ const WORK_CHECKS = [
         AND l.cleanup_status = 'success'
         AND l.released_at IS NOT NULL))
     OR (s.provider_lease_id IS NOT NULL AND EXISTS (
-      SELECT 1 FROM environment_leases l WHERE l.company_id = s.company_id
+      SELECT 1 FROM environment_leases l WHERE l.space_id = s.space_id
         AND l.environment_id = s.environment_id
         AND (l.provider_lease_id = s.provider_lease_id OR l.id = CASE
           WHEN s.provider_lease_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
@@ -201,17 +201,17 @@ const WORK_CHECKS = [
     OR (d.status = 'delivered' AND d.target_run_id IS NULL)
     OR (d.target_run_id IS NOT NULL AND NOT EXISTS (
       SELECT 1 FROM heartbeat_runs r WHERE r.id = d.target_run_id
-        AND r.company_id = d.company_id
+        AND r.space_id = d.space_id
         AND ${finishedRun("r")}))
     OR (d.status = 'fallback_queued' AND d.target_run_id IS NULL AND NOT EXISTS (
-      SELECT 1 FROM agent_wakeup_requests w WHERE w.company_id = d.company_id
+      SELECT 1 FROM agent_wakeup_requests w WHERE w.space_id = d.space_id
         AND w.idempotency_key = 'question-response:' || d.interaction_id::text
         AND w.idempotency_key LIKE 'question-response:%'
         AND w.finished_at IS NOT NULL
         AND (w.status IN ('completed', 'failed', 'cancelled', 'skipped', 'timed_out')
           OR (w.status = 'coalesced' AND EXISTS (
             SELECT 1 FROM heartbeat_runs r WHERE r.id = w.run_id
-              AND r.company_id = w.company_id AND r.agent_id = w.agent_id
+              AND r.space_id = w.space_id AND r.agent_id = w.agent_id
               AND ${finishedRun("r")})))))`),
   // Cloud owns inbound event durability. A processed receipt is idempotency
   // history; any downstream run, wake or delivery is still checked separately.
@@ -222,7 +222,7 @@ const WORK_CHECKS = [
   workCheck("connection_intent_deliveries", `SELECT 1 FROM connection_intent_deliveries d WHERE
     (d.delivered_at IS NULL AND (${connectionDeliveryWaitingForResponse('d')}) IS NOT TRUE)
     OR EXISTS (SELECT 1 FROM agent_wakeup_requests connection_wake
-      WHERE connection_wake.company_id = d.company_id AND connection_wake.idempotency_key IN (
+      WHERE connection_wake.space_id = d.space_id AND connection_wake.idempotency_key IN (
         'connection-intent:' || d.interaction_id::text || ':accepted',
         'connection-intent:' || d.interaction_id::text || ':rejected',
         'connection-intent:' || d.interaction_id::text || ':expired')
@@ -235,12 +235,12 @@ const WORK_CHECKS = [
   // Skill package conversion and retention are optional maintenance. Legacy
   // contents remain authoritative until verified conversion; retries may wait
   // for ingress, including when external package storage is disabled.
-  workCheck("project_skill_sources", `SELECT 1 FROM project_skill_sources b JOIN companies c ON c.id = b.company_id
+  workCheck("project_skill_sources", `SELECT 1 FROM project_skill_sources b JOIN spaces c ON c.id = b.space_id
     WHERE c.status = 'active' AND b.active AND b.source_id IS NULL`),
-  workCheck("company_skill_sources", `SELECT 1 FROM company_skill_sources s JOIN companies c ON c.id = s.company_id
+  workCheck("space_skill_sources", `SELECT 1 FROM space_skill_sources s JOIN spaces c ON c.id = s.space_id
     WHERE c.status = 'active' AND s.enabled AND s.automatic_updates
-      AND (s.access_scope = 'company' OR EXISTS (
-        SELECT 1 FROM project_skill_sources b WHERE b.source_id = s.id AND b.company_id = s.company_id AND b.active))`),
+      AND (s.access_scope = 'space' OR EXISTS (
+        SELECT 1 FROM project_skill_sources b WHERE b.source_id = s.id AND b.space_id = s.space_id AND b.active))`),
   workCheck("native_run_finalizations", `SELECT 1 FROM native_run_finalizations f WHERE (
     f.phase = 'committed' AND f.lease_owner IS NULL AND f.lease_expires_at IS NULL
     AND f.next_attempt_at IS NULL AND f.control_deadline_at IS NULL
@@ -249,15 +249,15 @@ const WORK_CHECKS = [
     AND EXISTS (
       SELECT 1 FROM heartbeat_runs r
       JOIN native_run_results result_row ON result_row.id = f.result_id
-        AND result_row.company_id = r.company_id AND result_row.issue_id = r.native_issue_id
+        AND result_row.space_id = r.space_id AND result_row.issue_id = r.native_issue_id
         AND result_row.run_id = r.id AND result_row.completion_contract_id = r.completion_contract_id
       JOIN work_assessments assessment ON assessment.id = f.assessment_id
-        AND assessment.company_id = r.company_id AND assessment.issue_id = r.native_issue_id
+        AND assessment.space_id = r.space_id AND assessment.issue_id = r.native_issue_id
         AND assessment.run_id = r.id AND assessment.result_id = result_row.id
       JOIN status_decisions decision ON decision.id = f.decision_id
-        AND decision.company_id = r.company_id AND decision.issue_id = r.native_issue_id
+        AND decision.space_id = r.space_id AND decision.issue_id = r.native_issue_id
         AND decision.run_id = r.id AND decision.assessment_id = assessment.id
-      WHERE r.id = f.run_id AND r.company_id = f.company_id AND r.native_issue_id = f.issue_id
+      WHERE r.id = f.run_id AND r.space_id = f.space_id AND r.native_issue_id = f.issue_id
         AND r.runtime_mode = 'native' AND r.native_phase = 'committed'
         AND ${finishedRun("r")}
         AND r.result_json->>'finalizationPhase' = 'committed'
@@ -267,12 +267,12 @@ const WORK_CHECKS = [
         AND result_row.result_json->'terminal'->>'runTerminalState' = r.status
         AND decision.application_state = 'applied' AND decision.applied_at IS NOT NULL)
     AND EXISTS (SELECT 1 FROM workspace_operations operation
-      WHERE operation.company_id = f.company_id AND operation.issue_id = f.issue_id
+      WHERE operation.space_id = f.space_id AND operation.issue_id = f.issue_id
         AND operation.heartbeat_run_id = f.run_id
         AND operation.phase = 'workspace_finalize' AND operation.status = 'succeeded')
     AND NOT EXISTS (
       SELECT 1 FROM status_decision_effects effect WHERE effect.decision_id = f.decision_id
-        AND (effect.company_id <> f.company_id OR effect.issue_id <> f.issue_id
+        AND (effect.space_id <> f.space_id OR effect.issue_id <> f.issue_id
           OR effect.delivery_state <> 'delivered' OR effect.delivered_at IS NULL
           OR effect.next_attempt_at IS NOT NULL))
     ) IS NOT TRUE`),
@@ -441,8 +441,8 @@ export async function readIdleSleepSafety(
           return { ...check, query: mcpRetryQuery ?? incomingWakeWorkQuery(check.reason, incomingProof,
             deadlineProof?.githubContinuity?.connectionIds) ?? deadlineOwnerWorkReplacement(deadlineProof, check.reason) ?? (replacement ? sql.raw(replacement) : check.query) };
         });
-      checks.push(workCheck("agents.company_hold", sql`SELECT 1 FROM agents JOIN companies ON companies.id = agents.company_id
-        WHERE ${companyHoldMismatch()}`));
+      checks.push(workCheck("agents.space_hold", sql`SELECT 1 FROM agents JOIN spaces ON spaces.id = agents.space_id
+        WHERE ${spaceHoldMismatch()}`));
       checks.push(workCheck("heartbeat_runs.budget_cancellation", pendingBudgetRunCancellationExistsQuery()));
       checks.push(workCheck("native_response_presentation", nativeResponsePresentationPendingQuery()));
       // Only the current worker's owned runtime drain can exempt a plugin.

@@ -17,8 +17,8 @@ vi.mock("../../vendor/outpost-runner/index.js", () => ({ normalizePrpResultSigna
 const result = { reportedWorkDisposition: "done", summary: "EXACT_PRIVATE_MARKER", completionClaim: { objectiveSatisfied: true, criteria: [], remainingWork: [] } } as unknown as PrpStructuredRunResult;
 function database(options: { interaction?: boolean; approval?: boolean; review?: boolean } = {}): Db {
   // Pure query double: no client, PostgreSQL process, or network is created.
-  const run = { id: "run", companyId: "company", agentId: "agent", nativeIssueId: "issue", runtimeMode: "native", status: "running", contextSnapshot: {} };
-  const issue = { id: "issue", companyId: "company", status: "in_progress", assigneeAgentId: "agent", executionRunId: "run", ...(options.review ? { executionState: { status: "pending" } } : {}) };
+  const run = { id: "run", spaceId: "space", agentId: "agent", nativeIssueId: "issue", runtimeMode: "native", status: "running", contextSnapshot: {} };
+  const issue = { id: "issue", spaceId: "space", status: "in_progress", assigneeAgentId: "agent", executionRunId: "run", ...(options.review ? { executionState: { status: "pending" } } : {}) };
   return { select: (fields?: { run?: unknown }) => ({ from: (table: unknown) => {
     const rows = table === heartbeatRuns ? fields?.run
       ? [{ run, issueAssigneeAgentId: issue.assigneeAgentId, issueExecutionRunId: issue.executionRunId }]
@@ -39,7 +39,7 @@ describe("native completion feedback format precedence", () => {
     expect(feedback).toContain("Do not claim an approval is needed unless one was requested.");
     expect(feedback).not.toContain(result.summary);
   });
-  it.each(["interaction", "approval", "review", "dependency"] as const)("preserves %s governance feedback instead of granting format precedence", async mode => {
+  it.each(["interaction", "approval", "review", "dependency"] as const)("preserves %s policy feedback instead of granting format precedence", async mode => {
     state.blockers = mode === "dependency" ? 1 : 0;
     const feedback = await nativeCompletionFeedback(database({ interaction: mode === "interaction", approval: mode === "approval", review: mode === "review" }), "run", result);
     expect(feedback).not.toContain("final-response format");

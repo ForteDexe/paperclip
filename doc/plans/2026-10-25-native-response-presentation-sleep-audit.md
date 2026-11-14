@@ -97,11 +97,11 @@ On the unchanged parent source, a fresh external PostgreSQL selection passed
 33 accepted-response cases in chat-channels.integration.test.ts. The remaining
 1,551 cases in that file were not selected, not claimed passed. The selection
 covers duplicate/concurrent repair, source/authority changes, digest changes,
-private disposition, cross-company/run binding, live heartbeat fences, the older
+private disposition, cross-space/run binding, live heartbeat fences, the older
 port-bound digest, GitHub internal prose/attachments, failure-lane replacement,
 provider-dispatch reauthorization, selected/deleted answers, and contention.
 Log: `/tmp/sleep48-chat-baseline.log`. Database:
-`paperclip_sleep48_chat_baseline_20261025_test`.
+`outpost_sleep48_chat_baseline_20261025_test`.
 
 The monitor-continuation and control-plane-port suites currently require embedded
 PostgreSQL directly. Qualify a validated external-test path if needed before using
@@ -128,7 +128,7 @@ producer notifications, startup wiring, and periodic removal are not implemented
 
 The current `notifyChatRunMilestones` boundary already covers 102 production call
 sites and fans out lineage/authority changes to native progress, inbound notices,
-confirmations, and GitHub work. Its scope is company plus optional issue because
+confirmations, and GitHub work. Its scope is space plus optional issue because
 source changes can authorize descendants. Audit its coverage for this duty before
 adding caller wrappers. It already reaches status-decision settlement and run
 projection, but raw coordinator-store/session release and accepted-turn journal
@@ -151,7 +151,7 @@ live authority registration invalidates its scope. Selected comments, including
 deleted selections, remain excluded. No provider rerun or new work table is added.
 
 The existing milestone notification boundary now includes the response topic.
-Hints explicitly select company and issue IDs: structural TypeScript callers may
+Hints explicitly select space and issue IDs: structural TypeScript callers may
 pass larger objects, so serializing the whole argument is not safe. The first
 integration run exposed that mistake as circular-object serialization during
 status materialization; it was corrected before the passing runs below.
@@ -190,8 +190,8 @@ Snapshot retention contains exactly 0396–0400. Fresh migration, journal replay
 direct SQL replay, ready/valid index flags, and statistics presence passed.
 
 Rechecking the actual migration's objects (after removing experimental objects)
-used the driver's real global, company, and issue-scoped queries. Global discovery
-found one candidate in 0.078 ms; history-only company/issue scopes returned none
+used the driver's real global, space, and issue-scoped queries. Global discovery
+found one candidate in 0.078 ms; history-only space/issue scopes returned none
 in 0.024/0.019 ms without sequential scans. These are query-plan fixtures, not
 latency or fleet-sleep claims. Large unselected ineligible histories and repeated
 configuration signals still need separate qualification.
@@ -293,8 +293,8 @@ candidate order; all 59 cases pass with that stronger fault boundary.
 
 A disposable clone of the earlier plan fixture has 10,008 structurally eligible,
 unpresented candidates. The actual worker loader took 2,980 ms and 101 queries for
-global reconstruction; 10,001 candidates in one company took 2,828 ms; the exact
-run took 1.73 ms and one query. Agent reconstruction for that company's 10,001
+global reconstruction; 10,001 candidates in one space took 2,828 ms; the exact
+run took 1.73 ms and one query. Agent reconstruction for that space's 10,001
 candidates took 2,826 ms. Serialized entries occupy about 2.05 MB. The drain gate
 stopped discovery after two pages. Evidence:
 `/tmp/sleep48-unpresented-backlog.mts` and `.log`.
@@ -340,7 +340,7 @@ acceptance is claimed at this checkpoint.
 ## Review repair and current verification, 2026-10-26
 
 Published draft #17696 at `79bf36cbf8`. Greptile found a real precision gap:
-`writeRunStatus` still sent a company-only milestone hint. Every unrelated run
+`writeRunStatus` still sent a space-only milestone hint. Every unrelated run
 status could reconstruct dormant response history. Three real-PostgreSQL cases
 (native binding, legacy context binding, and taskless run) failed before repair
 (`/tmp/sleep48-scope-before.log`).
@@ -349,7 +349,7 @@ The milestone contract now accepts an optional run identity. Status producers
 supply the task when bound and the exact run otherwise. The response fanout
 prefers task scope over run scope, because lineage changes can authorize other
 runs on that task. Known run claim/release and completion producers also preserve
-an exact-run fallback. Existing company configuration invalidations remain broad.
+an exact-run fallback. Existing space configuration invalidations remain broad.
 No new durable rows or caller recovery wrappers are introduced.
 
 All 34 heartbeat lifecycle tests pass after repair. Two real worker regressions
@@ -456,11 +456,11 @@ retry, drain/resume, and unrelated retained-history isolation. Per-file counts:
 | src/services/native-runtime/native-session-executor.test.ts | 968 |
 | src/services/native-runtime/native-workspace-export-retry.test.ts | 80 |
 | src/services/native-runtime/native-workspace-reconstruction.test.ts | 50 |
-| src/services/native-runtime/paperclip-control-plane-port.test.ts | 55 |
+| src/services/native-runtime/outpost-control-plane-port.test.ts | 55 |
 
 The complete 94-case status-authority corpus also passes again on the same
 database in 16.68 seconds. It is not double-counted. Three retained PSC/OUT and
-sentinel company rows remain unchanged, and each invocation uses distinct
+sentinel space rows remain unchanged, and each invocation uses distinct
 UUID-derived fixture prefixes. Twenty-four separate fresh PostgreSQL 17
 databases migrate through 0412 before setup. Four embedded-only fixture imports
 temporarily use their own external database on this IPC-exhausted host, then
@@ -469,7 +469,7 @@ is qualified external-database acceptance, not an unmodified embedded CI run.
 
 Actual database build, server types/build, module boundaries and exact-head
 migration order pass. A populated 0411-to0412 upgrade preserves all 410 prior
-migration receipts and all 38 companies, appends exactly one receipt, and adds
+migration receipts and all 38 spaces, appends exactly one receipt, and adds
 none on replay. The partial index is valid and ready on both fresh and upgraded
 databases; the existing selection statistic is present. Earlier failed runs
 above retain their historical scopes and explanations. The current complete
@@ -498,12 +498,12 @@ the ancestry proof. The 4171-case acceptance keeps its original source scope;
 fresh published-head CI and exact-head Greptile 5/5 are required.
 
 
-## 2026-10-29 review repair: routine hints cannot invalidate a company
+## 2026-10-29 review repair: routine hints cannot invalidate a space
 
 Superagent review of `a5648c92f4601fb72cec26b9ff2e99e40d502042` identified a
-real P2: coalesced inbound messages used a company-only milestone hint, and
+real P2: coalesced inbound messages used a space-only milestone hint, and
 the new response fanout reconstructed every unpresented response in that
-company. Pending-effect settlement also used a company-only finalization hint.
+space. Pending-effect settlement also used a space-only finalization hint.
 The current-head scan required action, so the branch was not merged. Greptile
 rated that head 5/5 but conditioned readiness on the later #17702 scoped
 pending-effect fix. That fix is included here; this slice no longer requires
@@ -516,8 +516,8 @@ decisions on that issue. Retry promotion/cancellation retain their known run
 when older context omits an issue. Existing pending-effect and chat consumers
 keep their previous serialized hints; only response reconstruction is narrowed.
 
-Genuine company-wide authority changes remain supported through one explicit
-`notifyChatCompanyAuthorityChange` boundary. Sixteen existing mutation hooks in
+Genuine space-wide authority changes remain supported through one explicit
+`notifyChatSpaceAuthorityChange` boundary. Sixteen existing mutation hooks in
 nine owning files use it: membership and board-claim restoration, Cloud actor
 membership repair, GitHub/Slack identity and sponsor changes, endpoint policy,
 resource enablement and connection configuration. They keep their original
@@ -527,8 +527,8 @@ new persisted bookkeeping are introduced. Dynamic milestone producers carry
 issue-bound interaction rows or typed recovery inputs.
 
 The ordinary coalescing regression first fails on the actual PostgreSQL writer:
-its settled hint has only the company instead of the active run. Two receiver
-regressions each issue three routine company hints against dormant response
+its settled hint has only the space instead of the active run. Two receiver
+regressions each issue three routine space hints against dormant response
 history and observe **12 response-history SELECTs**. Both must observe zero.
 A positive test restores suspended membership through the actual access owner
 and delivers the waiting response once; it passes before and after the repair.
@@ -576,7 +576,7 @@ and stalled-body cancellation. Combined server types/build, boundaries and
 migration order pass. No unrelated upstream source is discarded.
 
 Explicit global authority invalidation and startup still reconstruct their
-company's owed candidates with existing 100-row discovery pages and fair
+space's owed candidates with existing 100-row discovery pages and fair
 execution batches. Discovery retains linear time and memory; it is not a
 constant-cost global operation. The prior 10,001-candidate profile remains
 relevant to those genuine global obligations. This repair removes ordinary
@@ -614,7 +614,7 @@ selected comment ID still fences recovery, including deleted comments. The
 presentation metadata and explicit `create` with a null comment ID remain owed
 work and can recover once. No per-worker table or transaction wrapper is added.
 
-Discovery joins the owning company/issue and applies the cheap durable guards
+Discovery joins the owning space/issue and applies the cheap durable guards
 before taking recovery locks: done results belong to succeeded non-conversation
 runs; response waits have empty attention requests and usable summary/key;
 monitor and same-agent continuations require succeeded runs and their accepted

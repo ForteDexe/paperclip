@@ -63,7 +63,7 @@ export const runtimeDiscardCases = [runtimeDefinition("steering.discard-queued-m
     state.queryReply = answered.reply; state.queryLinkedTask = hasLink({ ...answered, links: replyLinkHrefs(answered.reply, answered.links) }, "issues", task);
     state.targetPendingAfterReply = initial.entries.some(row => row.comment.id === targetId && row.comment.body === contactText);
     state.agentDiscardStatus = await probeAgentPermission(ctx, `${queuePath}/${targetId}`, "DELETE", { queueId: initial.queueId, revision: initial.revision });
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     await ctx.input.page.getByTestId(`task-chat-queued-discard-${targetId}`).click();
     state.queueAfterDiscard = await pollUntil({ label: "Only the owned contact request is removed", deadlineAt: Date.now() + 20_000,
       load: () => ctx.input.api.get<IssueQueuedCommentQueue>(queuePath), accept: q => q.entries.length === 1 && q.entries.every(row => row.comment.id !== targetId) });

@@ -14,8 +14,8 @@ export const stockHarnessGates = [
     "src/live/runnerd-codex-transport.test.ts",
     "src/live/live-session.test.ts",
     "src/cli/eval-provider-runtime.test.ts",
-  ], testPattern: "adds Paperclip developer instructions|preserves stock Codex instructions|captures exact provider frames and correlates|direct eval provider runtime|exposes native completion consistently on fresh and resumed sessions|passes caller-supplied native system instructions",
-  required: ["adds Paperclip developer instructions", "preserves stock Codex instructions on task recovery",
+  ], testPattern: "adds Outpost developer instructions|preserves stock Codex instructions|captures exact provider frames and correlates|direct eval provider runtime|exposes native completion consistently on fresh and resumed sessions|passes caller-supplied native system instructions",
+  required: ["adds Outpost developer instructions", "preserves stock Codex instructions on task recovery",
     "preserves stock Codex instructions on prepared recovery", "preserves stock Codex instructions on direct recovery",
     "captures exact provider frames and correlates", "exposes native completion consistently on fresh and resumed sessions",
     "passes caller-supplied native system instructions"] },
@@ -32,7 +32,7 @@ export const stockHarnessGates = [
     "packages/adapters/opencode-local/src/server/execute.test.ts",
     "packages/adapters/cursor-cloud/src/server/execute.test.ts",
     "server/src/__tests__/codex-local-execute.test.ts",
-    "server/src/__tests__/paperclip-issue-update-helper.test.ts",
+    "server/src/__tests__/outpost-issue-update-helper.test.ts",
   ], required: ["keeps task and chat defaults to identity and connection guidance",
     "does not restore generic procedures on resume or with the legacy opt-in",
     "integrates the env-free store", "advertises folded routing metadata", "bounds routing descriptions",
@@ -45,7 +45,7 @@ export const stockHarnessGates = [
     required: ["renders standard assignment wake with task authority", "renders scoped planning wake authority"] },
   { id: "SH-eval", name: "Independent oracle and qualification admission", cwd: ".",
     config: "tests/runner-e2e/vitest.config.ts",
-    files: ["tests/runner-e2e/stock-harness-manifest.test.ts", "tests/runner-e2e/paperclip-document.test.ts", "tests/runner-e2e/stock-harness.test.ts", "tests/runner-e2e/stock-harness-checks.test.mjs",
+    files: ["tests/runner-e2e/stock-harness-manifest.test.ts", "tests/runner-e2e/outpost-document.test.ts", "tests/runner-e2e/stock-harness.test.ts", "tests/runner-e2e/stock-harness-checks.test.mjs",
       "tests/runner-e2e/stock-harness-admission.test.ts", "tests/runner-e2e/stock-harness-digest.test.ts", "tests/runner-e2e/checkout-activity.test.ts",
       "tests/runner-e2e/select-rerun-artifacts.test.ts", "tests/runner-e2e/stock-harness-instruction-variant.test.mjs", "tests/runner-e2e/automatic-retry.test.ts"],
     required: ["distinguishes a runtime claim from repeated successful HTTP checkout calls", "refuses missing, mismatched and duplicate run/receipt identities", "requires generated capability manifests for the current skill sources", "the shipped recipe delivers the current", "the shipped recipe supports an unnumbered issue", "rejects old SHA before providers", "allows toolchain paths and excludes every present or future credential",
@@ -112,15 +112,15 @@ export function sourceFingerprint() {
     "packages/outpost-runner/runner/crates/runner-core/tests/codex_provider.rs",
   ]);
   const sourceErrors = [];
-  sources.add("skills/paperclip/SKILL.md");
-  sources.add("skills/paperclip/references/issue-documents.md");
-  sources.add("scripts/paperclip-issue-update.sh");
-  sources.add("skills/paperclip/scripts/paperclip-issue-update.sh");
+  sources.add("skills/outpost/SKILL.md");
+  sources.add("skills/outpost/references/issue-documents.md");
+  sources.add("scripts/outpost-issue-update.sh");
+  sources.add("skills/outpost/scripts/outpost-issue-update.sh");
   for (const source of [...sources].sort()) {
     hash.update(source);
     try { hash.update("present\0").update(readFileSync(join(root, source))); }
     catch (error) {
-      if ((source === "skills/paperclip/references/issue-documents.md" || source === "skills/paperclip/scripts/paperclip-issue-update.sh") && error.code === "ENOENT") hash.update("absent\0");
+      if ((source === "skills/outpost/references/issue-documents.md" || source === "skills/outpost/scripts/outpost-issue-update.sh") && error.code === "ENOENT") hash.update("absent\0");
       else sourceErrors.push(source);
     }
   }

@@ -3,11 +3,11 @@ import { gradeRestartService } from "./privileged-instance.js";
 import { gradeComponentReference, gradeInteractionFixture } from "./privileged-developer-labs.js";
 
 function observed(reply: string, state: Record<string, unknown>) {
-  return { scenarioId: "fixture", origin: "http://127.0.0.1:3100", companyId: "owned", leadId: "lead", state,
+  return { scenarioId: "fixture", origin: "http://127.0.0.1:3100", spaceId: "owned", leadId: "lead", state,
     tasks: [], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [], links: [], humanQueries: ["canonical"],
     runs: [{ id: "run", status: "succeeded" }], reply };
 }
-const question = { referencePath: "/OWN/design-guide", referenceCompanyId: "owned", questionVisible: true, questionDismissed: true,
+const question = { referencePath: "/OWN/design-guide", referenceSpaceId: "owned", questionVisible: true, questionDismissed: true,
   questionReopened: true, questionResolved: true, fixtureMutations: 0, beforeRuns: 1, afterRuns: 1 };
 const questionReply = "Use the question example in /design-guide. Its pending card can dismiss, reopen and resolve. This is a design reference, not proof of authorization.";
 const denial = { referencePath: "/ux-lab/responsible-user-denial", denialVisible: true, denialActionVisible: true,

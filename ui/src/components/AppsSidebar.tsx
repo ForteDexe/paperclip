@@ -12,7 +12,7 @@ import { contextualSidebarStyles } from "./contextual-sidebar-styles";
  * Secondary sidebar for the Apps area.
  *
  * Connectors combines discovery, account management, and connection health.
- * Review keeps governed actions waiting on the user's approval. Advanced
+ * Review keeps controlled actions waiting on the user's approval. Advanced
  * developer surfaces remain hidden unless one is explicitly enabled.
  */
 export function AppsSidebar() {

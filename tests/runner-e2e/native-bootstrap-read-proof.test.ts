@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
 import { bootstrapReadExecutionId, withoutProvenBootstrapReads, type BootstrapReadNotice } from "./native-bootstrap-read-proof.js";
-const actionFile = `.paperclip-eval-action-${"a".repeat(36)}.txt`;
+const actionFile = `.outpost-eval-action-${"a".repeat(36)}.txt`;
 const origin: BootstrapReadNotice = { runId: "run", sessionId: "session", turnId: "turn", toolCallId: "tested", stage: "tool", operation: "execute", status: "pending", seq: 20 };
 function read(status = "completed", seq = 1): BootstrapReadNotice { return { ...origin, toolCallId: "bootstrap", operation: "read", readTargetSha256: `sha256:${createHash("sha256").update(actionFile).digest("hex")}`, status, seq }; }
 function receipt(type = "completed", status = "completed", seq = 2) {
@@ -118,7 +118,7 @@ it("accepts bounded correlated progress for status-omitting native content updat
 });
 
 it("requires the exact short Copilot setup path and rejects a miscopied path", () => {
-  const shortPath = ".paperclip-eval-action-4c0217d3b2bb.txt";
+  const shortPath = ".outpost-eval-action-4c0217d3b2bb.txt";
   const notice = { ...read(), readTargetSha256: `sha256:${createHash("sha256").update(shortPath).digest("hex")}` };
   const row = receipt(); row.payload.orpEvent.payload.target = shortPath;
   expect(withoutProvenBootstrapReads([notice, origin], origin, { actionFile: shortPath, events: [row] })).toEqual([origin]);

@@ -4,7 +4,7 @@ The user authorized six hours of sustained work starting at 2026-10-13 02:14 UTC
 with a target of fewer than 8,000 lines in `server/src/services/chat-channels.ts`.
 The starting commit is `7eaa9cfa9ce04398a5eb0211a86aacaaa01959dd`: 19,153 lines,
 762,442 bytes. At kickoff, the preceding ten PRs were reviewed and green, but not yet merged.
-The user authorizes publishing and merging reviewed changes to paperclipai/outpost.
+The user authorizes publishing and merging reviewed changes to outpostai/outpost.
 
 The previous plan prioritized too many small helper cuts. This plan prioritizes
 complete workflows, provider ownership, and meaningful reductions per PR. Shared
@@ -20,7 +20,7 @@ bag to move the entire service unchanged.
 | 3 | Message admission and provider policy: shared intake workflow, GitHub message policy, provider envelope projections | 2,400–3,000 | Delivery claim and conversation/task admission; explicit provider policy results; per-service message provenance. | Preserve row locks, deduplication, author authority, task generations, attachments, and GitHub automatic/explicit admission. Existing real-database ingress and replay tests. |
 | 4 | Durable delivery and lifecycle: shared queue, provider lifecycle inputs | 1,700–2,000 | Conversation leases, replay decode, ordered drains, mutation reconciliation; shared live receipt state. | Preserve stale lease exclusion, event order, deletion/edit races, deferred startup and shutdown. Existing concurrency and lifecycle tests. |
 | 5 | Outbound publication: provider delivery modules and shared publication worker | 2,700–3,400 | Current-source authorization; exact transport parts; attempts, unknown outcomes, completion receipts and cleanup. | Preserve no duplicate sends, ambiguous acceptance, credential fencing, file recovery, concurrency and current task-control completion. Existing assembled publication and file tests. |
-| 6, if needed | Operator recovery and endpoint projections | 800–1,200 | Explicit replay/resolution and company-scoped board calls. | Preserve retry audit, current policy and authorization. Existing operator-resolution integration tests. |
+| 6, if needed | Operator recovery and endpoint projections | 800–1,200 | Explicit replay/resolution and space-scoped board calls. | Preserve retry audit, current policy and authorization. Existing operator-resolution integration tests. |
 
 The estimates are not a PR quota. Inspect every full execution path before moving
 it. Increase size only where a cohesive responsibility has a narrow contract.

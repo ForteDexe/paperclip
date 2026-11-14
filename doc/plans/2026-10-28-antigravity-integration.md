@@ -11,7 +11,7 @@ merge, deployment, and migration of existing agents are outside this request.
 An operator selects Google Antigravity in native Outpost Runner, binds an
 authorized Google runtime account, selects an exact model, and assigns an ordinary
 task. The task produces independently verified files/artifacts, settles through
-Paperclip, and can be stopped with physical process cleanup.
+Outpost, and can be stopped with physical process cleanup.
 
 - Transport: Google's official Antigravity ACP server through the existing ACPX
   harness driver. The standalone `agy` print protocol is a separate interface.
@@ -46,7 +46,7 @@ Paperclip, and can be stopped with physical process cleanup.
 
 Provider translation, native metadata, question semantics, auth-home settings,
 and executable verification belong under the Antigravity provider boundary.
-The existing Runner owns supervision/ORP/replay; Paperclip retains company,
+The existing Runner owns supervision/ORP/replay; Outpost retains space,
 credential, permission, budget, result, and task-state authority.
 
 - Integration owner: Runner profile/contracts, sidecar/Rust admission, CLI wiring,
@@ -92,7 +92,7 @@ Public references:
 | Gate | Required observation | Current verdict |
 | --- | --- | --- |
 | Native admission | Installed dependency verifies exact model and instructions before first prompt and after load | Real create passed; loaded session and model behavior still pending |
-| Scoped tools | Real semantic/MCP round trip; wrong-company/revoked/stale authority denied | Unattempted |
+| Scoped tools | Real semantic/MCP round trip; wrong-space/revoked/stale authority denied | Unattempted |
 | Ordinary task | Browser/server/DB/Runner/provider; verified file/artifact, accepted result, durable task state, cleanup | Account/model selected; product execution remains gated pending acceptance |
 | Human decisions | Native question/permission identity, correct response, duplicate/stale denial, loss expiry | Unattempted |
 | Stop/lifecycle | Startup/work/pending-input Stop, spontaneous child loss, bounded shutdown and no late revival | Unattempted |
@@ -148,17 +148,17 @@ execution remains rejected pending separate qualification.
 - Full `pnpm -r typecheck` and `pnpm build` passed with the OAuth integration.
   The subsequent metadata discovery changes passed Runner/server TypeScript;
   final impact checks remain required after freeze.
-- Fresh ordinary browser onboarding created one disposable company. Personal
+- Fresh ordinary browser onboarding created one disposable space. Personal
   Google sign-in completed for the user-selected account, its verified email
   was saved on the encrypted runtime grant, all login processes retired, and
   the connection remained connected after a browser reload. This proves setup
   authentication, not model entitlement or task execution.
 - Eight real PostgreSQL connection integration tests passed without DB/service
-  mocks, covering encrypted user credentials, selected homes, company/member/
+  mocks, covering encrypted user credentials, selected homes, space/member/
   install authority, revoked defaults, and refresh/reconnect compare-and-swap.
 - The final metadata candidate is `1.4.3-outpost.4`, closure
   `05ed2a3e39c95fc813abeb664a78a295d1dcbfd4098f28cbc17d30d710a1ea92`.
-  Its setup-only `_paperclip/models` path invokes the official account catalog
+  Its setup-only `_outpost/models` path invokes the official account catalog
   without creating a conversation, native helper, or prompt. Four actual-source
   native regressions and 25 auth/catalog process regressions passed. Discovery
   retains the credential home and executable lease if process retirement cannot
@@ -184,7 +184,7 @@ execution remains rejected pending separate qualification.
 The local environment is a fresh checkout instance with an isolated Docker
 PostgreSQL database, not the seeded `test-drive` CLI (that command requires an
 API key and rejects external PostgreSQL). The failed embedded attempt and fresh
-Docker-backed attempt have separate evidence directories. No existing company,
+Docker-backed attempt have separate evidence directories. No existing space,
 workstation CLI login, Google tool grant, or shared database was borrowed.
 
 Ordinary product task output/result, scoped semantic/MCP tools, human decisions,
@@ -248,7 +248,7 @@ sidecar and Rust pending gates. Do not mark the profile qualified or inject a
 private backend to obtain a pass. A candidate path must bind the exact model and
 runtime identity across those boundaries, while default admission stays closed.
 
-The proposed campaign is local-only, uses this disposable company's saved
+The proposed campaign is local-only, uses this disposable space's saved
 personal Google grant, selects `gemini-3.8-flash-low`, and permits at most twelve
 provider admissions in thirty minutes, with no automatic story retries. It
 stops at the first divergence. Provider billing is unavailable; these are
@@ -264,7 +264,7 @@ usable pre-existing connections, so it cannot be relabeled as this journey.
 
 Candidate authority should extend the existing trusted startup launch profile:
 server operator authorization → Runner launch descriptor → Rust session policy
-→ sidecar initialize/open → provider host/install checks. It must bind company,
+→ sidecar initialize/open → provider host/install checks. It must bind space,
 exact model, profile digest and native closure. Do not place this authority in
 agent configuration, provider environment, runtime context, or a saved provider
 snapshot. Existing `acpxCandidateProfile` stops at TypeScript transport gates;
@@ -318,7 +318,7 @@ the original request expects useful results over multiple turns.
 
 The initial acceptance target remains the local darwin-arm64 test drive and the
 selected Google subscription connection. Candidate authorization is bound to
-that company, exact model, provider profile, native closure and expiry, with
+that space, exact model, provider profile, native closure and expiry, with
 fresh actual run/session binding. It is supplied only by the server operator;
 agent config and provider environment cannot create it. Global qualification
 remains pending while gathering real evidence. Diagnose the first divergence

@@ -17,7 +17,7 @@ vi.mock("@outpost/adapter-utils/execution-target", async (importOriginal) => ({
     assetDirs: {}, restoreWorkspace: mocks.restore,
   })),
   readAdapterExecutionTargetHomeDir: vi.fn(async () => "/home/fixture"),
-  startAdapterExecutionTargetPaperclipBridge: vi.fn(async () => ({ env: {}, stop: mocks.stop })),
+  startAdapterExecutionTargetOutpostBridge: vi.fn(async () => ({ env: {}, stop: mocks.stop })),
   runAdapterExecutionTargetProcess: mocks.process,
 }));
 import { execute } from "./execute.js";
@@ -33,7 +33,7 @@ const failed: RunProcessResult = {
 describe("OpenCode timeout reporting", () => {
   let dir: string;
   beforeEach(async () => {
-    dir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-opencode-timeout-"));
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-opencode-timeout-"));
     vi.stubEnv("XDG_CONFIG_HOME", dir);
     mocks.process.mockReset().mockResolvedValue(failed);
     mocks.restore.mockReset().mockResolvedValue(undefined);
@@ -45,7 +45,7 @@ describe("OpenCode timeout reporting", () => {
   });
   const context = (timeoutSec: number, remote = true): AdapterExecutionContext => ({
     runId: "run-fixture",
-    agent: { id: "agent-fixture", companyId: "company-fixture", name: "Fixture", adapterType: "opencode_local", adapterConfig: {} },
+    agent: { id: "agent-fixture", spaceId: "space-fixture", name: "Fixture", adapterType: "opencode_local", adapterConfig: {} },
     runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
     config: { command: "opencode", model: "openai/fixture", cwd: dir, timeoutSec,
       env: { OPENCODE_ALLOW_ALL_MODELS: "1" } },

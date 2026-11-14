@@ -18,7 +18,7 @@ import { SidebarSection } from "./SidebarSection";
 import { SidebarNavItem } from "./SidebarNavItem.production";
 import { SidebarAgents } from "./SidebarAgents.production";
 import { useDialogActions } from "../context/DialogContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useSidebar } from "../context/SidebarContext";
 import { attentionApi } from "../api/attention";
 import { heartbeatsApi } from "../api/heartbeats";
@@ -31,28 +31,28 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn, SIDEBAR_RAIL_HIDDEN_LABEL } from "../lib/utils";
 import { PluginSlotOutlet } from "@/plugins/slots";
 import { PluginLauncherOutlet } from "@/plugins/launchers";
-import { SidebarCompanyMenu } from "./SidebarCompanyMenu.production";
+import { SidebarSpaceMenu } from "./SidebarSpaceMenu.production";
 
 export function Sidebar() {
   const { openNewIssue } = useDialogActions();
   // Every labeled section is collapsible (session-scoped, default open) —
   // one policy across static nav groups and the data-driven sections.
   const [workOpen, setWorkOpen] = useState(true);
-  const [companyOpen, setCompanyOpen] = useState(true);
-  const { selectedCompanyId, selectedCompany } = useCompany();
+  const [spaceOpen, setSpaceOpen] = useState(true);
+  const { selectedSpaceId, selectedSpace } = useSpace();
   const { collapsed, peeking } = useSidebar();
   const rail = collapsed && !peeking;
-  const inboxBadge = useInboxBadge(selectedCompanyId);
+  const inboxBadge = useInboxBadge(selectedSpaceId);
   const { data: experimentalSettings } = useQuery({
     queryKey: queryKeys.instance.experimentalSettings,
     queryFn: () => instanceSettingsApi.getExperimental(),
   });
-  const liveRunsQueryKey = queryKeys.liveRuns(selectedCompanyId!);
+  const liveRunsQueryKey = queryKeys.liveRuns(selectedSpaceId!);
   const sharedLiveRuns = useSharedPollingQuery({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     resourceKey: "live-runs",
     queryKey: liveRunsQueryKey,
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
     // Event-sourced via LiveUpdatesProvider (GitHub issue 9627) + reconnect reconcile — no
     // interval poll needed. Polling here also re-armed React Query's timer on
     // every live-event cache write, a major source of steady-state churn.
@@ -61,7 +61,7 @@ export function Sidebar() {
   });
   const { data: liveRuns, dataUpdatedAt: liveRunsUpdatedAt } = useQuery({
     queryKey: liveRunsQueryKey,
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedCompanyId!),
+    queryFn: () => heartbeatsApi.liveRunsForSpace(selectedSpaceId!),
     enabled: sharedLiveRuns.enabled,
     refetchInterval: sharedLiveRuns.refetchInterval,
   });
@@ -74,9 +74,9 @@ export function Sidebar() {
   // showWorkspacesLink — it defaults hidden, so no placeholder is needed).
   const showDecisions = experimentalSettings?.enableDecisions === true;
   const { data: attentionFeed } = useQuery({
-    queryKey: queryKeys.attention(selectedCompanyId!),
-    queryFn: () => attentionApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId && showDecisions,
+    queryKey: queryKeys.attention(selectedSpaceId!),
+    queryFn: () => attentionApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId && showDecisions,
     refetchInterval: 60_000,
   });
   const attentionCount = attentionBadgeCount(attentionFeed);
@@ -89,19 +89,19 @@ export function Sidebar() {
   const streamlined = true;
 
   const pluginContext = {
-    companyId: selectedCompanyId,
-    companyPrefix: selectedCompany?.issuePrefix ?? null,
+    spaceId: selectedSpaceId,
+    spacePrefix: selectedSpace?.issuePrefix ?? null,
   };
 
   return (
     <aside className="w-full h-full min-h-0 border-r border-border bg-background flex flex-col">
-      {/* Top bar: company name, aligned with top sections and borderless.
+      {/* Top bar: space name, aligned with top sections and borderless.
           Search deliberately does NOT live here:
           the header's spare width goes to the workspace/organization name,
           which is the user's orientation anchor and truncates otherwise.
           Search is the first nav item below instead. */}
       <div className="flex items-center gap-1 px-3 h-12 shrink-0">
-        <SidebarCompanyMenu />
+        <SidebarSpaceMenu />
       </div>
 
       <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-4 pointer-coarse:gap-3 px-3 py-2">
@@ -187,9 +187,9 @@ export function Sidebar() {
 
         <SidebarAgents streamlined={streamlined} />
 
-        <SidebarSection label="Space" collapsible={{ open: companyOpen, onOpenChange: setCompanyOpen }}>
+        <SidebarSection label="Space" collapsible={{ open: spaceOpen, onOpenChange: setSpaceOpen }}>
           <SidebarNavItem to="/org" label="Crew map" icon={Network} />
-          <SidebarNavItem to="/company/settings" label="Settings" icon={Settings} />
+          <SidebarNavItem to="/space/settings" label="Settings" icon={Settings} />
         </SidebarSection>
 
         <PluginSlotOutlet

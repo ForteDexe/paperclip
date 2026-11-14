@@ -1,7 +1,7 @@
 import { getCloudRuntimeIdentity } from "../cloud-runtime-identity.js";
 import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { mcpOauthGrants as grants, mcpOauthTokens as tokens, type Db } from "@outpost/db";
-import { createPaperclipCloudConnector, outpostCloudConnectorConfigFromEnv } from "../paperclip-cloud-connector.js";
+import { createOutpostCloudConnector, outpostCloudConnectorConfigFromEnv } from "../outpost-cloud-connector.js";
 import { deriveLocalEncryptedInstanceSecret } from "../../secrets/local-encrypted-provider.js";
 import { DELIVERY_QUEUES } from "../delivery-work-notifications.js";
 import type { createDeliveryWorkCoordinator } from "../delivery-work-coordinator.js";
@@ -18,9 +18,9 @@ function response(value: unknown): McpRevocationIndexResponse {
 export function startMcpRevocationIndexSync(db: Db, coordinator: Pick<ReturnType<typeof createDeliveryWorkCoordinator>, "register">,
   input: { client?: { publish: (request: McpRevocationIndexRequest) => Promise<unknown> }; key?: string } = {}) {
   const config = outpostCloudConnectorConfigFromEnv();
-  const connector = config ? createPaperclipCloudConnector({ config }) : undefined;
+  const connector = config ? createOutpostCloudConnector({ config }) : undefined;
   const client = input.client ?? (connector ? { publish: (request: McpRevocationIndexRequest) => connector.syncMcpRevocationIndex({
-    subject: request.operatorId, companyId: request.companyId, serialized: JSON.stringify(request) }) } : undefined);
+    subject: request.operatorId, spaceId: request.spaceId, serialized: JSON.stringify(request) }) } : undefined);
   const requested = new Set<string>(["*"]);
   return coordinator.register(DELIVERY_QUEUES.mcpRevocationIndex, {
     retryMs: 5_000, pausePassiveMaintenance: true,
@@ -30,7 +30,7 @@ export function startMcpRevocationIndexSync(db: Db, coordinator: Pick<ReturnType
 
       const managed = getCloudRuntimeIdentity();
       if (!client || !managed) { requested.clear(); return; }
-      const resources = [managed.canonicalOrigin + "/mcp/paperclip", managed.canonicalOrigin + "/mcp/runner"];
+      const resources = [managed.canonicalOrigin + "/mcp/outpost", managed.canonicalOrigin + "/mcp/runner"];
       const assertCurrentAuthority = () => {
         const current = getCloudRuntimeIdentity(), currentConfig = outpostCloudConnectorConfigFromEnv();
         if (!current || current.stackId !== managed.stackId || current.canonicalOrigin !== managed.canonicalOrigin
@@ -58,7 +58,7 @@ export function startMcpRevocationIndexSync(db: Db, coordinator: Pick<ReturnType
 
             await db.update(grants).set({ revocationIndexReceipt: null }).where(and(eq(grants.id, grant.id), eq(grants.revocationRevision, grant.revocationRevision)));
           }
-          const identity: McpRevocationIndexIdentity = { authorityId: mcpRevocationAuthorityId(grant.id, keyId), companyId: grant.companyId, operatorId: grant.userId,
+          const identity: McpRevocationIndexIdentity = { authorityId: mcpRevocationAuthorityId(grant.id, keyId), spaceId: grant.spaceId, operatorId: grant.userId,
             clientId: grant.clientId, resource: grant.resource, revision: grant.revocationRevision, keyId };
           let result = response(await publish({ ...identity, operation: "begin", key }));
           if (!result.complete) {

@@ -13,7 +13,7 @@ OUTPOST_COLLECTION_PERF_BASE_URL=http://127.0.0.1:3219 \
 Start the isolated instance with `OUTPOST_UI_DEV_MIDDLEWARE=false` to serve the
 production build. The instance and its database must be disposable. These tests
 retain and reuse their fixture in `test-results/collections/fixture.json`; they
-only replace it when the previous company's API returns 404. Other errors fail.
+only replace it when the previous space's API returns 404. Other errors fail.
 
 The journeys check desktop and phone row budgets, incremental scrolling,
 retained row identity and height, shared count-only navigation, the Coordinator
@@ -32,7 +32,7 @@ partial source errors, resolved failure context, scoped 429 recovery, and
 archive/Undo persistence. Its authenticated session and failed-run responses are
 simulated transport fixtures over a real local board. They do not prove hosted
 login or model execution.
-The embedded bootstrap case holds separate company/access responses until Mine
+The embedded bootstrap case holds separate space/access responses until Mine
 rows appear. Initial WebSocket reconciliation may request those endpoints in the
 background; their responses must not block the first rows. Missing or mismatched
 bootstrap data still requires the ordinary fallback reads.
@@ -41,8 +41,8 @@ They allow 45 seconds for its bounded retry window before exercising manual
 Retry. Other cases keep the normal short assertion timeout. Timing samples do
 not accelerate the browser clock.
 
-`mine-workspaces.spec.ts` guards Mine against waiting on a company-wide
-execution-workspace list. Its fixture (`workspace-fixture.ts`) adds a company
+`mine-workspaces.spec.ts` guards Mine against waiting on a space-wide
+execution-workspace list. Its fixture (`workspace-fixture.ts`) adds a space
 with 6,000 execution workspaces, 4,000 of them created for finished tasks, and
 12 Mine tasks that each run in their own isolated workspace. The API cannot
 create execution workspaces, so this fixture writes those rows to the instance
@@ -108,7 +108,7 @@ INBOX_CANDIDATE_SOURCE_REVISION=<full-candidate-sha> \
 
 The script retains a four-parent, 30-child fixture, archives three completed
 parents, and enables the personal Coordinator preference. Both APIs must expose
-that same company. It runs five alternating pairs by default. `INBOX_PAIRS`,
+that same space. It runs five alternating pairs by default. `INBOX_PAIRS`,
 `INBOX_FIXTURE_FILE`, and `INBOX_OUTPUT` override the count and evidence paths.
 No request interception is used in timings.
 `INBOX_NETWORK_LATENCY_MS` accepts an integer from 0 to 2000 and defaults to 0
@@ -129,7 +129,7 @@ navigation and task-to-Mine Back retain query state. Use `INBOX_HEADFUL=1` and
 Initial readiness requires visible Mine rows plus two animation frames. The
 report retains every sample and failure, exact row membership/order, row geometry,
 asset identities, full API resource timings, request statuses and primary-request
-start. Health, session, board access, companies and preferences remain timing
+start. Health, session, board access, spaces and preferences remain timing
 controls. A faster initial total alone does not attribute a gain to its final
 context response. The fixed post-reveal window defaults to two seconds;
 `INBOX_TAIL_MS` changes it, up to 30 seconds. Counts retain 429s and unfinished

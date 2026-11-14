@@ -24,7 +24,7 @@ import { initializeMcpHttpSession, McpHttpInitializationError, getMcpHttpSession
 import { secretService } from "../../secrets.js";
 import { agentmailApi } from "../../agentmail-api.js";
 import { createRailwayClient, discoverRailwayWorkspace, isRailwayConnection, normalizeRailwayToolName, RAILWAY_TOOLS, RAILWAY_TOOL_PREFIX, RailwayError } from "../../railway.js";
-import { isPaperclipCloudConnectorStrategy } from "../../paperclip-cloud-connector.js";
+import { isOutpostCloudConnectorStrategy } from "../../outpost-cloud-connector.js";
 import { vercelTokenRequest, type VercelConnectClient } from "../../vercel-connect.js";
 
 import type { ToolAccessAudit } from "../audit.js";
@@ -92,7 +92,7 @@ export function createToolCatalogDiscovery(db: Db, { now, audit, secrets, creden
         if (catalog.status === "fulfilled") continue;
         const service = services[index]!;
         unavailableServices.push(service);
-        await audit({ companyId: connection.companyId, connectionId: connection.id,
+        await audit({ spaceId: connection.spaceId, connectionId: connection.id,
           action: "tool_connection.catalog_refresh", outcome: "failure", actor,
           reasonCode: "google_workspace_service_unavailable", details: { service } });
       }
@@ -112,7 +112,7 @@ export function createToolCatalogDiscovery(db: Db, { now, audit, secrets, creden
     // Pinned to the address the guard approved: `config.url` is operator-supplied,
     // so a second DNS resolution here would reopen the rebinding window that
     // PAP-17098 closed for the OAuth endpoints.
-    let listRequestId = "paperclip-catalog-refresh";
+    let listRequestId = "outpost-catalog-refresh";
     let sessionHeaders = headers;
     const sendRemote = (init: RequestInit) => withMcpConnectionFailure(() => requestRemoteHttpEndpoint(new URL(endpoint), init));
     const sendToolsList = (requestHeaders: Record<string, string>, cursor?: string) => {
@@ -155,7 +155,7 @@ export function createToolCatalogDiscovery(db: Db, { now, audit, secrets, creden
           const sessionHeaders = await initializeMcpHttpSession({
             send: sendRemote,
             headers,
-            requestId: "paperclip-catalog-refresh",
+            requestId: "outpost-catalog-refresh",
           });
           response = await sendToolsList(sessionHeaders);
           usedInitializedSession = response.ok;
@@ -191,7 +191,7 @@ export function createToolCatalogDiscovery(db: Db, { now, audit, secrets, creden
         .where(
           and(
             eq(toolConnections.id, connection.id),
-            eq(toolConnections.companyId, connection.companyId),
+            eq(toolConnections.spaceId, connection.spaceId),
           ),
         );
     }
@@ -209,7 +209,7 @@ export function createToolCatalogDiscovery(db: Db, { now, audit, secrets, creden
         credential,
         grant,
         connectionId: connection.id,
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         resources: vercelConnectResourcesFor(connection),
       });
       vercelConnect?.evict(request);
@@ -224,7 +224,7 @@ export function createToolCatalogDiscovery(db: Db, { now, audit, secrets, creden
     if (
       response.status === 401 &&
       connection.authKind === "oauth" &&
-      connection.credentialSource === "paperclip_vault"
+      connection.credentialSource === "outpost_vault"
     ) {
       headers = {
         ...projectedConnectionHeaders(connection),
@@ -235,7 +235,7 @@ export function createToolCatalogDiscovery(db: Db, { now, audit, secrets, creden
       response = await sendToolsList(headers);
       if (
         response.status === 401 &&
-        isPaperclipCloudConnectorStrategy(oauthConfig(connection).strategy)
+        isOutpostCloudConnectorStrategy(oauthConfig(connection).strategy)
       ) {
         const grant = await vaultGrantForConnection(connection, actor);
         if (grant) {
@@ -245,7 +245,7 @@ export function createToolCatalogDiscovery(db: Db, { now, audit, secrets, creden
             .where(
               and(
                 eq(connectionGrants.id, grant.id),
-                eq(connectionGrants.companyId, connection.companyId),
+                eq(connectionGrants.spaceId, connection.spaceId),
               ),
             );
         }
@@ -330,7 +330,7 @@ export function createToolCatalogDiscovery(db: Db, { now, audit, secrets, creden
       if (!cursor) break;
       if (seenCursors.has(cursor) || page >= 99 || descriptors.length > 20_000) throw new HttpError(502, "Remote MCP tool catalog pagination did not finish", { code: "mcp_catalog_pagination" });
       seenCursors.add(cursor);
-      listRequestId = `paperclip-catalog-refresh-${page + 1}`;
+      listRequestId = `outpost-catalog-refresh-${page + 1}`;
       response = await sendToolsList(sessionHeaders, cursor);
       if (!response.ok) throw mcpDiscoveryHttpFailure(response, "Remote MCP catalog page could not be read");
     }
@@ -355,7 +355,7 @@ export function createToolCatalogDiscovery(db: Db, { now, audit, secrets, creden
     // API interoperability is verified with the actual credential; the presence
     // of an OAuth token alone never enables the additional capability surface.
     const nextConfig = { ...connection.config, railwayApiStatus: apiStatus, railwayApiMessage: apiMessage };
-    await db.update(toolConnections).set({ config: nextConfig, transportConfig: nextConfig, updatedAt: now() }).where(and(eq(toolConnections.id, connection.id), eq(toolConnections.companyId, connection.companyId)));
+    await db.update(toolConnections).set({ config: nextConfig, transportConfig: nextConfig, updatedAt: now() }).where(and(eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, connection.spaceId)));
     connection.config = nextConfig;
     connection.transportConfig = nextConfig;
     return apiStatus === "available" ? [...descriptors, ...RAILWAY_TOOLS] : descriptors;
@@ -371,7 +371,7 @@ export function createToolCatalogDiscovery(db: Db, { now, audit, secrets, creden
       if (!ref) throw unprocessable("Reconnect Cognee to restore its Cloud credentials", { code: "missing_secret" });
       values[key] = grant
         ? (await resolveOAuthGrantSecret(connection, grant, ref, actor, undefined)).value
-        : await secrets.resolveSecretValue(connection.companyId, ref.secretId, ref.versionSelector ?? "latest", {
+        : await secrets.resolveSecretValue(connection.spaceId, ref.secretId, ref.versionSelector ?? "latest", {
             consumerType: "tool_connection", consumerId: connection.id, configPath: ref.configPath,
             actorType: "system", actorId: null,
           });
@@ -404,7 +404,7 @@ export function createToolCatalogDiscovery(db: Db, { now, audit, secrets, creden
       });
     }
     const key = await secrets.resolveSecretValue(
-      connection.companyId,
+      connection.spaceId,
       ref.secretId,
       ref.versionSelector ?? "latest",
       {

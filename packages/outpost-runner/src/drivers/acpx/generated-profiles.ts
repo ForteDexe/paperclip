@@ -54,7 +54,7 @@ export const QUALIFIED_ACPX_PROFILE_DATA = {
     "agentServerVersion": "2026.09.26-dd393fe",
     "agentRuntimePackage": null,
     "agentRuntimeVersion": null,
-    "commandDigest": "sha256:4866bf1f285410329b24d441e23a24c9c36cee424596f0df7d73bff1870dfba9",
+    "commandDigest": "sha256:94235b3280db492682c8e2a7b709d88e9ceee09be18dae09b16aadeaf00e4636",
     "permissionPolicy": "interactive"
   },
   "copilot": {

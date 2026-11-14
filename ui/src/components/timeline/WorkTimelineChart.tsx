@@ -1,7 +1,7 @@
 import { agentAvatarUrl } from "@/lib/agent-avatar-url";
 import { resolveAgentAppearance } from "@outpost/shared";
 /**
- * Work Timeline — custom-SVG Gantt (board-locked Direction C, PAP-12422).
+ * Work Timeline — custom-SVG Gantt (operator-locked Direction C, PAP-12422).
  *
  * Renders actor rows with concurrency sub-lanes, run bars (no issue IDs on the
  * bar — identity is the thin left colour tab; truncated title shows on hover),
@@ -13,7 +13,7 @@ import { resolveAgentAppearance } from "@outpost/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "@/lib/router";
 import type { WorkTimelineActor, WorkTimelineResult } from "@outpost/shared";
-import { applyCompanyPrefix, extractCompanyPrefixFromPath } from "@/lib/company-routes";
+import { applySpacePrefix, extractSpacePrefixFromPath } from "@/lib/space-routes";
 import {
   AXIS_H,
   actorType,
@@ -324,7 +324,7 @@ export function WorkTimelineChart({
         : [],
     [connectedRunIds, layout.connectors],
   );
-  const companyPrefix = extractCompanyPrefixFromPath(location.pathname);
+  const spacePrefix = extractSpacePrefixFromPath(location.pathname);
 
   const timeToScrollLeft = (ms: number, viewportWidth: number) => {
     const x = layout.gutter + ((ms - layout.fromMs) / 60000) * layout.pxPerMinute;
@@ -384,7 +384,7 @@ export function WorkTimelineChart({
   for (let ms = startTick; ms <= layout.toMs; ms += stepMs) ticks.push(ms);
 
   const openIssue = (issueId: string) => {
-    const href = applyCompanyPrefix(`/issues/${encodeURIComponent(issueId)}`, companyPrefix);
+    const href = applySpacePrefix(`/issues/${encodeURIComponent(issueId)}`, spacePrefix);
     window.open(href, "_blank", "noopener,noreferrer");
   };
 

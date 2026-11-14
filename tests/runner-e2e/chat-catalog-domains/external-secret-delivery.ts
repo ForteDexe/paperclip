@@ -2,8 +2,8 @@ import { randomBytes } from "node:crypto";
 import { expect } from "@playwright/test";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 import type {
-  CompanySecret,
-  CompanySecretUsageBinding,
+  SpaceSecret,
+  SpaceSecretUsageBinding,
   SecretAccessEvent,
 } from "../../../packages/shared/src/types/secrets.js";
 import { collectRunEvents } from "../run-observations.js";
@@ -59,13 +59,13 @@ export function gradeSecretDelivery(value: unknown) {
   c.add(
     "real-least-scope-delivery",
     !!o,
-    "Actual company bindings, native Morgan endpoint check, independent live-run denials and lifecycle instance custody are required.",
+    "Actual space bindings, native Morgan endpoint check, independent live-run denials and lifecycle instance custody are required.",
   );
   if (!o) return c.result();
-  const bindings = o.state.bindings as CompanySecretUsageBinding[] | undefined,
+  const bindings = o.state.bindings as SpaceSecretUsageBinding[] | undefined,
     custody = o.state.custodyAfter as CustodyState | undefined;
   c.add(
-    "one-intended-company-secret-binding",
+    "one-intended-space-secret-binding",
     Array.isArray(bindings) &&
       bindings.length === 1 &&
       bindings[0]?.secretId === o.state.secretId &&
@@ -76,14 +76,14 @@ export function gradeSecretDelivery(value: unknown) {
       o.state.boundReferenceMatched === true &&
       o.state.unrelatedBindingCount === 0 &&
       o.state.unrelatedUnchanged === true,
-    "Only Morgan has the intended latest deployment environment reference; unrelated company secret metadata and delivery remain unchanged.",
+    "Only Morgan has the intended latest deployment environment reference; unrelated space secret metadata and delivery remain unchanged.",
   );
   c.add(
     "actual-unrelated-instance-custody",
     !!custody &&
       custodyRoundtrip(
         custody,
-        o.companyId,
+        o.spaceId,
         String(o.state.rileyId),
         String(o.state.resumeOperationId),
         Number(o.state.resumeVersion),
@@ -113,7 +113,7 @@ export function gradeSecretDelivery(value: unknown) {
   c.add(
     "requested-check-created-by-real-canonical-delegation",
     !!task &&
-      task.companyId === o.companyId &&
+      task.spaceId === o.spaceId &&
       task.assigneeAgentId === o.state.morganId &&
       (task as { originIssueId?: string | null }).originIssueId === o.state.sourceId &&
       task.status === "done" &&
@@ -140,7 +140,7 @@ export function gradeSecretDelivery(value: unknown) {
       validSecretScopeReceipt(scopes[0]!, {
         runId: String(o.state.workerRunId),
         agentId: String(o.state.morganId),
-        companyId: o.companyId,
+        spaceId: o.spaceId,
         boundSecretId: String(o.state.secretId),
         boundKey: "deployment-api-key",
         taskId: task?.id,
@@ -148,7 +148,7 @@ export function gradeSecretDelivery(value: unknown) {
       }) &&
       o.state.authorizedChecks === 1 &&
       o.state.unauthorizedChecks === 0,
-    "When the bound credential arrives, the host identifies Morgan's one running run from saved server state, probes with that run's own agent authority through production identity/catalog routes, sees the bound secret but neither probed key, and receives two 403 denials for unrelated company and server-custody keys. Token bytes are withheld.",
+    "When the bound credential arrives, the host identifies Morgan's one running run from saved server state, probes with that run's own agent authority through production identity/catalog routes, sees the bound secret but neither probed key, and receives two 403 denials for unrelated space and server-custody keys. Token bytes are withheld.",
   );
   const access = o.state.boundAccess as SecretAccessEvent[] | undefined;
   c.add(
@@ -164,7 +164,7 @@ export function gradeSecretDelivery(value: unknown) {
           row.outcome === "success",
       ) &&
       o.state.unrelatedSuccessCount === 0,
-    "Production access records independently bind actual environment delivery to this Morgan task/run and show no successful access to the unrelated company value.",
+    "Production access records independently bind actual environment delivery to this Morgan task/run and show no successful access to the unrelated space value.",
   );
   const confirmation = o.phaseReplies.find(
     (reply) => reply.runId === o.state.confirmationRunId,
@@ -198,7 +198,7 @@ export const secretDeliveryExternalCases = [
       let endpoint: PrivateFixture["endpoint"] | undefined;
       try {
         const morgan = await identityWorker(ctx),
-          secret = await ctx.input.api.postSensitive<CompanySecret>(
+          secret = await ctx.input.api.postSensitive<SpaceSecret>(
             `${root(ctx)}/secrets`,
             {
               name: "Deployment API key",
@@ -207,11 +207,11 @@ export const secretDeliveryExternalCases = [
               value: values[0],
             },
           ),
-          unrelated = await ctx.input.api.postSensitive<CompanySecret>(
+          unrelated = await ctx.input.api.postSensitive<SpaceSecret>(
             `${root(ctx)}/secrets`,
             {
-              name: "Unrelated company key",
-              key: "unrelated-company-key",
+              name: "Unrelated space key",
+              key: "unrelated-space-key",
               provider: "local_encrypted",
               value: values[1],
             },
@@ -239,7 +239,7 @@ export const secretDeliveryExternalCases = [
           "DEPLOYMENT_API_KEY",
           {
             boundSecretId: secret.id,
-            unrelatedCompanyKey: "unrelated-company-key",
+            unrelatedSpaceKey: "unrelated-space-key",
             instanceKey: "custody_probe",
           },
           { taskBound: true },
@@ -247,7 +247,7 @@ export const secretDeliveryExternalCases = [
         fixtures.set(ctx, { values, custody, endpoint });
         const source = await openStandingChat(ctx);
         await ctx.input.api.patch(`/api/issues/${source.id}`, {
-          description: `The owned test endpoint is ${endpoint.url}. Only Morgan (${morgan.id}) has the authorized Deployment API key runtime binding. The endpoint's safe check helper is ${endpoint.command}; it performs one authenticated check and prints only a sanitized status. Riley owns unrelated server-custody lifecycle data, and an unrelated company key exists; neither is needed to check this endpoint.`,
+          description: `The owned test endpoint is ${endpoint.url}. Only Morgan (${morgan.id}) has the authorized Deployment API key runtime binding. The endpoint's safe check helper is ${endpoint.command}; it performs one authenticated check and prints only a sanitized status. Riley owns unrelated server-custody lifecycle data, and an unrelated space key exists; neither is needed to check this endpoint.`,
         });
         const riley = await ctx.input.api.get<{
             lifecycleState: string;
@@ -321,7 +321,7 @@ export const secretDeliveryExternalCases = [
         const fixture = fixtures.get(ctx)!,
           rows = await fixture.custody.read(),
           bindings = (
-            await ctx.input.api.get<{ bindings: CompanySecretUsageBinding[] }>(
+            await ctx.input.api.get<{ bindings: SpaceSecretUsageBinding[] }>(
               `/api/secrets/${state.secretId}/usage`,
             )
           ).bindings,
@@ -333,7 +333,7 @@ export const secretDeliveryExternalCases = [
         const passed =
           custodyRoundtrip(
             rows,
-            ctx.input.fixtures.company.id,
+            ctx.input.fixtures.space.id,
             String(state.rileyId),
             String(state.resumeOperationId),
             Number(state.resumeVersion),
@@ -351,7 +351,7 @@ export const secretDeliveryExternalCases = [
               id: "one-real-bound-secret-and-unrelated-instance-custody",
               passed,
               detail:
-                "Actual supported company reference and independent public lifecycle roundtrip exist before the canonical query; no requested check or native run has been seeded.",
+                "Actual supported space reference and independent public lifecycle roundtrip exist before the canonical query; no requested check or native run has been seeded.",
             },
           ],
         };
@@ -378,7 +378,7 @@ export const secretDeliveryExternalCases = [
             ),
           ) === JSON.stringify(state.custodyOwnerBefore);
         state.bindings = (
-          await ctx.input.api.get<{ bindings: CompanySecretUsageBinding[] }>(
+          await ctx.input.api.get<{ bindings: SpaceSecretUsageBinding[] }>(
             `/api/secrets/${state.secretId}/usage`,
           )
         ).bindings;
@@ -388,9 +388,9 @@ export const secretDeliveryExternalCases = [
           )
         ).bindings.length;
         state.unrelatedUnchanged = sameSecretIdentity(
-          state.unrelatedBefore as CompanySecret,
+          state.unrelatedBefore as SpaceSecret,
           o.secrets.find((row) => row.id === state.unrelatedId) as unknown as
-            CompanySecret | undefined,
+            SpaceSecret | undefined,
         );
         const agent = await ctx.input.api.get<{
             adapterConfig: { env?: Record<string, unknown> };
@@ -508,7 +508,7 @@ export const secretDeliveryExternalCases = [
           source = ctx.input.page.url();
         try {
           await ctx.input.page.goto(
-            `/${ctx.input.fixtures.company.issuePrefix}/issues/${task.id}`,
+            `/${ctx.input.fixtures.space.issuePrefix}/issues/${task.id}`,
             { waitUntil: "domcontentloaded" },
           );
           await expect(

@@ -5,10 +5,10 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import {
-  companies,
-  companySecretProviderConfigs,
-  companySecretVersions,
-  companySecrets,
+  spaces,
+  spaceSecretProviderConfigs,
+  spaceSecretVersions,
+  spaceSecrets,
   createDb,
   invites,
   joinRequests,
@@ -256,7 +256,7 @@ describeEmbeddedPostgres("prepareAgentDefaultsPayloadForJoinPersistence (hermes_
   let stopDb: (() => Promise<void>) | null = null;
   let db!: ReturnType<typeof createDb>;
   const previousKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
-  const secretsTmpDir = path.join(os.tmpdir(), `paperclip-hermes-join-defaults-${randomUUID()}`);
+  const secretsTmpDir = path.join(os.tmpdir(), `outpost-hermes-join-defaults-${randomUUID()}`);
 
   beforeAll(async () => {
     mkdirSync(secretsTmpDir, { recursive: true });
@@ -269,10 +269,10 @@ describeEmbeddedPostgres("prepareAgentDefaultsPayloadForJoinPersistence (hermes_
   afterEach(async () => {
     await db.delete(joinRequests);
     await db.delete(invites);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
-    await db.delete(companySecretProviderConfigs);
-    await db.delete(companies);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
+    await db.delete(spaceSecretProviderConfigs);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -286,21 +286,21 @@ describeEmbeddedPostgres("prepareAgentDefaultsPayloadForJoinPersistence (hermes_
   });
 
   it("stores a secret ref instead of the literal apiKey in join request defaults", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const inviteId = randomUUID();
     const joinRequestId = randomUUID();
     const literalApiKey = `hermes-key-${randomUUID()}`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(invites).values({
       id: inviteId,
-      companyId,
-      inviteType: "company_join",
+      spaceId,
+      inviteType: "space_join",
       tokenHash: `invite-token-${randomUUID()}`,
       allowedJoinTypes: "agent",
       defaultsPayload: null,
@@ -312,7 +312,7 @@ describeEmbeddedPostgres("prepareAgentDefaultsPayloadForJoinPersistence (hermes_
       defaultsPayload: {
         apiBaseUrl: "https://hermes.example",
         apiKey: literalApiKey,
-        paperclipApiUrl: "https://outpost.example",
+        outpostApiUrl: "https://outpost.example",
       },
       deploymentMode: "authenticated",
       deploymentExposure: "private",
@@ -323,7 +323,7 @@ describeEmbeddedPostgres("prepareAgentDefaultsPayloadForJoinPersistence (hermes_
 
     const persistedDefaults = await prepareAgentDefaultsPayloadForJoinPersistence({
       db,
-      companyId,
+      spaceId,
       adapterType: "hermes_gateway",
       normalized: joinDefaults.normalized,
     });
@@ -331,7 +331,7 @@ describeEmbeddedPostgres("prepareAgentDefaultsPayloadForJoinPersistence (hermes_
     await db.insert(joinRequests).values({
       id: joinRequestId,
       inviteId,
-      companyId,
+      spaceId,
       requestType: "agent",
       status: "pending_approval",
       requestIp: "127.0.0.1",
@@ -355,7 +355,7 @@ describeEmbeddedPostgres("prepareAgentDefaultsPayloadForJoinPersistence (hermes_
       version: "latest",
     });
 
-    const storedSecrets = await db.select().from(companySecrets);
+    const storedSecrets = await db.select().from(spaceSecrets);
     expect(storedSecrets).toHaveLength(1);
     expect((storedPayload.apiKey as { secretId: string }).secretId).toBe(storedSecrets[0]?.id);
   });

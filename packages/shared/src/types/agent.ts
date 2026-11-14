@@ -8,7 +8,7 @@ import type {
   AgentStatus,
 } from "../constants.js";
 import type {
-  CompanyMembership,
+  SpaceMembership,
   PrincipalPermissionGrant,
 } from "./access.js";
 import type {
@@ -62,7 +62,7 @@ export interface AgentInstructionsFileDetail extends AgentInstructionsFileSummar
 
 export interface AgentInstructionsBundle {
   agentId: string;
-  companyId: string;
+  spaceId: string;
   persistence?: "agent_files";
   mode: AgentInstructionsBundleMode | null;
   rootPath: string | null;
@@ -79,7 +79,7 @@ export interface AgentInstructionsBundle {
 export interface AgentAccessState {
   canAssignTasks: boolean;
   taskAssignSource: "simple_default" | "explicit_grant" | "none";
-  membership: CompanyMembership | null;
+  membership: SpaceMembership | null;
   grants: PrincipalPermissionGrant[];
 }
 
@@ -92,7 +92,7 @@ export interface AgentChainOfCommandEntry {
 
 export interface Agent {
   id: string;
-  companyId: string;
+  spaceId: string;
   name: string;
   urlKey: string;
   role: AgentRole;
@@ -143,7 +143,7 @@ export interface AgentKeyCreated {
 
 export interface AgentConfigRevision {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   createdByAgentId: string | null;
   createdByUserId: string | null;
@@ -210,8 +210,8 @@ export interface AdapterAuthSessionPrompt {
 }
 
 // The account-binding claim of a finished Codex login. `secretId` is the
-// opaque company secret that names the signed-in account's own Codex home.
-// `companyIdentityDiffers` is true when the company default home stayed on a
+// opaque space secret that names the signed-in account's own Codex home.
+// `spaceIdentityDiffers` is true when the space default home stayed on a
 // DIFFERENT account — the promotion never displaces another account's claim —
 // which is exactly when binding an agent to this secret is the only way the
 // login can take effect for it. The claim carries no account identifier and
@@ -219,7 +219,7 @@ export interface AdapterAuthSessionPrompt {
 // an `authenticated` session.
 export interface CodexAccountBindingClaim {
   secretId: string;
-  companyIdentityDiffers: boolean;
+  spaceIdentityDiffers: boolean;
 }
 
 // The owner read of a login session. It adds the one-time prompt to the public
@@ -254,9 +254,9 @@ export const ADAPTER_AUTH_PANEL_MODES = [
 ] as const;
 export type AdapterAuthPanelMode = (typeof ADAPTER_AUTH_PANEL_MODES)[number];
 
-// The company-and-environment Claude login session. The scope binds one login to
-// one company, one owner user, one adapter, and one environment. The scope
-// carries no agent id, so a hire flow with no agent still starts one session.
+// The space-and-environment Claude login session. The scope binds one login to
+// one space, one owner user, one adapter, and one environment. The scope
+// carries no agent id, so a create flow with no agent still starts one session.
 //
 // The Codex prompt above carries a server-displayed code. The Claude login is
 // different: the provider shows a browser code, and the user submits that code.
@@ -264,7 +264,7 @@ export type AdapterAuthPanelMode = (typeof ADAPTER_AUTH_PANEL_MODES)[number];
 
 // The transport advisory for a setup-token confidential response. The product
 // owner set a non-negotiable requirement: do not force TLS. Many users run
-// Paperclip over plain HTTP on a home server or a Tailscale tailnet. So the
+// Outpost over plain HTTP on a home server or a Tailscale tailnet. So the
 // setup-token routes do not block a non-confidential transport. They attach this
 // advisory to the confidential response instead. The client shows a visible,
 // non-blocking disclaimer and the login still proceeds. A confidential transport
@@ -365,10 +365,10 @@ export interface AdapterAuthSignalResponse {
   status: AdapterAuthSignal;
 }
 
-export type AgentInstructionSource = "seed" | "board" | "api" | "tool" | "cleanup" | "restore";
+export type AgentInstructionSource = "seed" | "operator" | "api" | "tool" | "cleanup" | "restore";
 export interface AgentInstructionRevision {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   entryFile: string;
   contentHash: string;

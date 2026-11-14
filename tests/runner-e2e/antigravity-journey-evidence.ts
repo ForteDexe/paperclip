@@ -44,7 +44,7 @@ export function antigravityPrimaryOwner(run: Row, observation: ReturnType<Return
   return owner;
 }
 export interface AntigravityJourneyTurnEvidence {
-  runId: string; companyId: string; agentId: string; issueId: string; connectionId: string; environmentId: string;
+  runId: string; spaceId: string; agentId: string; issueId: string; connectionId: string; environmentId: string;
   nativeSessionId: string; runnerInstanceId: string; model: string;
   conversation: { kind: "acpx"; acpxRecordId: string; agentSessionId: string; backendSessionId: string; normalizedSessionId: string;
     requestedModel: string; effectiveModel: string; permissionMode: string; workspaceDigest: string; profileDigest: string };
@@ -59,13 +59,13 @@ export interface AntigravityJourneyEvidence {
   version: 1; setupId: string; hosting: "self-hosted"; targetCommit: string | null;
   phase: string; outcome: "running" | "passed" | "failed" | "awaiting_user" | "missing_credential" | "blocked_target";
   assisted: boolean; privacy: "private"; authentication: "saved-subscription"; model: string;
-  companyId?: string; agentId?: string; connectionId?: string;
+  spaceId?: string; agentId?: string; connectionId?: string;
   checkpoints: Partial<Record<typeof antigravityJourneyCheckpoints[number], boolean>>;
   turnEvidence: AntigravityJourneyTurnEvidence[];
   cleanup: { agent: boolean; runs: boolean; connectionPreserved: boolean };
 }
 interface TurnScope {
-  companyId: string; agentId: string; issueId: string; connectionId: string; environmentId: string;
+  spaceId: string; agentId: string; issueId: string; connectionId: string; environmentId: string;
   model: string; expectedProfileDigest: string; expectedBytes: Buffer; afterRunIds: readonly string[];
 }
 
@@ -79,10 +79,10 @@ export function gradeAntigravityJourneyTurn(input: TurnScope & {
   const native = rec(profile.nativeExecutionInput), provider = rec(native.provider), binding = rec(native.binding);
   const connection = rec(rec(r.contextSnapshot).aiConnection), environment = rec(rec(r.contextSnapshot).outpostEnvironment);
   const identity = rec(checkpoint.providerIdentity), a = input.attachment;
-  requireProof(id(r.id) && !input.afterRunIds.includes(r.id) && r.companyId === input.companyId && r.agentId === input.agentId
+  requireProof(id(r.id) && !input.afterRunIds.includes(r.id) && r.spaceId === input.spaceId && r.agentId === input.agentId
     && r.issueId === input.issueId && r.status === "succeeded" && r.runtimeMode === "native"
     && r.driverKind === "acpx_runtime" && id(r.nativeSessionId) && id(r.runnerInstanceId) && r.costAccountingPending === false, "run_binding");
-  requireProof(binding.runId === r.id && binding.companyId === input.companyId && binding.agentId === input.agentId && binding.issueId === input.issueId
+  requireProof(binding.runId === r.id && binding.spaceId === input.spaceId && binding.agentId === input.agentId && binding.issueId === input.issueId
     && profile.backend === "acpx_runtime" && provider.kind === "acpx" && provider.agent === "antigravity" && provider.model === input.model
     && environment.id === input.environmentId && environment.driver === "local" && connection.provider === "google"
     && connection.method === "subscription" && connection.connectionId === input.connectionId, "selected_provider");
@@ -91,12 +91,12 @@ export function gradeAntigravityJourneyTurn(input: TurnScope & {
     && identity.requestedModel === input.model && identity.effectiveModel === input.model
     && identity.profileDigest === input.expectedProfileDigest && identity.profileDigest === rec(provider.profile).commandDigest && /^sha256:[a-f0-9]{64}$/u.test(identity.profileDigest)
     && /^sha256:[a-f0-9]{64}$/u.test(identity.workspaceDigest) && identity.permissionMode === "approve-all", "native_identity");
-  requireProof(input.issue.id === input.issueId && input.issue.companyId === input.companyId && input.issue.assigneeAgentId === input.agentId
+  requireProof(input.issue.id === input.issueId && input.issue.spaceId === input.spaceId && input.issue.assigneeAgentId === input.agentId
     && input.issue.status === "done" && result.finalizationPhase === "committed" && result.authoritativeDecision === "done"
     && result.issueStatusAfter === "done" && result.workspaceFinalizeStatus === "succeeded" && id(result.assessmentId) && id(result.decisionId)
     && rec(result.nativeResult).schema === "outpost.run_result.v1" && rec(result.nativeTerminal).runTerminalState === "succeeded", "committed_done");
   const expectedSha = hash(input.expectedBytes);
-  requireProof(input.expectedBytes.length > 0 && input.expectedBytes.length <= 4096 && id(a.id) && a.companyId === input.companyId
+  requireProof(input.expectedBytes.length > 0 && input.expectedBytes.length <= 4096 && id(a.id) && a.spaceId === input.spaceId
     && a.issueId === input.issueId && a.createdByAgentId === input.agentId && a.originatingRunId === r.id
     && a.originalFilename === "antigravity-proof.txt" && a.contentType === "text/plain" && a.byteSize === input.expectedBytes.length
     && a.sha256 === expectedSha && input.downloadedBytes.equals(input.expectedBytes), "exact_download");
@@ -112,7 +112,7 @@ export function gradeAntigravityJourneyTurn(input: TurnScope & {
   for (const row of input.events) {
     const event = rec(rec(row.payload).orpEvent);
     if (!Object.keys(event).length) continue;
-    requireProof(row.companyId === input.companyId && row.runId === r.id && event.runId === r.id
+    requireProof(row.spaceId === input.spaceId && row.runId === r.id && event.runId === r.id
       && isValidNativePrpEnvelope(event, row.protocolSchemaVersion) && row.eventType === event.eventType
       && Number.isSafeInteger(row.seq) && row.seq > lastSeq && eventId(event.sourceEventId) && !seen.has(event.sourceEventId)
       && row.sourceEventId === event.sourceEventId && row.sourceInstanceId === event.sourceInstanceId
@@ -149,7 +149,7 @@ export function gradeAntigravityJourneyTurn(input: TurnScope & {
     && rec(terminals[0]!.event.payload).runTerminalState === "succeeded" && rec(terminals[0]!.event.payload).turnTerminalState === "completed"
     && rec(terminals[0]!.event.payload).reportedWorkDisposition === "done", "accepted_native_result");
   const lease = input.lease;
-  requireProof(id(lease.id) && lease.id === environment.leaseId && lease.companyId === input.companyId && lease.environmentId === input.environmentId
+  requireProof(id(lease.id) && lease.id === environment.leaseId && lease.spaceId === input.spaceId && lease.environmentId === input.environmentId
     && lease.heartbeatRunId === r.id && lease.status === "released" && Boolean(lease.releasedAt), "lease_retirement");
   const retirement = input.retirement;
   requireProof(retirement.captured && retirement.observedProcessCount >= 2 && retirement.remainingProcessCount === 0
@@ -161,13 +161,13 @@ export function gradeAntigravityJourneyTurn(input: TurnScope & {
     backendSessionId: identity.backendSessionId, normalizedSessionId: identity.normalizedSessionId,
     requestedModel: identity.requestedModel, effectiveModel: identity.effectiveModel, permissionMode: identity.permissionMode,
     workspaceDigest: identity.workspaceDigest, profileDigest: identity.profileDigest };
-  return { runId: r.id, companyId: input.companyId, agentId: input.agentId, issueId: input.issueId, connectionId: input.connectionId,
+  return { runId: r.id, spaceId: input.spaceId, agentId: input.agentId, issueId: input.issueId, connectionId: input.connectionId,
     environmentId: input.environmentId, nativeSessionId: r.nativeSessionId, runnerInstanceId: r.runnerInstanceId, model: input.model, conversation,
     artifact: { attachmentId: a.id, filename: a.originalFilename, sha256: expectedSha, byteSize: input.downloadedBytes.length, base64: input.downloadedBytes.toString("base64") },
     finalization: { phase: "committed", decision: "done", assessmentId: result.assessmentId, decisionId: result.decisionId, observedAt: new Date().toISOString(),
       acceptedEventSeq: accepted[0]!.seq, terminalEventSeq: terminals[0]!.seq, nativeResultSha256: hash(JSON.stringify(result.nativeResult)) },
     toolLifecycle: { completedFileOperations: fileTools.length, failedFileOperations: 0,
-      failedFinishOperations: tools.filter(t => t.event.eventType === "tool.execution.completed" && /(?:^|_)paperclip_finish$/u.test(t.payload.name) && t.payload.status === "failed").length },
+      failedFinishOperations: tools.filter(t => t.event.eventType === "tool.execution.completed" && /(?:^|_)outpost_finish$/u.test(t.payload.name) && t.payload.status === "failed").length },
     retirement: { ...retirement, leaseId: lease.id, leaseStatus: lease.status } };
 }
 
@@ -178,7 +178,7 @@ export function sameAntigravityConversation(first: AntigravityJourneyTurnEvidenc
     && left.runId === first.runId && right.runId === followup.runId
     && (left.pid !== right.pid || Date.parse(left.startedAt) !== Date.parse(right.startedAt))
     && Date.parse(right.startedAt) > Date.parse(left.startedAt)
-    && ["companyId", "agentId", "issueId", "connectionId", "environmentId", "model", "nativeSessionId"].every(key => first[key as keyof typeof first] === followup[key as keyof typeof followup])
+    && ["spaceId", "agentId", "issueId", "connectionId", "environmentId", "model", "nativeSessionId"].every(key => first[key as keyof typeof first] === followup[key as keyof typeof followup])
     && Object.keys(first.conversation).every(key => first.conversation[key as keyof typeof first.conversation] === followup.conversation[key as keyof typeof followup.conversation]);
 }
 
@@ -231,7 +231,7 @@ export async function verifyAntigravityJourneyTurn(input: TurnScope & {
     const selected = selectAntigravityIssueRun(summaries, input.agentId, input.afterRunIds);
     if (selected) {
       const run = await input.api.get<Row>(`/api/heartbeat-runs/${selected}`);
-      requireProof(run.id === selected && run.companyId === input.companyId && run.agentId === input.agentId && run.issueId === input.issueId, "observed_run_binding");
+      requireProof(run.id === selected && run.spaceId === input.spaceId && run.agentId === input.agentId && run.issueId === input.issueId, "observed_run_binding");
       if (input.observeRun) await input.observeRun(run);
       const sampled = observer.sample(run.processPid ? { pid: run.processPid, groupId: run.processGroupId, startedAt: run.processStartedAt, runId: run.id } : undefined);
       processes = processes ? retainRunProcessIdentity(processes, sampled) : sampled;
@@ -285,20 +285,20 @@ export function validateAntigravityJourneyEvidence(value: unknown): asserts valu
     requireProof(Object.keys(row).length > 0 && Object.keys(row).every(key => keys.includes(key)), "retained_shape");
     return row;
   };
-  const row = closed(value, ["version", "setupId", "hosting", "targetCommit", "phase", "outcome", "assisted", "privacy", "authentication", "model", "companyId", "agentId", "connectionId", "checkpoints", "turnEvidence", "cleanup"]);
+  const row = closed(value, ["version", "setupId", "hosting", "targetCommit", "phase", "outcome", "assisted", "privacy", "authentication", "model", "spaceId", "agentId", "connectionId", "checkpoints", "turnEvidence", "cleanup"]);
   requireProof(row.version === 1 && /^[a-z0-9-]{1,80}$/u.test(row.setupId) && row.hosting === "self-hosted" && row.privacy === "private"
     && (row.targetCommit === null || /^[a-f0-9]{40}$/u.test(row.targetCommit)) && /^[a-z0-9_]{1,100}$/u.test(row.phase)
     && ["running", "passed", "failed", "awaiting_user", "missing_credential", "blocked_target"].includes(row.outcome)
     && typeof row.assisted === "boolean" && row.authentication === "saved-subscription" && row.model === "gemini-3.8-flash-low"
-    && ["companyId", "agentId", "connectionId"].every(key => row[key] === undefined || id(row[key])), "retained_identity");
+    && ["spaceId", "agentId", "connectionId"].every(key => row[key] === undefined || id(row[key])), "retained_identity");
   requireProof(row.checkpoints && typeof row.checkpoints === "object" && !Array.isArray(row.checkpoints)
     && Object.entries(row.checkpoints).every(([key, v]) => antigravityJourneyCheckpoints.includes(key as typeof antigravityJourneyCheckpoints[number]) && typeof v === "boolean"), "retained_checkpoints");
   const cleanup = closed(row.cleanup, ["agent", "runs", "connectionPreserved"]);
   requireProof(["agent", "runs", "connectionPreserved"].every(key => typeof cleanup[key] === "boolean"), "retained_cleanup");
   requireProof(Array.isArray(row.turnEvidence) && row.turnEvidence.length <= 2, "retained_turn_count");
   for (const turn of row.turnEvidence) {
-    const t = closed(turn, ["runId", "companyId", "agentId", "issueId", "connectionId", "environmentId", "nativeSessionId", "runnerInstanceId", "model", "conversation", "artifact", "finalization", "toolLifecycle", "retirement"]);
-    requireProof(["runId", "companyId", "agentId", "issueId", "connectionId", "environmentId", "nativeSessionId", "runnerInstanceId"].every(key => id(t[key])) && t.model === row.model, "retained_turn_identity");
+    const t = closed(turn, ["runId", "spaceId", "agentId", "issueId", "connectionId", "environmentId", "nativeSessionId", "runnerInstanceId", "model", "conversation", "artifact", "finalization", "toolLifecycle", "retirement"]);
+    requireProof(["runId", "spaceId", "agentId", "issueId", "connectionId", "environmentId", "nativeSessionId", "runnerInstanceId"].every(key => id(t[key])) && t.model === row.model, "retained_turn_identity");
     const c = closed(t.conversation, ["kind", "acpxRecordId", "agentSessionId", "backendSessionId", "normalizedSessionId", "requestedModel", "effectiveModel", "permissionMode", "workspaceDigest", "profileDigest"]);
     requireProof(c.kind === "acpx" && ["acpxRecordId", "agentSessionId", "backendSessionId", "normalizedSessionId"].every(key => id(c[key]))
       && c.agentSessionId === c.backendSessionId && c.normalizedSessionId === t.nativeSessionId && c.requestedModel === row.model && c.effectiveModel === row.model

@@ -144,7 +144,7 @@ describe("heartbeat run-log chunk formatting", () => {
 
   it("keeps the existing head, tail, and omission count for a custom limit", () => {
     expect(compactRunLogChunk(`${"x".repeat(95)}tail!`, 20)).toBe(
-      `${"x".repeat(12)}\n[paperclip truncated run log chunk: omitted 83 chars]\ntail!`,
+      `${"x".repeat(12)}\n[outpost truncated run log chunk: omitted 83 chars]\ntail!`,
     );
   });
 
@@ -173,7 +173,7 @@ describe("heartbeat run-log chunk formatting", () => {
     expect(compacted).toContain("***REDACTED***");
     expect(compacted).not.toContain("fixture-secret-token");
     expect(compacted).toContain("[omitted base64 image data: 70000 chars]");
-    expect(compacted).not.toContain("[paperclip truncated");
+    expect(compacted).not.toContain("[outpost truncated");
   });
 });
 
@@ -203,7 +203,7 @@ describe("complete canonical native log privacy", () => {
       expect(chunk).not.toContain(secret);
     expect(chunk).not.toContain("data:image");
     expect(chunk.length).toBeGreaterThan(64 * 1024);
-    expect(chunk).not.toContain("[paperclip truncated");
+    expect(chunk).not.toContain("[outpost truncated");
   });
 
   it("rejects malformed owned envelopes instead of treating them as coverage-preserving diagnostics", () => {
@@ -219,7 +219,7 @@ describe("run-log invitation token privacy", () => {
   // user) can read, so a live join link must not sit there. The chat reply the
   // person reads is built from database run events, not from this file.
   const token = "pcp_invite_FixtureInviteToken-0123456789_abcdefghijklmnopqrstu";
-  const reply = `Created the invite.\n\n**Invite link:** [Join Company](http://127.0.0.1:3100/invite/${token})`;
+  const reply = `Created the invite.\n\n**Invite link:** [Join Space](http://127.0.0.1:3100/invite/${token})`;
   const toolResult = JSON.stringify({ id: "invite-1", token, inviteUrl: `/invite/${token}`,
     acceptPath: `/api/invites/${token}/accept` });
   const options = { redactIdentity: <T>(value: T) => value, currentUser: { enabled: false } };
@@ -253,7 +253,7 @@ describe("run-log invitation token privacy", () => {
   });
 
   it("leaves chunks without invitation tokens unchanged", () => {
-    const chunk = "GET /api/companies/c1/invites returned 2 invites; see /invite for help";
+    const chunk = "GET /api/spaces/c1/invites returned 2 invites; see /invite for help";
     expect(compactRunLogChunk(chunk)).toBe(chunk);
   });
 });

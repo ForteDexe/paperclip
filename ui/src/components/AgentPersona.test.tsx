@@ -63,27 +63,27 @@ describe("agent persona presentation", () => {
     expect(createCharacter).not.toHaveBeenCalled();
     expect(host.querySelectorAll("img")).toHaveLength(2);
   });
-  it("selects the correct saved draft when the company changes without remounting", async () => {
+  it("selects the correct saved draft when the space changes without remounting", async () => {
     let draft!: ReturnType<typeof useAgentAppearanceDraft>;
-    function Draft({ company }: { company: string }) { draft = useAgentAppearanceDraft(`${company}:new-agent`); return null; }
+    function Draft({ space }: { space: string }) { draft = useAgentAppearanceDraft(`${space}:new-agent`); return null; }
     sessionStorage.setItem("outpost.agent-appearance.two:new-agent", JSON.stringify(appearance));
-    await act(async () => root.render(<Draft company="one" />));
+    await act(async () => root.render(<Draft space="one" />));
     const first = draft.appearance;
-    await act(async () => root.render(<Draft company="two" />));
+    await act(async () => root.render(<Draft space="two" />));
     expect(draft.appearance).toEqual(appearance);
-    await act(async () => root.render(<Draft company="one" />));
+    await act(async () => root.render(<Draft space="one" />));
     expect(draft.appearance).toEqual(first);
   });
   it("retains the draft assignment across remounts and clears it only after creation", async () => {
     let draft!: ReturnType<typeof useAgentAppearanceDraft>;
-    function Draft() { draft = useAgentAppearanceDraft("company:new-agent"); return null; }
+    function Draft() { draft = useAgentAppearanceDraft("space:new-agent"); return null; }
     await act(async () => root.render(<Draft />));
     const first = draft.appearance;
     await act(async () => root.render(null));
     await act(async () => root.render(<Draft />));
     expect(draft.appearance).toEqual(first);
-    expect(JSON.parse(sessionStorage.getItem("outpost.agent-appearance.company:new-agent")!)).toEqual(first);
+    expect(JSON.parse(sessionStorage.getItem("outpost.agent-appearance.space:new-agent")!)).toEqual(first);
     draft.clear();
-    expect(sessionStorage.getItem("outpost.agent-appearance.company:new-agent")).toBeNull();
+    expect(sessionStorage.getItem("outpost.agent-appearance.space:new-agent")).toBeNull();
   });
 });

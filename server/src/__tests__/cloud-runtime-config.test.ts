@@ -7,7 +7,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyPendingMigrations, closeRegisteredClients, createDb, instanceSettings, type Db } from "@outpost/db";
 import { eq } from "drizzle-orm";
-import { paperclipConfigSchema } from "@outpost/shared";
+import { outpostConfigSchema } from "@outpost/shared";
 import { loadCloudBootstrapConfig, loadConfig } from "../config.js";
 import { readConfigFile } from "../config-file.js";
 import {
@@ -35,7 +35,7 @@ function legacyConfig() {
     llm: { provider: "openai", apiKey: "legacy-openai-secret" },
     database: {
       mode: "postgres",
-      connectionString: "postgres://legacy:database-secret@example.test/paperclip",
+      connectionString: "postgres://legacy:database-secret@example.test/outpost",
       backup: { enabled: false, intervalMinutes: 73, retentionDays: 11, dir: "/tmp/legacy-backups" },
     },
     logging: { mode: "cloud", logDir: "/tmp/legacy-logs" },
@@ -50,7 +50,7 @@ function legacyConfig() {
 }
 
 beforeEach(() => {
-  home = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-runtime-config-"));
+  home = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-runtime-config-"));
   configPath = path.join(home, "config.json");
   vi.stubEnv("OUTPOST_HOME", home);
   vi.stubEnv("OUTPOST_CONFIG", configPath);
@@ -151,7 +151,7 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
       await applyPendingMigrations(externalDatabaseUrl);
       database = { connectionString: externalDatabaseUrl, cleanup: () => closeRegisteredClients(externalDatabaseUrl, { scope: "database" }) };
     } else {
-      database = await startEmbeddedPostgresTestDatabase("paperclip-runtime-config-db-");
+      database = await startEmbeddedPostgresTestDatabase("outpost-runtime-config-db-");
     }
     first = createDb(database.connectionString);
     second = createDb(database.connectionString);
@@ -203,7 +203,7 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
       expect(persisted).not.toContain(secret);
     }
     const replacementHome = fs.mkdtempSync(path.join(home, "replacement-"));
-    const replacementConfigDir = path.join(replacementHome, ".paperclip");
+    const replacementConfigDir = path.join(replacementHome, ".outpost");
     fs.mkdirSync(replacementConfigDir);
     const envPath = path.join(replacementConfigDir, ".env");
     const envContents = "PORT=9999\nOUTPOST_RUNTIME_CONFIG_ENV_SENTINEL=should-not-load\n";
@@ -251,7 +251,7 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
   });
 
   it("keeps one committed seed when two clients propose different initial values", async () => {
-    const config = projectCloudRuntimeConfig(paperclipConfigSchema.parse(legacyConfig()));
+    const config = projectCloudRuntimeConfig(outpostConfigSchema.parse(legacyConfig()));
     const results = await Promise.all([
       cloudRuntimeConfigService(first).seedIfAbsent({ ...config, telemetry: { enabled: true } }),
       cloudRuntimeConfigService(second).seedIfAbsent({ ...config, telemetry: { enabled: false } }),
@@ -262,14 +262,14 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
   });
 
   it("rejects unknown or credential fields on the direct mutation path", async () => {
-    const config = projectCloudRuntimeConfig(paperclipConfigSchema.parse(legacyConfig()));
+    const config = projectCloudRuntimeConfig(outpostConfigSchema.parse(legacyConfig()));
     await cloudRuntimeConfigService(first).seedIfAbsent(config);
     await expect(cloudRuntimeConfigService(first).replace({ ...config, llm: { provider: "openai", apiKey: "must-not-store" } } as never, 0)).rejects.toThrow(/configuration is invalid/);
     expect((await cloudRuntimeConfigService(second).inspectStored())?.revision).toBe(0);
   });
 
   it("serializes revisions and rejects competing stale writes from two database clients", async () => {
-    const config = projectCloudRuntimeConfig(paperclipConfigSchema.parse(legacyConfig()));
+    const config = projectCloudRuntimeConfig(outpostConfigSchema.parse(legacyConfig()));
     await cloudRuntimeConfigService(first).seedIfAbsent(config);
     const results = await Promise.allSettled([
       cloudRuntimeConfigService(first).replace({ ...config, telemetry: { enabled: true } }, 0),
@@ -281,7 +281,7 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
   });
 
   it("composes a seed with the caller transaction and rolls back both on failure", async () => {
-    const config = projectCloudRuntimeConfig(paperclipConfigSchema.parse(legacyConfig()));
+    const config = projectCloudRuntimeConfig(outpostConfigSchema.parse(legacyConfig()));
     await expect(first.transaction(async tx => {
       await cloudRuntimeConfigService(first).seedIfAbsent(config, tx);
       await tx.insert(instanceSettings).values({ singletonKey: "runtime-config-test-receipt", general: {} });
@@ -292,7 +292,7 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
   });
 
   it.each([undefined, "", "   "])("rejects raw canonical S3 rows with missing or blank bucket %j", async bucket => {
-    const config = structuredClone(projectCloudRuntimeConfig(paperclipConfigSchema.parse(legacyConfig())));
+    const config = structuredClone(projectCloudRuntimeConfig(outpostConfigSchema.parse(legacyConfig())));
     const raw = config;
     if (bucket === undefined) Reflect.deleteProperty(raw.storage.s3, "bucket");
     else raw.storage.s3.bucket = bucket;
@@ -301,8 +301,8 @@ describePostgres("Cloud runtime configuration in PostgreSQL", () => {
     expect(() => getCloudRuntimeConfigSnapshot()).toThrow(/not been initialized/);
   });
 
-  it.each(["database-bucket", "paperclip"])("accepts canonical DB bucket %s without local configuration provenance", async bucket => {
-    const config = projectCloudRuntimeConfig(paperclipConfigSchema.parse(legacyConfig()));
+  it.each(["database-bucket", "outpost"])("accepts canonical DB bucket %s without local configuration provenance", async bucket => {
+    const config = projectCloudRuntimeConfig(outpostConfigSchema.parse(legacyConfig()));
     config.storage.s3.bucket = bucket;
     await cloudRuntimeConfigService(first).seedIfAbsent(config);
     fs.writeFileSync(configPath, "invalid local file must not be consulted");

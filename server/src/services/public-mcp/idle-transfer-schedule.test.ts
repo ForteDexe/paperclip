@@ -1,8 +1,8 @@
 import type { Db, mcpFileTickets } from "@outpost/db";
 import { describe, expect, it, vi } from "vitest";
 import { readIdleMcpTransferSchedule } from "./idle-transfer-schedule.js";
-type Ticket = Pick<typeof mcpFileTickets.$inferSelect,"companyId"|"grantId"|"uploadId"|"attachmentId"|"workSessionId"|"expiresAt">;
-const row: Ticket = {companyId:"company",grantId:"grant",uploadId:"upload",attachmentId:null,workSessionId:null,expiresAt:new Date(10_000)};
+type Ticket = Pick<typeof mcpFileTickets.$inferSelect,"spaceId"|"grantId"|"uploadId"|"attachmentId"|"workSessionId"|"expiresAt">;
+const row: Ticket = {spaceId:"space",grantId:"grant",uploadId:"upload",attachmentId:null,workSessionId:null,expiresAt:new Date(10_000)};
 function fixture(rows:Ticket[]) {
   const select = vi.fn(()=>({from:()=>({where:()=>({orderBy:()=>({limit:async()=>rows})})})}));
   return {select,tx:{select} as unknown as Pick<Db,"select">};
@@ -15,7 +15,7 @@ describe("live MCP transfer boundary",()=>{
     expect((await readIdleMcpTransferSchedule(fixture([]).tx,{now:0,budget})).blocked).toBe(false);
   });
   it("retains malformed, uncertain and overflowing authority as blockers",async()=>{
-    for(const change of [{expiresAt:new Date(NaN)},{expiresAt:new Date(0)},{companyId:""},{uploadId:null},{attachmentId:"attachment"}]) {
+    for(const change of [{expiresAt:new Date(NaN)},{expiresAt:new Date(0)},{spaceId:""},{uploadId:null},{attachmentId:"attachment"}]) {
       const value=await readIdleMcpTransferSchedule(fixture([{...row,...change}]).tx,{now:0,budget});expect(value.blocked).toBe(true);expect(value.deadlines).toEqual([]);
     }
     const overflow=await readIdleMcpTransferSchedule(fixture(Array.from({length:1001},()=>row)).tx,{now:0,budget});expect(overflow.blocked).toBe(true);expect(overflow.deadlines).toEqual([]);

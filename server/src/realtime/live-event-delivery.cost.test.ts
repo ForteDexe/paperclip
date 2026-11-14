@@ -7,7 +7,7 @@ import { createLiveEventDelivery, LIVE_DELIVERY_MAX_BYTES, LIVE_DELIVERY_MAX_ITE
 it("bounds presentation cost for the same output with zero, one, multiple and congested viewers", async () => {
   const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
   const source = Array.from({ length: 1_024 }, (_, index): LiveEvent => Object.freeze({
-    id: index + 1, companyId: "company", type: "heartbeat.run.log", createdAt: "2026-10-24T00:00:00Z",
+    id: index + 1, spaceId: "space", type: "heartbeat.run.log", createdAt: "2026-10-24T00:00:00Z",
     payload: Object.freeze({ runId: "run", agentId: "agent", seq: index + 1, chunk: "x".repeat(2_048) }),
   }));
   const reports = [];

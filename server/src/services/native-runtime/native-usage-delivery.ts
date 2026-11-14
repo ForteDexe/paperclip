@@ -17,7 +17,7 @@ const uuid = (identity: string) => {
 };
 
 type NativeUsageDeliveryInput = {
-  companyId: string; runId: string; runnerInstanceId: string;
+  spaceId: string; runId: string; runnerInstanceId: string;
   provider: NativeExecutionInput["provider"];
   billing: Pick<AdapterUsageCheckpoint, "provider" | "biller" | "billingType">;
 };
@@ -35,7 +35,7 @@ export async function createNativeUsageDelivery(db: Db, input: NativeUsageDelive
               coalesce(${heartbeatRuns.usageJson}->'accountingReceiptSequence', '0'::jsonb)))
           else '{}'::jsonb end
         || ${JSON.stringify({ accountingReceiptSourceId: sourceId, accountingReceiptSequence: 0, accountingReceiptReady: false })}::jsonb end`
-  }).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId),
+  }).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId),
     isNull(heartbeatRuns.costAccountedAt))).returning({ id: heartbeatRuns.id });
   if (!bound) throw new Error("native_usage_run_not_available");
   return createNativeUsageReceiver(db, input, sourceId, await loadNativeUsageReceipts(db, input, sourceId));
@@ -47,7 +47,7 @@ export async function createNativeUsageDelivery(db: Db, input: NativeUsageDelive
 export async function createNativeUsageContinuationDelivery(db: Db, input: Omit<NativeUsageDeliveryInput, "billing">) {
   const sourceId = uuid(`${input.runId}:${input.runnerInstanceId}`);
   const [source] = await db.select({ runnerInstanceId: heartbeatRuns.runnerInstanceId, usage: heartbeatRuns.usageJson, finishedAt: heartbeatRuns.finishedAt })
-    .from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId)));
+    .from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId)));
   if (source?.runnerInstanceId !== input.runnerInstanceId || source.usage?.accountingReceiptOwner !== "native_producer"
     || source.usage.accountingReceiptSourceId !== sourceId) throw new Error("native_usage_continuation_source_mismatch");
   const saved = await loadNativeUsageReceipts(db, input, sourceId);
@@ -65,15 +65,15 @@ export async function createNativeUsageContinuationDelivery(db: Db, input: Omit<
   return createNativeUsageReceiver(db, { ...input, billing }, sourceId, saved, true, terminalAcknowledged);
 }
 
-function loadNativeUsageReceipts(db: Db, input: Pick<NativeUsageDeliveryInput, "companyId" | "runId">, sourceId: string) {
+function loadNativeUsageReceipts(db: Db, input: Pick<NativeUsageDeliveryInput, "spaceId" | "runId">, sourceId: string) {
   return db.select({ receipt: runUsageReceipts.receiptJson, hash: runUsageReceipts.receiptHash,
     sequence: runUsageReceipts.sequence }).from(runUsageReceipts).where(and(
-    eq(runUsageReceipts.companyId, input.companyId), eq(runUsageReceipts.runId, input.runId),
+    eq(runUsageReceipts.spaceId, input.spaceId), eq(runUsageReceipts.runId, input.runId),
     eq(runUsageReceipts.sourceId, sourceId),
     // A journaled late tail is durable evidence, not an accepted delivery. Keep
     // replaying it through the explicit reconciliation response after restart.
     sql`not exists (select 1 from ${heartbeatRuns} r where r.id = ${runUsageReceipts.runId}
-      and r.company_id = ${runUsageReceipts.companyId} and r.usage_json->>'accountingLateReceiptPending' = 'true'
+      and r.space_id = ${runUsageReceipts.spaceId} and r.usage_json->>'accountingLateReceiptPending' = 'true'
       and (r.usage_json->>'accountingLateReceiptId' = ${runUsageReceipts.id}::text
         or coalesce(r.usage_json->'accountingLateReceiptDebts', '{}'::jsonb) ? ${runUsageReceipts.id}::text))`)).orderBy(asc(runUsageReceipts.sequence));
 }
@@ -94,7 +94,7 @@ async function captureLateUsageForOwner(db: Db, input: NativeUsageDeliveryInput,
   if (!usage || (usage.inputTokens + usage.outputTokens + (usage.cachedInputTokens ?? 0)) <= 0) return false;
   const prior = (reconciliation as Record<string, unknown>).priorOrigin as Record<string, unknown> | null | undefined;
   const runs = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.nativeSessionId, event.normalizedSessionId),
+    eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.nativeSessionId, event.normalizedSessionId),
     inArray(heartbeatRuns.status, finishedRunStatuses), ne(heartbeatRuns.id, input.runId),
   )).orderBy(desc(heartbeatRuns.finishedAt));
   const exact = runs.find(run => run.id === prior?.runId && prior?.normalizedSessionId === event.normalizedSessionId);
@@ -103,8 +103,8 @@ async function captureLateUsageForOwner(db: Db, input: NativeUsageDeliveryInput,
   const owner = exact ?? runs[0] ?? { id: input.runId };
   const receipt = priceAnthropicReceipt(priceCodexReceipt({ ...input.billing, model: input.provider.model ?? "unknown", usage, usageBasis: "per_run",
     complete: true, costUsd: nativeUsageCostUsd(measured, input.provider) ?? null }));
-  await persistUsageReceipt(db, { schema: "paperclip/accounting-receipt/v1", id: uuid(`${owner.id}:${input.runnerInstanceId}:${event.sourceEventId}`),
-    companyId: input.companyId, runId: owner.id, adapterType: "outpost_runner", sourceId: uuid(`late:${owner.id}:${input.runId}:${input.runnerInstanceId}`),
+  await persistUsageReceipt(db, { schema: "outpost/accounting-receipt/v1", id: uuid(`${owner.id}:${input.runnerInstanceId}:${event.sourceEventId}`),
+    spaceId: input.spaceId, runId: owner.id, adapterType: "outpost_runner", sourceId: uuid(`late:${owner.id}:${input.runId}:${input.runnerInstanceId}`),
     sequence: event.sourceSeq, receivedAt: event.emittedAt, receipt,
     producerEvent: { sourceEventId: event.sourceEventId, turnId: event.turnId, eventType: event.eventType, usage: { runDelta: payload.runDelta, reconciliation } },
     lateDelta: { attribution: exact ? "exact" : "inferred", reportedByRunId: input.runId } });
@@ -143,7 +143,7 @@ function createNativeUsageReceiver(db: Db, input: NativeUsageDeliveryInput, sour
   for (const row of saved) {
     const envelope = row.receipt as UsageReceiptEnvelope;
     if (!envelope.producerEvent) throw new Error("native_usage_receipt_missing_producer");
-    if (verifySaved && (envelope.companyId !== input.companyId || envelope.runId !== input.runId
+    if (verifySaved && (envelope.spaceId !== input.spaceId || envelope.runId !== input.runId
       || envelope.sourceId !== sourceId || envelope.sequence !== row.sequence || envelope.adapterType !== "outpost_runner"
       || envelope.id !== uuid(`${input.runId}:${input.runnerInstanceId}:${envelope.producerEvent.sourceEventId}`)
       || receiptFingerprint(envelope) !== row.hash || accepted.has(envelope.producerEvent.sourceEventId))) {
@@ -184,8 +184,8 @@ function createNativeUsageReceiver(db: Db, input: NativeUsageDeliveryInput, sour
     if (accepted.has(event.sourceEventId)) return;
     if (pending && pending.producerEvent?.sourceEventId !== event.sourceEventId) throw new Error("native_usage_report_pending");
     if (!pending) {
-      const envelope: UsageReceiptEnvelope = { schema: "paperclip/accounting-receipt/v1",
-        id: uuid(`${input.runId}:${input.runnerInstanceId}:${event.sourceEventId}`), companyId: input.companyId,
+      const envelope: UsageReceiptEnvelope = { schema: "outpost/accounting-receipt/v1",
+        id: uuid(`${input.runId}:${input.runnerInstanceId}:${event.sourceEventId}`), spaceId: input.spaceId,
         runId: input.runId, adapterType: "outpost_runner", sourceId, sequence: event.sourceSeq,
         receivedAt: event.emittedAt, producerEvent: fact, receipt: { complete: false } };
       const snapshot = observe(envelope);

@@ -14,7 +14,7 @@ export interface IssueReviewRequester extends IssueReviewVerdictActor {
 
 interface ReviewPolicyIssue {
   id: string;
-  companyId: string;
+  spaceId: string;
   reviewPolicy?: IssueReviewPolicy | null;
   createdByAgentId?: string | null;
   createdByUserId?: string | null;
@@ -32,7 +32,7 @@ export async function resolveIssueReviewRequester(
     })
     .from(activityLog)
     .where(and(
-      eq(activityLog.companyId, issue.companyId),
+      eq(activityLog.spaceId, issue.spaceId),
       eq(activityLog.entityType, "issue"),
       eq(activityLog.entityId, issue.id),
       eq(activityLog.action, "issue.updated"),

@@ -5,8 +5,8 @@ import {
   chatEndpoints,
   chatEndpointResources,
   chatGitHubRegistrations,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   type Db,
 } from "@outpost/db";
 import type { GitHubAppRegistrationInput } from "@outpost/shared";
@@ -98,21 +98,21 @@ export function githubChatRegistrationService(
       );
     const [member] = await db
       .select()
-      .from(companyMemberships)
+      .from(spaceMemberships)
       .where(
         and(
-          eq(companyMemberships.companyId, endpoint.companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, userId),
-          eq(companyMemberships.status, "active"),
+          eq(spaceMemberships.spaceId, endpoint.spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, userId),
+          eq(spaceMemberships.status, "active"),
         ),
       );
     if (!member || member.membershipRole === "viewer")
-      throw forbidden("An active company member is required");
-    const [company] = await db
-      .select({ issuePrefix: companies.issuePrefix })
-      .from(companies)
-      .where(eq(companies.id, endpoint.companyId));
+      throw forbidden("An active space member is required");
+    const [space] = await db
+      .select({ issuePrefix: spaces.issuePrefix })
+      .from(spaces)
+      .where(eq(spaces.id, endpoint.spaceId));
     const state = randomBytes(32).toString("base64url");
     const expiresAt = new Date(Date.now() + 30 * 60_000);
     await managementContext?.reauthorize();
@@ -146,7 +146,7 @@ export function githubChatRegistrationService(
           ),
         );
       await tx.insert(chatGitHubRegistrations).values({
-        companyId: endpoint.companyId,
+        spaceId: endpoint.spaceId,
         endpointId,
         userId,
         stateHash: digest(state),
@@ -156,14 +156,14 @@ export function githubChatRegistrationService(
         appName: name.trim(),
         handoff: {
           cloudId: "",
-          ...(managementContext?.actor.type === "board" && managementContext.actor.sessionId ? { browserSessionId: managementContext.actor.sessionId } : {}),
+          ...(managementContext?.actor.type === "operator" && managementContext.actor.sessionId ? { browserSessionId: managementContext.actor.sessionId } : {}),
           redemptionId: randomBytes(32).toString("base64url"),
           returnState: state,
         },
         expiresAt,
       });
       await logActivity(tx as unknown as Db, {
-        companyId: endpoint.companyId,
+        spaceId: endpoint.spaceId,
         ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }),
         action: "chat_github.registration_started",
         entityType: "tool_connection",
@@ -171,7 +171,7 @@ export function githubChatRegistrationService(
         details: { endpointId, expiresAt: expiresAt.toISOString() },
       });
     });
-    return manifest(endpoint, company!.issuePrefix, {
+    return manifest(endpoint, space!.issuePrefix, {
       trustedOrigin: origin,
       state,
       ownerType,
@@ -265,16 +265,16 @@ export function githubChatRegistrationService(
       .where(
         and(
           eq(chatEndpoints.id, endpointId),
-          eq(chatEndpoints.companyId, session.companyId),
+          eq(chatEndpoints.spaceId, session.spaceId),
         ),
       );
-    const [company] = await db
-      .select({ prefix: companies.issuePrefix })
-      .from(companies)
-      .where(eq(companies.id, session.companyId));
-    if (!endpoint || !company || !session.appName)
+    const [space] = await db
+      .select({ prefix: spaces.issuePrefix })
+      .from(spaces)
+      .where(eq(spaces.id, session.spaceId));
+    if (!endpoint || !space || !session.appName)
       throw notFound("GitHub registration not found");
-    return manifest(endpoint, company.prefix, {
+    return manifest(endpoint, space.prefix, {
       trustedOrigin: session.trustedOrigin,
       state: session.handoff.returnState,
       ownerType: session.ownerType,
@@ -312,13 +312,13 @@ export function githubChatRegistrationService(
     try {
       const [member] = await db
         .select()
-        .from(companyMemberships)
+        .from(spaceMemberships)
         .where(
           and(
-            eq(companyMemberships.companyId, session.companyId),
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, session.userId),
-            eq(companyMemberships.status, "active"),
+            eq(spaceMemberships.spaceId, session.spaceId),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, session.userId),
+            eq(spaceMemberships.status, "active"),
           ),
         );
       if (!member || member.membershipRole === "viewer")
@@ -373,11 +373,11 @@ export function githubChatRegistrationService(
         .update(chatGitHubRegistrations)
         .set({ status: "completed" })
         .where(eq(chatGitHubRegistrations.id, session.id));
-      const [company] = await db
-        .select({ issuePrefix: companies.issuePrefix })
-        .from(companies)
-        .where(eq(companies.id, session.companyId));
-      return `${origin}/${company!.issuePrefix}/apps/chat/connect?provider=github&resume=${session.endpointId}`;
+      const [space] = await db
+        .select({ issuePrefix: spaces.issuePrefix })
+        .from(spaces)
+        .where(eq(spaces.id, session.spaceId));
+      return `${origin}/${space!.issuePrefix}/apps/chat/connect?provider=github&resume=${session.endpointId}`;
     } catch (error) {
       await db
         .update(chatGitHubRegistrations)

@@ -55,7 +55,7 @@ head's hosted CI must pass before merging.
 
 Local reproduction: http://127.0.0.1:3223/TASAAAAA/issues/TASAAAAA-1#document-investigation.
 Synthetic task data only; no live provider execution. Restart with
-`OUTPOST_HOME=/tmp/paperclip-stable-task-loading OUTPOST_INSTANCE_ID=task-loading OUTPOST_UI_DEV_MIDDLEWARE=true node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts run`.
+`OUTPOST_HOME=/tmp/outpost-stable-task-loading OUTPOST_INSTANCE_ID=task-loading OUTPOST_UI_DEV_MIDDLEWARE=true node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts run`.
 Evidence is retained under `/tmp/task-loading-proof/`; the generated report is also attached to the disposable local instance. The canonical PR is https://github.com/paperclipai/paperclip/pull/18092.
 
 State: branch `codex/stable-task-anchor-loading`; baseline `063cfd4381`.

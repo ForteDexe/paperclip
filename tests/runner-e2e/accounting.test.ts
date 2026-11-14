@@ -32,7 +32,7 @@ function recording(id = "accounting-productive-neutral") {
       scheduled.runs[2].status = "scheduled_retry";
       const restarted = { ...structuredClone(scheduled), phase: "restarted" };
       if (probe.kind === "stop") runs[2].status = "cancelled";
-      const finished = { phase: "after-due", issue: probe.kind === "stop" ? cleanIssue : { ...cleanIssue, status: "blocked", activeRecoveryAction: { ownerType: "board", attemptCount: 2 } }, runs, comments: comments(runs), documents: [], interactions: [] };
+      const finished = { phase: "after-due", issue: probe.kind === "stop" ? cleanIssue : { ...cleanIssue, status: "blocked", activeRecoveryAction: { ownerType: "operator", attemptCount: 2 } }, runs, comments: comments(runs), documents: [], interactions: [] };
       checkpoints = [scheduled, restarted, finished];
     }
   }

@@ -1,11 +1,11 @@
 import { type SyntheticEvent, useEffect, useRef, useState } from "react";
 import { Download, ExternalLink, Paperclip, Play } from "lucide-react";
-import type { CompanyArtifact } from "@/api/artifacts";
+import type { SpaceArtifact } from "@/api/artifacts";
 import { Link } from "@/lib/router";
 import { cn, formatDate } from "@/lib/utils";
 
 interface ArtifactCardProps {
-  artifact: CompanyArtifact;
+  artifact: SpaceArtifact;
 }
 
 /**
@@ -32,7 +32,7 @@ function PlaceholderPreview({ label }: { label?: string }) {
   );
 }
 
-type PreviewArtifact = Pick<CompanyArtifact, "mediaKind" | "contentPath" | "title"> & Partial<Pick<CompanyArtifact, "source" | "previewText">>;
+type PreviewArtifact = Pick<SpaceArtifact, "mediaKind" | "contentPath" | "title"> & Partial<Pick<SpaceArtifact, "source" | "previewText">>;
 
 function ImagePreview({ artifact }: { artifact: PreviewArtifact }) {
   const [errored, setErrored] = useState(false);

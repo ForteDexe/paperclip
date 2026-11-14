@@ -10,7 +10,7 @@ describe("local import package-cache boundary", () => {
   let cache: string;
   beforeEach(async () => {
     root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "skill-import-boundary-")));
-    managed = path.join(root, "skills", "company");
+    managed = path.join(root, "skills", "space");
     cache = path.join(managed, "__packages__");
     await fs.mkdir(path.join(cache, "snapshot", "private"), { recursive: true });
     await fs.writeFile(path.join(cache, "snapshot", "private", "SKILL.md"), "Private instructions");

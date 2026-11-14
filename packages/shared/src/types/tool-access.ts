@@ -74,9 +74,9 @@ export type ToolConnectionAuthKind = "oauth" | "api_key" | "none";
 export type ToolConnectionOwnership =
   "platform_shared" | "platform_provisioned" | "customer" | "dcr";
 export type ToolConnectionCredentialSource =
-  "paperclip_vault" | "vercel_connect";
+  "outpost_vault" | "vercel_connect";
 export type ToolConnectionStatus = "draft" | "active" | "disabled" | "archived";
-export type ToolConnectionInstallTargetType = "company" | "agent";
+export type ToolConnectionInstallTargetType = "space" | "agent";
 export type ConnectionGrantKind = "organization" | "user" | "agent";
 export type ConnectionGrantStatus =
   "active" | "revoked" | "expired" | "needs_reauthorization";
@@ -116,7 +116,7 @@ export interface ToolRedactedValueSummary {
 
 export type VercelConnectPrincipalMode = "app" | "user";
 
-/** Durable, non-secret connector provenance safe to return to the board UI. */
+/** Durable, non-secret connector provenance safe to return to the operator UI. */
 export interface VercelConnectCredentialSummary {
   provider: "vercel_connect";
   connectorId: string;
@@ -149,7 +149,7 @@ export interface VercelConnectGrantReference extends VercelConnectGrantSummary {
 
 export interface ToolApplication {
   id: string;
-  companyId: string;
+  spaceId: string;
   applicationKey?: string;
   name: string;
   description: string | null;
@@ -167,7 +167,7 @@ export interface ToolApplication {
 export interface ToolConnection {
   agentInstructions?: import("../connection-instructions.js").ConnectionAgentInstructions | null;
   id: string;
-  companyId: string;
+  spaceId: string;
   applicationId: string;
   name: string;
   uid: string;
@@ -207,7 +207,7 @@ export interface ToolConnection {
 
 export interface ConnectionGrant {
   id: string;
-  companyId: string;
+  spaceId: string;
   connectionId: string;
   kind: ConnectionGrantKind;
   subjectUserId: string | null;
@@ -311,7 +311,7 @@ export interface ToolConnectionCapabilities {
   usage?: { allowed: boolean; reason: string; operation: string; requiresApproval?: boolean; allowedCount?: number; askFirstCount?: number };
   canConfigure: boolean;
   canCreateOrganizationGrant: boolean;
-  canSetCompanyInstall: boolean;
+  canSetSpaceInstall: boolean;
   canConnectAsCurrentUser: boolean;
   canManageAgentInstalls: boolean;
   canViewOtherPersonalIdentities: boolean;
@@ -320,14 +320,14 @@ export interface ToolConnectionCapabilities {
 
 /**
  * Capabilities needed before a tool connection exists. These are returned by
- * the company-scoped app gallery read so create flows do not have to infer
+ * the space-scoped app gallery read so create flows do not have to infer
  * authorization from membership roles or wait for a connection id.
  */
 export interface ToolConnectionCreateCapabilities {
   canCreateOrganizationGrant: boolean;
   organizationGrantReason: string | null;
-  canSetCompanyInstall: boolean;
-  companyInstallReason: string | null;
+  canSetSpaceInstall: boolean;
+  spaceInstallReason: string | null;
 }
 
 export interface ConnectionGrantsResponse {
@@ -338,7 +338,7 @@ export interface ConnectionGrantsResponse {
   members: ConnectionAudienceMember[];
 }
 
-/** A company member that can appear in an organization grant's audience. */
+/** A space member that can appear in an organization grant's audience. */
 export interface ConnectionAudienceMember {
   userId: string;
   name: string | null;
@@ -347,7 +347,7 @@ export interface ConnectionAudienceMember {
 
 export interface ConnectionGrantDelegation {
   id: string;
-  companyId: string;
+  spaceId: string;
   grantId: string;
   agentId: string;
   createdByUserId: string;
@@ -356,7 +356,7 @@ export interface ConnectionGrantDelegation {
 
 export interface ConnectionGrantMember {
   id: string;
-  companyId: string;
+  spaceId: string;
   grantId: string;
   subjectType: ConnectionGrantMemberSubjectType;
   subjectId: string;
@@ -365,7 +365,7 @@ export interface ConnectionGrantMember {
 
 export interface ToolConnectionInstall {
   id: string;
-  companyId: string;
+  spaceId: string;
   connectionId: string;
   targetType: ToolConnectionInstallTargetType;
   targetId: string;
@@ -384,7 +384,7 @@ export interface ToolConnectionInstallSnapshot {
  *
  * Removing an app is a revocation boundary, not a cosmetic archive, so the
  * receipt is counts and outcomes only — never a secret name, key, or value,
- * because this summary is echoed into the activity log the whole company reads.
+ * because this summary is echoed into the activity log the whole space reads.
  */
 export interface ToolConnectionRemovalSummary {
   /** Connection-owned secrets revoked at the provider and deleted locally. */
@@ -393,7 +393,7 @@ export interface ToolConnectionRemovalSummary {
   secretsRetainedShared: number;
   /** Credential refs cleared off the connection row. */
   credentialRefsCleared: number;
-  /** `company_secret_bindings` rows removed for this connection. */
+  /** `space_secret_bindings` rows removed for this connection. */
   secretBindingsRemoved: number;
   grantsRevoked: number;
   installsRemoved: number;
@@ -535,7 +535,7 @@ export interface ConnectionUsageResponse {
 
 export interface ConnectionTokenIssuance {
   id: string;
-  companyId: string;
+  spaceId: string;
   applicationId: string | null;
   connectionId: string;
   agentId: string;
@@ -557,7 +557,7 @@ export interface ConnectionTokenIssuance {
 
 export interface ToolCatalogEntry {
   id: string;
-  companyId: string;
+  spaceId: string;
   applicationId: string | null;
   connectionId: string;
   entryKind: ToolCatalogEntryKind;
@@ -590,7 +590,7 @@ export interface ToolCatalogEntry {
 
 export interface ToolProfile {
   id: string;
-  companyId: string;
+  spaceId: string;
   profileKey: string;
   name: string;
   description: string | null;
@@ -605,7 +605,7 @@ export interface ToolProfile {
 
 export interface ToolProfileEntry {
   id: string;
-  companyId: string;
+  spaceId: string;
   profileId: string;
   selectorType: ToolProfileEntrySelectorType;
   effect: ToolProfileEntryEffect;
@@ -621,7 +621,7 @@ export interface ToolProfileEntry {
 
 export interface ToolProfileBinding {
   id: string;
-  companyId: string;
+  spaceId: string;
   profileId: string;
   targetType: ToolProfileBindingTargetType;
   targetId: string;
@@ -686,7 +686,7 @@ export interface ToolMcpGatewayHeaderPolicy {
 
 export interface ToolMcpGatewayMetadataPolicy {
   version: 1;
-  forwardCompanyId: boolean;
+  forwardSpaceId: boolean;
   forwardGatewayId: boolean;
   forwardProjectId: boolean;
   forwardIssueId: boolean;
@@ -703,7 +703,7 @@ export interface ToolMcpGatewayOnDemandToolsConfig {
 
 export interface ToolMcpGateway {
   id: string;
-  companyId: string;
+  spaceId: string;
   gatewayPublicId: string;
   name: string;
   displaySlug: string;
@@ -734,7 +734,7 @@ export interface ToolMcpGateway {
 
 export interface ToolMcpGatewayToken {
   id: string;
-  companyId: string;
+  spaceId: string;
   gatewayId: string;
   name: string;
   tokenPrefix: string;
@@ -784,7 +784,7 @@ export interface ToolProfileSummary {
   totalToolCount: number;
   assignmentCount: number;
   appliesToAgentCount: number;
-  isCompanyDefault: boolean;
+  isSpaceDefault: boolean;
 }
 
 /** Saved configuration only; no effective-access summary or pending-review calculation. */
@@ -844,7 +844,7 @@ export interface ToolProfileEffectiveSummary {
 
 export interface ToolPolicy {
   id: string;
-  companyId: string;
+  spaceId: string;
   name: string;
   description: string | null;
   policyType: ToolPolicyType;
@@ -861,7 +861,7 @@ export interface ToolPolicy {
 
 export interface ToolRuntimeSlot {
   id: string;
-  companyId: string;
+  spaceId: string;
   applicationId: string | null;
   connectionId: string | null;
   projectWorkspaceId: string | null;
@@ -904,7 +904,7 @@ export interface ToolStdioTemplateToolSummary {
 
 export interface ToolStdioCommandTemplate {
   id?: string;
-  companyId?: string;
+  spaceId?: string;
   templateId: string;
   name: string;
   title?: string | null;
@@ -1044,14 +1044,14 @@ export interface ToolAppsAttentionResponse {
  * A connection-level lifecycle event (install, pause/resume, allowlist change,
  * reconnect/disconnect, new-actions quarantine) surfaced on the per-app
  * Activity tab alongside tool-call events (PAP-11284). Derived from the
- * company activity log rows scoped to a single tool connection.
+ * space activity log rows scoped to a single tool connection.
  */
 export interface ToolConnectionLifecycleEvent {
   id: string;
   connectionId: string;
   type: ToolConnectionLifecycleEventType;
   actorType: ToolActorType;
-  /** Raw actor id (user id, agent id, or "board"/"system"); use actorDisplayName for rendering. */
+  /** Raw actor id (user id, agent id, or "operator"/"system"); use actorDisplayName for rendering. */
   actorId: string | null;
   agentId: string | null;
   /** Server-resolved display name for the actor (agent name or user name/email), null when unknown. */
@@ -1186,7 +1186,7 @@ export interface ToolAppConnectionActionSummary {
 }
 
 /**
- * How Paperclip obtained the OAuth client it will use for a connection
+ * How Outpost obtained the OAuth client it will use for a connection
  * (PAP-17087). Ordered by preference: a client the deployment preconfigured for
  * that issuer, then a Client ID Metadata Document, then dynamic registration,
  * then client credentials the operator preregistered and pasted in.
@@ -1196,12 +1196,12 @@ export type ToolOAuthClientRegistrationSource =
 
 /** Opaque managed-Cloud exchange; clients never treat the session as a URL. */
 export interface ToolOAuthHandoff {
-  kind: "paperclip_cloud";
+  kind: "outpost_cloud";
   session: string;
 }
 
 /**
- * What an unknown remote MCP endpoint told Paperclip it needs, so the wizard can
+ * What an unknown remote MCP endpoint told Outpost it needs, so the wizard can
  * branch without re-probing. `manualClientRequired` means discovery succeeded but
  * the authorization server supports neither CIMD nor DCR, so the operator has to
  * supply a preregistered client under Advanced authentication.
@@ -1259,7 +1259,7 @@ export interface ToolOAuthStartResult {
   /** Null until the addressed human starts provider authorization from a saved setup. */
   expiresAt: string | null;
   /**
-   * Opaque Paperclip Cloud authorization handoff. The board submits this only
+   * Opaque Outpost Cloud authorization handoff. The operator submits this only
    * to its fixed same-origin Cloud endpoint; it is never treated as a URL.
    */
   handoff?: ToolOAuthHandoff;
@@ -1301,7 +1301,7 @@ export interface McpJsonImportPreview {
 
 export interface ToolInvocation {
   id: string;
-  companyId: string;
+  spaceId: string;
   idempotencyKey: string | null;
   actorType: ToolActorType;
   actorId: string | null;
@@ -1333,7 +1333,7 @@ export interface ToolInvocation {
 
 export interface ToolActionRequest {
   id: string;
-  companyId: string;
+  spaceId: string;
   invocationId: string;
   issueId: string | null;
   interactionId: string | null;
@@ -1358,7 +1358,7 @@ export interface ToolActionRequest {
 
 export interface ToolCallEvent {
   id: string;
-  companyId: string;
+  spaceId: string;
   eventType: ToolAuditEventType;
   actorType: ToolActorType;
   actorId: string | null;
@@ -1417,7 +1417,7 @@ export interface ToolRunDecisionLookup {
 
 export interface ToolRateLimitCounter {
   id: string;
-  companyId: string;
+  spaceId: string;
   policyId: string;
   counterKey: string;
   scopeType: string;
@@ -1439,7 +1439,7 @@ export type ToolAccessReasonCode =
   | "requires_review_changed_tool"
   | "requires_approval_policy"
   | "deny_default"
-  | "deny_company_boundary"
+  | "deny_space_boundary"
   | "deny_disabled_connection"
   | "deny_disabled_application"
   | "deny_archived_application"
@@ -1486,7 +1486,7 @@ export interface ToolAccessSelector {
 export interface ToolRateLimitRule {
   limit: number;
   windowSeconds: number;
-  keyBy?: Array<"company" | "agent" | "application" | "connection" | "tool">;
+  keyBy?: Array<"space" | "agent" | "application" | "connection" | "tool">;
 }
 
 export interface ToolTrustRuleArgumentFilters {
@@ -1543,7 +1543,7 @@ export interface ToolPolicyConditions {
     applicationKey?: string;
     applicationKeys?: string[];
     remoteHttpOnly?: boolean;
-    paperclipSelfOnly?: boolean;
+    outpostSelfOnly?: boolean;
   };
   timeWindow?: {
     startAt?: string;
@@ -1588,7 +1588,7 @@ export interface RevokeToolTrustRule {
 }
 
 export interface ToolAccessDecisionInput {
-  companyId: string;
+  spaceId: string;
   actor: {
     actorType: ToolActorType;
     actorId: string;
@@ -1670,7 +1670,7 @@ export interface ToolConnectionAccessSummary {
   /**
    * When this agent's access to the connection was last reconfigured (ISO
    * timestamp), powering the "Last changed by {Actor} · {relativeTime}" hint in
-   * the Test tab Off side panel. Null when no governing config has a timestamp.
+   * the Test tab Off side panel. Null when no controlling config has a timestamp.
    */
   lastChangedAt: string | null;
   /** Agent who made the most recent change, when attributable (policy/binding edits only). */
@@ -1680,14 +1680,14 @@ export interface ToolConnectionAccessSummary {
   tools: ToolConnectionTestToolAccess[];
 }
 
-/** An agent the board member may impersonate in the Test tab. */
+/** An agent the operator member may impersonate in the Test tab. */
 export interface ToolConnectionTestAgent {
   id: string;
   name: string;
   role: string;
   title: string | null;
   status: string;
-  /** Zero-based depth in the company reporting tree; roots are highest-ranked. */
+  /** Zero-based depth in the space reporting tree; roots are highest-ranked. */
   orgDepth: number;
 }
 
@@ -1721,7 +1721,7 @@ export interface ToolConnectionTestCallResult {
   error?: { message: string; reasonCode: ToolAccessReasonCode | string | null };
   /** Present (with `decision: "ask_first"`) — the parked approval request. */
   actionRequestId?: string;
-  /** Provider handoff, distinct from a Paperclip permission approval. */
+  /** Provider handoff, distinct from a Outpost permission approval. */
   upstreamPending?: ToolUpstreamPending;
 }
 

@@ -11,9 +11,9 @@ describe("extractIssueTimelineEvents", () => {
     const events = extractIssueTimelineEvents([
       {
         id: "evt-2",
-        companyId: "company-1",
+        spaceId: "space-1",
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         action: "issue.updated",
         entityType: "issue",
         entityId: "issue-1",
@@ -31,9 +31,9 @@ describe("extractIssueTimelineEvents", () => {
       },
       {
         id: "evt-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         action: "issue.updated",
         entityType: "issue",
         entityId: "issue-1",
@@ -49,9 +49,9 @@ describe("extractIssueTimelineEvents", () => {
       },
       {
         id: "evt-ignored",
-        companyId: "company-1",
+        spaceId: "space-1",
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         action: "issue.comment_added",
         entityType: "issue",
         entityId: "issue-1",
@@ -69,7 +69,7 @@ describe("extractIssueTimelineEvents", () => {
         id: "evt-1",
         createdAt: new Date("2026-03-31T12:01:00.000Z"),
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         runId: null,
         statusChange: {
           from: "todo",
@@ -80,7 +80,7 @@ describe("extractIssueTimelineEvents", () => {
         id: "evt-2",
         createdAt: new Date("2026-03-31T12:02:00.000Z"),
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         runId: null,
         assigneeChange: {
           from: {
@@ -100,7 +100,7 @@ describe("extractIssueTimelineEvents", () => {
     const events = extractIssueTimelineEvents([
       {
         id: "evt-reopen",
-        companyId: "company-1",
+        spaceId: "space-1",
         actorType: "agent",
         actorId: "agent-1",
         action: "issue.updated",
@@ -137,7 +137,7 @@ describe("extractIssueTimelineEvents", () => {
     const events = extractIssueTimelineEvents([
       {
         id: "evt-follow-up",
-        companyId: "company-1",
+        spaceId: "space-1",
         actorType: "agent",
         actorId: "agent-1",
         action: "issue.updated",
@@ -179,9 +179,9 @@ describe("extractIssueTimelineEvents", () => {
     const events = extractIssueTimelineEvents([
       {
         id: "evt-workspace",
-        companyId: "company-1",
+        spaceId: "space-1",
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         action: "issue.updated",
         entityType: "issue",
         entityId: "issue-1",
@@ -216,7 +216,7 @@ describe("extractIssueTimelineEvents", () => {
         id: "evt-workspace",
         createdAt: new Date("2026-03-31T12:01:00.000Z"),
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         runId: null,
         workspaceChange: {
           from: {
@@ -240,7 +240,7 @@ describe("extractIssueTimelineEvents", () => {
     const events = extractIssueTimelineEvents([
       {
         id: "evt-comment-follow-up",
-        companyId: "company-1",
+        spaceId: "space-1",
         actorType: "agent",
         actorId: "agent-1",
         action: "issue.comment_added",
@@ -274,9 +274,9 @@ describe("extractIssueTimelineEvents", () => {
     const events = extractIssueTimelineEvents([
       {
         id: "evt-title",
-        companyId: "company-1",
+        spaceId: "space-1",
         actorType: "user",
-        actorId: "local-board",
+        actorId: "local-operator",
         action: "issue.updated",
         entityType: "issue",
         entityId: "issue-1",
@@ -304,9 +304,9 @@ describe("extractIssueWorkModeChanges", () => {
   }): ActivityEvent {
     return {
       id: args.id,
-      companyId: "company-1",
+      spaceId: "space-1",
       actorType: "user",
-      actorId: "local-board",
+      actorId: "local-operator",
       action: "issue.updated",
       entityType: "issue",
       entityId: "issue-1",

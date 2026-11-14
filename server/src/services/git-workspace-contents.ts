@@ -21,7 +21,7 @@ import type { StorageService } from "../storage/types.js";
 export const CLAUDE_SETTINGS_PATH = ".claude/settings.local.json";
 const SETTINGS_LIMIT = 64 * 1024;
 const CHECKOUT_LIMIT = 50;
-type Identity = { companyId: string; workspaceId: string };
+type Identity = { spaceId: string; workspaceId: string };
 type Settings = { material: StoredSecretVersionMaterial } | null;
 export type ManagedCheckoutSource = { id: string; repoUrl: string; repoRef: string | null; cwd: string | null };
 export type ManagedCheckoutContents = {
@@ -96,7 +96,7 @@ async function saveSettings(cwd: string, identity: Identity, relativePath: strin
 async function savedSettings(settings: Settings, identity: Identity, relativePath: string) {
   if (settings === null) return null;
   const value = JSON.parse(await localEncryptedProvider.resolveVersion({ material: settings.material, externalRef: null }));
-  if (value.companyId !== identity.companyId || value.workspaceId !== identity.workspaceId || value.relativePath !== relativePath
+  if (value.spaceId !== identity.spaceId || value.workspaceId !== identity.workspaceId || value.relativePath !== relativePath
     || !Number.isInteger(value.mode) || value.mode < 0 || value.mode > 0o777
     || typeof value.bytes !== "string" || value.bytes.length > Math.ceil(SETTINGS_LIMIT / 3) * 4
     || Buffer.from(value.bytes, "base64").toString("base64") !== value.bytes) throw new GitCacheRestorationFailure();
@@ -215,7 +215,7 @@ export async function restoreGitWorkspaceContents(input: Identity & { cwd: strin
   resolveGitAuth: GitRemoteAuthProvider; authorizeSource: (source: ManagedCheckoutSource) => Promise<void> }) {
   if (!input.contents) return;
   validateGitWorkspaceContents(input.contents);
-  const workspace = { companyId: input.companyId, id: input.workspaceId };
+  const workspace = { spaceId: input.spaceId, id: input.workspaceId };
   try {
     for (const checkout of input.contents.checkouts) {
       await input.authorizeSource(checkout.source);
@@ -227,7 +227,7 @@ export async function restoreGitWorkspaceContents(input: Identity & { cwd: strin
       const relative = `${PROJECT_REPOSITORIES_DIR}/${checkout.name}/${CLAUDE_SETTINGS_PATH}`;
       const existing = await entry(destination);
       const candidates = checkout.worktree && input.projectId
-        ? nestedRepositoryBaseCandidates({ companyId: input.companyId, projectId: input.projectId, repoUrl: checkout.source.repoUrl }) : null;
+        ? nestedRepositoryBaseCandidates({ spaceId: input.spaceId, projectId: input.projectId, repoUrl: checkout.source.repoUrl }) : null;
       if (checkout.worktree && !candidates) throw new GitCacheRestorationFailure();
       if (existing && checkout.worktree && !input.isolateRepositories) {
         const linked = existing.isDirectory() && !existing.isSymbolicLink() ? await readLinkedNestedCheckout(destination, candidates!) : null;

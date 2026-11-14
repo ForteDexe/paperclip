@@ -85,7 +85,7 @@ export async function settleEnvironmentRunLease(db: Db, record: InProgressRecord
       .where(and(eq(environmentLeases.id, lease.id), eq(environmentLeases.status, "active"),
         eq(environmentLeases.heartbeatRunId, runId),
         sql`${environmentLeases.metadata} is not distinct from ${lease.metadata === null ? null : JSON.stringify(lease.metadata)}::jsonb`))
-      .returning({ id: environmentLeases.id }), { companyId: lease.companyId, runId, leaseId: lease.id });
+      .returning({ id: environmentLeases.id }), { spaceId: lease.spaceId, runId, leaseId: lease.id });
     return flipped.length ? { settled: true, reason: context.proof.reason } : { settled: false, reason: "lease_no_longer_active" };
   });
 }
@@ -97,7 +97,7 @@ export function holderUnchanged(lease: LeaseRow, record: InProgressRecord): bool
   if (record.owner.kind === "run") return holder === null;
   if (record.owner.kind !== "process") return false;
   const stamp = record.owner.stamp;
-  // The board attested that the unrecorded holder stopped; still no holder stamped since.
+  // The operator attested that the unrecorded holder stopped; still no holder stamped since.
   if (stamp.processSpace === OPERATOR_ATTESTED_PROCESS_SPACE) return holder === null && Boolean(lease.metadata?.[OWNER_GONE_ATTESTATION_KEY]);
   return holder !== null && holder.bootId === stamp.bootId && holder.pid === stamp.pid
     && holder.hostHash === stamp.processSpace && holder.processStartedAt === (stamp.processStartedAt ?? null);
@@ -108,7 +108,7 @@ async function currentBootOwnsRun(tx: Db, lease: LeaseRow, runControllerBootId: 
   if (runControllerBootId === bootId) return true;
   const [native] = await tx.select({ controllerBootId: nativeRunFinalizations.controllerBootId })
     .from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.runId, lease.heartbeatRunId!),
-      eq(nativeRunFinalizations.companyId, lease.companyId)));
+      eq(nativeRunFinalizations.spaceId, lease.spaceId)));
   return native?.controllerBootId === bootId;
 }
 
@@ -128,9 +128,9 @@ async function keptByAnotherObligation(tx: Db, lease: LeaseRow): Promise<string 
   // the run's resource disposition (native environment settlement).
   const [accepted] = await tx.select({ runId: nativeRunFinalizations.runId }).from(nativeRunFinalizations)
     .innerJoin(nativeRunResults, and(eq(nativeRunResults.id, nativeRunFinalizations.resultId),
-      eq(nativeRunResults.runId, nativeRunFinalizations.runId), eq(nativeRunResults.companyId, nativeRunFinalizations.companyId),
+      eq(nativeRunResults.runId, nativeRunFinalizations.runId), eq(nativeRunResults.spaceId, nativeRunFinalizations.spaceId),
       eq(nativeRunResults.schemaStatus, "accepted")))
-    .where(and(eq(nativeRunFinalizations.runId, lease.heartbeatRunId!), eq(nativeRunFinalizations.companyId, lease.companyId),
+    .where(and(eq(nativeRunFinalizations.runId, lease.heartbeatRunId!), eq(nativeRunFinalizations.spaceId, lease.spaceId),
       or(notInArray(nativeRunFinalizations.phase, TERMINAL_NATIVE_PHASES), eq(nativeRunFinalizations.phase, "committed"),
         and(eq(nativeRunFinalizations.phase, "terminal_failure"),
           sql`${nativeRunFinalizations.failureDetail} ? 'workspaceFinalizeAttempt'`)))).limit(1);

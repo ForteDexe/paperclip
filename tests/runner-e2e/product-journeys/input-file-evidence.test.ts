@@ -19,12 +19,12 @@ describe("uploaded input evidence", () => {
     expect(inputFileSummaryMatches(body, fixture.expected)).toBe(false);
   });
   it("requires the exact uploaded bytes on the owned task and preserves their identity", () => {
-    const attachment = { id: "input-file", companyId: "company", issueId: "task",
+    const attachment = { id: "input-file", spaceId: "space", issueId: "task",
       originalFilename: fixture.filename, originatingRunId: null, byteSize: fixture.bytes.length };
-    const input = { companyId: "company", issueId: "task", fixture, downloaded: fixture.bytes };
+    const input = { spaceId: "space", issueId: "task", fixture, downloaded: fixture.bytes };
     expect(inputFileAttachmentMatches(attachment, input)).toBe(true);
     expect(inputFileAttachmentMatches(undefined, input)).toBe(false);
-    for (const change of [{ companyId: "foreign" }, { issueId: "foreign" }, { originatingRunId: "agent-created-replacement" },
+    for (const change of [{ spaceId: "foreign" }, { issueId: "foreign" }, { originatingRunId: "agent-created-replacement" },
       { originalFilename: "different.csv" }, { byteSize: fixture.bytes.length + 1 }]) {
       expect(inputFileAttachmentMatches({ ...attachment, ...change }, input)).toBe(false);
     }

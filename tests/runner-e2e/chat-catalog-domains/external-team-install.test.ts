@@ -14,25 +14,25 @@ function valid() {
   };
   const agent = (id: string) => ({
     id,
-    companyId: "company",
+    spaceId: "space",
     adapterType: "outpost_runner",
     adapterConfig: { provider: "opencode", model: CHAT_OPENCODE_MODEL, timeoutSec: 0, env: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "account", version: "latest" } } },
     urlKey: id,
     metadata: {
-      paperclip: { catalogTeam: { catalogId: "team", originHash: "hash" } },
+      outpost: { catalogTeam: { catalogId: "team", originHash: "hash" } },
     },
   });
   const before = { agents: [], projects: [], routines: [], installed: [] };
   const after = {
     agents: [agent("cto"), agent("coder")],
-    projects: [{ id: "project", companyId: "company", urlKey: "website" }],
-    routines: [{ id: "routine", companyId: "company" }],
+    projects: [{ id: "project", spaceId: "space", urlKey: "website" }],
+    routines: [{ id: "routine", spaceId: "space" }],
     installed: [{ catalogId: "team", agentCount: 2, outOfDate: false }],
   };
   return {
     scenarioId: "teams.install-team",
     origin: "http://fixture.invalid",
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     phaseReplies: [
       {
@@ -69,7 +69,7 @@ function valid() {
     activity: [
       {
         id: "install",
-        action: "company.team_catalog_installed",
+        action: "space.team_catalog_installed",
         actorType: "agent",
         agentId: "ceo",
         runId: "initial",
@@ -108,13 +108,13 @@ function valid() {
       before,
       first: structuredClone(after),
       after,
-      companyPrefix: "ACORN",
+      spacePrefix: "ACORN",
       previewAccepted: true,
       previewErrorCount: 0,
       actorCanCreateAgents: true,
       existingAccountReady: true,
-      originalHumanQuery: "Install that website team in this company.",
-      repeatHumanQuery: "Install that website team in this company.",
+      originalHumanQuery: "Install that website team in this space.",
+      repeatHumanQuery: "Install that website team in this space.",
       initialRunId: "initial",
     },
   };
@@ -164,7 +164,7 @@ describe("real catalog installer oracle", () => {
 
 function runtimeFixture() {
   const o = valid();
-  const ctx = { input: { execution: { profile: { id: "runner-opencode", provider: "opencode", model: CHAT_OPENCODE_MODEL, credential: "OPENROUTER_API_KEY" } }, fixtures: { company: { id: "company" }, secretRefs: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "account", version: "latest" } } } } } as unknown as ChatCatalogContext;
+  const ctx = { input: { execution: { profile: { id: "runner-opencode", provider: "opencode", model: CHAT_OPENCODE_MODEL, credential: "OPENROUTER_API_KEY" } }, fixtures: { space: { id: "space" }, secretRefs: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "account", version: "latest" } } } } } as unknown as ChatCatalogContext;
   const actor = { ...o.state.after.agents[0]!, id: "ceo", adapterConfig: { ...o.state.after.agents[0]!.adapterConfig, cwd: "/not-a-team-cwd", instructionsFilePath: "/not-a-team-instruction", env: { ...o.state.after.agents[0]!.adapterConfig.env, UNRELATED_VALUE: "must-not-copy" } } } as unknown as Agent;
   return { o, ctx, actor };
 }
@@ -177,13 +177,13 @@ it("the actual public per-slug override schema accepts only the selected runtime
   }
   expect(JSON.stringify(payload)).not.toContain("must-not-copy"); expect(JSON.stringify(payload)).not.toContain("not-a-team");
 });
-it.each(["provider", "model", "account", "plaintext", "company"])("rejects a wrong selected %s before exposing installer context", invalid => {
+it.each(["provider", "model", "account", "plaintext", "space"])("rejects a wrong selected %s before exposing installer context", invalid => {
   const f = runtimeFixture();
   if (invalid === "provider") f.actor.adapterConfig.provider = "codex";
   if (invalid === "model") f.actor.adapterConfig.model = "openrouter/other/model";
   if (invalid === "account") (f.actor.adapterConfig.env as Record<string, unknown>).OPENROUTER_API_KEY = { type: "secret_ref", secretId: "foreign", version: "latest" };
   if (invalid === "plaintext") (f.actor.adapterConfig.env as Record<string, unknown>).OPENROUTER_API_KEY = "must-not-copy";
-  if (invalid === "company") f.actor.companyId = "foreign";
+  if (invalid === "space") f.actor.spaceId = "foreign";
   expect(() => selectedTeamInstallRuntime(f.ctx, f.actor)).toThrow("actual configured");
 });
 it("independently reads every actual member before another human request or imported native work", async () => {
@@ -215,18 +215,18 @@ it("real resource counts and actor attribution cannot conceal wrong member provi
 });
 
 it.each([true,false])("sends the complete permission schema without changing effective assignment=%s",async canAssignTasks=>{
- const actor={id:"ceo",companyId:"company",role:"ceo",access:{canAssignTasks}};
+ const actor={id:"ceo",spaceId:"space",role:"ceo",access:{canAssignTasks}};
  const patch=vi.fn(async(_route:string,body:unknown)=>{expect(updateAgentPermissionsSchema.parse(body)).toEqual({canCreateAgents:true,canAssignTasks});throw new Error("stop-after-validated-permission-request");});
- const ctx={input:{fixtures:{company:{id:"company"},agent:{id:"ceo"}},api:{get:async(route:string)=>route==="/api/teams/catalog"?[{slug:"product-engineering",compatibility:"compatible"}]:actor,patch}}} as unknown as ChatCatalogContext;
+ const ctx={input:{fixtures:{space:{id:"space"},agent:{id:"ceo"}},api:{get:async(route:string)=>route==="/api/teams/catalog"?[{slug:"product-engineering",compatibility:"compatible"}]:actor,patch}}} as unknown as ChatCatalogContext;
  await expect(teamInstallExternalCases[0]!.setup(ctx)).rejects.toThrow("stop-after-validated-permission-request");
  expect(patch).toHaveBeenCalledOnce();
 });
-it.each(["foreign company","wrong agent","not CEO","missing effective assignment"])("refuses %s identity before permission mutation",async invalid=>{
- const actor={id:"ceo",companyId:"company",role:"ceo",access:{canAssignTasks:true}};
- if(invalid==="foreign company")actor.companyId="foreign";
+it.each(["foreign space","wrong agent","not CEO","missing effective assignment"])("refuses %s identity before permission mutation",async invalid=>{
+ const actor={id:"ceo",spaceId:"space",role:"ceo",access:{canAssignTasks:true}};
+ if(invalid==="foreign space")actor.spaceId="foreign";
  if(invalid==="wrong agent")actor.id="other";
  if(invalid==="not CEO")actor.role="engineer";
  if(invalid==="missing effective assignment")delete(actor as {access?:unknown}).access;
- const patch=vi.fn(); const ctx={input:{fixtures:{company:{id:"company"},agent:{id:"ceo"}},api:{get:async(route:string)=>route==="/api/teams/catalog"?[{slug:"product-engineering",compatibility:"compatible"}]:actor,patch}}} as unknown as ChatCatalogContext;
+ const patch=vi.fn(); const ctx={input:{fixtures:{space:{id:"space"},agent:{id:"ceo"}},api:{get:async(route:string)=>route==="/api/teams/catalog"?[{slug:"product-engineering",compatibility:"compatible"}]:actor,patch}}} as unknown as ChatCatalogContext;
  await expect(teamInstallExternalCases[0]!.setup(ctx)).rejects.toThrow("observed installer");expect(patch).not.toHaveBeenCalled();
 });

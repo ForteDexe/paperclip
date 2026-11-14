@@ -1,4 +1,4 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { usePrimaryAgentPresentation } from "./primary-agent/PrimaryAgentPresentation";
 import { useWorkspaceIsolationControls } from "@/hooks/useWorkspaceIsolationControls";
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccountBoundMutation } from "@/hooks/useAccountBoundMutation";
 import type { AgentEnvConfig, EnvBinding, IssueWorkMode } from "@outpost/shared";
 import { useDialog } from "../context/DialogContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { executionWorkspacesApi } from "../api/execution-workspaces";
 import { issuesApi } from "../api/issues";
 import { MissingUserSecretsBanner } from "../pages/secrets/MissingUserSecretsBanner";
@@ -14,7 +14,7 @@ import { instanceSettingsApi } from "../api/instanceSettings";
 import { agentsApi } from "../api/agents";
 import { accessApi } from "../api/access";
 import { authApi } from "../api/auth";
-import { buildCompanyUserInlineOptions, buildMarkdownMentionOptions, isAgentTaskTarget } from "../lib/company-members";
+import { buildSpaceUserInlineOptions, buildMarkdownMentionOptions, isAgentTaskTarget } from "../lib/space-members";
 import { queryKeys } from "../lib/queryKeys";
 import { useNavigate } from "../lib/router";
 import {
@@ -54,13 +54,13 @@ import { useStagedIssueFiles } from "../hooks/useStagedIssueFiles";
 import type { StagedIssueFile } from "../lib/staged-issue-files";
 import { isImageAttachment } from "./task-chat/task-chat-attachments";
 
-const DRAFT_KEY = "paperclip:issue-draft";
+const DRAFT_KEY = "outpost:issue-draft";
 /** A create that is waiting to resend: its request body and idempotency key. */
-const PENDING_CREATE_KEY = "paperclip:issue-draft:pending-create";
+const PENDING_CREATE_KEY = "outpost:issue-draft:pending-create";
 
 /**
  * The create request keeps file names for reconciliation. File bytes are stored
- * separately in the account- and company-scoped browser draft.
+ * separately in the account- and space-scoped browser draft.
  */
 type PendingCreate = { fingerprint: string; data: Record<string, unknown>; stagedFileNames?: string[] };
 
@@ -70,7 +70,7 @@ function isPendingCreate(value: unknown): value is PendingCreate {
   return (
     typeof row.fingerprint === "string" &&
     !!row.data && typeof row.data === "object" && !Array.isArray(row.data) &&
-    typeof (row.data as Record<string, unknown>).companyId === "string" &&
+    typeof (row.data as Record<string, unknown>).spaceId === "string" &&
     (row.stagedFileNames === undefined ||
       (Array.isArray(row.stagedFileNames) && row.stagedFileNames.every((name) => typeof name === "string")))
   );
@@ -91,7 +91,7 @@ class StagedFilesMissingError extends Error {
  * kept until a create succeeds or the user cancels, so reattaching after any
  * number of reloads replays a create that already reached the server.
  */
-const CREATE_AWAITING_FILES_KEY = "paperclip:issue-draft:create-awaiting-files";
+const CREATE_AWAITING_FILES_KEY = "outpost:issue-draft:create-awaiting-files";
 
 function stagedFilesMissingDescription(names: string[]): ErrorDescription {
   return describeError(new StagedFilesMissingError(names), { action: "create the task" });
@@ -210,7 +210,7 @@ interface IssueDraft {
  * key, after a reload mid-upload) gets the existing task back from the
  * server, and must not add those files a second time.
  */
-const CREATE_UPLOAD_RECEIPTS_PREFIX = "paperclip:issue-draft:create-uploads:";
+const CREATE_UPLOAD_RECEIPTS_PREFIX = "outpost:issue-draft:create-uploads:";
 
 function loadCreateUploadReceipts(idempotencyKey: string): Set<string> {
   try {
@@ -239,13 +239,13 @@ export function clearCreateUploadReceipts(idempotencyKey: string) {
 
 /** Add staged files to a created task, skipping any this create already added. Returns the names that failed. */
 export async function addStagedFilesToIssue(input: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   stagedFiles: StagedIssueFile[];
   idempotencyKey?: string;
   assertCurrentOwner?: () => void;
 }): Promise<string[]> {
-  const { companyId, issueId, stagedFiles, idempotencyKey } = input;
+  const { spaceId, issueId, stagedFiles, idempotencyKey } = input;
   const receipts = idempotencyKey ? loadCreateUploadReceipts(idempotencyKey) : new Set<string>();
   const failures: string[] = [];
   for (const stagedFile of stagedFiles) {
@@ -280,7 +280,7 @@ export async function addStagedFilesToIssue(input: {
           baseRevisionId: null,
         });
       } else {
-        await issuesApi.uploadAttachment(companyId, issueId, stagedFile.file);
+        await issuesApi.uploadAttachment(spaceId, issueId, stagedFile.file);
       }
       if (identity && idempotencyKey) {
         receipts.add(identity);
@@ -455,7 +455,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
   const unboundFormDraft = useRef<IssueDraft | null>(null);
   const visualViewportLayout = useVisualViewportLayout(newIssueOpen);
   const dialogBodyRef = useRef<HTMLDivElement>(null);
-  const { companies, selectedCompanyId: effectiveCompanyId } = useCompany();
+  const { spaces, selectedSpaceId: effectiveSpaceId } = useSpace();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { pushToast } = useToastActions();
@@ -494,7 +494,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
   // sent or cancelled, whatever the files and fields look like when resubmitted.
   const createRequestRef = useRef<{ fingerprint: string; idempotencyKey: string; recovering?: boolean; payload?: PendingCreate } | null>(null);
   const draftOwner = useDraftOwner();
-  const { files: stagedFiles, setFiles: setStagedFiles, restoring: filesRestoring, error: filesStorageError } = useStagedIssueFiles(draftOwner, effectiveCompanyId);
+  const { files: stagedFiles, setFiles: setStagedFiles, restoring: filesRestoring, error: filesStorageError } = useStagedIssueFiles(draftOwner, effectiveSpaceId);
   const [restoredLaunch, setRestoredLaunch] = useState<{ owner: string | undefined; parentId?: string; goalId?: string } | null>(null);
   const savedLaunch = restoredLaunch?.owner === draftOwner ? restoredLaunch : null;
   const parentId = savedLaunch ? savedLaunch.parentId : newIssueDefaults.parentId;
@@ -505,39 +505,39 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
   });
   const awaitingFilesKey = draftOwner !== undefined ? pendingSendKeyFor(CREATE_AWAITING_FILES_KEY, draftOwner) : null;
 
-  const primaryAgent = usePrimaryAgentPresentation(effectiveCompanyId);
+  const primaryAgent = usePrimaryAgentPresentation(effectiveSpaceId);
   const isSubIssueMode = Boolean(parentId);
   const parentIssueLabel =
     (newIssueDefaults.parentId === parentId ? newIssueDefaults.parentIdentifier : undefined) ?? (parentId ? parentId.slice(0, 8) : "");
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(effectiveCompanyId!),
-    queryFn: () => agentsApi.list(effectiveCompanyId!),
-    enabled: !!effectiveCompanyId && newIssueOpen,
+    queryKey: queryKeys.agents.list(effectiveSpaceId!),
+    queryFn: () => agentsApi.list(effectiveSpaceId!),
+    enabled: !!effectiveSpaceId && newIssueOpen,
   });
 
   const { data: projects } = useQuery({
-    ...companyProjectsQuery(effectiveCompanyId!),
-    enabled: !!effectiveCompanyId && newIssueOpen,
+    ...spaceProjectsQuery(effectiveSpaceId!),
+    enabled: !!effectiveSpaceId && newIssueOpen,
   });
   const { data: mentionIssues } = useQuery({
-    queryKey: queryKeys.issues.mentionPool(effectiveCompanyId!),
-    queryFn: () => issuesApi.list(effectiveCompanyId!, {
+    queryKey: queryKeys.issues.mentionPool(effectiveSpaceId!),
+    queryFn: () => issuesApi.list(effectiveSpaceId!, {
       limit: 100,
       sortField: "updated",
       sortDir: "desc",
     }),
-    enabled: Boolean(effectiveCompanyId) && newIssueOpen,
+    enabled: Boolean(effectiveSpaceId) && newIssueOpen,
     staleTime: 60_000,
   });
   const { data: session, isFetched: sessionFetched } = useQuery({
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
   });
-  const { data: companyMembers, isFetched: membersFetched } = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(effectiveCompanyId!),
-    queryFn: () => accessApi.listUserDirectory(effectiveCompanyId!),
-    enabled: Boolean(effectiveCompanyId) && newIssueOpen,
+  const { data: spaceMembers, isFetched: membersFetched } = useQuery({
+    queryKey: queryKeys.access.spaceUserDirectory(effectiveSpaceId!),
+    queryFn: () => accessApi.listUserDirectory(effectiveSpaceId!),
+    enabled: Boolean(effectiveSpaceId) && newIssueOpen,
   });
   const { data: experimentalSettings } = useQuery({
     queryKey: queryKeys.instance.experimentalSettings,
@@ -548,7 +548,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
   const activeProjects = useMemo(() => projects ?? [], [projects]);
   const { orderedProjects } = useProjectOrder({
     projects: activeProjects,
-    companyId: effectiveCompanyId,
+    spaceId: effectiveSpaceId,
     userId: currentUserId,
   });
   const currentProject = orderedProjects.find((project) => project.id === projectId);
@@ -562,15 +562,15 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
     isError: worktreesError,
     refetch: refetchWorktrees,
   } = useQuery({
-    queryKey: queryKeys.executionWorkspaces.summaryList(effectiveCompanyId!, {
+    queryKey: queryKeys.executionWorkspaces.summaryList(effectiveSpaceId!, {
       projectId,
       reuseEligible: true,
     }),
-    queryFn: () => executionWorkspacesApi.listSummaries(effectiveCompanyId!, {
+    queryFn: () => executionWorkspacesApi.listSummaries(effectiveSpaceId!, {
       projectId,
       reuseEligible: true,
     }),
-    enabled: Boolean(effectiveCompanyId) && newIssueOpen && canChooseWorktrees,
+    enabled: Boolean(effectiveSpaceId) && newIssueOpen && canChooseWorktrees,
   });
 
   const { data: privacyParent, isError: parentPrivacyError, refetch: refetchParentPrivacy } = useQuery({
@@ -601,27 +601,27 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
     return buildMarkdownMentionOptions({
       agents,
       projects: orderedProjects,
-      members: companyMembers?.users,
+      members: spaceMembers?.users,
       issues: mentionIssues,
     });
-  }, [agents, companyMembers?.users, orderedProjects, mentionIssues]);
+  }, [agents, spaceMembers?.users, orderedProjects, mentionIssues]);
 
   const assertCurrentOwner = () => {
     if (!active.current || draftOwner === undefined || readOwner() !== draftOwner) throw new PendingSendAccountChangedError();
   };
   const createIssue = useAccountBoundMutation({
     mutationFn: async ({
-      companyId,
+      spaceId,
       stagedFiles: pendingStagedFiles,
       navigateOnCreate,
       ...data
-    }: { companyId: string; stagedFiles: StagedIssueFile[]; navigateOnCreate?: boolean } & Record<string, unknown>, { assertCurrentAccount }) => {
+    }: { spaceId: string; stagedFiles: StagedIssueFile[]; navigateOnCreate?: boolean } & Record<string, unknown>, { assertCurrentAccount }) => {
       const assertVerifiedOwner = () => { assertCurrentAccount(); assertCurrentOwner(); };
       assertVerifiedOwner();
-      const issue = await issuesApi.create(companyId, data);
+      const issue = await issuesApi.create(spaceId, data);
       assertVerifiedOwner();
       const failures = await addStagedFilesToIssue({
-        companyId,
+        spaceId,
         issueId: issue.id,
         stagedFiles: pendingStagedFiles,
         assertCurrentOwner: assertVerifiedOwner,
@@ -629,21 +629,21 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
       });
 
       assertVerifiedOwner();
-      return { issue, companyId, failures, navigateOnCreate };
+      return { issue, spaceId, failures, navigateOnCreate };
     },
-    onSuccess: ({ issue, companyId, failures, navigateOnCreate }) => {
+    onSuccess: ({ issue, spaceId, failures, navigateOnCreate }) => {
       assertCurrentOwner();
-      trackRecentProject(issue.projectId ?? "", companyId);
-      if (issue.assigneeAgentId) trackRecentAssignee(issue.assigneeAgentId, companyId);
-      if (issue.assigneeUserId) trackRecentAssigneeUser(issue.assigneeUserId, companyId);
+      trackRecentProject(issue.projectId ?? "", spaceId);
+      if (issue.assigneeAgentId) trackRecentAssignee(issue.assigneeAgentId, spaceId);
+      if (issue.assigneeUserId) trackRecentAssigneeUser(issue.assigneeUserId, spaceId);
       if (streamlinedUiEnabled) recordRecentTask(issue, currentUserId);
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.listMineByMe(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.listTouchedByMe(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.listUnreadTouchedByMe(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(spaceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.listMineByMe(spaceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.listTouchedByMe(spaceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.listUnreadTouchedByMe(spaceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(spaceId) });
       if (draftTimer.current) clearTimeout(draftTimer.current);
-      const prefix = (companies.find((company) => company.id === companyId)?.issuePrefix ?? "").trim();
+      const prefix = (spaces.find((space) => space.id === spaceId)?.issuePrefix ?? "").trim();
       const issueRef = issue.identifier ?? issue.id;
       const openIssueAction = prefix
         ? { label: `Open ${issueRef}`, href: `/${prefix}/issues/${issueRef}` }
@@ -704,7 +704,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
         throw new StagedFilesMissingError(payload.stagedFileNames);
       }
       const result = await createIssue.mutateAsync({
-        ...(payload.data as { companyId: string }),
+        ...(payload.data as { spaceId: string }),
         stagedFiles: stagedFiles ?? [],
         idempotencyKey,
       });
@@ -853,7 +853,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
       defaultProjectPendingRef.current = false;
       return;
     }
-    const initializationKey = `${draftOwner ?? "unknown"}:${effectiveCompanyId ?? ""}:${JSON.stringify(newIssueDefaults)}`;
+    const initializationKey = `${draftOwner ?? "unknown"}:${effectiveSpaceId ?? ""}:${JSON.stringify(newIssueDefaults)}`;
     if (initializationKeyRef.current === initializationKey) return;
     initializationKeyRef.current = initializationKey;
     if (draftTimer.current) {
@@ -1008,7 +1008,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
           ? defaultProjectId || null
           : null;
     }
-  }, [newIssueOpen, newIssueDefaults, orderedProjects, effectiveCompanyId, setIssueText, draftOwner]);
+  }, [newIssueOpen, newIssueDefaults, orderedProjects, effectiveSpaceId, setIssueText, draftOwner]);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -1053,7 +1053,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
   async function handleSubmit(body: string, mode: IssueWorkMode, settings: ComposerRunSettings | null) {
     const currentTitle = titleRef.current.trim();
     const currentDescription = body.trim();
-    if (!effectiveCompanyId || filesRestoring || (!currentTitle && !currentDescription) || createIssue.isPending || durableCreate.pending || worktreeSelectionIncomplete || parentPrivacyUnresolved) return;
+    if (!effectiveSpaceId || filesRestoring || (!currentTitle && !currentDescription) || createIssue.isPending || durableCreate.pending || worktreeSelectionIncomplete || parentPrivacyUnresolved) return;
     const inheritedOverrides = buildAssigneeAdapterOverrides({
       adapterType: assigneeAdapterType,
       lane: assigneeChrome ? "custom" : assigneeModelLane,
@@ -1096,7 +1096,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
       ? mergeComposerRunSettings(inheritedOverrides, assigneeAdapterType ?? undefined, settings)
       : inheritedOverrides;
     const createData = {
-      companyId: effectiveCompanyId,
+      spaceId: effectiveSpaceId,
       ...(currentTitle ? { title: currentTitle } : {}),
       description: currentDescription || undefined,
       status,
@@ -1125,7 +1125,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
         ? { watchdog: { agentId: watchdogAgentId, instructions: watchdogInstructions.trim() || null } }
         : {}),
     };
-    // An explicit board create is a new task even when its title already exists.
+    // An explicit operator create is a new task even when its title already exists.
     // Reuse the request key only for retries of the same submitted draft, and
     // always for a create waiting for its files: it may already have reached
     // the server, and its key then replays that task instead of a second one.
@@ -1159,7 +1159,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
         ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value;
       const fieldsChanged = Object.entries(original!.data).some(([key, value]) =>
         !["allowDuplicate", "navigateOnCreate"].includes(key) && JSON.stringify(value, normalize) !== JSON.stringify((createData as Record<string, unknown>)[key], normalize));
-      if (fieldsChanged || (typeof originalFingerprint.companyId === "string" &&
+      if (fieldsChanged || (typeof originalFingerprint.spaceId === "string" &&
           JSON.stringify(originalFingerprint, normalize) !== JSON.stringify(JSON.parse(fingerprint), normalize))) {
         rejectRecovery("Restore the saved task's original fields before retrying, or cancel the saved request to start another task.");
       }
@@ -1238,25 +1238,25 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
   const assigneeOptions = useMemo<InlineEntityOption[]>(
     () => [
       ...currentUserAssigneeOption(currentUserId),
-      ...buildCompanyUserInlineOptions(companyMembers?.users, { excludeUserIds: [currentUserId] }),
+      ...buildSpaceUserInlineOptions(spaceMembers?.users, { excludeUserIds: [currentUserId] }),
       ...sortAgentsByRecency((agents ?? []).filter(isAgentTaskTarget), recentAssigneeIds).map((agent) => ({
         id: assigneeValueFromSelection({ assigneeAgentId: agent.id }),
         label: agent.name,
         searchText: `${agent.name} ${agent.role} ${agent.title ?? ""}`,
       })),
     ],
-    [agents, companyMembers?.users, currentUserId, recentAssigneeIds],
+    [agents, spaceMembers?.users, currentUserId, recentAssigneeIds],
   );
   // Resolve once after the directory loads, without resetting text typed while
   // the queries were in flight or replacing an explicit/restored assignee.
   useEffect(() => {
-    if (!newIssueOpen || !effectiveCompanyId || !defaultAssigneePendingRef.current
+    if (!newIssueOpen || !effectiveSpaceId || !defaultAssigneePendingRef.current
       || !agents || !sessionFetched || !membersFetched || primaryAgent?.loading) return;
     defaultAssigneePendingRef.current = false;
     const available = new Set(assigneeOptions.map((option) => option.id));
-    const scopedRecents = getRecentAssigneeSelectionIds(effectiveCompanyId);
-    // Older history has no company key. Agent IDs identify their company;
-    // human IDs can belong to several companies and cannot be migrated safely.
+    const scopedRecents = getRecentAssigneeSelectionIds(effectiveSpaceId);
+    // Older history has no space key. Agent IDs identify their space;
+    // human IDs can belong to several spaces and cannot be migrated safely.
     const recents = scopedRecents.length ? scopedRecents
       : getRecentAssigneeSelectionIds().filter((value) => value.startsWith("agent:"));
     const recent = recents.find((value) => available.has(value));
@@ -1264,18 +1264,18 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
     const fallback = targets.find((agent) => agent.id === primaryAgent?.primaryAgentId)
       ?? targets[0];
     setAssigneeValue(recent ?? (fallback ? assigneeValueFromSelection({ assigneeAgentId: fallback.id }) : ""));
-  }, [newIssueOpen, effectiveCompanyId, agents, assigneeOptions, sessionFetched, membersFetched, primaryAgent?.loading, primaryAgent?.primaryAgentId]);
+  }, [newIssueOpen, effectiveSpaceId, agents, assigneeOptions, sessionFetched, membersFetched, primaryAgent?.loading, primaryAgent?.primaryAgentId]);
   useEffect(() => {
-    if (!newIssueOpen || !effectiveCompanyId || !defaultProjectPendingRef.current || !projects) return;
+    if (!newIssueOpen || !effectiveSpaceId || !defaultProjectPendingRef.current || !projects) return;
     defaultProjectPendingRef.current = false;
     const available = new Set(orderedProjects.filter((project) => !project.archivedAt).map((project) => project.id));
-    const last = getLastProjectId(effectiveCompanyId);
+    const last = getLastProjectId(effectiveSpaceId);
     const remembered = last !== undefined
       ? (available.has(last) ? last : "")
       : (getRecentProjectIds().find((id) => available.has(id)) ?? "");
     const soleProject = available.size === 1 ? [...available][0] : "";
     setProjectId(remembered || soleProject);
-  }, [newIssueOpen, effectiveCompanyId, projects, orderedProjects]);
+  }, [newIssueOpen, effectiveSpaceId, projects, orderedProjects]);
   const projectOptions = useMemo<InlineEntityOption[]>(
     () =>
       orderedProjects.map((project) => ({
@@ -1292,7 +1292,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
   const handleProjectChange = useCallback(
     (nextProjectId: string) => {
       defaultProjectPendingRef.current = false;
-      trackRecentProject(nextProjectId, effectiveCompanyId ?? undefined);
+      trackRecentProject(nextProjectId, effectiveSpaceId ?? undefined);
       setProjectId(nextProjectId);
       const nextProject = orderedProjects.find((project) => project.id === nextProjectId);
       executionWorkspaceDefaultProjectId.current = nextProjectId || null;
@@ -1300,7 +1300,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
       setExecutionWorkspaceMode(defaultExecutionWorkspaceModeForProject(nextProject));
       setSelectedExecutionWorkspaceId("");
     },
-    [orderedProjects, effectiveCompanyId],
+    [orderedProjects, effectiveSpaceId],
   );
 
   useEffect(() => {
@@ -1402,7 +1402,7 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
           const target = event.detail.originalEvent.target as HTMLElement | null;
           if (
             createIssue.isPending ||
-            target?.closest("[data-radix-popper-content-wrapper], [data-paperclip-floating-ui]")
+            target?.closest("[data-radix-popper-content-wrapper], [data-outpost-floating-ui]")
           ) {
             event.preventDefault();
           }
@@ -1418,11 +1418,11 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
             <TaskChatComposer
               workMode={workMode}
               onWorkModeChange={setWorkMode}
-              disabled={createIssue.isPending || !effectiveCompanyId}
+              disabled={createIssue.isPending || !effectiveSpaceId}
               placeholder="Describe a task…"
               mobile={isMobile}
               mentions={mentionOptions}
-              companyId={effectiveCompanyId}
+              spaceId={effectiveSpaceId}
               enableReassign
               reassignOptions={assigneeOptions}
               modelAgents={modelAgents}
@@ -1433,8 +1433,8 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
                 if (value === null) return;
                 defaultAssigneePendingRef.current = false;
                 const next = parseAssigneeValue(value);
-                if (next.assigneeAgentId) trackRecentAssignee(next.assigneeAgentId, effectiveCompanyId ?? undefined);
-                if (next.assigneeUserId) trackRecentAssigneeUser(next.assigneeUserId, effectiveCompanyId ?? undefined);
+                if (next.assigneeAgentId) trackRecentAssignee(next.assigneeAgentId, effectiveSpaceId ?? undefined);
+                if (next.assigneeUserId) trackRecentAssigneeUser(next.assigneeUserId, effectiveSpaceId ?? undefined);
                 setAssigneeValue(value);
                 setComposerSettings(null);
                 setAssigneeModelLane("primary");
@@ -1663,8 +1663,8 @@ function AccountNewIssueDialog({ ignoreDefaults }: { ignoreDefaults: boolean }) 
                       </div>
                     ) : null}
 
-                    {effectiveCompanyId && neededUserSecretKeys.length > 0 ? (
-                      <MissingUserSecretsBanner companyId={effectiveCompanyId} definitionKeys={neededUserSecretKeys} />
+                    {effectiveSpaceId && neededUserSecretKeys.length > 0 ? (
+                      <MissingUserSecretsBanner spaceId={effectiveSpaceId} definitionKeys={neededUserSecretKeys} />
                     ) : null}
                   </>
                 ),

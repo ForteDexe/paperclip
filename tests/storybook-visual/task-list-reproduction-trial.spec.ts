@@ -41,7 +41,7 @@ test("matches the pre-implementation frozen reference and mounts canonical compo
     visit(root);
     return [...names];
   });
-  for (const component of ["DesignPageShell", "SidebarShell", "DesignSidebar", "SidebarCompanyMenu", "SidebarAccountMenu", "TaskListToolbar", "TaskList", "TaskListViewport", "TaskListColumnHeader", "TaskListColumnSettings", "TaskRowGroup", "IssueRow", "CellMarquee"]) {
+  for (const component of ["DesignPageShell", "SidebarShell", "DesignSidebar", "SidebarSpaceMenu", "SidebarAccountMenu", "TaskListToolbar", "TaskList", "TaskListViewport", "TaskListColumnHeader", "TaskListColumnSettings", "TaskRowGroup", "IssueRow", "CellMarquee"]) {
     expect(components).toContain(component);
   }
   const controller = readFileSync("ui/storybook/support/design-proposals/TasksReproductionTrial.tsx", "utf8");
@@ -205,7 +205,7 @@ test("canonical organization/account menus and sidebar resizing", async ({ page 
   await expect(page.getByRole("dialog", { name: "Account", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Invite", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Open Paperclip Storybook organization switcher", exact: true }).click();
+  await page.getByRole("button", { name: "Open Outpost Storybook organization switcher", exact: true }).click();
   await expect(page.getByRole("menuitem", { name: /Research Bureau/ })).toBeVisible();
   await page.getByRole("menuitem", { name: /Research Bureau/ }).click();
   await expect(rows(page)).toHaveCount(0);

@@ -6,10 +6,10 @@ const { pendingCleanup } = vi.hoisted(() => ({ pendingCleanup: vi.fn() }));
 vi.mock("../execution-blocker.js", () => ({ hasPendingRunCleanup: pendingCleanup }));
 const startedAt = new Date("2099-01-01T00:00:00Z"), finishedAt = new Date("2099-01-01T00:00:01Z");
 function source() {
-  return { id: "run", companyId: "company", agentId: "agent", runtimeMode: "legacy", status: "failed",
+  return { id: "run", spaceId: "space", agentId: "agent", runtimeMode: "legacy", status: "failed",
     controllerBootId: legacyControllerBootId, controllerLeaseExpiresAt: null, processPid: 42, processGroupId: 42,
     processStartedAt: startedAt, finishedAt, legacyProcessSettlement: { schema: "outpost.legacy-process-settlement.v1",
-      runId: "run", companyId: "company", agentId: "agent", runtimeMode: "legacy", targetKind: "local",
+      runId: "run", spaceId: "space", agentId: "agent", runtimeMode: "legacy", targetKind: "local",
       controllerBootId: legacyControllerBootId, processPid: 42, processGroupId: 42,
       processStartedAt: startedAt.toISOString(), finishedAt: finishedAt.toISOString(), status: "failed" } } satisfies LegacyProcessSettlementSource;
 }
@@ -76,7 +76,7 @@ describe("claimed preparation host settlement", () => {
   }
   function proof() {
     const run = preparing();
-    return { schema: "outpost.legacy-preparation-settlement.v1", runId: run.id, companyId: run.companyId, agentId: run.agentId,
+    return { schema: "outpost.legacy-preparation-settlement.v1", runId: run.id, spaceId: run.spaceId, agentId: run.agentId,
       runtimeMode: "legacy", targetKind: "not-dispatched", adapterDispatched: false, controllerBootId: run.controllerBootId,
       processPid: null, processGroupId: null, processStartedAt: null, executionStage: "preparing",
       startedAt: startedAt.toISOString(), finishedAt: finishedAt.toISOString(), status: "failed" };

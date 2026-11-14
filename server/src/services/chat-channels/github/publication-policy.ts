@@ -83,7 +83,7 @@ export function createGitHubPublicationPolicy(db: Db, options: GitHubPublication
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, publication.companyId),
+          eq(chatActions.spaceId, publication.spaceId),
           eq(chatActions.endpointId, publication.endpointId),
           eq(chatActions.conversationId, publication.conversationId),
           eq(chatActions.providerActionId, preparationKey),
@@ -127,7 +127,7 @@ export function createGitHubPublicationPolicy(db: Db, options: GitHubPublication
         heartbeatRuns,
         and(
           eq(heartbeatRuns.id, issueComments.createdByRunId),
-          eq(heartbeatRuns.companyId, publication.companyId),
+          eq(heartbeatRuns.spaceId, publication.spaceId),
           eq(heartbeatRuns.nativeIssueId, publication.issueId),
           eq(heartbeatRuns.agentId, endpoint.assignedAgentId),
           eq(heartbeatRuns.runtimeMode, "native"),
@@ -138,7 +138,7 @@ export function createGitHubPublicationPolicy(db: Db, options: GitHubPublication
       .innerJoin(
         nativeRunFinalizations,
         and(
-          eq(nativeRunFinalizations.companyId, publication.companyId),
+          eq(nativeRunFinalizations.spaceId, publication.spaceId),
           eq(nativeRunFinalizations.issueId, publication.issueId),
           eq(nativeRunFinalizations.runId, heartbeatRuns.id),
           eq(nativeRunFinalizations.phase, "committed"),
@@ -147,7 +147,7 @@ export function createGitHubPublicationPolicy(db: Db, options: GitHubPublication
       .where(
         and(
           eq(issueComments.id, publication.commentId),
-          eq(issueComments.companyId, publication.companyId),
+          eq(issueComments.spaceId, publication.spaceId),
           eq(issueComments.issueId, publication.issueId),
           eq(issueComments.authorAgentId, endpoint.assignedAgentId),
           isNull(issueComments.deletedAt),
@@ -169,7 +169,7 @@ export function createGitHubPublicationPolicy(db: Db, options: GitHubPublication
       // result, immutable owner/coalesced receipts, every current source,
       // runtime/generation, source edits/deletes and current principal access.
       const source = await failedChatRetrySource(tx, {
-        companyId: publication.companyId,
+        spaceId: publication.spaceId,
         issueId: publication.issueId,
         agentId: origin.run.agentId,
         failedRunId: origin.run.id,
@@ -195,7 +195,7 @@ export function createGitHubPublicationPolicy(db: Db, options: GitHubPublication
         ? publication.payload.text
         : `${publication.payload.text}\n\n[Open this Outpost task](${taskUrl})`;
       await tx.insert(chatActions).values({
-        companyId: publication.companyId,
+        spaceId: publication.spaceId,
         endpointId: publication.endpointId,
         conversationId: publication.conversationId,
         kind: "github_omission_navigation",
@@ -238,11 +238,11 @@ export function createGitHubPublicationPolicy(db: Db, options: GitHubPublication
   ): Promise<boolean> {
     if (isExplicitOperatorPublication(publication) || publication.payload.interactionId) return false;
     const record = await endpointRecord(publication.endpointId);
-    if (!record || record.endpoint.provider !== "github" || record.endpoint.companyId !== publication.companyId) return false;
+    if (!record || record.endpoint.provider !== "github" || record.endpoint.spaceId !== publication.spaceId) return false;
     // Legacy connections cannot use the replacement task-scoped tools yet.
     const [configuration] = await db.select({ endpointId: chatGitHubConfigurations.endpointId })
       .from(chatGitHubConfigurations).where(and(
-        eq(chatGitHubConfigurations.companyId, publication.companyId),
+        eq(chatGitHubConfigurations.spaceId, publication.spaceId),
         eq(chatGitHubConfigurations.endpointId, publication.endpointId),
       )).limit(1);
     if (!configuration) return false;
@@ -252,20 +252,20 @@ export function createGitHubPublicationPolicy(db: Db, options: GitHubPublication
       // version, and per-destination finals from a mixed-provider origin.
       if (!publication.commentId || !publication.idempotencyKey.startsWith("comment:")) return false;
       const [comment] = await db.select({ runId: issueComments.createdByRunId }).from(issueComments)
-        .where(and(eq(issueComments.id, publication.commentId), eq(issueComments.companyId, publication.companyId),
+        .where(and(eq(issueComments.id, publication.commentId), eq(issueComments.spaceId, publication.spaceId),
           eq(issueComments.issueId, publication.issueId), eq(issueComments.authorType, "agent")));
       if (!comment) return false;
       runId = comment.runId;
     }
     if (["failed", "completed"].includes(publication.payload.progressState ?? "") && runId) {
       const reply = await githubRunReplyState(db, {
-        companyId: publication.companyId, endpointId: publication.endpointId, issueId: publication.issueId, runId,
+        spaceId: publication.spaceId, endpointId: publication.endpointId, issueId: publication.issueId, runId,
       });
       // A pending or ambiguous write may already have arrived. Suppress the
-      // fallback without changing the governed outbox that owns that effect.
+      // fallback without changing the controlled outbox that owns that effect.
       if (reply === "unsettled") {
-        // Quarantine only the automatic fallback. The governed tool outbox
-        // retains the uncertain write; ordinary board messages and question
+        // Quarantine only the automatic fallback. The controlled tool outbox
+        // retains the uncertain write; ordinary operator messages and question
         // cards must not wait behind this notice in the conversation FIFO.
         await db.transaction(async tx => {
           await guard?.assertOwned(tx);
@@ -280,7 +280,7 @@ export function createGitHubPublicationPolicy(db: Db, options: GitHubPublication
       }
       if (reply === "none" && (publication.payload.progressState === "failed" ||
           await githubResponseCommentService(db, fetchImpl).hasWorkingResponseForRun({
-            companyId: publication.companyId, endpointId: publication.endpointId, issueId: publication.issueId, runId,
+            spaceId: publication.spaceId, endpointId: publication.endpointId, issueId: publication.issueId, runId,
           }))) return false;
     } else if (publication.payload.progressState === "failed") return false;
     const actionIds = await db.transaction(async tx => {
@@ -288,13 +288,13 @@ export function createGitHubPublicationPolicy(db: Db, options: GitHubPublication
       await notifyChatPublicationWork(tx);
       const [cancelled] = await tx.update(chatPublications).set({ state: "cancelled", nextAttemptAt: null,
         redactedError: "GitHub replies are sent through task-scoped tools", updatedAt: new Date() })
-        .where(and(eq(chatPublications.id, publication.id), eq(chatPublications.companyId, publication.companyId),
+        .where(and(eq(chatPublications.id, publication.id), eq(chatPublications.spaceId, publication.spaceId),
           guard ? and(eq(chatPublications.state, "streaming"), eq(chatPublications.attempts, publication.attempts + 1))
             : inArray(chatPublications.state, ["pending", "retry"])))
         .returning({ id: chatPublications.id });
       if (!cancelled || !runId) return [];
       const [run] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, publication.companyId),
+        eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, publication.spaceId),
         eq(heartbeatRuns.agentId, record.endpoint.assignedAgentId),
         sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${publication.issueId}`,
         inArray(heartbeatRuns.status, ["succeeded", "failed", "interrupted", "timed_out", "cancelled"])));

@@ -58,29 +58,29 @@
   "resumedToolResults": [
     {
       "executionId": "call_0",
-      "name": "paperclip_finish",
-      "namespace": "paperclip",
+      "name": "outpost_finish",
+      "namespace": "outpost",
       "transport": "mcp",
       "status": "failed",
-      "output": "{\"content\":[{\"type\":\"text\",\"text\":\"Paperclip tool request was rejected: completionClaim.criteria must contain exactly these criterion IDs, once each: [\\\"human_response\\\"]. Keep contractRevision \\\"2\\\" and correct the report without repeating completed work.\"}],\"details\":{}}",
+      "output": "{\"content\":[{\"type\":\"text\",\"text\":\"Outpost tool request was rejected: completionClaim.criteria must contain exactly these criterion IDs, once each: [\\\"human_response\\\"]. Keep contractRevision \\\"2\\\" and correct the report without repeating completed work.\"}],\"details\":{}}",
       "outputTruncated": false
     },
     {
       "executionId": "call_0",
-      "name": "paperclip_finish",
-      "namespace": "paperclip",
+      "name": "outpost_finish",
+      "namespace": "outpost",
       "transport": "mcp",
       "status": "failed",
-      "output": "{\"content\":[{\"type\":\"text\",\"text\":\"Paperclip tool request was rejected: Duplicate call identity conflict.\"}],\"details\":{}}",
+      "output": "{\"content\":[{\"type\":\"text\",\"text\":\"Outpost tool request was rejected: Duplicate call identity conflict.\"}],\"details\":{}}",
       "outputTruncated": false
     },
     {
       "executionId": "call_0",
       "name": "get_task_context",
-      "namespace": "paperclip",
+      "namespace": "outpost",
       "transport": "mcp",
       "status": "failed",
-      "output": "{\"content\":[{\"type\":\"text\",\"text\":\"Paperclip tool request was rejected: Duplicate call identity conflict.\"}],\"details\":{}}",
+      "output": "{\"content\":[{\"type\":\"text\",\"text\":\"Outpost tool request was rejected: Duplicate call identity conflict.\"}],\"details\":{}}",
       "outputTruncated": false
     }
   ],

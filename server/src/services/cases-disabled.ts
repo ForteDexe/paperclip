@@ -9,8 +9,8 @@ function casesDisabledRemediation() {
   const hidden = getHiddenSettings();
   const where = hidden.has("instance.experimental") || hidden.has("instance.experimental.enableCases")
     ? "An instance operator controls it."
-    : "An instance admin turns them on with Cases in [Experimental settings](/<prefix>/company/settings/instance/experimental), "
-      + "with this conversation's company prefix as <prefix>.";
+    : "An instance admin turns them on with Cases in [Experimental settings](/<prefix>/space/settings/instance/experimental), "
+      + "with this conversation's space prefix as <prefix>.";
   return "Cases are an experimental feature that is turned off on this instance, so this denial is final and no other route reaches cases or workflows. "
     + `${where} Agent credentials cannot change that setting. Do not create a task, project or other record in place of the case before the person chooses. `
     + "Reply now: tell the person Cases is off, say where it is turned on, and offer to track the request as an ordinary task instead.";

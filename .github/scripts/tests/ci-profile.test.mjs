@@ -210,8 +210,8 @@ test("export paces batches and retries only rejected transient events", async ()
   const events = Array.from({ length: 501 }, () => ({ data: {} }));
   const sizes = [];
   const pauses = [];
-  await sendEvents(events, "test-only", "paperclip-ci", async (url, options) => {
-    assert.equal(url, "https://api.honeycomb.io/1/batch/paperclip-ci");
+  await sendEvents(events, "test-only", "outpost-ci", async (url, options) => {
+    assert.equal(url, "https://api.honeycomb.io/1/batch/outpost-ci");
     assert.equal(options.redirect, "error");
     const size = JSON.parse(options.body).length;
     sizes.push(size);
@@ -221,7 +221,7 @@ test("export paces batches and retries only rejected transient events", async ()
   assert.deepEqual(pauses, [1000, 1000]);
   let calls = 0;
   const retried = [];
-  await sendEvents([{ data: { id: 1 } }, { data: { id: 2 } }], "test-only", "paperclip-ci", async (_url, options) => {
+  await sendEvents([{ data: { id: 1 } }, { data: { id: 2 } }], "test-only", "outpost-ci", async (_url, options) => {
     const batch = JSON.parse(options.body);
     retried.push(batch.map((event) => event.data.id));
     calls += 1;
@@ -229,7 +229,7 @@ test("export paces batches and retries only rejected transient events", async ()
   }, async (ms) => { pauses.push(ms); });
   assert.deepEqual(retried, [[1, 2], [2]]);
   assert.equal(pauses.at(-1), 1000);
-  await assert.rejects(sendEvents([events[0]], "test-only", "paperclip-ci", async () => ({ ok: true, json: async () => [{ status: 400 }] })), /status 400/);
+  await assert.rejects(sendEvents([events[0]], "test-only", "outpost-ci", async () => ({ ok: true, json: async () => [{ status: 400 }] })), /status 400/);
 });
 
 function secretReference(text, includeQuoted = false) {

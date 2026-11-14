@@ -7,7 +7,7 @@ import {
   jsonb,
   index,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { plugins } from "./plugins.js";
 import type { PluginWebhookDeliveryStatus } from "@outpost/shared";
 
@@ -40,8 +40,8 @@ export const pluginWebhookDeliveries = pgTable(
     pluginId: uuid("plugin_id")
       .notNull()
       .references(() => plugins.id, { onDelete: "cascade" }),
-    /** Company scope — NULL for instance-level webhook deliveries. */
-    companyId: uuid("company_id").references(() => companies.id, { onDelete: "cascade" }),
+    /** Space scope — NULL for instance-level webhook deliveries. */
+    spaceId: uuid("space_id").references(() => spaces.id, { onDelete: "cascade" }),
     /** Identifier matching the key in the plugin manifest's `webhooks` array. */
     webhookKey: text("webhook_key").notNull(),
     /** Optional de-duplication ID provided by the external system. */
@@ -62,7 +62,7 @@ export const pluginWebhookDeliveries = pgTable(
   },
   (table) => ({
     pluginIdx: index("plugin_webhook_deliveries_plugin_idx").on(table.pluginId),
-    companyIdx: index("plugin_webhook_deliveries_company_idx").on(table.companyId),
+    spaceIdx: index("plugin_webhook_deliveries_space_idx").on(table.spaceId),
     statusIdx: index("plugin_webhook_deliveries_status_idx").on(table.status),
     keyIdx: index("plugin_webhook_deliveries_key_idx").on(table.webhookKey),
   }),

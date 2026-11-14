@@ -10,8 +10,8 @@ it.each(["backup instance restore snapshot", "database backups list restore"])("
   const description = operation!.description;
   expect(description).toContain("agent credentials receive 403");
   expect(description).toContain("The web UI has no control that creates or restores a backup");
-  expect(description).toContain("Backup retention section of the company-prefixed /company/settings page");
-  expect(description).toContain("paperclipai db:backup");
+  expect(description).toContain("Backup retention section of the space-prefixed /space/settings page");
+  expect(description).toContain("outpost db:backup");
   expect(description).toContain("separate, empty PostgreSQL database, never over the live one");
 });
 

@@ -3,7 +3,7 @@ import type { LifecycleCommand } from "../domain/policy.js";
 
 export interface LifecycleAgent {
   id: string;
-  companyId: string;
+  spaceId: string;
   lifecycleState: AgentLifecycleState;
   lifecycleVersion: number;
   lifecycleHolds?: readonly string[];
@@ -37,7 +37,7 @@ export interface LifecycleFailure {
   stage: "claim" | "renew" | "select_plugins" | "save_plugins" | "host" | "plugin"
     | "complete_host" | "complete_plugin" | "transition" | "defer" | "scan" | "policy_scan" | "ready";
   agentId?: string;
-  companyId?: string;
+  spaceId?: string;
   phase?: AgentLifecycleState;
   operationId?: string;
   version?: number;

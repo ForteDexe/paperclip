@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   describeLocalInstancePaths,
   expandHomePrefix,
-  resolvePaperclipHomeDir,
-  resolvePaperclipInstanceId,
+  resolveOutpostHomeDir,
+  resolveOutpostInstanceId,
 } from "../config/home.js";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -16,8 +16,8 @@ describe("home path resolution", () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("defaults to ~/.paperclip and default instance", () => {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-home-paths-"));
+  it("defaults to ~/.outpost and default instance", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-home-paths-"));
     process.env.OUTPOST_HOME = home;
     delete process.env.OUTPOST_INSTANCE_ID;
 
@@ -28,15 +28,15 @@ describe("home path resolution", () => {
   });
 
   it("supports OUTPOST_HOME and explicit instance ids", () => {
-    process.env.OUTPOST_HOME = "~/paperclip-home";
+    process.env.OUTPOST_HOME = "~/outpost-home";
 
-    const home = resolvePaperclipHomeDir();
-    expect(home).toBe(path.resolve(os.homedir(), "paperclip-home"));
-    expect(resolvePaperclipInstanceId("dev_1")).toBe("dev_1");
+    const home = resolveOutpostHomeDir();
+    expect(home).toBe(path.resolve(os.homedir(), "outpost-home"));
+    expect(resolveOutpostInstanceId("dev_1")).toBe("dev_1");
   });
 
   it("rejects invalid instance ids", () => {
-    expect(() => resolvePaperclipInstanceId("bad/id")).toThrow(/Invalid OUTPOST_INSTANCE_ID/);
+    expect(() => resolveOutpostInstanceId("bad/id")).toThrow(/Invalid OUTPOST_INSTANCE_ID/);
   });
 
   it("expands ~ prefixes", () => {

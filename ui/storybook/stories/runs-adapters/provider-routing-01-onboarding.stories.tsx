@@ -8,7 +8,7 @@ const meta = {
   title: "Agents and reusable capabilities/Runs, harnesses, and model accounts/AI Connections/Provider routing/01 Onboarding",
   component: Onboarding,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "runs-adapters/validation"
       ],
@@ -96,7 +96,7 @@ export const OptionalProviderWalkthrough: Story = {
     ).toHaveTextContent("Codex");
     await expect(
       canvas.getByRole("combobox", { name: "Connection" }),
-    ).toHaveTextContent("Company OpenRouter");
+    ).toHaveTextContent("Space OpenRouter");
     await expect(
       canvas.getByRole("button", { name: "Advanced model settings" }),
     ).toHaveAttribute("aria-expanded", "false");

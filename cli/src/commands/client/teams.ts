@@ -30,7 +30,7 @@ interface TeamBrowseOptions extends BaseClientOptions {
 interface TeamListOptions extends TeamBrowseOptions {}
 
 interface TeamPreviewOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   targetManagerAgentId?: string;
   targetManagerSlug?: string;
   agent?: string[];
@@ -53,7 +53,7 @@ interface TeamInstallApprovalFallbackResult {
   status: "approval_requested";
   approval: Approval;
   installAttempt: {
-    companyId: string;
+    spaceId: string;
     catalogRef: string;
     options: CatalogTeamInstallOptions;
     deniedReason: string;
@@ -88,13 +88,13 @@ export function registerTeamCommands(program: Command): void {
   addCommonClientOptions(
     teams
       .command("list")
-      .description("List app-shipped catalog teams with installed status for a company")
+      .description("List app-shipped catalog teams with installed status for a space")
       .option("--kind <kind>", "Catalog kind filter (bundled or optional)")
       .option("--category <slug>", "Catalog category filter")
       .option("--query <text>", "Search catalog text")
       .action(async (opts: TeamListOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const rows = await listCatalogTeamStatusRows(ctx, opts);
           if (ctx.json) {
             printOutput(rows, { json: true });
@@ -105,7 +105,7 @@ export function registerTeamCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
@@ -167,7 +167,7 @@ export function registerTeamCommands(program: Command): void {
   addCommonClientOptions(
     teams
       .command("preview")
-      .description("Preview importing a catalog team into a company")
+      .description("Preview importing a catalog team into a space")
       .argument("<catalogRef>", "Catalog team ID, key, or unique slug")
       .option("--target-manager-agent-id <id>", "Existing agent ID that catalog root agents should report to")
       .option("--target-manager-slug <slug>", "Portable manager slug that catalog root agents should report to")
@@ -180,9 +180,9 @@ export function registerTeamCommands(program: Command): void {
       .option("--allow-local-path-sources", "Development only: allow local-path skill sources declared by the catalog team", false)
       .action(async (catalogRef: string, opts: TeamPreviewOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const result = await ctx.api.post<CatalogTeamImportPreviewResult>(
-            catalogTeamCompanyPath(ctx.companyId, catalogRef, "preview"),
+            catalogTeamSpacePath(ctx.spaceId, catalogRef, "preview"),
             buildTeamOptions(opts),
           );
           if (ctx.json) {
@@ -194,13 +194,13 @@ export function registerTeamCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     teams
       .command("install")
-      .description("Install a catalog team into a company")
+      .description("Install a catalog team into a space")
       .argument("<catalogRef>", "Catalog team ID, key, or unique slug")
       .option("--target-manager-agent-id <id>", "Existing agent ID that catalog root agents should report to")
       .option("--target-manager-slug <slug>", "Portable manager slug that catalog root agents should report to")
@@ -215,16 +215,16 @@ export function registerTeamCommands(program: Command): void {
       .option("--allow-local-path-sources", "Development only: allow local-path skill sources declared by the catalog team", false)
       .option(
         "--request-approval-on-forbidden",
-        "When install is denied by agents:create permissions, create a board approval request instead of exiting with the raw 403",
+        "When install is denied by agents:create permissions, create a operator approval request instead of exiting with the raw 403",
         false,
       )
       .option("--approval-issue-id <id>", "Issue ID to link to the fallback approval request; defaults to OUTPOST_TASK_ID when set")
       .action(async (catalogRef: string, opts: TeamInstallOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const installOptions = buildTeamInstallOptions(opts);
           const result = await ctx.api.post<CatalogTeamInstallResult>(
-            catalogTeamCompanyPath(ctx.companyId, catalogRef, "install"),
+            catalogTeamSpacePath(ctx.spaceId, catalogRef, "install"),
             installOptions,
           );
           if (ctx.json) {
@@ -235,7 +235,7 @@ export function registerTeamCommands(program: Command): void {
         } catch (err) {
           if (shouldRequestInstallApproval(err, opts)) {
             try {
-              const ctx = resolveCommandContext(opts, { requireCompany: true });
+              const ctx = resolveCommandContext(opts, { requireSpace: true });
               const fallback = await requestInstallApproval(ctx, catalogRef, buildTeamInstallOptions(opts), opts, err);
               if (ctx.json) {
                 printOutput(fallback, { json: true });
@@ -250,7 +250,7 @@ export function registerTeamCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 }
 
@@ -290,14 +290,14 @@ async function listCatalogTeamStatusRows(
   ctx: ResolvedClientContext,
   opts: TeamListOptions,
 ): Promise<CatalogTeamStatusRow[]> {
-  if (!ctx.companyId) {
+  if (!ctx.spaceId) {
     throw new Error("Outpost ID is required.");
   }
 
   const [teams, installed] = await Promise.all([
     listCatalogTeams(ctx, opts),
     ctx.api.get<InstalledCatalogTeam[]>(
-      `/api/companies/${encodeURIComponent(ctx.companyId)}/teams/catalog/installed`,
+      `/api/spaces/${encodeURIComponent(ctx.spaceId)}/teams/catalog/installed`,
     ),
   ]);
 
@@ -343,10 +343,10 @@ async function getCatalogTeamFile(
   return ctx.api.get(`/api/teams/catalog/ref/files?${params.toString()}`);
 }
 
-function catalogTeamCompanyPath(companyId: string | undefined, catalogRef: string, action: "preview" | "install") {
-  if (!companyId) throw new Error("Outpost ID is required.");
+function catalogTeamSpacePath(spaceId: string | undefined, catalogRef: string, action: "preview" | "install") {
+  if (!spaceId) throw new Error("Outpost ID is required.");
   const params = new URLSearchParams({ ref: catalogRef.trim() });
-  return `/api/companies/${encodeURIComponent(companyId)}/teams/catalog/ref/${action}?${params.toString()}`;
+  return `/api/spaces/${encodeURIComponent(spaceId)}/teams/catalog/ref/${action}?${params.toString()}`;
 }
 
 function buildTeamOptions(opts: TeamPreviewOptions): CatalogTeamImportOptions {
@@ -376,13 +376,13 @@ const INSTALL_APPROVAL_FALLBACK_MESSAGES = [
 const SECRET_VALUE_REDACTION = "[redacted]";
 
 function shouldRequestInstallApproval(error: unknown, opts: TeamInstallOptions): error is ApiRequestError {
-  if (!(opts.requestApprovalOnForbidden || isPaperclipTaskRun())) return false;
+  if (!(opts.requestApprovalOnForbidden || isOutpostTaskRun())) return false;
   if (!(error instanceof ApiRequestError) || error.status !== 403) return false;
   const message = error.message.toLowerCase();
   return INSTALL_APPROVAL_FALLBACK_MESSAGES.some((expected) => message.includes(expected));
 }
 
-function isPaperclipTaskRun(): boolean {
+function isOutpostTaskRun(): boolean {
   return Boolean(process.env.OUTPOST_TASK_ID?.trim());
 }
 
@@ -393,34 +393,34 @@ async function requestInstallApproval(
   opts: TeamInstallOptions,
   error: ApiRequestError,
 ): Promise<TeamInstallApprovalFallbackResult> {
-  if (!ctx.companyId) throw new Error("Outpost ID is required.");
+  if (!ctx.spaceId) throw new Error("Outpost ID is required.");
   const trimmedRef = catalogRef.trim();
   const issueIds = resolveApprovalIssueIds(opts);
   const approvalInstallOptions = omitInstallSecretValues(installOptions);
   const returnedInstallOptions = redactInstallSecretValues(installOptions);
   const payload = {
-    type: "request_board_approval",
+    type: "request_operator_approval",
     issueIds,
     payload: {
       title: `Approve catalog team install: ${trimmedRef}`,
       summary:
-        `An Outpost CLI agent-run attempted to install catalog team "${trimmedRef}" into company "${ctx.companyId}", ` +
+        `An Outpost CLI agent-run attempted to install catalog team "${trimmedRef}" into space "${ctx.spaceId}", ` +
         `but the API denied the install with: ${error.message}.`,
       recommendedAction:
-        "Approve the catalog team source and rerun the install with a board or agent-creator token, or grant agents:create to the requesting agent and rerun the same command.",
+        "Approve the catalog team source and rerun the install with a operator or agent-creator token, or grant agents:create to the requesting agent and rerun the same command.",
       risks: [
         "Catalog team installation can create agents, projects, tasks, routines, skills, and secret bindings.",
         "Only approve after checking the catalog source, selected files, target manager, and collision strategy.",
       ],
       installAttempt: {
-        companyId: ctx.companyId,
+        spaceId: ctx.spaceId,
         catalogRef: trimmedRef,
         options: approvalInstallOptions,
         deniedReason: error.message,
       },
     },
   };
-  const approval = await ctx.api.post<Approval>(apiPath`/api/companies/${ctx.companyId}/approvals`, payload);
+  const approval = await ctx.api.post<Approval>(apiPath`/api/spaces/${ctx.spaceId}/approvals`, payload);
   if (!approval) {
     throw new Error("Approval request failed.");
   }
@@ -428,7 +428,7 @@ async function requestInstallApproval(
     status: "approval_requested",
     approval,
     installAttempt: {
-      companyId: ctx.companyId,
+      spaceId: ctx.spaceId,
       catalogRef: trimmedRef,
       options: returnedInstallOptions,
       deniedReason: error.message,
@@ -637,7 +637,7 @@ function printCatalogTeamDetail(team: CatalogTeam): void {
     }),
   );
   console.log(`description=${team.description || "-"}`);
-  console.log(`recommendedForCompanyTypes=${team.recommendedForCompanyTypes.join(",") || "-"}`);
+  console.log(`recommendedForSpaceTypes=${team.recommendedForSpaceTypes.join(",") || "-"}`);
   console.log(`tags=${team.tags.join(",") || "-"}`);
   console.log(
     `counts=agents:${team.counts.agents},projects:${team.counts.projects},tasks:${team.counts.tasks},skills:${team.counts.localSkills + team.counts.catalogSkills}`,
@@ -686,7 +686,7 @@ function printInstallApprovalRequested(result: TeamInstallApprovalFallbackResult
       deniedReason: result.installAttempt.deniedReason,
     }),
   );
-  console.log("Install was not performed. The board must approve the request and rerun the install with an authorized token.");
+  console.log("Install was not performed. The operator must approve the request and rerun the install with an authorized token.");
 }
 
 function printTable(rows: Array<Record<string, unknown>>): void {

@@ -10,7 +10,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   createDb,
   agents,
-  companies,
+  spaces,
   heartbeatRuns,
   issues,
   projects,
@@ -68,43 +68,43 @@ describe.skipIf(!cloudDist)("customer-success managed agent / Cloud / tenant qua
       vi.stubEnv("OUTPOST_CLOUD_STACK_ID", "qualification-stack");
       const homeDb = createDb(home.connectionString);
       const tenantDb = createDb(tenant.connectionString);
-      const [homeCompany] = await homeDb
-        .insert(companies)
+      const [homeSpace] = await homeDb
+        .insert(spaces)
         .values({ name: "Internal", issuePrefix: "INT" })
         .returning();
       const [agent] = await homeDb
         .insert(agents)
         .values({
-          companyId: homeCompany.id,
+          spaceId: homeSpace.id,
           name: "Success qualification",
           adapterType: "process",
         })
         .returning();
       const identity = await agentIdentityService(homeDb).ensureAgentIdentity(
-        homeCompany.id,
+        homeSpace.id,
         agent.id,
       );
       const [run] = await homeDb
         .insert(heartbeatRuns)
         .values({
-          companyId: homeCompany.id,
+          spaceId: homeSpace.id,
           agentId: agent.id,
           status: "running",
           startedAt: new Date(),
         })
         .returning();
       const [customer] = await tenantDb
-        .insert(companies)
+        .insert(spaces)
         .values({ name: "Synthetic customer", issuePrefix: "SYN" })
         .returning();
       const [project] = await tenantDb
         .insert(projects)
-        .values({ companyId: customer.id, name: "Qualification project" })
+        .values({ spaceId: customer.id, name: "Qualification project" })
         .returning();
       const [workspace] = await tenantDb
         .insert(projectWorkspaces)
         .values({
-          companyId: customer.id,
+          spaceId: customer.id,
           projectId: project.id,
           name: "Qualification files",
           cwd: directory,
@@ -115,7 +115,7 @@ describe.skipIf(!cloudDist)("customer-success managed agent / Cloud / tenant qua
       const fileBefore = await stat(filePath);
       const [task] = await tenantDb
         .insert(issues)
-        .values({ companyId: customer.id, projectId: project.id, title: "First successful task" })
+        .values({ spaceId: customer.id, projectId: project.id, title: "First successful task" })
         .returning();
       const storage = { provider: "local_disk" } as StorageService;
       const start = async (handler: RequestListener) => {
@@ -258,7 +258,7 @@ describe.skipIf(!cloudDist)("customer-success managed agent / Cloud / tenant qua
         binding: {
           sourceOrigin,
           instanceId: "qualification-home",
-          companyId: homeCompany.id,
+          spaceId: homeSpace.id,
           agentId: agent.id,
           keyId: identity.keyId,
           publicKeyPem: identity.publicKeyPem,
@@ -270,8 +270,8 @@ describe.skipIf(!cloudDist)("customer-success managed agent / Cloud / tenant qua
         const call=inspectionAgentClient();
         const discovery=await call('discover',{});
         const grant=await call('grant',{stackId:'qualification-stack'});
-        const tasks=await call('read',{stackId:'qualification-stack',grantToken:grant.token,query:{operation:'list',resource:'tasks',companyId:${JSON.stringify(customer.id)}}});
-        const file=await call('read',{stackId:'qualification-stack',grantToken:grant.token,query:{operation:'files.download',companyId:${JSON.stringify(customer.id)},resourceId:${JSON.stringify(task.id)},context:{projectId:${JSON.stringify(project.id)},workspaceId:${JSON.stringify(workspace.id)}},path:'result.bin',range:{start:2,end:5}}});
+        const tasks=await call('read',{stackId:'qualification-stack',grantToken:grant.token,query:{operation:'list',resource:'tasks',spaceId:${JSON.stringify(customer.id)}}});
+        const file=await call('read',{stackId:'qualification-stack',grantToken:grant.token,query:{operation:'files.download',spaceId:${JSON.stringify(customer.id)},resourceId:${JSON.stringify(task.id)},context:{projectId:${JSON.stringify(project.id)},workspaceId:${JSON.stringify(workspace.id)}},path:'result.bin',range:{start:2,end:5}}});
         console.log(JSON.stringify({stackCount:discovery.items.length,titles:tasks.items.map(t=>t.title),fileBytes:[...Buffer.from(file.content,'base64')]}));
       `;
       const programFile = join(directory, "qualify.mjs");
@@ -281,7 +281,7 @@ describe.skipIf(!cloudDist)("customer-success managed agent / Cloud / tenant qua
         runId: run.id,
         agent,
         agentIdentity: identity,
-        authToken: createLocalAgentJwt(agent.id, homeCompany.id, "process", run.id)!,
+        authToken: createLocalAgentJwt(agent.id, homeSpace.id, "process", run.id)!,
         config: {
           command: process.execPath,
           args: [programFile],
@@ -331,7 +331,7 @@ describe.skipIf(!cloudDist)("customer-success managed agent / Cloud / tenant qua
       });
       // Two independent pool connections prove consumption is durable, not a
       // process-local Set: exactly one replica can consume a signed challenge.
-      const token = createLocalAgentJwt(agent.id, homeCompany.id, "process", run.id)!;
+      const token = createLocalAgentJwt(agent.id, homeSpace.id, "process", run.id)!;
       const c = await broker.challenge(token, "discover", {});
       const { sign } = await import("node:crypto");
       const sig = sign(null, Buffer.from(c.bytes), identity.privateKeyPem).toString("base64url");

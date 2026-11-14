@@ -20,11 +20,11 @@ export const getTaskContextAction = {
     "idempotency": "none",
     "disabledByDefault": false,
     "realBindingStatus": "live_codex",
-    "realServiceBinding": "PaperclipRunnerToolAuthority active issue/run + accepted plan revision",
-    "orpEvidence": "bound company/assignment query plus exact accepted document revision projection",
+    "realServiceBinding": "OutpostRunnerToolAuthority active issue/run + accepted plan revision",
+    "orpEvidence": "bound space/assignment query plus exact accepted document revision projection",
     "orpBindingStatus": "bound",
     "legacyAliases": [
-      "mcp:paperclipMe"
+      "mcp:outpostMe"
     ]
   },
   "documentation": {

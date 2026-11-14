@@ -3,7 +3,7 @@ title: Docker
 summary: Docker Compose quickstart
 ---
 
-Run Paperclip in Docker without installing Node or pnpm locally.
+Run Outpost in Docker without installing Node or pnpm locally.
 
 ## Compose Quickstart (Recommended)
 
@@ -16,7 +16,7 @@ Open [http://localhost:3100](http://localhost:3100).
 Defaults:
 
 - Host port: `3100`
-- Data directory: `./data/docker-paperclip`
+- Data directory: `./data/docker-outpost`
 
 Override with environment variables:
 
@@ -30,18 +30,18 @@ OUTPOST_PORT=3200 OUTPOST_DATA_DIR=../data/pc \
 ## Manual Docker Build
 
 ```sh
-docker build -t paperclip-local .
-docker run --name paperclip \
+docker build -t outpost-local .
+docker run --name outpost \
   -p 3100:3100 \
   -e HOST=0.0.0.0 \
-  -e OUTPOST_HOME=/paperclip \
-  -v "$(pwd)/data/docker-paperclip:/paperclip" \
-  paperclip-local
+  -e OUTPOST_HOME=/outpost \
+  -v "$(pwd)/data/docker-outpost:/outpost" \
+  outpost-local
 ```
 
 ## Data Persistence
 
-All data is persisted under the bind mount (`./data/docker-paperclip`):
+All data is persisted under the bind mount (`./data/docker-outpost`):
 
 - Embedded PostgreSQL data
 - Uploaded assets
@@ -60,15 +60,15 @@ The Docker image pre-installs these agent CLIs so their `*_local` adapters can r
 Pass API keys to enable local adapter runs inside the container:
 
 ```sh
-docker run --name paperclip \
+docker run --name outpost \
   -p 3100:3100 \
   -e HOST=0.0.0.0 \
-  -e OUTPOST_HOME=/paperclip \
+  -e OUTPOST_HOME=/outpost \
   -e OPENAI_API_KEY=sk-... \
   -e ANTHROPIC_API_KEY=sk-... \
   -e GEMINI_API_KEY=... \
-  -v "$(pwd)/data/docker-paperclip:/paperclip" \
-  paperclip-local
+  -v "$(pwd)/data/docker-outpost:/outpost" \
+  outpost-local
 ```
 
 Each adapter reads its provider's standard credentials — for example `ANTHROPIC_API_KEY` (Claude), `OPENAI_API_KEY` (Codex), and `GEMINI_API_KEY` or `GOOGLE_API_KEY` (Gemini). OpenCode is multi-provider and uses whichever provider key you supply.

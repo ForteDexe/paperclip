@@ -7,7 +7,7 @@ import { eq, sql } from "drizzle-orm";
 import * as databaseModule from "@outpost/db";
 import * as idleWorkModule from "../services/idle-local-work.js";
 import { idleWorkSnapshot, isIdleTaskDrainActive, registerTaskDrainExpiryWork, startTaskDrain, stopTaskDrain } from "../services/task-admission.js";
-import { agents, companies, applyPendingMigrations, createDb, companySecrets, projects, pluginCompanySettings, pluginConfig, plugins, resourceLifecycleEvents, type Db } from "@outpost/db";
+import { agents, spaces, applyPendingMigrations, createDb, spaceSecrets, projects, pluginSpaceSettings, pluginConfig, plugins, resourceLifecycleEvents, type Db } from "@outpost/db";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { logger } from "../middleware/logger.js";
@@ -34,13 +34,13 @@ if (!support.supported) console.warn(`Skipping lifecycle delivery database tests
 describePostgres("durable plugin lifecycle delivery", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
-  let companyId: string;
+  let spaceId: string;
   let pluginId: string;
   let listenerOwners: Array<{ listen: Db["$client"]["listen"]; close: ReturnType<typeof vi.fn> }>;
   const deliveries = new Set<ReturnType<typeof registerPluginLifecycleDelivery>>();
   beforeAll(async () => {
     if (externalUrl) await applyPendingMigrations(externalUrl);
-    else database = await startEmbeddedPostgresTestDatabase("paperclip-plugin-delivery-");
+    else database = await startEmbeddedPostgresTestDatabase("outpost-plugin-delivery-");
     db = createDb(externalUrl ?? database.connectionString, { maxConnections: 4 });
   }, 90_000);
   afterAll(async () => { try { await db?.$client.end({ timeout: 1 }); } finally { await database?.cleanup(); } });
@@ -57,16 +57,16 @@ describePostgres("durable plugin lifecycle delivery", () => {
       return owner;
     });
     await db.delete(plugins);
-    companyId = randomUUID(); pluginId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Delivery fixture", issuePrefix: `L${companyId.slice(0, 6)}` });
+    spaceId = randomUUID(); pluginId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Delivery fixture", issuePrefix: `L${spaceId.slice(0, 6)}` });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "delivery-fixture", version: "1.0.0", status: "ready",
       manifestJson: { resourceLifecycle: ["project"], capabilities: ["events.subscribe"] } as never });
-    await db.insert(pluginConfig).values({ pluginId, companyId, configJson: {} });
+    await db.insert(pluginConfig).values({ pluginId, spaceId, configJson: {} });
   });
   async function event(resourceId: string = randomUUID(), action: "create" | "update" | "delete" = "create") {
     await db.transaction(async tx => {
-      if (action === "create") await recordResourceCreationEvent(tx as unknown as Db, companyId, "project", resourceId);
-      else await recordProjectLifecycleEvent(tx as unknown as Db, companyId, resourceId, action);
+      if (action === "create") await recordResourceCreationEvent(tx as unknown as Db, spaceId, "project", resourceId);
+      else await recordProjectLifecycleEvent(tx as unknown as Db, spaceId, resourceId, action);
     });
     return resourceId;
   }
@@ -83,33 +83,33 @@ describePostgres("durable plugin lifecycle delivery", () => {
     deliveries.add(worker);
     return { call, running, wake, lifecycle, worker, applied: () => { for (const listener of configApplied) listener(); }, run: () => task.run(new AbortController().signal), pending: () => task.hasPending(), nextRunAt: () => task.nextRunAt?.(), settled: () => task.onSettled?.() };
   }
-  async function withManagedPlugin(enabledCompanies: string[], run: () => Promise<void>) {
+  async function withManagedPlugin(enabledSpaces: string[], run: () => Promise<void>) {
     const root = await mkdtemp(path.join(tmpdir(), "delivery-managed-"));
     await mkdir(path.join(root, "sandbox-providers/daytona"), { recursive: true });
     vi.stubEnv("OUTPOST_BUNDLED_PLUGIN_ROOT", root);
     vi.stubEnv("OUTPOST_MANAGED_CONFIG", JSON.stringify({ v: 1, mode: "cloud", catalogVersion: "1", features: {},
-      plugins: { autoInstall: ["daytona"], workerEnv: { daytona: ["PROVIDER_ORIGIN"] }, enabledCompanies: { daytona: enabledCompanies } } }));
+      plugins: { autoInstall: ["daytona"], workerEnv: { daytona: ["PROVIDER_ORIGIN"] }, enabledSpaces: { daytona: enabledSpaces } } }));
     try { await run(); }
     finally { vi.unstubAllEnvs(); await rm(root, { recursive: true, force: true }); }
   }
-  it("delivers to a managed plugin with no config row and a stale saved path only in the companies the document enables", async () => {
-    const unlistedCompanyId = randomUUID(), disabledCompanyId = randomUUID(), absentCompanyId = randomUUID();
-    await withManagedPlugin([companyId, disabledCompanyId, absentCompanyId], async () => {
+  it("delivers to a managed plugin with no config row and a stale saved path only in the spaces the document enables", async () => {
+    const unlistedSpaceId = randomUUID(), disabledSpaceId = randomUUID(), absentSpaceId = randomUUID();
+    await withManagedPlugin([spaceId, disabledSpaceId, absentSpaceId], async () => {
       const managedId = randomUUID(), ungrantedId = randomUUID();
       const manifestJson = { resourceLifecycle: ["project"], capabilities: ["events.subscribe"] } as never;
-      await db.insert(companies).values([
-        { id: unlistedCompanyId, name: "Unlisted company", issuePrefix: `O${unlistedCompanyId.slice(0, 6)}` },
-        { id: disabledCompanyId, name: "Disabled company", issuePrefix: `D${disabledCompanyId.slice(0, 6)}` },
+      await db.insert(spaces).values([
+        { id: unlistedSpaceId, name: "Unlisted space", issuePrefix: `O${unlistedSpaceId.slice(0, 6)}` },
+        { id: disabledSpaceId, name: "Disabled space", issuePrefix: `D${disabledSpaceId.slice(0, 6)}` },
       ]);
       await db.insert(plugins).values([
         { id: managedId, pluginKey: "outpost.daytona-sandbox-provider", packageName: "managed", version: "1.0.0", status: "ready", packagePath: "/old/image/plugins/daytona", manifestJson },
         { id: ungrantedId, pluginKey: ungrantedId, packageName: "ungranted", version: "1.0.0", status: "ready", manifestJson },
       ]);
-      await db.insert(pluginCompanySettings).values({ pluginId: managedId, companyId: disabledCompanyId, enabled: false });
+      await db.insert(pluginSpaceSettings).values({ pluginId: managedId, spaceId: disabledSpaceId, enabled: false });
       const resourceId = await event();
       await db.transaction(async tx => {
-        await recordResourceCreationEvent(tx as unknown as Db, unlistedCompanyId, "project", randomUUID());
-        await recordResourceCreationEvent(tx as unknown as Db, disabledCompanyId, "project", randomUUID());
+        await recordResourceCreationEvent(tx as unknown as Db, unlistedSpaceId, "project", randomUUID());
+        await recordResourceCreationEvent(tx as unknown as Db, disabledSpaceId, "project", randomUUID());
       });
       const d = delivery();
       await d.run();
@@ -120,8 +120,8 @@ describePostgres("durable plugin lifecycle delivery", () => {
       await d.worker.dispose();
     });
   });
-  it("listens for a managed plugin with no config row until its last enabled company disables it", async () => {
-    await withManagedPlugin([companyId], async () => {
+  it("listens for a managed plugin with no config row until its last enabled space disables it", async () => {
+    await withManagedPlugin([spaceId], async () => {
       await db.delete(plugins);
       const managedId = randomUUID();
       await db.insert(plugins).values({ id: managedId, pluginKey: "outpost.daytona-sandbox-provider", packageName: "managed", version: "1.0.0", status: "ready",
@@ -130,14 +130,14 @@ describePostgres("durable plugin lifecycle delivery", () => {
       vi.mocked(db.$client.listen).mockResolvedValueOnce(subscription as never);
       const d = delivery();
       await d.worker.ready;
-      expect(db.$client.listen).toHaveBeenCalledWith("paperclip_plugin_lifecycle", expect.any(Function), expect.any(Function));
-      await db.insert(pluginCompanySettings).values({ pluginId: managedId, companyId, enabled: false });
+      expect(db.$client.listen).toHaveBeenCalledWith("outpost_plugin_lifecycle", expect.any(Function), expect.any(Function));
+      await db.insert(pluginSpaceSettings).values({ pluginId: managedId, spaceId, enabled: false });
       d.applied();
       await vi.waitFor(() => expect(listenerOwners[0]!.close).toHaveBeenCalledTimes(1));
       await d.worker.dispose();
     });
   });
-  it("does not listen for a managed plugin that the document enables for no company", async () => {
+  it("does not listen for a managed plugin that the document enables for no space", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "delivery-managed-"));
     await mkdir(path.join(root, "sandbox-providers/daytona"), { recursive: true });
     vi.stubEnv("OUTPOST_BUNDLED_PLUGIN_ROOT", root);
@@ -155,8 +155,8 @@ describePostgres("durable plugin lifecycle delivery", () => {
   });
   it("delivers project events to a storage provider only for projects attached to it", async () => {
     await db.update(plugins).set({ manifestJson: { resourceLifecycle: ["project"], capabilities: ["events.subscribe", "workspaces.manage"], workspaceProvider: { modes: ["isolated_workspace"], strategies: ["git_worktree"] } } as never }).where(eq(plugins.id, pluginId));
-    const [core] = await db.insert(projects).values({ companyId, name: "Core project" }).returning();
-    const [attached] = await db.insert(projects).values({ companyId, name: "Attached project", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: pluginId } }).returning();
+    const [core] = await db.insert(projects).values({ spaceId, name: "Core project" }).returning();
+    const [attached] = await db.insert(projects).values({ spaceId, name: "Attached project", executionWorkspacePolicy: { enabled: true, storageProviderPluginId: pluginId } }).returning();
     await event(core.id);
     await event(attached.id);
     const d = delivery();
@@ -164,7 +164,7 @@ describePostgres("durable plugin lifecycle delivery", () => {
       await d.run();
       expect(d.call).toHaveBeenCalledTimes(1);
       expect(d.call.mock.calls[0][2]).toMatchObject({ resourceId: attached.id });
-      expect(await pluginLifecycleInbox(db, pluginId).list(companyId)).toEqual([]);
+      expect(await pluginLifecycleInbox(db, pluginId).list(spaceId)).toEqual([]);
       await db.update(projects).set({ executionWorkspacePolicy: { enabled: true, storageProviderPluginId: pluginId } }).where(eq(projects.id, core.id));
       await event(core.id, "update");
       await d.run();
@@ -190,7 +190,7 @@ describePostgres("durable plugin lifecycle delivery", () => {
   it("supplies project native credentials only to opted-in callbacks and saves returned patches before acknowledgment", async () => {
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
     await db.update(plugins).set({ manifestJson: { resourceLifecycle: ["project"], capabilities: ["events.subscribe", "projects.instance-secrets"] } as never }).where(eq(plugins.id, pluginId));
-    const [project] = await db.insert(projects).values({ companyId, name: "Native credentials owner" }).returning();
+    const [project] = await db.insert(projects).values({ spaceId, name: "Native credentials owner" }).returning();
     await event(project.id);
     const d = delivery();
     d.call.mockImplementationOnce(async (_p, _m, input) => {
@@ -199,17 +199,17 @@ describePostgres("durable plugin lifecycle delivery", () => {
     });
     try {
       await d.run();
-      expect(await pluginLifecycleInbox(db, pluginId).list(companyId)).toEqual([]);
-      expect(await db.select().from(companySecrets).where(eq(companySecrets.ownerProjectId, project.id))).toHaveLength(1);
+      expect(await pluginLifecycleInbox(db, pluginId).list(spaceId)).toEqual([]);
+      expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.ownerProjectId, project.id))).toHaveLength(1);
       await event(project.id, "update");
       d.call.mockImplementationOnce(async (_p, _m, input) => {
         expect(input.instanceSecrets).toEqual({ mount_grants: "fixture-private-grants" });
         return { eventId: input.id, status: "retry", instanceSecrets: { mount_grants: "must-not-save" } };
       });
       await d.run();
-      const [stored] = await db.select().from(companySecrets).where(eq(companySecrets.ownerProjectId, project.id));
+      const [stored] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.ownerProjectId, project.id));
       expect(stored.latestVersion).toBe(1);
-      expect(JSON.stringify(await pluginLifecycleInbox(db, pluginId).list(companyId))).not.toContain("fixture-private-grants");
+      expect(JSON.stringify(await pluginLifecycleInbox(db, pluginId).list(spaceId))).not.toContain("fixture-private-grants");
     } finally { await d.worker.dispose(); vi.unstubAllEnvs(); }
   });
   it("rejects credential patches from plugins without project instance secret scope", async () => {
@@ -218,7 +218,7 @@ describePostgres("durable plugin lifecycle delivery", () => {
       expect(input.instanceSecrets).toBeUndefined();
       return { eventId: input.id, status: "acknowledged", instanceSecrets: { mount_grants: "private" } };
     });
-    try { await d.run(); expect(await pluginLifecycleInbox(db, pluginId).list(companyId)).toHaveLength(1); }
+    try { await d.run(); expect(await pluginLifecycleInbox(db, pluginId).list(spaceId)).toHaveLength(1); }
     finally { await d.worker.dispose(); }
   });
   it.each([false, true])("does not wait for queued plugin callbacks during startup (runtime subscriber: %s)", async runtime => {
@@ -234,13 +234,13 @@ describePostgres("durable plugin lifecycle delivery", () => {
     try {
       await vi.waitFor(() => expect(call).toHaveBeenCalled(), { timeout: 5000 });
       await vi.waitFor(() => expect(ready).toBe(true));
-      expect(await pluginLifecycleInbox(db, pluginId).list(companyId)).toHaveLength(1);
+      expect(await pluginLifecycleInbox(db, pluginId).list(spaceId)).toHaveLength(1);
     } finally { release(); await worker.dispose(); await coordinator.stop(); }
   });
   describe("agent runtime events", () => {
     const runtimeManifest = (capabilities: string[]) => ({ resourceLifecycle: ["agent_runtime"], capabilities: ["events.subscribe", ...capabilities] }) as never;
     async function agent(name: string, requiredPluginIds: string[] | null) {
-      const [row] = await db.insert(agents).values({ companyId, name, adapterType: "process" }).returning({ id: agents.id });
+      const [row] = await db.insert(agents).values({ spaceId, name, adapterType: "process" }).returning({ id: agents.id });
       await db.update(agents).set({ lifecycleRequiredPluginIds: requiredPluginIds }).where(eq(agents.id, row.id));
       return row.id;
     }
@@ -259,7 +259,7 @@ describePostgres("durable plugin lifecycle delivery", () => {
       try {
         await drain(d);
         expect(delivered(d)).toEqual(new Set([owned]));
-        expect(await pluginLifecycleInbox(db, pluginId).list(companyId, 100, undefined, ["agent_runtime"])).toEqual([]);
+        expect(await pluginLifecycleInbox(db, pluginId).list(spaceId, 100, undefined, ["agent_runtime"])).toEqual([]);
       } finally {
         await d.worker.dispose();
       }
@@ -309,13 +309,13 @@ describePostgres("durable plugin lifecycle delivery", () => {
 
   it("drains creation before transitions, recovers acknowledgments across dispatcher replacement, and ignores agent events", async () => {
     const id = await event(); await event(id, "update"); await event(id, "delete");
-    await db.transaction(tx => recordResourceCreationEvent(tx as unknown as Db, companyId, "agent", randomUUID()));
+    await db.transaction(tx => recordResourceCreationEvent(tx as unknown as Db, spaceId, "agent", randomUUID()));
     const first = delivery(); await first.run(); await first.worker.dispose();
     expect(first.call.mock.calls.map(c => c[2].action)).toEqual(["create"]);
     const restarted = delivery(); await restarted.run(); await restarted.run(); await restarted.run();
     expect(restarted.call.mock.calls.map(c => c[2].action)).toEqual(["update", "delete"]);
     expect(await restarted.pending()).toBe(false);
-    expect((await pluginLifecycleInbox(db, pluginId).list(companyId)).map(e => e.resourceType)).toEqual(["agent"]);
+    expect((await pluginLifecycleInbox(db, pluginId).list(spaceId)).map(e => e.resourceType)).toEqual(["agent"]);
     await restarted.worker.dispose();
   });
   it("replays failures and invalid acknowledgments without blocking independent resources", async () => {
@@ -329,7 +329,7 @@ describePostgres("durable plugin lifecycle delivery", () => {
     now += 30_000; await d.run(); expect(await d.pending()).toBe(true);
     now += 30_000; await d.run(); await d.run();
     expect(d.call.mock.calls.map(c => c[2].action)).toEqual(["create", "create", "create", "create", "delete"]);
-    expect(await pluginLifecycleInbox(db, pluginId).list(companyId)).toEqual([]);
+    expect(await pluginLifecycleInbox(db, pluginId).list(spaceId)).toEqual([]);
     await d.worker.dispose();
   });
   it("healthy acknowledgments and new events do not bypass a failed event's retry deadline", async () => {
@@ -364,17 +364,17 @@ describePostgres("durable plugin lifecycle delivery", () => {
     expect(d.call).toHaveBeenCalledTimes(2); await d.worker.dispose();
     d.lifecycle.emit("plugin.worker_started"); expect(d.wake).toHaveBeenCalledTimes(1);
   });
-  it("requires ready, configured, company-enabled plugins and rechecks disabling within a batch", async () => {
+  it("requires ready, configured, space-enabled plugins and rechecks disabling within a batch", async () => {
     await event(); await event(); const d = delivery(); const registry = pluginRegistryService(db);
-    await registry.upsertCompanySettings(pluginId, companyId, { enabled: false, settingsJson: {} });
+    await registry.upsertSpaceSettings(pluginId, spaceId, { enabled: false, settingsJson: {} });
     await d.run(); expect(d.call).not.toHaveBeenCalled();
-    await registry.upsertCompanySettings(pluginId, companyId, { enabled: true, settingsJson: {} });
+    await registry.upsertSpaceSettings(pluginId, spaceId, { enabled: true, settingsJson: {} });
     d.call.mockImplementationOnce(async (_p, _m, e) => {
-      await registry.upsertCompanySettings(pluginId, companyId, { enabled: false, settingsJson: {} });
+      await registry.upsertSpaceSettings(pluginId, spaceId, { enabled: false, settingsJson: {} });
       return { eventId: e.id, status: "acknowledged" };
     });
     await d.run(); expect(d.call).toHaveBeenCalledTimes(1);
-    await registry.upsertCompanySettings(pluginId, companyId, { enabled: true, settingsJson: {} });
+    await registry.upsertSpaceSettings(pluginId, spaceId, { enabled: true, settingsJson: {} });
     await db.update(plugins).set({ status: "disabled" }).where(eq(plugins.id, pluginId));
     await d.run(); expect(d.call).toHaveBeenCalledTimes(1);
     await db.update(plugins).set({ status: "ready" }).where(eq(plugins.id, pluginId));
@@ -390,13 +390,13 @@ describePostgres("durable plugin lifecycle delivery", () => {
       });
       expect(wake).toHaveBeenCalledTimes(1);
       const registry = pluginRegistryService(db);
-      await registry.upsertConfig(pluginId, companyId, { companyId, configJson: { enabled: true } });
-      await registry.patchConfig(pluginId, companyId, { companyId, configJson: { enabled: false } });
-      await registry.upsertCompanySettings(pluginId, companyId, { enabled: true, settingsJson: {} });
+      await registry.upsertConfig(pluginId, spaceId, { spaceId, configJson: { enabled: true } });
+      await registry.patchConfig(pluginId, spaceId, { spaceId, configJson: { enabled: false } });
+      await registry.upsertSpaceSettings(pluginId, spaceId, { enabled: true, settingsJson: {} });
       expect(wake).toHaveBeenCalledTimes(4);
     } finally { unsubscribe(); }
     async function eventInTransaction(tx: Db) {
-      await tx.transaction(inner => recordResourceCreationEvent(inner as unknown as Db, companyId, "project", randomUUID()));
+      await tx.transaction(inner => recordResourceCreationEvent(inner as unknown as Db, spaceId, "project", randomUUID()));
     }
   });
   it("retains startup and settled work while idle drain prevents dispatch", async () => {
@@ -425,7 +425,7 @@ describePostgres("durable plugin lifecycle delivery", () => {
     d.settled(); await d.run(); expect(await d.pending()).toBe(false);
     configured = true; d.applied();
     expect(await d.pending()).toBe(true); expect(d.wake).toHaveBeenCalledTimes(1);
-    await d.run(); expect(await pluginLifecycleInbox(db, pluginId).list(companyId)).toEqual([]);
+    await d.run(); expect(await pluginLifecycleInbox(db, pluginId).list(spaceId)).toEqual([]);
     await d.worker.dispose(); d.wake.mockClear(); d.applied(); expect(d.wake).not.toHaveBeenCalled();
   });
   it("retains a failed scan across a retry skipped during idle drain", async () => {
@@ -437,17 +437,17 @@ describePostgres("durable plugin lifecycle delivery", () => {
     expect(await d.pending()).toBe(true); expect(d.call).not.toHaveBeenCalled();
     select.mockRestore(); await d.run(); await d.run();
     expect(await d.pending()).toBe(false);
-    expect(await pluginLifecycleInbox(db, pluginId).list(companyId)).toEqual([]);
+    expect(await pluginLifecycleInbox(db, pluginId).list(spaceId)).toEqual([]);
     await d.worker.dispose();
   });
   it("saves config and settings without borrowing another pool connection", async () => {
     const single = createDb(externalUrl ?? database.connectionString, { maxConnections: 1 });
     try {
       const registry = pluginRegistryService(single);
-      await registry.upsertConfig(pluginId, companyId, { companyId, configJson: { first: true } });
-      await registry.patchConfig(pluginId, companyId, { companyId, configJson: { second: true } });
-      await registry.upsertCompanySettings(pluginId, companyId, { enabled: true, settingsJson: {} });
-      expect((await registry.getConfig(pluginId, companyId))?.configJson).toEqual({ first: true, second: true });
+      await registry.upsertConfig(pluginId, spaceId, { spaceId, configJson: { first: true } });
+      await registry.patchConfig(pluginId, spaceId, { spaceId, configJson: { second: true } });
+      await registry.upsertSpaceSettings(pluginId, spaceId, { enabled: true, settingsJson: {} });
+      expect((await registry.getConfig(pluginId, spaceId))?.configJson).toEqual({ first: true, second: true });
     } finally { await single.$client.end({ timeout: 1 }); }
   }, 5000);
   it("retries listener setup through durable delivery after an enable-time failure", async () => {
@@ -468,7 +468,7 @@ describePostgres("durable plugin lifecycle delivery", () => {
     await db.update(plugins).set({ manifestJson: { resourceLifecycle: ["agent_runtime"], capabilities: ["events.subscribe"] } as never }).where(eq(plugins.id, pluginId));
     const otherPluginId = randomUUID();
     await db.insert(plugins).values({ id: otherPluginId, pluginKey: otherPluginId, packageName: "other-runtime", version: "1.0.0", status: "ready", manifestJson: { resourceLifecycle: ["agent_runtime"], capabilities: ["events.subscribe"] } as never });
-    await db.insert(pluginConfig).values({ pluginId: otherPluginId, companyId, configJson: {} });
+    await db.insert(pluginConfig).values({ pluginId: otherPluginId, spaceId, configJson: {} });
     const first = { unlisten: vi.fn(), state: {} };
     const second = { unlisten: vi.fn(), state: {} };
     const third = { unlisten: vi.fn(), state: {} };
@@ -487,10 +487,10 @@ describePostgres("durable plugin lifecycle delivery", () => {
     await d.run();
     expect(listen).toHaveBeenCalledTimes(2);
     const registry = pluginRegistryService(db);
-    await registry.upsertCompanySettings(pluginId, companyId, { enabled: false, settingsJson: {} });
+    await registry.upsertSpaceSettings(pluginId, spaceId, { enabled: false, settingsJson: {} });
     d.applied();
     await vi.waitFor(() => expect(listenerOwners[1]!.close).toHaveBeenCalledTimes(1));
-    await registry.upsertCompanySettings(pluginId, companyId, { enabled: true, settingsJson: {} });
+    await registry.upsertSpaceSettings(pluginId, spaceId, { enabled: true, settingsJson: {} });
     d.applied(); await d.run();
     expect(listen).toHaveBeenCalledTimes(3);
     await db.delete(plugins).where(eq(plugins.id, pluginId));
@@ -520,7 +520,7 @@ describePostgres("durable plugin lifecycle delivery", () => {
     expect(d.call).toHaveBeenCalledTimes(1);
     const registry = pluginRegistryService(db);
     now += 1_000;
-    await registry.upsertCompanySettings(pluginId, companyId, { enabled: false, settingsJson: {} });
+    await registry.upsertSpaceSettings(pluginId, spaceId, { enabled: false, settingsJson: {} });
     d.applied(); await d.run();
     expect(await d.pending()).toBe(false);
     expect(d.nextRunAt()).toBeNull();
@@ -529,7 +529,7 @@ describePostgres("durable plugin lifecycle delivery", () => {
     expect(inspect?.()).toBe("none");
     stopTaskDrain();
     now += 1_000;
-    await registry.upsertCompanySettings(pluginId, companyId, { enabled: true, settingsJson: {} });
+    await registry.upsertSpaceSettings(pluginId, spaceId, { enabled: true, settingsJson: {} });
     d.applied(); await d.run();
     expect(await d.pending()).toBe(true);
     expect(d.nextRunAt()).toBe(originalDeadline);
@@ -543,7 +543,7 @@ describePostgres("durable plugin lifecycle delivery", () => {
     expect(d.nextRunAt()).toBe(originalDeadline);
     now = originalDeadline; await d.run(); await d.run();
     expect(d.call).toHaveBeenCalledTimes(2);
-    expect(await pluginLifecycleInbox(db, pluginId).list(companyId)).toEqual([]);
+    expect(await pluginLifecycleInbox(db, pluginId).list(spaceId)).toEqual([]);
     expect(await d.pending()).toBe(false);
     expect(d.nextRunAt()).toBeNull();
   });
@@ -655,10 +655,10 @@ describePostgres("durable plugin lifecycle delivery", () => {
     const gate = new Promise<void>(resolve => { release = resolve; });
     listenerOwners[0]!.close.mockImplementationOnce(async () => { entered(); await gate; });
     const preparation = d.worker.prepareForIdleSleep({ canRetire: () => true });
-    try { await began; await db.insert(agents).values({ companyId, name: "Arrived during retirement", adapterType: "process" }); }
+    try { await began; await db.insert(agents).values({ spaceId, name: "Arrived during retirement", adapterType: "process" }); }
     finally { release(); }
     expect(await preparation).toBe("present");
-    expect(await pluginLifecycleInbox(db, pluginId).list(companyId, 1, undefined, ["agent_runtime"])).not.toHaveLength(0);
+    expect(await pluginLifecycleInbox(db, pluginId).list(spaceId, 1, undefined, ["agent_runtime"])).not.toHaveLength(0);
   });
   it("finishes exact already-started cleanup but rejects an invalidated retirement permit", async () => {
     await db.update(plugins).set({ manifestJson: { resourceLifecycle: ["agent_runtime"], capabilities: ["events.subscribe"] } as never }).where(eq(plugins.id, pluginId));
@@ -693,17 +693,17 @@ describePostgres("durable plugin lifecycle delivery", () => {
     vi.mocked(databaseModule.createOwnedDatabaseListener).mockRestore();
     const createListener = databaseModule.createOwnedDatabaseListener;
     let created = 0, arrivalId: string | undefined;
-    const foreignCompany = randomUUID();
-    await db.insert(companies).values({ id: foreignCompany, name: "Foreign expiry runtime", issuePrefix: `X${foreignCompany.slice(0, 6)}` });
+    const foreignSpace = randomUUID();
+    await db.insert(spaces).values({ id: foreignSpace, name: "Foreign expiry runtime", issuePrefix: `X${foreignSpace.slice(0, 6)}` });
     vi.spyOn(databaseModule, "createOwnedDatabaseListener").mockImplementation(owner => {
       const listener = createListener(owner), ordinal = ++created;
       return { listen: listener.listen, close: async () => {
         await listener.close();
         if (ordinal === 1 && !arrivalId) {
           await db.transaction(async tx => {
-            const [arrival] = await tx.insert(agents).values({ companyId, name: "Arrived after physical close", adapterType: "process" }).returning();
+            const [arrival] = await tx.insert(agents).values({ spaceId, name: "Arrived after physical close", adapterType: "process" }).returning();
             arrivalId = arrival!.id;
-            await tx.insert(agents).values({ companyId: foreignCompany, name: "Foreign after physical close", adapterType: "process" });
+            await tx.insert(agents).values({ spaceId: foreignSpace, name: "Foreign after physical close", adapterType: "process" });
           });
         }
       } };
@@ -717,24 +717,24 @@ describePostgres("durable plugin lifecycle delivery", () => {
     try {
       await expiry.ready; await worker.ready;
       await vi.waitFor(() => expect(idleWorkSnapshot().active).toBe(0));
-      const identity = () => db.execute(sql`SELECT pid, backend_start::text AS started, client_port FROM pg_stat_activity WHERE datname = current_database() AND query = 'listen "paperclip_plugin_lifecycle"'`);
+      const identity = () => db.execute(sql`SELECT pid, backend_start::text AS started, client_port FROM pg_stat_activity WHERE datname = current_database() AND query = 'listen "outpost_plugin_lifecycle"'`);
       const [before] = await identity(); expect(before).toBeDefined();
       startTaskDrain({ purpose: "idle", ttlMs: 1_000 });
       await vi.waitFor(() => expect(idleWorkSnapshot().active).toBe(0));
       expect(await worker.prepareForIdleSleep({ canRetire: () => true })).toBe("present");
       expect(await db.execute(sql`SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND pid = ${before!.pid}::integer AND backend_start = ${before!.started}::timestamptz AND client_port = ${before!.client_port}::integer`)).toHaveLength(0);
       expect(created).toBe(1);
-      await vi.waitFor(() => expect(calls.mock.calls.some(([, , value]) => value.resourceId === arrivalId && value.companyId === companyId)).toBe(true), { timeout: 5_000 });
+      await vi.waitFor(() => expect(calls.mock.calls.some(([, , value]) => value.resourceId === arrivalId && value.spaceId === spaceId)).toBe(true), { timeout: 5_000 });
       expect(created).toBe(2);
-      expect(calls.mock.calls.some(([, , value]) => value.companyId === foreignCompany)).toBe(false);
+      expect(calls.mock.calls.some(([, , value]) => value.spaceId === foreignSpace)).toBe(false);
       const [resumed] = await identity(); expect(resumed).toBeDefined(); expect(resumed!.pid).not.toBe(before!.pid);
-      await vi.waitFor(async () => expect(await db.execute(sql`SELECT 1 FROM plugin_lifecycle_acknowledgments ack JOIN resource_lifecycle_events event ON event.id = ack.event_id WHERE ack.plugin_id = ${pluginId}::uuid AND event.resource_id = ${arrivalId}::uuid AND event.company_id = ${companyId}::uuid`)).not.toHaveLength(0), { timeout: 5_000 });
+      await vi.waitFor(async () => expect(await db.execute(sql`SELECT 1 FROM plugin_lifecycle_acknowledgments ack JOIN resource_lifecycle_events event ON event.id = ack.event_id WHERE ack.plugin_id = ${pluginId}::uuid AND event.resource_id = ${arrivalId}::uuid AND event.space_id = ${spaceId}::uuid`)).not.toHaveLength(0), { timeout: 5_000 });
       expect(errors).toEqual([]);
     } finally {
       try { await worker.dispose(); } finally { try { await expiry.stop(); } finally { await coordinator.stop(); } }
     }
   });
-  it("physically closes only its owned LISTEN and recreates it for useful same-company work", async () => {
+  it("physically closes only its owned LISTEN and recreates it for useful same-space work", async () => {
     vi.mocked(databaseModule.createOwnedDatabaseListener).mockRestore();
     vi.mocked(db.$client.listen).mockRestore();
     await db.update(plugins).set({ manifestJson: { resourceLifecycle: ["agent_runtime"], capabilities: ["events.subscribe"] } as never }).where(eq(plugins.id, pluginId));
@@ -743,7 +743,7 @@ describePostgres("durable plugin lifecycle delivery", () => {
     try {
       await d.worker.ready; await d.run(); await d.run();
       const identity = async (channel: string) => db.execute(sql`SELECT pid, backend_start::text AS started, client_port FROM pg_stat_activity WHERE datname = current_database() AND query = ${'listen "' + channel + '"'}`);
-      const [owned] = await identity("paperclip_plugin_lifecycle");
+      const [owned] = await identity("outpost_plugin_lifecycle");
       const [other] = await identity("fixture_other_lifecycle");
       expect(owned).toBeDefined(); expect(other).toBeDefined(); expect(owned!.pid).not.toBe(other!.pid);
       startTaskDrain({ purpose: "idle", ttlMs: 30_000 });
@@ -753,16 +753,16 @@ describePostgres("durable plugin lifecycle delivery", () => {
       expect(await d.worker.prepareForIdleSleep({ canRetire: () => true })).toBe("none");
       stopTaskDrain();
       await d.run(); await d.run();
-      const [resumed] = await identity("paperclip_plugin_lifecycle");
+      const [resumed] = await identity("outpost_plugin_lifecycle");
       expect(resumed).toBeDefined(); expect(resumed!.pid).not.toBe(owned!.pid);
-      const [agent] = await db.insert(agents).values({ companyId, name: "Useful resumed runtime", adapterType: "process" }).returning();
-      const foreignCompany = randomUUID();
-      await db.insert(companies).values({ id: foreignCompany, name: "Foreign runtime", issuePrefix: `F${foreignCompany.slice(0, 6)}` });
-      await db.insert(agents).values({ companyId: foreignCompany, name: "Excluded runtime", adapterType: "process" });
+      const [agent] = await db.insert(agents).values({ spaceId, name: "Useful resumed runtime", adapterType: "process" }).returning();
+      const foreignSpace = randomUUID();
+      await db.insert(spaces).values({ id: foreignSpace, name: "Foreign runtime", issuePrefix: `F${foreignSpace.slice(0, 6)}` });
+      await db.insert(agents).values({ spaceId: foreignSpace, name: "Excluded runtime", adapterType: "process" });
       await d.run(); await d.run();
-      expect(d.call.mock.calls.some(([, , value]) => value.resourceId === agent!.id && value.companyId === companyId)).toBe(true);
-      expect(d.call.mock.calls.some(([, , value]) => value.companyId === foreignCompany)).toBe(false);
-      const acknowledged = await db.execute(sql`SELECT 1 FROM plugin_lifecycle_acknowledgments ack JOIN resource_lifecycle_events event ON event.id = ack.event_id WHERE ack.plugin_id = ${pluginId}::uuid AND event.company_id = ${companyId}::uuid AND event.resource_id = ${agent!.id}::uuid`);
+      expect(d.call.mock.calls.some(([, , value]) => value.resourceId === agent!.id && value.spaceId === spaceId)).toBe(true);
+      expect(d.call.mock.calls.some(([, , value]) => value.spaceId === foreignSpace)).toBe(false);
+      const acknowledged = await db.execute(sql`SELECT 1 FROM plugin_lifecycle_acknowledgments ack JOIN resource_lifecycle_events event ON event.id = ack.event_id WHERE ack.plugin_id = ${pluginId}::uuid AND event.space_id = ${spaceId}::uuid AND event.resource_id = ${agent!.id}::uuid`);
       expect(acknowledged.length).toBeGreaterThan(0);
     } finally { await d.worker.dispose(); await foreign.unlisten(); }
   });
@@ -772,7 +772,7 @@ describePostgres("durable plugin lifecycle delivery", () => {
     try {
       d.call.mockImplementationOnce(async () => { throw Object.assign(new Error("provider-secret-fixture"), { code: -32001 }); });
       await d.run();
-      expect(warn).toHaveBeenCalledWith(expect.objectContaining({ pluginId, companyId, eventId: expect.any(String), stage: "callback", rpcCode: -32001 }), expect.any(String));
+      expect(warn).toHaveBeenCalledWith(expect.objectContaining({ pluginId, spaceId, eventId: expect.any(String), stage: "callback", rpcCode: -32001 }), expect.any(String));
       expect(JSON.stringify(warn.mock.calls)).not.toContain("provider-secret-fixture");
       expect(await d.pending()).toBe(true);
     } finally { warn.mockRestore(); await d.worker.dispose(); }
@@ -780,11 +780,11 @@ describePostgres("durable plugin lifecycle delivery", () => {
   it("rollbacks never expose queue rows even when settlement wakes the dispatcher", async () => {
     const d = delivery();
     await expect(db.transaction(async tx => {
-      await recordResourceCreationEvent(tx as unknown as Db, companyId, "project", randomUUID());
+      await recordResourceCreationEvent(tx as unknown as Db, spaceId, "project", randomUUID());
       throw new Error("rollback");
     })).rejects.toThrow("rollback");
     await d.run(); expect(d.call).not.toHaveBeenCalled(); expect(await d.pending()).toBe(false);
-    expect(await db.select().from(resourceLifecycleEvents).where(eq(resourceLifecycleEvents.companyId, companyId))).toEqual([]);
+    expect(await db.select().from(resourceLifecycleEvents).where(eq(resourceLifecycleEvents.spaceId, spaceId))).toEqual([]);
     await d.worker.dispose();
   });
 });

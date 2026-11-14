@@ -3,10 +3,10 @@ export type VoiceSessionState = typeof VOICE_SESSION_STATES[number];
 export type VoiceSessionMode = "browser" | "inbound_phone" | "outbound_phone";
 export type VoiceCallerAuthority = "member" | "instance_admin" | "local_board" | "guest_intake" | "pending_approval";
 
-/** Safe board projection. No provider key, call token, signing key, or recordings. */
+/** Safe operator projection. No provider key, call token, signing key, or recordings. */
 export interface VoiceSession {
   id: string;
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   issueId: string;
   assignedAgentId: string;

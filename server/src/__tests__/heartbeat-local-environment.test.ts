@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   environmentLeases,
   environments,
@@ -78,7 +78,7 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
     // A run reaches its terminal status before finalizeRun finishes writing
     // its trailing lifecycle events and side effects (see the comment on
     // drainActiveRunExecutions in heartbeat.ts). Drain those in-flight writes
-    // before the TRUNCATE below, or a write that lands after the company row
+    // before the TRUNCATE below, or a write that lands after the space row
     // is gone violates heartbeat_run_events' foreign key.
     await heartbeat.drainActiveRunExecutions();
     await db.execute(sql.raw(`
@@ -90,9 +90,9 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
         "heartbeat_runs",
         "agent_wakeup_requests",
         "agent_runtime_state",
-        "company_skills",
+        "space_skills",
         "agents",
-        "companies"
+        "spaces"
       RESTART IDENTITY CASCADE
     `));
   });
@@ -111,21 +111,21 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
   });
 
   it("runs work through the default Local environment lease", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "responsible-user",
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "ProcessAgent",
       role: "engineer",
       status: "idle",
@@ -168,23 +168,23 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
   });
 
   it("injects run-scoped Outpost env into process agents", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
-    const tempDir = await mkdtemp(join(tmpdir(), "paperclip-process-env-"));
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const tempDir = await mkdtemp(join(tmpdir(), "outpost-process-env-"));
     const envPath = join(tempDir, "env.json");
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "responsible-user",
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "ProcessAgent",
       role: "engineer",
       status: "idle",
@@ -197,7 +197,7 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
             "const fs = require('node:fs');",
             `fs.writeFileSync(${JSON.stringify(envPath)}, JSON.stringify({`,
             "agentId: process.env.OUTPOST_AGENT_ID ?? null,",
-            "companyId: process.env.OUTPOST_COMPANY_ID ?? null,",
+            "spaceId: process.env.OUTPOST_SPACE_ID ?? null,",
             "apiUrl: process.env.OUTPOST_API_URL ?? null,",
             "runId: process.env.OUTPOST_RUN_ID ?? null,",
             "apiKeyPresent: Boolean(process.env.OUTPOST_API_KEY),",
@@ -218,7 +218,7 @@ describeEmbeddedPostgres("heartbeat local environment lifecycle", () => {
     const captured = JSON.parse(await readFile(envPath, "utf8")) as Record<string, unknown>;
     expect(captured).toMatchObject({
       agentId,
-      companyId,
+      spaceId,
       runId: queued!.id,
       apiKeyPresent: true,
     });

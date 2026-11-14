@@ -137,7 +137,7 @@ export async function prepareRetainedCatalogReport(root: string, output: string,
       historyId: hash(JSON.stringify([row.registeredFullName ?? row.fullName, "runner-opencode", model, "local"])),
       status: "broken", stage: "finished", statusDetails: { message: "Reporting gap: retained original unavailable. Original evaluation grade is UNKNOWN. No evaluation was rerun." },
       labels: [{ name: "AS_ID", value: String(row.caseId) }, { name: "parentSuite", value: "Product E2E" },
-        { name: "suite", value: "chat-features" }, { name: "framework", value: "Paperclip Evals" }, { name: "tag", value: "reporting-gap" }],
+        { name: "suite", value: "chat-features" }, { name: "framework", value: "Outpost Evals" }, { name: "tag", value: "reporting-gap" }],
       parameters: [{ name: "canonicalScenario", value: row.key }, { name: "originalGrade", value: "UNKNOWN" }],
       links: [{ name: "Original GitHub Actions run", type: "custom", url: `https://github.com/paperclipai/paperclip/actions/runs/${context.runId}` }],
       steps: [], attachments }), { flag: "wx", mode: 0o600 });

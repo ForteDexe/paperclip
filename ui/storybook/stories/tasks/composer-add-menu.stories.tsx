@@ -52,7 +52,7 @@ function ComposerAddStory({ initialMode, goalAvailable, mobile, mobileContext, f
     const contentPath = URL.createObjectURL(file);
     imageUrls.current.push(contentPath);
     return {
-      id: crypto.randomUUID(), companyId: "storybook", issueId: "composer-story",
+      id: crypto.randomUUID(), spaceId: "storybook", issueId: "composer-story",
       issueCommentId: null, assetId: crypto.randomUUID(), provider: "storybook",
       objectKey: file.name, contentType: file.type, byteSize: file.size, sha256: "storybook",
       originalFilename: file.name, createdByAgentId: null, createdByUserId: "storybook",
@@ -122,7 +122,7 @@ const meta = {
     layout: "fullscreen",
     options: { showPanel: false },
     docs: { description: { component: "The production task composer. The Add menu opens upward on desktop and as a dialog on mobile for files, supported goals, Plan mode, and Ask mode. Plan and Ask are exclusive; selecting a mode shows a removable chip. Cmd+. cycles standard, Plan, and Ask. Mobile stories include capsule agent avatars and the actual bottom navigation." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "tasks/create",
         "tasks/discussion"

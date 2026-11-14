@@ -25,7 +25,7 @@ import type { StatusCardView } from "./types";
 
 export interface StatusCardTileProps {
   card: StatusCardView;
-  companyId: string | null | undefined;
+  spaceId: string | null | undefined;
   onOpen: () => void;
   onRefresh: () => void;
   onRecompile: () => void;
@@ -50,7 +50,7 @@ function stopClick(handler: () => void) {
 
 export function StatusCardTile({
   card,
-  companyId,
+  spaceId,
   onOpen,
   onRefresh,
   onRecompile,
@@ -76,7 +76,7 @@ export function StatusCardTile({
         : null,
     [lifecycle, card.generatingIssueId, card.title],
   );
-  const draftStream = useSummaryDraftStream(companyId, generatingIssue);
+  const draftStream = useSummaryDraftStream(spaceId, generatingIssue);
 
   const policyLabel = describeRefreshPolicy(card.refreshPolicy);
   const tokensLabel = formatTokens(card.todayTokens);

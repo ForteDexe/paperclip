@@ -13,7 +13,7 @@ export const updateAgentInstructionsAction = {
       "standard",
       "planning"
     ],
-    "sideEffectClass": "company_write",
+    "sideEffectClass": "space_write",
     "idempotency": "recommended",
     "disabledByDefault": false,
     "realBindingStatus": "live_codex",
@@ -21,7 +21,7 @@ export const updateAgentInstructionsAction = {
     "orpEvidence": "tool-result item event plus canonical revision receipt for writes; no scenario mock coverage",
     "orpBindingStatus": "bound",
     "legacyAliases": [],
-    "note": "Live canonical instruction service; company scope and current responsible-user authorization are checked at invocation."
+    "note": "Live canonical instruction service; space scope and current responsible-user authorization are checked at invocation."
   },
   "documentation": {
     "title": "Update canonical agent instructions",
@@ -63,7 +63,7 @@ export const updateAgentInstructionsAction = {
           "targetAgentId": {
             "type": "string",
             "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            "description": "Same-company target agent. Omit to use the calling agent."
+            "description": "Same-space target agent. Omit to use the calling agent."
           },
           "entryFile": {
             "type": "string",

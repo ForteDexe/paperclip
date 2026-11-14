@@ -70,28 +70,28 @@ describe("recent selection ordering", () => {
     expect(getRecentProjectIds()).toEqual(["project-1", "project-2"]);
   });
 
-  it("remembers projects and explicit No project separately for each company", () => {
-    expect(getLastProjectId("company-1")).toBeUndefined();
-    trackRecentProject("project-1", "company-1");
-    trackRecentProject("project-2", "company-2");
-    expect(getLastProjectId("company-1")).toBe("project-1");
-    expect(getLastProjectId("company-2")).toBe("project-2");
-    trackRecentProject("", "company-1");
-    expect(getLastProjectId("company-1")).toBe("");
-    expect(getLastProjectId("company-2")).toBe("project-2");
+  it("remembers projects and explicit No project separately for each space", () => {
+    expect(getLastProjectId("space-1")).toBeUndefined();
+    trackRecentProject("project-1", "space-1");
+    trackRecentProject("project-2", "space-2");
+    expect(getLastProjectId("space-1")).toBe("project-1");
+    expect(getLastProjectId("space-2")).toBe("project-2");
+    trackRecentProject("", "space-1");
+    expect(getLastProjectId("space-1")).toBe("");
+    expect(getLastProjectId("space-2")).toBe("project-2");
     expect(getRecentProjectIds()).toEqual(["project-2", "project-1"]);
   });
 
-  it("remembers effort and an explicit Default choice within the company", () => {
-    expect(getLastComposerEffort("company-1")).toBeUndefined();
-    rememberComposerEffort("company-1", "high");
-    rememberComposerEffort("company-2", "ultra");
-    expect(getLastComposerEffort("company-1")).toBe("high");
-    rememberComposerEffort("company-1", null);
-    expect(getLastComposerEffort("company-1")).toBeNull();
-    expect(getLastComposerEffort("company-2")).toBe("ultra");
-    localStorage.setItem("paperclip:composer-effort:company-1", "broken json");
-    expect(getLastComposerEffort("company-1")).toBeUndefined();
+  it("remembers effort and an explicit Default choice within the space", () => {
+    expect(getLastComposerEffort("space-1")).toBeUndefined();
+    rememberComposerEffort("space-1", "high");
+    rememberComposerEffort("space-2", "ultra");
+    expect(getLastComposerEffort("space-1")).toBe("high");
+    rememberComposerEffort("space-1", null);
+    expect(getLastComposerEffort("space-1")).toBeNull();
+    expect(getLastComposerEffort("space-2")).toBe("ultra");
+    localStorage.setItem("outpost:composer-effort:space-1", "broken json");
+    expect(getLastComposerEffort("space-1")).toBeUndefined();
   });
 
   it("tracks recent user and agent assignee selections with prefixed ids", () => {
@@ -102,13 +102,13 @@ describe("recent selection ordering", () => {
     expect(getRecentAssigneeIds()).toEqual(["agent-1"]);
   });
 
-  it("remembers assignees separately in each company", () => {
-    trackRecentAssignee("agent-1", "company-1");
-    trackRecentAssigneeUser("user-1", "company-2");
-    trackRecentAssigneeUser("user-2", "company-1");
+  it("remembers assignees separately in each space", () => {
+    trackRecentAssignee("agent-1", "space-1");
+    trackRecentAssigneeUser("user-1", "space-2");
+    trackRecentAssigneeUser("user-2", "space-1");
 
-    expect(getRecentAssigneeSelectionIds("company-1")).toEqual(["user:user-2", "agent:agent-1"]);
-    expect(getRecentAssigneeSelectionIds("company-2")).toEqual(["user:user-1"]);
-    expect(getRecentAssigneeSelectionIds("company-3")).toEqual([]);
+    expect(getRecentAssigneeSelectionIds("space-1")).toEqual(["user:user-2", "agent:agent-1"]);
+    expect(getRecentAssigneeSelectionIds("space-2")).toEqual(["user:user-1"]);
+    expect(getRecentAssigneeSelectionIds("space-3")).toEqual([]);
   });
 });

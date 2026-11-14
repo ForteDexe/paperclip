@@ -7,7 +7,7 @@ import type {
 import { sql } from "drizzle-orm";
 import { check, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { agents } from "./agents.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { documentRevisions } from "./document_revisions.js";
 import { documents } from "./documents.js";
 import { issues } from "./issues.js";
@@ -18,7 +18,7 @@ export const documentAnnotationThreads = pgTable(
   "document_annotation_threads",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     issueId: uuid("issue_id").references(() => issues.id, { onDelete: "cascade" }),
     routineId: uuid("routine_id").references(() => routines.id, { onDelete: "cascade" }),
     caseId: uuid("case_id").references(() => cases.id, { onDelete: "cascade" }),
@@ -51,34 +51,34 @@ export const documentAnnotationThreads = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyDocumentStatusIdx: index("document_annotation_threads_company_document_status_idx").on(
-      table.companyId,
+    spaceDocumentStatusIdx: index("document_annotation_threads_space_document_status_idx").on(
+      table.spaceId,
       table.documentId,
       table.status,
     ),
-    companyIssueStatusIdx: index("document_annotation_threads_company_issue_status_idx").on(
-      table.companyId,
+    spaceIssueStatusIdx: index("document_annotation_threads_space_issue_status_idx").on(
+      table.spaceId,
       table.issueId,
       table.status,
     ),
-    companyRoutineStatusIdx: index("document_annotation_threads_company_routine_status_idx").on(
-      table.companyId,
+    spaceRoutineStatusIdx: index("document_annotation_threads_space_routine_status_idx").on(
+      table.spaceId,
       table.routineId,
       table.status,
     ),
-    companyCaseStatusIdx: index("document_annotation_threads_company_case_status_idx").on(
-      table.companyId,
+    spaceCaseStatusIdx: index("document_annotation_threads_space_case_status_idx").on(
+      table.spaceId,
       table.caseId,
       table.status,
     ),
-    companyCurrentRevisionOpenIdx: index("document_annotation_threads_company_current_revision_open_idx").on(
-      table.companyId,
+    spaceCurrentRevisionOpenIdx: index("document_annotation_threads_space_current_revision_open_idx").on(
+      table.spaceId,
       table.documentId,
       table.currentRevisionId,
       table.status,
     ),
-    companyAnchorStateIdx: index("document_annotation_threads_company_anchor_state_idx").on(
-      table.companyId,
+    spaceAnchorStateIdx: index("document_annotation_threads_space_anchor_state_idx").on(
+      table.spaceId,
       table.anchorState,
     ),
     exactlyOneOwnerChk: check(

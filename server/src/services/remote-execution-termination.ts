@@ -5,7 +5,7 @@ import { retiredReusableLeasePredecessors } from "./environment-lease-handoff.js
 type Lease = typeof environmentLeases.$inferSelect;
 
 type LeaseIdentity = {
-  id: string; companyId: string; heartbeatRunId: string | null;
+  id: string; spaceId: string; heartbeatRunId: string | null;
   provider: string | null; providerLeaseId: string | null;
 };
 
@@ -17,7 +17,7 @@ export function remoteTerminationReceipt(lease: LeaseIdentity, value: unknown) {
       !lease.providerLeaseId || receipt?.providerLeaseId !== lease.providerLeaseId ||
       !["stopped", "destroyed"].includes(String(receipt?.state))) return undefined;
   return {
-    schema: "outpost.remote-termination.v1", companyId: lease.companyId,
+    schema: "outpost.remote-termination.v1", spaceId: lease.spaceId,
     runId: lease.heartbeatRunId, leaseId: lease.id, provider: lease.provider,
     providerLeaseId: lease.providerLeaseId, state: receipt!.state,
     confirmedAt: new Date().toISOString(),
@@ -32,7 +32,7 @@ export function hasRemoteTerminationReceipt(lease: LeaseIdentity & {
   return Boolean(lease.releasedAt && lease.cleanupStatus === "success" &&
     ["released", "expired", "failed"].includes(lease.status) && receipt &&
     receipt.schema === "outpost.remote-termination.v1" &&
-    receipt.companyId === lease.companyId && receipt.runId === lease.heartbeatRunId &&
+    receipt.spaceId === lease.spaceId && receipt.runId === lease.heartbeatRunId &&
     receipt.leaseId === lease.id && receipt.provider === lease.provider &&
     remoteTerminationReceipt(lease, receipt));
 }
@@ -62,7 +62,7 @@ export async function resolveRemoteTerminationLease(db: Db, lease: Lease): Promi
     eq(environmentLeases.provider, lease.provider), eq(environmentLeases.providerLeaseId, lease.providerLeaseId),
   ));
   const current = history.find(row => row.id === lease.id);
-  if (!current || current.companyId !== lease.companyId || current.heartbeatRunId !== lease.heartbeatRunId) return lease;
+  if (!current || current.spaceId !== lease.spaceId || current.heartbeatRunId !== lease.heartbeatRunId) return lease;
   const tips = history.filter(row => !Object.hasOwn(row.metadata ?? {}, "reusableLeaseSuccessor"));
   if (tips.length !== 1) return current;
   const tip = tips[0]!;
@@ -77,9 +77,9 @@ export async function resolveRemoteTerminationLease(db: Db, lease: Lease): Promi
   } } };
 }
 
-export async function stoppedRemoteCleanupScopes(db: Db, companyId: string, runId: string) {
+export async function stoppedRemoteCleanupScopes(db: Db, spaceId: string, runId: string) {
   const leases = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, companyId), eq(environmentLeases.heartbeatRunId, runId),
+    eq(environmentLeases.spaceId, spaceId), eq(environmentLeases.heartbeatRunId, runId),
   ));
   if (leases.length === 0) return null;
   const resolved = await Promise.all(leases.map(lease => resolveRemoteTerminationLease(db, lease)));
@@ -87,6 +87,6 @@ export async function stoppedRemoteCleanupScopes(db: Db, companyId: string, runI
   return [...new Set(resolved.map(lease => remoteLeaseCleanupScope(lease)!))];
 }
 
-export async function remoteExecutionHasStopped(db: Db, companyId: string, runId: string) {
-  return await stoppedRemoteCleanupScopes(db, companyId, runId) !== null;
+export async function remoteExecutionHasStopped(db: Db, spaceId: string, runId: string) {
+  return await stoppedRemoteCleanupScopes(db, spaceId, runId) !== null;
 }

@@ -1,5 +1,5 @@
 import { and, eq, notInArray } from "drizzle-orm";
-import { agents, builtInManagedResources, userCompanyPreferences, type Db } from "@outpost/db";
+import { agents, builtInManagedResources, userSpacePreferences, type Db } from "@outpost/db";
 import type { ProjectEnvironmentOptions } from "@outpost/shared";
 import { conflict } from "../errors.js";
 import { environmentService } from "./environments.js";
@@ -14,23 +14,23 @@ export interface ProjectCreationEnvironment {
   expectedStorageProviderPluginId?: string | null;
 }
 
-export async function projectEnvironmentOptions(db: Db, companyId: string, actor: ProjectCreationEnvironment = {}): Promise<ProjectEnvironmentOptions> {
+export async function projectEnvironmentOptions(db: Db, spaceId: string, actor: ProjectCreationEnvironment = {}): Promise<ProjectEnvironmentOptions> {
   const svc = environmentService(db);
   const [settings, environments, providers, bindings] = await Promise.all([
     instanceSettingsService(db).get(),
     svc.list({ status: "active" }),
-    listProjectWorkspaceProviders(db, companyId),
-    db.select({ environmentId: builtInManagedResources.resourceId, companyId: builtInManagedResources.companyId })
+    listProjectWorkspaceProviders(db, spaceId),
+    db.select({ environmentId: builtInManagedResources.resourceId, spaceId: builtInManagedResources.spaceId })
       .from(builtInManagedResources).where(eq(builtInManagedResources.resourceKind, "environment")),
   ]);
   let preferredEnvironmentId = settings.defaultEnvironmentId;
   if (actor.agentId || actor.userId) {
     const candidates = db.select({ environmentId: agents.defaultEnvironmentId }).from(agents);
     const [agent] = actor.agentId
-      ? await candidates.where(and(eq(agents.companyId, companyId), eq(agents.id, actor.agentId)))
-      : await candidates.innerJoin(userCompanyPreferences, and(eq(userCompanyPreferences.primaryAgentId, agents.id),
-        eq(userCompanyPreferences.companyId, companyId), eq(userCompanyPreferences.userId, actor.userId!)))
-        .where(and(eq(agents.companyId, companyId), notInArray(agents.status, ["terminated", "pending_approval"])));
+      ? await candidates.where(and(eq(agents.spaceId, spaceId), eq(agents.id, actor.agentId)))
+      : await candidates.innerJoin(userSpacePreferences, and(eq(userSpacePreferences.primaryAgentId, agents.id),
+        eq(userSpacePreferences.spaceId, spaceId), eq(userSpacePreferences.userId, actor.userId!)))
+        .where(and(eq(agents.spaceId, spaceId), notInArray(agents.status, ["terminated", "pending_approval"])));
     preferredEnvironmentId = agent?.environmentId ?? preferredEnvironmentId;
   }
   let preferred = environments.find(environment => environment.id === preferredEnvironmentId)
@@ -40,13 +40,13 @@ export async function projectEnvironmentOptions(db: Db, companyId: string, actor
   if (forcedKubernetes) {
     preferred = environments.find(environment => environment.driver === "sandbox" && environment.metadata?.managedKubernetesSandbox === true);
   } else if (managedOnly && (!preferred || preferred.driver === "local")) {
-    preferred = environments.find(environment => environment.driver === "sandbox" && environment.metadata?.managedByPaperclip === true);
+    preferred = environments.find(environment => environment.driver === "sandbox" && environment.metadata?.managedByOutpost === true);
   }
 
   const groups: ProjectEnvironmentOptions["groups"] = [];
   for (const environment of environments) {
     const owners = bindings.filter(binding => binding.environmentId === environment.id);
-    if (owners.length && !owners.some(binding => binding.companyId === companyId)) continue;
+    if (owners.length && !owners.some(binding => binding.spaceId === spaceId)) continue;
     if (forcedKubernetes && environment.id !== preferred?.id) continue;
     if (managedOnly && environment.driver === "local") continue;
     const storage = projectStorageForEnvironment(environment, providers);
@@ -71,10 +71,10 @@ export async function projectEnvironmentOptions(db: Db, companyId: string, actor
   };
 }
 
-export async function withDefaultProjectStorage(db: Db, companyId: string, rawPolicy: unknown, actor: ProjectCreationEnvironment = {}) {
+export async function withDefaultProjectStorage(db: Db, spaceId: string, rawPolicy: unknown, actor: ProjectCreationEnvironment = {}) {
   const policy = parseProjectExecutionWorkspacePolicy(rawPolicy);
   if (policy?.storageProviderPluginId !== undefined && !actor.environmentId && actor.expectedStorageProviderPluginId === undefined) return rawPolicy;
-  const options = await projectEnvironmentOptions(db, companyId, actor);
+  const options = await projectEnvironmentOptions(db, spaceId, actor);
   const environmentId = actor.environmentId?.toLowerCase() ?? options.defaultEnvironmentId;
   const group = options.groups.find(value => value.environments.some(environment => environment.id === environmentId));
   if (actor.environmentId && !group) throw conflict("The selected environment is unavailable for this project. Select an available environment.", { code: "project_environment_unavailable" });

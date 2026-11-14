@@ -144,7 +144,7 @@ export async function runStandaloneStandaloneDemo(
       fixtureName: `standalone-${resolution.resolvedMode}-standalone-demo`,
       identity: {
         schema: "outpost.orp.identity.v1",
-        companyId: CONTROL_PLANE_CONFORMANCE_OPEN.identity.companyId,
+        spaceId: CONTROL_PLANE_CONFORMANCE_OPEN.identity.spaceId,
         issueId: CONTROL_PLANE_CONFORMANCE_OPEN.identity.issueId,
         runId: CONTROL_PLANE_CONFORMANCE_OPEN.identity.runId,
         environmentLeaseId: "standalone-demo-lease",

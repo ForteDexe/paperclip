@@ -15,7 +15,7 @@ export const lowTrustOutputPromotionTargetSchema = z.object({
 
 export const lowTrustBoundarySchema = z.object({
   mode: z.literal(LOW_TRUST_REVIEW_PRESET),
-  companyId: z.string().guid().optional(),
+  spaceId: z.string().guid().optional(),
   projectIds: z.array(z.string().guid()).optional(),
   rootIssueId: z.string().guid().optional(),
   issueIds: z.array(z.string().guid()).optional(),
@@ -32,7 +32,7 @@ export const lowTrustReviewPresetPolicySchema = z.object({
 }).strict();
 
 export const assignmentAuthorizationPolicySchema = z.object({
-  mode: z.enum(["company_default", "protected"]).optional(),
+  mode: z.enum(["space_default", "protected"]).optional(),
   // Legacy compatibility only. This remains a hard block and never creates an approval.
   protectedAgentRequiresApproval: z.boolean().optional(),
 }).catchall(z.unknown());

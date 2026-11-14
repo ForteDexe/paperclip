@@ -15,18 +15,18 @@ export const reassignTaskAction = {
     "taskModes": [
       "standard"
     ],
-    "sideEffectClass": "company_write",
+    "sideEffectClass": "space_write",
     "idempotency": "required",
     "disabledByDefault": false,
     "realBindingStatus": "live_codex",
-    "realServiceBinding": "PaperclipRunnerToolAuthority.reassign_task",
-    "orpEvidence": "semantic-operation item event plus company-entity state diff and audit record",
+    "realServiceBinding": "OutpostRunnerToolAuthority.reassign_task",
+    "orpEvidence": "semantic-operation item event plus space-entity state diff and audit record",
     "orpBindingStatus": "bound",
     "legacyAliases": []
   },
   "documentation": {
     "title": "Reassign task",
-    "description": "Reassign an existing task to another company agent. Read search_tasks first and supply its current assignee and statusVersion to prevent overwriting a concurrent change. Preserve the task, documents, dependencies, and blocked/backlog status. Active work is stopped before handoff. Use a stable idempotency key for retries. Cannot reassign this run\u2019s own task, conversations, completed tasks, or pending reviews; use create_task for delegation from the current task.",
+    "description": "Reassign an existing task to another space agent. Read search_tasks first and supply its current assignee and statusVersion to prevent overwriting a concurrent change. Preserve the task, documents, dependencies, and blocked/backlog status. Active work is stopped before handoff. Use a stable idempotency key for retries. Cannot reassign this run\u2019s own task, conversations, completed tasks, or pending reviews; use create_task for delegation from the current task.",
     "note": null
   },
   "examples": {
@@ -75,7 +75,7 @@ export const reassignTaskAction = {
       "operationId": "reassign_task",
       "version": 1,
       "title": "Reassign task",
-      "description": "Reassign an existing task to another company agent. Read search_tasks first and supply its current assignee and statusVersion to prevent overwriting a concurrent change. Preserve the task, documents, dependencies, and blocked/backlog status. Active work is stopped before handoff. Use a stable idempotency key for retries. Cannot reassign this run\u2019s own task, conversations, completed tasks, or pending reviews; use create_task for delegation from the current task.",
+      "description": "Reassign an existing task to another space agent. Read search_tasks first and supply its current assignee and statusVersion to prevent overwriting a concurrent change. Preserve the task, documents, dependencies, and blocked/backlog status. Active work is stopped before handoff. Use a stable idempotency key for retries. Cannot reassign this run\u2019s own task, conversations, completed tasks, or pending reviews; use create_task for delegation from the current task.",
       "exposure": "optional",
       "requiredClaims": [
         "delegation:tasks:assign"
@@ -100,7 +100,7 @@ export const reassignTaskAction = {
           "assigneeUserId": { "type": ["string", "null"], "description": "Outpost person ID from list_people. Mutually exclusive with assigneeActorId." },
           "assigneeActorId": {
             "type": ["string", "null"],
-            "description": "New company agent ID from list_agents; null when assigning a person."
+            "description": "New space agent ID from list_agents; null when assigning a person."
           },
           "expectedAssigneeUserId": { "type": ["string", "null"], "description": "Current assigneeUserId from search_tasks; omit only when there is no person assigned." },
           "expectedAssigneeActorId": {
@@ -189,7 +189,7 @@ export const reassignTaskAction = {
       "operationId": "reassign_task",
       "version": 1,
       "title": "Reassign task",
-      "description": "Reassign an existing task to another company agent. Read search_tasks first and supply its current assignee and statusVersion to prevent overwriting a concurrent change. Preserve the task, documents, dependencies, and blocked/backlog status. Active work is stopped before handoff. Use a stable idempotency key for retries. Cannot reassign this run\u2019s own task, conversations, completed tasks, or pending reviews; use create_task for delegation from the current task.",
+      "description": "Reassign an existing task to another space agent. Read search_tasks first and supply its current assignee and statusVersion to prevent overwriting a concurrent change. Preserve the task, documents, dependencies, and blocked/backlog status. Active work is stopped before handoff. Use a stable idempotency key for retries. Cannot reassign this run\u2019s own task, conversations, completed tasks, or pending reviews; use create_task for delegation from the current task.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -201,7 +201,7 @@ export const reassignTaskAction = {
           "assigneeUserId": { "type": ["string", "null"], "description": "Outpost person ID from list_people. Mutually exclusive with assigneeActorId." },
           "assigneeActorId": {
             "type": ["string", "null"],
-            "description": "New company agent ID from list_agents; null when assigning a person."
+            "description": "New space agent ID from list_agents; null when assigning a person."
           },
           "expectedAssigneeUserId": { "type": ["string", "null"], "description": "Current assigneeUserId from search_tasks; omit only when there is no person assigned." },
           "expectedAssigneeActorId": {
@@ -274,7 +274,7 @@ export const reassignTaskAction = {
       "taskModes": [
         "standard"
       ],
-      "sideEffectClass": "company_write",
+      "sideEffectClass": "space_write",
       "idempotency": "required",
       "redaction": [],
       "mockCommandMapping": {

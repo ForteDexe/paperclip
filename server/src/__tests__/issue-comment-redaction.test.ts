@@ -13,9 +13,9 @@ import {
 } from "vitest";
 import {
   assets,
-  companies,
+  spaces,
   closeRegisteredClients,
-  companyMemberships,
+  spaceMemberships,
   createDb,
   issueAttachments,
   issueComments,
@@ -23,7 +23,7 @@ import {
   issues,
 } from "@outpost/db";
 import {
-  companySearchQuerySchema,
+  spaceSearchQuerySchema,
   LOW_TRUST_REVIEW_PRESET,
 } from "@outpost/shared";
 import {
@@ -32,8 +32,8 @@ import {
 } from "./helpers/embedded-postgres.js";
 import { errorHandler } from "../middleware/index.js";
 import { issueRoutes } from "../routes/issues.js";
-import { companySearchService } from "../services/company-search.js";
-import { buildPaperclipWakePayload } from "../services/heartbeat.js";
+import { spaceSearchService } from "../services/space-search.js";
+import { buildOutpostWakePayload } from "../services/heartbeat.js";
 import { issueReferenceService } from "../services/issue-references.js";
 import { issueService } from "../services/issues.js";
 import type { StorageService } from "../storage/types.js";
@@ -63,7 +63,7 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
       db = createDb(externalTestDatabaseUrl);
     } else {
       tempDb = await startEmbeddedPostgresTestDatabase(
-        "paperclip-comment-redaction-",
+        "outpost-comment-redaction-",
       );
       db = createDb(tempDb.connectionString);
     }
@@ -76,8 +76,8 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
     await db.delete(issueComments);
     await db.delete(assets);
     await db.delete(issues);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -88,45 +88,45 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
   });
 
   async function seedIssue() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Comment Redaction Co",
-      issuePrefix: `R${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+      issuePrefix: `R${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       identifier: "RED-1",
       title: "Deleted comment redaction",
       status: "todo",
       priority: "medium",
     });
-    await db.insert(companyMemberships).values({
-      companyId,
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "user",
-      principalId: "board-user-1",
+      principalId: "operator-user-1",
       status: "active",
       membershipRole: "owner",
       updatedAt: new Date(),
     });
-    return { companyId, issueId };
+    return { spaceId, issueId };
   }
 
-  function createApp(companyId: string) {
+  function createApp(spaceId: string) {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
       (req as any).actor = {
-        type: "board",
-        userId: "board-user-1",
-        companyIds: [companyId],
-        memberships: [{ companyId, membershipRole: "owner", status: "active" }],
+        type: "operator",
+        userId: "operator-user-1",
+        spaceIds: [spaceId],
+        memberships: [{ spaceId, membershipRole: "owner", status: "active" }],
         source: "cloud_tenant",
         // cloud_tenant actors are never instance admins — reads flow through
-        // the active company membership seeded in seedIssue().
+        // the active space membership seeded in seedIssue().
         isInstanceAdmin: false,
       };
       next();
@@ -148,14 +148,14 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
   }
 
   it("redacts deleted comment bodies from ordinary reads, heartbeat context, and wake payloads", async () => {
-    const { companyId, issueId } = await seedIssue();
+    const { spaceId, issueId } = await seedIssue();
     const commentId = randomUUID();
     const deletedAt = new Date("2026-06-03T12:00:00.000Z");
     await db.insert(issueComments).values({
       id: commentId,
-      companyId,
+      spaceId,
       issueId,
-      authorUserId: "board-user-1",
+      authorUserId: "operator-user-1",
       body: "secret deleted body",
       presentation: { kind: "system_notice", tone: "warning", detailsDefaultOpen: false },
       metadata: {
@@ -164,7 +164,7 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
       },
       deletedAt,
       deletedByType: "user",
-      deletedByUserId: "board-user-1",
+      deletedByUserId: "operator-user-1",
     });
 
     const comments = await issueService(db).listComments(issueId, {
@@ -178,14 +178,14 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
       metadata: null,
       deletedAt,
       deletedByType: "user",
-      deletedByUserId: "board-user-1",
+      deletedByUserId: "operator-user-1",
     });
 
     const exactComment = await issueService(db).getComment(commentId);
     expect(exactComment?.body).toBe("");
     expect(exactComment?.metadata).toBeNull();
 
-    const heartbeatContext = await request(createApp(companyId))
+    const heartbeatContext = await request(createApp(spaceId))
       .get(`/api/issues/${issueId}/heartbeat-context`)
       .query({ wakeCommentId: commentId });
     expect(heartbeatContext.status, JSON.stringify(heartbeatContext.body)).toBe(
@@ -195,7 +195,7 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
       id: commentId,
       body: "",
       metadata: null,
-      deletedByUserId: "board-user-1",
+      deletedByUserId: "operator-user-1",
     });
     expect(JSON.stringify(heartbeatContext.body)).not.toContain(
       "secret deleted body",
@@ -204,9 +204,9 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
       "secret metadata",
     );
 
-    const wakePayload = await buildPaperclipWakePayload({
+    const wakePayload = await buildOutpostWakePayload({
       db,
-      companyId,
+      spaceId,
       contextSnapshot: {
         issueId,
         commentId,
@@ -223,19 +223,19 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
         presentation: null,
         metadata: null,
         deletedAt: deletedAt.toISOString(),
-        deletedByUserId: "board-user-1",
+        deletedByUserId: "operator-user-1",
       }),
     ]);
     expect(JSON.stringify(wakePayload)).not.toContain("secret deleted body");
     expect(JSON.stringify(wakePayload)).not.toContain("secret metadata");
   });
 
-  it("never includes a same-company comment from another issue in a wake payload", async () => {
-    const { companyId, issueId } = await seedIssue();
+  it("never includes a same-space comment from another issue in a wake payload", async () => {
+    const { spaceId, issueId } = await seedIssue();
     const foreignIssueId = randomUUID();
     await db.insert(issues).values({
       id: foreignIssueId,
-      companyId,
+      spaceId,
       identifier: "RED-2",
       title: "Foreign issue",
       status: "todo",
@@ -245,23 +245,23 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
       .insert(issueComments)
       .values([
         {
-          companyId,
+          spaceId,
           issueId,
-          authorUserId: "board-user-1",
+          authorUserId: "operator-user-1",
           body: "Full external instruction. TRAILING-CLAUSE: keep this exact requirement.",
         },
         {
-          companyId,
+          spaceId,
           issueId: foreignIssueId,
-          authorUserId: "board-user-1",
+          authorUserId: "operator-user-1",
           body: "FOREIGN-ISSUE-SECRET must never cross the task boundary",
         },
       ])
       .returning();
 
-    const wakePayload = await buildPaperclipWakePayload({
+    const wakePayload = await buildOutpostWakePayload({
       db,
-      companyId,
+      spaceId,
       contextSnapshot: {
         issueId,
         wakeCommentId: sourceComment!.id,
@@ -286,31 +286,31 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
     expect(JSON.stringify(wakePayload)).not.toContain("FOREIGN-ISSUE-SECRET");
   });
 
-  it("includes bounded attachment descriptors only for requested comments in the same company and issue", async () => {
-    const { companyId, issueId } = await seedIssue();
+  it("includes bounded attachment descriptors only for requested comments in the same space and issue", async () => {
+    const { spaceId, issueId } = await seedIssue();
     const otherIssueId = randomUUID();
-    const otherCompanyId = randomUUID();
-    const otherCompanyIssueId = randomUUID();
-    await db.insert(companies).values({
-      id: otherCompanyId,
+    const otherSpaceId = randomUUID();
+    const otherSpaceIssueId = randomUUID();
+    await db.insert(spaces).values({
+      id: otherSpaceId,
       name: "Other Attachment Co",
       issuePrefix: "OAT",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(issues).values([
       {
         id: otherIssueId,
-        companyId,
+        spaceId,
         identifier: "RED-ATT-2",
         title: "Other attachment issue",
         status: "todo",
         priority: "medium",
       },
       {
-        id: otherCompanyIssueId,
-        companyId: otherCompanyId,
+        id: otherSpaceIssueId,
+        spaceId: otherSpaceId,
         identifier: "OAT-1",
-        title: "Other company attachment issue",
+        title: "Other space attachment issue",
         status: "todo",
         priority: "medium",
       },
@@ -320,24 +320,24 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
       unrequestedComment,
       quarantinedComment,
       otherIssueComment,
-      otherCompanyComment,
+      otherSpaceComment,
     ] = await db
       .insert(issueComments)
       .values([
         {
-          companyId,
+          spaceId,
           issueId,
-          authorUserId: "board-user-1",
+          authorUserId: "operator-user-1",
           body: "Inspect the attached evidence.",
         },
         {
-          companyId,
+          spaceId,
           issueId,
-          authorUserId: "board-user-1",
+          authorUserId: "operator-user-1",
           body: "Same task, not part of this wake.",
         },
         {
-          companyId,
+          spaceId,
           issueId,
           body: "Quarantined file instructions.",
           sourceTrust: {
@@ -347,76 +347,76 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
           },
         },
         {
-          companyId,
+          spaceId,
           issueId: otherIssueId,
-          authorUserId: "board-user-1",
+          authorUserId: "operator-user-1",
           body: "Other task.",
         },
         {
-          companyId: otherCompanyId,
-          issueId: otherCompanyIssueId,
+          spaceId: otherSpaceId,
+          issueId: otherSpaceIssueId,
           authorUserId: "other-user",
-          body: "Other company.",
+          body: "Other space.",
         },
       ])
       .returning();
     const attachmentFixtures = [
       {
-        companyId,
+        spaceId,
         issueId,
         issueCommentId: sourceComment!.id,
         filename: "evidence.png",
       },
       {
-        companyId,
+        spaceId,
         issueId,
         issueCommentId: unrequestedComment!.id,
         filename: "same-task-unrequested.txt",
       },
       {
-        companyId,
+        spaceId,
         issueId,
         issueCommentId: quarantinedComment!.id,
         filename: "quarantined.txt",
       },
       {
-        companyId,
+        spaceId,
         issueId: otherIssueId,
         issueCommentId: otherIssueComment!.id,
         filename: "other-task.txt",
       },
       {
-        companyId: otherCompanyId,
-        issueId: otherCompanyIssueId,
-        issueCommentId: otherCompanyComment!.id,
-        filename: "other-company.txt",
+        spaceId: otherSpaceId,
+        issueId: otherSpaceIssueId,
+        issueCommentId: otherSpaceComment!.id,
+        filename: "other-space.txt",
       },
     ];
     for (const [index, fixture] of attachmentFixtures.entries()) {
       const [asset] = await db
         .insert(assets)
         .values({
-          companyId: fixture.companyId,
+          spaceId: fixture.spaceId,
           provider: "local_disk",
           objectKey: `wake-attachment-${index}`,
           contentType: index === 0 ? "image/png" : "text/plain",
           byteSize: index === 0 ? 2048 : 128,
           sha256: `sha-${index}`,
           originalFilename: fixture.filename,
-          createdByUserId: "board-user-1",
+          createdByUserId: "operator-user-1",
         })
         .returning();
       await db.insert(issueAttachments).values({
-        companyId: fixture.companyId,
+        spaceId: fixture.spaceId,
         issueId: fixture.issueId,
         issueCommentId: fixture.issueCommentId,
         assetId: asset!.id,
       });
     }
 
-    const wakePayload = await buildPaperclipWakePayload({
+    const wakePayload = await buildOutpostWakePayload({
       db,
-      companyId,
+      spaceId,
       contextSnapshot: {
         issueId,
         wakeCommentIds: [
@@ -424,7 +424,7 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
           sourceComment!.id,
           quarantinedComment!.id,
           otherIssueComment!.id,
-          otherCompanyComment!.id,
+          otherSpaceComment!.id,
         ],
         wakeReason: "issue_commented",
       },
@@ -454,12 +454,12 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
       "same-task-unrequested.txt",
     );
     expect(JSON.stringify(wakePayload)).not.toContain("other-task.txt");
-    expect(JSON.stringify(wakePayload)).not.toContain("other-company.txt");
+    expect(JSON.stringify(wakePayload)).not.toContain("other-space.txt");
     expect(JSON.stringify(wakePayload)).not.toContain("quarantined.txt");
 
-    const lowTrustWakePayload = await buildPaperclipWakePayload({
+    const lowTrustWakePayload = await buildOutpostWakePayload({
       db,
-      companyId,
+      spaceId,
       contextSnapshot: {
         issueId,
         wakeCommentIds: [quarantinedComment!.id],
@@ -478,17 +478,17 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
   });
 
   it("serializes comment timestamps as ISO strings through the redacted comments route (PAP-16607)", async () => {
-    const { companyId, issueId } = await seedIssue();
+    const { spaceId, issueId } = await seedIssue();
     const commentId = randomUUID();
     await db.insert(issueComments).values({
       id: commentId,
-      companyId,
+      spaceId,
       issueId,
-      authorUserId: "board-user-1",
+      authorUserId: "operator-user-1",
       body: "ordinary comment",
     });
 
-    const response = await request(createApp(companyId)).get(
+    const response = await request(createApp(spaceId)).get(
       `/api/issues/${issueId}/comments`,
     );
     expect(response.status, JSON.stringify(response.body)).toBe(200);
@@ -502,20 +502,20 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
     expect(typeof response.body[0].updatedAt).toBe("string");
   });
 
-  it("excludes deleted comment bodies from company search", async () => {
-    const { companyId, issueId } = await seedIssue();
+  it("excludes deleted comment bodies from space search", async () => {
+    const { spaceId, issueId } = await seedIssue();
     await db.insert(issueComments).values({
-      companyId,
+      spaceId,
       issueId,
       body: "vanished-search-needle",
       deletedAt: new Date("2026-06-03T12:00:00.000Z"),
       deletedByType: "user",
-      deletedByUserId: "board-user-1",
+      deletedByUserId: "operator-user-1",
     });
 
-    const result = await companySearchService(db).search(
-      companyId,
-      companySearchQuerySchema.parse({
+    const result = await spaceSearchService(db).search(
+      spaceId,
+      spaceSearchQuerySchema.parse({
         q: "vanished-search-needle",
         scope: "comments",
       }),
@@ -525,20 +525,20 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
   });
 
   it("clears issue references sourced from deleted comment bodies", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const sourceIssueId = randomUUID();
     const targetIssueId = randomUUID();
     const commentId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Reference Redaction Co",
       issuePrefix: "REF",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(issues).values([
       {
         id: sourceIssueId,
-        companyId,
+        spaceId,
         identifier: "REF-1",
         title: "Source issue",
         status: "todo",
@@ -546,7 +546,7 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
       },
       {
         id: targetIssueId,
-        companyId,
+        spaceId,
         identifier: "REF-2",
         title: "Target issue",
         status: "todo",
@@ -555,7 +555,7 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
     ]);
     await db.insert(issueComments).values({
       id: commentId,
-      companyId,
+      spaceId,
       issueId: sourceIssueId,
       body: "Follow up in REF-2",
     });
@@ -571,7 +571,7 @@ describeEmbeddedPostgres("deleted issue comment redaction", () => {
     await db.update(issueComments).set({
       deletedAt: new Date("2026-06-03T12:00:00.000Z"),
       deletedByType: "user",
-      deletedByUserId: "board-user-1",
+      deletedByUserId: "operator-user-1",
     });
     await refs.syncComment(commentId);
 

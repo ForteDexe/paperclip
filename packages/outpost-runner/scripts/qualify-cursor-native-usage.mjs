@@ -37,9 +37,9 @@ export async function qualifyCursorNativeUsage(vendorRoot) {
     assert.throws(() => patchCursorRuntimeSource(original + "\n", platform), /digest mismatch/);
     const exported = {}; runInNewContext(source, { exports: exported });
     assert.ok(exported.modules["./src/acp/agent-session.ts"]);
-    const collector = runInNewContext(segment(source, "const paperclipCreateCursorUsage=", ";const paperclipCursorResponseError=") + ";paperclipCreateCursorUsage");
+    const collector = runInNewContext(segment(source, "const outpostCreateCursorUsage=", ";const outpostCursorResponseError=") + ";outpostCreateCursorUsage");
     let ids = 0;
-    const scope = { V: awaiter, G: 10, paperclipCreateCursorUsage: collector,
+    const scope = { V: awaiter, G: 10, outpostCreateCursorUsage: collector,
       crypto: { randomUUID: () => `00000000-0000-0000-0000-${String(++ids).padStart(12, "0")}` } };
     const handlePrompt = runInNewContext(`({${segment(source, "handlePrompt(e){", "claimTaskToolCall(e,t){")}}).handlePrompt`, scope);
     const invocationSource = segment(source, "D=async e=>", ",yield D(y)");
@@ -47,8 +47,8 @@ export async function qualifyCursorNativeUsage(vendorRoot) {
     // Execute the vendor's object construction and reuse transition, rather
     // than assuming a hand-built child's fields match the pinned implementation.
     const childLifecycle = runInNewContext(`(class {${segment(source, "beginOrUpdateRun(e,t){", "announce(e,t){")}}).prototype`);
-    assert.ok(source.includes("yield this.processPrompt(e,s,l,paperclipUsage)"));
-    assert.ok(source.includes("processPrompt(e,t,n,paperclipUsage){"));
+    assert.ok(source.includes("yield this.processPrompt(e,s,l,outpostUsage)"));
+    assert.ok(source.includes("processPrompt(e,t,n,outpostUsage){"));
     const checks = [];
     const createHost = backend => {
       const publisher = { turn: 0, children: new Map(), enabled: true,
@@ -63,7 +63,7 @@ export async function qualifyCursorNativeUsage(vendorRoot) {
         sharedServices: { agentClient: { run: backend } },
         async processPrompt(request, context, turn, usage) {
           const invoke = runInNewContext(`(function(){let D;${invocationSource};return D;})`, {
-            paperclipUsage: usage, t: context, b: { modelDetails: {} }, $: { sendUpdate: async () => {} }, u: {}, x: [], A: [], M: {}, k: {},
+            outpostUsage: usage, t: context, b: { modelDetails: {} }, $: { sendUpdate: async () => {} }, u: {}, x: [], A: [], M: {}, k: {},
           }).call(this);
           await request.execute({ invoke, usage, context, turn, publisher });
         },
@@ -74,16 +74,16 @@ export async function qualifyCursorNativeUsage(vendorRoot) {
       await callbacks.sendUpdate({}, event(action));
     });
     const first = await successful.run({ execute: async ({ invoke }) => { await invoke({ inputTokens: 12n }); await invoke({ outputTokens: 3n }); } });
-    const envelope = first._meta.paperclipCursorUsage;
+    const envelope = first._meta.outpostCursorUsage;
     assert.equal(first.stopReason, "end_turn"); assert.equal(first.usage, undefined);
     assert.equal(envelope.completeness, "partial");
     assert.deepEqual(plain(envelope.observations.map(row => row.counters)), [{ inputTokens: 12 }, { outputTokens: 3 }]);
-    assert.equal(successful.publisher.paperclipUsageCollectors.size, 0);
+    assert.equal(successful.publisher.outpostUsageCollectors.size, 0);
     checks.push("exact_parent_invocation_capture", "separate_followups", "no_standard_usage");
 
     const second = await successful.run({ execute: async ({ invoke }) => { await invoke({ outputTokens: 1 }); } });
-    assert.notEqual(second._meta.paperclipCursorUsage.promptId, envelope.promptId);
-    assert.equal(second._meta.paperclipCursorUsage.observations.length, 1);
+    assert.notEqual(second._meta.outpostCursorUsage.promptId, envelope.promptId);
+    assert.equal(second._meta.outpostCursorUsage.observations.length, 1);
     checks.push("warm_prompt_isolation");
 
     const childHost = createHost(async () => {});
@@ -102,7 +102,7 @@ export async function qualifyCursorNativeUsage(vendorRoot) {
       publisher.onInteractionUpdate("unknown-history-child", event({ inputTokens: 999n }));
       child.terminal = true; publisher.onInteractionUpdate("native-child", event({ inputTokens: 999n }));
     } });
-    const childEnvelope = childResult._meta.paperclipCursorUsage;
+    const childEnvelope = childResult._meta.outpostCursorUsage;
     assert.deepEqual(plain(childEnvelope.observations.map(row => [row.role, row.nativeRun, row.counters.inputTokens])), [["child", 1, 7]]);
     assert.ok(childEnvelope.reasons.includes("child_run_attribution_unverified"));
     childHost.publisher.children.get("native-child").terminal = false;
@@ -120,16 +120,16 @@ export async function qualifyCursorNativeUsage(vendorRoot) {
     const next = await overlapping.run({ execute: async ({ invoke }) => invoke("second") });
     release.resolve(); const cancelled = await pending;
     assert.equal(cancelled.stopReason, "cancelled");
-    assert.deepEqual(plain(cancelled._meta.paperclipCursorUsage.observations.map(row => row.counters.inputTokens)), [10]);
-    assert.deepEqual(plain(next._meta.paperclipCursorUsage.observations.map(row => row.counters.inputTokens)), [20]);
+    assert.deepEqual(plain(cancelled._meta.outpostCursorUsage.observations.map(row => row.counters.inputTokens)), [10]);
+    assert.deepEqual(plain(next._meta.outpostCursorUsage.observations.map(row => row.counters.inputTokens)), [20]);
     await oldCallback.sendUpdate({}, event({ inputTokens: 999 }));
-    assert.equal(cancelled._meta.paperclipCursorUsage.observations.length, 1);
-    assert.equal(overlapping.publisher.paperclipUsageCollectors.size, 0);
+    assert.equal(cancelled._meta.outpostCursorUsage.observations.length, 1);
+    assert.equal(overlapping.publisher.outpostUsageCollectors.size, 0);
     checks.push("overlapping_cancellation", "late_parent_callback_isolation");
 
     const failure = createHost(async () => { throw new Error("fixture transport failure"); });
     await assert.rejects(failure.run({ execute: async ({ invoke }) => invoke({}) }), /fixture transport failure/);
-    assert.equal(failure.publisher.paperclipUsageCollectors.size, 0);
+    assert.equal(failure.publisher.outpostUsageCollectors.size, 0);
     checks.push("exception_cleanup");
     platforms.push({ platform, vendorSha256: hash(original), candidateSha256: hash(source), checks });
   }

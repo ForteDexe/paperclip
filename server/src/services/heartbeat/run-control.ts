@@ -102,7 +102,7 @@ import {
   agentWakeupRequests,
   browserUseRuns,
   browserUseSessions,
-  companies,
+  spaces,
   environmentLeases,
   heartbeatRuns,
   heartbeatRunEvents,
@@ -294,7 +294,7 @@ export type CancelRunOptions = {
     /** Return null if a parked retry was promoted or settled before this cancellation. */
     expectedStatus?: "scheduled_retry";
     budgetEnforcement?: BudgetEnforcementScope;
-    /** Optional board request identity, atomically reserved for native Stop. */
+    /** Optional operator request identity, atomically reserved for native Stop. */
     cancellationRequestId?: string;
     cancellationRequestedByUserId?: string | null;
     errorCode?: string;
@@ -330,7 +330,7 @@ function runCancellationFenceSql(input: {
     ? sql`coalesce(${heartbeatRuns.resultJson}->'startupCancellation', ${startupCancellation})`
     : startupCancellation;
   if (input.budgetEnforcement) {
-    const intent = JSON.stringify({ companyId: input.budgetEnforcement.companyId,
+    const intent = JSON.stringify({ spaceId: input.budgetEnforcement.spaceId,
       scopeType: input.budgetEnforcement.scopeType, scopeId: input.budgetEnforcement.scopeId,
       policyId: input.budgetEnforcement.enforcement?.policyId, version: input.budgetEnforcement.enforcement?.version,
       createdBefore: input.budgetEnforcement.createdBefore?.toISOString() });
@@ -375,7 +375,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
 
   async function releaseEnvironmentLeasesForRun(input: {
     runId: string;
-    companyId: string;
+    spaceId: string;
     agentId: string;
     status: string | null | undefined;
     failureReason?: string | null;
@@ -464,7 +464,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       const remoteLeases = closeResult.failed > 0 && leaseOwnerRun &&
           ["cancelled", "failed", "timed_out", "interrupted"].includes(leaseOwnerRun.status)
         ? await db.select({ provider: environmentLeases.provider }).from(environmentLeases).where(and(
-            eq(environmentLeases.companyId, input.companyId),
+            eq(environmentLeases.spaceId, input.spaceId),
             eq(environmentLeases.heartbeatRunId, input.runId),
           ))
         : [];
@@ -481,7 +481,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     const releaseResult = await envOrchestrator
       .releaseForRun({
         heartbeatRunId: input.runId,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         agentId: input.agentId,
         status: leaseReleaseStatusForRunStatus(status),
         failureReason: input.failureReason ?? undefined,
@@ -506,17 +506,17 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
         "failed to release environment lease for heartbeat run",
       );
     }
-    await acknowledgeRemoteStop(input.runId, input.companyId);
+    await acknowledgeRemoteStop(input.runId, input.spaceId);
   }
 
-  async function acknowledgeRemoteStop(runId: string, companyId: string) {
+  async function acknowledgeRemoteStop(runId: string, spaceId: string) {
     // The provider receipt arrives after adapter settlement. A remote ACP child
     // has no host PID, so only this target-aware boundary can acknowledge Stop.
     const state = await getRunCleanupState(runId);
     if (state?.runtimeMode === "native") {
-      const scopes = await stoppedRemoteCleanupScopes(db, companyId, runId);
+      const scopes = await stoppedRemoteCleanupScopes(db, spaceId, runId);
       for (const remoteCleanupScope of scopes ?? []) {
-        completeTerminatedRemoteNativeSessionCleanup({ companyId, runId, remoteCleanupScope });
+        completeTerminatedRemoteNativeSessionCleanup({ spaceId, runId, remoteCleanupScope });
       }
     }
     // Finalization can append a harmless event after proof was read. Retry
@@ -527,12 +527,12 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       // exact remote lease teardown, or the API provider's terminal receipt and
       // the local controller's retirement, before publishing shared Stop proof.
       // Keep workspace preservation separate: a stopped provider can still owe files.
-      if (stopped?.status === "cancelled" && stopped.companyId === companyId &&
+      if (stopped?.status === "cancelled" && stopped.spaceId === spaceId &&
           parseObject(stopped.resultJson?.executionCancellation).state === "requested" &&
           (stopped.runtimeMode === "native" ? isAcknowledgedNativeStop(stopped)
             : stopped.runtimeMode === "legacy" && await runUsedConversationAdapter(db, stopped))) {
         const apiStopped = stopped.runtimeMode === "native" && await acknowledgedNativeApiStopExecutionHasStopped(db, stopped);
-        if (!apiStopped && !await remoteExecutionHasStopped(db, companyId, runId)) return;
+        if (!apiStopped && !await remoteExecutionHasStopped(db, spaceId, runId)) return;
         const acknowledged = await db.update(heartbeatRuns).set({
           resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) || ${JSON.stringify({
             executionCancellation: { ...parseObject(stopped.resultJson?.executionCancellation),
@@ -541,7 +541,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
             ...(stopped.runtimeMode === "legacy" ? { conversationContinuation: CONVERSATION_CONTINUATION_POLICY } : {}),
                    })}::jsonb`,
           updatedAt: new Date(),
-        }).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId),
+        }).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId),
           eq(heartbeatRuns.status, "cancelled"),
           sql`${heartbeatRuns.resultJson}->'executionCancellation'->>'state' = 'requested'`,
           apiStopped ? and(eq(heartbeatRuns.runtimeMode, "native"), eq(heartbeatRuns.driverKind, "cursor_cloud_api"),
@@ -549,25 +549,25 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
             eq(heartbeatRuns.agentId, stopped.agentId), eq(heartbeatRuns.nativeIssueId, stopped.nativeIssueId!),
             isNull(heartbeatRuns.processPid), isNull(heartbeatRuns.processGroupId),
             eq(heartbeatRuns.nativeSessionId, stopped.nativeSessionId!), eq(heartbeatRuns.runnerInstanceId, stopped.runnerInstanceId!),
-            sql`${heartbeatRuns.runnerProfileJson}->'executionPlacement' = ${JSON.stringify({ kind: "provider_api", provider: "cursor_cloud", controller: "paperclip" })}::jsonb`,
+            sql`${heartbeatRuns.runnerProfileJson}->'executionPlacement' = ${JSON.stringify({ kind: "provider_api", provider: "cursor_cloud", controller: "outpost" })}::jsonb`,
             sql`${heartbeatRuns.runnerProfileJson}->>'backend' = 'cursor_cloud_api'`,
             sql`jsonb_build_object(
-              'companyId', ${heartbeatRuns.runnerProfileJson}->'nativeExecutionInput'->'binding'->'companyId',
+              'spaceId', ${heartbeatRuns.runnerProfileJson}->'nativeExecutionInput'->'binding'->'spaceId',
               'runId', ${heartbeatRuns.runnerProfileJson}->'nativeExecutionInput'->'binding'->'runId',
               'agentId', ${heartbeatRuns.runnerProfileJson}->'nativeExecutionInput'->'binding'->'agentId',
               'issueId', ${heartbeatRuns.runnerProfileJson}->'nativeExecutionInput'->'binding'->'issueId'
-            ) = ${JSON.stringify({ companyId, runId, agentId: stopped.agentId, issueId: stopped.nativeIssueId })}::jsonb`,
+            ) = ${JSON.stringify({ spaceId, runId, agentId: stopped.agentId, issueId: stopped.nativeIssueId })}::jsonb`,
             sql`jsonb_build_object(
               'normalizedSessionId', ${heartbeatRuns.runnerProfileJson}->'nativeExecutionInput'->'session'->'normalizedSessionId',
               'driverKind', ${heartbeatRuns.runnerProfileJson}->'nativeExecutionInput'->'session'->'driverKind'
             ) = ${JSON.stringify({ normalizedSessionId: stopped.nativeSessionId, driverKind: "cursor_cloud_api" })}::jsonb`,
             sql`${heartbeatRuns.runnerProfileJson}->'nativeExecutionInput'->'provider'->>'kind' = 'cursor_cloud'`,
-            sql`not exists (select 1 from ${environmentLeases} where ${environmentLeases.companyId} = ${heartbeatRuns.companyId}
+            sql`not exists (select 1 from ${environmentLeases} where ${environmentLeases.spaceId} = ${heartbeatRuns.spaceId}
               and ${environmentLeases.heartbeatRunId} = ${heartbeatRuns.id})`) : undefined,
           stopped.runtimeMode === "native" ? sql`${heartbeatRuns.resultJson}->'nativeCancellation' = ${JSON.stringify(stopped.resultJson?.nativeCancellation)}::jsonb` : undefined)).returning({ id: heartbeatRuns.id });
         if (acknowledged.length > 0) {
           publishLiveEvent({
-            companyId: stopped.companyId,
+            spaceId: stopped.spaceId,
             type: "heartbeat.run.status",
             payload: buildHeartbeatRunStatusLiveEventPayload(stopped),
           });
@@ -590,20 +590,20 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     }
     const [preparationCoordinator] = run.runtimeMode === "legacy" && run.status === "cancelled" && !run.runtimeModeResolvedAt
       ? await db.select().from(nativeRunFinalizations).where(and(
-          eq(nativeRunFinalizations.companyId, run.companyId), eq(nativeRunFinalizations.runId, run.id),
+          eq(nativeRunFinalizations.spaceId, run.spaceId), eq(nativeRunFinalizations.runId, run.id),
         )) : [];
     const cancelledPreparation = run.runtimeMode === "legacy" &&
       await isCancelledNativeStartup(db, run, preparationCoordinator);
     if (run.runtimeMode !== "native" && !cancelledPreparation && !interruptedPreparation &&
         parseObject(run.resultJson?.startupCancellation).beforeNativeSelection !== true &&
-        !(await remoteExecutionHasStopped(db, run.companyId, run.id)) &&
+        !(await remoteExecutionHasStopped(db, run.spaceId, run.id)) &&
         !(await recordedLocalExecutionStopped(db, run))) return;
     const issueId = run.nativeIssueId ?? (typeof run.contextSnapshot?.issueId === "string" ? run.contextSnapshot.issueId : null);
     if (!issueId) return;
-    const currentRun = run.runtimeMode === "native" ? await readNativeStopExecutionEvidence(db, run.companyId, run.id) : null;
+    const currentRun = run.runtimeMode === "native" ? await readNativeStopExecutionEvidence(db, run.spaceId, run.id) : null;
     const [coordinator] = currentRun ? await db.select({ phase: nativeRunFinalizations.phase,
       leaseOwner: nativeRunFinalizations.leaseOwner }).from(nativeRunFinalizations).where(and(
-      eq(nativeRunFinalizations.companyId, run.companyId), eq(nativeRunFinalizations.runId, run.id),
+      eq(nativeRunFinalizations.spaceId, run.spaceId), eq(nativeRunFinalizations.runId, run.id),
     )) : [];
     // The ordinary path still enforces task holds, ownership, and native session
     // cleanup before starting a provider.
@@ -611,14 +611,14 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       !activeRunExecutions.has(run.id) && !coordinator?.leaseOwner &&
       ["terminal_failure", "applied"].includes(coordinator?.phase ?? "") &&
       await acknowledgedNativeStopExecutionHasStopped(db, currentRun);
-    if (stoppedNativeExecution) await observeStoppedWorkspaceRecovery(db, { companyId: run.companyId, issueId, runId: run.id });
-    const stoppedNativeContinuation = stoppedNativeExecution && !(await getExecutionBlocker(db, run.companyId, issueId));
+    if (stoppedNativeExecution) await observeStoppedWorkspaceRecovery(db, { spaceId: run.spaceId, issueId, runId: run.id });
+    const stoppedNativeContinuation = stoppedNativeExecution && !(await getExecutionBlocker(db, run.spaceId, issueId));
     const legacyContinuation = run.runtimeMode === "legacy" &&
-      hasConversationContinuationPolicy((await getRunExecutionWait(run.companyId, run.id))?.resultJson) &&
-      !(await getExecutionBlocker(db, run.companyId, issueId));
+      hasConversationContinuationPolicy((await getRunExecutionWait(run.spaceId, run.id))?.resultJson) &&
+      !(await getExecutionBlocker(db, run.spaceId, issueId));
     if (run.runtimeMode !== "native" && run.runtimeMode !== "legacy") return;
     const pending = await db.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+      eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
       eq(agentWakeupRequests.status, "deferred_issue_execution"),
       inArray(agentWakeupRequests.requestedByActorType, ["user", "system"]),
       requestId ? eq(agentWakeupRequests.id, requestId) : undefined,
@@ -628,7 +628,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       if (pending.length || requestId) await recordInterruptedPreparationContinuation(db, run, "delegated");
       else {
         const [task] = await db.select({ status: issues.status, assigneeAgentId: issues.assigneeAgentId }).from(issues).where(and(
-          eq(issues.companyId, run.companyId), eq(issues.id, issueId),
+          eq(issues.spaceId, run.spaceId), eq(issues.id, issueId),
         ));
         if (!(await getSchedulingSuppression()).suppressed && task?.assigneeAgentId === run.agentId &&
             ["todo", "in_progress", "in_review"].includes(task.status)) {
@@ -642,17 +642,17 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     }
     for (const wake of pending) {
       if (wake.idempotencyKey?.startsWith("chat-inbound:")) {
-        await resumeDeferredChatWake(db, { companyId: run.companyId, agentId: run.agentId,
+        await resumeDeferredChatWake(db, { spaceId: run.spaceId, agentId: run.agentId,
           issueId, requestId: wake.id }).catch(() => {
           logger.warn({ requestId: wake.id }, "saved chat source could not resume after cleanup");
         });
         continue;
       }
       if (wake.requestedByActorType !== "user") continue;
-      if (readTaskRetryIntent(wake.payload)) { await resumeTaskRetry(wake.companyId, wake.id); continue; }
+      if (readTaskRetryIntent(wake.payload)) { await resumeTaskRetry(wake.spaceId, wake.id); continue; }
       let payload = parseObject(wake.payload);
       if (payload.queuedCommentInterrupt) {
-        await resumeQueuedCommentInterrupt(wake.companyId, wake.id);
+        await resumeQueuedCommentInterrupt(wake.spaceId, wake.id);
         continue;
       }
       let context = parseObject(payload[DEFERRED_WAKE_CONTEXT_KEY]);
@@ -660,7 +660,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       let requestedByActorId = wake.requestedByActorId;
       const reason = readNonEmptyString(context.wakeReason) ?? wake.reason;
       if (run.runtimeMode === "native" || cancelledPreparation) {
-        const ids = await undeliveredLegacyUserCommentIds(db, run.companyId, issueId, run.agentId,
+        const ids = await undeliveredLegacyUserCommentIds(db, run.spaceId, issueId, run.agentId,
           queuedCommentIdsFromWakePayload(payload));
         if (!ids.length) continue;
         payload = withQueuedCommentIdsInWakePayload(payload, ids);
@@ -669,7 +669,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
         // A coalesced queue can contain several authors. Its saved comments,
         // not the outer wake's first author, authorize the remaining input.
         const [author] = await db.select({ id: issueComments.authorUserId }).from(issueComments).where(and(
-          eq(issueComments.companyId, run.companyId), eq(issueComments.issueId, issueId), eq(issueComments.id, commentId),
+          eq(issueComments.spaceId, run.spaceId), eq(issueComments.issueId, issueId), eq(issueComments.id, commentId),
         ));
         requestedByActorId = author?.id ?? null;
       }
@@ -677,7 +677,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
         if (!commentId || !run.finishedAt || !requestedByActorId ||
             !isUserCommentContinuationReason(reason)) continue;
         const [comment] = await db.select().from(issueComments).where(and(
-          eq(issueComments.companyId, run.companyId), eq(issueComments.issueId, issueId),
+          eq(issueComments.spaceId, run.spaceId), eq(issueComments.issueId, issueId),
           sql`${issueComments.id}::text = ${commentId}`, eq(issueComments.authorType, "user"),
           eq(issueComments.authorUserId, requestedByActorId), isNull(issueComments.deletedAt),
           isNull(issueComments.createdByRunId),
@@ -686,14 +686,14 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
         if (!comment?.body.trim()) continue;
       } else {
         let wait = { reason: "execution_recovery", message: "Waiting for execution recovery. Your message is saved." };
-        const admitted = await admitExplicitNativeContinuation({ db, companyId: run.companyId, issueId,
+        const admitted = await admitExplicitNativeContinuation({ db, spaceId: run.spaceId, issueId,
           agentId: run.agentId, actorType: wake.requestedByActorType, actorId: requestedByActorId,
           reason, commentId, successorRunId: randomUUID(), dryRun: true,
           queuedCommentRequestId: wake.id,
           onBlocked: (reason, message) => { wait = { reason, message }; },
         });
         if (!admitted) {
-          await writeDeferredExecutionWait(db, { companyId: run.companyId, requestId: wake.id }, wait);
+          await writeDeferredExecutionWait(db, { spaceId: run.spaceId, requestId: wake.id }, wait);
           continue;
         }
       }
@@ -708,13 +708,13 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     }
   }
 
-  async function resumeQueuedCommentInterrupt(companyId: string, queueId: string, opts?: { retryCleanup?: boolean }) {
-    return resumeSavedComments(companyId, queueId, true, opts);
+  async function resumeQueuedCommentInterrupt(spaceId: string, queueId: string, opts?: { retryCleanup?: boolean }) {
+    return resumeSavedComments(spaceId, queueId, true, opts);
   }
 
-  async function resumeSavedComments(companyId: string, queueId: string, interrupted = false, opts?: { retryCleanup?: boolean }) {
+  async function resumeSavedComments(spaceId: string, queueId: string, interrupted = false, opts?: { retryCleanup?: boolean }) {
     const [wake] = await db.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.id, queueId), eq(agentWakeupRequests.companyId, companyId),
+      eq(agentWakeupRequests.id, queueId), eq(agentWakeupRequests.spaceId, spaceId),
       eq(agentWakeupRequests.status, "deferred_issue_execution"),
     ));
     if (!wake) return;
@@ -723,19 +723,19 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     let commentIds = queuedCommentIdsFromWakePayload(payload);
     const issueId = readNonEmptyString(payload.issueId);
     if (!issueId || wake.idempotencyKey?.startsWith("chat-inbound:")) return;
-    const response = await readQueuedInteractionResponse(db, companyId, issueId, payload);
+    const response = await readQueuedInteractionResponse(db, spaceId, issueId, payload);
     if (!commentIds.length && !response) return;
     // Resolved cards are immutable input. Only an explicit Interrupt click can
     // authorize continuation across a stopped execution; ordinary completion
     // uses normal deferred-wake promotion.
     if (response && !interrupted) return;
     if (!interrupted) {
-      commentIds = await undeliveredLegacyUserCommentIds(db, companyId, issueId, wake.agentId, commentIds);
+      commentIds = await undeliveredLegacyUserCommentIds(db, spaceId, issueId, wake.agentId, commentIds);
       if (!commentIds.length) return;
       // The queue itself may have begun as a system wake. The saved human
       // comment, not that wake's origin or mutable caller payload, is authority.
       const [comment] = await db.select().from(issueComments).where(and(
-        eq(issueComments.companyId, companyId), eq(issueComments.issueId, issueId),
+        eq(issueComments.spaceId, spaceId), eq(issueComments.issueId, issueId),
         eq(issueComments.id, commentIds[commentIds.length - 1]!), eq(issueComments.authorType, "user"),
         isNull(issueComments.createdByRunId), isNull(issueComments.deletedAt),
       )).orderBy(desc(issueComments.createdAt)).limit(1);
@@ -744,9 +744,9 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     }
     if (!actorId) return;
     const agent = await getAgent(wake.agentId);
-    if (!agent || agent.companyId !== companyId || (agent.adapterType === "outpost_runner" && !interrupted && !response?.source.requiresFreshSession)) return;
+    if (!agent || agent.spaceId !== spaceId || (agent.adapterType === "outpost_runner" && !interrupted && !response?.source.requiresFreshSession)) return;
     const [active] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, companyId),
+      eq(heartbeatRuns.spaceId, spaceId),
       eq(heartbeatRuns.agentId, wake.agentId),
       sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${issueId}`,
       inArray(heartbeatRuns.status, ["running", "queued", "scheduled_retry"]),
@@ -757,27 +757,27 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       // reuse the intent to deliver, never a fresh provider teardown budget.
       const sourceRun = await db.transaction(async tx => {
         const [task] = await tx.select().from(issues).where(and(
-          eq(issues.companyId, companyId), eq(issues.id, issueId),
+          eq(issues.spaceId, spaceId), eq(issues.id, issueId),
         )).for("update");
         const [current] = await tx.select().from(agentWakeupRequests).where(and(
-          eq(agentWakeupRequests.id, queueId), eq(agentWakeupRequests.companyId, companyId),
+          eq(agentWakeupRequests.id, queueId), eq(agentWakeupRequests.spaceId, spaceId),
           eq(agentWakeupRequests.agentId, wake.agentId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
           sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
           sql`${agentWakeupRequests.payload}->'queuedCommentInterrupt'->>'actorId' = ${actorId}`,
         ));
         if (!task || task.assigneeAgentId !== wake.agentId || ["done", "cancelled"].includes(task.status) ||
             !current || (!queuedCommentIdsFromWakePayload(current.payload).length &&
-              !await readQueuedInteractionResponse(tx as unknown as Db, companyId, issueId, current.payload))) return null;
+              !await readQueuedInteractionResponse(tx as unknown as Db, spaceId, issueId, current.payload))) return null;
         const [successor] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-          eq(heartbeatRuns.companyId, companyId),
+          eq(heartbeatRuns.spaceId, spaceId),
           eq(heartbeatRuns.agentId, wake.agentId),
           sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${issueId}`,
           inArray(heartbeatRuns.status, ["running", "queued", "scheduled_retry"]),
         )).limit(1);
         if (successor) return null;
-        const blocker = await getExecutionBlocker(tx as unknown as Db, companyId, issueId);
+        const blocker = await getExecutionBlocker(tx as unknown as Db, spaceId, issueId);
         const run = blocker?.runId ? await tx.select().from(heartbeatRuns).where(and(
-          eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, blocker.runId),
+          eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, blocker.runId),
           eq(heartbeatRuns.agentId, wake.agentId), eq(heartbeatRuns.runtimeMode, "legacy"),
           inArray(heartbeatRuns.status, ["failed", "timed_out", "interrupted", "cancelled"]),
           sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${issueId}`,
@@ -787,29 +787,29 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
         // receipt. Re-verify them through the recorded teardown path; a timestamp
         // alone never certifies termination. Retained/reusable resources stay put.
         const historical = await tx.select().from(environmentLeases).where(and(
-          eq(environmentLeases.companyId, companyId), eq(environmentLeases.heartbeatRunId, run.id),
+          eq(environmentLeases.spaceId, spaceId), eq(environmentLeases.heartbeatRunId, run.id),
           eq(environmentLeases.leasePolicy, "ephemeral"), isNotNull(environmentLeases.releasedAt),
           inArray(environmentLeases.status, ["released", "expired", "failed"]),
         )).for("update");
         for (const lease of historical) {
           if (!lease.provider || lease.provider === "local" || !lease.providerLeaseId || hasRemoteTerminationReceipt(lease)) continue;
           // Provider resource IDs identify physical sandboxes. A lease in any
-          // company can still own this resource; never destroy it on behalf of
-          // this company. This existence-only guard exposes no foreign data.
+          // space can still own this resource; never destroy it on behalf of
+          // this space. This existence-only guard exposes no foreign data.
           const [otherOwner] = await tx.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
             ne(environmentLeases.id, lease.id), eq(environmentLeases.provider, lease.provider),
             eq(environmentLeases.providerLeaseId, lease.providerLeaseId),
             or(isNull(environmentLeases.releasedAt), inArray(environmentLeases.status, ["active", "retained", "pending_cleanup"])),
           )).limit(1);
           if (otherOwner) continue;
-          await notifyEnvironmentCleanup(tx, { companyId: lease.companyId, runId: lease.heartbeatRunId ?? undefined });
+          await notifyEnvironmentCleanup(tx, { spaceId: lease.spaceId, runId: lease.heartbeatRunId ?? undefined });
           await tx.update(environmentLeases).set({ status: "pending_cleanup", updatedAt: new Date() })
             .where(eq(environmentLeases.id, lease.id));
         }
         return run;
       });
       if (sourceRun) await sweepPendingCleanupLeases({ explicitRetry: {
-        companyId, runId: sourceRun.id, actorId, reason: "queued_comment_interrupt",
+        spaceId, runId: sourceRun.id, actorId, reason: "queued_comment_interrupt",
       } });
     }
     const deliveryPayload = response ? { ...payload } : withQueuedCommentIdsInWakePayload(payload, commentIds);
@@ -817,10 +817,10 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     await enqueueWakeup(wake.agentId, {
       source: "on_demand", triggerDetail: "manual", reason: "issue_commented",
       payload: deliveryPayload, contextSnapshot: response
-        ? { ...parseObject(payload._paperclipWakeContext), issueId, triggeredBy: "board", actorId,
+        ? { ...parseObject(payload._outpostWakeContext), issueId, triggeredBy: "operator", actorId,
             responsibleUserId: actorId }
         : withQueuedCommentIdsInRunContext({
-            issueId, triggeredBy: "board", actorId, responsibleUserId: actorId,
+            issueId, triggeredBy: "operator", actorId, responsibleUserId: actorId,
           }, commentIds),
       requestedByActorType: "user", requestedByActorId: actorId,
       ...(interrupted ? { queuedCommentInterruptId: queueId } : { queuedCommentRequestId: queueId }),
@@ -830,16 +830,16 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     }, queueId);
   }
 
-  async function resumeTaskRetry(companyId: string, requestId: string) {
+  async function resumeTaskRetry(spaceId: string, requestId: string) {
     if ((await getSchedulingSuppression()).suppressed) return;
     const [wake] = await db.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.id, requestId),
+      eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.id, requestId),
       eq(agentWakeupRequests.status, "deferred_issue_execution"), eq(agentWakeupRequests.reason, "task_retry"),
       eq(agentWakeupRequests.requestedByActorType, "user"),
     ));
     const intent = readTaskRetryIntent(wake?.payload);
     if (intent?.queuedChatRequestId) {
-      await reconcileTaskChatRetryReceipts(db, { companyId, requestId });
+      await reconcileTaskChatRetryReceipts(db, { spaceId, requestId });
       return;
     }
     if (!wake || !intent || intent.chatActionId || intent.canonicalIntentId || intent.generationId !== wake.id ||
@@ -848,7 +848,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     if (!issueId) return;
     await enqueueWakeup(wake.agentId, { source: "on_demand", triggerDetail: "manual", reason: "task_retry",
       requestedByActorType: "user", requestedByActorId: intent.actorId, taskRetryRequestId: wake.id,
-      payload: { issueId }, contextSnapshot: { issueId, triggeredBy: "board", actorId: intent.actorId,
+      payload: { issueId }, contextSnapshot: { issueId, triggeredBy: "operator", actorId: intent.actorId,
         responsibleUserId: intent.actorId },
       issueStateGuard: { assigneeAgentId: wake.agentId, statuses: ["todo", "in_progress", "in_review", "blocked"] },
       idempotencyKey: `task-retry-dispatch:${wake.id}` }, wake.id);
@@ -856,22 +856,22 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     // its accepted result can be applied. Apply it now instead of a new turn.
     // One key read after admission; the resumption runs only for a held Retry.
     const [held] = await db.select({ status: agentWakeupRequests.status, payload: agentWakeupRequests.payload })
-      .from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.id, wake.id)));
+      .from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.id, wake.id)));
     if (held?.status === "deferred_issue_execution"
       && parseObject(held.payload?.executionWait).reason === "finalizing_saved_result")
-      await resumePreservedResultFinalization(db, companyId, intent.sourceRunId);
+      await resumePreservedResultFinalization(db, spaceId, intent.sourceRunId);
   }
 
   async function resumeExecutionWaitComments(scope: DeferredReceiptRecoveryOptions = {}) {
     if ((await getSchedulingSuppression()).suppressed) return;
     await reconcileTaskChatRetryReceipts(db, scope);
-    const retries = await db.select({ id: agentWakeupRequests.id, companyId: agentWakeupRequests.companyId,
+    const retries = await db.select({ id: agentWakeupRequests.id, spaceId: agentWakeupRequests.spaceId,
       conversationAgentId: issues.conversationAgentId })
-      .from(agentWakeupRequests).innerJoin(issues, and(eq(issues.companyId, agentWakeupRequests.companyId),
+      .from(agentWakeupRequests).innerJoin(issues, and(eq(issues.spaceId, agentWakeupRequests.spaceId),
         sql`${issues.id}::text = ${agentWakeupRequests.payload}->>'issueId'`,
         eq(issues.assigneeAgentId, agentWakeupRequests.agentId)))
-      .innerJoin(companies, and(eq(companies.id, issues.companyId), eq(companies.status, "active")))
-      .where(and(scope.companyId ? eq(agentWakeupRequests.companyId, scope.companyId) : undefined,
+      .innerJoin(spaces, and(eq(spaces.id, issues.spaceId), eq(spaces.status, "active")))
+      .where(and(scope.spaceId ? eq(agentWakeupRequests.spaceId, scope.spaceId) : undefined,
         scope.requestId ? eq(agentWakeupRequests.id, scope.requestId) : undefined,
         eq(agentWakeupRequests.reason, "task_retry"), eq(agentWakeupRequests.status, "deferred_issue_execution"),
         sql`${agentWakeupRequests.payload}->'taskRetry'->>'chatActionId' is null`,
@@ -885,20 +885,20 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       // Public Retry still rejects new requests while the feature is disabled.
       await db.update(agentWakeupRequests).set({ updatedAt: new Date() }).where(eq(agentWakeupRequests.id, retry.id));
       if (retry.conversationAgentId && !chatEnabled) continue;
-      await resumeTaskRetry(retry.companyId, retry.id).catch(err => {
+      await resumeTaskRetry(retry.spaceId, retry.id).catch(err => {
         scope.onError?.(err); logger.warn({ err, requestId: retry.id }, "Task retry dispatch deferred");
       });
     }
     const waits = await db.select({ wake: agentWakeupRequests })
       .from(agentWakeupRequests)
-      .innerJoin(issues, and(eq(issues.companyId, agentWakeupRequests.companyId),
+      .innerJoin(issues, and(eq(issues.spaceId, agentWakeupRequests.spaceId),
         sql`${issues.id}::text = ${agentWakeupRequests.payload}->>'issueId'`,
         eq(issues.assigneeAgentId, agentWakeupRequests.agentId)))
-      .innerJoin(companies, and(eq(companies.id, issues.companyId), eq(companies.status, "active")))
-      .where(and(scope.companyId ? eq(agentWakeupRequests.companyId, scope.companyId) : undefined,
+      .innerJoin(spaces, and(eq(spaces.id, issues.spaceId), eq(spaces.status, "active")))
+      .where(and(scope.spaceId ? eq(agentWakeupRequests.spaceId, scope.spaceId) : undefined,
         scope.requestId ? eq(agentWakeupRequests.id, scope.requestId) : undefined,
         exists(db.select({ id: issueRecoveryActions.id }).from(issueRecoveryActions).where(and(
-        eq(issueRecoveryActions.companyId, issues.companyId), eq(issueRecoveryActions.sourceIssueId, issues.id),
+        eq(issueRecoveryActions.spaceId, issues.spaceId), eq(issueRecoveryActions.sourceIssueId, issues.id),
         executionBlockerPredicate(),
       ))), eq(agentWakeupRequests.status, "deferred_issue_execution"),
         eq(agentWakeupRequests.requestedByActorType, "user"),
@@ -915,20 +915,20 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       // Advance the cursor even for invalid evidence so one damaged task cannot
       // starve later requests in this bounded scan. Preserve concurrent edits.
       const [claimed] = await db.update(agentWakeupRequests).set({ updatedAt: new Date() }).where(and(
-        eq(agentWakeupRequests.id, wake.id), eq(agentWakeupRequests.companyId, wake.companyId),
+        eq(agentWakeupRequests.id, wake.id), eq(agentWakeupRequests.spaceId, wake.spaceId),
         eq(agentWakeupRequests.status, "deferred_issue_execution"),
         lte(agentWakeupRequests.updatedAt, new Date(Date.now() - 30_000)),
       )).returning({ id: agentWakeupRequests.id });
       if (!claimed) continue;
       // Match normal admission's deterministic current blocker selection. An
       // arbitrary historical action must not choose the retry's source run.
-      const blocker = await getExecutionBlocker(db, wake.companyId, issueId);
+      const blocker = await getExecutionBlocker(db, wake.spaceId, issueId);
       const sourceId = blocker?.runId;
       if (!sourceId || !isUuidLike(sourceId)) continue;
-      const run = await getRunExecutionWait(wake.companyId, sourceId);
-      if (!run || run.companyId !== wake.companyId || run.agentId !== wake.agentId) continue;
+      const run = await getRunExecutionWait(wake.spaceId, sourceId);
+      if (!run || run.spaceId !== wake.spaceId || run.agentId !== wake.agentId) continue;
       if (canContinueCancelledRun(run)) {
-        await resumeSavedComments(wake.companyId, wake.id).catch(err => {
+        await resumeSavedComments(wake.spaceId, wake.id).catch(err => {
           scope.onError?.(err);
           logger.warn({ err, runId: run.id }, "failed to resume saved input after provider cancellation");
         });
@@ -942,7 +942,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
   }
 
   async function releaseIssueExecutionAndPromote(
-    run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId">,
+    run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId">,
     options: { suppressImmediateRecovery?: boolean; resumeStrandedQueue?: boolean; deferredPostCommitEffects?: WakeQueuePostCommitEffect[] } = {},
   ) {
     try {
@@ -953,11 +953,11 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
           'configurationIncomplete', ${heartbeatRuns.resultJson}->'configurationIncomplete'
         )`,
       }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId),
+        eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId),
       ));
-      const sourceHandoff = await pendingCaseHandoffForRun(db, run.id, run.companyId);
+      const sourceHandoff = await pendingCaseHandoffForRun(db, run.id, run.spaceId);
       const { postCommitEffects } = await wakeQueue.releaseIssueExecution({
-        companyId: run.companyId,
+        spaceId: run.spaceId,
         runId: run.id,
         now: new Date(),
         // A durable authentication card owns recovery. This covers the review path,
@@ -978,7 +978,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
         contextIssueId: sql<unknown>`${heartbeatRuns.contextSnapshot}->'issueId'`,
         contextTaskId: sql<unknown>`${heartbeatRuns.contextSnapshot}->'taskId'`,
       }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId),
+        eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId),
       ));
       const issueId = readNonEmptyString(completed?.contextIssueId)
         ?? readNonEmptyString(completed?.contextTaskId) ?? completed?.nativeIssueId;
@@ -988,7 +988,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
         await isCaseHandoffSourceReleased(db, { runId: completed.id, issueId });
       }
       if (completed?.status === "succeeded" && issueId) {
-        await settleSlackConversation(db, run.companyId, issueId).catch((err) => {
+        await settleSlackConversation(db, run.spaceId, issueId).catch((err) => {
           logger.warn({ err, runId: run.id }, "Slack conversation settlement deferred to reconciliation");
         });
       }
@@ -1005,7 +1005,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     }
   }
 
-  async function listProjectScopedRunIds(companyId: string, projectId: string, createdBefore?: Date, database: Db = db) {
+  async function listProjectScopedRunIds(spaceId: string, projectId: string, createdBefore?: Date, database: Db = db) {
     const runIssueId = sql<
       string | null
     >`${heartbeatRuns.contextSnapshot} ->> 'issueId'`;
@@ -1019,13 +1019,13 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       .leftJoin(
         issues,
         and(
-          eq(issues.companyId, companyId),
+          eq(issues.spaceId, spaceId),
           sql`${issues.id}::text = ${runIssueId}`,
         ),
       )
       .where(
         and(
-          eq(heartbeatRuns.companyId, companyId),
+          eq(heartbeatRuns.spaceId, spaceId),
           createdBefore ? lt(heartbeatRuns.createdAt, createdBefore) : undefined,
           inArray(heartbeatRuns.status, [
             ...CANCELLABLE_HEARTBEAT_RUN_STATUSES,
@@ -1038,7 +1038,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
   }
 
   async function listProjectScopedWakeupIds(
-    companyId: string,
+    spaceId: string,
     projectId: string,
     database: Db = db,
   ) {
@@ -1057,13 +1057,13 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       .leftJoin(
         issues,
         and(
-          eq(issues.companyId, companyId),
+          eq(issues.spaceId, spaceId),
           sql`${issues.id}::text = ${wakeIssueId}`,
         ),
       )
       .where(
         and(
-          eq(agentWakeupRequests.companyId, companyId),
+          eq(agentWakeupRequests.spaceId, spaceId),
           inArray(agentWakeupRequests.status, [
             "queued",
             "deferred_issue_execution",
@@ -1083,13 +1083,13 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     const now = new Date();
     let wakeupIds: string[] = [];
 
-    if (scope.scopeType === "company") {
+    if (scope.scopeType === "space") {
       wakeupIds = await tx
         .select({ id: agentWakeupRequests.id })
         .from(agentWakeupRequests)
         .where(
           and(
-            eq(agentWakeupRequests.companyId, scope.companyId),
+            eq(agentWakeupRequests.spaceId, scope.spaceId),
             inArray(agentWakeupRequests.status, [
               "queued",
               "deferred_issue_execution",
@@ -1104,7 +1104,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
         .from(agentWakeupRequests)
         .where(
           and(
-            eq(agentWakeupRequests.companyId, scope.companyId),
+            eq(agentWakeupRequests.spaceId, scope.spaceId),
             eq(agentWakeupRequests.agentId, scope.scopeId),
             inArray(agentWakeupRequests.status, [
               "queued",
@@ -1116,7 +1116,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
         .then((rows) => rows.map((row) => row.id));
     } else {
       wakeupIds = await listProjectScopedWakeupIds(
-        scope.companyId,
+        scope.spaceId,
         scope.scopeId,
         tx,
       );
@@ -1124,7 +1124,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
 
     if (wakeupIds.length === 0) return 0;
 
-    await notifyChatInboundWakeNotices(tx, { companyId: scope.companyId });
+    await notifyChatInboundWakeNotices(tx, { spaceId: scope.spaceId });
     await tx
       .update(agentWakeupRequests)
       .set({
@@ -1167,7 +1167,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     const acknowledged = await db.update(heartbeatRuns).set({ resultJson: sql`jsonb_set(${heartbeatRuns.resultJson},
       '{startupCancellation,budgetEnforcement}', ${heartbeatRuns.resultJson}->'startupCancellation'->'budgetEnforcement'
         || ${JSON.stringify({ deliveredAt: new Date().toISOString(), ...(terminationProof ? { terminationProof } : {}) })}::jsonb)` })
-      .where(and(eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.id, run.id),
+      .where(and(eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.id, run.id),
         pendingBudgetRunCancellationPredicate(),
         terminationProof ? and(eq(heartbeatRuns.status, run.status), eq(heartbeatRuns.nextEventSeq, run.nextEventSeq),
           sql`${heartbeatRuns.processPid} is not distinct from ${run.processPid}`,
@@ -1182,7 +1182,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     if (parseObject(run.resultJson?.executionCancellation).state === "acknowledged") return true;
     const intent = parseObject(run.resultJson?.nativeCancellation);
     return intent.schema === "outpost.native-cancellation.v1" && intent.runId === run.id
-      && intent.companyId === run.companyId && intent.issueId === run.nativeIssueId
+      && intent.spaceId === run.spaceId && intent.issueId === run.nativeIssueId
       && intent.scope === "run" && intent.reasonCode === "cancellation_run_only"
       && intent.dispatchState === "acknowledged" && intent.dispatched === true
       && typeof intent.intentAuditId === "string" && typeof intent.acknowledgementAuditId === "string";
@@ -1194,18 +1194,18 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     if (!isHeartbeatRunTerminalStatus(run.status) || activeRunExecutions.has(run.id) ||
       runningProcesses.has(run.id) || adapterExecutionControls.has(run.id) || processRunCancellationSettlements.has(run.id)) return null;
     const leases = await db.select().from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+      eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
     ));
     if (leases.some(lease => lease.provider !== "local"))
       return leases.every(hasRemoteTerminationReceipt) ? "provider_termination_receipt" : null;
     if (run.processPid || run.processGroupId || run.processStartedAt)
       return await recordedLocalExecutionStopped(db, run) ? "local_process_exit" : null;
-    if (await readNativeLocalProcessStop(db, run.companyId, run.id)) return "local_process_stop_receipt";
+    if (await readNativeLocalProcessStop(db, run.spaceId, run.id)) return "local_process_stop_receipt";
     // Normal native finalization clears mutable process fields. Rebind the
     // latest server-owned launch identity before checking that exact local
     // process and group. Any newer start invalidates the older observation.
     const [identity] = await db.select({ eventType: heartbeatRunEvents.eventType, payload: heartbeatRunEvents.payload })
-      .from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.companyId, run.companyId),
+      .from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.spaceId, run.spaceId),
         eq(heartbeatRunEvents.runId, run.id), isNull(heartbeatRunEvents.sourceEventId),
         inArray(heartbeatRunEvents.eventType, [PROCESS_START_REQUESTED, PROCESS_IDENTITY_RECORDED, "native.local_process_stopped"])))
       .orderBy(desc(heartbeatRunEvents.seq)).limit(1);
@@ -1252,13 +1252,13 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       const applySupersession = () => db.transaction(async tx => {
         const [issue] = await tx.select({ id: issues.id, executionRunId: issues.executionRunId, checkoutRunId: issues.checkoutRunId,
           assigneeAgentId: issues.assigneeAgentId, assigneeUserId: issues.assigneeUserId }).from(issues)
-          .where(and(eq(issues.companyId, run!.companyId), eq(issues.id, handoffIssueId))).for("update");
+          .where(and(eq(issues.spaceId, run!.spaceId), eq(issues.id, handoffIssueId))).for("update");
         const [current] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId),
-          eq(heartbeatRuns.companyId, run!.companyId))).for("update");
+          eq(heartbeatRuns.spaceId, run!.spaceId))).for("update");
         if (!current || (options.expectedStatus && current.status !== options.expectedStatus)) return false;
         run = current;
         if (options.cancellationRequestId) {
-          run = await claimCancellationRequest(tx as unknown as Db, runId, run!.companyId, options.cancellationRequestId,
+          run = await claimCancellationRequest(tx as unknown as Db, runId, run!.spaceId, options.cancellationRequestId,
             options.cancellationRequestedByUserId ?? null);
           cancellationClaimed = true;
         }
@@ -1273,9 +1273,9 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
           // lock the coordinator NOWAIT so a coordinator-only writer wins
           // safely instead of deadlocking with its run-row claim.
           const [coordinator] = await tx.select().from(nativeRunFinalizations).where(and(
-            eq(nativeRunFinalizations.runId, runId), eq(nativeRunFinalizations.companyId, currentRun.companyId),
+            eq(nativeRunFinalizations.runId, runId), eq(nativeRunFinalizations.spaceId, currentRun.spaceId),
             eq(nativeRunFinalizations.issueId, currentRun.nativeIssueId))).for("update", { noWait: true }).limit(1);
-          caseHandoffRetryClaimed = nativeRetryCancellationEligible({ runId, companyId: currentRun.companyId,
+          caseHandoffRetryClaimed = nativeRetryCancellationEligible({ runId, spaceId: currentRun.spaceId,
             issueId: currentRun.nativeIssueId, resultJson: currentRun.resultJson, requestId: options.cancellationRequestId }, coordinator);
           if (caseHandoffRetryClaimed) cancellableStatuses.push("failed");
         }
@@ -1288,21 +1288,21 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
           startupCancellation: { requestedAt, beforeNativeSelection: currentRun.runtimeMode === "legacy" && !currentRun.runtimeModeResolvedAt
             && currentRun.executionStage === "preparing" && parseObject(currentRun.runnerProfileJson?.adapterDispatch).adapterType === "outpost_runner" },
         } : {};
-        await notifyScheduledRetryCancellation(tx, { companyId: run!.companyId, runId });
+        await notifyScheduledRetryCancellation(tx, { spaceId: run!.spaceId, runId });
         const [fenced] = await tx.update(heartbeatRuns).set({
           resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) || ${JSON.stringify({
             ...attribution, executionCancellation: { state: "requested", requestedAt }, ...guardedCancellation,
           })}::jsonb`,
-        }).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, run!.companyId),
+        }).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, run!.spaceId),
           inArray(heartbeatRuns.status, cancellableStatuses))).returning();
         if (options.expectedStatus && !fenced) return false;
         if (fenced) run = fenced;
-        // A board terminal request deliberately has no source run. It belongs
+        // A operator terminal request deliberately has no source run. It belongs
         // to the current task execution, not whichever historical run is stopped.
         // Queue admission may bind execution before adopting an old checkout.
         const ownsTask = issue && issue.assigneeAgentId === currentRun.agentId && !issue.assigneeUserId &&
           (issue.executionRunId ? issue.executionRunId === runId : issue.checkoutRunId === runId);
-        await cancelCaseHandoffsForIssue(tx as unknown as Db, { companyId: run!.companyId, issueId: handoffIssueId,
+        await cancelCaseHandoffsForIssue(tx as unknown as Db, { spaceId: run!.spaceId, issueId: handoffIssueId,
           sourceRunId: runId, includeUnboundTerminalIntent: Boolean(fenced && ownsTask), reason, publications });
         return true;
       });
@@ -1330,7 +1330,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       if (!supersessionApplied) return null;
     }
     if (options.cancellationRequestId && !cancellationClaimed) {
-      run = await claimCancellationRequest(db, runId, run.companyId, options.cancellationRequestId, options.cancellationRequestedByUserId ?? null);
+      run = await claimCancellationRequest(db, runId, run.spaceId, options.cancellationRequestId, options.cancellationRequestedByUserId ?? null);
     }
     // The caller claim checked retry eligibility under both durable row locks.
     // This is only a cancellation candidate: dispatch rechecks the coordinator
@@ -1344,11 +1344,11 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
           .where(
             and(
               eq(nativeRunFinalizations.runId, run.id),
-              eq(nativeRunFinalizations.companyId, run.companyId),
+              eq(nativeRunFinalizations.spaceId, run.spaceId),
               eq(nativeRunFinalizations.issueId, run.nativeIssueId!),
             ),
           )
-          .then(([coordinator]) => nativeRetryCancellationEligible({ runId: run!.id, companyId: run!.companyId,
+          .then(([coordinator]) => nativeRetryCancellationEligible({ runId: run!.id, spaceId: run!.spaceId,
             issueId: run!.nativeIssueId!, resultJson: run!.resultJson }, coordinator))
       );
     if (
@@ -1394,7 +1394,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     // additional durable fence before its existing cancellation path.
     if (!committedBudgetCancellation && (options.expectedStatus || options.budgetEnforcement || (!options.cancellationRequestId && (run.runtimeMode === "native" || (!run.runtimeModeResolvedAt && !running && !control))))) {
       const fence = async (tx: Db) => {
-        await notifyScheduledRetryCancellation(tx, { companyId: run!.companyId, runId });
+        await notifyScheduledRetryCancellation(tx, { spaceId: run!.spaceId, runId });
         const [fenced] = await tx.update(heartbeatRuns).set({
           // Record handoff intent before native cancellation can finalize and release
           // the run. Only its audited stop acknowledgement suppresses recovery.
@@ -1665,7 +1665,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       const cancelled = cancellation.run;
 
       if (cancellation.updated && cancelled) {
-        if (readNativeStartupCleanup(cancelled)) await acknowledgeNativeStartupCleanup(db, { companyId: cancelled.companyId, runId: cancelled.id });
+        if (readNativeStartupCleanup(cancelled)) await acknowledgeNativeStartupCleanup(db, { spaceId: cancelled.spaceId, runId: cancelled.id });
         await setWakeupStatus(run.wakeupRequestId, "cancelled", {
           finishedAt: cancelled.finishedAt ?? new Date(),
           error: reason,
@@ -1723,7 +1723,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
 
     return db.transaction(async tx => {
       const wakeups = await tx
-        .select({ id: agentWakeupRequests.id, companyId: agentWakeupRequests.companyId })
+        .select({ id: agentWakeupRequests.id, spaceId: agentWakeupRequests.spaceId })
         .from(agentWakeupRequests)
         .where(and(
           inArray(agentWakeupRequests.agentId, uniqueAgentIds),
@@ -1735,8 +1735,8 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
             and coalesce(${agentWakeupRequests.payload}->'executionWait'->>'trigger', '') = 'pause_lifted')` : undefined,
         ));
       if (!wakeups.length) return 0;
-      for (const companyId of new Set(wakeups.map(row => row.companyId))) {
-        await notifyChatInboundWakeNotices(tx, { companyId });
+      for (const spaceId of new Set(wakeups.map(row => row.spaceId))) {
+        await notifyChatInboundWakeNotices(tx, { spaceId });
       }
       const now = new Date();
       const cancelled = await tx.update(agentWakeupRequests).set({
@@ -1777,27 +1777,27 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
   async function stopBrowserSessionsForBudgetScope(tx: Db, scope: BudgetEnforcementScope) {
     // Browser work can outlive its terminal parent run. Its admitted project
     // snapshot remains authoritative even if the task moves to another project.
-    const activeHold = sql`(select ${browserUseRuns.result}->'paperclipBudgetHold'
-      from ${browserUseRuns} where ${browserUseRuns.companyId} = ${browserUseSessions.companyId}
+    const activeHold = sql`(select ${browserUseRuns.result}->'outpostBudgetHold'
+      from ${browserUseRuns} where ${browserUseRuns.spaceId} = ${browserUseSessions.spaceId}
         and ${browserUseRuns.sessionId} = ${browserUseSessions.id}
-        and ${browserUseRuns.result}->'paperclipBudgetHold'->>'state' = 'held'
-        and ${browserUseRuns.result}->'paperclipBudgetHold'->>'invocationId' = ${browserUseRuns.invocationId}::text
+        and ${browserUseRuns.result}->'outpostBudgetHold'->>'state' = 'held'
+        and ${browserUseRuns.result}->'outpostBudgetHold'->>'invocationId' = ${browserUseRuns.invocationId}::text
       order by ${browserUseRuns.createdAt} desc, ${browserUseRuns.id} desc limit 1)`;
     const project = sql`case when ${activeHold} ? 'projectId' then ${activeHold}->>'projectId'
       else (select ${issues.projectId}::text from ${issues}
-        where ${issues.id} = ${browserUseSessions.issueId} and ${issues.companyId} = ${scope.companyId}) end`;
+        where ${issues.id} = ${browserUseSessions.issueId} and ${issues.spaceId} = ${scope.spaceId}) end`;
     const sessions = await tx.select({ id: browserUseSessions.id }).from(browserUseSessions).where(and(
-      eq(browserUseSessions.companyId, scope.companyId),
+      eq(browserUseSessions.spaceId, scope.spaceId),
       inArray(browserUseSessions.status, ["starting", "running", "idle", "stopping"]),
       scope.scopeType === "agent" ? eq(browserUseSessions.agentId, scope.scopeId) : undefined,
       scope.scopeType === "project" ? sql`${project} = ${scope.scopeId}` : undefined,
       scope.createdBefore ? lt(browserUseSessions.createdAt, scope.createdBefore) : undefined,
     )).for("update");
     if (!sessions.length) return;
-    await notifyDeliveryWork(tx, DELIVERY_QUEUES.browser, scope.companyId);
+    await notifyDeliveryWork(tx, DELIVERY_QUEUES.browser, scope.spaceId);
     await tx.update(browserUseSessions).set({ status: "stopping", stopRequested: "end",
       nextPollAt: new Date(), updatedAt: new Date(),
-    }).where(and(eq(browserUseSessions.companyId, scope.companyId),
+    }).where(and(eq(browserUseSessions.spaceId, scope.spaceId),
       inArray(browserUseSessions.id, sessions.map(session => session.id))));
   }
 
@@ -1809,18 +1809,18 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
       await cancelPendingWakeupsForBudgetScope(scope, tx);
       await stopBrowserSessionsForBudgetScope(tx, scope);
       const candidates = scope.scopeType === "project"
-        ? await listProjectScopedRunIds(scope.companyId, scope.scopeId, scope.createdBefore, tx)
+        ? await listProjectScopedRunIds(scope.spaceId, scope.scopeId, scope.createdBefore, tx)
         : await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-          eq(heartbeatRuns.companyId, scope.companyId),
+          eq(heartbeatRuns.spaceId, scope.spaceId),
           scope.scopeType === "agent" ? eq(heartbeatRuns.agentId, scope.scopeId) : undefined,
           scope.createdBefore ? lt(heartbeatRuns.createdAt, scope.createdBefore) : undefined,
           inArray(heartbeatRuns.status, [...CANCELLABLE_HEARTBEAT_RUN_STATUSES]),
         )).then((rows) => rows.map((row) => row.id));
       if (!candidates.length) return [];
-      await notifyScheduledRetryCancellation(tx, { companyId: scope.companyId });
+      await notifyScheduledRetryCancellation(tx, { spaceId: scope.spaceId });
       return tx.update(heartbeatRuns).set({ resultJson: runCancellationFenceSql({
         cancellation: requestedRunCancellation({}, reason), errorCode: "cancelled", preserveCancellation: true, budgetEnforcement: scope,
-      }) }).where(and(eq(heartbeatRuns.companyId, scope.companyId), inArray(heartbeatRuns.id, candidates),
+      }) }).where(and(eq(heartbeatRuns.spaceId, scope.spaceId), inArray(heartbeatRuns.id, candidates),
         inArray(heartbeatRuns.status, [...CANCELLABLE_HEARTBEAT_RUN_STATUSES]),
         scope.createdBefore ? lt(heartbeatRuns.createdAt, scope.createdBefore) : undefined,
       )).returning({ id: heartbeatRuns.id }).then((rows) => rows.map((row) => row.id));
@@ -1841,7 +1841,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
           await withBudgetStopDelivery(db, async () => {
             const [attempted] = await db.update(heartbeatRuns).set({ resultJson: sql`jsonb_set(${heartbeatRuns.resultJson},
               '{startupCancellation,budgetEnforcement,lastAttemptAt}', ${JSON.stringify(new Date().toISOString())}::jsonb)` })
-              .where(and(eq(heartbeatRuns.companyId, scope.companyId), eq(heartbeatRuns.id, runId),
+              .where(and(eq(heartbeatRuns.spaceId, scope.spaceId), eq(heartbeatRuns.id, runId),
                 pendingBudgetRunCancellationPredicate())).returning({ id: heartbeatRuns.id });
             if (attempted) await cancelRun(runId, reason, {}, true);
           });
@@ -1852,7 +1852,7 @@ export function createHeartbeatRunControl(db: Db, dependencies: HeartbeatRunCont
     }));
     // A resumed budget owes these runs a continuation once their Stop lands.
     await notifyBudgetStopsSettled(db, runIds).catch(error =>
-      logger.warn({ err: error, companyId: scope.companyId }, "Budget resume continuation notification deferred"));
+      logger.warn({ err: error, spaceId: scope.spaceId }, "Budget resume continuation notification deferred"));
     // Drain the batch before rejecting; one failed provider must not prevent
     // the remaining runs from receiving their already-committed Stop.
     if (failures.length) throw new AggregateError(failures, "Budget cancellation delivery remains pending");

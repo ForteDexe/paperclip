@@ -4,7 +4,7 @@ import { expect, userEvent, within } from "storybook/test";
 import {
   storybookIssues,
   storybookIssueDocuments,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 import {
   prepareFixtureApi,
   type FixtureState,
@@ -23,7 +23,7 @@ const meta = {
           "Production document section. Loading and read errors currently yield the section's empty rendering; these examples expose that limitation. Revision authority and persisted concurrency require API tests.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "documents-artifacts/documents"
       ],
@@ -44,7 +44,7 @@ const meta = {
     const revisions = [
       {
         id: "revision-latest",
-        companyId: doc.companyId,
+        spaceId: doc.spaceId,
         documentId: doc.id,
         issueId: doc.issueId,
         key: doc.key,
@@ -59,7 +59,7 @@ const meta = {
       },
       {
         id: "revision-first",
-        companyId: doc.companyId,
+        spaceId: doc.spaceId,
         documentId: doc.id,
         issueId: doc.issueId,
         key: doc.key,

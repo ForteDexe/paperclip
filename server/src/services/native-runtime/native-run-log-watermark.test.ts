@@ -82,9 +82,9 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
   });
 
   async function fixture() {
-    const binding = { companyId: randomUUID(), agentId: randomUUID(), runId: randomUUID() };
-    await db.execute(sql`insert into heartbeat_runs(id,company_id,agent_id,status)
-      values(${binding.runId},${binding.companyId},${binding.agentId},'running')`);
+    const binding = { spaceId: randomUUID(), agentId: randomUUID(), runId: randomUUID() };
+    await db.execute(sql`insert into heartbeat_runs(id,space_id,agent_id,status)
+      values(${binding.runId},${binding.spaceId},${binding.agentId},'running')`);
     const provider = memoryProvider();
     const store = () => createObjectRunLogStore({
       provider, keyPrefix: "logs", flushMs: 1,
@@ -99,9 +99,9 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
     });
     const persist = async (value: PrpEvent, cursor: number) => {
       expect(validatePrpEvent(value).ok).toBe(true);
-      await db.execute(sql`insert into heartbeat_run_events(company_id,run_id,agent_id,seq,event_type,
+      await db.execute(sql`insert into heartbeat_run_events(space_id,run_id,agent_id,seq,event_type,
         payload,source_instance_id,source_event_id,source_seq,source_payload_sha256,protocol_schema_version)
-        values(${binding.companyId},${binding.runId},${binding.agentId},${cursor},${value.eventType},
+        values(${binding.spaceId},${binding.runId},${binding.agentId},${cursor},${value.eventType},
         ${JSON.stringify({ orpEvent: value })}::jsonb,${value.sourceInstanceId},${value.sourceEventId},
         ${value.sourceSeq},${nativeSha256(value)},${value.schemaVersion})`);
     };
@@ -161,7 +161,7 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
   ) {
     const [saved] = await db.select({ runtimeMode: heartbeatRuns.runtimeMode }).from(heartbeatRuns)
       .where(eq(heartbeatRuns.id, f.binding.runId));
-    const row = { id: f.binding.runId, companyId: f.binding.companyId, agentId: f.binding.agentId,
+    const row = { id: f.binding.runId, spaceId: f.binding.spaceId, agentId: f.binding.agentId,
       status: "running", runtimeMode: saved!.runtimeMode, logStore: null, logRef: null,
       logBytes: null, lastOutputSeq: 0, lastOutputAt: null } as typeof heartbeatRuns.$inferSelect;
     const store = f.store();
@@ -192,7 +192,7 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
     await store.finalize(handle);
     const prefix = await readAll(store, handle);
     const chunk = JSON.parse(prefix).chunk as string;
-    expect(chunk).toContain("[paperclip truncated run log chunk: omitted ");
+    expect(chunk).toContain("[outpost truncated run log chunk: omitted ");
     expect(() => JSON.parse(chunk)).toThrow();
     const [durable] = await db.select({ payload: heartbeatRunEvents.payload }).from(heartbeatRunEvents)
       .where(eq(heartbeatRunEvents.runId, f.binding.runId));
@@ -220,7 +220,7 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
     // Written before invite redaction: the stored head still holds the token.
     const chunk = compactRunLogChunk(formatNativeRunLogEvent(event), undefined, { redactInvitations: false });
     expect(chunk).toContain(token);
-    expect(chunk).toContain("[paperclip truncated run log chunk: omitted ");
+    expect(chunk).toContain("[outpost truncated run log chunk: omitted ");
     await store.append(handle, { stream: "stdout", ts: "legacy", seq: 1, sourceCursor: 2, chunk });
     await store.finalize(handle);
     const prefix = await readAll(store, handle);
@@ -254,9 +254,9 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
     expect(entries).toHaveLength(3);
     expect(nativeSha256(JSON.parse(entries[0].chunk).event)).toBe(nativeSha256(event));
     expect(nativeSha256(JSON.parse(entries[2].chunk).event)).toBe(nativeSha256(suffix));
-    expect(entries[0].chunk).not.toContain("[paperclip truncated");
-    expect(entries[2].chunk).not.toContain("[paperclip truncated");
-    expect(entries[1].chunk).toContain("[paperclip truncated run log chunk:");
+    expect(entries[0].chunk).not.toContain("[outpost truncated");
+    expect(entries[2].chunk).not.toContain("[outpost truncated");
+    expect(entries[1].chunk).toContain("[outpost truncated run log chunk:");
     expect(entries[1].chunk.length).toBeLessThan(64 * 1024);
     if (count === 256) expect(Buffer.byteLength(entries[0].chunk)).toBeGreaterThan(1024 * 1024);
     expect(entries.map(entry => entry.seq)).toEqual([1, 2, 3]);
@@ -302,7 +302,7 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
     await f.persist(f.event(2), 5);
     const store = f.store(), handle = await store.begin(f.binding);
     const chunk = compactRunLogChunk(formatNativeRunLogEvent(event));
-    expect(chunk).toContain("[paperclip truncated run log chunk:");
+    expect(chunk).toContain("[outpost truncated run log chunk:");
     expect(() => JSON.parse(chunk)).toThrow();
     await store.append(handle, { stream: "stdout", ts: "immutable-old-format", seq: 1, sourceCursor: 2, chunk });
     await store.finalize(handle);
@@ -339,7 +339,7 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
 
   it("rejects a verifier record exceeding the accepted 8MiB writer bound", async () => {
     const f = await fixture();
-    const verifier = createNativeRunLogCoverageVerifier(db, f.binding.companyId, f.binding.runId);
+    const verifier = createNativeRunLogCoverageVerifier(db, f.binding.spaceId, f.binding.runId);
     const bytes = Buffer.from(`${JSON.stringify({ chunk: "x".repeat(8 * 1024 * 1024) })}\n`);
     await expect(verifier.write(bytes)).rejects.toThrow("native_log_source_coverage_unproven");
   });
@@ -473,7 +473,7 @@ describe.skipIf(!support.supported)("native run log source watermarks", () => {
       .from(heartbeatRuns).where(eq(heartbeatRuns.id, f.binding.runId));
     expect(persisted!.runtimeMode).toBe("legacy");
     const initialRow: Partial<typeof heartbeatRuns.$inferSelect> = {
-      companyId: f.binding.companyId, agentId: f.binding.agentId,
+      spaceId: f.binding.spaceId, agentId: f.binding.agentId,
       id: f.binding.runId, status: "running", ...persisted,
       logStore: null, logRef: null, logBytes: null, lastOutputSeq: 0, lastOutputAt: null,
     };

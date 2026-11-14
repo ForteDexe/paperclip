@@ -64,7 +64,7 @@ export interface ProviderTraceMetadata {
   schema: "outpost.provider_trace_metadata.v1";
   id: string;
   runId: string;
-  companyId: string;
+  spaceId: string;
   status: ProviderTraceStatus;
   provider: string;
   frameCount: number;
@@ -158,9 +158,9 @@ export interface HeartbeatRun {
   driverKind?: string | null;
   execution?: import("./execution-projection.js").ExecutionProjection | null;
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
-  scopeKind: "company" | "issue";
+  scopeKind: "space" | "issue";
   issueId: string | null;
   invocationSource: HeartbeatInvocationSource;
   triggerDetail: WakeupTriggerDetail | null;
@@ -226,7 +226,7 @@ export interface HeartbeatRun {
   contextSnapshot: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
-  /** Metadata-only company-list row for a run bound to an unreadable private issue. */
+  /** Metadata-only space-list row for a run bound to an unreadable private issue. */
   redacted?: boolean;
   durationMs?: number | null;
   costUsd?: number | null;
@@ -300,7 +300,7 @@ export interface ChatFailedRunRetryResponse {
 
 export interface HeartbeatRunEvent {
   id: number;
-  companyId: string;
+  spaceId: string;
   runId: string;
   agentId: string;
   seq: number;
@@ -315,7 +315,7 @@ export interface HeartbeatRunEvent {
 
 export interface AgentRuntimeState {
   agentId: string;
-  companyId: string;
+  spaceId: string;
   adapterType: string;
   sessionId: string | null;
   sessionDisplayId?: string | null;
@@ -334,7 +334,7 @@ export interface AgentRuntimeState {
 
 export interface AgentTaskSession {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   adapterType: string;
   taskKey: string;
@@ -348,7 +348,7 @@ export interface AgentTaskSession {
 
 export interface AgentWakeupRequest {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   source: HeartbeatInvocationSource;
   triggerDetail: WakeupTriggerDetail | null;
@@ -370,9 +370,9 @@ export interface AgentWakeupRequest {
 
 export interface InstanceSchedulerHeartbeatAgent {
   id: string;
-  companyId: string;
-  companyName: string;
-  companyIssuePrefix: string;
+  spaceId: string;
+  spaceName: string;
+  spaceIssuePrefix: string;
   agentName: string;
   agentUrlKey: string;
   role: AgentRole;

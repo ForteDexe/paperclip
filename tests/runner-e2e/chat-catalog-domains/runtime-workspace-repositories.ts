@@ -4,7 +4,7 @@ import type { Issue, ConnectionIntentInteraction } from "../../../packages/share
 import type { ConnectionIntentSetupOptions } from "../../../packages/shared/src/types/connection-intent.js";
 import type { ConnectionGrant } from "../../../packages/shared/src/types/tool-access.js";
 import type { HeartbeatRun } from "../../../packages/shared/src/types/heartbeat.js";
-import type { CompanyMembership } from "../../../packages/shared/src/types/access.js";
+import type { SpaceMembership } from "../../../packages/shared/src/types/access.js";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 import { pollUntil } from "../api.js";
 import { collectRunEvents } from "../run-observations.js";
@@ -16,23 +16,23 @@ import { savedTaskWorkspace } from "./runtime-workspaces.js";
 import { inspectCheckout, protectedWorkload, sourceProtectionReceipt, workloadBoundaryCommand, workloadBoundaryReceipts, type RepositoryWorkspace } from "./runtime-workspace-repositories-support.js";
 type Fixture = Awaited<ReturnType<typeof connectRepositoryFixture>>;
 type WaitingOwnerContext = {
-  companyId: string; personId?: string; workerId: string; taskId: string; workspaceId: string; fixtureRunId: string;
-  members: Pick<CompanyMembership, "companyId" | "principalType" | "principalId" | "status">[];
-  task: Pick<Issue, "id" | "companyId" | "status" | "assigneeAgentId" | "assigneeUserId" | "executionWorkspaceId">;
-  run: Pick<HeartbeatRun, "id" | "companyId" | "agentId" | "status" | "contextSnapshot"> & { runtimeMode?: string };
+  spaceId: string; personId?: string; workerId: string; taskId: string; workspaceId: string; fixtureRunId: string;
+  members: Pick<SpaceMembership, "spaceId" | "principalType" | "principalId" | "status">[];
+  task: Pick<Issue, "id" | "spaceId" | "status" | "assigneeAgentId" | "assigneeUserId" | "executionWorkspaceId">;
+  run: Pick<HeartbeatRun, "id" | "spaceId" | "agentId" | "status" | "contextSnapshot"> & { runtimeMode?: string };
 };
 export function repositoryWaitingOwnerInput(input: WaitingOwnerContext) {
-  const { companyId, personId, workerId, taskId, workspaceId, fixtureRunId, task, run } = input;
-  if (!personId || !input.members.some(member => member.companyId === companyId && member.principalType === "user" && member.principalId === personId && member.status === "active"))
-    throw new Error("Repository setup requires the actual signed-in active company member");
-  if (task.id !== taskId || task.companyId !== companyId || task.status !== "done" || task.assigneeAgentId !== workerId || task.assigneeUserId != null || task.executionWorkspaceId !== workspaceId
-    || run.id !== fixtureRunId || run.companyId !== companyId || run.agentId !== workerId || run.status !== "succeeded" || run.runtimeMode !== "native" || run.contextSnapshot?.issueId !== taskId)
+  const { spaceId, personId, workerId, taskId, workspaceId, fixtureRunId, task, run } = input;
+  if (!personId || !input.members.some(member => member.spaceId === spaceId && member.principalType === "user" && member.principalId === personId && member.status === "active"))
+    throw new Error("Repository setup requires the actual signed-in active space member");
+  if (task.id !== taskId || task.spaceId !== spaceId || task.status !== "done" || task.assigneeAgentId !== workerId || task.assigneeUserId != null || task.executionWorkspaceId !== workspaceId
+    || run.id !== fixtureRunId || run.spaceId !== spaceId || run.agentId !== workerId || run.status !== "succeeded" || run.runtimeMode !== "native" || run.contextSnapshot?.issueId !== taskId)
     throw new Error("Repository setup must retain its actual completed worker task, native run and workspace");
   return { status: "in_progress" as const, assigneeAgentId: null, assigneeUserId: personId };
 }
 export function repositoryWaitingOwnerRetained(input: WaitingOwnerContext, saved: WaitingOwnerContext["task"], beforeRunIds: string[], afterRuns: Array<{ id: string; status: string }>) {
   const expected = repositoryWaitingOwnerInput(input);
-  return saved.id === input.taskId && saved.companyId === input.companyId && saved.executionWorkspaceId === input.workspaceId
+  return saved.id === input.taskId && saved.spaceId === input.spaceId && saved.executionWorkspaceId === input.workspaceId
     && saved.status === expected.status && saved.assigneeAgentId === null && saved.assigneeUserId === expected.assigneeUserId
     && beforeRunIds.length === 1 && beforeRunIds[0] === input.fixtureRunId && afterRuns.length === 1
     && afterRuns[0]?.id === input.fixtureRunId && afterRuns[0].status === "succeeded";
@@ -55,7 +55,7 @@ async function grantServerAcquisition(ctx: ChatCatalogContext) {
   const binding = selectedExternalBinding(ctx); const token = selectedExternalCredential(ctx, binding, "tokenEnv");
   // Product's existing server-only materializer convention. Never bind this
   // secret to an agent, model profile, managed grant or environment.
-  const secret = await ctx.input.api.postSensitive<{ id: string }>(`/api/companies/${ctx.input.fixtures.company.id}/secrets`, {
+  const secret = await ctx.input.api.postSensitive<{ id: string }>(`/api/spaces/${ctx.input.fixtures.space.id}/secrets`, {
     name: "GITHUB_TOKEN", key: "GITHUB_TOKEN", provider: "local_encrypted", value: token });
   resource.cloneSecretId = secret.id;
   await ctx.input.evidence("workspace-server-acquisition-authorized.json", { secretId: secret.id, exactRepositoryId: site(resource.fixture).id,
@@ -74,12 +74,12 @@ async function setup(ctx: ChatCatalogContext) {
     const prepared = await savedTaskWorkspace(ctx);
     const [session, members, completedTask, completedRun, beforeRuns] = await Promise.all([
       ctx.input.api.get<{ user?: { id: string } }>("/api/auth/get-session"),
-      ctx.input.api.get<{ members: WaitingOwnerContext["members"] }>(`/api/companies/${ctx.input.fixtures.company.id}/members`),
+      ctx.input.api.get<{ members: WaitingOwnerContext["members"] }>(`/api/spaces/${ctx.input.fixtures.space.id}/members`),
       ctx.input.api.get<Issue>(`/api/issues/${prepared.task.id}`),
       ctx.input.api.get<WaitingOwnerContext["run"]>(`/api/heartbeat-runs/${prepared.fixtureRunId}`),
       ctx.allRuns(),
     ]);
-    const waitingOwner = { companyId: ctx.input.fixtures.company.id, personId: session.user?.id, workerId: prepared.worker.id,
+    const waitingOwner = { spaceId: ctx.input.fixtures.space.id, personId: session.user?.id, workerId: prepared.worker.id,
       taskId: prepared.task.id, workspaceId: prepared.workspaceBefore.workspace.id, fixtureRunId: prepared.fixtureRunId, members: members.members, task: completedTask, run: completedRun };
     const ownerInput = repositoryWaitingOwnerInput(waitingOwner);
     expect(beforeRuns.map(run => run.id)).toEqual([prepared.fixtureRunId]);
@@ -94,10 +94,10 @@ async function setup(ctx: ChatCatalogContext) {
     ]);
     if (!repositoryWaitingOwnerRetained(waitingOwner, savedTask, beforeRuns.map(run => run.id), afterRuns))
       throw new Error("Repository waiting setup changed ownership, workspace or native scheduling");
-    await ctx.input.evidence("workspace-repository-waiting-owner.json", { companyId: waitingOwner.companyId, taskId: savedTask.id,
+    await ctx.input.evidence("workspace-repository-waiting-owner.json", { spaceId: waitingOwner.spaceId, taskId: savedTask.id,
       workspaceId: waitingOwner.workspaceId, assigneeAgentId: savedTask.assigneeAgentId, assigneeUserId: savedTask.assigneeUserId,
       fixtureRunId: prepared.fixtureRunId, fixtureRunStatus: completedRun.status, fixtureRunAgentId: completedRun.agentId,
-      additionalNativeRuns: 0, ownerSource: "actual-signed-in-active-company-member" });
+      additionalNativeRuns: 0, ownerSource: "actual-signed-in-active-space-member" });
     if (workspace.issueId !== activeTask.id || !workspace.workspace?.cwd || workspace.repositories.length) throw new Error("Setup blocker: actual active task must have a valid admitted workspace and no acquired repository");
     return { ...fixture, worker: prepared.worker, task: activeTask, fixtureRunId: prepared.fixtureRunId, workspaceBefore: workspace,
       requestedUrl: `https://github.com/${site(fixture).fullName}`, initialRunIds: (await ctx.allRuns()).map(run => run.id), accessGranted: ctx.scenario.id === "workspaces.prepare-repository" };
@@ -128,8 +128,8 @@ export function affirmativeRepositorySuccess(reply: string) {
 export function gradeWorkspaceRepositories(value: unknown) {
   const c = checks(), o = view(value); c.add("actual-task-preparation-and-checkout-evidence", !!o, "Requires the actual task, persisted repository receipts, independent Git/files and actual own-run authority check."); if (!o) return c.result();
   const task = o.state.task as Issue, before = o.state.workspaceBefore as RepositoryWorkspace, row = o.workspace.repositories[0], checkout = o.checkout;
-  c.add("same-task-exact-source-normal-preparation", o.activeTask.id === task.id && o.activeTask.companyId === o.companyId && o.workspace.issueId === task.id && o.workspace.workspace.companyId === o.companyId && o.workspace.workspace.id === before.workspace.id && o.workspace.repositories.length === 1
-    && row?.requestedByIssueId === task.id && row.companyId === o.companyId && row.executionWorkspaceId === before.workspace.id && row.repoUrl === o.state.requestedUrl
+  c.add("same-task-exact-source-normal-preparation", o.activeTask.id === task.id && o.activeTask.spaceId === o.spaceId && o.workspace.issueId === task.id && o.workspace.workspace.spaceId === o.spaceId && o.workspace.workspace.id === before.workspace.id && o.workspace.repositories.length === 1
+    && row?.requestedByIssueId === task.id && row.spaceId === o.spaceId && row.executionWorkspaceId === before.workspace.id && row.repoUrl === o.state.requestedUrl
     && row.catalogRepositoryId === String((o.state.siteRepository as { id: number }).id) && row.state === "ready"
     && o.activity.some(event => event.action === "workspace.repository.requested" && (event.details as { issueId?: string; repositoryId?: string } | undefined)?.issueId === task.id
       && (event.details as { repositoryId?: string }).repositoryId === row.id && o.runs.some(run => run.id === (event as typeof event & { runId?: string }).runId && run.agentId === o.activeTask.assigneeAgentId && run.contextSnapshot?.issueId === task.id)),
@@ -185,9 +185,9 @@ function definition(id: string) {
         await ctx.input.evidence("workspace-repository-human-grant-prerequisite.json", { interactionId: pending[0]!.id, setupMethods: options.service.methods.map(method => ({ key: method.key, auth: method.auth })), existingConnectionCount: options.existingConnections.length, requestedAgentId: options.requestedAgentId, actualInteractionMatches: options.interaction.id === pending[0]!.id,
           actualGrantCompleted: false, awaitingActualHumanConsent: true, fixtureCapabilityCheck: "explicit own-run secret-list/secret-denial/managed-only-broker command; not checkout coaching", targetDesignated: !!state.siteRepository, rawMetadataTokenWillNotResolveManagedIntent: true });
         const task = state.task as Issue;
-        if (!ctx.input.fixtures.company.issuePrefix) throw new Error("Saved company route prefix is missing");
+        if (!ctx.input.fixtures.space.issuePrefix) throw new Error("Saved space route prefix is missing");
         if (!options.requestedAgentId || !pending[0]!.addresseeUserId || pending[0]!.addresseeUserId !== options.interaction.addresseeUserId || options.requestedAgentId !== first.activeTask.assigneeAgentId) throw new Error("Actual request person/worker binding changed before human authorization");
-        const grant = await completeHumanGitHubGrant(ctx, { companyId: ctx.input.fixtures.company.id, issuePrefix: ctx.input.fixtures.company.issuePrefix,
+        const grant = await completeHumanGitHubGrant(ctx, { spaceId: ctx.input.fixtures.space.id, issuePrefix: ctx.input.fixtures.space.issuePrefix,
           taskId: task.id, workerId: options.requestedAgentId, interactionId: pending[0]!.id, personId: pending[0]!.addresseeUserId!,
           repositoryId: String((state.siteRepository as { id: number }).id), repositoryFullName: (state.siteRepository as { fullName: string }).fullName });
         owned.get(ctx)!.humanConnectionId = grant.connectionId;
@@ -203,7 +203,7 @@ function definition(id: string) {
     },
     async verifyResult(ctx, state) {
       const source = ctx.input.page.url(), task = await ctx.input.api.get<Issue>(`/api/issues/${(state.task as Issue).id}`);
-      await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier}`);
+      await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier}`);
       await expect(ctx.input.page.getByRole("heading", { name: task.title, exact: true }).first()).toBeVisible();
       const after = await observe(ctx, state); if (!gradeWorkspaceRepositories(after).passed) throw new Error("Repository result did not survive independent real task view/readback");
       await ctx.input.evidence("workspace-repository-task-opened.json", { taskId: task.id, workspaceId: after.workspace.workspace.id, pinnedCommit: after.checkout?.head });

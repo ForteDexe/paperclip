@@ -22,7 +22,7 @@ for (const [name, patch] of [
   ['incomplete producer', { conclusion: null }],
   ['failed producer', { conclusion: 'failure' }],
   ['unrelated workflow', { path: '.github/workflows/ci.yml' }],
-  ['fork artifact', { repository: { full_name: 'fork/paperclip' } }],
+  ['fork artifact', { repository: { full_name: 'fork/outpost' } }],
 ]) test('rejects ' + name, () => assert.throws(() => validateReleaseRun({ ...run, ...patch }, source)));
 
 for (const [name, values] of [
@@ -36,7 +36,7 @@ for (const [name, values] of [
 
 test('base image must be immutable and repository-owned', () => {
   assert.equal(validateReleaseImageBase('ghcr.io/paperclipai/paperclip-daytona-runner@sha256:' + source + 'b'.repeat(24)), 'ghcr.io/paperclipai/paperclip-daytona-runner@sha256:' + source + 'b'.repeat(24));
-  for (const base of ['ghcr.io/paperclipai/paperclip-daytona-runner:latest', 'ghcr.io/fork/paperclip-daytona-runner@sha256:' + 'a'.repeat(64), 'ubuntu:latest']) {
+  for (const base of ['ghcr.io/paperclipai/paperclip-daytona-runner:latest', 'ghcr.io/fork/outpost-daytona-runner@sha256:' + 'a'.repeat(64), 'ubuntu:latest']) {
     assert.throws(() => validateReleaseImageBase(base));
   }
 });

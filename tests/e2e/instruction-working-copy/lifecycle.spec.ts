@@ -14,20 +14,20 @@ test("saves stopped-process edits, shows completed tasks, and restores saved byt
     return response.json();
   };
   expect((await api("/health")).deploymentMode).toBe("local_trusted");
-  const [company] = await api("/companies");
-  expect(company.name).toBe("Instruction Lifecycle QA");
+  const [space] = await api("/spaces");
+  expect(space.name).toBe("Instruction Lifecycle QA");
   const cwd = await mkdtemp(path.join(os.tmpdir(), "instruction-acceptance-"));
   try {
-    const agent = await api(`/companies/${company.id}/agents`, "POST", {
+    const agent = await api(`/spaces/${space.id}/agents`, "POST", {
       name: `Instruction worker ${path.basename(cwd)}`, role: "engineer", adapterType: "process",
       adapterConfig: { command: process.execPath, args: [path.resolve(import.meta.dirname, "worker.mjs")], cwd },
       instructionsBundle: { entryFile: "AGENTS.md", files: { "AGENTS.md": "# Original\n" } },
       runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },
     });
     for (const turn of [0, 1]) {
-      const issue = await api(`/companies/${company.id}/issues`, "POST", { title: `Persist instructions turn ${turn}`, status: "todo", assigneeAgentId: agent.id });
-      await page.goto(`${base}/${company.issuePrefix}/issues/${issue.identifier}`);
-      const runs = async () => (await api(`/companies/${company.id}/heartbeat-runs`)).filter((run: { contextSnapshot: { issueId?: string } }) => run.contextSnapshot?.issueId === issue.id);
+      const issue = await api(`/spaces/${space.id}/issues`, "POST", { title: `Persist instructions turn ${turn}`, status: "todo", assigneeAgentId: agent.id });
+      await page.goto(`${base}/${space.issuePrefix}/issues/${issue.identifier}`);
+      const runs = async () => (await api(`/spaces/${space.id}/heartbeat-runs`)).filter((run: { contextSnapshot: { issueId?: string } }) => run.contextSnapshot?.issueId === issue.id);
       await expect.poll(async () => (await runs()).some((run: { status: string }) => run.status === "succeeded"), { timeout: 45_000 }).toBe(true);
       const history = await runs();
       expect(history).toHaveLength(1);

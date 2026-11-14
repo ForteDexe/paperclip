@@ -26,14 +26,14 @@ const mockAccessService = vi.hoisted(() => ({
   setPrincipalPermission: vi.fn(),
 }));
 
-const mockCompanySkillService = vi.hoisted(() => ({
+const mockSpaceSkillService = vi.hoisted(() => ({
   listRuntimeSkillEntries: vi.fn(),
   resolveRequestedSkillKeys: vi.fn(),
 }));
 
 const mockSecretService = vi.hoisted(() => ({
-  normalizeAdapterConfigForPersistence: vi.fn(async (_companyId: string, config: Record<string, unknown>) => config),
-  resolveAdapterConfigForRuntime: vi.fn(async (_companyId: string, config: Record<string, unknown>) => ({ config })),
+  normalizeAdapterConfigForPersistence: vi.fn(async (_spaceId: string, config: Record<string, unknown>) => config),
+  resolveAdapterConfigForRuntime: vi.fn(async (_spaceId: string, config: Record<string, unknown>) => ({ config })),
   syncEnvBindingsForTarget: vi.fn(),
 }));
 
@@ -88,8 +88,8 @@ vi.mock("../services/index.js", () => ({
   agentInstructionsService: () => mockAgentInstructionsService,
   accessService: () => mockAccessService,
   approvalService: () => mockApprovalService,
-  builtInAgentService: () => ({ ensureCompanyDefaultAgentGrants: vi.fn() }),
-  companySkillService: () => mockCompanySkillService,
+  builtInAgentService: () => ({ ensureSpaceDefaultAgentGrants: vi.fn() }),
+  spaceSkillService: () => mockSpaceSkillService,
   budgetService: () => mockBudgetService,
   heartbeatService: () => mockHeartbeatService,
   issueApprovalService: () => mockIssueApprovalService,
@@ -123,8 +123,8 @@ function registerModuleMocks() {
     agentInstructionsService: () => mockAgentInstructionsService,
     accessService: () => mockAccessService,
     approvalService: () => mockApprovalService,
-    builtInAgentService: () => ({ ensureCompanyDefaultAgentGrants: vi.fn() }),
-    companySkillService: () => mockCompanySkillService,
+    builtInAgentService: () => ({ ensureSpaceDefaultAgentGrants: vi.fn() }),
+    spaceSkillService: () => mockSpaceSkillService,
     budgetService: () => mockBudgetService,
     heartbeatService: () => mockHeartbeatService,
     issueApprovalService: () => mockIssueApprovalService,
@@ -153,7 +153,7 @@ function registerModuleMocks() {
 
   // The adapter registry reads the disabled set from this store. Mock it so a
   // test can declare an adapter disabled without writing to the real
-  // ~/.paperclip/adapter-settings.json.
+  // ~/.outpost/adapter-settings.json.
   vi.doMock("../services/adapter-plugin-store.js", () => ({
     getDisabledAdapterTypes: mockAdapterPluginStore.getDisabledAdapterTypes,
     isAdapterDisabled: (type: string) =>
@@ -186,9 +186,9 @@ async function createApp(actorOverride: Record<string, unknown> = {}) {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = {
-      type: "board",
-      userId: "local-board",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "local-operator",
+      spaceIds: ["space-1"],
       source: "local_implicit",
       isInstanceAdmin: false,
       ...actorOverride,
@@ -200,8 +200,8 @@ async function createApp(actorOverride: Record<string, unknown> = {}) {
       from: vi.fn(() => ({
         where: vi.fn(async () => [
           {
-            id: "company-1",
-            requireBoardApprovalForNewAgents: false,
+            id: "space-1",
+            requireOperatorApprovalForNewAgents: false,
           },
         ]),
       })),
@@ -255,8 +255,8 @@ describe("agent routes adapter validation", () => {
     registerModuleMocks();
     vi.clearAllMocks();
     mockAdapterPluginStore.getDisabledAdapterTypes.mockReturnValue([]);
-    mockCompanySkillService.listRuntimeSkillEntries.mockResolvedValue([]);
-    mockCompanySkillService.resolveRequestedSkillKeys.mockResolvedValue([]);
+    mockSpaceSkillService.listRuntimeSkillEntries.mockResolvedValue([]);
+    mockSpaceSkillService.resolveRequestedSkillKeys.mockResolvedValue([]);
     mockAccessService.canUser.mockResolvedValue(true);
     mockAccessService.decide.mockResolvedValue({
       allowed: true,
@@ -272,20 +272,20 @@ describe("agent routes adapter validation", () => {
     mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableNativeRunner: false });
     mockManagedAgentProfileService.requireQualified.mockResolvedValue({
       id: "managed-primary",
-      companyId: "company-1",
+      spaceId: "space-1",
       enabled: true,
     });
     mockRemoteAgentProfileService.requireQualified.mockResolvedValue({
       id: "agentcore-primary",
-      companyId: "company-1",
+      spaceId: "space-1",
       enabled: true,
     });
     mockAgentInstructionsService.materializeManagedBundle.mockImplementation(async (agent: { adapterConfig: unknown }) => ({
       adapterConfig: agent.adapterConfig,
     }));
-    mockAgentService.create.mockImplementation(async (_companyId: string, input: Record<string, unknown>) => ({
+    mockAgentService.create.mockImplementation(async (_spaceId: string, input: Record<string, unknown>) => ({
       id: String(input.id ?? "11111111-1111-4111-8111-111111111111"),
-      companyId: "company-1",
+      spaceId: "space-1",
       name: String(input.name ?? "Agent"),
       urlKey: "agent",
       role: String(input.role ?? "general"),
@@ -309,7 +309,7 @@ describe("agent routes adapter validation", () => {
     }));
     mockAgentService.getById.mockResolvedValue({
       id: "11111111-1111-4111-8111-111111111111",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Codex",
       urlKey: "codex",
       role: "engineer",
@@ -425,10 +425,10 @@ describe("agent routes adapter validation", () => {
     try {
       const app = await createApp();
       for (const suffix of ["", "&refresh=true"]) {
-        const native = await requestApp(app, baseUrl => request(baseUrl).get(`/api/companies/company-1/adapters/outpost_runner/models?provider=acpx&acpxAgent=grok${suffix}`));
+        const native = await requestApp(app, baseUrl => request(baseUrl).get(`/api/spaces/space-1/adapters/outpost_runner/models?provider=acpx&acpxAgent=grok${suffix}`));
         expect(native.status).toBe(200);
         expect(native.body).toEqual([models[1]]);
-        const legacy = await requestApp(app, baseUrl => request(baseUrl).get(`/api/companies/company-1/adapters/grok_local/models?refresh=${Boolean(suffix)}`));
+        const legacy = await requestApp(app, baseUrl => request(baseUrl).get(`/api/spaces/space-1/adapters/grok_local/models?refresh=${Boolean(suffix)}`));
         expect(legacy.status).toBe(200);
         expect(legacy.body).toEqual(models);
       }
@@ -442,14 +442,14 @@ describe("agent routes adapter validation", () => {
     try {
       const app = await createApp();
       for (const [provider, adapter] of [["acpx", "claude_local"], ["acpx&acpxAgent=grok", "grok_local"], ["codex", "codex_local"], ["opencode", "opencode_local"]]) {
-        const res = await requestApp(app, (baseUrl) => request(baseUrl).get(`/api/companies/company-1/adapters/outpost_runner/models?provider=${provider}`));
+        const res = await requestApp(app, (baseUrl) => request(baseUrl).get(`/api/spaces/space-1/adapters/outpost_runner/models?provider=${provider}`));
         expect(res.status).toBe(200);
         expect(res.body).toEqual([{ id: adapter, label: adapter }]);
-        const refreshed = await requestApp(app, (baseUrl) => request(baseUrl).get(`/api/companies/company-1/adapters/outpost_runner/models?provider=${provider}&refresh=true`));
+        const refreshed = await requestApp(app, (baseUrl) => request(baseUrl).get(`/api/spaces/space-1/adapters/outpost_runner/models?provider=${provider}&refresh=true`));
         expect(refreshed.status).toBe(200);
         expect(refreshed.body).toEqual([{ id: `${adapter}-fresh`, label: adapter }]);
       }
-      const invalid = await requestApp(app, (baseUrl) => request(baseUrl).get("/api/companies/company-1/adapters/outpost_runner/models?provider=acpx_codex"));
+      const invalid = await requestApp(app, (baseUrl) => request(baseUrl).get("/api/spaces/space-1/adapters/outpost_runner/models?provider=acpx_codex"));
       expect(invalid.status).toBe(422);
     } finally { list.mockRestore(); refresh.mockRestore(); }
   });
@@ -463,11 +463,11 @@ describe("agent routes adapter validation", () => {
     try {
       const app = await createApp();
       for (const suffix of ["", "&refresh=true"]) {
-        const response = await requestApp(app, base => request(base).get(`/api/companies/company-1/adapters/outpost_runner/models?provider=acpx&acpxAgent=antigravity${suffix}`));
+        const response = await requestApp(app, base => request(base).get(`/api/spaces/space-1/adapters/outpost_runner/models?provider=acpx&acpxAgent=antigravity${suffix}`));
         expect(response.status, JSON.stringify(response.body)).toBe(200);
         expect(response.body).toEqual(catalog);
         expect(mockAntigravityModels).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({
-          companyId: "company-1", binding: { provider: "google", method: "subscription", mode: "responsible_user" },
+          spaceId: "space-1", binding: { provider: "google", method: "subscription", mode: "responsible_user" },
         }));
       }
       expect(list).not.toHaveBeenCalled();
@@ -478,19 +478,19 @@ describe("agent routes adapter validation", () => {
   it("refuses another provider binding before Antigravity model discovery", async () => {
     const app = await createApp();
     const binding = encodeURIComponent(JSON.stringify({ provider: "openai", method: "subscription", mode: "responsible_user" }));
-    const response = await requestApp(app, base => request(base).get(`/api/companies/company-1/adapters/outpost_runner/models?provider=acpx&acpxAgent=antigravity&aiConnection=${binding}`));
+    const response = await requestApp(app, base => request(base).get(`/api/spaces/space-1/adapters/outpost_runner/models?provider=acpx&acpxAgent=antigravity&aiConnection=${binding}`));
     expect(response.status).toBe(422);
     expect(response.body.error).toContain("Google runtime connection");
     expect(mockAntigravityModels).not.toHaveBeenCalled();
   });
 
-  it.each(["create", "hire", "edit"])("refuses pending Antigravity %s before persistence", async action => {
+  it.each(["create", "create", "edit"])("refuses pending Antigravity %s before persistence", async action => {
     mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableNativeRunner: true });
     const app = await createApp();
     const adapterConfig = { provider: "acpx", acpxAgent: "antigravity", model: "exact-antigravity-model" };
     const response = action === "edit"
       ? await requestApp(app, base => request(base).patch("/api/agents/11111111-1111-4111-8111-111111111111").send({ adapterType: "outpost_runner", adapterConfig }))
-      : await requestApp(app, base => request(base).post(`/api/companies/company-1/${action === "hire" ? "agent-hires" : "agents"}`).send({ name: "Antigravity", adapterType: "outpost_runner", adapterConfig }));
+      : await requestApp(app, base => request(base).post(`/api/spaces/space-1/${action === "create" ? "agent-creations" : "agents"}`).send({ name: "Antigravity", adapterType: "outpost_runner", adapterConfig }));
     expect(response.status, JSON.stringify(response.body)).toBe(422);
     expect(response.body.details).toMatchObject({ code: "outpost_runner_acpx_agent_unavailable" });
     expect(mockAgentService.create).not.toHaveBeenCalled();
@@ -498,28 +498,28 @@ describe("agent routes adapter validation", () => {
     expect(mockApprovalService.create).not.toHaveBeenCalled();
   });
 
-  it.runIf(process.platform === "darwin" && process.arch === "arm64")("saves only the exact company-authorized Antigravity candidate without persisting operator authority", async () => {
+  it.runIf(process.platform === "darwin" && process.arch === "arm64")("saves only the exact space-authorized Antigravity candidate without persisting operator authority", async () => {
     const [{ QUALIFIED_ACPX_PROFILES }, distributionJson] = await Promise.all([
       import("../vendor/outpost-runner/index.js"),
       readFile(new URL("../../../packages/outpost-runner/antigravity-distributions.json", import.meta.url), "utf8"),
     ]);
     const distributions = JSON.parse(distributionJson);
     const adapterConfig = { provider: "acpx", acpxAgent: "antigravity", model: "exact-antigravity-model" };
-    const admission = { schema: "outpost.acpx-candidate-admission.v1", companyId: "company-1", agent: "antigravity",
+    const admission = { schema: "outpost.acpx-candidate-admission.v1", spaceId: "space-1", agent: "antigravity",
       model: adapterConfig.model, profileDigest: QUALIFIED_ACPX_PROFILES.antigravity.commandDigest,
       nativeClosureDigest: `sha256:${distributions.platforms["darwin-arm64"].closureSha256}`,
       platform: "darwin", architecture: "arm64", expiresAt: Date.now() + 60_000 };
     vi.stubEnv("OUTPOST_ACPX_CANDIDATE_ADMISSION", JSON.stringify(admission));
     const app = await createApp();
-    const created = await requestApp(app, base => request(base).post("/api/companies/company-1/agents").send({ name: "Antigravity candidate", adapterType: "outpost_runner", adapterConfig }));
+    const created = await requestApp(app, base => request(base).post("/api/spaces/space-1/agents").send({ name: "Antigravity candidate", adapterType: "outpost_runner", adapterConfig }));
     expect(created.status, JSON.stringify(created.body)).toBe(201);
-    expect(mockAgentService.create).toHaveBeenCalledWith("company-1", expect.objectContaining({ adapterConfig: expect.objectContaining(adapterConfig) }), expect.any(Object));
+    expect(mockAgentService.create).toHaveBeenCalledWith("space-1", expect.objectContaining({ adapterConfig: expect.objectContaining(adapterConfig) }), expect.any(Object));
     expect(JSON.stringify(mockAgentService.create.mock.calls)).not.toContain("outpost.acpx-candidate-admission");
     expect(QUALIFIED_ACPX_PROFILES.antigravity.qualificationStatus).toBe("pending");
     mockAgentService.create.mockClear();
-    for (const changed of [{ ...admission, companyId: "another-company" }, { ...admission, model: "another-model" }]) {
+    for (const changed of [{ ...admission, spaceId: "another-space" }, { ...admission, model: "another-model" }]) {
       vi.stubEnv("OUTPOST_ACPX_CANDIDATE_ADMISSION", JSON.stringify(changed));
-      const denied = await requestApp(app, base => request(base).post("/api/companies/company-1/agents").send({ name: "Antigravity candidate", adapterType: "outpost_runner", adapterConfig }));
+      const denied = await requestApp(app, base => request(base).post("/api/spaces/space-1/agents").send({ name: "Antigravity candidate", adapterType: "outpost_runner", adapterConfig }));
       expect(denied.status, JSON.stringify(denied.body)).toBe(422);
     }
     expect(mockAgentService.create).not.toHaveBeenCalled();
@@ -533,7 +533,7 @@ describe("agent routes adapter validation", () => {
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/agents")
+        .post("/api/spaces/space-1/agents")
         .send({
           name: "External Agent",
           adapterType: "external_test",
@@ -548,7 +548,7 @@ describe("agent routes adapter validation", () => {
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/agents")
+        .post("/api/spaces/space-1/agents")
         .send({
           name: "Codex Agent",
           adapterType: "codex_local",
@@ -591,7 +591,7 @@ describe("agent routes adapter validation", () => {
     const agentId = "11111111-1111-4111-8111-111111111111";
     mockAgentService.getById.mockResolvedValue({
       id: agentId,
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Claude",
       urlKey: "claude",
       role: "engineer",
@@ -654,7 +654,7 @@ describe("agent routes adapter validation", () => {
     const adapterConfig = patch.adapterConfig as Record<string, unknown>;
     const env = adapterConfig.env as Record<string, unknown>;
     expect(env.OPENAI_API_KEY).toBe("sk-test-key");
-    expect(String(env.CODEX_HOME)).toContain(`/companies/company-1/agents/${agentId}/codex-home`);
+    expect(String(env.CODEX_HOME)).toContain(`/spaces/space-1/agents/${agentId}/codex-home`);
   });
 
   it("allows codex_local agents to share the host Codex home", async () => {
@@ -662,7 +662,7 @@ describe("agent routes adapter validation", () => {
     const sharedHome = path.join(os.homedir(), ".codex");
     const res = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/agents")
+        .post("/api/spaces/space-1/agents")
         .send({
           name: "Shared Codex",
           adapterType: "codex_local",
@@ -685,7 +685,7 @@ describe("agent routes adapter validation", () => {
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/agents")
+        .post("/api/spaces/space-1/agents")
         .send({
           name: "Keyed Codex",
           adapterType: "codex_local",
@@ -703,12 +703,12 @@ describe("agent routes adapter validation", () => {
     const adapterConfig = createInput.adapterConfig as Record<string, unknown>;
     const env = adapterConfig.env as Record<string, unknown>;
     expect(env.OPENAI_API_KEY).toBe("sk-test-key");
-    expect(String(env.CODEX_HOME)).toContain(`/companies/company-1/agents/${agentId}/codex-home`);
+    expect(String(env.CODEX_HOME)).toContain(`/spaces/space-1/agents/${agentId}/codex-home`);
   });
 
   it("restores a saved agent's redacted CODEX_HOME before testing its adapter", async () => {
     const agentId = "11111111-1111-4111-8111-111111111111";
-    const storedHome = "/paperclip/companies/company-1/agents/agent-1/codex-home";
+    const storedHome = "/outpost/spaces/space-1/agents/agent-1/codex-home";
     mockAgentService.getById.mockResolvedValue({
       ...(await mockAgentService.getById()),
       id: agentId,
@@ -720,7 +720,7 @@ describe("agent routes adapter validation", () => {
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({
           agentId,
           adapterConfig: { env: { CODEX_HOME: { type: "plain", value: "***REDACTED***" } } },
@@ -729,7 +729,7 @@ describe("agent routes adapter validation", () => {
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockSecretService.normalizeAdapterConfigForPersistence).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       { env: { CODEX_HOME: storedHome } },
       expect.objectContaining({ adapterType: "external_test" }),
     );
@@ -741,7 +741,7 @@ describe("agent routes adapter validation", () => {
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .post("/api/spaces/space-1/adapters/external_test/test-environment")
         .send({
           agentId: "11111111-1111-4111-8111-111111111111",
           adapterConfig: { env: { CODEX_HOME: { type: "plain", value: "***REDACTED***" } } },
@@ -756,7 +756,7 @@ describe("agent routes adapter validation", () => {
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/agents")
+        .post("/api/spaces/space-1/agents")
         .send({
           name: "Missing Adapter",
           adapterType: missingAdapterType,
@@ -779,7 +779,7 @@ describe("agent routes adapter validation", () => {
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/agents")
+        .post("/api/spaces/space-1/agents")
         .send({ name: "Disabled Harness", adapterType: "external_test" }),
     );
 
@@ -836,7 +836,7 @@ describe("agent routes adapter validation", () => {
     try {
       const app = await createApp();
       const res = await requestApp(app, baseUrl => request(baseUrl)
-        .post("/api/companies/company-1/adapters/codex_local/test-environment")
+        .post("/api/spaces/space-1/adapters/codex_local/test-environment")
         .send({ agentId: "11111111-1111-4111-8111-111111111111", adapterConfig: {
           ...adapterConfig, env: { CODEX_HOME: { type: "plain", value: "***REDACTED***" } },
         } }));
@@ -844,7 +844,7 @@ describe("agent routes adapter validation", () => {
       expect(res.body).toMatchObject({ adapterType: "codex_local", status });
       expect(probe).toHaveBeenCalledOnce();
       expect(probe).toHaveBeenCalledWith(expect.objectContaining({ adapterType: "codex_local", config: adapterConfig }));
-      expect(mockSecretService.normalizeAdapterConfigForPersistence).toHaveBeenCalledWith("company-1", adapterConfig, expect.objectContaining({ adapterType: "codex_local" }));
+      expect(mockSecretService.normalizeAdapterConfigForPersistence).toHaveBeenCalledWith("space-1", adapterConfig, expect.objectContaining({ adapterType: "codex_local" }));
       expect(mockAgentService.create).not.toHaveBeenCalled();
       expect(mockAgentService.update).not.toHaveBeenCalled();
     } finally { await unregisterTestAdapter("codex_local"); }
@@ -857,10 +857,10 @@ describe("agent routes adapter validation", () => {
     const { registerServerAdapter } = await import("../adapters/index.js");
     registerServerAdapter({ ...externalAdapter, type: "codex_local", testEnvironment: probe });
     try {
-      const runner = mode === "explicit legacy" ? "legacy" : mode === "explicit auto" ? "auto" : mode === "explicit native" ? "paperclip" : undefined;
+      const runner = mode === "explicit legacy" ? "legacy" : mode === "explicit auto" ? "auto" : mode === "explicit native" ? "outpost" : undefined;
       const app = await createApp();
       const res = await requestApp(app, baseUrl => request(baseUrl)
-        .post("/api/companies/company-1/adapters/codex_local/test-environment")
+        .post("/api/spaces/space-1/adapters/codex_local/test-environment")
         .send({ adapterConfig: {}, ...(mode === "draft" ? {} : { agentId: "11111111-1111-4111-8111-111111111111" }), ...(runner ? { runner } : {}) }));
       expect(res.status, JSON.stringify(res.body)).toBe(422);
       expect(res.body.details).toMatchObject({ code: "agent_runner_unavailable" });
@@ -873,7 +873,7 @@ describe("agent routes adapter validation", () => {
     mockAdapterPluginStore.getDisabledAdapterTypes.mockReturnValue(["codex_local"]);
     const app = await createApp();
     const res = await requestApp(app, baseUrl => request(baseUrl)
-      .post("/api/companies/company-1/agents").send({ name: "New Codex", adapterType: "codex_local" }));
+      .post("/api/spaces/space-1/agents").send({ name: "New Codex", adapterType: "codex_local" }));
     expect(res.status, JSON.stringify(res.body)).toBe(422);
     expect(res.body.details).toMatchObject({ code: "agent_runner_unavailable" });
     expect(mockAgentService.create).not.toHaveBeenCalled();
@@ -888,7 +888,7 @@ describe("agent routes adapter validation", () => {
     try {
       const app = await createApp();
       const res = await requestApp(app, baseUrl => request(baseUrl)
-        .post("/api/companies/company-1/adapters/outpost_runner/test-environment")
+        .post("/api/spaces/space-1/adapters/outpost_runner/test-environment")
         .send({ agentId: "11111111-1111-4111-8111-111111111111", adapterConfig: { provider: "acpx", acpxAgent: "cursor" } }));
       expect(res.status, JSON.stringify(res.body)).toBe(422);
       expect(res.body.details).toMatchObject({ code: "outpost_runner_rollout_disabled" });
@@ -899,13 +899,13 @@ describe("agent routes adapter validation", () => {
 
   it("defaults new Codex on a qualified Linux target while the experimental flag is off", async () => {
     const selection = await import("../services/agent-runner-selection.js");
-    vi.spyOn(selection, "resolveNewAgentRunnerForCompany").mockImplementation(async (_db, _companyId, input) =>
+    vi.spyOn(selection, "resolveNewAgentRunnerForSpace").mockImplementation(async (_db, _spaceId, input) =>
       selection.resolveNewAgentRunner({ ...input, target: { driver: "local", platform: "linux", architecture: "x64" } }));
     mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableNativeRunner: false, enableOpenAiDot: true });
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/agents")
+        .post("/api/spaces/space-1/agents")
         .send({ name: "Native Codex", adapterType: "codex_local" }),
     );
 
@@ -916,14 +916,14 @@ describe("agent routes adapter validation", () => {
 
   it("retains explicit legacy Codex and rejects incompatible automatic settings before persistence", async () => {
     const selection = await import("../services/agent-runner-selection.js");
-    vi.spyOn(selection, "resolveNewAgentRunnerForCompany").mockImplementation(async (_db, _companyId, input) =>
+    vi.spyOn(selection, "resolveNewAgentRunnerForSpace").mockImplementation(async (_db, _spaceId, input) =>
       selection.resolveNewAgentRunner({ ...input, target: { driver: "local", platform: "linux", architecture: "x64" } }));
     const app = await createApp();
-    const legacy = await requestApp(app, baseUrl => request(baseUrl).post("/api/companies/company-1/agents").send({ name: "Legacy", adapterType: "codex_local", runner: "legacy", adapterConfig: { extraArgs: ["--search"] } }));
+    const legacy = await requestApp(app, baseUrl => request(baseUrl).post("/api/spaces/space-1/agents").send({ name: "Legacy", adapterType: "codex_local", runner: "legacy", adapterConfig: { extraArgs: ["--search"] } }));
     expect(legacy.status, JSON.stringify(legacy.body)).toBe(201);
     expect(mockAgentService.create.mock.calls.at(-1)?.[1]).toMatchObject({ adapterType: "codex_local", adapterConfig: { extraArgs: ["--search"] } });
     mockAgentService.create.mockClear();
-    const incompatible = await requestApp(app, baseUrl => request(baseUrl).post("/api/companies/company-1/agents").send({ name: "Custom", adapterType: "codex_local", adapterConfig: { extraArgs: ["--search"] } }));
+    const incompatible = await requestApp(app, baseUrl => request(baseUrl).post("/api/spaces/space-1/agents").send({ name: "Custom", adapterType: "codex_local", adapterConfig: { extraArgs: ["--search"] } }));
     expect(incompatible.status).toBe(422);
     expect(incompatible.body.details).toMatchObject({ code: "agent_runner_config_incompatible", fields: ["extraArgs"] });
     expect(mockAgentService.create).not.toHaveBeenCalled();
@@ -931,30 +931,30 @@ describe("agent routes adapter validation", () => {
 
   it.each(["auto", "legacy"] as const)("creates OpenCode through the public route with %s selection and the experimental flag off", async runner => {
     const selection = await import("../services/agent-runner-selection.js");
-    vi.spyOn(selection, "resolveNewAgentRunnerForCompany").mockImplementation(async (_db, _companyId, input) =>
+    vi.spyOn(selection, "resolveNewAgentRunnerForSpace").mockImplementation(async (_db, _spaceId, input) =>
       selection.resolveNewAgentRunner({ ...input, target: { driver: "local", platform: "darwin", architecture: "arm64" } }));
     const app = await createApp();
     const model = "openrouter/anthropic/claude-sonnet-4.6";
-    const response = await requestApp(app, baseUrl => request(baseUrl).post("/api/companies/company-1/agents").send({ name: "OpenCode", adapterType: "opencode_local", runner, adapterConfig: { model } }));
+    const response = await requestApp(app, baseUrl => request(baseUrl).post("/api/spaces/space-1/agents").send({ name: "OpenCode", adapterType: "opencode_local", runner, adapterConfig: { model } }));
     expect(response.status, JSON.stringify(response.body)).toBe(201);
     expect(mockAgentService.create.mock.calls.at(-1)?.[1]).toMatchObject({ adapterType: runner === "legacy" ? "opencode_local" : "outpost_runner", adapterConfig: runner === "legacy" ? { model } : { provider: "opencode", model, opencodePermissionMode: "allow" } });
   });
 
   it("allows model-free OpenCode only as an inactive setup draft", async () => {
     const selection = await import("../services/agent-runner-selection.js");
-    vi.spyOn(selection, "resolveNewAgentRunnerForCompany").mockImplementation(async (_db, _companyId, input) =>
+    vi.spyOn(selection, "resolveNewAgentRunnerForSpace").mockImplementation(async (_db, _spaceId, input) =>
       selection.resolveNewAgentRunner({ ...input, target: { driver: "local", platform: "darwin", architecture: "arm64" } }));
     const originalCreate = mockAgentService.create.getMockImplementation()!;
     mockAgentService.create.mockImplementation(async (...args) => ({ ...await originalCreate(...args), lifecycleHolds: ["setup"] }));
     const app = await createApp();
     const input = { name: "OpenCode draft", adapterType: "opencode_local", adapterConfig: {} };
-    const draft = await requestApp(app, baseUrl => request(baseUrl).post("/api/companies/company-1/agents")
+    const draft = await requestApp(app, baseUrl => request(baseUrl).post("/api/spaces/space-1/agents")
       .send({ ...input, setupId: "00000000-0000-4000-8000-000000000092" }));
     expect(draft.status, JSON.stringify(draft.body)).toBe(201);
     expect(mockAgentService.create.mock.calls.at(-1)?.[1]).toMatchObject({ adapterType: "outpost_runner", adapterConfig: { provider: "opencode", model: "" } });
     expect(mockAgentService.create.mock.calls.at(-1)?.[2]).toMatchObject({ setupOnly: true, runnerResolved: true });
     mockAgentService.create.mockClear();
-    const active = await requestApp(app, baseUrl => request(baseUrl).post("/api/companies/company-1/agents")
+    const active = await requestApp(app, baseUrl => request(baseUrl).post("/api/spaces/space-1/agents")
       .send({ ...input, setupOnly: true }));
     expect(active.status).toBe(422);
     expect(mockAgentService.create).not.toHaveBeenCalled();
@@ -968,7 +968,7 @@ describe("agent routes adapter validation", () => {
     const findManaged = vi.fn(async () => null);
     const getEnvironment = vi.fn(async () => null);
     vi.spyOn(environments, "environmentService").mockReturnValue({ findManagedSandboxEnvironment: findManaged,
-      getById: getEnvironment, listBoundCompanyIds: vi.fn(async () => []) } as never);
+      getById: getEnvironment, listBoundSpaceIds: vi.fn(async () => []) } as never);
     const existing = { ...(await mockAgentService.getById()), adapterType: "process", adapterConfig: {},
       status: "paused", lifecycleState: "paused", pauseReason: "setup", lifecycleHolds: ["setup"] };
     mockAgentService.getById.mockResolvedValue(existing);
@@ -993,7 +993,7 @@ describe("agent routes adapter validation", () => {
     expect(active.body.details?.code).toBe("managed_sandbox_unavailable");
     expect(mockAgentService.update).not.toHaveBeenCalled();
     const incompleteActive = await requestApp(app, base => request(base).patch(`/api/agents/${existing.id}`).send({
-      adapterType: "outpost_runner", runner: "paperclip", adapterConfig: { provider: "cursor_cloud" }, setupOnly: true,
+      adapterType: "outpost_runner", runner: "outpost", adapterConfig: { provider: "cursor_cloud" }, setupOnly: true,
     }));
     expect(incompleteActive.status).toBe(422);
     expect(incompleteActive.body.details?.code).toBe("outpost_runner_cursor_cloud_model_required");
@@ -1002,30 +1002,30 @@ describe("agent routes adapter validation", () => {
 
   it.each(["auto", "legacy"] as const)("creates Pi through the public route with %s selection and the experimental flag off", async runner => {
     const selection = await import("../services/agent-runner-selection.js");
-    vi.spyOn(selection, "resolveNewAgentRunnerForCompany").mockImplementation(async (_db, _companyId, input) =>
+    vi.spyOn(selection, "resolveNewAgentRunnerForSpace").mockImplementation(async (_db, _spaceId, input) =>
       selection.resolveNewAgentRunner({ ...input, target: { driver: "local", platform: "darwin", architecture: "arm64" } }));
     const app = await createApp();
     const model = "openrouter/anthropic/claude-sonnet-4.6";
-    const response = await requestApp(app, baseUrl => request(baseUrl).post("/api/companies/company-1/agents").send({ name: "Pi", adapterType: "pi_local", runner, adapterConfig: { model } }));
+    const response = await requestApp(app, baseUrl => request(baseUrl).post("/api/spaces/space-1/agents").send({ name: "Pi", adapterType: "pi_local", runner, adapterConfig: { model } }));
     expect(response.status, JSON.stringify(response.body)).toBe(201);
     expect(mockAgentService.create.mock.calls.at(-1)?.[1]).toMatchObject({ adapterType: runner === "legacy" ? "pi_local" : "outpost_runner", adapterConfig: runner === "legacy" ? { model } : { provider: "acpx", acpxAgent: "pi", model, piThinkingLevel: "low", acpxPermissionMode: "approve-all" } });
   });
 
   it("allows model-free Pi only as an inactive setup draft", async () => {
     const selection = await import("../services/agent-runner-selection.js");
-    vi.spyOn(selection, "resolveNewAgentRunnerForCompany").mockImplementation(async (_db, _companyId, input) =>
+    vi.spyOn(selection, "resolveNewAgentRunnerForSpace").mockImplementation(async (_db, _spaceId, input) =>
       selection.resolveNewAgentRunner({ ...input, target: { driver: "local", platform: "darwin", architecture: "arm64" } }));
     const originalCreate = mockAgentService.create.getMockImplementation()!;
     mockAgentService.create.mockImplementation(async (...args) => ({ ...await originalCreate(...args), lifecycleHolds: ["setup"] }));
     const app = await createApp();
     const input = { name: "Pi draft", adapterType: "pi_local", adapterConfig: {} };
-    const draft = await requestApp(app, baseUrl => request(baseUrl).post("/api/companies/company-1/agents")
+    const draft = await requestApp(app, baseUrl => request(baseUrl).post("/api/spaces/space-1/agents")
       .send({ ...input, setupId: "00000000-0000-4000-8000-000000000092" }));
     expect(draft.status, JSON.stringify(draft.body)).toBe(201);
     expect(mockAgentService.create.mock.calls.at(-1)?.[1]).toMatchObject({ adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "pi", model: "" } });
     expect(mockAgentService.create.mock.calls.at(-1)?.[2]).toMatchObject({ setupOnly: true, runnerResolved: true });
     mockAgentService.create.mockClear();
-    const active = await requestApp(app, baseUrl => request(baseUrl).post("/api/companies/company-1/agents")
+    const active = await requestApp(app, baseUrl => request(baseUrl).post("/api/spaces/space-1/agents")
       .send({ ...input, setupOnly: true }));
     expect(active.status).toBe(422);
     expect(mockAgentService.create).not.toHaveBeenCalled();
@@ -1033,7 +1033,7 @@ describe("agent routes adapter validation", () => {
 
   it("keeps Pi model selection empty when a provisional setup record changes harness", async () => {
     const selection = await import("../services/agent-runner-selection.js");
-    vi.spyOn(selection, "resolveNewAgentRunnerForCompany").mockImplementation(async (_db, _companyId, input) =>
+    vi.spyOn(selection, "resolveNewAgentRunnerForSpace").mockImplementation(async (_db, _spaceId, input) =>
       selection.resolveNewAgentRunner({ ...input, target: { driver: "local", platform: "darwin", architecture: "arm64" } }));
     mockAgentService.getById.mockResolvedValue({ ...(await mockAgentService.getById()), adapterType: "process", adapterConfig: {}, status: "paused", lifecycleState: "paused", pauseReason: "setup", lifecycleHolds: ["setup"] });
     const app = await createApp();
@@ -1049,7 +1049,7 @@ describe("agent routes adapter validation", () => {
     mockAgentService.create.mockImplementation(async (...args) => ({ ...await originalCreate(...args), lifecycleHolds: ["setup"] }));
     const app = await createApp();
     const input = { name: "Kimi draft", adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "kimi" } };
-    const draft = await requestApp(app, base => request(base).post("/api/companies/company-1/agents")
+    const draft = await requestApp(app, base => request(base).post("/api/spaces/space-1/agents")
       .send({ ...input, setupId: "00000000-0000-4000-8000-000000000092" }));
     expect(draft.status, JSON.stringify(draft.body)).toBe(201);
     const saved = mockAgentService.create.mock.calls.at(-1)?.[1];
@@ -1057,7 +1057,7 @@ describe("agent routes adapter validation", () => {
     expect(saved.adapterConfig.model).toBeUndefined();
     expect(mockAgentService.create.mock.calls.at(-1)?.[2]).toMatchObject({ setupOnly: true, runnerResolved: true });
     mockAgentService.create.mockClear();
-    const active = await requestApp(app, base => request(base).post("/api/companies/company-1/agents").send(input));
+    const active = await requestApp(app, base => request(base).post("/api/spaces/space-1/agents").send(input));
     expect(active.status).toBe(422);
     expect(mockAgentService.create).not.toHaveBeenCalled();
   });
@@ -1084,14 +1084,14 @@ describe("agent routes adapter validation", () => {
     const app = await createApp();
     const input = { name: "Kimi", adapterType: "outpost_runner",
       adapterConfig: { provider: "acpx", acpxAgent: "kimi", model: "kimi-for-coding" } };
-    const response = await requestApp(app, base => request(base).post("/api/companies/company-1/agents").send(input));
+    const response = await requestApp(app, base => request(base).post("/api/spaces/space-1/agents").send(input));
     expect(response.status, JSON.stringify(response.body)).toBe(201);
     expect(mockAgentService.create.mock.calls.at(-1)?.[1]).toMatchObject(input);
   });
 
   it.each([{ thinking: "high", status: 200 }, { thinking: "medium", status: 422 }, { command: "custom-pi", status: 422 }])("validates saved Pi settings during direct adapter conversion: %j", async ({ status, ...settings }) => {
     const selection = await import("../services/agent-runner-selection.js");
-    vi.spyOn(selection, "resolveNewAgentRunnerForCompany").mockImplementation(async (_db, _companyId, input) =>
+    vi.spyOn(selection, "resolveNewAgentRunnerForSpace").mockImplementation(async (_db, _spaceId, input) =>
       selection.resolveNewAgentRunner({ ...input, target: { driver: "local", platform: "darwin", architecture: "arm64" } }));
     mockAgentService.getById.mockResolvedValue({ ...(await mockAgentService.getById()), adapterType: "pi_local", adapterConfig: { model: "openrouter/anthropic/claude-sonnet-4.5", ...settings } });
     const app = await createApp();
@@ -1104,7 +1104,7 @@ describe("agent routes adapter validation", () => {
 
   it("keeps other native provider selection behind its existing flag", async () => {
     const app = await createApp();
-    const response = await requestApp(app, baseUrl => request(baseUrl).post("/api/companies/company-1/agents").send({ name: "Native Cursor", adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "cursor", model: "provider-model" } }));
+    const response = await requestApp(app, baseUrl => request(baseUrl).post("/api/spaces/space-1/agents").send({ name: "Native Cursor", adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "cursor", model: "provider-model" } }));
     expect(response.status).toBe(422);
     expect(response.body.details).toMatchObject({ code: "outpost_runner_rollout_disabled" });
   });
@@ -1114,14 +1114,14 @@ describe("agent routes adapter validation", () => {
     const app = await createApp();
     const res = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/agents")
+        .post("/api/spaces/space-1/agents")
         .send({
           name: "Native Codex",
           adapterType: "outpost_runner",
           adapterConfig: {
             provider: "codex",
-            paperclipSkillSync: {
-              desiredSkills: ["paperclipai/paperclip/paperclip", "company-1/reviewer"],
+            outpostSkillSync: {
+              desiredSkills: ["outpost/outpost/outpost", "space-1/reviewer"],
             },
           },
         }),
@@ -1129,14 +1129,14 @@ describe("agent routes adapter validation", () => {
 
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     expect(mockAgentService.create).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         adapterConfig: expect.objectContaining({
           provider: "codex",
           model: "gpt-6.1-sol",
           codexPermissionMode: "never",
           // No stored lifecycle: the product default applies.
-          paperclipSkillSync: { desiredSkills: ["company-1/reviewer"] },
+          outpostSkillSync: { desiredSkills: ["space-1/reviewer"] },
         }),
       }),
       expect.any(Object),
@@ -1158,7 +1158,7 @@ describe("agent routes adapter validation", () => {
       env: { CURSOR_API_KEY: { type: "secret_ref", secretId: "22222222-2222-4222-8222-222222222222", version: "latest" } } };
     const app = await createApp();
     const saved = await requestApp(app, baseUrl => request(baseUrl).patch(`/api/agents/${existing.id}`)
-      .send({ adapterType: "cursor_cloud", runner: "paperclip", adapterConfig: config }));
+      .send({ adapterType: "cursor_cloud", runner: "outpost", adapterConfig: config }));
     expect(saved.status, JSON.stringify(saved.body)).toBe(200);
     expect(saved.body).toMatchObject({ adapterType: "outpost_runner", adapterConfig: {
       provider: "cursor_cloud", model: config.model, repoUrl: config.repoUrl, repoRef: "feature", env: config.env, lifecycleMode: "per_turn",
@@ -1169,23 +1169,23 @@ describe("agent routes adapter validation", () => {
     expect(reopened.status, JSON.stringify(reopened.body)).toBe(200);
     expect(reopened.body.adapterConfig).toEqual(saved.body.adapterConfig);
     const resaved = await requestApp(app, baseUrl => request(baseUrl).patch(`/api/agents/${existing.id}`)
-      .send({ adapterType: "outpost_runner", runner: "paperclip", adapterConfig: reopened.body.adapterConfig }));
+      .send({ adapterType: "outpost_runner", runner: "outpost", adapterConfig: reopened.body.adapterConfig }));
     expect(resaved.status, JSON.stringify(resaved.body)).toBe(200);
-    const { resolvePaperclipRunnerNativeProviderInput } = await import("../services/native-runtime/provider-profile.js");
-    expect(resolvePaperclipRunnerNativeProviderInput({ backend: "cursor_cloud_api", adapterConfig: resaved.body.adapterConfig }))
+    const { resolveOutpostRunnerNativeProviderInput } = await import("../services/native-runtime/provider-profile.js");
+    expect(resolveOutpostRunnerNativeProviderInput({ backend: "cursor_cloud_api", adapterConfig: resaved.body.adapterConfig }))
       .toMatchObject({ provider: "cursor_cloud", model: config.model, cursorCloud: { repos: [{ url: config.repoUrl, startingRef: "feature" }] } });
   });
 
   it.each(["dotAttachmentAccess", "dotWorkspaceAccess", "dotBindingId", "homeMode"])("refuses an agent granting itself the operator-owned setting %s", async key => {
-    const app = await createApp({ type: "agent", agentId: "11111111-1111-4111-8111-111111111111", companyId: "company-1", source: "agent_jwt" });
+    const app = await createApp({ type: "agent", agentId: "11111111-1111-4111-8111-111111111111", spaceId: "space-1", source: "agent_jwt" });
     const response = await requestApp(app, baseUrl => request(baseUrl).patch("/api/agents/11111111-1111-4111-8111-111111111111").send({ adapterConfig: { [key]: key === "homeMode" ? "preconfigured" : key === "dotBindingId" ? "another-binding" : true } }));
     expect(response.status, JSON.stringify(response.body)).toBe(403);
     expect(mockAgentService.update).not.toHaveBeenCalled();
   });
-  it.each(["create", "hire"])("refuses agent-authenticated homeMode on %s even with agent-management permission", async mode => {
+  it.each(["create", "create"])("refuses agent-authenticated homeMode on %s even with agent-management permission", async mode => {
     mockAgentService.getById.mockResolvedValue({ ...(await mockAgentService.getById()), permissions: { canCreateAgents: true } });
-    const app = await createApp({ type: "agent", agentId: "11111111-1111-4111-8111-111111111111", companyId: "company-1", source: "agent_jwt" });
-    const response = await requestApp(app, baseUrl => request(baseUrl).post(mode === "create" ? "/api/companies/company-1/agents" : "/api/companies/company-1/agent-hires")
+    const app = await createApp({ type: "agent", agentId: "11111111-1111-4111-8111-111111111111", spaceId: "space-1", source: "agent_jwt" });
+    const response = await requestApp(app, baseUrl => request(baseUrl).post(mode === "create" ? "/api/spaces/space-1/agents" : "/api/spaces/space-1/agent-creations")
       .send({ name: "Runner", role: "engineer", adapterType: "outpost_runner", adapterConfig: { homeMode: "preconfigured" } }));
     expect(response.status, JSON.stringify(response.body)).toBe(403);
     expect(response.body.error).toContain("Only an operator can configure Runner homeMode");
@@ -1198,7 +1198,7 @@ describe("agent routes adapter validation", () => {
     mockAgentService.getConfigRevision.mockResolvedValue({ afterConfig: {
       adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-6.1-sol" },
     } });
-    const app = await createApp({ type: "agent", agentId: "11111111-1111-4111-8111-111111111111", companyId: "company-1", source: "agent_jwt" });
+    const app = await createApp({ type: "agent", agentId: "11111111-1111-4111-8111-111111111111", spaceId: "space-1", source: "agent_jwt" });
     const response = await requestApp(app, baseUrl => mode === "rollback"
       ? request(baseUrl).post("/api/agents/11111111-1111-4111-8111-111111111111/config-revisions/33333333-3333-4333-8333-333333333333/rollback").send({})
       : request(baseUrl).patch("/api/agents/11111111-1111-4111-8111-111111111111").send(mode === "replace"
@@ -1209,15 +1209,15 @@ describe("agent routes adapter validation", () => {
     expect(mockAgentService.update).not.toHaveBeenCalled();
     expect(mockAgentService.rollbackConfigRevision).not.toHaveBeenCalled();
   });
-  it.each(["agent", "board"] as const)("allows %s ordinary config updates while keeping homeMode operator-owned", async actor => {
+  it.each(["agent", "operator"] as const)("allows %s ordinary config updates while keeping homeMode operator-owned", async actor => {
     mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableNativeRunner: true });
     mockAgentService.getById.mockResolvedValue({ ...(await mockAgentService.getById()), adapterType: "outpost_runner",
       adapterConfig: { provider: "codex", model: "gpt-6.1-sol", homeMode: "preconfigured" }, permissions: { canCreateAgents: true } });
     const app = actor === "agent"
-      ? await createApp({ type: "agent", agentId: "11111111-1111-4111-8111-111111111111", companyId: "company-1", source: "agent_jwt" })
+      ? await createApp({ type: "agent", agentId: "11111111-1111-4111-8111-111111111111", spaceId: "space-1", source: "agent_jwt" })
       : await createApp();
     const response = await requestApp(app, baseUrl => request(baseUrl).patch("/api/agents/11111111-1111-4111-8111-111111111111")
-      .send({ adapterConfig: { provider: "codex", model: "gpt-6.1-sol" }, replaceAdapterConfig: actor === "board" }));
+      .send({ adapterConfig: { provider: "codex", model: "gpt-6.1-sol" }, replaceAdapterConfig: actor === "operator" }));
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     const saved = mockAgentService.update.mock.calls.at(-1)?.[1].adapterConfig;
     expect(saved.homeMode).toBe(actor === "agent" ? "preconfigured" : undefined);
@@ -1238,30 +1238,30 @@ describe("agent routes adapter validation", () => {
     expect(mockAgentService.update).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ adapterConfig: expect.objectContaining({ dotAttachmentAccess: true, dotWorkspaceAccess: false }) }), expect.anything());
   });
 
-  it.each(["create", "hire", "convert"])("saves an unpaired Dot configuration independently of the Runner rollout for %s while refusing task admission", async mode => {
+  it.each(["create", "create", "convert"])("saves an unpaired Dot configuration independently of the Runner rollout for %s while refusing task admission", async mode => {
     mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableNativeRunner: false, enableOpenAiDot: true });
     const app = await createApp();
     const config = { provider: "openai_dot", lifecycleMode: "per_turn", allowUnmeteredProvider: true };
     const response = await requestApp(app, baseUrl => mode === "create"
-      ? request(baseUrl).post("/api/companies/company-1/agents").send({ name: "Dot", adapterType: "outpost_runner", adapterConfig: config })
-      : mode === "hire" ? request(baseUrl).post("/api/companies/company-1/agent-hires").send({ name: "Dot", role: "engineer", adapterType: "outpost_runner", adapterConfig: config })
+      ? request(baseUrl).post("/api/spaces/space-1/agents").send({ name: "Dot", adapterType: "outpost_runner", adapterConfig: config })
+      : mode === "create" ? request(baseUrl).post("/api/spaces/space-1/agent-creations").send({ name: "Dot", role: "engineer", adapterType: "outpost_runner", adapterConfig: config })
       : request(baseUrl).patch("/api/agents/11111111-1111-4111-8111-111111111111").send({ adapterType: "outpost_runner", replaceAdapterConfig: true, adapterConfig: config }));
     expect(response.status, JSON.stringify(response.body)).toBe(mode === "convert" ? 200 : 201);
-    const saved = mode === "hire" ? response.body.agent : response.body;
+    const saved = mode === "create" ? response.body.agent : response.body;
     expect(saved.adapterConfig).toMatchObject(config);
     expect(saved.adapterConfig.model).toBeUndefined();
     expect(saved.adapterConfig.codexPermissionMode).toBeUndefined();
-    const { resolvePaperclipRunnerProviderProfile } = await import("../services/native-runtime/provider-profile.js");
-    expect(() => resolvePaperclipRunnerProviderProfile(saved.adapterConfig)).toThrow(expect.objectContaining({ code: "outpost_runner_dot_config_invalid" }));
+    const { resolveOutpostRunnerProviderProfile } = await import("../services/native-runtime/provider-profile.js");
+    expect(() => resolveOutpostRunnerProviderProfile(saved.adapterConfig)).toThrow(expect.objectContaining({ code: "outpost_runner_dot_config_invalid" }));
   });
 
-  it.each(["create", "hire", "convert"])("rejects a new Dot selection when only the general Runner rollout is enabled for %s", async mode => {
+  it.each(["create", "create", "convert"])("rejects a new Dot selection when only the general Runner rollout is enabled for %s", async mode => {
     mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableNativeRunner: true, enableOpenAiDot: false });
     const app = await createApp();
     const body = { name: "Dot", role: "engineer", adapterType: "outpost_runner", adapterConfig: { provider: "openai_dot", allowUnmeteredProvider: true } };
     const response = await requestApp(app, baseUrl => mode === "convert"
       ? request(baseUrl).patch("/api/agents/11111111-1111-4111-8111-111111111111").send(body)
-      : request(baseUrl).post(`/api/companies/company-1/${mode === "hire" ? "agent-hires" : "agents"}`).send(body));
+      : request(baseUrl).post(`/api/spaces/space-1/${mode === "create" ? "agent-creations" : "agents"}`).send(body));
     expect(response.status, JSON.stringify(response.body)).toBe(422);
     expect(response.body.details).toMatchObject({ code: "outpost_runner_dot_disabled" });
     expect(mockAgentService.create).not.toHaveBeenCalled();
@@ -1324,7 +1324,7 @@ describe("agent routes adapter validation", () => {
     });
     const app = await createApp();
     const res = await requestApp(app, baseUrl => request(baseUrl)
-      .patch("/api/agents/11111111-1111-4111-8111-111111111111").send({ runner: "paperclip" }));
+      .patch("/api/agents/11111111-1111-4111-8111-111111111111").send({ runner: "outpost" }));
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockAgentService.update).toHaveBeenCalledWith(existing.id, expect.objectContaining({
       adapterType: "outpost_runner",
@@ -1345,7 +1345,7 @@ describe("agent routes adapter validation", () => {
     mockAgentService.getById.mockResolvedValue({ ...existing, adapterConfig: { model: "gpt-5.4", extraArgs: ["--search"] } });
     const app = await createApp();
     const res = await requestApp(app, baseUrl => request(baseUrl)
-      .patch("/api/agents/11111111-1111-4111-8111-111111111111").send({ runner: "paperclip" }));
+      .patch("/api/agents/11111111-1111-4111-8111-111111111111").send({ runner: "outpost" }));
     expect(res.status, JSON.stringify(res.body)).toBe(422);
     expect(res.body.details).toMatchObject({ code: "agent_runner_config_incompatible", fields: ["extraArgs"] });
     expect(mockAgentService.update).not.toHaveBeenCalled();
@@ -1360,7 +1360,7 @@ describe("agent routes adapter validation", () => {
         dangerouslySkipPermissions: true, timeoutSec: 0, graceSec: 15, env } });
     const app = await createApp();
     const res = await requestApp(app, baseUrl => request(baseUrl)
-      .patch(`/api/agents/${existing.id}`).send({ runner: "paperclip" }));
+      .patch(`/api/agents/${existing.id}`).send({ runner: "outpost" }));
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     const patch = mockAgentService.update.mock.calls[0][1];
     expect(patch.adapterType).toBe("outpost_runner");
@@ -1378,8 +1378,8 @@ describe("agent routes adapter validation", () => {
       adapterType: "codex_local",
       adapterConfig: {
         model: "gpt-5.5",
-        paperclipSkillSync: {
-          desiredSkills: ["paperclipai/paperclip/paperclip", "company-1/reviewer"],
+        outpostSkillSync: {
+          desiredSkills: ["outpost/outpost/outpost", "space-1/reviewer"],
         },
       },
     });
@@ -1401,7 +1401,7 @@ describe("agent routes adapter validation", () => {
           model: "gpt-5.5",
           codexPermissionMode: "never",
           // No stored lifecycle: the product default applies.
-          paperclipSkillSync: { desiredSkills: ["company-1/reviewer"] },
+          outpostSkillSync: { desiredSkills: ["space-1/reviewer"] },
         }),
       }),
       expect.any(Object),
@@ -1456,12 +1456,12 @@ describe("agent routes adapter validation", () => {
     expect(res.body.adapterConfig).toMatchObject({ provider: "acpx", acpxAgent: "claude", model: "claude-sonnet-4-6" });
   });
 
-  it("accepts qualified local and managed providers on fresh runner agents and hires", async () => {
+  it("accepts qualified local and managed providers on fresh runner agents and creations", async () => {
     mockInstanceSettingsService.getExperimental.mockResolvedValue({ enableNativeRunner: true });
     const app = await createApp();
-    const createResponse = await requestApp(app, (baseUrl) =>
+    const directResponse = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/agents")
+        .post("/api/spaces/space-1/agents")
         .send({
           name: "Native OpenCode",
           adapterType: "outpost_runner",
@@ -1471,9 +1471,9 @@ describe("agent routes adapter validation", () => {
           },
         }),
     );
-    const hireResponse = await requestApp(app, (baseUrl) =>
+    const createResponse = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/agent-hires")
+        .post("/api/spaces/space-1/agent-creations")
         .send({
           name: "Native ACPX",
           adapterType: "outpost_runner",
@@ -1486,7 +1486,7 @@ describe("agent routes adapter validation", () => {
     );
     const managedResponse = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/agents")
+        .post("/api/spaces/space-1/agents")
         .send({
           name: "Native Claude Managed",
           adapterType: "outpost_runner",
@@ -1499,7 +1499,7 @@ describe("agent routes adapter validation", () => {
     );
     const agentCoreResponse = await requestApp(app, (baseUrl) =>
       request(baseUrl)
-        .post("/api/companies/company-1/agent-hires")
+        .post("/api/spaces/space-1/agent-creations")
         .send({
           name: "Native AgentCore",
           adapterType: "outpost_runner",
@@ -1511,17 +1511,17 @@ describe("agent routes adapter validation", () => {
         }),
     );
 
+    expect(directResponse.status, JSON.stringify(directResponse.body)).toBe(201);
     expect(createResponse.status, JSON.stringify(createResponse.body)).toBe(201);
-    expect(hireResponse.status, JSON.stringify(hireResponse.body)).toBe(201);
     expect(managedResponse.status, JSON.stringify(managedResponse.body)).toBe(201);
     expect(agentCoreResponse.status, JSON.stringify(agentCoreResponse.body)).toBe(201);
     expect(mockAgentService.create).toHaveBeenCalledTimes(4);
     expect(mockManagedAgentProfileService.requireQualified).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "managed-primary",
     );
     expect(mockRemoteAgentProfileService.requireQualified).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "agentcore-primary",
       "aws_bedrock_agentcore_harness",
     );
@@ -1562,11 +1562,11 @@ describe("agent routes adapter validation", () => {
       409,
     ],
     [
-      "cross-company AgentCore profile",
+      "cross-space AgentCore profile",
       "remote" as const,
       {
         provider: "aws_agentcore",
-        agentCoreProfileId: "agentcore-other-company",
+        agentCoreProfileId: "agentcore-other-space",
         agentCoreRetentionAcknowledged: true,
       },
       "not_found" as const,
@@ -1592,7 +1592,7 @@ describe("agent routes adapter validation", () => {
 
       const response = await requestApp(app, (baseUrl) =>
         request(baseUrl)
-          .post("/api/companies/company-1/agents")
+          .post("/api/spaces/space-1/agents")
           .send({
             name: "Invalid Managed Selection",
             adapterType: "outpost_runner",
@@ -1602,7 +1602,7 @@ describe("agent routes adapter validation", () => {
 
       expect(response.status, JSON.stringify(response.body)).toBe(expectedStatus);
       expect(profileService.requireQualified).toHaveBeenCalledWith(
-        "company-1",
+        "space-1",
         service === "managed"
           ? adapterConfig.managedProfileId
           : adapterConfig.agentCoreProfileId,
@@ -1794,6 +1794,6 @@ describe("agent routes adapter validation", () => {
 vi.mock("../services/agent-lifecycle.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/agent-lifecycle.js")>();
   return { ...actual, createAgentLifecycle: () => ({
-    requestHire: (...args: unknown[]) => mockAgentService.create(...args),
+    requestCreation: (...args: unknown[]) => mockAgentService.create(...args),
   }) };
 });

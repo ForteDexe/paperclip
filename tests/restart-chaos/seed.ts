@@ -12,7 +12,7 @@ import type { AdapterId, EnvironmentKind } from "./types.js";
 import { fixtureRepositoryFiles } from "./workloads.js";
 
 export interface ChaosLab {
-  companyId: string;
+  spaceId: string;
   environmentId: string;
   environmentKind: EnvironmentKind;
   projectId: string;
@@ -121,18 +121,18 @@ export function inheritingEnvironmentConfig(config: Record<string, unknown>): Re
   return rest;
 }
 
-async function createDaytonaEnvironment(input: { api: ChaosApi; companyId: string; image: string; cpu: number; reuseLease: boolean; waveId: string;
+async function createDaytonaEnvironment(input: { api: ChaosApi; spaceId: string; image: string; cpu: number; reuseLease: boolean; waveId: string;
   secretRefs: SecretReferenceMap; timeline: Timeline; warm?: boolean; inherit?: boolean }): Promise<string> {
   // The warm fixture keeps a reusable sandbox and a warm runner between turns.
   const fixture = input.warm ? daytonaWarmEnvironment : runnerEnvironments.find(candidate => candidate.id === "daytona");
   if (!fixture) throw new Error("runner-e2e catalog has no daytona environment fixture");
   const view = runnerApiView(input.api);
-  await waitForFixtureDaytonaProvider(view, { companyId: input.companyId, deadlineAt: Date.now() + 120_000 });
+  await waitForFixtureDaytonaProvider(view, { spaceId: input.spaceId, deadlineAt: Date.now() + 120_000 });
   const payload = fixture.buildEnvironment({ secretRefs: input.secretRefs, daytonaImage: input.image, executionId: input.waveId });
   const shape = chaosDaytonaShape(input.cpu);
   // A user's default environment: the agent decides the lifecycle, and nothing pins lease reuse.
   const baseConfig = input.inherit ? inheritingEnvironmentConfig(payload.config as Record<string, unknown>) : payload.config as Record<string, unknown>;
-  const environment = await input.api.post<{ id: string; driver: string }>(`/api/companies/${input.companyId}/environments`,
+  const environment = await input.api.post<{ id: string; driver: string }>(`/api/spaces/${input.spaceId}/environments`,
     { ...payload, config: { ...baseConfig, ...shape, ...(input.reuseLease ? { reuseLease: true } : {}) } });
   input.timeline.add("seed_environment", { environmentId: environment.id, driver: environment.driver, image: input.image, ...shape,
     reuseLease: input.reuseLease });
@@ -143,10 +143,10 @@ async function createDaytonaEnvironment(input: { api: ChaosApi; companyId: strin
  * Native Codex on a sandbox needs the image's platform qualification recorded
  * first, as in live-fixtures.ts (the agent is not created otherwise).
  */
-async function qualifyNativeCodex(input: { api: ChaosApi; companyId: string; environmentId: string; timeline: Timeline }) {
+async function qualifyNativeCodex(input: { api: ChaosApi; spaceId: string; environmentId: string; timeline: Timeline }) {
   const startedAt = Date.now();
   const probe = await input.api.post<{ ok: boolean; details?: { platformQualificationRecorded?: boolean; leaseId?: string } }>(
-    `/api/environments/${input.environmentId}/probe?companyId=${encodeURIComponent(input.companyId)}`, {}, 330_000);
+    `/api/environments/${input.environmentId}/probe?spaceId=${encodeURIComponent(input.spaceId)}`, {}, 330_000);
   input.timeline.add("seed_codex_qualification", { ok: probe.ok, recorded: probe.details?.platformQualificationRecorded ?? false,
     leaseId: probe.details?.leaseId ?? null, durationMs: Date.now() - startedAt });
   if (probe.ok !== true || probe.details?.platformQualificationRecorded !== true) {
@@ -156,7 +156,7 @@ async function qualifyNativeCodex(input: { api: ChaosApi; companyId: string; env
 
 /**
  * Seeds the isolated instance. Credentials cross into the server only as
- * encrypted company secrets, as in tests/runner-e2e/live-fixtures.ts, and the
+ * encrypted space secrets, as in tests/runner-e2e/live-fixtures.ts, and the
  * agent payloads come from the shared runner-e2e catalog profiles.
  */
 /**
@@ -198,30 +198,30 @@ export async function seedChaosLab(input: {
   /** A real repository to use as the project's primary workspace instead of the tiny fixture. */
   repositoryPath?: string;
   /** Called as soon as the wave owns external resources that need cleanup. */
-  onEnvironment?: (lab: Pick<ChaosLab, "companyId" | "environmentId" | "environmentKind">) => void;
+  onEnvironment?: (lab: Pick<ChaosLab, "spaceId" | "environmentId" | "environmentKind">) => void;
 }): Promise<ChaosLab> {
   const { api, timeline } = input;
   if (input.env === "daytona") {
     if (!input.daytonaImage) throw new Error("--env daytona needs --daytona-image");
-    // Installed before the company exists so the provider worker is warm.
+    // Installed before the space exists so the provider worker is warm.
     await installFixtureDaytonaProvider(runnerApiView(input.api), { environment: { id: "daytona" } } as MatrixExecution);
     timeline.add("seed_daytona_plugin", {});
   }
   const fixtureRepositoryPath = input.workspaceRepo
     ? cloneWorkspaceRepository(input.workspaceRepo, path.join(input.fixtureRoot, "workspace-repo"), input.workspaceCommit)
     : await createFixtureRepository(path.join(input.fixtureRoot, "chaos-sandbox"));
-  const company = await api.post<{ id: string }>("/api/companies", {
+  const space = await api.post<{ id: string }>("/api/spaces", {
     name: "Chaos Lab",
     description: `Restart chaos harness wave ${input.waveId}`,
     budgetMonthlyCents: input.budgetCents,
   });
-  timeline.add("seed_company", { companyId: company.id });
+  timeline.add("seed_space", { spaceId: space.id });
   if (input.masks?.includes("rc06")) {
-    // Keep the amount, disable only the hard stop on this isolated company (RC-06 mask).
-    await api.post(`/api/companies/${company.id}/budgets/policies`, {
-      scopeType: "company", scopeId: company.id, amount: input.budgetCents, hardStopEnabled: false,
+    // Keep the amount, disable only the hard stop on this isolated space (RC-06 mask).
+    await api.post(`/api/spaces/${space.id}/budgets/policies`, {
+      scopeType: "space", scopeId: space.id, amount: input.budgetCents, hardStopEnabled: false,
     });
-    timeline.add("seed_mask_rc06", { companyId: company.id, budgetCents: input.budgetCents, hardStopEnabled: false });
+    timeline.add("seed_mask_rc06", { spaceId: space.id, budgetCents: input.budgetCents, hardStopEnabled: false });
   }
 
   const secretRefs: SecretReferenceMap = {};
@@ -230,7 +230,7 @@ export async function seedChaosLab(input: {
   for (const key of credentialKeys) {
     const value = process.env[key];
     if (!value) throw new Error(`Missing ${key}; load ~/.secrets into the environment first`);
-    const created = await api.post<{ id: string }>(`/api/companies/${company.id}/secrets`, {
+    const created = await api.post<{ id: string }>(`/api/spaces/${space.id}/secrets`, {
       name: `Chaos ${key}`, key, value, description: "Restart chaos harness credential",
     });
     secretRefs[key] = { type: "secret_ref", secretId: created.id, version: "latest" } satisfies SecretReference;
@@ -239,12 +239,12 @@ export async function seedChaosLab(input: {
 
   let environmentId: string;
   if (input.env === "daytona") {
-    environmentId = await createDaytonaEnvironment({ api, companyId: company.id, image: input.daytonaImage!, cpu: input.daytonaCpu ?? 4,
+    environmentId = await createDaytonaEnvironment({ api, spaceId: space.id, image: input.daytonaImage!, cpu: input.daytonaCpu ?? 4,
       reuseLease: input.daytonaReuseLease === true, waveId: input.waveId, secretRefs, timeline, warm: input.daytonaWarm, inherit: input.daytonaInherit });
-    input.onEnvironment?.({ companyId: company.id, environmentId, environmentKind: "daytona" });
-    if (input.adapters.includes("codex")) await qualifyNativeCodex({ api, companyId: company.id, environmentId, timeline });
+    input.onEnvironment?.({ spaceId: space.id, environmentId, environmentKind: "daytona" });
+    if (input.adapters.includes("codex")) await qualifyNativeCodex({ api, spaceId: space.id, environmentId, timeline });
   } else {
-    const environments = await api.get<Array<{ id: string; driver: string }>>(`/api/companies/${company.id}/environments?driver=local`);
+    const environments = await api.get<Array<{ id: string; driver: string }>>(`/api/spaces/${space.id}/environments?driver=local`);
     const environment = environments.find(candidate => candidate.driver === "local");
     if (!environment) throw new Error("Isolated instance has no managed local environment");
     environmentId = environment.id;
@@ -269,7 +269,7 @@ export async function seedChaosLab(input: {
       runtimeConfig: { ...runtimeConfig, heartbeat: { ...((runtimeConfig.heartbeat ?? {}) as Record<string, unknown>),
         enabled: false, maxConcurrentRuns: Math.max(1, input.concurrency) } },
     };
-    const created = await api.post<{ id: string; name: string }>(`/api/companies/${company.id}/agents`, body);
+    const created = await api.post<{ id: string; name: string }>(`/api/spaces/${space.id}/agents`, body);
     agents[adapter] = { id: created.id, name, body };
     agentCreatedAt.set(adapter, Date.now());
     timeline.add("seed_agent", { adapter, agentId: created.id, profile: profile.id, model: profile.model, environmentId });
@@ -290,7 +290,7 @@ export async function seedChaosLab(input: {
   }
   timeline.add("seed_isolated_workspaces", { enableIsolatedWorkspaces: true });
 
-  const project = await api.post<{ id: string }>(`/api/companies/${company.id}/projects`, {
+  const project = await api.post<{ id: string }>(`/api/spaces/${space.id}/projects`, {
     name: "chaos-sandbox",
     description: "Fixture repository for restart chaos workloads",
     executionWorkspacePolicy: {
@@ -305,5 +305,5 @@ export async function seedChaosLab(input: {
       : { name: "Primary", sourceType: "local_path", cwd: fixtureRepositoryPath, isPrimary: true },
   });
   timeline.add("seed_project", { projectId: project.id, fixtureRepositoryPath });
-  return { companyId: company.id, environmentId, environmentKind: input.env, projectId: project.id, fixtureRepositoryPath, agents };
+  return { spaceId: space.id, environmentId, environmentKind: input.env, projectId: project.id, fixtureRepositoryPath, agents };
 }

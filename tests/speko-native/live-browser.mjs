@@ -9,7 +9,7 @@ import { dirname, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 const origin = `http://127.0.0.1:${Number(process.env.SPEKO_NATIVE_PORT ?? 3449)}`;
-const privateRoot = resolve(homedir(), '.paperclip/speko-proof');
+const privateRoot = resolve(homedir(), '.outpost/speko-proof');
 const resumeIssueId = process.env.SPEKO_NATIVE_RESUME_ISSUE_ID;
 const diskScenario = process.env.SPEKO_NATIVE_SCENARIO === 'disk';
 const delayedTemplate = process.env.SPEKO_NATIVE_SCENARIO === 'template-delayed';
@@ -78,7 +78,7 @@ await page.addInitScript(() => {
   }).observe(document, { childList: true, subtree: true });
 });
 async function speak(name) {
-  const audioPath = process.env.SPEKO_NATIVE_AUDIO_DIR ? resolve(process.env.SPEKO_NATIVE_AUDIO_DIR, `${name}.pcm`) : new URL(`../../.paperclip-local/speko-proof-audio/${name}.pcm`, import.meta.url);
+  const audioPath = process.env.SPEKO_NATIVE_AUDIO_DIR ? resolve(process.env.SPEKO_NATIVE_AUDIO_DIR, `${name}.pcm`) : new URL(`../../.outpost-local/speko-proof-audio/${name}.pcm`, import.meta.url);
   const bytes = [...await readFile(audioPath)];
   event('input_started', { name });
   await page.evaluate(async (bytes) => {
@@ -95,14 +95,14 @@ try {
   await expect.poll(async () => fetch(`${origin}/api/health`).then((response) => response.ok).catch(() => false), { timeout: 30000 }).toBe(true);
   await page.goto(origin);
   if (resumeIssueId) {
-    await page.goto(`${origin}/${fixture.companyPrefix}/issues/${resumeIssueId}`);
+    await page.goto(`${origin}/${fixture.spacePrefix}/issues/${resumeIssueId}`);
     await page.getByRole('button', { name: `Talk to ${fixture.agentName}`, exact: true }).click();
   } else if (process.env.SPEKO_NATIVE_CONNECTED === '1') {
     if (!fixture.endpointId) throw new Error('Connected qualification requires the verified endpoint fixture');
-    const taskResponse = await page.request.post(`${origin}/api/companies/${fixture.companyId}/issues`, {headers: {Origin: origin}, data: {title: "Speko live browser qualification", assigneeAgentId: fixture.agentId, status: "todo"}});
+    const taskResponse = await page.request.post(`${origin}/api/spaces/${fixture.spaceId}/issues`, {headers: {Origin: origin}, data: {title: "Speko live browser qualification", assigneeAgentId: fixture.agentId, status: "todo"}});
     if (!taskResponse.ok()) throw new Error(`Qualification task creation rejected (${taskResponse.status()})`);
     const task = await taskResponse.json();
-    await page.goto(`${origin}/${fixture.companyPrefix}/issues/${task.id}`);
+    await page.goto(`${origin}/${fixture.spacePrefix}/issues/${task.id}`);
     await page.getByRole('button', {name: `Talk to ${fixture.agentName}`, exact: true}).click();
     event('qualification_task_created', {issueId: task.id});
     event('existing_connection_used', {endpointId: fixture.endpointId});
@@ -110,11 +110,11 @@ try {
   await page.getByRole('link', { name: 'Connectors', exact: true }).first().click();
   if (fixture.endpointId) {
     // Resume the saved setup using the same UI route after an earlier failed test.
-    await page.goto(`${origin}/${fixture.companyPrefix}/apps/chat/connect?provider=speko&resume=${fixture.endpointId}`);
+    await page.goto(`${origin}/${fixture.spacePrefix}/apps/chat/connect?provider=speko&resume=${fixture.endpointId}`);
   } else {
     await page.locator('[data-app-slug="speko"]').getByRole('button', { name: /^(Connect Speko|Add connection Speko)$/ }).click();
     await page.getByRole('button', { name: 'Choose an active agent', exact: true }).click();
-    await page.getByRole('button', { name: `Select ${fixture.agentName ?? 'Existing Paperclip Agent'}`, exact: true }).click();
+    await page.getByRole('button', { name: `Select ${fixture.agentName ?? 'Existing Outpost Agent'}`, exact: true }).click();
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
   }
   await expect(page.getByLabel('Speko API key', { exact: true }).or(page.getByRole('button', { name: 'Start voice', exact: true })).filter({ visible: true }).first()).toBeVisible({ timeout: 30000 });
@@ -171,7 +171,7 @@ try {
     }, { timeout: 30000 }).toBeGreaterThanOrEqual(2);
     event('followup_durably_accepted');
   }
-  const agentTranscript = transcript.getByRole('listitem').filter({ has: page.locator('span').filter({ hasText: fixture.agentName ?? 'Existing Paperclip Agent' }) });
+  const agentTranscript = transcript.getByRole('listitem').filter({ has: page.locator('span').filter({ hasText: fixture.agentName ?? 'Existing Outpost Agent' }) });
   await expect(agentTranscript).toContainText([diskScenario ? /(?:10|ten) gigabytes[\s\S]*?(?:9[.,]7|nine point seven) gigabytes/i : templateScenario ? new RegExp(expectedWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : /verification number/i], { timeout: templateScenario ? 180000 : 100000 });
   if (diskScenario) {
     await expect.poll(async () => {
@@ -256,10 +256,10 @@ try {
       if (await button.count()) await button.click();
     } catch { event('ui_cleanup_unavailable'); }
     try {
-      const response = await page.request.post(`${origin}/api/companies/${fixture.companyId}/voice-sessions/${session.id}/end`, { headers: { Origin: origin }, data: {} });
+      const response = await page.request.post(`${origin}/api/spaces/${fixture.spaceId}/voice-sessions/${session.id}/end`, { headers: { Origin: origin }, data: {} });
       event('end_requested', { status: response.status() });
       await expect.poll(async () => {
-        const inspected = await page.request.get(`${origin}/api/companies/${fixture.companyId}/voice-sessions/${session.id}`);
+        const inspected = await page.request.get(`${origin}/api/spaces/${fixture.spaceId}/voice-sessions/${session.id}`);
         return inspected.ok() ? (await inspected.json()).state : 'unavailable';
       }, { timeout: 30000, intervals: [500, 1000, 2000] }).toMatch(/^(ended|failed|expired)$/);
       expect(await page.evaluate(() => window.spekoFixture.tracks.every((track) => track.readyState === 'ended'))).toBe(true);

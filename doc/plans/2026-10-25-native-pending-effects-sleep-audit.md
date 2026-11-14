@@ -15,7 +15,7 @@ presentation, evidence reassessment, and accepted-result/workspace settlement
 remain separate migrations.
 
 The existing dispatcher owns the recovery transaction. It locks the coordinator,
-checks the exact company/issue/run/decision binding, locks pending effects, and
+checks the exact space/issue/run/decision binding, locks pending effects, and
 checks that their materialized targets exist. It then marks the ledger delivered,
 increments attempts, clears retry/error state, updates delivered-effect IDs, and
 signals chat milestones. It does not recreate targets or arbitrate status again.
@@ -53,7 +53,7 @@ other polling duties.
 
 ## Producer audit and shared boundaries
 
-Notifications carry only company and optional run IDs. They register intent before
+Notifications carry only space and optional run IDs. They register intent before
 the write and use the existing outer-transaction/uncertain-outcome protocol.
 
 | Mutation owner | Why it matters |
@@ -98,11 +98,11 @@ could not consistently use the newly built partial index under its old snapshot.
 | Discovery | Existing indexes | Pending-effect index only | Both new indexes |
 | --- | ---: | ---: | ---: |
 | Global startup | 2.247 ms | 1.080 ms | 0.036 ms |
-| Company scope | 1.807 ms | 1.048 ms | 0.015 ms |
+| Space scope | 1.807 ms | 1.048 ms | 0.015 ms |
 
 Without the indexes, discovery filtered 10,809 delivered effects and scanned 10,353
 coordinators. The partial effect index selects pending/failed rows; the partial
-coordinator index resolves their current company/issue/decision owner. Both plans
+coordinator index resolves their current space/issue/decision owner. Both plans
 used index access for those relations after the change. This fixture establishes
 history cost for this query, not universal tenant-size or fleet performance.
 
@@ -127,7 +127,7 @@ gap; its regression and final verification are recorded below before acceptance.
 Tests exercise delivered/empty/terminal history quiet, pending/failed recovery,
 no duplicate decisions or targets, missing-target failure, future retry/lease
 quiet, concurrent deadline extension, real replay, outer commit/rollback, real
-lease release, company-scope isolation, drain/resume, restart reconstruction,
+lease release, space-scope isolation, drain/resume, restart reconstruction,
 103-candidate paging, and periodic/manual owner ordering. Existing consumers cover
 finalization, export recovery, execution control, lifecycle, and chat delivery.
 
@@ -148,8 +148,8 @@ check preserves SQL null semantics, including legacy empty-string owners.
 
 The final worker/startup selection passes 158 tests (94 corpus, 64 startup),
 including all 22 cases added to the corpus by this slice. The finalizer selection
-passes 29 tests on a fresh database. A first rerun reused the TLM company-prefix
-fixture and failed setup with companies_issue_prefix_idx; it did not pass, and
+passes 29 tests on a fresh database. A first rerun reused the TLM space-prefix
+fixture and failed setup with spaces_issue_prefix_idx; it did not pass, and
 its log remains `/tmp/sleep47-owner-final.log`. The fresh rerun is
 `/tmp/sleep47-finalizer-final.log`. Combined with unaffected consumer cases from
 the 680-case run, 683 distinct cases have passed. The final worker log is
@@ -183,7 +183,7 @@ cases in 25 complete files**, without skips. The main selection passes 2225
 cases in 203.94 seconds and safe-replacement passes 59 in 26.03 seconds.
 The complete 94-case status-authority corpus then passes again on the same
 database in 16.03 seconds. The repeat is not double-counted. Three preexisting
-PSC/OUT/sentinel company rows remain unchanged in their inspected ID/name/prefix
+PSC/OUT/sentinel space rows remain unchanged in their inspected ID/name/prefix
 fields after both runs; each invocation appends two distinct UUID-derived
 fixture prefixes. Current per-file counts:
 
@@ -225,7 +225,7 @@ acceptance, not an unmodified embedded CI reproduction. Actual database build,
 server types/build, module boundaries and exact-head migration order pass.
 
 A populated 0410-to0411 upgrade preserves all 409 prior migration receipts and
-all 38 companies, appends exactly one receipt and appends none on replay. Both
+all 38 spaces, appends exactly one receipt and appends none on replay. Both
 partial indexes are valid and ready on fresh and upgraded databases. Earlier
 failures above retain their original scope and causes. These checks verify
 current worker and producer/consumer behavior, not deployed host/database

@@ -60,7 +60,7 @@ describe("isCloudStagingInstance", () => {
 });
 
 describe("getCloudStackContext", () => {
-  it("returns null outside Paperclip Cloud even when stray stack metadata exists", () => {
+  it("returns null outside Outpost Cloud even when stray stack metadata exists", () => {
     expect(getCloudStackContext({ OUTPOST_STACK_SLUG: "stray-stack" })).toBeNull();
   });
 

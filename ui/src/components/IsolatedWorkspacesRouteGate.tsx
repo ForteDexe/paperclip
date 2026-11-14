@@ -5,7 +5,7 @@ import { QueryErrorState, useQueryView } from "@/components/QueryView";
 import { queryKeys } from "@/lib/queryKeys";
 
 /**
- * Route gate for the isolated-workspace pages: the workspaces board, the
+ * Route gate for the isolated-workspace pages: the workspaces operator, the
  * execution-workspace detail tabs, and the project-workspace detail page.
  *
  * The sidebar entry for these pages already reads `enableIsolatedWorkspaces`,

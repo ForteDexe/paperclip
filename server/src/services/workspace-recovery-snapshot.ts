@@ -23,34 +23,34 @@ const snapshotSchema = z.object({
   leaseId: z.string().uuid(), providerLeaseId: z.string().min(1), archive: storedFileSchema, manifest: storedFileSchema,
 });
 export type PreservedWorkspaceSnapshot = z.infer<typeof snapshotSchema>;
-export function readSnapshot(value: unknown, companyId: string, runId: string) {
+export function readSnapshot(value: unknown, spaceId: string, runId: string) {
   const parsed = snapshotSchema.safeParse(value);
   if (!parsed.success) throw new SystemRecoveryFailure("snapshot_verification_failed", "service_required");
   const s = parsed.data;
-  const prefix = `${companyId}/workspace-recovery/${runId}/${s.leaseId}/`;
+  const prefix = `${spaceId}/workspace-recovery/${runId}/${s.leaseId}/`;
   if (s.archive.objectKey !== `${prefix}${s.archive.sha256}.tar` || s.manifest.objectKey !== `${prefix}${s.manifest.sha256}.jsonl`)
     throw new SystemRecoveryFailure("snapshot_verification_failed", "service_required");
   return s;
 }
 
 export async function verifiedWorkspaceSnapshotReceipt(db: Db, input: {
-  companyId: string; issueId: string; runId: string; actionId: string; operationIds: string[];
+  spaceId: string; issueId: string; runId: string; actionId: string; operationIds: string[];
   leaseId?: string; providerLeaseId?: string;
 }) {
   if (!input.operationIds.length) return null;
   const [operation] = await db.select({ id: workspaceOperations.id, metadata: workspaceOperations.metadata })
     .from(workspaceOperations).innerJoin(environmentLeases, and(
-      eq(environmentLeases.companyId, input.companyId), eq(environmentLeases.heartbeatRunId, input.runId),
+      eq(environmentLeases.spaceId, input.spaceId), eq(environmentLeases.heartbeatRunId, input.runId),
       sql`${environmentLeases.id}::text = ${workspaceOperations.metadata}->>'leaseId'`,
       sql`${environmentLeases.providerLeaseId} = ${workspaceOperations.metadata}->>'providerLeaseId'`,
     )).where(and(inArray(workspaceOperations.id, input.operationIds),
-      eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.issueId, input.issueId),
+      eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.issueId, input.issueId),
       eq(workspaceOperations.heartbeatRunId, input.runId), eq(workspaceOperations.phase, "workspace_recovery_snapshot"),
       eq(workspaceOperations.status, "succeeded"), sql`${workspaceOperations.metadata}->>'recoveryActionId' = ${input.actionId}`,
       input.leaseId ? eq(environmentLeases.id, input.leaseId) : undefined,
       input.providerLeaseId ? eq(environmentLeases.providerLeaseId, input.providerLeaseId) : undefined,
     )).limit(1);
-  return operation ? { id: operation.id, snapshot: readSnapshot(operation.metadata, input.companyId, input.runId) } : null;
+  return operation ? { id: operation.id, snapshot: readSnapshot(operation.metadata, input.spaceId, input.runId) } : null;
 }
 
 async function digest(stream: AsyncIterable<Buffer | string>, limit = Number.MAX_SAFE_INTEGER) {
@@ -64,8 +64,8 @@ async function digest(stream: AsyncIterable<Buffer | string>, limit = Number.MAX
   return { sha256: hash.digest("hex"), byteSize };
 }
 
-export async function verifyStoredRecoveryFile(storage: StorageService, companyId: string, file: StoredFile) {
-  const object = await storage.getObject(companyId, file.objectKey);
+export async function verifyStoredRecoveryFile(storage: StorageService, spaceId: string, file: StoredFile) {
+  const object = await storage.getObject(spaceId, file.objectKey);
   try {
     const actual = await digest(object.stream, file.byteSize);
     if (actual.sha256 !== file.sha256 || actual.byteSize !== file.byteSize)
@@ -76,13 +76,13 @@ export async function verifyStoredRecoveryFile(storage: StorageService, companyI
 /** The durable operation is written before uploading. A lost upload reply or
  * DB commit is reconciled against that same object identity on the next pass. */
 export async function preserveWorkspaceSnapshot(input: {
-  db: Db; companyId: string; issueId: string; runId: string; actionId: string;
+  db: Db; spaceId: string; issueId: string; runId: string; actionId: string;
   leaseId: string; providerLeaseId: string; target: AdapterSandboxExecutionTarget;
   assertHeld(): Promise<void>;
 }) {
   if (!input.target.runner) throw new SystemRecoveryFailure("source_unavailable", "service_required");
   const storage = getStorageService();
-  const scope = and(eq(workspaceOperations.companyId, input.companyId),
+  const scope = and(eq(workspaceOperations.spaceId, input.spaceId),
     eq(workspaceOperations.heartbeatRunId, input.runId), eq(workspaceOperations.phase, "workspace_recovery_snapshot"),
     sql`${workspaceOperations.metadata}->>'leaseId' = ${input.leaseId}`,
     sql`${workspaceOperations.metadata}->>'providerLeaseId' = ${input.providerLeaseId}`,
@@ -90,12 +90,12 @@ export async function preserveWorkspaceSnapshot(input: {
   const [existing] = await input.db.select().from(workspaceOperations).where(scope)
     .orderBy(desc(workspaceOperations.createdAt)).limit(1);
   if (existing?.metadata?.schema === "outpost.workspace-recovery-snapshot.v1") {
-    const saved = readSnapshot(existing.metadata, input.companyId, input.runId);
-    const heads = await Promise.all([storage.headObject(input.companyId, saved.archive.objectKey),
-      storage.headObject(input.companyId, saved.manifest.objectKey)]);
+    const saved = readSnapshot(existing.metadata, input.spaceId, input.runId);
+    const heads = await Promise.all([storage.headObject(input.spaceId, saved.archive.objectKey),
+      storage.headObject(input.spaceId, saved.manifest.objectKey)]);
     if (heads.every(head => head.exists)) {
-      await verifyStoredRecoveryFile(storage, input.companyId, saved.archive);
-      await verifyStoredRecoveryFile(storage, input.companyId, saved.manifest);
+      await verifyStoredRecoveryFile(storage, input.spaceId, saved.archive);
+      await verifyStoredRecoveryFile(storage, input.spaceId, saved.manifest);
       await input.assertHeld();
       await input.db.update(workspaceOperations).set({ status: "succeeded", finishedAt: new Date(), updatedAt: new Date() })
         .where(eq(workspaceOperations.id, existing.id));
@@ -103,7 +103,7 @@ export async function preserveWorkspaceSnapshot(input: {
     }
     if (existing.status === "succeeded") throw new SystemRecoveryFailure("snapshot_verification_failed", "service_required");
   }
-  const root = await mkdtemp(path.join(os.tmpdir(), "paperclip-preserve-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "outpost-preserve-"));
   try {
     await input.assertHeld();
     const client = createCommandManagedRuntimeClient({ runner: input.target.runner,
@@ -129,7 +129,7 @@ export async function preserveWorkspaceSnapshot(input: {
     const files = await Promise.all([archivePath, manifestPath].map(async file => ({
       ...await digest(createReadStream(file)), file,
     })));
-    const prefix = `${input.companyId}/workspace-recovery/${input.runId}/${input.leaseId}`;
+    const prefix = `${input.spaceId}/workspace-recovery/${input.runId}/${input.leaseId}`;
     const stored = files.map((file, index) => ({ objectKey: `${prefix}/${file.sha256}.${index === 0 ? "tar" : "jsonl"}`,
       sha256: file.sha256, byteSize: file.byteSize }));
     const metadata: PreservedWorkspaceSnapshot = { schema: "outpost.workspace-recovery-snapshot.v1",
@@ -139,18 +139,18 @@ export async function preserveWorkspaceSnapshot(input: {
     const [operation] = existing
       ? await input.db.update(workspaceOperations).set({ metadata, status: "running", updatedAt: new Date() })
           .where(eq(workspaceOperations.id, existing.id)).returning()
-      : await input.db.insert(workspaceOperations).values({ companyId: input.companyId, issueId: input.issueId,
+      : await input.db.insert(workspaceOperations).values({ spaceId: input.spaceId, issueId: input.issueId,
           heartbeatRunId: input.runId, phase: "workspace_recovery_snapshot", status: "running", metadata }).returning();
     for (const [index, file] of files.entries()) {
-      if (!(await storage.headObject(input.companyId, stored[index].objectKey)).exists) {
+      if (!(await storage.headObject(input.spaceId, stored[index].objectKey)).exists) {
         if ((await stat(file.file)).size === 0) {
           throw new SystemRecoveryFailure("snapshot_verification_failed", "service_required");
         }
-        await storage.putFile({ companyId: input.companyId, namespace: "workspace-recovery",
+        await storage.putFile({ spaceId: input.spaceId, namespace: "workspace-recovery",
           originalFilename: path.basename(file.file), contentType: index === 0 ? "application/x-tar" : "application/x-ndjson",
           objectKey: stored[index].objectKey, body: createReadStream(file.file), sha256: file.sha256, byteSize: file.byteSize });
       }
-      await verifyStoredRecoveryFile(storage, input.companyId, stored[index]);
+      await verifyStoredRecoveryFile(storage, input.spaceId, stored[index]);
     }
     await input.assertHeld();
     await input.db.update(workspaceOperations).set({ status: "succeeded", finishedAt: new Date(), updatedAt: new Date() })
@@ -162,20 +162,20 @@ export async function preserveWorkspaceSnapshot(input: {
 /** Recovered files are an attachment to a fresh attempt, never an overlay.
  * Atomically publish each immutable snapshot directory after verification. */
 export async function attachPreservedWorkspaceSnapshots(input: {
-  db: Db; companyId: string; issueId: string; sourceRunIds: string[]; cwd: string; retiredOperationIds?: ReadonlySet<string>;
+  db: Db; spaceId: string; issueId: string; sourceRunIds: string[]; cwd: string; retiredOperationIds?: ReadonlySet<string>;
 }) {
   const storage = getStorageService();
   const results: Array<{ operationId: string; path: string; sourceRunId: string }> = [];
   const sources = await recoveryRunAncestry(input);
   for (const { id: sourceRunId } of sources) {
     const rows = await input.db.select().from(workspaceOperations).where(and(
-      eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.issueId, input.issueId),
+      eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.issueId, input.issueId),
       eq(workspaceOperations.heartbeatRunId, sourceRunId), eq(workspaceOperations.phase, "workspace_recovery_snapshot"),
       eq(workspaceOperations.status, "succeeded")));
     for (const operation of rows) {
       if (input.retiredOperationIds?.has(operation.id)) continue;
-      const saved = readSnapshot(operation.metadata, input.companyId, sourceRunId);
-      const parent = path.join(await realpath(input.cwd), ".paperclip-recovered");
+      const saved = readSnapshot(operation.metadata, input.spaceId, sourceRunId);
+      const parent = path.join(await realpath(input.cwd), ".outpost-recovered");
       await mkdir(parent, { mode: 0o700 }).catch((error: NodeJS.ErrnoException) => { if (error.code !== "EEXIST") throw error; });
       if ((await lstat(parent)).isSymbolicLink() || await realpath(parent) !== parent)
         throw new SystemRecoveryFailure("snapshot_verification_failed", "service_required");
@@ -197,11 +197,11 @@ export async function attachPreservedWorkspaceSnapshots(input: {
         continue;
       }
       if (priorStat) throw new SystemRecoveryFailure("snapshot_verification_failed", "service_required");
-      await verifyStoredRecoveryFile(storage, input.companyId, saved.manifest);
+      await verifyStoredRecoveryFile(storage, input.spaceId, saved.manifest);
       const staging = await mkdtemp(path.join(parent, ".preparing-"));
       try {
         const archivePath = path.join(staging, "snapshot.tar");
-        const object = await storage.getObject(input.companyId, saved.archive.objectKey);
+        const object = await storage.getObject(input.spaceId, saved.archive.objectKey);
         try { await pipeline(object.stream, createWriteStream(archivePath, { flags: "wx", mode: 0o600 })); }
         finally { object.stream.destroy(); }
         await restoreVerifiedSnapshotArchive({ archivePath, localDir: path.join(staging, "files"), ...saved.archive });

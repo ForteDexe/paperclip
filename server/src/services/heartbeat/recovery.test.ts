@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import type { Db } from "@outpost/db";
-import { activityLog, agents, applyPendingMigrations, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environments, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunnerCheckpoints } from "@outpost/db";
+import { activityLog, agents, applyPendingMigrations, spaces, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environments, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunnerCheckpoints } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -199,17 +199,17 @@ describePostgres("heartbeat recovery module ownership", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   beforeAll(async () => {
     if (externalUrl) await applyPendingMigrations(externalUrl);
-    else database = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-recovery-module-");
+    else database = await startEmbeddedPostgresTestDatabase("outpost-heartbeat-recovery-module-");
     db = createDb(externalUrl ?? database.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
   async function seedRun() {
-    const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Recovery", issuePrefix: `T${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Recovery", role: "engineer", adapterType: "process" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Recover this run", status: "in_progress", assigneeAgentId: agentId });
-    return (await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, invocationSource: "automation", status: "running", runtimeMode: "legacy" }).returning())[0];
+    const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Recovery", issuePrefix: `T${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Recovery", role: "engineer", adapterType: "process" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Recover this run", status: "in_progress", assigneeAgentId: agentId });
+    return (await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, invocationSource: "automation", status: "running", runtimeMode: "legacy" }).returning())[0];
   }
 
   it.each([false, true])("delivers scoped recovery to a preparation without a runner PID or checkpoint (locally tracked=%s)", async tracked => {
@@ -218,14 +218,14 @@ describePostgres("heartbeat recovery module ownership", () => {
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: run.issueId,
       nativePhase: "observed", runnerProfileJson: { nativePreparationFencingVersion: 1 },
     }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!,
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: run.spaceId, issueId: run.issueId!,
       phase: "observed", leaseOwner: "old-preparation", leaseExpiresAt: new Date(0), controllerHostHash: "operator_attested" });
     const claim: NativeRestartRecoveryClaim = { kind: "bootstrap_incomplete", runId: run.id, leaseOwner: "recovered-owner",
       controllerGeneration: 2, providerAttempt: 1, restartKind: "hard", recoveryRequestId: null };
     native.claims.mockResolvedValue([claim]);
     if (tracked) deps.activeRunExecutions.add(run.id);
     try {
-      await createHeartbeatRecovery(db, deps).recoverActiveExecutions({ companyId: run.companyId, runId: run.id });
+      await createHeartbeatRecovery(db, deps).recoverActiveExecutions({ spaceId: run.spaceId, runId: run.id });
       if (tracked) {
         expect(native.claims).not.toHaveBeenCalled();
         expect(deps.executeRun).not.toHaveBeenCalled();
@@ -249,13 +249,13 @@ describePostgres("heartbeat recovery module ownership", () => {
     await db.update(issues).set({ executionRunId: run.id }).where(eq(issues.id, run.issueId!));
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: run.issueId, nativePhase: "observed",
       runnerInstanceId: randomUUID(), nativeSessionId: randomUUID(), runnerProfileJson: { nativeStartupContext: {
-        schema: "outpost.native-startup-context.v1", companyId: run.companyId, agentId: run.agentId, runId: run.id,
+        schema: "outpost.native-startup-context.v1", spaceId: run.spaceId, agentId: run.agentId, runId: run.id,
         contextId, deadlineAtMs, leaseId, leaseOwner, controllerGeneration: 1, attempt: 1 } } }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!,
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: run.spaceId, issueId: run.issueId!,
       phase: "observed", attempt: 1, leaseOwner, controllerGeneration: 1, leaseExpiresAt: new Date(Date.now() - 1_000),
       controllerBootId: randomUUID(), controllerPid: process.pid, controllerProcessStartedAt: new Date() });
     await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "plugin", config: {} });
-    await db.insert(environmentLeases).values({ id: leaseId, companyId: run.companyId, environmentId, heartbeatRunId: run.id,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId: run.spaceId, environmentId, heartbeatRunId: run.id,
       issueId: run.issueId, provider: "plugin", providerLeaseId: "early-task", status: "active", metadata: { runnerTaskLease: true } });
     const deps = callbacks(db);
     deps.getRun.mockImplementation(async id => (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, id)))[0] ?? null);
@@ -279,7 +279,7 @@ describePostgres("heartbeat recovery module ownership", () => {
   });
 
   async function ownedProcess() {
-    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", `paperclip-recovery-${randomUUID()}`], {
+    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", `outpost-recovery-${randomUUID()}`], {
       stdio: "ignore", detached: true, env: { PATH: process.env.PATH },
     });
     await once(child, "spawn");
@@ -303,7 +303,7 @@ describePostgres("heartbeat recovery module ownership", () => {
       error: status === "failed" ? "native session timed out after 120000ms" : null,
       finishedAt: status === "failed" ? new Date() : null,
     }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!,
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: run.spaceId, issueId: run.issueId!,
       phase: status === "failed" ? "retryable_failure" : "running", nextAttemptAt: new Date(Date.now() - 1) });
     await persistHeartbeatRunProcessMetadata(db, run.id, { pid, processGroupId: pid,
       startedAt: new Date().toISOString(), targetKind });
@@ -340,7 +340,7 @@ describePostgres("heartbeat recovery module ownership", () => {
       expect(f.deps.setRunStatusFromLive).not.toHaveBeenCalled();
       expect(f.deps.executeRun).not.toHaveBeenCalled();
       expect(f.deps.terminateHeartbeatRunProcess).not.toHaveBeenCalled();
-      expect(await hasNativeLocalProcessStop(db, f.run.companyId, f.run.id)).toBe(false);
+      expect(await hasNativeLocalProcessStop(db, f.run.spaceId, f.run.id)).toBe(false);
       expect(child.alive()).toBe(true);
     } finally { try { await f.cleanup(); } finally { await child.stop(); } }
   });
@@ -348,7 +348,7 @@ describePostgres("heartbeat recovery module ownership", () => {
   async function remoteRetryFixture(pid: number, target: "workspace" | "remote_workspace" | "plugin_task" = "workspace") {
     const fixture = await nativeProcessFixture(pid, "remote", "failed");
     const sessionId = randomUUID();
-    const [lease] = await db.insert(environmentLeases).values({ companyId: fixture.run.companyId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: fixture.run.spaceId,
       heartbeatRunId: fixture.run.id, issueId: fixture.run.issueId, status: "active", provider: "daytona",
       providerLeaseId: randomUUID(), metadata: target === "plugin_task" ? { runnerTaskLease: true } : {},
     }).returning();
@@ -356,7 +356,7 @@ describePostgres("heartbeat recovery module ownership", () => {
     await db.update(issues).set({ executionRunId: fixture.run.id }).where(eq(issues.id, fixture.run.issueId!));
     await db.update(heartbeatRuns).set({ nativeSessionId: sessionId,
       ...(target === "remote_workspace" ? { processGroupId: null } : {}), runnerProfileJson: {
-      sessionCheckpoint: { identity: { runId: fixture.run.id, companyId: fixture.run.companyId,
+      sessionCheckpoint: { identity: { runId: fixture.run.id, spaceId: fixture.run.spaceId,
         issueId: fixture.run.issueId, agentId: fixture.run.agentId, sessionId }, providerSessionId: "existing-provider" },
       ...(target === "workspace" ? { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3", state: "prepared",
         workspaceId: randomUUID(), leaseId: lease.id, providerLeaseId: lease.providerLeaseId, remoteCwd: "/work",
@@ -366,7 +366,7 @@ describePostgres("heartbeat recovery module ownership", () => {
         workspaceId: randomUUID(), epoch: 3, leaseId: lease.id, providerLeaseId: lease.providerLeaseId,
         remoteCwd: "/work", state: "prepared", snapshotId: randomUUID() } } : {}),
     } }).where(eq(heartbeatRuns.id, fixture.run.id));
-    await db.insert(nativeRunnerCheckpoints).values({ runId: fixture.run.id, companyId: fixture.run.companyId,
+    await db.insert(nativeRunnerCheckpoints).values({ runId: fixture.run.id, spaceId: fixture.run.spaceId,
       issueId: fixture.run.issueId!, part: "opaque-checkpoint-record", material: { fixture: true } });
     fixture.deps.getRun.mockImplementation(async id => (await db.select().from(heartbeatRuns)
       .where(eq(heartbeatRuns.id, id)))[0] ?? null);
@@ -395,7 +395,7 @@ describePostgres("heartbeat recovery module ownership", () => {
       expect(native.claims).toHaveBeenCalledWith(expect.objectContaining({ runIds: [f.run.id] }));
       expect(await f.current()).toMatchObject({ status: "running", processPid: child.pid, processGroupId });
       expect(kill.mock.calls.filter(([pid]) => Math.abs(pid as number) === child.pid)).toEqual([]);
-      expect(await hasNativeLocalProcessStop(db, f.run.companyId, f.run.id)).toBe(false);
+      expect(await hasNativeLocalProcessStop(db, f.run.spaceId, f.run.id)).toBe(false);
       await recovery.reapOrphanedRuns();
       expect(f.deps.executeRun).toHaveBeenCalledOnce();
       expect(f.deps.terminateHeartbeatRunProcess).not.toHaveBeenCalled();
@@ -431,13 +431,13 @@ describePostgres("heartbeat recovery module ownership", () => {
     } }).where(eq(nativeRunFinalizations.runId, f.run.id));
     const predecessorId = randomUUID();
     if (condition !== "no_predecessor") await db.insert(heartbeatRuns).values({ id: predecessorId,
-      companyId: f.run.companyId, agentId: f.run.agentId, issueId: f.run.issueId, invocationSource: "automation",
+      spaceId: f.run.spaceId, agentId: f.run.agentId, issueId: f.run.issueId, invocationSource: "automation",
       status: "succeeded", runtimeMode: "native", nativeSessionId: run.nativeSessionId, createdAt: new Date(Date.now() - 600_000),
       finishedAt: new Date(Date.now() - 300_000), processPid: run.processPid, processGroupId: run.processGroupId,
       processStartedAt: run.processStartedAt });
-    if (condition === "own_turn") await appendHeartbeatRunEvent(db, { companyId: f.run.companyId, runId: f.run.id,
+    if (condition === "own_turn") await appendHeartbeatRunEvent(db, { spaceId: f.run.spaceId, runId: f.run.id,
       agentId: f.run.agentId, eventType: "turn.started", stream: "system", level: "info", message: "turn.started" });
-    if (condition === "own_launch") await appendHeartbeatRunEvent(db, { companyId: f.run.companyId, runId: f.run.id,
+    if (condition === "own_launch") await appendHeartbeatRunEvent(db, { spaceId: f.run.spaceId, runId: f.run.id,
       agentId: f.run.agentId, eventType: PROCESS_START_REQUESTED, stream: "system", level: "info" });
     return { ...f, predecessorId, async cleanupAll() {
       try { await f.cleanup(); } finally { await db.delete(heartbeatRuns).where(eq(heartbeatRuns.id, predecessorId)); }
@@ -546,7 +546,7 @@ describePostgres("heartbeat recovery module ownership", () => {
           remote: { kind: "plugin_task", leaseId: f.lease.id } }),
       }));
       expect(await f.current()).toMatchObject({ processPid: child.pid, processGroupId: child.pid });
-      expect(await hasNativeLocalProcessStop(db, f.run.companyId, f.run.id)).toBe(false);
+      expect(await hasNativeLocalProcessStop(db, f.run.spaceId, f.run.id)).toBe(false);
       expect(child.alive()).toBe(true);
     } finally { try { await f.cleanup(); } finally { await child.stop(); } }
   });
@@ -644,13 +644,13 @@ describePostgres("heartbeat recovery module ownership", () => {
       const f = await nativeProcessFixture(child.pid, "local", "failed");
       try {
         if (evidence === "missing") await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, f.run.id));
-        if (evidence === "new_launch") await appendHeartbeatRunEvent(db, { companyId: f.run.companyId,
+        if (evidence === "new_launch") await appendHeartbeatRunEvent(db, { spaceId: f.run.spaceId,
           runId: f.run.id, agentId: f.run.agentId, eventType: PROCESS_START_REQUESTED });
         if (["wrong_birth", "foreign_host", "wrong_agent", "wrong_pid", "wrong_group", "native_source"].includes(evidence)) {
           const [event] = await db.select().from(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, f.run.id));
           const foreignAgentId = randomUUID();
           if (evidence === "wrong_agent") await db.insert(agents).values({ id: foreignAgentId,
-            companyId: f.run.companyId, name: "Other process owner", role: "engineer", adapterType: "process" });
+            spaceId: f.run.spaceId, name: "Other process owner", role: "engineer", adapterType: "process" });
           await db.update(heartbeatRunEvents).set({
             ...(evidence === "wrong_agent" ? { agentId: foreignAgentId } : {}),
             ...(evidence === "native_source" ? { sourceEventId: "provider-event" } : {}),
@@ -665,7 +665,7 @@ describePostgres("heartbeat recovery module ownership", () => {
             workspaceId: randomUUID(), leaseId: randomUUID(), providerLeaseId: randomUUID(), remoteCwd: "/work",
             descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64), finalHostSha256: null, resourceDisposition: "destroy" } },
         }).where(eq(heartbeatRuns.id, f.run.id));
-        if (evidence === "remote_lease") await db.insert(environmentLeases).values({ companyId: f.run.companyId,
+        if (evidence === "remote_lease") await db.insert(environmentLeases).values({ spaceId: f.run.spaceId,
           heartbeatRunId: f.run.id, issueId: f.run.issueId, status: "active", provider: "daytona", providerLeaseId: randomUUID() });
         const before = await f.current();
         await createHeartbeatRecovery(db, f.deps).reapOrphanedRuns();
@@ -673,7 +673,7 @@ describePostgres("heartbeat recovery module ownership", () => {
           processStartedAt: before.processStartedAt, errorCode: "native_session_interrupted" });
         expect(f.deps.executeRun).not.toHaveBeenCalled();
         expect(f.deps.terminateHeartbeatRunProcess).not.toHaveBeenCalled();
-        expect(await hasNativeLocalProcessStop(db, f.run.companyId, f.run.id)).toBe(false);
+        expect(await hasNativeLocalProcessStop(db, f.run.spaceId, f.run.id)).toBe(false);
       } finally { await f.cleanup(); }
     },
   );
@@ -685,7 +685,7 @@ describePostgres("heartbeat recovery module ownership", () => {
     try {
       await createHeartbeatRecovery(db, f.deps).reapOrphanedRuns();
       expect(await f.current()).toMatchObject({ processPid: null, processGroupId: null, processStartedAt: null });
-      expect(await hasNativeLocalProcessStop(db, f.run.companyId, f.run.id)).toBe(true);
+      expect(await hasNativeLocalProcessStop(db, f.run.spaceId, f.run.id)).toBe(true);
       expect(f.deps.terminateHeartbeatRunProcess).not.toHaveBeenCalled();
     } finally { await f.cleanup(); }
   });
@@ -698,7 +698,7 @@ describePostgres("heartbeat recovery module ownership", () => {
         .where(eq(heartbeatRuns.id, f.run.id));
       await db.update(nativeRunFinalizations).set({ phase: "terminal_failure" })
         .where(eq(nativeRunFinalizations.runId, f.run.id));
-      const [lease] = await db.insert(environmentLeases).values({ companyId: f.run.companyId,
+      const [lease] = await db.insert(environmentLeases).values({ spaceId: f.run.spaceId,
         heartbeatRunId: f.run.id, issueId: f.run.issueId, status: "active", provider: "daytona", providerLeaseId: randomUUID() }).returning();
       expect(await releaseSettledNativeRunProcess(db, f.run.id)).toBe("pending");
       const receipt = remoteTerminationReceipt(lease, { state: "destroyed", providerLeaseId: lease.providerLeaseId })!;
@@ -710,7 +710,7 @@ describePostgres("heartbeat recovery module ownership", () => {
         .where(eq(environmentLeases.id, lease.id));
       expect(await releaseSettledNativeRunProcess(db, f.run.id)).toBe("released");
       expect(await f.current()).toMatchObject({ processPid: null, processGroupId: null, processStartedAt: null });
-      expect(await hasNativeLocalProcessStop(db, f.run.companyId, f.run.id)).toBe(false);
+      expect(await hasNativeLocalProcessStop(db, f.run.spaceId, f.run.id)).toBe(false);
       expect(child.alive()).toBe(true);
     } finally { try { await f.cleanup(); } finally { await child.stop(); } }
   });
@@ -719,7 +719,7 @@ describePostgres("heartbeat recovery module ownership", () => {
     "reconstructs missing native preservation during orphan cleanup without replay: %s", async state => {
       const run = await seedRun();
       const [environment] = await db.insert(environments).values({ name: run.id, driver: "sandbox" }).returning();
-      const [lease] = await db.insert(environmentLeases).values({ companyId: run.companyId, issueId: run.issueId,
+      const [lease] = await db.insert(environmentLeases).values({ spaceId: run.spaceId, issueId: run.issueId,
         heartbeatRunId: run.id, environmentId: environment.id, provider: "daytona", providerLeaseId: randomUUID(),
         status: "active", leasePolicy: state === "reuse_by_environment" ? state : "ephemeral", updatedAt: new Date(0),
         metadata: { driver: "sandbox", sandboxProviderPlugin: true, pluginId: randomUUID(), remoteCwd: "/work" },
@@ -731,7 +731,7 @@ describePostgres("heartbeat recovery module ownership", () => {
           workspaceId: run.id, leaseId: lease.id, providerLeaseId: lease.providerLeaseId,
           remoteCwd: state === "mismatched_source" ? "/other" : "/work", resourceDisposition: "keep_running" } },
       }).where(eq(heartbeatRuns.id, run.id));
-      await db.insert(nativeRunFinalizations).values({ companyId: run.companyId, issueId: run.issueId!, runId: run.id,
+      await db.insert(nativeRunFinalizations).values({ spaceId: run.spaceId, issueId: run.issueId!, runId: run.id,
         phase: state === "finalizing" ? "workspace_finalizing" : "terminal_failure",
         leaseOwner: state === "live_owner" ? "another-controller" : null });
       const deps = callbacks(db);
@@ -765,7 +765,7 @@ describePostgres("heartbeat recovery module ownership", () => {
         expect(hasRemoteTerminationReceipt(retained)).toBe(false);
         expect(retained.metadata).not.toHaveProperty("remoteExecutionTermination");
         expect(deps.executeRun).not.toHaveBeenCalled();
-        expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, run.companyId))).toHaveLength(1);
+        expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, run.spaceId))).toHaveLength(1);
       } finally {
         unsubscribe();
         await db.delete(environmentLeases).where(eq(environmentLeases.id, lease.id));
@@ -834,7 +834,7 @@ describePostgres("heartbeat recovery module ownership", () => {
   it.each(["ephemeral", "reuse_by_environment"] as const)("protects a %s export from another server and pins it after controller loss", async leasePolicy => {
     const run = await seedRun();
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: run.issueId } }).where(eq(heartbeatRuns.id, run.id));
-    const [lease] = await db.insert(environmentLeases).values({ companyId: run.companyId, heartbeatRunId: run.id,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: run.spaceId, heartbeatRunId: run.id,
       issueId: run.issueId, status: "active", provider: "daytona", providerLeaseId: randomUUID(), leasePolicy,
       metadata: { driver: "sandbox", sandboxProviderPlugin: true, pluginId: "fixture-plugin", remoteCwd: "/home/daytona/workspace" } }).returning();
     try {
@@ -868,7 +868,7 @@ describePostgres("heartbeat recovery module ownership", () => {
 
   async function seedShutdownSource() {
     const run = await seedRun();
-    const [lease] = await db.insert(environmentLeases).values({ companyId: run.companyId, heartbeatRunId: run.id,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: run.spaceId, heartbeatRunId: run.id,
       issueId: run.issueId, status: "active", provider: "daytona", providerLeaseId: randomUUID(), leasePolicy: "ephemeral",
       metadata: { driver: "sandbox", sandboxProviderPlugin: true, pluginId: "fixture-plugin", remoteCwd: "/home/daytona/workspace" } }).returning();
     await beginLegacyShutdownWorkspaceSettlement(db, run, new Date(Date.now() + 30_000));
@@ -1024,7 +1024,7 @@ describePostgres("heartbeat recovery module ownership", () => {
 
   it.each([["57014", "statement_cancelled"], ["08006", "connection_failed"], ["private-credential", "unknown"]])(
     "reports renewal failure %s without raw database diagnostics", async (code, errorKind) => {
-      const run = { id: randomUUID(), companyId: randomUUID() };
+      const run = { id: randomUUID(), spaceId: randomUUID() };
       const privateValue = "postgres://private-credential@example.invalid/database";
       const failure = new Error(privateValue, { cause: { code, query: privateValue, params: [privateValue] } });
       const dbBoundary = { transaction: vi.fn().mockRejectedValue(failure) } as unknown as Db;
@@ -1179,7 +1179,7 @@ describePostgres("heartbeat recovery module ownership", () => {
   it("joins a late successful export before cleanup and continuation after the shutdown wait", async () => {
     const run = await seedRun();
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: run.issueId } }).where(eq(heartbeatRuns.id, run.id));
-    const [lease] = await db.insert(environmentLeases).values({ companyId: run.companyId, heartbeatRunId: run.id,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: run.spaceId, heartbeatRunId: run.id,
       issueId: run.issueId, status: "active", provider: "daytona", providerLeaseId: randomUUID(), leasePolicy: "ephemeral",
       metadata: { driver: "sandbox", sandboxProviderPlugin: true, pluginId: "fixture-plugin", remoteCwd: "/home/daytona/workspace" } }).returning();
     await db.update(agents).set({ adapterType: "codex_local" }).where(eq(agents.id, run.agentId));
@@ -1266,10 +1266,10 @@ describePostgres("heartbeat recovery module ownership", () => {
     const claim: NativeRestartRecoveryClaim = { kind: "reattach_remote_runner", runId: run.id,
       leaseOwner: randomUUID(), controllerGeneration: 2, providerAttempt: 1, restartKind: "hard", recoveryRequestId: null,
       remote: { providerLeaseId: randomUUID(), remoteCwd: "/workspace" } };
-    const scope = { companyId: run.companyId, issueId: run.issueId!, controller, remote: true };
+    const scope = { spaceId: run.spaceId, issueId: run.issueId!, controller, remote: true };
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: run.issueId }).where(eq(heartbeatRuns.id, run.id));
     const expiresAt = new Date(Date.now() + 60_000);
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!, phase: "observed", attempt: 1,
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: run.spaceId, issueId: run.issueId!, phase: "observed", attempt: 1,
       controllerBootId: controller.bootId, controllerPid: controller.pid,
       controllerProcessStartedAt: controller.processStartedAt,
       leaseOwner: claim.leaseOwner, leaseExpiresAt: expiresAt });
@@ -1326,10 +1326,10 @@ describePostgres("heartbeat recovery module ownership", () => {
     const controller = await currentNativeControllerIdentity();
     const claim: NativeRestartRecoveryClaim = { kind: "bootstrap_incomplete", runId: run.id, leaseOwner: randomUUID(),
       controllerGeneration: 3, providerAttempt: 1, restartKind: "hard", recoveryRequestId: null };
-    const scope = { companyId: run.companyId, issueId: run.issueId!, controller, remote: true };
+    const scope = { spaceId: run.spaceId, issueId: run.issueId!, controller, remote: true };
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: run.issueId, status: "running" }).where(eq(heartbeatRuns.id, run.id));
     const firstLeaseEndsAt = new Date(Date.now() + 4_000);
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!, phase: "observed", attempt: 1,
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: run.spaceId, issueId: run.issueId!, phase: "observed", attempt: 1,
       controllerBootId: controller.bootId, controllerPid: controller.pid, controllerProcessStartedAt: controller.processStartedAt,
       leaseOwner: claim.leaseOwner, leaseExpiresAt: firstLeaseEndsAt });
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
@@ -1385,10 +1385,10 @@ describePostgres("heartbeat recovery module ownership", () => {
     const run = await seedRun();
     const deps = callbacks(db);
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: run.issueId }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!,
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: run.spaceId, issueId: run.issueId!,
       phase: "observed", recoveryState: "awaiting_runner_reattach", leaseOwner: "prior-server",
       leaseExpiresAt: new Date(Date.now() + 60_000) });
-    await db.insert(nativeRunnerCheckpoints).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!,
+    await db.insert(nativeRunnerCheckpoints).values({ runId: run.id, spaceId: run.spaceId, issueId: run.issueId!,
       part: "opaque-checkpoint-record", material: { fixture: true } });
     const recovery = createHeartbeatRecovery(db, deps);
     try {
@@ -1427,7 +1427,7 @@ describePostgres("heartbeat recovery module ownership", () => {
     const identity = await currentNativeControllerIdentity();
     await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, run.agentId));
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: run.issueId }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!,
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: run.spaceId, issueId: run.issueId!,
       phase: "observed", controllerBootId: identity.bootId, leaseOwner: "departing-server", leaseExpiresAt: new Date(Date.now() + 60_000) });
     const wake = vi.fn(), unsubscribe = subscribeDeliveryWork(db, DELIVERY_QUEUES.nativeProcessSessions, wake);
     try {
@@ -1452,7 +1452,7 @@ describePostgres("heartbeat recovery module ownership", () => {
     const expiresAt = new Date(Date.now() + 60_000);
     await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, run.agentId));
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: run.issueId }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!,
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: run.spaceId, issueId: run.issueId!,
       phase: "observed", controllerBootId: bootId, leaseOwner: "other-server", leaseExpiresAt: expiresAt });
     try {
       await createHeartbeatRecovery(db, deps).drainRunningRunsForShutdown("SIGTERM", new Date(), [run.id]);
@@ -1471,7 +1471,7 @@ describePostgres("heartbeat recovery module ownership", () => {
     await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, run.agentId));
     await db.update(issues).set({ executionRunId: run.id }).where(eq(issues.id, run.issueId!));
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: run.issueId }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!, phase: "observed" });
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: run.spaceId, issueId: run.issueId!, phase: "observed" });
     const deps = callbacks(db);
     deps.activeRunExecutions.add(run.id);
     deps.getRun.mockImplementation(async id => (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, id)))[0] ?? null);
@@ -1544,7 +1544,7 @@ describePostgres("heartbeat recovery module ownership", () => {
     const run = await seedRun();
     const nextAttemptAt = new Date(Date.now() + (scenario === "future" ? 60_000 : -1_000));
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: run.issueId, status: "failed" }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!, phase: "retryable_failure", nextAttemptAt,
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: run.spaceId, issueId: run.issueId!, phase: "retryable_failure", nextAttemptAt,
       failureCode: scenario === "overdue-owner" ? "native_controller_recovery_waiting_for_owner" : null });
     const deps = callbacks(db);
     const result = await createHeartbeatRecovery(db, deps).recoverNativeRunsAfterRestart();
@@ -1587,7 +1587,7 @@ describePostgres("heartbeat recovery module ownership", () => {
           : { ...location, schema: "outpost.native-workspace-sync/v3", descriptorSha256: "a".repeat(64),
             baselineSha256: "b".repeat(64), finalHostSha256: null, resourceDisposition: "destroy" },
       } }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId: run.companyId, issueId: run.issueId!,
+    await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId: run.spaceId, issueId: run.issueId!,
       phase: "retryable_failure", nextAttemptAt: new Date(0),
       failureDetail: { recoveryMode: "exact_checkpoint_resume" } });
     const deps = callbacks(db);

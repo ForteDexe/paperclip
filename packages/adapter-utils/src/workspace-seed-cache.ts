@@ -8,12 +8,12 @@ import type { GitWorkspaceSnapshot } from "./git-workspace-sync.js";
 import type { WorkspaceDurableSeedPaths } from "./sandbox-managed-runtime.js";
 import type { RuntimeSpanRunner } from "./acpx-engine/startup-timing.js";
 
-export function workspaceSeedGeneration(baseline: DirectorySnapshot, git: GitWorkspaceSnapshot | null, repositories: NonNullable<GitWorkspaceSnapshot["repositories"]> = [], scope: "workspace" | "company" = "workspace"): string {
+export function workspaceSeedGeneration(baseline: DirectorySnapshot, git: GitWorkspaceSnapshot | null, repositories: NonNullable<GitWorkspaceSnapshot["repositories"]> = [], scope: "workspace" | "space" = "workspace"): string {
   const identity = (snapshot: GitWorkspaceSnapshot | null): unknown => snapshot && ({
     head: snapshot.headCommit, ...(scope === "workspace" ? { branch: snapshot.branchName } : {}), origin: snapshot.originUrl,
     repositories: snapshot.repositories?.map((repo) => ({ path: repo.path, git: identity(repo.snapshot) })),
   });
-  return createHash("sha256").update(scope === "company" ? "verified-company-seed-v1\0" : "verified-seed-v1\0").update(JSON.stringify([directorySnapshotSha256(baseline), identity(git), repositories.map((repo) => ({ path: repo.path, git: identity(repo.snapshot) }))])).digest("hex");
+  return createHash("sha256").update(scope === "space" ? "verified-space-seed-v1\0" : "verified-seed-v1\0").update(JSON.stringify([directorySnapshotSha256(baseline), identity(git), repositories.map((repo) => ({ path: repo.path, git: identity(repo.snapshot) }))])).digest("hex");
 }
 
 export function workspaceSeedCloneSnapshot(snapshot: GitWorkspaceSnapshot): GitWorkspaceSnapshot {
@@ -29,7 +29,7 @@ async function digest(file: string): Promise<string> {
 
 /** A privateCopyDirectory must be caller-owned staging; its caller owns cleanup. */
 export async function readWorkspaceSeedGeneration(root: string, generation: string,
-  options: { companyDirectory?: string; privateCopyDirectory?: string; runtimeSpan?: RuntimeSpanRunner } = {}): Promise<WorkspaceDurableSeedPaths | null> {
+  options: { spaceDirectory?: string; privateCopyDirectory?: string; runtimeSpan?: RuntimeSpanRunner } = {}): Promise<WorkspaceDurableSeedPaths | null> {
   const measure = <T>(name: string, work: () => Promise<T>): Promise<T> =>
     options.runtimeSpan ? options.runtimeSpan(name, work) : work();
   const directory = path.join(root, generation);
@@ -61,7 +61,7 @@ export async function readWorkspaceSeedGeneration(root: string, generation: stri
       if (privateCopy) await measure("workspace.seed_read_copy", () => fs.copyFile(source, file, constants.COPYFILE_FICLONE | constants.COPYFILE_EXCL));
       if (await measure("workspace.seed_read_hash", () => digest(file)) !== expected) return null;
     }
-    const used = await measure("workspace.seed_read_touch", () => withDirectoryMergeLock(path.resolve(options.companyDirectory ?? root), async () => {
+    const used = await measure("workspace.seed_read_touch", () => withDirectoryMergeLock(path.resolve(options.spaceDirectory ?? root), async () => {
       const current = await fs.lstat(receipt).catch(() => null);
       if (!current || current.ino !== receiptStat.ino || current.dev !== receiptStat.dev) return false;
       const usedAt = new Date();
@@ -78,9 +78,9 @@ export async function readWorkspaceSeedGeneration(root: string, generation: stri
 export const WORKSPACE_SEED_CACHE_LIMITS = Object.freeze({
   workspaceGenerations: 16,
   workspaceBytes: 1024 ** 3,
-  companyGenerations: 256,
-  companyWorkspaces: 256,
-  companyBytes: 8 * 1024 ** 3,
+  spaceGenerations: 256,
+  spaceWorkspaces: 256,
+  spaceBytes: 8 * 1024 ** 3,
 });
 type SeedCacheLimits = { [Key in keyof typeof WORKSPACE_SEED_CACHE_LIMITS]: number };
 
@@ -98,9 +98,9 @@ async function removeCacheEntry(directory: string) {
   await fs.rm(retired, { recursive: true, force: true });
 }
 
-async function cachedGenerations(company: string, root: string, cleanup: boolean): Promise<{ workspaces: string[]; generations: CachedGeneration[] }> {
-  const workspaces = root === company ? [company]
-    : (await fs.readdir(company)).map(name => path.join(company, name));
+async function cachedGenerations(space: string, root: string, cleanup: boolean): Promise<{ workspaces: string[]; generations: CachedGeneration[] }> {
+  const workspaces = root === space ? [space]
+    : (await fs.readdir(space)).map(name => path.join(space, name));
   const generations: CachedGeneration[] = [];
   for (const workspace of workspaces) {
     const workspaceStat = await fs.lstat(workspace).catch(() => null);
@@ -125,10 +125,10 @@ async function cachedGenerations(company: string, root: string, cleanup: boolean
   return { workspaces, generations };
 }
 
-async function evictSeedGenerations(company: string, root: string, input: {
+async function evictSeedGenerations(space: string, root: string, input: {
   generation: string; incomingBytes: number; limits: SeedCacheLimits; eviction: SeedCacheEviction; now: number; apply: boolean;
 }): Promise<boolean> {
-  const { workspaces: workspaceDirectories, generations } = await cachedGenerations(company, root, input.apply);
+  const { workspaces: workspaceDirectories, generations } = await cachedGenerations(space, root, input.apply);
   const remove = async (directory: string) => { if (input.apply) await removeCacheEntry(directory); };
   const target = path.join(root, input.generation);
   const live: CachedGeneration[] = [];
@@ -142,21 +142,21 @@ async function evictSeedGenerations(company: string, root: string, input: {
     return {
       workspace: inWorkspace.length + 1 > input.limits.workspaceGenerations
         || inWorkspace.reduce((sum, entry) => sum + entry.bytes, 0) + input.incomingBytes > input.limits.workspaceBytes,
-      company: live.length + 1 > input.limits.companyGenerations
-        || live.reduce((sum, entry) => sum + entry.bytes, 0) + input.incomingBytes > input.limits.companyBytes
-        || workspaces > input.limits.companyWorkspaces,
+      space: live.length + 1 > input.limits.spaceGenerations
+        || live.reduce((sum, entry) => sum + entry.bytes, 0) + input.incomingBytes > input.limits.spaceBytes
+        || workspaces > input.limits.spaceWorkspaces,
     };
   };
-  for (let pressure = over(); pressure.workspace || pressure.company; pressure = over()) {
+  for (let pressure = over(); pressure.workspace || pressure.space; pressure = over()) {
     const victim = live
       .filter(entry => entry.evictable && entry.directory !== target && entry.usedAt < input.now - input.eviction.minIdleMs
-        && (pressure.company || entry.workspace === root))
+        && (pressure.space || entry.workspace === root))
       .sort((a, b) => a.usedAt - b.usedAt)[0];
     if (!victim) return false;
     await remove(victim.directory);
     live.splice(live.indexOf(victim), 1);
   }
-  if (input.apply && root !== company) {
+  if (input.apply && root !== space) {
     for (const workspace of workspaceDirectories) {
       if (workspace !== root && !live.some(entry => entry.workspace === workspace)) await fs.rmdir(workspace).catch(() => undefined);
     }
@@ -167,7 +167,7 @@ async function evictSeedGenerations(company: string, root: string, input: {
 async function cacheUsage(root: string, limits: SeedCacheLimits): Promise<{ generations: number; bytes: number } | null> {
   let generations = 0, bytes = 0;
   for await (const entry of await fs.opendir(root)) {
-    if (++generations > limits.companyGenerations) return null;
+    if (++generations > limits.spaceGenerations) return null;
     const directory = path.join(root, entry.name);
     const stat = await fs.lstat(directory);
     if (!stat.isDirectory() || stat.isSymbolicLink()) return null;
@@ -177,7 +177,7 @@ async function cacheUsage(root: string, limits: SeedCacheLimits): Promise<{ gene
       const file = await fs.lstat(path.join(directory, child.name));
       if (!file.isFile() || file.isSymbolicLink()) return null;
       bytes += file.size;
-      if (bytes > limits.companyBytes) return null;
+      if (bytes > limits.spaceBytes) return null;
     }
   }
   return { generations, bytes };
@@ -185,27 +185,27 @@ async function cacheUsage(root: string, limits: SeedCacheLimits): Promise<{ gene
 
 export async function publishWorkspaceSeedGeneration(
   root: string, generation: string, seed: WorkspaceDurableSeedPaths,
-  options: { companyDirectory?: string; limits?: Partial<SeedCacheLimits>; eviction?: Partial<SeedCacheEviction>;
-    scope?: "workspace" | "company"; now?: () => number; verify?: () => Promise<boolean>;
+  options: { spaceDirectory?: string; limits?: Partial<SeedCacheLimits>; eviction?: Partial<SeedCacheEviction>;
+    scope?: "workspace" | "space"; now?: () => number; verify?: () => Promise<boolean>;
     cacheOnlyGitArchivePath?: string;
     runtimeSpan?: RuntimeSpanRunner } = {},
 ): Promise<boolean> {
   const measure = <T>(name: string, work: () => Promise<T>): Promise<T> =>
     options.runtimeSpan ? options.runtimeSpan(name, work) : work();
   const configuredLimits = { ...WORKSPACE_SEED_CACHE_LIMITS, ...options.limits };
-  const limits = options.scope === "company" ? { ...configuredLimits,
-    workspaceGenerations: configuredLimits.companyGenerations, workspaceBytes: configuredLimits.companyBytes,
+  const limits = options.scope === "space" ? { ...configuredLimits,
+    workspaceGenerations: configuredLimits.spaceGenerations, workspaceBytes: configuredLimits.spaceBytes,
   } : configuredLimits;
   const eviction = { ...WORKSPACE_SEED_CACHE_EVICTION, ...options.eviction };
   if (!/^[a-f0-9]{64}$/.test(generation)
     || Object.values(configuredLimits).some(value => !Number.isSafeInteger(value) || value < 0)) return false;
   root = path.resolve(root);
-  const company = path.resolve(options.companyDirectory ?? root);
-  if (root !== company && path.dirname(root) !== company) return false;
+  const space = path.resolve(options.spaceDirectory ?? root);
+  if (root !== space && path.dirname(root) !== space) return false;
   try {
-    await fs.mkdir(company, { recursive: true, mode: 0o700 });
-    const companyStat = await fs.lstat(company);
-    if (!companyStat.isDirectory() || companyStat.isSymbolicLink()) return false;
+    await fs.mkdir(space, { recursive: true, mode: 0o700 });
+    const spaceStat = await fs.lstat(space);
+    if (!spaceStat.isDirectory() || spaceStat.isSymbolicLink()) return false;
     const cacheSeed = options.cacheOnlyGitArchivePath
       ? { ...seed, gitArchivePath: options.cacheOnlyGitArchivePath } : seed;
     if (options.cacheOnlyGitArchivePath) {
@@ -219,22 +219,22 @@ export async function publishWorkspaceSeedGeneration(
         || (cached.dev === recovery.dev && cached.ino === recovery.ino)) return false;
     }
     const capacity = async (): Promise<"existing" | "available" | false> => {
-      const currentCompany = await fs.lstat(company);
-      if (!currentCompany.isDirectory() || currentCompany.isSymbolicLink()
-        || currentCompany.dev !== companyStat.dev || currentCompany.ino !== companyStat.ino) return false;
+      const currentSpace = await fs.lstat(space);
+      if (!currentSpace.isDirectory() || currentSpace.isSymbolicLink()
+        || currentSpace.dev !== spaceStat.dev || currentSpace.ino !== spaceStat.ino) return false;
       let totalGenerations = 0, totalBytes = 0, workspaces = 0;
       let workspace = { generations: 0, bytes: 0 };
       let workspaceExists = false;
-      const directories = root === company ? [{ name: "" }] : await fs.opendir(company);
+      const directories = root === space ? [{ name: "" }] : await fs.opendir(space);
       for await (const { name } of directories) {
-        if (++workspaces > limits.companyWorkspaces) return false;
-        const directory = root === company ? company : path.join(company, name);
+        if (++workspaces > limits.spaceWorkspaces) return false;
+        const directory = root === space ? space : path.join(space, name);
         const stat = await fs.lstat(directory);
         if (!stat.isDirectory() || stat.isSymbolicLink()) return false;
         const usage = await cacheUsage(directory, limits);
         if (!usage) return false;
         totalGenerations += usage.generations; totalBytes += usage.bytes;
-        if (totalGenerations > limits.companyGenerations || totalBytes > limits.companyBytes) return false;
+        if (totalGenerations > limits.spaceGenerations || totalBytes > limits.spaceBytes) return false;
         if (directory === root) { workspace = usage; workspaceExists = true; }
       }
       if (workspaceExists && await fs.lstat(path.join(root, generation)).then(() => true, () => false)) return "existing";
@@ -247,9 +247,9 @@ export async function publishWorkspaceSeedGeneration(
       }
       if (incomingBytes > configuredLimits.workspaceBytes) return false;
       if (workspace.generations + 1 > limits.workspaceGenerations || workspace.bytes + incomingBytes > limits.workspaceBytes
-        || totalGenerations + 1 > limits.companyGenerations || totalBytes + incomingBytes > limits.companyBytes
-        || workspaces + (workspaceExists ? 0 : 1) > limits.companyWorkspaces) return false;
-      assertWorkspaceManifestDiskSpace(company, incomingBytes);
+        || totalGenerations + 1 > limits.spaceGenerations || totalBytes + incomingBytes > limits.spaceBytes
+        || workspaces + (workspaceExists ? 0 : 1) > limits.spaceWorkspaces) return false;
+      assertWorkspaceManifestDiskSpace(space, incomingBytes);
       return "available";
     };
     const initialCapacity = await measure("workspace.seed_cache_capacity", capacity);
@@ -258,13 +258,13 @@ export async function publishWorkspaceSeedGeneration(
     for (const archive of [cacheSeed.workspaceArchivePath, cacheSeed.gitArchivePath]) if (archive) incomingBytes += (await fs.lstat(archive)).size;
     if (incomingBytes > configuredLimits.workspaceBytes) return false;
     const plan = { generation, incomingBytes, limits, eviction, now: options.now?.() ?? Date.now() };
-    if (initialCapacity === false && !await measure("workspace.seed_cache_evict", () => evictSeedGenerations(company, root, { ...plan, apply: false }))) return false;
+    if (initialCapacity === false && !await measure("workspace.seed_cache_evict", () => evictSeedGenerations(space, root, { ...plan, apply: false }))) return false;
     if (options.verify && !await options.verify()) return false;
-    return await withDirectoryMergeLock(company, () => measure("workspace.seed_cache_locked_publish", async () => {
-      const lockedCompany = await fs.lstat(company);
-      if (!lockedCompany.isDirectory() || lockedCompany.isSymbolicLink()
-        || lockedCompany.dev !== companyStat.dev || lockedCompany.ino !== companyStat.ino) return false;
-      await measure("workspace.seed_cache_evict", () => evictSeedGenerations(company, root, { ...plan, apply: true }));
+    return await withDirectoryMergeLock(space, () => measure("workspace.seed_cache_locked_publish", async () => {
+      const lockedSpace = await fs.lstat(space);
+      if (!lockedSpace.isDirectory() || lockedSpace.isSymbolicLink()
+        || lockedSpace.dev !== spaceStat.dev || lockedSpace.ino !== spaceStat.ino) return false;
+      await measure("workspace.seed_cache_evict", () => evictSeedGenerations(space, root, { ...plan, apply: true }));
       const currentCapacity = await measure("workspace.seed_cache_capacity", capacity);
       if (currentCapacity !== "available") return currentCapacity === "existing";
       await fs.mkdir(root, { recursive: true, mode: 0o700 });

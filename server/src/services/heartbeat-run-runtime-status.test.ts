@@ -18,7 +18,7 @@ describe("heartbeat run runtime status store", () => {
   it("stores scoped ephemeral status and expires stale entries", () => {
     const updatedAt = new Date("2026-06-24T00:00:00.000Z");
     const status = setHeartbeatRunRuntimeStatus({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       agentId: "agent-1",
       runId: "run-1",
@@ -36,12 +36,12 @@ describe("heartbeat run runtime status store", () => {
     expect(status?.lastAssistantSnippet).toContain("***REDACTED***");
     expect(status?.lastEventAt).toEqual(new Date("2026-06-24T00:00:05.000Z"));
     expect(getHeartbeatRunRuntimeStatus("run-1", {
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       agentId: "agent-1",
       now: new Date("2026-06-24T00:00:30.000Z"),
     })).toMatchObject({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       agentId: "agent-1",
       runId: "run-1",
@@ -50,9 +50,9 @@ describe("heartbeat run runtime status store", () => {
       lastAssistantSnippet: expect.stringContaining("***REDACTED***"),
       lastEventAt: new Date("2026-06-24T00:00:05.000Z"),
     });
-    expect(getHeartbeatRunRuntimeStatus("run-1", { companyId: "other-company" })).toBeNull();
+    expect(getHeartbeatRunRuntimeStatus("run-1", { spaceId: "other-space" })).toBeNull();
     expect(getHeartbeatRunRuntimeStatus("run-1", {
-      companyId: "company-1",
+      spaceId: "space-1",
       now: new Date("2026-06-24T00:02:00.001Z"),
     })).toBeNull();
     expect(getHeartbeatRunRuntimeStatus("run-1")).toBeNull();
@@ -60,7 +60,7 @@ describe("heartbeat run runtime status store", () => {
 
   it("clears status explicitly", () => {
     setHeartbeatRunRuntimeStatus({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: null,
       agentId: "agent-1",
       runId: "run-1",
@@ -74,7 +74,7 @@ describe("heartbeat run runtime status store", () => {
 
   it("touch refreshes timestamps while preserving the existing status context", () => {
     setHeartbeatRunRuntimeStatus({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       agentId: "agent-1",
       runId: "run-1",
@@ -87,7 +87,7 @@ describe("heartbeat run runtime status store", () => {
     });
 
     const touched = touchHeartbeatRunRuntimeStatus({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       agentId: "agent-1",
       runId: "run-1",
@@ -104,14 +104,14 @@ describe("heartbeat run runtime status store", () => {
       lastEventAt: new Date("2026-06-24T00:00:45.000Z"),
     });
     expect(getHeartbeatRunRuntimeStatus("run-1", {
-      companyId: "company-1",
+      spaceId: "space-1",
       now: new Date("2026-06-24T00:02:00.000Z"),
     })).toMatchObject({ message: "Using Bash" });
   });
 
   it("touch does not move timestamps backwards", () => {
     setHeartbeatRunRuntimeStatus({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: null,
       agentId: "agent-1",
       runId: "run-1",
@@ -122,7 +122,7 @@ describe("heartbeat run runtime status store", () => {
     });
 
     const touched = touchHeartbeatRunRuntimeStatus({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: null,
       agentId: "agent-1",
       runId: "run-1",
@@ -137,7 +137,7 @@ describe("heartbeat run runtime status store", () => {
 
   it("touch creates a fallback run_activity status when none is live", () => {
     const created = touchHeartbeatRunRuntimeStatus({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       agentId: "agent-1",
       runId: "run-1",
@@ -154,7 +154,7 @@ describe("heartbeat run runtime status store", () => {
 
     // An expired entry is replaced with a fresh fallback rather than revived.
     const expiredTouch = touchHeartbeatRunRuntimeStatus({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       agentId: "agent-1",
       runId: "run-1",
@@ -172,14 +172,14 @@ describe("heartbeat run runtime status store", () => {
     const start = new Date("2026-10-30T00:00:00Z");
     vi.setSystemTime(start);
     const write = (runId: string) => setHeartbeatRunRuntimeStatus({
-      companyId: "company-1", issueId: null, agentId: "agent-1", runId,
+      spaceId: "space-1", issueId: null, agentId: "agent-1", runId,
       phase: "run_activity", message: "Using Bash",
     });
     write("abandoned");
     write("active");
     vi.setSystemTime(start.getTime() + 60_000);
     touchHeartbeatRunRuntimeStatus({
-      companyId: "company-1", issueId: null, agentId: "agent-1", runId: "active",
+      spaceId: "space-1", issueId: null, agentId: "agent-1", runId: "active",
     });
     vi.setSystemTime(start.getTime() + 90_000);
     write("boundary");
@@ -187,12 +187,12 @@ describe("heartbeat run runtime status store", () => {
     expect(clearHeartbeatRunRuntimeStatus("boundary")).toBe(true);
     vi.setSystemTime(start.getTime() + 90_001);
     touchHeartbeatRunRuntimeStatus({
-      companyId: "company-1", issueId: null, agentId: "agent-1", runId: "active",
+      spaceId: "space-1", issueId: null, agentId: "agent-1", runId: "active",
     });
     expect(clearHeartbeatRunRuntimeStatus("abandoned")).toBe(false);
     expect(getHeartbeatRunRuntimeStatus("active")).toMatchObject({ message: "Using Bash" });
     setHeartbeatRunRuntimeStatus({
-      companyId: "company-1", issueId: null, agentId: "agent-1", runId: "old-output",
+      spaceId: "space-1", issueId: null, agentId: "agent-1", runId: "old-output",
       phase: "run_activity", message: "Delayed output", updatedAt: start,
     });
     vi.setSystemTime(start.getTime() + 90_002);
@@ -206,7 +206,7 @@ describe("heartbeat run runtime status store", () => {
 
   it("sweeps expired statuses without touching fresh entries", () => {
     setHeartbeatRunRuntimeStatus({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: null,
       agentId: "agent-1",
       runId: "stale-run",
@@ -215,7 +215,7 @@ describe("heartbeat run runtime status store", () => {
       updatedAt: new Date("2026-06-24T00:00:00.000Z"),
     });
     setHeartbeatRunRuntimeStatus({
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: null,
       agentId: "agent-1",
       runId: "fresh-run",

@@ -48,13 +48,13 @@ export function SpekoCallHistoryView({ entries = [], unapprovedCalls = [], loadi
     {!incomingError && unapprovedCalls.length > 0 && <div className="space-y-2"><h3 className="text-sm font-medium">Unapproved incoming calls</h3><ul className="space-y-2">{unapprovedCalls.map(call => <li key={call.id}><SpekoUnapprovedCallActivityItem call={call} /></li>)}</ul></div>}
   </section>;
 }
-export function useSpekoCallHistory(companyId: string, endpointId: string, enabled = true) {
-  const query = useQuery({ queryKey: ["speko-history", companyId, endpointId], queryFn: () => voiceHistoryApi.list(companyId, endpointId), enabled, refetchInterval: enabled ? 30_000 : false });
-  const incoming = useQuery({queryKey: ["speko-unapproved-history", companyId, endpointId], queryFn: () => voicePhoneApi.history(companyId, endpointId), enabled: enabled && query.isSuccess, refetchInterval: enabled ? 30_000 : false});
-  const ending = useMutation({mutationFn: (sessionId: string) => voiceSessionsApi.end(companyId, sessionId), onSuccess: () => query.refetch()});
+export function useSpekoCallHistory(spaceId: string, endpointId: string, enabled = true) {
+  const query = useQuery({ queryKey: ["speko-history", spaceId, endpointId], queryFn: () => voiceHistoryApi.list(spaceId, endpointId), enabled, refetchInterval: enabled ? 30_000 : false });
+  const incoming = useQuery({queryKey: ["speko-unapproved-history", spaceId, endpointId], queryFn: () => voicePhoneApi.history(spaceId, endpointId), enabled: enabled && query.isSuccess, refetchInterval: enabled ? 30_000 : false});
+  const ending = useMutation({mutationFn: (sessionId: string) => voiceSessionsApi.end(spaceId, sessionId), onSuccess: () => query.refetch()});
   return { entries: query.data ?? [], unapprovedCalls: incoming.data ?? [], loading: query.isLoading || incoming.isLoading, error: query.error?.message, incomingError: incoming.error?.message, endError: ending.error?.message, endingSessionId: ending.isPending ? ending.variables : undefined,
     onEnd: (sessionId: string) => ending.mutate(sessionId), onRetry: () => { ending.reset(); void query.refetch(); void incoming.refetch(); } };
 }
-export function SpekoCallHistory({ companyId, endpointId }: { companyId: string; endpointId: string }) {
-  return <SpekoCallHistoryView {...useSpekoCallHistory(companyId, endpointId)} />;
+export function SpekoCallHistory({ spaceId, endpointId }: { spaceId: string; endpointId: string }) {
+  return <SpekoCallHistoryView {...useSpekoCallHistory(spaceId, endpointId)} />;
 }

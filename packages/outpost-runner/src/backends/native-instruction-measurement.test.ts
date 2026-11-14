@@ -17,13 +17,13 @@ import { nativeSystemInstructions, nativeTaskConstraints } from "./runtime-conte
 import { createRunnerdNativeSessionBackend } from "./codex-native-backend.js";
 import { inspectNativeCompletionSourceMetadata } from "../../../../tests/runner-e2e/native-completion-git-source.mjs";
 
-// This captures Paperclip's real runnerd RPC boundary with a scripted transport.
-// It measures complete Paperclip-supplied instruction/tool/message projections,
+// This captures Outpost's real runnerd RPC boundary with a scripted transport.
+// It measures complete Outpost-supplied instruction/tool/message projections,
 // not provider-owned stock prompts, tokenization, billing or model behavior.
 const tools = OUTPOST_SEMANTIC_ACTION_CATALOG
   .filter(tool => tool.placement === "always")
   .map(tool => ({ name: tool.operationId, description: tool.description, inputSchema: tool.inputSchema }));
-const identity = { companyId: "company", agentId: "agent", issueId: "issue", runId: "run", sessionId: "session" };
+const identity = { spaceId: "space", agentId: "agent", issueId: "issue", runId: "run", sessionId: "session" };
 const { qualificationModel: _qualificationModel, reportedModelId: _reportedModelId, permissionPolicy: _permissionPolicy, ...profile } = resolveQualifiedAcpxProfile("claude", "claude-sonnet-5");
 const providers: NativeExecutionInput["provider"][] = [
   { kind: "codex", model: "gpt-5.6-sol", approvalPolicy: "never" },
@@ -45,7 +45,7 @@ function execution(provider: NativeExecutionInput["provider"], schema: "v4" | "v
   };
   return parseNativeExecutionInput({
     schema: `outpost.native-execution-input.${schema}`,
-    binding: { companyId: identity.companyId, agentId: identity.agentId, issueId: identity.issueId, runId: identity.runId, executionWorkspaceId: "workspace" },
+    binding: { spaceId: identity.spaceId, agentId: identity.agentId, issueId: identity.issueId, runId: identity.runId, executionWorkspaceId: "workspace" },
     task: { identifier: "TASK-1", title: "Save the requested document", description: "Save the requested document", prompt: "Save the requested document.", workMode: "standard" },
     workspace: { cwd: rootPath, repoUrl: null, repoRef: null, branchName: null },
     session: { normalizedSessionId: "session", driverKind: provider.kind === "acpx" ? "acpx_runtime" : provider.kind === "opencode" ? "opencode_server" : "codex_app_server", protocolVersion: 1 },
@@ -117,12 +117,12 @@ describe("native instruction payload measurement", () => {
         const turn = captured.calls.find(call => call.method === "turn/start")!.params;
         const instructions = setup.developerInstructions ?? setup.baseInstructions;
         expect(instructions).toContain(OUTPOST_EXECUTION_PROMPT);
-        expect(instructions).toContain("You are an agent in a Paperclip company.");
+        expect(instructions).toContain("You are an agent in a Outpost space.");
         const deliveredTools = setup.dynamicTools as Array<{ name: string; description: string }>;
-        expect(deliveredTools.filter(tool => tool.name === "paperclip_finish")).toEqual([
+        expect(deliveredTools.filter(tool => tool.name === "outpost_finish")).toEqual([
           expect.objectContaining({ description: ORP_COMPLETION_TOOL_DESCRIPTION }),
         ]);
-        expect(deliveredTools.filter(tool => tool.name === "paperclip_block")).toEqual([
+        expect(deliveredTools.filter(tool => tool.name === "outpost_block")).toEqual([
           expect.objectContaining({ description: ORP_BLOCK_TOOL_DESCRIPTION }),
         ]);
         expect(deliveredTools).toHaveLength(tools.length + 2);
@@ -139,7 +139,7 @@ describe("native instruction payload measurement", () => {
             expect(JSON.stringify(turn.input)).toContain("Document saved");
           }
           expect(JSON.stringify(turn.input)).toContain("objective");
-          expect(JSON.stringify(turn.input)).toContain("Before ending this turn, obtain one accepted paperclip_finish or paperclip_block result.");
+          expect(JSON.stringify(turn.input)).toContain("Before ending this turn, obtain one accepted outpost_finish or outpost_block result.");
           expect(JSON.stringify(turn.input)).toContain("Earlier reports belong to earlier turns");
         } else {
           expect(JSON.stringify(turn.input)).toContain("Obtain one accepted result");
@@ -236,7 +236,7 @@ afterAll(() => {
     sourceMetadata: source.sourceMetadata,
     sourceHashes: Object.fromEntries(sourcePaths.map(file => [file.split("/").at(-1)!, sha256(readFileSync(new URL(file, repositoryRoot)))])),
     fixtureSha256: sha256(readFileSync(new URL(import.meta.url))),
-    boundary: "scripted runnerd RPC; complete Paperclip instructions, fixture core tool schemas and turn input",
+    boundary: "scripted runnerd RPC; complete Outpost instructions, fixture core tool schemas and turn input",
     providerCalls: 0, tokenCount: null, vendorStockPrompt: "unavailable", modelBehavior: "not_measured",
     receipts, directOpenCodeReceipts,
   }, null, 2)}\n`);

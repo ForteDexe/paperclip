@@ -8,10 +8,10 @@ Routines are recurring tasks that fire on a schedule, webhook, or API call and c
 ## List Routines
 
 ```
-GET /api/companies/{companyId}/routines
+GET /api/spaces/{spaceId}/routines
 ```
 
-Returns all routines in the company.
+Returns all routines in the space.
 
 ## Get Routine
 
@@ -25,13 +25,13 @@ Routine and trigger resource IDs must be complete UUIDs from the API response.
 Short prefixes and malformed IDs return the same `404` as a missing resource.
 UUID lookup accepts PostgreSQL's existing input forms, including uppercase,
 compact and braced UUIDs; it does not trim whitespace or resolve prefixes.
-Company access and routine-assignee permissions still apply. Public trigger
+Space access and routine-assignee permissions still apply. Public trigger
 IDs in webhook URLs are separate opaque identifiers, not resource UUIDs.
 
 ## Create Routine
 
 ```
-POST /api/companies/{companyId}/routines
+POST /api/spaces/{spaceId}/routines
 {
   "title": "Weekly CEO briefing",
   "description": "Compile status report and email Founder",
@@ -195,15 +195,15 @@ Fires a run immediately, bypassing the schedule. Concurrency policy still applie
 POST /api/routine-triggers/public/{publicId}/fire
 ```
 
-Fires a webhook trigger from an external system without a Paperclip login. Send
+Fires a webhook trigger from an external system without a Outpost login. Send
 `Content-Type: application/json` and a JSON object. The trigger authenticates the
 request using its own secret; an agent or board API key is not a substitute.
 
 | Mode | Headers and signature |
 |------|-----------------------|
 | `bearer` | `Authorization: Bearer <webhookSecret>` |
-| `hmac_sha256` | `X-Paperclip-Timestamp` (Unix seconds or milliseconds) and `X-Paperclip-Signature: sha256=<hex>`; HMAC-SHA256 over the timestamp string, a dot, and the exact body bytes |
-| `github_hmac` | `X-Hub-Signature-256: sha256=<hex>`; HMAC-SHA256 over the exact body bytes, without a timestamp. `X-Paperclip-Signature` is also accepted. Configure GitHub to send JSON. |
+| `hmac_sha256` | `X-Outpost-Timestamp` (Unix seconds or milliseconds) and `X-Outpost-Signature: sha256=<hex>`; HMAC-SHA256 over the timestamp string, a dot, and the exact body bytes |
+| `github_hmac` | `X-Hub-Signature-256: sha256=<hex>`; HMAC-SHA256 over the exact body bytes, without a timestamp. `X-Outpost-Signature` is also accepted. Configure GitHub to send JSON. |
 | `none` | No signature. Anyone with the generated URL can fire the trigger; keep it private. |
 
 For a bearer trigger:
@@ -228,8 +228,8 @@ const response = await fetch(process.env.WEBHOOK_URL, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "X-Paperclip-Timestamp": timestamp,
-    "X-Paperclip-Signature": `sha256=${signature}`,
+    "X-Outpost-Timestamp": timestamp,
+    "X-Outpost-Signature": `sha256=${signature}`,
   },
   body,
 });
@@ -243,7 +243,7 @@ Payload fields or a nested `variables` object supply declared routine variables;
 nested values take precedence. The full payload is retained in run history.
 For app-webhook triggers, the sender's JSON is also copied into the execution
 task. Normal webhook intake does not apply a provider-specific field allowlist
-or a general payload scrubber. Send only data suitable for company-readable
+or a general payload scrubber. Send only data suitable for space-readable
 routine history; authentication and creation provenance do not certify the
 payload's privacy. See the [Sentry tutorial](../guides/board-operator/sentry-run-failure-repairs.md)
 for source-side scrubbing and setup checks.
@@ -267,10 +267,10 @@ execution controls still apply, including the isolated-worktree execution gate.
 ### Verified creation provenance
 
 The receiving routine and its run are recorded as the new task's direct origin.
-Paperclip can also retain the run that invoked the routine. Authenticated agent
+Outpost can also retain the run that invoked the routine. Authenticated agent
 calls to the routine run API record a validated caller run. For an ordinary
-public webhook, optionally send `X-Paperclip-Source-Run-Token` containing a
-current, standard Paperclip run JWT from the same instance and company. The
+public webhook, optionally send `X-Outpost-Source-Run-Token` containing a
+current, standard Outpost run JWT from the same instance and space. The
 trigger still authenticates with its own secret. Invalid, expired, foreign, or
 stopped caller credentials return `401` before dispatch.
 
@@ -283,12 +283,12 @@ run retention; unresolved ancestry is unknown, never assumed independent.
 
 ### Routine-wide execution receipts
 
-Send `X-Paperclip-Idempotency-Scope: routine` with a stable `Idempotency-Key` to
+Send `X-Outpost-Idempotency-Scope: routine` with a stable `Idempotency-Key` to
 deduplicate execution receipts across webhook triggers on one routine. The
 default is `trigger`. Keep the key and scope stable on retries. Routine scope
 uses a deterministic receipt identity, so deleting the original trigger does
 not let the same occurrence start another task. Scope does not change ordinary
-concurrency, pause, company, permission, or budget controls.
+concurrency, pause, space, permission, or budget controls.
 
 Timestamped HMAC always uses trigger-scoped anti-replay receipts and rejects a
 routine-scope request with `400`. Setup checks create no routine runs; their
@@ -307,7 +307,7 @@ Returns recent run history for the routine. Defaults to 50 most recent runs.
 
 ## Agent Access Rules
 
-Agents can read all routines in their company but can only create and manage routines assigned to themselves:
+Agents can read all routines in their space but can only create and manage routines assigned to themselves:
 
 | Operation | Agent | Board |
 |-----------|-------|-------|

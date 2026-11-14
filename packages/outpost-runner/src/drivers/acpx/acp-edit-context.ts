@@ -1,4 +1,4 @@
-import { redactPaperclipSemanticValue } from "../../semantic-tools/redaction.js";
+import { redactOutpostSemanticValue } from "../../semantic-tools/redaction.js";
 import { safeAcpxLocations } from "./safe-locations.js";
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
@@ -42,5 +42,5 @@ export function safeAcpxEditTarget(value: unknown, workingDirectory: string | un
   const names = safe.map(x => x.path).filter((x): x is string => typeof x === "string" && x.length <= 1024 && x.trim() === x && !x.includes(":"));
   if (names.length !== paths.length || new Set(names).size !== 1) return;
   const target = names[0];
-  return target && redactPaperclipSemanticValue(target) === target ? target : undefined;
+  return target && redactOutpostSemanticValue(target) === target ? target : undefined;
 }

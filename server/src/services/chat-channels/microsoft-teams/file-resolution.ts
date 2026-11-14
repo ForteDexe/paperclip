@@ -22,7 +22,7 @@ export async function resolveTeamsFilePublication(tx: DbTransaction, input: File
     .from(chatTeamsFileTransfers)
     .where(
       and(
-        eq(chatTeamsFileTransfers.companyId, publication.companyId),
+        eq(chatTeamsFileTransfers.spaceId, publication.spaceId),
         eq(chatTeamsFileTransfers.publicationId, publication.id),
       ),
     )
@@ -54,7 +54,7 @@ export async function resolveTeamsFilePublication(tx: DbTransaction, input: File
       result = await teamsTransferProtocol({
         credentialLease,
       }).resolveInTransaction(tx, {
-        companyId: publication.companyId,
+        spaceId: publication.spaceId,
         publicationId: publication.id,
         transferId: transfer.id,
         expectedVersion: fileTransfer.version,
@@ -75,7 +75,7 @@ export async function resolveTeamsFilePublication(tx: DbTransaction, input: File
       throw error;
     }
     await logActivity(tx as unknown as Db, {
-      companyId: publication.companyId,
+      spaceId: publication.spaceId,
       actorType: "user",
       actorId: userId,
       action: `chat.publication_${action}`,

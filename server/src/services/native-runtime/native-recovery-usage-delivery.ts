@@ -19,19 +19,19 @@ export function createNativeRecoveryUsageDelivery(input: {
     const { binding } = input.execution;
     const [prior] = await input.db.select({ run: heartbeatRuns, owner: nativeRunFinalizations })
       .from(heartbeatRuns).innerJoin(nativeRunFinalizations, eq(nativeRunFinalizations.runId, heartbeatRuns.id))
-      .where(and(eq(heartbeatRuns.id, source.runId), eq(heartbeatRuns.companyId, binding.companyId),
+      .where(and(eq(heartbeatRuns.id, source.runId), eq(heartbeatRuns.spaceId, binding.spaceId),
         eq(heartbeatRuns.agentId, binding.agentId), eq(heartbeatRuns.nativeIssueId, binding.issueId)));
     if (!prior || prior.run.status !== "succeeded" || prior.run.finishedAt === null ||
         prior.run.runtimeMode !== "native" || prior.run.runnerInstanceId !== source.runnerInstanceId ||
         prior.run.nativeSessionId !== source.normalizedSessionId || prior.owner.phase !== "committed" ||
-        !prior.owner.resultId || prior.owner.leaseOwner || prior.owner.companyId !== binding.companyId ||
+        !prior.owner.resultId || prior.owner.leaseOwner || prior.owner.spaceId !== binding.spaceId ||
         prior.owner.issueId !== binding.issueId) return deny();
     const previous = parseNativeExecutionInput(prior.run.runnerProfileJson?.nativeExecutionInput);
-    if (previous.binding.companyId !== binding.companyId || previous.binding.agentId !== binding.agentId ||
+    if (previous.binding.spaceId !== binding.spaceId || previous.binding.agentId !== binding.agentId ||
         previous.binding.issueId !== binding.issueId || previous.binding.runId !== source.runId ||
         !input.matchesExecution(previous)) return deny();
     return createNativeUsageContinuationDelivery(input.db, {
-      companyId: binding.companyId, runId: source.runId,
+      spaceId: binding.spaceId, runId: source.runId,
       runnerInstanceId: source.runnerInstanceId, provider: previous.provider,
     });
   };

@@ -10,8 +10,8 @@ import {
   agentWakeupRequests,
   agents,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
   executionWorkspaceRestorePoints,
@@ -53,13 +53,13 @@ describe.skipIf(!support.supported)("heartbeat resume of an idle-expired workspa
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("heartbeat-git-restore-point-resume-");
     db = createDb(database.connectionString);
-    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-heartbeat-restore-point-")));
+    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "outpost-heartbeat-restore-point-")));
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterEach(async () => {
     await drainHeartbeatRunsToQuiescence(db, heartbeatService(db));
     adapterExecute.mockClear();
     await db.delete(executionWorkspaceRestorePoints);
-    await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
     await db.delete(authUsers).where(eq(authUsers.id, "responsible-user"));
     vi.unstubAllEnvs();
   });
@@ -74,9 +74,9 @@ describe.skipIf(!support.supported)("heartbeat resume of an idle-expired workspa
     vi.stubEnv("OUTPOST_HOME", home);
     vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
-    const companyId = randomUUID(), projectId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    const spaceId = randomUUID(), projectId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
     const workspaceId = randomUUID(), runId = randomUUID(), wakeupId = randomUUID();
-    const issuePrefix = `R${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `R${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
     const location = path.join(home, "repos"), author = path.join(location, "author"), remote = path.join(location, "remote.git");
     await fs.mkdir(author, { recursive: true });
     git(author, "init", "--initial-branch=main");
@@ -85,34 +85,34 @@ describe.skipIf(!support.supported)("heartbeat resume of an idle-expired workspa
     git(location, "clone", "--bare", author, remote);
     const repoUrl = pathToFileURL(remote).href;
     await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });
-    await db.insert(companies).values({ id: companyId, name: "Restore point resume", issuePrefix, status: "active", defaultResponsibleUserId: "responsible-user" });
+    await db.insert(spaces).values({ id: spaceId, name: "Restore point resume", issuePrefix, status: "active", defaultResponsibleUserId: "responsible-user" });
     await db.insert(authUsers).values({ id: "responsible-user", name: "Fixture user", email: "responsible-user@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Resumed project", status: "active",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Resumed project", status: "active",
       executionWorkspacePolicy: { enabled: true, defaultMode: "isolated_workspace", workspaceStrategy: { type: "git_worktree", baseRef: "origin/main" } } });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Resumer", role: "engineer", status: "idle", adapterType: "codex_local",
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Resumer", role: "engineer", status: "idle", adapterType: "codex_local",
       adapterConfig: {}, runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } }, permissions: {} });
     const idleSince = new Date(Date.now() - 8 * DAY_MS);
-    await db.insert(issues).values({ id: issueId, companyId, projectId, title: "Stalled work", status: "in_progress", workMode: "standard",
+    await db.insert(issues).values({ id: issueId, spaceId, projectId, title: "Stalled work", status: "in_progress", workMode: "standard",
       assigneeAgentId: agentId, responsibleUserId: "responsible-user", issueNumber: 1, identifier: `${issuePrefix}-1`,
       executionWorkspaceSettings: { mode: "isolated_workspace" }, updatedAt: idleSince });
-    const baseCwd = await materializeIsolatedRemoteWorkspaceSource({ companyId, issueId, repoUrl, resolveGitAuth: async () => null });
+    const baseCwd = await materializeIsolatedRemoteWorkspaceSource({ spaceId, issueId, repoUrl, resolveGitAuth: async () => null });
     const realized = await realizeExecutionWorkspace({
       base: { baseCwd, source: "task_session", projectId, workspaceId: null, repoUrl, repoRef: "origin/main" },
-      issue: { id: issueId, identifier: `${issuePrefix}-1`, title: "Stalled work" }, agent: { id: agentId, name: "Resumer", companyId },
+      issue: { id: issueId, identifier: `${issuePrefix}-1`, title: "Stalled work" }, agent: { id: agentId, name: "Resumer", spaceId },
       config: { workspaceStrategy: { type: "git_worktree", branchTemplate: "stalled-task", baseRef: "origin/main" } }, skipHostProvision: true,
     });
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, projectId, sourceIssueId: issueId, mode: "isolated_workspace",
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, projectId, sourceIssueId: issueId, mode: "isolated_workspace",
       strategyType: "git_worktree", name: "Stalled work", status: "active", providerType: "git_worktree", cwd: realized.cwd, providerRef: realized.cwd,
       repoUrl, baseRef: "origin/main", branchName: realized.branchName,
       metadata: { createdByRuntime: realized.branchCreatedByRuntime, gitBranchOwnershipVersion: 1, baseRefSha: realized.baseRefSha,
-        isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId, issueId, repoUrl } } });
+        isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", spaceId, issueId, repoUrl } } });
     await db.update(issues).set({ executionWorkspaceId: workspaceId, executionWorkspacePreference: "reuse_existing", updatedAt: idleSince })
       .where(eq(issues.id, issueId));
     const childId = randomUUID();
     if (options.closedParent) {
       await db.update(issues).set({ status: "done", completedAt: new Date(Date.now() - 4 * DAY_MS) }).where(eq(issues.id, issueId));
-      await db.insert(issues).values({ id: childId, companyId, projectId, parentId: issueId, title: "Open follow-up", status: "in_progress",
+      await db.insert(issues).values({ id: childId, spaceId, projectId, parentId: issueId, title: "Open follow-up", status: "in_progress",
         workMode: "standard", assigneeAgentId: agentId, responsibleUserId: "responsible-user", issueNumber: 2, identifier: `${issuePrefix}-2`,
         executionWorkspaceSettings: { mode: "isolated_workspace" } });
     }
@@ -130,14 +130,14 @@ describe.skipIf(!support.supported)("heartbeat resume of an idle-expired workspa
       restorePoint: { storage: getStorageService(), notBefore: new Date(Date.now() - DAY_MS), keyDurable: true },
     });
     const queueRun = async (target = issueId) => {
-      await db.insert(agentWakeupRequests).values({ id: wakeupId, companyId, agentId, source: "assignment", triggerDetail: "system",
+      await db.insert(agentWakeupRequests).values({ id: wakeupId, spaceId, agentId, source: "assignment", triggerDetail: "system",
         reason: "issue_assigned", payload: { issueId: target }, status: "queued", runId });
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "assignment", triggerDetail: "system", status: "queued",
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "assignment", triggerDetail: "system", status: "queued",
         wakeupRequestId: wakeupId, responsibleUserId: "responsible-user", contextSnapshot: { issueId: target, taskId: target, wakeReason: "issue_assigned" } });
       await db.update(issues).set({ checkoutRunId: runId, executionRunId: runId, executionAgentNameKey: "resumer", executionLockedAt: new Date() })
         .where(eq(issues.id, target));
     };
-    return { issueId, childId, companyId, projectId, author, workspaceId, runId, cwd: realized.cwd, unpushed, expiration, workspace, queueRun };
+    return { issueId, childId, spaceId, projectId, author, workspaceId, runId, cwd: realized.cwd, unpushed, expiration, workspace, queueRun };
   }
 
   async function waitForRun(heartbeat: ReturnType<typeof heartbeatService>, runId: string) {
@@ -162,7 +162,7 @@ describe.skipIf(!support.supported)("heartbeat resume of an idle-expired workspa
     expect(run).toMatchObject({ status: "succeeded" });
     expect(adapterExecute).toHaveBeenCalledTimes(1);
     expect(adapterExecute.mock.calls[0]?.[0]).toMatchObject({ context: { executionWorkspaceId: seeded.workspaceId,
-      paperclipWorkspace: { cwd: seeded.cwd } } });
+      outpostWorkspace: { cwd: seeded.cwd } } });
     expect(git(seeded.cwd, "rev-parse", "HEAD")).toBe(seeded.unpushed);
     expect(await fs.readFile(path.join(seeded.cwd, "notes.md"), "utf8")).toBe("uncommitted notes\n");
     const workspace = await seeded.workspace();
@@ -186,7 +186,7 @@ describe.skipIf(!support.supported)("heartbeat resume of an idle-expired workspa
     expect(run).toMatchObject({ status: "succeeded" });
     expect(adapterExecute).toHaveBeenCalledTimes(1);
     expect(adapterExecute.mock.calls[0]?.[0]).toMatchObject({ context: { executionWorkspaceId: seeded.workspaceId,
-      paperclipWorkspace: { cwd: seeded.cwd } } });
+      outpostWorkspace: { cwd: seeded.cwd } } });
     expect(git(seeded.cwd, "rev-parse", "HEAD")).toBe(seeded.unpushed);
     expect(await fs.readFile(path.join(seeded.cwd, "notes.md"), "utf8")).toBe("uncommitted notes\n");
     expect(await seeded.workspace()).toMatchObject({ status: "active", closedAt: null });
@@ -201,7 +201,7 @@ describe.skipIf(!support.supported)("heartbeat resume of an idle-expired workspa
     // The project base a fresh task in this project starts from.
     const baseCwd = path.join(path.dirname(seeded.author), "project-checkout");
     git(path.dirname(seeded.author), "clone", "-q", path.join(path.dirname(seeded.author), "remote.git"), baseCwd);
-    const [base] = await db.insert(projectWorkspaces).values({ companyId: seeded.companyId, projectId: seeded.projectId,
+    const [base] = await db.insert(projectWorkspaces).values({ spaceId: seeded.spaceId, projectId: seeded.projectId,
       name: "Project checkout", sourceType: "local_path", cwd: baseCwd, isPrimary: true }).returning();
     // The binding an older release wrote for every child.
     await db.update(issues).set({ projectWorkspaceId: base!.id, executionWorkspaceId: seeded.workspaceId,
@@ -217,7 +217,7 @@ describe.skipIf(!support.supported)("heartbeat resume of an idle-expired workspa
     expect(context?.executionWorkspaceId).not.toBe(seeded.workspaceId);
     // The child starts from the project base, not the parent's unmerged changes,
     // and the parent's saved restore point was left as it was.
-    const childCwd = (context?.paperclipWorkspace as { cwd?: string } | undefined)?.cwd;
+    const childCwd = (context?.outpostWorkspace as { cwd?: string } | undefined)?.cwd;
     expect(childCwd).toBeTruthy();
     expect(childCwd).not.toBe(seeded.cwd);
     expect(git(childCwd!, "rev-parse", "HEAD")).not.toBe(seeded.unpushed);

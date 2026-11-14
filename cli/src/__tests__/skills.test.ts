@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerSkillsCommands } from "../commands/client/skills.js";
-import { resolveCompanySkillReference } from "../commands/client/skills.js";
+import { resolveSpaceSkillReference } from "../commands/client/skills.js";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -30,8 +30,8 @@ function jsonResponse(body: unknown, status = 200): Response {
 function skill(overrides: Record<string, unknown> = {}) {
   return {
     id: "11111111-1111-1111-1111-111111111111",
-    companyId: "company-1",
-    key: "paperclip/review-prs",
+    spaceId: "space-1",
+    key: "outpost/review-prs",
     slug: "review-prs",
     name: "Review PRs",
     description: "Review pull requests",
@@ -57,8 +57,8 @@ function skill(overrides: Record<string, unknown> = {}) {
 
 function catalogSkill(overrides: Record<string, unknown> = {}) {
   return {
-    id: "paperclipai:bundled:software-development:github-pr-workflow",
-    key: "paperclipai/bundled/software-development/github-pr-workflow",
+    id: "outpost:bundled:software-development:github-pr-workflow",
+    key: "outpost/bundled/software-development/github-pr-workflow",
     kind: "bundled",
     category: "software-development",
     slug: "github-pr-workflow",
@@ -81,7 +81,7 @@ function catalogSkill(overrides: Record<string, unknown> = {}) {
 function agent(overrides: Record<string, unknown> = {}) {
   return {
     id: "agent-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Coder",
     role: "engineer",
     status: "active",
@@ -101,22 +101,22 @@ function agent(overrides: Record<string, unknown> = {}) {
 describe("skills CLI helpers", () => {
   it("resolves skill refs by id, key, or unique normalized slug", () => {
     const rows = [
-      skill({ id: "skill-a", key: "paperclip/a", slug: "alpha", name: "Alpha" }),
-      skill({ id: "skill-b", key: "paperclip/b", slug: "beta-skill", name: "Beta" }),
+      skill({ id: "skill-a", key: "outpost/a", slug: "alpha", name: "Alpha" }),
+      skill({ id: "skill-b", key: "outpost/b", slug: "beta-skill", name: "Beta" }),
     ];
 
-    expect(resolveCompanySkillReference(rows, "skill-a").key).toBe("paperclip/a");
-    expect(resolveCompanySkillReference(rows, "paperclip/b").id).toBe("skill-b");
-    expect(resolveCompanySkillReference(rows, "Beta Skill").id).toBe("skill-b");
+    expect(resolveSpaceSkillReference(rows, "skill-a").key).toBe("outpost/a");
+    expect(resolveSpaceSkillReference(rows, "outpost/b").id).toBe("skill-b");
+    expect(resolveSpaceSkillReference(rows, "Beta Skill").id).toBe("skill-b");
   });
 
   it("rejects ambiguous slug refs", () => {
     const rows = [
-      skill({ id: "skill-a", key: "paperclip/a", slug: "same", name: "A" }),
-      skill({ id: "skill-b", key: "paperclip/b", slug: "same", name: "B" }),
+      skill({ id: "skill-a", key: "outpost/a", slug: "same", name: "A" }),
+      skill({ id: "skill-b", key: "outpost/b", slug: "same", name: "B" }),
     ];
 
-    expect(() => resolveCompanySkillReference(rows, "same")).toThrow(/Ambiguous skill slug/);
+    expect(() => resolveSpaceSkillReference(rows, "same")).toThrow(/Ambiguous skill slug/);
   });
 });
 
@@ -129,7 +129,7 @@ describe("skills CLI commands", () => {
     process.env = { ...ORIGINAL_ENV };
     delete process.env.OUTPOST_API_URL;
     delete process.env.OUTPOST_API_KEY;
-    delete process.env.OUTPOST_COMPANY_ID;
+    delete process.env.OUTPOST_SPACE_ID;
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -146,15 +146,15 @@ describe("skills CLI commands", () => {
     vi.restoreAllMocks();
   });
 
-  it("lists company skills as JSON through the shared client context", async () => {
+  it("lists space skills as JSON through the shared client context", async () => {
     const rows = [skill()];
     fetchMock.mockResolvedValueOnce(jsonResponse(rows));
 
     await runCommand([
       "skills",
       "list",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -163,7 +163,7 @@ describe("skills CLI commands", () => {
     ]);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://outpost.test/api/companies/company-1/skills",
+      "http://outpost.test/api/spaces/space-1/skills",
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({ authorization: "Bearer token" }),
@@ -181,8 +181,8 @@ describe("skills CLI commands", () => {
       "skills",
       "show",
       "Review PRs",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -192,7 +192,7 @@ describe("skills CLI commands", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "http://outpost.test/api/companies/company-1/skills/11111111-1111-1111-1111-111111111111",
+      "http://outpost.test/api/spaces/space-1/skills/11111111-1111-1111-1111-111111111111",
       expect.objectContaining({ method: "GET" }),
     );
   });
@@ -214,8 +214,8 @@ describe("skills CLI commands", () => {
       "skills",
       "file",
       "review-prs",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -250,7 +250,7 @@ describe("skills CLI commands", () => {
     );
     const rendered = logSpy.mock.calls.map((call: unknown[]) => String(call[0])).join("\n");
     expect(rendered).toContain("id");
-    expect(rendered).toContain("paperclipai:bundled:software-development:github-pr-workflow");
+    expect(rendered).toContain("outpost:bundled:software-development:github-pr-workflow");
     expect(rendered).toContain("roles");
   });
 
@@ -285,7 +285,7 @@ describe("skills CLI commands", () => {
     await runCommand([
       "skills",
       "inspect",
-      "paperclipai/bundled/software-development/github-pr-workflow",
+      "outpost/bundled/software-development/github-pr-workflow",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -294,17 +294,17 @@ describe("skills CLI commands", () => {
     ]);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://outpost.test/api/skills/catalog/ref?ref=paperclipai%2Fbundled%2Fsoftware-development%2Fgithub-pr-workflow",
+      "http://outpost.test/api/skills/catalog/ref?ref=outpost%2Fbundled%2Fsoftware-development%2Fgithub-pr-workflow",
       expect.objectContaining({ method: "GET" }),
     );
     expect(JSON.parse(String(logSpy.mock.calls[0]?.[0]))).toEqual(detail);
   });
 
-  it("installs catalog skills into the company library without agent sync", async () => {
+  it("installs catalog skills into the space library without agent sync", async () => {
     const result = {
       action: "created",
       skill: skill({
-        key: "paperclipai/bundled/software-development/github-pr-workflow",
+        key: "outpost/bundled/software-development/github-pr-workflow",
         slug: "pr-flow",
         sourceType: "catalog",
       }),
@@ -320,8 +320,8 @@ describe("skills CLI commands", () => {
       "--as",
       "pr-flow",
       "--force",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -330,7 +330,7 @@ describe("skills CLI commands", () => {
     ]);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://outpost.test/api/companies/company-1/skills/install-catalog",
+      "http://outpost.test/api/spaces/space-1/skills/install-catalog",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -353,8 +353,8 @@ describe("skills CLI commands", () => {
       "update",
       "review-prs",
       "--force",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -364,7 +364,7 @@ describe("skills CLI commands", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "http://outpost.test/api/companies/company-1/skills/11111111-1111-1111-1111-111111111111/install-update",
+      "http://outpost.test/api/spaces/space-1/skills/11111111-1111-1111-1111-111111111111/install-update",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ force: true }),
@@ -396,8 +396,8 @@ describe("skills CLI commands", () => {
       "skills",
       "audit",
       "review-prs",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -407,7 +407,7 @@ describe("skills CLI commands", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "http://outpost.test/api/companies/company-1/skills/11111111-1111-1111-1111-111111111111/audit",
+      "http://outpost.test/api/spaces/space-1/skills/11111111-1111-1111-1111-111111111111/audit",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({}),
@@ -427,8 +427,8 @@ describe("skills CLI commands", () => {
       "review-prs",
       "--yes",
       "--force",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -438,7 +438,7 @@ describe("skills CLI commands", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "http://outpost.test/api/companies/company-1/skills/11111111-1111-1111-1111-111111111111/reset",
+      "http://outpost.test/api/spaces/space-1/skills/11111111-1111-1111-1111-111111111111/reset",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ force: true }),
@@ -446,21 +446,21 @@ describe("skills CLI commands", () => {
     );
   });
 
-  it("syncs desired company skill refs to an agent and returns the runtime snapshot", async () => {
+  it("syncs desired space skill refs to an agent and returns the runtime snapshot", async () => {
     const snapshot = {
       adapterType: "codex_local",
       supported: true,
       mode: "persistent",
-      desiredSkills: ["paperclip/review-prs"],
+      desiredSkills: ["outpost/review-prs"],
       entries: [
         {
-          key: "paperclip/review-prs",
+          key: "outpost/review-prs",
           runtimeName: "review-prs",
           desired: true,
           managed: true,
           required: false,
           state: "installed",
-          origin: "company_managed",
+          origin: "space_managed",
           detail: null,
         },
       ],
@@ -478,11 +478,11 @@ describe("skills CLI commands", () => {
       "--skill",
       "review-prs",
       "--skill",
-      "paperclip/qa",
+      "outpost/qa",
       "--mode",
       "add",
-      "--company-id",
-      "company-1",
+      "--space-id",
+      "space-1",
       "--api-base",
       "http://outpost.test",
       "--api-key",
@@ -492,7 +492,7 @@ describe("skills CLI commands", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "http://outpost.test/api/agents/coder?companyId=company-1",
+      "http://outpost.test/api/agents/coder?spaceId=space-1",
       expect.objectContaining({ method: "GET" }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -500,7 +500,7 @@ describe("skills CLI commands", () => {
       "http://outpost.test/api/agents/agent-1/skills/sync",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ desiredSkills: ["review-prs", "paperclip/qa"], mode: "add" }),
+        body: JSON.stringify({ desiredSkills: ["review-prs", "outpost/qa"], mode: "add" }),
       }),
     );
     expect(JSON.parse(String(logSpy.mock.calls[0]?.[0]))).toEqual(snapshot);

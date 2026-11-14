@@ -30,7 +30,7 @@ const scopes = ["identity", "task_authorization", "token_broker"] as const;
     const full = await captureRunIdentity(db, f);
     const narrow = await captureRunIdentity(captureIdentityQueries(db, queries), f, { readScope });
     expect(narrow.context).toEqual(full.context);
-    expect(narrow.run).toMatchObject({ id: f.runId, companyId: f.companyId, agentId: f.agentId,
+    expect(narrow.run).toMatchObject({ id: f.runId, spaceId: f.spaceId, agentId: f.agentId,
       status: "running", responsibleUserId: "operator", activeIdentityContextId: full.run.activeIdentityContextId });
     expect(narrow.run).not.toHaveProperty("runnerProfileJson");
     expect(narrow.run).not.toHaveProperty("resultJson");
@@ -44,12 +44,12 @@ const scopes = ["identity", "task_authorization", "token_broker"] as const;
   it("preserves task binding types and legacy non-object contexts", async () => {
     const f = await seedIdentityProjection(db);
     for (const snapshot of [null, false, 42, "text", [], ["value"], {}, ...[null, false, 42, " 3 ", [], {}, { nested: true }]
-      .map(value => ({ issueId: f.issueId, conversationSessionGeneration: value, paperclipSkillTest: value }))]) {
+      .map(value => ({ issueId: f.issueId, conversationSessionGeneration: value, outpostSkillTest: value }))]) {
       await db.$client.unsafe("UPDATE heartbeat_runs SET context_snapshot = $1::jsonb WHERE id = $2", [JSON.stringify(snapshot), f.runId]);
       const full = await captureRunIdentity(db, f), narrow = await captureRunIdentity(db, f, { readScope: "task_authorization" });
       expect(boundRunIssueId(narrow.run)).toBe(boundRunIssueId(full.run));
       expect(Number(narrow.run.contextSnapshot?.conversationSessionGeneration ?? 0)).toBe(Number(full.run.contextSnapshot?.conversationSessionGeneration ?? 0));
-      expect(Boolean(narrow.run.contextSnapshot?.paperclipSkillTest)).toBe(Boolean(full.run.contextSnapshot?.paperclipSkillTest));
+      expect(Boolean(narrow.run.contextSnapshot?.outpostSkillTest)).toBe(Boolean(full.run.contextSnapshot?.outpostSkillTest));
     }
     for (const issueId of [true, 123, [], {}, "malformed"]) {
       await db.$client.unsafe("UPDATE heartbeat_runs SET context_snapshot = $1::jsonb WHERE id = $2", [JSON.stringify({ issueId }), f.runId]);
@@ -62,25 +62,25 @@ const scopes = ["identity", "task_authorization", "token_broker"] as const;
     const f = await seedIdentityProjection(db);
     for (const value of [null, true, 42, " padded ", [], {}, { retained: true }]) {
       const snapshot = { issueId: f.issueId, projectId: value, routineId: value, responsibleUserId: value,
-        responsible_user_id: value, paperclipIssue: { id: value, projectId: value, responsibleUserId: value,
+        responsible_user_id: value, outpostIssue: { id: value, projectId: value, responsibleUserId: value,
           responsible_user_id: value, savedDocument: f.payloads.contextSnapshot.savedInput } };
       await db.update(heartbeatRuns).set({ contextSnapshot: snapshot }).where(eq(heartbeatRuns.id, f.runId));
       const narrow = await captureRunIdentity(db, f, { readScope: "token_broker" });
       expect(narrow.run.invocationSource).toBe("automation");
-      expect(narrow.run.contextSnapshot).toEqual({ ...snapshot, paperclipIssue: { id: value,
+      expect(narrow.run.contextSnapshot).toEqual({ ...snapshot, outpostIssue: { id: value,
         projectId: value, responsibleUserId: value, responsible_user_id: value } });
     }
-    for (const paperclipIssue of [null, true, 42, "legacy", []]) {
-      await db.update(heartbeatRuns).set({ contextSnapshot: { paperclipIssue } }).where(eq(heartbeatRuns.id, f.runId));
-      expect((await captureRunIdentity(db, f, { readScope: "token_broker" })).run.contextSnapshot?.paperclipIssue).toBeNull();
+    for (const outpostIssue of [null, true, 42, "legacy", []]) {
+      await db.update(heartbeatRuns).set({ contextSnapshot: { outpostIssue } }).where(eq(heartbeatRuns.id, f.runId));
+      expect((await captureRunIdentity(db, f, { readScope: "token_broker" })).run.contextSnapshot?.outpostIssue).toBeNull();
     }
   });
 
-  it.each(scopes.flatMap(readScope => (["company", "agent", "run", "finished"] as const).map(fault => ({ readScope, fault }))))(
+  it.each(scopes.flatMap(readScope => (["space", "agent", "run", "finished"] as const).map(fault => ({ readScope, fault }))))(
     "denies $fault mismatches for $readScope", async ({ readScope, fault }) => {
       const f = await seedIdentityProjection(db);
       if (fault === "finished") await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.runId));
-      await expect(captureRunIdentity(db, { ...f, ...(fault === "company" ? { companyId: randomUUID() } :
+      await expect(captureRunIdentity(db, { ...f, ...(fault === "space" ? { spaceId: randomUUID() } :
         fault === "agent" ? { agentId: randomUUID() } : fault === "run" ? { runId: randomUUID() } : {}) }, { readScope })).rejects.toThrow("active run");
     },
   );
@@ -101,7 +101,7 @@ const scopes = ["identity", "task_authorization", "token_broker"] as const;
 
   it("keeps the complete execution input for the project admission consumer", async () => {
     const f = await seedIdentityProjection(db);
-    const actor = { type: "agent" as const, source: "agent_jwt" as const, companyId: f.companyId, agentId: f.agentId, runId: f.runId };
+    const actor = { type: "agent" as const, source: "agent_jwt" as const, spaceId: f.spaceId, agentId: f.agentId, runId: f.runId };
     const narrow = await projectToolContext(db, actor);
     expect(narrow.run).not.toHaveProperty("runnerProfileJson");
     const full = await projectToolContext(db, actor, true, "Project", { includeExecutionInput: true });

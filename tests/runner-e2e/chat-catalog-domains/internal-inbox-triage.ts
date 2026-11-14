@@ -13,7 +13,7 @@ interface TriageObservation extends InternalObservation {
   questions: Array<Entity & { status: string }>;
   phaseReply: string; unrestorableStatus?: number;
 }
-const ownerPath = (ctx: ChatCatalogContext) => `/api/companies/${ctx.input.fixtures.company.id}/issues?touchedByUserId=me&includeAgentCreatedTasks=true&limit=1000`;
+const ownerPath = (ctx: ChatCatalogContext) => `/api/spaces/${ctx.input.fixtures.space.id}/issues?touchedByUserId=me&includeAgentCreatedTasks=true&limit=1000`;
 function knownOriginals(o: TriageObservation) { return o.state.originalTasks as Entity[] | undefined; }
 function eligible(o: TriageObservation) { return (knownOriginals(o) ?? []).filter(row => row.status === "done"); }
 function actualArchive(o: TriageObservation, row: Entity) {
@@ -118,7 +118,7 @@ function triageCase(scenarioId: string): ChatCatalogCase {
         kind: "ask_user_questions", title: "Unanswered launch decision", continuationPolicy: "none", resolverPolicy: "human_only", addresseeUserId: session.user.id,
         payload: { version: 1, supersedeOnUserComment: false, questionSet: { schema: "outpost.question_set.v1", questions: [{ id: "launch-choice", prompt: "Which launch copy should we use?", answerMode: "text", required: true }] } },
       }));
-      const root = `/api/companies/${ctx.input.fixtures.company.id}`;
+      const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
       const response = await other.request(`${root}/issues`, "POST", { title: "Riley's separate Done task", status: "done", projectId: p.id });
       if (!response.ok) { await response.body?.cancel(); throw new Error("The independent person's prerequisite task was not created through its own session"); }
       const otherTask = await response.json() as InboxItem;
@@ -142,7 +142,7 @@ function triageCase(scenarioId: string): ChatCatalogCase {
       const ownerBefore = await ctx.input.api.get<InboxItem[]>(ownerPath(ctx));
       if (!originalTasks.every(row => ownerBefore.some(item => item.id === row.id && !item.archivedAt))) throw new Error("The initial personal inbox does not contain all stated eligible and protected statuses");
       if (scenarioId === "inbox-search.restore-archive") {
-        for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: ctx.input.fixtures.agent.id }])
+        for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: ctx.input.fixtures.agent.id }])
           await ctx.input.api.post(`${root}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
         const query = `Archive these three Done launch preparation tasks from my inbox: ${originalTasks.filter(row => row.status === "done").map(row => row.identifier ?? row.id).join(", ")}.`;
         const { sendChatMessage } = await import("../chat-flow.js"); await sendChatMessage(ctx.input.page, query); state.setupQuerySent = true;
@@ -157,7 +157,7 @@ function triageCase(scenarioId: string): ChatCatalogCase {
   }, gradeInboxTriage);
   observe = async (ctx, state) => {
     if (!other) throw new Error("Missing independent inbox owner");
-    const o = await observeInternal(ctx, state); const root = `/api/companies/${o.companyId}`;
+    const o = await observeInternal(ctx, state); const root = `/api/spaces/${o.spaceId}`;
     const [ownerItems, policy, questionRows] = await Promise.all([
       ctx.input.api.get<InboxItem[]>(ownerPath(ctx)), ctx.input.api.get<TriageObservation["policy"]>(`${root}/users/me/inbox-agent-policy`),
       ctx.input.api.get<TriageObservation["questions"]>(`/api/issues/${(state.originalTasks as Entity[]).at(-1)!.id}/interactions`),
@@ -187,7 +187,7 @@ function triageCase(scenarioId: string): ChatCatalogCase {
     } } : {}),
     async verifyResult(ctx, _state, value) {
       const o = value as TriageObservation; const source = ctx.input.page.url();
-      await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.company.issuePrefix}/inbox/mine`, o.origin).href, { waitUntil: "domcontentloaded" });
+      await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.space.issuePrefix}/inbox/mine`, o.origin).href, { waitUntil: "domcontentloaded" });
       await expect(ctx.input.page.getByText("Active launch work", { exact: true }).first()).toBeVisible();
       await ctx.input.evidence("chat-catalog-personal-triage-mine-opened.json", { personId: o.state.personId, url: ctx.input.page.url(), visible: true });
       await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" }); await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible();

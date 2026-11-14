@@ -2,7 +2,7 @@ import type { Query, QueryClient, QueryKey } from "@tanstack/react-query";
 import { queryKeys } from "./queryKeys";
 
 /**
- * Instance- and person-level reads that no company live event updates.
+ * Instance- and person-level reads that no space live event updates.
  *
  * `LiveUpdatesProvider` closes its socket while the tab is hidden, and events
  * are not replayed, so it invalidates every active query when the socket opens
@@ -11,8 +11,8 @@ import { queryKeys } from "./queryKeys";
  * mutations, which invalidate them directly, or through an instance setting.
  * Reconciling them only adds requests to every tab return.
  *
- * Session, health, board access and the company list are not here. They
- * detect sign-out, reconnects and company changes, and keep the reconcile.
+ * Session, health, operator access and the space list are not here. They
+ * detect sign-out, reconnects and space changes, and keep the reconcile.
  */
 export const LIVE_EVENT_FREE_QUERY_KEYS: readonly QueryKey[] = [
   queryKeys.instance.settings,

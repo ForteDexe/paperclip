@@ -6,11 +6,11 @@ import {
   adapterExecutionTargetDuplexObservabilityRecorder,
   githubOperationLauncherDirectory,
   prepareGitHubOperationLaunchers,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
 } from "@outpost/adapter-utils/execution-target";
 import { githubBrokerEnvironment } from "@outpost/adapter-utils/github-launcher";
 
-type Binding = { companyId: string; agentId: string; issueId: string; runId: string };
+type Binding = { spaceId: string; agentId: string; issueId: string; runId: string };
 type LauncherInput = Parameters<typeof prepareGitHubOperationLaunchers>[0];
 export type NativeGitHubAccess = Awaited<ReturnType<typeof createNativeGitHubAccess>>;
 
@@ -25,7 +25,7 @@ export async function createNativeGitHubAccess(input: {
   env: NodeJS.ProcessEnv;
   resolveCredentials: (binding: Binding) => Promise<unknown>;
   onLog?: (stream: "stdout" | "stderr", chunk: string) => Promise<void>;
-}, startBridge = startAdapterExecutionTargetPaperclipBridge) {
+}, startBridge = startAdapterExecutionTargetOutpostBridge) {
   const duplexRequested = adapterExecutionTargetEnablesSandboxDuplexBridge(input.target);
   const token = randomBytes(32).toString("hex");
   const location = { runId: `native-session-${randomUUID()}`, target: input.target };
@@ -33,7 +33,7 @@ export async function createNativeGitHubAccess(input: {
   let stopped = false;
   let ready = true;
   let stopping: Promise<void> | undefined;
-  let bridge: Awaited<ReturnType<typeof startAdapterExecutionTargetPaperclipBridge>> = null;
+  let bridge: Awaited<ReturnType<typeof startAdapterExecutionTargetOutpostBridge>> = null;
   const server = createServer(async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Content-Type", "application/json");
@@ -138,7 +138,7 @@ export async function createNativeGitHubAccess(input: {
       duplexRequested,
       activate(binding: Binding) {
         if (stopped || active) throw new Error("GitHub session is closed or busy");
-        if (binding.companyId !== input.scope.companyId || binding.agentId !== input.scope.agentId ||
+        if (binding.spaceId !== input.scope.spaceId || binding.agentId !== input.scope.agentId ||
             binding.issueId !== input.scope.issueId) throw new Error("GitHub session scope mismatch");
         const owner = { ...binding };
         active = owner;

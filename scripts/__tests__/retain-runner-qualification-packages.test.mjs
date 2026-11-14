@@ -24,7 +24,7 @@ test('retention preserves public archives and runs the normal plugin prepack wit
     put('scripts/generate-plugin-package-json.mjs', readFileSync(new URL('../generate-plugin-package-json.mjs', import.meta.url)));
     json('packages/outpost-runner/package.json', { name: '@outpost/outpost-runner', version: '0.0.0', private: true, files: ['dist'] });
     put('packages/outpost-runner/dist/cli/eval-session.js', 'export const evaluation = true;\n');
-    const publicArchives = ['@outpost/server', 'paperclipai', '@outpost/plugin-sdk'].map((name, i) => ({ name, file: put(`public-${i}.tgz`, `unchanged archive ${name}`) }));
+    const publicArchives = ['@outpost/server', '@outpost/cli', '@outpost/plugin-sdk'].map((name, i) => ({ name, file: put(`public-${i}.tgz`, `unchanged archive ${name}`) }));
     const output = join(root, 'retained');
     const result = retainRunnerQualificationPackages({ repo: root, output, sourceRevision, releaseVersion, publicArchives });
     assert.equal(result.archives.length, 5);

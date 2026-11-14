@@ -28,7 +28,7 @@ const meta = {
     "Projects and execution/Workspaces, services, and files/Close readiness",
   component: CloseWorkspace,
   parameters: { layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "workspaces/closure"
       ],
@@ -65,7 +65,7 @@ const meta = {
           method: "PATCH",
           read: ({ body }) => ({
             id: "workspace-gap",
-            companyId: "company-storybook",
+            spaceId: "space-storybook",
             name: "Feature review checkout",
             ...body,
           }),

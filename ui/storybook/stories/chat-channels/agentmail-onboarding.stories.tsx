@@ -4,11 +4,11 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import { EmailEndpointSetup } from "@/pages/apps/chat/EmailEndpointSetup";
 import { ChatSetupSidebar } from "@/components/chat/ChatSetupNavigation";
 import { ChatSetupSidebarProvider } from "@/context/ChatSetupSidebarContext";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useLocation, useNavigate } from "@/lib/router";
-import { storybookAgents } from "../../fixtures/paperclipData";
+import { storybookAgents } from "../../fixtures/outpostData";
 
-const COMPANY = "company-storybook";
+const SPACE = "space-storybook";
 const CONNECTION = "agentmail-storybook-account";
 const OTHER_ACCOUNT = "agentmail-storybook-organization";
 const ADDRESS_TAKEN = "This email address is already in use. Choose a different address.";
@@ -21,14 +21,14 @@ const agents = storybookAgents.map((agent, index) => ({
 function AgentMailJourney({ savedConnection = true }: { savedConnection?: boolean }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (ready) return;
     navigate(`/apps/chat/connect?provider=agentmail${savedConnection ? `&connectionId=${CONNECTION}` : ""}`, { replace: true });
     setReady(true);
   }, [navigate, savedConnection, ready]);
-  if (!ready || !selectedCompanyId) return null;
+  if (!ready || !selectedSpaceId) return null;
   if (!pathname.endsWith("/apps/chat/connect")) return <div className="p-6 text-sm">Setup complete.</div>;
   return <ChatSetupSidebarProvider>
     <div className="min-h-screen bg-background text-foreground md:flex">
@@ -44,7 +44,7 @@ const meta = {
   title: "Apps, channels, and extensions/External chat and email/Connections/AgentMail setup",
   component: AgentMailJourney,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "chat-channels/providers",
         "connection-setup/channel-setup"
@@ -56,16 +56,16 @@ const meta = {
   args: { savedConnection: true },
   beforeEach(context) {
     const scenario = (context.parameters.agentmailScenario ?? {}) as Scenario;
-    sessionStorage.removeItem(`outpost.agentmail-setup:${COMPANY}:${CONNECTION}:choose`);
-    sessionStorage.removeItem(`outpost.agentmail-setup:${COMPANY}:new:choose`);
+    sessionStorage.removeItem(`outpost.agentmail-setup:${SPACE}:${CONNECTION}:choose`);
+    sessionStorage.removeItem(`outpost.agentmail-setup:${SPACE}:new:choose`);
     const fixtureAgents = agents.map(agent => ({ ...agent, permissions: scenario.missingBoundary ? { trustPreset: "low_trust_review" } : {} }));
     const original = window.fetch;
     window.fetch = async (input, init) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin);
       const method = init?.method ?? "GET";
       const body = init?.body ? JSON.parse(String(init.body)) : {};
-      if (url.pathname === `/api/companies/${COMPANY}/agents`) return Response.json(fixtureAgents);
-      if (url.pathname === `/api/companies/${COMPANY}/tools/connections`) return Response.json({ connections: [{
+      if (url.pathname === `/api/spaces/${SPACE}/agents`) return Response.json(fixtureAgents);
+      if (url.pathname === `/api/spaces/${SPACE}/tools/connections`) return Response.json({ connections: [{
         id: OTHER_ACCOUNT, name: "AgentMail", status: "active", enabled: true,
         config: { provider: "agentmail", emailCredential: true }, createdAt: "2026-09-30T14:00:00Z",
       }] });
@@ -105,8 +105,8 @@ const meta = {
         if (method === "GET") return Response.json([]);
         if (body.username === "taken") return Response.json({ error: ADDRESS_TAKEN, code: "agentmail_address_taken",
           details: { field: "username", providerStatus: 403, operation: "create_inbox" } }, { status: 409 });
-        if (scenario.denySetup) return Response.json({ error: "AgentMail did not allow Paperclip to create the email address. Check your API key permissions and AgentMail account limits, then try again." }, { status: 422 });
-        return Response.json({ id: body.idempotencyKey, connectionId: "storybook-inbox-connection", companyId: COMPANY,
+        if (scenario.denySetup) return Response.json({ error: "AgentMail did not allow Outpost to create the email address. Check your API key permissions and AgentMail account limits, then try again." }, { status: 422 });
+        return Response.json({ id: body.idempotencyKey, connectionId: "storybook-inbox-connection", spaceId: SPACE,
           assignedAgentId: body.assignedAgentId, address: body.inboxId ?? `${body.username}@${body.domain}`, status: "active", receiveMode: body.receiveMode }, { status: 201 });
       }
       return original(input, init);

@@ -5,12 +5,12 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/api/client";
-import { companySkillsApi } from "@/api/companySkills";
+import { spaceSkillsApi } from "@/api/spaceSkills";
 import { ConnectivityProvider, createConnectivityStore } from "@/lib/connectivity";
 import { TaskSkillPanel } from "./TaskSkillPanel";
 
 const navigate = vi.fn();
-vi.mock("@/api/companySkills", () => ({ companySkillsApi: { detail: vi.fn() } }));
+vi.mock("@/api/spaceSkills", () => ({ spaceSkillsApi: { detail: vi.fn() } }));
 vi.mock("@/lib/router", () => ({ useNavigate: () => navigate }));
 vi.mock("@/components/MarkdownBody", () => ({ MarkdownBody: ({ children }: { children: string }) => <div>{children}</div> }));
 
@@ -20,7 +20,7 @@ let container: HTMLDivElement;
 let client: QueryClient;
 
 function renderPanel() {
-  act(() => root.render(<QueryClientProvider client={client}><TaskSkillPanel companyId="company-1" skillId="skill-1" /></QueryClientProvider>));
+  act(() => root.render(<QueryClientProvider client={client}><TaskSkillPanel spaceId="space-1" skillId="skill-1" /></QueryClientProvider>));
 }
 
 beforeEach(() => {
@@ -38,24 +38,24 @@ afterEach(() => {
 
 describe("TaskSkillPanel", () => {
   it("renders a missing state for 404", async () => {
-    vi.mocked(companySkillsApi.detail).mockRejectedValue(new ApiError("missing", 404, null));
+    vi.mocked(spaceSkillsApi.detail).mockRejectedValue(new ApiError("missing", 404, null));
     renderPanel();
     await vi.waitFor(() => expect(container.textContent).toContain("Skill no longer available"));
     expect(container.querySelector("button")).toBeNull();
   });
 
   it("keeps a quiet loading state during an outage instead of an error", async () => {
-    vi.mocked(companySkillsApi.detail).mockRejectedValue(
+    vi.mocked(spaceSkillsApi.detail).mockRejectedValue(
       new ApiError("tenant_app_unavailable", 503, { error: "tenant_app_unavailable" }),
     );
     // The app-wide store is waiting out the outage, so the probe loop will refetch on recovery.
     const store = createConnectivityStore({ browserOnline: false });
     act(() => root.render(
       <ConnectivityProvider store={store}>
-        <QueryClientProvider client={client}><TaskSkillPanel companyId="company-1" skillId="skill-1" /></QueryClientProvider>
+        <QueryClientProvider client={client}><TaskSkillPanel spaceId="space-1" skillId="skill-1" /></QueryClientProvider>
       </ConnectivityProvider>,
     ));
-    await vi.waitFor(() => expect(companySkillsApi.detail).toHaveBeenCalled());
+    await vi.waitFor(() => expect(spaceSkillsApi.detail).toHaveBeenCalled());
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(container.textContent).toContain("Loading skill…");
     expect(container.querySelector('[data-query-view="error"]')).toBeNull();
@@ -64,7 +64,7 @@ describe("TaskSkillPanel", () => {
   });
 
   it("shows readable copy with Retry when the skill route keeps failing while the server is reachable", async () => {
-    vi.mocked(companySkillsApi.detail)
+    vi.mocked(spaceSkillsApi.detail)
       .mockRejectedValueOnce(new ApiError("tenant_app_unavailable", 503, { error: "tenant_app_unavailable" }))
       .mockResolvedValue(skill);
     renderPanel();
@@ -75,7 +75,7 @@ describe("TaskSkillPanel", () => {
   });
 
   it("offers retry with readable copy for an unexpected failure", async () => {
-    vi.mocked(companySkillsApi.detail).mockRejectedValueOnce(new Error("offline")).mockResolvedValue(skill);
+    vi.mocked(spaceSkillsApi.detail).mockRejectedValueOnce(new Error("offline")).mockResolvedValue(skill);
     renderPanel();
     await vi.waitFor(() => expect(container.textContent).toContain("Couldn't load the skill"));
     act(() => (container.querySelector("button") as HTMLButtonElement).click());
@@ -85,7 +85,7 @@ describe("TaskSkillPanel", () => {
   });
 
   it("opens the current skill in Skill Studio", async () => {
-    vi.mocked(companySkillsApi.detail).mockResolvedValue(skill);
+    vi.mocked(spaceSkillsApi.detail).mockResolvedValue(skill);
     renderPanel();
     await vi.waitFor(() => expect(container.textContent).toContain("Release helper"));
     act(() => (container.querySelector("button") as HTMLButtonElement).click());

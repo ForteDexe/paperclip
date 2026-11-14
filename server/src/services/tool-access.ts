@@ -107,7 +107,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, asc, desc, eq, inArray, max, ne, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { agents, connectionGrantMembers, connectionGrants, companyMemberships, principalPermissionGrants, userSecretDefinitions, plugins, toolAccessAuditEvents, toolApplications, toolCatalogEntries, toolConnectionInstalls, toolConnections, toolStdioCommandTemplates, toolCallEvents, toolPolicies, toolProfileBindings, toolProfileEntries, toolProfiles } from "@outpost/db";
+import { agents, connectionGrantMembers, connectionGrants, spaceMemberships, principalPermissionGrants, userSecretDefinitions, plugins, toolAccessAuditEvents, toolApplications, toolCatalogEntries, toolConnectionInstalls, toolConnections, toolStdioCommandTemplates, toolCallEvents, toolPolicies, toolProfileBindings, toolProfileEntries, toolProfiles } from "@outpost/db";
 import type { AppDefinition, ConnectionGrantKind, CreateToolApplication, CreateToolConnection, ConnectToolApp, ConnectToolAppResult, CreateToolStdioCommandTemplate, FinishToolApp, FinishToolAppResult, CreateToolProfileBindingForProfile, CreateToolProfileEntryForProfile, DeploymentExposure, DeploymentMode, ImportMcpJson, McpConnectionCredentialRef, McpJsonImportPreview, ToolApplication, ToolCatalogEntry, ToolCatalogRefreshResult, ToolConnection, ToolConnectionInstall, ToolConnectionHealthCheckResult, ToolConnectionAuthKind, ToolConnectionCredentialPolicy, ToolConnectionCredentialSource, ToolConnectionTransport, ToolAppMetadataPreflightResult, ToolExampleInstallResult, ToolExampleSmokeCheck, ToolExampleSmokeResult, ToolExampleSummary, ToolProfileBinding, ToolProfileEntry, ToolPolicyDecision, ToolStdioCommandTemplate, UpdateToolApplication, UpdateToolConnection, VercelConnectCredentialReference } from "@outpost/shared";
 import { getAppDefinitionForUrl, getAvailableConnectionMethods, getConnectableAppDefinition, recommendedDefaultsForApp } from "@outpost/shared";
 import {
@@ -147,7 +147,7 @@ import { gmailArchiveToolDescription } from "./gmail-archive-tool-policy.js";
 
 import { createToolRuntimeSupervisor } from "./tool-runtime-supervisor.js";
 
-import { appWithPaperclipCloudConnectorAvailability, outpostCloudConnectorCapabilitiesFromEnv, createPaperclipCloudConnector, isPaperclipCloudConnectorStrategy, outpostCloudConnectorConfigFromEnv, type PaperclipCloudConnector } from "./paperclip-cloud-connector.js";
+import { appWithOutpostCloudConnectorAvailability, outpostCloudConnectorCapabilitiesFromEnv, createOutpostCloudConnector, isOutpostCloudConnectorStrategy, outpostCloudConnectorConfigFromEnv, type OutpostCloudConnector } from "./outpost-cloud-connector.js";
 import { createVercelConnectClient, deriveVercelConnectSubject, vercelConnectIntegrationStatus, type VercelConnectClient } from "./vercel-connect.js";
 
 type ToolAccessServiceOptions = {
@@ -166,9 +166,9 @@ type ToolAccessServiceOptions = {
   /** Smaller reviewed catalog for deterministic discovery fixtures. */
   composioAppToolkits?: readonly string[];
   /** Test seam for the centrally registered Gmail OAuth broker. */
-  paperclipCloudConnector?: PaperclipCloudConnector | null;
-  /** @deprecated Use paperclipCloudConnector. */
-  paperclipIdGmailConnector?: PaperclipCloudConnector | null;
+  outpostCloudConnector?: OutpostCloudConnector | null;
+  /** @deprecated Use outpostCloudConnector. */
+  outpostIdGmailConnector?: OutpostCloudConnector | null;
   /** Test seam for Vercel Connect without live vendor traffic. */
   vercelConnectClient?: VercelConnectClient | null;
 };
@@ -322,7 +322,7 @@ const APPROVED_STDIO_TEMPLATES: Record<
   "outpost.cognee-cloud": COGNEE_STDIO_TEMPLATE,
   "outpost.google-sheets": {
     name: "Google Sheets",
-    command: "paperclip-google-sheets-mcp-server",
+    command: "outpost-google-sheets-mcp-server",
     args: [],
     envKeys: [
       "GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON",
@@ -451,7 +451,7 @@ const TOOL_EXAMPLES: ToolExampleDefinition[] = [
     applicationKey: "outpost.examples.safe-read-only-todo-kv",
     applicationName: "Outpost example: Safe read-only Todo / KV",
     applicationDescription:
-      "Deterministic MCP fixture for first-run tool governance checks.",
+      "Deterministic MCP fixture for first-run tool policy checks.",
     connectionName: "Outpost example: Safe read-only Todo / KV",
     templateId: "outpost.synthetic-todo-kv",
     profileKey: "outpost.examples.safe-read-only-todo-kv.profile",
@@ -643,7 +643,7 @@ function toStdioCommandTemplate(
 ): ToolStdioCommandTemplate {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     templateId: row.templateKey,
     name: row.name,
     title: row.name,
@@ -700,15 +700,15 @@ function readStdioTemplateId(config: Record<string, unknown>): string {
   return templateId.trim();
 }
 
-async function gitHubReadGrantAccess(db: Db, companyId: string, connectionId: string, userId: string | null, localTrusted: boolean) {
-  const [connection] = await db.select().from(toolConnections).where(and(eq(toolConnections.companyId, companyId), eq(toolConnections.id, connectionId)));
+async function gitHubReadGrantAccess(db: Db, spaceId: string, connectionId: string, userId: string | null, localTrusted: boolean) {
+  const [connection] = await db.select().from(toolConnections).where(and(eq(toolConnections.spaceId, spaceId), eq(toolConnections.id, connectionId)));
   if (!connection || !connection.enabled || connection.status !== "active" || asRecord(connection.config).sourceTemplateKey !== "github") {
     throw forbidden("GitHub connection is unavailable. Choose a connection you can use.");
   }
-  const [membership] = userId ? await db.select().from(companyMemberships).where(and(eq(companyMemberships.companyId, companyId), eq(companyMemberships.principalId, userId), eq(companyMemberships.principalType, "user"), eq(companyMemberships.status, "active"))) : [];
-  if (!localTrusted && (!membership || membership.membershipRole === "viewer")) throw forbidden("GitHub access requires an active company member.");
-  const grants = await db.select().from(connectionGrants).where(and(eq(connectionGrants.companyId, companyId), eq(connectionGrants.connectionId, connectionId)));
-  const members = await db.select().from(connectionGrantMembers).where(eq(connectionGrantMembers.companyId, companyId));
+  const [membership] = userId ? await db.select().from(spaceMemberships).where(and(eq(spaceMemberships.spaceId, spaceId), eq(spaceMemberships.principalId, userId), eq(spaceMemberships.principalType, "user"), eq(spaceMemberships.status, "active"))) : [];
+  if (!localTrusted && (!membership || membership.membershipRole === "viewer")) throw forbidden("GitHub access requires an active space member.");
+  const grants = await db.select().from(connectionGrants).where(and(eq(connectionGrants.spaceId, spaceId), eq(connectionGrants.connectionId, connectionId)));
+  const members = await db.select().from(connectionGrantMembers).where(eq(connectionGrantMembers.spaceId, spaceId));
   const candidates = grants.filter(grant => !(grant.kind === "organization" && ["per_user", "per_agent"].includes(connection.credentialPolicy)) && canBrowseProjectRepositoryGrant({
     grant, userId, activeMember: localTrusted || Boolean(membership), audience: members.filter(member => member.grantId === grant.id).map(member => member.subjectId),
   }));
@@ -754,28 +754,28 @@ export function toolAccessService(
   const profileDetails = profileService.getProfile;
   const profileResolver = createToolProfileResolver(db, { assertOptionalAgent, resolveInstalledConnectionsForAgent, toCatalogEntry });
   const configuredCloudConnector =
-    options.paperclipCloudConnector ?? options.paperclipIdGmailConnector;
+    options.outpostCloudConnector ?? options.outpostIdGmailConnector;
   const connectorWasProvided =
-    options.paperclipCloudConnector !== undefined ||
-    options.paperclipIdGmailConnector !== undefined;
+    options.outpostCloudConnector !== undefined ||
+    options.outpostIdGmailConnector !== undefined;
   let cachedCloudConnector = configuredCloudConnector ?? null;
-  const currentCloudConnector = (): PaperclipCloudConnector | null => {
+  const currentCloudConnector = (): OutpostCloudConnector | null => {
     if (cachedCloudConnector || connectorWasProvided)
       return cachedCloudConnector;
     const config = outpostCloudConnectorConfigFromEnv();
     cachedCloudConnector = config
-      ? createPaperclipCloudConnector({ config, now: () => now().getTime() })
+      ? createOutpostCloudConnector({ config, now: () => now().getTime() })
       : null;
     return cachedCloudConnector;
   };
   async function appForConnectionSetup(app: AppDefinition): Promise<AppDefinition> {
-    if (!app.methods.some((method) => isPaperclipCloudConnectorStrategy(method.oauthStrategy))) {
+    if (!app.methods.some((method) => isOutpostCloudConnectorStrategy(method.oauthStrategy))) {
       return app;
     }
     const profiles = connectorWasProvided
       ? (await currentCloudConnector()?.getCapabilities() ?? [])
       : await outpostCloudConnectorCapabilitiesFromEnv();
-    return appWithPaperclipCloudConnectorAvailability(app, profiles);
+    return appWithOutpostCloudConnectorAvailability(app, profiles);
   }
   const vercelConnect =
     options.vercelConnectClient === undefined
@@ -814,9 +814,9 @@ export function toolAccessService(
   const finishOAuthCatalogWithRecommendedDefaults = createOAuthCatalogCompletion(db, finishGalleryAppConnection);
   const startOAuth = createOAuthAuthorizationStart(db, { now, getConnectionRow, setupPolicy, fixedPersonalIdentityForReconnect, currentCloudConnector, vercelConnect, ensureOAuthClient, oauthEndpointsForConnection, assertOAuthEndpointUrl });
   const completeOAuthCallback = createDirectOAuthCallback(db, { now, getConnectionRow, state: oauthState, store: credentialStore, setupPolicy, refreshCatalog, finishOAuthCatalogWithRecommendedDefaults, checkConnectionHealth, ensureDefaultOrganizationGrant, oauthEndpointsForConnection, exchangeOAuthToken });
-  const completePaperclipCloudConnectorCallback = createCloudOAuthCallback(db, { now, getConnectionRow, state: oauthState, store: credentialStore, refreshCatalog, finishOAuthCatalogWithRecommendedDefaults, currentCloudConnector, syncGitHubGrantBindings });
+  const completeOutpostCloudConnectorCallback = createCloudOAuthCallback(db, { now, getConnectionRow, state: oauthState, store: credentialStore, refreshCatalog, finishOAuthCatalogWithRecommendedDefaults, currentCloudConnector, syncGitHubGrantBindings });
   const completeVercelConnectCallback = createVercelOAuthCallback(db, { now, getConnectionRow, state: oauthState, refreshCatalog, finishOAuthCatalogWithRecommendedDefaults, vercelConnect });
-  const finalizeOAuthAccess = createOAuthAccessFinalization(db, { getConnectionRow, secrets, store: credentialStore, assertAgentsInCompany, finishGalleryAppConnection });
+  const finalizeOAuthAccess = createOAuthAccessFinalization(db, { getConnectionRow, secrets, store: credentialStore, assertAgentsInSpace, finishGalleryAppConnection });
   const runtimeHealth = createToolRuntimeHealth(db, options, now, trustedRuntimeHost);
   const toolActivity = createToolActivityService(db, getConnectionRow);
   const toolActionReviewQueue = createToolActionReviewQueue(db);
@@ -849,13 +849,13 @@ export function toolAccessService(
     }
   }
 
-  async function getAdminStdioTemplate(companyId: string, templateId: string) {
+  async function getAdminStdioTemplate(spaceId: string, templateId: string) {
     return db
       .select()
       .from(toolStdioCommandTemplates)
       .where(
         and(
-          eq(toolStdioCommandTemplates.companyId, companyId),
+          eq(toolStdioCommandTemplates.spaceId, spaceId),
           eq(toolStdioCommandTemplates.templateKey, templateId),
         ),
       )
@@ -864,7 +864,7 @@ export function toolAccessService(
   }
 
   async function resolveStdioTemplate(
-    companyId: string,
+    spaceId: string,
     configOrTemplateId: Record<string, unknown> | string,
   ) {
     const templateId =
@@ -873,7 +873,7 @@ export function toolAccessService(
         : readStdioTemplateId(configOrTemplateId);
     const builtIn = builtInStdioTemplate(templateId);
     if (builtIn) return builtIn;
-    const adminTemplate = await getAdminStdioTemplate(companyId, templateId);
+    const adminTemplate = await getAdminStdioTemplate(spaceId, templateId);
     if (!adminTemplate || adminTemplate.status !== "active") {
       throw badRequest(
         "Local stdio MCP connections must use an approved templateId",
@@ -883,20 +883,20 @@ export function toolAccessService(
   }
 
   async function stdioTemplateId(
-    companyId: string,
+    spaceId: string,
     config: Record<string, unknown>,
   ): Promise<string> {
-    return (await resolveStdioTemplate(companyId, config)).templateId;
+    return (await resolveStdioTemplate(spaceId, config)).templateId;
   }
 
-  async function assertApplication(companyId: string, applicationId: string) {
+  async function assertApplication(spaceId: string, applicationId: string) {
     const [row] = await db
       .select()
       .from(toolApplications)
       .where(
         and(
           eq(toolApplications.id, applicationId),
-          eq(toolApplications.companyId, companyId),
+          eq(toolApplications.spaceId, spaceId),
         ),
       );
     if (!row) throw notFound("Tool application not found");
@@ -904,7 +904,7 @@ export function toolAccessService(
   }
 
   async function assertOptionalAgent(
-    companyId: string,
+    spaceId: string,
     agentId: string | null | undefined,
     label: string,
   ) {
@@ -912,8 +912,8 @@ export function toolAccessService(
     const [row] = await db
       .select({ id: agents.id })
       .from(agents)
-      .where(and(eq(agents.id, agentId), eq(agents.companyId, companyId)));
-    if (!row) throw unprocessable(`${label} must belong to the same company`);
+      .where(and(eq(agents.id, agentId), eq(agents.spaceId, spaceId)));
+    if (!row) throw unprocessable(`${label} must belong to the same space`);
   }
 
   async function assertOptionalPlugin(pluginId: string | null | undefined) {
@@ -926,7 +926,7 @@ export function toolAccessService(
   }
 
   async function assertGoogleSheetsSpreadsheetOwnership(
-    companyId: string,
+    spaceId: string,
     config: Record<string, unknown>,
     options: { excludeConnectionId?: string } = {},
   ) {
@@ -937,7 +937,7 @@ export function toolAccessService(
     const rows = await db
       .select({
         id: toolConnections.id,
-        companyId: toolConnections.companyId,
+        spaceId: toolConnections.spaceId,
         config: toolConnections.config,
       })
       .from(toolConnections)
@@ -945,7 +945,7 @@ export function toolAccessService(
 
     const conflictingSpreadsheetIds = new Set<string>();
     for (const row of rows) {
-      if (row.id === options.excludeConnectionId || row.companyId === companyId)
+      if (row.id === options.excludeConnectionId || row.spaceId === spaceId)
         continue;
       if (!isGoogleSheetsConnectionConfig(row.config)) continue;
       for (const spreadsheetId of googleSheetsAllowedSpreadsheetIds(
@@ -958,7 +958,7 @@ export function toolAccessService(
 
     if (conflictingSpreadsheetIds.size > 0) {
       throw conflict(
-        "Google Sheets spreadsheet is already connected to another company.",
+        "Google Sheets spreadsheet is already connected to another space.",
         {
           code: "google_sheets_spreadsheet_already_bound",
           spreadsheetIds: Array.from(conflictingSpreadsheetIds).sort(),
@@ -968,7 +968,7 @@ export function toolAccessService(
   }
 
   async function assertCatalogEntry(
-    companyId: string,
+    spaceId: string,
     catalogEntryId: string | null | undefined,
   ) {
     if (!catalogEntryId) return;
@@ -978,24 +978,24 @@ export function toolAccessService(
       .where(
         and(
           eq(toolCatalogEntries.id, catalogEntryId),
-          eq(toolCatalogEntries.companyId, companyId),
+          eq(toolCatalogEntries.spaceId, spaceId),
         ),
       );
     if (!row)
       throw unprocessable(
-        "Tool profile catalog entry selector must belong to the same company",
+        "Tool profile catalog entry selector must belong to the same space",
       );
   }
 
-  async function getConnectionRow(idOrUid: string, companyId?: string) {
+  async function getConnectionRow(idOrUid: string, spaceId?: string) {
     const identifier =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         idOrUid,
       )
         ? eq(toolConnections.id, idOrUid)
         : eq(toolConnections.uid, idOrUid);
-    const where = companyId
-      ? and(identifier, eq(toolConnections.companyId, companyId))
+    const where = spaceId
+      ? and(identifier, eq(toolConnections.spaceId, spaceId))
       : identifier;
     const [row] = await db.select().from(toolConnections).where(where);
     if (!row) throw notFound("Tool connection not found");
@@ -1006,7 +1006,7 @@ export function toolAccessService(
     connection: typeof toolConnections.$inferSelect,
   ): Promise<McpToolDescriptor[]> {
     const template = await resolveStdioTemplate(
-      connection.companyId,
+      connection.spaceId,
       connection.config,
     );
     return template.tools.map((tool) => ({
@@ -1022,7 +1022,7 @@ export function toolAccessService(
     const aiConnections = connections.filter(connection => connection.connectionPurpose === "ai");
     if (!aiConnections.length) return;
     const grants = await db.select({ connectionId: connectionGrants.connectionId, status: connectionGrants.status })
-      .from(connectionGrants).where(and(eq(connectionGrants.companyId, aiConnections[0].companyId),
+      .from(connectionGrants).where(and(eq(connectionGrants.spaceId, aiConnections[0].spaceId),
         inArray(connectionGrants.connectionId, aiConnections.map(connection => connection.id))));
     for (const connection of aiConnections) {
       const identities = grants.filter(grant => grant.connectionId === connection.id);
@@ -1053,7 +1053,7 @@ export function toolAccessService(
       .from(connectionGrants)
       .where(
         and(
-          eq(connectionGrants.companyId, github[0].companyId),
+          eq(connectionGrants.spaceId, github[0].spaceId),
           inArray(
             connectionGrants.connectionId,
             github.map((connection) => connection.id),
@@ -1105,7 +1105,7 @@ export function toolAccessService(
   }
 
   async function exampleRows(
-    companyId: string,
+    spaceId: string,
     definition: ToolExampleDefinition,
   ) {
     const [application] = await db
@@ -1113,7 +1113,7 @@ export function toolAccessService(
       .from(toolApplications)
       .where(
         and(
-          eq(toolApplications.companyId, companyId),
+          eq(toolApplications.spaceId, spaceId),
           eq(toolApplications.applicationKey, definition.applicationKey),
         ),
       );
@@ -1122,7 +1122,7 @@ export function toolAccessService(
       .from(toolConnections)
       .where(
         and(
-          eq(toolConnections.companyId, companyId),
+          eq(toolConnections.spaceId, spaceId),
           eq(toolConnections.name, definition.connectionName),
         ),
       );
@@ -1131,7 +1131,7 @@ export function toolAccessService(
       .from(toolProfiles)
       .where(
         and(
-          eq(toolProfiles.companyId, companyId),
+          eq(toolProfiles.spaceId, spaceId),
           eq(toolProfiles.profileKey, definition.profileKey),
         ),
       );
@@ -1141,10 +1141,10 @@ export function toolAccessService(
           .from(toolProfileBindings)
           .where(
             and(
-              eq(toolProfileBindings.companyId, companyId),
+              eq(toolProfileBindings.spaceId, spaceId),
               eq(toolProfileBindings.profileId, profile.id),
-              eq(toolProfileBindings.targetType, "company"),
-              eq(toolProfileBindings.targetId, companyId),
+              eq(toolProfileBindings.targetType, "space"),
+              eq(toolProfileBindings.targetId, spaceId),
             ),
           )
       : [];
@@ -1154,7 +1154,7 @@ export function toolAccessService(
           .from(toolCatalogEntries)
           .where(
             and(
-              eq(toolCatalogEntries.companyId, companyId),
+              eq(toolCatalogEntries.spaceId, spaceId),
               eq(toolCatalogEntries.connectionId, connection.id),
             ),
           )
@@ -1214,22 +1214,22 @@ export function toolAccessService(
   }
 
   async function upsertExampleApplication(
-    companyId: string,
+    spaceId: string,
     definition: ToolExampleDefinition,
     existing: typeof toolApplications.$inferSelect | null,
   ) {
     const metadata = {
       ...(existing?.metadata ?? {}),
-      source: "paperclip_example",
+      source: "outpost_example",
       exampleId: definition.id,
       safeDefault: true,
     };
     if (existing) {
       const [updated] = await db.transaction(async tx => {
         const [current] = await tx.select({ type: toolApplications.type }).from(toolApplications)
-          .where(and(eq(toolApplications.id, existing.id), eq(toolApplications.companyId, companyId)))
+          .where(and(eq(toolApplications.id, existing.id), eq(toolApplications.spaceId, spaceId)))
           .for("no key update");
-        if (current && current.type !== "mcp_stdio") await notifyToolConnectionHealth(tx, { companyId, applicationId: existing.id });
+        if (current && current.type !== "mcp_stdio") await notifyToolConnectionHealth(tx, { spaceId, applicationId: existing.id });
         return tx.update(toolApplications)
         .set({
           name: definition.applicationName,
@@ -1248,7 +1248,7 @@ export function toolAccessService(
     const [created] = await db
       .insert(toolApplications)
       .values({
-        companyId,
+        spaceId,
         applicationKey: definition.applicationKey,
         name: definition.applicationName,
         description: definition.applicationDescription,
@@ -1261,7 +1261,7 @@ export function toolAccessService(
   }
 
   async function upsertExampleConnection(
-    companyId: string,
+    spaceId: string,
     definition: ToolExampleDefinition,
     applicationId: string,
     existing: typeof toolConnections.$inferSelect | null,
@@ -1299,16 +1299,16 @@ export function toolAccessService(
       return { row: updated, created: false };
     }
     const connectionId = randomUUID();
-    const created = await writeToolConnectionHealthChange(db, { companyId, id: connectionId }, async tx => {
+    const created = await writeToolConnectionHealthChange(db, { spaceId, id: connectionId }, async tx => {
       const [created] = await tx
         .insert(toolConnections)
         .values({
           id: connectionId,
-          companyId,
+          spaceId,
           applicationId,
           name: definition.connectionName,
           uid: connectionUid(
-            "paperclip",
+            "outpost",
             definition.connectionName,
             connectionId,
           ),
@@ -1332,13 +1332,13 @@ export function toolAccessService(
   }
 
   async function upsertExampleProfile(
-    companyId: string,
+    spaceId: string,
     definition: ToolExampleDefinition,
     existing: typeof toolProfiles.$inferSelect | null,
   ) {
     const metadata = {
       ...(existing?.metadata ?? {}),
-      source: "paperclip_example",
+      source: "outpost_example",
       exampleId: definition.id,
       safeDefault: true,
     };
@@ -1360,7 +1360,7 @@ export function toolAccessService(
     const [created] = await db
       .insert(toolProfiles)
       .values({
-        companyId,
+        spaceId,
         profileKey: definition.profileKey,
         name: definition.profileName,
         description: definition.profileDescription,
@@ -1373,7 +1373,7 @@ export function toolAccessService(
   }
 
   async function syncExampleProfileEntries(
-    companyId: string,
+    spaceId: string,
     profileId: string,
     catalog: ToolCatalogEntry[],
   ): Promise<ToolProfileEntry[]> {
@@ -1381,7 +1381,7 @@ export function toolAccessService(
       .delete(toolProfileEntries)
       .where(
         and(
-          eq(toolProfileEntries.companyId, companyId),
+          eq(toolProfileEntries.spaceId, spaceId),
           eq(toolProfileEntries.profileId, profileId),
         ),
       );
@@ -1393,7 +1393,7 @@ export function toolAccessService(
       .insert(toolProfileEntries)
       .values(
         readEntries.map((entry) => ({
-          companyId,
+          spaceId,
           profileId,
           selectorType: "catalog_entry" as const,
           effect: "include" as const,
@@ -1402,7 +1402,7 @@ export function toolAccessService(
           catalogEntryId: entry.id,
           toolName: entry.toolName,
           riskLevel: entry.riskLevel,
-          conditions: { source: "paperclip_example" },
+          conditions: { source: "outpost_example" },
         })),
       )
       .returning();
@@ -1410,14 +1410,14 @@ export function toolAccessService(
   }
 
   async function upsertExampleProfileBinding(
-    companyId: string,
+    spaceId: string,
     profileId: string,
     existing: typeof toolProfileBindings.$inferSelect | null,
     actor?: ActorInfo,
   ): Promise<ToolProfileBinding> {
     const metadata = {
       ...(existing?.metadata ?? {}),
-      source: "paperclip_example",
+      source: "outpost_example",
       safeDefault: true,
     };
     if (existing) {
@@ -1431,10 +1431,10 @@ export function toolAccessService(
     const [created] = await db
       .insert(toolProfileBindings)
       .values({
-        companyId,
+        spaceId,
         profileId,
-        targetType: "company",
-        targetId: companyId,
+        targetType: "space",
+        targetId: spaceId,
         priority: 100,
         metadata,
         createdByAgentId:
@@ -1446,11 +1446,11 @@ export function toolAccessService(
     return toProfileBinding(created);
   }
 
-  async function exampleSmokeActor(companyId: string, actor?: ActorInfo) {
+  async function exampleSmokeActor(spaceId: string, actor?: ActorInfo) {
     const [agent] = await db
       .select({ id: agents.id })
       .from(agents)
-      .where(eq(agents.companyId, companyId))
+      .where(eq(agents.spaceId, spaceId))
       .limit(1);
     if (agent) {
       return {
@@ -1470,7 +1470,7 @@ export function toolAccessService(
 
   function sampleArguments(toolName: string): Record<string, unknown> {
     if (toolName === "get_value") return { key: "project" };
-    if (toolName === "set_value") return { key: "project", value: "paperclip" };
+    if (toolName === "set_value") return { key: "project", value: "outpost" };
     if (toolName === "create_item") return { title: "Smoke test item" };
     if (toolName === "mark_done" || toolName === "delete_item")
       return { id: "todo-1" };
@@ -1478,7 +1478,7 @@ export function toolAccessService(
   }
 
   async function runSmokeDecisionCheck(input: {
-    companyId: string;
+    spaceId: string;
     actor: Awaited<ReturnType<typeof exampleSmokeActor>>;
     connection: ToolConnection;
     catalogEntry: ToolCatalogEntry;
@@ -1486,7 +1486,7 @@ export function toolAccessService(
     name: string;
   }): Promise<ToolExampleSmokeCheck> {
     const decisionInput = {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actor: input.actor,
       request: {
         applicationId: input.connection.applicationId,
@@ -1609,7 +1609,7 @@ export function toolAccessService(
   }
 
   async function connectGalleryApp(
-    companyId: string,
+    spaceId: string,
     input: ConnectToolApp,
     actor?: ActorInfo,
   ): Promise<ConnectToolAppResult> {
@@ -1634,7 +1634,7 @@ export function toolAccessService(
         .where(
           and(
             eq(toolConnections.id, requestedConnectionId),
-            eq(toolConnections.companyId, companyId),
+            eq(toolConnections.spaceId, spaceId),
           ),
         );
       if (!connection) throw notFound("Incomplete app connection not found");
@@ -1656,7 +1656,7 @@ export function toolAccessService(
         .where(
           and(
             eq(toolApplications.id, connection.applicationId),
-            eq(toolApplications.companyId, companyId),
+            eq(toolApplications.spaceId, spaceId),
           ),
         );
       if (!application) throw notFound("App not found");
@@ -1683,7 +1683,7 @@ export function toolAccessService(
         .where(
           and(
             eq(toolApplications.id, input.applicationId),
-            eq(toolApplications.companyId, companyId),
+            eq(toolApplications.spaceId, spaceId),
           ),
         );
       if (!row) throw notFound("App not found");
@@ -1691,7 +1691,7 @@ export function toolAccessService(
     } else {
       // Removal and interrupted setup intentionally retain their
       // application/connection rows. A fresh gallery click has no
-      // applicationId, so recover that retained identity by its company-unique
+      // applicationId, so recover that retained identity by its space-unique
       // name and source instead of inserting a duplicate application that the
       // unique index rejects. Archived personal identities are excluded below.
       // Active applications also require a separate application identity.
@@ -1705,7 +1705,7 @@ export function toolAccessService(
         .from(toolApplications)
         .where(
           and(
-            eq(toolApplications.companyId, companyId),
+            eq(toolApplications.spaceId, spaceId),
             eq(toolApplications.name, requestedName),
             inArray(toolApplications.status, recoverableApplicationStatuses),
           ),
@@ -1816,7 +1816,7 @@ export function toolAccessService(
             .from(toolConnections)
             .where(
               and(
-                eq(toolConnections.companyId, companyId),
+                eq(toolConnections.spaceId, spaceId),
                 eq(toolConnections.applicationId, existingApplication.id),
                 inArray(toolConnections.status, retainedConnectionStatuses),
               ),
@@ -1861,7 +1861,7 @@ export function toolAccessService(
       const applicationNames = await db
         .select({ name: toolApplications.name })
         .from(toolApplications)
-        .where(eq(toolApplications.companyId, companyId));
+        .where(eq(toolApplications.spaceId, spaceId));
       applicationName = nextAvailableConnectionName(
         requestedName,
         applicationNames.map((row) => row.name),
@@ -1873,7 +1873,7 @@ export function toolAccessService(
         .from(toolConnections)
         .where(
           and(
-            eq(toolConnections.companyId, companyId),
+            eq(toolConnections.spaceId, spaceId),
             eq(toolConnections.applicationId, existingApplication.id),
           ),
         );
@@ -1920,15 +1920,15 @@ export function toolAccessService(
       const [membership] = actorUserId
         ? await db
             .select({
-              membershipRole: companyMemberships.membershipRole,
+              membershipRole: spaceMemberships.membershipRole,
             })
-            .from(companyMemberships)
+            .from(spaceMemberships)
             .where(
               and(
-                eq(companyMemberships.companyId, companyId),
-                eq(companyMemberships.principalType, "user"),
-                eq(companyMemberships.principalId, actorUserId),
-                eq(companyMemberships.status, "active"),
+                eq(spaceMemberships.spaceId, spaceId),
+                eq(spaceMemberships.principalType, "user"),
+                eq(spaceMemberships.principalId, actorUserId),
+                eq(spaceMemberships.status, "active"),
               ),
             )
             .limit(1)
@@ -1946,7 +1946,7 @@ export function toolAccessService(
               .from(principalPermissionGrants)
               .where(
                 and(
-                  eq(principalPermissionGrants.companyId, companyId),
+                  eq(principalPermissionGrants.spaceId, spaceId),
                   eq(principalPermissionGrants.principalType, "user"),
                   eq(principalPermissionGrants.principalId, actorUserId),
                   eq(
@@ -1958,7 +1958,7 @@ export function toolAccessService(
               .limit(1);
       if (!roleCanManage && !explicitManagerGrant) {
         throw forbidden(
-          "Only a company owner, admin, or member with connection-manager permission can change this connection's credential identity.",
+          "Only a space owner, admin, or member with connection-manager permission can change this connection's credential identity.",
         );
       }
     }
@@ -1976,16 +1976,16 @@ export function toolAccessService(
         .select({ id: agents.id })
         .from(agents)
         .where(
-          and(eq(agents.id, dedicatedAgentId), eq(agents.companyId, companyId)),
+          and(eq(agents.id, dedicatedAgentId), eq(agents.spaceId, spaceId)),
         )
         .limit(1);
       if (!subjectAgent)
         throw badRequest(
-          "Dedicated GitHub identity requires an agent in this company",
+          "Dedicated GitHub identity requires an agent in this space",
         );
     }
     const credentialSource: ToolConnectionCredentialSource =
-      input.credentialSource ?? "paperclip_vault";
+      input.credentialSource ?? "outpost_vault";
     if (
       retainedConnection &&
       retainedConnection.credentialSource !== credentialSource
@@ -2144,7 +2144,7 @@ export function toolAccessService(
             mcpPreserveAccess: Boolean(retainedConnection && (retainedConnection.status === "active" || asRecord(retainedConnection.config).mcpPreserveAccess === true)),
           } : {}),
           ...(galleryEntry.slug === "posthog" ? { safeDefault: true } : {}),
-          // Telem.AI attributes each search to the Paperclip company, agent,
+          // Telem.AI attributes each search to the Outpost space, agent,
           // run and issue, so its catalog connection forwards those context
           // headers by default (the gateway still drops empty values). A
           // reconnect keeps the policy the operator saved on the connection.
@@ -2152,14 +2152,14 @@ export function toolAccessService(
             ? {
                 headerPolicy: asRecord(retainedConnection?.config).headerPolicy ?? {
                   metadata: {
-                    forward: ["company_id", "issue_id", "agent_id", "run_id", "project_id", "correlation_id"],
+                    forward: ["space_id", "issue_id", "agent_id", "run_id", "project_id", "correlation_id"],
                   },
                 },
               }
             : {}),
         }
       : { ...baseConfig, quarantineNewEntries: false, unverifiedServer: true };
-    if (method && isPaperclipCloudConnectorStrategy(method.oauthStrategy)) {
+    if (method && isOutpostCloudConnectorStrategy(method.oauthStrategy)) {
       const connectorProfile = method.connectorProfile;
       const profile = managedConnectorProfile(connectorProfile);
       if (!profile)
@@ -2182,13 +2182,13 @@ export function toolAccessService(
     }
     // A pasted URL or an explicitly customer-owned curated method may arrive
     // with a client the operator preregistered in the provider's console. Record
-    // the client id now; the secret becomes an encrypted Paperclip secret below.
+    // the client id now; the secret becomes an encrypted Outpost secret below.
     if (input.oauthClient) {
       config.oauth = {
         clientId: input.oauthClient.clientId.trim(),
         clientRegistrationSource:
           "manual" satisfies OAuthClientRegistrationSource,
-        clientCompanyId: companyId,
+        clientSpaceId: spaceId,
       };
     }
     if (isGoogleSheetsRobotMethod) {
@@ -2211,11 +2211,11 @@ export function toolAccessService(
           allowedSpreadsheetIds.join(","),
       };
       config = normalizeGoogleSheetsConnectionConfig(config);
-      await assertGoogleSheetsSpreadsheetOwnership(companyId, config);
+      await assertGoogleSheetsSpreadsheetOwnership(spaceId, config);
     }
     if (transport === "mcp_remote")
       await assertRemoteConnectionEndpointsAllowed(config);
-    if (transport === "local_stdio") await stdioTemplateId(companyId, config);
+    if (transport === "local_stdio") await stdioTemplateId(spaceId, config);
     assertLocalStdioCanBeEnabled(transport, false);
 
     const credentialValues = input.credentialValues ?? {};
@@ -2283,7 +2283,7 @@ export function toolAccessService(
         : requestedGrantKind === "agent"
           ? "per_agent"
           : "shared";
-    const connectionOwnership = isPaperclipCloudConnectorStrategy(
+    const connectionOwnership = isOutpostCloudConnectorStrategy(
       method?.oauthStrategy,
     )
       ? "platform_shared"
@@ -2329,7 +2329,7 @@ export function toolAccessService(
         }
         if (!value) continue;
         const written = await db.transaction((tx) => writeConnectionCredential(tx, {
-          companyId, connectionName: name, configPath: field.configPath,
+          spaceId, connectionName: name, configPath: field.configPath,
           label: field.label, value, ownerUserId: personalIdentityUserId,
           actor: actorForSecret(actor),
         }));
@@ -2364,7 +2364,7 @@ export function toolAccessService(
       }
       if (remoteUrlCredential?.secretUrl) {
         const written = await db.transaction((tx) => writeConnectionCredential(tx, {
-          companyId, connectionName: name, configPath: REMOTE_URL_SECRET_CONFIG_PATH,
+          spaceId, connectionName: name, configPath: REMOTE_URL_SECRET_CONFIG_PATH,
           label: "MCP server URL", value: remoteUrlCredential.secretUrl!,
           ownerUserId: personalIdentityUserId, actor: actorForSecret(actor),
         }));
@@ -2393,7 +2393,7 @@ export function toolAccessService(
       // credential ref, keeping it out of `projectedConnectionHeaders`.
       if (input.oauthClient?.clientSecret) {
         const secret = await secrets.create(
-          companyId,
+          spaceId,
           {
             name: `${name} OAuth client secret ${randomUUID().slice(0, 8)}`,
             key: `tool_app.${randomUUID()}.oauth_client_secret`,
@@ -2446,7 +2446,7 @@ export function toolAccessService(
         }
       } else {
         // Name selection is optimistic because multiple setup requests can
-        // legitimately begin at the same time. The company/name unique index
+        // legitimately begin at the same time. The space/name unique index
         // is the authority: if another request wins after our read, refresh the
         // names and retry with the next suffix instead of surfacing a conflict
         // the user never asked to resolve.
@@ -2455,7 +2455,7 @@ export function toolAccessService(
             [applicationRow] = await db
               .insert(toolApplications)
               .values({
-                companyId,
+                spaceId,
                 applicationKey: `app-gallery:${galleryEntry?.slug ?? "link"}:${randomUUID()}`,
                 name: applicationName,
                 description: safeApplicationDescription,
@@ -2470,12 +2470,12 @@ export function toolAccessService(
               })
               .returning();
           } catch (error) {
-            if (!isUniqueViolation(error, "tool_applications_company_name_uq"))
+            if (!isUniqueViolation(error, "tool_applications_space_name_uq"))
               throw error;
             const applicationNames = await db
               .select({ name: toolApplications.name })
               .from(toolApplications)
-              .where(eq(toolApplications.companyId, companyId));
+              .where(eq(toolApplications.spaceId, spaceId));
             applicationName = nextAvailableConnectionName(
               requestedName,
               applicationNames.map((row) => row.name),
@@ -2493,13 +2493,13 @@ export function toolAccessService(
         }
       }
 
-      await assertSecretRefs(companyId, [
+      await assertSecretRefs(spaceId, [
         ...credentialRefs,
         ...credentialSecretRefs,
       ]);
       // Reconnecting an app revives its most recent archived connection instead
       // of inserting a fresh row: keeps the connection id (and its activity
-      // history) stable and avoids the unique (company, name) constraint.
+      // history) stable and avoids the unique (space, name) constraint.
       // A personal credential never becomes the connection's shared secret: the
       // row carries the header shape only, and the secret refs go to the user
       // grant below. `ensureDefaultOrganizationGrant` copies this list, so
@@ -2537,7 +2537,7 @@ export function toolAccessService(
           .insert(toolConnections)
           .values({
             id: connectionId,
-            companyId,
+            spaceId,
             applicationId: applicationRow.id,
             name,
             uid: connectionUid(
@@ -2642,7 +2642,7 @@ export function toolAccessService(
             [changedGrant] = await db
               .insert(connectionGrants)
               .values({
-                companyId,
+                spaceId,
                 connectionId: connectionRow.id,
                 kind: "user",
                 subjectUserId: personalIdentityUserId,
@@ -2662,7 +2662,7 @@ export function toolAccessService(
             };
           }
           await db.insert(toolAccessAuditEvents).values({
-            companyId,
+            spaceId,
             connectionId: connectionRow.id,
             actorType: "user",
             actorId: personalIdentityUserId,
@@ -2696,7 +2696,7 @@ export function toolAccessService(
           const derived = deriveVercelConnectSubject({
             credential: externalCredential!,
             connectionId: connectionRow.id,
-            companyId,
+            spaceId,
             grantKind: "organization",
           });
           const updatedOrganizationGrant = await db.transaction(async (tx) => {
@@ -2806,7 +2806,7 @@ export function toolAccessService(
             .where(eq(toolConnections.id, connectionRow.id));
           const endpoints = await discoverOAuthEndpoints(oauthConnection).catch(
             (discoveryError: unknown) => {
-              // "This server advertised an address Paperclip refuses to open" is a
+              // "This server advertised an address Outpost refuses to open" is a
               // refusal, not a failed discovery: keep it instead of collapsing it
               // into the generic sign-in-required error.
               if (isOAuthEndpointRejection(discoveryError))
@@ -2847,7 +2847,7 @@ export function toolAccessService(
           const [createdGrant] = await tx
             .insert(connectionGrants)
             .values({
-              companyId,
+              spaceId,
               connectionId: personalConnectionId,
               kind: "user",
               subjectUserId: personalIdentityUserId!,
@@ -2860,7 +2860,7 @@ export function toolAccessService(
             .returning();
           if (createdGrant) {
             await tx.insert(toolAccessAuditEvents).values({
-              companyId,
+              spaceId,
               connectionId: personalConnectionId,
               actorType: "user",
               actorId: personalIdentityUserId!,
@@ -2930,7 +2930,7 @@ export function toolAccessService(
         try {
           await db.transaction(async (tx) => {
             if (revivedGrantMutation) await tx.select({ id: connectionGrants.id }).from(connectionGrants)
-              .where(and(eq(connectionGrants.id, revivedGrantMutation.current.id), eq(connectionGrants.companyId, companyId)))
+              .where(and(eq(connectionGrants.id, revivedGrantMutation.current.id), eq(connectionGrants.spaceId, spaceId)))
               .for("update");
             const [latestConnection] = await tx
               .select()
@@ -2938,7 +2938,7 @@ export function toolAccessService(
               .where(
                 and(
                   eq(toolConnections.id, revivedConnectionPrevious.id),
-                  eq(toolConnections.companyId, companyId),
+                  eq(toolConnections.spaceId, spaceId),
                 ),
               )
               .limit(1)
@@ -3043,7 +3043,7 @@ export function toolAccessService(
               .where(
                 and(
                   eq(toolConnections.id, revivedConnectionPrevious.id),
-                  eq(toolConnections.companyId, companyId),
+                  eq(toolConnections.spaceId, spaceId),
                 ),
               ));
           } catch (quarantineError) {
@@ -3055,7 +3055,7 @@ export function toolAccessService(
         }
       } else if (connectionRow) {
         const failedConnectionId = connectionRow.id;
-        await writeToolConnectionHealthChange(db, { companyId, id: failedConnectionId }, tx => tx
+        await writeToolConnectionHealthChange(db, { spaceId, id: failedConnectionId }, tx => tx
           .delete(toolConnections)
           .where(eq(toolConnections.id, failedConnectionId)))
           .catch(() => undefined);
@@ -3107,7 +3107,7 @@ export function toolAccessService(
   }
 
   async function assertCatalogEntriesForConnection(
-    companyId: string,
+    spaceId: string,
     connectionId: string,
     catalogEntryIds: string[],
   ): Promise<Array<typeof toolCatalogEntries.$inferSelect>> {
@@ -3118,7 +3118,7 @@ export function toolAccessService(
       .from(toolCatalogEntries)
       .where(
         and(
-          eq(toolCatalogEntries.companyId, companyId),
+          eq(toolCatalogEntries.spaceId, spaceId),
           eq(toolCatalogEntries.connectionId, connectionId),
           inArray(toolCatalogEntries.id, uniqueIds),
         ),
@@ -3131,55 +3131,55 @@ export function toolAccessService(
     return rows;
   }
 
-  async function assertAgentsInCompany(companyId: string, agentIds: string[]) {
+  async function assertAgentsInSpace(spaceId: string, agentIds: string[]) {
     if (agentIds.length === 0) return;
     const rows = await db
       .select({ id: agents.id })
       .from(agents)
       .where(
         and(
-          eq(agents.companyId, companyId),
+          eq(agents.spaceId, spaceId),
           inArray(agents.id, [...new Set(agentIds)]),
         ),
       );
     if (rows.length !== new Set(agentIds).size) {
       throw unprocessable(
-        "All app access agent ids must belong to the same company",
+        "All app access agent ids must belong to the same space",
       );
     }
   }
 
   async function finishGalleryAppConnection(
-    companyId: string,
+    spaceId: string,
     connectionId: string,
     input: FinishToolApp,
     actor?: ActorInfo,
   ): Promise<FinishToolAppResult> {
     await actor?.managementContext?.reauthorize();
-    const connection = await getConnectionRow(connectionId, companyId);
+    const connection = await getConnectionRow(connectionId, spaceId);
     await assertConnectorConnectionSetupEnabled(connection);
     if (connection.status === "archived")
       throw conflict("Archived app connections cannot be finished");
     if (connection.config.mcpPreserveAccess === true && isRemoteMcpConnectorMethod(connection.config.sourceTemplateKey, connection.config.connectionMethodKey)) {
       const [profile] = await db.select().from(toolProfiles).where(and(
-        eq(toolProfiles.companyId, companyId), eq(toolProfiles.profileKey, `app:${connection.id}`),
+        eq(toolProfiles.spaceId, spaceId), eq(toolProfiles.profileKey, `app:${connection.id}`),
       )).limit(1);
       if (!profile) throw conflict("The saved connection permissions could not be found");
       const config = { ...connection.config };
       delete config.mcpPreserveAccess;
       const updated = await db.transaction(async (tx) => {
         await tx.select({ id: toolApplications.id }).from(toolApplications)
-          .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.companyId, companyId)))
+          .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.spaceId, spaceId)))
           .for("update");
         await notifyGitHubCredentialChange(tx, connection);
         await notifyToolConnectionHealth(tx, connection);
         const [row] = await tx.update(toolConnections).set({ config, transportConfig: config, status: "active", enabled: true, ...(input.agentInstructions !== undefined ? { agentInstructions: input.agentInstructions } : {}), updatedAt: new Date() })
-          .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.companyId, companyId))).returning();
-        await tx.update(toolApplications).set({ status: "active", updatedAt: new Date() }).where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.companyId, companyId)));
+          .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, spaceId))).returning();
+        await tx.update(toolApplications).set({ status: "active", updatedAt: new Date() }).where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.spaceId, spaceId)));
         return row;
       });
-      const details = await profileDetails(profile.id, companyId);
-      const policies = (await db.select().from(toolPolicies).where(eq(toolPolicies.companyId, companyId))).filter((policy) => asRecord(policy.config).connectionId === connection.id);
+      const details = await profileDetails(profile.id, spaceId);
+      const policies = (await db.select().from(toolPolicies).where(eq(toolPolicies.spaceId, spaceId))).filter((policy) => asRecord(policy.config).connectionId === connection.id);
       return { connection: toConnection(updated), profile: toProfile(profile), profileEntries: details.entries, profileBindings: details.bindings, policies: policies.map(toPolicy) };
     }
     const enabledIds = [
@@ -3196,12 +3196,12 @@ export function toolAccessService(
       );
     }
     const enabledRows = await assertCatalogEntriesForConnection(
-      companyId,
+      spaceId,
       connection.id,
       enabledIds,
     );
     const askFirstRows = await assertCatalogEntriesForConnection(
-      companyId,
+      spaceId,
       connection.id,
       input.askFirstCatalogEntryIds,
     );
@@ -3210,7 +3210,7 @@ export function toolAccessService(
     }
     if (reviewedIds.length > 0) {
       await assertCatalogEntriesForConnection(
-        companyId,
+        spaceId,
         connection.id,
         reviewedIds,
       );
@@ -3219,7 +3219,7 @@ export function toolAccessService(
         .from(toolCatalogEntries)
         .where(
           and(
-            eq(toolCatalogEntries.companyId, companyId),
+            eq(toolCatalogEntries.spaceId, spaceId),
             eq(toolCatalogEntries.connectionId, connection.id),
             eq(toolCatalogEntries.status, "quarantined"),
           ),
@@ -3235,7 +3235,7 @@ export function toolAccessService(
       }
     }
     if (input.access !== "all_agents")
-      await assertAgentsInCompany(companyId, input.access.agentIds);
+      await assertAgentsInSpace(spaceId, input.access.agentIds);
 
     const entries: CreateToolProfileEntryForProfile[] = enabledRows.map(
       (entry) => ({
@@ -3251,8 +3251,8 @@ export function toolAccessService(
       input.access === "all_agents"
         ? [
             {
-              targetType: "company",
-              targetId: companyId,
+              targetType: "space",
+              targetId: spaceId,
               priority: 100,
               metadata: { source: "app_gallery_finish" },
             },
@@ -3266,7 +3266,7 @@ export function toolAccessService(
     await actor?.managementContext?.reauthorize();
     const transactionResult = await db.transaction(async (tx) => {
       await tx.select({ id: toolApplications.id }).from(toolApplications)
-        .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.companyId, companyId)))
+        .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.spaceId, spaceId)))
         .for("update");
       const [lockedConnection] = await tx
         .select({ id: toolConnections.id, status: toolConnections.status, enabled: toolConnections.enabled })
@@ -3274,7 +3274,7 @@ export function toolAccessService(
         .where(
           and(
             eq(toolConnections.id, connectionId),
-            eq(toolConnections.companyId, companyId),
+            eq(toolConnections.spaceId, spaceId),
           ),
         )
         .for("update");
@@ -3284,21 +3284,21 @@ export function toolAccessService(
         .from(toolProfiles)
         .where(
           and(
-            eq(toolProfiles.companyId, companyId),
+            eq(toolProfiles.spaceId, spaceId),
             eq(toolProfiles.profileKey, profileKey),
           ),
         )
         .limit(1).for("no key update");
-      await lockManagedAppPolicies(tx, companyId, connection.id);
+      await lockManagedAppPolicies(tx, spaceId, connection.id);
       const existingBindings = existingProfile ? await tx.select().from(toolProfileBindings)
-        .where(and(eq(toolProfileBindings.companyId, companyId), eq(toolProfileBindings.profileId, existingProfile.id))) : [];
+        .where(and(eq(toolProfileBindings.spaceId, spaceId), eq(toolProfileBindings.profileId, existingProfile.id))) : [];
       const existingInstalls = await tx.select().from(toolConnectionInstalls)
-        .where(and(eq(toolConnectionInstalls.companyId, companyId), eq(toolConnectionInstalls.connectionId, connection.id)));
-      const companyTargets = lockedConnection.status !== "active" || !lockedConnection.enabled || (existingProfile && existingProfile.status !== "active")
-        ? [{ targetType: "company", targetId: companyId }] : [];
+        .where(and(eq(toolConnectionInstalls.spaceId, spaceId), eq(toolConnectionInstalls.connectionId, connection.id)));
+      const spaceTargets = lockedConnection.status !== "active" || !lockedConnection.enabled || (existingProfile && existingProfile.status !== "active")
+        ? [{ targetType: "space", targetId: spaceId }] : [];
       const sourceAgentId = actor?.managementContext?.actor.type === "agent" ? actor.managementContext.actor.agentId
         : actor?.actorType === "agent" ? actor.actorId : null;
-      await lockToolAssignmentAgents(tx, companyId, [...existingBindings, ...bindingInputs, ...existingInstalls, ...companyTargets], sourceAgentId);
+      await lockToolAssignmentAgents(tx, spaceId, [...existingBindings, ...bindingInputs, ...existingInstalls, ...spaceTargets], sourceAgentId);
       const requestedAgentTargets = new Set(bindingInputs.filter(target => target.targetType === "agent").map(target => target.targetId));
       const changedAgentTargets: string[] = [];
       for (const savedTargets of [existingBindings, ...(connection.connectionPurpose === "tool" ? [existingInstalls] : [])]) {
@@ -3306,14 +3306,14 @@ export function toolAccessService(
         changedAgentTargets.push(...[...requestedAgentTargets].filter(id => !existingAgentTargets.has(id)));
         if (!input.preserveExistingAccess) changedAgentTargets.push(...[...existingAgentTargets].filter(id => !requestedAgentTargets.has(id)));
       }
-      await assertAgentToolAssignmentInteractions(tx as unknown as Db, sourceAgentId, companyId, changedAgentTargets, false);
+      await assertAgentToolAssignmentInteractions(tx as unknown as Db, sourceAgentId, spaceId, changedAgentTargets, false);
       // A renamed connection can leave its old profile name in use. Resolve
       // names against profiles too, including when finalizing an installed draft.
       const otherProfiles = await tx
         .select({ name: toolProfiles.name })
         .from(toolProfiles)
         .where(and(
-          eq(toolProfiles.companyId, companyId),
+          eq(toolProfiles.spaceId, spaceId),
           ne(toolProfiles.profileKey, profileKey),
         ));
       const profileName = nextAvailableConnectionName(
@@ -3364,7 +3364,7 @@ export function toolAccessService(
           .delete(toolProfileBindings)
           .where(
             and(
-              eq(toolProfileBindings.companyId, companyId),
+              eq(toolProfileBindings.spaceId, spaceId),
               eq(toolProfileBindings.profileId, existingProfile.id),
             ),
           );
@@ -3372,14 +3372,14 @@ export function toolAccessService(
           .delete(toolProfileEntries)
           .where(
             and(
-              eq(toolProfileEntries.companyId, companyId),
+              eq(toolProfileEntries.spaceId, spaceId),
               eq(toolProfileEntries.profileId, existingProfile.id),
             ),
           );
         if (entries.length > 0) {
           await tx.insert(toolProfileEntries).values(
             entries.map((entry) => ({
-              companyId,
+              spaceId,
               profileId: existingProfile.id,
               selectorType: entry.selectorType,
               effect: entry.effect ?? "include",
@@ -3412,7 +3412,7 @@ export function toolAccessService(
         const [created] = await tx
           .insert(toolProfiles)
           .values({
-            companyId,
+            spaceId,
             profileKey,
             name: profileName,
             description: `Access profile for ${connection.name}.`,
@@ -3427,7 +3427,7 @@ export function toolAccessService(
         if (entries.length > 0) {
           await tx.insert(toolProfileEntries).values(
             entries.map((entry) => ({
-              companyId,
+              spaceId,
               profileId: created.id,
               selectorType: entry.selectorType,
               effect: entry.effect ?? "include",
@@ -3447,22 +3447,22 @@ export function toolAccessService(
       // Agent access is also the credential admission boundary. Save its
       // installation and permission targets together for every tool connector.
       if (connection.connectionPurpose === "tool") {
-        const desired = new Map(bindingInputs.flatMap((binding) => binding.targetType === "company" || binding.targetType === "agent"
+        const desired = new Map(bindingInputs.flatMap((binding) => binding.targetType === "space" || binding.targetType === "agent"
           ? [[`${binding.targetType}:${binding.targetId}`, { targetType: binding.targetType, targetId: binding.targetId }] as const] : []));
         const removed = input.preserveExistingAccess ? [] : existingInstalls.filter((install) => !desired.has(`${install.targetType}:${install.targetId}`));
         const added = [...desired.values()].filter((binding) => !existingInstalls.some((install) => install.targetType === binding.targetType && install.targetId === binding.targetId));
         if (actor?.managementContext) {
-          await assertAgentConnectionInstallAccess(tx as unknown as Db, actor.managementContext.actor, companyId,
+          await assertAgentConnectionInstallAccess(tx as unknown as Db, actor.managementContext.actor, spaceId,
             [...removed, ...added].filter(target => target.targetType === "agent").map(target => target.targetId));
         }
         if (removed.length) await tx.delete(toolConnectionInstalls).where(inArray(toolConnectionInstalls.id, removed.map((install) => install.id)));
         if (added.length) await tx.insert(toolConnectionInstalls).values(added.map((binding) => ({
-          companyId, connectionId: connection.id, targetType: binding.targetType, targetId: binding.targetId,
+          spaceId, connectionId: connection.id, targetType: binding.targetType, targetId: binding.targetId,
           createdByAgentId: actor?.actorType === "agent" ? (actor.actorId ?? null) : null,
           createdByUserId: connectionActorUserId(actor),
         })));
         if (added.length || removed.length) await tx.insert(toolAccessAuditEvents).values({
-          companyId, connectionId: connection.id, actorType: actor?.actorType ?? "system", actorId: actor?.actorId ?? null,
+          spaceId, connectionId: connection.id, actorType: actor?.actorType ?? "system", actorId: actor?.actorId ?? null,
           action: "connection_installs.changed", outcome: "success", reasonCode: "installs_changed",
           details: { added: added.map(({ targetType, targetId }) => ({ targetType, targetId })), removed: removed.map(({ targetType, targetId }) => ({ targetType, targetId })) },
         });
@@ -3471,7 +3471,7 @@ export function toolAccessService(
         const [binding] = await tx
           .insert(toolProfileBindings)
           .values({
-            companyId,
+            spaceId,
             profileId,
             targetType: bindingInput.targetType,
             targetId: bindingInput.targetId,
@@ -3503,7 +3503,7 @@ export function toolAccessService(
           })
           .where(
             and(
-              eq(toolCatalogEntries.companyId, companyId),
+              eq(toolCatalogEntries.spaceId, spaceId),
               eq(toolCatalogEntries.connectionId, connection.id),
               inArray(toolCatalogEntries.id, reviewedIds),
               eq(toolCatalogEntries.status, "quarantined"),
@@ -3526,7 +3526,7 @@ export function toolAccessService(
           })
           .where(
             and(
-              eq(toolCatalogEntries.companyId, companyId),
+              eq(toolCatalogEntries.spaceId, spaceId),
               inArray(toolCatalogEntries.id, enabledIds),
               ne(toolCatalogEntries.status, "quarantined"),
               ne(toolCatalogEntries.status, "disabled"),
@@ -3536,7 +3536,7 @@ export function toolAccessService(
 
       const policies = await upsertAskFirstPolicies(
         {
-          companyId,
+          spaceId,
           connection,
           askFirstEntries: askFirstRows,
           disableStale: !input.preserveExistingAccess,
@@ -3574,13 +3574,13 @@ export function toolAccessService(
 
     const details = await profileDetails(
       transactionResult.profileId,
-      companyId,
+      spaceId,
     );
     return {
       connection: toConnection(transactionResult.updatedConnection),
       profile: {
         id: details.id,
-        companyId: details.companyId,
+        spaceId: details.spaceId,
         profileKey: details.profileKey,
         name: details.name,
         description: details.description,
@@ -3606,12 +3606,12 @@ export function toolAccessService(
    */
   async function reconnectGalleryApp(
     connectionId: string,
-    companyId: string,
+    spaceId: string,
     input: { credentialValues: Record<string, string> },
     actor?: ActorInfo,
   ): Promise<ToolConnectionHealthCheckResult> {
     await actor?.managementContext?.reauthorize();
-    const connection = await getConnectionRow(connectionId, companyId);
+    const connection = await getConnectionRow(connectionId, spaceId);
     assertSupportedConnection(connection);
     await assertConnectorConnectionSetupEnabled(connection);
     await assertExperimentalConnectorSetupEnabled(connection.config.sourceTemplateKey, connection.status !== "draft");
@@ -3683,13 +3683,13 @@ export function toolAccessService(
 
     const updated = await db.transaction(async (tx) => {
       await tx.select({ id: connectionGrants.id }).from(connectionGrants)
-        .where(and(eq(connectionGrants.companyId, companyId), eq(connectionGrants.connectionId, connection.id)))
+        .where(and(eq(connectionGrants.spaceId, spaceId), eq(connectionGrants.connectionId, connection.id)))
         .orderBy(connectionGrants.id).for("update");
       await tx.select({ id: toolApplications.id }).from(toolApplications)
-        .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.companyId, companyId)))
+        .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.spaceId, spaceId)))
         .for("update");
       await tx.select({ id: toolConnections.id }).from(toolConnections)
-        .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.companyId, companyId)))
+        .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, spaceId)))
         .for("update");
       for (const field of providedFields) {
         const value = input.credentialValues[field.configPath]!.trim();
@@ -3702,7 +3702,7 @@ export function toolAccessService(
           (ref) => ref.configPath === field.configPath,
         );
         const { secret } = await writeConnectionCredential(tx, {
-          companyId, connectionName: connection.name, configPath: field.configPath,
+          spaceId, connectionName: connection.name, configPath: field.configPath,
           label: field.label, value, ownerUserId: personalIdentity?.subjectUserId,
           existingRef: existing, actor: actorForSecret(actor),
         });
@@ -3746,7 +3746,7 @@ export function toolAccessService(
             .where(eq(connectionGrants.id, personalIdentity.grant.id));
         } else {
           await tx.insert(connectionGrants).values({
-            companyId: connection.companyId,
+            spaceId: connection.spaceId,
             connectionId: connection.id,
             kind: "user",
             subjectUserId: personalIdentity.subjectUserId,
@@ -3804,30 +3804,30 @@ export function toolAccessService(
 
   return {
     /** Identity-only verification: no bot installation/repository access required. */
-    verifyPersonalGitHubIdentity: async (companyId: string, connectionId: string, userId: string) => {
-      const [connection] = await db.select().from(toolConnections).where(and(eq(toolConnections.companyId, companyId), eq(toolConnections.id, connectionId), eq(toolConnections.enabled, true)));
+    verifyPersonalGitHubIdentity: async (spaceId: string, connectionId: string, userId: string) => {
+      const [connection] = await db.select().from(toolConnections).where(and(eq(toolConnections.spaceId, spaceId), eq(toolConnections.id, connectionId), eq(toolConnections.enabled, true)));
       if (!connection || (connection.config.sourceTemplateKey !== "github" && connection.transportConfig?.sourceTemplateKey !== "github")) throw notFound("GitHub connection not found");
-      const [ownGrant] = await db.select().from(connectionGrants).where(and(eq(connectionGrants.companyId, companyId), eq(connectionGrants.connectionId, connectionId), eq(connectionGrants.kind, "user"), eq(connectionGrants.subjectUserId, userId), eq(connectionGrants.status, "active")));
+      const [ownGrant] = await db.select().from(connectionGrants).where(and(eq(connectionGrants.spaceId, spaceId), eq(connectionGrants.connectionId, connectionId), eq(connectionGrants.kind, "user"), eq(connectionGrants.subjectUserId, userId), eq(connectionGrants.status, "active")));
       if (!ownGrant) throw forbidden("Connect your own GitHub account first. Shared and agent connections cannot prove your identity.");
       const actor = { actorType: "user" as const, actorId: userId };
-      const grant = await refreshOAuthGrantCredentials({ companyId, connectionId, grantId: ownGrant.id, actor });
+      const grant = await refreshOAuthGrantCredentials({ spaceId, connectionId, grantId: ownGrant.id, actor });
       const accessRef = grant.credentialSecretRefs.find(ref => ref.configPath === "oauth.access_token");
       if (!accessRef) throw unprocessable("Reconnect your personal GitHub connection");
       const { value } = await resolveOAuthGrantSecret(connection, grant, accessRef, actor, undefined);
       const identity = await githubBotRequest<{ id?: number; login?: string; avatar_url?: string }>(fetch, value, "/user");
       if (!Number.isSafeInteger(identity.id) || !identity.id || !identity.login || !/^[a-zA-Z0-9][a-zA-Z0-9-]{0,38}$/.test(identity.login)) throw unprocessable("GitHub returned an invalid account identity");
-      const [current] = await db.select({ id: connectionGrants.id }).from(connectionGrants).where(and(eq(connectionGrants.id, grant.id), eq(connectionGrants.companyId, companyId), eq(connectionGrants.subjectUserId, userId), eq(connectionGrants.status, "active")));
+      const [current] = await db.select({ id: connectionGrants.id }).from(connectionGrants).where(and(eq(connectionGrants.id, grant.id), eq(connectionGrants.spaceId, spaceId), eq(connectionGrants.subjectUserId, userId), eq(connectionGrants.status, "active")));
       if (!current) throw forbidden("Your GitHub connection was revoked. Connect it again.");
       return { githubUserId: String(identity.id), login: identity.login, avatarUrl: identity.avatar_url ?? null, connectionId, grantId: grant.id };
     },
     preflightGalleryAppMetadata,
     approvedStdioTemplates: async (
-      companyId: string,
+      spaceId: string,
     ): Promise<ToolStdioCommandTemplate[]> => {
       const adminTemplates = await db
         .select()
         .from(toolStdioCommandTemplates)
-        .where(eq(toolStdioCommandTemplates.companyId, companyId))
+        .where(eq(toolStdioCommandTemplates.spaceId, spaceId))
         .orderBy(asc(toolStdioCommandTemplates.templateKey));
       return [
         ...Object.keys(APPROVED_STDIO_TEMPLATES)
@@ -3838,7 +3838,7 @@ export function toolAccessService(
     },
 
     createStdioCommandTemplate: async (
-      companyId: string,
+      spaceId: string,
       input: CreateToolStdioCommandTemplate,
       actor?: ActorInfo,
     ): Promise<ToolStdioCommandTemplate> => {
@@ -3848,7 +3848,7 @@ export function toolAccessService(
           "A built-in stdio template already uses this templateId",
         );
       }
-      const existing = await getAdminStdioTemplate(companyId, input.templateId);
+      const existing = await getAdminStdioTemplate(spaceId, input.templateId);
       if (existing)
         throw conflict("A stdio command template already uses this templateId");
       const tools = input.tools
@@ -3857,7 +3857,7 @@ export function toolAccessService(
       const [row] = await db
         .insert(toolStdioCommandTemplates)
         .values({
-          companyId,
+          spaceId,
           templateKey: input.templateId,
           name: input.name,
           description: input.description ?? null,
@@ -3876,12 +3876,12 @@ export function toolAccessService(
     },
 
     disableStdioCommandTemplate: async (
-      companyId: string,
+      spaceId: string,
       templateId: string,
     ): Promise<ToolStdioCommandTemplate> => {
       if (builtInStdioTemplate(templateId))
         throw unprocessable("Built-in stdio templates cannot be disabled");
-      const existing = await getAdminStdioTemplate(companyId, templateId);
+      const existing = await getAdminStdioTemplate(spaceId, templateId);
       if (!existing) throw notFound("Stdio command template not found");
       if (existing.status === "disabled")
         return toStdioCommandTemplate(existing);
@@ -3891,7 +3891,7 @@ export function toolAccessService(
         .set({ status: "disabled", disabledAt: at, updatedAt: at })
         .where(
           and(
-            eq(toolStdioCommandTemplates.companyId, companyId),
+            eq(toolStdioCommandTemplates.spaceId, spaceId),
             eq(toolStdioCommandTemplates.templateKey, templateId),
           ),
         )
@@ -3911,7 +3911,7 @@ export function toolAccessService(
     startOAuth,
 
     startAuthorizationForAgent: async (input: {
-      companyId: string;
+      spaceId: string;
       connectionId: string;
       agentId: string;
       runId: string;
@@ -3925,7 +3925,7 @@ export function toolAccessService(
       const runContext = await loadBrokerRunContext(input);
       const connection = await getConnectionRow(
         input.connectionId,
-        input.companyId,
+        input.spaceId,
       );
       if (
         !runContext.responsibleUserId ||
@@ -3941,7 +3941,7 @@ export function toolAccessService(
           },
         );
       }
-      return startOAuth(input.companyId, connection.id, {
+      return startOAuth(input.spaceId, connection.id, {
         redirectUri: input.redirectUri,
         actor: { actorType: "agent", actorId: input.agentId, ...input.managementContext?.audit, managementContext: input.managementContext },
         subjectUserId: input.subjectUserId,
@@ -3953,7 +3953,7 @@ export function toolAccessService(
 
     peekOAuthState,
 
-    completePaperclipCloudConnectorCallback,
+    completeOutpostCloudConnectorCallback,
 
     completeVercelConnectCallback,
 
@@ -3961,17 +3961,17 @@ export function toolAccessService(
     refreshOAuthGrantCredentials,
     finalizeOAuthAccess,
 
-    listExamples: async (companyId: string): Promise<ToolExampleSummary[]> => {
+    listExamples: async (spaceId: string): Promise<ToolExampleSummary[]> => {
       return Promise.all(
         TOOL_EXAMPLES.map(async (definition) => {
-          const rows = await exampleRows(companyId, definition);
+          const rows = await exampleRows(spaceId, definition);
           return exampleSummary(definition, rows);
         }),
       );
     },
 
     installExample: async (
-      companyId: string,
+      spaceId: string,
       exampleId: string,
       actor?: ActorInfo,
     ): Promise<ToolExampleInstallResult> => {
@@ -3979,15 +3979,15 @@ export function toolAccessService(
       const blocker = localStdioInstallBlocker();
       if (blocker) throw unprocessable(blocker);
       assertLocalStdioCanBeEnabled("local_stdio", true);
-      await stdioTemplateId(companyId, { templateId: definition.templateId });
-      const before = await exampleRows(companyId, definition);
+      await stdioTemplateId(spaceId, { templateId: definition.templateId });
+      const before = await exampleRows(spaceId, definition);
       const application = await upsertExampleApplication(
-        companyId,
+        spaceId,
         definition,
         before.application,
       );
       const connection = await upsertExampleConnection(
-        companyId,
+        spaceId,
         definition,
         application.row.id,
         before.connection,
@@ -4014,7 +4014,7 @@ export function toolAccessService(
           })
           .where(
             and(
-              eq(toolCatalogEntries.companyId, companyId),
+              eq(toolCatalogEntries.spaceId, spaceId),
               inArray(toolCatalogEntries.id, safeReadEntryIds),
             ),
           );
@@ -4032,22 +4032,22 @@ export function toolAccessService(
         );
       }
       const profile = await upsertExampleProfile(
-        companyId,
+        spaceId,
         definition,
         before.profile,
       );
       const profileEntries = await syncExampleProfileEntries(
-        companyId,
+        spaceId,
         profile.row.id,
         catalog,
       );
       const profileBinding = await upsertExampleProfileBinding(
-        companyId,
+        spaceId,
         profile.row.id,
         before.profileBinding,
         actor,
       );
-      const after = await exampleRows(companyId, definition);
+      const after = await exampleRows(spaceId, definition);
       return {
         example: exampleSummary(definition, after),
         created:
@@ -4065,12 +4065,12 @@ export function toolAccessService(
     },
 
     smokeExample: async (
-      companyId: string,
+      spaceId: string,
       exampleId: string,
       actor?: ActorInfo,
     ): Promise<ToolExampleSmokeResult> => {
       const definition = findExample(exampleId);
-      const rows = await exampleRows(companyId, definition);
+      const rows = await exampleRows(spaceId, definition);
       if (!rows.connection || !rows.profile || !rows.profileBinding) {
         throw conflict("Install this tool example before running smoke checks");
       }
@@ -4090,10 +4090,10 @@ export function toolAccessService(
           "Example smoke requires at least one read tool and one denied write/destructive tool",
         );
       }
-      const smokeActor = await exampleSmokeActor(companyId, actor);
+      const smokeActor = await exampleSmokeActor(spaceId, actor);
       const connection = toConnection(rows.connection);
       const allowCheck = await runSmokeDecisionCheck({
-        companyId,
+        spaceId,
         actor: smokeActor,
         connection,
         catalogEntry: readEntry,
@@ -4101,7 +4101,7 @@ export function toolAccessService(
         name: "allow_read_tool",
       });
       const denyCheck = await runSmokeDecisionCheck({
-        companyId,
+        spaceId,
         actor: smokeActor,
         connection,
         catalogEntry: deniedEntry,
@@ -4135,23 +4135,23 @@ export function toolAccessService(
       };
     },
 
-    listApplications: async (companyId: string): Promise<ToolApplication[]> => {
+    listApplications: async (spaceId: string): Promise<ToolApplication[]> => {
       const rows = await db
         .select()
         .from(toolApplications)
-        .where(eq(toolApplications.companyId, companyId))
+        .where(eq(toolApplications.spaceId, spaceId))
         .orderBy(desc(toolApplications.updatedAt));
       return rows.map(toApplication);
     },
 
     createApplication: async (
-      companyId: string,
+      spaceId: string,
       input: CreateToolApplication,
       managementContext?: ConnectionManagementContext,
     ): Promise<ToolApplication> => {
       await assertOptionalPlugin(input.pluginId);
       await assertOptionalAgent(
-        companyId,
+        spaceId,
         input.ownerAgentId,
         "Tool application owner agent",
       );
@@ -4159,7 +4159,7 @@ export function toolAccessService(
       const [row] = await db
         .insert(toolApplications)
         .values({
-          companyId,
+          spaceId,
           applicationKey: input.applicationKey ?? normalizeKey(input.name),
           name: input.name,
           description: input.description ?? null,
@@ -4176,12 +4176,12 @@ export function toolAccessService(
 
     getApplication: async (
       applicationId: string,
-      companyId?: string,
+      spaceId?: string,
     ): Promise<ToolApplication> => {
-      const where = companyId
+      const where = spaceId
         ? and(
             eq(toolApplications.id, applicationId),
-            eq(toolApplications.companyId, companyId),
+            eq(toolApplications.spaceId, spaceId),
           )
         : eq(toolApplications.id, applicationId);
       const [row] = await db.select().from(toolApplications).where(where);
@@ -4201,7 +4201,7 @@ export function toolAccessService(
       if (!existing) throw notFound("Tool application not found");
       await assertOptionalPlugin(input.pluginId);
       await assertOptionalAgent(
-        existing.companyId,
+        existing.spaceId,
         input.ownerAgentId,
         "Tool application owner agent",
       );
@@ -4211,7 +4211,7 @@ export function toolAccessService(
           .from(toolApplications)
           .where(
             and(
-              eq(toolApplications.companyId, existing.companyId),
+              eq(toolApplications.spaceId, existing.spaceId),
               eq(toolApplications.name, input.name),
               ne(toolApplications.id, applicationId),
             ),
@@ -4288,18 +4288,18 @@ export function toolAccessService(
 
     // Repository discovery uses credential audiences, not connection-management
     // visibility. An administrator cannot browse another user's private repos.
-    listProjectRepositories: async (companyId: string, userId: string | null, localTrusted = false,
+    listProjectRepositories: async (spaceId: string, userId: string | null, localTrusted = false,
       options?: { requiredRepositoryIds: readonly string[] }) =>
-      toolAccessService(db).listGitHubRepositories(companyId, userId, localTrusted, options),
+      toolAccessService(db).listGitHubRepositories(spaceId, userId, localTrusted, options),
 
     // Return identifiers, never credentials, so each attempted read can recheck its grant.
-    githubReadConnectionIds: async (companyId: string, userId: string | null, localTrusted = false): Promise<string[]> => {
-      const connections = await db.select().from(toolConnections).where(and(eq(toolConnections.companyId, companyId), eq(toolConnections.enabled, true))).orderBy(desc(toolConnections.updatedAt));
+    githubReadConnectionIds: async (spaceId: string, userId: string | null, localTrusted = false): Promise<string[]> => {
+      const connections = await db.select().from(toolConnections).where(and(eq(toolConnections.spaceId, spaceId), eq(toolConnections.enabled, true))).orderBy(desc(toolConnections.updatedAt));
       const ids: string[] = [];
       for (const connection of connections) {
         if (connection.status !== "active" || asRecord(connection.config).sourceTemplateKey !== "github") continue;
         try {
-          await gitHubReadGrantAccess(db, companyId, connection.id, userId, localTrusted);
+          await gitHubReadGrantAccess(db, spaceId, connection.id, userId, localTrusted);
           ids.push(connection.id);
         } catch (error) {
           // Only ineligible grants are skipped; database/service failures must surface.
@@ -4309,20 +4309,20 @@ export function toolAccessService(
       return ids;
     },
 
-    githubReadGrantIds: async (companyId: string, connectionId: string, userId: string | null, localTrusted = false): Promise<Array<string | null>> => {
-      const { allowed, legacyShared } = await gitHubReadGrantAccess(db, companyId, connectionId, userId, localTrusted);
+    githubReadGrantIds: async (spaceId: string, connectionId: string, userId: string | null, localTrusted = false): Promise<Array<string | null>> => {
+      const { allowed, legacyShared } = await gitHubReadGrantAccess(db, spaceId, connectionId, userId, localTrusted);
       return legacyShared ? [null] : allowed.map(grant => grant.id);
     },
 
     // Server-side reads share the same grant audience and credential lifecycle as discovery.
-    githubReadHeaders: async (companyId: string, connectionId: string, userId: string | null, localTrusted = false, forceRefresh = false, grantId?: string | null): Promise<Record<string, string>> => {
-      const { connection, allowed, legacyShared } = await gitHubReadGrantAccess(db, companyId, connectionId, userId, localTrusted);
-      const actor: ActorInfo = { actorType: "user", actorId: userId ?? "board" };
+    githubReadHeaders: async (spaceId: string, connectionId: string, userId: string | null, localTrusted = false, forceRefresh = false, grantId?: string | null): Promise<Record<string, string>> => {
+      const { connection, allowed, legacyShared } = await gitHubReadGrantAccess(db, spaceId, connectionId, userId, localTrusted);
+      const actor: ActorInfo = { actorType: "user", actorId: userId ?? "operator" };
       if (legacyShared && !grantId) return resolveCredentialHeaders(connection, actor);
       let grant = grantId ? allowed.find(candidate => candidate.id === grantId) : allowed.length === 1 ? allowed[0] : undefined;
       if (!grant) throw forbidden("Choose an active GitHub authorization you can use.");
       if (asRecord(asRecord(connection.config).oauth).connectorProfile === "github.code") {
-        grant = await refreshOAuthGrantCredentials({ companyId, connectionId, grantId: grant.id, actor, forceRefresh });
+        grant = await refreshOAuthGrantCredentials({ spaceId, connectionId, grantId: grant.id, actor, forceRefresh });
       }
       const ref = grant.credentialSecretRefs.find(ref => ref.configPath === "oauth.access_token" || /authorization|token|api_key/i.test(ref.configPath));
       if (!ref) throw unprocessable("Reconnect GitHub to read repository files.");
@@ -4331,7 +4331,7 @@ export function toolAccessService(
     },
 
     listGitHubRepositories: async (
-      companyId: string,
+      spaceId: string,
       userId: string | null,
       localTrusted = false,
       options?: { requiredRepositoryIds: readonly string[] },
@@ -4342,28 +4342,28 @@ export function toolAccessService(
           .from(toolConnections)
           .where(
             and(
-              eq(toolConnections.companyId, companyId),
+              eq(toolConnections.spaceId, spaceId),
               eq(toolConnections.enabled, true),
             ),
           )),
         measureRunPhase("connectors.github.grants", () => db
           .select()
           .from(connectionGrants)
-          .where(eq(connectionGrants.companyId, companyId))),
+          .where(eq(connectionGrants.spaceId, spaceId))),
         measureRunPhase("connectors.github.grant_members", () => db
           .select()
           .from(connectionGrantMembers)
-          .where(eq(connectionGrantMembers.companyId, companyId))),
+          .where(eq(connectionGrantMembers.spaceId, spaceId))),
         userId
           ? measureRunPhase("connectors.github.membership", () => db
               .select()
-              .from(companyMemberships)
+              .from(spaceMemberships)
               .where(
                 and(
-                  eq(companyMemberships.companyId, companyId),
-                  eq(companyMemberships.principalType, "user"),
-                  eq(companyMemberships.principalId, userId),
-                  eq(companyMemberships.status, "active"),
+                  eq(spaceMemberships.spaceId, spaceId),
+                  eq(spaceMemberships.principalType, "user"),
+                  eq(spaceMemberships.principalId, userId),
+                  eq(spaceMemberships.status, "active"),
                 ),
               ))
           : Promise.resolve([]),
@@ -4411,7 +4411,7 @@ export function toolAccessService(
         usableConnections.push({ id: connection.id, name: connection.name });
         const actor: ActorInfo = {
           actorType: "user",
-          actorId: userId ?? "board",
+          actorId: userId ?? "operator",
         };
         let failed = false;
         for (const initialGrant of legacyShared ? [null] : availableGrants) {
@@ -4484,20 +4484,20 @@ export function toolAccessService(
     }),
 
     listConnections: async (
-      companyId: string,
+      spaceId: string,
       viewerUserId?: string,
     ): Promise<ToolConnection[]> => {
       const rows = await db
         .select()
         .from(toolConnections)
-        .where(eq(toolConnections.companyId, companyId))
+        .where(eq(toolConnections.spaceId, spaceId))
         .orderBy(desc(toolConnections.updatedAt));
       const connections = rows.map(toConnection);
       if (connections.length === 0) return connections;
       const installRows = await db
         .select()
         .from(toolConnectionInstalls)
-        .where(eq(toolConnectionInstalls.companyId, companyId))
+        .where(eq(toolConnectionInstalls.spaceId, spaceId))
         .orderBy(
           asc(toolConnectionInstalls.targetType),
           asc(toolConnectionInstalls.targetId),
@@ -4520,7 +4520,7 @@ export function toolAccessService(
         .from(toolCallEvents)
         .where(
           and(
-            eq(toolCallEvents.companyId, companyId),
+            eq(toolCallEvents.spaceId, spaceId),
             inArray(
               toolCallEvents.connectionId,
               connections.map((connection) => connection.id),
@@ -4541,7 +4541,7 @@ export function toolAccessService(
     },
 
     createConnection: async (
-      companyId: string,
+      spaceId: string,
       input: CreateToolConnection,
       actor?: ActorInfo,
     ): Promise<ToolConnection> => {
@@ -4560,21 +4560,21 @@ export function toolAccessService(
       const config = normalizeGoogleSheetsConnectionConfig(
         input.config ?? input.transportConfig ?? {},
       );
-      await assertConnectorConnectionSetupEnabled({ config, applicationId, companyId });
-      // Validate company-scoped references before touching a caller-supplied
-      // network endpoint. Besides failing fast, this keeps cross-company
+      await assertConnectorConnectionSetupEnabled({ config, applicationId, spaceId });
+      // Validate space-scoped references before touching a caller-supplied
+      // network endpoint. Besides failing fast, this keeps cross-space
       // authorization errors from being masked by DNS or SSRF validation.
-      await assertSecretRefs(companyId, [
+      await assertSecretRefs(spaceId, [
         ...(input.credentialRefs ?? []),
         ...(input.credentialSecretRefs ?? []),
       ]);
       if (transport === "mcp_remote")
         await assertRemoteConnectionEndpointsAllowed(config);
-      if (transport === "local_stdio") await stdioTemplateId(companyId, config);
+      if (transport === "local_stdio") await stdioTemplateId(spaceId, config);
       assertLocalStdioCanBeEnabled(transport, input.enabled ?? false, config);
-      await assertGoogleSheetsSpreadsheetOwnership(companyId, config);
+      await assertGoogleSheetsSpreadsheetOwnership(spaceId, config);
       if (applicationId) {
-        const app = await assertApplication(companyId, applicationId);
+        const app = await assertApplication(spaceId, applicationId);
         applicationNamespace = app.applicationKey ?? app.name;
         await assertConnectorConnectionSetupEnabled({ config }, applicationNamespace);
         if (
@@ -4589,7 +4589,7 @@ export function toolAccessService(
         const [app] = await db
           .insert(toolApplications)
           .values({
-            companyId,
+            spaceId,
             applicationKey: normalizeKey(input.applicationName ?? input.name),
             name: input.applicationName ?? input.name,
             type: isBrowserUseConnection({ transport, config }) || nativeProviderCatalogFor({ transport, config }) || restConnectorFor({ transport, config }) ? "rest_api" : transport === "mcp_remote" ? "mcp_http" : "mcp_stdio",
@@ -4602,12 +4602,12 @@ export function toolAccessService(
       await actor?.managementContext?.reauthorize();
       const connectionId = randomUUID();
       const binding = actorBinding(actor);
-      const row = await writeToolConnectionHealthChange(db, { companyId, id: connectionId }, async tx => {
+      const row = await writeToolConnectionHealthChange(db, { spaceId, id: connectionId }, async tx => {
         const [row] = await tx
           .insert(toolConnections)
           .values({
             id: connectionId,
-            companyId,
+            spaceId,
             applicationId,
             name: input.name,
             uid: connectionUid(applicationNamespace, input.name, connectionId),
@@ -4645,15 +4645,15 @@ export function toolAccessService(
 
     getConnection: async (
       connectionId: string,
-      companyId?: string,
+      spaceId?: string,
       viewerUserId?: string,
     ): Promise<ToolConnection> => {
       const connection = toConnection(
-        await getConnectionRow(connectionId, companyId),
+        await getConnectionRow(connectionId, spaceId),
       );
       connection.installs = await listConnectionInstalls(
         connection.id,
-        connection.companyId,
+        connection.spaceId,
       );
       await annotateAiGrantHealth([connection]);
       await annotateGitHubAuthorization([connection], viewerUserId);
@@ -4689,16 +4689,16 @@ export function toolAccessService(
       if (existing.transport === "mcp_remote")
         await assertRemoteConnectionEndpointsAllowed(config);
       if (existing.transport === "local_stdio")
-        await stdioTemplateId(existing.companyId, config);
+        await stdioTemplateId(existing.spaceId, config);
       assertLocalStdioCanBeEnabled(
         existing.transport,
         input.enabled ?? existing.enabled,
         config,
       );
-      await assertGoogleSheetsSpreadsheetOwnership(existing.companyId, config, {
+      await assertGoogleSheetsSpreadsheetOwnership(existing.spaceId, config, {
         excludeConnectionId: existing.id,
       });
-      await assertSecretRefs(existing.companyId, [
+      await assertSecretRefs(existing.spaceId, [
         ...(input.credentialRefs ?? existing.credentialRefs),
         ...(input.credentialSecretRefs ?? existing.credentialSecretRefs),
       ]);
@@ -4724,7 +4724,7 @@ export function toolAccessService(
         .returning();
       const [row] = existing.transport === "chat_sdk"
         ? await db.transaction(async tx => {
-            await notifyChatEndpointWork(tx, existing.id, existing.companyId);
+            await notifyChatEndpointWork(tx, existing.id, existing.spaceId);
             const rows = await write(tx as unknown as Db);
             // Credential resolution must never observe the binding rebuild's
             // delete/insert gap after a configuration wake.
@@ -4734,7 +4734,7 @@ export function toolAccessService(
         : await writeToolConnectionHealthChange(db, existing, async tx => {
             if (input.enabled !== undefined || input.status !== undefined || input.config !== undefined || input.transportConfig !== undefined || input.credentialSecretRefs !== undefined || input.credentialRefs !== undefined) {
               await notifyGitHubCredentialChange(tx, existing);
-              await notifyGitHubCredentialChange(tx, { companyId: existing.companyId, config });
+              await notifyGitHubCredentialChange(tx, { spaceId: existing.spaceId, config });
             }
             if (existing.transport === "voice") await notifyVoiceChange(tx, { kind: "connection", id: existing.id });
             const rows = await write(tx);
@@ -4752,12 +4752,12 @@ export function toolAccessService(
 
     refreshCatalog,
 
-    configureRailwaySsh: async (connectionId: string, companyId: string, input: ConfigureRailwaySsh, actor: ActorInfo): Promise<RailwaySshSetup | null> => {
+    configureRailwaySsh: async (connectionId: string, spaceId: string, input: ConfigureRailwaySsh, actor: ActorInfo): Promise<RailwaySshSetup | null> => {
       await actor.managementContext?.reauthorize();
       const knownHosts = input.action === "enable" ? validateRailwayKnownHosts(input.knownHosts) : "";
       const setup = await db.transaction(async (tx) => {
-        const [grant] = await tx.select().from(connectionGrants).where(and(eq(connectionGrants.id, input.grantId), eq(connectionGrants.connectionId, connectionId), eq(connectionGrants.companyId, companyId))).for("update");
-        const [connection] = await tx.select().from(toolConnections).where(and(eq(toolConnections.id, connectionId), eq(toolConnections.companyId, companyId))).for("update");
+        const [grant] = await tx.select().from(connectionGrants).where(and(eq(connectionGrants.id, input.grantId), eq(connectionGrants.connectionId, connectionId), eq(connectionGrants.spaceId, spaceId))).for("update");
+        const [connection] = await tx.select().from(toolConnections).where(and(eq(toolConnections.id, connectionId), eq(toolConnections.spaceId, spaceId))).for("update");
         if (!connection || !isRailwayConnection(connection) || (connection.status !== "active" && input.action !== "remove")) throw unprocessable("Connect Railway before configuring container access.");
         if (!grant || (grant.status !== "active" && input.action !== "remove")) throw unprocessable("Select an active Railway authorization.");
         if (grant.kind === "user" && connectionActorUserId(actor) !== grant.subjectUserId) throw forbidden("Only this authorization's owner can configure its SSH key.");
@@ -4772,25 +4772,25 @@ export function toolAccessService(
         } else if (input.action === "prepare") {
           if (currentRef && typeof existing.publicKey === "string") return existing as unknown as RailwaySshSetup;
           const key = await generateRailwaySshKey();
-          const ref = await createOrRotateOAuthSecret({ companyId, connection, configPath: RAILWAY_SSH_SECRET_PATH, label: "Railway container SSH key", value: key.privateKey, existingRefs: [], ownerUserId: grant.kind === "user" ? grant.subjectUserId ?? undefined : undefined, actor }, { dbClient: tx, secretClient: secretService(tx) });
+          const ref = await createOrRotateOAuthSecret({ spaceId, connection, configPath: RAILWAY_SSH_SECRET_PATH, label: "Railway container SSH key", value: key.privateKey, existingRefs: [], ownerUserId: grant.kind === "user" ? grant.subjectUserId ?? undefined : undefined, actor }, { dbClient: tx, secretClient: secretService(tx) });
           refs = [...refs.filter((ref) => ref.configPath !== RAILWAY_SSH_SECRET_PATH), ref];
           next = { grantId: grant.id, publicKey: key.publicKey, knownHosts: "", enabled: false };
         } else {
           if (!currentRef || typeof existing.publicKey !== "string") throw unprocessable("Generate and register a container key first.");
           next = { grantId: grant.id, publicKey: existing.publicKey, knownHosts, enabled: true };
         }
-        await tx.update(connectionGrants).set({ credentialSecretRefs: refs, updatedAt: now() }).where(and(eq(connectionGrants.id, grant.id), eq(connectionGrants.companyId, companyId)));
+        await tx.update(connectionGrants).set({ credentialSecretRefs: refs, updatedAt: now() }).where(and(eq(connectionGrants.id, grant.id), eq(connectionGrants.spaceId, spaceId)));
         const config = { ...connection.config, railwaySsh: next };
-        const [updated] = await tx.update(toolConnections).set({ config, transportConfig: config, updatedAt: now() }).where(and(eq(toolConnections.id, connectionId), eq(toolConnections.companyId, companyId))).returning();
+        const [updated] = await tx.update(toolConnections).set({ config, transportConfig: config, updatedAt: now() }).where(and(eq(toolConnections.id, connectionId), eq(toolConnections.spaceId, spaceId))).returning();
         await syncCredentialBindings(updated, [], tx);
         return next;
       });
-      await audit({ companyId, connectionId, action: "tool_connection.railway_ssh_updated", outcome: "success", actor, details: { action: input.action, grantId: input.grantId, enabled: setup?.enabled ?? false } });
+      await audit({ spaceId, connectionId, action: "tool_connection.railway_ssh_updated", outcome: "success", actor, details: { action: input.action, grantId: input.grantId, enabled: setup?.enabled ?? false } });
       return setup;
     },
 
     listAppsNeedingAttention,
-    getConnectionReviewCounts: (companyId: string, connectionId: string) => getToolConnectionReviewCounts(db, companyId, connectionId),
+    getConnectionReviewCounts: (spaceId: string, connectionId: string) => getToolConnectionReviewCounts(db, spaceId, connectionId),
 
     sweepConnectionHealth,
     scheduledHealth: connectionHealthSchedule(db, checkConnectionHealth),
@@ -4886,11 +4886,11 @@ export function toolAccessService(
       return { drafts };
     },
 
-    assertConnectionCompany: async (
+    assertConnectionSpace: async (
       connectionId: string,
-      companyId: string,
+      spaceId: string,
     ) => {
-      const connection = await getConnectionRow(connectionId, companyId);
+      const connection = await getConnectionRow(connectionId, spaceId);
       return toConnection(connection);
     },
 
@@ -4935,7 +4935,7 @@ export function toolAccessService(
       if (
         code === "23505" ||
         constraint?.includes("tool_applications") ||
-        /duplicate key value|unique constraint|tool_applications_company_id_name_unique/i.test(
+        /duplicate key value|unique constraint|tool_applications_space_id_name_unique/i.test(
           message,
         )
       ) {

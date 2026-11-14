@@ -1,7 +1,7 @@
 # Verified MCP connectors — 2026-10-08
 
 This change includes eleven providers with successful bounded reads through
-Paperclip's real browser action tester. Seven are new catalog entries: Calendly,
+Outpost's real browser action tester. Seven are new catalog entries: Calendly,
 Exa, Firecrawl, GSC Wizard, Parallel Search, Tavily, and Windsor.ai. Airtable,
 Linear, Make, and PostHog already have catalog entries. AgentMail uses the
 existing full integration; this change adds no AgentMail method or channel.
@@ -24,7 +24,7 @@ The catalog keeps documented read/write capabilities. The test policy above
 records the qualification settings; it does not change normal catalog defaults
 or prove provider write behavior. Alternative documented auth methods were not
 independently live-tested. No provider writes or actual agent sessions ran.
-Several test-company installations report Any agent because scoped-agent
+Several test-space installations report Any agent because scoped-agent
 selection is unavailable; no agent runtime was started. Windsor used no agents.
 
 Airtable requires reviewed DCR registration because its advertised CIMD flow

@@ -6,7 +6,7 @@ export function toToolInvocation(
 ): ToolInvocation {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     idempotencyKey: row.idempotencyKey,
     actorType: row.actorType as ToolInvocation["actorType"],
     actorId: row.actorId,
@@ -42,7 +42,7 @@ export function toToolActionRequest(
 ): ToolActionRequest {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     invocationId: row.invocationId,
     issueId: row.issueId,
     interactionId: row.interactionId,
@@ -71,7 +71,7 @@ export function toToolCallEvent(
 ): ToolCallEvent {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     eventType: row.eventType,
     actorType: row.actorType as ToolCallEvent["actorType"],
     actorId: row.actorId,
@@ -106,7 +106,7 @@ export function toToolCallEvent(
 }
 
 export function userFallbackName(userId: string): string {
-  if (userId === "local-board") return "Board";
+  if (userId === "local-operator") return "Operator";
   return userId;
 }
 

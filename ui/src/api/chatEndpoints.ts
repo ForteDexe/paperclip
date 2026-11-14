@@ -57,9 +57,9 @@ export interface ChatIdentityLink {
   lastConnectAt?: string | null;
   externalLabel: string;
   externalDetail?: string | null;
-  paperclipUserId?: string | null;
-  paperclipUserLabel?: string | null;
-  paperclipUserImage?: string | null;
+  outpostUserId?: string | null;
+  outpostUserLabel?: string | null;
+  outpostUserImage?: string | null;
   status: "linked" | "pending" | "revoked";
 }
 
@@ -91,9 +91,9 @@ export interface ChatIdentityLinkPreview {
   selfService?: boolean;
   canConfirm?: boolean;
   endpointId: string;
-  companyId: string;
-  companyName: string;
-  companyPrefix: string;
+  spaceId: string;
+  spaceName: string;
+  spacePrefix: string;
   provider: ChatProvider;
   providerAccountLabel?: string | null;
   botLabel?: string | null;
@@ -108,7 +108,7 @@ export interface ChatEndpoint {
   publicationMode?: "automatic" | "explicit";
   externalExecutionPolicy?: "restricted" | "agent";
   id: string;
-  companyId: string;
+  spaceId: string;
   provider: ChatProvider;
   status: ChatEndpointStatus;
   assignedAgentId: string;
@@ -199,18 +199,18 @@ function rows<T>(response: ListResponse<T>): T[] {
 }
 
 export const chatEndpointsApi = {
-  list: async (companyId: string) =>
+  list: async (spaceId: string) =>
     rows(
       await api.get<ListResponse<ChatEndpoint>>(
-        `/companies/${companyId}/chat-endpoints`,
+        `/spaces/${spaceId}/chat-endpoints`,
       ),
     ),
   get: (endpointId: string) =>
     api.get<ChatEndpoint>(`/chat-endpoints/${endpointId}`),
   create: (
-    companyId: string,
+    spaceId: string,
     input: { provider: ChatProvider; assignedAgentId: string; slackApp?: SlackAppConfiguration; slackSetupMethod?: "managed" | "automatic" | "manual" | "existing" },
-  ) => api.post<ChatEndpoint>(`/companies/${companyId}/chat-endpoints`, input),
+  ) => api.post<ChatEndpoint>(`/spaces/${spaceId}/chat-endpoints`, input),
   update: (
     endpointId: string,
     input: UpdateChatEndpointInput,
@@ -225,7 +225,7 @@ export const chatEndpointsApi = {
   ) => api.post<ChatEndpoint>(`/chat-endpoints/${endpointId}/setup`, input),
   sendSlackTestMessage: (endpointId: string, input: import("@outpost/shared").SlackTestMessageInput) =>
     api.post<import("@outpost/shared").SlackTestMessageResult>(`/chat-endpoints/${endpointId}/slack/test-message`, input),
-  slackSetupOptions: (companyId: string) => api.get<SlackSetupOptions>(`/companies/${companyId}/chat-slack/setup-options`),
+  slackSetupOptions: (spaceId: string) => api.get<SlackSetupOptions>(`/spaces/${spaceId}/chat-slack/setup-options`),
   authorizeSlackManager: (endpointId: string) => api.post<import("@outpost/shared").SlackManagerAuthorization>(`/chat-endpoints/${endpointId}/slack/managed/authorize`, {}),
   provisionManagedSlack: (endpointId: string, input: SlackManagedProvisionInput) => api.post<SlackManagedResult>(`/chat-endpoints/${endpointId}/slack/managed/provision`, input),
   createSlackApp: (endpointId: string, input: SlackRegistrationInput) =>

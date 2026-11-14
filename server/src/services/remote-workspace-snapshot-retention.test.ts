@@ -6,7 +6,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { applyPendingMigrations, closeRegisteredClients, companies, createDb, executionWorkspaceSnapshots,
+import { applyPendingMigrations, closeRegisteredClients, spaces, createDb, executionWorkspaceSnapshots,
   executionWorkspaces, issueRecoveryActions, issues, workspaceOperations } from "@outpost/db";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
 import { createStorageService } from "../storage/service.js";
@@ -108,30 +108,30 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
   beforeEach(async () => { root = await fs.mkdtemp(path.join(os.tmpdir(), "pc-retention-test-")); storage = createStorageService(createLocalDiskStorageProvider(root)); });
   afterEach(async () => {
     await db.delete(issueRecoveryActions); await db.delete(workspaceOperations); await db.delete(executionWorkspaceSnapshots);
-    await db.delete(issues); await db.delete(executionWorkspaces); await db.delete(companies);
+    await db.delete(issues); await db.delete(executionWorkspaces); await db.delete(spaces);
     await fs.rm(root, { recursive: true, force: true });
     vi.unstubAllEnvs();
   });
   async function seed(status: "superseded" | "pending" | "uploaded" | "committed" = "superseded", id = randomUUID()) {
-    const companyId = randomUUID(), workspaceId = randomUUID(), operationId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Retention", issuePrefix: `R${companyId.slice(0, 6)}` });
-    const [issue] = await db.insert(issues).values({ companyId, title: "Retention source" }).returning();
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issue!.id,
+    const spaceId = randomUUID(), workspaceId = randomUUID(), operationId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Retention", issuePrefix: `R${spaceId.slice(0, 6)}` });
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Retention source" }).returning();
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issue!.id,
       mode: "isolated_workspace", strategyType: "project_primary", name: "Retained" });
-    const keys = ["winner", "ambiguous"].map(name => `${companyId}/workspace-snapshots/${workspaceId}/${id}/${name}.pcws`);
-    for (const objectKey of keys) await storage.putFile({ objectKey, companyId, namespace: "workspace-snapshots", originalFilename: null,
+    const keys = ["winner", "ambiguous"].map(name => `${spaceId}/workspace-snapshots/${workspaceId}/${id}/${name}.pcws`);
+    for (const objectKey of keys) await storage.putFile({ objectKey, spaceId, namespace: "workspace-snapshots", originalFilename: null,
       contentType: "application/octet-stream", body: Buffer.from("retained bytes") });
-    const [row] = await db.insert(executionWorkspaceSnapshots).values({ id, companyId, executionWorkspaceId: workspaceId,
+    const [row] = await db.insert(executionWorkspaceSnapshots).values({ id, spaceId, executionWorkspaceId: workspaceId,
       sourceOperationId: operationId, generation: 1, epoch: 1, status, objectKey: keys[0],
       metadata: { uploads: keys.map(objectKey => ({ objectKey })) },
       deleteAfter: new Date(now.getTime() - 1000), createdAt: new Date(now.getTime() - 10 * 86400_000) }).returning();
-    return { row: row!, companyId, workspaceId, issueId: issue!.id, operationId, keys };
+    return { row: row!, spaceId, workspaceId, issueId: issue!.id, operationId, keys };
   }
   const service = () => remoteWorkspaceSnapshotRetentionService(db, { storage, now: () => now });
   it("deletes the attempted uploads of an abandoned save once its ledger row is retired, and keeps a failed save's retry pin", async () => {
     const retired = await seed("pending"), held = await seed("pending");
     for (const f of [retired, held]) {
-      await db.insert(workspaceOperations).values({ id: f.operationId, companyId: f.companyId, executionWorkspaceId: f.workspaceId,
+      await db.insert(workspaceOperations).values({ id: f.operationId, spaceId: f.spaceId, executionWorkspaceId: f.workspaceId,
         phase: "remote_workspace_snapshot", status: "failed",
         metadata: { epoch: 1, generation: 1, lastFailure: { code: "remote_workspace_save_abandoned" } } });
     }
@@ -141,14 +141,14 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
     await db.update(executionWorkspaceSnapshots).set({ objectKey: null }).where(eq(executionWorkspaceSnapshots.id, held.row.id));
     expect(await service().tick()).toMatchObject({ deleted: 1, pinned: 1, failed: 0 });
     expect((await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.id, retired.row.id)))[0]!.status).toBe("deleted");
-    for (const key of retired.keys) expect((await storage.headObject(retired.companyId, key)).exists).toBe(false);
+    for (const key of retired.keys) expect((await storage.headObject(retired.spaceId, key)).exists).toBe(false);
     expect((await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.id, held.row.id)))[0]!.status).toBe("pending");
-    for (const key of held.keys) expect((await storage.headObject(held.companyId, key)).exists).toBe(true);
+    for (const key of held.keys) expect((await storage.headObject(held.spaceId, key)).exists).toBe(true);
   });
   it("aborts each attempt's incomplete multipart upload before deleting a retired snapshot's objects", async () => {
     const f = await seed(), order: string[] = [], deleteObject = storage.deleteObject.bind(storage);
-    storage.abortIncompleteUploads = vi.fn(async (_companyId: string, key: string) => { order.push(`abort:${key}`); return 1; });
-    storage.deleteObject = async (companyId, key, options) => { order.push(`delete:${key}`); return deleteObject(companyId, key, options); };
+    storage.abortIncompleteUploads = vi.fn(async (_spaceId: string, key: string) => { order.push(`abort:${key}`); return 1; });
+    storage.deleteObject = async (spaceId, key, options) => { order.push(`delete:${key}`); return deleteObject(spaceId, key, options); };
     expect(await service().tick()).toMatchObject({ deleted: 1, failed: 0 });
     expect(order).toEqual([...f.keys.map(key => `abort:${key}`), ...f.keys.map(key => `delete:${key}`)]);
   });
@@ -156,26 +156,26 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
     const f = await seed();
     storage.abortIncompleteUploads = vi.fn(async () => { throw Object.assign(new Error("Access Denied"), { name: "AccessDenied" }); });
     expect(await service().tick()).toMatchObject({ deleted: 1, failed: 0 });
-    for (const key of f.keys) expect((await storage.headObject(f.companyId, key)).exists).toBe(false);
+    for (const key of f.keys) expect((await storage.headObject(f.spaceId, key)).exists).toBe(false);
   });
   it("deletes every recorded attempt and winning object after grace", async () => {
     const f = await seed(); const owner = service();
     expect(await owner.tick()).toMatchObject({ deleted: 1, failed: 0 });
-    for (const key of f.keys) expect((await storage.headObject(f.companyId, key)).exists).toBe(false);
+    for (const key of f.keys) expect((await storage.headObject(f.spaceId, key)).exists).toBe(false);
     expect(await owner.nextDeadlineAt()).toBeNull();
   });
-  it("uses the dependency index when a company has many unrelated snapshots", async () => {
+  it("uses the dependency index when a space has many unrelated snapshots", async () => {
     const child = await seed();
     await db.execute(sql`insert into execution_workspace_snapshots
-      (company_id, execution_workspace_id, source_operation_id, generation, epoch, status)
-      select ${child.companyId}::uuid, gen_random_uuid(), gen_random_uuid(), 1, 1, 'committed'
+      (space_id, execution_workspace_id, source_operation_id, generation, epoch, status)
+      select ${child.spaceId}::uuid, gen_random_uuid(), gen_random_uuid(), 1, 1, 'committed'
       from generate_series(1, 2500)`);
-    await db.insert(executionWorkspaceSnapshots).values({ companyId: child.companyId, executionWorkspaceId: randomUUID(),
+    await db.insert(executionWorkspaceSnapshots).values({ spaceId: child.spaceId, executionWorkspaceId: randomUUID(),
       sourceOperationId: randomUUID(), generation: 1, epoch: 1, status: "committed",
       metadata: { importedWorkspaceChildren: [{ workspaceId: child.workspaceId, snapshotId: child.row.id }] } });
     await db.execute(sql`analyze execution_workspace_snapshots`);
     const plan = await db.execute(sql`explain (format json) select id from execution_workspace_snapshots
-      where company_id = ${child.companyId}::uuid and status <> 'deleted'
+      where space_id = ${child.spaceId}::uuid and status <> 'deleted'
         and metadata ? 'importedWorkspaceChildren'
         and metadata->'importedWorkspaceChildren' @> ${JSON.stringify([{ workspaceId: child.workspaceId, snapshotId: child.row.id }])}::jsonb
       limit 1`);
@@ -183,20 +183,20 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
   });
   it("pins imported child bytes until the covering parent snapshot is deleted", async () => {
     const child = await seed(), parentId = randomUUID(), workspaceId = randomUUID();
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId: child.companyId, name: "Imported parent", mode: "isolated_workspace", strategyType: "project_primary",
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId: child.spaceId, name: "Imported parent", mode: "isolated_workspace", strategyType: "project_primary",
       metadata: { remoteWorkspace: { snapshotId: parentId } } });
-    await db.insert(executionWorkspaceSnapshots).values({ id: parentId, companyId: child.companyId, executionWorkspaceId: workspaceId,
+    await db.insert(executionWorkspaceSnapshots).values({ id: parentId, spaceId: child.spaceId, executionWorkspaceId: workspaceId,
       sourceOperationId: randomUUID(), generation: 1, epoch: 1, status: "committed",
       metadata: { importedWorkspaceChildren: [{ workspaceId: child.workspaceId, snapshotId: child.row.id }] } });
     const owner = service();
     expect(await owner.tick()).toMatchObject({ pinned: 1, deleted: 0 });
     expect(await owner.nextDeadlineAt()).toBeNull();
-    expect((await storage.headObject(child.companyId, child.keys[0]!)).exists).toBe(true);
+    expect((await storage.headObject(child.spaceId, child.keys[0]!)).exists).toBe(true);
     await db.update(executionWorkspaces).set({ metadata: {} }).where(eq(executionWorkspaces.id, workspaceId));
     await db.update(executionWorkspaceSnapshots).set({ status: "superseded", deleteAfter: new Date(now.getTime() - 1) })
       .where(eq(executionWorkspaceSnapshots.id, parentId));
     await owner.tick(); await owner.tick();
-    expect((await storage.headObject(child.companyId, child.keys[0]!)).exists).toBe(false);
+    expect((await storage.headObject(child.spaceId, child.keys[0]!)).exists).toBe(false);
     expect(await owner.nextDeadlineAt()).toBeNull();
   });
   it("purges exact-key S3 versions and delete markers before settling retention", async () => {
@@ -204,10 +204,10 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
     try {
       storage = createStorageService(s3.provider);
       const f = await seed();
-      await storage.putFile({ objectKey: f.keys[0]!, companyId: f.companyId, namespace: "workspace-snapshots", originalFilename: null,
+      await storage.putFile({ objectKey: f.keys[0]!, spaceId: f.spaceId, namespace: "workspace-snapshots", originalFilename: null,
         contentType: "application/octet-stream", body: Buffer.from("older retry bytes") });
-      await storage.deleteObject(f.companyId, f.keys[0]!);
-      expect((await storage.headObject(f.companyId, f.keys[0]!)).exists).toBe(false);
+      await storage.deleteObject(f.spaceId, f.keys[0]!);
+      expect((await storage.headObject(f.spaceId, f.keys[0]!)).exists).toBe(false);
       expect(s3.requests.filter(value => value.method === "GET")).toHaveLength(0);
       const neighbor = `scoped-prefix/${f.keys[0]}-neighbor`;
       s3.add(neighbor);
@@ -260,7 +260,7 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
       const f = await seed();
       const preAborted = new AbortController(); preAborted.abort();
       const before = s3.requests.length;
-      await expect(storage.deleteObject(f.companyId, f.keys[0]!, { allVersions: true, signal: preAborted.signal }))
+      await expect(storage.deleteObject(f.spaceId, f.keys[0]!, { allVersions: true, signal: preAborted.signal }))
         .rejects.toMatchObject({ name: "AbortError" });
       expect(s3.requests).toHaveLength(before);
       await expect(storage.deleteObject(randomUUID(), f.keys[0]!, { allVersions: true })).rejects.toMatchObject({ status: 403 });
@@ -284,11 +284,11 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
     await db.update(executionWorkspaces).set({ metadata: { remoteWorkspace: { snapshotId: f.row.id } } }).where(eq(executionWorkspaces.id, f.workspaceId));
     const owner = service(); expect(await owner.tick()).toMatchObject({ pinned: 1, deleted: 0 });
     expect(await owner.nextDeadlineAt()).toBeNull();
-    expect((await storage.headObject(f.companyId, f.keys[0]!)).exists).toBe(true);
+    expect((await storage.headObject(f.spaceId, f.keys[0]!)).exists).toBe(true);
   });
   it("pins active restore operations and releases an already-due generation on settlement", async () => {
     const f = await seed();
-    const [op] = await db.insert(workspaceOperations).values({ companyId: f.companyId, executionWorkspaceId: f.workspaceId,
+    const [op] = await db.insert(workspaceOperations).values({ spaceId: f.spaceId, executionWorkspaceId: f.workspaceId,
       phase: "remote_workspace_restore", status: "running", metadata: { snapshotId: f.row.id } }).returning();
     const owner = service(); expect(await owner.tick()).toMatchObject({ pinned: 1 }); expect(await owner.nextDeadlineAt()).toBeNull();
     await db.update(workspaceOperations).set({ status: "succeeded" }).where(eq(workspaceOperations.id, op!.id));
@@ -302,23 +302,23 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
     expect(await owner.tick()).toMatchObject({ checked: 1, pinned: 1, deleted: 0 });
     const obsolete = await seed();
     expect(await owner.tick()).toMatchObject({ checked: 1, pinned: 0, deleted: 1 });
-    expect((await storage.headObject(current.companyId, current.keys[0]!)).exists).toBe(true);
-    expect((await storage.headObject(obsolete.companyId, obsolete.keys[0]!)).exists).toBe(false);
+    expect((await storage.headObject(current.spaceId, current.keys[0]!)).exists).toBe(true);
+    expect((await storage.headObject(obsolete.spaceId, obsolete.keys[0]!)).exists).toBe(false);
     expect(await owner.nextDeadlineAt()).toBeNull();
   });
   it("revisits a parent when cleanup of an unfinished child releases its last pin", async () => {
     const parent = await seed("superseded", "10000000-0000-4000-8000-000000000001");
     await db.insert(executionWorkspaceSnapshots).values({ id: "20000000-0000-4000-8000-000000000001",
-      companyId: parent.companyId, executionWorkspaceId: parent.workspaceId, sourceOperationId: randomUUID(),
+      spaceId: parent.spaceId, executionWorkspaceId: parent.workspaceId, sourceOperationId: randomUUID(),
       parentSnapshotId: parent.row.id, generation: 2, epoch: 1, status: "pending",
       deleteAfter: new Date(now.getTime() - 1000), createdAt: new Date(now.getTime() - 10 * 86400_000) });
     const owner = service(), coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError: error => { throw error; } });
     const worker = registerRemoteWorkspaceSnapshotRetentionWork(coordinator, owner, () => {});
     try {
       await vi.waitFor(async () => {
-        for (const key of parent.keys) expect((await storage.headObject(parent.companyId, key)).exists).toBe(false);
+        for (const key of parent.keys) expect((await storage.headObject(parent.spaceId, key)).exists).toBe(false);
         const snapshots = await db.select().from(executionWorkspaceSnapshots)
-          .where(eq(executionWorkspaceSnapshots.companyId, parent.companyId));
+          .where(eq(executionWorkspaceSnapshots.spaceId, parent.spaceId));
         expect(snapshots).toHaveLength(2);
         expect(snapshots).toEqual(expect.arrayContaining([
           expect.objectContaining({ id: parent.row.id, status: "deleted", deleteAfter: null }),
@@ -332,19 +332,19 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
   });
   it("pins an unfinished upload and an active recovery hold", async () => {
     const f = await seed("pending");
-    await db.insert(workspaceOperations).values({ id: f.operationId, companyId: f.companyId, executionWorkspaceId: f.workspaceId,
+    await db.insert(workspaceOperations).values({ id: f.operationId, spaceId: f.spaceId, executionWorkspaceId: f.workspaceId,
       phase: "remote_workspace_snapshot", status: "running" });
     const owner = service(); expect(await owner.tick()).toMatchObject({ pinned: 1 });
     await db.update(workspaceOperations).set({ status: "failed" }).where(eq(workspaceOperations.id, f.operationId));
-    await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId, kind: "active_run_watchdog",
-      ownerType: "board", cause: "workspace_recovery", fingerprint: randomUUID(), nextAction: "Recover saved files" });
+    await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId, kind: "active_run_watchdog",
+      ownerType: "operator", cause: "workspace_recovery", fingerprint: randomUUID(), nextAction: "Recover saved files" });
     expect(await owner.tick()).toMatchObject({ pinned: 1, deleted: 0 }); expect(await owner.nextDeadlineAt()).toBeNull();
   });
-  it("rejects a foreign upload key without deleting another company's object", async () => {
+  it("rejects a foreign upload key without deleting another space's object", async () => {
     const f = await seed(); const foreignKey = `${randomUUID()}/workspace-snapshots/foreign`;
     await db.update(executionWorkspaceSnapshots).set({ metadata: { uploads: [{ objectKey: foreignKey }] } }).where(eq(executionWorkspaceSnapshots.id, f.row.id));
     expect(await service().tick()).toMatchObject({ failed: 1, deleted: 0 });
-    for (const key of f.keys) expect((await storage.headObject(f.companyId, key)).exists).toBe(true);
+    for (const key of f.keys) expect((await storage.headObject(f.spaceId, key)).exists).toBe(true);
     expect(await service().nextDeadlineAt()).toBeGreaterThan(now.getTime());
   });
   it("settles without recurring reads and wakes on the first real producer", async () => {
@@ -355,7 +355,7 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
       await new Promise(resolve => setTimeout(resolve, 30)); expect(run).toHaveBeenCalledOnce();
       const f = await seed();
       await db.transaction(async tx => { await notifyRemoteWorkspaceSnapshots(tx, `workspace:${f.workspaceId}`); });
-      await vi.waitFor(async () => expect((await storage.headObject(f.companyId, f.keys[0]!)).exists).toBe(false));
+      await vi.waitFor(async () => expect((await storage.headObject(f.spaceId, f.keys[0]!)).exists).toBe(false));
       expect(run).toHaveBeenCalledTimes(2);
     } finally { await worker.stop(); await coordinator.stop(); }
   });
@@ -378,7 +378,7 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
       await vi.waitFor(async () => {
         expect(earlier).toBeDefined();
         for (const fixture of [earlier!, later, last]) for (const key of fixture.keys) {
-          expect((await storage.headObject(fixture.companyId, key)).exists).toBe(false);
+          expect((await storage.headObject(fixture.spaceId, key)).exists).toBe(false);
         }
       }, { timeout: 8000, interval: 40 });
       expect(await owner.nextDeadlineAt()).toBeNull();
@@ -388,8 +388,8 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
   });
   it("becomes quiet while recovery pins a snapshot and wakes on the real recovery resolution", async () => {
     const f = await seed();
-    await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId, kind: "active_run_watchdog",
-      ownerType: "board", cause: "workspace_recovery", fingerprint: randomUUID(), nextAction: "Recover saved files" });
+    await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId, kind: "active_run_watchdog",
+      ownerType: "operator", cause: "workspace_recovery", fingerprint: randomUUID(), nextAction: "Recover saved files" });
     const owner = service(), coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, onError: error => { throw error; } });
     const remove = storage.deleteObject.bind(storage);
     let secondDeleteHeld = false, releaseSecondDelete!: () => void;
@@ -402,21 +402,21 @@ describe.skipIf(!support.supported)("remote workspace snapshot retention", () =>
     try {
       await worker.ready;
       expect(await owner.nextDeadlineAt()).toBeNull();
-      expect((await storage.headObject(f.companyId, f.keys[0]!)).exists).toBe(true);
-      const resolved = await issueRecoveryActionService(db).resolveActiveForIssue({ companyId: f.companyId, sourceIssueId: f.issueId,
+      expect((await storage.headObject(f.spaceId, f.keys[0]!)).exists).toBe(true);
+      const resolved = await issueRecoveryActionService(db).resolveActiveForIssue({ spaceId: f.spaceId, sourceIssueId: f.issueId,
         status: "resolved", outcome: "restored", resolutionNote: "Verified saved files" });
       expect(resolved?.status).toBe("resolved");
       try {
         await vi.waitFor(() => expect(secondDeleteHeld).toBe(true));
-        expect((await storage.headObject(f.companyId, f.keys[0]!)).exists).toBe(false);
-        expect((await storage.headObject(f.companyId, f.keys[1]!)).exists).toBe(true);
+        expect((await storage.headObject(f.spaceId, f.keys[0]!)).exists).toBe(false);
+        expect((await storage.headObject(f.spaceId, f.keys[1]!)).exists).toBe(true);
         expect((await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.id, f.row.id)))[0])
           .toMatchObject({ id: f.row.id, status: "delete_requested", deleteAfter: now });
         expect(await owner.nextDeadlineAt()).toBe(now.getTime());
         expect(idleWorkSnapshot().active).toBeGreaterThan(0);
       } finally { releaseSecondDelete(); }
       await vi.waitFor(async () => {
-        for (const key of f.keys) expect((await storage.headObject(f.companyId, key)).exists).toBe(false);
+        for (const key of f.keys) expect((await storage.headObject(f.spaceId, key)).exists).toBe(false);
         expect((await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.id, f.row.id)))[0])
           .toMatchObject({ id: f.row.id, status: "deleted", deleteAfter: null });
         expect(await owner.nextDeadlineAt()).toBeNull();

@@ -9,7 +9,7 @@ function Settings() {
   return (
     <Routes>
       <Route
-        path="/PAP/company/settings/instance/plugins"
+        path="/PAP/space/settings/instance/plugins"
         element={<PluginManager />}
       />
       <Route
@@ -26,7 +26,7 @@ const meta = {
   parameters: {
     layout: "padded",
     initialEntries: ["/PAP/plugins/plugin-gap/settings"],
-    paperclip: {
+    outpost: {
       "capabilities": [
         "plugins/configuration"
       ],

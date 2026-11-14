@@ -16,7 +16,7 @@ export function indexAiAccounts(accounts: AiManagedConnectionSummary[], userId: 
   const groups = new Map<string, AiManagedConnectionSummary[]>();
   for (const account of accounts) {
     if (!isOwnAiAccount(account, userId)) continue;
-    const key = JSON.stringify([account.companyId, account.id]);
+    const key = JSON.stringify([account.spaceId, account.id]);
     const group = groups.get(key);
     if (group) group.push(account);
     else groups.set(key, [account]);
@@ -28,29 +28,29 @@ export function indexAiAccounts(accounts: AiManagedConnectionSummary[], userId: 
 
 type DefaultTarget = { account: AiManagedConnectionSummary; retry: boolean; scope: string };
 
-export function useAiConnectionDefaults(companyId: string | null, identity: { userId: string | null; settled: boolean }, enabled = true) {
+export function useAiConnectionDefaults(spaceId: string | null, identity: { userId: string | null; settled: boolean }, enabled = true) {
   const client = useQueryClient();
   const toast = useOptionalToastActions();
-  const scope = JSON.stringify([companyId, identity.userId, identity.settled]);
+  const scope = JSON.stringify([spaceId, identity.userId, identity.settled]);
   const activeScope = useRef<string | null>(scope);
   activeScope.current = scope;
   useEffect(() => {
     activeScope.current = scope;
     return () => { activeScope.current = null; };
   }, [scope]);
-  const listKey = ["ai-connections", companyId, undefined, identity.userId];
+  const listKey = ["ai-connections", spaceId, undefined, identity.userId];
   const accounts = useQuery({
     queryKey: listKey,
     queryFn: async ({ signal }) => {
-      const result = await aiConnectionsApi.list(companyId!, undefined, { signal, fresh: true });
+      const result = await aiConnectionsApi.list(spaceId!, undefined, { signal, fresh: true });
       if (identity.userId && result.currentUserId !== identity.userId) throw new Error("Your account changed. Refresh your connections.");
       return result;
     },
-    enabled: Boolean(companyId) && identity.settled && enabled,
+    enabled: Boolean(spaceId) && identity.settled && enabled,
     retry: retryTransientOnly(1),
     refetchOnWindowFocus: "always",
   });
-  const mutationKey = ["ai-default", companyId, identity.userId];
+  const mutationKey = ["ai-default", spaceId, identity.userId];
   const pendingProviders = useMutationState({
     filters: { mutationKey, status: "pending" },
     select: mutation => (mutation.state.variables as DefaultTarget).account.provider,
@@ -61,14 +61,14 @@ export function useAiConnectionDefaults(companyId: string | null, identity: { us
       const snapshot = target.retry ? (await accounts.refetch({ throwOnError: true })).data : accounts.data;
       const account = snapshot?.connections.find(candidate => candidate.id === target.account.id && candidate.grantId === target.account.grantId);
       if (activeScope.current !== target.scope || !identity.settled || !snapshot || !account ||
-          account.companyId !== companyId || !isOwnAiAccount(account, snapshot.currentUserId) ||
+          account.spaceId !== spaceId || !isOwnAiAccount(account, snapshot.currentUserId) ||
           !account.canSetDefault || account.status !== "connected" || account.unavailableReason) {
         throw new Error("This account is unavailable as your default. Refresh or reconnect it, then try again.");
       }
-      if (!account.isDefault) await aiConnectionsApi.setDefault(account.companyId, account.grantId);
+      if (!account.isDefault) await aiConnectionsApi.setDefault(account.spaceId, account.grantId);
     },
     onSuccess: async (_result, target) => {
-      await client.invalidateQueries({ queryKey: ["ai-connections", target.account.companyId] });
+      await client.invalidateQueries({ queryKey: ["ai-connections", target.account.spaceId] });
       if (activeScope.current !== target.scope) return;
       const saved = client.getQueryData<AiConnectionList>(listKey)?.connections.find(account => account.grantId === target.account.grantId);
       toast?.pushToast(saved?.isDefault
@@ -82,7 +82,7 @@ export function useAiConnectionDefaults(companyId: string | null, identity: { us
     },
   });
   function choose(account: AiManagedConnectionSummary, retry = false, targetScope = scope) {
-    if (activeScope.current !== targetScope || !identity.settled || !companyId) return;
+    if (activeScope.current !== targetScope || !identity.settled || !spaceId) return;
     if (client.getMutationCache().findAll({ mutationKey, status: "pending" }).some(
       entry => (entry.state.variables as DefaultTarget).account.provider === account.provider,
     )) return;
@@ -94,7 +94,7 @@ export function useAiConnectionDefaults(companyId: string | null, identity: { us
     accounts,
     data,
     accountForConnection: (connection: ToolConnection) => connection.connectionPurpose === "ai" && !aiConnectionRouterPluginKey(connection)
-      ? indexedAccounts?.get(JSON.stringify([connection.companyId, connection.id])) : undefined,
+      ? indexedAccounts?.get(JSON.stringify([connection.spaceId, connection.id])) : undefined,
     choose,
     pending: (provider: AiProvider) => pendingProviders.includes(provider),
     error: mutation.variables?.scope === scope ? mutation.error : null,

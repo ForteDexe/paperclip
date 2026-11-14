@@ -6,8 +6,8 @@ import type {
 } from "@outpost/adapter-utils";
 import {
   buildRuntimeMountedSkillSnapshot,
-  readPaperclipRuntimeSkillEntries,
-  resolveLegacyPaperclipDesiredSkillNames,
+  readOutpostRuntimeSkillEntries,
+  resolveLegacyOutpostDesiredSkillNames,
 } from "@outpost/adapter-utils/server-utils";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -15,8 +15,8 @@ const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
 async function buildGrokSkillSnapshot(
   config: Record<string, unknown>,
 ): Promise<AdapterSkillSnapshot> {
-  const availableEntries = await readPaperclipRuntimeSkillEntries(config, __moduleDir);
-  const desiredSkills = resolveLegacyPaperclipDesiredSkillNames(config, availableEntries);
+  const availableEntries = await readOutpostRuntimeSkillEntries(config, __moduleDir);
+  const desiredSkills = resolveLegacyOutpostDesiredSkillNames(config, availableEntries);
   return buildRuntimeMountedSkillSnapshot({
     adapterType: "grok_local",
     availableEntries,

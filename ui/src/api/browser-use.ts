@@ -46,22 +46,22 @@ export const browserUseApi = {
     api.post(`/issues/${issueId}/browsers/${browserId}/viewport/release`, {
       viewerId,
     }),
-  profiles: (companyId: string, grantId: string) =>
+  profiles: (spaceId: string, grantId: string) =>
     api.get<Array<{ id: string; name: string | null }>>(
-      `/companies/${companyId}/browser-use-cloud/grants/${grantId}/profiles`,
+      `/spaces/${spaceId}/browser-use-cloud/grants/${grantId}/profiles`,
       { cache: "no-store" },
     ),
-  settings: (companyId: string, grantId: string) =>
+  settings: (spaceId: string, grantId: string) =>
     api.get<BrowserUseSettings>(
-      `/companies/${companyId}/browser-use-cloud/grants/${grantId}/settings`,
+      `/spaces/${spaceId}/browser-use-cloud/grants/${grantId}/settings`,
     ),
   saveSettings: (
-    companyId: string,
+    spaceId: string,
     grantId: string,
     value: BrowserUseSettings,
   ) =>
     api.put<BrowserUseSettings>(
-      `/companies/${companyId}/browser-use-cloud/grants/${grantId}/settings`,
+      `/spaces/${spaceId}/browser-use-cloud/grants/${grantId}/settings`,
       value,
     ),
 };

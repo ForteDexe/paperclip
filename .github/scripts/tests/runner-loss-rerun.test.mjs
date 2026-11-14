@@ -192,7 +192,7 @@ test("ineligible runs are rejected before any job is read", async () => {
     [{ event: "push" }, /event is push/],
     [{ path: ".github/workflows/other.yml" }, /workflow is/],
     [{ conclusion: "success" }, /completed\/success/],
-    [{ repository: { id: 1, full_name: "someone/paperclip" } }, /canonical repository/],
+    [{ repository: { id: 1, full_name: "someone/outpost" } }, /canonical repository/],
   ]) {
     const github = fakeGithub(data);
     const decision = await decide(github.client, { ...data.run, ...change });

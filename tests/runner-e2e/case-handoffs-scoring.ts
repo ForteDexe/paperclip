@@ -10,7 +10,7 @@ export function caseHandoffRunFailure(runs: Row[]): string | undefined {
   return `Native workflow run ${failed.id} failed (${failed.errorCode ?? failed.status})`;
 }
 export interface CaseHandoffObservation {
-  nonce: string; companyId: string; taskId: string; caseId: string;
+  nonce: string; spaceId: string; taskId: string; caseId: string;
   agents: { triage: string; implementation: string; verification: string };
   workflowIds: { a: string; b: string };
   issue: Row; caseRecord: Row; cases: Row[]; tasks: Row[]; handoffs: Row[]; runs: Row[];
@@ -59,7 +59,7 @@ export function gradeCaseHandoffs(input: CaseHandoffObservation) {
     "Every receiving run has an observed production read of the task's adopted workflow document.");
   add("one-primary-task", input.tasks.length === 1 && input.tasks[0]?.id === input.taskId && input.cases.length === 1
     && input.caseRecord.id === input.caseId && input.caseRecord.workIssueId === input.taskId && input.cases[0]?.workIssueId === input.taskId,
-  "The public company lists and case detail retain exactly one workflow case and task.");
+  "The public space lists and case detail retain exactly one workflow case and task.");
   add("ordered-durable-handoffs", ordered.length === 4 && ordered.every((h, i) => h.caseId === input.caseId && h.issueId === input.taskId
     && h.version === i + 1 && h.phase === phases[i] && h.toAgentId === agents[i] && h.state === "delivered"),
   "Four delivered handoffs preserve the task through triage, implementation, verification and revision.");
@@ -90,7 +90,7 @@ export function gradeCaseHandoffs(input: CaseHandoffObservation) {
   "The public answer document contains the independently specified result 5 and a saved verifier observation.");
   add("bounded-normal-completion", input.issue.status === "done" && input.issue.assigneeAgentId === input.agents.implementation
     && input.caseRecord.phase === "done" && input.caseRecord.handoffVersion === 5 && !input.caseRecord.pendingHandoff
-    && input.runs.length >= 4 && input.runs.length <= 6 && input.runs.every(r => r.companyId === input.companyId && r.runtimeMode === "native" && r.status === "succeeded"
+    && input.runs.length >= 4 && input.runs.length <= 6 && input.runs.every(r => r.spaceId === input.spaceId && r.runtimeMode === "native" && r.status === "succeeded"
       && [r.issueId, r.nativeIssueId, r.contextSnapshot?.issueId, r.contextSnapshot?.taskId].includes(input.taskId))
     && input.pendingInteractions === 0,
   "The final implementation turn completes normally within six accounted runs and leaves no pending handoff or approval.");

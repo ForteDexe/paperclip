@@ -5,7 +5,7 @@ import { storyById } from "./mcp-user-stories.catalog";
 
 const SCREENSHOT_DIR = "test-results/mcp-user-stories";
 
-type Seed = { companyId: string; prefix: string };
+type Seed = { spaceId: string; prefix: string };
 type Scout = { id: string; name: string };
 type Json = Record<string, unknown>;
 type MockMcpServer = {
@@ -20,16 +20,16 @@ async function json<T = Json>(response: Awaited<ReturnType<APIRequestContext["ge
   return await response.json() as T;
 }
 
-async function newCompany(request: APIRequestContext, label: string): Promise<Seed> {
+async function newSpace(request: APIRequestContext, label: string): Promise<Seed> {
   const body = await json<{ id: string; issuePrefix?: string; prefix?: string; urlKey?: string }>(
-    await request.post("/api/companies", { data: { name: `MCP US ${label} ${Date.now()}` } }),
+    await request.post("/api/spaces", { data: { name: `MCP US ${label} ${Date.now()}` } }),
   );
-  return { companyId: body.id, prefix: body.issuePrefix ?? body.prefix ?? body.urlKey ?? "E2E" };
+  return { spaceId: body.id, prefix: body.issuePrefix ?? body.prefix ?? body.urlKey ?? "E2E" };
 }
 
-async function createScout(request: APIRequestContext, companyId: string): Promise<Scout> {
+async function createScout(request: APIRequestContext, spaceId: string): Promise<Scout> {
   const body = await json<{ id: string; name: string }>(
-    await request.post(`/api/companies/${companyId}/agents`, {
+    await request.post(`/api/spaces/${spaceId}/agents`, {
       data: {
         name: `Scout ${Date.now()}`,
         role: "qa",
@@ -61,7 +61,7 @@ const sessionRes = await fetch(\`\${process.env.OUTPOST_API_URL}/api/tool-gatewa
 if (!sessionRes.ok) throw new Error(\`session \${sessionRes.status}: \${await sessionRes.text()}\`);
 const session = await sessionRes.json();
 const toolsRes = await fetch(\`\${process.env.OUTPOST_API_URL}/api/tool-gateway/tools\`, {
-  headers: { "x-paperclip-tool-gateway-token": session.token }
+  headers: { "x-outpost-tool-gateway-token": session.token }
 });
 if (!toolsRes.ok) throw new Error(\`tools \${toolsRes.status}: \${await toolsRes.text()}\`);
 const tools = await toolsRes.json();
@@ -74,7 +74,7 @@ const callRes = await fetch(\`\${process.env.OUTPOST_API_URL}/api/tool-gateway/t
   method: "POST",
   headers: {
     "content-type": "application/json",
-    "x-paperclip-tool-gateway-token": session.token
+    "x-outpost-tool-gateway-token": session.token
   },
   body: JSON.stringify({
     tool: tool.name,
@@ -203,20 +203,20 @@ async function screenshot(page: Page, storyId: string, step: string) {
 }
 
 async function seedConnectedFixture(request: APIRequestContext, label: string) {
-  const seed = await newCompany(request, label);
-  const scout = await createScout(request, seed.companyId);
+  const seed = await newSpace(request, label);
+  const scout = await createScout(request, seed.spaceId);
   const mock = await startMockMcp();
   const connect = await json<{
     connectionId: string;
     catalog: Array<{ id: string; toolName: string; riskLevel?: string | null }>;
-  }>(await request.post(`/api/companies/${seed.companyId}/tools/apps/connect`, {
+  }>(await request.post(`/api/spaces/${seed.spaceId}/tools/apps/connect`, {
     data: { link: mock.url, name: `Sheets Fixture ${label}` },
   }));
   const enabled = connect.catalog.map((entry) => entry.id);
   const askFirst = connect.catalog
     .filter((entry) => /update|delete|create|send|write/i.test(entry.toolName) || entry.riskLevel === "write" || entry.riskLevel === "destructive")
     .map((entry) => entry.id);
-  await json(await request.post(`/api/companies/${seed.companyId}/tools/apps/${connect.connectionId}/finish`, {
+  await json(await request.post(`/api/spaces/${seed.spaceId}/tools/apps/${connect.connectionId}/finish`, {
     data: {
       enabledCatalogEntryIds: enabled,
       askFirstCatalogEntryIds: askFirst,
@@ -244,15 +244,15 @@ async function testCall(
   }));
 }
 
-async function approveActionRequest(request: APIRequestContext, companyId: string, actionRequestId: string) {
+async function approveActionRequest(request: APIRequestContext, spaceId: string, actionRequestId: string) {
   return await json(await request.post(`/api/tool-gateway/action-requests/${actionRequestId}/approve`, {
-    data: { companyId },
+    data: { spaceId },
   }));
 }
 
-async function declineActionRequest(request: APIRequestContext, companyId: string, actionRequestId: string) {
+async function declineActionRequest(request: APIRequestContext, spaceId: string, actionRequestId: string) {
   return await json(await request.post(`/api/tool-gateway/action-requests/${actionRequestId}/decline`, {
-    data: { companyId },
+    data: { spaceId },
   }));
 }
 
@@ -274,12 +274,12 @@ async function pollTestCall(
 
 async function expectAuditEvent(
   request: APIRequestContext,
-  companyId: string,
+  spaceId: string,
   options: { connectionId: string; agentId: string; search: string },
 ) {
   const audit = await json<{ events: Array<Json> }>(
     await request.get(
-      `/api/tool-gateway/audit?companyId=${companyId}&app=${options.connectionId}&agent=${options.agentId}&search=${encodeURIComponent(options.search)}&limit=50`,
+      `/api/tool-gateway/audit?spaceId=${spaceId}&app=${options.connectionId}&agent=${options.agentId}&search=${encodeURIComponent(options.search)}&limit=50`,
     ),
   );
   expect(audit.events.length, `expected audit/activity row matching ${options.search}`).toBeGreaterThan(0);
@@ -302,7 +302,7 @@ test.describe.serial("MCP prod Phase 5a user-story harness", () => {
         [run.error ?? `heartbeat run ${run.id} did not succeed`, failedLog?.content].filter(Boolean).join("\n"),
       ).toBe("succeeded");
       expect(mock.captures.some((capture) => capture.method === "tools/call" && capture.toolName === "sheets:list_rows")).toBe(true);
-      await expectAuditEvent(request, seed.companyId, { connectionId, agentId: scout.id, search: "sheets:list_rows" });
+      await expectAuditEvent(request, seed.spaceId, { connectionId, agentId: scout.id, search: "sheets:list_rows" });
 
       await page.goto(`/${seed.prefix}/apps/${connectionId}`);
       await expect(page.getByRole("heading", { name: /Sheets Fixture us1/i })).toBeVisible({ timeout: 30_000 });
@@ -328,7 +328,7 @@ test.describe.serial("MCP prod Phase 5a user-story harness", () => {
       await page.getByRole("button", { name: "Allow once", exact: true }).click();
       await pollTestCall(request, connectionId, pending.actionRequestId!, "done");
       expect(mock.captures.filter((capture) => capture.method === "tools/call" && capture.toolName === "sheets:update_cell")).toHaveLength(1);
-      await expectAuditEvent(request, seed.companyId, { connectionId, agentId: scout.id, search: "sheets:update_cell" });
+      await expectAuditEvent(request, seed.spaceId, { connectionId, agentId: scout.id, search: "sheets:update_cell" });
     } finally {
       await mock.close();
     }
@@ -339,7 +339,7 @@ test.describe.serial("MCP prod Phase 5a user-story harness", () => {
     try {
       const pending = await testCall(request, connectionId, scout, "sheets:update_cell", { cell: "A2", value: "denied" });
       expect(pending.actionRequestId).toBeTruthy();
-      await declineActionRequest(request, seed.companyId, pending.actionRequestId!);
+      await declineActionRequest(request, seed.spaceId, pending.actionRequestId!);
       await pollTestCall(request, connectionId, pending.actionRequestId!, "denied");
       expect(mock.captures.some((capture) => capture.method === "tools/call" && capture.toolName === "sheets:update_cell")).toBe(false);
 
@@ -353,7 +353,7 @@ test.describe.serial("MCP prod Phase 5a user-story harness", () => {
   test(`${storyById("US-4").id} ${storyById("US-4").title} @mcp-runnable @mcp-us4`, async ({ page, request }) => {
     const { seed, scout, mock, connectionId } = await seedConnectedFixture(request, "us4");
     try {
-      const block = await json<{ id: string }>(await request.post(`/api/companies/${seed.companyId}/tools/policies`, {
+      const block = await json<{ id: string }>(await request.post(`/api/spaces/${seed.spaceId}/tools/policies`, {
         data: {
           name: "US-4 block fixture connection",
           policyType: "block",
@@ -365,12 +365,12 @@ test.describe.serial("MCP prod Phase 5a user-story harness", () => {
       expect(denied.decision).toBe("off");
       expect(denied.error?.reasonCode).toBeTruthy();
 
-      await json(await request.patch(`/api/companies/${seed.companyId}/tools/policies/${block.id}`, {
+      await json(await request.patch(`/api/spaces/${seed.spaceId}/tools/policies/${block.id}`, {
         data: { enabled: false },
       }));
       const allowed = await testCall(request, connectionId, scout, "sheets:list_rows");
       expect(allowed.decision).toBe("allowed");
-      await expectAuditEvent(request, seed.companyId, { connectionId, agentId: scout.id, search: "sheets:list_rows" });
+      await expectAuditEvent(request, seed.spaceId, { connectionId, agentId: scout.id, search: "sheets:list_rows" });
 
       await page.goto(`/${seed.prefix}/apps/advanced/policies`);
       await screenshot(page, "US-4", "01-policy-flip");
@@ -442,7 +442,7 @@ test.describe.serial("MCP prod Phase 5a user-story harness", () => {
         expect(pending.decision).toBe("ask_first");
         await page.goto(`/${seed.prefix}/apps/${connectionId}/review`);
         await screenshot(page, "US-9", `review-${value}`);
-        await approveActionRequest(request, seed.companyId, pending.actionRequestId!);
+        await approveActionRequest(request, seed.spaceId, pending.actionRequestId!);
         await pollTestCall(request, connectionId, pending.actionRequestId!, "done");
       }
       expect(mock.captures.filter((capture) => capture.method === "tools/call" && capture.toolName === "sheets:update_cell")).toHaveLength(2);

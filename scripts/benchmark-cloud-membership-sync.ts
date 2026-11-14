@@ -5,7 +5,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  agents, applyPendingMigrations, authUsers, companyMemberships, createDb, startEmbeddedPostgresTestDatabase, type Db,
+  agents, applyPendingMigrations, authUsers, spaceMemberships, createDb, startEmbeddedPostgresTestDatabase, type Db,
 } from "../packages/db/src/index.js";
 import { cloudActorHeaderSourceFromHeaders, resolveCloudTenantActor } from "../server/src/middleware/auth.js";
 
@@ -24,24 +24,24 @@ const clients = new Set<Db>();
 
 async function startDatabase() {
   if (!dockerPostgres) return startEmbeddedPostgresTestDatabase("cloud-membership-benchmark-");
-  const container = `paperclip-cloud-membership-${randomUUID()}`;
+  const container = `outpost-cloud-membership-${randomUUID()}`;
   const docker = (...args: string[]) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
   docker("run", "--detach", "--rm", "--name", container, "--label", "outpost.benchmark=cloud-membership",
-    "--publish", "127.0.0.1::5432", "--env", "POSTGRES_USER=paperclip", "--env", "POSTGRES_PASSWORD=paperclip",
-    "--env", "POSTGRES_DB=paperclip", "postgres:17");
+    "--publish", "127.0.0.1::5432", "--env", "POSTGRES_USER=outpost", "--env", "POSTGRES_PASSWORD=outpost",
+    "--env", "POSTGRES_DB=outpost", "postgres:17");
   const cleanup = async () => { docker("rm", "--force", container); };
   try {
     let ready = false;
     for (let attempt = 0; attempt < 100; attempt++) {
       try {
-        docker("exec", container, "pg_isready", "-h", "127.0.0.1", "-U", "paperclip");
+        docker("exec", container, "pg_isready", "-h", "127.0.0.1", "-U", "outpost");
         ready = true;
         break;
       } catch { await new Promise(resolve => setTimeout(resolve, 100)); }
     }
     assert.ok(ready, "Disposable PostgreSQL did not become ready");
     const port = docker("port", container, "5432/tcp").split(":").at(-1);
-    const connectionString = `postgres://paperclip:paperclip@127.0.0.1:${port}/paperclip`;
+    const connectionString = `postgres://outpost:outpost@127.0.0.1:${port}/outpost`;
     await applyPendingMigrations(connectionString);
     return { connectionString, cleanup };
   } catch (error) { await cleanup(); throw error; }
@@ -68,20 +68,20 @@ try {
   process.env.OUTPOST_MANAGED_CONFIG = JSON.stringify({ v: 1, mode: "cloud", catalogVersion: "synthetic", features: { enableOwnerInstanceAdmin: false }, plugins: { autoInstall: [] } });
   const userId = randomUUID();
   const headers = cloudActorHeaderSourceFromHeaders({
-    "x-paperclip-cloud-tenant-token": "synthetic-membership-benchmark",
-    "x-paperclip-cloud-user-id": userId,
-    "x-paperclip-cloud-user-email": `${userId}@example.test`,
-    "x-paperclip-cloud-stack-id": `stack-${randomUUID()}`,
-    "x-paperclip-cloud-stack-role": "owner",
+    "x-outpost-cloud-tenant-token": "synthetic-membership-benchmark",
+    "x-outpost-cloud-user-id": userId,
+    "x-outpost-cloud-user-email": `${userId}@example.test`,
+    "x-outpost-cloud-stack-id": `stack-${randomUUID()}`,
+    "x-outpost-cloud-stack-role": "owner",
   });
   const seeded = await baseline(db, headers);
-  const companyId = seeded!.companyIds![0]!;
-  await db.insert(agents).values({ companyId, name: "Synthetic observer", adapterType: "codex_local" });
+  const spaceId = seeded!.spaceIds![0]!;
+  await db.insert(agents).values({ spaceId, name: "Synthetic observer", adapterType: "codex_local" });
   await db.$client.unsafe("CREATE TABLE cloud_sync_probe (relation text, operation text)");
   await db.$client.unsafe(`CREATE FUNCTION cloud_sync_probe() RETURNS trigger LANGUAGE plpgsql AS $$
     BEGIN INSERT INTO cloud_sync_probe VALUES (TG_TABLE_NAME, TG_OP); RETURN NEW; END $$`);
   await db.$client.unsafe('CREATE TRIGGER cloud_sync_probe AFTER INSERT OR UPDATE ON "user" FOR EACH ROW EXECUTE FUNCTION cloud_sync_probe()');
-  await db.$client.unsafe("CREATE TRIGGER cloud_sync_probe AFTER INSERT OR UPDATE ON company_memberships FOR EACH ROW EXECUTE FUNCTION cloud_sync_probe()");
+  await db.$client.unsafe("CREATE TRIGGER cloud_sync_probe AFTER INSERT OR UPDATE ON space_memberships FOR EACH ROW EXECUTE FUNCTION cloud_sync_probe()");
   const [version] = await db.$client.unsafe("SELECT version(), current_setting('max_connections') AS max_connections");
 
   function observe(client: Db) {
@@ -96,8 +96,8 @@ try {
           const execute = query.execute.bind(query);
           query.execute = (async () => {
             const result = await execute();
-            if (args[0] === authUsers || args[0] === companyMemberships) {
-              statements.push({ table: args[0] === authUsers ? "user" : "company_memberships", ...query.toSQL(), returnedRows: result.length });
+            if (args[0] === authUsers || args[0] === spaceMemberships) {
+              statements.push({ table: args[0] === authUsers ? "user" : "space_memberships", ...query.toSQL(), returnedRows: result.length });
             }
             return result;
           }) as typeof query.execute;
@@ -136,18 +136,18 @@ try {
     }
   }
   for (const before of results.before) {
-    assert.equal(before.statements.filter(statement => statement.table === "company_memberships").length, burstSize);
-    assert.deepEqual(before.writes, [{ relation: "company_memberships", operation: "UPDATE", writes: burstSize }, { relation: "user", operation: "UPDATE", writes: burstSize }]);
+    assert.equal(before.statements.filter(statement => statement.table === "space_memberships").length, burstSize);
+    assert.deepEqual(before.writes, [{ relation: "space_memberships", operation: "UPDATE", writes: burstSize }, { relation: "user", operation: "UPDATE", writes: burstSize }]);
   }
   for (const after of results.after) {
-    assert.equal(after.statements.filter(statement => statement.table === "company_memberships").length, 1);
+    assert.equal(after.statements.filter(statement => statement.table === "space_memberships").length, 1);
     assert.deepEqual(after.writes, []);
-    assert.equal(after.statements.find(statement => statement.table === "company_memberships")!.returnedRows, 0);
+    assert.equal(after.statements.find(statement => statement.table === "space_memberships")!.returnedRows, 0);
   }
   function summarize(samples: typeof results.before) {
     const timings = samples.map(sample => sample.durationMs).sort((left, right) => left - right);
     return { medianMs: timings[2], rangeMs: [timings[0], timings.at(-1)], samplesMs: samples.map(sample => sample.durationMs),
-      membershipStatementsPerBurst: samples[0].statements.filter(statement => statement.table === "company_memberships").length,
+      membershipStatementsPerBurst: samples[0].statements.filter(statement => statement.table === "space_memberships").length,
       tupleWritesPerBurst: samples[0].writes, equalActorsPerBurst: burstSize, statements: samples[0].statements };
   }
   const before = summarize(results.before), after = summarize(results.after);

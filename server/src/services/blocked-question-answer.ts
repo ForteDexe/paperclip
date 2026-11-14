@@ -8,13 +8,13 @@ const AGENT_REPORTED_BLOCKER_REASON_CODES = ["current_track_blocker_waiting", "t
 export type AgentBlockingQuestionState = { lastStatusDecisionId: string; statusVersion: number };
 
 export async function questionsAwaitedByAgentBlock(db: Pick<Db, "select">, input: {
-  companyId: string; issueId: string; agentId: string | null | undefined; reasonCode: string | null;
+  spaceId: string; issueId: string; agentId: string | null | undefined; reasonCode: string | null;
   toStatus: string; unblockOwner: unknown;
 }): Promise<string[]> {
-  if (!input.agentId || input.toStatus !== "blocked" || input.unblockOwner !== "board"
+  if (!input.agentId || input.toStatus !== "blocked" || input.unblockOwner !== "operator"
     || !AGENT_REPORTED_BLOCKER_REASON_CODES.includes(input.reasonCode ?? "")) return [];
   const rows = await db.select({ id: issueThreadInteractions.id }).from(issueThreadInteractions).where(and(
-    eq(issueThreadInteractions.companyId, input.companyId),
+    eq(issueThreadInteractions.spaceId, input.spaceId),
     eq(issueThreadInteractions.issueId, input.issueId),
     eq(issueThreadInteractions.createdByAgentId, input.agentId),
     eq(issueThreadInteractions.status, "pending"),
@@ -25,7 +25,7 @@ export async function questionsAwaitedByAgentBlock(db: Pick<Db, "select">, input
 }
 
 export async function agentBlockingQuestionState(db: Pick<Db, "select">, input: {
-  companyId: string; issueId: string; agentId: string; context: unknown;
+  spaceId: string; issueId: string; agentId: string; context: unknown;
 }): Promise<AgentBlockingQuestionState | null> {
   const interactionId = queuedInteractionId(input.context);
   if (!interactionId) return null;
@@ -35,20 +35,20 @@ export async function agentBlockingQuestionState(db: Pick<Db, "select">, input: 
     .from(issueThreadInteractions)
     .innerJoin(issues, and(
       eq(issues.id, issueThreadInteractions.issueId),
-      eq(issues.companyId, issueThreadInteractions.companyId),
+      eq(issues.spaceId, issueThreadInteractions.spaceId),
     ))
     .innerJoin(statusDecisions, and(
       eq(statusDecisions.id, issues.lastStatusDecisionId),
-      eq(statusDecisions.companyId, issues.companyId),
+      eq(statusDecisions.spaceId, issues.spaceId),
       eq(statusDecisions.issueId, issues.id),
     ))
     .innerJoin(heartbeatRuns, and(
       eq(heartbeatRuns.id, statusDecisions.runId),
-      eq(heartbeatRuns.companyId, statusDecisions.companyId),
+      eq(heartbeatRuns.spaceId, statusDecisions.spaceId),
     ))
     .where(and(
       eq(issueThreadInteractions.id, interactionId),
-      eq(issueThreadInteractions.companyId, input.companyId),
+      eq(issueThreadInteractions.spaceId, input.spaceId),
       eq(issueThreadInteractions.issueId, input.issueId),
       eq(issueThreadInteractions.createdByAgentId, input.agentId),
       eq(issueThreadInteractions.status, String(interactionStatus)),

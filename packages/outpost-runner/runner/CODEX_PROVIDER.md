@@ -56,4 +56,4 @@ input events. Unknown notifications are ignored.
 
 Codex starts with an empty dynamic-tool inventory. Catalog presence is not
 authorization. The coordinator projects only the already landed, same-task
-read bindings for the exact company and native run.
+read bindings for the exact space and native run.

@@ -1,12 +1,12 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { resolvePaperclipInstanceRootForAdapter } from "@outpost/adapter-utils/server-utils";
+import { resolveOutpostInstanceRootForAdapter } from "@outpost/adapter-utils/server-utils";
 
 // `GROK_HOME` replaces `~/.grok` and holds `auth.json` plus session history.
 // Unlike Codex, a Grok `auth.json` has no fixed top-level key: it
 // holds exactly one key, and that key is a composite `<issuer>::<uuid>` value.
-// This module resolves the company-scoped home path and reads its usable-auth
+// This module resolves the space-scoped home path and reads its usable-auth
 // shape. It never writes to the managed home itself; {@link
 // promoteGrokDeviceLoginCredential} in `adapter-auth-promotion.ts` owns that
 // write. {@link stageGrokHomeForSync} writes only to a fresh, private staging
@@ -40,7 +40,7 @@ export async function grokHomeHasSession(home: string, sessionId: string): Promi
 /**
  * The allowlist of managed `GROK_HOME` entries that the grok-local adapter
  * stages into the sandbox `home` asset (see {@link stageGrokHomeForSync}).
- * Paperclip writes instructions and skills under the workspace, not under the
+ * Outpost writes instructions and skills under the workspace, not under the
  * Grok home, so the credential file is the only entry a sandbox run needs.
  */
 export const GROK_SYNC_ALLOWLIST = ["auth.json"] as const;
@@ -109,22 +109,22 @@ export async function grokHomeHasUsableAuth(home: string): Promise<boolean> {
 }
 
 /**
- * Resolves the managed Grok home directory. With a `companyId`, it resolves the
- * company-scoped home under the Paperclip instance tree, the same isolation
+ * Resolves the managed Grok home directory. With a `spaceId`, it resolves the
+ * space-scoped home under the Outpost instance tree, the same isolation
  * boundary `resolveManagedCodexHomeDir` uses. Without one, it resolves the
  * instance-global home, which a promotion must never write.
  */
 export function resolveManagedGrokHomeDir(
   env: NodeJS.ProcessEnv,
-  companyId?: string,
+  spaceId?: string,
 ): string {
-  const instanceRoot = resolvePaperclipInstanceRootForAdapter({
+  const instanceRoot = resolveOutpostInstanceRootForAdapter({
     homeDir: nonEmpty(env.OUTPOST_HOME) ?? undefined,
     instanceId: nonEmpty(env.OUTPOST_INSTANCE_ID) ?? undefined,
     env,
   });
-  return companyId
-    ? path.resolve(instanceRoot, "companies", companyId, "grok-home")
+  return spaceId
+    ? path.resolve(instanceRoot, "spaces", spaceId, "grok-home")
     : path.resolve(instanceRoot, "grok-home");
 }
 
@@ -155,7 +155,7 @@ async function readFileBytesIfPresent(candidate: string): Promise<Buffer | null>
  * - **The symlink is dereferenced to bytes** — the single-use `auth.json`
  *   credential (a symlink into the shared source home) lands as a real file,
  *   never a dangling link.
- * - **A missing `auth.json` is not an error** — a company with no completed
+ * - **A missing `auth.json` is not an error** — a space with no completed
  *   device login yet stages an empty directory.
  * - **`mkdtemp` guarantees the staged dir is `0700`** on POSIX, and the staged
  *   `auth.json` is written `0600` (least privilege).
@@ -170,7 +170,7 @@ export async function stageGrokHomeForSync(
 ): Promise<string> {
   const runIdPart = nonEmpty(options.runId ?? undefined);
   const stagedHome = await fs.mkdtemp(
-    path.join(os.tmpdir(), `paperclip-grok-home-sync-${runIdPart ? `${runIdPart}-` : ""}`),
+    path.join(os.tmpdir(), `outpost-grok-home-sync-${runIdPart ? `${runIdPart}-` : ""}`),
   );
   try {
     for (const entry of GROK_SYNC_ALLOWLIST) {

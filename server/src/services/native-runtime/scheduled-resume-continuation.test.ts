@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRunEvents, heartbeatRuns } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase,
 } from "../../__tests__/helpers/embedded-postgres.js";
@@ -83,19 +83,19 @@ const describeEmbeddedPostgres = support.supported ? describe : describe.skip;
 describeEmbeddedPostgres("the durable stop receipt behind a scheduled resume continuation", () => {
   let db!: ReturnType<typeof createDb>;
   let stopDatabase: (() => Promise<void>) | undefined;
-  let companyId!: string;
+  let spaceId!: string;
   let agentId!: string;
   let deadPid!: number;
 
   beforeAll(async () => {
-    const started = await startEmbeddedPostgresTestDatabase("paperclip-scheduled-resume-continuation-");
+    const started = await startEmbeddedPostgresTestDatabase("outpost-scheduled-resume-continuation-");
     stopDatabase = started.cleanup;
     db = createDb(started.connectionString);
-    companyId = randomUUID();
+    spaceId = randomUUID();
     agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Resume", issuePrefix: "SRC",
-      requireBoardApprovalForNewAgents: false });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", role: "engineer", status: "active",
+    await db.insert(spaces).values({ id: spaceId, name: "Resume", issuePrefix: "SRC",
+      requireOperatorApprovalForNewAgents: false });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Runner", role: "engineer", status: "active",
       adapterType: "outpost_runner", adapterConfig: { provider: "codex" }, runtimeConfig: {}, permissions: {} });
     const child = spawn(process.execPath, ["-e", ""], { stdio: "ignore" });
     await once(child, "exit");
@@ -109,12 +109,12 @@ describeEmbeddedPostgres("the durable stop receipt behind a scheduled resume con
 
   async function seedRun(events: Array<{ eventType: string; payload: Record<string, unknown> }>) {
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "failed", runtimeMode: "native",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "failed", runtimeMode: "native",
       invocationSource: "assignment", triggerDetail: "system", contextSnapshot: {} });
     let seq = 0;
     for (const event of events) {
       seq += 1;
-      await db.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq, eventType: event.eventType,
+      await db.insert(heartbeatRunEvents).values({ spaceId, runId, agentId, seq, eventType: event.eventType,
         stream: "system", level: "info", payload: event.payload });
     }
     return runId;
@@ -123,7 +123,7 @@ describeEmbeddedPostgres("the durable stop receipt behind a scheduled resume con
   const identity = () => ({ processPid: deadPid, processGroupId: deadPid, processStartedAt: "2026-11-10T18:56:54.000Z" });
   const decide = (runId: string, patch: Partial<ScheduledResumeContinuationEvidence> = {}) => {
     const { localStop: _localStop, ...evidence } = { ...proven, ...patch };
-    return scheduledResumeContinuationAllowed(db, { companyId, runId, ...evidence });
+    return scheduledResumeContinuationAllowed(db, { spaceId, runId, ...evidence });
   };
 
   it("allows the continuation after the previous runner's verified stop", async () => {

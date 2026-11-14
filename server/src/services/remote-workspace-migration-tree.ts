@@ -3,7 +3,7 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { and, asc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import { executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, workspaceOperations, type Db } from "@outpost/db";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 import { adapterExecutionControls } from "./adapter-execution-control.js";
 import { assertCurrentWorkspaceSourceHeld, managedProjectSourceIdentity, withWorkspaceSourceLocks } from "./workspace-source-lock.js";
 import { readWorkspaceGitSourceRoots } from "./workspace-git-source-roots.js";
@@ -39,7 +39,7 @@ export async function physicalPath(value: string): Promise<string> {
 
 export function validateImportedWorkspaceChildren(raw: unknown): ImportedWorkspaceChild[] {
   if (!Array.isArray(raw) || raw.some(child => !child || typeof child !== "object"
-    || typeof child.relativePath !== "string" || !child.relativePath.startsWith(".paperclip/worktrees/")
+    || typeof child.relativePath !== "string" || !child.relativePath.startsWith(".outpost/worktrees/")
     || child.relativePath.split("/").some((part: string) => !part || part === "." || part === "..")
     || !/^[a-f0-9-]{36}$/.test(child.workspaceId) || !/^[a-f0-9-]{36}$/.test(child.snapshotId)
     || !/^[a-f0-9-]{36}$/.test(child.operationId) || !/^[a-f0-9]{64}$/.test(child.manifestDigest)))
@@ -56,7 +56,7 @@ export async function offlineWorkspaceMigrationBlockers(db: ReadDb) {
 
 export type WorkspaceMigrationCohort = {
   schema: "outpost.remote-workspace-cohort.v1";
-  id: string; companyId: string; sourceProof: string;
+  id: string; spaceId: string; sourceProof: string;
   members: Array<{ workspaceId: string; operationId: string }>;
 };
 
@@ -68,11 +68,11 @@ export type WorkspaceSourceScope = {
 
 export async function requiresOnlineOrdinarySource(workspace: Workspace): Promise<boolean> {
   if (workspace.providerType !== "local_fs" || workspace.repoUrl || workspace.branchName) return false;
-  const instance = await physicalPath(resolvePaperclipInstanceRoot());
+  const instance = await physicalPath(resolveOutpostInstanceRoot());
   for (const cwd of localWorkspaceSourcePaths(workspace)) {
     const root = await physicalPath(cwd);
     const parts = path.relative(instance, root).split(path.sep);
-    const managed = parts[1] === workspace.companyId && Boolean(workspace.sourceIssueId) && (
+    const managed = parts[1] === workspace.spaceId && Boolean(workspace.sourceIssueId) && (
       parts[0] === "projects" && parts.length === 4 && /^[a-f0-9-]{36}$/.test(parts[2])
       || parts[2] === workspace.sourceIssueId && (parts[0] === "isolated-workspaces" && parts.length === 3
         || parts[0] === "isolated-workspace-attempts" && parts.length === 4));
@@ -88,20 +88,20 @@ export async function requiresOnlineOrdinarySource(workspace: Workspace): Promis
 export async function inspectOnlineOrdinarySource(db: ReadDb, workspace: Workspace): Promise<Omit<WorkspaceSourceScope, "importedChildren"> | null> {
   if (!workspace.cwd || workspace.providerType !== "local_fs" || workspace.repoUrl || workspace.branchName) return null;
   const root = await physicalPath(workspace.cwd);
-  const instance = await physicalPath(resolvePaperclipInstanceRoot());
+  const instance = await physicalPath(resolveOutpostInstanceRoot());
   const parts = path.relative(instance, root).split(path.sep);
   const isolated = workspace.sourceIssueId && ["isolated_workspace", "shared_workspace"].includes(workspace.mode)
-    && parts[1] === workspace.companyId && parts[2] === workspace.sourceIssueId
+    && parts[1] === workspace.spaceId && parts[2] === workspace.sourceIssueId
     && (parts[0] === "isolated-workspaces" && parts.length === 3
       || parts[0] === "isolated-workspace-attempts" && parts.length === 4 && /^[a-zA-Z0-9_-]+$/.test(parts[3]));
-  const projectId = await managedProjectSourceIdentity(workspace.companyId, root);
+  const projectId = await managedProjectSourceIdentity(workspace.spaceId, root);
   if (root !== workspace.cwd || !(isolated || projectId && path.dirname(root) === path.join(
-    instance, "projects", workspace.companyId, projectId))) return null;
+    instance, "projects", workspace.spaceId, projectId))) return null;
   const entry = await fs.lstat(root).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return null; throw error;
   });
   if (!entry?.isDirectory() || entry.isSymbolicLink()) return null;
-  const columns = { id: executionWorkspaces.id, companyId: executionWorkspaces.companyId,
+  const columns = { id: executionWorkspaces.id, spaceId: executionWorkspaces.spaceId,
     cwd: executionWorkspaces.cwd, providerRef: executionWorkspaces.providerRef, providerType: executionWorkspaces.providerType,
     repoUrl: executionWorkspaces.repoUrl, branchName: executionWorkspaces.branchName, sourceIssueId: executionWorkspaces.sourceIssueId,
     strategyType: executionWorkspaces.strategyType, mode: executionWorkspaces.mode, status: executionWorkspaces.status,
@@ -111,7 +111,7 @@ export async function inspectOnlineOrdinarySource(db: ReadDb, workspace: Workspa
       'remoteWorkspace', ${executionWorkspaces.metadata}->'remoteWorkspace')`,
   };
   const rows = await db.select(columns).from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, workspace.companyId),
+    eq(executionWorkspaces.spaceId, workspace.spaceId),
     inArray(executionWorkspaces.providerType, ["local_fs", "git_worktree"]))).limit(1001);
   if (rows.length > 1000) return null;
   const aliases: typeof rows = [];
@@ -132,7 +132,7 @@ export async function inspectOnlineOrdinarySource(db: ReadDb, workspace: Workspa
   for (let page = 0; ; page++) {
     const foreign = await db.select({ id: executionWorkspaces.id, cwd: executionWorkspaces.cwd,
       providerRef: executionWorkspaces.providerRef }).from(executionWorkspaces).where(and(
-      ne(executionWorkspaces.companyId, workspace.companyId),
+      ne(executionWorkspaces.spaceId, workspace.spaceId),
       inArray(executionWorkspaces.providerType, ["local_fs", "git_worktree"]),
       ...(after ? [gt(executionWorkspaces.id, after)] : []),
     )).orderBy(executionWorkspaces.id).limit(256);
@@ -150,7 +150,7 @@ export async function inspectOnlineOrdinarySource(db: ReadDb, workspace: Workspa
     issueIds: [...new Set(aliases.map(row => row.sourceIssueId!))].sort(), workspaceIds: aliases.map(row => row.id).sort() };
 }
 
-export async function onlineOrdinarySourceBlockers(db: Pick<Db, "execute">, companyId: string,
+export async function onlineOrdinarySourceBlockers(db: Pick<Db, "execute">, spaceId: string,
   source: WorkspaceSourceScope, workspace: Pick<Workspace, "id" | "sourceIssueId">, operationId?: string, cohort?: WorkspaceMigrationCohort): Promise<string[]> {
   const workspaceIds = sql.join(source.workspaceIds.map(id => sql`${id}::uuid`), sql`, `);
   const issueIds = sql.join(source.issueIds.map(id => sql`${id}::uuid`), sql`, `);
@@ -162,41 +162,41 @@ export async function onlineOrdinarySourceBlockers(db: Pick<Db, "execute">, comp
       where m."workspaceId"=o.execution_workspace_id and m."operationId"=o.id)` : sql`false`;
   const otherOperation = cohort ? sql`true` : sql`(${operationId ?? null}::uuid is null or o.id<>${operationId ?? null}::uuid)`;
   const rows = await db.execute<{ reason: string }>(sql`
-    select 'active_execution' reason where exists (select 1 from heartbeat_runs r where r.company_id=${companyId}::uuid
+    select 'active_execution' reason where exists (select 1 from heartbeat_runs r where r.space_id=${spaceId}::uuid
       and r.status in ('queued','running') and (r.issue_id in (${issueIds}) or r.native_issue_id in (${issueIds})
         or r.context_snapshot->>'executionWorkspaceId' in (${sql.join(source.workspaceIds.map(id => sql`${id}`), sql`, `)})
         or r.runner_profile_json#>>'{nativeWorkspaceSync,workspaceId}' in (${sql.join(source.workspaceIds.map(id => sql`${id}`), sql`, `)})))
-    union all select 'task_writer_bound' where exists (select 1 from issues i where i.company_id=${companyId}::uuid
+    union all select 'task_writer_bound' where exists (select 1 from issues i where i.space_id=${spaceId}::uuid
       and i.id in (${issueIds}) and (i.execution_run_id is not null or i.checkout_run_id is not null))
-    union all select 'workspace_operation_unresolved' where exists (select 1 from workspace_operations o where o.company_id=${companyId}::uuid
+    union all select 'workspace_operation_unresolved' where exists (select 1 from workspace_operations o where o.space_id=${spaceId}::uuid
       and o.execution_workspace_id in (${workspaceIds}) and ${otherOperation}
       and not coalesce((${admitted}),false) and (o.status in ('running','pending') or o.metadata->>'uncertain'='true'))
-    union all select 'workspace_runtime_owned' where exists (select 1 from execution_workspace_runtime_leases l where l.company_id=${companyId}::uuid
+    union all select 'workspace_runtime_owned' where exists (select 1 from execution_workspace_runtime_leases l where l.space_id=${spaceId}::uuid
       and l.execution_workspace_id in (${workspaceIds}) and l.expires_at>clock_timestamp())
-    union all select 'workspace_runtime_service_unsettled' where exists (select 1 from workspace_runtime_services s where s.company_id=${companyId}::uuid
+    union all select 'workspace_runtime_service_unsettled' where exists (select 1 from workspace_runtime_services s where s.space_id=${spaceId}::uuid
       and s.status<>'stopped' and (s.execution_workspace_id in (${workspaceIds}) or s.project_workspace_id in
-        (select w.project_workspace_id from execution_workspaces w where w.company_id=${companyId}::uuid and w.id in (${workspaceIds}))))
-    union all select 'remote_copyback_unresolved' where exists (select 1 from heartbeat_runs r where r.company_id=${companyId}::uuid
+        (select w.project_workspace_id from execution_workspaces w where w.space_id=${spaceId}::uuid and w.id in (${workspaceIds}))))
+    union all select 'remote_copyback_unresolved' where exists (select 1 from heartbeat_runs r where r.space_id=${spaceId}::uuid
       and r.runner_profile_json#>>'{nativeWorkspaceSync,workspaceId}' in (${sql.join(source.workspaceIds.map(id => sql`${id}`), sql`, `)})
       and (r.runner_profile_json#>>'{nativeWorkspaceSync,workspaceId}'<>${workspace.id}
         and r.runner_profile_json#>>'{nativeWorkspaceSync,state}'='prepared'
         and r.runner_profile_json#>>'{nativeWorkspaceSync,workspaceId}' not in (${settledWorkspaces})
         or r.runner_profile_json->'nativeWorkspaceFinalizationOwner' is not null
         or r.controller_lease_expires_at>clock_timestamp()))
-    union all select 'execution_finalization_unresolved' where exists (select 1 from native_run_finalizations f where f.company_id=${companyId}::uuid
+    union all select 'execution_finalization_unresolved' where exists (select 1 from native_run_finalizations f where f.space_id=${spaceId}::uuid
       and (f.issue_id in (${issueIds}) and f.issue_id<>${workspace.sourceIssueId}::uuid or f.run_id in
-        (select r.id from heartbeat_runs r where r.company_id=${companyId}::uuid
+        (select r.id from heartbeat_runs r where r.space_id=${spaceId}::uuid
           and r.runner_profile_json#>>'{nativeWorkspaceSync,workspaceId}' in (${sql.join(source.workspaceIds.map(id => sql`${id}`), sql`, `)})
           and r.runner_profile_json#>>'{nativeWorkspaceSync,workspaceId}'<>${workspace.id})) and f.run_id not in (${settledFinalizers}) and (f.phase not in ('committed','terminal_failure') or f.lease_owner is not null))
-    union all select 'workspace_recovery_unresolved' where exists (select 1 from issue_recovery_actions a where a.company_id=${companyId}::uuid
+    union all select 'workspace_recovery_unresolved' where exists (select 1 from issue_recovery_actions a where a.space_id=${spaceId}::uuid
       and (a.source_issue_id in (${issueIds}) and a.source_issue_id<>${workspace.sourceIssueId}::uuid or a.source_issue_id in
-        (select r.native_issue_id from heartbeat_runs r where r.company_id=${companyId}::uuid
+        (select r.native_issue_id from heartbeat_runs r where r.space_id=${spaceId}::uuid
           and r.runner_profile_json#>>'{nativeWorkspaceSync,workspaceId}' in (${sql.join(source.workspaceIds.map(id => sql`${id}`), sql`, `)})
           and r.runner_profile_json#>>'{nativeWorkspaceSync,workspaceId}'<>${workspace.id})) and a.source_issue_id not in (${settledRecoveries}) and a.status in ('active','escalated'))
-    union all select 'repository_preparation_unresolved' where exists (select 1 from execution_workspace_repositories r where r.company_id=${companyId}::uuid
+    union all select 'repository_preparation_unresolved' where exists (select 1 from execution_workspace_repositories r where r.space_id=${spaceId}::uuid
       and r.execution_workspace_id in (${workspaceIds}) and r.execution_workspace_id<>${workspace.id}::uuid and r.state<>'ready')`);
   const services = await db.execute<{ cwd: string | null; provider: string }>(sql`
-    select cwd, provider from workspace_runtime_services where company_id=${companyId}::uuid and status<>'stopped' limit 1001`);
+    select cwd, provider from workspace_runtime_services where space_id=${spaceId}::uuid and status<>'stopped' limit 1001`);
   const reasons = rows.map(row => row.reason);
   if (services.length > 1000) reasons.push("workspace_runtime_service_unsettled");
   else for (const service of services) {
@@ -216,7 +216,7 @@ export async function onlineOrdinarySourceBlockers(db: Pick<Db, "execute">, comp
   }
   const controlled = [...adapterExecutionControls.keys()];
   if (controlled.length) {
-    const active = await db.execute(sql`select id from heartbeat_runs where company_id=${companyId}::uuid
+    const active = await db.execute(sql`select id from heartbeat_runs where space_id=${spaceId}::uuid
       and id in (${sql.join(controlled.map(id => sql`${id}::uuid`), sql`, `)})
       and runner_profile_json#>>'{nativeWorkspaceSync,workspaceId}' in (${sql.join(source.workspaceIds.map(id => sql`${id}`), sql`, `)}) limit 1`);
     if (active.length) return [...reasons, "active_execution"];
@@ -232,14 +232,14 @@ export async function workspaceMigrationLayoutBlockers(db: ReadDb, workspace: Wo
   if (!cwd) return [];
   const local = await db.select({ id: executionWorkspaces.id, cwd: executionWorkspaces.cwd,
     providerRef: executionWorkspaces.providerRef }).from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, workspace.companyId), ne(executionWorkspaces.id, workspace.id),
+    eq(executionWorkspaces.spaceId, workspace.spaceId), ne(executionWorkspaces.id, workspace.id),
     inArray(executionWorkspaces.providerType, ["local_fs", "git_worktree"]),
   ));
   const root = await physicalPath(cwd);
   for (const row of local) {
     for (const cwd of localWorkspaceSourcePaths(row)) {
       const physical = await physicalPath(cwd);
-      if (onlineSource?.gitSourceRoots && physical.startsWith(`${root}/.paperclip/worktrees/`)) {
+      if (onlineSource?.gitSourceRoots && physical.startsWith(`${root}/.outpost/worktrees/`)) {
         const entry = await fs.lstat(physical).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; return null; });
         if (entry) return ["nested_workspace_import_required"];
       }
@@ -247,13 +247,13 @@ export async function workspaceMigrationLayoutBlockers(db: ReadDb, workspace: Wo
     }
   }
   const migrated = await db.select({ id: workspaceOperations.id, cwd: workspaceOperations.cwd }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, workspace.companyId), eq(workspaceOperations.phase, "remote_workspace_migration"),
+    eq(workspaceOperations.spaceId, workspace.spaceId), eq(workspaceOperations.phase, "remote_workspace_migration"),
     eq(workspaceOperations.status, "succeeded"), ne(workspaceOperations.executionWorkspaceId, workspace.id),
   ));
   for (const row of migrated) {
     if (!row.cwd) continue;
     const sourcePath = await physicalPath(row.cwd);
-    if (sourcePath.startsWith(`${root}/.paperclip/worktrees/`)
+    if (sourcePath.startsWith(`${root}/.outpost/worktrees/`)
       && !(onlineSource?.gitSourceRoots && onlineSource.importedChildren?.some(child => child.operationId === row.id && child.sourcePath === sourcePath)))
       return ["overlapping_workspace_requires_maintenance"];
   }
@@ -266,10 +266,10 @@ async function importedWorkspaceCandidates(db: ReadDb, workspace: Workspace, lin
   const root = await physicalPath(sourceRoot);
   const rows = await db.select({ operation: workspaceOperations, snapshot: executionWorkspaceSnapshots })
     .from(workspaceOperations).innerJoin(executionWorkspaceSnapshots, and(
-      eq(executionWorkspaceSnapshots.companyId, workspaceOperations.companyId),
+      eq(executionWorkspaceSnapshots.spaceId, workspaceOperations.spaceId),
       eq(executionWorkspaceSnapshots.executionWorkspaceId, workspaceOperations.executionWorkspaceId),
       eq(executionWorkspaceSnapshots.sourceOperationId, workspaceOperations.id),
-    )).where(and(eq(workspaceOperations.companyId, workspace.companyId),
+    )).where(and(eq(workspaceOperations.spaceId, workspace.spaceId),
       ne(workspaceOperations.executionWorkspaceId, workspace.id), eq(workspaceOperations.phase, "remote_workspace_migration"),
       eq(workspaceOperations.status, "succeeded"), inArray(executionWorkspaceSnapshots.status, ["committed", "superseded"]),
       sql`${workspaceOperations.metadata}->>'snapshotId' = ${executionWorkspaceSnapshots.id}::text`,
@@ -281,7 +281,7 @@ async function importedWorkspaceCandidates(db: ReadDb, workspace: Workspace, lin
     located.push({ ...row, sourcePath: await physicalPath(row.operation.cwd) });
   }
   const linked = new Set(linkedRoots);
-  return located.filter(row => row.sourcePath.startsWith(`${root}/.paperclip/worktrees/`) || linked.has(row.sourcePath)
+  return located.filter(row => row.sourcePath.startsWith(`${root}/.outpost/worktrees/`) || linked.has(row.sourcePath)
     && row.operation.finishedAt !== null && row.operation.metadata?.manifestDigest === row.snapshot.manifestDigest)
     .sort((a, b) => a.sourcePath.length - b.sourcePath.length || a.operation.id.localeCompare(b.operation.id));
 }
@@ -294,14 +294,14 @@ export async function inspectImportedWorkspaceSourcePaths(db: ReadDb, workspace:
 }
 
 export function createNestedWorkspaceImportVerifier(input: {
-  db: Db; storage: StorageService; companyId: string; sourceLock: SourceTransaction;
+  db: Db; storage: StorageService; spaceId: string; sourceLock: SourceTransaction;
   projectIds: readonly string[]; issueIds: readonly string[]; signal?: AbortSignal;
 }) {
   let closed = false, current: Promise<ImportedWorkspaceChild[]> | undefined;
   const assertOwner = async () => {
     if (closed) throw new Error("nested_workspace_verifier_closed");
     input.signal?.throwIfAborted();
-    await withWorkspaceSourceLocks(input.db, { companyId: input.companyId, projectIds: input.projectIds, issueIds: input.issueIds }, async lock => {
+    await withWorkspaceSourceLocks(input.db, { spaceId: input.spaceId, projectIds: input.projectIds, issueIds: input.issueIds }, async lock => {
       if (lock !== input.sourceLock) throw new Error("nested_workspace_source_fence_changed");
       await lock.execute(sql`select 1`);
     }, true);
@@ -312,7 +312,7 @@ export function createNestedWorkspaceImportVerifier(input: {
       if (closed || current) return Promise.reject(new Error("nested_workspace_verifier_unavailable"));
       const work = (async () => {
         await assertOwner();
-        if (options.workspace.companyId !== input.companyId) throw new Error("workspace_source_company_mismatch");
+        if (options.workspace.spaceId !== input.spaceId) throw new Error("workspace_source_space_mismatch");
         const sourceRoot = rootOf(options.workspace);
         if (sourceRoot) await assertCurrentWorkspaceSourceHeld(sourceRoot);
         const result = await prepareNestedWorkspaceImports({ ...options, db: input.db, storage: input.storage, signal: input.signal });

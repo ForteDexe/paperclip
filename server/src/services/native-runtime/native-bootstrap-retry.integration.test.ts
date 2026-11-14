@@ -18,16 +18,16 @@ describeEmbeddedPostgres("unclaimed native bootstrap retry admission", () => {
     "current proof", "stale claim", "expired claim", "Stop", "paused agent", "changed model", "changed trust",
     "changed account", "provider progress", "issued and pruned credential", "adopted authority", "legacy state",
     "truncated checkpoint", "local fingerprint mismatch", "local streamed progress", "local missing event policy",
-    "hidden delivery", "unknown command", "foreign company",
+    "hidden delivery", "unknown command", "foreign space",
   ])("admits only a current complete proof: %s", async scenario => {
     const { db, runId, issueId, native } = await environment.seedRun(`ADMISSION-${scenario}`);
-    const { companyId, agentId, runtimeRoot } = environment.current;
+    const { spaceId, agentId, runtimeRoot } = environment.current;
     const [issue] = await db.select().from(issues).where(eq(issues.id, issueId));
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issueId));
     const execution = parseNativeExecutionInput({
       schema: "outpost.native-execution-input.v5", executionMode: "default", planningContext: null,
       runtimeContext: nativeRuntimeContextFixture(),
-      binding: { companyId, agentId, issueId, runId, executionWorkspaceId: runId },
+      binding: { spaceId, agentId, issueId, runId, executionWorkspaceId: runId },
       provider: { kind: "codex", model: "fixture-model", approvalPolicy: "never" },
       task: { identifier: "fixture", title: issue!.title, description: null, prompt: "Controlled admission fixture.", workMode: "standard" },
       workspace: { cwd: runtimeRoot, repoUrl: null, repoRef: null, branchName: null },
@@ -60,7 +60,7 @@ describeEmbeddedPostgres("unclaimed native bootstrap retry admission", () => {
       if (scenario === "hidden delivery") core.store.state.commandDeliveryCounts = { removedCommand: 1 };
       if (scenario === "unknown command") core.queueCommand("turn.start", { prompt: "Prior work must stay held." });
       core.setCheckpointPersistence(nativeRunnerCheckpointWriter(db, {
-        companyId, issueId, runId, authorityRunId: runId, bootId, leaseOwner, generation: 7,
+        spaceId, issueId, runId, authorityRunId: runId, bootId, leaseOwner, generation: 7,
       }));
       await core.flushCheckpoint();
       const projection = join(runtimeRoot, runId, "projection");
@@ -88,14 +88,14 @@ describeEmbeddedPostgres("unclaimed native bootstrap retry admission", () => {
       }
       if (scenario === "truncated checkpoint") await db.delete(nativeRunnerCheckpoints).where(and(
         eq(nativeRunnerCheckpoints.runId, runId), eq(nativeRunnerCheckpoints.part, "command:2")));
-      if (scenario === "provider progress") await db.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: 900,
+      if (scenario === "provider progress") await db.insert(heartbeatRunEvents).values({ spaceId, runId, agentId, seq: 900,
         eventType: "turn.started", stream: "system", level: "info", message: "Prior provider progress", payload: {} });
       if (scenario === "stale claim") await db.update(nativeRunFinalizations).set({ leaseOwner: "successor",
         controllerGeneration: 8 }).where(eq(nativeRunFinalizations.runId, runId));
       if (scenario === "expired claim") await db.update(nativeRunFinalizations).set({ leaseExpiresAt: new Date(0) })
         .where(eq(nativeRunFinalizations.runId, runId));
       if (scenario === "Stop") await db.update(heartbeatRuns).set({ resultJson: {
-        nativeCancellation: { schema: "outpost.native-cancellation.v1", companyId, issueId, runId,
+        nativeCancellation: { schema: "outpost.native-cancellation.v1", spaceId, issueId, runId,
           scope: "run", dispatchState: "pending", intentAuditId: randomUUID() },
       } }).where(eq(heartbeatRuns.id, runId));
       if (scenario === "paused agent") await db.update(agents).set({ status: "paused" }).where(eq(agents.id, agentId));
@@ -104,7 +104,7 @@ describeEmbeddedPostgres("unclaimed native bootstrap retry admission", () => {
       if (scenario === "changed trust" && proposed.provider.kind === "codex") proposed.provider.approvalPolicy = "on-request";
       if (scenario === "changed account") proposed.credentialBindings = [{ bindingId: "different-account", service: "openai",
         destination: "environment", expiresAt: null, displayName: null }];
-      if (scenario === "foreign company") proposed.binding.companyId = randomUUID();
+      if (scenario === "foreign space") proposed.binding.spaceId = randomUUID();
       const [beforeRun] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
       const [beforeClaim] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, runId));
       expect(await admitUnclaimedNativeBootstrapRetry({ db, execution: proposed, leaseOwner, localStateContents }))

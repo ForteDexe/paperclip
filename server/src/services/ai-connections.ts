@@ -14,8 +14,8 @@ import {
   aiProviderDefaults,
   agents,
   heartbeatRuns,
-  companyMemberships,
-  companySecrets,
+  spaceMemberships,
+  spaceSecrets,
   userSecretDefinitions,
   connectionGrants,
   connectionGrantMembers,
@@ -66,73 +66,73 @@ function canUseCredential(
 
 export function aiConnectionService(db: Db) {
   const secrets = secretService(db);
-  async function membership(companyId: string, userId: string | null) {
+  async function membership(spaceId: string, userId: string | null) {
     if (!userId) return false;
     return Boolean(
       (
         await db
-          .select({ id: companyMemberships.id })
-          .from(companyMemberships)
+          .select({ id: spaceMemberships.id })
+          .from(spaceMemberships)
           .where(
             and(
-              eq(companyMemberships.companyId, companyId),
-              eq(companyMemberships.principalType, "user"),
-              eq(companyMemberships.principalId, userId),
-              eq(companyMemberships.status, "active"),
+              eq(spaceMemberships.spaceId, spaceId),
+              eq(spaceMemberships.principalType, "user"),
+              eq(spaceMemberships.principalId, userId),
+              eq(spaceMemberships.status, "active"),
             ),
           )
           .limit(1)
       )[0],
     );
   }
-  async function rows(companyId: string) {
+  async function rows(spaceId: string) {
     return db
       .select({ connection: toolConnections, grant: connectionGrants })
       .from(toolConnections)
       .innerJoin(
         connectionGrants,
         and(
-          eq(connectionGrants.companyId, toolConnections.companyId),
+          eq(connectionGrants.spaceId, toolConnections.spaceId),
           eq(connectionGrants.connectionId, toolConnections.id),
         ),
       )
       .where(
         and(
-          eq(toolConnections.companyId, companyId),
+          eq(toolConnections.spaceId, spaceId),
           eq(toolConnections.connectionPurpose, "ai"),
         ),
       );
   }
   async function list(
-    companyId: string,
+    spaceId: string,
     userId: string,
     _agentId?: string,
   ): Promise<AiManagedConnectionSummary[]> {
     const [accounts, defaults, members, owners] =
       await Promise.all([
-        rows(companyId),
+        rows(spaceId),
         db
           .select()
           .from(aiProviderDefaults)
           .where(
             and(
-              eq(aiProviderDefaults.companyId, companyId),
+              eq(aiProviderDefaults.spaceId, spaceId),
               eq(aiProviderDefaults.userId, userId),
             ),
           ),
         db
           .select()
           .from(connectionGrantMembers)
-          .where(eq(connectionGrantMembers.companyId, companyId)),
+          .where(eq(connectionGrantMembers.spaceId, spaceId)),
         db
           .select({ id: authUsers.id, name: authUsers.name })
           .from(authUsers)
           .innerJoin(
-            companyMemberships,
+            spaceMemberships,
             and(
-              eq(companyMemberships.principalId, authUsers.id),
-              eq(companyMemberships.companyId, companyId),
-              eq(companyMemberships.principalType, "user"),
+              eq(spaceMemberships.principalId, authUsers.id),
+              eq(spaceMemberships.spaceId, spaceId),
+              eq(spaceMemberships.principalType, "user"),
             ),
           ),
       ]);
@@ -148,7 +148,7 @@ export function aiConnectionService(db: Db) {
         {
           id: connection.id,
           grantId: grant.id,
-          companyId,
+          spaceId,
           ...metadata.data,
           usageProbeSupported: supportsAiConnectionUsage(metadata.data.provider, metadata.data.method),
           name: connection.name,
@@ -177,7 +177,7 @@ export function aiConnectionService(db: Db) {
     }).sort((a, b) => a.id.localeCompare(b.id) || a.grantId.localeCompare(b.grantId));
   }
   async function setDefault(
-    companyId: string,
+    spaceId: string,
     userId: string,
     grantId: string,
   ) {
@@ -191,7 +191,7 @@ export function aiConnectionService(db: Db) {
         )
         .where(
           and(
-            eq(connectionGrants.companyId, companyId),
+            eq(connectionGrants.spaceId, spaceId),
             eq(connectionGrants.id, grantId),
             eq(connectionGrants.subjectUserId, userId),
             eq(connectionGrants.kind, "user"),
@@ -213,23 +213,23 @@ export function aiConnectionService(db: Db) {
       if (metadata.routing) throw unprocessable("Custom providers use an explicit connection selection on the agent.");
       // Keep old servers' method preferences intact during an additive rollout.
       await tx.insert(aiConnectionDefaults)
-        .values({ companyId, userId, ...metadata, grantId })
+        .values({ spaceId, userId, ...metadata, grantId })
         .onConflictDoUpdate({
-          target: [aiConnectionDefaults.companyId, aiConnectionDefaults.userId, aiConnectionDefaults.provider, aiConnectionDefaults.method],
+          target: [aiConnectionDefaults.spaceId, aiConnectionDefaults.userId, aiConnectionDefaults.provider, aiConnectionDefaults.method],
           set: { grantId, updatedAt: new Date() },
         });
       await tx.insert(aiProviderDefaults)
-        .values({ companyId, userId, provider: metadata.provider, grantId })
+        .values({ spaceId, userId, provider: metadata.provider, grantId })
         .onConflictDoUpdate({
-          target: [aiProviderDefaults.companyId, aiProviderDefaults.userId, aiProviderDefaults.provider],
+          target: [aiProviderDefaults.spaceId, aiProviderDefaults.userId, aiProviderDefaults.provider],
           set: { grantId, updatedAt: new Date() },
         });
     });
   }
-  async function readableAccount(companyId: string, userId: string, connectionId: string, grantId?: string) {
-    if (!(await membership(companyId, userId))) throw forbidden("An active company member is required");
-    const candidates = (await rows(companyId)).filter((row) => row.connection.id === connectionId && (!grantId || row.grant.id === grantId));
-    const audience = await db.select().from(connectionGrantMembers).where(eq(connectionGrantMembers.companyId, companyId));
+  async function readableAccount(spaceId: string, userId: string, connectionId: string, grantId?: string) {
+    if (!(await membership(spaceId, userId))) throw forbidden("An active space member is required");
+    const candidates = (await rows(spaceId)).filter((row) => row.connection.id === connectionId && (!grantId || row.grant.id === grantId));
+    const audience = await db.select().from(connectionGrantMembers).where(eq(connectionGrantMembers.spaceId, spaceId));
     const visible = candidates.filter(({ grant }) => canUseCredential(grant, userId, audience.filter((member) => member.grantId === grant.id)));
     if (!visible.length) throw notFound("AI connection not found");
     if (visible.length > 1) throw unprocessable("Choose a credential grant for this account check");
@@ -239,8 +239,8 @@ export function aiConnectionService(db: Db) {
     return { row, metadata: metadata.data };
   }
   /** On-demand account observation for either runner; never probes ambient CLI auth. */
-  async function probeUsage(companyId: string, userId: string, connectionId: string, grantId?: string): Promise<AiConnectionUsage> {
-    const { row, metadata } = await readableAccount(companyId, userId, connectionId, grantId);
+  async function probeUsage(spaceId: string, userId: string, connectionId: string, grantId?: string): Promise<AiConnectionUsage> {
+    const { row, metadata } = await readableAccount(spaceId, userId, connectionId, grantId);
     const identity = { connectionId: row.connection.id, grantId: row.grant.id, ...metadata };
     const empty = { ...identity, checkedAt: new Date().toISOString(), source: null, planType: null, limits: [], overage: null };
     if (row.grant.status !== "active" || !row.connection.enabled || row.connection.status !== "active" ||
@@ -253,9 +253,9 @@ export function aiConnectionService(db: Db) {
     const value = await credential(row);
     return { ...identity, ...await probeAiConnectionUsage(metadata, value) };
   }
-  async function accountIdentity(companyId: string, userId: string, connectionId: string, grantId?: string,
+  async function accountIdentity(spaceId: string, userId: string, connectionId: string, grantId?: string,
     audit?: { actorType: "user" | "agent" | "system"; actorId: string; heartbeatRunId?: string | null }): Promise<AiConnectionAccountIdentity> {
-    const { row, metadata } = await readableAccount(companyId, userId, connectionId, grantId);
+    const { row, metadata } = await readableAccount(spaceId, userId, connectionId, grantId);
     const identity = { connectionId: row.connection.id, grantId: row.grant.id };
     if (row.grant.status !== "active" || !row.connection.enabled || row.connection.status !== "active" ||
       row.connection.healthStatus !== "ok" || aiSubscriptionNeedsIsolatedLogin(row.connection.config)) {
@@ -268,7 +268,7 @@ export function aiConnectionService(db: Db) {
     return { ...identity, ...await probeAiAccountIdentity(metadata, value) };
   }
   async function select(input: {
-    companyId: string;
+    spaceId: string;
     userId: string | null;
     agentId: string;
     adapterType: string;
@@ -280,7 +280,7 @@ export function aiConnectionService(db: Db) {
     allowLegacyValidation?: boolean;
     binding: AiConnectionBinding;
   }) {
-    const { companyId, userId, agentId, binding } = input;
+    const { spaceId, userId, agentId, binding } = input;
     // The grant-kind checks below cover only these three modes. Callers parse
     // the binding first, but an unknown mode must never skip those checks.
     if (binding.mode !== "responsible_user" && binding.mode !== "shared" && binding.mode !== "delegated")
@@ -297,8 +297,8 @@ export function aiConnectionService(db: Db) {
       throw aiConnectionConfigurationFailure("ai_connection_incompatible", "Select an AI connection compatible with this harness and model");
     if (binding.mode === "responsible_user" && !userId)
       throw aiConnectionConfigurationFailure("ai_connection_responsible_user_missing", "This run needs a responsible user to select an AI connection");
-    if (userId && !(await membership(companyId, userId)))
-      throw forbidden("The responsible user is not an active company member");
+    if (userId && !(await membership(spaceId, userId)))
+      throw forbidden("The responsible user is not an active space member");
     const defaultRow =
       binding.mode === "responsible_user"
         ? (
@@ -307,7 +307,7 @@ export function aiConnectionService(db: Db) {
               .from(aiProviderDefaults)
               .where(
                 and(
-                  eq(aiProviderDefaults.companyId, companyId),
+                  eq(aiProviderDefaults.spaceId, spaceId),
                   eq(aiProviderDefaults.userId, userId!),
                   eq(aiProviderDefaults.provider, binding.provider),
                 ),
@@ -321,7 +321,7 @@ export function aiConnectionService(db: Db) {
         : binding.grantId;
     if (!grantId)
       throw aiConnectionConfigurationFailure("ai_connection_default_missing", "Connect an account and choose your personal default");
-    const row = (await rows(companyId)).find(
+    const row = (await rows(spaceId)).find(
       (r) =>
         r.grant.id === grantId &&
         (binding.mode === "responsible_user" ||
@@ -353,10 +353,10 @@ export function aiConnectionService(db: Db) {
       throw aiConnectionConfigurationFailure("ai_connection_unavailable", "Reconnect or validate the selected AI account", { connectionId: connection.id });
     if (
       grant.kind === "user" &&
-      !(await membership(companyId, grant.subjectUserId))
+      !(await membership(spaceId, grant.subjectUserId))
     )
       throw forbidden(
-        "The account owner is no longer an active company member",
+        "The account owner is no longer an active space member",
       );
     if (
       binding.mode === "responsible_user" &&
@@ -364,14 +364,14 @@ export function aiConnectionService(db: Db) {
     )
       throw forbidden("The default must belong to the responsible user");
     if (binding.mode === "shared" && grant.kind !== "organization")
-      throw forbidden("Select a company-shared account");
+      throw forbidden("Select a space-shared account");
     if (binding.mode === "delegated" && grant.kind !== "user")
       throw forbidden("Select a personal account");
     const audience = await db
       .select()
       .from(connectionGrantMembers)
       .where(and(
-        eq(connectionGrantMembers.companyId, companyId),
+        eq(connectionGrantMembers.spaceId, spaceId),
         eq(connectionGrantMembers.grantId, grant.id),
       ));
     // The existing human-access permission is authoritative for every binding,
@@ -387,12 +387,12 @@ export function aiConnectionService(db: Db) {
       .from(toolConnectionInstalls)
       .where(
         and(
-          eq(toolConnectionInstalls.companyId, companyId),
+          eq(toolConnectionInstalls.spaceId, spaceId),
           eq(toolConnectionInstalls.connectionId, connection.id),
           or(
             and(
-              eq(toolConnectionInstalls.targetType, "company"),
-              eq(toolConnectionInstalls.targetId, companyId),
+              eq(toolConnectionInstalls.targetType, "space"),
+              eq(toolConnectionInstalls.targetId, spaceId),
             ),
             and(
               eq(toolConnectionInstalls.targetType, "agent"),
@@ -424,13 +424,13 @@ export function aiConnectionService(db: Db) {
   }
   /** Internal decision use has its own capability check, never a pretend CLI harness. */
   async function selectDecision(input: {
-    companyId: string; connectionId: string; grantId: string;
+    spaceId: string; connectionId: string; grantId: string;
     userId: string | null; agentId?: string | null; sponsoredBackground?: boolean;
   }) {
     const [row] = await db.select({ connection: toolConnections, grant: connectionGrants })
       .from(toolConnections).innerJoin(connectionGrants, and(
-        eq(connectionGrants.connectionId, toolConnections.id), eq(connectionGrants.companyId, toolConnections.companyId),
-      )).where(and(eq(toolConnections.companyId, input.companyId), eq(toolConnections.id, input.connectionId),
+        eq(connectionGrants.connectionId, toolConnections.id), eq(connectionGrants.spaceId, toolConnections.spaceId),
+      )).where(and(eq(toolConnections.spaceId, input.spaceId), eq(toolConnections.id, input.connectionId),
         eq(connectionGrants.id, input.grantId), eq(toolConnections.connectionPurpose, "ai"))).limit(1);
     if (!row || row.grant.kind !== "organization") throw unprocessable("Shared AI connection unavailable", { code: "connection_unavailable" });
     const metadata = aiConnectionMetadataSchema.safeParse(row.connection.config.ai);
@@ -440,16 +440,16 @@ export function aiConnectionService(db: Db) {
       throw unprocessable("Reconnect or enable this connection", { code: "connection_unavailable" });
     // Only the decision service may sponsor background use; ordinary AI selection never bypasses an audience.
     if (!input.sponsoredBackground) {
-      if (!(await membership(input.companyId, input.userId))) throw forbidden("Active responsible user required");
+      if (!(await membership(input.spaceId, input.userId))) throw forbidden("Active responsible user required");
       const audience = await db.select().from(connectionGrantMembers).where(and(
-        eq(connectionGrantMembers.companyId, input.companyId), eq(connectionGrantMembers.grantId, input.grantId),
+        eq(connectionGrantMembers.spaceId, input.spaceId), eq(connectionGrantMembers.grantId, input.grantId),
       ));
       if (!canUseCredential(row.grant, input.userId, audience)) throw forbidden("Connection is not shared with this user");
     } else if (input.userId || input.agentId) throw forbidden("Background sponsorship cannot replace caller permissions");
     if (input.agentId) {
       const [install] = await db.select({ id: toolConnectionInstalls.id }).from(toolConnectionInstalls).where(and(
-        eq(toolConnectionInstalls.companyId, input.companyId), eq(toolConnectionInstalls.connectionId, input.connectionId),
-        or(and(eq(toolConnectionInstalls.targetType, "company"), eq(toolConnectionInstalls.targetId, input.companyId)),
+        eq(toolConnectionInstalls.spaceId, input.spaceId), eq(toolConnectionInstalls.connectionId, input.connectionId),
+        or(and(eq(toolConnectionInstalls.targetType, "space"), eq(toolConnectionInstalls.targetId, input.spaceId)),
           and(eq(toolConnectionInstalls.targetType, "agent"), eq(toolConnectionInstalls.targetId, input.agentId))),
       )).limit(1);
       if (!install) throw forbidden("Connection is not permitted for this agent");
@@ -463,13 +463,13 @@ export function aiConnectionService(db: Db) {
    * with the responsible user and installed for this agent.
    */
   async function selectImageGeneration(input: {
-    companyId: string; connectionId: string; grantId: string;
+    spaceId: string; connectionId: string; grantId: string;
     userId: string | null; agentId: string;
   }) {
     const [row] = await db.select({ connection: toolConnections, grant: connectionGrants })
       .from(toolConnections).innerJoin(connectionGrants, and(
-        eq(connectionGrants.connectionId, toolConnections.id), eq(connectionGrants.companyId, toolConnections.companyId),
-      )).where(and(eq(toolConnections.companyId, input.companyId), eq(toolConnections.id, input.connectionId),
+        eq(connectionGrants.connectionId, toolConnections.id), eq(connectionGrants.spaceId, toolConnections.spaceId),
+      )).where(and(eq(toolConnections.spaceId, input.spaceId), eq(toolConnections.id, input.connectionId),
         eq(connectionGrants.id, input.grantId), eq(toolConnections.connectionPurpose, "ai"))).limit(1);
     if (!row) throw unprocessable("AI connection unavailable", { code: "connection_unavailable" });
     const metadata = aiConnectionMetadataSchema.safeParse(row.connection.config.ai);
@@ -477,16 +477,16 @@ export function aiConnectionService(db: Db) {
       throw unprocessable("Image generation needs an OpenAI API-key connection", { code: "incompatible_connection" });
     if (row.grant.status !== "active" || !row.connection.enabled || row.connection.status !== "active" || row.connection.healthStatus !== "ok")
       throw unprocessable("Reconnect or enable this connection", { code: "connection_unavailable" });
-    if (!input.userId || !(await membership(input.companyId, input.userId))) throw forbidden("Active responsible user required");
-    if (row.grant.kind === "user" && !(await membership(input.companyId, row.grant.subjectUserId)))
-      throw forbidden("The account owner is no longer an active company member");
+    if (!input.userId || !(await membership(input.spaceId, input.userId))) throw forbidden("Active responsible user required");
+    if (row.grant.kind === "user" && !(await membership(input.spaceId, row.grant.subjectUserId)))
+      throw forbidden("The account owner is no longer an active space member");
     const audience = await db.select().from(connectionGrantMembers).where(and(
-      eq(connectionGrantMembers.companyId, input.companyId), eq(connectionGrantMembers.grantId, input.grantId),
+      eq(connectionGrantMembers.spaceId, input.spaceId), eq(connectionGrantMembers.grantId, input.grantId),
     ));
     if (!canUseCredential(row.grant, input.userId, audience)) throw forbidden("Connection is not shared with this user");
     const [install] = await db.select({ id: toolConnectionInstalls.id }).from(toolConnectionInstalls).where(and(
-      eq(toolConnectionInstalls.companyId, input.companyId), eq(toolConnectionInstalls.connectionId, input.connectionId),
-      or(and(eq(toolConnectionInstalls.targetType, "company"), eq(toolConnectionInstalls.targetId, input.companyId)),
+      eq(toolConnectionInstalls.spaceId, input.spaceId), eq(toolConnectionInstalls.connectionId, input.connectionId),
+      or(and(eq(toolConnectionInstalls.targetType, "space"), eq(toolConnectionInstalls.targetId, input.spaceId)),
         and(eq(toolConnectionInstalls.targetType, "agent"), eq(toolConnectionInstalls.targetId, input.agentId))),
     )).limit(1);
     if (!install) throw forbidden("Connection is not permitted for this agent");
@@ -494,13 +494,13 @@ export function aiConnectionService(db: Db) {
   }
   /** Internal fast-response use has its own capability check, never a pretend CLI harness. */
   async function selectFastResponse(input: {
-    companyId: string; connectionId: string; grantId: string;
+    spaceId: string; connectionId: string; grantId: string;
     userId: string | null; agentId?: string | null; sponsoredBackground?: boolean;
   }) {
     const [row] = await db.select({ connection: toolConnections, grant: connectionGrants })
       .from(toolConnections).innerJoin(connectionGrants, and(
-        eq(connectionGrants.connectionId, toolConnections.id), eq(connectionGrants.companyId, toolConnections.companyId),
-      )).where(and(eq(toolConnections.companyId, input.companyId), eq(toolConnections.id, input.connectionId),
+        eq(connectionGrants.connectionId, toolConnections.id), eq(connectionGrants.spaceId, toolConnections.spaceId),
+      )).where(and(eq(toolConnections.spaceId, input.spaceId), eq(toolConnections.id, input.connectionId),
         eq(connectionGrants.id, input.grantId), eq(toolConnections.connectionPurpose, "ai"))).limit(1);
     if (!row || row.grant.kind !== "organization") throw unprocessable("Shared AI connection unavailable", { code: "connection_unavailable" });
     const metadata = aiConnectionMetadataSchema.safeParse(row.connection.config.ai);
@@ -510,16 +510,16 @@ export function aiConnectionService(db: Db) {
       throw unprocessable("Reconnect or enable this connection", { code: "connection_unavailable" });
     // Only internal fast responses may sponsor background use; ordinary AI selection never bypasses an audience.
     if (!input.sponsoredBackground) {
-      if (!(await membership(input.companyId, input.userId))) throw forbidden("Active responsible user required");
+      if (!(await membership(input.spaceId, input.userId))) throw forbidden("Active responsible user required");
       const audience = await db.select().from(connectionGrantMembers).where(and(
-        eq(connectionGrantMembers.companyId, input.companyId), eq(connectionGrantMembers.grantId, input.grantId),
+        eq(connectionGrantMembers.spaceId, input.spaceId), eq(connectionGrantMembers.grantId, input.grantId),
       ));
       if (!canUseCredential(row.grant, input.userId, audience)) throw forbidden("Connection is not shared with this user");
     } else if (input.userId) throw forbidden("Background sponsorship cannot replace caller permissions");
     if (input.agentId) {
       const [install] = await db.select({ id: toolConnectionInstalls.id }).from(toolConnectionInstalls).where(and(
-        eq(toolConnectionInstalls.companyId, input.companyId), eq(toolConnectionInstalls.connectionId, input.connectionId),
-        or(and(eq(toolConnectionInstalls.targetType, "company"), eq(toolConnectionInstalls.targetId, input.companyId)),
+        eq(toolConnectionInstalls.spaceId, input.spaceId), eq(toolConnectionInstalls.connectionId, input.connectionId),
+        or(and(eq(toolConnectionInstalls.targetType, "space"), eq(toolConnectionInstalls.targetId, input.spaceId)),
           and(eq(toolConnectionInstalls.targetType, "agent"), eq(toolConnectionInstalls.targetId, input.agentId))),
       )).limit(1);
       if (!install) throw forbidden("Connection is not permitted for this agent");
@@ -527,13 +527,13 @@ export function aiConnectionService(db: Db) {
     return { ...row, provider };
   }
   async function selectPromptInjectionPrevention(input: {
-    companyId: string; connectionId: string; grantId: string;
+    spaceId: string; connectionId: string; grantId: string;
     userId: string | null; agentId?: string | null; sponsoredBackground?: boolean;
   }) {
     const [row] = await db.select({ connection: toolConnections, grant: connectionGrants })
       .from(toolConnections).innerJoin(connectionGrants, and(
-        eq(connectionGrants.connectionId, toolConnections.id), eq(connectionGrants.companyId, toolConnections.companyId),
-      )).where(and(eq(toolConnections.companyId, input.companyId), eq(toolConnections.id, input.connectionId),
+        eq(connectionGrants.connectionId, toolConnections.id), eq(connectionGrants.spaceId, toolConnections.spaceId),
+      )).where(and(eq(toolConnections.spaceId, input.spaceId), eq(toolConnections.id, input.connectionId),
         eq(connectionGrants.id, input.grantId), eq(toolConnections.connectionPurpose, "ai"))).limit(1);
     if (!row || row.grant.kind !== "organization") throw unprocessable("Shared AI connection unavailable", { code: "connection_unavailable" });
     const metadata = aiConnectionMetadataSchema.safeParse(row.connection.config.ai);
@@ -543,16 +543,16 @@ export function aiConnectionService(db: Db) {
       throw unprocessable("Reconnect or enable this connection", { code: "connection_unavailable" });
     // Only internal prompt injection checks may sponsor background use; ordinary AI selection never bypasses an audience.
     if (!input.sponsoredBackground) {
-      if (!(await membership(input.companyId, input.userId))) throw forbidden("Active responsible user required");
+      if (!(await membership(input.spaceId, input.userId))) throw forbidden("Active responsible user required");
       const audience = await db.select().from(connectionGrantMembers).where(and(
-        eq(connectionGrantMembers.companyId, input.companyId), eq(connectionGrantMembers.grantId, input.grantId),
+        eq(connectionGrantMembers.spaceId, input.spaceId), eq(connectionGrantMembers.grantId, input.grantId),
       ));
       if (!canUseCredential(row.grant, input.userId, audience)) throw forbidden("Connection is not shared with this user");
     } else if (input.userId) throw forbidden("Background sponsorship cannot replace caller permissions");
     if (input.agentId) {
       const [install] = await db.select({ id: toolConnectionInstalls.id }).from(toolConnectionInstalls).where(and(
-        eq(toolConnectionInstalls.companyId, input.companyId), eq(toolConnectionInstalls.connectionId, input.connectionId),
-        or(and(eq(toolConnectionInstalls.targetType, "company"), eq(toolConnectionInstalls.targetId, input.companyId)),
+        eq(toolConnectionInstalls.spaceId, input.spaceId), eq(toolConnectionInstalls.connectionId, input.connectionId),
+        or(and(eq(toolConnectionInstalls.targetType, "space"), eq(toolConnectionInstalls.targetId, input.spaceId)),
           and(eq(toolConnectionInstalls.targetType, "agent"), eq(toolConnectionInstalls.targetId, input.agentId))),
       )).limit(1);
       if (!install) throw forbidden("Connection is not permitted for this agent");
@@ -571,11 +571,11 @@ export function aiConnectionService(db: Db) {
       });
     const [secret] = await db
       .select()
-      .from(companySecrets)
+      .from(spaceSecrets)
       .where(
         and(
-          eq(companySecrets.id, ref.secretId),
-          eq(companySecrets.companyId, row.connection.companyId),
+          eq(spaceSecrets.id, ref.secretId),
+          eq(spaceSecrets.spaceId, row.connection.spaceId),
         ),
       );
     if (!secret)
@@ -584,7 +584,7 @@ export function aiConnectionService(db: Db) {
       });
     if (row.grant.kind === "user" && secret.scope !== "user")
       throw forbidden("Credential ownership mismatch");
-    if (row.grant.kind === "organization" && secret.scope !== "company") throw forbidden("Credential ownership mismatch");
+    if (row.grant.kind === "organization" && secret.scope !== "space") throw forbidden("Credential ownership mismatch");
     const context = {
       consumerType: "tool_connection" as const,
       consumerId: row.connection.id,
@@ -601,7 +601,7 @@ export function aiConnectionService(db: Db) {
       )
         throw forbidden("Credential ownership mismatch");
       const result = await secrets.resolveUserSecretValue(
-        row.connection.companyId,
+        row.connection.spaceId,
         {
           definitionId: secret.userSecretDefinitionId,
           responsibleUserId: secret.ownerUserId,
@@ -613,12 +613,12 @@ export function aiConnectionService(db: Db) {
       if (!result) throw unprocessable("Reconnect this AI account");
       value = result.value;
     } else {
-      value = await secrets.resolveSecretValue(row.connection.companyId, secret.id, "latest", context);
+      value = await secrets.resolveSecretValue(row.connection.spaceId, secret.id, "latest", context);
     }
     // Resolution records lastResolvedAt and can wait behind a rotating writer.
     // Re-read after that wait instead of handing a run the pre-rotation token.
-    const [latest] = await db.select().from(companySecrets).where(and(
-      eq(companySecrets.id, secret.id), eq(companySecrets.companyId, row.connection.companyId),
+    const [latest] = await db.select().from(spaceSecrets).where(and(
+      eq(spaceSecrets.id, secret.id), eq(spaceSecrets.spaceId, row.connection.spaceId),
     ));
     if (!latest || latest.status !== "active") throw unprocessable("Reconnect this AI account");
     if (latest.latestVersion !== secret.latestVersion) {
@@ -628,7 +628,7 @@ export function aiConnectionService(db: Db) {
     return value;
   }
   async function save(
-    companyId: string,
+    spaceId: string,
     userId: string,
     input: CreateAiConnection | AiConnectionLoginIntent,
     verifiedCredential: string,
@@ -639,10 +639,10 @@ export function aiConnectionService(db: Db) {
   ) {
     await managementContext?.reauthorize();
     const routing = "routing" in input ? input.routing : undefined;
-    if (!(await membership(companyId, userId)))
-      throw forbidden("An active company member must own this connection");
+    if (!(await membership(spaceId, userId)))
+      throw forbidden("An active space member must own this connection");
     const reconnect = input.connectionId
-      ? (await rows(companyId)).find(
+      ? (await rows(spaceId)).find(
           (r) => r.connection.id === input.connectionId,
         )
       : undefined;
@@ -674,7 +674,7 @@ export function aiConnectionService(db: Db) {
       );
     const id = reconnect?.connection.id ?? randomUUID();
     const grantId = reconnect?.grant.id ?? randomUUID();
-    const persist = () => withAccountHomeSecretMutationLock(undefined, companyId, () => db.transaction(async (tx) => {
+    const persist = () => withAccountHomeSecretMutationLock(undefined, spaceId, () => db.transaction(async (tx) => {
       await managementContext?.reauthorize();
       const secrets = secretService(tx);
       if (loginSession) {
@@ -684,7 +684,7 @@ export function aiConnectionService(db: Db) {
           .where(
             and(
               eq(adapterAuthSessions.id, loginSession.id),
-              eq(adapterAuthSessions.companyId, companyId),
+              eq(adapterAuthSessions.spaceId, spaceId),
               eq(adapterAuthSessions.startedByUserId, userId),
             ),
           )
@@ -737,10 +737,10 @@ export function aiConnectionService(db: Db) {
       // indexed credential must leave every legacy consumer's value untouched,
       // even after adoption has cleared the connection's validation marker.
       if (secretId) {
-        const [source] = await tx.select({ name: companySecrets.name, key: userSecretDefinitions.key })
-          .from(companySecrets)
-          .leftJoin(userSecretDefinitions, eq(userSecretDefinitions.id, companySecrets.userSecretDefinitionId))
-          .where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.id, secretId)));
+        const [source] = await tx.select({ name: spaceSecrets.name, key: userSecretDefinitions.key })
+          .from(spaceSecrets)
+          .leftJoin(userSecretDefinitions, eq(userSecretDefinitions.id, spaceSecrets.userSecretDefinitionId))
+          .where(and(eq(spaceSecrets.spaceId, spaceId), eq(spaceSecrets.id, secretId)));
         const privateSlot = input.ownership === "personal"
           ? source?.key === `ai_${grantId.replaceAll("-", "_")}`
           : source?.name === `ai-${grantId}`;
@@ -755,7 +755,7 @@ export function aiConnectionService(db: Db) {
         );
       else if (input.ownership === "personal") {
         const definition = await secrets.createUserSecretDefinition(
-          companyId,
+          spaceId,
           {
             key: `ai_${grantId.replaceAll("-", "_")}`,
             name: input.name,
@@ -764,7 +764,7 @@ export function aiConnectionService(db: Db) {
           { userId },
         );
         const secret = await secrets.createCurrentUserSecretValue(
-          companyId,
+          spaceId,
           userId,
           { definitionId: definition.id, value: verifiedCredential },
           { userId },
@@ -773,7 +773,7 @@ export function aiConnectionService(db: Db) {
       } else
         secretId = (
           await secrets.create(
-            companyId,
+            spaceId,
             {
               name: `ai-${grantId}`,
               provider: "local_encrypted",
@@ -788,12 +788,12 @@ export function aiConnectionService(db: Db) {
           .from(agents)
           .where(
             and(
-              eq(agents.companyId, companyId),
+              eq(agents.spaceId, spaceId),
               inArray(agents.id, input.agentIds),
             ),
           );
         if (targets.length !== new Set(input.agentIds).size)
-          throw forbidden("Agent does not belong to this company");
+          throw forbidden("Agent does not belong to this space");
       }
       const source = aiConnectionCatalogSlug(input.provider, routing);
       const providerName = getAppStoreDefinition(source)?.name ?? AI_CONNECTION_CAPABILITIES[input.provider].name;
@@ -801,7 +801,7 @@ export function aiConnectionService(db: Db) {
       await tx
         .insert(toolApplications)
         .values({
-          companyId,
+          spaceId,
           applicationKey: key,
           name: providerName,
           type: "mcp_http",
@@ -814,7 +814,7 @@ export function aiConnectionService(db: Db) {
         .from(toolApplications)
         .where(
           and(
-            eq(toolApplications.companyId, companyId),
+            eq(toolApplications.spaceId, spaceId),
             or(
               eq(toolApplications.applicationKey, key),
               eq(
@@ -842,7 +842,7 @@ export function aiConnectionService(db: Db) {
           .insert(toolConnections)
           .values({
             id,
-            companyId,
+            spaceId,
             applicationId: app.id,
             name: input.name,
             uid: `ai-${id}`,
@@ -907,7 +907,7 @@ export function aiConnectionService(db: Db) {
           .insert(connectionGrants)
           .values({
             id: grantId,
-            companyId,
+            spaceId,
             connectionId: id,
             kind: input.ownership === "personal" ? "user" : "organization",
             subjectUserId: input.ownership === "personal" ? userId : null,
@@ -925,18 +925,18 @@ export function aiConnectionService(db: Db) {
         await tx
           .insert(aiConnectionDefaults)
           .values({
-            companyId,
+            spaceId,
             userId,
             provider: input.provider,
             method: input.method,
             grantId,
           })
           .onConflictDoNothing();
-        await tx.insert(aiProviderDefaults).values({ companyId, userId, provider: input.provider, grantId }).onConflictDoNothing();
+        await tx.insert(aiProviderDefaults).values({ spaceId, userId, provider: input.provider, grantId }).onConflictDoNothing();
       }
       if (!reconnect) {
         const installs = input.allAgents
-          ? [{ targetType: "company" as const, targetId: companyId }]
+          ? [{ targetType: "space" as const, targetId: spaceId }]
           : input.agentIds.map((targetId) => ({
               targetType: "agent" as const,
               targetId,
@@ -947,7 +947,7 @@ export function aiConnectionService(db: Db) {
             .values(
               installs.map((i) => ({
                 ...i,
-                companyId,
+                spaceId,
                 connectionId: id,
                 createdByUserId: userId,
               })),
@@ -967,7 +967,7 @@ export function aiConnectionService(db: Db) {
           );
       await loginSession?.complete?.(tx as unknown as Db);
       await logActivity(tx as unknown as Db, {
-        companyId,
+        spaceId,
         ...(managementContext?.audit ?? { actorType: "user" as const, actorId: userId }),
         action: reconnect
           ? "ai_connection.reconnected"
@@ -993,7 +993,7 @@ export function aiConnectionService(db: Db) {
   ) {
     const metadata = aiConnectionMetadataSchema.safeParse(row.connection.config.ai);
     if (!metadata.success || !["openai", "google"].includes(metadata.data.provider) || metadata.data.method !== "subscription") return null;
-    const recovery = quotaCredentialRecovery(row.connection.companyId, row.grant.id);
+    const recovery = quotaCredentialRecovery(row.connection.spaceId, row.grant.id);
     const pending = await recovery.read();
     if (!pending) return null;
     const ref = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential");
@@ -1003,8 +1003,8 @@ export function aiConnectionService(db: Db) {
       return null;
     }
     if (metadata.data.provider === "google") {
-      const [secret] = await tx.select({ epoch: companySecrets.aiSessionEpoch, version: companySecrets.latestVersion })
-        .from(companySecrets).where(and(eq(companySecrets.companyId, row.connection.companyId), eq(companySecrets.id, ref.secretId))).for("update");
+      const [secret] = await tx.select({ epoch: spaceSecrets.aiSessionEpoch, version: spaceSecrets.latestVersion })
+        .from(spaceSecrets).where(and(eq(spaceSecrets.spaceId, row.connection.spaceId), eq(spaceSecrets.id, ref.secretId))).for("update");
       if (!pending.google || pending.google.sessionEpoch !== secret?.epoch || pending.google.baseVersion !== secret?.version
         || pending.google.versionSelector !== (ref.versionSelector ?? "latest")
         || pending.google.accountEmail.toLowerCase() !== row.grant.providerTenant?.name?.toLowerCase()) {
@@ -1020,7 +1020,7 @@ export function aiConnectionService(db: Db) {
     await secretService(tx).rotate(ref.secretId, { value: pending.value, preserveAiSessionEpoch: true }, { userId: row.grant.subjectUserId });
     // Automatic rotation changes secret revision, not the grant mutation marker
     // used to fence reconnect attempts. Ownership and access are unchanged.
-    await logActivity(tx, { companyId: row.connection.companyId, actorType: "system", actorId: "quota_recovery",
+    await logActivity(tx, { spaceId: row.connection.spaceId, actorType: "system", actorId: "quota_recovery",
       action: "ai_connection.credential_refreshed", entityType: "tool_connection", entityId: row.connection.id,
       details: { provider: metadata.data.provider, grantId: row.grant.id } });
     return pending.value;
@@ -1029,18 +1029,18 @@ export function aiConnectionService(db: Db) {
   async function runtimeCredential(row: Parameters<typeof credential>[0]) {
     const metadata = aiConnectionMetadataSchema.safeParse(row.connection.config.ai);
     if (!metadata.success || !["openai", "google"].includes(metadata.data.provider) || metadata.data.method !== "subscription") return credential(row);
-    if (!(await quotaCredentialRecovery(row.connection.companyId, row.grant.id).read())) return credential(row);
+    if (!(await quotaCredentialRecovery(row.connection.spaceId, row.grant.id).read())) return credential(row);
     let savingReplacement = false;
-    return withAccountHomeSecretMutationLock(undefined, row.connection.companyId, async () => {
+    return withAccountHomeSecretMutationLock(undefined, row.connection.spaceId, async () => {
       if (metadata.data.provider === "google") {
-        const recovery = quotaCredentialRecovery(row.connection.companyId, row.grant.id);
+        const recovery = quotaCredentialRecovery(row.connection.spaceId, row.grant.id);
         const pending = await recovery.read();
         if (pending?.provider === "google" && pending.google && !pending.google.verified
           && pending.connectionId === row.connection.id
           && pending.google.accountEmail.toLowerCase() === row.grant.providerTenant?.name?.toLowerCase()) {
           const ref = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential");
-          const [secret] = await db.select({ epoch: companySecrets.aiSessionEpoch, version: companySecrets.latestVersion })
-            .from(companySecrets).where(and(eq(companySecrets.companyId, row.connection.companyId), eq(companySecrets.id, pending.secretId)));
+          const [secret] = await db.select({ epoch: spaceSecrets.aiSessionEpoch, version: spaceSecrets.latestVersion })
+            .from(spaceSecrets).where(and(eq(spaceSecrets.spaceId, row.connection.spaceId), eq(spaceSecrets.id, pending.secretId)));
           const current = await credential(row);
           if (ref?.secretId === pending.secretId && (ref.versionSelector ?? "latest") === pending.google.versionSelector
             && secret?.epoch === pending.google.sessionEpoch && secret?.version === pending.google.baseVersion
@@ -1050,7 +1050,7 @@ export function aiConnectionService(db: Db) {
             // The transaction below rechecks the exact saved generation.
             await prepareAntigravityCredentialRecovery({ originalCredential: current,
               refreshedCredential: pending.value, accountEmail: pending.google.accountEmail,
-              scope: { companyId: row.connection.companyId, accountKey: row.grant.id },
+              scope: { spaceId: row.connection.spaceId, accountKey: row.grant.id },
               persistVerified: value => recovery.write({ ...pending, value, google: { ...pending.google!, verified: true } }),
             });
           }
@@ -1059,14 +1059,14 @@ export function aiConnectionService(db: Db) {
       let recovered = false;
       const value = await db.transaction(async tx => {
         const [grant] = await tx.select().from(connectionGrants).where(and(
-          eq(connectionGrants.id, row.grant.id), eq(connectionGrants.companyId, row.connection.companyId),
+          eq(connectionGrants.id, row.grant.id), eq(connectionGrants.spaceId, row.connection.spaceId),
           eq(connectionGrants.connectionId, row.connection.id),
         )).for("update", { noWait: true });
         if (!grant || grant.status !== "active") throw new Error("credentials_unavailable");
         const ref = grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential");
         if (!ref) throw new Error("credentials_unavailable");
-        await tx.select({ id: companySecrets.id }).from(companySecrets).where(and(
-          eq(companySecrets.id, ref.secretId), eq(companySecrets.companyId, row.connection.companyId),
+        await tx.select({ id: spaceSecrets.id }).from(spaceSecrets).where(and(
+          eq(spaceSecrets.id, ref.secretId), eq(spaceSecrets.spaceId, row.connection.spaceId),
         )).for("update", { noWait: true });
         const selected = { connection: row.connection, grant };
         const current = await aiConnectionService(tx as unknown as Db).credential(selected);
@@ -1076,7 +1076,7 @@ export function aiConnectionService(db: Db) {
         recovered = pending !== null;
         return pending ?? current;
       });
-      if (recovered) await quotaCredentialRecovery(row.connection.companyId, row.grant.id).clear()
+      if (recovered) await quotaCredentialRecovery(row.connection.spaceId, row.grant.id).clear()
         .catch(error => logger.warn({ err: error, grantId: row.grant.id }, "Saved runtime credential recovery cleanup pending"));
       return value;
     }).catch(error => {
@@ -1101,24 +1101,24 @@ export function aiConnectionService(db: Db) {
 
   /** A late failure must never invalidate credentials that were refreshed or reconnected meanwhile. */
   async function markAuthenticationFailed(input: {
-    companyId: string;
+    spaceId: string;
     runId?: string;
     agentId?: string;
     runStartedAt: Date;
     attribution: AiConnectionAttribution & { identity: string };
   }) {
-    return withAccountHomeSecretMutationLock(undefined, input.companyId, async () => {
+    return withAccountHomeSecretMutationLock(undefined, input.spaceId, async () => {
       let recovered = false;
       await db.transaction(async (tx) => {
         const { attribution } = input;
         const [grant] = await tx.select().from(connectionGrants).where(and(
-          eq(connectionGrants.companyId, input.companyId),
+          eq(connectionGrants.spaceId, input.spaceId),
           eq(connectionGrants.id, attribution.grantId),
           eq(connectionGrants.connectionId, attribution.connectionId),
         )).for("update");
         if (!grant || grant.status !== "active" || grant.updatedAt > input.runStartedAt) return;
         const [connection] = await tx.select().from(toolConnections).where(and(
-          eq(toolConnections.companyId, input.companyId),
+          eq(toolConnections.spaceId, input.spaceId),
           eq(toolConnections.id, attribution.connectionId),
           eq(toolConnections.connectionPurpose, "ai"),
         ));
@@ -1127,8 +1127,8 @@ export function aiConnectionService(db: Db) {
         if (!metadata.success || metadata.data.provider !== attribution.provider || metadata.data.method !== attribution.method) return;
         const ref = grant.credentialSecretRefs.find((candidate) => candidate.configPath === "ai.credential");
         if (!ref) return;
-        await tx.select({ id: companySecrets.id }).from(companySecrets).where(and(
-          eq(companySecrets.companyId, input.companyId), eq(companySecrets.id, ref.secretId),
+        await tx.select({ id: spaceSecrets.id }).from(spaceSecrets).where(and(
+          eq(spaceSecrets.spaceId, input.spaceId), eq(spaceSecrets.id, ref.secretId),
         )).for("update");
         const value = await aiConnectionService(tx as unknown as Db).credential({ connection, grant });
         const generation = createHash("sha256").update(value).digest("hex").slice(0, 16);
@@ -1142,34 +1142,34 @@ export function aiConnectionService(db: Db) {
         await tx.update(toolConnections).set({ healthStatus: "error", healthMessage: "Sign in again to restore this AI connection.", updatedAt: new Date() })
           .where(eq(toolConnections.id, connection.id));
         await logActivity(tx as unknown as Db, {
-          companyId: input.companyId, actorType: "system", actorId: input.runId ? "heartbeat" : "adapter_test",
+          spaceId: input.spaceId, actorType: "system", actorId: input.runId ? "heartbeat" : "adapter_test",
           agentId: input.agentId, runId: input.runId, action: "ai_connection.authentication_failed",
           entityType: "tool_connection", entityId: connection.id,
           details: { provider: attribution.provider, grantId: grant.id },
         });
       });
-      if (recovered) await quotaCredentialRecovery(input.companyId, input.attribution.grantId).clear()
+      if (recovered) await quotaCredentialRecovery(input.spaceId, input.attribution.grantId).clear()
         .catch(error => logger.warn({ err: error, grantId: input.attribution.grantId }, "Saved failed-run credential recovery cleanup pending"));
     });
   }
   /** Refresh only the selected vaulted identity, serializing rotation and reconnect. */
   async function refreshQuotaCredential(row: Parameters<typeof credential>[0], failedValue: string, signal: AbortSignal) {
-    return withAccountHomeSecretMutationLock(undefined, row.connection.companyId, async () => {
-      const recovery = quotaCredentialRecovery(row.connection.companyId, row.grant.id);
+    return withAccountHomeSecretMutationLock(undefined, row.connection.spaceId, async () => {
+      const recovery = quotaCredentialRecovery(row.connection.spaceId, row.grant.id);
       let replacement: { value: string; secretId: string; version: number; epoch: number; base: string; grantUpdatedAt: number; versionSelector: "latest" | number } | undefined;
       const save = () => db.transaction(async (tx) => {
         // Do not wait on a transaction that might itself be waiting for the file
         // lock. All database locks must be available before consuming OAuth tokens.
-        const companyId = row.connection.companyId;
+        const spaceId = row.connection.spaceId;
         const [grant] = await tx.select().from(connectionGrants).where(and(
-          eq(connectionGrants.id, row.grant.id), eq(connectionGrants.companyId, companyId),
+          eq(connectionGrants.id, row.grant.id), eq(connectionGrants.spaceId, spaceId),
           eq(connectionGrants.connectionId, row.connection.id),
         )).for("update", { noWait: true });
         if (!grant || grant.status !== "active") throw new Error("credentials_unavailable");
         const ref = grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential");
         if (!ref) throw new Error("credentials_unavailable");
-        const [secret] = await tx.select({ id: companySecrets.id, version: companySecrets.latestVersion, epoch: companySecrets.aiSessionEpoch }).from(companySecrets).where(and(
-          eq(companySecrets.id, ref.secretId), eq(companySecrets.companyId, companyId),
+        const [secret] = await tx.select({ id: spaceSecrets.id, version: spaceSecrets.latestVersion, epoch: spaceSecrets.aiSessionEpoch }).from(spaceSecrets).where(and(
+          eq(spaceSecrets.id, ref.secretId), eq(spaceSecrets.spaceId, spaceId),
         )).for("update", { noWait: true });
         if (!secret) throw new Error("credentials_unavailable");
         const current = await aiConnectionService(tx as unknown as Db).credential({ connection: row.connection, grant });
@@ -1196,8 +1196,8 @@ export function aiConnectionService(db: Db) {
         // An active provider may rotate this single-use token itself. Defer polling
         // until its credential write-back instead of invalidating its live copy.
         const [active] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
-          .innerJoin(agents, and(eq(agents.id, heartbeatRuns.agentId), eq(agents.companyId, companyId))).where(and(
-          eq(heartbeatRuns.companyId, companyId), inArray(heartbeatRuns.status, ["queued", "running"]),
+          .innerJoin(agents, and(eq(agents.id, heartbeatRuns.agentId), eq(agents.spaceId, spaceId))).where(and(
+          eq(heartbeatRuns.spaceId, spaceId), inArray(heartbeatRuns.status, ["queued", "running"]),
           or(sql`${heartbeatRuns.contextSnapshot}->'aiConnection'->>'grantId' = ${grant.id}`,
             sql`${agents.runtimeConfig}->'aiConnection'->>'provider' = 'openai'`, eq(agents.adapterType, "codex_local")),
         )).limit(1);
@@ -1237,7 +1237,7 @@ export function aiConnectionService(db: Db) {
         // Persist the rotated token even if the quota deadline expires after the
         // successful exchange; losing it would strand all subsequent executions.
         await secretService(tx).rotate(ref.secretId, { value: refreshed, preserveAiSessionEpoch: true }, { userId: grant.subjectUserId });
-        await logActivity(tx as unknown as Db, { companyId, actorType: "system", actorId: "quota",
+        await logActivity(tx as unknown as Db, { spaceId, actorType: "system", actorId: "quota",
           action: "ai_connection.credential_refreshed", entityType: "tool_connection", entityId: row.connection.id,
           details: { provider: "openai", grantId: grant.id } });
         return refreshed;
@@ -1259,15 +1259,15 @@ export function aiConnectionService(db: Db) {
   }
   // A quota read uses the same credential audience as execution. Operator status
   // alone never grants access to another member's personal subscription.
-  async function quotaAccounts(companyId: string, userId: string, includeOtherProviders = false) {
-    if (!(await membership(companyId, userId))) return [];
-    const visible = await list(companyId, userId);
-    const accounts = await rows(companyId);
+  async function quotaAccounts(spaceId: string, userId: string, includeOtherProviders = false) {
+    if (!(await membership(spaceId, userId))) return [];
+    const visible = await list(spaceId, userId);
+    const accounts = await rows(spaceId);
     return accounts.flatMap(row => {
       const summary = visible.find(item => item.id === row.connection.id && item.grantId === row.grant.id);
       if (!summary || summary.method !== "subscription" || !(includeOtherProviders ? ["openai", "anthropic", "xai"] : ["openai", "anthropic"]).includes(summary.provider)) return [];
       return [{ ...row, summary }];
     });
   }
-  return { list, selectDecision, selectFastResponse, selectImageGeneration, selectPromptInjectionPrevention, quotaAccounts, subscriptionAccounts: (companyId: string, userId: string) => quotaAccounts(companyId, userId, true), refreshQuotaCredential, select, credential, runtimeCredential, probeUsage, accountIdentity, save, setDefault, membership, markAuthenticationFailed };
+  return { list, selectDecision, selectFastResponse, selectImageGeneration, selectPromptInjectionPrevention, quotaAccounts, subscriptionAccounts: (spaceId: string, userId: string) => quotaAccounts(spaceId, userId, true), refreshQuotaCredential, select, credential, runtimeCredential, probeUsage, accountIdentity, save, setDefault, membership, markAuthenticationFailed };
 }

@@ -13,8 +13,8 @@ const mockWorkTimelineApi = vi.hoisted(() => ({
 }));
 const mockLocation = vi.hoisted(() => ({ search: "" }));
 
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 
 vi.mock("@/context/BreadcrumbContext", () => ({
@@ -55,7 +55,7 @@ const populatedTimeline: WorkTimelineResult = {
   actors: [
     { id: "agent:codex", type: "agent", name: "CodexCoder", avatar: "code" },
     { id: "agent:qa", type: "agent", name: "QA", avatar: "shield" },
-    { id: "user:board", type: "user", name: "Board Operator", avatar: "/avatar.png" },
+    { id: "user:operator", type: "user", name: "Operator Operator", avatar: "/avatar.png" },
   ],
   spans: [
     {
@@ -158,7 +158,7 @@ describe("Timeline", () => {
 
     expect(container.textContent).toContain("Project Timeline");
     expect(mockWorkTimelineApi.get).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({ projectId: "11111111-1111-4111-8111-111111111111" }),
       expect.anything(),
     );
@@ -187,7 +187,7 @@ describe("Timeline", () => {
     expect(container.querySelector('[data-testid="request-collapsed-sidebar"]')).not.toBeNull();
 
     expect(mockWorkTimelineApi.get).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       expect.objectContaining({
         from: expect.any(String),
         to: expect.any(String),
@@ -249,16 +249,16 @@ describe("Timeline", () => {
       });
 
     const controller = new AbortController();
-    const result = await loadTimelineWindow("company-1", {
+    const result = await loadTimelineWindow("space-1", {
       from: populatedTimeline.window.from,
       to: populatedTimeline.window.to,
     }, controller.signal);
 
-    expect(mockWorkTimelineApi.get).toHaveBeenNthCalledWith(1, "company-1", expect.objectContaining({
+    expect(mockWorkTimelineApi.get).toHaveBeenNthCalledWith(1, "space-1", expect.objectContaining({
       limit: 500,
       offset: 0,
     }), { signal: controller.signal });
-    expect(mockWorkTimelineApi.get).toHaveBeenNthCalledWith(2, "company-1", expect.objectContaining({
+    expect(mockWorkTimelineApi.get).toHaveBeenNthCalledWith(2, "space-1", expect.objectContaining({
       limit: 500,
       offset: 500,
     }), { signal: controller.signal });

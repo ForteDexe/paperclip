@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { and, eq, sql } from "drizzle-orm";
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
-import { createDb, authUsers, activityLog, agentApiKeys, companies, companySecrets, companySecretVersions, chatConversations, chatDeliveries, chatEndpoints, chatExternalPrincipals, chatIdentityLinks, toolPolicies, toolRateLimitCounters, connectionGrants, connectionGrantMembers, connectionGrantDelegations, toolAccessAuditEvents, toolOauthStates, issueThreadInteractions, connectionIntentDeliveries, agents, companyMemberships, heartbeatRuns, issues, principalPermissionGrants, projects, toolApplications, toolConnections, toolConnectionInstalls, aiConnectionPools, toolMcpGateways, toolMcpGatewayTokens, toolActionRequests, toolCatalogEntries, toolInvocations, toolCallEvents, toolProfileEntries, toolProfiles, toolProfileBindings, plugins, adapterAuthSessions, environments, routines, chatGitHubReviews } from "@outpost/db";
+import { createDb, authUsers, activityLog, agentApiKeys, spaces, spaceSecrets, spaceSecretVersions, chatConversations, chatDeliveries, chatEndpoints, chatExternalPrincipals, chatIdentityLinks, toolPolicies, toolRateLimitCounters, connectionGrants, connectionGrantMembers, connectionGrantDelegations, toolAccessAuditEvents, toolOauthStates, issueThreadInteractions, connectionIntentDeliveries, agents, spaceMemberships, heartbeatRuns, issues, principalPermissionGrants, projects, toolApplications, toolConnections, toolConnectionInstalls, aiConnectionPools, toolMcpGateways, toolMcpGatewayTokens, toolActionRequests, toolCatalogEntries, toolInvocations, toolCallEvents, toolProfileEntries, toolProfiles, toolProfileBindings, plugins, adapterAuthSessions, environments, routines, chatGitHubReviews } from "@outpost/db";
 import { findSatisfiedToolConnection, satisfiedConnectionIntentService } from "../services/satisfied-connection-intents.js";
 import { connectionManagementService, continuingConnectionManagement } from "../services/connection-management.js";
 import { aiConnectionService } from "../services/ai-connections.js";
@@ -25,7 +25,7 @@ import { accessService } from "../services/access.js";
 import { secretService } from "../services/secrets.js";
 import { localEncryptedProvider } from "../secrets/local-encrypted-provider.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import type { AuthorizationActor } from "../services/authorization.js";
 import type { ConnectionManagementResource } from "../services/connection-management-policy.js";
 
@@ -68,11 +68,11 @@ describe("connection management with production default agents", () => {
     const base = await server.fixture({ connectionScenario: "fresh" });
     const userId = base.responsibleUserId!;
     const access = accessService(server.db);
-    await access.ensureMembership(base.companyId, "user", userId, "operator", "active");
-    await access.ensureRoleDefaultGrants(base.companyId, userId, "operator", userId);
-    await server.db.update(companies).set({ requireBoardApprovalForNewAgents: false }).where(eq(companies.id, base.companyId));
+    await access.ensureMembership(base.spaceId, "user", userId, "operator", "active");
+    await access.ensureRoleDefaultGrants(base.spaceId, userId, "operator", userId);
+    await server.db.update(spaces).set({ requireOperatorApprovalForNewAgents: false }).where(eq(spaces.id, base.spaceId));
     const cookie = await server.humanSession(userId);
-    const created = await fetch(`${server.apiUrl}/api/companies/${base.companyId}/agents`, {
+    const created = await fetch(`${server.apiUrl}/api/spaces/${base.spaceId}/agents`, {
       method: "POST", headers: { cookie, "Content-Type": "application/json", origin: server.apiUrl },
       body: JSON.stringify({ name: "Fresh standard agent", role: "engineer", adapterType: "outpost_runner", adapterConfig: { provider: "codex" },
         runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } }, permissions: {} }),
@@ -85,28 +85,28 @@ describe("connection management with production default agents", () => {
     await server.db.update(heartbeatRuns).set({ agentId: agent.id }).where(eq(heartbeatRuns.id, base.runId));
     await server.db.update(issues).set({ assigneeAgentId: agent.id, responsibleUserId: userId }).where(eq(issues.id, base.issueId));
     const key = await agentService(server.db).createApiKey(agent.id, "integration", { kind: "standard" }, { responsibleUserId: userId });
-    const jwt = createLocalAgentJwt(agent.id, base.companyId, "outpost_runner", base.runId, userId)!;
+    const jwt = createLocalAgentJwt(agent.id, base.spaceId, "outpost_runner", base.runId, userId)!;
     const request = async (method: string, path: string, body?: unknown, token = key.token) => {
       const response = await fetch(server.apiUrl + (path.startsWith("/mcp/") ? "" : "/api") + path, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       return { status: response.status, body: await response.json().catch(() => null) };
     };
     return { ...base, agentId: agent.id, userId, key, jwt, request,
-      authority: new PaperclipRunnerToolAuthority(server.db, { companyId: base.companyId, agentId: agent.id, issueId: base.issueId, runId: base.runId, apiUrl: server.apiUrl, storage: server.storage }) };
+      authority: new OutpostRunnerToolAuthority(server.db, { spaceId: base.spaceId, agentId: agent.id, issueId: base.issueId, runId: base.runId, apiUrl: server.apiUrl, storage: server.storage }) };
   }
 
   it.each(["tool", "ai"] as const)("matches ordinary %s install capabilities on real PostgreSQL for scoped, retained and fallback resources", async (connectionPurpose) => {
     const f = await server.fixture({ connectionScenario: "fresh" });
     const candidateIds = [f.agentId, randomUUID(), randomUUID()];
-    await server.db.insert(agents).values(candidateIds.slice(1).map((id, index) => ({ id, companyId: f.companyId, name: `Capability target ${index}`, adapterType: "process" })));
-    const [application] = await server.db.insert(toolApplications).values({ companyId: f.companyId, name: "Capability differential", type: "mcp_http" }).returning();
-    const [connection] = await server.db.insert(toolConnections).values({ companyId: f.companyId, applicationId: application.id,
+    await server.db.insert(agents).values(candidateIds.slice(1).map((id, index) => ({ id, spaceId: f.spaceId, name: `Capability target ${index}`, adapterType: "process" })));
+    const [application] = await server.db.insert(toolApplications).values({ spaceId: f.spaceId, name: "Capability differential", type: "mcp_http" }).returning();
+    const [connection] = await server.db.insert(toolConnections).values({ spaceId: f.spaceId, applicationId: application.id,
       uid: randomUUID(), name: "Capability differential", connectionPurpose,
       transport: connectionPurpose === "ai" ? "runtime_auth" : "mcp_remote", authKind: "none", createdByUserId: "different-creator" }).returning();
-    await server.db.insert(principalPermissionGrants).values({ companyId: f.companyId, principalType: "user", principalId: f.responsibleUserId!,
+    await server.db.insert(principalPermissionGrants).values({ spaceId: f.spaceId, principalType: "user", principalId: f.responsibleUserId!,
       permissionKey: "tools:manage_profiles", scope: { targetAgentIds: candidateIds.slice(0, 2) } });
     const service = connectionManagementService(server.db);
-    const actor: AuthorizationActor = { type: "board", userId: f.responsibleUserId, source: "cloud_tenant" };
-    const resource = { type: "connection_management" as const, companyId: f.companyId, connectionId: connection.id, operation: "configure", readOnly: false };
+    const actor: AuthorizationActor = { type: "operator", userId: f.responsibleUserId, source: "cloud_tenant" };
+    const resource = { type: "connection_management" as const, spaceId: f.spaceId, connectionId: connection.id, operation: "configure", readOnly: false };
     const compare = async (base: ConnectionManagementResource = resource, candidates: readonly string[] = candidateIds, principal = actor) => {
       const baseline = [];
       for (const targetAgentId of candidates) baseline.push(await service.capability(principal, "connections:profiles", { ...base, targetAgentId }));
@@ -120,7 +120,7 @@ describe("connection management with production default agents", () => {
     expect((await compare(resource, [candidateIds[1], candidateIds[0], candidateIds[1]])).map(result => result.allowed)).toEqual([true, true, true]);
     // A saved empty text target leaves the candidate ID in the ordinary
     // evaluator's resolved policy input, so it is not a shared target prefix.
-    await server.db.insert(toolConnectionInstalls).values({ companyId: f.companyId, connectionId: connection.id, targetType: "agent", targetId: "" });
+    await server.db.insert(toolConnectionInstalls).values({ spaceId: f.spaceId, connectionId: connection.id, targetType: "agent", targetId: "" });
     const emptyTargetCandidates = [candidateIds[2], candidateIds[0]];
     const emptyTargetBaseline = [];
     for (const targetAgentId of emptyTargetCandidates) {
@@ -129,29 +129,29 @@ describe("connection management with production default agents", () => {
     expect(emptyTargetBaseline.map(capability => capability.allowed)).toEqual([false, true]);
     expect(await service.describeAgentInstallCapabilities(actor, resource, emptyTargetCandidates)).toEqual(emptyTargetBaseline);
     await server.db.delete(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, connection.id));
-    await server.db.insert(toolConnectionInstalls).values({ companyId: f.companyId, connectionId: connection.id, targetType: "agent", targetId: candidateIds[0] });
+    await server.db.insert(toolConnectionInstalls).values({ spaceId: f.spaceId, connectionId: connection.id, targetType: "agent", targetId: candidateIds[0] });
     expect((await compare()).map(result => result.allowed)).toEqual([true, true, false]);
-    await server.db.insert(toolConnectionInstalls).values({ companyId: f.companyId, connectionId: connection.id, targetType: "agent", targetId: candidateIds[2] });
+    await server.db.insert(toolConnectionInstalls).values({ spaceId: f.spaceId, connectionId: connection.id, targetType: "agent", targetId: candidateIds[2] });
     expect((await compare()).every(result => !result.allowed)).toBe(true);
     await server.db.delete(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, connection.id));
-    await server.db.insert(toolConnectionInstalls).values({ companyId: f.companyId, connectionId: connection.id, targetType: "company", targetId: f.companyId });
+    await server.db.insert(toolConnectionInstalls).values({ spaceId: f.spaceId, connectionId: connection.id, targetType: "space", targetId: f.spaceId });
     expect((await compare()).every(result => !result.allowed)).toBe(true);
     // JavaScript target sets distinguish UUID spelling; PostgreSQL's uuid
     // lookup does not. Noncanonical candidates must retain ordinary evaluation.
     for (const spellings of [candidateIds.map(id => id.toUpperCase()),
       [candidateIds[0].toUpperCase(), candidateIds[1], candidateIds[0], candidateIds[1].toUpperCase(), candidateIds[0].toUpperCase()]]) {
-      expect((await compare(resource, spellings, { type: "board", source: "local_implicit" })).map(result => result.allowed))
+      expect((await compare(resource, spellings, { type: "operator", source: "local_implicit" })).map(result => result.allowed))
         .toEqual(spellings.map(() => true));
     }
     await server.db.delete(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, connection.id));
-    await server.db.insert(toolConnectionInstalls).values({ companyId: f.companyId, connectionId: connection.id, targetType: "agent", targetId: randomUUID() });
-    expect((await compare(resource, candidateIds, { type: "board", source: "local_implicit" })).map(result => result.reason))
-      .toEqual(candidateIds.map(() => "Target agent is outside this company"));
+    await server.db.insert(toolConnectionInstalls).values({ spaceId: f.spaceId, connectionId: connection.id, targetType: "agent", targetId: randomUUID() });
+    expect((await compare(resource, candidateIds, { type: "operator", source: "local_implicit" })).map(result => result.reason))
+      .toEqual(candidateIds.map(() => "Target agent is outside this space"));
     await server.db.delete(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, connection.id));
-    const [foreign] = await server.db.insert(agents).values({ companyId: f.foreignCompanyId, name: "Foreign capability target", adapterType: "process" }).returning();
-    expect((await compare(resource, [candidateIds[0], foreign.id], { type: "board", source: "local_implicit" })).map(result => result.allowed))
+    const [foreign] = await server.db.insert(agents).values({ spaceId: f.foreignSpaceId, name: "Foreign capability target", adapterType: "process" }).returning();
+    expect((await compare(resource, [candidateIds[0], foreign.id], { type: "operator", source: "local_implicit" })).map(result => result.allowed))
       .toEqual([true, false]);
-    const [profile] = await server.db.insert(toolProfiles).values({ companyId: f.companyId, name: "Fallback profile", profileKey: randomUUID(), defaultAction: "deny" }).returning();
+    const [profile] = await server.db.insert(toolProfiles).values({ spaceId: f.spaceId, name: "Fallback profile", profileKey: randomUUID(), defaultAction: "deny" }).returning();
     await compare({ ...resource, profileId: profile.id });
     // Proposed changes also stay on the full evaluator, including own-property presence.
     await compare({ ...resource, requestedProvider: null });
@@ -176,45 +176,45 @@ describe("connection management with production default agents", () => {
       };
     } });
     const faulting = connectionManagementService(faultingDb);
-    const localActor: AuthorizationActor = { type: "board", source: "local_implicit" };
+    const localActor: AuthorizationActor = { type: "operator", source: "local_implicit" };
     await expect(faulting.capability(localActor, "connections:profiles", { ...resource, targetAgentId: candidateIds[1] })).rejects.toThrow(/division by zero/);
     await expect(faulting.describeAgentInstallCapabilities(localActor, resource, [candidateIds[1]])).rejects.toThrow(/division by zero/);
-    await server.db.insert(toolConnectionInstalls).values({ companyId: f.companyId, connectionId: connection.id, targetType: "agent", targetId: randomUUID() });
+    await server.db.insert(toolConnectionInstalls).values({ spaceId: f.spaceId, connectionId: connection.id, targetType: "agent", targetId: randomUUID() });
     const denied = await faulting.capability(localActor, "connections:profiles", { ...resource, targetAgentId: candidateIds[1] });
-    expect(denied).toMatchObject({ allowed: false, reason: "Target agent is outside this company" });
+    expect(denied).toMatchObject({ allowed: false, reason: "Target agent is outside this space" });
     expect(await faulting.describeAgentInstallCapabilities(localActor, resource, [candidateIds[1]])).toEqual([denied]);
   });
 
   it.each(["tool", "ai"] as const)("preserves the complete %s grants GET across human roles and denies a real install mutation after revocation", async (connectionPurpose) => {
     const f = await server.fixture({ connectionScenario: "fresh" });
     const candidateIds = [f.agentId, randomUUID(), randomUUID()];
-    await server.db.insert(agents).values(candidateIds.slice(1).map((id, index) => ({ id, companyId: f.companyId, name: `Grant target ${index}`, adapterType: "process" })));
+    await server.db.insert(agents).values(candidateIds.slice(1).map((id, index) => ({ id, spaceId: f.spaceId, name: `Grant target ${index}`, adapterType: "process" })));
     const users = { creator: f.responsibleUserId!, manager: randomUUID(), member: randomUUID(), viewer: randomUUID(), inactive: randomUUID(),
       admin: randomUUID(), owner: randomUUID(), operator: randomUUID() };
     for (const [name, userId] of Object.entries(users)) {
       if (name !== "creator") {
         await server.db.insert(authUsers).values({ id: userId, name, email: `${userId}@fixture.invalid`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
-        await server.db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: userId,
+        await server.db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: userId,
           membershipRole: ["viewer", "admin", "owner", "operator"].includes(name) ? name : "member", status: name === "inactive" ? "inactive" : "active" });
       }
     }
     for (const permissionKey of ["tools:manage_connections", "tools:manage_profiles", "tools:use", "agents:configure"]) {
-      await server.db.insert(principalPermissionGrants).values([users.manager, users.admin].map(principalId => ({ companyId: f.companyId, principalType: "user", principalId, permissionKey })));
+      await server.db.insert(principalPermissionGrants).values([users.manager, users.admin].map(principalId => ({ spaceId: f.spaceId, principalType: "user", principalId, permissionKey })));
     }
-    await server.db.insert(principalPermissionGrants).values(["tools:manage_profiles", "agents:configure"].map(permissionKey => ({ companyId: f.companyId,
+    await server.db.insert(principalPermissionGrants).values(["tools:manage_profiles", "agents:configure"].map(permissionKey => ({ spaceId: f.spaceId,
       principalType: "user", principalId: users.member, permissionKey,
       scope: permissionKey === "tools:manage_profiles" ? { targetAgentIds: candidateIds.slice(0, 2) } : null })));
-    const [application] = await server.db.insert(toolApplications).values({ companyId: f.companyId, name: "Grants response parity", type: "mcp_http" }).returning();
-    const [connection] = await server.db.insert(toolConnections).values({ companyId: f.companyId, applicationId: application.id,
+    const [application] = await server.db.insert(toolApplications).values({ spaceId: f.spaceId, name: "Grants response parity", type: "mcp_http" }).returning();
+    const [connection] = await server.db.insert(toolConnections).values({ spaceId: f.spaceId, applicationId: application.id,
       uid: randomUUID(), name: "Grants response parity", connectionPurpose,
       transport: connectionPurpose === "ai" ? "runtime_auth" : "mcp_remote", authKind: "none", createdByUserId: users.creator }).returning();
     const grants = await server.db.insert(connectionGrants).values([
-      { companyId: f.companyId, connectionId: connection.id, kind: "organization", createdByUserId: users.creator, isDefault: true },
-      ...[users.creator, users.manager, users.member].map((subjectUserId, index) => ({ companyId: f.companyId, connectionId: connection.id, kind: "user" as const,
+      { spaceId: f.spaceId, connectionId: connection.id, kind: "organization", createdByUserId: users.creator, isDefault: true },
+      ...[users.creator, users.manager, users.member].map((subjectUserId, index) => ({ spaceId: f.spaceId, connectionId: connection.id, kind: "user" as const,
         subjectUserId, createdByUserId: subjectUserId, updatedAt: new Date(`2026-10-2${index + 1}T12:00:00.000Z`) })),
     ]).returning();
-    await server.db.insert(connectionGrantMembers).values({ companyId: f.companyId, grantId: grants[0].id, subjectType: "user", subjectId: users.member });
-    await server.db.insert(toolConnectionInstalls).values({ companyId: f.companyId, connectionId: connection.id, targetType: "agent", targetId: candidateIds[0] });
+    await server.db.insert(connectionGrantMembers).values({ spaceId: f.spaceId, grantId: grants[0].id, subjectType: "user", subjectId: users.member });
+    await server.db.insert(toolConnectionInstalls).values({ spaceId: f.spaceId, connectionId: connection.id, targetType: "agent", targetId: candidateIds[0] });
     const cookies = Object.fromEntries(await Promise.all(Object.entries(users).map(async ([name, userId]) => [name, await server.humanSession(userId)])));
     const request = async (name: keyof typeof users, method = "GET", body?: unknown) => {
       const response = await fetch(`${server.apiUrl}/api/tool-connections/${connection.id}/${method === "GET" ? "grants" : "installs"}`, {
@@ -254,7 +254,7 @@ describe("connection management with production default agents", () => {
     const installs = [{ targetType: "agent", targetId: candidateIds[0] }, { targetType: "agent", targetId: candidateIds[1] }];
     const beforeRevoke = await request("member", "PUT", { installs });
     expect(beforeRevoke, JSON.stringify(beforeRevoke)).toMatchObject({ status: 200 });
-    await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.companyId, f.companyId), eq(principalPermissionGrants.principalId, users.member)));
+    await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.spaceId, f.spaceId), eq(principalPermissionGrants.principalId, users.member)));
     expect(await request("member")).toMatchObject({ status: 200, body: { capabilities: { editableAgentIds: [], canManageAgentInstalls: false } } });
     expect(await request("member", "PUT", { installs: [{ targetType: "agent", targetId: candidateIds[0] }] })).toMatchObject({ status: 403 });
     const savedInstalls = await server.db.select().from(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, connection.id));
@@ -262,18 +262,18 @@ describe("connection management with production default agents", () => {
     expect(savedInstalls).toHaveLength(2);
   });
 
-  it("checks company-wide personal AI installs once per target and preserves pool member authorization", async () => {
+  it("checks space-wide personal AI installs once per target and preserves pool member authorization", async () => {
     const f = await server.fixture({ connectionScenario: "fresh" });
     const candidateIds = [f.agentId, ...Array.from({ length: 19 }, () => randomUUID())];
-    await server.db.insert(agents).values(candidateIds.slice(1).map((id, index) => ({ id, companyId: f.companyId, name: `AI target ${index}`, adapterType: "process" })));
-    const [application] = await server.db.insert(toolApplications).values({ companyId: f.companyId, name: "AI capability checks", type: "mcp_http" }).returning();
-    const [connection] = await server.db.insert(toolConnections).values({ companyId: f.companyId, applicationId: application.id,
+    await server.db.insert(agents).values(candidateIds.slice(1).map((id, index) => ({ id, spaceId: f.spaceId, name: `AI target ${index}`, adapterType: "process" })));
+    const [application] = await server.db.insert(toolApplications).values({ spaceId: f.spaceId, name: "AI capability checks", type: "mcp_http" }).returning();
+    const [connection] = await server.db.insert(toolConnections).values({ spaceId: f.spaceId, applicationId: application.id,
       uid: randomUUID(), name: "Personal AI account", transport: "runtime_auth", connectionPurpose: "ai", authKind: "api_key",
       credentialPolicy: "per_user", createdByUserId: f.responsibleUserId }).returning();
-    const [grant] = await server.db.insert(connectionGrants).values({ companyId: f.companyId, connectionId: connection.id,
+    const [grant] = await server.db.insert(connectionGrants).values({ spaceId: f.spaceId, connectionId: connection.id,
       kind: "user", subjectUserId: f.responsibleUserId, createdByUserId: f.responsibleUserId }).returning();
-    await server.db.insert(toolConnectionInstalls).values({ companyId: f.companyId, connectionId: connection.id, targetType: "company", targetId: f.companyId });
-    await server.db.insert(principalPermissionGrants).values({ companyId: f.companyId, principalType: "user", principalId: f.responsibleUserId!,
+    await server.db.insert(toolConnectionInstalls).values({ spaceId: f.spaceId, connectionId: connection.id, targetType: "space", targetId: f.spaceId });
+    await server.db.insert(principalPermissionGrants).values({ spaceId: f.spaceId, principalType: "user", principalId: f.responsibleUserId!,
       permissionKey: "tools:manage_profiles", scope: { targetAgentIds: candidateIds } });
     let targetReads = 0;
     const observedDb = new Proxy(server.db, { get(target, key, receiver) {
@@ -292,8 +292,8 @@ describe("connection management with production default agents", () => {
       };
     } });
     const service = connectionManagementService(observedDb);
-    const actor: AuthorizationActor = { type: "board", userId: f.responsibleUserId, source: "cloud_tenant" };
-    const resource = { type: "connection_management" as const, companyId: f.companyId, connectionId: connection.id, operation: "configure", readOnly: false };
+    const actor: AuthorizationActor = { type: "operator", userId: f.responsibleUserId, source: "cloud_tenant" };
+    const resource = { type: "connection_management" as const, spaceId: f.spaceId, connectionId: connection.id, operation: "configure", readOnly: false };
     const baseline = [];
     for (const targetAgentId of candidateIds) baseline.push(await service.capability(actor, "connections:profiles", { ...resource, targetAgentId }));
     expect(baseline.every(result => result.allowed)).toBe(true);
@@ -302,14 +302,14 @@ describe("connection management with production default agents", () => {
     expect(await service.describeAgentInstallCapabilities(actor, resource, candidateIds)).toEqual(baseline);
     expect(targetReads).toBe(candidateIds.length);
 
-    const [pool] = await server.db.insert(toolConnections).values({ companyId: f.companyId, applicationId: application.id,
+    const [pool] = await server.db.insert(toolConnections).values({ spaceId: f.spaceId, applicationId: application.id,
       uid: randomUUID(), name: "Pool with private member", transport: "runtime_auth", connectionPurpose: "ai", authKind: "none" }).returning();
-    await server.db.insert(aiConnectionPools).values({ id: pool.id, companyId: f.companyId, pluginKey: "fixture-pool", config: {
+    await server.db.insert(aiConnectionPools).values({ id: pool.id, spaceId: f.spaceId, pluginKey: "fixture-pool", config: {
       name: "Pool", enabled: true, mode: "round_robin", thresholdPercent: 90,
       members: [{ id: randomUUID(), binding: { mode: "delegated", provider: "openai", method: "api_key", connectionId: connection.id, grantId: grant.id }, profile: { provider: "codex", model: "fixture-model" } }],
     } });
-    await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.companyId, f.companyId), eq(principalPermissionGrants.principalId, f.responsibleUserId!)));
-    await server.db.insert(principalPermissionGrants).values({ companyId: f.companyId, principalType: "user", principalId: f.responsibleUserId!,
+    await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.spaceId, f.spaceId), eq(principalPermissionGrants.principalId, f.responsibleUserId!)));
+    await server.db.insert(principalPermissionGrants).values({ spaceId: f.spaceId, principalType: "user", principalId: f.responsibleUserId!,
       permissionKey: "tools:manage_profiles", scope: { connectionIds: [pool.id] } });
     const poolResource = { ...resource, connectionId: pool.id };
     expect((await service.describeAgentInstallCapabilities(actor, poolResource, candidateIds.slice(0, 2))).every(result => result.allowed)).toBe(true);
@@ -325,8 +325,8 @@ describe("connection management with production default agents", () => {
     const f = await fixture();
     const grants = await server.db.select().from(principalPermissionGrants).where(eq(principalPermissionGrants.principalId, f.agentId));
     expect(grants.some(g => g.permissionKey === "tools:admin")).toBe(false);
-    expect(await f.request("GET", `/companies/${f.companyId}/tools/stdio-templates`)).toMatchObject({ status: 403 });
-    const created = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Fixture tool", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
+    expect(await f.request("GET", `/spaces/${f.spaceId}/tools/stdio-templates`)).toMatchObject({ status: 403 });
+    const created = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Fixture tool", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
     expect(created, JSON.stringify(created)).toMatchObject({ status: 201 });
     expect(await f.request("PATCH", `/tool-connections/${created.body.id}`, { name: "Updated tool" }, f.jwt)).toMatchObject({ status: 200, body: { name: "Updated tool" } });
     const [saved] = await server.db.select().from(toolConnections).where(eq(toolConnections.id, created.body.id));
@@ -335,18 +335,18 @@ describe("connection management with production default agents", () => {
     expect(audit).toEqual(expect.arrayContaining([expect.objectContaining({ actorType: "agent", actorId: f.agentId, responsibleUserId: f.userId,
       details: expect.objectContaining({ permissionDecision: expect.objectContaining({ action: "connections:configure", reason: expect.stringMatching(/^allow_/) }) }),
     })]));
-    const profile = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "fixture-profile", name: "Fixture profile", defaultAction: "deny", entries: [] });
+    const profile = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "fixture-profile", name: "Fixture profile", defaultAction: "deny", entries: [] });
     expect(profile, JSON.stringify(profile)).toMatchObject({ status: 201 });
   });
 
   it("checks effective-profile connection access once for hundreds of tools on the same account", async () => {
     const f = await fixture();
-    const connection = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Large catalog", transport: "mcp_remote", authKind: "none", config: { url: "https://1.1.1.1/mcp" } });
+    const connection = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Large catalog", transport: "mcp_remote", authKind: "none", config: { url: "https://1.1.1.1/mcp" } });
     expect(connection).toMatchObject({ status: 201 });
-    await server.db.insert(toolCatalogEntries).values(Array.from({ length: 200 }, (_, index) => ({ companyId: f.companyId, applicationId: connection.body.applicationId, connectionId: connection.body.id, name: `tool_${index}`, toolName: `tool_${index}`, versionHash: `fixture_${index}` })));
-    const profile = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "large-catalog", name: "Large catalog", entries: [{ selectorType: "connection", connectionId: connection.body.id }] });
+    await server.db.insert(toolCatalogEntries).values(Array.from({ length: 200 }, (_, index) => ({ spaceId: f.spaceId, applicationId: connection.body.applicationId, connectionId: connection.body.id, name: `tool_${index}`, toolName: `tool_${index}`, versionHash: `fixture_${index}` })));
+    const profile = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "large-catalog", name: "Large catalog", entries: [{ selectorType: "connection", connectionId: connection.body.id }] });
     expect(profile).toMatchObject({ status: 201 });
-    expect(await f.request("POST", `/companies/${f.companyId}/tools/profiles/${profile.body.id}/bind`, { targetType: "agent", targetId: f.agentId })).toMatchObject({ status: 201 });
+    expect(await f.request("POST", `/spaces/${f.spaceId}/tools/profiles/${profile.body.id}/bind`, { targetType: "agent", targetId: f.agentId })).toMatchObject({ status: 201 });
     expect(await f.request("PUT", `/tool-connections/${connection.body.id}/installs`, { installs: [{ targetType: "agent", targetId: f.agentId }] })).toMatchObject({ status: 200 });
     const module = await import("../services/connection-management.js");
     const original = connectionManagementService;
@@ -359,7 +359,7 @@ describe("connection management with production default agents", () => {
       } };
     });
     try {
-      const effective = await f.request("GET", `/companies/${f.companyId}/tools/profiles/effective/agents/${f.agentId}`);
+      const effective = await f.request("GET", `/spaces/${f.spaceId}/tools/profiles/effective/agents/${f.agentId}`);
       expect(effective, JSON.stringify(effective)).toMatchObject({ status: 200 });
       expect(effective.body.allowedTools).toHaveLength(200);
       expect(effective.body.installedConnections).toHaveLength(1);
@@ -369,11 +369,11 @@ describe("connection management with production default agents", () => {
 
   it("checks every saved profile selector and effective projection against personal account visibility", async () => {
     const f = await fixture();
-    const first = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Owned profile account", transport: "mcp_remote", authKind: "none", config: { url: "https://1.1.1.1/mcp" } });
+    const first = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Owned profile account", transport: "mcp_remote", authKind: "none", config: { url: "https://1.1.1.1/mcp" } });
     expect(first).toMatchObject({ status: 201 });
-    const second = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { applicationId: first.body.applicationId, name: "Private profile account", transport: "mcp_remote", authKind: "none", config: { url: "https://1.1.1.1/mcp" } });
+    const second = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { applicationId: first.body.applicationId, name: "Private profile account", transport: "mcp_remote", authKind: "none", config: { url: "https://1.1.1.1/mcp" } });
     expect(second, JSON.stringify(second)).toMatchObject({ status: 201, body: { applicationId: first.body.applicationId } });
-    const [known] = await server.db.insert(toolCatalogEntries).values({ companyId: f.companyId, applicationId: first.body.applicationId, connectionId: first.body.id, name: "known", toolName: "known", versionHash: "known" }).returning();
+    const [known] = await server.db.insert(toolCatalogEntries).values({ spaceId: f.spaceId, applicationId: first.body.applicationId, connectionId: first.body.id, name: "known", toolName: "known", versionHash: "known" }).returning();
     const profileIds: string[] = [];
     const selectors = [
       { selectorType: "application", applicationId: first.body.applicationId },
@@ -382,29 +382,29 @@ describe("connection management with production default agents", () => {
       { selectorType: "risk_level", riskLevel: "read" },
     ];
     for (const [index, entry] of selectors.entries()) {
-      const profile = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: `privacy-${index}`, name: `Privacy ${index}`, entries: [entry] });
+      const profile = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: `privacy-${index}`, name: `Privacy ${index}`, entries: [entry] });
       expect(profile, JSON.stringify(profile)).toMatchObject({ status: 201 });
       profileIds.push(profile.body.id);
     }
-    const all = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "privacy-all", name: "All tools", defaultAction: "allow", entries: [] });
+    const all = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "privacy-all", name: "All tools", defaultAction: "allow", entries: [] });
     expect(all).toMatchObject({ status: 201 });
     profileIds.push(all.body.id);
-    expect(await f.request("POST", `/companies/${f.companyId}/tools/profiles/${profileIds[0]}/bind`, { targetType: "agent", targetId: f.agentId })).toMatchObject({ status: 201 });
-    await server.db.insert(toolCatalogEntries).values({ companyId: f.companyId, applicationId: first.body.applicationId, connectionId: second.body.id, name: "private_tool", toolName: "private_tool", description: "Private tool metadata", versionHash: "private", firstSeenAt: new Date(Date.now() + 60_000) });
+    expect(await f.request("POST", `/spaces/${f.spaceId}/tools/profiles/${profileIds[0]}/bind`, { targetType: "agent", targetId: f.agentId })).toMatchObject({ status: 201 });
+    await server.db.insert(toolCatalogEntries).values({ spaceId: f.spaceId, applicationId: first.body.applicationId, connectionId: second.body.id, name: "private_tool", toolName: "private_tool", description: "Private tool metadata", versionHash: "private", firstSeenAt: new Date(Date.now() + 60_000) });
     expect(await f.request("GET", `/tool-profiles/${profileIds[1]}/new-tools`)).toMatchObject({ status: 200, body: { tools: [expect.objectContaining({ connectionName: "Private profile account", description: "Private tool metadata" })] } });
-    const effectivePath = `/companies/${f.companyId}/tools/profiles/effective/agents/${f.agentId}`;
+    const effectivePath = `/spaces/${f.spaceId}/tools/profiles/effective/agents/${f.agentId}`;
     expect((await f.request("GET", effectivePath)).body.allowedTools.some((tool: { toolName: string }) => tool.toolName === "private_tool")).toBe(true);
     expect(await f.request("PUT", `/tool-connections/${second.body.id}/installs`, { installs: [{ targetType: "agent", targetId: f.agentId }] })).toMatchObject({ status: 200 });
     await server.db.update(toolConnections).set({ credentialPolicy: "per_user", createdByUserId: randomUUID() }).where(eq(toolConnections.id, second.body.id));
     for (const token of [f.key.token, f.jwt]) {
       expect(await f.request("GET", `/tool-profiles/${profileIds[1]}/new-tools`, undefined, token)).toMatchObject({ status: 403 });
       for (const id of profileIds) expect(await f.request("GET", `/tool-profiles/${id}/new-tools`, undefined, token)).toMatchObject({ status: 403 });
-      expect((await f.request("GET", `/companies/${f.companyId}/tools/profiles`, undefined, token)).body.profiles).toEqual([]);
+      expect((await f.request("GET", `/spaces/${f.spaceId}/tools/profiles`, undefined, token)).body.profiles).toEqual([]);
       expect(await f.request("GET", effectivePath, undefined, token)).toMatchObject({ status: 403 });
     }
-    for (const [index, entry] of selectors.entries()) expect(await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: `private-attempt-${index}`, name: `Private attempt ${index}`, entries: [entry] })).toMatchObject({ status: 403 });
-    expect(await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "private-attempt-all", name: "Private all", defaultAction: "allow", entries: [] })).toMatchObject({ status: 403 });
-    await server.db.delete(toolProfileBindings).where(and(eq(toolProfileBindings.companyId, f.companyId), eq(toolProfileBindings.targetType, "agent"), eq(toolProfileBindings.targetId, f.agentId)));
+    for (const [index, entry] of selectors.entries()) expect(await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: `private-attempt-${index}`, name: `Private attempt ${index}`, entries: [entry] })).toMatchObject({ status: 403 });
+    expect(await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "private-attempt-all", name: "Private all", defaultAction: "allow", entries: [] })).toMatchObject({ status: 403 });
+    await server.db.delete(toolProfileBindings).where(and(eq(toolProfileBindings.spaceId, f.spaceId), eq(toolProfileBindings.targetType, "agent"), eq(toolProfileBindings.targetId, f.agentId)));
     expect(await f.request("GET", effectivePath)).toMatchObject({ status: 403 });
     await server.db.update(toolConnections).set({ createdByUserId: f.userId }).where(eq(toolConnections.id, second.body.id));
     expect(await f.request("GET", effectivePath)).toMatchObject({ status: 200 });
@@ -417,7 +417,7 @@ describe("connection management with production default agents", () => {
   it("keeps connection profile configuration scoped and rechecks each profile against current personal access", async () => {
     const f = await fixture();
     const create = async (name: string) => {
-      const response = await f.request("POST", `/companies/${f.companyId}/tools/connections`, {
+      const response = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, {
         name, transport: "mcp_remote", authKind: "none", config: { url: "https://1.1.1.1/mcp" },
       });
       expect(response).toMatchObject({ status: 201 });
@@ -425,14 +425,14 @@ describe("connection management with production default agents", () => {
     };
     const owned = await create("Configuration owned"), privateConnection = await create("Configuration private");
     const [app, intent] = await server.db.insert(toolProfiles).values([
-      { companyId: f.companyId, profileKey: `app:${owned.id}`, name: "App" },
-      { companyId: f.companyId, profileKey: `connection-intent:${owned.id}:${f.agentId}`, name: "Intent",
+      { spaceId: f.spaceId, profileKey: `app:${owned.id}`, name: "App" },
+      { spaceId: f.spaceId, profileKey: `connection-intent:${owned.id}:${f.agentId}`, name: "Intent",
         metadata: { source: "connection_intent", connectionId: owned.id, agentId: f.agentId } },
     ]).returning();
-    await server.db.insert(toolProfileBindings).values({ companyId: f.companyId, profileId: intent.id, targetType: "agent", targetId: f.agentId });
+    await server.db.insert(toolProfileBindings).values({ spaceId: f.spaceId, profileId: intent.id, targetType: "agent", targetId: f.agentId });
     await server.db.insert(toolProfileEntries).values([
-      { companyId: f.companyId, profileId: app.id, selectorType: "connection", connectionId: privateConnection.id },
-      { companyId: f.companyId, profileId: intent.id, selectorType: "connection", connectionId: owned.id },
+      { spaceId: f.spaceId, profileId: app.id, selectorType: "connection", connectionId: privateConnection.id },
+      { spaceId: f.spaceId, profileId: intent.id, selectorType: "connection", connectionId: owned.id },
     ]);
     const path = `/tool-connections/${owned.id}/profile-configuration`;
     const uidResult = await f.request("GET", `/tool-connections/${encodeURIComponent(owned.uid)}/profile-configuration`);
@@ -463,7 +463,7 @@ describe("connection management with production default agents", () => {
 
   it("rechecks authority after remote endpoint validation before committing a connection update", async () => {
     const f = await fixture();
-    const created = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Before validation", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
+    const created = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Before validation", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
     expect(created).toMatchObject({ status: 201 });
     const original = remoteEndpointGuard.assertPublicRemoteHttpEndpoint;
     const validation = vi.spyOn(remoteEndpointGuard, "assertPublicRemoteHttpEndpoint").mockImplementation(async (...args) => {
@@ -485,9 +485,9 @@ describe("connection management with production default agents", () => {
     } });
     try {
       const [environment] = await server.db.insert(environments).values({ name: `Login fixture ${f.agentId}`, driver: "sandbox" }).returning();
-      const [session] = await server.db.insert(adapterAuthSessions).values({ companyId: f.companyId, environmentId: environment.id, adapterType: "codex_local", startedByUserId: f.userId,
+      const [session] = await server.db.insert(adapterAuthSessions).values({ spaceId: f.spaceId, environmentId: environment.id, adapterType: "codex_local", startedByUserId: f.userId,
         publicSessionId: randomUUID(), status: "waiting_for_user", expiresAt: new Date(Date.now() + 60_000), aiConnection: { provider: "openai", method: "subscription", ownership: "personal", name: "Saved login", allAgents: false, agentIds: [] } }).returning();
-      const path = `/companies/${f.companyId}/adapters/codex_local/login-sessions`;
+      const path = `/spaces/${f.spaceId}/adapters/codex_local/login-sessions`;
       expect(await f.request("GET", `${path}/active`)).toMatchObject({ status: 200, body: { sessionId: session.publicSessionId } });
       expect(await f.request("GET", `${path}/${session.publicSessionId}`, undefined, f.jwt)).toMatchObject({ status: 200, body: { sessionId: session.publicSessionId } });
       expect(await f.request("POST", path, {})).toMatchObject({ status: 400 });
@@ -502,12 +502,12 @@ describe("connection management with production default agents", () => {
     const f = await server.fixture({ connectionScenario: "fresh" });
     const userId = f.responsibleUserId!;
     const cookie = await server.humanSession(userId);
-    const [application] = await server.db.insert(toolApplications).values({ companyId: f.companyId, name: "Creator install authority", type: "mcp_http" }).returning();
-    const [connection] = await server.db.insert(toolConnections).values({ companyId: f.companyId, applicationId: application.id,
+    const [application] = await server.db.insert(toolApplications).values({ spaceId: f.spaceId, name: "Creator install authority", type: "mcp_http" }).returning();
+    const [connection] = await server.db.insert(toolConnections).values({ spaceId: f.spaceId, applicationId: application.id,
       uid: randomUUID(), name: "Creator-owned connection", transport: "mcp_remote", authKind: "none", status: "active", createdByUserId: userId }).returning();
-    if (change === "remove") await server.db.insert(toolConnectionInstalls).values({ companyId: f.companyId, connectionId: connection.id, targetType: "agent", targetId: f.agentId });
+    if (change === "remove") await server.db.insert(toolConnectionInstalls).values({ spaceId: f.spaceId, connectionId: connection.id, targetType: "agent", targetId: f.agentId });
     const before = await server.db.select().from(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, connection.id));
-    const finish = async () => fetch(`${server.apiUrl}/api/companies/${f.companyId}/tools/apps/${connection.id}/finish`, {
+    const finish = async () => fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/tools/apps/${connection.id}/finish`, {
       method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
       body: JSON.stringify({ enabledCatalogEntryIds: [], askFirstCatalogEntryIds: [], access: { agentIds: change === "add" ? [f.agentId] : [] } }),
     });
@@ -516,13 +516,13 @@ describe("connection management with production default agents", () => {
     expect(denied.status).toBe(403);
     expect(await server.db.select().from(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, connection.id))).toEqual(before);
     expect(await server.db.select().from(toolProfiles).where(eq(toolProfiles.profileKey, `app:${connection.id}`))).toEqual([]);
-    await server.db.insert(principalPermissionGrants).values({ companyId: f.companyId, principalType: "user", principalId: userId,
+    await server.db.insert(principalPermissionGrants).values({ spaceId: f.spaceId, principalType: "user", principalId: userId,
       permissionKey: "agents:configure", scope: { targetAgentIds: [f.agentId] } });
     const allowed = await finish();
     expect(allowed.status, JSON.stringify(await allowed.json())).toBe(200);
     expect(await server.db.select().from(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, connection.id))).toHaveLength(change === "add" ? 1 : 0);
-    const [peer] = await server.db.insert(agents).values({ companyId: f.companyId, name: "Outside edit scope", adapterType: "process" }).returning();
-    const outOfScope = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/tools/apps/${connection.id}/finish`, {
+    const [peer] = await server.db.insert(agents).values({ spaceId: f.spaceId, name: "Outside edit scope", adapterType: "process" }).returning();
+    const outOfScope = await fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/tools/apps/${connection.id}/finish`, {
       method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
       body: JSON.stringify({ enabledCatalogEntryIds: [], askFirstCatalogEntryIds: [], access: { agentIds: [peer.id] } }),
     });
@@ -532,22 +532,22 @@ describe("connection management with production default agents", () => {
 
   it("checks finish access, all-agent sharing, and retained targets against both management grants", async () => {
     const f = await fixture();
-    const connection = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Finish authority", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
-    const path = `/companies/${f.companyId}/tools/apps/${connection.body.id}/finish`;
+    const connection = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Finish authority", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
+    const path = `/spaces/${f.spaceId}/tools/apps/${connection.body.id}/finish`;
     const body = { enabledCatalogEntryIds: [], askFirstCatalogEntryIds: [], access: { agentIds: [f.agentId] } };
     expect(await f.request("POST", path, body)).toMatchObject({ status: 200 });
     await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_profiles")));
     for (const access of [body.access, { agentIds: [] }, "all_agents"]) expect(await f.request("POST", path, { ...body, access })).toMatchObject({ status: 403 });
-    await server.db.insert(principalPermissionGrants).values({ companyId: f.companyId, principalType: "agent", principalId: f.agentId, permissionKey: "tools:manage_profiles", scope: { targetAgentIds: [f.agentId] } });
+    await server.db.insert(principalPermissionGrants).values({ spaceId: f.spaceId, principalType: "agent", principalId: f.agentId, permissionKey: "tools:manage_profiles", scope: { targetAgentIds: [f.agentId] } });
     expect(await f.request("POST", path, { ...body, access: "all_agents" })).toMatchObject({ status: 403 });
-    const [other] = await server.db.select({ id: agents.id }).from(agents).where(and(eq(agents.companyId, f.companyId), eq(agents.name, "Eval agent")));
-    const targets = await server.db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, f.companyId));
+    const [other] = await server.db.select({ id: agents.id }).from(agents).where(and(eq(agents.spaceId, f.spaceId), eq(agents.name, "Eval agent")));
+    const targets = await server.db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, f.spaceId));
     const otherId = other?.id ?? targets.find(agent => agent.id !== f.agentId)!.id;
     expect(await f.request("POST", path, { ...body, access: { agentIds: [otherId] } })).toMatchObject({ status: 403 });
     await server.db.update(principalPermissionGrants).set({ scope: null }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_profiles")));
     await server.db.update(principalPermissionGrants).set({ scope: { targetAgentIds: [f.agentId] } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "agents:configure")));
     expect(await f.request("POST", path, { ...body, access: { agentIds: [otherId] } })).toMatchObject({ status: 403 });
-    const bindings = await server.db.select().from(toolProfileBindings).where(eq(toolProfileBindings.companyId, f.companyId));
+    const bindings = await server.db.select().from(toolProfileBindings).where(eq(toolProfileBindings.spaceId, f.spaceId));
     expect(bindings.map(binding => binding.targetId)).toEqual([f.agentId]);
   });
 
@@ -556,7 +556,7 @@ describe("connection management with production default agents", () => {
     let targetAgentId = f.agentId;
     if (revocation.startsWith("other-agent")) {
       const cookie = await server.humanSession(f.userId);
-      const created = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/agents`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
+      const created = await fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/agents`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
         body: JSON.stringify({ name: "Test target", role: "engineer", adapterType: "outpost_runner", adapterConfig: { provider: "codex" }, permissions: {}, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } }) });
       const target = await created.json();
       expect(created.status, JSON.stringify(target)).toBe(201);
@@ -584,21 +584,21 @@ describe("connection management with production default agents", () => {
     const freezeRateClock = revocation.startsWith("other-agent-new-") || ["other-agent-caller-rate", "other-agent-shared-rate", "rate-limit", "agent-rate-approval"].includes(revocation);
     if (freezeRateClock) vi.useFakeTimers({ toFake: ["Date"] });
     try {
-      const created = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Governed test", transport: "mcp_remote", authKind: "none", transportConfig: { url: mcpUrl } });
+      const created = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Controlled test", transport: "mcp_remote", authKind: "none", transportConfig: { url: mcpUrl } });
       await server.db.update(toolConnections).set({ healthStatus: "ok" }).where(eq(toolConnections.id, created.body.id));
-      const [entry] = await server.db.insert(toolCatalogEntries).values({ companyId: f.companyId, applicationId: created.body.applicationId, connectionId: created.body.id,
+      const [entry] = await server.db.insert(toolCatalogEntries).values({ spaceId: f.spaceId, applicationId: created.body.applicationId, connectionId: created.body.id,
         entryKind: "tool", name: "Fixture probe", toolName: "fixture_probe", inputSchema: { type: "object", properties: {} }, riskLevel: "read", isReadOnly: true, status: "active", versionHash: "fixture-v1" }).returning();
-      expect(await f.request("POST", `/companies/${f.companyId}/tools/apps/${created.body.id}/finish`, { enabledCatalogEntryIds: [entry.id], access: { agentIds: revocation.startsWith("other-agent") && !["other-agent-no-access", "other-agent-allow-policy", "other-agent-explicit-grant"].includes(revocation) ? [f.agentId, targetAgentId] : [targetAgentId] } })).toMatchObject({ status: 200 });
+      expect(await f.request("POST", `/spaces/${f.spaceId}/tools/apps/${created.body.id}/finish`, { enabledCatalogEntryIds: [entry.id], access: { agentIds: revocation.startsWith("other-agent") && !["other-agent-no-access", "other-agent-allow-policy", "other-agent-explicit-grant"].includes(revocation) ? [f.agentId, targetAgentId] : [targetAgentId] } })).toMatchObject({ status: 200 });
       const path = `/tool-connections/${created.body.id}/test-calls`;
       const body = { agentId: targetAgentId, runContext: { heartbeatRunId: randomUUID(), issueId: randomUUID(), projectId: randomUUID() }, toolName: "fixture_probe", parameters: {} };
       if (revocation === "other-agent-no-access") {
-        await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "Caller cannot use this tool", policyType: "block", selectors: { connectionId: created.body.id, agentId: f.agentId }, priority: 0 });
+        await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Caller cannot use this tool", policyType: "block", selectors: { connectionId: created.body.id, agentId: f.agentId }, priority: 0 });
         for (const token of [f.key.token, f.jwt]) expect(await f.request("POST", path, body, token)).toMatchObject({ status: 200, body: { decision: "off", error: { reasonCode: "deny_policy_block" } } });
         expect(calls).toBe(0);
         return;
       }
       if (revocation === "other-agent-allow-policy" || revocation === "other-agent-explicit-grant") {
-        if (revocation === "other-agent-allow-policy") await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "Caller authorized by policy", policyType: "allow", selectors: { connectionId: created.body.id, agentId: f.agentId }, priority: 0 });
+        if (revocation === "other-agent-allow-policy") await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Caller authorized by policy", policyType: "allow", selectors: { connectionId: created.body.id, agentId: f.agentId }, priority: 0 });
         else await server.db.update(principalPermissionGrants).set({ scope: { connectionId: created.body.id } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:use")));
         const result = await f.request("POST", path, body, f.jwt);
         expect(result, JSON.stringify(result)).toMatchObject({ status: 200, body: { decision: "allowed", result: { content: "Fixture result" } } });
@@ -607,13 +607,13 @@ describe("connection management with production default agents", () => {
       }
       if (revocation === "other-agent-credential" || revocation === "other-agent-credential-none") {
         await server.db.update(toolConnections).set({ authKind: revocation === "other-agent-credential-none" ? "none" : "api_key", credentialPolicy: "per_agent" }).where(eq(toolConnections.id, created.body.id));
-        await server.db.insert(connectionGrants).values([f.agentId, targetAgentId].map(subjectAgentId => ({ companyId: f.companyId, connectionId: created.body.id, kind: "agent" as const, subjectAgentId, status: "active" as const })));
+        await server.db.insert(connectionGrants).values([f.agentId, targetAgentId].map(subjectAgentId => ({ spaceId: f.spaceId, connectionId: created.body.id, kind: "agent" as const, subjectAgentId, status: "active" as const })));
         expect(await f.request("POST", path, body, f.jwt)).toMatchObject({ status: 403, body: { reasonCode: "test_credential_identity_mismatch" } });
         expect(calls).toBe(0);
         return;
       }
       if (revocation === "other-agent-caller-rate" || revocation === "other-agent-shared-rate") {
-        await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "Caller rate", policyType: "rate_limit", selectors: { connectionId: created.body.id, ...(revocation === "other-agent-caller-rate" ? { agentId: f.agentId } : {}) }, config: { limit: 1, windowSeconds: 60, keyBy: revocation === "other-agent-caller-rate" ? ["agent", "tool"] : ["company", "tool"] } });
+        await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Caller rate", policyType: "rate_limit", selectors: { connectionId: created.body.id, ...(revocation === "other-agent-caller-rate" ? { agentId: f.agentId } : {}) }, config: { limit: 1, windowSeconds: 60, keyBy: revocation === "other-agent-caller-rate" ? ["agent", "tool"] : ["space", "tool"] } });
         const admitted = await f.request("POST", path, body, f.jwt);
         expect(admitted, JSON.stringify(admitted)).toMatchObject({ status: 200, body: { decision: "allowed", result: { content: "Fixture result" } } });
         expect(calls).toBe(1);
@@ -622,13 +622,13 @@ describe("connection management with production default agents", () => {
         return;
       }
       for (const selectors of [{ connectionId: created.body.id, projectId: f.projectId }, { connectionId: created.body.id, issueId: f.issueId }]) {
-        const [block] = await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "Scoped test block", policyType: "block", selectors, priority: 1 }).returning();
+        const [block] = await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Scoped test block", policyType: "block", selectors, priority: 1 }).returning();
         expect(await f.request("POST", path, body, f.jwt)).toMatchObject({ status: 200, body: { decision: "off" } });
         expect(calls).toBe(0);
         await server.db.delete(toolPolicies).where(eq(toolPolicies.id, block.id));
       }
       if (revocation === "rate-limit") {
-        await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "One test per minute", policyType: "rate_limit", selectors: { connectionId: created.body.id }, config: { limit: 1, windowSeconds: 60, keyBy: ["agent", "tool"] } });
+        await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "One test per minute", policyType: "rate_limit", selectors: { connectionId: created.body.id }, config: { limit: 1, windowSeconds: 60, keyBy: ["agent", "tool"] } });
         expect(await f.request("POST", path, body, f.jwt)).toMatchObject({ status: 200, body: { decision: "allowed", result: { content: "Fixture result" } } });
         expect(calls).toBe(1);
         expect(await f.request("POST", path, body, f.jwt)).toMatchObject({ status: 200, body: { decision: "off", error: { reasonCode: "rate_limited" } } });
@@ -637,13 +637,13 @@ describe("connection management with production default agents", () => {
       }
       if (revocation === "agent-rate-approval") {
         await server.db.insert(toolPolicies).values([
-          { companyId: f.companyId, name: "One admitted call", policyType: "rate_limit", selectors: { connectionId: created.body.id }, priority: 0, config: { limit: 1, windowSeconds: 60, keyBy: ["agent", "tool"] } },
-          { companyId: f.companyId, name: "Approve admitted call", policyType: "require_approval", selectors: { connectionId: created.body.id }, priority: 1 },
+          { spaceId: f.spaceId, name: "One admitted call", policyType: "rate_limit", selectors: { connectionId: created.body.id }, priority: 0, config: { limit: 1, windowSeconds: 60, keyBy: ["agent", "tool"] } },
+          { spaceId: f.spaceId, name: "Approve admitted call", policyType: "require_approval", selectors: { connectionId: created.body.id }, priority: 1 },
         ]);
         const session = await f.request("POST", "/tool-gateway/sessions", {}, f.jwt);
         expect(session, JSON.stringify(session)).toMatchObject({ status: 201 });
         const gatewayRequest = async (path: string, parameters?: unknown) => {
-          const response = await fetch(server.apiUrl + "/api" + path, { method: parameters === undefined ? "GET" : "POST", headers: { "x-paperclip-tool-gateway-token": session.body.token, "Content-Type": "application/json" }, ...(parameters === undefined ? {} : { body: JSON.stringify(parameters) }) });
+          const response = await fetch(server.apiUrl + "/api" + path, { method: parameters === undefined ? "GET" : "POST", headers: { "x-outpost-tool-gateway-token": session.body.token, "Content-Type": "application/json" }, ...(parameters === undefined ? {} : { body: JSON.stringify(parameters) }) });
           return { status: response.status, body: await response.json() };
         };
         const listed = await gatewayRequest("/tool-gateway/tools");
@@ -653,9 +653,9 @@ describe("connection management with production default agents", () => {
         const requested = await gatewayRequest("/tool-gateway/tools/call", { tool: tool.name, parameters: {}, idempotencyKey: "rate-approval" });
         expect(requested, JSON.stringify(requested)).toMatchObject({ status: 409, body: { reasonCode: "approval_required" } });
         expect(calls).toBe(0);
-        expect(await f.request("POST", `/tool-gateway/action-requests/${requested.body.actionRequestId}/approve`, { companyId: f.companyId }, f.jwt)).toMatchObject({ status: 403 });
+        expect(await f.request("POST", `/tool-gateway/action-requests/${requested.body.actionRequestId}/approve`, { spaceId: f.spaceId }, f.jwt)).toMatchObject({ status: 403 });
         const cookie = await server.humanSession(f.userId);
-        const response = await fetch(`${server.apiUrl}/api/tool-gateway/action-requests/${requested.body.actionRequestId}/approve`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ companyId: f.companyId }) });
+        const response = await fetch(`${server.apiUrl}/api/tool-gateway/action-requests/${requested.body.actionRequestId}/approve`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ spaceId: f.spaceId }) });
         expect(response.status, JSON.stringify(await response.json())).toBe(200);
         expect((await server.db.select().from(toolInvocations).where(eq(toolInvocations.id, requested.body.invocationId)))[0].status).toBe("succeeded");
         expect(calls).toBe(1);
@@ -663,7 +663,7 @@ describe("connection management with production default agents", () => {
         expect(calls).toBe(1);
         return;
       }
-      await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "Scoped test approval", policyType: "require_approval", selectors: { connectionId: created.body.id, issueId: f.issueId, ...(revocation === "other-agent-caller-ask" ? { agentId: f.agentId } : {}) }, priority: 1 });
+      await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Scoped test approval", policyType: "require_approval", selectors: { connectionId: created.body.id, issueId: f.issueId, ...(revocation === "other-agent-caller-ask" ? { agentId: f.agentId } : {}) }, priority: 1 });
       const pending = await f.request("POST", path, body, f.jwt);
       expect(pending, JSON.stringify(pending)).toMatchObject({ status: 200, body: { decision: "ask_first" } });
       const [saved] = await server.db.select().from(toolInvocations).where(eq(toolInvocations.id, pending.body.invocationId));
@@ -672,44 +672,44 @@ describe("connection management with production default agents", () => {
       if (revocation === "private-status") {
         const statusPath = `${path}/${pending.body.actionRequestId}`;
         expect(await f.request("GET", statusPath)).toMatchObject({ status: 200 });
-        const [hidden] = await server.db.insert(issues).values({ companyId: f.companyId, title: "Private test task", visibility: "private", status: "in_progress", responsibleUserId: randomUUID() }).returning();
+        const [hidden] = await server.db.insert(issues).values({ spaceId: f.spaceId, title: "Private test task", visibility: "private", status: "in_progress", responsibleUserId: randomUUID() }).returning();
         await server.db.update(toolInvocations).set({ issueId: hidden.id }).where(eq(toolInvocations.id, saved.id));
         for (const token of [f.key.token, f.jwt]) expect(await f.request("GET", statusPath, undefined, token)).toMatchObject({ status: 403 });
         expect(calls).toBe(0);
         return;
       }
       const approvalPath = `/tool-gateway/action-requests/${pending.body.actionRequestId}/approve`;
-      expect(await f.request("POST", approvalPath, { companyId: f.companyId }, f.jwt)).toMatchObject({ status: 403 });
+      expect(await f.request("POST", approvalPath, { spaceId: f.spaceId }, f.jwt)).toMatchObject({ status: 403 });
       if (revocation === "authorized-policy-edit") {
-        const policiesPath = `/companies/${f.companyId}/tools/policies`;
+        const policiesPath = `/spaces/${f.spaceId}/tools/policies`;
         const policy = await f.request("POST", policiesPath, { name: "Requested self-targeted access", policyType: "allow", priority: 0,
           selectors: { agentId: f.agentId, connectionId: created.body.id } }, f.jwt);
         expect(policy, JSON.stringify(policy)).toMatchObject({ status: 201 });
         expect(await f.request("POST", path, body, f.jwt)).toMatchObject({ status: 200, body: { decision: "allowed" } });
         expect(calls).toBe(1);
-        expect(await f.request("POST", approvalPath, { companyId: f.companyId }, f.jwt)).toMatchObject({ status: 403 });
+        expect(await f.request("POST", approvalPath, { spaceId: f.spaceId }, f.jwt)).toMatchObject({ status: 403 });
         await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_profiles")));
         expect(await f.request("PATCH", `${policiesPath}/${policy.body.id}`, { enabled: false }, f.jwt)).toMatchObject({ status: 403 });
         return;
       }
       await server.db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.runId));
       if (revocation === "agent") await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:use")));
-      if (revocation === "user") for (const permission of ["tools:use", "tools:manage_connections"]) await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.companyId, f.companyId), eq(principalPermissionGrants.principalId, f.userId), eq(principalPermissionGrants.permissionKey, permission)));
+      if (revocation === "user") for (const permission of ["tools:use", "tools:manage_connections"]) await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.spaceId, f.spaceId), eq(principalPermissionGrants.principalId, f.userId), eq(principalPermissionGrants.permissionKey, permission)));
       if (revocation === "cancelled") await server.db.update(issues).set({ status: "cancelled" }).where(eq(issues.id, f.issueId));
-      if (revocation === "other-agent-caller-revoked") await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "Caller access revoked", policyType: "block", selectors: { connectionId: created.body.id, agentId: f.agentId }, priority: 0 });
-      if (revocation === "project-block") await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "New project block", policyType: "block", selectors: { connectionId: created.body.id, projectId: f.projectId }, priority: 0 });
+      if (revocation === "other-agent-caller-revoked") await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Caller access revoked", policyType: "block", selectors: { connectionId: created.body.id, agentId: f.agentId }, priority: 0 });
+      if (revocation === "project-block") await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "New project block", policyType: "block", selectors: { connectionId: created.body.id, projectId: f.projectId }, priority: 0 });
       if (revocation.startsWith("other-agent-new-")) {
-        await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "New delegated test admission", policyType: "rate_limit",
+        await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "New delegated test admission", policyType: "rate_limit",
           selectors: { connectionId: created.body.id, ...(revocation === "other-agent-new-shared-rate" ? {} : { agentId: f.agentId }) },
-          priority: -2, config: { limit: 1, windowSeconds: 60, keyBy: revocation === "other-agent-new-shared-rate" ? ["company", "tool"] : ["agent", "tool"] } });
-        if (revocation === "other-agent-new-rate") await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "New test target admission", policyType: "rate_limit",
+          priority: -2, config: { limit: 1, windowSeconds: 60, keyBy: revocation === "other-agent-new-shared-rate" ? ["space", "tool"] : ["agent", "tool"] } });
+        if (revocation === "other-agent-new-rate") await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "New test target admission", policyType: "rate_limit",
           selectors: { connectionId: created.body.id, agentId: targetAgentId }, priority: -2,
           config: { limit: 1, windowSeconds: 60, keyBy: ["agent", "tool"] } });
-        if (revocation === "other-agent-new-rate-target-block") await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "New test target block", policyType: "block",
+        if (revocation === "other-agent-new-rate-target-block") await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "New test target block", policyType: "block",
           selectors: { connectionId: created.body.id, agentId: targetAgentId }, priority: -1 });
       }
       const cookie = await server.humanSession(f.userId);
-      const approve = () => fetch(server.apiUrl + "/api" + approvalPath, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ companyId: f.companyId }) });
+      const approve = () => fetch(server.apiUrl + "/api" + approvalPath, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ spaceId: f.spaceId }) });
       const response = await approve();
       expect(response.status, JSON.stringify(await response.json())).toBe(revocation === "cancelled" ? 409 : 200);
       const [settled] = await server.db.select().from(toolInvocations).where(eq(toolInvocations.id, saved.id));
@@ -718,15 +718,15 @@ describe("connection management with production default agents", () => {
       expect(calls).toBe(allowed ? 1 : 0);
       if (allowed) { expect((await approve()).status).toBe(200); expect(calls).toBe(1); }
       if (revocation.startsWith("other-agent-new-")) {
-        const counters = await server.db.select().from(toolRateLimitCounters).where(eq(toolRateLimitCounters.companyId, f.companyId));
+        const counters = await server.db.select().from(toolRateLimitCounters).where(eq(toolRateLimitCounters.spaceId, f.spaceId));
         expect(counters).toHaveLength(allowed ? revocation === "other-agent-new-shared-rate" ? 1 : 2 : 0);
         expect(counters.every(counter => counter.remaining === 0)).toBe(true);
         if (allowed) {
           expect(settled.policyExplanation?.consumedRateAdmissions).toHaveLength(1);
           expect(settled.policyExplanation?.delegatedCallerConsumedRateAdmissions).toHaveLength(1);
-          const [nextRun] = await server.db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+          const [nextRun] = await server.db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
             status: "running", responsibleUserId: f.userId, contextSnapshot: { issueId: f.issueId } }).returning();
-          const nextJwt = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", nextRun.id, f.userId)!;
+          const nextJwt = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", nextRun.id, f.userId)!;
           expect(await f.request("POST", path, body, nextJwt)).toMatchObject({ status: 200, body: { decision: "off", error: { reasonCode: "rate_limited" } } });
           expect(calls).toBe(1);
         }
@@ -736,17 +736,17 @@ describe("connection management with production default agents", () => {
 
   it("completes concurrent run-authenticated profile finishing and policy writes without lock-order failures", async () => {
     const f = await fixture();
-    const connection = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Concurrent management", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
-    const policy = await f.request("POST", `/companies/${f.companyId}/tools/policies`, { name: "Concurrent policy", policyType: "allow", selectors: { agentId: f.agentId } });
+    const connection = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Concurrent management", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
+    const policy = await f.request("POST", `/spaces/${f.spaceId}/tools/policies`, { name: "Concurrent policy", policyType: "allow", selectors: { agentId: f.agentId } });
     expect(policy).toMatchObject({ status: 201 });
-    const finishPath = `/companies/${f.companyId}/tools/apps/${connection.body.id}/finish`;
+    const finishPath = `/spaces/${f.spaceId}/tools/apps/${connection.body.id}/finish`;
     const finish = { enabledCatalogEntryIds: [], access: { agentIds: [f.agentId] } };
     expect(await f.request("POST", finishPath, finish, f.jwt)).toMatchObject({ status: 200 });
     for (let round = 0; round < 3; round++) {
-      const rows = await server.db.select({ id: toolPolicies.id }).from(toolPolicies).where(eq(toolPolicies.companyId, f.companyId));
+      const rows = await server.db.select({ id: toolPolicies.id }).from(toolPolicies).where(eq(toolPolicies.spaceId, f.spaceId));
       const results = await Promise.all([
-        f.request("POST", `/companies/${f.companyId}/tools/policies/reorder`, { policyIds: rows.map(row => row.id) }, f.jwt),
-        f.request("PATCH", `/companies/${f.companyId}/tools/policies/${policy.body.id}`, { description: `Round ${round}` }, f.jwt),
+        f.request("POST", `/spaces/${f.spaceId}/tools/policies/reorder`, { policyIds: rows.map(row => row.id) }, f.jwt),
+        f.request("PATCH", `/spaces/${f.spaceId}/tools/policies/${policy.body.id}`, { description: `Round ${round}` }, f.jwt),
         f.request("POST", finishPath, finish, f.jwt),
       ]);
       expect([200, 422]).toContain(results[0].status);
@@ -757,22 +757,22 @@ describe("connection management with production default agents", () => {
 
   it("checks issue, routine, and gateway profile targets including retained bindings", async () => {
     const f = await fixture();
-    const other = (await server.db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, f.companyId))).find(agent => agent.id !== f.agentId)!;
-    const profile = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "target-checks", name: "Target checks", entries: [] });
-    const gatewayProfile = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "gateway-target", name: "Gateway target", entries: [] });
-    const gateway = await f.request("POST", `/companies/${f.companyId}/tools/gateways`, { name: "Target gateway", slug: "binding-target", profileId: gatewayProfile.body.id, agentId: other.id });
+    const other = (await server.db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, f.spaceId))).find(agent => agent.id !== f.agentId)!;
+    const profile = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "target-checks", name: "Target checks", entries: [] });
+    const gatewayProfile = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "gateway-target", name: "Gateway target", entries: [] });
+    const gateway = await f.request("POST", `/spaces/${f.spaceId}/tools/gateways`, { name: "Target gateway", slug: "binding-target", profileId: gatewayProfile.body.id, agentId: other.id });
     expect(gateway, JSON.stringify(gateway)).toMatchObject({ status: 201 });
-    const [issue] = await server.db.insert(issues).values({ companyId: f.companyId, title: "Other agent task", assigneeAgentId: other.id, status: "in_progress", responsibleUserId: f.userId }).returning();
-    const [routine] = await server.db.insert(routines).values({ companyId: f.companyId, title: "Other agent routine", assigneeAgentId: other.id, responsibleUserId: f.userId }).returning();
+    const [issue] = await server.db.insert(issues).values({ spaceId: f.spaceId, title: "Other agent task", assigneeAgentId: other.id, status: "in_progress", responsibleUserId: f.userId }).returning();
+    const [routine] = await server.db.insert(routines).values({ spaceId: f.spaceId, title: "Other agent routine", assigneeAgentId: other.id, responsibleUserId: f.userId }).returning();
     const [configurationGrant] = await server.db.select().from(principalPermissionGrants).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "agents:configure")));
     await server.db.update(principalPermissionGrants).set({ scope: { ...configurationGrant.scope, targetAgentIds: [f.agentId] } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "agents:configure")));
-    const path = `/companies/${f.companyId}/tools/profiles/${profile.body.id}`;
+    const path = `/spaces/${f.spaceId}/tools/profiles/${profile.body.id}`;
     const ownBinding = await f.request("POST", `${path}/bind`, { targetType: "issue", targetId: f.issueId });
     expect(ownBinding, JSON.stringify(ownBinding)).toMatchObject({ status: 201 });
     expect(await f.request("POST", `${path}/unbind`, { targetType: "issue", targetId: f.issueId })).toMatchObject({ status: 200 });
     for (const target of [{ targetType: "project" as const, targetId: f.projectId }, { targetType: "issue" as const, targetId: issue.id }, { targetType: "routine" as const, targetId: routine.id }, { targetType: "gateway" as const, targetId: gateway.body.id }]) {
       expect(await f.request("POST", `${path}/bind`, target), JSON.stringify(target)).toMatchObject({ status: 403 });
-      const [saved] = await server.db.insert(toolProfileBindings).values({ ...target, companyId: f.companyId, profileId: profile.body.id }).returning();
+      const [saved] = await server.db.insert(toolProfileBindings).values({ ...target, spaceId: f.spaceId, profileId: profile.body.id }).returning();
       expect(await f.request("PATCH", `/tool-profiles/${profile.body.id}`, { description: "Cannot edit retained target" })).toMatchObject({ status: 403 });
       expect(await f.request("POST", `${path}/unbind`, target)).toMatchObject({ status: 403 });
       await server.db.delete(toolProfileBindings).where(eq(toolProfileBindings.id, saved.id));
@@ -783,9 +783,9 @@ describe("connection management with production default agents", () => {
 
   it("filters GitHub review history and detail by the linked task's private visibility", async () => {
     const f = await fixture();
-    const endpoint = await f.request("POST", `/companies/${f.companyId}/chat-endpoints`, { provider: "github", assignedAgentId: f.agentId });
-    const [privateIssue] = await server.db.insert(issues).values({ companyId: f.companyId, title: "Private review task", visibility: "private", status: "in_progress", responsibleUserId: randomUUID() }).returning();
-    const [visible, hidden] = await server.db.insert(chatGitHubReviews).values([f.issueId, privateIssue.id].map((issueId, index) => ({ companyId: f.companyId, endpointId: endpoint.body.id,
+    const endpoint = await f.request("POST", `/spaces/${f.spaceId}/chat-endpoints`, { provider: "github", assignedAgentId: f.agentId });
+    const [privateIssue] = await server.db.insert(issues).values({ spaceId: f.spaceId, title: "Private review task", visibility: "private", status: "in_progress", responsibleUserId: randomUUID() }).returning();
+    const [visible, hidden] = await server.db.insert(chatGitHubReviews).values([f.issueId, privateIssue.id].map((issueId, index) => ({ spaceId: f.spaceId, endpointId: endpoint.body.id,
       issueId, repositoryId: "42", repository: "fixture/repo", pullNumber: index + 1, headSha: "b".repeat(40), deliveryId: randomUUID(), configurationRevision: 1,
       policySnapshot: defaultGitHubReviewPolicy(), event: { event: "opened" as const, deliveryId: randomUUID(), repositoryId: "42", repository: "fixture/repo", pullNumber: index + 1,
         title: "Review", body: index ? "Private provider context" : "Public context", baseSha: "a".repeat(40), headSha: "b".repeat(40), baseBranch: "master", author: { id: "1", login: "fixture", isBot: false }, sender: { id: "1", login: "fixture" }, draft: false, labels: [] },
@@ -798,22 +798,22 @@ describe("connection management with production default agents", () => {
 
   it("keeps narrow policy create, update, reorder, and delete within their actual audiences", async () => {
     const f = await fixture();
-    const other = (await server.db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, f.companyId))).find(agent => agent.id !== f.agentId)!;
+    const other = (await server.db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, f.spaceId))).find(agent => agent.id !== f.agentId)!;
     await server.db.update(principalPermissionGrants).set({ scope: { targetAgentIds: [f.agentId] } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "agents:configure")));
-    const path = `/companies/${f.companyId}/tools/policies`;
+    const path = `/spaces/${f.spaceId}/tools/policies`;
     const created = await f.request("POST", path, { name: "Own target rule", policyType: "allow", selectors: { agentId: f.agentId } });
     expect(created, JSON.stringify(created)).toMatchObject({ status: 201 });
     expect(await f.request("PATCH", `${path}/${created.body.id}`, { description: "Retain the target" })).toMatchObject({ status: 200 });
     expect(await f.request("POST", `${path}/reorder`, { policyIds: [created.body.id] })).toMatchObject({ status: 200 });
     expect(await f.request("PATCH", `${path}/${created.body.id}`, { selectors: {} })).toMatchObject({ status: 403 });
     expect(await f.request("PATCH", `${path}/${created.body.id}`, { selectors: { agentId: other.id } })).toMatchObject({ status: 403 });
-    expect(await f.request("POST", path, { name: "Company rule", policyType: "allow", selectors: {} })).toMatchObject({ status: 403 });
+    expect(await f.request("POST", path, { name: "Space rule", policyType: "allow", selectors: {} })).toMatchObject({ status: 403 });
     expect(await f.request("DELETE", `${path}/${created.body.id}`)).toMatchObject({ status: 200 });
   });
 
   it("bounds and deduplicates resource selectors before per-resource database work", async () => {
     const f = await fixture();
-    const created = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Bounded selector", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
+    const created = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Bounded selector", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
     let resourceReads = 0;
     const originalSelect = server.db.select.bind(server.db);
     const select = vi.spyOn(server.db, "select").mockImplementation(((selection: never) => {
@@ -826,14 +826,14 @@ describe("connection management with production default agents", () => {
       return builder;
     }) as unknown as typeof server.db.select);
     try {
-      const path = `/companies/${f.companyId}/tools/policies`;
+      const path = `/spaces/${f.spaceId}/tools/policies`;
       const body = { name: "Bounded policy", policyType: "allow", selectors: { agentId: f.agentId, connectionIds: Array(5000).fill(created.body.id) } };
       expect(await f.request("POST", path, body)).toMatchObject({ status: 400 });
       expect(resourceReads).toBe(0);
       expect(await f.request("POST", path, { ...body, selectors: { ...body.selectors, connectionIds: Array(100).fill(created.body.id) } })).toMatchObject({ status: 201 });
       expect(resourceReads).toBeLessThan(20);
       resourceReads = 0;
-      await accessService(server.db).ensureMembership(f.companyId, "user", f.userId, "operator", "suspended");
+      await accessService(server.db).ensureMembership(f.spaceId, "user", f.userId, "operator", "suspended");
       expect(await f.request("POST", path, { ...body, selectors: { ...body.selectors, connectionIds: Array(100).fill(created.body.id) } })).toMatchObject({ status: 403 });
       expect(resourceReads).toBe(0);
     } finally { select.mockRestore(); }
@@ -841,22 +841,22 @@ describe("connection management with production default agents", () => {
 
   it("shares one run capture across a management read without caching authority across requests", async () => {
     const f = await fixture();
-    for (let index = 0; index < 5; index++) expect(await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: `Read snapshot ${index}`, transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } })).toMatchObject({ status: 201 });
+    for (let index = 0; index < 5; index++) expect(await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: `Read snapshot ${index}`, transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } })).toMatchObject({ status: 201 });
     const capture = vi.spyOn(runIdentity, "captureRunIdentity");
     try {
-      const listed = await f.request("GET", `/companies/${f.companyId}/tools/connections`, undefined, f.jwt);
+      const listed = await f.request("GET", `/spaces/${f.spaceId}/tools/connections`, undefined, f.jwt);
       expect(listed).toMatchObject({ status: 200 });
       expect(listed.body.connections).toHaveLength(5);
       expect(capture.mock.calls.length).toBeGreaterThan(0);
       expect(capture.mock.calls.length).toBeLessThanOrEqual(2);
       await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_connections")));
-      expect(await f.request("GET", `/companies/${f.companyId}/tools/connections`, undefined, f.jwt)).toMatchObject({ status: 403 });
+      expect(await f.request("GET", `/spaces/${f.spaceId}/tools/connections`, undefined, f.jwt)).toMatchObject({ status: 403 });
     } finally { capture.mockRestore(); }
   });
 
   it("returns the same missing-resource response for foreign and absent connection IDs", async () => {
     const f = await fixture(), other = await fixture();
-    const foreign = await other.request("POST", `/companies/${other.companyId}/tools/connections`, { name: "Other company", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
+    const foreign = await other.request("POST", `/spaces/${other.spaceId}/tools/connections`, { name: "Other space", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
     const hidden = await f.request("GET", `/tool-connections/${foreign.body.id}`);
     const absent = await f.request("GET", `/tool-connections/${randomUUID()}`);
     expect(hidden).toMatchObject({ status: 404 });
@@ -866,26 +866,26 @@ describe("connection management with production default agents", () => {
   it("checks existing and proposed provider scope without treating generic metadata as provider authority", async () => {
     const f = await fixture();
     const payload = { name: "Scoped provider", transport: "mcp_remote", authKind: "none", config: { url: "https://1.1.1.1/mcp", provider: "fixture-one" } };
-    const created = await f.request("POST", `/companies/${f.companyId}/tools/connections`, payload);
+    const created = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, payload);
     expect(created.status).toBe(201);
-    const untagged = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { ...payload, name: "Untagged", config: { url: "https://1.1.1.1/mcp" } });
-    const application = await f.request("POST", `/companies/${f.companyId}/tools/applications`, { name: "Provider app", type: "rest_api", metadata: { sourceTemplateKey: "fixture-one" } });
+    const untagged = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { ...payload, name: "Untagged", config: { url: "https://1.1.1.1/mcp" } });
+    const application = await f.request("POST", `/spaces/${f.spaceId}/tools/applications`, { name: "Provider app", type: "rest_api", metadata: { sourceTemplateKey: "fixture-one" } });
     expect(application).toMatchObject({ status: 201 });
     await server.db.update(principalPermissionGrants).set({ scope: { providers: ["fixture-one"] } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_connections")));
     expect(await f.request("PATCH", `/tool-connections/${untagged.body.id}`, { name: "Spoofed label", provider: "fixture-one" })).toMatchObject({ status: 403 });
-    expect(await f.request("POST", `/companies/${f.companyId}/tools/applications`, { name: "Spoofed application", type: "rest_api", provider: "fixture-one", metadata: { sourceTemplateKey: "fixture-two" } })).toMatchObject({ status: 403 });
+    expect(await f.request("POST", `/spaces/${f.spaceId}/tools/applications`, { name: "Spoofed application", type: "rest_api", provider: "fixture-one", metadata: { sourceTemplateKey: "fixture-two" } })).toMatchObject({ status: 403 });
     expect(await f.request("PATCH", `/tool-applications/${application.body.id}`, { name: "Same app provider" })).toMatchObject({ status: 200 });
     for (const metadata of [{ sourceTemplateKey: "fixture-two" }, {}]) expect(await f.request("PATCH", `/tool-applications/${application.body.id}`, { provider: "fixture-one", metadata })).toMatchObject({ status: 403 });
     expect(await f.request("PATCH", `/tool-connections/${created.body.id}`, { name: "Still the same provider" })).toMatchObject({ status: 200 });
     for (const config of [{ url: "https://1.1.1.1/mcp", provider: "fixture-two" }, { url: "https://1.1.1.1/mcp" }]) expect(await f.request("PATCH", `/tool-connections/${created.body.id}`, { config })).toMatchObject({ status: 403 });
-    expect(await f.request("POST", `/companies/${f.companyId}/tools/connections`, { ...payload, name: "Caller-labelled provider" })).toMatchObject({ status: 403 });
+    expect(await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { ...payload, name: "Caller-labelled provider" })).toMatchObject({ status: 403 });
     await server.db.update(principalPermissionGrants).set({ scope: { purposes: ["tool"] } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_connections")));
-    expect(await f.request("POST", `/companies/${f.companyId}/ai-connections`, { provider: "openai", method: "api_key", name: "Wrong purpose", apiKey: "fixture", ownership: "personal", agentIds: [] })).toMatchObject({ status: 403 });
+    expect(await f.request("POST", `/spaces/${f.spaceId}/ai-connections`, { provider: "openai", method: "api_key", name: "Wrong purpose", apiKey: "fixture", ownership: "personal", agentIds: [] })).toMatchObject({ status: 403 });
   });
 
   it("hands generic app authentication to the saved setup without creating agent-bound OAuth state", async () => {
     const f = await fixture();
-    const created = await f.request("POST", `/companies/${f.companyId}/tools/connections`, {
+    const created = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, {
       name: "OAuth handoff fixture", transport: "mcp_remote", authKind: "oauth", credentialPolicy: "per_user", status: "draft",
       transportConfig: { url: "https://1.1.1.1/mcp" },
     });
@@ -902,13 +902,13 @@ describe("connection management with production default agents", () => {
 
   it("delegates and revokes an owned credential with actual agent attribution", async () => {
     const f = await fixture();
-    const created = await f.request("POST", `/companies/${f.companyId}/tools/connections`, {
+    const created = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, {
       name: "Personal delegation fixture", transport: "mcp_remote", authKind: "none", credentialPolicy: "per_user",
       transportConfig: { url: "https://1.1.1.1/mcp" },
     });
     expect(created.status).toBe(201);
     // Provider fixture: a completed personal credential, not principal permissions.
-    const [grant] = await server.db.insert(connectionGrants).values({ companyId: f.companyId,
+    const [grant] = await server.db.insert(connectionGrants).values({ spaceId: f.spaceId,
       connectionId: created.body.id, kind: "user", subjectUserId: f.userId, status: "active",
       credentialSecretRefs: [], createdByUserId: f.userId,
     }).returning();
@@ -929,8 +929,8 @@ describe("connection management with production default agents", () => {
 
   it("saves the addressed user's Google service choices before handing off browser consent", async () => {
     const f = await fixture();
-    const created = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Selected Google services", transport: "mcp_remote", authKind: "oauth", credentialPolicy: "per_user", status: "draft",
-      config: { url: "https://1.1.1.1/mcp", sourceTemplateKey: "google-workspace", connectionMethodKey: "paperclip-workspace" } });
+    const created = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Selected Google services", transport: "mcp_remote", authKind: "oauth", credentialPolicy: "per_user", status: "draft",
+      config: { url: "https://1.1.1.1/mcp", sourceTemplateKey: "google-workspace", connectionMethodKey: "outpost-workspace" } });
     expect(created, JSON.stringify(created)).toMatchObject({ status: 201 });
     const handoff = await f.request("POST", `/tools/oauth/${created.body.id}/start`, { asCurrentUser: true });
     expect(handoff, JSON.stringify(handoff)).toMatchObject({ status: 200, body: { expiresAt: null, requiredUserAction: { userId: f.userId } } });
@@ -963,15 +963,15 @@ describe("connection management with production default agents", () => {
     expect(JSON.stringify(definitions.find(d => d.name === "connections_search"))).toContain("search_api/call_api");
     expect(names).toEqual(expect.arrayContaining(["search_api", "call_api"]));
     const search = await f.authority.execute({ tool: "search_api", callId: "find-profile", arguments: { query: "create tools profiles", limit: 10 } });
-    expect(JSON.stringify(search)).toContain("POST /api/companies/{companyId}/tools/profiles");
-    const result = await f.authority.execute({ tool: "call_api", callId: "create-profile", arguments: { operationId: "POST /api/companies/{companyId}/tools/profiles", body: { profileKey: "native-profile", name: "Native profile", entries: [] } } });
+    expect(JSON.stringify(search)).toContain("POST /api/spaces/{spaceId}/tools/profiles");
+    const result = await f.authority.execute({ tool: "call_api", callId: "create-profile", arguments: { operationId: "POST /api/spaces/{spaceId}/tools/profiles", body: { profileKey: "native-profile", name: "Native profile", entries: [] } } });
     expect(result, JSON.stringify(result)).toMatchObject({ status: 201, ok: true });
   });
 
   it("persists meaningful Slack and GitHub endpoint configuration for the responsible user", async () => {
     const f = await fixture();
     for (const provider of ["slack", "github"]) {
-      const result = await f.request("POST", `/companies/${f.companyId}/chat-endpoints`, { provider, assignedAgentId: f.agentId, name: `${provider} fixture`, ...(provider === "slack" ? { slackSetupMethod: "manual" } : {}) });
+      const result = await f.request("POST", `/spaces/${f.spaceId}/chat-endpoints`, { provider, assignedAgentId: f.agentId, name: `${provider} fixture`, ...(provider === "slack" ? { slackSetupMethod: "manual" } : {}) });
       expect(result, JSON.stringify(result)).toMatchObject({ status: 201 });
       if (provider === "slack") {
         const patch = { requireAtMention: true, allowDirectMessages: false };
@@ -999,7 +999,7 @@ describe("connection management with production default agents", () => {
     let revokeDuringAuth = false;
     provider = async (url, init) => {
       if (url.endsWith("auth.test")) {
-        if (revokeDuringAuth) await accessService(server.db).ensureMembership(f.companyId, "user", f.userId, "operator", "suspended");
+        if (revokeDuringAuth) await accessService(server.db).ensureMembership(f.spaceId, "user", f.userId, "operator", "suspended");
         return Response.json({ ok: true, team_id: "TFIXTURE", team: "Fixture workspace", user_id: botId, user: "fixture-bot" }, { headers: { "x-oauth-scopes": scopes.join(",") } });
       }
       if (url.includes("conversations.list")) return Response.json({ ok: true, channels: [], response_metadata: { next_cursor: "" } });
@@ -1009,7 +1009,7 @@ describe("connection management with production default agents", () => {
       throw new Error(`Unexpected Slack fixture operation: ${new URL(url).pathname}`);
     };
     try {
-      const created = await f.request("POST", `/companies/${f.companyId}/chat-endpoints`, { provider: "slack", assignedAgentId: f.agentId, slackSetupMethod: "manual" });
+      const created = await f.request("POST", `/spaces/${f.spaceId}/chat-endpoints`, { provider: "slack", assignedAgentId: f.agentId, slackSetupMethod: "manual" });
       const setupPath = `/chat-endpoints/${created.body.id}/setup`;
       const cookie = await server.humanSession(f.userId);
       const configuredResponse = await fetch(server.apiUrl + "/api" + setupPath, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
@@ -1042,7 +1042,7 @@ describe("connection management with production default agents", () => {
         const [after] = await server.db.select().from(toolConnections).where(eq(toolConnections.id, created.body.connectionId));
         expect(after.credentialSecretRefs).toEqual(before.credentialSecretRefs);
         const signing = after.credentialSecretRefs.find(ref => ref.configPath === "credentials.signingSecret")!;
-        expect(await secretService(server.db).resolveSecretValue(f.companyId, signing.secretId, "latest", {
+        expect(await secretService(server.db).resolveSecretValue(f.spaceId, signing.secretId, "latest", {
           accessContext: { consumerType: "system", consumerId: "integration-fixture", actorType: "system" },
         })).toBe("fixture-signing-secret");
       }
@@ -1081,9 +1081,9 @@ describe("connection management with production default agents", () => {
       await server.db.update(chatEndpoints).set({ setup: { ...repaired.setup, webhookVerifiedAt: new Date().toISOString() } }).where(eq(chatEndpoints.id, created.body.id));
       expect((await findSatisfiedToolConnection(server.db, task, credentialIntent))?.id).toBe(created.body.connectionId);
       expect(await findSatisfiedToolConnection(server.db, { ...task, status: "cancelled" }, credentialIntent)).toBeNull();
-      await accessService(server.db).ensureMembership(f.companyId, "user", f.userId, "operator", "suspended");
+      await accessService(server.db).ensureMembership(f.spaceId, "user", f.userId, "operator", "suspended");
       expect(await findSatisfiedToolConnection(server.db, task, credentialIntent)).toBeNull();
-      await accessService(server.db).ensureMembership(f.companyId, "user", f.userId, "operator", "active");
+      await accessService(server.db).ensureMembership(f.spaceId, "user", f.userId, "operator", "active");
       await satisfiedConnectionIntentService(server.db).sweepPending();
       expect((await server.db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, credentialIntentId!)))[0].status).toBe("expired");
       // Replacing complete credentials repairs unavailable old vault material.
@@ -1091,10 +1091,10 @@ describe("connection management with production default agents", () => {
         const [connection] = await server.db.select().from(toolConnections).where(eq(toolConnections.id, created.body.connectionId));
         const signing = connection.credentialSecretRefs.find(ref => ref.configPath === "credentials.signingSecret")!;
         if (state === "unreadable") {
-          await server.db.update(companySecrets).set({ status: "active" }).where(eq(companySecrets.id, signing.secretId));
-          await server.db.update(companySecretVersions).set({ material: {} }).where(eq(companySecretVersions.secretId, signing.secretId));
+          await server.db.update(spaceSecrets).set({ status: "active" }).where(eq(spaceSecrets.id, signing.secretId));
+          await server.db.update(spaceSecretVersions).set({ material: {} }).where(eq(spaceSecretVersions.secretId, signing.secretId));
         } else {
-          await server.db.update(companySecrets).set({ status: state }).where(eq(companySecrets.id, signing.secretId));
+          await server.db.update(spaceSecrets).set({ status: state }).where(eq(spaceSecrets.id, signing.secretId));
         }
         const response = await fetch(server.apiUrl + "/api" + setupPath, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
           body: JSON.stringify({ action: "reconnect", credentials: { signingSecret: `human-repair-${state}`, botToken: "xoxb-fixture-token" } }) });
@@ -1103,7 +1103,7 @@ describe("connection management with production default agents", () => {
           const [current] = await server.db.select().from(toolConnections).where(eq(toolConnections.id, created.body.connectionId));
           const replacement = current.credentialSecretRefs.find(ref => ref.configPath === "credentials.signingSecret")!;
           expect(replacement.secretId).not.toBe(signing.secretId);
-          expect(await secretService(server.db).resolveSecretValue(f.companyId, replacement.secretId, "latest", {
+          expect(await secretService(server.db).resolveSecretValue(f.spaceId, replacement.secretId, "latest", {
             accessContext: { consumerType: "system", consumerId: "integration-fixture", actorType: "system" },
           })).toBe(`human-repair-${state}`);
         }
@@ -1118,17 +1118,17 @@ describe("connection management with production default agents", () => {
         expect((await server.db.select().from(toolConnections).where(eq(toolConnections.id, created.body.connectionId)))[0].credentialSecretRefs).toEqual(beforeFault.credentialSecretRefs);
       } finally { resolverFault.mockRestore(); }
       // Identity is a provider fixture; production HTTP admission and policy remain real.
-      const [principal] = await server.db.insert(chatExternalPrincipals).values({ companyId: f.companyId, provider: "slack", providerAccountId: "TFIXTURE", externalId: "UHUMAN", isBot: false }).returning();
-      await server.db.insert(chatIdentityLinks).values({ companyId: f.companyId, endpointId: created.body.id, principalId: principal.id, paperclipUserId: f.userId, status: "linked", confirmedAt: new Date() });
+      const [principal] = await server.db.insert(chatExternalPrincipals).values({ spaceId: f.spaceId, provider: "slack", providerAccountId: "TFIXTURE", externalId: "UHUMAN", isBot: false }).returning();
+      await server.db.insert(chatIdentityLinks).values({ spaceId: f.spaceId, endpointId: created.body.id, principalId: principal.id, outpostUserId: f.userId, status: "linked", confirmedAt: new Date() });
       await server.db.update(chatEndpoints).set({ status: "active", allowDirectMessages: true }).where(eq(chatEndpoints.id, created.body.id));
-      const [deny] = await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "Test messages off", policyType: "block", selectors: { connectionId: created.body.connectionId }, priority: 1 }).returning();
+      const [deny] = await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Test messages off", policyType: "block", selectors: { connectionId: created.body.connectionId }, priority: 1 }).returning();
       const testPath = `/chat-endpoints/${created.body.id}/slack/test-message`;
       const denied = await f.request("POST", testPath, { requestId: randomUUID() });
       expect(denied, JSON.stringify(denied)).toMatchObject({ status: 403 });
       expect(sent).toBe(0);
       await server.db.update(toolPolicies).set({ policyType: "allow" }).where(eq(toolPolicies.id, deny.id));
       vi.useFakeTimers({ toFake: ["Date"] });
-      await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "One Slack setup send", policyType: "rate_limit", selectors: { connectionId: created.body.connectionId }, priority: 0, config: { limit: 1, windowSeconds: 60, keyBy: ["agent", "tool"] } });
+      await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "One Slack setup send", policyType: "rate_limit", selectors: { connectionId: created.body.connectionId }, priority: 0, config: { limit: 1, windowSeconds: 60, keyBy: ["agent", "tool"] } });
       const requestId = randomUUID();
       const tested = await f.request("POST", testPath, { requestId });
       expect(tested, JSON.stringify(tested)).toMatchObject({ status: 200, body: { status: "sent" } });
@@ -1149,7 +1149,7 @@ describe("connection management with production default agents", () => {
     for (const mode of ["caller-block", "caller-ask", "caller-rate", "target-block", "target-rate", "shared-rate"] as const) {
       const f = await fixture();
       const cookie = await server.humanSession(f.userId);
-      const targetResponse = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/agents`, {
+      const targetResponse = await fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/agents`, {
         method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
         body: JSON.stringify({ name: "Slack target", role: "engineer", adapterType: "outpost_runner", adapterConfig: { provider: "codex" },
           permissions: {}, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } }),
@@ -1159,7 +1159,7 @@ describe("connection management with production default agents", () => {
       await lifecycle.process(target.id);
       await vi.waitFor(async () => expect((await agentService(server.db).getById(target.id))?.status).toBe("idle"));
       let sends = 0;
-      const workspaceId = `T${f.companyId.replaceAll("-", "").toUpperCase()}`;
+      const workspaceId = `T${f.spaceId.replaceAll("-", "").toUpperCase()}`;
       const scopes = [...SLACK_CHAT_BOT_SCOPES, ...SLACK_BOT_TOOL_SCOPES];
       provider = async (url, init) => {
         if (url.endsWith("auth.test")) return Response.json({ ok: true, team_id: workspaceId, team: "Delegated fixture", user_id: `U${target.id.replaceAll("-", "").toUpperCase()}`, user: "fixture-bot" }, { headers: { "x-oauth-scopes": scopes.join(",") } });
@@ -1170,7 +1170,7 @@ describe("connection management with production default agents", () => {
         throw new Error(`Unexpected Slack fixture operation: ${new URL(url).pathname}`);
       };
       try {
-        const created = await f.request("POST", `/companies/${f.companyId}/chat-endpoints`, { provider: "slack", assignedAgentId: target.id, slackSetupMethod: "manual" });
+        const created = await f.request("POST", `/spaces/${f.spaceId}/chat-endpoints`, { provider: "slack", assignedAgentId: target.id, slackSetupMethod: "manual" });
         expect(created, JSON.stringify(created)).toMatchObject({ status: 201 });
         const configured = await fetch(`${server.apiUrl}/api/chat-endpoints/${created.body.id}/setup`, {
           method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
@@ -1180,14 +1180,14 @@ describe("connection management with production default agents", () => {
         await server.db.update(chatEndpoints).set({ status: "active", allowDirectMessages: true }).where(eq(chatEndpoints.id, created.body.id));
         await server.db.update(toolConnections).set({ status: "active", enabled: true, healthStatus: "healthy" }).where(eq(toolConnections.id, created.body.connectionId));
         if (recipient === "linked") {
-          const [principal] = await server.db.insert(chatExternalPrincipals).values({ companyId: f.companyId, provider: "slack", providerAccountId: workspaceId, externalId: "UHUMAN", isBot: false }).returning();
-          await server.db.insert(chatIdentityLinks).values({ companyId: f.companyId, endpointId: created.body.id, principalId: principal.id, paperclipUserId: f.userId, status: "linked", confirmedAt: new Date() });
+          const [principal] = await server.db.insert(chatExternalPrincipals).values({ spaceId: f.spaceId, provider: "slack", providerAccountId: workspaceId, externalId: "UHUMAN", isBot: false }).returning();
+          await server.db.insert(chatIdentityLinks).values({ spaceId: f.spaceId, endpointId: created.body.id, principalId: principal.id, outpostUserId: f.userId, status: "linked", confirmedAt: new Date() });
         }
-        await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "Slack fixture access", policyType: "allow", selectors: { connectionId: created.body.connectionId }, priority: 2 });
+        await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Slack fixture access", policyType: "allow", selectors: { connectionId: created.body.connectionId }, priority: 2 });
         const rate = mode.endsWith("rate");
-        await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: mode, policyType: rate ? "rate_limit" : mode === "caller-ask" ? "require_approval" : "block",
+        await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: mode, policyType: rate ? "rate_limit" : mode === "caller-ask" ? "require_approval" : "block",
           selectors: { connectionId: created.body.connectionId, ...(mode === "shared-rate" ? {} : { agentId: mode.startsWith("caller") ? f.agentId : target.id }) }, priority: 0,
-          ...(rate ? { config: { limit: 1, windowSeconds: 60, keyBy: mode === "shared-rate" ? ["company", "tool"] : ["agent", "tool"] } } : {}),
+          ...(rate ? { config: { limit: 1, windowSeconds: 60, keyBy: mode === "shared-rate" ? ["space", "tool"] : ["agent", "tool"] } } : {}),
         });
         const path = `/chat-endpoints/${created.body.id}/slack/test-message`;
         if (rate) {
@@ -1205,7 +1205,7 @@ describe("connection management with production default agents", () => {
           if (mode === "caller-ask") expect(denied.body.details.requiredUserAction).toMatchObject({ kind: "approve" });
         }
         expect(sends, mode).toBe(rate ? 1 : 0);
-        const audit = await server.db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.companyId, f.companyId));
+        const audit = await server.db.select().from(toolAccessAuditEvents).where(eq(toolAccessAuditEvents.spaceId, f.spaceId));
         expect(audit.some(event => event.details.agentId === f.agentId && event.actorId === f.agentId), mode).toBe(true);
       } finally { vi.useRealTimers(); provider = null; }
     }
@@ -1231,7 +1231,7 @@ describe("connection management with production default agents", () => {
       throw new Error(`Unexpected GitHub fixture operation: ${path}`);
     };
     try {
-      const created = await f.request("POST", `/companies/${f.companyId}/chat-endpoints`, { provider: "github", assignedAgentId: f.agentId });
+      const created = await f.request("POST", `/spaces/${f.spaceId}/chat-endpoints`, { provider: "github", assignedAgentId: f.agentId });
       expect(await f.request("POST", `/chat-endpoints/${created.body.id}/github/registration`, { name: `fixture-${f.agentId.slice(0, 8)}` })).toMatchObject({ status: 200 });
       const cookie = await server.humanSession(f.userId);
       const humanRequest = (path: string, method = "GET", body?: unknown, session = cookie) => fetch(server.apiUrl + path, {
@@ -1303,7 +1303,7 @@ describe("connection management with production default agents", () => {
       const [repairedConnection] = await server.db.select().from(toolConnections).where(eq(toolConnections.id, created.body.connectionId));
       for (const [field, value] of [["privateKey", privateKey], ["clientSecret", "fixture-secret"], ["webhookSecret", "human-replacement-webhook"]]) {
         const ref = repairedConnection.credentialSecretRefs.find(ref => ref.configPath === `credentials.${field}`)!;
-        expect(await secretService(server.db).resolveSecretValue(f.companyId, ref.secretId, "latest", {
+        expect(await secretService(server.db).resolveSecretValue(f.spaceId, ref.secretId, "latest", {
           accessContext: { consumerType: "system", consumerId: "integration-fixture", actorType: "system" },
         })).toBe(value);
       }
@@ -1369,18 +1369,18 @@ describe("connection management with production default agents", () => {
     };
     try {
       const body = { apiKey: "fixture-agentmail-secret", grantKind: "user", agentIds: [f.agentId], allAgents: false, idempotencyKey: randomUUID() };
-      const created = await f.request("POST", `/companies/${f.companyId}/email/connections`, body);
+      const created = await f.request("POST", `/spaces/${f.spaceId}/email/connections`, body);
       expect(created, JSON.stringify(created)).toMatchObject({ status: 201 });
       expect(JSON.stringify(created.body)).not.toContain(body.apiKey);
-      expect(await f.request("POST", `/companies/${f.companyId}/email/connections`, body)).toMatchObject({ status: 201, body: { id: created.body.id } });
-      expect((await f.request("GET", `/companies/${f.companyId}/email/connections`)).body).toEqual(expect.arrayContaining([expect.objectContaining({ id: created.body.id })]));
+      expect(await f.request("POST", `/spaces/${f.spaceId}/email/connections`, body)).toMatchObject({ status: 201, body: { id: created.body.id } });
+      expect((await f.request("GET", `/spaces/${f.spaceId}/email/connections`)).body).toEqual(expect.arrayContaining([expect.objectContaining({ id: created.body.id })]));
       const [saved] = await server.db.select().from(toolConnections).where(eq(toolConnections.id, created.body.id));
       expect(saved.createdByUserId).toBe(f.userId);
-      const other = await f.request("POST", `/companies/${f.companyId}/email/connections`, { ...body, apiKey: "other-agentmail-secret", grantKind: "organization", idempotencyKey: randomUUID() });
+      const other = await f.request("POST", `/spaces/${f.spaceId}/email/connections`, { ...body, apiKey: "other-agentmail-secret", grantKind: "organization", idempotencyKey: randomUUID() });
       expect(other).toMatchObject({ status: 201 });
       await server.db.update(principalPermissionGrants).set({ scope: { connectionIds: [created.body.id] } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_connections")));
       for (const token of [f.key.token, f.jwt]) {
-        const listed = await f.request("GET", `/companies/${f.companyId}/email/connections?connectionId=${created.body.id}`, undefined, token);
+        const listed = await f.request("GET", `/spaces/${f.spaceId}/email/connections?connectionId=${created.body.id}`, undefined, token);
         expect(listed, JSON.stringify(listed)).toMatchObject({ status: 200 });
         expect(listed.body.map((account: { id: string }) => account.id)).toEqual([created.body.id]);
       }
@@ -1389,10 +1389,10 @@ describe("connection management with production default agents", () => {
 
   it("shares tool-activity authorization by task and reuses run identity within one page", async () => {
     const f = await fixture();
-    const connection = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Activity page", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
+    const connection = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Activity page", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
     expect(connection).toMatchObject({ status: 201 });
-    const [hidden] = await server.db.insert(issues).values({ companyId: f.companyId, title: "Private activity task", visibility: "private", status: "in_progress", responsibleUserId: randomUUID() }).returning();
-    await server.db.insert(toolCallEvents).values(Array.from({ length: 100 }, (_, index) => ({ companyId: f.companyId, connectionId: connection.body.id,
+    const [hidden] = await server.db.insert(issues).values({ spaceId: f.spaceId, title: "Private activity task", visibility: "private", status: "in_progress", responsibleUserId: randomUUID() }).returning();
+    await server.db.insert(toolCallEvents).values(Array.from({ length: 100 }, (_, index) => ({ spaceId: f.spaceId, connectionId: connection.body.id,
       eventType: "policy_decision" as const, actorType: "agent", actorId: f.agentId, issueId: index % 2 ? f.issueId : hidden.id, toolName: index % 2 ? "visible" : "private_activity" })));
     const original = connectionManagementModule.connectionManagementService;
     const checked: string[] = [];
@@ -1420,13 +1420,13 @@ describe("connection management with production default agents", () => {
 
   it("bounds activity authorization to the requested page rather than endpoint history", async () => {
     const f = await fixture();
-    const endpoint = await f.request("POST", `/companies/${f.companyId}/chat-endpoints`, { provider: "github", assignedAgentId: f.agentId });
+    const endpoint = await f.request("POST", `/spaces/${f.spaceId}/chat-endpoints`, { provider: "github", assignedAgentId: f.agentId });
     expect(endpoint).toMatchObject({ status: 201 });
     const conversations = await server.db.insert(chatConversations).values(Array.from({ length: 200 }, (_, index) => ({
-      companyId: f.companyId, endpointId: endpoint.body.id, issueId: f.issueId,
+      spaceId: f.spaceId, endpointId: endpoint.body.id, issueId: f.issueId,
       externalConversationId: `history-${index}`, externalLabel: `History ${index}`,
     }))).returning();
-    const [delivery] = await server.db.insert(chatDeliveries).values({ companyId: f.companyId, endpointId: endpoint.body.id,
+    const [delivery] = await server.db.insert(chatDeliveries).values({ spaceId: f.spaceId, endpointId: endpoint.body.id,
       conversationId: conversations[0].id, providerEventId: randomUUID(), deduplicationKey: randomUUID(), eventKind: "mention", state: "processed", normalizedEvent: {} }).returning();
     const original = connectionManagementModule.connectionManagementService;
     const checked: string[] = [];
@@ -1446,12 +1446,12 @@ describe("connection management with production default agents", () => {
 
   it("continues activity pagination through private-only windows", async () => {
     const f = await fixture();
-    const endpoint = await f.request("POST", `/companies/${f.companyId}/chat-endpoints`, { provider: "github", assignedAgentId: f.agentId });
-    const [hidden] = await server.db.insert(issues).values({ companyId: f.companyId, title: "Private history", visibility: "private", status: "in_progress", responsibleUserId: randomUUID() }).returning();
-    const conversations = await server.db.insert(chatConversations).values([f.issueId, hidden.id].map(issueId => ({ companyId: f.companyId, endpointId: endpoint.body.id, issueId,
+    const endpoint = await f.request("POST", `/spaces/${f.spaceId}/chat-endpoints`, { provider: "github", assignedAgentId: f.agentId });
+    const [hidden] = await server.db.insert(issues).values({ spaceId: f.spaceId, title: "Private history", visibility: "private", status: "in_progress", responsibleUserId: randomUUID() }).returning();
+    const conversations = await server.db.insert(chatConversations).values([f.issueId, hidden.id].map(issueId => ({ spaceId: f.spaceId, endpointId: endpoint.body.id, issueId,
       externalConversationId: randomUUID(), externalLabel: "History" }))).returning();
     const rows = Array.from({ length: 30 }, (_, index) => ({ id: `${f.agentId.slice(0, 24)}${index.toString(16).padStart(12, "0")}`,
-      companyId: f.companyId, endpointId: endpoint.body.id, conversationId: conversations[index < 3 ? 0 : 1].id,
+      spaceId: f.spaceId, endpointId: endpoint.body.id, conversationId: conversations[index < 3 ? 0 : 1].id,
       providerEventId: randomUUID(), deduplicationKey: randomUUID(), eventKind: "message" as const, state: "processed" as const, redactedError: index < 3 ? null : "private_history", normalizedEvent: {}, createdAt: new Date("2026-10-25T12:00:00.000Z") }));
     await server.db.insert(chatDeliveries).values(rows);
     const path = `/chat-endpoints/${endpoint.body.id}/activity?limit=25`;
@@ -1478,7 +1478,7 @@ describe("connection management with production default agents", () => {
       throw new Error(`Unexpected Arcade fixture operation: ${path}`);
     };
     try {
-      const created = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Arcade fixture", transport: "mcp_remote", authKind: "none", credentialPolicy: "shared", status: "active", enabled: true, config: { sourceTemplateKey: "arcade", url: "https://api.arcade.dev/mcp/test" } });
+      const created = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Arcade fixture", transport: "mcp_remote", authKind: "none", credentialPolicy: "shared", status: "active", enabled: true, config: { sourceTemplateKey: "arcade", url: "https://api.arcade.dev/mcp/test" } });
       expect(created, JSON.stringify(created)).toMatchObject({ status: 201 });
       const configured = await f.request("PUT", `/tool-connections/${created.body.id}/aggregator/discovery`, { apiKey: "fixture-arcade-discovery", userId: "arcade-user" }, f.jwt);
       expect(configured, JSON.stringify(configured)).toMatchObject({ status: 200 });
@@ -1486,7 +1486,7 @@ describe("connection management with production default agents", () => {
       const discovery = saved.config.aggregatorDiscovery as Record<string, { secretId: string }>;
       expect(discovery[f.agentId]).toBeUndefined();
       expect(discovery[f.userId]).toMatchObject({ userId: "arcade-user", secretId: expect.any(String) });
-      const [secret] = await server.db.select().from(companySecrets).where(eq(companySecrets.id, discovery[f.userId].secretId));
+      const [secret] = await server.db.select().from(spaceSecrets).where(eq(spaceSecrets.id, discovery[f.userId].secretId));
       expect(secret.ownerUserId).toBe(f.userId);
       const events = await server.db.select().from(activityLog).where(eq(activityLog.entityId, saved.id));
       expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ action: "tool_connection.account_sync_configured", actorType: "agent", actorId: f.agentId, responsibleUserId: f.userId })]));
@@ -1510,11 +1510,11 @@ describe("connection management with production default agents", () => {
     const intent = { provider: "openai", method: "subscription", ownership: "personal", name: "Local receipt fixture", agentIds: [], allAgents: false };
     let sessionId: string | undefined;
     try {
-      const started = await f.request("POST", `/companies/${f.companyId}/ai-connections/local/attempts`, intent, f.jwt);
+      const started = await f.request("POST", `/spaces/${f.spaceId}/ai-connections/local/attempts`, intent, f.jwt);
       expect(started, JSON.stringify(started)).toMatchObject({ status: 201, body: { sessionId: expect.any(String) } });
       sessionId = started.body.sessionId;
       const call = { tool: "call_api", callId: "local-login-private-check", arguments: {
-        operationId: "POST /api/companies/{companyId}/ai-connections/local/check", body: { ...intent, localSessionId: sessionId },
+        operationId: "POST /api/spaces/{spaceId}/ai-connections/local/check", body: { ...intent, localSessionId: sessionId },
       } };
       const result = await f.authority.execute(call);
       expect(result).toMatchObject({ ok: true, status: 200, data: { status: "sign_in_required", authorizationUrl, code } });
@@ -1529,7 +1529,7 @@ describe("connection management with production default agents", () => {
       }
       expect((await f.snapshot()).assets.filter(asset => asset.objectKey.includes("/runner-api/"))).toEqual([]);
     } finally {
-      if (sessionId) await f.request("DELETE", `/companies/${f.companyId}/ai-connections/local/attempts/${sessionId}`, undefined, f.jwt);
+      if (sessionId) await f.request("DELETE", `/spaces/${f.spaceId}/ai-connections/local/attempts/${sessionId}`, undefined, f.jwt);
       browser.mockRestore();
       if (priorHome === undefined) delete process.env.OUTPOST_HOME;
       else process.env.OUTPOST_HOME = priorHome;
@@ -1540,7 +1540,7 @@ describe("connection management with production default agents", () => {
   // remain valid until revoked, so runtime enforcement still covers them.
   async function legacyAgentIssuedGatewayToken(f: Awaited<ReturnType<typeof fixture>>, gatewayId: string, name: string) {
     const id = randomUUID(), token = `pcgw_${id}.${randomBytes(32).toString("base64url")}`;
-    const [row] = await server.db.insert(toolMcpGatewayTokens).values({ id, companyId: f.companyId, gatewayId, name, tokenHash: createHash("sha256").update(token).digest("hex"),
+    const [row] = await server.db.insert(toolMcpGatewayTokens).values({ id, spaceId: f.spaceId, gatewayId, name, tokenHash: createHash("sha256").update(token).digest("hex"),
       tokenPrefix: `pcgw_${id.slice(0, 8)}`, subjectType: "gateway_client", clientLabel: "fixture", allowedActions: ["tools/list", "tools/call", "resources/list", "resources/read", "prompts/list", "prompts/get"],
       responsibleUserId: f.userId, createdByAgentId: f.agentId }).returning();
     return { status: 201, body: { ...row, token } };
@@ -1548,62 +1548,62 @@ describe("connection management with production default agents", () => {
 
   it("lets agents create and revoke gateway client tokens without ever receiving a token value", async () => {
     const f = await fixture();
-    const profile = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "gateway-profile", name: "Gateway profile", entries: [] });
+    const profile = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "gateway-profile", name: "Gateway profile", entries: [] });
     expect(profile, JSON.stringify(profile)).toMatchObject({ status: 201 });
-    const gateway = await f.request("POST", `/companies/${f.companyId}/tools/gateways`, { name: "Delegated gateway", slug: "delegated", profileId: profile.body.id });
+    const gateway = await f.request("POST", `/spaces/${f.spaceId}/tools/gateways`, { name: "Delegated gateway", slug: "delegated", profileId: profile.body.id });
     expect(gateway, JSON.stringify(gateway)).toMatchObject({ status: 201 });
-    const body = { companyId: f.companyId, name: "Fixture client", clientLabel: "fixture", expiresAt: new Date(Date.now() + 3600000).toISOString() };
+    const body = { spaceId: f.spaceId, name: "Fixture client", clientLabel: "fixture", expiresAt: new Date(Date.now() + 3600000).toISOString() };
     const call = (callId: string, operationId: string, pathParams: Record<string, string>, payload: unknown) =>
       f.authority.execute({ tool: "call_api", callId, arguments: { operationId, pathParams, body: payload } }) as Promise<{ status: number; data: Record<string, unknown> }>;
     const tokenValue = /pcgw_[0-9a-f-]{36}\.[A-Za-z0-9_-]+/;
-    const [company] = await server.db.select({ issuePrefix: companies.issuePrefix }).from(companies).where(eq(companies.id, f.companyId));
-    const tokensPath = `/${company.issuePrefix}/apps/gateways/${gateway.body.id}/tokens`;
-    expect(gateway.body).toMatchObject({ tokensPath, gatewayPath: `/${company.issuePrefix}/apps/gateways/${gateway.body.id}/overview` });
+    const [space] = await server.db.select({ issuePrefix: spaces.issuePrefix }).from(spaces).where(eq(spaces.id, f.spaceId));
+    const tokensPath = `/${space.issuePrefix}/apps/gateways/${gateway.body.id}/tokens`;
+    expect(gateway.body).toMatchObject({ tokensPath, gatewayPath: `/${space.issuePrefix}/apps/gateways/${gateway.body.id}/overview` });
 
     const created = await call("gateway-client-create", "POST /api/tool-gateway/gateways/{gatewayId}/tokens", { gatewayId: gateway.body.id }, body);
     expect(created, JSON.stringify(created)).toMatchObject({ status: 201, data: { name: "Fixture client", pendingReveal: true, tokensPath,
       tokenPrefix: expect.stringMatching(/^pcgw_[0-9a-f]{8}$/), createdByAgentId: f.agentId, responsibleUserId: f.userId,
-      requiredUserAction: { kind: "reveal_credential", userId: f.userId, setupPath: tokensPath, resource: { type: "gateway_token", id: created.data.id, companyId: f.companyId } } } });
+      requiredUserAction: { kind: "reveal_credential", userId: f.userId, setupPath: tokensPath, resource: { type: "gateway_token", id: created.data.id, spaceId: f.spaceId } } } });
     expect(created.data).not.toHaveProperty("token");
     expect(JSON.stringify(created)).not.toMatch(tokenValue);
     const [pending] = await server.db.select().from(toolMcpGatewayTokens).where(eq(toolMcpGatewayTokens.id, created.data.id as string));
     expect(pending).toMatchObject({ pendingReveal: true, createdByAgentId: f.agentId, responsibleUserId: f.userId, subjectType: "gateway_client", revokedAt: null });
     // Agents cannot reveal any value.
-    const agentReveal = await call("gateway-client-reveal", "POST /api/tool-gateway/gateway-tokens/{tokenId}/reveal", { tokenId: created.data.id as string }, { companyId: f.companyId });
+    const agentReveal = await call("gateway-client-reveal", "POST /api/tool-gateway/gateway-tokens/{tokenId}/reveal", { tokenId: created.data.id as string }, { spaceId: f.spaceId });
     expect(agentReveal, JSON.stringify(agentReveal)).toMatchObject({ status: 403, data: { reasonCode: "gateway_token_requires_person" } });
     expect(JSON.stringify(agentReveal)).not.toMatch(tokenValue);
-    expect(await f.request("POST", `/tool-gateway/gateway-tokens/${created.data.id}/reveal`, { companyId: f.companyId })).toMatchObject({ status: 403 });
+    expect(await f.request("POST", `/tool-gateway/gateway-tokens/${created.data.id}/reveal`, { spaceId: f.spaceId })).toMatchObject({ status: 403 });
 
     // The responsible person reveals the value exactly once, and it works.
     const cookie = await server.humanSession(f.userId);
-    const reveal = () => fetch(`${server.apiUrl}/api/tool-gateway/gateway-tokens/${created.data.id}/reveal`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ companyId: f.companyId }) });
+    const reveal = () => fetch(`${server.apiUrl}/api/tool-gateway/gateway-tokens/${created.data.id}/reveal`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ spaceId: f.spaceId }) });
     const revealed = await reveal();
     expect(revealed.status).toBe(200);
     const value = await revealed.json() as { token: string; pendingReveal: boolean; id: string };
     expect(value).toMatchObject({ id: created.data.id, pendingReveal: false, token: expect.stringMatching(new RegExp(`^pcgw_${created.data.id}\\.`)) });
     expect(await reveal()).toMatchObject({ status: 409 });
-    expect(await server.db.select().from(activityLog).where(and(eq(activityLog.companyId, f.companyId), eq(activityLog.action, "tool_gateway.token_revealed"))))
+    expect(await server.db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.spaceId), eq(activityLog.action, "tool_gateway.token_revealed"))))
       .toEqual([expect.objectContaining({ actorType: "user", actorId: f.userId, entityId: gateway.body.id, details: { tokenId: created.data.id } })]);
     const use = () => f.request("POST", `/mcp/gateways/${gateway.body.gatewayPublicId}`, { jsonrpc: "2.0", id: 1, method: "tools/list" }, value.token);
     expect(await use()).toMatchObject({ status: 200 });
 
     // Agents keep delegated revoke.
-    const revoked = await call("gateway-client-revoke", "POST /api/tool-gateway/gateway-tokens/{tokenId}/revoke", { tokenId: created.data.id as string }, { companyId: f.companyId });
+    const revoked = await call("gateway-client-revoke", "POST /api/tool-gateway/gateway-tokens/{tokenId}/revoke", { tokenId: created.data.id as string }, { spaceId: f.spaceId });
     expect(revoked, JSON.stringify(revoked)).toMatchObject({ status: 200, data: { id: created.data.id, revokedAt: expect.any(String) } });
     expect((await use()).status).toBeGreaterThanOrEqual(400);
 
     // A token revoked before reveal never gets a value.
     const unrevealed = await call("gateway-client-create-2", "POST /api/tool-gateway/gateways/{gatewayId}/tokens", { gatewayId: gateway.body.id }, { ...body, name: "Never revealed" });
     expect(unrevealed).toMatchObject({ status: 201 });
-    expect(await call("gateway-client-revoke-2", "POST /api/tool-gateway/gateway-tokens/{tokenId}/revoke", { tokenId: unrevealed.data.id as string }, { companyId: f.companyId })).toMatchObject({ status: 200 });
-    expect(await fetch(`${server.apiUrl}/api/tool-gateway/gateway-tokens/${unrevealed.data.id}/reveal`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ companyId: f.companyId }) }))
+    expect(await call("gateway-client-revoke-2", "POST /api/tool-gateway/gateway-tokens/{tokenId}/revoke", { tokenId: unrevealed.data.id as string }, { spaceId: f.spaceId })).toMatchObject({ status: 200 });
+    expect(await fetch(`${server.apiUrl}/api/tool-gateway/gateway-tokens/${unrevealed.data.id}/reveal`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ spaceId: f.spaceId }) }))
       .toMatchObject({ status: 409 });
 
     // A token that expired before reveal never gets a value.
     const expiring = await call("gateway-client-create-3", "POST /api/tool-gateway/gateways/{gatewayId}/tokens", { gatewayId: gateway.body.id }, { ...body, name: "Expired before reveal" });
     expect(expiring).toMatchObject({ status: 201 });
     await server.db.update(toolMcpGatewayTokens).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(toolMcpGatewayTokens.id, expiring.data.id as string));
-    const expiredReveal = await fetch(`${server.apiUrl}/api/tool-gateway/gateway-tokens/${expiring.data.id}/reveal`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ companyId: f.companyId }) });
+    const expiredReveal = await fetch(`${server.apiUrl}/api/tool-gateway/gateway-tokens/${expiring.data.id}/reveal`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ spaceId: f.spaceId }) });
     expect(expiredReveal.status).toBe(409);
     expect(await expiredReveal.json()).toMatchObject({ reasonCode: "gateway_token_expired" });
     const [stillPending] = await server.db.select().from(toolMcpGatewayTokens).where(eq(toolMcpGatewayTokens.id, expiring.data.id as string));
@@ -1617,17 +1617,17 @@ describe("connection management with production default agents", () => {
 
   it("reveals an agent-created gateway token value only to its responsible person", async () => {
     const f = await fixture();
-    const profile = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "gateway-profile", name: "Gateway profile", entries: [] });
-    const gateway = await f.request("POST", `/companies/${f.companyId}/tools/gateways`, { name: "Delegated gateway", slug: "delegated", profileId: profile.body.id });
-    const created = await f.request("POST", `/tool-gateway/gateways/${gateway.body.id}/tokens`, { companyId: f.companyId, name: "Fixture client", clientLabel: "fixture" });
+    const profile = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "gateway-profile", name: "Gateway profile", entries: [] });
+    const gateway = await f.request("POST", `/spaces/${f.spaceId}/tools/gateways`, { name: "Delegated gateway", slug: "delegated", profileId: profile.body.id });
+    const created = await f.request("POST", `/tool-gateway/gateways/${gateway.body.id}/tokens`, { spaceId: f.spaceId, name: "Fixture client", clientLabel: "fixture" });
     expect(created, JSON.stringify(created)).toMatchObject({ status: 201, body: { pendingReveal: true } });
     const otherId = `other-admin-${randomUUID()}`;
     await server.db.insert(authUsers).values({ id: otherId, name: "Other admin", email: `${otherId}@fixture.invalid`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
     const access = accessService(server.db);
-    await access.ensureMembership(f.companyId, "user", otherId, "owner", "active");
-    await access.ensureRoleDefaultGrants(f.companyId, otherId, "owner", otherId);
+    await access.ensureMembership(f.spaceId, "user", otherId, "owner", "active");
+    await access.ensureRoleDefaultGrants(f.spaceId, otherId, "owner", otherId);
     const cookie = await server.humanSession(otherId);
-    const reveal = await fetch(`${server.apiUrl}/api/tool-gateway/gateway-tokens/${created.body.id}/reveal`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ companyId: f.companyId }) });
+    const reveal = await fetch(`${server.apiUrl}/api/tool-gateway/gateway-tokens/${created.body.id}/reveal`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ spaceId: f.spaceId }) });
     expect(reveal.status).toBe(403);
     expect(await reveal.json()).toMatchObject({ reasonCode: "gateway_token_reveal_requires_responsible_person" });
     const [still] = await server.db.select().from(toolMcpGatewayTokens).where(eq(toolMcpGatewayTokens.id, created.body.id));
@@ -1636,9 +1636,9 @@ describe("connection management with production default agents", () => {
 
   it("keeps durable agent-issued gateway client tokens bound to the issuer and responsible user", async () => {
     const f = await fixture();
-    const profile = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "gateway-profile", name: "Gateway profile", entries: [] });
+    const profile = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "gateway-profile", name: "Gateway profile", entries: [] });
     expect(profile, JSON.stringify(profile)).toMatchObject({ status: 201 });
-    const gateway = await f.request("POST", `/companies/${f.companyId}/tools/gateways`, { name: "Delegated gateway", slug: "delegated", profileId: profile.body.id });
+    const gateway = await f.request("POST", `/spaces/${f.spaceId}/tools/gateways`, { name: "Delegated gateway", slug: "delegated", profileId: profile.body.id });
     expect(gateway, JSON.stringify(gateway)).toMatchObject({ status: 201 });
     const token = await legacyAgentIssuedGatewayToken(f, gateway.body.id, "Fixture client");
     const [saved] = await server.db.select().from(toolMcpGatewayTokens).where(eq(toolMcpGatewayTokens.id, token.body.id));
@@ -1649,9 +1649,9 @@ describe("connection management with production default agents", () => {
     expect(await use()).toMatchObject({ status: 200 });
     await server.db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.runId));
     expect(await use()).toMatchObject({ status: 200 });
-    await server.db.update(companyMemberships).set({ status: "suspended" }).where(and(eq(companyMemberships.companyId, f.companyId), eq(companyMemberships.principalId, f.userId)));
+    await server.db.update(spaceMemberships).set({ status: "suspended" }).where(and(eq(spaceMemberships.spaceId, f.spaceId), eq(spaceMemberships.principalId, f.userId)));
     expect((await use()).status).toBeGreaterThanOrEqual(400);
-    await server.db.update(companyMemberships).set({ status: "active" }).where(and(eq(companyMemberships.companyId, f.companyId), eq(companyMemberships.principalId, f.userId)));
+    await server.db.update(spaceMemberships).set({ status: "active" }).where(and(eq(spaceMemberships.spaceId, f.spaceId), eq(spaceMemberships.principalId, f.userId)));
     expect(await use()).toMatchObject({ status: 200 });
     await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_connections")));
     expect((await use()).status).toBeGreaterThanOrEqual(400);
@@ -1663,10 +1663,10 @@ describe("connection management with production default agents", () => {
     expect((await use()).status).toBeGreaterThanOrEqual(400);
   });
 
-  it.each(["block", "ask", "ask-board", "ask-revoked", "ask-rate", "ask-new-rate", "ask-new-shared-rate", "ask-new-rate-target-block", "ask-token-revoked", "ask-token-deleted", "ask-token-scope", "ask-grant-revoked", "ask-one-connection", "ask-one-connection-recovery", "ask-one-connection-revoked", "rate", "shared-rate", "target-block", "credential"] as const)("intersects gateway issuer and target rules (%s)", async mode => {
+  it.each(["block", "ask", "ask-operator", "ask-revoked", "ask-rate", "ask-new-rate", "ask-new-shared-rate", "ask-new-rate-target-block", "ask-token-revoked", "ask-token-deleted", "ask-token-scope", "ask-grant-revoked", "ask-one-connection", "ask-one-connection-recovery", "ask-one-connection-revoked", "rate", "shared-rate", "target-block", "credential"] as const)("intersects gateway issuer and target rules (%s)", async mode => {
     const f = await fixture();
     const cookie = await server.humanSession(f.userId);
-    const createdTarget = await fetch(`${server.apiUrl}/api/companies/${f.companyId}/agents`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
+    const createdTarget = await fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/agents`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Gateway target", role: "engineer", adapterType: "outpost_runner", adapterConfig: { provider: "codex" }, permissions: {}, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } }) });
     const target = await createdTarget.json();
     expect(createdTarget.status).toBe(201);
@@ -1689,17 +1689,17 @@ describe("connection management with production default agents", () => {
     const address = remote.address();
     if (!address || typeof address === "string") throw new Error("No fixture address");
     try {
-      const connection = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Gateway policy fixture", transport: "mcp_remote", authKind: "none", transportConfig: { url: `http://127.0.0.1:${address.port}/mcp` } });
+      const connection = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Gateway policy fixture", transport: "mcp_remote", authKind: "none", transportConfig: { url: `http://127.0.0.1:${address.port}/mcp` } });
       expect(connection.status).toBe(201);
       await server.db.update(toolConnections).set({ healthStatus: "ok" }).where(eq(toolConnections.id, connection.body.id));
-      const [entry] = await server.db.insert(toolCatalogEntries).values({ companyId: f.companyId, applicationId: connection.body.applicationId, connectionId: connection.body.id,
+      const [entry] = await server.db.insert(toolCatalogEntries).values({ spaceId: f.spaceId, applicationId: connection.body.applicationId, connectionId: connection.body.id,
         entryKind: "tool", name: "Fixture probe", toolName: "fixture_probe", inputSchema: { type: "object" }, riskLevel: "read", isReadOnly: true, status: "active", versionHash: "fixture-v1" }).returning();
-      expect(await f.request("POST", `/companies/${f.companyId}/tools/apps/${connection.body.id}/finish`, { enabledCatalogEntryIds: [entry.id], access: { agentIds: [f.agentId, target.id] } })).toMatchObject({ status: 200 });
-      const profile = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "gateway-rules", name: "Gateway rules", entries: [{ selectorType: "connection", connectionId: connection.body.id }] });
-      const gateway = await f.request("POST", `/companies/${f.companyId}/tools/gateways`, { name: "Cross-agent gateway", slug: "cross-agent", profileId: profile.body.id, agentId: target.id, issueId: f.issueId, projectId: f.projectId });
+      expect(await f.request("POST", `/spaces/${f.spaceId}/tools/apps/${connection.body.id}/finish`, { enabledCatalogEntryIds: [entry.id], access: { agentIds: [f.agentId, target.id] } })).toMatchObject({ status: 200 });
+      const profile = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "gateway-rules", name: "Gateway rules", entries: [{ selectorType: "connection", connectionId: connection.body.id }] });
+      const gateway = await f.request("POST", `/spaces/${f.spaceId}/tools/gateways`, { name: "Cross-agent gateway", slug: "cross-agent", profileId: profile.body.id, agentId: target.id, issueId: f.issueId, projectId: f.projectId });
       expect(gateway, JSON.stringify(gateway)).toMatchObject({ status: 201 });
-      const tokenBody = { companyId: f.companyId, name: "Issuer client", clientLabel: "fixture" };
-      const token = mode === "ask-board" ? await (async () => {
+      const tokenBody = { spaceId: f.spaceId, name: "Issuer client", clientLabel: "fixture" };
+      const token = mode === "ask-operator" ? await (async () => {
         const response = await fetch(`${server.apiUrl}/api/tool-gateway/gateways/${gateway.body.id}/tokens`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify(tokenBody) });
         return { status: response.status, body: await response.json() };
       })() : await legacyAgentIssuedGatewayToken(f, gateway.body.id, tokenBody.name);
@@ -1711,13 +1711,13 @@ describe("connection management with production default agents", () => {
       expect(tool, JSON.stringify(listed)).toBeTruthy();
       vi.useFakeTimers({ toFake: ["Date"] });
       const isRate = mode === "rate" || mode === "shared-rate";
-      await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "Gateway caller control", policyType: isRate ? "rate_limit" : mode.startsWith("ask") ? "require_approval" : mode === "credential" ? "allow" : "block",
-        selectors: { connectionId: connection.body.id, ...(mode === "shared-rate" ? {} : { agentId: mode === "target-block" || mode === "ask-board" ? target.id : f.agentId }) }, priority: 0,
-        ...(isRate ? { config: { limit: 1, windowSeconds: 60, keyBy: mode === "shared-rate" ? ["company", "tool"] : ["agent", "tool"] } } : {}) });
-      if (mode === "ask-rate") await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "One issuer admission", policyType: "rate_limit", selectors: { connectionId: connection.body.id, agentId: f.agentId }, priority: -1, config: { limit: 1, windowSeconds: 60, keyBy: ["agent", "tool"] } });
+      await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Gateway caller control", policyType: isRate ? "rate_limit" : mode.startsWith("ask") ? "require_approval" : mode === "credential" ? "allow" : "block",
+        selectors: { connectionId: connection.body.id, ...(mode === "shared-rate" ? {} : { agentId: mode === "target-block" || mode === "ask-operator" ? target.id : f.agentId }) }, priority: 0,
+        ...(isRate ? { config: { limit: 1, windowSeconds: 60, keyBy: mode === "shared-rate" ? ["space", "tool"] : ["agent", "tool"] } } : {}) });
+      if (mode === "ask-rate") await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "One issuer admission", policyType: "rate_limit", selectors: { connectionId: connection.body.id, agentId: f.agentId }, priority: -1, config: { limit: 1, windowSeconds: 60, keyBy: ["agent", "tool"] } });
       if (mode === "credential") {
         await server.db.update(toolConnections).set({ credentialPolicy: "per_agent" }).where(eq(toolConnections.id, connection.body.id));
-        await server.db.insert(connectionGrants).values([f.agentId, target.id].map(subjectAgentId => ({ companyId: f.companyId, connectionId: connection.body.id, kind: "agent" as const, subjectAgentId, status: "active" as const })));
+        await server.db.insert(connectionGrants).values([f.agentId, target.id].map(subjectAgentId => ({ spaceId: f.spaceId, connectionId: connection.body.id, kind: "agent" as const, subjectAgentId, status: "active" as const })));
       }
       const called = await rpc("tools/call", { name: tool.name, arguments: {} });
       if (isRate) {
@@ -1732,21 +1732,21 @@ describe("connection management with production default agents", () => {
         return;
       }
       const [invocation] = await server.db.select().from(toolInvocations).where(eq(toolInvocations.gatewayId, gateway.body.id));
-      expect(invocation).toMatchObject({ gatewayTokenId: token.body.id, actorId: mode === "ask-board" ? token.body.id : f.agentId, agentId: target.id, policyDecision: mode.startsWith("ask") ? "require_approval" : "deny" });
+      expect(invocation).toMatchObject({ gatewayTokenId: token.body.id, actorId: mode === "ask-operator" ? token.body.id : f.agentId, agentId: target.id, policyDecision: mode.startsWith("ask") ? "require_approval" : "deny" });
       if (!mode.startsWith("ask")) return;
       const [action] = await server.db.select().from(toolActionRequests).where(eq(toolActionRequests.invocationId, invocation.id));
-      expect(action.requestedByAgentId).toBe(mode === "ask-board" ? null : f.agentId);
+      expect(action.requestedByAgentId).toBe(mode === "ask-operator" ? null : f.agentId);
       if (mode.startsWith("ask-new-")) {
-        await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "New admission after review", policyType: "rate_limit",
+        await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "New admission after review", policyType: "rate_limit",
           selectors: { connectionId: connection.body.id, ...(mode === "ask-new-shared-rate" ? {} : { agentId: f.agentId }) },
-          priority: -2, config: { limit: 1, windowSeconds: 60, keyBy: mode === "ask-new-shared-rate" ? ["company", "tool"] : ["agent", "tool"] } });
-        if (mode === "ask-new-rate") await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "New target admission", policyType: "rate_limit",
+          priority: -2, config: { limit: 1, windowSeconds: 60, keyBy: mode === "ask-new-shared-rate" ? ["space", "tool"] : ["agent", "tool"] } });
+        if (mode === "ask-new-rate") await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "New target admission", policyType: "rate_limit",
           selectors: { connectionId: connection.body.id, agentId: target.id }, priority: -1,
           config: { limit: 1, windowSeconds: 60, keyBy: ["agent", "tool"] } });
-        if (mode === "ask-new-rate-target-block") await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "New target block", policyType: "block",
+        if (mode === "ask-new-rate-target-block") await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "New target block", policyType: "block",
           selectors: { connectionId: connection.body.id, agentId: target.id }, priority: -1 });
       }
-      if (mode === "ask-revoked") await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "Issuer blocked after review", policyType: "block", selectors: { connectionId: connection.body.id, agentId: f.agentId }, priority: -1 });
+      if (mode === "ask-revoked") await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Issuer blocked after review", policyType: "block", selectors: { connectionId: connection.body.id, agentId: f.agentId }, priority: -1 });
       if (mode === "ask-token-revoked") await server.db.update(toolMcpGatewayTokens).set({ revokedAt: new Date() }).where(eq(toolMcpGatewayTokens.id, token.body.id));
       if (mode === "ask-token-deleted") await server.db.delete(toolMcpGatewayTokens).where(eq(toolMcpGatewayTokens.id, token.body.id));
       if (mode === "ask-token-scope") await server.db.update(toolMcpGatewayTokens).set({ allowedActions: ["tools/list"] }).where(eq(toolMcpGatewayTokens.id, token.body.id));
@@ -1759,10 +1759,10 @@ describe("connection management with production default agents", () => {
         let attempt: Promise<unknown> | undefined;
         try {
           if (mode === "ask-one-connection-recovery") await commitToolActionReview(server.db, {
-            companyId: f.companyId, actionRequestId: action.id, decision: "approved", actor: { userId: f.userId },
+            spaceId: f.spaceId, actionRequestId: action.id, decision: "approved", actor: { userId: f.userId },
           });
-          attempt = mode === "ask-one-connection-recovery" ? service.recoverApprovedActionReviews(f.companyId)
-            : service.approveActionRequest({ companyId: f.companyId, actionRequestId: action.id, actor: { userId: f.userId } });
+          attempt = mode === "ask-one-connection-recovery" ? service.recoverApprovedActionReviews(f.spaceId)
+            : service.approveActionRequest({ spaceId: f.spaceId, actionRequestId: action.id, actor: { userId: f.userId } });
           void attempt.catch(() => undefined);
           const completed = Promise.race([attempt, new Promise<never>((_, reject) => {
             timer = setTimeout(() => reject(new Error("Single-connection gateway approval did not settle")), 5000);
@@ -1774,12 +1774,12 @@ describe("connection management with production default agents", () => {
           clearTimeout(timer); await limited.$client.end({ timeout: 1 }); await attempt?.catch(() => undefined);
         }
       } else {
-        const response = await fetch(`${server.apiUrl}/api/tool-gateway/action-requests/${action.id}/approve`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ companyId: f.companyId }) });
+        const response = await fetch(`${server.apiUrl}/api/tool-gateway/action-requests/${action.id}/approve`, { method: "POST", headers: { cookie, origin: server.apiUrl, "Content-Type": "application/json" }, body: JSON.stringify({ spaceId: f.spaceId }) });
         expect(response.status, JSON.stringify(await response.json())).toBe(approvalDenied ? 403 : 200);
       }
       expect(calls).toBe(approvalDenied ? 0 : 1);
       if (mode.startsWith("ask-new-")) {
-        const counters = await server.db.select().from(toolRateLimitCounters).where(eq(toolRateLimitCounters.companyId, f.companyId));
+        const counters = await server.db.select().from(toolRateLimitCounters).where(eq(toolRateLimitCounters.spaceId, f.spaceId));
         expect(counters).toHaveLength(approvalDenied ? 0 : mode === "ask-new-shared-rate" ? 1 : 2);
         expect(counters.every(counter => counter.remaining === 0)).toBe(true);
         if (!approvalDenied) {
@@ -1797,15 +1797,15 @@ describe("connection management with production default agents", () => {
 
   it("requires retained profile authority to clear gateway bindings and connection audiences", async () => {
     const f = await fixture();
-    const profile = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "bound-profile", name: "Bound profile", entries: [] });
+    const profile = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "bound-profile", name: "Bound profile", entries: [] });
     expect(profile, JSON.stringify(profile)).toMatchObject({ status: 201 });
-    const gateway = await f.request("POST", `/companies/${f.companyId}/tools/gateways`, { name: "Bound gateway", slug: "bound", profileId: profile.body.id, agentId: f.agentId });
+    const gateway = await f.request("POST", `/spaces/${f.spaceId}/tools/gateways`, { name: "Bound gateway", slug: "bound", profileId: profile.body.id, agentId: f.agentId });
     expect(gateway, JSON.stringify(gateway)).toMatchObject({ status: 201, body: { agentId: f.agentId } });
     await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_profiles")));
-    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { companyId: f.companyId, agentId: null })).toMatchObject({ status: 403 });
-    expect(await f.request("GET", `/companies/${f.companyId}/tools/gateways`)).toMatchObject({ status: 200, body: { gateways: expect.arrayContaining([expect.objectContaining({ id: gateway.body.id, agentId: f.agentId })]) } });
+    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { spaceId: f.spaceId, agentId: null })).toMatchObject({ status: 403 });
+    expect(await f.request("GET", `/spaces/${f.spaceId}/tools/gateways`)).toMatchObject({ status: 200, body: { gateways: expect.arrayContaining([expect.objectContaining({ id: gateway.body.id, agentId: f.agentId })]) } });
     for (const audience of [{ allAgents: false }, { agentIds: [] }]) {
-      expect(await f.request("POST", `/companies/${f.companyId}/ai-connections`, {
+      expect(await f.request("POST", `/spaces/${f.spaceId}/ai-connections`, {
         provider: "openai", method: "api_key", name: "No audience authority", apiKey: "unused-fixture-secret", ...audience,
       })).toMatchObject({ status: 403 });
     }
@@ -1813,28 +1813,28 @@ describe("connection management with production default agents", () => {
 
   it("requires access to saved and replacement gateway profiles and project bindings", async () => {
     const f = await fixture();
-    const saved = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "saved-scope", name: "Saved scope", entries: [] });
-    const replacement = await f.request("POST", `/companies/${f.companyId}/tools/profiles`, { profileKey: "replacement-scope", name: "Replacement scope", entries: [] });
+    const saved = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "saved-scope", name: "Saved scope", entries: [] });
+    const replacement = await f.request("POST", `/spaces/${f.spaceId}/tools/profiles`, { profileKey: "replacement-scope", name: "Replacement scope", entries: [] });
     expect(saved.status).toBe(201);
     expect(replacement.status).toBe(201);
-    expect(await f.request("POST", `/companies/${f.companyId}/tools/profiles/${saved.body.id}/bind`, { targetType: "project", targetId: f.projectId })).toMatchObject({ status: 201 });
-    const gateway = await f.request("POST", `/companies/${f.companyId}/tools/gateways`, { name: "Scoped gateway", slug: "scoped", profileId: saved.body.id });
+    expect(await f.request("POST", `/spaces/${f.spaceId}/tools/profiles/${saved.body.id}/bind`, { targetType: "project", targetId: f.projectId })).toMatchObject({ status: 201 });
+    const gateway = await f.request("POST", `/spaces/${f.spaceId}/tools/gateways`, { name: "Scoped gateway", slug: "scoped", profileId: saved.body.id });
     expect(gateway.status).toBe(201);
     await server.db.update(principalPermissionGrants).set({ scope: { profileIds: [replacement.body.id] } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_connections")));
-    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { companyId: f.companyId, profileId: replacement.body.id })).toMatchObject({ status: 403 });
+    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { spaceId: f.spaceId, profileId: replacement.body.id })).toMatchObject({ status: 403 });
     // A grant covering both sides permits the same requested change.
     await server.db.update(principalPermissionGrants).set({ scope: { profileIds: [saved.body.id, replacement.body.id] } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_connections")));
-    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { companyId: f.companyId, profileId: replacement.body.id })).toMatchObject({ status: 200, body: { profileId: replacement.body.id } });
-    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { companyId: f.companyId, projectId: f.projectId })).toMatchObject({ status: 200 });
+    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { spaceId: f.spaceId, profileId: replacement.body.id })).toMatchObject({ status: 200, body: { profileId: replacement.body.id } });
+    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { spaceId: f.spaceId, projectId: f.projectId })).toMatchObject({ status: 200 });
     const nextProjectId = randomUUID();
-    await server.db.insert(projects).values({ id: nextProjectId, companyId: f.companyId, name: "Replacement project" });
+    await server.db.insert(projects).values({ id: nextProjectId, spaceId: f.spaceId, name: "Replacement project" });
     await server.db.update(principalPermissionGrants).set({ scope: { projectIds: [f.projectId] } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_profiles")));
-    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { companyId: f.companyId, projectId: nextProjectId })).toMatchObject({ status: 403 });
-    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { companyId: f.companyId, projectId: null })).toMatchObject({ status: 403 });
+    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { spaceId: f.spaceId, projectId: nextProjectId })).toMatchObject({ status: 403 });
+    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { spaceId: f.spaceId, projectId: null })).toMatchObject({ status: 403 });
     await server.db.update(principalPermissionGrants).set({ scope: { projectIds: [f.projectId, nextProjectId] } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_profiles")));
-    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { companyId: f.companyId, projectId: nextProjectId })).toMatchObject({ status: 200, body: { projectId: nextProjectId } });
+    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { spaceId: f.spaceId, projectId: nextProjectId })).toMatchObject({ status: 200, body: { projectId: nextProjectId } });
     await server.db.update(principalPermissionGrants).set({ scope: null }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_profiles")));
-    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { companyId: f.companyId, projectId: null })).toMatchObject({ status: 200, body: { projectId: null } });
+    expect(await f.request("PATCH", `/tool-gateway/gateways/${gateway.body.id}`, { spaceId: f.spaceId, projectId: null })).toMatchObject({ status: 200, body: { projectId: null } });
   });
 
   it("saves an AI account with fixture verification under the user's ownership and agent attribution", async () => {
@@ -1845,10 +1845,10 @@ describe("connection management with production default agents", () => {
     };
     registerServerAdapter({ ...getServerAdapter("outpost_runner"), testEnvironment: async () => ({ adapterType: "outpost_runner", status: "pass", checks: [], testedAt: new Date().toISOString() }) });
     try {
-      const account = await f.request("POST", `/companies/${f.companyId}/ai-connections`, { provider: "openai", method: "api_key", name: "Fixture OpenAI", ownership: "personal", apiKey: "fixture-secret-do-not-return", agentIds: [f.agentId] });
+      const account = await f.request("POST", `/spaces/${f.spaceId}/ai-connections`, { provider: "openai", method: "api_key", name: "Fixture OpenAI", ownership: "personal", apiKey: "fixture-secret-do-not-return", agentIds: [f.agentId] });
       expect(account, JSON.stringify(account)).toMatchObject({ status: 201 });
       expect(JSON.stringify(account)).not.toContain("fixture-secret-do-not-return");
-      const list = await f.request("GET", `/companies/${f.companyId}/ai-connections`);
+      const list = await f.request("GET", `/spaces/${f.spaceId}/ai-connections`);
       expect(list).toMatchObject({ status: 200, body: { currentUserId: f.userId } });
       const [row] = await server.db.select().from(toolConnections).where(eq(toolConnections.id, account.body.connectionId));
       expect(row.createdByUserId).toBe(f.userId);
@@ -1863,20 +1863,20 @@ describe("connection management with production default agents", () => {
       } });
       const config = { name: "Fixture pool", enabled: true, mode: "round_robin", thresholdPercent: 90,
         members: [{ id: randomUUID(), binding, profile: { provider: "codex", model: "gpt-5.6-sol", effort: "low" } }] };
-      const pool = await f.request("POST", `/companies/${f.companyId}/ai-connection-pools`, { pluginKey, config });
+      const pool = await f.request("POST", `/spaces/${f.spaceId}/ai-connection-pools`, { pluginKey, config });
       expect(pool, JSON.stringify(pool)).toMatchObject({ status: 200, body: { revision: 1 } });
-      const changed = await f.request("POST", `/companies/${f.companyId}/ai-connection-pools`, { pluginKey, id: pool.body.id, expectedRevision: 1, config: { ...config, name: "Changed pool" } });
+      const changed = await f.request("POST", `/spaces/${f.spaceId}/ai-connection-pools`, { pluginKey, id: pool.body.id, expectedRevision: 1, config: { ...config, name: "Changed pool" } });
       expect(changed, JSON.stringify(changed)).toMatchObject({ status: 200, body: { revision: 2 } });
-      expect(await f.request("DELETE", `/companies/${f.companyId}/ai-connection-pools/${pool.body.id}`, { expectedRevision: 1 })).toMatchObject({ status: 409 });
-      expect(await f.request("DELETE", `/companies/${f.companyId}/ai-connection-pools/${pool.body.id}`, { expectedRevision: 2 })).toMatchObject({ status: 200 });
+      expect(await f.request("DELETE", `/spaces/${f.spaceId}/ai-connection-pools/${pool.body.id}`, { expectedRevision: 1 })).toMatchObject({ status: 409 });
+      expect(await f.request("DELETE", `/spaces/${f.spaceId}/ai-connection-pools/${pool.body.id}`, { expectedRevision: 2 })).toMatchObject({ status: 200 });
       await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_profiles")));
-      expect(await f.request("POST", `/companies/${f.companyId}/ai-connections`, { provider: "openai", method: "api_key", name: "No sharing authority", ownership: "personal", apiKey: "fixture-secret", agentIds: [f.agentId] })).toMatchObject({ status: 403 });
+      expect(await f.request("POST", `/spaces/${f.spaceId}/ai-connections`, { provider: "openai", method: "api_key", name: "No sharing authority", ownership: "personal", apiKey: "fixture-secret", agentIds: [f.agentId] })).toMatchObject({ status: 403 });
     } finally { provider = null; unregisterServerAdapter("outpost_runner"); }
   });
 
   it("reads only the authorized Anthropic account identity through actual agent authentication", async () => {
     const f = await fixture();
-    const account = await aiConnectionService(server.db).save(f.companyId, f.userId, {
+    const account = await aiConnectionService(server.db).save(f.spaceId, f.userId, {
       provider: "anthropic", method: "subscription", ownership: "personal", name: "Account identity fixture",
       loginSessionId: "fixture", agentIds: [f.agentId], allAgents: false,
     }, "selected-identity-credential");
@@ -1887,7 +1887,7 @@ describe("connection management with production default agents", () => {
       expect(new Headers(init?.headers).get("authorization")).toBe("Bearer selected-identity-credential");
       return Response.json({ account: { uuid: "private-seat", email: "avery@example.test" }, organization: { uuid: "private-org", name: "Example team" } });
     };
-    const path = `/companies/${f.companyId}/ai-connections/${account.connectionId}/identity?grantId=${account.grantId}`;
+    const path = `/spaces/${f.spaceId}/ai-connections/${account.connectionId}/identity?grantId=${account.grantId}`;
     try {
       for (const token of [f.key.token, f.jwt]) {
         const response = await f.request("GET", path, undefined, token);
@@ -1895,7 +1895,7 @@ describe("connection management with production default agents", () => {
         for (const secret of ["selected-identity-credential", "private-seat", "private-org"]) expect(JSON.stringify(response)).not.toContain(secret);
       }
       expect(calls).toBe(2);
-      expect((await f.request("GET", path.replace(f.companyId, f.foreignCompanyId))).status).toBe(403);
+      expect((await f.request("GET", path.replace(f.spaceId, f.foreignSpaceId))).status).toBe(403);
       expect((await f.request("GET", path.replace(account.grantId, randomUUID()))).status).toBe(404);
       expect(calls).toBe(2);
       await server.db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, account.grantId));
@@ -1913,7 +1913,7 @@ describe("connection management with production default agents", () => {
     try {
       const accounts: { connectionId: string; grantId: string }[] = [];
       for (const name of ["Allowed account", "Outside agent scope"]) {
-        const account = await f.request("POST", `/companies/${f.companyId}/ai-connections`, { provider: "openai", method: "api_key", name, ownership: "personal", apiKey: `fixture-${name}`, agentIds: [] });
+        const account = await f.request("POST", `/spaces/${f.spaceId}/ai-connections`, { provider: "openai", method: "api_key", name, ownership: "personal", apiKey: `fixture-${name}`, agentIds: [] });
         expect(account, JSON.stringify(account)).toMatchObject({ status: 201 });
         accounts.push(account.body);
       }
@@ -1925,12 +1925,12 @@ describe("connection management with production default agents", () => {
       } });
       const savedPools: { id: string }[] = [];
       for (const account of accounts) {
-        const pool = await f.request("POST", `/companies/${f.companyId}/ai-connection-pools`, { pluginKey, config: { name: `Pool ${account.connectionId}`, enabled: true, mode: "round_robin", thresholdPercent: 90,
+        const pool = await f.request("POST", `/spaces/${f.spaceId}/ai-connection-pools`, { pluginKey, config: { name: `Pool ${account.connectionId}`, enabled: true, mode: "round_robin", thresholdPercent: 90,
           members: [{ id: randomUUID(), binding: { mode: "delegated", provider: "openai", method: "api_key", ...account }, profile: { provider: "codex", model: "gpt-5.6-sol", effort: "low" } }] } });
         expect(pool, JSON.stringify(pool)).toMatchObject({ status: 200 });
         savedPools.push(pool.body);
       }
-      const path = `/companies/${f.companyId}/ai-connections?connectionId=${accounts[0].connectionId}`;
+      const path = `/spaces/${f.spaceId}/ai-connections?connectionId=${accounts[0].connectionId}`;
       expect((await f.request("GET", path)).body.connections).toHaveLength(2);
       expect((await f.request("GET", path)).body.pools).toHaveLength(2);
       for (const connectionIds of [[accounts[0].connectionId], [accounts[0].connectionId, ...savedPools.map(pool => pool.id)]]) {
@@ -1947,7 +1947,7 @@ describe("connection management with production default agents", () => {
 
   it("reuses a saved chat authentication request and resumes only while its authority remains valid", async () => {
     const f = await fixture();
-    const created = await f.request("POST", `/companies/${f.companyId}/chat-endpoints`, { provider: "github", assignedAgentId: f.agentId });
+    const created = await f.request("POST", `/spaces/${f.spaceId}/chat-endpoints`, { provider: "github", assignedAgentId: f.agentId });
     expect(created.status).toBe(201);
     const path = `/chat-endpoints/${created.body.id}/github/identity/start`;
     const first = await f.request("POST", path, {}, f.jwt);
@@ -1966,30 +1966,30 @@ describe("connection management with production default agents", () => {
     await satisfiedConnectionIntentService(server.db).sweepPending();
     expect((await server.db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, intent.id)))[0].status).toBe("pending");
     expect(await server.db.select().from(connectionIntentDeliveries).where(eq(connectionIntentDeliveries.interactionId, intent.id))).toEqual([]);
-    const [principal] = await server.db.insert(chatExternalPrincipals).values({ companyId: f.companyId, provider: "github", providerAccountId: "identity-fixture", externalId: "1357" }).returning();
-    const [link] = await server.db.insert(chatIdentityLinks).values({ companyId: f.companyId, endpointId: created.body.id, principalId: principal.id, paperclipUserId: f.userId, status: "pending" }).returning();
+    const [principal] = await server.db.insert(chatExternalPrincipals).values({ spaceId: f.spaceId, provider: "github", providerAccountId: "identity-fixture", externalId: "1357" }).returning();
+    const [link] = await server.db.insert(chatIdentityLinks).values({ spaceId: f.spaceId, endpointId: created.body.id, principalId: principal.id, outpostUserId: f.userId, status: "pending" }).returning();
     for (const status of ["pending", "revoked", "expired"] as const) {
       await server.db.update(chatIdentityLinks).set({ status }).where(eq(chatIdentityLinks.id, link.id));
       expect(await findSatisfiedToolConnection(server.db, task, intent), status).toBeNull();
     }
     await server.db.update(chatIdentityLinks).set({ status: "linked", confirmedAt: new Date() }).where(eq(chatIdentityLinks.id, link.id));
-    await server.db.update(chatIdentityLinks).set({ paperclipUserId: randomUUID() }).where(eq(chatIdentityLinks.id, link.id));
+    await server.db.update(chatIdentityLinks).set({ outpostUserId: randomUUID() }).where(eq(chatIdentityLinks.id, link.id));
     expect(await findSatisfiedToolConnection(server.db, task, intent)).toBeNull();
-    await server.db.update(chatIdentityLinks).set({ paperclipUserId: f.userId }).where(eq(chatIdentityLinks.id, link.id));
+    await server.db.update(chatIdentityLinks).set({ outpostUserId: f.userId }).where(eq(chatIdentityLinks.id, link.id));
     await server.db.update(chatExternalPrincipals).set({ providerAccountId: "different-installation" }).where(eq(chatExternalPrincipals.id, principal.id));
     expect(await findSatisfiedToolConnection(server.db, task, intent)).toBeNull();
     await server.db.update(chatExternalPrincipals).set({ providerAccountId: "identity-fixture" }).where(eq(chatExternalPrincipals.id, principal.id));
     expect((await findSatisfiedToolConnection(server.db, task, intent))?.id).toBe(created.body.connectionId);
     expect(await findSatisfiedToolConnection(server.db, { ...task, status: "cancelled" }, intent)).toBeNull();
-    await accessService(server.db).ensureMembership(f.companyId, "user", f.userId, "operator", "suspended");
+    await accessService(server.db).ensureMembership(f.spaceId, "user", f.userId, "operator", "suspended");
     expect(await findSatisfiedToolConnection(server.db, task, intent)).toBeNull();
-    await accessService(server.db).ensureMembership(f.companyId, "user", f.userId, "operator", "active");
+    await accessService(server.db).ensureMembership(f.spaceId, "user", f.userId, "operator", "active");
     await satisfiedConnectionIntentService(server.db).sweepPending();
     const [delivery] = await server.db.select().from(connectionIntentDeliveries).where(eq(connectionIntentDeliveries.interactionId, intent.id));
     expect(delivery).toBeDefined();
   });
 
-  it("retains a restricted user's personal self-service without company management or spoofed ownership", async () => {
+  it("retains a restricted user's personal self-service without space management or spoofed ownership", async () => {
     const f = await fixture();
     await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.principalType, "user"), eq(principalPermissionGrants.principalId, f.userId)));
     provider = async url => {
@@ -1998,36 +1998,36 @@ describe("connection management with production default agents", () => {
     };
     const payload = { provider: "openai", method: "api_key", name: "Personal", ownership: "personal", apiKey: "personal-fixture", agentIds: [], allAgents: false };
     try {
-      expect(await f.request("POST", `/companies/${f.companyId}/ai-connections`, { ...payload, ownership: "shared" })).toMatchObject({ status: 403 });
-      expect(await f.request("POST", `/companies/${f.companyId}/ai-connections`, { ...payload, responsibleUserId: randomUUID() })).toMatchObject({ status: 403 });
-      expect(await f.request("POST", `/companies/${f.companyId}/ai-connections`, payload)).toMatchObject({ status: 201 });
+      expect(await f.request("POST", `/spaces/${f.spaceId}/ai-connections`, { ...payload, ownership: "shared" })).toMatchObject({ status: 403 });
+      expect(await f.request("POST", `/spaces/${f.spaceId}/ai-connections`, { ...payload, responsibleUserId: randomUUID() })).toMatchObject({ status: 403 });
+      expect(await f.request("POST", `/spaces/${f.spaceId}/ai-connections`, payload)).toMatchObject({ status: 201 });
     } finally { provider = null; }
   });
 
   it("rejects foreign personal metadata, missing responsible users and task-bridge keys", async () => {
     const f = await fixture();
-    const created = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Foreign personal fixture", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
+    const created = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Foreign personal fixture", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
     expect(created.status).toBe(201);
     await server.db.update(toolConnections).set({ credentialPolicy: "per_user", createdByUserId: randomUUID() }).where(eq(toolConnections.id, created.body.id));
     expect(await f.request("GET", `/tool-connections/${created.body.id}`)).toMatchObject({ status: 403 });
-    const listed = await f.request("GET", `/companies/${f.companyId}/tools/connections`);
+    const listed = await f.request("GET", `/spaces/${f.spaceId}/tools/connections`);
     expect(JSON.stringify(listed.body)).not.toContain("Foreign personal fixture");
-    const [policy] = await server.db.insert(toolPolicies).values({ companyId: f.companyId, name: "Private account rule", policyType: "block", selectors: { connectionIds: [created.body.id] } }).returning();
-    expect(JSON.stringify((await f.request("GET", `/companies/${f.companyId}/tools/policies`)).body)).not.toContain(policy.id);
-    expect(await f.request("POST", `/companies/${f.companyId}/tools/policies`, { name: "Cannot edit foreign access", policyType: "allow", selectors: { agentId: f.agentId, connectionIds: [created.body.id] } })).toMatchObject({ status: 403 });
+    const [policy] = await server.db.insert(toolPolicies).values({ spaceId: f.spaceId, name: "Private account rule", policyType: "block", selectors: { connectionIds: [created.body.id] } }).returning();
+    expect(JSON.stringify((await f.request("GET", `/spaces/${f.spaceId}/tools/policies`)).body)).not.toContain(policy.id);
+    expect(await f.request("POST", `/spaces/${f.spaceId}/tools/policies`, { name: "Cannot edit foreign access", policyType: "allow", selectors: { agentId: f.agentId, connectionIds: [created.body.id] } })).toMatchObject({ status: 403 });
 
     await server.db.update(agentApiKeys).set({ responsibleUserId: null }).where(eq(agentApiKeys.id, f.key.id));
-    expect((await f.request("GET", `/companies/${f.companyId}/tools/gallery`)).status).toBeGreaterThanOrEqual(400);
+    expect((await f.request("GET", `/spaces/${f.spaceId}/tools/gallery`)).status).toBeGreaterThanOrEqual(400);
     const g = await fixture();
     await server.db.update(agentApiKeys).set({ scopeConfig: { kind: "task_bridge", parentIssueId: g.issueId } }).where(eq(agentApiKeys.id, g.key.id));
-    expect((await g.request("GET", `/companies/${g.companyId}/tools/gallery`)).status).toBeGreaterThanOrEqual(400);
+    expect((await g.request("GET", `/spaces/${g.spaceId}/tools/gallery`)).status).toBeGreaterThanOrEqual(400);
   });
 
   it("revalidates pending credential promotion after yielding without reviving cancelled work", async () => {
     const f = await fixture();
-    const context = await connectionManagementService(server.db).authorize({ type: "agent", companyId: f.companyId,
+    const context = await connectionManagementService(server.db).authorize({ type: "agent", spaceId: f.spaceId,
       agentId: f.agentId, runId: f.runId, onBehalfOfUserId: f.userId }, "connections:configure",
-      { type: "connection_management", companyId: f.companyId, purpose: "ai", operation: "login" });
+      { type: "connection_management", spaceId: f.spaceId, purpose: "ai", operation: "login" });
     const continuation = continuingConnectionManagement(context)!;
     await server.db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.runId));
     await expect(context.reauthorize()).rejects.toThrow();
@@ -2039,31 +2039,31 @@ describe("connection management with production default agents", () => {
   it("denies revoked agent grants and user authority, including shadow mode, without backfilling", async () => {
     const f = await fixture();
     await server.db.delete(principalPermissionGrants).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_connections")));
-    expect(await f.request("GET", `/companies/${f.companyId}/tools/gallery`)).toMatchObject({ status: 403 });
+    expect(await f.request("GET", `/spaces/${f.spaceId}/tools/gallery`)).toMatchObject({ status: 403 });
     const g = await fixture();
-    await accessService(server.db).ensureMembership(g.companyId, "user", g.userId, "operator", "suspended");
-    expect(await g.request("GET", `/companies/${g.companyId}/tools/gallery`)).toMatchObject({ status: 403 });
+    await accessService(server.db).ensureMembership(g.spaceId, "user", g.userId, "operator", "suspended");
+    expect(await g.request("GET", `/spaces/${g.spaceId}/tools/gallery`)).toMatchObject({ status: 403 });
   });
 
-  it("enforces grant scopes, company isolation, effective trust, and Ask/Plan work modes", async () => {
+  it("enforces grant scopes, space isolation, effective trust, and Ask/Plan work modes", async () => {
     const f = await fixture();
-    expect(await f.request("GET", `/companies/${f.foreignCompanyId}/tools/gallery`)).toMatchObject({ status: 403 });
-    const owned = await f.request("POST", `/companies/${f.companyId}/tools/connections`, { name: "Scoped fixture", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
+    expect(await f.request("GET", `/spaces/${f.foreignSpaceId}/tools/gallery`)).toMatchObject({ status: 403 });
+    const owned = await f.request("POST", `/spaces/${f.spaceId}/tools/connections`, { name: "Scoped fixture", transport: "mcp_remote", authKind: "none", transportConfig: { url: "https://1.1.1.1/mcp" } });
     expect(owned.status).toBe(201);
     await server.db.update(principalPermissionGrants).set({ scope: { connectionIds: [owned.body.id], purposes: ["tool"], operations: ["GET /tool-connections/:connectionId"] } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_connections")));
     expect(await f.request("GET", `/tool-connections/${owned.body.id}`)).toMatchObject({ status: 200 });
     expect(await f.request("PATCH", `/tool-connections/${owned.body.id}`, { name: "Beyond operation scope" })).toMatchObject({ status: 403 });
     await server.db.update(principalPermissionGrants).set({ scope: { provider: "slack" } }).where(and(eq(principalPermissionGrants.principalId, f.agentId), eq(principalPermissionGrants.permissionKey, "tools:manage_connections")));
-    expect(await f.request("POST", `/companies/${f.companyId}/chat-endpoints`, { provider: "github", assignedAgentId: f.agentId })).toMatchObject({ status: 403 });
+    expect(await f.request("POST", `/spaces/${f.spaceId}/chat-endpoints`, { provider: "github", assignedAgentId: f.agentId })).toMatchObject({ status: 403 });
     const g = await fixture();
     for (const workMode of ["ask", "planning", "skill_test"]) {
       await server.db.update(issues).set({ workMode }).where(eq(issues.id, g.issueId));
-      expect(await g.request("POST", `/companies/${g.companyId}/tools/profiles`, { name: "Forbidden" }, g.jwt)).toMatchObject({ status: 403 });
+      expect(await g.request("POST", `/spaces/${g.spaceId}/tools/profiles`, { name: "Forbidden" }, g.jwt)).toMatchObject({ status: 403 });
     }
     await server.db.update(issues).set({ workMode: "standard" }).where(eq(issues.id, g.issueId));
     await server.db.update(projects).set({ executionWorkspacePolicy: { authorizationPolicy: { trustPreset: "low_trust_review", lowTrustBoundary: { projectIds: [g.projectId] } } } }).where(eq(projects.id, g.projectId));
-    expect(await g.request("POST", `/companies/${g.companyId}/tools/profiles`, { name: "Forbidden trust" }, g.jwt)).toMatchObject({ status: 403 });
+    expect(await g.request("POST", `/spaces/${g.spaceId}/tools/profiles`, { name: "Forbidden trust" }, g.jwt)).toMatchObject({ status: 403 });
     await server.db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", projectIds: [g.projectId], rootIssueId: g.issueId } } } }).where(eq(agents.id, g.agentId));
-    expect(await g.request("POST", `/companies/${g.companyId}/tools/profiles`, { name: "Forbidden agent trust" })).toMatchObject({ status: 403 });
+    expect(await g.request("POST", `/spaces/${g.spaceId}/tools/profiles`, { name: "Forbidden agent trust" })).toMatchObject({ status: 403 });
   });
 });

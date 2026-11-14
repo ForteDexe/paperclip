@@ -36,18 +36,18 @@ d("issue interaction resolver policy migration", () => {
       await sql.end();
     });
 
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const legacyInteractionId = randomUUID();
     const partialInteractionId = randomUUID();
 
     await sql`
-      INSERT INTO "companies" ("id", "name", "issue_prefix")
-      VALUES (${companyId}, 'Resolver migration test', 'RMT')
+      INSERT INTO "spaces" ("id", "name", "issue_prefix")
+      VALUES (${spaceId}, 'Resolver migration test', 'RMT')
     `;
     await sql`
-      INSERT INTO "issues" ("id", "company_id", "title", "identifier")
-      VALUES (${issueId}, ${companyId}, 'Test migration replay', 'RMT-1')
+      INSERT INTO "issues" ("id", "space_id", "title", "identifier")
+      VALUES (${issueId}, ${spaceId}, 'Test migration replay', 'RMT-1')
     `;
     await sql.unsafe(
       'ALTER TABLE "issue_thread_interactions" ALTER COLUMN "resolver_policy_provenance" DROP NOT NULL',
@@ -58,7 +58,7 @@ d("issue interaction resolver policy migration", () => {
     await sql`
       INSERT INTO "issue_thread_interactions" (
         "id",
-        "company_id",
+        "space_id",
         "issue_id",
         "kind",
         "requested_resolver_policy",
@@ -70,18 +70,18 @@ d("issue interaction resolver policy migration", () => {
       VALUES
         (
           ${legacyInteractionId},
-          ${companyId},
+          ${spaceId},
           ${issueId},
           'request_confirmation',
-          'board_or_agents',
-          'board_only',
+          'operator_or_agents',
+          'operator_only',
           NULL,
           NULL,
           '{}'::jsonb
         ),
         (
           ${partialInteractionId},
-          ${companyId},
+          ${spaceId},
           ${issueId},
           'request_confirmation',
           'human_only',
@@ -120,7 +120,7 @@ d("issue interaction resolver policy migration", () => {
           requested_resolver_policy: "not_creator",
           effective_resolver_policy: "human_only",
           resolver_policy_provenance: "legacy_inherited_restriction",
-          effective_resolver_policy_source: "company_cap",
+          effective_resolver_policy_source: "space_cap",
         },
         {
           id: partialInteractionId,

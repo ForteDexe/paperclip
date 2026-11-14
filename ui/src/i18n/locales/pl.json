@@ -1,9 +1,9 @@
 {
   "app": {
-    "noCompanies": {
+    "noSpaces": {
       "title": "Utwórz swoją pierwszą firmę",
       "description": "Zacznij od utworzenia firmy.",
-      "newCompany": "Nowa firma"
+      "newSpace": "Nowa firma"
     }
   }
 }

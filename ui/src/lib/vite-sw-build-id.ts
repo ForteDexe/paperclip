@@ -69,7 +69,7 @@ export function serviceWorkerBuildIdPlugin(
   let root = "";
 
   return {
-    name: "paperclip-sw-build-id",
+    name: "outpost-sw-build-id",
     apply: "build",
     configResolved(config) {
       root = config.root;

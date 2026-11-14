@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MAX_ISSUE_REQUEST_DEPTH } from "../index.js";
 import {
   addIssueCommentSchema,
-  paperclipQuestionSetPayloadSchema,
+  outpostQuestionSetPayloadSchema,
   issueCommentMetadataSchema,
   createIssueSchema,
   issueBlockedInboxAttentionSchema,
@@ -226,14 +226,14 @@ describe("issue validators", () => {
     expect(
       updateIssueSchema.safeParse({
         status: "blocked",
-        unblockDescriptor: { owner: "board", action: "   " },
+        unblockDescriptor: { owner: "operator", action: "   " },
       }).success,
     ).toBe(false);
     expect(
       createIssueSchema.safeParse({
         title: "Invalid descriptor status",
         status: "todo",
-        unblockDescriptor: { owner: "board", action: "Review" },
+        unblockDescriptor: { owner: "operator", action: "Review" },
       }).success,
     ).toBe(false);
   });
@@ -449,7 +449,7 @@ describe("issue validators", () => {
 
   it("accepts structured issue comment presentation and metadata", () => {
     const parsed = addIssueCommentSchema.parse({
-      body: "Paperclip needs a disposition before this issue can continue.",
+      body: "Outpost needs a disposition before this issue can continue.",
       authorType: "system",
       presentation: {
         kind: "system_notice",
@@ -745,18 +745,18 @@ describe("persisted canonical question initial text", () => {
   const input = (patch: Record<string, unknown>) => ({ schema: "outpost.question_set.v1", questions: [{ ...question, ...patch }] });
   it("retains exact editable content through the server payload validator", () => {
     for (const initialText of ["", "  Draft\n漢字\n", "x".repeat(100_000)]) {
-      expect(paperclipQuestionSetPayloadSchema.parse(input({ initialText }))).toEqual(input({ initialText }));
+      expect(outpostQuestionSetPayloadSchema.parse(input({ initialText }))).toEqual(input({ initialText }));
     }
   });
   it("counts mixed BMP and astral draft text like JSON Schema", () => {
     for (const codePoints of [100_000, 100_001]) {
       const initialText = "a".repeat(codePoints - 1) + "😀";
       expect(Buffer.byteLength(JSON.stringify(input({ initialText })))).toBeLessThan(196 * 1024);
-      expect(paperclipQuestionSetPayloadSchema.safeParse(input({ initialText })).success).toBe(codePoints === 100_000);
+      expect(outpostQuestionSetPayloadSchema.safeParse(input({ initialText })).success).toBe(codePoints === 100_000);
     }
   });
   it("bounds question text by the string length the Runner parser enforces", () => {
-    const within = paperclipQuestionSetPayloadSchema.safeParse(input({ prompt: "😀".repeat(2000) }));
+    const within = outpostQuestionSetPayloadSchema.safeParse(input({ prompt: "😀".repeat(2000) }));
     expect(within.success).toBe(true);
     for (const payload of [
       input({ prompt: "😀".repeat(2000) + "x" }),
@@ -764,13 +764,13 @@ describe("persisted canonical question initial text", () => {
       { ...input({}), title: "😀".repeat(501) },
       { ...input({}), submitLabel: "😀".repeat(101) },
     ]) {
-      expect(paperclipQuestionSetPayloadSchema.safeParse(payload).success).toBe(false);
+      expect(outpostQuestionSetPayloadSchema.safeParse(payload).success).toBe(false);
     }
   });
   it("rejects non-text modes and unbounded or nonstring defaults", () => {
     for (const initialText of [null, 1, "x".repeat(100_001), "a".repeat(100_000) + "😀"]) {
-      expect(paperclipQuestionSetPayloadSchema.safeParse(input({ initialText })).success).toBe(false);
+      expect(outpostQuestionSetPayloadSchema.safeParse(input({ initialText })).success).toBe(false);
     }
-    expect(paperclipQuestionSetPayloadSchema.safeParse(input({ answerMode: "single_select", options: [{ id: "a", label: "A" }], initialText: "a" })).success).toBe(false);
+    expect(outpostQuestionSetPayloadSchema.safeParse(input({ answerMode: "single_select", options: [{ id: "a", label: "A" }], initialText: "a" })).success).toBe(false);
   });
 });

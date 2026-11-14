@@ -1,27 +1,27 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type {
-  CompanySkillDetail,
-  CompanySkillFileDetail,
-  CompanySkillVersion,
+  SpaceSkillDetail,
+  SpaceSkillFileDetail,
+  SpaceSkillVersion,
 } from "@outpost/shared";
-import { SkillDetailPage } from "@/pages/CompanySkills";
+import { SkillDetailPage } from "@/pages/SpaceSkills";
 
 type DetailTab = "overview" | "files" | "versions" | "agents";
 
 const NOW = new Date("2026-06-01T12:00:00Z");
 
-const MOCK_DETAIL: CompanySkillDetail = {
+const MOCK_DETAIL: SpaceSkillDetail = {
   id: "skill-1",
-  companyId: "company-1",
-  key: "paperclipai/paperclip/deep-research",
+  spaceId: "space-1",
+  key: "outpost/outpost/deep-research",
   slug: "deep-research",
   name: "deep-research",
   description:
     "Fan-out web searches, fetch sources, adversarially verify claims, and synthesize a cited report. Best for multi-source, fact-checked research where one search angle will not find everything.",
   markdown: "# deep-research\n\nResearch harness.",
   sourceType: "github",
-  sourceLocator: "github.com/paperclipai/skills",
+  sourceLocator: "github.com/outpostai/skills",
   sourceRef: "a1b2c3d4e5f6",
   trustLevel: "scripts_executables",
   compatibility: "compatible",
@@ -36,10 +36,10 @@ const MOCK_DETAIL: CompanySkillDetail = {
   authorName: "Astra",
   homepageUrl: null,
   categories: ["research", "writing"],
-  sharingScope: "company",
+  sharingScope: "space",
   publicShareToken: null,
   forkedFromSkillId: null,
-  forkedFromCompanyId: null,
+  forkedFromSpaceId: null,
   starCount: 211,
   installCount: 96,
   forkCount: 17,
@@ -59,11 +59,11 @@ const MOCK_DETAIL: CompanySkillDetail = {
   editableReason: null,
   sourceLabel: "GitHub",
   sourceBadge: "github",
-  sourcePath: "github.com/paperclipai/skills/tree/main/deep-research",
+  sourcePath: "github.com/outpostai/skills/tree/main/deep-research",
   currentVersion: {
     id: "v-2",
-    companyId: "company-1",
-    companySkillId: "skill-1",
+    spaceId: "space-1",
+    spaceSkillId: "skill-1",
     revisionNumber: 2,
     label: "tighten verifier",
     releaseId: null,
@@ -77,11 +77,11 @@ const MOCK_DETAIL: CompanySkillDetail = {
   starredByCurrentActor: true,
 };
 
-const MOCK_VERSIONS: CompanySkillVersion[] = [
+const MOCK_VERSIONS: SpaceSkillVersion[] = [
   {
     id: "v-2",
-    companyId: "company-1",
-    companySkillId: "skill-1",
+    spaceId: "space-1",
+    spaceSkillId: "skill-1",
     revisionNumber: 2,
     label: "tighten verifier",
     releaseId: null,
@@ -94,8 +94,8 @@ const MOCK_VERSIONS: CompanySkillVersion[] = [
   },
   {
     id: "v-1",
-    companyId: "company-1",
-    companySkillId: "skill-1",
+    spaceId: "space-1",
+    spaceSkillId: "skill-1",
     revisionNumber: 1,
     label: null,
     releaseId: null,
@@ -108,7 +108,7 @@ const MOCK_VERSIONS: CompanySkillVersion[] = [
   },
 ];
 
-const MOCK_FILE: CompanySkillFileDetail = {
+const MOCK_FILE: SpaceSkillFileDetail = {
   skillId: "skill-1",
   path: "SKILL.md",
   kind: "skill",
@@ -204,7 +204,7 @@ const meta: Meta<typeof SkillDetailHarness> = {
   title: "Agents and reusable capabilities/Skills and Skill Studio/Skills Store/Skill detail",
   component: SkillDetailHarness,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "skills/discovery",
         "skills/versions",

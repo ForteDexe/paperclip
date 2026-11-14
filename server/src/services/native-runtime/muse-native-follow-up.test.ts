@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, agentWakeupRequests, authUsers, companies, companyMemberships, createDb,
+import { agents, agentWakeupRequests, authUsers, spaces, spaceMemberships, createDb,
   heartbeatRuns, issueComments, issues, museAgentBindings, museMailboxItems,
   museRunnerAssignments, museRunnerOperations } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -21,38 +21,38 @@ describe("Muse native comment follow-up", () => {
   }, 30000);
   afterAll(async () => { await temporary?.cleanup(); vi.unstubAllEnvs(); });
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), userId = randomUUID(), runId = randomUUID(), bindingId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), userId = randomUUID(), runId = randomUUID(), bindingId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Muse operator", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companies).values({ id: companyId, name: "Muse follow-up", issuePrefix: `MF${companyId.slice(0, 6)}`, defaultResponsibleUserId: userId });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "owner" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Muse", status: "active", adapterType: "outpost_runner",
+    await db.insert(spaces).values({ id: spaceId, name: "Muse follow-up", issuePrefix: `MF${spaceId.slice(0, 6)}`, defaultResponsibleUserId: userId });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "owner" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Muse", status: "active", adapterType: "outpost_runner",
       adapterConfig: { provider: "muse", museBindingId: bindingId, allowUnmeteredProvider: true, lifecycleMode: "per_turn" } });
-    await db.insert(museAgentBindings).values({ id: bindingId, companyId, agentId, operatorId: userId,
+    await db.insert(museAgentBindings).values({ id: bindingId, spaceId, agentId, operatorId: userId,
       status: "ready", pairedAt: new Date(), receiverContactAt: new Date(), verifiedReplyAt: new Date() });
-    const [task] = await db.insert(issues).values({ companyId, title: "Active Muse task", status: "in_progress",
+    const [task] = await db.insert(issues).values({ spaceId, title: "Active Muse task", status: "in_progress",
       assigneeAgentId: agentId, responsibleUserId: userId }).returning();
     const sessionId = randomUUID();
-    const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", invocationSource: "assignment",
+    const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", invocationSource: "assignment",
       runtimeMode: "native", nativeIssueId: task!.id, issueId: task!.id, nativeSessionId: sessionId,
       responsibleUserId: userId, contextSnapshot: { issueId: task!.id } }).returning();
     await db.update(issues).set({ executionRunId: runId, checkoutRunId: runId }).where(eq(issues.id, task!.id));
-    const [assignment] = await db.insert(museRunnerAssignments).values({ companyId, bindingId, bindingGeneration: 1, runId, agentId,
+    const [assignment] = await db.insert(museRunnerAssignments).values({ spaceId, bindingId, bindingGeneration: 1, runId, agentId,
       normalizedSessionId: sessionId, turnId: randomUUID(), controllerGeneration: 1, catalogDigest: "sha256:fixture",
       status: "accepted", projection: {}, acceptBy: new Date(Date.now() + 60000), expiresAt: new Date(Date.now() + 60000),
       claimedAt: new Date(), nativeAcceptedAt: new Date() }).returning();
-    const comments = await db.insert(issueComments).values([1, 2].map(index => ({ companyId, issueId: task!.id,
+    const comments = await db.insert(issueComments).values([1, 2].map(index => ({ spaceId, issueId: task!.id,
       authorUserId: userId, body: `Follow-up ${index}` }))).returning();
     const wake = (commentId: string) => heartbeatService(db).wakeup(agentId, { source: "assignment", triggerDetail: "system",
       reason: "issue_commented", payload: { issueId: task!.id, commentId }, requestedByActorType: "user", requestedByActorId: userId,
       contextSnapshot: { issueId: task!.id, wakeCommentId: commentId, wakeReason: "issue_commented" } });
     async function history(commentIds: string[], failed = false) {
-      const [receipt] = await db.insert(museRunnerOperations).values({ companyId, assignmentId: assignment!.id,
+      const [receipt] = await db.insert(museRunnerOperations).values({ spaceId, assignmentId: assignment!.id,
         requestId: randomUUID(), digest: "sha256:history", status: "settled",
         command: { action: "tool", input: { name: "get_task_history", arguments: {} } },
         outcome: { status: "completed", isError: failed, result: { comments: commentIds.map(id => ({ id })) } } }).returning();
       return receipt!;
     }
-    return { companyId, agentId, run: run!, assignment: assignment!, comments, wake, history };
+    return { spaceId, agentId, run: run!, assignment: assignment!, comments, wake, history };
   }
   it("queues unread comments on the accepted turn, and consumes only an exact successful history receipt", async () => {
     const f = await fixture();

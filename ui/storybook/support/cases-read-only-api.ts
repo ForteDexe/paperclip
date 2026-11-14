@@ -1,18 +1,18 @@
 import { CASE_STATUSES, type CaseDetail, type CaseEvent, type CaseHandoffView } from "@/api/cases";
 import { instanceExperimentalSettingsSchema } from "@outpost/shared";
-import { storybookAgents, storybookProjects } from "../fixtures/paperclipData";
+import { storybookAgents, storybookProjects } from "../fixtures/outpostData";
 import { caseActors, readonlyCaseFixtures, type CaseRecord } from "./cases-read-only-fixtures";
 import { prepareFixtureApi, type FixtureState } from "./capability-gaps/api";
 
-const companyId = "company-storybook";
-const projectId = (name: string | null) => name === "Paperclip" ? "project-cases-paperclip" : name === "Website" ? "project-cases-website" : null;
+const spaceId = "space-storybook";
+const projectId = (name: string | null) => name === "Outpost" ? "project-cases-outpost" : name === "Website" ? "project-cases-website" : null;
 const caseId = (record: CaseRecord) => `case-${record.identifier}`;
 const taskId = (record: CaseRecord) => record.task ? `task-${record.task.identifier}` : null;
 const actor = (role: string) => caseActors[role];
 
 export function caseFixtureHandoffs(record: CaseRecord): CaseHandoffView[] {
   return record.handoffs.map((handoff, index) => ({
-    id: handoff.id, companyId, caseId: caseId(record), issueId: taskId(record)!,
+    id: handoff.id, spaceId, caseId: caseId(record), issueId: taskId(record)!,
     version: record.handoffs.length - index, destinationKind: "agent", completedAt: null, workflowTransition: null,
     fromAgentId: actor(handoff.from)?.kind === "agent" ? actor(handoff.from).id : null,
     fromAgentName: actor(handoff.from)?.kind === "agent" ? actor(handoff.from).name : null,
@@ -35,7 +35,7 @@ export function caseFixtureDetail(record: CaseRecord): CaseDetail {
   const documentRefs = record.documents.map(document => ({
       key: document.key,
       document: {
-        id: `doc-${record.identifier}-${document.key}`, companyId, title: document.title, format: "markdown",
+        id: `doc-${record.identifier}-${document.key}`, spaceId, title: document.title, format: "markdown",
         latestBody: document.body, latestRevisionId: `rev-${record.identifier}-${document.key}`,
         latestRevisionNumber: document.revision,
         createdByAgentId: null, createdByUserId: "user-dotta", updatedByAgentId: null, updatedByUserId: "user-dotta",
@@ -43,7 +43,7 @@ export function caseFixtureDetail(record: CaseRecord): CaseDetail {
       },
     }));
   return {
-    id: caseId(record), companyId, projectId: projectId(record.project),
+    id: caseId(record), spaceId, projectId: projectId(record.project),
     caseNumber: Number(record.identifier.split("-C")[1]), identifier: record.identifier,
     caseType: record.type, key: null, title: record.title, summary: record.summary,
     status: record.status === "open" ? "draft" : record.status,
@@ -82,25 +82,25 @@ export function installReadOnlyCaseFixtures(state: FixtureState = "ready") {
   let failFirstListRead = state === "failure";
   const listState = state === "failure" ? "ready" : state;
   const findCase = (value: string) => details.find(record => record.id === value || record.identifier === value);
-  const projects = ["Paperclip", "Website"].map((name, index) => ({
-    ...storybookProjects[index], id: projectId(name)!, companyId, name,
+  const projects = ["Outpost", "Website"].map((name, index) => ({
+    ...storybookProjects[index], id: projectId(name)!, spaceId, name,
   }));
   const agents = Object.values(caseActors).filter(value => value.kind === "agent").map(value => ({
     ...storybookAgents.find(agent => agent.id === value.id) ?? storybookAgents[0],
-    id: value.id, name: value.name, companyId,
+    id: value.id, name: value.name, spaceId,
     status: value.id === "agent-qa" ? "paused" : "idle",
   }));
   return prepareFixtureApi([
     { path: "/api/instance/settings/experimental", state: "ready", read: () => instanceExperimentalSettingsSchema.parse({ enableCases: true }) },
-    { path: "/api/cli-auth/me", state: "ready", read: () => ({ source: "local_implicit", isInstanceAdmin: true, companyIds: [companyId], memberships: [] }) },
+    { path: "/api/cli-auth/me", state: "ready", read: () => ({ source: "local_implicit", isInstanceAdmin: true, spaceIds: [spaceId], memberships: [] }) },
     { path: /\/resource-memberships\/me$/, state: "ready", read: () => ({ projectMemberships: {}, agentMemberships: {}, starredProjectIds: [], starredAgentIds: [], starredDocumentIds: [], projectStarredAt: {}, agentStarredAt: {}, documentStarredAt: {}, updatedAt: null }) },
     { path: /\/budgets\/overview$/, state: "ready", read: () => ({ policies: [], activeIncidents: [], pausedAgentCount: 0, pausedProjectCount: 0, pendingApprovalCount: 0 }) },
     { path: "/api/plugins/ui-contributions", state: "ready", read: () => [] },
-    { path: `/api/companies/${companyId}/projects`, state: "ready", read: () => projects },
-    { path: /^\/api\/projects\/project-cases-(paperclip|website)$/, state: "ready", read: ({ url }) => projects.find(project => project.id === url.pathname.split("/").at(-1)) },
-    { path: `/api/companies/${companyId}/agents`, state: "ready", read: () => agents },
-    { path: `/api/companies/${companyId}/cases/types`, state: "ready", read: () => state === "empty" ? [] : [...new Set(details.map(record => record.caseType))].sort() },
-    { path: `/api/companies/${companyId}/cases`, state: listState, read: ({ url }) => {
+    { path: `/api/spaces/${spaceId}/projects`, state: "ready", read: () => projects },
+    { path: /^\/api\/projects\/project-cases-(outpost|website)$/, state: "ready", read: ({ url }) => projects.find(project => project.id === url.pathname.split("/").at(-1)) },
+    { path: `/api/spaces/${spaceId}/agents`, state: "ready", read: () => agents },
+    { path: `/api/spaces/${spaceId}/cases/types`, state: "ready", read: () => state === "empty" ? [] : [...new Set(details.map(record => record.caseType))].sort() },
+    { path: `/api/spaces/${spaceId}/cases`, state: listState, read: ({ url }) => {
       if (failFirstListRead) { failFirstListRead = false; return Response.json({ error: "Cases couldn’t be loaded." }, { status: 500 }); }
       if (state === "empty" || url.searchParams.has("parent")) return [];
       const query = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
@@ -146,7 +146,7 @@ export function installReadOnlyCaseFixtures(state: FixtureState = "ready") {
       if (!saved || !reference) return Response.json({ error: "Not found" }, { status: 404 });
       if (url.pathname.endsWith("/revisions")) return [saved.revision, ...(saved.revision > 1 ? [saved.revision - 1] : [])].map(revisionNumber => ({
         id: revisionNumber === saved.revision ? reference.document.latestRevisionId : `previous-${reference.document.id}`,
-        companyId, documentId: reference.document.id, issueId: reference.taskId, key: reference.key,
+        spaceId, documentId: reference.document.id, issueId: reference.taskId, key: reference.key,
         revisionNumber, title: saved.title, format: "markdown",
         body: revisionNumber === saved.revision ? saved.body : "## Earlier draft\n\nThis document was saved before the current findings were completed.",
         createdAt: revisionNumber === saved.revision ? source!.updatedAt : source!.createdAt,

@@ -8,10 +8,10 @@ import { createDb } from '@outpost/db';
 import { startEmbeddedPostgresTestDatabase } from '../../dist/__tests__/helpers/embedded-postgres.js';
 import { createProfileProjectionFixture } from '../../dist/__tests__/helpers/tool-profile-projection-fixture.js';
 const index = process.argv.indexOf('--output-dir');
-const output = path.resolve(index < 0 ? '/tmp/paperclip-tool-projection' : process.argv[index + 1]);
+const output = path.resolve(index < 0 ? '/tmp/outpost-tool-projection' : process.argv[index + 1]);
 assert.equal(typeof global.gc, 'function', 'Run Node with --expose-gc');
 await mkdir(output, { recursive: true });
-const database = await startEmbeddedPostgresTestDatabase('paperclip-hotpaths-http-owned-');
+const database = await startEmbeddedPostgresTestDatabase('outpost-hotpaths-http-owned-');
 const db = createDb(database.connectionString, { maxConnections: 1 });
 const server = createServer((_request, response) => { response.writeHead(200, { 'Content-Type': 'application/json' }); response.end('{"status":"ok"}'); });
 let probe;
@@ -31,7 +31,7 @@ try {
     const a = label === 'combined' ? 'attention' : '.baseline-attention';
     const profiles = (await import(new URL(`../../dist/services/tool-access/profiles/${p}.js`, import.meta.url))).createToolProfileService(db, now);
     const attention = (await import(new URL(`../../dist/services/tool-access/catalog/${a}.js`, import.meta.url))).createToolAppAttention(db, now);
-    variants[label] = { profiles: () => profiles.listProfiles(fixture.company.id), attention: () => attention(fixture.company.id) };
+    variants[label] = { profiles: () => profiles.listProfiles(fixture.space.id), attention: () => attention(fixture.space.id) };
   }
   for (const variant of Object.values(variants)) for (const owner of ['profiles', 'attention']) await variant[owner]();
   for (let round = 0; round < 3; round++) {

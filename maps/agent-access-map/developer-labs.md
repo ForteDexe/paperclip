@@ -22,7 +22,7 @@ as an explicit exception.
 
 Agent access: `not-applicable` — Browser/Storybook / existing UI tooling.
 
-Policy: Synthetic developer fixtures; no persisted company feature or agent authority
+Policy: Synthetic developer fixtures; no persisted space feature or agent authority
 represented by the fixture.
 
 Evidence: `source-only` — [implementation](../../ui/src/App.tsx) at the reviewed commit
@@ -47,7 +47,7 @@ to a new lab API.
 Agent access: `not-applicable` — Browser fixture plus the corresponding real interaction
 API in its owning area.
 
-Policy: Synthetic developer fixtures; no persisted company feature or agent authority
+Policy: Synthetic developer fixtures; no persisted space feature or agent authority
 represented by the fixture.
 
 Evidence: `source-only` — [implementation](../../ui/src/App.tsx) at the reviewed commit
@@ -70,7 +70,7 @@ capture browser evidence separately.
 
 Agent access: `not-applicable` — Browser performance fixture and measurement tooling.
 
-Policy: Synthetic developer fixtures; no persisted company feature or agent authority
+Policy: Synthetic developer fixtures; no persisted space feature or agent authority
 represented by the fixture.
 
 Evidence: `source-only` — [implementation](../../ui/src/App.tsx) at the reviewed commit
@@ -95,7 +95,7 @@ universal developer-only gate exists.
 Agent access: `not-applicable` — Build/route inspection; relevant instance
 feature-setting API for actual gates.
 
-Policy: Synthetic developer fixtures; no persisted company feature or agent authority
+Policy: Synthetic developer fixtures; no persisted space feature or agent authority
 represented by the fixture.
 
 Evidence: `source-only` — [implementation](../../ui/src/App.tsx) at the reviewed commit

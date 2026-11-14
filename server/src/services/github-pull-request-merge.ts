@@ -23,13 +23,13 @@ export type PullRequestMergeDetails = {
 };
 
 export type PullRequestMergeStateResolver = (
-  companyId: string,
+  spaceId: string,
   reference: GitHubPullRequestReference,
   signal?: AbortSignal,
 ) => Promise<PullRequestMergeState>;
 
 export type PullRequestMergeDetailsResolver = (
-  companyId: string,
+  spaceId: string,
   reference: GitHubPullRequestReference,
   signal?: AbortSignal,
 ) => Promise<PullRequestMergeDetails>;
@@ -92,10 +92,10 @@ export function createPullRequestMergeDetailsResolver(db: Db, options?: GitHubEx
   const resolver = createGitHubExternalObjectProvider(db, options).resolvers
     .find((candidate) => candidate.objectType === "pull_request") ?? null;
 
-  return async (companyId, reference, signal) => {
+  return async (spaceId, reference, signal) => {
     if (!resolver) return { state: "unknown", headRef: null, headSha: null };
     const result = await resolver.resolve({
-      companyId,
+      spaceId,
       signal,
       object: {
         externalId: `${reference.owner}/${reference.repo}#pull/${reference.number}`,
@@ -128,5 +128,5 @@ export function createPullRequestMergeDetailsResolver(db: Db, options?: GitHubEx
 
 export function createPullRequestMergeStateResolver(db: Db, options?: GitHubExternalObjectProviderOptions): PullRequestMergeStateResolver {
   const resolveDetails = createPullRequestMergeDetailsResolver(db, options);
-  return async (companyId, reference, signal) => (await resolveDetails(companyId, reference, signal)).state;
+  return async (spaceId, reference, signal) => (await resolveDetails(spaceId, reference, signal)).state;
 }

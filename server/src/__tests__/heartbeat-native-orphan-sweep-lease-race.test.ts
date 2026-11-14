@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, closeLivenessDb, companies, createDb, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
+import { agents, closeLivenessDb, spaces, createDb, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { heartbeatService } from "../services/heartbeat.ts";
 import {
@@ -23,7 +23,7 @@ const GENERATION = 1;
  * owner's executor lease lapsed only because its host slept. Another server's
  * orphan sweep reads the lapsed lease; the owner wakes and takes the lease back
  * before the sweep writes. The sweep must not then mark the healthy run
- * ownership-unverified: that marker tells the board automatic recovery is
+ * ownership-unverified: that marker tells the operator automatic recovery is
  * blocked, and it fences the owner out of its own lease after the next sleep,
  * so the turn is interrupted and the user must click Retry.
  */
@@ -31,19 +31,19 @@ describeEmbeddedPostgres("another server's orphan sweep racing the owner's lease
   let db!: ReturnType<typeof createDb>;
   let owner!: ReturnType<typeof createDb>;
   let stopDatabase: (() => Promise<void>) | undefined;
-  let companyId!: string;
+  let spaceId!: string;
   let agentId!: string;
 
   beforeAll(async () => {
-    const started = await startEmbeddedPostgresTestDatabase("paperclip-orphan-sweep-lease-race-");
+    const started = await startEmbeddedPostgresTestDatabase("outpost-orphan-sweep-lease-race-");
     stopDatabase = started.cleanup;
     db = createDb(started.connectionString);
     owner = createDb(started.connectionString);
-    companyId = randomUUID();
+    spaceId = randomUUID();
     agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Sweep race", issuePrefix: "SWR",
-      requireBoardApprovalForNewAgents: false });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", role: "engineer", status: "running",
+    await db.insert(spaces).values({ id: spaceId, name: "Sweep race", issuePrefix: "SWR",
+      requireOperatorApprovalForNewAgents: false });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Runner", role: "engineer", status: "running",
       adapterType: "outpost_runner", adapterConfig: { provider: "codex" }, runtimeConfig: {}, permissions: {} });
   }, 120_000);
 
@@ -58,17 +58,17 @@ describeEmbeddedPostgres("another server's orphan sweep racing the owner's lease
     const issueId = randomUUID();
     const runId = randomUUID();
     const leaseOwner = `runner-slept:${randomUUID()}`;
-    await db.insert(issues).values({ id: issueId, companyId, identifier: `SWR-${runId.slice(0, 8)}`,
+    await db.insert(issues).values({ id: issueId, spaceId, identifier: `SWR-${runId.slice(0, 8)}`,
       title: "slept", status: "in_progress", priority: "medium", workMode: "standard", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
       nativeIssueId: issueId, nativePhase: "observed", invocationSource: "assignment", triggerDetail: "system",
       contextSnapshot: { issueId }, startedAt: sql`clock_timestamp() - interval '41 minutes'` as unknown as Date });
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed", attempt: 1,
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed", attempt: 1,
       leaseOwner, leaseExpiresAt: sql`clock_timestamp() - interval '40 minutes'`,
       controllerBootId: controller.bootId, controllerPid: controller.pid,
       controllerProcessStartedAt: controller.processStartedAt, controllerHostHash: "host-a",
       controllerGeneration: GENERATION });
-    return { runId, companyId, issueId, leaseOwner };
+    return { runId, spaceId, issueId, leaseOwner };
   }
 
   async function waitForLockWaiter() {

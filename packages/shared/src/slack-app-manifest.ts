@@ -11,8 +11,8 @@ export const SLACK_CHAT_BOT_SCOPES = [
 
 export function defaultSlackAppConfiguration(agentName: string): SlackAppConfiguration {
   const botName = agentName.normalize("NFKD").toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "paperclip-agent";
-  return { appName: `${botName}-paperclip`, botName, command: `/${botName.replace(/[._]+/g, "-")}` };
+    .replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "outpost-agent";
+  return { appName: `${botName}-outpost`, botName, command: `/${botName.replace(/[._]+/g, "-")}` };
 }
 
 export function buildSlackAppManifest(input: {
@@ -72,7 +72,7 @@ export const slackAvatarStateSchema = z.discriminatedUnion("status", [
 export type SlackAvatarState = z.infer<typeof slackAvatarStateSchema>;
 export const slackAccountStateSchema = z.object({
   externalUserId: z.string().regex(/^[UW][A-Z0-9]+$/),
-  paperclipUserId: z.string().min(1),
+  outpostUserId: z.string().min(1),
   status: z.enum(["pending", "linked"]),
   welcomeStatus: z.enum(["pending", "sending", "sent", "failed", "uncertain"]),
   verificationStatus: z.enum(["pending", "sending", "sent", "failed", "uncertain"]).optional(),
@@ -80,7 +80,7 @@ export const slackAccountStateSchema = z.object({
 }).strict();
 export type SlackAccountState = z.infer<typeof slackAccountStateSchema>;
 export const slackInstallAuthorizationSchema = z.object({ authorizationUrl: z.string().url(), expiresAt: z.string().datetime() });
-export const slackManagerAuthorizationSchema = slackInstallAuthorizationSchema.extend({ handoff: z.object({ kind: z.literal("paperclip_cloud"), session: z.string().min(16).max(512) }).optional() });
+export const slackManagerAuthorizationSchema = slackInstallAuthorizationSchema.extend({ handoff: z.object({ kind: z.literal("outpost_cloud"), session: z.string().min(16).max(512) }).optional() });
 export type SlackManagerAuthorization = z.infer<typeof slackManagerAuthorizationSchema>;
 export type SlackInstallAuthorization = z.infer<typeof slackInstallAuthorizationSchema>;
 export const slackSetupActionSchema = z.object({}).strict();

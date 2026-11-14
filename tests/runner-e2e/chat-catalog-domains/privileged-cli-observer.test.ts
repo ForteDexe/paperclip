@@ -18,13 +18,13 @@ function fixture(scenario: string) {
   const ctx = { observationDeadlineAt: start + 390_000,
     issue: () => ({ conversationState: Date.now() >= completesAt ? "waiting" : "running" }),
     input: { execution: { id: `chat-features.runner-opencode.local.${scenario}` },
-      fixtures: { company: { id: "owned-company" } }, api: { baseURL: "http://fixture.test" } },
+      fixtures: { space: { id: "owned-space" } }, api: { baseURL: "http://fixture.test" } },
   } as unknown as ChatCatalogContext;
   vi.mocked(observeInternal).mockImplementation(async () => ({
     tasks: [], runs: noWork ? [] : [{ status: Date.now() >= completesAt ? status : "running" }],
     reply: Date.now() < completesAt ? "" : scenario.endsWith("choose-cli-context")
-      ? "```bash\npaperclipai context use acorn\npaperclipai context show --json\n```"
-      : '```bash\npaperclipai issue create --company-id <COMPANY_ID> --title "Website task" --project-id <PROJECT_ID> --assignee-agent-id <MORGAN_AGENT_ID>\n```',
+      ? "```bash\noutpost context use acorn\noutpost context show --json\n```"
+      : '```bash\noutpost issue create --space-id <SPACE_ID> --title "Website task" --project-id <PROJECT_ID> --assignee-agent-id <MORGAN_AGENT_ID>\n```',
   }) as never);
   vi.mocked(runOwnedCli).mockRejectedValue(new Error("Reached actual owned CLI boundary"));
   const d = privilegedCliCases.find(row => row.scenarioId === scenario)!;

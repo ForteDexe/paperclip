@@ -6,7 +6,7 @@ import { once } from "node:events";
 import { setImmediate as immediate, setTimeout as realDelay } from "node:timers/promises";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, closeLivenessDb, closeCheckpointDb,
+import { agents, authUsers, spaces, spaceMemberships, createDb, closeLivenessDb, closeCheckpointDb,
   heartbeatRuns, heartbeatRunEvents, nativeRunFinalizations, environmentLeases, issueThreadInteractions, applyPendingMigrations,
   issueRecoveryActions, issues, activityLog, agentWakeupRequests, reconcileDatabaseWork } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
@@ -39,7 +39,7 @@ import { buildNativeExecutionInput } from "../services/native-runtime/native-exe
 import { nativeRuntimeContextFixture } from "../services/native-runtime/runtime-context.test-fixture.js";
 import * as nativeStopEvidence from "../services/acknowledged-native-stop.js";
 import { remoteTerminationReceipt } from "../services/remote-execution-termination.js";
-import { subscribeCompanyLiveEvents } from "../services/live-events.js";
+import { subscribeSpaceLiveEvents } from "../services/live-events.js";
 import type { LiveEvent } from "@outpost/shared";
 import { logger } from "../middleware/logger.js";
 
@@ -62,7 +62,7 @@ describe("residual recovery production matrix", () => {
     await Promise.all(Array.from({ length: 6 }, () => db.execute(sql`select pg_sleep(0.01)`)));
   });
   beforeEach(async () => {
-    await db.execute(sql`truncate companies cascade`); errors.length = 0; deadlines.clear(); timeline.length = 0; draining = false; standby = false;
+    await db.execute(sql`truncate spaces cascade`); errors.length = 0; deadlines.clear(); timeline.length = 0; draining = false; standby = false;
     heartbeat = heartbeatService(db);
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => !standby, canReconcile: () => !standby,
       onError: error => errors.push(error) });
@@ -85,18 +85,18 @@ describe("residual recovery production matrix", () => {
     await db?.$client.end({ timeout: 1 }); await temporary?.cleanup();
   });
   async function fixture() {
-    const companyId = randomUUID(), actorId = "live-recovery-user";
+    const spaceId = randomUUID(), actorId = "live-recovery-user";
     await db.insert(authUsers).values({ id: actorId, name: "Recovery owner", email: `${actorId}@example.test`,
       createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companies).values({ id: companyId, name: "Live recovery", issuePrefix: `LR${companyId.slice(0, 6)}`,
-      requireBoardApprovalForNewAgents: false, defaultResponsibleUserId: actorId });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: actorId,
+    await db.insert(spaces).values({ id: spaceId, name: "Live recovery", issuePrefix: `LR${spaceId.slice(0, 6)}`,
+      requireOperatorApprovalForNewAgents: false, defaultResponsibleUserId: actorId });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: actorId,
       status: "active", membershipRole: "owner" });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Recovery process", status: "idle", adapterType: "process",
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Recovery process", status: "idle", adapterType: "process",
       adapterConfig: { command: process.execPath, args: ["-e", "console.log('live-recovery-proof')"], cwd: process.cwd() },
       runtimeConfig: { heartbeat: { enabled: true, intervalSec: 0, wakeOnDemand: true } } }).returning();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Recovered work", status: "done", assigneeAgentId: agent.id }).returning();
-    return { companyId, agent, issue, actorId };
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Recovered work", status: "done", assigneeAgentId: agent.id }).returning();
+    return { spaceId, agent, issue, actorId };
   }
   async function start(realClock = false) {
     if (!realClock && !vi.isFakeTimers()) vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
@@ -133,17 +133,17 @@ describe("residual recovery production matrix", () => {
   async function getLease(id: string) { return (await db.select().from(environmentLeases).where(eq(environmentLeases.id, id)))[0]; }
   it("leaves configured idle and completed native history without a timer or SQL", async () => {
     const f = await fixture();
-    const runs = await db.insert(heartbeatRuns).values(Array.from({ length: 150 }, () => ({ companyId: f.companyId,
+    const runs = await db.insert(heartbeatRuns).values(Array.from({ length: 150 }, () => ({ spaceId: f.spaceId,
       agentId: f.agent.id, status: "failed", runtimeMode: "native", nativeIssueId: f.issue.id, finishedAt: new Date() }))).returning();
-    await db.insert(nativeRunFinalizations).values(runs.map(run => ({ companyId: f.companyId, issueId: f.issue.id, runId: run.id, phase: "committed" })));
+    await db.insert(nativeRunFinalizations).values(runs.map(run => ({ spaceId: f.spaceId, issueId: f.issue.id, runId: run.id, phase: "committed" })));
     await start(); await quiet();
   });
   it("catches up native resultless retry debt through its real claim owner without replaying missing state", async () => {
     const f = await fixture(); await db.update(issues).set({ status: "todo" }).where(eq(issues.id, f.issue.id));
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       status: "failed", runtimeMode: "native", nativeIssueId: f.issue.id, contextSnapshot: { issueId: f.issue.id },
       finishedAt: new Date(), errorCode: "original_native_failure" }).returning();
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id, runId: run.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id, runId: run.id,
       phase: "retryable_failure", nextAttemptAt: new Date(Date.now() - 1_000) });
     await start();
     await vi.waitFor(async () => {
@@ -152,8 +152,8 @@ describe("residual recovery production matrix", () => {
     });
     expect((await getRun(run.id)).errorCode).toBe("original_native_failure");
     expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, f.issue.id)))
-      .toEqual([expect.objectContaining({ ownerType: "board", status: "active" })]);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
+      .toEqual([expect.objectContaining({ ownerType: "operator", status: "active" })]);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
     await quiet();
   });
   it.each(["scoped remote retry", "startup"] as const)("reconstructs only the retry deadlines owed by %s", async mode => {
@@ -162,14 +162,14 @@ describe("residual recovery production matrix", () => {
     const now = Date.now(), otherAt = now + 30_000, selectedAt = now + 60_000;
     const seed = async (f: Awaited<ReturnType<typeof fixture>>, nextAttemptAt: number, remote = false) => {
       await db.update(issues).set({ status: "todo" }).where(eq(issues.id, f.issue.id));
-      const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
         status: "failed", runtimeMode: "native", nativeIssueId: f.issue.id, contextSnapshot: { issueId: f.issue.id },
         finishedAt: new Date(), errorCode: "saved_native_failure",
         runnerProfileJson: remote ? { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v1",
           state: "prepared", descriptorSha256: "a".repeat(64), baselineSha256: "b".repeat(64),
           workspaceId: randomUUID(), leaseId: randomUUID(), providerLeaseId: "remote-retry-fixture", remoteCwd: "/workspace" } } : null,
       }).returning();
-      await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id, runId: run.id,
+      await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id, runId: run.id,
         phase: "retryable_failure", nextAttemptAt: new Date(nextAttemptAt) });
       return run;
     };
@@ -197,11 +197,11 @@ describe("residual recovery production matrix", () => {
   });
   it("consumes the durable native question cancellation from ordinary task completion", async () => {
     const f = await fixture(); await db.update(issues).set({ status: "in_progress" }).where(eq(issues.id, f.issue.id));
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, status: "running",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, status: "running",
       runtimeMode: "native", nativeIssueId: f.issue.id, contextSnapshot: { issueId: f.issue.id }, nativePhase: "awaiting_input" }).returning();
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id, runId: run.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id, runId: run.id,
       phase: "observed", recoveryState: "awaiting_evidence", leaseExpiresAt: new Date(Date.now() + 60_000) });
-    await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issue.id, kind: "ask_user_questions",
+    await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issue.id, kind: "ask_user_questions",
       sourceRunId: run.id, status: "pending", continuationPolicy: "none",
       idempotencyKey: `outpost-runner-question:${run.id}:question-1`, payload: {
         version: 1, questions: [{ id: "continue", prompt: "Continue?", selectionMode: "single", required: true, allowOther: false, options: [{ id: "yes", label: "Yes" }] }],
@@ -215,10 +215,10 @@ describe("residual recovery production matrix", () => {
   it.each([false, true])("finishes a question cancellation whose run fails into a pending native retry before consumption (partial Stop fault: %s)", async partialStopFault => {
     const f = await fixture();
     let stopReceipt: Record<string, unknown> | undefined;
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       status: "running", runtimeMode: "native", nativeIssueId: f.issue.id, nativePhase: "awaiting_input",
       contextSnapshot: { issueId: f.issue.id } }).returning();
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id,
       runId: run.id, phase: "observed", recoveryState: "awaiting_evidence" });
     if (partialStopFault) {
       await db.execute(sql`create sequence question_cancel_failure_once`);
@@ -234,23 +234,23 @@ describe("residual recovery production matrix", () => {
     }
     const marker = { version: 1, issueId: f.issue.id, kind: "issue_terminal", issueStatus: "done" };
     const history = await db.insert(heartbeatRuns).values(Array.from({ length: 25 }, () => ({
-      companyId: f.companyId, agentId: f.agent.id, runtimeMode: "native", nativeIssueId: f.issue.id,
+      spaceId: f.spaceId, agentId: f.agent.id, runtimeMode: "native", nativeIssueId: f.issue.id,
       status: "failed", finishedAt: new Date(), nativePhase: "terminal_failure",
       contextSnapshot: { nativeQuestionCancellation: marker }, resultJson: { nativeCancellation: {
-        schema: "outpost.native-cancellation.v1", runId: randomUUID(), companyId: f.companyId, issueId: f.issue.id,
+        schema: "outpost.native-cancellation.v1", runId: randomUUID(), spaceId: f.spaceId, issueId: f.issue.id,
         scope: "run", intentId: randomUUID(), intentAuditId: randomUUID(), dispatched: false, dispatchState: "pending",
       } },
     }))).returning();
-    await db.insert(nativeRunFinalizations).values(history.map(row => ({ companyId: f.companyId, issueId: f.issue.id,
+    await db.insert(nativeRunFinalizations).values(history.map(row => ({ spaceId: f.spaceId, issueId: f.issue.id,
       runId: row.id, phase: "terminal_failure", failureCode: "native_retry_cancelled", recoveryState: "blocked" })));
     draining = true; await start();
-    expect(await db.transaction(tx => requestNativeQuestionRunCancellation(tx, { companyId: f.companyId,
+    expect(await db.transaction(tx => requestNativeQuestionRunCancellation(tx, { spaceId: f.spaceId,
       issueId: f.issue.id, sourceRunId: run.id, idempotencyKey: `outpost-runner-question:${run.id}:raced-question`,
       payload: { questionSet: {}, runtimeRequestId: "raced-question" },
     }, { kind: "issue_terminal", issueStatus: "done" }))).toBe(run.id);
     expect((await getRun(run.id)).contextSnapshot?.nativeQuestionCancellation).toMatchObject(marker);
     await db.transaction(async tx => {
-      await notifyExecutionRunWork(tx, { companyId: f.companyId, runId: run.id, agentId: f.agent.id });
+      await notifyExecutionRunWork(tx, { spaceId: f.spaceId, runId: run.id, agentId: f.agent.id });
       await tx.update(heartbeatRuns).set({ status: "failed", nativePhase: "retryable_failure", finishedAt: new Date() })
         .where(eq(heartbeatRuns.id, run.id));
       await tx.update(nativeRunFinalizations).set({ phase: "retryable_failure", recoveryState: "resuming_session",
@@ -265,7 +265,7 @@ describe("residual recovery production matrix", () => {
       stopReceipt = saved.resultJson?.nativeCancellation as Record<string, unknown>;
       const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, run.id));
       expect(coordinator).toMatchObject({ phase: "terminal_failure", failureCode: "native_retry_cancelled", resultId: null });
-      expect(nativeRetryCancellationEligible({ runId: run.id, companyId: f.companyId, issueId: f.issue.id,
+      expect(nativeRetryCancellationEligible({ runId: run.id, spaceId: f.spaceId, issueId: f.issue.id,
         resultJson: saved.resultJson }, coordinator)).toBe(true);
       const [debt] = await db.select({ pending: pendingFailedNativeRetryCancellationCondition() }).from(heartbeatRuns)
         .where(eq(heartbeatRuns.id, run.id));
@@ -279,14 +279,14 @@ describe("residual recovery production matrix", () => {
       intentId: stopReceipt.intentId, intentAuditId: stopReceipt.intentAuditId,
       acknowledgementAuditId: stopReceipt.acknowledgementAuditId,
     });
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(26);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(26);
     expect(await db.select().from(heartbeatRunEvents).where(eq(heartbeatRunEvents.eventType, "native.process_start_requested"))).toEqual([]);
     expect((await db.select().from(heartbeatRuns).where(sql`${heartbeatRuns.id} <> ${run.id}`)).every(row => row.status === "failed")).toBe(true);
     await quiet();
   });
   it("preserves a fresh foreign controller until exact expiry and admits one process retry across two owners", async () => {
     const f = await fixture(), expiry = new Date(Date.now() + 3_000);
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, status: "running",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, status: "running",
       runtimeMode: "legacy", responsibleUserId: f.actorId, controllerBootId: randomUUID(), controllerLeaseExpiresAt: expiry,
       executionStage: "preparing", updatedAt: new Date(Date.now() - 6 * 60_000), startedAt: new Date(Date.now() - 6 * 60_000) }).returning();
     await start(true);
@@ -308,7 +308,7 @@ describe("residual recovery production matrix", () => {
     // RC-27: a Retry admitted just before a kill records a controller lease but
     // no process. The prior boot's expired lease is the ownership proof.
     const f = await fixture(), expiry = new Date(Date.now() + 3_000);
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, status: "running",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, status: "running",
       runtimeMode: "legacy", responsibleUserId: f.actorId, controllerBootId: randomUUID(), controllerLeaseExpiresAt: expiry,
       executionStage: "preparing", updatedAt: new Date(), startedAt: new Date() }).returning();
     await start(true);
@@ -329,7 +329,7 @@ describe("residual recovery production matrix", () => {
     // Stage the race: the scanned row says `preparing`, and the row committed
     // with the revocation says `dispatching` (the old controller's last renewal).
     const f = await fixture(), expiry = new Date(Date.now() + 2_000);
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, status: "running",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, status: "running",
       runtimeMode: "legacy", responsibleUserId: f.actorId, controllerBootId: randomUUID(), controllerLeaseExpiresAt: expiry,
       executionStage: "preparing", updatedAt: new Date(), startedAt: new Date() }).returning();
     await db.execute(sql.raw(`create or replace function rc27_dispatch_on_revoke() returns trigger language plpgsql as $$
@@ -351,15 +351,15 @@ describe("residual recovery production matrix", () => {
   // is held (a proven-dead one settles at once, recovery-stale-issue-lock-sweep).
   it("keeps the stale-age guard for this boot or a dispatched adapter, and holds a live recorded process", async () => {
     const f = await fixture(), now = Date.now(), expired = new Date(now - 1_000);
-    const [sameBoot] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, status: "running",
+    const [sameBoot] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, status: "running",
       runtimeMode: "legacy", responsibleUserId: f.actorId, controllerBootId: legacyControllerBootId, controllerLeaseExpiresAt: expired,
       executionStage: "preparing", updatedAt: new Date(now), startedAt: new Date(now) }).returning();
-    const [withProcess] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, status: "running",
+    const [withProcess] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, status: "running",
       runtimeMode: "legacy", responsibleUserId: f.actorId, controllerBootId: randomUUID(), controllerLeaseExpiresAt: expired,
       executionStage: "dispatching", processPid: process.pid, processHostHash: currentProcessSpaceHash(),
       updatedAt: new Date(now), startedAt: new Date(now) }).returning();
     // A dispatched adapter may hold remote work without a local process.
-    const [dispatched] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, status: "running",
+    const [dispatched] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, status: "running",
       runtimeMode: "legacy", responsibleUserId: f.actorId, controllerBootId: randomUUID(), controllerLeaseExpiresAt: expired,
       executionStage: "dispatching", updatedAt: new Date(now), startedAt: new Date(now) }).returning();
     await start(); await advance(4 * 60_000);
@@ -371,7 +371,7 @@ describe("residual recovery production matrix", () => {
     "settles an API-only Stop after deferred controller retirement without inventing proof: %s", async mode => {
       const f = await fixture(), runId = randomUUID(), sessionId = randomUUID(), runnerId = randomUUID();
       const statusEvents: LiveEvent[] = [];
-      const unsubscribe = subscribeCompanyLiveEvents(f.companyId, event => {
+      const unsubscribe = subscribeSpaceLiveEvents(f.spaceId, event => {
         if (event.type === "heartbeat.run.status" && event.payload.runId === runId) statusEvents.push(event);
       });
       extraStops.push(async () => { unsubscribe(); });
@@ -383,7 +383,7 @@ describe("residual recovery production matrix", () => {
       };
       extraStops.push(stopChild);
       const recordedAt = new Date().toISOString();
-      const nativeExecutionInput = buildNativeExecutionInput({ companyId: f.companyId, agentId: f.agent.id, runId,
+      const nativeExecutionInput = buildNativeExecutionInput({ spaceId: f.spaceId, agentId: f.agent.id, runId,
         provider: "cursor_cloud", model: "explicit-model", cursorCloud: { schema: "outpost.cursor-cloud.config.v1",
           repos: [{ url: "https://github.com/example/qualification" }] },
         issue: { id: f.issue.id, identifier: "API-1", title: f.issue.title, description: null, workMode: "standard" },
@@ -393,25 +393,25 @@ describe("residual recovery production matrix", () => {
           contract: { revision: "1", objective: "Stop the foreground command", criteria: [{ id: "stop", requirement: "Stop the foreground command" }] } },
         runtimeContext: nativeRuntimeContextFixture(),
       });
-      await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agent.id,
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agent.id,
         runtimeMode: "native", driverKind: "cursor_cloud_api", nativeIssueId: f.issue.id, nativeSessionId: sessionId,
         runnerInstanceId: runnerId, status: "cancelled", finishedAt: new Date(),
         runnerProfileJson: { backend: "cursor_cloud_api", nativeExecutionInput, sessionCheckpoint: { providerSessionId: "cloud-agent" },
-          executionPlacement: { kind: "provider_api", provider: "cursor_cloud", controller: "paperclip" } },
+          executionPlacement: { kind: "provider_api", provider: "cursor_cloud", controller: "outpost" } },
         resultJson: { executionCancellation: { state: "requested", requestedAt: recordedAt },
           cancelledByActorType: "user", cancelledByUserId: f.actorId, nativeCancellation: {
-            schema: "outpost.native-cancellation.v1", companyId: f.companyId, runId, issueId: f.issue.id,
+            schema: "outpost.native-cancellation.v1", spaceId: f.spaceId, runId, issueId: f.issue.id,
             scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
             effects: ["release_run_resources"], recordedAt, acknowledgedAt: recordedAt,
             intentAuditId: randomUUID(), acknowledgementAuditId: randomUUID() } } });
       await persistHeartbeatRunProcessMetadata(db, runId, { pid: child.pid!, processGroupId: child.pid!, startedAt: recordedAt, targetKind: "local" });
-      await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id, runId, phase: "committed" });
+      await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id, runId, phase: "committed" });
       const appendTerminal = async (target: typeof db = db) => {
         const terminal = { schema: "outpost.orp.event.v1", schemaVersion: 1, eventType: "turn.interrupted",
           sourceKind: "runner", sourceInstanceId: runnerId, sourceEventId: `${runnerId}:${runId}:1`, sourceSeq: 1,
           runId, turnId: "stopped-turn", normalizedSessionId: sessionId, emittedAt: new Date().toISOString(), priority: 1,
           payload: { status: "interrupted", error: null, ...(mode === "unproven_terminal" ? { providerTerminalObserved: false } : {}) } };
-        await appendHeartbeatRunEvent(target, { companyId: f.companyId, agentId: f.agent.id, runId,
+        await appendHeartbeatRunEvent(target, { spaceId: f.spaceId, agentId: f.agent.id, runId,
           eventType: terminal.eventType, payload: { orpEvent: terminal }, nativeSource: {
             sourceInstanceId: runnerId, sourceEventId: terminal.sourceEventId, sourceSeq: 1,
             protocolSchemaVersion: 1, canonicalPayload: terminal } });
@@ -442,7 +442,7 @@ describe("residual recovery production matrix", () => {
       }
       const stopped = await getRun(runId);
       expect(stopped).toMatchObject({ processPid: null, processGroupId: null, processStartedAt: null });
-      expect(await readNativeLocalProcessStop(db, f.companyId, runId)).toMatchObject({ processPid: child.pid, processGroupId: child.pid });
+      expect(await readNativeLocalProcessStop(db, f.spaceId, runId)).toMatchObject({ processPid: child.pid, processGroupId: child.pid });
       expect(stopped.resultJson?.executionCancellation).toMatchObject(["missing_terminal", "unproven_terminal", "late_terminal"].includes(mode)
         ? { state: "requested" } : { state: "acknowledged", proof: "provider_api_stop_receipt" });
       expect(statusEvents).toHaveLength(["missing_terminal", "unproven_terminal", "late_terminal"].includes(mode) ? 0 : 1);
@@ -470,7 +470,7 @@ describe("residual recovery production matrix", () => {
           .toMatchObject({ state: "acknowledged", proof: "provider_api_stop_receipt" }));
         await quiet();
         expect(statusEvents).toHaveLength(1);
-        expect(statusEvents[0]).toMatchObject({ companyId: f.companyId, type: "heartbeat.run.status",
+        expect(statusEvents[0]).toMatchObject({ spaceId: f.spaceId, type: "heartbeat.run.status",
           payload: { runId, agentId: f.agent.id, status: "cancelled" } });
         expect(statusEvents[0]!.payload).not.toHaveProperty("resultJson");
       }
@@ -480,15 +480,15 @@ describe("residual recovery production matrix", () => {
     const f = await fixture(), startedAt = new Date();
     const child = spawn(process.execPath, ["-e", "console.log('identity-proof')"], { stdio: "ignore" });
     const pid = child.pid!; await once(child, "exit");
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, runtimeMode: "native",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, runtimeMode: "native",
       nativeIssueId: f.issue.id, status: "failed", finishedAt: new Date(), processPid: pid, processStartedAt: startedAt,
       runnerProfileJson: { sessionCheckpoint: { sessionId: "preserved-native-session" } } }).returning();
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id, runId: run.id, phase: "committed" });
-    await appendHeartbeatRunEvent(db, { companyId: f.companyId, agentId: f.agent.id, runId: run.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id, runId: run.id, phase: "committed" });
+    await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, agentId: f.agent.id, runId: run.id,
       eventType: "native.process_identity_recorded", payload: { targetKind: "local", hostname: os.hostname(),
         processPid: pid, processGroupId: null, processStartedAt: new Date(startedAt.getTime() - 1).toISOString() } });
     await start(); expect((await getRun(run.id)).processPid).toBe(pid);
-    await appendHeartbeatRunEvent(db, { companyId: f.companyId, agentId: f.agent.id, runId: run.id,
+    await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, agentId: f.agent.id, runId: run.id,
       eventType: "native.process_identity_recorded", payload: { targetKind: "local", hostname: os.hostname(),
         processPid: pid, processGroupId: null, processStartedAt: startedAt.toISOString() } });
     await vi.waitFor(async () => expect((await getRun(run.id)).processPid).toBeNull(), { timeout: 40_000 });
@@ -500,10 +500,10 @@ describe("residual recovery production matrix", () => {
     const f = await fixture(), startedAt = new Date();
     const child = spawn(process.execPath, ["-e", "console.log('legacy-identity-proof')"], { stdio: "ignore" });
     const pid = child.pid!; await once(child, "exit");
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       runtimeMode: "native", nativeIssueId: f.issue.id, status: "failed", finishedAt: new Date(), processPid: pid,
       runnerProfileJson: { sessionCheckpoint: { sessionId: "legacy-unverifiable-session" } } }).returning();
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id, runId: run.id, phase: "committed" });
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id, runId: run.id, phase: "committed" });
     const checks: string[] = [], prior = db.$client.options.debug;
     db.$client.options.debug = (_connection, query) => {
       if (query.includes("sessionCheckpoint") && query.includes("for update")) checks.push(query);
@@ -511,7 +511,7 @@ describe("residual recovery production matrix", () => {
     try {
       await start();
       expect(checks).toEqual([]);
-      await db.transaction(tx => notifyLiveRunRecovery(tx, { companyId: f.companyId }));
+      await db.transaction(tx => notifyLiveRunRecovery(tx, { spaceId: f.spaceId }));
       await advance(31_000); expect(checks).toEqual([]);
     } finally { db.$client.options.debug = prior; }
     expect(await getRun(run.id)).toMatchObject({ processPid: pid, processStartedAt: null });
@@ -527,32 +527,32 @@ describe("residual recovery production matrix", () => {
     const f = await fixture();
     const child = spawn(process.execPath, ["-e", "console.log('legacy-group-proof')"], { detached: true, stdio: "ignore" });
     const pid = child.pid!; await once(child, "exit");
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       runtimeMode: "native", nativeIssueId: f.issue.id, status: "failed", finishedAt: new Date(),
       processPid: pid, processGroupId: pid, runnerProfileJson: { sessionCheckpoint: { sessionId: "legacy-exact-session" } } }).returning();
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id, runId: run.id, phase: "committed" });
-    await appendHeartbeatRunEvent(db, { companyId: f.companyId, agentId: f.agent.id, runId: run.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id, runId: run.id, phase: "committed" });
+    await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, agentId: f.agent.id, runId: run.id,
       eventType: "native.process_identity_recorded", payload: { targetKind: "local", hostname: os.hostname(),
         processPid: pid, processGroupId: pid } });
     await start();
     expect(await getRun(run.id)).toMatchObject({ processPid: null, processGroupId: null, processStartedAt: null });
-    expect(await readNativeLocalProcessStop(db, f.companyId, run.id)).toEqual({ processPid: pid, processGroupId: pid });
+    expect(await readNativeLocalProcessStop(db, f.spaceId, run.id)).toEqual({ processPid: pid, processGroupId: pid });
     await quiet();
   });
   it("releases remote process identity without local birth after the exact provider stop receipt", async () => {
     const f = await fixture();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       runtimeMode: "native", nativeIssueId: f.issue.id, status: "failed", finishedAt: new Date(), processPid: 12345,
       runnerProfileJson: { sessionCheckpoint: { sessionId: "remote-no-local-birth" } } }).returning();
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id, runId: run.id, phase: "committed" });
-    const [lease] = await db.insert(environmentLeases).values({ companyId: f.companyId, heartbeatRunId: run.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id, runId: run.id, phase: "committed" });
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, heartbeatRunId: run.id,
       provider: "daytona", providerLeaseId: randomUUID(), status: "released", releasedAt: new Date() }).returning();
     await start(); expect((await getRun(run.id)).processPid).toBe(12345);
     const receipt = remoteTerminationReceipt(lease, { providerLeaseId: lease.providerLeaseId, state: "stopped" });
     expect(receipt).toBeDefined();
     await writeEnvironmentCleanup(db, tx => tx.update(environmentLeases).set({ cleanupStatus: "success",
       metadata: { remoteExecutionTermination: receipt } }).where(eq(environmentLeases.id, lease.id)),
-    { companyId: f.companyId, runId: run.id, leaseId: lease.id });
+    { spaceId: f.spaceId, runId: run.id, leaseId: lease.id });
     await advance(1_000);
     await vi.waitFor(async () => expect((await getRun(run.id)).processPid).toBeNull());
     expect((await getRun(run.id)).processStartedAt).toBeNull();
@@ -562,7 +562,7 @@ describe("residual recovery production matrix", () => {
   });
   it("renews without waking recovery and re-reads the moved controller deadline at the old one", async () => {
     const f = await fixture(), old = new Date(Date.now() - 6 * 60_000), expiry = new Date(Date.now() + 20_000);
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       runtimeMode: "legacy", status: "running", controllerBootId: legacyControllerBootId,
       controllerLeaseExpiresAt: expiry, executionStage: "preparing", startedAt: old, updatedAt: old,
       lastOutputAt: new Date() }).returning();
@@ -582,38 +582,38 @@ describe("residual recovery production matrix", () => {
   });
   it("recovers orphan active leases after restart, including a deleted heartbeat reference, without starving behind 100 guarded rows", async () => {
     const f = await fixture(), foreign = await fixture(), resource = randomUUID(), old = new Date(Date.now() - 6 * 60_000);
-    await db.insert(environmentLeases).values({ companyId: foreign.companyId, status: "retained", provider: "fixture", providerLeaseId: resource, updatedAt: old });
-    const guarded = await db.insert(environmentLeases).values(Array.from({ length: 105 }, () => ({ companyId: f.companyId,
+    await db.insert(environmentLeases).values({ spaceId: foreign.spaceId, status: "retained", provider: "fixture", providerLeaseId: resource, updatedAt: old });
+    const guarded = await db.insert(environmentLeases).values(Array.from({ length: 105 }, () => ({ spaceId: f.spaceId,
       status: "active", provider: "fixture", providerLeaseId: resource, updatedAt: old }))).returning();
-    const [deleted] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, status: "succeeded", finishedAt: old }).returning();
-    const [orphan] = await db.insert(environmentLeases).values({ companyId: f.companyId, heartbeatRunId: deleted.id,
+    const [deleted] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, status: "succeeded", finishedAt: old }).returning();
+    const [orphan] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, heartbeatRunId: deleted.id,
       status: "active", provider: "local", updatedAt: old }).returning();
     await db.delete(heartbeatRuns).where(eq(heartbeatRuns.id, deleted.id));
     expect((await getLease(orphan.id)).heartbeatRunId).toBeNull(); await start();
     await vi.waitFor(async () => expect((await getLease(orphan.id)).status).toBe("pending_cleanup"), { timeout: 15_000 });
-    expect(await db.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, f.companyId),
+    expect(await db.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, f.spaceId),
       eq(environmentLeases.status, "pending_cleanup")))).toHaveLength(1);
     for (const row of guarded) expect((await getLease(row.id)).status).toBe("active");
     await quiet();
   });
-  it("reactivates an orphan when a different company's physical resource owner releases it", async () => {
+  it("reactivates an orphan when a different space's physical resource owner releases it", async () => {
     const f = await fixture(), other = await fixture(), old = new Date(Date.now() - 6 * 60_000), resource = randomUUID();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: other.companyId, agentId: other.agent.id, status: "succeeded", finishedAt: old }).returning();
-    const [owner] = await db.insert(environmentLeases).values({ companyId: other.companyId, heartbeatRunId: run.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: other.spaceId, agentId: other.agent.id, status: "succeeded", finishedAt: old }).returning();
+    const [owner] = await db.insert(environmentLeases).values({ spaceId: other.spaceId, heartbeatRunId: run.id,
       status: "retained", provider: "fixture", providerLeaseId: resource, updatedAt: old }).returning();
-    const [orphan] = await db.insert(environmentLeases).values({ companyId: f.companyId, status: "active",
+    const [orphan] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, status: "active",
       provider: "fixture", providerLeaseId: resource, updatedAt: old }).returning();
     await start(); expect((await getLease(orphan.id)).status).toBe("active");
     await writeEnvironmentCleanup(db, tx => tx.update(environmentLeases).set({ status: "released", releasedAt: new Date() })
-      .where(eq(environmentLeases.id, owner.id)), { companyId: other.companyId, runId: run.id, leaseId: owner.id });
+      .where(eq(environmentLeases.id, owner.id)), { spaceId: other.spaceId, runId: run.id, leaseId: owner.id });
     await vi.waitFor(async () => expect((await getLease(orphan.id)).status).toBe("pending_cleanup"), { timeout: 40_000 });
     await quiet();
   });
   async function shutdownSource(released: boolean, cleanupExpiry?: number) {
     const f = await fixture(), old = new Date(Date.now() - 6 * 60_000);
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, issueId: f.issue.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, issueId: f.issue.id,
       status: "failed", runtimeMode: "legacy", contextSnapshot: { issueId: f.issue.id }, finishedAt: old }).returning();
-    let [lease] = await db.insert(environmentLeases).values({ companyId: f.companyId, heartbeatRunId: run.id,
+    let [lease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, heartbeatRunId: run.id,
       issueId: f.issue.id, status: "active", provider: "fixture", providerLeaseId: randomUUID(), acquiredAt: old, updatedAt: old,
       metadata: { driver: "sandbox", sandboxProviderPlugin: true, pluginId: "shutdown-fixture" } }).returning();
     await beginLegacyShutdownWorkspaceSettlement(db, run, new Date(Date.now() - 1000));
@@ -636,9 +636,9 @@ describe("residual recovery production matrix", () => {
     const competingGate = gate !== "cleanup in flight";
     const f = await shutdownSource(competingGate);
     const [otherRun] = gate === "competing allocation run" ? await db.insert(heartbeatRuns).values({
-      companyId: f.companyId, agentId: f.agent.id, status: "failed", runtimeMode: "legacy", finishedAt: new Date(),
+      spaceId: f.spaceId, agentId: f.agent.id, status: "failed", runtimeMode: "legacy", finishedAt: new Date(),
     }).returning() : [];
-    const [competing] = competingGate ? await db.insert(environmentLeases).values({ companyId: f.companyId,
+    const [competing] = competingGate ? await db.insert(environmentLeases).values({ spaceId: f.spaceId,
       heartbeatRunId: otherRun?.id,
       status: "pending_cleanup", provider: f.lease.provider, providerLeaseId: f.lease.providerLeaseId,
       acquiredAt: new Date(f.lease.acquiredAt.getTime() - 1000) }).returning() : [];
@@ -648,7 +648,7 @@ describe("residual recovery production matrix", () => {
     const releaseGate = async (database: typeof db) => writeEnvironmentCleanup(database, tx => tx.update(environmentLeases).set(
       competing ? { status: "released", releasedAt: new Date() }
         : { metadata: sql`${environmentLeases.metadata} || '{"pendingCleanupInFlight":false}'::jsonb` },
-    ).where(eq(environmentLeases.id, competing?.id ?? f.lease.id)), { companyId: f.companyId,
+    ).where(eq(environmentLeases.id, competing?.id ?? f.lease.id)), { spaceId: f.spaceId,
       ...(otherRun ? { runId: otherRun.id } : { leaseId: competing?.id ?? f.lease.id }) });
     await expect(db.transaction(async tx => {
       await releaseGate(tx as unknown as typeof db);
@@ -666,7 +666,7 @@ describe("residual recovery production matrix", () => {
       expect(current.metadata?.workspaceRestoreRecovery).toMatchObject({ runId: f.run.id });
       expect(current.providerLeaseId).toBe(f.lease.providerLeaseId);
     }, { timeout: 15_000 });
-    expect(await db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, f.companyId),
+    expect(await db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, f.spaceId),
       eq(issueRecoveryActions.fingerprint, `legacy-execution:${f.run.id}`)))).toHaveLength(1);
     await reconcileDatabaseWork(db, "legacy-shutdown-settlement"); await Promise.allSettled([...passes]); await immediate();
     await quiet();
@@ -678,7 +678,7 @@ describe("residual recovery production matrix", () => {
     const moved = Date.now() + 4000;
     await writeEnvironmentCleanup(db, tx => tx.update(environmentLeases).set({
       metadata: sql`jsonb_set(${environmentLeases.metadata}, '{pendingCleanupLeaseExpiresAtMs}', ${JSON.stringify(moved)}::jsonb)`,
-    }).where(eq(environmentLeases.id, f.lease.id)), { companyId: f.companyId, leaseId: f.lease.id });
+    }).where(eq(environmentLeases.id, f.lease.id)), { spaceId: f.spaceId, leaseId: f.lease.id });
     await advance(initial - Date.now());
     expect((await getLease(f.lease.id)).metadata?.legacyShutdownWorkspaceSettlement).toMatchObject({ state: "pending" });
     expect(deadlines.get("legacy-shutdown-settlement")!()).toBe(moved);
@@ -692,9 +692,9 @@ describe("residual recovery production matrix", () => {
   });
   it("expires the exact shutdown settlement marker into preserved recovery instead of inferring file export", async () => {
     const f = await fixture(), old = new Date(Date.now() - 6 * 60_000);
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, issueId: f.issue.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, issueId: f.issue.id,
       status: "failed", runtimeMode: "legacy", contextSnapshot: { issueId: f.issue.id }, finishedAt: old }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ companyId: f.companyId, heartbeatRunId: run.id,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, heartbeatRunId: run.id,
       issueId: f.issue.id, status: "active", provider: "fixture", providerLeaseId: randomUUID(), updatedAt: old,
       metadata: { driver: "sandbox" } }).returning();
     await beginLegacyShutdownWorkspaceSettlement(db, run, new Date(Date.now() + 1_500)); await start();
@@ -709,9 +709,9 @@ describe("residual recovery production matrix", () => {
   });
   it("settles stranded agent status at its saved grace", async () => {
     const f = await fixture(), old = new Date(Date.now() - 6 * 60_000);
-    await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, status: "succeeded", finishedAt: old });
+    await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, status: "succeeded", finishedAt: old });
     await db.transaction(async tx => {
-      await notifyStrandedAgentStatus(tx, { companyId: f.companyId, agentId: f.agent.id });
+      await notifyStrandedAgentStatus(tx, { spaceId: f.spaceId, agentId: f.agent.id });
       await tx.update(agents).set({ status: "running", updatedAt: old }).where(eq(agents.id, f.agent.id));
     });
     await start(); await vi.waitFor(async () => expect((await db.select().from(agents).where(eq(agents.id, f.agent.id)))[0].status).toBe("idle"));
@@ -719,7 +719,7 @@ describe("residual recovery production matrix", () => {
   });
   it("retains only skipped agent lock work until a lock-only transaction releases it", async () => {
     const f = await fixture(), old = new Date(Date.now() - 6 * 60_000);
-    await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id, status: "succeeded", finishedAt: old });
+    await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id, status: "succeeded", finishedAt: old });
     await db.update(agents).set({ status: "running", updatedAt: old }).where(eq(agents.id, f.agent.id));
     let release!: () => void, locked!: () => void;
     const held = new Promise<void>(resolve => { release = resolve; });
@@ -745,23 +745,23 @@ describe("residual recovery production matrix", () => {
     const f = await fixture(), now = new Date(), old = new Date(now.getTime() - 10 * 60_000);
     await db.update(issues).set({ status: "in_progress" }).where(eq(issues.id, f.issue.id));
     await db.update(agents).set({ status: "running" }).where(eq(agents.id, f.agent.id));
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       status: "running", runtimeMode: "legacy", contextSnapshot: { issueId: f.issue.id },
       responsibleUserId: f.actorId, startedAt: old, processStartedAt: old, updatedAt: old,
       controllerBootId: randomUUID(), controllerLeaseExpiresAt: new Date(now.getTime() + 60 * 60_000) }).returning();
     const output = createHeartbeatRunOutput(db, { run, runId: run.id, issueId: f.issue.id,
       runLogStore: { begin: async () => ({ store: "local_file", logRef: "fixture-output.ndjson" }), append: async (_handle, event) => Buffer.byteLength(event.chunk) },
       identityRedactor: { chunk: (_stream, chunk) => chunk, redact: value => value }, secretKeys: new Set(),
-      appendRunEvent: async (_run, event) => { await appendHeartbeatRunEvent(db, { companyId: f.companyId, agentId: f.agent.id, runId: run.id, ...event }); },
+      appendRunEvent: async (_run, event) => { await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, agentId: f.agent.id, runId: run.id, ...event }); },
       getCurrentUserRedactionOptions: async () => ({ enabled: false }) });
     await (await output.begin(run)).onLog("stdout", "fresh actual output");
     const progressed = await getRun(run.id), snoozedUntil = new Date(progressed.lastOutputAt!.getTime() + 5 * 60_000 + 2_000);
     expect(progressed.lastOutputSeq).toBe(1); expect(progressed.lastOutputAt!.getTime()).toBeGreaterThan(old.getTime());
     await issueService(db).update(f.issue.id, { status: "done" });
-    await persistActivity(db, { companyId: f.companyId, actorType: "agent", actorId: f.agent.id, agentId: f.agent.id,
+    await persistActivity(db, { spaceId: f.spaceId, actorType: "agent", actorId: f.agent.id, agentId: f.agent.id,
       runId: run.id, entityType: "issue", entityId: f.issue.id, action: "issue.updated", details: { status: "done" } });
     await recoveryService(db, { enqueueWakeup: heartbeat.wakeup }).recordWatchdogDecision({ runId: run.id,
-      actor: { type: "board" }, decision: "snooze", snoozedUntil, reason: "Wait for the exact saved deadline" });
+      actor: { type: "operator" }, decision: "snooze", snoozedUntil, reason: "Wait for the exact saved deadline" });
     await start();
     await advance(snoozedUntil.getTime() - Date.now() - 1);
     expect((await getRun(run.id)).status).toBe("running");
@@ -786,17 +786,17 @@ describe("residual recovery production matrix", () => {
     const f = await fixture(), now = new Date(), old = new Date(now.getTime() - 20 * 60_000);
     await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, f.issue.id));
     const expiry = new Date(now.getTime() + 60 * 60_000);
-    const suppressed = await db.insert(heartbeatRuns).values(Array.from({ length: 105 }, () => ({ companyId: f.companyId,
+    const suppressed = await db.insert(heartbeatRuns).values(Array.from({ length: 105 }, () => ({ spaceId: f.spaceId,
       agentId: f.agent.id, status: "running", runtimeMode: "legacy", contextSnapshot: { issueId: f.issue.id },
       startedAt: old, updatedAt: old, controllerBootId: randomUUID(), controllerLeaseExpiresAt: expiry }))).returning();
-    const [source] = await db.insert(issues).values({ companyId: f.companyId, status: "done", title: "Actual completed source", assigneeAgentId: f.agent.id }).returning();
-    const [target] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [source] = await db.insert(issues).values({ spaceId: f.spaceId, status: "done", title: "Actual completed source", assigneeAgentId: f.agent.id }).returning();
+    const [target] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       status: "running", runtimeMode: "legacy", contextSnapshot: { issueId: source.id },
       startedAt: new Date(old.getTime() + 60_000), updatedAt: old,
       controllerBootId: randomUUID(), controllerLeaseExpiresAt: expiry }).returning();
-    await db.insert(activityLog).values({ companyId: f.companyId, actorType: "agent", actorId: f.agent.id,
+    await db.insert(activityLog).values({ spaceId: f.spaceId, actorType: "agent", actorId: f.agent.id,
       agentId: f.agent.id, runId: target.id, entityType: "issue", entityId: source.id, action: "issue.updated", details: { status: "done" } });
-    const broad = await recoveryService(db, { enqueueWakeup: heartbeat.wakeup }).scanSilentActiveRuns({ companyId: f.companyId });
+    const broad = await recoveryService(db, { enqueueWakeup: heartbeat.wakeup }).scanSilentActiveRuns({ spaceId: f.spaceId });
     expect(broad.scanned).toBe(100); expect((await getRun(target.id)).status).toBe("running");
     await start(); await advance(31_000);
     await vi.waitFor(async () => expect((await getRun(target.id)).status).toBe("succeeded"));
@@ -819,8 +819,8 @@ describe("residual recovery production matrix", () => {
     await start(); await quiet();
     await expect(db.transaction(async outer => {
       await outer.transaction(async inner => {
-        await notifyLiveResourceRecovery(inner, { companyId: f.companyId, leaseId: rolledBack });
-        await inner.insert(environmentLeases).values({ id: rolledBack, companyId: f.companyId, status: "active", provider: "local", updatedAt: old });
+        await notifyLiveResourceRecovery(inner, { spaceId: f.spaceId, leaseId: rolledBack });
+        await inner.insert(environmentLeases).values({ id: rolledBack, spaceId: f.spaceId, status: "active", provider: "local", updatedAt: old });
       });
       throw new Error("abort outer producer");
     })).rejects.toThrow("abort outer producer");
@@ -828,8 +828,8 @@ describe("residual recovery production matrix", () => {
     const committed = randomUUID();
     await db.transaction(async outer => {
       await outer.transaction(async inner => {
-        await notifyLiveResourceRecovery(inner, { companyId: f.companyId, leaseId: committed });
-        await inner.insert(environmentLeases).values({ id: committed, companyId: f.companyId, status: "active", provider: "local", updatedAt: old });
+        await notifyLiveResourceRecovery(inner, { spaceId: f.spaceId, leaseId: committed });
+        await inner.insert(environmentLeases).values({ id: committed, spaceId: f.spaceId, status: "active", provider: "local", updatedAt: old });
       });
       expect(await getLease(committed)).toBeUndefined();
     });
@@ -839,10 +839,10 @@ describe("residual recovery production matrix", () => {
   });
   it("retains and re-reads a moved native controller deadline while awaiting recovery evidence", async () => {
     const f = await fixture(), old = new Date(Date.now() - 6 * 60_000), expiry = new Date(Date.now() + 3_000);
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       status: "running", runtimeMode: "native", nativeIssueId: f.issue.id, contextSnapshot: { issueId: f.issue.id },
       startedAt: old, updatedAt: old }).returning();
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id, runId: run.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id, runId: run.id,
       phase: "observed", recoveryState: "awaiting_evidence", controllerBootId: randomUUID(), controllerPid: process.pid + 100_000,
       controllerProcessStartedAt: old, leaseExpiresAt: expiry });
     await start(); expect(deadlines.get("active-execution-recovery")!()).toBe(expiry.getTime());
@@ -852,7 +852,7 @@ describe("residual recovery production matrix", () => {
     expect((await getRun(run.id)).status).toBe("running"); expect((await getRun(run.id)).errorCode).toBeNull();
     expect(deadlines.get("active-execution-recovery")!()).toBe(moved.getTime());
     await db.transaction(async tx => {
-      await notifyExecutionRunWork(tx, { companyId: f.companyId, runId: run.id, agentId: f.agent.id });
+      await notifyExecutionRunWork(tx, { spaceId: f.spaceId, runId: run.id, agentId: f.agent.id });
       await tx.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date() }).where(eq(heartbeatRuns.id, run.id));
       await tx.update(nativeRunFinalizations).set({ phase: "terminal_failure", recoveryState: "blocked", leaseExpiresAt: null })
         .where(eq(nativeRunFinalizations.runId, run.id));
@@ -861,10 +861,10 @@ describe("residual recovery production matrix", () => {
   });
   async function preparedOrphan() {
     const f = await fixture(), old = new Date(Date.now() - 6 * 60_000);
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       status: "failed", runtimeMode: "native", nativeIssueId: f.issue.id, issueId: f.issue.id,
       finishedAt: old, updatedAt: old }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ companyId: f.companyId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId,
       heartbeatRunId: run.id, issueId: f.issue.id, status: "active", provider: "daytona",
       providerLeaseId: `sandbox-${run.id}`, metadata: { driver: "sandbox", remoteCwd: "/workspace" }, updatedAt: old }).returning();
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: {
@@ -872,7 +872,7 @@ describe("residual recovery production matrix", () => {
       baselineSha256: "b".repeat(64), finalHostSha256: null, workspaceId: randomUUID(), leaseId: lease.id,
       providerLeaseId: lease.providerLeaseId, remoteCwd: "/workspace", resourceDisposition: "destroy",
     } } }).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id,
       runId: run.id, phase: "terminal_failure", recoveryState: "blocked" });
     return { f, run, lease };
   }
@@ -923,11 +923,11 @@ describe("residual recovery production matrix", () => {
     expect(await db.select().from(activityLog).where(and(eq(activityLog.runId, run.id),
       eq(activityLog.action, "issue.workspace_recovery_required")))).toHaveLength(1);
   });
-  it.each(["company", "claim", "manual"])("parks workspace preservation authority gates without timeout retries: %s", async gate => {
+  it.each(["space", "claim", "manual"])("parks workspace preservation authority gates without timeout retries: %s", async gate => {
     const { f, run, lease } = await preparedOrphan();
-    if (gate === "company") {
+    if (gate === "space") {
       const other = await fixture();
-      await db.update(environmentLeases).set({ companyId: other.companyId }).where(eq(environmentLeases.id, lease.id));
+      await db.update(environmentLeases).set({ spaceId: other.spaceId }).where(eq(environmentLeases.id, lease.id));
     } else if (gate === "claim") {
       await db.update(nativeRunFinalizations).set({ leaseOwner: "another-workspace-owner",
         leaseExpiresAt: new Date(Date.now() + 60_000) }).where(eq(nativeRunFinalizations.runId, run.id));
@@ -944,7 +944,7 @@ describe("residual recovery production matrix", () => {
   });
   it("retains failed orphan work with bounded backoff after a real PostgreSQL write failure", async () => {
     const f = await fixture(), old = new Date(Date.now() - 6 * 60_000);
-    const [lease] = await db.insert(environmentLeases).values({ companyId: f.companyId, status: "active", provider: "local", updatedAt: old }).returning();
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, status: "active", provider: "local", updatedAt: old }).returning();
     await db.execute(sql`create sequence live_recovery_failure_once`);
     await db.execute(sql.raw(`create function live_recovery_failure_once() returns trigger language plpgsql as $$
       begin if new.id = '${lease.id}'::uuid and new.status = 'pending_cleanup' and nextval('live_recovery_failure_once') = 1
@@ -969,7 +969,7 @@ describe("residual recovery production matrix", () => {
     const settings = instanceSettingsService(db, { runtimeEnv });
     await settings.updateExperimental({ enableWorktreeRunExecution: false });
     heartbeat = heartbeatService(db, { runtimeEnv });
-    const [lease] = await db.insert(environmentLeases).values({ companyId: f.companyId, status: "active", provider: "local", updatedAt: old }).returning();
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, status: "active", provider: "local", updatedAt: old }).returning();
     await start(); expect((await getLease(lease.id)).status).toBe("active"); await quiet();
     try {
       await settings.updateExperimental({ enableWorktreeRunExecution: true });
@@ -984,19 +984,19 @@ describe("residual recovery production matrix", () => {
     extraStops.push(() => lifecycleWorker.stop());
     await db.update(issues).set({ status: "in_progress" }).where(eq(issues.id, f.issue.id));
     const actor = { actorType: "user" as const, actorId: f.actorId, userId: f.actorId };
-    const hold = gate === "hold" ? await tree.createHold(f.companyId, f.issue.id, { mode: "pause", actor }) : null;
+    const hold = gate === "hold" ? await tree.createHold(f.spaceId, f.issue.id, { mode: "pause", actor }) : null;
     if (gate === "agent") { await createAgentLifecycle(db).pauseAgent(f.agent.id); await lifecycleWorker.process(f.agent.id); }
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       status: "failed", runtimeMode: "native", nativeIssueId: f.issue.id, contextSnapshot: { issueId: f.issue.id },
       finishedAt: new Date(), errorCode: "saved_native_failure" }).returning();
     await db.update(issues).set({ executionRunId: run.id }).where(eq(issues.id, f.issue.id));
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issue.id, runId: run.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issue.id, runId: run.id,
       phase: "retryable_failure", nextAttemptAt: new Date(Date.now() - 1_000) });
     await start(); await quiet();
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, run.id)))[0].phase).toBe("retryable_failure");
     const before = timeline.filter(event => Array.isArray(event) && event[0] === "finished" && event[1] === "native-process-sessions").length;
     if (gate === "agent") { await createAgentLifecycle(db).resumeAgent(f.agent.id); await lifecycleWorker.process(f.agent.id); }
-    else await tree.releaseHold(f.companyId, f.issue.id, hold!.hold.id, { actor, reason: "Resume native recovery" });
+    else await tree.releaseHold(f.spaceId, f.issue.id, hold!.hold.id, { actor, reason: "Resume native recovery" });
     await advance(1_000);
     const deadline = performance.now() + 5_000;
     while (timeline.filter(event => Array.isArray(event) && event[0] === "finished" && event[1] === "native-process-sessions").length <= before && performance.now() < deadline)
@@ -1006,15 +1006,15 @@ describe("residual recovery production matrix", () => {
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, run.id)))[0].phase).toBe(expectedPhase);
     if (gate === "agent") expect((await db.select().from(issues).where(eq(issues.id, f.issue.id)))[0].status).toBe("blocked");
     expect((await getRun(run.id)).errorCode).toBe("saved_native_failure");
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
     await quiet();
   });
   it("discovers an active lease from the ordinary terminal run commit before any lease write", async () => {
     const f = await fixture(), old = new Date(Date.now() - 6 * 60_000);
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       status: "running", runtimeMode: "legacy", startedAt: new Date(), updatedAt: new Date(),
       controllerBootId: legacyControllerBootId, controllerLeaseExpiresAt: new Date(Date.now() + 60 * 60_000) }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ companyId: f.companyId, heartbeatRunId: run.id,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, heartbeatRunId: run.id,
       status: "active", provider: "local", updatedAt: old }).returning();
     await start(); expect(deadlines.get("orphan-active-leases")!()).toBeNull();
     const ended = await terminalizeLegacyExecution({ db, run, status: "failed", patch: { finishedAt: new Date(), errorCode: "owner_process_failure" } });
@@ -1026,10 +1026,10 @@ describe("residual recovery production matrix", () => {
   it.each(["accounting", "wake", "assignment_cancel"] as const)("settles parked agent status when its last %s receipt commits", async receipt => {
     const f = await fixture(), old = new Date(Date.now() - 6 * 60_000);
     await db.update(agents).set({ status: "running", updatedAt: old }).where(eq(agents.id, f.agent.id));
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       status: "succeeded", finishedAt: old, costAccountingPending: receipt === "accounting",
       usageJson: { accountingProviderWorkStarted: false } }).returning();
-    const [wake] = receipt !== "accounting" ? await db.insert(agentWakeupRequests).values({ companyId: f.companyId,
+    const [wake] = receipt !== "accounting" ? await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId,
       agentId: f.agent.id, runId: run.id, status: "claimed", source: "automation", reason: "fixture-last-receipt",
       requestedByActorType: receipt === "assignment_cancel" ? "user" : "system", requestedByActorId: f.actorId, payload: { issueId: f.issue.id } }).returning() : [];
     await start(); await quiet();
@@ -1045,8 +1045,8 @@ describe("residual recovery production matrix", () => {
   it("retains first producer debt during drain and warm standby, then resumes without duplicate cleanup", async () => {
     const f = await fixture(), old = new Date(Date.now() - 6 * 60_000);
     draining = true; await start();
-    const [lease] = await writeEnvironmentCleanup(db, tx => tx.insert(environmentLeases).values({ companyId: f.companyId,
-      status: "active", provider: "local", updatedAt: old }).returning(), { companyId: f.companyId });
+    const [lease] = await writeEnvironmentCleanup(db, tx => tx.insert(environmentLeases).values({ spaceId: f.spaceId,
+      status: "active", provider: "local", updatedAt: old }).returning(), { spaceId: f.spaceId });
     await advance(1_000); await vi.waitFor(() => expect(idleWorkSnapshot().active).toBe(0));
     expect((await getLease(lease.id)).status).toBe("active");
     standby = true; draining = false; await advance(60_000); expect((await getLease(lease.id)).status).toBe("active");

@@ -99,10 +99,10 @@ describe("Grok isolated credentials", () => {
       await expect(requireVerifiedAcpxModel({ getStatus: async () => status, setModel: async () => {} }, profile)).rejects.toMatchObject({ code: "ACPX_EFFECTIVE_MODEL_MISMATCH" });
     }
   });
-  it("keeps untrusted read hints and Paperclip-looking tools behind the selected approval policy", () => {
-    const request = { inferredKind: "read", raw: { toolCall: { title: "mcp__paperclip__finish_task" } } };
+  it("keeps untrusted read hints and Outpost-looking tools behind the selected approval policy", () => {
+    const request = { inferredKind: "read", raw: { toolCall: { title: "mcp__outpost__finish_task" } } };
     expect(decideAcpxPermission("grok", "approve-reads", request)).toBe("delegate");
-    expect(decideAcpxPermission("grok", "approve-paperclip", request)).toBe("delegate");
+    expect(decideAcpxPermission("grok", "approve-outpost", request)).toBe("delegate");
     expect(decideAcpxPermission("grok", "deny-all", request)).toBe("reject_once");
     expect(decideAcpxPermission("grok", "approve-all", request)).toBe("allow_once");
   });

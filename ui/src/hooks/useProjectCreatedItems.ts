@@ -14,14 +14,14 @@ function availableProjects(results: UseQueryResult<Project>[]) {
  */
 export function useProjectCreatedItems(
   events: readonly ActivityEvent[],
-  companyId?: string | null,
+  spaceId?: string | null,
 ) {
   const receipts = useMemo(() => projectCreatedItems(events), [events]);
   const projects = useQueries({
     queries: receipts.map((receipt) => ({
       queryKey: queryKeys.projects.detail(receipt.projectId),
-      queryFn: () => projectsApi.get(receipt.projectId, companyId!),
-      enabled: Boolean(companyId),
+      queryFn: () => projectsApi.get(receipt.projectId, spaceId!),
+      enabled: Boolean(spaceId),
     })),
     combine: availableProjects,
   });

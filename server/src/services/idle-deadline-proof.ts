@@ -131,7 +131,7 @@ export function deadlineOwnerWorkReplacement(proof: IdleDeadlineProof | undefine
     switch (coverage.kind) {
       case "status_cards": if (reason === "status_cards") return sql`SELECT 1 WHERE false`; break;
       case "external_objects": if (reason === "external_objects") return sql`SELECT 1 WHERE false`; break;
-      case "skill_sources": if (reason === "project_skill_sources" || reason === "company_skill_sources") return sql`SELECT 1 WHERE false`; break;
+      case "skill_sources": if (reason === "project_skill_sources" || reason === "space_skill_sources") return sql`SELECT 1 WHERE false`; break;
       case "watchdogs": if (reason === "issue_watchdogs") return sql`SELECT 1 WHERE false`; break;
       case "scheduled_retries": {
         const checks = idleRetryWorkChecks(coverage);

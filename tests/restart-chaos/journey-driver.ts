@@ -69,7 +69,7 @@ export function q3AgentScript(connectionId: string, title: string): string {
   // The supervisor pins OUTPOST_API_URL to the wave's own loopback server.
   return `
 const base = process.env.OUTPOST_API_URL.replace(/\\/+$/, "").replace(/\\/api$/, "") + "/api";
-const headers = { authorization: "Bearer " + process.env.OUTPOST_API_KEY, "content-type": "application/json", "x-paperclip-run-id": process.env.OUTPOST_RUN_ID };
+const headers = { authorization: "Bearer " + process.env.OUTPOST_API_KEY, "content-type": "application/json", "x-outpost-run-id": process.env.OUTPOST_RUN_ID };
 const api = async (path, method = "GET", body) => {
   const response = await fetch(base + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) throw new Error(method + " " + path + " " + response.status + ": " + await response.text());
@@ -78,7 +78,7 @@ const api = async (path, method = "GET", body) => {
 let issueId = process.env.OUTPOST_TASK_ID;
 try {
 // This agent is hired for one task: find it by its own assignment.
-const assigned = await api("/companies/" + process.env.OUTPOST_COMPANY_ID + "/issues?assigneeAgentId=" + process.env.OUTPOST_AGENT_ID);
+const assigned = await api("/spaces/" + process.env.OUTPOST_SPACE_ID + "/issues?assigneeAgentId=" + process.env.OUTPOST_AGENT_ID);
 issueId ??= (Array.isArray(assigned) ? assigned : assigned.issues ?? []).find(item => item.title?.includes(${JSON.stringify(title)}))?.id;
 if (!issueId) throw new Error("No assigned task names " + ${JSON.stringify(title)});
 const review = (await api("/issues/" + issueId + "/interactions")).find(item => item.payload?.toolAction);
@@ -92,7 +92,7 @@ if (review) {
   process.exit(0);
 }
 const session = await api("/tool-gateway/sessions", "POST", { runId: process.env.OUTPOST_RUN_ID, ttlMs: 60000 });
-const gatewayHeaders = { "x-paperclip-tool-gateway-token": session.token, "content-type": "application/json" };
+const gatewayHeaders = { "x-outpost-tool-gateway-token": session.token, "content-type": "application/json" };
 const tools = await (await fetch(base + "/tool-gateway/tools", { headers: gatewayHeaders })).json();
 const tool = tools.find(t => t.connectionId === ${JSON.stringify(connectionId)});
 if (!tool) throw new Error("The chaos app tool is not available to this agent");
@@ -144,12 +144,12 @@ export class JourneyDriver {
     openDrivers.add(this);
     const state: NonNullable<JourneyRecord["app"]> = this.state.app = { connectionId: null, agentId: null, receipt: app.receipt, setupError: null };
     try {
-      const connected = await api.post<Json>(`/api/companies/${lab.companyId}/tools/apps/connect`,
+      const connected = await api.post<Json>(`/api/spaces/${lab.spaceId}/tools/apps/connect`,
         { link: app.mcpUrl, name: `Chaos pages ${plan.nonce}`, grantKind: "organization" }, 30_000);
       state.connectionId = String(connected.connectionId ?? connected.connection?.id);
       const startUrl = connected.auth?.startUrl;
       if (typeof startUrl !== "string") throw new Error(`connect returned no OAuth start URL: ${JSON.stringify(connected).slice(0, 300)}`);
-      // The browser visits the app, consents, and is sent back to Paperclip's callback.
+      // The browser visits the app, consents, and is sent back to Outpost's callback.
       const authorize = await fetch(startUrl, { redirect: "manual" });
       const location = authorize.headers.get("location");
       if (!location) throw new Error(`authorize returned ${authorize.status} without a redirect`);
@@ -160,19 +160,19 @@ export class JourneyDriver {
       const { catalog } = await api.get<{ catalog: Json[] }>(`/api/tool-connections/${state.connectionId}/catalog`);
       const entry = (catalog ?? []).find(row => row.toolName === TOOL_NAME || String(row.upstreamToolName ?? "").endsWith(TOOL_NAME));
       if (!entry) throw new Error(`catalog has no ${TOOL_NAME}: ${JSON.stringify(catalog).slice(0, 300)}`);
-      const agent = await api.post<Json>(`/api/companies/${lab.companyId}/agents`, {
+      const agent = await api.post<Json>(`/api/spaces/${lab.spaceId}/agents`, {
         name: `Chaos pages agent ${plan.nonce}`, role: "engineer", title: "Connected-app journey agent",
         capabilities: "Creates one page with the chaos app after review.", adapterType: "process",
         adapterConfig: { command: process.execPath, args: ["--input-type=module", "-e", q3AgentScript(state.connectionId, q3ToolArgument(plan.nonce))] },
       });
       state.agentId = String(agent.id);
-      // A scripted process run records usage with no price, which the company's default budget
-      // policy blocks (pausing the whole company). The operator allows unpriced usage, as the
+      // A scripted process run records usage with no price, which the space's default budget
+      // policy blocks (pausing the whole space). The operator allows unpriced usage, as the
       // budget page offers; the amount and hard stop stay in force for priced model usage.
-      await api.post(`/api/companies/${lab.companyId}/budgets/policies`,
-        { scopeType: "company", scopeId: lab.companyId, unpricedUsagePolicy: "allow" });
+      await api.post(`/api/spaces/${lab.spaceId}/budgets/policies`,
+        { scopeType: "space", scopeId: lab.spaceId, unpricedUsagePolicy: "allow" });
       // Apps → finish: this agent may use the app, and the write tool asks first.
-      await api.post(`/api/companies/${lab.companyId}/tools/apps/${state.connectionId}/finish`, {
+      await api.post(`/api/spaces/${lab.spaceId}/tools/apps/${state.connectionId}/finish`, {
         enabledCatalogEntryIds: [entry.id], askFirstCatalogEntryIds: [entry.id], access: { agentIds: [state.agentId] } });
       timeline.add("journey_app_connected", { taskId: plan.taskId, connectionId: state.connectionId, agentId: state.agentId, origin: app.origin });
     } catch (error) {
@@ -238,7 +238,7 @@ export class JourneyDriver {
     const { api, lab, record, timeline, plan } = this.host;
     let id: string | null = null;
     if (this.workload === "Q3") {
-      const rows = await api.get<unknown>(`/api/companies/${lab.companyId}/tools/action-requests?status=pending`, 5_000).catch(() => null);
+      const rows = await api.get<unknown>(`/api/spaces/${lab.spaceId}/tools/action-requests?status=pending`, 5_000).catch(() => null);
       id = actionRequestRows(rows).find(row => row.issueId === record.issueId)?.id ?? null;
     } else {
       const rows = await api.get<Json[]>(`/api/issues/${record.issueId}/interactions`, 5_000).catch(() => null);
@@ -256,7 +256,7 @@ export class JourneyDriver {
     const { api, lab, record, plan, timeline } = this.host;
     const blocker: NonNullable<JourneyRecord["blocker"]> = { issueId: null, at: now, error: null };
     try {
-      const created = await api.post<Json>(`/api/companies/${lab.companyId}/issues`,
+      const created = await api.post<Json>(`/api/spaces/${lab.spaceId}/issues`,
         { title: `Chaos Q2 prerequisite ${plan.nonce}`, status: "backlog", priority: "medium" });
       blocker.issueId = String(created.id);
       await api.patch(`/api/issues/${record.issueId}`, { status: "blocked", blockedByIssueIds: [blocker.issueId] });
@@ -300,7 +300,7 @@ export class JourneyDriver {
       if (this.workload !== "Q3" && !choice) throw new Error(`the saved question offers no option "${journeyChoice(plan.nonce)}"`);
       answer.at = Date.now();
       const response = this.workload === "Q3"
-        ? await api.post<Json>(`/api/tool-gateway/action-requests/${this.state.requestId}/approve`, { companyId: lab.companyId }, 60_000)
+        ? await api.post<Json>(`/api/tool-gateway/action-requests/${this.state.requestId}/approve`, { spaceId: lab.spaceId }, 60_000)
         : await api.post<Json>(`/api/issues/${record.issueId}/interactions/${this.state.requestId}/respond`, { answers: [choice] }, 30_000);
       answer.httpStatus = 200;
       answer.status = typeof response?.status === "string" ? response.status : null;
@@ -317,7 +317,7 @@ export class JourneyDriver {
   private async currentRequest(): Promise<Json | null> {
     const { api, lab, record } = this.host;
     if (this.workload === "Q3") {
-      const rows = await api.get<unknown>(`/api/companies/${lab.companyId}/tools/action-requests?status=pending`, 10_000);
+      const rows = await api.get<unknown>(`/api/spaces/${lab.spaceId}/tools/action-requests?status=pending`, 10_000);
       return actionRequestRows(rows).some(row => row.id === this.state.requestId) ? { status: "pending" } : { status: "not pending" };
     }
     const rows = await api.get<Json[]>(`/api/issues/${record.issueId}/interactions`, 10_000);
@@ -384,7 +384,7 @@ export class JourneyDriver {
     };
     if (this.workload === "Q3") {
       const rows = await Promise.all(["pending", "approved", "executing", "rejected", "expired", "cancelled", "executed", "failed"]
-        .map(status => api.get<unknown>(`/api/companies/${lab.companyId}/tools/action-requests?status=${status}`).catch(() => [])));
+        .map(status => api.get<unknown>(`/api/spaces/${lab.spaceId}/tools/action-requests?status=${status}`).catch(() => [])));
       const requests = new Map<string, string>();
       for (const page of rows) for (const row of actionRequestRows(page)) {
         if (row.issueId === issueId) requests.set(String(row.id), String(row.status));

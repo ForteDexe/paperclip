@@ -136,8 +136,8 @@ latency guarantee.
 
 `AWS_POST_MERGE_CI_ENABLED=true` routes cloud source verification and
 exact-master migrator preparation to the
-`paperclip-post-merge` runner group. The separate Fleet label is
-`runs-on/fleet=paperclip-post-merge-x64/env=public-ci`. The protected fleet uses
+`outpost-post-merge` runner group. The separate Fleet label is
+`runs-on/fleet=outpost-post-merge-x64/env=public-ci`. The protected fleet uses
 separate 8-vCPU, 32-GiB Spot workers that launch only when jobs arrive. Its
 job ceiling and public PR capacity are managed independently. There are no
 hot or stopped pools. Quota ceilings do not reserve hardware; measure cold
@@ -167,7 +167,7 @@ source checks, and npm integrity checks are unchanged.
 
 ## Retired AWS cloud build routing
 
-`AWS_CLOUD_BUILDS_ENABLED` and the `paperclip-cloud-build` runner group no longer
+`AWS_CLOUD_BUILDS_ENABLED` and the `outpost-cloud-build` runner group no longer
 route a public image job after this retirement. This source change does not
 delete runner groups, Fleets, credentials, registry images, or cache tags. Review
 shared infrastructure ownership separately before removing those resources.
@@ -175,9 +175,9 @@ shared infrastructure ownership separately before removing those resources.
 ## Protected standard-image builders
 
 `CORE_RELEASE_AWS_ENABLED=true` routes canonical master image jobs to native
-`paperclip-core-image-x64` and `paperclip-core-image-arm64` fleets. Each has two
+`outpost-core-image-x64` and `outpost-core-image-arm64` fleets. Each has two
 32-vCPU / 128-GiB Spot slots, for four large image jobs in total. Workers
-launch for jobs and terminate afterward; no idle pool is maintained. The `paperclip-core-release` runner group permits only
+launch for jobs and terminate afterward; no idle pool is maintained. The `outpost-core-release` runner group permits only
 Core's `docker.yml@refs/heads/master`. PRs, branches, and tag releases keep their
 existing GitHub-hosted placement. Disable the switch and rerun the whole image
 workflow to restore hosted placement.

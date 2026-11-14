@@ -18,7 +18,7 @@ const pageId = "22222222-2222-4222-8222-222222222222";
 function valid(): ExternalObservation {
   return {
     scenarioId: "connection-setup.notion-expired",
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     origin: "http://127.0.0.1:3100",
     reply: "As of Oct 26, 2026, the launch is now November 8.",
@@ -312,7 +312,7 @@ describe("expired Notion cancellation and actual repair controls", () => {
     const input: NotionOAuthInput = {
       operation: "authorize",
       publicOrigin: "https://owned.example.test",
-      companyId: "company",
+      spaceId: "space",
       prefix: "ACORN",
       humanId: "person",
       agentId: "ceo",

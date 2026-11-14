@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  agents, authUsers, companies, companyMemberships, createDb, executionWorkspaceRepositories, executionWorkspaces,
+  agents, authUsers, spaces, spaceMemberships, createDb, executionWorkspaceRepositories, executionWorkspaces,
   heartbeatRuns, issues, projectWorkspaces, projects,
 } from "@outpost/db";
 import { heartbeatService } from "../services/heartbeat.js";
@@ -78,16 +78,16 @@ describe.skipIf(!recoveryPostgresSupport.supported)("subtask in a project that a
   });
 
   it.each(["new", "older-release", "cross-project"] as const)("gives a %s child its own workspace and never the parent's checkout", async (shape) => {
-    const companyId = randomUUID(), userId = randomUUID(), agentId = randomUUID(), projectId = randomUUID();
+    const spaceId = randomUUID(), userId = randomUUID(), agentId = randomUUID(), projectId = randomUUID();
     const parentId = randomUUID(), parentWorkspaceId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Owner", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companies).values({ id: companyId, name: "Acquired repositories", issuePrefix: `A${companyId.slice(0, 6)}`,
-      defaultResponsibleUserId: userId, requireBoardApprovalForNewAgents: false });
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", membershipRole: "owner", status: "active" });
+    await db.insert(spaces).values({ id: spaceId, name: "Acquired repositories", issuePrefix: `A${spaceId.slice(0, 6)}`,
+      defaultResponsibleUserId: userId, requireOperatorApprovalForNewAgents: false });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", membershipRole: "owner", status: "active" });
     // A project with no project workspace: tasks acquire repositories into their own task files.
-    await db.insert(projects).values({ id: projectId, companyId, name: "Repository-free project", status: "in_progress" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Repository-free project", status: "in_progress" });
     expect(await db.select().from(projectWorkspaces).where(eq(projectWorkspaces.projectId, projectId))).toEqual([]);
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", status: "idle", adapterType: "codex_local",
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", status: "idle", adapterType: "codex_local",
       adapterConfig: {}, runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 2 } }, permissions: {} });
 
     // The parent's realized task files, with an acquired repository holding unmerged work.
@@ -98,39 +98,39 @@ describe.skipIf(!recoveryPostgresSupport.supported)("subtask in a project that a
     await exec("git", ["clone", REPO_URL, parentCheckout]);
     const pinnedCommit = (await exec("git", ["-C", parentCheckout, "rev-parse", "HEAD"])).stdout.trim();
     await writeFile(path.join(parentCheckout, "source.txt"), "parent unmerged change\n");
-    await db.insert(issues).values({ id: parentId, companyId, projectId, title: "Parent", status: "in_progress",
+    await db.insert(issues).values({ id: parentId, spaceId, projectId, title: "Parent", status: "in_progress",
       assigneeAgentId: agentId, responsibleUserId: userId });
-    await db.insert(executionWorkspaces).values({ id: parentWorkspaceId, companyId, projectId, sourceIssueId: parentId,
+    await db.insert(executionWorkspaces).values({ id: parentWorkspaceId, spaceId, projectId, sourceIssueId: parentId,
       name: "Parent task files", cwd: parentCwd, mode: "isolated_workspace", strategyType: "project_primary",
       providerType: "local_fs", metadata: { source: "task_session" } });
     await db.update(issues).set({ executionWorkspaceId: parentWorkspaceId, executionWorkspacePreference: "reuse_existing",
       executionWorkspaceSettings: { mode: "isolated_workspace" } }).where(eq(issues.id, parentId));
-    await db.insert(executionWorkspaceRepositories).values({ companyId, executionWorkspaceId: parentWorkspaceId,
+    await db.insert(executionWorkspaceRepositories).values({ spaceId, executionWorkspaceId: parentWorkspaceId,
       requestedByIssueId: parentId, repoUrl: REPO_URL, repositoryIdentity: REPO_URL, relativePath, requestedRef: "HEAD",
       pinnedCommit, branchName: "main", state: "ready", requestKey: "parent-repository", requestKeys: ["parent-repository"] });
 
     // A second project without a project workspace, for the cross-project child.
     const otherProjectId = randomUUID();
-    await db.insert(projects).values({ id: otherProjectId, companyId, name: "Other repository-free project", status: "in_progress" });
+    await db.insert(projects).values({ id: otherProjectId, spaceId, name: "Other repository-free project", status: "in_progress" });
     const child = shape !== "older-release"
-      ? await issueService(db).create(companyId, { parentId, title: "Child", status: "todo",
+      ? await issueService(db).create(spaceId, { parentId, title: "Child", status: "todo",
           assigneeAgentId: agentId, actorResponsibleUserId: userId,
           ...(shape === "cross-project" ? { projectId: otherProjectId } : {}) })
       // An older release bound every child to its parent's realized workspace.
-      : (await db.insert(issues).values({ companyId, projectId, parentId, title: "Child", status: "todo",
+      : (await db.insert(issues).values({ spaceId, projectId, parentId, title: "Child", status: "todo",
           assigneeAgentId: agentId, responsibleUserId: userId, executionWorkspaceId: parentWorkspaceId,
           executionWorkspacePreference: "reuse_existing", executionWorkspaceSettings: { mode: "isolated_workspace" } }).returning())[0]!;
     if (shape !== "older-release") expect(child.executionWorkspaceId).toBeNull();
     if (shape === "cross-project") {
       // The target project's defaults, exactly as for a top-level task there.
-      const topLevel = await issueService(db).create(companyId, { projectId: otherProjectId, title: "Top-level", status: "backlog" });
+      const topLevel = await issueService(db).create(spaceId, { projectId: otherProjectId, title: "Top-level", status: "backlog" });
       expect(child).toMatchObject({ projectId: otherProjectId, projectWorkspaceId: topLevel.projectWorkspaceId,
         executionWorkspaceSettings: topLevel.executionWorkspaceSettings });
     }
 
     let childCwd: string | null = null;
-    execute.mockImplementation(async (input: { context: { paperclipWorkspace?: { cwd?: string } } }) => {
-      childCwd = input.context.paperclipWorkspace?.cwd ?? null;
+    execute.mockImplementation(async (input: { context: { outpostWorkspace?: { cwd?: string } } }) => {
+      childCwd = input.context.outpostWorkspace?.cwd ?? null;
       return { exitCode: 0, signal: null, timedOut: false };
     });
     const run = await heartbeat.wakeup(agentId, { source: "on_demand", triggerDetail: "manual", contextSnapshot: { issueId: child.id } });
@@ -147,7 +147,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("subtask in a project that a
     const [childRow] = await db.select().from(issues).where(eq(issues.id, child.id));
     expect(childRow.executionWorkspaceId).not.toBe(parentWorkspaceId);
     const childRepositories = await db.select().from(executionWorkspaceRepositories)
-      .where(and(eq(executionWorkspaceRepositories.companyId, companyId), eq(executionWorkspaceRepositories.executionWorkspaceId, childRow.executionWorkspaceId!)));
+      .where(and(eq(executionWorkspaceRepositories.spaceId, spaceId), eq(executionWorkspaceRepositories.executionWorkspaceId, childRow.executionWorkspaceId!)));
     if (shape === "cross-project") {
       // The parent's repositories belong to the parent's project.
       expect(childRepositories).toEqual([]);
@@ -161,6 +161,6 @@ describe.skipIf(!recoveryPostgresSupport.supported)("subtask in a project that a
     expect(childRepositories).toEqual([expect.objectContaining({ repositoryIdentity: REPO_URL, requestedByIssueId: child.id,
       state: "ready", relativePath })]);
     expect(await lstat(path.join(childCwd!, relativePath, ".git"))).toBeTruthy();
-    expect(await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId))).toHaveLength(1);
+    expect(await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId))).toHaveLength(1);
   }, 60_000);
 });

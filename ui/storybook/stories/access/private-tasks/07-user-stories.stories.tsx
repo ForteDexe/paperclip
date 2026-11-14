@@ -25,7 +25,7 @@ const meta = {
   title: "Getting started and access/Login, invitations, and access/Private tasks/07 User stories",
   decorators: [privacyDecorator],
   parameters: { ...privacyParameters, waitForViewport: true,
-    paperclip: {
+    outpost: {
       "capabilities": [
         "access/resources",
         "tasks/properties"
@@ -142,7 +142,7 @@ export const OwnerMakesTaskPublic: Story = {
         "Existing private subtasks keep their privacy",
       );
     });
-    await step("Confirm company-wide access", async () => {
+    await step("Confirm space-wide access", async () => {
       const dialog = page.getByRole("alertdialog");
       await userEvent.click(
         within(dialog).getByRole("button", { name: "Make public" }),
@@ -186,7 +186,7 @@ export const OwnerAddsProjectMember: Story = {
   render: projects.render,
   play: async ({ canvasElement, step }) => {
     const page = within(canvasElement.ownerDocument.body);
-    await step("Choose a company member", async () => {
+    await step("Choose a space member", async () => {
       await userEvent.click(
         await page.findByRole("button", { name: "Manage access" }),
       );

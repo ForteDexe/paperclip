@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
-import { storybookProjects } from "../../fixtures/paperclipData";
+import { storybookProjects } from "../../fixtures/outpostData";
 import { RepositoryConfigurationSection, type PrototypeProps } from "./ProjectReposPrototype";
 
 const navigation = [
@@ -45,9 +45,9 @@ export function ProjectConfigurationPrototype(props: PrototypeProps) {
   const client = useMemo(() => {
     const c = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false, refetchOnMount: false } } });
     c.setQueryData(queryKeys.instance.experimentalSettings, { enableManagedSandboxOnly: true, enableIsolatedWorkspaces: false, enableEnvironments: false });
-    c.setQueryData(queryKeys.goals.list("company-storybook"), []);
-    c.setQueryData(queryKeys.secrets.list("company-storybook"), []);
-    c.setQueryData(queryKeys.secrets.userDefinitions("company-storybook"), []);
+    c.setQueryData(queryKeys.goals.list("space-storybook"), []);
+    c.setQueryData(queryKeys.secrets.list("space-storybook"), []);
+    c.setQueryData(queryKeys.secrets.userDefinitions("space-storybook"), []);
     return c;
   }, []);
   const [project, setProject] = useState<Project>(() => ({

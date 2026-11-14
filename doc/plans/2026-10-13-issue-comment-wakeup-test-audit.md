@@ -3,7 +3,7 @@
 ## Scope and baseline
 
 Owned file: `server/src/__tests__/issue-update-comment-wakeup-routes.test.ts`.
-Worktree: `/private/tmp/paperclip-test-audit-pr-stack`.
+Worktree: `/private/tmp/outpost-test-audit-pr-stack`.
 Baseline HEAD: `9b4d0cd872ca1fc897f320cb181fc060f0bd5bf1` on
 `codex/test-audit-r13-db-migration-passes`. The owned file is byte-identical
 at `codex/test-audit-r15-onboarding-duplicates` (`568ba003a559f6a3527c36b715bbf521648518d0`).

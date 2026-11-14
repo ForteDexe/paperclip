@@ -4,7 +4,7 @@
 // "user" bubble showing the agent's own seeded instructions.
 //
 // The wording lives in server/src/onboarding-assets/first-task/greeting.md so the
-// board can edit it without touching TypeScript; this module only fills the
+// operator can edit it without touching TypeScript; this module only fills the
 // {{agentName}} / {{organizationName}} placeholders (see
 // onboarding-first-task-assets.ts).
 

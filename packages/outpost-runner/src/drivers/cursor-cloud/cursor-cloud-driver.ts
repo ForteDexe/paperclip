@@ -234,11 +234,11 @@ class CursorCloudSession implements CursorCloudSessionHandle {
     const turnId = `turn-${randomUUID()}`;
     const relayTurnToken = randomBytes(32).toString("base64url");
     const first = this.#cp.agentId === null;
-    const prompt = `${first || this.#cp.instructionsRevisionPending ? this.#instructions : CURSOR_CLOUD_CONTROL_INSTRUCTIONS}\n\nPaperclip task:\n${input.message.text}`;
+    const prompt = `${first || this.#cp.instructionsRevisionPending ? this.#instructions : CURSOR_CLOUD_CONTROL_INSTRUCTIONS}\n\nOutpost task:\n${input.message.text}`;
     const request = { prompt: { text: prompt }, model: { id: this.#options.model, ...(this.#options.modelParams ? { params: this.#options.modelParams } : {}) }, mode: "agent" as const,
       mcpServers: [{ name: CURSOR_CLOUD_MCP_SERVER_NAME, type: "http" as const, url: this.#options.relay.url, headers: { Authorization: `Bearer ${this.#options.relay.token}`, [RUNNER_TOOL_SCOPE_TOKEN_HEADER]: `Bearer ${relayTurnToken}` } }] };
     this.#cp.turnId = turnId; this.#cp.relayTurnToken = relayTurnToken; this.#cp.runId = null; this.#cp.phase = "creating"; this.#cp.pendingOperation = first ? "create_agent" : "create_run";
-    this.#cp.requestedAgentId = first ? `bc-${randomUUID()}` : null; this.#cp.idempotencyKey = `paperclip-${randomUUID()}`;
+    this.#cp.requestedAgentId = first ? `bc-${randomUUID()}` : null; this.#cp.idempotencyKey = `outpost-${randomUUID()}`;
     this.#cp.requestDigest = cursorCloudDigest(semanticCanonicalJson(request)); this.#cp.lastEventId = null; this.#cp.lastEventFingerprints = []; this.#cp.terminalStatus = null; this.#cp.acceptedCompletion = null; this.#cp.pendingTerminalDelivery = null;
     this.#cp.deadlineAt = Date.now() + (this.#options.config.timeoutMs ?? CURSOR_CLOUD_DEFAULT_TIMEOUT_MS);
     this.#generation += 1;

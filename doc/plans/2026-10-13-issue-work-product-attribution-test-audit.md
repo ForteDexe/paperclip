@@ -4,9 +4,9 @@
 
 Remove the success-only `stores the authenticated agent run id when creating work products` case from `server/src/__tests__/issue-agent-mutation-ownership-routes.test.ts`. It POSTed an artifact with omitted `createdByRunId` and asserted that the service received the authenticated run ID.
 
-The retained `adds the authenticated run diff summary to PR work products` case exercises the same route with omitted attribution. It asserts the same `createdByRunId: ownerRunId`, plus the authenticated run's diff lookup and metadata. Forged create/update run attribution and foreign-company board attribution cases also remain.
+The retained `adds the authenticated run diff summary to PR work products` case exercises the same route with omitted attribution. It asserts the same `createdByRunId: ownerRunId`, plus the authenticated run's diff lookup and metadata. Forged create/update run attribution and foreign-space board attribution cases also remain.
 
-The route's `resolveWorkProductCreatedByRunId` helper takes no work-product type. The POST route assigns `createInput.createdByRunId` unconditionally before type-specific metadata enrichment. The removed case used provider `test`, so it did not exercise the separate Paperclip artifact attachment metadata path. The service persists attribution generically across work-product types.
+The route's `resolveWorkProductCreatedByRunId` helper takes no work-product type. The POST route assigns `createInput.createdByRunId` unconditionally before type-specific metadata enrichment. The removed case used provider `test`, so it did not exercise the separate Outpost artifact attachment metadata path. The service persists attribution generically across work-product types.
 
 ## Audit scope and evidence
 

@@ -14,11 +14,11 @@ const pendingFixture = JSON.parse(await readFile(new URL("./fixtures/copilot-con
 const frame = (r: Row) => r.payload.orpEvent;
 const payload = (r: Row) => frame(r).payload;
 const setDetail = (r: Row, name: string, value: string) => { payload(r).details.find((d: Row) => d.name === name).value = value; };
-const scope = { provider: "copilot" as const, companyId: "company", issueId: "issue", runId: "run", target: "target.txt", requireContextRead: true };
-const caller = readActiveStopCaller({ deploymentMode: "local_trusted" }, { session: { userId: "local-board", id: "paperclip:local_implicit:local-board" } });
+const scope = { provider: "copilot" as const, spaceId: "space", issueId: "issue", runId: "run", target: "target.txt", requireContextRead: true };
+const caller = readActiveStopCaller({ deploymentMode: "local_trusted" }, { session: { userId: "local-operator", id: "outpost:local_implicit:local-operator" } });
 const cancellationRequestId = "11111111-2222-4333-8444-555555555555";
 function row(seq: number, eventType: string, p: Row): Row {
-  return { companyId: "company", runId: "run", seq, eventType, protocolSchemaVersion: 1, sourceInstanceId: "source", sourceSeq: seq,
+  return { spaceId: "space", runId: "run", seq, eventType, protocolSchemaVersion: 1, sourceInstanceId: "source", sourceSeq: seq,
     payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn",
       normalizedSessionId: "session", sourceInstanceId: "source", sourceSeq: seq, sourceEventId: `source:run:${seq}`, emittedAt: "2026-10-03T00:00:00Z", payload: p } } };
 }
@@ -48,8 +48,8 @@ function fixture() {
     row(12, "runtime_request.created", { request: { schema: "outpost.runtime_request.v2", requestKind: "permission_approval", type: "permission", status: "pending",
       requestId: "edit-request", turnId: "turn", itemId: "edit-item", details: { toolCallId: "edit-tool" }, origin: { adapter: "acpx-runtime-sidecar", provider: "copilot", method: "session/request_permission" } } }),
     notice(13, "edit-tool", "permission_requested", { requestId: "edit-request", declineOffered: true, operation: "edit", target: "target.txt" })];
-  const run: Row = { id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "running", resultJson: {} };
-  const issue: Row = { id: "issue", companyId: "company", status: "in_progress" };
+  const run: Row = { id: "run", spaceId: "space", nativeIssueId: "issue", runtimeMode: "native", status: "running", resultJson: {} };
+  const issue: Row = { id: "issue", spaceId: "space", status: "in_progress" };
   const origin = () => readCopilotToolEvidence(events, "run").find(n => n.toolCallId === "edit-tool" && n.stage === "tool")!;
   const pending = () => observeActiveStopPending({ events, run, issue, scope, caller, cancellationRequestId });
   return { events, run, issue, origin, pending };
@@ -78,7 +78,7 @@ describe("successful context read with an explicit permission decision", () => {
   });
   it.each([
     ["another operation", (rows: Row[]) => { payload(rows[2]).request.prompt = "report_progress"; }],
-    ["foreign company", (rows: Row[]) => { rows[4].companyId = "other"; }],
+    ["foreign space", (rows: Row[]) => { rows[4].spaceId = "other"; }],
     ["foreign turn", (rows: Row[]) => { frame(rows[4]).turnId = "other"; }],
     ["foreign source", (rows: Row[]) => { frame(rows[5]).sourceInstanceId = "other"; }],
     ["foreign bridge", (rows: Row[]) => { payload(rows[2]).request.origin.adapter = "untrusted"; }],
@@ -100,8 +100,8 @@ describe("successful context read with an explicit permission decision", () => {
     f.events.push(row(14, "runtime_request.cancelled", { requestId: "edit-request", turnId: "turn", requestKind: "permission_approval", itemId: "edit-item", reason: "turn_terminal" }),
       row(15, "turn.cancelled", { status: "cancelled", error: null }));
     f.run.status = "cancelled";
-    f.run.resultJson = { startupCancellation: { cancellationRequestId, requestedBy: { type: "board", userId: "local-board" } }, nativeCancellation: {
-      schema: "outpost.native-cancellation.v1", intentId: `native-cancellation:${cancellationRequestId}`, companyId: "company", runId: "run", issueId: "issue", scope: "run",
+    f.run.resultJson = { startupCancellation: { cancellationRequestId, requestedBy: { type: "board", userId: "local-operator" } }, nativeCancellation: {
+      schema: "outpost.native-cancellation.v1", intentId: `native-cancellation:${cancellationRequestId}`, spaceId: "space", runId: "run", issueId: "issue", scope: "run",
       dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentAuditId: "intent-audit", acknowledgementAuditId: "ack-audit" } };
     applyMainlineStopMetadata(f.run);
     const stopAcknowledgement = stopAcknowledgementForTest(f.run, cancellationRequestId, (BigInt(pending.observedMonotonicNs) + 1n).toString());
@@ -153,7 +153,7 @@ describe("optional exact context discovery", () => {
     expect(f.pending()).toMatchObject({ requestId: "edit-request" });
   });
   it.each([
-    ["another query", (rows: Row[]) => { payload(rows[2]).progress = "paperclip-search_api (pending): create_task"; }],
+    ["another query", (rows: Row[]) => { payload(rows[2]).progress = "outpost-search_api (pending): create_task"; }],
     ["mutation projection", (rows: Row[]) => { payload(rows[2]).readOnly = false; }],
     ["missing receipt", (rows: Row[]) => { rows.splice(6, 1); }],
     ["wrong receipt operation", (rows: Row[]) => { setDetail(rows[6], "operationId", "write_document"); }],
@@ -180,8 +180,8 @@ describe("optional exact context discovery", () => {
   it("settles Stop without mistaking completed discovery for an answered write", () => {
     const f = withDiscovery(), pending = f.pending(); f.run.status = "cancelled";
     f.events.push(row(23, "runtime_request.cancelled", { requestId: "edit-request", turnId: "turn", requestKind: "permission_approval", itemId: "edit-item", reason: "turn_terminal" }), row(24, "turn.cancelled", { status: "cancelled", error: null }));
-    f.run.resultJson = { startupCancellation: { cancellationRequestId, requestedBy: { type: "board", userId: "local-board" } }, nativeCancellation: {
-      schema: "outpost.native-cancellation.v1", intentId: `native-cancellation:${cancellationRequestId}`, companyId: "company", runId: "run", issueId: "issue", scope: "run",
+    f.run.resultJson = { startupCancellation: { cancellationRequestId, requestedBy: { type: "board", userId: "local-operator" } }, nativeCancellation: {
+      schema: "outpost.native-cancellation.v1", intentId: `native-cancellation:${cancellationRequestId}`, spaceId: "space", runId: "run", issueId: "issue", scope: "run",
       dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentAuditId: "intent-audit", acknowledgementAuditId: "ack-audit" } };
     applyMainlineStopMetadata(f.run);
     const stopAcknowledgement = stopAcknowledgementForTest(f.run, cancellationRequestId, (BigInt(pending.observedMonotonicNs) + 1n).toString());
@@ -200,7 +200,7 @@ function withTwoDiscoveries() {
   for (const r of second) {
     advance(r, 9);
     const p = payload(r);
-    if (p.name === "paperclip-search_api") p.progress = "paperclip-search_api (pending): dedicated get_task_context tool";
+    if (p.name === "outpost-search_api") p.progress = "outpost-search_api (pending): dedicated get_task_context tool";
     for (const d of p.details ?? []) {
       if (["callIdentitySha256", "semanticCallIdentitySha256"].includes(d.name)) d.value = "c".repeat(64);
       if (["inputSha256", "semanticInputSha256"].includes(d.name)) d.value = "d".repeat(64);

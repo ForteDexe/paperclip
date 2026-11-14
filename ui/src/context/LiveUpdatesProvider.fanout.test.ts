@@ -9,7 +9,7 @@ import { liveRunRefetchInterval } from "../lib/live-runs-cache";
 import { taskBrowsersQueryKey, taskBrowsersRefetchInterval } from "../hooks/useTaskBrowsers";
 import { queryKeys } from "../lib/queryKeys";
 
-const COMPANY = "company-1";
+const SPACE = "space-1";
 const TASK_UUID = "11111111-1111-4111-8111-111111111111";
 const TASK_REF = "DEMO-1";
 const ACTOR = { userId: "viewer", agentId: null };
@@ -31,7 +31,7 @@ function observe<T>(client: QueryClient, options: QueryObserverOptions<T, Error,
 
 /**
  * Mount the reads an open, running task keeps active: the sidebar's recent-task
- * summaries and agent list, the company run list, the task's child lists, its
+ * summaries and agent list, the space run list, the task's child lists, its
  * run list (two observers at the task view's two intervals), and its browsers.
  */
 function mountOpenTask(client: QueryClient, connected: boolean) {
@@ -42,12 +42,12 @@ function mountOpenTask(client: QueryClient, connected: boolean) {
   };
   const stale = { staleTime: 30_000 };
   const unsubscribes = [
-    observe(client, { queryKey: queryKeys.issues.summaryBatch(COMPANY, "viewer", ["a", "b"]), queryFn: read("summaries", []), ...stale }),
-    observe(client, { queryKey: queryKeys.agents.list(COMPANY), queryFn: read("agents", []), ...stale }),
-    observe(client, { queryKey: queryKeys.liveRuns(COMPANY), queryFn: read("companyLiveRuns", [liveRun]), ...stale }),
-    observe(client, { queryKey: queryKeys.issues.listByParent(COMPANY, TASK_UUID), queryFn: read("parentList", []), ...stale }),
-    observe(client, { queryKey: queryKeys.issues.listCreatedFromIssue(COMPANY, TASK_UUID), queryFn: read("createdFromList", []), ...stale }),
-    observe(client, { queryKey: queryKeys.issues.listByDescendantRoot(COMPANY, TASK_UUID), queryFn: read("descendantList", []), ...stale }),
+    observe(client, { queryKey: queryKeys.issues.summaryBatch(SPACE, "viewer", ["a", "b"]), queryFn: read("summaries", []), ...stale }),
+    observe(client, { queryKey: queryKeys.agents.list(SPACE), queryFn: read("agents", []), ...stale }),
+    observe(client, { queryKey: queryKeys.liveRuns(SPACE), queryFn: read("spaceLiveRuns", [liveRun]), ...stale }),
+    observe(client, { queryKey: queryKeys.issues.listByParent(SPACE, TASK_UUID), queryFn: read("parentList", []), ...stale }),
+    observe(client, { queryKey: queryKeys.issues.listCreatedFromIssue(SPACE, TASK_UUID), queryFn: read("createdFromList", []), ...stale }),
+    observe(client, { queryKey: queryKeys.issues.listByDescendantRoot(SPACE, TASK_UUID), queryFn: read("descendantList", []), ...stale }),
     ...[1000, 3000].map((fallback) => observe<unknown[]>(client, {
       queryKey: queryKeys.issues.liveRuns(TASK_REF), queryFn: read("taskLiveRuns", [liveRun]), ...stale,
       refetchInterval: (query) => liveRunRefetchInterval(connected, query.state, fallback),
@@ -61,15 +61,15 @@ function mountOpenTask(client: QueryClient, connected: boolean) {
 }
 
 /**
- * A busy company: other agents' runs change state about once a second and
+ * A busy space: other agents' runs change state about once a second and
  * other tasks log activity a little more often. None of it is about the open task.
  */
-function deliverBusyCompanyStream(client: QueryClient) {
+function deliverBusySpaceStream(client: QueryClient) {
   const gate = { cooldownHits: new Map<string, number[]>(), suppressUntil: 0, observedRunOutcomes: new Set<string>() };
   let id = 0;
   const deliver = (type: string, payload: Record<string, unknown>) =>
-    __liveUpdatesTestUtils.handleLiveEvent(client, COMPANY, `/DEMO/issues/${TASK_REF}`, {
-      id: ++id, companyId: COMPANY, type, createdAt: new Date().toISOString(), payload,
+    __liveUpdatesTestUtils.handleLiveEvent(client, SPACE, `/DEMO/issues/${TASK_REF}`, {
+      id: ++id, spaceId: SPACE, type, createdAt: new Date().toISOString(), payload,
     } as Parameters<typeof __liveUpdatesTestUtils.handleLiveEvent>[3], () => null, gate, ACTOR);
   const timers = [
     setInterval(() => deliver("heartbeat.run.status", {
@@ -87,7 +87,7 @@ async function countRequests(connected: boolean, wire: (client: QueryClient) => 
   const live = wire(client);
   const task = mountOpenTask(client, connected);
   await vi.advanceTimersByTimeAsync(0);
-  const stop = connected ? deliverBusyCompanyStream(live.client) : () => {};
+  const stop = connected ? deliverBusySpaceStream(live.client) : () => {};
   await vi.advanceTimersByTimeAsync(WINDOW_MS);
   stop();
   task.unmount();
@@ -97,7 +97,7 @@ async function countRequests(connected: boolean, wire: (client: QueryClient) => 
 }
 
 const liveWiring = (client: QueryClient) => {
-  const batcher = __liveUpdatesTestUtils.createLiveInvalidationBatcher(client, COMPANY);
+  const batcher = __liveUpdatesTestUtils.createLiveInvalidationBatcher(client, SPACE);
   return { client: createCoalescingQueryClient(client, batcher), dispose: batcher.dispose };
 };
 
@@ -108,10 +108,10 @@ describe("open-task request fan-out", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("bounds company-wide refetches and connected run and browser polling during a busy 17-second visit", async () => {
+  it("bounds space-wide refetches and connected run and browser polling during a busy 17-second visit", async () => {
     const counts = await countRequests(true, liveWiring);
     // Printed for the before/after comparison in the pull request.
-    console.info("open-task fan-out (connected, busy company)", JSON.stringify(counts));
+    console.info("open-task fan-out (connected, busy space)", JSON.stringify(counts));
     // Ambient lists: the first mount plus at most one refresh per spacing window.
     for (const name of ["summaries", "agents", "parentList", "createdFromList", "descendantList"]) {
       expect(counts[name], name).toBeLessThanOrEqual(1 + Math.ceil(WINDOW_MS / 5_000));
@@ -129,12 +129,12 @@ describe("open-task request fan-out", () => {
     expect(counts.taskBrowsers).toBeGreaterThanOrEqual(WINDOW_MS / 3000);
   });
 
-  it("refreshes ambient lists after one normal batch when the company is quiet", async () => {
+  it("refreshes ambient lists after one normal batch when the space is quiet", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const live = liveWiring(client);
     const task = mountOpenTask(client, true);
     await vi.advanceTimersByTimeAsync(0);
-    __liveUpdatesTestUtils.invalidateActivityQueries(live.client, COMPANY,
+    __liveUpdatesTestUtils.invalidateActivityQueries(live.client, SPACE,
       { entityType: "issue", entityId: "other-1", action: "issue.updated", actorType: "agent", actorId: "agent-2" }, ACTOR);
     await vi.advanceTimersByTimeAsync(400);
     expect(task.counters.summaries).toHaveBeenCalledTimes(2);
@@ -155,7 +155,7 @@ describe("task browser refresh", () => {
     const task = mountOpenTask(client, true);
     await vi.advanceTimersByTimeAsync(10_000);
     expect(task.counters.taskBrowsers).toHaveBeenCalledTimes(1);
-    const activity = (entityId: string, action: string) => __liveUpdatesTestUtils.invalidateActivityQueries(live.client, COMPANY,
+    const activity = (entityId: string, action: string) => __liveUpdatesTestUtils.invalidateActivityQueries(live.client, SPACE,
       { entityType: "issue", entityId, action, actorType: "system", actorId: "browser-use-cloud" }, ACTOR);
     activity(TASK_UUID, "browser.started");
     await vi.advanceTimersByTimeAsync(400);
@@ -171,20 +171,20 @@ describe("task browser refresh", () => {
 });
 
 describe("ambient invalidation lane", () => {
-  const { isAmbientCompanyQueryKey } = __liveUpdatesTestUtils;
+  const { isAmbientSpaceQueryKey } = __liveUpdatesTestUtils;
 
   it.each([
-    queryKeys.issues.list(COMPANY),
-    queryKeys.issues.summaryBatch(COMPANY, "viewer", ["a"]),
-    queryKeys.issues.listByDescendantRoot(COMPANY, TASK_UUID),
-    queryKeys.agents.list(COMPANY),
-    queryKeys.liveRuns(COMPANY),
-    queryKeys.heartbeats(COMPANY),
-    queryKeys.sidebarBadges(COMPANY),
-    queryKeys.dashboard(COMPANY),
-    queryKeys.activity(COMPANY),
-  ].map((key) => [key]))("spaces the company-wide key %j", (queryKey) => {
-    expect(isAmbientCompanyQueryKey(COMPANY, queryKey)).toBe(true);
+    queryKeys.issues.list(SPACE),
+    queryKeys.issues.summaryBatch(SPACE, "viewer", ["a"]),
+    queryKeys.issues.listByDescendantRoot(SPACE, TASK_UUID),
+    queryKeys.agents.list(SPACE),
+    queryKeys.liveRuns(SPACE),
+    queryKeys.heartbeats(SPACE),
+    queryKeys.sidebarBadges(SPACE),
+    queryKeys.dashboard(SPACE),
+    queryKeys.activity(SPACE),
+  ].map((key) => [key]))("spaces the space-wide key %j", (queryKey) => {
+    expect(isAmbientSpaceQueryKey(SPACE, queryKey)).toBe(true);
   });
 
   it.each([
@@ -194,13 +194,13 @@ describe("ambient invalidation lane", () => {
     queryKeys.issues.activeRun(TASK_UUID),
     queryKeys.agents.detail("agent-1"),
     taskBrowsersQueryKey(TASK_UUID),
-    queryKeys.attention(COMPANY),
-    queryKeys.issues.list("company-2"),
+    queryKeys.attention(SPACE),
+    queryKeys.issues.list("space-2"),
   ].map((key) => [key]))("keeps %j on the fast lane", (queryKey) => {
-    expect(isAmbientCompanyQueryKey(COMPANY, queryKey)).toBe(false);
+    expect(isAmbientSpaceQueryKey(SPACE, queryKey)).toBe(false);
   });
 
-  it("uses no ambient lane without a live company", () => {
-    expect(isAmbientCompanyQueryKey(null, queryKeys.issues.list(COMPANY))).toBe(false);
+  it("uses no ambient lane without a live space", () => {
+    expect(isAmbientSpaceQueryKey(null, queryKeys.issues.list(SPACE))).toBe(false);
   });
 });

@@ -4,7 +4,7 @@ import { createOAuthRefreshLeases } from "../services/tool-access/oauth/refresh-
 import { createOAuthGrantRefresh } from "../services/tool-access/oauth/grant-refresh.js";
 import { secretService } from "../services/secrets.js";
 import { writeConnectionCredential } from "../services/connection-credentials.js";
-import type { PaperclipCloudConnector } from "../services/paperclip-cloud-connector.js";
+import type { OutpostCloudConnector } from "../services/outpost-cloud-connector.js";
 import { GITHUB_CONNECTOR_PROFILES } from "@outpost/shared";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -21,7 +21,7 @@ import { providerTraceStore } from "../services/provider-trace-store.js";
 import { readIdleSleepSafety } from "../services/idle-sleep-safety.js";
 import { randomUUID } from "node:crypto";
 import { eq, sql, inArray } from "drizzle-orm";
-import { agents, companies, heartbeatRuns, plugins, pluginJobs, pluginJobRuns, pluginState, providerTraceRecords, issues, issueWatchdogs, issueThreadInteractions, toolApplications, toolConnections, connectionGrants, companySecrets, companySecretVersions, routines, routineTriggers,
+import { agents, spaces, heartbeatRuns, plugins, pluginJobs, pluginJobRuns, pluginState, providerTraceRecords, issues, issueWatchdogs, issueThreadInteractions, toolApplications, toolConnections, connectionGrants, spaceSecrets, spaceSecretVersions, routines, routineTriggers,
   applyPendingMigrations, createDb, type Db } from "@outpost/db";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -52,7 +52,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     if (directory) await fs.rm(directory, { recursive: true, force: true }); });
 
   it.each(["routines", "issues"] as const)("marks overflowed %s incomplete under the negotiated deadline catalog", async family => {
-    const now = Date.now(), companyId = randomUUID(), agentId = randomUUID(), ownerId = randomUUID();
+    const now = Date.now(), spaceId = randomUUID(), agentId = randomUUID(), ownerId = randomUUID();
     const capability = { deadlineCatalog: "domain_deadlines_v1" } as VerifiedIdleCapabilities;
     const read = () => readIdleSleepSafety(db, () => ({ ownerId, draining: true,
       startedAt: new Date(now - 1000), expiresAt: new Date(now + 300_000), activeRuns: 0, pendingWakes: 0 }),
@@ -62,18 +62,18 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const ids = Array.from({ length: 10_001 }, () => randomUUID());
     const insert = async (batch: string[]) => {
       if (family === "routines") {
-        await db.insert(routines).values(batch.map(id => ({ id, companyId, title: "Future routine",
+        await db.insert(routines).values(batch.map(id => ({ id, spaceId, title: "Future routine",
           status: "active", assigneeAgentId: agentId })));
-        await db.insert(routineTriggers).values(batch.map(id => ({ id, routineId: id, companyId,
+        await db.insert(routineTriggers).values(batch.map(id => ({ id, routineId: id, spaceId,
           kind: "schedule", cronExpression: "*/15 * * * *", timezone: "UTC", nextRunAt: new Date(now + 600_000),
           enabled: true, archived: false, setupPending: false })));
       } else {
-        await db.insert(issues).values(batch.map(id => ({ id, companyId, title: "Passive backlog", status: "backlog" })));
+        await db.insert(issues).values(batch.map(id => ({ id, spaceId, title: "Passive backlog", status: "backlog" })));
       }
     };
-    await db.insert(companies).values({ id: companyId, name: "Deadline overflow", issuePrefix: `O${companyId.slice(0, 6)}` });
+    await db.insert(spaces).values({ id: spaceId, name: "Deadline overflow", issuePrefix: `O${spaceId.slice(0, 6)}` });
     try {
-      await db.insert(agents).values({ id: agentId, companyId, name: "On-demand worker", role: "engineer",
+      await db.insert(agents).values({ id: agentId, spaceId, name: "On-demand worker", role: "engineer",
         status: "idle", adapterType: "process" });
       for (let offset = 0; offset < 10_000; offset += 500) await insert(ids.slice(offset, Math.min(offset + 500, 10_000)));
       const atLimit = await read();
@@ -85,11 +85,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
       await insert([ids[10_000]!]);
       const [rowCount] = await db.select({ count: sql<number>`count(*)::integer` })
-        .from(family === "routines" ? routines : issues).where(eq(family === "routines" ? routines.companyId : issues.companyId, companyId));
+        .from(family === "routines" ? routines : issues).where(eq(family === "routines" ? routines.spaceId : issues.spaceId, spaceId));
       expect(rowCount?.count).toBe(10_001);
       if (family === "routines") {
         const [triggers] = await db.select({ count: sql<number>`count(*)::integer` }).from(routineTriggers)
-          .where(eq(routineTriggers.companyId, companyId));
+          .where(eq(routineTriggers.spaceId, spaceId));
         expect(triggers?.count).toBe(10_001);
       }
       const overflowed = await read();
@@ -113,10 +113,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       expect(blocked.deadlineProof).toBeUndefined();
       expect(blocked.scheduledWake).toBeUndefined();
     } finally {
-      await db.delete(routines).where(eq(routines.companyId, companyId));
-      await db.delete(issues).where(eq(issues.companyId, companyId));
-      await db.delete(agents).where(eq(agents.companyId, companyId));
-      await db.delete(companies).where(eq(companies.id, companyId));
+      await db.delete(routines).where(eq(routines.spaceId, spaceId));
+      await db.delete(issues).where(eq(issues.spaceId, spaceId));
+      await db.delete(agents).where(eq(agents.spaceId, spaceId));
+      await db.delete(spaces).where(eq(spaces.id, spaceId));
     }
   }, 30_000);
 
@@ -125,13 +125,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     ["2099-01-01T23:59:06.888Z", "2099-01-02T00:06:36.888Z"],
     ["2099-01-02T00:00:00.500Z", "2099-01-03T00:00:00.000Z"],
   ])("preserves both the timer interval and UTC daily cap at %s", async (instant, deadline) => {
-    const now = new Date(instant), companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "UTC timer fixture", issuePrefix: `T${companyId.slice(0, 6)}` });
+    const now = new Date(instant), spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "UTC timer fixture", issuePrefix: `T${spaceId.slice(0, 6)}` });
     try {
-      const [agent] = await db.insert(agents).values({ id: agentId, companyId, name: "Capped timer", role: "engineer",
+      const [agent] = await db.insert(agents).values({ id: agentId, spaceId, name: "Capped timer", role: "engineer",
         status: "idle", adapterType: "process", createdAt: now, lastHeartbeatAt: now,
         runtimeConfig: { heartbeat: { enabled: true, intervalSec: 450, maxDailyRuns: 1 } } }).returning();
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "succeeded", invocationSource: "timer",
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "succeeded", invocationSource: "timer",
         startedAt: now, finishedAt: now, costAccountingPending: false });
       const schedule = await createHeartbeatTimerPolicy(db).readTimerHeartbeatSchedule(agent, now);
       expect(schedule.deadline).toBe(Date.parse(deadline));
@@ -139,12 +139,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     } finally {
       await db.delete(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
       await db.delete(agents).where(eq(agents.id, agentId));
-      await db.delete(companies).where(eq(companies.id, companyId));
+      await db.delete(spaces).where(eq(spaces.id, spaceId));
     }
   });
 
   it("projects durable timers across client reconnection and executes the original plugin and trace owners", async () => {
-    const now = Date.now(), companyId = randomUUID(), agentId = randomUUID(), pluginId = randomUUID(), runId = randomUUID();
+    const now = Date.now(), spaceId = randomUUID(), agentId = randomUUID(), pluginId = randomUUID(), runId = randomUUID();
     let hold: { ownerId: string; expiresAt: number } = { ownerId: randomUUID(), expiresAt: now + 300_000 };
     let pluginReceipt: Awaited<ReturnType<NonNullable<PluginWorkerManager["inspectIdleSleep"]>>> | undefined;
     const capability = { deadlineCatalog: "domain_deadlines_v1" } as VerifiedIdleCapabilities;
@@ -156,8 +156,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       return readIdleDeadlineProof(counted, hold, { now: Date.now(), verifiedCapability: capability, quietPluginIds,
         quietPluginGeneration: pluginReceipt?.catalogGeneration, quietPluginCatalog: pluginReceipt?.catalog });
     }, { isolationLevel: "repeatable read", accessMode: "read only" });
-    await db.insert(companies).values({ id: companyId, name: "Deadline fixture", issuePrefix: `D${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Timer", role: "engineer", status: "idle", adapterType: "codex_local",
+    await db.insert(spaces).values({ id: spaceId, name: "Deadline fixture", issuePrefix: `D${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Timer", role: "engineer", status: "idle", adapterType: "codex_local",
       runtimeConfig: { heartbeat: { enabled: true, intervalSec: 600 } }, createdAt: new Date(now), lastHeartbeatAt: new Date(now) });
     const central = (enabled: boolean, diagnostics = false) => readIdleSleepSafety(db, () => ({ ...hold, ownerId: hold.ownerId,
       draining: true, startedAt: new Date(now - 1000), expiresAt: new Date(hold.expiresAt), activeRuns: 0, pendingWakes: 0 }),
@@ -185,7 +185,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const claimed = await Promise.all([claimDueTimerHeartbeatForAgent(db, agent, new Date(now), 450), claimDueTimerHeartbeatForAgent(db, agent, new Date(now), 450)]);
     expect(claimed.filter(Boolean)).toHaveLength(1);
     expect((await read()).scheduledWake?.nextWakeAt).toBe(new Date(now + 450_000).toISOString());
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "succeeded", invocationSource: "timer",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "succeeded", invocationSource: "timer",
       startedAt: new Date(now), finishedAt: new Date(now), costAccountingPending: false });
     await db.update(agents).set({ runtimeConfig: { heartbeat: { enabled: true, intervalSec: 450, maxDailyRuns: 1 } } }).where(eq(agents.id, agentId));
     const date = new Date(now);
@@ -202,7 +202,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(noAlarm.scheduledWake).toBeUndefined();
     expect(noAlarm.deadlineProof?.generation).not.toBe(negotiated.deadlineProof?.generation);
     const scaleIds = Array.from({ length: 160 }, () => randomUUID());
-    const scaleAgent = (id: string, cost = false) => ({ id, companyId, name: "Scale timer", role: "engineer", status: "idle", adapterType: "codex_local",
+    const scaleAgent = (id: string, cost = false) => ({ id, spaceId, name: "Scale timer", role: "engineer", status: "idle", adapterType: "codex_local",
       runtimeConfig: { heartbeat: { enabled: true, intervalSec: 900, maxDailyRuns: 2, ...(cost ? { maxDailyCostCents: 100 } : {}) } },
       createdAt: new Date(now), lastHeartbeatAt: new Date(now) });
     await db.insert(agents).values(scaleIds.slice(0, 80).map(id => scaleAgent(id)));
@@ -287,56 +287,56 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect((await read()).scheduledWake).toBeUndefined();
 
     const traces = providerTraceStore(db);
-    const capture = await traces.prepare({ companyId, runId, provider: "opencode", requestedBy: "fixture" });
+    const capture = await traces.prepare({ spaceId, runId, provider: "opencode", requestedBy: "fixture" });
     expect((await read()).blocked).toBe(true);
     const bytes = JSON.stringify({ kind: "trace_status", status: "complete", debugChannel: "typescript_opencode_native", debugSequence: 1, acknowledgedDebugSequence: 0 }) + "\n";
     await fs.writeFile(capture.path, bytes);
-    expect((await traces.finalize(runId, companyId))?.status).toBe("complete");
+    expect((await traces.finalize(runId, spaceId))?.status).toBe("complete");
     expect((await read()).scheduledWake?.nextWakeAt).toBe(new Date(capture.metadata.expiresAt).toISOString());
-    const savedCapture = (await traces.getByRun(runId, companyId))!;
-    await db.update(providerTraceRecords).set({ status: "deleted", deletedAt: new Date(), traceRef: `s3-segments-v1:${companyId}/${runId}/${randomUUID()}.ndjson` }).where(eq(providerTraceRecords.runId, runId));
+    const savedCapture = (await traces.getByRun(runId, spaceId))!;
+    await db.update(providerTraceRecords).set({ status: "deleted", deletedAt: new Date(), traceRef: `s3-segments-v1:${spaceId}/${runId}/${randomUUID()}.ndjson` }).where(eq(providerTraceRecords.runId, runId));
     expect((await read()).blocked).toBe(true);
     await db.update(providerTraceRecords).set({ status: "complete", deletedAt: null, traceRef: savedCapture.traceRef }).where(eq(providerTraceRecords.runId, runId));
-    await traces.remove(runId, companyId);
+    await traces.remove(runId, spaceId);
     await expect(fs.stat(capture.path)).rejects.toMatchObject({ code: "ENOENT" });
     expect((await read()).blocked).toBe(false);
 
     const expiringRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: expiringRunId, companyId, agentId, status: "succeeded", invocationSource: "timer", startedAt: new Date(now), finishedAt: new Date(), costAccountingPending: false });
-    const expiring = await traces.prepare({ companyId, runId: expiringRunId, provider: "opencode", requestedBy: "fixture" });
+    await db.insert(heartbeatRuns).values({ id: expiringRunId, spaceId, agentId, status: "succeeded", invocationSource: "timer", startedAt: new Date(now), finishedAt: new Date(), costAccountingPending: false });
+    const expiring = await traces.prepare({ spaceId, runId: expiringRunId, provider: "opencode", requestedBy: "fixture" });
     await fs.writeFile(expiring.path, bytes);
-    expect((await traces.finalize(expiringRunId, companyId))?.status).toBe("complete");
+    expect((await traces.finalize(expiringRunId, spaceId))?.status).toBe("complete");
     await fs.unlink(expiring.path); await fs.mkdir(expiring.path);
     const expiry = new Date(new Date(expiring.metadata.expiresAt).getTime() + 1);
     await expect(traces.cleanupExpired(expiry)).rejects.toThrow();
     expect((await read()).blocked).toBe(true);
     await fs.rmdir(expiring.path); await fs.writeFile(expiring.path, bytes);
     await traces.cleanupExpired(expiry);
-    const cleaned = await traces.getByRun(expiringRunId, companyId);
+    const cleaned = await traces.getByRun(expiringRunId, spaceId);
     expect(cleaned).toMatchObject({ status: "expired", traceRef: "00000000-0000-0000-0000-000000000000.ndjson" });
     await expect(fs.stat(expiring.path)).rejects.toMatchObject({ code: "ENOENT" });
     expect((await read()).blocked).toBe(false);
     const watched = randomUUID();
-    await db.insert(issues).values({ id: watched, companyId, title: "Watchdog grace fixture", status: "done" });
-    await db.insert(issueWatchdogs).values({ companyId, issueId: watched, watchdogAgentId: agentId, status: "active" });
+    await db.insert(issues).values({ id: watched, spaceId, title: "Watchdog grace fixture", status: "done" });
+    await db.insert(issueWatchdogs).values({ spaceId, issueId: watched, watchdogAgentId: agentId, status: "active" });
     expect((await central(true, true)).diagnostics?.checks).toContainEqual({ reason: "issue_watchdogs", state: "present" });
     const mergeIssue = randomUUID();
-    await db.insert(issues).values({ id: mergeIssue, companyId, title: "Merge confirmation fixture", status: "in_review", assigneeAgentId: agentId });
-    await db.insert(issueThreadInteractions).values({ companyId, issueId: mergeIssue, kind: "request_confirmation", status: "pending",
+    await db.insert(issues).values({ id: mergeIssue, spaceId, title: "Merge confirmation fixture", status: "in_review", assigneeAgentId: agentId });
+    await db.insert(issueThreadInteractions).values({ spaceId, issueId: mergeIssue, kind: "request_confirmation", status: "pending",
       title: "Merge fixture/repo#39?", payload: { version: 1, prompt: "Merge fixture/repo#39?" } });
     expect((await central(true, true)).diagnostics?.checks).toContainEqual({ reason: "issues.schedule", state: "present" });
   }, 30_000);
 
   it("uses real vault refresh leases, rotates credentials and settles GitHub binding debt after wake", async () => {
-    const now = Date.now(), companyId = randomUUID(), owner = "deadline-owner";
-    await db.insert(companies).values({ id: companyId, name: "GitHub deadline", issuePrefix: `G${companyId.slice(0, 6)}` });
-    const [app] = await db.insert(toolApplications).values({ companyId, applicationKey: randomUUID(), name: "GitHub", type: "mcp_http", status: "active" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId, applicationId: app.id, uid: randomUUID(), name: "GitHub", status: "active", enabled: true,
-      transport: "mcp_remote", authKind: "oauth", credentialPolicy: "per_user", credentialSource: "paperclip_vault", transportConfig: {},
-      config: { sourceTemplateKey: "github", oauth: { strategy: "paperclip_cloud_connector", connectorProfile: "github.code" } } }).returning();
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId: connection.id, kind: "user", subjectUserId: owner, status: "active",
+    const now = Date.now(), spaceId = randomUUID(), owner = "deadline-owner";
+    await db.insert(spaces).values({ id: spaceId, name: "GitHub deadline", issuePrefix: `G${spaceId.slice(0, 6)}` });
+    const [app] = await db.insert(toolApplications).values({ spaceId, applicationKey: randomUUID(), name: "GitHub", type: "mcp_http", status: "active" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId: app.id, uid: randomUUID(), name: "GitHub", status: "active", enabled: true,
+      transport: "mcp_remote", authKind: "oauth", credentialPolicy: "per_user", credentialSource: "outpost_vault", transportConfig: {},
+      config: { sourceTemplateKey: "github", oauth: { strategy: "outpost_cloud_connector", connectorProfile: "github.code" } } }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId: connection.id, kind: "user", subjectUserId: owner, status: "active",
       credentialSecretRefs: [{ configPath: "oauth.access_token", secretId: randomUUID(), versionSelector: "latest" }],
-      providerTenant: { oauth: { strategy: "paperclip_cloud_connector", accessTokenExpiresAt: new Date(now + 8 * 3_600_000).toISOString(), refreshedAt: new Date(now).toISOString() },
+      providerTenant: { oauth: { strategy: "outpost_cloud_connector", accessTokenExpiresAt: new Date(now + 8 * 3_600_000).toISOString(), refreshedAt: new Date(now).toISOString() },
         github: { userId: "42", login: "fixture", installationCount: 1, repositoryCount: 1, repositorySelection: "all", installationIds: ["101"],
           installationOwnerLogins: ["fixture"], accessRevision: randomUUID(), lastAccessRefreshAt: new Date(now).toISOString(), webhookHealth: "healthy" } } }).returning();
     const read = () => db.transaction(async tx => {
@@ -346,16 +346,16 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect((await read()).blocked).toBe(true);
     const refs = [];
     for (const [configPath, value] of [["oauth.access_token", "saved-access"], ["oauth.refresh_token", "saved-refresh"]] as const) {
-      const saved = await writeConnectionCredential(db, { companyId, connectionName: "GitHub", configPath, label: configPath, value, ownerUserId: owner });
+      const saved = await writeConnectionCredential(db, { spaceId, connectionName: "GitHub", configPath, label: configPath, value, ownerUserId: owner });
       refs.push({ configPath, secretId: saved.secret.id, versionSelector: "latest" as const, required: true });
     }
     await db.update(connectionGrants).set({ credentialSecretRefs: refs }).where(eq(connectionGrants.id, grant.id));
     const vault = secretService(db), credentials = createOAuthCredentialStore(db, vault);
     await credentials.syncCredentialBindings(connection, refs);
-    const pinned = await writeConnectionCredential(db, { companyId, connectionName: "GitHub pinned", configPath: "oauth.access_token",
+    const pinned = await writeConnectionCredential(db, { spaceId, connectionName: "GitHub pinned", configPath: "oauth.access_token",
       label: "Pinned access", value: "pinned-initial", ownerUserId: owner });
     const pinnedRef = { configPath: "oauth.access_token", secretId: pinned.secret.id, versionSelector: 1 as const, required: true };
-    await writeConnectionCredential(db, { companyId, connectionName: "GitHub pinned", configPath: "oauth.access_token", label: "Pinned access",
+    await writeConnectionCredential(db, { spaceId, connectionName: "GitHub pinned", configPath: "oauth.access_token", label: "Pinned access",
       value: "pinned-rotated", ownerUserId: owner, existingRef: pinnedRef });
     await db.update(connectionGrants).set({ credentialSecretRefs: [pinnedRef, refs[1]] }).where(eq(connectionGrants.id, grant.id));
     await credentials.syncCredentialBindings(connection, [pinnedRef, refs[1]]);
@@ -364,12 +364,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       { actorType: "system", actorId: "fixture" }, undefined)).value).toBe("pinned-initial");
     expect((await read()).blocked).toBe(false);
     for (const status of ["disabled", "destroyed"]) {
-      await db.update(companySecretVersions).set({ status }).where(eq(companySecretVersions.secretId, pinned.secret.id));
+      await db.update(spaceSecretVersions).set({ status }).where(eq(spaceSecretVersions.secretId, pinned.secret.id));
       expect((await read()).blocked).toBe(true);
     }
-    await db.update(companySecretVersions).set({ status: "previous", revokedAt: new Date() }).where(eq(companySecretVersions.secretId, pinned.secret.id));
+    await db.update(spaceSecretVersions).set({ status: "previous", revokedAt: new Date() }).where(eq(spaceSecretVersions.secretId, pinned.secret.id));
     expect((await read()).blocked).toBe(true);
-    await db.update(companySecretVersions).set({ revokedAt: null }).where(eq(companySecretVersions.secretId, pinned.secret.id));
+    await db.update(spaceSecretVersions).set({ revokedAt: null }).where(eq(spaceSecretVersions.secretId, pinned.secret.id));
     expect((await read()).blocked).toBe(false);
     await db.update(connectionGrants).set({ credentialSecretRefs: refs }).where(eq(connectionGrants.id, grant.id));
     await credentials.syncCredentialBindings(connection, refs);
@@ -382,17 +382,17 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     let failBindings = true, rotations = 0;
     const successfulBindings = new Map<string, { active: boolean; grantId: string }>();
     const connector = {
-      refresh: async (input: Parameters<PaperclipCloudConnector["refresh"]>[0]) => {
+      refresh: async (input: Parameters<OutpostCloudConnector["refresh"]>[0]) => {
         rotations++; expect(input.refreshToken).toBe("saved-refresh"); expect(input.subject).toBe(owner);
         return { v: 1 as const, accessToken: "renewed-access", refreshToken: "renewed-refresh", tokenType: "Bearer", accessTokenExpiresAt: new Date(Date.now() + 8 * 3_600_000).toISOString(),
-          refreshTokenExpiresAt: null, scopes: [...GITHUB_CONNECTOR_PROFILES["github.code"].scopes], subject: owner, companyId, instanceId: "fixture", environment: "test" as const, provider: "github" as const, profile: "github.code" };
+          refreshTokenExpiresAt: null, scopes: [...GITHUB_CONNECTOR_PROFILES["github.code"].scopes], subject: owner, spaceId, instanceId: "fixture", environment: "test" as const, provider: "github" as const, profile: "github.code" };
       },
-      setWebhookBinding: async (input: Parameters<PaperclipCloudConnector["setWebhookBinding"]>[0]) => {
-        expect(input.accessToken).toBe("renewed-access"); expect(input.companyId).toBe(companyId);
+      setWebhookBinding: async (input: Parameters<OutpostCloudConnector["setWebhookBinding"]>[0]) => {
+        expect(input.accessToken).toBe("renewed-access"); expect(input.spaceId).toBe(spaceId);
         if (failBindings) throw new Error("named Cloud binding provider unavailable");
         successfulBindings.set(input.id, { active: input.active, grantId: input.grantId });
       },
-    } as PaperclipCloudConnector;
+    } as OutpostCloudConnector;
     const refresh = createOAuthGrantRefresh(db, { now: () => new Date(), store: credentials, leases, getConnectionRow: getConnection,
       currentCloudConnector: () => connector, exchangeOAuthToken: async () => { throw new Error("Direct OAuth must not run for managed GitHub"); } });
     const continuity = createGitHubGrantContinuity(db, { now: () => new Date(), currentCloudConnector: () => connector,
@@ -407,7 +407,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     });
     try {
       vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(now + 7 * 3_600_000 + 1);
-      expect(await continuity.sweepGitHubConnectionContinuity(companyId)).toMatchObject({ due: 1, failed: 1 });
+      expect(await continuity.sweepGitHubConnectionContinuity(spaceId)).toMatchObject({ due: 1, failed: 1 });
       expect(rotations).toBe(1);
       const [debt] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, grant.id));
       expect(debt.providerTenant?.github?.bindingSync).toBeDefined();
@@ -416,12 +416,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       failBindings = false; vi.setSystemTime(Date.now() + 31_000);
       const reconstructed = createGitHubGrantContinuity(db, { now: () => new Date(), currentCloudConnector: () => connector,
         refreshOAuthGrantCredentials: refresh, resolveOAuthGrantSecret: credentials.resolveOAuthGrantSecret });
-      expect(await reconstructed.sweepGitHubConnectionContinuity(companyId)).toMatchObject({ due: 1, failed: 0 });
+      expect(await reconstructed.sweepGitHubConnectionContinuity(spaceId)).toMatchObject({ due: 1, failed: 0 });
       expect(rotations).toBe(1); expect(successfulBindings.size).toBe(1);
       const [settled] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, grant.id));
       expect(settled.providerTenant?.github?.bindingSync).toBeUndefined();
       expect(settled.providerTenant?.github?.continuityRetry).toBeUndefined();
-      const [stored] = await db.select().from(companySecrets).where(eq(companySecrets.id, refs[0].secretId));
+      const [stored] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, refs[0].secretId));
       expect(stored.latestVersion).toBe(2);
       expect((await credentials.resolveOAuthGrantSecret(connection, settled, refs[0], { actorType: "system", actorId: "fixture" }, undefined)).value).toBe("renewed-access");
       const after = await read();

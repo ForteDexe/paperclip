@@ -11,16 +11,16 @@ vi.mock("./runtime-busy-worker.js", async original => ({ ...await original<typeo
   prepareRuntimeWorkerGate: vi.fn(), readRuntimeTaskGate: vi.fn() }));
 
 it("waits for the task-bound listener on the genuine source and lead before preparing Stop", async () => {
-  const lead = { id: "source-agent", companyId: "company", lifecycleState: "ready" };
+  const lead = { id: "source-agent", spaceId: "space", lifecycleState: "ready" };
   const source = { id: "canonical-source" };
   const gate = taskBoundRuntimeGate("same-source-post-stop");
   const close = vi.fn(async () => {});
   const secondary = { close };
   vi.mocked(openStandingChat).mockResolvedValue(source as Awaited<ReturnType<typeof openStandingChat>>);
-  vi.mocked(prepareRuntimeWorkerGate).mockResolvedValue({ worker: lead, gate, previousRuns: [], company: "/api/companies/company" });
+  vi.mocked(prepareRuntimeWorkerGate).mockResolvedValue({ worker: lead, gate, previousRuns: [], space: "/api/spaces/space" });
   vi.mocked(readRuntimeTaskGate).mockResolvedValue("waiting");
   vi.mocked(sendChatMessage).mockResolvedValue(undefined);
-  const ctx = { input: { fixtures: { company: { id: "company" }, agent: lead }, page: { context: () => ({ newPage: async () => secondary }) },
+  const ctx = { input: { fixtures: { space: { id: "space" }, agent: lead }, page: { context: () => ({ newPage: async () => secondary }) },
     api: { get: async (route: string) => {
       if (route === "/api/agents/source-agent") return lead;
       if (route === "/api/heartbeat-runs/original-native") throw new Error("independent run identity read reached");

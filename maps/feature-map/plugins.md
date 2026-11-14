@@ -27,9 +27,9 @@ Open Settings → Plugins where permitted, or the CLI plugin commands.
 
 ### `plugin-contribution`
 
-Open `/plugins/:pluginId`, a registered plugin route, or its contributed company/project settings surface.
+Open `/plugins/:pluginId`, a registered plugin route, or its contributed space/project settings surface.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a known local fixture plugin with bounded capabilities. Record installed version and any declared external dependencies.
 
@@ -41,14 +41,14 @@ Manual: Install the fixture, supply its configuration, activate it, and inspect 
 
 ### `plugin-contribution`
 
-Automated: [static plugin UI](../../server/src/__tests__/plugin-ui-static.test.ts) and [company settings contribution](../../ui/src/pages/CompanySettingsPluginPage.test.tsx) cover serving/host behavior.
+Automated: [static plugin UI](../../server/src/__tests__/plugin-ui-static.test.ts) and [space settings contribution](../../ui/src/pages/SpaceSettingsPluginPage.test.tsx) cover serving/host behavior.
 
-Manual: Open the contributed page by navigation and cold deep link, perform a harmless plugin action, and inspect its real outcome. Switch company and test an actor without the capability. Reload with the plugin unavailable and verify the host reports that state.
+Manual: Open the contributed page by navigation and cold deep link, perform a harmless plugin action, and inspect its real outcome. Switch space and test an actor without the capability. Reload with the plugin unavailable and verify the host reports that state.
 
 ## Gotchas
 
-- Installation/lifecycle is instance-level; configuration can be company-scoped.
-  Settings lives at `/company/settings/instance/plugins`. npm installation and
+- Installation/lifecycle is instance-level; configuration can be space-scoped.
+  Settings lives at `/space/settings/instance/plugins`. npm installation and
   bundled-local installation are different controls. Developer file-watcher
   reload is not a lifecycle action in the plugin manager.
 
@@ -76,7 +76,7 @@ Capability ID: `plugins/configuration`.
 
 Scope: ui
 Storybook: Mount PluginSettings valid/invalid schema inputs, saved configuration, pending/failure and unavailable plugin.
-Production: GET/POST /plugins/{id}/config and POST config/test must preserve validation/company scope and deliver saved config to real plugin worker/startup.
+Production: GET/POST /plugins/{id}/config and POST config/test must preserve validation/space scope and deliver saved config to real plugin worker/startup.
 Sources: [plugins.ts](../../server/src/routes/plugins.ts), [plugin-config-validator.ts](../../server/src/services/plugin-config-validator.ts). Tests: [plugin-config-startup-delivery.test.ts](../../server/src/__tests__/plugin-config-startup-delivery.test.ts), [plugin-routes-authz.test.ts](../../server/src/__tests__/plugin-routes-authz.test.ts)
 
 #### `contributions`
@@ -84,9 +84,9 @@ Sources: [plugins.ts](../../server/src/routes/plugins.ts), [plugin-config-valida
 Capability ID: `plugins/contributions`.
 
 Scope: ui
-Storybook: Mount PluginPage and CompanySettingsPluginPage contributed routes/tabs, loading, missing/unavailable plugin and action failures with a known fixture plugin.
-Production: Serve real static plugin UI; enforce bridge data/action host capabilities and company boundaries; exercise a harmless action and cold deep link.
-Sources: Source: [PluginPage.tsx](../../ui/src/pages/PluginPage.tsx), [CompanySettingsPluginPage.tsx](../../ui/src/pages/CompanySettingsPluginPage.tsx), [plugins.ts](../../server/src/routes/plugins.ts), [plugin-ui-static.ts](../../server/src/routes/plugin-ui-static.ts). Tests: [PluginPage.test.tsx](../../ui/src/pages/PluginPage.test.tsx), [CompanySettingsPluginPage.test.tsx](../../ui/src/pages/CompanySettingsPluginPage.test.tsx), [plugin-ui-static.test.ts](../../server/src/__tests__/plugin-ui-static.test.ts), [plugin-tenant-isolation.test.ts](../../server/src/__tests__/plugin-tenant-isolation.test.ts)
+Storybook: Mount PluginPage and SpaceSettingsPluginPage contributed routes/tabs, loading, missing/unavailable plugin and action failures with a known fixture plugin.
+Production: Serve real static plugin UI; enforce bridge data/action host capabilities and space boundaries; exercise a harmless action and cold deep link.
+Sources: Source: [PluginPage.tsx](../../ui/src/pages/PluginPage.tsx), [SpaceSettingsPluginPage.tsx](../../ui/src/pages/SpaceSettingsPluginPage.tsx), [plugins.ts](../../server/src/routes/plugins.ts), [plugin-ui-static.ts](../../server/src/routes/plugin-ui-static.ts). Tests: [PluginPage.test.tsx](../../ui/src/pages/PluginPage.test.tsx), [SpaceSettingsPluginPage.test.tsx](../../ui/src/pages/SpaceSettingsPluginPage.test.tsx), [plugin-ui-static.test.ts](../../server/src/__tests__/plugin-ui-static.test.ts), [plugin-tenant-isolation.test.ts](../../server/src/__tests__/plugin-tenant-isolation.test.ts)
 
 #### `lifecycle`
 

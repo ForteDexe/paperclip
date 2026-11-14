@@ -13,7 +13,7 @@ function zip(entries: Array<{ name: string; text: string; deflate: boolean }>) {
   const directory = Buffer.concat(centrals), end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(entries.length, 8); end.writeUInt16LE(entries.length, 10); end.writeUInt32LE(directory.length, 12); end.writeUInt32LE(offset, 16);
   return Buffer.concat([...locals, directory, end]);
 }
-function valid() { return { scenarioId: "steering.queue-follow-up", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+function valid() { return { scenarioId: "steering.queue-follow-up", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
   state: { task: { id: "website", identifier: "PAP-7" }, worker: { id: "morgan" }, workerStatusAtReply: "running", canonicalRunId: "controller",
     queuedAtReply: { issueId: "website", state: "queued", entries: [{ position: 0, comment: { id: "contact", body: "Add a contact section", authorAgentId: "ceo", createdByRunId: "controller" } }] },
     queryReply: "I saved the contact request on [PAP-7](/PAP/issues/PAP-7) for Morgan's next turn.", consumedCommentId: "contact", deliveryNativeInputBound: true,

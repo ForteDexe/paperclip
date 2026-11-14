@@ -5,14 +5,14 @@ import { mockOnboardingLocalAiConnection } from "./helpers/onboarding-ai-connect
  * E2E: Onboarding wizard flow (NUX Phase 2 expanded wizard).
  *
  * The wizard now opens on a front door (path picker) and the "Create a new
- * company" path runs:
- *   Step 0  — Front door (Create a new company / Level up existing)
- *   Step 1a — Name your organization (creates the company)
+ * space" path runs:
+ *   Step 0  — Front door (Create a new space / Level up existing)
+ *   Step 1a — Name your organization (creates the space)
  *   Step 2  — Hire your team lead (adapter picker)
  *   Step 3+ — Launch celebration → CEO chat → hiring plan → orientation
  *
  * This test covers the deterministic, LLM-free core: it drives the front door
- * through company naming (which creates the company) and verifies the wizard
+ * through space naming (which creates the space) and verifies the wizard
  * advances to the team-lead step without asking for a mission.
  *
  * The tail (CEO chat at step 4, hiring-plan generation at step 5, final
@@ -21,10 +21,10 @@ import { mockOnboardingLocalAiConnection } from "./helpers/onboarding-ai-connect
  * snapshotted by nux-phase4-screenshots.spec.ts.
  */
 
-const COMPANY_NAME = `E2E-Test-${Date.now()}`;
+const SPACE_NAME = `E2E-Test-${Date.now()}`;
 
 test.describe("Onboarding wizard", () => {
-  test("create-company path: naming creates the company, and no goal is invented", async ({
+  test("create-space path: naming creates the space, and no goal is invented", async ({
     page,
   }) => {
     const pageErrors: string[] = [];
@@ -32,17 +32,17 @@ test.describe("Onboarding wizard", () => {
 
     // `--data-dir` starts a new server, not a new browser profile. Keep a
     // resumable draft here so this ordinary browser condition is covered when
-    // the company-list invalidation runs after the create request.
+    // the space-list invalidation runs after the create request.
     await page.addInitScript(() => {
-      localStorage.setItem("paperclip-onboarding-state", JSON.stringify({
+      localStorage.setItem("outpost-onboarding-state", JSON.stringify({
         step: 1,
-        companyName: "",
-        createdCompanyId: null,
+        spaceName: "",
+        createdSpaceId: null,
       }));
     });
-    let delayCompanyListRefetch = false;
-    await page.route("**/api/companies", async (route) => {
-      if (delayCompanyListRefetch && route.request().method() === "GET") {
+    let delaySpaceListRefetch = false;
+    await page.route("**/api/spaces", async (route) => {
+      if (delaySpaceListRefetch && route.request().method() === "GET") {
         // Keep the invalidation observable: a background fetch must not reset
         // the in-progress wizard.
         await new Promise((resolve) => setTimeout(resolve, 250));
@@ -69,48 +69,48 @@ test.describe("Onboarding wizard", () => {
     await expect(
       page.getByRole("heading", { name: "What is the name of your organization?" }),
     ).toBeVisible({ timeout: 15_000 });
-    await page.getByPlaceholder("e.g. Northwind Labs").fill(COMPANY_NAME);
-    delayCompanyListRefetch = true;
+    await page.getByPlaceholder("e.g. Northwind Labs").fill(SPACE_NAME);
+    delaySpaceListRefetch = true;
     await page.getByRole("button", { name: /^Continue/ }).click();
 
-    // Step 1's "Next" now creates the company and goes straight to the agent.
+    // Step 1's "Next" now creates the space and goes straight to the agent.
     // The mission step used to sit between them and do the creating; onboarding
     // no longer asks for the mission, which is collected later in the app.
     await page.waitForSelector("#onboarding-agent-name", {
       timeout: 30_000,
     });
 
-    // Verify the company + company-level goal were persisted.
+    // Verify the space + space-level goal were persisted.
     const baseUrl = page.url().split("/").slice(0, 3).join("/");
-    const companiesRes = await page.request.get(`${baseUrl}/api/companies`);
-    expect(companiesRes.ok()).toBe(true);
-    const companies = await companiesRes.json();
-    const company = companies.find(
-      (c: { name: string }) => c.name === COMPANY_NAME,
+    const spacesRes = await page.request.get(`${baseUrl}/api/spaces`);
+    expect(spacesRes.ok()).toBe(true);
+    const spaces = await spacesRes.json();
+    const space = spaces.find(
+      (c: { name: string }) => c.name === SPACE_NAME,
     );
-    expect(company, `company ${COMPANY_NAME} should exist`).toBeTruthy();
+    expect(space, `space ${SPACE_NAME} should exist`).toBeTruthy();
 
-    // And no company-level goal, which is the point rather than an omission.
+    // And no space-level goal, which is the point rather than an omission.
     // Onboarding no longer asks for a mission, so writing one here would mean
     // inventing a goal the customer never chose. The mission is collected later
     // in the app, and the absence is what leaves room for it.
     const goalsRes = await page.request.get(
-      `${baseUrl}/api/companies/${company.id}/goals`,
+      `${baseUrl}/api/spaces/${space.id}/goals`,
     );
     expect(goalsRes.ok()).toBe(true);
     const goals = await goalsRes.json();
-    const companyGoal = (Array.isArray(goals) ? goals : []).find(
-      (g: { level?: string }) => g.level === "company",
+    const spaceGoal = (Array.isArray(goals) ? goals : []).find(
+      (g: { level?: string }) => g.level === "space",
     );
     expect(
-      companyGoal,
+      spaceGoal,
       "onboarding must not invent a mission the customer never gave",
     ).toBeFalsy();
 
     // Name submission persists an inactive record before the provider question.
     await page.locator("#onboarding-agent-name").fill("Ada");
     const firstSetupResponse = page.waitForResponse(response =>
-      response.request().method() === "POST" && response.url().endsWith(`/api/companies/${company.id}/agents`));
+      response.request().method() === "POST" && response.url().endsWith(`/api/spaces/${space.id}/agents`));
     await page.getByRole("button", { name: "Next", exact: true }).click();
     const firstSetup = await (await firstSetupResponse).json();
     expect(firstSetup).toMatchObject({ name: "Ada", pauseReason: "setup", metadata: { setupAdapterPending: true } });
@@ -118,11 +118,11 @@ test.describe("Onboarding wizard", () => {
     await expect(page.locator('[role="radio"][aria-checked="true"]')).toHaveCount(0);
 
     // The roster path saves on Choose adapter, then configures that same row.
-    await page.goto(`/${company.issuePrefix}/agents/all`);
+    await page.goto(`/${space.issuePrefix}/agents/all`);
     await page.getByRole("toolbar", { name: "Agents controls" }).getByRole("button", { name: "New Agent", exact: true }).click();
     await page.getByLabel("Agent name", { exact: true }).fill("Atlas");
     const nextSetupResponse = page.waitForResponse(response =>
-      response.request().method() === "POST" && response.url().endsWith(`/api/companies/${company.id}/agents`));
+      response.request().method() === "POST" && response.url().endsWith(`/api/spaces/${space.id}/agents`));
     await page.getByRole("button", { name: "Choose adapter", exact: true }).click();
     const nextSetup = await (await nextSetupResponse).json();
     expect(nextSetup).toMatchObject({ name: "Atlas", pauseReason: "setup", metadata: { setupAdapterPending: true } });
@@ -141,9 +141,9 @@ test.describe("Onboarding wizard", () => {
     await page.getByRole("button", { name: "Configure agent", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Connect a model", exact: true })).toBeVisible();
     expect(new URL(page.url()).searchParams.get("setupAgentId")).toBe(nextSetup.id);
-    const saved = await (await page.request.get(`/api/agents/${nextSetup.id}?companyId=${company.id}`)).json();
+    const saved = await (await page.request.get(`/api/agents/${nextSetup.id}?spaceId=${space.id}`)).json();
     expect(saved).toMatchObject({ id: nextSetup.id, name: "Atlas", pauseReason: "setup", metadata: { setupAdapterPending: false } });
-    const records = await (await page.request.get(`/api/companies/${company.id}/agents`)).json();
+    const records = await (await page.request.get(`/api/spaces/${space.id}/agents`)).json();
     expect(records.map((agent: { id: string }) => agent.id).sort()).toEqual([firstSetup.id, nextSetup.id].sort());
 
     // The expanded wizard must not crash the app (Rules-of-Hooks regression).
@@ -316,7 +316,7 @@ test.describe("Onboarding wizard", () => {
     await expect(
       page.getByRole("heading", { name: "What is the name of your organization?" }),
     ).toBeVisible({ timeout: 15_000 });
-    await page.getByPlaceholder("e.g. Northwind Labs").fill(`${COMPANY_NAME}-auth-signal`);
+    await page.getByPlaceholder("e.g. Northwind Labs").fill(`${SPACE_NAME}-auth-signal`);
     await page.getByRole("button", { name: /^Continue/ }).click();
 
     await page.waitForSelector("#onboarding-agent-name", { timeout: 30_000 });
@@ -493,7 +493,7 @@ test.describe("Onboarding wizard", () => {
     // route, and keeping the pre-Connect part of this test the same as the
     // ordinary sign-in test above.
     let sessionStarted = false;
-    const resumedCompanyIds: string[] = [];
+    const resumedSpaceIds: string[] = [];
     let aiConnection: Record<string, unknown> | undefined;
     await page.route("**/setup-token-login-sessions", (route) => {
       if (route.request().method() === "POST") {
@@ -545,7 +545,7 @@ test.describe("Onboarding wizard", () => {
           body: JSON.stringify({ error: "Setup-token login session not found." }),
         });
       }
-      resumedCompanyIds.push(new URL(route.request().url()).pathname.split("/")[3]);
+      resumedSpaceIds.push(new URL(route.request().url()).pathname.split("/")[3]);
       return route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -576,7 +576,7 @@ test.describe("Onboarding wizard", () => {
     await expect(
       page.getByRole("heading", { name: "What is the name of your organization?" }),
     ).toBeVisible({ timeout: 15_000 });
-    await page.getByPlaceholder("e.g. Northwind Labs").fill(`${COMPANY_NAME}-reload`);
+    await page.getByPlaceholder("e.g. Northwind Labs").fill(`${SPACE_NAME}-reload`);
     await page.getByRole("button", { name: /^Continue/ }).click();
 
     await page.waitForSelector("#onboarding-agent-name", { timeout: 30_000 });
@@ -598,36 +598,36 @@ test.describe("Onboarding wizard", () => {
     await expect(authorizationLink).toHaveAttribute("href", AUTHORIZATION_URL);
     expect(startCalls).toBe(1);
 
-    const companiesRes = await page.request.get("/api/companies");
-    expect(companiesRes.ok()).toBe(true);
-    const companies = await companiesRes.json();
-    const company = companies.find(
-      (c: { name: string }) => c.name === `${COMPANY_NAME}-reload`,
+    const spacesRes = await page.request.get("/api/spaces");
+    expect(spacesRes.ok()).toBe(true);
+    const spaces = await spacesRes.json();
+    const space = spaces.find(
+      (c: { name: string }) => c.name === `${SPACE_NAME}-reload`,
     );
-    expect(company, "the created company should exist").toBeTruthy();
+    expect(space, "the created space should exist").toBeTruthy();
 
     const savedSelection = {
       step: 4,
-      companyName: `${COMPANY_NAME}-reload`,
+      spaceName: `${SPACE_NAME}-reload`,
       agentName: "Ada",
       adapterType: "claude_local",
       runner: "auto",
       credentialMode: "subscription",
       credentialModeChoice: null,
-      createdCompanyId: company.id,
-      createdCompanyPrefix: company.issuePrefix,
+      createdSpaceId: space.id,
+      createdSpacePrefix: space.issuePrefix,
       createdAgentId: null,
     };
-    const readDraft = () => page.evaluate(() => JSON.parse(localStorage.getItem("paperclip-onboarding-state") ?? "null"));
+    const readDraft = () => page.evaluate(() => JSON.parse(localStorage.getItem("outpost-onboarding-state") ?? "null"));
     await expect.poll(readDraft).toMatchObject(savedSelection);
     const { setupAgentId } = await readDraft();
-    await expect.poll(async () => (await (await page.request.get(`/api/agents/${setupAgentId}?companyId=${company.id}`)).json()).metadata?.setupAdapterPending).toBe(false);
-    const setupResponse = await page.request.get(`/api/agents/${setupAgentId}?companyId=${company.id}`);
+    await expect.poll(async () => (await (await page.request.get(`/api/agents/${setupAgentId}?spaceId=${space.id}`)).json()).metadata?.setupAdapterPending).toBe(false);
+    const setupResponse = await page.request.get(`/api/agents/${setupAgentId}?spaceId=${space.id}`);
     expect(setupResponse.ok()).toBe(true);
     const setup = await setupResponse.json();
     expect(setup).toMatchObject({ id: setupAgentId, name: "Ada", pauseReason: "setup" });
     const resumedSelection = { ...savedSelection, setupAgentId,
-      runner: setup.adapterType === "outpost_runner" ? "paperclip" : "legacy" };
+      runner: setup.adapterType === "outpost_runner" ? "outpost" : "legacy" };
     const assertResumedLogin = async () => {
       await expect(page.getByRole("heading", { name: "Connect a model", exact: true })).toBeVisible({ timeout: 15_000 });
       await expect(page.getByTestId("onboarding-wizard").getByText("Ada", { exact: true })).toBeVisible();
@@ -640,17 +640,17 @@ test.describe("Onboarding wizard", () => {
       expect(hireCalls, "a pending login must not hire an agent").toBe(0);
       expect(loginSessionReads.length).toBeGreaterThan(0);
       expect(new Set(loginSessionReads)).toEqual(new Set([SESSION_ID]));
-      expect(new Set(resumedCompanyIds)).toEqual(new Set([company.id]));
+      expect(new Set(resumedSpaceIds)).toEqual(new Set([space.id]));
     };
 
-    const beforeReopenReads = resumedCompanyIds.length;
-    await page.goto(`/${company.issuePrefix}/onboarding`);
-    await expect.poll(() => resumedCompanyIds.length, { timeout: 15_000 }).toBeGreaterThan(beforeReopenReads);
+    const beforeReopenReads = resumedSpaceIds.length;
+    await page.goto(`/${space.issuePrefix}/onboarding`);
+    await expect.poll(() => resumedSpaceIds.length, { timeout: 15_000 }).toBeGreaterThan(beforeReopenReads);
     await assertResumedLogin();
 
-    const beforeReloadReads = resumedCompanyIds.length;
+    const beforeReloadReads = resumedSpaceIds.length;
     await page.reload();
-    await expect.poll(() => resumedCompanyIds.length, { timeout: 15_000 }).toBeGreaterThan(beforeReloadReads);
+    await expect.poll(() => resumedSpaceIds.length, { timeout: 15_000 }).toBeGreaterThan(beforeReloadReads);
     await assertResumedLogin();
 
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
@@ -705,7 +705,7 @@ test.describe("Onboarding wizard", () => {
     await expect(
       page.getByRole("heading", { name: "What is the name of your organization?" }),
     ).toBeVisible({ timeout: 15_000 });
-    await page.getByPlaceholder("e.g. Northwind Labs").fill(`${COMPANY_NAME}-probe-gate`);
+    await page.getByPlaceholder("e.g. Northwind Labs").fill(`${SPACE_NAME}-probe-gate`);
     await page.getByRole("button", { name: /^Continue/ }).click();
 
     await page.waitForSelector("#onboarding-agent-name", { timeout: 30_000 });
@@ -732,14 +732,14 @@ test.describe("Onboarding wizard", () => {
     const previous = await (await page.request.get("/api/instance/settings/experimental")).json();
     await page.request.patch("/api/instance/settings/experimental", { data: { enableNativeRunner: true } });
     try {
-      const response = await page.request.post("/api/companies", { data: { name: `${COMPANY_NAME}-grok-setup` } });
+      const response = await page.request.post("/api/spaces", { data: { name: `${SPACE_NAME}-grok-setup` } });
       expect(response.ok()).toBe(true);
-      const company = await response.json();
-      await page.goto(`/${company.issuePrefix}/agents/all`);
+      const space = await response.json();
+      await page.goto(`/${space.issuePrefix}/agents/all`);
       await page.getByRole("toolbar", { name: "Agents controls" }).getByRole("button", { name: "New Agent", exact: true }).click();
       await page.getByLabel("Agent name", { exact: true }).fill("Galen");
       const setupResponse = page.waitForResponse(result => result.request().method() === "POST"
-        && result.url().endsWith(`/api/companies/${company.id}/agents`));
+        && result.url().endsWith(`/api/spaces/${space.id}/agents`));
       await page.getByRole("button", { name: "Choose adapter", exact: true }).click();
       const setup = await (await setupResponse).json();
       await page.locator("summary").filter({ hasText: "Advanced" }).click();
@@ -748,7 +748,7 @@ test.describe("Onboarding wizard", () => {
       await page.getByRole("button", { name: "Configure agent", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Connect a model", exact: true })).toBeVisible();
       expect(new URL(page.url()).searchParams.get("setupAgentId")).toBe(setup.id);
-      const saved = await (await page.request.get(`/api/agents/${setup.id}?companyId=${company.id}`)).json();
+      const saved = await (await page.request.get(`/api/agents/${setup.id}?spaceId=${space.id}`)).json();
       expect(saved).toMatchObject({ id: setup.id, adapterType: "outpost_runner", pauseReason: "setup",
         adapterConfig: { provider: "acpx", acpxAgent: "grok", model: "grok-4.7" }, metadata: { setupAdapterPending: false } });
     } finally {
@@ -757,15 +757,15 @@ test.describe("Onboarding wizard", () => {
   });
 
   test("duplicate name drafts can select Copilot before connecting a GitHub account", async ({ page }) => {
-    const response = await page.request.post("/api/companies", { data: { name: `${COMPANY_NAME}-duplicate-copilot` } });
+    const response = await page.request.post("/api/spaces", { data: { name: `${SPACE_NAME}-duplicate-copilot` } });
     expect(response.ok()).toBe(true);
-    const company = await response.json();
-    await page.goto(`/${company.issuePrefix}/agents/all`);
+    const space = await response.json();
+    await page.goto(`/${space.issuePrefix}/agents/all`);
     let duplicate: { id: string; name: string };
     for (let attempt = 0; attempt < 2; attempt++) {
       await page.getByRole("toolbar", { name: "Agents controls" }).getByRole("button", { name: "New Agent", exact: true }).click();
       await page.getByLabel("Agent name", { exact: true }).fill("Echo");
-      const setupResponse = page.waitForResponse(result => result.request().method() === "POST" && result.url().endsWith(`/api/companies/${company.id}/agents`));
+      const setupResponse = page.waitForResponse(result => result.request().method() === "POST" && result.url().endsWith(`/api/spaces/${space.id}/agents`));
       await page.getByRole("button", { name: "Choose adapter", exact: true }).click();
       duplicate = await (await setupResponse).json();
       await expect(page.getByRole("heading", { name: "Choose an adapter", exact: true })).toBeVisible();
@@ -777,7 +777,7 @@ test.describe("Onboarding wizard", () => {
     await page.getByRole("button", { name: "Configure agent", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Configure your agent", exact: true })).toBeVisible();
     expect(new URL(page.url()).searchParams.get("setupAgentId")).toBe(duplicate!.id);
-    const saved = await (await page.request.get(`/api/agents/${duplicate!.id}?companyId=${company.id}`)).json();
+    const saved = await (await page.request.get(`/api/agents/${duplicate!.id}?spaceId=${space.id}`)).json();
     expect(saved).toMatchObject({ id: duplicate!.id, name: "Echo 2", pauseReason: "setup", adapterConfig: { provider: "acpx", acpxAgent: "copilot" } });
     expect(saved.runtimeConfig.aiConnection).toBeUndefined();
   });

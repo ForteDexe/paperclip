@@ -23,7 +23,7 @@ it.skipIf(process.env.OUTPOST_CHAT_EVAL_PLUGIN_SCAFFOLD_CALIBRATION !== "1")("qu
     const cliBefore = hash(await readFile(cli));
     const original = { failed: false, missingCheckoutDependency: false };
     try {
-      await promisify(execFile)(process.execPath, [cli, "plugin", "init", "@paperclip-eval/default-sdk-control", "--output", root], {
+      await promisify(execFile)(process.execPath, [cli, "plugin", "init", "@outpost-eval/default-sdk-control", "--output", root], {
         cwd: root, timeout: 30_000, maxBuffer: 256_000, env: { HOME: root, PATH: bin, NODE_ENV: "test", DO_NOT_TRACK: "1", OUTPOST_TELEMETRY_DISABLED: "1" },
       });
     } catch (error) {
@@ -36,7 +36,7 @@ it.skipIf(process.env.OUTPOST_CHAT_EVAL_PLUGIN_SCAFFOLD_CALIBRATION !== "1")("qu
     process.env.PATH = bin;
     const ctx = { input: { nonce: "offline-cli-calibration", evidence: async (_name: string, value: unknown) => { evidence = value as typeof evidence; } } } as unknown as ChatCatalogContext;
     fixture = await createPreviewFixture(ctx);
-    expect(JSON.parse(await readFile(path.join(fixture.packageRoot, "package.json"), "utf8"))).toMatchObject({ name: "@paperclip-eval/website-preview" });
+    expect(JSON.parse(await readFile(path.join(fixture.packageRoot, "package.json"), "utf8"))).toMatchObject({ name: "@outpost-eval/website-preview" });
     expect(evidence?.sdkMirror.files.length).toBeGreaterThan(1);
     for (const file of evidence!.sdkMirror.files) expect(hash(await readFile(path.join(sourceSdk, file.path)))).toBe(file.sha256);
     expect(hash(await readFile(cli))).toBe(cliBefore);

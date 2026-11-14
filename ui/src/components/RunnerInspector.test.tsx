@@ -77,7 +77,7 @@ function traceInspection(runId: string, marker: string) {
     trace: {
       id: `trace-${runId}`,
       runId,
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "complete",
       provider: "codex",
       frameCount: 1,
@@ -176,7 +176,7 @@ describe("RunnerInspector", () => {
       trace: {
         id: "trace-1",
         runId: "run-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         status: "complete",
         provider: "codex",
         frameCount: 1,
@@ -477,7 +477,7 @@ describe("RunnerInspector", () => {
   it("keeps client and provider JSON-RPC id spaces separate when grouping operations", async () => {
     eventsMock.mockResolvedValue([{
       id: 41,
-      companyId: "company-1",
+      spaceId: "space-1",
       runId: "run-1",
       agentId: "agent-1",
       seq: 9,
@@ -494,7 +494,7 @@ describe("RunnerInspector", () => {
       entries: [
         { kind: "frame", frameId: 1, timestamp: "1", direction: "client_to_provider", parsed: { id: 1, method: "initialize" } },
         { kind: "frame", frameId: 2, timestamp: "2", direction: "provider_to_client", parsed: { id: 1, result: {} } },
-        { kind: "frame", frameId: 3, timestamp: "3", direction: "provider_to_client", parsed: { id: 1, method: "item/tool/call", params: { callId: "finish-1", tool: "paperclip_finish" } } },
+        { kind: "frame", frameId: 3, timestamp: "3", direction: "provider_to_client", parsed: { id: 1, method: "item/tool/call", params: { callId: "finish-1", tool: "outpost_finish" } } },
         { kind: "frame", frameId: 4, timestamp: "4", direction: "client_to_provider", parsed: { id: 1, result: { success: true } } },
         { kind: "interpretation", frameId: 3, stage: "typescript_codex_driver_normalization", disposition: "mapped", emittedEventIds: ["runner:run-1:9"], ruleId: "codex_driver.normalize.item/tool/call" },
       ],
@@ -521,7 +521,7 @@ describe("RunnerInspector", () => {
     eventsMock.mockResolvedValue([
       {
         id: 91,
-        companyId: "company-1",
+        spaceId: "space-1",
         runId: "run-1",
         agentId: "agent-1",
         seq: 42,
@@ -545,7 +545,7 @@ describe("RunnerInspector", () => {
       trace: {
         id: "trace-1",
         runId: "run-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         status: "complete",
         provider: "codex",
         frameCount: 1,
@@ -675,7 +675,7 @@ describe("RunnerInspector disconnect handling", () => {
   const unavailable = () => new ApiError("Outpost is restarting.", 503, { error: "tenant_app_unavailable" });
   const event = (runId: string, seq: number) => ({
     id: seq,
-    companyId: "company-1",
+    spaceId: "space-1",
     runId,
     agentId: "agent-1",
     seq,

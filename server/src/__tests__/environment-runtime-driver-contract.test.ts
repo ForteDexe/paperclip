@@ -12,9 +12,9 @@ import {
 } from "@outpost/adapter-utils/ssh";
 import {
   agents,
-  companies,
-  companySecretVersions,
-  companySecrets,
+  spaces,
+  spaceSecretVersions,
+  spaceSecrets,
   createDb,
   environmentLeases,
   environments,
@@ -73,9 +73,9 @@ describeEmbeddedPostgres("environment runtime driver contract", () => {
     await db.delete(heartbeatRuns);
     await db.delete(agents);
     await db.delete(environments);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
-    await db.delete(companies);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -86,15 +86,15 @@ describeEmbeddedPostgres("environment runtime driver contract", () => {
     driver: EnvironmentDriver;
     config: Record<string, unknown>;
   }) {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const environmentId = randomUUID();
     const runId = randomUUID();
     const now = new Date();
     let config = input.config;
 
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       status: "active",
       createdAt: now,
@@ -102,7 +102,7 @@ describeEmbeddedPostgres("environment runtime driver contract", () => {
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Contract Agent",
       role: "engineer",
       status: "active",
@@ -114,13 +114,13 @@ describeEmbeddedPostgres("environment runtime driver contract", () => {
       updatedAt: now,
     });
     if (typeof config.privateKey === "string" && config.privateKey.length > 0) {
-      const secret = await secretService(db).create(companyId, {
+      const secret = await secretService(db).create(spaceId, {
         name: `environment-contract-private-key-${randomUUID()}`,
         provider: "local_encrypted",
         value: config.privateKey,
       });
       await secretService(db).createBinding({
-        companyId,
+        spaceId,
         secretId: secret.id,
         targetType: "environment",
         targetId: environmentId,
@@ -158,7 +158,7 @@ describeEmbeddedPostgres("environment runtime driver contract", () => {
     }
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "manual",
       status: "running",
@@ -167,7 +167,7 @@ describeEmbeddedPostgres("environment runtime driver contract", () => {
     });
 
     return {
-      companyId,
+      spaceId,
       issueId: null,
       runId,
       environment: {
@@ -186,32 +186,32 @@ describeEmbeddedPostgres("environment runtime driver contract", () => {
   }
 
   it("settles native cleanup through the SSH bookkeeping release contract", async () => {
-    const { companyId, environment, runId } = await seedEnvironment({ driver: "ssh", config: {} });
-    const lease = await environmentService(db).acquireLease({ companyId, environmentId: environment.id,
+    const { spaceId, environment, runId } = await seedEnvironment({ driver: "ssh", config: {} });
+    const lease = await environmentService(db).acquireLease({ spaceId, environmentId: environment.id,
       heartbeatRunId: runId, provider: "ssh", providerLeaseId: "ssh://worker@example.invalid:22/workspace",
       metadata: { driver: "ssh" },
     });
     await db.update(heartbeatRuns).set({ status: "succeeded", runtimeMode: "native", finishedAt: new Date() })
       .where(eq(heartbeatRuns.id, runId));
-    expect(await hasPendingRunCleanup(db, companyId, runId)).toBe(true);
+    expect(await hasPendingRunCleanup(db, spaceId, runId)).toBe(true);
     const released = await environmentRuntimeService(db).releaseRunLeases(runId);
     expect(released).toHaveLength(1);
     expect(released[0]?.lease).toMatchObject({ id: lease.id, status: "released", cleanupStatus: null });
     expect(released[0]?.lease.releasedAt).not.toBeNull();
-    expect(await hasPendingRunCleanup(db, companyId, runId)).toBe(false);
+    expect(await hasPendingRunCleanup(db, spaceId, runId)).toBe(false);
   });
 
   async function runContract(testCase: RuntimeContractCase) {
     const cleanup = await testCase.setup?.();
     try {
       const runtime = environmentRuntimeService(db);
-      const { companyId, environment, issueId, runId } = await seedEnvironment({
+      const { spaceId, environment, issueId, runId } = await seedEnvironment({
         driver: testCase.driver,
         config: testCase.config,
       });
 
       const acquired = await runtime.acquireRunLease({
-        companyId,
+        spaceId,
         environment,
         issueId,
         heartbeatRunId: runId,
@@ -219,7 +219,7 @@ describeEmbeddedPostgres("environment runtime driver contract", () => {
       });
 
       expect(acquired.environment.id).toBe(environment.id);
-      expect(acquired.lease.companyId).toBe(companyId);
+      expect(acquired.lease.spaceId).toBe(spaceId);
       expect(acquired.lease.environmentId).toBe(environment.id);
       expect(acquired.lease.issueId).toBeNull();
       expect(acquired.lease.heartbeatRunId).toBe(runId);
@@ -292,7 +292,7 @@ describeEmbeddedPostgres("environment runtime driver contract", () => {
       return;
     }
 
-    const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "paperclip-env-runtime-contract-ssh-"));
+    const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "outpost-env-runtime-contract-ssh-"));
     fixtureRoots.push(fixtureRoot);
     const fixture = await startSshEnvLabFixture({ statePath: path.join(fixtureRoot, "state.json") });
     const sshConfig = await buildSshEnvLabFixtureConfig(fixture);

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { count, eq, inArray } from "drizzle-orm";
-import { agents, approvals, companies, createDb, getEmbeddedPostgresTestSupport, heartbeatRuns, issueAccessGrants, issues, startEmbeddedPostgresTestDatabase, type Db } from "@outpost/db";
+import { agents, approvals, spaces, createDb, getEmbeddedPostgresTestSupport, heartbeatRuns, issueAccessGrants, issues, startEmbeddedPostgresTestDatabase, type Db } from "@outpost/db";
 import { sidebarBadgeService } from "../services/sidebar-badges.js";
 import { authorizationService } from "../services/authorization.js";
 import { getHeartbeatRunReadDecisions } from "../services/heartbeat-run-privacy.js";
@@ -38,8 +38,8 @@ describePostgres("sidebar badge failure candidates", () => {
 
   async function verify(options?: BadgeOptions) {
     const queries: CapturedQuery[] = [];
-    const actual = await sidebarBadgeService(captureSidebarQueries(db, queries)).get(fixture.companyId, options);
-    const expectedCandidates = await observedSidebarFailures(db, fixture.companyId, options?.currentUserId);
+    const actual = await sidebarBadgeService(captureSidebarQueries(db, queries)).get(fixture.spaceId, options);
+    const expectedCandidates = await observedSidebarFailures(db, fixture.spaceId, options?.currentUserId);
     const candidates = await db.$client.unsafe(queries[0]!.sql, queries[0]!.params as never[]).values();
     const normalize = (rows: unknown[][]) => rows.map(row => JSON.stringify(row)).sort();
     expect(normalize(candidates.map(row => [...row.slice(0, 3), new Date(String(row[3])).toISOString()]))).toEqual(normalize(
@@ -58,19 +58,19 @@ describePostgres("sidebar badge failure candidates", () => {
   }
 
   it("rolls back all fixture rows when the final approval insert fails", async () => {
-    let companyIds: string[] = [];
+    let spaceIds: string[] = [];
     let writtenRuns = 0;
     function failLastInsert<T extends Pick<Db, "insert" | "select">>(connection: T): T {
       return new Proxy(connection, { get(target, key) {
         if (key !== "insert") return Reflect.get(target, key);
         return (table: Parameters<Db["insert"]>[0]) => {
-          if (table === companies) return { values: (values: (typeof companies.$inferInsert)[]) => {
-            companyIds = values.map(row => row.id!);
-            fixtures.push({ ...fixture, companyId: companyIds[0]! as typeof fixture.companyId, foreignCompanyId: companyIds[1]! as typeof fixture.foreignCompanyId });
-            return target.insert(companies).values(values);
+          if (table === spaces) return { values: (values: (typeof spaces.$inferInsert)[]) => {
+            spaceIds = values.map(row => row.id!);
+            fixtures.push({ ...fixture, spaceId: spaceIds[0]! as typeof fixture.spaceId, foreignSpaceId: spaceIds[1]! as typeof fixture.foreignSpaceId });
+            return target.insert(spaces).values(values);
           }};
           if (table === approvals) return { values: async (values: typeof approvals.$inferInsert) => {
-            const [row] = await target.select({ value: count() }).from(heartbeatRuns).where(inArray(heartbeatRuns.companyId, companyIds));
+            const [row] = await target.select({ value: count() }).from(heartbeatRuns).where(inArray(heartbeatRuns.spaceId, spaceIds));
             writtenRuns = row!.value;
             return target.insert(approvals).values({ ...values, payload: null as never });
           }};
@@ -83,23 +83,23 @@ describePostgres("sidebar badge failure candidates", () => {
       return (callback: Parameters<Db["transaction"]>[0]) => db.transaction(tx => callback(failLastInsert(tx)));
     }});
     await expect(seedSidebarFixture(failingDb)).rejects.toMatchObject({ cause: { code: "23502" } });
-    expect(companyIds).toHaveLength(2);
+    expect(spaceIds).toHaveLength(2);
     expect(writtenRuns).toBeGreaterThan(600);
     const rows = await Promise.all([
-      db.select({ value: count() }).from(companies).where(inArray(companies.id, companyIds)),
-      db.select({ value: count() }).from(agents).where(inArray(agents.companyId, companyIds)),
-      db.select({ value: count() }).from(issues).where(inArray(issues.companyId, companyIds)),
-      db.select({ value: count() }).from(heartbeatRuns).where(inArray(heartbeatRuns.companyId, companyIds)),
-      db.select({ value: count() }).from(approvals).where(inArray(approvals.companyId, companyIds)),
+      db.select({ value: count() }).from(spaces).where(inArray(spaces.id, spaceIds)),
+      db.select({ value: count() }).from(agents).where(inArray(agents.spaceId, spaceIds)),
+      db.select({ value: count() }).from(issues).where(inArray(issues.spaceId, spaceIds)),
+      db.select({ value: count() }).from(heartbeatRuns).where(inArray(heartbeatRuns.spaceId, spaceIds)),
+      db.select({ value: count() }).from(approvals).where(inArray(approvals.spaceId, spaceIds)),
     ]);
     expect(rows.map(([row]) => row!.value)).toEqual([0, 0, 0, 0, 0]);
   });
 
-  it.each([undefined, null, "", "user-1", "user-2", "local-board", "nobody"])("keeps the bounded latest run before Mine filtering for %s", async currentUserId => {
+  it.each([undefined, null, "", "user-1", "user-2", "local-operator", "nobody"])("keeps the bounded latest run before Mine filtering for %s", async currentUserId => {
     await verify({ ...fixture.options, currentUserId });
   });
 
-  it("retains company-wide behavior without an actor or options", async () => {
+  it("retains space-wide behavior without an actor or options", async () => {
     await verify();
     await verify({ ...fixture.options, actor: undefined });
     await verify({ ...fixture.options, actor: { type: "none" } });
@@ -108,14 +108,14 @@ describePostgres("sidebar badge failure candidates", () => {
   it("rechecks private issue grants and deletion on every request", async () => {
     const service = sidebarBadgeService(db);
     const options = { ...fixture.options, currentUserId: "user-1" };
-    const denied = await service.get(fixture.companyId, options);
+    const denied = await service.get(fixture.spaceId, options);
     const [grant] = await db.insert(issueAccessGrants).values({ issueId: fixture.privateIssueId, subjectType: "agent", subjectId: fixture.actorId, source: "explicit" }).returning();
-    const allowed = await service.get(fixture.companyId, options);
+    const allowed = await service.get(fixture.spaceId, options);
     expect(allowed.failedRuns).toBe(denied.failedRuns + 1);
     await db.update(issueAccessGrants).set({ revokedAt: new Date() }).where(eq(issueAccessGrants.id, grant!.id));
-    expect(await service.get(fixture.companyId, options)).toEqual(denied);
+    expect(await service.get(fixture.spaceId, options)).toEqual(denied);
     await db.delete(issues).where(eq(issues.id, fixture.publicIssueId));
-    expect((await service.get(fixture.companyId, options)).failedRuns).toBe(denied.failedRuns - 1);
+    expect((await service.get(fixture.spaceId, options)).failedRuns).toBe(denied.failedRuns - 1);
     await verify(options);
   });
 
@@ -132,7 +132,7 @@ describePostgres("sidebar badge failure candidates", () => {
   it.each(["all-failed", "all-succeeded", "empty"] as const)("handles the %s control", async mode => {
     const control = await seedSidebarFixture(db, mode);
     fixtures.push(control);
-    const response = await sidebarBadgeService(db).get(control.companyId);
+    const response = await sidebarBadgeService(db).get(control.spaceId);
     const failedRuns = mode === "all-failed" ? 200 : 0;
     expect(response).toEqual({ inbox: failedRuns + 1, approvals: 1, failedRuns, joinRequests: 0 });
   });

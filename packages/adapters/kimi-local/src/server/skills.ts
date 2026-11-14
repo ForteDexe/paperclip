@@ -8,10 +8,10 @@ import type {
 } from "@outpost/adapter-utils";
 import {
   buildPersistentSkillSnapshot,
-  ensurePaperclipSkillSymlink,
-  readPaperclipRuntimeSkillEntries,
+  ensureOutpostSkillSymlink,
+  readOutpostRuntimeSkillEntries,
   readInstalledSkillTargets,
-  resolveLegacyPaperclipDesiredSkillNames,
+  resolveLegacyOutpostDesiredSkillNames,
 } from "@outpost/adapter-utils/server-utils";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -37,8 +37,8 @@ function resolveKimiSkillsHome(config: Record<string, unknown>) {
 }
 
 async function buildKimiSkillSnapshot(config: Record<string, unknown>): Promise<AdapterSkillSnapshot> {
-  const availableEntries = await readPaperclipRuntimeSkillEntries(config, __moduleDir);
-  const desiredSkills = resolveLegacyPaperclipDesiredSkillNames(config, availableEntries);
+  const availableEntries = await readOutpostRuntimeSkillEntries(config, __moduleDir);
+  const desiredSkills = resolveLegacyOutpostDesiredSkillNames(config, availableEntries);
   const skillsHome = resolveKimiSkillsHome(config);
   const installed = await readInstalledSkillTargets(skillsHome);
   return buildPersistentSkillSnapshot({
@@ -62,9 +62,9 @@ export async function syncKimiSkills(
   ctx: AdapterSkillContext,
   desiredSkills: string[],
 ): Promise<AdapterSkillSnapshot> {
-  const availableEntries = await readPaperclipRuntimeSkillEntries(ctx.config, __moduleDir);
+  const availableEntries = await readOutpostRuntimeSkillEntries(ctx.config, __moduleDir);
   const desiredSet = new Set([
-    ...resolveLegacyPaperclipDesiredSkillNames({}, availableEntries),
+    ...resolveLegacyOutpostDesiredSkillNames({}, availableEntries),
     ...desiredSkills,
   ]);
   const skillsHome = resolveKimiSkillsHome(ctx.config);
@@ -75,7 +75,7 @@ export async function syncKimiSkills(
   for (const available of availableEntries) {
     if (!desiredSet.has(available.key)) continue;
     const target = path.join(skillsHome, available.runtimeName);
-    await ensurePaperclipSkillSymlink(available.source, target);
+    await ensureOutpostSkillSymlink(available.source, target);
   }
 
   for (const [name, installedEntry] of installed.entries()) {

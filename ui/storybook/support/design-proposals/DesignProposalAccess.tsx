@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { CurrentBoardAccess } from "@/api/access";
 import type { HealthStatus } from "@/api/health";
 import { queryKeys } from "@/lib/queryKeys";
-import { storybookAuthSession, storybookCompanies } from "../../fixtures/paperclipData";
+import { storybookAuthSession, storybookSpaces } from "../../fixtures/outpostData";
 import { installFixtureApi } from "../capability-gaps/api";
 
 /** Supply the same owner access and loaded operator policy that production
@@ -14,8 +14,8 @@ export function DesignProposalAccess({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     const access: CurrentBoardAccess = {
       user: storybookAuthSession.user, userId: "user-board", isInstanceAdmin: false,
-      companyIds: storybookCompanies.map(company => company.id), source: "authenticated", keyId: null,
-      memberships: storybookCompanies.map(company => ({ companyId: company.id, membershipRole: "owner", status: "active" })),
+      spaceIds: storybookSpaces.map(space => space.id), source: "authenticated", keyId: null,
+      memberships: storybookSpaces.map(space => ({ spaceId: space.id, membershipRole: "owner", status: "active" })),
     };
     const fixtures = installFixtureApi([{ path: "/api/cli-auth/me", read: () => access }]);
     client.setQueryData<HealthStatus>(queryKeys.health, { status: "ok", deploymentMode: "authenticated", hiddenSettings: [] });

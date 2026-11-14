@@ -51,7 +51,7 @@ import { useMemoryConnectorsEnabled } from "@/hooks/useMemoryConnectorsEnabled";
 import { useConnectorAvailability } from "@/hooks/useConnectorAvailability";
 import { useCloudInstance } from "@/hooks/useCloudInstance";
 import { appCopyFor } from "@/lib/app-gallery-copy";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useToast } from "@/context/ToastContext";
 import { queryKeys } from "@/lib/queryKeys";
@@ -61,7 +61,7 @@ import { describeError } from "@/api/errors";
 import { aiConnectionPoolsApi } from "@/api/ai-connection-pools";
 import { toolsApi } from "@/api/tools";
 import { emailApi } from "@/api/email";
-import { useAccountIdentity } from "@/api/companies-query";
+import { useAccountIdentity } from "@/api/spaces-query";
 import {
   chatEndpointsApi,
   type ChatEndpoint,
@@ -94,7 +94,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { AGGREGATOR_APP_CATALOG, aggregatorAppIdentity, findComposioCatalogApp, type AggregatorAppCatalogEntry } from "@outpost/shared/aggregator-app-catalog";
 import { AggregatorConnectDialog, aggregatorAppConnectHref } from "./AggregatorConnectDialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { buildCompanyUserProfileMap } from "@/lib/company-members";
+import { buildSpaceUserProfileMap } from "@/lib/space-members";
 import { AppLogo } from "./AppLogo";
 import {
   appApplicationSourceSlug,
@@ -365,7 +365,7 @@ function accountActionHref(
   // Hidden curated definitions are not included in the gallery, but their
   // already-saved drafts still need the same exact-provider resume flow.
   // Keep fresh setup hidden by only using this fallback for an existing draft
-  // whose company row and saved connection identify the same known provider.
+  // whose space row and saved connection identify the same known provider.
   if (connection.status === "draft") {
     const sourceSlug = appConnectionSourceSlug(connection);
     if (sourceSlug && sourceSlug === row.slug && getConnectableAppDefinition(sourceSlug)) {
@@ -388,7 +388,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
       : new URLSearchParams(window.location.search).get("chatAgentId");
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const assistantConnections = useAssistantConnections();
   const { userId: viewingUserId, settled: identitySettled } = useAccountIdentity();
   const { enabled: chatConnectorsEnabled, githubEnabled } = useChatConnectorsEnabled();
@@ -400,7 +400,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
   const { status: connectivityStatus } = useConnectivity();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [source, setSource] = useState<CatalogSource>("paperclip");
+  const [source, setSource] = useState<CatalogSource>("outpost");
   const [expandedSearch, setExpandedSearch] = useState(false);
   const [executorToConfigure, setExecutorToConfigure] = useState<ToolConnection | null>(null);
   const [arcadeToConfigure, setArcadeToConfigure] = useState<ToolConnection | null>(null);
@@ -416,7 +416,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
     return () => setBreadcrumbs([]);
   }, [setBreadcrumbs]);
 
-  useEffect(() => { setQuery(""); setPage(1); setSource("paperclip"); setExpandedSearch(false); setArcadeToConfigure(null); setAggregatorToConnect(null); setAggregatorToManage(null); setInitialAggregatorProvider(undefined); setConnectionToRemove(null); }, [selectedCompanyId]);
+  useEffect(() => { setQuery(""); setPage(1); setSource("outpost"); setExpandedSearch(false); setArcadeToConfigure(null); setAggregatorToConnect(null); setAggregatorToManage(null); setInitialAggregatorProvider(undefined); setConnectionToRemove(null); }, [selectedSpaceId]);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("source") === "installed") setSource("installed");
@@ -424,43 +424,43 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
       setAggregatorToConnect((params.get("targetToolkit") ? findComposioCatalogApp(params.get("targetToolkit")!) : null) ?? null);
       setInitialAggregatorProvider("composio");
     }
-  }, [selectedCompanyId]);
+  }, [selectedSpaceId]);
 
   const galleryQuery = useQuery({
-    queryKey: queryKeys.apps.gallery(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listGallery(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.apps.gallery(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listGallery(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const applicationsQuery = useQuery({
-    queryKey: queryKeys.tools.applications(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listApplications(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.tools.applications(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listApplications(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const connectionsQuery = useQuery({
-    queryKey: queryKeys.tools.connections(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listConnections(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.tools.connections(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listConnections(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
-  const aiDefaults = useAiConnectionDefaults(selectedCompanyId, { userId: viewingUserId, settled: identitySettled },
+  const aiDefaults = useAiConnectionDefaults(selectedSpaceId, { userId: viewingUserId, settled: identitySettled },
     connectionsQuery.data?.connections.some(connection => connection.connectionPurpose === "ai" && !aiConnectionRouterPluginKey(connection)) ?? false);
   const aiDefaultsView = useQueryView(aiDefaults.accounts);
   const chatEndpointsQuery = useQuery({
-    queryKey: queryKeys.chatEndpoints.list(selectedCompanyId ?? "__none__"),
-    queryFn: () => chatEndpointsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.chatEndpoints.list(selectedSpaceId ?? "__none__"),
+    queryFn: () => chatEndpointsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const chatAgentsQuery = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId ?? "__none__"),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId && Boolean(chatEndpointsQuery.data?.length),
+    queryKey: queryKeys.agents.list(selectedSpaceId ?? "__none__"),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId && Boolean(chatEndpointsQuery.data?.length),
   });
   const chatAgentById = useMemo(() => new Map((chatAgentsQuery.data ?? []).map(agent => [agent.id, agent])), [chatAgentsQuery.data]);
   const userDirectoryQuery = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(
-      selectedCompanyId ?? "__none__",
+    queryKey: queryKeys.access.spaceUserDirectory(
+      selectedSpaceId ?? "__none__",
     ),
-    queryFn: () => accessApi.listUserDirectory(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryFn: () => accessApi.listUserDirectory(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const galleryView = useQueryView(galleryQuery);
   const applicationsView = useQueryView(applicationsQuery);
@@ -531,24 +531,24 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
         }
       } else if (target.pool) {
         if (!target.poolRevision) throw new Error("Open the confirmation again before removing this pool.");
-        await aiConnectionPoolsApi.remove(selectedCompanyId!, target.id, target.poolRevision);
+        await aiConnectionPoolsApi.remove(selectedSpaceId!, target.id, target.poolRevision);
       } else {
         await toolsApi.archiveConnection(target.id);
       }
     },
     onSuccess: (_connection, target) => {
-      queryClient.invalidateQueries({ queryKey: ["email-inboxes", selectedCompanyId!] });
+      queryClient.invalidateQueries({ queryKey: ["email-inboxes", selectedSpaceId!] });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.chatEndpoints.list(selectedCompanyId!),
+        queryKey: queryKeys.chatEndpoints.list(selectedSpaceId!),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.tools.connections(selectedCompanyId!),
+        queryKey: queryKeys.tools.connections(selectedSpaceId!),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.tools.applications(selectedCompanyId!),
+        queryKey: queryKeys.tools.applications(selectedSpaceId!),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.apps.attention(selectedCompanyId!),
+        queryKey: queryKeys.apps.attention(selectedSpaceId!),
       });
       pushToast({
         title: "Connection removed",
@@ -573,7 +573,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
     removeConnection.reset();
     if (!target.pool) { setConnectionToRemove(target); return; }
     try {
-      const pool = (await aiConnectionPoolsApi.list(selectedCompanyId!)).find(pool => pool.id === target.id);
+      const pool = (await aiConnectionPoolsApi.list(selectedSpaceId!)).find(pool => pool.id === target.id);
       if (!pool) throw new Error("This connection pool is no longer available.");
       // Capture the revision when presenting the confirmation. Never replace
       // it at submission time: concurrent edits must invalidate this consent.
@@ -597,7 +597,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
     );
   }), [galleryQuery.data, memoryConnectorsEnabled, connectorEnabled, chatConnectorsEnabled, githubEnabled]);
   const userProfileById = useMemo(
-    () => buildCompanyUserProfileMap(userDirectoryQuery.data?.users),
+    () => buildSpaceUserProfileMap(userDirectoryQuery.data?.users),
     [userDirectoryQuery.data],
   );
   const connectionById = useMemo(() => new Map((connectionsQuery.data?.connections ?? []).map(connection => [connection.id, connection])), [connectionsQuery.data]);
@@ -913,7 +913,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
     const scoped = rows.filter((row) => {
       if (source === "all") return true;
       if (source === "installed") return isInstalled(row);
-      if (source === "paperclip") return !row.aggregatorApp || isInstalled(row);
+      if (source === "outpost") return !row.aggregatorApp || isInstalled(row);
       return isAppAggregator(source) && (
         row.slug === source && isInstalled(row)
         || row.upstreamApps?.some(snapshot => snapshot.provider === source && snapshot.accounts.length > 0)
@@ -953,8 +953,8 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
     executor: aggregatorGateways.filter(connection => appConnectionSourceSlug(connection) === "executor"),
   }), [aggregatorGateways]);
   function changeQuery(value: string) {
-    if (source === "paperclip" && !query.trim() && value.trim()) { setSource("all"); setExpandedSearch(true); }
-    if (expandedSearch && !value.trim()) { setSource("paperclip"); setExpandedSearch(false); }
+    if (source === "outpost" && !query.trim() && value.trim()) { setSource("all"); setExpandedSearch(true); }
+    if (expandedSearch && !value.trim()) { setSource("outpost"); setExpandedSearch(false); }
     setQuery(value); setPage(1);
   }
   function closeAggregatorSetup() {
@@ -972,13 +972,13 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
     }
     setAggregatorToConnect(app);
   }
-  const showAssistantConnection = (source === "paperclip" || source === "all" ||
+  const showAssistantConnection = (source === "outpost" || source === "all" ||
     (source === "installed" && (!assistantConnections.loaded || assistantConnections.rows.some(row => !row.revokedAt)))) &&
-    (!trimmed || "assistant connection (mcp) paperclip codex claude opencode".includes(trimmed));
+    (!trimmed || "assistant connection (mcp) outpost codex claude opencode".includes(trimmed));
   const showCustomConnector =
-    (source === "paperclip" || source === "all") && (!trimmed || "connect your own tool custom mcp server".includes(trimmed));
+    (source === "outpost" || source === "all") && (!trimmed || "connect your own tool custom mcp server".includes(trimmed));
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
         Select an outpost to manage connectors.

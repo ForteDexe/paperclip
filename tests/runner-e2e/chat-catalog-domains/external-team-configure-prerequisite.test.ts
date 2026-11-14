@@ -4,7 +4,7 @@ import { teamConfigureExternalCases } from "./external-team-configure.js";
 
 type Probe = { status: string; testedAt: string; checks: Array<{ code: string; level: string }> };
 function setupFixture(missing: Probe, working: Probe = { status: "pass", testedAt: "2026-11-03T00:00:00Z", checks: [] }) {
-  const member = (id: string) => ({ id, companyId: "company", name: id, adapterType: "outpost_runner", adapterConfig: {}, metadata: { paperclip: { catalogTeam: { catalogId: "team" } } } });
+  const member = (id: string) => ({ id, spaceId: "space", name: id, adapterType: "outpost_runner", adapterConfig: {}, metadata: { outpost: { catalogTeam: { catalogId: "team" } } } });
   const members = [member("qa"), member("coder")];
   const probes = vi.fn(async (_path: string, body: { agentId?: string }) => body.agentId === "qa" ? missing : working);
   const evidence = vi.fn(async (_name: string, _value: unknown) => {});
@@ -24,7 +24,7 @@ function setupFixture(missing: Probe, working: Probe = { status: "pass", testedA
     patchSensitive: vi.fn(async (_path: string, _body: unknown) => {}),
     post: vi.fn(async (_path: string) => {}), patch: vi.fn(async (_path: string, _body: unknown) => {}),
   };
-  const ctx = { input: { api, evidence, nonce: "synthetic-team-prerequisite", workspacePath: "/synthetic/workspace", fixtures: { company: { id: "company" }, agent: { id: "ceo" }, environment: { id: "environment" }, secretRefs: {} }, execution: { profile: { credential: "OPENROUTER_API_KEY", buildAgent: () => ({ adapterType: "outpost_runner", adapterConfig: { provider: "opencode" } }) }, environment: { id: "local" } } }, refreshIssue: async () => {}, issue: () => ({ id: "source" }) } as unknown as ChatCatalogContext;
+  const ctx = { input: { api, evidence, nonce: "synthetic-team-prerequisite", workspacePath: "/synthetic/workspace", fixtures: { space: { id: "space" }, agent: { id: "ceo" }, environment: { id: "environment" }, secretRefs: {} }, execution: { profile: { credential: "OPENROUTER_API_KEY", buildAgent: () => ({ adapterType: "outpost_runner", adapterConfig: { provider: "opencode" } }) }, environment: { id: "local" } } }, refreshIssue: async () => {}, issue: () => ({ id: "source" }) } as unknown as ChatCatalogContext;
   return { ctx, evidence, probes, api };
 }
 const authWarning: Probe = { status: "warn", testedAt: "2026-11-03T00:00:00Z", checks: [{ code: "opencode_hello_probe_auth_required", level: "warn" }] };

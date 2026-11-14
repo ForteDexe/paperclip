@@ -5,13 +5,13 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ArtifactGroupCard } from "./ArtifactGroupCard";
-import type { CompanyArtifact, CompanyArtifactGroup } from "@/api/artifacts";
+import type { SpaceArtifact, SpaceArtifactGroup } from "@/api/artifacts";
 
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompany: null, selectedCompanyId: "company-1" }),
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpace: null, selectedSpaceId: "space-1" }),
 }));
 
-function sampleArtifact(overrides: Partial<CompanyArtifact> = {}): CompanyArtifact {
+function sampleArtifact(overrides: Partial<SpaceArtifact> = {}): SpaceArtifact {
   return {
     id: "artifact-1",
     source: "attachment",
@@ -28,10 +28,10 @@ function sampleArtifact(overrides: Partial<CompanyArtifact> = {}): CompanyArtifa
     updatedAt: "2026-06-01T00:00:00.000Z",
     href: "/PAP/issues/PAP-42#attachment-1",
     ...overrides,
-  } as CompanyArtifact;
+  } as SpaceArtifact;
 }
 
-function sampleGroup(overrides: Partial<CompanyArtifactGroup> = {}): CompanyArtifactGroup {
+function sampleGroup(overrides: Partial<SpaceArtifactGroup> = {}): SpaceArtifactGroup {
   return {
     id: "task:issue-1",
     groupBy: "task",
@@ -46,7 +46,7 @@ function sampleGroup(overrides: Partial<CompanyArtifactGroup> = {}): CompanyArti
   };
 }
 
-function render(group: CompanyArtifactGroup, to = "?groupBy=task&groupIssueId=issue-1") {
+function render(group: SpaceArtifactGroup, to = "?groupBy=task&groupIssueId=issue-1") {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);

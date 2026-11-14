@@ -3,7 +3,7 @@ import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { heartbeatRuns, type Db } from "@outpost/db";
 import { withDirectoryPublicationLock } from "@outpost/adapter-utils/workspace-restore-merge";
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 import { parseNativeExecutionInput } from "../../vendor/outpost-runner/index.js";
 import { ensureSkillCacheDirectory, skillRunNeedsFilesSql } from "../skill-version-cache.js";
 import type { createDeliveryWorkCoordinator } from "../delivery-work-coordinator.js";
@@ -13,7 +13,7 @@ export const RUNTIME_ASSET_RETENTION_MS = 30 * 24 * 60 * 60_000;
 const TOUCH_MS = 60 * 60_000;
 const touched = new Map<string, number>();
 const observers = new Set<() => void>();
-const root = () => path.join(resolvePaperclipInstanceRoot(), "runtime-context-assets");
+const root = () => path.join(resolveOutpostInstanceRoot(), "runtime-context-assets");
 function paths(digest: string) {
   if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error("Invalid runtime asset digest");
   return { bundle: path.join(root(), "bundles", digest), manifest: path.join(root(), "manifests", `${digest}.json`) };
@@ -42,7 +42,7 @@ export async function withRuntimeAssetUse<T>(digest: string, consume: (locked: b
 }
 
 async function protectedAssets(db: Db): Promise<Set<string> | null> {
-  const rows = await db.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+  const rows = await db.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
     input: sql<unknown>`${heartbeatRuns.runnerProfileJson}->'nativeExecutionInput'` }).from(heartbeatRuns)
     .where(and(eq(heartbeatRuns.runtimeMode, "native"), skillRunNeedsFilesSql())).limit(1001);
   if (rows.length > 1000) return null;
@@ -50,7 +50,7 @@ async function protectedAssets(db: Db): Promise<Set<string> | null> {
   for (const row of rows) {
     try {
       const input = parseNativeExecutionInput(row.input);
-      if (input.binding.runId !== row.id || input.binding.companyId !== row.companyId || input.binding.agentId !== row.agentId) return null;
+      if (input.binding.runId !== row.id || input.binding.spaceId !== row.spaceId || input.binding.agentId !== row.agentId) return null;
       if (!("runtimeContext" in input)) return null;
       for (const asset of [input.runtimeContext.instructions.bundle, ...input.runtimeContext.skills.map(skill => skill.bundle)]) pins.add(asset.digest);
     } catch { return null; } // An unfinished/legacy input cannot prove absence.

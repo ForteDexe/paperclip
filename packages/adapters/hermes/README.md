@@ -1,6 +1,6 @@
 # Outpost Adapters for Hermes Agent
 
-A [Outpost](https://outpost.ing) adapter package that lets you run [Hermes Agent](https://github.com/NousResearch/hermes-agent) as a managed employee in an Outpost company.
+A [Outpost](https://outpost.ing) adapter package that lets you run [Hermes Agent](https://github.com/NousResearch/hermes-agent) as a managed agent in an Outpost space.
 
 Hermes Agent is a full-featured AI agent by [Nous Research](https://nousresearch.com) with 30+ native tools, persistent memory, session persistence, 80+ skills, MCP support, and multi-provider model access.
 
@@ -61,7 +61,7 @@ normal Outpost use.
 ### 1. Optional: override the built-in for adapter development
 
 For local adapter development, install the package from a local path in Adapter
-manager, or add an entry to `~/.paperclip/adapter-plugins.json` and restart
+manager, or add an entry to `~/.outpost/adapter-plugins.json` and restart
 Outpost. The external package can override either built-in Hermes adapter
 while it is enabled:
 
@@ -69,7 +69,7 @@ while it is enabled:
 [
   {
     "packageName": "@outpost/hermes-outpost-adapter",
-    "localPath": "/absolute/path/to/paperclip/packages/adapters/hermes",
+    "localPath": "/absolute/path/to/outpost/packages/adapters/hermes",
     "type": "hermes_local",
     "installedAt": "2026-06-23T00:00:00.000Z"
   }
@@ -126,7 +126,7 @@ Then create an agent with adapter type `hermes_gateway`:
   "adapterConfig": {
     "apiBaseUrl": "http://127.0.0.1:8642",
     "apiKey": "<same-value-as-API_SERVER_KEY>",
-    "paperclipApiUrl": "http://127.0.0.1:3100",
+    "outpostApiUrl": "http://127.0.0.1:3100",
     "sessionKeyStrategy": "issue",
     "timeoutSec": 600
   }
@@ -164,7 +164,7 @@ Hermes receives Outpost runtime identity through environment variables:
 Prompts should reference those variables directly. Command output may redact
 secret values, so do not copy printed tokens into comments or config. Use
 `Authorization: Bearer $OUTPOST_API_KEY` on Outpost API requests and
-`X-Paperclip-Run-Id: $OUTPOST_RUN_ID` on mutating issue requests. For
+`X-Outpost-Run-Id: $OUTPOST_RUN_ID` on mutating issue requests. For
 multiline comments or status updates, preserve newlines with a heredoc plus
 `jq --arg`.
 
@@ -183,18 +183,18 @@ OUTPOST_BRIDGE_API_KEY=<task-bridge-scoped-agent-api-key>
 
 Optional env values:
 
-- `OUTPOST_COMPANY_ID`
+- `OUTPOST_SPACE_ID`
 - `OUTPOST_AGENT_ID`
 - `OUTPOST_RUN_ID`
 
-The bundled `paperclip-task-bridge` skill provides deterministic helper
+The bundled `outpost-task-bridge` skill provides deterministic helper
 commands:
 
 ```bash
-node ./paperclip-task.mjs list-assigned
-node ./paperclip-task.mjs create-task --parent-id "<approved-parent-issue-id>" --title "Investigate checkout failures" --description "Capture failing request and root cause."
-node ./paperclip-task.mjs comment --issue PAP-123 --body "Found the failing request path."
-node ./paperclip-task.mjs update-status --issue PAP-123 --status in_review --comment "Ready for review."
+node ./outpost-task.mjs list-assigned
+node ./outpost-task.mjs create-task --parent-id "<approved-parent-issue-id>" --title "Investigate checkout failures" --description "Capture failing request and root cause."
+node ./outpost-task.mjs comment --issue PAP-123 --body "Found the failing request path."
+node ./outpost-task.mjs update-status --issue PAP-123 --status in_review --comment "Ready for review."
 ```
 
 The helper reads credentials from environment variables and prints only JSON
@@ -252,7 +252,7 @@ Available toolsets: `terminal`, `file`, `web`, `browser`, `code_execution`, `vis
 | `extraArgs` | string[] | `[]` | Additional CLI arguments |
 | `env` | object | `{}` | Extra environment variables |
 | `promptTemplate` | string | *(built-in)* | Custom prompt template |
-| `paperclipApiUrl` | string | `http://127.0.0.1:3100/api` | Outpost API base URL |
+| `outpostApiUrl` | string | `http://127.0.0.1:3100/api` | Outpost API base URL |
 
 ### Prompt Template Variables
 
@@ -262,14 +262,14 @@ Use `{{variable}}` syntax in `promptTemplate`:
 |----------|-------------|
 | `{{agentId}}` | Outpost agent ID |
 | `{{agentName}}` | Agent display name |
-| `{{companyId}}` | Outpost ID |
-| `{{companyName}}` | Outpost name |
+| `{{spaceId}}` | Outpost ID |
+| `{{spaceName}}` | Outpost name |
 | `{{runId}}` | Current heartbeat run ID |
 | `{{taskId}}` | Assigned task/issue ID |
 | `{{taskTitle}}` | Task title |
 | `{{taskBody}}` | Task instructions |
 | `{{projectName}}` | Project name |
-| `{{paperclipApiUrl}}` | Outpost API base URL |
+| `{{outpostApiUrl}}` | Outpost API base URL |
 | `{{commentId}}` | Comment ID (when woken by a comment) |
 | `{{wakeReason}}` | Reason this run was triggered |
 
@@ -363,7 +363,7 @@ Outpost UI can display both managed and native skills in one view.
 
 ```bash
 git clone https://github.com/paperclipai/paperclip
-cd paperclip/packages/adapters/hermes
+cd outpost/packages/adapters/hermes
 pnpm install
 pnpm build
 ```

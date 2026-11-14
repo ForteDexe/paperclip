@@ -19,7 +19,7 @@ export type DevServerHealthStatus = {
 
 export type CloudInstanceHealthStatus = {
   managed: true;
-  managedBy: "paperclip-cloud";
+  managedBy: "outpost-cloud";
   stackSlug: string | null;
   stackDisplayName?: string;
   cloudBaseUrl: string | null;
@@ -39,7 +39,7 @@ export type HealthStatus = {
   /** The unclaimed Cloud app is ready; this response did not probe SQL. */
   warmStandby?: boolean;
   features?: {
-    companyDeletionEnabled?: boolean;
+    spaceDeletionEnabled?: boolean;
   };
   serverInfo?: ServerInfoSnapshot;
   devServer?: DevServerHealthStatus;

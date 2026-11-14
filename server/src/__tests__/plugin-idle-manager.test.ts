@@ -10,7 +10,7 @@ import { createPluginWorkerHandle, createPluginWorkerManager } from "../services
 import { startTaskDrain, stopTaskDrain } from "../services/task-admission.js";
 
 const manifest = { id: "test.idle", apiVersion: 1 as const, version: "1.0.0", displayName: "Idle fixture",
-  description: "Idle fixture", author: "Paperclip", categories: ["automation" as const], capabilities: [], entrypoints: { worker: "worker.cjs" } };
+  description: "Idle fixture", author: "Outpost", categories: ["automation" as const], capabilities: [], entrypoints: { worker: "worker.cjs" } };
 function worker(write = false, hostHandler: () => Promise<void> = async () => undefined) {
   return createPluginWorkerHandle("test.idle", {
     entrypointPath: fileURLToPath(new URL("./fixtures/plugin-worker-idle.cjs", import.meta.url)),
@@ -53,7 +53,7 @@ describe("plugin manager idle receipts", () => {
   });
 
   it("drains a supported worker and persists its next useful operation under the same manifest", async () => {
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-plugin-idle-"));
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-plugin-idle-"));
     const stateFile = path.join(directory, "writes.json");
     const writes: unknown[] = [];
     const manager = createPluginWorkerManager();
@@ -101,7 +101,7 @@ describe("plugin manager idle receipts", () => {
     const handle = worker();
     await handle.start();
     try {
-      await expect(handle.call("environmentProbe", { driverKey: "fixture", companyId: "fixture", environmentId: "fixture", config: { delayMs: 200 } }, 10)).rejects.toThrow("timed out");
+      await expect(handle.call("environmentProbe", { driverKey: "fixture", spaceId: "fixture", environmentId: "fixture", config: { delayMs: 200 } }, 10)).rejects.toThrow("timed out");
       const lease = hold();
       expect(await handle.prepareIdleSleep!(lease)).toBe("present");
       await expect.poll(() => handle.prepareIdleSleep!(lease)).toBe("none");
@@ -159,7 +159,7 @@ describe("plugin manager idle receipts", () => {
     await handle.start();
     handle.on("crash", () => { hold(); });
     try {
-      await expect(handle.call("environmentProbe", { driverKey: "fixture", companyId: "fixture", environmentId: "fixture", config: { crash: true } })).rejects.toThrow();
+      await expect(handle.call("environmentProbe", { driverKey: "fixture", spaceId: "fixture", environmentId: "fixture", config: { crash: true } })).rejects.toThrow();
       await delay(1_600);
       expect(handle.status).toBe("backoff");
       expect(handle.diagnostics().nextRestartAt).not.toBeNull();

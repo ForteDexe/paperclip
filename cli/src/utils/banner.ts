@@ -11,7 +11,7 @@ const OUTPOST_ART = [
 
 const TAGLINE = "The app people use to manage AI agents for work";
 
-export function printPaperclipCliBanner(): void {
+export function printOutpostCliBanner(): void {
   const lines = [
     "",
     ...OUTPOST_ART.map((line) => pc.cyan(line)),

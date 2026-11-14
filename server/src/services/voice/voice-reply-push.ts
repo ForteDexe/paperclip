@@ -23,22 +23,22 @@ export async function pushVoiceReplies(db: Db, options: {
   credentials(endpoint: typeof chatEndpoints.$inferSelect, expectedFingerprint?: string): Promise<Record<string, string>>;
   provider: typeof createSpekoProvider;
   limit: number;
-  companyId?: string;
+  spaceId?: string;
   endpointId?: string;
   sessionId?: string;
   recoverDispatches?: boolean;
 }) {
   if (!(await instanceSettingsService(db).getExperimental()).enableChatConnectors) return;
   if (options.recoverDispatches !== false) await recoverVoiceReplyDispatches(db, options);
-  const sessions = await db.select({id: chatVoiceSessions.id, companyId: chatVoiceSessions.companyId}).from(chatVoiceSessions)
+  const sessions = await db.select({id: chatVoiceSessions.id, spaceId: chatVoiceSessions.spaceId}).from(chatVoiceSessions)
     .where(and(options.sessionId ? eq(chatVoiceSessions.id, options.sessionId) : undefined, inArray(chatVoiceSessions.mode, ["inbound_phone", "outbound_phone"]), inArray(chatVoiceSessions.state, ["connecting", "active"]), gt(chatVoiceSessions.expiresAt, new Date()),
-      options.companyId ? eq(chatVoiceSessions.companyId, options.companyId) : undefined,
+      options.spaceId ? eq(chatVoiceSessions.spaceId, options.spaceId) : undefined,
       options.endpointId ? eq(chatVoiceSessions.endpointId, options.endpointId) : undefined))
     .orderBy(asc(chatVoiceSessions.updatedAt)).limit(options.limit);
   for (const candidate of sessions) {
     for (let index = 0; index < 8; index++) {
       const claim = await db.transaction(async tx => {
-        const context = await options.store.authorizeSession(tx, candidate.companyId, candidate.id);
+        const context = await options.store.authorizeSession(tx, candidate.spaceId, candidate.id);
         const {session} = context;
         if (!session.providerSessionId) return null;
         await options.store.collectMissedReplies(tx, session);
@@ -49,20 +49,20 @@ export async function pushVoiceReplies(db: Db, options: {
         const values = { status: "dispatching", result: null, updatedAt: new Date() };
         const action = plan.priorActionId
           ? (await tx.update(chatActions).set(values).where(eq(chatActions.id, plan.priorActionId)).returning())[0]!
-          : (await tx.insert(chatActions).values({ companyId: session.companyId, endpointId: session.endpointId, conversationId: session.conversationId, kind, providerActionId: plan.identity,
+          : (await tx.insert(chatActions).values({ spaceId: session.spaceId, endpointId: session.endpointId, conversationId: session.conversationId, kind, providerActionId: plan.identity,
               payload: { sessionId: session.id, replyId: reply.id, publicationId: reply.publicationId, generation: session.generation, providerSessionId: session.providerSessionId,
                 questionNotification, partIndex: plan.partIndex, partCount: plan.partCount, textDigest: plan.textDigest }, ...values }).returning())[0]!;
         return { ...context, reply, questionNotification, text: plan.text, partIndex: plan.partIndex, partCount: plan.partCount, action };
       }).catch(error => {
         if (error instanceof HttpError && [403,404].includes(error.status)) {
-          logger.warn({event: "voice.reply.push.authorization_blocked", companyId: candidate.companyId,
+          logger.warn({event: "voice.reply.push.authorization_blocked", spaceId: candidate.spaceId,
             sessionId: candidate.id, httpStatus: error.status}, "Current voice authority prevents reply dispatch");
           return null;
         }
         throw error;
       });
       if (!claim) break;
-      const diagnostic = {companyId: claim.session.companyId, endpointId: claim.session.endpointId,
+      const diagnostic = {spaceId: claim.session.spaceId, endpointId: claim.session.endpointId,
         issueId: claim.session.issueId, conversationId: claim.session.conversationId, sessionId: claim.session.id,
         providerSessionId: claim.session.providerSessionId, generation: claim.session.generation, mode: claim.session.mode,
         publicationId: claim.reply.publicationId, replyId: claim.reply.id, replyCursor: claim.reply.cursor, actionId: claim.action.id, partIndex: claim.partIndex, partCount: claim.partCount};
@@ -73,7 +73,7 @@ export async function pushVoiceReplies(db: Db, options: {
       try {
         const credentials = await options.credentials(claim.endpoint, claim.session.credentialFingerprint);
         // Recheck authority after resolving credentials, immediately before egress.
-        await db.transaction(tx => options.store.authorizeSession(tx, candidate.companyId, candidate.id));
+        await db.transaction(tx => options.store.authorizeSession(tx, candidate.spaceId, candidate.id));
         const receipt = await options.provider(credentials.apiKey!).sendCallMessage(claim.session.providerSessionId!, claim.text, "respond");
         messageId = receipt.messageId;
       } catch (error) {
@@ -89,7 +89,7 @@ export async function pushVoiceReplies(db: Db, options: {
             await notifyVoiceInbound(tx, { kind: "session", id: candidate.id });
             await notifyVoiceReports(tx, { kind: "session", id: candidate.id });
           }
-          if (status === "call_ended") await tx.update(chatVoiceSessions).set({state: "ended", endedAt: new Date(), updatedAt: new Date()}).where(and(eq(chatVoiceSessions.id, candidate.id), eq(chatVoiceSessions.companyId, candidate.companyId)));
+          if (status === "call_ended") await tx.update(chatVoiceSessions).set({state: "ended", endedAt: new Date(), updatedAt: new Date()}).where(and(eq(chatVoiceSessions.id, candidate.id), eq(chatVoiceSessions.spaceId, candidate.spaceId)));
           if (status === "unknown") await tx.update(chatVoiceSessions).set({errorCode: "message_delivery_unknown", updatedAt: new Date()}).where(eq(chatVoiceSessions.id, candidate.id));
         });
         logger.warn({...diagnostic, event: "voice.reply.push.failed", status, httpStatus: providerError?.httpStatus ?? null,
@@ -105,7 +105,7 @@ export async function pushVoiceReplies(db: Db, options: {
       await db.transaction(async tx => {
         await notifyVoiceReplies(tx, { kind: "session", id: candidate.id });
         await tx.update(chatActions).set({status: "completed", result: {messageId, playback: "unknown", acceptedAt, dispatchDurationMs: Date.now() - startedAt}, updatedAt: new Date()}).where(eq(chatActions.id, claim.action.id));
-        if (!claim.questionNotification && claim.partIndex === claim.partCount - 1) await tx.update(chatVoiceReplies).set({deliveredAt: new Date()}).where(and(eq(chatVoiceReplies.id, claim.reply.id), eq(chatVoiceReplies.companyId, candidate.companyId), isNull(chatVoiceReplies.deliveredAt)));
+        if (!claim.questionNotification && claim.partIndex === claim.partCount - 1) await tx.update(chatVoiceReplies).set({deliveredAt: new Date()}).where(and(eq(chatVoiceReplies.id, claim.reply.id), eq(chatVoiceReplies.spaceId, candidate.spaceId), isNull(chatVoiceReplies.deliveredAt)));
       }).catch(error => {
         logger.error({...diagnostic, event: "voice.reply.push.receipt_commit_failed", messageId, acceptedAt,
           outcomeUnknown: true, playback: "unknown"}, "Speko accepted reply but local receipt commit failed; no resend");

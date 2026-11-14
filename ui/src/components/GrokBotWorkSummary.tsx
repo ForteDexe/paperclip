@@ -2,9 +2,9 @@ import { describeError } from "@/api/errors";
 import { useQuery } from "@tanstack/react-query";
 import { grokBotApi } from "@/api/grokBot";
 import { Link } from "@/lib/router";
-/** Reports observed Paperclip activity; this is not a provider availability indicator. */
-export function GrokBotWorkSummary({ companyId, agentId }: { companyId: string; agentId: string }) {
-  const state = useQuery({ queryKey: ["grok-binding", companyId, agentId], queryFn: ({ signal }) => grokBotApi.connection(companyId, agentId, signal), refetchInterval: 10000 });
+/** Reports observed Outpost activity; this is not a provider availability indicator. */
+export function GrokBotWorkSummary({ spaceId, agentId }: { spaceId: string; agentId: string }) {
+  const state = useQuery({ queryKey: ["grok-binding", spaceId, agentId], queryFn: ({ signal }) => grokBotApi.connection(spaceId, agentId, signal), refetchInterval: 10000 });
   const data = state.data, binding = data?.binding, routine = binding?.routine;
   return <div className="space-y-2 text-sm">
     {state.error && <p role="alert" className="text-destructive">Connection status could not be refreshed. {describeError(state.error).body}</p>}

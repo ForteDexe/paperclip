@@ -41,7 +41,7 @@ export const defaultCreateValues: CreateConfigValues = {
   devicePrivateKeyPem: "",
   role: "",
   scopes: "",
-  paperclipApiUrl: "",
+  outpostApiUrl: "",
   headersJson: "",
   password: "",
 };

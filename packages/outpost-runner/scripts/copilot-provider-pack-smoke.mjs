@@ -80,7 +80,7 @@ await withCopilotSmokeResources(installation, async ({ lease, root, fixture, fix
       });
       child.stderr.on("data", chunk => { stderr = (stderr + chunk.toString("utf8")).slice(-16_384); });
     });
-    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: 1, clientInfo: { name: "paperclip-pack-offline-smoke", version: "1" }, clientCapabilities: COPILOT_ACP_CLIENT_CAPABILITIES } })}\n`);
+    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: 1, clientInfo: { name: "outpost-pack-offline-smoke", version: "1" }, clientCapabilities: COPILOT_ACP_CLIENT_CAPABILITIES } })}\n`);
     const result = await initialized;
     assert.equal(result.protocolVersion, 1);
     assert.equal(result.agentInfo?.version, "1.0.88");

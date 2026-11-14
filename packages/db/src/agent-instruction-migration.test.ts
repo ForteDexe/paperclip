@@ -9,17 +9,17 @@ import { EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, getEmbeddedPostgresTestSupport, star
 // Exercise real preview tables/receipts, not a second application of the new schema.
 const previewMigrations = [
   { when: 1790474441205, sql: `CREATE TABLE "agent_instruction_heads" (
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"entry_file" text NOT NULL,
 	"revision_id" uuid NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "agent_instruction_heads_identity_uq" UNIQUE("company_id","agent_id","entry_file")
+	CONSTRAINT "agent_instruction_heads_identity_uq" UNIQUE("space_id","agent_id","entry_file")
 );
 --> statement-breakpoint
 CREATE TABLE "agent_instruction_revisions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"entry_file" text NOT NULL,
 	"content_base64" text NOT NULL,
@@ -34,15 +34,15 @@ CREATE TABLE "agent_instruction_revisions" (
 	"source_run_id" uuid,
 	"source" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "agent_instruction_revisions_identity_uq" UNIQUE("company_id","agent_id","entry_file","id")
+	CONSTRAINT "agent_instruction_revisions_identity_uq" UNIQUE("space_id","agent_id","entry_file","id")
 );
 --> statement-breakpoint
-ALTER TABLE "agent_instruction_heads" ADD CONSTRAINT "agent_instruction_heads_company_id_agent_id_entry_file_revision_id_agent_instruction_revisions_company_id_agent_id_entry_file_id_fk" FOREIGN KEY ("company_id","agent_id","entry_file","revision_id") REFERENCES "public"."agent_instruction_revisions"("company_id","agent_id","entry_file","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "agent_instruction_revisions" ADD CONSTRAINT "agent_instruction_revisions_company_id_agent_id_agents_company_id_id_fk" FOREIGN KEY ("company_id","agent_id") REFERENCES "public"."agents"("company_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "agent_instruction_revisions_history_idx" ON "agent_instruction_revisions" USING btree ("company_id","agent_id","entry_file","created_at","id");` },
+ALTER TABLE "agent_instruction_heads" ADD CONSTRAINT "agent_instruction_heads_space_id_agent_id_entry_file_revision_id_agent_instruction_revisions_space_id_agent_id_entry_file_id_fk" FOREIGN KEY ("space_id","agent_id","entry_file","revision_id") REFERENCES "public"."agent_instruction_revisions"("space_id","agent_id","entry_file","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_instruction_revisions" ADD CONSTRAINT "agent_instruction_revisions_space_id_agent_id_agents_space_id_id_fk" FOREIGN KEY ("space_id","agent_id") REFERENCES "public"."agents"("space_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "agent_instruction_revisions_history_idx" ON "agent_instruction_revisions" USING btree ("space_id","agent_id","entry_file","created_at","id");` },
   { when: 1790543348340, sql: `CREATE TABLE "agent_instruction_working_copies" (
 	"run_id" uuid PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"responsible_user_id" text NOT NULL,
 	"entry_file" text NOT NULL,
@@ -65,9 +65,9 @@ CREATE INDEX "agent_instruction_revisions_history_idx" ON "agent_instruction_rev
 );
 --> statement-breakpoint
 ALTER TABLE "agent_instruction_working_copies" ADD CONSTRAINT "agent_instruction_working_copies_run_id_heartbeat_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."heartbeat_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "agent_instruction_working_copies" ADD CONSTRAINT "agent_instruction_working_copies_company_id_agent_id_agents_company_id_id_fk" FOREIGN KEY ("company_id","agent_id") REFERENCES "public"."agents"("company_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_instruction_working_copies" ADD CONSTRAINT "agent_instruction_working_copies_space_id_agent_id_agents_space_id_id_fk" FOREIGN KEY ("space_id","agent_id") REFERENCES "public"."agents"("space_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "agent_instruction_copies_pending_idx" ON "agent_instruction_working_copies" USING btree ("state","next_attempt_at");--> statement-breakpoint
-CREATE INDEX "agent_instruction_copies_agent_idx" ON "agent_instruction_working_copies" USING btree ("company_id","agent_id","created_at");` },
+CREATE INDEX "agent_instruction_copies_agent_idx" ON "agent_instruction_working_copies" USING btree ("space_id","agent_id","created_at");` },
 ];
 const migration = await readFile(new URL("./migrations/0287_serious_tinkerer.sql", import.meta.url), "utf8");
 const migrationHash = createHash("sha256").update(migration).digest("hex");
@@ -87,23 +87,23 @@ describePostgres("instruction revision migrations", () => {
         await sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
           VALUES (${createHash("sha256").update(preview.sql).digest("hex")}, ${preview.when})`;
       }
-      const companyId = randomUUID(), otherCompanyId = randomUUID(), agentId = randomUUID();
+      const spaceId = randomUUID(), otherSpaceId = randomUUID(), agentId = randomUUID();
       const runId = randomUUID(), revisionId = randomUUID();
       const bytes = Buffer.from("\uFEFF# Saved\r\nExact bytes ☃\n");
       const contentBase64 = bytes.toString("base64");
       const contentHash = createHash("sha256").update(bytes).digest("hex");
-      await sql`INSERT INTO companies (id, name, issue_prefix) VALUES
-        (${companyId}, 'Instructions', 'INS'), (${otherCompanyId}, 'Other', 'OTH')`;
-      await sql`INSERT INTO agents (id, company_id, name) VALUES (${agentId}, ${companyId}, 'Writer')`;
-      await sql`INSERT INTO heartbeat_runs (id, company_id, agent_id) VALUES (${runId}, ${companyId}, ${agentId})`;
+      await sql`INSERT INTO spaces (id, name, issue_prefix) VALUES
+        (${spaceId}, 'Instructions', 'INS'), (${otherSpaceId}, 'Other', 'OTH')`;
+      await sql`INSERT INTO agents (id, space_id, name) VALUES (${agentId}, ${spaceId}, 'Writer')`;
+      await sql`INSERT INTO heartbeat_runs (id, space_id, agent_id) VALUES (${runId}, ${spaceId}, ${agentId})`;
       await sql`INSERT INTO agent_instruction_revisions
-        (id, company_id, agent_id, entry_file, content_base64, content_hash, byte_length, source, source_run_id)
-        VALUES (${revisionId}, ${companyId}, ${agentId}, 'AGENTS.md', ${contentBase64}, ${contentHash}, ${bytes.length}, 'cleanup', ${runId})`;
-      await sql`INSERT INTO agent_instruction_heads (company_id, agent_id, entry_file, revision_id)
-        VALUES (${companyId}, ${agentId}, 'AGENTS.md', ${revisionId})`;
+        (id, space_id, agent_id, entry_file, content_base64, content_hash, byte_length, source, source_run_id)
+        VALUES (${revisionId}, ${spaceId}, ${agentId}, 'AGENTS.md', ${contentBase64}, ${contentHash}, ${bytes.length}, 'cleanup', ${runId})`;
+      await sql`INSERT INTO agent_instruction_heads (space_id, agent_id, entry_file, revision_id)
+        VALUES (${spaceId}, ${agentId}, 'AGENTS.md', ${revisionId})`;
       await sql`INSERT INTO agent_instruction_working_copies
-        (run_id, company_id, agent_id, responsible_user_id, entry_file, base_revision_id, base_hash, local_root, execution_root, location, state, candidate_base64, candidate_hash)
-        VALUES (${runId}, ${companyId}, ${agentId}, 'editor', 'AGENTS.md', ${revisionId}, ${contentHash}, '/private/copy', '/private/copy', 'local', 'pending_commit', ${contentBase64}, ${contentHash})`;
+        (run_id, space_id, agent_id, responsible_user_id, entry_file, base_revision_id, base_hash, local_root, execution_root, location, state, candidate_base64, candidate_hash)
+        VALUES (${runId}, ${spaceId}, ${agentId}, 'editor', 'AGENTS.md', ${revisionId}, ${contentHash}, '/private/copy', '/private/copy', 'local', 'pending_commit', ${contentBase64}, ${contentHash})`;
       const snapshot = async () => ({
         journal: await sql`SELECT * FROM drizzle.__drizzle_migrations ORDER BY id`,
         relations: await sql`SELECT oid::text, relname FROM pg_class WHERE relname IN
@@ -129,9 +129,9 @@ describePostgres("instruction revision migrations", () => {
         await applyPendingMigrations(database.connectionString);
         expect(await snapshot()).toEqual(upgraded);
       }
-      await expect(sql`UPDATE agent_instruction_heads SET company_id = ${otherCompanyId} WHERE revision_id = ${revisionId}`)
+      await expect(sql`UPDATE agent_instruction_heads SET space_id = ${otherSpaceId} WHERE revision_id = ${revisionId}`)
         .rejects.toMatchObject({ code: "23503" });
-      await expect(sql`UPDATE agent_instruction_working_copies SET company_id = ${otherCompanyId} WHERE run_id = ${runId}`)
+      await expect(sql`UPDATE agent_instruction_working_copies SET space_id = ${otherSpaceId} WHERE run_id = ${runId}`)
         .rejects.toMatchObject({ code: "23503" });
     } finally {
       await sql.end();

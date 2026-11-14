@@ -9,13 +9,13 @@ import { nativeSha256 } from "./native-runtime/canonical.js";
 import { isConfirmedCursorCloudTerminalObservation } from "./native-runtime/cursor-cloud-runtime.js";
 
 export function hasAcknowledgedNativeRunStopRequest(run: {
-  id: string; companyId: string; status: string; nativeIssueId: string | null;
+  id: string; spaceId: string; status: string; nativeIssueId: string | null;
   resultJson: Record<string, unknown> | null;
 }): boolean {
   const result = run.resultJson;
   const intent = result?.nativeCancellation as Record<string, unknown> | undefined;
   return intent?.schema === "outpost.native-cancellation.v1" && intent.runId === run.id &&
-    intent.companyId === run.companyId && intent.issueId === run.nativeIssueId &&
+    intent.spaceId === run.spaceId && intent.issueId === run.nativeIssueId &&
     intent.scope === "run" && intent.reasonCode === "cancellation_run_only" &&
     intent.dispatchState === "acknowledged" && typeof intent.dispatched === "boolean" &&
     typeof intent.intentAuditId === "string" && Boolean(intent.intentAuditId) &&
@@ -49,7 +49,7 @@ export function isAcknowledgedNativeStop(run: Parameters<typeof hasAcknowledgedN
 /** API-owned execution has no Computer lease. Its provider terminal and retired
  * local controller must both be recorded before publishing shared Stop proof. */
 export async function acknowledgedNativeApiStopExecutionHasStopped(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "nativeIssueId" | "status" | "resultJson" | "processPid" | "processGroupId" |
+  "id" | "spaceId" | "agentId" | "nativeIssueId" | "status" | "resultJson" | "processPid" | "processGroupId" |
   "runtimeMode" | "driverKind" | "runnerProfileJson" | "nativeSessionId" | "runnerInstanceId">): Promise<boolean> {
   if (run.runtimeMode !== "native" || run.driverKind !== "cursor_cloud_api" || !isAcknowledgedNativeStop(run) ||
       run.processPid !== null || run.processGroupId !== null || !run.nativeIssueId || !run.nativeSessionId || !run.runnerInstanceId) return false;
@@ -62,17 +62,17 @@ export async function acknowledgedNativeApiStopExecutionHasStopped(db: Db, run: 
   const execution = parseObject(profile.nativeExecutionInput);
   const binding = parseObject(execution.binding), session = parseObject(execution.session);
   if (profile.executionPlacement === undefined || profile.backend !== "cursor_cloud_api" ||
-      binding.companyId !== run.companyId || binding.runId !== run.id || binding.issueId !== run.nativeIssueId ||
+      binding.spaceId !== run.spaceId || binding.runId !== run.id || binding.issueId !== run.nativeIssueId ||
       binding.agentId !== run.agentId || session.normalizedSessionId !== run.nativeSessionId || session.driverKind !== "cursor_cloud_api") return false;
   try {
     if (!resolveProviderApiPlacement({ run, agent: { adapterType: "process", adapterConfig: {} } })) return false;
   } catch { return false; }
   const [lease] = await db.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+    eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
   )).limit(1);
-  if (lease || !await hasNativeLocalProcessStop(db, run.companyId, run.id)) return false;
+  if (lease || !await hasNativeLocalProcessStop(db, run.spaceId, run.id)) return false;
   const [terminal] = await db.select().from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     isNotNull(heartbeatRunEvents.sourceEventId),
     inArray(heartbeatRunEvents.eventType, ["turn.started", "turn.completed", "turn.failed", "turn.cancelled", "turn.interrupted"]),
   )).orderBy(desc(heartbeatRunEvents.seq)).limit(1);
@@ -91,17 +91,17 @@ export async function acknowledgedNativeApiStopExecutionHasStopped(db: Db, run: 
 
 /** A Stop acknowledgement alone does not prove provider cleanup completed. */
 export async function acknowledgedNativeStopExecutionHasStopped(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "nativeIssueId" | "status" | "resultJson" | "processPid" | "processGroupId">) {
+  "id" | "spaceId" | "nativeIssueId" | "status" | "resultJson" | "processPid" | "processGroupId">) {
   if (!isAcknowledgedNativeStop(run)) return false;
   const leases = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+    eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
   ));
   // Provider PIDs are meaningful only on their own host. A recovered sandbox
   // queued for destroy keeps its verified stop; the destroy is only cleanup.
   if (leases.some(lease => lease.provider !== "local"))
     return leases.every(lease => hasRemoteTerminationReceipt(lease) || hasRecoveredCleanupStopReceipt(lease));
   if (leases.some(lease => !lease.releasedAt || lease.cleanupStatus === "failed")) return false;
-  if (!run.processPid && !run.processGroupId) return hasNativeLocalProcessStop(db, run.companyId, run.id);
+  if (!run.processPid && !run.processGroupId) return hasNativeLocalProcessStop(db, run.spaceId, run.id);
   const absent = (pid: number) => {
     try { process.kill(pid, 0); return false; }
     catch (error) { return (error as NodeJS.ErrnoException).code === "ESRCH"; }

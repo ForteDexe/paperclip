@@ -20,7 +20,7 @@ test("extractImportSpecifiers recognizes supported TypeScript dependency forms",
 });
 
 test("scanModuleBoundaries rejects outward dependencies and module-internal imports", () => {
-  const serverSrc = mkdtempSync(join(tmpdir(), "paperclip-module-boundaries-"));
+  const serverSrc = mkdtempSync(join(tmpdir(), "outpost-module-boundaries-"));
   const modulesRoot = join(serverSrc, "modules");
 
   const write = (relativePath, source) => {
@@ -90,27 +90,27 @@ test("the repository's feature modules satisfy their import boundaries", () => {
   assert.deepEqual(scanModuleBoundaries(), []);
 });
 
-test("only the company deletion coordinator can import module deletion entry points", () => {
-  const serverSrc = mkdtempSync(join(tmpdir(), "paperclip-company-deletion-boundaries-"));
+test("only the space deletion coordinator can import module deletion entry points", () => {
+  const serverSrc = mkdtempSync(join(tmpdir(), "outpost-space-deletion-boundaries-"));
   const modulesRoot = join(serverSrc, "modules");
   try {
     mkdirSync(join(serverSrc, "services"));
     mkdirSync(join(serverSrc, "routes"));
-    const integration = 'import { deletion } from "../modules/example/company-deletion.js";';
-    writeFileSync(join(serverSrc, "services", "company-deletion.ts"), integration);
+    const integration = 'import { deletion } from "../modules/example/space-deletion.js";';
+    writeFileSync(join(serverSrc, "services", "space-deletion.ts"), integration);
     writeFileSync(join(serverSrc, "services", "other.ts"), integration);
-    writeFileSync(join(serverSrc, "routes", "companies.ts"), integration);
+    writeFileSync(join(serverSrc, "routes", "spaces.ts"), integration);
     const violations = scanModuleBoundaries({ serverSrc, modulesRoot });
     assert.equal(violations.length, 2);
     assert(violations.some(({ file }) => file.endsWith("services/other.ts")));
-    assert(violations.some(({ file }) => file.endsWith("routes/companies.ts")));
+    assert(violations.some(({ file }) => file.endsWith("routes/spaces.ts")));
   } finally {
     rmSync(serverSrc, { recursive: true, force: true });
   }
 });
 
 test("configuration integration is limited to its composition and workflow callers", () => {
-  const serverSrc = mkdtempSync(join(tmpdir(), "paperclip-configuration-boundaries-"));
+  const serverSrc = mkdtempSync(join(tmpdir(), "outpost-configuration-boundaries-"));
   const modulesRoot = join(serverSrc, "modules");
   try {
     mkdirSync(join(serverSrc, "services"));
@@ -131,7 +131,7 @@ test("configuration integration is limited to its composition and workflow calle
 });
 
 test("agent lifecycle adapters and entry point cannot depend on services", () => {
-  const serverSrc = mkdtempSync(join(tmpdir(), "paperclip-lifecycle-boundaries-"));
+  const serverSrc = mkdtempSync(join(tmpdir(), "outpost-lifecycle-boundaries-"));
   const modulesRoot = join(serverSrc, "modules");
   try {
     mkdirSync(join(modulesRoot, "agent-lifecycle", "adapters"), { recursive: true });

@@ -20,7 +20,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { ShellNav } from "../define-lab";
-import { COMPANY, TASKS } from "../fixtures";
+import { SPACE, TASKS } from "../fixtures";
 
 interface NavEntry {
   label: string;
@@ -92,9 +92,9 @@ function Sidebar({ active }: { active: ShellNav }) {
               className="flex size-5 shrink-0 items-center justify-center rounded-md text-(length:--text-micro) font-semibold text-white"
               style={{ background: "var(--status-task-done)" }}
             >
-              {COMPANY.name.charAt(0).toUpperCase()}
+              {SPACE.name.charAt(0).toUpperCase()}
             </span>
-            <span className="min-w-0 truncate text-sm font-bold text-foreground">{COMPANY.name}</span>
+            <span className="min-w-0 truncate text-sm font-bold text-foreground">{SPACE.name}</span>
           </span>
           <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
         </span>
@@ -127,7 +127,7 @@ function Sidebar({ active }: { active: ShellNav }) {
             <Avatar size="sm">
               <AvatarFallback>LA</AvatarFallback>
             </Avatar>
-            <span className="min-w-0 flex-1 truncate">lab@{COMPANY.name}.example</span>
+            <span className="min-w-0 flex-1 truncate">lab@{SPACE.name}.example</span>
           </span>
         </div>
       </div>

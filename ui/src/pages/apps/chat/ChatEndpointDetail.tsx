@@ -8,7 +8,7 @@ import { agentAvatarUrl } from "@/lib/agent-avatar-url";
 import { resolveAgentAppearance } from "@outpost/shared";
 import { SlackTestMessageButton } from "./SlackTestMessageButton";
 import { slackConversationUrl } from "./slack/conversation-url";
-import { useAccountIdentity } from "@/api/companies-query";
+import { useAccountIdentity } from "@/api/spaces-query";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { SlackSetupAdvanced } from "./SlackAppDetails";
 import { SlackToolsSettings, SlackSearchAccess } from "./SlackToolSettings";
@@ -143,7 +143,7 @@ const activityKindLabels: Record<ChatActivityItem["kind"], string> = {
 };
 
 const replayableFailureStates = new Set(["failed"]);
-// Provider callbacks do not necessarily emit a Board activity event. Refresh
+// Provider callbacks do not necessarily emit a Operator activity event. Refresh
 // only mounted operational views, and stop polling when the browser is hidden.
 const liveChatQueryOptions = {
   staleTime: 0,
@@ -279,7 +279,7 @@ export function ChatEndpointDetail() {
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const agentQuery = useQuery({
     queryKey: queryKeys.agents.detail(endpoint?.assignedAgentId ?? ""),
-    queryFn: () => agentsApi.get(endpoint!.assignedAgentId, endpoint!.companyId),
+    queryFn: () => agentsApi.get(endpoint!.assignedAgentId, endpoint!.spaceId),
     enabled: Boolean(endpoint?.assignedAgentId),
   });
 
@@ -320,7 +320,7 @@ export function ChatEndpointDetail() {
       />
     );
   if (endpoint.provider === "agentmail" && activeTab === "settings")
-    return <div className="space-y-7"><EmailEndpointSettings key={endpoint.id} endpointId={endpoint.id} companyId={endpoint.companyId} assignedAgentName={endpoint.assignedAgentName} /><EndpointExecutionDefaults endpoint={endpoint} /></div>;
+    return <div className="space-y-7"><EmailEndpointSettings key={endpoint.id} endpointId={endpoint.id} spaceId={endpoint.spaceId} assignedAgentName={endpoint.assignedAgentName} /><EndpointExecutionDefaults endpoint={endpoint} /></div>;
   const setupIncomplete =
     endpoint.setup?.step !== "complete" &&
     !(endpoint.provider === "slack" && endpoint.setup?.step === "test") &&
@@ -379,7 +379,7 @@ export function ChatEndpointDetail() {
         </div>
       </header>
       {endpoint.provider === "github" && <GitHubConnectionRecoveryNotice endpoint={endpoint} />}
-      {activeTab === "settings" && endpoint.provider === "speko" && endpoint.status === "active" && <div className="space-y-6"><SpekoPhoneCallback companyId={endpoint.companyId} endpointId={endpoint.id} /><SpekoPhoneLine companyId={endpoint.companyId} endpointId={endpoint.id} /><SpekoIncomingCalls companyId={endpoint.companyId} endpointId={endpoint.id} agentId={endpoint.assignedAgentId} /></div>}
+      {activeTab === "settings" && endpoint.provider === "speko" && endpoint.status === "active" && <div className="space-y-6"><SpekoPhoneCallback spaceId={endpoint.spaceId} endpointId={endpoint.id} /><SpekoPhoneLine spaceId={endpoint.spaceId} endpointId={endpoint.id} /><SpekoIncomingCalls spaceId={endpoint.spaceId} endpointId={endpoint.id} agentId={endpoint.assignedAgentId} /></div>}
       {endpoint.provider === "slack" && <SlackTestMessageButton key={endpoint.id} endpointId={endpoint.id} />}
       {endpoint.provider === "github" && <div hidden={activeTab !== "settings" && activeTab !== "access"}>
         <GitHubBotManagement key={endpoint.id} endpoint={endpoint} view={activeTab === "access" ? "access" : "settings"} />
@@ -429,7 +429,7 @@ function EndpointExecutionDefaults({ endpoint }: { endpoint: ChatEndpoint }) {
   const queryClient = useQueryClient();
   return <section className="max-w-3xl py-5"><ChatExecutionDefaults
     key={endpoint.id}
-    companyId={endpoint.companyId}
+    spaceId={endpoint.spaceId}
     value={endpoint.executionDefaults}
     onSave={async (executionDefaults) => {
       const next = await chatEndpointsApi.update(endpoint.id, { executionDefaults });
@@ -445,8 +445,8 @@ function EmailAccess({ endpoint }: { endpoint: ChatEndpoint }) {
     enabled: Boolean(endpoint.connectionId),
   });
   const agents = useQuery({
-    queryKey: queryKeys.agents.list(endpoint.companyId),
-    queryFn: () => agentsApi.list(endpoint.companyId),
+    queryKey: queryKeys.agents.list(endpoint.spaceId),
+    queryFn: () => agentsApi.list(endpoint.spaceId),
   });
   const agentsView = useQueryView(agents);
   const connectionView = useQueryView(connection);
@@ -467,7 +467,7 @@ function EmailAccess({ endpoint }: { endpoint: ChatEndpoint }) {
   return <section className="max-w-3xl space-y-4">
     <h2 className="text-lg font-semibold">Access</h2>
     {credentialId !== endpoint.connectionId && <p className="text-sm text-muted-foreground">These settings apply to the saved AgentMail account and all inboxes using it.</p>}
-    <EmailConnectionAccess key={credentialId} companyId={endpoint.companyId} connectionId={credentialId} agents={agents.data ?? []} />
+    <EmailConnectionAccess key={credentialId} spaceId={endpoint.spaceId} connectionId={credentialId} agents={agents.data ?? []} />
   </section>;
 }
 
@@ -584,7 +584,7 @@ function Settings({
               <details className="text-sm">
                 <summary className="cursor-pointer text-muted-foreground">Task defaults</summary>
                 <div className="pt-3"><ChatExecutionDefaults
-                  companyId={endpoint.companyId}
+                  spaceId={endpoint.spaceId}
                   value={resource.executionDefaults}
                   resource
                   onSave={async (executionDefaults) => {
@@ -650,7 +650,7 @@ function Settings({
           queryClient.setQueryData(queryKeys.chatEndpoints.detail(endpointId), next);
         }}
       />}
-      {endpoint.provider === "slack" && <SlackSetupAdvanced label="Slack tools"><SlackToolsSettings companyId={endpoint.companyId} endpointId={endpointId} /></SlackSetupAdvanced>}
+      {endpoint.provider === "slack" && <SlackSetupAdvanced label="Slack tools"><SlackToolsSettings spaceId={endpoint.spaceId} endpointId={endpointId} /></SlackSetupAdvanced>}
     </section>
   );
 }
@@ -786,12 +786,12 @@ function Access({
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <Avatar aria-hidden="true">
-                    {link.paperclipUserImage && <AvatarImage src={link.paperclipUserImage} alt="" />}
-                    <AvatarFallback>{deriveInitials(link.paperclipUserLabel ?? link.externalLabel)}</AvatarFallback>
+                    {link.outpostUserImage && <AvatarImage src={link.outpostUserImage} alt="" />}
+                    <AvatarFallback>{deriveInitials(link.outpostUserLabel ?? link.externalLabel)}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="truncate text-sm" title={link.paperclipUserLabel ?? link.externalLabel}>{link.paperclipUserLabel ?? link.externalLabel}</p>
-                    {(link.status !== "linked" || link.externalLabel !== link.paperclipUserLabel) && <p className="text-xs text-muted-foreground">
+                    <p className="truncate text-sm" title={link.outpostUserLabel ?? link.externalLabel}>{link.outpostUserLabel ?? link.externalLabel}</p>
+                    {(link.status !== "linked" || link.externalLabel !== link.outpostUserLabel) && <p className="text-xs text-muted-foreground">
                       {link.status === "revoked" ? "Disconnected" : link.status === "linked"
                         ? link.externalLabel
                         : "Waiting for account confirmation"}
@@ -828,7 +828,7 @@ function Access({
           detail="People without linked accounts can start isolated tasks. They cannot approve actions or manage access. Requests are refused when isolation is unavailable."
           checked={allowUnlinked} pending={updatePolicy.isPending} onChange={value => updatePolicy.mutate(value)} />
       </SlackSetupAdvanced>
-      {endpoint.provider === "slack" && <SlackSetupAdvanced label="Personal Slack search"><SlackSearchAccess companyId={endpoint.companyId} endpointId={endpointId} /></SlackSetupAdvanced>}
+      {endpoint.provider === "slack" && <SlackSetupAdvanced label="Personal Slack search"><SlackSearchAccess spaceId={endpoint.spaceId} endpointId={endpointId} /></SlackSetupAdvanced>}
     </section>
   );
 }
@@ -880,7 +880,7 @@ function Activity({
   });
   const view = useQueryView(query);
   const activityLoaded = view.kind === "ready" || view.kind === "stale";
-  const calls = useSpekoCallHistory(endpoint.companyId, endpointId, endpoint.provider === "speko" && !cursor);
+  const calls = useSpekoCallHistory(endpoint.spaceId, endpointId, endpoint.provider === "speko" && !cursor);
   const replay = useMutation({
     mutationFn: (item: ChatActivityItem) =>
       item.kind === "publication"
@@ -968,11 +968,11 @@ function Activity({
         : chatEndpointsApi.setup(endpointId, { action }),
     onSuccess: async (next, action) => {
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.chatEndpoints.list(next.companyId),
+        queryKey: queryKeys.chatEndpoints.list(next.spaceId),
       });
       if (endpoint.provider === "agentmail") {
         await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["email-inboxes", next.companyId] }),
+          queryClient.invalidateQueries({ queryKey: ["email-inboxes", next.spaceId] }),
           queryClient.invalidateQueries({ queryKey: queryKeys.chatEndpoints.detail(endpointId) }),
         ]);
       }

@@ -2,7 +2,7 @@
 
 ## Summary
 
-When an agent hands off work from Agent Chat, Paperclip will bring the finished result back to that conversation automatically. The original agent will write the update using the task’s recorded status and saved output.
+When an agent hands off work from Agent Chat, Outpost will bring the finished result back to that conversation automatically. The original agent will write the update using the task’s recorded status and saved output.
 
 Report tasks as they finish. Combine completions already waiting for the same reply. A `/new` reset suppresses updates from the previous conversation session.
 
@@ -14,7 +14,7 @@ This behavior applies to Agent Chat handoffs and the onboarding completion-updat
 
 **Record the handoff automatically.**
 
-- Add a durable, company-scoped handoff record linking the created task to the source conversation, its session generation, and its agent.
+- Add a durable, space-scoped handoff record linking the created task to the source conversation, its session generation, and its agent.
 - Capture it inside task creation using the authenticated creating run. Both native `create_task` and HTTP task creation already supply that context. Do not rely on the model to provide a source ID.
 - Keep execution tasks as ordinary project tasks. Do not turn the conversation into their parent or block it on their completion.
 - Preserve existing creation idempotency: replaying task creation must not create another handoff.
@@ -42,7 +42,7 @@ This behavior applies to Agent Chat handoffs and the onboarding completion-updat
 - Use leased claims and bounded retries following existing delivery conventions. Retain exhausted failures for diagnosis.
 - Check the conversation’s session generation before scheduling and publishing. Suppress old-session deliveries after `/new`.
 - Add `issue_children_completed` to the existing follow-up scheduling rule so onboarding completion cannot disappear into an active parent run. Refresh completion facts when that follow-up starts. Apply this scheduling change to onboarding flows; preserve existing scheduling for other handoffs.
-- Preserve company access, agent permissions, budgets, and pause controls. Result delivery must not broaden general access to other tasks.
+- Preserve space access, agent permissions, budgets, and pause controls. Result delivery must not broaden general access to other tasks.
 
 No new user-facing tool, notification settings, onboarding option, or UI component is required. Add the database migration and synchronized internal types; preserve existing public task-creation inputs.
 
@@ -56,7 +56,7 @@ Cover both task-creation paths and both completion paths, including:
 - Multiple pending completions combined without losing task identities.
 - Duplicate events, concurrent dispatchers, and restart recovery.
 - Crashes before dispatch and after reply persistence.
-- `/new`, task reopening, cross-company inputs, and paused agents.
+- `/new`, task reopening, cross-space inputs, and paused agents.
 - Onboarding child completion during an active parent turn.
 - Existing Agent Chat availability controls and unaffected behavior for other agent handoffs.
 

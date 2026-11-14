@@ -14,7 +14,7 @@ import {
   adapterExecutionTargetSessionIdentity,
   adapterExecutionTargetSessionMatches,
   adapterExecutionTargetUsesManagedHome,
-  adapterExecutionTargetUsesPaperclipBridge,
+  adapterExecutionTargetUsesOutpostBridge,
   describeAdapterExecutionTarget,
   ensureAdapterExecutionTargetCommandResolvable,
   ensureAdapterExecutionTargetRuntimeCommandInstalled,
@@ -25,7 +25,7 @@ import {
   resolveAdapterExecutionTargetTimeoutSec,
   resolveAdapterExecutionTargetCommandForLogs,
   runAdapterExecutionTargetProcess,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
 } from "@outpost/adapter-utils/execution-target";
 import {
   asString,
@@ -36,9 +36,9 @@ import {
   parseJson,
   applyOutpostWorkspaceEnv,
   buildOutpostEnv,
-  isPaperclipSkillSourceMissing,
-  readPaperclipRuntimeSkillEntries,
-  readPaperclipIssueWorkModeFromContext,
+  isOutpostSkillSourceMissing,
+  readOutpostRuntimeSkillEntries,
+  readOutpostIssueWorkModeFromContext,
   joinPromptSections,
   buildInvocationEnvForLogs,
   ensureAbsoluteDirectory,
@@ -49,8 +49,8 @@ import {
   renderTemplate,
   hydrateFreshSessionHandoff,
   selectInitialCommunicationGuidance,
-  selectPaperclipPromptSections,
-  isPaperclipRecoveryWakePayload,
+  selectOutpostPromptSections,
+  isOutpostRecoveryWakePayload,
   rewriteWorkspaceCwdEnvVarsForExecution,
   shapeOutpostWorkspaceEnvForExecution,
   DEFAULT_OUTPOST_AGENT_PROMPT_TEMPLATE,
@@ -86,7 +86,7 @@ import {
   resolveManagedClaudeRuntimeStateDir,
   resolveRemoteClaudeToolShellPrefixPath,
   resolveSharedClaudeConfigDir,
-  writePaperclipClaudeMcpConfig,
+  writeOutpostClaudeMcpConfig,
 } from "./claude-config.js";
 import {
   claudeCliVersionAtLeast,
@@ -180,7 +180,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   const onLog = input.onLog ?? (async () => {});
 
   const command = asString(config.command, "claude");
-  const workspaceContext = parseObject(context.paperclipWorkspace);
+  const workspaceContext = parseObject(context.outpostWorkspace);
   const workspaceCwd = asString(workspaceContext.cwd, "");
   const workspaceSource = asString(workspaceContext.source, "");
   const workspaceStrategy = asString(workspaceContext.strategy, "");
@@ -190,22 +190,22 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   const workspaceBranch = asString(workspaceContext.branchName, "") || null;
   const workspaceWorktreePath = asString(workspaceContext.worktreePath, "") || null;
   const agentHome = asString(workspaceContext.agentHome, "") || null;
-  const workspaceHints = Array.isArray(context.paperclipWorkspaces)
-    ? context.paperclipWorkspaces.filter(
+  const workspaceHints = Array.isArray(context.outpostWorkspaces)
+    ? context.outpostWorkspaces.filter(
         (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
       )
     : [];
-  const runtimeServiceIntents = Array.isArray(context.paperclipRuntimeServiceIntents)
-    ? context.paperclipRuntimeServiceIntents.filter(
+  const runtimeServiceIntents = Array.isArray(context.outpostRuntimeServiceIntents)
+    ? context.outpostRuntimeServiceIntents.filter(
         (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
       )
     : [];
-  const runtimeServices = Array.isArray(context.paperclipRuntimeServices)
-    ? context.paperclipRuntimeServices.filter(
+  const runtimeServices = Array.isArray(context.outpostRuntimeServices)
+    ? context.outpostRuntimeServices.filter(
         (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
       )
     : [];
-  const runtimePrimaryUrl = asString(context.paperclipRuntimePrimaryUrl, "");
+  const runtimePrimaryUrl = asString(context.outpostRuntimePrimaryUrl, "");
   const configuredCwd = asString(config.cwd, "");
   const useConfiguredInsteadOfAgentHome = workspaceSource === "agent_home" && configuredCwd.length > 0;
   const effectiveWorkspaceCwd = useConfiguredInsteadOfAgentHome ? "" : workspaceCwd;
@@ -248,7 +248,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   const linkedIssueIds = Array.isArray(context.issueIds)
     ? context.issueIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     : [];
-  const issueWorkMode = readPaperclipIssueWorkModeFromContext(context);
+  const issueWorkMode = readOutpostIssueWorkModeFromContext(context);
 
   if (wakeTaskId) {
     env.OUTPOST_TASK_ID = wakeTaskId;
@@ -304,7 +304,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
     if (typeof value !== "string") continue;
     // Runtime OUTPOST_* always wins over config, and OUTPOST_API_KEY is
     // never accepted from config — the harness-minted run token is the only
-    // source. Other OUTPOST_* keys Paperclip did not assign flow through.
+    // source. Other OUTPOST_* keys Outpost did not assign flow through.
     if (isForbiddenConfigEnvKey(key)) continue;
     if (isOutpostRuntimeEnvKey(key) && key in env) continue;
     env[key] = value;
@@ -445,15 +445,15 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const maxTurns = asNumber(config.maxTurnsPerRun, 0);
   const dangerouslySkipPermissions = asBoolean(config.dangerouslySkipPermissions, true);
   const configEnv = parseObject(config.env);
-  const workspaceContext = parseObject(context.paperclipWorkspace);
+  const workspaceContext = parseObject(context.outpostWorkspace);
   const workspaceCwd = asString(workspaceContext.cwd, "");
   const workspaceSource = asString(workspaceContext.source, "");
   const workspaceStrategy = asString(workspaceContext.strategy, "");
   const workspaceBranch = asString(workspaceContext.branchName, "") || null;
   const workspaceWorktreePath = asString(workspaceContext.worktreePath, "") || null;
   const agentHome = asString(workspaceContext.agentHome, "") || null;
-  const workspaceHints = Array.isArray(context.paperclipWorkspaces)
-    ? context.paperclipWorkspaces.filter(
+  const workspaceHints = Array.isArray(context.outpostWorkspaces)
+    ? context.outpostWorkspaces.filter(
         (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
       )
     : [];
@@ -508,7 +508,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const modelEnv = executionTargetIsRemote ? env : effectiveEnv;
   const model = resolveClaudeModel(config.model, modelEnv);
   const billingType = resolveClaudeBillingType(effectiveEnv);
-  const claudeSkillEntries = await readPaperclipRuntimeSkillEntries(config, __moduleDir);
+  const claudeSkillEntries = await readOutpostRuntimeSkillEntries(config, __moduleDir);
   const desiredSkillNames = new Set(resolveClaudeDesiredSkillNames(config, claudeSkillEntries));
   // Keep per-run working-copy paths out of the content-addressed system prompt.
   // Resumed sessions retain that prompt, so refresh the location on every turn.
@@ -533,7 +533,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       );
     }
   }
-  // Tell the model what the company library actually holds. Without this, an
+  // Tell the model what the space library actually holds. Without this, an
   // installed-but-not-enabled skill is indistinguishable from a nonexistent
   // one from inside the sandbox, and agents tell users freshly installed
   // skills "are not installed". Deterministic text appended to the
@@ -552,16 +552,16 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   // exist, so the bundle hasher would throw and fail the whole run over one
   // broken skill. Log each one instead so the cause lands in the run output.
   const desiredSkillEntries = claudeSkillEntries.filter((entry) => desiredSkillNames.has(entry.key));
-  const mountableSkillEntries = desiredSkillEntries.filter((entry) => !isPaperclipSkillSourceMissing(entry));
+  const mountableSkillEntries = desiredSkillEntries.filter((entry) => !isOutpostSkillSourceMissing(entry));
   for (const entry of desiredSkillEntries) {
-    if (!isPaperclipSkillSourceMissing(entry)) continue;
+    if (!isOutpostSkillSourceMissing(entry)) continue;
     await onLog(
       "stderr",
       `[outpost] Warning: skill "${entry.key}" is enabled for this agent but its files are unavailable and it was not mounted${entry.missingDetail ? `: ${entry.missingDetail}` : "."}\n`,
     );
   }
   const promptBundle = await prepareClaudePromptBundle({
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     skills: mountableSkillEntries,
     instructionsContents: combinedInstructionsContents,
     onLog,
@@ -572,10 +572,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   );
   const claudeRuntimeStateDir = resolveManagedClaudeRuntimeStateDir(
     process.env,
-    agent.companyId,
+    agent.spaceId,
     agent.id,
   );
-  const localMcpConfigPath = await writePaperclipClaudeMcpConfig({
+  const localMcpConfigPath = await writeOutpostClaudeMcpConfig({
     stateDir: claudeRuntimeStateDir,
     runId,
     servers: runtimeMcpServers,
@@ -621,7 +621,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     adapterExecutionTargetUsesManagedHome(executionTarget) &&
     (!hasExplicitClaudeConfigDir || Boolean(config.managedAiConnection));
   const claudeConfigSeedDir = useManagedRemoteClaudeConfig
-    ? config.managedAiConnection ? sharedClaudeConfigDir : await prepareClaudeConfigSeed(process.env, onLog, agent.companyId)
+    ? config.managedAiConnection ? sharedClaudeConfigDir : await prepareClaudeConfigSeed(process.env, onLog, agent.spaceId)
     : null;
   const preparedExecutionTargetRuntime = executionTargetIsRemote
     ? await (async () => {
@@ -686,7 +686,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     : null;
   const effectivePromptBundleAddDir = executionTargetIsRemote
     ? preparedExecutionTargetRuntime?.assetDirs.skills ??
-      path.posix.join(effectiveExecutionCwd, ".paperclip-runtime", "claude", "skills")
+      path.posix.join(effectiveExecutionCwd, ".outpost-runtime", "claude", "skills")
     : promptBundle.addDir;
   const effectiveInstructionsFilePath = promptBundle.instructionsFilePath
     ? executionTargetIsRemote
@@ -696,13 +696,13 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const effectiveMcpConfigPath = executionTargetIsRemote
     ? path.posix.join(
         preparedExecutionTargetRuntime?.assetDirs["mcp-config"] ??
-          path.posix.join(effectiveExecutionCwd, ".paperclip-runtime", "claude", "mcp-config"),
+          path.posix.join(effectiveExecutionCwd, ".outpost-runtime", "claude", "mcp-config"),
         path.basename(localMcpConfigPath),
       )
     : localMcpConfigPath;
   const remoteClaudeRuntimeRoot = executionTargetIsRemote
     ? preparedExecutionTargetRuntime?.runtimeRootDir ??
-      path.posix.join(effectiveExecutionCwd, ".paperclip-runtime", "claude")
+      path.posix.join(effectiveExecutionCwd, ".outpost-runtime", "claude")
     : null;
   const remoteClaudeConfigSeedDir = claudeConfigSeedDir && remoteClaudeRuntimeRoot
     ? preparedExecutionTargetRuntime?.assetDirs["config-seed"] ??
@@ -738,9 +738,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       loggedEnv.CLAUDE_CODE_SHELL_PREFIX = remoteToolShellPrefixPath;
     }
   }
-  let paperclipBridge: Awaited<ReturnType<typeof startAdapterExecutionTargetPaperclipBridge>> = null;
-  if (executionTargetIsRemote && adapterExecutionTargetUsesPaperclipBridge(runtimeExecutionTarget)) {
-    paperclipBridge = await startAdapterExecutionTargetPaperclipBridge({
+  let outpostBridge: Awaited<ReturnType<typeof startAdapterExecutionTargetOutpostBridge>> = null;
+  if (executionTargetIsRemote && adapterExecutionTargetUsesOutpostBridge(runtimeExecutionTarget)) {
+    outpostBridge = await startAdapterExecutionTargetOutpostBridge({
       runId,
       target: runtimeExecutionTarget,
       enableSandboxDuplexBridge: adapterExecutionTargetEnablesSandboxDuplexBridge(runtimeExecutionTarget),
@@ -751,8 +751,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       hostApiToken: env.OUTPOST_API_KEY,
       onLog,
     });
-    if (paperclipBridge) {
-      Object.assign(env, paperclipBridge.env);
+    if (outpostBridge) {
+      Object.assign(env, outpostBridge.env);
       const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
       loggedEnv = buildInvocationEnvForLogs(env, {
         runtimeEnv,
@@ -835,9 +835,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const bootstrapPromptTemplate = asString(config.bootstrapPromptTemplate, "");
   const templateData = {
     agentId: agent.id,
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     runId,
-    company: { id: agent.companyId },
+    space: { id: agent.spaceId },
     agent,
     run: { id: runId, source: "on_demand" },
     context,
@@ -903,15 +903,15 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       !resumeSessionId && bootstrapPromptTemplate.trim().length > 0
         ? renderTemplate(bootstrapPromptTemplate, templateData).trim()
         : "";
-    const { taskContextNote, wakePrompt } = selectPaperclipPromptSections(context, {
+    const { taskContextNote, wakePrompt } = selectOutpostPromptSections(context, {
       resumedSession: Boolean(resumeSessionId),
       includeCommunicationGuidance: false,
     });
     const shouldUseResumeDeltaPrompt = Boolean(resumeSessionId) && wakePrompt.length > 0;
-    const renderedPrompt = shouldUseResumeDeltaPrompt || isPaperclipRecoveryWakePayload(context.paperclipWake)
+    const renderedPrompt = shouldUseResumeDeltaPrompt || isOutpostRecoveryWakePayload(context.outpostWake)
       ? ""
       : renderTemplate(promptTemplate, templateData);
-    const sessionHandoffNote = asString(context.paperclipSessionHandoffMarkdown, "").trim();
+    const sessionHandoffNote = asString(context.outpostSessionHandoffMarkdown, "").trim();
     const prompt = joinPromptSections([
       instructionsPathDirective,
       renderedBootstrapPrompt,
@@ -982,8 +982,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       onSpawn,
       onRuntimeProgress: ctx.onRuntimeProgress,
       onLog: accountingLog,
-      runLogTail: paperclipBridge?.runLogTail,
-      settleRunDisposition: paperclipBridge?.settleRunDisposition,
+      runLogTail: outpostBridge?.runLogTail,
+      settleRunDisposition: outpostBridge?.settleRunDisposition,
       terminalResultCleanup: {
         graceMs: terminalResultCleanupGraceMs,
         hasTerminalResult: ({ stdout }) => parseClaudeStreamJson(stdout).resultJson !== null,
@@ -1151,7 +1151,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     const poisonedPreviousMessageId = isClaudePoisonedPreviousMessageIdError(parsed);
     // Fable 5 policy refusals exit cleanly (exitCode=0, is_error=false), so this
     // is intentionally independent of `failed` — otherwise a refusal looks like a
-    // successful run to Paperclip and the heartbeat stalls silently. See RY-604.
+    // successful run to Outpost and the heartbeat stalls silently. See RY-604.
     const claudeRefusal = isClaudeRefusalResult(parsed);
     const parsedIsError = asBoolean(parsed.is_error, false);
     const parsedSubtype = asString(parsed.subtype, "").trim().toLowerCase();
@@ -1430,8 +1430,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     try {
       await providerStop.collectBeforeRestore();
     } finally {
-      if (paperclipBridge) {
-        await paperclipBridge.stop();
+      if (outpostBridge) {
+        await outpostBridge.stop();
       }
       if (restoreRemoteWorkspace) {
         await onLog(

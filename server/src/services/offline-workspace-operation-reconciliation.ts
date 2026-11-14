@@ -8,7 +8,7 @@ import { tryLockNativeWorkspaceFinalization } from "./native-runtime/native-work
 
 type Candidate = typeof workspaceOperations.$inferSelect;
 type Held = { operationId: string; reason: string };
-type ReconciliationInput = { mode: "offline" | "online"; writersStopped: boolean; signal: AbortSignal; companyId?: string };
+type ReconciliationInput = { mode: "offline" | "online"; writersStopped: boolean; signal: AbortSignal; spaceId?: string };
 const unresolved = () => inArray(workspaceOperations.status, ["running", "pending"]);
 const localMigrationSource = () => and(isNotNull(executionWorkspaces.cwd),
   inArray(executionWorkspaces.providerType, ["local_fs", "git_worktree"]),
@@ -38,16 +38,16 @@ async function reconcileAttempt(db: Db, candidate: Candidate, input: Reconciliat
       const database = tx as unknown as Db;
       input.signal.throwIfAborted();
       if (input.mode === "offline") await assertOffline(database, input.writersStopped);
-      if (!await tryLockNativeWorkspaceFinalization(database, { companyId: candidate.companyId, runId }))
+      if (!await tryLockNativeWorkspaceFinalization(database, { spaceId: candidate.spaceId, runId }))
         return held("finalization_owner_busy");
       // Follow the finalizer's coordinator-before-run order. NOWAIT keeps an
       // unexpected surviving writer visible instead of waiting or stealing it.
       const [coordinator] = await tx.select().from(nativeRunFinalizations).where(and(
-        eq(nativeRunFinalizations.companyId, candidate.companyId), eq(nativeRunFinalizations.issueId, issueId),
+        eq(nativeRunFinalizations.spaceId, candidate.spaceId), eq(nativeRunFinalizations.issueId, issueId),
         eq(nativeRunFinalizations.runId, runId),
       )).for("update", { noWait: true });
       const [run] = await tx.select().from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, candidate.companyId), eq(heartbeatRuns.id, runId), eq(heartbeatRuns.nativeIssueId, issueId),
+        eq(heartbeatRuns.spaceId, candidate.spaceId), eq(heartbeatRuns.id, runId), eq(heartbeatRuns.nativeIssueId, issueId),
       )).for("update", { noWait: true });
       if (!run || run.runtimeMode !== "native" || run.status !== "succeeded"
         || (run.controllerLeaseExpiresAt && run.controllerLeaseExpiresAt > new Date())
@@ -59,17 +59,17 @@ async function reconcileAttempt(db: Db, candidate: Candidate, input: Reconciliat
       if (!reference || reference.state !== "finalized" || !reference.finalHostSha256 || reference.workspaceId !== workspaceId)
         return held("finalized_workspace_proof_missing");
       const [workspace] = await tx.select({ id: executionWorkspaces.id }).from(executionWorkspaces).where(and(
-        eq(executionWorkspaces.companyId, candidate.companyId), eq(executionWorkspaces.id, workspaceId), localMigrationSource(),
+        eq(executionWorkspaces.spaceId, candidate.spaceId), eq(executionWorkspaces.id, workspaceId), localMigrationSource(),
       )).for("share", { noWait: true });
       if (!workspace) return held("workspace_authority_changed");
       const [result] = await tx.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-        eq(nativeRunResults.companyId, candidate.companyId), eq(nativeRunResults.issueId, issueId),
+        eq(nativeRunResults.spaceId, candidate.spaceId), eq(nativeRunResults.issueId, issueId),
         eq(nativeRunResults.runId, runId), eq(nativeRunResults.id, coordinator.resultId),
         eq(nativeRunResults.completionContractId, run.completionContractId!), eq(nativeRunResults.schemaStatus, "accepted"),
       )).for("share", { noWait: true });
       if (!result) return held("accepted_result_proof_missing");
       const [current] = await tx.select().from(workspaceOperations).where(and(
-        eq(workspaceOperations.id, candidate.id), eq(workspaceOperations.companyId, candidate.companyId),
+        eq(workspaceOperations.id, candidate.id), eq(workspaceOperations.spaceId, candidate.spaceId),
         eq(workspaceOperations.executionWorkspaceId, workspaceId), eq(workspaceOperations.issueId, issueId),
         eq(workspaceOperations.heartbeatRunId, runId), eq(workspaceOperations.phase, "workspace_finalize"), unresolved(),
       )).for("update", { noWait: true });
@@ -81,7 +81,7 @@ async function reconcileAttempt(db: Db, candidate: Candidate, input: Reconciliat
         || current.metadata?.onlineReconciliation != null)
         return held("independent_operation_obligation");
       const [receipt] = await tx.select().from(workspaceOperations).where(and(
-        eq(workspaceOperations.companyId, candidate.companyId), eq(workspaceOperations.executionWorkspaceId, workspaceId),
+        eq(workspaceOperations.spaceId, candidate.spaceId), eq(workspaceOperations.executionWorkspaceId, workspaceId),
         eq(workspaceOperations.issueId, issueId), eq(workspaceOperations.heartbeatRunId, runId),
         eq(workspaceOperations.phase, "workspace_finalize"), eq(workspaceOperations.status, "succeeded"),
         isNotNull(workspaceOperations.finishedAt),
@@ -100,9 +100,9 @@ async function reconcileAttempt(db: Db, candidate: Candidate, input: Reconciliat
         descriptorSha256: reference.descriptorSha256, finalHostSha256: reference.finalHostSha256 };
       await tx.update(workspaceOperations).set({ status: "failed", finishedAt: now, updatedAt: now,
         metadata: { ...current.metadata, [input.mode === "offline" ? "offlineReconciliation" : "onlineReconciliation"]: provenance } }).where(and(
-        eq(workspaceOperations.id, current.id), eq(workspaceOperations.companyId, current.companyId), unresolved(),
+        eq(workspaceOperations.id, current.id), eq(workspaceOperations.spaceId, current.spaceId), unresolved(),
       ));
-      const activity = await persistActivity(database, { companyId: current.companyId, actorType: "system",
+      const activity = await persistActivity(database, { spaceId: current.spaceId, actorType: "system",
         actorId: input.mode === "offline" ? "ephemeral-migration" : "legacy-workspace-preservation",
         action: "workspace_operation.reconciled", entityType: "workspace_operation", entityId: current.id,
         runId, issueId, details: provenance });
@@ -124,9 +124,9 @@ async function reconcileWorkspaceOperations(db: Db, input: ReconciliationInput) 
   for (;;) {
     input.signal.throwIfAborted();
     const rows = await db.select({ operation: workspaceOperations }).from(workspaceOperations).innerJoin(executionWorkspaces, and(
-      eq(executionWorkspaces.companyId, workspaceOperations.companyId), eq(executionWorkspaces.id, workspaceOperations.executionWorkspaceId),
+      eq(executionWorkspaces.spaceId, workspaceOperations.spaceId), eq(executionWorkspaces.id, workspaceOperations.executionWorkspaceId),
     )).where(and(unresolved(), localMigrationSource(),
-      input.companyId ? eq(workspaceOperations.companyId, input.companyId) : undefined,
+      input.spaceId ? eq(workspaceOperations.spaceId, input.spaceId) : undefined,
       after ? gt(workspaceOperations.id, after) : undefined,
     )).orderBy(asc(workspaceOperations.id)).limit(100);
     if (!rows.length) return { inspected, reconciled, held };
@@ -144,14 +144,14 @@ async function reconcileWorkspaceOperations(db: Db, input: ReconciliationInput) 
  * worker deployments. This never executes workspace work, declares success,
  * clears execution authority, or retires a recovery/source obligation. */
 export async function reconcileOfflineWorkspaceOperations(db: Db, input: {
-  writersStopped: boolean; signal: AbortSignal; companyId?: string;
+  writersStopped: boolean; signal: AbortSignal; spaceId?: string;
 }) {
   return reconcileWorkspaceOperations(db, { ...input, mode: "offline" });
 }
 
 export async function reconcileOnlineWorkspaceOperations(db: Db, input: {
-  companyId: string; signal: AbortSignal;
+  spaceId: string; signal: AbortSignal;
 }) {
-  if (!input.companyId) throw new Error("online_reconciliation_company_required");
+  if (!input.spaceId) throw new Error("online_reconciliation_space_required");
   return reconcileWorkspaceOperations(db, { ...input, mode: "online", writersStopped: false });
 }

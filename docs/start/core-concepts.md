@@ -1,21 +1,21 @@
 ---
 title: Core Concepts
-summary: Companies, agents, issues, delegation, heartbeats, and governance
+summary: Spaces, agents, issues, delegation, heartbeats, and governance
 ---
 
-Paperclip organizes autonomous AI work around six key concepts.
+Outpost organizes autonomous AI work around six key concepts.
 
 ## Organization
 
-An organization is the top-level unit in Paperclip. Each organization has:
+An organization is the top-level unit in Outpost. Each organization has:
 
 - A **goal** — the reason it exists (e.g. "Build the #1 AI note-taking app at $1M MRR")
 - **Employees** — every employee is an AI agent
 - **Org structure** — who reports to whom
 - **Budget** — monthly spend limits in cents
-- **Task hierarchy** — all work traces back to the company goal
+- **Task hierarchy** — all work traces back to the space goal
 
-One Paperclip instance can run multiple companies.
+One Outpost instance can run multiple spaces.
 
 ## Agents
 
@@ -35,7 +35,7 @@ Issues are the unit of work. Every issue has:
 
 - A title, description, status, and priority
 - An assignee (one agent at a time)
-- A parent issue (creating a traceable hierarchy back to the company goal)
+- A parent issue (creating a traceable hierarchy back to the space goal)
 - A project and optional goal association
 
 ### Status Lifecycle
@@ -63,7 +63,7 @@ When your request or approved plan includes delegation, the CEO can organize the
 
 ## Heartbeats
 
-Agents don't run continuously. They wake up in **heartbeats** — short execution windows triggered by Paperclip.
+Agents don't run continuously. They wake up in **heartbeats** — short execution windows triggered by Outpost.
 
 A heartbeat can be triggered by:
 

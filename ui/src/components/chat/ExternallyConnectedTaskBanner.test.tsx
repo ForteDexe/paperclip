@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { IssueAttachment } from "@outpost/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExternallyConnectedTaskBanner } from "./ExternallyConnectedTaskBanner";
-import { boardSendDraftKey, readBoardSendDraft } from "./board-send-draft";
+import { operatorSendDraftKey, readBoardSendDraft } from "./operator-send-draft";
 import { ApiError } from "@/api/client";
 import { queryKeys } from "@/lib/queryKeys";
 const mockSession = vi.hoisted(() => ({ userId: "user-1" }));
@@ -123,7 +123,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
         <QueryClientProvider client={queryClient}>
           <ExternallyConnectedTaskBanner
             attachments={attachments}
-            companyId="company-1"
+            spaceId="space-1"
             issueId="issue-1"
             issueCacheRefs={issueCacheRefs}
           />
@@ -134,10 +134,10 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     return queryClient;
   }
 
-  async function composeAndSubmit(value = "Visible board update") {
+  async function composeAndSubmit(value = "Visible operator update") {
     await act(() => findButton(container, "Send to channel").click());
     const textarea = container.querySelector("textarea");
-    if (!textarea) throw new Error("Board update textarea missing");
+    if (!textarea) throw new Error("Operator update textarea missing");
     await act(() => setTextareaValue(textarea, value));
     await act(() => {
       const sendButtons = [...container.querySelectorAll("button")].filter(
@@ -159,7 +159,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
       endpointId: "endpoint-1",
       provider: "slack",
       botLabel: "Maya",
-      externalLabel: "#paperclip",
+      externalLabel: "#outpost",
       externalUrl: "https://example.slack.com/archives/channel-1",
       conversationId: "conversation-1",
       publicationState: null,
@@ -233,7 +233,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
   });
 
   it("does not reveal or replay an older retained send without a known owner", async () => {
-    const key = boardSendDraftKey("company-1", "issue-1", "endpoint-1", "conversation-1");
+    const key = operatorSendDraftKey("space-1", "issue-1", "endpoint-1", "conversation-1");
     const saved = JSON.stringify({ body: "Unowned private message", attachmentIds: [], idempotencyKey: "legacy-request-key-1", publication: null });
     sessionStorage.setItem(key, saved);
     await renderBanner();
@@ -246,7 +246,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
   });
 
   it.each([false, true])("can explicitly discard an unowned receipt without replaying its message (storage failure=%s)", async (storageFailure) => {
-    const key = boardSendDraftKey("company-1", "issue-1", "endpoint-1", "conversation-1");
+    const key = operatorSendDraftKey("space-1", "issue-1", "endpoint-1", "conversation-1");
     const saved = JSON.stringify({ body: "Unowned private message", attachmentIds: [], idempotencyKey: "legacy-request-key-1", publication: null });
     sessionStorage.setItem(key, saved);
     await renderBanner();
@@ -314,13 +314,13 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     expect(mockChatEndpointsApi.publishBoardMessage).toHaveBeenCalledWith(
       "endpoint-1",
       "conversation-1",
-      "Visible board update",
+      "Visible operator update",
       expect.any(String),
       [],
     );
     expect(pushToastMock).toHaveBeenCalledWith({
       title: "Sent to channel",
-      body: "The board update was published to the connected conversation.",
+      body: "The operator update was published to the connected conversation.",
       tone: "success",
     });
     expect(container.querySelector("textarea")).toBeNull();
@@ -334,7 +334,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     });
     const attachment = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       issueCommentId: null,
       assetId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -368,7 +368,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     if (!checkbox) throw new Error("Attachment checkbox missing");
     await act(() => (checkbox as HTMLButtonElement).click());
     const textarea = container.querySelector("textarea");
-    if (!textarea) throw new Error("Board update textarea missing");
+    if (!textarea) throw new Error("Operator update textarea missing");
     await act(() => setTextareaValue(textarea, "Send the requested file."));
     await act(() => {
       const sendButtons = [...container.querySelectorAll("button")].filter(
@@ -423,7 +423,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     });
     await flushReact();
     expect(uploadAttachmentMock).toHaveBeenCalledWith(
-      "company-1",
+      "space-1",
       "issue-1",
       file,
     );
@@ -435,7 +435,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     expect(mockChatEndpointsApi.publishBoardMessage).not.toHaveBeenCalled();
     finishUpload({
       id: "uploaded-image",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       issueCommentId: null,
       originalFilename: "cat.png",
@@ -462,8 +462,8 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     expect(findButton(container, "Attach file").disabled).toBe(true);
     expect(
       readBoardSendDraft(
-        boardSendDraftKey(
-          "company-1",
+        operatorSendDraftKey(
+          "space-1",
           "issue-1",
           "endpoint-1",
           "conversation-1",
@@ -525,7 +525,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
       input!.dispatchEvent(new Event("change", { bubbles: true }));
     });
     await flushReact();
-    queryClient.setQueryData(["issue-chat-binding", "company-1", "issue-1"], {
+    queryClient.setQueryData(["issue-chat-binding", "space-1", "issue-1"], {
       endpointId: "endpoint-2",
       conversationId: "conversation-2",
       provider: "slack",
@@ -536,7 +536,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     await act(() => findButton(container, "Send to channel").click());
     finishUpload({
       id: "old-upload",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       issueCommentId: null,
       originalFilename: "old.txt",
@@ -555,7 +555,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     async (finalState) => {
       const attachment = {
         id: "file-selected",
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         issueCommentId: null,
         assetId: "asset-selected",
@@ -566,7 +566,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
         sha256: "a".repeat(64),
         originalFilename: "selected.txt",
         createdByAgentId: null,
-        createdByUserId: "board",
+        createdByUserId: "operator",
         createdAt: new Date(),
         updatedAt: new Date(),
         contentPath: "/api/attachments/file-selected/content",
@@ -605,7 +605,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
           ?.click(),
       );
       await flushReact();
-      const bound = { ...attachment, issueCommentId: "board-comment" };
+      const bound = { ...attachment, issueCommentId: "operator-comment" };
       await renderBanner([bound, internalOnly], undefined, queryClient);
       const assertRetainedFiles = () => {
         expect(container.textContent).toContain("Files in this send");
@@ -681,7 +681,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
       "text-part",
     );
     expect(container.querySelector("textarea")?.value).toBe(
-      "Visible board update",
+      "Visible operator update",
     );
     expect(container.textContent).toContain("Queued for channel");
     mockChatEndpointsApi.getPublicationBatchStatus.mockResolvedValue({
@@ -719,7 +719,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
       "Delivery status could not be refreshed",
     );
     expect(container.querySelector("textarea")?.value).toBe(
-      "Visible board update",
+      "Visible operator update",
     );
     expect(container.querySelector("textarea")?.disabled).toBe(true);
     expect(invalidated).toHaveBeenCalledWith({
@@ -753,7 +753,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
       });
       const attachment = {
         id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         issueCommentId: null,
         assetId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -779,7 +779,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
           "GitHub Apps cannot upload file bytes in comments.",
         );
         expect(container.textContent).toContain(
-          "GitHub receives an authenticated task link when this Board has a public URL, or a private-task notice otherwise.",
+          "GitHub receives an authenticated task link when this Operator has a public URL, or a private-task notice otherwise.",
         );
       } else {
         expect(container.textContent).toContain(
@@ -819,7 +819,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
       await composeAndSubmit();
 
       const textarea = container.querySelector("textarea");
-      expect(textarea?.value).toBe("Visible board update");
+      expect(textarea?.value).toBe("Visible operator update");
       expect(textarea?.disabled).toBe(true);
       expect(container.textContent).toContain(title);
       expect(
@@ -852,7 +852,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     await composeAndSubmit();
 
     const retainedDraft = container.querySelector("textarea");
-    expect(retainedDraft?.value).toBe("Visible board update");
+    expect(retainedDraft?.value).toBe("Visible operator update");
     expect(retainedDraft?.disabled).toBe(true);
     expect(container.textContent).toContain("Delivery result not confirmed");
     expect(findButton(container, "Retry safely")).not.toBeNull();
@@ -872,7 +872,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
   it("keeps a request-scoped durable rejection through reload and allows an explicit corrected send", async () => {
     const file = {
       id: "bound-file",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       issueCommentId: null,
       originalFilename: "report.txt",
@@ -1057,7 +1057,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
       ),
     );
     await renderBanner(
-      [{ ...file, issueCommentId: "saved-board-comment" }],
+      [{ ...file, issueCommentId: "saved-operator-comment" }],
       undefined,
       queryClient,
     );
@@ -1091,7 +1091,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     await composeAndSubmit();
 
     const retainedDraft = container.querySelector("textarea");
-    expect(retainedDraft?.value).toBe("Visible board update");
+    expect(retainedDraft?.value).toBe("Visible operator update");
     expect(retainedDraft?.disabled).toBe(true);
 
     expect(container.textContent).not.toContain("Start a new send");
@@ -1214,8 +1214,8 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
         expect(container.querySelector("textarea")?.disabled).toBe(false);
         expect(
           readBoardSendDraft(
-            boardSendDraftKey(
-              "company-1",
+            operatorSendDraftKey(
+              "space-1",
               "issue-1",
               "endpoint-1",
               "conversation-1",
@@ -1265,12 +1265,12 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
       attempts: 1,
     });
     await renderBanner();
-    await composeAndSubmit("Reload-safe board send");
+    await composeAndSubmit("Reload-safe operator send");
     flushSync(() => root.unmount());
     root = createRoot(container);
     await renderBanner();
     expect(container.querySelector("textarea")?.value).toBe(
-      "Reload-safe board send",
+      "Reload-safe operator send",
     );
     expect(container.querySelector("textarea")?.disabled).toBe(true);
     expect(
@@ -1342,7 +1342,7 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
       "Delivery result not confirmed",
     );
     const originalCall = mockChatEndpointsApi.publishBoardMessage.mock.calls[0];
-    queryClient.setQueryData(["issue-chat-binding", "company-1", "issue-1"], {
+    queryClient.setQueryData(["issue-chat-binding", "space-1", "issue-1"], {
       endpointId: "endpoint-2",
       conversationId: "conversation-2",
       provider: "slack",
@@ -1364,8 +1364,8 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     ).not.toHaveBeenCalledWith("endpoint-2", "conversation-2", "old-anchor");
     expect(
       readBoardSendDraft(
-        boardSendDraftKey(
-          "company-1",
+        operatorSendDraftKey(
+          "space-1",
           "issue-1",
           "endpoint-1",
           "conversation-1",
@@ -1379,8 +1379,8 @@ describe("ExternallyConnectedTaskBanner publication truth", () => {
     });
     expect(
       readBoardSendDraft(
-        boardSendDraftKey(
-          "company-1",
+        operatorSendDraftKey(
+          "space-1",
           "issue-1",
           "endpoint-2",
           "conversation-2",

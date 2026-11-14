@@ -54,7 +54,7 @@ import { isAcpPromptRequest, type AcpxTurnDispatchJournal } from "./turn-dispatc
 import { assertCopilotPromptPolicy, createCopilotPolicyEnforcement, type CopilotPolicyEnforcement } from "./copilot-policy.js";
 import { acpxElicitationHandler, createAcpxPermissionReplyConfirmations, withReturnedResponseDelivery, type AcpxHostExtensionRequestHandler, type AcpxHostPermissionHandler } from "./interaction-delivery.js";
 
-const VERIFIED_COMMAND_SENTINEL = "paperclip-verified-acpx-command";
+const VERIFIED_COMMAND_SENTINEL = "outpost-verified-acpx-command";
 const DEFAULT_RUNTIME_CLOSE_TIMEOUT_MS = 2_000;
 const MAX_ADMISSION_CLEANUP_RETRY_ATTEMPTS = 3;
 const MAX_ADMISSION_CLEANUP_ATTEMPTS = 1 + MAX_ADMISSION_CLEANUP_RETRY_ATTEMPTS;
@@ -199,7 +199,7 @@ export interface QualifiedAcpxRuntimeDependencies {
 export type CodexAcpxRuntimeDependencies = QualifiedAcpxRuntimeDependencies;
 
 /**
- * Adapt the pinned ACPX library to Paperclip's admitted runtime port. The
+ * Adapt the pinned ACPX library to Outpost's admitted runtime port. The
  * executable, launch environment, and spawn cwd stay host-owned and are never
  * persisted in ACPX's session options.
  */
@@ -348,7 +348,7 @@ export async function openQualifiedAcpxRuntime(
     if (capability) goalState.capability = capability;
     // Only the runner-owned Pi wrapper has an admitted steering contract.
     // Never infer it from generic ACP prompt support or native-only features.
-    const pi = objectRecord(objectRecord(objectRecord(objectRecord(result).agentCapabilities)._meta).paperclipPi);
+    const pi = objectRecord(objectRecord(objectRecord(objectRecord(result).agentCapabilities)._meta).outpostPi);
     extensionBoundary.steering = options.profile.agent === "pi" && pi.version === 1
       ? { steering: pi.steering === true, queuedFollowUp: pi.queuedFollowUp === true }
       : null;
@@ -437,7 +437,7 @@ export async function openQualifiedAcpxRuntime(
           // This URL comes from the runner-owned authenticated tool bridge,
           // never provider-supplied permission-request metadata.
           OUTPOST_ACPX_TASK_TOOL_BRIDGE_URL: options.mcpServers.find(
-            (server): server is Extract<typeof server, { url: string }> => "url" in server && server.runnerOwned && server.name === "paperclip",
+            (server): server is Extract<typeof server, { url: string }> => "url" in server && server.runnerOwned && server.name === "outpost",
           )?.url ?? "",
         }
       : {}),
@@ -461,12 +461,12 @@ export async function openQualifiedAcpxRuntime(
       // Preserve Claude's ACP capability identity. This is metadata only: the
       // spawn callback below always launches the verified command lease.
       overrides: { [options.profile.agent]: options.profile.agent === "grok"
-        ? ["/paperclip-verified/grok", "agent", "stdio"]
-        : [options.profile.agent === "claude" ? "/paperclip-verified/claude-agent-acp" : VERIFIED_COMMAND_SENTINEL] },
+        ? ["/outpost-verified/grok", "agent", "stdio"]
+        : [options.profile.agent === "claude" ? "/outpost-verified/claude-agent-acp" : VERIFIED_COMMAND_SENTINEL] },
     }),
-    // ACPX does not know the Paperclip-specific mode. Exact SDK rules allow
+    // ACPX does not know the Outpost-specific mode. Exact SDK rules allow
     // admitted actions; all remaining requests keep its closed read policy.
-    permissionMode: options.permissionMode === "approve-paperclip"
+    permissionMode: options.permissionMode === "approve-outpost"
       ? "approve-reads"
       : options.permissionMode,
     elicitationModes: ["form"],
@@ -531,7 +531,7 @@ export async function openQualifiedAcpxRuntime(
       if (options.profile.agent === "claude") {
         const plan = claudeExitPlanModeProposal(request);
         if (plan !== null) {
-          // Paperclip owns plan approval. Record the proposal for the issue's
+          // Outpost owns plan approval. Record the proposal for the issue's
           // Plan document and approval gate, then decline Claude's native
           // "Ready to code?" prompt so the turn ends without implementing.
           extensionBoundary.active?.onPlanProposal?.(plan);
@@ -2450,7 +2450,7 @@ function requireIdentity(handle: AcpRuntimeHandle): AcpxRuntimePortIdentity {
     backendSessionId,
     // ACPX agents do not all advertise a distinct native thread identity.
     // In that case the backend ID is the real ACP protocol session, so retain
-    // it explicitly rather than inventing a Paperclip-owned identifier.
+    // it explicitly rather than inventing a Outpost-owned identifier.
     agentSessionId:
       nonEmptyRuntimeIdentity(handle.agentSessionId) ?? backendSessionId,
   };
@@ -2484,7 +2484,7 @@ function typedTerminalTurnResult(
 
 const GOAL_CAPABILITY_META_KEY = "outpost.goalCapability";
 
-/** Store the agent's goal capability under a Paperclip key ACPX persists verbatim. */
+/** Store the agent's goal capability under a Outpost key ACPX persists verbatim. */
 function withPersistedGoalCapability(
   record: AcpSessionRecord,
   capability: AcpxRuntimeGoalCapability | null | undefined,
@@ -2502,7 +2502,7 @@ function withPersistedGoalCapability(
 }
 
 /**
- * ACPX 0.13.1 with Paperclip's patch saved an agent's goal support as the
+ * ACPX 0.13.1 with Outpost's patch saved an agent's goal support as the
  * record field `agent_goal_capability`. ACPX 0.22 drops unknown fields when it
  * parses a record, so read that field from the saved file itself.
  */

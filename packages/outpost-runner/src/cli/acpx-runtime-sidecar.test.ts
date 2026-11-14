@@ -387,7 +387,7 @@ describe("qualified ACPX runtime sidecar", () => {
     const receipt = appendSemanticToolReceipt({ tool: "get_task_context", callId: "1", arguments: {} }, { content: [{ type: "text", text: "{}" }] }).receipt;
     captured(receipt);
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ payload: { category: "paperclip_semantic_tool_receipt_v2", provenance: { sessionId: "session-a", turnId: "turn-a" } } });
+    expect(events[0]).toMatchObject({ payload: { category: "outpost_semantic_tool_receipt_v2", provenance: { sessionId: "session-a", turnId: "turn-a" } } });
     active = false; captured(receipt); expect(events).toHaveLength(1);
     for (const agent of ["cursor", "codex", "pi"]) expect(create({ agent, tools: [] }, evidence, () => undefined).captureSemanticReceipt).toBeUndefined();
   });
@@ -442,10 +442,10 @@ describe("qualified ACPX runtime sidecar", () => {
     try {
       projector.tool({ type: "tool_call", tag: "tool_call", toolCallId: "native-call", kind: "other", status: "pending", rawInput: raw });
       const response = fetch(bridge.url, { method: "POST", headers: { Authorization: `Bearer ${bridge.secret}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "paperclip_finish", arguments: raw } }) });
+        body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "outpost_finish", arguments: raw } }) });
       if (mode === "forwarded") {
         await vi.waitFor(() => expect(tools.has("3")).toBe(true));
-        expect(emitted).toEqual([{ callId: "3", operationId: "paperclip_finish", input: validated.result }]);
+        expect(emitted).toEqual([{ callId: "3", operationId: "outpost_finish", input: validated.result }]);
         // The receipt hashes the actual emitted input, not a second normalization.
         await loadActualToolCommands(tools).resolve({ callId: "3", turnId: "test-turn", result: { accepted: true }, error: null });
       }
@@ -460,7 +460,7 @@ describe("qualified ACPX runtime sidecar", () => {
       const details = Object.fromEntries(notices.at(-1).payload.details.map((d: any) => [d.name, d.value]));
       expect(details).toMatchObject({ semanticInputSha256: semanticInputSha256(raw),
         semanticNormalizedInputSha256: mode === "forwarded" ? semanticInputSha256(emitted[0].input) : "null" });
-      expect(notices.find(event => event.payload.category === "paperclip_semantic_tool_receipt_v2").payload.details).toHaveLength(8);
+      expect(notices.find(event => event.payload.category === "outpost_semantic_tool_receipt_v2").payload.details).toHaveLength(8);
     } finally {
       for (const pending of tools.values()) pending.cleanup();
       await bridge.close();
@@ -479,9 +479,9 @@ describe("qualified ACPX runtime sidecar", () => {
     const bridge = await startRunnerToolBridge({ handler, captureSemanticReceipt: () => () => {} });
     try {
       const response = fetch(bridge.url, { method: "POST", headers: { Authorization: `Bearer ${bridge.secret}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "paperclip_finish", arguments: raw } }) });
+        body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "outpost_finish", arguments: raw } }) });
       await vi.waitFor(() => expect(tools.has("rgeneration1:2")).toBe(true));
-      expect(emitted).toEqual([expect.objectContaining({ callId: "rgeneration1:2", operationId: "paperclip_finish" })]);
+      expect(emitted).toEqual([expect.objectContaining({ callId: "rgeneration1:2", operationId: "outpost_finish" })]);
       await commands.resolve({ callId: "rgeneration1:2", turnId: "test-turn", result: { accepted: true }, error: null });
       const body = await (await response).json() as ToolCallResponseBody;
       expect(body.result.isError).not.toBe(true);
@@ -501,7 +501,7 @@ describe("qualified ACPX runtime sidecar", () => {
     const bridge = await startRunnerToolBridge({ handler, captureSemanticReceipt: () => () => {} });
     try {
       const response = fetch(bridge.url, { method: "POST", headers: { Authorization: `Bearer ${bridge.secret}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "paperclip_finish", arguments: raw } }) });
+        body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "outpost_finish", arguments: raw } }) });
       await vi.waitFor(() => expect(emitted.find(event => event.operationId === "get_task_context")).toBeDefined());
       const read = emitted[0];
       await commands.resolve({ callId: read.callId, turnId: "test-turn", result: {
@@ -509,7 +509,7 @@ describe("qualified ACPX runtime sidecar", () => {
       }, error: null });
       if (eligible) {
         await vi.waitFor(() => expect(tools.has("3")).toBe(true));
-        expect(emitted.map(event => event.operationId)).toEqual(["get_task_context", "paperclip_finish"]);
+        expect(emitted.map(event => event.operationId)).toEqual(["get_task_context", "outpost_finish"]);
         expect(emitted[1].input).toMatchObject({ reportedWorkDisposition: "yielded", continuation });
         expect(validatePrpStructuredRunResult(emitted[1].input).ok).toBe(true);
         await commands.resolve({ callId: "3", turnId: "test-turn", result: { accepted: true }, error: null });
@@ -533,7 +533,7 @@ describe("qualified ACPX runtime sidecar", () => {
     const tools = new Map<string, any>(), emitted: any[] = [], capture = vi.fn(() => vi.fn());
     const handler = loadWaitForTool({ tools, emitted, validate: validatePrpStructuredRunResult });
     const controller = new AbortController();
-    const call = { tool: "paperclip_finish", callId: "finish", arguments: { reportedWorkDisposition: "yielded", summary: "Wait for checks.", evidence: [], verification: [],
+    const call = { tool: "outpost_finish", callId: "finish", arguments: { reportedWorkDisposition: "yielded", summary: "Wait for checks.", evidence: [], verification: [],
       completionClaim: { contractRevision: "1", objectiveSatisfied: false, criteria: [], remainingWork: [] } },
       signal: controller.signal, captureNormalizedInput: capture };
     const result = handler(call).catch(error => error);
@@ -550,7 +550,7 @@ describe("qualified ACPX runtime sidecar", () => {
   it("does not capture normalized authority when actual sidecar validation fails", async () => {
     const emitted: unknown[] = [], capture = vi.fn(() => vi.fn());
     const wait = loadWaitForTool({ tools: new Map(), emitted, validate: validatePrpStructuredRunResult });
-    await expect(wait({ tool: "paperclip_finish", callId: "bad", arguments: {}, signal: new AbortController().signal,
+    await expect(wait({ tool: "outpost_finish", callId: "bad", arguments: {}, signal: new AbortController().signal,
       captureNormalizedInput: capture })).rejects.toThrow("ACPX semantic result failed ORP schema validation");
     expect(capture).not.toHaveBeenCalled();
     expect(emitted).toEqual([]);
@@ -559,7 +559,7 @@ describe("qualified ACPX runtime sidecar", () => {
   it("rejects normalized/envelope expansion at the actual frame writer before committing a receipt", async () => {
     const raw = { reportedWorkDisposition: "done", summary: "Complete", evidence: [{ ref: "" }], verification: [],
       completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [], remainingWork: [] } };
-    const request = { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "paperclip_finish", arguments: raw } };
+    const request = { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "outpost_finish", arguments: raw } };
     raw.evidence[0]!.ref = "x".repeat(ACPX_SIDECAR_MAX_FRAME_BYTES - 1 - Buffer.byteLength(JSON.stringify(request)));
     expect(Buffer.byteLength(JSON.stringify(request))).toBe(ACPX_SIDECAR_MAX_FRAME_BYTES - 1);
     const validation = validatePrpStructuredRunResult(raw);
@@ -578,7 +578,7 @@ describe("qualified ACPX runtime sidecar", () => {
       expect(tools.size).toBe(0);
       expect(emitted).toEqual([]);
       expect(wire.writes).toEqual([]);
-      expect(wire.errors).toEqual(["[paperclip-acpx-sidecar] output_frame_too_large\n"]);
+      expect(wire.errors).toEqual(["[outpost-acpx-sidecar] output_frame_too_large\n"]);
       expect(wire.sequence()).toBe(0);
       expect(wire.emit("runtime.diagnostic", { code: "bounded", message: "rejected" })).toBe(true);
       expect(JSON.parse(wire.writes[0]!)).toMatchObject({ sequence: 1, eventType: "runtime.diagnostic" });
@@ -591,7 +591,7 @@ describe("qualified ACPX runtime sidecar", () => {
     const raw = { reportedWorkDisposition: "done", summary: "Complete", evidence: [], verification: [],
       completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [], remainingWork: [] } };
     const handler = loadWaitForTool({ tools, emitted, validate: validatePrpStructuredRunResult, emit: wire.emit });
-    const pending = handler({ tool: "paperclip_finish", callId: "3", arguments: raw, signal: new AbortController().signal, captureNormalizedInput: capture });
+    const pending = handler({ tool: "outpost_finish", callId: "3", arguments: raw, signal: new AbortController().signal, captureNormalizedInput: capture });
     if (mode === "throws") {
       await expect(pending).rejects.toThrow("fixture write failed");
       expect(commit).not.toHaveBeenCalled(); expect(tools.size).toBe(0); expect(wire.sequence()).toBe(0);
@@ -612,7 +612,7 @@ describe("qualified ACPX runtime sidecar", () => {
     expect(wire.emit("runtime.diagnostic", { message: "cannot fit" })).toBe(false);
     expect(wire.sequence()).toBe(1);
     expect(wire.shutdownReasons).toEqual(["ACPX sidecar output buffer limit exceeded"]);
-    expect(wire.errors).toEqual(["[paperclip-acpx-sidecar] output_buffer_limit_exceeded\n"]);
+    expect(wire.errors).toEqual(["[outpost-acpx-sidecar] output_buffer_limit_exceeded\n"]);
     wire.bufferedBytes(0);
     expect(wire.emit("runtime.turn_terminal", { status: "completed" })).toBe(false);
     expect(wire.writes).toHaveLength(1);
@@ -724,7 +724,7 @@ describe("qualified ACPX runtime sidecar", () => {
       const params = { callId: "3", turnId: "test-turn", result: { accepted: mode !== "accepted-false" }, error: null };
       try {
         const response = fetch(bridge.url, { method: "POST", headers,
-          body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "paperclip_finish", arguments: raw } }) });
+          body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "outpost_finish", arguments: raw } }) });
         await vi.waitFor(() => expect(tools.has("3")).toBe(true), { interval: 5, timeout: 400 });
         expect(wire.writes).toHaveLength(1);
         expect(JSON.parse(wire.writes[0]!).payload.input).toEqual(validation.result);
@@ -776,7 +776,7 @@ describe("qualified ACPX runtime sidecar", () => {
     expect(validatePrpStructuredRunResult(raw).ok).toBe(true);
     const wire = loadActualSidecarWriter(), tools = new Map<string, unknown>(), emitted: unknown[] = [], capture = vi.fn(() => vi.fn());
     const handler = loadWaitForTool({ tools, emitted, validate: validatePrpStructuredRunResult, emit: wire.emit });
-    await expect(handler({ tool: "paperclip_finish", callId: "3", arguments: raw, signal: new AbortController().signal,
+    await expect(handler({ tool: "outpost_finish", callId: "3", arguments: raw, signal: new AbortController().signal,
       captureNormalizedInput: capture })).rejects.toThrow("cannot be encoded without changing its identity");
     expect(capture).not.toHaveBeenCalled(); expect(tools.size).toBe(0); expect(emitted).toEqual([]);
     expect(wire.writes).toEqual([]); expect(wire.sequence()).toBe(0);
@@ -1003,13 +1003,13 @@ describe("qualified ACPX runtime sidecar", () => {
       type: "tool_call", toolCallId: "edit-tool", title: "Edit", kind: "edit", status: "completed",
       content: [{ type: "diff", path: "/work/repo/a.js", oldText: "a", newText: "b" }],
     });
-    expect(edit.paperclipFileChanges).toEqual([
+    expect(edit.outpostFileChanges).toEqual([
       expect.objectContaining({ path: "a.js", operation: "modify", additions: 1, deletions: 1 }),
     ]);
     expect(edit).not.toHaveProperty("content");
   });
 
-  it.each(["paperclip_finish", "paperclip_block"])(
+  it.each(["outpost_finish", "outpost_block"])(
     "bounds pending %s calls before reserved handling and resumes admission",
     async (operationId) => {
       const tools = new Map<string, unknown>();
@@ -1019,7 +1019,7 @@ describe("qualified ACPX runtime sidecar", () => {
       const signal = new AbortController();
       await expect(waitForTool({
         callId: `${operationId}-at-capacity`, tool: operationId,
-        arguments: operationId === "paperclip_block" ? { reportedWorkDisposition: "blocked" } : { reportedWorkDisposition: "done" },
+        arguments: operationId === "outpost_block" ? { reportedWorkDisposition: "blocked" } : { reportedWorkDisposition: "done" },
         signal: signal.signal,
       })).rejects.toThrow("ACPX pending tool limit reached");
       expect(emitted).toEqual([]);
@@ -1028,7 +1028,7 @@ describe("qualified ACPX runtime sidecar", () => {
       tools.delete("pending-0");
       const admitted = waitForTool({
         callId: `${operationId}-after-release`, tool: operationId,
-        arguments: operationId === "paperclip_block" ? { reportedWorkDisposition: "blocked" } : { reportedWorkDisposition: "done" },
+        arguments: operationId === "outpost_block" ? { reportedWorkDisposition: "blocked" } : { reportedWorkDisposition: "done" },
         signal: signal.signal,
       });
       await Promise.resolve();
@@ -1788,7 +1788,7 @@ describe("qualified ACPX runtime sidecar", () => {
     }
     const target = `${platform}-${architecture}` as "darwin-arm64" | "linux-x64";
     const candidateAdmission = bindAcpxCandidateAdmission({ schema: "outpost.acpx-candidate-admission.v1",
-      companyId: "company-kimi-candidate", agent: "kimi", model, profileDigest: profile.commandDigest,
+      spaceId: "space-kimi-candidate", agent: "kimi", model, profileDigest: profile.commandDigest,
       nativeClosureDigest: `sha256:${KIMI_DISTRIBUTION_CLOSURE_SHA256[target]}`,
       platform, architecture, expiresAt: Date.now() + 60_000,
     }, { runId: "run-kimi-candidate", normalizedSessionId: "session-kimi-candidate" });
@@ -1817,7 +1817,7 @@ describe("qualified ACPX runtime sidecar", () => {
   it.skipIf(process.platform !== "darwin" || process.arch !== "arm64")("admits only matching candidate startup and rejects session replay before provider launch", async () => {
     const sidecar = startSidecar();
     const model = "gemini-3.8-flash-low";
-    const candidateAdmission = bindAcpxCandidateAdmission({ schema: "outpost.acpx-candidate-admission.v1", companyId: "company-candidate", agent: "antigravity", model,
+    const candidateAdmission = bindAcpxCandidateAdmission({ schema: "outpost.acpx-candidate-admission.v1", spaceId: "space-candidate", agent: "antigravity", model,
       profileDigest: resolveQualifiedAcpxProfile("antigravity", model).commandDigest,
       nativeClosureDigest: `sha256:${ANTIGRAVITY_DISTRIBUTION_PINS["darwin-arm64"].closureSha256}`,
       platform: "darwin", architecture: "arm64", expiresAt: Date.now() + 60_000 }, { runId: "run-candidate", normalizedSessionId: "session-candidate" });
@@ -2031,8 +2031,8 @@ function loadWaitForTool(input: {
     input.tools,
     "test-turn",
     (eventType: string, payload: unknown) => { const accepted = input.emit?.(eventType, payload) ?? true; if (accepted) input.emitted.push(payload); return accepted; },
-    "paperclip_finish",
-    "paperclip_block",
+    "outpost_finish",
+    "outpost_block",
     input.validate ?? ((argumentsValue: unknown) => ({
       ok: true,
       result: argumentsValue,

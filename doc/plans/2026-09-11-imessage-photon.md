@@ -10,7 +10,7 @@ supersedes the dedicated-only exclusions below for DMs. Shared setup uses the
 project token and fixed `imessage.spectrum.photon.codes:443` gateway, reserves the
 project across non-archived endpoints, and derives a project-scoped conversation
 and checkpoint namespace. It never claims ownership of a pool phone number.
-Sender enrollment in Photon and identity linking in Paperclip are separate gates.
+Sender enrollment in Photon and identity linking in Outpost are separate gates.
 Dedicated lines retain the original behavior. Allocation changes require a new
 channel. Native groups remain unavailable on shared channels at every boundary.
 
@@ -25,11 +25,11 @@ Add **iMessage Photon** (`imessage-photon`) behind the existing experimental
 chat-connectors UI gate, in Apps and each agent's Channels panel. Use Photon
 Cloud and one dedicated number per channel/agent. People initiate DMs and
 explicitly enabled groups; every authorized group message can start or continue
-work without a mention. Require linked Paperclip people by default. Unlinked
+work without a mention. Require linked Outpost people by default. Unlinked
 senders require an explicit operator opt-in. Never infer authority from a phone
 number, email address, display name, or group membership, or merge those identities.
 
-Messages remain bound to tasks through the existing chat subsystem: company
+Messages remain bound to tasks through the existing chat subsystem: space
 scope, vaulted credentials, durable admission, endpoint/conversation leases,
 ordered wakeups, external principals, task generations, publication outbox,
 attachment provenance, budgets, pauses, native and legacy execution. Keep
@@ -63,10 +63,10 @@ or ineligible line enters Attention. Rotation preserves project and number;
 a new identity needs a new endpoint. Retire old ownership before replacement.
 
 Extend provider contracts across db/shared/server/UI and generate a forward
-migration. Reserve the Photon number across companies for every non-archived
+migration. Reserve the Photon number across spaces for every non-archived
 endpoint, including paused/revoked endpoints. Persist checkpoints, typed poll
 bindings, per-person drafts, immutable send identities, upload receipts, and
-side effects in company/endpoint-scoped state/action stores.
+side effects in space/endpoint-scoped state/action stores.
 
 ## Setup and management
 
@@ -78,7 +78,7 @@ errors. Show the copyable number and discovered sender, support the existing
 identity-link confirmation. Only a linked sender's fresh message that creates a
 task and receives a successful publication completes setup. Credential verification
 alone does not. Optional group test: add number in Messages, discover group,
-enable it in Paperclip, send a fresh authorized request.
+enable it in Outpost, send a fresh authorized request.
 
 Management shows agent/project/number, health, receive/send timestamps, discovered
 groups and participants/availability/enablement, linked people/revocation,
@@ -133,7 +133,7 @@ before binding finalization without title matching or duplicate resolution.
 Support text and policy-allowed images/documents/audio/video. Persist a closed
 line/chat/message/attachment/optional-part locator before fetching. Authenticate
 over selected line and verify attachment ownership via message/chat. Bound
-metadata, bytes, time and decoded dimensions. Keep Paperclip's configured limits,
+metadata, bytes, time and decoded dimensions. Keep Outpost's configured limits,
 not Photon's larger allowance. Retry attachmentNotReady before agent wake,
 without duplicate comments. Preserve attachment-only input, captions, multiple
 images and multipart order; surface unavailable/rejected files in the task.
@@ -143,7 +143,7 @@ produce a labeled JPEG derivative for preview/agent image input through bounded
 `heif2jpeg@0.1.6`; verify packaged platform binaries. Preserve provenance. Keep
 Live Photo still/allowed companion video as related files.
 
-Outbound files need existing company/task/agent/originating-run authorization.
+Outbound files need existing space/task/agent/originating-run authorization.
 Send bytes, never private storage URLs. Immutable outbox carries stable
 clientMessageId for each text part/file/poll/correction; retry same key/payload.
 Persist upload receipt before send. Split plain readable text at paragraph
@@ -185,7 +185,7 @@ Diagnostics stay local; any Telemetry change needs separate strict review.
 
 Keep logical commits; existing Slack/Discord/AgentMail and native/legacy paths
 remain functional. Acceptance covers invalid/missing/shared/multiple/duplicate
-lines; interrupted setup; unlinked/revoked/viewer/wrong-company/wrong-line inputs;
+lines; interrupted setup; unlinked/revoked/viewer/wrong-space/wrong-line inputs;
 disabled/removed groups; concurrent/ordered bursts and generation commands;
 restart/duplicate/out-of-order/takeover/renewal/catch-up/pause; stable multipart
 keys, Unicode, rate limits, successful-send crash/unknown/partial uploads/edit

@@ -43,7 +43,7 @@ impl StdioMcpBinding {
     pub fn validate(&self) -> McpResult<()> {
         if self.name.is_empty()
             || self.name.len() > 128
-            || self.name == "paperclip"
+            || self.name == "outpost"
             || self.name.starts_with("outpost_runner_")
             || !self
                 .name
@@ -119,7 +119,7 @@ impl StdioMcpSession {
             return Ok(None);
         }
         let directory =
-            std::env::temp_dir().join(format!("paperclip-mcp-{}", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("outpost-mcp-{}", uuid::Uuid::new_v4()));
         fs::DirBuilder::new().mode(0o700).create(&directory)?;
         let mut session = Self {
             directory,
@@ -202,7 +202,7 @@ fn resource_lock(resource: &Path) -> McpResult<(File, (u64, u64))> {
         metadata.ino()
     );
     let digest = format!("{:x}", Sha256::digest(identity));
-    let path = parent.join(format!(".paperclip-mcp-{digest}.lock"));
+    let path = parent.join(format!(".outpost-mcp-{digest}.lock"));
     let file = OpenOptions::new()
         .read(true)
         .write(true)

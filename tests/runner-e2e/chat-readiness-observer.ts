@@ -50,10 +50,10 @@ export async function installChatReadinessObserver(input: {
   if (await realpath(directory) !== directory || directoryInfo.uid !== info.uid || (directoryInfo.mode & 0o022)) throw new Error("Readiness observer directory is not private and owned");
   const original = input.adapter.testEnvironment;
   let sequence = 0, writes = Promise.resolve();
-  const retain = async (companyId: string, result: any, thrown: boolean) => {
+  const retain = async (spaceId: string, result: any, thrown: boolean) => {
     if (++sequence > 100) return;
     const detailRetention = thrown ? undefined : await retainHealthHelloDetail(root, input.executionIds, sequence, result);
-    const receipt = { ...(detailRetention ? { detailRetention } : {}), schema: "outpost.chat-readiness-probe/v1", companyId, sequence,
+    const receipt = { ...(detailRetention ? { detailRetention } : {}), schema: "outpost.chat-readiness-probe/v1", spaceId, sequence,
       status: ["pass", "warn", "fail"].includes(result?.status) ? result.status : "unknown", thrown,
       checks: Array.isArray(result?.checks) ? result.checks.slice(0, 64).map((check: any) => closedCheck({ ...check,
         category: readinessErrorCategory(`${check?.message ?? ""}\n${check?.detail ?? ""}`) })) : [],
@@ -70,29 +70,29 @@ export async function installChatReadinessObserver(input: {
   };
   input.adapter.testEnvironment = async function (...args) {
     const context = args[0];
-    if (context.adapterType !== "outpost_runner" || context.config.provider !== "opencode" || !uuid(context.companyId)) return original.apply(this, args);
+    if (context.adapterType !== "outpost_runner" || context.config.provider !== "opencode" || !uuid(context.spaceId)) return original.apply(this, args);
     let result;
     try { result = await original.apply(this, args); }
-    catch (error) { await retain(context.companyId, error, true); throw error; }
-    await retain(context.companyId, result, false);
+    catch (error) { await retain(context.spaceId, error, true); throw error; }
+    await retain(context.spaceId, result, false);
     return result;
   };
 }
 /** Re-project even the private file. No arbitrary file keys/strings enter evidence. */
 export interface ClosedReadinessReceipt {
-  schema: "outpost.chat-readiness-probe/v1"; companyId: string; sequence: number; status: string; thrown: boolean;
+  schema: "outpost.chat-readiness-probe/v1"; spaceId: string; sequence: number; status: string; thrown: boolean;
   checks: Array<{ code: string; level: string; category: Category }>; errorCategory: Category; detailRetention?: "retained" | "withheld";
 }
-export async function readChatReadinessReceipts(temporaryRoot: string, companyId: string): Promise<ClosedReadinessReceipt[]> {
-  if (!temporaryRoot || !uuid(companyId)) return [];
+export async function readChatReadinessReceipts(temporaryRoot: string, spaceId: string): Promise<ClosedReadinessReceipt[]> {
+  if (!temporaryRoot || !uuid(spaceId)) return [];
   let bytes: string;
   try { bytes = await readFile(filename(temporaryRoot), "utf8"); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw new Error("Readiness receipt unavailable"); }
   if (bytes.length > 1_000_000) throw new Error("Readiness receipt exceeds bound");
   return bytes.trim().split("\n").filter(Boolean).slice(0, 100).flatMap(line => {
     let row; try { row = JSON.parse(line); } catch { return []; }
-    if (!row || row.schema !== "outpost.chat-readiness-probe/v1" || row.companyId !== companyId || !Number.isInteger(row.sequence) || row.sequence < 1 || row.sequence > 100) return [];
-    return [{ ...(row.detailRetention === "retained" || row.detailRetention === "withheld" ? { detailRetention: row.detailRetention } : {}), schema: row.schema, companyId, sequence: row.sequence,
+    if (!row || row.schema !== "outpost.chat-readiness-probe/v1" || row.spaceId !== spaceId || !Number.isInteger(row.sequence) || row.sequence < 1 || row.sequence > 100) return [];
+    return [{ ...(row.detailRetention === "retained" || row.detailRetention === "withheld" ? { detailRetention: row.detailRetention } : {}), schema: row.schema, spaceId, sequence: row.sequence,
       status: ["pass", "warn", "fail"].includes(row.status) ? row.status : "unknown", thrown: row.thrown === true,
       checks: Array.isArray(row.checks) ? row.checks.slice(0, 64).map(closedCheck) : [],
       errorCategory: categories.includes(row.errorCategory) ? row.errorCategory as Category : "unknown" }];

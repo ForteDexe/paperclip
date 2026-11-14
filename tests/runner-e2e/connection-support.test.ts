@@ -10,7 +10,7 @@ import { parseConnectionConfig, targetOrigin, selectedSecret, resolveConnectionS
 import { connectionCheckpoints, connectionEvidencePasses, connectionRunDiagnostic, createConnectionProof, verifyConnectionArtifact, verifyConnectionRun, completedConnectionArtifactRun, connectionProbeChecks, type ConnectionEvidence } from "./connection-evidence.js";
 import { validateRetainedRunnerResult } from "./result-validation.js";
 import { ConnectionApi, verifyConnectionTarget } from "./connection-target.js";
-import { cleanupConnectionCompany, connectionCreationReceipt, runConnectionCampaign, safeConnectionFailure, withConnectionCampaignCancellation } from "./connection-launch.js";
+import { cleanupConnectionSpace, connectionCreationReceipt, runConnectionCampaign, safeConnectionFailure, withConnectionCampaignCancellation } from "./connection-launch.js";
 import * as connectionConfig from "./connection-config.js";
 import * as connectionTarget from "./connection-target.js";
 import * as reportAssets from "./report-assets.js";
@@ -22,7 +22,7 @@ const cells = runnerMatrix.filter(e => e.suite.id === "provider-connections");
 const cell = (method: string) => cells.find(e => e.id === `provider-connections.connection-codex-native.local.agent-${method}`)!;
 
 describe("connection fixture cleanup evidence", () => {
-  it.each([true, false])("captures stopped runs and logs before destructive cleanup (attached=%s)", async (attachedCompany) => {
+  it.each([true, false])("captures stopped runs and logs before destructive cleanup (attached=%s)", async (attachedSpace) => {
     const events: string[] = [];
     let status = "running", deleted = false, revoked = false;
     const evidence: Partial<ConnectionEvidence> = {};
@@ -39,13 +39,13 @@ describe("connection fixture cleanup evidence", () => {
       post: vi.fn(async (route: string) => { if (route.endsWith("/cancel")) { events.push("cancel"); status = "cancelled"; } else events.push("archive"); }),
       delete: vi.fn(async (route: string) => { if (route.endsWith("/foreign-account")) throw new Error("Revoked a concurrent campaign"); if (route.includes("tool-connections")) { events.push("revoke"); revoked = true; } else { events.push("delete-agent"); deleted = true; } }),
     };
-    await cleanupConnectionCompany({ api: api as unknown as ConnectionApi, companyId: "company", agentName: "Fixture", attachedCompany,
-      retainCompany: false, createdConnectionIds: new Set(["account"]), evidence, collectDiagnostics: async () => {
+    await cleanupConnectionSpace({ api: api as unknown as ConnectionApi, spaceId: "space", agentName: "Fixture", attachedSpace,
+      retainSpace: false, createdConnectionIds: new Set(["account"]), evidence, collectDiagnostics: async () => {
         const run = await api.get("/api/heartbeat-runs/run");
         const log = await api.get("/api/heartbeat-runs/run/log?limitBytes=2000000");
         evidence.runDiagnostics = [connectionRunDiagnostic(run, log)];
       } });
-    expect(events).toEqual(["pause", "cancel", "run", "log", "revoke", attachedCompany ? "delete-agent" : "archive"]);
+    expect(events).toEqual(["pause", "cancel", "run", "log", "revoke", attachedSpace ? "delete-agent" : "archive"]);
     expect(evidence.runDiagnostics).toEqual([{ runId: "run", status: "cancelled", signals: ["provider_overloaded"], logAvailable: true }]);
     expect(api.delete).not.toHaveBeenCalledWith("/api/agents/foreign");
     expect(api.delete).not.toHaveBeenCalledWith("/api/tool-connections/foreign-account");
@@ -56,22 +56,22 @@ describe("connection fixture cleanup evidence", () => {
       get: vi.fn(async (route: string) => route.endsWith("/agents") ? [{ id: "qa-agent", name: "Fixture" }] : [{ id: "run", agentId: "qa-agent", status: "running" }]),
       patch: vi.fn(async () => {}), post: vi.fn(async () => { throw new Error("cancel failed"); }), delete: vi.fn(),
     };
-    await expect(cleanupConnectionCompany({ api: api as unknown as ConnectionApi, companyId: "company", agentName: "Fixture", attachedCompany: true,
-      retainCompany: false, createdConnectionIds: new Set(), evidence: {}, collectDiagnostics })).rejects.toThrow("cancel failed");
+    await expect(cleanupConnectionSpace({ api: api as unknown as ConnectionApi, spaceId: "space", agentName: "Fixture", attachedSpace: true,
+      retainSpace: false, createdConnectionIds: new Set(), evidence: {}, collectDiagnostics })).rejects.toThrow("cancel failed");
     expect(collectDiagnostics).toHaveBeenCalledOnce();
     expect(api.delete).not.toHaveBeenCalled();
   });
   it("accepts only creation receipts from this browser and its owned login sessions", () => {
     const body = { connectionId: "00000000-0000-4000-8000-000000000021" };
-    const root = "/api/companies/company/ai-connections";
+    const root = "/api/spaces/space/ai-connections";
     const logins = new Set(["owned-session"]);
-    expect(connectionCreationReceipt(root, "POST", "company", logins, body)).toBe(body.connectionId);
-    expect(connectionCreationReceipt(`${root}/local`, "POST", "company", logins, body)).toBe(body.connectionId);
-    expect(connectionCreationReceipt(`${root}/login/owned-session`, "GET", "company", logins, body)).toBe(body.connectionId);
-    expect(connectionCreationReceipt(`${root}/login/foreign-session`, "GET", "company", logins, body)).toBeUndefined();
-    expect(connectionCreationReceipt(root, "GET", "company", logins, body)).toBeUndefined();
-    expect(connectionCreationReceipt(root, "POST", "different-company", logins, body)).toBeUndefined();
-    expect(connectionCreationReceipt(root, "POST", "company", logins, { connectionId: "not-a-receipt" })).toBeUndefined();
+    expect(connectionCreationReceipt(root, "POST", "space", logins, body)).toBe(body.connectionId);
+    expect(connectionCreationReceipt(`${root}/local`, "POST", "space", logins, body)).toBe(body.connectionId);
+    expect(connectionCreationReceipt(`${root}/login/owned-session`, "GET", "space", logins, body)).toBe(body.connectionId);
+    expect(connectionCreationReceipt(`${root}/login/foreign-session`, "GET", "space", logins, body)).toBeUndefined();
+    expect(connectionCreationReceipt(root, "GET", "space", logins, body)).toBeUndefined();
+    expect(connectionCreationReceipt(root, "POST", "different-space", logins, body)).toBeUndefined();
+    expect(connectionCreationReceipt(root, "POST", "space", logins, { connectionId: "not-a-receipt" })).toBeUndefined();
   });
 });
 
@@ -156,7 +156,7 @@ describe("target and selected credential boundaries", () => {
   it("keeps scoped requests on tenant APIs and bounds extended probe timeouts", async () => {
     const fetch = vi.fn(async (_url: string, _options: unknown) => ({ ok: () => true, json: async () => ({ passed: true }) }));
     const api = new ConnectionApi({ fetch } as any, "https://qa.test.outpost.app");
-    await api.post("/api/companies/qa/adapters/outpost_runner/test-environment", {}, { timeoutMs: 120_000 });
+    await api.post("/api/spaces/qa/adapters/outpost_runner/test-environment", {}, { timeoutMs: 120_000 });
     expect(fetch.mock.calls[0]?.[1]).toMatchObject({ headers: { Origin: "https://qa.test.outpost.app" }, timeout: 120_000, maxRedirects: 0 });
     fetch.mockClear();
     for (const route of ["https://other.test/api/health", "/api/../v1/admin", "/api/%2e%2e/v1/admin"]) await expect(api.get(route)).rejects.toThrow("invalid_api_route");

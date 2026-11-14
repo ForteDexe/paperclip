@@ -44,12 +44,12 @@ const STEP_LABELS: Array<{ step: WizardStep; label: string }> = [
 ];
 
 export function ProfileWizard({
-  companyId,
+  spaceId,
   profileId,
   initialTemplate,
   initialStep,
 }: {
-  companyId: string;
+  spaceId: string;
   profileId?: string;
   initialTemplate?: TemplateKey;
   initialStep?: WizardStep;
@@ -57,7 +57,7 @@ export function ProfileWizard({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
-  const data = useProfilesData(companyId);
+  const data = useProfilesData(spaceId);
   const { appGroups, catalog, profiles, agents } = data;
 
   const allProfiles = profiles.data?.profiles ?? [];
@@ -77,7 +77,7 @@ export function ProfileWizard({
   const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set());
   const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(new Set());
   const [selectedRoutineIds, setSelectedRoutineIds] = useState<Set<string>>(new Set());
-  const [companyDefault, setCompanyDefault] = useState(false);
+  const [spaceDefault, setSpaceDefault] = useState(false);
 
   const toggleIn = (setter: typeof setSelectedAgentIds) => (id: string) =>
     setter((prev) => {
@@ -110,7 +110,7 @@ export function ProfileWizard({
     setSelectedAgentIds(targetIds("agent"));
     setSelectedProjectIds(targetIds("project"));
     setSelectedRoutineIds(targetIds("routine"));
-    setCompanyDefault(existing.bindings.some((b) => b.targetType === "company"));
+    setSpaceDefault(existing.bindings.some((b) => b.targetType === "space"));
   }, [existing, appGroups, profileId, initialStep]);
 
   // Key auto-derives from the name until the admin overrides it in Advanced.
@@ -119,7 +119,7 @@ export function ProfileWizard({
   }, [name, keyEdited]);
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.tools.profiles(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.tools.profiles(spaceId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.tools.testAgentAccesses() });
   };
 
@@ -151,7 +151,7 @@ export function ProfileWizard({
         template,
       });
       if (!draftId) {
-        const created = await toolsApi.createProfile(companyId, {
+        const created = await toolsApi.createProfile(spaceId, {
           profileKey: profileKey || slugifyProfileKey(name) || "profile",
           name: name.trim() || "Untitled profile",
           description: description.trim() || null,
@@ -191,18 +191,18 @@ export function ProfileWizard({
         entries,
         metadata: withWizardMeta(existing?.metadata ?? null, { lastCompletedStep: 3, template }),
       });
-      await reconcileBindings(companyId, profile, {
+      await reconcileBindings(spaceId, profile, {
         agentIds: [...selectedAgentIds],
         projectIds: [...selectedProjectIds],
         routineIds: [...selectedRoutineIds],
-        companyDefault,
+        spaceDefault,
       });
       return toolsApi.updateProfile(draftId, { status: "active" });
     },
     onSuccess: (profile) => {
       pushToast({ title: "Profile saved", tone: "success" });
       invalidate();
-      navigate(`/apps/advanced/profiles/${profile.id}${selectedAgentIds.size === 0 && !companyDefault ? "?created=1" : ""}`);
+      navigate(`/apps/advanced/profiles/${profile.id}${selectedAgentIds.size === 0 && !spaceDefault ? "?created=1" : ""}`);
     },
     onError: (error: unknown) =>
       pushToast({ title: "Could not save profile", body: String((error as Error)?.message ?? error), tone: "error" }),
@@ -275,8 +275,8 @@ export function ProfileWizard({
             onToggleProject={toggleIn(setSelectedProjectIds)}
             selectedRoutineIds={selectedRoutineIds}
             onToggleRoutine={toggleIn(setSelectedRoutineIds)}
-            companyDefault={companyDefault}
-            onCompanyDefault={setCompanyDefault}
+            spaceDefault={spaceDefault}
+            onSpaceDefault={setSpaceDefault}
           />
         ) : null}
       </div>
@@ -351,19 +351,19 @@ export function ProfileWizard({
 
 /** Reconcile the profile's assignments against the wizard's step-3 choices. */
 async function reconcileBindings(
-  companyId: string,
+  spaceId: string,
   profile: ToolProfileWithDetails,
-  desired: { agentIds: string[]; projectIds: string[]; routineIds: string[]; companyDefault: boolean },
+  desired: { agentIds: string[]; projectIds: string[]; routineIds: string[]; spaceDefault: boolean },
 ) {
   const want = new Map<string, ToolProfileBindingInput>();
-  if (desired.companyDefault) want.set(`company:${companyId}`, { targetType: "company", targetId: companyId });
+  if (desired.spaceDefault) want.set(`space:${spaceId}`, { targetType: "space", targetId: spaceId });
   for (const id of desired.agentIds) want.set(`agent:${id}`, { targetType: "agent", targetId: id });
   for (const id of desired.projectIds) want.set(`project:${id}`, { targetType: "project", targetId: id });
   for (const id of desired.routineIds) want.set(`routine:${id}`, { targetType: "routine", targetId: id });
 
   // Only the target types the wizard manages are reconciled — leave any
   // issue-scoped or other bindings untouched.
-  const managed = new Set(["company", "agent", "project", "routine"]);
+  const managed = new Set(["space", "agent", "project", "routine"]);
   const have = new Set(profile.bindings.map((b) => `${b.targetType}:${b.targetId}`));
 
   const operations = [
@@ -371,8 +371,8 @@ async function reconcileBindings(
       .filter(([key]) => !have.has(key))
       .map(([key, input]) => ({
         key,
-        apply: () => toolsApi.bindProfile(companyId, profile.id, input),
-        rollback: () => toolsApi.unbindProfile(companyId, profile.id, input),
+        apply: () => toolsApi.bindProfile(spaceId, profile.id, input),
+        rollback: () => toolsApi.unbindProfile(spaceId, profile.id, input),
       })),
     ...profile.bindings
       .filter((binding) => managed.has(binding.targetType) && !want.has(`${binding.targetType}:${binding.targetId}`))
@@ -380,8 +380,8 @@ async function reconcileBindings(
         const input = { targetType: binding.targetType, targetId: binding.targetId } as ToolProfileBindingInput;
         return {
           key: `${binding.targetType}:${binding.targetId}`,
-          apply: () => toolsApi.unbindProfile(companyId, profile.id, input),
-          rollback: () => toolsApi.bindProfile(companyId, profile.id, input),
+          apply: () => toolsApi.unbindProfile(spaceId, profile.id, input),
+          rollback: () => toolsApi.bindProfile(spaceId, profile.id, input),
         };
       }),
   ];
@@ -566,8 +566,8 @@ export function StepAssign({
   onToggleProject,
   selectedRoutineIds,
   onToggleRoutine,
-  companyDefault,
-  onCompanyDefault,
+  spaceDefault,
+  onSpaceDefault,
 }: {
   agents: AgentMultiSelectOption[];
   projects?: TargetOption[];
@@ -579,8 +579,8 @@ export function StepAssign({
   onToggleProject?: (id: string) => void;
   selectedRoutineIds?: Set<string>;
   onToggleRoutine?: (id: string) => void;
-  companyDefault: boolean;
-  onCompanyDefault: (v: boolean) => void;
+  spaceDefault: boolean;
+  onSpaceDefault: (v: boolean) => void;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   // Per-agent overlap context from already-loaded bindings — no extra fetch.
@@ -598,7 +598,7 @@ export function StepAssign({
     return map;
   }, [profiles]);
 
-  const defaultProfileName = profiles.find((p) => p.summary.isCompanyDefault)?.name ?? null;
+  const defaultProfileName = profiles.find((p) => p.summary.isSpaceDefault)?.name ?? null;
 
   return (
     <div className="space-y-5">
@@ -606,8 +606,8 @@ export function StepAssign({
         <input
           type="checkbox"
           className="mt-1"
-          checked={companyDefault}
-          onChange={(e) => onCompanyDefault(e.target.checked)}
+          checked={spaceDefault}
+          onChange={(e) => onSpaceDefault(e.target.checked)}
         />
         <span className="flex flex-col gap-0.5">
           <span className="text-sm font-medium text-foreground">Make this the outpost default</span>

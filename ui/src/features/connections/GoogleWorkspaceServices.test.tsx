@@ -70,9 +70,9 @@ describe("Workspace service consent", () => {
   });
 
   it("restores a cold draft's selected services after declined OAuth", async () => {
-    await render({ ...existing, companyId: "company-1", status: "draft", config: {
+    await render({ ...existing, spaceId: "space-1", status: "draft", config: {
       workspaceSetup: {
-        version: 1, companyId: "company-1", connectionId: existing.id,
+        version: 1, spaceId: "space-1", connectionId: existing.id,
         actorType: "user", actorId: "me", grantKind: "user", subjectId: "me",
         requestedScopes: ["https://www.googleapis.com/auth/gmail.readonly"],
       },
@@ -85,9 +85,9 @@ describe("Workspace service consent", () => {
   });
 
   it.each([undefined, "another-user"])("requires a deliberate choice for an unbound draft (%s)", async (actorId) => {
-    await render({ ...existing, companyId: "company-1", status: "draft", config: {
+    await render({ ...existing, spaceId: "space-1", status: "draft", config: {
       ...(actorId ? { workspaceSetup: {
-        version: 1, companyId: "company-1", connectionId: existing.id,
+        version: 1, spaceId: "space-1", connectionId: existing.id,
         actorType: "user", actorId, grantKind: "user", subjectId: "me",
         requestedScopes: ["https://www.googleapis.com/auth/gmail.readonly"],
       } } : {}),

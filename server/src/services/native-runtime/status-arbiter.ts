@@ -19,13 +19,13 @@ export type NativeAuthoritativeIssueStatus =
   | "done"
   | "cancelled";
 
-export type NativeGovernanceGate = {
+export type NativePolicyGate = {
   kind: "approval" | "interaction" | "execution_stage";
   id: string;
 };
 
 export type NativeStatusEffect =
-  | { kind: "create_interaction"; gate?: NativeGovernanceGate; prompt?: string }
+  | { kind: "create_interaction"; gate?: NativePolicyGate; prompt?: string }
   | {
       kind: "bind_reviewer";
       requestKey?: string;
@@ -49,7 +49,7 @@ export type NativeStatusEffect =
     }
   | {
       kind: "bind_blocker";
-      owner: { agentId: string } | "board";
+      owner: { agentId: string } | "operator";
       action: string;
     }
   | { kind: "schedule_retry"; cause: string; summary: string; agentId: string }
@@ -92,7 +92,7 @@ export interface NativeStatusDecision {
   toStatus: NativeAuthoritativeIssueStatus;
   reasonCode: string | null;
   unblockDescriptor: {
-    owner: { agentId: string } | "board";
+    owner: { agentId: string } | "operator";
     action: string;
   } | null;
   effects: NativeStatusEffect[];
@@ -171,7 +171,7 @@ const OUTGOING_AGENT_TASK_EFFECTS: ReadonlySet<NativeStatusEffect["kind"]> = new
  * retry the outgoing agent, or bind a blocker to the task. This also applies
  * to decisions that already preserve the status.
  *
- * Two effects stay. A governed request still opens its interaction: the gate
+ * Two effects stay. A controlled request still opens its interaction: the gate
  * belongs to the request, not to the task owner. A failed workspace
  * finalization still records its repair, so the run's saved work is not lost.
  */
@@ -184,8 +184,8 @@ export function supersedeHandedOffDecision(
   // and re-runs the save of the run's work. Other causes are task recovery.
   const effects = decision.effects.filter(effect => !OUTGOING_AGENT_TASK_EFFECTS.has(effect.kind)
     && !(effect.kind === "record_finalization_error" && effect.cause !== "workspace_finalization_failed"));
-  const governed = effects.some(effect => effect.kind === "create_interaction");
-  if (decision.statusAction === "preserve" || governed) {
+  const controlled = effects.some(effect => effect.kind === "create_interaction");
+  if (decision.statusAction === "preserve" || controlled) {
     return effects.length === decision.effects.length ? decision : { ...decision, effects };
   }
   return {
@@ -203,7 +203,7 @@ export function arbitrateNativeStatus(input: {
   assessment: NativeEvidenceAssessment;
   terminalState: "succeeded" | "failed" | "cancelled";
   workspaceFinalizeStatus: "succeeded" | "failed";
-  governanceGate?: NativeGovernanceGate | null;
+  policyGate?: NativePolicyGate | null;
   completionClaimPolicyAccepted?: boolean;
   /** Canonical exact-output human verdicts, only for an explicitly opted-in requirement. */
   requiredQualityReviewSatisfied?: boolean;
@@ -216,8 +216,8 @@ export function arbitrateNativeStatus(input: {
   hasUnresolvedIssueBlockers?: boolean;
   /** A newer native child result still has an undelivered parent wake. */
   hasPendingChildCompletion?: boolean;
-  /** A governance interaction created by this run was accepted before the run settled. */
-  governanceResolvedForRun?: boolean;
+  /** A policy interaction created by this run was accepted before the run settled. */
+  policyResolvedForRun?: boolean;
   externalChatResponseWaitAuthorization?:
     "authorized" | "revoked" | "not_applicable";
   hasUnprovenPreservedResultStatus?: boolean;
@@ -230,8 +230,8 @@ export function arbitrateNativeStatus(input: {
   monitorWaitDispatched?: boolean;
   monitorWaitPreserved?: boolean;
   monitorWaitSuperseded?: boolean;
-  boardResponseWaitAuthorized?: boolean;
-  boardResponseWaitOrigin?: boolean;
+  operatorResponseWaitAuthorized?: boolean;
+  operatorResponseWaitOrigin?: boolean;
   isConversation?: boolean;
   hasActivePauseHold?: boolean;
   /** The run only compacted the agent's context; it carries no task outcome. */
@@ -333,13 +333,13 @@ export function arbitrateNativeStatus(input: {
       statusAction: "blocked",
       toStatus: "blocked",
       reasonCode: "native_provider_model_rejected",
-      unblockDescriptor: { owner: "board", action: NATIVE_MODEL_REJECTION_MESSAGE },
-      effects: [{ kind: "bind_blocker", owner: "board", action: NATIVE_MODEL_REJECTION_MESSAGE }],
+      unblockDescriptor: { owner: "operator", action: NATIVE_MODEL_REJECTION_MESSAGE },
+      effects: [{ kind: "bind_blocker", owner: "operator", action: NATIVE_MODEL_REJECTION_MESSAGE }],
     };
   }
   if (input.providerOverloaded && input.terminalState === "failed" &&
       input.nativeReviewOutcome !== "stale" && input.nativeReviewOutcome !== "resolved") {
-    const held = input.governanceGate || input.hasUnresolvedIssueBlockers || input.hasActivePauseHold || input.priorIssueStatus === "blocked";
+    const held = input.policyGate || input.hasUnresolvedIssueBlockers || input.hasActivePauseHold || input.priorIssueStatus === "blocked";
     const exhausted = (input.failureRetryCount ?? 0) >= NATIVE_PROVIDER_CAPACITY_MAX_RETRIES;
     if (held || (exhausted && input.nativeReviewOutcome === "pending")) return {
       policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
@@ -352,8 +352,8 @@ export function arbitrateNativeStatus(input: {
       return {
         policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
         statusAction: "blocked", toStatus: "blocked", reasonCode: "native_provider_overloaded_exhausted",
-        unblockDescriptor: { owner: "board", action },
-        effects: [{ kind: "bind_blocker", owner: "board", action }],
+        unblockDescriptor: { owner: "operator", action },
+        effects: [{ kind: "bind_blocker", owner: "operator", action }],
       };
     }
     return {
@@ -401,8 +401,8 @@ export function arbitrateNativeStatus(input: {
         statusAction: "blocked",
         toStatus: "blocked",
         reasonCode: "native_run_failed_continuation_exhausted",
-        unblockDescriptor: { owner: "board", action: NATIVE_RUN_FAILED_CONTINUATION_EXHAUSTED_ACTION },
-        effects: [{ kind: "bind_blocker", owner: "board", action: NATIVE_RUN_FAILED_CONTINUATION_EXHAUSTED_ACTION }],
+        unblockDescriptor: { owner: "operator", action: NATIVE_RUN_FAILED_CONTINUATION_EXHAUSTED_ACTION },
+        effects: [{ kind: "bind_blocker", owner: "operator", action: NATIVE_RUN_FAILED_CONTINUATION_EXHAUSTED_ACTION }],
       };
     }
     return {
@@ -422,7 +422,7 @@ export function arbitrateNativeStatus(input: {
       ],
     };
   }
-  if (input.governanceGate) {
+  if (input.policyGate) {
     if (
       input.assessment.reportedDisposition === "yielded" &&
       input.assessment.continuation?.kind === "response_wake"
@@ -431,32 +431,32 @@ export function arbitrateNativeStatus(input: {
         policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
         statusAction: "in_review",
         toStatus: "in_review",
-        reasonCode: "governed_response_waiting",
+        reasonCode: "controlled_response_waiting",
         unblockDescriptor: null,
         // The existing interaction is the liveness path. Its authoritative
         // resolution owns the response wake; dispatching one now would start a
         // duplicate provider turn before the human has answered.
-        effects: [{ kind: "create_interaction", gate: input.governanceGate }],
+        effects: [{ kind: "create_interaction", gate: input.policyGate }],
       };
     }
     return {
       policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
       statusAction: "in_review",
       toStatus: "in_review",
-      reasonCode: "governed_gate_pending",
+      reasonCode: "controlled_gate_pending",
       unblockDescriptor: null,
       effects: [
-        { kind: "create_interaction", gate: input.governanceGate },
+        { kind: "create_interaction", gate: input.policyGate },
         {
           kind: "notify_owner",
           agentId: input.agentId,
-          reason: "governed_gate_pending",
+          reason: "controlled_gate_pending",
         },
       ],
     };
   }
   if (
-    input.governanceResolvedForRun === true &&
+    input.policyResolvedForRun === true &&
     ["needs_review", "blocked"].includes(
       input.assessment.reportedDisposition,
     ) &&
@@ -471,7 +471,7 @@ export function arbitrateNativeStatus(input: {
       policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
       statusAction: "in_review",
       toStatus: "in_review",
-      reasonCode: "governance_response_continuation_queued",
+      reasonCode: "policy_response_continuation_queued",
       unblockDescriptor: null,
       // The accepted interaction already queued the response wake. Creating a
       // second completion-review interaction here would strand that continuation.
@@ -490,8 +490,8 @@ export function arbitrateNativeStatus(input: {
     input.hasUnresolvedIssueBlockers === true &&
     (["done", "blocked"].includes(input.assessment.reportedDisposition) || unfinishedResponseWait || input.assessment.continuation?.kind === "monitor")
   ) {
-    const owner = input.assessment.blocker?.boardOwned
-      ? ("board" as const)
+    const owner = input.assessment.blocker?.operatorOwned
+      ? ("operator" as const)
       : { agentId: input.agentId };
     return {
       policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
@@ -610,8 +610,8 @@ export function arbitrateNativeStatus(input: {
     input.assessment.reportedDisposition === "blocked" &&
     input.assessment.blocker
   ) {
-    const owner = input.assessment.blocker.boardOwned
-      ? ("board" as const)
+    const owner = input.assessment.blocker.operatorOwned
+      ? ("operator" as const)
       : { agentId: input.agentId };
     if (input.assessment.blocker.scope === "task_wide") {
       return {
@@ -646,13 +646,13 @@ export function arbitrateNativeStatus(input: {
       // authorized, productive track exists. Bind the actual unblock request
       // without waking the same agent to repeat the blocked work or old title.
       unblockDescriptor: {
-        owner: "board",
+        owner: "operator",
         action: input.assessment.blocker.unblockAction,
       },
       effects: [
         {
           kind: "bind_blocker",
-          owner: "board",
+          owner: "operator",
           action: input.assessment.blocker.unblockAction,
         },
       ],
@@ -749,16 +749,16 @@ export function arbitrateNativeStatus(input: {
   if (
     input.assessment.reportedDisposition === "yielded" &&
     input.assessment.continuation?.kind === "response_wake" &&
-    input.boardResponseWaitAuthorized === true &&
+    input.operatorResponseWaitAuthorized === true &&
     !unfinishedResponseWait
   ) {
     return {
       policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
       statusAction: "in_progress",
       toStatus: "in_progress",
-      reasonCode: "board_response_waiting",
+      reasonCode: "operator_response_waiting",
       unblockDescriptor: null,
-      // The committer proves the current Board cause again before persisting
+      // The committer proves the current Operator cause again before persisting
       // the wait. Only a new user cause may wake this completed response.
       effects: [],
     };
@@ -766,14 +766,14 @@ export function arbitrateNativeStatus(input: {
   if (
     input.assessment.reportedDisposition === "yielded" &&
     input.assessment.continuation?.kind === "response_wake" &&
-    input.boardResponseWaitOrigin &&
-    !input.boardResponseWaitAuthorized
+    input.operatorResponseWaitOrigin &&
+    !input.operatorResponseWaitAuthorized
   ) {
     return {
       policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
       statusAction: "preserve",
       toStatus: input.priorIssueStatus,
-      reasonCode: "board_response_wait_superseded",
+      reasonCode: "operator_response_wait_superseded",
       unblockDescriptor: null,
       effects: [],
     };

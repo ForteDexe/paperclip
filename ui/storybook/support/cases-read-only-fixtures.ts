@@ -57,7 +57,7 @@ export const readonlyCaseFixtures: CaseRecord[] = [
       "A provider retry can start the same intake twice. Keep one accepted delivery for each provider event, including when the first response is lost.",
     type: "Bug",
     status: "in_progress",
-    project: "Paperclip",
+    project: "Outpost",
     updatedAt: "2026-10-19T10:42:00Z",
     createdAt: "2026-10-19T09:10:00Z",
     fields: {
@@ -66,7 +66,7 @@ export const readonlyCaseFixtures: CaseRecord[] = [
       severity: "Medium",
       expected_behavior: "One accepted delivery per provider event",
       reproduction: "Replay a signed event after the first response times out",
-      provider_event: { id: "evt_104", repository: { name: "paperclip", private: true } },
+      provider_event: { id: "evt_104", repository: { name: "outpost", private: true } },
       delivery_attempts: [
         { request_id: "req_812", attempt: 1, result: "accepted" },
         { request_id: "req_813", attempt: 2, result: "original receipt returned" },
@@ -79,7 +79,7 @@ export const readonlyCaseFixtures: CaseRecord[] = [
       assignee: "Implementation",
       phase: "Implementation",
       description:
-        "## Objective\n\nMake webhook intake idempotent when the provider retries an event, including after a lost HTTP response.\n\n## Acceptance criteria\n\n- Persist one receipt per company, connection, and provider event ID.\n- Return the original receipt for an identical replay.\n- Reject a different payload under the same event ID.\n- Prove concurrent requests cannot create duplicate intake work.\n- Preserve signature verification, connection access, and independent processing of different events.\n\nSave the implementation findings, then ask Verification to exercise the HTTP boundary before human review.",
+        "## Objective\n\nMake webhook intake idempotent when the provider retries an event, including after a lost HTTP response.\n\n## Acceptance criteria\n\n- Persist one receipt per space, connection, and provider event ID.\n- Return the original receipt for an identical replay.\n- Reject a different payload under the same event ID.\n- Prove concurrent requests cannot create duplicate intake work.\n- Preserve signature verification, connection access, and independent processing of different events.\n\nSave the implementation findings, then ask Verification to exercise the HTTP boundary before human review.",
       latestUpdate: {
         authorRole: "Implementation",
         body: "Added the durable receipt and concurrent-request coverage. Focused tests pass. HTTP response-loss and replay checks still need independent verification; the outgoing workspace is finishing its save.",
@@ -91,7 +91,7 @@ export const readonlyCaseFixtures: CaseRecord[] = [
         key: "findings",
         title: "Investigation findings",
         revision: 2,
-        body: "## Reproduction\n\nWhen a signed webhook arrives twice with the same provider event ID, both requests can create intake work before either response returns.\n\n## Proposed fix\n\nStore a durable receipt keyed by company, provider connection, and event ID. Replays return the original receipt. A different payload under the same event ID is rejected.\n\n## Boundaries\n\nPreserve signature verification and connection permissions. Unrelated events must continue to run independently.",
+        body: "## Reproduction\n\nWhen a signed webhook arrives twice with the same provider event ID, both requests can create intake work before either response returns.\n\n## Proposed fix\n\nStore a durable receipt keyed by space, provider connection, and event ID. Replays return the original receipt. A different payload under the same event ID is rejected.\n\n## Boundaries\n\nPreserve signature verification and connection permissions. Unrelated events must continue to run independently.",
       },
       {
         key: "verification",
@@ -140,7 +140,7 @@ export const readonlyCaseFixtures: CaseRecord[] = [
       "Turn selected Slack threads into cases while keeping the source conversation and its access rules attached to the work.",
     type: "Feature",
     status: "in_review",
-    project: "Paperclip",
+    project: "Outpost",
     updatedAt: "2026-10-19T10:30:00Z",
     createdAt: "2026-10-19T08:55:00Z",
     fields: {
@@ -315,10 +315,10 @@ export const readonlyCaseFixtures: CaseRecord[] = [
     identifier: "PAP-C99",
     title: "Investigate slow task search",
     summary:
-      "Search feels slow in a larger company. Identify the expensive path and save a measured reproduction before proposing a fix.",
+      "Search feels slow in a larger space. Identify the expensive path and save a measured reproduction before proposing a fix.",
     type: "Bug",
     status: "open",
-    project: "Paperclip",
+    project: "Outpost",
     updatedAt: "2026-10-19T09:15:00Z",
     createdAt: "2026-10-19T08:10:00Z",
     fields: {
@@ -333,7 +333,7 @@ export const readonlyCaseFixtures: CaseRecord[] = [
       assignee: "Triage",
       phase: "Triage",
       description:
-        "## Objective\n\nFind a measured explanation for slow task search in a company with about 20,000 tasks.\n\n## Acceptance criteria\n\n- Reproduce representative searches and record their latency.\n- Separate server request time from browser rendering time.\n- Identify the expensive query or rendering path if possible.\n- Save enough detail for another person to repeat the measurement.\n\nPropose a bounded fix only after the slow path is known; ask a focused question if the available evidence is insufficient.",
+        "## Objective\n\nFind a measured explanation for slow task search in a space with about 20,000 tasks.\n\n## Acceptance criteria\n\n- Reproduce representative searches and record their latency.\n- Separate server request time from browser rendering time.\n- Identify the expensive query or rendering path if possible.\n- Save enough detail for another person to repeat the measurement.\n\nPropose a bounded fix only after the slow path is known; ask a focused question if the available evidence is insufficient.",
       latestUpdate: {
         authorRole: "Dotta",
         body: "Please begin with latency measurements on representative data. We need a reproducible slow path before choosing an implementation change.",
@@ -411,7 +411,7 @@ export const readonlyCaseFixtures: CaseRecord[] = [
       "Keep a small set of examples where people could not find an agent's saved result. No implementation has been scoped yet.",
     type: "Research",
     status: "open",
-    project: "Paperclip",
+    project: "Outpost",
     updatedAt: "2026-10-19T08:45:00Z",
     createdAt: "2026-10-19T07:30:00Z",
     fields: {
@@ -437,7 +437,7 @@ export const readonlyCaseFixtures: CaseRecord[] = [
       "Collect the provider retry limits and expected replay window before deciding whether any changes are needed.",
     type: "Research",
     status: "open",
-    project: "Paperclip",
+    project: "Outpost",
     updatedAt: "2026-10-18T16:30:00Z",
     createdAt: "2026-10-18T16:30:00Z",
     fields: {},

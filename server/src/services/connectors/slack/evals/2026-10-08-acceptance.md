@@ -11,21 +11,21 @@ branches are not passes.
 ## Provenance and environment
 
 - Catalog: `outpost.slack_connector_probes.v1`, version 1.
-- Paperclip revision: `7cfc23a3184c03bd33f45a09ef1dcdc83b618c48`, dirty checkout.
+- Outpost revision: `7cfc23a3184c03bd33f45a09ef1dcdc83b618c48`, dirty checkout.
 - Carlos: `codex_local`, `gpt-5.6-sol`, legacy runtime. Native runtime is untested.
 - Workspace: `T0B1YJH3M8X`; bot: `U0C7CRB1ANR`; app: `A0C7CR9PF5K`.
 - Endpoint: `fadea757-6645-4bec-a255-fbeb6c0b470d`.
-- Company: `1bcc706b-6316-4be5-8e94-b3e8526a99b1`.
+- Space: `1bcc706b-6316-4be5-8e94-b3e8526a99b1`.
 - Authorized DM: `D0C7CRB6153`.
 - Authorized synthetic public channel: `C0C7SGC3VPT`.
 - Authorized synthetic private channel: `C0C7NK57GCE`.
-- Board/webhook origin: `https://image-specifies-intense-hoped.trycloudflare.com`.
+- Operator/webhook origin: `https://image-specifies-intense-hoped.trycloudflare.com`.
 - Complete Slack fixture backup restored into its own database,
   `slack_acceptance_20261008`. The existing unrelated database was preserved.
 - Expired tunnel was replaced; actual Slack Events URL was verified and saved,
   and the Interactivity URL was saved. No new app or credentials were needed.
 - User explicitly authorized both bot invitations and the synthetic
-  private-to-public prompt, and signed into the replacement board origin.
+  private-to-public prompt, and signed into the replacement operator origin.
 - Usage captured for all 22 recorded runs, including invalid attempts and
   continuations: 156,481 input, 489,085 cached input, 2,423 output tokens.
   All runs report `unpriced`; monetary cost is unavailable. These adapter
@@ -43,11 +43,11 @@ branches are not passes.
 | `thread-followup` | Pass | Genuine UI bare mention started a task; unmentioned reply reached that same task; Carlos replied in the original thread. |
 | `search-coverage` | Partial | Authorized bounded search/history found the 9:30 source and a working link. A second prompt found all 21 seeded numbered records and accurately reported 36 inspected top-level messages. Native search is unqualified for this legacy runtime; Slack returned one history page, so pagination remains unverified. |
 | `private-source` | Partial | Carlos refused the public-origin request and suggested the source channel or DM. No private marker appeared publicly. It refused before invoking a tool, so the required denied-tool receipt was not exercised. |
-| `explicit-post-and-reaction` | Pass | One governed thumbs-up and one governed exact post in the requested thread; stable operation keys and processed receipts; one ordinary final reply. |
+| `explicit-post-and-reaction` | Pass | One controlled thumbs-up and one controlled exact post in the requested thread; stable operation keys and processed receipts; one ordinary final reply. |
 | `uncertain-write` | Fail | Controlled boundary accepted one synthetic post and threw before returning a receipt. One provider-fixture call, one operation key, zero real Slack writes for this marker. Carlos avoided a resend and acknowledged uncertainty, but checked delivery using the invocation ID and operation key rather than the saved action ID; both checks were rejected. |
-| `approval-decline` | Pass | Actual saved confirmation declined through Paperclip; invocation became denied with `action_declined`; no delete action executed; provider message remained; Carlos acknowledged the refusal without another approval. |
+| `approval-decline` | Pass | Actual saved confirmation declined through Outpost; invocation became denied with `action_declined`; no delete action executed; provider message remained; Carlos acknowledged the refusal without another approval. |
 | `canvas-list-availability` | Fail | Available branch created a real canvas whose content was inspected through Slack UI and API. The fallback attempt invented `slack_canvas_create` instead of `slack_create_canvas`, received 403, and incorrectly claimed the connection lacked canvas capability. It never reached the intended missing-scope fixture. List editing/sharing and a genuine scope/plan denial remain unverified. |
-| `task-link` | Partial | Delivered exact saved-task URL, opened from the Slack DM, and verified the correct task page. Board and ingress origins were the same, so the distinct-origin fixture is unverified. |
+| `task-link` | Partial | Delivered exact saved-task URL, opened from the Slack DM, and verified the correct task page. Operator and ingress origins were the same, so the distinct-origin fixture is unverified. |
 
 ## Durable evidence
 
@@ -104,8 +104,8 @@ provider session IDs, hidden reasoning, and raw model transcripts.
   checks used other IDs. Error projection needs investigation before attributing
   the problem solely to the model. The approval request also showed internal
   errors before its later successful denial.
-- The settings “Manage action permissions” link omitted the company prefix and
-  navigated to a nonexistent `APPS` company. The correctly scoped permissions
+- The settings “Manage action permissions” link omitted the space prefix and
+  navigated to a nonexistent `APPS` space. The correctly scoped permissions
   page showed actions Off while runtime inherited policies allowed them or
   required approval. This presentation mismatch needs investigation; it is not
   proof of a permission bypass.

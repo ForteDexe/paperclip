@@ -4,7 +4,7 @@ import {
   portabilityAgentSelectionSchema,
   portabilityCollisionStrategySchema,
   portabilityIncludeSchema,
-} from "./company-portability.js";
+} from "./space-portability.js";
 
 export const catalogTeamKindSchema = z.enum(["bundled", "optional"]);
 
@@ -87,7 +87,7 @@ export const catalogTeamSchema = z.object({
   entrypoint: z.literal("TEAM.md"),
   schema: z.literal("agentcompanies/v1"),
   defaultInstall: z.boolean(),
-  recommendedForCompanyTypes: z.array(z.string()),
+  recommendedForSpaceTypes: z.array(z.string()),
   tags: z.array(z.string()),
   counts: z.object({
     agents: z.number().int().nonnegative(),
@@ -136,7 +136,7 @@ export const catalogTeamSourcePolicySchema = z.object({
 export const catalogTeamPreviewSchema = z.object({
   targetManagerAgentId: z.string().min(1).nullable().optional(),
   targetManagerSlug: z.string().min(1).nullable().optional(),
-  include: portabilityIncludeSchema.omit({ company: true }).strict().optional(),
+  include: portabilityIncludeSchema.omit({ space: true }).strict().optional(),
   agents: portabilityAgentSelectionSchema.optional(),
   collisionStrategy: portabilityCollisionStrategySchema.optional(),
   nameOverrides: z.record(z.string().min(1), z.string().min(1)).optional(),

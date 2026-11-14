@@ -8,7 +8,7 @@ import { JourneyError, type JourneyContext, type JourneyEvidence, type TargetSes
 
 type Stage = "create" | "initial_read" | "rename" | "label" | "in_progress" | "reload" | "complete" | "reopen";
 function taskSnapshot(task: LifecycleTask): LifecycleTask {
-  return { id: task.id, companyId: task.companyId, identifier: task.identifier, title: task.title,
+  return { id: task.id, spaceId: task.spaceId, identifier: task.identifier, title: task.title,
     description: task.description, status: task.status, priority: task.priority, projectId: task.projectId,
     assigneeUserId: task.assigneeUserId, assigneeAgentId: task.assigneeAgentId, createdByUserId: task.createdByUserId,
     createdByAgentId: task.createdByAgentId, labelIds: task.labelIds, completedAt: task.completedAt };
@@ -48,7 +48,7 @@ async function setStatus(context: JourneyContext, label: string) {
 /** All measured edits use the shipped browser. Independent GETs verify saved state. */
 export async function taskEditLifecycle(context: JourneyContext, session: TargetSession, campaignId: string, evidence: JourneyEvidence,
   options: { deadlineAt: number; directory: string }) {
-  const { page, api, company, user } = context;
+  const { page, api, space, user } = context;
   const read = createObservedReader(api, options.deadlineAt);
   const journeyId = "task-edit-lifecycle" as const;
   const originalTitle = `Journey QA task lifecycle ${campaignId}`;
@@ -71,18 +71,18 @@ export async function taskEditLifecycle(context: JourneyContext, session: Target
   };
   const grade = () => taskLifecycleEvidence({ expected: expected!, label, ...observed });
   try {
-    for (const capability of ["company", "board-user", "task-write"]) {
+    for (const capability of ["space", "board-user", "task-write"]) {
       if (!context.capabilities.includes(capability)) throw new JourneyError("unsupported", `missing_${capability}`);
     }
     if (!campaignId) throw new JourneyError("blocked", "task_lifecycle_campaign_required");
-    const created = await createTaskThroughUi({ page, origin: api.origin, issuePrefix: company.issuePrefix,
+    const created = await createTaskThroughUi({ page, origin: api.origin, issuePrefix: space.issuePrefix,
       agentName: "Me", title: originalTitle, prompt: description, workMode: "standard", requireExplicitTitle: true,
       beforeDispatch: () => session.own({ kind: "issue", name: originalTitle, journeyId }) });
     await session.own({ kind: "issue", name: originalTitle, id: created.issueId, journeyId });
     const route = `/api/issues/${created.issueId}`;
-    expected = { taskId: created.issueId, companyId: company.id, userId: user.id, originalTitle, revisedTitle, description, labelName };
+    expected = { taskId: created.issueId, spaceId: space.id, userId: user.id, originalTitle, revisedTitle, description, labelName };
     const task = await read.get<LifecycleTask>(route);
-    await page.goto(`${api.origin}/${company.issuePrefix}/issues/${task.identifier}`);
+    await page.goto(`${api.origin}/${space.issuePrefix}/issues/${task.identifier}`);
     const capture = async (title: string, statusLabel: string, withLabel: boolean): Promise<LifecycleObservation> => {
       await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
       await expect(page.getByText(description, { exact: true }).first()).toBeVisible();
@@ -112,7 +112,7 @@ export async function taskEditLifecycle(context: JourneyContext, session: Target
     await titleEditor.press("Enter");
     await expect.poll(async () => (await read.get<LifecycleTask>(route)).title).toBe(revisedTitle);
     stage = "label";
-    const labelsRoute = `/api/companies/${company.id}/labels`;
+    const labelsRoute = `/api/spaces/${space.id}/labels`;
     const beforeLabels = await read.get<LifecycleLabel[]>(labelsRoute);
     if (beforeLabels.some(row => row.name === labelName)) throw new JourneyError("failed", "task_lifecycle_label_not_fresh");
     const labels = await properties(context);
@@ -124,15 +124,15 @@ export async function taskEditLifecycle(context: JourneyContext, session: Target
     () => page.getByRole("button", { name: "Create label", exact: true }).click());
     if (response.status() !== 201) throw new JourneyError("failed", "task_lifecycle_label_create_failed");
     const createdLabel = await response.json() as LifecycleLabel;
-    if (typeof createdLabel.id !== "string" || !createdLabel.id || createdLabel.name !== labelName || createdLabel.companyId !== company.id) {
+    if (typeof createdLabel.id !== "string" || !createdLabel.id || createdLabel.name !== labelName || createdLabel.spaceId !== space.id) {
       throw new JourneyError("failed", "task_lifecycle_label_receipt_mismatch");
     }
     await session.own({ kind: "label", name: labelName, id: createdLabel.id, journeyId });
-    label = { id: createdLabel.id, companyId: createdLabel.companyId, name: createdLabel.name, color: createdLabel.color };
+    label = { id: createdLabel.id, spaceId: createdLabel.spaceId, name: createdLabel.name, color: createdLabel.color };
     await page.keyboard.press("Escape");
     const savedLabels = await read.get<LifecycleLabel[]>(labelsRoute);
     if (savedLabels.filter(row => row.name === labelName).length !== 1
-      || !savedLabels.some(row => row.id === label!.id && row.name === labelName && row.companyId === company.id && row.color === label!.color)) {
+      || !savedLabels.some(row => row.id === label!.id && row.name === labelName && row.spaceId === space.id && row.color === label!.color)) {
       throw new JourneyError("failed", "task_lifecycle_label_saved_mismatch");
     }
     stage = "in_progress";

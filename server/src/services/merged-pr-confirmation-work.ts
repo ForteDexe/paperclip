@@ -16,7 +16,7 @@ export function registerMergeConfirmationWork(
   return registerScopedDeadlineWork(coordinator, {
     queue: DELIVERY_QUEUES.mergedPullRequestConfirmations,
     decodeScope: hint => hint === "*" ? undefined : JSON.parse(hint) as MergeConfirmationScope,
-    matches: (entry, scope?: MergeConfirmationScope) => !scope || (entry.companyId === scope.companyId &&
+    matches: (entry, scope?: MergeConfirmationScope) => !scope || (entry.spaceId === scope.spaceId &&
       (!scope.issueId || entry.issueId === scope.issueId) && (!scope.interactionId || entry.id === scope.interactionId)),
     load: async (scope?: MergeConfirmationScope) => {
       const key = scope ? JSON.stringify(scope) : "*";
@@ -24,11 +24,11 @@ export function registerMergeConfirmationWork(
       if (page.complete) cursors.delete(key);
       else cursors.set(key, page.after!);
       return { complete: page.complete, rows: page.rows.map(({ interaction }) => ({
-        id: interaction.id, companyId: interaction.companyId, issueId: interaction.issueId, dueAt: Date.now(),
+        id: interaction.id, spaceId: interaction.spaceId, issueId: interaction.issueId, dueAt: Date.now(),
       })) };
     },
     check: async (entry, signal) => {
-      const scope = { companyId: entry.companyId, issueId: entry.issueId, interactionId: entry.id };
+      const scope = { spaceId: entry.spaceId, issueId: entry.issueId, interactionId: entry.id };
       await service.sweepMergedPullRequestConfirmations([], scope, signal);
       if (signal?.aborted) return entry;
       const remaining = await service.mergedPullRequestConfirmationCandidates(scope);

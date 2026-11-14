@@ -3,11 +3,11 @@ import { mkdtemp } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { agents, authUsers, companies, companyMemberships, executionWorkspaceRepositories, executionWorkspaces, issues, heartbeatRuns, projects, projectWorkspaces } from "@outpost/db";
+import { agents, authUsers, spaces, spaceMemberships, executionWorkspaceRepositories, executionWorkspaces, issues, heartbeatRuns, projects, projectWorkspaces } from "@outpost/db";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { startRunnerApiTestServer } from "./helpers/runner-api-server.js";
 import { getEmbeddedPostgresTestSupport } from "./helpers/embedded-postgres.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 
 const support = await getEmbeddedPostgresTestSupport();
@@ -16,40 +16,40 @@ const support = await getEmbeddedPostgresTestSupport();
   const originalSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
   beforeAll(async () => { process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID(); server = await startRunnerApiTestServer(); }, 60_000);
   afterAll(async () => { await server?.close(); if (originalSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET; else process.env.OUTPOST_AGENT_JWT_SECRET = originalSecret; });
-  it("prepares a repository through native JWT authority for the local board and rechecks revoked access", async () => {
+  it("prepares a repository through native JWT authority for the local operator and rechecks revoked access", async () => {
     const f = await server.fixture({ disableWakeOnDemand: true });
-    await server.db.insert(authUsers).values({ id: "local-board", name: "Local Board", email: "local-board@example.invalid",
+    await server.db.insert(authUsers).values({ id: "local-operator", name: "Local Operator", email: "local-operator@example.invalid",
       emailVerified: true, createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await server.db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: "local-board", membershipRole: "owner", status: "active" });
-    const [workspace] = await server.db.insert(executionWorkspaces).values({ companyId: f.companyId, sourceIssueId: f.issueId,
+    await server.db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: "local-operator", membershipRole: "owner", status: "active" });
+    const [workspace] = await server.db.insert(executionWorkspaces).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
       name: "Local task files", cwd: f.workspace, mode: "isolated_workspace", strategyType: "task_directory" }).returning();
     await server.db.update(issues).set({ projectId: null, projectWorkspaceId: null, executionWorkspaceId: workspace.id,
-      responsibleUserId: "local-board" }).where(eq(issues.id, f.issueId));
-    await server.db.update(heartbeatRuns).set({ responsibleUserId: "local-board" }).where(eq(heartbeatRuns.id, f.runId));
+      responsibleUserId: "local-operator" }).where(eq(issues.id, f.issueId));
+    await server.db.update(heartbeatRuns).set({ responsibleUserId: "local-operator" }).where(eq(heartbeatRuns.id, f.runId));
     await expect(f.authority.execute({ tool: "prepare_repository", callId: randomUUID(), arguments: {
-      repository: { kind: "url", url: "https://github.com/public/example" }, requestKey: "local-board-native" } }))
+      repository: { kind: "url", url: "https://github.com/public/example" }, requestKey: "local-operator-native" } }))
       .resolves.toMatchObject({ kind: "requires_next_admission" });
-    await server.db.delete(companyMemberships).where(and(eq(companyMemberships.companyId, f.companyId), eq(companyMemberships.principalId, "local-board")));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, "local-board");
+    await server.db.delete(spaceMemberships).where(and(eq(spaceMemberships.spaceId, f.spaceId), eq(spaceMemberships.principalId, "local-operator")));
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, "local-operator");
     const denied = await fetch(`${server.apiUrl}/api/issues/${f.issueId}/workspace/repositories`, {
       method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify({ repository: { kind: "url", url: "https://github.com/public/other" }, requestKey: "different-sponsor" }),
     });
     expect([403, 404]).toContain(denied.status);
-    expect(await server.db.select().from(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.companyId, f.companyId))).toHaveLength(1);
+    expect(await server.db.select().from(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.spaceId, f.spaceId))).toHaveLength(1);
   });
   it("creates an explicit-workspace child through the authenticated low-trust API without repeating its saved policy", async () => {
     const f = await server.fixture({ connectionScenario: "fresh", disableWakeOnDemand: true });
     const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustPreset: "low_trust_review",
-      trustBoundary: { mode: "low_trust_review", companyId: f.companyId, rootIssueId: f.issueId, projectIds: [f.projectId] } } };
-    const [workspace] = await server.db.insert(executionWorkspaces).values({ companyId: f.companyId, projectId: f.projectId,
+      trustBoundary: { mode: "low_trust_review", spaceId: f.spaceId, rootIssueId: f.issueId, projectIds: [f.projectId] } } };
+    const [workspace] = await server.db.insert(executionWorkspaces).values({ spaceId: f.spaceId, projectId: f.projectId,
       projectWorkspaceId: f.projectWorkspaceId, sourceIssueId: f.issueId, name: "Review files", cwd: f.workspace,
       mode: "isolated_workspace", strategyType: "task_directory" }).returning();
     await server.db.update(projects).set({ executionWorkspacePolicy: policy }).where(eq(projects.id, f.projectId));
     await server.db.update(issues).set({ executionPolicy: policy, executionWorkspaceId: workspace.id }).where(eq(issues.id, f.issueId));
     await server.db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, executionPolicy: policy } }).where(eq(heartbeatRuns.id, f.runId));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.userId);
-    const create = (parentId: string) => fetch(`${server.apiUrl}/api/companies/${f.companyId}/issues`, {
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.userId);
+    const create = (parentId: string) => fetch(`${server.apiUrl}/api/spaces/${f.spaceId}/issues`, {
       method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify({ title: `Review child ${randomUUID()}`, parentId, projectId: f.projectId,
         assigneeAgentId: f.agentId, status: "backlog", workspaceSelection: { kind: "existing", workspaceId: workspace.id } }),
@@ -66,9 +66,9 @@ const support = await getEmbeddedPostgresTestSupport();
   });
   it("inspects an idle admitted workspace, requests a repository, and stages root selection without interrupting", async () => {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
-    const [workspace] = await server.db.insert(executionWorkspaces).values({ companyId: f.companyId, projectId: null, sourceIssueId: f.issueId, name: "Task files", cwd: f.workspace, mode: "shared_workspace", strategyType: "task_directory", status: "idle" }).returning();
+    const [workspace] = await server.db.insert(executionWorkspaces).values({ spaceId: f.spaceId, projectId: null, sourceIssueId: f.issueId, name: "Task files", cwd: f.workspace, mode: "shared_workspace", strategyType: "task_directory", status: "idle" }).returning();
     await server.db.update(issues).set({ projectId: null, projectWorkspaceId: null, executionWorkspaceId: workspace.id }).where(eq(issues.id, f.issueId));
-    const authority = new PaperclipRunnerToolAuthority(server.db, { companyId: f.companyId, issueId: f.issueId, agentId: f.agentId, runId: f.runId, apiUrl: server.apiUrl, workspaceRoot: "/admitted/task" });
+    const authority = new OutpostRunnerToolAuthority(server.db, { spaceId: f.spaceId, issueId: f.issueId, agentId: f.agentId, runId: f.runId, apiUrl: server.apiUrl, workspaceRoot: "/admitted/task" });
     const call = (tool: string, args: Record<string, unknown>) => authority.execute({ tool, arguments: args, callId: randomUUID() });
     const view = await call("get_workspace", {}) as { bindingRevision: number; cwd: string; workspace: { id: string } };
     expect(view).toMatchObject({ cwd: "/admitted/task", workspace: { id: workspace.id } });
@@ -86,13 +86,13 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(await call("select_workspace", { selection: { kind: "task_directory" }, expectedBindingRevision: view.bindingRevision, requestKey: "root-one" })).toMatchObject({ kind: "scheduled", applies: "next_normal_admission" });
     const [task] = await server.db.select().from(issues).where(eq(issues.id, f.issueId));
     expect(task).toMatchObject({ executionWorkspaceId: workspace.id, projectId: null, workspacePendingSelection: { requestKey: "root-one" } });
-    const runs = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId));
+    const runs = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId));
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({ id: f.runId, status: "running" });
   });
   it("rejects repository preparation on an environment-owned workspace before queuing a receipt", async () => {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
-    const [workspace] = await server.db.insert(executionWorkspaces).values({ companyId: f.companyId, sourceIssueId: f.issueId,
+    const [workspace] = await server.db.insert(executionWorkspaces).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
       name: "Plugin workspace", cwd: ".", mode: "adapter_managed", strategyType: "adapter_managed", providerType: "adapter_managed" }).returning();
     await server.db.update(issues).set({ projectId: null, projectWorkspaceId: null, executionWorkspaceId: workspace.id }).where(eq(issues.id, f.issueId));
     const call = (tool: string, args: Record<string, unknown>) => f.authority.execute({ tool, arguments: args, callId: randomUUID() });
@@ -103,10 +103,10 @@ const support = await getEmbeddedPostgresTestSupport();
   });
   it("allows a projectless task to use a directory also configured by an unrelated protected project", async () => {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
-    const [project] = await server.db.insert(projects).values({ companyId: f.companyId, name: "Protected physical source",
+    const [project] = await server.db.insert(projects).values({ spaceId: f.spaceId, name: "Protected physical source",
       executionWorkspacePolicy: { authorizationPolicy: { assignmentPolicy: { mode: "protected" } } } }).returning();
-    await server.db.insert(projectWorkspaces).values({ companyId: f.companyId, projectId: project.id, name: "Protected folder", cwd: f.workspace });
-    const [workspace] = await server.db.insert(executionWorkspaces).values({ companyId: f.companyId, sourceIssueId: f.issueId,
+    await server.db.insert(projectWorkspaces).values({ spaceId: f.spaceId, projectId: project.id, name: "Protected folder", cwd: f.workspace });
+    const [workspace] = await server.db.insert(executionWorkspaces).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
       name: "Projectless alias", cwd: f.workspace, mode: "shared_workspace", strategyType: "task_directory" }).returning();
     await server.db.update(issues).set({ projectId: null, projectWorkspaceId: null, executionWorkspaceId: workspace.id }).where(eq(issues.id, f.issueId));
     const call = (tool: string, args: Record<string, unknown>) => f.authority.execute({ tool, arguments: args, callId: randomUUID() });
@@ -120,10 +120,10 @@ const support = await getEmbeddedPostgresTestSupport();
   it("denies new public clones for unlinked full-auto chat while keeping workspace discovery readable", async () => {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
     const cwd = await mkdtemp(join(dirname(f.workspace), "unlinked-task-"));
-    const [workspace] = await server.db.insert(executionWorkspaces).values({ companyId: f.companyId, sourceIssueId: f.issueId,
+    const [workspace] = await server.db.insert(executionWorkspaces).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
       name: "Unlinked chat files", cwd, mode: "isolated_workspace", strategyType: "task_directory" }).returning();
     const policy = { trustPreset: "low_trust_review", authorizationPolicy: { trustPreset: "low_trust_review",
-      trustBoundary: { mode: "low_trust_review", companyId: f.companyId, rootIssueId: f.issueId } } };
+      trustBoundary: { mode: "low_trust_review", spaceId: f.spaceId, rootIssueId: f.issueId } } };
     await server.db.update(agents).set({ adapterConfig: { provider: "codex", codexPermissionMode: "never" } }).where(eq(agents.id, f.agentId));
     await server.db.update(issues).set({ projectId: null, projectWorkspaceId: null, executionWorkspaceId: workspace.id,
       executionPolicy: {} }).where(eq(issues.id, f.issueId));
@@ -132,7 +132,7 @@ const support = await getEmbeddedPostgresTestSupport();
     await expect(call("get_workspace", {})).resolves.toMatchObject({ workspace: { id: workspace.id } });
     await expect(call("prepare_repository", { repository: { kind: "url", url: "https://github.com/public/example" }, requestKey: "unlinked-full-auto" }))
       .rejects.toThrow(/trusted task/);
-    expect(await server.db.select().from(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.companyId, f.companyId))).toHaveLength(0);
+    expect(await server.db.select().from(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.spaceId, f.spaceId))).toHaveLength(0);
   });
 
   it("does not expose repository preparation or workspace selection to Ask mode", async () => {
@@ -151,7 +151,7 @@ const support = await getEmbeddedPostgresTestSupport();
       { name: "Closed", mode: "shared_workspace", status: "active", closedAt: new Date() },
     ];
     const rows = await server.db.insert(executionWorkspaces).values(definitions.map(definition => ({
-      ...definition, companyId: f.companyId, projectId: null, strategyType: "task_directory", cwd: f.workspace,
+      ...definition, spaceId: f.spaceId, projectId: null, strategyType: "task_directory", cwd: f.workspace,
     }))).returning();
     const call = (tool: string, args: Record<string, unknown>) => f.authority.execute({ tool, arguments: args, callId: randomUUID() });
     const { workspaces: listed } = await call("list_workspaces", {}) as { workspaces: Array<{ id: string }> };
@@ -169,17 +169,17 @@ const support = await getEmbeddedPostgresTestSupport();
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
     const timestamp = new Date("2026-01-01T00:00:00Z");
     const rows = await server.db.insert(executionWorkspaces).values(Array.from({ length: 2_000 }, (_, index) => ({
-      companyId: f.companyId, name: `Workspace ${index}`, mode: "shared_workspace", strategyType: "task_directory",
+      spaceId: f.spaceId, name: `Workspace ${index}`, mode: "shared_workspace", strategyType: "task_directory",
       cwd: `/tmp/${"repository/".repeat(20)}${index}`, lastUsedAt: timestamp, createdAt: timestamp,
     }))).returning({ id: executionWorkspaces.id });
-    await server.db.insert(executionWorkspaces).values({ companyId: f.companyId, name: "Archived", mode: "shared_workspace",
+    await server.db.insert(executionWorkspaces).values({ spaceId: f.spaceId, name: "Archived", mode: "shared_workspace",
       strategyType: "task_directory", cwd: f.workspace, status: "archived" });
-    const [privateTask] = await server.db.insert(issues).values({ companyId: f.companyId, title: "Private source",
+    const [privateTask] = await server.db.insert(issues).values({ spaceId: f.spaceId, title: "Private source",
       visibility: "private", status: "backlog" }).returning({ id: issues.id });
-    await server.db.insert(executionWorkspaces).values({ companyId: f.companyId, sourceIssueId: privateTask.id,
+    await server.db.insert(executionWorkspaces).values({ spaceId: f.spaceId, sourceIssueId: privateTask.id,
       name: "Private workspace", mode: "shared_workspace", strategyType: "task_directory", cwd: f.workspace });
     const foreign = await server.fixture({ conversation: true, disableWakeOnDemand: true });
-    await server.db.insert(executionWorkspaces).values({ companyId: foreign.companyId, name: "Foreign", mode: "shared_workspace",
+    await server.db.insert(executionWorkspaces).values({ spaceId: foreign.spaceId, name: "Foreign", mode: "shared_workspace",
       strategyType: "task_directory", cwd: foreign.workspace });
     type Page = { workspaces: Array<{ id: string }>; limit: number; returnedCount: number; hasMore: boolean; nextCursor: string | null };
     const list = (args: Record<string, unknown>) => f.authority.execute({ tool: "list_workspaces", arguments: args, callId: randomUUID() }) as Promise<Page>;
@@ -208,8 +208,8 @@ const support = await getEmbeddedPostgresTestSupport();
     const giantId = "00000000-0000-4000-8000-000000000001";
     const giantName = "🦀\\\"".repeat(100_000);
     const rows = await server.db.insert(executionWorkspaces).values([
-      { id: giantId, companyId: f.companyId, name: giantName, mode: "shared_workspace", strategyType: "task_directory" },
-      ...Array.from({ length: 60 }, () => ({ companyId: f.companyId, name: "🦀\\\"".repeat(4_000), mode: "shared_workspace", strategyType: "task_directory" })),
+      { id: giantId, spaceId: f.spaceId, name: giantName, mode: "shared_workspace", strategyType: "task_directory" },
+      ...Array.from({ length: 60 }, () => ({ spaceId: f.spaceId, name: "🦀\\\"".repeat(4_000), mode: "shared_workspace", strategyType: "task_directory" })),
     ]).returning({ id: executionWorkspaces.id });
     type Page = { workspaces: Array<{ id: string; name: string; truncatedFields?: string[] }>; hasMore: boolean; nextCursor: string | null };
     const list = (cursor?: string) => f.authority.execute({ tool: "list_workspaces", arguments: { limit: 100, ...(cursor ? { cursor } : {}) }, callId: randomUUID() }) as Promise<Page>;
@@ -226,7 +226,7 @@ const support = await getEmbeddedPostgresTestSupport();
       expect(page.workspaces.every(row => row.name === "🦀\\\"".repeat(4_000))).toBe(true);
     }
     expect(seen).toEqual(rows.map(row => row.id).sort());
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.userId);
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.userId);
     const detail = await fetch(`${server.apiUrl}/api/execution-workspaces/${giantId}`, { headers: { authorization: `Bearer ${token}` } });
     expect(detail.status).toBe(200);
     expect((await detail.json()).name).toBe(giantName);
@@ -234,16 +234,16 @@ const support = await getEmbeddedPostgresTestSupport();
   it("keeps source authorization on projectless task workspace inspection, selection, and preparation", async () => {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
     await server.db.update(issues).set({ projectId: null, projectWorkspaceId: null }).where(eq(issues.id, f.issueId));
-    const [source] = await server.db.insert(executionWorkspaces).values({ companyId: f.companyId,
+    const [source] = await server.db.insert(executionWorkspaces).values({ spaceId: f.spaceId,
       projectId: f.projectId, projectWorkspaceId: f.projectWorkspaceId, mode: "shared_workspace", strategyType: "project_primary", cwd: f.workspace, name: "Source project" }).returning();
-    const [unrelated] = await server.db.insert(executionWorkspaces).values({ companyId: f.companyId,
+    const [unrelated] = await server.db.insert(executionWorkspaces).values({ spaceId: f.spaceId,
       projectId: null, sourceIssueId: f.blockerId, mode: "shared_workspace", strategyType: "task_directory", cwd: f.workspace, name: "Unrelated task files" }).returning();
     await server.db.update(issues).set({ projectId: null }).where(eq(issues.id, f.blockerId));
-    const boundary = { mode: "low_trust_review", companyId: f.companyId, rootIssueId: f.issueId };
+    const boundary = { mode: "low_trust_review", spaceId: f.spaceId, rootIssueId: f.issueId };
     const policy = (projectIds: string[]) => ({ trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { ...boundary, projectIds } } });
     await server.db.update(agents).set({ permissions: policy([]) }).where(eq(agents.id, f.agentId));
     const call = (tool: string, args: Record<string, unknown>) => f.authority.execute({ tool, arguments: args, callId: randomUUID() });
-    await expect(call("list_workspaces", {})).rejects.toThrow(/outside.*boundary|company-wide|privileged/i);
+    await expect(call("list_workspaces", {})).rejects.toThrow(/outside.*boundary|space-wide|privileged/i);
     for (const selection of [{ kind: "existing", workspaceId: source.id },
       { kind: "configured_source", projectWorkspaceId: f.projectWorkspaceId, mode: "shared" },
       { kind: "existing", workspaceId: unrelated.id }]) {
@@ -253,19 +253,19 @@ const support = await getEmbeddedPostgresTestSupport();
     await expect(call("get_workspace", {})).rejects.toThrow(/outside.*boundary/i);
     const repository = { repository: { kind: "url", url: "https://github.com/public/example" }, requestKey: "source-denied" };
     await expect(call("prepare_repository", repository)).rejects.toThrow(/outside.*boundary/i);
-    expect(await server.db.select().from(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.companyId, f.companyId))).toHaveLength(0);
+    expect(await server.db.select().from(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.spaceId, f.spaceId))).toHaveLength(0);
     await server.db.update(agents).set({ permissions: policy([f.projectId]) }).where(eq(agents.id, f.agentId));
     await expect(call("get_workspace", {})).resolves.toMatchObject({ workspace: { id: source.id, projectId: f.projectId } });
     await expect(call("select_workspace", { selection: { kind: "existing", workspaceId: source.id }, expectedBindingRevision: 0, requestKey: "source-allowed" })).resolves.toMatchObject({ kind: "scheduled" });
     await expect(call("prepare_repository", repository)).rejects.toThrow(/trusted task/);
-    expect(await server.db.select().from(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.companyId, f.companyId))).toHaveLength(0);
+    expect(await server.db.select().from(executionWorkspaceRepositories).where(eq(executionWorkspaceRepositories.spaceId, f.spaceId))).toHaveLength(0);
     expect((await server.db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, unrelated.id)))[0]?.cwd).toBe(f.workspace);
     expect((await server.db.select().from(issues).where(eq(issues.id, f.issueId)))[0]?.projectId).toBeNull();
   });
   it("returns real page hrefs for projects and, only while their pages are routed, for workspaces", async () => {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
-    const [{ issuePrefix }] = await server.db.select({ issuePrefix: companies.issuePrefix }).from(companies).where(eq(companies.id, f.companyId));
-    const [workspace] = await server.db.insert(executionWorkspaces).values({ companyId: f.companyId, sourceIssueId: f.issueId, projectId: null,
+    const [{ issuePrefix }] = await server.db.select({ issuePrefix: spaces.issuePrefix }).from(spaces).where(eq(spaces.id, f.spaceId));
+    const [workspace] = await server.db.insert(executionWorkspaces).values({ spaceId: f.spaceId, sourceIssueId: f.issueId, projectId: null,
       name: "Website files", cwd: f.workspace, mode: "shared_workspace", strategyType: "task_directory" }).returning();
     await server.db.update(issues).set({ projectId: null, projectWorkspaceId: null, executionWorkspaceId: workspace.id }).where(eq(issues.id, f.issueId));
     const call = (tool: string) => f.authority.execute({ tool, arguments: {}, callId: randomUUID() }) as Promise<any>;

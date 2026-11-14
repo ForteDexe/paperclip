@@ -46,8 +46,8 @@ import {
 } from "./slots";
 
 export type PluginLauncherContext = {
-  companyId?: string | null;
-  companyPrefix?: string | null;
+  spaceId?: string | null;
+  spacePrefix?: string | null;
   projectId?: string | null;
   projectRef?: string | null;
   entityId?: string | null;
@@ -65,7 +65,7 @@ export type ResolvedPluginLauncher = PluginLauncherDeclaration & {
 type UsePluginLaunchersFilters = {
   placementZones: PluginLauncherPlacementZone[];
   entityType?: PluginUiSlotEntityType | null;
-  companyId?: string | null;
+  spaceId?: string | null;
   enabled?: boolean;
 };
 
@@ -138,8 +138,8 @@ function buildLauncherHostContext(
   userId: string | null,
 ): PluginHostContext {
   return {
-    companyId: context.companyId ?? null,
-    companyPrefix: context.companyPrefix ?? null,
+    spaceId: context.spaceId ?? null,
+    spacePrefix: context.spacePrefix ?? null,
     projectId: context.projectId ?? (context.entityType === "project" ? context.entityId ?? null : null),
     entityId: context.entityId ?? null,
     entityType: context.entityType ?? null,
@@ -162,8 +162,8 @@ function resolveLauncherNavigationTarget(target: string, hostContext: PluginLaun
   if (/^https?:\/\//.test(target) || target.startsWith("/") || target.startsWith("#") || target.startsWith(".") || target.startsWith("?")) {
     return target;
   }
-  const companyPrefix = hostContext.companyPrefix?.trim();
-  return companyPrefix ? `/${companyPrefix}/${target}` : target;
+  const spacePrefix = hostContext.spacePrefix?.trim();
+  return spacePrefix ? `/${spacePrefix}/${target}` : target;
 }
 
 function launcherRoutePath(launcher: ResolvedPluginLauncher): string | null {
@@ -373,7 +373,7 @@ async function resolveLauncherComponent(
  * Scope bridge calls to the currently rendered launcher host context.
  *
  * Hooks such as `useHostContext()`, `usePluginData()`, and `usePluginAction()`
- * consume this ambient context so the bridge can forward company/entity scope
+ * consume this ambient context so the bridge can forward space/entity scope
  * and render-environment metadata to the plugin worker.
  */
 function PluginLauncherBridgeScope({
@@ -698,7 +698,7 @@ export function PluginLauncherProvider({ children }: { children: ReactNode }) {
             launcher.pluginId,
             launcher.action.target,
             launcher.action.params,
-            hostContext.companyId ?? null,
+            hostContext.spaceId ?? null,
           );
           return;
         case "openModal":
@@ -804,8 +804,8 @@ export function PluginLauncherOutlet({
   const { launchers, contributionsByPluginId } = usePluginLaunchers({
     placementZones,
     entityType,
-    companyId: context.companyId,
-    enabled: !!context.companyId,
+    spaceId: context.spaceId,
+    enabled: !!context.spaceId,
   });
 
   if (launchers.length === 0) return null;

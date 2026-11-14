@@ -25,7 +25,7 @@ export interface EmailMessage extends EmailEnvelope {
 }
 export interface EmailEndpointSummary {
   id: string;
-  companyId: string;
+  spaceId: string;
   connectionId: string;
   assignedAgentId: string;
   address: string | null;

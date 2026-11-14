@@ -36,7 +36,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
   return {
     id: "issue-1",
     identifier: "PAP-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     projectWorkspaceId: null,
     goalId: null,
@@ -115,7 +115,7 @@ describe("IssueLinkQuicklook", () => {
         root.render(
           <QueryClientProvider client={queryClient}>
             <MemoryRouter>
-              <IssueLinkQuicklook issuePathId="PAP-1" issuePrefetch={createIssue()} to="/companies/company-1/issues/PAP-1" disableIssueQuicklook={!quicklook}>
+              <IssueLinkQuicklook issuePathId="PAP-1" issuePrefetch={createIssue()} to="/spaces/space-1/issues/PAP-1" disableIssueQuicklook={!quicklook}>
                 PAP-1
               </IssueLinkQuicklook>
             </MemoryRouter>
@@ -195,7 +195,7 @@ describe("IssueLinkQuicklook", () => {
             <IssueLinkQuicklook
               issuePathId="PAP-1"
               issuePrefetch={issue}
-              to="/companies/company-1/issues/PAP-1"
+              to="/spaces/space-1/issues/PAP-1"
             >
               PAP-1
             </IssueLinkQuicklook>
@@ -239,7 +239,7 @@ describe("IssueLinkQuicklook", () => {
             <IssueLinkQuicklook
               issuePathId="PAP-1"
               issuePrefetch={createIssue(issueOverrides)}
-              to="/companies/company-1/issues/PAP-1"
+              to="/spaces/space-1/issues/PAP-1"
             >
               PAP-1
             </IssueLinkQuicklook>
@@ -303,7 +303,7 @@ describe("IssueLinkQuicklook", () => {
     });
     expect(document.body.textContent).toContain("Quicklook title");
 
-    // A keyboard user moving the mouse must not dismiss what focus opened.
+    // A keyoperator moving the mouse must not dismiss what focus opened.
     movePointerTo(4000, 4000);
 
     expect(document.body.textContent).toContain("Quicklook title");

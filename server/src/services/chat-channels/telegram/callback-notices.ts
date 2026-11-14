@@ -40,7 +40,7 @@ export function createTelegramCallbackNoticeAuthority(options: TelegramCallbackN
     if (
       endpoint.provider !== "telegram" ||
       endpoint.status !== "active" ||
-      endpoint.companyId !== receipt.companyId ||
+      endpoint.spaceId !== receipt.spaceId ||
       endpoint.id !== receipt.endpointId ||
       endpoint.botExternalId !== receipt.botUserId ||
       !endpoint.providerAccountId ||
@@ -57,7 +57,7 @@ export function createTelegramCallbackNoticeAuthority(options: TelegramCallbackN
             .from(chatEndpointResources)
             .where(
               and(
-                eq(chatEndpointResources.companyId, endpoint.companyId),
+                eq(chatEndpointResources.spaceId, endpoint.spaceId),
                 eq(chatEndpointResources.endpointId, endpoint.id),
                 eq(chatEndpointResources.providerResourceId, receipt.chatId),
               ),
@@ -75,7 +75,7 @@ export function createTelegramCallbackNoticeAuthority(options: TelegramCallbackN
       .from(chatExternalPrincipals)
       .where(
         and(
-          eq(chatExternalPrincipals.companyId, endpoint.companyId),
+          eq(chatExternalPrincipals.spaceId, endpoint.spaceId),
           eq(chatExternalPrincipals.provider, endpoint.provider),
           eq(
             chatExternalPrincipals.providerAccountId,
@@ -96,12 +96,12 @@ export function createTelegramCallbackNoticeAuthority(options: TelegramCallbackN
     const link = await tx
       .select({
         status: chatIdentityLinks.status,
-        userId: chatIdentityLinks.paperclipUserId,
+        userId: chatIdentityLinks.outpostUserId,
       })
       .from(chatIdentityLinks)
       .where(
         and(
-          eq(chatIdentityLinks.companyId, endpoint.companyId),
+          eq(chatIdentityLinks.spaceId, endpoint.spaceId),
           eq(chatIdentityLinks.endpointId, endpoint.id),
           eq(chatIdentityLinks.principalId, principal.id),
         ),
@@ -110,7 +110,7 @@ export function createTelegramCallbackNoticeAuthority(options: TelegramCallbackN
     return createHash("sha256")
       .update(
         JSON.stringify([
-          endpoint.companyId,
+          endpoint.spaceId,
           endpoint.id,
           receipt.botUserId,
           resource?.id ?? null,

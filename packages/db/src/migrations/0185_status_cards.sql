@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "status_cards" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"created_by_user_id" text,
 	"created_by_agent_id" uuid,
 	"title" text,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS "status_card_updates" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "status_cards" ADD CONSTRAINT "status_cards_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "status_cards" ADD CONSTRAINT "status_cards_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -104,8 +104,8 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "status_cards_company_archived_idx" ON "status_cards" USING btree ("company_id","archived_at");
+CREATE INDEX IF NOT EXISTS "status_cards_space_archived_idx" ON "status_cards" USING btree ("space_id","archived_at");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "status_cards_company_next_eval_idx" ON "status_cards" USING btree ("company_id","next_eval_at");
+CREATE INDEX IF NOT EXISTS "status_cards_space_next_eval_idx" ON "status_cards" USING btree ("space_id","next_eval_at");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "status_card_updates_card_started_idx" ON "status_card_updates" USING btree ("card_id","started_at");

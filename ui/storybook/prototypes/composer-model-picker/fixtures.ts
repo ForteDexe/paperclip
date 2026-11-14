@@ -73,8 +73,8 @@ export const composerAgents: ComposerAgent[] = [
   { id: "hermes", name: "Hermes", role: "Operations", harness: "Hermes CLI", adapterType: "hermes_local", defaultModel: "auto", models: [{ id: "auto", label: "Auto" }], manualPattern: "Hermes model ID" },
   { id: "process", name: "Relay", role: "Automation", harness: "Process", adapterType: "process", models: [], noModelReason: "This agent runs a command. Its harness does not expose a model or effort setting." },
   { id: "http", name: "Hook", role: "Integration", harness: "HTTP", adapterType: "http", models: [], noModelReason: "This agent calls an HTTP endpoint. The destination service chooses its model." },
-  { id: "openclaw", name: "Ollie", role: "Support", harness: "OpenClaw Gateway", adapterType: "openclaw_gateway", models: [], noModelReason: "This gateway chooses its model remotely; Paperclip has no model catalog or per-message setting for it." },
-  { id: "hermes-gateway", name: "Hera", role: "Remote operations", harness: "Hermes Gateway", adapterType: "hermes_gateway", models: [], noModelReason: "This Hermes gateway chooses its model remotely; Paperclip cannot override it here." },
+  { id: "openclaw", name: "Ollie", role: "Support", harness: "OpenClaw Gateway", adapterType: "openclaw_gateway", models: [], noModelReason: "This gateway chooses its model remotely; Outpost has no model catalog or per-message setting for it." },
+  { id: "hermes-gateway", name: "Hera", role: "Remote operations", harness: "Hermes Gateway", adapterType: "hermes_gateway", models: [], noModelReason: "This Hermes gateway chooses its model remotely; Outpost cannot override it here." },
   { id: "kimi-acp", name: "Kima", role: "Planning", harness: "Kimi Code", adapterType: "kimi_local", provider: "ACP engine", engine: "acp", defaultModel: "kimi-code/k3", models: [
     { id: "kimi-code/k3", label: "K3" },
     { id: "kimi-code/kimi-for-coding", label: "K2.8 Preview" },

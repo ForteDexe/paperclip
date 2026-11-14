@@ -39,9 +39,9 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="paperclip-story__frame overflow-hidden">
+    <section className="outpost-story__frame overflow-hidden">
       <div className="border-b border-border px-5 py-4">
-        <div className="paperclip-story__label">{eyebrow}</div>
+        <div className="outpost-story__label">{eyebrow}</div>
         <h2 className="mt-1 text-xl font-semibold">{title}</h2>
       </div>
       <div className="p-5">{children}</div>
@@ -80,7 +80,7 @@ function CaseFrame({
 const budgetIncidents: BudgetIncident[] = [
   {
     id: "incident-agent-resolved",
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     policyId: "budget-agent-codex",
     scopeType: "agent",
     scopeId: "agent-codex",
@@ -101,11 +101,11 @@ const budgetIncidents: BudgetIncident[] = [
   },
   {
     id: "incident-project-pending",
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     policyId: "budget-project-app",
     scopeType: "project",
     scopeId: "project-board-ui",
-    scopeName: "Paperclip App",
+    scopeName: "Outpost App",
     metric: "billed_cents",
     windowKind: "calendar_month_utc",
     windowStart,
@@ -121,12 +121,12 @@ const budgetIncidents: BudgetIncident[] = [
     updatedAt: at(8),
   },
   {
-    id: "incident-company-escalated",
-    companyId: "company-storybook",
-    policyId: "budget-company",
-    scopeType: "company",
-    scopeId: "company-storybook",
-    scopeName: "Paperclip Storybook",
+    id: "incident-space-escalated",
+    spaceId: "space-storybook",
+    policyId: "budget-space",
+    scopeType: "space",
+    scopeId: "space-storybook",
+    scopeName: "Outpost Storybook",
     metric: "billed_cents",
     windowKind: "calendar_month_utc",
     windowStart,
@@ -278,7 +278,7 @@ const billerSpendRows: Array<{
   state: "healthy" | "warning" | "critical";
   row: CostByBiller;
   providerRows: CostByProviderModel[];
-  totalCompanySpendCents: number;
+  totalSpaceSpendCents: number;
   weekSpendCents: number;
 }> = [
   {
@@ -298,7 +298,7 @@ const billerSpendRows: Array<{
       modelCount: 2,
     },
     providerRows: providerRowsByProvider.anthropic,
-    totalCompanySpendCents: 83_000,
+    totalSpaceSpendCents: 83_000,
     weekSpendCents: 3_870,
   },
   {
@@ -318,7 +318,7 @@ const billerSpendRows: Array<{
       modelCount: 2,
     },
     providerRows: providerRowsByProvider.openai,
-    totalCompanySpendCents: 218_000,
+    totalSpaceSpendCents: 218_000,
     weekSpendCents: 10_430,
   },
   {
@@ -338,7 +338,7 @@ const billerSpendRows: Array<{
       modelCount: 2,
     },
     providerRows: providerRowsByProvider.openrouter,
-    totalCompanySpendCents: 286_000,
+    totalSpaceSpendCents: 286_000,
     weekSpendCents: 14_630,
   },
 ];
@@ -412,11 +412,11 @@ const financeKindRows: FinanceByKind[] = [
 const financeTimelineRows: FinanceEvent[] = [
   {
     id: "finance-event-openai-invoice",
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     agentId: null,
     issueId: null,
     projectId: "project-board-ui",
-    goalId: "goal-company",
+    goalId: "goal-space",
     heartbeatRunId: null,
     costEventId: null,
     billingCode: "product",
@@ -442,11 +442,11 @@ const financeTimelineRows: FinanceEvent[] = [
   },
   {
     id: "finance-event-bedrock-compute",
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     agentId: "agent-codex",
     issueId: "issue-storybook-1",
     projectId: "project-board-ui",
-    goalId: "goal-company",
+    goalId: "goal-space",
     heartbeatRunId: "run-storybook",
     costEventId: null,
     billingCode: "product",
@@ -472,11 +472,11 @@ const financeTimelineRows: FinanceEvent[] = [
   },
   {
     id: "finance-event-log-storage",
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     agentId: null,
     issueId: null,
     projectId: "project-observability",
-    goalId: "goal-company",
+    goalId: "goal-space",
     heartbeatRunId: null,
     costEventId: null,
     billingCode: "ops",
@@ -502,11 +502,11 @@ const financeTimelineRows: FinanceEvent[] = [
   },
   {
     id: "finance-event-credit-refund",
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     agentId: null,
     issueId: null,
     projectId: null,
-    goalId: "goal-company",
+    goalId: "goal-space",
     heartbeatRunId: null,
     costEventId: null,
     billingCode: "finance",
@@ -541,7 +541,7 @@ const sidebarMarkers: Array<{
   {
     level: "healthy",
     label: "Healthy",
-    detail: "27% of company budget used",
+    detail: "27% of space budget used",
     icon: CheckCircle2,
   },
   {
@@ -560,12 +560,12 @@ const sidebarMarkers: Array<{
 
 function BudgetFinanceMatrix() {
   return (
-    <div className="paperclip-story">
-      <main className="paperclip-story__inner space-y-6">
-        <section className="paperclip-story__frame p-6">
+    <div className="outpost-story">
+      <main className="outpost-story__inner space-y-6">
+        <section className="outpost-story__frame p-6">
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div>
-              <div className="paperclip-story__label">Budget and finance</div>
+              <div className="outpost-story__label">Budget and finance</div>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight">Spend controls, quotas, and accounting surfaces</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
                 Fixture-backed coverage for the board's cost-control components: active incidents, sidebar budget markers,
@@ -596,7 +596,7 @@ function BudgetFinanceMatrix() {
                 onRaiseAndResume={() => undefined}
               />
             </CaseFrame>
-            <CaseFrame title="Escalated hard stop" detail="Company spend exceeded the cap and the first approval needs revision." tone="critical">
+            <CaseFrame title="Escalated hard stop" detail="Space spend exceeded the cap and the first approval needs revision." tone="critical">
               <BudgetIncidentCard
                 incident={budgetIncidents[2]!}
                 onKeepPaused={() => undefined}
@@ -633,7 +633,7 @@ function BudgetFinanceMatrix() {
                 provider="anthropic"
                 rows={providerRowsByProvider.anthropic}
                 budgetMonthlyCents={250_000}
-                totalCompanySpendCents={83_000}
+                totalSpaceSpendCents={83_000}
                 weekSpendCents={3_870}
                 windowRows={providerWindowRows.anthropic}
                 showDeficitNotch={false}
@@ -646,7 +646,7 @@ function BudgetFinanceMatrix() {
                 provider="openai"
                 rows={providerRowsByProvider.openai}
                 budgetMonthlyCents={250_000}
-                totalCompanySpendCents={218_000}
+                totalSpaceSpendCents={218_000}
                 weekSpendCents={10_430}
                 windowRows={providerWindowRows.openai}
                 showDeficitNotch={false}
@@ -659,7 +659,7 @@ function BudgetFinanceMatrix() {
                 provider="openrouter"
                 rows={providerRowsByProvider.openrouter}
                 budgetMonthlyCents={250_000}
-                totalCompanySpendCents={286_000}
+                totalSpaceSpendCents={286_000}
                 weekSpendCents={14_630}
                 windowRows={providerWindowRows.openrouter}
                 showDeficitNotch
@@ -690,7 +690,7 @@ function BudgetFinanceMatrix() {
                   row={entry.row}
                   weekSpendCents={entry.weekSpendCents}
                   budgetMonthlyCents={250_000}
-                  totalCompanySpendCents={entry.totalCompanySpendCents}
+                  totalSpaceSpendCents={entry.totalSpaceSpendCents}
                   providerRows={entry.providerRows}
                 />
               </CaseFrame>
@@ -775,7 +775,7 @@ const meta = {
           "Budget and finance stories cover incident resolution states, sidebar markers, provider and biller quotas, finance ledgers, and Claude/Codex subscription panels.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "budgets-costs/cost-reporting",
         "budgets-costs/budgets",

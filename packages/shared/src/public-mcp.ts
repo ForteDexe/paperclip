@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 export const DOT_RUNNER_MCP_PATH = "/mcp/runner";
-export const DOT_RUNNER_MCP_SCOPES = ["paperclip:agent", "offline_access"] as const;
-export const PUBLIC_MCP_PATH = "/mcp/paperclip";
-export const PUBLIC_MCP_SCOPES = ["paperclip:read", "paperclip:write", "paperclip:configure", "offline_access"] as const;
+export const DOT_RUNNER_MCP_SCOPES = ["outpost:agent", "offline_access"] as const;
+export const PUBLIC_MCP_PATH = "/mcp/outpost";
+export const PUBLIC_MCP_SCOPES = ["outpost:read", "outpost:write", "outpost:configure", "offline_access"] as const;
 export const mcpConsentSchema = z.object({
   decision: z.enum(["approve", "deny"]),
-  companyId: z.string().uuid().optional(),
+  spaceId: z.string().uuid().optional(),
   allowWrites: z.boolean().default(false),
   allowConfiguration: z.boolean().default(false),
 }).strict();
@@ -22,8 +22,8 @@ export interface McpConnectionRequest {
   offlineAccess: boolean;
   requiresSignIn: boolean;
   /** Fixed by the authorization request; null permits direct-instance selection. */
-  requestedCompanyId: string | null;
-  companies: Array<{ id: string; name: string; logoUrl: string | null; canWrite: boolean }>;
+  requestedSpaceId: string | null;
+  spaces: Array<{ id: string; name: string; logoUrl: string | null; canWrite: boolean }>;
   setupUrl: string | null;
 }
 
@@ -35,12 +35,12 @@ export interface McpConnectionSetup {
 }
 
 export interface McpConnection {
-  companyPrefix?: string;
+  spacePrefix?: string;
   agent?: { id: string; name: string; provider: string } | null;
   id: string;
-  companyId: string;
+  spaceId: string;
   clientName: string;
-  companyName: string;
+  spaceName: string;
   /** The signed-in person who authorized this connection; absent on older servers. */
   user?: { name: string; image: string | null } | null;
   scopes: string[];
@@ -52,7 +52,7 @@ export interface McpConnection {
 export interface McpDotPairingPreview {
   providerKind?: "openai_dot" | "grok_bot";
   authorizingPerson?: string;
-  company: { id: string; name: string };
+  space: { id: string; name: string };
   agent: { id: string; name: string };
   permissions: string;
   accessDuration: string;

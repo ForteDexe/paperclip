@@ -11,7 +11,7 @@ import {
  * Kept free of React so the cell/health logic is unit-testable on its own.
  *
  * The integration matrix is the plan §3 table: rows are the seven paths
- * (P1–P7), columns are the PAP-12373 governed lifecycle. Each recorded step
+ * (P1–P7), columns are the PAP-12373 controlled lifecycle. Each recorded step
  * carries a free-form `scenarioStep` string owned by the S4 catalog; we fold it
  * onto a canonical lifecycle stage by keyword so the matrix stays a stable
  * 7×8 grid no matter how S4 words its steps. Raw `scenarioStep` values are
@@ -25,7 +25,7 @@ export const SMOKE_PATH_LABELS: Record<SmokeRunStepPath, { title: string; detail
   P4: { title: "Plugin integration", detail: "plugin-provided catalog entry + install flow" },
   P5: { title: "Paste-a-config import", detail: "prosumer import via Advanced setup" },
   P6: { title: "Token broker / gateway", detail: "run-scoped connection token, TTL + scope checks" },
-  P7: { title: "Governance surfaces", detail: "profiles, ask-first rules, quarantine" },
+  P7: { title: "Policy surfaces", detail: "profiles, ask-first rules, quarantine" },
 };
 
 export interface LifecycleStage {
@@ -35,7 +35,7 @@ export interface LifecycleStage {
   match: string[];
 }
 
-/** The PAP-12373 governed lifecycle, in order (plan §3). */
+/** The PAP-12373 controlled lifecycle, in order (plan §3). */
 export const LIFECYCLE_STAGES: LifecycleStage[] = [
   { key: "connect", label: "Connect", match: ["connect", "oauth", "login", "auth"] },
   { key: "discover", label: "Discover catalog", match: ["discover", "catalog", "list-tools"] },

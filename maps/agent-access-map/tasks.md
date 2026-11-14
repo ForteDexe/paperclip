@@ -14,7 +14,7 @@ Source revision: `3bbc2104b65caf9f7763938a01260a5673e12f7a`.
 
 Review depth and executed proof are separate. The operation records enumerate the named behavior and access boundaries. Their evidence states describe the reviewed sources; run results and environment limits belong in the PR or verification artifacts. A listed API or source test does not establish a live authorized journey. Follow the [map contract](../README.md).
 
-Operation review of the six existing task capabilities at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. Evidence remains source-only and live verification not-run. Legacy agent REST/CLI require the actual issued identity, company and run context. Native tools require their advertised binding, running native run, current assignment/executionRunId, company/budget/actor authority and responsible-user privacy intersection. Generic native search_api/call_api additionally requires operator rollout admission and a permitted current mode; ordinary mutations are restricted in Ask/Plan, and Muse excludes generic API. GET/HEAD and title PUT are separate mode exceptions. See [native transport](README.md#native-rest-transport), [outpost-runner-tool-authority.ts](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [runner-api-rollout.ts](../../server/src/services/native-runtime/runner-api-rollout.ts) and [runner-api-catalog.ts](../../server/src/services/native-runtime/runner-api-catalog.ts). Declared scenario tools are not production admission. Detailed coordination, questions, steering, documents, goals, workspaces and recovery subflows retain their own maps; the following records enumerate their task-facing entry points without claiming those engines are completely qualified.
+Operation review of the six existing task capabilities at `3bbc2104b65caf9f7763938a01260a5673e12f7a`. Evidence remains source-only and live verification not-run. Legacy agent REST/CLI require the actual issued identity, space and run context. Native tools require their advertised binding, running native run, current assignment/executionRunId, space/budget/actor authority and responsible-user privacy intersection. Generic native search_api/call_api additionally requires operator rollout admission and a permitted current mode; ordinary mutations are restricted in Ask/Plan, and Muse excludes generic API. GET/HEAD and title PUT are separate mode exceptions. See [native transport](README.md#native-rest-transport), [outpost-runner-tool-authority.ts](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [runner-api-rollout.ts](../../server/src/services/native-runtime/runner-api-rollout.ts) and [runner-api-catalog.ts](../../server/src/services/native-runtime/runner-api-catalog.ts). Declared scenario tools are not production admission. Detailed coordination, questions, steering, documents, goals, workspaces and recovery subflows retain their own maps; the following records enumerate their task-facing entry points without claiming those engines are completely qualified.
 
 ## `create`
 
@@ -26,11 +26,11 @@ Create ordinary work, retry safely, and create child/accepted-plan work with the
 
 ### `create-task`
 
-API: `present` — POST /api/companies/{companyId}/issues.
+API: `present` — POST /api/spaces/{spaceId}/issues.
 
 Agent access: `partial` — legacy agent REST; CLI issue create; admitted native create_task for its narrow advertised fields, call_api for other permitted fields.
 
-Policy: Title OR nonblank description; assigned omission defaults todo, unassigned omission backlog. Same-company readable parent/project/origin run, tasks:assign and eligible agent/active company person. Agent responsibleUserId rejected; creator attribution server-derived. Skill-test creation forbidden; trust/watchdog/task-bridge ceilings, delegation cycles and host-command denials remain. Native title required, maximum 500 characters, backlog|todo only, standard mode, fixed active-task parent (standalone project work in conversation), default caller assignee; no advertised privacy/labels/mode/workspace/review config. CLI requires title, supports --standalone/--parent-id but lacks many rich fields.
+Policy: Title OR nonblank description; assigned omission defaults todo, unassigned omission backlog. Same-space readable parent/project/origin run, tasks:assign and eligible agent/active space person. Agent responsibleUserId rejected; creator attribution server-derived. Skill-test creation forbidden; trust/watchdog/task-bridge ceilings, delegation cycles and host-command denials remain. Native title required, maximum 500 characters, backlog|todo only, standard mode, fixed active-task parent (standalone project work in conversation), default caller assignee; no advertised privacy/labels/mode/workspace/review config. CLI requires title, supports --standalone/--parent-id but lacks many rich fields.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [issue.ts](../../packages/shared/src/validators/issue.ts), [outpost-runner-tool-authority.ts](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [issue.ts](../../cli/src/commands/client/issue.ts), [issue-assigned-backlog-contract-routes.test.ts](../../server/src/__tests__/issue-assigned-backlog-contract-routes.test.ts), [issue-agent-mutation-ownership-routes.test.ts](../../server/src/__tests__/issue-agent-mutation-ownership-routes.test.ts), [task-creation-backlog.test.ts](../../server/src/services/native-runtime/task-creation-backlog.test.ts). No live execution claimed.
 
@@ -40,7 +40,7 @@ Gaps: Native/CLI field parity is incomplete. Rich fields require an actually adm
 
 ### `retry-create`
 
-API: `present` — POST /api/companies/{companyId}/issues with a stable idempotencyKey, duplicate policy and optional initialPlan.
+API: `present` — POST /api/spaces/{spaceId}/issues with a stable idempotencyKey, duplicate policy and optional initialPlan.
 
 Agent access: `partial` — REST/call_api and native create_task stable key; CLI create has no idempotency-key flag.
 
@@ -58,7 +58,7 @@ API: `present` — POST /api/issues/{id}/children; GET/POST /api/issues/{id}/acc
 
 Agent access: `partial` — agent REST/call_api; CLI issue child:create --payload-json; dedicated create_task is one current-task child, not arbitrary-parent/batch.
 
-Policy: Readable same-company parent and write influence, tasks:assign, normal creation restrictions. Child API fixes parent/inheritance; acceptanceCriteria maximum 20 entries, 500 characters each; blockParentUntilDone. Batch binds acceptedPlanRevisionId and 1..25 child definitions, with no stale/unaccepted-plan substitution. Source privacy follows child/handoff.
+Policy: Readable same-space parent and write influence, tasks:assign, normal creation restrictions. Child API fixes parent/inheritance; acceptanceCriteria maximum 20 entries, 500 characters each; blockParentUntilDone. Batch binds acceptedPlanRevisionId and 1..25 child definitions, with no stale/unaccepted-plan substitution. Source privacy follows child/handoff.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [issue.ts](../../packages/shared/src/validators/issue.ts), [outpost-runner-tool-authority.ts](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [issue.ts](../../cli/src/commands/client/issue.ts), [issue-agent-mutation-ownership-routes.test.ts](../../server/src/__tests__/issue-agent-mutation-ownership-routes.test.ts). No live execution claimed.
 
@@ -76,45 +76,45 @@ Read task collections, navigation projections and blocked counts; distinguish do
 
 ### `list-filter-page`
 
-API: `present` — GET /api/companies/{companyId}/issues; optional view=compact.
+API: `present` — GET /api/spaces/{spaceId}/issues; optional view=compact.
 
 Agent access: `partial` — REST/call_api full query; CLI issue list exposes status/agent/project and local --match on one fetched page; native search_tasks query up to 500 characters, statuses, limit 1..200 (default 50), and a nextCursor in ascending task-ID order. Responses expose effective limit, returnedCount and hasMore. Exhaust nextCursor with the same filters before treating an inventory as complete. Each page checks current access; concurrent task changes require a fresh scan. Project/label/workspace knobs remain REST-only.
 
-Policy: Company/read privacy filtering and inaccessible edge redaction; task-bridge company list denied. Default 500, maximum 1000, offset>=0, sortField updated|created|id, sortDir asc|desc, afterId. Blocked attention lists reject created and id ordering with 422. Supports status/assignee/participant/project/workspace/parent/descendant/label/origin/text/date and routine/plugin/blocker query groups. includeAgentCreatedTasks=false filters independent roots before search/pagination; omission retains agent/API behavior. includeParticipatedTasks and user me filters require board identity. Compact ETag is actor-private; 429 is not empty results.
+Policy: Space/read privacy filtering and inaccessible edge redaction; task-bridge space list denied. Default 500, maximum 1000, offset>=0, sortField updated|created|id, sortDir asc|desc, afterId. Blocked attention lists reject created and id ordering with 422. Supports status/assignee/participant/project/workspace/parent/descendant/label/origin/text/date and routine/plugin/blocker query groups. includeAgentCreatedTasks=false filters independent roots before search/pagination; omission retains agent/API behavior. includeParticipatedTasks and user me filters require board identity. Compact ETag is actor-private; 429 is not empty results.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [issues.ts](../../server/src/services/issues.ts), [outpost-runner-tool-authority.ts](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [issue.ts](../../cli/src/commands/client/issue.ts), [issues-list-query-parsing.test.ts](../../server/src/__tests__/issues-list-query-parsing.test.ts), [issues-creation-visibility.test.ts](../../server/src/__tests__/issues-creation-visibility.test.ts), [issue-list-assignee-filter-routes.test.ts](../../server/src/__tests__/issue-list-assignee-filter-routes.test.ts), [private-json-etag.test.ts](../../server/src/__tests__/private-json-etag.test.ts). No live execution claimed.
 
 Verification: `not-run` — Compare human/agent/routine/channel tasks, list/compact/full filters and ID pagination without duplicates or inaccessible rows. Reject invalid boolean/date/sort/limit and agent human-only/task-bridge query. Preserve failed/429 result visibly. Request native limit 200 with more than 200 matches and follow nextCursor to exhaustion; require all accessible IDs without duplicates and accurate page metadata.
 
-Native verification: disposable PostgreSQL integration through the run-bound `PaperclipRunnerToolAuthority.execute` entry point covers 205 persisted tasks, 200+5 pages, terminal/empty results, status filters, cursor validation, foreign-company exclusion and Muse readability before pagination. This does not establish deployed recovery or REST verification.
+Native verification: disposable PostgreSQL integration through the run-bound `OutpostRunnerToolAuthority.execute` entry point covers 205 persisted tasks, 200+5 pages, terminal/empty results, status filters, cursor validation, foreign-space exclusion and Muse readability before pagination. This does not establish deployed recovery or REST verification.
 
-Gaps: One-page CLI local match is not a complete company-search substitute. Native pagination is not a snapshot across concurrent changes.
+Gaps: One-page CLI local match is not a complete space-search substitute. Native pagination is not a snapshot across concurrent changes.
 
 ### `read-task-and-summaries`
 
-API: `present` — GET /api/issues/{id} (optional `view=core` includes saved document/work-product cards and omits recovery and related-task enrichment); GET /api/companies/{companyId}/issues/summaries?ids=... .
+API: `present` — GET /api/issues/{id} (optional `view=core` includes saved document/work-product cards and omits recovery and related-task enrichment); GET /api/spaces/{spaceId}/issues/summaries?ids=... .
 
 Agent access: `partial` — REST/CLI issue get; native get_task_context reads CURRENT task only; call_api for eligible arbitrary task/summaries. No dedicated summaries CLI/tool.
 
-Policy: Company/task issue:read; exact identifiers resolved in company context. Summary strict query 1..5 UUIDs/no extra parameters, no-store, omits missing/hidden/private/foreign IDs; task-bridge denied. Locked/redacted parent/project/blocker context does not grant read.
+Policy: Space/task issue:read; exact identifiers resolved in space context. Summary strict query 1..5 UUIDs/no extra parameters, no-store, omits missing/hidden/private/foreign IDs; task-bridge denied. Locked/redacted parent/project/blocker context does not grant read.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [outpost-runner-tool-authority.ts](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [issue.ts](../../cli/src/commands/client/issue.ts), [issue-summaries-routes.test.ts](../../server/src/__tests__/issue-summaries-routes.test.ts), [issue-identifier-routes.test.ts](../../server/src/__tests__/issue-identifier-routes.test.ts), [issue-access-grants-routes.test.ts](../../server/src/__tests__/issue-access-grants-routes.test.ts). No live execution claimed.
 
-Verification: `not-run` — Cold-open current task/identifier, reload after rename, batch own/private/missing/foreign IDs and compare exact navigation fields. Switch company/account, reject private/full read and ensure no stale actor content.
+Verification: `not-run` — Cold-open current task/identifier, reload after rename, batch own/private/missing/foreign IDs and compare exact navigation fields. Switch space/account, reject private/full read and ensure no stale actor content.
 
 Gaps: A summary result proves neither workspace inspection nor full task/comment access.
 
 ### `blocked-count`
 
-API: `present` — GET /api/companies/{companyId}/issues/count?attention=blocked.
+API: `present` — GET /api/spaces/{spaceId}/issues/count?attention=blocked.
 
 Agent access: `available` — agent REST/admitted call_api; no dedicated CLI/native count.
 
-Policy: Company/actor/read filters and low-trust boundaries apply. Task-bridge denied; attention=blocked required, limit/offset rejected; supported collection filters shape visible count.
+Policy: Space/actor/read filters and low-trust boundaries apply. Task-bridge denied; attention=blocked required, limit/offset rejected; supported collection filters shape visible count.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [issue-blocker-attention.test.ts](../../server/src/__tests__/issue-blocker-attention.test.ts). No live execution claimed.
 
-Verification: `not-run` — Compare count to accessible filtered blocked tasks, including inaccessible fixtures; reject other attention/pagination and foreign company.
+Verification: `not-run` — Compare count to accessible filtered blocked tasks, including inaccessible fixtures; reject other attention/pagination and foreign space.
 
 Gaps: A count is not proof the underlying blocker can be resolved.
 
@@ -124,16 +124,16 @@ API: `not-applicable` — list/board, grouping/sort/columns/hierarchy/expanded r
 
 Agent access: `not-applicable` — no agent layout API; permitted underlying task data is separate.
 
-Policy: IssuesList loads/saves browser preferences by company/collection, with separate agent-created visibility. The Tasks page also owns a routine-only
+Policy: IssuesList loads/saves browser preferences by space/collection, with separate agent-created visibility. The Tasks page also owns a routine-only
 checkbox and `originKind=routine_execution` URL state; it uses the existing
-company-scoped task-list origin filter before pagination. Sort controls write
+space-scoped task-list origin filter before pagination. Sort controls write
 `sortField` and `sortDir` to the URL; explicit URL sorting overrides browser
 preferences. `created` sorting runs on the server before pagination, with ID as
 a stable tie-breaker. The routines task link requests `created` descending. Contextual ancestors/descendants do not become unrelated independent results. No shared server view preference inferred.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [IssuesList.tsx](../../ui/src/components/IssuesList.tsx), [Issues.tsx](../../ui/src/pages/Issues.tsx), [Issues.test.tsx](../../ui/src/pages/Issues.test.tsx). No live execution claimed.
 
-Verification: `not-run` — Set list/board/grouping/columns, hide/show automation, search child, open task/back and reload. Verify company/collection scope and Clear filters hidden-automation default; failed read stays visible.
+Verification: `not-run` — Set list/board/grouping/columns, hide/show automation, search child, open task/back and reload. Verify space/collection scope and Clear filters hidden-automation default; failed read stays visible.
 
 Gaps: Issues.test.tsx covers helpers/URL/paging/constants, not a mounted real-browser list journey. Full shell permutations remain live scope.
 
@@ -143,7 +143,7 @@ Capability ID: `tasks/properties`.
 
 Review: `operation-reviewed`.
 
-Separate rename, generic metadata, company labels, assignment, blockers, execution configuration, monitor and watchdog contracts.
+Separate rename, generic metadata, space labels, assignment, blockers, execution configuration, monitor and watchdog contracts.
 
 ### `rename`
 
@@ -165,7 +165,7 @@ API: `present` — PATCH /api/issues/{id}: description, priority, billing/reques
 
 Agent access: `partial` — REST/call_api; CLI update exposes a subset, lacking human assignment, label IDs, mode/review/adapter/workspace configuration and CAS flags; no dedicated generic native editor.
 
-Policy: PATCH uses issue:read and issue:mutate with visible-idle-peer writes; another assignee active lock requires management override, own in-progress writes current checkout/run. Same-company readable parent/project and service-valid goals/relations; reject cycles, forged onBehalfOfUserId and agent host commands. Priority API exists but ordinary priority UI editing is hidden.
+Policy: PATCH uses issue:read and issue:mutate with visible-idle-peer writes; another assignee active lock requires management override, own in-progress writes current checkout/run. Same-space readable parent/project and service-valid goals/relations; reject cycles, forged onBehalfOfUserId and agent host commands. Priority API exists but ordinary priority UI editing is hidden.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [issue.ts](../../packages/shared/src/validators/issue.ts), [issues.ts](../../server/src/services/issues.ts), [issue.ts](../../cli/src/commands/client/issue.ts), [IssueProperties.tsx](../../ui/src/components/issue-properties/IssueProperties.tsx), [issue-agent-mutation-ownership-routes.test.ts](../../server/src/__tests__/issue-agent-mutation-ownership-routes.test.ts), [issue-workspace-command-authz.test.ts](../../server/src/__tests__/issue-workspace-command-authz.test.ts). No live execution claimed.
 
@@ -175,15 +175,15 @@ Gaps: Goal/workspace engines and configuration variants retain their owning maps
 
 ### `manage-labels`
 
-API: `present` — GET/POST /api/companies/{companyId}/labels; DELETE /api/labels/{labelId}; PATCH task labelIds for attach/detach.
+API: `present` — GET/POST /api/spaces/{spaceId}/labels; DELETE /api/labels/{labelId}; PATCH task labelIds for attach/detach.
 
 Agent access: `available` — agent REST/call_api; CLI issue label:list/create/delete for catalog, task labelIds via REST; no dedicated native labels tool.
 
-Policy: Actual catalog routes use company access/resource lookup, without added board role gate. Name trim1..48, color#RRGGBB. Task label attach/detach retains task mutation rules; deleting label affects catalog, not just one task.
+Policy: Actual catalog routes use space access/resource lookup, without added board role gate. Name trim1..48, color#RRGGBB. Task label attach/detach retains task mutation rules; deleting label affects catalog, not just one task.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [issue.ts](../../packages/shared/src/validators/issue.ts), [issue.ts](../../cli/src/commands/client/issue.ts), [IssueProperties.tsx](../../ui/src/components/issue-properties/IssueProperties.tsx). No live execution claimed.
 
-Verification: `not-run` — Create/attach label, filter tasks, reload, detach and delete disposable label. Reject invalid name/color, foreign company and denied task write.
+Verification: `not-run` — Create/attach label, filter tasks, reload, detach and delete disposable label. Reject invalid name/color, foreign space and denied task write.
 
 Gaps: No live label workflow claimed; do not confuse catalog delete with per-task detach.
 
@@ -207,7 +207,7 @@ API: `present` — PATCH /api/issues/{id} blockedByIssueIds replaces whole set.
 
 Agent access: `partial` — native set_dependencies CURRENT task/standard mode/key+array; REST/call_api arbitrary permitted target; CLI update lacks blocker-set flag.
 
-Policy: Task mutation and valid same-company, nonself/noncycle dependencies. Preserve existing blockers explicitly when replacing. Native Muse additionally checks blocker read. Eligible continuation retains pause/budget/responsible-user/finalization authority.
+Policy: Task mutation and valid same-space, nonself/noncycle dependencies. Preserve existing blockers explicitly when replacing. Native Muse additionally checks blocker read. Eligible continuation retains pause/budget/responsible-user/finalization authority.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [issues.ts](../../server/src/services/issues.ts), [outpost-runner-tool-authority.ts](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [issue-dependency-wakeups-routes.test.ts](../../server/src/__tests__/issue-dependency-wakeups-routes.test.ts), [issue-dependency-restore-wake-policy.test.ts](../../server/src/__tests__/issue-dependency-restore-wake-policy.test.ts). No live execution claimed.
 
@@ -221,7 +221,7 @@ API: `present` — PATCH /api/issues/{id}: workMode/harnessKind, reviewPolicy/ex
 
 Agent access: `partial` — permitted REST/call_api fields; no general CLI/native configuration tool. Native mode restrictions apply to current call, regardless of requested future mode.
 
-Policy: Policy CAS expectedExecutionPolicy must accompany policy-only write; stale conflict, no smuggled owner/status. Existing governed stage actor/resolver remains authoritative. MCP OAuth cannot participate in review/pending stage or active execution (MCP_REVIEW_REQUIRED/MCP_ACTIVE_EXECUTION). Same-company supported environment; no agent host commands. Saved override is not proof authorized account/runtime.
+Policy: Policy CAS expectedExecutionPolicy must accompany policy-only write; stale conflict, no smuggled owner/status. Existing governed stage actor/resolver remains authoritative. MCP OAuth cannot participate in review/pending stage or active execution (MCP_REVIEW_REQUIRED/MCP_ACTIVE_EXECUTION). Same-space supported environment; no agent host commands. Saved override is not proof authorized account/runtime.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [issue.ts](../../packages/shared/src/validators/issue.ts), [runner-api-catalog.ts](../../server/src/services/native-runtime/runner-api-catalog.ts), [issue-execution-policy-routes.test.ts](../../server/src/__tests__/issue-execution-policy-routes.test.ts), [issue-execution-policy-persistence.test.ts](../../server/src/__tests__/issue-execution-policy-persistence.test.ts), [issue-workspace-command-authz.test.ts](../../server/src/__tests__/issue-workspace-command-authz.test.ts). No live execution claimed.
 
@@ -249,11 +249,11 @@ API: `present` — GET/PUT/DELETE /api/issues/{id}/watchdog; PUT{agentId,instruc
 
 Agent access: `partial` — agent REST/call_api with exact issue authority; no dedicated native/CLI watchdog editor.
 
-Policy: Read task; mutations stricter task helper, low-trust denial and eligible company watchdog agent. Watchdog-scoped run cannot change watchdog configuration even in watched subtree. Remove disables active config and queues evaluation; repeated disable returnsok.
+Policy: Read task; mutations stricter task helper, low-trust denial and eligible space watchdog agent. Watchdog-scoped run cannot change watchdog configuration even in watched subtree. Remove disables active config and queues evaluation; repeated disable returnsok.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [task-watchdogs.ts](../../server/src/services/task-watchdogs.ts), [issue-watchdogs-routes.test.ts](../../server/src/__tests__/issue-watchdogs-routes.test.ts). No live execution claimed.
 
-Verification: `not-run` — Set/update/remove, reload config/activity; retry no duplicate active watcher. Deny wrong company, active peer ownership, low-trust and watchdog self-configuration.
+Verification: `not-run` — Set/update/remove, reload config/activity; retry no duplicate active watcher. Deny wrong space, active peer ownership, low-trust and watchdog self-configuration.
 
 Gaps: Watchdog execution/recovery acceptance remains [recovery](recovery.md), beyond this config operation.
 
@@ -261,7 +261,7 @@ Gaps: Watchdog execution/recovery acceptance remains [recovery](recovery.md), be
 
 Capability ID: `tasks/discussion`.
 
-Native deferred-reply recovery: the server can publish an accepted ordinary-task `needs_review` reply from its completed final-message event after workspace finalization. It uses the same company/run/turn, result-digest and publication authorization checks as completed-task recovery. It does not publish a semantic summary as a substitute, resolve a pending review, or start provider work. Conversation and external governed-response rules retain their separate gates. The [database recovery suite](../../server/src/services/native-runtime/agent-chat-response-recovery.test.ts) covers publication once, pending-review preservation, and rejection of missing/wrong-turn output, invalid digest and suppressed comments. This is local integration evidence; live acceptance is recorded in the pull request.
+Native deferred-reply recovery: the server can publish an accepted ordinary-task `needs_review` reply from its completed final-message event after workspace finalization. It uses the same space/run/turn, result-digest and publication authorization checks as completed-task recovery. It does not publish a semantic summary as a substitute, resolve a pending review, or start provider work. Conversation and external governed-response rules retain their separate gates. The [database recovery suite](../../server/src/services/native-runtime/agent-chat-response-recovery.test.ts) covers publication once, pending-review preservation, and rejection of missing/wrong-turn output, invalid digest and suppressed comments. This is local integration evidence; live acceptance is recorded in the pull request.
 
 Review: `operation-reviewed`.
 
@@ -273,13 +273,13 @@ API: `present` — GET /api/issues/{id}/comments and /comments/{commentId}; GET 
 
 Agent access: `available` — REST/call_api, CLI issue comments/comment:get; native get_task_history CURRENT task only, declared limit 1..200 but production clamps to 1..100 (default 50).
 
-Policy: Company/task issue:read, exact task/comment binding, run/trust redaction. API supports after/afterCommentId, asc|desc, limit cap500. Locked mention edge is not comment read authority.
+Policy: Space/task issue:read, exact task/comment binding, run/trust redaction. API supports after/afterCommentId, asc|desc, limit cap500. Locked mention edge is not comment read authority.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [outpost-runner-tool-authority.ts](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [issue.ts](../../cli/src/commands/client/issue.ts), [issue-comment-redaction.test.ts](../../server/src/__tests__/issue-comment-redaction.test.ts), [issue-agent-mutation-ownership-routes.test.ts](../../server/src/__tests__/issue-agent-mutation-ownership-routes.test.ts). No live execution claimed.
 
 Verification: `not-run` — Read multipage history and exact comment, reload same content; reject inaccessible task, foreign/mismatched comment and inspect trust redaction. Request native limit 200 and confirm at most 100 comments.
 
-The same authorized activity route supports `view=comment-inputs&commentIds=<comma-separated UUIDs>` for original comment/steering facts. Each request accepts at most 100 comment IDs and returns at most two facts per comment, scoped to the accessible issue and company. This preserves delivered-input state when its receipt is older than the recent activity window.
+The same authorized activity route supports `view=comment-inputs&commentIds=<comma-separated UUIDs>` for original comment/steering facts. Each request accepts at most 100 comment IDs and returns at most two facts per comment, scoped to the accessible issue and space. This preserves delivered-input state when its receipt is older than the recent activity window.
 
 Gaps: Native bounded history is not an arbitrary-task/paginated API substitute. The new UI preview route has no dedicated native tool or CLI command. Existing full comment reads remain available.
 
@@ -289,7 +289,7 @@ API: `present` — POST /api/issues/{id}/comments; PATCH task with comment.
 
 Agent access: `partial` — REST/call_api, CLI issue comment/update--comment; native report_progress plain CURRENT-task body+stable key only. answer_status_question is declared but not production-admitted.
 
-Policy: issue:comment/responsible-user/influence ceilings may allow peer/direct-parent reporting without disposition authority. body nonempty, clientRequestId UUID, maximum 20 unique attachment IDs. Agent onBehalfOfUserId rejected; presentation/metadata board-only; authorType cannot gain board wake. A new board comment on a paused task returns 409. An ordinary board comment whose same-task, same-user request key was already accepted repairs its reference/activity records and returns that receipt before task mutations; different text conflicts without reopening work. Completion serializes on the same-company task/comment and does not duplicate the activity. Board Agent Chat additionally flag/owner/clientRequestId. Pending/running retries preserved by ordinary board comments; explicit control separate.
+Policy: issue:comment/responsible-user/influence ceilings may allow peer/direct-parent reporting without disposition authority. body nonempty, clientRequestId UUID, maximum 20 unique attachment IDs. Agent onBehalfOfUserId rejected; presentation/metadata board-only; authorType cannot gain board wake. A new board comment on a paused task returns 409. An ordinary board comment whose same-task, same-user request key was already accepted repairs its reference/activity records and returns that receipt before task mutations; different text conflicts without reopening work. Completion serializes on the same-space task/comment and does not duplicate the activity. Board Agent Chat additionally flag/owner/clientRequestId. Pending/running retries preserved by ordinary board comments; explicit control separate.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [issue.ts](../../packages/shared/src/validators/issue.ts), [outpost-runner-tool-authority.ts](../../server/src/services/native-runtime/outpost-runner-tool-authority.ts), [issue.ts](../../cli/src/commands/client/issue.ts), [issue-comment-attribution-audit-routes.test.ts](../../server/src/__tests__/issue-comment-attribution-audit-routes.test.ts), [issue-comment-reopen-routes.test.ts](../../server/src/__tests__/issue-comment-reopen-routes.test.ts), [cross-issue-influence-limit-postgres.test.ts](../../server/src/__tests__/cross-issue-influence-limit-postgres.test.ts). No live execution claimed.
 
@@ -313,11 +313,11 @@ Gaps: Modern queue edit/order/steer/interrupt/discard contract remains [steering
 
 ### `attach-reference`
 
-API: `present` — GET task attachments; POST /api/companies/{companyId}/issues/{issueId}/attachments multipart; GET /api/attachments/{attachmentId}/content; DELETE /api/attachments/{attachmentId}.
+API: `present` — GET task attachments; POST /api/spaces/{spaceId}/issues/{issueId}/attachments multipart; GET /api/attachments/{attachmentId}/content; DELETE /api/attachments/{attachmentId}.
 
 Agent access: `partial` — REST/CLI attachments/upload/download/delete; admitted native multipart call_api or scoped register_deliverable/current-task attachment tools according to actual binding. report_progress is not upload.
 
-Policy: Company/task binding, stricter mutation and deliverable run-context gates. Nonempty permitted bytes, default 10 MiB deployment ceiling via OUTPOST_ATTACHMENT_MAX_BYTES; bound conversation owner/flag. In-progress agent requires run; CLI multipart forwards header. Content reads enforce retained task/run privacy including removed records.
+Policy: Space/task binding, stricter mutation and deliverable run-context gates. Nonempty permitted bytes, default 10 MiB deployment ceiling via OUTPOST_ATTACHMENT_MAX_BYTES; bound conversation owner/flag. In-progress agent requires run; CLI multipart forwards header. Content reads enforce retained task/run privacy including removed records.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [issue.ts](../../cli/src/commands/client/issue.ts), [attachment-types.ts](../../server/src/attachment-types.ts), [issue-attachment-routes.test.ts](../../server/src/__tests__/issue-attachment-routes.test.ts), [privacy-production-review.test.ts](../../server/src/__tests__/privacy-production-review.test.ts). No live execution claimed.
 
@@ -331,13 +331,13 @@ API: `present` — GET/POST /api/issues/{id}/feedback-votes; POST targetType,tar
 
 Agent access: `restricted` — board identity only; CLI issue feedback:votes/feedback:vote still requires board context; no delegated/native agent voting tool. Human-input request can ask, not impersonate.
 
-Policy: Actual handlers require company-accessible issue lookup and board; GET own user votes. Explicit selected sharing may persist preference/queue export;201 does not wait for remote upload. Do not infer private-task read guard absent from these handlers.
+Policy: Actual handlers require space-accessible issue lookup and board; GET own user votes. Explicit selected sharing may persist preference/queue export;201 does not wait for remote upload. Do not infer private-task read guard absent from these handlers.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [feedback.ts](../../packages/shared/src/validators/feedback.ts), [feedback.ts](../../server/src/services/feedback.ts), [issue-feedback-routes.test.ts](../../server/src/__tests__/issue-feedback-routes.test.ts), [feedback-service.test.ts](../../server/src/__tests__/feedback-service.test.ts). No live execution claimed.
 
-Verification: `not-run` — Vote disposable AI target, reload same-user preference and another user separately; reject agent/foreign company; inspect selected consent and queued state without claiming export completion.
+Verification: `not-run` — Vote disposable AI target, reload same-user preference and another user separately; reject agent/foreign space; inspect selected consent and queued state without claiming export completion.
 
-Gaps: Private-task denial must be proved, not invented. Trace/report/export belongs [feedback export](cli-operations.md#feedback-export).
+Gaps: Private-task denial must be proved, not invented. Trace access remains governed by the feedback routes and service rather than a standalone CLI export surface.
 
 ## `completion`
 
@@ -345,7 +345,7 @@ Capability ID: `tasks/completion`.
 
 Task chat may group adjacent run and recovery errors for display. The API
 retains all run and comment records. This presentation does not change retry,
-approval, checkout or company access. See the
+approval, checkout or space access. See the
 [presentation coverage](../feature-map/tasks.md#task-detail).
 
 Review: `operation-reviewed`.
@@ -354,7 +354,7 @@ Separate status/report acceptance, versioned start, follow-up, checkout/release 
 
 ### `transition-report-review`
 
-API: `present` — PATCH /api/issues/{id}; POST /api/issues/{id}/stalled-review-decision for board; native paperclip_finish/paperclip_block uses admitted ORP protocol, not a REST endpoint.
+API: `present` — PATCH /api/issues/{id}; POST /api/issues/{id}/stalled-review-decision for board; native outpost_finish/outpost_block uses admitted ORP protocol, not a REST endpoint.
 
 Agent access: `partial` — authorized REST/call_api and CLI status updates; native actual ORP completion/block tools. finish_task/block_task/request_review declarations are excluded from production IMPLEMENTED_OPERATIONS.
 
@@ -406,11 +406,11 @@ API: `present` — POST /api/issues/{id}/checkout{agentId,expectedStatuses}.
 
 Agent access: `partial` — REST/CLI issue checkout; agent must claim itself with run ID. Native call_api only where actual admitted run needs it; native is normally already bound.
 
-Policy: Company lookup, tasks:assign when changing assignee, assignability, project pause/budget, subtree pause, dependency readiness and atomic expected status/assignee/execution locks. Same-run retry differs from competing run. Run-id gate before closed workspace reopen. Exact handler differs from generic read/mutation helper; do not invent blanket guard.
+Policy: Space lookup, tasks:assign when changing assignee, assignability, project pause/budget, subtree pause, dependency readiness and atomic expected status/assignee/execution locks. Same-run retry differs from competing run. Run-id gate before closed workspace reopen. Exact handler differs from generic read/mutation helper; do not invent blanket guard.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [issues.ts](../../server/src/services/issues.ts), [issue.ts](../../cli/src/commands/client/issue.ts), [issues-checkout-wakeup.test.ts](../../server/src/__tests__/issues-checkout-wakeup.test.ts), [issue-stale-execution-lock-routes.test.ts](../../server/src/__tests__/issue-stale-execution-lock-routes.test.ts), [issue-closed-workspace-routes.test.ts](../../server/src/__tests__/issue-closed-workspace-routes.test.ts). No live execution claimed.
 
-Verification: `not-run` — Race two claimants: one owner/executor; same-run retry no duplicate wake. Deny wrong agent/missing run, blocked dependencies, paused project and foreign company; inspect persisted locks.
+Verification: `not-run` — Race two claimants: one owner/executor; same-run retry no duplicate wake. Deny wrong agent/missing run, blocked dependencies, paused project and foreign space; inspect persisted locks.
 
 Gaps: Private-target admission requires negative proof because checkout does not mirror generic issue-read guard placement.
 
@@ -434,11 +434,11 @@ API: `present` — DELETE /api/issues/{id}.
 
 Agent access: `partial` — permitted REST/call_api and CLI issue delete--yes; no dedicated native deletion.
 
-Policy: Stricter task mutation including active ownership/run constraints; company/task boundaries. Service removes task-owned rows; attachment object cleanup best effort with logged failures. Delete differs from complete/hide/archive; never imply unrelated child erasure.
+Policy: Stricter task mutation including active ownership/run constraints; space/task boundaries. Service removes task-owned rows; attachment object cleanup best effort with logged failures. Delete differs from complete/hide/archive; never imply unrelated child erasure.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [issues.ts](../../server/src/services/issues.ts), [issue.ts](../../cli/src/commands/client/issue.ts), [issue-remove-cascade.test.ts](../../server/src/__tests__/issue-remove-cascade.test.ts). No live execution claimed.
 
-Verification: `not-run` — Delete disposable task/files, inspect list/direct reads/cascades and inaccessible orphan content; reject wrong actor/company, repeat404. Preserve unrelated records per actual service behavior.
+Verification: `not-run` — Delete disposable task/files, inspect list/direct reads/cascades and inaccessible orphan content; reject wrong actor/space, repeat404. Preserve unrelated records per actual service behavior.
 
 Gaps: Storage cleanup failure and retention are distinct from returned task removal; parent removal is not proof all children vanished.
 
@@ -470,7 +470,7 @@ API: `present` — GET /api/issues/{id}/privacy-constraints; GET /api/issues/{id
 
 Agent access: `restricted` — authorized BOARD manager; agents/shared readers can read eligible task but cannot inspect grants/action hints. Catalog GET label does not override route.
 
-Policy: Issue read then board responsible user/creator/human assignee, active company owner/admin, instance admin/local implicit. Safe publicBlockedBy/leavesPersonalProject hints omit inaccessible scope identity. Lists direct/inherited owner/assignment/project sources; inherited rows no local revoke.
+Policy: Issue read then board responsible user/creator/human assignee, active space owner/admin, instance admin/local implicit. Safe publicBlockedBy/leavesPersonalProject hints omit inaccessible scope identity. Lists direct/inherited owner/assignment/project sources; inherited rows no local revoke.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [authorization.ts](../../server/src/services/authorization.ts), [IssueShareSheet.tsx](../../ui/src/components/IssueShareSheet.tsx), [PrivateTaskPrivacyControls.test.tsx](../../ui/src/components/PrivateTaskPrivacyControls.test.tsx), [privacy-production-review.test.ts](../../server/src/__tests__/privacy-production-review.test.ts). No live execution claimed.
 
@@ -484,7 +484,7 @@ API: `present` — POST /api/issues/{id}/access-grants{subjectType:user|agent,su
 
 Agent access: `restricted` — authorized board manager; no CLI/dedicated native grant tool or delegated agent share. Human-input request can ask responsible person.
 
-Policy: Exact readable managed task; active company user/company agent only(422 invalid); open task returns 409. Created201/existing active200. Read flows downward descendants, never parent/sibling/private project metadata. Shared agent access intersects responsible/authorizing user; memory warning cannot promise unlearning.
+Policy: Exact readable managed task; active space user/space agent only(422 invalid); open task returns 409. Created201/existing active200. Read flows downward descendants, never parent/sibling/private project metadata. Shared agent access intersects responsible/authorizing user; memory warning cannot promise unlearning.
 
 Evidence: `source-only` — reviewed at `3bbc2104b65caf9f7763938a01260a5673e12f7a`; [issues.ts](../../server/src/routes/issues.ts), [authorization.ts](../../server/src/services/authorization.ts), [issue-access-grants-routes.test.ts](../../server/src/__tests__/issue-access-grants-routes.test.ts), [privacy-production-review.test.ts](../../server/src/__tests__/privacy-production-review.test.ts). No live execution claimed.
 
@@ -524,7 +524,7 @@ Gaps: Do not infer existing private descendants became public from parent or pro
 
 API: `present` — GET /api/issues/{id}?breakGlass=true.
 
-Agent access: `restricted` — eligible board company owner/admin explicit read, no agent path; instance/local normal admin bypass separate.
+Agent access: `restricted` — eligible board space owner/admin explicit read, no agent path; instance/local normal admin bypass separate.
 
 Policy: Private-read denial plus eligible explicit owner/admin gate; emits audit and owner-visible issue notice, not persistent share or arbitrary grant mutation. Ordinary member flag still404.
 

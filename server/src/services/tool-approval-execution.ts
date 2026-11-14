@@ -19,7 +19,7 @@ export async function claimToolTestApproval(db: Db, actionRequestId: string, inv
     const [request] = await tx.select().from(toolActionRequests)
       .where(and(eq(toolActionRequests.id, actionRequestId), eq(toolActionRequests.invocationId, invocationId))).for("update");
     if (!invocation || request?.status !== "approved") return null;
-    await notifyToolReviewChange(tx, request.companyId);
+    await notifyToolReviewChange(tx, request.spaceId);
     const now = new Date();
     if (invocation.status !== "awaiting_approval") {
       if (["succeeded", "failed", "denied", "timed_out", "rate_limited"].includes(invocation.status)) {
@@ -46,9 +46,9 @@ export async function releaseToolApproval(db: Db, claim: ToolApprovalClaim, conn
       .where(and(eq(toolActionRequests.id, claim.actionRequestId),
         eq(toolActionRequests.invocationId, claim.invocationId))).for("update");
     if (invocation?.status !== "awaiting_approval" || invocation.startedAt !== null ||
-      request?.status !== "executing" || request.companyId !== invocation.companyId ||
+      request?.status !== "executing" || request.spaceId !== invocation.spaceId ||
       request.updatedAt.getTime() !== claim.claimedAt.getTime()) return false;
-    await notifyToolReviewChange(tx, request.companyId);
+    await notifyToolReviewChange(tx, request.spaceId);
     if (connectionRevision !== undefined) {
       await tx.update(toolInvocations).set({ errorCode: TOOL_APPROVAL_CONNECTION_REQUIRED,
         errorMessage: TOOL_APPROVAL_CONNECTION_MESSAGE,
@@ -69,7 +69,7 @@ export async function bindVerifiedToolApprovalArguments(db: Db, claim: ToolAppro
       .where(and(eq(toolActionRequests.id, claim.actionRequestId),
         eq(toolActionRequests.invocationId, claim.invocationId))).for("update");
     if (invocation?.status !== "awaiting_approval" || invocation.startedAt !== null ||
-      request?.status !== "executing" || request.companyId !== invocation.companyId ||
+      request?.status !== "executing" || request.spaceId !== invocation.spaceId ||
       request.updatedAt.getTime() !== claim.claimedAt.getTime() ||
       ![hashes.preview, hashes.verified].includes(request.canonicalArgumentsHash) ||
       ![hashes.preview, hashes.verified].includes(invocation.argumentsHash ?? "")) return false;
@@ -92,10 +92,10 @@ export async function startToolInvocation(db: Db, invocationId: string, claim?: 
     const [request] = await tx.select().from(toolActionRequests)
       .where(eq(toolActionRequests.id, claim.actionRequestId)).for("update");
     if (invocationId !== claim.invocationId || invocation?.status !== "awaiting_approval" || invocation.startedAt !== null ||
-      request?.status !== "executing" || request.invocationId !== invocationId || request.companyId !== invocation.companyId ||
+      request?.status !== "executing" || request.invocationId !== invocationId || request.spaceId !== invocation.spaceId ||
       request.updatedAt.getTime() !== claim.claimedAt.getTime()) return false;
     if ((claim.enforceDeadline || invocation.errorCode === TOOL_APPROVAL_CONNECTION_REQUIRED) && request.expiresAt && request.expiresAt <= now) {
-      await notifyToolReviewChange(tx, request.companyId);
+      await notifyToolReviewChange(tx, request.spaceId);
       await tx.update(toolInvocations).set({ status: "failed", errorCode: "action_expired",
         errorMessage: "The action deadline passed before execution.", completedAt: now, updatedAt: now })
         .where(eq(toolInvocations.id, invocationId));
@@ -127,7 +127,7 @@ export async function persistToolTestOutcome(db: Db, invocationId: string, outco
       .where(eq(toolActionRequests.id, claim.actionRequestId)).for("update");
     if (!invocation || !["awaiting_approval", "executing"].includes(invocation.status) ||
       request?.status !== "executing" || request.updatedAt.getTime() !== claim.claimedAt.getTime()) return false;
-    await notifyToolReviewChange(tx, request.companyId);
+    await notifyToolReviewChange(tx, request.spaceId);
     await tx.update(toolInvocations).set(values).where(eq(toolInvocations.id, invocationId));
     await tx.update(toolActionRequests).set({ status: outcome.status === "succeeded" ? "executed" : "failed",
       resolvedAt: now, updatedAt: now }).where(eq(toolActionRequests.id, claim.actionRequestId));

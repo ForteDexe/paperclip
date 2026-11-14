@@ -12,7 +12,7 @@ async function main(): Promise<ReadOnlyGitHubGrant> {
   const auth = parseHumanGitHubAuth(JSON.stringify(input.auth)), origin = new URL(input.origin);
   if (!(origin.protocol === "https:" || origin.protocol === "http:" && origin.hostname === "127.0.0.1") || origin.username || origin.password || origin.search || origin.hash
     || !/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(input.repositoryFullName) || !/^[1-9]\d*$/.test(input.repositoryId)) throw new Error("Invalid owned human authorization target");
-  for (const id of [input.companyId, input.taskId, input.workerId, input.interactionId, input.personId]) if (!/^[a-zA-Z0-9-]{1,100}$/.test(id)) throw new Error("Invalid product identity");
+  for (const id of [input.spaceId, input.taskId, input.workerId, input.interactionId, input.personId]) if (!/^[a-zA-Z0-9-]{1,100}$/.test(id)) throw new Error("Invalid product identity");
   privateValues = [auth.clientSecret, ...auth.storageState.cookies.map(cookie => cookie.value), ...input.cookies.map(cookie => cookie.value), ...auth.storageState.origins.flatMap(site => site.localStorage.map(row => row.value))];
   const browser = await chromium.launch({ headless: true, ...(input.executablePath ? { executablePath: input.executablePath } : {}), ...(input.channel ? { channel: input.channel } : {}) });
   let createdConnectionId: string | undefined;
@@ -22,10 +22,10 @@ async function main(): Promise<ReadOnlyGitHubGrant> {
     const page = await context.newPage(); page.setDefaultTimeout(20000);
     page.on("response", response => {
       const url = new URL(response.url());
-      if (url.origin !== origin.origin || response.request().method() !== "POST" || url.pathname !== `/api/companies/${input.companyId}/tools/connections` || !response.ok()) return;
+      if (url.origin !== origin.origin || response.request().method() !== "POST" || url.pathname !== `/api/spaces/${input.spaceId}/tools/connections` || !response.ok()) return;
       const tracked = response.json().then((body: ToolConnection | { connection: ToolConnection }) => {
         const connection = "connection" in body ? body.connection : body;
-        if (connection.companyId === input.companyId && connection.config?.sourceTemplateKey === "github" && (connection.config.oauth as { clientId?: string } | undefined)?.clientId === auth.clientId) createdConnectionId = connection.id;
+        if (connection.spaceId === input.spaceId && connection.config?.sourceTemplateKey === "github" && (connection.config.oauth as { clientId?: string } | undefined)?.clientId === auth.clientId) createdConnectionId = connection.id;
       }).catch(() => {}).finally(() => pendingResponses.delete(tracked));
       pendingResponses.add(tracked);
     });
@@ -129,7 +129,7 @@ async function main(): Promise<ReadOnlyGitHubGrant> {
       actualProviderConsent: true, actualInstallationSelection: installationSelected, genuineHumanSession: true, uiCompletionObserved: true, workerPausedBeforeConsent: true,
       isolatedPrivateBrowser: true, tracingEnabled: false, videoEnabled: false, testRunnerAttached: false };
   } catch {
-    // Cleanup only newly created Paperclip connection, never forge/retry the
+    // Cleanup only newly created Outpost connection, never forge/retry the
     // human action or resume a worker after failed authority qualification.
     await Promise.allSettled([...pendingResponses]);
     if (createdConnectionId) {

@@ -133,7 +133,7 @@ function metadata(scenario: LocalRunnerScenario): LocalRunnerRunMetadata {
     fixtureName: `Local runner ${scenario}`,
     identity: {
       schema: "outpost.orp.identity.v1",
-      companyId: "company_local_runner",
+      spaceId: "space_local_runner",
       issueId: `issue_local_runner_${suffix}`,
       runId: `run_local_runner_${suffix}`,
       environmentLeaseId: `lease_local_runner_${suffix}`,

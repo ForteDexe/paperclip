@@ -3,7 +3,7 @@
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { CompanyArtifact, Issue } from "@outpost/shared";
+import type { SpaceArtifact, Issue } from "@outpost/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AgentArtifactsPanel, AgentTasksPanel, sortAgentTasks } from "./AgentWorkPanels";
@@ -37,18 +37,18 @@ function task(overrides: Partial<Issue>): Issue {
   } as Issue;
 }
 
-function artifact(overrides: Partial<CompanyArtifact>): CompanyArtifact {
+function artifact(overrides: Partial<SpaceArtifact>): SpaceArtifact {
   return {
     id: "artifact",
     source: "document",
     mediaKind: "document",
     title: "report.md",
     issue: { id: "issue-1", identifier: "PAP-9", title: "Issue" },
-    createdByAgent: { id: "agent-1", name: "CEO" },
+    createdByAgent: { id: "agent-1", name: "Default agent" },
     updatedAt: "2026-09-30T00:00:00.000Z",
     href: "/PAP/issues/PAP-9#document-report",
     ...overrides,
-  } as CompanyArtifact;
+  } as SpaceArtifact;
 }
 
 describe("agent work panels", () => {
@@ -88,9 +88,9 @@ describe("agent work panels", () => {
       task({ id: "chat", identifier: "PAP-2", title: "The conversation" }),
       task({ id: "new", identifier: "PAP-3", title: "Newer task", status: "in_progress", updatedAt: new Date("2026-09-20T00:00:00.000Z") }),
     ]);
-    await render(<AgentTasksPanel companyId="company-1" agentId="agent-1" excludeIssueId="chat" />);
+    await render(<AgentTasksPanel spaceId="space-1" agentId="agent-1" excludeIssueId="chat" />);
 
-    expect(api.issuesList).toHaveBeenCalledWith("company-1", expect.objectContaining({ participantAgentId: "agent-1" }));
+    expect(api.issuesList).toHaveBeenCalledWith("space-1", expect.objectContaining({ participantAgentId: "agent-1" }));
     const cards = Array.from(container.querySelectorAll("a"));
     expect(cards.map((card) => card.getAttribute("href"))).toEqual(["/issues/PAP-3", "/issues/PAP-1"]);
     expect(cards.every((card) => card.getAttribute("target") === "_blank")).toBe(true);
@@ -114,9 +114,9 @@ describe("agent work panels", () => {
       artifacts: [artifact({ id: "mine", title: "plan.md" })],
       nextCursor: null,
     });
-    await render(<AgentArtifactsPanel companyId="company-1" agentId="agent-1" />);
+    await render(<AgentArtifactsPanel spaceId="space-1" agentId="agent-1" />);
 
-    expect(api.artifactsList).toHaveBeenCalledWith("company-1", expect.objectContaining({ agentId: "agent-1" }));
+    expect(api.artifactsList).toHaveBeenCalledWith("space-1", expect.objectContaining({ agentId: "agent-1" }));
     const cards = Array.from(container.querySelectorAll("a"));
     expect(cards).toHaveLength(1);
     expect(cards[0]?.getAttribute("href")).toBe("/PAP/issues/PAP-9#document-report");

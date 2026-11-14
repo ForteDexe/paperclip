@@ -10,7 +10,7 @@ function buildSandboxProviderManifest(driver: Record<string, unknown>) {
     version: "0.1.0",
     displayName: "Capability Provider",
     description: "Sandbox provider that declares fine-grained capabilities.",
-    author: "Paperclip",
+    author: "Outpost",
     categories: ["automation"],
     capabilities: ["environment.drivers.register"],
     entrypoints: { worker: "./dist/worker.js" },
@@ -88,8 +88,8 @@ describe("plugin manifest validators", () => {
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Compat Dashboard",
-      description: "Dashboard-only plugin without access or authorization host APIs.",
-      author: "Paperclip",
+      description: "Dashoperator-only plugin without access or authorization host APIs.",
+      author: "Outpost",
       categories: ["ui"],
       capabilities: ["ui.dashboardWidget.register"],
       entrypoints: {
@@ -118,7 +118,7 @@ describe("plugin manifest validators", () => {
       version: "0.1.0",
       displayName: "Template Provider",
       description: "Sandbox provider with captured template config binding.",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["automation"],
       capabilities: ["environment.drivers.register"],
       entrypoints: { worker: "./dist/worker.js" },
@@ -205,7 +205,7 @@ describe("plugin managed skill validators", () => {
     version: "0.1.0",
     displayName: "Managed Skills",
     description: "Managed skills test plugin.",
-    author: "Paperclip",
+    author: "Outpost",
     categories: ["automation"],
     entrypoints: { worker: "./dist/worker.js" },
   } as const;
@@ -259,7 +259,7 @@ describe("plugin UI slot validators", () => {
     expect(parsed.error.issues[0]?.message).toBe("routeSidebar slots require routePath");
   });
 
-  it("keeps reserved company route protection for route-scoped sidebars", () => {
+  it("keeps reserved space route protection for route-scoped sidebars", () => {
     const parsed = pluginUiSlotDeclarationSchema.safeParse({
       type: "routeSidebar",
       id: "settings-route-sidebar",
@@ -297,9 +297,9 @@ describe("plugin UI slot validators", () => {
     expect(parsed.entityTypes).toEqual(["execution_workspace"]);
   });
 
-  it("accepts company settings page slots with a non-core settings route", () => {
+  it("accepts space settings page slots with a non-core settings route", () => {
     const parsed = pluginUiSlotDeclarationSchema.parse({
-      type: "companySettingsPage",
+      type: "spaceSettingsPage",
       id: "permissions-settings",
       displayName: "Permissions",
       exportName: "PermissionsSettingsPage",
@@ -309,9 +309,9 @@ describe("plugin UI slot validators", () => {
     expect(parsed.routePath).toBe("permissions");
   });
 
-  it("prevents company settings page slots from shadowing core settings routes", () => {
+  it("prevents space settings page slots from shadowing core settings routes", () => {
     const parsed = pluginUiSlotDeclarationSchema.safeParse({
-      type: "companySettingsPage",
+      type: "spaceSettingsPage",
       id: "instance-settings",
       displayName: "Instance",
       exportName: "InstanceSettingsPage",
@@ -490,28 +490,28 @@ describe("login pty transport capability and legacy alias", () => {
   });
 });
 
-describe("plugin WebSocket company resolution", () => {
-  const route = { routeKey: "channel.connect", method: "GET", path: "/channels/:channelId", auth: "board", capability: "api.routes.register" };
+describe("plugin WebSocket space resolution", () => {
+  const route = { routeKey: "channel.connect", method: "GET", path: "/channels/:channelId", auth: "operator", capability: "api.routes.register" };
 
   it("rejects body resolution only for WebSocket routes", () => {
-    const companyResolution = { from: "body", key: "companyId" };
-    expect(pluginApiRouteDeclarationSchema.safeParse({ ...route, companyResolution }).success).toBe(true);
-    expect(pluginApiRouteDeclarationSchema.safeParse({ ...route, companyResolution, transport: "websocket" }).success).toBe(false);
+    const spaceResolution = { from: "body", key: "spaceId" };
+    expect(pluginApiRouteDeclarationSchema.safeParse({ ...route, spaceResolution }).success).toBe(true);
+    expect(pluginApiRouteDeclarationSchema.safeParse({ ...route, spaceResolution, transport: "websocket" }).success).toBe(false);
   });
 
   it.each([
     undefined,
-    { from: "query", key: "companyId" },
+    { from: "query", key: "spaceId" },
     { from: "issue", param: "issueId" },
     { from: "agent", param: "agentId" },
-  ])("accepts body-free resolution %j", (companyResolution) => {
-    expect(pluginApiRouteDeclarationSchema.safeParse({ ...route, companyResolution, transport: "websocket" }).success).toBe(true);
+  ])("accepts body-free resolution %j", (spaceResolution) => {
+    expect(pluginApiRouteDeclarationSchema.safeParse({ ...route, spaceResolution, transport: "websocket" }).success).toBe(true);
   });
 });
 
 describe("plugin task side-panel declarations", () => {
   const slot = { type: "detailTab", id: "view", displayName: "Live view", exportName: "LiveView", entityTypes: ["agent"], taskSidePanel: { availabilityPath: "/agents/:entityId/view/availability" } };
-  const route = { routeKey: "view.availability", method: "GET", path: slot.taskSidePanel.availabilityPath, auth: "board", capability: "api.routes.register", companyResolution: { from: "agent", param: "entityId" } };
+  const route = { routeKey: "view.availability", method: "GET", path: slot.taskSidePanel.availabilityPath, auth: "operator", capability: "api.routes.register", spaceResolution: { from: "agent", param: "entityId" } };
   const manifest = { id: "example.live-view", apiVersion: 1, version: "1.0.0", displayName: "Live view", description: "Live view", author: "Tests", categories: ["ui"], capabilities: ["ui.detailTab.register", "api.routes.register"], entrypoints: { worker: "worker.js", ui: "ui.js" }, ui: { slots: [slot] }, apiRoutes: [route] };
   it("accepts an optional panel backed by an authorized plugin-local agent route", () => {
     expect(pluginManifestV1Schema.parse(manifest).ui?.slots?.[0]?.taskSidePanel).toEqual(slot.taskSidePanel);
@@ -537,7 +537,7 @@ describe("plugin task side-panel declarations", () => {
     expect(pluginUiSlotDeclarationSchema.safeParse({ ...slot, entityTypes: ["issue"] }).success).toBe(false);
     expect(pluginUiSlotDeclarationSchema.safeParse({ ...slot, type: "page" }).success).toBe(false);
   });
-  it.each([[], [{ ...route, method: "POST" }], [{ ...route, auth: "agent" }], [{ ...route, companyResolution: { from: "query", key: "companyId" } }]].map(apiRoutes => ({ apiRoutes })))("requires a declared board GET route scoped to the supplied agent", ({ apiRoutes }) => {
+  it.each([[], [{ ...route, method: "POST" }], [{ ...route, auth: "agent" }], [{ ...route, spaceResolution: { from: "query", key: "spaceId" } }]].map(apiRoutes => ({ apiRoutes })))("requires a declared operator GET route scoped to the supplied agent", ({ apiRoutes }) => {
     expect(pluginManifestV1Schema.safeParse({ ...manifest, apiRoutes }).success).toBe(false);
   });
 });

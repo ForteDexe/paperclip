@@ -8,8 +8,8 @@ export function installedReleaseLaunch(cliPath: string) {
   const root = path.resolve(path.dirname(cli), "..");
   const manifest = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
   if (path.basename(cli) !== "index.js" || path.basename(path.dirname(cli)) !== "dist" ||
-      manifest.name !== "paperclipai" || typeof manifest.version !== "string") {
-    throw new Error("Installed release must use paperclipai/dist/index.js from its public package");
+      manifest.name !== "@outpost/cli" || typeof manifest.version !== "string") {
+    throw new Error("Installed release must use @outpost/cli/dist/index.js from its public package");
   }
   return { cli, cwd: root, args: [cli, "onboard", "--yes", "--run"], version: manifest.version };
 }
@@ -21,8 +21,8 @@ export function installedReleaseDaytonaPlugin(cliPath: string, installedPluginPa
   const plugin = realpathSync(installedPluginPath ?? path.join(path.dirname(cli.cwd), "@outpost/plugin-daytona"));
   const manifest = JSON.parse(readFileSync(path.join(plugin, "package.json"), "utf8"));
   if (manifest.name !== "@outpost/plugin-daytona" ||
-      manifest.paperclipPlugin?.manifest !== "./dist/manifest.js" ||
-      manifest.paperclipPlugin?.worker !== "./dist/worker.js" ||
+      manifest.outpostPlugin?.manifest !== "./dist/manifest.js" ||
+      manifest.outpostPlugin?.worker !== "./dist/worker.js" ||
       manifest.exports?.["."]?.import !== "./dist/index.js") {
     throw new Error("Installed release requires the public compiled Daytona plugin package");
   }

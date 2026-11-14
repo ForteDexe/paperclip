@@ -15,11 +15,11 @@ import { normalizeKey } from "../identifiers.js";
 import { toProfile, toProfileEntry, toProfileBinding, profileCatalogColumns, profileReviewCatalogColumns, pendingNewToolsForProfile, buildProfileDetails } from "./projection.js";
 
 export function createToolProfileService(db: Db, now: () => Date) {
-  async function getProfileRow(profileId: string, companyId?: string, dbClient: ToolAccessMutationDb = db) {
-    const where = companyId
+  async function getProfileRow(profileId: string, spaceId?: string, dbClient: ToolAccessMutationDb = db) {
+    const where = spaceId
       ? and(
           eq(toolProfiles.id, profileId),
-          eq(toolProfiles.companyId, companyId),
+          eq(toolProfiles.spaceId, spaceId),
         )
       : eq(toolProfiles.id, profileId);
     const [row] = await dbClient.select().from(toolProfiles).where(where);
@@ -29,15 +29,15 @@ export function createToolProfileService(db: Db, now: () => Date) {
 
   async function profileDetails(
     profileId: string,
-    companyId?: string,
+    spaceId?: string,
     dbClient: ToolAccessMutationDb = db,
   ): Promise<ToolProfileWithDetails> {
-    const profile = await getProfileRow(profileId, companyId, dbClient);
+    const profile = await getProfileRow(profileId, spaceId, dbClient);
     const [
       entries,
       bindings,
       catalog,
-      companyAgents,
+      spaceAgents,
       applications,
       connections,
     ] = await Promise.all([
@@ -46,7 +46,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
         .from(toolProfileEntries)
         .where(
           and(
-            eq(toolProfileEntries.companyId, profile.companyId),
+            eq(toolProfileEntries.spaceId, profile.spaceId),
             eq(toolProfileEntries.profileId, profile.id),
           ),
         )
@@ -56,7 +56,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
         .from(toolProfileBindings)
         .where(
           and(
-            eq(toolProfileBindings.companyId, profile.companyId),
+            eq(toolProfileBindings.spaceId, profile.spaceId),
             eq(toolProfileBindings.profileId, profile.id),
           ),
         )
@@ -69,29 +69,29 @@ export function createToolProfileService(db: Db, now: () => Date) {
         .from(toolCatalogEntries)
         .where(
           and(
-            eq(toolCatalogEntries.companyId, profile.companyId),
+            eq(toolCatalogEntries.spaceId, profile.spaceId),
             eq(toolCatalogEntries.status, "active"),
           ),
         ),
       dbClient
         .select({ id: agents.id })
         .from(agents)
-        .where(eq(agents.companyId, profile.companyId)),
+        .where(eq(agents.spaceId, profile.spaceId)),
       dbClient
         .select({ id: toolApplications.id, name: toolApplications.name })
         .from(toolApplications)
-        .where(eq(toolApplications.companyId, profile.companyId)),
+        .where(eq(toolApplications.spaceId, profile.spaceId)),
       dbClient
         .select({ id: toolConnections.id, name: toolConnections.name })
         .from(toolConnections)
-        .where(eq(toolConnections.companyId, profile.companyId)),
+        .where(eq(toolConnections.spaceId, profile.spaceId)),
     ]);
     return buildProfileDetails({
       profile,
       entries,
       bindings,
       catalog,
-      agentIds: companyAgents.map((agent) => agent.id),
+      agentIds: spaceAgents.map((agent) => agent.id),
       applicationsById: new Map(
         applications.map((application) => [application.id, application]),
       ),
@@ -103,16 +103,16 @@ export function createToolProfileService(db: Db, now: () => Date) {
 
   async function listProfileNewTools(
     profileId: string,
-    companyId?: string,
+    spaceId?: string,
   ): Promise<ToolProfileNewToolsReview> {
-    const profile = await getProfileRow(profileId, companyId);
+    const profile = await getProfileRow(profileId, spaceId);
     const [entries, catalog, applications, connections] = await Promise.all([
       db
         .select()
         .from(toolProfileEntries)
         .where(
           and(
-            eq(toolProfileEntries.companyId, profile.companyId),
+            eq(toolProfileEntries.spaceId, profile.spaceId),
             eq(toolProfileEntries.profileId, profile.id),
           ),
         )
@@ -122,7 +122,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
         .from(toolCatalogEntries)
         .where(
           and(
-            eq(toolCatalogEntries.companyId, profile.companyId),
+            eq(toolCatalogEntries.spaceId, profile.spaceId),
             eq(toolCatalogEntries.status, "active"),
           ),
         )
@@ -130,11 +130,11 @@ export function createToolProfileService(db: Db, now: () => Date) {
       db
         .select({ id: toolApplications.id, name: toolApplications.name })
         .from(toolApplications)
-        .where(eq(toolApplications.companyId, profile.companyId)),
+        .where(eq(toolApplications.spaceId, profile.spaceId)),
       db
         .select({ id: toolConnections.id, name: toolConnections.name })
         .from(toolConnections)
-        .where(eq(toolConnections.companyId, profile.companyId)),
+        .where(eq(toolConnections.spaceId, profile.spaceId)),
     ]);
     const tools = pendingNewToolsForProfile({
       profile,
@@ -162,7 +162,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
   ): Promise<ToolProfileNewToolsReviewResult> {
     await actor?.managementContext?.reauthorize();
     const profile = await getProfileRow(profileId);
-    const review = await listProfileNewTools(profile.id, profile.companyId);
+    const review = await listProfileNewTools(profile.id, profile.spaceId);
     if (review.tools.length === 0)
       throw badRequest("No new tools are pending review for this profile");
 
@@ -198,7 +198,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
         .insert(toolProfileEntries)
         .values(
           allowTools.map((tool) => ({
-            companyId: profile.companyId,
+            spaceId: profile.spaceId,
             profileId: profile.id,
             selectorType: "catalog_entry" as const,
             effect: "include" as const,
@@ -223,7 +223,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
       })
       .where(
         and(
-          eq(toolCatalogEntries.companyId, profile.companyId),
+          eq(toolCatalogEntries.spaceId, profile.spaceId),
           inArray(toolCatalogEntries.id, decisionIds),
         ),
       );
@@ -233,7 +233,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
       .where(eq(toolProfiles.id, profile.id));
 
     return {
-      profile: await profileDetails(profile.id, profile.companyId),
+      profile: await profileDetails(profile.id, profile.spaceId),
       reviewedAt: nowAt,
       allowedCount: allowTools.length,
       keptBlockedCount: input.decisions.length - allowTools.length,
@@ -243,16 +243,16 @@ export function createToolProfileService(db: Db, now: () => Date) {
   }
 
   async function createProfileEntries(
-    companyId: string,
+    spaceId: string,
     profileId: string,
     entries: CreateToolProfileEntryForProfile[],
     dbClient: ToolAccessMutationDb = db,
   ) {
-    await assertProfileEntryInputs(dbClient, companyId, entries);
+    await assertProfileEntryInputs(dbClient, spaceId, entries);
     if (entries.length === 0) return;
     await dbClient.insert(toolProfileEntries).values(
       entries.map((entry) => ({
-        companyId,
+        spaceId,
         profileId,
         selectorType: entry.selectorType,
         effect: entry.effect ?? "include",
@@ -267,33 +267,33 @@ export function createToolProfileService(db: Db, now: () => Date) {
   }
 
   async function replaceProfileEntries(
-    companyId: string,
+    spaceId: string,
     profileId: string,
     entries: CreateToolProfileEntryForProfile[],
     dbClient: ToolAccessMutationDb = db,
   ) {
-    await assertProfileEntryInputs(dbClient, companyId, entries);
+    await assertProfileEntryInputs(dbClient, spaceId, entries);
     await dbClient
       .delete(toolProfileEntries)
       .where(
         and(
-          eq(toolProfileEntries.companyId, companyId),
+          eq(toolProfileEntries.spaceId, spaceId),
           eq(toolProfileEntries.profileId, profileId),
         ),
       );
-    await createProfileEntries(companyId, profileId, entries, dbClient);
+    await createProfileEntries(spaceId, profileId, entries, dbClient);
   }
 
   async function assertTargetExists(
-    companyId: string,
+    spaceId: string,
     targetType: CreateToolProfileBindingForProfile["targetType"],
     targetId: string,
     dbClient: ToolAccessMutationDb = db,
   ) {
-    if (targetType === "company") {
-      if (targetId !== companyId)
+    if (targetType === "space") {
+      if (targetId !== spaceId)
         throw unprocessable(
-          "Outpost profile bindings must target the same company id",
+          "Outpost profile bindings must target the same space id",
         );
       return;
     }
@@ -301,10 +301,10 @@ export function createToolProfileService(db: Db, now: () => Date) {
       const [row] = await dbClient
         .select({ id: agents.id })
         .from(agents)
-        .where(and(eq(agents.id, targetId), eq(agents.companyId, companyId)));
+        .where(and(eq(agents.id, targetId), eq(agents.spaceId, spaceId)));
       if (!row)
         throw unprocessable(
-          "Tool profile agent binding target must belong to the same company",
+          "Tool profile agent binding target must belong to the same space",
         );
       return;
     }
@@ -313,11 +313,11 @@ export function createToolProfileService(db: Db, now: () => Date) {
         .select({ id: projects.id })
         .from(projects)
         .where(
-          and(eq(projects.id, targetId), eq(projects.companyId, companyId)),
+          and(eq(projects.id, targetId), eq(projects.spaceId, spaceId)),
         );
       if (!row)
         throw unprocessable(
-          "Tool profile project binding target must belong to the same company",
+          "Tool profile project binding target must belong to the same space",
         );
       return;
     }
@@ -326,11 +326,11 @@ export function createToolProfileService(db: Db, now: () => Date) {
         .select({ id: routines.id })
         .from(routines)
         .where(
-          and(eq(routines.id, targetId), eq(routines.companyId, companyId)),
+          and(eq(routines.id, targetId), eq(routines.spaceId, spaceId)),
         );
       if (!row)
         throw unprocessable(
-          "Tool profile routine binding target must belong to the same company",
+          "Tool profile routine binding target must belong to the same space",
         );
       return;
     }
@@ -338,10 +338,10 @@ export function createToolProfileService(db: Db, now: () => Date) {
       const [row] = await dbClient
         .select({ id: issues.id })
         .from(issues)
-        .where(and(eq(issues.id, targetId), eq(issues.companyId, companyId)));
+        .where(and(eq(issues.id, targetId), eq(issues.spaceId, spaceId)));
       if (!row)
         throw unprocessable(
-          "Tool profile issue binding target must belong to the same company",
+          "Tool profile issue binding target must belong to the same space",
         );
       return;
     }
@@ -352,12 +352,12 @@ export function createToolProfileService(db: Db, now: () => Date) {
         .where(
           and(
             eq(toolMcpGateways.id, targetId),
-            eq(toolMcpGateways.companyId, companyId),
+            eq(toolMcpGateways.spaceId, spaceId),
           ),
         );
       if (!row)
         throw unprocessable(
-          "Tool profile gateway binding target must belong to the same company",
+          "Tool profile gateway binding target must belong to the same space",
         );
     }
   }
@@ -365,12 +365,12 @@ export function createToolProfileService(db: Db, now: () => Date) {
     listConnectionProfileConfiguration: createConnectionProfileConfigurationReader(db),
 
     listProfiles: async (
-      companyId: string,
+      spaceId: string,
     ): Promise<ToolProfileWithDetails[]> => {
       const profiles = await db
         .select()
         .from(toolProfiles)
-        .where(eq(toolProfiles.companyId, companyId))
+        .where(eq(toolProfiles.spaceId, spaceId))
         .orderBy(desc(toolProfiles.updatedAt));
       if (profiles.length === 0) return [];
       const profileIds = profiles.map((profile) => profile.id);
@@ -378,7 +378,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
         entries,
         bindings,
         catalog,
-        companyAgents,
+        spaceAgents,
         applications,
         connections,
       ] = await Promise.all([
@@ -387,7 +387,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
           .from(toolProfileEntries)
           .where(
             and(
-              eq(toolProfileEntries.companyId, companyId),
+              eq(toolProfileEntries.spaceId, spaceId),
               inArray(toolProfileEntries.profileId, profileIds),
             ),
           )
@@ -397,7 +397,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
           .from(toolProfileBindings)
           .where(
             and(
-              eq(toolProfileBindings.companyId, companyId),
+              eq(toolProfileBindings.spaceId, spaceId),
               inArray(toolProfileBindings.profileId, profileIds),
             ),
           )
@@ -410,22 +410,22 @@ export function createToolProfileService(db: Db, now: () => Date) {
           .from(toolCatalogEntries)
           .where(
             and(
-              eq(toolCatalogEntries.companyId, companyId),
+              eq(toolCatalogEntries.spaceId, spaceId),
               eq(toolCatalogEntries.status, "active"),
             ),
           ),
         db
           .select({ id: agents.id })
           .from(agents)
-          .where(eq(agents.companyId, companyId)),
+          .where(eq(agents.spaceId, spaceId)),
         db
           .select({ id: toolApplications.id, name: toolApplications.name })
           .from(toolApplications)
-          .where(eq(toolApplications.companyId, companyId)),
+          .where(eq(toolApplications.spaceId, spaceId)),
         db
           .select({ id: toolConnections.id, name: toolConnections.name })
           .from(toolConnections)
-          .where(eq(toolConnections.companyId, companyId)),
+          .where(eq(toolConnections.spaceId, spaceId)),
       ]);
       const entriesByProfile = new Map<
         string,
@@ -445,7 +445,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
         list.push(binding);
         bindingsByProfile.set(binding.profileId, list);
       }
-      const agentIds = companyAgents.map((agent) => agent.id);
+      const agentIds = spaceAgents.map((agent) => agent.id);
       const applicationsById = new Map(
         applications.map((application) => [application.id, application]),
       );
@@ -466,15 +466,15 @@ export function createToolProfileService(db: Db, now: () => Date) {
     },
 
     createProfile: async (
-      companyId: string,
+      spaceId: string,
       input: CreateToolProfileWithEntries, managementContext?: ConnectionManagementContext,
     ): Promise<ToolProfileWithDetails> => {
       await managementContext?.reauthorize();
-      await assertProfileEntryInputs(db, companyId, input.entries ?? []);
+      await assertProfileEntryInputs(db, spaceId, input.entries ?? []);
       const [row] = await db
         .insert(toolProfiles)
         .values({
-          companyId,
+          spaceId,
           profileKey: input.profileKey,
           name: input.name,
           description: input.description ?? null,
@@ -483,8 +483,8 @@ export function createToolProfileService(db: Db, now: () => Date) {
           metadata: input.metadata ?? {},
         })
         .returning();
-      await createProfileEntries(companyId, row.id, input.entries ?? []);
-      return profileDetails(row.id, companyId);
+      await createProfileEntries(spaceId, row.id, input.entries ?? []);
+      return profileDetails(row.id, spaceId);
     },
 
     getProfile: profileDetails,
@@ -500,7 +500,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
       await managementContext?.reauthorize();
       const existing = await getProfileRow(profileId);
       if (input.entries) {
-        await assertProfileEntryInputs(db, existing.companyId, input.entries);
+        await assertProfileEntryInputs(db, existing.spaceId, input.entries);
       }
       const referencesChanged = new Error("Tool profile references changed");
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -508,10 +508,10 @@ export function createToolProfileService(db: Db, now: () => Date) {
           await db.transaction(async tx => {
             const db = tx as unknown as Db;
             const readReferences = () => tx.select({ applicationId: toolProfileEntries.applicationId, connectionId: toolProfileEntries.connectionId, catalogEntryId: toolProfileEntries.catalogEntryId })
-              .from(toolProfileEntries).where(and(eq(toolProfileEntries.companyId, existing.companyId), eq(toolProfileEntries.profileId, profileId)))
+              .from(toolProfileEntries).where(and(eq(toolProfileEntries.spaceId, existing.spaceId), eq(toolProfileEntries.profileId, profileId)))
               .orderBy(toolProfileEntries.id);
             const oldReferences = input.entries ? await readReferences() : [];
-            await lockProfileEntryReferences(tx, existing.companyId, [...oldReferences, ...(input.entries ?? [])]);
+            await lockProfileEntryReferences(tx, existing.spaceId, [...oldReferences, ...(input.entries ?? [])]);
             const [current] = await tx.select().from(toolProfiles).where(eq(toolProfiles.id, profileId)).for("no key update");
             if (!current) throw notFound("Tool profile not found");
             if (input.entries && JSON.stringify(await readReferences()) !== JSON.stringify(oldReferences)) throw referencesChanged;
@@ -529,7 +529,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
               .where(eq(toolProfiles.id, profileId));
             if (input.entries) {
               await replaceProfileEntries(
-                existing.companyId,
+                existing.spaceId,
                 profileId,
                 input.entries,
                 tx,
@@ -542,7 +542,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
           if (attempt >= 2) throw conflict("Tool profile entries changed during replacement", { retryable: true });
         }
       }
-      return profileDetails(profileId, existing.companyId);
+      return profileDetails(profileId, existing.spaceId);
     },
 
     duplicateProfile: async (
@@ -557,7 +557,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
           .from(toolProfileEntries)
           .where(
             and(
-              eq(toolProfileEntries.companyId, existing.companyId),
+              eq(toolProfileEntries.spaceId, existing.spaceId),
               eq(toolProfileEntries.profileId, existing.id),
             ),
           )
@@ -567,7 +567,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
           .from(toolProfileBindings)
           .where(
             and(
-              eq(toolProfileBindings.companyId, existing.companyId),
+              eq(toolProfileBindings.spaceId, existing.spaceId),
               eq(toolProfileBindings.profileId, existing.id),
             ),
           )
@@ -579,7 +579,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
       const [created] = await db
         .insert(toolProfiles)
         .values({
-          companyId: existing.companyId,
+          spaceId: existing.spaceId,
           profileKey: normalizeKey(`${input.name}-${randomUUID().slice(0, 8)}`),
           name: input.name,
           description: existing.description,
@@ -592,7 +592,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
       if (entries.length > 0) {
         await db.insert(toolProfileEntries).values(
           entries.map((entry) => ({
-            companyId: entry.companyId,
+            spaceId: entry.spaceId,
             profileId: created.id,
             selectorType: entry.selectorType,
             effect: entry.effect,
@@ -608,7 +608,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
       if (input.includeAssignments && bindings.length > 0) {
         await db.insert(toolProfileBindings).values(
           bindings.map((binding) => ({
-            companyId: binding.companyId,
+            spaceId: binding.spaceId,
             profileId: created.id,
             targetType: binding.targetType,
             targetId: binding.targetId,
@@ -619,7 +619,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
           })),
         );
       }
-      return profileDetails(created.id, existing.companyId);
+      return profileDetails(created.id, existing.spaceId);
     },
 
     deleteProfile: async (
@@ -635,22 +635,22 @@ export function createToolProfileService(db: Db, now: () => Date) {
       const existing = await getProfileRow(profileId, undefined, tx);
       const db = tx as unknown as Db;
       await tx.select({ id: toolProfiles.id }).from(toolProfiles)
-        .where(and(eq(toolProfiles.companyId, existing.companyId), inArray(toolProfiles.id, [profileId, ...(input.reassignToProfileId ? [input.reassignToProfileId] : [])])))
+        .where(and(eq(toolProfiles.spaceId, existing.spaceId), inArray(toolProfiles.id, [profileId, ...(input.reassignToProfileId ? [input.reassignToProfileId] : [])])))
         .orderBy(toolProfiles.id).for("update");
-      await lockToolAssignmentAgents(tx, existing.companyId, [{ targetType: "company", targetId: existing.companyId }]);
+      await lockToolAssignmentAgents(tx, existing.spaceId, [{ targetType: "space", targetId: existing.spaceId }]);
       if (input.force && input.reassignToProfileId) {
         throw badRequest(
           "Use either force or reassignToProfileId when deleting a tool profile, not both",
         );
       }
-      const details = await profileDetails(existing.id, existing.companyId, tx);
+      const details = await profileDetails(existing.id, existing.spaceId, tx);
       if (
-        details.summary.isCompanyDefault &&
+        details.summary.isSpaceDefault &&
         !input.force &&
         !input.reassignToProfileId
       ) {
         throw unprocessable(
-          "Cannot delete the company default tool profile. Reassign the default profile or pass force=true to delete it.",
+          "Cannot delete the space default tool profile. Reassign the default profile or pass force=true to delete it.",
           { summary: details.summary },
         );
       }
@@ -664,7 +664,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
         }
         const target = await getProfileRow(
           input.reassignToProfileId,
-          existing.companyId,
+          existing.spaceId,
           tx,
         );
         if (target.status !== "active") {
@@ -677,7 +677,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
           .from(toolProfileBindings)
           .where(
             and(
-              eq(toolProfileBindings.companyId, existing.companyId),
+              eq(toolProfileBindings.spaceId, existing.spaceId),
               eq(toolProfileBindings.profileId, target.id),
             ),
           );
@@ -693,7 +693,7 @@ export function createToolProfileService(db: Db, now: () => Date) {
         if (copiedBindings.length > 0) {
           await db.insert(toolProfileBindings).values(
             copiedBindings.map((binding) => ({
-              companyId: binding.companyId,
+              spaceId: binding.spaceId,
               profileId: target.id,
               targetType: binding.targetType,
               targetId: binding.targetId,
@@ -731,13 +731,13 @@ export function createToolProfileService(db: Db, now: () => Date) {
       await managementContext?.reauthorize();
       const db = tx as unknown as Db;
       const profile = await getProfileRow(profileId, undefined, tx);
-      await assertProfileEntryInputs(tx, profile.companyId, [input]);
-      await lockProfileEntryReferences(tx, profile.companyId, [input]);
+      await assertProfileEntryInputs(tx, profile.spaceId, [input]);
+      await lockProfileEntryReferences(tx, profile.spaceId, [input]);
       await tx.select({ id: toolProfiles.id }).from(toolProfiles).where(eq(toolProfiles.id, profile.id)).for("no key update");
       const [row] = await db
         .insert(toolProfileEntries)
         .values({
-          companyId: profile.companyId,
+          spaceId: profile.spaceId,
           profileId: profile.id,
           selectorType: input.selectorType,
           effect: input.effect ?? "include",
@@ -786,8 +786,8 @@ export function createToolProfileService(db: Db, now: () => Date) {
         riskLevel: input.riskLevel ?? existing.riskLevel,
         conditions: input.conditions ?? existing.conditions,
       };
-      await assertProfileEntryInputs(tx, existing.companyId, [next]);
-      await lockProfileEntryReferences(tx, existing.companyId, [next]);
+      await assertProfileEntryInputs(tx, existing.spaceId, [next]);
+      await lockProfileEntryReferences(tx, existing.spaceId, [next]);
       await tx.select({ id: toolProfiles.id }).from(toolProfiles).where(eq(toolProfiles.id, existing.profileId)).for("no key update");
       const [row] = await db
         .update(toolProfileEntries)
@@ -839,19 +839,19 @@ export function createToolProfileService(db: Db, now: () => Date) {
       const [profile] = await tx.select().from(toolProfiles).where(eq(toolProfiles.id, profileId)).for("no key update");
       if (!profile) throw notFound("Tool profile not found");
       await assertTargetExists(
-        profile.companyId,
+        profile.spaceId,
         input.targetType,
         input.targetId,
         tx,
       );
       if (input.targetType === "agent") await assertAgentToolAssignmentInteractions(db,
         actor?.managementContext?.actor.type === "agent" ? actor.managementContext.actor.agentId : actor?.actorType === "agent" ? actor.actorId : null,
-        profile.companyId, [input.targetId]);
+        profile.spaceId, [input.targetId]);
 
       const [row] = await db
         .insert(toolProfileBindings)
         .values({
-          companyId: profile.companyId,
+          spaceId: profile.spaceId,
           profileId: profile.id,
           targetType: input.targetType,
           targetId: input.targetId,
@@ -879,19 +879,19 @@ export function createToolProfileService(db: Db, now: () => Date) {
       const [profile] = await tx.select().from(toolProfiles).where(eq(toolProfiles.id, profileId)).for("no key update");
       if (!profile) throw notFound("Tool profile not found");
       await assertTargetExists(
-        profile.companyId,
+        profile.spaceId,
         input.targetType,
         input.targetId,
         tx,
       );
       if (input.targetType === "agent") await assertAgentToolAssignmentInteractions(db,
-        managementContext?.actor.type === "agent" ? managementContext.actor.agentId : null, profile.companyId, [input.targetId]);
+        managementContext?.actor.type === "agent" ? managementContext.actor.agentId : null, profile.spaceId, [input.targetId]);
 
       const rows = await db
         .delete(toolProfileBindings)
         .where(
           and(
-            eq(toolProfileBindings.companyId, profile.companyId),
+            eq(toolProfileBindings.spaceId, profile.spaceId),
             eq(toolProfileBindings.profileId, profile.id),
             eq(toolProfileBindings.targetType, input.targetType),
             eq(toolProfileBindings.targetId, input.targetId),

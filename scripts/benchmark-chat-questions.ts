@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { agents, companies, createDb, issues, issueThreadInteractions, startEmbeddedPostgresTestDatabase, applyPendingMigrations } from "../packages/db/src/index.js";
+import { agents, spaces, createDb, issues, issueThreadInteractions, startEmbeddedPostgresTestDatabase, applyPendingMigrations } from "../packages/db/src/index.js";
 import { conversationDecisionReceiptsService } from "../server/src/services/conversation-decision-receipts.js";
 import { attentionService } from "../server/src/services/attention.js";
 import { resolveExternalTestDatabaseUrl } from "../server/src/__tests__/helpers/external-test-database.js";
@@ -37,20 +37,20 @@ try {
   if (external) await applyPendingMigrations(external);
   else temporary = await startEmbeddedPostgresTestDatabase("chat-questions-");
   db = createDb(external ?? temporary!.connectionString);
-  const companyId = randomUUID(), agentId = randomUUID(), otherAgentId = randomUUID(), conversationId = randomUUID();
-  const userId = "local-board";
-  await db.insert(companies).values({ id: companyId, name: "Question benchmark", issuePrefix: companyId.slice(0, 8) });
-  await db.insert(agents).values([agentId, otherAgentId].map(id => ({ id, companyId, name: "Fixture", adapterType: "process" })));
-  await db.insert(issues).values({ id: conversationId, companyId, title: "Chat", conversationAgentId: agentId,
+  const spaceId = randomUUID(), agentId = randomUUID(), otherAgentId = randomUUID(), conversationId = randomUUID();
+  const userId = "local-operator";
+  await db.insert(spaces).values({ id: spaceId, name: "Question benchmark", issuePrefix: spaceId.slice(0, 8) });
+  await db.insert(agents).values([agentId, otherAgentId].map(id => ({ id, spaceId, name: "Fixture", adapterType: "process" })));
+  await db.insert(issues).values({ id: conversationId, spaceId, title: "Chat", conversationAgentId: agentId,
     conversationUserId: userId, assigneeAgentId: agentId, status: "blocked", responsibleUserId: userId,
     conversationState: "waiting", visibility: "private", privacyRootIssueId: conversationId });
-  const tasks = Array.from({ length: unrelated + 2 }, (_, i) => ({ id: randomUUID(), companyId, title: `Task ${i}`,
+  const tasks = Array.from({ length: unrelated + 2 }, (_, i) => ({ id: randomUUID(), spaceId, title: `Task ${i}`,
     createdByUserId: userId, assigneeAgentId: i < 2 ? agentId : otherAgentId, status: "blocked" }));
   const questionIds: string[] = [];
   for (let i = 0; i < tasks.length; i += 100) {
     const batch = tasks.slice(i, i + 100);
     await db.insert(issues).values(batch);
-    const rows = batch.map(task => ({ id: randomUUID(), companyId, issueId: task.id, kind: "ask_user_questions",
+    const rows = batch.map(task => ({ id: randomUUID(), spaceId, issueId: task.id, kind: "ask_user_questions",
       createdByAgentId: agentId, title: "Question", payload: { version: 1, questions: [
         { id: "choice", prompt: "Which option?", selectionMode: "single", options: [{ id: "a", label: "A" }] },
       ] }, createdAt: new Date("2026-10-01T00:00:00Z"), updatedAt: new Date("2026-10-01T00:00:00Z") }));
@@ -58,10 +58,10 @@ try {
     if (i === 0) questionIds.push(...rows.slice(0, 2).map(row => row.id));
   }
   await db.$client.unsafe("ANALYZE");
-  const options = { actor: { type: "board" as const, userId, source: "local_implicit" as const }, userId };
+  const options = { actor: { type: "operator" as const, userId, source: "local_implicit" as const }, userId };
   const variants = {
-    baseline: () => baseline.conversationDecisionReceiptsService(db).listPendingQuestions(companyId, conversationId, options),
-    candidate: () => conversationDecisionReceiptsService(db!).listPendingQuestions(companyId, conversationId, options),
+    baseline: () => baseline.conversationDecisionReceiptsService(db).listPendingQuestions(spaceId, conversationId, options),
+    candidate: () => conversationDecisionReceiptsService(db!).listPendingQuestions(spaceId, conversationId, options),
   };
   const normalize = (items: AttentionItem[]) => items.map(({ rank: _rank, ...item }) => item);
   const expected = normalize(await variants.baseline());
@@ -86,8 +86,8 @@ try {
     }
   }
   const summaries = {
-    baseline: () => baselineAttention.attentionService(db).summary(companyId, options),
-    candidate: () => attentionService(db!).summary(companyId, options),
+    baseline: () => baselineAttention.attentionService(db).summary(spaceId, options),
+    candidate: () => attentionService(db!).summary(spaceId, options),
   };
   const summaryWithoutTime = ({ generatedAt: _at, ...value }: Awaited<ReturnType<ReturnType<typeof attentionService>["summary"]>>) => value;
   const expectedSummary = summaryWithoutTime(await summaries.baseline());
@@ -101,7 +101,7 @@ try {
       const ms = performance.now() - started;
       db.$client.options.debug = false;
       assert.deepEqual(summaryWithoutTime(summary), expectedSummary);
-      samples.push({ scenario: "companySummary", variant, pair, ms, queries });
+      samples.push({ scenario: "spaceSummary", variant, pair, ms, queries });
     }
   }
   const plans = {} as Record<string, unknown>;

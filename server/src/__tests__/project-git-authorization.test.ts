@@ -4,7 +4,7 @@ import request from "supertest";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
-import { createDb, authUsers, companyMemberships, connectionGrants, executionWorkspaces, heartbeatRuns, instanceUserRoles, issues, projectAccessMembers, projects, projectWorkspaces, resourceLifecycleEvents, toolConnectionInstalls, toolConnections } from "@outpost/db";
+import { createDb, authUsers, spaceMemberships, connectionGrants, executionWorkspaces, heartbeatRuns, instanceUserRoles, issues, projectAccessMembers, projects, projectWorkspaces, resourceLifecycleEvents, toolConnectionInstalls, toolConnections } from "@outpost/db";
 import { LOW_TRUST_REVIEW_PRESET } from "@outpost/shared";
 import { ghFetch } from "../services/github-fetch.js";
 import { projectRoutes } from "../routes/projects.js";
@@ -14,7 +14,7 @@ import { errorHandler } from "../middleware/index.js";
 import { githubCredentialsFixture } from "./helpers/github-credentials-fixture.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 const vault = vi.hoisted(() => ({
-  resolveUserSecretValue: vi.fn(async (_company: string, input: { responsibleUserId: string }) => ({ value: `test-token-${input.responsibleUserId}` })),
+  resolveUserSecretValue: vi.fn(async (_space: string, input: { responsibleUserId: string }) => ({ value: `test-token-${input.responsibleUserId}` })),
   resolveSecretValue: vi.fn(async () => "test-dedicated-token"),
 }));
 vi.mock("../services/secrets.js", () => ({ secretService: () => vault }));
@@ -28,7 +28,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   let db: ReturnType<typeof createDb>, database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   const { seed, grant, switchTo } = githubCredentialsFixture(() => db);
   beforeAll(async () => {
-    if (!external) database = await startEmbeddedPostgresTestDatabase("paperclip-project-git-authorization-");
+    if (!external) database = await startEmbeddedPostgresTestDatabase("outpost-project-git-authorization-");
     db = createDb(external ?? database!.connectionString);
     await db.insert(authUsers).values(["A", "B"].map(id => ({
       id, name: id, email: `${id}@example.invalid`, createdAt: new Date(), updatedAt: new Date(),
@@ -38,21 +38,21 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     async function projectAuthorizationFixture() {
       const input = await seed();
       const selected = await grant(input, "A");
-      const [project] = await db.insert(projects).values({ companyId: input.companyId, name: "Authorized project" }).returning();
-      const [workspace] = await db.insert(projectWorkspaces).values({ companyId: input.companyId, projectId: project.id,
+      const [project] = await db.insert(projects).values({ spaceId: input.spaceId, name: "Authorized project" }).returning();
+      const [workspace] = await db.insert(projectWorkspaces).values({ spaceId: input.spaceId, projectId: project.id,
         name: "Repository", repoUrl: "https://github.com/fixture/project.git" }).returning();
       await db.update(issues).set({ projectId: project.id, projectWorkspaceId: workspace.id }).where(eq(issues.id, input.issueId));
-      await db.insert(toolConnectionInstalls).values({ companyId: input.companyId, connectionId: selected.connectionId, targetType: "company", targetId: input.companyId });
+      await db.insert(toolConnectionInstalls).values({ spaceId: input.spaceId, connectionId: selected.connectionId, targetType: "space", targetId: input.spaceId });
       const [saved] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, selected.id));
       await db.update(connectionGrants).set({ providerTenant: { ...saved.providerTenant, github: { ...saved.providerTenant!.github!,
         lastAccessRefreshAt: "2020-01-01T00:00:00Z", repositories: [{ id: "1", fullName: "fixture/project", installationId: "1", private: true }] } } }).where(eq(connectionGrants.id, selected.id));
       const service = projectGitAuthorizationService(db);
-      const request = { companyId: input.companyId, projectId: project.id, workspaceId: workspace.id };
+      const request = { spaceId: input.spaceId, projectId: project.id, workspaceId: workspace.id };
       return { input, selected, project, workspace, service, request, scope: { projectId: project.id } };
     }
     it("uses project consent for private delivery checks and rechecks revocation without a task", async () => {
       const f = await projectAuthorizationFixture();
-      await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
+      await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
       await db.update(projects).set({ archivedAt: new Date() }).where(eq(projects.id, f.project.id));
       await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.input.runId));
       const head = "a".repeat(40);
@@ -61,7 +61,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         return Response.json({ ref: "refs/heads/main", object: { type: "commit", sha: head } });
       });
       const resolve = createGitHubWorkspaceDeliveryResolver(db, { fetch });
-      const input = { companyId: f.input.companyId, repoUrl: f.workspace.repoUrl, headSha: head,
+      const input = { spaceId: f.input.spaceId, repoUrl: f.workspace.repoUrl, headSha: head,
         destinationRef: "refs/heads/main", projectSource: { projectId: f.project.id, workspaceId: f.workspace.id } };
       expect(await resolve(input)).toMatchObject({ status: "delivered" });
       expect(fetch).toHaveBeenCalledTimes(1);
@@ -69,14 +69,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       expect(await resolve(input)).toMatchObject({ status: "unknown" });
       expect(fetch).toHaveBeenCalledTimes(1);
     });
-    it.each(["missing consent", "different repository", "different company", "different project"])("retains delivery with %s without exporting credentials", async fault => {
+    it.each(["missing consent", "different repository", "different space", "different project"])("retains delivery with %s without exporting credentials", async fault => {
       const f = await projectAuthorizationFixture();
-      if (fault !== "missing consent") await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
+      if (fault !== "missing consent") await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
       vault.resolveUserSecretValue.mockClear();
       const fetch = vi.fn<typeof globalThis.fetch>();
-      const credentialProvider = vi.fn(async () => ({ token: "legacy-token", source: "company_secret" as const, secretName: "GITHUB_TOKEN" }));
+      const credentialProvider = vi.fn(async () => ({ token: "legacy-token", source: "space_secret" as const, secretName: "GITHUB_TOKEN" }));
       const resolve = createGitHubWorkspaceDeliveryResolver(db, { fetch, credentialProvider });
-      expect(await resolve({ companyId: fault === "different company" ? randomUUID() : f.input.companyId,
+      expect(await resolve({ spaceId: fault === "different space" ? randomUUID() : f.input.spaceId,
         repoUrl: fault === "different repository" ? "https://github.com/other/repo" : f.workspace.repoUrl,
         headSha: "a".repeat(40), destinationRef: "refs/heads/main",
         projectSource: { projectId: fault === "different project" ? randomUUID() : f.project.id, workspaceId: f.workspace.id },
@@ -95,10 +95,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         expect(new Headers(init?.headers).has("authorization")).toBe(false);
         return Response.json({ ref: "refs/heads/main", object: { type: "commit", sha: head } });
       });
-      const credentialProvider = vi.fn(async () => ({ token: "legacy-token", source: "company_secret" as const, secretName: "GITHUB_TOKEN" }));
+      const credentialProvider = vi.fn(async () => ({ token: "legacy-token", source: "space_secret" as const, secretName: "GITHUB_TOKEN" }));
       vault.resolveUserSecretValue.mockClear();
       const resolve = createGitHubWorkspaceDeliveryResolver(db, { fetch, credentialProvider });
-      expect(await resolve({ companyId: f.input.companyId, repoUrl: f.workspace.repoUrl, headSha: head,
+      expect(await resolve({ spaceId: f.input.spaceId, repoUrl: f.workspace.repoUrl, headSha: head,
         destinationRef: "refs/heads/main", projectSource: { projectId: f.project.id, workspaceId: f.workspace.id },
       })).toMatchObject({ status: "delivered" });
       expect(credentialProvider).not.toHaveBeenCalled();
@@ -107,23 +107,23 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     it("uses explicit project consent without a task and journals consent changes", async () => {
       const f = await projectAuthorizationFixture();
       await expect(f.service.resolve(f.request, f.scope)).rejects.toThrow("Authorize this project");
-      expect(await f.service.read(f.input.companyId, f.project.id, "B")).toMatchObject({ options: [] });
-      await expect(f.service.set(f.input.companyId, f.project.id, "B", f.selected.id)).rejects.toThrow("own active");
-      const saved = await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
+      expect(await f.service.read(f.input.spaceId, f.project.id, "B")).toMatchObject({ options: [] });
+      await expect(f.service.set(f.input.spaceId, f.project.id, "B", f.selected.id)).rejects.toThrow("own active");
+      const saved = await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
       expect(saved).toMatchObject({ grantId: f.selected.id, authorizedByUserId: "A" });
       expect(JSON.stringify(saved)).not.toContain("test-token");
       await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.input.runId));
       await db.update(issues).set({ responsibleUserId: "B" }).where(eq(issues.id, f.input.issueId));
       expect(await f.service.resolve(f.request, f.scope)).toBe("test-token-A");
       expect((await db.select().from(resourceLifecycleEvents).where(eq(resourceLifecycleEvents.resourceId, f.project.id))).length).toBeGreaterThan(0);
-      await f.service.set(f.input.companyId, f.project.id, "A", null);
+      await f.service.set(f.input.spaceId, f.project.id, "A", null);
       await expect(f.service.resolve(f.request, f.scope)).rejects.toThrow("Authorize this project");
     });
     it("rechecks the consenting user's project access before background credential export", async () => {
       const f = await projectAuthorizationFixture();
-      await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
+      await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
       await db.update(projects).set({ visibility: "private" }).where(eq(projects.id, f.project.id));
-      await db.insert(projectAccessMembers).values({ companyId: f.input.companyId, projectId: f.project.id, subjectType: "user", subjectId: "A" });
+      await db.insert(projectAccessMembers).values({ spaceId: f.input.spaceId, projectId: f.project.id, subjectType: "user", subjectId: "A" });
       expect(await f.service.resolve(f.request, f.scope)).toBe("test-token-A");
       await db.delete(projectAccessMembers).where(eq(projectAccessMembers.projectId, f.project.id));
       vault.resolveUserSecretValue.mockClear();
@@ -145,15 +145,15 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       vi.stubGlobal("fetch", fetch); managed(true);
       try {
         const app = express(); app.use(express.json());
-        app.use((req, _res, next) => { req.actor = { type: "board", source: "cloud_tenant", userId: "A",
-          companyIds: [f.input.companyId], isInstanceAdmin: true }; next(); });
+        app.use((req, _res, next) => { req.actor = { type: "operator", source: "cloud_tenant", userId: "A",
+          spaceIds: [f.input.spaceId], isInstanceAdmin: true }; next(); });
         app.use("/api", projectRoutes(db)); app.use(errorHandler);
         expect((await request(app).put(`/api/projects/${f.project.id}/git-authorization`).send({ grantId: f.selected.id })).status).toBe(200);
         expect(await f.service.resolve(f.request, f.scope)).toBe("test-token-A");
         const cleanup = { ...f.scope, workspaceId: f.workspace.id, operation: "remove" as const };
         expect(await f.service.resolve(f.request, cleanup)).toBe("test-token-A");
         expect(fetch).toHaveBeenCalledWith(new URL("https://cloud.example.invalid/v1/tenant/portfolio"), expect.objectContaining({
-          headers: expect.objectContaining({ "x-paperclip-cloud-user-id": "A", "x-paperclip-cloud-stack-id": "fixture-stack" }),
+          headers: expect.objectContaining({ "x-outpost-cloud-user-id": "A", "x-outpost-cloud-stack-id": "fixture-stack" }),
         }));
         // Stale local roles must never replace current Cloud authority.
         await db.insert(instanceUserRoles).values({ userId: "A", role: "instance_admin" });
@@ -165,7 +165,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
           await expect(f.service.resolve(f.request, cleanup)).rejects.toThrow("private");
           expect(vault.resolveUserSecretValue).not.toHaveBeenCalled();
         }
-        await db.insert(projectAccessMembers).values({ companyId: f.input.companyId, projectId: f.project.id, subjectType: "user", subjectId: "A" });
+        await db.insert(projectAccessMembers).values({ spaceId: f.input.spaceId, projectId: f.project.id, subjectType: "user", subjectId: "A" });
         fetch.mockImplementation(async () => new Response(null, { status: 503 }));
         expect(await f.service.resolve(f.request, cleanup)).toBe("test-token-A");
       } finally {
@@ -175,9 +175,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     });
     it("does not lend background consent to a low-trust project", async () => {
       const f = await projectAuthorizationFixture();
-      await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
+      await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
       await db.update(projects).set({ executionWorkspacePolicy: { authorizationPolicy: { trustBoundary: {
-        mode: LOW_TRUST_REVIEW_PRESET, companyId: f.input.companyId, projectIds: [f.project.id],
+        mode: LOW_TRUST_REVIEW_PRESET, spaceId: f.input.spaceId, projectIds: [f.project.id],
       } } } }).where(eq(projects.id, f.project.id));
       vault.resolveUserSecretValue.mockClear();
       await expect(f.service.resolve(f.request, f.scope)).rejects.toThrow("low-trust");
@@ -185,8 +185,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     });
     it("uses the connection's current repository access for sources added after project authorization", async () => {
       const f = await projectAuthorizationFixture();
-      await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
-      const [workspace] = await db.insert(projectWorkspaces).values({ companyId: f.input.companyId,
+      await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
+      const [workspace] = await db.insert(projectWorkspaces).values({ spaceId: f.input.spaceId,
         projectId: f.project.id, name: "Added repository", repoUrl: "https://github.com/fixture/added",
         metadata: { githubRepositoryUrl: "https://github.com/fixture/added", githubRepositoryPrivate: true },
       }).returning();
@@ -217,7 +217,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const f = await projectAuthorizationFixture();
       await db.update(projectWorkspaces).set({ metadata: { githubRepositoryUrl: "https://github.com/fixture/project", githubRepositoryPrivate: true } })
         .where(eq(projectWorkspaces.id, f.workspace.id));
-      await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
+      await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
       await db.update(projects).set({ archivedAt: new Date() }).where(eq(projects.id, f.project.id));
       const scope = { ...f.scope, workspaceId: f.workspace.id, operation };
       expect(await f.service.resolve(f.request, scope)).toBe("test-token-A");
@@ -226,10 +226,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         { ...scope, workspaceId: randomUUID() }, { ...scope, runId: f.input.runId, agentId: f.input.agentId }]) {
         await expect(f.service.resolve(f.request, deniedScope)).rejects.toThrow();
       }
-      await expect(f.service.set(f.input.companyId, f.project.id, "A", f.selected.id)).rejects.toThrow("Active project");
+      await expect(f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id)).rejects.toThrow("Active project");
       await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, f.selected.id));
       await expect(f.service.resolve(f.request, scope)).rejects.toThrow("authorization is unavailable");
-      await f.service.set(f.input.companyId, f.project.id, "A", null);
+      await f.service.set(f.input.spaceId, f.project.id, "A", null);
       await expect(f.service.resolve(f.request, scope)).rejects.toThrow("Authorize this project");
       expect(vault.resolveUserSecretValue).not.toHaveBeenCalled();
     });
@@ -251,7 +251,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const [saved] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, f.selected.id));
       await db.update(connectionGrants).set({ providerTenant: { ...saved.providerTenant, github: { ...saved.providerTenant!.github!,
         repositories: [{ id: "1", fullName: "fixture/project", installationId: "1", private: isPrivate }] } } }).where(eq(connectionGrants.id, f.selected.id));
-      await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
+      await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
       expect(await f.service.resolve(f.request, f.scope)).toBe(isPrivate ? "test-token-A" : null);
     });
     it("uses repository access refresh time rather than unrelated grant updates for conflicting active catalogs", async () => {
@@ -269,7 +269,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const [saved] = await db.select().from(connectionGrants).where(eq(connectionGrants.id, legacy.id));
       await db.update(connectionGrants).set({ updatedAt: new Date(), providerTenant: { ...saved.providerTenant, github: { ...saved.providerTenant!.github!,
         repositories: [{ id: "1", fullName: "fixture/project", installationId: "1", private: false }] } } }).where(eq(connectionGrants.id, legacy.id));
-      await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
+      await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
       expect(await f.service.resolve(f.request, f.scope)).toBe("test-token-A");
     });
     it("discovers legacy URL-only public sources anonymously and defers unknown private sources", async () => {
@@ -283,11 +283,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     });
     it.each(["grant", "connection", "membership", "repository", "archive"])("rechecks %s and never falls back to another grant", async change => {
       const f = await projectAuthorizationFixture();
-      await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
+      await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
       await grant(f.input, "A");
       if (change === "grant") await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, f.selected.id));
       if (change === "connection") await db.update(toolConnections).set({ enabled: false }).where(eq(toolConnections.id, f.selected.connectionId));
-      if (change === "membership") await db.update(companyMemberships).set({ status: "suspended" }).where(eq(companyMemberships.companyId, f.input.companyId));
+      if (change === "membership") await db.update(spaceMemberships).set({ status: "suspended" }).where(eq(spaceMemberships.spaceId, f.input.spaceId));
       if (change === "repository") await db.update(projectWorkspaces).set({ repoUrl: "https://github.com/fixture/other" }).where(eq(projectWorkspaces.id, f.workspace.id));
       if (change === "archive") await db.update(projects).set({ archivedAt: new Date() }).where(eq(projects.id, f.project.id));
       vault.resolveUserSecretValue.mockClear();
@@ -296,7 +296,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     });
     it("uses the live foreground run rather than project consent and denies mismatched scopes", async () => {
       const f = await projectAuthorizationFixture();
-      await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
+      await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
       await grant(f.input, "B");
       await switchTo(f.input, "B");
       expect(await f.service.resolve(f.request, { ...f.scope, runId: f.input.runId, agentId: f.input.agentId })).toBe("test-token-B");
@@ -304,13 +304,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         await expect(f.service.resolve(f.request, scope)).rejects.toThrow();
       }
       await expect(f.service.resolve({ ...f.request, workspaceId: randomUUID() }, f.scope)).rejects.toThrow();
-      await expect(f.service.resolve({ ...f.request, companyId: randomUUID() }, f.scope)).rejects.toThrow();
+      await expect(f.service.resolve({ ...f.request, spaceId: randomUUID() }, f.scope)).rejects.toThrow();
     });
     it.each(["configured", "bound"])("authorizes a %s workspace selected from another project, but not an unselected source", async selection => {
       const f = await projectAuthorizationFixture();
-      const [taskProject] = await db.insert(projects).values({ companyId: f.input.companyId, name: "Task project" }).returning();
+      const [taskProject] = await db.insert(projects).values({ spaceId: f.input.spaceId, name: "Task project" }).returning();
       const [bound] = selection === "bound" ? await db.insert(executionWorkspaces).values({
-        companyId: f.input.companyId, projectId: f.project.id, projectWorkspaceId: f.workspace.id,
+        spaceId: f.input.spaceId, projectId: f.project.id, projectWorkspaceId: f.workspace.id,
         sourceIssueId: f.input.issueId, name: "Selected workspace", mode: "isolated_workspace", strategyType: "git_worktree", status: "idle",
       }).returning() : [];
       await db.update(issues).set({ projectId: taskProject.id,
@@ -319,7 +319,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       }).where(eq(issues.id, f.input.issueId));
       const scope = { ...f.scope, workspaceId: f.workspace.id, runId: f.input.runId, agentId: f.input.agentId };
       expect(await f.service.resolve(f.request, scope)).toBe("test-token-A");
-      const [unselected] = await db.insert(projectWorkspaces).values({ companyId: f.input.companyId,
+      const [unselected] = await db.insert(projectWorkspaces).values({ spaceId: f.input.spaceId,
         projectId: f.project.id, name: "Unselected source", repoUrl: f.workspace.repoUrl,
       }).returning();
       vault.resolveUserSecretValue.mockClear();
@@ -331,13 +331,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     });
     it.each(["", "secret://fixture", "invalid\ntoken"])("rejects invalid transient credential material", async token => {
       const f = await projectAuthorizationFixture();
-      await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
+      await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
       vault.resolveUserSecretValue.mockResolvedValueOnce({ value: token });
       await expect(f.service.resolve(f.request, f.scope)).rejects.toThrow("credential unavailable");
     });
     it.each(["task", "source"])("checks access to the %s project before exporting foreground credentials", async privateProject => {
       const f = await projectAuthorizationFixture();
-      const [taskProject] = await db.insert(projects).values({ companyId: f.input.companyId, name: "Task project" }).returning();
+      const [taskProject] = await db.insert(projects).values({ spaceId: f.input.spaceId, name: "Task project" }).returning();
       await db.update(issues).set({ projectId: taskProject.id }).where(eq(issues.id, f.input.issueId));
       await db.update(projects).set({ visibility: "private" })
         .where(eq(projects.id, privateProject === "task" ? taskProject.id : f.project.id));
@@ -350,19 +350,19 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     });
     it("never lends project consent to low-trust foreground preparation", async () => {
       const f = await projectAuthorizationFixture();
-      await f.service.set(f.input.companyId, f.project.id, "A", f.selected.id);
+      await f.service.set(f.input.spaceId, f.project.id, "A", f.selected.id);
       await db.update(issues).set({ sourceTrust: { preset: LOW_TRUST_REVIEW_PRESET, disposition: "quarantined", sourceIssueId: f.input.issueId } })
         .where(eq(issues.id, f.input.issueId));
       vault.resolveUserSecretValue.mockClear();
       await expect(f.service.resolve(f.request, { ...f.scope, runId: f.input.runId, agentId: f.input.agentId })).rejects.toThrow("low-trust");
       expect(vault.resolveUserSecretValue).not.toHaveBeenCalled();
     });
-    it("requires a board project writer and grant owner on the consent route", async () => {
+    it("requires a operator project writer and grant owner on the consent route", async () => {
       const f = await projectAuthorizationFixture();
       function app(userId: string, agent = false) {
         const app = express(); app.use(express.json());
-        app.use((req, _res, next) => { req.actor = agent ? { type: "agent", agentId: f.input.agentId, companyId: f.input.companyId }
-          : { type: "board", source: "session", userId, companyIds: [f.input.companyId], isInstanceAdmin: true }; next(); });
+        app.use((req, _res, next) => { req.actor = agent ? { type: "agent", agentId: f.input.agentId, spaceId: f.input.spaceId }
+          : { type: "operator", source: "session", userId, spaceIds: [f.input.spaceId], isInstanceAdmin: true }; next(); });
         app.use("/api", projectRoutes(db)); app.use(errorHandler); return app;
       }
       const url = `/api/projects/${f.project.id}/git-authorization`;

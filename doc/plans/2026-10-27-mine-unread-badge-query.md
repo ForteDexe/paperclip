@@ -2,7 +2,7 @@
 
 The Mine badge ranks the user's visible personal top 100, then checks unread state. Correlated participation and privacy predicates can trigger expensive PostgreSQL JIT compilation. The final change builds the same participant set using native UUID keys, applies fresh visibility before the limit, and ranks a narrow ordered candidate projection with the existing canonical activity expression.
 
-A partial activity index supports the new user lookup: `(company_id, actor_id, entity_id) WHERE actor_type = 'user' AND entity_type = 'issue'`. Activity already covered by creation/assignment is excluded from that branch before deduplication. Legacy text passes an exact lowercase 36-character UUID guard inside CASE. Malformed, uppercase, padded, newline, braced and dashless values still match nothing; the all-zero UUID remains supported. Canonical ordering, ties, archive/resurfacing and the second fresh unread query remain unchanged.
+A partial activity index supports the new user lookup: `(space_id, actor_id, entity_id) WHERE actor_type = 'user' AND entity_type = 'issue'`. Activity already covered by creation/assignment is excluded from that branch before deduplication. Legacy text passes an exact lowercase 36-character UUID guard inside CASE. Malformed, uppercase, padded, newline, braced and dashless values still match nothing; the all-zero UUID remains supported. Canonical ordering, ties, archive/resurfacing and the second fresh unread query remain unchanged.
 
 ## Final PostgreSQL 17 results
 
@@ -23,7 +23,7 @@ These are ordinary warm local service calls, not hosted request timings. SQL cap
 | sparse / scoped / on | 719.07 (711.22–761.60) | 10.79 (10.18–11.40) | 66.64x |
 | sparse / scoped / off | 23.15 (22.64–27.02) | 12.90 (12.33–13.86) | 1.79x |
 
-The dense scoped path improves 4.11x; sparse paths improve 1.79–66.64x. Dense unrestricted paths remain slower by about 6.7–7.7 ms; dense scoped JIT-off is approximately neutral (218.34 to 223.24 ms). The result is strongest when the old query triggers full JIT or when a small personal set sits among company history. It is not a uniform execution-time improvement.
+The dense scoped path improves 4.11x; sparse paths improve 1.79–66.64x. Dense unrestricted paths remain slower by about 6.7–7.7 ms; dense scoped JIT-off is approximately neutral (218.34 to 223.24 ms). The result is strongest when the old query triggers full JIT or when a small personal set sits among space history. It is not a uniform execution-time improvement.
 
 The baseline-red work assertion fails on the actual captured full-JIT plan. The treatment-green assertion requires at least 1.5x improvement where the baseline performs full JIT optimization/inlining, no such passes afterward, and at most 25% or 2 ms overhead in small/sparse controls. Dense no-JIT cases are reported diagnostics; a stricter 25% dense guard failed, so that regression is explicitly retained. The original optional 60 ms cap still fails on dense scoped reads (221.10 ms). The captured ranking execution retains about 200 ms of privacy-predicate work when half the personal tasks participate through activity alone; the rewrite removes compiler passes rather than that authority work. The failed cap remains in raw evidence. It is not counted as a pass.
 
@@ -33,7 +33,7 @@ The pinned baseline is `70c864633744cd96c0dc7394d631fc7119cd17d2`. Both owning p
 
 - Small: 12 personal issues, 48 activity rows and 24 comments.
 - Dense: 1200 personal issues, 60000 issue activities, 240000 unrelated run activities and 24000 comments.
-- Sparse: 12 personal issues among 1200 company issues, with the same history.
+- Sparse: 12 personal issues among 1200 space issues, with the same history.
 - Issue activity includes matching and other-human authors; the actor index is populated. The target user has 3600 activity rows in dense and 36 in sparse. Half the personal tasks are created by the user; the other half participate through user activity alone. Fixture assertions verify the complete declared personal set before timing.
 - Base activity/comment payloads are 4096 incompressible bytes. Additional run rows carry 256 bytes. History appends across tasks in timestamp order.
 - The reported workspace's fresh read-only catalog estimates were about 292k activity rows, 1198 issues and 7632 comments. Estimates are not exact counts. The large fixtures match issue/history scale and exceed its comment history.
@@ -48,7 +48,7 @@ The default harness starts disposable embedded PostgreSQL and ignores DATABASE_U
 
 ## Why an exceptional migration is necessary
 
-The source-only participant set had no actor index and scanned company history. A plain EXISTS rewrite was decorrelated into that scan. A forced existing-entity-index lateral lookup avoided it but regressed the sparse unrestricted case from 56.64 to 66.47 ms with JIT and 12.74 to 18.68 ms without JIT. Both alternatives are rejected. A time cutoff would change historical participation; existing indexes cannot selectively find a user's issue activity without walking tasks/history. The partial index supplies that missing access path and excludes agent/system/non-issue activity from its storage and write maintenance.
+The source-only participant set had no actor index and scanned space history. A plain EXISTS rewrite was decorrelated into that scan. A forced existing-entity-index lateral lookup avoided it but regressed the sparse unrestricted case from 56.64 to 66.47 ms with JIT and 12.74 to 18.68 ms without JIT. Both alternatives are rejected. A time cutoff would change historical participation; existing indexes cannot selectively find a user's issue activity without walking tasks/history. The partial index supplies that missing access path and excludes agent/system/non-issue activity from its storage and write maintenance.
 
 Migration `0395_tranquil_firestar.sql` uses the existing top-level concurrent-index runner and its invalid-index repair. No new startup script or live migration is used. The actual normal runner is measured against the pre-index schema with synthetic history. Concurrent reads/writes continue while it builds; a deliberate cancellation leaves an invalid index without a journal entry, then normal retry repairs it.
 
@@ -66,7 +66,7 @@ Scratch 512 MiB and eager dual-fixture 2 GiB runs hit ENOSPC; those are setup fa
 
 ## Correctness and deployment limit
 
-Fourteen real PostgreSQL tests exercise ranking before unread, visibility before the top-100 limit, canonical ties, native assignee and exact legacy IDs, archive resurfacing/deleted comments/status changes, request audience/not_creator/dismissal/completion, provider/relay comment exclusions, company boundaries, inherited grants, private project membership, revocation and fresh badge routes. The final production source and strengthened fixtures passed all fourteen focused PostgreSQL 17 tests in 16.37 s. Full workspace typecheck and build passed. Latest-head CI remains required before handoff.
+Fourteen real PostgreSQL tests exercise ranking before unread, visibility before the top-100 limit, canonical ties, native assignee and exact legacy IDs, archive resurfacing/deleted comments/status changes, request audience/not_creator/dismissal/completion, provider/relay comment exclusions, space boundaries, inherited grants, private project membership, revocation and fresh badge routes. The final production source and strengthened fixtures passed all fourteen focused PostgreSQL 17 tests in 16.37 s. Full workspace typecheck and build passed. Latest-head CI remains required before handoff.
 
 The earlier full local suite remained incomplete after native PostgreSQL startup failures. An independent empty initdb reproduced system semaphore exhaustion at semget. All sixteen failed cases passed through task-owned Docker PostgreSQL 17; that is not a full local-suite pass. Full final-head CI is the broad gate.
 
@@ -83,6 +83,6 @@ The same mixed-participation sparse fixture also contains 940000 unrelated run a
 | scoped / on | 807.76 (741.30–825.57) | 11.59 (10.39–12.67) | 69.68x |
 | scoped / off | 19.69 (18.78–20.76) | 10.90 (10.06–11.73) | 1.81x |
 
-The activity participant branch uses the partial actor index and visits 36 matching actor rows (18 returned, 18 already-owned rows filtered), rather than scanning the million-row company history. Canonical activity and authority work remain separate. The activity relation is about 439 MB heap / 1.05 GB including indexes and TOAST, exceeding the observed hosted relation's 160 MB / 381 MB. The physical fixture remains synthetic.
+The activity participant branch uses the partial actor index and visits 36 matching actor rows (18 returned, 18 already-owned rows filtered), rather than scanning the million-row space history. Canonical activity and authority work remain separate. The activity relation is about 439 MB heap / 1.05 GB including indexes and TOAST, exceeding the observed hosted relation's 160 MB / 381 MB. The physical fixture remains synthetic.
 
 The actual normal migration runner completed first run in 255.06 ms, no-op rerun in 20.32 ms and interrupted-index repair/retry in 241.73 ms. The final index is 188416 bytes. Concurrent reads took 0.65–7.83 ms and writes 0.71–2.45 ms, without failures. The full command took 66.90 s including both database fixtures. This validates the missing actor access path above the observed target scale, not an unbounded fleet-wide migration duration.

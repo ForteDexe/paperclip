@@ -23,7 +23,7 @@ The key set has no result limit. Empty trees produce an empty set.
 The safety fact is that the same runs supply the same lifecycle fields. Native
 and legacy bindings remain independent, including conflicting bindings. The
 run scope retains descendants, tasks bound outside the tree, explicit bound
-checkout/execution pointers, exact textual UUID comparisons, company scope,
+checkout/execution pointers, exact textual UUID comparisons, space scope,
 duplicates and null behavior.
 
 | Consumer | Fields read from the run scope | Consequence of a missing run |
@@ -42,7 +42,7 @@ run-history evaluation.
 The deterministic database tests exercise nine independent binding paths,
 downstream pending-cleanup leases referenced only through a run ID, conflicting
 native/legacy bindings, multiply bound runs, case-sensitive legacy IDs,
-cross-company decoys, current controller leases, new consumers between reads,
+cross-space decoys, current controller leases, new consumers between reads,
 and null/scalar/array/nested-array contexts with and without native bindings.
 Fixture insertion disables the scope-normalization trigger in disposable
 databases so legacy-path tests cannot silently become native-binding tests.
@@ -114,7 +114,7 @@ control also had overlapping ranges, 59.01–82.96 versus 48.41–121.52 ms; its
 
 The plans support the mechanism independently of timing noise. Stress
 last-activity buffer accesses fell from 113,202 to 38,081. The decoder ran
-4,752 times for 4,812 company rows, retaining native short-circuit behavior.
+4,752 times for 4,812 space rows, retaining native short-circuit behavior.
 Materialized eligibility run width fell from about 1,414 to 57 planner bytes.
 All final plans retained one history scan without JIT. Every measured caller
 result and complete relevant-run multiset matched the baseline.

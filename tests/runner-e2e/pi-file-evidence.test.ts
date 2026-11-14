@@ -26,17 +26,17 @@ function fixture() {
       locations: safeAcpxLocations(target ? [{ path: `/workspace/${target}` }] : [], "/workspace", operation, name),
       text, rawOutput });
     const canonical = canonicalProviderEventsFromAcpxRuntimeEvent(event, executionId, "turn")[0]!;
-    return { companyId: "company", runId: "run", seq, protocolSchemaVersion: 1, eventType: canonical.eventType,
+    return { spaceId: "space", runId: "run", seq, protocolSchemaVersion: 1, eventType: canonical.eventType,
       sourceInstanceId: "runner", sourceSeq: seq, sourceEventId: `runner:run:${seq}`,
       payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", sourceInstanceId: "runner",
         sourceSeq: seq, sourceEventId: `runner:run:${seq}`, runId: "run", turnId: "turn", normalizedSessionId: "session", ...canonical } } };
   };
   return {
-    environment: "local" as const, environmentId: "environment", nonce: "fixture", companyId: "company", issueId: "issue", agentId: "agent", attachmentId,
+    environment: "local" as const, environmentId: "environment", nonce: "fixture", spaceId: "space", issueId: "issue", agentId: "agent", attachmentId,
     seed: { schema: "outpost.e2e.pi-file-seed.v1", filename: c.filename,
       beforeSha256: createHash("sha256").update("ready-fixture\n").digest("hex"), byteSize: Buffer.byteLength(c.before) },
     workspaceBytes: Buffer.from(c.after), downloadedBytes: Buffer.from(c.after),
-    run: { id: "run", companyId: "company", agentId: "agent", runtimeMode: "native", nativeSessionId: "session", runnerInstanceId: "runner", status: "succeeded", resultJson: { semanticToolReceipts: {
+    run: { id: "run", spaceId: "space", agentId: "agent", runtimeMode: "native", nativeSessionId: "session", runnerInstanceId: "runner", status: "succeeded", resultJson: { semanticToolReceipts: {
       publish: { operationId: "register_deliverable", input: { filename: c.filename, contentRef: c.filename, contentType: "text/plain", byteSize: c.byteSize, sha256: c.sha256 },
         result: { disposition: "applied", commandId: `deliverable-prepared:${attachmentId}`, entityRefs: [attachmentId, "product", "comment"] } },
     } } },
@@ -49,9 +49,9 @@ function fixture() {
         content: [{ type: "text", text: `${c.validationMarker}\n` }],
         structuredContent: { output: `${c.validationMarker}\n`, truncated: false, exit_code: 0, wall_time_seconds: 0 },
       })],
-    attachments: [{ id: attachmentId, companyId: "company", issueId: "issue", originatingRunId: "run", createdByAgentId: "agent",
+    attachments: [{ id: attachmentId, spaceId: "space", issueId: "issue", originatingRunId: "run", createdByAgentId: "agent",
       originalFilename: c.filename, contentType: "text/plain", byteSize: c.byteSize, sha256: c.sha256 }],
-    activity: [{ action: "issue.attachment_added", companyId: "company", runId: "run", actorId: "agent", entityId: "issue",
+    activity: [{ action: "issue.attachment_added", spaceId: "space", runId: "run", actorId: "agent", entityId: "issue",
       details: { attachmentId, source: "outpost_runner_protocol" } }],
   };
 }
@@ -64,7 +64,7 @@ describe("Pi edit, validation and public artifact oracle", () => {
     const retained = JSON.parse(await readFile(new URL("./fixtures/pi-file-evidence-actual-stream.json", import.meta.url), "utf8"));
     const f = fixture();
     expect(retained.events).toHaveLength(44);
-    f.events = retained.events.map((x: any) => ({ companyId: "company", runId: "run", seq: x.seq,
+    f.events = retained.events.map((x: any) => ({ spaceId: "space", runId: "run", seq: x.seq,
       protocolSchemaVersion: 1, eventType: x.eventType, sourceInstanceId: "runner", sourceSeq: x.sourceSeq,
       sourceEventId: `runner:run:${x.sourceSeq}`, payload: { orpEvent: {
         schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", sourceInstanceId: "runner",
@@ -132,7 +132,7 @@ describe("Pi edit, validation and public artifact oracle", () => {
     ["wrong registered hash", f => { f.run.resultJson.semanticToolReceipts.publish.input.sha256 = "wrong"; }],
     ["wrong registered entity", f => { f.run.resultJson.semanticToolReceipts.publish.result.entityRefs[0] = "other"; }],
     ["missing attachment", f => { f.attachments = []; }],
-    ["foreign attachment company", f => { f.attachments[0]!.companyId = "other"; }],
+    ["foreign attachment space", f => { f.attachments[0]!.spaceId = "other"; }],
     ["stale attachment run", f => { f.attachments[0]!.originatingRunId = "older"; }],
     ["wrong download bytes", f => { f.downloadedBytes = Buffer.from("wrong\n"); }],
     ["missing publication activity", f => { f.activity = []; }],
@@ -254,7 +254,7 @@ function copyback() {
     providerLeaseId: "sandbox", remoteCwd: "/workspace" };
   const run = { ...f.run, contextSnapshot: { executionWorkspaceId: "workspace", outpostEnvironment: { id: "environment", driver: "sandbox", leaseId: "lease" } },
     runnerProfileJson: { nativeWorkspaceSync: reference, nativeExecutionInput: { binding: { executionWorkspaceId: "workspace" } } } };
-  const lease = { id: "lease", companyId: "company", environmentId: "environment", heartbeatRunId: "run", provider: "daytona", providerLeaseId: "sandbox", metadata: { remoteCwd: "/workspace" } };
+  const lease = { id: "lease", spaceId: "space", environmentId: "environment", heartbeatRunId: "run", provider: "daytona", providerLeaseId: "sandbox", metadata: { remoteCwd: "/workspace" } };
   return { ...f, run, lease, environment: "daytona" as const };
 }
 it("accepts public finalized same-run copy-back attribution without claiming guest observation", () => {
@@ -270,12 +270,12 @@ it.each([
   ["contradictory native binding", f => { f.run.runnerProfileJson.nativeExecutionInput.binding.executionWorkspaceId = "other"; }],
   ["foreign lease", f => { f.lease.id = "other"; }],
   ["foreign run", f => { f.lease.heartbeatRunId = "other"; }],
-  ["foreign company", f => { f.lease.companyId = "other"; }],
+  ["foreign space", f => { f.lease.spaceId = "other"; }],
   ["foreign environment", f => { f.lease.environmentId = "other"; }],
   ["foreign provider lease", f => { f.lease.providerLeaseId = "other"; }],
   ["wrong remote root", f => { f.lease.metadata.remoteCwd = "/other"; }],
   ["wrong provider", f => { f.lease.provider = "other"; }],
 ] satisfies Array<[string, (f: ReturnType<typeof copyback>) => void]>)("rejects %s copy-back provenance", (_label, change) => {
   const f = copyback(); change(f);
-  expect(() => gradePiCopyback(f.run, f.lease, f.companyId, f.environmentId)).toThrow("Pi file evidence:");
+  expect(() => gradePiCopyback(f.run, f.lease, f.spaceId, f.environmentId)).toThrow("Pi file evidence:");
 });

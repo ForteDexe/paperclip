@@ -6,7 +6,7 @@ import {
   activityLog,
   agents,
   agentWakeupRequests,
-  companies,
+  spaces,
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -32,7 +32,7 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-exec-lock-orphan-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-exec-lock-orphan-");
     db = createDb(tempDb.connectionString);
   }, 30_000);
 
@@ -44,29 +44,29 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
     await db.delete(costEvents);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompany() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+  async function seedSpace() {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
-    return companyId;
+    return spaceId;
   }
 
-  async function seedAgent(companyId: string, name = "CEO") {
+  async function seedAgent(spaceId: string, name = "Default agent") {
     const agentId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name,
       role: "engineer",
       status: "running",
@@ -78,11 +78,11 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
     return agentId;
   }
 
-  async function seedIssue(companyId: string, overrides: Partial<typeof issues.$inferInsert> = {}) {
+  async function seedIssue(spaceId: string, overrides: Partial<typeof issues.$inferInsert> = {}) {
     const issueId = randomUUID();
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Fixture issue",
       status: "in_progress",
       priority: "medium",
@@ -104,30 +104,30 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
       // single context issue (or rows[0] when no context issue existed), so all the
       // other issues were left with execution_run_id pointing at a finalized run —
       // an orphan lock that blocked any future agent from checking them out.
-      const companyId = await seedCompany();
-      const ceoAgentId = await seedAgent(companyId, "CEO");
+      const spaceId = await seedSpace();
+      const leadAgentId = await seedAgent(spaceId, "Default agent");
 
-      const contextIssueId = await seedIssue(companyId);
-      const orphanIssueId = await seedIssue(companyId);
+      const contextIssueId = await seedIssue(spaceId);
+      const orphanIssueId = await seedIssue(spaceId);
 
       const runId = randomUUID();
       await db.insert(heartbeatRuns).values({
         id: runId,
-        companyId,
-        agentId: ceoAgentId,
+        spaceId,
+        agentId: leadAgentId,
         invocationSource: "assignment",
         status: "queued",
         contextSnapshot: { issueId: contextIssueId },
       });
 
       // Both issues reference the same run — exactly the state produced when the
-      // CEO explicitly checks out one issue and enqueueWakeup's legacy-run fallback
+      // Default agent explicitly checks out one issue and enqueueWakeup's legacy-run fallback
       // stamps the same run.id onto a sibling issue.
       await db
         .update(issues)
         .set({
           executionRunId: runId,
-          executionAgentNameKey: "ceo",
+          executionAgentNameKey: "lead",
           executionLockedAt: new Date(),
         })
         .where(eq(issues.id, contextIssueId));
@@ -135,7 +135,7 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
         .update(issues)
         .set({
           executionRunId: runId,
-          executionAgentNameKey: "ceo",
+          executionAgentNameKey: "lead",
           executionLockedAt: new Date(),
         })
         .where(eq(issues.id, orphanIssueId));
@@ -159,19 +159,19 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
       // the same run id; two is the minimum to reproduce but higher fan-out is
       // what we actually observed in the field. The bulk UPDATE path should be
       // O(n) without per-row round-trips, so exercise n>2 explicitly.
-      const companyId = await seedCompany();
-      const ceoAgentId = await seedAgent(companyId, "CEO");
+      const spaceId = await seedSpace();
+      const leadAgentId = await seedAgent(spaceId, "Default agent");
 
-      const contextIssueId = await seedIssue(companyId);
-      const orphanAId = await seedIssue(companyId);
-      const orphanBId = await seedIssue(companyId);
-      const orphanCId = await seedIssue(companyId);
+      const contextIssueId = await seedIssue(spaceId);
+      const orphanAId = await seedIssue(spaceId);
+      const orphanBId = await seedIssue(spaceId);
+      const orphanCId = await seedIssue(spaceId);
 
       const runId = randomUUID();
       await db.insert(heartbeatRuns).values({
         id: runId,
-        companyId,
-        agentId: ceoAgentId,
+        spaceId,
+        agentId: leadAgentId,
         invocationSource: "assignment",
         status: "queued",
         contextSnapshot: { issueId: contextIssueId },
@@ -182,7 +182,7 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
           .update(issues)
           .set({
             executionRunId: runId,
-            executionAgentNameKey: "ceo",
+            executionAgentNameKey: "lead",
             executionLockedAt: new Date(),
           })
           .where(eq(issues.id, issueId));
@@ -190,7 +190,7 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
 
       await heartbeatService(db).cancelRun(runId);
 
-      const rows = await db.select().from(issues).where(eq(issues.companyId, companyId));
+      const rows = await db.select().from(issues).where(eq(issues.spaceId, spaceId));
       expect(rows).toHaveLength(4);
       for (const row of rows) {
         expect(row.executionRunId).toBeNull();
@@ -206,17 +206,17 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
       // case — the legacy behavior picked rows[0] as the "primary" issue for
       // deferred-wake promotion, which we intentionally preserve, but cleanup
       // must span all matches.
-      const companyId = await seedCompany();
-      const ceoAgentId = await seedAgent(companyId, "CEO");
+      const spaceId = await seedSpace();
+      const leadAgentId = await seedAgent(spaceId, "Default agent");
 
-      const orphanAId = await seedIssue(companyId);
-      const orphanBId = await seedIssue(companyId);
+      const orphanAId = await seedIssue(spaceId);
+      const orphanBId = await seedIssue(spaceId);
 
       const runId = randomUUID();
       await db.insert(heartbeatRuns).values({
         id: runId,
-        companyId,
-        agentId: ceoAgentId,
+        spaceId,
+        agentId: leadAgentId,
         invocationSource: "assignment",
         status: "queued",
         contextSnapshot: {},
@@ -227,7 +227,7 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
           .update(issues)
           .set({
             executionRunId: runId,
-            executionAgentNameKey: "ceo",
+            executionAgentNameKey: "lead",
             executionLockedAt: new Date(),
           })
           .where(eq(issues.id, issueId));
@@ -242,38 +242,38 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
       expect(orphanBAfter?.executionRunId).toBeNull();
     });
 
-    it("never clears execution locks on issues in another company", async () => {
-      // Defense-in-depth regression: a finalizing run in company A must never
-      // affect rows in company B even if (pathologically) an issue in B carries
-      // the same execution_run_id. The `company_id = run.companyId` scope in
+    it("never clears execution locks on issues in another space", async () => {
+      // Defense-in-depth regression: a finalizing run in space A must never
+      // affect rows in space B even if (pathologically) an issue in B carries
+      // the same execution_run_id. The `space_id = run.spaceId` scope in
       // the cleanup query is the only line protecting tenant isolation here.
-      const companyAId = await seedCompany();
-      const companyBId = await seedCompany();
-      const agentAId = await seedAgent(companyAId, "CEO-A");
+      const spaceAId = await seedSpace();
+      const spaceBId = await seedSpace();
+      const agentAId = await seedAgent(spaceAId, "Default agent-A");
 
-      const issueAId = await seedIssue(companyAId);
-      const issueBId = await seedIssue(companyBId);
+      const issueAId = await seedIssue(spaceAId);
+      const issueBId = await seedIssue(spaceBId);
 
       const runAId = randomUUID();
       await db.insert(heartbeatRuns).values({
         id: runAId,
-        companyId: companyAId,
+        spaceId: spaceAId,
         agentId: agentAId,
         invocationSource: "assignment",
         status: "queued",
         contextSnapshot: { issueId: issueAId },
       });
 
-      // Company B's issue pathologically references company A's run id. The FK
+      // Space B's issue pathologically references space A's run id. The FK
       // from issues.execution_run_id → heartbeat_runs.id permits this because
-      // it doesn't enforce a company-match constraint; in production this
+      // it doesn't enforce a space-match constraint; in production this
       // state is only reachable via a bug, but the scoping predicate should
       // make us robust against it.
       await db
         .update(issues)
         .set({
           executionRunId: runAId,
-          executionAgentNameKey: "ceo-a",
+          executionAgentNameKey: "lead-a",
           executionLockedAt: new Date(),
         })
         .where(eq(issues.id, issueAId));
@@ -281,7 +281,7 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
         .update(issues)
         .set({
           executionRunId: runAId,
-          executionAgentNameKey: "ceo-b",
+          executionAgentNameKey: "lead-b",
           executionLockedAt: new Date(),
         })
         .where(eq(issues.id, issueBId));
@@ -292,12 +292,12 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
       const [issueBAfter] = await db.select().from(issues).where(eq(issues.id, issueBId));
 
       expect(issueAAfter?.executionRunId).toBeNull();
-      expect(issueAAfter?.companyId).toBe(companyAId);
+      expect(issueAAfter?.spaceId).toBe(spaceAId);
 
       expect(issueBAfter?.executionRunId).toBe(runAId);
-      expect(issueBAfter?.executionAgentNameKey).toBe("ceo-b");
+      expect(issueBAfter?.executionAgentNameKey).toBe("lead-b");
       expect(issueBAfter?.executionLockedAt).not.toBeNull();
-      expect(issueBAfter?.companyId).toBe(companyBId);
+      expect(issueBAfter?.spaceId).toBe(spaceBId);
     });
 
     it("clears checkout_run_id on every sibling and preserves an in-flight retry's execution_run_id pointer", async () => {
@@ -319,20 +319,20 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
       //   - A third sibling has checkout_run_id pinned at the finalizing run with
       //     execution_run_id null — covers the post-status-change shape where the
       //     issue's checkout pointer outlived its execution lock.
-      const companyId = await seedCompany();
-      const ceoAgentId = await seedAgent(companyId, "CEO");
+      const spaceId = await seedSpace();
+      const leadAgentId = await seedAgent(spaceId, "Default agent");
 
-      const dualLockIssueId = await seedIssue(companyId);
-      const retryIssueId = await seedIssue(companyId);
-      const checkoutOnlyIssueId = await seedIssue(companyId);
+      const dualLockIssueId = await seedIssue(spaceId);
+      const retryIssueId = await seedIssue(spaceId);
+      const checkoutOnlyIssueId = await seedIssue(spaceId);
 
       const finalizingRunId = randomUUID();
       const retryRunId = randomUUID();
       await db.insert(heartbeatRuns).values([
         {
           id: finalizingRunId,
-          companyId,
-          agentId: ceoAgentId,
+          spaceId,
+          agentId: leadAgentId,
           invocationSource: "assignment",
           status: "queued",
           contextSnapshot: { issueId: dualLockIssueId },
@@ -344,8 +344,8 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
           // point of this test). In production, retries are typically already
           // running by the time the original failing run finalizes.
           id: retryRunId,
-          companyId,
-          agentId: ceoAgentId,
+          spaceId,
+          agentId: leadAgentId,
           invocationSource: "assignment",
           status: "running",
           contextSnapshot: { issueId: retryIssueId },
@@ -356,7 +356,7 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
         .update(issues)
         .set({
           executionRunId: finalizingRunId,
-          executionAgentNameKey: "ceo",
+          executionAgentNameKey: "lead",
           executionLockedAt: new Date(),
           checkoutRunId: finalizingRunId,
         })
@@ -365,7 +365,7 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
         .update(issues)
         .set({
           executionRunId: retryRunId,
-          executionAgentNameKey: "ceo",
+          executionAgentNameKey: "lead",
           executionLockedAt: new Date(),
           checkoutRunId: finalizingRunId,
         })
@@ -395,7 +395,7 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
       // Retry sibling: checkout column cleared, retry's execution pointer preserved.
       expect(retryAfter?.checkoutRunId).toBeNull();
       expect(retryAfter?.executionRunId).toBe(retryRunId);
-      expect(retryAfter?.executionAgentNameKey).toBe("ceo");
+      expect(retryAfter?.executionAgentNameKey).toBe("lead");
       expect(retryAfter?.executionLockedAt).not.toBeNull();
 
       // Checkout-only sibling: column cleared, no execution side-effects.
@@ -404,28 +404,28 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
     });
 
     it("does not touch execution locks on issues owned by unrelated runs", async () => {
-      const companyId = await seedCompany();
-      const ceoAgentId = await seedAgent(companyId, "CEO");
-      const seAgentId = await seedAgent(companyId, "SE1");
+      const spaceId = await seedSpace();
+      const leadAgentId = await seedAgent(spaceId, "Default agent");
+      const seAgentId = await seedAgent(spaceId, "SE1");
 
       const finalizingRunId = randomUUID();
       const unrelatedRunId = randomUUID();
 
-      const contextIssueId = await seedIssue(companyId);
-      const unrelatedIssueId = await seedIssue(companyId);
+      const contextIssueId = await seedIssue(spaceId);
+      const unrelatedIssueId = await seedIssue(spaceId);
 
       await db.insert(heartbeatRuns).values([
         {
           id: finalizingRunId,
-          companyId,
-          agentId: ceoAgentId,
+          spaceId,
+          agentId: leadAgentId,
           invocationSource: "assignment",
           status: "queued",
           contextSnapshot: { issueId: contextIssueId },
         },
         {
           id: unrelatedRunId,
-          companyId,
+          spaceId,
           agentId: seAgentId,
           invocationSource: "assignment",
           status: "running",
@@ -437,7 +437,7 @@ describeEmbeddedPostgres("execution lock orphan cleanup", () => {
         .update(issues)
         .set({
           executionRunId: finalizingRunId,
-          executionAgentNameKey: "ceo",
+          executionAgentNameKey: "lead",
           executionLockedAt: new Date(),
         })
         .where(eq(issues.id, contextIssueId));

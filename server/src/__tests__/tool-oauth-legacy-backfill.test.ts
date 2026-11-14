@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  companies,
-  companySecretBindings,
-  companySecretProviderConfigs,
-  companySecrets,
-  companySecretVersions,
+  spaces,
+  spaceSecretBindings,
+  spaceSecretProviderConfigs,
+  spaceSecrets,
+  spaceSecretVersions,
   createDb,
   secretAccessEvents,
   toolApplications,
@@ -23,9 +23,9 @@ import { awsSecretsManagerProvider } from "../secrets/aws-secrets-manager-provid
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
-async function createCompany(db: ReturnType<typeof createDb>) {
+async function createSpace(db: ReturnType<typeof createDb>) {
   return db
-    .insert(companies)
+    .insert(spaces)
     .values({
       name: `OAuth Legacy ${randomUUID()}`,
       issuePrefix: `OL${randomUUID().slice(0, 6).toUpperCase()}`,
@@ -39,19 +39,19 @@ describeEmbeddedPostgres("tool OAuth legacy backfill", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-tool-oauth-backfill-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-tool-oauth-backfill-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
   afterEach(async () => {
     vi.restoreAllMocks();
     await db.delete(secretAccessEvents);
-    await db.delete(companySecretBindings);
-    await db.delete(companySecrets);
-    await db.delete(companySecretProviderConfigs);
+    await db.delete(spaceSecretBindings);
+    await db.delete(spaceSecrets);
+    await db.delete(spaceSecretProviderConfigs);
     await db.delete(toolConnections);
     await db.delete(toolApplications);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -59,16 +59,16 @@ describeEmbeddedPostgres("tool OAuth legacy backfill", () => {
   });
 
   it("moves legacy raw OAuth tokens into secret refs and removes JSONB token keys idempotently", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const [application] = await db.insert(toolApplications).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationKey: `legacy-oauth-${randomUUID()}`,
       name: `Legacy OAuth ${randomUUID()}`,
       type: "mcp_http",
       status: "active",
     }).returning();
     const [connection] = await db.insert(toolConnections).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationId: application!.id,
       name: `Legacy OAuth Connection ${randomUUID()}`,
       uid: `test/${randomUUID()}`,
@@ -120,23 +120,23 @@ describeEmbeddedPostgres("tool OAuth legacy backfill", () => {
     expect(updated!.credentialRefs).toEqual([
       expect.objectContaining({ name: "oauth.access_token", key: "Authorization", prefix: "Bearer " }),
     ]);
-    const secretRows = await db.select().from(companySecrets).where(eq(companySecrets.companyId, company.id));
+    const secretRows = await db.select().from(spaceSecrets).where(eq(spaceSecrets.spaceId, space.id));
     expect(secretRows.map((secret) => secret.key).sort()).toEqual([
       `tool-connection/${connection!.id}/oauth/access-token`,
       `tool-connection/${connection!.id}/oauth/refresh-token`,
     ].sort());
-    await expect(db.select().from(companySecretVersions)).resolves.toHaveLength(2);
+    await expect(db.select().from(spaceSecretVersions)).resolves.toHaveLength(2);
 
     const secrets = secretService(db);
     const accessRef = updated!.credentialSecretRefs.find((ref) => ref.configPath === "oauth.access_token")!;
     const refreshRef = updated!.credentialSecretRefs.find((ref) => ref.configPath === "oauth.refresh_token")!;
-    await expect(secrets.resolveSecretValue(company.id, accessRef.secretId, "latest", {
+    await expect(secrets.resolveSecretValue(space.id, accessRef.secretId, "latest", {
       consumerType: "tool_connection",
       consumerId: connection!.id,
       configPath: "oauth.access_token",
       actorType: "system",
     })).resolves.toBe("legacy-access-token");
-    await expect(secrets.resolveSecretValue(company.id, refreshRef.secretId, "latest", {
+    await expect(secrets.resolveSecretValue(space.id, refreshRef.secretId, "latest", {
       consumerType: "tool_connection",
       consumerId: connection!.id,
       configPath: "oauth.refresh_token",
@@ -166,20 +166,20 @@ describeEmbeddedPostgres("tool OAuth legacy backfill", () => {
       createdSecrets: 0,
       rotatedSecrets: 0,
     });
-    await expect(db.select().from(companySecretVersions)).resolves.toHaveLength(2);
+    await expect(db.select().from(spaceSecretVersions)).resolves.toHaveLength(2);
   });
 
   it("preserves an existing deterministic OAuth secret provider when rotating legacy material", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const [application] = await db.insert(toolApplications).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationKey: `legacy-oauth-aws-${randomUUID()}`,
       name: `Legacy OAuth AWS ${randomUUID()}`,
       type: "mcp_http",
       status: "active",
     }).returning();
     const [connection] = await db.insert(toolConnections).values({
-      companyId: company.id,
+      spaceId: space.id,
       applicationId: application!.id,
       name: `Legacy OAuth AWS Connection ${randomUUID()}`,
       uid: `test/${randomUUID()}`,
@@ -199,7 +199,7 @@ describeEmbeddedPostgres("tool OAuth legacy backfill", () => {
     }).returning();
 
     const externalRef =
-      `arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/oauth/${connection!.id}`;
+      `arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/oauth/${connection!.id}`;
     const createVersionSpy = vi.spyOn(awsSecretsManagerProvider, "createVersion").mockResolvedValue({
       material: {
         scheme: "aws_secrets_manager_v1",
@@ -213,10 +213,10 @@ describeEmbeddedPostgres("tool OAuth legacy backfill", () => {
       providerVersionRef: "aws-version-2",
     });
     const secrets = secretService(db);
-    const awsVault = await secrets.createProviderConfig(company.id, {
+    const awsVault = await secrets.createProviderConfig(space.id, {
       provider: "aws_secrets_manager",
       displayName: "AWS OAuth vault",
-      config: { region: "us-east-1", namespace: "oauth-test", secretNamePrefix: "paperclip" },
+      config: { region: "us-east-1", namespace: "oauth-test", secretNamePrefix: "outpost" },
     });
     const resolveSpy = vi.spyOn(awsSecretsManagerProvider, "resolveVersion").mockImplementation(async (input) => {
       expect(input.material).toMatchObject({
@@ -231,20 +231,20 @@ describeEmbeddedPostgres("tool OAuth legacy backfill", () => {
       return "legacy-access-token";
     });
     const deterministicKey = `tool-connection/${connection!.id}/oauth/access-token`;
-    const [existingSecret] = await db.insert(companySecrets).values({
-      companyId: company.id,
+    const [existingSecret] = await db.insert(spaceSecrets).values({
+      spaceId: space.id,
       key: deterministicKey,
       name: `Existing OAuth access ${randomUUID()}`,
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
       status: "active",
-      managedMode: "paperclip_managed",
+      managedMode: "outpost_managed",
       externalRef,
       latestVersion: 1,
       createdByUserId: "test",
       lastRotatedAt: new Date(),
     }).returning();
-    await db.insert(companySecretVersions).values({
+    await db.insert(spaceSecretVersions).values({
       secretId: existingSecret!.id,
       version: 1,
       material: {
@@ -274,7 +274,7 @@ describeEmbeddedPostgres("tool OAuth legacy backfill", () => {
     expect(createVersionSpy).toHaveBeenCalledWith(expect.objectContaining({
       providerConfig: expect.objectContaining({ id: awsVault.id, provider: "aws_secrets_manager" }),
       context: expect.objectContaining({
-        companyId: company.id,
+        spaceId: space.id,
         secretKey: deterministicKey,
         version: 2,
       }),
@@ -291,8 +291,8 @@ describeEmbeddedPostgres("tool OAuth legacy backfill", () => {
 
     const [updatedSecret] = await db
       .select()
-      .from(companySecrets)
-      .where(eq(companySecrets.id, existingSecret.id));
+      .from(spaceSecrets)
+      .where(eq(spaceSecrets.id, existingSecret.id));
     expect(updatedSecret).toMatchObject({
       provider: "aws_secrets_manager",
       providerConfigId: awsVault.id,
@@ -301,8 +301,8 @@ describeEmbeddedPostgres("tool OAuth legacy backfill", () => {
     });
     const versions = await db
       .select()
-      .from(companySecretVersions)
-      .where(eq(companySecretVersions.secretId, existingSecret.id));
+      .from(spaceSecretVersions)
+      .where(eq(spaceSecretVersions.secretId, existingSecret.id));
     expect(versions).toEqual(expect.arrayContaining([
       expect.objectContaining({ version: 1, status: "previous" }),
       expect.objectContaining({
@@ -316,7 +316,7 @@ describeEmbeddedPostgres("tool OAuth legacy backfill", () => {
       }),
     ]));
 
-    await expect(secrets.resolveSecretValue(company.id, accessRef.secretId, "latest", {
+    await expect(secrets.resolveSecretValue(space.id, accessRef.secretId, "latest", {
       consumerType: "tool_connection",
       consumerId: connection!.id,
       configPath: "oauth.access_token",

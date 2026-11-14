@@ -13,7 +13,7 @@ test("authorization uses reserved capacity and runs no PR code or actions", () =
   assert.deepEqual([...jobs.matchAll(/^ {2}([a-z_]+):$/gm)].map((match) => match[1]), ["gate"]);
   const placement = jobs.match(/^ {4}runs-on: (.+)$/m)?.[1];
   assert.ok(placement, "routing placement must be defined");
-  assert.match(placement, /runs-on\/fleet=paperclip-ci-routing-x64\/env=public-ci/);
+  assert.match(placement, /runs-on\/fleet=outpost-ci-routing-x64\/env=public-ci/);
   assert.doesNotMatch(placement, /fromJSON/);
   assert.doesNotMatch(jobs, /uses:|actions\/checkout|secrets\./);
   assert.doesNotMatch(workflow, /^ {2}(?:actions|contents|pull-requests): write$/m);
@@ -39,7 +39,7 @@ function stepScript(name) {
 }
 
 function executeStep(name, overrides = {}) {
-  const directory = mkdtempSync(path.join(tmpdir(), "paperclip-routing-test-"));
+  const directory = mkdtempSync(path.join(tmpdir(), "outpost-routing-test-"));
   const output = path.join(directory, "output");
   try {
     const gh = path.join(directory, "gh");
@@ -85,7 +85,7 @@ function executeStep(name, overrides = {}) {
   }
 }
 
-const awsRunner = "runs-on/fleet=paperclip-public-pr-x64/env=public-ci";
+const awsRunner = "runs-on/fleet=outpost-public-pr-x64/env=public-ci";
 const stackedBase = {
   EVENT_BASE_REF: "trusted-stack-base",
   TEST_BASE_REF: "trusted-stack-base",
@@ -309,7 +309,7 @@ function routingPlacement(vars = {}, github = {}, placementJobs = jobs) {
 }
 
 const placementCases = [
-  ["approved PR", {}, {}, "runs-on/fleet=paperclip-ci-routing-x64/env=public-ci"],
+  ["approved PR", {}, {}, "runs-on/fleet=outpost-ci-routing-x64/env=public-ci"],
   ["unapproved author", {}, { event: { pull_request: { user: { id: 999 } }, sender: { id: 34892728 } } }],
   ["unapproved sender", {}, { event: { pull_request: { user: { id: 34892728 } }, sender: { id: 999 } } }],
   ["partial ID cannot match", {}, { event: { pull_request: { user: { id: 4892728 } }, sender: { id: 34892728 } } }],
@@ -320,7 +320,7 @@ const placementCases = [
   ["disabled routing", { AWS_CI_ENABLED: "false" }, {}],
   ["different repository", {}, { repository: "other/repo" }],
   ["different repository ID", {}, { repository_id: "999" }],
-  ["approved manual master canary", {}, { event_name: "workflow_dispatch" }, "runs-on/fleet=paperclip-ci-routing-x64/env=public-ci"],
+  ["approved manual master canary", {}, { event_name: "workflow_dispatch" }, "runs-on/fleet=outpost-ci-routing-x64/env=public-ci"],
   ["unapproved manual actor", {}, { event_name: "workflow_dispatch", actor_id: "999" }],
   ["manual branch canary", {}, { event_name: "workflow_dispatch", ref: "refs/heads/other" }],
 ];
@@ -343,7 +343,7 @@ const catalogContext = {
 
 const catalogPlacementCases = [
   ["approved first manual master attempt", {}, awsRunner],
-  ["foreign repository", { repository: "other/paperclip" }],
+  ["foreign repository", { repository: "other/outpost" }],
   ["foreign repository ID", { repository_id: "999" }],
   ["untrusted branch", { ref: "refs/heads/other" }],
   ["tag", { ref: "refs/tags/master" }],

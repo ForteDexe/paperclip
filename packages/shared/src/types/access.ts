@@ -1,7 +1,7 @@
 import type {
   AgentAdapterType,
-  CompanyStatus,
-  HumanCompanyMembershipRole,
+  SpaceStatus,
+  HumanSpaceMembershipRole,
   InstanceUserRole,
   InviteJoinType,
   InviteType,
@@ -12,9 +12,9 @@ import type {
   PrincipalType,
 } from "../constants.js";
 
-export interface CompanyMembership {
+export interface SpaceMembership {
   id: string;
-  companyId: string;
+  spaceId: string;
   principalType: PrincipalType;
   principalId: string;
   status: MembershipStatus;
@@ -25,7 +25,7 @@ export interface CompanyMembership {
 
 export interface PrincipalPermissionGrant {
   id: string;
-  companyId: string;
+  spaceId: string;
   principalType: PrincipalType;
   principalId: string;
   permissionKey: PermissionKey;
@@ -42,9 +42,9 @@ export interface AccessUserProfile {
   image: string | null;
 }
 
-export interface CompanyMemberRecord extends CompanyMembership {
+export interface SpaceMemberRecord extends SpaceMembership {
   principalType: "user";
-  membershipRole: HumanCompanyMembershipRole | null;
+  membershipRole: HumanSpaceMembershipRole | null;
   user: AccessUserProfile | null;
   grants: PrincipalPermissionGrant[];
   removal?: {
@@ -53,24 +53,24 @@ export interface CompanyMemberRecord extends CompanyMembership {
   };
 }
 
-export interface CompanyMembersResponse {
-  members: CompanyMemberRecord[];
+export interface SpaceMembersResponse {
+  members: SpaceMemberRecord[];
   access: {
-    currentUserRole: HumanCompanyMembershipRole | null;
+    currentUserRole: HumanSpaceMembershipRole | null;
     canManageMembers: boolean;
     canInviteUsers: boolean;
     canApproveJoinRequests: boolean;
   };
 }
 
-export interface ArchiveCompanyMemberResponse {
-  member: CompanyMemberRecord;
+export interface ArchiveSpaceMemberResponse {
+  member: SpaceMemberRecord;
   reassignedIssueCount: number;
 }
 
 export interface Invite {
   id: string;
-  companyId: string | null;
+  spaceId: string | null;
   inviteType: InviteType;
   tokenHash: string;
   allowedJoinTypes: InviteJoinType;
@@ -85,24 +85,24 @@ export interface Invite {
 
 export type InviteState = "active" | "revoked" | "accepted" | "expired";
 
-export interface CompanyInviteRecord extends Invite {
-  companyName: string | null;
-  humanRole: HumanCompanyMembershipRole | null;
+export interface SpaceInviteRecord extends Invite {
+  spaceName: string | null;
+  humanRole: HumanSpaceMembershipRole | null;
   inviteMessage: string | null;
   state: InviteState;
   invitedByUser: AccessUserProfile | null;
   relatedJoinRequestId: string | null;
 }
 
-export interface CompanyInviteListResponse {
-  invites: CompanyInviteRecord[];
+export interface SpaceInviteListResponse {
+  invites: SpaceInviteRecord[];
   nextOffset: number | null;
 }
 
 export interface JoinRequest {
   id: string;
   inviteId: string;
-  companyId: string;
+  spaceId: string;
   requestType: JoinRequestType;
   status: JoinRequestStatus;
   requestIp: string;
@@ -127,7 +127,7 @@ export interface JoinRequestInviteSummary {
   id: string;
   inviteType: InviteType;
   allowedJoinTypes: InviteJoinType;
-  humanRole: HumanCompanyMembershipRole | null;
+  humanRole: HumanSpaceMembershipRole | null;
   inviteMessage: string | null;
   createdAt: Date;
   expiresAt: Date;
@@ -153,18 +153,18 @@ export interface InstanceUserRoleGrant {
 
 export interface AdminUserDirectoryEntry extends AccessUserProfile {
   isInstanceAdmin: boolean;
-  activeCompanyMembershipCount: number;
+  activeSpaceMembershipCount: number;
 }
 
-export interface UserCompanyAccessEntry extends CompanyMembership {
+export interface UserSpaceAccessEntry extends SpaceMembership {
   principalType: "user";
-  companyName: string | null;
-  companyStatus: CompanyStatus | null;
+  spaceName: string | null;
+  spaceStatus: SpaceStatus | null;
 }
 
-export interface UserCompanyAccessResponse {
+export interface UserSpaceAccessResponse {
   user: (AccessUserProfile & {
     isInstanceAdmin: boolean;
   }) | null;
-  companyAccess: UserCompanyAccessEntry[];
+  spaceAccess: UserSpaceAccessEntry[];
 }

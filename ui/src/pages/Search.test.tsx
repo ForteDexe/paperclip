@@ -8,8 +8,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Search, buildSearchUrl } from "./Search";
 
-const companyState = vi.hoisted(() => ({
-  selectedCompanyId: "company-1",
+const spaceState = vi.hoisted(() => ({
+  selectedSpaceId: "space-1",
 }));
 
 const breadcrumbState = vi.hoisted(() => ({
@@ -42,8 +42,8 @@ const authApiMock = vi.hoisted(() => ({
   getSession: vi.fn(),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => companyState,
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => spaceState,
 }));
 
 vi.mock("../context/BreadcrumbContext", () => ({
@@ -245,7 +245,7 @@ describe("Search page", () => {
     const { root } = renderSearch("/search?q=auth+flake", container);
 
     await waitForAssertion(() => {
-      expect(searchApiMock.search).toHaveBeenCalledWith("company-1", {
+      expect(searchApiMock.search).toHaveBeenCalledWith("space-1", {
         q: "auth flake",
         scope: "all",
         limit: 20,
@@ -287,7 +287,7 @@ describe("Search page", () => {
     flushSync(() => root.unmount());
   });
 
-  it("renders artifact search results in the company search surface", async () => {
+  it("renders artifact search results in the space search surface", async () => {
     searchApiMock.search.mockResolvedValueOnce({
       query: "launch brief",
       normalizedQuery: "launch brief",
@@ -345,7 +345,7 @@ describe("Search page", () => {
     const { root } = renderSearch("/search?q=launch+brief&scope=artifacts", container);
 
     await waitForAssertion(() => {
-      expect(searchApiMock.search).toHaveBeenCalledWith("company-1", {
+      expect(searchApiMock.search).toHaveBeenCalledWith("space-1", {
         q: "launch brief",
         scope: "artifacts",
         limit: 20,
@@ -538,7 +538,7 @@ describe("Search page", () => {
     await new Promise((resolve) => setTimeout(resolve, 350));
 
     await waitForAssertion(() => {
-      expect(searchApiMock.search).toHaveBeenCalledWith("company-1", {
+      expect(searchApiMock.search).toHaveBeenCalledWith("space-1", {
         q: "deflake",
         scope: "all",
         limit: 20,
@@ -677,7 +677,7 @@ describe("Search page", () => {
     const { root } = renderSearch("/search?q=auth&status=todo&updatedWithin=7d", container);
 
     await waitForAssertion(() => {
-      expect(searchApiMock.search).toHaveBeenCalledWith("company-1", {
+      expect(searchApiMock.search).toHaveBeenCalledWith("space-1", {
         q: "auth",
         scope: "all",
         limit: 20,
@@ -731,7 +731,7 @@ describe("Search page", () => {
     await new Promise((resolve) => setTimeout(resolve, 350));
 
     await waitForAssertion(() => {
-      expect(searchApiMock.search).toHaveBeenCalledWith("company-1", {
+      expect(searchApiMock.search).toHaveBeenCalledWith("space-1", {
         q: "auth",
         scope: "all",
         limit: 20,
@@ -762,7 +762,7 @@ describe("Search page", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 350));
     await waitForAssertion(() => {
-      expect(searchApiMock.search).toHaveBeenCalledWith("company-1", {
+      expect(searchApiMock.search).toHaveBeenCalledWith("space-1", {
         q: "auth",
         scope: "all",
         limit: 20,
@@ -801,7 +801,7 @@ describe("Search page", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 350));
     await waitForAssertion(() => {
-      expect(searchApiMock.search).toHaveBeenCalledWith("company-1", {
+      expect(searchApiMock.search).toHaveBeenCalledWith("space-1", {
         q: "auth",
         scope: "all",
         limit: 20,
@@ -925,7 +925,7 @@ describe("Search page", () => {
     const { root } = renderSearch("/search?q=auth&sort=updated", container);
 
     await waitForAssertion(() => {
-      expect(searchApiMock.search).toHaveBeenCalledWith("company-1", {
+      expect(searchApiMock.search).toHaveBeenCalledWith("space-1", {
         q: "auth",
         scope: "all",
         limit: 20,
@@ -950,7 +950,7 @@ describe("Search page", () => {
 
     // First request carries the status filter from the URL.
     await waitForAssertion(() => {
-      expect(searchApiMock.search).toHaveBeenCalledWith("company-1", {
+      expect(searchApiMock.search).toHaveBeenCalledWith("space-1", {
         q: "auth",
         scope: "all",
         limit: 20,

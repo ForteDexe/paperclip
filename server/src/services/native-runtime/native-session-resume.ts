@@ -165,7 +165,7 @@ export function isUnusedNativeSessionBootstrap(
 export function selectNativeSessionResumeRun<
   T extends NativeSessionBootstrapState & {
     id: string;
-    companyId: string;
+    spaceId: string;
     agentId: string;
     nativeIssueId: string | null;
     nativeSessionId: string | null;
@@ -175,7 +175,7 @@ export function selectNativeSessionResumeRun<
   },
 >(input: {
   runs: readonly T[];
-  companyId: string;
+  spaceId: string;
   agentId: string;
   issueId: string;
   normalizedSessionId: string;
@@ -186,7 +186,7 @@ export function selectNativeSessionResumeRun<
   for (const run of input.runs) {
     if (
       run.id === input.currentRunId ||
-      run.companyId !== input.companyId ||
+      run.spaceId !== input.spaceId ||
       run.agentId !== input.agentId ||
       run.nativeIssueId !== input.issueId ||
       run.nativeSessionId !== input.normalizedSessionId
@@ -241,7 +241,7 @@ export async function nativeSessionProviderEvidence(
 }
 
 type NativeSessionResumeSelection = {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   issueId: string;
   normalizedSessionId: string;
@@ -296,13 +296,13 @@ async function isUnstartedInheritedFollowUp(
     leaseOwner: nativeRunFinalizations.leaseOwner,
     controllerPid: nativeRunFinalizations.controllerPid,
     controllerCheckpoint: sql<boolean>`exists (select 1 from ${nativeRunnerCheckpoints}
-      where ${nativeRunnerCheckpoints.companyId} = ${heartbeatRuns.companyId} and ${nativeRunnerCheckpoints.runId} = ${heartbeatRuns.id})`,
+      where ${nativeRunnerCheckpoints.spaceId} = ${heartbeatRuns.spaceId} and ${nativeRunnerCheckpoints.runId} = ${heartbeatRuns.id})`,
     result: sql<boolean>`exists (select 1 from ${nativeRunResults}
-      where ${nativeRunResults.companyId} = ${heartbeatRuns.companyId} and ${nativeRunResults.runId} = ${heartbeatRuns.id})`,
+      where ${nativeRunResults.spaceId} = ${heartbeatRuns.spaceId} and ${nativeRunResults.runId} = ${heartbeatRuns.id})`,
   }).from(heartbeatRuns).innerJoin(nativeRunFinalizations, and(
-    eq(nativeRunFinalizations.runId, heartbeatRuns.id), eq(nativeRunFinalizations.companyId, heartbeatRuns.companyId),
+    eq(nativeRunFinalizations.runId, heartbeatRuns.id), eq(nativeRunFinalizations.spaceId, heartbeatRuns.spaceId),
     eq(nativeRunFinalizations.issueId, input.issueId),
-  )).where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, input.companyId),
+  )).where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, input.spaceId),
     eq(heartbeatRuns.agentId, input.agentId), eq(heartbeatRuns.nativeIssueId, input.issueId)));
   const recovery = record(evidence?.executionRecovery);
   return Boolean(evidence && recovery.kind === "bootstrap" && recovery.providerWorkStarted === false &&
@@ -327,7 +327,7 @@ async function selectNativeSessionResumeBarrier(db: Db, input: NativeSessionResu
     .where(
       and(
         input.currentRunId ? ne(heartbeatRuns.id, input.currentRunId) : undefined,
-        eq(heartbeatRuns.companyId, input.companyId),
+        eq(heartbeatRuns.spaceId, input.spaceId),
         eq(heartbeatRuns.agentId, input.agentId),
         eq(heartbeatRuns.nativeIssueId, input.issueId),
         eq(heartbeatRuns.nativeSessionId, input.normalizedSessionId),
@@ -358,7 +358,7 @@ async function selectNativeSessionResumeBarrier(db: Db, input: NativeSessionResu
   const [run] = await db.with(candidates, barrier)
     .select({
       id: heartbeatRuns.id,
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
       agentId: heartbeatRuns.agentId,
       runnerInstanceId: heartbeatRuns.runnerInstanceId,
       nativeSessionId: heartbeatRuns.nativeSessionId,
@@ -384,14 +384,14 @@ async function selectNativeSessionResumeBarrier(db: Db, input: NativeSessionResu
         '${sql.raw(NATIVE_PROVIDER_STATE_UNSAVED_KEY)}', ${heartbeatRuns.runnerProfileJson}->'${sql.raw(NATIVE_PROVIDER_STATE_UNSAVED_KEY)}'
       )`,
       contextSnapshot: sql<{
-        paperclipWake: unknown;
-        paperclipIssue: unknown;
+        outpostWake: unknown;
+        outpostIssue: unknown;
       }>`jsonb_build_object(
-        'paperclipWake', ${heartbeatRuns.contextSnapshot}->'paperclipWake',
-        'paperclipIssue', case when jsonb_typeof(${heartbeatRuns.contextSnapshot}->'paperclipIssue') = 'object'
+        'outpostWake', ${heartbeatRuns.contextSnapshot}->'outpostWake',
+        'outpostIssue', case when jsonb_typeof(${heartbeatRuns.contextSnapshot}->'outpostIssue') = 'object'
           then (select coalesce(jsonb_object_agg(brief.key, brief.value), '{}'::jsonb)
-            from jsonb_each(${heartbeatRuns.contextSnapshot}->'paperclipIssue') as brief
-            where brief.key in ('id', 'title', 'description')) else ${heartbeatRuns.contextSnapshot}->'paperclipIssue' end
+            from jsonb_each(${heartbeatRuns.contextSnapshot}->'outpostIssue') as brief
+            where brief.key in ('id', 'title', 'description')) else ${heartbeatRuns.contextSnapshot}->'outpostIssue' end
       )`,
     })
     .from(heartbeatRuns)
@@ -403,7 +403,7 @@ async function selectNativeSessionResumeBarrier(db: Db, input: NativeSessionResu
         eq(barrier.hasCheckpoint, true),
         sql`date_trunc('milliseconds', ${barrier.createdAt}) <= ${input.beforeCreatedAt.toISOString()}::timestamptz`,
       ]),
-      sql`${heartbeatRuns.companyId}::text = ${input.companyId}`,
+      sql`${heartbeatRuns.spaceId}::text = ${input.spaceId}`,
       sql`${heartbeatRuns.agentId}::text = ${input.agentId}`,
       sql`${heartbeatRuns.nativeIssueId}::text = ${input.issueId}`,
       sql`${heartbeatRuns.nativeSessionId}::text = ${input.normalizedSessionId}`,
@@ -620,7 +620,7 @@ export function buildNativeExecutionWithCheckpoint(input: {
 export function rebindNativeSessionCheckpoint(input: {
   previousRun: {
     id: string;
-    companyId: string;
+    spaceId: string;
     agentId: string;
     nativeSessionId: string | null;
     errorCode?: string | null;
@@ -655,12 +655,12 @@ export function rebindNativeSessionCheckpoint(input: {
   const normalizedSessionId = current.session.normalizedSessionId;
   if (
     !isNativeSessionId(normalizedSessionId) ||
-    input.previousRun.companyId !== current.binding.companyId ||
+    input.previousRun.spaceId !== current.binding.spaceId ||
     input.previousRun.agentId !== current.binding.agentId ||
     input.previousRun.nativeSessionId !== normalizedSessionId ||
     typeof rawCheckpoint.sessionId !== "string" ||
     checkpointIdentity.runId !== input.previousRun.id ||
-    checkpointIdentity.companyId !== current.binding.companyId ||
+    checkpointIdentity.spaceId !== current.binding.spaceId ||
     checkpointIdentity.issueId !== current.binding.issueId ||
     checkpointIdentity.agentId !== current.binding.agentId ||
     checkpointIdentity.sessionId !== normalizedSessionId
@@ -677,7 +677,7 @@ export function rebindNativeSessionCheckpoint(input: {
   }
   if (
     previousExecution.binding.runId !== input.previousRun.id ||
-    previousExecution.binding.companyId !== current.binding.companyId ||
+    previousExecution.binding.spaceId !== current.binding.spaceId ||
     previousExecution.binding.issueId !== current.binding.issueId ||
     previousExecution.binding.agentId !== current.binding.agentId ||
     previousExecution.session.normalizedSessionId !== normalizedSessionId ||
@@ -717,7 +717,7 @@ export function rebindNativeSessionCheckpoint(input: {
     ? ("same_session_only" as const)
     : !input.refreshTools && priorSemanticResult.reportedWorkDisposition === "yielded" &&
         priorContinuation.kind === "response_wake"
-      ? ("allow_replacement_after_governed_wait" as const)
+      ? ("allow_replacement_after_controlled_wait" as const)
       : ("allow_replacement_after_resume_failure" as const);
 
   return {
@@ -725,7 +725,7 @@ export function rebindNativeSessionCheckpoint(input: {
     identity: {
       runId: current.binding.runId,
       sessionId: normalizedSessionId,
-      companyId: current.binding.companyId,
+      spaceId: current.binding.spaceId,
       issueId: current.binding.issueId,
       agentId: current.binding.agentId,
     },
@@ -739,7 +739,7 @@ export function rebindNativeSessionCheckpoint(input: {
     dispositionOnlyRecoveryTurnId: null,
     // Settlement evidence belongs to the prior heartbeat run, even when the
     // provider session is reused for the user's response.
-    governedWait: undefined,
+    controlledWait: undefined,
     providerRecoveryPolicy,
   };
 }

@@ -8,7 +8,7 @@ import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, authUsers, companies, companyMemberships, createDb, executionWorkspaces, issues,
+import { agents, authUsers, spaces, spaceMemberships, createDb, executionWorkspaces, issues,
   projects, projectWorkspaces, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { drainHeartbeatRunsToQuiescence } from "./helpers/drain-heartbeat-runs.js";
@@ -28,7 +28,7 @@ describe.skipIf(!support.supported)("workspace history real process journey", ()
   let heartbeat: ReturnType<typeof heartbeatService>;
   const exec = promisify(execFileCallback);
   beforeAll(async () => {
-    root = await mkdtemp(path.join(tmpdir(), "paperclip-workspace-history-journey-"));
+    root = await mkdtemp(path.join(tmpdir(), "outpost-workspace-history-journey-"));
     vi.stubEnv("OUTPOST_HOME", path.join(root, "home"));
     vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     vi.stubEnv("OUTPOST_MULTI_PROJECT_WORKSPACE_SYNC", "false");
@@ -46,7 +46,7 @@ describe.skipIf(!support.supported)("workspace history real process journey", ()
   }, 60_000);
 
   it("dispatches a real child process, serves its file, and reuses files despite private source history", async () => {
-    const companyId = randomUUID(), userId = randomUUID(), privateUserId = randomUUID(), agentId = randomUUID();
+    const spaceId = randomUUID(), userId = randomUUID(), privateUserId = randomUUID(), agentId = randomUUID();
     const projectId = randomUUID(), sourceId = randomUUID(), issueId = randomUUID(), privateIssueId = randomUUID();
     const sourceCwd = path.join(root, "selected-checkout");
     await mkdir(sourceCwd);
@@ -56,22 +56,22 @@ describe.skipIf(!support.supported)("workspace history real process journey", ()
     await exec("git", ["-C", sourceCwd, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "-m", "source"]);
     await db.insert(authUsers).values([userId, privateUserId].map(id => ({ id, name: "Journey user", email: `${id}@example.test`,
       createdAt: new Date(), updatedAt: new Date() })));
-    await db.insert(companies).values({ id: companyId, name: "Workspace history journey", issuePrefix: "JNY", defaultResponsibleUserId: userId });
-    await db.insert(companyMemberships).values([userId, privateUserId].map(principalId => ({ companyId,
+    await db.insert(spaces).values({ id: spaceId, name: "Workspace history journey", issuePrefix: "JNY", defaultResponsibleUserId: userId });
+    await db.insert(spaceMemberships).values([userId, privateUserId].map(principalId => ({ spaceId,
       principalType: "user" as const, principalId, membershipRole: "member" as const, status: "active" as const })));
-    await db.insert(projects).values({ id: projectId, companyId, name: "Selected repository" });
-    await db.insert(projectWorkspaces).values({ id: sourceId, companyId, projectId, name: "Selected source", cwd: sourceCwd, isPrimary: true });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Selected repository" });
+    await db.insert(projectWorkspaces).values({ id: sourceId, spaceId, projectId, name: "Selected source", cwd: sourceCwd, isPrimary: true });
     const childScript = 'const startedAtUnixMs = Date.now(); const fs = require("node:fs"); fs.appendFileSync("journey-result.txt", process.env.OUTPOST_RUN_ID + "\\n"); console.log(JSON.stringify({ written: "journey-result.txt", cwd: process.cwd(), startedAtUnixMs, finishedAtUnixMs: Date.now() })); const release = ".journey-release-" + process.env.OUTPOST_RUN_ID; const timer = setInterval(() => { if (fs.existsSync(release)) { fs.unlinkSync(release); clearInterval(timer); } }, 10);';
-    await db.insert(agents).values({ id: agentId, companyId, name: "Real process worker", adapterType: "process", status: "idle",
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Real process worker", adapterType: "process", status: "idle",
       adapterConfig: { command: process.execPath, args: ["-e", childScript], cwd: sourceCwd, timeoutSec: 20 } });
-    await db.insert(companyMemberships).values({ companyId, principalType: "agent", principalId: agentId,
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "agent", principalId: agentId,
       membershipRole: "member", status: "active" });
-    await db.insert(issues).values({ id: privateIssueId, companyId, title: "Private historical source task",
+    await db.insert(issues).values({ id: privateIssueId, spaceId, title: "Private historical source task",
       description: "PRIVATE_HISTORY_DESCRIPTION", visibility: "private", privacyRootIssueId: privateIssueId,
       responsibleUserId: privateUserId, status: "done" });
-    await db.insert(executionWorkspaces).values({ companyId, sourceIssueId: privateIssueId,
+    await db.insert(executionWorkspaces).values({ spaceId, sourceIssueId: privateIssueId,
       name: "PRIVATE_HISTORY_WORKSPACE", cwd: sourceCwd, mode: "shared_workspace", strategyType: "project_primary" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Write a result using selected source", status: "todo",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Write a result using selected source", status: "todo",
       assigneeAgentId: agentId, responsibleUserId: userId, projectId, projectWorkspaceId: sourceId,
       executionWorkspaceSettings: { mode: "shared_workspace" }, workspaceSelection: { version: 1, source: "explicit", selection: {
         kind: "configured_source", projectWorkspaceId: sourceId, mode: "shared",
@@ -79,7 +79,7 @@ describe.skipIf(!support.supported)("workspace history real process journey", ()
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "session", userId, companyIds: [companyId], isInstanceAdmin: false };
+      req.actor = { type: "operator", source: "session", userId, spaceIds: [spaceId], isInstanceAdmin: false };
       next();
     });
     app.use("/api", fileResourceRoutes(db));

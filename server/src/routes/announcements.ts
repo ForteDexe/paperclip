@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
-import { companies, type Db } from "@outpost/db";
+import { spaces, type Db } from "@outpost/db";
 import { ANNOUNCEMENT_ANIMATION_CSP, announcementIdSchema, dismissAnnouncementSchema } from "@outpost/shared";
 import { badRequest, forbidden, notFound } from "../errors.js";
 import { validate } from "../middleware/validate.js";
-import { assertAuthenticated, assertBoard, hasCompanyAccess } from "./authz.js";
+import { assertAuthenticated, assertOperator, hasSpaceAccess } from "./authz.js";
 import { announcementService } from "../services/announcements.js";
 import { announcementFeedService, type AnnouncementFeedOptions } from "../services/announcement-feed.js";
 
@@ -14,8 +14,8 @@ export function announcementRoutes(db: Db, options: AnnouncementFeedOptions) {
   const service = announcementService(db);
   router.use("/announcements", (req, res, next) => {
     assertAuthenticated(req);
-    assertBoard(req);
-    if (!req.actor.userId) throw forbidden("Board user context required");
+    assertOperator(req);
+    if (!req.actor.userId) throw forbidden("Operator user context required");
     res.setHeader("Cache-Control", "private, no-store");
     next();
   });
@@ -47,14 +47,14 @@ export function announcementRoutes(db: Db, options: AnnouncementFeedOptions) {
   router.post("/announcements/:id/dismiss", validate(dismissAnnouncementSchema), async (req, res) => {
     const id = announcementIdSchema.safeParse(req.params.id);
     if (!id.success) throw badRequest("Invalid announcement ID");
-    const { companyId } = req.body;
+    const { spaceId } = req.body;
     // This writes the caller's personal preference. Viewers may dismiss it;
-    // company read membership supplies audit context, not write authority.
-    if (!hasCompanyAccess(req, companyId)) throw notFound("Outpost not found");
-    if (!await db.query.companies.findFirst({ where: eq(companies.id, companyId), columns: { id: true } })) {
+    // space read membership supplies audit context, not write authority.
+    if (!hasSpaceAccess(req, spaceId)) throw notFound("Outpost not found");
+    if (!await db.query.spaces.findFirst({ where: eq(spaces.id, spaceId), columns: { id: true } })) {
       throw notFound("Outpost not found");
     }
-    if (!await service.dismiss(req.actor.userId!, id.data, companyId)) throw notFound("Announcement not found");
+    if (!await service.dismiss(req.actor.userId!, id.data, spaceId)) throw notFound("Announcement not found");
     res.status(204).end();
   });
   return router;

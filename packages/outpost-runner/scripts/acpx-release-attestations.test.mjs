@@ -66,7 +66,7 @@ test("a relocated copy of the provider inputs computes the same attestations", a
   assert.equal(checked.status, 0, checked.stderr);
 });
 
-test("the attestations bind no Paperclip source beyond the Grok launcher", async () => {
+test("the attestations bind no Outpost source beyond the Grok launcher", async () => {
   for (const agent of ["copilot", "pi", "kimi"]) {
     const { declaration } = await acpxReleaseAttestation(agent, packageRoot);
     assert.deepEqual(Object.keys(declaration).filter(key => /source/iu.test(key)), [], agent);

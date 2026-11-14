@@ -25,7 +25,7 @@ const update = privilegedDefinition("instance-operations.update-instance", "priv
   async setup(ctx) { const target = await ownedInstalledTarget(ctx); const r = target.receipt;
     if (!r.targetVersion || !r.targetIntegrity || r.targetVersion === r.version) throw new Error("Installed update requires distinct exact supported targetVersion and published sha512 targetIntegrity");
     // Require the actual npm global layout; managed/source installs use different contracts.
-    if (!target.cli.includes("/lib/node_modules/paperclipai/dist/index.js")) throw new Error("This authored update lane requires an owned global-npm installation");
+    if (!target.cli.includes("/lib/node_modules/@outpost/cli/dist/index.js")) throw new Error("This authored update lane requires an owned global-npm installation");
     targets.set(ctx, target); return { originalVersion: r.version, targetVersion: r.targetVersion, rollbackVersion: r.version,
       originalCliSha256: r.cliSha256, sourceServerSha256: r.serverSha256, installationOwned: true }; },
   async act(ctx, state) { const initial = await settlePrivilegedChat(ctx); state.guidance = initial.reply;
@@ -35,7 +35,7 @@ const update = privilegedDefinition("instance-operations.update-instance", "priv
     if (check.mode !== "global-npm") throw new Error("Public updater does not identify the expected npm channel");
     // npm independently verifies registry integrity during its actual install; retain the pinned expected identity too.
     const { execFile } = await import("node:child_process"); const { promisify } = await import("node:util");
-    const metadata = JSON.parse((await promisify(execFile)("npm", ["view", `paperclipai@${target.receipt.targetVersion}`, "dist.integrity", "--json", "--registry=https://registry.npmjs.org"],
+    const metadata = JSON.parse((await promisify(execFile)("npm", ["view", `@outpost/cli@${target.receipt.targetVersion}`, "dist.integrity", "--json", "--registry=https://registry.npmjs.org"],
       { env: { ...target.environment, NPM_CONFIG_USERCONFIG: "/dev/null" }, timeout: 30000, maxBuffer: 65536 })).stdout);
     state.registryIntegrityMatched = metadata === target.receipt.targetIntegrity;
     if (!state.registryIntegrityMatched) throw new Error("Published target integrity differs from the explicit supported artifact pin");
@@ -47,9 +47,9 @@ const update = privilegedDefinition("instance-operations.update-instance", "priv
     await ctx.input.restart(); state.serviceRestarted = true;
     const health = await ctx.input.api.get<{ version?: string; status?: string }>("/api/health"); state.healthVersion = health.version; state.healthReady = health.status === "ok";
     const receipt = { originalVersion: state.originalVersion, installedVersion: state.installedVersion, healthVersion: state.healthVersion,
-      healthReady: state.healthReady, installationChannel: "global-npm", rollbackCommand: `npm install -g paperclipai@${state.originalVersion} (same owned prefix only)`, registryIntegrityMatched: state.registryIntegrityMatched };
+      healthReady: state.healthReady, installationChannel: "global-npm", rollbackCommand: `npm install -g @outpost/cli@${state.originalVersion} (same owned prefix only)`, registryIntegrityMatched: state.registryIntegrityMatched };
     await ctx.input.evidence("chat-catalog-installed-update.json", receipt);
-    await ctx.input.page.goto(`${ctx.input.api.baseURL}/${ctx.input.fixtures.company.issuePrefix}/chats/${ctx.input.fixtures.agent.id}`);
+    await ctx.input.page.goto(`${ctx.input.api.baseURL}/${ctx.input.fixtures.space.issuePrefix}/chats/${ctx.input.fixtures.agent.id}`);
     const message = `The operator applied the owned installation update and recorded these facts. Please describe the observed result and limits:\n\n${JSON.stringify(receipt)}`;
     await sendChatMessage(ctx.input.page, message); state.updateReport = await companionPhase(ctx, initial.runs.map(run => run.id), message);
   }, grade: gradeInstalledUpdate, async verifyResult(ctx) { await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); },

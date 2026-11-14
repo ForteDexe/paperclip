@@ -7,15 +7,15 @@ import { slackThreadChannelId } from "./messages.js";
 import { SlackCloudReceiptError, type SlackCloudEvent } from "./cloud-event.js";
 
 export type SlackFormBinding = {
-  version: 1; instanceId: string; companyId: string; endpointId: string; publicId: string;
+  version: 1; instanceId: string; spaceId: string; endpointId: string; publicId: string;
   connectionId: string; runtimeGeneration: number; teamId: string; appId: string;
   eventBindingId: string; credentialFingerprint: string;
 };
 export type SlackFormPublicEnrollment = Omit<SlackFormBinding, "eventBindingId" | "credentialFingerprint"> & { bindingId: string };
 export function parseSlackFormPublicEnrollment(value: unknown): SlackFormPublicEnrollment {
-  const v = record(value, ["version", "instanceId", "companyId", "endpointId", "publicId", "connectionId", "runtimeGeneration", "teamId", "appId", "bindingId"]);
+  const v = record(value, ["version", "instanceId", "spaceId", "endpointId", "publicId", "connectionId", "runtimeGeneration", "teamId", "appId", "bindingId"]);
   if (v.version !== 1 || !Number.isSafeInteger(v.runtimeGeneration) || Number(v.runtimeGeneration) < 1
-    || ["instanceId", "companyId", "endpointId", "publicId", "connectionId", "teamId", "appId", "bindingId"].some(k => typeof v[k] !== "string" || !String(v[k]).length || String(v[k]).length > 200)
+    || ["instanceId", "spaceId", "endpointId", "publicId", "connectionId", "teamId", "appId", "bindingId"].some(k => typeof v[k] !== "string" || !String(v[k]).length || String(v[k]).length > 200)
     || !/^[A-Za-z0-9_-]{43}$/.test(String(v.publicId)) || !/^T[A-Z0-9]+$/.test(String(v.teamId)) || !/^A[A-Z0-9]+$/.test(String(v.appId))
     || !/^slack-event:[a-f0-9]{64}$/.test(String(v.bindingId))) throw new SlackCloudReceiptError("invalid_form_enrollment", "invalid");
   return v as unknown as SlackFormPublicEnrollment;
@@ -48,9 +48,9 @@ function record(value: unknown, keys: string[]): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 export function parseSlackFormBinding(value: unknown): SlackFormBinding {
-  const v = record(value, ["version", "instanceId", "companyId", "endpointId", "publicId", "connectionId", "runtimeGeneration", "teamId", "appId", "eventBindingId", "credentialFingerprint"]);
+  const v = record(value, ["version", "instanceId", "spaceId", "endpointId", "publicId", "connectionId", "runtimeGeneration", "teamId", "appId", "eventBindingId", "credentialFingerprint"]);
   if (v.version !== 1 || !Number.isSafeInteger(v.runtimeGeneration) || Number(v.runtimeGeneration) < 1
-    || ["instanceId", "companyId", "endpointId", "publicId", "connectionId", "teamId", "appId", "eventBindingId", "credentialFingerprint"].some(k => typeof v[k] !== "string" || !(v[k] as string).length || (v[k] as string).length > 200)
+    || ["instanceId", "spaceId", "endpointId", "publicId", "connectionId", "teamId", "appId", "eventBindingId", "credentialFingerprint"].some(k => typeof v[k] !== "string" || !(v[k] as string).length || (v[k] as string).length > 200)
     || !/^[A-Za-z0-9_-]{43}$/.test(String(v.publicId)) || !/^T[A-Z0-9]+$/.test(String(v.teamId)) || !/^A[A-Z0-9]+$/.test(String(v.appId))
     || !/^slack-event:[a-f0-9]{64}$/.test(String(v.eventBindingId)) || !/^[a-f0-9]{64}$/.test(String(v.credentialFingerprint)))
     throw new SlackCloudReceiptError("invalid_form_binding", "invalid");
@@ -119,21 +119,21 @@ export function parseSlackFormOperation(value: unknown): SlackFormOperation {
   return op;
 }
 export function slackIssuedFormGrantId(binding: SlackFormBinding, openActionRowId: string, submitActionRowId: string, publicationId: string, interactionId: string): string {
-  return hash(JSON.stringify([[binding.instanceId, binding.companyId, binding.endpointId, binding.publicId, binding.connectionId, binding.runtimeGeneration,
+  return hash(JSON.stringify([[binding.instanceId, binding.spaceId, binding.endpointId, binding.publicId, binding.connectionId, binding.runtimeGeneration,
     binding.teamId, binding.appId, binding.eventBindingId, binding.credentialFingerprint], openActionRowId, submitActionRowId, publicationId, interactionId]));
 }
 export async function projectSlackIssuedFormGrant(db: Pick<Db, "select">, binding: SlackFormBinding,
   resolved: ResolvedChatQuestionFormOpen): Promise<SlackIssuedFormGrant | null> {
   const [publication] = await db.select().from(chatPublications).where(and(eq(chatPublications.id, resolved.publicationId),
-    eq(chatPublications.companyId, binding.companyId), eq(chatPublications.endpointId, binding.endpointId), eq(chatPublications.state, "published"))).limit(1);
+    eq(chatPublications.spaceId, binding.spaceId), eq(chatPublications.endpointId, binding.endpointId), eq(chatPublications.state, "published"))).limit(1);
   if (!publication?.providerMessageId || !publication.publishedAt) return null;
   const [conversation] = await db.select().from(chatConversations).where(and(eq(chatConversations.id, publication.conversationId),
-    eq(chatConversations.companyId, binding.companyId), eq(chatConversations.endpointId, binding.endpointId), eq(chatConversations.state, "active"))).limit(1);
+    eq(chatConversations.spaceId, binding.spaceId), eq(chatConversations.endpointId, binding.endpointId), eq(chatConversations.state, "active"))).limit(1);
   if (!conversation) return null;
   const channelId = slackThreadChannelId(conversation.externalThreadId);
   const thread = /^slack:[^:]+:([0-9]+[.][0-9]+)?$/.exec(conversation.externalThreadId);
   if (!channelId || !thread || conversation.externalConversationId !== `slack:${channelId}`) return null;
-  const rows = await db.select().from(chatActions).where(and(eq(chatActions.companyId, binding.companyId), eq(chatActions.endpointId, binding.endpointId), eq(chatActions.conversationId, conversation.id), inArray(chatActions.id, [resolved.openActionRowId, resolved.submitActionRowId])));
+  const rows = await db.select().from(chatActions).where(and(eq(chatActions.spaceId, binding.spaceId), eq(chatActions.endpointId, binding.endpointId), eq(chatActions.conversationId, conversation.id), inArray(chatActions.id, [resolved.openActionRowId, resolved.submitActionRowId])));
   const open = rows.find(a => a.id === resolved.openActionRowId && a.kind === "question_form_open" && a.status === "issued" && a.providerActionId === resolved.openActionId);
   const submit = rows.find(a => a.id === resolved.submitActionRowId && a.kind === "question_form_submit" && a.status === "issued" && a.providerActionId === resolved.submitActionId);
   if (!open || !submit || open.payload.version !== 1 || submit.payload.version !== 1

@@ -20,7 +20,7 @@ export async function probeNotionAuthorization(
   let denied = false,
     calls = 0;
   const client = new Client({
-    name: "paperclip-notion-expiry-control",
+    name: "outpost-notion-expiry-control",
     version: "1.0.0",
   });
   client.onerror = () => undefined;

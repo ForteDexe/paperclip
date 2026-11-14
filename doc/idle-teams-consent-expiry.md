@@ -30,7 +30,7 @@ card, upload data or send a file-info card. Lock waits remain bounded. A changed
 phase is re-evaluated; a deleted or settled row removes the cached obligation.
 
 A failed load, lock or projection retains retry work. Corrupt rows do not starve
-other transfers or companies. Errors emitted by this worker are generic and do
+other transfers or spaces. Errors emitted by this worker are generic and do
 not contain SQL parameters, private transfer envelopes or provider capabilities.
 The shared worker owns coalescing, batching, dirty hints, drain/resume and shutdown.
 Shutdown joins an in-flight expiry; restart reconstructs the saved deadline.

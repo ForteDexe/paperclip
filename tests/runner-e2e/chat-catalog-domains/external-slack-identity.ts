@@ -193,7 +193,7 @@ export function gradeSlackIdentity(value: unknown) {
     s = t.source;
   c.add(
     "unlinked-current-state-before-private-access",
-    t.endpoint.companyId === o.companyId &&
+    t.endpoint.spaceId === o.spaceId &&
       t.endpoint.id === o.state.endpointId &&
       t.endpoint.provider === "slack" &&
       t.endpoint.status === "active" &&
@@ -238,9 +238,9 @@ export function gradeSlackIdentity(value: unknown) {
       t.receipt.identityUiVisible === true &&
       t.receipt.humanSubmittedSecurely === true &&
       t.receipt.principalId === t.principal.principalId &&
-      t.receipt.paperclipUserId === t.currentHumanId &&
+      t.receipt.outpostUserId === t.currentHumanId &&
       t.principal.status === "linked" &&
-      t.principal.paperclipUserId === t.currentHumanId &&
+      t.principal.outpostUserId === t.currentHumanId &&
       t.currentHumanId === o.state.currentHumanId,
     "The exact current signed-in fixture person creates a confirmation link in Access and confirms the actual external identity in the isolated real UI; display labels do not supply authority.",
   );
@@ -250,13 +250,13 @@ export function gradeSlackIdentity(value: unknown) {
     !!s &&
       t.sourceBound === true &&
       s.endpointId === t.endpoint.id &&
-      s.linkedPaperclipUserId === t.currentHumanId &&
+      s.linkedOutpostUserId === t.currentHumanId &&
       s.provider.senderUserId === o.state.senderUserId &&
       s.provider.workspaceId === o.state.workspaceId &&
       s.provider.channelId === o.state.channelId &&
       s.provider.threadId === o.state.threadId &&
       !!actualRun &&
-      actualRun.companyId === o.companyId &&
+      actualRun.spaceId === o.spaceId &&
       actualRun.agentId === o.leadId &&
       actualRun.runtimeMode === "native" &&
       actualRun.status === "succeeded" &&
@@ -267,11 +267,11 @@ export function gradeSlackIdentity(value: unknown) {
       !!t.postLinkMessages?.some(
         (row) => row.user === o.state.botUserId && codeRead(row.text ?? ""),
       ) &&
-      t.target.companyId === o.companyId &&
+      t.target.spaceId === o.spaceId &&
       t.target.id === o.state.privateTaskId &&
       t.target.responsibleUserId === t.currentHumanId &&
       t.target.status === "backlog",
-    "A new actual same-human Slack message maps to the exact company/thread/source and genuine native run, reads the substantive private task fact and publishes it to that same authorized thread without executing the backlog task.",
+    "A new actual same-human Slack message maps to the exact space/thread/source and genuine native run, reads the substantive private task fact and publishes it to that same authorized thread without executing the backlog task.",
   );
   const expectedRuns = [String(o.state.initialRunId), String(t.sourceRunId)];
   c.add(
@@ -315,7 +315,7 @@ export function gradeSlackIdentity(value: unknown) {
       o.runs.length === 3 &&
       o.runs.every(
         (run) =>
-          run.companyId === o.companyId &&
+          run.spaceId === o.spaceId &&
           run.agentId === o.leadId &&
           run.runtimeMode === "native" &&
           run.status === "succeeded" &&
@@ -431,7 +431,7 @@ export const slackIdentityExternalCases = [
         if (
           before.status !== "revoked" ||
           current.status !== "active" ||
-          current.companyId !== ctx.input.fixtures.company.id ||
+          current.spaceId !== ctx.input.fixtures.space.id ||
           (await ctx.allRuns()).length ||
           (await conversations(ctx, fixture)).length
         )
@@ -451,7 +451,7 @@ export const slackIdentityExternalCases = [
         fixtures.set(ctx, { fixture, before, humanId: session.user.id, task });
         const chat = await openStandingChat(ctx);
         await ctx.input.api.patch(`/api/issues/${chat.id}`, {
-          description: `This request concerns private launch task ${task.identifier ?? task.id} and the connected Slack endpoint ${fixture.endpoint.id}, assigned to you. The selected Slack sender has a discovered identity with a revoked link, not current private authority. Supported human identity management is /${ctx.input.fixtures.company.issuePrefix}/apps/chat/${fixture.endpoint.id}/access. Do not execute the backlog launch task.`,
+          description: `This request concerns private launch task ${task.identifier ?? task.id} and the connected Slack endpoint ${fixture.endpoint.id}, assigned to you. The selected Slack sender has a discovered identity with a revoked link, not current private authority. Supported human identity management is /${ctx.input.fixtures.space.issuePrefix}/apps/chat/${fixture.endpoint.id}/access. Do not execute the backlog launch task.`,
         });
         return {
           endpointId: fixture.endpoint.id,
@@ -520,7 +520,7 @@ export const slackIdentityExternalCases = [
               id: "actual-connected-but-unlinked-Slack-context",
               passed:
                 principal.status === "revoked" &&
-                endpoint.companyId === ctx.input.fixtures.company.id &&
+                endpoint.spaceId === ctx.input.fixtures.space.id &&
                 local.task.responsibleUserId === local.humanId,
               detail:
                 "Actual public endpoint and revoked link, same current fixture person and backlog private launch task are verified without native dispatch.",
@@ -538,7 +538,7 @@ export const slackIdentityExternalCases = [
           throw new Error(
             "Human confirmation cannot rescue false private-access or identity guidance",
           );
-        const path = `/${ctx.input.fixtures.company.issuePrefix}/apps/chat/${f.endpoint.id}/access`,
+        const path = `/${ctx.input.fixtures.space.issuePrefix}/apps/chat/${f.endpoint.id}/access`,
           href = initial.links.find((link) => {
             try {
               const u = new URL(link, initial.origin);
@@ -581,7 +581,7 @@ export const slackIdentityExternalCases = [
         f.relay.nextFilePhase();
         local.receipt = await privateBrowserEntry({
           mode: "slack-identity-confirm",
-          companyId: ctx.input.fixtures.company.id,
+          spaceId: ctx.input.fixtures.space.id,
           slackIdentity: {
             endpointId: f.endpoint.id,
             principalId: f.principalId,
@@ -720,7 +720,7 @@ export const slackIdentityExternalCases = [
           sourceBound = slackIngressReceiptMatches({
             receipt: local.source,
             query: local.source.query,
-            companyId: ctx.input.fixtures.company.id,
+            spaceId: ctx.input.fixtures.space.id,
             agentId: ctx.input.fixtures.agent.id,
             endpoint,
             conversation: rows.find(
@@ -771,7 +771,7 @@ export const slackIdentityExternalCases = [
         const page = await ctx.input.page.context().newPage();
         try {
           await page.goto(
-            `${o.origin}/${ctx.input.fixtures.company.issuePrefix}/apps/chat/${o.identity.endpoint.id}/access`,
+            `${o.origin}/${ctx.input.fixtures.space.issuePrefix}/apps/chat/${o.identity.endpoint.id}/access`,
             { waitUntil: "domcontentloaded" },
           );
           await expect(
@@ -780,7 +780,7 @@ export const slackIdentityExternalCases = [
               .getByRole("listitem")
               .filter({
                 has: page.getByText(
-                  o.identity.principal.paperclipUserId ===
+                  o.identity.principal.outpostUserId ===
                     o.identity.currentHumanId
                     ? o.identity.principal.externalLabel
                     : "unmatched",

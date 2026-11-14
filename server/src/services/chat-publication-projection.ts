@@ -6,7 +6,7 @@ import type {
 } from "@outpost/shared";
 import { redactSensitiveText } from "../redaction.js";
 
-// Bound sanitization work, not the amount silently delivered. The Board accepts
+// Bound sanitization work, not the amount silently delivered. The Operator accepts
 // 100k UTF-16 units; expansion from redaction/mention neutralization is allowed.
 const MAX_TEXT_INPUT_LENGTH = 1_000_000;
 const MAX_TEXT_OUTPUT_LENGTH = 4_000_000;
@@ -237,7 +237,7 @@ function truncateByCodePoint(input: string, limit: number): string {
 }
 
 /**
- * The only text projection allowed to cross from Paperclip into a provider.
+ * The only text projection allowed to cross from Outpost into a provider.
  * It strips internal reasoning/tool/log content, redacts credentials, removes
  * dangerous or token-bearing links, and neutralizes provider-wide mentions.
  */

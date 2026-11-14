@@ -26,8 +26,8 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `GET /api/companies/{companyId}/environments`.
-- `POST /api/companies/{companyId}/environments`.
+- `GET /api/spaces/{spaceId}/environments`.
+- `POST /api/spaces/{spaceId}/environments`.
 
 Agent access: `restricted` — Board read/admin management REST / CLI environment.
 
@@ -42,7 +42,7 @@ verify any listed agent request/result path separately. A delegated operation ne
 own policy and access review.
 
 Gaps: API exists; an agent cannot use instance environment management as an ordinary
-company actor.
+space actor.
 
 Scoped source review: [environment routes](../../server/src/routes/environments.ts)
 require board organization access for reads and local-implicit board or instance
@@ -53,7 +53,7 @@ and invalidate it when the target configuration or driver changes. Public row
 responses hide the private record. This is source-only at the scoped commit.
 Verify forged metadata rejection, concurrent probe/update preservation, target
 invalidation and restricted-reader redaction; actual agent-denial proof remains
-not run. Company/team packages do not import or export environment rows, so those
+not run. Space/team packages do not import or export environment rows, so those
 packages do not transfer platform qualification.
 
 ## `capabilities`
@@ -64,7 +64,7 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `GET /api/companies/{companyId}/environments/capabilities`.
+- `GET /api/spaces/{spaceId}/environments/capabilities`.
 
 Agent access: `partial` — Board environment capabilities endpoint; native run gets
 server-selected runtime context.
@@ -77,7 +77,7 @@ at the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Endpoint discovery and already-bound run capabilities differ; decide whether a
@@ -92,7 +92,7 @@ Review: `baseline`.
 API: `present` — representative operation IDs:
 
 - `POST /api/environments/{id}/probe`.
-- `POST /api/companies/{companyId}/environments/probe-config`.
+- `POST /api/spaces/{spaceId}/environments/probe-config`.
 
 Agent access: `restricted` — Board/admin probes / CLI environment.
 
@@ -100,9 +100,9 @@ Policy: Environment management is instance administrator/board; permitted assign
 uses agent/project policy.
 
 Both probe endpoints require a board actor that is local-implicit or an instance
-administrator; ordinary agent identity and company membership alone are denied.
-The saved sandbox probe also resolves company/environment and secret access
-before allocating a fresh lease. Its measurement is company-bound to an immutable
+administrator; ordinary agent identity and space membership alone are denied.
+The saved sandbox probe also resolves space/environment and secret access
+before allocating a fresh lease. Its measurement is space-bound to an immutable
 image digest or verified Daytona snapshot ID, effective provider configuration
 and active custom-image identity;
 only confirmed cleanup permits recording it. A draft probe does not record saved
@@ -110,7 +110,7 @@ qualification. Reading stored qualification does not lease/provision a target an
 does not grant an agent permission to probe or manage that target.
 
 Managed Cloud images do not require saved qualification for runner discovery
-or execution. The server checks company access before applying this policy.
+or execution. The server checks space access before applying this policy.
 Execution uses the platform-selected image and keeps runtime startup checks.
 Self-hosted environments and active captured custom images keep qualification.
 This exception does not grant access to the probe endpoints.
@@ -167,7 +167,7 @@ at the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Choosing among permitted targets differs from creating/configuring host targets;
@@ -176,13 +176,13 @@ test authorized and denied selection.
 Scoped plugin execution update: `outpost_runner` supports a saved plugin
 environment through the server-selected lease and the SDK `environmentTask` RPC.
 This is an execution path, not a new agent-callable management endpoint. Host
-company/project checks and native ORP authorization remain required; declaring a
+space/project checks and native ORP authorization remain required; declaring a
 plugin capability does not authorize the agent to change its environment.
 The [integration fixture](../../server/src/__tests__/plugin-runner-task.integration.test.ts)
 exercises the host and SDK with synthetic tasks and a mocked WebSocket.
 The task API does not transfer files or reveal guest filesystem paths.
 Controller replacement preserves the original task lease and run identity.
-Current company, agent, workspace, and lease checks still gate state reads and
+Current space, agent, workspace, and lease checks still gate state reads and
 connection acquisition. Reconnection adds no agent management permission or
 replacement task submission. The integration covers this with synthetic tasks;
 it does not establish deployed plugin recovery.
@@ -199,7 +199,7 @@ reject shell selectors. The native qualified executable checks still apply.
 
 Same-run checkpoint recovery also uses the saved lease path after a turn omits
 its completion result. It requires verified prior termination, retained session
-state, and matching company, agent, workspace, and complete Runner identity.
+state, and matching space, agent, workspace, and complete Runner identity.
 The [executor regression](../../server/src/services/native-runtime/native-session-executor.test.ts)
 checks checkpoint retrieval and identity/termination denials. The
 [lease authority fixture](../../server/src/__tests__/environment-task-authority.integration.test.ts)
@@ -246,7 +246,7 @@ validation again in the dispatch update.
 
 Plugin task providers can advertise `githubCredentialBrokerVersion: 1` and receive
 a live-run capability during preparation. This adds no agent management API.
-Core resolves accepted identity, grants, company scope and trust at command time.
+Core resolves accepted identity, grants, space scope and trust at command time.
 The plugin owns the command implementation; no particular script is required.
 [Broker handoff coverage](../../server/src/services/native-runtime/plugin-runner-task.test.ts)
 checks capability changes across warm turns. This is contract coverage, not live

@@ -4,7 +4,7 @@ import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 import type { ChatRun } from "../chat-flow.js";
 
 export interface Entity {
-  id: string; companyId?: string; name?: string; title?: string; description?: string | null;
+  id: string; spaceId?: string; name?: string; title?: string; description?: string | null;
   identifier?: string; urlKey?: string; status?: string; priority?: string; assigneeAgentId?: string | null;
   projectId?: string | null; parentId?: string | null; goalId?: string | null; goalIds?: string[];
   level?: string; ownerAgentId?: string | null; archivedAt?: string | null;
@@ -15,7 +15,7 @@ export interface Entity {
   entityId?: string; documentId?: string; originalRevisionId?: string | null; currentRevisionId?: string | null; resolvedByAgentId?: string | null; selectedText?: string; resolvedAt?: string | null; details?: Record<string, unknown>;
 }
 export interface InternalObservation {
-  scenarioId: string; origin: string; companyId: string; leadId: string; state: Record<string, unknown>;
+  scenarioId: string; origin: string; spaceId: string; leadId: string; state: Record<string, unknown>;
   tasks: Entity[]; projects: Entity[]; goals: Entity[]; comments: Entity[];
   renderedLinkEvidence?: RenderedConversationLink[]; activity: Entity[]; annotations?: Entity[]; agents?: Entity[]; documents: Entity[]; revisions: Entity[]; reply: string; links: string[]; humanQueries: string[]; runs: ChatRun[];
 }
@@ -24,16 +24,16 @@ export function entity(state: Record<string, unknown>, key: string): Entity {
   if (!value || typeof value !== "object" || typeof (value as Entity).id !== "string") throw new Error(`Missing fixture ${key}`);
   return value as Entity;
 }
-export const companyPath = (ctx: ChatCatalogContext) => `/api/companies/${ctx.input.fixtures.company.id}`;
+export const spacePath = (ctx: ChatCatalogContext) => `/api/spaces/${ctx.input.fixtures.space.id}`;
 export async function project(ctx: ChatCatalogContext, name = "Launch", extra: Record<string, unknown> = {}) {
-  return ctx.input.api.post<Entity>(`${companyPath(ctx)}/projects`, { name, ...extra });
+  return ctx.input.api.post<Entity>(`${spacePath(ctx)}/projects`, { name, ...extra });
 }
 export async function task(ctx: ChatCatalogContext, title: string, projectId: string, extra: Record<string, unknown> = {}) {
   // Backlog fixtures never start provider work. These are prerequisite records, not requested outcomes.
-  return ctx.input.api.post<Entity>(`${companyPath(ctx)}/issues`, { title, projectId, status: "backlog", priority: "medium", ...extra });
+  return ctx.input.api.post<Entity>(`${spacePath(ctx)}/issues`, { title, projectId, status: "backlog", priority: "medium", ...extra });
 }
 export async function goal(ctx: ChatCatalogContext, title: string, extra: Record<string, unknown> = {}) {
-  return ctx.input.api.post<Entity>(`${companyPath(ctx)}/goals`, { title, level: "company", ownerAgentId: ctx.input.fixtures.agent.id, ...extra });
+  return ctx.input.api.post<Entity>(`${spacePath(ctx)}/goals`, { title, level: "space", ownerAgentId: ctx.input.fixtures.agent.id, ...extra });
 }
 export async function putDocument(ctx: ChatCatalogContext, issueId: string, body: string, baseRevisionId: string | null = null) {
   return ctx.input.api.putSensitive<Entity>(`/api/issues/${issueId}/documents/plan`, {
@@ -44,20 +44,20 @@ export async function observeInternal(ctx: ChatCatalogContext, state: Record<str
   await ctx.refreshIssue();
   const { api, fixtures } = ctx.input;
   const [tasks, projects, goals, runs] = await Promise.all([
-    api.getRunObservation<Entity[]>(`${companyPath(ctx)}/issues?includeAgentCreatedTasks=true&limit=1000`),
-    api.get<Entity[]>(`${companyPath(ctx)}/projects?includeArchived=true`),
-    api.get<Entity[]>(`${companyPath(ctx)}/goals`), ctx.allRuns(),
+    api.getRunObservation<Entity[]>(`${spacePath(ctx)}/issues?includeAgentCreatedTasks=true&limit=1000`),
+    api.get<Entity[]>(`${spacePath(ctx)}/projects?includeArchived=true`),
+    api.get<Entity[]>(`${spacePath(ctx)}/goals`), ctx.allRuns(),
   ]);
   const source = ctx.issue();
   const chat = source ? await api.get<Entity[]>(`/api/issues/${source.id}/comments?order=asc`) : [];
   const replies = chat.filter(row => row.authorAgentId === fixtures.agent.id && runs.some(run => run.id === row.createdByRunId));
   const target = state.task ? entity(state, "task") : undefined;
   const comments = target ? await api.get<Entity[]>(`/api/issues/${target.id}/comments?order=asc`) : [];
-  const companyActivity = await api.getRunObservation<Entity[]>(`${companyPath(ctx)}/activity?limit=1000`);
+  const spaceActivity = await api.getRunObservation<Entity[]>(`${spacePath(ctx)}/activity?limit=1000`);
   const taskActivity = target ? await api.get<Entity[]>(`/api/issues/${target.id}/activity`) : [];
-  const activity = [...new Map([...companyActivity, ...taskActivity].map(row => [row.id, row])).values()];
+  const activity = [...new Map([...spaceActivity, ...taskActivity].map(row => [row.id, row])).values()];
   const renderedLinkEvidence = source ? await collectConversationLinks(ctx.input.page, {
-    origin: api.baseURL, companyId: fixtures.company.id, companyPrefix: fixtures.company.issuePrefix,
+    origin: api.baseURL, spaceId: fixtures.space.id, spacePrefix: fixtures.space.issuePrefix,
     sourceId: source.id, leadId: fixtures.agent.id, comments: chat, runs, projects, activity,
   }) : [];
   const links = [...new Set(renderedLinkEvidence.map(link => link.href))];
@@ -69,7 +69,7 @@ export async function observeInternal(ctx: ChatCatalogContext, state: Record<str
       revisions.push(...await api.get<Entity[]>(`${endpoint}/revisions`));
     }
   }
-  return { scenarioId: ctx.scenario.id, origin: api.baseURL, companyId: fixtures.company.id, leadId: fixtures.agent.id,
+  return { scenarioId: ctx.scenario.id, origin: api.baseURL, spaceId: fixtures.space.id, leadId: fixtures.agent.id,
     state, tasks: tasks.filter(row => row.id !== source?.id), projects, goals, runs, comments, activity, documents, revisions,
     renderedLinkEvidence, humanQueries: chat.filter(row => !row.authorAgentId).map(row => row.body ?? ""), reply: replies.map(row => row.body ?? "").join("\n"), links };
 }
@@ -88,7 +88,7 @@ export function observation(value: unknown): InternalObservation | undefined {
   if (!value || typeof value !== "object") return;
   const o = value as InternalObservation;
   if (!o.state || ![o.tasks, o.projects, o.goals, o.comments, o.activity, o.documents, o.revisions, o.links, o.humanQueries, o.runs].every(Array.isArray)
-    || typeof o.reply !== "string" || typeof o.origin !== "string" || typeof o.companyId !== "string" || typeof o.leadId !== "string") return;
+    || typeof o.reply !== "string" || typeof o.origin !== "string" || typeof o.spaceId !== "string" || typeof o.leadId !== "string") return;
   return o;
 }
 export function checks() {
@@ -97,7 +97,7 @@ export function checks() {
     result() { return { passed: rows.length > 0 && rows.every(row => row.passed), checks: rows }; } };
 }
 export function sameTask(before: Entity, after: Entity | undefined, except: readonly string[] = []) {
-  return !!after && ["id", "companyId", "title", "description", "projectId", "status", "priority", "assigneeAgentId", "goalId"]
+  return !!after && ["id", "spaceId", "title", "description", "projectId", "status", "priority", "assigneeAgentId", "goalId"]
     .filter(key => !except.includes(key)).every(key => before[key as keyof Entity] === after[key as keyof Entity]);
 }
 

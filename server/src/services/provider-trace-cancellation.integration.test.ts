@@ -27,7 +27,7 @@ describe.skipIf(!endpoint)("trace migration cancellation through the real S3 SDK
       const directory = await fs.mkdtemp(path.join(tmpdir(), "trace-abort-"));
       const client = new S3Client({ endpoint, region: "us-east-1", forcePathStyle: true });
       await client.send(new CreateBucketCommand({ Bucket: bucket }));
-      const ref = `s3-segments-v1:company/run/${randomUUID()}.ndjson`;
+      const ref = `s3-segments-v1:space/run/${randomUUID()}.ndjson`;
       const controller = new AbortController();
       let enabled = true,
         closed = false,
@@ -124,7 +124,7 @@ describe.skipIf(!endpoint)("trace migration cancellation through the real S3 SDK
         controller.abort();
         proxy.closeAllConnections();
         await operation?.catch(() => undefined);
-        await store.stopRun("company", "run");
+        await store.stopRun("space", "run");
         await new Promise<void>((resolve) => proxy.close(() => resolve()));
         const objects = await client.send(new ListObjectsV2Command({ Bucket: bucket }));
         if (objects.Contents?.length)

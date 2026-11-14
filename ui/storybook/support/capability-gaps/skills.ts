@@ -1,11 +1,11 @@
-import type { CompanySkillDetail } from "@outpost/shared";
+import type { SpaceSkillDetail } from "@outpost/shared";
 export function makeSkill(
-  overrides: Partial<CompanySkillDetail> = {},
-): CompanySkillDetail {
+  overrides: Partial<SpaceSkillDetail> = {},
+): SpaceSkillDetail {
   return {
     id: "skill-gap",
-    companyId: "company-storybook",
-    key: "paperclip/demo-skill",
+    spaceId: "space-storybook",
+    key: "outpost/demo-skill",
     slug: "demo-skill",
     name: "Demo Skill",
     description: "A demo skill.",
@@ -23,10 +23,10 @@ export function makeSkill(
     authorName: null,
     homepageUrl: null,
     categories: ["engineering"],
-    sharingScope: "company",
+    sharingScope: "space",
     publicShareToken: null,
     forkedFromSkillId: null,
-    forkedFromCompanyId: null,
+    forkedFromSpaceId: null,
     starCount: 0,
     installCount: 0,
     forkCount: 0,

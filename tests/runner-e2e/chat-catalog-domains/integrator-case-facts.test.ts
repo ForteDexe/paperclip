@@ -8,13 +8,13 @@ function valid() {
   const original = { id: "case", identifier: "COM-C1", workIssueId: "primary", handoffVersion: 1, fields: { browser: "Safari; device unknown", customer: "Acorn", severity: "normal", expected: "one order" } };
   const brief = { id: "brief", issueId: "primary", latestRevisionId: "v1", body: "Customer reproduction" };
   const fields = { ...original.fields, browser: "Mobile Safari only", supportEscalation: "support-123" };
-  const base = { scenarioId: "cases.update-case-facts", origin: "https://fixture.test", companyId: "company", leadId: "ceo",
+  const base = { scenarioId: "cases.update-case-facts", origin: "https://fixture.test", spaceId: "space", leadId: "ceo",
     state: { initialRunId: "initial", sourceId: "chat", worker: { id: "morgan" }, case: original, brief, collaboratorValue: "support-123", reviewer: { id: "riley" } }, caseRecord: { ...original, fields }, brief, workComments: [] as Array<{ id: string; issueId: string; createdByRunId: string }>,
     briefRevisions: [{ id: "v1", issueId: "primary", body: brief.body }], projects: [], tasks: [{ id: "primary", identifier: "COM-1" }], goals: [], documents: [], revisions: [], comments: [], links: [], activity: [], humanQueries: [],
     reply: "The reproduction occurs exclusively on mobile Safari. Support escalation is support-123.",
-    runs: [{ id: "initial", status: "cancelled", runtimeMode: "native", agentId: "morgan", contextSnapshot: { issueId: "primary", paperclipCase: { id: "case", taskId: "primary", data: "{}" } } },
+    runs: [{ id: "initial", status: "cancelled", runtimeMode: "native", agentId: "morgan", contextSnapshot: { issueId: "primary", outpostCase: { id: "case", taskId: "primary", data: "{}" } } },
       { id: "turn-1", status: "succeeded", runtimeMode: "native", agentId: "ceo", contextSnapshot: { issueId: "chat" } }, { id: "turn-2", status: "succeeded", runtimeMode: "native", agentId: "ceo", contextSnapshot: { issueId: "chat" } },
-      { id: "review", status: "succeeded", runtimeMode: "native", agentId: "riley", contextSnapshot: { issueId: "primary", paperclipCase: { id: "case", taskId: "primary", data: JSON.stringify({ fields }) } } }] };
+      { id: "review", status: "succeeded", runtimeMode: "native", agentId: "riley", contextSnapshot: { issueId: "primary", outpostCase: { id: "case", taskId: "primary", data: JSON.stringify({ fields }) } } }] };
   const first = { ...structuredClone(base), reply: FIRST };
   return { ...base, caseRecord: { ...base.caseRecord, handoffVersion: 2 }, state: { ...base.state, firstCorrection: first, collaborationCheckpoint: { ...structuredClone(base), reply: `${FIRST}\n${FOLLOW_UP}` } } };
 }
@@ -33,7 +33,7 @@ describe("current case facts and real subsequent context", () => {
     const stale = valid(); stale.state.collaborationCheckpoint.caseRecord.fields.supportEscalation = "stale"; expect(gradeIntegratorCaseFacts(stale).passed).toBe(false);
   });
   it("rejects stale handoff context, chat-only projection and moved document ownership", () => {
-    const stale = valid(); (stale.runs[3]!.contextSnapshot as { paperclipCase: { data: string } }).paperclipCase.data = JSON.stringify({ fields: stale.state.case.fields }); expect(gradeIntegratorCaseFacts(stale).passed).toBe(false);
+    const stale = valid(); (stale.runs[3]!.contextSnapshot as { outpostCase: { data: string } }).outpostCase.data = JSON.stringify({ fields: stale.state.case.fields }); expect(gradeIntegratorCaseFacts(stale).passed).toBe(false);
     const chat = valid(); chat.runs[3]!.contextSnapshot.issueId = "chat"; expect(gradeIntegratorCaseFacts(chat).passed).toBe(false);
     const moved = valid(); moved.brief.issueId = "case"; expect(gradeIntegratorCaseFacts(moved).passed).toBe(false);
     const missing = valid(); missing.briefRevisions = []; expect(gradeIntegratorCaseFacts(missing).passed).toBe(false);

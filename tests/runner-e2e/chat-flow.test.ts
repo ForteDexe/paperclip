@@ -26,7 +26,7 @@ import { classifyFailure, shouldRetryFailure } from "./failure-classifier.js";
 
 const source: ChatIssue = {
   id: "chat",
-  companyId: "co",
+  spaceId: "co",
   title: "Chat",
   status: "in_review",
   assigneeAgentId: "agent",
@@ -44,7 +44,7 @@ const plan = {
 };
 const run: ChatRun = {
   id: "run",
-  companyId: "co",
+  spaceId: "co",
   agentId: "agent",
   status: "succeeded",
   startedAt: "2026-09-11T10:00:01Z",
@@ -462,8 +462,8 @@ If you only have the club name, audience, and tone, that is enough to begin; I c
 
 describe("reassignment outcome oracle", () => {
   const evidence = () => ({ readyId: "ready", queuedId: "queued", teammateId: "riley",
-    tasks: [{ id: "ready", companyId: "co", title: "Ready", status: "done", assigneeAgentId: "riley" }, { id: "queued", companyId: "co", title: "Later", status: "backlog", assigneeAgentId: "riley" }],
-    runs: [{ id: "successor", companyId: "co", agentId: "riley", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "ready" } }],
+    tasks: [{ id: "ready", spaceId: "co", title: "Ready", status: "done", assigneeAgentId: "riley" }, { id: "queued", spaceId: "co", title: "Later", status: "backlog", assigneeAgentId: "riley" }],
+    runs: [{ id: "successor", spaceId: "co", agentId: "riley", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "ready" } }],
     audit: [{ action: "issue.reassigned", details: { source: "outpost_runner_protocol" } }], outputBody: "Launch CHECK123", marker: "CHECK123",
   });
   it("accepts persisted ownership and exactly one successful successor", () => {
@@ -483,7 +483,7 @@ describe("reassignment outcome oracle", () => {
 
 describe("backlog creation outcome oracle", () => {
   const evidence = () => ({
-    tasks: [{ id: "held", companyId: "co", title: "Later", status: "backlog", parentId: null, assigneeAgentId: "planner" }],
+    tasks: [{ id: "held", spaceId: "co", title: "Later", status: "backlog", parentId: null, assigneeAgentId: "planner" }],
     runs: [] as ChatRun[], ownerId: "planner", marker: "PLAN123",
     plan: { body: "Three steps PLAN123", latestRevisionId: "revision-1", updatedAt: "2026-09-19T00:00:00Z" },
     activity: [{ action: "issue.created", details: { status: "backlog", source: "outpost_runner_protocol" } }],
@@ -493,14 +493,14 @@ describe("backlog creation outcome oracle", () => {
   });
   it("does not mistake the creating conversation for task execution", () => {
     const data = evidence();
-    data.runs.push({ id: "creator", companyId: "co", agentId: "planner", status: "succeeded", contextSnapshot: { issueId: "conversation" } });
+    data.runs.push({ id: "creator", spaceId: "co", agentId: "planner", status: "succeeded", contextSnapshot: { issueId: "conversation" } });
     expect(() => assertChatBacklogCreation(data)).not.toThrow();
   });
   it.each(["duplicate", "status", "started-then-stopped", "corrected-after-creation", "owner", "plan"])("rejects %s", defect => {
     const data = evidence();
     if (defect === "duplicate") data.tasks.push({ ...data.tasks[0]!, id: "duplicate" });
     if (defect === "status") data.tasks[0]!.status = "todo";
-    if (defect === "started-then-stopped") data.runs.push({ id: "early", companyId: "co", agentId: "planner", status: "cancelled", contextSnapshot: { issueId: "held" } });
+    if (defect === "started-then-stopped") data.runs.push({ id: "early", spaceId: "co", agentId: "planner", status: "cancelled", contextSnapshot: { issueId: "held" } });
     if (defect === "corrected-after-creation") data.activity[0]!.details.status = "todo";
     if (defect === "owner") data.tasks[0]!.assigneeAgentId = "other";
     if (defect === "plan") data.plan.body = "I saved a plan";

@@ -65,7 +65,7 @@ and the [disconnect recovery journey](../../tests/e2e/disconnect-write-recovery.
 ### `source-task`
 
 A Native run held for unknown controller process space remains blocked even
-after its lease expires. A company owner, company administrator, or instance
+after its lease expires. A space owner, space administrator, or instance
 administrator can record separate original-host controller and provider/tool stop confirmations with reviewed
 action outcomes through the existing task recovery card. Recording containment
 does not replay work. After normal settlement/cleanup, use a separate ordinary
@@ -194,9 +194,9 @@ Use these checks alongside the entry-point recipes below and the operation recor
 | `recovery/source-action` | Inspect active and retained actions, follow the repair owner, and resolve one eligible source-bound action with its exact ID. | Retry the settled resolution and reject a stale/foreign action. Recovery ownership alone cannot mutate the source task; inspect source status, audit and wake independently. |
 | `recovery/exhaustion` | Exhaust or age a bounded fixture; use the currently offered retry once, then inspect its durable acknowledgement and actual continuation. | Reassign, pause, stop, close, add an unresolved dependency, or impose a budget hold before retry. The old notice must not reopen terminal work or run the wrong owner. |
 | `recovery/workspace` | Exercise retained-file recovery, export retry, reconstruction, branch repair/reconciliation and exact-owner finalization as distinct authorized operator paths. | Use exact source/action/run/receipt bindings and preserve existing files. Reject stale source, live/uncertain writers, unsafe archives and insufficient authority. Verify actual files and accepted result separately from queued acknowledgement. |
-| `recovery/unknown-outcome` | Inspect the provider and saved intent before recording a source-specific chat, email or governed-provider outcome. | Use performed, not-performed and unresolved cases. Wrong company/request, stale state and unauthorized resolution must fail. Unknown effects must not replay automatically. An explicit retry must record the operator’s duplicate-risk acceptance and dispatch only the authorized attempt. |
+| `recovery/unknown-outcome` | Inspect the provider and saved intent before recording a source-specific chat, email or governed-provider outcome. | Use performed, not-performed and unresolved cases. Wrong space/request, stale state and unauthorized resolution must fail. Unknown effects must not replay automatically. An explicit retry must record the operator’s duplicate-risk acceptance and dispatch only the authorized attempt. |
 | `recovery/user-continuation` | Save a distinguishable instruction while Stop cleanup is pending; after verified stop, inspect exactly one eligible continuation and its useful response. | Keep the message waiting under task/ancestor pause, budget or retained-file holds. Do not impersonate a human message or infer delivery from a queued wake. |
-| `recovery/reconnect` | Disconnect the browser, let the server change persisted task/run state, reconnect, then reload and compare. | Inspect duplicate comments/decisions and private/company boundaries after access changes. Browser transport recovery and agent execution recovery require separate results. |
+| `recovery/reconnect` | Disconnect the browser, let the server change persisted task/run state, reconnect, then reload and compare. | Inspect duplicate comments/decisions and private/space boundaries after access changes. Browser transport recovery and agent execution recovery require separate results. |
 
 ### `source-task`
 
@@ -293,7 +293,7 @@ An intentionally Done onboarding parent can still need its validated
 child-completion report. Recovery must not mark that callback successful before
 execution solely because the parent is Done. The existing
 [stale-lock sweep suite](../../server/src/__tests__/recovery-stale-issue-lock-sweep.test.ts)
-covers delayed native/Legacy startup, invalid parent/child/company/assignee
+covers delayed native/Legacy startup, invalid parent/child/space/assignee
 bindings and a dead owner. Process-death and ownership backstops remain active.
 Repeat the real onboarding journey and correlate callback turn events with its
 reply and downloadable child file; status alone does not prove delivery. The

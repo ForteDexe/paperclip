@@ -24,7 +24,7 @@ remains red. Two runs execute provider turns. A third callback is falsely marked
 successful during startup, before any provider turn, because its onboarding
 parent is already Done. One unstarted child wake is cancelled. Recovery now
 reuses the existing completed-onboarding handoff validator before applying the
-issue-terminal backstop. Company, parent origin/status, assignee, completed child
+issue-terminal backstop. Space, parent origin/status, assignee, completed child
 and remaining children must match. Process-death and ownership checks remain.
 Three reproduced baseline failures become 103 passing PostgreSQL controls across
 the existing recovery suites, with canonical server typecheck passing. Owned
@@ -37,7 +37,7 @@ Two reproduced instruction-contract failures become 15 passing existing asset
 and greeting controls; these static checks do not prove model compliance.
 
 All seven baseline managed lease rows are released or expired with successful
-cleanup records, and prior company environment settings are restored. A separate
+cleanup records, and prior space environment settings are restored. A separate
 owned-server supervisor reports incomplete descendant cleanup after server exit;
 its missing nested cause remains unresolved. Lease records do not prove physical
 deletion or settle unknown charges. Existing cost and cleanup holds remain.
@@ -142,7 +142,7 @@ outside this merge campaign.
 
 Reconciled head `d68f1facf0e174a4f8a771a2055e02c72a47c289` receives a fresh
 5/5 review with all 28 threads resolved. Its required E2E check passes, but the
-aggregate verification check fails two test shards. A retained company fixture
+aggregate verification check fails two test shards. A retained space fixture
 collides because it truncates random UUIDs to six characters; full-UUID seed
 treatment passes 255 existing PostgreSQL controls with zero skips. The existing
 Runner durable-progress case lacks the diagnostic evidence needed to identify
@@ -166,7 +166,7 @@ configurations, eight recorded run identities and safe account summaries, with
 zero provider work. This proves upgrade preservation, not fresh initialization.
 A separate ordinary installed CLI entry then starts with a new isolated home
 and empty data, applies all 339 packaged migrations including 0340 and reaches
-recovery ready with zero companies and provider actions. This proves fresh
+recovery ready with zero spaces and provider actions. This proves fresh
 startup after the owned resource cleanup; the original test-helper failure and
 its missing cause remain recorded.
 
@@ -230,7 +230,7 @@ campaign bounds. A legitimate reload then returns onboarding to step one before
 Get started. Both setup leases and fixture cleanup pass; no task/artifact/follow-up
 is reached. Preserve this failed attempt. The production draft-restoration fix
 passes192 existing/new controls and independent source review, including delayed
-loading, explicit fresh starts, old runner choices and company/account boundaries.
+loading, explicit fresh starts, old runner choices and space/account boundaries.
 The managed fixture keeps its reload assertion. The separately scoped linked-login
 fix stages checked credentials only for isolated setup and keeps the general
 no-follow guard, refresh target and bounded retirement contract. Its original
@@ -286,7 +286,7 @@ The [1d CI run](https://github.com/paperclipai/paperclip/actions/runs/3845970411
 passes build, typecheck and native verification but has two independent blockers.
 The onboarding browser case expects the obsolete return to the Agent step. Its
 captured screen correctly restores Connect, Ada and the original authorization
-link. Update that existing case to verify the exact active session, company,
+link. Update that existing case to verify the exact active session, space,
 name/harness/Auto choice, one login start and no pending-login hire through both
 route reopening and actual reload. Independent source review passes. Local
 baseline reproduces the old assertion; the final local attempt cannot initialize
@@ -371,7 +371,7 @@ pre-correction source. This correction is private and requires ordinary
 published-head review and full qualification after the protected parent merge.
 
 Cloud source `23531d729756ab0461a53f9358beb8df5c1781ed` uses named Daytona
-snapshots without a verified final boot-image binding for fresh-company native
+snapshots without a verified final boot-image binding for fresh-space native
 qualification. A read-only metadata request was rejected before execution because
 automatic approval review requires explicit use of the particular API key.
 Authorization is pending; no key was read or provider request sent. The expired
@@ -417,14 +417,14 @@ An immutable OCI environment without prior facts therefore creates a Legacy
 agent. Existing managed E2E fixtures explicitly probe first; those fixtures do
 not prove fresh onboarding. A private UI correction is being tested against
 the existing onboarding suite. It uses the existing permission-gated saved
-probe on explicit Connect, refreshes company-scoped discovery, then tests the
+probe on explicit Connect, refreshes space-scoped discovery, then tests the
 selected runtime. Creation and discovery still allocate nothing. Probe errors
 must stay actionable, and permissions must not broaden.
 
 Cloud master `23531d729756ab0461a53f9358beb8df5c1781ed` distributes named
 Daytona snapshots. Its recorded runtime image digest identifies the app copied
 into that snapshot, not the final boot image. Current source does not bind a
-fresh company's qualification to a verified boot identity. The pinned official
+fresh space's qualification to a verified boot identity. The pinned official
 Daytona SDK accepts snapshot IDs, but does not guarantee a boot-verified digest.
 A read-only lookup of the existing snapshot was rejected before execution by
 automatic approval review because direct credential authorization was missing.
@@ -787,7 +787,7 @@ The three existing environment suites pass 83 controls. Seven focused tests
 exercise real PostgreSQL writes between request preparation and save; there are
 42 name-filter exclusions and zero host-guard skips. Both canonical server
 no-emit commands pass. Source hashes match in both worktrees and independent
-review is clear. A separate read-only audit confirms no actual company/team
+review is clear. A separate read-only audit confirms no actual space/team
 import bypass or proof export: portability does not copy environment rows, and
 environment API responses strip the private subtree. No new infrastructure,
 provider turn, Docker/Rust build or schema/API change was introduced.
@@ -889,7 +889,7 @@ setting on automatic Legacy selection, and missing sandbox platform/libc facts.
 Existing subagents own narrow fixes in parallel. Use inert target data and
 workflow-owned public labels; preserve primary failures and private state on
 unconfirmed cleanup; preserve explicit permissions; and use server-measured
-sandbox qualification bound to its effective image/config and company scope.
+sandbox qualification bound to its effective image/config and space scope.
 The existing explicit environment-probe/setup flow owns qualification. Saving
 and discovery must not provision resources or accept client-authored evidence.
 Unknown targets retain automatic Legacy with an actionable explicit-native error.
@@ -1023,7 +1023,7 @@ Local and non-Codex paths remain unchanged. Receipt:
 `/private/tmp/codex-default-sandbox-target-fix-receipt.json`.
 
 Unchanged saved setup choices now bypass only new-selection resolution, retaining
-later secret, company/environment, authentication, and runtime validation. The
+later secret, space/environment, authentication, and runtime validation. The
 actual disabled legacy baseline returned 422 before its probe. Treatment passes
 175 existing controls plus a native-provider switch negative, with server
 typecheck. New, explicit, draft, and changed-harness choices keep the disabled
@@ -1161,7 +1161,7 @@ fails loopback `RTM_NEWADDR` with `Operation not permitted`. No successful
 native session or after-start continuity is claimed. Docker/host installation
 identity passed. Exact upstream Codex 0.160 source places namespace creation
 before its own seccomp filter and always restricts networking for filesystem
-helpers. A Paperclip network-mode change would not solve this. Prepare one
+helpers. A Outpost network-mode change would not solve this. Prepare one
 temporary same-policy direct Codex control plus read-only host namespace facts
 to distinguish host enforcement from native mediation. Do not alter kernel,
 Docker, or product permission policy. Receipts:
@@ -1266,7 +1266,7 @@ The user has no other QA ARM host. No new paid environment was provisioned.
 Receipt: `/private/tmp/ci-final-a200495-arm-stock-prerequisite-receipt.json`.
 
 Keep the boundaries explicit: normal OS APT installation is unproven; the actual
-Paperclip npm installation and native startup are proven. The separate direct
+Outpost npm installation and native startup are proven. The separate direct
 control hits a read-only temporary-home error and is excluded from native
 qualification. No ARM paid task/follow-up is claimed. Actual Apple Silicon
 useful-task/follow-up evidence remains tied to its recorded source and identical
@@ -1352,7 +1352,7 @@ The user requires macOS support in the same Codex-default PR. The earlier
 Linux-only scope and macOS deferral below are superseded. Qualify Linux x64,
 macOS arm64 and macOS x64 through the shipped package path. Windows and Linux
 ARM keep their legacy defaults. Existing agents retain recorded execution.
-The user explicitly invoked `dotta:paperclip-test-drive`. Real task/follow-up
+The user explicitly invoked `dotta:outpost-test-drive`. Real task/follow-up
 acceptance is required on this Apple Silicon Mac. Intel builds must be attempted;
 an attended Intel provider journey is not required. Reuse the healthy test drive
 and the existing Product E2E helpers rather than create another test system.
@@ -1602,7 +1602,7 @@ remain separate actions. Actual production composition remains a post-merge gate
 Reuse Product E2E profiles, fixtures, graders, reports, and installation checks.
 The `first-task` native Codex case now inspects the wizard's saved default directly
 with the experimental flag disabled. The legacy control selects its override
-before authentication. Each isolated onboarding company has a $5 task budget;
+before authentication. Each isolated onboarding space has a $5 task budget;
 setup probes require their own reserved allowance.
 Claude's explicit native fixture is unchanged until its later default PR.
 
@@ -1759,7 +1759,7 @@ The first-agent name draft survived reload. The cached local daemon is not proof
 of the new native Rust seams; Linux hosted build/live execution supply that proof.
 Attended subscription login and current access to the dedicated managed staging
 stack remain unresolved. Canonical issue coordination is unavailable because the
-original test-drive service is offline; no unrelated company was used for updates.
+original test-drive service is offline; no unrelated space was used for updates.
 
 Public-evidence projection is complete and passes 149 existing and new support
 checks. The private behavioral grader and raw evidence remain intact. Replaying
@@ -1831,7 +1831,7 @@ from the PR source. Applicable code-owner approval is still unproven.
 
 The only browser failure is the existing selected-run denial case, whose fixture
 uses the process adapter. Its URL becomes canonical before its agent query
-settles. The test now waits for the successful company-scoped canonical response
+settles. The test now waits for the successful space-scoped canonical response
 and verifies its complete agent identity before clicking. All nine existing
 retry cases pass against the real isolated preview with their exact request and
 denial assertions unchanged. A supporting query lifecycle control reproduces
@@ -1925,7 +1925,7 @@ The public d67 release38389963483 ended successfully but skipped native producti
 
 The native-runner QA override is applied and converged through one-target feature campaign1791869766576, with zero failed targets. Literal d67 private distribution `cloud:38392212140:1` is qualified. Supported one-target deployment request `f7cb6751-91f8-49a4-9ab8-6092ecb27e7c` passed exact-source/private-artifact preflight38395788220; deployment38395855695 succeeded with authenticated serving verification and `set_default=false`. The pin and current private distribution remain verified.
 
-Attended OpenAI device authorization completed in the embedded browser. Ordinary fresh onboarding created Legacy preservation QA (`f9e30b8e-7ceb-4f88-b373-1a2cba65859d`) with its Codex Legacy configuration and unopened first-task question. Its sandbox and connection settings were retained. Native Codex package QA (`861f95bc-c9fc-4e32-8abb-8829d3fe42de`) was created separately through the explicit experimental runner picker, using Codex, gpt-5.6-luna, the responsible user's saved subscription and Paperclip Computer. This tests the merged prerequisite; automatic Codex defaults remain outside this source.
+Attended OpenAI device authorization completed in the embedded browser. Ordinary fresh onboarding created Legacy preservation QA (`f9e30b8e-7ceb-4f88-b373-1a2cba65859d`) with its Codex Legacy configuration and unopened first-task question. Its sandbox and connection settings were retained. Native Codex package QA (`861f95bc-c9fc-4e32-8abb-8829d3fe42de`) was created separately through the explicit experimental runner picker, using Codex, gpt-5.6-luna, the responsible user's saved subscription and Outpost Computer. This tests the merged prerequisite; automatic Codex defaults remain outside this source.
 
 The native creation Test reported success, but its visible details and exact d67 route show a Legacy Codex ACP/CLI model hello, not native runtime execution. At least one real setup hello is held in the setup reservation separately from the four task-turn allowance; other unmeasured setup usage is not assumed zero. Setup lease `1f2b04ce-97c2-4f81-8f92-0ece0fb54feb` and provider resource `622b8bb6-8bec-40d2-83c2-fa5edddfa6e8` have no independent cleanup confirmation yet. Green setup is not native execution or physical cleanup proof.
 
@@ -1940,7 +1940,7 @@ Next action: verify the actual staging serving revision, wait for the source-bou
 
 #### 2026-10-13 Final published-consumer and fresh-stack result
 
-Actual master release38395574681 completed all four native producers, npm publication and real canary onboarding smoke. Public `paperclipai@2026.1013.0-canary.6` binds to exact60bc, including narrow merged release repair #16149. Its clean isolated Apple Silicon install passed normal lifecycle, all18 no-bundled-Codex tar checks, packaged daemon/provider verification, native startup/open/close and CLI/doctor checks. Official optional npm Codex dependencies are retained; no local Cargo/Rust/Docker/runner-source build occurred. Literal d67 private staging composition and literal60bc npm remain separately attributed.
+Actual master release38395574681 completed all four native producers, npm publication and real canary onboarding smoke. Public `@outpost/cli@2026.1013.0-canary.6` binds to exact60bc, including narrow merged release repair #16149. Its clean isolated Apple Silicon install passed normal lifecycle, all18 no-bundled-Codex tar checks, packaged daemon/provider verification, native startup/open/close and CLI/doctor checks. Official optional npm Codex dependencies are retained; no local Cargo/Rust/Docker/runner-source build occurred. Literal d67 private staging composition and literal60bc npm remain separately attributed.
 
 Ordinary local onboarding completed with the explicitly authorized OpenAI API key saved in a managed connection, and created Legacy preservation QA. The local subscription device flow expired; no subscription was saved. No credential values were written into prompts/reports. Native saved-account setup exposed a real published UI defect: the selected native runtime delegates to Legacy readiness and can trigger a second forced CLI probe, failing `Command not found in PATH: "codex"` despite successful packaged native resolution. Current private #15683 already contains the native setup probe correction, but its artifact/UI has not been tested here. Configure navigation cannot adopt the failed connection; no developer PATH or global Codex workaround was used.
 
@@ -1989,11 +1989,11 @@ The correction skips project instruction discovery only in the new empty setup w
 
 The existing managed first-task fixture now snapshots and restores its prior instance default and managed-only setting before deletion, including lost setup responses. Unconfirmed default restoration blocks deletion and remains red; other restoration/deletion errors remain inspectable and retry only outstanding cleanup. Three reproduced baseline failures become129 passing first-task controls, with direct E2E TypeScript passing. Independent source review finds no actionable runtime/permission P1/P2; the required source-comment cleanup is applied. Final source needs fresh CI/review, package artifacts and successful ordinary Mac/managed journeys before normal merge. The one owned Core preview deployment for30bc completes through its existing exact-source check/deploy path; actual readiness is independently checked next. No fleet default is changed.
 
-Corrected product source ca31623d36a3d63204077e2e951ff9cdcf2664cf passes all48 ordinary hosted CI jobs, required verify/E2E and fresh5/5 review with26 resolved threads. Its hosted package artifact11834160973 has verified ZIP digest d5d60bf5056f5573461f8d4bd873da78a0204c7f7295d03d5aa7234e55d4af69. The second isolated Mac consumer verifies all18 tarballs, no bundled Codex, official npm Codex0.160, all four daemon bindings and zero-turn native startup/cleanup. Normal install hooks include third-party optional C++ addons; no Paperclip runner/Cargo/Rust/Docker source build occurs locally. The source-bound preview completes one-target deployment38438245490 to the existing pinned QA stack, without default promotion; independent result admission remains separate.
+Corrected product source ca31623d36a3d63204077e2e951ff9cdcf2664cf passes all48 ordinary hosted CI jobs, required verify/E2E and fresh5/5 review with26 resolved threads. Its hosted package artifact11834160973 has verified ZIP digest d5d60bf5056f5573461f8d4bd873da78a0204c7f7295d03d5aa7234e55d4af69. The second isolated Mac consumer verifies all18 tarballs, no bundled Codex, official npm Codex0.160, all four daemon bindings and zero-turn native startup/cleanup. Normal install hooks include third-party optional C++ addons; no Outpost runner/Cargo/Rust/Docker source build occurs locally. The source-bound preview completes one-target deployment38438245490 to the existing pinned QA stack, without default promotion; independent result admission remains separate.
 
 Before paid cell38435063658 entered its matrix job, an admission audit found that ordinary onboarding timeout0 and agent concurrency20 did not satisfy this campaign's retained180-second/single-run bounds. Cancelled the campaign before its live cell started; image/build costs remain unknown and held. Extend the existing first-task fixture with a normal operator configuration PATCH and independent read-back before Get started. Only the timeout/concurrency bounds may change; runner/account/model/environment/permissions remain the wizard's original selection. This is a fixture correction, not a production default or API change. Its first iteration passes149 controls but independent review identifies the concurrency gap. The final combined bound reproduces three functional failures with the previous helper, then passes153 controls and direct E2E TypeScript. Independent review confirms that the timeout reaches the native turn deadline and the queue uses the saved single-run cap; exact source review closes before publication or further live eval admission. No failing or cancelled attempt is relabeled as passed.
 
-The owned local3136 server is updated from30bc to literal ca316 hosted packages after an idle snapshot and stopped-data/home backup. All existing full execution configurations and recorded run projections match before/after, with no provider tasks during upgrade. The fresh Mac company's saved draft resumes with its agent name retained. Ordinary OpenAI API-key Connect creates native Codex with gpt-5.6-sol without a runner override; only the existing QA timeout/concurrency settings are then bounded before Get started. Actual useful task/artifact/follow-up proof is still pending. The staging immutable QA environment is selected temporarily as the instance default, with the prior Paperclip Computer value recorded for restoration. Its normal server credential fallback has not yet been verified. No direct provider-key extraction or production rollout is attempted.
+The owned local3136 server is updated from30bc to literal ca316 hosted packages after an idle snapshot and stopped-data/home backup. All existing full execution configurations and recorded run projections match before/after, with no provider tasks during upgrade. The fresh Mac space's saved draft resumes with its agent name retained. Ordinary OpenAI API-key Connect creates native Codex with gpt-5.6-sol without a runner override; only the existing QA timeout/concurrency settings are then bounded before Get started. Actual useful task/artifact/follow-up proof is still pending. The staging immutable QA environment is selected temporarily as the instance default, with the prior Outpost Computer value recorded for restoration. Its normal server credential fallback has not yet been verified. No direct provider-key extraction or production rollout is attempted.
 
 The literal ca316 Mac journey now passes independent exact-file and registration checks for29/63 bytes, saved API-key account binding, native Codex provider session and workspace continuity across all five executed runs. One queued child run is cancelled before start and retained in evidence. Two manual messages and two confirmation responses produce five successful native runs; no process-loss retry occurs. Both task and child finish Done, and the QA agent is paused afterward. Rate-card estimates total$3.504199600, not invoice cost. The existing strict artifact/session helpers are reused offline; this is a real UI journey with independent evidence, not a full catalog-cell pass. Receipt7ef97c4705b085d465eeaf19f11d231e7b01e5a66c61b517cfcde0ec70a2db97 remains literalca316.
 
@@ -2023,7 +2023,7 @@ The original managed onboarding case38485488621 passes its19 assertions and comp
 
 Ordinary fresh9546 Mac onboarding persists native Codex without a runner override before any QA bounds. The first useful document task and actual Done-parent completion callback execute successfully. One human follow-up updates the same child document to revision2 and publishes a child-bound1,101-byte file. Independent API and real browser downloads match SHA256b758f6d23b33cfa9cfc597a4c3bc2abbf74dc56b7b5d2b30fc45f65c1a4d1905. All seven actual native runs succeed; parent sessions/workspace continue, child execution has its own task session, observed concurrency1, longest run under47seconds, reload preserved. Two recovered proposal-format errors remain a nonblocking quality follow-up.
 
-Existing installed Mac upgrade preserves all three execution configurations, safe account summaries and eight historical recorded run profiles. The existing Legacy agent's ordinary title edit/reload keeps execution settings, and its shared Advanced dropdown retains Legacy. Two actual Legacy/direct-adapter runs complete the same task and independently checked15-byte then34-byte files. Prior session state is passed and workspace continues; returned provider UUID changes, so stable provider-ID continuity is not claimed. After explicit human authorization, the root-created company QA guard is restored to its original0 and a500-cent hard stop is scoped to the selected Legacy agent. Historical unpriced costs/holds remain unchanged, normal service resolves only the new QA incident, other agents remain paused, and the company is paused again after all runs finish. Rate-card estimates: Mac3.4154336, managed1.170946, Legacy0.114767 dollars; none is an invoice. The separate100-dollar ceiling and all original250/25-dollar unknown/cleanup holds remain enforced.
+Existing installed Mac upgrade preserves all three execution configurations, safe account summaries and eight historical recorded run profiles. The existing Legacy agent's ordinary title edit/reload keeps execution settings, and its shared Advanced dropdown retains Legacy. Two actual Legacy/direct-adapter runs complete the same task and independently checked15-byte then34-byte files. Prior session state is passed and workspace continues; returned provider UUID changes, so stable provider-ID continuity is not claimed. After explicit human authorization, the root-created space QA guard is restored to its original0 and a500-cent hard stop is scoped to the selected Legacy agent. Historical unpriced costs/holds remain unchanged, normal service resolves only the new QA incident, other agents remain paused, and the space is paused again after all runs finish. Rate-card estimates: Mac3.4154336, managed1.170946, Legacy0.114767 dollars; none is an invoice. The separate100-dollar ceiling and all original250/25-dollar unknown/cleanup holds remain enforced.
 
 The human selected the actual new Test environment for pre-merge acceptance. Its deployed policy supports verified branch previews, unlike Staging's current master-ancestry restriction. Normal Test email-code sign-in has sent a code and awaits the human handoff; no OTP redaction workaround, session impersonation or credential extraction is used. No actual owned Test tenant, schema admission, deployment or live task is claimed yet. The maintained one-target CLI and deliberately core-only preview path are prepared, with existing snapshot/migration-role/health/lock protections and set_default=false. Private Cloud composition and production/default promotion remain separate post-merge gates. The human also authorized a code-owner-review exception for PR15683 only, after all current-head CI/review/live gates pass; no global repository rule is changed and no other PR's approval is waived.
 

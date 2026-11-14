@@ -36,7 +36,7 @@ import type { Db } from "@outpost/db";
 
 import {
   chatEndpoints,
-  companySecretBindings,
+  spaceSecretBindings,
   toolConnections,
 } from "@outpost/db";
 import type {
@@ -194,7 +194,7 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
     const candidates = await db
       .select({
         id: chatEndpoints.id,
-        companyId: chatEndpoints.companyId,
+        spaceId: chatEndpoints.spaceId,
         assignedAgentId: chatEndpoints.assignedAgentId,
         providerAccountId: chatEndpoints.providerAccountId,
         botExternalId: chatEndpoints.botExternalId,
@@ -205,7 +205,7 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
         and(
           providerUsesGlobalApplicationIdentity(endpoint.provider)
             ? undefined
-            : eq(chatEndpoints.companyId, endpoint.companyId),
+            : eq(chatEndpoints.spaceId, endpoint.spaceId),
           eq(chatEndpoints.provider, endpoint.provider),
           ne(chatEndpoints.id, endpoint.id),
           endpoint.provider === "imessage-photon" ? ne(chatEndpoints.status, "archived") : inArray(chatEndpoints.status, [
@@ -234,7 +234,7 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
     if (conflictEndpoint) {
       throw conflict(
         `This ${PROVIDER_LABELS[endpoint.provider]} bot already represents another Outpost agent connection`,
-        conflictEndpoint.companyId === endpoint.companyId
+        conflictEndpoint.spaceId === endpoint.spaceId
           ? {
               code: "chat_bot_identity_in_use",
               endpointId: conflictEndpoint.id,
@@ -278,7 +278,7 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
       .from(toolConnections)
       .where(
         and(
-          eq(toolConnections.companyId, endpoint.companyId),
+          eq(toolConnections.spaceId, endpoint.spaceId),
           eq(toolConnections.id, endpoint.connectionId),
         ),
       )
@@ -290,7 +290,7 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
         Object.assign(previousValues, await resolveCredentialRefs(endpoint, [ref]));
       } catch (error) {
         // A valid replacement can repair unavailable old material. Unexpected
-        // database failures and company/scope violations must still abort.
+        // database failures and space/scope violations must still abort.
         const code = error instanceof HttpError && error.details && typeof error.details === "object"
           ? Reflect.get(error.details, "code") : null;
         const unavailable = isSecretProviderClientError(error) || (error instanceof HttpError && (
@@ -309,12 +309,12 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
         await credentialLease.assertOwned();
         const suffix = randomUUID();
         const secret = await secrets.create(
-          endpoint.companyId,
+          endpoint.spaceId,
           {
             name: `chat.${endpoint.provider}.${endpoint.id.slice(0, 8)}.${key}.${suffix.slice(0, 8)}`,
             key: `CHAT_${endpoint.provider.replaceAll("-", "_")}_${endpoint.id.replaceAll("-", "_")}_${key}_${suffix}`.toUpperCase(),
             provider: "local_encrypted",
-            managedMode: "paperclip_managed",
+            managedMode: "outpost_managed",
             value,
             description: `${PROVIDER_LABELS[endpoint.provider]} channel credential for endpoint ${endpoint.id}`,
           },
@@ -337,7 +337,7 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
           .from(toolConnections)
           .where(
             and(
-              eq(toolConnections.companyId, endpoint.companyId),
+              eq(toolConnections.spaceId, endpoint.spaceId),
               eq(toolConnections.id, endpoint.connectionId),
             ),
           )
@@ -354,18 +354,18 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
         }
         await notifyChatEndpointConfiguration(tx, endpoint);
         await tx
-          .delete(companySecretBindings)
+          .delete(spaceSecretBindings)
           .where(
             and(
-              eq(companySecretBindings.companyId, endpoint.companyId),
-              eq(companySecretBindings.targetType, "tool_connection"),
-              eq(companySecretBindings.targetId, endpoint.connectionId),
+              eq(spaceSecretBindings.spaceId, endpoint.spaceId),
+              eq(spaceSecretBindings.targetType, "tool_connection"),
+              eq(spaceSecretBindings.targetId, endpoint.connectionId),
             ),
           );
         if (refs.length > 0) {
-          await tx.insert(companySecretBindings).values(
+          await tx.insert(spaceSecretBindings).values(
             refs.map((ref) => ({
-              companyId: endpoint.companyId,
+              spaceId: endpoint.spaceId,
               secretId: ref.secretId,
               targetType: "tool_connection",
               targetId: endpoint.connectionId,
@@ -383,9 +383,9 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
           .set({ credentialSecretRefs: refs, updatedAt: new Date() })
           .where(eq(toolConnections.id, endpoint.connectionId));
         if (changedFields.length) {
-          await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.companyId);
+          await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.spaceId);
           const [currentEndpoint] = await tx.select({ setup: chatEndpoints.setup }).from(chatEndpoints)
-            .where(and(eq(chatEndpoints.id, endpoint.id), eq(chatEndpoints.companyId, endpoint.companyId))).for("update");
+            .where(and(eq(chatEndpoints.id, endpoint.id), eq(chatEndpoints.spaceId, endpoint.spaceId))).for("update");
           if (!currentEndpoint) throw notFound("Chat endpoint not found");
           const verification = changedFields.some(field => field === "signingSecret" || field === "webhookSecret")
             && !options.preservesWebhookVerification?.(endpoint, currentEndpoint.setup, credentials)
@@ -394,7 +394,7 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
             // Fence old healthy state in the same transaction as the new refs.
             status: sql`case when ${chatEndpoints.status} = 'active' then 'verifying' else ${chatEndpoints.status} end`,
             setup: sql`jsonb_set(${chatEndpoints.setup}, '{credentialEntryGenerations}', coalesce(${chatEndpoints.setup}->'credentialEntryGenerations', '{}'::jsonb) || ${JSON.stringify(generations)}::jsonb) || ${JSON.stringify(verification)}::jsonb`,
-          }).where(and(eq(chatEndpoints.id, endpoint.id), eq(chatEndpoints.companyId, endpoint.companyId)));
+          }).where(and(eq(chatEndpoints.id, endpoint.id), eq(chatEndpoints.spaceId, endpoint.spaceId)));
         }
         await onCommitted?.(tx as unknown as Db);
         await credentialLease.assertOwned(tx);
@@ -408,13 +408,13 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
         refs.length === 0
           ? new Set<string>()
           : await db
-              .select({ secretId: companySecretBindings.secretId })
-              .from(companySecretBindings)
+              .select({ secretId: spaceSecretBindings.secretId })
+              .from(spaceSecretBindings)
               .where(
                 and(
-                  eq(companySecretBindings.companyId, endpoint.companyId),
+                  eq(spaceSecretBindings.spaceId, endpoint.spaceId),
                   inArray(
-                    companySecretBindings.secretId,
+                    spaceSecretBindings.secretId,
                     refs.map((ref) => ref.secretId),
                   ),
                 ),
@@ -456,7 +456,7 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
         .from(toolConnections)
         .where(
           and(
-            eq(toolConnections.companyId, endpoint.companyId),
+            eq(toolConnections.spaceId, endpoint.spaceId),
             eq(toolConnections.id, endpoint.connectionId),
           ),
         )
@@ -466,12 +466,12 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
       refs = current.refs;
       await notifyChatEndpointConfiguration(tx, endpoint);
       await tx
-        .delete(companySecretBindings)
+        .delete(spaceSecretBindings)
         .where(
           and(
-            eq(companySecretBindings.companyId, endpoint.companyId),
-            eq(companySecretBindings.targetType, "tool_connection"),
-            eq(companySecretBindings.targetId, endpoint.connectionId),
+            eq(spaceSecretBindings.spaceId, endpoint.spaceId),
+            eq(spaceSecretBindings.targetType, "tool_connection"),
+            eq(spaceSecretBindings.targetId, endpoint.connectionId),
           ),
         );
       await tx
@@ -500,7 +500,7 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
     for (const ref of refs) {
       const key = ref.configPath.replace(/^credentials\./, "");
       values[key] = await (database === db ? secrets : secretService(database as Db)).resolveSecretValue(
-        endpoint.companyId,
+        endpoint.spaceId,
         ref.secretId,
         ref.versionSelector ?? "latest",
         {
@@ -525,7 +525,7 @@ export function createChatCredentials(db: Db, options: ChatCredentialsOptions) {
       .from(toolConnections)
       .where(
         and(
-          eq(toolConnections.companyId, endpoint.companyId),
+          eq(toolConnections.spaceId, endpoint.spaceId),
           eq(toolConnections.id, endpoint.connectionId),
         ),
       )

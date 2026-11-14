@@ -19,7 +19,7 @@ export async function migrateWorkspaceTrees(db: Db, input: {
     // Match the final ephemeral-storage contract, not just the importer's
     // supported subset. Silently skipping an unsupported provider or unsettled
     // lifecycle state would abandon files when the original volume is detached.
-    const rows = await db.select({ companyId: executionWorkspaces.companyId, workspaceId: executionWorkspaces.id })
+    const rows = await db.select({ spaceId: executionWorkspaces.spaceId, workspaceId: executionWorkspaces.id })
       .from(executionWorkspaces).where(localWorkspaceDependencyWhere(db))
       .orderBy(desc(sql`length(${executionWorkspaces.cwd})`), asc(executionWorkspaces.id)).limit(25);
     if (!rows.length) return migrated;

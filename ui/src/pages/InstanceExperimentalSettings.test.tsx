@@ -70,7 +70,7 @@ function settings(
     enableDecisions: false,
     enableGoalsSidebarLink: false,
     enableManagedSandboxOnly: false,
-    enablePaperclipDeveloperMode: false,
+    enableOutpostDeveloperMode: false,
     enableServerInfoDebugView: false,
     enableSmokeLab: false,
     enableIssuePlanDecompositions: false,
@@ -104,7 +104,7 @@ describe("InstanceExperimentalSettings", () => {
     flushSync(() => {
       root!.render(
         <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={["/SAN/company/settings/instance/experimental"]}>
+          <MemoryRouter initialEntries={["/SAN/space/settings/instance/experimental"]}>
             <ExperimentalSettingsPage />
           </MemoryRouter>
         </QueryClientProvider>,
@@ -178,7 +178,7 @@ describe("InstanceExperimentalSettings", () => {
     current = settings({
       enableDecisions: true,
       managedKeys: {
-        enableDecisions: { managed: true, managedBy: "paperclip-cloud" },
+        enableDecisions: { managed: true, managedBy: "outpost-cloud" },
       },
     });
     await renderPage();

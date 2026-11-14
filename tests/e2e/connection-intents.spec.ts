@@ -4,7 +4,7 @@ import { listenOnFetchAllowedPort } from "./fetch-allowed-port";
 import { send } from "./agent-chat.shared";
 
 type Json = Record<string, unknown>;
-type Seed = { companyId: string; prefix: string };
+type Seed = { spaceId: string; prefix: string };
 type Agent = { id: string; name: string };
 
 async function json<T = Json>(
@@ -17,22 +17,22 @@ async function json<T = Json>(
   return (await response.json()) as T;
 }
 
-async function newCompany(request: APIRequestContext): Promise<Seed> {
-  const company = await json<{ id: string; issuePrefix: string }>(
-    await request.post("/api/companies", {
+async function newSpace(request: APIRequestContext): Promise<Seed> {
+  const space = await json<{ id: string; issuePrefix: string }>(
+    await request.post("/api/spaces", {
       data: { name: `Connection intent E2E ${Date.now()}` },
     }),
   );
-  return { companyId: company.id, prefix: company.issuePrefix };
+  return { spaceId: space.id, prefix: space.issuePrefix };
 }
 
 async function createAgent(
   request: APIRequestContext,
-  companyId: string,
+  spaceId: string,
   name: string,
 ): Promise<Agent> {
   return await json<Agent>(
-    await request.post(`/api/companies/${companyId}/agents`, {
+    await request.post(`/api/spaces/${spaceId}/agents`, {
       data: {
         name,
         role: "qa",
@@ -124,7 +124,7 @@ const post = async (url, body, token = process.env.OUTPOST_RUNTIME_TOOLS_TOKEN) 
   if (!response.ok) throw new Error(\`\${response.status}: \${await response.text()}\`);
   return await response.json();
 };
-const apiHeaders = { authorization: \`Bearer \${process.env.OUTPOST_API_KEY}\`, "content-type": "application/json", "x-paperclip-run-id": process.env.OUTPOST_RUN_ID };
+const apiHeaders = { authorization: \`Bearer \${process.env.OUTPOST_API_KEY}\`, "content-type": "application/json", "x-outpost-run-id": process.env.OUTPOST_RUN_ID };
 const runResponse = await fetch(\`\${process.env.OUTPOST_API_URL}/api/heartbeat-runs/\${process.env.OUTPOST_RUN_ID}\`, { headers: apiHeaders });
 if (!runResponse.ok) throw new Error(await runResponse.text());
 const run = await runResponse.json();
@@ -153,14 +153,14 @@ const sessionResponse = await fetch(\`\${process.env.OUTPOST_API_URL}/api/tool-g
 if (!sessionResponse.ok) throw new Error(await sessionResponse.text());
 const session = await sessionResponse.json();
 const toolsResponse = await fetch(\`\${process.env.OUTPOST_API_URL}/api/tool-gateway/tools\`, {
-  headers: { "x-paperclip-tool-gateway-token": session.token }
+  headers: { "x-outpost-tool-gateway-token": session.token }
 });
 const tools = await toolsResponse.json();
 const tool = tools.find((entry) => entry.connectionId === ${JSON.stringify(connectionId)} && entry.upstreamToolName === "notion:list_pages");
 if (!tool) throw new Error("Continuation did not receive the installed Notion tool");
 const call = await fetch(\`\${process.env.OUTPOST_API_URL}/api/tool-gateway/tools/call\`, {
   method: "POST",
-  headers: { "x-paperclip-tool-gateway-token": session.token, "content-type": "application/json" },
+  headers: { "x-outpost-tool-gateway-token": session.token, "content-type": "application/json" },
   body: JSON.stringify({ tool: tool.name, parameters: {} })
 });
 if (!call.ok) throw new Error(await call.text());
@@ -182,11 +182,11 @@ test("AgentMail request shows a durable inline key card in agent chat", async ({
     await json(await request.patch("/api/instance/settings/experimental", { data: {
       enableAgentChat: true, enableChatConnectors: true, enableClassicTaskInterface: false,
     } }));
-    const seed = await newCompany(request);
-    const agent = await createAgent(request, seed.companyId, "Email requester");
+    const seed = await newSpace(request);
+    const agent = await createAgent(request, seed.spaceId, "Email requester");
     // Script only the agent's choice of tool; persistence, routes, and UI are real.
     const script = `
-const headers = { authorization: "Bearer " + process.env.OUTPOST_API_KEY, "content-type": "application/json", "x-paperclip-run-id": process.env.OUTPOST_RUN_ID };
+const headers = { authorization: "Bearer " + process.env.OUTPOST_API_KEY, "content-type": "application/json", "x-outpost-run-id": process.env.OUTPOST_RUN_ID };
 const runResponse = await fetch(process.env.OUTPOST_API_URL + "/api/heartbeat-runs/" + process.env.OUTPOST_RUN_ID, { headers });
 if (!runResponse.ok) throw new Error(await runResponse.text());
 const run = await runResponse.json();
@@ -206,13 +206,13 @@ if (result.state !== "needs_user_action") throw new Error("Expected an inline ca
     } }));
     await page.goto(`/${seed.prefix}/chats/${agent.id}`);
     await send(page, "Get yourself an email address with AgentMail.");
-    await waitForAgentRun(request, seed.companyId, agent.id);
-    const chat = await json<{ id: string }>(await request.get(`/api/companies/${seed.companyId}/chats/${agent.id}`));
+    await waitForAgentRun(request, seed.spaceId, agent.id);
+    const chat = await json<{ id: string }>(await request.get(`/api/spaces/${seed.spaceId}/chats/${agent.id}`));
     const interactions = await json<Array<{ id: string; kind: string; status: string; addresseeUserId: string; payload: Json }>>(
       await request.get(`/api/issues/${chat.id}/interactions`),
     );
     expect(interactions).toHaveLength(1);
-    expect(interactions[0]).toMatchObject({ kind: "connection_intent", status: "pending", addresseeUserId: "local-board",
+    expect(interactions[0]).toMatchObject({ kind: "connection_intent", status: "pending", addresseeUserId: "local-operator",
       payload: { purpose: "channel", serviceSlug: "agentmail", requestingAgentId: agent.id } });
     await page.reload();
     const form = page.getByTestId("agentmail-inline-setup");
@@ -234,8 +234,8 @@ if (result.state !== "needs_user_action") throw new Error("Expected an inline ca
       const rows = await json<Array<{ status: string }>>(await request.get(`/api/issues/${chat.id}/interactions`));
       return rows.map(row => row.status);
     }).toEqual(["rejected"]);
-    expect(await json(await request.get(`/api/companies/${seed.companyId}/email/inboxes`))).toEqual([]);
-    const connections = await json<{ connections: unknown[] }>(await request.get(`/api/companies/${seed.companyId}/tools/connections`));
+    expect(await json(await request.get(`/api/spaces/${seed.spaceId}/email/inboxes`))).toEqual([]);
+    const connections = await json<{ connections: unknown[] }>(await request.get(`/api/spaces/${seed.spaceId}/tools/connections`));
     expect(connections.connections).toEqual([]);
   } finally {
     await json(await request.patch("/api/instance/settings/experimental", { data: {
@@ -247,7 +247,7 @@ if (result.state !== "needs_user_action") throw new Error("Expected an inline ca
 
 async function waitForAgentRun(
   request: APIRequestContext,
-  companyId: string,
+  spaceId: string,
   agentId: string,
 ) {
   let terminalRun = null as { id: string; status: string } | null;
@@ -256,7 +256,7 @@ async function waitForAgentRun(
       async () => {
         const runs = await json<Array<{ id: string; status: string }>>(
           await request.get(
-            `/api/companies/${companyId}/heartbeat-runs?agentId=${agentId}&limit=10`,
+            `/api/spaces/${spaceId}/heartbeat-runs?agentId=${agentId}&limit=10`,
           ),
         );
         terminalRun =
@@ -279,10 +279,10 @@ test("store setup and task connection intent share one fake provider through con
   test.setTimeout(180_000);
   const provider = await startFakeProvider();
   try {
-    const seed = await newCompany(request);
+    const seed = await newSpace(request);
     const holder = await createAgent(
       request,
-      seed.companyId,
+      seed.spaceId,
       "Existing access holder",
     );
 
@@ -311,7 +311,7 @@ test("store setup and task connection intent share one fake provider through con
 
     const connections = await json<{
       connections: Array<{ id: string; name: string; config: Json }>;
-    }>(await request.get(`/api/companies/${seed.companyId}/tools/connections`));
+    }>(await request.get(`/api/spaces/${seed.spaceId}/tools/connections`));
     expect(connections.connections).toHaveLength(1);
     const connection = connections.connections[0]!;
     const connectionId = connection.id;
@@ -353,7 +353,7 @@ test("store setup and task connection intent share one fake provider through con
     // provider is reused from the task dialog and appears in the fresh run.
     const scout = await createAgent(
       request,
-      seed.companyId,
+      seed.spaceId,
       "Connection requester",
     );
     await json(
@@ -373,7 +373,7 @@ test("store setup and task connection intent share one fake provider through con
       }),
     );
     const issue = await json<{ id: string; identifier: string }>(
-      await request.post(`/api/companies/${seed.companyId}/issues`, {
+      await request.post(`/api/spaces/${seed.spaceId}/issues`, {
         data: {
           title: "Read our Notion pages",
           status: "in_progress",
@@ -384,7 +384,7 @@ test("store setup and task connection intent share one fake provider through con
     // Assigning an in-progress task is the production wake path. Waiting for
     // that run avoids creating a second artificial request from an explicit
     // heartbeat invocation.
-    const firstRun = await waitForAgentRun(request, seed.companyId, scout.id);
+    const firstRun = await waitForAgentRun(request, seed.spaceId, scout.id);
 
     const taskUrl = `/${seed.prefix}/issues/${issue.identifier}`;
     await page.goto(taskUrl);
@@ -414,7 +414,7 @@ test("store setup and task connection intent share one fake provider through con
         async () => {
           const runs = await json<Array<{ id: string; status: string }>>(
             await request.get(
-              `/api/companies/${seed.companyId}/heartbeat-runs?agentId=${scout.id}&limit=10`,
+              `/api/spaces/${seed.spaceId}/heartbeat-runs?agentId=${scout.id}&limit=10`,
             ),
           );
           return runs.find((run) => run.id !== firstRun.id)?.status ?? null;
@@ -436,7 +436,7 @@ test("store setup and task connection intent share one fake provider through con
     );
     expect(completedIssue.status).toBe("done");
     const finalRuns = await json<Array<{ id: string; status: string }>>(
-      await request.get(`/api/companies/${seed.companyId}/heartbeat-runs?agentId=${scout.id}&limit=10`),
+      await request.get(`/api/spaces/${seed.spaceId}/heartbeat-runs?agentId=${scout.id}&limit=10`),
     );
     expect(finalRuns).toHaveLength(2);
     expect(finalRuns.every((run) => run.status === "succeeded")).toBe(true);

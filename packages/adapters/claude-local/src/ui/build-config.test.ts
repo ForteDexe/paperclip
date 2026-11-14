@@ -40,16 +40,16 @@ describe("buildClaudeLocalConfig", () => {
   it.each([undefined, "legacy"] as const)("retains the default turn cap when Auto has resolved to %s", resolvedRunner => {
     expect(buildClaudeLocalConfig(makeValues({ runner: "auto", resolvedRunner })).maxTurnsPerRun).toBe(1000);
   });
-  it.each(["auto", "paperclip"] as const)("omits the Legacy default only for native %s", runner => {
-    const config = buildClaudeLocalConfig(makeValues({ runner, resolvedRunner: "paperclip" }));
+  it.each(["auto", "outpost"] as const)("omits the Legacy default only for native %s", runner => {
+    const config = buildClaudeLocalConfig(makeValues({ runner, resolvedRunner: "outpost" }));
     expect(config).not.toHaveProperty("maxTurnsPerRun");
-    expect(buildClaudeLocalConfig(makeValues({ runner, resolvedRunner: "paperclip", maxTurnsPerRun: 3 })).maxTurnsPerRun).toBe(3);
+    expect(buildClaudeLocalConfig(makeValues({ runner, resolvedRunner: "outpost", maxTurnsPerRun: 3 })).maxTurnsPerRun).toBe(3);
   });
   it("retains an explicit Legacy cap over a stale native form resolution", () => {
-    expect(buildClaudeLocalConfig(makeValues({ runner: "legacy", resolvedRunner: "paperclip" })).maxTurnsPerRun).toBe(1000);
+    expect(buildClaudeLocalConfig(makeValues({ runner: "legacy", resolvedRunner: "outpost" })).maxTurnsPerRun).toBe(1000);
   });
   it.each(["approve-all", "approve-reads", "deny-all"])("carries the selected native %s permission to creation", acpxPermissionMode => {
-    expect(buildClaudeLocalConfig(makeValues({ resolvedRunner: "paperclip", adapterSchemaValues: { acpxPermissionMode } })).acpxPermissionMode).toBe(acpxPermissionMode);
+    expect(buildClaudeLocalConfig(makeValues({ resolvedRunner: "outpost", adapterSchemaValues: { acpxPermissionMode } })).acpxPermissionMode).toBe(acpxPermissionMode);
   });
   it("omits engine for the auto default so runtime fallback remains available", () => {
     const config = buildClaudeLocalConfig(makeValues({ claudeEngine: "auto" }));
@@ -76,7 +76,7 @@ describe("buildClaudeLocalConfig", () => {
     });
   });
 
-  it("keeps company secret and plain env bindings", () => {
+  it("keeps space secret and plain env bindings", () => {
     const config = buildClaudeLocalConfig(
       makeValues({
         envBindings: {

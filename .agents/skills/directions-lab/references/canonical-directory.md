@@ -230,7 +230,7 @@ In the same PR amend README line 34 from `status: "proposed"` to "`status` of `p
 
 ## What does not change
 
-- The literal-only rule: `parameters.paperclip` is parsed, never executed, and must follow
+- The literal-only rule: `parameters.outpost` is parsed, never executed, and must follow
   spreads (`scripts/storybook-catalog.mjs:26-59`). Stage never becomes a computed value.
 - The `statuses` list (`:13`) and the `home` allow-list (`:95`): no new status, no new home.
 - Meta ids and exports: `stableId` is required (`:109`) and every id stays; Part 1 removes the

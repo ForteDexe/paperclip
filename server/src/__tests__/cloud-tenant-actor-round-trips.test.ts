@@ -5,8 +5,8 @@ import { sql } from "drizzle-orm";
 import {
   activityLog,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   instanceUserRoles,
   principalPermissionGrants,
@@ -73,7 +73,7 @@ describeEmbeddedPostgres("cloud tenant actor round trips", () => {
   let proxy!: Awaited<ReturnType<typeof startDelayProxy>>;
 
   beforeAll(async () => {
-    if (!external) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-tenant-round-trips-");
+    if (!external) tempDb = await startEmbeddedPostgresTestDatabase("outpost-tenant-round-trips-");
     const url = external ?? tempDb!.connectionString;
     directDb = createDb(url);
     proxy = await startDelayProxy(new URL(url), ROUND_TRIP_DELAY_MS);
@@ -85,8 +85,8 @@ describeEmbeddedPostgres("cloud tenant actor round trips", () => {
     delete process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN;
     await directDb?.delete(activityLog);
     await directDb?.delete(principalPermissionGrants);
-    await directDb?.delete(companyMemberships);
-    await directDb?.delete(companies);
+    await directDb?.delete(spaceMemberships);
+    await directDb?.delete(spaces);
     await directDb?.delete(instanceUserRoles);
     await directDb?.delete(authUsers);
     await slowDb?.$client.end({ timeout: 1 });
@@ -97,17 +97,17 @@ describeEmbeddedPostgres("cloud tenant actor round trips", () => {
 
   it("resolves a synced tenant actor in about one database round trip", async () => {
     const headers = cloudActorHeaderSourceFromHeaders({
-      "x-paperclip-cloud-tenant-token": SERVER_TOKEN,
-      "x-paperclip-cloud-user-id": "user-round-trips",
-      "x-paperclip-cloud-user-email": "user-round-trips@example.com",
-      "x-paperclip-cloud-stack-id": "stack-round-trips",
+      "x-outpost-cloud-tenant-token": SERVER_TOKEN,
+      "x-outpost-cloud-user-id": "user-round-trips",
+      "x-outpost-cloud-user-email": "user-round-trips@example.com",
+      "x-outpost-cloud-stack-id": "stack-round-trips",
       // Owners also read the instance settings for owner elevation.
-      "x-paperclip-cloud-stack-role": "owner",
+      "x-outpost-cloud-stack-role": "owner",
     });
 
     // First request provisions the tenant; its writes are debounced afterwards.
     const first = await resolveCloudTenantActor(slowDb, headers);
-    expect(first?.type).toBe("board");
+    expect(first?.type).toBe("operator");
     // Open enough pooled connections that connection setup is not measured.
     await Promise.all(Array.from({ length: 4 }, () => slowDb.execute(sql`select 1`)));
 
@@ -126,12 +126,12 @@ describeEmbeddedPostgres("cloud tenant actor round trips", () => {
     const elapsedMs = performance.now() - started;
 
     expect(actor).toMatchObject({
-      type: "board",
+      type: "operator",
       userId: "user-round-trips",
       source: "cloud_tenant",
       isInstanceAdmin: false,
     });
-    expect(actor?.type === "board" ? actor.companyIds : []).toHaveLength(1);
+    expect(actor?.type === "operator" ? actor.spaceIds : []).toHaveLength(1);
     // `select 1` is one delayed write; a parameterized statement is two. Three
     // sequential statements (purge, memberships, owner elevation) take about
     // 6 × the baseline; concurrent statements take about 2 ×.

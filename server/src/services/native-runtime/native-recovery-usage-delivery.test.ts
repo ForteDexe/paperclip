@@ -13,10 +13,10 @@ vi.mock("./native-usage-delivery.js", () => ({ createNativeUsageContinuationDeli
 beforeEach(() => { vi.clearAllMocks(); accounting.capture.mockResolvedValue(undefined); accounting.open.mockResolvedValue({ capture: accounting.capture }); });
 
 function fixture() {
-  const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), sessionId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), sessionId = randomUUID();
   const source: DurableRecoveryIdentity = { runId: randomUUID(), runnerInstanceId: randomUUID(), environmentLeaseId: randomUUID(),
     normalizedSessionId: sessionId, turnId: randomUUID(), itemId: randomUUID() };
-  const build = (runId: string) => buildNativeExecutionInput({ companyId, agentId, runId, normalizedSessionId: sessionId,
+  const build = (runId: string) => buildNativeExecutionInput({ spaceId, agentId, runId, normalizedSessionId: sessionId,
     provider: "codex", issue: { id: issueId, identifier: "REC-1", title: "Continue", description: null, workMode: "standard" },
     taskPrompt: "Continue once", workspace: { id: randomUUID(), cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
     completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1",
@@ -25,7 +25,7 @@ function fixture() {
   const execution = build(randomUUID()), previous = build(source.runId);
   const row = { run: { status: "succeeded", finishedAt: new Date() as Date | null, runtimeMode: "native", runnerInstanceId: source.runnerInstanceId,
     nativeSessionId: sessionId, runnerProfileJson: { nativeExecutionInput: previous } },
-    owner: { phase: "committed", resultId: randomUUID() as string | null, leaseOwner: null as string | null, companyId, issueId } };
+    owner: { phase: "committed", resultId: randomUUID() as string | null, leaseOwner: null as string | null, spaceId, issueId } };
   const where = vi.fn(async (_predicate: SQL) => [row]);
   const select = vi.fn(() => ({ from: () => ({ innerJoin: () => ({ where }) }) }));
   const db = { select } as unknown as Db;
@@ -44,11 +44,11 @@ describe("source accounting recovery authority", () => {
     await deliver({ ...f.event, sourceEventId: "source-terminal", sourceSeq: 2, eventType: "turn.completed" }, f.source);
     expect(f.select).toHaveBeenCalledOnce();
     expect(new PgDialect().sqlToQuery(f.where.mock.calls[0][0]).params).toEqual([
-      f.source.runId, f.execution.binding.companyId, f.execution.binding.agentId, f.execution.binding.issueId,
+      f.source.runId, f.execution.binding.spaceId, f.execution.binding.agentId, f.execution.binding.issueId,
     ]);
     expect(f.matchesExecution).toHaveBeenCalledWith(f.previous);
     expect(accounting.open).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
-      companyId: f.execution.binding.companyId, runId: f.source.runId, runnerInstanceId: f.source.runnerInstanceId, provider: f.previous.provider,
+      spaceId: f.execution.binding.spaceId, runId: f.source.runId, runnerInstanceId: f.source.runnerInstanceId, provider: f.previous.provider,
     });
     expect(accounting.capture).toHaveBeenCalledTimes(2);
     expect(accounting.capture).toHaveBeenCalledWith(f.event);
@@ -68,7 +68,7 @@ describe("source accounting recovery authority", () => {
     expect(f.select).not.toHaveBeenCalled();
   });
 
-  it.each(["nonterminal", "unfinished", "uncommitted", "no-result", "held", "company", "issue", "scope"])(
+  it.each(["nonterminal", "unfinished", "uncommitted", "no-result", "held", "space", "issue", "scope"])(
     "keeps an unproven source held: %s", async change => {
       const f = fixture();
       if (change === "nonterminal") f.row.run.status = "running";
@@ -76,7 +76,7 @@ describe("source accounting recovery authority", () => {
       if (change === "uncommitted") f.row.owner.phase = "observed";
       if (change === "no-result") f.row.owner.resultId = null;
       if (change === "held") f.row.owner.leaseOwner = "live-owner";
-      if (change === "company") f.row.owner.companyId = randomUUID();
+      if (change === "space") f.row.owner.spaceId = randomUUID();
       if (change === "issue") f.row.owner.issueId = randomUUID();
       if (change === "scope") f.matchesExecution.mockReturnValue(false);
       await expect(f.deliver()(f.event, f.source)).rejects.toThrow("native_recovery_usage_source_unproven");

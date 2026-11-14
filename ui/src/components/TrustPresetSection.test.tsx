@@ -24,7 +24,7 @@ function renderSection(permissions: Partial<AgentPermissions>, withProjectEditor
           projectAccessEditor={withProjectEditor ? <div>Allowed projects</div> : undefined}
           permissions={permissions}
           onChange={onChange}
-          companyId="company-1"
+          spaceId="space-1"
           projectCandidates={[{ id: "project-1", label: "Outpost App" }]}
           issueCandidates={[{ id: "issue-1", label: "PAP-1 · Review PR" }]}
         />
@@ -60,7 +60,7 @@ describe("TrustPresetSection", () => {
         trustPreset: "low_trust_review",
         trustBoundary: {
           mode: "low_trust_review",
-          companyId: "company-1",
+          spaceId: "space-1",
           projectIds: ["project-1"],
         },
       },
@@ -76,7 +76,7 @@ describe("TrustPresetSection", () => {
   it("keeps the single-boundary controls when the allowed-project editor is present", () => {
     const view = renderSection({ trustPreset: "low_trust_review", authorizationPolicy: {
       trustPreset: "low_trust_review", trustBoundary: {
-        mode: "low_trust_review", companyId: "company-1", projectIds: ["project-1"],
+        mode: "low_trust_review", spaceId: "space-1", projectIds: ["project-1"],
       },
     } }, true);
     expect(view.text()).toContain("Allowed projects");
@@ -97,7 +97,7 @@ describe("TrustPresetSection", () => {
         trustPreset: "low_trust_review",
         trustBoundary: {
           mode: "low_trust_review",
-          companyId: "company-1",
+          spaceId: "space-1",
           projectIds: ["project-1", "project-2"],
         },
       },

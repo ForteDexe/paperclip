@@ -161,7 +161,7 @@ producer table, ownership, credential rotation and remaining host-sleep limits.
 The previous checkpoint's remaining implementation items are now handled:
 locked current-state claims; matching legacy handoff repair; bound-session cleanup
 ownership; durable termination confirmation/retry; account isolation; retention
-protection; notifications and shared scheduler registration. A company-delete
+protection; notifications and shared scheduler registration. A space-delete
 participant check also prevents cascades from erasing unfinished cleanup and locks
 endpoints to serialize against signed admission ingress.
 
@@ -175,12 +175,12 @@ the generated deletion of 0383 is intentional.
 
 Local evidence:
 - `voice-inbound-cleanup.test.ts`: 13 tests pass using a separate PostgreSQL DB.
-  Includes migration backfill/replay, company deletion and shutdown joining.
+  Includes migration backfill/replay, space deletion and shutdown joining.
 - Full voice integration and app wiring: 129 tests pass on a fresh DB (113 voice,
   16 app wiring). Signed ingress wakes an idle worker; a feature-disabled instance
   retains an unconfirmed end; a replacement account cannot issue cleanup; a key
   for the saved account can. Rejection failure survives history pruning.
-- Company deletion and server startup consumers: 52 tests pass on their isolated DB.
+- Space deletion and server startup consumers: 52 tests pass on their isolated DB.
 - Parent live-session recovery: 11 tests pass on its separate DB.
 - Total selected coverage: 205 passing cases across these nonoverlapping suites.
 - `pnpm -r typecheck` and `pnpm build` pass on the current implementation.
@@ -196,7 +196,7 @@ remote CI and review are required before accepting the PR.
 
 Parent #17578 at 90caaf3fa9 has all checks terminal with no failures and Greptile
 5/5 on that exact head. Both requested findings are fixed/resolved. The fresh
-Paperclip reviewer stopped before completing its turn; do not report a new 5/5
+Outpost reviewer stopped before completing its turn; do not report a new 5/5
 assessment from that reviewer. The full original migration ledger, #17490 failure,
 and final stack/master reconciliation remain outstanding.
 
@@ -240,7 +240,7 @@ All 130 full voice and app wiring cases pass on a fresh migrated PostgreSQL DB;
 production server typecheck passes. Logs: `/tmp/sleep23-denial-acceptance.log`
 and `/tmp/sleep23-denial-types.log`.
 
-Finding 4370459800 about company deletion remains separately unresolved. Missing
+Finding 4370459800 about space deletion remains separately unresolved. Missing
 credentials and account mismatch retain cleanup debt. There is a tested recovery
 path through restoring the original account, but a permanently unavailable
 provider needs a deliberate ownership/product policy. A retry cap, elapsed time,
@@ -271,7 +271,7 @@ also pass. An initial negative expiry fixture violated the database timestamp
 constraint; it was corrected to represent a valid session that has expired.
 All 132 cases across the complete voice-session and inbound-cleanup suites pass
 on separate fresh databases, and server typechecking passes. Downstream
-integration and latest-head CI remain required. The separate company-deletion
+integration and latest-head CI remain required. The separate space-deletion
 cleanup findings are not resolved by this correction.
 
 ## Fairness-test clock follow-up (2026-10-27)
@@ -329,7 +329,7 @@ and batch backfill use the application's existing top-level migration protocol.
 The original unbounded historical UPDATE is now an indexed keyset scan of at
 most 1,000 unconfirmed admission IDs per transaction. It commits each batch.
 The first page includes the nil UUID. Each batch retains the original ended-state
-and same-company signed termination-evidence predicate. It does not confirm a
+and same-space signed termination-evidence predicate. It does not confirm a
 call from its label alone. No new queue table or temporary production index is
 introduced. The existing activity entity index supports the evidence lookup.
 
@@ -337,7 +337,7 @@ The real migrator regression creates and drops its own database. It covers fresh
 migration, invalid concurrent-index repair, two simultaneous replays, and a single
 migration receipt. It confirms 1,007 eligible historical rows across multiple
 actual transaction IDs, with at most 1,000 updates in one transaction. Denied,
-pending, expired, wrong-company and wrong-action evidence stay unconfirmed. A
+pending, expired, wrong-space and wrong-action evidence stay unconfirmed. A
 prior confirmation remains unchanged. Reapplying the receipt adds no updates.
 The transaction probe exists only in that disposable test database. Restoring
 the old unbounded UPDATE makes the test fail: one transaction instead of at least
@@ -348,7 +348,7 @@ two. Snapshot/schema drift acceptance also passes.
 266 distinct cases pass on this combined source:
 
 - 122 complete voice-session integration cases, using an initially empty test DB.
-- 142 cases across nine complete inbound cleanup, voice recovery, company removal,
+- 142 cases across nine complete inbound cleanup, voice recovery, space removal,
   shared deadline/coordinator/batching, startup and hostname suites. Cleanup and
   parent recovery use separate initially empty DBs. Inbound cleanup uses its
   dedicated DB after the fresh-setup repair; all 14 lifecycle cases pass.
@@ -374,7 +374,7 @@ unbounded inventory, and migration failures remain recorded above and in
 The older 130/132/205-case and full-workspace claims apply only to their stated
 revisions. No new full local repository suite, live provider, Cloud alarm,
 instance/database suspension, or savings claim is made. Latest-head review,
-all CI, and parent landing remain required. Company deletion still refuses to
+all CI, and parent landing remain required. Space deletion still refuses to
 erase unconfirmed cleanup; an audited tombstone or override requires a separate
 product and ownership decision.
 
@@ -392,7 +392,7 @@ separate gate.
 
 ### Legacy terminal admissions missing their session binding — October 28
 
-Ponytail found that an old interrupted approval could leave an admission `ended` or `expired` with a NULL session binding even though a matching provider session exists. The approval-only repair rejected that state forever, leaving cleanup unconfirmed and the company-deletion guard armed. Five new regressions reproduced the ownership conflict on the reviewed source before the repair.
+Ponytail found that an old interrupted approval could leave an admission `ended` or `expired` with a NULL session binding even though a matching provider session exists. The approval-only repair rejected that state forever, leaving cleanup unconfirmed and the space-deletion guard armed. Five new regressions reproduced the ownership conflict on the reviewed source before the repair.
 
 Cleanup now handles confirmed terminal sessions before approval repair. It copies the existing termination timestamp without granting approval or issuing another provider request. Rejected admissions with a matching active inbound session retain their rejection, persist the missing binding and hand the leg to live recovery. Persisting the binding also lets the subsequent session-scoped confirmation wake find the admission. A conflicting existing binding, mode, idempotency key, generation, credential fingerprint or tool-token digest cannot authorize that handoff. Five negative regressions retain cleanup debt and leave the unrelated session active.
 

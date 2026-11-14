@@ -34,23 +34,23 @@ async function database() {
 }
 
 async function seed(sql: postgres.Sql) {
-  const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = randomUUID();
   const lastMessage = new Date("2026-10-20T12:00:00.000Z");
-  await sql`insert into companies (id, name, issue_prefix) values (${companyId}, 'Migration proof', ${`M${companyId.slice(0, 10)}`})`;
-  await sql`insert into agents (id, company_id, name, adapter_type) values (${agentId}, ${companyId}, 'Agent', 'process')`;
+  await sql`insert into spaces (id, name, issue_prefix) values (${spaceId}, 'Migration proof', ${`M${spaceId.slice(0, 10)}`})`;
+  await sql`insert into agents (id, space_id, name, adapter_type) values (${agentId}, ${spaceId}, 'Agent', 'process')`;
   await sql`insert into "user" (id, name, email, email_verified, created_at, updated_at)
     values (${userId}, 'Reader', ${`${userId}@example.test`}, true, now(), now())`;
-  await sql`insert into issues (id, company_id, title, status, assignee_agent_id,
+  await sql`insert into issues (id, space_id, title, status, assignee_agent_id,
     conversation_agent_id, conversation_user_id, conversation_state)
-    values (${issueId}, ${companyId}, 'Conversation', 'in_review', ${agentId}, ${agentId}, ${userId}, 'waiting')`;
-  await sql`insert into issue_comments (company_id, issue_id, author_agent_id, author_type, body, origin, client_request_id, created_at)
-    values (${companyId}, ${issueId}, ${agentId}, 'agent', 'Preserved reply', 'comment', 'retry-key', ${lastMessage})`;
-  await sql`insert into issue_comments (company_id, issue_id, author_agent_id, author_type, body, origin, created_at)
-    values (${companyId}, ${issueId}, ${agentId}, 'system', 'Excluded system notice', 'comment', ${new Date(lastMessage.getTime() + 1000)})`;
+    values (${issueId}, ${spaceId}, 'Conversation', 'in_review', ${agentId}, ${agentId}, ${userId}, 'waiting')`;
+  await sql`insert into issue_comments (space_id, issue_id, author_agent_id, author_type, body, origin, client_request_id, created_at)
+    values (${spaceId}, ${issueId}, ${agentId}, 'agent', 'Preserved reply', 'comment', 'retry-key', ${lastMessage})`;
+  await sql`insert into issue_comments (space_id, issue_id, author_agent_id, author_type, body, origin, created_at)
+    values (${spaceId}, ${issueId}, ${agentId}, 'system', 'Excluded system notice', 'comment', ${new Date(lastMessage.getTime() + 1000)})`;
   const cardId = randomUUID(), savedDeadline = new Date("2026-10-21T12:00:00.000Z");
-  await sql`insert into status_cards (id, company_id, interest_prompt, refresh_policy, next_eval_at, pending_change_hash)
-    values (${cardId}, ${companyId}, 'Watch preserved work', '{"mode":"manual"}'::jsonb, ${savedDeadline}, 'preserved-change')`;
-  return { companyId, agentId, issueId, userId, lastMessage, cardId, savedDeadline };
+  await sql`insert into status_cards (id, space_id, interest_prompt, refresh_policy, next_eval_at, pending_change_hash)
+    values (${cardId}, ${spaceId}, 'Watch preserved work', '{"mode":"manual"}'::jsonb, ${savedDeadline}, 'preserved-change')`;
+  return { spaceId, agentId, issueId, userId, lastMessage, cardId, savedDeadline };
 }
 
 async function assertFinal(sql: postgres.Sql, row: Awaited<ReturnType<typeof seed>>, expectedRead: Date) {
@@ -62,15 +62,15 @@ async function assertFinal(sql: postgres.Sql, row: Awaited<ReturnType<typeof see
     where c.conrelid = 'issue_comments'::regclass and c.conname = 'issue_comments_agent_client_request_uq'`;
   expect(constraint).toMatchObject({ indisvalid: true, indisunique: true });
   const [read] = await sql`select last_read_at from issue_read_states
-    where company_id = ${row.companyId} and issue_id = ${row.issueId} and user_id = ${row.userId}`;
+    where space_id = ${row.spaceId} and issue_id = ${row.issueId} and user_id = ${row.userId}`;
   expect(read.last_read_at).toEqual(expectedRead);
   const [card] = await sql`select next_eval_at, next_eval_reason, pending_change_hash from status_cards where id = ${row.cardId}`;
   expect(card).toMatchObject({ next_eval_at: row.savedDeadline, next_eval_reason: null, pending_change_hash: "preserved-change" });
   await sql`update status_cards set next_eval_reason = 'retry' where id = ${row.cardId}`;
   expect((await sql`select next_eval_at, next_eval_reason from status_cards where id = ${row.cardId}`)[0])
     .toMatchObject({ next_eval_at: row.savedDeadline, next_eval_reason: "retry" });
-  await expect(sql`insert into issue_comments (company_id, issue_id, author_agent_id, body, client_request_id)
-    values (${row.companyId}, ${row.issueId}, ${row.agentId}, 'Duplicate', 'retry-key')`)
+  await expect(sql`insert into issue_comments (space_id, issue_id, author_agent_id, body, client_request_id)
+    values (${row.spaceId}, ${row.issueId}, ${row.agentId}, 'Duplicate', 'retry-key')`)
     .rejects.toMatchObject({ code: "23505", constraint_name: "issue_comments_agent_client_request_uq" });
 }
 
@@ -92,8 +92,8 @@ describe.skipIf(!support.supported)("status-card reason migration after the publ
       }
       const row = await seed(sql);
       const preservedRead = new Date("2026-10-19T12:00:00.000Z");
-      if (previous === "master0419") await sql`insert into issue_read_states (company_id, issue_id, user_id, last_read_at)
-        values (${row.companyId}, ${row.issueId}, ${row.userId}, ${preservedRead})`;
+      if (previous === "master0419") await sql`insert into issue_read_states (space_id, issue_id, user_id, last_read_at)
+        values (${row.spaceId}, ${row.issueId}, ${row.userId}, ${preservedRead})`;
       expect(await inspectMigrations(db.connectionString)).toMatchObject({
         status: "needsMigrations",
         pendingMigrations: previous === "0418" ? [`${master.tag}.sql`, `${status.tag}.sql`] : [`${status.tag}.sql`],

@@ -30,14 +30,14 @@ const automaticPrompt =
   "Review the persisted native-run evidence and confirm whether this issue may be completed.";
 
 /** Identify only proven system fallback cards; this lookup never changes state. */
-function findAutomaticReviewCandidates(db: Db, options: { issueId?: string; companyId?: string; id?: string; after?: string } = {}) {
+function findAutomaticReviewCandidates(db: Db, options: { issueId?: string; spaceId?: string; id?: string; after?: string } = {}) {
   return db
     .select({ interaction: issueThreadInteractions, decision: statusDecisions })
     .from(issueThreadInteractions)
     .innerJoin(
       statusDecisionEffects,
       and(
-        eq(statusDecisionEffects.companyId, issueThreadInteractions.companyId),
+        eq(statusDecisionEffects.spaceId, issueThreadInteractions.spaceId),
         eq(statusDecisionEffects.issueId, issueThreadInteractions.issueId),
         sql`${statusDecisionEffects.targetId} = ${issueThreadInteractions.id}::text`,
         eq(statusDecisionEffects.targetType, "issue_thread_interaction"),
@@ -48,7 +48,7 @@ function findAutomaticReviewCandidates(db: Db, options: { issueId?: string; comp
       statusDecisions,
       and(
         eq(statusDecisions.id, statusDecisionEffects.decisionId),
-        eq(statusDecisions.companyId, issueThreadInteractions.companyId),
+        eq(statusDecisions.spaceId, issueThreadInteractions.spaceId),
         eq(statusDecisions.issueId, issueThreadInteractions.issueId),
         eq(statusDecisions.runId, issueThreadInteractions.sourceRunId),
       ),
@@ -56,13 +56,13 @@ function findAutomaticReviewCandidates(db: Db, options: { issueId?: string; comp
     .innerJoin(
       heartbeatRuns,
       and(eq(heartbeatRuns.id, issueThreadInteractions.sourceRunId),
-        eq(heartbeatRuns.companyId, issueThreadInteractions.companyId)),
+        eq(heartbeatRuns.spaceId, issueThreadInteractions.spaceId)),
     )
     .innerJoin(
       workAssessments,
       and(
         eq(workAssessments.id, statusDecisions.assessmentId),
-        eq(workAssessments.companyId, statusDecisions.companyId),
+        eq(workAssessments.spaceId, statusDecisions.spaceId),
         eq(workAssessments.issueId, statusDecisions.issueId),
       ),
     )
@@ -70,7 +70,7 @@ function findAutomaticReviewCandidates(db: Db, options: { issueId?: string; comp
       completionContracts,
       and(
         eq(completionContracts.id, workAssessments.contractId),
-        eq(completionContracts.companyId, workAssessments.companyId),
+        eq(completionContracts.spaceId, workAssessments.spaceId),
         eq(completionContracts.issueId, workAssessments.issueId),
       ),
     )
@@ -96,7 +96,7 @@ function findAutomaticReviewCandidates(db: Db, options: { issueId?: string; comp
         sql`${issueThreadInteractions.payload}->'target'->>'revisionId' = ${statusDecisions.id}::text`,
         sql`split_part(${issueThreadInteractions.payload}->>'prompt', E'\n', 1) = ${automaticPrompt}`,
         options.issueId ? eq(issueThreadInteractions.issueId, options.issueId) : undefined,
-        options.companyId ? eq(issueThreadInteractions.companyId, options.companyId) : undefined,
+        options.spaceId ? eq(issueThreadInteractions.spaceId, options.spaceId) : undefined,
         options.id ? eq(issueThreadInteractions.id, options.id) : undefined,
         options.after ? gt(issueThreadInteractions.id, options.after) : undefined,
       ),
@@ -130,7 +130,7 @@ async function dismissCandidates(db: Db, candidates: Awaited<ReturnType<typeof f
           .where(
             and(
               eq(nativeRunFinalizations.runId, decision.runId),
-              eq(nativeRunFinalizations.companyId, decision.companyId),
+              eq(nativeRunFinalizations.spaceId, decision.spaceId),
             ),
           )
           .for("update");
@@ -140,13 +140,13 @@ async function dismissCandidates(db: Db, candidates: Awaited<ReturnType<typeof f
           .where(
             and(
               eq(issues.id, decision.issueId),
-              eq(issues.companyId, decision.companyId),
+              eq(issues.spaceId, decision.spaceId),
             ),
           )
           .for("update");
         if (!issue) return;
         await notifyChatRunMilestones(tx, interaction);
-        await notifyNativeStatusReassessment(tx, { companyId: issue.companyId, issueId: issue.id, runId: decision.runId });
+        await notifyNativeStatusReassessment(tx, { spaceId: issue.spaceId, issueId: issue.id, runId: decision.runId });
         const now = new Date();
         const [retired] = await tx
           .update(issueThreadInteractions)
@@ -163,7 +163,7 @@ async function dismissCandidates(db: Db, candidates: Awaited<ReturnType<typeof f
           .where(
             and(
               eq(issueThreadInteractions.id, interaction.id),
-              eq(issueThreadInteractions.companyId, issue.companyId),
+              eq(issueThreadInteractions.spaceId, issue.spaceId),
               eq(issueThreadInteractions.status, "pending"),
               eq(issueThreadInteractions.payload, interaction.payload),
               eq(issueThreadInteractions.kind, interaction.kind),
@@ -186,7 +186,7 @@ async function dismissCandidates(db: Db, candidates: Awaited<ReturnType<typeof f
             projected,
           );
         const { publication } = await persistActivity(tx as unknown as Db, {
-          companyId: issue.companyId,
+          spaceId: issue.spaceId,
           actorType: "system",
           actorId: "native-completion-review-cleanup",
           action: "issue.interaction_cancelled",
@@ -228,7 +228,7 @@ export async function decisionHasRetiredAutomaticReview(
     .from(issueThreadInteractions)
     .where(
       and(
-        eq(issueThreadInteractions.companyId, decision.companyId),
+        eq(issueThreadInteractions.spaceId, decision.spaceId),
         eq(issueThreadInteractions.issueId, decision.issueId),
         eq(issueThreadInteractions.status, "cancelled"),
         sql`${issueThreadInteractions.result}->>'reason' = ${withdrawalReason}`,
@@ -241,14 +241,14 @@ export async function decisionHasRetiredAutomaticReview(
 }
 
 export function registerAutomaticCompletionReviewWork(db: Db, coordinator: ReturnType<typeof createDeliveryWorkCoordinator>, canRun: () => boolean) {
-  type Entry = { id: string; companyId: string; issueId: string; dueAt: number };
+  type Entry = { id: string; spaceId: string; issueId: string; dueAt: number };
   async function load(scope?: AutomaticCompletionReviewScope, signal?: AbortSignal): Promise<Entry[]> {
     const entries = new Map<string, Entry>();
     let after: string | undefined;
     while (canRun() && !signal?.aborted) {
       const rows = await findAutomaticReviewCandidates(db, { ...scope, after });
       for (const { interaction } of rows) entries.set(interaction.id, {
-        id: interaction.id, companyId: interaction.companyId, issueId: interaction.issueId, dueAt: 0,
+        id: interaction.id, spaceId: interaction.spaceId, issueId: interaction.issueId, dueAt: 0,
       });
       if (rows.length < 100) return [...entries.values()];
       after = rows[rows.length - 1].interaction.id;
@@ -258,7 +258,7 @@ export function registerAutomaticCompletionReviewWork(db: Db, coordinator: Retur
   return registerScopedDeadlineWork(coordinator, {
     queue: DELIVERY_QUEUES.automaticCompletionReviews, batchSize: 20,
     decodeScope: (hint: string): AutomaticCompletionReviewScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
-    matches: (entry: Entry, scope?: AutomaticCompletionReviewScope) => !scope || entry.companyId === scope.companyId && entry.issueId === scope.issueId,
+    matches: (entry: Entry, scope?: AutomaticCompletionReviewScope) => !scope || entry.spaceId === scope.spaceId && entry.issueId === scope.issueId,
     load,
     check: async (entry: Entry, signal?: AbortSignal) => {
       const candidates = await findAutomaticReviewCandidates(db, entry);

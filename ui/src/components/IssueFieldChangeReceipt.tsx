@@ -11,7 +11,7 @@ import { cn } from "../lib/utils";
  * (the open cross-task write design (audit) — Dotta's hard requirement).
  *
  * Opening cross-issue writes means a task's fields can be changed by an agent
- * that does not own it. The board's answer to "who moved this, and were they
+ * that does not own it. The operator's answer to "who moved this, and were they
  * allowed to?" must be visible on the task itself, not only in the audit log —
  * so every PATCH, agent *and* human, shows what changed, the responsible user
  * behind it, and the authorization reason that let it through.

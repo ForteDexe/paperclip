@@ -6,7 +6,7 @@ import {
 } from "./routine.js";
 
 const routineId = "11111111-1111-4111-8111-111111111111";
-const companyId = "22222222-2222-4222-8222-222222222222";
+const spaceId = "22222222-2222-4222-8222-222222222222";
 const triggerId = "33333333-3333-4333-8333-333333333333";
 const baseRevisionId = "44444444-4444-4444-8444-444444444444";
 
@@ -22,7 +22,7 @@ describe("routine validators", () => {
       version: 1,
       routine: {
         id: routineId,
-        companyId,
+        spaceId,
         projectId: null,
         goalId: null,
         parentIssueId: null,
@@ -50,7 +50,7 @@ describe("routine validators", () => {
 
     expect(parsed.triggers[0]?.publicId).toBe("routine_webhook_123");
     expect(parsed.routine.activityGatePolicy).toBe("always");
-    expect(parsed.routine.activityGateScope).toBe("company");
+    expect(parsed.routine.activityGateScope).toBe("space");
   });
 
   it("rejects secret-bearing trigger fields in routine revision snapshots", () => {
@@ -58,7 +58,7 @@ describe("routine validators", () => {
       version: 1,
       routine: {
         id: routineId,
-        companyId,
+        spaceId,
         projectId: null,
         goalId: null,
         parentIssueId: null,

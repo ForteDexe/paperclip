@@ -18,7 +18,7 @@ afterEach(async () => {
 });
 
 it.skipIf(process.platform === "win32").each(["isolated", "prepared", "preconfigured"])("authenticates Claude shell commands through its session broker (%s home)", async homeMode => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-acpx-github-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-acpx-github-")));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
   const workspace = join(root, "workspace");
   const runtimeDirectory = join(root, "runtime");
@@ -42,7 +42,7 @@ it.skipIf(process.platform === "win32").each(["isolated", "prepared", "preconfig
     requests++;
     if (req.method !== "POST" || req.url !== "/runtime-tools/github/credentials"
       || req.headers.authorization !== "Bearer fixture-bridge"
-      || req.headers["x-paperclip-github-capability"] !== "fixture-session") {
+      || req.headers["x-outpost-github-capability"] !== "fixture-session") {
       res.writeHead(403).end();
       return;
     }

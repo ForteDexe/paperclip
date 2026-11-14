@@ -36,7 +36,7 @@ export interface VoiceSessionSnapshot {
   error?: string;
 }
 export interface VoiceSessionDependencies {
-  /** Server authorizes endpoint, company, task and actor before minting. */
+  /** Server authorizes endpoint, space, task and actor before minting. */
   mint(): Promise<VoiceMediaCredentials>;
   end(sessionId: string): Promise<void>;
   connect(credentials: VoiceMediaCredentials, callbacks: VoiceMediaCallbacks): Promise<VoiceMedia>;

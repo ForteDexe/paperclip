@@ -14,18 +14,18 @@ export type {
   AcpxCandidateAdmission,
   DotHarnessDriver,
   DotAssignment,
-  PaperclipJsonValue,
-  PaperclipQuestionResponse,
-  PaperclipSemanticActionBinding,
-  PaperclipSemanticActionId,
-  PaperclipSemanticAuthorizationRecord,
-  PaperclipSemanticRunContext,
-  PaperclipSemanticToolCall,
-  PaperclipSemanticToolDefinition,
-  PaperclipSemanticToolResult,
-  PaperclipRunnerAuthorizedToolSet,
-  PaperclipQuestionSet,
-  PaperclipRuntimeInputRequest,
+  OutpostJsonValue,
+  OutpostQuestionResponse,
+  OutpostSemanticActionBinding,
+  OutpostSemanticActionId,
+  OutpostSemanticAuthorizationRecord,
+  OutpostSemanticRunContext,
+  OutpostSemanticToolCall,
+  OutpostSemanticToolDefinition,
+  OutpostSemanticToolResult,
+  OutpostRunnerAuthorizedToolSet,
+  OutpostQuestionSet,
+  OutpostRuntimeInputRequest,
   CompleteControlPlaneRunInput,
   ControlPlanePort,
   HarnessRuntimeRequestKind,
@@ -79,8 +79,8 @@ export type {
 } from "@outpost/outpost-runner";
 export type DurablePrpControlPlane =
   import("@outpost/outpost-runner").DurablePrpControlPlane;
-export type PaperclipSemanticDispatcher =
-  import("@outpost/outpost-runner").PaperclipSemanticDispatcher;
+export type OutpostSemanticDispatcher =
+  import("@outpost/outpost-runner").OutpostSemanticDispatcher;
 
 const sourceUrl = new URL(
   "../../../../packages/outpost-runner/src/index.ts",
@@ -120,7 +120,7 @@ export const SemanticToolOutcomeUnknownError = runner.SemanticToolOutcomeUnknown
 export const dispatchToolCallback = runner.dispatchToolCallback;
 export const recoverToolCallback = runner.recoverToolCallback;
 export type SemanticInputAdmission = import("@outpost/outpost-runner").SemanticInputAdmission;
-export const PaperclipSemanticDispatcher = runner.PaperclipSemanticDispatcher;
+export const OutpostSemanticDispatcher = runner.OutpostSemanticDispatcher;
 export const CAPABILITY_SEMANTIC_TOOL_CATALOG =
   runner.CAPABILITY_SEMANTIC_TOOL_CATALOG;
 export const CAPABILITY_CANONICAL_OPERATIONS = runner.CAPABILITY_CANONICAL_OPERATIONS;
@@ -141,8 +141,8 @@ export const canonicalNativeRuntimeContextDigest =
   runner.canonicalNativeRuntimeContextDigest;
 export const createNativeSessionBackend = runner.createNativeSessionBackend;
 export const describeRunnerdNativeSessionBackend = runner.describeRunnerdNativeSessionBackend;
-export const createPaperclipRunnerAuthorizedToolSet =
-  runner.createPaperclipRunnerAuthorizedToolSet;
+export const createOutpostRunnerAuthorizedToolSet =
+  runner.createOutpostRunnerAuthorizedToolSet;
 export const createRunnerdCodexTransport: (
   options?: import("@outpost/outpost-runner").RunnerdCodexTransportOptions,
 ) => import("@outpost/outpost-runner").RunnerdCodexTransport =
@@ -173,9 +173,9 @@ export const buildNativeModelEnvelope = runner.buildNativeModelEnvelope;
 export const isProviderMode = runner.isProviderMode;
 export const codexUsageBaselineForNextRun = runner.codexUsageBaselineForNextRun;
 export const parseNativeRuntimeContext = runner.parseNativeRuntimeContext;
-export const parsePaperclipQuestionSet = runner.parsePaperclipQuestionSet;
-export const parsePaperclipQuestionResponse =
-  runner.parsePaperclipQuestionResponse;
+export const parseOutpostQuestionSet = runner.parseOutpostQuestionSet;
+export const parseOutpostQuestionResponse =
+  runner.parseOutpostQuestionResponse;
 export const resolveQualifiedAcpxProfile = runner.resolveQualifiedAcpxProfile;
 export const runnerProviderLaunchRequirements = runner.runnerProviderLaunchRequirements;
 export const createRunnerProviderLaunch = runner.createRunnerProviderLaunch;
@@ -195,7 +195,7 @@ export const validatePrpStructuredRunResult =
   runner.validatePrpStructuredRunResult;
 
 export const NativeProviderTerminalFailure = runner.NativeProviderTerminalFailure;
-export const NativeGovernedWaitSettlementPendingError = runner.NativeGovernedWaitSettlementPendingError;
+export const NativeControlledWaitSettlementPendingError = runner.NativeControlledWaitSettlementPendingError;
 export const NativeProviderStateIncompatibleError = runner.NativeProviderStateIncompatibleError;
 export const NativeProviderSideEffectPendingError = runner.NativeProviderSideEffectPendingError;
 export const NativeRunnerSourceReconciliationRequiredError = runner.NativeRunnerSourceReconciliationRequiredError;
@@ -223,7 +223,7 @@ export const bundledRemoteRunnerRelease = runner.bundledRemoteRunnerRelease;
 export const BUNDLED_REMOTE_RUNNER_IDENTITY_MISMATCH = runner.BUNDLED_REMOTE_RUNNER_IDENTITY_MISMATCH;
 
 export const externalOperationDigest = runner.externalOperationDigest;
-export const digestPaperclipSemanticContent = runner.digestPaperclipSemanticContent;
+export const digestOutpostSemanticContent = runner.digestOutpostSemanticContent;
 export const CONFIGURED_ENVIRONMENT_KEYS = runner.CONFIGURED_ENVIRONMENT_KEYS;
 export const GENERATED_RUNTIME_ENVIRONMENT_KEYS = runner.GENERATED_RUNTIME_ENVIRONMENT_KEYS;
 export const configuredEnvironmentProjection = runner.configuredEnvironmentProjection;

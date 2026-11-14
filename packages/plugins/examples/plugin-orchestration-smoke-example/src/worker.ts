@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { definePlugin, runWorker, type PluginApiRequestInput } from "@outpost/plugin-sdk";
 
 type SmokeInput = {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   assigneeAgentId?: string | null;
   actorAgentId?: string | null;
@@ -20,7 +20,7 @@ type SmokeSummary = {
   wakeupQueued: boolean;
 };
 
-let readSmokeSummary: ((companyId: string, issueId: string) => Promise<SmokeSummary | null>) | null = null;
+let readSmokeSummary: ((spaceId: string, issueId: string) => Promise<SmokeSummary | null>) | null = null;
 let initializeSmoke: ((input: SmokeInput) => Promise<SmokeSummary>) | null = null;
 
 function tableName(namespace: string) {
@@ -33,7 +33,7 @@ function stringField(value: unknown): string | null {
 
 const plugin = definePlugin({
   async setup(ctx) {
-    readSmokeSummary = async function readSummary(companyId: string, issueId: string): Promise<SmokeSummary | null> {
+    readSmokeSummary = async function readSummary(spaceId: string, issueId: string): Promise<SmokeSummary | null> {
       const rows = await ctx.db.query<{
         root_issue_id: string;
         child_issue_id: string | null;
@@ -52,7 +52,7 @@ const plugin = definePlugin({
       if (!row) return null;
       const orchestration = await ctx.issues.summaries.getOrchestration({
         issueId,
-        companyId,
+        spaceId,
         includeSubtree: true,
         billingCode: row.billing_code,
       });
@@ -68,7 +68,7 @@ const plugin = definePlugin({
     };
 
     initializeSmoke = async function runSmoke(input: SmokeInput): Promise<SmokeSummary> {
-      const root = await ctx.issues.get(input.issueId, input.companyId);
+      const root = await ctx.issues.get(input.issueId, input.spaceId);
       if (!root) throw new Error(`Issue not found: ${input.issueId}`);
 
       const billingCode = `plugin-smoke:${input.issueId}`;
@@ -78,7 +78,7 @@ const plugin = definePlugin({
         actorRunId: input.actorRunId ?? null,
       };
       const blocker = await ctx.issues.create({
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         parentId: input.issueId,
         inheritExecutionWorkspaceFromIssueId: input.issueId,
         title: "Orchestration smoke blocker",
@@ -92,7 +92,7 @@ const plugin = definePlugin({
       });
 
       const child = await ctx.issues.create({
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         parentId: input.issueId,
         inheritExecutionWorkspaceFromIssueId: input.issueId,
         title: "Orchestration smoke child",
@@ -107,10 +107,10 @@ const plugin = definePlugin({
         actor,
       });
 
-      await ctx.issues.relations.setBlockedBy(child.id, [blocker.id], input.companyId, actor);
+      await ctx.issues.relations.setBlockedBy(child.id, [blocker.id], input.spaceId, actor);
       await ctx.issues.documents.upsert({
         issueId: child.id,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         key: "orchestration-smoke",
         title: "Orchestration Smoke",
         format: "markdown",
@@ -124,7 +124,7 @@ const plugin = definePlugin({
         changeSummary: "Recorded orchestration smoke output",
       });
 
-      const wakeup = await ctx.issues.requestWakeup(child.id, input.companyId, {
+      const wakeup = await ctx.issues.requestWakeup(child.id, input.spaceId, {
         reason: "plugin:orchestration_smoke",
         contextSource: "plugin-orchestration-smoke",
         idempotencyKey: `${input.issueId}:child`,
@@ -132,7 +132,7 @@ const plugin = definePlugin({
       });
       const orchestration = await ctx.issues.summaries.getOrchestration({
         issueId: input.issueId,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         includeSubtree: true,
         billingCode,
       });
@@ -180,7 +180,7 @@ const plugin = definePlugin({
     };
 
     ctx.data.register("surface-status", async (params) => {
-      const companyId = stringField(params.companyId);
+      const spaceId = stringField(params.spaceId);
       const issueId = stringField(params.issueId);
       return {
         status: "ok",
@@ -188,17 +188,17 @@ const plugin = definePlugin({
         databaseNamespace: ctx.db.namespace,
         routeKeys: (ctx.manifest.apiRoutes ?? []).map((route) => route.routeKey),
         capabilities: ctx.manifest.capabilities,
-        summary: companyId && issueId ? await readSmokeSummary?.(companyId, issueId) ?? null : null,
+        summary: spaceId && issueId ? await readSmokeSummary?.(spaceId, issueId) ?? null : null,
       };
     });
 
     ctx.actions.register("initialize-smoke", async (params) => {
-      const companyId = stringField(params.companyId);
+      const spaceId = stringField(params.spaceId);
       const issueId = stringField(params.issueId);
-      if (!companyId || !issueId) throw new Error("companyId and issueId are required");
+      if (!spaceId || !issueId) throw new Error("spaceId and issueId are required");
       if (!initializeSmoke) throw new Error("Smoke initializer is not ready");
       return initializeSmoke({
-        companyId,
+        spaceId,
         issueId,
         assigneeAgentId: stringField(params.assigneeAgentId),
         actorAgentId: stringField(params.actorAgentId),
@@ -212,7 +212,7 @@ const plugin = definePlugin({
     if (input.routeKey === "summary") {
       const issueId = input.params.issueId;
       return {
-        body: await readSmokeSummary?.(input.companyId, issueId) ?? null,
+        body: await readSmokeSummary?.(input.spaceId, issueId) ?? null,
       };
     }
 
@@ -222,7 +222,7 @@ const plugin = definePlugin({
       return {
         status: 201,
         body: await initializeSmoke({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           issueId: input.params.issueId,
           assigneeAgentId: stringField(body?.assigneeAgentId),
           actorAgentId: input.actor.agentId ?? null,

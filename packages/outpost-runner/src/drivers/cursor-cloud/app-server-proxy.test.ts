@@ -18,7 +18,7 @@ afterEach(async () => {
 async function peer() {
   const root = await mkdtemp("/tmp/cc-proxy-"); roots.push(root);
   const configPath = join(root, "config.json");
-  await writeFile(configPath, JSON.stringify({ schema: "outpost.cursor-cloud.config.v1", repos: [{ url: "https://github.com/example/repo" }], binding: { companyId: "company", agentId: "agent", issueId: "issue", normalizedSessionId: "session" } }), { mode: 0o600 });
+  await writeFile(configPath, JSON.stringify({ schema: "outpost.cursor-cloud.config.v1", repos: [{ url: "https://github.com/example/repo" }], binding: { spaceId: "space", agentId: "agent", issueId: "issue", normalizedSessionId: "session" } }), { mode: 0o600 });
   const input = new PassThrough(); const output = new PassThrough(); const diagnostic = new PassThrough();
   const frames: any[] = []; let buffer = "";
   output.on("data", chunk => { buffer += chunk.toString(); let index; while ((index = buffer.indexOf("\n")) >= 0) { frames.push(JSON.parse(buffer.slice(0, index))); buffer = buffer.slice(index + 1); } });
@@ -50,7 +50,7 @@ describe("Cursor Cloud bounded stdio proxy", () => {
           .toMatchObject({ error: { message: "Cursor Cloud native plan/reasoning override is unsupported" } });
       }
       expect(await f.rpc(6, "collaborationMode/list")).toMatchObject({ result: { data: [{ mode: "default" }] } });
-      expect(await f.rpc(7, "paperclip/shutdown", { threadId: "session", turnId: null })).toMatchObject({ result: { remoteStopped: true, threadId: "session", turnId: null, remoteRunId: null } });
+      expect(await f.rpc(7, "outpost/shutdown", { threadId: "session", turnId: null })).toMatchObject({ result: { remoteStopped: true, threadId: "session", turnId: null, remoteRunId: null } });
       expect(nativeFetch).not.toHaveBeenCalled();
     } finally { f.input.end(); await f.proxy.done; }
   });
@@ -125,11 +125,11 @@ describe("Cursor Cloud bounded stdio proxy", () => {
       expect(retained.result.thread.turns).toEqual([]);
       expect(retained.result.cursorCloudTerminalDelivery).toMatchObject({ status: "FINISHED", receiptId: expect.any(String) });
       const receipt = retained.result.cursorCloudTerminalDelivery;
-      expect(await f.rpc(10, "paperclip/shutdown")).toMatchObject({ result: { cursorCloudTerminalDelivery: retained.result.cursorCloudTerminalDelivery } });
-      expect(await f.rpc(5, "paperclip/ackTerminal", { turnId: receipt.turnId, receiptId: "wrong" })).toHaveProperty("error");
-      expect(await f.rpc(6, "paperclip/ackTerminal", { turnId: receipt.turnId, receiptId: receipt.receiptId })).toMatchObject({ result: { acknowledged: true } });
+      expect(await f.rpc(10, "outpost/shutdown")).toMatchObject({ result: { cursorCloudTerminalDelivery: retained.result.cursorCloudTerminalDelivery } });
+      expect(await f.rpc(5, "outpost/ackTerminal", { turnId: receipt.turnId, receiptId: "wrong" })).toHaveProperty("error");
+      expect(await f.rpc(6, "outpost/ackTerminal", { turnId: receipt.turnId, receiptId: receipt.receiptId })).toMatchObject({ result: { acknowledged: true } });
       expect((await f.rpc(7, "thread/read")).result.cursorCloudTerminalDelivery).toBeNull();
-      expect(await f.rpc(8, "paperclip/shutdown", { turnId: null })).toMatchObject({ result: { remoteStopped: true, turnId: null } });
+      expect(await f.rpc(8, "outpost/shutdown", { turnId: null })).toMatchObject({ result: { remoteStopped: true, turnId: null } });
       expect(nativeFetch.mock.calls.filter(([url, init]) => new URL(String(url)).pathname === "/v1/agents" && init?.method === "POST")).toHaveLength(1);
     } finally { releaseTerminalWrites(); f.input.end(); await f.proxy.done; }
   });
@@ -164,13 +164,13 @@ describe("Cursor Cloud bounded stdio proxy", () => {
       await expect(mcp(f.socketPath, { id: -1, method: "initialize" }, { Authorization: "Bearer private-relay-token" })).rejects.toBeInstanceOf(SyntaxError);
       const initialized = await mcp(f.socketPath, { id: 0, method: "initialize" }, mcpHeaders);
       const input = { reportedWorkDisposition: "done", summary: "Completed.", evidence: [], verification: [], completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [], remainingWork: [] } };
-      const response = mcp(f.socketPath, { id: 1, method: "tools/call", params: { name: "paperclip_finish", arguments: input } }, mcpHeaders, initialized.headers["mcp-session-id"] as string);
+      const response = mcp(f.socketPath, { id: 1, method: "tools/call", params: { name: "outpost_finish", arguments: input } }, mcpHeaders, initialized.headers["mcp-session-id"] as string);
       await vi.waitFor(() => expect(f.frames.some(frame => frame.method === "item/tool/call")).toBe(true), { timeout: 5_000 });
       const call = f.frames.find(frame => frame.method === "item/tool/call");
-      expect(call.params).toMatchObject({ threadId: "session", turnId: started.result.turn.id, tool: "paperclip_finish", arguments: input });
+      expect(call.params).toMatchObject({ threadId: "session", turnId: started.result.turn.id, tool: "outpost_finish", arguments: input });
       f.input.write(`${JSON.stringify({ id: call.id, result: { success: true, contentItems: [{ type: "inputText", text: "Exact accepted completion receipt" }] } })}\n`);
       expect((await response).value.result.content[0].text).toContain("Exact accepted completion receipt");
-      expect(f.frames.some(frame => frame.method === "paperclip/runResult" || frame.method === "turn/completed")).toBe(false);
+      expect(f.frames.some(frame => frame.method === "outpost/runResult" || frame.method === "turn/completed")).toBe(false);
       const snapshot = openedSession.snapshot.bind(openedSession);
       let settleDuringRead = true;
       vi.spyOn(openedSession, "snapshot").mockImplementation(async () => {
@@ -184,7 +184,7 @@ describe("Cursor Cloud bounded stdio proxy", () => {
       });
       const racing = await f.rpc(5, "thread/read");
       expect(Boolean(racing.result.thread.turns.length && racing.result.cursorCloudTerminalDelivery)).toBe(false);
-      expect(await f.rpc(4, "paperclip/shutdown", { threadId: "session", turnId: started.result.turn.id })).toMatchObject({ result: { remoteStopped: true, threadId: "session", turnId: started.result.turn.id, remoteAgentId, remoteRunId, status: "FINISHED" } });
+      expect(await f.rpc(4, "outpost/shutdown", { threadId: "session", turnId: started.result.turn.id })).toMatchObject({ result: { remoteStopped: true, threadId: "session", turnId: started.result.turn.id, remoteAgentId, remoteRunId, status: "FINISHED" } });
       expect(nativeFetch.mock.calls.filter(([url, init]) => new URL(String(url)).pathname === "/v1/agents" && init?.method === "POST")).toHaveLength(1);
     } finally { f.input.end(); await f.proxy.done; }
   });

@@ -5,7 +5,7 @@ import { SlackAppDetails, SlackSetupAdvanced } from "./SlackAppDetails";
 import { SlackSetup } from "./slack/SlackSetup";
 import { isProvisionedSlackSetup, slackSetupState } from "./slack/setup-state";
 import { slackConversationUrl } from "./slack/conversation-url";
-import { useAccountIdentity } from "@/api/companies-query";
+import { useAccountIdentity } from "@/api/spaces-query";
 import { defaultSlackAppName } from "./slack-app-name";
 import { GitHubChatSetup } from "./GitHubChatSetup";
 import { GitHubAgentTrustWarning } from "@/components/GitHubAgentTrustWarning";
@@ -35,7 +35,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, Dialog
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useToast } from "@/context/ToastContext";
 import { agentsApi } from "@/api/agents";
 import { instanceSettingsApi } from "@/api/instanceSettings";
@@ -183,7 +183,7 @@ function ChatSdkEndpointSetup() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const { pushToast } = useToast();
   const provider = isProvider(params.get("provider"))
@@ -217,9 +217,9 @@ function ChatSdkEndpointSetup() {
   }, [setBreadcrumbs]);
 
   const agentsQuery = useQuery({
-    queryKey: ["chat-endpoint-setup-agents", selectedCompanyId],
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: Boolean(selectedCompanyId),
+    queryKey: ["chat-endpoint-setup-agents", selectedSpaceId],
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: Boolean(selectedSpaceId),
   });
   const resumeQuery = useQuery({
     queryKey: ["chat-endpoint-setup-resume", resumeEndpointId],
@@ -300,15 +300,15 @@ function ChatSdkEndpointSetup() {
     }
   };
   const slackChoices = useQuery({
-    queryKey: ["slack-setup-options", selectedCompanyId],
-    queryFn: () => chatEndpointsApi.slackSetupOptions(selectedCompanyId!),
-    enabled: provider === "slack" && Boolean(selectedCompanyId),
+    queryKey: ["slack-setup-options", selectedSpaceId],
+    queryFn: () => chatEndpointsApi.slackSetupOptions(selectedSpaceId!),
+    enabled: provider === "slack" && Boolean(selectedSpaceId),
     });
   const slackChoicesView = useQueryView(slackChoices);
   const createEndpoint = useMutation({
     mutationFn: ({ ownApp = false }: { ownApp?: boolean; exit?: boolean }) => {
       if (provider === "slack" && !slackChoices.data) throw new Error("Slack setup is still loading. Try again.");
-      return chatEndpointsApi.create(selectedCompanyId!, {
+      return chatEndpointsApi.create(selectedSpaceId!, {
         provider: provider!,
         assignedAgentId: agentId,
         ...(provider === "slack" ? { slackSetupMethod: ownApp ? "automatic" : slackChoices.data!.defaultMethod, slackApp: slackDetailsValidation.success ? slackDetailsValidation.data : slackDetails } : {}),
@@ -528,7 +528,7 @@ function ChatSdkEndpointSetup() {
         This chat provider is not supported.
       </p>
     );
-  if (!selectedCompanyId)
+  if (!selectedSpaceId)
     return (
       <p className="text-sm text-muted-foreground">
         Select an outpost to connect chat.
@@ -644,7 +644,7 @@ function ChatSdkEndpointSetup() {
         {endpoint && isSlack && !automaticSlack && step === 4 && (
           <SlackIdentityStep
             endpointId={endpoint.id}
-            command={endpoint.setup?.slackApp?.command ?? endpoint.setup?.command ?? "/paperclip"}
+            command={endpoint.setup?.slackApp?.command ?? endpoint.setup?.command ?? "/outpost"}
             testStartedAt={endpoint.setup?.testStartedAt}
             onSaveExit={() => navigate("/apps")}
             onConnected={() => {
@@ -657,7 +657,7 @@ function ChatSdkEndpointSetup() {
           <div className="space-y-5">
             <h1 className="text-xl font-bold">Test your Speko voice connection</h1>
             <p className="text-sm text-muted-foreground">Ask the agent to do some work, add a spoken follow-up, and listen for its result. Accepted work stays in Outpost when you end the call.</p>
-            <NativeVoiceConversation companyId={endpoint.companyId} endpointId={endpoint.id} agentName={selectedAgent?.name ?? endpoint.assignedAgentName} />
+            <NativeVoiceConversation spaceId={endpoint.spaceId} endpointId={endpoint.id} agentName={selectedAgent?.name ?? endpoint.assignedAgentName} />
             <SetupWizardFooter onSaveExit={() => navigate("/apps")}><Button disabled={testConnection.isPending} onClick={() => testConnection.mutate()}>Verify test conversation</Button></SetupWizardFooter>
           </div>
         )}
@@ -881,7 +881,7 @@ function ProviderConnectStep({
   const slackBotName = slackApp.botName.trim();
   const slackCommand = slackApp.command.trim();
   const slackWebhookUrl =
-    endpoint.setup?.webhookUrl ?? "<paperclip-webhook-url>";
+    endpoint.setup?.webhookUrl ?? "<outpost-webhook-url>";
   const slackManifest = JSON.stringify(buildSlackAppManifest({
     app: { appName: slackAppName, botName: slackBotName, command: slackCommand }, agentName,
     webhookUrl: slackWebhookUrl,

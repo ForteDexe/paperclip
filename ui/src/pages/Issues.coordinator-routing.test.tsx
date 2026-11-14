@@ -13,7 +13,7 @@ vi.mock("../context/DesignSandboxContext", () => ({ useDesignSandbox: () => fals
 vi.mock("../hooks/useCoordinatorWorkspaceEnabled", () => ({ useCoordinatorWorkspaceEnabled: () => ({ enabled: true, loaded: true, userId: "viewer" }) }));
 vi.mock("../hooks/useStreamlinedUiEnabled", () => ({ useStreamlinedUiEnabled: () => ({ enabled: true }) }));
 vi.mock("../hooks/useCombinedInboxTasksEnabled", () => ({ useCombinedInboxTasksEnabled: () => ({ enabled: false }) }));
-vi.mock("../context/CompanyContext", () => ({ useCompany: () => ({ selectedCompanyId: "company", selectedCompany: { issuePrefix: "ORG" } }) }));
+vi.mock("../context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: "space", selectedSpace: { issuePrefix: "ORG" } }) }));
 vi.mock("./CoordinatorTasks", () => ({ CoordinatorTasks: () => {
   const location = useLocation();
   mountedRoutes.organization.push(`${location.search}${location.hash}`);
@@ -78,7 +78,7 @@ it("defaults Tasks to All tasks and remembers a deliberate personal view", async
   } finally { first.cleanup(); }
   const selected = render("/ORG/issues?view=mine");
   try {
-    await vi.waitFor(() => expect(localStorage.getItem(JSON.stringify(["paperclip:coordinator-task-view:v2", "company", "viewer"]))).toBe("mine"));
+    await vi.waitFor(() => expect(localStorage.getItem(JSON.stringify(["outpost:coordinator-task-view:v2", "space", "viewer"]))).toBe("mine"));
   } finally { selected.cleanup(); }
   const returned = render("/ORG/issues");
   try {

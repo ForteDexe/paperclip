@@ -112,7 +112,7 @@ try {
   };
   const browserEnabled = process.env.OUTPOST_ROLLING_TEST_BROWSER === "true";
   report.artifactKind = browserEnabled ? "compiled-server-with-workspace-dependencies" : "source";
-  const omittedAssets = browserEnabled ? (await readdir(path.join(repositoryRoot, "ui/dist/assets"))).filter(name => /^CompanyActivity(?:\.production)?-[^.]+\.js$/.test(name)) : [];
+  const omittedAssets = browserEnabled ? (await readdir(path.join(repositoryRoot, "ui/dist/assets"))).filter(name => /^SpaceActivity(?:\.production)?-[^.]+\.js$/.test(name)) : [];
   if (browserEnabled && !omittedAssets.length) throw new Error("Build the UI before browser qualification");
   const start = async (name: string, durableAgentFiles = true) => {
     const server = await startRollingDeploymentProcess({ root, name, repositoryRoot,
@@ -125,9 +125,9 @@ try {
   };
   const a = await start("A"); proxy.routeTo(a.origin);
   report.setupElapsedMs = Math.round(performance.now() - setupStarted);
-  const company = await api(proxy.origin, "/companies", "POST", { name: "Rolling deployment qualification" });
-  const task = await api(proxy.origin, `/companies/${company.id}/issues`, "POST", { title: "Persist through deployment" });
-  const agent = await api(proxy.origin, `/companies/${company.id}/agents`, "POST", {
+  const space = await api(proxy.origin, "/spaces", "POST", { name: "Rolling deployment qualification" });
+  const task = await api(proxy.origin, `/spaces/${space.id}/issues`, "POST", { title: "Persist through deployment" });
+  const agent = await api(proxy.origin, `/spaces/${space.id}/agents`, "POST", {
     name: "Storage qualification", role: "engineer", adapterType: "process",
     adapterConfig: { command: "/usr/bin/true" },
   });
@@ -232,7 +232,7 @@ try {
   });
   await check("Object-store outage preserves files and leaves ordinary requests responsive", async () => {
     const fixtureAgents = await Promise.all([0, 1, 2].map(async index => {
-      const fixture = await api(b.origin, `/companies/${company.id}/agents`, "POST", {
+      const fixture = await api(b.origin, `/spaces/${space.id}/agents`, "POST", {
         name: `Storage failure ${index}`, role: "engineer", adapterType: "process", adapterConfig: { command: "/usr/bin/true" },
       });
       // Exercise both previously committed files and an agent's first save.

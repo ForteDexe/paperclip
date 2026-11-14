@@ -2,17 +2,17 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createIssue } from "../../storybook/fixtures/paperclipData";
+import { createIssue } from "../../storybook/fixtures/outpostData";
 import type { TaskListItem } from "@/components/TaskList";
 import { taskListViewStorageKey } from "@/lib/task-list-views";
 import { useTaskListCollection } from "./useTaskListCollection";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 const items: TaskListItem[] = [
-  { issue: createIssue({ id: "parent", companyId: "company", parentId: null, title: "Connector reliability", createdByAgentId: null, createdByUserId: "same", assigneeUserId: null }), createdBy: "Scott", assignee: "CodexCoder" },
-  { issue: createIssue({ id: "child", companyId: "company", parentId: "parent", title: "Review connector states", status: "in_review", createdByAgentId: "same", createdByUserId: null }), createdBy: "CodexCoder", unread: true },
-  { issue: createIssue({ id: "grandchild", companyId: "company", parentId: "child", title: "Recover expired credentials", status: "todo", createdByAgentId: "same", createdByUserId: null }), createdBy: "CodexCoder" },
-  { issue: createIssue({ id: "foreign", companyId: "other-company", parentId: null, createdByUserId: "foreign-user", createdByAgentId: null }), createdBy: "Another organization" },
+  { issue: createIssue({ id: "parent", spaceId: "space", parentId: null, title: "Connector reliability", createdByAgentId: null, createdByUserId: "same", assigneeUserId: null }), createdBy: "Scott", assignee: "CodexCoder" },
+  { issue: createIssue({ id: "child", spaceId: "space", parentId: "parent", title: "Review connector states", status: "in_review", createdByAgentId: "same", createdByUserId: null }), createdBy: "CodexCoder", unread: true },
+  { issue: createIssue({ id: "grandchild", spaceId: "space", parentId: "child", title: "Recover expired credentials", status: "todo", createdByAgentId: "same", createdByUserId: null }), createdBy: "CodexCoder" },
+  { issue: createIssue({ id: "foreign", spaceId: "other-space", parentId: null, createdByUserId: "foreign-user", createdByAgentId: null }), createdBy: "Another organization" },
 ];
 const key = taskListViewStorageKey("collection-hook-test", "same");
 type Options = Parameters<typeof useTaskListCollection>[0];
@@ -21,7 +21,7 @@ let root: Root;
 let host: HTMLDivElement;
 function Harness(props: Options) { collection = useTaskListCollection(props); return null; }
 function render(overrides: Partial<Options> = {}) {
-  act(() => root.render(<Harness items={items} companyId="company" userId="same" viewStorageKey={key} {...overrides} />));
+  act(() => root.render(<Harness items={items} spaceId="space" userId="same" viewStorageKey={key} {...overrides} />));
 }
 beforeEach(() => {
   localStorage.clear();
@@ -41,7 +41,7 @@ describe("shared task-list collection behavior", () => {
     render({ liveIssueIds: new Set() });
     expect(collection.matchingItems).toEqual([]);
   });
-  it("distinguishes human and agent creators with the same raw ID and excludes other companies", () => {
+  it("distinguishes human and agent creators with the same raw ID and excludes other spaces", () => {
     expect(collection.creators).toEqual([
       { id: "user:same", label: "Scott", kind: "user" },
       { id: "agent:same", label: "CodexCoder", kind: "agent" },
@@ -87,7 +87,7 @@ describe("shared task-list collection behavior", () => {
     expect(collection.matchingItems).toHaveLength(3);
   });
 
-  it("trusts server search while preserving company, status, and view filters", () => {
+  it("trusts server search while preserving space, status, and view filters", () => {
     render({ query: "document-only match", searchMode: "server" });
     expect(collection.query).toBe("document-only match");
     expect(collection.matchingItems.map(item => item.issue.id)).toEqual(["parent", "child", "grandchild"]);
@@ -113,10 +113,10 @@ describe("shared task-list collection behavior", () => {
     expect(localStorage.getItem(key)).toBe("all");
   });
 
-  it("never includes foreign tasks or ancestor context when the company changes", () => {
+  it("never includes foreign tasks or ancestor context when the space changes", () => {
     act(() => collection.toggleExpanded());
-    render({ companyId: "other-company" });
-    expect(collection.companyItems.map(item => item.issue.id)).toEqual(["foreign"]);
+    render({ spaceId: "other-space" });
+    expect(collection.spaceItems.map(item => item.issue.id)).toEqual(["foreign"]);
     expect(collection.visibleItems.map(item => item.issue.id)).toEqual(["foreign"]);
     expect(collection.creators.map(creator => creator.id)).toEqual(["user:foreign-user"]);
     expect(collection.collapsedIds.size).toBe(0);

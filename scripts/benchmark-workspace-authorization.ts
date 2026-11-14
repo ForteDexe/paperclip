@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 const { and, eq } = createRequire(new URL("../server/package.json", import.meta.url))("drizzle-orm");
-import { agents, authUsers, companies, companyMemberships, createDb, executionWorkspaces, issues,
+import { agents, authUsers, spaces, spaceMemberships, createDb, executionWorkspaces, issues,
   startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
 import * as authorization from "../server/src/services/authorization.js";
 
@@ -28,19 +28,19 @@ try {
   const baselinePath = path.join(baselineDir, "authorization.ts");
   await fs.writeFile(baselinePath, rewritten);
   const baseline = await import(pathToFileURL(baselinePath).href) as typeof authorization;
-  const companyId = randomUUID(), agentId = randomUUID(), userId = randomUUID(), workspaceId = randomUUID();
-  await db.insert(companies).values({ id: companyId, name: "Synthetic workspace authorization", issuePrefix: "BENCH" });
+  const spaceId = randomUUID(), agentId = randomUUID(), userId = randomUUID(), workspaceId = randomUUID();
+  await db.insert(spaces).values({ id: spaceId, name: "Synthetic workspace authorization", issuePrefix: "BENCH" });
   await db.insert(authUsers).values({ id: userId, name: "Sponsor", email: `${userId}@example.test`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
-  await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "process" });
-  await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "operator" });
-  await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, name: "Shared source", mode: "shared_workspace", strategyType: "operator_directory" });
-  await db.$client.unsafe(`insert into issues (company_id, title) select $1, 'Historical task ' || n from generate_series(1, 13428) n`, [companyId]);
-  const [sourceIssue] = await db.insert(issues).values({ companyId, title: "Retained source after unrelated history" }).returning({ id: issues.id });
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "process" });
+  await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "operator" });
+  await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, name: "Shared source", mode: "shared_workspace", strategyType: "operator_directory" });
+  await db.$client.unsafe(`insert into issues (space_id, title) select $1, 'Historical task ' || n from generate_series(1, 13428) n`, [spaceId]);
+  const [sourceIssue] = await db.insert(issues).values({ spaceId, title: "Retained source after unrelated history" }).returning({ id: issues.id });
   await db.update(executionWorkspaces).set({ sourceIssueId: sourceIssue.id }).where(eq(executionWorkspaces.id, workspaceId));
   await db.$client.unsafe("ANALYZE");
-  const actor: authorization.AuthorizationActor = { type: "agent", source: "agent_jwt", agentId, companyId, onBehalfOfUserId: userId };
+  const actor: authorization.AuthorizationActor = { type: "agent", source: "agent_jwt", agentId, spaceId, onBehalfOfUserId: userId };
   const queries = await Promise.all([baseline, authorization].map(async module => db!.select().from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.id, workspaceId), eq(executionWorkspaces.companyId, companyId),
+    eq(executionWorkspaces.id, workspaceId), eq(executionWorkspaces.spaceId, spaceId),
     await module.executionWorkspaceReadSqlCondition(db!, actor),
   )).toSQL()));
   const samples: number[][] = [[], []];
@@ -63,7 +63,7 @@ try {
       medianMs: [...samples[variant]].sort((a, b) => a - b)[2], sql: query.sql, params: query.params, plan: plan["QUERY PLAN"] });
   }
   console.log(JSON.stringify({ baselineRevision, tasks: 13429, retainedSources: 1, equalCompleteRows: true,
-    fixtureIds: { companyId, agentId, userId, workspaceId },
+    fixtureIds: { spaceId, agentId, userId, workspaceId },
     postgres: (await db.$client.unsafe("select version()"))[0].version, results }, null, 2));
 } finally {
   try {

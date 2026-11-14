@@ -32,7 +32,7 @@ policies use the ordinary Permissions screen. See [connector notes](../../doc/co
 - `catalog`: `connection-setup/catalog` — find a provider, inspect its available methods, and open setup;
   unavailable methods explain their prerequisite rather than silently switching.
 - `identity-and-access`: `connection-setup/identity-and-access` — select personal/shared identity and eligible agents;
-  an empty explicit selection and company-wide access must not be confused.
+  an empty explicit selection and space-wide access must not be confused.
 - `credentials`: `connection-setup/credentials` — provider sign-in, key, or generic MCP URL follows its supported
   setup method; credentials are not retained in browser draft storage.
 - `handoff`: `connection-setup/handoff` — provider sign-in opens in a separate tab/window; its callback returns to the correct setup
@@ -90,7 +90,7 @@ person; audit attribution stays with the acting agent. Existing agents retain
 their explicit grants and restrictions. See the [access companion](../agent-access-map/connection-setup.md)
 and [native admission contract](../agent-access-map/README.md#native-rest-transport).
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey).
 Choose a disposable provider account/resource and record its auth method,
@@ -113,14 +113,14 @@ Manual: connect from an unconnected provider landing. Select the intended
 identity and agent access, complete authentication, reload, and inspect the
 saved connection. Run a permitted read-only action with an eligible agent and
 verify its useful result. Try an ineligible agent and confirm denial. Repeat
-with a user who cannot install company-wide; the UI must not imply broad access.
+with a user who cannot install space-wide; the UI must not imply broad access.
 
-Notebook is internally gated by `enablePaperclipNotebook` (default off, no settings toggle). Disabled instances hide setup/discovery and deny curated Notebook dispatch and publishing; local removal and grant revocation remain available.
+Notebook is internally gated by `enableOutpostNotebook` (default off, no settings toggle). Disabled instances hide setup/discovery and deny curated Notebook dispatch and publishing; local removal and grant revocation remain available.
 
 Availability is catalog metadata evaluated by shared connector checks. Notebook
 publication and file uploads stay in the Notebook service.
 
-Paperclip Notebook uses the existing personal-account MCP OAuth setup at
+Outpost Notebook uses the existing personal-account MCP OAuth setup at
 `https://notebook.outpost.app/mcp`. Sign in through Cloud, assign agents, and
 verify tool discovery. The connection keeps its default catalog name.
 Reconnect must preserve agent assignments and Allowed / Ask first / Off choices.
@@ -128,13 +128,13 @@ Removal disables local use and clears saved credentials. Remote authorization
 can be revoked separately in Notebook's Connected apps screen; automatic remote
 cleanup and custom keyed refresh recovery are deferred. A lost rotating-token
 response may require reconnecting. Notebook tools use the selected connection's
-ordinary action gateway. See [Notebook](../../doc/connections/PAPERCLIP-NOTEBOOK.md)
+ordinary action gateway. See [Notebook](../../doc/connections/OUTPOST-NOTEBOOK.md)
 for the Notebook-owned uploader and fixture coverage. Live Notebook qualification
 still requires the deployed service and both hosted and self-hosted clients.
 
 Daytona follows this same key/access wizard. Its native method exposes the
 published platform and Toolbox HTTP actions using provider sandbox IDs, without
-a Paperclip task or lease requirement. [Daytona browser setup](../../tests/e2e/daytona-connector.spec.ts)
+a Outpost task or lease requirement. [Daytona browser setup](../../tests/e2e/daytona-connector.spec.ts)
 checks the catalog, password field, access controls, and optional organization
 pin. It does not submit a key or qualify a real provider account. See
 [Daytona](../../doc/connections/DAYTONA.md) for API-key authority and OAuth limits.
@@ -249,7 +249,7 @@ repair or an unchanged credential must not complete a signing-key request.
 
 ## Gotchas
 
-- For connecting an assistant to Paperclip itself, use [Assistant connections (MCP)](./assistant-connections.md). This recipe's MCP-link journey connects Paperclip to an external app server.
+- For connecting an assistant to Outpost itself, use [Assistant connections (MCP)](./assistant-connections.md). This recipe's MCP-link journey connects Outpost to an external app server.
 - Private endpoint rejection depends on deployment: owned loopback MCP servers
   are supported in local-trusted/private instances. Public authenticated
   deployments apply the private-network restriction.

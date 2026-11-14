@@ -12,7 +12,7 @@ import {
 
 describe("buildNativeCompletionContract", () => {
   it("scopes standing-chat criteria to the response while preserving every current request and source", () => {
-    const issue = { id: "chat", title: "Chat with CEO", description: null, conversationAgentId: "ceo", conversationUserId: "operator" };
+    const issue = { id: "chat", title: "Chat with Default agent", description: null, conversationAgentId: "lead", conversationUserId: "operator" };
     const comments = [
       { id: "operator-request", body: "Restart this instance." },
       { id: "handoff-request", body: "Have Morgan draft the update and send it here when finished." },
@@ -37,7 +37,7 @@ describe("buildNativeCompletionContract", () => {
   });
 
   it.each([undefined, null])("keeps an ordinary task's action criterion strict even with a chat-like title (%s)", (conversationAgentId) => {
-    const issue = { title: "Chat with CEO", description: null, conversationAgentId };
+    const issue = { title: "Chat with Default agent", description: null, conversationAgentId };
     const request = "Restart this instance.";
     expect(buildNativeCompletionContract(issue, { immediateRequest: request }).criteria)
       .toEqual([{ id: "objective", requirement: request }]);
@@ -45,15 +45,15 @@ describe("buildNativeCompletionContract", () => {
 
   it.each([undefined, null])("keeps an agent-only issue in task and plan scope when its conversation user is %s", conversationUserId => {
     const request = "Write the launch plan and wait for approval.";
-    const contract = buildNativeCompletionContract({ title: "Chat with CEO", description: null,
-      conversationAgentId: "ceo", conversationUserId }, { immediateRequest: request });
+    const contract = buildNativeCompletionContract({ title: "Chat with Default agent", description: null,
+      conversationAgentId: "lead", conversationUserId }, { immediateRequest: request });
     expect(contract.criteria).toEqual([{ id: "objective", requirement: request }]);
     expect(contract.objective).toContain("propose or save the requested plan and wait before executing");
   });
 
   it.each(["  Help plan the launch.  ", null])("scopes a conversation's first turn without a follow-up (%s)", description => {
-    const contract = buildNativeCompletionContract({ title: "Chat with CEO", description,
-      conversationAgentId: "ceo", conversationUserId: "operator" });
+    const contract = buildNativeCompletionContract({ title: "Chat with Default agent", description,
+      conversationAgentId: "lead", conversationUserId: "operator" });
     expect(contract.objective).toMatch(/current conversation response/i);
     expect(contract.criteria).toEqual([{ id: "objective", requirement:
       `Address this request in the current authorized conversation response: ${description?.trim() || "Respond to the current conversation context."}` }]);

@@ -12,7 +12,7 @@ Draft PR: [#17649](https://github.com/paperclipai/paperclip/pull/17649).
 
 A failed-run retry may have a durable wake receipt but no admitted run. Its
 existing `chat_actions` row has kind `failed_run_retry`; the same-ID,
-same-company `agent_wakeup_requests` row is authoritative for whether the retry
+same-space `agent_wakeup_requests` row is authoritative for whether the retry
 waits or was declined. The notice is eligible while `runId` is null and the
 receipt is deferred, cancelled, failed, or skipped. A matching existing
 publication discharges that state. Queued and not-started are separate saved
@@ -59,7 +59,7 @@ combined manual notice API. Nothing adds a database table or a framework adapter
 - [ ] Receipt admission/defer: trace actual heartbeat and wake-queue writers,
   including the ordinary task Retry intent and the chat action receipt. A
   callback returning a truthy result is not sufficient persistence evidence.
-- [ ] Receipt cancellation/failure: task tree, agent, budget, company, Slack Stop,
+- [ ] Receipt cancellation/failure: task tree, agent, budget, space, Slack Stop,
   deferred queue writers, and retry-specific authorization denial. Reuse the
   existing transaction signals where possible; test outer rollback and commit.
 - [ ] Admission/promotion and settlement: run-bound receipts stop owing notices;
@@ -119,7 +119,7 @@ later success.
 The cursor fixture now removes its own original staged action/receipt as well
 as its denied clones in `finally`, including on a failed assertion. The original
 database is retained as evidence. After applying migrations to a fresh isolated
-`paperclip_sleep31_retry_acceptance_20261025_test`, all 181 selected cases pass
+`outpost_sleep31_retry_acceptance_20261025_test`, all 181 selected cases pass
 in `/tmp/sleep31-retry-acceptance-fresh.log`. No production error handling was
 relaxed to bypass the failure. The local timestamp/fixture evidence is test-only.
 
@@ -150,9 +150,9 @@ invalidation, and retains bounded pages, real contention, and failed selection.
 Settled and denied history has no recurring scan. No new table is added.
 
 `notifyChatInboundWakeNotices` now also notifies the retry-notice topic. This
-keeps task-tree, agent, budget, company, deferred-queue, source/privacy, and
+keeps task-tree, agent, budget, space, deferred-queue, source/privacy, and
 existing milestone authority signals at one boundary. The hint serializes only
-company and optional issue IDs. The new worker is absent from older parents;
+space and optional issue IDs. The new worker is absent from older parents;
 there it creates no new timer or database listener.
 
 New producer changes are narrow:
@@ -198,7 +198,7 @@ Causal evidence retained:
   `/tmp/sleep31-workspace-build.log`: workspace typecheck and build pass.
 
 The full chat/startup suite passes all 1,503 cases on fresh migrated
-`paperclip_sleep31_wired_chat_20261025_test`, with evidence in
+`outpost_sleep31_wired_chat_20261025_test`, with evidence in
 `/tmp/sleep31-wired-full-chat.log` (456.47 seconds, exit 0). This includes
 the existing provider authorization and publication acceptance suite.
 The stopped-worker case also checks that publication maintenance no longer
@@ -245,10 +245,10 @@ Two real producer gaps are now repaired without changing retry authority:
   release repeats do not notify this worker. The existing environment-cleanup
   transaction remains the owner, including caller-owned outer transactions.
 - `environmentService.acquireLease` can retire a retained predecessor when
-  transferring a reusable sandbox to a new run. It registers a company-scoped
+  transferring a reusable sandbox to a new run. It registers a space-scoped
   intent in that existing transaction before retirement. The predecessor can
   belong to another issue in the same execution workspace, so the new issue is
-  not a sufficient scope. The original company/environment/resource/ownership
+  not a sufficient scope. The original space/environment/resource/ownership
   predicates and rollback on failed handoff remain unchanged. The notice worker
   still bounds candidate authorization per pass.
 
@@ -320,7 +320,7 @@ full updated acceptance, latest-head review and CI still need recording.
 
 
 Existing environment-service acceptance passes all 51 cases on fresh migrated
-`paperclip_sleep31_environment_20261025_test` in
+`outpost_sleep31_environment_20261025_test` in
 `/tmp/sleep31-environment-service.log`. Server typecheck and build pass at this
 lease-repair checkpoint (`/tmp/sleep31-native-final-types.log` and
 `/tmp/sleep31-native-final-build.log`). Updated full chat acceptance and remote
@@ -354,7 +354,7 @@ removed before this commit. The full combined suite still requires a fresh run.
 A parked failed-retry notice also becomes eligible when its agent finishes
 resuming. The lifecycle transaction now uses the shared `beforeStatusChange`
 effect before changing a non-invokable status to an invokable status. The service
-supplies the existing company-scoped inbound/failed-notice notification; the
+supplies the existing space-scoped inbound/failed-notice notification; the
 lifecycle module owns status transitions and knows no chat/provider policy. This
 brings forward the same lifecycle effect used by downstream native response work,
 without adding a polling fallback, table, or caller recovery wrapper.
@@ -390,10 +390,10 @@ records the exception rather than claiming raw binary identity.
 
 The discovery-cost finding in #17647 also existed in this owner's page loop.
 Three new real PostgreSQL regressions with 250 retained candidates and a second
-company fail before the fix. Known task hints now require zero discovery SQL;
-company/startup discovery selects DISTINCT company/task identifiers using the
+space fail before the fix. Known task hints now require zero discovery SQL;
+space/startup discovery selects DISTINCT space/task identifiers using the
 same candidate predicate as bounded projection. The first SQL version failed
-with PostgreSQL 42702 because both joined tables project company_id; an explicit
+with PostgreSQL 42702 because both joined tables project space_id; an explicit
 projection alias fixes the ambiguity. The final four targeted discovery/history
 cases pass. This does not claim constant database work for broad discovery.
 

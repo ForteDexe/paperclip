@@ -10,13 +10,13 @@ import { gradeEmptyInstallation, runEmptyInstallationBoundary, type EmptyInstall
 
 interface BoundaryReceipt { wizard: WizardReceipt; installation?: EmptyInstallationReceipt; personId?: string; returnedPersonId?: string }
 type Person = Awaited<ReturnType<typeof createAuthenticatedPerson>>;
-const owned = new WeakMap<IdentityBoundaryContext, { person: Person; api: RunnerApi; companyId?: string }>();
+const owned = new WeakMap<IdentityBoundaryContext, { person: Person; api: RunnerApi; spaceId?: string }>();
 export function gradeWizardBoundary(value: unknown, scenarioId: string) {
   const c = checks(); const o = value as BoundaryReceipt | undefined; const w = o?.wizard;
   const expected = scenarioId === "onboarding.choose-first-runtime" ? "claude_local" : "codex_local";
-  c.add("complete-public-wizard", !!w && typeof w.companyId === "string" && typeof w.firstAgentId === "string" && w.companyId !== w.firstAgentId
+  c.add("complete-public-wizard", !!w && typeof w.spaceId === "string" && typeof w.firstAgentId === "string" && w.spaceId !== w.firstAgentId
     && w.hiredThroughWizard && w.firstAgentReady && w.chatComposerVisible && w.beforeReadyAgents === 0,
-    "The normal company/account/first-agent flow completes; a saved provisional agent or setup screen cannot qualify.");
+    "The normal space/account/first-agent flow completes; a saved provisional agent or setup screen cannot qualify.");
   c.add("requested-harness-and-real-target", !!w && w.requestedHarness === expected && w.actualHarness === expected && w.environmentDriver === "local"
     && !!w.environmentId && w.actualProbeEnvironmentId === w.environmentId,
     "The requested Codex or Claude Code harness is retained on the actual local target; no silent provider/runtime substitution is accepted.");
@@ -30,23 +30,23 @@ export function gradeWizardBoundary(value: unknown, scenarioId: string) {
     && account.ownership === "personal" && typeof account.currentUserId === "string" && account.ownerUserId === account.currentUserId
     && account.responsibleUserId === account.currentUserId && account.bindingMode === "responsible_user",
     "Independent public account and agent reads retain the real selected person's eligible provider account and responsible-user binding.");
-  c.add("no-duplicate-company-or-agent", !!w && Array.isArray(w.beforeCompanyIds) && Array.isArray(w.afterCompanyIds) && w.beforeCompanyIds.length === 0
-    && w.afterCompanyIds.length === 1 && w.afterCompanyIds[0] === w.companyId && Array.isArray(w.afterAgentIds) && w.afterAgentIds.length === 1 && w.afterAgentIds[0] === w.firstAgentId,
-    "A fresh target gains precisely one actual company and one first agent; the saved provisional identity is reused.");
+  c.add("no-duplicate-space-or-agent", !!w && Array.isArray(w.beforeSpaceIds) && Array.isArray(w.afterSpaceIds) && w.beforeSpaceIds.length === 0
+    && w.afterSpaceIds.length === 1 && w.afterSpaceIds[0] === w.spaceId && Array.isArray(w.afterAgentIds) && w.afterAgentIds.length === 1 && w.afterAgentIds[0] === w.firstAgentId,
+    "A fresh target gains precisely one actual space and one first agent; the saved provisional identity is reused.");
   c.add("secret-free-draft-and-zero-chat-dispatch", !!w && w.draftContainsCredential === false && w.publicAgentContainsCredential === false
     && Array.isArray(w.heartbeatRunIds) && w.heartbeatRunIds.length === 0 && typeof w.readyConversationPath === "string" && w.readyConversationPath.startsWith("/"),
     "The real draft/public configuration contains no raw key and no pre-chat request is credited with agent work; later usable conversation input is independently visible.");
   if (scenarioId === "onboarding.new-instance") {
     const installation = gradeEmptyInstallation(o?.installation);
     for (const row of installation.checks) c.add(`installation-${row.id}`, row.passed, row.detail);
-    c.add("installation-and-wizard-same-target", !!w && !!o?.installation && o.installation.companyId === w.companyId && o.installation.firstAgentId === w.firstAgentId,
+    c.add("installation-and-wizard-same-target", !!w && !!o?.installation && o.installation.spaceId === w.spaceId && o.installation.firstAgentId === w.firstAgentId,
       "The genuinely empty pinned installation and later ready wizard identities belong to the same independently started target.");
   } else {
-    c.add("real-authorized-human", typeof o?.personId === "string" && o.personId !== "local-board" && o.returnedPersonId === o.personId
+    c.add("real-authorized-human", typeof o?.personId === "string" && o.personId !== "local-operator" && o.returnedPersonId === o.personId
       && account?.ownerUserId === o.personId, "An actual authenticated person completes their own saved wizard and retains account ownership.");
-    if (scenarioId === "onboarding.resume-wizard") c.add("restored-nonsecret-draft", !!w && w.draftCompanyId === w.companyId && w.restoredCompanyId === w.companyId
+    if (scenarioId === "onboarding.resume-wizard") c.add("restored-nonsecret-draft", !!w && w.draftSpaceId === w.spaceId && w.restoredSpaceId === w.spaceId
       && w.draftAgentId === w.firstAgentId && w.restoredAgentId === w.firstAgentId && w.draftRetainedHarness === true && w.secureFieldRequestedAgain === true,
-      "A real reload restores existing company/agent IDs and the chosen harness while requesting the missing key through its secure field again.");
+      "A real reload restores existing space/agent IDs and the chosen harness while requesting the missing key through its secure field again.");
   }
   return c.result();
 }
@@ -74,20 +74,20 @@ export const wizardIdentityBoundaryCases: readonly IdentityBoundaryCase[] = ["on
         privateLogPath: path.join(ctx.privateDir, `operator-${ctx.nonce}.private.log`), deadlineAt: ctx.deadlineAt, evidence: ctx.evidence,
         captureFinalState: page => ctx.captureFinalState(page),
         async finishWizard(target) {
-          wizard = await finishIdentityWizard({ ...target, credential, harness: "codex_local", companyName: `Acorn installation ${ctx.nonce}`, agentName: "Morgan", evidence: ctx.evidence,
-            onCompany(company) { ctx.observeResources({ companyId: company.id, runIds: [] }); } });
-          ctx.observeResources({ companyId: wizard.companyId, agentId: wizard.firstAgentId, runIds: wizard.heartbeatRunIds });
-          return { companyId: wizard.companyId, firstAgentId: wizard.firstAgentId, conversationPath: wizard.readyConversationPath };
+          wizard = await finishIdentityWizard({ ...target, credential, harness: "codex_local", spaceName: `Acorn installation ${ctx.nonce}`, agentName: "Morgan", evidence: ctx.evidence,
+            onSpace(space) { ctx.observeResources({ spaceId: space.id, runIds: [] }); } });
+          ctx.observeResources({ spaceId: wizard.spaceId, agentId: wizard.firstAgentId, runIds: wizard.heartbeatRunIds });
+          return { spaceId: wizard.spaceId, firstAgentId: wizard.firstAgentId, conversationPath: wizard.readyConversationPath };
         } });
       return { installation, wizard } satisfies Partial<BoundaryReceipt>;
     }
     const person = await createAuthenticatedPerson({ api: ctx.api, browser, secrets: ctx.privateSecrets, name: "Alex" });
-    const api = new RunnerApi(person.context.request); person.bindApiSession(api); const resource = { person, api, companyId: undefined as string | undefined }; owned.set(ctx, resource);
+    const api = new RunnerApi(person.context.request); person.bindApiSession(api); const resource = { person, api, spaceId: undefined as string | undefined }; owned.set(ctx, resource);
     await api.post("/api/bootstrap/claim"); const page = await person.context.newPage();
     const wizard = await finishIdentityWizard({ page, origin: api.baseURL, credential, deadlineAt: ctx.deadlineAt, harness: scenarioId === "onboarding.choose-first-runtime" ? "claude_local" : "codex_local",
-      resume: scenarioId === "onboarding.resume-wizard", companyName: `Acorn wizard ${ctx.nonce}`, agentName: "Morgan", evidence: ctx.evidence,
-      onCompany(company) { resource.companyId = company.id; ctx.observeResources({ companyId: company.id, runIds: [] }); } });
-    ctx.observeResources({ companyId: wizard.companyId, agentId: wizard.firstAgentId, runIds: wizard.heartbeatRunIds });
+      resume: scenarioId === "onboarding.resume-wizard", spaceName: `Acorn wizard ${ctx.nonce}`, agentName: "Morgan", evidence: ctx.evidence,
+      onSpace(space) { resource.spaceId = space.id; ctx.observeResources({ spaceId: space.id, runIds: [] }); } });
+    ctx.observeResources({ spaceId: wizard.spaceId, agentId: wizard.firstAgentId, runIds: wizard.heartbeatRunIds });
     await ctx.captureFinalState(page);
     const session = await api.get<{ user: { id: string } }>("/api/auth/get-session");
     return { wizard, personId: person.id, returnedPersonId: session.user.id } satisfies BoundaryReceipt;
@@ -96,7 +96,7 @@ export const wizardIdentityBoundaryCases: readonly IdentityBoundaryCase[] = ["on
     // Empty-installation helper synchronously owns and removes its separate
     // process group/home/browser before returning, including on partial failure.
     const resource = owned.get(ctx); if (!resource) return;
-    try { if (resource.companyId) await resource.api.delete(`/api/companies/${resource.companyId}`, { allowNotFound: true }); }
+    try { if (resource.spaceId) await resource.api.delete(`/api/spaces/${resource.spaceId}`, { allowNotFound: true }); }
     finally { await resource.person.dispose(); owned.delete(ctx); }
   },
 }));

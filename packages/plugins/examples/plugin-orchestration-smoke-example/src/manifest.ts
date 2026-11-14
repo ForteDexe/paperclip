@@ -1,7 +1,7 @@
-import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
+import type { OutpostPluginManifestV1 } from "@outpost/plugin-sdk";
 
-const manifest: PaperclipPluginManifestV1 = {
-  id: "paperclipai.plugin-orchestration-smoke-example",
+const manifest: OutpostPluginManifestV1 = {
+  id: "outpost.plugin-orchestration-smoke-example",
   apiVersion: 1,
   version: "0.1.0",
   displayName: "Plugin Orchestration Smoke Example",
@@ -40,18 +40,18 @@ const manifest: PaperclipPluginManifestV1 = {
       routeKey: "initialize",
       method: "POST",
       path: "/issues/:issueId/smoke",
-      auth: "board-or-agent",
+      auth: "operator-or-agent",
       capability: "api.routes.register",
       checkoutPolicy: "required-for-agent-in-progress",
-      companyResolution: { from: "issue", param: "issueId" }
+      spaceResolution: { from: "issue", param: "issueId" }
     },
     {
       routeKey: "summary",
       method: "GET",
       path: "/issues/:issueId/smoke",
-      auth: "board-or-agent",
+      auth: "operator-or-agent",
       capability: "api.routes.register",
-      companyResolution: { from: "issue", param: "issueId" }
+      spaceResolution: { from: "issue", param: "issueId" }
     }
   ],
   ui: {

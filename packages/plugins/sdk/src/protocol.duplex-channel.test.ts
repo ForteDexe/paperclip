@@ -35,10 +35,10 @@ describe("duplex channel request schemas", () => {
     const open: PluginDuplexChannelOpenParams = {
       hostRouteId: "route-1",
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "lease-1",
-      command: ["paperclip-bridge"],
+      command: ["outpost-bridge"],
     };
     const reply: PluginDuplexChannelOpenResult = {
       hostRouteId: "route-1",
@@ -59,10 +59,10 @@ describe("duplex channel request schemas", () => {
     // @ts-expect-error — hostRouteId is required.
     const open: PluginDuplexChannelOpenParams = {
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "lease-1",
-      command: ["paperclip-bridge"],
+      command: ["outpost-bridge"],
     };
     expect(open).toBeDefined();
   });
@@ -71,11 +71,11 @@ describe("duplex channel request schemas", () => {
     const open: PluginDuplexChannelOpenParams = {
       hostRouteId: "route-1",
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "lease-1",
       // @ts-expect-error — command must be a string array.
-      command: "paperclip-bridge",
+      command: "outpost-bridge",
     };
     expect(open).toBeDefined();
   });

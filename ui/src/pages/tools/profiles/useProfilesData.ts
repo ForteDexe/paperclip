@@ -5,36 +5,36 @@ import { routinesApi } from "@/api/routines";
 import { toolsApi } from "@/api/tools";
 import { queryKeys } from "@/lib/queryKeys";
 import { groupCatalogByApp } from "./profile-model";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 
 /**
  * Shared data layer for the access-profiles index and wizard. Assembles the
- * company-wide catalog (there is no aggregate endpoint, so we fan out per
+ * space-wide catalog (there is no aggregate endpoint, so we fan out per
  * connection) and the lookup maps both surfaces need.
  */
-export function useProfilesData(companyId: string) {
+export function useProfilesData(spaceId: string) {
   const profiles = useQuery({
-    queryKey: queryKeys.tools.profiles(companyId),
-    queryFn: () => toolsApi.listProfiles(companyId),
+    queryKey: queryKeys.tools.profiles(spaceId),
+    queryFn: () => toolsApi.listProfiles(spaceId),
   });
   const applications = useQuery({
-    queryKey: queryKeys.tools.applications(companyId),
-    queryFn: () => toolsApi.listApplications(companyId),
+    queryKey: queryKeys.tools.applications(spaceId),
+    queryFn: () => toolsApi.listApplications(spaceId),
   });
   const connections = useQuery({
-    queryKey: queryKeys.tools.connections(companyId),
-    queryFn: () => toolsApi.listConnections(companyId),
+    queryKey: queryKeys.tools.connections(spaceId),
+    queryFn: () => toolsApi.listConnections(spaceId),
   });
   const agents = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
   });
   const projects = useQuery({
-    ...companyProjectsQuery(companyId),
+    ...spaceProjectsQuery(spaceId),
   });
   const routines = useQuery({
-    queryKey: queryKeys.routines.list(companyId),
-    queryFn: () => routinesApi.list(companyId),
+    queryKey: queryKeys.routines.list(spaceId),
+    queryFn: () => routinesApi.list(spaceId),
   });
 
   const connectionList = connections.data?.connections ?? [];

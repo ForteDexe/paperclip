@@ -6,7 +6,7 @@ import type {
 
 export type DueRetryRun = {
   runId: string;
-  companyId: string;
+  spaceId: string;
 };
 
 export type ListDueRetriesInput = {
@@ -17,7 +17,7 @@ export type ListDueRetriesInput = {
 
 export type EvaluateScheduledRetryGateInput = {
   runId: string;
-  companyId: string;
+  spaceId: string;
   retryReasonOverride: string;
   now: Date;
 };
@@ -31,13 +31,13 @@ export interface ScheduledRetryReader {
 
 export type PromoteOrCancelDueRetryInput = {
   runId: string;
-  companyId: string;
+  spaceId: string;
   now: Date;
 };
 
 export type CancelStaleQueuedRunInput = {
   runId: string;
-  companyId: string;
+  spaceId: string;
   now: Date;
   expectedStatus: "queued" | "running";
 };

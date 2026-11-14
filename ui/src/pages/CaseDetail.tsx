@@ -32,7 +32,7 @@ function CaseRelation({ item, search }: { item: Pick<CaseSummary, "id" | "identi
     trailing={<CaseStatus status={item.status} />} className="px-0" />;
 }
 
-/** Cases are persistent records. This board page only reads them and their work. */
+/** Cases are persistent records. This operator page only reads them and their work. */
 export function CaseDetail() {
   const { caseIdentifier } = useParams<{ caseIdentifier: string }>();
   const { search } = useLocation();
@@ -48,17 +48,17 @@ export function CaseDetail() {
   const listPath = `${caseHref()}${search}`;
   const childrenQuery = useQuery({
     queryKey: queryKeys.cases.children(caseData?.id ?? ""),
-    queryFn: () => casesApi.listChildren(caseData!.companyId, caseData!.id),
+    queryFn: () => casesApi.listChildren(caseData!.spaceId, caseData!.id),
     enabled: !!caseData,
   });
   const agentsQuery = useQuery({
-    queryKey: queryKeys.agents.list(caseData?.companyId ?? ""),
-    queryFn: () => agentsApi.list(caseData!.companyId),
+    queryKey: queryKeys.agents.list(caseData?.spaceId ?? ""),
+    queryFn: () => agentsApi.list(caseData!.spaceId),
     enabled: !!caseData?.workIssueId,
   });
   const projectQuery = useQuery({
     queryKey: queryKeys.projects.detail(caseData?.projectId ?? ""),
-    queryFn: () => projectsApi.get(caseData!.projectId!, caseData!.companyId),
+    queryFn: () => projectsApi.get(caseData!.projectId!, caseData!.spaceId),
     enabled: !!caseData?.projectId,
   });
   const agents = useMemo(() => new Map((agentsQuery.data ?? []).map(agent => [agent.id, agent])), [agentsQuery.data]);

@@ -101,7 +101,7 @@ function isNativeAcpxAgent(value: unknown): value is NativeAcpxAgent {
 }
 export type NativeCodexApprovalPolicy = "never" | "on-request" | "untrusted";
 export type NativeOpenCodePermissionMode = "allow" | "ask" | "deny";
-export type NativeAcpxPermissionMode = "approve-all" | "approve-paperclip" | "approve-reads" | "deny-all";
+export type NativeAcpxPermissionMode = "approve-all" | "approve-outpost" | "approve-reads" | "deny-all";
 export type NativeCursorMode = "agent" | "plan" | "ask";
 
 /** Decodable history; current immutable admission comes from the shared manifest. */
@@ -174,7 +174,7 @@ export type NativeProviderConfigV5 =
 export interface NativeExecutionInputV1 {
   schema: typeof NATIVE_EXECUTION_INPUT_SCHEMA_V1;
   binding: {
-    companyId: string;
+    spaceId: string;
     runId: string;
     issueId: string;
     agentId: string;
@@ -293,7 +293,7 @@ export type NativeExecutionInput = NativeExecutionInputV1 | NativeExecutionInput
 export interface NativeModelEnvelopeV1 {
   schema: typeof NATIVE_MODEL_ENVELOPE_SCHEMA_V1;
   task: NativeExecutionInputV1["task"];
-  /** Remote providers have no Paperclip workspace mounted in their service. */
+  /** Remote providers have no Outpost workspace mounted in their service. */
   workspace: Pick<NativeExecutionInputV1["workspace"], "cwd"> | null;
   completionContract: StrictCompletionContractInput;
   interactionResponses: NativeInteractionResponseEnvelope[];
@@ -372,7 +372,7 @@ function nullableText(value: unknown, path: string): string | null {
 }
 
 /**
- * Strictly validates the closed Paperclip-to-runner launch contract. This is
+ * Strictly validates the closed Outpost-to-runner launch contract. This is
  * intentionally not an extensible metadata bag: new fields require a contract
  * revision and an explicit security review.
  */
@@ -380,7 +380,7 @@ function parseExternalNativeExecutionInput(input: Record<string, unknown>): Nati
   const provider = record(input.provider, "input.provider");
   exactKeys(provider, ["kind", "model", "binding"], "input.provider");
   const b = record(provider.binding, "input.provider.binding");
-  exactKeys(b, ["bindingId", "bindingGeneration", "companyId", "agentId", "acceptByUnixMs", "expiresAtUnixMs"], "input.provider.binding");
+  exactKeys(b, ["bindingId", "bindingGeneration", "spaceId", "agentId", "acceptByUnixMs", "expiresAtUnixMs"], "input.provider.binding");
   const binding = record(input.binding, "input.binding");
   const workspace = record(input.workspace, "input.workspace");
   exactKeys(workspace, ["access", "cwd", "repoUrl", "repoRef", "branchName"], "input.workspace");
@@ -389,7 +389,7 @@ function parseExternalNativeExecutionInput(input: Record<string, unknown>): Nati
   if (!["openai_dot", "grok_bot"].includes(String(provider.kind)) || provider.model !== null || workspace.access !== "none"
       || [workspace.cwd, workspace.repoUrl, workspace.repoRef, workspace.branchName].some(v => v !== null)
       || session.driverKind !== driverKind || record(session.lifecyclePolicy, "input.session.lifecyclePolicy").mode !== "per_turn"
-      || binding.companyId !== b.companyId || binding.agentId !== b.agentId
+      || binding.spaceId !== b.spaceId || binding.agentId !== b.agentId
       || !Number.isSafeInteger(b.bindingGeneration) || Number(b.bindingGeneration) < 1
       || !Number.isSafeInteger(b.acceptByUnixMs) || !Number.isSafeInteger(b.expiresAtUnixMs)
       || Number(b.acceptByUnixMs) < 1 || Number(b.acceptByUnixMs) >= Number(b.expiresAtUnixMs)
@@ -406,7 +406,7 @@ function parseExternalNativeExecutionInput(input: Record<string, unknown>): Nati
   return { ...common, schema: NATIVE_EXECUTION_INPUT_SCHEMA_V6,
     provider: { kind: provider.kind as ExternalBotProviderKind, model: null, binding: {
       bindingId: text(b.bindingId, "input.provider.binding.bindingId"), bindingGeneration: Number(b.bindingGeneration),
-      companyId: text(b.companyId, "input.provider.binding.companyId"), agentId: text(b.agentId, "input.provider.binding.agentId"),
+      spaceId: text(b.spaceId, "input.provider.binding.spaceId"), agentId: text(b.agentId, "input.provider.binding.agentId"),
       acceptByUnixMs: Number(b.acceptByUnixMs), expiresAtUnixMs: Number(b.expiresAtUnixMs),
     } }, workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null },
     session: { ...common.session, driverKind } };
@@ -480,7 +480,7 @@ export function parseNativeExecutionInput(value: unknown): NativeExecutionInput 
     }
   }
   const binding = record(input.binding, "input.binding");
-  exactKeys(binding, ["companyId", "runId", "issueId", "agentId", "agentKeyId", "executionWorkspaceId"], "input.binding");
+  exactKeys(binding, ["spaceId", "runId", "issueId", "agentId", "agentKeyId", "executionWorkspaceId"], "input.binding");
   const task = record(input.task, "input.task");
   exactKeys(task, ["identifier", "title", "description", "prompt", "workMode"], "input.task");
   const workspace = record(input.workspace, "input.workspace");
@@ -729,8 +729,8 @@ export function parseNativeExecutionInput(value: unknown): NativeExecutionInput 
       throw new NativeExecutionInputError("input.provider.agent must name a registered ACPX profile");
     }
     if (isV4) {
-      if (provider.permissionMode !== "approve-all" && provider.permissionMode !== "approve-paperclip" && provider.permissionMode !== "approve-reads" && provider.permissionMode !== "deny-all") {
-        throw new NativeExecutionInputError("input.provider.permissionMode must be approve-all, approve-paperclip, approve-reads, or deny-all");
+      if (provider.permissionMode !== "approve-all" && provider.permissionMode !== "approve-outpost" && provider.permissionMode !== "approve-reads" && provider.permissionMode !== "deny-all") {
+        throw new NativeExecutionInputError("input.provider.permissionMode must be approve-all, approve-outpost, approve-reads, or deny-all");
       }
     } else if (provider.permissionPolicy !== "interactive") {
       throw new NativeExecutionInputError("input.provider.permissionPolicy must be interactive");
@@ -872,7 +872,7 @@ export function parseNativeExecutionInput(value: unknown): NativeExecutionInput 
 
   const common = {
     binding: {
-      companyId: text(binding.companyId, "input.binding.companyId"),
+      spaceId: text(binding.spaceId, "input.binding.spaceId"),
       runId: text(binding.runId, "input.binding.runId"),
       issueId: text(binding.issueId, "input.binding.issueId"),
       agentId: text(binding.agentId, "input.binding.agentId"),
@@ -998,7 +998,7 @@ export function buildNativeModelEnvelope(input: NativeExecutionInput, options?: 
       completion: {
         revision: input.completionContract.contract.revision,
         criterionIds: input.completionContract.contract.criteria.map((criterion) => criterion.id),
-        instruction: "Before ending this turn, obtain one accepted paperclip_finish or paperclip_block result. Earlier reports belong to earlier turns; a final message alone does not complete this turn.",
+        instruction: "Before ending this turn, obtain one accepted outpost_finish or outpost_block result. Earlier reports belong to earlier turns; a final message alone does not complete this turn.",
       },
     };
   }

@@ -17,7 +17,7 @@ an agent generates another assignment. Export/import preserves it.
 
 `GET /api/agent-avatars/cap-v1/bubblegum-sky/rest.png?size=24&scale=2`
 
-The endpoint is public preset artwork, contains no agent/company identifiers,
+The endpoint is public preset artwork, contains no agent/space identifiers,
 and works without the UI. `Agent.avatarUrl` is the 512px resting portrait URL.
 Resolve relative URLs against the instance base URL for integrations.
 
@@ -35,7 +35,7 @@ within the process, time out failed rendering, and stop after an idle interval.
 The configured local-disk/S3 provider stores results in
 `generated-agent-avatars/<version>/<palette>/<pose>-<size>-<scale>.png`.
 This preset-only cache intentionally uses the storage provider directly;
-company asset APIs retain their existing authorization boundary. Cache data
+space asset APIs retain their existing authorization boundary. Cache data
 can be removed and regenerates on demand. Independent replicas can render the
 same key safely; successful writes are complete objects. ETags hash PNG bytes.
 A small `.png.json` sidecar stores the content digest and length; it is published
@@ -79,7 +79,7 @@ Storybook: **Agents / Personas**. Run with
 palettes plus muted gray, nine poses, eleven logical sizes, both densities).
 The build uses the same bounded Node worker pool, SVG renderer, and Sharp pipeline
 as the API. Storybook-only URL resolution points to relative PNG paths under the
-published build, including branch-prefixed deployments. Production Paperclip
+published build, including branch-prefixed deployments. Production Outpost
 continues to use its on-demand API; no image generation runs during agent creation.
 The generated files are build output, never committed. A manifest records image
 hashes and pixel dimensions; deployment verification fetches every image and checks
@@ -144,7 +144,7 @@ DB (133), and adapter/plugin source suites (2,235) passed. Remaining route suite
 and the added persona/contract tests passed after the OpenAPI coverage update.
 The queued-comment suite exposed a pre-existing fixture-cleanup failure: run
 claims created dependent runtime rows, so swallowed foreign-key errors left the
-`QUE` company behind. Its isolated-database cleanup now truncates the company
+`QUE` space behind. Its isolated-database cleanup now truncates the space
 fixture graph with cascade; all 17 tests pass together. No production queued-comment
 behavior changed. Verification completed across the repository runner's groups
 and shards, with targeted reruns after fixes, rather than another monolithic run.
@@ -176,7 +176,7 @@ actual PNG and WebGL pixel dimensions for a fair comparison.
 `Agents / Personas / Full pages` includes the actual application shell and route
 components for all agents, agent overview, task detail, dashboard, the new-agent
 dialog, and the connection page. Fixtures stay in Storybook; these examples do
-not read or mutate the running company's data. Dashboard activity rows now use
+not read or mutate the running space's data. Dashboard activity rows now use
 the same agent avatars as its active-agent and task placements.
 
 Refinement verification: 38 Linux Playwright checks passed, including exact

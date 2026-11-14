@@ -13,12 +13,12 @@ import { useSharedPollingQuery } from "./useSharedPolling";
 let renderCount = 0;
 let lastIsLeader: boolean | null = null;
 
-function Harness({ companyId }: { companyId: string }) {
+function Harness({ spaceId }: { spaceId: string }) {
   renderCount += 1;
   const shared = useSharedPollingQuery({
-    companyId,
+    spaceId,
     resourceKey: "res",
-    queryKey: ["res", companyId],
+    queryKey: ["res", spaceId],
     leaderOnly: true,
   });
   lastIsLeader = shared.isLeader;
@@ -48,12 +48,12 @@ describe("useSharedPollingQuery snapshot updates", () => {
     vi.useRealTimers();
   });
 
-  function mount(companyId: string) {
+  function mount(spaceId: string) {
     root = createRoot(container);
     act(() => {
       root!.render(
         <QueryClientProvider client={queryClient}>
-          <Harness companyId={companyId} />
+          <Harness spaceId={spaceId} />
         </QueryClientProvider>,
       );
     });
@@ -64,7 +64,7 @@ describe("useSharedPollingQuery snapshot updates", () => {
     // tick, so the snapshot delivered at subscribe time equals the hook's
     // initial optimistic state. That delivery is a fresh object; it must not
     // cost a re-render.
-    mount("company-a");
+    mount("space-a");
     expect(lastIsLeader).toBe(true);
     expect(renderCount).toBe(1);
   });
@@ -73,11 +73,11 @@ describe("useSharedPollingQuery snapshot updates", () => {
     // Another tab holds an unexpired lease: this tab mounts optimistic-leader
     // and is demoted to follower by the subscribe-time snapshot.
     localStorage.setItem(
-      sharedPollingLeaseKey("company-b"),
+      sharedPollingLeaseKey("space-b"),
       JSON.stringify({ leader: "other-tab", expiresAt: Date.now() + 60_000, visible: true }),
     );
 
-    mount("company-b");
+    mount("space-b");
     expect(lastIsLeader).toBe(false);
     expect(renderCount).toBe(2);
 

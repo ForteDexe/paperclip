@@ -16,10 +16,10 @@ import subprocess
 import tempfile
 import time
 
-SNAPSHOT = pathlib.Path('/private/tmp/paperclip-chat-candidate-0fdcb539a8')
+SNAPSHOT = pathlib.Path('/private/tmp/outpost-chat-candidate-0fdcb539a8')
 PACKAGE = 'node_modules/.pnpm/@embedded-postgres+darwin-arm64@18.1.0-beta.16/node_modules/@embedded-postgres/darwin-arm64'
 BINARY = SNAPSHOT / PACKAGE / 'native/bin/initdb'
-PREFIX = 'paperclip-chat-initdb-diagnostic-'
+PREFIX = 'outpost-chat-initdb-diagnostic-'
 
 
 def sha(filename):
@@ -85,7 +85,7 @@ def cause(stderr, password):
 
 def run(expected_digest):
     # Actual profile credentials and the campaign oracle key are never inherited.
-    original = SNAPSHOT.parent / 'paperclip-chat-candidate-e652b0de6e' / PACKAGE / 'native/bin/initdb'
+    original = SNAPSHOT.parent / 'outpost-chat-candidate-e652b0de6e' / PACKAGE / 'native/bin/initdb'
     if sha(original) != expected_digest or sha(BINARY) != expected_digest:
         raise ValueError('Immutable dependency binary receipts differ')
     version = subprocess.check_output([str(BINARY), '--version'], text=True, env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'}).strip()
@@ -99,7 +99,7 @@ def run(expected_digest):
     password_file = root / 'password'
     with os.fdopen(os.open(password_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as output:
         output.write(password + '\n')
-    arguments = [str(BINARY), '--pgdata=' + str(data), '--auth=password', '--username=paperclip', '--pwfile=' + str(password_file), '--lc-messages=C', '--encoding=UTF8', '--locale=C', '--lc-messages=C']
+    arguments = [str(BINARY), '--pgdata=' + str(data), '--auth=password', '--username=outpost', '--pwfile=' + str(password_file), '--lc-messages=C', '--encoding=UTF8', '--locale=C', '--lc-messages=C']
     started = datetime.datetime.now(datetime.timezone.utc).isoformat()
     observed = {}
     timed_out = False

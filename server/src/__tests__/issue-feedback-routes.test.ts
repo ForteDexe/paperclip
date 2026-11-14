@@ -37,7 +37,7 @@ const mockInstanceSettingsService = vi.hoisted(() => ({
       feedbackDataSharingPreference: "prompt",
     },
   })),
-  listCompanyIds: vi.fn(async () => ["company-1"]),
+  listSpaceIds: vi.fn(async () => ["space-1"]),
 }));
 const mockRoutineService = vi.hoisted(() => ({
   syncRunStatusForIssue: vi.fn(async () => undefined),
@@ -77,12 +77,12 @@ vi.mock("../telemetry.js", () => ({
 }));
 
 vi.mock("../services/index.js", () => ({
-  companyService: () => ({
-    getById: vi.fn(async () => ({ id: "company-1" })),
+  spaceService: () => ({
+    getById: vi.fn(async () => ({ id: "space-1" })),
   }),
   accessService: () => mockAccessService,
   agentService: () => mockAgentService,
-  companySkillService: () => ({
+  spaceSkillService: () => ({
     completeTestRunForIssue: vi.fn(async () => null),
   }),
   documentAnnotationService: () => ({ remapOpenThreadsForDocument: async () => [] }),
@@ -158,7 +158,7 @@ describe("local issue feedback routes", () => {
         feedbackDataSharingPreference: "prompt",
       },
     });
-    mockInstanceSettingsService.listCompanyIds.mockResolvedValue(["company-1"]);
+    mockInstanceSettingsService.listSpaceIds.mockResolvedValue(["space-1"]);
     mockRoutineService.syncRunStatusForIssue.mockResolvedValue(undefined);
     mockLogActivity.mockResolvedValue(undefined);
   });
@@ -167,7 +167,7 @@ describe("local issue feedback routes", () => {
     const targetId = "11111111-1111-4111-8111-111111111111";
     mockIssueService.getById.mockResolvedValue({
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PAP-1",
     });
     mockFeedbackService.saveIssueVote.mockResolvedValue({
@@ -177,11 +177,11 @@ describe("local issue feedback routes", () => {
       reason: null,
     });
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "local_implicit",
       isInstanceAdmin: true,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     });
 
     const res = await request(app)
@@ -208,18 +208,18 @@ describe("local issue feedback routes", () => {
   it("lists only the current user's local votes", async () => {
     mockIssueService.getById.mockResolvedValue({
       id: "issue-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       identifier: "PAP-1",
     });
     mockFeedbackService.listIssueVotesForUser.mockResolvedValue([
       { id: "vote-1", vote: "down", reason: "Needs a test" },
     ]);
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
       isInstanceAdmin: true,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     });
 
     const res = await request(app).get("/api/issues/issue-1/feedback-votes");

@@ -3,14 +3,14 @@
 Read the roster and parent first:
 
 ```text
-GET /api/companies/:spaceId/agents
+GET /api/spaces/:spaceId/agents
 GET /api/issues/:parentTaskId
 ```
 
 Create the assigned child:
 
 ```text
-POST /api/companies/:spaceId/issues
+POST /api/spaces/:spaceId/issues
 ```
 
 ```json

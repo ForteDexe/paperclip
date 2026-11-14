@@ -8,7 +8,7 @@ import { CASES_CHAT_DIRECTIVE } from "../services/agent-conversations.js";
 const firstPage = (query: string) => searchRunnerApi({ query }).results.map(row => row.operationId);
 
 it("finds a task's case and the case audit history on the first search page", () => {
-  expect(firstPage("list company cases")).toContain("GET /api/companies/{companyId}/cases");
+  expect(firstPage("list space cases")).toContain("GET /api/spaces/{spaceId}/cases");
   expect(firstPage("cases list facts history")).toContain("GET /api/cases/{id}/events");
   expect(firstPage("case facts update history change log audit")).toContain("GET /api/cases/{id}/events");
   expect(firstPage("case for task")).toContain("GET /api/issues/{issueId}/cases");

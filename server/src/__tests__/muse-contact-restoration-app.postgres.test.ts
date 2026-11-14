@@ -9,7 +9,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { activityLog, agents, authUsers, checkpointDb, closeRegisteredClients,
-  companies, createDb, fileStorageDb, heartbeatRuns, livenessDb, mcpOauthGrants,
+  spaces, createDb, fileStorageDb, heartbeatRuns, livenessDb, mcpOauthGrants,
   museAgentBindings, museMailboxItems, museReceiverContactBuckets, subscribeDatabaseWork } from "@outpost/db";
 import { MUSE_OAUTH_SCOPES, MUSE_RESOURCE_PATH } from "@outpost/shared";
 import { resolveExternalTestDatabaseUrl } from "../lib/dedicated-test-database-url.js";
@@ -58,7 +58,7 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
   let verifyCalls = 0;
   let unexpectedDecisionWakes = 0;
   let invitationFailure: { status: number; code: string; message: string } | undefined;
-  const userId = randomUUID(), restorerId = randomUUID(), companyId = randomUUID();
+  const userId = randomUUID(), restorerId = randomUUID(), spaceId = randomUUID();
   let contactSettled = 0;
   let deniedVerifications = 0;
   let committedVerifications = 0;
@@ -77,11 +77,11 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
   function classifyInvitationFailure(status: number, body: unknown) {
     const parsed = z.object({ error: z.string().optional() }).safeParse(body);
     const fixed = [
-      { message: "Board access required", code: "board_access_required" },
-      { message: "User does not have access to this company", code: "company_access_denied" },
-      { message: "User does not have active company access", code: "active_company_access_required" },
+      { message: "Operator access required", code: "operator_access_required" },
+      { message: "User does not have access to this space", code: "space_access_denied" },
+      { message: "User does not have active space access", code: "active_space_access_required" },
       { message: "Viewer access is read-only", code: "viewer_read_only" },
-      { message: "Sign in as a company operator to configure Muse.", code: "company_operator_required" },
+      { message: "Sign in as a space operator to configure Muse.", code: "space_operator_required" },
       { message: "Missing permission: agents:create.", code: "agents_create_permission_missing" },
       { message: "Permission agents:create does not cover the requested scope.", code: "agents_create_scope_denied" },
       { message: "Enable Muse and Outpost Runner in experimental settings.", code: "muse_runner_disabled" },
@@ -105,7 +105,7 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
       callbacks++;
       if (event === "settled" && Array.from(hints ?? []).some(raw => {
         const hint = parseMuseVerificationHint(raw);
-        return hint !== undefined && hint.bindingId === bindingId && hint.generation === generation && hint.companyId === companyId;
+        return hint !== undefined && hint.bindingId === bindingId && hint.generation === generation && hint.spaceId === spaceId;
       })) contactSettled++;
     });
     await migrateCloudConfiguration(owner);
@@ -118,7 +118,7 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
       storageService: createStorageService(createLocalDiskStorageProvider(path.join(home, "objects"))),
       deploymentMode: "authenticated", deploymentExposure: "private", bindHost: "127.0.0.1",
       allowedHostnames: [host], authPublicBaseUrl: origin, authReady: true,
-      companyDeletionEnabled: false, managedPluginAutoInstall: [],
+      spaceDeletionEnabled: false, managedPluginAutoInstall: [],
       decisionServiceOptions: { wakeOriginAgent: async () => {
         unexpectedDecisionWakes++;
         throw new Error("This Muse contact fixture does not admit Decision continuation work");
@@ -134,7 +134,7 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
     await app.locals.bundledPluginsStartup;
   }
   async function closeNormalApp() {
-    if (app) { await app.locals.paperclipShutdown(); app = undefined; }
+    if (app) { await app.locals.outpostShutdown(); app = undefined; }
     restoreVerify?.(); restoreVerify = undefined;
     unsubscribe?.(); unsubscribe = undefined;
     if (db) { await db.$client.end({ timeout: 1 }); db = undefined; }
@@ -159,13 +159,13 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
     if (!databaseUrl) throw new Error("Explicit Muse test database required");
     await openNormalApp();
     const owner = currentDb();
-    await owner.insert(companies).values({ id: companyId, name: "Muse contact recovery", issuePrefix: mode === "permission" ? "MRP0" : "MRL0", requireBoardApprovalForNewAgents: false });
+    await owner.insert(spaces).values({ id: spaceId, name: "Muse contact recovery", issuePrefix: mode === "permission" ? "MRP0" : "MRL0", requireOperatorApprovalForNewAgents: false });
     await owner.insert(authUsers).values({ id: userId, name: "Muse fixture operator", email: userId + "@example.test", createdAt: new Date(), updatedAt: new Date() });
-    await accessService(owner).ensureMembership(companyId, "user", userId, "operator", "active");
-    await accessService(owner).ensureRoleDefaultGrants(companyId, userId, "operator", userId);
+    await accessService(owner).ensureMembership(spaceId, "user", userId, "operator", "active");
+    await accessService(owner).ensureRoleDefaultGrants(spaceId, userId, "operator", userId);
     await owner.insert(authUsers).values({ id: restorerId, name: "Restoration owner", email: restorerId + "@example.test", createdAt: new Date(), updatedAt: new Date() });
-    await accessService(owner).ensureMembership(companyId, "user", restorerId, "owner", "active");
-    await accessService(owner).ensureRoleDefaultGrants(companyId, restorerId, "owner", restorerId);
+    await accessService(owner).ensureMembership(spaceId, "user", restorerId, "owner", "active");
+    await accessService(owner).ensureRoleDefaultGrants(spaceId, restorerId, "owner", restorerId);
     await instanceSettingsService(owner).updateExperimental({ enableMuse: true, enableNativeRunner: true });
   }, 90_000);
 
@@ -190,14 +190,14 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
 
   it("restores the same current binding without another contact or manual verification, then remains quiet and revoked", async () => {
     stage = "normal-invitation";
-    const invite = await request(currentApp()).post(`/api/companies/${companyId}/muse-invitations`)
+    const invite = await request(currentApp()).post(`/api/spaces/${spaceId}/muse-invitations`)
       .set("Host", host).set("Origin", origin).set("x-muse-test-operator", restorerId)
       .send({ name: "Contact recovery Muse", role: "Contact verification regression" });
     if (invite.status !== 200) invitationFailure = classifyInvitationFailure(invite.status, invite.body);
     expect(invite.status, invitationFailure ? JSON.stringify(invitationFailure) : undefined).toBe(200);
     const createdAgentId = z.object({ agent: z.object({ id: z.uuid() }) }).parse(invite.body).agent.id;
     agentId = createdAgentId;
-    const pairing = await request(currentApp()).post(`/api/companies/${companyId}/agents/${agentId}/muse-binding`)
+    const pairing = await request(currentApp()).post(`/api/spaces/${spaceId}/agents/${agentId}/muse-binding`)
       .set("Host", host).set("Origin", origin).set("x-muse-test-operator", userId).send({});
     expect(pairing.status).toBe(201);
     const paired = pairingSchema.parse(pairing.body);
@@ -225,12 +225,12 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
     accessToken = credentials.access_token; refreshToken = credentials.refresh_token;
     const owner = currentDb();
     const [authorized] = await owner.select().from(museAgentBindings).where(eq(museAgentBindings.id, paired.bindingId));
-    expect(authorized).toMatchObject({ companyId, agentId, operatorId: userId, generation: paired.generation,
+    expect(authorized).toMatchObject({ spaceId, agentId, operatorId: userId, generation: paired.generation,
       status: "connected", receiverContactAt: null, verifiedReplyAt: null, challengeHash: null });
     expect(authorized.pairedAt).not.toBeNull(); expect(authorized.grantId).not.toBeNull();
     grantId = z.uuid().parse(authorized.grantId);
     const [grant] = await owner.select().from(mcpOauthGrants).where(eq(mcpOauthGrants.id, grantId));
-    expect(grant).toMatchObject({ companyId, agentId, userId, clientId, resource, purpose: "agent", revokedAt: null });
+    expect(grant).toMatchObject({ spaceId, agentId, userId, clientId, resource, purpose: "agent", revokedAt: null });
     expect(grant.scopes).toEqual([...MUSE_OAUTH_SCOPES]);
     expect((await request(currentApp()).post("/api/muse/v1/pair").set("Host", host).send({})).status).toBe(404);
 
@@ -239,7 +239,7 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
     const realVerify = broker.verify;
     const observed = vi.spyOn(broker, "verify").mockImplementation(async (...args) => {
       verifyCalls++;
-      const current = args[0] === companyId && args[1] === createdAgentId
+      const current = args[0] === spaceId && args[1] === createdAgentId
         && args[2].bindingId === paired.bindingId && args[2].generation === paired.generation;
       if (!current) otherVerifyCalls++;
       try {
@@ -256,12 +256,12 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
       }
     });
     restoreVerify = () => observed.mockRestore();
-    const signal = await request(currentApp()).get("/api/muse/v1/signal").set("Host", host).set("X-Paperclip-Muse-Binding", paired.bindingId);
+    const signal = await request(currentApp()).get("/api/muse/v1/signal").set("Host", host).set("X-Outpost-Muse-Binding", paired.bindingId);
     expect(signal.status).toBe(200); expect(signal.body.version).toBe(1); expect(signal.body.signal).toBeNull();
-    const member = await accessService(owner).getMembership(companyId, "user", userId);
+    const member = await accessService(owner).getMembership(spaceId, "user", userId);
     if (!member) throw new Error("Missing normally authorized Muse operator membership");
     if (mode === "permission") {
-      const demote = await request(currentApp()).patch(`/api/companies/${companyId}/members/${member.id}`)
+      const demote = await request(currentApp()).patch(`/api/spaces/${spaceId}/members/${member.id}`)
         .set("Host", host).set("Origin", origin).set("x-muse-test-operator", restorerId)
         .send({ membershipRole: "viewer", status: "active" });
       expect(demote.status).toBe(200);
@@ -286,7 +286,7 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
     async function quiet() {
       await settled();
       const beforeRequiredRead = { total: queryCount, main: poolQueryCounts.main };
-      expect(await owner.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId))).toHaveLength(0);
+      expect(await owner.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId))).toHaveLength(0);
       expect(queryCount).toBeGreaterThan(beforeRequiredRead.total);
       expect(poolQueryCounts.main).toBeGreaterThan(beforeRequiredRead.main);
       expect(poolQueryCounts.fileStorage).toBeGreaterThan(0);
@@ -298,11 +298,11 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
     }
     await settled();
     const [parked] = await owner.select().from(museAgentBindings).where(eq(museAgentBindings.id, paired.bindingId));
-    expect(parked).toMatchObject({ companyId, agentId, operatorId: userId, generation: paired.generation,
+    expect(parked).toMatchObject({ spaceId, agentId, operatorId: userId, generation: paired.generation,
       grantId, status: "connected", challengeHash: null, verifiedReplyAt: null, revokedAt: null });
     expect(parked.receiverContactAt).not.toBeNull();
     const [parkedGrant] = await owner.select().from(mcpOauthGrants).where(eq(mcpOauthGrants.id, grantId));
-    expect(parkedGrant).toMatchObject({ userId, companyId, agentId, clientId, revokedAt: null });
+    expect(parkedGrant).toMatchObject({ userId, spaceId, agentId, clientId, revokedAt: null });
     const contactsBefore = await owner.select().from(museReceiverContactBuckets).where(eq(museReceiverContactBuckets.bindingId, paired.bindingId));
     expect(contactsBefore).toHaveLength(1); expect(contactsBefore[0]).toMatchObject({ contacts: 1, bindingGeneration: paired.generation, incomplete: false });
     expect(contactsBefore[0].timestamps).toHaveLength(1); expect(committedVerifications).toBe(0);
@@ -320,7 +320,7 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
     const parkedQuiet = await quiet();
     stage = "normal-authorized-restoration";
     if (mode === "permission") {
-      const restore = await request(currentApp()).patch(`/api/companies/${companyId}/members/${member.id}`)
+      const restore = await request(currentApp()).patch(`/api/spaces/${spaceId}/members/${member.id}`)
         .set("Host", host).set("Origin", origin).set("x-muse-test-operator", restorerId)
         .send({ membershipRole: "operator", status: "active" });
       expect(restore.status).toBe(200);
@@ -332,7 +332,7 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
     }
     await vi.waitFor(() => { expect(committedVerifications).toBe(1); }, { timeout: 15_000, interval: 25 });
     const [recovered] = await owner.select().from(museAgentBindings).where(eq(museAgentBindings.id, paired.bindingId));
-    expect(recovered).toMatchObject({ companyId, agentId, operatorId: userId, generation: paired.generation,
+    expect(recovered).toMatchObject({ spaceId, agentId, operatorId: userId, generation: paired.generation,
       grantId, status: "connected", revision: parked.revision + 1, verifiedReplyAt: null, revokedAt: null });
     expect(recovered.pairedAt).toEqual(parked.pairedAt); expect(recovered.receiverContactAt).toEqual(parked.receiverContactAt);
     expect(recovered.challengeHash).not.toBeNull();
@@ -340,9 +340,9 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
     const challengeRows = await owner.select().from(museMailboxItems).where(and(
       eq(museMailboxItems.bindingId, paired.bindingId), eq(museMailboxItems.kind, "readiness_challenge")));
     expect(challengeRows).toHaveLength(1);
-    expect(challengeRows[0]).toMatchObject({ companyId, bindingGeneration: paired.generation, assignmentId: null });
+    expect(challengeRows[0]).toMatchObject({ spaceId, bindingGeneration: paired.generation, assignmentId: null });
     expect(await owner.select({ id: activityLog.id }).from(activityLog).where(and(
-      eq(activityLog.companyId, companyId), eq(activityLog.entityId, createdAgentId), eq(activityLog.action, "muse.readiness_challenge_created")))).toHaveLength(1);
+      eq(activityLog.spaceId, spaceId), eq(activityLog.entityId, createdAgentId), eq(activityLog.action, "muse.readiness_challenge_created")))).toHaveLength(1);
     const [restoredAgent] = await owner.select().from(agents).where(eq(agents.id, createdAgentId));
     expect(restoredAgent.status).toBe("paused");
     expect(["preparing", "verifying"]).toContain(restoredAgent.lifecycleState);
@@ -369,7 +369,7 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
     expect(revoke.status).toBe(200);
     expect((await request(currentApp()).post("/api/muse/v1/queries").set("Host", host).set("Authorization", "Bearer " + accessToken)
       .send({ version: 1, query: "mailbox", after: 0 })).status).toBe(401);
-    expect((await request(currentApp()).get("/api/muse/v1/signal").set("Host", host).set("X-Paperclip-Muse-Binding", paired.bindingId)).status).toBe(410);
+    expect((await request(currentApp()).get("/api/muse/v1/signal").set("Host", host).set("X-Outpost-Muse-Binding", paired.bindingId)).status).toBe(410);
     await instanceSettingsService(owner).updateExperimental({ enableMuse: false });
     stage = "revoked-and-disabled-quiet";
     const revokedDisabledQuiet = await quiet();
@@ -378,7 +378,7 @@ describe.skipIf(!databaseUrl).each(["permission", "lifecycle"] as const)("normal
     expect(finalGrant.revokedAt).not.toBeNull(); expect(finalBinding.revokedAt).not.toBeNull();
     expect(committedVerifications).toBe(1); expect(unexpectedDecisionWakes).toBe(0);
     if (!artifactPath) throw new Error("Missing owned restoration evidence path");
-    await writeFile(artifactPath + "." + mode + ".json", JSON.stringify({ mode, companyId, userId, restorerId,
+    await writeFile(artifactPath + "." + mode + ".json", JSON.stringify({ mode, spaceId, userId, restorerId,
       agentId, bindingId, generation, grantId, receiverSignals: 1, contacts: 1, timestampCount: 1,
       parkedRevision: parked.revision, recoveredRevision: recovered.revision, expectedResumeState,
       actualRestoredLifecycle: restoredAgent.lifecycleState, compatibilityStatusUnchanged: true,

@@ -31,7 +31,7 @@ comments, for the same repo rule it enforces on the files it writes (`CONTRIBUTI
     scaffold.mjs                    CLI: new, check, add-direction, list
     scaffold.test.mjs               node --test, runs in under a second
     lib/args.mjs                    flag grammar per subcommand (--k v, --k=v, booleans), UsageError
-    lib/context.mjs                 flags -> ctx: casings, ids, surfaces, directions, landing, company, provenance
+    lib/context.mjs                 flags -> ctx: casings, ids, surfaces, directions, landing, space, provenance
     lib/ports.mjs                   first free (dev, preview) pair from 5200/5210 in steps of 20
     lib/capabilities.mjs            validates --capabilities through <root>/scripts/feature-map.mjs
     lib/render.mjs                  loads the templates and produces Map<repo-relative path, content>
@@ -52,7 +52,7 @@ From the repo root (`node .agents/skills/directions-lab/scripts/scaffold.mjs ...
 
 | Subcommand | Flags | What it does |
 | --- | --- | --- |
-| `new` | `--slug`, `--title`, `--surfaces id:Label:width@nav,...`, `--directions 2\|3`, `--names a,b[,c]`, `--group`, `--capabilities a/k,...`, `--company name:PREFIX`, `--landing auto\|all\|today\|<id>`, `--ports dev,preview`, `--force-count`, `--dry-run`, `--json`, `--skip-verify`, `--no-build`, `--keep-on-failure`, `--root <dir>` | renders in memory, refuses existing paths, writes, edits the two shared files, verifies, rolls back on failure |
+| `new` | `--slug`, `--title`, `--surfaces id:Label:width@nav,...`, `--directions 2\|3`, `--names a,b[,c]`, `--group`, `--capabilities a/k,...`, `--space name:PREFIX`, `--landing auto\|all\|today\|<id>`, `--ports dev,preview`, `--force-count`, `--dry-run`, `--json`, `--skip-verify`, `--no-build`, `--keep-on-failure`, `--root <dir>` | renders in memory, refuses existing paths, writes, edits the two shared files, verifies, rolls back on failure |
 | `check` | `--slug`, `--strict`, `--run`, `--json`, `--skip-verify`, `--root` | the lab's structural rules plus the motion-contract test; `--run` executes the hand-off list |
 | `add-direction` | `--slug`, `--name`, `--force-count`, `--json`, `--skip-verify`, `--root` | next digit; one directory from the direction templates; one registry line; one story export; re-runs `check` |
 | `list` | `--json`, `--root` | every `ui/src/*-directions/registry.ts`, with launch.json ports |
@@ -64,7 +64,7 @@ scaffold into a temporary tree. Verification needs the real repo (`ui/node_modul
 temporary root uses `--skip-verify`.
 
 Defaults: `--title` is the slug in sentence case (`agent-profile-card` -> `Agent profile card`); `--group Components`; `--names` are Refine, Rework, Rethink
-(two directions: Refine, Rethink); `--company acmehats:ACM`; `--landing auto`; `--ports` from `ports.mjs`;
+(two directions: Refine, Rethink); `--space acmehats:ACM`; `--landing auto`; `--ports` from `ports.mjs`;
 `--capabilities` empty, which makes the story carry `capabilities: []` and the exception sentence (the
 generator says so on stderr). Four to nine directions need `--force-count` and explicit `--names`.
 
@@ -88,10 +88,10 @@ ports, capabilities })` and, for `add-direction`, by `assembleContext` from a pa
 | `surfaces[]` | `{ id: "inbox", label: "Inbox", width: 960, nav: "other", Pascal: "Inbox", UPPER: "INBOX", fixture: "INBOX_ITEMS", body: "InboxBody", frame: "InboxFrame" }` | kit contract, frames, fixtures, bodies |
 | `multiSurface`, `cells` | `false`, `3` | toolbar row 2, landing rule |
 | `landing` | `{ direction: "all", view: "board" }` | registry; `d=all&s=board` when `cells <= 8`, else `d=all&s=<first surface>` |
-| `capabilities`, `exception`, `notes` | `[]`, the two house sentences | story paperclip block, registry |
-| `company`, `tasks` | `{ id: "company-acmehats", name: "acmehats", issuePrefix: "ACM" }`, three tasks | registry shell, fixtures, stub session |
+| `capabilities`, `exception`, `notes` | `[]`, the two house sentences | story outpost block, registry |
+| `space`, `tasks` | `{ id: "space-acmehats", name: "acmehats", issuePrefix: "ACM" }`, three tasks | registry shell, fixtures, stub session |
 | `tag` | `[inbox-row-directions]` | the stub's `console.debug` line |
-| `publicUrl`, `vercelProject` | `https://paperclip-inbox-row-directions.vercel.app` | registry, story description |
+| `publicUrl`, `vercelProject` | `https://outpost-inbox-row-directions.vercel.app` | registry, story description |
 | `forceCount` | `false` | `allowMore: true` in the registry |
 | `provenance` | `{ runtimeCommit: <git short sha or "unknown">, skillVersion: "1", createdAt: "YYYY-MM-DD" }` | registry |
 
@@ -123,7 +123,7 @@ Conventions the templates follow, and `write.mjs` enforces on the result:
   `ui/vitest.config.ts` sets `environment: "node"`
 - no file reaches 600 lines (the repo's hard rule is 1,000; 600 is the house limit for a lab file)
 - no `package.json` script or dependency; the lab is invoked through its own vite config
-- strings that the catalog must read as literals (the story's `paperclip` block) are emitted with
+- strings that the catalog must read as literals (the story's `outpost` block) are emitted with
   `JSON.stringify`, never as template interpolation inside the generated file
 
 ## 5. The generated lab, file by file
@@ -145,21 +145,21 @@ hand-maintained literals (`DirectionId`, `DIRECTION_IDS`, `KIT_KEYS`, `KIT_META`
 | `registry.ts` | `kit.ts:16,130-150` + `SurfaceView.tsx:9-11` | pure data, the single source |
 | `kit.ts` | `kit.ts:99-163` | `LabRecord` placeholder, `SurfaceData` (one member per surface, extends `Record<SurfaceId, unknown>` so a missing member fails tsc), `DirectionKit` with one `<Pascal>Body` per surface, ids and maps derived from the registry, the literal `import.meta.glob` |
 | `lab-state.ts` | `lab-state.ts` | landing from the registry; `proposal` param; `landingSearch()` |
-| `api-stub.ts` | `api-stub.ts` | verbatim minus comments; the debug tag and the stub session's e-mail follow the company |
+| `api-stub.ts` | `api-stub.ts` | verbatim minus comments; the debug tag and the stub session's e-mail follow the space |
 | `api-routes.ts` | `today/panel-api.ts` pattern | the experimental-settings route answering `registry.today.flags`; an empty `registerFeatureRoutes()` for Phase 2 |
-| `fixtures.ts` | `fixtures.ts` | `COMPANY`/`TASKS` from the registry shell, `LAB_NOW`, one `<UPPER>_ITEMS` export per surface with three placeholder records pinned to one week |
+| `fixtures.ts` | `fixtures.ts` | `SPACE`/`TASKS` from the registry shell, `LAB_NOW`, one `<UPPER>_ITEMS` export per surface with three placeholder records pinned to one week |
 | `build-info.ts`, `lab-env.d.ts` | new | `LAB_BUILD` from the vite define (`"dev"` when undefined, so vitest never sees a ReferenceError) |
 | `frames/Slot.tsx` | `frames/Slot.tsx` | verbatim |
 | `frames/LabToolbar.tsx` | `frames/LabToolbar.tsx` | options from the registry; the label is a link to the landing with the `story <id> · build <sha>` tooltip; row 2 rendered only when `surfaces.length > 1`, otherwise the legend joins row 1; the `0–N` legend (`LEGEND`, the largest digit in `KIT_KEYS`), the Overview hint and the surface options are derived at run time, so `add-direction` and a hand-added surface need no toolbar edit; stage hint for adopted/current |
 | `frames/Board.tsx` | `frames/Board.tsx` | `Tile` with the `proposal` prop passed through to its iframe links and `view` narrowed to `SurfaceId`; `KitBoard` columns = surfaces; `AllBoard` rows = directions and columns = every surface (`s=board`) or one (`s=<surface>`) |
-| `frames/AppShell.tsx` | `frames/AppShell.tsx` | company and recent tasks from the registry; `active: ShellNav` with `other` |
+| `frames/AppShell.tsx` | `frames/AppShell.tsx` | space and recent tasks from the registry; `active: ShellNav` with `other` |
 | `frames/SurfaceView.tsx` | `frames/SurfaceView.tsx` | a `FRAMES` record, one entry per surface |
 | `frames/<Pascal>Frame.tsx` | `ThreadFrame.tsx`/`PanelFrame.tsx` shape | a stub: shell, top bar, a dashed region frozen at the registry width marked `data-lab-stub="frame-<id>"` around `<Slot><kit.<Pascal>Body items={<UPPER>_ITEMS} /></Slot>` |
 | `directions/today/*` | `directions/today/` | `index.tsx` with literal id/name/tagline; `adapters.ts` with `guid`, `agentId`, `issueIdFor` verbatim plus `issueHref`; one `<Pascal>Body.tsx` stub rendering the items in a dashed box `data-lab-stub="today-<id>"`; no tokens.css |
 | `directions/d<N>-<name>/*` | `d5-v1-mvp/` | `index.tsx` importing `./tokens.css`; `tokens.css` (section 6); `MotionSpecimen.tsx` (a `<button>` with two `data-rotate data-spread` backings at inline `-14deg`/`-5deg`, geometry-derived `transform-origin`, static shadow filter, one `[data-front]` sheet, `transition-colors` fills); one `<Pascal>Body.tsx` per surface rendering a specimen per item inside `data-lab-stub="<id>-<surface>"` |
 | `shot.cjs` | `shot.cjs` | reads `window.__LAB__` on a first `chrome=0` load instead of mirrored constants (fails with "page did not expose window.__LAB__; main.tsx did not run, read the console"); `--hover` writes `<kit>__<surface>__<theme>__hover.png` from a context without reduced motion; the board sheet is `150px repeat(<surfaces>, minmax(0,1fr))`; no excuse list |
 | tests | `lab-state.test.ts`, `api-stub.test.ts`, `Thread.test.tsx` | `registry.test.ts`, `lab-state.test.ts`, `motion-contract.test.ts`, `today.test.tsx`, `api-stub.test.ts` (section 7 of `repo-gates.md` for the conventions) |
-| the story | `artifact-directions-compare.stories.tsx` | `installApiStub` in a story-scoped effect with restore; `loadKit`; `SurfaceView`; the `animation` arg sets and restores `data-lab-anim`; `argTypes` and `args` precede `parameters` so `paperclip` is the last parameter; exports `Compare`, `Today`, `D1..DN`, `TodayProductionPalette` |
+| the story | `artifact-directions-compare.stories.tsx` | `installApiStub` in a story-scoped effect with restore; `loadKit`; `SurfaceView`; the `animation` arg sets and restores `data-lab-anim`; `argTypes` and `args` precede `parameters` so `outpost` is the last parameter; exports `Compare`, `Today`, `D1..DN`, `TodayProductionPalette` |
 
 ## 6. The motion asset and the drift test
 
@@ -224,7 +224,7 @@ none of the artifact lab's names (`DENY_LIST` in `check.mjs`: `artifact-directio
 appears in no code file under `ui/src`, `ui/storybook` or at the top of `ui/` outside the lab, its html, its
 config, its story, launch.json and .gitignore;
 no `.css` or `.html` file outside `directions/<id>/tokens.css` carries a `data-lab-anim` rule;
-the story's meta id equals `registry.storyId`, the stable exports exist, the `paperclip` parameter comes
+the story's meta id equals `registry.storyId`, the stable exports exist, the `outpost` parameter comes
 last and its status matches the detected mode and the lab's stage (`modes.mjs`: `labStage` is `proposed`
 while any exploration is `proposed` or `adopted`, `historical` when every exploration is `historical`,
 else `current`; `expectedStoryStatus` maps it to `proposed` in mode A and to itself in mode B; a

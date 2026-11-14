@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { approvalsApi } from "../api/approvals";
 import { agentsApi } from "../api/agents";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { cn } from "../lib/utils";
@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 type StatusFilter = "pending" | "all";
 
 export function Approvals() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -33,24 +33,24 @@ export function Approvals() {
   }, [setBreadcrumbs]);
 
   const approvalsQuery = useQuery({
-    queryKey: queryKeys.approvals.list(selectedCompanyId!),
-    queryFn: () => approvalsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.approvals.list(selectedSpaceId!),
+    queryFn: () => approvalsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const { data, isLoading } = approvalsQuery;
   const approvalsView = useQueryView(approvalsQuery);
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => approvalsApi.approve(id),
     onSuccess: (_approval, id) => {
       setActionError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedSpaceId!) });
       navigate(`/approvals/${id}?resolved=approved`);
     },
     onError: (err) => {
@@ -62,7 +62,7 @@ export function Approvals() {
     mutationFn: (id: string) => approvalsApi.reject(id),
     onSuccess: () => {
       setActionError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedSpaceId!) });
     },
     onError: (err) => {
       setActionError(describeError(err, { action: "reject this request" }).body);
@@ -79,7 +79,7 @@ export function Approvals() {
     (a) => a.status === "pending" || a.status === "revision_requested",
   ).length;
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <p className="text-sm text-muted-foreground">Select an outpost first.</p>;
   }
 

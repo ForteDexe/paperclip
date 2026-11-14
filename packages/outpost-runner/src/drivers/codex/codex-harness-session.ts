@@ -209,7 +209,7 @@ export class CodexHarnessSession
       throw this.unsupported("context compaction", "compaction cannot combine with reasoning or disposition recovery");
     }
     // A compaction-only run resumes the session without a fresh usage report;
-    // seed the "before" size the divider shows from Paperclip's last reading.
+    // seed the "before" size the divider shows from Outpost's last reading.
     if (input.compact === true && input.contextTokensBefore !== undefined) {
       this.lastContextUsedTokens ??= input.contextTokensBefore;
     }
@@ -816,7 +816,7 @@ export class CodexHarnessSession
       );
       if (expectedTurn === undefined && this.result !== null && this.resultTurnId === expectedTurnId) {
         // Provider history can lose a turn whose process was killed before its
-        // terminal was flushed. Paperclip already holds the semantic result this
+        // terminal was flushed. Outpost already holds the semantic result this
         // exact turn proposed, so that durable result is the turn's outcome:
         // settle it rather than fail recovery and rerun finished work. Without
         // such a result the outcome stays unknown and recovery fails closed.

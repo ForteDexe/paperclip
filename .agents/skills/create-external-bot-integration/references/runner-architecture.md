@@ -9,7 +9,7 @@
 - [Recovery needs identity evidence, not merely a reachable process](#recovery-needs-identity-evidence-not-merely-a-reachable-process)
 - [Revocation and native powers are different boundaries](#revocation-and-native-powers-are-different-boundaries)
 - [Files and commands are a separate capability decision](#files-and-commands-are-a-separate-capability-decision)
-- [Paperclip implementation anchors](#paperclip-implementation-anchors)
+- [Outpost implementation anchors](#outpost-implementation-anchors)
 
 ## Separate the bot, connection, controller, and workspace
 
@@ -17,14 +17,14 @@
 External provider
   Bot: reasoning, native browser/computer/apps, private memory
            | authenticated tools / signed wake events
-Paperclip control plane
+Outpost control plane
   MCP + OAuth + pairing + durable mailbox + operation broker
            | authenticated Runner protocol
 Managed execution environment (Cloud)
   Rust Runner: assignment lifecycle, catalog validation, durable receipts
            | semantic tool requests / correlated results
-Paperclip authority services
-  Task/company permissions, mutations, app gateway, result finalization
+Outpost authority services
+  Task/space permissions, mutations, app gateway, result finalization
 ```
 
 Application tools execute through the existing authorized services. If filesystem
@@ -40,14 +40,14 @@ Do not invent model/session/usage fields to satisfy a local-provider schema.
 
 Use a dedicated agent-purpose grant/resource where the provider is acting as an
 employee. Personal assistant grants must not silently supply board/operator
-permissions to a run. Bind authorization to company, agent, active grant, binding
-generation, assignment, and run/turn. A supplied companyId or agentId is not proof
+permissions to a run. Bind authorization to space, agent, active grant, binding
+generation, assignment, and run/turn. A supplied spaceId or agentId is not proof
 of authority. Recheck live permissions at execution and before returning protected
 data, not only at initial pairing.
 
 Pairing uses an operator-issued, expiring, one-use capability for a specific
 agent. Redemption checks current membership/role, feature prerequisites, agent
-lifecycle, company/resource hints, expiry and revocation. Preview does not consume
+lifecycle, space/resource hints, expiry and revocation. Preview does not consume
 the code. Grant creation, code consumption, and saving the binding reference must
 be atomic. Otherwise setup can display ready while the scheduler still sees an
 unpaired agent. Saving the form a second time is not an acceptable hidden step.
@@ -169,27 +169,27 @@ even though its old tools are already denied.
 ## Revocation and native powers are different boundaries
 
 Cancellation, pause, reassignment, membership loss, expired run authority, and
-grant revocation must prevent subsequent Paperclip effects. Cached tool results
+grant revocation must prevent subsequent Outpost effects. Cached tool results
 or UI binding references cannot restore revoked access. Old-grant revocation must
 not revoke a replacement binding accidentally.
 
-Report “Paperclip authority revoked” separately from “external bot stopped.” A
+Report “Outpost authority revoked” separately from “external bot stopped.” A
 fence acknowledgment proves receipt, not termination of all provider activity.
 Likewise, sandboxing the Outpost Runner does not confine the bot's native Slack
 or provider computer. Those tools retain their own permissions. If strict total
 capability isolation is required, use a suitably isolated bot/account and verify
-the provider's actual controls; Paperclip cannot enforce it with prompt text.
+the provider's actual controls; Outpost cannot enforce it with prompt text.
 
 ## Files and commands are a separate capability decision
 
 Do not add workspace tools merely to make an external agent look like a coding
-CLI. A bot can research or write code on its own computer without Paperclip
+CLI. A bot can research or write code on its own computer without Outpost
 workspace access. The first Dot Cloud release intentionally offered none.
 
 When the release includes workspace tools:
 
 - Resolve paths within the admitted workspace; reject traversal, absolute paths,
-  symlinks/escapes, and Paperclip instance state such as `.paperclip`.
+  symlinks/escapes, and Outpost instance state such as `.outpost`.
 - Check reads, writes, API downloads, uploads, and artifact publication. A generic
   `call_api` path must not bypass attachment/workspace grants.
 - Serialize optimistic hash checks with writes. Two concurrent writes must not
@@ -200,11 +200,11 @@ When the release includes workspace tools:
 - In the historical Dot implementation, Linux used bubblewrap/private PID
   namespaces. macOS command execution was disabled after detached descendants
   escaped reliable supervision; file tools and artifacts remained available.
-- For attachments, enforce current task/company, bounded pages and total bytes,
+- For attachments, enforce current task/space, bounded pages and total bytes,
   integrity checks, and live revocation before returning each page. Treat filenames
   and contents as untrusted data. Test the generic API escape path too.
 
-## Paperclip implementation anchors
+## Outpost implementation anchors
 
 Paths below existed in the qualified October 9 candidate. Locate their current
 equivalents before editing; do not paste line numbers from historical notes.

@@ -499,7 +499,7 @@ export interface SlackIngressReceipt {
   conversationId: string;
   issueId: string;
   humanCommentId: string;
-  linkedPaperclipUserId: string;
+  linkedOutpostUserId: string;
   provider: {
     workspaceId: string;
     channelId: string;
@@ -521,7 +521,7 @@ export function slackIngressMatches(input: {
     metadata?: { sourceChannel?: string };
   };
   canonicalQuery: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
 }) {
   const {
@@ -537,13 +537,13 @@ export function slackIngressMatches(input: {
     r.providerCalls <= 20 &&
     r.query === input.canonicalQuery &&
     e.id === r.endpointId &&
-    e.companyId === input.companyId &&
+    e.spaceId === input.spaceId &&
     e.assignedAgentId === input.agentId &&
     e.provider === "slack" &&
     e.providerAccountId === r.provider.workspaceId &&
     c.id === r.conversationId &&
     c.endpointId === e.id &&
-    c.companyId === input.companyId &&
+    c.spaceId === input.spaceId &&
     c.issueId === r.issueId &&
     c.externalThreadId ===
       `slack:${r.provider.channelId}:${r.provider.threadId}` &&
@@ -554,7 +554,7 @@ export function slackIngressMatches(input: {
     b.assignedAgentLocked === true &&
     comment.id === r.humanCommentId &&
     comment.body === input.canonicalQuery &&
-    comment.authorUserId === r.linkedPaperclipUserId &&
+    comment.authorUserId === r.linkedOutpostUserId &&
     comment.metadata?.sourceChannel === "slack" &&
     /^\d+\.\d{6}$/.test(r.provider.threadId) &&
     /^\d+\.\d{6}$/.test(r.provider.canonicalMessageId) &&

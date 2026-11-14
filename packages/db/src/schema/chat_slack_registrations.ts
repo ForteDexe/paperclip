@@ -7,7 +7,7 @@ import { chatEndpoints } from "./chat_channels.js";
 /** App provisioning is distinct from installation and runtime credentials. No plaintext secrets. */
 export const chatSlackRegistrations = pgTable("chat_slack_registrations", {
   endpointId: uuid("endpoint_id").primaryKey(),
-  companyId: uuid("company_id").notNull(),
+  spaceId: uuid("space_id").notNull(),
   managerGrantId: uuid("manager_grant_id"),
   requestId: uuid("request_id").notNull(),
   status: text("status").$type<SlackRegistrationStatus>().notNull(),
@@ -24,7 +24,7 @@ export const chatSlackRegistrations = pgTable("chat_slack_registrations", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
-  foreignKey({ columns: [t.companyId, t.managerGrantId], foreignColumns: [chatSlackManagerGrants.companyId, chatSlackManagerGrants.id] }),
-  foreignKey({ columns: [t.companyId, t.endpointId], foreignColumns: [chatEndpoints.companyId, chatEndpoints.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.spaceId, t.managerGrantId], foreignColumns: [chatSlackManagerGrants.spaceId, chatSlackManagerGrants.id] }),
+  foreignKey({ columns: [t.spaceId, t.endpointId], foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id] }).onDelete("cascade"),
   check("chat_slack_registration_status_check", sql`${t.status} in ('creating', 'uncertain', 'failed', 'install', 'credentials_saved', 'configured', 'removed')`),
 ]);

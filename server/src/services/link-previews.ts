@@ -1,7 +1,7 @@
 import type { LinkPreviewResult, LinkPreviewTarget } from "@outpost/shared";
 import { recognizeLinkPreview } from "@outpost/shared";
 
-export interface LinkPreviewScope { companyId: string; userId: string | null }
+export interface LinkPreviewScope { spaceId: string; userId: string | null }
 export interface LinkPreviewProvider {
   key: string;
   resolve(target: LinkPreviewTarget, scope: LinkPreviewScope, signal: AbortSignal): Promise<LinkPreviewResult>;
@@ -24,7 +24,7 @@ export function createLinkPreviewService(providers: readonly LinkPreviewProvider
       const target = recognizeLinkPreview(href);
       const provider = target && byKey.get(target.provider);
       if (!target || !provider) return UNAVAILABLE;
-      const key = JSON.stringify([scope.companyId, scope.userId, target.canonicalUrl]);
+      const key = JSON.stringify([scope.spaceId, scope.userId, target.canonicalUrl]);
       const cached = cache.get(key);
       if (cached && cached.expiresAt > now()) {
         return { ...cached.result, maxAgeMs: cached.expiresAt - now() };

@@ -72,7 +72,7 @@ it("admits each snapshot against current disk capacity and rejects growth at its
 });
 
 it("fails a real Git scan at its disk allowance and removes the incomplete manifest", async () => {
-  const repo = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-scan-quota-"));
+  const repo = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-scan-quota-"));
   cleanup.push(repo);
   await runLocalGit(repo, ["init"]);
   await runLocalGit(repo, ["commit", "--allow-empty", "-qm", "fixture"], {
@@ -96,7 +96,7 @@ it("fails a real Git scan at its disk allowance and removes the incomplete manif
 });
 
 it("settles a late producer before removing shared storage after another scan fails", async () => {
-  const repo = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-scan-barrier-"));
+  const repo = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-scan-barrier-"));
   cleanup.push(repo);
   await runLocalGit(repo, ["init"]);
   await runLocalGit(repo, ["-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "--allow-empty", "-qm", "fixture"], {
@@ -109,7 +109,7 @@ it("settles a late producer before removing shared storage after another scan fa
   const removed: string[] = [];
   const originalRm = fs.rm.bind(fs);
   vi.spyOn(fs, "rm").mockImplementation(async (target, options) => {
-    if (String(target).includes("paperclip-workspace-manifest-")) {
+    if (String(target).includes("outpost-workspace-manifest-")) {
       expect(lateFinished).toBe(true);
       removed.push(String(target));
     }
@@ -136,7 +136,7 @@ it("settles a late producer before removing shared storage after another scan fa
 });
 
 it("fails a malformed completed scan instead of publishing a partial snapshot", async () => {
-  const repo = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-truncated-scan-"));
+  const repo = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-truncated-scan-"));
   cleanup.push(repo);
   await runLocalGit(repo, ["init"]);
   await runLocalGit(repo, ["-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "--allow-empty", "-qm", "fixture"], {

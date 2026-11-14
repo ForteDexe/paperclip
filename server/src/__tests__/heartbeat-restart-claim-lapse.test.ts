@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
-import { authUsers, companyMemberships, heartbeatRunEvents, heartbeatRuns, nativeRunFinalizations } from "@outpost/db";
+import { authUsers, spaceMemberships, heartbeatRunEvents, heartbeatRuns, nativeRunFinalizations } from "@outpost/db";
 import { heartbeatService } from "../services/heartbeat.js";
 import { releaseLapsedNativeRestartClaim } from "../services/native-runtime/native-execution-lease.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
@@ -39,7 +39,7 @@ describeEmbeddedPostgres("restart-claim preparation that outlives its claim leas
         leaseExpiresAt: new Date(Date.now() + (variant === "live lease" ? 60_000 : -1_000)) })
         .where(eq(nativeRunFinalizations.runId, f.runId));
       if (variant === "run not running") await f.db.update(heartbeatRuns).set({ status: "failed" }).where(eq(heartbeatRuns.id, f.runId));
-      const released = await releaseLapsedNativeRestartClaim({ db: f.db, companyId: fixture.current.companyId, runId: f.runId,
+      const released = await releaseLapsedNativeRestartClaim({ db: f.db, spaceId: fixture.current.spaceId, runId: f.runId,
         leaseOwner: variant === "another owner" ? `native-recovery:${randomUUID()}` : leaseOwner,
         controllerGeneration: variant === "newer generation" ? 2 : 3, providerAttempt: variant === "other attempt" ? 2 : 1 });
       const [owner] = await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
@@ -58,7 +58,7 @@ describeEmbeddedPostgres("restart-claim preparation that outlives its claim leas
     const userId = randomUUID();
     await f.db.insert(authUsers).values({ id: userId, name: "Operator", email: `${userId}@example.invalid`,
       createdAt: new Date(), updatedAt: new Date() });
-    await f.db.insert(companyMemberships).values({ companyId: fixture.current.companyId, principalType: "user",
+    await f.db.insert(spaceMemberships).values({ spaceId: fixture.current.spaceId, principalType: "user",
       principalId: userId, membershipRole: "owner" });
     await f.db.update(heartbeatRuns).set({ responsibleUserId: userId, completionContractId: null,
       completionContractSha256: null }).where(eq(heartbeatRuns.id, f.runId));

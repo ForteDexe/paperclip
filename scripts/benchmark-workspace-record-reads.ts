@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { companies, createDb, executionWorkspaces, startEmbeddedPostgresTestDatabase } from "../packages/db/src/index.js";
+import { spaces, createDb, executionWorkspaces, startEmbeddedPostgresTestDatabase } from "../packages/db/src/index.js";
 import { executionWorkspaceService } from "../server/src/services/execution-workspaces.js";
 
 const run = promisify(execFile);
@@ -30,10 +30,10 @@ try {
   await git("worktree", "add", "-b", "fixture", worktree);
   database = await startEmbeddedPostgresTestDatabase("workspace-record-benchmark-");
   db = createDb(database.connectionString);
-  const companyId = randomUUID();
-  await db.insert(companies).values({ id: companyId, name: "Synthetic workspace reads", issuePrefix: "BENCH" });
+  const spaceId = randomUUID();
+  await db.insert(spaces).values({ id: spaceId, name: "Synthetic workspace reads", issuePrefix: "BENCH" });
   const rows = await db.insert(executionWorkspaces).values(Array.from({ length: 20 }, (_, index) => ({
-    companyId, name: `Fixture ${index}`, mode: "isolated_workspace", strategyType: "git_worktree",
+    spaceId, name: `Fixture ${index}`, mode: "isolated_workspace", strategyType: "git_worktree",
     cwd: worktree, providerRef: worktree, providerType: "git_worktree", baseRef: "main", branchName: "fixture",
   }))).returning();
   const service = executionWorkspaceService(db);
@@ -44,7 +44,7 @@ try {
   };
   const results = [];
   let expected: ReturnType<typeof persisted>[] | undefined;
-  await service.getStoredById(companyId, rows[0].id);
+  await service.getStoredById(spaceId, rows[0].id);
   for (const mode of ["detail", "stored"] as const) {
     const trace = path.join(root, `${mode}.trace`);
     process.env.GIT_TRACE = trace;
@@ -53,7 +53,7 @@ try {
     for (const row of rows) {
       const workspace = mode === "detail"
         ? await service.getById(row.id)
-        : await service.getStoredById(companyId, row.id);
+        : await service.getStoredById(spaceId, row.id);
       assert.ok(workspace);
       records.push(persisted(workspace));
     }

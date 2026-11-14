@@ -1,7 +1,7 @@
 ---
 name: release-announcement
 description: Write a release announcement — changelog, blog post, in-app note, or social post — that leads with user impact, names the audience, and includes upgrade/migration steps without filler.
-key: paperclipai/optional/content/release-announcement
+key: outpost/optional/content/release-announcement
 recommendedForRoles:
   - devrel
   - product
@@ -35,7 +35,7 @@ emit durable release-content cases before handing off the copy. Cases preserve
 the inspectable output; the issue coordinates the work.
 
 Use `skills/outpost-case/references/api-reference.md` for the API contract. Include
-`X-Paperclip-Run-Id` on writes when `OUTPOST_RUN_ID` is set. If the API returns
+`X-Outpost-Run-Id` on writes when `OUTPOST_RUN_ID` is set. If the API returns
 `403 Cases are disabled`, report that limitation and continue with the requested
 copy artifact.
 
@@ -44,7 +44,7 @@ Upsert the parent release case first when it does not already exist:
 ```json
 {
   "caseType": "release",
-  "key": "paperclip-release:vYYYY.MDD.P",
+  "key": "outpost-release:vYYYY.MDD.P",
   "title": "Outpost vYYYY.MDD.P release",
   "status": "in_progress",
   "fields": {
@@ -67,14 +67,14 @@ For a dev blog, upsert a child case with `parentCaseId` set to the release case:
 ```json
 {
   "caseType": "blog_post",
-  "key": "paperclip-release:vYYYY.MDD.P:blog-post",
+  "key": "outpost-release:vYYYY.MDD.P:blog-post",
   "title": "Outpost vYYYY.MDD.P launch post",
   "status": "in_review",
   "parentCaseId": "<release-case-id>",
   "fields": {
     "schema_version": 1,
     "version": "vYYYY.MDD.P",
-    "slug": "paperclip-vYYYY-MDD-P",
+    "slug": "outpost-vYYYY-MDD-P",
     "word_count_target": 650,
     "target_audience": ["operators", "developers"],
     "requires_screenshot": false,
@@ -92,7 +92,7 @@ For social output, upsert a sibling child case:
 ```json
 {
   "caseType": "tweet_storm",
-  "key": "paperclip-release:vYYYY.MDD.P:tweet-storm",
+  "key": "outpost-release:vYYYY.MDD.P:tweet-storm",
   "title": "Outpost vYYYY.MDD.P tweet storm",
   "status": "in_review",
   "parentCaseId": "<release-case-id>",

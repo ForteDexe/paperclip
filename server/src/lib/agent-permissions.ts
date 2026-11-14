@@ -60,7 +60,7 @@ export function permissionsImplyLowTrust(permissions: unknown): boolean {
 
 /**
  * "create" is the context for permissions arriving on a new-agent write: the
- * hire/create default applies and the resolved value is persisted. "stored"
+ * create/create default applies and the resolved value is persisted. "stored"
  * is the context for rows read back from the database: a row without an
  * explicit value stays fail-closed, so the default is never granted
  * retroactively to legacy or malformed records at read or enforcement time.
@@ -78,7 +78,7 @@ export function defaultAgentPermissions(
   };
 }
 
-const LEGACY_CEO_HIRING_DENIAL_KEY = "ceoHiringDeniedBy";
+const LEGACY_DEFAULT_AGENT_CREATION_DENIAL_KEY = "leadCreationDeniedBy";
 
 export function normalizeAgentPermissions(
   permissions: unknown,
@@ -94,9 +94,9 @@ export function normalizeAgentPermissions(
     return defaults;
   }
 
-  // Old releases paired CEO-derived authority with a denial marker. Titles no
+  // Old releases paired Default agent-derived authority with a denial marker. Titles no
   // longer grant capabilities, so discard that compatibility-only metadata.
-  const { [LEGACY_CEO_HIRING_DENIAL_KEY]: _legacyDenial, ...rest } = record;
+  const { [LEGACY_DEFAULT_AGENT_CREATION_DENIAL_KEY]: _legacyDenial, ...rest } = record;
   const canCreateAgents = typeof record.canCreateAgents === "boolean" ? record.canCreateAgents : defaults.canCreateAgents;
   return {
     ...rest,

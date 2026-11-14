@@ -112,7 +112,7 @@ export interface SanitizedAcpxSpawnInput {
 /**
  * Build the only host-environment input that may cross an ACPX child-process
  * launch boundary. Agent-specific homes are added by the later runtime sandbox;
- * Paperclip transport and native MCP credentials are never inherited from the
+ * Outpost transport and native MCP credentials are never inherited from the
  * host process.
  */
 export function createSanitizedAcpxSpawnInput(
@@ -185,7 +185,7 @@ export function createSanitizedAcpxSpawnInput(
   // native child receives the private token file, never its launch document.
   if (agent === "antigravity") delete result.OUTPOST_ACPX_ANTIGRAVITY_AUTH_JSON_SECRET;
   // Headless Claude Code withholds its task-list tools from current models.
-  // Paperclip renders that list as the turn plan (ACP `plan` -> `plan.updated`),
+  // Outpost renders that list as the turn plan (ACP `plan` -> `plan.updated`),
   // so the launcher owns this value; a host setting cannot switch it off.
   if (agent === "claude") result[CLAUDE_TODO_TOOLS_ENV] = "1";
   if (agent === "claude" && isOpenRouterUrl(result.ANTHROPIC_BASE_URL)) {

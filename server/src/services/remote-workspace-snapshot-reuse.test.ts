@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  activityLog, agents, closeRegisteredClients, companies, createDb, environmentLeases, environments,
+  activityLog, agents, closeRegisteredClients, spaces, createDb, environmentLeases, environments,
   executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, issueRecoveryActions, issues, workspaceOperations,
 } from "@outpost/db";
 import type { AdapterSandboxExecutionTarget } from "@outpost/adapter-utils/execution-target";
@@ -55,10 +55,10 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
   });
 
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Snapshot reuse", issuePrefix: `S${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Save workspace", status: "in_progress", assigneeAgentId: agentId });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Snapshot reuse", issuePrefix: `S${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Save workspace", status: "in_progress", assigneeAgentId: agentId });
     const [environment] = await db.insert(environments).values({ name: issueId, driver: "sandbox" }).returning();
     const storage = { ...createStorageService(createLocalDiskStorageProvider(path.join(root, issueId, "objects"))), provider: "s3" as const };
     const puts = vi.spyOn(storage, "putFile");
@@ -84,11 +84,11 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
     });
     const writer = async (existingWorkspaceId: string | null) => {
       const runId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, runtimeMode: "legacy",
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, runtimeMode: "legacy",
         status: "running", contextSnapshot: { issueId } });
-      const [lease] = await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId: runId,
+      const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId: runId,
         environmentId: environment.id, provider: "daytona", providerLeaseId, status: "active" }).returning();
-      const reserved = await reserveRemoteWorkspace({ db, storage, companyId, issueId, runId, agentId,
+      const reserved = await reserveRemoteWorkspace({ db, storage, spaceId, issueId, runId, agentId,
         environmentId: environment.id, projectId: null, projectWorkspaceId: null, existingWorkspaceId, source: { kind: "empty" } });
       const prepared = await prepareRemoteWorkspace({ db, storage, workspace: reserved, runId,
         lease: lease as EnvironmentLease, target: target(lease.id) });
@@ -106,10 +106,10 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
     const save = async (boundary?: string) => saveRemoteWorkspace({ db, storage, workspace: await workspace(), runId: b.runId,
       lease: b.lease, target: target(b.lease.id), assertOwned: async () => undefined, boundary });
     const snapshots = () => db.select().from(executionWorkspaceSnapshots).where(and(
-      eq(executionWorkspaceSnapshots.companyId, companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, a.workspaceId)));
-    const operations = () => db.select().from(workspaceOperations).where(and(eq(workspaceOperations.companyId, companyId),
+      eq(executionWorkspaceSnapshots.spaceId, spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, a.workspaceId)));
+    const operations = () => db.select().from(workspaceOperations).where(and(eq(workspaceOperations.spaceId, spaceId),
       eq(workspaceOperations.heartbeatRunId, b.runId), eq(workspaceOperations.phase, "remote_workspace_snapshot")));
-    return { companyId, agentId, issueId, a, b, storage, puts, savedA, workspace, writer, save, snapshots, operations, target,
+    return { spaceId, agentId, issueId, a, b, storage, puts, savedA, workspace, writer, save, snapshots, operations, target,
       captures: () => captures - capturesBefore };
   }
 
@@ -125,11 +125,11 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
     await db.update(heartbeatRuns).set({ status: "failed", runtimeMode: "native", nativeIssueId: f.issueId, finishedAt: new Date(),
       runnerProfileJson: { ...current.runnerProfileJson, nativeExecutionInput: { workspace: { cwd: reference.remoteCwd } } } })
       .where(eq(heartbeatRuns.id, f.b.runId));
-    const [action] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
-      kind: "stranded_assigned_issue", cause: "fixture", fingerprint: randomUUID(), ownerType: "board",
+    const [action] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
+      kind: "stranded_assigned_issue", cause: "fixture", fingerprint: randomUUID(), ownerType: "operator",
       nextAction: "Continue recovered work", evidence: { workspaceRecovery: { schema: "outpost.workspace-recovery.v1",
         runId: f.b.runId, status: "recovered", stage: "saving_receipts", attempt: 1, requestIds: [] } } }).returning();
-    const [receipt] = await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId,
+    const [receipt] = await db.insert(workspaceOperations).values({ spaceId: f.spaceId, issueId: f.issueId,
       executionWorkspaceId: f.a.workspaceId, heartbeatRunId: f.b.runId, phase: "workspace_recovery", status: "succeeded",
       metadata: { storage: "remote_workspace", recoveryActionId: action.id, leaseId: reference.leaseId,
         providerLeaseId: reference.providerLeaseId, epoch: reference.epoch, snapshotId: saved.snapshotId,
@@ -231,7 +231,7 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
 
   it("reuses the saved archive after a real capture and records finalization, replay, restore and waiter wake", async () => {
     const f = await fixture(), waiterId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: waiterId, companyId: f.companyId, agentId: f.agentId, issueId: f.issueId,
+    await db.insert(heartbeatRuns).values({ id: waiterId, spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId,
       status: "scheduled_retry", scheduledRetryReason: "workspace_busy", scheduledRetryAt: new Date(Date.now() + 300_000),
       contextSnapshot: { issueId: f.issueId, workspaceBusyWait: { key: `execution:${f.a.workspaceId}`, holderRunId: f.b.runId,
         waitingSince: new Date().toISOString(), issueExecutionWorkspaceId: f.a.workspaceId, issueProjectWorkspaceId: null } } });
@@ -253,11 +253,11 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
     await expect(f.save()).resolves.toMatchObject({ snapshotId: saved.snapshotId, unchanged: true });
     expect(f.captures()).toBe(beforeReplay);
     expect(f.puts).not.toHaveBeenCalled();
-    const loader = await createSavedWorkspaceLoader(db, f.storage)({ companyId: f.companyId,
+    const loader = await createSavedWorkspaceLoader(db, f.storage)({ spaceId: f.spaceId,
       workspaceId: f.a.workspaceId, snapshotId: saved.snapshotId });
     try { expect(await readFile(path.join(loader.root, "saved.txt"), "utf8")).toBe("saved result\n"); }
     finally { await loader.cleanup(); }
-    expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, f.companyId),
+    expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.spaceId),
       eq(activityLog.runId, f.b.runId), eq(activityLog.action, "workspace.snapshot_skipped_unchanged")))).toHaveLength(1);
   });
 
@@ -285,7 +285,7 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
   it("stores a fresh archive if the matching parent object is missing", async () => {
     const f = await fixture();
     const parent = (await f.snapshots()).find(s => s.id === f.savedA.snapshotId)!;
-    await f.storage.deleteObject(f.companyId, parent.objectKey!);
+    await f.storage.deleteObject(f.spaceId, parent.objectKey!);
     const saved = await f.save();
     expect(saved.snapshotId).not.toBe(parent.id);
     expect(f.puts).toHaveBeenCalledTimes(1);
@@ -301,7 +301,7 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
     const saved = await f.save();
     expect(saved.snapshotId).not.toBe(f.savedA.snapshotId);
     expect(f.puts).toHaveBeenCalledTimes(1);
-    const loaded = await createSavedWorkspaceLoader(db, f.storage)({ companyId: f.companyId,
+    const loaded = await createSavedWorkspaceLoader(db, f.storage)({ spaceId: f.spaceId,
       workspaceId: f.a.workspaceId, snapshotId: saved.snapshotId });
     try { expect(await readFile(path.join(loaded.root, "saved.txt"), "utf8")).toBe("new content despite stale metadata\n"); }
     finally { await loaded.cleanup(); }
@@ -314,7 +314,7 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
     expect(f.puts).toHaveBeenCalledTimes(1);
   });
 
-  it("does not reuse another company's identical manifest", async () => {
+  it("does not reuse another space's identical manifest", async () => {
     const f = await fixture(), foreign = await fixture();
     const row = await f.workspace(), authority = readRemoteWorkspaceAuthority(row.metadata)!;
     await db.update(executionWorkspaces).set({ metadata: { ...row.metadata,
@@ -350,14 +350,14 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
     vi.spyOn(f.storage, "headObject").mockImplementationOnce(async (...args) => {
       const result = await head(...args);
       const pending = (await f.snapshots()).find(s => s.sourceRunId === f.b.runId)!;
-      await db.update(executionWorkspaceSnapshots).set({ metadata: { uploads: [{ objectKey: `${f.companyId}/pending-owned-attempt` }] } })
+      await db.update(executionWorkspaceSnapshots).set({ metadata: { uploads: [{ objectKey: `${f.spaceId}/pending-owned-attempt` }] } })
         .where(eq(executionWorkspaceSnapshots.id, pending.id));
       return result;
     });
     await expect(f.save()).rejects.toThrow("publication_changed");
     expect(f.puts).not.toHaveBeenCalled();
     expect((await f.snapshots()).find(s => s.sourceRunId === f.b.runId)).toMatchObject({ status: "pending",
-      metadata: { uploads: [{ objectKey: `${f.companyId}/pending-owned-attempt` }] } });
+      metadata: { uploads: [{ objectKey: `${f.spaceId}/pending-owned-attempt` }] } });
     expect(readRemoteWorkspaceAuthority((await f.workspace()).metadata)).toMatchObject({ dirty: true, writerRunId: f.b.runId });
   });
 
@@ -427,13 +427,13 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
   it.each([false, true])("retires a prior save only when its work is known to be settled (unknown=%s)", async unknown => {
     const f = await fixture(), row = await f.workspace(), authority = readRemoteWorkspaceAuthority(row.metadata)!;
     const operationId = randomUUID(), at = new Date();
-    await db.insert(workspaceOperations).values({ id: operationId, companyId: f.companyId, executionWorkspaceId: row.id,
+    await db.insert(workspaceOperations).values({ id: operationId, spaceId: f.spaceId, executionWorkspaceId: row.id,
       heartbeatRunId: f.b.runId, issueId: f.issueId, phase: "remote_workspace_snapshot", status: "failed",
       metadata: { boundary: "repositories:prior", epoch: authority.epoch, generation: f.savedA.generation + 1,
         lastFailure: { code: "remote_workspace_save_failed", at: at.toISOString() },
         saveWork: { schema: "outpost.remote-workspace-save-work.v1", activeIds: [], unknown, quiescedAt: at.toISOString() },
         exportCleanup: { ...authority.location, state: "pending" } } });
-    await beginWorkspaceSnapshot(db, { companyId: f.companyId, workspaceId: row.id, operationId, runId: f.b.runId,
+    await beginWorkspaceSnapshot(db, { spaceId: f.spaceId, workspaceId: row.id, operationId, runId: f.b.runId,
       parentSnapshotId: f.savedA.snapshotId, generation: f.savedA.generation + 1, epoch: authority.epoch });
     await expect(f.save()).resolves.toMatchObject({ snapshotId: f.savedA.snapshotId, unchanged: true });
     const previous = (await f.operations()).find(o => o.id === operationId)!;
@@ -457,6 +457,6 @@ describe.skipIf(!support.supported)("captured unchanged workspace snapshots", ()
     }
     const parent = (await f.snapshots()).find(s => s.id === f.savedA.snapshotId)!;
     expect(parent).toMatchObject({ status: "committed", deleteAfter: null });
-    await expect(f.storage.headObject(f.companyId, parent.objectKey!)).resolves.toMatchObject({ exists: true });
+    await expect(f.storage.headObject(f.spaceId, parent.objectKey!)).resolves.toMatchObject({ exists: true });
   });
 });

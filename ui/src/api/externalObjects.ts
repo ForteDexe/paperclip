@@ -6,9 +6,9 @@ export const externalObjectsApi = {
     api.get<ExternalObjectMentionGroup[]>(`/issues/${issueId}/external-objects`),
   getIssueSummary: (issueId: string) =>
     api.get<ExternalObjectSummary>(`/issues/${issueId}/external-object-summary`),
-  getIssueSummaries: (companyId: string, issueIds: string[]) =>
+  getIssueSummaries: (spaceId: string, issueIds: string[]) =>
     api.post<{ summaries: Record<string, ExternalObjectSummary> }>(
-      `/companies/${companyId}/issues/external-object-summaries`,
+      `/spaces/${spaceId}/issues/external-object-summaries`,
       { issueIds },
     ),
   refreshIssueObjects: (issueId: string, data?: { objectIds?: string[] }) =>

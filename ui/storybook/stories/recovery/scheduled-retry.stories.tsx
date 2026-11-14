@@ -6,7 +6,7 @@ import {
   storybookExecutionWorkspaces,
   storybookIssueDocuments,
   storybookIssues,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 
 const issueDocumentSummaries = storybookIssueDocuments.map(({ body: _body, ...summary }) => summary);
 
@@ -154,7 +154,7 @@ const meta = {
           "Surfaces the IssueScheduledRetryCard and IssueProperties Scheduled retry row in transient/continuation/due-now variants for UX review. The card mounts above IssueMonitorActivityCard and the property row sits sibling-to (and above) Monitor.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "recovery/bounded-continuation"
       ],

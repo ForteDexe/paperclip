@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { isCloudManagedInstance } from "./cloud-instance.js";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import { assertDistributionManifestCapabilities, readDistributionPluginCatalog, type DistributionPlugin } from "./distribution-plugin-catalog.js";
 
 /**
@@ -221,7 +221,7 @@ interface RegistryPluginRow {
   pluginKey: string;
   status: string;
   version: string;
-  manifestJson: PaperclipPluginManifestV1;
+  manifestJson: OutpostPluginManifestV1;
   packagePath?: string | null;
   lastError?: string | null;
 }
@@ -231,7 +231,7 @@ export interface BundledPluginProvisionerDeps {
     getByKey(pluginKey: string): Promise<RegistryPluginRow | null>;
     update(
       id: string,
-      data: { version?: string; manifest?: PaperclipPluginManifestV1; packagePath?: string; status?: "upgrade_pending" },
+      data: { version?: string; manifest?: OutpostPluginManifestV1; packagePath?: string; status?: "upgrade_pending" },
     ): Promise<unknown>;
     updateStatus(id: string, input: { status: "ready"; lastError: string | null }): Promise<unknown>;
   };
@@ -239,7 +239,7 @@ export interface BundledPluginProvisionerDeps {
     installPlugin(options: { localPath: string }): Promise<{
       manifest: { id: string } | null;
     }>;
-    loadManifest(packagePath: string): Promise<PaperclipPluginManifestV1 | null>;
+    loadManifest(packagePath: string): Promise<OutpostPluginManifestV1 | null>;
   };
   lifecycle: {
     load(pluginId: string): Promise<unknown>;
@@ -276,7 +276,7 @@ async function reconcileBundledPluginManifest(
   install: ResolvedBundledPlugin,
   deps: BundledPluginProvisionerDeps,
   bundleManifestExists: (localPath: string) => boolean,
-  verifiedManifest?: PaperclipPluginManifestV1,
+  verifiedManifest?: OutpostPluginManifestV1,
   preservePackagePath = false,
 ): Promise<"upgrade_pending" | undefined> {
   try {
@@ -403,7 +403,7 @@ export async function ensureBundledPlugins(
   const bundleManifestExists = deps.bundleManifestExists ?? defaultBundleManifestExists;
   for (const install of installs) {
     try {
-      let verifiedManifest: PaperclipPluginManifestV1 | undefined;
+      let verifiedManifest: OutpostPluginManifestV1 | undefined;
       if (install.distribution) {
         const manifest = await deps.loader.loadManifest(install.localPath);
         if (manifest?.id !== install.pluginKey || manifest.version !== install.distribution.version) {

@@ -22,7 +22,7 @@ export type UnchangedBaseline = {
   releasedAt?: string;
 };
 
-type Workspace = Pick<typeof executionWorkspaces.$inferSelect, "id" | "companyId" | "metadata">;
+type Workspace = Pick<typeof executionWorkspaces.$inferSelect, "id" | "spaceId" | "metadata">;
 type Repository = { id: string; relativePath: string; repoUrl: string; ref: string | null; pinnedCommit?: string };
 
 const object = (value: unknown): Record<string, unknown> =>
@@ -72,7 +72,7 @@ export async function proveRemoteWorkspaceUnchanged(tx: Pick<Db, "select">, inpu
     processGroupId: heartbeatRuns.processGroupId, processStartedAt: heartbeatRuns.processStartedAt,
     sessionIdAfter: heartbeatRuns.sessionIdAfter, runnerProfileJson: heartbeatRuns.runnerProfileJson,
     ownerFenceHeld: runOwnerFenceHeldSql() }).from(heartbeatRuns)
-    .where(and(eq(heartbeatRuns.companyId, workspace.companyId), eq(heartbeatRuns.id, runId)));
+    .where(and(eq(heartbeatRuns.spaceId, workspace.spaceId), eq(heartbeatRuns.id, runId)));
   if (!run || !ENDED_WITHOUT_RESULT.includes(run.status)) return { proven: false, reason: "writer_not_ended" };
   if (!input.callerOwnsWriter && run.ownerFenceHeld) return { proven: false, reason: "writer_owner_live" };
   if (run.processPid !== null || run.processGroupId !== null || run.processStartedAt !== null || run.sessionIdAfter !== null)
@@ -92,26 +92,26 @@ export async function proveRemoteWorkspaceUnchanged(tx: Pick<Db, "select">, inpu
     return { proven: false, reason: "provider_session_started" };
 
   const [event] = await tx.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, workspace.companyId), eq(heartbeatRunEvents.runId, runId),
+    eq(heartbeatRunEvents.spaceId, workspace.spaceId), eq(heartbeatRunEvents.runId, runId),
     executionStartedEventPredicate())).limit(1);
   if (event) return { proven: false, reason: "execution_recorded" };
   const [result] = await tx.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-    eq(nativeRunResults.companyId, workspace.companyId), eq(nativeRunResults.runId, runId))).limit(1);
+    eq(nativeRunResults.spaceId, workspace.spaceId), eq(nativeRunResults.runId, runId))).limit(1);
   if (result) return { proven: false, reason: "result_recorded" };
   // The controller writes this checkpoint before every runner command.
   const [commanded] = await tx.select({ runId: nativeRunnerCheckpoints.runId }).from(nativeRunnerCheckpoints).where(and(
-    eq(nativeRunnerCheckpoints.companyId, workspace.companyId), eq(nativeRunnerCheckpoints.runId, runId))).limit(1);
+    eq(nativeRunnerCheckpoints.spaceId, workspace.spaceId), eq(nativeRunnerCheckpoints.runId, runId))).limit(1);
   if (commanded) return { proven: false, reason: "runner_commanded" };
   // Provisioning and saves record their operation before they touch files.
   const [operation] = await tx.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, workspace.companyId), eq(workspaceOperations.heartbeatRunId, runId),
+    eq(workspaceOperations.spaceId, workspace.spaceId), eq(workspaceOperations.heartbeatRunId, runId),
     sql`(${workspaceOperations.executionWorkspaceId} is null or ${workspaceOperations.executionWorkspaceId} = ${workspace.id})`,
     sql`${workspaceOperations.phase} not in (${sql.join(FILE_NEUTRAL_OPERATION_PHASES.map(phase => sql`${phase}`), sql`, `)})`)).limit(1);
   if (operation) return { proven: false, reason: "workspace_operation_recorded" };
   // A requested repository is cloned before its save is recorded. Only
   // repositories already in the saved version are proven untouched.
   const repositories = await tx.select().from(executionWorkspaceRepositories).where(and(
-    eq(executionWorkspaceRepositories.companyId, workspace.companyId),
+    eq(executionWorkspaceRepositories.spaceId, workspace.spaceId),
     eq(executionWorkspaceRepositories.executionWorkspaceId, workspace.id)));
   if (repositories.some(row => !row.pinnedCommit || !input.isSavedRepository({ id: row.id, relativePath: row.relativePath,
     repoUrl: row.repoUrl, ref: row.requestedRef === "HEAD" ? null : row.requestedRef, pinnedCommit: row.pinnedCommit })))

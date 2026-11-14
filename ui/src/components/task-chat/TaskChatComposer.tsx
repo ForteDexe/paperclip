@@ -154,7 +154,7 @@ interface TaskChatComposerProps {
   reassignOptions?: InlineEntityOption[];
   agentMap?: ReadonlyMap<string, import("../AgentAvatar").AvatarAgent & { icon?: string | null }>;
   modelAgents?: ReadonlyMap<string, Agent>;
-  companyId?: string | null;
+  spaceId?: string | null;
   assigneeAdapterOverrides?: IssueAssigneeAdapterOverrides | null;
   userProfileMap?: ReadonlyMap<
     string,
@@ -407,7 +407,7 @@ export function TaskChatComposer({
   reassignOptions,
   agentMap,
   modelAgents,
-  companyId,
+  spaceId,
   assigneeAdapterOverrides,
   userProfileMap,
   currentAssigneeValue = "",
@@ -698,10 +698,10 @@ export function TaskChatComposer({
   };
 
   function updatePendingAssignee(value: string | null) {
-    if (!creation && value && companyId) {
+    if (!creation && value && spaceId) {
       const selection = parseAssigneeValue(value);
-      if (selection?.assigneeAgentId) trackRecentAssignee(selection.assigneeAgentId, companyId);
-      if (selection?.assigneeUserId) trackRecentAssigneeUser(selection.assigneeUserId, companyId);
+      if (selection?.assigneeAgentId) trackRecentAssignee(selection.assigneeAgentId, spaceId);
+      if (selection?.assigneeUserId) trackRecentAssigneeUser(selection.assigneeUserId, spaceId);
     }
     setPendingAssignee(value);
     onPendingAssigneeChange?.(value);
@@ -1572,9 +1572,9 @@ export function TaskChatComposer({
 
             <div className={cn("ml-auto flex min-w-0 max-w-full items-center gap-2", mobile && !queuedEdit && "flex-1 justify-end")}>
 
-            {(showAssignee || showConversationModel) && !queuedEdit && companyId && modelAgents ? (
+            {(showAssignee || showConversationModel) && !queuedEdit && spaceId && modelAgents ? (
               <ComposerRunSettingsPicker
-                companyId={companyId}
+                spaceId={spaceId}
                 assigneeValue={assigneeValue}
                 currentAssigneeValue={currentAssigneeValue}
                 options={reassignOptions ?? []}

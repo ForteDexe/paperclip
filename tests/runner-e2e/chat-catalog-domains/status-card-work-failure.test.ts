@@ -31,20 +31,20 @@ describe("real required-input work failure, not a provider failure", () => {
     expect(grade(v)).toBe(true);
     v.update.finishedAt = "2026-10-28T12:00:20Z"; expect(grade(v)).toBe(false);
   });
-  for (const key of ["companyId", "agentId", "id"] as const) it(`rejects foreign actual run ${key}`, () => {
+  for (const key of ["spaceId", "agentId", "id"] as const) it(`rejects foreign actual run ${key}`, () => {
     const v = cardWorkFixture(); Object.assign(v.evidence.runs.find(r => r.id === v.runId)!, { [key]: "foreign" }); expect(grade(v)).toBe(false);
   });
   for (const status of ["failed", "cancelled", "timed_out", "running"]) it(`rejects provider status ${status}`, () => {
     const v = cardWorkFixture(); Object.assign(v.evidence.runs.find(r => r.id === v.runId)!, { status }); expect(grade(v)).toBe(false);
   });
-  for (const key of ["companyId", "workerId", "connectionId", "readEntryId", "instructionRevisionId", "instructionSha256", "interestPrompt"] as const) it(`rejects wrong recipe ${key}`, () => {
+  for (const key of ["spaceId", "workerId", "connectionId", "readEntryId", "instructionRevisionId", "instructionSha256", "interestPrompt"] as const) it(`rejects wrong recipe ${key}`, () => {
     const v = cardWorkFixture(); v.evidence.recipe[key] = "foreign"; expect(grade(v)).toBe(false);
   });
-  for (const key of ["id", "companyId", "assigneeAgentId", "status", "description"] as const) it(`rejects wrong generation ${key}`, () => {
+  for (const key of ["id", "spaceId", "assigneeAgentId", "status", "description"] as const) it(`rejects wrong generation ${key}`, () => {
     const v = cardWorkFixture(); v.evidence.generation[key] = "foreign"; expect(grade(v)).toBe(false);
   });
-  for (const key of ["companyId", "statusCardId", "generationIssueId"]) it(`rejects foreign generation payload ${key}`, () => {
-    const v = cardWorkFixture(); const p = { companyId: "company", statusCardId: "card", generationIssueId: "failure-task", [key]: "foreign" };
+  for (const key of ["spaceId", "statusCardId", "generationIssueId"]) it(`rejects foreign generation payload ${key}`, () => {
+    const v = cardWorkFixture(); const p = { spaceId: "space", statusCardId: "card", generationIssueId: "failure-task", [key]: "foreign" };
     v.evidence.generation.description = '```json\n'+JSON.stringify(p)+'\n```'; expect(grade(v)).toBe(false);
   });
   for (const key of ["cardId", "generationIssueId", "status", "error", "finishedAt"] as const) it(`rejects absent/wrong failed update ${key}`, () => {
@@ -90,8 +90,8 @@ describe("complete settled usage with explicit unpriced allow", () => {
   for (const patch of [{ unpricedUsagePolicy: "deny" }, { pendingRunCount: 1 }, { amount: 0 }, { isActive: false }, { paused: true }, { status: "hard_stop" }, { remainingAmount: 0 }]) it(`rejects policy/accounting boundary ${Object.keys(patch)}`, () => {
     const v = cardWorkFixture(); Object.assign(v.evidence.overview.policies[0]!, patch); expect(grade(v)).toBe(false);
   });
-  it("requires active scoped company, worker and CEO policies", () => {
-    const v = cardWorkFixture(); v.evidence.overview.policies.pop(); expect(cardAccountingReady("company", "morgan", "ceo", v.evidence.runs, v.evidence.overview)).toBe(false);
+  it("requires active scoped space, worker and CEO policies", () => {
+    const v = cardWorkFixture(); v.evidence.overview.policies.pop(); expect(cardAccountingReady("space", "morgan", "ceo", v.evidence.runs, v.evidence.overview)).toBe(false);
   });
 });
 it("requires the same real successful generation read before the later failure", () => {

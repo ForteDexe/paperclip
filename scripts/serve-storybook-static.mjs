@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Built Storybook plus the real, public on-demand avatar endpoint.
-// Uses an isolated disposable cache; no company database or credentials.
+// Uses an isolated disposable cache; no space database or credentials.
 import { createRequire } from "node:module";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -63,7 +63,7 @@ const express = serverRequire("express");
 const { agentAvatarRoutes } = await import("../server/src/routes/agent-avatars.ts");
 const { createAgentAvatarService } = await import("../server/src/services/agent-avatars.ts");
 const { createLocalDiskStorageProvider } = await import("../server/src/storage/local-disk-provider.ts");
-const cache = await mkdtemp(join(tmpdir(), "paperclip-storybook-avatars-"));
+const cache = await mkdtemp(join(tmpdir(), "outpost-storybook-avatars-"));
 const avatars = createAgentAvatarService(createLocalDiskStorageProvider(cache));
 const api = express();
 api.use("/api", agentAvatarRoutes(avatars).router);

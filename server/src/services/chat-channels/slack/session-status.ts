@@ -70,7 +70,7 @@ export function createSlackSessionStatus(db: Db, options: SlackSessionStatusOpti
     const actions = await db
       .select({ action: chatActions })
       .from(chatActions)
-      .leftJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.companyId, chatActions.companyId)))
+      .leftJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.spaceId, chatActions.spaceId)))
       .where(and(
         onlyActionId ? eq(chatActions.id, onlyActionId) : undefined,
         dueChatAction("slack_session_sync", now.getTime()),
@@ -152,7 +152,7 @@ export function createSlackSessionStatus(db: Db, options: SlackSessionStatusOpti
                     and(
                       eq(chatConversations.id, action.conversationId!),
                       eq(chatConversations.endpointId, endpoint.id),
-                      eq(chatConversations.companyId, endpoint.companyId),
+                      eq(chatConversations.spaceId, endpoint.spaceId),
                       inArray(chatConversations.state, [
                         "active",
                         "waiting",
@@ -171,7 +171,7 @@ export function createSlackSessionStatus(db: Db, options: SlackSessionStatusOpti
                     .where(
                       and(
                         eq(chatEndpointResources.id, conversation.resourceId),
-                        eq(chatEndpointResources.companyId, endpoint.companyId),
+                        eq(chatEndpointResources.spaceId, endpoint.spaceId),
                         eq(chatEndpointResources.endpointId, endpoint.id),
                       ),
                     )
@@ -184,7 +184,7 @@ export function createSlackSessionStatus(db: Db, options: SlackSessionStatusOpti
                   .from(chatConversations)
                   .where(
                     and(
-                      eq(chatConversations.companyId, conversation.companyId),
+                      eq(chatConversations.spaceId, conversation.spaceId),
                       eq(chatConversations.endpointId, conversation.endpointId),
                       eq(
                         chatConversations.externalThreadId,
@@ -225,7 +225,7 @@ export function createSlackSessionStatus(db: Db, options: SlackSessionStatusOpti
               .from(chatPublications)
               .where(
                 and(
-                  eq(chatPublications.companyId, endpoint.companyId),
+                  eq(chatPublications.spaceId, endpoint.spaceId),
                   eq(chatPublications.endpointId, endpoint.id),
                   eq(chatPublications.conversationId, conversation.id),
                   eq(chatPublications.state, "published"),
@@ -265,7 +265,7 @@ export function createSlackSessionStatus(db: Db, options: SlackSessionStatusOpti
                 .where(
                   and(
                     eq(heartbeatRuns.id, runId),
-                    eq(heartbeatRuns.companyId, endpoint.companyId),
+                    eq(heartbeatRuns.spaceId, endpoint.spaceId),
                     eq(heartbeatRuns.agentId, endpoint.assignedAgentId),
                   ),
                 )

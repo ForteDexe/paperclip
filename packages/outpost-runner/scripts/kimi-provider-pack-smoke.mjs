@@ -38,7 +38,7 @@ export async function smokeKimiProviderPack(directory) {
   const keys = ["OUTPOST_ACPX_PROVIDER_PACKAGE_ROOT", "OUTPOST_ACPX_PROVIDER_PACKAGE_MANIFEST"];
   const previous = keys.map(key => process.env[key]);
   process.env[keys[0]] = pack; process.env[keys[1]] = join(pack, "package.json");
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-kimi-pack-smoke-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-kimi-pack-smoke-")));
   const home = join(root, "home"), workspace = join(root, "workspace");
   await mkdir(home); await mkdir(workspace);
   const model = "kimi-for-coding";
@@ -51,7 +51,7 @@ export async function smokeKimiProviderPack(directory) {
       const lease = await installation.openCommand();
       const child = lease.spawn([], { cwd: workspace, stdio: "pipe", env: {
         PATH: "/usr/bin:/bin", LANG: "C.UTF-8", KIMI_CODE_HOME: home,
-        KIMI_CODE_NO_AUTO_UPDATE: "1", KIMI_API_KEY: "paperclip-offline-placeholder",
+        KIMI_CODE_NO_AUTO_UPDATE: "1", KIMI_API_KEY: "outpost-offline-placeholder",
         OUTPOST_KIMI_INSTRUCTIONS: binding.payload, CI: "1", NO_COLOR: "1", TERM: "dumb",
       } });
       const closed = once(child, "close"), pending = new Map();
@@ -95,12 +95,12 @@ export async function smokeKimiProviderPack(directory) {
         } finally { clearTimeout(term); clearTimeout(kill); await lease.close(); active.delete(close); }
       })();
       active.add(close);
-      const initialized = await request("initialize", { protocolVersion: 1, clientCapabilities: {}, clientInfo: { name: "paperclip-provider-pack-smoke", version: "1" } });
+      const initialized = await request("initialize", { protocolVersion: 1, clientCapabilities: {}, clientInfo: { name: "outpost-provider-pack-smoke", version: "1" } });
       assert.equal(initialized.agentInfo?.version, "2.3.3");
       return { request, close };
     };
     const assertBinding = (result, sessionId) => {
-      const ack = result._meta?.paperclipKimiInstructions;
+      const ack = result._meta?.outpostKimiInstructions;
       assert.equal(ack?.sessionId, sessionId); assert.equal(ack.digest, binding.digest); assert.equal(ack.byteLength, binding.byteLength);
       assert.match(ack.effectiveDigest, /^sha256:[a-f0-9]{64}$/);
     };

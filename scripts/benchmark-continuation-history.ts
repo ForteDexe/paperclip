@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { agents, applyPendingMigrations, companies, createDb, heartbeatRuns, issues, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
+import { agents, applyPendingMigrations, spaces, createDb, heartbeatRuns, issues, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
 import { buildExecutionContinuation } from "../server/src/services/execution-continuation.js";
 import { hasConversationContinuationPolicy } from "../server/src/services/conversation-continuation.js";
 import { resolveExternalTestDatabaseUrl } from "../server/src/__tests__/helpers/external-test-database.js";
@@ -40,13 +40,13 @@ try {
   });
   const results = [];
   for (const receiptHeavy of [false, true]) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Synthetic history", issuePrefix: `B${companyId.replaceAll("-", "")}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Continue", status: "in_progress", assigneeAgentId: agentId });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Synthetic history", issuePrefix: `B${spaceId.replaceAll("-", "")}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Continue", status: "in_progress", assigneeAgentId: agentId });
     const runCount = receiptHeavy ? 1 : 25;
     const requiredResult = receiptHeavy ? randomBytes(1536 * 1024).toString("base64") : { receipt: "required output" };
-    for (let index = 0; index < runCount; index++) await db.insert(heartbeatRuns).values({ companyId, agentId,
+    for (let index = 0; index < runCount; index++) await db.insert(heartbeatRuns).values({ spaceId, agentId,
       contextSnapshot: { issueId }, status: "failed", errorCode: "adapter_failed", runtimeMode: "legacy",
       createdAt: new Date(Date.UTC(2020, 0, 1, 0, 0, index)),
       resultJson: { nativeResult: { output: receiptHeavy ? "small" : randomBytes(144 * 1024).toString("base64") },
@@ -74,7 +74,7 @@ try {
           return builder;
         };
       }});
-      const envelope = await invoke({ db: recorded, companyId, issueId, agentId, context: {}, summary: null, exposeLowTrustRaw: false });
+      const envelope = await invoke({ db: recorded, spaceId, issueId, agentId, context: {}, summary: null, exposeLowTrustRaw: false });
       assert.ok(query); assert.ok(history);
       return { query, history, envelope };
     }

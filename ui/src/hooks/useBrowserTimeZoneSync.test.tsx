@@ -10,8 +10,8 @@ const mocks = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }));
 vi.mock("@/api/workspacePreferences", () => ({ workspacePreferencesApi: { get: mocks.get, update: mocks.update } }));
 
 const preference = (userId: string, timeZone: string | null) => ({ userId, coordinatorWorkspaceEnabled: true, timeZone, updatedAt: null });
-function Probe({ companyId, userId }: { companyId: string | null; userId: string | null }) {
-  useBrowserTimeZoneSync(companyId, userId);
+function Probe({ spaceId, userId }: { spaceId: string | null; userId: string | null }) {
+  useBrowserTimeZoneSync(spaceId, userId);
   return null;
 }
 async function flush() {
@@ -32,19 +32,19 @@ describe("useBrowserTimeZoneSync", () => {
     container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   });
   afterEach(() => { flushSync(() => root.unmount()); client.clear(); container.remove(); vi.restoreAllMocks(); });
-  async function mount(companyId: string | null, userId: string | null) {
-    flushSync(() => root.render(<QueryClientProvider client={client}><Probe companyId={companyId} userId={userId} /></QueryClientProvider>));
+  async function mount(spaceId: string | null, userId: string | null) {
+    flushSync(() => root.render(<QueryClientProvider client={client}><Probe spaceId={spaceId} userId={userId} /></QueryClientProvider>));
     await flush();
   }
 
   it("saves the browser zone once when the saved zone differs", async () => {
     mocks.get.mockResolvedValue(preference("a", null));
     mocks.update.mockResolvedValue(preference("a", "America/Chicago"));
-    await mount("company", "a");
+    await mount("space", "a");
     expect(mocks.update).toHaveBeenCalledTimes(1);
-    expect(mocks.update).toHaveBeenCalledWith("company", { timeZone: "America/Chicago" });
+    expect(mocks.update).toHaveBeenCalledWith("space", { timeZone: "America/Chicago" });
     expect(client.getQueryData(queryKeys.workspacePreferences.mine("a"))).toMatchObject({ timeZone: "America/Chicago" });
-    flushSync(() => root.render(<QueryClientProvider client={client}><Probe companyId="other" userId="a" /></QueryClientProvider>));
+    flushSync(() => root.render(<QueryClientProvider client={client}><Probe spaceId="other" userId="a" /></QueryClientProvider>));
     await flush();
     expect(mocks.update).toHaveBeenCalledTimes(1);
   });
@@ -53,7 +53,7 @@ describe("useBrowserTimeZoneSync", () => {
     mocks.get.mockResolvedValue(preference("a", null));
     let answer!: (value: ReturnType<typeof preference>) => void;
     mocks.update.mockReturnValue(new Promise(resolve => { answer = resolve; }));
-    await mount("company", "a");
+    await mount("space", "a");
     client.setQueryData(queryKeys.workspacePreferences.mine("a"), { ...preference("a", null), coordinatorWorkspaceEnabled: false });
     answer(preference("a", "America/Chicago"));
     await flush();
@@ -61,18 +61,18 @@ describe("useBrowserTimeZoneSync", () => {
       .toMatchObject({ coordinatorWorkspaceEnabled: false, timeZone: "America/Chicago" });
   });
 
-  it("does not write when the zone already matches, without a company, or when signed out", async () => {
+  it("does not write when the zone already matches, without a space, or when signed out", async () => {
     mocks.get.mockResolvedValue(preference("a", "America/Chicago"));
-    await mount("company", "a");
+    await mount("space", "a");
     await mount(null, "a");
-    await mount("company", null);
+    await mount("space", null);
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
   it("stays silent when saving fails", async () => {
     mocks.get.mockResolvedValue(preference("a", "Europe/Paris"));
     mocks.update.mockRejectedValue(new Error("offline"));
-    await mount("company", "a");
+    await mount("space", "a");
     expect(mocks.update).toHaveBeenCalledTimes(1);
     expect(client.getQueryData(queryKeys.workspacePreferences.mine("a"))).toMatchObject({ timeZone: "Europe/Paris" });
   });

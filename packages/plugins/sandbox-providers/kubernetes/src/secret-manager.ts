@@ -30,7 +30,7 @@ export async function createPerRunSecret(clients: KubeClients, input: CreatePerR
         namespace: input.namespace,
         labels: {
           "outpost.io/run-id": input.runId,
-          "outpost.io/managed-by": "paperclip-k8s-plugin",
+          "outpost.io/managed-by": "outpost-k8s-plugin",
         },
         ownerReferences: [
           {

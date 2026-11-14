@@ -1,4 +1,4 @@
--- Runs through the Paperclip migration executor outside a file-wide transaction.
+-- Runs through the Outpost migration executor outside a file-wide transaction.
 -- Each idempotent keyset batch commits before advancing; history is recorded last.
 CREATE TABLE IF NOT EXISTS "issue_access_grants" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS "issue_access_grants" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "project_access_members" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
 	"subject_type" text NOT NULL,
 	"subject_id" text NOT NULL,
@@ -28,7 +28,7 @@ ALTER TABLE "workspace_operations" DROP CONSTRAINT IF EXISTS "workspace_operatio
 --> statement-breakpoint
 ALTER TABLE "workspace_operations" DROP CONSTRAINT IF EXISTS "workspace_operations_issue_id_issues_id_fk";
 --> statement-breakpoint
-ALTER TABLE "heartbeat_runs" ADD COLUMN IF NOT EXISTS "scope_kind" text DEFAULT 'company' NOT NULL;--> statement-breakpoint
+ALTER TABLE "heartbeat_runs" ADD COLUMN IF NOT EXISTS "scope_kind" text DEFAULT 'space' NOT NULL;--> statement-breakpoint
 ALTER TABLE "heartbeat_runs" ADD COLUMN IF NOT EXISTS "issue_id" uuid;--> statement-breakpoint
 ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "visibility" text DEFAULT 'open' NOT NULL;--> statement-breakpoint
 ALTER TABLE "issues" ADD COLUMN IF NOT EXISTS "privacy_root_issue_id" uuid;--> statement-breakpoint
@@ -46,8 +46,8 @@ DO $$ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'project_access_members_company_id_companies_id_fk' AND conrelid = 'public.project_access_members'::regclass) THEN
-    ALTER TABLE "project_access_members" ADD CONSTRAINT "project_access_members_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'project_access_members_space_id_spaces_id_fk' AND conrelid = 'public.project_access_members'::regclass) THEN
+    ALTER TABLE "project_access_members" ADD CONSTRAINT "project_access_members_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -58,7 +58,7 @@ END $$;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "issue_access_grants_subject_active_issue_idx" ON "issue_access_grants" USING btree ("subject_type","subject_id","revoked_at","issue_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "issue_access_grants_issue_idx" ON "issue_access_grants" USING btree ("issue_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "project_access_members_project_subject_uq" ON "project_access_members" USING btree ("project_id","subject_type","subject_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "project_access_members_subject_lookup_idx" ON "project_access_members" USING btree ("company_id","subject_type","subject_id","project_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "project_access_members_subject_lookup_idx" ON "project_access_members" USING btree ("space_id","subject_type","subject_id","project_id");--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'heartbeat_runs_issue_id_issues_id_fk' AND conrelid = 'public.heartbeat_runs'::regclass) THEN
     ALTER TABLE "heartbeat_runs" ADD CONSTRAINT "heartbeat_runs_issue_id_issues_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issues"("id") ON DELETE set null ON UPDATE no action;
@@ -84,13 +84,13 @@ DO $$ BEGIN
     ALTER TABLE "workspace_operations" ADD CONSTRAINT "workspace_operations_issue_id_issues_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issues"("id") ON DELETE set null ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "heartbeat_runs_company_issue_created_idx" ON "heartbeat_runs" USING btree ("company_id","issue_id","created_at");--> statement-breakpoint
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "issues_company_privacy_parent_idx" ON "issues" USING btree ("company_id","privacy_parent_issue_id");--> statement-breakpoint
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "issues_company_privacy_root_idx" ON "issues" USING btree ("company_id","privacy_root_issue_id");--> statement-breakpoint
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "projects_company_personal_owner_uq" ON "projects" USING btree ("company_id","personal_owner_user_id") WHERE "projects"."personal_owner_user_id" is not null;--> statement-breakpoint
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "heartbeat_runs_space_issue_created_idx" ON "heartbeat_runs" USING btree ("space_id","issue_id","created_at");--> statement-breakpoint
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "issues_space_privacy_parent_idx" ON "issues" USING btree ("space_id","privacy_parent_issue_id");--> statement-breakpoint
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "issues_space_privacy_root_idx" ON "issues" USING btree ("space_id","privacy_root_issue_id");--> statement-breakpoint
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "projects_space_personal_owner_uq" ON "projects" USING btree ("space_id","personal_owner_user_id") WHERE "projects"."personal_owner_user_id" is not null;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'heartbeat_runs_scope_binding_check' AND conrelid = 'public.heartbeat_runs'::regclass) THEN
-    ALTER TABLE "heartbeat_runs" ADD CONSTRAINT "heartbeat_runs_scope_binding_check" CHECK (("heartbeat_runs"."scope_kind" = 'company' AND "heartbeat_runs"."issue_id" IS NULL)
+    ALTER TABLE "heartbeat_runs" ADD CONSTRAINT "heartbeat_runs_scope_binding_check" CHECK (("heartbeat_runs"."scope_kind" = 'space' AND "heartbeat_runs"."issue_id" IS NULL)
         OR "heartbeat_runs"."scope_kind" = 'issue');
   END IF;
 END $$;--> statement-breakpoint
@@ -108,7 +108,7 @@ END $$;
 CREATE OR REPLACE FUNCTION set_heartbeat_run_scope_kind() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE candidate uuid;
 BEGIN
-  -- A private run never becomes a company run through context edits or deletion.
+  -- A private run never becomes a space run through context edits or deletion.
   IF TG_OP = 'UPDATE' AND OLD.scope_kind = 'issue' THEN
     IF OLD.issue_id IS NOT NULL AND NEW.issue_id IS NOT NULL AND OLD.issue_id <> NEW.issue_id THEN
       RAISE EXCEPTION 'run task binding is immutable';
@@ -125,9 +125,9 @@ BEGIN
   END IF;
   IF candidate IS NOT NULL OR NEW.context_snapshot ? 'issueId' OR NEW.context_snapshot ? 'taskId' OR NEW.scope_kind = 'issue' THEN
     NEW.scope_kind := 'issue';
-    SELECT id INTO NEW.issue_id FROM issues WHERE id = candidate AND company_id = NEW.company_id;
+    SELECT id INTO NEW.issue_id FROM issues WHERE id = candidate AND space_id = NEW.space_id;
   ELSE
-    NEW.scope_kind := 'company';
+    NEW.scope_kind := 'space';
   END IF;
   RETURN NEW;
 END $$;
@@ -139,7 +139,7 @@ DO $$ BEGIN
 END $$;
 --> statement-breakpoint
 -- Indexed primary-key keyset batches visit each historical run once. Missing
--- source tasks become issue-scoped tombstones, never company-visible run content.
+-- source tasks become issue-scoped tombstones, never space-visible run content.
 DO $$ DECLARE cursor_id uuid := '00000000-0000-0000-0000-000000000000'; next_id uuid;
 BEGIN LOOP
   WITH batch AS MATERIALIZED (SELECT id FROM heartbeat_runs WHERE id > cursor_id ORDER BY id LIMIT 1000),
@@ -175,7 +175,7 @@ BEGIN
     sources := sources || jsonb_build_object(NEW.source_issue_id::text, true);
   END IF;
   SELECT jsonb_object_agg(id::text, true) INTO linked FROM issues
-    WHERE execution_workspace_id = NEW.id AND company_id = NEW.company_id;
+    WHERE execution_workspace_id = NEW.id AND space_id = NEW.space_id;
   sources := sources || coalesce(linked, '{}'::jsonb);
   NEW.metadata := coalesce(NEW.metadata, '{}'::jsonb) || jsonb_build_object('_issuePrivacySources', sources);
   RETURN NEW;
@@ -191,7 +191,7 @@ CREATE OR REPLACE FUNCTION record_issue_workspace_privacy_source() RETURNS trigg
 BEGIN
   IF NEW.execution_workspace_id IS NOT NULL THEN
     UPDATE execution_workspaces SET metadata = metadata
-      WHERE id = NEW.execution_workspace_id AND company_id = NEW.company_id;
+      WHERE id = NEW.execution_workspace_id AND space_id = NEW.space_id;
   END IF;
   RETURN NEW;
 END $$;
@@ -214,7 +214,7 @@ END LOOP; END $$;
 
 --> statement-breakpoint
 -- Preserve operation history while retaining every original task/run boundary.
-CREATE OR REPLACE FUNCTION paperclip_keep_operation_privacy_sources() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION outpost_keep_operation_privacy_sources() RETURNS trigger AS $$
 DECLARE issue_sources jsonb := '{}'::jsonb; run_sources jsonb := '{}'::jsonb;
 BEGIN
   IF TG_OP = 'UPDATE' THEN
@@ -233,7 +233,7 @@ $$ LANGUAGE plpgsql;
 DO $$ BEGIN
   DROP TRIGGER IF EXISTS workspace_operations_keep_privacy_sources ON workspace_operations;
   CREATE TRIGGER workspace_operations_keep_privacy_sources BEFORE INSERT OR UPDATE ON workspace_operations
-  FOR EACH ROW EXECUTE FUNCTION paperclip_keep_operation_privacy_sources();
+  FOR EACH ROW EXECUTE FUNCTION outpost_keep_operation_privacy_sources();
 END $$;
 --> statement-breakpoint
 DO $$
@@ -264,12 +264,12 @@ BEGIN
     EXIT WHEN batch_ids IS NULL;
     UPDATE projects p SET privacy_owner_user_id = COALESCE(p.personal_owner_user_id, (
       SELECT CASE WHEN a.actor_type = 'user' THEN a.actor_id ELSE coalesce(a.responsible_user_id, r.responsible_user_id) END
-      FROM activity_log a LEFT JOIN heartbeat_runs r ON r.id = a.run_id AND r.company_id = a.company_id
-      WHERE a.company_id = p.company_id AND a.entity_type = 'project' AND a.entity_id = p.id::text AND a.action = 'project.created'
+      FROM activity_log a LEFT JOIN heartbeat_runs r ON r.id = a.run_id AND r.space_id = a.space_id
+      WHERE a.space_id = p.space_id AND a.entity_type = 'project' AND a.entity_id = p.id::text AND a.action = 'project.created'
       ORDER BY a.created_at, a.id LIMIT 1
     )) WHERE p.id = ANY(batch_ids) AND p.privacy_owner_user_id IS NULL;
-    INSERT INTO project_access_members (company_id, project_id, subject_type, subject_id)
-      SELECT company_id, id, 'user', privacy_owner_user_id FROM projects
+    INSERT INTO project_access_members (space_id, project_id, subject_type, subject_id)
+      SELECT space_id, id, 'user', privacy_owner_user_id FROM projects
       WHERE id = ANY(batch_ids) AND visibility = 'private' AND privacy_owner_user_id IS NOT NULL
       ON CONFLICT (project_id, subject_type, subject_id) DO NOTHING;
     cursor_id := batch_ids[array_length(batch_ids, 1)];

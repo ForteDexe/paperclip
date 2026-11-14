@@ -18,7 +18,7 @@ import { relativeTime } from "@/lib/utils";
 export interface BuiltInAgentGateProps {
   /** Registry key of the built-in agent that powers this feature (e.g. "briefs"). */
   agentKey: string;
-  companyId: string | null | undefined;
+  spaceId: string | null | undefined;
   /** Human label for the gated feature. Defaults to the agent's display name. */
   featureLabel?: string;
   children: ReactNode;
@@ -33,7 +33,7 @@ export interface BuiltInAgentGateProps {
  * - paused → amber banner + Resume over the (stale) children
  * - ready → children
  */
-export function BuiltInAgentGate({ agentKey, companyId, featureLabel, children }: BuiltInAgentGateProps) {
+export function BuiltInAgentGate({ agentKey, spaceId, featureLabel, children }: BuiltInAgentGateProps) {
   const queryClient = useQueryClient();
   const [configureOpen, setConfigureOpen] = useState(false);
 
@@ -43,23 +43,23 @@ export function BuiltInAgentGate({ agentKey, companyId, featureLabel, children }
   });
   const builtInAgentsEnabled = experimentalQuery.data?.enableBuiltInAgents === true;
   const { data: states, isLoading: statesLoading } = useQuery({
-    queryKey: queryKeys.builtInAgents.list(companyId ?? "__none__"),
-    queryFn: () => builtInAgentsApi.list(companyId!),
-    enabled: Boolean(companyId && builtInAgentsEnabled),
+    queryKey: queryKeys.builtInAgents.list(spaceId ?? "__none__"),
+    queryFn: () => builtInAgentsApi.list(spaceId!),
+    enabled: Boolean(spaceId && builtInAgentsEnabled),
   });
 
   const state: BuiltInAgentState | undefined = states?.find((entry) => entry.definition.key === agentKey);
 
   const resume = useMutation({
-    mutationFn: (agentId: string) => agentsApi.resume(agentId, companyId ?? undefined),
+    mutationFn: (agentId: string) => agentsApi.resume(agentId, spaceId ?? undefined),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.builtInAgents.list(companyId ?? "__none__") });
-      if (companyId) queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.builtInAgents.list(spaceId ?? "__none__") });
+      if (spaceId) queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(spaceId) });
     },
   });
 
-  // Unknown key or still resolving the company — fail open to the feature.
-  if (!companyId) return <>{children}</>;
+  // Unknown key or still resolving the space — fail open to the feature.
+  if (!spaceId) return <>{children}</>;
   if ((experimentalQuery.isLoading || statesLoading) && !states) return <PageSkeleton variant="detail" />;
   if (!state) return <>{children}</>;
 
@@ -77,7 +77,7 @@ export function BuiltInAgentGate({ agentKey, companyId, featureLabel, children }
           hideActionIcon
         />
         <ConfigureBuiltInAgentModal
-          companyId={companyId}
+          spaceId={spaceId}
           state={state}
           open={configureOpen}
           onOpenChange={setConfigureOpen}
@@ -91,7 +91,7 @@ export function BuiltInAgentGate({ agentKey, companyId, featureLabel, children }
       <EmptyState
         icon={Clock3}
         title={`${state.definition.displayName} is pending approval`}
-        message={`${label} will be available after the board approves this built-in agent hire.`}
+        message={`${label} will be available after the operator approves this built-in agent create.`}
       />
     );
   }

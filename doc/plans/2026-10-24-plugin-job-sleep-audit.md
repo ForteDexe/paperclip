@@ -86,7 +86,7 @@ persistence retries only settlement. Unresolved old runs are not blindly replaye
 This preserves the conservative Cloud sleep blocker for unknown external effects.
 
 Related proposals: #7905 covers empty manifest sync; this migration needs that
-behavior on both activation paths. #11571 proposes company-scoped jobs; this
+behavior on both activation paths. #11571 proposes space-scoped jobs; this
 migration retains the current instance-scoped contract and does not implement it.
 
 ## Refresh/manual-dispatch test ordering (2026-10-27)

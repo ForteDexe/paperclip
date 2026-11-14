@@ -40,7 +40,7 @@ test("a UI component retains browser and build coverage without unrelated server
 });
 
 test("source inspected across package boundaries selects its consumers", () => {
-  for (const file of ["ui/src/lib/issue-execution-policy.ts", "ui/src/index.css", "ui/src/pages/CompanyExport.tsx",
+  for (const file of ["ui/src/lib/issue-execution-policy.ts", "ui/src/index.css", "ui/src/pages/SpaceExport.tsx",
     "ui/src/components/MarkdownBody.tsx"]) {
     const tasks = selectedTasks(plan([file]));
     assert.ok(tasks.has("ci:server"), file);
@@ -62,7 +62,7 @@ test("repository-wide guidance guards run uncached for every scanned UI file typ
   assert.equal(config.tasks["//#ci:typecheck"].cache, false);
   const workflow = readFileSync(new URL(".github/workflows/pr-trusted.yml", root), "utf8");
   const job = workflow.split("\n  typecheck_release_registry:\n")[1].split("\n  general_tests:\n")[0];
-  assert.match(job, /- name: Verify repository-wide CLI guidance safety\n        run: pnpm exec vitest run --project @paperclipai\/server server\/src\/__tests__\/cli-invocation-safety.test.ts/);
+  assert.match(job, /- name: Verify repository-wide CLI guidance safety\n        run: pnpm exec vitest run --project @outpost\/server server\/src\/__tests__\/cli-invocation-safety.test.ts/);
   assert.ok(!job.includes("uses: ./.github/actions/run-ci-task"));
 });
 
@@ -245,7 +245,7 @@ test("the real routing step uses pinned trusted definitions and defaults to full
     writeFileSync(path.join(directory, "git"), `#!/usr/bin/env node
 const {spawnSync}=require('node:child_process');
 if(process.env.TEST_GIT_FAILURE==='true')process.exit(1);
-const args=process.argv.slice(2).map(a=>a==='https://github.com/paperclipai/outpost.git'?process.env.TEST_GIT_REPOSITORY:a);
+const args=process.argv.slice(2).map(a=>a==='https://github.com/paperclipai/paperclip.git'?process.env.TEST_GIT_REPOSITORY:a);
 const r=spawnSync(${JSON.stringify(gitBin)},args,{stdio:'inherit'});process.exit(r.status??1);
 `);
     chmodSync(path.join(directory, "git"), 0o755);
@@ -301,7 +301,7 @@ test("audited prose does not widen source selection, but guidance still runs its
   assert.deepEqual([...selectedTasks(guidance)], ["ci:typecheck"]);
   assert.equal(config.tasks["//#ci:typecheck"].cache, false);
   assert.deepEqual([...selectedTasks(plan(["doc/plans/2026-10-30-example.md"]))], []);
-  for (const file of ["docs/api/issues.md", "doc/unknown.md", "doc/plans/tool.sh", "skills/paperclip/SKILL.md",
+  for (const file of ["docs/api/issues.md", "doc/unknown.md", "doc/plans/tool.sh", "skills/outpost/SKILL.md",
     "server/src/onboarding-assets/default/AGENTS.md", "tests/fixtures/example.md"]) {
     assert.ok(selectedTasks(plan([source, file])).has("ci:server"), file);
   }

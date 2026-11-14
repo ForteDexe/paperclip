@@ -24,7 +24,7 @@ const execFile = promisify(execFileCallback);
 const SHA = /^[0-9a-f]{40}$/;
 const OPEN_STATUSES = ["active", "idle", "in_review"];
 const CHECKOUT_NAME = /^[A-Za-z0-9_-]+-[a-f0-9]{12}$/;
-const REPO_ONLY_CWD_SENTINEL = "/__paperclip_repo_only__";
+const REPO_ONLY_CWD_SENTINEL = "/__outpost_repo_only__";
 const STAGING_SUFFIXES = { worktree: ".clone-migrating", aside: ".clone-standalone", trash: ".clone-trash" } as const;
 const LOCAL_CONFIG = /^(core\.(repositoryformatversion|filemode|bare|logallrefupdates|ignorecase|precomposeunicode)|remote\.origin\.(url|fetch)|branch\..+\.(remote|merge))$/;
 const UNSUPPORTED_GIT_STATE = ["shallow", "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "BISECT_LOG", "rebase-apply", "rebase-merge", "sequencer",
@@ -152,7 +152,7 @@ export async function listNestedCloneMigrationNames(db: Db, workspace: Workspace
   const stat = await fs.lstat(root).catch(() => null);
   if (!stat?.isDirectory() || stat.isSymbolicLink()) return [...names].sort();
   const rows = await db.select({ id: projectWorkspaces.id, repoUrl: projectWorkspaces.repoUrl, repoRef: projectWorkspaces.repoRef, cwd: projectWorkspaces.cwd })
-    .from(projectWorkspaces).where(and(eq(projectWorkspaces.companyId, workspace.companyId), eq(projectWorkspaces.projectId, workspace.projectId!)));
+    .from(projectWorkspaces).where(and(eq(projectWorkspaces.spaceId, workspace.spaceId), eq(projectWorkspaces.projectId, workspace.projectId!)));
   let selected = rows;
   try {
     selected = selectRestoredProjectRepositories(rows, workspace.metadata?.[GIT_CACHE_RESTORATION_KEY] === undefined ? undefined : readGitCacheRestoration(workspace)?.contents);
@@ -169,7 +169,7 @@ export async function listNestedCloneMigrationNames(db: Db, workspace: Workspace
 
 async function nestedCloneSource(db: Db, workspace: Workspace, name: string): Promise<Source> {
   const rows = await db.select({ id: projectWorkspaces.id, repoUrl: projectWorkspaces.repoUrl, repoRef: projectWorkspaces.repoRef, cwd: projectWorkspaces.cwd })
-    .from(projectWorkspaces).where(and(eq(projectWorkspaces.companyId, workspace.companyId), eq(projectWorkspaces.projectId, workspace.projectId!)));
+    .from(projectWorkspaces).where(and(eq(projectWorkspaces.spaceId, workspace.spaceId), eq(projectWorkspaces.projectId, workspace.projectId!)));
   let selected: typeof rows;
   try {
     const contents = workspace.metadata?.[GIT_CACHE_RESTORATION_KEY] === undefined ? undefined : readGitCacheRestoration(workspace)?.contents;
@@ -180,7 +180,7 @@ async function nestedCloneSource(db: Db, workspace: Workspace, name: string): Pr
   if (source.cwd && source.cwd !== REPO_ONLY_CWD_SENTINEL && await fs.stat(source.cwd).then(entry => entry.isDirectory(), () => false)) {
     throw new Error("local_source_checkout");
   }
-  const candidates = nestedRepositoryBaseCandidates({ companyId: workspace.companyId, projectId: workspace.projectId!, repoUrl: source.repoUrl });
+  const candidates = nestedRepositoryBaseCandidates({ spaceId: workspace.spaceId, projectId: workspace.projectId!, repoUrl: source.repoUrl });
   let mismatch = false;
   for (const candidate of candidates) {
     if (await isVerifiedNestedRepositoryBase(candidate, candidates, source.repoUrl)) {
@@ -286,7 +286,7 @@ async function preservedCandidates(checkout: string, head: string, boundary: str
 }
 
 function lockToken(workspaceId: string, name: string) {
-  return createHash("sha256").update(`paperclip-nested-clone-migration:${workspaceId}:${name}`).digest("hex");
+  return createHash("sha256").update(`outpost-nested-clone-migration:${workspaceId}:${name}`).digest("hex");
 }
 
 function cloneLockLocations(checkout: string, branch: string | null): GitExpirationLockLocation[] {
@@ -408,7 +408,7 @@ export async function migrateNestedRepositoryClone(db: Db, snapshot: Workspace, 
   const { signal, hooks } = options;
   try {
     return await withWorkspaceMoveLocks(db, snapshot, async tx => {
-      let [row] = await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, snapshot.id), eq(executionWorkspaces.companyId, snapshot.companyId)));
+      let [row] = await db.select().from(executionWorkspaces).where(and(eq(executionWorkspaces.id, snapshot.id), eq(executionWorkspaces.spaceId, snapshot.spaceId)));
       if (!row || (!isNestedCloneMigrationCandidate(row) && !canRecover(row, name)) || row.cwd !== snapshot.cwd) throw new Error("workspace_changed");
       if (!isNestedCloneMigrationCandidate(row) && !await exists(row.cwd!)) {
         if (options.dryRun) return { ...result, outcome: "dry_run" as const, reason: "interrupted_migration_pending" };
@@ -450,7 +450,7 @@ export async function migrateNestedRepositoryClone(db: Db, snapshot: Workspace, 
         const base = source.base;
         await assertSafeBaseConfig(base, signal);
         await fetchBase(base, source.repoUrl, options.resolveGitAuth
-          ?? withAnonymousGitFallback(createIssueGitRemoteAuthProvider(db, row!.companyId, row!.sourceIssueId!)), signal);
+          ?? withAnonymousGitFallback(createIssueGitRemoteAuthProvider(db, row!.spaceId, row!.sourceIssueId!)), signal);
         await assertSafeBaseConfig(base, signal);
         await assertNoBranchOnlyReflogHistory(inspected, signal);
         const planned = await planRefs(inspected, base, prefix, signal);

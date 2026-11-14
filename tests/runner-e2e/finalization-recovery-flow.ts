@@ -42,7 +42,7 @@ export async function runFinalizationRecoveryFlow(input: {
     if (!issue) return;
     const [current, listed] = await Promise.all([
       api.get<Row>(`/api/issues/${issue.id}`),
-      api.get<Row[]>(`/api/companies/${fixtures.company.id}/heartbeat-runs?agentId=${fixtures.agent.id}&limit=20`),
+      api.get<Row[]>(`/api/spaces/${fixtures.space.id}/heartbeat-runs?agentId=${fixtures.agent.id}&limit=20`),
     ]);
     issue = current;
     runs = (await Promise.all(listed.map(run => api.get<Row>(`/api/heartbeat-runs/${run.id}`))))
@@ -52,20 +52,20 @@ export async function runFinalizationRecoveryFlow(input: {
   async function save(phase: string) {
     if (observation) await input.evidence("finalization-recovery.json", { phase, observation, checks: gradeFinalizationRecovery(observation) });
     await input.evidence("api-state.json", { capturePhase: phase,
-      issue: issue ? { id: issue.id, companyId: issue.companyId, status: issue.status, executionRunId: issue.executionRunId,
+      issue: issue ? { id: issue.id, spaceId: issue.spaceId, status: issue.status, executionRunId: issue.executionRunId,
         executionWorkspaceId: issue.executionWorkspaceId } : null,
-      runs: runs.map(run => ({ id: run.id, companyId: run.companyId, nativeIssueId: run.nativeIssueId, status: run.status,
+      runs: runs.map(run => ({ id: run.id, spaceId: run.spaceId, nativeIssueId: run.nativeIssueId, status: run.status,
         runtimeMode: run.runtimeMode, nativePhase: run.nativePhase, startedAt: run.startedAt, finishedAt: run.finishedAt,
         finalizationPhase: run.resultJson?.finalizationPhase })) });
   }
   try {
-    await api.patch(`/api/companies/${fixtures.company.id}/budgets`, { budgetMonthlyCents: 1000 });
+    await api.patch(`/api/spaces/${fixtures.space.id}/budgets`, { budgetMonthlyCents: 1000 });
     await api.patch(`/api/agents/${fixtures.agent.id}/budgets`, { budgetMonthlyCents: 1000 });
-    const [company, agent] = await Promise.all([api.get<Row>(`/api/companies/${fixtures.company.id}`), api.get<Row>(`/api/agents/${fixtures.agent.id}`)]);
-    if (company.budgetMonthlyCents !== 1000 || agent.budgetMonthlyCents !== 1000) throw new Error("Finalization recovery budgets were not retained");
-    const instructions = await captureStockHarness({ api, companyId: fixtures.company.id, agentId: fixtures.agent.id, generation: "native", runIds: [] });
+    const [space, agent] = await Promise.all([api.get<Row>(`/api/spaces/${fixtures.space.id}`), api.get<Row>(`/api/agents/${fixtures.agent.id}`)]);
+    if (space.budgetMonthlyCents !== 1000 || agent.budgetMonthlyCents !== 1000) throw new Error("Finalization recovery budgets were not retained");
+    const instructions = await captureStockHarness({ api, spaceId: fixtures.space.id, agentId: fixtures.agent.id, generation: "native", runIds: [] });
     if (gradeStockHire(instructions).some(check => !check.passed)) throw new Error("Finalization recovery requires the production default hire instructions");
-    const created = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name,
+    const created = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name,
       projectName: fixtures.project.name, title: execution.task.buildTitle(input.nonce), prompt: execution.task.buildPrompt(input.nonce),
       workMode: "standard", requireExplicitTitle: true });
     issue = await api.get<Row>(`/api/issues/${created.issueId}`);
@@ -75,17 +75,17 @@ export async function runFinalizationRecoveryFlow(input: {
         const run = runs[0];
         if (!run || runs.length !== 1 || run.nativePhase !== "workspace_finalizing") return false;
         const [operations, rows] = await Promise.all([api.get<Row[]>(`/api/heartbeat-runs/${run.id}/workspace-operations`), events(run.id)]);
-        const pending = operations.filter(operation => operation.companyId === fixtures.company.id && operation.issueId === issue!.id &&
+        const pending = operations.filter(operation => operation.spaceId === fixtures.space.id && operation.issueId === issue!.id &&
           operation.heartbeatRunId === run.id && operation.phase === "workspace_finalize" && operation.status === "running");
         const accepted = acceptedResults(rows);
         if (!pending.length || accepted.length !== 1 || providerTurns(rows) < 1) return false;
         [beforeProof] = await readRegisteredArtifacts(api, issue!.id, run.id, [files.proof]);
         proof = parseFinalizationProof(JSON.parse(beforeProof!.content));
-        const binding = { companyId: fixtures.company.id, issueId: issue!.id, runId: run.id };
+        const binding = { spaceId: fixtures.space.id, issueId: issue!.id, runId: run.id };
         await readFinalizationCrashBoundary(route => api.get(route), binding);
         await input.evidence("finalization-before.json", { binding, events: eventReceipts(rows), originalProof: proof,
           artifact: { id: beforeProof!.attachmentId, sha256: beforeProof!.sha256 },
-          operations: pending.map(operation => ({ id: operation.id, companyId: operation.companyId, issueId: operation.issueId,
+          operations: pending.map(operation => ({ id: operation.id, spaceId: operation.spaceId, issueId: operation.issueId,
             heartbeatRunId: operation.heartbeatRunId, phase: operation.phase, status: operation.status, startedAt: operation.startedAt })) });
         observation = { binding, before: { resultDigest: finalizationResultDigest(accepted[0]), acceptedResults: accepted.length,
           providerTurns: providerTurns(rows), operationIds: pending.map(operation => operation.id), artifactId: beforeProof!.attachmentId,
@@ -132,11 +132,11 @@ export async function runFinalizationRecoveryFlow(input: {
       } });
     run = delivered.run;
     const delivery = delivered.delivery;
-    await page.goto(`/${encodeURIComponent(fixtures.company.issuePrefix!)}/issues/${encodeURIComponent(issue.identifier ?? issue.id)}`);
+    await page.goto(`/${encodeURIComponent(fixtures.space.issuePrefix!)}/issues/${encodeURIComponent(issue.identifier ?? issue.id)}`);
     await expect(page.getByTestId("task-chat-agent-bubble").locator(`a[href*="${artifacts[0]!.attachmentId}"]`).last()).toBeVisible({ timeout: 30_000 });
     observation!.final = { runIds: runs.map(candidate => candidate.id), committed: run.runtimeMode === "native" && run.nativePhase === "committed",
       issueDone: issue.status === "done", resultDigest: finalizationResultDigest(run.resultJson.nativeResult), acceptedResults: acceptedResults(rows).length,
-      providerTurns: providerTurns(rows), resumedOperations: operations.filter(operation => operation.companyId === fixtures.company.id && operation.issueId === issue!.id &&
+      providerTurns: providerTurns(rows), resumedOperations: operations.filter(operation => operation.spaceId === fixtures.space.id && operation.issueId === issue!.id &&
         operation.heartbeatRunId === run.id && operation.phase === "workspace_finalize" && operation.status === "succeeded" && operation.metadata?.resumedFromOperationId)
         .map(operation => ({ resumedFromOperationId: operation.metadata.resumedFromOperationId, startedAt: operation.startedAt })),
       artifactId: artifacts[0]!.attachmentId, artifactSha256: artifacts[0]!.sha256, byteSize: stat.size,
@@ -144,7 +144,7 @@ export async function runFinalizationRecoveryFlow(input: {
       deliveryReceiptMatches: delivery.deliveryReceiptMatches,
       visibleDelivery: true, pendingInteractions: interactions.filter(interaction => interaction.status === "pending").length };
     await input.evidence("finalization-after.json", { binding: observation!.binding, events: eventReceipts(rows),
-      operations: operations.map(operation => ({ id: operation.id, companyId: operation.companyId, issueId: operation.issueId,
+      operations: operations.map(operation => ({ id: operation.id, spaceId: operation.spaceId, issueId: operation.issueId,
         heartbeatRunId: operation.heartbeatRunId, phase: operation.phase, status: operation.status, startedAt: operation.startedAt,
         finishedAt: operation.finishedAt, resumedFromOperationId: operation.metadata?.resumedFromOperationId })),
       restoredFile: { path: files.data, byteSize: stat.size, sha256: observation!.final.actualSha256 },

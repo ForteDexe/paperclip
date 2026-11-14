@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Plus, ExternalLink, Check, Lock, GitBranch, FileText, MoreVertical, CircleAlert } from 'lucide-react';
 import { parseGitHubSkillRepositoryUrl, type SkillSourceDisconnectRequest, type SkillSource, type SkillSourceDiscovery, type SkillSourceRefreshResult, type SkillSourceScanProgress } from '@outpost/shared';
 import { Link, useNavigate, useParams } from '@/lib/router';
-import { useCompany } from '@/context/CompanyContext';
+import { useSpace } from '@/context/SpaceContext';
 import { useBreadcrumbs } from '@/context/BreadcrumbContext';
 import { queryKeys } from '@/lib/queryKeys';
 import { skillSourcesApi } from '@/api/skillSources';
@@ -28,14 +28,14 @@ import { SkillPackagePreview } from './skills/SkillPackagePreview';
 import { SkillSourceTree, type SkillTreeCandidate } from './skills/SkillSourceTree';
 import { SkillImportWarnings, skillImportWarnings } from './skills/SkillImportWarnings';
 import { timeAgo } from '@/lib/timeAgo';
-import { skillRoute } from "@/lib/company-skill-routes";
+import { skillRoute } from "@/lib/space-skill-routes";
 import { consumeSkillSourceReturn, rememberSkillSourceReturn } from '@/lib/skill-source-connect-return';
 import { groupProjectSkillRepositories } from '@/lib/project-skill-repositories';
 
-const sourceKey = (companyId: string) => queryKeys.skillSources.all(companyId);
+const sourceKey = (spaceId: string) => queryKeys.skillSources.all(spaceId);
 export function SkillSources() {
   const sourceActionButtons = useRef<Record<string, HTMLButtonElement | null>>({});
-  const { selectedCompanyId, selectedCompany } = useCompany();
+  const { selectedSpaceId, selectedSpace } = useSpace();
   const { sourceId } = useParams<{ sourceId: string }>();
   const navigate = useNavigate();
   const client = useQueryClient();
@@ -44,24 +44,24 @@ export function SkillSources() {
   const [repairSourceId, setRepairSourceId] = useState<string | null>(null);
   const [branchSourceId, setBranchSourceId] = useState<string | null>(null);
   const [disconnectSource, setDisconnectSource] = useState<SkillSource | null>(null);
-  const companyId = selectedCompanyId ?? '';
+  const spaceId = selectedSpaceId ?? '';
   useEffect(() => { setBreadcrumbs([{ label: 'Skills', href: '/skills' }, { label: 'Sources' }]); }, [setBreadcrumbs]);
-  const query = useQuery({ queryKey: sourceKey(companyId), queryFn: () => skillSourcesApi.list(companyId), enabled: Boolean(companyId), refetchInterval: 5000 });
+  const query = useQuery({ queryKey: sourceKey(spaceId), queryFn: () => skillSourcesApi.list(spaceId), enabled: Boolean(spaceId), refetchInterval: 5000 });
   const repairSource = query.data?.find(source => source.id === repairSourceId);
   const branchSource = query.data?.find(source => source.id === branchSourceId);
-  const projectRepositories = useQuery({ queryKey: queryKeys.skillSources.projects(companyId), queryFn: () => skillSourcesApi.projectRepositories(companyId), enabled: Boolean(companyId), refetchInterval: 5000 });
+  const projectRepositories = useQuery({ queryKey: queryKeys.skillSources.projects(spaceId), queryFn: () => skillSourcesApi.projectRepositories(spaceId), enabled: Boolean(spaceId), refetchInterval: 5000 });
   const view = useQueryView(query);
   const projectsView = useQueryView(projectRepositories);
   async function invalidate() {
-    await Promise.all([client.invalidateQueries({ queryKey: queryKeys.skillSources.projects(companyId) }), client.invalidateQueries({ queryKey: sourceKey(companyId) }), client.invalidateQueries({ queryKey: queryKeys.companySkills.list(companyId) })]);
+    await Promise.all([client.invalidateQueries({ queryKey: queryKeys.skillSources.projects(spaceId) }), client.invalidateQueries({ queryKey: sourceKey(spaceId) }), client.invalidateQueries({ queryKey: queryKeys.spaceSkills.list(spaceId) })]);
   }
-  const refresh = useMutation({ mutationFn: (id: string) => skillSourcesApi.refresh(companyId, id), onSuccess: async result => {
+  const refresh = useMutation({ mutationFn: (id: string) => skillSourcesApi.refresh(spaceId, id), onSuccess: async result => {
     setResults(prev => ({ ...prev, [result.source.id]: null })); await invalidate();
   }, onError: (error, id) => { setResults(prev => ({ ...prev, [id]: { message: describeError(error).body, failedAt: Date.now(), operation: 'refresh' } })); void invalidate(); } });
   const adopt = useMutation({ mutationFn: async (group: ReturnType<typeof groupProjectSkillRepositories>[number]) => {
-    for (const workspace of group.importableWorkspaces) await skillSourcesApi.adoptProject(companyId, workspace.workspaceId);
+    for (const workspace of group.importableWorkspaces) await skillSourcesApi.adoptProject(spaceId, workspace.workspaceId);
   }, onSuccess: invalidate, onError: () => { void invalidate(); } });
-  const settings = useMutation({ mutationFn: ({ source, enabled }: { source: SkillSource; enabled: boolean }) => skillSourcesApi.settings(companyId, source.id, { revision: source.revision, automaticUpdates: enabled }),
+  const settings = useMutation({ mutationFn: ({ source, enabled }: { source: SkillSource; enabled: boolean }) => skillSourcesApi.settings(spaceId, source.id, { revision: source.revision, automaticUpdates: enabled }),
     onSuccess: async (_result, variables) => { setResults(prev => ({ ...prev, [variables.source.id]: null })); await invalidate(); },
     onError: (error, variables) => setResults(prev => ({ ...prev, [variables.source.id]: { message: describeError(error).body, failedAt: Date.now(), operation: 'settings' } })) });
   const availableProjects = groupProjectSkillRepositories(Array.isArray(projectRepositories.data) ? projectRepositories.data.filter(repo => !repo.sourceId) : []);
@@ -69,11 +69,11 @@ export function SkillSources() {
   const uninstalledProjects = availableProjects.filter(group => !groupSource(group));
   const disconnect = useMutation({
     mutationFn: ({ source, skills }: { source: SkillSource; skills: SkillSourceDisconnectRequest['skills'] }) =>
-      skillSourcesApi.disconnect(companyId, source.id, { revision: source.revision, skills }),
+      skillSourcesApi.disconnect(spaceId, source.id, { revision: source.revision, skills }),
     onSuccess: async result => {
-      client.setQueryData<SkillSource[]>(sourceKey(companyId), previous => previous?.filter(source => source.id !== result.id));
+      client.setQueryData<SkillSource[]>(sourceKey(spaceId), previous => previous?.filter(source => source.id !== result.id));
       await invalidate();
-      await client.invalidateQueries({ queryKey: queryKeys.folders.list(companyId, 'skill') });
+      await client.invalidateQueries({ queryKey: queryKeys.folders.list(spaceId, 'skill') });
       setDisconnectSource(null);
     },
   });
@@ -86,7 +86,7 @@ export function SkillSources() {
   });
   const staleRemoval = disconnect.error instanceof ApiError && disconnect.error.status === 409;
   const activeSource = query.data?.find(source => source.id === sourceId);
-  if (!companyId) return <p className="p-6 text-sm text-muted-foreground">Select a outpost to manage skill sources.</p>;
+  if (!spaceId) return <p className="p-6 text-sm text-muted-foreground">Select a outpost to manage skill sources.</p>;
   return <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div><h1 className="text-xl font-semibold">Skill sources</h1><p className="mt-1 text-sm text-muted-foreground">Skills from your repositories stay up to date automatically.</p></div>
@@ -105,7 +105,7 @@ export function SkillSources() {
     <SkillsPageNavigation activeView="sources" />
     {(view.kind === 'loading' || view.kind === 'reconnecting') && <p role="status" className="text-sm text-muted-foreground">Loading sources…</p>}
     {view.kind === 'error' && <QueryErrorState error={query.error} action="load skill sources" onRetry={view.retry} retrying={view.isFetching} />}
-    {query.data?.length === 0 && availableProjects.length === 0 && <div className="flex flex-col items-start gap-3 py-8"><p className="text-sm text-muted-foreground">No repositories added yet. Import your skills to make them available in {selectedCompany?.name ?? "this outpost"}.</p><Button variant="outline" onClick={() => navigate('/skills/sources/new')}>Import from GitHub</Button></div>}
+    {query.data?.length === 0 && availableProjects.length === 0 && <div className="flex flex-col items-start gap-3 py-8"><p className="text-sm text-muted-foreground">No repositories added yet. Import your skills to make them available in {selectedSpace?.name ?? "this outpost"}.</p><Button variant="outline" onClick={() => navigate('/skills/sources/new')}>Import from GitHub</Button></div>}
     {projectsView.kind === 'error' && <p role="alert" className="text-sm text-destructive">{describeError(projectRepositories.error).body} <Button variant="ghost" size="sm" onClick={() => void projectRepositories.refetch()}>Try again</Button></p>}
     {adopt.error && <p role="alert" className="text-sm text-destructive">{describeError(adopt.error).body}</p>}
     {uninstalledProjects.length > 0 && <div className="divide-y divide-border" aria-label="Project repositories">
@@ -180,9 +180,9 @@ export function SkillSources() {
         </section>;
       })}
     </div>
-    {branchSource && <SkillSourceBranchRepair companyId={companyId} source={branchSource} onClose={() => setBranchSourceId(null)}
+    {branchSource && <SkillSourceBranchRepair spaceId={spaceId} source={branchSource} onClose={() => setBranchSourceId(null)}
       onReturnFocus={() => sourceActionButtons.current[branchSource.id]?.focus()} onSaved={async () => { setResults(prev => ({ ...prev, [branchSource.id]: null })); await invalidate(); }} />}
-    {repairSource && <SkillSourceConnectionRepair companyId={companyId} source={repairSource} onClose={() => setRepairSourceId(null)} onReturnFocus={() => sourceActionButtons.current[repairSource.id]?.focus()} onSaved={async () => {
+    {repairSource && <SkillSourceConnectionRepair spaceId={spaceId} source={repairSource} onClose={() => setRepairSourceId(null)} onReturnFocus={() => sourceActionButtons.current[repairSource.id]?.focus()} onSaved={async () => {
       setResults(prev => ({ ...prev, [repairSource.id]: null })); await invalidate();
     }} />}
     {disconnectSource && <DisconnectSourceDialog key={`${disconnectSource.id}:${disconnectSource.revision}`} source={disconnectSource}
@@ -190,7 +190,7 @@ export function SkillSources() {
       stale={staleRemoval} onReload={() => reloadRemoval.mutate()} onChoiceChange={() => { if (!staleRemoval) disconnect.reset(); }}
       onClose={() => setDisconnectSource(null)}
       onConfirm={skills => disconnect.mutate({ source: disconnectSource, skills })} />}
-    {sourceId && (sourceId === 'new' || activeSource) && <SourceDialog key={`${companyId}:${sourceId}`} companyId={companyId} source={activeSource} onClose={() => navigate('/skills/sources')} onSaved={async result => {
+    {sourceId && (sourceId === 'new' || activeSource) && <SourceDialog key={`${spaceId}:${sourceId}`} spaceId={spaceId} source={activeSource} onClose={() => navigate('/skills/sources')} onSaved={async result => {
       setResults(prev => ({ ...prev, [result.source.id]: null })); await invalidate(); navigate('/skills/sources');
     }} />}
     {sourceId && sourceId !== 'new' && query.isSuccess && !activeSource && <p role="alert" className="text-sm text-destructive">Source not found.</p>}
@@ -243,10 +243,10 @@ function DisconnectSourceDialog({ source, pending, error, stale, onReload, onClo
   </Dialog>;
 }
 
-function SourceDialog({ companyId, source, onClose, onSaved }: {
-  companyId: string; source?: SkillSource; onClose: () => void; onSaved: (result: SkillSourceRefreshResult) => Promise<void>;
+function SourceDialog({ spaceId, source, onClose, onSaved }: {
+  spaceId: string; source?: SkillSource; onClose: () => void; onSaved: (result: SkillSourceRefreshResult) => Promise<void>;
 }) {
-  const draftKey = `outpost.skill-source-draft:${companyId}:${source?.id ?? 'new'}`;
+  const draftKey = `outpost.skill-source-draft:${spaceId}:${source?.id ?? 'new'}`;
   const [selectionRevision] = useState(source?.revision);
   const [draft] = useState(() => { try { const saved = JSON.parse(sessionStorage.getItem(draftKey) ?? '{}'); return !source || saved.revision === source.revision ? saved : {}; } catch { return {}; } });
   const [repositoryUrl, setRepositoryUrl] = useState<string>(draft.repositoryUrl ?? source?.repositoryUrl ?? '');
@@ -257,7 +257,7 @@ function SourceDialog({ companyId, source, onClose, onSaved }: {
   const [discovery, setDiscovery] = useState<SkillSourceDiscovery | null>(!source && draft.packageMode === 'skills' ? null : draft.discovery ?? null);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(draft.selectedPaths ?? (source ? source.entries.filter(entry => entry.selection !== 'excluded').map(entry => entry.path) : [])));
   const [excludedFolders, setExcludedFolders] = useState<string[]>(draft.excludedFolders ?? source?.excludedFolders ?? []);
-  const repositories = useQuery({ queryKey: queryKeys.skillSources.repositories(companyId), queryFn: () => skillSourcesApi.repositories(companyId), refetchOnMount: 'always' });
+  const repositories = useQuery({ queryKey: queryKeys.skillSources.repositories(spaceId), queryFn: () => skillSourcesApi.repositories(spaceId), refetchOnMount: 'always' });
   const repositoriesView = useQueryView(repositories);
   const repositoriesLoading = repositories.isPending || repositoriesView.kind === 'reconnecting';
   const availableRepositories = repositories.data?.repositories ?? [];
@@ -269,8 +269,8 @@ function SourceDialog({ companyId, source, onClose, onSaved }: {
   const availableConnectionId = connectionId && matchingConnectionIds.includes(connectionId) ? connectionId : matchingConnectionIds[0] ?? null;
   const sourceConnectionId = availableConnectionId ?? source?.connectionId ?? null;
   const connectHref = appSourceConnectHref('github');
-  const rememberReturn = () => rememberSkillSourceReturn(companyId, source?.id ?? 'new');
-  useEffect(() => { consumeSkillSourceReturn(companyId); }, [companyId]);
+  const rememberReturn = () => rememberSkillSourceReturn(spaceId, source?.id ?? 'new');
+  useEffect(() => { consumeSkillSourceReturn(spaceId); }, [spaceId]);
   useEffect(() => { sessionStorage.setItem(draftKey, JSON.stringify({ revision: selectionRevision, packageMode, repositoryUrl, showRepositoryUrl, connectionId, discovery, selectedPaths: [...selected], excludedFolders })); }, [draftKey, selectionRevision, packageMode, repositoryUrl, showRepositoryUrl, connectionId, discovery, selected, excludedFolders]);
   const scanController = useRef<AbortController | null>(null);
   const [progress, setProgress] = useState<SkillSourceScanProgress | null>(null);
@@ -281,7 +281,7 @@ function SourceDialog({ companyId, source, onClose, onSaved }: {
     scanController.current?.abort();
     scanController.current = controller;
     setProgress(null); setFound([]);
-    const discover = (mode: 'skills' | 'repository') => skillSourcesApi.discoverStream(companyId, { repositoryUrl, trackingRef: source?.trackingRef, packageMode: mode, connectionId: source ? sourceConnectionId : availableConnectionId }, event => {
+    const discover = (mode: 'skills' | 'repository') => skillSourcesApi.discoverStream(spaceId, { repositoryUrl, trackingRef: source?.trackingRef, packageMode: mode, connectionId: source ? sourceConnectionId : availableConnectionId }, event => {
       if (controller.signal.aborted || scanController.current !== controller) return;
       if (event.type === 'progress') setProgress(event);
       else setFound(previous => [...previous.filter(skill => skill.path !== event.candidate.path), event.candidate].slice(-5));
@@ -300,8 +300,8 @@ function SourceDialog({ companyId, source, onClose, onSaved }: {
     if (!source) { setSelected(new Set(result.discovery.candidates.map(candidate => candidate.path))); setExcludedFolders([]); }
   } });
   const save = useMutation({ mutationFn: () => source
-    ? skillSourcesApi.select(companyId, source.id, { revision: selectionRevision!, packageMode, selectedPaths: [...selected], excludedFolders, connectionId: sourceConnectionId })
-    : skillSourcesApi.create(companyId, { repositoryUrl: discovery!.repositoryUrl, trackingRef: discovery!.trackingRef, commitSha: discovery!.commitSha, packageMode, connectionId, selectedPaths: [...selected], excludedFolders }),
+    ? skillSourcesApi.select(spaceId, source.id, { revision: selectionRevision!, packageMode, selectedPaths: [...selected], excludedFolders, connectionId: sourceConnectionId })
+    : skillSourcesApi.create(spaceId, { repositoryUrl: discovery!.repositoryUrl, trackingRef: discovery!.trackingRef, commitSha: discovery!.commitSha, packageMode, connectionId, selectedPaths: [...selected], excludedFolders }),
     onSuccess: async result => { sessionStorage.removeItem(draftKey); await onSaved(result); },
   });
   const candidates: SkillTreeCandidate[] = discovery?.candidates ?? (source ? source.entries.map(entry => ({ ...entry,
@@ -384,7 +384,7 @@ function SourceDialog({ companyId, source, onClose, onSaved }: {
         {ready ? <Button disabled={busy || (!source && packageMode === 'skills' && selectedCount === 0)} onClick={() => save.mutate()}>{save.isPending ? 'Saving…' : source ? 'Save selection' : packageMode === 'repository' ? 'Import repository' : `Import ${selectedCount} ${selectedCount === 1 ? "skill" : "skills"}`}</Button>
           : <Button disabled={busy || repositories.isPending || !repositoryUrl.trim()} onClick={() => scan.mutate(packageMode)}>{scan.isPending ? 'Scanning…' : 'Find skills'}</Button>}
       </footer>
-    {preview && <SkillPackagePreview key={`${packageMode}:${preview.repository}:${preview.skill.path}:${preview.filePath ?? ''}`} companyId={companyId}
+    {preview && <SkillPackagePreview key={`${packageMode}:${preview.repository}:${preview.skill.path}:${preview.filePath ?? ''}`} spaceId={spaceId}
       repositoryPackage={preview.repository ? repositoryPackage ?? undefined : undefined}
       repository={{ packageMode, repositoryUrl: source?.repositoryUrl ?? discovery!.repositoryUrl, connectionId: source ? sourceConnectionId : connectionId }}
       commitSha={preview.skill.inspection?.commitSha ?? source?.lastScanCommit ?? discovery?.commitSha ?? null} skill={preview.skill} initialFile={preview.filePath} onClose={() => setPreview(null)} />}

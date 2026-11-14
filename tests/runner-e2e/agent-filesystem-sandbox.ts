@@ -181,7 +181,7 @@ export function instanceRunStatePaths(instanceRoot: string) {
 }
 
 /** Instance directories an agent may use, created on first use beside hidden ones. */
-const INSTANCE_SHARED_DIRECTORIES = ["companies", "projects", "workspaces", "runtime-context-assets", "skills", "runtime/provider-packs"] as const;
+const INSTANCE_SHARED_DIRECTORIES = ["spaces", "projects", "workspaces", "runtime-context-assets", "skills", "runtime/provider-packs"] as const;
 
 /**
  * Selects one runnerd launch's sandbox. Runnerd is launched per session with
@@ -396,7 +396,7 @@ export function probeRunScopedSandbox(
       otherRunnerState: path.join(paths.runnerStates, "other-run", "state.json"),
       controlPlaneState: path.join(paths.controlPlane, "control-plane-state.json"),
       otherOpencodeSession: path.join(paths.opencode, "other-session", "data", "opencode", "opencode.db"),
-      otherRunLog: path.join(paths.runLogs, "company", "agent", "other-run.ndjson"),
+      otherRunLog: path.join(paths.runLogs, "space", "agent", "other-run.ndjson"),
       databaseWal: path.join(paths.database, "pg_wal", "000000010000000000000001"),
       secrets: path.join(paths.secrets, "master.key"),
       otherProviderTrace: path.join(paths.providerTraces, "other-run.ndjson"),

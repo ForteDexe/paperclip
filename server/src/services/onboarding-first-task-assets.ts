@@ -7,9 +7,9 @@ import {
 } from "@outpost/shared";
 
 // Everything the onboarding first agent is told lives as plain markdown under
-// server/src/onboarding-assets/first-task/ so the board can edit the wording
+// server/src/onboarding-assets/first-task/ so the operator can edit the wording
 // without touching TypeScript. These loaders read those files at runtime the
-// same way loadDefaultAgentInstructionsBundle reads default/ and ceo/ (the build
+// same way loadDefaultAgentInstructionsBundle reads default/ and lead/ (the build
 // copies src/onboarding-assets/. into dist/onboarding-assets/), and fill the
 // {{agentName}} / {{organizationName}} / {{proposalMode}} placeholders.
 
@@ -130,7 +130,7 @@ export async function buildOnboardingFirstTaskBrief(options: {
 }
 
 // Layer B — the chief-of-staff persona seeded over the first agent's entry
-// instruction file at hire time.
+// instruction file at create time.
 export async function renderChiefOfStaffPersona(
   placeholders: OnboardingFirstTaskPlaceholders,
 ): Promise<string> {

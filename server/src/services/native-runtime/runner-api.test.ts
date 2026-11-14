@@ -15,14 +15,14 @@ import { runnerApiSensitiveResponse } from "./runner-api-sensitive-response.js";
 import { RUNNER_API_RESPONSE_MAX_BYTES } from "./runner-api-response-limits.js";
 
 const context = {
-  companyId: "company-a",
+  spaceId: "space-a",
   issueId: "issue-a",
   issueIdentifier: "API-1",
   runId: "run-a",
   workMode: "standard",
 };
-const projects = "GET /api/companies/{companyId}/projects";
-const createProject = "POST /api/companies/{companyId}/projects";
+const projects = "GET /api/spaces/{spaceId}/projects";
+const createProject = "POST /api/spaces/{spaceId}/projects";
 const io = (fetcher: typeof fetch): RunnerApiIo => ({
   apiUrl: "http://127.0.0.1:3100",
   token: "private-agent-token",
@@ -40,12 +40,12 @@ const io = (fetcher: typeof fetch): RunnerApiIo => ({
 });
 
 describe("capped list pagination", () => {
-  const listIssues = "GET /api/companies/{companyId}/issues";
+  const listIssues = "GET /api/spaces/{spaceId}/issues";
   const page = (headers: Record<string, string>, rows = [{ id: "a" }, { id: "b" }]) =>
     vi.fn(async () => new Response(JSON.stringify(rows), { headers: { "content-type": "application/json", ...headers } }));
 
   it("tells the agent a capped list is incomplete and how to fetch the next page", async () => {
-    const fetcher = page({ "x-paperclip-has-more": "true", "x-paperclip-limit": "2", "x-paperclip-next-offset": "2" });
+    const fetcher = page({ "x-outpost-has-more": "true", "x-outpost-limit": "2", "x-outpost-next-offset": "2" });
     const result = await executeRunnerApi({ operationId: listIssues, query: { limit: 2 } }, context, io(fetcher));
     expect(result).toMatchObject({
       ok: true,
@@ -57,13 +57,13 @@ describe("capped list pagination", () => {
 
   it("carries the cursor and the signal when the capped body is saved as an artifact", async () => {
     const rows = Array.from({ length: 600 }, (_, index) => ({ id: `row-${index}`, title: "x".repeat(80) }));
-    const fetcher = page({ "x-paperclip-has-more": "true", "x-paperclip-limit": "600", "x-paperclip-next-offset": "600", "x-paperclip-next-after-id": "row-599" }, rows);
+    const fetcher = page({ "x-outpost-has-more": "true", "x-outpost-limit": "600", "x-outpost-next-offset": "600", "x-outpost-next-after-id": "row-599" }, rows);
     const result = await executeRunnerApi({ operationId: listIssues }, context, io(fetcher));
     expect(result).toMatchObject({ ok: true, artifact: { artifactId: "artifact-a" }, pagination: { hasMore: true, nextOffset: 600, nextAfterId: "row-599" } });
   });
 
   it("reports a complete list as complete", async () => {
-    const result = await executeRunnerApi({ operationId: listIssues }, context, io(page({ "x-paperclip-has-more": "false", "x-paperclip-limit": "500" })));
+    const result = await executeRunnerApi({ operationId: listIssues }, context, io(page({ "x-outpost-has-more": "false", "x-outpost-limit": "500" })));
     expect(result).toMatchObject({ ok: true, pagination: { hasMore: false, truncated: false, nextOffset: null } });
     expect((result as unknown as { pagination: object }).pagination).not.toHaveProperty("guidance");
   });
@@ -99,10 +99,10 @@ describe("connection setup response protection", () => {
     ["POST", "/api/chat-endpoints/{endpointId}/setup-secret"],
     ["POST", "/api/chat-endpoints/{endpointId}/github/setup"],
     ["POST", "/api/chat-endpoints/{endpointId}/slack/resume"],
-    ["POST", "/api/companies/{companyId}/adapters/{type}/login-sessions"],
-    ["GET", "/api/companies/{companyId}/setup-token-login-sessions/{sessionId}/prompt"],
+    ["POST", "/api/spaces/{spaceId}/adapters/{type}/login-sessions"],
+    ["GET", "/api/spaces/{spaceId}/setup-token-login-sessions/{sessionId}/prompt"],
     ["POST", "/api/tool-gateway/gateways/{gatewayId}/tokens"],
-    ["POST", "/api/companies/{companyId}/ai-connections/local/check"],
+    ["POST", "/api/spaces/{spaceId}/ai-connections/local/check"],
     ["POST", "/api/tool-connections/{connectionId}/test-calls"],
     ["GET", "/api/tool-connections/{connectionId}/test-calls/{actionRequestId}"],
   ])("protects %s %s receipts and history", (method, path) => {
@@ -115,7 +115,7 @@ describe("connection setup response protection", () => {
 
 describe("runner API catalog", () => {
   it("discovers the real handoff schema and recovery endpoints with standard-mode mutation authority", () => {
-    const operation = runnerApiOperation("POST /api/companies/{companyId}/case-handoffs");
+    const operation = runnerApiOperation("POST /api/spaces/{spaceId}/case-handoffs");
     expect(operation.dedicatedTools).toEqual(["handoff_case", "create_case"]);
     expect(operation.allowedModes).toEqual(["standard"]);
     expect(operation.requestBody?.content["application/json"].schema).toMatchObject({ oneOf: [
@@ -138,10 +138,10 @@ describe("runner API catalog", () => {
   it("maps dedicated case data tools and describes the optional metadata projection", () => {
     for (const [operationId, tool] of [
       ["GET /api/cases/{id}", "read_case"], ["PATCH /api/cases/{id}", "update_case"],
-      ["GET /api/companies/{companyId}/workflows", "list_workflows"], ["POST /api/companies/{companyId}/workflows", "create_workflow"],
+      ["GET /api/spaces/{spaceId}/workflows", "list_workflows"], ["POST /api/spaces/{spaceId}/workflows", "create_workflow"],
       ["GET /api/workflows/{id}", "read_workflow"], ["PATCH /api/workflows/{id}", "update_workflow"],
     ]) expect(runnerApiOperation(operationId!).dedicatedTools).toEqual([tool]);
-    const legacyCreate = runnerApiOperation("POST /api/companies/{companyId}/cases");
+    const legacyCreate = runnerApiOperation("POST /api/spaces/{spaceId}/cases");
     expect(legacyCreate.dedicatedTools).toEqual([]);
     expect(legacyCreate.requestBody?.content["application/json"].schema.properties).not.toHaveProperty("createOnly");
     for (const method of ["GET", "PUT"]) expect(runnerApiOperation(`${method} /api/cases/{id}/documents/{key}`).dedicatedTools).toEqual([]);
@@ -176,25 +176,25 @@ describe("runner API catalog", () => {
       catalog.length,
     );
     expect(JSON.stringify(catalog)).not.toContain('"$ref"');
-    expect(runnerApiOperation("GET /api/companies/{companyId}/decisions").authorization.actor).toBe("board");
-    expect(runnerApiOperation("DELETE /api/issues/{id}/documents/{key}").authorization.actor).toBe("board");
-    // Agents read their own commentary (or all with commentary:view), so the catalog must not say board-only.
-    expect(runnerApiOperation("GET /api/companies/{companyId}/agent-commentary").authorization.actor).toBe("board_or_agent");
-    expect(runnerApiOperation("GET /api/companies/{companyId}/agent-commentary/{id}").authorization.actor).toBe("board_or_agent");
+    expect(runnerApiOperation("GET /api/spaces/{spaceId}/decisions").authorization.actor).toBe("operator");
+    expect(runnerApiOperation("DELETE /api/issues/{id}/documents/{key}").authorization.actor).toBe("operator");
+    // Agents read their own commentary (or all with commentary:view), so the catalog must not say operator-only.
+    expect(runnerApiOperation("GET /api/spaces/{spaceId}/agent-commentary").authorization.actor).toBe("operator_or_agent");
+    expect(runnerApiOperation("GET /api/spaces/{spaceId}/agent-commentary/{id}").authorization.actor).toBe("operator_or_agent");
     expect(runnerApiOperation("DELETE /api/issues/{id}/documents/{key}").dedicatedTools).toEqual([]);
     expect(runnerApiOperation(createProject).requestBody?.content["application/json"].schema.required).toContain("name");
     expect(runnerApiOperation(createProject).dedicatedTools).toEqual(["create_project"]);
     expect(runnerApiOperation(projects).dedicatedTools).toEqual(["list_projects"]);
-    expect(runnerApiOperation("GET /api/companies/{companyId}/project-repositories").dedicatedTools).toEqual(["list_project_repositories"]);
+    expect(runnerApiOperation("GET /api/spaces/{spaceId}/project-repositories").dedicatedTools).toEqual(["list_project_repositories"]);
     expect(runnerApiOperation("GET /api/agents/{id}/instructions-bundle/file").dedicatedTools).toEqual(["read_agent_instructions"]);
     expect(runnerApiOperation("PUT /api/agents/{id}/instructions-bundle/file").dedicatedTools).toEqual(["update_agent_instructions"]);
     expect(runnerApiOperation("GET /api/agents/{id}/instructions-bundle/history").dedicatedTools).toEqual(["get_agent_instruction_history"]);
     expect(runnerApiOperation("POST /api/agents/{id}/instructions-bundle/restore").dedicatedTools).toEqual(["restore_agent_instructions"]);
-    expect(runnerApiOperation("POST /api/companies/{companyId}/agent-hires").dedicatedTools).toEqual(["hire_agent"]);
-    expect(runnerApiOperation("POST /api/companies/{companyId}/agent-hires").dedicatedToolGuidance).toContain("inherits the caller's native runtime");
+    expect(runnerApiOperation("POST /api/spaces/{spaceId}/agent-creations").dedicatedTools).toEqual(["create_agent"]);
+    expect(runnerApiOperation("POST /api/spaces/{spaceId}/agent-creations").dedicatedToolGuidance).toContain("inherits the caller's native runtime");
   });
   it.each(runnerApiCatalog().filter(operation => operation.transport === "rest"))("resolves the catalog route $operationId inside the bound origin", operation => {
-    const pathParams = Object.fromEntries(operation.parameters.filter(parameter => parameter.in === "path").map(parameter => [parameter.name, parameter.name === "companyId" ? context.companyId : "fixture-id"]));
+    const pathParams = Object.fromEntries(operation.parameters.filter(parameter => parameter.in === "path").map(parameter => [parameter.name, parameter.name === "spaceId" ? context.spaceId : "fixture-id"]));
     const url = runnerApiUrl(operation, { operationId: operation.operationId, pathParams }, context, "https://outpost.test");
     expect(url.origin).toBe("https://outpost.test");
     expect(url.pathname).not.toContain("{");
@@ -204,8 +204,8 @@ describe("runner API catalog", () => {
 
   it("exposes team preview and install bodies through the actual adapter override search", () => {
     const results = searchRunnerApi({ query: "adapterOverrides install team under manager parentAgentId", limit: 10 }).results;
-    const preview = results.find(row => row.operationId === "POST /api/companies/{companyId}/teams/catalog/{catalogId}/preview")!;
-    const install = results.find(row => row.operationId === "POST /api/companies/{companyId}/teams/catalog/{catalogId}/install")!;
+    const preview = results.find(row => row.operationId === "POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/preview")!;
+    const install = results.find(row => row.operationId === "POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/install")!;
     const previewBody = preview.requestBody?.content["application/json"].schema;
     const installBody = install.requestBody?.content["application/json"].schema;
     expect(previewBody).toMatchObject({ additionalProperties: false, properties: { targetManagerAgentId: expect.any(Object), nameOverrides: expect.any(Object) } });
@@ -213,17 +213,17 @@ describe("runner API catalog", () => {
     expect(previewBody.properties).not.toHaveProperty("adapterOverrides");
   });
 
-  it("discovers proposal revision without confusing it with hiring, approval decisions, or reads", () => {
+  it("discovers proposal revision without confusing it with creation, approval decisions, or reads", () => {
     const resubmit = "POST /api/approvals/{id}/resubmit";
     for (const query of [
-      "revise changes-requested hire proposal",
+      "revise changes-requested create proposal",
       "resubmit approval after changes",
-      "Change the proposed hire to the cheaper model and send it back for approval.",
+      "Change the proposed create to the cheaper model and send it back for approval.",
     ]) expect(searchRunnerApi({ query }).results.map(row => row.operationId), query).toContain(resubmit);
     for (const [query, expected] of [
       ["GET /api/approvals/{id}", "GET /api/approvals/{id}"],
       ["get approval", "GET /api/approvals/{id}"],
-      ["hire agent", "POST /api/companies/{companyId}/agent-hires"],
+      ["create agent", "POST /api/spaces/{spaceId}/agent-creations"],
       ["approve approval", "POST /api/approvals/{id}/approve"],
       ["reject approval", "POST /api/approvals/{id}/reject"],
       [resubmit, resubmit],
@@ -252,7 +252,7 @@ describe("runner API catalog", () => {
       ),
     ).toContain(createProject);
     expect(
-      searchRunnerApi({ query: "GET /api/companies/{companyId}/issues" })
+      searchRunnerApi({ query: "GET /api/spaces/{spaceId}/issues" })
         .results[0].dedicatedTools,
     ).toContain("search_tasks");
     expect(searchRunnerApi({ query: "nothing-zzzzzzzzzz" }).total).toBe(0);
@@ -260,8 +260,8 @@ describe("runner API catalog", () => {
   it("finds the actual instance-restart operation and explains its authority boundary", () => {
     const operation = searchRunnerApi({ query: "restart instance", limit: 1 }).results[0]!;
     expect(operation.operationId).toBe("POST /api/health/dev-server/restart");
-    expect(operation.authorization.actor).toBe("board");
-    expect(operation.description).toMatch(/authenticated.*board/i);
+    expect(operation.authorization.actor).toBe("operator");
+    expect(operation.description).toMatch(/authenticated.*operator/i);
     expect(operation.description).toMatch(/agent credential/i);
     expect(operation.description).toMatch(/supervisor/i);
   });
@@ -271,14 +271,14 @@ describe("runner API catalog", () => {
     expect(operation.description).toMatch(/only source of ready-made teams/i);
     expect(operation.description).toContain("no teams catalog page");
     expect(operation.parameters.map(parameter => parameter.name)).toContain("q");
-    const preview = runnerApiOperation("POST /api/companies/{companyId}/teams/catalog/{catalogId}/preview")!;
+    const preview = runnerApiOperation("POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/preview")!;
     expect(preview.description).toMatch(/creates no resources/i);
     expect(preview.allowedModes).toEqual(expect.arrayContaining(["standard", "ask", "planning"]));
-    expect(runnerApiOperation("POST /api/companies/{companyId}/teams/catalog/{catalogId}/install")!.allowedModes).not.toContain("ask");
+    expect(runnerApiOperation("POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/install")!.allowedModes).not.toContain("ask");
     const askContext = { ...context, workMode: "ask" };
     expect(validateRunnerApiCall({ operationId: preview.operationId, pathParams: { catalogId: "team" }, body: {} }, askContext).operation.operationId).toBe(preview.operationId);
-    expect(() => validateRunnerApiCall({ operationId: "POST /api/companies/{companyId}/teams/catalog/{catalogId}/install", pathParams: { catalogId: "team" }, body: {} }, askContext)).toThrow();
-    const install = runnerApiOperation("POST /api/companies/{companyId}/teams/catalog/{catalogId}/install")!;
+    expect(() => validateRunnerApiCall({ operationId: "POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/install", pathParams: { catalogId: "team" }, body: {} }, askContext)).toThrow();
+    const install = runnerApiOperation("POST /api/spaces/{spaceId}/teams/catalog/{catalogId}/install")!;
     expect(install.description).toMatch(/permission to create agents/i);
   });
   it("discovers where to save project defaults without rewriting existing tasks", () => {
@@ -315,7 +315,7 @@ describe("runner API request boundary", () => {
       );
       const pathParams = Object.fromEntries(
         [...operation.path.matchAll(/\{([^}]+)\}/g)].map(([, name]) =>
-          [name, name === "companyId" ? context.companyId : "fixture"]),
+          [name, name === "spaceId" ? context.spaceId : "fixture"]),
       );
       const result = await executeRunnerApi(
         // A body-less PATCH is rejected before dispatch; send an empty update.
@@ -326,7 +326,7 @@ describe("runner API request boundary", () => {
       expect(request).toHaveBeenCalledOnce();
       const headers = new Headers(request.mock.calls[0][1]?.headers);
       expect(headers.get("Authorization")).toBe("Bearer private-agent-token");
-      expect(headers.get("X-Paperclip-Run-Id")).toBe(context.runId);
+      expect(headers.get("X-Outpost-Run-Id")).toBe(context.runId);
     },
   );
   it.each([
@@ -344,7 +344,7 @@ describe("runner API request boundary", () => {
     },
   );
   it.each([
-    "POST /api/companies/{companyId}/adapters/{type}/login-sessions",
+    "POST /api/spaces/{spaceId}/adapters/{type}/login-sessions",
     "POST /api/agents/me/connections/{connectionId}/start-authorization",
   ])("calls JSON authentication initiation through REST: %s", async operationId => {
     const request = vi.fn<typeof fetch>(async () => Response.json({ error: "Route permission required" }, { status: 403 }));
@@ -381,7 +381,7 @@ describe("runner API request boundary", () => {
   it("keeps routine metadata readable", () => {
     expect(
       validateRunnerApiCall(
-        { operationId: "GET /api/companies/{companyId}/routines" },
+        { operationId: "GET /api/spaces/{spaceId}/routines" },
         context,
       ).operation.callPolicy,
     ).toBe("rest");
@@ -399,14 +399,14 @@ describe("runner API request boundary", () => {
   it("retains safe secret metadata discovery", () => {
     for (const operationId of [
       "GET /api/agents/me/secrets",
-      "GET /api/companies/{companyId}/secrets/catalog",
+      "GET /api/spaces/{spaceId}/secrets/catalog",
     ]) {
       expect(
         validateRunnerApiCall({ operationId }, context).operation.callPolicy,
       ).toBe("rest");
     }
   });
-  it("binds the company and encodes query scalars", () => {
+  it("binds the space and encodes query scalars", () => {
     const input = {
       operationId: projects,
       query: { q: "hello & goodbye", limit: 2, active: false },
@@ -418,7 +418,7 @@ describe("runner API request boundary", () => {
       "https://outpost.test/api",
     );
     expect(url.origin).toBe("https://outpost.test");
-    expect(url.pathname).toBe("/api/companies/company-a/projects");
+    expect(url.pathname).toBe("/api/spaces/space-a/projects");
     expect(url.searchParams.get("q")).toBe("hello & goodbye");
   });
   it.each(["../secrets", ".", "..", "%2e%2e", "abc/def", "abc\\def"])(
@@ -438,19 +438,19 @@ describe("runner API request boundary", () => {
       ).toThrow();
     },
   );
-  it("rejects unknown inputs, foreign companies, and mode bypasses", () => {
+  it("rejects unknown inputs, foreign spaces, and mode bypasses", () => {
     expect(() =>
       validateRunnerApiCall(
-        { operationId: projects, headers: { Authorization: "board" } },
+        { operationId: projects, headers: { Authorization: "operator" } },
         context,
       ),
     ).toThrow();
     expect(() =>
       validateRunnerApiCall(
-        { operationId: projects, pathParams: { companyId: "foreign" } },
+        { operationId: projects, pathParams: { spaceId: "foreign" } },
         context,
       ),
-    ).toThrow("another company");
+    ).toThrow("another space");
     for (const workMode of ["planning", "ask"]) {
       expect(() =>
         validateRunnerApiCall(
@@ -468,8 +468,8 @@ describe("runner API request boundary", () => {
   });
   it.each([
     ["POST /api/agents/me/secrets/{key}/value", { key: "FIXTURE_TOKEN" }],
-    ["POST /api/companies/{companyId}/exports", {}],
-    ["POST /api/companies/{companyId}/export", {}],
+    ["POST /api/spaces/{spaceId}/exports", {}],
+    ["POST /api/spaces/{spaceId}/export", {}],
   ])("returns credential responses for %s above the inline limit without plaintext artifacts", async (operationId, pathParams) => {
     const value = "fixture-credential-".repeat(3000);
     const transport = io(async () => Response.json({ value }));
@@ -496,7 +496,7 @@ describe("runner API request boundary", () => {
   });
   it("forwards only server-owned authentication and preserves API denials", async () => {
     const request = vi.fn<typeof fetch>(async () =>
-      Response.json({ error: "Board access required" }, { status: 403 }),
+      Response.json({ error: "Operator access required" }, { status: 403 }),
     );
     const result = await executeRunnerApi(
       { operationId: projects },
@@ -506,13 +506,13 @@ describe("runner API request boundary", () => {
     expect(result).toMatchObject({
       ok: false,
       status: 403,
-      data: { error: "Board access required" },
+      data: { error: "Operator access required" },
     });
     const options = request.mock.calls[0][1]!;
     expect(new Headers(options.headers).get("Authorization")).toBe(
       "Bearer private-agent-token",
     );
-    expect(new Headers(options.headers).get("X-Paperclip-Run-Id")).toBe(
+    expect(new Headers(options.headers).get("X-Outpost-Run-Id")).toBe(
       context.runId,
     );
     expect(options.redirect).toBe("manual");
@@ -695,7 +695,7 @@ describe("runner API request boundary", () => {
     ).toBe("POST");
   });
   it("passes uploaded JSON bodies through the same route validation as REST", async () => {
-    const request = vi.fn<typeof fetch>(async () => Response.json({ error: "Board access required" }, { status: 403 }));
+    const request = vi.fn<typeof fetch>(async () => Response.json({ error: "Operator access required" }, { status: 403 }));
     const transport = io(request);
     transport.readFile = async () => ({ bytes: Buffer.from('{"status":"idle"}'), filename: "update.json", contentType: "application/json" });
     expect(await executeRunnerApi({ operationId: "PATCH /api/agents/{id}", pathParams: { id: "fixture" }, files: [{ path: "update.json" }], contentType: "application/json" }, context, transport))
@@ -807,8 +807,8 @@ describe("runner API request boundary", () => {
     expect(request).not.toHaveBeenCalled();
   });
   it.each([{}, { limitBytes: 8192 }, { offsetBytes: 0, limitBytes: 4096 }])("sends a mutation once when responseText asks only for the first window: %j", async responseText => {
-    const request = vi.fn<typeof fetch>(async () => Response.json({ id: "company-a", name: "Acorn Studio" }));
-    const result = await executeRunnerApi({ operationId: "PATCH /api/companies/{companyId}", pathParams: { companyId: "company-a" }, body: { name: "Acorn Studio" }, responseText }, context, io(request));
+    const request = vi.fn<typeof fetch>(async () => Response.json({ id: "space-a", name: "Acorn Studio" }));
+    const result = await executeRunnerApi({ operationId: "PATCH /api/spaces/{spaceId}", pathParams: { spaceId: "space-a" }, body: { name: "Acorn Studio" }, responseText }, context, io(request));
     expect(request).toHaveBeenCalledTimes(1);
     const [, init] = request.mock.calls[0]!;
     expect(init?.method).toBe("PATCH");
@@ -818,11 +818,11 @@ describe("runner API request boundary", () => {
   });
   it("rejects a PATCH with no body instead of sending a no-op update", async () => {
     const request = vi.fn<typeof fetch>();
-    const call = { operationId: "PATCH /api/companies/{companyId}", pathParams: { companyId: "company-a" }, query: {}, responseText: { limitBytes: 8192 } };
+    const call = { operationId: "PATCH /api/spaces/{spaceId}", pathParams: { spaceId: "space-a" }, query: {}, responseText: { limitBytes: 8192 } };
     await expect(executeRunnerApi(call, context, io(request))).rejects.toThrow(/not sent.*requires body.*name.*Received arguments: operationId, pathParams, query, responseText/);
-    expect(() => validateRunnerApiCall({ operationId: "PATCH /api/companies/{companyId}", pathParams: { companyId: "company-a" }, body: {} }, context)).not.toThrow();
+    expect(() => validateRunnerApiCall({ operationId: "PATCH /api/spaces/{spaceId}", pathParams: { spaceId: "space-a" }, body: {} }, context)).not.toThrow();
     // Recovery validates saved calls without dispatch: an older accepted body-less PATCH stays readable.
-    expect(() => validateRunnerApiCall({ operationId: "PATCH /api/companies/{companyId}", pathParams: { companyId: "company-a" } }, context)).not.toThrow();
+    expect(() => validateRunnerApiCall({ operationId: "PATCH /api/spaces/{spaceId}", pathParams: { spaceId: "space-a" } }, context)).not.toThrow();
     expect(request).not.toHaveBeenCalled();
   });
   it("rejects binary, invalid UTF-8 and offsets that split text", async () => {

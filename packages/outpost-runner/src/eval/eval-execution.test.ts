@@ -26,7 +26,7 @@ function bundle(): EvalBundle {
       callTemplate: "Invoke the declared semantic operation sequence.",
       restraintTemplate: "Make no semantic call.",
     },
-    grants: ["control_plane:wakes", "governance:approvals:decide"],
+    grants: ["control_plane:wakes", "approvals:approvals:decide"],
     runner: {
       package: "@outpost/outpost-runner",
       binary: "node",

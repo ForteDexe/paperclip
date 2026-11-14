@@ -25,7 +25,7 @@ export interface DashboardRunActivityDay {
 }
 
 export interface DashboardSummary {
-  companyId: string;
+  spaceId: string;
   agents: {
     active: number;
     running: number;

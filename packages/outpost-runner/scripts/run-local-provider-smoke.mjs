@@ -180,13 +180,13 @@ const rustSources = await filesUnder(
 await assertArtifactsFresh("runnerd", rustSources, [runnerd]);
 
 const smokeRoot = await mkdtemp(
-  join(tmpdir(), "paperclip-local-provider-smoke-"),
+  join(tmpdir(), "outpost-local-provider-smoke-"),
 );
-if (!basename(smokeRoot).startsWith("paperclip-local-provider-smoke-")) {
+if (!basename(smokeRoot).startsWith("outpost-local-provider-smoke-")) {
   throw new Error("Refusing an unrecognized local provider smoke root");
 }
 await Promise.all(
-  ["tmp", "home", "paperclip-home", "codex-home", "claude-home"].map(
+  ["tmp", "home", "outpost-home", "codex-home", "claude-home"].map(
     (directory) => mkdir(join(smokeRoot, directory), { recursive: true }),
   ),
 );
@@ -213,7 +213,7 @@ for (const name of [
 Object.assign(process.env, {
   TMPDIR: join(smokeRoot, "tmp"),
   HOME: join(smokeRoot, "home"),
-  OUTPOST_HOME: join(smokeRoot, "paperclip-home"),
+  OUTPOST_HOME: join(smokeRoot, "outpost-home"),
   CODEX_HOME: join(smokeRoot, "codex-home"),
   CLAUDE_CONFIG_DIR: join(smokeRoot, "claude-home"),
   NO_BROWSER: "1",
@@ -234,7 +234,7 @@ process.once("SIGTERM", () => exitAfterCleanup(143));
 let failed = false;
 try {
   // Import only after the disposable homes are authoritative so no provider
-  // module can snapshot the developer's normal Paperclip or provider state.
+  // module can snapshot the developer's normal Outpost or provider state.
   const {
     RUNNER_LIVE_CANDIDATE_SLOTS,
     executeLiveRunnerWorkflow,

@@ -15,7 +15,7 @@ scenarios:
     expected_outcome: >-
       The agent identifies the exact package and supported administrator installation path. The
       authorized human sees the resulting installed and activation state, including failures.
-      Chat does not run arbitrary package installation as a company agent or equate a package
+      Chat does not run arbitrary package installation as a space agent or equate a package
       download with a working plugin.
   - id: plugins.configure-plugin
     capabilities:
@@ -39,7 +39,7 @@ scenarios:
     query: >-
       Use the preview plugin to show me this website.
     expected_outcome: >-
-      The agent discovers the admitted tool and invokes it within its task and company scope,
+      The agent discovers the admitted tool and invokes it within its task and space scope,
       then returns the actual preview or explicit failure. The contributed resource view opens
       for an authorized person. Installed plugin status alone is not taken as proof of runtime
       tool access.

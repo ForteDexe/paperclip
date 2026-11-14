@@ -227,7 +227,7 @@ const meta = {
   args: { scenario: SCENARIOS.retrying },
   parameters: {
     layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "tasks/discussion",
         "runs-adapters/runs"

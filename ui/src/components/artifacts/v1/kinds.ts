@@ -1,9 +1,9 @@
 import { Archive, CodeXml, File, FileText, Film, Globe, Image, Music, Presentation, Table2, type LucideIcon } from "lucide-react";
-import type { CompanyArtifact } from "@outpost/shared";
+import type { SpaceArtifact } from "@outpost/shared";
 
 /**
  * What the V1 artwork knows about an artifact. Each surface adapts its own
- * payload (company artifacts, work products, documents, attachments) into
+ * payload (space artifacts, work products, documents, attachments) into
  * this; the artwork never reads an API type directly.
  */
 export type ArtifactKind = "document" | "pdf" | "slides" | "sheet" | "archive" | "code" | "file" | "link" | "image" | "video";
@@ -111,7 +111,7 @@ export type MediaKind = "image" | "video" | "document" | "text" | "file";
 const TEXT_TYPES = new Set(["application/json", "application/xml", "application/markdown"]);
 
 /**
- * The server's rule (server/src/services/company-artifacts.ts,
+ * The server's rule (server/src/services/space-artifacts.ts,
  * `classifyMediaKind`): a task document is a Document; every file goes by its
  * content type — images and video by theirs, text, JSON, XML and Markdown are
  * Text, anything else is a File.
@@ -136,7 +136,7 @@ const KIND_BY_EXT: Record<string, ArtifactKind> = {
 };
 
 /** The artwork kind for a file, from its extension first and its content type second. */
-export function kindFor(ext: string | undefined, contentType: string | null | undefined, mediaKind?: CompanyArtifact["mediaKind"]): ArtifactKind {
+export function kindFor(ext: string | undefined, contentType: string | null | undefined, mediaKind?: SpaceArtifact["mediaKind"]): ArtifactKind {
   const type = (contentType ?? "").toLowerCase();
   if (type.startsWith("image/") || mediaKind === "image") return "image";
   if (type.startsWith("video/") || mediaKind === "video") return "video";
@@ -146,14 +146,14 @@ export function kindFor(ext: string | undefined, contentType: string | null | un
   return "file";
 }
 
-const filenameOf = (artifact: CompanyArtifact): string | null => {
+const filenameOf = (artifact: SpaceArtifact): string | null => {
   const path = artifact.contentPath ?? artifact.downloadPath ?? artifact.openPath;
   const last = path?.split("?")[0].split("/").pop();
   return last && /\.[a-z0-9]+$/i.test(last) ? decodeURIComponent(last) : null;
 };
 
-/** A company artifact (the Artifacts page) as the artwork sees it. */
-export function subjectFromCompanyArtifact(artifact: CompanyArtifact): ArtifactSubject {
+/** A space artifact (the Artifacts page) as the artwork sees it. */
+export function subjectFromSpaceArtifact(artifact: SpaceArtifact): ArtifactSubject {
   const isTaskDocument = artifact.source === "document";
   const filename = isTaskDocument ? null : filenameOf(artifact) ?? (/\.[a-z0-9]+$/i.test(artifact.title) ? artifact.title : null);
   const ext = extOf({ filename });

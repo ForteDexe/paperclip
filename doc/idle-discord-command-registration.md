@@ -9,7 +9,7 @@ registration immediately under their existing credential lease.
 
 The registration store owns `chat_actions` records of kind
 `discord_command_registration`. The existing `chat_discord_command_owners` table
-retains the application namespace owner even after endpoint or company deletion.
+retains the application namespace owner even after endpoint or space deletion.
 No table, trigger, listener connection, or private timer is added.
 
 A valid successful receipt has a five-minute remote verification deadline. Other
@@ -24,13 +24,13 @@ remote state, never by blindly repeating a create.
 Eligible endpoints are Discord, verifying/active/attention, with an active enabled
 connection and a known bot/application ID and guild ID. Attention plus failed
 connection health remains excluded. These are the old runtime discovery filters;
-company status and unrelated endpoint metadata do not add new policy.
+space status and unrelated endpoint metadata do not add new policy.
 
 ## Receiver construction and ownership
 
 The shared leased receiver owner may renew during construction only while the
 exact runtime context remains in the service's pending initialization map.
-Renewal still checks the company, endpoint, generation, credentials and original
+Renewal still checks the space, endpoint, generation, credentials and original
 lease token. A missing listener alone grants no ownership. Once attached, the
 registered runtime must match that context. The service verifies durable ownership
 before it calls listener initialization and retains its checks after that await.
@@ -43,15 +43,15 @@ This also applies to the Photon receiver through the same ownership module.
 ## Scheduling and lifecycle
 
 Startup reconstructs eligible state in UUID keyset pages of 100. Committed hints
-refresh only the affected endpoint, connection, or deleted company. Refresh and
+refresh only the affected endpoint, connection, or deleted space. Refresh and
 retry passes have a 30-second minimum spacing when no already-due backlog
 remains. A bounded batch with more due rows continues after one second. There is no periodic inventory
 scan after all hints settle. Due dispatch rechecks persisted eligibility and the
 saved deadline, invokes the command owner, and reloads its durable result.
 
-Each pass admits at most 25 commands, taking turns across companies and preserving
-oldest-first order within each company. A company cursor rotates between passes,
-including when more companies are due than fit in one pass. A failed or no-progress
+Each pass admits at most 25 commands, taking turns across spaces and preserving
+oldest-first order within each space. A space cursor rotates between passes,
+including when more spaces are due than fit in one pass. A failed or no-progress
 attempt backs off from 30 seconds to five minutes; a future stored deadline wins.
 A returned promise alone does not prove registration settled.
 
@@ -78,7 +78,7 @@ or tear down a healthy listener.
 | Generic connection removal | Signal the SDK connection before archival |
 | Generic manual health observation | Chat-owned dispatcher signals SDK connections; other transports do not wake this worker |
 | Membership/credential revocation | SDK connections signal before reference removal or disablement |
-| Company deletion | Signal the company before the company cascade; namespace tombstones survive |
+| Space deletion | Signal the space before the space cascade; namespace tombstones survive |
 
 Draft endpoint creation has no eligible identity and waits for configuration.
 Endpoint display names, reach preferences, resource metadata, publication/event
@@ -123,7 +123,7 @@ the recovery boundary; an invalid scope requests full reconstruction rather than
 dropping queued scopes or retrying a poison hint forever. Both regressions and
 all 62 combined command/health/batching cases pass.
 
-The real producer integration covers credential rotation and company deletion in
+The real producer integration covers credential rotation and space deletion in
 addition to configure/removal. The deletion test first lacked a configured agent
 lifecycle worker; after adding the controlled host driver it exposed an existing
 restrictive endpoint-to-agent foreign key failure. Prerequisite #17561 fixes the
@@ -176,19 +176,19 @@ behavior for overdue, later, unreadable, and drain states. All 87 command,
 coordinator, and health cases pass; eight real automatic-registration/Slack cases
 pass (1,412 other integration cases deselected); 57 delivery/warm-standby/startup
 cases pass. Server typecheck/build pass. The health parent is propagated through
-company cleanup, retaining both notification paths in the three overlapping
+space cleanup, retaining both notification paths in the three overlapping
 producer sites. The six prerequisite cleanup cases pass. Remote acceptance of
 the new Discord head remains required.
 
 ## Updated parent acceptance, October 27
 
 A normal merge at `5b50224785252fe49a4501d9695063cf9621e528` includes
-company-cleanup parent #17561 at `21be75d2b0` and health #17554 at `8c1d293d1a`.
+space-cleanup parent #17561 at `21be75d2b0` and health #17554 at `8c1d293d1a`.
 Only the original 26 Discord-owned paths differ from that parent. The shared
 producer sites preserve both health and command notifications; no provider
 behavior, schema, or coordinator contract changes in this integration.
 
-The four complete command-store, company-batching, coordinator, and startup
+The four complete command-store, space-batching, coordinator, and startup
 suites pass 119 cases. Eight real Discord automatic-registration and Slack
 held-transaction cases pass separately; 1,581 other chat integration cases are
 not counted as executed. These 127 distinct targeted cases use separate isolated
@@ -204,17 +204,17 @@ both prerequisites must land before this child can merge into master. This does
 not establish host suspension, external Cloud alarms, or provider cost savings.
 
 
-## Acceptance after the company-deletion parent landed, October 27
+## Acceptance after the space-deletion parent landed, October 27
 
 The branch integrates master at `f8563d25077b17681ab6ef5949f7b07415a58ede`,
-including the landed health and company-deletion repairs. Squash ancestry caused
+including the landed health and space-deletion repairs. Squash ancestry caused
 merge conflicts. Resolution applies only this slice's exact 26-file patch from
 its recorded parent `21be75d2b0` to that pinned master. Every other file matches
 master. The migration 0394 and current lockfile remain unchanged by this slice.
 
 All 141 distinct targeted cases pass: 78 command-store, batching, coordinator and
 startup-timing cases; 8 real automatic Discord and held-transaction Slack cases;
-and 55 complete startup/export and company-deletion cases. The company-deletion
+and 55 complete startup/export and space-deletion cases. The space-deletion
 fixture starts on an initially empty isolated database and applies migrations.
 The two Discord fixtures use separate migrated database clones. The remaining
 1,581 chat integration cases were deselected. Server typecheck and build pass.

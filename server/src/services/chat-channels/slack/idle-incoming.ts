@@ -8,8 +8,8 @@ import { matchSlackConfiguredCoverage, type SlackConfiguredRequirement } from ".
 import { createSlackFormHistoryClassifier, type SlackFormHistoryRow } from "./form-idle-history.js";
 import type { SlackFormConnectorIdentity } from "./cloud-consumer.js";
 
-export type SlackIdleEndpoint = Pick<typeof chatEndpoints.$inferSelect, "id" | "companyId" | "connectionId" | "publicId" | "provider" | "status"> & { setup: unknown; capabilities: unknown };
-export type SlackIdleConnection = Pick<typeof toolConnections.$inferSelect, "id" | "companyId" | "status" | "enabled" | "transport" | "connectionPurpose">;
+export type SlackIdleEndpoint = Pick<typeof chatEndpoints.$inferSelect, "id" | "spaceId" | "connectionId" | "publicId" | "provider" | "status"> & { setup: unknown; capabilities: unknown };
+export type SlackIdleConnection = Pick<typeof toolConnections.$inferSelect, "id" | "spaceId" | "status" | "enabled" | "transport" | "connectionPurpose">;
 export type SlackIdleIncomingProjection = Readonly<{ endpointIds: readonly string[]; connectionIds: readonly string[]; completedActionIds: readonly string[] }>;
 export const slackHasRegisteredOptionsAtCurrentBuild = (_endpointId: string): boolean => false;
 function object(value: unknown): Record<string, unknown> {
@@ -30,20 +30,20 @@ function slackIncomingContext(input: SlackIncomingRowsInput) {
   try {
     for (const { endpoint, connection } of input.endpoints) {
       input.check?.();
-      if (endpoint.provider !== "slack" || endpoint.companyId !== connection.companyId || endpoint.connectionId !== connection.id || connection.transport !== "chat_sdk" || connection.connectionPurpose !== "channel" || endpointIds.has(endpoint.id)) return;
+      if (endpoint.provider !== "slack" || endpoint.spaceId !== connection.spaceId || endpoint.connectionId !== connection.id || connection.transport !== "chat_sdk" || connection.connectionPurpose !== "channel" || endpointIds.has(endpoint.id)) return;
       endpointIds.add(endpoint.id);
       if (endpoint.status !== "active" || connection.status !== "active" || !connection.enabled) continue;
       const setup = slackFormSetupRecord(endpoint.setup), binding = parseSlackFormBinding(setup.slackCloudForms);
       const capabilities = object(endpoint.capabilities), registeredOptions = input.registeredOptions(endpoint.id);
       if (typeof registeredOptions !== "boolean" || setup.step !== "complete" || setup.slackCloudInstanceId !== binding.instanceId || setup.runtimeGeneration !== binding.runtimeGeneration
-        || binding.instanceId !== input.identity.instanceId || binding.companyId !== endpoint.companyId || binding.endpointId !== endpoint.id
+        || binding.instanceId !== input.identity.instanceId || binding.spaceId !== endpoint.spaceId || binding.endpointId !== endpoint.id
         || binding.connectionId !== connection.id || binding.publicId !== endpoint.publicId || typeof setup.slackCloudSubject !== "string") return;
       const descriptor = object(setup.slackCloudEvents), enrollment = parseSlackFormPublicEnrollment({ version: 1, instanceId: input.identity.instanceId,
-        companyId: endpoint.companyId, endpointId: endpoint.id, publicId: endpoint.publicId, connectionId: endpoint.connectionId,
+        spaceId: endpoint.spaceId, endpointId: endpoint.id, publicId: endpoint.publicId, connectionId: endpoint.connectionId,
         runtimeGeneration: descriptor.runtimeGeneration, bindingId: descriptor.bindingId, teamId: descriptor.teamId, appId: descriptor.appId });
       const { credentialFingerprint: _, eventBindingId, ...base } = binding;
       if (!isDeepStrictEqual({ ...base, bindingId: eventBindingId }, enrollment)) return;
-      const owners = (groups.get(`${endpoint.companyId}:${endpoint.id}`) ?? []).filter(row => row.companyId === endpoint.companyId && row.endpointId === endpoint.id && row.kind === "slack_form_owner"
+      const owners = (groups.get(`${endpoint.spaceId}:${endpoint.id}`) ?? []).filter(row => row.spaceId === endpoint.spaceId && row.endpointId === endpoint.id && row.kind === "slack_form_owner"
         && /^slack-form-owner:[a-f0-9]{64}$/.test(row.providerActionId) && row.result?.phase === "enrolled" && row.result.nextAttemptAt === null && row.result.desiredActive !== false && ["issued", "processed"].includes(row.status)
         && row.payload.environment === input.identity.environment && row.payload.subject === setup.slackCloudSubject
         && isDeepStrictEqual(row.payload.binding, binding) && isDeepStrictEqual(row.payload.enrollment, enrollment));
@@ -60,7 +60,7 @@ function slackIncomingContext(input: SlackIncomingRowsInput) {
 function groupHistory(rows: readonly SlackFormHistoryRow[]) {
   const groups = new Map<string, SlackFormHistoryRow[]>();
   for (const row of rows) {
-    const key = `${row.companyId}:${row.endpointId}`, group = groups.get(key);
+    const key = `${row.spaceId}:${row.endpointId}`, group = groups.get(key);
     if (group) group.push(row); else groups.set(key, [row]);
   }
   return groups;
@@ -77,7 +77,7 @@ export function projectSlackIdleIncomingRows(input: SlackIncomingRowsInput): Sla
     const groups = groupHistory(input.actions), completed = new Set<string>();
     for (const { endpoint } of input.endpoints) {
       input.check?.();
-      for (const id of classify(groups.get(`${endpoint.companyId}:${endpoint.id}`) ?? [], endpoint.companyId, endpoint.id, input.check)) {
+      for (const id of classify(groups.get(`${endpoint.spaceId}:${endpoint.id}`) ?? [], endpoint.spaceId, endpoint.id, input.check)) {
         if (!uuid.test(id)) return; completed.add(id);
       }
     }
@@ -100,9 +100,9 @@ export async function readSlackIdleIncomingProof(tx: Pick<Db, "select">, input: 
   if (!broker || broker.instanceId !== input.identity.instanceId || broker.generation !== input.capabilities.incomingWake.generation) return;
   await input.beforeRead();
   const endpoints = await tx.select({ endpoint: chatEndpoints, connection: toolConnections }).from(chatEndpoints).innerJoin(toolConnections,
-    and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, chatEndpoints.companyId)))
+    and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, chatEndpoints.spaceId)))
     .where(and(eq(chatEndpoints.provider, "slack"), eq(toolConnections.transport, "chat_sdk"), eq(toolConnections.connectionPurpose, "channel"),
-      sql`exists (select 1 from companies where id=${chatEndpoints.companyId} and status <> 'archived')`)).orderBy(chatEndpoints.id).limit(1001);
+      sql`exists (select 1 from spaces where id=${chatEndpoints.spaceId} and status <> 'archived')`)).orderBy(chatEndpoints.id).limit(1001);
   input.remaining(); if (endpoints.length > 1000) return;
   if (!endpoints.length && broker.entries.length) return;
   if (!endpoints.length) return Object.freeze({ endpointIds: [], connectionIds: [], completedActionIds: [] });
@@ -114,7 +114,7 @@ export async function readSlackIdleIncomingProof(tx: Pick<Db, "select">, input: 
   for (;;) {
     await input.beforeRead();
     const page = await tx.select({ action: chatActions }).from(chatActions).innerJoin(chatEndpoints,
-      and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.companyId, chatActions.companyId)))
+      and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.spaceId, chatActions.spaceId)))
       .where(and(eq(chatEndpoints.provider, "slack"), inArray(chatActions.endpointId, endpoints.map(value => value.endpoint.id)),
         eq(chatActions.kind, "slack_form_owner"), sql`${chatActions.result}->>'phase'='enrolled'`,
         ownerCursor ? gt(chatActions.id, ownerCursor) : undefined))
@@ -123,7 +123,7 @@ export async function readSlackIdleIncomingProof(tx: Pick<Db, "select">, input: 
     for (const { action } of page) {
       input.remaining();
       const scope = endpointsById.get(action.endpointId);
-      if (!scope || action.companyId !== scope.endpoint.companyId || scope.endpoint.status !== "active"
+      if (!scope || action.spaceId !== scope.endpoint.spaceId || scope.endpoint.status !== "active"
         || scope.connection.status !== "active" || !scope.connection.enabled) continue;
       try {
         const setup = slackFormSetupRecord(scope.endpoint.setup), binding = parseSlackFormBinding(setup.slackCloudForms);
@@ -153,9 +153,9 @@ export async function readSlackIdleIncomingProof(tx: Pick<Db, "select">, input: 
     // session/page boundary never requires an all-history JSON accumulator or
     // one extra read per historical session.
     const page = await tx.select({ action: chatActions, open: historyOpen, submit: historySubmit }).from(chatActions)
-      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.companyId, chatActions.companyId)))
-      .leftJoin(historyOpen, and(eq(chatActions.kind, "slack_form_session"), eq(historyOpen.kind, "question_form_open"), eq(historyOpen.id, relatedId("openActionRowId")), eq(historyOpen.companyId, chatActions.companyId), eq(historyOpen.endpointId, chatActions.endpointId)))
-      .leftJoin(historySubmit, and(eq(chatActions.kind, "slack_form_session"), eq(historySubmit.kind, "question_form_submit"), eq(historySubmit.id, relatedId("submitActionRowId")), eq(historySubmit.companyId, chatActions.companyId), eq(historySubmit.endpointId, chatActions.endpointId)))
+      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.spaceId, chatActions.spaceId)))
+      .leftJoin(historyOpen, and(eq(chatActions.kind, "slack_form_session"), eq(historyOpen.kind, "question_form_open"), eq(historyOpen.id, relatedId("openActionRowId")), eq(historyOpen.spaceId, chatActions.spaceId), eq(historyOpen.endpointId, chatActions.endpointId)))
+      .leftJoin(historySubmit, and(eq(chatActions.kind, "slack_form_session"), eq(historySubmit.kind, "question_form_submit"), eq(historySubmit.id, relatedId("submitActionRowId")), eq(historySubmit.spaceId, chatActions.spaceId), eq(historySubmit.endpointId, chatActions.endpointId)))
       .where(and(eq(chatEndpoints.provider, "slack"), inArray(chatActions.endpointId, endpoints.map(value => value.endpoint.id)),
         inArray(chatActions.kind, ["slack_form_owner", "slack_form_grant", "slack_form_session", "question_form_open", "question_form_submit"]),
         cursor ? gt(chatActions.id, cursor) : undefined)).orderBy(chatActions.id).limit(pageSize);
@@ -163,7 +163,7 @@ export async function readSlackIdleIncomingProof(tx: Pick<Db, "select">, input: 
     const groups = groupHistory(page.flatMap(row => [row.action, ...(row.open ? [row.open] : []), ...(row.submit ? [row.submit] : [])]));
     for (const rows of groups.values()) {
       input.remaining(); const first = rows[0]!;
-      for (const id of classify(rows, first.companyId, first.endpointId, () => { input.remaining(); })) {
+      for (const id of classify(rows, first.spaceId, first.endpointId, () => { input.remaining(); })) {
         if (!uuid.test(id)) return; completed.add(id);
       }
     }

@@ -71,7 +71,7 @@ async function queuedSteeringControls(ctx: ChatCatalogContext, targetId: string,
 }
 export const runtimeActiveSteeringCases = [runtimeDefinition("steering.steer-active", async ctx => {
   const state: Record<string, unknown> = await busyRuntimeWorker(ctx), task = state.task as Entity, source = ctx.input.page.url();
-  await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+  await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
   await submitTaskReply(ctx.input.page, direction);
   const before = await pollUntil({ label: "Running task queue states its harness steering capability for the saved human blue message", deadlineAt: Date.now() + 30_000,
     load: () => ctx.input.api.get<IssueQueuedCommentQueue>(`/api/issues/${task.id}/queued-comments`),
@@ -105,7 +105,7 @@ export const runtimeActiveSteeringCases = [runtimeDefinition("steering.steer-act
     state.leadRelayCount = relays.length;
     const mutation = { queueId: before.queueId, revision: before.revision, targetRunId: before.targetRunId };
     state.agentSteerStatus = await probeAgentPermission(ctx, `${endpoint}/${targetId}/steer`, "POST", mutation);
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     if ((state.queueBefore as IssueQueuedCommentQueue).steeringDisposition === "unsupported") {
       // This harness cannot steer, and the page offers no Steer control. Attempt it once with the person's own session to
       // prove the product refuses rather than claiming delivery, then leave the message for normal admission.
@@ -146,7 +146,7 @@ export const runtimeActiveSteeringCases = [runtimeDefinition("steering.steer-act
     // Delivered same-turn direction is built now; a direction still queued reaches the next normal turn, which applies it to the same deliverable.
     await writeFile((state.gate as { gate: string }).gate, state.steerStatus === 200
       ? `The human brief is ready. ${build} Use the actual design direction you received, then complete normally. Preserve saved human requirements for normal admission; do not create tasks or publish externally.`
-      : `The human brief is ready. ${build} Then finish this current turn normally. Keep human requirements queued by Paperclip intact for normal delivery; when one arrives, apply it to website.html, register the updated file, update the delivery document, and complete the task. Do not create tasks or publish externally.`, "utf8");
+      : `The human brief is ready. ${build} Then finish this current turn normally. Keep human requirements queued by Outpost intact for normal delivery; when one arrives, apply it to website.html, register the updated file, update the delivery document, and complete the task. Do not create tasks or publish externally.`, "utf8");
     const finished = await pollUntil({ label: "Actual selected steering or preserved normal continuation produces its website", deadlineAt: Date.now() + 240_000,
       load: async () => ({ runs: await ctx.allRuns(), queue: await ctx.input.api.get<IssueQueuedCommentQueue>(endpoint), task: await ctx.input.api.get<Entity>(`/api/issues/${task.id}`) }),
       accept: v => v.task.status === "done" && v.queue.entries.length === 0 && v.runs.length === (state.steerStatus === 200 && !Number(state.leadRelayCount) ? 2 : 3) && v.runs.every(row => row.status === "succeeded"),
@@ -177,7 +177,7 @@ export const runtimeActiveSteeringCases = [runtimeDefinition("steering.steer-act
     return o;
   },
   async verifyResult(ctx, state) { const source = ctx.input.page.url(), task = state.task as Entity;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" }); await expect(ctx.input.page.getByRole("heading", { name: task.title!, exact: true }).first()).toBeVisible();
     await expect(ctx.input.page.getByTestId("task-chat-queued-messages")).toHaveCount(0); await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" }); },
   async cleanup(ctx, state) { try { await cleanupIdentityProbes(ctx); } finally { await releaseRuntimeWorker(state); } },

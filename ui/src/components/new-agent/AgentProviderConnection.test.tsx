@@ -71,30 +71,30 @@ async function mount(
     {
       definition: {
         id: "d1",
-        companyId: "c1",
+        spaceId: "c1",
         key: `${key}.setup.1`,
         name: "Personal key",
         status: "active",
       },
-      secret: { companyId: "c1", status: "active" },
+      secret: { spaceId: "c1", status: "active" },
     },
   ]);
   mocks.organization.mockResolvedValue([
     {
       id: "s1",
-      companyId: "c1",
+      spaceId: "c1",
       key,
-      name: "Company key",
-      scope: "company",
+      name: "Space key",
+      scope: "space",
       status: "active",
     },
     ...(codexSubscriptions
       ? [
           {
             id: "codex-home",
-            companyId: "c1",
+            spaceId: "c1",
             name: "CODEX_HOME_team",
-            scope: "company",
+            scope: "space",
             status: "active",
           },
         ]
@@ -120,7 +120,7 @@ async function mount(
     root.render(
       <QueryClientProvider client={client}>
         <AgentProviderConnection
-          companyId="c1"
+          spaceId="c1"
           adapterType={adapterType}
           environmentId="e1"
           canLogin={canLogin}
@@ -524,7 +524,7 @@ describe("AgentProviderConnection reuse", () => {
     openProvider();
     const select = host.querySelector("select")!;
     flushSync(() => {
-      select.value = "company:s1";
+      select.value = "space:s1";
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
     click("Use saved API key");
@@ -572,7 +572,7 @@ describe("AgentProviderConnection reuse", () => {
   it.each(["claude_local", "codex_local"] as const)("uses a managed subscription through the upstream chooser for %s", async (adapterType) => {
     const provider = adapterType === "claude_local" ? "anthropic" : "openai";
     managedApi.list.mockResolvedValue({ currentUserId: "user-1", connections: [{
-      id: "account", grantId: "grant", companyId: "c1", provider,
+      id: "account", grantId: "grant", spaceId: "c1", provider,
       method: "subscription", name: "My subscription", ownership: "personal",
       ownerUserId: "user-1", isDefault: true, status: "connected",
     }] } as never);

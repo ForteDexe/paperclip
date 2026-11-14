@@ -7,7 +7,7 @@ import { idleDeadlineRowLimit, isFutureIdleDeadline, type IdleDeadlineSnapshot }
 export interface IdleMcpEventDeadlineRow {
   id: string;
   subscriptionId: string;
-  companyId: string;
+  spaceId: string;
   grantId: string;
   taskId: string | null;
   bindingId: string | null;
@@ -46,7 +46,7 @@ export function projectIdleMcpEventSchedule(rows: IdleMcpEventDeadlineRow[], inp
       || !Number.isSafeInteger(row.attempts) || row.attempts < 1 || row.attempts >= 6
       || !(row.outcome === "network_error" || row.outcome === "http_408" || row.outcome === "http_429" || /^http_5[0-9][0-9]$/.test(row.outcome ?? ""))
       || !isFutureIdleDeadline(row.nextAttemptAt.getTime(), input.now)) return blocked();
-    state.push([row.id, row.subscriptionId, row.companyId, row.grantId, row.taskId, row.bindingId,
+    state.push([row.id, row.subscriptionId, row.spaceId, row.grantId, row.taskId, row.bindingId,
       row.subscriptionExpiresAt.toISOString(), row.nextAttemptAt.toISOString(), row.attempts, row.outcome, owner.revision]);
     deadlines.push(row.nextAttemptAt.getTime());
     deliveryIds.push(row.id);
@@ -57,19 +57,19 @@ export function projectIdleMcpEventSchedule(rows: IdleMcpEventDeadlineRow[], inp
 export async function readIdleMcpEventSchedule(tx: Pick<Db, "select">, input: IdleMcpEventScheduleInput): Promise<IdleMcpEventScheduleProof> {
   await input.budget?.beforeRead();
   const rows = await tx.select({ id: deliveries.id, subscriptionId: subscriptions.id,
-    companyId: subscriptions.companyId, grantId: subscriptions.grantId, taskId: subscriptions.taskId, bindingId: subscriptions.bindingId,
+    spaceId: subscriptions.spaceId, grantId: subscriptions.grantId, taskId: subscriptions.taskId, bindingId: subscriptions.bindingId,
     subscriptionExpiresAt: subscriptions.expiresAt, subscriptionStoppedAt: subscriptions.stoppedAt,
     nextAttemptAt: deliveries.nextAttemptAt, attempts: deliveries.attempts, outcome: deliveries.outcome,
     sourceMatches: sql<boolean>`((
       ${deliveries.activityId} IS NOT NULL AND ${deliveries.mailboxItemId} IS NULL
       AND ${subscriptions.taskId} IS NOT NULL AND ${subscriptions.bindingId} IS NULL
       AND EXISTS (SELECT 1 FROM activity_log a WHERE a.id = ${deliveries.activityId}
-        AND a.company_id = ${subscriptions.companyId} AND a.entity_type = 'issue' AND a.entity_id = ${subscriptions.taskId}::text)
+        AND a.space_id = ${subscriptions.spaceId} AND a.entity_type = 'issue' AND a.entity_id = ${subscriptions.taskId}::text)
     ) OR (
       ${deliveries.mailboxItemId} IS NOT NULL AND ${deliveries.activityId} IS NULL
       AND ${subscriptions.bindingId} IS NOT NULL AND ${subscriptions.taskId} IS NULL
       AND EXISTS (SELECT 1 FROM dot_mailbox_items m WHERE m.id = ${deliveries.mailboxItemId}
-        AND m.company_id = ${subscriptions.companyId} AND m.binding_id = ${subscriptions.bindingId})
+        AND m.space_id = ${subscriptions.spaceId} AND m.binding_id = ${subscriptions.bindingId})
     ))`,
   }).from(deliveries).innerJoin(subscriptions, eq(subscriptions.id, deliveries.subscriptionId))
     .where(isNull(deliveries.finishedAt)).orderBy(asc(deliveries.id)).limit(idleDeadlineRowLimit + 1);

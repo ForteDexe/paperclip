@@ -26,10 +26,10 @@ it.each([
   expect(monthlyTeamPricing(body)).toBe(false);
 });
 it("preserves unrelated content, exact annotation relationships, saved revision and edit-before-resolution proof", () => {
-  const task = { id: "task", companyId: "company", title: "Website task", status: "backlog", projectId: "project" };
+  const task = { id: "task", spaceId: "space", title: "Website task", status: "backlog", projectId: "project" };
   const supportText = "Support is provided by the original launch team fixture-42.";
   const body = `$19 monthly total for the entire team, not per user.\n\n${supportText}`;
-  const o = { scenarioId: "documents-artifacts.resolve-feedback", companyId: "company", origin: "https://fixture.test", leadId: "ceo",
+  const o = { scenarioId: "documents-artifacts.resolve-feedback", spaceId: "space", origin: "https://fixture.test", leadId: "ceo",
     state: { task, pricingThread: { id: "pricing" }, siblingThread: { id: "sibling" }, supportText, originalRevisionId: "original" }, tasks: [task], projects: [], goals: [], comments: [],
     documents: [{ id: "document", key: "plan", latestRevisionId: "revision", body }], revisions: [{ id: "revision", body, createdByAgentId: "ceo" }],
     annotations: [{ id: "pricing", status: "resolved", resolvedByAgentId: "ceo", documentId: "document", originalRevisionId: "original" }, { id: "sibling", status: "open" }],

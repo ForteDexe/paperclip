@@ -9,15 +9,15 @@ import { listenOnFetchAllowedPort } from "./fetch-allowed-port";
 
 const SCREENSHOT_DIR = "test-results";
 
-type Seed = { companyId: string; prefix: string };
+type Seed = { spaceId: string; prefix: string };
 
-async function newCompany(request: APIRequestContext, label: string): Promise<Seed> {
-  const res = await request.post("/api/companies", { data: { name: `Apps navigation ${label} ${Date.now()}` } });
-  expect(res.ok(), `create company failed ${res.status()}: ${await res.text()}`).toBe(true);
-  const company = await res.json();
+async function newSpace(request: APIRequestContext, label: string): Promise<Seed> {
+  const res = await request.post("/api/spaces", { data: { name: `Apps navigation ${label} ${Date.now()}` } });
+  expect(res.ok(), `create space failed ${res.status()}: ${await res.text()}`).toBe(true);
+  const space = await res.json();
   return {
-    companyId: company.id,
-    prefix: company.issuePrefix ?? company.prefix ?? company.urlKey ?? "E2E",
+    spaceId: space.id,
+    prefix: space.issuePrefix ?? space.prefix ?? space.urlKey ?? "E2E",
   };
 }
 
@@ -64,7 +64,7 @@ async function startMockMcp(): Promise<MockMcpServer> {
 }
 
 async function connectApp(request: APIRequestContext, seed: Seed, url: string): Promise<string> {
-  const connect = await request.post(`/api/companies/${seed.companyId}/tools/apps/connect`, {
+  const connect = await request.post(`/api/spaces/${seed.spaceId}/tools/apps/connect`, {
     data: { link: url, credentialValues: { "credentials.authorization": "qa-token" } },
   });
   expect(connect.ok(), `connect failed ${connect.status()}: ${await connect.text()}`).toBe(true);
@@ -72,7 +72,7 @@ async function connectApp(request: APIRequestContext, seed: Seed, url: string): 
   const enabledCatalogEntryIds = (body.actions?.readOnly ?? []).map(
     (action: { catalogEntryId: string }) => action.catalogEntryId,
   );
-  const finish = await request.post(`/api/companies/${seed.companyId}/tools/apps/${body.connectionId}/finish`, {
+  const finish = await request.post(`/api/spaces/${seed.spaceId}/tools/apps/${body.connectionId}/finish`, {
     data: { enabledCatalogEntryIds, askFirstCatalogEntryIds: [], access: "all_agents" },
   });
   expect(finish.ok(), `finish failed ${finish.status()}: ${await finish.text()}`).toBe(true);
@@ -92,7 +92,7 @@ test.describe.serial("dark-mode Apps surfaces", () => {
 
   test.beforeAll(async ({ request }) => {
     healthy = await startMockMcp();
-    seed = await newCompany(request, "dark");
+    seed = await newSpace(request, "dark");
 
     // Healthy app.
     await connectApp(request, seed, healthy.url);

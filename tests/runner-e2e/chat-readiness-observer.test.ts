@@ -5,9 +5,9 @@ import path from "node:path";
 import type { ServerAdapterModule } from "../../server/src/adapters/types.js";
 import { installChatReadinessObserver, readChatReadinessReceipts, readinessErrorCategory } from "./chat-readiness-observer.js";
 const roots: string[] = [];
-const companyId = "11111111-1111-4111-8111-111111111111";
+const spaceId = "11111111-1111-4111-8111-111111111111";
 const ids = ["chat-features.runner-opencode.local.create-backlog"];
-const context = { companyId, adapterType: "outpost_runner", config: { provider: "opencode", env: { PRIVATE_KEY: "private-config-canary" } } };
+const context = { spaceId, adapterType: "outpost_runner", config: { provider: "opencode", env: { PRIVATE_KEY: "private-config-canary" } } };
 const result = () => ({ adapterType: "outpost_runner", status: "fail" as const, testedAt: "2026-10-27T14:00:00Z",
   checks: [{ code: "opencode_hello_probe_failed", level: "error" as const, message: "OpenCode hello probe failed.",
     detail: "HTTP 429 private-provider-canary", hint: "private-hint-canary" }] });
@@ -16,7 +16,7 @@ async function fixture() {
   const testEnvironment = vi.fn(async () => result());
   const adapter = { testEnvironment } as Pick<ServerAdapterModule, "testEnvironment">;
   await installChatReadinessObserver({ executionIds: ids, temporaryRoot, adapter });
-  return { temporaryRoot, adapter, testEnvironment, receipts: () => readChatReadinessReceipts(temporaryRoot, companyId) };
+  return { temporaryRoot, adapter, testEnvironment, receipts: () => readChatReadinessReceipts(temporaryRoot, spaceId) };
 }
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 describe("transparent same-call readiness retention", () => {
@@ -26,7 +26,7 @@ describe("transparent same-call readiness retention", () => {
     expect(f.testEnvironment).toHaveBeenCalledExactlyOnceWith(context);
     expect(f.testEnvironment.mock.contexts[0]).toBe(f.adapter);
     const receipts = await f.receipts();
-    expect(receipts).toMatchObject([{ companyId, sequence: 1, status: "fail", thrown: false,
+    expect(receipts).toMatchObject([{ spaceId, sequence: 1, status: "fail", thrown: false,
       checks: [{ code: "opencode_hello_probe_failed", level: "error", category: "rate-limit" }] }]);
     const bytes = await readFile(path.join(f.temporaryRoot, "artifacts-private", "chat-readiness-probes.jsonl"), "utf8");
     expect(bytes + JSON.stringify(receipts)).not.toMatch(/private-|detail|message|hint|env|config/);
@@ -38,7 +38,7 @@ describe("transparent same-call readiness retention", () => {
     const adapter: Pick<ServerAdapterModule, "testEnvironment"> = { testEnvironment: vi.fn(async () => result()) };
     await installChatReadinessObserver({ executionIds: ids, temporaryRoot, adapter });
     await adapter.testEnvironment(context);
-    expect(await readChatReadinessReceipts(temporaryRoot, companyId)).toHaveLength(1);
+    expect(await readChatReadinessReceipts(temporaryRoot, spaceId)).toHaveLength(1);
     await chmod(temporaryRoot, 0o755);
     await expect(installChatReadinessObserver({ executionIds: ids, temporaryRoot, adapter })).rejects.toThrow("owned private attempt root");
   });
@@ -56,14 +56,14 @@ describe("transparent same-call readiness retention", () => {
     expect(await f.adapter.testEnvironment(context)).toBe(original);
     expect(f.testEnvironment).toHaveBeenCalledTimes(1);
   });
-  it("keeps sequence only within the attempt and filters foreign companies", async () => {
+  it("keeps sequence only within the attempt and filters foreign spaces", async () => {
     const f = await fixture(); await f.adapter.testEnvironment(context); await f.adapter.testEnvironment(context);
     expect((await f.receipts()).map(row => row.sequence)).toEqual([1, 2]);
     expect(await readChatReadinessReceipts(f.temporaryRoot, "22222222-2222-4222-8222-222222222222")).toEqual([]);
   });
   it("reprojects arbitrary keys, status, codes and categories as unknown", async () => {
     const f = await fixture();
-    await writeFile(path.join(f.temporaryRoot, "artifacts-private", "chat-readiness-probes.jsonl"), JSON.stringify({ schema: "outpost.chat-readiness-probe/v1", companyId, sequence: 1,
+    await writeFile(path.join(f.temporaryRoot, "artifacts-private", "chat-readiness-probes.jsonl"), JSON.stringify({ schema: "outpost.chat-readiness-probe/v1", spaceId, sequence: 1,
       status: "private-status", secret: "private-extra", checks: [{ code: "private-code", level: "private-level", category: "private-category", detail: "private-detail" }] }));
     const receipts = await f.receipts();
     expect(receipts).toMatchObject([{ status: "unknown", checks: [{ code: "unknown", level: "unknown", category: "unknown" }] }]);

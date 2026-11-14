@@ -4,7 +4,7 @@ import { eq, ne } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   environmentLeases,
   environments,
@@ -39,22 +39,22 @@ async function exitedPid(): Promise<number> {
 suite("retained orphan sandbox on the shared ownership path", () => {
   let db!: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId = "";
+  let spaceId = "";
   let agentId = "";
   let environmentId = "";
   let issueId = "";
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-retained-orphan-sandbox-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-retained-orphan-sandbox-");
     db = createDb(temporary.connectionString);
-    companyId = randomUUID(); agentId = randomUUID(); environmentId = randomUUID(); issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "ROS",
-      requireBoardApprovalForNewAgents: false });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Coder", role: "engineer", status: "idle",
+    spaceId = randomUUID(); agentId = randomUUID(); environmentId = randomUUID(); issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "ROS",
+      requireOperatorApprovalForNewAgents: false });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Coder", role: "engineer", status: "idle",
       adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
     await db.insert(environments).values({ id: environmentId, name: "Fake Sandbox", driver: "sandbox",
       status: "active", config: { provider: "fake", image: "ubuntu:24.04" } });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Orphaned work" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Orphaned work" });
   }, 30_000);
 
   afterEach(async () => {
@@ -72,7 +72,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
 
   async function run(status: string) {
     const id = randomUUID();
-    await db.insert(heartbeatRuns).values({ id, companyId, agentId, issueId, invocationSource: "on_demand", status, nextEventSeq: 1 });
+    await db.insert(heartbeatRuns).values({ id, spaceId, agentId, issueId, invocationSource: "on_demand", status, nextEventSeq: 1 });
     return id;
   }
 
@@ -85,15 +85,15 @@ suite("retained orphan sandbox on the shared ownership path", () => {
    * sandbox and kept it, and the stop was confirmed. */
   async function retainedOrphan(runId: string, extra: { expiresAt?: Date; metadata?: Record<string, unknown> } = {}) {
     const id = randomUUID(), providerLeaseId = `sandbox://fake/${id}`, now = new Date();
-    await db.insert(environmentLeases).values({ id, companyId, environmentId, issueId, heartbeatRunId: runId,
+    await db.insert(environmentLeases).values({ id, spaceId, environmentId, issueId, heartbeatRunId: runId,
       status: "released", cleanupStatus: "success", leasePolicy: "ephemeral", provider: "fake", providerLeaseId,
       acquiredAt: new Date(now.getTime() - 60_000), releasedAt: now, expiresAt: extra.expiresAt ?? null,
       metadata: {
         [ORPHANED_SANDBOX_RECOVERY_KEY]: { recoveredOrphanedRunLease: true, ownerProof: "pid_dead", runId },
-        remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId, runId, leaseId: id,
+        remoteExecutionTermination: { schema: "outpost.remote-termination.v1", spaceId, runId, leaseId: id,
           provider: "fake", providerLeaseId, state: "stopped", confirmedAt: now.toISOString() },
         sandboxStopAndRetainReceipt: { schema: "outpost.sandbox-stop-and-retain-receipt.v1", requestId: randomUUID(),
-          companyId, runId, leaseId: id, provider: "fake", providerLeaseId, builtinProvider: "fake",
+          spaceId, runId, leaseId: id, provider: "fake", providerLeaseId, builtinProvider: "fake",
           method: "builtin.stopLease", confirmedAt: now.toISOString() },
         ...extra.metadata,
       } });
@@ -108,7 +108,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
   it("marks the lease when the orphaned-run-lease settle stops and keeps its sandbox", async () => {
     const runId = await run("failed");
     const id = randomUUID();
-    await db.insert(environmentLeases).values({ id, companyId, environmentId, heartbeatRunId: runId, status: "active",
+    await db.insert(environmentLeases).values({ id, spaceId, environmentId, heartbeatRunId: runId, status: "active",
       provider: "fake", providerLeaseId: `sandbox://fake/${id}`, metadata: { [ENVIRONMENT_LEASE_CONTROLLER_KEY]: {
         bootId: "earlier-boot", pid: await exitedPid(), hostHash: currentProcessSpaceHash(), processStartedAt: null } } });
     await pass();
@@ -119,9 +119,9 @@ suite("retained orphan sandbox on the shared ownership path", () => {
   it("keeps the orphan marker for a stop intent saved before the top-level marker existed", async () => {
     const runId = await run("failed");
     const id = randomUUID(), providerLeaseId = `sandbox://fake/${id}`, attemptId = randomUUID();
-    const intent = { schema: "outpost.sandbox-stop-and-retain.v1", requestId: attemptId, companyId, runId, leaseId: id,
+    const intent = { schema: "outpost.sandbox-stop-and-retain.v1", requestId: attemptId, spaceId, runId, leaseId: id,
       provider: "fake", providerLeaseId, builtinProvider: "fake", recoveredOrphanedRunLease: true, ownerProof: "pid_dead" };
-    await db.insert(environmentLeases).values({ id, companyId, environmentId, issueId, heartbeatRunId: runId,
+    await db.insert(environmentLeases).values({ id, spaceId, environmentId, issueId, heartbeatRunId: runId,
       status: "pending_cleanup", cleanupStatus: "failed", failureReason: "sandbox_stop_pending", leasePolicy: "ephemeral",
       provider: "fake", providerLeaseId, metadata: { sandboxStopAndRetain: intent, pendingCleanupAttemptId: attemptId,
         pendingCleanupInFlight: true } });
@@ -137,9 +137,9 @@ suite("retained orphan sandbox on the shared ownership path", () => {
   it("does not mark an ordinary stop-and-retain as an orphan", async () => {
     const runId = await run("failed");
     const id = randomUUID(), providerLeaseId = `sandbox://fake/${id}`, attemptId = randomUUID();
-    const intent = { schema: "outpost.sandbox-stop-and-retain.v1", requestId: attemptId, companyId, runId, leaseId: id,
+    const intent = { schema: "outpost.sandbox-stop-and-retain.v1", requestId: attemptId, spaceId, runId, leaseId: id,
       provider: "fake", providerLeaseId, builtinProvider: "fake" };
-    await db.insert(environmentLeases).values({ id, companyId, environmentId, issueId, heartbeatRunId: runId,
+    await db.insert(environmentLeases).values({ id, spaceId, environmentId, issueId, heartbeatRunId: runId,
       status: "pending_cleanup", cleanupStatus: "failed", leasePolicy: "ephemeral", provider: "fake", providerLeaseId,
       metadata: { sandboxStopAndRetain: intent, pendingCleanupAttemptId: attemptId, pendingCleanupInFlight: true } });
     const settled = await settleStopOnlyCleanup(db, await row(id), { attemptId, receipt: { providerLeaseId, state: "stopped" } });
@@ -159,7 +159,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
       reason: "retained_orphan_sandbox_released", ownerProof: "owner_run_terminal", stopReceipt: { state: "stopped" } });
     // Admission and Retry still see a stopped sandbox while the destroy waits.
     expect(hasRecoveredCleanupStopReceipt(released)).toBe(true);
-    expect(await hasPendingRunCleanup(db, companyId, released.heartbeatRunId!)).toBe(false);
+    expect(await hasPendingRunCleanup(db, spaceId, released.heartbeatRunId!)).toBe(false);
     const [failedRun] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, released.heartbeatRunId!));
     expect(await taskChatRetryExecutionStopped(db, failedRun!)).toBe(true);
     // Due now, and the sweep destroys it from the recorded lease.
@@ -174,7 +174,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
 
   it.each([
     ["an open recovery action on the issue", async (_runId: string) => {
-      await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId, kind: "active_run_watchdog",
+      await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId, kind: "active_run_watchdog",
         cause: "fixture", fingerprint: randomUUID(), nextAction: "Recover the workspace." });
       return {};
     }],
@@ -200,7 +200,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
     const sharedRun = await run("failed");
     const shared = await retainedOrphan(sharedRun);
     const sharedRow = await row(shared);
-    await db.insert(environmentLeases).values({ companyId, environmentId, heartbeatRunId: await run("running"),
+    await db.insert(environmentLeases).values({ spaceId, environmentId, heartbeatRunId: await run("running"),
       status: "active", provider: "fake", providerLeaseId: sharedRow.providerLeaseId });
     await pass();
     expect((await row(live)).status).toBe("released");
@@ -209,7 +209,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
 
   it("keeps a softly referenced orphan only until its retention window ends, and wakes then", async () => {
     const runId = await run("failed");
-    await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId, kind: "active_run_watchdog",
+    await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId, kind: "active_run_watchdog",
       cause: "fixture", fingerprint: randomUUID(), nextAction: "Recover the workspace." });
     const expiresAt = new Date(Date.now() + 60 * 60_000);
     const leaseId = await retainedOrphan(runId, { expiresAt });
@@ -298,7 +298,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
   });
 
   async function workspace() {
-    const [created] = await db.insert(executionWorkspaces).values({ companyId, mode: "isolated_workspace",
+    const [created] = await db.insert(executionWorkspaces).values({ spaceId, mode: "isolated_workspace",
       strategyType: "git_worktree", name: "Task workspace" }).returning({ id: executionWorkspaces.id });
     return created!.id;
   }
@@ -311,12 +311,12 @@ suite("retained orphan sandbox on the shared ownership path", () => {
     providerLeaseId?: string; createdAt?: Date }) {
     const id = randomUUID(), providerLeaseId = input.providerLeaseId ?? `sandbox://fake/${id}`;
     const now = input.createdAt ?? new Date();
-    await db.insert(environmentLeases).values({ id, companyId, environmentId, issueId, heartbeatRunId: runId,
+    await db.insert(environmentLeases).values({ id, spaceId, environmentId, issueId, heartbeatRunId: runId,
       executionWorkspaceId: input.workspaceId, status: input.status ?? "released", cleanupStatus: "success",
       leasePolicy: "reuse_by_environment", provider: "fake", providerLeaseId, acquiredAt: now, releasedAt: now,
       createdAt: now, updatedAt: now,
       metadata: { agentId, reuseLease: true, ...(input.receipt === false ? {} : { remoteExecutionTermination: {
-        schema: "outpost.remote-termination.v1", companyId, runId, leaseId: id, provider: "fake", providerLeaseId,
+        schema: "outpost.remote-termination.v1", spaceId, runId, leaseId: id, provider: "fake", providerLeaseId,
         state: "stopped", confirmedAt: now.toISOString() } }) } });
     return id;
   }
@@ -332,7 +332,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
     expect(released).toMatchObject({ status: "pending_cleanup", failureReason: "retained_orphan_sandbox_released" });
     // The successor is never blocked on this destroy.
     expect(hasRecoveredCleanupStopReceipt(released)).toBe(true);
-    expect(await hasPendingRunCleanup(db, companyId, released.heartbeatRunId!)).toBe(false);
+    expect(await hasPendingRunCleanup(db, spaceId, released.heartbeatRunId!)).toBe(false);
   });
 
   it("destroys a warm sandbox behind a failed lease, which no turn can resume", async () => {
@@ -371,7 +371,7 @@ suite("retained orphan sandbox on the shared ownership path", () => {
     ["another task still shares its workspace", async () => {
       const [shared, fresh] = [await workspace(), await workspace()];
       await db.update(issues).set({ executionWorkspaceId: fresh }).where(eq(issues.id, issueId));
-      await db.insert(issues).values({ companyId, title: "Sibling on the shared workspace", executionWorkspaceId: shared });
+      await db.insert(issues).values({ spaceId, title: "Sibling on the shared workspace", executionWorkspaceId: shared });
       return [await warmLease(await run("failed"), { workspaceId: shared })];
     }],
     ["the task still has a run in flight", async () => {
@@ -396,10 +396,10 @@ suite("retained orphan sandbox on the shared ownership path", () => {
     const [lower, higher] = ["00000000-0000-4000-8000-000000000001", "ffffffff-ffff-4fff-bfff-ffffffffffff"];
     for (const id of [lower, higher]) {
       const runId = await run("failed");
-      await db.insert(environmentLeases).values({ id, companyId, environmentId, issueId, heartbeatRunId: runId,
+      await db.insert(environmentLeases).values({ id, spaceId, environmentId, issueId, heartbeatRunId: runId,
         executionWorkspaceId: current, status: "failed", cleanupStatus: "success", leasePolicy: "reuse_by_environment",
         provider: "fake", providerLeaseId, acquiredAt: createdAt, releasedAt: createdAt, createdAt, updatedAt: createdAt,
-        metadata: { agentId, remoteExecutionTermination: { schema: "outpost.remote-termination.v1", companyId, runId,
+        metadata: { agentId, remoteExecutionTermination: { schema: "outpost.remote-termination.v1", spaceId, runId,
           leaseId: id, provider: "fake", providerLeaseId, state: "stopped", confirmedAt: createdAt.toISOString() } } });
     }
     const listed = await db.select({ id: environmentLeases.id }).from(environmentLeases)

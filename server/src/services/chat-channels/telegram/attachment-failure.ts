@@ -80,19 +80,19 @@ export function createTelegramAttachmentFailure(db: Db, options: TelegramAttachm
           })(),
       );
     const effect = await db.transaction(async (tx) => {
-      await notifyIssueRecovery(tx, { companyId: input.endpoint.companyId });
+      await notifyIssueRecovery(tx, { spaceId: input.endpoint.spaceId });
       // Replace the optimistic attachment placeholder with an explicit safe
-      // Paperclip-visible failure. The message link stays authoritative for
+      // Outpost-visible failure. The message link stays authoritative for
       // exact provider redelivery, while no agent wakeup is enqueued for an
       // empty turn that contains no usable bytes.
-      await notifyStatusCardIssueChange(tx, input.endpoint.companyId);
+      await notifyStatusCardIssueChange(tx, input.endpoint.spaceId);
       await tx
         .update(issueComments)
         .set({ body: visibleFailure, updatedAt: new Date() })
         .where(
           and(
             eq(issueComments.id, input.commentId),
-            eq(issueComments.companyId, input.endpoint.companyId),
+            eq(issueComments.spaceId, input.endpoint.spaceId),
           ),
         );
       await tx

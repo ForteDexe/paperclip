@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, closeRegisteredClients, companies, completionContracts, createDb, executionWorkspaces,
+import { activityLog, agents, closeRegisteredClients, spaces, completionContracts, createDb, executionWorkspaces,
   heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { reconcileOfflineWorkspaceOperations, reconcileOnlineWorkspaceOperations } from "./offline-workspace-operation-reconciliation.js";
@@ -27,35 +27,35 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
     await database?.cleanup(); vi.unstubAllEnvs();
   });
   async function fixture() {
-    const companyId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), workspaceId = randomUUID();
+    const spaceId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), workspaceId = randomUUID();
     const contractId = randomUUID(), resultId = randomUUID(), operationId = randomUUID(), receiptId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Historical receipts", issuePrefix: `O${companyId.slice(0, 6)}` });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Worker", adapterType: "outpost_runner" }).returning();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Saved work", status: "done" });
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId,
+    await db.insert(spaces).values({ id: spaceId, name: "Historical receipts", issuePrefix: `O${spaceId.slice(0, 6)}` });
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Worker", adapterType: "outpost_runner" }).returning();
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Saved work", status: "done" });
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issueId,
       mode: "isolated_workspace", strategyType: "project_primary", providerType: "local_fs", name: "Retained files", cwd: "/retained" });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard", completionAuthority: "server_arbiter",
       incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: {}, canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
     const profile = { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3", state: "finalized", workspaceId,
       leaseId: randomUUID(), providerLeaseId: randomUUID(), remoteCwd: "/work", descriptorSha256: "a".repeat(64),
       baselineSha256: "b".repeat(64), finalHostSha256: "c".repeat(64), resourceDisposition: "keep_running" } };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId: agent.id, nativeIssueId: issueId, runtimeMode: "native",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId: agent.id, nativeIssueId: issueId, runtimeMode: "native",
       status: "succeeded", completionContractId: contractId, runnerProfileJson: profile, finishedAt: new Date() });
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId, completionContractId: contractId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId, completionContractId: contractId,
       serverFingerprint: resultId, schemaStatus: "accepted", resultJson: {}, canonicalSha256: resultId });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, resultId, phase: "committed" });
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, resultId, phase: "committed" });
     const metadata = { owningService: "native_workspace_finalizer", original: "keep" };
-    await db.insert(workspaceOperations).values({ id: operationId, companyId, executionWorkspaceId: workspaceId,
+    await db.insert(workspaceOperations).values({ id: operationId, spaceId, executionWorkspaceId: workspaceId,
       heartbeatRunId: runId, issueId, phase: "workspace_finalize", status: "running", metadata,
       createdAt: new Date("2026-01-01"), startedAt: new Date("2026-01-01") });
-    await db.insert(workspaceOperations).values({ id: receiptId, companyId, executionWorkspaceId: workspaceId,
+    await db.insert(workspaceOperations).values({ id: receiptId, spaceId, executionWorkspaceId: workspaceId,
       heartbeatRunId: runId, issueId, phase: "workspace_finalize", status: "succeeded",
       createdAt: new Date("2026-01-02"), startedAt: new Date("2026-01-02"), finishedAt: new Date("2026-01-02") });
-    return { companyId, issueId, runId, workspaceId, resultId, operationId, receiptId, metadata, profile };
+    return { spaceId, issueId, runId, workspaceId, resultId, operationId, receiptId, metadata, profile };
   }
-  const reconcile = (companyId: string) => reconcileOfflineWorkspaceOperations(db,
-    { companyId, writersStopped: true, signal: new AbortController().signal });
+  const reconcile = (spaceId: string) => reconcileOfflineWorkspaceOperations(db,
+    { spaceId, writersStopped: true, signal: new AbortController().signal });
   const operation = async (id: string) => (await db.select().from(workspaceOperations).where(eq(workspaceOperations.id, id)))[0]!;
 
   it("fails only the superseded attempt and atomically retains receipt provenance and audit", async () => {
@@ -63,7 +63,7 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
     const runBefore = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     const coordinatorBefore = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
     const receiptBefore = await operation(f.receiptId), attemptBefore = await operation(f.operationId);
-    expect(await reconcile(f.companyId)).toMatchObject({ inspected: 1, reconciled: 1, held: [] });
+    expect(await reconcile(f.spaceId)).toMatchObject({ inspected: 1, reconciled: 1, held: [] });
     expect(await operation(f.operationId)).toMatchObject({ status: "failed", metadata: { ...attemptBefore.metadata,
       offlineReconciliation: { reason: "superseded_workspace_finalization", supersedingOperationId: f.receiptId,
         resultId: f.resultId, finalHostSha256: "c".repeat(64), previousStatus: "running" } } });
@@ -72,7 +72,7 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
     expect(await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId))).toEqual(coordinatorBefore);
     expect(await db.select().from(activityLog).where(eq(activityLog.entityId, f.operationId)))
       .toEqual([expect.objectContaining({ action: "workspace_operation.reconciled", details: expect.objectContaining({ supersedingOperationId: f.receiptId }) })]);
-    expect(await reconcile(f.companyId)).toMatchObject({ reconciled: 0 });
+    expect(await reconcile(f.spaceId)).toMatchObject({ reconciled: 0 });
     expect(await db.select().from(activityLog).where(eq(activityLog.entityId, f.operationId))).toHaveLength(1);
   });
 
@@ -84,10 +84,10 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
       await db.update(executionWorkspaces).set({ cwd, providerRef: cwd }).where(eq(executionWorkspaces.id, f.workspaceId));
       await db.update(issues).set({ executionWorkspaceId: f.workspaceId }).where(eq(issues.id, f.issueId));
       const storage = createStorageService(createLocalDiskStorageProvider(path.join(root, "objects")));
-      const request = { db, storage, companyId: f.companyId, workspaceId: f.workspaceId, apply: true, writersStopped: true };
+      const request = { db, storage, spaceId: f.spaceId, workspaceId: f.workspaceId, apply: true, writersStopped: true };
       expect((await inventoryRemoteWorkspaceMigration(db, request)).reasons).toContain("workspace_operation_unresolved");
       await expect(migrateRemoteWorkspace(request)).rejects.toThrow("workspace_operation_unresolved");
-      expect(await reconcile(f.companyId)).toMatchObject({ reconciled: 1 });
+      expect(await reconcile(f.spaceId)).toMatchObject({ reconciled: 1 });
       await expect(migrateRemoteWorkspace(request)).resolves.toMatchObject({ applied: true, eligible: true });
       expect(await readFile(path.join(cwd, "saved.txt"), "utf8")).toBe("Retained local work\n");
       expect((await operation(f.receiptId)).status).toBe("succeeded");
@@ -127,17 +127,17 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
         .where(eq(workspaceOperations.id, f.operationId));
     }
     const before = await operation(f.operationId);
-    expect(await reconcile(f.companyId)).toMatchObject({ inspected: 1, reconciled: 0, held: [{ operationId: f.operationId }] });
+    expect(await reconcile(f.spaceId)).toMatchObject({ inspected: 1, reconciled: 0, held: [{ operationId: f.operationId }] });
     expect(await operation(f.operationId)).toEqual(before);
     expect(await db.select().from(activityLog).where(eq(activityLog.entityId, f.operationId))).toHaveLength(0);
   });
 
   it("requires the explicit stopped-writer acknowledgement as well as the maintenance switch", async () => {
     const f = await fixture();
-    await expect(reconcileOfflineWorkspaceOperations(db, { companyId: f.companyId, writersStopped: false,
+    await expect(reconcileOfflineWorkspaceOperations(db, { spaceId: f.spaceId, writersStopped: false,
       signal: new AbortController().signal })).rejects.toThrow("offline_maintenance_required");
     vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "false");
-    try { await expect(reconcile(f.companyId)).rejects.toThrow("offline_maintenance_required"); }
+    try { await expect(reconcile(f.spaceId)).rejects.toThrow("offline_maintenance_required"); }
     finally { vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "true"); }
     expect((await operation(f.operationId)).status).toBe("running");
   });
@@ -145,17 +145,17 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
   it.each(["running", "queued"])("retains active %s execution as an offline blocker", async status => {
     const f = await fixture();
     await db.update(heartbeatRuns).set({ status }).where(eq(heartbeatRuns.id, f.runId));
-    try { await expect(reconcile(f.companyId)).rejects.toThrow("active_execution_requires_drain"); }
+    try { await expect(reconcile(f.spaceId)).rejects.toThrow("active_execution_requires_drain"); }
     finally { await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.runId)); }
     expect((await operation(f.operationId)).status).toBe("running");
   });
 
-  it("keeps a never-started queued turn and only changes the requested company", async () => {
+  it("keeps a never-started queued turn and only changes the requested space", async () => {
     const f = await fixture(), other = await fixture();
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-    const [queued] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: run.agentId, status: "queued" }).returning();
+    const [queued] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: run.agentId, status: "queued" }).returning();
     const otherBefore = await operation(other.operationId);
-    expect(await reconcile(f.companyId)).toMatchObject({ reconciled: 1 });
+    expect(await reconcile(f.spaceId)).toMatchObject({ reconciled: 1 });
     expect(await operation(other.operationId)).toEqual(otherBefore);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, queued.id)))[0]).toEqual(queued);
   });
@@ -164,7 +164,7 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
     const f = await fixture();
     await db.update(heartbeatRuns).set({ controllerLeaseExpiresAt: new Date("2026-01-01") }).where(eq(heartbeatRuns.id, f.runId));
     const before = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-    expect(await reconcile(f.companyId)).toMatchObject({ reconciled: 1 });
+    expect(await reconcile(f.spaceId)).toMatchObject({ reconciled: 1 });
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId))).toEqual(before);
   });
 
@@ -173,7 +173,7 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
     await db.update(executionWorkspaces).set({ metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1" } } })
       .where(eq(executionWorkspaces.id, f.workspaceId));
     const before = await operation(f.operationId);
-    expect(await reconcile(f.companyId)).toMatchObject({ inspected: 0, reconciled: 0 });
+    expect(await reconcile(f.spaceId)).toMatchObject({ inspected: 0, reconciled: 0 });
     expect(await operation(f.operationId)).toEqual(before);
   });
 
@@ -191,11 +191,11 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
     });
     await locked;
     try {
-      expect(await reconcile(f.companyId)).toMatchObject({ reconciled: 0,
+      expect(await reconcile(f.spaceId)).toMatchObject({ reconciled: 0,
         held: [{ operationId: f.operationId, reason: "execution_rows_busy" }] });
       expect((await operation(f.operationId)).status).toBe("running");
     } finally { release(); await writer; }
-    expect(await reconcile(f.companyId)).toMatchObject({ reconciled: 1 });
+    expect(await reconcile(f.spaceId)).toMatchObject({ reconciled: 1 });
   });
 
   it("does not steal the finalizer's advisory ownership", async () => {
@@ -204,14 +204,14 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
     const barrier = new Promise<void>(resolve => { release = resolve; });
     const locked = new Promise<void>(resolve => { ready = resolve; });
     const writer = db.transaction(async tx => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`native-workspace-finalization:${f.companyId}:${f.runId}`}, 0))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`native-workspace-finalization:${f.spaceId}:${f.runId}`}, 0))`);
       ready(); await barrier;
     });
     await locked;
-    try { expect(await reconcile(f.companyId)).toMatchObject({ reconciled: 0,
+    try { expect(await reconcile(f.spaceId)).toMatchObject({ reconciled: 0,
       held: [{ operationId: f.operationId, reason: "finalization_owner_busy" }] }); }
     finally { release(); await writer; }
-    expect(await reconcile(f.companyId)).toMatchObject({ reconciled: 1 });
+    expect(await reconcile(f.spaceId)).toMatchObject({ reconciled: 1 });
   });
 
   it("rolls back the attempt when the activity audit cannot persist", async () => {
@@ -222,7 +222,7 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
       when (new.entity_id = '${f.operationId}') execute function reject_operation_audit()`));
     const before = await operation(f.operationId);
     try {
-      await expect(reconcile(f.companyId)).rejects.toMatchObject({ cause: { code: "23514" } });
+      await expect(reconcile(f.spaceId)).rejects.toMatchObject({ cause: { code: "23514" } });
       expect(await operation(f.operationId)).toEqual(before);
     } finally {
       await db.execute(sql`drop trigger reject_operation_audit on activity_log`);
@@ -233,23 +233,23 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
   it("reconciles exact superseded receipts online while unrelated work, held files, and task intent remain", async () => {
     const f = await fixture(), other = await fixture(), root = await mkdtemp(path.join(os.tmpdir(), "online-receipt-files-"));
     const [oldRun] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-    const [active] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: oldRun.agentId,
+    const [active] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: oldRun.agentId,
       status: "running", runtimeMode: "native", controllerLeaseExpiresAt: new Date(Date.now() + 60_000),
       runnerProfileJson: { remoteWorkspace: { schema: "outpost.remote-workspace-run.v1" } } }).returning();
-    await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
+    await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
       kind: "configuration_validation", cause: "configuration_incomplete", fingerprint: randomUUID(), nextAction: "Keep the warning" });
     const retained = async () => ({
-      runs: await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId)),
-      owners: await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, f.companyId)),
-      issues: await db.select().from(issues).where(eq(issues.companyId, f.companyId)),
-      actions: await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId)),
+      runs: await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId)),
+      owners: await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, f.spaceId)),
+      issues: await db.select().from(issues).where(eq(issues.spaceId, f.spaceId)),
+      actions: await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId)),
     });
     try {
       await writeFile(path.join(root, "saved.txt"), "Unpublished user files\n");
       await db.update(executionWorkspaces).set({ cwd: root }).where(eq(executionWorkspaces.id, f.workspaceId));
       vi.stubEnv("OUTPOST_EPHEMERAL_MIGRATION", "false");
       const before = await retained(), receipt = await operation(f.receiptId), otherAttempt = await operation(other.operationId);
-      expect(await reconcileOnlineWorkspaceOperations(db, { companyId: f.companyId, signal: new AbortController().signal }))
+      expect(await reconcileOnlineWorkspaceOperations(db, { spaceId: f.spaceId, signal: new AbortController().signal }))
         .toMatchObject({ inspected: 1, reconciled: 1, held: [] });
       expect(await operation(f.operationId)).toMatchObject({ status: "failed", metadata: { original: "keep",
         onlineReconciliation: { schema: "outpost.online-workspace-operation-reconciliation.v1",
@@ -276,7 +276,7 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
     if (kind === "worktree_prepare") await db.update(workspaceOperations).set({ phase: "worktree_prepare" }).where(eq(workspaceOperations.id, f.operationId));
     const before = await operation(f.operationId), receipt = await operation(f.receiptId);
     try {
-      expect(await reconcileOnlineWorkspaceOperations(db, { companyId: f.companyId, signal: new AbortController().signal }))
+      expect(await reconcileOnlineWorkspaceOperations(db, { spaceId: f.spaceId, signal: new AbortController().signal }))
         .toMatchObject({ inspected: 1, reconciled: 0, held: [{ operationId: f.operationId }] });
       expect(await operation(f.operationId)).toEqual(before);
       expect(await operation(f.receiptId)).toEqual(receipt);
@@ -296,11 +296,11 @@ describe.skipIf(!support.supported)("offline workspace operation receipts", () =
     await locked;
     const before = await operation(f.operationId);
     try {
-      expect(await reconcileOnlineWorkspaceOperations(db, { companyId: f.companyId, signal: new AbortController().signal }))
+      expect(await reconcileOnlineWorkspaceOperations(db, { spaceId: f.spaceId, signal: new AbortController().signal }))
         .toMatchObject({ reconciled: 0, held: [{ operationId: f.operationId, reason: "execution_rows_busy" }] });
       expect(await operation(f.operationId)).toEqual(before);
     } finally { release(); await publisher; }
-    expect(await reconcileOnlineWorkspaceOperations(db, { companyId: f.companyId, signal: new AbortController().signal }))
+    expect(await reconcileOnlineWorkspaceOperations(db, { spaceId: f.spaceId, signal: new AbortController().signal }))
       .toMatchObject({ inspected: 0, reconciled: 0 });
   });
 });

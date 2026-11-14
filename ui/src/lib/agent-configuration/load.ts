@@ -7,7 +7,7 @@ import { toolsApi } from "../../api/tools";
 import { chatEndpointsApi } from "../../api/chatEndpoints";
 import { secretsApi } from "../../api/secrets";
 
-export const ownedAdapterKeys = ["paperclipSkillSync", "instructionsBundleMode", "instructionsRootPath", "instructionsEntryFile", "instructionsFilePath"] as const;
+export const ownedAdapterKeys = ["outpostSkillSync", "instructionsBundleMode", "instructionsRootPath", "instructionsEntryFile", "instructionsFilePath"] as const;
 export const equal = (a: unknown, b: unknown) => canonicalAgentConfiguration(a) === canonicalAgentConfiguration(b);
 export const jsonValue = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -39,21 +39,21 @@ export function policyAgentIds(policy: Pick<ToolPolicy, "selectors">): string[] 
     Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : typeof value === "string" ? [value] : []);
 }
 
-export async function loadAgentConfiguration(id: string, companyId: string) {
-  const core = await agentsApi.getConfiguration(id, companyId);
+export async function loadAgentConfiguration(id: string, spaceId: string) {
+  const core = await agentsApi.getConfiguration(id, spaceId);
   const [agent, bundle, skills, connections, profiles, policies, endpoints, keys, revisions, secrets, proposals] = await Promise.all([
-    agentsApi.get(id, companyId), agentsApi.instructionsBundle(id, companyId), agentsApi.skills(id, companyId),
-    toolsApi.listConnections(companyId), toolsApi.listProfiles(companyId), toolsApi.listPolicies(companyId),
-    chatEndpointsApi.list(companyId), agentsApi.listKeys(id, companyId), agentsApi.listConfigRevisions(id, companyId),
-    secretsApi.list(companyId), secretsApi.listProposals(companyId),
+    agentsApi.get(id, spaceId), agentsApi.instructionsBundle(id, spaceId), agentsApi.skills(id, spaceId),
+    toolsApi.listConnections(spaceId), toolsApi.listProfiles(spaceId), toolsApi.listPolicies(spaceId),
+    chatEndpointsApi.list(spaceId), agentsApi.listKeys(id, spaceId), agentsApi.listConfigRevisions(id, spaceId),
+    secretsApi.list(spaceId), secretsApi.listProposals(spaceId),
   ]);
   const [files, channels] = await Promise.all([
-    mapBounded(bundle.files.filter(file => file.editable && !file.binary && !file.virtual), file => agentsApi.instructionsFile(id, file.path, companyId)),
+    mapBounded(bundle.files.filter(file => file.editable && !file.binary && !file.virtual), file => agentsApi.instructionsFile(id, file.path, spaceId)),
     mapBounded(endpoints.filter(endpoint => endpoint.assignedAgentId === id && endpoint.status !== "archived"), async endpoint => {
       const [detail, resources, principals] = await Promise.all([
         chatEndpointsApi.get(endpoint.id), chatEndpointsApi.listResources(endpoint.id), chatEndpointsApi.listPrincipals(endpoint.id),
       ]);
-      if (detail.assignedAgentId !== id || detail.companyId !== companyId) throw new Error("Channel ownership changed. Reload configuration.");
+      if (detail.assignedAgentId !== id || detail.spaceId !== spaceId) throw new Error("Channel ownership changed. Reload configuration.");
       return { detail, resources, principals };
     }),
   ]);
@@ -67,7 +67,7 @@ export async function loadAgentConfiguration(id: string, companyId: string) {
     return binding ? [{ profileId: profile.id, updateSharedDefinition: false, priority: binding.priority, metadata: binding.metadata, configuration: profileConfiguration(profile) }] : [];
   });
   const document = jsonValue({
-    apiVersion: "paperclip/v1", kind: "Agent",
+    apiVersion: "outpost/v1", kind: "Agent",
     spec: {
       ...agentConfigurationSpec(core), adapterConfig,
       permissions: {

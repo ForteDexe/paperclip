@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS "mcp_oauth_device_requests" (
 	"user_code_hash" text NOT NULL,
 	"resource" text NOT NULL,
 	"scopes" jsonb NOT NULL,
-	"requested_company_id" uuid,
+	"requested_space_id" uuid,
 	"source_hash" text NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"grant_id" uuid,

@@ -1,5 +1,5 @@
 import { KeyRound, Save } from "lucide-react";
-import type { CompanySecret, RoutineEnvConfig } from "@outpost/shared";
+import type { SpaceSecret, RoutineEnvConfig } from "@outpost/shared";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "./EmptyState";
 import { EnvironmentVariablesEditor } from "./environment-variables-editor";
@@ -12,12 +12,12 @@ export interface StageSecretsPanelProps {
   agentName?: string | null;
   agentIcon?: string | null;
   agent?: AvatarAgent;
-  /** Company secret inventory (shared, not stage-scoped). */
-  secrets: CompanySecret[];
+  /** Space secret inventory (shared, not stage-scoped). */
+  secrets: SpaceSecret[];
   secretsLoading: boolean;
   value: RoutineEnvConfig;
   onChange: (env: RoutineEnvConfig) => void;
-  onCreateSecret: (name: string, value: string) => Promise<CompanySecret>;
+  onCreateSecret: (name: string, value: string) => Promise<SpaceSecret>;
   /** Jump to the Automation section so the user can pick an agent. */
   onSetupAutomation: () => void;
   onSave: () => void;
@@ -27,7 +27,7 @@ export interface StageSecretsPanelProps {
 
 /**
  * Stage Secrets tab body. Stage secrets are env bindings on the step's backing
- * automation routine — the same company-secret backbone used by routines,
+ * automation routine — the same space-secret backbone used by routines,
  * agents, and projects. This panel is intentionally dense and reuses
  * `EnvironmentVariablesEditor` for secret refs, inline secret creation, version
  * selection, and missing/disabled-secret warnings.

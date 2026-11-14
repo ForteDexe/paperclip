@@ -2,9 +2,9 @@
 
 Plan: [`doc/plans/2026-11-06-control-plane-restart-chaos.md`](../../doc/plans/2026-11-06-control-plane-restart-chaos.md).
 
-A script, not an LLM. It starts an isolated Paperclip control plane (temporary
+A script, not an LLM. It starts an isolated Outpost control plane (temporary
 `OUTPOST_HOME`, wrapper-owned embedded Postgres, its own port), seeds a
-"Chaos Lab" company, launches real agent tasks, kills or restarts the control
+"Chaos Lab" space, launches real agent tasks, kills or restarts the control
 plane during those tasks, and grades every task on R1–R6 plus a deterministic
 T-oracle.
 
@@ -22,7 +22,7 @@ node scripts/typecheck-test-projects.mjs tests/restart-chaos        # typecheck
 ```
 
 Options: `--triggers time,comment,retry,queued,tool,result` (fault timing, below),
-`--workloads A1,B1,B5,C1` (opt-in: G1, H1, L1, R1, S1, W2, W2Q, W2C), `--db-pressure <writers>` (below), `--budget-cents` (company hard cap,
+`--workloads A1,B1,B5,C1` (opt-in: G1, H1, L1, R1, S1, W2, W2Q, W2C), `--db-pressure <writers>` (below), `--budget-cents` (space hard cap,
 default 3000), `--poll-ms` (2000–5000), `--keep` (keep the temporary instance),
 `--k4-hold-max-seconds` (raise the seeded K4 hold upper end from 300 s, up to the 600 s outage cap).
 `--faults K0` plans cells with no fault, for workloads whose shape is the fault (W2, below). `--fail-recovery-step`,
@@ -42,8 +42,8 @@ references. An instance whose Daytona cleanup is still pending keeps its databas
 as the owner of that cleanup and never expires. Unmarked directories are never
 removed.
 
-`--rc06-masked` keeps the company budget amount but disables its hard stop on
-the isolated Chaos Lab company, so one stuck accounting row (RC-06) cannot
+`--rc06-masked` keeps the space budget amount but disables its hard stop on
+the isolated Chaos Lab space, so one stuck accounting row (RC-06) cannot
 wedge every later task. Masked tasks are marked `rc06-masked` in the ledger and
 summary, and each wave still records its spend (`wave_spend` in the timeline).
 A replay inherits the masks saved in the source wave's `plan.json`;
@@ -83,7 +83,7 @@ node cli/node_modules/tsx/dist/cli.mjs tests/restart-chaos/main.ts --env local \
 ```
 
 **G1.** The agent asks for board approval through its `call_api` tool
-(`POST /api/companies/{companyId}/approvals`, type `request_board_approval`,
+(`POST /api/spaces/{spaceId}/approvals`, type `request_operator_approval`,
 linked to its task), blocks the task and ends its turn. The `approval` trigger
 fires the planned fault once the observer sees the approval pending.
 
@@ -102,16 +102,16 @@ nonce and finishes. The oracle checks these points:
 
 A rejected task rests `cancelled`; R1 and R3 grade against that status.
 
-**H1.** Before launch, the harness sets the company budget to its observed spend
+**H1.** Before launch, the harness sets the space budget to its observed spend
 plus one cent through the board's budget route. The task's first priced usage
-then crosses the hard stop mid-run, which pauses the company. The `paused`
+then crosses the hard stop mid-run, which pauses the space. The `paused`
 trigger fires the fault once the observer sees `paused` with `pauseReason`
 `budget`.
 
 After the restart, the pause must hold for 30 s with the server ready. The
 harness records every run that started while paused (there must be none), then
 resolves the incident with `raise_budget_and_resume` (spend plus 3000 cents).
-The task must then finish its brief on its own. H1 pauses the whole company, so
+The task must then finish its brief on its own. H1 pauses the whole space, so
 it runs alone (`--workloads H1 --concurrency 1`) and never with `--rc06-masked`.
 
 Neither G1 nor H1 is in the default workloads. The board's actions and what the
@@ -190,11 +190,11 @@ blockers-resolved wake lets the agent write a brief that carries
 own OAuth 2.1 + MCP app on loopback. The app has discovery, dynamic client
 registration, PKCE, rotating refresh tokens, one-hour access tokens and one write
 tool, `create_page`. No third-party account is used. Before launch, the board
-connects the app (`POST /api/companies/:id/tools/apps/connect`). It follows the
+connects the app (`POST /api/spaces/:id/tools/apps/connect`). It follows the
 app's authorize redirect back to `/api/tools/oauth/callback`. Then it finishes setup
 for one scripted `process` agent with `create_page` set to Ask first. That agent
 is adapted from `tests/e2e/connection-reviews.spec.ts`. Q3 grades the review path,
-not a model, so `--adapters` only labels the cell. A process run records usage with no price, so Q3 setup also sets the company budget policy to allow unpriced usage (the amount and hard stop still apply).
+not a model, so `--adapters` only labels the cell. A process run records usage with no price, so Q3 setup also sets the space budget policy to allow unpriced usage (the amount and hard stop still apply).
 
 The agent's call waits for review. Then the board does three things:
 
@@ -248,16 +248,16 @@ Then run the same wave against it with `--server-from`. The harness code stays t
 same; every server start and restart runs the older build:
 
 ```sh
-git worktree add --detach ../paperclip-pre20363 3cc1032f6a^ && (cd ../paperclip-pre20363 && node scripts/agent-preflight.mjs)
+git worktree add --detach ../outpost-pre20363 3cc1032f6a^ && (cd ../outpost-pre20363 && node scripts/agent-preflight.mjs)
 node cli/node_modules/tsx/dist/cli.mjs tests/restart-chaos/main.ts --env local --adapters codex --workloads Q2 \
-  --faults K1 --triggers answered --concurrency 1 --tasks 1 --seed 44 --server-from ../paperclip-pre20363
+  --faults K1 --triggers answered --concurrency 1 --tasks 1 --seed 44 --server-from ../outpost-pre20363
 ```
 
 ## Code change in a real repository (R1, `--workspace-repo`)
 
 ```sh
 node cli/node_modules/tsx/dist/cli.mjs tests/restart-chaos/main.ts --env local \
-  --adapters codex,claude --workloads R1,C1 --workspace-repo /path/to/paperclip \
+  --adapters codex,claude --workloads R1,C1 --workspace-repo /path/to/outpost \
   --faults K1,K2,K4 --concurrency 4 --tasks 8 --seed 22
 ```
 
@@ -272,10 +272,10 @@ not combine with `--workspace-repo`. Local only.
 ## Upgrade mid-run (K14, `--upgrade-from`)
 
 ```sh
-git worktree add ../paperclip-838e9bf3 838e9bf3d2        # an older master build
-(cd ../paperclip-838e9bf3 && node scripts/agent-preflight.mjs)
+git worktree add ../outpost-838e9bf3 838e9bf3d2        # an older master build
+(cd ../outpost-838e9bf3 && node scripts/agent-preflight.mjs)
 node cli/node_modules/tsx/dist/cli.mjs tests/restart-chaos/main.ts --env local \
-  --adapters codex,claude --workloads A1,C1,M1 --faults K14 --upgrade-from ../paperclip-838e9bf3 \
+  --adapters codex,claude --workloads A1,C1,M1 --faults K14 --upgrade-from ../outpost-838e9bf3 \
   --concurrency 4 --tasks 8 --seed 21
 ```
 
@@ -388,7 +388,7 @@ minutes. In staging class R, recovery then found the remote Runner gone
     `runner-state.json`.
 
   The probe never stops, starts or deletes a sandbox. It only touches sandboxes
-  that carry the wave's company and environment labels. Known secret values are
+  that carry the wave's space and environment labels. Known secret values are
   redacted. A failed capture is recorded and does not fail the wave.
 
   The whole capture (client, listing and every probe) has one 45 s deadline.
@@ -452,7 +452,7 @@ and the R1–R6 grading rules already exist.
   provider command. For Claude (ACPX) that is `--output-format stream-json`. For OpenCode it is
   `serve --hostname 127.0.0.1 --port`. The Runner is found by the run id in its listen path.
 - CR2 is the only class R action that changes anything in a sandbox. It runs one fixed script, only in
-  sandboxes that carry the wave's company and environment labels.
+  sandboxes that carry the wave's space and environment labels.
 - The run id comes from the task's last sample before the fault. Each kill's output is saved to
   `daytona-runner/provider-kill-<task>-<ms>.json`.
 - Each CR task must pass `class_r_fault_applied`. The fault must not have failed, CR2 must have killed a
@@ -487,7 +487,7 @@ error exit reached `diagnostics/runnerd.stderr.log`. Since #20907, its stderr go
 `diagnostics/runnerd.process-stderr.log`, and the probe reads both files. The probe never stops, starts or
 deletes a sandbox. An archived or stopped sandbox is recorded by its state alone.
 
-**Results on master `6154b9485e` with #20907** (image `paperclip-daytona-runner@sha256:39df7406…`):
+**Results on master `6154b9485e` with #20907** (image `outpost-daytona-runner@sha256:39df7406…`):
 
 | Wave | Cell | Result |
 | --- | --- | --- |
@@ -691,7 +691,7 @@ node cli/node_modules/tsx/dist/cli.mjs tests/restart-chaos/main.ts --env local \
 `--storage s3` runs the server the way cloud mode does: `OUTPOST_STORAGE_PROVIDER=s3`, so run logs
 and provider traces use the `s3_segments` backend and attachments, artifacts and other stored files go
 to object storage. The store is a loopback MinIO (`RELEASE.2025-04-22T22-12-26Z`, built from source at
-`~/.cache/paperclip/tools/minio/minio` or `RESTART_CHAOS_MINIO_BIN`) with its data under the instance
+`~/.cache/outpost/tools/minio/minio` or `RESTART_CHAOS_MINIO_BIN`) with its data under the instance
 temp root, behind a fault proxy that every server S3 call goes through. The proxy's request counts by
 method and status are written to `storage-proxy.json`.
 
@@ -732,7 +732,7 @@ With `--env daytona --storage s3`, each task's workspace is a remote workspace: 
 and restores it through the store, so the faults also hit workspace save, restore and copyback. R1
 (`--workspace-repo`) runs on Daytona only with `--storage s3`: the project points at the checkout's
 GitHub `origin` over https at its `origin/master` commit, so the sandbox clones the repository and its
-snapshots are Paperclip-sized. Its oracle reads the task's files through the board API, retrying for up
+snapshots are Outpost-sized. Its oracle reads the task's files through the operator API, retrying for up
 to 4 minutes while the closing save makes the workspace readable, and runs its commands on a local copy.
 
 ### Restart during a transfer (`--storage-trigger`)
@@ -811,10 +811,10 @@ HTTP 400 "Total CPU limit exceeded", so use 8 there and `--daytona-cpu 2`.
 
 **Fleet safety.** The harness never stops, archives or deletes a Daytona
 sandbox. Its Daytona client is a frozen wrapper that exposes only a
-label-filtered `list`. `assertHarnessMayMutate` refuses `paperclip-create-*`
+label-filtered `list`. `assertHarnessMayMutate` refuses `outpost-create-*`
 names (every plugin-created sandbox has one) and `fleet-sbx-*` snapshots, so a
 future mutating path cannot act on fleet sandboxes either. Cleanup goes only
-through Paperclip, by deleting the wave's own environment.
+through Outpost, by deleting the wave's own environment.
 
 **Image matching.** The controller needs the image's own Linux amd64
 `/usr/local/bin/outpost-runnerd` (`OUTPOST_RUNNER_REMOTE_BINARY_PATH`) and
@@ -865,7 +865,7 @@ prepared outside the root workspace as CI does), the `daytona` environment
 fixture from `catalog.ts`, and the native Codex platform-qualification probe.
 
 **R6 sweep.** After the wave, `daytona-sweep.ts` lists (read-only) the
-sandboxes whose `paperclip-company-id` and `paperclip-environment-id` labels
+sandboxes whose `outpost-space-id` and `outpost-environment-id` labels
 both equal the UUIDs this wave's isolated instance minted, re-checks every row,
 and reconciles them with the environment's leases. It retries for the product's
 pending-cleanup backoff plus 90 seconds (6.5 minutes, capped at 8) before
@@ -874,7 +874,7 @@ lease was released is expected (the plugin archives on release and Daytona
 deletes it after 60 minutes). Any other live sandbox without a held lease, or
 an `active`/`pending_cleanup` lease, is a leak: it fails R6 for the
 task whose run owns it, or the wave when no task does. The harness then deletes
-the wave's environment through Paperclip and lists again: a wave sandbox that
+the wave's environment through Outpost and lists again: a wave sandbox that
 is still neither archived nor destroyed after 90 seconds fails the wave and is
 reported for a person to act on (the environment's 60-minute ttl also expires
 it). An environment DELETE that returns 409 because a sandbox cleanup is still
@@ -947,10 +947,10 @@ an open tool.
 
 **A tool result that never reaches the agent (`tool_completed`, Codex only).**
 `--provider-fault-message tool_completed` drops (PV2), holds (PV1) or repeats (PV3) Codex's
-`item/completed` for the turn's first Paperclip tool call other than `paperclip_finish` and
-`paperclip_block`. The model has the result, but the runner never records that it reached the model,
+`item/completed` for the turn's first Outpost tool call other than `outpost_finish` and
+`outpost_block`. The model has the result, but the runner never records that it reached the model,
 as when Codex cancels the nested exec cell that made the call. In two staging Codex runs
-(2026-11-11) every later `paperclip_finish` was then refused with
+(2026-11-11) every later `outpost_finish` was then refused with
 `terminal_call_before_results`, the turn ended with no semantic result, and the same-run recovery
 failed the run. No turn is interrupted, so the workloads are those that save a document and then
 finish (A1, C1):
@@ -1133,7 +1133,7 @@ timed out`, `runner did not durably suspend before checkpoint` (class C+), or
 The workload is the fault, so these cells usually run with `--faults K0` (no fault). Every task of an
 adapter runs on that adapter's one agent: `--adapters codex --tasks 10 --concurrency 10` is ten tasks on one
 agent. Phase 1 ends with the task left `in_progress` (`in_review` would gate completion on a review): the W2 and W2C
-brief asks the agent to report phase 1 with `paperclip_finish` disposition `yielded` and a `response_wake`
+brief asks the agent to report phase 1 with `outpost_finish` disposition `yielded` and a `response_wake`
 continuation, because an agent that reports `done` closes the task and the wake is never sent (on 2026-11-11 four of
 eight Claude cells tested nothing). A passive board wait needs a run that a board comment started, so W2 and W2C
 create the task in `backlog` and start phase 1 with a board comment; without it the yield queues an immediate
@@ -1229,7 +1229,7 @@ node cli/node_modules/tsx/dist/cli.mjs tests/restart-chaos/main.ts --env local \
 ```
 
 Usage receipts and streamed run-log appends update the same `heartbeat_runs` row. In #20385 a
-receipt's repeatable-read snapshot went stale when a log append committed between its company check
+receipt's repeatable-read snapshot went stale when a log append committed between its space check
 and its run-row lock; four retries ran out with SQLSTATE 40001, the event stayed in the runner's
 retained outbox, and every later terminal event was blocked (`native_event_replay_conflict:
 runner_event_commit_stalled ... last cause: Error`).
@@ -1239,7 +1239,7 @@ runner_event_commit_stalled ... last cause: Error`).
 events and many usage reports. L1 is opt-in (not a default workload).
 
 **`--db-pressure <writers>`** (1–8) starts harness-owned writers against the wave's own database.
-Each one runs `update heartbeat_runs set updated_at = updated_at` on each of the wave company's
+Each one runs `update heartbeat_runs set updated_at = updated_at` on each of the wave space's
 `running` rows, one row per statement, back to back. One row per statement matches a run-log
 append; a statement over every running row locked several rows at once and deadlocked with
 product transactions (40P01), which a real stream never does. No value changes, but every statement writes a new row version, which is what a
@@ -1257,7 +1257,7 @@ At rest the harness reads each L1 task's runs from the wave database, and the T-
 | `terminal_receipts_committed` | a succeeded native run has no terminal (`turn.*`) receipt: its terminal event never left the outbox |
 | `finished_runs_accounted` | a finished native run has no `cost_accounted_at` |
 | `run_spend_matches_cost_events` | a run's recorded cost differs from its cost events (0.5% or 0.01 cent) |
-| `company_spend_settled` | the board's cost summary differs from the cost-event sum, or runs still wait for accounting |
+| `space_spend_settled` | the board's cost summary differs from the cost-event sum, or runs still wait for accounting |
 | `contention_produced` | the task produced fewer than 40 log events or 6 receipts (it did not test anything) |
 
 `contention-db.test.ts` checks the knob itself on real PostgreSQL: with four writers, the
@@ -1571,7 +1571,7 @@ re-arms the task's own triggered faults instead of using their offsets.
 | File | Role |
 | --- | --- |
 | `supervisor.ts` | Owns the server. Reuses `tests/runner-e2e` process code (config, ports, env isolation, wrapper-owned Postgres, process-tree stopper, `replaceController`). Faults: K1 SIGKILL + immediate restart, K2 SIGTERM + restart, K4 SIGKILL + 2–5 min hold, K6 crash loop, RR1–RR3 repeated restarts. The controller runtime cache is kept (discarding it is K11). |
-| `seed.ts` | Chaos Lab company, encrypted provider secrets, native Codex / ACPX Claude / OpenCode agents from the runner-e2e catalog, and the `chaos-sandbox` project (git repo: python CLI, one failing test, `bench.sh` ≈ 4 min) with isolated git-worktree workspaces. It first turns on the instance `enableIsolatedWorkspaces` setting; without it the server ignores the project policy and every repo task shares the primary checkout. |
+| `seed.ts` | Chaos Lab space, encrypted provider secrets, native Codex / ACPX Claude / OpenCode agents from the runner-e2e catalog, and the `chaos-sandbox` project (git repo: python CLI, one failing test, `bench.sh` ≈ 4 min) with isolated git-worktree workspaces. It first turns on the instance `enableIsolatedWorkspaces` setting; without it the server ignores the project policy and every repo task shares the primary checkout. |
 | `scheduler.ts` | Seeded plan: workload × adapter × fault cells and a random fire time per task. Saved to `results/<wave>/plan.json`. `--replay` reruns one task alone with the same choices and fires the recorded sequence of faults that crossed it (other tasks' faults included) at the same offsets from launch. |
 | `observer.ts` | Polls each issue and its runs. When a task rests needing Retry it calls `POST /api/issues/:id/retry` once (once more only if a later fault started after that click), with the body `useTaskRetry.ts` sends. Collects T-oracle artifacts and the R6 sweep. |
 | `config-faults.ts`, `config-wave.ts` | Config faults: the reference catalog, seeded plan and oracle (pure), and the wave runner that breaks, restarts, repairs and grades. |
@@ -1591,7 +1591,7 @@ re-arms the task's own triggered faults instead of using their offsets.
 | `repeated-restarts.ts` | RR1–RR3: seeded restart steps, `--rr-gap-seconds`, and the stop-and-replace loop the supervisor runs. |
 | `redeploy.ts`, `redeploy-preload.mjs` | K15: per-generation emulated host name and Railway deployment identity, the preload that applies the host name, and `--k15-hold-seconds`. |
 | `daytona-runner-logs.ts` | K15 on Daytona: read-only capture of each wave sandbox's Runner stderr log, identity, state and process, memory and OOM evidence. |
-| `daytona-sweep.ts` | Daytona R6: read-only reconciliation of this wave's labelled sandboxes with leases; cleanup only through Paperclip. |
+| `daytona-sweep.ts` | Daytona R6: read-only reconciliation of this wave's labelled sandboxes with leases; cleanup only through Outpost. |
 
 ## Output (gitignored)
 
@@ -1627,9 +1627,9 @@ re-arms the task's own triggered faults instead of using their offsets.
   whatever its last status.
 - Speed: an aggregate p50/p95 row can breach only with at least 5 samples; a
   smaller row is reported as `insufficient sample (n < 5)`. Every cold or warm run
-  over its p95 budget, and every restart recovery whose Paperclip share exceeds
+  over its p95 budget, and every restart recovery whose Outpost share exceeds
   its p95 budget, still fails the wave on its own. `speed.json` keeps each graded
-  run's own split (`runs`): `bootMs` (Paperclip: claim to the provider accepting
+  run's own split (`runs`): `bootMs` (Outpost: claim to the provider accepting
   the turn), `providerFirstActivityMs` (turn accepted to first visible activity),
   and the spans before the turn, so a breach stays attributable after the
   temporary instance is deleted.

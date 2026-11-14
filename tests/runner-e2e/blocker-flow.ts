@@ -27,18 +27,18 @@ export async function runBlockerFlow(input: {
   let runs: Row[] = [];
   let managerId = "";
   let checks: ReturnType<typeof gradeBlocker> = [];
-  const company = `/api/companies/${fixtures.company.id}`;
+  const space = `/api/spaces/${fixtures.space.id}`;
   const hashes: Record<string, string> = {};
   const grade = (requireFinal: boolean) => gradeBlocker({ caseId: scenario.id, assigneeId: fixtures.agent.id,
     managerId, marker: scenario.marker, checkpoints, requireFinal });
   async function state(phase: BlockerCheckpoint["phase"]): Promise<BlockerCheckpoint> {
     issue = await api.get<Row>(`/api/issues/${issue!.id}`);
-    const listed = await api.get<Row[]>(`${company}/heartbeat-runs?limit=100`);
+    const listed = await api.get<Row[]>(`${space}/heartbeat-runs?limit=100`);
     runs = await Promise.all(listed.map(r => api.get<Row>(`/api/heartbeat-runs/${r.id}`)));
     const [issues, agents, interactions, comments, activity, approvals] = await Promise.all([
-      api.get<Row[]>(`${company}/issues`), api.get<Row[]>(`${company}/agents`),
+      api.get<Row[]>(`${space}/issues`), api.get<Row[]>(`${space}/agents`),
       api.get<Row[]>(`/api/issues/${issue.id}/interactions`), api.get<Row[]>(`/api/issues/${issue.id}/comments?order=asc`),
-      api.get<Row[]>(`/api/issues/${issue.id}/activity`), api.get<Row[]>(`${company}/approvals`),
+      api.get<Row[]>(`/api/issues/${issue.id}/activity`), api.get<Row[]>(`${space}/approvals`),
     ]);
     input.observe(issue, runs, checks);
     return { phase, issue, issues, runs, agents, interactions, comments, activity, approvals };
@@ -59,7 +59,7 @@ export async function runBlockerFlow(input: {
         s.runs.some(r => ["failed", "timed_out", "cancelled"].includes(r.status)) ? "provider run failed; see retained run records" : undefined });
   }
   async function open() {
-    await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue!.identifier ?? issue!.id}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/${fixtures.space.issuePrefix}/issues/${issue!.identifier ?? issue!.id}`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: String(issue!.title), exact: true })).toBeVisible();
     await expect(page.getByTestId("issue-chat-skeleton")).toHaveCount(0);
   }
@@ -69,18 +69,18 @@ export async function runBlockerFlow(input: {
     if (failed.length) throw new Error(`Blocker outcome checks failed: ${failed.map(c => c.id).join(", ")}`);
   }
   try {
-    for (const file of ["skills/paperclip/SKILL.md", "skills/paperclip/references/api-reference.md",
+    for (const file of ["skills/outpost/SKILL.md", "skills/outpost/references/api-reference.md",
       ...["blocker-cases.ts", "blocker-flow.ts", "blocker-input.ts", "blocker-fixtures.ts", "blocker-scoring.ts"].map(f => `tests/runner-e2e/${f}`)]) {
       hashes[file] = createHash("sha256").update(await readFile(path.resolve(import.meta.dirname, "../..", file))).digest("hex");
     }
     const setup = await setupBlockerFixtures(input);
     managerId = setup.manager.id;
-    const skill = (await api.get<Row[]>(`${company}/skills`)).find(s => s.key === "paperclipai/paperclip/paperclip");
+    const skill = (await api.get<Row[]>(`${space}/skills`)).find(s => s.key === "outpost/outpost/outpost");
     if (!skill) throw new Error("Missing assigned operational skill");
     const servedHashes: Record<string, string> = {};
     for (const file of ["SKILL.md", "references/api-reference.md"]) {
-      const served = await api.get<{ content: string }>(`${company}/skills/${skill.id}/files?path=${encodeURIComponent(file)}`);
-      servedHashes[`skills/paperclip/${file}`] = createHash("sha256").update(served.content).digest("hex");
+      const served = await api.get<{ content: string }>(`${space}/skills/${skill.id}/files?path=${encodeURIComponent(file)}`);
+      servedHashes[`skills/outpost/${file}`] = createHash("sha256").update(served.content).digest("hex");
     }
     await input.evidence("blocker-skill-source.json", { skillId: skill.id, servedHashes,
       agentSkills: await api.get(`/api/agents/${fixtures.agent.id}/skills`) });
@@ -88,10 +88,10 @@ export async function runBlockerFlow(input: {
       if (hash !== hashes[file]) throw new Error(`Bundled operational skill differs from evaluated source: ${file}`);
     }
     await api.patch("/api/instance/settings/experimental", { enableClassicTaskInterface: false });
-    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name,
+    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name,
       title: execution.task.buildTitle(input.nonce), prompt: scenario.prompt, workMode: "standard" });
     issue = await pollUntil({ label: "browser-created blocker task", deadlineAt: input.deadlineAt,
-      load: async () => (await api.get<Row[]>(`${company}/issues`)).find(i => i.id === createdTask.issueId), accept: Boolean });
+      load: async () => (await api.get<Row[]>(`${space}/issues`)).find(i => i.id === createdTask.issueId), accept: Boolean });
     if (!issue) throw new Error("No browser-created task");
     checkpoints.push(await settle("waiting"));
     await open();

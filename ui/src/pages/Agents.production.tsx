@@ -10,7 +10,7 @@ import { builtInAgentsApi, type BuiltInAgentState } from "../api/builtInAgents";
 import { environmentsApi } from "../api/environments";
 import { heartbeatsApi } from "../api/heartbeats";
 import { instanceSettingsApi } from "../api/instanceSettings";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useDialogActions } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useSidebar } from "../context/SidebarContext";
@@ -65,7 +65,7 @@ const loadingEnvironmentDescriptor: EnvironmentDescriptor = {
 };
 
 // Agents in these states never appear in the agents list — `terminated` is
-// hidden like an archived company, and `pending_approval` is a hiring gate that
+// hidden like an archived space, and `pending_approval` is a creation gate that
 // lives in the task thread, not an agent run state (PAP-75).
 const HIDDEN_AGENT_STATUSES = new Set(["terminated", "pending_approval"]);
 
@@ -174,7 +174,7 @@ function filterOrgTree(nodes: OrgNode[], tab: FilterTab, builtInAgentIds: Set<st
 }
 
 export function Agents() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { openNewAgent } = useDialogActions();
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
@@ -189,14 +189,14 @@ export function Agents() {
   const { data: instanceSettings } = useQuery({
     queryKey: queryKeys.instance.settings,
     queryFn: () => instanceSettingsApi.get(),
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
   });
   const builtInAgentsEnabled = instanceSettings?.experimental.enableBuiltInAgents === true;
   const tab: FilterTab = "all";
   const { data: builtInAgents } = useQuery({
-    queryKey: queryKeys.builtInAgents.list(selectedCompanyId!),
-    queryFn: () => builtInAgentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId && builtInAgentsEnabled,
+    queryKey: queryKeys.builtInAgents.list(selectedSpaceId!),
+    queryFn: () => builtInAgentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId && builtInAgentsEnabled,
   });
   const builtInByAgentId = useMemo(() => {
     const map = new Map<string, BuiltInAgentState>();
@@ -210,46 +210,46 @@ export function Agents() {
   const [configureState, setConfigureState] = useState<BuiltInAgentState | null>(null);
 
   const agentsQuery = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const { data: agents, isLoading } = agentsQuery;
-  const rosterFilters = useAgentRosterFilters(selectedCompanyId, agents);
+  const rosterFilters = useAgentRosterFilters(selectedSpaceId, agents);
   const agentsView = useQueryView(agentsQuery);
 
   const { data: orgTree } = useQuery({
-    queryKey: queryKeys.org(selectedCompanyId!),
-    queryFn: () => agentsApi.org(selectedCompanyId!),
-    enabled: !!selectedCompanyId && effectiveView === "org",
+    queryKey: queryKeys.org(selectedSpaceId!),
+    queryFn: () => agentsApi.org(selectedSpaceId!),
+    enabled: !!selectedSpaceId && effectiveView === "org",
   });
 
   const environmentsEnabled = instanceSettings?.experimental.enableEnvironments === true;
 
   const { data: environments } = useQuery({
-    queryKey: queryKeys.environments.list(selectedCompanyId!),
-    queryFn: () => environmentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId && environmentsEnabled,
+    queryKey: queryKeys.environments.list(selectedSpaceId!),
+    queryFn: () => environmentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId && environmentsEnabled,
   });
 
   const { data: environmentCapabilities } = useQuery({
-    queryKey: queryKeys.environments.capabilities(selectedCompanyId!),
-    queryFn: () => environmentsApi.capabilities(selectedCompanyId!),
-    enabled: !!selectedCompanyId && environmentsEnabled,
+    queryKey: queryKeys.environments.capabilities(selectedSpaceId!),
+    queryFn: () => environmentsApi.capabilities(selectedSpaceId!),
+    enabled: !!selectedSpaceId && environmentsEnabled,
   });
 
-  const runsQueryKey = [...queryKeys.liveRuns(selectedCompanyId!), "agents-page"] as const;
+  const runsQueryKey = [...queryKeys.liveRuns(selectedSpaceId!), "agents-page"] as const;
   const sharedRuns = useSharedPollingQuery({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     resourceKey: "live-runs:agents-page",
     queryKey: runsQueryKey,
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
     refetchInterval: 15_000,
     leaderOnly: true,
   });
   const { data: runs, dataUpdatedAt: runsUpdatedAt } = useQuery({
     queryKey: runsQueryKey,
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedCompanyId!),
+    queryFn: () => heartbeatsApi.liveRunsForSpace(selectedSpaceId!),
     enabled: sharedRuns.enabled,
     refetchInterval: sharedRuns.refetchInterval,
   });
@@ -308,7 +308,7 @@ export function Agents() {
     }
   }, [navigate, requestedTab]);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <EmptyState icon={Bot} message="Select an Outpost to view agents." />;
   }
 
@@ -472,7 +472,7 @@ export function Agents() {
 
       {/* List view */}
       {effectiveView === "list" && agents && agents.length > 0 && (
-        <AgentBulkRoster key={selectedCompanyId} companyId={selectedCompanyId}
+        <AgentBulkRoster key={selectedSpaceId} spaceId={selectedSpaceId}
           agents={agents}
           visibleAgents={filtered} renderAgent={renderAgentRow} renderStatus={renderAgentStatus} />
       )}
@@ -510,10 +510,10 @@ export function Agents() {
           No organizational hierarchy defined.
         </p>
       )}
-      {configureState && selectedCompanyId && (
+      {configureState && selectedSpaceId && (
         <Suspense fallback={null}>
           <ConfigureBuiltInAgentModal
-            companyId={selectedCompanyId}
+            spaceId={selectedSpaceId}
             state={configureState}
             open={configureState !== null}
             onOpenChange={(open) => {

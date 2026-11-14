@@ -9,7 +9,7 @@ function installFixture(connected: boolean) {
   let binding = connected ? connection("connected") : null;
   window.fetch = async (input, init) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin);
-    if (!url.pathname.startsWith("/api/companies/dot-preview/agents/dot-preview/dot-binding")) return original(input, init);
+    if (!url.pathname.startsWith("/api/spaces/dot-preview/agents/dot-preview/dot-binding")) return original(input, init);
     const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
     if (method === "DELETE") { binding = null; return new Response(null, { status: 204 }); }
     if (method === "POST") {
@@ -29,14 +29,14 @@ function ConnectionForm() {
   const [bindingId, onBinding] = useState("");
   return <div className="max-w-2xl space-y-4 p-6">
     <h2 className="text-lg font-semibold">OpenAI Dot</h2>
-    <DotRunnerConnection companyId="dot-preview" agentId="dot-preview" bindingId={bindingId} onBinding={onBinding} />
+    <DotRunnerConnection spaceId="dot-preview" agentId="dot-preview" bindingId={bindingId} onBinding={onBinding} />
   </div>;
 }
 const meta = {
   id: "assistant-connections-dot-runner",
   title: "Agents and reusable capabilities/Runs, harnesses, and model accounts/Assistant connections/Dot Runner", component: ConnectionForm,
   parameters: { layout: "padded", docs: { description: { component: "Production Dot pairing component. API responses, pairing code and account state are synthetic. This preview does not qualify a real Dot account." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "runs-adapters/validation",
         "gateways-profiles/client-connect"

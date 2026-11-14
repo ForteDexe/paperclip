@@ -2,7 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import {
   agentApiKeys,
   authUsers,
-  companyMemberships,
+  spaceMemberships,
   heartbeatRuns,
   runIdentityContexts,
   type Db,
@@ -25,18 +25,18 @@ export async function resolveInstructionActor(
   db: Connection,
   actor: AuthorizationActor,
 ): Promise<AuthorizationActor> {
-  if (actor.type === "board") {
+  if (actor.type === "operator") {
     if (!actor.userId)
       throw forbidden("Instruction edits require an authenticated user");
     // Discard caller membership caches so revoked access is observed.
     return {
-      type: "board",
+      type: "operator",
       userId: actor.userId,
       source: actor.source,
       ignoreInstanceAdmin: actor.ignoreInstanceAdmin,
     };
   }
-  if (actor.type !== "agent" || !actor.agentId || !actor.companyId)
+  if (actor.type !== "agent" || !actor.agentId || !actor.spaceId)
     throw forbidden("Instruction identity is missing");
   let responsibleUserId: string | null = null;
   let keyScope = actor.keyScope;
@@ -47,7 +47,7 @@ export async function resolveInstructionActor(
       .where(
         and(
           eq(agentApiKeys.id, actor.keyId),
-          eq(agentApiKeys.companyId, actor.companyId),
+          eq(agentApiKeys.spaceId, actor.spaceId),
           eq(agentApiKeys.agentId, actor.agentId),
           isNull(agentApiKeys.revokedAt),
         ),
@@ -63,7 +63,7 @@ export async function resolveInstructionActor(
     const [run] = await db
       .select({
         id: heartbeatRuns.id,
-        companyId: heartbeatRuns.companyId,
+        spaceId: heartbeatRuns.spaceId,
         responsibleUserId: heartbeatRuns.responsibleUserId,
         activeIdentityContextId: heartbeatRuns.activeIdentityContextId,
       })
@@ -71,7 +71,7 @@ export async function resolveInstructionActor(
       .where(
         and(
           eq(heartbeatRuns.id, actor.runId),
-          eq(heartbeatRuns.companyId, actor.companyId),
+          eq(heartbeatRuns.spaceId, actor.spaceId),
           eq(heartbeatRuns.agentId, actor.agentId),
         ),
       );
@@ -92,7 +92,7 @@ export async function resolveInstructionActor(
           and(
             eq(runIdentityContexts.id, run.activeIdentityContextId),
             eq(runIdentityContexts.runId, run.id),
-            eq(runIdentityContexts.companyId, run.companyId),
+            eq(runIdentityContexts.spaceId, run.spaceId),
             eq(runIdentityContexts.status, "accepted"),
           ),
         );
@@ -113,24 +113,24 @@ export async function resolveInstructionActor(
   }
   const [membership] = await db
     .select({ userId: authUsers.id })
-    .from(companyMemberships)
-    .innerJoin(authUsers, eq(authUsers.id, companyMemberships.principalId))
+    .from(spaceMemberships)
+    .innerJoin(authUsers, eq(authUsers.id, spaceMemberships.principalId))
     .where(
       and(
-        eq(companyMemberships.companyId, actor.companyId),
-        eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.principalId, responsibleUserId),
-        eq(companyMemberships.status, "active"),
+        eq(spaceMemberships.spaceId, actor.spaceId),
+        eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.principalId, responsibleUserId),
+        eq(spaceMemberships.status, "active"),
       ),
     );
   if (!membership)
-    throw forbidden("The responsible user is unavailable in this company", {
+    throw forbidden("The responsible user is unavailable in this space", {
       code: "RESPONSIBLE_USER_UNAVAILABLE",
     });
   return {
     type: "agent",
     agentId: actor.agentId,
-    companyId: actor.companyId,
+    spaceId: actor.spaceId,
     runId: actor.runId,
     keyId: actor.keyId,
     keyScope,
@@ -139,15 +139,15 @@ export async function resolveInstructionActor(
   };
 }
 
-/** Instruction content is narrower than general same-company agent visibility. */
+/** Instruction content is narrower than general same-space agent visibility. */
 export async function authorizeInstructionRead(
   db: Connection,
   actor: AuthorizationActor,
-  target: { companyId: string; id: string },
+  target: { spaceId: string; id: string },
 ) {
   const bound = await resolveInstructionActor(db, actor);
   const access = authorizationService(db);
-  const resource = { type: "agent" as const, companyId: target.companyId, agentId: target.id };
+  const resource = { type: "agent" as const, spaceId: target.spaceId, agentId: target.id };
   const peer = bound.type === "agent" && bound.agentId !== target.id;
   const decision = await access.decide({
     actor: bound,
@@ -163,7 +163,7 @@ export async function authorizeInstructionRead(
 export async function authorizeInstructionCommit(
   db: Connection,
   actor: AuthorizationActor,
-  target: { companyId: string; id: string },
+  target: { spaceId: string; id: string },
 ) {
   const bound = await resolveInstructionActor(db, actor);
   const access = authorizationService(db);
@@ -172,7 +172,7 @@ export async function authorizeInstructionCommit(
     action: "agent_instructions:update" as const,
     resource: {
       type: "agent" as const,
-      companyId: target.companyId,
+      spaceId: target.spaceId,
       agentId: target.id,
     },
     scope: { targetAgentId: target.id, requiresChangeGrant: true },
@@ -184,7 +184,7 @@ export async function authorizeInstructionCommit(
     bound.type === "agent"
   ) {
     await changeConsentGateService(db).assertConsented({
-      companyId: target.companyId,
+      spaceId: target.spaceId,
       actorAgentId: bound.agentId,
       actorRunId: bound.runId,
       targetKeys: [agentInstructionsChangeTargetKey(target.id)],

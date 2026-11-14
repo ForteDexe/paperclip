@@ -51,7 +51,7 @@ export function createOrganizationGrantStore(db: Db) {
       .from(connectionGrants)
       .where(
         and(
-          eq(connectionGrants.companyId, connection.companyId),
+          eq(connectionGrants.spaceId, connection.spaceId),
           eq(connectionGrants.connectionId, connection.id),
           eq(connectionGrants.kind, "organization"),
           eq(connectionGrants.isDefault, true),
@@ -91,7 +91,7 @@ export function createOrganizationGrantStore(db: Db) {
     const [created] = await dbClient
       .insert(connectionGrants)
       .values({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         kind: "organization",
         credentialSecretRefs: connection.credentialSecretRefs,

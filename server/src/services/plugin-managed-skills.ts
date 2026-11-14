@@ -5,21 +5,21 @@ import {
 } from "@outpost/db";
 import { joinFrontmatterBlock, normalizeAgentUrlKey, splitFrontmatterBlock } from "@outpost/shared";
 import type {
-  CompanySkill,
-  PaperclipPluginManifestV1,
+  SpaceSkill,
+  OutpostPluginManifestV1,
   PluginManagedSkillDeclaration,
   PluginManagedSkillResolution,
 } from "@outpost/shared";
 import { notFound } from "../errors.js";
 import { logActivity } from "./activity-log.js";
-import { companySkillService } from "./company-skills.js";
+import { spaceSkillService } from "./space-skills.js";
 
 const MANAGED_SKILL_RESOURCE_KIND = "skill";
 
 interface PluginManagedSkillServiceOptions {
   pluginId: string;
   pluginKey: string;
-  manifest?: PaperclipPluginManifestV1 | null;
+  manifest?: OutpostPluginManifestV1 | null;
 }
 
 function pluginKeySlug(pluginKey: string) {
@@ -140,9 +140,9 @@ function stableJson(value: unknown): string {
 
 function resolution(
   pluginKey: string,
-  companyId: string,
+  spaceId: string,
   declaration: PluginManagedSkillDeclaration,
-  skill: CompanySkill | null,
+  skill: SpaceSkill | null,
   status: PluginManagedSkillResolution["status"],
   defaultDrift: PluginManagedSkillResolution["defaultDrift"] = null,
 ): PluginManagedSkillResolution {
@@ -150,7 +150,7 @@ function resolution(
     pluginKey,
     resourceKind: "skill",
     resourceKey: declaration.skillKey,
-    companyId,
+    spaceId,
     skillId: skill?.id ?? null,
     skill,
     status,
@@ -162,7 +162,7 @@ export function pluginManagedSkillService(
   db: Db,
   options: PluginManagedSkillServiceOptions,
 ) {
-  const skills = companySkillService(db);
+  const skills = spaceSkillService(db);
 
   function declarationFor(skillKey: string) {
     const declaration = options.manifest?.skills?.find((skill) => skill.skillKey === skillKey);
@@ -172,12 +172,12 @@ export function pluginManagedSkillService(
     return declaration;
   }
 
-  async function getBinding(companyId: string, skillKey: string) {
+  async function getBinding(spaceId: string, skillKey: string) {
     return db
       .select()
       .from(pluginManagedResources)
       .where(and(
-        eq(pluginManagedResources.companyId, companyId),
+        eq(pluginManagedResources.spaceId, spaceId),
         eq(pluginManagedResources.pluginId, options.pluginId),
         eq(pluginManagedResources.resourceKind, MANAGED_SKILL_RESOURCE_KIND),
         eq(pluginManagedResources.resourceKey, skillKey),
@@ -186,12 +186,12 @@ export function pluginManagedSkillService(
   }
 
   async function upsertBinding(
-    companyId: string,
+    spaceId: string,
     declaration: PluginManagedSkillDeclaration,
     skillId: string,
   ) {
     const defaultsJson = buildSkillDefaults(options.pluginKey, declaration);
-    const existing = await getBinding(companyId, declaration.skillKey);
+    const existing = await getBinding(spaceId, declaration.skillKey);
     if (existing) {
       if (
         existing.resourceId === skillId &&
@@ -213,7 +213,7 @@ export function pluginManagedSkillService(
     return db
       .insert(pluginManagedResources)
       .values({
-        companyId,
+        spaceId,
         pluginId: options.pluginId,
         pluginKey: options.pluginKey,
         resourceKind: MANAGED_SKILL_RESOURCE_KIND,
@@ -225,13 +225,13 @@ export function pluginManagedSkillService(
       .then((rows) => rows[0]);
   }
 
-  async function getSkill(companyId: string, skillId: string) {
-    return skills.getById(companyId, skillId);
+  async function getSkill(spaceId: string, skillId: string) {
+    return skills.getById(spaceId, skillId);
   }
 
   async function managedSkillDefaultDrift(
-    companyId: string,
-    skill: CompanySkill | null,
+    spaceId: string,
+    skill: SpaceSkill | null,
     declaration: PluginManagedSkillDeclaration,
   ): Promise<PluginManagedSkillResolution["defaultDrift"]> {
     if (!skill) return null;
@@ -248,7 +248,7 @@ export function pluginManagedSkillService(
         continue;
       }
       try {
-        currentFiles[filePath] = (await skills.readFile(companyId, skill.id, filePath))?.content ?? null;
+        currentFiles[filePath] = (await skills.readFile(spaceId, skill.id, filePath))?.content ?? null;
       } catch {
         currentFiles[filePath] = null;
       }
@@ -261,35 +261,35 @@ export function pluginManagedSkillService(
   }
 
   async function resolvedSkill(
-    companyId: string,
+    spaceId: string,
     declaration: PluginManagedSkillDeclaration,
-    skill: CompanySkill | null,
+    skill: SpaceSkill | null,
     status: PluginManagedSkillResolution["status"],
   ) {
     return resolution(
       options.pluginKey,
-      companyId,
+      spaceId,
       declaration,
       skill,
       status,
-      await managedSkillDefaultDrift(companyId, skill, declaration),
+      await managedSkillDefaultDrift(spaceId, skill, declaration),
     );
   }
 
   async function importDeclaredSkill(
-    companyId: string,
+    spaceId: string,
     declaration: PluginManagedSkillDeclaration,
     mode: "reconcile" | "reset",
   ) {
     const beforeByKey = mode === "reconcile"
-      ? await skills.getByKey(companyId, canonicalSkillKey(options.pluginKey, declaration.skillKey))
+      ? await skills.getByKey(spaceId, canonicalSkillKey(options.pluginKey, declaration.skillKey))
       : null;
     if (beforeByKey) {
-      await upsertBinding(companyId, declaration, beforeByKey.id);
+      await upsertBinding(spaceId, declaration, beforeByKey.id);
       return { skill: beforeByKey, status: "relinked" as const };
     }
     const results = await skills.importPackageFiles(
-      companyId,
+      spaceId,
       buildPackageFiles(options.pluginKey, declaration),
       { onConflict: "replace", allowSlugCollision: true },
     );
@@ -301,33 +301,33 @@ export function pluginManagedSkillService(
     if (!imported) {
       throw notFound(`Managed skill was not imported: ${declaration.skillKey}`);
     }
-    await upsertBinding(companyId, declaration, imported.id);
+    await upsertBinding(spaceId, declaration, imported.id);
     const status: PluginManagedSkillResolution["status"] = mode === "reset" ? "reset" : "created";
     return { skill: imported, status };
   }
 
-  async function get(skillKey: string, companyId: string) {
+  async function get(skillKey: string, spaceId: string) {
     const declaration = declarationFor(skillKey);
-    const binding = await getBinding(companyId, skillKey);
-    if (!binding) return resolvedSkill(companyId, declaration, null, "missing");
-    const skill = await getSkill(companyId, binding.resourceId);
-    return resolvedSkill(companyId, declaration, skill, skill ? "resolved" : "missing");
+    const binding = await getBinding(spaceId, skillKey);
+    if (!binding) return resolvedSkill(spaceId, declaration, null, "missing");
+    const skill = await getSkill(spaceId, binding.resourceId);
+    return resolvedSkill(spaceId, declaration, skill, skill ? "resolved" : "missing");
   }
 
-  async function reconcile(skillKey: string, companyId: string) {
+  async function reconcile(skillKey: string, spaceId: string) {
     const declaration = declarationFor(skillKey);
-    const current = await get(skillKey, companyId);
+    const current = await get(skillKey, spaceId);
     if (current.skill) {
-      await upsertBinding(companyId, declaration, current.skill.id);
+      await upsertBinding(spaceId, declaration, current.skill.id);
       return current;
     }
-    const imported = await importDeclaredSkill(companyId, declaration, "reconcile");
+    const imported = await importDeclaredSkill(spaceId, declaration, "reconcile");
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "plugin",
       actorId: options.pluginId,
       action: "plugin.managed_skill.reconciled",
-      entityType: "company_skill",
+      entityType: "space_skill",
       entityId: imported.skill.id,
       details: {
         sourcePluginKey: options.pluginKey,
@@ -335,25 +335,25 @@ export function pluginManagedSkillService(
         status: imported.status,
       },
     });
-    return resolvedSkill(companyId, declaration, imported.skill, imported.status);
+    return resolvedSkill(spaceId, declaration, imported.skill, imported.status);
   }
 
-  async function reset(skillKey: string, companyId: string) {
+  async function reset(skillKey: string, spaceId: string) {
     const declaration = declarationFor(skillKey);
-    const imported = await importDeclaredSkill(companyId, declaration, "reset");
+    const imported = await importDeclaredSkill(spaceId, declaration, "reset");
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "plugin",
       actorId: options.pluginId,
       action: "plugin.managed_skill.reset",
-      entityType: "company_skill",
+      entityType: "space_skill",
       entityId: imported.skill.id,
       details: {
         sourcePluginKey: options.pluginKey,
         managedResourceKey: declaration.skillKey,
       },
     });
-    return resolvedSkill(companyId, declaration, imported.skill, "reset");
+    return resolvedSkill(spaceId, declaration, imported.skill, "reset");
   }
 
   return {

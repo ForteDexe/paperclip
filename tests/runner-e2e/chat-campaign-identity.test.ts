@@ -9,7 +9,7 @@ import { chatCatalogCaseFingerprint, normalizedChatCatalogExecution } from "./ch
 it("reproduces the actual selected-case fingerprint after its raw private envelope is deleted", () => {
   const root = mkdtempSync(path.join(tmpdir(), "chat-identity-replay-"));
   try {
-    const descriptor = findChatCatalogCase("companies.configure-decision-model")!;
+    const descriptor = findChatCatalogCase("spaces.configure-decision-model")!;
     const execution = runnerMatrix.find(e => e.suite.id === "chat-features" && e.task.id === descriptor.scenarioId)!;
     const staged = stageChatPrivateInputs({ execution, descriptor, privateDir: root, env: { OPENROUTER_API_KEY: "synthetic-offline-only" }, secrets: [] });
     vi.stubEnv(CHAT_PRIVATE_INPUTS_ENV, staged.filename); vi.stubEnv("OUTPOST_RUNNER_E2E_TEMP_ROOT", root);

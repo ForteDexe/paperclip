@@ -11,9 +11,9 @@ vi.mock("../api/heartbeats", () => ({ heartbeatsApi: { get } }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 afterEach(() => { get.mockReset(); });
 
-const row = (id: string, extra = {}) => ({ id, companyId: "company-1", agentId: "agent-1", ...extra }) as HeartbeatRun;
+const row = (id: string, extra = {}) => ({ id, spaceId: "space-1", agentId: "agent-1", ...extra }) as HeartbeatRun;
 function Probe({ runs, id }: { runs: HeartbeatRun[]; id: string | null }) {
-  const selected = useSelectedHeartbeatRun(runs, id, "company-1", "agent-1");
+  const selected = useSelectedHeartbeatRun(runs, id, "space-1", "agent-1");
   return <div>
     <output>{selected.run?.id ?? (selected.error ? "failed" : selected.loading ? "loading" : "unavailable")}</output>
     <button onClick={() => { void selected.retry(); }}>Retry</button>
@@ -43,7 +43,7 @@ describe("bounded history selection", () => {
       expect(get).toHaveBeenCalledWith("older");
     } finally { await h.dispose(); }
   });
-  it.each([{ companyId: "other" }, { agentId: "other" }, { id: "other" }])("rejects a mismatched fetched run (%j)", async extra => {
+  it.each([{ spaceId: "other" }, { agentId: "other" }, { id: "other" }])("rejects a mismatched fetched run (%j)", async extra => {
     get.mockResolvedValue(row("older", extra));
     const h = await harness([], "older");
     try { await vi.waitFor(async () => { await act(async () => {}); expect(h.element.querySelector("output")?.textContent).toBe("unavailable"); }); }

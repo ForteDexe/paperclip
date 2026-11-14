@@ -26,7 +26,7 @@ export const updatePromptInjectionPreventionSchema = z.object({
 }).strict().refine(v => Boolean(v.connectionId) === Boolean(v.grantId) && (!v.enabled || Boolean(v.connectionId)),
   { message: "Choose a shared OpenRouter connection before enabling model checks" });
 export type UpdatePromptInjectionPrevention = z.infer<typeof updatePromptInjectionPreventionSchema>;
-export interface PromptInjectionPreventionSettings extends UpdatePromptInjectionPrevention { companyId: string }
+export interface PromptInjectionPreventionSettings extends UpdatePromptInjectionPrevention { spaceId: string }
 export interface PromptInjectionPreventionSettingsResponse {
   canManage: boolean;
   settings: PromptInjectionPreventionSettings | null;

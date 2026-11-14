@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "document_annotation_threads" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"document_id" uuid NOT NULL,
 	"document_key" text NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS "document_annotation_threads" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "document_annotation_comments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"thread_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"document_id" uuid NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS "document_annotation_comments" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "document_annotation_anchor_snapshots" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"thread_id" uuid NOT NULL,
 	"document_id" uuid NOT NULL,
 	"from_revision_id" uuid,
@@ -61,8 +61,8 @@ CREATE TABLE IF NOT EXISTS "document_annotation_anchor_snapshots" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
-	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_annotation_threads_company_id_companies_id_fk') THEN
-		ALTER TABLE "document_annotation_threads" ADD CONSTRAINT "document_annotation_threads_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_annotation_threads_space_id_spaces_id_fk') THEN
+		ALTER TABLE "document_annotation_threads" ADD CONSTRAINT "document_annotation_threads_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 	END IF;
 END $$;
 --> statement-breakpoint
@@ -103,8 +103,8 @@ DO $$ BEGIN
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_annotation_comments_company_id_companies_id_fk') THEN
-		ALTER TABLE "document_annotation_comments" ADD CONSTRAINT "document_annotation_comments_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_annotation_comments_space_id_spaces_id_fk') THEN
+		ALTER TABLE "document_annotation_comments" ADD CONSTRAINT "document_annotation_comments_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 	END IF;
 END $$;
 --> statement-breakpoint
@@ -139,8 +139,8 @@ DO $$ BEGIN
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
-	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_annotation_anchor_snapshots_company_id_companies_id_fk') THEN
-		ALTER TABLE "document_annotation_anchor_snapshots" ADD CONSTRAINT "document_annotation_anchor_snapshots_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_annotation_anchor_snapshots_space_id_spaces_id_fk') THEN
+		ALTER TABLE "document_annotation_anchor_snapshots" ADD CONSTRAINT "document_annotation_anchor_snapshots_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 	END IF;
 END $$;
 --> statement-breakpoint
@@ -168,22 +168,22 @@ DO $$ BEGIN
 	END IF;
 END $$;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_threads_company_document_status_idx" ON "document_annotation_threads" USING btree ("company_id","document_id","status");
+CREATE INDEX IF NOT EXISTS "document_annotation_threads_space_document_status_idx" ON "document_annotation_threads" USING btree ("space_id","document_id","status");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_threads_company_issue_status_idx" ON "document_annotation_threads" USING btree ("company_id","issue_id","status");
+CREATE INDEX IF NOT EXISTS "document_annotation_threads_space_issue_status_idx" ON "document_annotation_threads" USING btree ("space_id","issue_id","status");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_threads_company_current_revision_open_idx" ON "document_annotation_threads" USING btree ("company_id","document_id","current_revision_id","status");
+CREATE INDEX IF NOT EXISTS "document_annotation_threads_space_current_revision_open_idx" ON "document_annotation_threads" USING btree ("space_id","document_id","current_revision_id","status");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_threads_company_anchor_state_idx" ON "document_annotation_threads" USING btree ("company_id","anchor_state");
+CREATE INDEX IF NOT EXISTS "document_annotation_threads_space_anchor_state_idx" ON "document_annotation_threads" USING btree ("space_id","anchor_state");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_comments_company_thread_created_at_idx" ON "document_annotation_comments" USING btree ("company_id","thread_id","created_at");
+CREATE INDEX IF NOT EXISTS "document_annotation_comments_space_thread_created_at_idx" ON "document_annotation_comments" USING btree ("space_id","thread_id","created_at");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_comments_company_issue_created_at_idx" ON "document_annotation_comments" USING btree ("company_id","issue_id","created_at");
+CREATE INDEX IF NOT EXISTS "document_annotation_comments_space_issue_created_at_idx" ON "document_annotation_comments" USING btree ("space_id","issue_id","created_at");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_comments_company_document_created_at_idx" ON "document_annotation_comments" USING btree ("company_id","document_id","created_at");
+CREATE INDEX IF NOT EXISTS "document_annotation_comments_space_document_created_at_idx" ON "document_annotation_comments" USING btree ("space_id","document_id","created_at");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "document_annotation_comments_body_search_idx" ON "document_annotation_comments" USING gin ("body" gin_trgm_ops);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_anchor_snapshots_company_thread_created_at_idx" ON "document_annotation_anchor_snapshots" USING btree ("company_id","thread_id","created_at");
+CREATE INDEX IF NOT EXISTS "document_annotation_anchor_snapshots_space_thread_created_at_idx" ON "document_annotation_anchor_snapshots" USING btree ("space_id","thread_id","created_at");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_anchor_snapshots_company_document_revision_idx" ON "document_annotation_anchor_snapshots" USING btree ("company_id","document_id","to_revision_number");
+CREATE INDEX IF NOT EXISTS "document_annotation_anchor_snapshots_space_document_revision_idx" ON "document_annotation_anchor_snapshots" USING btree ("space_id","document_id","to_revision_number");

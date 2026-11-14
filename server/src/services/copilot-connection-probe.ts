@@ -7,29 +7,29 @@ import { environmentService } from "./environments.js";
 import { environmentRuntimeService } from "./environment-runtime.js";
 import { instanceSettingsService } from "./instance-settings.js";
 import { resolveEnvironmentExecutionTarget } from "./environment-execution-target.js";
-import { assertEnvironmentSelectionForCompany } from "../routes/environment-selection.js";
+import { assertEnvironmentSelectionForSpace } from "../routes/environment-selection.js";
 import { buildLoginLeaseAcquireArgs } from "./adapter-login-lease.js";
 import { logger } from "../middleware/logger.js";
 import { forbidden, unprocessable } from "../errors.js";
 
-export async function probeCopilotConnection(db: Db, companyId: string, token: string, suppliedEnvironmentId?: string | null, model?: string, options: Parameters<typeof environmentRuntimeService>[1] & { targetAgentId?: string } = {}) {
+export async function probeCopilotConnection(db: Db, spaceId: string, token: string, suppliedEnvironmentId?: string | null, model?: string, options: Parameters<typeof environmentRuntimeService>[1] & { targetAgentId?: string } = {}) {
   const { targetAgentId, ...runtimeOptions } = options;
   const environments = environmentService(db), settings = instanceSettingsService(db);
   const experimental = await settings.getExperimental();
   let environmentId = suppliedEnvironmentId ?? (await settings.get()).defaultEnvironmentId;
   if ((await settings.getGeneral()).executionMode === "kubernetes") {
-    const kubernetes = await environments.findKubernetesEnvironment(companyId);
+    const kubernetes = await environments.findKubernetesEnvironment(spaceId);
     if (!kubernetes) throw unprocessable("The Kubernetes execution environment is unavailable.", { code: "copilot_environment_unavailable" });
     environmentId = kubernetes.id;
   } else if (experimental.enableManagedSandboxOnly && (!environmentId || (await environments.getById(environmentId))?.driver === "local")) {
-    const managed = await environments.findManagedSandboxEnvironment(companyId);
+    const managed = await environments.findManagedSandboxEnvironment(spaceId);
     if (!managed) throw unprocessable("The managed environment is unavailable.", { code: "copilot_environment_unavailable" });
     environmentId = managed.id;
   }
   if (!environmentId) return requireVerified(await probeCopilotMetadata(token, model));
-  await assertEnvironmentSelectionForCompany(environments, companyId, environmentId, { allowedDrivers: ["local", "ssh", "sandbox", "plugin"] });
-  const boundCompanyIds = await environments.listBoundCompanyIds(environmentId);
-  if (boundCompanyIds.length > 0 && !boundCompanyIds.includes(companyId)) throw forbidden("The selected environment belongs to another company.", { code: "environment_company_mismatch" });
+  await assertEnvironmentSelectionForSpace(environments, spaceId, environmentId, { allowedDrivers: ["local", "ssh", "sandbox", "plugin"] });
+  const boundSpaceIds = await environments.listBoundSpaceIds(environmentId);
+  if (boundSpaceIds.length > 0 && !boundSpaceIds.includes(spaceId)) throw forbidden("The selected environment belongs to another space.", { code: "environment_space_mismatch" });
   const environment = await environments.getById(environmentId);
   if (!environment || environment.status !== "active") throw unprocessable("Choose an active Copilot execution environment.", { code: "copilot_environment_unavailable" });
   if (environment.driver === "local") return requireVerified(await probeCopilotMetadata(token, model));
@@ -39,7 +39,7 @@ export async function probeCopilotConnection(db: Db, companyId: string, token: s
   let probeFailed = false;
   try {
     if (environment.driver !== "ssh") {
-      lease = await runtime.acquireRunLease(buildLoginLeaseAcquireArgs({ metadata: { companyId, environment, adapterType: "outpost_runner" }, targetAgentId, assertCompanyBinding: true, requestedExpiresAt: new Date(Date.now() + 90_000) }));
+      lease = await runtime.acquireRunLease(buildLoginLeaseAcquireArgs({ metadata: { spaceId, environment, adapterType: "outpost_runner" }, targetAgentId, assertSpaceBinding: true, requestedExpiresAt: new Date(Date.now() + 90_000) }));
       if (environment.driver === "plugin" && await runtime.supportsTasks({ lease: lease.lease })) {
         const updated = await environments.updateLeaseMetadata(lease.lease.id, { ...lease.lease.metadata,
           runnerTaskProbe: { runId: randomUUID(), sessionId: randomUUID(), expiresAtMs: Date.now() + 90_000 } });
@@ -47,7 +47,7 @@ export async function probeCopilotConnection(db: Db, companyId: string, token: s
         lease.lease = updated;
       } else await runtime.realizeWorkspace({ environment, lease: lease.lease, workspace: {} });
     }
-    const target = await resolveEnvironmentExecutionTarget({ db, companyId, adapterType: "outpost_runner", environment,
+    const target = await resolveEnvironmentExecutionTarget({ db, spaceId, adapterType: "outpost_runner", environment,
       leaseId: lease?.lease.id, lease: lease?.lease, leaseMetadata: lease?.lease.metadata ?? null, environmentRuntime: runtime });
     if (!target || target.kind !== "remote") throw unprocessable("The selected environment cannot run the Copilot metadata probe.", { code: "copilot_environment_unavailable" });
     const verified = await probeCopilotExecutionTarget(token, target, model);
@@ -64,7 +64,7 @@ export async function probeCopilotConnection(db: Db, companyId: string, token: s
         await driver.releaseRunLease({ environment, lease: lease.lease, status: succeeded ? "released" : "failed" });
       } catch {
         // Report only owned identifiers; driver errors may contain credentials.
-        logger.warn({ companyId, environmentId: environment.id, leaseId: lease.lease.id, code: "COPILOT_PROBE_CLEANUP_FAILED" }, "Copilot verification lease cleanup failed");
+        logger.warn({ spaceId, environmentId: environment.id, leaseId: lease.lease.id, code: "COPILOT_PROBE_CLEANUP_FAILED" }, "Copilot verification lease cleanup failed");
         if (!probeFailed) throw unprocessable("Copilot verification could not release its execution environment.", { code: "COPILOT_REQUEST_FAILED", cleanupCode: "COPILOT_PROBE_CLEANUP_FAILED" });
       }
     }

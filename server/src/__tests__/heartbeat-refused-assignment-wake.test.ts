@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, agentWakeupRequests, authUsers, budgetPolicies, companies, companyMemberships, createDb, heartbeatRuns,
+import { agents, agentWakeupRequests, authUsers, budgetPolicies, spaces, spaceMemberships, createDb, heartbeatRuns,
   issues, projects } from "@outpost/db";
 import { registerServerAdapter, unregisterServerAdapter } from "../adapters/index.js";
 import { heartbeatService } from "../services/heartbeat.js";
@@ -33,7 +33,7 @@ describePostgres("refused assignment wake during a temporary admission hold", ()
   beforeAll(async () => {
     temporary = await startRecoveryPostgres("heartbeat-refused-assignment-");
     db = createDb(temporary.connectionString);
-    home = await mkdtemp(path.join(tmpdir(), "paperclip-refused-assignment-"));
+    home = await mkdtemp(path.join(tmpdir(), "outpost-refused-assignment-"));
     process.env.OUTPOST_HOME = home;
     heartbeat = heartbeatService(db);
     registerServerAdapter({
@@ -56,55 +56,55 @@ describePostgres("refused assignment wake during a temporary admission hold", ()
     if (home) await rm(home, { recursive: true, force: true });
   });
 
-  /** A company with a hard-stop budget whose task's project carries a
+  /** A space with a hard-stop budget whose task's project carries a
    * budget-owned pause that no project policy justifies: admission refuses the
    * task's work until the pause lifts. A completed run with pending
    * accounting is present too; it must not hold anything (invariant 3). */
-  async function seedHeldCompany() {
-    const companyId = randomUUID(), agentId = randomUUID(), otherAgentId = randomUUID(), issueId = randomUUID();
-    const userId = `hold-user-${companyId}`;
+  async function seedHeldSpace() {
+    const spaceId = randomUUID(), agentId = randomUUID(), otherAgentId = randomUUID(), issueId = randomUUID();
+    const userId = `hold-user-${spaceId}`;
     await db.insert(authUsers).values({ id: userId, name: "Hold user", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companies).values({ id: companyId, name: "Accounting hold fixture", issuePrefix: `H${companyId.slice(0, 6)}` });
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
+    await db.insert(spaces).values({ id: spaceId, name: "Accounting hold fixture", issuePrefix: `H${spaceId.slice(0, 6)}` });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "member" });
     await db.insert(agents).values([
-      { id: agentId, companyId, name: "Assignee", adapterType, status: "idle", adapterConfig: {} },
-      { id: otherAgentId, companyId, name: "Earlier worker", adapterType, status: "idle", adapterConfig: {} },
+      { id: agentId, spaceId, name: "Assignee", adapterType, status: "idle", adapterConfig: {} },
+      { id: otherAgentId, spaceId, name: "Earlier worker", adapterType, status: "idle", adapterConfig: {} },
     ]);
-    await db.insert(budgetPolicies).values({ companyId, scopeType: "company", scopeId: companyId, windowKind: "calendar_month_utc",
+    await db.insert(budgetPolicies).values({ spaceId, scopeType: "space", scopeId: spaceId, windowKind: "calendar_month_utc",
       amount: 2_000, hardStopEnabled: true, unpricedUsagePolicy: "allow" });
-    const [pending] = await db.insert(heartbeatRuns).values({ companyId, agentId: otherAgentId, invocationSource: "automation",
+    const [pending] = await db.insert(heartbeatRuns).values({ spaceId, agentId: otherAgentId, invocationSource: "automation",
       triggerDetail: "system", status: "succeeded", startedAt: new Date(Date.now() - 60_000), finishedAt: new Date(),
       costAccountingPending: true, contextSnapshot: {} }).returning();
-    const [project] = await db.insert(projects).values({ companyId, name: "Budget-paused project", status: "in_progress",
+    const [project] = await db.insert(projects).values({ spaceId, name: "Budget-paused project", status: "in_progress",
       pauseReason: "budget", pausedAt: new Date() }).returning();
-    await db.insert(issues).values({ id: issueId, companyId, projectId: project.id, title: "New task created during the hold", status: "todo",
+    await db.insert(issues).values({ id: issueId, spaceId, projectId: project.id, title: "New task created during the hold", status: "todo",
       assigneeAgentId: agentId, responsibleUserId: userId, issueNumber: 1 });
-    return { companyId, agentId, issueId, userId, projectId: project.id, pendingRunId: pending.id };
+    return { spaceId, agentId, issueId, userId, projectId: project.id, pendingRunId: pending.id };
   }
 
   async function liftHold(f: { projectId: string }) {
     await db.update(projects).set({ pauseReason: null, pausedAt: null }).where(eq(projects.id, f.projectId));
   }
 
-  async function assign(f: Awaited<ReturnType<typeof seedHeldCompany>>) {
+  async function assign(f: Awaited<ReturnType<typeof seedHeldSpace>>) {
     return queueIssueAssignmentWakeup({ heartbeat, issue: { id: f.issueId, assigneeAgentId: f.agentId, status: "todo" },
       reason: "issue_assigned", mutation: "create", contextSource: "issue.create",
       requestedByActorType: "user", requestedByActorId: f.userId, rethrowOnError: true });
   }
 
-  const issueRuns = (f: { companyId: string; agentId: string }) => db.select().from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.agentId, f.agentId)));
+  const issueRuns = (f: { spaceId: string; agentId: string }) => db.select().from(heartbeatRuns).where(and(
+    eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.agentId, f.agentId)));
 
   it("keeps the task waiting during the hold and starts exactly one run once it clears", async () => {
-    const f = await seedHeldCompany();
+    const f = await seedHeldSpace();
     await expect(assign(f)).rejects.toMatchObject({ status: 409 });
     const [refused] = await db.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, f.companyId), eq(agentWakeupRequests.agentId, f.agentId)));
+      eq(agentWakeupRequests.spaceId, f.spaceId), eq(agentWakeupRequests.agentId, f.agentId)));
     expect(refused).toMatchObject({ status: "skipped", reason: "budget.blocked" });
 
     // Recovery sweeps while the hold lasts must not turn the wait into a dead `blocked` task.
-    await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId });
-    await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId });
+    await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId });
+    await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId });
     const [waiting] = await db.select().from(issues).where(eq(issues.id, f.issueId));
     expect(waiting.status).toBe("todo");
     expect(await issueRuns(f)).toHaveLength(0);
@@ -115,8 +115,8 @@ describePostgres("refused assignment wake during a temporary admission hold", ()
 
     // The budget pause lifts: the hold clears.
     await liftHold(f);
-    await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId });
-    await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId });
+    await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId });
+    await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId });
     await heartbeat.drainActiveRunExecutions();
     // Exactly one provider turn starts the task. (A post-run continuation the
     // adapter fixture leaves behind is cancelled unstarted once the task is done.)
@@ -132,27 +132,27 @@ describePostgres("refused assignment wake during a temporary admission hold", ()
     expect(finished.status).toBe("done");
 
     // A later sweep does not start a duplicate.
-    await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId });
+    await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId });
     await heartbeat.drainActiveRunExecutions();
     expect(await providerTurns()).toHaveLength(1);
   }, 180_000);
 
   it("does not wake a task whose assignee was removed while the hold lasted", async () => {
-    const f = await seedHeldCompany();
+    const f = await seedHeldSpace();
     await expect(assign(f)).rejects.toMatchObject({ status: 409 });
     await db.update(agents).set({ status: "terminated" }).where(eq(agents.id, f.agentId));
     await liftHold(f);
-    await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId });
+    await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId });
     await heartbeat.drainActiveRunExecutions();
     expect(await issueRuns(f)).toHaveLength(0);
   }, 180_000);
 
   it("does not wake a task cancelled while the hold lasted", async () => {
-    const f = await seedHeldCompany();
+    const f = await seedHeldSpace();
     await expect(assign(f)).rejects.toMatchObject({ status: 409 });
     await db.update(issues).set({ status: "cancelled" }).where(eq(issues.id, f.issueId));
     await liftHold(f);
-    await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId });
+    await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId });
     await heartbeat.drainActiveRunExecutions();
     expect(await issueRuns(f)).toHaveLength(0);
     const [cancelled] = await db.select().from(issues).where(eq(issues.id, f.issueId));

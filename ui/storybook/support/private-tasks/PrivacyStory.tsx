@@ -8,14 +8,14 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Decorator } from "@storybook/react-vite";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { ToastViewport } from "@/components/ToastViewport";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   createPrivacyState,
   installPrivacyApi,
   privacyAgents,
-  privacyCompanyId,
+  privacySpaceId,
   type PrivacyScenario,
   type PrivacyState,
 } from "../../fixtures/privateTasks";
@@ -37,24 +37,24 @@ function PrivacySandbox({
   const [state] = useState(() => createPrivacyState(options));
   const [ready, setReady] = useState(false);
   const queryClient = useQueryClient();
-  const { selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { selectedSpaceId, setSelectedSpaceId } = useSpace();
   useLayoutEffect(() => {
     const restore = installPrivacyApi(state);
     queryClient.setQueryData(queryKeys.auth.session, state.session);
     queryClient.setQueryData(queryKeys.access.currentBoardAccess, state.access);
     queryClient.setQueryData(
-      queryKeys.agents.list(privacyCompanyId),
+      queryKeys.agents.list(privacySpaceId),
       privacyAgents,
     );
     queryClient.setQueryData(
-      queryKeys.projects.list(privacyCompanyId),
+      queryKeys.projects.list(privacySpaceId),
       state.projects,
     );
-    setSelectedCompanyId(privacyCompanyId);
+    setSelectedSpaceId(privacySpaceId);
     setReady(true);
     return restore;
-  }, [state, queryClient, setSelectedCompanyId]);
-  return ready && selectedCompanyId === privacyCompanyId ? (
+  }, [state, queryClient, setSelectedSpaceId]);
+  return ready && selectedSpaceId === privacySpaceId ? (
     <PrivacyContext.Provider value={state}>{children}</PrivacyContext.Provider>
   ) : null;
 }

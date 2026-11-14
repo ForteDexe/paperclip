@@ -20,7 +20,7 @@ export function gradeAgentKey(value: unknown) {
   const worker = o.state.worker as RuntimeAgent; const current = o.agents.find(row => row.id === worker.id);
   const key = o.state.createdKey as KeyRow | undefined; const revoked = (o.state.finalKeys as KeyRow[] | undefined)?.find(row => row.id === key?.id);
   c.add("human-only-creation", o.state.agentCreateStatus === 403 && o.state.keysBeforeHuman === 0 && o.state.humanCreated === true
-    && !!key && o.state.createdKeyAgentId === worker.id && o.state.createdKeyCompanyId === o.companyId && key.name === "local integration" && !key.revokedAt,
+    && !!key && o.state.createdKeyAgentId === worker.id && o.state.createdKeySpaceId === o.spaceId && key.name === "local integration" && !key.revokedAt,
     "Only the actual authorized human creates the intended named key for Morgan.");
   c.add("one-time-private-interface", o.state.privateBrowserProcessIsolated === true && o.state.privateBrowserTestRunnerAttached === false && o.state.privateBrowserApiStepRecorder === false && o.state.tokenShownOnce === true
     && o.state.tokenAbsentAfterReload === true && o.state.privateScanComplete === true && o.state.artifactScanComplete === true
@@ -45,12 +45,12 @@ export const runtimeAgentKeyCases = [runtimeDefinition("agents.agent-api-key", a
     state.agentCreateStatus = await probeAgentPermission(ctx, endpoint, "POST", { name: "local integration" });
     state.keysBeforeHuman = (await ctx.input.api.get<KeyRow[]>(endpoint)).length;
     // Follow the reply's rendered key-controls link; without one, still exercise the human path so the remaining evidence is graded.
-    const o = await observeRuntime(ctx, state), href = agentKeyControlsLink(o, worker) ?? `/${ctx.input.fixtures.company.issuePrefix}/agents/${worker.id}/api-keys`;
+    const o = await observeRuntime(ctx, state), href = agentKeyControlsLink(o, worker) ?? `/${ctx.input.fixtures.space.issuePrefix}/agents/${worker.id}/api-keys`;
     const source = ctx.issue(); if (!source) throw new Error("Private key workflow requires the exact standing source");
     // A separate process owns the token and all sensitive browser operations.
     // Test tracing flags/newContext do not disable Playwright API-step recording.
     Object.assign(state, await privateKeyBrowser({ mode: "agent-key", baseURL: ctx.input.api.baseURL, profileURL: new URL(href, ctx.input.api.baseURL).href,
-      companyId: ctx.input.fixtures.company.id, agentId: worker.id, sourceIssueId: source.id, cookies: await ctx.input.page.context().cookies() }));
+      spaceId: ctx.input.fixtures.space.id, agentId: worker.id, sourceIssueId: source.id, cookies: await ctx.input.page.context().cookies() }));
   },
   async observe(ctx, state) {
     state.finalKeys = await ctx.input.api.get<KeyRow[]>(`/api/agents/${(state.worker as RuntimeAgent).id}/keys`);

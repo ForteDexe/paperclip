@@ -742,7 +742,7 @@
         "update": {
           "sessionUpdate": "tool_call",
           "toolCallId": "fixture-tool",
-          "title": "Creating ...T/paperclip-copilot-offline-0nlil9t0/denied.txt",
+          "title": "Creating ...T/outpost-copilot-offline-0nlil9t0/denied.txt",
           "kind": "edit",
           "status": "pending",
           "rawInput": {

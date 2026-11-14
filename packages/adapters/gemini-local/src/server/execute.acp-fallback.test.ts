@@ -7,7 +7,7 @@ const {
   ensureAdapterExecutionTargetCommandResolvable,
   ensureAdapterExecutionTargetRuntimeCommandInstalled,
   executeGeminiAcp,
-  readPaperclipRuntimeSkillEntries,
+  readOutpostRuntimeSkillEntries,
   resolveAdapterExecutionTargetCommandForLogs,
   runAdapterExecutionTargetProcess,
 } = vi.hoisted(() => ({
@@ -16,7 +16,7 @@ const {
   executeGeminiAcp: vi.fn(async () => {
     throw new Error('Transform failed with 1 error: execute.ts:818:0: ERROR: Unexpected "<<"');
   }),
-  readPaperclipRuntimeSkillEntries: vi.fn(async () => []),
+  readOutpostRuntimeSkillEntries: vi.fn(async () => []),
   resolveAdapterExecutionTargetCommandForLogs: vi.fn(async () => "gemini"),
   runAdapterExecutionTargetProcess: vi.fn(async () => ({
     exitCode: 0,
@@ -66,7 +66,7 @@ vi.mock("@outpost/adapter-utils/server-utils", async () => {
   );
   return {
     ...actual,
-    readPaperclipRuntimeSkillEntries,
+    readOutpostRuntimeSkillEntries,
   };
 });
 
@@ -78,7 +78,7 @@ function buildContext(config: Record<string, unknown> = {}) {
     runId: "run-1",
     agent: {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Gemini Coder",
       adapterType: "gemini_local",
       adapterConfig: {},
@@ -133,7 +133,7 @@ describe("gemini_local ACP startup fallback", () => {
         await execute({
           ...ctx,
           runtime: { ...ctx.runtime, sessionId: state === "fresh" ? null : "previous" },
-          context: { paperclipTaskCommunicationGuidance: "Frozen Slack preferences." },
+          context: { outpostTaskCommunicationGuidance: "Frozen Slack preferences." },
           onMeta: async (meta) => { prompts.push(meta.prompt ?? ""); },
         });
         if (state === "fresh") {

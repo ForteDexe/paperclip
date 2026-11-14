@@ -11,7 +11,7 @@ afterEach(async () => { while (cleanups.length) await cleanups.pop()?.(); });
 
 (support.supported ? describe : describe.skip)("standard workspace defaults", () => {
   it("defaults new people to Coordinator", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-workspace-defaults-fresh-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-workspace-defaults-fresh-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     try {
@@ -22,16 +22,16 @@ afterEach(async () => { while (cleanups.length) await cleanups.pop()?.(); });
   }, 30_000);
 
   it.each([null, true, false])("preserves legacy preferences and unrelated instance storage (%s) on upgrade and replay", async chat => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-workspace-defaults-upgrade-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-workspace-defaults-upgrade-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     try {
-      const companyId = randomUUID();
-      await sql`INSERT INTO companies (id, name, issue_prefix) VALUES (${companyId}, 'Existing company', 'OLD')`;
+      const spaceId = randomUUID();
+      await sql`INSERT INTO spaces (id, name, issue_prefix) VALUES (${spaceId}, 'Existing space', 'OLD')`;
       for (const id of ['unchanged-classic', 'saved-coordinator', 'saved-classic']) {
         await sql`INSERT INTO "user" (id, name, email, created_at, updated_at) VALUES (${id}, ${id}, ${id + '@example.test'}, now(), now())`;
       }
-      await sql`INSERT INTO company_memberships (company_id, principal_type, principal_id) VALUES (${companyId}, 'user', 'existing-member')`;
+      await sql`INSERT INTO space_memberships (space_id, principal_type, principal_id) VALUES (${spaceId}, 'user', 'existing-member')`;
       await sql`INSERT INTO user_workspace_preferences (user_id, coordinator_workspace_enabled) VALUES ('saved-coordinator', true), ('saved-classic', false)`;
       const settings = { enableStatusCards: true, ...(chat === null ? {} : { enableAgentChat: chat }) };
       await sql`INSERT INTO instance_settings (singleton_key, experimental) VALUES ('default', ${sql.json(settings)}) ON CONFLICT (singleton_key) DO UPDATE SET experimental = EXCLUDED.experimental`;
@@ -52,7 +52,7 @@ afterEach(async () => { while (cleanups.length) await cleanups.pop()?.(); });
   }, 30_000);
 
   it("starts Classic off for legacy preferences and preserves a later explicit opt-in on replay", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-classic-workspace-upgrade-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-classic-workspace-upgrade-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     try {

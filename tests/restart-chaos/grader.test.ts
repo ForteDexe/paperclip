@@ -287,10 +287,10 @@ describe("T-oracles", () => {
           "test(\"slug\", () => {", "  assert.equal(chaosSlug(\"Hello Chaos World\"), \"hello-chaos-world\");",
           "  assert.equal(chaosSlug(\"a  b\"), \"a-b\");", "  assert.equal(chaosSlug(\"--x--\"), \"x\");", "});"].join("\n") },
       commands: { node_test: { exitCode: 0, stdout: "", stderr: "" },
-        slug: { exitCode: 0, stdout: "[\"hello-chaos-world\",\"r1-paperclip-chaos-2026\"]\n", stderr: "" } } };
+        slug: { exitCode: 0, stdout: "[\"hello-chaos-world\",\"r1-outpost-chaos-2026\"]\n", stderr: "" } } };
     expect(workloadDefinitions.R1.grade("abcd1234", base).verdict).toBe("pass");
     expect(workloadDefinitions.R1.grade("abcd1234", { ...base, commands: { ...base.commands,
-      slug: { exitCode: 0, stdout: "[\"hello-chaos-world\",\"-r1-paperclip-chaos-2026-\"]\n", stderr: "" } } }).verdict).toBe("fail");
+      slug: { exitCode: 0, stdout: "[\"hello-chaos-world\",\"-r1-outpost-chaos-2026-\"]\n", stderr: "" } } }).verdict).toBe("fail");
     expect(r1TestChecksSlug("import test from \"node:test\";")).toBe(false);
     expect(r1TestChecksSlug("import test from \"node:test\"; import assert from \"node:assert\"; assert.ok(chaosSlug(\"x\"));")).toBe(false);
     expect(r1TestChecksSlug([ "import test from \"node:test\";", "import assert from \"node:assert/strict\";",

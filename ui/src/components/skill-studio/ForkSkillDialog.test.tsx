@@ -5,16 +5,16 @@ import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type {
-  CompanySkillDetail,
-  CompanySkillForkPrecheckResult,
-  CompanySkillForkSummary,
-  CompanySkillUsageAgent,
+  SpaceSkillDetail,
+  SpaceSkillForkPrecheckResult,
+  SpaceSkillForkSummary,
+  SpaceSkillUsageAgent,
 } from "@outpost/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ForkSkillDialog } from "./ForkSkillDialog";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
-const mockCompanySkillsApi = vi.hoisted(() => ({
+const mockSpaceSkillsApi = vi.hoisted(() => ({
   fork: vi.fn(),
   forkPrecheck: vi.fn(),
   detail: vi.fn(),
@@ -25,7 +25,7 @@ vi.mock("@/lib/router", () => ({
   Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
   useNavigate: () => mockNavigate,
 }));
-vi.mock("@/api/companySkills", () => ({ companySkillsApi: mockCompanySkillsApi }));
+vi.mock("@/api/spaceSkills", () => ({ spaceSkillsApi: mockSpaceSkillsApi }));
 vi.mock("@/context/ToastContext", () => ({
   useOptionalToastActions: () => ({ pushToast: mockPushToast }),
 }));
@@ -87,7 +87,7 @@ function findButton(match: (text: string) => boolean): HTMLButtonElement {
   return found;
 }
 
-function makeAgent(over: Partial<CompanySkillUsageAgent> = {}): CompanySkillUsageAgent {
+function makeAgent(over: Partial<SpaceSkillUsageAgent> = {}): SpaceSkillUsageAgent {
   return {
     id: "agent-1",
     name: "Reviewer",
@@ -100,10 +100,10 @@ function makeAgent(over: Partial<CompanySkillUsageAgent> = {}): CompanySkillUsag
   };
 }
 
-function makeSkill(over: Partial<CompanySkillDetail> = {}): CompanySkillDetail {
+function makeSkill(over: Partial<SpaceSkillDetail> = {}): SpaceSkillDetail {
   return {
     id: "skill-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     key: "github/anthropics/skills",
     slug: "deep-research",
     name: "Deep Research",
@@ -121,10 +121,10 @@ function makeSkill(over: Partial<CompanySkillDetail> = {}): CompanySkillDetail {
     authorName: null,
     homepageUrl: null,
     categories: [],
-    sharingScope: "company",
+    sharingScope: "space",
     publicShareToken: null,
     forkedFromSkillId: null,
-    forkedFromCompanyId: null,
+    forkedFromSpaceId: null,
     starCount: 0,
     installCount: 0,
     forkCount: 0,
@@ -146,7 +146,7 @@ function makeSkill(over: Partial<CompanySkillDetail> = {}): CompanySkillDetail {
   };
 }
 
-function makePrecheck(over: Partial<CompanySkillForkPrecheckResult> = {}): CompanySkillForkPrecheckResult {
+function makePrecheck(over: Partial<SpaceSkillForkPrecheckResult> = {}): SpaceSkillForkPrecheckResult {
   return {
     skillId: "skill-1",
     original: {
@@ -164,7 +164,7 @@ function makePrecheck(over: Partial<CompanySkillForkPrecheckResult> = {}): Compa
   };
 }
 
-function makeForkSummary(over: Partial<CompanySkillForkSummary> = {}): CompanySkillForkSummary {
+function makeForkSummary(over: Partial<SpaceSkillForkSummary> = {}): SpaceSkillForkSummary {
   return {
     id: "fork-existing",
     name: "Deep Research (copy)",
@@ -172,9 +172,9 @@ function makeForkSummary(over: Partial<CompanySkillForkSummary> = {}): CompanySk
     sourceType: "local_path",
     sourceLocator: null,
     sourceRef: null,
-    key: "company/deep-research-fork",
+    key: "space/deep-research-fork",
     forkedFromSkillId: "skill-1",
-    forkedFromCompanyId: "company-1",
+    forkedFromSpaceId: "space-1",
     currentVersionId: "v1",
     createdByCurrentActor: true,
     diverged: false,
@@ -185,13 +185,13 @@ function makeForkSummary(over: Partial<CompanySkillForkSummary> = {}): CompanySk
 }
 
 beforeEach(() => {
-  mockCompanySkillsApi.forkPrecheck.mockResolvedValue(makePrecheck());
-  mockCompanySkillsApi.fork.mockResolvedValue({
+  mockSpaceSkillsApi.forkPrecheck.mockResolvedValue(makePrecheck());
+  mockSpaceSkillsApi.fork.mockResolvedValue({
     skill: { id: "fork-new" },
     original: makePrecheck().original,
     reassignments: [],
   });
-  mockCompanySkillsApi.detail.mockResolvedValue(makeSkill());
+  mockSpaceSkillsApi.detail.mockResolvedValue(makeSkill());
   mockNavigate.mockReset();
   mockPushToast.mockReset();
 });
@@ -204,10 +204,10 @@ afterEach(() => {
 describe("ForkSkillDialog", () => {
   it("shows the agent count prominently and forks with reassignment ON by default", async () => {
     const agents = [makeAgent({ id: "a1", name: "Reviewer" }), makeAgent({ id: "a2", name: "Planner" })];
-    mockCompanySkillsApi.forkPrecheck.mockResolvedValue(
+    mockSpaceSkillsApi.forkPrecheck.mockResolvedValue(
       makePrecheck({ agentUsageCount: 2, usedByAgents: agents }),
     );
-    mockCompanySkillsApi.fork.mockResolvedValue({
+    mockSpaceSkillsApi.fork.mockResolvedValue({
       skill: { id: "fork-new" },
       original: makePrecheck().original,
       reassignments: [
@@ -218,7 +218,7 @@ describe("ForkSkillDialog", () => {
 
     await renderNode(
       <ForkSkillDialog
-        companyId="company-1"
+        spaceId="space-1"
         skill={makeSkill({ usedByAgents: agents, attachedAgentCount: 2 })}
         open
         onOpenChange={() => {}}
@@ -232,7 +232,7 @@ describe("ForkSkillDialog", () => {
     const confirm = findButton((t) => t.startsWith("Create copy & switch 2 agents"));
     await click(confirm);
 
-    expect(mockCompanySkillsApi.fork).toHaveBeenCalledWith("company-1", "skill-1", {
+    expect(mockSpaceSkillsApi.fork).toHaveBeenCalledWith("space-1", "skill-1", {
       reassignAgentIds: ["a1", "a2"],
     });
     expect(mockNavigate).toHaveBeenCalledWith("/skills/studio/fork-new");
@@ -243,13 +243,13 @@ describe("ForkSkillDialog", () => {
 
   it("forks with NO reassignment when the toggle is switched off", async () => {
     const agents = [makeAgent({ id: "a1" })];
-    mockCompanySkillsApi.forkPrecheck.mockResolvedValue(
+    mockSpaceSkillsApi.forkPrecheck.mockResolvedValue(
       makePrecheck({ agentUsageCount: 1, usedByAgents: agents }),
     );
 
     await renderNode(
       <ForkSkillDialog
-        companyId="company-1"
+        spaceId="space-1"
         skill={makeSkill({ usedByAgents: agents, attachedAgentCount: 1 })}
         open
         onOpenChange={() => {}}
@@ -266,19 +266,19 @@ describe("ForkSkillDialog", () => {
 
     await click(findButton((t) => t === "Create copy"));
 
-    expect(mockCompanySkillsApi.fork).toHaveBeenCalledWith("company-1", "skill-1", {
+    expect(mockSpaceSkillsApi.fork).toHaveBeenCalledWith("space-1", "skill-1", {
       reassignAgentIds: [],
     });
   });
 
   it("offers 'Open your existing copy' when an un-diverged same-actor fork exists", async () => {
-    mockCompanySkillsApi.forkPrecheck.mockResolvedValue(
+    mockSpaceSkillsApi.forkPrecheck.mockResolvedValue(
       makePrecheck({ existingForks: [makeForkSummary({ id: "fork-existing" })] }),
     );
 
     await renderNode(
       <ForkSkillDialog
-        companyId="company-1"
+        spaceId="space-1"
         skill={makeSkill({ existingForks: [makeForkSummary({ id: "fork-existing" })] })}
         open
         onOpenChange={() => {}}
@@ -288,12 +288,12 @@ describe("ForkSkillDialog", () => {
     expect(document.body.textContent).toContain("You already have a copy");
     await click(findButton((t) => t === "Open your existing copy"));
     expect(mockNavigate).toHaveBeenCalledWith("/skills/studio/fork-existing");
-    expect(mockCompanySkillsApi.fork).not.toHaveBeenCalled();
+    expect(mockSpaceSkillsApi.fork).not.toHaveBeenCalled();
   });
 
   it("hides the toggle and reports zero usage when no agents use the skill", async () => {
     await renderNode(
-      <ForkSkillDialog companyId="company-1" skill={makeSkill()} open onOpenChange={() => {}} />,
+      <ForkSkillDialog spaceId="space-1" skill={makeSkill()} open onOpenChange={() => {}} />,
     );
 
     expect(document.body.textContent).toContain("No agents currently use this skill");

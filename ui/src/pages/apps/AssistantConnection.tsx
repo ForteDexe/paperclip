@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, ExternalLink, Globe, Paperclip, Plug, Terminal } from "lucide-react";
 import { publicMcpApi } from "@/api/publicMcp";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { Link } from "@/lib/router";
 import { copyTextToClipboard } from "@/lib/clipboard";
@@ -12,7 +12,7 @@ import { deriveInitials, Identity } from "@/components/Identity";
 import { assistantConnectionDisplayName } from "./connection-owner";
 import { AgentSetupPrompt } from "@/components/AgentSetupPrompt";
 import { OpenCodeLogoIcon } from "@/components/OpenCodeLogoIcon";
-import { CompanyPatternIcon } from "@/components/CompanyPatternIcon";
+import { SpacePatternIcon } from "@/components/SpacePatternIcon";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -29,10 +29,10 @@ function AssistantIcon({ assistant }: { assistant: Assistant }) {
 }
 
 export function useAssistantConnections(poll = false) {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const query = useQuery({
     queryKey: connectionsKey, queryFn: publicMcpApi.connections,
-    enabled: Boolean(selectedCompanyId), refetchInterval: poll ? 5000 : false,
+    enabled: Boolean(selectedSpaceId), refetchInterval: poll ? 5000 : false,
   });
   const view = useQueryView(query);
   return {
@@ -40,7 +40,7 @@ export function useAssistantConnections(poll = false) {
     view,
     /** Loaded rows are shown through a transient refetch failure (`stale`) as well as `ready`. */
     loaded: view.kind === "ready" || view.kind === "stale",
-    rows: (query.data ?? []).filter(row => row.companyId === selectedCompanyId && !row.revokedAt && !row.scopes.includes("paperclip:agent")),
+    rows: (query.data ?? []).filter(row => row.spaceId === selectedSpaceId && !row.revokedAt && !row.scopes.includes("outpost:agent")),
   };
 }
 
@@ -92,7 +92,7 @@ function setupUnavailableCopy(errorKind: "auth" | "not_found"): string {
 }
 
 export function AssistantConnection({ initialAssistant = "codex" }: { initialAssistant?: Assistant } = {}) {
-  const { selectedCompany, selectedCompanyId } = useCompany();
+  const { selectedSpace, selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const client = useQueryClient();
   const [assistant, setAssistant] = useState<Assistant>(initialAssistant);
@@ -107,15 +107,15 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
     setBreadcrumbs([{ label: "Connectors", href: "/apps" }, { label: "Assistant Connection (MCP)" }]);
     return () => setBreadcrumbs([]);
   }, [setBreadcrumbs]);
-  if (!selectedCompanyId || !selectedCompany) return <p className="text-sm text-muted-foreground">Select an outpost to connect an assistant.</p>;
+  if (!selectedSpaceId || !selectedSpace) return <p className="text-sm text-muted-foreground">Select an outpost to connect an assistant.</p>;
   const serverUrl = setup.data?.serverUrl ?? "";
-  const invitation = serverUrl ? mcpInvitation(serverUrl, { id: selectedCompanyId, name: selectedCompany.name }) : "";
+  const invitation = serverUrl ? mcpInvitation(serverUrl, { id: selectedSpaceId, name: selectedSpace.name }) : "";
   return <div className="max-w-3xl space-y-6 pb-8">
     <header className="space-y-4">
       <div className="flex items-center gap-3"><Paperclip className="size-7 shrink-0" /><h1 className="text-xl font-semibold">Assistant Connection (MCP)</h1></div>
       <div className="flex items-center gap-3">
-        <CompanyPatternIcon companyName={selectedCompany.name} logoUrl={selectedCompany.logoUrl} className="size-12 shrink-0 rounded-lg" />
-        <div className="space-y-1"><p className="font-medium">{selectedCompany.name}</p><p className="text-sm text-muted-foreground">Connect your assistant to Outpost. Review work, create tasks, and follow up using your account’s access to this outpost.</p></div>
+        <SpacePatternIcon spaceName={selectedSpace.name} logoUrl={selectedSpace.logoUrl} className="size-12 shrink-0 rounded-lg" />
+        <div className="space-y-1"><p className="font-medium">{selectedSpace.name}</p><p className="text-sm text-muted-foreground">Connect your assistant to Outpost. Review work, create tasks, and follow up using your account’s access to this outpost.</p></div>
       </div>
     </header>
     {(setup.isPending || setupView.kind === "reconnecting") && <p className="text-sm text-muted-foreground">Loading assistant setup…</p>}
@@ -125,7 +125,7 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
     {setup.data && !setup.data.enabled && <section className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
       <h2 className="text-sm font-semibold">Enable assistant connections</h2>
       <p className="text-sm text-muted-foreground">An instance administrator must turn on Assistant connections (MCP) in Experimental settings. Then return here to connect your assistant.</p>
-      <Button variant="outline" asChild><Link to="/company/settings/instance/experimental">Open Experimental settings</Link></Button>
+      <Button variant="outline" asChild><Link to="/space/settings/instance/experimental">Open Experimental settings</Link></Button>
     </section>}
     {setup.data?.enabled && <>
       <section className="space-y-4" aria-label="Invite your assistant">
@@ -140,7 +140,7 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
         <section className="space-y-4" aria-label={`Set up ${assistants[assistant]}`}>
           {mcpSetupSteps(serverUrl, assistant).map((step, index) => <div key={`${assistant}-${index}`} className="space-y-2"><p className="text-sm text-muted-foreground">{step.text}</p>{step.code && <CopyValue value={step.code} label={`${assistants[assistant]} setup step ${index + 1}`} />}</div>)}
           {assistant !== "browser" && <p className="text-sm text-muted-foreground">{mcpAuthorizationHandoffInstructions}</p>}
-          <p className="text-sm">Choose <strong>{selectedCompany.name}</strong>, review access, then click <strong>Connect outpost</strong>.</p>
+          <p className="text-sm">Choose <strong>{selectedSpace.name}</strong>, review access, then click <strong>Connect outpost</strong>.</p>
           <p className="text-xs text-muted-foreground">Creating tasks and adding comments may start agent work using the Outpost&apos;s execution policy.</p>
         </section>
         <CopyValue value={serverUrl} label="MCP server URL" />
@@ -151,9 +151,9 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
       {(connections.isPending || connections.view.kind === "reconnecting") && <p className="text-sm text-muted-foreground">Loading connections…</p>}
       {revoke.error && <p role="alert" className="text-sm text-destructive">Couldn’t revoke this connection. Try again. <button type="button" className="underline" onClick={() => void connections.refetch()}>Refresh</button></p>}
       {connections.view.kind === "error" && <QueryErrorState error={connections.error} action="load your connections" onRetry={connections.view.retry} retrying={connections.view.isFetching} />}
-      {connections.loaded && connections.rows.length === 0 && <p className="text-sm text-muted-foreground">No assistants connected to {selectedCompany.name} yet.</p>}
+      {connections.loaded && connections.rows.length === 0 && <p className="text-sm text-muted-foreground">No assistants connected to {selectedSpace.name} yet.</p>}
       <div className="divide-y divide-border">{connections.rows.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-        <div className="min-w-0 flex-1 space-y-1"><Identity name={assistantConnectionDisplayName(row)} avatarUrl={row.user?.image} initials={deriveInitials(row.user?.name ?? "You")} className="font-medium" /><p className="text-xs text-muted-foreground">{`Connected as you · ${row.scopes.includes("paperclip:write") ? "Read and write" : "Read only"}${row.scopes.includes("paperclip:configure") ? " · Configure agents, projects and skills" : ""}`}</p></div>
+        <div className="min-w-0 flex-1 space-y-1"><Identity name={assistantConnectionDisplayName(row)} avatarUrl={row.user?.image} initials={deriveInitials(row.user?.name ?? "You")} className="font-medium" /><p className="text-xs text-muted-foreground">{`Connected as you · ${row.scopes.includes("outpost:write") ? "Read and write" : "Read only"}${row.scopes.includes("outpost:configure") ? " · Configure agents, projects and skills" : ""}`}</p></div>
         <Button variant="outline" size="sm" disabled={revoke.isPending} onClick={() => revoke.mutate(row.id)} aria-label={`Revoke ${assistantConnectionDisplayName(row)}`}>Revoke</Button>
       </div>)}</div>
     </section>

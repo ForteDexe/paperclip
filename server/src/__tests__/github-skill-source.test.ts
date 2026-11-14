@@ -487,7 +487,7 @@ describe('repository packages', () => {
     // A child process lets the deadline kill a regressed synchronous scan.
     const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'skill-audit-deadline-'));
     try {
-      const service = pathToFileURL(path.resolve(import.meta.dirname, '../services/company-skills.ts')).href;
+      const service = pathToFileURL(path.resolve(import.meta.dirname, '../services/space-skills.ts')).href;
       const loader = path.resolve(import.meta.dirname, '../../../cli/node_modules/tsx/dist/loader.mjs');
       const script = `import { auditSkillSnapshot } from ${JSON.stringify(service)};
         process.once('message', async () => {

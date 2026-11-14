@@ -11,7 +11,7 @@ import { composioAppAccounts, composioAppSetupResult } from "../../composio-app-
 import { createHash, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { companySecrets, toolAccessAuditEvents, toolCatalogEntries, toolConnectionAppSnapshots, toolConnectionAppSyncs, toolConnections } from "@outpost/db";
+import { spaceSecrets, toolAccessAuditEvents, toolCatalogEntries, toolConnectionAppSnapshots, toolConnectionAppSyncs, toolConnections } from "@outpost/db";
 import { conflict, forbidden, HttpError, notFound, unprocessable } from "../../../errors.js";
 import { logActivity } from "../../activity-log.js";
 import { initializeMcpHttpSession, getMcpHttpSession, readMcpHttpResponse, mcpHttpRequestHeaders } from "../../mcp-http.js";
@@ -40,7 +40,7 @@ type AggregatorDependencies = {
   secrets: ReturnType<typeof secretService>;
   audit: ToolAccessAudit;
   credentials: ConnectionCredentialAccess;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   requestRemoteHttpEndpoint: ToolRemoteHttp["requestRemoteHttpEndpoint"];
   remoteTools: ToolCatalogDiscovery["remoteTools"];
 };
@@ -59,8 +59,8 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
     const refs = grant?.credentialSecretRefs ?? connection.credentialSecretRefs;
     const discovery = asRecord(asRecord(connection.config.aggregatorDiscovery)[aggregatorUserId(actor)]);
     const ids = [...new Set([...refs.map(ref => ref.secretId), ...(typeof discovery.secretId === "string" ? [discovery.secretId] : [])])].sort();
-    const versions = ids.length ? await db.select({ id: companySecrets.id, version: companySecrets.latestVersion }).from(companySecrets)
-      .where(and(eq(companySecrets.companyId, connection.companyId), inArray(companySecrets.id, ids))).orderBy(asc(companySecrets.id)) : [];
+    const versions = ids.length ? await db.select({ id: spaceSecrets.id, version: spaceSecrets.latestVersion }).from(spaceSecrets)
+      .where(and(eq(spaceSecrets.spaceId, connection.spaceId), inArray(spaceSecrets.id, ids))).orderBy(asc(spaceSecrets.id)) : [];
     return createHash("sha256").update(JSON.stringify({ grant: grant?.id, refs, versions,
       ...(Object.keys(discovery).length ? { discovery } : {}),
       ...(connection.config.sourceTemplateKey === "arcade" || connection.config.sourceTemplateKey === "executor"
@@ -70,7 +70,7 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
   async function cachedComposioApps(connection: typeof toolConnections.$inferSelect, actor: ActorInfo): Promise<ComposioAppSnapshot[]> {
     const credentialKey = await composioCredentialKey(connection, actor);
     const rows = await db.select().from(toolConnectionAppSnapshots).where(and(
-      eq(toolConnectionAppSnapshots.companyId, connection.companyId), eq(toolConnectionAppSnapshots.connectionId, connection.id),
+      eq(toolConnectionAppSnapshots.spaceId, connection.spaceId), eq(toolConnectionAppSnapshots.connectionId, connection.id),
       eq(toolConnectionAppSnapshots.userId, aggregatorUserId(actor)), eq(toolConnectionAppSnapshots.credentialKey, credentialKey),
     ));
     return rows.map(row => ({ connectionId: row.connectionId, toolkit: row.toolkit, status: row.status, accounts: row.accounts,
@@ -80,7 +80,7 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
   async function composioAppsResponse(connection: typeof toolConnections.$inferSelect, actor: ActorInfo): Promise<ComposioAppsResponse> {
     const credentialKey = await composioCredentialKey(connection, actor);
     const [sync] = await db.select().from(toolConnectionAppSyncs).where(and(
-      eq(toolConnectionAppSyncs.companyId, connection.companyId), eq(toolConnectionAppSyncs.connectionId, connection.id),
+      eq(toolConnectionAppSyncs.spaceId, connection.spaceId), eq(toolConnectionAppSyncs.connectionId, connection.id),
       eq(toolConnectionAppSyncs.userId, aggregatorUserId(actor)), eq(toolConnectionAppSyncs.credentialKey, credentialKey),
     ));
     const interrupted = sync?.status === "syncing" && sync.updatedAt.getTime() < Date.now() - composioSyncLeaseMs;
@@ -100,7 +100,7 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
     if (connection.config.sourceTemplateKey !== "composio" || connection.transport !== "mcp_remote"
       || connection.status !== "active" || !connection.enabled) throw unprocessable("Connect your Composio gateway first");
     const catalog = await db.select().from(toolCatalogEntries).where(and(
-      eq(toolCatalogEntries.companyId, connection.companyId), eq(toolCatalogEntries.connectionId, connection.id),
+      eq(toolCatalogEntries.spaceId, connection.spaceId), eq(toolCatalogEntries.connectionId, connection.id),
     ));
     if (!catalog.some(tool => tool.toolName === "COMPOSIO_MANAGE_CONNECTIONS" && tool.status === "active")) {
       throw unprocessable("Refresh your Composio gateway's actions before configuring this app");
@@ -110,17 +110,17 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
     const credentialKey = await composioCredentialKey(await getConnectionRow(connectionId), actor);
     const send = (init: RequestInit) => requestRemoteHttpEndpoint(new URL(endpoint), { ...init, signal: AbortSignal.timeout(30_000) });
     let sessionHeaders = connection.config.mcpSessionRequired === true
-      ? await getMcpHttpSession({ send, headers, scope: `${connection.id}:app-setup:${actor.actorId}`, requestId: "paperclip-app-setup" }) : headers;
+      ? await getMcpHttpSession({ send, headers, scope: `${connection.id}:app-setup:${actor.actorId}`, requestId: "outpost-app-setup" }) : headers;
     async function manage(toolkits: { name: string; action: "list" | "add" | "rename" | "remove"; account_id?: string; alias?: string }[], tolerateToolkitErrors = false) {
       const checkedAt = new Date();
-      const id = `paperclip-app-setup-${randomUUID()}`;
+      const id = `outpost-app-setup-${randomUUID()}`;
       const request = () => send({ method: "POST", headers: mcpHttpRequestHeaders(sessionHeaders), body: JSON.stringify({
         jsonrpc: "2.0", id, method: "tools/call", params: { name: "COMPOSIO_MANAGE_CONNECTIONS", arguments: { toolkits } },
       }) });
       const markFailed = async () => {
         const names = toolkits.filter(tool => tool.action === "list").map(tool => tool.name);
         if (names.length) await db.update(toolConnectionAppSnapshots).set({ errorAt: checkedAt }).where(and(
-          eq(toolConnectionAppSnapshots.companyId, connection.companyId), eq(toolConnectionAppSnapshots.connectionId, connectionId),
+          eq(toolConnectionAppSnapshots.spaceId, connection.spaceId), eq(toolConnectionAppSnapshots.connectionId, connectionId),
           eq(toolConnectionAppSnapshots.userId, aggregatorUserId(actor)), eq(toolConnectionAppSnapshots.credentialKey, credentialKey),
           inArray(toolConnectionAppSnapshots.toolkit, names), lte(toolConnectionAppSnapshots.checkedAt, checkedAt),
         ));
@@ -150,7 +150,7 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
           accounts = parsed;
         } catch (error) {
           await db.update(toolConnectionAppSnapshots).set({ errorAt: checkedAt }).where(and(
-            eq(toolConnectionAppSnapshots.companyId, connection.companyId), eq(toolConnectionAppSnapshots.connectionId, connectionId),
+            eq(toolConnectionAppSnapshots.spaceId, connection.spaceId), eq(toolConnectionAppSnapshots.connectionId, connectionId),
             eq(toolConnectionAppSnapshots.userId, aggregatorUserId(actor)), eq(toolConnectionAppSnapshots.credentialKey, credentialKey),
             eq(toolConnectionAppSnapshots.toolkit, tool.name), lte(toolConnectionAppSnapshots.checkedAt, checkedAt),
           ));
@@ -159,9 +159,9 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
           continue;
         }
         const status = accounts.some(account => account.status === "ACTIVE") ? "connected" as const : "not_connected" as const;
-        await db.insert(toolConnectionAppSnapshots).values({ companyId: connection.companyId, connectionId, userId: aggregatorUserId(actor),
+        await db.insert(toolConnectionAppSnapshots).values({ spaceId: connection.spaceId, connectionId, userId: aggregatorUserId(actor),
           credentialKey, toolkit: tool.name, accounts, status, checkedAt, errorAt: null,
-        }).onConflictDoUpdate({ target: [toolConnectionAppSnapshots.companyId, toolConnectionAppSnapshots.connectionId, toolConnectionAppSnapshots.userId, toolConnectionAppSnapshots.toolkit],
+        }).onConflictDoUpdate({ target: [toolConnectionAppSnapshots.spaceId, toolConnectionAppSnapshots.connectionId, toolConnectionAppSnapshots.userId, toolConnectionAppSnapshots.toolkit],
           set: { accounts, status, checkedAt, credentialKey, errorAt: null }, setWhere: lte(toolConnectionAppSnapshots.checkedAt, checkedAt) });
       }
       return { payload, failedToolkits };
@@ -178,9 +178,9 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
     const toolkits = [...new Set([...existing.filter(app => app.accounts.length > 0).map(app => app.toolkit), ...catalog])];
     const leaseId = randomUUID();
     const startedAt = new Date();
-    const [lease] = await db.insert(toolConnectionAppSyncs).values({ companyId: connection.companyId, connectionId,
+    const [lease] = await db.insert(toolConnectionAppSyncs).values({ spaceId: connection.spaceId, connectionId,
       userId: aggregatorUserId(actor), credentialKey, leaseId, status: "syncing", total: toolkits.length, updatedAt: startedAt,
-    }).onConflictDoUpdate({ target: [toolConnectionAppSyncs.companyId, toolConnectionAppSyncs.connectionId, toolConnectionAppSyncs.userId, toolConnectionAppSyncs.credentialKey],
+    }).onConflictDoUpdate({ target: [toolConnectionAppSyncs.spaceId, toolConnectionAppSyncs.connectionId, toolConnectionAppSyncs.userId, toolConnectionAppSyncs.credentialKey],
       set: { leaseId, status: "syncing", checked: 0, total: toolkits.length, failed: 0, updatedAt: startedAt },
       setWhere: and(
         or(ne(toolConnectionAppSyncs.status, "syncing"), lt(toolConnectionAppSyncs.updatedAt, new Date(Date.now() - composioSyncLeaseMs))),
@@ -214,7 +214,7 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
           if (!activeLease) return;
           // Preserve observations, but never present a failed check as current authorization.
           await db.update(toolConnectionAppSnapshots).set({ errorAt: new Date() }).where(and(
-            eq(toolConnectionAppSnapshots.companyId, connection.companyId), eq(toolConnectionAppSnapshots.connectionId, connectionId),
+            eq(toolConnectionAppSnapshots.spaceId, connection.spaceId), eq(toolConnectionAppSnapshots.connectionId, connectionId),
             eq(toolConnectionAppSnapshots.userId, aggregatorUserId(actor)), eq(toolConnectionAppSnapshots.credentialKey, credentialKey),
             lte(toolConnectionAppSnapshots.checkedAt, startedAt),
           ));
@@ -253,7 +253,7 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
       }
     }
     const catalog = await db.select({ name: toolCatalogEntries.toolName }).from(toolCatalogEntries).where(and(
-      eq(toolCatalogEntries.companyId, connection.companyId), eq(toolCatalogEntries.connectionId, connection.id), eq(toolCatalogEntries.status, "active"),
+      eq(toolCatalogEntries.spaceId, connection.spaceId), eq(toolCatalogEntries.connectionId, connection.id), eq(toolCatalogEntries.status, "active"),
     ));
     if ((provider === "executor" && !catalog.some(tool => ["integrations", "execute"].includes(tool.name)))
       || (provider === "composio" && !catalog.some(tool => tool.name === "COMPOSIO_MANAGE_CONNECTIONS"))) {
@@ -262,7 +262,7 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
     if (!retryUnsupported && provider === "executor") {
       const credentialKey = await composioCredentialKey(connection, actor);
       const [sync] = await db.select({ status: toolConnectionAppSyncs.status }).from(toolConnectionAppSyncs).where(and(
-        eq(toolConnectionAppSyncs.companyId, connection.companyId), eq(toolConnectionAppSyncs.connectionId, connection.id),
+        eq(toolConnectionAppSyncs.spaceId, connection.spaceId), eq(toolConnectionAppSyncs.connectionId, connection.id),
         eq(toolConnectionAppSyncs.userId, aggregatorUserId(actor)), eq(toolConnectionAppSyncs.credentialKey, credentialKey),
       ));
       if (sync?.status === "unsupported") return { availability: "unsupported", message: "Executor account discovery is unavailable on this server. You can still use the gateway’s actions." };
@@ -296,9 +296,9 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
       let key: string | undefined;
       let userId: string | undefined;
       if (typeof discovery.secretId === "string" && typeof discovery.userId === "string") {
-        const [secret] = await db.select().from(companySecrets).where(and(eq(companySecrets.id, discovery.secretId), eq(companySecrets.companyId, connection.companyId), eq(companySecrets.ownerUserId, aggregatorUserId(actor))));
+        const [secret] = await db.select().from(spaceSecrets).where(and(eq(spaceSecrets.id, discovery.secretId), eq(spaceSecrets.spaceId, connection.spaceId), eq(spaceSecrets.ownerUserId, aggregatorUserId(actor))));
         if (!secret?.userSecretDefinitionId) throw forbidden("Your Arcade discovery credential is unavailable");
-        const resolved = await secrets.resolveUserSecretValue(connection.companyId, { definitionId: secret.userSecretDefinitionId, responsibleUserId: aggregatorUserId(actor), required: true }, {
+        const resolved = await secrets.resolveUserSecretValue(connection.spaceId, { definitionId: secret.userSecretDefinitionId, responsibleUserId: aggregatorUserId(actor), required: true }, {
           actorType: actor.actorType === "agent" ? "agent" : "user", actorId: actor.actorId!, heartbeatRunId: actor.managementContext?.workContext.runId, consumerType: "tool_connection", consumerId: connection.id, responsibleUserId: aggregatorUserId(actor),
         });
         key = resolved?.value;
@@ -315,10 +315,10 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
       } });
     }
     const send = (init: RequestInit) => requestRemoteHttpEndpoint(endpoint, { ...init, signal: AbortSignal.timeout(30_000) });
-    let sessionHeaders = connection.config.mcpSessionRequired === true ? await getMcpHttpSession({ send, headers, scope: `${connection.id}:inventory:${actor.actorId}`, requestId: "paperclip-account-inventory" }) : headers;
+    let sessionHeaders = connection.config.mcpSessionRequired === true ? await getMcpHttpSession({ send, headers, scope: `${connection.id}:inventory:${actor.actorId}`, requestId: "outpost-account-inventory" }) : headers;
     return discoverExecutorApps({ toolNames: tools.map(tool => tool.name), managementUrl: typeof connection.config.managementUrl === "string" ? connection.config.managementUrl : null,
       call: async (name, args) => {
-        const id = `paperclip-account-inventory-${randomUUID()}`;
+        const id = `outpost-account-inventory-${randomUUID()}`;
         const request = () => send({ method: "POST", headers: mcpHttpRequestHeaders(sessionHeaders), body: JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } }) });
         let response = await request();
         if (response.status === 400 || response.status === 404) {
@@ -346,8 +346,8 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
     const credentialKey = await composioCredentialKey(connection, actor);
     const leaseId = randomUUID();
     const startedAt = new Date();
-    const [lease] = await db.insert(toolConnectionAppSyncs).values({ companyId: connection.companyId, connectionId, userId: aggregatorUserId(actor), credentialKey, leaseId, status: "syncing", updatedAt: startedAt })
-      .onConflictDoUpdate({ target: [toolConnectionAppSyncs.companyId, toolConnectionAppSyncs.connectionId, toolConnectionAppSyncs.userId, toolConnectionAppSyncs.credentialKey],
+    const [lease] = await db.insert(toolConnectionAppSyncs).values({ spaceId: connection.spaceId, connectionId, userId: aggregatorUserId(actor), credentialKey, leaseId, status: "syncing", updatedAt: startedAt })
+      .onConflictDoUpdate({ target: [toolConnectionAppSyncs.spaceId, toolConnectionAppSyncs.connectionId, toolConnectionAppSyncs.userId, toolConnectionAppSyncs.credentialKey],
         set: { leaseId, status: "syncing", checked: 0, total: 0, failed: 0, updatedAt: startedAt },
         setWhere: and(or(ne(toolConnectionAppSyncs.status, "syncing"), lt(toolConnectionAppSyncs.updatedAt, new Date(Date.now() - composioSyncLeaseMs))),
           force ? sql`true` : or(ne(toolConnectionAppSyncs.status, "ready"), isNull(toolConnectionAppSyncs.lastCompletedAt), lt(toolConnectionAppSyncs.lastCompletedAt, new Date(Date.now() - composioSyncTtlMs)))),
@@ -357,18 +357,18 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
         try {
           const apps = await discoverAggregatorInventory(connection, actor);
           await db.transaction(async tx => {
-            const [current] = await tx.select().from(toolConnections).where(and(eq(toolConnections.id, connectionId), eq(toolConnections.companyId, connection.companyId))).for("update");
+            const [current] = await tx.select().from(toolConnections).where(and(eq(toolConnections.id, connectionId), eq(toolConnections.spaceId, connection.spaceId))).for("update");
             const [active] = await tx.select().from(toolConnectionAppSyncs).where(and(eq(toolConnectionAppSyncs.id, lease.id), eq(toolConnectionAppSyncs.leaseId, leaseId))).for("update");
             if (!current || !active || current.status !== "active" || !current.enabled || Date.now() - startedAt.getTime() > composioSyncLeaseMs
               || await composioCredentialKey(current, actor) !== credentialKey) throw conflict("The gateway changed during account discovery");
             const checkedAt = new Date();
             // Commit the entire enumeration at once; a failed later page cannot delete accounts.
             await tx.update(toolConnectionAppSnapshots).set({ accounts: [], status: "not_connected", checkedAt, errorAt: null }).where(and(
-              eq(toolConnectionAppSnapshots.companyId, connection.companyId), eq(toolConnectionAppSnapshots.connectionId, connectionId), eq(toolConnectionAppSnapshots.userId, aggregatorUserId(actor)), eq(toolConnectionAppSnapshots.credentialKey, credentialKey),
+              eq(toolConnectionAppSnapshots.spaceId, connection.spaceId), eq(toolConnectionAppSnapshots.connectionId, connectionId), eq(toolConnectionAppSnapshots.userId, aggregatorUserId(actor)), eq(toolConnectionAppSnapshots.credentialKey, credentialKey),
             ));
-            for (const app of apps) await tx.insert(toolConnectionAppSnapshots).values({ companyId: connection.companyId, connectionId, userId: aggregatorUserId(actor), credentialKey,
+            for (const app of apps) await tx.insert(toolConnectionAppSnapshots).values({ spaceId: connection.spaceId, connectionId, userId: aggregatorUserId(actor), credentialKey,
               toolkit: app.toolkit, accounts: app.accounts, status: app.accounts.some(account => account.status === "ACTIVE") ? "connected" : "not_connected", checkedAt,
-            }).onConflictDoUpdate({ target: [toolConnectionAppSnapshots.companyId, toolConnectionAppSnapshots.connectionId, toolConnectionAppSnapshots.userId, toolConnectionAppSnapshots.toolkit],
+            }).onConflictDoUpdate({ target: [toolConnectionAppSnapshots.spaceId, toolConnectionAppSnapshots.connectionId, toolConnectionAppSnapshots.userId, toolConnectionAppSnapshots.toolkit],
               set: { accounts: app.accounts, status: app.accounts.some(account => account.status === "ACTIVE") ? "connected" : "not_connected", checkedAt, errorAt: null, credentialKey },
             });
             await tx.update(toolConnectionAppSyncs).set({ status: "ready", checked: apps.length, total: apps.length, failed: 0, updatedAt: checkedAt, lastCompletedAt: checkedAt }).where(eq(toolConnectionAppSyncs.id, lease.id));
@@ -377,7 +377,7 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
           await db.transaction(async tx => {
             const [active] = await tx.select().from(toolConnectionAppSyncs).where(and(eq(toolConnectionAppSyncs.id, lease.id), eq(toolConnectionAppSyncs.leaseId, leaseId))).for("update");
             if (!active) return;
-            await tx.update(toolConnectionAppSnapshots).set({ errorAt: new Date() }).where(and(eq(toolConnectionAppSnapshots.companyId, connection.companyId), eq(toolConnectionAppSnapshots.connectionId, connectionId), eq(toolConnectionAppSnapshots.userId, aggregatorUserId(actor)), eq(toolConnectionAppSnapshots.credentialKey, credentialKey)));
+            await tx.update(toolConnectionAppSnapshots).set({ errorAt: new Date() }).where(and(eq(toolConnectionAppSnapshots.spaceId, connection.spaceId), eq(toolConnectionAppSnapshots.connectionId, connectionId), eq(toolConnectionAppSnapshots.userId, aggregatorUserId(actor)), eq(toolConnectionAppSnapshots.credentialKey, credentialKey)));
             await tx.update(toolConnectionAppSyncs).set({ status: error instanceof AggregatorDiscoveryUnavailableError ? "unsupported" : "error", failed: 1, updatedAt: new Date() }).where(eq(toolConnectionAppSyncs.id, lease.id));
           });
         }
@@ -391,14 +391,14 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
   async function configureArcadeDiscovery(connectionId: string, input: ArcadeDiscoverySetupInput, actor: ActorInfo) {
     await actor?.managementContext?.reauthorize();
     await assertDiscoveryActor(actor);
-    const companyId = (await getConnectionRow(connectionId)).companyId;
+    const spaceId = (await getConnectionRow(connectionId)).spaceId;
     await db.transaction(async tx => {
       const [connection] = await tx.select().from(toolConnections).where(eq(toolConnections.id, connectionId)).for("update");
       if (!connection || aggregatorProvider(connection) !== "arcade" || connection.status === "archived") throw notFound("Arcade gateway not found");
       const all = asRecord(connection.config.aggregatorDiscovery);
       const before = asRecord(all[aggregatorUserId(actor)]);
       const { secret } = await writeConnectionCredential(tx, {
-        companyId: connection.companyId, connectionName: connection.name, configPath: "aggregatorDiscovery.apiKey", label: "Arcade account sync API key",
+        spaceId: connection.spaceId, connectionName: connection.name, configPath: "aggregatorDiscovery.apiKey", label: "Arcade account sync API key",
         value: input.apiKey, ownerUserId: aggregatorUserId(actor), actor: actorForSecret(actor),
         existingRef: typeof before.secretId === "string" ? { secretId: before.secretId, configPath: "aggregatorDiscovery.apiKey", versionSelector: "latest" } : undefined,
         definitionKey: `arcade_discovery.${connection.id}`,
@@ -406,7 +406,7 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
       const config = { ...connection.config, aggregatorDiscovery: { ...all, [aggregatorUserId(actor)]: { userId: input.userId, secretId: secret.id } } };
       await tx.update(toolConnections).set({ config, transportConfig: config, updatedAt: new Date() }).where(eq(toolConnections.id, connectionId));
     });
-    await logActivity(db, { companyId, ...(actor.managementContext?.audit ?? { actorType: "user" as const, actorId: actor.actorId! }), action: "tool_connection.account_sync_configured", entityType: "tool_connection", entityId: connectionId, details: { provider: "arcade" } });
+    await logActivity(db, { spaceId, ...(actor.managementContext?.audit ?? { actorType: "user" as const, actorId: actor.actorId! }), action: "tool_connection.account_sync_configured", entityType: "tool_connection", entityId: connectionId, details: { provider: "arcade" } });
     return syncAggregatorApps(connectionId, true, actor);
   }
   return {
@@ -426,7 +426,7 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
           throw conflict("The gateway is no longer active. Restore it before connecting this app.");
         }
       }
-      await audit({ companyId: connection.companyId, connectionId, action: "tool_connection.upstream_app_setup", outcome: "success", actor,
+      await audit({ spaceId: connection.spaceId, connectionId, action: "tool_connection.upstream_app_setup", outcome: "success", actor,
         details: { toolkit, action: input.action, status: result.status } });
       return result;
     },
@@ -457,7 +457,7 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
       const existing = await cachedComposioApps(connection, actor);
       // Migrate observations from the original direct setup flow on the first visit.
       const history = await db.select({ details: toolAccessAuditEvents.details }).from(toolAccessAuditEvents).where(and(
-        eq(toolAccessAuditEvents.companyId, connection.companyId), eq(toolAccessAuditEvents.connectionId, connectionId),
+        eq(toolAccessAuditEvents.spaceId, connection.spaceId), eq(toolAccessAuditEvents.connectionId, connectionId),
         eq(toolAccessAuditEvents.actorId, actor.actorId!), eq(toolAccessAuditEvents.action, "tool_connection.upstream_app_setup"),
       )).orderBy(desc(toolAccessAuditEvents.createdAt)).limit(128);
       const known = [...existing.filter(app => app.accounts.length > 0).map(app => app.toolkit),
@@ -476,14 +476,14 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
         if (!before?.some(account => account.id === input.accountId)) throw notFound("This account is no longer available in the selected Composio app");
       }
       const details = { toolkit, ...(input.action !== "add" ? { accountId: input.accountId } : {}) };
-      await logActivity(db, { companyId: connection.companyId, ...(actor.managementContext?.audit ?? { actorType: "user" as const, actorId: actor.actorId! }),
+      await logActivity(db, { spaceId: connection.spaceId, ...(actor.managementContext?.audit ?? { actorType: "user" as const, actorId: actor.actorId! }),
         action: `tool_connection.upstream_account_${input.action}_requested`, entityType: "tool_connection", entityId: connectionId, details });
       let payload: unknown;
       try {
         payload = await manage([{ name: toolkit, action: input.action,
           ...(input.action !== "add" ? { account_id: input.accountId } : {}), ...(input.action === "rename" ? { alias: input.alias } : {}) }]);
       } catch (error) {
-        await audit({ companyId: connection.companyId, connectionId, actor, action: `tool_connection.upstream_account_${input.action}`,
+        await audit({ spaceId: connection.spaceId, connectionId, actor, action: `tool_connection.upstream_account_${input.action}`,
           outcome: "failure", reasonCode: "provider_unconfirmed", details });
         throw error;
       }
@@ -496,7 +496,7 @@ export function createAggregatorAccounts(db: Db, { options, secrets, audit, cred
           throw conflict("Composio has not confirmed this change. Refresh the accounts before trying again.");
         }
       }
-      await logActivity(db, { companyId: connection.companyId, ...(actor.managementContext?.audit ?? { actorType: "user" as const, actorId: actor.actorId! }),
+      await logActivity(db, { spaceId: connection.spaceId, ...(actor.managementContext?.audit ?? { actorType: "user" as const, actorId: actor.actorId! }),
         action: `tool_connection.upstream_account_${input.action}`, entityType: "tool_connection", entityId: connectionId,
         details: { toolkit, ...(input.action !== "add" ? { accountId: input.accountId } : {}) } });
       return { ...result, apps: await cachedComposioApps(connection, actor) };

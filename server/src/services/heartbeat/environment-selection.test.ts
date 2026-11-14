@@ -2,11 +2,11 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { agents, companies, createDb, environments, environmentLeases, heartbeatRuns, issues, projects, projectWorkspaces, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, type Db } from "@outpost/db";
+import { agents, spaces, createDb, environments, environmentLeases, heartbeatRuns, issues, projects, projectWorkspaces, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, type Db } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 import { environmentService } from "../environments.js";
 import { executionWorkspaceService } from "../execution-workspaces.js";
 import { instanceSettingsService } from "../instance-settings.js";
@@ -31,7 +31,7 @@ describe.skipIf(!support.supported)("heartbeat environment selection boundary", 
     home = await mkdtemp(join(tmpdir(), "heartbeat-environment-selection-"));
     vi.stubEnv("OUTPOST_HOME", home);
     vi.stubEnv("OUTPOST_INSTANCE_ID", "environment-selection");
-    await mkdir(resolvePaperclipInstanceRoot(), { recursive: true });
+    await mkdir(resolveOutpostInstanceRoot(), { recursive: true });
     database = await startEmbeddedPostgresTestDatabase("heartbeat-environment-selection-");
     db = createDb(database.connectionString);
     await db.execute(sql`set client_min_messages = warning`);
@@ -43,15 +43,15 @@ describe.skipIf(!support.supported)("heartbeat environment selection boundary", 
     if (home) await rm(home, { recursive: true, force: true });
   });
   beforeEach(async () => {
-    await db.execute(sql`truncate table companies restart identity cascade`);
+    await db.execute(sql`truncate table spaces restart identity cascade`);
   });
 
   async function fixture() {
-    const [company] = await db.insert(companies).values({ name: "Environment selection", issuePrefix: "ENV" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Selecting agent", status: "running", adapterType: "process" }).returning();
-    const [project] = await db.insert(projects).values({ companyId: company.id, name: "Project" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, projectId: project.id, title: "Select this environment", assigneeAgentId: agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, issueId: issue.id, scopeKind: "issue", status: "running", runtimeMode: "legacy" }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Environment selection", issuePrefix: "ENV" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Selecting agent", status: "running", adapterType: "process" }).returning();
+    const [project] = await db.insert(projects).values({ spaceId: space.id, name: "Project" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, projectId: project.id, title: "Select this environment", assigneeAgentId: agent.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, issueId: issue.id, scopeKind: "issue", status: "running", runtimeMode: "legacy" }).returning();
     const input: HeartbeatEnvironmentSelectionInput = {
       run, agent,
       task: { issueRef: issue, issueContext: issue, issueId: issue.id, executionProjectId: project.id, workspaceProjectContext: { hasWorkspace: false }, boundSourceWorkspace: null, hasSelectedWorkspaceSource: false, taskWorkspaceIntent: null, responsibleUserId: null, context: { issueId: issue.id } },
@@ -64,14 +64,14 @@ describe.skipIf(!support.supported)("heartbeat environment selection boundary", 
       services: { environmentsSvc: environmentService(db), executionWorkspacesSvc: executionWorkspaceService(db), instanceSettings: instanceSettingsService(db), findSharedWorkspaceHolder: vi.fn(async () => null), findExecutionWorkspaceHolder: vi.fn(async () => null) },
     };
     const workspace = async () => {
-      const created = await executionWorkspaceService(db).create({ companyId: company.id, projectId: project.id, sourceIssueId: issue.id, name: "Saved workspace", mode: "isolated_workspace", strategyType: "git_worktree", cwd: home, providerRef: home });
+      const created = await executionWorkspaceService(db).create({ spaceId: space.id, projectId: project.id, sourceIssueId: issue.id, name: "Saved workspace", mode: "isolated_workspace", strategyType: "git_worktree", cwd: home, providerRef: home });
       if (!created) throw new Error("Workspace fixture was not created");
       return created;
     };
     const recover = (workspaceId: string) => {
       input.run.runtimeMode = "native";
       input.run.runnerProfileJson = { nativeExecutionInput: buildNativeExecutionInput({
-        companyId: company.id, runId: run.id, agentId: agent.id,
+        spaceId: space.id, runId: run.id, agentId: agent.id,
         issue: { id: issue.id, identifier: "ENV-1", title: issue.title, description: null, workMode: "standard" },
         taskPrompt: "Continue the same task", normalizedSessionId: randomUUID(), provider: "codex",
         workspace: { id: workspaceId, cwd: home, repoUrl: null, repoRef: null, branchName: null },
@@ -84,8 +84,8 @@ describe.skipIf(!support.supported)("heartbeat environment selection boundary", 
 
   it("places a new run by the agent default, not by its project", async () => {
     const f = await fixture();
-    const local = await environmentService(db).ensureLocalEnvironment(f.input.agent.companyId);
-    const [other] = await db.insert(projects).values({ companyId: f.input.agent.companyId, name: "Other project" }).returning();
+    const local = await environmentService(db).ensureLocalEnvironment(f.input.agent.spaceId);
+    const [other] = await db.insert(projects).values({ spaceId: f.input.agent.spaceId, name: "Other project" }).returning();
     f.input.agent.defaultEnvironmentId = local.id;
     f.input.policy.isolatedWorkspacesEnabled = false;
     expect((await selectHeartbeatEnvironment(db, f.input)).environmentResolution).toEqual({ environmentId: local.id, source: "agent" });
@@ -95,12 +95,12 @@ describe.skipIf(!support.supported)("heartbeat environment selection boundary", 
 
   it("restores the admitted environment after a default change and rejects a foreign lease", async () => {
     const f = await fixture();
-    const local = await environmentService(db).ensureLocalEnvironment(f.input.agent.companyId);
+    const local = await environmentService(db).ensureLocalEnvironment(f.input.agent.spaceId);
     const [next] = await db.insert(environments).values({ name: `Next target ${randomUUID()}`, driver: "ssh", config: { host: "next.example.test" } }).returning();
     const saved = await f.workspace();
     f.recover(saved.id);
     f.input.agent.defaultEnvironmentId = next.id;
-    const [lease] = await db.insert(environmentLeases).values({ companyId: f.project.companyId, environmentId: local.id,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: f.project.spaceId, environmentId: local.id,
       heartbeatRunId: f.input.run.id, issueId: f.issue.id, executionWorkspaceId: saved.id, metadata: { agentId: f.input.agent.id } }).returning();
     f.input.run.contextSnapshot = { outpostEnvironment: { id: local.id, leaseId: lease.id } };
     expect((await selectHeartbeatEnvironment(db, f.input)).environmentResolution).toEqual({ environmentId: local.id, source: "run" });
@@ -128,8 +128,8 @@ describe.skipIf(!support.supported)("heartbeat environment selection boundary", 
       const { input, issue, workspace, recover } = await fixture();
       // A project-less task's fresh Retry attempt directory, created and bound by the first preparation.
       await db.update(issues).set({ projectId: null }).where(eq(issues.id, issue.id));
-      const attemptCwd = await materializeIsolatedTaskDirectory({ companyId: input.agent.companyId, issueId: issue.id, attemptId: input.run.id });
-      const created = await executionWorkspaceService(db).create({ companyId: input.agent.companyId, projectId: null,
+      const attemptCwd = await materializeIsolatedTaskDirectory({ spaceId: input.agent.spaceId, issueId: issue.id, attemptId: input.run.id });
+      const created = await executionWorkspaceService(db).create({ spaceId: input.agent.spaceId, projectId: null,
         sourceIssueId: issue.id, name: "Fresh attempt", mode: "isolated_workspace", strategyType: "project_primary",
         providerType: "local_fs", cwd: attemptCwd });
       if (!created) throw new Error("Attempt workspace fixture was not created");
@@ -166,7 +166,7 @@ describe.skipIf(!support.supported)("heartbeat environment selection boundary", 
 
     expect(result.reusableExistingExecutionWorkspace).toMatchObject({
       id: saved.id,
-      companyId: input.agent.companyId,
+      spaceId: input.agent.spaceId,
       cwd: home,
       strategyType: "git_worktree",
     });
@@ -230,7 +230,7 @@ describe.skipIf(!support.supported)("heartbeat environment selection boundary", 
 
     expect(result.reusableExistingExecutionWorkspace).toMatchObject({ id: saved.id, status: "active" });
     expect(await readFile(join(home, "saved-work.txt"), "utf8")).toBe("Retain the completed investigation\n");
-    expect(await executionWorkspaceService(db).getStoredById(input.agent.companyId, saved.id))
+    expect(await executionWorkspaceService(db).getStoredById(input.agent.spaceId, saved.id))
       .toMatchObject({ status: "active", closedAt: null, sourceIssueId: issue.id });
   });
 
@@ -252,13 +252,13 @@ describe.skipIf(!support.supported)("heartbeat environment selection boundary", 
       const { input, issue, saved, svc } = await expired();
       const reopen = vi.spyOn(svc, "reopenClosedIsolatedExecutionWorkspaceForIssue").mockImplementation(async () => {
         await executionWorkspaceService(db).update(saved.id, { status: "active" });
-        return { ok: true, reopened: true, workspace: (await svc.getStoredById(issue.companyId, saved.id))!, generation: 4 };
+        return { ok: true, reopened: true, workspace: (await svc.getStoredById(issue.spaceId, saved.id))!, generation: 4 };
       });
       const clear = vi.spyOn(svc, "clearReopenPendingConsumptionForUnconsumedReopen").mockResolvedValue({ cleared: true });
       try {
         const result = await selectHeartbeatEnvironment(db, input);
         expect(reopen).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: saved.id,
-          issue: { id: issue.id, companyId: issue.companyId, projectId: issue.projectId },
+          issue: { id: issue.id, spaceId: issue.spaceId, projectId: issue.projectId },
           authorizationActor: expect.objectContaining({ type: "agent", agentId: input.agent.id, runId: input.run.id }) }));
         expect(clear).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: saved.id, expectedGeneration: 4 }));
         expect(result.reusableExistingExecutionWorkspace).toMatchObject({ id: saved.id, status: "active" });
@@ -316,7 +316,7 @@ describe.skipIf(!support.supported)("heartbeat environment selection boundary", 
     const { input, issue } = await fixture();
     const [sandbox] = await db.insert(environments).values({ name: "Task sandbox", driver: "sandbox", status: "active", config: { provider: "fake" } }).returning();
     input.task.issueContext!.executionWorkspaceSettings = { mode: "isolated_workspace", environmentId: sandbox.id };
-    input.policy.trustPreset = { kind: "low_trust_review", preset: "low_trust_review", sourcePresets: {}, boundary: { mode: "low_trust_review", companyId: input.agent.companyId, rootIssueId: issue.id } };
+    input.policy.trustPreset = { kind: "low_trust_review", preset: "low_trust_review", sourcePresets: {}, boundary: { mode: "low_trust_review", spaceId: input.agent.spaceId, rootIssueId: issue.id } };
     input.policy.requestedExecutionWorkspaceMode = "isolated_workspace";
     input.policy.isolatedWorkspacesEnabled = false;
     const result = await selectHeartbeatEnvironment(db, input);
@@ -331,14 +331,14 @@ describe.skipIf(!support.supported)("heartbeat environment selection boundary", 
     input.task.executionProjectId = null;
     input.task.workspaceProjectContext = null;
     const result = await selectHeartbeatEnvironment(db, input);
-    expect(result.nativeChatWorkspaceScope).toMatchObject({ companyId: input.agent.companyId, agentId: input.agent.id, issueId: issue.id, projectId: null });
+    expect(result.nativeChatWorkspaceScope).toMatchObject({ spaceId: input.agent.spaceId, agentId: input.agent.id, issueId: issue.id, projectId: null });
     expect(result.nativeChatExpectedCwd).toBe(result.nativeChatWorkspaceScope?.taskRoot);
-    expect(result.nativeChatExpectedCwd).toContain(`isolated-workspaces/${input.agent.companyId}/${issue.id}`);
+    expect(result.nativeChatExpectedCwd).toContain(`isolated-workspaces/${input.agent.spaceId}/${issue.id}`);
   });
 
   it.each(["git_worktree", "project_primary"] as const)("only prepares fresh native chat isolation with a %s source strategy", async (strategy) => {
     const { input, issue, project } = await fixture();
-    const [source] = await db.insert(projectWorkspaces).values({ companyId: input.agent.companyId, projectId: project.id,
+    const [source] = await db.insert(projectWorkspaces).values({ spaceId: input.agent.spaceId, projectId: project.id,
       name: "Chat source", cwd: home, sourceType: "local_path", isPrimary: true }).returning();
     const intent = { version: 1 as const, source: "explicit" as const, selection: { kind: "configured_source" as const, projectWorkspaceId: source.id, mode: "managed_isolated" as const } };
     await db.update(issues).set({ originKind: "chat_channel", projectWorkspaceId: source.id, workspaceSelection: intent }).where(eq(issues.id, issue.id));

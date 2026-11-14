@@ -10,7 +10,7 @@ import {
   askUserQuestionsResultSchema,
   askUserQuestionsPayloadSchema,
   createIssueThreadInteractionSchema,
-  paperclipQuestionSetPayloadSchema,
+  outpostQuestionSetPayloadSchema,
   requestConfirmationPayloadSchema,
   requestConfirmationResultSchema,
   requestItemVerdictsResultSchema,
@@ -19,21 +19,21 @@ import {
 
 describe("issue thread interaction schemas", () => {
   it("derives every legacy question from a complete mixed canonical form", () => {
-    const questionSet = paperclipQuestionSetPayloadSchema.parse({
+    const questionSet = outpostQuestionSetPayloadSchema.parse({
       schema: "outpost.question_set.v1",
       questions: [
         { id: "repo", prompt: "Repository URL?", required: true, answerMode: "text", textValidation: { minLength: 1 } },
         { id: "scope", prompt: "Review scope?", required: true, answerMode: "single_select", options: [{ id: "all", label: "All changes", recommended: true }, { id: "selected", label: "Selected changes" }] },
-        { id: "hosting", prompt: "Preview hosting?", required: false, answerMode: "multi_select", options: [{ id: "paperclip_custom_answer", label: "Existing host" }, { id: "new", label: "New host" }], customAnswer: { enabled: true } },
+        { id: "hosting", prompt: "Preview hosting?", required: false, answerMode: "multi_select", options: [{ id: "outpost_custom_answer", label: "Existing host" }, { id: "new", label: "New host" }], customAnswer: { enabled: true } },
       ],
     });
     const parsed = createIssueThreadInteractionSchema.parse({ kind: "ask_user_questions", payload: { version: 1, questionSet } });
     if (parsed.kind !== "ask_user_questions") throw new Error("expected questions");
     expect(parsed.payload.questionSet).toEqual(questionSet);
     expect(parsed.payload.questions).toMatchObject([
-      { id: "repo", required: true, selectionMode: "single", options: [{ id: "paperclip_text_answer", freeText: true }] },
+      { id: "repo", required: true, selectionMode: "single", options: [{ id: "outpost_text_answer", freeText: true }] },
       { id: "scope", required: true, selectionMode: "single", allowOther: false, options: [{ id: "all", label: "All changes" }, { id: "selected", label: "Selected changes" }] },
-      { id: "hosting", required: false, selectionMode: "multi", allowOther: true, options: [{ id: "paperclip_custom_answer" }, { id: "new" }, { id: "paperclip_custom_answer_2", freeText: true }] },
+      { id: "hosting", required: false, selectionMode: "multi", allowOther: true, options: [{ id: "outpost_custom_answer" }, { id: "new" }, { id: "outpost_custom_answer_2", freeText: true }] },
     ]);
     expect(askUserQuestionsPayloadSchema.parse(parsed.payload)).toEqual(parsed.payload);
   });
@@ -78,17 +78,17 @@ describe("issue thread interaction schemas", () => {
       "human_only",
     ]);
     expect(ISSUE_THREAD_INTERACTION_LEGACY_RESOLVER_POLICY_ALIASES).toEqual([
-      "board_or_agents",
-      "board_only",
+      "operator_or_agents",
+      "operator_only",
     ]);
-    expect(normalizeIssueThreadInteractionResolverPolicy("board_or_agents")).toBe("anyone");
-    expect(normalizeIssueThreadInteractionResolverPolicy("board_only")).toBe("human_only");
+    expect(normalizeIssueThreadInteractionResolverPolicy("operator_or_agents")).toBe("anyone");
+    expect(normalizeIssueThreadInteractionResolverPolicy("operator_only")).toBe("human_only");
     expect(normalizeIssueThreadInteractionResolverPolicy("not_creator")).toBe("not_creator");
-    expect(legacyIssueThreadInteractionResolverPolicyAlias("anyone")).toBe("board_or_agents");
+    expect(legacyIssueThreadInteractionResolverPolicyAlias("anyone")).toBe("operator_or_agents");
     expect(legacyIssueThreadInteractionResolverPolicyAlias("not_creator")).toBeNull();
   });
 
-  it.each(["anyone", "not_creator", "human_only", "board_or_agents", "board_only"] as const)(
+  it.each(["anyone", "not_creator", "human_only", "operator_or_agents", "operator_only"] as const)(
     "accepts resolver policy input %s",
     (resolverPolicy) => {
       const parsed = createIssueThreadInteractionSchema.parse({
@@ -345,7 +345,7 @@ describe("issue thread interaction schemas", () => {
     if (parsed.kind !== "ask_user_questions") return;
     expect(parsed.payload.questionSet).toEqual(questionSet);
 
-    expect(() => paperclipQuestionSetPayloadSchema.parse({
+    expect(() => outpostQuestionSetPayloadSchema.parse({
       ...questionSet,
       questions: [{ ...questionSet.questions[0], answerMode: "text", options: questionSet.questions[0].options }],
     })).toThrow("text questions cannot define options");

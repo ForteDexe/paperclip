@@ -19,7 +19,7 @@ const execFile = promisify(execFileCallback);
 describe("Git workspace settings preservation", () => {
   let root: string;
   let cwd: string;
-  let identity: { companyId: string; workspaceId: string };
+  let identity: { spaceId: string; workspaceId: string };
   const original = Buffer.from('{"env":{"PRIVATE_VALUE":"saved-workspace-setting"}}\n');
 
   async function repository(directory: string) {
@@ -28,7 +28,7 @@ describe("Git workspace settings preservation", () => {
       "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", ...args],
     { env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: os.devNull } });
     await git("init", "--initial-branch=main");
-    await fs.writeFile(path.join(directory, ".gitignore"), ".claude/settings.local.json\n.paperclip-repositories/\n");
+    await fs.writeFile(path.join(directory, ".gitignore"), ".claude/settings.local.json\n.outpost-repositories/\n");
     await git("add", ".gitignore");
     await git("commit", "-m", "Fixture");
     return directory;
@@ -48,9 +48,9 @@ describe("Git workspace settings preservation", () => {
 
   beforeEach(async () => {
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
-    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-workspace-contents-")));
+    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "outpost-workspace-contents-")));
     cwd = await repository(path.join(root, "work"));
-    identity = { companyId: randomUUID(), workspaceId: randomUUID() };
+    identity = { spaceId: randomUUID(), workspaceId: randomUUID() };
   });
 
   afterEach(async () => {
@@ -58,14 +58,14 @@ describe("Git workspace settings preservation", () => {
     await fs.rm(root, { recursive: true, force: true });
   });
 
-  it("binds encrypted settings to their company and workspace while restoring the original bytes and mode", async () => {
+  it("binds encrypted settings to their space and workspace while restoring the original bytes and mode", async () => {
     const contents = await capture();
     const target = path.join(cwd, CLAUDE_SETTINGS_PATH);
     expect(JSON.stringify(contents)).not.toContain("saved-workspace-setting");
     expect(JSON.stringify(contents)).not.toContain(original.toString("base64"));
     await fs.unlink(target);
     for (const differentIdentity of [
-      { ...identity, companyId: randomUUID() },
+      { ...identity, spaceId: randomUUID() },
       { ...identity, workspaceId: randomUUID() },
     ]) {
       await expect(restore(contents, differentIdentity)).rejects.toThrow("could not be restored");
@@ -80,7 +80,7 @@ describe("Git workspace settings preservation", () => {
     const contents = await capture();
     const source = { id: randomUUID(), repoUrl: "https://example.test/project.git", repoRef: "main", cwd: null };
     const name = managedProjectCheckoutName(source);
-    const nested = await repository(path.join(cwd, ".paperclip-repositories", name));
+    const nested = await repository(path.join(cwd, ".outpost-repositories", name));
     await execFile("git", ["-C", nested, "remote", "add", "origin", source.repoUrl]);
     const checkout = await readManagedCheckoutContents(nested, name, source);
     const moved = { ...contents, settings: null, checkouts: [{ ...checkout, settings: contents.settings }] };

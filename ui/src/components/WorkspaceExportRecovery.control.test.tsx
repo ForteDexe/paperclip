@@ -15,7 +15,7 @@ vi.mock("../api/issues", () => ({ issuesApi: { recoveryActions: api.inspect, rec
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const action = {
-  id: "action-1", companyId: "company-1", sourceIssueId: "issue-1",
+  id: "action-1", spaceId: "space-1", sourceIssueId: "issue-1",
   cause: "native_workspace_sync_out_retry_exhausted", kind: "active_run_watchdog",
   status: "active", ownerType: "system", wakePolicy: null,
   evidence: { runId: "run-1", workspaceRecovery: {
@@ -31,17 +31,17 @@ function inspection(value = action) {
   } };
 }
 
-describe("governed retained-file recovery", () => {
+describe("controlled retained-file recovery", () => {
   let root: Root, container: HTMLDivElement, client: QueryClient;
   beforeEach(() => {
     vi.resetAllMocks(); localStorage.clear();
     api.inspect.mockResolvedValue(inspection());
     api.recover.mockResolvedValue({ actionId: action.id, status: "queued" });
     client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
-    client.setQueryData(queryKeys.auth.session, { user: { id: "board-1" } });
+    client.setQueryData(queryKeys.auth.session, { user: { id: "operator-1" } });
     client.setQueryData(queryKeys.access.currentBoardAccess, {
-      userId: "board-1", companyIds: ["company-1"], source: "session", isInstanceAdmin: false,
-      memberships: [{ companyId: "company-1", membershipRole: "operator", status: "active" }],
+      userId: "operator-1", spaceIds: ["space-1"], source: "session", isInstanceAdmin: false,
+      memberships: [{ spaceId: "space-1", membershipRole: "operator", status: "active" }],
     });
     container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   });
@@ -50,7 +50,7 @@ describe("governed retained-file recovery", () => {
     vi.restoreAllMocks();
   });
   async function mount(value: IssueRecoveryAction | null = action) {
-    const props = { action: value, issueId: "issue-1", companyId: "company-1" };
+    const props = { action: value, issueId: "issue-1", spaceId: "space-1" };
     await act(async () => root.render(<QueryClientProvider client={client}>
       <WorkspaceExportRecovery {...props} />
     </QueryClientProvider>));
@@ -117,11 +117,11 @@ describe("governed retained-file recovery", () => {
     } finally { vi.unstubAllGlobals(); }
   });
 
-  it.each(["viewer", "suspended", "foreign-company", "other-account"])("does not offer mutation with %s access", async kind => {
+  it.each(["viewer", "suspended", "foreign-space", "other-account"])("does not offer mutation with %s access", async kind => {
     client.setQueryData(queryKeys.access.currentBoardAccess, {
-      userId: kind === "other-account" ? "board-2" : "board-1", source: "session", isInstanceAdmin: false,
-      companyIds: kind === "foreign-company" ? ["company-2"] : ["company-1"],
-      memberships: [{ companyId: kind === "foreign-company" ? "company-2" : "company-1",
+      userId: kind === "other-account" ? "operator-2" : "operator-1", source: "session", isInstanceAdmin: false,
+      spaceIds: kind === "foreign-space" ? ["space-2"] : ["space-1"],
+      memberships: [{ spaceId: kind === "foreign-space" ? "space-2" : "space-1",
         membershipRole: kind === "viewer" ? "viewer" : "operator", status: kind === "suspended" ? "suspended" : "active" }],
     });
     await mount();
@@ -130,8 +130,8 @@ describe("governed retained-file recovery", () => {
     expect(api.recover).not.toHaveBeenCalled();
   });
 
-  it.each(["resolved", "cancelled", "foreign-company", "foreign-task", "unsafe-archive"])("does not offer a %s source", async kind => {
-    await mount({ ...action, ...(kind === "foreign-company" ? { companyId: "company-2" }
+  it.each(["resolved", "cancelled", "foreign-space", "foreign-task", "unsafe-archive"])("does not offer a %s source", async kind => {
+    await mount({ ...action, ...(kind === "foreign-space" ? { spaceId: "space-2" }
       : kind === "foreign-task" ? { sourceIssueId: "issue-2" }
         : kind === "unsafe-archive" ? { cause: "native_workspace_sync_out_unsafe_archive" }
           : { status: kind }) } as IssueRecoveryAction);
@@ -157,10 +157,10 @@ describe("governed retained-file recovery", () => {
     expect(container.textContent).toContain("can’t verify the saved files’ recorded source (source_binding_invalid)");
   });
 
-  // Recovery saved by an older release: a board-owned hold whose
+  // Recovery saved by an older release: a operator-owned hold whose
   // sandbox predates ownership receipts. The server still records a retryable
   // blocked recovery, but the read-only source probe cannot verify ownership.
-  const legacyHold = { ...action, id: "legacy-hold", ownerType: "board", evidence: { runId: "run-1",
+  const legacyHold = { ...action, id: "legacy-hold", ownerType: "operator", evidence: { runId: "run-1",
     workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId: "run-1", stage: "verifying_stop",
       status: "blocked", attempt: 1, attemptLimit: 6, requestIds: [], retryable: true,
       message: "Automatic recovery of saved work stopped after 1 attempts (last failure: allocation_ownership_ambiguous)." },
@@ -178,7 +178,7 @@ describe("governed retained-file recovery", () => {
     api.inspect.mockResolvedValue(blockedInspection(legacyHold));
     const owns = vi.fn();
     await act(async () => root.render(<QueryClientProvider client={client}>
-      <WorkspaceExportRecovery action={legacyHold} issueId="issue-1" companyId="company-1" onRecoveryControlChange={owns} />
+      <WorkspaceExportRecovery action={legacyHold} issueId="issue-1" spaceId="space-1" onRecoveryControlChange={owns} />
     </QueryClientProvider>));
     await settle();
     expect(owns).toHaveBeenLastCalledWith(false);
@@ -203,7 +203,7 @@ describe("governed retained-file recovery", () => {
 
   it("keeps naming the unverified source after an accepted request failed", async () => {
     const key = "accepted-request";
-    writePendingSend("workspace-file-recovery:company-1:issue-1:legacy-hold:run-1:board-1",
+    writePendingSend("workspace-file-recovery:space-1:issue-1:legacy-hold:run-1:operator-1",
       { idempotencyKey: key, payload: { actionId: "legacy-hold", runId: "run-1" }, createdAt: Date.now() });
     const failed = { ...legacyHold, evidence: { ...legacyHold.evidence, workspaceRecovery: {
       ...(legacyHold.evidence.workspaceRecovery as object), requestIds: [key] } } } as IssueRecoveryAction;
@@ -225,7 +225,7 @@ describe("governed retained-file recovery", () => {
   it("keeps ownership of the next action while the source is verified", async () => {
     const owns = vi.fn();
     await act(async () => root.render(<QueryClientProvider client={client}>
-      <WorkspaceExportRecovery action={action} issueId="issue-1" companyId="company-1" onRecoveryControlChange={owns} />
+      <WorkspaceExportRecovery action={action} issueId="issue-1" spaceId="space-1" onRecoveryControlChange={owns} />
     </QueryClientProvider>));
     await settle();
     expect(owns).toHaveBeenLastCalledWith(true);
@@ -259,7 +259,7 @@ describe("governed retained-file recovery", () => {
   it("persists the exact request before POST and prevents a double click", async () => {
     let finish!: (value: unknown) => void;
     api.recover.mockImplementation((_issue, body) => {
-      expect(localStorage.getItem("workspace-file-recovery:company-1:issue-1:action-1:run-1:board-1")).toContain(body.idempotencyKey);
+      expect(localStorage.getItem("workspace-file-recovery:space-1:issue-1:action-1:run-1:operator-1")).toContain(body.idempotencyKey);
       return new Promise(resolve => { finish = resolve; });
     });
     await mount();
@@ -313,7 +313,7 @@ describe("governed retained-file recovery", () => {
     let finish!: (value: unknown) => void;
     api.inspect.mockResolvedValueOnce(inspection()).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
     await mount(); await click("Recover saved files");
-    await act(async () => client.setQueryData(queryKeys.auth.session, { user: { id: "board-2" } }));
+    await act(async () => client.setQueryData(queryKeys.auth.session, { user: { id: "operator-2" } }));
     await act(async () => finish(inspection())); await settle();
     expect(api.recover).not.toHaveBeenCalled();
   });
@@ -370,18 +370,18 @@ describe("governed retained-file recovery", () => {
     } } };
     await click("Try file recovery again");
     expect(api.recover).toHaveBeenCalledTimes(1);
-    expect(localStorage.getItem("workspace-file-recovery:company-1:issue-1:action-1:run-1:board-1")).toContain(previous);
+    expect(localStorage.getItem("workspace-file-recovery:space-1:issue-1:action-1:run-1:operator-1")).toContain(previous);
   });
 
   it("hands a full-disk save rest to the task's Retry instead of its own recovery button", async () => {
-    const diskFull = { ...action, ownerType: "board", evidence: { ...action.evidence, systemRecovery: {
+    const diskFull = { ...action, ownerType: "operator", evidence: { ...action.evidence, systemRecovery: {
       state: "exhausted", preservationOperationIds: [], failure: { code: "export_interrupted",
         retryClass: "user_action_required", cause: { label: "sandbox_disk_full", code: "ENOSPC", status: null } } } },
     } as unknown as IssueRecoveryAction;
     api.inspect.mockResolvedValue(inspection(diskFull));
     const owns = vi.fn();
     await act(async () => root.render(<QueryClientProvider client={client}>
-      <WorkspaceExportRecovery action={diskFull} issueId="issue-1" companyId="company-1" onRecoveryControlChange={owns} />
+      <WorkspaceExportRecovery action={diskFull} issueId="issue-1" spaceId="space-1" onRecoveryControlChange={owns} />
     </QueryClientProvider>));
     await settle();
     expect(button("Recover saved files")).toBeUndefined();
@@ -413,9 +413,9 @@ describe("governed retained-file recovery", () => {
   const withRecovery = (value: IssueRecoveryAction, patch: Record<string, unknown>, system?: Record<string, unknown>) => ({
     ...value, evidence: { ...value.evidence, workspaceRecovery: { ...(value.evidence.workspaceRecovery as object), ...patch },
       ...(system ? { systemRecovery: { ...(value.evidence.systemRecovery as object), ...system } } : {}) } }) as IssueRecoveryAction;
-  const operatorAccess = { userId: "board-1", companyIds: ["company-1"], source: "session", isInstanceAdmin: false,
-    memberships: [{ companyId: "company-1", membershipRole: "operator", status: "active" }] };
-  const viewerAccess = { ...operatorAccess, memberships: [{ companyId: "company-1", membershipRole: "viewer", status: "active" }] };
+  const operatorAccess = { userId: "operator-1", spaceIds: ["space-1"], source: "session", isInstanceAdmin: false,
+    memberships: [{ spaceId: "space-1", membershipRole: "operator", status: "active" }] };
+  const viewerAccess = { ...operatorAccess, memberships: [{ spaceId: "space-1", membershipRole: "viewer", status: "active" }] };
   it.each([
     ["verified and retryable", action, inspection(action), operatorAccess],
     ["unverified ownership", legacyHold, blockedInspection(legacyHold), operatorAccess],
@@ -429,7 +429,7 @@ describe("governed retained-file recovery", () => {
     ["viewer", legacyHold, blockedInspection(legacyHold), viewerAccess],
     ["copyback owner hold for an operator", { ...action, evidence: { ...action.evidence,
       workspaceOwnerRecovery: { state: "operator_required", owner: { token: "token" } } } } as IssueRecoveryAction, inspection(action), operatorAccess],
-    ["board-owned status", { ...action, cause: "native_workspace_finalization_owner_unverified", ownerType: "board",
+    ["operator-owned status", { ...action, cause: "native_workspace_finalization_owner_unverified", ownerType: "operator",
       evidence: { runId: "run-1" } } as unknown as IssueRecoveryAction, inspection(action), operatorAccess],
   ] as const)("renders no manual sandbox or administrator copy: %s", async (_name, value, response, access) => {
     client.setQueryData(queryKeys.access.currentBoardAccess, access);
@@ -439,14 +439,14 @@ describe("governed retained-file recovery", () => {
   });
 
   describe("previous server stop confirmation", () => {
-    const ownerAction = { ...action, cause: "native_workspace_finalization_owner_unverified", ownerType: "board", status: "escalated",
+    const ownerAction = { ...action, cause: "native_workspace_finalization_owner_unverified", ownerType: "operator", status: "escalated",
       evidence: { runId: "run-1", owner: { token: "owner-token", hostname: "secret-host", pid: 2 },
         workspaceOwnerRecovery: { state: "operator_required" } } } as unknown as IssueRecoveryAction;
 
-    it("offers one board action that resumes the saved result with the board's stop evidence", async () => {
+    it("offers one operator action that resumes the saved result with the operator's stop evidence", async () => {
       api.resume.mockResolvedValue({ runId: "run-1", resultId: "result-1", status: "queued" });
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "board-1", source: "session", isInstanceAdmin: false,
-        companyIds: ["company-1"], memberships: [{ companyId: "company-1", membershipRole: "owner", status: "active" }] });
+      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+        spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "owner", status: "active" }] });
       await mount(ownerAction);
       expect(container.textContent).toContain("can’t verify that it stopped");
       expect(container.textContent).not.toContain("secret-host");
@@ -468,8 +468,8 @@ describe("governed retained-file recovery", () => {
 
     it("offers the same action for retained saved-work recovery held by a stopped copyback owner", async () => {
       api.resume.mockResolvedValue({ runId: "run-1", resultId: null, status: "queued" });
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "board-1", source: "session", isInstanceAdmin: false,
-        companyIds: ["company-1"], memberships: [{ companyId: "company-1", membershipRole: "admin", status: "active" }] });
+      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+        spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "admin", status: "active" }] });
       const held = { ...action, evidence: { ...action.evidence,
         workspaceOwnerRecovery: { state: "operator_required", owner: { token: "retained-token", hostname: "secret-host", pid: 9 } } } } as IssueRecoveryAction;
       await mount(held);
@@ -494,9 +494,9 @@ describe("governed retained-file recovery", () => {
 
     it("confirms a pre-upgrade controller an ephemeral server cannot verify", async () => {
       api.confirmController.mockResolvedValue({ runId: "run-1", status: "queued" });
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "board-1", source: "session", isInstanceAdmin: false,
-        companyIds: ["company-1"], memberships: [{ companyId: "company-1", membershipRole: "owner", status: "active" }] });
-      const controllerAction = { ...action, cause: "native_controller_host_unverified", ownerType: "board",
+      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+        spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "owner", status: "active" }] });
+      const controllerAction = { ...action, cause: "native_controller_host_unverified", ownerType: "operator",
         evidence: { runId: "run-1", controller: { bootId: "boot", pid: 7 } } } as unknown as IssueRecoveryAction;
       await mount(controllerAction);
       expect(container.textContent).toContain("before Outpost stored which host it ran on");
@@ -514,16 +514,16 @@ describe("governed retained-file recovery", () => {
       expect(container.textContent).toContain("Controller stop recorded. Checking recovery…");
     });
 
-    it("confirms the unrecorded server holding a stuck resource, for board owners only", async () => {
+    it("confirms the unrecorded server holding a stuck resource, for operator owners only", async () => {
       api.confirmOwnerGone.mockResolvedValue({ recordId: "lease-1", status: "queued" });
-      const ownerGoneAction = { ...action, cause: "ownership_owner_unprovable", ownerType: "board",
+      const ownerGoneAction = { ...action, cause: "ownership_owner_unprovable", ownerType: "operator",
         evidence: { kind: "environment_run_lease_active", recordId: "lease-1", runId: "run-1" } } as unknown as IssueRecoveryAction;
       // An operator sees the wait but cannot attest the stop.
       await mount(ownerGoneAction);
       expect(container.textContent).toContain("before Outpost stored which server held it");
       expect(button("Confirm the previous server stopped")).toBeUndefined();
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "board-1", source: "session", isInstanceAdmin: false,
-        companyIds: ["company-1"], memberships: [{ companyId: "company-1", membershipRole: "owner", status: "active" }] });
+      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+        spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "owner", status: "active" }] });
       await mount(ownerGoneAction);
       await click("Confirm the previous server stopped");
       const textarea = container.querySelector("textarea")!;
@@ -540,9 +540,9 @@ describe("governed retained-file recovery", () => {
 
     it("resets an open confirmation when the request is refreshed to a newer record version", async () => {
       api.confirmOwnerGone.mockResolvedValue({ recordId: "run-1", status: "queued" });
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "board-1", source: "session", isInstanceAdmin: false,
-        companyIds: ["company-1"], memberships: [{ companyId: "company-1", membershipRole: "owner", status: "active" }] });
-      const at = (version: string) => ({ ...action, cause: "ownership_owner_unprovable", ownerType: "board",
+      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+        spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "owner", status: "active" }] });
+      const at = (version: string) => ({ ...action, cause: "ownership_owner_unprovable", ownerType: "operator",
         evidence: { kind: "legacy_controller_lease", recordId: "run-1", runId: "run-1", recordUpdatedAt: version } }) as unknown as IssueRecoveryAction;
       await mount(at("2026-11-08T10:00:00.000Z"));
       await click("Confirm the previous server stopped");
@@ -563,9 +563,9 @@ describe("governed retained-file recovery", () => {
     });
 
     it("names the stuck record for a kind confirmed by record version, and a generic resource otherwise", async () => {
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "board-1", source: "session", isInstanceAdmin: false,
-        companyIds: ["company-1"], memberships: [{ companyId: "company-1", membershipRole: "owner", status: "active" }] });
-      const ownerGone = (kind: string) => ({ ...action, cause: "ownership_owner_unprovable", ownerType: "board",
+      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+        spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "owner", status: "active" }] });
+      const ownerGone = (kind: string) => ({ ...action, cause: "ownership_owner_unprovable", ownerType: "operator",
         evidence: { kind, recordId: "run-1", runId: "run-1", recordUpdatedAt: "2026-11-08T10:00:00.000Z" } }) as unknown as IssueRecoveryAction;
       await mount(ownerGone("legacy_controller_lease"));
       expect(container.textContent).toContain("This task’s earlier run was recorded before Outpost stored which server held it");
@@ -578,8 +578,8 @@ describe("governed retained-file recovery", () => {
       // The default fixture is an operator: it may resolve other recovery but not attest a controller stop.
       await mount({ ...ownerAction, evidence: { ...ownerAction.evidence, workspaceOwnerRecovery: { state: "resuming" } } } as IssueRecoveryAction);
       expect(button("Confirm the previous server stopped")).toBeUndefined();
-      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "board-1", source: "session", isInstanceAdmin: false,
-        companyIds: ["company-1"], memberships: [{ companyId: "company-1", membershipRole: "operator", status: "active" }] });
+      client.setQueryData(queryKeys.access.currentBoardAccess, { userId: "operator-1", source: "session", isInstanceAdmin: false,
+        spaceIds: ["space-1"], memberships: [{ spaceId: "space-1", membershipRole: "operator", status: "active" }] });
       await mount(ownerAction);
       expect(button("Confirm the previous server stopped")).toBeUndefined();
       expect(container.textContent).toContain("waiting to confirm that the previous server stopped");

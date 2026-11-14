@@ -5,17 +5,17 @@ uses one native work run on the target provider's campaign-owned agent. It does
 not enroll itself in a daily plan. Local calibration and catalog discovery are
 separate from a real staging pass.
 
-The target supplies ordinary company skill-write access. Assignment uses
+The target supplies ordinary space skill-write access. Assignment uses
 `desiredSkills: [canonicalSkillKey]`, which selects Latest and returns a stored
 `versionId: null`. This path works with Beta skills disabled. No experimental
 setting is read or changed. Experimental version pins need separate qualification.
 
-The fixture creates one synthetic company skill through the public skill API.
+The fixture creates one synthetic space skill through the public skill API.
 The journal name, API name and Markdown frontmatter name equal its slug. Each
 contains the exact campaign ID, including its hyphens. Recovery can therefore
 find the persisted skill by name if a successful creation response is lost.
 It assigns the skill on the owned agent through the normal skill sync API.
-The created skill must be managed, with the exact canonical company key. Its
+The created skill must be managed, with the exact canonical space key. Its
 creation receipt and separate reads must agree on the immutable current version.
 A version read must return the exact `SKILL.md` bytes. The skill's
 random receipt reference and two numeric inputs occur only in those saved bytes.
@@ -24,14 +24,14 @@ through the production browser composer and explicitly names that skill.
 
 A pass requires all seven closed checks:
 
-- `saved-skill-assignment-bound`: exact company, managed skill, creation version,
+- `saved-skill-assignment-bound`: exact space, managed skill, creation version,
   source bytes and one ordinary Latest assignment before dispatch. The successful
   run must have `contextSnapshot.skillSelectionSnapshot: true` and an admitted
   `skillVersions[canonicalSkillKey]` equal to that immutable created version.
 - `saved-skill-input-only-in-source`: the persisted request names the skill but
   does not expose its receipt reference; no human comment supplies that reference.
 - `saved-skill-native-read-attributed`: a complete successful native skill load or
-  source-file read, with start/completion identity bound to this company, agent,
+  source-file read, with start/completion identity bound to this space, agent,
   run, turn and runner. Its native receipt must contain or cryptographically
   commit to the complete saved procedure.
 - `saved-skill-result-authored-by-run`: exactly one saved task document contains
@@ -43,7 +43,7 @@ A pass requires all seven closed checks:
 - `saved-skill-source-preserved`: the original skill version, source bytes and
   assignment remain unchanged after execution.
 - `configured-model-and-environment`: the one successful run matches the owned
-  company, task, agent, configured native provider/model and execution environment.
+  space, task, agent, configured native provider/model and execution environment.
 
 The read oracle accepts a completed built-in file read with the exact skill
 directory target, or OpenCode's native `skill` load with its exact named
@@ -69,7 +69,7 @@ that bound runtime directory without traversal or URI encodings, and `skill_file
 must be empty. The receipt must be successful, untruncated and byte-complete.
 Other unknown operations, raw dynamic calls and unbound loaders still fail.
 
-The first-party `paperclip_read_assigned_skill` tool can also supply the read.
+The first-party `outpost_read_assigned_skill` tool can also supply the read.
 Its complete `inputText` result must contain the exact canonical skill key,
 immutable created version, `SKILL.md` path, original Markdown, byte size and
 SHA-256 checksum. `nextOffset` must be null. The same dual assignment and
@@ -105,4 +105,4 @@ source, native events and saved document receipts stay in the private bundle.
 The public report uses the existing closed checks and authenticated task capture.
 
 No instance-wide experimental setting, shared source agent, global model,
-company budget or production workspace is changed by this journey.
+space budget or production workspace is changed by this journey.

@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Copy, Fingerprint, KeyRound, Link2, ShieldAlert, Variable, ServerCog } from "lucide-react";
 import type {
-  CompanySecretProviderConfig,
+  SpaceSecretProviderConfig,
   SecretProposalAgentRef,
   SecretProposalView,
 } from "@outpost/shared";
@@ -96,7 +96,7 @@ export function FingerprintChip({
  * An agent-authored justification, framed as an *untrusted claim* rather than
  * trusted UI copy. The muted "Reason given by the agent" caption primes the
  * approver to read it skeptically — the Q0 social-engineering concern: an agent
- * can write "Pre-approved by the CEO" and otherwise inherit the interface's
+ * can write "Pre-approved by the Default agent" and otherwise inherit the interface's
  * credibility.
  */
 export function ProposalJustification({
@@ -217,12 +217,12 @@ export interface UseProposalReview {
 
 /**
  * Shared approve/reject workflow for secret & binding proposals. Both the
- * board Proposals tab and the agent-settings "Proposed" rows use this so the
+ * operator Proposals tab and the agent-settings "Proposed" rows use this so the
  * confirm/reject affordances behave identically everywhere.
  */
 export function useProposalReview(
-  companyId: string | null,
-  providerConfigs: CompanySecretProviderConfig[] = [],
+  spaceId: string | null,
+  providerConfigs: SpaceSecretProviderConfig[] = [],
 ): UseProposalReview {
   const queryClient = useQueryClient();
   const { pushToast } = useToastActions();
@@ -233,10 +233,10 @@ export function useProposalReview(
   const [error, setError] = useState<string | null>(null);
 
   const invalidate = useCallback(() => {
-    if (!companyId) return;
-    queryClient.invalidateQueries({ queryKey: ["secret-proposals", companyId] });
-    queryClient.invalidateQueries({ queryKey: queryKeys.secrets.list(companyId) });
-  }, [companyId, queryClient]);
+    if (!spaceId) return;
+    queryClient.invalidateQueries({ queryKey: ["secret-proposals", spaceId] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.secrets.list(spaceId) });
+  }, [spaceId, queryClient]);
 
   const approveMutation = useMutation({
     mutationFn: (draft: ApproveDraft) => {
@@ -245,7 +245,7 @@ export function useProposalReview(
         const name = draft.folder.trim()
           ? `${draft.folder.trim().replace(/\/+$/, "")}/${draft.leaf.trim()}`
           : draft.leaf.trim();
-        return secretsApi.approveProposal(companyId!, proposal.id, {
+        return secretsApi.approveProposal(spaceId!, proposal.id, {
           overrides: {
             name,
             description: draft.description.trim() || null,
@@ -253,7 +253,7 @@ export function useProposalReview(
           },
         });
       }
-      return secretsApi.approveProposal(companyId!, proposal.id, {
+      return secretsApi.approveProposal(spaceId!, proposal.id, {
         cascade: draft.cascade || undefined,
       });
     },
@@ -275,7 +275,7 @@ export function useProposalReview(
 
   const rejectMutation = useMutation({
     mutationFn: ({ proposal, reason }: { proposal: SecretProposalView; reason: string }) =>
-      secretsApi.rejectProposal(companyId!, proposal.id, { reason: reason.trim() }),
+      secretsApi.rejectProposal(spaceId!, proposal.id, { reason: reason.trim() }),
     onSuccess: (result) => {
       pushToast({
         title: "Proposal rejected",
@@ -374,7 +374,7 @@ function ApproveDialog({
   draft: ApproveDraft | null;
   error: string | null;
   pending: boolean;
-  providerConfigs: CompanySecretProviderConfig[];
+  providerConfigs: SpaceSecretProviderConfig[];
   onChange: (next: ApproveDraft) => void;
   onCancel: () => void;
   onConfirm: () => void;

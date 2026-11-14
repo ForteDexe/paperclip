@@ -8,10 +8,10 @@ import { AnnouncementWell } from "./AnnouncementWell";
 import { announcementPreview } from "@/lib/announcement-preview";
 
 // N-13: the connectors announcement must not appear in a new user's first
-// session, i.e. while the company's onboarding first task is still open.
+// session, i.e. while the space's onboarding first task is still open.
 const state = vi.hoisted(() => ({ list: vi.fn() }));
-vi.mock("@/api/companies-query", () => ({ useAccountIdentity: () => ({ userId: "alice", settled: true }) }));
-vi.mock("@/context/CompanyContext", () => ({ useCompany: () => ({ selectedCompanyId: "company", loading: false }) }));
+vi.mock("@/api/spaces-query", () => ({ useAccountIdentity: () => ({ userId: "alice", settled: true }) }));
+vi.mock("@/context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: "space", loading: false }) }));
 vi.mock("@/context/DialogContext", () => ({ useDialogState: () => ({ onboardingOpen: false }) }));
 vi.mock("@/context/ToastContext", () => ({ useOptionalToastActions: () => null, useOptionalToastState: () => [] }));
 vi.mock("@/api/issues", () => ({ issuesApi: { list: state.list } }));
@@ -21,7 +21,7 @@ vi.mock("@/hooks/useAnnouncement", () => ({ useAnnouncement: (options: { enabled
 vi.mock("./AnnouncementCard", () => ({ AnnouncementCard: () => <p>Announcement fixture</p> }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const firstTask = (status: string) => ({ id: "issue-1", companyId: "company", originKind: "onboarding_first_task", status });
+const firstTask = (status: string) => ({ id: "issue-1", spaceId: "space", originKind: "onboarding_first_task", status });
 
 describe("announcement well during onboarding", () => {
   let container: HTMLDivElement;
@@ -47,7 +47,7 @@ describe("announcement well during onboarding", () => {
     expect(visible()).toBe(false);
   });
 
-  it("shows once the onboarding first task is finished, or when the company never had one", async () => {
+  it("shows once the onboarding first task is finished, or when the space never had one", async () => {
     state.list.mockResolvedValue([firstTask("done")]);
     await render();
     expect(visible()).toBe(true);
@@ -57,13 +57,13 @@ describe("announcement well during onboarding", () => {
     expect(visible()).toBe(true);
   });
 
-  it("shows without a reload once the open onboarding task finishes and company issues refresh", async () => {
+  it("shows without a reload once the open onboarding task finishes and space issues refresh", async () => {
     state.list.mockResolvedValue([firstTask("todo")]);
     await render();
     expect(visible()).toBe(false);
     state.list.mockResolvedValue([firstTask("done")]);
-    // Issue live updates invalidate the company's issue queries by this prefix.
-    await act(async () => { await client.invalidateQueries({ queryKey: ["issues", "company"] }); });
+    // Issue live updates invalidate the space's issue queries by this prefix.
+    await act(async () => { await client.invalidateQueries({ queryKey: ["issues", "space"] }); });
     await flush();
     expect(visible()).toBe(true);
   });

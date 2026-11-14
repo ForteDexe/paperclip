@@ -17,7 +17,7 @@ export async function runCaseHandoffsFlow(input: {
   evidence(name: string, value: unknown): Promise<void>;
 }) {
   const { api, page, fixtures, execution, nonce } = input;
-  const companyPath = `/api/companies/${fixtures.company.id}`;
+  const spacePath = `/api/spaces/${fixtures.space.id}`;
   const agents = { triage: fixtures.agent.id, implementation: "", verification: "" };
   let workflowIds = { a: "", b: "" };
   let issue: Row | null = null, caseRecord: Row | null = null;
@@ -31,7 +31,7 @@ export async function runCaseHandoffsFlow(input: {
     [issue, caseRecord] = await Promise.all([
       api.get<Row>(`/api/issues/${issue.id}`), api.get<Row>(`/api/cases/${caseRecord.id}`),
     ]);
-    const listed = await api.get<Row[]>(`${companyPath}/heartbeat-runs?limit=100`);
+    const listed = await api.get<Row[]>(`${spacePath}/heartbeat-runs?limit=100`);
     runs = await Promise.all(listed.map(run => api.get<Row>(`/api/heartbeat-runs/${run.id}`)));
     runs.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)) || a.id.localeCompare(b.id));
     const page = await api.get<Row>(`/api/cases/${caseRecord.id}/handoffs?limit=100`);
@@ -40,11 +40,11 @@ export async function runCaseHandoffsFlow(input: {
   async function save(phase: string) {
     if (!issue || !caseRecord) return;
     const [tasks, records, interactions] = await Promise.all([
-      api.get<Row[]>(`${companyPath}/issues?limit=100&includeAgentCreatedTasks=true`),
-      api.get<Row[]>(`${companyPath}/cases?limit=100`),
+      api.get<Row[]>(`${spacePath}/issues?limit=100&includeAgentCreatedTasks=true`),
+      api.get<Row[]>(`${spacePath}/cases?limit=100`),
       api.get<Row[]>(`/api/issues/${issue.id}/interactions`),
     ]);
-    observation = { nonce, companyId: fixtures.company.id, taskId: issue.id, caseId: caseRecord.id,
+    observation = { nonce, spaceId: fixtures.space.id, taskId: issue.id, caseId: caseRecord.id,
       agents, workflowIds, issue, caseRecord, cases: records, tasks, handoffs, runs, documents, handoffToolRunIds, workflowReadRunIds,
       pendingInteractions: interactions.filter(row => row.status === "pending").length };
     const checks = gradeCaseHandoffs(observation);
@@ -56,7 +56,7 @@ export async function runCaseHandoffsFlow(input: {
         cases: records.map(row => ({ id: row.id, workIssueId: row.workIssueId })), tasks: tasks.map(row => ({ id: row.id, status: row.status })),
         handoffs: handoffs.map(row => ({ id: row.id, caseId: row.caseId, issueId: row.issueId, version: row.version, phase: row.phase,
           state: row.state, destinationKind: row.destinationKind, sourceRunId: row.sourceRunId, fromAgentId: row.fromAgentId, toAgentId: row.toAgentId, lastErrorCode: row.lastErrorCode, workflowTransition: row.workflowTransition })),
-        runs: runs.map(row => ({ id: row.id, companyId: row.companyId, issueId: row.issueId, nativeIssueId: row.nativeIssueId,
+        runs: runs.map(row => ({ id: row.id, spaceId: row.spaceId, issueId: row.issueId, nativeIssueId: row.nativeIssueId,
           agentId: row.agentId, status: row.status, runtimeMode: row.runtimeMode })),
       }, checks,
     });
@@ -69,29 +69,29 @@ export async function runCaseHandoffsFlow(input: {
         workspacePath: input.workspacePath, secretRefs: fixtures.secretRefs, executionId: `${nonce}-${role}` });
       // Public reads redact environment values. Build each agent from the
       // original fixture config instead of copying a redacted response.
-      const agent = await api.post<Row>(`${companyPath}/agents`, {
+      const agent = await api.post<Row>(`${spacePath}/agents`, {
         ...(execution.profile.credential === "CODEX_AUTH_JSON"
-          ? codexSubscriptionAgentConfig(payload, process.env, fixtures.company.id)
+          ? codexSubscriptionAgentConfig(payload, process.env, fixtures.space.id)
           : payload),
         name: `Case ${role} ${nonce}`, role: "engineer",
       });
       agents[role] = agent.id;
     }
-    const a = await api.post<Row>(`${companyPath}/workflows`, { name: `Research ${nonce}`, prompt: "Preparing the procedure before kickoff." });
-    const b = await api.post<Row>(`${companyPath}/workflows`, { name: `Delivery ${nonce}`, prompt: "Preparing the procedure before kickoff." });
+    const a = await api.post<Row>(`${spacePath}/workflows`, { name: `Research ${nonce}`, prompt: "Preparing the procedure before kickoff." });
+    const b = await api.post<Row>(`${spacePath}/workflows`, { name: `Delivery ${nonce}`, prompt: "Preparing the procedure before kickoff." });
     workflowIds = { a: a.id, b: b.id };
     const instructions = caseHandoffInstructions({ nonce, triageId: agents.triage, implementationId: agents.implementation, verificationId: agents.verification,
       workflowAId: a.id, workflowBId: b.id });
     await api.patch(`/api/workflows/${a.id}`, { prompt: `${instructions}\n\nworkflowMarker: procedure-A-${nonce}` });
     await api.patch(`/api/workflows/${b.id}`, { prompt: `${instructions}\n\nworkflowMarker: procedure-B-${nonce}` });
-    const started = await api.post<Row>(`${companyPath}/case-handoffs`, { idempotencyKey: `kickoff-${nonce}`,
+    const started = await api.post<Row>(`${spacePath}/case-handoffs`, { idempotencyKey: `kickoff-${nonce}`,
       case: { create: { caseType: "arithmetic-workflow", title: execution.task.buildTitle(nonce), summary: instructions, fields: { a: 2, b: 3, nonce } } },
       workflowId: a.id,
       toAgentId: agents.triage, phase: "triage", instructions: `${nonce}: Read the primary task document workflow. Start phase triage and hand this same task to implementation.` });
     issue = await api.get<Row>(`/api/issues/${started.taskId}`);
     caseRecord = await api.get<Row>(`/api/cases/${started.caseId}`);
     input.observe(issue, runs, [], caseRecord);
-    await page.goto(`/${encodeURIComponent(fixtures.company.issuePrefix!)}/cases/${encodeURIComponent(caseRecord.identifier)}`);
+    await page.goto(`/${encodeURIComponent(fixtures.space.issuePrefix!)}/cases/${encodeURIComponent(caseRecord.identifier)}`);
     await expect(page.getByRole("heading", { name: execution.task.buildTitle(nonce), exact: true })).toBeVisible();
     await input.capture("case-kickoff", "Case created with its primary task", "case-kickoff.png");
     await pollUntil({ label: "same-task case handoff roundtrip", deadlineAt: input.deadlineAt, intervalMs: 1000,
@@ -124,7 +124,7 @@ export async function runCaseHandoffsFlow(input: {
     await expect(history).toContainText("verification");
     await expect(history).toContainText(`Delivery ${nonce} · implementation → Research ${nonce} · verification`);
     await input.capture("case-final", "Persistent case and handoff history after verification", "case-final.png");
-    await page.goto(`/${encodeURIComponent(fixtures.company.issuePrefix!)}/issues/${encodeURIComponent(issue!.identifier ?? issue!.id)}`);
+    await page.goto(`/${encodeURIComponent(fixtures.space.issuePrefix!)}/issues/${encodeURIComponent(issue!.identifier ?? issue!.id)}`);
     await expect(page.getByTestId("issue-detail-header").getByRole("button", { name: "Change status (current: Done)", exact: true })).toBeVisible();
     await expect(page.getByTestId("task-chat-agent-bubble").filter({ hasText: `CASE-HANDOFF-DONE-${nonce}` }).last()).toBeVisible();
     await input.capture("task-final", "The original task completed by the returning implementation agent", "task-final.png");

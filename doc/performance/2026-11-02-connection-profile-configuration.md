@@ -57,7 +57,7 @@ those reads are excluded from this benchmark and remain in the request path.
 - The PostgreSQL differential test covers exact eligibility, null/non-string
   agent metadata, inactive intent profiles, wrong key/source/bindings, sibling
   and unmanaged profiles, complete binding ordering, fresh entry changes, empty
-  app bindings, denied profile selection, and company isolation.
+  app bindings, denied profile selection, and space isolation.
 - The assembled HTTP integration fixture exercises standard agent keys and run
   JWTs. It checks private account visibility, missing connections, and fresh
   permission revocation. A profile spanning a hidden account is omitted while
@@ -76,6 +76,6 @@ barrel export failed the first shared typecheck and was fixed. The first broad
 typecheck inherited an unpinned nested pnpm executable; its stalled owned
 processes were stopped and the command was restarted with a pinned pnpm wrapper.
 
-The added foreign-company HTTP assertion first expected 403. The existing guard
+The added foreign-space HTTP assertion first expected 403. The existing guard
 returned 404 to hide the resource, as designed. The test expectation was corrected;
 production authorization did not change.

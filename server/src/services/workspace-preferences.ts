@@ -19,7 +19,7 @@ export function workspacePreferenceService(db: Db) {
   return {
     get,
     /** Updates only the fields the caller supplied. */
-    async set(companyId: string, userId: string, update: UpdateWorkspacePreference): Promise<WorkspacePreference> {
+    async set(spaceId: string, userId: string, update: UpdateWorkspacePreference): Promise<WorkspacePreference> {
       const changes = {
         ...(update.coordinatorWorkspaceEnabled === undefined ? {} : {
           coordinatorWorkspaceEnabled: update.coordinatorWorkspaceEnabled,
@@ -35,7 +35,7 @@ export function workspacePreferenceService(db: Db) {
             set: { ...changes, updatedAt: new Date() },
           });
         const { publication } = await persistActivity(txDb, {
-          companyId, actorType: "user", actorId: userId,
+          spaceId, actorType: "user", actorId: userId,
           action: "workspace_preferences.updated", entityType: "user_preference", entityId: userId,
         });
         return { preference: await workspacePreferenceService(txDb).get(userId), publication };

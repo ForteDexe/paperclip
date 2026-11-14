@@ -3,7 +3,7 @@ import { isOwnedExternalControllerDatabase } from "./instance-isolation.js";
 import { mkdir, mkdtemp, realpath, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { paperclipConfigSchema } from "../../packages/shared/src/config-schema.js";
+import { outpostConfigSchema } from "../../packages/shared/src/config-schema.js";
 import { sweepExpiredKeptInstances } from "./instance-retention.js";
 export { keepInstance } from "./instance-retention.js";
 import { reserveRunnerE2EDatabasePort } from "./ports.js";
@@ -39,7 +39,7 @@ export async function prepareRunnerE2EServerConfig(input: {
   const databaseReservation = docker ? null : await reserveRunnerE2EDatabasePort(input.serverPort);
   try {
     const instanceRoot = path.dirname(input.configPath);
-    const config = paperclipConfigSchema.parse({
+    const config = outpostConfigSchema.parse({
       $meta: {
         version: 1,
         updatedAt: new Date().toISOString(),

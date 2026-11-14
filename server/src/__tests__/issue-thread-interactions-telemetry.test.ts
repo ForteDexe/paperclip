@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   documentRevisions,
   documents,
@@ -40,7 +40,7 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    if (!externalUrl) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-issue-interaction-telemetry-");
+    if (!externalUrl) tempDb = await startEmbeddedPostgresTestDatabase("outpost-issue-interaction-telemetry-");
     db = createDb(externalUrl ?? tempDb!.connectionString);
     interactionsSvc = issueThreadInteractionService(db);
   }, 20_000);
@@ -63,7 +63,7 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
     await db.delete(goals);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -72,40 +72,40 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
   });
 
   async function seedIssue(title = "Interaction telemetry") {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const goalId = randomUUID();
     const issueId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(goals).values({
       id: goalId,
-      companyId,
+      spaceId,
       title,
       level: "task",
       status: "active",
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       goalId,
       title,
       status: "in_progress",
       priority: "medium",
     });
 
-    return { companyId, goalId, issueId };
+    return { spaceId, goalId, issueId };
   }
 
-  async function seedAgent(companyId: string, role: string) {
+  async function seedAgent(spaceId: string, role: string) {
     const agentId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: role,
       role,
       status: "active",
@@ -136,14 +136,14 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
   }
 
   it("emits deprecated resolver alias use at creation without interaction content", async () => {
-    const { companyId, issueId } = await seedIssue("Deprecated alias telemetry issue title");
+    const { spaceId, issueId } = await seedIssue("Deprecated alias telemetry issue title");
 
     await interactionsSvc.create({
       id: issueId,
-      companyId,
+      spaceId,
     }, {
       kind: "request_confirmation",
-      resolverPolicy: "board_only",
+      resolverPolicy: "operator_only",
       title: "Private confirmation title",
       summary: "Private confirmation summary",
       payload: {
@@ -154,7 +154,7 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
         rejectLabel: "Private reject label",
       },
     }, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     expect(lastInteractionCreatedDimensions()).toEqual({
@@ -164,10 +164,10 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
   });
 
   it("emits skipped resolution telemetry for composer Skip", async () => {
-    const { companyId, issueId } = await seedIssue("Skipped interaction telemetry");
+    const { spaceId, issueId } = await seedIssue("Skipped interaction telemetry");
     const created = await interactionsSvc.create({
       id: issueId,
-      companyId,
+      spaceId,
     }, {
       kind: "request_confirmation",
       continuationPolicy: "none",
@@ -176,14 +176,14 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
         prompt: "Continue with the proposed change?",
       },
     }, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     await interactionsSvc.skipInteraction({
       id: issueId,
-      companyId,
+      spaceId,
     }, created.id, {}, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     const dimensions = lastInteractionResolvedDimensions();
@@ -200,11 +200,11 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
   });
 
   it("emits accepted suggested-task telemetry with created and skipped task counts", async () => {
-    const { companyId, goalId, issueId } = await seedIssue("Accept suggested tasks telemetry");
+    const { spaceId, goalId, issueId } = await seedIssue("Accept suggested tasks telemetry");
 
     const created = await interactionsSvc.create({
       id: issueId,
-      companyId,
+      spaceId,
     }, {
       kind: "suggest_tasks",
       continuationPolicy: "wake_assignee",
@@ -227,18 +227,18 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
         ],
       },
     }, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     await interactionsSvc.acceptInteraction({
       id: issueId,
-      companyId,
+      spaceId,
       goalId,
       projectId: null,
     }, created.id, {
       selectedClientKeys: ["root"],
     }, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     const dimensions = lastInteractionResolvedDimensions();
@@ -257,12 +257,12 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
   });
 
   it("emits accepted checkbox telemetry with raw role, target, and counts", async () => {
-    const { companyId, goalId, issueId } = await seedIssue("Accept checkbox telemetry");
-    const creatorAgentId = await seedAgent(companyId, "Backend Engineer");
+    const { spaceId, goalId, issueId } = await seedIssue("Accept checkbox telemetry");
+    const creatorAgentId = await seedAgent(spaceId, "Backend Engineer");
 
     const created = await interactionsSvc.create({
       id: issueId,
-      companyId,
+      spaceId,
     }, {
       kind: "request_checkbox_confirmation",
       continuationPolicy: "wake_assignee",
@@ -284,13 +284,13 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
 
     await interactionsSvc.acceptInteraction({
       id: issueId,
-      companyId,
+      spaceId,
       goalId,
       projectId: null,
     }, created.id, {
       selectedOptionIds: ["file-b"],
     }, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     const dimensions = lastInteractionResolvedDimensions();
@@ -310,33 +310,33 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
   });
 
   it("emits rejected confirmation telemetry and omits creator_agent_role for user-created interactions", async () => {
-    const { companyId, issueId } = await seedIssue("Reject confirmation telemetry");
-    const resolverAgentId = await seedAgent(companyId, "SecurityEngineer");
+    const { spaceId, issueId } = await seedIssue("Reject confirmation telemetry");
+    const resolverAgentId = await seedAgent(spaceId, "SecurityEngineer");
     const resolverRunId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: resolverRunId,
-      companyId,
+      spaceId,
       agentId: resolverAgentId,
       status: "running",
     });
 
     const created = await interactionsSvc.create({
       id: issueId,
-      companyId,
+      spaceId,
     }, {
       kind: "request_confirmation",
-      resolverPolicy: "board_or_agents",
+      resolverPolicy: "operator_or_agents",
       payload: {
         version: 1,
         prompt: "Approve this?",
       },
     }, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     await interactionsSvc.rejectInteraction({
       id: issueId,
-      companyId,
+      spaceId,
     }, created.id, {
       reason: "Needs edits before approval.",
     }, {
@@ -360,12 +360,12 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
   });
 
   it("emits answered question telemetry with system resolver and legacy restriction signal", async () => {
-    const { companyId, issueId } = await seedIssue("Answer question telemetry");
-    const creatorAgentId = await seedAgent(companyId, "Wizard");
+    const { spaceId, issueId } = await seedIssue("Answer question telemetry");
+    const creatorAgentId = await seedAgent(spaceId, "Wizard");
 
     const created = await interactionsSvc.create({
       id: issueId,
-      companyId,
+      spaceId,
     }, {
       kind: "ask_user_questions",
       continuationPolicy: "wake_assignee",
@@ -400,7 +400,7 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
 
     await interactionsSvc.answerQuestions({
       id: issueId,
-      companyId,
+      spaceId,
     }, created.id, {
       answers: [{ questionId: "scope", optionIds: ["phase-1"] }],
       summaryMarkdown: "Do not emit this free text.",
@@ -430,12 +430,12 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
   });
 
   it("emits expired question telemetry with zero answered question count", async () => {
-    const { companyId, issueId } = await seedIssue("Expired question telemetry");
+    const { spaceId, issueId } = await seedIssue("Expired question telemetry");
     const commentId = randomUUID();
 
     const created = await interactionsSvc.create({
       id: issueId,
-      companyId,
+      spaceId,
     }, {
       kind: "ask_user_questions",
       continuationPolicy: "wake_assignee",
@@ -453,18 +453,18 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
         ],
       },
     }, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     const expired = await interactionsSvc.expireRequestConfirmationsSupersededByComment({
       id: issueId,
-      companyId,
+      spaceId,
     }, {
       id: commentId,
       createdAt: new Date(new Date(created.createdAt).getTime() + 1_000),
-      authorUserId: "local-board",
+      authorUserId: "local-operator",
     }, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     expect(expired).toHaveLength(1);
@@ -484,13 +484,13 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
   });
 
   it("emits expired stale-target telemetry without stale target identifiers", async () => {
-    const { companyId, issueId } = await seedIssue("Stale target telemetry");
+    const { spaceId, issueId } = await seedIssue("Stale target telemetry");
     const documentId = randomUUID();
     const revisionId = randomUUID();
 
     await db.insert(documents).values({
       id: documentId,
-      companyId,
+      spaceId,
       title: "Plan",
       format: "markdown",
       latestBody: "v1",
@@ -498,14 +498,14 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
       latestRevisionNumber: 1,
     });
     await db.insert(issueDocuments).values({
-      companyId,
+      spaceId,
       issueId,
       documentId,
       key: "plan",
     });
     await db.insert(documentRevisions).values({
       id: revisionId,
-      companyId,
+      spaceId,
       documentId,
       revisionNumber: 1,
       title: "Plan",
@@ -515,7 +515,7 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
 
     await interactionsSvc.create({
       id: issueId,
-      companyId,
+      spaceId,
     }, {
       kind: "request_confirmation",
       payload: {
@@ -531,12 +531,12 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
         },
       },
     }, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     const expired = await interactionsSvc.expireStaleRequestConfirmationsForIssueDocument({
       id: issueId,
-      companyId,
+      spaceId,
     }, null, {});
 
     expect(expired).toHaveLength(1);
@@ -556,12 +556,12 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
   });
 
   it("emits superseded expiration telemetry without comment identifiers", async () => {
-    const { companyId, issueId } = await seedIssue("Superseded telemetry");
+    const { spaceId, issueId } = await seedIssue("Superseded telemetry");
     const commentId = randomUUID();
 
     const created = await interactionsSvc.create({
       id: issueId,
-      companyId,
+      spaceId,
     }, {
       kind: "request_confirmation",
       payload: {
@@ -570,18 +570,18 @@ describeEmbeddedPostgres("issueThreadInteractionService telemetry", () => {
         supersedeOnUserComment: true,
       },
     }, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     const expired = await interactionsSvc.expireRequestConfirmationsSupersededByComment({
       id: issueId,
-      companyId,
+      spaceId,
     }, {
       id: commentId,
       createdAt: new Date(new Date(created.createdAt).getTime() + 1_000),
-      authorUserId: "local-board",
+      authorUserId: "local-operator",
     }, {
-      userId: "local-board",
+      userId: "local-operator",
     });
 
     expect(expired).toHaveLength(1);

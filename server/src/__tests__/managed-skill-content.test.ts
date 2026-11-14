@@ -5,7 +5,7 @@ import { withSkillVersionCacheLock } from "../services/skill-version-cache.js";
 import { skillPackageStore } from "../services/skill-package-store.js";
 import { removeRuntimeAssetTree } from "../services/native-runtime/runtime-asset-retention.js";
 import { eq } from "drizzle-orm";
-import { writePaperclipSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
+import { writeOutpostSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
 import { materializeSelectedSkills, rehydratePinnedSkillAssets } from "../services/native-runtime/runtime-context.js";
 import { nativeRuntimeContextFixture } from "../services/native-runtime/runtime-context.test-fixture.js";
 import { randomUUID } from "node:crypto";
@@ -16,8 +16,8 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { applyPendingMigrations, agents, heartbeatRuns, companySkills, companySkillVersions, companies, createDb, instanceSettings } from "@outpost/db";
-import { companySkillService } from "../services/company-skills.js";
+import { applyPendingMigrations, agents, heartbeatRuns, spaceSkills, spaceSkillVersions, spaces, createDb, instanceSettings } from "@outpost/db";
+import { spaceSkillService } from "../services/space-skills.js";
 import * as storageModule from "../storage/index.js";
 import { createStorageService } from "../storage/service.js";
 import { createLocalDiskStorageProvider } from "../storage/local-disk-provider.js";
@@ -61,28 +61,28 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
     if (previousInstance === undefined) delete process.env.OUTPOST_INSTANCE_ID;
     else process.env.OUTPOST_INSTANCE_ID = previousInstance;
   });
-  async function company() {
+  async function space() {
     const id = randomUUID();
-    await db.insert(companies).values({ id, name: "Managed content", issuePrefix: `M${id.slice(0, 6)}` });
+    await db.insert(spaces).values({ id, name: "Managed content", issuePrefix: `M${id.slice(0, 6)}` });
     return id;
   }
 
   it("imports supporting files from a root-level package without truncating their paths", async () => {
-    const companyId = await company();
-    const service = companySkillService(db);
-    const [imported] = await service.importPackageFiles(companyId, {
+    const spaceId = await space();
+    const service = spaceSkillService(db);
+    const [imported] = await service.importPackageFiles(spaceId, {
       "SKILL.md": "---\nname: Root package\n---\n# Root\n",
       "references/guide.md": "complete root guide",
     });
     expect(imported).toBeTruthy();
-    const skills = await service.list(companyId);
+    const skills = await service.list(spaceId);
     const skill = skills.find(entry => entry.name === "Root package")!;
-    expect(await service.readFile(companyId, skill.id, "references/guide.md"))
+    expect(await service.readFile(spaceId, skill.id, "references/guide.md"))
       .toMatchObject({ content: "complete root guide" });
   });
 
   it("loads persisted Cloud configuration for read-only maintenance without seeding it", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     const objects = new Map<string, Buffer>();
     const server = createServer((request, response) => {
       void (async () => {
@@ -121,11 +121,11 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
     })));
     const key = "cloud-runtime-config:v1";
     try {
-      await companySkillService(db).createLocalSkill(companyId, { name: "Cloud CLI", markdown: "# Cloud CLI" });
+      await spaceSkillService(db).createLocalSkill(spaceId, { name: "Cloud CLI", markdown: "# Cloud CLI" });
       const run = (phase: string) => promisify(execFile)(process.execPath, [
         "--import", fileURLToPath(import.meta.resolve("tsx")),
         fileURLToPath(new URL("../../scripts/migrate-skill-packages.ts", import.meta.url)),
-        `--phase=${phase}`, `--company=${companyId}`, "--limit=50",
+        `--phase=${phase}`, `--space=${spaceId}`, "--limit=50",
       ], { env: { ...process.env, ...credentials, DATABASE_URL: database.connectionString,
         OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "disposable-cloud-cli-fixture",
         OUTPOST_SECRETS_MASTER_KEY: "a".repeat(64), OUTPOST_STORAGE_PROVIDER: "s3",
@@ -174,15 +174,15 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
       OUTPOST_STORAGE_S3_BUCKET: "managed-skill-cli-fixture", OUTPOST_STORAGE_S3_REGION: "us-east-1",
       OUTPOST_SECRETS_MASTER_KEY: "12345678901234567890123456789012" }, expectedStatus: "provider_mismatch" },
   ])("loads persisted Cloud configuration for read-only $storage maintenance without seeding it", async ({ env, expectedStatus }) => {
-    const companyId = await company();
-    const skill = await companySkillService(db).createLocalSkill(companyId, { name: "Cloud CLI", markdown: "# Cloud CLI" });
-    const local = await skillInstallationMaintenance(db).verifyVersions({ companyId, limit: 50 });
+    const spaceId = await space();
+    const skill = await spaceSkillService(db).createLocalSkill(spaceId, { name: "Cloud CLI", markdown: "# Cloud CLI" });
+    const local = await skillInstallationMaintenance(db).verifyVersions({ spaceId, limit: 50 });
     expect(local.results).toEqual([expect.objectContaining({ versionId: skill.currentVersionId, status: "local_storage" })]);
     const key = "cloud-runtime-config:v1";
     const run = (phase: string, storageProvider?: "s3" | "local_disk") => promisify(execFile)(process.execPath, [
       "--import", fileURLToPath(import.meta.resolve("tsx")),
       fileURLToPath(new URL("../../scripts/migrate-skill-packages.ts", import.meta.url)),
-      `--phase=${phase}`, `--company=${companyId}`, "--limit=50",
+      `--phase=${phase}`, `--space=${spaceId}`, "--limit=50",
     ], { env: { ...process.env, DATABASE_URL: database.connectionString,
       OUTPOST_CLOUD_TENANT_SERVER_TOKEN: "disposable-cloud-cli-fixture",
       OUTPOST_STORAGE_LOCAL_DIR: path.join(root, "objects"), ...env,
@@ -207,145 +207,145 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
   }, 180_000);
 
   it("forks live linked-local content even when an older saved version exists", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     const directory = path.join(root, `linked-${randomUUID()}`);
     await fs.mkdir(directory);
     await fs.writeFile(path.join(directory, "SKILL.md"), "# Linked\n");
     await fs.writeFile(path.join(directory, "support.txt"), "old saved content");
-    const [linked] = await db.insert(companySkills).values({ companyId, key: "linked", slug: "linked", name: "Linked",
+    const [linked] = await db.insert(spaceSkills).values({ spaceId, key: "linked", slug: "linked", name: "Linked",
       markdown: "# Linked\n", sourceType: "local_path", sourceLocator: directory,
       fileInventory: [{ path: "SKILL.md", kind: "skill" }, { path: "support.txt", kind: "other" }] }).returning();
-    const service = companySkillService(db);
-    const saved = await service.createVersion(companyId, linked!.id);
+    const service = spaceSkillService(db);
+    const saved = await service.createVersion(spaceId, linked!.id);
     await fs.writeFile(path.join(directory, "support.txt"), "current local content");
     await fs.writeFile(path.join(directory, "added.txt"), "new local file");
-    const forked = await service.createLocalSkill(companyId, { name: "Live fork", forkedFromSkillId: linked!.id });
-    expect(await service.readFile(companyId, forked.id, "support.txt")).toMatchObject({ content: "current local content" });
-    expect(await service.readFile(companyId, forked.id, "added.txt")).toMatchObject({ content: "new local file" });
-    expect((await service.getVersion(companyId, linked!.id, saved.id))?.fileInventory)
+    const forked = await service.createLocalSkill(spaceId, { name: "Live fork", forkedFromSkillId: linked!.id });
+    expect(await service.readFile(spaceId, forked.id, "support.txt")).toMatchObject({ content: "current local content" });
+    expect(await service.readFile(spaceId, forked.id, "added.txt")).toMatchObject({ content: "new local file" });
+    expect((await service.getVersion(spaceId, linked!.id, saved.id))?.fileInventory)
       .toContainEqual(expect.objectContaining({ path: "support.txt", content: "old saved content" }));
   });
 
   it("carries committed version preconditions through a multi-file linked-local restore", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     const directory = path.join(root, `restore-${randomUUID()}`);
     await fs.mkdir(directory);
     await fs.writeFile(path.join(directory, "SKILL.md"), "# Original\n");
     await fs.writeFile(path.join(directory, "support.txt"), "original support");
-    const [linked] = await db.insert(companySkills).values({ companyId, key: "linked", slug: "linked", name: "Linked",
+    const [linked] = await db.insert(spaceSkills).values({ spaceId, key: "linked", slug: "linked", name: "Linked",
       markdown: "# Original\n", sourceType: "local_path", sourceLocator: directory,
       fileInventory: [{ path: "SKILL.md", kind: "skill" }, { path: "support.txt", kind: "other" }] }).returning();
-    const service = companySkillService(db);
-    const saved = await service.createVersion(companyId, linked!.id);
-    const original = (await service.getVersion(companyId, linked!.id, saved.id))!;
-    await service.updateFile(companyId, linked!.id, "SKILL.md", "# Changed\n");
-    await service.updateFile(companyId, linked!.id, "support.txt", "changed support");
-    let versionId = (await service.readFile(companyId, linked!.id, "SKILL.md"))!.versionId;
+    const service = spaceSkillService(db);
+    const saved = await service.createVersion(spaceId, linked!.id);
+    const original = (await service.getVersion(spaceId, linked!.id, saved.id))!;
+    await service.updateFile(spaceId, linked!.id, "SKILL.md", "# Changed\n");
+    await service.updateFile(spaceId, linked!.id, "support.txt", "changed support");
+    let versionId = (await service.readFile(spaceId, linked!.id, "SKILL.md"))!.versionId;
     expect(versionId).toBeTruthy();
     for (const file of original.fileInventory) {
-      const result = await service.updateFile(companyId, linked!.id, file.path, file.content, null,
+      const result = await service.updateFile(spaceId, linked!.id, file.path, file.content, null,
         { expectedVersionId: versionId });
       expect(result.versionId).toBeTruthy();
       expect(result.versionId).not.toBe(versionId);
       versionId = result.versionId;
     }
-    expect(await service.readFile(companyId, linked!.id, "SKILL.md")).toMatchObject({ content: "# Original\n", versionId });
-    expect(await service.readFile(companyId, linked!.id, "support.txt")).toMatchObject({ content: "original support", versionId });
+    expect(await service.readFile(spaceId, linked!.id, "SKILL.md")).toMatchObject({ content: "# Original\n", versionId });
+    expect(await service.readFile(spaceId, linked!.id, "support.txt")).toMatchObject({ content: "original support", versionId });
   });
 
   it("keeps an unassigned skill, supporting bytes and executable mode across fresh homes", async () => {
-    const companyId = await company();
-    const a = companySkillService(db);
-    const skill = await a.createLocalSkill(companyId, { name: "Cold", slug: "cold", markdown: "# First\n" });
+    const spaceId = await space();
+    const a = spaceSkillService(db);
+    const skill = await a.createLocalSkill(spaceId, { name: "Cold", slug: "cold", markdown: "# First\n" });
     expect(skill.sourceType).toBe("managed");
     expect(skill.sourceLocator).toBeNull();
     expect(skill.currentVersionId).toBeTruthy();
-    await expect(fs.stat(path.join(home, "instances/default/skills", companyId, "cold"))).rejects.toMatchObject({ code: "ENOENT" });
-    const saved = await a.updateFile(companyId, skill.id, "scripts/run.sh", "#!/bin/sh\necho cold\n", null,
+    await expect(fs.stat(path.join(home, "instances/default/skills", spaceId, "cold"))).rejects.toMatchObject({ code: "ENOENT" });
+    const saved = await a.updateFile(spaceId, skill.id, "scripts/run.sh", "#!/bin/sh\necho cold\n", null,
       { executable: true, expectedVersionId: skill.currentVersionId });
-    const binary = await a.updateFile(companyId, skill.id, "data.bin", "AP8H", null,
+    const binary = await a.updateFile(spaceId, skill.id, "data.bin", "AP8H", null,
       { encoding: "base64", expectedVersionId: saved.versionId });
     await fs.rm(home, { recursive: true, force: true });
     process.env.OUTPOST_HOME = path.join(root, "server-b");
-    const b = companySkillService(db);
-    expect((await b.list(companyId)).some(item => item.id === skill.id)).toBe(true);
-    expect(await b.readFile(companyId, skill.id, "data.bin")).toMatchObject({ content: "AP8H", encoding: "base64", versionId: binary.versionId });
-    const updated = await b.updateFile(companyId, skill.id, "SKILL.md", "# Saved on B\n", null, { expectedVersionId: binary.versionId });
-    const [runtime] = await b.listRuntimeSkillEntries(companyId, { onlyKeys: new Set([skill.key]), snapshotLatest: true });
+    const b = spaceSkillService(db);
+    expect((await b.list(spaceId)).some(item => item.id === skill.id)).toBe(true);
+    expect(await b.readFile(spaceId, skill.id, "data.bin")).toMatchObject({ content: "AP8H", encoding: "base64", versionId: binary.versionId });
+    const updated = await b.updateFile(spaceId, skill.id, "SKILL.md", "# Saved on B\n", null, { expectedVersionId: binary.versionId });
+    const [runtime] = await b.listRuntimeSkillEntries(spaceId, { onlyKeys: new Set([skill.key]), snapshotLatest: true });
     expect(runtime).toMatchObject({ versionId: updated.versionId, sourceStatus: "available" });
     expect((await fs.stat(path.join(runtime!.source, "scripts/run.sh"))).mode & 0o111).not.toBe(0);
     expect(await fs.readFile(path.join(runtime!.source, "data.bin"))).toEqual(Buffer.from([0, 255, 7]));
     await fs.rm(process.env.OUTPOST_HOME, { recursive: true, force: true });
     process.env.OUTPOST_HOME = path.join(root, "server-c");
-    expect(await companySkillService(db).readFile(companyId, skill.id, "SKILL.md"))
+    expect(await spaceSkillService(db).readFile(spaceId, skill.id, "SKILL.md"))
       .toMatchObject({ content: "# Saved on B\n", versionId: updated.versionId });
-    expect(await a.readFile(companyId, skill.id, "SKILL.md")).toMatchObject({ versionId: updated.versionId });
+    expect(await a.readFile(spaceId, skill.id, "SKILL.md")).toMatchObject({ versionId: updated.versionId });
   });
 
   it("rejects a save whose base changed while its package was being prepared", async () => {
-    const companyId = await company();
-    const service = companySkillService(db);
-    const skill = await service.createLocalSkill(companyId, { name: "Race" });
-    await expect(service.updateFile(companyId, skill.id, "first.md", "first", null, { publication: {
-      beforeLock: async () => { await service.updateFile(companyId, skill.id, "second.md", "second"); },
+    const spaceId = await space();
+    const service = spaceSkillService(db);
+    const skill = await service.createLocalSkill(spaceId, { name: "Race" });
+    await expect(service.updateFile(spaceId, skill.id, "first.md", "first", null, { publication: {
+      beforeLock: async () => { await service.updateFile(spaceId, skill.id, "second.md", "second"); },
     } })).rejects.toMatchObject({ status: 409 });
-    expect(await service.readFile(companyId, skill.id, "second.md")).toMatchObject({ content: "second" });
-    await expect(service.readFile(companyId, skill.id, "first.md")).rejects.toMatchObject({ status: 404 });
-    await expect(service.updateFile(companyId, skill.id, "first.md", "stale", null,
+    expect(await service.readFile(spaceId, skill.id, "second.md")).toMatchObject({ content: "second" });
+    await expect(service.readFile(spaceId, skill.id, "first.md")).rejects.toMatchObject({ status: 404 });
+    await expect(service.updateFile(spaceId, skill.id, "first.md", "stale", null,
       { expectedVersionId: skill.currentVersionId })).rejects.toMatchObject({ status: 409 });
   });
 
   it("rolls back publication without changing the head or an existing version", async () => {
-    const companyId = await company();
-    const service = companySkillService(db);
-    const skill = await service.createLocalSkill(companyId, { name: "Rollback", markdown: "# Original" });
-    await expect(service.updateFile(companyId, skill.id, "SKILL.md", "# Rejected", null,
+    const spaceId = await space();
+    const service = spaceSkillService(db);
+    const skill = await service.createLocalSkill(spaceId, { name: "Rollback", markdown: "# Original" });
+    await expect(service.updateFile(spaceId, skill.id, "SKILL.md", "# Rejected", null,
       { publication: { afterPublish: async () => { throw new Error("failed audit"); } } })).rejects.toThrow("failed audit");
-    expect(await service.readFile(companyId, skill.id, "SKILL.md")).toMatchObject({ content: "# Original", versionId: skill.currentVersionId });
-    expect(await service.listVersions(companyId, skill.id)).toHaveLength(1);
+    expect(await service.readFile(spaceId, skill.id, "SKILL.md")).toMatchObject({ content: "# Original", versionId: skill.currentVersionId });
+    expect(await service.listVersions(spaceId, skill.id)).toHaveLength(1);
   });
 
   it("does not overwrite a metadata edit committed while content was being prepared", async () => {
-    const companyId = await company();
-    const service = companySkillService(db);
-    const skill = await service.createLocalSkill(companyId, { name: "Metadata race", markdown: "# Original" });
-    await expect(service.updateFile(companyId, skill.id, "SKILL.md", "# Candidate", null, { publication: {
-      beforeLock: async () => { await service.updateSkill(companyId, skill.id, { description: "Acknowledged metadata" }); },
+    const spaceId = await space();
+    const service = spaceSkillService(db);
+    const skill = await service.createLocalSkill(spaceId, { name: "Metadata race", markdown: "# Original" });
+    await expect(service.updateFile(spaceId, skill.id, "SKILL.md", "# Candidate", null, { publication: {
+      beforeLock: async () => { await service.updateSkill(spaceId, skill.id, { description: "Acknowledged metadata" }); },
     } })).rejects.toMatchObject({ status: 409 });
-    expect(await service.getById(companyId, skill.id)).toMatchObject({ description: "Acknowledged metadata", currentVersionId: skill.currentVersionId });
-    expect(await service.readFile(companyId, skill.id, "SKILL.md")).toMatchObject({ content: "# Original" });
+    expect(await service.getById(spaceId, skill.id)).toMatchObject({ description: "Acknowledged metadata", currentVersionId: skill.currentVersionId });
+    expect(await service.readFile(spaceId, skill.id, "SKILL.md")).toMatchObject({ content: "# Original" });
   });
 
   it("restores the exact historical inventory and preserves history through rename and fork", async () => {
-    const companyId = await company();
-    const service = companySkillService(db);
-    const skill = await service.createLocalSkill(companyId, { name: "History", markdown: "# Original" });
-    const extra = await service.updateFile(companyId, skill.id, "new.md", "not in first version");
-    const restored = await service.createVersion(companyId, skill.id,
+    const spaceId = await space();
+    const service = spaceSkillService(db);
+    const skill = await service.createLocalSkill(spaceId, { name: "History", markdown: "# Original" });
+    const extra = await service.updateFile(spaceId, skill.id, "new.md", "not in first version");
+    const restored = await service.createVersion(spaceId, skill.id,
       { sourceVersionId: skill.currentVersionId!, expectedVersionId: extra.versionId });
-    await expect(service.readFile(companyId, skill.id, "new.md")).rejects.toMatchObject({ status: 404 });
-    const renamed = await service.renameSkill(companyId, skill.id, { name: "Renamed", expectedVersionId: restored.id });
+    await expect(service.readFile(spaceId, skill.id, "new.md")).rejects.toMatchObject({ status: 404 });
+    const renamed = await service.renameSkill(spaceId, skill.id, { name: "Renamed", expectedVersionId: restored.id });
     expect(renamed.skill).toMatchObject({ id: skill.id, sourceType: "managed", sourceLocator: null });
-    expect((await service.getVersion(companyId, skill.id, skill.currentVersionId!))!.fileInventory)
+    expect((await service.getVersion(spaceId, skill.id, skill.currentVersionId!))!.fileInventory)
       .toContainEqual({ path: "SKILL.md", kind: "skill", content: "# Original" });
-    const fork = await service.forkSkill(companyId, skill.id);
+    const fork = await service.forkSkill(spaceId, skill.id);
     expect(fork.skill).toMatchObject({ sourceType: "managed", sourceLocator: null, forkedFromSkillId: skill.id });
-    expect((await service.readFile(companyId, fork.skill.id, "SKILL.md"))!.content)
-      .toBe((await service.readFile(companyId, skill.id, "SKILL.md"))!.content);
+    expect((await service.readFile(spaceId, fork.skill.id, "SKILL.md"))!.content)
+      .toBe((await service.readFile(spaceId, skill.id, "SKILL.md"))!.content);
   });
   it("persists selection before delivery and rejects deleting a detached active run's pin", async () => {
-    const companyId = await company();
-    const service = companySkillService(db);
-    const skill = await service.createLocalSkill(companyId, { name: "Pinned", markdown: "# pinned bytes" });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Runner" }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId: agent!.id, status: "running" }).returning();
+    const spaceId = await space();
+    const service = spaceSkillService(db);
+    const skill = await service.createLocalSkill(spaceId, { name: "Pinned", markdown: "# pinned bytes" });
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Runner" }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agent!.id, status: "running" }).returning();
     let persisted = false;
-    const entries = await service.withRuntimeSkillEntries(companyId, {
+    const entries = await service.withRuntimeSkillEntries(spaceId, {
       onlyKeys: new Set([skill.key]), snapshotLatest: true,
       selectVersions: async selected => {
         expect(selected).toEqual([expect.objectContaining({ skillId: skill.id, versionId: skill.currentVersionId })]);
         expect(selected[0]).not.toHaveProperty("source");
-        await expect(fs.stat(path.join(process.env.OUTPOST_HOME!, "instances/default/skills", companyId,
+        await expect(fs.stat(path.join(process.env.OUTPOST_HOME!, "instances/default/skills", spaceId,
           "__versions__", skill.id, skill.currentVersionId!))).rejects.toMatchObject({ code: "ENOENT" });
         await db.update(heartbeatRuns).set({ contextSnapshot: { skillVersions: { [skill.key]: skill.currentVersionId }, skillSelectionSnapshot: true } })
           .where(eq(heartbeatRuns.id, run!.id));
@@ -353,65 +353,65 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
         return new Set([skill.key]);
       },
     }, async entries => { expect(persisted).toBe(true); return entries; });
-    const config = writePaperclipSkillSyncPreference({}, [{ key: skill.key, versionId: skill.currentVersionId }]);
+    const config = writeOutpostSkillSyncPreference({}, [{ key: skill.key, versionId: skill.currentVersionId }]);
     const selected = await materializeSelectedSkills(config, entries, false);
     const context = { ...nativeRuntimeContextFixture(), skills: selected };
     const originalHome = process.env.OUTPOST_HOME!;
     process.env.OUTPOST_HOME = path.join(root, `recovery-${randomUUID()}`);
-    const recovered = await rehydratePinnedSkillAssets(db, { companyId, agentId: agent!.id, runId: run!.id }, context);
+    const recovered = await rehydratePinnedSkillAssets(db, { spaceId, agentId: agent!.id, runId: run!.id }, context);
     expect(recovered.skills[0]!.bundle.digest).toBe(selected[0]!.bundle.digest);
     expect(recovered.skills[0]!.bundle.rootPath).not.toBe(selected[0]!.bundle.rootPath);
     expect(await fs.readFile(path.join(recovered.skills[0]!.bundle.rootPath, "SKILL.md"), "utf8")).toBe("# pinned bytes");
-    await expect(rehydratePinnedSkillAssets(db, { companyId, agentId: agent!.id, runId: run!.id }, {
+    await expect(rehydratePinnedSkillAssets(db, { spaceId, agentId: agent!.id, runId: run!.id }, {
       ...context, skills: [{ ...selected[0]!, bundle: { ...selected[0]!.bundle, digest: "0".repeat(64) } }],
     })).rejects.toThrow("admitted digest");
-    await expect(service.deleteSkill(companyId, skill.id)).rejects.toMatchObject({ status: 422 });
+    await expect(service.deleteSkill(spaceId, skill.id)).rejects.toMatchObject({ status: 422 });
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, run!.id));
-    await expect(service.deleteSkill(companyId, skill.id)).resolves.toMatchObject({ id: skill.id });
+    await expect(service.deleteSkill(spaceId, skill.id)).resolves.toMatchObject({ id: skill.id });
     process.env.OUTPOST_HOME = originalHome;
   });
 
   it("converts a legacy managed installation without changing its identity or identical version", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     const directory = path.join(root, `legacy-${randomUUID()}`);
     await fs.mkdir(directory);
     await fs.writeFile(path.join(directory, "SKILL.md"), "# legacy saved");
     await fs.writeFile(path.join(directory, "support.txt"), "support");
-    const [legacy] = await db.insert(companySkills).values({ companyId, key: `company/${companyId}/legacy`, slug: "legacy",
+    const [legacy] = await db.insert(spaceSkills).values({ spaceId, key: `space/${spaceId}/legacy`, slug: "legacy",
       name: "Legacy", markdown: "# legacy saved", sourceType: "local_path", sourceLocator: directory,
       fileInventory: [{ path: "SKILL.md", kind: "skill" }, { path: "support.txt", kind: "other" }],
       metadata: { sourceKind: "managed_local" } }).returning();
-    const service = companySkillService(db);
-    const version = await service.createVersion(companyId, legacy!.id);
-    await db.update(companySkillVersions).set({ packageFileMap: null }).where(eq(companySkillVersions.id, version.id));
+    const service = spaceSkillService(db);
+    const version = await service.createVersion(spaceId, legacy!.id);
+    await db.update(spaceSkillVersions).set({ packageFileMap: null }).where(eq(spaceSkillVersions.id, version.id));
     const maintenance = skillInstallationMaintenance(db);
     expect((await maintenance.installations({ id: legacy!.id })).results[0]!.status).toBe("conversion_required");
     expect((await maintenance.installations({ id: legacy!.id, apply: true })).results)
       .toEqual([expect.objectContaining({ skillId: legacy!.id, versionId: version.id, status: "converted" })]);
     await fs.rm(directory, { recursive: true });
-    expect(await service.getById(companyId, legacy!.id)).toMatchObject({ sourceType: "managed", sourceLocator: null, currentVersionId: version.id });
-    expect(await service.readFile(companyId, legacy!.id, "support.txt")).toMatchObject({ content: "support" });
+    expect(await service.getById(spaceId, legacy!.id)).toMatchObject({ sourceType: "managed", sourceLocator: null, currentVersionId: version.id });
+    expect(await service.readFile(spaceId, legacy!.id, "support.txt")).toMatchObject({ content: "support" });
     expect((await maintenance.eligibility({ id: legacy!.id })).results[0]!.status).toBe("version_backed");
   });
 
   it("copies an installation online while preserving unknown old pins, old inline bytes, files, and active work", async () => {
-    const companyId = await company(), directory = path.join(root, `copy-only-${randomUUID()}`);
+    const spaceId = await space(), directory = path.join(root, `copy-only-${randomUUID()}`);
     await fs.mkdir(directory);
     await fs.writeFile(path.join(directory, "SKILL.md"), "# Preserved skill");
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "copy-only", slug: "copy-only", name: "Copy only",
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "copy-only", slug: "copy-only", name: "Copy only",
       markdown: "# Preserved skill", sourceType: "local_path", sourceLocator: directory,
       fileInventory: [{ path: "SKILL.md", kind: "skill" }], metadata: { sourceKind: "managed_local" } }).returning();
     const files = [{ path: "SKILL.md", kind: "skill" as const, content: "# Preserved skill" }];
-    const [version] = await db.insert(companySkillVersions).values({ companyId, companySkillId: skill.id,
+    const [version] = await db.insert(spaceSkillVersions).values({ spaceId, spaceSkillId: skill.id,
       revisionNumber: 1, fileInventory: files }).returning();
-    await db.update(companySkills).set({ currentVersionId: version.id }).where(eq(companySkills.id, skill.id));
-    const [agent] = await db.insert(agents).values({ companyId, name: "Unrelated active worker" }).returning();
-    const [active] = await db.insert(heartbeatRuns).values({ companyId, agentId: agent.id, runtimeMode: "native",
+    await db.update(spaceSkills).set({ currentVersionId: version.id }).where(eq(spaceSkills.id, skill.id));
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Unrelated active worker" }).returning();
+    const [active] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agent.id, runtimeMode: "native",
       status: "running", contextSnapshot: {} }).returning();
     const maintenance = skillInstallationMaintenance(db);
     expect((await maintenance.installations({ id: skill.id, apply: true })).results)
       .toEqual([expect.objectContaining({ skillId: skill.id, status: "converted" })]);
-    expect((await db.select().from(companySkillVersions).where(eq(companySkillVersions.id, version.id)))[0].fileInventory).toEqual(files);
+    expect((await db.select().from(spaceSkillVersions).where(eq(spaceSkillVersions.id, version.id)))[0].fileInventory).toEqual(files);
     expect(await fs.readFile(path.join(directory, "SKILL.md"), "utf8")).toBe("# Preserved skill");
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, active.id)))[0]).toEqual(active);
     // Copy-only publication does not release retention or volume-removal guards.
@@ -419,15 +419,15 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
   });
 
   it.each(["files", "source_locator"])("keeps a concurrent %s change instead of publishing the earlier conversion", async change => {
-    const companyId = await company(), directory = path.join(root, `conversion-race-${randomUUID()}`);
+    const spaceId = await space(), directory = path.join(root, `conversion-race-${randomUUID()}`);
     await fs.mkdir(directory);
     await fs.writeFile(path.join(directory, "SKILL.md"), "# Race");
     await fs.writeFile(path.join(directory, "support.txt"), "old version");
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "conversion-race", slug: "conversion-race", name: "Race",
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "conversion-race", slug: "conversion-race", name: "Race",
       markdown: "# Race", sourceType: "local_path", sourceLocator: directory,
       fileInventory: [{ path: "SKILL.md", kind: "skill" }, { path: "support.txt", kind: "other" }],
       metadata: { sourceKind: "managed_local" } }).returning();
-    const version = await companySkillService(db).createVersion(companyId, skill.id);
+    const version = await spaceSkillService(db).createVersion(spaceId, skill.id);
     await fs.writeFile(path.join(directory, "support.txt"), "captured unsaved edit");
     const storage = storageModule.getStorageService(), put = storage.putFile.bind(storage);
     let changed = false;
@@ -441,8 +441,8 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
           await fs.mkdir(nextDirectory);
           await fs.writeFile(path.join(nextDirectory, "SKILL.md"), "# New source");
           await db.transaction(async tx => {
-            await tx.select().from(companySkills).where(eq(companySkills.id, skill.id)).for("update");
-            await tx.update(companySkills).set({ sourceLocator: nextDirectory }).where(eq(companySkills.id, skill.id));
+            await tx.select().from(spaceSkills).where(eq(spaceSkills.id, skill.id)).for("update");
+            await tx.update(spaceSkills).set({ sourceLocator: nextDirectory }).where(eq(spaceSkills.id, skill.id));
           });
         }
       }
@@ -452,7 +452,7 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
       const result = await skillInstallationMaintenance(db, storage).installations({ id: skill.id, apply: true });
       expect(changed).toBe(true);
       expect(result.results).toEqual([expect.objectContaining({ status: "blocked" })]);
-      const [current] = await db.select().from(companySkills).where(eq(companySkills.id, skill.id));
+      const [current] = await db.select().from(spaceSkills).where(eq(spaceSkills.id, skill.id));
       expect(current).toMatchObject({ sourceType: "local_path", currentVersionId: version.id,
         sourceLocator: change === "files" ? directory : nextDirectory });
       expect(await fs.readFile(path.join(directory, "support.txt"), "utf8"))
@@ -461,31 +461,31 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
   });
 
   it("holds a hard-linked local skill instead of adopting another file owner's mutable bytes", async () => {
-    const companyId = await company(), directory = path.join(root, `linked-conversion-${randomUUID()}`);
+    const spaceId = await space(), directory = path.join(root, `linked-conversion-${randomUUID()}`);
     await fs.mkdir(directory);
     const original = path.join(root, `shared-content-${randomUUID()}.md`);
     await fs.writeFile(original, "# Shared source");
     await fs.link(original, path.join(directory, "SKILL.md"));
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "linked-conversion", slug: "linked-conversion", name: "Linked",
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "linked-conversion", slug: "linked-conversion", name: "Linked",
       markdown: "# Shared source", sourceType: "local_path", sourceLocator: directory,
       fileInventory: [{ path: "SKILL.md", kind: "skill" }], metadata: { sourceKind: "managed_local" } }).returning();
     expect((await skillInstallationMaintenance(db).installations({ id: skill.id, apply: true })).results)
       .toEqual([expect.objectContaining({ status: "blocked" })]);
-    expect((await db.select().from(companySkills).where(eq(companySkills.id, skill.id)))[0]).toEqual(skill);
+    expect((await db.select().from(spaceSkills).where(eq(spaceSkills.id, skill.id)))[0]).toEqual(skill);
     expect(await fs.readFile(original, "utf8")).toBe("# Shared source");
   });
 
   it("allows new durable skill pinning while an installation upload is blocked", async () => {
-    const companyId = await company(), directory = path.join(root, `pinning-during-copy-${randomUUID()}`);
+    const spaceId = await space(), directory = path.join(root, `pinning-during-copy-${randomUUID()}`);
     await fs.mkdir(directory);
     await fs.writeFile(path.join(directory, "SKILL.md"), "# Old selection");
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "online-pinning", slug: "online-pinning", name: "Pinning",
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "online-pinning", slug: "online-pinning", name: "Pinning",
       markdown: "# Old selection", sourceType: "local_path", sourceLocator: directory,
       fileInventory: [{ path: "SKILL.md", kind: "skill" }], metadata: { sourceKind: "managed_local" } }).returning();
-    const version = await companySkillService(db).createVersion(companyId, skill.id);
+    const version = await spaceSkillService(db).createVersion(spaceId, skill.id);
     await fs.writeFile(path.join(directory, "SKILL.md"), `# Current local files ${randomUUID()}`);
-    const [agent] = await db.insert(agents).values({ companyId, name: "New work" }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId: agent.id, status: "queued" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId, name: "New work" }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agent.id, status: "queued" }).returning();
     const storage = storageModule.getStorageService(), put = storage.putFile.bind(storage);
     let release!: () => void, ready!: () => void, blocked = false;
     const barrier = new Promise<void>(resolve => { release = resolve; }), uploading = new Promise<void>(resolve => { ready = resolve; });
@@ -497,7 +497,7 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
     try {
       await uploading;
       // This uses the real nonblocking PostgreSQL owner, not a timing assertion.
-      await withSkillVersionCacheLock(db, companyId, async () => {
+      await withSkillVersionCacheLock(db, spaceId, async () => {
         await db.update(heartbeatRuns).set({ status: "running", contextSnapshot: { skillVersions: { [skill.key]: version.id } } })
           .where(eq(heartbeatRuns.id, run.id));
       }, true);
@@ -505,22 +505,22 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
     expect((await conversion).results).toEqual([expect.objectContaining({ status: "converted" })]);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0])
       .toMatchObject({ status: "running", contextSnapshot: { skillVersions: { [skill.key]: version.id } } });
-    expect((await db.select().from(companySkillVersions).where(eq(companySkillVersions.id, version.id)))[0]).toBeDefined();
+    expect((await db.select().from(spaceSkillVersions).where(eq(spaceSkillVersions.id, version.id)))[0]).toBeDefined();
   });
 
   it.each([true, false])("keeps catalog history unchanged on rejection and preserves its reset version (concurrent edit: %s)", async concurrentEdit => {
-    const companyId = await company(), directory = path.join(root, `catalog-copy-${randomUUID()}`), origin = `${directory}-original`;
+    const spaceId = await space(), directory = path.join(root, `catalog-copy-${randomUUID()}`), origin = `${directory}-original`;
     await fs.mkdir(directory); await fs.mkdir(origin);
     await fs.writeFile(path.join(directory, "SKILL.md"), "# Installed edit");
     await fs.writeFile(path.join(origin, "SKILL.md"), "# Original package");
-    const [skill] = await db.insert(companySkills).values({ companyId, key: "catalog-copy", slug: "catalog-copy", name: "Catalog",
+    const [skill] = await db.insert(spaceSkills).values({ spaceId, key: "catalog-copy", slug: "catalog-copy", name: "Catalog",
       markdown: "# Installed edit", sourceType: "catalog", sourceLocator: directory,
       fileInventory: [{ path: "SKILL.md", kind: "skill" }], metadata: {
         sourceKind: "catalog", originSnapshotLocator: origin, userModifiedAt: new Date().toISOString(),
       } }).returning();
-    const [version] = await db.insert(companySkillVersions).values({ companyId, companySkillId: skill.id, revisionNumber: 1,
+    const [version] = await db.insert(spaceSkillVersions).values({ spaceId, spaceSkillId: skill.id, revisionNumber: 1,
       fileInventory: [{ path: "SKILL.md", kind: "skill", content: "# Installed edit" }] }).returning();
-    await db.update(companySkills).set({ currentVersionId: version.id }).where(eq(companySkills.id, skill.id));
+    await db.update(spaceSkills).set({ currentVersionId: version.id }).where(eq(spaceSkills.id, skill.id));
     const storage = storageModule.getStorageService(), put = storage.putFile.bind(storage);
     let changed = false;
     const upload = vi.spyOn(storage, "putFile").mockImplementation(async input => {
@@ -535,15 +535,15 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
       expect((await skillInstallationMaintenance(db, storage).installations({ id: skill.id, apply: true })).results)
         .toEqual([expect.objectContaining({ status: concurrentEdit ? "blocked" : "converted" })]);
       expect(changed).toBe(true);
-      const history = await db.select().from(companySkillVersions).where(eq(companySkillVersions.companySkillId, skill.id));
+      const history = await db.select().from(spaceSkillVersions).where(eq(spaceSkillVersions.spaceSkillId, skill.id));
       expect(history).toHaveLength(concurrentEdit ? 1 : 2);
       expect(history.find(row => row.id === version.id)).toMatchObject({ fileInventory: version.fileInventory });
-      const [current] = await db.select().from(companySkills).where(eq(companySkills.id, skill.id));
+      const [current] = await db.select().from(spaceSkills).where(eq(spaceSkills.id, skill.id));
       if (concurrentEdit) expect(current.metadata?.originVersionId).toBeUndefined();
       else {
         const original = history.find(row => row.id !== version.id)!;
         expect(current.metadata?.originVersionId).toBe(original.id);
-        const store = skillPackageStore(db, storage), saved = await store.version(companyId, skill.id, original.id);
+        const store = skillPackageStore(db, storage), saved = await store.version(spaceId, skill.id, original.id);
         expect((await store.versionFiles(saved!)).find(file => file.path === "SKILL.md")?.content).toBe("# Original package");
       }
       expect(await fs.readFile(path.join(origin, "SKILL.md"), "utf8"))
@@ -552,44 +552,44 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
   });
 
   it("reports an unrecoverable legacy installation and leaves linked sources alone", async () => {
-    const companyId = await company();
-    const [legacy] = await db.insert(companySkills).values({ companyId, key: "legacy-missing", slug: "legacy-missing", name: "Missing",
+    const spaceId = await space();
+    const [legacy] = await db.insert(spaceSkills).values({ spaceId, key: "legacy-missing", slug: "legacy-missing", name: "Missing",
       markdown: "partial metadata only", sourceType: "local_path", sourceLocator: path.join(root, "absent"),
       metadata: { sourceKind: "managed_local" } }).returning();
-    const [linked] = await db.insert(companySkills).values({ companyId, key: "linked", slug: "linked", name: "Linked",
+    const [linked] = await db.insert(spaceSkills).values({ spaceId, key: "linked", slug: "linked", name: "Linked",
       markdown: "# Linked", sourceType: "local_path", sourceLocator: path.join(root, "linked") }).returning();
-    const report = await skillInstallationMaintenance(db).installations({ companyId, apply: true, writersStopped: true });
+    const report = await skillInstallationMaintenance(db).installations({ spaceId, apply: true, writersStopped: true });
     expect(report.results).toEqual(expect.arrayContaining([
       expect.objectContaining({ skillId: legacy!.id, status: "blocked" }),
       expect.objectContaining({ skillId: linked!.id, status: "linked_local" }),
     ]));
-    expect(await companySkillService(db).getById(companyId, legacy!.id)).toMatchObject({ sourceType: "local_path", currentVersionId: null });
+    expect(await spaceSkillService(db).getById(spaceId, legacy!.id)).toMatchObject({ sourceType: "local_path", currentVersionId: null });
   });
 
   it("converts a missing legacy directory from its complete saved version", async () => {
-    const companyId = await company();
-    const service = companySkillService(db);
-    const skill = await service.createLocalSkill(companyId, { name: "Saved conversion", markdown: "# saved" });
-    const saved = await service.updateFile(companyId, skill.id, "support.txt", "complete supporting content");
-    await db.update(companySkills).set({ sourceType: "local_path", sourceLocator: path.join(root, "missing-legacy"),
-      metadata: { sourceKind: "managed_local" } }).where(eq(companySkills.id, skill.id));
+    const spaceId = await space();
+    const service = spaceSkillService(db);
+    const skill = await service.createLocalSkill(spaceId, { name: "Saved conversion", markdown: "# saved" });
+    const saved = await service.updateFile(spaceId, skill.id, "support.txt", "complete supporting content");
+    await db.update(spaceSkills).set({ sourceType: "local_path", sourceLocator: path.join(root, "missing-legacy"),
+      metadata: { sourceKind: "managed_local" } }).where(eq(spaceSkills.id, skill.id));
     const maintenance = skillInstallationMaintenance(db);
     expect((await maintenance.installations({ id: skill.id, apply: true, writersStopped: true })).results)
       .toEqual([expect.objectContaining({ skillId: skill.id, versionId: saved.versionId, status: "converted" })]);
     expect((await maintenance.installations({ id: skill.id, apply: true, writersStopped: true })).results[0]!.status).toBe("unchanged");
-    expect(await service.readFile(companyId, skill.id, "support.txt")).toMatchObject({ content: "complete supporting content" });
+    expect(await service.readFile(spaceId, skill.id, "support.txt")).toMatchObject({ content: "complete supporting content" });
   });
 
   it.each([false, true])("blocks an incomplete installed repository version and converts only its exact source (package: %s)", async packaged => {
-    const companyId = await company(), service = companySkillService(db);
+    const spaceId = await space(), service = spaceSkillService(db);
     process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED = String(packaged);
-    const skill = await service.createLocalSkill(companyId, { name: "Partial legacy repository", markdown: "# Installed revision" });
+    const skill = await service.createLocalSkill(spaceId, { name: "Partial legacy repository", markdown: "# Installed revision" });
     process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED = "true";
     const commit = "a".repeat(40);
-    await db.update(companySkills).set({ sourceType: "github", sourceLocator: `https://github.com/fixture/skills/tree/${commit}/fixture`,
+    await db.update(spaceSkills).set({ sourceType: "github", sourceLocator: `https://github.com/fixture/skills/tree/${commit}/fixture`,
       sourceRef: commit, metadata: { owner: "fixture", repo: "skills", repoSkillDir: "fixture" },
       fileInventory: [{ path: "SKILL.md", kind: "skill" }, { path: "reference.md", kind: "reference" }],
-    }).where(eq(companySkills.id, skill.id));
+    }).where(eq(spaceSkills.id, skill.id));
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("unavailable", { status: 404 }));
     try {
       const maintenance = skillInstallationMaintenance(db);
@@ -597,15 +597,15 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
       expect((await maintenance.verifyVersions({ id: skill.currentVersionId! })).results[0]).toMatchObject({ status: "incomplete_current_version" });
       expect(fetchMock).not.toHaveBeenCalled();
       expect((await maintenance.installations({ id: skill.id, apply: true, writersStopped: true })).results[0]).toMatchObject({ status: "blocked" });
-      expect((await db.select().from(companySkills).where(eq(companySkills.id, skill.id)))[0].currentVersionId).toBe(skill.currentVersionId);
+      expect((await db.select().from(spaceSkills).where(eq(spaceSkills.id, skill.id)))[0].currentVersionId).toBe(skill.currentVersionId);
       fetchMock.mockImplementation(async url => {
         expect(String(url)).toBe(`https://raw.githubusercontent.com/fixture/skills/${commit}/fixture/reference.md`);
         return new Response("Exact installed supporting content");
       });
       expect((await maintenance.installations({ id: skill.id, apply: true, writersStopped: true })).results[0]).toMatchObject({ status: "converted" });
-      expect(await service.readFile(companyId, skill.id, "reference.md")).toMatchObject({ content: "Exact installed supporting content" });
+      expect(await service.readFile(spaceId, skill.id, "reference.md")).toMatchObject({ content: "Exact installed supporting content" });
       expect((await maintenance.eligibility({ id: skill.id })).results[0]).toMatchObject({ status: "version_backed" });
-      expect((await maintenance.verifyVersions({ companyId })).results.every(row => row.status !== "incomplete_current_version")).toBe(true);
+      expect((await maintenance.verifyVersions({ spaceId })).results.every(row => row.status !== "incomplete_current_version")).toBe(true);
       const calls = fetchMock.mock.calls.length;
       expect((await maintenance.installations({ id: skill.id })).results[0]).toMatchObject({ status: "unchanged" });
       expect(fetchMock).toHaveBeenCalledTimes(calls);
@@ -613,33 +613,33 @@ describe.skipIf(!support.supported)("managed skills use committed versions", () 
   });
 
   it("rejects unsafe legacy sources without publishing a partial conversion", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     const directory = path.join(root, `unsafe-${randomUUID()}`);
     await fs.mkdir(directory);
     await fs.writeFile(path.join(directory, "SKILL.md"), "# legacy");
     await fs.symlink(path.join(root, "unrelated"), path.join(directory, "support.txt"));
     try {
-      const [legacy] = await db.insert(companySkills).values({ companyId, key: "unsafe", slug: "unsafe", name: "Unsafe", markdown: "# legacy",
+      const [legacy] = await db.insert(spaceSkills).values({ spaceId, key: "unsafe", slug: "unsafe", name: "Unsafe", markdown: "# legacy",
         sourceType: "local_path", sourceLocator: directory, metadata: { sourceKind: "managed_local" } }).returning();
       expect((await skillInstallationMaintenance(db).installations({ id: legacy!.id, apply: true, writersStopped: true })).results)
         .toEqual([expect.objectContaining({ status: "blocked", reason: "Legacy skill contains a symbolic link" })]);
-      expect(await companySkillService(db).getById(companyId, legacy!.id)).toMatchObject({ sourceType: "local_path", currentVersionId: null });
+      expect(await spaceSkillService(db).getById(spaceId, legacy!.id)).toMatchObject({ sourceType: "local_path", currentVersionId: null });
     } finally { await fs.unlink(path.join(directory, "support.txt")); }
   });
 
   it("keeps the compatibility override durable in Postgres and reports that storage accurately", async () => {
-    const companyId = await company();
+    const spaceId = await space();
     process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED = "false";
     try {
-      const service = companySkillService(db);
-      const skill = await service.createLocalSkill(companyId, { name: "Inline durable", markdown: "# database bytes" });
-      const saved = await service.updateFile(companyId, skill.id, "support.txt", "also in Postgres");
+      const service = spaceSkillService(db);
+      const skill = await service.createLocalSkill(spaceId, { name: "Inline durable", markdown: "# database bytes" });
+      const saved = await service.updateFile(spaceId, skill.id, "support.txt", "also in Postgres");
       expect((await skillInstallationMaintenance(db).verifyVersions({ id: saved.versionId! })).results)
         .toEqual([expect.objectContaining({ status: "database_snapshot", packageId: null })]);
       const priorHome = process.env.OUTPOST_HOME;
       process.env.OUTPOST_HOME = path.join(root, `inline-cold-${randomUUID()}`);
       try {
-        expect(await companySkillService(db).readFile(companyId, skill.id, "support.txt")).toMatchObject({ content: "also in Postgres" });
+        expect(await spaceSkillService(db).readFile(spaceId, skill.id, "support.txt")).toMatchObject({ content: "also in Postgres" });
       } finally { process.env.OUTPOST_HOME = priorHome; }
     } finally { process.env.OUTPOST_SKILL_PACKAGE_STORAGE_ENABLED = "true"; }
   });

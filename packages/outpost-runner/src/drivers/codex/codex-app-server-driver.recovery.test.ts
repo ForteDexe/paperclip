@@ -74,7 +74,7 @@ describe("Codex app-server Codex driver", () => {
     await collectUntilTerminal(session.events());
     transport.turnStartResponse = Promise.resolve({ turn: { id: "turn-2", status: "inProgress", items: [] } });
     await session.startTurn({ message: { role: "user", text: "Continue." }, continuation: true });
-    // The provider ends the continuation without paperclip_finish, for
+    // The provider ends the continuation without outpost_finish, for
     // example while it says it will wait for a background command.
     transport.push("turn/completed", { threadId: "thread-1", turn: { id: "turn-2", status: "completed", items: [] } });
     await collectUntilTerminal(session.events());
@@ -614,7 +614,7 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "call-before-loss",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: result,
         },
       }),
@@ -647,7 +647,7 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "call-after-loss",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: reverseObjectKeys(result),
         },
       }),
@@ -662,7 +662,7 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "changed-after-loss",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: changed,
         },
       }),
@@ -720,7 +720,7 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "tool-result",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: result,
         },
       }),
@@ -777,7 +777,7 @@ describe("Codex app-server Codex driver", () => {
           threadId: "thread-1",
           turnId: "turn-1",
           callId: "terminal-call",
-          tool: "paperclip_finish",
+          tool: "outpost_finish",
           arguments: result,
         },
       }),
@@ -1337,7 +1337,7 @@ describe("Codex app-server Codex driver", () => {
         threadId: "thread-1",
         turnId: "turn-1",
         callId: "result-before-loss",
-        tool: "paperclip_finish",
+        tool: "outpost_finish",
         arguments: result,
       },
     })).toMatchObject({ success: true });
@@ -1419,7 +1419,7 @@ describe("Codex app-server Codex driver", () => {
 
   it("settles a missing persisted turn with the durable result it already proposed", async () => {
     // Provider history lost the turn (for example, it was killed before the
-    // turn terminal was flushed), but Paperclip durably holds the result that
+    // turn terminal was flushed), but Outpost durably holds the result that
     // turn proposed. That result is the turn's outcome: finalize it instead of
     // failing recovery and re-running finished work.
     const first = new FakeCodexTransport();
@@ -1438,7 +1438,7 @@ describe("Codex app-server Codex driver", () => {
       await first.invoke({
         id: "call-before-kill",
         method: "item/tool/call",
-        params: { threadId: "thread-1", turnId: "turn-1", callId: "call-before-kill", tool: "paperclip_finish", arguments: result },
+        params: { threadId: "thread-1", turnId: "turn-1", callId: "call-before-kill", tool: "outpost_finish", arguments: result },
       }),
     ).toMatchObject({ success: true });
     const snapshot = await original.snapshot();
@@ -1484,7 +1484,7 @@ describe("Codex app-server Codex driver", () => {
       await first.invoke({
         id: "call-before-kill",
         method: "item/tool/call",
-        params: { threadId: "thread-1", turnId: "turn-1", callId: "call-before-kill", tool: "paperclip_finish", arguments: result },
+        params: { threadId: "thread-1", turnId: "turn-1", callId: "call-before-kill", tool: "outpost_finish", arguments: result },
       });
     }
     const snapshot = await original.snapshot();
@@ -1522,7 +1522,7 @@ describe("Codex app-server Codex driver", () => {
     await first.invoke({
       id: "call-before-kill",
       method: "item/tool/call",
-      params: { threadId: "thread-1", turnId: "turn-1", callId: "call-before-kill", tool: "paperclip_finish", arguments: result },
+      params: { threadId: "thread-1", turnId: "turn-1", callId: "call-before-kill", tool: "outpost_finish", arguments: result },
     });
     const snapshot = await original.snapshot();
     await original.close({ reason: "killed before the turn terminal" });
@@ -1546,7 +1546,7 @@ describe("Codex app-server Codex driver", () => {
 
   it.each([true, false])("settles a restore-lost turn from its durable result only when one is held (held=%s)", async (held) => {
     // The runner can report the checkpointed turn lost on restore when it
-    // cannot prove the accepted result itself, while Paperclip already holds it.
+    // cannot prove the accepted result itself, while Outpost already holds it.
     const lost = { code: "provider_turn_lost_on_restore", recoverable: true };
     const first = new FakeCodexTransport();
     const second = new FakeCodexTransport();
@@ -1565,7 +1565,7 @@ describe("Codex app-server Codex driver", () => {
       await first.invoke({
         id: "call-before-kill",
         method: "item/tool/call",
-        params: { threadId: "thread-1", turnId: "turn-1", callId: "call-before-kill", tool: "paperclip_finish", arguments: result },
+        params: { threadId: "thread-1", turnId: "turn-1", callId: "call-before-kill", tool: "outpost_finish", arguments: result },
       });
     }
     const snapshot = await original.snapshot();
@@ -1594,7 +1594,7 @@ describe("Codex app-server Codex driver", () => {
     await first.invoke({
       id: "call-before-kill",
       method: "item/tool/call",
-      params: { threadId: "thread-1", turnId: "turn-1", callId: "call-before-kill", tool: "paperclip_finish", arguments: result },
+      params: { threadId: "thread-1", turnId: "turn-1", callId: "call-before-kill", tool: "outpost_finish", arguments: result },
     });
     const snapshot = await original.snapshot();
     await original.close({ reason: "killed before the turn terminal" });
@@ -1695,7 +1695,7 @@ describe("Codex app-server Codex driver", () => {
     const snapshot = await original.snapshot();
     await original.close({ reason: "waiting for connection" });
     const githubTool = { name: "github_search", description: "Search authorized repositories", inputSchema: { type: "object" } };
-    const handler = vi.fn(async () => ({ repositories: ["paperclip"] }));
+    const handler = vi.fn(async () => ({ repositories: ["outpost"] }));
     const resumedDriver = makeDriver([second], { conversationMode: "prepared", dynamicTools: [githubTool], dynamicToolHandler: handler });
     expect((await resumedDriver.descriptor()).capabilities.toolRefreshOnResume).toBe(true);
     const recovery = await resumedDriver.recoverSession(snapshot);
@@ -1704,7 +1704,7 @@ describe("Codex app-server Codex driver", () => {
     expect(second.calls.some(call => call.method === "thread/start")).toBe(false);
     expect(second.calls.find(call => call.method === "thread/resume")?.params).toMatchObject({ threadId: "thread-1", dynamicTools: expect.arrayContaining([githubTool]) });
     const result = await second.invoke({ id: "rpc-github", method: "item/tool/call", params: {
-      threadId: "thread-1", turnId: "turn-1", callId: "github-call", tool: "github_search", arguments: { query: "paperclip" },
+      threadId: "thread-1", turnId: "turn-1", callId: "github-call", tool: "github_search", arguments: { query: "outpost" },
     } });
     expect(result).toMatchObject({ success: true });
     expect(handler).toHaveBeenCalledWith(expect.objectContaining({ tool: "github_search", threadId: "thread-1" }));

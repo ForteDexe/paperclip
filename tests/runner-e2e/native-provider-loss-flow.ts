@@ -18,9 +18,9 @@ type Check = { id: string; passed: boolean; detail: string };
 /** Transport loss must never turn an unanswered native mutation into success. */
 export function assertProviderLossSettlement(run: Row, issue: Row, events: readonly Row[], pending: ActiveStopPending) {
   const fail = (ok: boolean, reason: string) => { if (!ok) throw new Error(`Native provider loss: ${reason}`); };
-  fail(run.id === pending.scope.runId && run.companyId === pending.scope.companyId && run.nativeIssueId === pending.scope.issueId
+  fail(run.id === pending.scope.runId && run.spaceId === pending.scope.spaceId && run.nativeIssueId === pending.scope.issueId
     && run.status === "failed" && run.runtimeMode === "native" && typeof run.error === "string" && run.error.length > 0
-    && issue.id === pending.scope.issueId && issue.companyId === pending.scope.companyId && issue.status === "blocked"
+    && issue.id === pending.scope.issueId && issue.spaceId === pending.scope.spaceId && issue.status === "blocked"
     && run.resultJson?.nativeCancellation == null, "failure must leave the task open without claiming Stop or success");
   const frames = events.flatMap(row => row.payload?.orpEvent ? [row.payload.orpEvent] : []);
   const closures = frames.filter(frame => ["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"].includes(frame.eventType)
@@ -59,12 +59,12 @@ export async function runNativeProviderLossFlow(input: {
   let pending: ActiveStopPending | undefined, settled = false;
   const checks: Check[] = [], samples: Array<{ phase: string; absent: boolean }> = [];
   const check = (id: string, ok: boolean, detail: string) => { checks.push({ id, passed: ok, detail }); expect(ok, detail).toBe(true); };
-  const scope = (): ActiveStopScope => ({ provider: "cursor", companyId: fixtures.company.id, issueId: issue.id, runId: runs[0]!.id, target, commandSha256: command!.commandSha256 });
+  const scope = (): ActiveStopScope => ({ provider: "cursor", spaceId: fixtures.space.id, issueId: issue.id, runId: runs[0]!.id, target, commandSha256: command!.commandSha256 });
   const bootstrap = (): BootstrapReadProof | undefined => fixture ? { actionFile: fixture.actionFile, events } : undefined;
   const authority = () => { const run = runs[0]!; return { pid: run.processPid, groupId: run.processGroupId, startedAt: run.processStartedAt, runId: run.id }; };
   const load = async () => {
     if (issue.id) issue = await api.get<Row>(`/api/issues/${issue.id}`);
-    const list = await api.get<Row[]>(`/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100`);
+    const list = await api.get<Row[]>(`/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100`);
     runs = await Promise.all(list.map(run => api.get<Row>(`/api/heartbeat-runs/${run.id}`)));
     if (runs.length > 1) throw new Error("Provider loss automatically dispatched another run");
     events = runs[0] ? await collectRunEvents<Row>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${runs[0]!.id}/events?afterSeq=${afterSeq}&limit=${limit}`)) : [];
@@ -102,22 +102,22 @@ export async function runNativeProviderLossFlow(input: {
     const caller = readActiveStopCaller(await api.get("/api/health"), await api.get("/api/auth/get-session"));
     const agent = await api.get<Row>(`/api/agents/${fixtures.agent.id}`);
     await api.patch(`/api/agents/${fixtures.agent.id}`, { adapterConfig: { ...agent.adapterConfig, acpxPermissionMode: "approve-reads", acpxSessionMode: "agent", timeoutSec: 120, lifecycleMode: "per_turn" } });
-    const project = await api.post<Row>(`/api/companies/${fixtures.company.id}/projects`, { name: `Native provider loss ${nonce}`, executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", sharedWorkspaceConcurrency: "serialize", allowIssueOverride: false, environmentId: fixtures.environment.id, workspaceStrategy: { type: "project_primary" } }, workspace: { name: "Primary", sourceType: "local_path", cwd: input.workspacePath, isPrimary: true } });
+    const project = await api.post<Row>(`/api/spaces/${fixtures.space.id}/projects`, { name: `Native provider loss ${nonce}`, executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", sharedWorkspaceConcurrency: "serialize", allowIssueOverride: false, environmentId: fixtures.environment.id, workspaceStrategy: { type: "project_primary" } }, workspace: { name: "Primary", sourceType: "local_path", cwd: input.workspacePath, isPrimary: true } });
     if (!remote) await sample("before-request");
-    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt: remote ? input.remoteBootstrap!.prompt(nonce) : prompt(), workMode: "standard", projectName: project.name, requireExplicitTitle: true });
+    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt: remote ? input.remoteBootstrap!.prompt(nonce) : prompt(), workMode: "standard", projectName: project.name, requireExplicitTitle: true });
     issue = (await pollUntil({ label: "browser-created provider-loss task", deadlineAt: input.deadlineAt,
-      load: async () => (await api.get<Row[]>(`/api/companies/${fixtures.company.id}/issues?limit=100`)).find(row => row.id === createdTask.issueId), accept: Boolean }))!;
+      load: async () => (await api.get<Row[]>(`/api/spaces/${fixtures.space.id}/issues?limit=100`)).find(row => row.id === createdTask.issueId), accept: Boolean }))!;
     if (remote) {
       await pollUntil({ label: "provider-loss bootstrap", deadlineAt: input.deadlineAt, load, accept: value => value.run.status === "running" });
       fixture = await input.remoteBootstrap!.bindAndRelease({ issueId: issue.id, runId: runs[0]!.id, targets: [target], actionPrompt: async value => {
         fixture = value; command = cursorDeniedCommand(join(value.remoteCwd, target));
-        const prepared = await prepareNativeRemoteAction({ fixture: value, companyId: fixtures.company.id, environmentId: fixtures.environment.id, runId: runs[0]!.id, target, prompt: prompt() });
+        const prepared = await prepareNativeRemoteAction({ fixture: value, spaceId: fixtures.space.id, environmentId: fixtures.environment.id, runId: runs[0]!.id, target, prompt: prompt() });
         baseline = prepared.baseline; await input.evidence("provider-loss-baseline.json", baseline); return prepared.prompt;
       } });
     }
     await pollUntil({ label: "unanswered native permission before loss", deadlineAt: input.deadlineAt, intervalMs: 200, load,
       accept: value => { pending = observeActiveStopPending({ ...value, scope: scope(), caller, cancellationRequestId: randomUUID(), bootstrap: bootstrap() }); return true; } });
-    await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
+    await page.goto(`/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
     const card = page.getByTestId("task-chat-runtime-request").filter({ visible: true });
     await expect(card).toHaveCount(1); await expect(card.getByRole("button", { name: "Deny", exact: true })).toBeEnabled();
     await input.capture("pending-before-loss", "Unanswered native mutation before runtime loss", "pending-before-loss.png");

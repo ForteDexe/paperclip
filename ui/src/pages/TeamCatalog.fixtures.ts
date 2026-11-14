@@ -12,19 +12,19 @@ import type {
 // ---------------------------------------------------------------------------
 
 export const sampleTeam: CatalogTeam = {
-  id: "paperclipai:bundled:outpost-defaults:core-exec-team",
-  key: "paperclipai/bundled/outpost-defaults/core-exec-team",
+  id: "outpost:bundled:outpost-defaults:core-exec-team",
+  key: "outpost/bundled/outpost-defaults/core-exec-team",
   kind: "bundled",
   category: "outpost-defaults",
   slug: "core-exec-team",
   name: "Core Exec Team",
   description:
-    "A starter executive team: an Outpost Lead who manages an Engineering Lead and a CMO, plus a launch project and a weekly standup routine. Installs ready-to-run agents you can customize.",
+    "A starter leadership team: an Default agent who manages an Engineering Lead and a Product Lead, plus a launch project and a weekly standup routine. Installs ready-to-run agents you can customize.",
   path: "catalog/bundled/outpost-defaults/core-exec-team",
   entrypoint: "TEAM.md",
   schema: "agentcompanies/v1",
   defaultInstall: true,
-  recommendedForCompanyTypes: ["outpost-root"],
+  recommendedForSpaceTypes: ["outpost-root"],
   tags: ["exec", "starter"],
   counts: {
     agents: 3,
@@ -35,15 +35,15 @@ export const sampleTeam: CatalogTeam = {
     catalogSkills: 1,
     externalSkillSources: 1,
   },
-  rootAgentSlugs: ["ceo"],
-  agentSlugs: ["ceo", "cto", "cmo"],
+  rootAgentSlugs: ["lead"],
+  agentSlugs: ["lead", "engineering_lead", "product"],
   projectSlugs: ["launch"],
   requiredSkills: [
-    { type: "catalog", ref: "engineering/code-review", agentSlugs: ["cto"], resolved: true, catalogSkillKey: "engineering/code-review" },
-    { type: "github", ref: "acme/growth-playbook@v1.2.0", agentSlugs: ["cmo"], resolved: false, sourceRef: "v1.2.0" },
+    { type: "catalog", ref: "engineering/code-review", agentSlugs: ["engineering_lead"], resolved: true, catalogSkillKey: "engineering/code-review" },
+    { type: "github", ref: "acme/growth-playbook@v1.2.0", agentSlugs: ["product"], resolved: false, sourceRef: "v1.2.0" },
   ],
   envInputs: [
-    { key: "OPENAI_API_KEY", agentSlug: "cto", projectSlug: null, kind: "secret", requirement: "required" },
+    { key: "OPENAI_API_KEY", agentSlug: "engineering_lead", projectSlug: null, kind: "secret", requirement: "required" },
     { key: "DEFAULT_TIMEZONE", agentSlug: null, projectSlug: "launch", kind: "plain", requirement: "optional" },
   ],
   sourceRefs: [
@@ -53,9 +53,9 @@ export const sampleTeam: CatalogTeam = {
   files: [
     { path: "TEAM.md", kind: "team", sizeBytes: 2144, sha256: "a1" },
     { path: "README.md", kind: "readme", sizeBytes: 980, sha256: "a2" },
-    { path: "agents/ceo/AGENTS.md", kind: "agent", sizeBytes: 1200, sha256: "a3" },
-    { path: "agents/cto/AGENTS.md", kind: "agent", sizeBytes: 1100, sha256: "a4" },
-    { path: "agents/cmo/AGENTS.md", kind: "agent", sizeBytes: 1050, sha256: "a5" },
+    { path: "agents/lead/AGENTS.md", kind: "agent", sizeBytes: 1200, sha256: "a3" },
+    { path: "agents/engineering_lead/AGENTS.md", kind: "agent", sizeBytes: 1100, sha256: "a4" },
+    { path: "agents/product/AGENTS.md", kind: "agent", sizeBytes: 1050, sha256: "a5" },
     { path: "projects/launch/PROJECT.md", kind: "project", sizeBytes: 640, sha256: "a6" },
   ],
   trustLevel: "external_sources",
@@ -67,14 +67,14 @@ export const sampleTeam: CatalogTeam = {
 
 export const optionalTeam: CatalogTeam = {
   ...sampleTeam,
-  id: "paperclipai:optional:software-development:platform-pod",
-  key: "paperclipai/optional/software-development/platform-pod",
+  id: "outpost:optional:software-development:platform-pod",
+  key: "outpost/optional/software-development/platform-pod",
   kind: "optional",
   category: "software-development",
   slug: "platform-pod",
   name: "Platform Engineering Pod",
   description: "An optional platform pod with a tech lead and two engineers.",
-  recommendedForCompanyTypes: [],
+  recommendedForSpaceTypes: [],
   counts: { ...sampleTeam.counts, agents: 4, routines: 2 },
   rootAgentSlugs: ["tech-lead"],
   agentSlugs: ["tech-lead", "eng-1", "eng-2", "sre"],
@@ -84,7 +84,7 @@ export const optionalTeam: CatalogTeam = {
 
 export const warnTeam: CatalogTeam = {
   ...sampleTeam,
-  id: "paperclipai:optional:research:lab-with-local-source",
+  id: "outpost:optional:research:lab-with-local-source",
   slug: "lab-with-local-source",
   name: "Research Lab (local source)",
   kind: "optional",
@@ -116,8 +116,8 @@ export const currentInstalledState: InstalledCatalogTeam = {
 };
 
 export const sampleSkillPreparations: CatalogTeamSkillPreparation[] = [
-  { type: "catalog", ref: "engineering/code-review", agentSlugs: ["cto"], action: "already_in_package", catalogSkillId: "skill-1", catalogSkillKey: "engineering/code-review", sourceLocator: null, sourceRef: null, reason: null },
-  { type: "github", ref: "acme/growth-playbook@v1.2.0", agentSlugs: ["cmo"], action: "external_import_required", catalogSkillId: null, catalogSkillKey: null, sourceLocator: "github.com/acme/growth-playbook", sourceRef: "v1.2.0", reason: "Resolved from GitHub at install time" },
+  { type: "catalog", ref: "engineering/code-review", agentSlugs: ["engineering_lead"], action: "already_in_package", catalogSkillId: "skill-1", catalogSkillKey: "engineering/code-review", sourceLocator: null, sourceRef: null, reason: null },
+  { type: "github", ref: "acme/growth-playbook@v1.2.0", agentSlugs: ["product"], action: "external_import_required", catalogSkillId: null, catalogSkillKey: null, sourceLocator: "github.com/acme/growth-playbook", sourceRef: "v1.2.0", reason: "Resolved from GitHub at install time" },
 ];
 
 // Onboarding "Pick a starter team" grid (design §6): `defaultInstall` bundled
@@ -133,8 +133,8 @@ export const onboardingTeams: CatalogTeam[] = [
   },
   {
     ...sampleTeam,
-    id: "paperclipai:bundled:outpost-defaults:growth-pod",
-    key: "paperclipai/bundled/outpost-defaults/growth-pod",
+    id: "outpost:bundled:outpost-defaults:growth-pod",
+    key: "outpost/bundled/outpost-defaults/growth-pod",
     slug: "growth-pod",
     name: "Growth Pod",
     description:
@@ -149,8 +149,8 @@ export const onboardingTeams: CatalogTeam[] = [
   },
   {
     ...sampleTeam,
-    id: "paperclipai:bundled:outpost-defaults:support-pod",
-    key: "paperclipai/bundled/outpost-defaults/support-pod",
+    id: "outpost:bundled:outpost-defaults:support-pod",
+    key: "outpost/bundled/outpost-defaults/support-pod",
     slug: "support-pod",
     name: "Support Pod",
     description: "A two-person support desk with a lead and an agent, plus a triage routine.",

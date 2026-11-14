@@ -32,7 +32,7 @@
         "customer"
       ],
       "whenToUse": "Authenticate an agent with this account.",
-      "guidanceMd": "Use your personal account or an explicitly shared company account.",
+      "guidanceMd": "Use your personal account or an explicitly shared space account.",
       "riskTier": "S3"
     },
     {
@@ -53,7 +53,7 @@
         "customer"
       ],
       "whenToUse": "Authenticate an agent with this account.",
-      "guidanceMd": "Use your personal account or an explicitly shared company account.",
+      "guidanceMd": "Use your personal account or an explicitly shared space account.",
       "riskTier": "S3",
       "credentialFields": [
         {

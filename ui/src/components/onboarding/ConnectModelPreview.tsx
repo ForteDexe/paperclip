@@ -22,7 +22,7 @@ import { Stepper } from "./Stepper";
  *
  * A mock, not the shipped step. The wizard's real step 4 puts two adapter cards
  * over an advanced-settings disclosure and probes the environment before
- * hiring; none of that is wired up here. What is here is the part the design is
+ * creation; none of that is wired up here. What is here is the part the design is
  * actually asking a question about — how the row of sources reads as you point
  * at it, pick one, and flip the whole row between subscription and API
  * credentials — so it can be judged before any of that machinery is moved.

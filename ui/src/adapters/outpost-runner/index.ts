@@ -1,12 +1,12 @@
-import type { PaperclipQuestion, PaperclipQuestionResponse, PaperclipQuestionSet, TranscriptEntry } from "@outpost/adapter-utils";
+import type { OutpostQuestion, OutpostQuestionResponse, OutpostQuestionSet, TranscriptEntry } from "@outpost/adapter-utils";
 import type { UIAdapterModule } from "../types";
-import { parseCodexStdoutLine, buildPaperclipRunnerConfig } from "@outpost/adapter-codex-local/ui";
+import { parseCodexStdoutLine, buildOutpostRunnerConfig } from "@outpost/adapter-codex-local/ui";
 import { CodexLocalConfigFields } from "../codex-local/config-fields";
 import { isRunLogOnlyProviderEvent } from "@/components/transcript/run-log-only-events";
 
 type JsonRecord = Record<string, unknown>;
 
-interface PaperclipRunnerParserState {
+interface OutpostRunnerParserState {
   assistantDeltaItemIds: Set<string>;
   reasoningDeltaItemIds: Set<string>;
   resultSummaries: Set<string>;
@@ -212,7 +212,7 @@ function parseItemEvent(
   payload: JsonRecord,
   phase: "started" | "completed",
   ts: string,
-  state: PaperclipRunnerParserState,
+  state: OutpostRunnerParserState,
 ): TranscriptEntry[] {
   const item = record(payload.item);
   const type = normalizedItemType(item, payload);
@@ -268,7 +268,7 @@ function parseDeltaEvent(
   event: JsonRecord,
   payload: JsonRecord,
   ts: string,
-  state: PaperclipRunnerParserState,
+  state: OutpostRunnerParserState,
 ): TranscriptEntry[] {
   const kind = text(payload.kind).replaceAll("_", "").toLowerCase();
   const value = text(payload.text);
@@ -411,7 +411,7 @@ function runtimeRequestEntry(
   payload: JsonRecord,
   event: JsonRecord,
   ts: string,
-  state: PaperclipRunnerParserState,
+  state: OutpostRunnerParserState,
 ): TranscriptEntry | null {
   const request = record(payload.request ?? payload);
   const requestId = text(request.requestId, text(payload.requestId));
@@ -504,11 +504,11 @@ function runtimeRequestEntry(
   return entry;
 }
 
-function parseQuestionResponse(value: unknown): PaperclipQuestionResponse | null {
+function parseQuestionResponse(value: unknown): OutpostQuestionResponse | null {
   const response = record(value);
   if (response.schema !== "outpost.question_response.v1") return null;
   const rawAnswers = record(response.answers);
-  const answers: PaperclipQuestionResponse["answers"] = {};
+  const answers: OutpostQuestionResponse["answers"] = {};
   for (const [questionId, rawAnswer] of Object.entries(rawAnswers).slice(0, 64)) {
     const answer = record(rawAnswer);
     const selectedOptionIds = (Array.isArray(answer.selectedOptionIds) ? answer.selectedOptionIds : [])
@@ -526,7 +526,7 @@ function parseQuestionResponse(value: unknown): PaperclipQuestionResponse | null
   return { schema: "outpost.question_response.v1", answers };
 }
 
-function parseQuestionSet(value: unknown): PaperclipQuestionSet | null {
+function parseQuestionSet(value: unknown): OutpostQuestionSet | null {
   const input = record(value);
   if (!Array.isArray(input.questions) || input.questions.length === 0) return null;
   // Early v2 events passed through a broad JWT redactor that replaced the
@@ -536,8 +536,8 @@ function parseQuestionSet(value: unknown): PaperclipQuestionSet | null {
   if (input.schema !== undefined
     && input.schema !== "outpost.question_set.v1"
     && input.schema !== "***REDACTED***") return null;
-  const questions = input.questions.map(record).slice(0, 64).map((question, questionIndex): PaperclipQuestion => {
-    const answerMode: PaperclipQuestion["answerMode"] = question.answerMode === "single_select" || question.answerMode === "multi_select" ? question.answerMode : "text";
+  const questions = input.questions.map(record).slice(0, 64).map((question, questionIndex): OutpostQuestion => {
+    const answerMode: OutpostQuestion["answerMode"] = question.answerMode === "single_select" || question.answerMode === "multi_select" ? question.answerMode : "text";
     const options = (Array.isArray(question.options) ? question.options : []).map(record).slice(0, 128).map((option, optionIndex) => ({
       id: text(option.id, `option-${optionIndex + 1}`).slice(0, 160),
       label: text(option.label, `Option ${optionIndex + 1}`).slice(0, 1_000),
@@ -545,11 +545,11 @@ function parseQuestionSet(value: unknown): PaperclipQuestionSet | null {
     }));
     const customAnswer = record(question.customAnswer);
     const validation = record(question.textValidation);
-    const inputType: NonNullable<PaperclipQuestion["textValidation"]>["inputType"] =
+    const inputType: NonNullable<OutpostQuestion["textValidation"]>["inputType"] =
       validation.inputType === "number" || validation.inputType === "integer" || validation.inputType === "text"
         ? validation.inputType
         : undefined;
-    const parsedQuestion: PaperclipQuestion = {
+    const parsedQuestion: OutpostQuestion = {
       id: text(question.id, `question-${questionIndex + 1}`).slice(0, 160),
       ...(nullableText(question.header) ? { header: text(question.header).slice(0, 1_000) } : {}),
       prompt: text(question.prompt, `Question ${questionIndex + 1}`).slice(0, 4_000),
@@ -676,7 +676,7 @@ function piRuntimeFailureKey(event: JsonRecord, payload: JsonRecord): string | n
     || payload.category !== "pi.runtime_failure"
     || !text(event.runId) || !text(event.turnId) || !text(event.normalizedSessionId)) return null;
   const details = Array.isArray(payload.details) ? payload.details.map(record) : [];
-  if (!details.some(detail => detail.name === "source.method" && detail.value === "paperclip/pi_notice")
+  if (!details.some(detail => detail.name === "source.method" && detail.value === "outpost/pi_notice")
     || !details.some(detail => detail.name === "source.nativeEvent" && detail.value === "runtime_failure")
     || !details.some(detail => detail.name === "source.sessionId" && text(detail.value))) return null;
   const { noticeId: _noticeId, ...notice } = payload;
@@ -686,7 +686,7 @@ function piRuntimeFailureKey(event: JsonRecord, payload: JsonRecord): string | n
 function parsePrpEvent(
   event: JsonRecord,
   ts: string,
-  state: PaperclipRunnerParserState,
+  state: OutpostRunnerParserState,
 ): TranscriptEntry[] {
   const eventType = text(event.eventType);
   const payload = record(event.payload);
@@ -770,7 +770,7 @@ function parsePrpEvent(
     const summary = text(result.summary);
     if (!summary || state.resultSummaries.has(summary)) return [];
     state.resultSummaries.add(summary);
-    // The semantic summary is governance state, not provider-authored prose.
+    // The semantic summary is policy state, not provider-authored prose.
     // Stored task projection can use it as a terminal fallback after seeing
     // the complete run, but the streaming parser must not race a later
     // explicit final item and materialize a duplicate reply.
@@ -783,7 +783,7 @@ function parsePrpEvent(
   return [];
 }
 
-function createParserState(): PaperclipRunnerParserState {
+function createParserState(): OutpostRunnerParserState {
   return {
     assistantDeltaItemIds: new Set(),
     reasoningDeltaItemIds: new Set(),
@@ -796,7 +796,7 @@ function createParserState(): PaperclipRunnerParserState {
   };
 }
 
-function parsePaperclipRunnerLine(line: string, ts: string, state: PaperclipRunnerParserState): TranscriptEntry[] {
+function parseOutpostRunnerLine(line: string, ts: string, state: OutpostRunnerParserState): TranscriptEntry[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
@@ -815,21 +815,21 @@ function parsePaperclipRunnerLine(line: string, ts: string, state: PaperclipRunn
   return [];
 }
 
-export function parsePaperclipRunnerStdoutLine(line: string, ts: string): TranscriptEntry[] {
-  return parsePaperclipRunnerLine(line, ts, createParserState());
+export function parseOutpostRunnerStdoutLine(line: string, ts: string): TranscriptEntry[] {
+  return parseOutpostRunnerLine(line, ts, createParserState());
 }
 
-export const paperclipRunnerUIAdapter: UIAdapterModule = {
+export const outpostRunnerUIAdapter: UIAdapterModule = {
   type: "outpost_runner",
   label: "Outpost Runner",
-  parseStdoutLine: parsePaperclipRunnerStdoutLine,
+  parseStdoutLine: parseOutpostRunnerStdoutLine,
   createStdoutParser: () => {
     let state = createParserState();
     return {
-      parseLine: (line, ts) => parsePaperclipRunnerLine(line, ts, state),
+      parseLine: (line, ts) => parseOutpostRunnerLine(line, ts, state),
       reset: () => { state = createParserState(); },
     };
   },
   ConfigFields: CodexLocalConfigFields,
-  buildAdapterConfig: buildPaperclipRunnerConfig,
+  buildAdapterConfig: buildOutpostRunnerConfig,
 };

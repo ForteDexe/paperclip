@@ -57,7 +57,7 @@ import {
   registerNativeWorkspaceSyncRetentionWork,
 } from "./services/native-runtime/native-workspace-sync-retention.js";
 import { markGitRestorePointExpired } from "./services/git-restore-point-storage.js";
-import { subscribeAllCompanyLiveEvents } from "./services/live-events.js";
+import { subscribeAllSpaceLiveEvents } from "./services/live-events.js";
 import { DELIVERY_QUEUES } from "./services/delivery-work-notifications.js";
 import { registerBudgetEnforcementWork, registerCostAccountingWork } from "./services/budget-enforcement-worker.js";
 import { caseHandoffDeliveryService } from "./services/case-handoff-delivery.js";
@@ -101,7 +101,7 @@ import { executionControlSchedule, registerExecutionControlWork } from "./servic
 import { connectionIntentDeliveryService } from "./services/connection-intent-delivery.js";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import type { Server, RequestListener } from "node:http";
-import { createPaperclipHttpServer } from "./http/server.js";
+import { createOutpostHttpServer } from "./http/server.js";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
@@ -120,8 +120,8 @@ import {
   prepareEmbeddedPostgresNativeRuntime,
   reconcilePendingMigrationHistory,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   instanceUserRoles,
   closeLivenessDb,
   closeCheckpointDb,
@@ -197,7 +197,7 @@ import { createPluginWorkerManager } from "./services/plugin-worker-manager.js";
 import { createStorageServiceFromConfig } from "./storage/index.js";
 import { abortInFlightMultipartUploads } from "./storage/s3-multipart.js";
 import { printStartupBanner } from "./startup-banner.js";
-import { getBoardClaimWarningUrl, initializeBoardClaimChallenge } from "./board-claim.js";
+import { getOperatorClaimWarningUrl, initializeOperatorClaimChallenge } from "./operator-claim.js";
 import { maybePersistWorktreeRuntimePorts } from "./worktree-config.js";
 import { initTelemetry, getTelemetryClient } from "./telemetry.js";
 import { conflict } from "./errors.js";
@@ -240,7 +240,7 @@ type EmbeddedPostgresInstance = SupervisedEmbeddedPostgres & {
   initialise(): Promise<void>;
 };
 
-type EmbeddedPostgresCtor = new (opts: {
+type EmbeddedPostgresEngineeringLeadr = new (opts: {
   databaseDir: string;
   user: string;
   password: string;
@@ -446,23 +446,23 @@ async function startServerWithDatabaseTeardown(
     }
   }
 
-  const LOCAL_BOARD_USER_ID = "local-board";
-  const LOCAL_BOARD_USER_EMAIL = "local@outpost.local";
-  const LOCAL_BOARD_USER_NAME = "Board";
+  const LOCAL_OPERATOR_USER_ID = "local-operator";
+  const LOCAL_OPERATOR_USER_EMAIL = "local@outpost.local";
+  const LOCAL_OPERATOR_USER_NAME = "Operator";
   
   async function ensureLocalTrustedBoardPrincipal(db: any): Promise<void> {
     const now = new Date();
     const existingUser = await db
       .select({ id: authUsers.id })
       .from(authUsers)
-      .where(eq(authUsers.id, LOCAL_BOARD_USER_ID))
+      .where(eq(authUsers.id, LOCAL_OPERATOR_USER_ID))
       .then((rows: Array<{ id: string }>) => rows[0] ?? null);
   
     if (!existingUser) {
       await db.insert(authUsers).values({
-        id: LOCAL_BOARD_USER_ID,
-        name: LOCAL_BOARD_USER_NAME,
-        email: LOCAL_BOARD_USER_EMAIL,
+        id: LOCAL_OPERATOR_USER_ID,
+        name: LOCAL_OPERATOR_USER_NAME,
+        email: LOCAL_OPERATOR_USER_EMAIL,
         emailVerified: true,
         image: null,
         createdAt: now,
@@ -473,33 +473,33 @@ async function startServerWithDatabaseTeardown(
     const role = await db
       .select({ id: instanceUserRoles.id })
       .from(instanceUserRoles)
-      .where(and(eq(instanceUserRoles.userId, LOCAL_BOARD_USER_ID), eq(instanceUserRoles.role, "instance_admin")))
+      .where(and(eq(instanceUserRoles.userId, LOCAL_OPERATOR_USER_ID), eq(instanceUserRoles.role, "instance_admin")))
       .then((rows: Array<{ id: string }>) => rows[0] ?? null);
     if (!role) {
       await db.insert(instanceUserRoles).values({
-        userId: LOCAL_BOARD_USER_ID,
+        userId: LOCAL_OPERATOR_USER_ID,
         role: "instance_admin",
       });
     }
   
-    const companyRows = await db.select({ id: companies.id }).from(companies);
-    for (const company of companyRows) {
+    const spaceRows = await db.select({ id: spaces.id }).from(spaces);
+    for (const space of spaceRows) {
       const membership = await db
-        .select({ id: companyMemberships.id })
-        .from(companyMemberships)
+        .select({ id: spaceMemberships.id })
+        .from(spaceMemberships)
         .where(
           and(
-            eq(companyMemberships.companyId, company.id),
-            eq(companyMemberships.principalType, "user"),
-            eq(companyMemberships.principalId, LOCAL_BOARD_USER_ID),
+            eq(spaceMemberships.spaceId, space.id),
+            eq(spaceMemberships.principalType, "user"),
+            eq(spaceMemberships.principalId, LOCAL_OPERATOR_USER_ID),
           ),
         )
         .then((rows: Array<{ id: string }>) => rows[0] ?? null);
       if (membership) continue;
-      await db.insert(companyMemberships).values({
-        companyId: company.id,
+      await db.insert(spaceMemberships).values({
+        spaceId: space.id,
         principalType: "user",
-        principalId: LOCAL_BOARD_USER_ID,
+        principalId: LOCAL_OPERATOR_USER_ID,
         status: "active",
         membershipRole: "owner",
       });
@@ -531,16 +531,16 @@ async function startServerWithDatabaseTeardown(
     if (!("deploymentMode" in startupConfig)) throw new Error("Cloud bootstrap requires an external PostgreSQL connection");
     const config = startupConfig;
     const moduleName = "embedded-postgres";
-    let EmbeddedPostgres: EmbeddedPostgresCtor;
+    let EmbeddedPostgres: EmbeddedPostgresEngineeringLeadr;
     try {
       // embedded-postgres registers async-exit-hook handlers as an import side
       // effect. Those handlers stop PostgreSQL immediately on SIGINT/SIGTERM,
-      // racing Paperclip's later heartbeat snapshot query. Paperclip explicitly
+      // racing Outpost's later heartbeat snapshot query. Outpost explicitly
       // stops the managed cluster in its own ordered shutdown path instead.
       const mod = await loadWithoutCoordinatedShutdownSignalHooks(
         () => import(moduleName),
       );
-      EmbeddedPostgres = mod.default as EmbeddedPostgresCtor;
+      EmbeddedPostgres = mod.default as EmbeddedPostgresEngineeringLeadr;
     } catch {
       throw new Error(
         "Embedded PostgreSQL mode requires dependency `embedded-postgres`. Reinstall dependencies (without omitting required packages), or set DATABASE_URL for external Postgres.",
@@ -615,13 +615,13 @@ async function startServerWithDatabaseTeardown(
     const runningPid = getRunningPid();
     if (runningPid) {
       port = embeddedPostgresOwnerPort(readFileSync(postmasterPidFile, "utf8"), dataDir, runningPid);
-      const actualDataDir = await getPostgresDataDirectory(`postgres://paperclip:paperclip@127.0.0.1:${port}/postgres`);
+      const actualDataDir = await getPostgresDataDirectory(`postgres://outpost:outpost@127.0.0.1:${port}/postgres`);
       if (typeof actualDataDir !== "string" || resolve(actualDataDir) !== resolve(dataDir)) {
         throw new Error("Refusing to reuse PostgreSQL: its data directory belongs to another instance.");
       }
       logger.warn(`Embedded PostgreSQL already running; reusing existing process (pid=${runningPid}, port=${port})`);
     } else {
-      const configuredAdminConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${configuredPort}/postgres`;
+      const configuredAdminConnectionString = `postgres://outpost:outpost@127.0.0.1:${configuredPort}/postgres`;
       try {
         const actualDataDir = await getPostgresDataDirectory(configuredAdminConnectionString);
         if (
@@ -630,7 +630,7 @@ async function startServerWithDatabaseTeardown(
         ) {
           throw new Error("reachable postgres does not use the expected embedded data directory");
         }
-        await ensurePostgresDatabase(configuredAdminConnectionString, "paperclip");
+        await ensurePostgresDatabase(configuredAdminConnectionString, "outpost");
         logger.warn(
           `Embedded PostgreSQL appears to already be reachable without a pid file; reusing existing server on configured port ${configuredPort}`,
         );
@@ -643,8 +643,8 @@ async function startServerWithDatabaseTeardown(
         logger.info(`Using embedded PostgreSQL because no DATABASE_URL set (dataDir=${dataDir}, port=${port})`);
         const createEmbeddedPostgres = () => new EmbeddedPostgres({
           databaseDir: dataDir,
-          user: "paperclip",
-          password: "paperclip",
+          user: "outpost",
+          password: "outpost",
           port,
           persistent: true,
           initdbFlags: ["--encoding=UTF8", "--locale=C", "--lc-messages=C"],
@@ -714,13 +714,13 @@ async function startServerWithDatabaseTeardown(
       }
     }
   
-    const embeddedAdminConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${port}/postgres`;
-    const dbStatus = await ensurePostgresDatabase(embeddedAdminConnectionString, "paperclip");
+    const embeddedAdminConnectionString = `postgres://outpost:outpost@127.0.0.1:${port}/postgres`;
+    const dbStatus = await ensurePostgresDatabase(embeddedAdminConnectionString, "outpost");
     if (dbStatus === "created") {
-      logger.info("Created embedded PostgreSQL database: paperclip");
+      logger.info("Created embedded PostgreSQL database: outpost");
     }
   
-    const embeddedConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${port}/paperclip`;
+    const embeddedConnectionString = `postgres://outpost:outpost@127.0.0.1:${port}/outpost`;
     const shouldAutoApplyFirstRunMigrations = !clusterAlreadyInitialized || dbStatus === "created";
     if (shouldAutoApplyFirstRunMigrations) {
       logger.info("Detected first-run embedded PostgreSQL setup; applying pending migrations automatically");
@@ -821,7 +821,7 @@ async function startServerWithDatabaseTeardown(
   }
   const toolOAuthBackfill = await backfillLegacyToolOAuthTokens(db as any);
   if (toolOAuthBackfill.sanitizedConnections > 0 || toolOAuthBackfill.migratedConnections > 0) {
-    logger.info(toolOAuthBackfill, "Backfilled legacy tool OAuth credentials into company secrets");
+    logger.info(toolOAuthBackfill, "Backfilled legacy tool OAuth credentials into space secrets");
   }
   const confirmationSweep = await issueThreadInteractionService(db as any)
     .sweepSupersededPendingRequestConfirmations();
@@ -858,7 +858,7 @@ async function startServerWithDatabaseTeardown(
     betterAuthHandler = createBetterAuthHandler(auth);
     resolveSession = (req) => resolveBetterAuthSession(auth, req);
     resolveSessionFromHeaders = (headers) => resolveBetterAuthSessionFromHeaders(auth, headers);
-    await initializeBoardClaimChallenge(db as any, { deploymentMode: config.deploymentMode });
+    await initializeOperatorClaimChallenge(db as any, { deploymentMode: config.deploymentMode });
     authReady = true;
   }
 
@@ -990,7 +990,7 @@ async function startServerWithDatabaseTeardown(
     authPublicBaseUrl: config.authPublicBaseUrl,
     chatWebhookPublicBaseUrl: config.chatWebhookPublicBaseUrl,
     authReady,
-    companyDeletionEnabled: config.companyDeletionEnabled,
+    spaceDeletionEnabled: config.spaceDeletionEnabled,
     announcements: { enabled: config.announcementsEnabled, feedUrl: config.announcementsFeedUrl },
     pluginMigrationDb: pluginMigrationDb as any,
     betterAuthHandler,
@@ -1013,7 +1013,7 @@ async function startServerWithDatabaseTeardown(
   });
   const configuredApiUrl = process.env.OUTPOST_API_URL?.trim() || runtimeApiUrl;
   // Upgrade admission runs before every WebSocket listener, outside Express.
-  const server = createPaperclipHttpServer(app as unknown as RequestListener, {
+  const server = createOutpostHttpServer(app as unknown as RequestListener, {
     apiUrl: configuredApiUrl,
     httpOptions: cloudWarmStandbyServerOptions(() => isWarmStandby() || isIdleTaskDrainActive()),
   });
@@ -1051,9 +1051,9 @@ async function startServerWithDatabaseTeardown(
   });
   const liveEventsWebSocketServer = setupLiveEventsWebSocketServer(server, db as any, {
     deploymentMode: config.deploymentMode,
-    subscribeInvalidation: deploymentHints?.subscribeCompany,
+    subscribeInvalidation: deploymentHints?.subscribeSpace,
     resolveSessionFromHeaders,
-    // Cloud-proxied browsers carry trusted x-paperclip-cloud-* headers instead
+    // Cloud-proxied browsers carry trusted x-outpost-cloud-* headers instead
     // of a local Better Auth session; without this lane every live-events
     // upgrade behind the Cloud front door 403s forever. The resolver is
     // self-gating: it returns null unless OUTPOST_CLOUD_TENANT_SERVER_TOKEN
@@ -1064,8 +1064,8 @@ async function startServerWithDatabaseTeardown(
         db as any,
         cloudActorHeaderSourceFromHeaders(req.headers),
       );
-      if (!actor?.userId || !actor.companyIds) return null;
-      return { userId: actor.userId, companyIds: actor.companyIds };
+      if (!actor?.userId || !actor.spaceIds) return null;
+      return { userId: actor.userId, spaceIds: actor.spaceIds };
     },
   });
 
@@ -1179,7 +1179,7 @@ async function startServerWithDatabaseTeardown(
         || result.unknown > 0
         || result.duplicates > 0
         || result.autoEnsured > 0
-        || result.companyFailures > 0
+        || result.spaceFailures > 0
       ) {
         logger.warn(
           result,
@@ -1202,7 +1202,7 @@ async function startServerWithDatabaseTeardown(
       logger.warn(
         {
           executionMode: policyResult.executionMode,
-          companiesConfigured: policyResult.companiesConfigured,
+          spacesConfigured: policyResult.spacesConfigured,
         },
         "forced execution policy applied at startup",
       );
@@ -1310,7 +1310,7 @@ async function startServerWithDatabaseTeardown(
   });
 
   // The retry backstop for orphan sandboxes. An acquire that rejects a
-  // foreign-company insert tears the provisioned sandbox down. If that teardown
+  // foreign-space insert tears the provisioned sandbox down. If that teardown
   // also fails, the acquire records a lease-less `pending_cleanup` lease row. No
   // other path releases that sandbox, so the master pending-cleanup sweep retries
   // the provider teardown and releases the orphan. The sweep runs on startup,
@@ -1392,8 +1392,8 @@ async function startServerWithDatabaseTeardown(
   server.on("close", unsubscribeLocalLoginCleanup);
   // A retained native session close holds task input in process memory. When
   // it is released, wake deferred execution so held Retries re-evaluate.
-  const unsubscribeNativeCleanupSettled = registerNativeCleanupReleaseWake(db, (error, companyId) => {
-    logger.warn({ err: error, companyId }, "native cleanup release could not wake deferred execution");
+  const unsubscribeNativeCleanupSettled = registerNativeCleanupReleaseWake(db, (error, spaceId) => {
+    logger.warn({ err: error, spaceId }, "native cleanup release could not wake deferred execution");
   });
   server.on("close", unsubscribeNativeCleanupSettled);
   registerExecutionControlWork(deliveryWork, [
@@ -1411,7 +1411,7 @@ async function startServerWithDatabaseTeardown(
         await deliverReconciledExecutions(db, heartbeat.wakeup);
         await deliverPendingPauseResumes(db, heartbeat.wakeup);
         await deliverBudgetResumeContinuations(db, { ...budgetResumeDelivery,
-          resumeTaskRetry: (companyId, requestId) => heartbeat.resumeTaskRetry(companyId, requestId) });
+          resumeTaskRetry: (spaceId, requestId) => heartbeat.resumeTaskRetry(spaceId, requestId) });
       }, next: executionSchedule.continuation },
     ] : []),
   ], () => !heartbeatSchedulerStopped);
@@ -1419,7 +1419,7 @@ async function startServerWithDatabaseTeardown(
   const budgetEnforcementWorker = registerBudgetEnforcementWork(db, deliveryWork, {
     cancelWorkForScope: accountingHeartbeat.cancelBudgetScopeWork,
     deliverResumeContinuations: () => deliverBudgetResumeContinuations(db, { ...budgetResumeDelivery,
-      resumeTaskRetry: (companyId, requestId) => accountingHeartbeat.resumeTaskRetry(companyId, requestId) }),
+      resumeTaskRetry: (spaceId, requestId) => accountingHeartbeat.resumeTaskRetry(spaceId, requestId) }),
   });
   // Its stop also removes the run-status listener that wakes resume delivery.
   server.on("close", () => { void budgetEnforcementWorker.stop(); });
@@ -1460,10 +1460,10 @@ async function startServerWithDatabaseTeardown(
     deploymentListenUrl ? undefined : config.heartbeatSchedulerIntervalMs));
   // Preserve the existing task-scoped activity fast path. Claims in the
   // delivery service arbitrate with the coordinator's startup/recovery sweep.
-  const unsubscribeChatCompletions = subscribeAllCompanyLiveEvents(event => {
+  const unsubscribeChatCompletions = subscribeAllSpaceLiveEvents(event => {
     if (isIdleTaskDrainActive() || isWarmStandby() || heartbeatSchedulerStopped || event.type !== "activity.logged" ||
       event.payload.action !== "issue.updated" || typeof event.payload.entityId !== "string") return;
-    trackHeartbeatSchedulerWork(chatCompletionDeliveries.sweepPending({ companyId: event.companyId, taskId: event.payload.entityId })
+    trackHeartbeatSchedulerWork(chatCompletionDeliveries.sweepPending({ spaceId: event.spaceId, taskId: event.payload.entityId })
       .catch(err => logger.error({ err }, "post-commit chat completion delivery failed")));
   });
   server.on("close", unsubscribeChatCompletions);
@@ -1527,7 +1527,7 @@ async function startServerWithDatabaseTeardown(
       await app.locals.toolGateway.settleInterruptedActionReviews();
     }
     return config.heartbeatSchedulerEnabled
-      ? registerToolReviewProjectionWork(deliveryWork, { sweep: app.locals.toolGateway.repairActionReviewProjections, companies: app.locals.toolGateway.actionReviewProjectionCompanies },
+      ? registerToolReviewProjectionWork(deliveryWork, { sweep: app.locals.toolGateway.repairActionReviewProjections, spaces: app.locals.toolGateway.actionReviewProjectionSpaces },
         () => !isIdleTaskDrainActive() && !heartbeatSchedulerStopped && !isWarmStandby()).ready
       : app.locals.toolGateway.repairActionReviewProjections();
   }).catch((err: unknown) => logger.error({ err }, "startup tool review recovery failed"));
@@ -2042,17 +2042,17 @@ async function startServerWithDatabaseTeardown(
         databaseBackupRetentionDays: config.databaseBackupRetentionDays,
         databaseBackupDir: config.databaseBackupDir,
   });
-  const boardClaimUrl = getBoardClaimWarningUrl(config.host, listenPort);
-  if (boardClaimUrl) {
+  const operatorClaimUrl = getOperatorClaimWarningUrl(config.host, listenPort);
+  if (operatorClaimUrl) {
     const red = "\x1b[41m\x1b[30m";
     const yellow = "\x1b[33m";
     const reset = "\x1b[0m";
     console.log(
       [
-        `${red}  BOARD CLAIM REQUIRED  ${reset}`,
-        `${yellow}This instance was previously local_trusted and still has local-board as the only admin.${reset}`,
+        `${red}  OPERATOR CLAIM REQUIRED  ${reset}`,
+        `${yellow}This instance was previously local_trusted and still has local-operator as the only admin.${reset}`,
         `${yellow}Sign in with a real user and open this one-time URL to claim ownership:${reset}`,
-        `${yellow}${boardClaimUrl}${reset}`,
+        `${yellow}${operatorClaimUrl}${reset}`,
         `${yellow}If you are connecting over Tailscale, replace the host in this URL with your Tailscale IP/MagicDNS name.${reset}`,
       ].join("\n"),
     );
@@ -2197,8 +2197,8 @@ async function startServerWithDatabaseTeardown(
       logger.error({ err, signal }, "run-log in-flight mirror flush failed");
     }
 
-    const appShutdown = (app as { locals?: { paperclipShutdown?: () => Promise<void> } }).locals
-      ?.paperclipShutdown;
+    const appShutdown = (app as { locals?: { outpostShutdown?: () => Promise<void> } }).locals
+      ?.outpostShutdown;
     const stopEmbeddedPostgres = embeddedPostgres && embeddedPostgresStartedByThisProcess
       ? () => embeddedPostgresSupervisor?.shutdown() ?? embeddedPostgres!.stop()
       : null;
@@ -2220,7 +2220,7 @@ async function startServerWithDatabaseTeardown(
       // Mark the pool as ending before `sql.end()` rejects the first query,
       // so the error handler recognizes a request that outlived the drain.
       closeDatabase: () => {
-        (app.locals as { paperclipDatabaseClosing?: boolean }).paperclipDatabaseClosing = true;
+        (app.locals as { outpostDatabaseClosing?: boolean }).outpostDatabaseClosing = true;
         return closeDatabaseClients();
       },
       stopEmbeddedPostgres,

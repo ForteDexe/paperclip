@@ -9,7 +9,7 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { issues } from "./issues.js";
 import { workAssessments } from "./work_assessments.js";
 
@@ -17,7 +17,7 @@ export const statusDecisions = pgTable(
   "status_decisions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     issueId: uuid("issue_id").notNull(),
     runId: uuid("run_id").notNull(),
     assessmentId: uuid("assessment_id").notNull(),
@@ -34,29 +34,29 @@ export const statusDecisions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyIssueIdUq: unique("status_decisions_company_issue_id_uq").on(
-      table.companyId,
+    spaceIssueIdUq: unique("status_decisions_space_issue_id_uq").on(
+      table.spaceId,
       table.issueId,
       table.id,
     ),
-    companyIssueRunAssessmentIdUq: unique(
-      "status_decisions_company_issue_run_assessment_id_uq",
+    spaceIssueRunAssessmentIdUq: unique(
+      "status_decisions_space_issue_run_assessment_id_uq",
     ).on(
-      table.companyId,
+      table.spaceId,
       table.issueId,
       table.runId,
       table.assessmentId,
       table.id,
     ),
-    issueCompanyFk: foreignKey({
-      columns: [table.companyId, table.issueId],
-      foreignColumns: [issues.companyId, issues.id],
-      name: "status_decisions_issue_company_fk",
+    issueSpaceFk: foreignKey({
+      columns: [table.spaceId, table.issueId],
+      foreignColumns: [issues.spaceId, issues.id],
+      name: "status_decisions_issue_space_fk",
     }),
     assessmentOwnerFk: foreignKey({
-      columns: [table.companyId, table.issueId, table.runId, table.assessmentId],
+      columns: [table.spaceId, table.issueId, table.runId, table.assessmentId],
       foreignColumns: [
-        workAssessments.companyId,
+        workAssessments.spaceId,
         workAssessments.issueId,
         workAssessments.runId,
         workAssessments.id,
@@ -64,21 +64,21 @@ export const statusDecisions = pgTable(
       name: "status_decisions_assessment_owner_fk",
     }),
     supersedesOwnerFk: foreignKey({
-      columns: [table.companyId, table.issueId, table.supersedesDecisionId],
-      foreignColumns: [table.companyId, table.issueId, table.id],
+      columns: [table.spaceId, table.issueId, table.supersedesDecisionId],
+      foreignColumns: [table.spaceId, table.issueId, table.id],
       name: "status_decisions_supersedes_owner_fk",
     }),
-    issueVersionUq: uniqueIndex("status_decisions_company_issue_version_uq").on(
-      table.companyId,
+    issueVersionUq: uniqueIndex("status_decisions_space_issue_version_uq").on(
+      table.spaceId,
       table.issueId,
       table.decisionVersion,
     ),
-    assessmentUq: uniqueIndex("status_decisions_company_assessment_uq").on(
-      table.companyId,
+    assessmentUq: uniqueIndex("status_decisions_space_assessment_uq").on(
+      table.spaceId,
       table.assessmentId,
     ),
-    issueDigestUq: uniqueIndex("status_decisions_company_issue_digest_uq").on(
-      table.companyId,
+    issueDigestUq: uniqueIndex("status_decisions_space_issue_digest_uq").on(
+      table.spaceId,
       table.issueId,
       table.decisionDigest,
     ),

@@ -7,7 +7,7 @@ import type { LiveEvent, SummarySlotIssueRef } from "@outpost/shared";
 import { readTranscriptRequest } from "./transcript/read-transcript-request";
 import type { RunLogChunk } from "@/adapters";
 import { heartbeatsApi } from "@/api/heartbeats";
-import { useCompanyLiveEvent, useTranscriptLiveStream } from "@/context/LiveUpdatesProvider";
+import { useSpaceLiveEvent, useTranscriptLiveStream } from "@/context/LiveUpdatesProvider";
 import { queryKeys } from "@/lib/queryKeys";
 import { retryTransientOnly } from "@/lib/query-client";
 import {
@@ -55,7 +55,7 @@ function readPayloadString(value: unknown): string | null {
  * `heartbeat.run.queued` events (matched by `issueId`), falling back to the
  * issue's active-run endpoint after a page refresh. It then merges the run's
  * assistant `acpx.text_delta` output from both the persisted run-log poller and
- * the live company-events socket (reusing the shared chunk-merge/seq-dedupe
+ * the live space-events socket (reusing the shared chunk-merge/seq-dedupe
  * util) and parses the STATUS lines + sentinel-wrapped draft out of that stream.
  *
  * Degrades gracefully: no run id / no deltas (WS down, non-ACP adapter, model
@@ -63,7 +63,7 @@ function readPayloadString(value: unknown): string | null {
  * spinner. State resets whenever the tracked generation changes.
  */
 export function useSummaryDraftStream(
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   generatingIssue: SummarySlotIssueRef | null,
 ): SummaryDraftStream {
   const { visible } = usePageVisibility();
@@ -107,7 +107,7 @@ export function useSummaryDraftStream(
     mergeRefs.current = freshMergeRefs();
     pendingLogRowsRef.current = new Map();
     logOffsetRef.current = 0;
-  }, [companyId, issueId]);
+  }, [spaceId, issueId]);
 
   const appendChunks = useCallback((incoming: IncomingRunLogChunk[]) => {
     if (incoming.length === 0) return;
@@ -124,8 +124,8 @@ export function useSummaryDraftStream(
   }, []);
 
   // Learn the generation run id from live progress/queued events for the issue.
-  useCompanyLiveEvent((event: LiveEvent) => {
-    if (!issueId || event.companyId !== companyId) return;
+  useSpaceLiveEvent((event: LiveEvent) => {
+    if (!issueId || event.spaceId !== spaceId) return;
     if (event.type !== "heartbeat.run.progress" && event.type !== "heartbeat.run.queued") return;
     const payload = event.payload ?? {};
     if (payload.issueId !== issueId) return;
@@ -138,7 +138,7 @@ export function useSummaryDraftStream(
   const activeRunQuery = useQuery({
     queryKey: queryKeys.issues.activeRun(issueId ?? "__none__"),
     queryFn: () => heartbeatsApi.activeRunForIssue(issueId!),
-    enabled: visible && Boolean(companyId) && Boolean(issueId) && !runId,
+    enabled: visible && Boolean(spaceId) && Boolean(issueId) && !runId,
     retry: retryTransientOnly(0),
     refetchInterval: runId ? false : 4000,
   });
@@ -152,9 +152,9 @@ export function useSummaryDraftStream(
     pendingLogRowsRef.current = new Map();
     logIdentityRef.current = null; retiredLogIdentitiesRef.current.clear(); sequenceRef.current = new TranscriptSequence();
     gapPendingRef.current = false; mergeRefs.current = freshMergeRefs(); setChunks([]);
-  }, [runId, companyId, issueId]);
-  // Live token deltas over the shared company-events socket.
-  const stream = useTranscriptLiveStream(runId ? [runId] : [], { companyId, enabled: visible && Boolean(issueId) }, (event: LiveEvent) => {
+  }, [runId, spaceId, issueId]);
+  // Live token deltas over the shared space-events socket.
+  const stream = useTranscriptLiveStream(runId ? [runId] : [], { spaceId, enabled: visible && Boolean(issueId) }, (event: LiveEvent) => {
     if (!visible || !runId) return;
     if (event.type === "heartbeat.run.status" && event.payload.runId === runId) { setCatchupGeneration(value => value + 1); return; }
     if (event.type !== "heartbeat.run.log") return;
@@ -212,7 +212,7 @@ export function useSummaryDraftStream(
       cancelled = true; controller.abort();
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [visible, companyId, runId, appendChunks, stream.healthy, stream.epoch, catchupGeneration]);
+  }, [visible, spaceId, runId, appendChunks, stream.healthy, stream.epoch, catchupGeneration]);
 
   const parse = useMemo(() => parseSummaryDraftStream(extractAssistantOutputText(chunks)), [chunks]);
 

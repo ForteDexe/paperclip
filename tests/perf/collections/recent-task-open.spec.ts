@@ -38,14 +38,14 @@ async function ensureRecentTasks(request: APIRequestContext): Promise<RecentTask
 async function seedRecents(page: Page, request: APIRequestContext) {
   const session = await (await request.get("/api/auth/get-session")).json().catch(() => null);
   const userId: string | null = session?.user?.id ?? session?.session?.userId ?? null;
-  await page.addInitScript(({ companyId, userId, recents }) => {
+  await page.addInitScript(({ spaceId, userId, recents }) => {
     const entries = recents.map((task, index) => ({
-      id: task.id, companyId, title: task.title, identifier: task.identifier, status: "backlog", recordedAt: Date.now() - index * 1000,
+      id: task.id, spaceId, title: task.title, identifier: task.identifier, status: "backlog", recordedAt: Date.now() - index * 1000,
     }));
     for (const owner of new Set([userId ?? "__local_board__", "__local_board__"])) {
-      localStorage.setItem(`outpost.recentTasks.v2:${companyId}:${owner}`, JSON.stringify(entries));
+      localStorage.setItem(`outpost.recentTasks.v2:${spaceId}:${owner}`, JSON.stringify(entries));
     }
-  }, { companyId: fixture.company.id, userId, recents });
+  }, { spaceId: fixture.space.id, userId, recents });
 }
 
 /** Per-task reads that gate the chat's first frame, plus the full detail read. */
@@ -78,7 +78,7 @@ function recordRequests(page: Page) {
 }
 
 async function loadIdle(page: Page) {
-  await page.goto(`/${fixture.company.issuePrefix}/projects`);
+  await page.goto(`/${fixture.space.issuePrefix}/projects`);
   await expect(page.getByRole("link", { name: recents[0]!.title }).first()).toBeVisible();
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(IDLE_SETTLE_MS);
@@ -124,7 +124,7 @@ test("an idle page with Recents makes one chat-bootstrap read and no per-task re
   await seedRecents(page, request);
   const requests = recordRequests(page);
   await loadIdle(page);
-  const bootstraps = requests.filter(url => url.pathname === `/api/companies/${fixture.company.id}/issues/chat-bootstrap`);
+  const bootstraps = requests.filter(url => url.pathname === `/api/spaces/${fixture.space.id}/issues/chat-bootstrap`);
   expect(bootstraps).toHaveLength(1);
   const ids = bootstraps[0]!.searchParams.get("ids")!.split(",");
   expect(ids.length).toBeLessThanOrEqual(10);

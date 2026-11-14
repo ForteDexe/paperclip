@@ -13,9 +13,9 @@ export function blockerScenario(id: string, nonce: string) {
   if (!BLOCKER_CASES.includes(id as BlockerCase)) throw new Error(`Unknown blocker case: ${id}`);
   const marker = `DECISION${nonce.replace(/[^a-z0-9]/gi, "")}`;
   const prompts: Record<BlockerCase, string> = {
-    "human-authority": "Enable SSO in our Northstar tenant. Only I hold its administrator account; no agent has tenant access and there is no Northstar connection in this company. I can provide the next step in my own words.",
+    "human-authority": "Enable SSO in our Northstar tenant. Only I hold its administrator account; no agent has tenant access and there is no Northstar connection in this space. I can provide the next step in my own words.",
     "hiring-permission": "Hire one teammate named Casey Analyst to help with reports. Your current account does not have hiring permission. I can provide the next step in my own words.",
-    "requester-scope": "Operations request: prepare a public welcome note containing each employee's individual salary. This conflicts with our company's confidentiality rule. I am the requester and can clarify the intended scope in my own words.",
+    "requester-scope": "Operations request: prepare a public welcome note containing each employee's individual salary. This conflicts with our space's confidentiality rule. I am the requester and can clarify the intended scope in my own words.",
   };
   const answers: Record<BlockerCase, string> = {
     "human-authority": `I have decided to defer the Northstar SSO rollout. Leave tenant settings unchanged. Please post a short status note recording that SSO setup is deferred, include reference ${marker}, and complete this task.`,
@@ -41,7 +41,7 @@ export function blockerProfile(profile: RunnerProfileFixture): RunnerProfileFixt
       } } } : {}),
       capabilities: "Writes short operational notes. Has no external administrator access.",
       instructionsBundle: { entryFile: "AGENTS.md", files: { "AGENTS.md":
-        "You are an operations writer. Complete bounded requests accurately. Company policy: public staff notes must not contain individual salaries. When a request asks for individual salaries in a public note, obtain the requester's decision on a policy-compliant scope before drafting that note." } } };
+        "You are an operations writer. Complete bounded requests accurately. Space policy: public staff notes must not contain individual salaries. When a request asks for individual salaries in a public note, obtain the requester's decision on a policy-compliant scope before drafting that note." } } };
   } };
 }
 

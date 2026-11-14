@@ -67,7 +67,7 @@ function buildContext(config: Record<string, unknown> = {}) {
     runId: "run-1",
     agent: {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Claude Coder",
       adapterType: "claude_local",
       adapterConfig: {},
@@ -100,9 +100,9 @@ describe("claude_local ACP startup fallback", () => {
     expect(runAdapterExecutionTargetProcess).not.toHaveBeenCalled();
   });
 
-  it("trusts the Paperclip API URL when network access is allowlisted", async () => {
-    const paperclipApiUrl = "http://127.0.0.1:4310";
-    vi.stubEnv("OUTPOST_API_URL", paperclipApiUrl);
+  it("trusts the Outpost API URL when network access is allowlisted", async () => {
+    const outpostApiUrl = "http://127.0.0.1:4310";
+    vi.stubEnv("OUTPOST_API_URL", outpostApiUrl);
     const ctx = buildContext({ engine: "cli", networkScope: "allowlist" });
 
     await execute(ctx as never);
@@ -116,7 +116,7 @@ describe("claude_local ACP startup fallback", () => {
       expect.objectContaining({
         localProcessSandbox: expect.objectContaining({
           networkScope: "allowlist",
-          networkTrustedUrls: [paperclipApiUrl],
+          networkTrustedUrls: [outpostApiUrl],
         }),
       }),
     );

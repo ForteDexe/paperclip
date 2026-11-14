@@ -7,14 +7,14 @@ import { dispatchKimiLifecycleAction } from "./kimi-lifecycle.js";
 import { KIMI_MAC_PROCESS_OBSERVER, readKimiLocalProcesses, selectKimiLocalTarget, type KimiLocalProcess } from "./kimi-local-provider-fault.js";
 
 type Row = Record<string, any>;
-const caller = { type: "board", userId: "local-board", source: "local_implicit" } as const;
+const caller = { type: "board", userId: "local-operator", source: "local_implicit" } as const;
 const cancellationRequestId = "11111111-2222-4333-8444-555555555555";
 const sha = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 function fixture(remote = false) {
-  const scope = { companyId: "company", issueId: "issue", runId: "run", target: "denied/target.txt", ...(remote ? { actionFile: `.paperclip-eval-action-${"a".repeat(36)}.txt` } : {}) };
-  const run: Row = { id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "running", nativeSessionId: "session", runnerInstanceId: "runner", resultJson: {} };
-  const issue: Row = { id: "issue", companyId: "company", status: "in_progress" };
-  const row = (eventType: string, sourceSeq: number, payload: Row): Row => ({ companyId: "company", runId: "run", seq: sourceSeq, eventType, protocolSchemaVersion: 1,
+  const scope = { spaceId: "space", issueId: "issue", runId: "run", target: "denied/target.txt", ...(remote ? { actionFile: `.outpost-eval-action-${"a".repeat(36)}.txt` } : {}) };
+  const run: Row = { id: "run", spaceId: "space", nativeIssueId: "issue", runtimeMode: "native", status: "running", nativeSessionId: "session", runnerInstanceId: "runner", resultJson: {} };
+  const issue: Row = { id: "issue", spaceId: "space", status: "in_progress" };
+  const row = (eventType: string, sourceSeq: number, payload: Row): Row => ({ spaceId: "space", runId: "run", seq: sourceSeq, eventType, protocolSchemaVersion: 1,
     payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn", normalizedSessionId: "session",
       sourceInstanceId: "runner", sourceSeq, sourceEventId: `runner:run:${sourceSeq}`, emittedAt: "2026-10-28T00:00:00Z", payload } } });
   const tool = (executionId: string, name: string, operation: string, target: string | null, status = "running") => ({ schema: "outpost.tool.execution.v1", executionId, transport: "builtin", name, operation, target, status });
@@ -31,8 +31,8 @@ function fixture(remote = false) {
     const pending = observe();
     if (branch === "stop") {
       run.status = "cancelled";
-      run.resultJson = { startupCancellation: { cancellationRequestId: cancelId, requestedBy: { type: "board", userId: "local-board" } }, nativeCancellation: {
-        schema: "outpost.native-cancellation.v1", intentId: `native-cancellation:${cancelId}`, companyId: "company", runId: "run", issueId: "issue", scope: "run",
+      run.resultJson = { startupCancellation: { cancellationRequestId: cancelId, requestedBy: { type: "board", userId: "local-operator" } }, nativeCancellation: {
+        schema: "outpost.native-cancellation.v1", intentId: `native-cancellation:${cancelId}`, spaceId: "space", runId: "run", issueId: "issue", scope: "run",
         dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentAuditId: "intent-audit", acknowledgementAuditId: "ack-audit",
       } };
       events.push(row("runtime_request.cancelled", events.length + 1, { requestId: "request", requestKind: "permission_approval", turnId: "turn", itemId: "permission-item", reason: "turn_terminal" }));
@@ -50,7 +50,7 @@ function fixture(remote = false) {
 const payload = (row: Row) => row.payload.orpEvent.payload;
 
 function retainedLocalStopRows() {
-  const scope = { companyId: "26725944-fac6-4382-883c-a57d5448a3ba", issueId: "9334a1c6-3f67-4536-8570-e81db0b70498",
+  const scope = { spaceId: "26725944-fac6-4382-883c-a57d5448a3ba", issueId: "9334a1c6-3f67-4536-8570-e81db0b70498",
     runId: "209bc4ba-4f54-4ff8-98b2-49879cfb52f8", target: "pc-denied-6WPcjH/kimi-stop-c5be66dab0a0-1.txt" };
   const session = "18298d7f-4d8f-4185-8ae7-660daa69ead7", source = "38cdabd8-af4c-4c76-9f20-9931e36475df",
     turn = "turn_lab_8e3a1a4a520442ad80c36025a1353ba6", item = `item-${scope.runId}`, toolCallId = "0:tool_uKx4azxIHxpU6e5TZ2xLHbVj";
@@ -59,10 +59,10 @@ function retainedLocalStopRows() {
   const request = { type: "permission", itemId: item, method: "session/request_permission", origin,
     prompt: `Change file: ${scope.target}`, schema: "outpost.runtime_request.v2", status: "pending", turnId: turn, choices,
     details: { itemId: item, origin, reason: `Change file: ${scope.target}`, turnId: turn, choices,
-      threadId: "paperclip-9558eb1e0ea79ed9b728d62643b53ab02477d5a4711ef634d8cf0c5b5d8d0af9", toolCallId },
+      threadId: "outpost-9558eb1e0ea79ed9b728d62643b53ab02477d5a4711ef634d8cf0c5b5d8d0af9", toolCallId },
     requestId: "acpx-input-25f63168069f72f421df7bd9", requestKind: "permission_approval" };
   const row = (eventType: string, seq: number, sourceSeq: number, emittedAt: string, value: Row): Row => ({
-    companyId: scope.companyId, runId: scope.runId, seq, eventType, protocolSchemaVersion: 1,
+    spaceId: scope.spaceId, runId: scope.runId, seq, eventType, protocolSchemaVersion: 1,
     payload: { orpEvent: { runId: scope.runId, itemId: item, schema: "outpost.orp.event.v1", turnId: turn, payload: value,
       priority: 1, emittedAt, eventType, sourceSeq, sourceKind: "runner", schemaVersion: 1,
       sourceEventId: `${source}:${scope.runId}:${sourceSeq}`, sourceInstanceId: source, normalizedSessionId: session } },
@@ -74,9 +74,9 @@ function retainedLocalStopRows() {
     outputDigest: "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b", outputTruncated: false,
   }), row("runtime_request.created", 141, 112, "2026-10-28T14:48:06.604Z", { request })];
   return { scope, events,
-    run: { id: scope.runId, companyId: scope.companyId, nativeIssueId: scope.issueId, status: "running", runtimeMode: "native",
+    run: { id: scope.runId, spaceId: scope.spaceId, nativeIssueId: scope.issueId, status: "running", runtimeMode: "native",
       nativeSessionId: session, runnerInstanceId: source, resultJson: null },
-    issue: { id: scope.issueId, companyId: scope.companyId, status: "in_progress" } };
+    issue: { id: scope.issueId, spaceId: scope.spaceId, status: "in_progress" } };
 }
 
 describe("Kimi native Write lifecycle evidence", () => {
@@ -122,7 +122,7 @@ describe("Kimi native Write lifecycle evidence", () => {
     ["completed file effect", f => { f.events.push(f.row("tool.execution.completed", 4, f.tool("0:native-write", "Write", "edit", f.scope.target, "completed"))); }],
     ["extra shell", f => { f.events.unshift(f.row("tool.execution.started", 0, f.tool("shell", "Bash", "execute", null))); }],
     ["replayed start", f => { f.events.push(f.row("tool.execution.started", 4, f.tool("0:native-write", "Write", "edit", f.scope.target))); }],
-    ["foreign company", f => { f.events[0]!.companyId = "foreign"; }],
+    ["foreign space", f => { f.events[0]!.spaceId = "foreign"; }],
     ["foreign source", f => { f.events[0]!.payload.orpEvent.sourceInstanceId = "other"; }],
     ["restored session", f => { f.run.nativeSessionId = "replacement"; }],
     ["another provider generation", f => { f.run.runnerInstanceId = "replacement"; }],
@@ -182,14 +182,14 @@ describe("Kimi native Write lifecycle evidence", () => {
 });
 
 function localFixture() {
-  const timestamp = Date.parse("2026-10-28T00:00:00Z"), distribution = "/private/tmp/paperclip-acpx-native-fixture/distribution";
+  const timestamp = Date.parse("2026-10-28T00:00:00Z"), distribution = "/private/tmp/outpost-acpx-native-fixture/distribution";
   const bootId = "12345678-1234-1234-1234-123456789abc", loader = "exact compiled guarded loader";
   const proc = (pid: number, ppid: number, executable: string, command: string): KimiLocalProcess => ({ pid, ppid, pgid: pid === 21 ? 21 : 22,
     startUs: String(timestamp * 1000 + pid), executable, executableDev: "1", executableIno: String(pid), command, argv: [executable], cwd: "/workspace", bootId });
   const processes = [proc(21, 1, "/runner", "/runner --run-id run --lifecycle-mode per_turn"),
-    proc(22, 21, "/host-node", `/host-node --eval ${loader} ${distribution} .paperclip-native-entry.cjs 0 0 commonjs [] 0`),
+    proc(22, 21, "/host-node", `/host-node --eval ${loader} ${distribution} .outpost-native-entry.cjs 0 0 commonjs [] 0`),
     proc(23, 22, `${distribution}/node/bin/node`, "kimi-code")];
-  processes[1]!.argv = ["/host-node", "--eval", loader, distribution, ".paperclip-native-entry.cjs", "0", "0", "commonjs", "[]", "0"];
+  processes[1]!.argv = ["/host-node", "--eval", loader, distribution, ".outpost-native-entry.cjs", "0", "0", "commonjs", "[]", "0"];
   const input = { authority: { pid: 21, groupId: 21, startedAt: new Date(timestamp).toISOString(), runId: "run" },
     journal: processes.map(row => ({ pid: row.pid, parent: row.ppid, start: new Date(timestamp).toISOString() })), processes, workspacePath: "/workspace", guardLoaderSha256: sha(loader) };
   return { input, select: () => selectKimiLocalTarget(input) };

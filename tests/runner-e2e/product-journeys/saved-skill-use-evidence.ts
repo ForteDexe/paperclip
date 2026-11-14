@@ -17,7 +17,7 @@ export function savedSkillFixture(identity: string, reference: string): SavedSki
   const first = seed[0]! + 1, second = seed[1]! + 1;
   const procedure = `# Saved receipt procedure\n\nThe receipt reference is ${reference}.\n`
     + `Add the two amounts ${first} and ${second}.\n`
-    + `Save exactly one Paperclip task document with key ${key}. Its body must be JSON with exactly `
+    + `Save exactly one Outpost task document with key ${key}. Its body must be JSON with exactly `
     + `two fields: reference (the receipt reference) and total (the sum of the two amounts).\n`
     + "Check the saved document and finish the task. Do not create other tasks or deliverables.\n";
   return { name: slug, slug, key, procedure,
@@ -26,14 +26,14 @@ export function savedSkillFixture(identity: string, reference: string): SavedSki
 }
 
 export function savedSkillSourceMatches(skill: Row | undefined, version: Row | undefined, assignments: Row | undefined,
-  fixture: SavedSkillFixture, companyId: string): boolean {
+  fixture: SavedSkillFixture, spaceId: string): boolean {
   if (!skill || !version || !assignments) return false;
   const files = version.fileInventory;
   const entries = assignments.desiredSkillEntries;
-  return Boolean(skill.id && skill.companyId === companyId && skill.sourceType === "managed"
-    && skill.name === fixture.name && skill.slug === fixture.slug && skill.key === `company/${companyId}/${fixture.slug}`
+  return Boolean(skill.id && skill.spaceId === spaceId && skill.sourceType === "managed"
+    && skill.name === fixture.name && skill.slug === fixture.slug && skill.key === `space/${spaceId}/${fixture.slug}`
     && skill.markdown === fixture.markdown && skill.currentVersionId
-    && version.id === skill.currentVersionId && version.companyId === companyId && version.companySkillId === skill.id
+    && version.id === skill.currentVersionId && version.spaceId === spaceId && version.spaceSkillId === skill.id
     && Array.isArray(files) && files.length === 1 && files[0].path === "SKILL.md" && files[0].content === fixture.markdown
     && (files[0].encoding === undefined || files[0].encoding === "utf8")
     && Array.isArray(entries) && entries.filter(row => row.key === skill.key).length === 1
@@ -88,7 +88,7 @@ function assignedSkillReadText(output: string, binding: NativePrpRunBinding, fix
       || Object.keys(wrapper).sort().join(",") !== "text,type") return undefined;
     const result = JSON.parse(wrapper.text);
     if (Object.keys(result).sort().join(",") !== "byteSize,nextOffset,path,sha256,skill,text,versionId"
-      || result.skill !== `company/${binding.companyId}/${fixture.slug}` || result.versionId !== versionId
+      || result.skill !== `space/${binding.spaceId}/${fixture.slug}` || result.versionId !== versionId
       || result.path !== "SKILL.md" || result.nextOffset !== null || result.text !== fixture.markdown
       || result.byteSize !== Buffer.byteLength(fixture.markdown)
       || result.sha256 !== createHash("sha256").update(fixture.markdown).digest("hex")) return undefined;
@@ -106,12 +106,12 @@ function nativeOpenCodeSkillLoad(row: Row, bound: Row[], binding: NativePrpRunBi
   const skills = Array.isArray(input?.runtimeContext?.skills)
     ? input.runtimeContext.skills.filter((skill: Row) => skill.key === assignment?.key) : [];
   if (!run || run.runtimeMode !== "native" || input?.provider?.kind !== "opencode"
-    || run.id !== binding.runId || run.companyId !== binding.companyId || run.agentId !== binding.agentId
+    || run.id !== binding.runId || run.spaceId !== binding.spaceId || run.agentId !== binding.agentId
     || typeof run.runnerInstanceId !== "string" || !run.runnerInstanceId.trim()
     || typeof run.nativeSessionId !== "string" || !run.nativeSessionId.trim()
     || event.sourceInstanceId !== run.runnerInstanceId || event.normalizedSessionId !== run.nativeSessionId
     || typeof event.itemId !== "string" || !event.itemId.trim() || !Number.isSafeInteger(row.seq)
-    || !assignment || assignment.key !== `company/${binding.companyId}/${fixture.slug}`
+    || !assignment || assignment.key !== `space/${binding.spaceId}/${fixture.slug}`
     || typeof assignment.versionId !== "string" || !assignment.versionId.trim()
     || skills.length !== 1 || skills[0].versionId !== assignment.versionId || skills[0].runtimeName !== runtimeName
     || run.contextSnapshot?.skillSelectionSnapshot !== true
@@ -158,10 +158,10 @@ function codexAssignedSkillReceipts(bound: Row[], binding: NativePrpRunBinding, 
   const skills = Array.isArray(input?.runtimeContext?.skills)
     ? input.runtimeContext.skills.filter((skill: Row) => skill.key === assignment?.key) : [];
   if (!run || run.runtimeMode !== "native" || input?.provider?.kind !== "codex"
-    || run.id !== binding.runId || run.companyId !== binding.companyId || run.agentId !== binding.agentId
+    || run.id !== binding.runId || run.spaceId !== binding.spaceId || run.agentId !== binding.agentId
     || typeof run.runnerInstanceId !== "string" || !run.runnerInstanceId.trim()
     || typeof run.nativeSessionId !== "string" || !run.nativeSessionId.trim()
-    || !assignment || assignment.key !== `company/${binding.companyId}/${fixture.slug}` || !assignment.versionId
+    || !assignment || assignment.key !== `space/${binding.spaceId}/${fixture.slug}` || !assignment.versionId
     || skills.length !== 1 || skills[0].versionId !== assignment.versionId
     || run.contextSnapshot?.skillSelectionSnapshot !== true
     || run.contextSnapshot?.skillVersions?.[assignment.key] !== assignment.versionId
@@ -246,9 +246,9 @@ export function savedSkillReadReceipts(events: Row[], binding: NativePrpRunBindi
       && wrappedPath.endsWith(`/.claude/skills/${runtimeName}/SKILL.md`);
     // The ordinary semantic tool is another native read path, not a filesystem wrapper.
     // Its canonical key/version binding does not depend on a provider's directory name.
-    const assignedText = name === "paperclip_read_assigned_skill" && payload.readOnly === true && payload.target === null
+    const assignedText = name === "outpost_read_assigned_skill" && payload.readOnly === true && payload.target === null
       && (payload.operation === "unknown" || payload.operation === "read")
-      && assignment?.key === `company/${binding.companyId}/${fixture.slug}`
+      && assignment?.key === `space/${binding.spaceId}/${fixture.slug}`
       && typeof assignment.versionId === "string" && assignment.versionId.trim()
       ? assignedSkillReadText(payload.output, binding, fixture, assignment.versionId) : undefined;
     if (!reading && !loading && !nativeLoading && !wrappedRead && assignedText === undefined) return false;
@@ -270,14 +270,14 @@ export function savedSkillReadReceipts(events: Row[], binding: NativePrpRunBindi
 export function savedSkillDocumentAttributed(document: Row | undefined, revision: Row | undefined, fixture: SavedSkillFixture,
   binding: NativePrpRunBinding & { issueId: string }): boolean {
   if (!document || !revision) return false;
-  return Boolean(document.id && document.companyId === binding.companyId && document.issueId === binding.issueId
+  return Boolean(document.id && document.spaceId === binding.spaceId && document.issueId === binding.issueId
     && document.key === fixture.key && document.format === "markdown" && document.latestRevisionId
     && Number.isSafeInteger(document.latestRevisionNumber) && document.latestRevisionNumber > 0
     && document.createdByAgentId === binding.agentId && document.createdByUserId === null
     && document.updatedByAgentId === binding.agentId && document.updatedByUserId === null
     && savedSkillResultMatches(document.body, fixture.expected)
     && revision.id === document.latestRevisionId && revision.documentId === document.id
-    && revision.companyId === binding.companyId && revision.issueId === binding.issueId && revision.key === fixture.key && revision.format === document.format
+    && revision.spaceId === binding.spaceId && revision.issueId === binding.issueId && revision.key === fixture.key && revision.format === document.format
     && revision.createdByRunId === binding.runId && revision.createdByAgentId === binding.agentId && revision.createdByUserId === null
     && revision.revisionNumber === document.latestRevisionNumber && savedSkillResultMatches(revision.body, fixture.expected));
 }

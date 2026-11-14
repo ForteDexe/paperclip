@@ -61,14 +61,14 @@ describeEmbeddedPostgres("question response delivery migration", () => {
         'issue_question_response_deliveries_interaction_uq',
         'issue_question_response_deliveries_correlation_uq',
         'issue_question_response_deliveries_pending_idx',
-        'issue_question_response_deliveries_company_issue_idx',
+        'issue_question_response_deliveries_space_issue_idx',
         'agent_wakeup_requests_question_response_delivery_idempotency_uq'
       )
     `;
     expect(indexes.map((row) => row.indexname).sort()).toEqual(
       [
         "agent_wakeup_requests_question_response_delivery_idempotency_uq",
-        "issue_question_response_deliveries_company_issue_idx",
+        "issue_question_response_deliveries_space_issue_idx",
         "issue_question_response_deliveries_correlation_uq",
         "issue_question_response_deliveries_interaction_uq",
         "issue_question_response_deliveries_pending_idx",

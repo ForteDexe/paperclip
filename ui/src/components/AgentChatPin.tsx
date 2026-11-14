@@ -6,7 +6,7 @@ import { usePinnedNavigation } from "@/hooks/usePinnedNavigation";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 
-export const agentChatPinKey = (companyId: string, agentId: string) => `agent-chat:${companyId}:${agentId}`;
+export const agentChatPinKey = (spaceId: string, agentId: string) => `agent-chat:${spaceId}:${agentId}`;
 
 export function useAgentChatPins() {
   const session = useQuery({ queryKey: queryKeys.auth.session, queryFn: () => authApi.getSession() });
@@ -17,9 +17,9 @@ export function useAgentChatPins() {
 }
 
 export function AgentChatPin({ agent, pins, className }: {
-  agent: { id: string; companyId: string; name: string }; pins: ReturnType<typeof useAgentChatPins>; className?: string;
+  agent: { id: string; spaceId: string; name: string }; pins: ReturnType<typeof useAgentChatPins>; className?: string;
 }) {
-  const key = agentChatPinKey(agent.companyId, agent.id);
+  const key = agentChatPinKey(agent.spaceId, agent.id);
   const pinned = pins.keys.has(key);
   const Icon = pinned ? PinOff : Pin;
   return <>

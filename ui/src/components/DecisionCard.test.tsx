@@ -47,7 +47,7 @@ const resolveIssue = (id: string): DecisionIssueRef | null => ISSUES[id] ?? null
 function mkDecision(overrides: Partial<Decision> = {}): Decision {
   return {
     id: "decision-1",
-    companyId: "c1",
+    spaceId: "c1",
     bundleId: null,
     originAgentId: "agent-gardener",
     originIssueId: "issue-origin",

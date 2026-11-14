@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, authUsers, companies, completionContracts, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues, nativeRunFinalizations, nativeRunResults, issueThreadInteractions, chatTaskHandoffs, chatCompletionDeliveries, agentWakeupRequests, statusDecisions, type Db, approvals, issueApprovals } from "@outpost/db";
+import { agents, authUsers, spaces, completionContracts, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues, nativeRunFinalizations, nativeRunResults, issueThreadInteractions, chatTaskHandoffs, chatCompletionDeliveries, agentWakeupRequests, statusDecisions, type Db, approvals, issueApprovals } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { NativeRunCoordinatorStore } from "./native-run-coordinator-store.js";
@@ -36,49 +36,49 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
   async function fixture(conversation = true, options: { succeed?: boolean; disposition?: "done" | "needs_review" | "yielded"; channel?: "final" | "unknown";
-    beforeFinalize?: (ids: { companyId: string; issueId: string; runId: string; agentId: string }) => Promise<void>;
+    beforeFinalize?: (ids: { spaceId: string; issueId: string; runId: string; agentId: string }) => Promise<void>;
     reply?: string; logRef?: string } = {}) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
     const sessionId = randomUUID(), runnerId = randomUUID(), userId = `fixture-${randomUUID()}`, wakeId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Conversation owner", email: `${userId}@example.test`,
       createdAt: new Date("2020-01-01T00:00:00Z"), updatedAt: new Date("2020-01-01T00:00:00Z") });
-    await db.insert(companies).values({ id: companyId, name: "Reply recovery fixture", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Conversation agent", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Conversation reply", status: "in_progress", assigneeAgentId: agentId,
+    await db.insert(spaces).values({ id: spaceId, name: "Reply recovery fixture", issuePrefix: spaceId.slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Conversation agent", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Conversation reply", status: "in_progress", assigneeAgentId: agentId,
       ...(conversation ? { conversationAgentId: agentId, conversationUserId: userId, conversationState: "active", conversationSessionGeneration: 0 } : {}) });
-    await db.insert(issueComments).values({ id: wakeId, companyId, issueId, authorUserId: userId, body: "Hire one teammate and tell me when ready.",
+    await db.insert(issueComments).values({ id: wakeId, spaceId, issueId, authorUserId: userId, body: "Create one teammate and tell me when ready.",
       createdAt: new Date("2020-01-01T00:00:00Z") });
-    const [contract] = await db.insert(completionContracts).values({ companyId, issueId, revision: 1,
+    const [contract] = await db.insert(completionContracts).values({ spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard", completionAuthority: "server_arbiter",
       incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: { revision: "test", objective: "Answer the user", criteria: [] },
       canonicalSha256: "fixture-conversation-contract", createdByActorType: "system", createdByActorId: "test" }).returning();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, nativeSessionId: sessionId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId, nativeSessionId: sessionId,
       runnerInstanceId: runnerId, completionContractId: contract.id, completionContractSha256: contract.canonicalSha256,
       status: "running", runtimeMode: "native", responsibleUserId: userId,
       ...(options.logRef ? { logStore: "local_file", logRef: options.logRef } : {}),
       contextSnapshot: { issueId, source: "issue.comment", wakeCommentId: wakeId, ...(conversation ? { conversationSessionGeneration: 0 } : {}) } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    const port = new NativeRunCoordinatorStore(db, { companyId, issueId, runId, agentId, normalizedSessionId: sessionId,
+    const port = new NativeRunCoordinatorStore(db, { spaceId, issueId, runId, agentId, normalizedSessionId: sessionId,
       runnerSourceInstanceId: runnerId, completionContractId: contract.id, completionContractSha256: contract.canonicalSha256,
       completionContractRevision: "test", completionContractCriterionIds: [] });
-    const reply = options.reply ?? "The teammate is hired and ready for your next instruction.";
-    const orpEvent = { runId, normalizedSessionId: sessionId, turnId: "hire-turn", sourceEventId: "fixture-final-answer",
+    const reply = options.reply ?? "The teammate is created and ready for your next instruction.";
+    const orpEvent = { runId, normalizedSessionId: sessionId, turnId: "create-turn", sourceEventId: "fixture-final-answer",
       payload: { kind: "agentMessage", channel: "final", providerPhase: "final", text: reply } };
     if (options.channel) orpEvent.payload.channel = options.channel;
-    await db.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: 170, eventType: "item.completed", payload: { orpEvent } });
+    await db.insert(heartbeatRunEvents).values({ spaceId, runId, agentId, seq: 170, eventType: "item.completed", payload: { orpEvent } });
     const disposition = options.disposition ?? "done";
-    await options.beforeFinalize?.({ companyId, issueId, runId, agentId });
+    await options.beforeFinalize?.({ spaceId, issueId, runId, agentId });
     await port.completeRun({ result: { schema: "outpost.run_result.v1", reportedWorkDisposition: disposition,
-      summary: "A completed hire, with its final message preserved separately.",
+      summary: "A completed create, with its final message preserved separately.",
       ...(disposition === "yielded" ? { continuation: { kind: "response_wake" as const, summary: "Wait for the next human message", idempotencyKey: "conversation-next-message" } } : {}),
       completionClaim: { contractRevision: "test",
         objectiveSatisfied: true, criteria: [], remainingWork: [] }, evidence: [], verification: [],
       attentionRequests: disposition === "needs_review" ? [{ kind: "review", ownerClass: "human", summary: "Review the completed work." }] : [], artifacts: [] },
-      terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: disposition }, turnId: "hire-turn" });
+      terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: disposition }, turnId: "create-turn" });
     await finalizeNativeRun({ db, runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: false });
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, runId)))[0].phase).toBe("committed");
     if (options.succeed !== false) await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date("2020-01-01T00:02:00Z") }).where(eq(heartbeatRuns.id, runId));
-    const input = { companyId, issueId, runId };
+    const input = { spaceId, issueId, runId };
     return { ...input, input, agentId, userId, wakeId, orpEvent, reply };
   }
   it("settles the exact claimed wake when recovery projects a committed native run", async () => {
@@ -86,7 +86,7 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
     // projection because the live executor will not return to completeRun.
     const f = await fixture(false, { succeed: false });
     const sourceWakeId = randomUUID();
-    await db.insert(agentWakeupRequests).values({ id: sourceWakeId, companyId: f.companyId,
+    await db.insert(agentWakeupRequests).values({ id: sourceWakeId, spaceId: f.spaceId,
       agentId: f.agentId, source: "issue", reason: "issue_assigned", status: "claimed",
       runId: f.runId, claimedAt: new Date(), payload: { issueId: f.issueId } });
     await db.update(heartbeatRuns).set({ wakeupRequestId: sourceWakeId }).where(eq(heartbeatRuns.id, f.runId));
@@ -107,21 +107,21 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
   async function completion(f: Awaited<ReturnType<typeof fixture>>) {
     const taskId = randomUUID(), deliveryId = randomUUID();
     await instanceSettingsService(db).updateExperimental({ enableAgentChat: true });
-    await db.insert(issues).values({ id: taskId, companyId: f.companyId, title: "Completed review", status: "done", statusVersion: 2 });
-    await db.insert(chatTaskHandoffs).values({ companyId: f.companyId, taskId, conversationId: f.issueId,
+    await db.insert(issues).values({ id: taskId, spaceId: f.spaceId, title: "Completed review", status: "done", statusVersion: 2 });
+    await db.insert(chatTaskHandoffs).values({ spaceId: f.spaceId, taskId, conversationId: f.issueId,
       agentId: f.agentId, sessionGeneration: 0 });
-    await db.insert(chatCompletionDeliveries).values({ id: deliveryId, companyId: f.companyId, taskId,
+    await db.insert(chatCompletionDeliveries).values({ id: deliveryId, spaceId: f.spaceId, taskId,
       statusVersion: 2, status: "queued", targetRunId: f.runId, nextAttemptAt: new Date(0) });
     await db.update(heartbeatRuns).set({ finishedAt: new Date() }).where(and(eq(heartbeatRuns.id, f.runId), eq(heartbeatRuns.status, "succeeded")));
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, source: "automation", wakeReason: "chat_task_completed",
       conversationMode: true, conversationSessionGeneration: 0, chatCompletionDeliveryIds: [deliveryId], chatCompletionUpdates: [{ taskId }] } })
       .where(eq(heartbeatRuns.id, f.runId));
     const wakeup = vi.fn(async (_agentId: string, options: { idempotencyKey: string }) => {
-      await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId, source: "automation",
+      await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId, source: "automation",
         status: "skipped", reason: "heartbeat.daily_run_limit", idempotencyKey: options.idempotencyKey });
       return null;
     });
-    await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId, source: "automation",
+    await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId, source: "automation",
       status: "completed", reason: "chat_task_completed", idempotencyKey: `chat-completion:${deliveryId}:0`, runId: f.runId });
     const delivery = async () => (await db.select().from(chatCompletionDeliveries).where(eq(chatCompletionDeliveries.id, deliveryId)))[0];
     return { taskId, deliveryId, wakeup, delivery, service: chatCompletionDeliveryService(db, { wakeup }) };
@@ -193,7 +193,7 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
     }
   });
 
-  it.each(["failed", "cancelled", "missing-final", "no-accepted", "old-generation", "foreign-company", "foreign-agent"])(
+  it.each(["failed", "cancelled", "missing-final", "no-accepted", "old-generation", "foreign-space", "foreign-agent"])(
     "keeps the existing retry path for %s targets", async fault => {
       const f = await fixture(), outbox = await completion(f);
       if (fault === "failed" || fault === "cancelled") await db.update(heartbeatRuns).set({ status: fault }).where(eq(heartbeatRuns.id, f.runId));
@@ -204,13 +204,13 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
         await db.update(heartbeatRuns).set({ contextSnapshot: { ...run.contextSnapshot, conversationSessionGeneration: 1 } }).where(eq(heartbeatRuns.id, f.runId));
       }
       let foreign: Awaited<ReturnType<typeof fixture>> | undefined;
-      if (fault === "foreign-company") {
+      if (fault === "foreign-space") {
         foreign = await fixture();
         await db.update(chatCompletionDeliveries).set({ targetRunId: foreign.runId }).where(eq(chatCompletionDeliveries.id, outbox.deliveryId));
       }
       if (fault === "foreign-agent") {
         const otherAgent = randomUUID();
-        await db.insert(agents).values({ id: otherAgent, companyId: f.companyId, name: "Other agent", adapterType: "outpost_runner" });
+        await db.insert(agents).values({ id: otherAgent, spaceId: f.spaceId, name: "Other agent", adapterType: "outpost_runner" });
         await db.update(heartbeatRuns).set({ agentId: otherAgent }).where(eq(heartbeatRuns.id, f.runId));
       }
       await outbox.service.deliver(outbox.deliveryId);
@@ -343,7 +343,7 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
     vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(started);
     const f = await fixture(), outbox = await completion(f);
     const replacementId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: replacementId, companyId: f.companyId, agentId: f.agentId, status: "queued" });
+    await db.insert(heartbeatRuns).values({ id: replacementId, spaceId: f.spaceId, agentId: f.agentId, status: "queued" });
     let release!: () => void, acquired!: () => void;
     const hold = new Promise<void>(resolve => { release = resolve; });
     const locked = new Promise<void>(resolve => { acquired = resolve; });
@@ -448,7 +448,7 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
     vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(started);
     try {
       const f = await fixture(), outbox = await completion(f), reassignedAgent = randomUUID();
-      await db.insert(agents).values({ id: reassignedAgent, companyId: f.companyId, name: "New task owner", adapterType: "outpost_runner" });
+      await db.insert(agents).values({ id: reassignedAgent, spaceId: f.spaceId, name: "New task owner", adapterType: "outpost_runner" });
       await db.update(nativeRunResults).set({ canonicalSha256: "invalid-digest" }).where(eq(nativeRunResults.runId, f.runId));
       await db.update(nativeRunFinalizations).set({ nextAttemptAt: new Date(started + 120_000) }).where(eq(nativeRunFinalizations.runId, f.runId));
       const updated = await issueService(db).update(outbox.taskId, { assigneeAgentId: reassignedAgent });
@@ -471,7 +471,7 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
 
   it("returns the fresh saved reply receipt after waiting for the child lock", async () => {
     const f = await fixture(), outbox = await completion(f);
-    const [saved] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+    const [saved] = await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
       authorAgentId: f.agentId, createdByRunId: f.runId, body: f.reply }).returning();
     let release!: () => void, acquired!: () => void;
     const hold = new Promise<void>(resolve => { release = resolve; });
@@ -632,7 +632,7 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
     // The run log redacts invitation tokens; the person must still receive the
     // working join link, so the reply must come from the stored run events.
     const token = "pcp_invite_FixtureInviteToken-0123456789_abcdefghijklmnopqrstu";
-    const reply = `Created the invite.\n\n**Invite link:** [Join Company](http://127.0.0.1:3100/invite/${token})`;
+    const reply = `Created the invite.\n\n**Invite link:** [Join Space](http://127.0.0.1:3100/invite/${token})`;
     expect(compactRunLogChunk(reply)).not.toContain(token);
     const f = await fixture(true, { reply, logRef: `${randomUUID()}/${randomUUID()}/redacted-run.ndjson` });
     runLogReads.length = 0;
@@ -643,7 +643,7 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
   });
   it("keeps a later user message actionable after recovering the earlier exact reply", async () => {
     const f = await fixture();
-    await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId, authorUserId: f.userId, body: "Another instruction",
+    await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId, authorUserId: f.userId, body: "Another instruction",
       createdAt: new Date("2020-01-01T00:01:00Z") });
     await expect(recoverCommittedNativeChatResponse(db, f.input)).resolves.toBe(true);
     expect(await comments(f.runId)).toHaveLength(1);
@@ -663,11 +663,11 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
         ...(fault === "skip" ? { skipIssueComment: true } : {}) } }).where(eq(heartbeatRuns.id, f.runId));
       if (fault === "user") await db.update(heartbeatRuns).set({ responsibleUserId: "another-user" }).where(eq(heartbeatRuns.id, f.runId));
       if (fault === "agent") {
-        const other = randomUUID(); await db.insert(agents).values({ id: other, companyId: f.companyId, name: "Other agent" });
+        const other = randomUUID(); await db.insert(agents).values({ id: other, spaceId: f.spaceId, name: "Other agent" });
         await db.update(issues).set({ conversationAgentId: other, assigneeAgentId: other }).where(eq(issues.id, f.issueId));
       }
       if (fault === "execution") {
-        const other = randomUUID(); await db.insert(heartbeatRuns).values({ id: other, companyId: f.companyId, agentId: f.agentId });
+        const other = randomUUID(); await db.insert(heartbeatRuns).values({ id: other, spaceId: f.spaceId, agentId: f.agentId });
         await db.update(issues).set({ executionRunId: other }).where(eq(issues.id, f.issueId));
       }
       if (fault === "waiting") await db.update(issues).set({ executionRunId: null, status: "in_review", conversationState: "waiting" }).where(eq(issues.id, f.issueId));
@@ -689,15 +689,15 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
   );
   it.each([false, true])("preserves a selected reply without replacing or resurrecting it (deleted=%s)", async deleted => {
     const f = await fixture();
-    const [saved] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId, authorAgentId: f.agentId,
+    const [saved] = await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId, authorAgentId: f.agentId,
       createdByRunId: f.runId, body: "Already selected", ...(deleted ? { deletedAt: new Date("2020-01-01T00:03:00Z") } : {}) }).returning();
     await db.update(heartbeatRuns).set({ resultJson: { presentationDecision: { commentId: saved.id, commentAction: "create" } } }).where(eq(heartbeatRuns.id, f.runId));
     await expect(recoverCommittedNativeChatResponse(db, f.input)).resolves.toBe(false);
     expect(await comments(f.runId)).toEqual([saved]);
   });
-  it("never crosses company scope and keeps ordinary internal task response recovery intact", async () => {
+  it("never crosses space scope and keeps ordinary internal task response recovery intact", async () => {
     const f = await fixture(false);
-    await expect(recoverCommittedNativeChatResponse(db, { ...f.input, companyId: randomUUID() })).resolves.toBe(false);
+    await expect(recoverCommittedNativeChatResponse(db, { ...f.input, spaceId: randomUUID() })).resolves.toBe(false);
     const work = nativeResponsePresentationWork(db), entries = await work.load(f.input);
     expect(entries).toHaveLength(1); await expect(work.check(entries[0])).resolves.toBeNull();
     expect(await comments(f.runId)).toEqual([expect.objectContaining({ body: f.reply })]);
@@ -755,24 +755,24 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
   type Hold = "pending approval" | "approval sent back for revision" | "execution stage" | "own question card"
     | "someone else's confirmation card";
   async function heldTurn(hold: Hold, disposition: "yielded" | "done" = "yielded") {
-    return fixture(true, { disposition, beforeFinalize: async ({ companyId, issueId, runId, agentId }) => {
+    return fixture(true, { disposition, beforeFinalize: async ({ spaceId, issueId, runId, agentId }) => {
       if (hold.includes("approval")) {
-        const [approval] = await db.insert(approvals).values({ companyId, type: "hire_agent",
+        const [approval] = await db.insert(approvals).values({ spaceId, type: "create_agent",
           status: hold === "pending approval" ? "pending" : "revision_requested", payload: { name: "Researcher" } }).returning();
-        await db.insert(issueApprovals).values({ companyId, issueId, approvalId: approval.id });
+        await db.insert(issueApprovals).values({ spaceId, issueId, approvalId: approval.id });
       }
       if (hold === "execution stage") await db.update(issues).set({ executionState: { status: "pending" } }).where(eq(issues.id, issueId));
       if (hold === "own question card") {
-        await db.insert(issueThreadInteractions).values({ companyId, issueId, kind: "ask_user_questions", status: "pending",
+        await db.insert(issueThreadInteractions).values({ spaceId, issueId, kind: "ask_user_questions", status: "pending",
           sourceRunId: runId, createdByAgentId: agentId, payload: { version: 1, questions: [{ id: "model", prompt: "Which model?",
             selectionMode: "single", required: true, options: [{ id: "flash", label: "Flash" }] }] } });
       }
-      // The board addressed this card to another person; the run did not create it.
+      // The operator addressed this card to another person; the run did not create it.
       if (hold === "someone else's confirmation card") {
-        await db.insert(issueThreadInteractions).values({ companyId, issueId, kind: "request_confirmation", status: "pending",
+        await db.insert(issueThreadInteractions).values({ spaceId, issueId, kind: "request_confirmation", status: "pending",
           continuationPolicy: "none", title: "Riley's website proposal", requestedResolverPolicy: "human_only",
           effectiveResolverPolicy: "human_only", resolverPolicyProvenance: "explicit", addresseeUserId: "riley",
-          createdByUserId: "local-board", payload: { version: 1, prompt: "Riley: approve creating the website implementation task?" } });
+          createdByUserId: "local-operator", payload: { version: 1, prompt: "Riley: approve creating the website implementation task?" } });
       }
     } });
   }
@@ -801,7 +801,7 @@ describe.skipIf(!support.supported)("committed Agent Chat reply recovery", () =>
   );
   it("does not repost a held conversation turn's answer that the live path already presented", async () => {
     const f = await heldTurn("pending approval");
-    const [saved] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId, authorAgentId: f.agentId,
+    const [saved] = await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId, authorAgentId: f.agentId,
       createdByRunId: f.runId, body: f.reply }).returning();
     await db.update(heartbeatRuns).set({ resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) || ${JSON.stringify({
       presentationDecision: { chosenSource: "final_agent_message", commentAction: "create", commentId: saved.id, reasonCodes: [] } })}::jsonb` })

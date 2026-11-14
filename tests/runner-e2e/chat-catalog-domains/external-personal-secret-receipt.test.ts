@@ -14,7 +14,7 @@ afterEach(async () => { vi.unstubAllEnvs(); await Promise.all(roots.splice(0).ma
 async function context() {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "personal-receipt-"))); roots.push(root);
   vi.stubEnv("OUTPOST_RUNNER_E2E_TEMP_ROOT", root); vi.stubEnv("OUTPOST_HOME", path.join(root, "home")); vi.stubEnv("OUTPOST_INSTANCE_ID", "receipt-control");
-  return { scenario: { id: "secrets.personal-secret" }, input: { nonce: "receipt-control", execution: { environment: { id: "local" } }, fixtures: { company: { id: "company" } } } } as unknown as ChatCatalogContext;
+  return { scenario: { id: "secrets.personal-secret" }, input: { nonce: "receipt-control", execution: { environment: { id: "local" } }, fixtures: { space: { id: "space" } } } } as unknown as ChatCatalogContext;
 }
 it("mints a sanitized personal receipt only after actual key-authenticated HTTP success without legacy identity env", async () => {
   const ctx = await context(), credential = "synthetic-personal-value";
@@ -42,20 +42,20 @@ it("mints a sanitized personal receipt only after actual key-authenticated HTTP 
 it("preserves the legacy header contract when the personal receipt mode is absent", async () => {
   const endpoint = await secretTestEndpoint(await context(), "morgan", "synthetic-personal-value", "PUBLISHING_API_KEY");
   try {
-    const response = await fetch(endpoint.url, { headers: { authorization: "Bearer synthetic-personal-value", "x-paperclip-agent": "morgan", "x-paperclip-run": "11111111-1111-4111-8111-111111111111" } });
+    const response = await fetch(endpoint.url, { headers: { authorization: "Bearer synthetic-personal-value", "x-outpost-agent": "morgan", "x-outpost-run": "11111111-1111-4111-8111-111111111111" } });
     expect(response.status).toBe(200); expect(await response.json()).toEqual({ ok: true, check: "publishing endpoint", status: 200 });
   } finally { await endpoint.close(); }
 });
 
 function delivery() {
-  const expected = { companyId: "company", agentId: "morgan", taskId: "task", userId: "person" };
-  const run = { id: "worker", companyId: "company", agentId: "morgan", responsibleUserId: "person", runtimeMode: "native", status: "succeeded",
+  const expected = { spaceId: "space", agentId: "morgan", taskId: "task", userId: "person" };
+  const run = { id: "worker", spaceId: "space", agentId: "morgan", responsibleUserId: "person", runtimeMode: "native", status: "succeeded",
     contextSnapshot: { issueId: "task" }, startedAt: "2026-11-04T00:00:00.000Z", finishedAt: "2026-11-04T00:00:10.000Z" };
   const output = JSON.stringify({ ok: true, status: 200, check: "publishing endpoint", receiptId: "a".repeat(48) });
-  const evidence = { task: { id: "task", companyId: "company", assigneeAgentId: "morgan", responsibleUserId: "person", status: "done" },
+  const evidence = { task: { id: "task", spaceId: "space", assigneeAgentId: "morgan", responsibleUserId: "person", status: "done" },
     calls: [{ authorized: true, agentId: "", runId: "", method: "GET", pathname: "/publishing-check", status: 200,
       createdAt: "2026-11-04T00:00:05.000Z", receiptId: "a".repeat(48) }],
-    events: [{ runId: "worker", companyId: "company", agentId: "morgan", seq: 1, eventType: "tool.execution.completed",
+    events: [{ runId: "worker", spaceId: "space", agentId: "morgan", seq: 1, eventType: "tool.execution.completed",
       createdAt: "2026-11-04T00:00:06.000Z", payload: { orpEvent: { runId: "worker", eventType: "tool.execution.completed",
         payload: { name: "bash", status: "completed", exitCode: 0, outputTruncated: false, output } } } }] };
   return { expected, run, evidence };

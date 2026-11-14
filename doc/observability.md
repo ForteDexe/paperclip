@@ -6,7 +6,7 @@ instrumentation contracts; see the
 [Telemetry Data Contract](../packages/shared/src/telemetry/README.md) for the
 separate first-party event system.
 
-Paperclip ships with **opt-in** OpenTelemetry auto-instrumentation for the
+Outpost ships with **opt-in** OpenTelemetry auto-instrumentation for the
 server process. When activated it produces **traces only** — no metrics and no
 logs are exported by this integration.
 
@@ -30,7 +30,7 @@ server tests against; install that exact version. Our Dependabot cannot bump
 these versions: its npm parser reads only `dependencies`, `devDependencies`,
 and `optionalDependencies`, never `peerDependencies`. A peer version here is a
 compatibility claim, not an installed version, so raising it is a human
-decision. `@opentelemetry/api` is the one OpenTelemetry package Paperclip
+decision. `@opentelemetry/api` is the one OpenTelemetry package Outpost
 maintains as a dependency; once you install the packages below, they become
 normal dependencies of **your own** project, and your own Dependabot updates
 them.
@@ -51,7 +51,7 @@ The operator-gated `outpost.budgets` tracer records
 `budget.exposure.evaluate`, `budget.enforcement.deliver`,
 `budget.enforcement.scope`, `budget.cancellation.deliver`, and `budget.accounting.recover`.
 Inspection and admission spans cover read-only eligibility. Paid reservations,
-receipts and all five settlement owners avoid the company accounting mutex.
+receipts and all five settlement owners avoid the space accounting mutex.
 `budget.admission.reconcile` remains a historical span name; eligibility no longer
 publishes budget transitions. `budget.accounting.lock_wait` still describes the
 legacy low-frequency configuration/control wrapper, not paid settlement.
@@ -67,7 +67,7 @@ The closed attribute list is `budget.policy_count` (applicable policy count),
 `browser`). The owner tag identifies the shared settlement span's emitter.
 These spans contain no prompts, usage receipt bodies, credentials or provider
 error bodies. They remain gated by the operator OTLP endpoint and do not change
-Paperclip's separate first-party Telemetry contract.
+Outpost's separate first-party Telemetry contract.
 
 ## Slack receipt reactions
 
@@ -80,7 +80,7 @@ cleanup when the final response is published.
 
 The Slack adapter also skips the SDK's two-second polling wait for optional link
 unfurls before message dispatch. Text, formatted content, link URLs and file
-download handles remain available. Paperclip does not consume that optional
+download handles remain available. Outpost does not consume that optional
 preview metadata for task admission.
 
 With an operator OTLP endpoint, the `outpost.chat` tracer records
@@ -98,7 +98,7 @@ cannot change reaction transport or settlement.
 
 ## Task detail loading
 
-`GET /api/issues/:id` returns `Server-Timing` with `paperclip_issue` for the
+`GET /api/issues/:id` returns `Server-Timing` with `outpost_issue` for the
 whole handler and `issue_<phase>` for its reads. The total includes the final
 execution-blocker read after recovery revalidation. Concurrent phases overlap;
 do not sum them to obtain request duration.
@@ -122,7 +122,7 @@ messages can paint before run history and plan enrichment. Runtime-only threads
 wait for initial output; late history retains the existing scroll-anchor behavior.
 Use Chrome's request waterfall and this mark together to distinguish API wait,
 request dependencies, and rendering time. A hard-load trace also includes auth,
-company selection, and JavaScript startup before the task navigation mark.
+space selection, and JavaScript startup before the task navigation mark.
 
 ## Enabling tracing
 
@@ -172,7 +172,7 @@ export OTEL_EXPORTER_OTLP_ENDPOINT="http://otel-collector:4317"
 export OTEL_EXPORTER_OTLP_PROTOCOL="grpc"
 
 # Optional — service identity attached to every span.
-export OTEL_SERVICE_NAME="paperclip"
+export OTEL_SERVICE_NAME="outpost"
 export OTEL_SERVICE_VERSION="2026.5.0"
 ```
 
@@ -194,14 +194,14 @@ returns a value:
    stamp. A failure here is not fatal.
 3. **The `OTEL_SERVICE_VERSION` environment variable.** This is the fallback
    for a build with no stamp and no reachable git — for example a tarball
-   build. `OTEL_SERVICE_VERSION` is a Paperclip-specific variable, not an
-   OpenTelemetry SDK variable, so Paperclip controls this precedence.
+   build. `OTEL_SERVICE_VERSION` is a Outpost-specific variable, not an
+   OpenTelemetry SDK variable, so Outpost controls this precedence.
 4. **`"unknown"`** when no source returns a value.
 
 The server logs the resolved `service.version` once at startup, so an operator
 can confirm the value.
 
-If `OTEL_EXPORTER_OTLP_PROTOCOL` is set to an unrecognized value, Paperclip
+If `OTEL_EXPORTER_OTLP_PROTOCOL` is set to an unrecognized value, Outpost
 logs a single warning and falls back to gRPC.
 
 Before it imports any OTel package, the server checks the four common
@@ -370,7 +370,7 @@ attempt or owning phase:
 | `runtime_selection.*` | Completion contracts, session/recovery reads, profiles, interaction materialization, backend discovery, dynamic skill package staging (`skill_assets`), bootstrap, run/coordinator writes, transaction entry/settlement, and workspace synchronization. |
 | `runtime_context.instructions`, `.skills`, `.mcp` | The three concurrent runtime-context branches. Their durations overlap. |
 | `runtime_context.asset_*` | Source reads, manifest hashing, cache lookup, cold materialization, and exact file verification on cold and warm paths. |
-| `skills.inventory`, `.wait`, `.bundled`, `.releases`, `.folders`, `.local_sources` | Company skill reconciliation, waiting for an existing company refresh, and its bundled imports, release verification, folder, and local-source work beneath runtime skill preparation. Inventory children overlap their parent. |
+| `skills.inventory`, `.wait`, `.bundled`, `.releases`, `.folders`, `.local_sources` | Space skill reconciliation, waiting for an existing space refresh, and its bundled imports, release verification, folder, and local-source work beneath runtime skill preparation. Inventory children overlap their parent. |
 | `skills.cache.acquire`, `skills.rows`, `skills.version.read`, `skills.repository.read`, `skills.version.materialize`, `skills.version.verify` | Dedicated connection/transaction startup plus advisory-lock acquisition, authorized skill rows, frozen version and repository reads, and exact runtime materialization/validation. Lock acquisition ends before the protected work; version verification is inside materialization. Only bounded file counts are added. |
 | `skills.consume` | The caller's delivery and durable version-pinning callback while the cache lock remains held. |
 | `workspace_sync.prepare_host_current`, `.prepare_durable_seed`, `.prepare_adopt_remote` | Runtime preparation under the selected inbound mode, including snapshot and staging work. A warm mismatch may produce a second preparation; it is real repeated work. |
@@ -378,8 +378,8 @@ attempt or owning phase:
 | `workspace_sync.pack`, `.git_clone`, `.git_archive`, `.overlay_copy`, `.overlay_archive`, `.deleted_manifest` | Temporary shallow Git clone, its archive callback, selected working-tree overlay copy/archive, and the deleted-file manifest. The archive is inside the clone's lifetime; do not sum parent and child. |
 | `workspace_sync.seed_generation`, `.seed_lookup`, `.seed_replay`, `.seed_persist`, `.seed_publish`, `.seed_verify`, `.seed_extract`, `.seed_snapshot`, `.seed_cleanup` | Seed identity, cache lookup, replay, durable copies, publication, extraction/re-snapshot verification and temporary cleanup. Cache hits omit cold clone and verification work. |
 | `workspace_sync.seed_cache_copy`, `.seed_cache_sync`, `.seed_cache_hash` | Archive linking/copying, disk flush, and checksum work inside cache publication. Recovery-backed archives retain their existing flush, including when a cache link shares the recovery inode. Only a separate cache-only Git seed omits the flush; its bytes are rebuilt on a cache miss. Every reader verifies checksums. These are children of seed publication, not additional elapsed time to add to that parent. |
-| `workspace_sync.seed_cache_capacity`, `.seed_cache_evict`, `.seed_cache_locked_publish` | Quota inventory, eviction planning/application, and the publication body after the company lock is acquired. Capacity may run before and inside the lock. A gap after seed verification and before locked publication can include lock acquisition; locked publication itself excludes that wait. Copy/sync/hash and the locked quota/eviction work are nested children. |
-| `workspace_sync.seed_read_copy`, `.seed_read_hash`, `.seed_read_touch` | Private cache materialization, verification of the exact reused bytes, and last-used bookkeeping including company-lock acquisition. All are nested in seed lookup. A long lookup alone does not identify copy, hashing, or lock contention as its cause. |
+| `workspace_sync.seed_cache_capacity`, `.seed_cache_evict`, `.seed_cache_locked_publish` | Quota inventory, eviction planning/application, and the publication body after the space lock is acquired. Capacity may run before and inside the lock. A gap after seed verification and before locked publication can include lock acquisition; locked publication itself excludes that wait. Copy/sync/hash and the locked quota/eviction work are nested children. |
+| `workspace_sync.seed_read_copy`, `.seed_read_hash`, `.seed_read_touch` | Private cache materialization, verification of the exact reused bytes, and last-used bookkeeping including space-lock acquisition. All are nested in seed lookup. A long lookup alone does not identify copy, hashing, or lock contention as its cause. |
 | `workspace_sync.git_index_refresh` | Fully awaited stat-metadata refresh after restoring a fresh OpenCode sandbox checkout. It shares the inbound barrier and command timeout; dirty working-tree content stays unstaged. Recovery and retained sandboxes skip it. |
 | `workspace_sync.inbound_barrier`, `.stage_workspace`, `.transfer` | The inbound scheduler barrier, whole workspace task, and provider `syncIn` call (including provider guards, upload and post-upload extraction). Parallel tasks overlap; provider transfer/exec children give the finer transport split when available. |
 | `workspace_sync.progress` | Awaited progress/status reporting, including the existing lifecycle run-log writes. These are not file transfer work. |
@@ -457,7 +457,7 @@ repository but omitted the remote-tracking tips. Git could then download those
 objects again during negotiation. The version is part of the cache key, so the
 first checkout creates a new generation and later checkouts can reuse its tips.
 Existing generations remain under the same storage limits. Cached refs stay
-private to the company and credential scope. Task checkouts still authenticate
+private to the space and credential scope. Task checkouts still authenticate
 online, use the current remote refs, and dissociate their objects from the cache.
 
 Other execution phases, including manual boundaries, carry only the existing
@@ -566,7 +566,7 @@ These additions use the existing opt-in OpenTelemetry path. With
 `OTEL_EXPORTER_OTLP_ENDPOINT` unset or blank they perform the original work
 without consulting a tracer, even if a provider is globally registered. They add
 no Telemetry events, run-log writes or span-attribute keys. The closed attribute
-allowlist above remains unchanged: no raw SQL, paths, company/task/workspace or
+allowlist above remains unchanged: no raw SQL, paths, space/task/workspace or
 receipt IDs, repository URLs, refs, credentials, request bodies or error text.
 Tracer failures must preserve the original result or error and must not replay
 authorization, writes, Git commands or lock callbacks.
@@ -583,7 +583,7 @@ across queueing, process restarts, or an unavailable controller.
 Run configuration resolves the four connector families concurrently and preserves
 registration order. Browser Use assignment reads only active Browser Use
 connections and their eligible catalog entries. It applies the same tool policy,
-grant, company, and restricted GitHub guest checks without joining the full tool
+grant, space, and restricted GitHub guest checks without joining the full tool
 discovery queue or resolving unrelated Slack, GitHub, and Speko tools.
 
 Native startup registers direct connector tool definitions from the run's pinned
@@ -831,7 +831,7 @@ run-log copy is unaffected.
 
 ## Sentry Error Monitoring
 
-Paperclip ships with **opt-in** Sentry error monitoring for the server
+Outpost ships with **opt-in** Sentry error monitoring for the server
 process and the browser app. The operator activates it with two
 environment variables: `SENTRY_DSN_FRONTEND` for the browser and
 `SENTRY_DSN_BACKEND` for the server. Each variable is optional. A
@@ -960,9 +960,9 @@ Both runtimes use Sentry's privacy options. The server also adds saved-run
 navigation links through a bounded `beforeSend` hook.
 
 - `sendDefaultPii` is `false`, on both runtimes.
-- `tracesSampleRate` is `0`, on both runtimes. Paperclip sends no
+- `tracesSampleRate` is `0`, on both runtimes. Outpost sends no
   performance trace and no profile.
-- The server hook reads only saved run and company metadata for navigation.
+- The server hook reads only saved run and space metadata for navigation.
   It copies no request data and preserves the event if the lookup fails.
   The browser adds no `beforeSend` hook. Neither runtime adds a custom filter.
 
@@ -978,7 +978,7 @@ server event captured inside a real HTTP request handler carries no
 request field").
 
 The reason is `skipOpenTelemetrySetup: true`. This feature sets that
-option so it never fights Paperclip's separate, independently opt-in
+option so it never fights Outpost's separate, independently opt-in
 OpenTelemetry feature for control of the global tracer. The same option
 turns off Sentry's per-request context tracking. Sentry's built-in
 `RequestData` integration needs that tracking to find a URL, a method, a
@@ -1021,8 +1021,8 @@ server after changing deployment environment variables.
 `OUTPOST_SENTRY_RUN_FAILURES=unexpected` to preserve that reporting policy.
 Use `all` to investigate every failed run in a selected deployment.
 
-Terminal run failures carry the company, agent, run and optional task IDs,
-adapter, error code, run status, and redacted error message. Company-scoped runs
+Terminal run failures carry the space, agent, run and optional task IDs,
+adapter, error code, run status, and redacted error message. Space-scoped runs
 without a task also report. The `event_kind=run_failure` tag identifies these
 events. Their fingerprint contains the error code and adapter, followed by the
 setup/execute phase and original failure code when available. IDs, release,
@@ -1037,10 +1037,10 @@ When a task read produces the system-owned failed state displayed as
 reports a `task_attempt_failed` error with `event_kind=run_failure` and
 `failure_source=task_interruption`. This catches saved-message failures without
 a new terminal run transition. The event keeps the actual observed run status,
-the adapter and the company, agent, task and run references. It uses fixed error
+the adapter and the space, agent, task and run references. It uses fixed error
 text and includes no message bodies, prompts or raw run diagnostics. Working,
 scheduled-retry, resolved and user-action states do not produce this event.
-Repeated reads of the same company/task/run/intent are suppressed after the SDK
+Repeated reads of the same space/task/run/intent are suppressed after the SDK
 receives a successful HTTP delivery response. The process retains the latest
 1,000 confirmed reports. An SDK capture ID alone does not confirm delivery:
 processing backpressure, network errors and rate limits can discard the event.
@@ -1059,27 +1059,27 @@ tag; it does not change the fingerprint.
 This task-state event can accompany a separate terminal run-failure report;
 the `failure_source` tag distinguishes them.
 
-The versioned `paperclip` context supplies company and agent IDs and relative
+The versioned `outpost` context supplies space and agent IDs and relative
 API paths for the saved run, events, log, and optional task. A valid HTTP(S)
 origin in `OUTPOST_PUBLIC_URL` also supplies absolute run, events, and log URLs.
 Values with credentials, query parameters, fragments, or a path are omitted.
 The event never includes an API key or an access token. These references grant
 no access. A bot must authenticate to the correct instance and pass its existing
-company, run-output, and private-task access checks.
+space, run-output, and private-task access checks.
 
 Server events associated with a saved run also include `task_url` and `run_url`
-tags for the normal company-prefixed board pages, plus `task_identifier` when
-available. The `paperclip` context contains the same navigation links as
+tags for the normal space-prefixed board pages, plus `task_identifier` when
+available. The `outpost` context contains the same navigation links as
 `taskUrl` and `runPageUrl`; the existing `runUrl` remains an API reference.
 This enrichment applies to run failures, adapter Stop timeouts, and server errors
-with authenticated run context. It resolves the saved company, agent, and task
+with authenticated run context. It resolves the saved space, agent, and task
 instead of copying request URLs, queries, or bodies. Taskless runs receive only a
 run link. Missing or unsafe `OUTPOST_PUBLIC_URL` values omit these links.
 The optional indexed metadata lookup has a one-second reporting deadline and a
 limit of eight unfinished reads. A failed or slow lookup preserves the original
 event without navigation links.
 URLs longer than Sentry's 200-character tag limit remain in context only.
-Links require the viewer's normal Paperclip access and apply to newly captured
+Links require the viewer's normal Outpost access and apply to newly captured
 events; existing Sentry events are not rewritten.
 
 The bot should use the exact run ID to read `GET /api/heartbeat-runs/{runId}`,
@@ -1095,7 +1095,7 @@ passes through the existing secret redaction and size limits.
 
 Use the Sentry group to combine repeated investigations, and the instance and
 run ID to identify each occurrence. Automated retries or proposed code fixes
-must use normal Paperclip authority and approval checks. Receiving an event
+must use normal Outpost authority and approval checks. Receiving an event
 does not authorize a bot to replay a run. This change provides the reporting
 contract; it does not install a bot or configure Sentry alerts.
 
@@ -1311,7 +1311,7 @@ envelope.
 
 These fields cross the existing creation-cleanup RPC envelope only for lease
 acquisition. The host accepts them only from an actual RPC error with matching
-company, environment, and run ownership. A private receipt binds the report to
+space, environment, and run ownership. A private receipt binds the report to
 that run; arbitrary error fields and saved result JSON do not supply evidence.
 Raw provider causes, output, paths, URLs, and cleanup ownership identifiers are
 not copied into these diagnostic fields. This does not change timeout budgets,
@@ -1400,10 +1400,10 @@ own tool calls instead. Other ACP agents are watched only when
 The engine also observes ACP permission requests without deciding them; ACPX's
 permission mode still decides each one. A stalled run records
 `acpStalledToolPermissionRequested` (whether the stalled call's permission
-request reached Paperclip) and `acpPendingToolPermissionRequestedCount` (how many
+request reached Outpost) and `acpPendingToolPermissionRequestedCount` (how many
 pending calls had one). These fields record only that a request arrived, not
 that the reply reached the agent. A call whose request never arrived stalled
-before the request reached Paperclip. A call whose request arrived stalled
+before the request reached Outpost. A call whose request arrived stalled
 later: on the reply's return trip, or after the agent received the decision.
 Both fields hold only a boolean and a count.
 
@@ -1416,7 +1416,7 @@ the call stalled. The ACP kind is coarse, so peers of the same kind can be
 different tools with different permission rules. Read them this way:
 
 - All or nearly all finished peers sent a request, and the stalled call did not:
-  this supports a stall before the request reached Paperclip.
+  this supports a stall before the request reached Outpost.
 - No finished peer sent a request: calls of that kind may skip the request, so
   its absence on the stalled call says nothing about where it stalled.
 - Some finished peers sent a request and others did not: the counts do not show
@@ -1792,13 +1792,13 @@ Two controls belong to the operator. This feature ships neither one.
 
 ## Sandbox Startup Trace Spans
 
-Paperclip opens OpenTelemetry spans on the sandbox start path. These spans are
-an Observability surface. They are not Paperclip Telemetry events. The
+Outpost opens OpenTelemetry spans on the sandbox start path. These spans are
+an Observability surface. They are not Outpost Telemetry events. The
 generated telemetry contract does not cover them, so this section is their
 canonical contract.
 
-The spans are opt-in. Paperclip exports them only when an OTLP endpoint is
-configured. With no endpoint the whole span path is a no-op. Paperclip opens the
+The spans are opt-in. Outpost exports them only when an OTLP endpoint is
+configured. With no endpoint the whole span path is a no-op. Outpost opens the
 spans only for a run that targets a remote sandbox. A local run and an SSH run
 stay out of these spans.
 
@@ -1813,7 +1813,7 @@ value:
 - An image id, a sandbox id, and a lease id ride only as a non-reversible short
   hash.
 
-Each numeric attribute is finite. Paperclip omits an attribute when its value is
+Each numeric attribute is finite. Outpost omits an attribute when its value is
 absent, never a misleading `0`.
 
 ### Spans
@@ -1831,7 +1831,7 @@ absent, never a misleading `0`.
 | `stage.asset.<key>`                   | One inbound asset stage task inside `stage.sync`. It packs and uploads one managed-home asset. The `<key>` segment is the asset key.                       | `stage.sync`                    |
 | `stage.project.<id>`                  | One inbound referenced-project stage task inside `stage.sync`. It uploads one referenced project. The `<id>` segment is the project id.                    | `stage.sync`                    |
 | `pack`                                | Host-side workspace tarball build inside the `stage.workspace` task.                                                                                       | `stage.workspace`               |
-| `bridge.paperclip`                    | Paperclip bridge start step.                                                                                                                               | `sandbox.startup`               |
+| `bridge.outpost`                    | Outpost bridge start step.                                                                                                                               | `sandbox.startup`               |
 | `bridge.process-session`              | Process-session bridge start step.                                                                                                                         | `sandbox.startup`               |
 | `acp.handshake`                       | ACP session handshake step.                                                                                                                                | `sandbox.startup`               |
 | `sandbox.syncBack`                    | The settlement sync-back that restores the managed home at teardown.                                                                                       | the active run span             |
@@ -1839,7 +1839,7 @@ absent, never a misleading `0`.
 | `restore.asset.<key>`                 | One outbound asset restore task at teardown. It reads one asset back to its host store. The `<key>` segment is the asset key.                              | `sandbox.syncBack`              |
 | `sandbox.agentSession.sendInput`      | One outbound ACP message to the agent — the socket handler's one `writeTextFile` exec.                                                                     | the active run span             |
 | `sandbox.agentSession.pollOutput`     | One 100 ms poll tick — `list`, then `read`+`remove` per file found (`1 + 2n` execs).                                                                       | the active run span             |
-| `sandbox.callbackBridge.relayRequest` | One Paperclip-API callback request — read the request, write the response, remove it.                                                                      | the active run span             |
+| `sandbox.callbackBridge.relayRequest` | One Outpost-API callback request — read the request, write the response, remove it.                                                                      | the active run span             |
 | `sandbox.agentProcess`                | The persistent streamed agent process the process-session bridge launches; open until the process settles or the bridge tears down, whichever comes first. | the active run span             |
 | `sandbox.exec`                        | One host-to-sandbox execution.                                                                                                                             | the active step or wrapper span |
 
@@ -1929,7 +1929,7 @@ per-execution `sandbox.exec` child spans carry that detail.
 
 ### `sandbox.exec` span attributes
 
-The `sandbox.exec` span uses this closed attribute allowlist. Paperclip omits a
+The `sandbox.exec` span uses this closed attribute allowlist. Outpost omits a
 numeric attribute when the provider does not report the value.
 
 | Attribute                                       | Type    | Optional | Meaning                                                                    |
@@ -1946,7 +1946,7 @@ numeric attribute when the provider does not report the value.
 | `outpost.sandbox.startup.outcome`             | string  | no       | The execution outcome (`ok` or `failed`).                                  |
 
 The plugin decides the cache hit at the sandbox-handle lookup. The span no
-longer infers a cache hit from `wait_before_ms == 0`. Paperclip omits the
+longer infers a cache hit from `wait_before_ms == 0`. Outpost omits the
 `cache_hit` attribute when the provider does not report the value.
 
 To add a span attribute, extend the `SANDBOX_STARTUP_SPAN_ATTRS` allowlist in
@@ -2087,8 +2087,8 @@ This section documents one duplex transport with three sinks: an
 OpenTelemetry span, a counter in the `tool_runtime_metric_counters` table, and
 one run-log event.
 
-Paperclip opens a fixed observability surface for the sandbox duplex transport.
-This instrumentation is separate from Paperclip Telemetry events and from the
+Outpost opens a fixed observability surface for the sandbox duplex transport.
+This instrumentation is separate from Outpost Telemetry events and from the
 sandbox startup trace spans above. The generated telemetry contract does not
 cover it, so this section is its canonical contract. The code owner is
 `packages/adapter-utils/src/duplex-observability.ts`. That module holds each name and
@@ -2134,7 +2134,7 @@ field.
 ### Dimension keys
 
 Counters carry no dimension labels. The guarded counter store keys each counter
-on `(companyId, metric)` with no label column, so the `fallback_reason` and
+on `(spaceId, metric)` with no label column, so the `fallback_reason` and
 `loss_class` values fold into the counter metric name instead. The full closed
 dimension set below rides only the spans and the `sandbox.duplex.transport`
 event, which use only these closed keys. A test asserts the exact set, so a new
@@ -2212,15 +2212,15 @@ no first-party Telemetry event is added.
 The `skills.*` detail spans above distinguish inventory reconciliation and lock
 acquisition from repository transfer and file validation. A repository-backed
 skill's authored `SKILL.md` is not its complete runtime payload: the generated
-discovery entrypoint includes the pinned repository under `.paperclip-repository`.
+discovery entrypoint includes the pinned repository under `.outpost-repository`.
 Measure the delivered bundle's file count and bytes when reproducing its cost.
 
-Runtime preparation refreshes the company inventory once per listing. Local and
+Runtime preparation refreshes the space inventory once per listing. Local and
 catalog directories remain direct sources, so edits are visible on the next
 preparation. Explicit version selections still use their stored snapshots.
 
 Reconstructed skills use `__runtime_cache_v1__/<skill-id>/<fingerprint>/files`
-beneath company skill storage, with a sibling manifest of paths, sizes, and SHA-256
+beneath space skill storage, with a sibling manifest of paths, sizes, and SHA-256
 content digests. Every warm hit validates the manifest and exact file contents;
 it does not fetch upstream, rewrite files, or remove directories. The fingerprint
 includes installed source identity, revision, file inventory, and stored Markdown,

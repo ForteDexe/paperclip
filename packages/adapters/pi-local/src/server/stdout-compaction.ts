@@ -3,7 +3,7 @@ import { parseJson } from "@outpost/adapter-utils/server-utils";
 
 /**
  * Stateful JSONL compaction for Pi `--mode json` stdout before it enters
- * the Paperclip run-log pipeline.
+ * the Outpost run-log pipeline.
  *
  * Pi emits `message_update` events that repeat the FULL cumulative assistant
  * message on every streaming delta. Persisting each line makes run-log size
@@ -14,7 +14,7 @@ import { parseJson } from "@outpost/adapter-utils/server-utils";
  * can split a secret across the cut boundary. The server re-caps after
  * redaction; oversized content is its responsibility.
  *
- * Tool update streams become throttled Paperclip progress events so the
+ * Tool update streams become throttled Outpost progress events so the
  * stale-run watchdog's `lastOutputAt` stays fresh during long tools.
  */
 
@@ -74,9 +74,9 @@ function createThrottle(intervalMs: number, now: Clock): () => boolean {
 
 function progressTick(allow: () => boolean, toolCallId?: unknown): string | null {
   if (!allow()) return null;
-  // `paperclip_` prefix marks this as adapter metadata, not a Pi event.
+  // `outpost_` prefix marks this as adapter metadata, not a Pi event.
   return JSON.stringify({
-    type: "paperclip_progress",
+    type: "outpost_progress",
     sourceEventType: "tool_execution_update",
     ...(typeof toolCallId === "string" ? { toolCallId } : {}),
   });

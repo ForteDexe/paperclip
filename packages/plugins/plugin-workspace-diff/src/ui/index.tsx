@@ -439,13 +439,13 @@ export function ChangesTab({ context }: PluginDetailTabProps) {
 
   const params = useMemo(() => ({
     workspaceId: context.entityId,
-    companyId: context.companyId ?? "",
+    spaceId: context.spaceId ?? "",
     projectId: context.projectId ?? "",
     entityType: context.entityType,
     view: effectiveView,
     baseRef: requestedBaseRef || null,
     includeUntracked,
-  }), [context.companyId, context.entityId, context.entityType, context.projectId, effectiveView, includeUntracked, requestedBaseRef]);
+  }), [context.spaceId, context.entityId, context.entityType, context.projectId, effectiveView, includeUntracked, requestedBaseRef]);
 
   const { data, loading, error, refresh } = usePluginData<WorkspaceDiffData>("workspace-diff", params);
   const files = useMemo(() => toFileViewModels(data), [data]);

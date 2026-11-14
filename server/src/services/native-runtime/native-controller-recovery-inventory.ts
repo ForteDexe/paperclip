@@ -13,14 +13,14 @@ export async function readNativeControllerRecoveryInventory(db: Db, input: { aft
   const rows = await db.transaction(async tx => {
     await tx.execute(sql`set local statement_timeout = '2s'`);
     return tx.execute<{
-      id: string; runId: string | null; companyId: string; issueId: string | null; sessionId: string | null;
+      id: string; runId: string | null; spaceId: string; issueId: string | null; sessionId: string | null;
       runnerId: string | null; metadata: Record<string, unknown> | null; material: Record<string, unknown> | null;
       pending: boolean;
     }>(sql`with selected as (
-      select id, company_id, agent_id, last_run_id from agent_task_sessions
+      select id, space_id, agent_id, last_run_id from agent_task_sessions
       where adapter_type = 'outpost_runner' ${input.afterId ? sql`and id > ${input.afterId}::uuid` : sql``}
       order by id limit ${limit + 1}
-    ) select s.id, s.company_id as "companyId", r.id as "runId", r.native_issue_id as "issueId",
+    ) select s.id, s.space_id as "spaceId", r.id as "runId", r.native_issue_id as "issueId",
       r.native_session_id as "sessionId", r.runner_instance_id as "runnerId",
       case when pg_column_size(r.runner_profile_json->'nativeControllerRecovery') <= 4096
         then r.runner_profile_json->'nativeControllerRecovery' else null end as metadata,
@@ -30,9 +30,9 @@ export async function readNativeControllerRecoveryInventory(db: Db, input: { aft
       (r.finished_at is null or r.status not in ('succeeded', 'failed', 'cancelled', 'interrupted', 'timed_out')
         or f.run_id is null or f.lease_owner is not null or f.recovery_state is not null
         or f.phase not in ('committed', 'terminal_failure')) is true as pending
-      from selected s left join heartbeat_runs r on r.id = s.last_run_id and r.company_id = s.company_id and r.agent_id = s.agent_id
-      left join native_run_finalizations f on f.run_id = r.id and f.company_id = s.company_id
-      left join native_runner_checkpoints c on c.run_id = r.id and c.company_id = s.company_id
+      from selected s left join heartbeat_runs r on r.id = s.last_run_id and r.space_id = s.space_id and r.agent_id = s.agent_id
+      left join native_run_finalizations f on f.run_id = r.id and f.space_id = s.space_id
+      left join native_runner_checkpoints c on c.run_id = r.id and c.space_id = s.space_id
         and c.issue_id = r.native_issue_id and c.part = 'header'
       order by s.id`);
   }, { accessMode: "read only" });
@@ -47,7 +47,7 @@ export async function readNativeControllerRecoveryInventory(db: Db, input: { aft
     else if (row.metadata?.schema !== "outpost.native-controller-recovery.v1") reason = "metadata_unsupported_or_missing";
     else {
       const checkpoint = row.metadata.checkpoint as Record<string, unknown> | null;
-      const header = row.material ? inspectNativeRunnerUpgradeHeader({ companyId: row.companyId, issueId: row.issueId, runId: row.runId }, row.material) : null;
+      const header = row.material ? inspectNativeRunnerUpgradeHeader({ spaceId: row.spaceId, issueId: row.issueId, runId: row.runId }, row.material) : null;
       if (!checkpoint || checkpoint.runId !== row.runId || checkpoint.runnerInstanceId !== row.runnerId
         || checkpoint.normalizedSessionId !== row.sessionId || !header
         || header.runnerInstanceId !== row.runnerId || header.normalizedSessionId !== row.sessionId) reason = "checkpoint_binding_missing";

@@ -6,7 +6,7 @@ import { applyPendingMigrations } from "./client.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./test-embedded-postgres.js";
 
 const support = await getEmbeddedPostgresTestSupport();
-const indexName = "heartbeat_runs_company_native_workspace_idx";
+const indexName = "heartbeat_runs_space_native_workspace_idx";
 const migrationFile = "0453_curious_ben_parker.sql";
 
 (support.supported ? describe : describe.skip)("workspace companion expression index", () => {
@@ -18,38 +18,38 @@ const migrationFile = "0453_curious_ben_parker.sql";
       const hash = createHash("sha256").update(migration).digest("hex");
       await sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash=${hash}`;
       await sql.unsafe(`DROP INDEX ${indexName}`);
-      const companies = await sql`INSERT INTO companies(name,issue_prefix) VALUES ('Index fixture','CIX1'),('Foreign fixture','CIX2') RETURNING id`;
-      const company = companies[0]!.id, foreignCompany = companies[1]!.id;
-      const [agent] = await sql`INSERT INTO agents(company_id,name) VALUES (${company},'Local fixture') RETURNING id`;
-      const [foreignAgent] = await sql`INSERT INTO agents(company_id,name) VALUES (${foreignCompany},'Foreign fixture') RETURNING id`;
-      const issues = await sql`INSERT INTO issues(company_id,title) VALUES (${company},'Source issue'),(${company},'Other source issue') RETURNING id`;
+      const spaces = await sql`INSERT INTO spaces(name,issue_prefix) VALUES ('Index fixture','CIX1'),('Foreign fixture','CIX2') RETURNING id`;
+      const space = spaces[0]!.id, foreignSpace = spaces[1]!.id;
+      const [agent] = await sql`INSERT INTO agents(space_id,name) VALUES (${space},'Local fixture') RETURNING id`;
+      const [foreignAgent] = await sql`INSERT INTO agents(space_id,name) VALUES (${foreignSpace},'Foreign fixture') RETURNING id`;
+      const issues = await sql`INSERT INTO issues(space_id,title) VALUES (${space},'Source issue'),(${space},'Other source issue') RETURNING id`;
       const workspace = randomUUID(), expected: string[] = [];
       for (const [state, issue] of [["prepared", issues[0]!.id], ["finalized", issues[1]!.id], ["prepared", null], ["finalized", null]] as const) {
         const id = randomUUID(); expected.push(id);
-        await sql`INSERT INTO heartbeat_runs(id,company_id,agent_id,native_issue_id,runner_profile_json)
-          VALUES (${id},${company},${agent!.id},${issue},${sql.json({ nativeWorkspaceSync: { workspaceId: workspace, state } })})`;
+        await sql`INSERT INTO heartbeat_runs(id,space_id,agent_id,native_issue_id,runner_profile_json)
+          VALUES (${id},${space},${agent!.id},${issue},${sql.json({ nativeWorkspaceSync: { workspaceId: workspace, state } })})`;
       }
-      await sql`INSERT INTO heartbeat_runs(company_id,agent_id,runner_profile_json)
-        VALUES (${foreignCompany},${foreignAgent!.id},${sql.json({ nativeWorkspaceSync: { workspaceId: workspace, state: "prepared" } })})`;
+      await sql`INSERT INTO heartbeat_runs(space_id,agent_id,runner_profile_json)
+        VALUES (${foreignSpace},${foreignAgent!.id},${sql.json({ nativeWorkspaceSync: { workspaceId: workspace, state: "prepared" } })})`;
       for (const sync of [{ workspaceId: { malformed: true }, state: "prepared" }, { workspaceId: workspace.toUpperCase(), state: "prepared" }, { workspaceId: workspace, state: "other" }, { workspaceId: workspace }, "malformed", null]) {
-        await sql`INSERT INTO heartbeat_runs(company_id,agent_id,runner_profile_json)
-          VALUES (${company},${agent!.id},${sql.json({ nativeWorkspaceSync: sync })})`;
+        await sql`INSERT INTO heartbeat_runs(space_id,agent_id,runner_profile_json)
+          VALUES (${space},${agent!.id},${sql.json({ nativeWorkspaceSync: sync })})`;
       }
       const before = await sql`SELECT id,native_issue_id,runner_profile_json#>>'{nativeWorkspaceSync,workspaceId}' workspace_id,
         runner_profile_json#>>'{nativeWorkspaceSync,state}' state FROM heartbeat_runs
-        WHERE company_id=${company} AND runner_profile_json#>>'{nativeWorkspaceSync,workspaceId}'=${workspace}
+        WHERE space_id=${space} AND runner_profile_json#>>'{nativeWorkspaceSync,workspaceId}'=${workspace}
         AND runner_profile_json#>>'{nativeWorkspaceSync,state}' IN ('prepared','finalized') ORDER BY id`;
       expect(before.map(row => row.id)).toEqual(expected.sort());
       await applyPendingMigrations(database.connectionString);
       const after = await sql`SELECT id,native_issue_id,runner_profile_json->'nativeWorkspaceSync'->>'workspaceId' workspace_id,
         runner_profile_json->'nativeWorkspaceSync'->>'state' state FROM heartbeat_runs
-        WHERE company_id=${company} AND runner_profile_json->'nativeWorkspaceSync'->>'workspaceId'=${workspace}
+        WHERE space_id=${space} AND runner_profile_json->'nativeWorkspaceSync'->>'workspaceId'=${workspace}
         AND runner_profile_json->'nativeWorkspaceSync'->>'state' IN ('prepared','finalized') ORDER BY id`;
       expect(after).toEqual(before);
       const [index] = await sql`SELECT indisvalid,indisready,pg_get_expr(indpred,indrelid) predicate,pg_get_indexdef(indexrelid) definition
         FROM pg_index WHERE indexrelid=${indexName}::regclass`;
       expect(index).toMatchObject({ indisvalid: true, indisready: true, predicate: null });
-      expect(index!.definition).toContain("company_id");
+      expect(index!.definition).toContain("space_id");
       expect(index!.definition).toContain("nativeWorkspaceSync");
       expect(index!.definition).toContain("workspaceId");
       await applyPendingMigrations(database.connectionString);

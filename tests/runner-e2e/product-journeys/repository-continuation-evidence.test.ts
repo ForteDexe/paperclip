@@ -14,7 +14,7 @@ describe("repository continuation Git evidence", () => {
   let root: string, sourceCommit: string, first: RepositoryBundleEvidence, final: RepositoryBundleEvidence, firstBytes: Buffer;
   const reference = `${"c".repeat(64)}\n`, firstFile = "first.txt", contextFile = "context.txt", finalFile = "followup.txt";
   beforeAll(async () => {
-    root = await mkdtemp(path.join(os.tmpdir(), "paperclip-qa-repo-control-"));
+    root = await mkdtemp(path.join(os.tmpdir(), "outpost-qa-repo-control-"));
     const git = async (...args: string[]) => (await execFile("git", ["-c", "core.hooksPath=/dev/null", "-C", root, ...args], {
       env: { PATH: process.env.PATH, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null",
         GIT_AUTHOR_NAME: "Fixture", GIT_AUTHOR_EMAIL: "fixture@example.test", GIT_COMMITTER_NAME: "Fixture", GIT_COMMITTER_EMAIL: "fixture@example.test" },
@@ -62,21 +62,21 @@ describe("repository continuation Git evidence", () => {
 });
 
 describe("repository continuation target binding", () => {
-  const issue = { id: "issue", companyId: "company", projectId: "project", executionWorkspaceId: "workspace" };
-  const run = { companyId: "company", runnerProfileJson: { nativeExecutionInput: { binding: { executionWorkspaceId: "workspace" } } } };
-  const workspace = { id: "workspace", companyId: "company", projectId: "project", projectWorkspaceId: "project-workspace", repoUrl: repositoryContinuationSource.url };
-  const input = { companyId: "company", issueId: "issue", projectId: "project", projectWorkspaceId: "project-workspace", workspaceId: "workspace",
+  const issue = { id: "issue", spaceId: "space", projectId: "project", executionWorkspaceId: "workspace" };
+  const run = { spaceId: "space", runnerProfileJson: { nativeExecutionInput: { binding: { executionWorkspaceId: "workspace" } } } };
+  const workspace = { id: "workspace", spaceId: "space", projectId: "project", projectWorkspaceId: "project-workspace", repoUrl: repositoryContinuationSource.url };
+  const input = { spaceId: "space", issueId: "issue", projectId: "project", projectWorkspaceId: "project-workspace", workspaceId: "workspace",
     repoUrl: repositoryContinuationSource.url, issue, view: { issueId: "issue", workspace }, runs: [run] };
   it("requires the configured project, actual task workspace and every run binding", () => {
     expect(repositoryWorkspaceBindingMatches(input)).toBe(true);
     expect(repositoryWorkspaceBindingMatches({ ...input, runs: [] })).toBe(false);
     expect(repositoryWorkspaceBindingMatches({ ...input, view: {} })).toBe(false);
-    for (const change of [{ id: "foreign" }, { companyId: "foreign" }, { projectId: "foreign" },
+    for (const change of [{ id: "foreign" }, { spaceId: "foreign" }, { projectId: "foreign" },
       { projectWorkspaceId: "foreign" }, { repoUrl: "https://example.test/other" }]) {
       expect(repositoryWorkspaceBindingMatches({ ...input, view: { ...input.view, workspace: { ...workspace, ...change } } })).toBe(false);
     }
-    expect(repositoryWorkspaceBindingMatches({ ...input, runs: [run, { ...run, companyId: "foreign" }] })).toBe(false);
-    expect(repositoryWorkspaceBindingMatches({ ...input, runs: [run, { companyId: "company" }] })).toBe(false);
+    expect(repositoryWorkspaceBindingMatches({ ...input, runs: [run, { ...run, spaceId: "foreign" }] })).toBe(false);
+    expect(repositoryWorkspaceBindingMatches({ ...input, runs: [run, { spaceId: "space" }] })).toBe(false);
     expect(repositoryWorkspaceBindingMatches({ ...input, issue: { ...issue, executionWorkspaceId: "replacement" } })).toBe(false);
   });
   it("compares exact workspace API bytes and rejects another workspace or file", () => {

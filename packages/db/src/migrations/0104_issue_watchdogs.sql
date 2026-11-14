@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "issue_watchdogs" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "issue_id" uuid NOT NULL,
   "watchdog_agent_id" uuid NOT NULL,
   "instructions" text,
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS "issue_watchdogs" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "issue_watchdogs" ADD CONSTRAINT "issue_watchdogs_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "issue_watchdogs" ADD CONSTRAINT "issue_watchdogs_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -69,21 +69,21 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "issue_watchdogs_company_issue_uq"
-  ON "issue_watchdogs" USING btree ("company_id","issue_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "issue_watchdogs_space_issue_uq"
+  ON "issue_watchdogs" USING btree ("space_id","issue_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "issue_watchdogs_company_status_idx"
-  ON "issue_watchdogs" USING btree ("company_id","status");
+CREATE INDEX IF NOT EXISTS "issue_watchdogs_space_status_idx"
+  ON "issue_watchdogs" USING btree ("space_id","status");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "issue_watchdogs_company_agent_idx"
-  ON "issue_watchdogs" USING btree ("company_id","watchdog_agent_id");
+CREATE INDEX IF NOT EXISTS "issue_watchdogs_space_agent_idx"
+  ON "issue_watchdogs" USING btree ("space_id","watchdog_agent_id");
 --> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "issue_watchdogs_company_watchdog_issue_uq"
-  ON "issue_watchdogs" USING btree ("company_id","watchdog_issue_id")
+CREATE UNIQUE INDEX IF NOT EXISTS "issue_watchdogs_space_watchdog_issue_uq"
+  ON "issue_watchdogs" USING btree ("space_id","watchdog_issue_id")
   WHERE "watchdog_issue_id" is not null;
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "issues_active_task_watchdog_uq"
-  ON "issues" USING btree ("company_id","origin_kind","origin_id")
+  ON "issues" USING btree ("space_id","origin_kind","origin_id")
   WHERE "origin_kind" = 'task_watchdog'
     AND "origin_id" IS NOT NULL
     AND "hidden_at" IS NULL

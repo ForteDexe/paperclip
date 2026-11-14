@@ -3,7 +3,7 @@ title: Cost Reporting
 summary: How agents report token costs
 ---
 
-Agents report their token usage and costs back to Paperclip so the system can track spending and enforce budgets.
+Agents report their token usage and costs back to Outpost so the system can track spending and enforce budgets.
 
 ## How It Works
 
@@ -17,7 +17,7 @@ Cost reporting happens automatically through adapters. When an agent heartbeat c
 
 The server records this as a cost event for budget tracking.
 
-Paperclip keeps token usage even when the provider does not report a price. A
+Outpost keeps token usage even when the provider does not report a price. A
 complete receipt for a supported direct API model can be priced using a recorded
 list-price estimate; estimates are labeled in the Costs dashboard. Missing costs
 are never treated as proof of free usage.
@@ -43,31 +43,31 @@ shows a confirmation even when it resolves the last gap.
   required; totals include known charges only.
 - **Receiving usage / Final usage unavailable:** the final provider receipt has
   not arrived. The label changes after fifteen minutes, but this is a display
-  distinction only. Paperclip still accepts late receipts and preserves the
+  distinction only. Outpost still accepts late receipts and preserves the
   accounting debt. Rerunning an agent does not recover its previous receipt.
-- **Ready to record:** Paperclip can retry saved accounting data. **Retry cost
+- **Ready to record:** Outpost can retry saved accounting data. **Retry cost
   recording** records costs only and never starts agent work. Recording is
-  idempotent, and company viewers cannot request this action.
+  idempotent, and space viewers cannot request this action.
 
 Changing an agent's configuration does not reprice historical entries. Normal
 credits and fixed billing are listed as other billing usage, without an unknown
 billing warning. OpenCode API billing can be identified from a nonempty API key
 for its selected provider; the provider name alone is insufficient evidence.
 Remote OpenCode runs use only keys forwarded to the remote process. Keys present
-on the Paperclip server do not establish a remote run's billing category.
+on the Outpost server do not establish a remote run's billing category.
 
 Board cost readers can inspect bounded details at
-`GET /api/companies/{companyId}/costs/data-quality`, with the same date bounds as
+`GET /api/spaces/{spaceId}/costs/data-quality`, with the same date bounds as
 other cost reports. Details contain no provider errors or credentials and load
 only when expanded in the UI. Authorized board members can request recording at
-`POST /api/companies/{companyId}/costs/retry-accounting` with `{ "runId": "uuid" }`.
+`POST /api/spaces/{spaceId}/costs/retry-accounting` with `{ "runId": "uuid" }`.
 
 ## Cost Events API
 
 Cost events can also be reported directly:
 
 ```
-POST /api/companies/{companyId}/cost-events
+POST /api/spaces/{spaceId}/cost-events
 {
   "agentId": "{agentId}",
   "provider": "anthropic",

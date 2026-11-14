@@ -22,12 +22,12 @@ const ROLLING_WINDOWS = ["5h", "24h", "7d"] as const;
 interface ProviderQuotaCardProps {
   provider: string;
   rows: CostByProviderModel[];
-  /** company monthly budget in cents (0 means unlimited) */
+  /** space monthly budget in cents (0 means unlimited) */
   budgetMonthlyCents: number;
   /** Only compare a current-month report with the monthly budget. */
   showBudgetUtilization?: boolean;
-  /** total company spend in this period in cents, all providers */
-  totalCompanySpendCents: number;
+  /** total space spend in this period in cents, all providers */
+  totalSpaceSpendCents: number;
   /** spend in the current calendar week in cents, this provider only */
   weekSpendCents: number;
   /** rolling window rows for this provider: 5h, 24h, 7d */
@@ -47,7 +47,7 @@ export function ProviderQuotaCard({
   rows,
   budgetMonthlyCents,
   showBudgetUtilization = true,
-  totalCompanySpendCents,
+  totalSpaceSpendCents,
   weekSpendCents,
   windowRows,
   showDeficitNotch,

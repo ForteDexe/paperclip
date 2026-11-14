@@ -1,5 +1,5 @@
 {
-  "schema": "paperclip-cursor-authenticated-capability-probe/v1",
+  "schema": "outpost-cursor-authenticated-capability-probe/v1",
   "capturedAt": "2026-09-28T19:09:06.609Z",
   "runnerSourceRevision": "653ea40135b1dc6586b8de4ebf49ad5befbc6e66",
   "packSourceRevision": "a92d06ca5940a42d45cba937f19ba7e7e9c03018",
@@ -2257,7 +2257,7 @@
         "currentValue": "false"
       }
     ],
-    "paperclipSupport": "Not exposed; separate model and parameter identity verification required"
+    "outpostSupport": "Not exposed; separate model and parameter identity verification required"
   },
   "redactions": [
     "All session IDs, private filesystem paths, credential values, account identity and raw stderr excluded"

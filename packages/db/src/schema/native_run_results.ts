@@ -8,7 +8,7 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { issues } from "./issues.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 import { completionContracts } from "./completion_contracts.js";
@@ -17,7 +17,7 @@ export const nativeRunResults = pgTable(
   "native_run_results",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     issueId: uuid("issue_id").notNull(),
     runId: uuid("run_id").notNull(),
     turnId: text("turn_id"),
@@ -32,26 +32,26 @@ export const nativeRunResults = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyIssueRunIdUq: unique("native_run_results_company_issue_run_id_uq").on(
-      table.companyId,
+    spaceIssueRunIdUq: unique("native_run_results_space_issue_run_id_uq").on(
+      table.spaceId,
       table.issueId,
       table.runId,
       table.id,
     ),
-    issueCompanyFk: foreignKey({
-      columns: [table.companyId, table.issueId],
-      foreignColumns: [issues.companyId, issues.id],
-      name: "native_run_results_issue_company_fk",
+    issueSpaceFk: foreignKey({
+      columns: [table.spaceId, table.issueId],
+      foreignColumns: [issues.spaceId, issues.id],
+      name: "native_run_results_issue_space_fk",
     }),
     runContractOwnerFk: foreignKey({
       columns: [
-        table.companyId,
+        table.spaceId,
         table.issueId,
         table.runId,
         table.completionContractId,
       ],
       foreignColumns: [
-        heartbeatRuns.companyId,
+        heartbeatRuns.spaceId,
         heartbeatRuns.nativeIssueId,
         heartbeatRuns.id,
         heartbeatRuns.completionContractId,
@@ -59,9 +59,9 @@ export const nativeRunResults = pgTable(
       name: "native_run_results_run_contract_owner_fk",
     }),
     completionContractOwnerFk: foreignKey({
-      columns: [table.companyId, table.issueId, table.completionContractId],
+      columns: [table.spaceId, table.issueId, table.completionContractId],
       foreignColumns: [
-        completionContracts.companyId,
+        completionContracts.spaceId,
         completionContracts.issueId,
         completionContracts.id,
       ],

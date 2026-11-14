@@ -20,7 +20,7 @@ export const manageRoutineAction = {
     "disabledByDefault": false,
     "realBindingStatus": "scenario_mock",
     "realServiceBinding": "unbound",
-    "orpEvidence": "company admin/portability item event plus audit record",
+    "orpEvidence": "space admin/portability item event plus audit record",
     "orpBindingStatus": "audit_pending",
     "legacyAliases": [],
     "note": "Scenario/eval-only mock extension."

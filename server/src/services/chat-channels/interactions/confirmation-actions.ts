@@ -85,7 +85,7 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, record.endpoint.companyId),
+          eq(chatActions.spaceId, record.endpoint.spaceId),
           eq(chatActions.endpointId, record.endpoint.id),
           eq(chatActions.conversationId, conversation.id),
           eq(chatActions.kind, "confirmation_response"),
@@ -128,7 +128,7 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
     const issue = await db
       .select({
         id: issues.id,
-        companyId: issues.companyId,
+        spaceId: issues.spaceId,
         projectId: issues.projectId,
         goalId: issues.goalId,
         status: issues.status,
@@ -137,7 +137,7 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, record.endpoint.companyId),
+          eq(issues.spaceId, record.endpoint.spaceId),
           eq(issues.id, conversation.issueId),
         ),
       )
@@ -185,7 +185,7 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
               });
             },
             afterResolveInTransaction: async (tx: DbTransaction, resolved: import("@outpost/shared").IssueThreadInteraction) => {
-              await notifyChatConfirmationWork(tx, { companyId: action.companyId, issueId: conversation.issueId });
+              await notifyChatConfirmationWork(tx, { spaceId: action.spaceId, issueId: conversation.issueId });
               const [owned] = await tx
                 .update(chatActions)
                 .set({
@@ -331,7 +331,7 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
         .from(chatConversations)
         .where(
           and(
-            eq(chatConversations.companyId, action.companyId),
+            eq(chatConversations.spaceId, action.spaceId),
             eq(chatConversations.endpointId, action.endpointId),
             eq(chatConversations.id, action.conversationId),
           ),
@@ -342,7 +342,7 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, action.companyId),
+            eq(chatPublications.spaceId, action.spaceId),
             eq(chatPublications.endpointId, action.endpointId),
             eq(chatPublications.id, token.publicationId as string),
           ),
@@ -353,7 +353,7 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
         .from(chatEndpoints)
         .where(
           and(
-            eq(chatEndpoints.companyId, action.companyId),
+            eq(chatEndpoints.spaceId, action.spaceId),
             eq(chatEndpoints.id, action.endpointId),
           ),
         )
@@ -458,14 +458,14 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
     const issue = await db
       .select({
         id: issues.id,
-        companyId: issues.companyId,
+        spaceId: issues.spaceId,
         assigneeAgentId: issues.assigneeAgentId,
         status: issues.status,
       })
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, action.companyId),
+          eq(issues.spaceId, action.spaceId),
           eq(issues.id, conversation.issueId),
         ),
       )
@@ -540,7 +540,7 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
         })
         .where(
           and(
-            eq(chatActions.companyId, issue.companyId),
+            eq(chatActions.spaceId, issue.spaceId),
             eq(chatActions.endpointId, action.endpointId),
             eq(chatActions.conversationId, conversation.id),
             eq(chatActions.kind, "confirmation_response"),
@@ -556,7 +556,7 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
       await tx
         .insert(chatPublications)
         .values({
-          companyId: issue.companyId,
+          spaceId: issue.spaceId,
           endpointId: action.endpointId,
           conversationId: conversation.id,
           issueId: issue.id,
@@ -581,11 +581,11 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
         })
         .onConflictDoNothing();
       if (shouldWake && issue.assigneeAgentId) {
-        await notifyChatContinuationWork(tx, { companyId: issue.companyId, issueId: issue.id });
+        await notifyChatContinuationWork(tx, { spaceId: issue.spaceId, issueId: issue.id });
         await tx
           .insert(chatActions)
           .values({
-            companyId: issue.companyId,
+            spaceId: issue.spaceId,
             endpointId: action.endpointId,
             conversationId: conversation.id,
             principalId: action.principalId,
@@ -609,12 +609,12 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
           .onConflictDoNothing();
       }
       // A provider callback can lose the pending -> terminal interaction race
-      // to the Paperclip UI. In that case this transaction only retires the
+      // to the Outpost UI. In that case this transaction only retires the
       // now-redundant provider action and must not fabricate a second external
-      // resolution event attributed to the board winner.
+      // resolution event attributed to the operator winner.
       if (resolvedByThisProviderAction) {
         await logActivity(tx as unknown as Db, {
-          companyId: issue.companyId,
+          spaceId: issue.spaceId,
           actorType: "user",
           actorId: resolvedByUserId,
           action:
@@ -667,29 +667,29 @@ export function createChatConfirmationActions(db: Db, options: ChatConfirmationO
     coordinator: ReturnType<typeof createDeliveryWorkCoordinator>,
     canRun: () => boolean,
   ) {
-    type Entry = { id: string; companyId: string; issueId: string | null; dueAt: number };
+    type Entry = { id: string; spaceId: string; issueId: string | null; dueAt: number };
     return registerScopedDeadlineWork(coordinator, {
       queue: DELIVERY_QUEUES.chatTerminalConfirmations,
       decodeScope: (hint: string): ChatConfirmationScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
       matches: (entry: Entry, scope?: ChatConfirmationScope) => !scope ||
-        (entry.companyId === scope.companyId && (!scope.issueId || !entry.issueId || entry.issueId === scope.issueId)),
+        (entry.spaceId === scope.spaceId && (!scope.issueId || !entry.issueId || entry.issueId === scope.issueId)),
       load: async (scope?: ChatConfirmationScope, signal?: AbortSignal): Promise<Entry[]> => {
         const entries: Entry[] = [];
-        let cursor: { companyId: string; id: string } | undefined;
+        let cursor: { spaceId: string; id: string } | undefined;
         while (!signal?.aborted) {
           const rows = await db.select({
-            id: chatActions.id, companyId: chatActions.companyId, issueId: chatConversations.issueId,
+            id: chatActions.id, spaceId: chatActions.spaceId, issueId: chatConversations.issueId,
           }).from(chatActions).leftJoin(chatConversations, and(
-            eq(chatConversations.companyId, chatActions.companyId), eq(chatConversations.id, chatActions.conversationId),
+            eq(chatConversations.spaceId, chatActions.spaceId), eq(chatConversations.id, chatActions.conversationId),
           )).where(and(
             sql`${chatActions.kind} = 'confirmation_response' AND ${chatActions.status} = 'processing'`,
-            scope ? eq(chatActions.companyId, scope.companyId) : undefined,
+            scope ? eq(chatActions.spaceId, scope.spaceId) : undefined,
             scope?.issueId ? or(eq(chatConversations.issueId, scope.issueId), isNull(chatConversations.id)) : undefined,
             cursor ? or(
-              gt(chatActions.companyId, cursor.companyId),
-              and(eq(chatActions.companyId, cursor.companyId), gt(chatActions.id, cursor.id)),
+              gt(chatActions.spaceId, cursor.spaceId),
+              and(eq(chatActions.spaceId, cursor.spaceId), gt(chatActions.id, cursor.id)),
             ) : undefined,
-          )).orderBy(asc(chatActions.companyId), asc(chatActions.id)).limit(100);
+          )).orderBy(asc(chatActions.spaceId), asc(chatActions.id)).limit(100);
           entries.push(...rows.map(row => ({ ...row, dueAt: 0 })));
           if (rows.length < 100) return entries;
           cursor = rows[rows.length - 1];

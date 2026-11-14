@@ -16,7 +16,7 @@ vi.mock("@/lib/router", () => ({
   Navigate: ({ to }: { to: string }) => <div data-redirect={to} />,
   Outlet: () => <textarea aria-label="Instructions" defaultValue="Unsaved instructions" />,
 }));
-vi.mock("@/components/AnimatedPaperclipIcon", () => ({ PaperclipLoading: () => <div>Loading…</div> }));
+vi.mock("@/components/AnimatedOutpostIcon", () => ({ OutpostLoading: () => <div>Loading…</div> }));
 vi.mock("@/components/CloudSignIn", () => ({ CloudSignIn: () => <div>Sign in to Cloud</div> }));
 vi.mock("@/components/BootstrapPendingPage", () => ({ BootstrapPendingPage: () => <div>Set up instance</div> }));
 
@@ -27,7 +27,7 @@ const responses: Record<string, unknown> = {
     user: { id: "user", name: "Operator", email: "operator@example.com", image: null },
     sentryDsn: null,
   },
-  "/api/cli-auth/me": { userId: "user", isInstanceAdmin: false, companyIds: ["company"] },
+  "/api/cli-auth/me": { userId: "user", isInstanceAdmin: false, spaceIds: ["space"] },
 };
 const checks = [
   ["/api/health", queryKeys.health],
@@ -104,10 +104,10 @@ describe("CloudAccessGate restart recovery", () => {
     await flushReact();
   }
 
-  it("opens from same-session board access without another startup request", async () => {
+  it("opens from same-session operator access without another startup request", async () => {
     const previous = responses["/api/auth/get-session"];
-    responses["/api/auth/get-session"] = { ...(previous as object), boardBootstrap: {
-      userId: "user", companies: [], boardAccess: { userId: "user", isInstanceAdmin: false, companyIds: ["company"] },
+    responses["/api/auth/get-session"] = { ...(previous as object), operatorBootstrap: {
+      userId: "user", spaces: [], operatorAccess: { userId: "user", isInstanceAdmin: false, spaceIds: ["space"] },
     } };
     try {
       await render();
@@ -119,25 +119,25 @@ describe("CloudAccessGate restart recovery", () => {
     } finally { responses["/api/auth/get-session"] = previous; }
   });
 
-  it("revokes cached board access when returning to an account with a new session snapshot", async () => {
+  it("revokes cached operator access when returning to an account with a new session snapshot", async () => {
     const previous = responses["/api/auth/get-session"];
-    const boot = (userId: string, companyIds: string[]) => ({
+    const boot = (userId: string, spaceIds: string[]) => ({
       session: { id: `session-${userId}`, userId },
       user: { id: userId, name: "Operator", email: `${userId}@example.com`, image: null },
       sentryDsn: null,
-      boardBootstrap: { userId, companies: [], boardAccess: { userId, isInstanceAdmin: false, companyIds } },
+      operatorBootstrap: { userId, spaces: [], operatorAccess: { userId, isInstanceAdmin: false, spaceIds } },
     });
-    responses["/api/auth/get-session"] = boot("user", ["revoked-company"]);
+    responses["/api/auth/get-session"] = boot("user", ["revoked-space"]);
     try {
       await render();
       expect(container.querySelector("textarea")).not.toBeNull();
-      client.setQueryData(queryKeys.auth.session, boot("other", ["other-company"]));
+      client.setQueryData(queryKeys.auth.session, boot("other", ["other-space"]));
       await flushReact();
       expect(container.querySelector("textarea")).not.toBeNull();
       client.setQueryData(queryKeys.auth.session, boot("user", []));
       await flushReact();
       expect(container.querySelector("textarea")).toBeNull();
-      expect(client.getQueryData([...queryKeys.access.currentBoardAccess, "user"])).toMatchObject({ companyIds: [] });
+      expect(client.getQueryData([...queryKeys.access.currentBoardAccess, "user"])).toMatchObject({ spaceIds: [] });
       expect(callsTo("/api/cli-auth/me")).toBe(0);
 
       // An ordinary post-bootstrap grant is allowed to replace that snapshot.
@@ -209,7 +209,7 @@ describe("CloudAccessGate restart recovery", () => {
     expect(container.querySelector("textarea")).not.toBeNull();
   });
 
-  it("waits for ready health before opening the board even when access checks succeed", async () => {
+  it("waits for ready health before opening the operator even when access checks succeed", async () => {
     failingPath = "/api/health";
     failure = () => Response.json({ status: "starting", deploymentMode: "authenticated", bootstrapStatus: "ready" });
     await render();
@@ -274,7 +274,7 @@ describe("CloudAccessGate restart recovery", () => {
 
   it("refreshes other failed reads after the server recovers", async () => {
     const read = vi.fn().mockRejectedValueOnce(new ApiUnavailableError(503)).mockResolvedValue([]);
-    const observer = new QueryObserver(client, { queryKey: ["companies", "test"], queryFn: read, retry: false });
+    const observer = new QueryObserver(client, { queryKey: ["spaces", "test"], queryFn: read, retry: false });
     const unsubscribe = observer.subscribe(() => {});
     failingPath = "/api/health";
     await render();

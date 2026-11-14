@@ -14,14 +14,14 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issues,
 } from "@outpost/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { stageNativeRunnerAttachmentBytes } from "./native-runner-file-handoff.js";
 import {
   findNativeChatWorkspaceScope,
@@ -35,16 +35,16 @@ describe("native external chat workspace boundary", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   let instanceRoot: string;
-  const companyId = "01000000-0000-4000-8000-000000000001";
+  const spaceId = "01000000-0000-4000-8000-000000000001";
   const agentId = "01000000-0000-4000-8000-000000000002";
   const issueA = "01000000-0000-4000-8000-000000000003";
   const issueB = "01000000-0000-4000-8000-000000000004";
-  const boardIssue = "01000000-0000-4000-8000-000000000005";
+  const operatorIssue = "01000000-0000-4000-8000-000000000005";
   const runB = "01000000-0000-4000-8000-000000000006";
   const scopeInput = (issueId: string) => ({
     adapterType: "outpost_runner",
     environmentDriver: "local",
-    companyId,
+    spaceId,
     agentId,
     issueId,
     instanceRoot,
@@ -60,34 +60,34 @@ describe("native external chat workspace boundary", () => {
     instanceRoot = await realpath(
       await mkdtemp(path.join(os.tmpdir(), "native-chat-workspace-")),
     );
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Chat workspaces",
       issuePrefix: "NCW",
       issueCounter: 3,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Native agent",
       adapterType: "outpost_runner",
       status: "active",
     });
     await db.insert(issues).values(
-      [issueA, issueB, boardIssue].map((id, index) => ({
+      [issueA, issueB, operatorIssue].map((id, index) => ({
         id,
-        companyId,
+        spaceId,
         issueNumber: index + 1,
         identifier: `NCW-${index + 1}`,
         title: "Workspace boundary",
         status: "in_progress",
         assigneeAgentId: agentId,
-        originKind: id === boardIssue ? "manual" : "chat_channel",
+        originKind: id === operatorIssue ? "manual" : "chat_channel",
       })),
     );
     await db.insert(heartbeatRuns).values({
       id: runB,
-      companyId,
+      spaceId,
       agentId,
       nativeIssueId: issueB,
       runtimeMode: "native",
@@ -146,9 +146,9 @@ describe("native external chat workspace boundary", () => {
     );
   });
 
-  it("leaves ordinary Board tasks, legacy adapters, and remote sandbox realization unchanged", async () => {
+  it("leaves ordinary Operator tasks, legacy adapters, and remote sandbox realization unchanged", async () => {
     expect(
-      await findNativeChatWorkspaceScope(db, scopeInput(boardIssue)),
+      await findNativeChatWorkspaceScope(db, scopeInput(operatorIssue)),
     ).toBeNull();
     expect(
       await findNativeChatWorkspaceScope(db, {
@@ -165,7 +165,7 @@ describe("native external chat workspace boundary", () => {
     await expect(
       findNativeChatWorkspaceScope(db, {
         ...scopeInput(issueA),
-        companyId: "01000000-0000-4000-8000-000000000099",
+        spaceId: "01000000-0000-4000-8000-000000000099",
       }),
     ).rejects.toThrow("native_chat_workspace_issue_unavailable");
   });
@@ -176,13 +176,13 @@ describe("native external chat workspace boundary", () => {
     await writeFile(path.join(original, "retained.txt"), "retained original");
     const fresh = (await findNativeChatWorkspaceScope(db, { ...scopeInput(issueA), freshAttemptId }))!;
     const directory = await materializeNativeChatTaskRoot(fresh);
-    expect(directory).toBe(path.join(instanceRoot, "isolated-workspace-attempts", companyId, issueA, freshAttemptId));
+    expect(directory).toBe(path.join(instanceRoot, "isolated-workspace-attempts", spaceId, issueA, freshAttemptId));
     expect(path.relative(original, directory).startsWith("..")).toBe(true);
     expect(await readdir(directory)).toEqual([]);
     expect(nativeChatWorkspaceCwd(fresh, null, false)).toBe(directory);
     expect(await readFile(path.join(original, "retained.txt"), "utf8")).toBe("retained original");
     expect(nativeChatWorkspaceCwd({ ...fresh, taskRoot: path.join(original, "attempts", freshAttemptId, "escape") }, null, false)).toBeNull();
-    expect(nativeChatWorkspaceCwd({ ...fresh, taskRoot: path.join(instanceRoot, "isolated-workspace-attempts", companyId, issueB, freshAttemptId) }, null, false)).toBeNull();
+    expect(nativeChatWorkspaceCwd({ ...fresh, taskRoot: path.join(instanceRoot, "isolated-workspace-attempts", spaceId, issueB, freshAttemptId) }, null, false)).toBeNull();
   });
 
   it("does not expose another active task's staged inbound files or register its generated file", async () => {
@@ -203,8 +203,8 @@ describe("native external chat workspace boundary", () => {
         readFile(path.join(rootB, stages[0]!.workspaceRelativePath)),
       ).rejects.toMatchObject({ code: "ENOENT" });
       await writeFile(path.join(rootA, "private-output.txt"), body);
-      const authority = new PaperclipRunnerToolAuthority(db, {
-        companyId,
+      const authority = new OutpostRunnerToolAuthority(db, {
+        spaceId,
         agentId,
         issueId: issueB,
         runId: runB,
@@ -237,7 +237,7 @@ describe("native external chat workspace boundary", () => {
   it("rejects shared or foreign project workspaces and honors only existing task-owned isolated worktrees", () => {
     const scope = { ...scopeA, projectId: "project-1" };
     const workspace = {
-      companyId,
+      spaceId,
       projectId: "project-1",
       sourceIssueId: issueA,
       mode: "isolated_workspace",
@@ -250,7 +250,7 @@ describe("native external chat workspace boundary", () => {
     expect(nativeChatWorkspaceCwd(scope, null, false)).toBeNull();
     for (const override of [
       { sourceIssueId: issueB },
-      { companyId: "foreign" },
+      { spaceId: "foreign" },
       { projectId: "foreign" },
       { mode: "shared_workspace" },
       { strategyType: "project_primary" },
@@ -266,7 +266,7 @@ describe("native external chat workspace boundary", () => {
 
   it("rejects an admitted legacy or other-task root without changing the immutable execution input", () => {
     const execution = {
-      binding: { companyId, agentId, issueId: issueA },
+      binding: { spaceId, agentId, issueId: issueA },
       workspace: { cwd: scopeA.taskRoot },
     };
     expect(
@@ -292,7 +292,7 @@ describe("native external chat workspace boundary", () => {
       ).toBe(false);
       expect(oldInput.workspace.cwd).toBe(cwd);
     }
-    const legacyTaskRoot = path.join(instanceRoot, "chat-workspaces", companyId, agentId, issueA);
+    const legacyTaskRoot = path.join(instanceRoot, "chat-workspaces", spaceId, agentId, issueA);
     expect(nativeChatWorkspaceCwd({ ...scopeA, taskRoot: legacyTaskRoot }, null, false)).toBe(legacyTaskRoot);
   });
 

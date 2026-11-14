@@ -70,21 +70,21 @@ function archivePartial(): ChatCatalogCase {
     const session = await ctx.input.api.get<{ user?: { id: string } }>("/api/auth/get-session"); if (!session.user?.id) throw new Error("Archive requires actual responsible human");
     const p = await project(ctx); const originals: Entity[] = [];
     for (const title of ["Delivered launch design", "Delivered launch copy", "Delivered launch checklist"]) { const t = await task(ctx, title, p.id, { status: "done" }); await ctx.input.api.post(`/api/issues/${t.id}/comments`, { body: "Following this completed delivery in my personal inbox." }); originals.push(t); }
-    await ctx.input.api.putSensitive(`/api/companies/${ctx.input.fixtures.company.id}/users/me/inbox-agent-policy`, { mode: "allowlist", allowedAgentIds: [ctx.input.fixtures.agent.id] });
+    await ctx.input.api.putSensitive(`/api/spaces/${ctx.input.fixtures.space.id}/users/me/inbox-agent-policy`, { mode: "allowlist", allowedAgentIds: [ctx.input.fixtures.agent.id] });
     // Armed last: the fault only matches agent-attributed archive writes for these three tasks.
-    faults.set(ctx.input.fixtures.company.id, await armArchiveStorageFault({ executionId: ctx.input.execution.id,
-      binding: { companyId: ctx.input.fixtures.company.id, agentId: ctx.input.fixtures.agent.id, personId: session.user.id, taskIds: originals.map(row => row.id) } }));
+    faults.set(ctx.input.fixtures.space.id, await armArchiveStorageFault({ executionId: ctx.input.execution.id,
+      binding: { spaceId: ctx.input.fixtures.space.id, agentId: ctx.input.fixtures.agent.id, personId: session.user.id, taskIds: originals.map(row => row.id) } }));
     return { project: p, task: originals[0], originalTasks: originals, personId: session.user.id };
   }, gradeArchivePartial);
   const observe = async (ctx: ChatCatalogContext, state: Record<string, unknown>): Promise<PartialArchive> => {
     const o = await observeInternal(ctx, state); const first = observation(state.firstPartial); const ids = new Set(first?.runs.map(row => row.id) ?? []);
     const comments = ctx.issue() ? await ctx.input.api.get<Entity[]>(`/api/issues/${ctx.issue()!.id}/comments?order=asc`) : [];
-    return { ...o, ownerItems: await ctx.input.api.get(`/api/companies/${ctx.input.fixtures.company.id}/issues?touchedByUserId=me&includeAgentCreatedTasks=true&limit=1000`), phaseReply: comments.filter(row => row.authorAgentId === o.leadId && !ids.has(row.createdByRunId ?? "") && o.runs.some(run => run.id === row.createdByRunId)).map(row => row.body ?? "").join("\n") };
+    return { ...o, ownerItems: await ctx.input.api.get(`/api/spaces/${ctx.input.fixtures.space.id}/issues?touchedByUserId=me&includeAgentCreatedTasks=true&limit=1000`), phaseReply: comments.filter(row => row.authorAgentId === o.leadId && !ids.has(row.createdByRunId ?? "") && o.runs.some(run => run.id === row.createdByRunId)).map(row => row.body ?? "").join("\n") };
   };
   return { ...base, oracleVersion: ORACLE, coverageGaps: [], authentication: "human-session", expectedRunCount: 2, minimumRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 480000,
     sourceFiles: [...base.sourceFiles, "chat-catalog-domains/internal-archive-partial.ts", "chat-archive-storage-fault.ts"],
     async act(ctx, state) {
-      const fault = faults.get(ctx.input.fixtures.company.id); if (!fault) throw new Error("Archive storage fault was not armed for this attempt");
+      const fault = faults.get(ctx.input.fixtures.space.id); if (!fault) throw new Error("Archive storage fault was not armed for this attempt");
       const first = await pollUntil({ label: "Initial partial archive turn settles", deadlineAt: chatCatalogNativePhaseDeadline(ctx, Date.now() + 150000), load: () => observe(ctx, state), accept: o => chatCatalogNativePhaseIsTimely(ctx) && o.runs.length === 1 && o.runs[0]?.status === "succeeded" && ctx.issue()?.conversationState === "waiting" });
       state.injectedFailures = await fault.failures();
       state.firstPartial = { ...first, state: structuredClone(state) }; await ctx.input.evidence("chat-catalog-before-partial-archive-retry.json", state.firstPartial);
@@ -92,8 +92,8 @@ function archivePartial(): ChatCatalogCase {
       // The storage fault clears before the person asks again, like a transient outage ending.
       await fault.release(); const { sendChatMessage } = await import("../chat-flow.js"); await sendChatMessage(ctx.input.page, ctx.scenario.query, chatCatalogNativePhaseRemainingBudget(ctx)); },
     observe,
-    async verifyResult(ctx, state) { const source = ctx.input.page.url(); try { await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.company.issuePrefix}/issues/${entity(state, "task").identifier}`, ctx.input.api.baseURL).href); await expect(ctx.input.page.getByRole("heading", { name: entity(state, "task").title!, exact: true }).first()).toBeVisible(); } finally { await ctx.input.page.goto(source); await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); } },
-    async cleanup(ctx) { const fault = faults.get(ctx.input.fixtures.company.id); faults.delete(ctx.input.fixtures.company.id); await fault?.close(); },
+    async verifyResult(ctx, state) { const source = ctx.input.page.url(); try { await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.space.issuePrefix}/issues/${entity(state, "task").identifier}`, ctx.input.api.baseURL).href); await expect(ctx.input.page.getByRole("heading", { name: entity(state, "task").title!, exact: true }).first()).toBeVisible(); } finally { await ctx.input.page.goto(source); await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); } },
+    async cleanup(ctx) { const fault = faults.get(ctx.input.fixtures.space.id); faults.delete(ctx.input.fixtures.space.id); await fault?.close(); },
   };
 }
 export const archivePartialCases: readonly ChatCatalogCase[] = [archivePartial()];

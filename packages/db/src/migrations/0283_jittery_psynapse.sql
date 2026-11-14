@@ -2,7 +2,7 @@
 -- earlier migration number. Preserve those tables, records, and constraints.
 CREATE TABLE IF NOT EXISTS "chat_github_configurations" (
 	"endpoint_id" uuid PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"revision" integer DEFAULT 1 NOT NULL,
 	"configuration" jsonb NOT NULL,
 	"updated_by_user_id" text NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS "chat_github_configurations" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "chat_github_registrations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"endpoint_id" uuid NOT NULL,
 	"user_id" text NOT NULL,
 	"state_hash" text NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS "chat_github_registrations" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "chat_github_reviews" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"endpoint_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"run_id" uuid,
@@ -49,17 +49,17 @@ CREATE TABLE IF NOT EXISTS "chat_github_reviews" (
 	"publication_receipts" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "chat_github_reviews_company_id_uq" UNIQUE("company_id","id"),
+	CONSTRAINT "chat_github_reviews_space_id_uq" UNIQUE("space_id","id"),
 	CONSTRAINT "chat_github_review_pull_number_check" CHECK ("chat_github_reviews"."pull_number" > 0),
 	CONSTRAINT "chat_github_review_state_check" CHECK ("chat_github_reviews"."state" in ('queued', 'running', 'completed', 'incomplete', 'error', 'superseded', 'manual_required'))
 );
 --> statement-breakpoint
 DO $$ BEGIN
-ALTER TABLE "chat_github_configurations" ADD CONSTRAINT "chat_github_configurations_company_id_endpoint_id_chat_endpoints_company_id_id_fk" FOREIGN KEY ("company_id","endpoint_id") REFERENCES "public"."chat_endpoints"("company_id","id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "chat_github_configurations" ADD CONSTRAINT "chat_github_configurations_space_id_endpoint_id_chat_endpoints_space_id_id_fk" FOREIGN KEY ("space_id","endpoint_id") REFERENCES "public"."chat_endpoints"("space_id","id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-ALTER TABLE "chat_github_registrations" ADD CONSTRAINT "chat_github_registrations_company_id_endpoint_id_chat_endpoints_company_id_id_fk" FOREIGN KEY ("company_id","endpoint_id") REFERENCES "public"."chat_endpoints"("company_id","id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "chat_github_registrations" ADD CONSTRAINT "chat_github_registrations_space_id_endpoint_id_chat_endpoints_space_id_id_fk" FOREIGN KEY ("space_id","endpoint_id") REFERENCES "public"."chat_endpoints"("space_id","id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -67,15 +67,15 @@ ALTER TABLE "chat_github_reviews" ADD CONSTRAINT "chat_github_reviews_run_id_hea
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-ALTER TABLE "chat_github_reviews" ADD CONSTRAINT "chat_github_reviews_company_id_endpoint_id_chat_endpoints_company_id_id_fk" FOREIGN KEY ("company_id","endpoint_id") REFERENCES "public"."chat_endpoints"("company_id","id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "chat_github_reviews" ADD CONSTRAINT "chat_github_reviews_space_id_endpoint_id_chat_endpoints_space_id_id_fk" FOREIGN KEY ("space_id","endpoint_id") REFERENCES "public"."chat_endpoints"("space_id","id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-ALTER TABLE "chat_github_reviews" ADD CONSTRAINT "chat_github_reviews_company_id_issue_id_issues_company_id_id_fk" FOREIGN KEY ("company_id","issue_id") REFERENCES "public"."issues"("company_id","id") ON DELETE restrict ON UPDATE no action;
+ALTER TABLE "chat_github_reviews" ADD CONSTRAINT "chat_github_reviews_space_id_issue_id_issues_space_id_id_fk" FOREIGN KEY ("space_id","issue_id") REFERENCES "public"."issues"("space_id","id") ON DELETE restrict ON UPDATE no action;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "chat_github_registration_state_uq" ON "chat_github_registrations" USING btree ("state_hash");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "chat_github_registration_endpoint_idx" ON "chat_github_registrations" USING btree ("endpoint_id","expires_at");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "chat_github_reviews_delivery_uq" ON "chat_github_reviews" USING btree ("endpoint_id","delivery_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "chat_github_reviews_pull_idx" ON "chat_github_reviews" USING btree ("endpoint_id","repository_id","pull_number","created_at");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "chat_github_reviews_task_idx" ON "chat_github_reviews" USING btree ("company_id","issue_id","run_id");
+CREATE INDEX IF NOT EXISTS "chat_github_reviews_task_idx" ON "chat_github_reviews" USING btree ("space_id","issue_id","run_id");

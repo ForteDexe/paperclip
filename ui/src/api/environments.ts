@@ -5,8 +5,8 @@ import type {
 } from "@outpost/shared";
 import { api, type RequestOptions } from "./client";
 
-function companyIdQuery(companyId: string): string {
-  return `companyId=${encodeURIComponent(companyId)}`;
+function spaceIdQuery(spaceId: string): string {
+  return `spaceId=${encodeURIComponent(spaceId)}`;
 }
 
 /**
@@ -15,13 +15,13 @@ function companyIdQuery(companyId: string): string {
  * of create/update/delete, remote-driver and custom-image operations.
  */
 export const environmentsApi = {
-  list: (companyId: string) => api.get<Environment[]>(`/companies/${companyId}/environments`),
-  capabilities: (companyId: string) =>
-    api.get<EnvironmentCapabilities>(`/companies/${companyId}/environments/capabilities`),
-  probe: (environmentId: string, companyId?: string | null, options?: RequestOptions) =>
+  list: (spaceId: string) => api.get<Environment[]>(`/spaces/${spaceId}/environments`),
+  capabilities: (spaceId: string) =>
+    api.get<EnvironmentCapabilities>(`/spaces/${spaceId}/environments/capabilities`),
+  probe: (environmentId: string, spaceId?: string | null, options?: RequestOptions) =>
     api.post<EnvironmentProbeResult>(
-      companyId
-        ? `/environments/${environmentId}/probe?${companyIdQuery(companyId)}`
+      spaceId
+        ? `/environments/${environmentId}/probe?${spaceIdQuery(spaceId)}`
         : `/environments/${environmentId}/probe`,
       {},
       options,

@@ -5,7 +5,7 @@ import { humanizeEvent, isTestEvent, resolveActorLabel } from "./ActivityPanel";
 function event(overrides: Partial<ToolCallEvent>): ToolCallEvent {
   return {
     id: "evt-1",
-    companyId: "co-1",
+    spaceId: "co-1",
     eventType: "call_completed",
     actorType: "agent",
     actorId: null,
@@ -52,9 +52,9 @@ describe("resolveActorLabel", () => {
     expect(resolveActorLabel("user-1", new Map([["user-1", "Dotta"]]))).toBe("Dotta");
   });
 
-  it("falls back to 'Board' for the local board principal", () => {
-    expect(resolveActorLabel("local-board", new Map())).toBe("You");
-    expect(resolveActorLabel("local-board", undefined)).toBe("You");
+  it("falls back to 'Operator' for the local operator principal", () => {
+    expect(resolveActorLabel("local-operator", new Map())).toBe("You");
+    expect(resolveActorLabel("local-operator", undefined)).toBe("You");
   });
 
   it("falls back to 'Someone' for an unknown actor", () => {
@@ -84,9 +84,9 @@ describe("humanizeEvent test-tab attribution", () => {
       event({ eventType: "call_denied", outcome: "denied", metadata: { source: "test" } }),
       "BenchmarkForensics",
       undefined,
-      "Board",
+      "Operator",
     );
-    expect(primary).toBe("Board tested as BenchmarkForensics - Read Values is turned off");
+    expect(primary).toBe("Operator tested as BenchmarkForensics - Read Values is turned off");
   });
 
   it("keeps the anonymous block wording for non-test denied calls", () => {

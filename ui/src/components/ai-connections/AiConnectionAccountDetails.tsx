@@ -13,8 +13,8 @@ export function AiConnectionAccountDetails({ account, grant }: {
 }) {
   const canLookUp = account.provider === "anthropic" && account.method === "subscription" && account.status === "connected";
   const identity = useQuery({
-    queryKey: ["ai-account-identity", account.companyId, account.id, grant.id, grant.updatedAt],
-    queryFn: ({ signal }) => aiConnectionsApi.accountIdentity(account.companyId, account.id, grant.id, { signal }),
+    queryKey: ["ai-account-identity", account.spaceId, account.id, grant.id, grant.updatedAt],
+    queryFn: ({ signal }) => aiConnectionsApi.accountIdentity(account.spaceId, account.id, grant.id, { signal }),
     enabled: canLookUp,
     staleTime: 5 * 60_000,
     retry: retryTransientOnly(0),

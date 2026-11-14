@@ -10,8 +10,8 @@ vi.mock("./internal-support.js", async importOriginal => ({
   observeInternal: async () => observed.value,
 }));
 beforeEach(() => {
-  observed.value = { scenarioId: "projects.project-work", origin: "http://127.0.0.1:3100", companyId: "company", leadId: "ceo",
-    state: {}, tasks: [{ id: "work", companyId: "company" }], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [],
+  observed.value = { scenarioId: "projects.project-work", origin: "http://127.0.0.1:3100", spaceId: "space", leadId: "ceo",
+    state: {}, tasks: [{ id: "work", spaceId: "space" }], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [],
     reply: "", links: [], humanQueries: [], runs: [] };
 });
 function fixture(body: Buffer, byteSize = body.length) {

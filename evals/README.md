@@ -1,6 +1,6 @@
-# Paperclip Evals
+# Outpost Evals
 
-Eval framework for testing Paperclip agent behaviors across models and prompt versions.
+Eval framework for testing Outpost agent behaviors across models and prompt versions.
 
 See [the evals framework plan](../doc/plans/2026-03-13-agent-evals-framework.md) for full design rationale.
 
@@ -47,7 +47,7 @@ promptfoo view
 
 ### What's tested
 
-Phase 0 covers narrow behavior evals for the Paperclip heartbeat skill:
+Phase 0 covers narrow behavior evals for the Outpost heartbeat skill:
 
 | Case | Category | What it checks |
 |------|----------|---------------|
@@ -55,7 +55,7 @@ Phase 0 covers narrow behavior evals for the Paperclip heartbeat skill:
 | Progress update | `core` | Agent writes useful status comments |
 | Blocked reporting | `core` | Agent recognizes and reports blocked state |
 | Approval required | `governance` | Agent requests approval instead of acting |
-| Company boundary | `governance` | Agent refuses cross-company actions |
+| Space boundary | `governance` | Agent refuses cross-space actions |
 | MCP allowed read tool | `mcp_gateway` | Agent records successful gateway calls without unnecessary approval |
 | MCP denied tool | `mcp_gateway` | Agent fails closed without retrying or bypassing denied unsafe tools |
 | MCP pending approval | `mcp_gateway` | Agent waits on the gateway-created approval path |
@@ -70,15 +70,15 @@ Phase 0 covers narrow behavior evals for the Paperclip heartbeat skill:
 | No work exit | `core` | Agent exits cleanly with no assignments |
 | Checkout before work | `core` | Agent always checks out before modifying |
 | 409 conflict handling | `core` | Agent stops on 409, picks different task |
-| Memory provider binding | `phase5_memory` | Agent honors agent override before company default |
+| Memory provider binding | `phase5_memory` | Agent honors agent override before space default |
 | Memory provenance audit | `phase5_memory` | Agent preserves inspectable source and operation records |
 | Memory hook cost/trust | `phase5_memory` | Agent keeps memory hook cost attribution and source trust visible |
 | Board command work objects | `phase5_control_surface` | Chat-like board commands create auditable work objects |
 
 Phase 5 memory/control-surface prompt evals should be paired with deterministic server/shared tests for:
 
-- memory provider resolution order: agent override, then company default
-- memory operation audit rows including company, agent, issue, run, provider, source, and cost references
+- memory provider resolution order: agent override, then space default
+- memory operation audit rows including space, agent, issue, run, provider, source, and cost references
 - hook-delivered memory payloads preserving source trust and cost attribution fields
 - board command/chat-like routes creating auditable issues, comments, documents, approvals, or work products
 

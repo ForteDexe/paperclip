@@ -9,7 +9,7 @@ import type { ChatResponseScope } from "../../chat-response-availability.js";
 import { registerScopedDeadlineWork } from "../../scoped-deadline-work.js";
 
 type Scope = ChatResponseScope & { endpointId?: string; repositoryId?: string; number?: number };
-type Entry = { id: string; companyId: string; endpointId: string; deliveryId: string;
+type Entry = { id: string; spaceId: string; endpointId: string; deliveryId: string;
   issueId: string | null; conversationId: string | null; repositoryId: string | null; number: number | null; dueAt: number };
 type FastResponse = { status: string; expiresAt: string; publicationState: string | null };
 
@@ -23,32 +23,32 @@ export function registerGitHubAcknowledgementWork(
   const number = sql<string | null>`substring(${chatConversations.externalThreadId}
     from '^github:[^:]+:(?:issue:)?([1-9][0-9]*)(?::rc:[1-9][0-9]*)?$')`;
   const selection = {
-    id: chatActions.id, companyId: chatActions.companyId, endpointId: chatActions.endpointId,
+    id: chatActions.id, spaceId: chatActions.spaceId, endpointId: chatActions.endpointId,
     deliveryId: chatActions.deliveryId, conversationId: chatActions.conversationId, issueId: chatConversations.issueId,
     agentId: chatEndpoints.assignedAgentId,
     sourceMessageId: sql<string | null>`(select m.comment_id from ${chatMessageLinks} m
-      where m.company_id = ${chatActions.companyId} and m.endpoint_id = ${chatActions.endpointId}
+      where m.space_id = ${chatActions.spaceId} and m.endpoint_id = ${chatActions.endpointId}
         and m.delivery_id = ${chatActions.deliveryId} and m.direction = 'inbound' limit 1)`,
     repositoryId, number, status: chatActions.status, result: chatActions.result,
     leaseExpiresAt: sql<string | null>`(select max(l.expires_at) from ${chatEndpointLeases} l
-      where l.company_id = ${chatActions.companyId} and l.endpoint_id = ${chatActions.endpointId}
+      where l.space_id = ${chatActions.spaceId} and l.endpoint_id = ${chatActions.endpointId}
         and l.lease_key = 'github-publication:' || (${repositoryId}) || ':' || ${number})`,
     fast: sql<FastResponse | null>`(select jsonb_build_object('status', f.status, 'expiresAt', f.expires_at,
         'publicationState', p.state) from ${fastResponseRequests} f left join ${chatPublications} p
-          on p.company_id = f.company_id and p.comment_id = f.comment_id
+          on p.space_id = f.space_id and p.comment_id = f.comment_id
           and p.endpoint_id = f.endpoint_id and p.conversation_id = f.conversation_id
-      where f.company_id = ${chatActions.companyId} and f.endpoint_id = ${chatActions.endpointId}
+      where f.space_id = ${chatActions.spaceId} and f.endpoint_id = ${chatActions.endpointId}
         and f.delivery_id = ${chatActions.deliveryId} limit 1)`,
   };
   async function page(scope?: Scope, cursor?: string, actionId?: string) {
     return db.select(selection).from(chatActions)
-      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.companyId, chatActions.companyId)))
-      .leftJoin(chatConversations, and(eq(chatConversations.id, chatActions.conversationId), eq(chatConversations.companyId, chatActions.companyId)))
-      .leftJoin(chatEndpointResources, and(eq(chatEndpointResources.id, chatConversations.resourceId), eq(chatEndpointResources.companyId, chatActions.companyId)))
+      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.spaceId, chatActions.spaceId)))
+      .leftJoin(chatConversations, and(eq(chatConversations.id, chatActions.conversationId), eq(chatConversations.spaceId, chatActions.spaceId)))
+      .leftJoin(chatEndpointResources, and(eq(chatEndpointResources.id, chatConversations.resourceId), eq(chatEndpointResources.spaceId, chatActions.spaceId)))
       .where(and(eq(chatActions.kind, "github_response_comment"), isNotNull(chatActions.deliveryId),
         sql`coalesce(${chatActions.result}->>'final', 'false') <> 'true'`,
         or(eq(chatActions.status, "received"), and(eq(chatActions.status, "failed"), sql`${chatActions.result}->>'retryable' = 'true'`)),
-        scope ? eq(chatActions.companyId, scope.companyId) : undefined,
+        scope ? eq(chatActions.spaceId, scope.spaceId) : undefined,
         scope?.issueId ? eq(chatConversations.issueId, scope.issueId) : undefined,
         scope?.conversationId ? eq(chatActions.conversationId, scope.conversationId) : undefined,
         scope?.deliveryId ? eq(chatActions.deliveryId, scope.deliveryId) : undefined,
@@ -61,13 +61,13 @@ export function registerGitHubAcknowledgementWork(
   }
   async function entry(row: Awaited<ReturnType<typeof page>>[number]): Promise<Entry | null> {
     const { latestRun, ownsLatestRequest } = await readGitHubResponseRun(db, {
-      companyId: row.companyId, endpointId: row.endpointId, agentId: row.agentId,
+      spaceId: row.spaceId, endpointId: row.endpointId, agentId: row.agentId,
       issueId: row.issueId, deliveryId: row.deliveryId!, sourceMessageId: row.sourceMessageId,
     });
     // Execution success alone does not decide whether a final response exists.
     // Presentation/publication commits invalidate this parked request.
     if (row.issueId && ownsLatestRequest && latestRun?.nativePresentationPending &&
-        await githubRunReplyState(db, { companyId: row.companyId, endpointId: row.endpointId,
+        await githubRunReplyState(db, { spaceId: row.spaceId, endpointId: row.endpointId,
           issueId: row.issueId, runId: latestRun.id }) === "none") return null;
     let dueAt = row.status === "failed" ? Date.parse(String(row.result?.retryAt)) : 0;
     if (!Number.isFinite(dueAt)) throw new Error("GitHub acknowledgement has an invalid retry deadline");
@@ -78,13 +78,13 @@ export function registerGitHubAcknowledgementWork(
       dueAt = Math.max(dueAt, Date.parse(fast.expiresAt));
     }
     if (row.leaseExpiresAt) dueAt = Math.max(dueAt, Date.parse(row.leaseExpiresAt));
-    return { id: row.id, companyId: row.companyId, endpointId: row.endpointId, deliveryId: row.deliveryId!,
+    return { id: row.id, spaceId: row.spaceId, endpointId: row.endpointId, deliveryId: row.deliveryId!,
       issueId: row.issueId, conversationId: row.conversationId, repositoryId: row.repositoryId, number: row.number ? Number(row.number) : null, dueAt };
   }
   return registerScopedDeadlineWork(coordinator, {
     queue: DELIVERY_QUEUES.chatGitHubAcknowledgements,
     decodeScope: (hint: string): Scope | undefined => hint === "*" ? undefined : JSON.parse(hint),
-    matches: (value: Entry, scope?: Scope) => !scope || (value.companyId === scope.companyId &&
+    matches: (value: Entry, scope?: Scope) => !scope || (value.spaceId === scope.spaceId &&
       (!scope.issueId || value.issueId === scope.issueId) && (!scope.deliveryId || value.deliveryId === scope.deliveryId) &&
       (!scope.conversationId || value.conversationId === scope.conversationId) &&
       (!scope.endpointId || value.endpointId === scope.endpointId) && (!scope.repositoryId || value.repositoryId === scope.repositoryId) &&

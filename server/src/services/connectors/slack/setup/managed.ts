@@ -14,9 +14,9 @@ export function createManagedSlackSetup(store: SlackRegistrationStore, grants: R
   async function provision(endpointId: string, actor: SlackSetupActor, input: SlackManagedProvisionInput): Promise<SlackManagedResult> {
     const current = await store.endpoint(endpointId, actor);
     if (current.endpoint.setup.slackSetupMethod !== "managed") throw conflict("Resume the selected Slack setup method");
-    const authorized = await grants.token(input.grantId, current.endpoint.companyId, actor);
+    const authorized = await grants.token(input.grantId, current.endpoint.spaceId, actor);
     await provisioner.create(endpointId, actor, { requestId: input.requestId, confirmedNoAppCreated: input.confirmedNoAppCreated,
-      credentials: { configurationToken: authorized.token } }, { grantId: authorized.grant.id, workspaceId: authorized.grant.workspaceId, request: (method, fields) => grants.request(input.grantId, current.endpoint.companyId, actor, method, fields) });
+      credentials: { configurationToken: authorized.token } }, { grantId: authorized.grant.id, workspaceId: authorized.grant.workspaceId, request: (method, fields) => grants.request(input.grantId, current.endpoint.spaceId, actor, method, fields) });
     let fallback = false;
     await store.options.withLock(endpointId, async lease => {
       const latest = await store.endpoint(endpointId, actor);
@@ -25,12 +25,12 @@ export function createManagedSlackSetup(store: SlackRegistrationStore, grants: R
       if (row.managerGrantId !== authorized.grant.id || latest.endpoint.setup.slackSetupMethod !== "managed") throw conflict("Slack setup changed");
       store.assertOrigins(row, latest.endpoint.publicId);
       const reconnectKey = input.reconnect ? `slack_managed_reconnect:${actor.userId}:${input.requestId}` : null;
-      const [previous] = reconnectKey ? await store.db.select().from(chatActions).where(and(eq(chatActions.companyId, row.companyId), eq(chatActions.endpointId, endpointId), eq(chatActions.providerActionId, reconnectKey))) : [];
+      const [previous] = reconnectKey ? await store.db.select().from(chatActions).where(and(eq(chatActions.spaceId, row.spaceId), eq(chatActions.endpointId, endpointId), eq(chatActions.providerActionId, reconnectKey))) : [];
       async function completeSaved() {
         await completion.resumeLocked(endpointId, actor, lease);
         if (reconnectKey && (await store.registration(endpointId))?.status === "configured") {
           await lease.assertOwned();
-          await store.db.update(chatActions).set({ status: "processed", updatedAt: new Date() }).where(and(eq(chatActions.companyId, row!.companyId), eq(chatActions.endpointId, endpointId), eq(chatActions.providerActionId, reconnectKey)));
+          await store.db.update(chatActions).set({ status: "processed", updatedAt: new Date() }).where(and(eq(chatActions.spaceId, row!.spaceId), eq(chatActions.endpointId, endpointId), eq(chatActions.providerActionId, reconnectKey)));
         }
       }
       if (previous && row.status === "configured" && !["revoked", "attention"].includes(latest.endpoint.status)) {
@@ -43,7 +43,7 @@ export function createManagedSlackSetup(store: SlackRegistrationStore, grants: R
         // Duplicate requests can return the saved connection without reinstalling.
         await store.db.transaction(async tx => {
           await lease.assertOwned(tx);
-          await tx.insert(chatActions).values({ companyId: row.companyId, endpointId, kind: "slack_managed_reconnect", providerActionId: reconnectKey, status: "processing", payload: { grantId: row.managerGrantId, registrationRequestId: row.requestId } });
+          await tx.insert(chatActions).values({ spaceId: row.spaceId, endpointId, kind: "slack_managed_reconnect", providerActionId: reconnectKey, status: "processing", payload: { grantId: row.managerGrantId, registrationRequestId: row.requestId } });
           if (needsReinstall) await tx.update(chatSlackRegistrations).set({ status: "install", errorCode: row.errorCode ?? "slack_install_failed", updatedAt: new Date() }).where(eq(chatSlackRegistrations.endpointId, endpointId));
         });
       }
@@ -53,17 +53,17 @@ export function createManagedSlackSetup(store: SlackRegistrationStore, grants: R
       }
       // Keep reinstall intent durable even if this dispatch fails or the process exits.
       if (needsReinstall && (!reconnectKey || previous)) await store.setFailure(row, "install", row.errorCode ?? "slack_install_failed", lease);
-      const { grant } = await grants.token(input.grantId, row.companyId, actor);
+      const { grant } = await grants.token(input.grantId, row.spaceId, actor);
       try {
         await lease.assertOwned();
-        const result = await grants.request(grant.id, row.companyId, actor, "apps.managedInstall", { app_id: row.appId, team_id: grant.workspaceId });
+        const result = await grants.request(grant.id, row.spaceId, actor, "apps.managedInstall", { app_id: row.appId, team_id: grant.workspaceId });
         const botToken = object(result.api_access_tokens).bot_access_token;
         if (result.app_id !== row.appId || result.team_id !== grant.workspaceId || typeof botToken !== "string" || !botToken.startsWith("xoxb-")) throw providerFailure("slack_install_identity_mismatch");
-        if ((await grants.get(grant.id, row.companyId, actor)).status !== "active") throw providerFailure("slack_manager_reauthorize");
+        if ((await grants.get(grant.id, row.spaceId, actor)).status !== "active") throw providerFailure("slack_manager_reauthorize");
         await store.endpoint(endpointId, actor);
         // Vault before auth.test/inventory so network failures never lose this installation.
         await store.saveSecrets(row, { botToken }, actor, lease, { status: "credentials_saved", workspaceId: grant.workspaceId, errorCode: null },
-          { externalUserId: grant.slackUserId, paperclipUserId: actor.userId, status: "pending", welcomeStatus: "pending" });
+          { externalUserId: grant.slackUserId, outpostUserId: actor.userId, status: "pending", welcomeStatus: "pending" });
       } catch (error) {
         const code = object(object(error).details).code;
         const safe = typeof code === "string" ? code : "slack_install_failed";

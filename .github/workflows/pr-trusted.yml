@@ -453,9 +453,9 @@ jobs:
             packages/outpost-runner/runner/target/release/deps/outpost_runnerd-*
             packages/outpost-runner/runner/target/release/outpost-runnerd
             packages/outpost-runner/runner/target/release/outpost-runnerd.d
-            packages/outpost-runner/runner/target/release/.fingerprint/paperclip-process-table-*
-            packages/outpost-runner/runner/target/release/deps/libpaperclip_process_table-*
-            packages/outpost-runner/runner/target/release/deps/paperclip_process_table-*.d
+            packages/outpost-runner/runner/target/release/.fingerprint/outpost-process-table-*
+            packages/outpost-runner/runner/target/release/deps/liboutpost_process_table-*
+            packages/outpost-runner/runner/target/release/deps/outpost_process_table-*.d
           key: runner-release-crate-v1-${{ steps.runner_release_crate_key.outputs.scope }}-${{ hashFiles('packages/outpost-runner/rust-toolchain.toml', 'packages/outpost-runner/acpx-profiles.json', 'packages/outpost-runner/antigravity-distributions.json', 'packages/outpost-runner/runner/Cargo.toml', 'packages/outpost-runner/runner/Cargo.lock', 'packages/outpost-runner/runner/crates/**', 'packages/outpost-runner/protocol/**', 'packages/outpost-runner/test-fixtures/**', 'packages/outpost-runner/test/fixtures/**', 'tests/runner-e2e/fixtures/**') }}
 
       - name: Mark the restored Runner release crate current
@@ -1010,9 +1010,9 @@ jobs:
             packages/outpost-runner/runner/target/release/deps/outpost_runnerd-*
             packages/outpost-runner/runner/target/release/outpost-runnerd
             packages/outpost-runner/runner/target/release/outpost-runnerd.d
-            packages/outpost-runner/runner/target/release/.fingerprint/paperclip-process-table-*
-            packages/outpost-runner/runner/target/release/deps/libpaperclip_process_table-*
-            packages/outpost-runner/runner/target/release/deps/paperclip_process_table-*.d
+            packages/outpost-runner/runner/target/release/.fingerprint/outpost-process-table-*
+            packages/outpost-runner/runner/target/release/deps/liboutpost_process_table-*
+            packages/outpost-runner/runner/target/release/deps/outpost_process_table-*.d
           key: runner-release-crate-v1-${{ steps.runner_release_crate_key.outputs.scope }}-${{ hashFiles('packages/outpost-runner/rust-toolchain.toml', 'packages/outpost-runner/acpx-profiles.json', 'packages/outpost-runner/antigravity-distributions.json', 'packages/outpost-runner/runner/Cargo.toml', 'packages/outpost-runner/runner/Cargo.lock', 'packages/outpost-runner/runner/crates/**', 'packages/outpost-runner/protocol/**', 'packages/outpost-runner/test-fixtures/**', 'packages/outpost-runner/test/fixtures/**', 'tests/runner-e2e/fixtures/**') }}
 
       - name: Mark the restored Runner release crate current
@@ -1257,9 +1257,9 @@ jobs:
             packages/outpost-runner/runner/target/release/deps/outpost_runnerd-*
             packages/outpost-runner/runner/target/release/outpost-runnerd
             packages/outpost-runner/runner/target/release/outpost-runnerd.d
-            packages/outpost-runner/runner/target/release/.fingerprint/paperclip-process-table-*
-            packages/outpost-runner/runner/target/release/deps/libpaperclip_process_table-*
-            packages/outpost-runner/runner/target/release/deps/paperclip_process_table-*.d
+            packages/outpost-runner/runner/target/release/.fingerprint/outpost-process-table-*
+            packages/outpost-runner/runner/target/release/deps/liboutpost_process_table-*
+            packages/outpost-runner/runner/target/release/deps/outpost_process_table-*.d
           key: runner-release-crate-v1-${{ steps.runner_release_crate_key.outputs.scope }}-${{ hashFiles('packages/outpost-runner/rust-toolchain.toml', 'packages/outpost-runner/acpx-profiles.json', 'packages/outpost-runner/antigravity-distributions.json', 'packages/outpost-runner/runner/Cargo.toml', 'packages/outpost-runner/runner/Cargo.lock', 'packages/outpost-runner/runner/crates/**', 'packages/outpost-runner/protocol/**', 'packages/outpost-runner/test-fixtures/**', 'packages/outpost-runner/test/fixtures/**', 'tests/runner-e2e/fixtures/**') }}
 
       - name: Mark the restored Runner release crate current
@@ -1601,9 +1601,9 @@ jobs:
             packages/outpost-runner/runner/target/release/deps/outpost_runnerd-*
             packages/outpost-runner/runner/target/release/outpost-runnerd
             packages/outpost-runner/runner/target/release/outpost-runnerd.d
-            packages/outpost-runner/runner/target/release/.fingerprint/paperclip-process-table-*
-            packages/outpost-runner/runner/target/release/deps/libpaperclip_process_table-*
-            packages/outpost-runner/runner/target/release/deps/paperclip_process_table-*.d
+            packages/outpost-runner/runner/target/release/.fingerprint/outpost-process-table-*
+            packages/outpost-runner/runner/target/release/deps/liboutpost_process_table-*
+            packages/outpost-runner/runner/target/release/deps/outpost_process_table-*.d
           key: runner-release-crate-v1-${{ steps.runner_release_crate_key.outputs.scope }}-${{ hashFiles('packages/outpost-runner/rust-toolchain.toml', 'packages/outpost-runner/acpx-profiles.json', 'packages/outpost-runner/antigravity-distributions.json', 'packages/outpost-runner/runner/Cargo.toml', 'packages/outpost-runner/runner/Cargo.lock', 'packages/outpost-runner/runner/crates/**', 'packages/outpost-runner/protocol/**', 'packages/outpost-runner/test-fixtures/**', 'packages/outpost-runner/test/fixtures/**', 'tests/runner-e2e/fixtures/**') }}
 
       - name: Mark the restored Runner release crate current
@@ -1726,10 +1726,10 @@ jobs:
         # browser bundles inside the 30 minute job budget.
         run: google-chrome --version
 
-      - name: Generate Paperclip config
+      - name: Generate Outpost config
         run: |
-          mkdir -p ~/.paperclip/instances/default
-          cat > ~/.paperclip/instances/default/config.json << 'CONF'
+          mkdir -p ~/.outpost/instances/default
+          cat > ~/.outpost/instances/default/config.json << 'CONF'
           {
             "$meta": { "version": 1, "updatedAt": "2026-01-01T00:00:00.000Z", "source": "onboard" },
             "database": { "mode": "embedded-postgres" },

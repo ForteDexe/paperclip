@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** Instance-personal presentation preference. Never changes company capabilities. */
+/** Instance-personal presentation preference. Never changes space capabilities. */
 export interface WorkspacePreference {
   userId: string;
   coordinatorWorkspaceEnabled: boolean;

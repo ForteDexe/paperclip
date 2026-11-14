@@ -10,11 +10,11 @@ import { withAccountingTransaction } from "./accounting-transaction.js";
 import { logActivity, type LogActivityInput, type ActivityPublication } from "./activity-log.js";
 export type { CostDateRange as FinanceDateRange } from "./cost-date-range.js";
 
-async function assertBelongsToCompany(
+async function assertBelongsToSpace(
   db: Db,
   table: any,
   id: string,
-  companyId: string,
+  spaceId: string,
   label: string,
 ) {
   const row = await db
@@ -24,20 +24,20 @@ async function assertBelongsToCompany(
     .then((rows) => rows[0] ?? null);
 
   if (!row) throw notFound(`${label} not found`);
-  if ((row as unknown as { companyId: string }).companyId !== companyId) {
-    throw unprocessable(`${label} does not belong to company`);
+  if ((row as unknown as { spaceId: string }).spaceId !== spaceId) {
+    throw unprocessable(`${label} does not belong to space`);
   }
 }
 
-function rangeConditions(companyId: string, range?: FinanceDateRange) {
+function rangeConditions(spaceId: string, range?: FinanceDateRange) {
   range = resolveCostDateRange(range);
-  const conditions: ReturnType<typeof eq>[] = [eq(financeEvents.companyId, companyId)];
+  const conditions: ReturnType<typeof eq>[] = [eq(financeEvents.spaceId, spaceId)];
   if (range?.from) conditions.push(gte(financeEvents.occurredAt, range.from));
   if (range?.to) conditions.push(lte(financeEvents.occurredAt, range.to));
   return conditions;
 }
 
-export async function createFinanceEventInTransaction(tx: Db, publications: ActivityPublication[], companyId: string, data: Omit<typeof financeEvents.$inferInsert, "companyId" | "receiptHash" | "amountCents"> & { amountCents: MoneyInput }, actor?: Pick<LogActivityInput, "actorType" | "actorId" | "agentId">) {
+export async function createFinanceEventInTransaction(tx: Db, publications: ActivityPublication[], spaceId: string, data: Omit<typeof financeEvents.$inferInsert, "spaceId" | "receiptHash" | "amountCents"> & { amountCents: MoneyInput }, actor?: Pick<LogActivityInput, "actorType" | "actorId" | "agentId">) {
       const db = tx;
       const parsed = createFinanceEventSchema.safeParse({ ...data, occurredAt: data.occurredAt.toISOString() });
       if (!parsed.success) throw unprocessable("Invalid finance receipt", parsed.error.flatten());
@@ -46,30 +46,30 @@ export async function createFinanceEventInTransaction(tx: Db, publications: Acti
       let legacyHash: string | null = null;
       try { if (normalizeCents(Number(values.amountCents)) === values.amountCents) legacyHash = receiptFingerprint({ ...values, amountCents: Number(values.amountCents) }); } catch { /* Decimal exceeds the legacy number range. */ }
       if (values.idempotencyKey) {
-        const [existing] = await db.select().from(financeEvents).where(and(eq(financeEvents.companyId, companyId), eq(financeEvents.idempotencyKey, values.idempotencyKey)));
+        const [existing] = await db.select().from(financeEvents).where(and(eq(financeEvents.spaceId, spaceId), eq(financeEvents.idempotencyKey, values.idempotencyKey)));
         if (existing) {
           if (existing.receiptHash !== receiptHash && existing.receiptHash !== legacyHash) throw conflict("Idempotency key already used for a different finance receipt");
           const [exact] = await db.select({ amount: sql<string>`${financeEvents.amountCents}::text` }).from(financeEvents).where(eq(financeEvents.id, existing.id));
           return { ...existing, amountCentsExact: normalizeCents(exact.amount) };
         }
       }
-      if (data.agentId) await assertBelongsToCompany(db, agents, data.agentId, companyId, "Agent");
-      if (data.issueId) await assertBelongsToCompany(db, issues, data.issueId, companyId, "Issue");
-      if (data.projectId) await assertBelongsToCompany(db, projects, data.projectId, companyId, "Project");
-      if (data.goalId) await assertBelongsToCompany(db, goals, data.goalId, companyId, "North Star");
-      if (data.heartbeatRunId) await assertBelongsToCompany(db, heartbeatRuns, data.heartbeatRunId, companyId, "Heartbeat run");
-      if (data.costEventId) await assertBelongsToCompany(db, costEvents, data.costEventId, companyId, "Cost event");
+      if (data.agentId) await assertBelongsToSpace(db, agents, data.agentId, spaceId, "Agent");
+      if (data.issueId) await assertBelongsToSpace(db, issues, data.issueId, spaceId, "Issue");
+      if (data.projectId) await assertBelongsToSpace(db, projects, data.projectId, spaceId, "Project");
+      if (data.goalId) await assertBelongsToSpace(db, goals, data.goalId, spaceId, "North Star");
+      if (data.heartbeatRunId) await assertBelongsToSpace(db, heartbeatRuns, data.heartbeatRunId, spaceId, "Heartbeat run");
+      if (data.costEventId) await assertBelongsToSpace(db, costEvents, data.costEventId, spaceId, "Cost event");
 
       const event = await db
         .insert(financeEvents)
         .values({
-          ...values, amountCents: sql`${values.amountCents}::numeric`, companyId, receiptHash, id: data.id,
+          ...values, amountCents: sql`${values.amountCents}::numeric`, spaceId, receiptHash, id: data.id,
         })
         .returning()
         .then((rows) => rows[0]);
 
       await logActivity(db, {
-        companyId, actorType: actor?.actorType ?? "system", actorId: actor?.actorId ?? "finance_accounting", agentId: actor?.agentId,
+        spaceId, actorType: actor?.actorType ?? "system", actorId: actor?.actorId ?? "finance_accounting", agentId: actor?.agentId,
         action: "finance_event.reported", entityType: "finance_event", entityId: event.id,
         details: { amountCents: event.amountCents, amountCentsExact: values.amountCents, currency: event.currency, biller: event.biller, eventKind: event.eventKind, direction: event.direction },
       }, publications);
@@ -82,10 +82,10 @@ export function financeService(db: Db) {
   const estimatedDebitExpr = sql<string>`coalesce(sum(case when ${financeEvents.direction} = 'debit' and ${financeEvents.estimated} = true and ${financeEvents.metadataJson}->>'source' is distinct from 'provider_cost_report' then ${financeEvents.amountCents} else 0 end), 0)`;
 
   return {
-    createEvent: async (companyId: string, data: Omit<typeof financeEvents.$inferInsert, "companyId" | "receiptHash" | "amountCents"> & { amountCents: MoneyInput }, actor?: Pick<LogActivityInput, "actorType" | "actorId" | "agentId">) => withAccountingTransaction(db, companyId, (tx, publications) => createFinanceEventInTransaction(tx, publications, companyId, data, actor)),
+    createEvent: async (spaceId: string, data: Omit<typeof financeEvents.$inferInsert, "spaceId" | "receiptHash" | "amountCents"> & { amountCents: MoneyInput }, actor?: Pick<LogActivityInput, "actorType" | "actorId" | "agentId">) => withAccountingTransaction(db, spaceId, (tx, publications) => createFinanceEventInTransaction(tx, publications, spaceId, data, actor)),
 
-    summary: async (companyId: string, range?: FinanceDateRange) => {
-      const conditions = rangeConditions(companyId, range);
+    summary: async (spaceId: string, range?: FinanceDateRange) => {
+      const conditions = rangeConditions(spaceId, range);
       const rows = await db
         .select({
           currency: financeEvents.currency,
@@ -105,7 +105,7 @@ export function financeService(db: Db) {
       const row = rows.find((row) => row.currency === "USD");
 
       return {
-        companyId,
+        spaceId,
         currency: "USD" as const,
         providerReportedCentsExact: normalizeCents(row?.providerReportedCentsExact ?? 0),
         providerReportedCents: Number(row?.providerReportedCentsExact ?? 0),
@@ -122,8 +122,8 @@ export function financeService(db: Db) {
       };
     },
 
-    byBiller: async (companyId: string, range?: FinanceDateRange) => {
-      const conditions = rangeConditions(companyId, range);
+    byBiller: async (spaceId: string, range?: FinanceDateRange) => {
+      const conditions = rangeConditions(spaceId, range);
       conditions.push(sql`${financeEvents.metadataJson}->>'source' is distinct from 'provider_cost_report'`);
       return db
         .select({
@@ -146,8 +146,8 @@ export function financeService(db: Db) {
         .orderBy(desc(sql`(${debitExpr} - ${creditExpr})::double precision`), financeEvents.biller);
     },
 
-    byKind: async (companyId: string, range?: FinanceDateRange) => {
-      const conditions = rangeConditions(companyId, range);
+    byKind: async (spaceId: string, range?: FinanceDateRange) => {
+      const conditions = rangeConditions(spaceId, range);
       conditions.push(sql`${financeEvents.metadataJson}->>'source' is distinct from 'provider_cost_report'`);
       return db
         .select({
@@ -170,8 +170,8 @@ export function financeService(db: Db) {
         .orderBy(desc(sql`(${debitExpr} - ${creditExpr})::double precision`), financeEvents.eventKind);
     },
 
-    list: async (companyId: string, range?: FinanceDateRange, limit: number = 100) => {
-      const conditions = rangeConditions(companyId, range);
+    list: async (spaceId: string, range?: FinanceDateRange, limit: number = 100) => {
+      const conditions = rangeConditions(spaceId, range);
       return db
         .select({ ...getTableColumns(financeEvents), amountCentsExact: sql<string>`${financeEvents.amountCents}::text` })
         .from(financeEvents)

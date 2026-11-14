@@ -19,14 +19,14 @@ describe("task workspace admission authority", () => {
     expect(canApplyTaskWorkspaceSelectionAtAdmission(admission)).toBe(false);
   });
   it("keeps a persisted task-owned source projectless when current organizational defaults have a project", async () => {
-    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-source-authority-"));
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-source-authority-"));
     try {
       const restored = await ensurePersistedExecutionWorkspaceAvailable({
         base: { baseCwd: cwd, source: "project_primary", projectId: "org-project", workspaceId: "org-source", repoUrl: "https://github.com/organization/source", repoRef: "organization-main" },
         workspace: { mode: "shared_workspace", strategyType: "project_primary", cwd, providerRef: cwd,
           projectId: null, projectWorkspaceId: null, repoUrl: null, baseRef: null, branchName: null, metadata: { source: "task_session" } },
         issue: { id: "task", identifier: null, title: "Retain files" },
-        agent: { id: "agent", companyId: "company", name: "Agent" },
+        agent: { id: "agent", spaceId: "space", name: "Agent" },
       });
       expect(restored).toMatchObject({ cwd, projectId: null, workspaceId: null, repoUrl: null, repoRef: null, source: "task_session" });
     } finally { await fs.rm(cwd, { recursive: true, force: true }); }
@@ -34,13 +34,13 @@ describe("task workspace admission authority", () => {
   it.each([
     { projectId: "configured-project" }, { projectWorkspaceId: "configured-source" }, { repoUrl: "https://github.com/configured/source" },
   ])("retains configured-source classification despite task_session metadata: %j", async configured => {
-    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-configured-source-"));
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-configured-source-"));
     try {
       const restored = await ensurePersistedExecutionWorkspaceAvailable({
         base: { baseCwd: cwd, source: "task_session", projectId: null, workspaceId: null, repoUrl: null, repoRef: null },
         workspace: { mode: "shared_workspace", strategyType: "project_primary", cwd, providerRef: cwd,
           projectId: null, projectWorkspaceId: null, repoUrl: null, baseRef: null, branchName: null, metadata: { source: "task_session" }, ...configured },
-        issue: { id: "task", identifier: null, title: "Configured source" }, agent: { id: "agent", companyId: "company", name: "Agent" },
+        issue: { id: "task", identifier: null, title: "Configured source" }, agent: { id: "agent", spaceId: "space", name: "Agent" },
       });
       expect(restored?.source).toBe("project_primary");
     } finally { await fs.rm(cwd, { recursive: true, force: true }); }

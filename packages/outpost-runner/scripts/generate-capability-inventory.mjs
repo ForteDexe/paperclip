@@ -15,8 +15,8 @@ import {
 const packageRoot = resolve(import.meta.dirname, "..");
 const repoRoot = resolve(packageRoot, "../..");
 const evalCandidates = [
-  resolve(repoRoot, "../paperclip-evals/paperclip-skill-optimization"),
-  resolve(repoRoot, "../../../../paperclip-evals/paperclip-skill-optimization"),
+  resolve(repoRoot, "../outpost-evals/outpost-skill-optimization"),
+  resolve(repoRoot, "../../../../outpost-evals/outpost-skill-optimization"),
 ];
 const evalRoot = process.env.OUTPOST_EVALS_ROOT
   ?? (await (async () => {

@@ -8,13 +8,13 @@ import type { IssueStatus } from "@outpost/shared";
 // of these statuses. `done`/`cancelled` are terminal; `blocked` is not, but a
 // blocked setup/update task is stuck awaiting human help and will never write a
 // summary on its own — so we release the card's `generatingIssueId` claim in all
-// three cases. The board tile keys "run in flight" off `generatingIssueId`, so
+// three cases. The operator tile keys "run in flight" off `generatingIssueId`, so
 // clearing it here is what flips a wedged card back to offering "Run now".
 const STALLED_GENERATION_STATUSES = new Set<IssueStatus>(["done", "cancelled", "blocked"]);
 
 interface StalledGenerationIssue {
   id: string;
-  companyId: string;
+  spaceId: string;
   identifier: string | null;
   title: string;
   status: IssueStatus;
@@ -37,7 +37,7 @@ export async function finalizeStatusCardsForStalledGeneration(
 ) {
   if (!STALLED_GENERATION_STATUSES.has(issue.status)) return [];
 
-  await notifyStatusCardEvaluation(dbOrTx, issue.companyId);
+  await notifyStatusCardEvaluation(dbOrTx, issue.spaceId);
   const now = new Date();
   const failureReason = failureReasonForIssue(issue);
   const cards = await dbOrTx
@@ -52,7 +52,7 @@ export async function finalizeStatusCardsForStalledGeneration(
     })
     .where(
       and(
-        eq(statusCards.companyId, issue.companyId),
+        eq(statusCards.spaceId, issue.spaceId),
         eq(statusCards.generatingIssueId, issue.id),
       ),
     )

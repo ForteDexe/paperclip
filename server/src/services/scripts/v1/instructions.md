@@ -7,18 +7,18 @@ Read this file when a user mentions Outpost, Outpost tasks, an assigned Outpost 
 ## Install once; make it discoverable
 
 1. Use the current setup prompt from Outpost. Approve its HTTPS hostname through Muse's own permission UI. That standing hostname permission may cover later Outpost tasks. Never ask the user to paste a durable worker token.
-2. Download the exact versioned `client.py`, `detector.sh`, and this instructions file from the setup prompt's asset URLs. Verify each SHA-256 digest against the pinned manifest before installing. Do not follow redirects, use an adjacent API namespace, or substitute an unverified script. Store them in `~/.config/paperclip-muse/`, with directories mode `0700` and files mode `0600`. Invoke scripts through Python/Bash; executable permissions are unnecessary.
-3. Run the one-use pairing command from the setup prompt. It contains an expiring ticket, not a reusable worker credential. The client stores worker, refresh, and cleanup credentials privately in `~/.config/paperclip-muse/<binding UUID>/worker.json`. The detector reads only the narrower `signal.json`. Never print either file, include them in model context, copy them into a hook, attach them to a task, or log HTTP headers. Pairing output contains only a receipt and binding reference.
-4. Register `~/.config/paperclip-muse/instructions.md` in Muse's supported persistent instructions, memory, or managed skills facility. Include a discoverable pointer to the client, this file, and the nonsecret binding UUID. Use Muse's documented facility available in this installation; do not assume an arbitrary file is automatically loaded and do not invent a global instructions path. Do not persist the setup ticket.
-5. Install the detector through Muse's supported managed hook interface. The managed runtime must supply `HATCH_HOOK_RUNTIME`; the hook command is `bash "$HOME/.config/paperclip-muse/detector.sh" "<binding UUID>"`. Request a five-second interval and inspect the actual installed schedule. Empty/failed checks stay silent. Do not replace five seconds with sixty seconds. If this installation cannot schedule five seconds, report that limitation and leave qualification incomplete.
-6. Open a fresh Muse conversation and ask it to identify its Outpost company and list visible tasks. It must discover these installed instructions and use the authenticated client without being given the setup prompt again. Installation is not proven discoverable until this succeeds. If Muse lacks a supported persistent facility, say so; manual instructions in one conversation are insufficient for autonomous use.
+2. Download the exact versioned `client.py`, `detector.sh`, and this instructions file from the setup prompt's asset URLs. Verify each SHA-256 digest against the pinned manifest before installing. Do not follow redirects, use an adjacent API namespace, or substitute an unverified script. Store them in `~/.config/outpost-muse/`, with directories mode `0700` and files mode `0600`. Invoke scripts through Python/Bash; executable permissions are unnecessary.
+3. Run the one-use pairing command from the setup prompt. It contains an expiring ticket, not a reusable worker credential. The client stores worker, refresh, and cleanup credentials privately in `~/.config/outpost-muse/<binding UUID>/worker.json`. The detector reads only the narrower `signal.json`. Never print either file, include them in model context, copy them into a hook, attach them to a task, or log HTTP headers. Pairing output contains only a receipt and binding reference.
+4. Register `~/.config/outpost-muse/instructions.md` in Muse's supported persistent instructions, memory, or managed skills facility. Include a discoverable pointer to the client, this file, and the nonsecret binding UUID. Use Muse's documented facility available in this installation; do not assume an arbitrary file is automatically loaded and do not invent a global instructions path. Do not persist the setup ticket.
+5. Install the detector through Muse's supported managed hook interface. The managed runtime must supply `HATCH_HOOK_RUNTIME`; the hook command is `bash "$HOME/.config/outpost-muse/detector.sh" "<binding UUID>"`. Request a five-second interval and inspect the actual installed schedule. Empty/failed checks stay silent. Do not replace five seconds with sixty seconds. If this installation cannot schedule five seconds, report that limitation and leave qualification incomplete.
+6. Open a fresh Muse conversation and ask it to identify its Outpost space and list visible tasks. It must discover these installed instructions and use the authenticated client without being given the setup prompt again. Installation is not proven discoverable until this succeeds. If Muse lacks a supported persistent facility, say so; manual instructions in one conversation are insufficient for autonomous use.
 
 Use these shell variables in the following examples, replacing the binding with the UUID in the successful pairing receipt:
 
 ```sh
 MUSE_BINDING='<binding UUID>'
-MUSE_CLIENT="$HOME/.config/paperclip-muse/client.py"
-MUSE_STATE="$HOME/.config/paperclip-muse/$MUSE_BINDING"
+MUSE_CLIENT="$HOME/.config/outpost-muse/client.py"
+MUSE_STATE="$HOME/.config/outpost-muse/$MUSE_BINDING"
 ```
 
 Keep all mailbox pages, assignment snapshots, command files, receipts, and continuation files in this private state directory with mode `0600`. They can contain task data. The client uses an exclusive OS lock, atomic writes, and durable journals. Use this client for requests; do not reconstruct bearer HTTP calls in model-visible commands.
@@ -36,7 +36,7 @@ python3 "$MUSE_CLIENT" --binding "$MUSE_BINDING" help
 python3 "$MUSE_CLIENT" --binding "$MUSE_BINDING" status
 ```
 
-`help` reads this installed instructions file. `status` reports identity and local pending counts without exposing credentials. Check the returned company/agent/binding/generation. Do not reuse an old binding after repair. Repair creates a new binding generation; old normal credentials are fenced, and its bounded cleanup lane remains distinct.
+`help` reads this installed instructions file. `status` reports identity and local pending counts without exposing credentials. Check the returned space/agent/binding/generation. Do not reuse an old binding after repair. Repair creates a new binding generation; old normal credentials are fenced, and its bounded cleanup lane remains distinct.
 
 ## Background readiness and the mailbox
 
@@ -211,7 +211,7 @@ This helper uses the persisted digest and continuation receipt; it must follow a
 
 ## Finish through the native completion contract
 
-Use `assignment.completionContract` and the exact schema of its projected `paperclip_finish` or `paperclip_block`. Call that native completion tool through a normal `tool` operation. Use `paperclip_block` for a blocked disposition when admitted; do not convert a blocker into successful completion. Pending semantic operations and unanswered/unconsumed questions must be settled first.
+Use `assignment.completionContract` and the exact schema of its projected `outpost_finish` or `outpost_block`. Call that native completion tool through a normal `tool` operation. Use `outpost_block` for a blocked disposition when admitted; do not convert a blocker into successful completion. Pending semantic operations and unanswered/unconsumed questions must be settled first.
 
 Wait for the native completion tool's accepted receipt. Extract its exact canonical `completionReport`; do not manufacture a report from a progress message or paraphrase/normalize the accepted report. Save this transport command privately, inserting that exact object as `result`:
 

@@ -21,10 +21,10 @@ function preDispatchExecutionWaitPredicate() {
     AND ${noRetainedExecutionPredicate()}, false)`;
 }
 
-export async function isPreDispatchExecutionWaitVerified(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "errorCode" | "runtimeMode">): Promise<boolean> {
+export async function isPreDispatchExecutionWaitVerified(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId" | "errorCode" | "runtimeMode">): Promise<boolean> {
   if (run.errorCode !== "execution_reconciliation_required" || run.runtimeMode !== "legacy") return false;
   const [verified] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.id, run.id), preDispatchExecutionWaitPredicate(),
+    eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.id, run.id), preDispatchExecutionWaitPredicate(),
   )).limit(1);
   return Boolean(verified);
 }
@@ -36,7 +36,7 @@ export function preDispatchExecutionWaitRecoveryActionPredicate() {
     AND coalesce(${issueRecoveryActions.evidence}->>'workspaceRestoreFailure', '') <> 'restore_unsafe_archive'
     AND coalesce(${issueRecoveryActions.evidence}->'workspaceRestoreRecovery'->>'schema', '') <> ${LEGACY_WORKSPACE_RECOVERY_SCHEMA}
     AND EXISTS (SELECT 1 FROM ${heartbeatRuns}
-      WHERE ${heartbeatRuns.companyId} = ${issueRecoveryActions.companyId}
+      WHERE ${heartbeatRuns.spaceId} = ${issueRecoveryActions.spaceId}
         AND ${heartbeatRuns.id} = ${canonicalExecutionUuid(sql`coalesce(${issueRecoveryActions.evidence}->>'runId', ${issueRecoveryActions.evidence}->>'sourceRunId')`)}
         AND ${issueRecoveryActions.sourceIssueId} = ${canonicalExecutionUuid(sql`${heartbeatRuns.contextSnapshot}->>'issueId'`)}
         AND ${preDispatchExecutionWaitPredicate()}))`;

@@ -17,13 +17,13 @@ afterEach(async () => {
 
 describe("prepared OpenCode context transport", () => {
   it("sends prepared initial prompts without the proxy task envelope", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-prepared-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-prepared-"));
     roots.push(root);
     const fixture = join(root, "fake-opencode-server.mjs");
     await copyFile(resolve("test/fixtures/fake-opencode-server.mjs"), fixture);
     await chmod(fixture, 0o755);
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-prepared-workspace-"),
+      join(tmpdir(), "outpost-opencode-prepared-workspace-"),
     );
     roots.push(workspace);
     const submitted: Record<string, unknown>[] = [];
@@ -71,7 +71,7 @@ describe("prepared OpenCode context transport", () => {
       [{ type: "text", text: "completion-only OpenCode continuation" }],
     ]);
     expect(JSON.stringify(submitted)).not.toContain('"task"');
-    expect(submitted.map(body => body.variant)).toEqual(["paperclip-no-reasoning", "paperclip-default"]);
+    expect(submitted.map(body => body.variant)).toEqual(["outpost-no-reasoning", "outpost-default"]);
     expect(submitted.map(body => body.system)).toEqual(["Prepared agent instructions.", "Prepared agent instructions."]);
     await recovered!.session!.close({ reason: "prepared-test-recovery" });
   });

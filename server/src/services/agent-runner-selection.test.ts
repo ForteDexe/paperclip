@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { agentHarnessType, agentRunner, paperclipRunnerProfileForHarness, paperclipRunnerSupportsPlatform, OUTPOST_RUNNER_MINIMUM_GLIBC_VERSION, createAgentSchema, updateAgentSchema, testAdapterEnvironmentSchema } from "@outpost/shared";
+import { agentHarnessType, agentRunner, outpostRunnerProfileForHarness, outpostRunnerSupportsPlatform, OUTPOST_RUNNER_MINIMUM_GLIBC_VERSION, createAgentSchema, updateAgentSchema, testAdapterEnvironmentSchema } from "@outpost/shared";
 const state = vi.hoisted(() => ({ disabled: [] as string[], overridden: new Set<string>(), settings: {} as Record<string, unknown>, getEnvironment: vi.fn(), bindings: vi.fn(), activeTemplate: vi.fn().mockResolvedValue(null), secretPaths: vi.fn().mockResolvedValue(new Set(["apiKey"])), managedEnvironment: vi.fn(), kubernetesEnvironment: vi.fn(), ensureKubernetesEnvironment: vi.fn(), ssh: vi.fn(), resolveEnvironment: vi.fn(), sandboxQualification: vi.fn(), pluginByKey: vi.fn() }));
 vi.mock("../adapters/registry.js", () => ({ findActiveServerAdapter: (type: string) => ({ type }), hasActiveAdapterOverride: (type: string) => state.overridden.has(type), waitForExternalAdapters: async () => {} }));
 vi.mock("./adapter-plugin-store.js", () => ({ getDisabledAdapterTypes: () => state.disabled }));
@@ -8,7 +8,7 @@ vi.mock("./adapter-settings.js", async (original) => ({
   adapterSettingsService: () => ({ getDisabledTypes: async () => state.disabled }),
 }));
 vi.mock("./instance-settings.js", () => ({ instanceSettingsService: () => ({ get: async () => state.settings }) }));
-vi.mock("./environments.js", () => ({ environmentService: () => ({ getById: state.getEnvironment, listBoundCompanyIds: state.bindings, findManagedSandboxEnvironment: state.managedEnvironment, findKubernetesEnvironment: state.kubernetesEnvironment, ensureKubernetesEnvironment: state.ensureKubernetesEnvironment }) }));
+vi.mock("./environments.js", () => ({ environmentService: () => ({ getById: state.getEnvironment, listBoundSpaceIds: state.bindings, findManagedSandboxEnvironment: state.managedEnvironment, findKubernetesEnvironment: state.kubernetesEnvironment, ensureKubernetesEnvironment: state.ensureKubernetesEnvironment }) }));
 vi.mock("./environment-custom-images.js", () => ({ environmentCustomImageService: () => ({ getActiveTemplate: state.activeTemplate }) }));
 vi.mock("./environment-probe.js", () => ({ readSandboxPlatformQualification: state.sandboxQualification }));
 vi.mock("./environment-config.js", async () => ({
@@ -18,7 +18,7 @@ vi.mock("./environment-config.js", async () => ({
 }));
 vi.mock("./plugin-registry.js", () => ({ pluginRegistryService: () => ({ getByKey: state.pluginByKey }) }));
 vi.mock("@outpost/adapter-utils/ssh", () => ({ runSshCommand: state.ssh }));
-import { AGENT_RUNNER_SSH_PLATFORM_COMMAND, agentRunnerAvailability, resolveAgentRunnerTaskDriverForCompany, resolveAgentRunnerTargetForCompany, resolveNewAgentRunner, resolveNewAgentRunnerForCompany } from "./agent-runner-selection.js";
+import { AGENT_RUNNER_SSH_PLATFORM_COMMAND, agentRunnerAvailability, resolveAgentRunnerTaskDriverForSpace, resolveAgentRunnerTargetForSpace, resolveNewAgentRunner, resolveNewAgentRunnerForSpace } from "./agent-runner-selection.js";
 import { buildCodexAcpConfig, resolveCodexExecutionEngine } from "@outpost/adapter-codex-local/server";
 import { secretService } from "./secrets.js";
 import * as localPlatform from "../lib/agent-runner-platform.js";
@@ -36,15 +36,15 @@ describe("server-owned Codex runner selection", () => {
   it("uses the supplied managed adapter snapshot for Cursor availability", () => {
     vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "synthetic-cloud-test-token");
     expect(() => agentRunnerAvailability("cursor_cloud", target)).toThrow("fresh adapter settings snapshot");
-    expect(agentRunnerAvailability("cursor_cloud", target, []).supportedRunners).toContain("paperclip");
+    expect(agentRunnerAvailability("cursor_cloud", target, []).supportedRunners).toContain("outpost");
     for (const disabled of ["cursor_cloud", "outpost_runner"]) {
       expect(agentRunnerAvailability("cursor_cloud", target, [disabled]).supportedRunners,
-        `the current ${disabled} disable must affect Cursor selection`).not.toContain("paperclip");
+        `the current ${disabled} disable must affect Cursor selection`).not.toContain("outpost");
     }
   });
   it("keeps Cursor Cloud legacy by default and converts only an equivalent explicitly selected profile", () => {
     const config = { model: "caller-model", repoUrl: "https://github.com/acme/repo", repoStartingRef: "feature", runtimeEnvType: "cloud", env: { CURSOR_API_KEY: { type: "secret_ref", secretId: "saved-key", version: "latest" } }, instructionsFilePath: "/assigned/AGENTS.md", autoCreatePR: false };
-    expect(agentRunnerAvailability("cursor_cloud", target)).toEqual({ supportedRunners: ["paperclip", "legacy"], defaultRunner: "legacy" });
+    expect(agentRunnerAvailability("cursor_cloud", target)).toEqual({ supportedRunners: ["outpost", "legacy"], defaultRunner: "legacy" });
     expect(resolveNewAgentRunner({ adapterType: "cursor_cloud", adapterConfig: config, target })).toEqual({ adapterType: "cursor_cloud", adapterConfig: config });
     for (const runner of [undefined, "auto"] as const) {
       for (const driver of ["unavailable", "sandbox", "ssh"]) {
@@ -54,23 +54,23 @@ describe("server-owned Codex runner selection", () => {
     }
     expect(resolveNewAgentRunner({ adapterType: "cursor_cloud", adapterConfig: config, runner: "legacy", target: { driver: "sandbox" } }))
       .toEqual({ adapterType: "cursor_cloud", adapterConfig: config });
-    const converted = resolveNewAgentRunner({ adapterType: "cursor_cloud", adapterConfig: config, runner: "paperclip", target });
+    const converted = resolveNewAgentRunner({ adapterType: "cursor_cloud", adapterConfig: config, runner: "outpost", target });
     expect(converted).toEqual({ adapterType: "outpost_runner", adapterConfig: { model: config.model, repoUrl: config.repoUrl, repoRef: "feature", cloudEnvType: "cloud", env: config.env, instructionsFilePath: config.instructionsFilePath, autoCreatePR: false, provider: "cursor_cloud", lifecycleMode: "per_turn" } });
     expect(resolveNewAgentRunner({ ...converted, runner: "legacy", target })).toEqual({ adapterType: "cursor_cloud", adapterConfig: config });
   });
   it("rejects unsupported Cursor Cloud settings and keeps API placement independent of the selected Computer", () => {
     const config = { model: "caller-model", repoUrl: "https://github.com/acme/repo" };
     for (const patch of [{ promptTemplate: "custom instructions" }, { runtimeEnvType: "pool" }, { model: "" }]) {
-      expect(() => resolveNewAgentRunner({ adapterType: "cursor_cloud", adapterConfig: { ...config, ...patch }, runner: "paperclip", target })).toThrow();
+      expect(() => resolveNewAgentRunner({ adapterType: "cursor_cloud", adapterConfig: { ...config, ...patch }, runner: "outpost", target })).toThrow();
     }
     expect(config).toEqual({ model: "caller-model", repoUrl: "https://github.com/acme/repo" });
-    expect(agentRunnerAvailability("cursor_cloud", { ...target, driver: "ssh" })).toEqual({ supportedRunners: ["paperclip"], defaultRunner: "paperclip" });
-    expect(resolveNewAgentRunner({ adapterType: "cursor_cloud", adapterConfig: config, runner: "paperclip", target: { ...target, driver: "ssh" } })).toMatchObject({ adapterType: "outpost_runner", adapterConfig: { provider: "cursor_cloud" } });
+    expect(agentRunnerAvailability("cursor_cloud", { ...target, driver: "ssh" })).toEqual({ supportedRunners: ["outpost"], defaultRunner: "outpost" });
+    expect(resolveNewAgentRunner({ adapterType: "cursor_cloud", adapterConfig: config, runner: "outpost", target: { ...target, driver: "ssh" } })).toMatchObject({ adapterType: "outpost_runner", adapterConfig: { provider: "cursor_cloud" } });
   });
   it("saves native Cursor Cloud without probing or binding a managed Computer", async () => {
     state.settings = { defaultEnvironmentId: "managed", experimental: { enableManagedSandboxOnly: true } };
-    const saved = await resolveNewAgentRunnerForCompany({} as never, "company", {
-      adapterType: "cursor_cloud", runner: "paperclip", defaultEnvironmentId: "managed",
+    const saved = await resolveNewAgentRunnerForSpace({} as never, "space", {
+      adapterType: "cursor_cloud", runner: "outpost", defaultEnvironmentId: "managed",
       adapterConfig: { model: "caller-model", repoUrl: "https://github.com/acme/repo" },
     });
     expect(saved).toMatchObject({ adapterType: "outpost_runner", defaultEnvironmentId: null, adapterConfig: { provider: "cursor_cloud" } });
@@ -83,14 +83,14 @@ describe("server-owned Codex runner selection", () => {
     state.settings = { experimental: { enableManagedSandboxOnly: true, enableNativeRunner: true } };
     state.managedEnvironment.mockResolvedValue(null);
     const input = { adapterType: "cursor_cloud", runner: "auto" as const, setupOnly: true, adapterConfig: {}, disabledTypes: [] };
-    expect(await resolveNewAgentRunnerForCompany({} as never, "company", input))
+    expect(await resolveNewAgentRunnerForSpace({} as never, "space", input))
       .toMatchObject({ adapterType: "outpost_runner", defaultEnvironmentId: null, adapterConfig: { provider: "cursor_cloud" } });
     for (const disabled of ["cursor_cloud", "outpost_runner"]) {
       state.disabled = [disabled];
-      await expect(resolveNewAgentRunnerForCompany({} as never, "company", input))
+      await expect(resolveNewAgentRunnerForSpace({} as never, "space", input))
         .rejects.toMatchObject({ status: 422, details: { code: "agent_runner_unavailable" } });
     }
-    await expect(resolveNewAgentRunnerForCompany({} as never, "company", {
+    await expect(resolveNewAgentRunnerForSpace({} as never, "space", {
       adapterType: "outpost_runner", adapterConfig: { provider: "cursor_cloud", model: "caller-model", repoUrl: "https://github.com/acme/repo", lifecycleMode: "per_turn" },
     })).rejects.toMatchObject({ status: 422, details: { code: "agent_runner_unavailable" } });
     expect(state.managedEnvironment).not.toHaveBeenCalled();
@@ -102,7 +102,7 @@ describe("server-owned Codex runner selection", () => {
   it.each([undefined, "auto"] as const)("defaults a new managed Cursor setup draft to the native API controller without a Computer (%s)", async runner => {
     state.settings = { experimental: { enableManagedSandboxOnly: true, enableNativeRunner: true } };
     state.managedEnvironment.mockResolvedValue(null);
-    const saved = await resolveNewAgentRunnerForCompany({} as never, "company", {
+    const saved = await resolveNewAgentRunnerForSpace({} as never, "space", {
       adapterType: "cursor_cloud", runner, setupOnly: true, adapterConfig: {},
     });
     expect(saved).toMatchObject({ adapterType: "outpost_runner", defaultEnvironmentId: null,
@@ -116,27 +116,27 @@ describe("server-owned Codex runner selection", () => {
   ])("does not use the new-draft Cursor API default outside its admission scope (%j)", async ({ setupOnly, enabled }) => {
     state.settings = { experimental: { enableManagedSandboxOnly: true, enableNativeRunner: enabled } };
     state.managedEnvironment.mockResolvedValue(null);
-    await expect(resolveNewAgentRunnerForCompany({} as never, "company", {
+    await expect(resolveNewAgentRunnerForSpace({} as never, "space", {
       adapterType: "cursor_cloud", runner: "auto", setupOnly, adapterConfig: {},
     })).rejects.toMatchObject({
-      message: "The managed sandbox is unavailable. Restore Paperclip Sandbox and retry.",
+      message: "The managed sandbox is unavailable. Restore Outpost Sandbox and retry.",
       status: 422,
       details: { code: "managed_sandbox_unavailable" },
     });
   });
   it("preserves an explicit Legacy choice on a held Cursor setup draft", async () => {
     state.settings = { experimental: { enableManagedSandboxOnly: true, enableNativeRunner: true } };
-    expect(await resolveNewAgentRunnerForCompany({} as never, "company", {
+    expect(await resolveNewAgentRunnerForSpace({} as never, "space", {
       adapterType: "cursor_cloud", runner: "legacy", setupOnly: true, adapterConfig: {},
     })).toEqual({ adapterType: "cursor_cloud", adapterConfig: {} });
     expect(state.managedEnvironment).not.toHaveBeenCalled();
   });
   it("refuses native Cursor save and availability under Kubernetes-only policy without provisioning", async () => {
     state.settings = { general: { executionMode: "kubernetes" } };
-    await expect(resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "cursor_cloud", runner: "paperclip",
+    await expect(resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "cursor_cloud", runner: "outpost",
       adapterConfig: { model: "caller-model", repoUrl: "https://github.com/acme/repo" } }))
       .rejects.toMatchObject({ status: 422, details: { code: "provider_api_kubernetes_execution_unsupported" } });
-    const selected = await resolveAgentRunnerTargetForCompany({} as never, "company");
+    const selected = await resolveAgentRunnerTargetForSpace({} as never, "space");
     expect(agentRunnerAvailability("cursor_cloud", selected).supportedRunners).toEqual([]);
     expect(state.getEnvironment).not.toHaveBeenCalled();
     expect(state.ensureKubernetesEnvironment).not.toHaveBeenCalled();
@@ -146,7 +146,7 @@ describe("server-owned Codex runner selection", () => {
       env: { CURSOR_API_KEY: { type: "secret_ref", secretId: "saved-key", version: "latest" }, GH_TOKEN: { type: "secret_ref", secretId: "hosted-key", version: "latest" } } };
     expect(resolveNewAgentRunner({ adapterType: "cursor_cloud", adapterConfig: config, runner: "legacy", target }))
       .toEqual({ adapterType: "cursor_cloud", adapterConfig: config });
-    expect(() => resolveNewAgentRunner({ adapterType: "cursor_cloud", adapterConfig: config, runner: "paperclip", target }))
+    expect(() => resolveNewAgentRunner({ adapterType: "cursor_cloud", adapterConfig: config, runner: "outpost", target }))
       .toThrow("Configure hosted secrets in your Cursor Cloud environment");
     expect(config.env.GH_TOKEN).toEqual({ type: "secret_ref", secretId: "hosted-key", version: "latest" });
   });
@@ -156,11 +156,11 @@ describe("server-owned Codex runner selection", () => {
       expect(agentRunnerAvailability("codex_local", target)).toEqual({ supportedRunners: ["legacy"], defaultRunner: "legacy" });
       const input = { adapterType: "codex_local", adapterConfig: { extraArgs: ["--sandbox", "read-only"] }, target };
       expect(resolveNewAgentRunner(input)).toEqual({ adapterType: input.adapterType, adapterConfig: input.adapterConfig });
-      expect(() => resolveNewAgentRunner({ ...input, runner: "paperclip" })).toThrow("unavailable");
+      expect(() => resolveNewAgentRunner({ ...input, runner: "outpost" })).toThrow("unavailable");
       const saved = { adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-sol" }, target };
       expect(resolveNewAgentRunner(saved)).toEqual({ adapterType: saved.adapterType, adapterConfig: saved.adapterConfig });
-      expect(resolveNewAgentRunner({ ...saved, runner: "paperclip" })).toEqual({ adapterType: saved.adapterType, adapterConfig: saved.adapterConfig });
-      expect(agentRunnerAvailability("codex_local", { ...target, libc: "glibc" }).defaultRunner).toBe("paperclip");
+      expect(resolveNewAgentRunner({ ...saved, runner: "outpost" })).toEqual({ adapterType: saved.adapterType, adapterConfig: saved.adapterConfig });
+      expect(agentRunnerAvailability("codex_local", { ...target, libc: "glibc" }).defaultRunner).toBe("outpost");
     }
   });
   it.each([[undefined, false], ["2.38", false], ["2.39", true], ["3.0", true], [" 2.39 ", true], ["malformed", false], ["", false]] as const)("uses the measured local libc version (%s) for creation", async (glibcVersionRuntime, native) => {
@@ -169,8 +169,8 @@ describe("server-owned Codex runner selection", () => {
     vi.spyOn(localPlatform, "localAgentRunnerTarget").mockReturnValue({ driver: "local", platform: "linux", architecture: "arm64", libc: glibcVersionRuntime ? "glibc" : "unknown", ...(glibcVersionRuntime ? { glibcVersion: glibcVersionRuntime.trim() } : {}) });
     const localTarget = localPlatform.localAgentRunnerTarget();
     expect(localTarget).toEqual({ driver: "local", platform: "linux", architecture: "arm64", libc: glibcVersionRuntime ? "glibc" : "unknown", ...(glibcVersionRuntime ? { glibcVersion: glibcVersionRuntime.trim() } : {}) });
-    expect(agentRunnerAvailability("codex_local").defaultRunner).toBe(native ? "paperclip" : "legacy");
-    const saved = await resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "codex_local" });
+    expect(agentRunnerAvailability("codex_local").defaultRunner).toBe(native ? "outpost" : "legacy");
+    const saved = await resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "codex_local" });
     expect(saved.adapterType).toBe(native ? "outpost_runner" : "codex_local");
   });
   it.each([
@@ -182,11 +182,11 @@ describe("server-owned Codex runner selection", () => {
     expect(OUTPOST_RUNNER_MINIMUM_GLIBC_VERSION).toBe("2.39");
     for (const architecture of ["x64", "arm64"]) {
       const target = { driver: "local", platform: "linux", architecture, libc: "glibc" as const, glibcVersion: String(glibcVersion) };
-      expect(paperclipRunnerSupportsPlatform("codex_local", target.platform, architecture, target.libc, target.glibcVersion)).toBe(native);
-      expect(agentRunnerAvailability("codex_local", target).defaultRunner).toBe(native ? "paperclip" : "legacy");
+      expect(outpostRunnerSupportsPlatform("codex_local", target.platform, architecture, target.libc, target.glibcVersion)).toBe(native);
+      expect(agentRunnerAvailability("codex_local", target).defaultRunner).toBe(native ? "outpost" : "legacy");
       expect(resolveNewAgentRunner({ adapterType: "codex_local", target }).adapterType).toBe(native ? "outpost_runner" : "codex_local");
-      if (!native) expect(() => resolveNewAgentRunner({ adapterType: "codex_local", runner: "paperclip", target })).toThrow("unavailable");
-      const saved = { adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-sol" }, target, runner: "paperclip" as const };
+      if (!native) expect(() => resolveNewAgentRunner({ adapterType: "codex_local", runner: "outpost", target })).toThrow("unavailable");
+      const saved = { adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-sol" }, target, runner: "outpost" as const };
       expect(resolveNewAgentRunner(saved)).toEqual({ adapterType: saved.adapterType, adapterConfig: saved.adapterConfig });
     }
   });
@@ -210,7 +210,7 @@ describe("server-owned Codex runner selection", () => {
   it.each(qualifiedTargets.filter(target => !(target.platform === "linux" && target.architecture === "arm64")))("defaults Pi to native on $platform/$architecture and round trips exact thinking", target => {
     const adapterConfig = { model: "openrouter/anthropic/claude-sonnet-4.6", thinking: "high", command: "pi", env: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "connection" } }, cwd: "/workspace" };
     const selected = resolveNewAgentRunner({ adapterType: "pi_local", adapterConfig, target });
-    expect(agentRunnerAvailability("pi_local", target).defaultRunner).toBe("paperclip");
+    expect(agentRunnerAvailability("pi_local", target).defaultRunner).toBe("outpost");
     expect(selected).toEqual({ adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "pi", model: adapterConfig.model, piThinkingLevel: "high", acpxPermissionMode: "approve-all", lifecycleMode: "per_turn", cwd: adapterConfig.cwd, env: adapterConfig.env } });
     expect(resolveNewAgentRunner(selected)).toEqual(selected);
     expect(resolveNewAgentRunner({ ...selected, runner: "legacy" })).toEqual({ adapterType: "pi_local", adapterConfig: { model: adapterConfig.model, thinking: "high", cwd: adapterConfig.cwd, env: adapterConfig.env } });
@@ -236,7 +236,7 @@ describe("server-owned Codex runner selection", () => {
     const input = { adapterType: "pi_local", adapterConfig: { model: "custom/model", thinking: "medium" }, target };
     expect(agentRunnerAvailability("pi_local", target).defaultRunner).toBe("legacy");
     expect(resolveNewAgentRunner(input)).toEqual({ adapterType: input.adapterType, adapterConfig: input.adapterConfig });
-    expect(() => resolveNewAgentRunner({ ...input, runner: "paperclip" })).toThrow("unavailable");
+    expect(() => resolveNewAgentRunner({ ...input, runner: "outpost" })).toThrow("unavailable");
   });
   it.each(["minimal", "medium", "xhigh"])("honors an explicit Legacy Pi thinking edit to %s when resuming a native draft", thinking => {
     expect(resolveNewAgentRunner({ adapterType: "outpost_runner", runner: "legacy", adapterConfig: { provider: "acpx", acpxAgent: "pi", model: "custom/model", piThinkingLevel: "max", thinking } })).toEqual({ adapterType: "pi_local", adapterConfig: { model: "custom/model", thinking } });
@@ -253,7 +253,7 @@ describe("server-owned Codex runner selection", () => {
   it.each(qualifiedTargets.filter(target => !(target.platform === "linux" && target.architecture === "arm64")))("defaults OpenCode to its native provider on $platform/$architecture", target => {
     const adapterConfig = { model: "openrouter/anthropic/claude-sonnet-4.6", dangerouslySkipPermissions: true, command: "opencode", env: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "connection" } }, cwd: "/workspace", instructionsFilePath: "/workspace/AGENTS.md" };
     const selected = resolveNewAgentRunner({ adapterType: "opencode_local", adapterConfig, target });
-    expect(agentRunnerAvailability("opencode_local", target).defaultRunner).toBe("paperclip");
+    expect(agentRunnerAvailability("opencode_local", target).defaultRunner).toBe("outpost");
     expect(selected).toEqual({ adapterType: "outpost_runner", adapterConfig: { provider: "opencode", model: adapterConfig.model, env: adapterConfig.env, cwd: adapterConfig.cwd, instructionsFilePath: adapterConfig.instructionsFilePath, opencodePermissionMode: "allow" } });
     expect(resolveNewAgentRunner(selected)).toEqual(selected);
     expect(resolveNewAgentRunner({ ...selected, runner: "legacy" })).toMatchObject({ adapterType: "opencode_local", adapterConfig: { model: adapterConfig.model, dangerouslySkipPermissions: true } });
@@ -262,7 +262,7 @@ describe("server-owned Codex runner selection", () => {
     const input = { adapterType: "opencode_local", adapterConfig: { model: "custom/model", command: "custom-opencode" }, target };
     expect(agentRunnerAvailability("opencode_local", target)).toEqual({ supportedRunners: ["legacy"], defaultRunner: "legacy" });
     expect(resolveNewAgentRunner(input)).toEqual({ adapterType: input.adapterType, adapterConfig: input.adapterConfig });
-    expect(() => resolveNewAgentRunner({ ...input, runner: "paperclip" })).toThrow("unavailable");
+    expect(() => resolveNewAgentRunner({ ...input, runner: "outpost" })).toThrow("unavailable");
   });
   it.each([{ command: "custom-opencode" }, { variant: "high" }, { extraArgs: ["--agent", "plan"] }, { args: ["--attach", "http://localhost"] }, { dangerouslySkipPermissions: false }])("rejects unsupported OpenCode settings instead of discarding them: %j", adapterConfig => {
     const input = { adapterType: "opencode_local", adapterConfig: { model: "custom/model", ...adapterConfig }, target };
@@ -272,7 +272,7 @@ describe("server-owned Codex runner selection", () => {
   it.each([undefined, "", "model", "provider/"])("requires an explicit OpenCode provider/model: %s", model => {
     expect(() => resolveNewAgentRunner({ adapterType: "opencode_local", adapterConfig: { model }, target })).toThrow("provider/model");
   });
-  it("stores an inactive native OpenCode setup draft before model selection, but cannot hire it", () => {
+  it("stores an inactive native OpenCode setup draft before model selection, but cannot create it", () => {
     const input = { adapterType: "opencode_local", target };
     expect(resolveNewAgentRunner({ ...input, setupOnly: true })).toEqual({ adapterType: "outpost_runner", adapterConfig: { provider: "opencode", model: "", opencodePermissionMode: "allow" } });
     expect(() => resolveNewAgentRunner(input)).toThrow("provider/model");
@@ -282,13 +282,13 @@ describe("server-owned Codex runner selection", () => {
     expect(selected.adapterConfig.opencodePermissionMode).toBe("ask");
     expect(() => resolveNewAgentRunner({ ...selected, runner: "legacy" })).toThrow("opencodePermissionMode");
   });
-  it("resolves OpenCode against the company sandbox qualification and preserves disabled/overridden adapters", async () => {
+  it("resolves OpenCode against the space sandbox qualification and preserves disabled/overridden adapters", async () => {
     const input = { adapterType: "opencode_local", adapterConfig: { model: "custom/model" } };
     state.settings = { defaultEnvironmentId: "sandbox" };
     state.getEnvironment.mockResolvedValue({ id: "sandbox", driver: "sandbox", status: "active", config: { provider: "daytona" } });
-    expect((await resolveNewAgentRunnerForCompany({} as never, "company", input)).adapterType).toBe("opencode_local");
+    expect((await resolveNewAgentRunnerForSpace({} as never, "space", input)).adapterType).toBe("opencode_local");
     state.sandboxQualification.mockResolvedValue({ platform: "linux", architecture: "x64", libc: "glibc", glibcVersion: "2.39" });
-    expect((await resolveNewAgentRunnerForCompany({} as never, "company", input)).adapterType).toBe("outpost_runner");
+    expect((await resolveNewAgentRunnerForSpace({} as never, "space", input)).adapterType).toBe("outpost_runner");
     state.overridden.add("opencode_local");
     expect(resolveNewAgentRunner({ ...input, target }).adapterType).toBe("opencode_local");
     state.overridden.clear(); state.disabled = ["outpost_runner"];
@@ -309,15 +309,15 @@ describe("server-owned Codex runner selection", () => {
   it.each([{ platform: "win32", architecture: "x64" }, { platform: "linux", architecture: "arm" }, { platform: "darwin", architecture: "ia32" }])("keeps unqualified $platform/$architecture targets legacy while preserving explicit native profiles", ({ platform, architecture }) => {
     const input = { adapterType: "codex_local", target: { driver: "local", platform, architecture } };
     expect(resolveNewAgentRunner(input).adapterType).toBe("codex_local");
-    expect(() => resolveNewAgentRunner({ ...input, runner: "paperclip" })).toThrow("unavailable");
+    expect(() => resolveNewAgentRunner({ ...input, runner: "outpost" })).toThrow("unavailable");
     const saved = { adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-sol" }, target: input.target };
     expect(resolveNewAgentRunner(saved)).toEqual({ adapterType: saved.adapterType, adapterConfig: saved.adapterConfig });
-    expect(resolveNewAgentRunner({ ...saved, runner: "paperclip" })).toEqual({ adapterType: saved.adapterType, adapterConfig: saved.adapterConfig });
+    expect(resolveNewAgentRunner({ ...saved, runner: "outpost" })).toEqual({ adapterType: saved.adapterType, adapterConfig: saved.adapterConfig });
   });
   it.each(qualifiedTargets)("automatically keeps unsupported targets and active external overrides legacy on $platform/$architecture", target => {
     const input = { adapterType: "codex_local", target: { driver: "local", platform: "win32", architecture: "x64" } };
     expect(resolveNewAgentRunner(input).adapterType).toBe("codex_local");
-    expect(() => resolveNewAgentRunner({ ...input, runner: "paperclip" })).toThrow("unavailable");
+    expect(() => resolveNewAgentRunner({ ...input, runner: "outpost" })).toThrow("unavailable");
     state.overridden.add("codex_local");
     expect(agentRunnerAvailability("codex_local", target).defaultRunner).toBe("legacy");
     expect(resolveNewAgentRunner({ adapterType: "codex_local", target }).adapterType).toBe("codex_local");
@@ -328,7 +328,7 @@ describe("server-owned Codex runner selection", () => {
   it.each(qualifiedTargets)("does not select a disabled runner on $platform/$architecture", target => {
     state.disabled = ["outpost_runner"];
     expect(resolveNewAgentRunner({ adapterType: "codex_local", target }).adapterType).toBe("codex_local");
-    expect(() => resolveNewAgentRunner({ adapterType: "codex_local", target, runner: "paperclip" })).toThrow("unavailable");
+    expect(() => resolveNewAgentRunner({ adapterType: "codex_local", target, runner: "outpost" })).toThrow("unavailable");
     state.disabled = ["codex_local"];
     expect(() => resolveNewAgentRunner({ adapterType: "codex_local", target })).toThrow("Codex is disabled");
   });
@@ -347,7 +347,7 @@ describe("server-owned Codex runner selection", () => {
   ])("rejects effective Legacy ACP alias %s/%s before automatic native translation", (canonical, alias, value) => {
     const adapterConfig = { engine: "acp", [alias]: value };
     expect(buildCodexAcpConfig(adapterConfig)).toHaveProperty(canonical, value);
-    for (const runner of ["auto", "paperclip"] as const) {
+    for (const runner of ["auto", "outpost"] as const) {
       expect(() => resolveNewAgentRunner({ adapterType: "codex_local", adapterConfig, target, runner }))
         .toThrow(expect.objectContaining({ status: 422, details: { code: "agent_runner_config_incompatible", fields: [alias] } }));
     }
@@ -410,7 +410,7 @@ describe("server-owned Codex runner selection", () => {
       "../../../packages/outpost-runner/src/drivers/codex/codex-security-config.ts", import.meta.url,
     ).href);
     expect(codexNetworkAccess({ OUTPOST_RUNNER_NETWORK_ACCESS: "enabled", OUTPOST_CODEX_ACP_NETWORK_ACCESS: "false" })).toBe(true);
-    for (const runner of [undefined, "auto", "paperclip"] as const) {
+    for (const runner of [undefined, "auto", "outpost"] as const) {
       expect(() => resolveNewAgentRunner({ adapterType: "codex_local", adapterConfig, target, runner }))
         .toThrow(expect.objectContaining({ status: 422, details: { code: "agent_runner_config_incompatible", fields: ["env.OUTPOST_CODEX_ACP_NETWORK_ACCESS"] } }));
     }
@@ -426,7 +426,7 @@ describe("server-owned Codex runner selection", () => {
   ])("does not discard a bound ACP network restriction or guess its value (%j)", async binding => {
     const adapterConfig = { engine: "acp", env: { OUTPOST_CODEX_ACP_NETWORK_ACCESS: binding } };
     if (binding.type === "plain") {
-      const resolved = await secretService({} as never).resolveEnvBindings("fixture-company", adapterConfig.env);
+      const resolved = await secretService({} as never).resolveEnvBindings("fixture-space", adapterConfig.env);
       expect(buildCodexAcpConfig({ ...adapterConfig, env: resolved.env }))
         .toMatchObject({ env: { OUTPOST_CODEX_ACP_NETWORK_ACCESS: "false" } });
     }
@@ -470,10 +470,10 @@ describe("server-owned Codex runner selection", () => {
   });
   it("advertises Legacy for a forced Kubernetes target before lazy environment creation", async () => {
     state.settings = { general: { executionMode: "kubernetes" } };
-    const selected = await resolveAgentRunnerTargetForCompany({} as never, "company");
+    const selected = await resolveAgentRunnerTargetForSpace({} as never, "space");
     expect(selected).toEqual({ driver: "sandbox", executionMode: "kubernetes" });
     expect(agentRunnerAvailability("codex_local", selected, state.disabled)).toEqual({ supportedRunners: ["legacy"], defaultRunner: "legacy" });
-    expect(state.kubernetesEnvironment).toHaveBeenCalledWith("company");
+    expect(state.kubernetesEnvironment).toHaveBeenCalledWith("space");
     expect(state.ensureKubernetesEnvironment).not.toHaveBeenCalled();
     expect(state.resolveEnvironment).not.toHaveBeenCalled();
     expect(state.sandboxQualification).not.toHaveBeenCalled();
@@ -482,16 +482,16 @@ describe("server-owned Codex runner selection", () => {
   it.each([undefined, "auto"] as const)("preserves Codex %s creation before a forced Kubernetes environment exists", async runner => {
     state.settings = { general: { executionMode: "kubernetes" } };
     const adapterConfig = { model: "gpt-5.6-sol", extraArgs: ["--search"], env: { OPENAI_API_KEY: { type: "secret_ref", secretId: "synthetic-secret" } } };
-    const resolved = await resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "codex_local", adapterConfig, runner });
+    const resolved = await resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "codex_local", adapterConfig, runner });
     expect(resolved).toEqual({ adapterType: "codex_local", adapterConfig });
     expect(state.ensureKubernetesEnvironment).not.toHaveBeenCalled();
     expect(state.resolveEnvironment).not.toHaveBeenCalled();
     expect(state.sandboxQualification).not.toHaveBeenCalled();
     expect(state.ssh).not.toHaveBeenCalled();
   });
-  it("rejects explicit Paperclip execution on an unqualified forced Kubernetes target without provisioning", async () => {
+  it("rejects explicit Outpost execution on an unqualified forced Kubernetes target without provisioning", async () => {
     state.settings = { general: { executionMode: "kubernetes" } };
-    await expect(resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "codex_local", runner: "paperclip" }))
+    await expect(resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "codex_local", runner: "outpost" }))
       .rejects.toMatchObject({ status: 422, message: expect.stringContaining("environment connection probe"), details: { code: "agent_runner_unavailable" } });
     expect(state.ensureKubernetesEnvironment).not.toHaveBeenCalled();
     expect(state.resolveEnvironment).not.toHaveBeenCalled();
@@ -504,48 +504,48 @@ describe("server-owned Codex runner selection", () => {
       { adapterType: "codex_local", runner: "legacy" as const, adapterConfig: { extraArgs: ["--search"] } },
       { adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-sol" } },
     ]) {
-      expect(await resolveNewAgentRunnerForCompany({} as never, "company", input))
+      expect(await resolveNewAgentRunnerForSpace({} as never, "space", input))
         .toEqual({ adapterType: input.adapterType, adapterConfig: input.adapterConfig });
     }
     expect(state.kubernetesEnvironment).not.toHaveBeenCalled();
     expect(state.ensureKubernetesEnvironment).not.toHaveBeenCalled();
   });
-  it("retains company checks for an existing forced Kubernetes environment", async () => {
+  it("retains space checks for an existing forced Kubernetes environment", async () => {
     state.settings = { general: { executionMode: "kubernetes" } };
     state.kubernetesEnvironment.mockResolvedValue({ id: "kubernetes", driver: "sandbox", status: "active", config: { provider: "kubernetes" } });
-    state.bindings.mockResolvedValue(["another-company"]);
-    await expect(resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "codex_local" }))
-      .rejects.toMatchObject({ status: 403, details: { code: "environment_company_mismatch" } });
+    state.bindings.mockResolvedValue(["another-space"]);
+    await expect(resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "codex_local" }))
+      .rejects.toMatchObject({ status: 403, details: { code: "environment_space_mismatch" } });
     expect(state.ensureKubernetesEnvironment).not.toHaveBeenCalled();
     expect(state.sandboxQualification).not.toHaveBeenCalled();
     expect(state.resolveEnvironment).not.toHaveBeenCalled();
   });
   it("rejects a foreign environment before resolving credentials or probing its platform", async () => {
     state.getEnvironment.mockResolvedValue({ id: "foreign", driver: "ssh", status: "active", config: {} });
-    state.bindings.mockResolvedValue(["another-company"]);
-    await expect(resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "codex_local", defaultEnvironmentId: "foreign" })).rejects.toMatchObject({ status: 403, details: { code: "environment_company_mismatch" } });
+    state.bindings.mockResolvedValue(["another-space"]);
+    await expect(resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "codex_local", defaultEnvironmentId: "foreign" })).rejects.toMatchObject({ status: 403, details: { code: "environment_space_mismatch" } });
     expect(state.resolveEnvironment).not.toHaveBeenCalled(); expect(state.ssh).not.toHaveBeenCalled();
   });
   it("uses dispatch's instance default for a null agent override and checks the selected SSH platform", async () => {
     state.settings = { defaultEnvironmentId: "default" };
     state.getEnvironment.mockResolvedValue({ id: "default", driver: "ssh", status: "active", config: {} });
     state.ssh.mockResolvedValue({ stdout: "Linux\naarch64\n" });
-    const result = await resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "codex_local", defaultEnvironmentId: null });
+    const result = await resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "codex_local", defaultEnvironmentId: null });
     expect(state.getEnvironment).toHaveBeenCalledWith("default"); expect(state.bindings).toHaveBeenCalledWith("default");
     expect(result.adapterType).toBe("outpost_runner");
   });
   it.each([
-    ["Linux\nx86_64\n", "paperclip", "outpost_runner"],
-    ["Darwin\narm64\n", "paperclip", "outpost_runner"],
-    ["Darwin\nx86_64\n", "paperclip", "outpost_runner"],
-    ["Linux\naarch64\n", "paperclip", "outpost_runner"],
-    ["Linux\narm64\n", "paperclip", "outpost_runner"],
-    ["Linux\nx86_64\nglibc\n", "paperclip", "outpost_runner"],
-    ["Linux\naarch64\nglibc\n", "paperclip", "outpost_runner"],
+    ["Linux\nx86_64\n", "outpost", "outpost_runner"],
+    ["Darwin\narm64\n", "outpost", "outpost_runner"],
+    ["Darwin\nx86_64\n", "outpost", "outpost_runner"],
+    ["Linux\naarch64\n", "outpost", "outpost_runner"],
+    ["Linux\narm64\n", "outpost", "outpost_runner"],
+    ["Linux\nx86_64\nglibc\n", "outpost", "outpost_runner"],
+    ["Linux\naarch64\nglibc\n", "outpost", "outpost_runner"],
     ["Linux\nx86_64\nglibc\nglibc 2.38\n", "legacy", "codex_local"],
     ["Linux\naarch64\nglibc\nglibc 2.38\n", "legacy", "codex_local"],
-    ["Linux\nx86_64\nglibc\nglibc 2.39\n", "paperclip", "outpost_runner"],
-    ["Linux\naarch64\nglibc\nglibc 3.0\n", "paperclip", "outpost_runner"],
+    ["Linux\nx86_64\nglibc\nglibc 2.39\n", "outpost", "outpost_runner"],
+    ["Linux\naarch64\nglibc\nglibc 3.0\n", "outpost", "outpost_runner"],
     ["Linux\nx86_64\nglibc\nmalformed\n", "legacy", "codex_local"],
     ["Linux\nx86_64\nmusl\n", "legacy", "codex_local"],
     ["Linux\naarch64\nmusl\n", "legacy", "codex_local"],
@@ -554,16 +554,16 @@ describe("server-owned Codex runner selection", () => {
   ])("uses the same selected SSH target for discovery and saving (%s)", async (stdout, expectedRunner, expectedAdapter) => {
     state.getEnvironment.mockResolvedValue({ id: "selected", driver: "ssh", status: "active", config: {} });
     state.ssh.mockResolvedValue({ stdout });
-    const discoveredTarget = await resolveAgentRunnerTargetForCompany({} as never, "company", "selected");
+    const discoveredTarget = await resolveAgentRunnerTargetForSpace({} as never, "space", "selected");
     expect(agentRunnerAvailability("codex_local", discoveredTarget).defaultRunner).toBe(expectedRunner);
-    const saved = await resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "codex_local", defaultEnvironmentId: "selected" });
+    const saved = await resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "codex_local", defaultEnvironmentId: "selected" });
     expect(saved.adapterType).toBe(expectedAdapter);
     expect(state.ssh).toHaveBeenCalledTimes(2);
     expect(state.ssh).toHaveBeenCalledWith({}, AGENT_RUNNER_SSH_PLATFORM_COMMAND, { timeoutMs: 10_000 });
   });
   it("preserves recorded explicit native execution without rechecking creation defaults", async () => {
-    const recorded = { adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-sol" }, runner: "paperclip" as const };
-    expect(await resolveNewAgentRunnerForCompany({} as never, "company", recorded)).toEqual({ adapterType: recorded.adapterType, adapterConfig: recorded.adapterConfig });
+    const recorded = { adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-sol" }, runner: "outpost" as const };
+    expect(await resolveNewAgentRunnerForSpace({} as never, "space", recorded)).toEqual({ adapterType: recorded.adapterType, adapterConfig: recorded.adapterConfig });
     expect(state.getEnvironment).not.toHaveBeenCalled();
     expect(state.ssh).not.toHaveBeenCalled();
   });
@@ -577,29 +577,29 @@ describe("server-owned Codex runner selection", () => {
   ])("uses cached selected-image measurements for sandbox creation/discovery (%j)", async (facts, expected) => {
     state.getEnvironment.mockResolvedValue({ id: "sandbox", driver: "sandbox", status: "active", config: { provider: "daytona" } });
     state.sandboxQualification.mockResolvedValue(facts);
-    const selectedTarget = await resolveAgentRunnerTargetForCompany({} as never, "company", "sandbox");
-    expect(agentRunnerAvailability("codex_local", selectedTarget).defaultRunner).toBe(expected === "outpost_runner" ? "paperclip" : "legacy");
-    const result = await resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "codex_local", defaultEnvironmentId: "sandbox" });
+    const selectedTarget = await resolveAgentRunnerTargetForSpace({} as never, "space", "sandbox");
+    expect(agentRunnerAvailability("codex_local", selectedTarget).defaultRunner).toBe(expected === "outpost_runner" ? "outpost" : "legacy");
+    const result = await resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "codex_local", defaultEnvironmentId: "sandbox" });
     expect(result.adapterType).toBe(expected);
     expect(state.ssh).not.toHaveBeenCalled();
     expect(state.resolveEnvironment).not.toHaveBeenCalled();
-    if (expected === "codex_local") await expect(resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "codex_local", runner: "paperclip", defaultEnvironmentId: "sandbox" })).rejects.toMatchObject({ status: 422 });
+    if (expected === "codex_local") await expect(resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "codex_local", runner: "outpost", defaultEnvironmentId: "sandbox" })).rejects.toMatchObject({ status: 422 });
   });
   it("does not infer a sandbox image architecture from its driver", async () => {
     state.getEnvironment.mockResolvedValue({ id: "sandbox", driver: "sandbox", status: "active", config: { provider: "daytona" } });
-    const result = await resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "codex_local", defaultEnvironmentId: "sandbox" });
+    const result = await resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "codex_local", defaultEnvironmentId: "sandbox" });
     expect(result.adapterType).toBe("codex_local"); expect(state.ssh).not.toHaveBeenCalled();
-    expect(state.sandboxQualification).toHaveBeenCalledWith({}, expect.objectContaining({ id: "sandbox" }), "company");
-    await expect(resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "codex_local", runner: "paperclip", defaultEnvironmentId: "sandbox" })).rejects.toMatchObject({ status: 422, details: { code: "agent_runner_unavailable" } });
+    expect(state.sandboxQualification).toHaveBeenCalledWith({}, expect.objectContaining({ id: "sandbox" }), "space");
+    await expect(resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "codex_local", runner: "outpost", defaultEnvironmentId: "sandbox" })).rejects.toMatchObject({ status: 422, details: { code: "agent_runner_unavailable" } });
   });
   it.each(["codex_local", "claude_local", "opencode_local"])("selects %s on a managed Cloud image without saved platform qualification", async adapterType => {
-    vi.stubEnv("OUTPOST_MANAGED_CONFIG", JSON.stringify({ ...managedCloudConfig, environments: [{ name: "Paperclip Sandbox", provider: "daytona", config: {} }] }));
+    vi.stubEnv("OUTPOST_MANAGED_CONFIG", JSON.stringify({ ...managedCloudConfig, environments: [{ name: "Outpost Sandbox", provider: "daytona", config: {} }] }));
     state.getEnvironment.mockResolvedValue({ id: "sandbox", driver: "sandbox", status: "active",
-      config: { provider: "daytona", snapshot: "replacement-snapshot" }, metadata: { managedByPaperclip: true } });
+      config: { provider: "daytona", snapshot: "replacement-snapshot" }, metadata: { managedByOutpost: true } });
     state.resolveEnvironment.mockRejectedValue(new Error("Saved provider secret is unavailable."));
-    const selected = await resolveAgentRunnerTargetForCompany({} as never, "company", "sandbox");
-    expect(agentRunnerAvailability(adapterType, selected, state.disabled).defaultRunner).toBe("paperclip");
-    expect(await resolveNewAgentRunnerForCompany({} as never, "company", {
+    const selected = await resolveAgentRunnerTargetForSpace({} as never, "space", "sandbox");
+    expect(agentRunnerAvailability(adapterType, selected, state.disabled).defaultRunner).toBe("outpost");
+    expect(await resolveNewAgentRunnerForSpace({} as never, "space", {
       adapterType, defaultEnvironmentId: "sandbox", adapterConfig: { model: adapterType === "opencode_local" ? "provider/model" : undefined },
     })).toMatchObject({ adapterType: "outpost_runner" });
     expect(state.sandboxQualification).not.toHaveBeenCalled();
@@ -609,45 +609,45 @@ describe("server-owned Codex runner selection", () => {
   });
   it.each(["self-hosted", "custom-environment", "captured-template", "stale-marker"])("keeps qualification for a %s sandbox", async kind => {
     vi.stubEnv("OUTPOST_MANAGED_CONFIG", kind === "self-hosted" ? undefined : JSON.stringify({ ...managedCloudConfig,
-      environments: kind === "stale-marker" ? [] : [{ name: "Paperclip Sandbox", provider: "daytona", config: {} }] }));
+      environments: kind === "stale-marker" ? [] : [{ name: "Outpost Sandbox", provider: "daytona", config: {} }] }));
     vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", undefined);
     state.getEnvironment.mockResolvedValue({ id: "sandbox", driver: "sandbox", status: "active",
       config: { provider: "daytona", snapshot: "custom-snapshot" },
-      metadata: { managedByPaperclip: kind !== "custom-environment" } });
+      metadata: { managedByOutpost: kind !== "custom-environment" } });
     state.activeTemplate.mockResolvedValue(kind === "captured-template" ? { id: "template", provider: "daytona", templateRef: "custom-snapshot" } : null);
-    const selected = await resolveAgentRunnerTargetForCompany({} as never, "company", "sandbox");
+    const selected = await resolveAgentRunnerTargetForSpace({} as never, "space", "sandbox");
     expect(agentRunnerAvailability("codex_local", selected, state.disabled).defaultRunner).toBe("legacy");
     expect(state.sandboxQualification).toHaveBeenCalled();
   });
   it("ignores a stale captured image and preserves a matching custom image without resolving credentials", async () => {
-    vi.stubEnv("OUTPOST_MANAGED_CONFIG", JSON.stringify({ ...managedCloudConfig, environments: [{ name: "Paperclip Sandbox", provider: "daytona", config: {} }] }));
+    vi.stubEnv("OUTPOST_MANAGED_CONFIG", JSON.stringify({ ...managedCloudConfig, environments: [{ name: "Outpost Sandbox", provider: "daytona", config: {} }] }));
     const config = { provider: "daytona", snapshot: "replacement-snapshot", reuseLease: false, apiKey: "a6b9e7d0-f886-471a-b461-640dd03e8d0f" };
-    state.getEnvironment.mockResolvedValue({ id: "sandbox", driver: "sandbox", status: "active", config, metadata: { managedByPaperclip: true } });
+    state.getEnvironment.mockResolvedValue({ id: "sandbox", driver: "sandbox", status: "active", config, metadata: { managedByOutpost: true } });
     state.resolveEnvironment.mockRejectedValue(new Error("Saved provider secret is unavailable."));
     const template = { id: "template", provider: "daytona", templateRef: "custom-snapshot",
       sourceEnvironmentConfigFingerprint: fingerprint({ ...config, snapshot: "previous-snapshot" }, { excludePaths: ["apiKey"] }) };
     state.activeTemplate.mockResolvedValue(template);
-    const current = await resolveAgentRunnerTargetForCompany({} as never, "company", "sandbox");
-    expect(agentRunnerAvailability("codex_local", current, state.disabled).defaultRunner).toBe("paperclip");
-    expect(await resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "codex_local", runner: "paperclip", defaultEnvironmentId: "sandbox" }))
+    const current = await resolveAgentRunnerTargetForSpace({} as never, "space", "sandbox");
+    expect(agentRunnerAvailability("codex_local", current, state.disabled).defaultRunner).toBe("outpost");
+    expect(await resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "codex_local", runner: "outpost", defaultEnvironmentId: "sandbox" }))
       .toMatchObject({ adapterType: "outpost_runner" });
     expect(state.sandboxQualification).not.toHaveBeenCalled();
     state.activeTemplate.mockResolvedValue({ ...template, sourceEnvironmentConfigFingerprint: fingerprint(config, { excludePaths: ["apiKey"] }) });
-    const custom = await resolveAgentRunnerTargetForCompany({} as never, "company", "sandbox");
+    const custom = await resolveAgentRunnerTargetForSpace({} as never, "space", "sandbox");
     expect(agentRunnerAvailability("codex_local", custom, state.disabled).defaultRunner).toBe("legacy");
     expect(state.sandboxQualification).toHaveBeenCalled();
-    state.getEnvironment.mockResolvedValue({ id: "sandbox", driver: "sandbox", status: "active", config: { ...config, timeoutMs: "invalid" }, metadata: { managedByPaperclip: true } });
-    const invalid = await resolveAgentRunnerTargetForCompany({} as never, "company", "sandbox");
+    state.getEnvironment.mockResolvedValue({ id: "sandbox", driver: "sandbox", status: "active", config: { ...config, timeoutMs: "invalid" }, metadata: { managedByOutpost: true } });
+    const invalid = await resolveAgentRunnerTargetForSpace({} as never, "space", "sandbox");
     expect(agentRunnerAvailability("codex_local", invalid, state.disabled).defaultRunner).toBe("legacy");
     expect(state.resolveEnvironment).not.toHaveBeenCalled();
   });
-  it("checks company access before trusting a managed Cloud image", async () => {
+  it("checks space access before trusting a managed Cloud image", async () => {
     vi.stubEnv("OUTPOST_MANAGED_CONFIG", "{}");
     state.getEnvironment.mockResolvedValue({ id: "sandbox", driver: "sandbox", status: "active",
-      config: { provider: "daytona" }, metadata: { managedByPaperclip: true } });
-    state.bindings.mockResolvedValue(["another-company"]);
-    await expect(resolveAgentRunnerTargetForCompany({} as never, "company", "sandbox"))
-      .rejects.toMatchObject({ status: 403, details: { code: "environment_company_mismatch" } });
+      config: { provider: "daytona" }, metadata: { managedByOutpost: true } });
+    state.bindings.mockResolvedValue(["another-space"]);
+    await expect(resolveAgentRunnerTargetForSpace({} as never, "space", "sandbox"))
+      .rejects.toMatchObject({ status: 403, details: { code: "environment_space_mismatch" } });
     expect(state.resolveEnvironment).not.toHaveBeenCalled();
   });
 });
@@ -658,16 +658,16 @@ describe("Grok runner migration", () => {
   it("selects Grok's native profile and preserves the model and account", () => {
     const aiConnection = { mode: "fixed", connectionId: "grok-account" };
     const adapterConfig = { model: "grok-4.7", reasoningEffort: "high", command: "grok", aiConnection, cwd: "/workspace" };
-    expect(paperclipRunnerProfileForHarness("grok_local")).toEqual({ provider: "acpx", acpxAgent: "grok" });
-    expect(resolveNewAgentRunner({ adapterType: "grok_local", runner: "paperclip", adapterConfig, target }))
+    expect(outpostRunnerProfileForHarness("grok_local")).toEqual({ provider: "acpx", acpxAgent: "grok" });
+    expect(resolveNewAgentRunner({ adapterType: "grok_local", runner: "outpost", adapterConfig, target }))
       .toEqual({ adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "grok", model: "grok-4.7", reasoningEffort: "high", disableWebSearch: true, aiConnection, cwd: "/workspace", acpxPermissionMode: "approve-all", lifecycleMode: "per_turn" } });
   });
   it.each([undefined, "", "grok-build"])("resolves legacy default model %s before native admission", model => {
-    expect(resolveNewAgentRunner({ adapterType: "grok_local", runner: "paperclip", target, adapterConfig: { model } }).adapterConfig)
+    expect(resolveNewAgentRunner({ adapterType: "grok_local", runner: "outpost", target, adapterConfig: { model } }).adapterConfig)
       .toMatchObject({ model: "grok-4.7", disableWebSearch: true });
   });
   it.each([undefined, true, false])("preserves effective legacy web search policy %s", disableWebSearch => {
-    const result = resolveNewAgentRunner({ adapterType: "grok_local", runner: "paperclip", target, adapterConfig: { disableWebSearch } });
+    const result = resolveNewAgentRunner({ adapterType: "grok_local", runner: "outpost", target, adapterConfig: { disableWebSearch } });
     expect(result.adapterConfig.disableWebSearch).toBe(disableWebSearch ?? true);
   });
   it.each([
@@ -678,7 +678,7 @@ describe("Grok runner migration", () => {
     expect(agentRunnerAvailability("grok_local", { ...target, ...platform }).supportedRunners).toEqual(["legacy"]);
   });
   it("retains High effort when switching back and rejects restricted native permission loss", () => {
-    const selected = resolveNewAgentRunner({ adapterType: "grok_local", runner: "paperclip", target,
+    const selected = resolveNewAgentRunner({ adapterType: "grok_local", runner: "outpost", target,
       adapterConfig: { model: "grok-4.7", reasoningEffort: "high" } });
     expect(resolveNewAgentRunner({ ...selected, runner: "legacy", target })).toEqual({
       adapterType: "grok_local", adapterConfig: { model: "grok-4.7", reasoningEffort: "high", disableWebSearch: true },
@@ -694,34 +694,34 @@ describe("Grok runner migration", () => {
   });
   it.each([{ command: "custom-grok" }, { extraArgs: ["--unsafe"] }, { permissionMode: "dontAsk" }, { alwaysApprove: false }, { maxTurns: 5 }])("rejects incompatible settings %j without mutating them", adapterConfig => {
     const before = structuredClone(adapterConfig);
-    expect(() => resolveNewAgentRunner({ adapterType: "grok_local", runner: "paperclip", adapterConfig, target })).toThrow("cannot honor");
+    expect(() => resolveNewAgentRunner({ adapterType: "grok_local", runner: "outpost", adapterConfig, target })).toThrow("cannot honor");
     expect(adapterConfig).toEqual(before);
   });
 });
 
 describe("Codex creation runner contract", () => {
   it("graduates qualified harnesses and retains saved provider identity", () => {
-    expect(paperclipRunnerProfileForHarness("codex_local")).toEqual({ provider: "codex" });
-    expect(paperclipRunnerProfileForHarness("claude_local")).toEqual({ provider: "acpx", acpxAgent: "claude" });
-    expect(paperclipRunnerProfileForHarness("opencode_local")).toEqual({ provider: "opencode" });
-    expect(paperclipRunnerProfileForHarness("pi_local")).toEqual({ provider: "acpx", acpxAgent: "pi" });
-    for (const harness of ["cursor", "process"]) expect(paperclipRunnerProfileForHarness(harness)).toBeUndefined();
+    expect(outpostRunnerProfileForHarness("codex_local")).toEqual({ provider: "codex" });
+    expect(outpostRunnerProfileForHarness("claude_local")).toEqual({ provider: "acpx", acpxAgent: "claude" });
+    expect(outpostRunnerProfileForHarness("opencode_local")).toEqual({ provider: "opencode" });
+    expect(outpostRunnerProfileForHarness("pi_local")).toEqual({ provider: "acpx", acpxAgent: "pi" });
+    for (const harness of ["cursor", "process"]) expect(outpostRunnerProfileForHarness(harness)).toBeUndefined();
     expect(agentHarnessType("outpost_runner", { provider: "codex" })).toBe("codex_local");
     expect(agentHarnessType("outpost_runner", { provider: "acpx", acpxAgent: "claude" })).toBe("claude_local");
     expect(agentHarnessType("outpost_runner", { provider: "unknown" })).toBe("unknown");
     expect(agentHarnessType("outpost_runner", { provider: "acpx", acpxAgent: "unknown" })).toBe("acpx:unknown");
     expect(agentRunner("codex_local")).toBe("legacy");
-    expect(agentRunner("outpost_runner")).toBe("paperclip");
+    expect(agentRunner("outpost_runner")).toBe("outpost");
   });
   it("qualifies only the Codex daemon targets shipped in public server packages", () => {
-    for (const { platform, architecture } of qualifiedTargets) expect(paperclipRunnerSupportsPlatform("codex_local", platform, architecture)).toBe(true);
+    for (const { platform, architecture } of qualifiedTargets) expect(outpostRunnerSupportsPlatform("codex_local", platform, architecture)).toBe(true);
     for (const architecture of ["x64", "arm64"]) {
-      expect(paperclipRunnerSupportsPlatform("codex_local", "linux", architecture, "glibc")).toBe(true);
-      expect(paperclipRunnerSupportsPlatform("codex_local", "linux", architecture, "musl")).toBe(false);
-      expect(paperclipRunnerSupportsPlatform("codex_local", "linux", architecture, "unknown")).toBe(false);
+      expect(outpostRunnerSupportsPlatform("codex_local", "linux", architecture, "glibc")).toBe(true);
+      expect(outpostRunnerSupportsPlatform("codex_local", "linux", architecture, "musl")).toBe(false);
+      expect(outpostRunnerSupportsPlatform("codex_local", "linux", architecture, "unknown")).toBe(false);
     }
-    for (const [platform, architecture] of [["darwin", "ia32"], ["linux", "arm"], ["win32", "x64"], ["win32", "arm64"], ["freebsd", "x64"]]) expect(paperclipRunnerSupportsPlatform("codex_local", platform, architecture)).toBe(false);
-    expect(paperclipRunnerSupportsPlatform("claude_local", "darwin", "arm64")).toBe(true);
+    for (const [platform, architecture] of [["darwin", "ia32"], ["linux", "arm"], ["win32", "x64"], ["win32", "arm64"], ["freebsd", "x64"]]) expect(outpostRunnerSupportsPlatform("codex_local", platform, architecture)).toBe(false);
+    expect(outpostRunnerSupportsPlatform("claude_local", "darwin", "arm64")).toBe(true);
   });
   it("keeps auto out of saved update defaults and validates request intent", () => {
     expect(createAgentSchema.parse({ name: "Codex", adapterType: "codex_local" }).runner).toBeUndefined();
@@ -744,37 +744,37 @@ describe("Runner-only plugin environments", () => {
     state.pluginByKey.mockReset().mockResolvedValue(plugin({ supportsTasks: true }));
   });
   it("offers only Outpost Runner for Codex and Claude without a platform", async () => {
-    const target = await resolveAgentRunnerTargetForCompany({} as never, "company", "computer");
+    const target = await resolveAgentRunnerTargetForSpace({} as never, "space", "computer");
     expect(target).toEqual({ driver: "plugin", runnerTasks: true });
     expect(state.pluginByKey).toHaveBeenCalledWith("acme.computers");
     for (const harness of ["codex_local", "claude_local"]) {
-      expect(agentRunnerAvailability(harness, target)).toEqual({ supportedRunners: ["paperclip"], defaultRunner: "paperclip" });
+      expect(agentRunnerAvailability(harness, target)).toEqual({ supportedRunners: ["outpost"], defaultRunner: "outpost" });
     }
     expect(agentRunnerAvailability("gemini_local", target)).toEqual({ supportedRunners: ["legacy"], defaultRunner: "legacy" });
     expect(state.ssh).not.toHaveBeenCalled();
   });
   it("carries warm task capability from the selected driver without provider gates", async () => {
     state.pluginByKey.mockResolvedValue(plugin({ supportsTasks: true, warmTaskVersion: 1 }));
-    expect(await resolveAgentRunnerTargetForCompany({} as never, "company", "computer"))
+    expect(await resolveAgentRunnerTargetForSpace({} as never, "space", "computer"))
       .toEqual({ driver: "plugin", runnerTasks: true, warmTaskVersion: 1 });
-    expect(await resolveAgentRunnerTaskDriverForCompany({} as never, "company", "computer"))
+    expect(await resolveAgentRunnerTaskDriverForSpace({} as never, "space", "computer"))
       .toMatchObject({ driverKey: "tasks", supportsTasks: true, warmTaskVersion: 1 });
   });
 
-  it.each(["ssh", "sandbox"])("does not qualify a %s runner while inspecting hire defaults", async driver => {
+  it.each(["ssh", "sandbox"])("does not qualify a %s runner while inspecting create defaults", async driver => {
     state.getEnvironment.mockResolvedValue({ ...pluginEnvironment, driver, config: { provider: "fake" } });
-    expect(await resolveAgentRunnerTaskDriverForCompany({} as never, "company", "computer")).toBeUndefined();
+    expect(await resolveAgentRunnerTaskDriverForSpace({} as never, "space", "computer")).toBeUndefined();
     expect(state.ssh).not.toHaveBeenCalled();
     expect(state.sandboxQualification).not.toHaveBeenCalled();
     expect(state.pluginByKey).not.toHaveBeenCalled();
-    if (driver === "sandbox") await expect(resolveAgentRunnerTargetForCompany({} as never, "company", "computer"))
+    if (driver === "sandbox") await expect(resolveAgentRunnerTargetForSpace({} as never, "space", "computer"))
       .rejects.toThrow("The fake sandbox provider cannot execute runs.");
   });
 
   it("saves a Claude agent on the plugin environment as Outpost Runner", async () => {
-    const saved = await resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "claude_local", defaultEnvironmentId: "computer" });
+    const saved = await resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "claude_local", defaultEnvironmentId: "computer" });
     expect(saved).toMatchObject({ adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "claude" } });
-    const explicit = await resolveNewAgentRunnerForCompany({} as never, "company", { adapterType: "claude_local", runner: "paperclip", defaultEnvironmentId: "computer" });
+    const explicit = await resolveNewAgentRunnerForSpace({} as never, "space", { adapterType: "claude_local", runner: "outpost", defaultEnvironmentId: "computer" });
     expect(explicit.adapterType).toBe("outpost_runner");
   });
   it.each([
@@ -784,13 +784,13 @@ describe("Runner-only plugin environments", () => {
     ["an unknown plugin", null],
   ])("keeps the existing plugin target for %s", async (_label, record) => {
     state.pluginByKey.mockResolvedValue(record);
-    const target = await resolveAgentRunnerTargetForCompany({} as never, "company", "computer");
+    const target = await resolveAgentRunnerTargetForSpace({} as never, "space", "computer");
     expect(target).toEqual({ driver: "plugin" });
     expect(agentRunnerAvailability("claude_local", target)).toEqual({ supportedRunners: ["legacy"], defaultRunner: "legacy" });
   });
   it("ignores a malformed plugin environment config", async () => {
     state.getEnvironment.mockResolvedValue({ ...pluginEnvironment, config: { pluginKey: "acme.computers" } });
-    expect(await resolveAgentRunnerTargetForCompany({} as never, "company", "computer")).toEqual({ driver: "plugin" });
+    expect(await resolveAgentRunnerTargetForSpace({} as never, "space", "computer")).toEqual({ driver: "plugin" });
     expect(state.pluginByKey).not.toHaveBeenCalled();
   });
 });
@@ -799,7 +799,7 @@ describe("Claude runner defaults", () => {
   const mac = { driver: "local", platform: "darwin", architecture: "arm64" };
   beforeEach(() => { state.disabled = []; state.overridden.clear(); });
   it.each(qualifiedTargets)("defaults Claude to the qualified $platform $architecture profile", target => {
-    expect(agentRunnerAvailability("claude_local", target)).toEqual({ supportedRunners: ["paperclip", "legacy"], defaultRunner: "paperclip" });
+    expect(agentRunnerAvailability("claude_local", target)).toEqual({ supportedRunners: ["outpost", "legacy"], defaultRunner: "outpost" });
     expect(resolveNewAgentRunner({ adapterType: "claude_local", target })).toEqual({
       adapterType: "outpost_runner", adapterConfig: { provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5", acpxPermissionMode: "approve-all" },
     });
@@ -808,11 +808,11 @@ describe("Claude runner defaults", () => {
   });
   it.each(["x64", "arm64"])("keeps Darwin SSH %s automatic selection Legacy while preserving explicit assets", architecture => {
     const target = { driver: "ssh", platform: "darwin", architecture };
-    expect(agentRunnerAvailability("claude_local", target)).toEqual({ supportedRunners: ["paperclip", "legacy"], defaultRunner: "legacy" });
+    expect(agentRunnerAvailability("claude_local", target)).toEqual({ supportedRunners: ["outpost", "legacy"], defaultRunner: "legacy" });
     const config = { model: "custom-model", dangerouslySkipPermissions: false };
     expect(resolveNewAgentRunner({ adapterType: "claude_local", target, adapterConfig: config })).toEqual({ adapterType: "claude_local", adapterConfig: config });
     const assets = { runnerRemoteProviderPackPath: "/operator/mac-pack", runnerRemoteBinaryPath: "/operator/mac-daemon" };
-    expect(resolveNewAgentRunner({ adapterType: "claude_local", target, runner: "paperclip", adapterConfig: assets }))
+    expect(resolveNewAgentRunner({ adapterType: "claude_local", target, runner: "outpost", adapterConfig: assets }))
       .toMatchObject({ adapterType: "outpost_runner", adapterConfig: { ...assets, provider: "acpx", acpxAgent: "claude" } });
     const saved = { adapterType: "outpost_runner", adapterConfig: { ...assets, provider: "acpx", acpxAgent: "claude" }, target };
     expect(resolveNewAgentRunner(saved)).toEqual({ adapterType: saved.adapterType, adapterConfig: saved.adapterConfig });
@@ -868,7 +868,7 @@ describe("Claude runner defaults", () => {
   it.each(["maxTurnsPerRun", "chrome", "warmHandleIdleMs", "acpWarmHandleIdleMs"])("warns and ignores obsolete Claude %s on conversion and native saves", field => {
     for (const adapterType of ["claude_local", "outpost_runner"]) {
       const onConfigurationWarnings = vi.fn();
-      const result = resolveNewAgentRunner({ adapterType, target: mac, runner: "paperclip",
+      const result = resolveNewAgentRunner({ adapterType, target: mac, runner: "outpost",
         adapterConfig: { provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5", [field]: 1000 }, onConfigurationWarnings });
       expect(result.adapterType).toBe("outpost_runner");
       expect(result.adapterConfig).not.toHaveProperty(field);

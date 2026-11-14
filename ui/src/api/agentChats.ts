@@ -1,14 +1,14 @@
 import type { Issue } from "@outpost/shared";
 import { api } from "./client";
 export const agentChatsApi = {
-  list: (companyId: string) => api.get<Issue[]>(`/companies/${companyId}/chats`),
-  get: (companyId: string, agentRef: string) =>
+  list: (spaceId: string) => api.get<Issue[]>(`/spaces/${spaceId}/chats`),
+  get: (spaceId: string, agentRef: string) =>
     api.get<Issue | null>(
-      `/companies/${companyId}/chats/${encodeURIComponent(agentRef)}`,
+      `/spaces/${spaceId}/chats/${encodeURIComponent(agentRef)}`,
     ),
-  ensure: (companyId: string, agentRef: string) =>
+  ensure: (spaceId: string, agentRef: string) =>
     api.post<Issue>(
-      `/companies/${companyId}/chats/${encodeURIComponent(agentRef)}`,
+      `/spaces/${spaceId}/chats/${encodeURIComponent(agentRef)}`,
       {},
     ),
 };

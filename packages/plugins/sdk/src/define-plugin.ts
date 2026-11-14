@@ -3,7 +3,7 @@ import type { PluginEnvironmentTaskParams, PluginEnvironmentTaskResult } from ".
 import type { AgentLifecycleRequest, AgentLifecycleResult } from "@outpost/shared";
 import type { AiConnectionRouterRequest, AiConnectionRouterResult } from "@outpost/shared";
 /**
- * `definePlugin` — the top-level helper for authoring a Paperclip plugin.
+ * `definePlugin` — the top-level helper for authoring a Outpost plugin.
  *
  * Plugin authors call `definePlugin()` and export the result as the default
  * export from their worker entrypoint. The host imports the worker module,
@@ -23,9 +23,9 @@ import type { AiConnectionRouterRequest, AiConnectionRouterResult } from "@outpo
  *
  *     // Subscribe to events
  *     ctx.events.on("issue.created", async (event) => {
- *       const companyId = event.companyId;
- *       const config = await ctx.config.get(companyId);
- *       const apiKey = await ctx.secrets.resolve(config.apiKeyRef, { companyId, configPath: "apiKeyRef" });
+ *       const spaceId = event.spaceId;
+ *       const config = await ctx.config.get(spaceId);
+ *       const apiKey = await ctx.secrets.resolve(config.apiKeyRef, { spaceId, configPath: "apiKeyRef" });
  *       await ctx.http.fetch(`https://api.linear.app/...`, {
  *         method: "POST",
  *         headers: { Authorization: `Bearer ${apiKey}` },
@@ -40,10 +40,10 @@ import type { AiConnectionRouterRequest, AiConnectionRouterResult } from "@outpo
  *     });
  *
  *     // Register data for the UI
- *     ctx.data.register("sync-health", async ({ companyId }) => {
+ *     ctx.data.register("sync-health", async ({ spaceId }) => {
  *       const state = await ctx.state.get({
- *         scopeKind: "company",
- *         scopeId: String(companyId),
+ *         scopeKind: "space",
+ *         scopeId: String(spaceId),
  *         stateKey: "last-sync",
  *       });
  *       return { lastSync: state };
@@ -179,7 +179,7 @@ export interface PluginApiRequestInput {
     userId?: string | null;
     runId?: string | null;
   };
-  companyId: string;
+  spaceId: string;
   headers: Record<string, string>;
 }
 
@@ -197,23 +197,23 @@ export interface PluginApiResponse {
 
 /**
  * Scope metadata delivered alongside a `configChanged` RPC so the worker knows
- * *which company's* configuration changed.
+ * *which space's* configuration changed.
  *
- * The host→worker `configChanged` message has always carried the company scope,
+ * The host→worker `configChanged` message has always carried the space scope,
  * but the SDK historically dropped it before invoking `onConfigChanged`, leaving
  * proactive plugins to keep a single worker-global config. That is safe for a
- * single-tenant plugin but silently collapses a multi-company plugin onto
- * whichever company's config was delivered last. Threading the scope through
- * lets a `multiCompanyConfig` plugin maintain per-company state.
+ * single-tenant plugin but silently collapses a multi-space plugin onto
+ * whichever space's config was delivered last. Threading the scope through
+ * lets a `multiSpaceConfig` plugin maintain per-space state.
  *
  * @see PLUGIN_SPEC.md §13.4 — `configChanged`
  */
 export interface PluginConfigChangeContext {
   /**
-   * The company whose configuration changed, or `null` for an instance/global
-   * save that is not bound to a specific company.
+   * The space whose configuration changed, or `null` for an instance/global
+   * save that is not bound to a specific space.
    */
-  companyId: string | null;
+  spaceId: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -259,30 +259,30 @@ export interface PluginDefinition {
 
   /**
    * When true, this plugin's worker correctly serves configuration from more
-   * than one company inside a single worker process — for example by keying its
-   * state on `context.companyId` in `onConfigChanged` and running one connection
-   * / subscription set per company.
+   * than one space inside a single worker process — for example by keying its
+   * state on `context.spaceId` in `onConfigChanged` and running one connection
+   * / subscription set per space.
    *
    * When false or omitted (the default), the plugin is treated as single-tenant.
    * The host then **fails closed** if `configChanged` would ever deliver a
-   * second, distinct company's configuration to the same worker: instead of
-   * silently collapsing the worker onto whichever company arrived last (a
+   * second, distinct space's configuration to the same worker: instead of
+   * silently collapsing the worker onto whichever space arrived last (a
    * cross-tenant identity/secret confusion bug), the delivery is rejected with
    * `PLUGIN_RPC_ERROR_CODES.CROSS_TENANT_CONFIG`. Re-delivering an unchanged
-   * config for a different company (idempotent replay) is still allowed.
+   * config for a different space (idempotent replay) is still allowed.
    */
-  multiCompanyConfig?: boolean;
+  multiSpaceConfig?: boolean;
 
   /**
-   * Called when the operator updates this plugin's company-scoped configuration
+   * Called when the operator updates this plugin's space-scoped configuration
    * at runtime, without restarting the worker.
    *
    * If not implemented, the host restarts the worker to apply the new config.
    *
    * @param newConfig - The newly resolved configuration
-   * @param context - Scope of the change. `context.companyId` identifies the
-   *   company whose config changed (null for an instance/global save). A
-   *   multi-company plugin (`multiCompanyConfig: true`) MUST key its per-company
+   * @param context - Scope of the change. `context.spaceId` identifies the
+   *   space whose config changed (null for an instance/global save). A
+   *   multi-space plugin (`multiSpaceConfig: true`) MUST key its per-space
    *   state on this value rather than assuming a single global config.
    * @see PLUGIN_SPEC.md §13.4 — `configChanged`
    */
@@ -343,13 +343,13 @@ export interface PluginDefinition {
 
   /**
    * Called for manifest-declared scoped JSON API routes under
-   * `/api/plugins/:pluginId/api/*` after the host has enforced auth, company
+   * `/api/plugins/:pluginId/api/*` after the host has enforced auth, space
    * access, capabilities, and checkout policy.
    */
   onApiRequest?(input: PluginApiRequestInput): Promise<PluginApiResponse>;
 
   /**
-   * Called when Paperclip scans issue/comment/document content and asks this
+   * Called when Outpost scans issue/comment/document content and asks this
    * plugin whether any sanitized URL candidates belong to its external object
    * providers. The host has already stripped URL userinfo, query strings, and
    * fragments unless provider-safe identity components were explicitly hashed.
@@ -380,7 +380,7 @@ export interface PluginDefinition {
   onRouteAiConnection?(params: AiConnectionRouterRequest): Promise<AiConnectionRouterResult>;
 
   /**
-   * Called when Paperclip needs the current normalized status for one external
+   * Called when Outpost needs the current normalized status for one external
    * object owned by a manifest-declared provider.
    *
    * Requires `external.objects.read`.
@@ -572,7 +572,7 @@ export interface PluginDefinition {
 }
 
 // ---------------------------------------------------------------------------
-// PaperclipPlugin — the sealed object returned by definePlugin()
+// OutpostPlugin — the sealed object returned by definePlugin()
 // ---------------------------------------------------------------------------
 
 /**
@@ -583,7 +583,7 @@ export interface PluginDefinition {
  *
  * @see PLUGIN_SPEC.md §14 — SDK Surface
  */
-export interface PaperclipPlugin {
+export interface OutpostPlugin {
   /** The original plugin definition passed to `definePlugin()`. */
   readonly definition: PluginDefinition;
 }
@@ -593,14 +593,14 @@ export interface PaperclipPlugin {
 // ---------------------------------------------------------------------------
 
 /**
- * Define a Paperclip plugin.
+ * Define a Outpost plugin.
  *
  * Call this function in your worker entrypoint and export the result as the
  * default export. The host will import the module and call lifecycle methods
  * on the returned object.
  *
  * @param definition - Plugin lifecycle handlers
- * @returns A sealed `PaperclipPlugin` object for the host to consume
+ * @returns A sealed `OutpostPlugin` object for the host to consume
  *
  * @example
  * ```ts
@@ -622,6 +622,6 @@ export interface PaperclipPlugin {
  *
  * @see PLUGIN_SPEC.md §14.1 — Example SDK Shape
  */
-export function definePlugin(definition: PluginDefinition): PaperclipPlugin {
+export function definePlugin(definition: PluginDefinition): OutpostPlugin {
   return Object.freeze({ definition });
 }

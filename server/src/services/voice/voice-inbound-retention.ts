@@ -5,7 +5,7 @@ import type { createDeliveryWorkCoordinator } from "../delivery-work-coordinator
 import { DELIVERY_QUEUES } from "../delivery-work-notifications.js";
 import { voiceInboundScope, type VoiceInboundScope } from "./voice-inbound-notifications.js";
 
-type RetentionEntry = { id: string; companyId: string; endpointId: string; connectionId: string; dueAt: number };
+type RetentionEntry = { id: string; spaceId: string; endpointId: string; connectionId: string; dueAt: number };
 const RETENTION_MS = 7 * 86_400_000;
 const eligible = () => and(isNull(chatVoiceInboundCalls.sessionId), isNull(chatVoiceInboundCalls.intakeIssueId),
   isNotNull(chatVoiceInboundCalls.cleanupConfirmedAt), inArray(chatVoiceInboundCalls.state, ["denied", "expired", "ended"]));
@@ -19,16 +19,16 @@ export function voiceInboundRetention(db: Db) {
   async function page(scope?: VoiceInboundScope, cursor?: string, signal?: AbortSignal): Promise<RetentionEntry[]> {
     signal?.throwIfAborted();
     if (scope?.kind === "session") return [];
-    const rows = await db.select({ id: chatVoiceInboundCalls.id, companyId: chatVoiceInboundCalls.companyId,
+    const rows = await db.select({ id: chatVoiceInboundCalls.id, spaceId: chatVoiceInboundCalls.spaceId,
       endpointId: chatVoiceInboundCalls.endpointId, connectionId: chatEndpoints.connectionId,
       dueAt: sql<string>`ceil(extract(epoch from greatest(${chatVoiceInboundCalls.expiresAt}, ${chatVoiceInboundCalls.updatedAt})) * 1000) + ${RETENTION_MS}`,
     }).from(chatVoiceInboundCalls)
-      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceInboundCalls.endpointId), eq(chatEndpoints.companyId, chatVoiceInboundCalls.companyId)))
+      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceInboundCalls.endpointId), eq(chatEndpoints.spaceId, chatVoiceInboundCalls.spaceId)))
       .where(and(eligible(),
         scope?.kind === "admission" ? eq(chatVoiceInboundCalls.id, scope.id) : undefined,
         scope?.kind === "endpoint" ? eq(chatVoiceInboundCalls.endpointId, scope.id) : undefined,
         scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
-        scope?.kind === "company" ? eq(chatVoiceInboundCalls.companyId, scope.id) : undefined,
+        scope?.kind === "space" ? eq(chatVoiceInboundCalls.spaceId, scope.id) : undefined,
         cursor ? gt(chatVoiceInboundCalls.id, cursor) : undefined)).orderBy(chatVoiceInboundCalls.id).limit(100);
     signal?.throwIfAborted();
     return rows.map(row => ({ ...row, dueAt: Number(row.dueAt) }));
@@ -73,7 +73,7 @@ export function voiceInboundRetention(db: Db) {
     cursors.clear();
     return registerScopedDeadlineWork(coordinator, {
       queue: DELIVERY_QUEUES.voiceInboundRetention, decodeScope: voiceInboundScope,
-      matches: (entry, scope) => !scope || scope.kind !== "session" && (scope.kind === "admission" ? entry.id : scope.kind === "endpoint" ? entry.endpointId : scope.kind === "connection" ? entry.connectionId : entry.companyId) === scope.id,
+      matches: (entry, scope) => !scope || scope.kind !== "session" && (scope.kind === "admission" ? entry.id : scope.kind === "endpoint" ? entry.endpointId : scope.kind === "connection" ? entry.connectionId : entry.spaceId) === scope.id,
       load: refresh, check: (entry, signal) => check(entry.id, signal),
     }, canRun);
   }

@@ -5,7 +5,7 @@ export function liveRunEvent(event: LiveEvent): HeartbeatRunEvent | null {
   const p = event.payload;
   if (typeof p.runId !== "string" || typeof p.agentId !== "string" || !Number.isSafeInteger(p.seq)
     || Number(p.seq) < 1 || typeof p.eventType !== "string") return null;
-  return { id: Number(p.seq), runId: p.runId, companyId: event.companyId, agentId: p.agentId, seq: Number(p.seq),
+  return { id: Number(p.seq), runId: p.runId, spaceId: event.spaceId, agentId: p.agentId, seq: Number(p.seq),
     eventType: p.eventType, stream: p.stream === "stdout" || p.stream === "stderr" || p.stream === "system" ? p.stream : null,
     level: p.level === "info" || p.level === "warn" || p.level === "error" ? p.level : null, color: typeof p.color === "string" ? p.color : null,
     message: typeof p.message === "string" ? p.message : null,

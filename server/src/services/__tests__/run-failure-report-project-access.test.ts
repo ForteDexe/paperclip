@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, heartbeatRuns } from "@outpost/db";
+import { agents, applyPendingMigrations, closeRegisteredClients, spaces, createDb, heartbeatRuns } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -22,7 +22,7 @@ const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : 
 describeEmbeddedPostgres("reportRunFailure low-trust project denials", () => {
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId!: string;
+  let spaceId!: string;
   let agentId!: string;
   let inheritedEnv: NodeJS.ProcessEnv;
 
@@ -31,7 +31,7 @@ describeEmbeddedPostgres("reportRunFailure low-trust project denials", () => {
       await applyPendingMigrations(testDatabaseUrl);
       db = createDb(testDatabaseUrl);
     } else {
-      tempDb = await startEmbeddedPostgresTestDatabase("paperclip-run-failure-project-access-");
+      tempDb = await startEmbeddedPostgresTestDatabase("outpost-run-failure-project-access-");
       db = createDb(tempDb.connectionString);
     }
   }, 20_000);
@@ -43,18 +43,18 @@ describeEmbeddedPostgres("reportRunFailure low-trust project denials", () => {
         .flatMap((key) => inheritedEnv[key] === undefined ? [] : [[key, inheritedEnv[key]]]),
     );
     process.env.OUTPOST_SENTRY_RUN_FAILURES = "unexpected";
-    companyId = randomUUID();
+    spaceId = randomUUID();
     agentId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "responsible-user",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "OpenCodeCoder",
       role: "engineer",
       status: "active",
@@ -71,7 +71,7 @@ describeEmbeddedPostgres("reportRunFailure low-trust project denials", () => {
     process.env = inheritedEnv;
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -84,7 +84,7 @@ describeEmbeddedPostgres("reportRunFailure low-trust project denials", () => {
   ): typeof heartbeatRuns.$inferSelect {
     return {
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId,
       status: "failed",
       error: "Project is outside this low-trust boundary.",

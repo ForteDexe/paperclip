@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { chmod, writeFile, symlink, mkdir, open } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { and, eq } from "drizzle-orm";
-import { agents, agentApiKeys, agentWakeupRequests, assets, authUsers, documents, heartbeatRuns, issues, projects, routineDocuments, routineRevisions, routines, runnerApiResponseReservations, companySkills, companySkillVersions, companySkillTestRuns, companyMemberships, principalPermissionGrants, budgetPolicies, companies } from "@outpost/db";
+import { agents, agentApiKeys, agentWakeupRequests, assets, authUsers, documents, heartbeatRuns, issues, projects, routineDocuments, routineRevisions, routines, runnerApiResponseReservations, spaceSkills, spaceSkillVersions, spaceSkillTestRuns, spaceMemberships, principalPermissionGrants, budgetPolicies, spaces } from "@outpost/db";
 import { initializeRunIdentity } from "../run-identity.js";
 import { beforeAll, afterAll, beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import * as nativeSetupReadiness from "./setup-readiness.js";
@@ -15,7 +15,7 @@ import { runnerApiCatalog } from "./runner-api-catalog.js";
 import { registerRunnerPrpAuthority } from "../../realtime/runner-orp-ws.js";
 import { createLocalAgentJwt } from "../../agent-auth-jwt.js";
 import { RUNNER_API_RESPONSE_MAX_BYTES, RUNNER_API_RESPONSE_RUN_MAX_BYTES } from "./runner-api-response-limits.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { prepareHeartbeatTaskContext } from "../heartbeat/task-context.js";
 import { createHeartbeatRunPreparation } from "../heartbeat/run-preparation.js";
 import { createAssignedMcpTools } from "./assigned-mcp-tools.js";
@@ -33,7 +33,7 @@ describe("runner API against real HTTP routes", () => {
   const oldMasterKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
   beforeEach(() => {
     vi.stubEnv("OUTPOST_RUNNER_API_TOOLS_ENABLED", undefined);
-    vi.stubEnv("OUTPOST_RUNNER_API_TOOLS_COMPANY_IDS", undefined);
+    vi.stubEnv("OUTPOST_RUNNER_API_TOOLS_SPACE_IDS", undefined);
   });
   afterEach(() => vi.unstubAllEnvs());
   beforeAll(async () => {
@@ -59,15 +59,15 @@ describe("runner API against real HTTP routes", () => {
     const fixture = await server.fixture();
     const name = `Recovery effect ${randomUUID()}`;
     const call = { tool: "call_api", callId: "one-project-effect", arguments: {
-      operationId: "POST /api/companies/{companyId}/projects", body: { name },
+      operationId: "POST /api/spaces/{spaceId}/projects", body: { name },
     } };
     const effects = () => server.db.select({ id: projects.id, name: projects.name }).from(projects)
-      .where(and(eq(projects.companyId, fixture.companyId), eq(projects.name, name)));
+      .where(and(eq(projects.spaceId, fixture.spaceId), eq(projects.name, name)));
     const fetchActual = globalThis.fetch;
     let dispatched = 0;
     const network = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       const response = await fetchActual(url, init);
-      if (String(url) === `${fixture.apiUrl}/api/companies/${fixture.companyId}/projects` && init?.method === "POST") {
+      if (String(url) === `${fixture.apiUrl}/api/spaces/${fixture.spaceId}/projects` && init?.method === "POST") {
         dispatched += 1;
         expect(response.ok).toBe(true);
         expect(await effects()).toHaveLength(1);
@@ -79,7 +79,7 @@ describe("runner API against real HTTP routes", () => {
       const first = await fixture.authority.execute(call);
       const ledgerBeforeRecovery = await effects();
       expect(ledgerBeforeRecovery).toHaveLength(1);
-      const replacement = new PaperclipRunnerToolAuthority(server.db, fixture);
+      const replacement = new OutpostRunnerToolAuthority(server.db, fixture);
       const recovered = await replacement.recover(call);
       if (boundary === "http_response") {
         expect(first).toMatchObject({ outcome: "unknown" });
@@ -103,7 +103,7 @@ describe("runner API against real HTTP routes", () => {
     const fixture = await server.fixture({ apiToolsEnabled: false });
     if (trust === "low_trust_review") {
       await server.db.update(agents).set({ permissions: { trustPreset: trust, authorizationPolicy: {
-        trustBoundary: { mode: trust, companyId: fixture.companyId, issueIds: [fixture.issueId], allowedAgentIds: [fixture.agentId] },
+        trustBoundary: { mode: trust, spaceId: fixture.spaceId, issueIds: [fixture.issueId], allowedAgentIds: [fixture.agentId] },
       } } }).where(eq(agents.id, fixture.agentId));
     }
     const original = { data: { content: "🧭é".repeat(120_000), last: "complete-result" } };
@@ -117,12 +117,12 @@ describe("runner API against real HTTP routes", () => {
       } as unknown as ToolGatewayService,
     });
     const binding = { ...fixture.authority.binding, assignedMcpTools };
-    const authority = new PaperclipRunnerToolAuthority(server.db, binding);
+    const authority = new OutpostRunnerToolAuthority(server.db, binding);
     const result: any = await authority.execute({ tool: assignedMcpTools.definitions()[0]!.name as string, callId: "large-action", arguments: {} });
     expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThan(32 * 1024);
     expect(result).toMatchObject({ artifact: { artifactId: expect.any(String) }, readWith: { tool: "read_tool_result" } });
     // Recreate the authority to prove that pages do not depend on a live cache.
-    const reopened = new PaperclipRunnerToolAuthority(server.db, binding);
+    const reopened = new OutpostRunnerToolAuthority(server.db, binding);
     expect(reopened.definitions().some(tool => tool.name === "read_tool_result")).toBe(true);
     let offsetBytes: number | null = 0;
     let text = "";
@@ -143,13 +143,13 @@ describe("runner API against real HTTP routes", () => {
     expect(executeTool).toHaveBeenCalledOnce();
     expect((await fixture.snapshot()).assets.filter(asset => asset.id === result.artifact.artifactId)).toHaveLength(1);
     const foreign = await server.fixture();
-    const foreignAuthority = new PaperclipRunnerToolAuthority(server.db, { ...foreign.authority.binding, assignedMcpTools });
+    const foreignAuthority = new OutpostRunnerToolAuthority(server.db, { ...foreign.authority.binding, assignedMcpTools });
     await expect(foreignAuthority.execute({ tool: "read_tool_result", callId: "foreign",
       arguments: { artifactId: result.artifact.artifactId } })).rejects.toThrow();
     await expect(reopened.execute({ tool: "read_tool_result", callId: "unrelated",
       arguments: { artifactId: fixture.artifactId } })).rejects.toThrow("not available to this task");
     await expect(reopened.execute({ tool: "call_api", callId: "disabled",
-      arguments: { operationId: "GET /api/companies/{companyId}/projects" } })).rejects.toThrow("not_advertised");
+      arguments: { operationId: "GET /api/spaces/{spaceId}/projects" } })).rejects.toThrow("not_advertised");
     await server.db.update(agents).set({ status: "paused" }).where(eq(agents.id, fixture.agentId));
     await expect(reopened.execute({ tool: "read_tool_result", callId: "paused",
       arguments: { artifactId: result.artifact.artifactId } })).rejects.toThrow("binding_not_authorized");
@@ -162,7 +162,7 @@ describe("runner API against real HTTP routes", () => {
 import { createInterface } from 'node:readline';
 const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
 let step = 0;
-const calls = [{tool:'search_api',arguments:{query:'list projects'}},{tool:'call_api',arguments:{operationId:'GET /api/companies/{companyId}/projects'}},{tool:'call_api',arguments:{operationId:'GET /api/projects/{id}',pathParams:{id:'${fixture.foreignProjectId}'}}}];
+const calls = [{tool:'search_api',arguments:{query:'list projects'}},{tool:'call_api',arguments:{operationId:'GET /api/spaces/{spaceId}/projects'}},{tool:'call_api',arguments:{operationId:'GET /api/projects/{id}',pathParams:{id:'${fixture.foreignProjectId}'}}}];
 const next = () => { const c=calls[step++]; if(c) send({id:'call-'+step,method:'item/tool/call',params:{threadId:'api-thread',turnId:'api-turn',itemId:'api-item-'+step,callId:'api-call-'+step,...c}}); else send({method:'turn/completed',params:{turn:{id:'api-turn',status:'completed'}}}); };
 for await (const line of createInterface({input:process.stdin})) {
 const m=JSON.parse(line);
@@ -187,7 +187,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       runnerBinary: defaultCapabilityRunnerdBinary(), codexCommand: provider, codexArgs: [],
       stateDirectory: join(server.root, `scripted-runner-${receiptFormat}`), lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null },
       orpIdentity: { runnerInstanceId: "api-test", environmentLeaseId: "api-test-lease", runId: fixture.runId, normalizedSessionId: "api-test-session", turnId: "api-test-turn", itemId: "api-test-item" },
-      controlPlaneRegistration: orp => registerRunnerPrpAuthority({ companyId: fixture.companyId, runId: fixture.runId, authority: orp }),
+      controlPlaneRegistration: orp => registerRunnerPrpAuthority({ spaceId: fixture.spaceId, runId: fixture.runId, authority: orp }),
     });
     const results: any[] = [];
     bundle.transport.setServerRequestHandler(async request => {
@@ -214,7 +214,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
         ]);
       } finally { clearTimeout(timeout); }
       expect(results).toHaveLength(3);
-      expect(results[1]).toMatchObject({ status: 200, apiOperationId: "GET /api/companies/{companyId}/projects", data: [{ id: fixture.projectId, name: "Aurora" }] });
+      expect(results[1]).toMatchObject({ status: 200, apiOperationId: "GET /api/spaces/{spaceId}/projects", data: [{ id: fixture.projectId, name: "Aurora" }] });
       expect(results[2]).toMatchObject({ ok: false, status: 404 });
       expect(bundle.evidence().diagnostics).toContain("runnerd authenticated to the durable ORP control plane");
     } finally { await bundle.transport.close(); }
@@ -228,7 +228,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       expect(names).toContain("get_task_context");
       expect(names).not.toContain("search_api");
       expect(names).not.toContain("call_api");
-      await expect(fixture.authority.execute({ tool: "call_api", callId: "disabled", arguments: { operationId: "GET /api/companies/{companyId}/projects" } })).rejects.toThrow("not_advertised");
+      await expect(fixture.authority.execute({ tool: "call_api", callId: "disabled", arguments: { operationId: "GET /api/spaces/{spaceId}/projects" } })).rejects.toThrow("not_advertised");
     } finally { delete process.env.OUTPOST_RUNNER_API_TOOLS_ENABLED; }
   });
 
@@ -243,21 +243,21 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       .toMatchObject({ status: "blocked", billingCode: "REST-PARITY" });
   });
 
-  it.each(["company owner", "unrelated parent", "no fallback"])(
+  it.each(["space owner", "unrelated parent", "no fallback"])(
     "keeps the authenticated native run responsible user over %s", async fallback => {
       const fixture = await server.fixture({ connectionScenario: "fresh", disableWakeOnDemand: true });
       const ownerUserId = randomUUID();
       if (fallback !== "no fallback") {
-        await server.db.insert(authUsers).values({ id: ownerUserId, name: "Company owner", email: `${ownerUserId}@fixture.invalid`,
+        await server.db.insert(authUsers).values({ id: ownerUserId, name: "Space owner", email: `${ownerUserId}@fixture.invalid`,
           emailVerified: true, createdAt: new Date(), updatedAt: new Date() });
-        await server.db.insert(companyMemberships).values({ companyId: fixture.companyId, principalType: "user",
+        await server.db.insert(spaceMemberships).values({ spaceId: fixture.spaceId, principalType: "user",
           principalId: ownerUserId, status: "active", membershipRole: "owner" });
       }
       if (fallback === "unrelated parent") {
         await server.db.update(issues).set({ responsibleUserId: ownerUserId }).where(eq(issues.id, fixture.blockerId));
       }
       const call = { tool: "call_api", callId: "bound-routine", arguments: {
-        operationId: "POST /api/companies/{companyId}/routines", body: {
+        operationId: "POST /api/spaces/{spaceId}/routines", body: {
           title: "Native run owned routine", assigneeAgentId: fixture.agentId, status: "paused",
           ...(fallback === "unrelated parent" ? { parentIssueId: fixture.blockerId } : {}),
           actorResponsibleUserId: ownerUserId, responsibleUserId: ownerUserId, createdByUserId: ownerUserId,
@@ -265,10 +265,10 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       } };
       const created = await fixture.authority.execute(call);
       expect(created).toMatchObject({ ok: true, status: 201 });
-      expect(await new PaperclipRunnerToolAuthority(server.db, fixture).execute(call)).toEqual(created);
+      expect(await new OutpostRunnerToolAuthority(server.db, fixture).execute(call)).toEqual(created);
       const [routine] = await server.db.select({ id: routines.id, responsibleUserId: routines.responsibleUserId,
         createdByAgentId: routines.createdByAgentId, createdByUserId: routines.createdByUserId }).from(routines)
-        .where(eq(routines.companyId, fixture.companyId));
+        .where(eq(routines.spaceId, fixture.spaceId));
       expect(routine).toEqual({ id: expect.any(String), responsibleUserId: fixture.responsibleUserId,
         createdByAgentId: fixture.agentId, createdByUserId: null });
       const revisions = await server.db.select({ responsibleUserId: routineRevisions.responsibleUserId,
@@ -276,19 +276,19 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
         .where(eq(routineRevisions.routineId, routine.id));
       expect(revisions).toEqual([{ responsibleUserId: fixture.responsibleUserId, createdByRunId: fixture.runId }]);
       await expect(fixture.authority.execute({ ...call, callId: "foreign-routine", arguments: {
-        ...call.arguments, pathParams: { companyId: fixture.foreignCompanyId },
-      } })).rejects.toThrow("another company");
+        ...call.arguments, pathParams: { spaceId: fixture.foreignSpaceId },
+      } })).rejects.toThrow("another space");
       await server.db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, fixture.runId));
       await expect(fixture.authority.execute({ ...call, callId: "cancelled-routine" })).rejects.toThrow("binding_not_authorized");
-      expect(await server.db.select({ id: routines.id }).from(routines).where(eq(routines.companyId, fixture.companyId)))
+      expect(await server.db.select({ id: routines.id }).from(routines).where(eq(routines.spaceId, fixture.spaceId)))
         .toEqual([{ id: routine.id }]);
     },
   );
 
   it("uses the current run identity when an agent JWT carries a stale user claim", async () => {
     const fixture = await server.fixture({ connectionScenario: "fresh", disableWakeOnDemand: true });
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId, "stale-user");
-    const response = await fetch(`${fixture.apiUrl}/api/companies/${fixture.companyId}/routines`, {
+    const token = createLocalAgentJwt(fixture.agentId, fixture.spaceId, "outpost_runner", fixture.runId, "stale-user");
+    const response = await fetch(`${fixture.apiUrl}/api/spaces/${fixture.spaceId}/routines`, {
       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ title: "Current identity routine", assigneeAgentId: fixture.agentId, status: "paused" }),
     });
@@ -297,32 +297,32 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       createdByAgentId: fixture.agentId, createdByUserId: null });
   });
 
-  it("rejects routine creation after the bound responsible user loses company membership", async () => {
+  it("rejects routine creation after the bound responsible user loses space membership", async () => {
     const fixture = await server.fixture({ connectionScenario: "fresh", disableWakeOnDemand: true });
-    await server.db.delete(companyMemberships).where(and(eq(companyMemberships.companyId, fixture.companyId),
-      eq(companyMemberships.principalId, fixture.responsibleUserId!)));
+    await server.db.delete(spaceMemberships).where(and(eq(spaceMemberships.spaceId, fixture.spaceId),
+      eq(spaceMemberships.principalId, fixture.responsibleUserId!)));
     await expect(fixture.authority.execute({ tool: "call_api", callId: "revoked-user-routine", arguments: {
-      operationId: "POST /api/companies/{companyId}/routines", body: {
+      operationId: "POST /api/spaces/{spaceId}/routines", body: {
         title: "Revoked authority routine", assigneeAgentId: fixture.agentId, status: "paused",
       },
     } })).rejects.toMatchObject({ status: 403 });
-    expect(await server.db.select({ id: routines.id }).from(routines).where(eq(routines.companyId, fixture.companyId))).toEqual([]);
+    expect(await server.db.select({ id: routines.id }).from(routines).where(eq(routines.spaceId, fixture.spaceId))).toEqual([]);
   });
 
   it.each([true, false])("keeps agent API-key responsibility binding (present=%s)", async bound => {
     const fixture = await server.fixture({ connectionScenario: "fresh", disableWakeOnDemand: true });
     const token = `pcp_fixture_${randomUUID()}`;
-    await server.db.insert(agentApiKeys).values({ companyId: fixture.companyId, agentId: fixture.agentId,
+    await server.db.insert(agentApiKeys).values({ spaceId: fixture.spaceId, agentId: fixture.agentId,
       name: "Routine API fixture", keyHash: createHash("sha256").update(token).digest("hex"),
       responsibleUserId: bound ? fixture.responsibleUserId : null });
-    const response = await fetch(`${fixture.apiUrl}/api/companies/${fixture.companyId}/routines`, {
+    const response = await fetch(`${fixture.apiUrl}/api/spaces/${fixture.spaceId}/routines`, {
       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ title: "API-key routine", assigneeAgentId: fixture.agentId, status: "paused" }),
     });
     expect(response.status).toBe(bound ? 201 : 403);
     const rows = await server.db.select({ responsibleUserId: routines.responsibleUserId,
       createdByAgentId: routines.createdByAgentId, createdByUserId: routines.createdByUserId }).from(routines)
-      .where(eq(routines.companyId, fixture.companyId));
+      .where(eq(routines.spaceId, fixture.spaceId));
     expect(rows).toEqual(bound ? [{ responsibleUserId: fixture.responsibleUserId,
       createdByAgentId: fixture.agentId, createdByUserId: null }] : []);
   });
@@ -330,7 +330,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
   it("manages owned routines and triggers with durable replay, attribution and owner denials", async () => {
     const fixture = await server.fixture({ disableWakeOnDemand: true, conversation: true });
     await server.db.update(issues).set({ responsibleUserId: fixture.responsibleUserId }).where(eq(issues.id, fixture.issueId));
-    const args = { operationId: "POST /api/companies/{companyId}/routines", body: {
+    const args = { operationId: "POST /api/spaces/{spaceId}/routines", body: {
       title: "REST parity routine", assigneeAgentId: fixture.agentId, projectId: fixture.projectId, parentIssueId: fixture.issueId, status: "paused",
     } };
     const call = (callId: string, arguments_: unknown) => fixture.authority.execute({ tool: "call_api", callId, arguments: arguments_ }) as Promise<any>;
@@ -342,7 +342,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     expect(trigger).toMatchObject({ ok: true, status: 201, data: { trigger: { routineId, enabled: false } } });
     expect(await call("routine-update", { operationId: "PATCH /api/routines/{id}", pathParams: { id: routineId }, body: { title: "Updated through fallback" } }))
       .toMatchObject({ ok: true, status: 200, data: { title: "Updated through fallback" } });
-    const [other] = await server.db.insert(agents).values({ companyId: fixture.companyId, name: "Other routine owner", status: "active" }).returning();
+    const [other] = await server.db.insert(agents).values({ spaceId: fixture.spaceId, name: "Other routine owner", status: "active" }).returning();
     expect(await call("routine-other-owner", { ...args, body: { ...args.body, assigneeAgentId: other.id } }))
       .toMatchObject({ ok: false, status: 403 });
     const snapshot = await fixture.snapshot();
@@ -350,26 +350,26 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       expect.objectContaining({ action: "routine.created", agentId: fixture.agentId, runId: fixture.runId }),
       expect.objectContaining({ action: "runner.api_called", agentId: fixture.agentId, runId: fixture.runId, details: expect.objectContaining({ operationId: args.operationId, status: 201 }) }),
     ]));
-    expect(await server.db.select().from(routines).where(eq(routines.companyId, fixture.companyId))).toHaveLength(1);
+    expect(await server.db.select().from(routines).where(eq(routines.spaceId, fixture.spaceId))).toHaveLength(1);
   });
 
   it("starts a permitted skill test through the fallback using the existing assignment grants", async () => {
     const fixture = await server.fixture({ conversation: true, disableWakeOnDemand: true });
-    await server.db.insert(companyMemberships).values({ companyId: fixture.companyId, principalType: "agent", principalId: fixture.agentId, status: "active", membershipRole: "member" });
+    await server.db.insert(spaceMemberships).values({ spaceId: fixture.spaceId, principalType: "agent", principalId: fixture.agentId, status: "active", membershipRole: "member" });
     await server.db.insert(principalPermissionGrants).values([
-      { companyId: fixture.companyId, principalType: "agent", principalId: fixture.agentId, permissionKey: "tasks:assign" },
-      { companyId: fixture.companyId, principalType: "user", principalId: fixture.responsibleUserId!, permissionKey: "tasks:assign" },
+      { spaceId: fixture.spaceId, principalType: "agent", principalId: fixture.agentId, permissionKey: "tasks:assign" },
+      { spaceId: fixture.spaceId, principalType: "user", principalId: fixture.responsibleUserId!, permissionKey: "tasks:assign" },
     ]);
     const skillDir = join(server.root, `parity-skill-${randomUUID()}`);
     await mkdir(skillDir);
     await writeFile(join(skillDir, "SKILL.md"), "# Parity skill\nReturn the supplied fixture input.\n");
-    const [skill] = await server.db.insert(companySkills).values({
-      companyId: fixture.companyId, key: `company/${fixture.companyId}/parity`, slug: "parity", name: "Parity skill",
+    const [skill] = await server.db.insert(spaceSkills).values({
+      spaceId: fixture.spaceId, key: `space/${fixture.spaceId}/parity`, slug: "parity", name: "Parity skill",
       markdown: "# Parity skill\n", sourceType: "local_path", sourceLocator: skillDir,
       trustLevel: "markdown_only", compatibility: "compatible", fileInventory: [{ path: "SKILL.md", kind: "skill" }], metadata: { sourceKind: "managed_local" },
     }).returning();
     const call = { tool: "call_api", callId: "skill-test-create", arguments: {
-      operationId: "POST /api/companies/{companyId}/skills/{skillId}/test-runs", pathParams: { skillId: skill.id },
+      operationId: "POST /api/spaces/{spaceId}/skills/{skillId}/test-runs", pathParams: { skillId: skill.id },
       body: { agentId: fixture.agentId, content: "Fixture input" },
     } };
     const result = await fixture.authority.execute(call) as any;
@@ -387,24 +387,24 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     } }) as any;
     expect(saved).toMatchObject({ ok: true, status: 201, artifact: { artifactId: expect.any(String) } });
     const url = `${fixture.apiUrl}/api/assets/${saved.artifact.artifactId}/content`;
-    const owner = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId);
+    const owner = createLocalAgentJwt(fixture.agentId, fixture.spaceId, "outpost_runner", fixture.runId);
     expect((await fetch(url, { headers: { Authorization: `Bearer ${owner}` } })).status).toBe(200);
-    const [peer] = await server.db.insert(agents).values({ companyId: fixture.companyId, name: "Peer snapshot reader", status: "active", role: "ceo", adapterType: "outpost_runner" }).returning();
-    const [peerRun] = await server.db.insert(heartbeatRuns).values({ companyId: fixture.companyId, agentId: peer.id, status: "running", runtimeMode: "native", nativeIssueId: fixture.blockerId, contextSnapshot: { issueId: fixture.blockerId } }).returning();
+    const [peer] = await server.db.insert(agents).values({ spaceId: fixture.spaceId, name: "Peer snapshot reader", status: "active", role: "lead", adapterType: "outpost_runner" }).returning();
+    const [peerRun] = await server.db.insert(heartbeatRuns).values({ spaceId: fixture.spaceId, agentId: peer.id, status: "running", runtimeMode: "native", nativeIssueId: fixture.blockerId, contextSnapshot: { issueId: fixture.blockerId } }).returning();
     await server.db.update(issues).set({ assigneeAgentId: peer.id, status: "in_progress", executionRunId: peerRun.id,
       description: `![private](/api/assets/${saved.artifact.artifactId}/content)`,
     }).where(eq(issues.id, fixture.blockerId));
-    const token = createLocalAgentJwt(peer.id, fixture.companyId, "codex_local", peerRun.id);
+    const token = createLocalAgentJwt(peer.id, fixture.spaceId, "codex_local", peerRun.id);
     expect((await fetch(url, { headers: { Authorization: `Bearer ${token}` } })).status).toBe(404);
-    const peerAuthority = new PaperclipRunnerToolAuthority(server.db, {
+    const peerAuthority = new OutpostRunnerToolAuthority(server.db, {
       ...fixture.authority.binding, agentId: peer.id, runId: peerRun.id, issueId: fixture.blockerId,
     });
     await expect(peerAuthority.execute({ tool: "call_api", callId: "peer-snapshot-upload", arguments: {
-      operationId: "POST /api/companies/{companyId}/issues/{issueId}/attachments", pathParams: { issueId: fixture.blockerId },
+      operationId: "POST /api/spaces/{spaceId}/issues/{issueId}/attachments", pathParams: { issueId: fixture.blockerId },
       files: [{ artifactId: saved.artifact.artifactId }],
     } })).rejects.toThrow("Artifact is not available to this actor");
     const exported = await peerAuthority.execute({ tool: "call_api", callId: "peer-snapshot-export", arguments: {
-      operationId: "POST /api/companies/{companyId}/exports", body: { include: { issues: true }, issues: [fixture.blockerId] },
+      operationId: "POST /api/spaces/{spaceId}/exports", body: { include: { issues: true }, issues: [fixture.blockerId] },
     } }) as any;
     expect(exported).toMatchObject({ ok: true, status: 200 });
     for (const [path, file] of Object.entries(exported.data.files)) {
@@ -412,47 +412,47 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       expect(Buffer.from((file as { data: string }).data, "base64").toString("utf8")).not.toContain("Private API response");
     }
     expect(await peerAuthority.execute({ tool: "call_api", callId: "peer-snapshot-logo", arguments: {
-      operationId: "PATCH /api/companies/{companyId}/branding", body: { logoAssetId: saved.artifact.artifactId },
+      operationId: "PATCH /api/spaces/{spaceId}/branding", body: { logoAssetId: saved.artifact.artifactId },
     } })).toMatchObject({ ok: false, status: 422 });
     const ownUpload = await fixture.authority.execute({ tool: "call_api", callId: "own-snapshot-upload", arguments: {
-      operationId: "POST /api/companies/{companyId}/issues/{issueId}/attachments", pathParams: { issueId: fixture.issueId },
+      operationId: "POST /api/spaces/{spaceId}/issues/{issueId}/attachments", pathParams: { issueId: fixture.issueId },
       files: [{ artifactId: saved.artifact.artifactId }],
     } });
     expect(ownUpload).toMatchObject({ ok: true, status: 201 });
   });
 
-  it.each(["skill_test", "low_trust_review"])("allows task image reads without company browsing (%s)", async scope => {
+  it.each(["skill_test", "low_trust_review"])("allows task image reads without space browsing (%s)", async scope => {
     const fixture = await server.fixture();
     if (scope === "skill_test") {
       await server.db.update(heartbeatRuns).set({ contextSnapshot: { issueId: fixture.issueId,
-        paperclipAgentJwtScope: { kind: "skill_test", issueId: fixture.issueId },
+        outpostAgentJwtScope: { kind: "skill_test", issueId: fixture.issueId },
       } }).where(eq(heartbeatRuns.id, fixture.runId));
     } else {
       await server.db.update(agents).set({ permissions: { trustPreset: "low_trust_review", authorizationPolicy: {
-        trustBoundary: { mode: "low_trust_review", companyId: fixture.companyId, issueIds: [fixture.issueId], allowedAgentIds: [fixture.agentId] },
+        trustBoundary: { mode: "low_trust_review", spaceId: fixture.spaceId, issueIds: [fixture.issueId], allowedAgentIds: [fixture.agentId] },
       } } }).where(eq(agents.id, fixture.agentId));
     }
     const keyScope = scope === "skill_test" ? { kind: "skill_test" as const, issueId: fixture.issueId } : { kind: "standard" as const };
-    const actor = { type: "agent" as const, agentId: fixture.agentId, companyId: fixture.companyId, runId: fixture.runId, keyScope };
-    expect((await authorizationService(server.db).decide({ actor, action: "company_scope:read",
-      resource: { type: "company", companyId: fixture.companyId },
+    const actor = { type: "agent" as const, agentId: fixture.agentId, spaceId: fixture.spaceId, runId: fixture.runId, keyScope };
+    expect((await authorizationService(server.db).decide({ actor, action: "space_scope:read",
+      resource: { type: "space", spaceId: fixture.spaceId },
     })).allowed).toBe(false);
     const imageIds: string[] = [];
     for (const issueId of [fixture.issueId, fixture.blockerId]) {
-      const stored = await server.storage.putFile({ companyId: fixture.companyId, namespace: `issues/${issueId}`,
+      const stored = await server.storage.putFile({ spaceId: fixture.spaceId, namespace: `issues/${issueId}`,
         originalFilename: "image.png", contentType: "image/png", body: Buffer.from("task-image-fixture"),
       });
-      const [image] = await server.db.insert(assets).values({ companyId: fixture.companyId, ...stored, createdByAgentId: fixture.agentId }).returning();
+      const [image] = await server.db.insert(assets).values({ spaceId: fixture.spaceId, ...stored, createdByAgentId: fixture.agentId }).returning();
       imageIds.push(image.id);
     }
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId, null, keyScope);
+    const token = createLocalAgentJwt(fixture.agentId, fixture.spaceId, "outpost_runner", fixture.runId, null, keyScope);
     expect((await fetch(`${fixture.apiUrl}/api/assets/${imageIds[0]}/content`, { headers: { Authorization: `Bearer ${token}` } })).status).toBe(200);
     expect((await fetch(`${fixture.apiUrl}/api/assets/${imageIds[1]}/content`, { headers: { Authorization: `Bearer ${token}` } })).status).toBe(404);
     expect(await fixture.authority.execute({ tool: "call_api", callId: "scoped-image", arguments: {
       operationId: "GET /api/assets/{assetId}/content", pathParams: { assetId: imageIds[0] },
     } })).toMatchObject({ ok: true, status: 206 });
     await expect(fixture.authority.execute({ tool: "call_api", callId: "scoped-image-upload", arguments: {
-      operationId: "POST /api/companies/{companyId}/issues/{issueId}/attachments", pathParams: { issueId: fixture.issueId },
+      operationId: "POST /api/spaces/{spaceId}/issues/{issueId}/attachments", pathParams: { issueId: fixture.issueId },
       files: [{ artifactId: imageIds[1] }],
     } })).rejects.toThrow("Artifact is not available to this actor");
   });
@@ -462,7 +462,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     vi.stubEnv("OUTPOST_API_URL", fixture.apiUrl);
     await server.db.update(issues).set({ responsibleUserId: fixture.responsibleUserId }).where(eq(issues.id, fixture.issueId));
     const call = (callId: string, args: unknown) => fixture.authority.execute({ tool: "call_api", callId, arguments: args }) as Promise<any>;
-    const created = await call("webhook-routine", { operationId: "POST /api/companies/{companyId}/routines", body: {
+    const created = await call("webhook-routine", { operationId: "POST /api/spaces/{spaceId}/routines", body: {
       title: "Restored webhook", assigneeAgentId: fixture.agentId, projectId: fixture.projectId, parentIssueId: fixture.issueId, status: "paused",
     } });
     expect(created).toMatchObject({ status: 201 });
@@ -490,57 +490,57 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
   });
 
   // s7504 run cb7994f9 (Codex, CHA-5): while a succeeded run's accounting held
-  // new company work, this live run's write_task_document was refused with
-  // "Company or budget authority unavailable", so it proposed a blocked result.
+  // new space work, this live run's write_task_document was refused with
+  // "Space or budget authority unavailable", so it proposed a blocked result.
   it("lets a running run write during a temporary accounting hold, but not after a hard stop", async () => {
     const fixture = await server.fixture({ disableWakeOnDemand: true, conversation: true });
-    await server.db.insert(budgetPolicies).values({ companyId: fixture.companyId, scopeType: "company", scopeId: fixture.companyId,
+    await server.db.insert(budgetPolicies).values({ spaceId: fixture.spaceId, scopeType: "space", scopeId: fixture.spaceId,
       metric: "billed_cents", windowKind: "calendar_month_utc", amount: 3000, notifyEnabled: false, unpricedUsagePolicy: "block" });
     // Another run ended without succeeding and awaits accounting: new work waits.
-    await server.db.insert(heartbeatRuns).values({ companyId: fixture.companyId, agentId: fixture.agentId, invocationSource: "automation",
+    await server.db.insert(heartbeatRuns).values({ spaceId: fixture.spaceId, agentId: fixture.agentId, invocationSource: "automation",
       status: "failed", finishedAt: new Date(), costAccountingPending: true, usageJson: { accountingReceiptReady: false } });
     const write = (key: string) => fixture.authority.execute({ tool: "write_task_document", callId: `hold-${key}`,
       arguments: { taskId: fixture.issueId, key, title: "Brief", body: "Three bullets", baseRevisionId: null } });
     await expect(write("brief")).resolves.toMatchObject({ ok: true });
-    await server.db.update(companies).set({ status: "paused", pauseReason: "budget", pausedAt: new Date() })
-      .where(eq(companies.id, fixture.companyId));
-    await expect(write("after-stop")).rejects.toThrow("Company or budget authority unavailable");
+    await server.db.update(spaces).set({ status: "paused", pauseReason: "budget", pausedAt: new Date() })
+      .where(eq(spaces.id, fixture.spaceId));
+    await expect(write("after-stop")).rejects.toThrow("Space or budget authority unavailable");
   });
 
-  it.each(["comment_on_task", "write_task_document", "hire_agent"])("recovers completed %s receipts without repeating the write", async tool => {
+  it.each(["comment_on_task", "write_task_document", "create_agent"])("recovers completed %s receipts without repeating the write", async tool => {
     const fixture = await server.fixture({ disableWakeOnDemand: true, conversation: true });
-    if (tool === "hire_agent") {
-      await server.db.insert(companyMemberships).values({ companyId: fixture.companyId, principalType: "agent", principalId: fixture.agentId, status: "active", membershipRole: "member" });
+    if (tool === "create_agent") {
+      await server.db.insert(spaceMemberships).values({ spaceId: fixture.spaceId, principalType: "agent", principalId: fixture.agentId, status: "active", membershipRole: "member" });
       await server.db.insert(principalPermissionGrants).values([
-        { companyId: fixture.companyId, principalType: "agent", principalId: fixture.agentId, permissionKey: "agents:create" },
-        { companyId: fixture.companyId, principalType: "user", principalId: fixture.responsibleUserId!, permissionKey: "agents:create" },
+        { spaceId: fixture.spaceId, principalType: "agent", principalId: fixture.agentId, permissionKey: "agents:create" },
+        { spaceId: fixture.spaceId, principalType: "user", principalId: fixture.responsibleUserId!, permissionKey: "agents:create" },
       ]);
     }
-    const args = tool === "hire_agent" ? { name: "Recovery teammate", instructions: "Inspect the assigned task." }
+    const args = tool === "create_agent" ? { name: "Recovery teammate", instructions: "Inspect the assigned task." }
       : tool === "comment_on_task" ? { taskId: fixture.issueId, body: "  Persisted comment  " }
       : { taskId: fixture.issueId, key: "recovery", title: "Recovery document", body: "Persisted document", baseRevisionId: null };
     const call = { tool, callId: "completed-bridge-write", arguments: args };
     const result = await fixture.authority.execute(call);
     expect(result).toMatchObject({ ok: true, status: expect.any(Number), apiOperationId: expect.any(String) });
-    if (tool === "hire_agent") {
+    if (tool === "create_agent") {
       await expect.poll(() => nativeAuthProbe.mock.calls
-        .filter(([context]) => context.companyId === fixture.companyId)
-        .map(([context, provider]) => ({ companyId: context.companyId, provider, configProvider: context.config.provider })),
-      { timeout: 5_000 }).toEqual([{ companyId: fixture.companyId, provider: "codex", configProvider: "codex" }]);
+        .filter(([context]) => context.spaceId === fixture.spaceId)
+        .map(([context, provider]) => ({ spaceId: context.spaceId, provider, configProvider: context.config.provider })),
+      { timeout: 5_000 }).toEqual([{ spaceId: fixture.spaceId, provider: "codex", configProvider: "codex" }]);
     }
-    const reopened = new PaperclipRunnerToolAuthority(server.db, fixture.authority.binding);
+    const reopened = new OutpostRunnerToolAuthority(server.db, fixture.authority.binding);
     const effects = async () => {
       const snapshot = await fixture.snapshot();
       return { comments: snapshot.comments, revisions: snapshot.documentRevisions, approvals: snapshot.approvals,
-        agents: await server.db.select({ id: agents.id, name: agents.name }).from(agents).where(eq(agents.companyId, fixture.companyId)).orderBy(agents.id),
+        agents: await server.db.select({ id: agents.id, name: agents.name }).from(agents).where(eq(agents.spaceId, fixture.spaceId)).orderBy(agents.id),
         calls: snapshot.activity.filter(row => row.action === "runner.api_called") };
     };
     const before = await effects();
     expect(before.calls).toHaveLength(1);
     expect(await reopened.recover(call)).toEqual({ result });
-    expect(await reopened.recover({ ...call, arguments: { ...args, ...(tool === "hire_agent" ? { name: "Changed teammate" } : { body: "Changed body" }) } })).toBeNull();
+    expect(await reopened.recover({ ...call, arguments: { ...args, ...(tool === "create_agent" ? { name: "Changed teammate" } : { body: "Changed body" }) } })).toBeNull();
     expect(await reopened.recover({ ...call, callId: "missing-receipt" })).toBeNull();
-    const disabled = new PaperclipRunnerToolAuthority(server.db, { ...fixture.authority.binding, apiToolsEnabled: false });
+    const disabled = new OutpostRunnerToolAuthority(server.db, { ...fixture.authority.binding, apiToolsEnabled: false });
     expect(await disabled.recover(call)).toBeNull();
     const [run] = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, fixture.runId));
     const pending = structuredClone(run.resultJson!);
@@ -569,7 +569,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     const receipts = structuredClone((run.resultJson as Record<string, any>).apiToolReceipts);
     receipts[sha(call.callId)].digest = sha(canonical(bodyless));
     await server.db.update(heartbeatRuns).set({ resultJson: { ...run.resultJson, apiToolReceipts: receipts } }).where(eq(heartbeatRuns.id, fixture.runId));
-    const reopened = new PaperclipRunnerToolAuthority(server.db, fixture.authority.binding);
+    const reopened = new OutpostRunnerToolAuthority(server.db, fixture.authority.binding);
     const network = vi.spyOn(globalThis, "fetch");
     try {
       expect(await reopened.recover(call)).toEqual({ result });
@@ -590,14 +590,14 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     const fixture = await server.fixture();
     const value = "disposable-private-credential-".repeat(1500);
     const secrets = secretService(server.db);
-    const secret = await secrets.create(fixture.companyId, { name: "parity/private-value", key: "PARITY_TOKEN", provider: "local_encrypted", value });
-    await secrets.createBinding({ companyId: fixture.companyId, secretId: secret.id, targetType: "agent", targetId: fixture.agentId, configPath: "env.PARITY_TOKEN" });
+    const secret = await secrets.create(fixture.spaceId, { name: "parity/private-value", key: "PARITY_TOKEN", provider: "local_encrypted", value });
+    await secrets.createBinding({ spaceId: fixture.spaceId, secretId: secret.id, targetType: "agent", targetId: fixture.agentId, configPath: "env.PARITY_TOKEN" });
     const call = { tool: "call_api", callId: "secret-value", arguments: { operationId: "POST /api/agents/me/secrets/{key}/value", pathParams: { key: secret.key } } };
     const result = await fixture.authority.execute(call);
     expect(result).toMatchObject({ ok: true, status: 200, data: { key: secret.key, value } });
     expect(await fixture.authority.execute(call)).toEqual(result);
     expect(await fixture.authority.recover(call)).toEqual({ result });
-    const disabled = new PaperclipRunnerToolAuthority(server.db, { ...fixture.authority.binding, apiToolsEnabled: false });
+    const disabled = new OutpostRunnerToolAuthority(server.db, { ...fixture.authority.binding, apiToolsEnabled: false });
     expect(await disabled.recover(call)).toBeNull();
     await server.db.update(agents).set({ status: "paused" }).where(eq(agents.id, fixture.agentId));
     await expect(fixture.authority.recover(call)).rejects.toThrow("outpost_runner_tool_binding_not_authorized");
@@ -609,22 +609,22 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     expect(Object.values((run.resultJson as any).apiToolReceipts)[0]).toHaveProperty("encryptedResult");
     expect(snapshot.activity.filter(row => row.action === "runner.api_called")).toHaveLength(1);
     const otherAgentId = randomUUID();
-    await server.db.insert(agents).values({ id: otherAgentId, companyId: fixture.companyId, name: "Unbound peer", status: "active" });
-    const [peerRun] = await server.db.insert(heartbeatRuns).values({ companyId: fixture.companyId, agentId: otherAgentId, status: "running", runtimeMode: "native", nativeIssueId: fixture.blockerId, contextSnapshot: { issueId: fixture.blockerId } }).returning();
+    await server.db.insert(agents).values({ id: otherAgentId, spaceId: fixture.spaceId, name: "Unbound peer", status: "active" });
+    const [peerRun] = await server.db.insert(heartbeatRuns).values({ spaceId: fixture.spaceId, agentId: otherAgentId, status: "running", runtimeMode: "native", nativeIssueId: fixture.blockerId, contextSnapshot: { issueId: fixture.blockerId } }).returning();
     await server.db.update(issues).set({ assigneeAgentId: otherAgentId, status: "in_progress", executionRunId: peerRun.id }).where(eq(issues.id, fixture.blockerId));
-    const token = createLocalAgentJwt(otherAgentId, fixture.companyId, "outpost_runner", peerRun.id);
-    expect((await fetch(`${fixture.apiUrl}/api/agents/me/secrets/${secret.key}/value`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "X-Paperclip-Run-Id": peerRun.id } })).status).toBe(403);
+    const token = createLocalAgentJwt(otherAgentId, fixture.spaceId, "outpost_runner", peerRun.id);
+    expect((await fetch(`${fixture.apiUrl}/api/agents/me/secrets/${secret.key}/value`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "X-Outpost-Run-Id": peerRun.id } })).status).toBe(403);
   });
 
   it.each([
-    ["POST /api/companies/{companyId}/exports", 1],
-    ["POST /api/companies/{companyId}/export", 2500],
-  ])("keeps authorized company export credentials private and replayable for %s", async (operationId, repeats) => {
+    ["POST /api/spaces/{spaceId}/exports", 1],
+    ["POST /api/spaces/{spaceId}/export", 2500],
+  ])("keeps authorized space export credentials private and replayable for %s", async (operationId, repeats) => {
     const fixture = await server.fixture();
-    await server.db.update(agents).set({ role: "ceo" }).where(eq(agents.id, fixture.agentId));
+    await server.db.update(agents).set({ role: "lead" }).where(eq(agents.id, fixture.agentId));
     const credential = "disposable-export-credential-".repeat(repeats);
     const [httpAgent] = await server.db.insert(agents).values({
-      companyId: fixture.companyId, name: "Exported HTTP fixture", adapterType: "http",
+      spaceId: fixture.spaceId, name: "Exported HTTP fixture", adapterType: "http",
       adapterConfig: { url: "https://fixture.invalid", headers: { Authorization: credential } },
     }).returning();
     const call = { tool: "call_api", callId: "private-export", arguments: {
@@ -660,26 +660,26 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
   it("preserves the REST skill-test credential scope after a task mode edit and restart preparation", async () => {
     const fixture = await server.fixture();
     await server.db.update(heartbeatRuns).set({ contextSnapshot: { issueId: fixture.issueId,
-      paperclipAgentJwtScope: { kind: "skill_test", issueId: fixture.issueId },
+      outpostAgentJwtScope: { kind: "skill_test", issueId: fixture.issueId },
     } }).where(eq(heartbeatRuns.id, fixture.runId));
     await server.db.update(issues).set({ workMode: "skill_test" }).where(eq(issues.id, fixture.issueId));
     await server.db.update(issues).set({ workMode: "standard" }).where(eq(issues.id, fixture.issueId));
     await expect(reprepareRun(fixture)).rejects.toThrow("The skill test's saved version is unavailable");
-    const [skill] = await server.db.insert(companySkills).values({ companyId: fixture.companyId,
-      key: `company/${fixture.companyId}/scope-test`, slug: "scope-test", name: "Scope test", markdown: "# Scope test", sourceType: "managed" }).returning();
-    const [version] = await server.db.insert(companySkillVersions).values({ companyId: fixture.companyId,
-      companySkillId: skill.id, revisionNumber: 1, fileInventory: [{ path: "SKILL.md", kind: "skill", content: "# Scope test" }] }).returning();
-    await server.db.insert(companySkillTestRuns).values({ companyId: fixture.companyId, skillId: skill.id,
+    const [skill] = await server.db.insert(spaceSkills).values({ spaceId: fixture.spaceId,
+      key: `space/${fixture.spaceId}/scope-test`, slug: "scope-test", name: "Scope test", markdown: "# Scope test", sourceType: "managed" }).returning();
+    const [version] = await server.db.insert(spaceSkillVersions).values({ spaceId: fixture.spaceId,
+      spaceSkillId: skill.id, revisionNumber: 1, fileInventory: [{ path: "SKILL.md", kind: "skill", content: "# Scope test" }] }).returning();
+    await server.db.insert(spaceSkillTestRuns).values({ spaceId: fixture.spaceId, skillId: skill.id,
       skillVersionId: version.id, agentId: fixture.agentId, issueId: fixture.issueId, inputSnapshot: "Exercise the saved scope" });
     await reprepareRun(fixture);
     const [prepared] = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, fixture.runId));
-    expect(prepared.contextSnapshot).toMatchObject({ paperclipAgentJwtScope: { kind: "skill_test", issueId: fixture.issueId },
-      paperclipSkillTest: { skillKey: skill.key, skillVersionId: version.id } });
+    expect(prepared.contextSnapshot).toMatchObject({ outpostAgentJwtScope: { kind: "skill_test", issueId: fixture.issueId },
+      outpostSkillTest: { skillKey: skill.key, skillVersionId: version.id } });
     const body = { kind: "secret", name: "parity/skill-test", value: "disposable-skill-test-value", justification: "Must remain denied" };
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId,
+    const token = createLocalAgentJwt(fixture.agentId, fixture.spaceId, "outpost_runner", fixture.runId,
       fixture.responsibleUserId, { kind: "skill_test", issueId: fixture.issueId });
     const direct = await fetch(`${fixture.apiUrl}/api/agents/me/secret-proposals`, {
-      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Paperclip-Run-Id": fixture.runId }, body: JSON.stringify(body),
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Outpost-Run-Id": fixture.runId }, body: JSON.stringify(body),
     });
     expect(direct.status).toBe(403);
     const result = await fixture.authority.execute({ tool: "call_api", callId: "skill-test-secret-denied", arguments: {
@@ -691,19 +691,19 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
   it("retains standard REST credential scope after a task becomes a skill test and restart preparation", async () => {
     const fixture = await server.fixture();
     await server.db.update(heartbeatRuns).set({ contextSnapshot: { issueId: fixture.issueId,
-      paperclipAgentJwtScope: { kind: "standard" },
+      outpostAgentJwtScope: { kind: "standard" },
     } }).where(eq(heartbeatRuns.id, fixture.runId));
     await server.db.update(issues).set({ workMode: "skill_test" }).where(eq(issues.id, fixture.issueId));
     await reprepareRun(fixture);
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId, null, { kind: "standard" });
-    const direct = await fetch(`${fixture.apiUrl}/api/companies/${fixture.companyId}/projects`, { headers: { Authorization: `Bearer ${token}` } });
+    const token = createLocalAgentJwt(fixture.agentId, fixture.spaceId, "outpost_runner", fixture.runId, null, { kind: "standard" });
+    const direct = await fetch(`${fixture.apiUrl}/api/spaces/${fixture.spaceId}/projects`, { headers: { Authorization: `Bearer ${token}` } });
     expect(direct.status).toBe(200);
     expect(await fixture.authority.execute({ tool: "call_api", callId: "standard-scope", arguments: {
-      operationId: "GET /api/companies/{companyId}/projects",
+      operationId: "GET /api/spaces/{spaceId}/projects",
     } })).toMatchObject({ ok: true, status: 200, data: await direct.json() });
   });
 
-  it("creates and reads secret proposals while preserving redaction and board review", async () => {
+  it("creates and reads secret proposals while preserving redaction and operator review", async () => {
     const fixture = await server.fixture();
     const keyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
     process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = join(server.root, "proposal-master.key");
@@ -718,7 +718,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       const listed = await call("proposal-list", { operationId: "GET /api/agents/me/secret-proposals" });
       expect(listed).toMatchObject({ ok: true, status: 200, data: { proposals: [expect.objectContaining({ id: created.data.id })] } });
       expect(JSON.stringify([created, listed])).not.toContain(args.body.value);
-      expect(await call("proposal-approve-denied", { operationId: "POST /api/companies/{companyId}/secret-proposals/{id}/approve", pathParams: { id: created.data.id } }))
+      expect(await call("proposal-approve-denied", { operationId: "POST /api/spaces/{spaceId}/secret-proposals/{id}/approve", pathParams: { id: created.data.id } }))
         .toMatchObject({ ok: false, status: 403 });
       const [run] = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, fixture.runId));
       expect(JSON.stringify(run.resultJson)).not.toContain(args.body.value);
@@ -730,9 +730,9 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
 
   it("supports routine annotation collaboration without changing scheduling", async () => {
     const fixture = await server.fixture();
-    const [document] = await server.db.select().from(documents).where(eq(documents.companyId, fixture.companyId));
-    const [routine] = await server.db.insert(routines).values({ companyId: fixture.companyId, projectId: fixture.projectId, title: "Review schedule", description: document.latestBody, assigneeAgentId: fixture.agentId, status: "paused" }).returning();
-    await server.db.insert(routineDocuments).values({ companyId: fixture.companyId, routineId: routine.id, documentId: document.id, key: "description" });
+    const [document] = await server.db.select().from(documents).where(eq(documents.spaceId, fixture.spaceId));
+    const [routine] = await server.db.insert(routines).values({ spaceId: fixture.spaceId, projectId: fixture.projectId, title: "Review schedule", description: document.latestBody, assigneeAgentId: fixture.agentId, status: "paused" }).returning();
+    await server.db.insert(routineDocuments).values({ spaceId: fixture.spaceId, routineId: routine.id, documentId: document.id, key: "description" });
     const exact = "silver-wren", start = document.latestBody.indexOf(exact);
     const base = "/api/routines/{id}/description/annotations";
     const call = (callId: string, operationId: string, body: unknown, threadId?: string) => fixture.authority.execute({ tool: "call_api", callId, arguments: { operationId, pathParams: { id: routine.id, ...(threadId ? { threadId } : {}) }, body } }) as Promise<any>;
@@ -749,18 +749,18 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
 
   it("matches direct agent REST authorization for formerly restricted routes", async () => {
     const fixture = await server.fixture({ disableWakeOnDemand: true });
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId);
+    const token = createLocalAgentJwt(fixture.agentId, fixture.spaceId, "outpost_runner", fixture.runId);
     for (const [operationId, path, body] of [
       ["POST /api/agents/{id}/pause", `/api/agents/${fixture.agentId}/pause`, {}],
       ["POST /api/agents/{id}/resume", `/api/agents/${fixture.agentId}/resume`, {}],
-      ["POST /api/companies/{companyId}/exports", `/api/companies/${fixture.companyId}/exports`, {}],
-      ["POST /api/companies/{companyId}/invites", `/api/companies/${fixture.companyId}/invites`, {}],
+      ["POST /api/spaces/{spaceId}/exports", `/api/spaces/${fixture.spaceId}/exports`, {}],
+      ["POST /api/spaces/{spaceId}/invites", `/api/spaces/${fixture.spaceId}/invites`, {}],
       ["POST /api/approvals/{id}/approve", `/api/approvals/${fixture.approvalId}/approve`, {}],
       ["POST /api/issues/{id}/recovery-actions/resolve", `/api/issues/${fixture.blockerId}/recovery-actions/resolve`, {}],
       ["POST /api/execution-workspaces/{id}/runtime-services/{action}", `/api/execution-workspaces/${randomUUID()}/runtime-services/stop`, {}],
-      ["POST /api/companies/{companyId}/skills/{skillId}/test-runs", `/api/companies/${fixture.companyId}/skills/${randomUUID()}/test-runs`, { agentId: fixture.agentId, content: "Test input" }],
+      ["POST /api/spaces/{spaceId}/skills/{skillId}/test-runs", `/api/spaces/${fixture.spaceId}/skills/${randomUUID()}/test-runs`, { agentId: fixture.agentId, content: "Test input" }],
     ] as const) {
-      const direct = await fetch(`${fixture.apiUrl}${path}`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "X-Paperclip-Run-Id": fixture.runId, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const direct = await fetch(`${fixture.apiUrl}${path}`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "X-Outpost-Run-Id": fixture.runId, "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const names = [...operationId.matchAll(/\{([^}]+)\}/g)].map(([, name]) => name);
       const template = operationId.slice(5).split("/");
       const actual = path.split("/");
@@ -778,8 +778,8 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     const fixture = await server.fixture();
     const call = (callId: string, args: unknown) => fixture.authority.execute({ tool: "call_api", callId, arguments: args });
     await expect(call("foreign", { operationId: "GET /api/projects/{id}", pathParams: { id: fixture.foreignProjectId } })).resolves.toMatchObject({ ok: false, status: 404 });
-    await expect(call("invalid", { operationId: "POST /api/companies/{companyId}/projects", body: {} })).resolves.toMatchObject({ ok: false, status: 400 });
-    const args = { operationId: "POST /api/companies/{companyId}/projects", body: { name: "Created through HTTP" } };
+    await expect(call("invalid", { operationId: "POST /api/spaces/{spaceId}/projects", body: {} })).resolves.toMatchObject({ ok: false, status: 400 });
+    const args = { operationId: "POST /api/spaces/{spaceId}/projects", body: { name: "Created through HTTP" } };
     const result = await call("create", args);
     expect(result).toMatchObject({ status: 201, data: { name: "Created through HTTP" } });
     expect(await call("create", args)).toEqual(result);
@@ -795,8 +795,8 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
   it("blocks stale bindings and Ask/Plan mutations before HTTP", async () => {
     for (const mode of ["ask", "planning"] as const) {
       const fixture = await server.fixture({ mode });
-      await expect(fixture.authority.execute({ tool: "call_api", callId: "read", arguments: { operationId: "GET /api/companies/{companyId}/projects" } })).resolves.toMatchObject({ status: 200 });
-      await expect(fixture.authority.execute({ tool: "call_api", callId: "write", arguments: { operationId: "POST /api/companies/{companyId}/projects", body: { name: "Denied" } } })).rejects.toThrow("only reads");
+      await expect(fixture.authority.execute({ tool: "call_api", callId: "read", arguments: { operationId: "GET /api/spaces/{spaceId}/projects" } })).resolves.toMatchObject({ status: 200 });
+      await expect(fixture.authority.execute({ tool: "call_api", callId: "write", arguments: { operationId: "POST /api/spaces/{spaceId}/projects", body: { name: "Denied" } } })).rejects.toThrow("only reads");
       await server.db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, fixture.runId));
       await expect(fixture.authority.execute({ tool: "search_api", callId: "stale", arguments: { query: "projects" } })).rejects.toThrow("binding_not_authorized");
       expect((await fixture.snapshot()).projects.some(p => p.name === "Denied")).toBe(false);
@@ -810,7 +810,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     try {
       expect(fixture.authority.definitions().some(tool => tool.name === "search_api")).toBe(false);
       await expect(fixture.authority.execute({ tool: "call_api", callId: "revoked", arguments: {
-        operationId: "POST /api/companies/{companyId}/projects", body: { name: "Must not exist" },
+        operationId: "POST /api/spaces/{spaceId}/projects", body: { name: "Must not exist" },
       } })).rejects.toThrow("not_advertised");
       await expect(fixture.authority.execute({ tool: "get_task_context", callId: "dedicated-after-stop", arguments: {} }))
         .resolves.toMatchObject({ activeTask: { id: fixture.issueId } });
@@ -820,7 +820,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
 
   it("retains an uncertain mutation receipt without dispatching it again", async () => {
     const fixture = await server.fixture();
-    const args = { operationId: "POST /api/companies/{companyId}/projects", body: { name: "Uncertain" } };
+    const args = { operationId: "POST /api/spaces/{spaceId}/projects", body: { name: "Uncertain" } };
     let rejectNetwork!: (error: Error) => void;
     const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise((_resolve, reject) => { rejectNetwork = reject; }));
     try {
@@ -839,7 +839,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
 
   it.each([403, 422])("a deliberate retry can execute an exact mutation previously rejected with %s", async status => {
     const fixture = await server.fixture();
-    const args = { operationId: "POST /api/companies/{companyId}/projects", body: { name: "Authorized on retry" } };
+    const args = { operationId: "POST /api/spaces/{spaceId}/projects", body: { name: "Authorized on retry" } };
     const rejected = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ error: "Rejected before mutation" }, { status }));
     try {
       expect(await fixture.authority.execute({ tool: "call_api", callId: "rejected", arguments: args }))
@@ -848,18 +848,18 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     await server.db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() })
       .where(eq(heartbeatRuns.id, fixture.runId));
     const id = randomUUID(), intentId = randomUUID();
-    await server.db.insert(heartbeatRuns).values({ id, companyId: fixture.companyId, agentId: fixture.agentId,
+    await server.db.insert(heartbeatRuns).values({ id, spaceId: fixture.spaceId, agentId: fixture.agentId,
       status: "running", runtimeMode: "native", nativeIssueId: fixture.issueId, responsibleUserId: fixture.responsibleUserId,
       contextSnapshot: { issueId: fixture.issueId, previousRunId: fixture.runId } });
     await server.db.update(issues).set({ executionRunId: id }).where(eq(issues.id, fixture.issueId));
-    await server.db.insert(agentWakeupRequests).values({ id: intentId, companyId: fixture.companyId,
+    await server.db.insert(agentWakeupRequests).values({ id: intentId, spaceId: fixture.spaceId,
       agentId: fixture.agentId, runId: id, source: "on_demand", reason: "task_retry", status: "coalesced",
-      requestedByActorType: "user", requestedByActorId: fixture.responsibleUserId ?? "board",
+      requestedByActorType: "user", requestedByActorId: fixture.responsibleUserId ?? "operator",
       payload: { issueId: fixture.issueId, taskRetry: { schema: "outpost.task-retry.v1", generationId: intentId,
-        sourceRunId: fixture.runId, actorId: fixture.responsibleUserId ?? "board", strategy: "fresh_isolated_workspace" } } });
-    if (fixture.responsibleUserId) await initializeRunIdentity(server.db, { companyId: fixture.companyId, runId: id,
+        sourceRunId: fixture.runId, actorId: fixture.responsibleUserId ?? "operator", strategy: "fresh_isolated_workspace" } } });
+    if (fixture.responsibleUserId) await initializeRunIdentity(server.db, { spaceId: fixture.spaceId, runId: id,
       issueId: fixture.issueId, responsibleUserId: fixture.responsibleUserId, cause: "instruction" });
-    const authority = new PaperclipRunnerToolAuthority(server.db, { ...fixture, runId: id });
+    const authority = new OutpostRunnerToolAuthority(server.db, { ...fixture, runId: id });
     const network = vi.spyOn(globalThis, "fetch");
     try {
       const result = await authority.execute({ tool: "call_api", callId: "accepted-retry", arguments: args });
@@ -872,47 +872,47 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
 
   it.each(["task_retry", "automatic_successor"])("%s reuses the completed effect and fences a different unresolved effect across run identities", async mode => {
     const fixture = await server.fixture();
-    const args = { operationId: "POST /api/companies/{companyId}/projects", body: { name: "Already created" } };
+    const args = { operationId: "POST /api/spaces/{spaceId}/projects", body: { name: "Already created" } };
     const completed = await fixture.authority.execute({ tool: "call_api", callId: "first-publication", arguments: args });
     expect(completed).toMatchObject({ status: 201 });
     const [original] = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, fixture.runId));
     await server.db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date(),
       resultJson: { ...original.resultJson, apiToolReceipts: { ...(original.resultJson?.apiToolReceipts as object),
-        unresolved: { operationId: "POST /api/companies/{companyId}/routines", state: "pending", digest: "unknown" } } },
+        unresolved: { operationId: "POST /api/spaces/{spaceId}/routines", state: "pending", digest: "unknown" } } },
     }).where(eq(heartbeatRuns.id, fixture.runId));
     let id = randomUUID();
     const intentId = randomUUID();
-    await server.db.insert(heartbeatRuns).values({ id, companyId: fixture.companyId, agentId: fixture.agentId,
+    await server.db.insert(heartbeatRuns).values({ id, spaceId: fixture.spaceId, agentId: fixture.agentId,
       status: "running", runtimeMode: "native", nativeIssueId: fixture.issueId, responsibleUserId: fixture.responsibleUserId,
       contextSnapshot: { issueId: fixture.issueId, previousRunId: fixture.runId } });
     await server.db.update(issues).set({ executionRunId: id }).where(eq(issues.id, fixture.issueId));
-    await server.db.insert(agentWakeupRequests).values({ id: intentId, companyId: fixture.companyId,
+    await server.db.insert(agentWakeupRequests).values({ id: intentId, spaceId: fixture.spaceId,
       agentId: fixture.agentId, runId: id, source: "on_demand", reason: "task_retry", status: "coalesced",
-      requestedByActorType: "user", requestedByActorId: fixture.responsibleUserId ?? "board",
+      requestedByActorType: "user", requestedByActorId: fixture.responsibleUserId ?? "operator",
       payload: { issueId: fixture.issueId, taskRetry: { schema: "outpost.task-retry.v1", generationId: intentId,
-        sourceRunId: fixture.runId, actorId: fixture.responsibleUserId ?? "board", strategy: "fresh_isolated_workspace" } } });
+        sourceRunId: fixture.runId, actorId: fixture.responsibleUserId ?? "operator", strategy: "fresh_isolated_workspace" } } });
     if (mode === "automatic_successor") {
       const parentId = id;
       id = randomUUID();
       await server.db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() })
         .where(eq(heartbeatRuns.id, parentId));
-      await server.db.insert(heartbeatRuns).values({ id, companyId: fixture.companyId, agentId: fixture.agentId,
+      await server.db.insert(heartbeatRuns).values({ id, spaceId: fixture.spaceId, agentId: fixture.agentId,
         status: "running", runtimeMode: "native", nativeIssueId: fixture.issueId, retryOfRunId: parentId,
         responsibleUserId: fixture.responsibleUserId, invocationSource: "automation", contextSnapshot: { issueId: fixture.issueId } });
       await server.db.update(issues).set({ executionRunId: id }).where(eq(issues.id, fixture.issueId));
     }
-    if (fixture.responsibleUserId) await initializeRunIdentity(server.db, { companyId: fixture.companyId, runId: id,
+    if (fixture.responsibleUserId) await initializeRunIdentity(server.db, { spaceId: fixture.spaceId, runId: id,
       issueId: fixture.issueId, responsibleUserId: fixture.responsibleUserId, cause: "instruction" });
-    const authority = new PaperclipRunnerToolAuthority(server.db, { ...fixture, runId: id });
+    const authority = new OutpostRunnerToolAuthority(server.db, { ...fixture, runId: id });
     const network = vi.spyOn(globalThis, "fetch");
     try {
       expect(await authority.execute({ tool: "call_api", callId: "replacement-publication", arguments: args })).toEqual(completed);
       expect(await authority.execute({ tool: "call_api", callId: "uncertain-other-operation", arguments: {
-        operationId: "POST /api/companies/{companyId}/routines", body: { title: "Uncertain", assigneeAgentId: fixture.agentId },
+        operationId: "POST /api/spaces/{spaceId}/routines", body: { title: "Uncertain", assigneeAgentId: fixture.agentId },
       } })).toMatchObject({ outcome: "unknown", error: "api_outcome_unknown" });
       expect(network).not.toHaveBeenCalled();
       expect(await authority.execute({ tool: "call_api", callId: "independent-read", arguments: {
-        operationId: "GET /api/companies/{companyId}/projects",
+        operationId: "GET /api/spaces/{spaceId}/projects",
       } })).toMatchObject({ status: 200 });
       expect(network).toHaveBeenCalledTimes(1);
     } finally { network.mockRestore(); }
@@ -929,7 +929,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     });
     try {
       await expect(fixture.authority.execute({ tool: "call_api", callId: "expired-during-upload", arguments: {
-        operationId: "POST /api/companies/{companyId}/issues/{issueId}/attachments", pathParams: { issueId: fixture.issueId }, files: [{ artifactId: fixture.artifactId }],
+        operationId: "POST /api/spaces/{spaceId}/issues/{issueId}/attachments", pathParams: { issueId: fixture.issueId }, files: [{ artifactId: fixture.artifactId }],
       } })).rejects.toThrow("binding_not_authorized");
       expect((await fixture.snapshot()).assets).toHaveLength(2);
     } finally { getObject.mockRestore(); }
@@ -939,8 +939,8 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     const fixture = await server.fixture();
     const foreign = await server.fixture();
     const text = JSON.stringify({ padding: "🧭é".repeat(6000), evidence: "last-field-is-readable" });
-    const stored = await server.storage.putFile({ companyId: fixture.companyId, namespace: "eval", originalFilename: "evidence.json", contentType: "application/json", body: Buffer.from(text) });
-    const [asset] = await server.db.insert(assets).values({ ...stored, companyId: fixture.companyId, createdByAgentId: fixture.agentId }).returning();
+    const stored = await server.storage.putFile({ spaceId: fixture.spaceId, namespace: "eval", originalFilename: "evidence.json", contentType: "application/json", body: Buffer.from(text) });
+    const [asset] = await server.db.insert(assets).values({ ...stored, spaceId: fixture.spaceId, createdByAgentId: fixture.agentId }).returning();
     const call = (authority: typeof fixture.authority, assetId: string, responseText?: object) => authority.execute({ tool: "call_api", callId: randomUUID(), arguments: { operationId: "GET /api/assets/{assetId}/content", pathParams: { assetId }, ...(responseText ? { responseText } : {}) } }) as Promise<any>;
     const initial = await call(fixture.authority, asset.id);
     expect(initial).toMatchObject({ status: 206, artifact: { artifactId: asset.id, sha256: asset.sha256, byteSize: Buffer.byteLength(text) } });
@@ -978,7 +978,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     expect(initial).toMatchObject({ ok: true, status: 200, responseText: { offsetBytes: 0, nextOffsetBytes: 8192 } });
     expect(initial.artifact.byteSize).toBeGreaterThan(12 * 1024 * 1024);
     const saved = await server.db.select().from(assets).where(eq(assets.id, initial.artifact.artifactId)).then(rows => rows[0]);
-    const object = await server.storage.getObject(fixture.companyId, saved.objectKey);
+    const object = await server.storage.getObject(fixture.spaceId, saved.objectKey);
     const chunks: Buffer[] = [];
     for await (const chunk of object.stream) chunks.push(chunk);
     const expected = Buffer.concat(chunks);
@@ -1055,30 +1055,30 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     expect(await call()).toMatchObject({ ok: false, error: "api_response_capture_limit" });
   });
 
-  it("counts old snapshots and other-run reservations against the company quota, and reclaims deletions", async () => {
+  it("counts old snapshots and other-run reservations against the space quota, and reclaims deletions", async () => {
     const fixture = await server.fixture();
-    vi.stubEnv("OUTPOST_RUNNER_API_COMPANY_CAPTURE_MAX_BYTES", String(2 * RUNNER_API_RESPONSE_MAX_BYTES));
-    const [oldSnapshot] = await server.db.insert(assets).values({ companyId: fixture.companyId, provider: "local_disk",
-      objectKey: `${fixture.companyId}/runner-api/old-snapshot`, contentType: "text/plain", byteSize: RUNNER_API_RESPONSE_MAX_BYTES,
+    vi.stubEnv("OUTPOST_RUNNER_API_SPACE_CAPTURE_MAX_BYTES", String(2 * RUNNER_API_RESPONSE_MAX_BYTES));
+    const [oldSnapshot] = await server.db.insert(assets).values({ spaceId: fixture.spaceId, provider: "local_disk",
+      objectKey: `${fixture.spaceId}/runner-api/old-snapshot`, contentType: "text/plain", byteSize: RUNNER_API_RESPONSE_MAX_BYTES,
       sha256: "old-snapshot", createdByAgentId: fixture.agentId }).returning();
-    const [reservation] = await server.db.insert(runnerApiResponseReservations).values({ companyId: fixture.companyId, runId: null, reservedBytes: RUNNER_API_RESPONSE_MAX_BYTES }).returning();
+    const [reservation] = await server.db.insert(runnerApiResponseReservations).values({ spaceId: fixture.spaceId, runId: null, reservedBytes: RUNNER_API_RESPONSE_MAX_BYTES }).returning();
     await server.db.update(projects).set({ description: "x".repeat(32 * 1024) }).where(eq(projects.id, fixture.projectId));
     // A fresh authority instance cannot reset reservations from another run/process.
-    const authority = new PaperclipRunnerToolAuthority(server.db, fixture);
+    const authority = new OutpostRunnerToolAuthority(server.db, fixture);
     const call = () => authority.execute({ tool: "call_api", callId: randomUUID(), arguments: {
       operationId: "GET /api/projects/{id}", pathParams: { id: fixture.projectId },
     } });
-    expect(await call()).toMatchObject({ ok: false, error: "api_response_company_storage_limit" });
+    expect(await call()).toMatchObject({ ok: false, error: "api_response_space_storage_limit" });
     await server.db.delete(assets).where(eq(assets.id, oldSnapshot.id));
     const first: any = await call();
     expect(first).toMatchObject({ ok: true });
-    expect(await call()).toMatchObject({ ok: false, error: "api_response_company_storage_limit" });
+    expect(await call()).toMatchObject({ ok: false, error: "api_response_space_storage_limit" });
     await server.db.delete(assets).where(eq(assets.id, first.artifact.artifactId));
-    expect(await server.db.select().from(runnerApiResponseReservations).where(eq(runnerApiResponseReservations.companyId, fixture.companyId))).toEqual([expect.objectContaining({ id: reservation.id })]);
+    expect(await server.db.select().from(runnerApiResponseReservations).where(eq(runnerApiResponseReservations.spaceId, fixture.spaceId))).toEqual([expect.objectContaining({ id: reservation.id })]);
     expect(await call()).toMatchObject({ ok: true });
   });
 
-  it("keeps company storage reserved after an ambiguous upload failure", async () => {
+  it("keeps space storage reserved after an ambiguous upload failure", async () => {
     const fixture = await server.fixture();
     await server.db.update(projects).set({ description: "x".repeat(32 * 1024) }).where(eq(projects.id, fixture.projectId));
     const spy = vi.spyOn(server.storage, "putFile").mockRejectedValueOnce(new Error("storage disconnected"));
@@ -1087,7 +1087,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
         operationId: "GET /api/projects/{id}", pathParams: { id: fixture.projectId },
       } })).rejects.toThrow("storage disconnected");
     } finally { spy.mockRestore(); }
-    expect(await server.db.select().from(runnerApiResponseReservations).where(eq(runnerApiResponseReservations.companyId, fixture.companyId))).toEqual([
+    expect(await server.db.select().from(runnerApiResponseReservations).where(eq(runnerApiResponseReservations.spaceId, fixture.spaceId))).toEqual([
       expect.objectContaining({ assetId: null, reservedBytes: RUNNER_API_RESPONSE_MAX_BYTES }),
     ]);
   });
@@ -1113,28 +1113,28 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
         operationId: "GET /api/projects/{id}", pathParams: { id: fixture.projectId },
       } })).rejects.toThrow("metadata transaction failed");
     } finally { spy.mockRestore(); transactionSpy?.mockRestore(); }
-    const reservations = await server.db.select().from(runnerApiResponseReservations).where(eq(runnerApiResponseReservations.companyId, fixture.companyId));
+    const reservations = await server.db.select().from(runnerApiResponseReservations).where(eq(runnerApiResponseReservations.spaceId, fixture.spaceId));
     expect(reservations).toHaveLength(committed ? 1 : 0);
     if (committed) expect(reservations[0].assetId).toBeTruthy();
-    expect((await server.storage.headObject(fixture.companyId, objectKey)).exists).toBe(committed);
+    expect((await server.storage.headObject(fixture.spaceId, objectKey)).exists).toBe(committed);
   });
 
-  it("shares company admission across simultaneous runs", async () => {
+  it("shares space admission across simultaneous runs", async () => {
     const fixture = await server.fixture();
-    vi.stubEnv("OUTPOST_RUNNER_API_COMPANY_CAPTURE_MAX_BYTES", String(RUNNER_API_RESPONSE_MAX_BYTES));
+    vi.stubEnv("OUTPOST_RUNNER_API_SPACE_CAPTURE_MAX_BYTES", String(RUNNER_API_RESPONSE_MAX_BYTES));
     const otherRunId = randomUUID();
-    await server.db.insert(heartbeatRuns).values({ id: otherRunId, companyId: fixture.companyId, agentId: fixture.agentId,
+    await server.db.insert(heartbeatRuns).values({ id: otherRunId, spaceId: fixture.spaceId, agentId: fixture.agentId,
       status: "running", runtimeMode: "native", nativeIssueId: fixture.blockerId, contextSnapshot: { issueId: fixture.blockerId } });
     await server.db.update(issues).set({ status: "in_progress", executionRunId: otherRunId }).where(eq(issues.id, fixture.blockerId));
-    const other = new PaperclipRunnerToolAuthority(server.db, { ...fixture, issueId: fixture.blockerId, runId: otherRunId });
+    const other = new OutpostRunnerToolAuthority(server.db, { ...fixture, issueId: fixture.blockerId, runId: otherRunId });
     await server.db.update(projects).set({ description: "x".repeat(32 * 1024) }).where(eq(projects.id, fixture.projectId));
     const arguments_ = { operationId: "GET /api/projects/{id}", pathParams: { id: fixture.projectId } };
     const results: any[] = await Promise.all([fixture.authority, other].map(authority => authority.execute({ tool: "call_api", callId: randomUUID(), arguments: arguments_ })));
     expect(results.filter(result => result.ok)).toHaveLength(1);
-    expect(results.find(result => !result.ok)).toMatchObject({ error: "api_response_company_storage_limit" });
+    expect(results.find(result => !result.ok)).toMatchObject({ error: "api_response_space_storage_limit" });
   });
 
-  it("releases a cleaned failed capture's company reservation but retains its run charge", async () => {
+  it("releases a cleaned failed capture's space reservation but retains its run charge", async () => {
     const fixture = await server.fixture();
     let emitted = false;
     const stream = new ReadableStream({
@@ -1149,7 +1149,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
         operationId: "GET /api/projects/{id}", pathParams: { id: fixture.projectId },
       } })).toMatchObject({ ok: false, error: "api_transport_failure" });
     } finally { spy.mockRestore(); }
-    expect(await server.db.select().from(runnerApiResponseReservations).where(eq(runnerApiResponseReservations.companyId, fixture.companyId))).toEqual([]);
+    expect(await server.db.select().from(runnerApiResponseReservations).where(eq(runnerApiResponseReservations.spaceId, fixture.spaceId))).toEqual([]);
     const [run] = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, fixture.runId));
     expect((run.resultJson as Record<string, unknown>).apiResponseCaptureBytes).toBe(RUNNER_API_RESPONSE_MAX_BYTES);
   });
@@ -1157,13 +1157,13 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
   it("persists and range-reads asset sizes above two GiB", async () => {
     const fixture = await server.fixture();
     const offsetBytes = 3 * 1024 * 1024 * 1024;
-    const objectKey = `${fixture.companyId}/eval/sparse-large-response.txt`;
+    const objectKey = `${fixture.spaceId}/eval/sparse-large-response.txt`;
     const path = join(server.root, "storage", objectKey);
     await mkdir(dirname(path), { recursive: true });
     const file = await open(path, "wx");
     try { await file.write(Buffer.from("readable"), 0, 8, offsetBytes); }
     finally { await file.close(); }
-    const [asset] = await server.db.insert(assets).values({ companyId: fixture.companyId, provider: "local_disk", objectKey,
+    const [asset] = await server.db.insert(assets).values({ spaceId: fixture.spaceId, provider: "local_disk", objectKey,
       contentType: "text/plain", byteSize: offsetBytes + 8, sha256: "sparse-fixture", createdByAgentId: fixture.agentId }).returning();
     expect(asset.byteSize).toBe(offsetBytes + 8);
     const page = await fixture.authority.execute({ tool: "call_api", callId: randomUUID(), arguments: {
@@ -1175,7 +1175,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
   it("contains workspace files, checks artifact ownership, and persists downloads", async () => {
     const fixture = await server.fixture();
     const foreign = await server.fixture();
-    const upload = (files: unknown) => fixture.authority.execute({ tool: "call_api", callId: randomUUID(), arguments: { operationId: "POST /api/companies/{companyId}/issues/{issueId}/attachments", pathParams: { issueId: fixture.issueId }, files } });
+    const upload = (files: unknown) => fixture.authority.execute({ tool: "call_api", callId: randomUUID(), arguments: { operationId: "POST /api/spaces/{spaceId}/issues/{issueId}/attachments", pathParams: { issueId: fixture.issueId }, files } });
     await expect(upload([{ artifactId: foreign.artifactId }])).rejects.toThrow("not available");
     await expect(upload([{ path: "../outside.txt" }])).rejects.toThrow();
     const outside = join(server.root, "outside.txt");
@@ -1185,7 +1185,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     await expect(upload([{ path: "sample.txt" }])).resolves.toMatchObject({ status: 201 });
     const download = await fixture.authority.execute({ tool: "call_api", callId: "download", arguments: { operationId: "GET /api/assets/{assetId}/content", pathParams: { assetId: fixture.binaryArtifactId } } }) as any;
     expect(download).toMatchObject({ status: 206, byteSize: 32000, artifact: { artifactId: fixture.binaryArtifactId, byteSize: 32000 } });
-    expect((await fixture.snapshot()).assets).toEqual(expect.arrayContaining([expect.objectContaining({ id: download.artifact.artifactId, companyId: fixture.companyId, createdByAgentId: fixture.agentId })]));
+    expect((await fixture.snapshot()).assets).toEqual(expect.arrayContaining([expect.objectContaining({ id: download.artifact.artifactId, spaceId: fixture.spaceId, createdByAgentId: fixture.agentId })]));
   });
 
   it.each(["sample.txt", "/home/agent/proof.txt"])("uploads remote task bytes at %s and fails closed without the reader", async (sourcePath) => {
@@ -1193,14 +1193,14 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     const bytes=Buffer.from("proof exists only on the execution host\n");
     const read=vi.fn(async(path:string,maxBytes:number)=>{expect(path).toBe(sourcePath);expect(maxBytes).toBeGreaterThan(bytes.length);return bytes;});
     const binding={...fixture.authority.binding,executionTargetKind:"remote" as const,readRemoteApiFile:read};
-    const authority=new PaperclipRunnerToolAuthority(server.db,binding);
-    const call={tool:"call_api" as const,callId:randomUUID(),arguments:{operationId:"POST /api/companies/{companyId}/issues/{issueId}/attachments",pathParams:{issueId:fixture.issueId},files:[{path:sourcePath}]}};
+    const authority=new OutpostRunnerToolAuthority(server.db,binding);
+    const call={tool:"call_api" as const,callId:randomUUID(),arguments:{operationId:"POST /api/spaces/{spaceId}/issues/{issueId}/attachments",pathParams:{issueId:fixture.issueId},files:[{path:sourcePath}]}};
     await expect(authority.execute(call)).resolves.toMatchObject({status:201});
     expect(read).toHaveBeenCalledOnce();
     expect((await fixture.snapshot()).assets).toEqual(expect.arrayContaining([expect.objectContaining({sha256:createHash("sha256").update(bytes).digest("hex"),byteSize:bytes.length})]));
-    const unsupported=new PaperclipRunnerToolAuthority(server.db,{...binding,readRemoteApiFile:undefined});
+    const unsupported=new OutpostRunnerToolAuthority(server.db,{...binding,readRemoteApiFile:undefined});
     await expect(unsupported.execute({...call,callId:randomUUID()})).rejects.toThrow("Remote workspace file uploads are unavailable");
-    const changing=new PaperclipRunnerToolAuthority(server.db,{...binding,readRemoteApiFile:async()=>{await server.db.update(heartbeatRuns).set({status:"cancelled"}).where(eq(heartbeatRuns.id,fixture.runId));return bytes;}});
+    const changing=new OutpostRunnerToolAuthority(server.db,{...binding,readRemoteApiFile:async()=>{await server.db.update(heartbeatRuns).set({status:"cancelled"}).where(eq(heartbeatRuns.id,fixture.runId));return bytes;}});
     await expect(changing.execute({...call,callId:randomUUID()})).rejects.toThrow();
   });
 
@@ -1216,11 +1216,11 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     try {
       const fixture = await localTrustedServer.fixture({
         disableWakeOnDemand: true,
-        contextSnapshot: { paperclipWake: { comments: [] } },
+        contextSnapshot: { outpostWake: { comments: [] } },
       });
       const sourceToken = createLocalAgentJwt(
         fixture.agentId,
-        fixture.companyId,
+        fixture.spaceId,
         "outpost_runner",
         fixture.runId,
       );
@@ -1228,7 +1228,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       const requestHeaders = (token: string) => ({
         authorization: `Bearer ${token}`,
         "content-type": "application/json",
-        "x-paperclip-run-id": fixture.runId,
+        "x-outpost-run-id": fixture.runId,
       });
       const humanCommentResponse = await fetch(
         `${fixture.apiUrl}/api/issues/${fixture.issueId}/comments`,
@@ -1240,7 +1240,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       );
       expect(humanCommentResponse.status).toBe(201);
       const humanComment = await humanCommentResponse.json() as { id: string; authorUserId?: string | null; authorAgentId?: string | null; createdByRunId?: string | null };
-      expect(humanComment).toMatchObject({ authorUserId: "local-board", authorAgentId: null, createdByRunId: null });
+      expect(humanComment).toMatchObject({ authorUserId: "local-operator", authorAgentId: null, createdByRunId: null });
 
       const questionPayload = {
         kind: "ask_user_questions",
@@ -1272,19 +1272,19 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
       const successorRunId = randomUUID();
       await localTrustedServer.db.insert(heartbeatRuns).values({
         id: successorRunId,
-        companyId: fixture.companyId,
+        spaceId: fixture.spaceId,
         agentId: fixture.agentId,
         status: "running",
         runtimeMode: "native",
         nativeIssueId: fixture.issueId,
         invocationSource: "continuation",
         triggerDetail: "comment",
-        contextSnapshot: { issueId: fixture.issueId, paperclipWake: { comments: [{ id: humanComment.id }] } },
+        contextSnapshot: { issueId: fixture.issueId, outpostWake: { comments: [{ id: humanComment.id }] } },
       });
       await localTrustedServer.db.update(issues).set({ executionRunId: successorRunId, checkoutRunId: successorRunId }).where(eq(issues.id, fixture.issueId));
       const successorToken = createLocalAgentJwt(
         fixture.agentId,
-        fixture.companyId,
+        fixture.spaceId,
         "outpost_runner",
         successorRunId,
       );
@@ -1293,7 +1293,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
         `${fixture.apiUrl}/api/issues/${fixture.issueId}/interactions`,
         {
           method: "POST",
-          headers: { ...requestHeaders(successorToken!), "x-paperclip-run-id": successorRunId },
+          headers: { ...requestHeaders(successorToken!), "x-outpost-run-id": successorRunId },
           body: JSON.stringify({ ...questionPayload, idempotencyKey: `fresh-source-question-${successorRunId}` }),
         },
       );
@@ -1316,7 +1316,7 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     }
   });
 
-  it("creates child tasks after seeding and preserves company numbering", async () => {
+  it("creates child tasks after seeding and preserves space numbering", async () => {
     const fixture = await server.fixture();
     await expect(fixture.authority.execute({ tool: "create_task", callId: "child", arguments: { title: "Verify release notes", description: "Check before shipping.", assigneeActorId: null, idempotencyKey: "child" } })).resolves.toBeDefined();
     const children = (await fixture.snapshot()).issues.filter(issue => issue.parentId === fixture.issueId);
@@ -1328,12 +1328,12 @@ else if(m.id!==undefined) send({id:m.id,result:{}});
     const baseline = await server.fixture({ reset: true, apiToolsEnabled: false });
     await server.db.update(issues).set({ billingCode: "previous-attempt" }).where(eq(issues.id, baseline.issueId));
     const treatment = await server.fixture({ reset: true });
-    expect(treatment.companyId).toBe(baseline.companyId);
+    expect(treatment.spaceId).toBe(baseline.spaceId);
     expect(treatment.issueId).toBe(baseline.issueId);
     expect((await treatment.snapshot()).issues[0].billingCode).toBeNull();
     const originalTools = (await baseline.authority.definitions()).map(tool => tool.name);
     const treatmentTools = (await treatment.authority.definitions()).map(tool => tool.name);
-    const apiTools = ["hire_agent", "search_api", "call_api", "get_task", "comment_on_task", "list_task_documents", "read_task_document", "write_task_document"];
+    const apiTools = ["create_agent", "search_api", "call_api", "get_task", "comment_on_task", "list_task_documents", "read_task_document", "write_task_document"];
     expect(treatmentTools.filter(name => !originalTools.includes(name))).toEqual(apiTools);
     expect(treatmentTools.filter(name => !apiTools.includes(String(name)))).toEqual(originalTools);
   });

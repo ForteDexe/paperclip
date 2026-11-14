@@ -1,9 +1,9 @@
-import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
+import type { OutpostPluginManifestV1 } from "@outpost/plugin-sdk";
 
 const PLUGIN_ID = "outpost.e2b-sandbox-provider";
 const PLUGIN_VERSION = "0.1.0";
 
-const manifest: PaperclipPluginManifestV1 = {
+const manifest: OutpostPluginManifestV1 = {
   id: PLUGIN_ID,
   apiVersion: 1,
   version: PLUGIN_VERSION,
@@ -35,7 +35,7 @@ const manifest: PaperclipPluginManifestV1 = {
             type: "string",
             format: "secret-ref",
             description:
-              "Environment-specific E2B API key. Paste a key or an existing Outpost secret reference; saved environments store pasted values as company secrets. Falls back to E2B_API_KEY if omitted.",
+              "Environment-specific E2B API key. Paste a key or an existing Outpost secret reference; saved environments store pasted values as space secrets. Falls back to E2B_API_KEY if omitted.",
           },
           timeoutMs: {
             type: "number",

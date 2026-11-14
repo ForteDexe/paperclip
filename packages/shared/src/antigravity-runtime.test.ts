@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentHarnessType, agentRuntimeSettingsHarness, paperclipRunnerProfileForHarness } from "./agent-runner.js";
+import { agentHarnessType, agentRuntimeSettingsHarness, outpostRunnerProfileForHarness } from "./agent-runner.js";
 import { aiConnectionMetadataSchema, isAiConnectionCompatible } from "./ai-connections.js";
 import { aiRoutingHarness } from "./ai-provider-routing.js";
 
@@ -12,7 +12,7 @@ describe("Antigravity native runtime identity and credentials", () => {
     expect(agentHarnessType("outpost_runner", config)).toBe("antigravity_runtime");
     expect(agentRuntimeSettingsHarness("outpost_runner", config)).toBe("antigravity_runtime");
     expect(aiRoutingHarness("outpost_runner", "acpx", "antigravity")).toBe("antigravity_runtime");
-    expect(paperclipRunnerProfileForHarness("antigravity_runtime")).toBeUndefined();
+    expect(outpostRunnerProfileForHarness("antigravity_runtime")).toBeUndefined();
   });
 
   it("accepts Google runtime sign-in and API keys without tool OAuth or custom endpoints", () => {

@@ -4,7 +4,7 @@ import { context, trace } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from "@opentelemetry/sdk-trace";
 import {
-  applyPendingMigrations, authUsers, companies, companySecrets, companyMemberships, connectionGrants, createDb,
+  applyPendingMigrations, authUsers, spaces, spaceSecrets, spaceMemberships, connectionGrants, createDb,
   EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, toolApplications, toolConnections,
 } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
@@ -12,7 +12,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { writeConnectionCredential } from "../services/connection-credentials.js";
 import { syncConnectionCredentialBindings } from "../services/connection-credential-bindings.js";
 import { withRunExecutionTiming } from "../services/execution-preparation-timing.js";
-import type { PaperclipCloudConnector } from "../services/paperclip-cloud-connector.js";
+import type { OutpostCloudConnector } from "../services/outpost-cloud-connector.js";
 import { toolAccessService } from "../services/tool-access.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
@@ -21,12 +21,12 @@ const support = databaseUrl ? { supported: true } : await getEmbeddedPostgresTes
 (support.supported ? describe : describe.skip)("GitHub repository catalog execution timing", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  const ownedCompanies: string[] = [];
+  const ownedSpaces: string[] = [];
   let exporter: InMemorySpanExporter, provider: TracerProvider, manager: AsyncLocalStorageContextManager;
 
   beforeAll(async () => {
     if (databaseUrl) await applyPendingMigrations(databaseUrl);
-    else temporary = await startEmbeddedPostgresTestDatabase("paperclip-github-catalog-timing-");
+    else temporary = await startEmbeddedPostgresTestDatabase("outpost-github-catalog-timing-");
     db = createDb(databaseUrl ?? temporary.connectionString, { maxConnections: 3 });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   beforeEach(() => {
@@ -42,7 +42,7 @@ const support = databaseUrl ? { supported: true } : await getEmbeddedPostgresTes
     vi.restoreAllMocks(); vi.unstubAllEnvs();
     trace.disable(); context.disable(); manager.disable();
     await provider.shutdown();
-    for (const id of ownedCompanies.splice(0)) { await db.delete(companyMemberships).where(eq(companyMemberships.companyId, id)); await db.delete(companySecrets).where(eq(companySecrets.companyId, id)); await db.delete(companies).where(eq(companies.id, id)); }
+    for (const id of ownedSpaces.splice(0)) { await db.delete(spaceMemberships).where(eq(spaceMemberships.spaceId, id)); await db.delete(spaceSecrets).where(eq(spaceSecrets.spaceId, id)); await db.delete(spaces).where(eq(spaces.id, id)); }
   });
   afterAll(async () => {
     await db?.$client.end({ timeout: 0 });
@@ -51,32 +51,32 @@ const support = databaseUrl ? { supported: true } : await getEmbeddedPostgresTes
 
   async function fixture() {
     const userId = `catalog-user-${randomUUID()}`;
-    const [company] = await db.insert(companies).values({ name: "Catalog timing", issuePrefix: `GH${randomUUID().slice(0, 6)}` }).returning();
-    ownedCompanies.push(company.id);
+    const [space] = await db.insert(spaces).values({ name: "Catalog timing", issuePrefix: `GH${randomUUID().slice(0, 6)}` }).returning();
+    ownedSpaces.push(space.id);
     await db.insert(authUsers).values({ id: userId, name: "Catalog owner", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: userId, status: "active", membershipRole: "owner" });
-    const [application] = await db.insert(toolApplications).values({ companyId: company.id, name: "GitHub catalog", type: "mcp_http" }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: userId, status: "active", membershipRole: "owner" });
+    const [application] = await db.insert(toolApplications).values({ spaceId: space.id, name: "GitHub catalog", type: "mcp_http" }).returning();
     const [connection] = await db.insert(toolConnections).values({
-      companyId: company.id, applicationId: application.id, name: "Private GitHub connection", uid: randomUUID(),
+      spaceId: space.id, applicationId: application.id, name: "Private GitHub connection", uid: randomUUID(),
       transport: "mcp_remote", authKind: "oauth", credentialPolicy: "per_user", enabled: true, status: "active",
-      config: { sourceTemplateKey: "github", oauth: { strategy: "paperclip_cloud_connector", connectorProfile: "github.code" } },
+      config: { sourceTemplateKey: "github", oauth: { strategy: "outpost_cloud_connector", connectorProfile: "github.code" } },
     }).returning();
     const token = `private-fixture-token-${randomUUID()}`;
     const { secret } = await writeConnectionCredential(db, {
-      companyId: company.id, connectionName: connection.name, configPath: "oauth.access_token", label: "Access token",
+      spaceId: space.id, connectionName: connection.name, configPath: "oauth.access_token", label: "Access token",
       value: token, ownerUserId: userId, actor: { userId },
     });
     const [grant] = await db.insert(connectionGrants).values({
-      companyId: company.id, connectionId: connection.id, kind: "user", subjectUserId: userId,
+      spaceId: space.id, connectionId: connection.id, kind: "user", subjectUserId: userId,
       credentialSecretRefs: [{ configPath: "oauth.access_token", secretId: secret.id, versionSelector: "latest" }],
     }).returning();
     await syncConnectionCredentialBindings(db, connection);
     const webhook = vi.fn(async () => trace.getTracer("catalog-fixture").startActiveSpan("fixture.webhook", async span => {
       await Promise.resolve(); span.end();
     }));
-    const connector = { setWebhookBinding: webhook } as unknown as PaperclipCloudConnector;
-    const service = toolAccessService(db, { paperclipCloudConnector: connector });
-    expect(await service.githubReadHeaders(company.id, connection.id, userId)).toEqual({ Authorization: `Bearer ${token}` });
+    const connector = { setWebhookBinding: webhook } as unknown as OutpostCloudConnector;
+    const service = toolAccessService(db, { outpostCloudConnector: connector });
+    expect(await service.githubReadHeaders(space.id, connection.id, userId)).toEqual({ Authorization: `Bearer ${token}` });
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async url =>
       trace.getTracer("catalog-fixture").startActiveSpan("fixture.github_http", async span => {
         await Promise.resolve();
@@ -87,7 +87,7 @@ const support = databaseUrl ? { supported: true } : await getEmbeddedPostgresTes
         if (path === "/user/installations/101/repositories") return Response.json({ repositories: [{ id: 201, full_name: "private-fixture-org/repository", private: true }] });
         throw new Error("Unexpected fixture request");
       }));
-    return { companyId: company.id, userId, connection, grant, service, fetchMock, webhook, token };
+    return { spaceId: space.id, userId, connection, grant, service, fetchMock, webhook, token };
   }
 
   function span(name: string) {
@@ -106,7 +106,7 @@ const support = databaseUrl ? { supported: true } : await getEmbeddedPostgresTes
       acquired(); await released;
     });
     await ready;
-    const pending = withRunExecutionTiming("catalog-lock", () => f.service.listGitHubRepositories(f.companyId, f.userId));
+    const pending = withRunExecutionTiming("catalog-lock", () => f.service.listGitHubRepositories(f.spaceId, f.userId));
     void pending.catch(() => undefined);
     try {
       await vi.waitFor(() => { expect(f.fetchMock).toHaveBeenCalledTimes(3); });
@@ -136,17 +136,17 @@ const support = databaseUrl ? { supported: true } : await getEmbeddedPostgresTes
     expect(span("fixture.webhook").parentSpanContext?.spanId).toBe(span("connectors.github.webhooks").spanContext().spanId);
     for (const name of ["connections", "grants", "grant_members", "membership"]) expect(span(`connectors.github.${name}`).parentSpanContext?.spanId).toBe(catalog.spanContext().spanId);
     const exported = JSON.stringify(exporter.getFinishedSpans().map(({ name, attributes, events }) => ({ name, attributes, events })));
-    for (const privateValue of [f.companyId, f.userId, f.connection.id, f.connection.name, f.grant.id, f.token, "private-fixture-org", "private-fixture-login"]) expect(exported).not.toContain(privateValue);
+    for (const privateValue of [f.spaceId, f.userId, f.connection.id, f.connection.name, f.grant.id, f.token, "private-fixture-org", "private-fixture-login"]) expect(exported).not.toContain(privateValue);
   });
 
   it("preserves denied audiences and swallowed provider failures without exporting error text", async () => {
     const f = await fixture();
-    const denied = await withRunExecutionTiming("catalog-denied", () => f.service.listGitHubRepositories(f.companyId, "unrelated-user"));
+    const denied = await withRunExecutionTiming("catalog-denied", () => f.service.listGitHubRepositories(f.spaceId, "unrelated-user"));
     expect(denied).toMatchObject({ repositories: [], connectionCount: 0, failedConnectionCount: 0 });
     expect(f.fetchMock).not.toHaveBeenCalled();
     const failure = new Error(`private-provider-error-${randomUUID()}`);
     f.fetchMock.mockRejectedValue(failure);
-    const result = await withRunExecutionTiming("catalog-failed", () => f.service.listGitHubRepositories(f.companyId, f.userId));
+    const result = await withRunExecutionTiming("catalog-failed", () => f.service.listGitHubRepositories(f.spaceId, f.userId));
     expect(result).toMatchObject({ repositories: [], connectionCount: 1, failedConnectionCount: 1 });
     expect(span("connectors.github.repositories").status.code).toBe(2);
     expect(span("connectors.github.refresh").status.code).toBe(2);
@@ -169,7 +169,7 @@ const support = databaseUrl ? { supported: true } : await getEmbeddedPostgresTes
       }
       return response;
     });
-    const result = await withRunExecutionTiming("catalog-conflict", () => f.service.listGitHubRepositories(f.companyId, f.userId));
+    const result = await withRunExecutionTiming("catalog-conflict", () => f.service.listGitHubRepositories(f.spaceId, f.userId));
     expect(result).toMatchObject({ connectionCount: 1, failedConnectionCount: 0, repositories: [{ id: "201" }] });
     expect(f.fetchMock).toHaveBeenCalledTimes(6);
     expect(f.webhook).toHaveBeenCalledTimes(1);
@@ -188,16 +188,16 @@ const support = databaseUrl ? { supported: true } : await getEmbeddedPostgresTes
   it("keeps the same catalog outputs with endpoint disabled and emits no owned-run spans outside an attempt", async () => {
     const f = await fixture();
     vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "");
-    const disabled = await withRunExecutionTiming("catalog-off", () => f.service.listGitHubRepositories(f.companyId, f.userId));
+    const disabled = await withRunExecutionTiming("catalog-off", () => f.service.listGitHubRepositories(f.spaceId, f.userId));
     expect(disabled).toMatchObject({ connectionCount: 1, failedConnectionCount: 0, repositories: [{ id: "201" }] });
     expect(exporter.getFinishedSpans().filter(candidate => candidate.name.startsWith("connectors.github."))).toEqual([]);
     exporter.reset();
     vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.test");
-    const outside = await f.service.listGitHubRepositories(f.companyId, f.userId);
+    const outside = await f.service.listGitHubRepositories(f.spaceId, f.userId);
     expect(outside).toEqual(disabled);
     expect(exporter.getFinishedSpans().filter(candidate => candidate.name.startsWith("connectors.github."))).toEqual([]);
     exporter.reset();
-    const enabled = await withRunExecutionTiming("catalog-on", () => f.service.listGitHubRepositories(f.companyId, f.userId));
+    const enabled = await withRunExecutionTiming("catalog-on", () => f.service.listGitHubRepositories(f.spaceId, f.userId));
     expect(enabled).toEqual(disabled);
     expect(span("connectors.github.catalog").status.code).toBe(0);
   });

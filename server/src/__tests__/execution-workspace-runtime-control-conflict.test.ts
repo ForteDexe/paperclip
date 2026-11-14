@@ -98,7 +98,7 @@ let registeredProjectWorkspace: { id: string; cwd: string; metadata: null } | nu
 function buildExecutionWorkspace(overrides: Record<string, unknown> = {}) {
   return {
     id: executionWorkspaceId,
-    companyId: "company-1",
+    spaceId: "space-1",
     // Left unset so the handler does not need a real `db` for project/policy lookups; the
     // runtime config below is what the control path actually reads.
     projectId: null,
@@ -134,7 +134,7 @@ function buildExecutionWorkspace(overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function createApp(actorType: "agent" | "board" = "agent") {
+async function createApp(actorType: "agent" | "operator" = "agent") {
   const [{ executionWorkspaceRoutes }, { errorHandler }] = await Promise.all([
     import("../routes/execution-workspaces.js"),
     import("../middleware/index.js"),
@@ -142,12 +142,12 @@ async function createApp(actorType: "agent" | "board" = "agent") {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    (req as any).actor = actorType === "board" ? {
-      type: "board", userId: "board-1", companyIds: ["company-1"], source: "local_implicit", isInstanceAdmin: true,
+    (req as any).actor = actorType === "operator" ? {
+      type: "operator", userId: "operator-1", spaceIds: ["space-1"], source: "local_implicit", isInstanceAdmin: true,
     } : {
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
       runId: "run-1",
     };
@@ -175,8 +175,8 @@ function createRegisteredRepairFixture(
 ) {
   const workspaceCwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
   const baseCwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}base-`)));
-  const configDir = path.join(workspaceCwd, ".paperclip");
-  const sourceConfigPath = path.join(baseCwd, ".paperclip", "config.json");
+  const configDir = path.join(workspaceCwd, ".outpost");
+  const sourceConfigPath = path.join(baseCwd, ".outpost", "config.json");
   const targetInstanceId = options.targetInstanceId ?? "repair-target";
   const cliRunner = path.join(baseCwd, "cli", "node_modules", "tsx", "dist", "cli.mjs");
   const cliEntry = path.join(baseCwd, "cli", "src", "index.ts");
@@ -364,15 +364,15 @@ describe("execution workspace runtime control conflict and failure reconciliatio
     expect(mockStartRuntimeServices).not.toHaveBeenCalled();
   });
 
-  it.each(["migrating", "remote", "path_changed"] as const)("revalidates a board command at operation publication after the workspace becomes %s", async state => {
-    mockAssertCanManageExecutionWorkspaceRuntimeServices.mockResolvedValue({ actorType: "board" });
+  it.each(["migrating", "remote", "path_changed"] as const)("revalidates a operator command at operation publication after the workspace becomes %s", async state => {
+    mockAssertCanManageExecutionWorkspaceRuntimeServices.mockResolvedValue({ actorType: "operator" });
     const stale = buildExecutionWorkspace();
     mockExecutionWorkspaceService.getById.mockResolvedValueOnce(stale).mockResolvedValue(buildExecutionWorkspace(state === "migrating"
       ? { metadata: { remoteWorkspaceMigration: { schema: "outpost.remote-workspace-migration.v1", state: "running" } } }
       : state === "remote" ? { metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", epoch: 1,
         snapshotId: null, source: { kind: "empty" }, location: null, writerRunId: null, dirty: false } } }
         : { cwd: "/tmp/changed-authority" }));
-    const response = await request(await createApp("board"))
+    const response = await request(await createApp("operator"))
       .post(`/api/execution-workspaces/${executionWorkspaceId}/runtime-services/start`).send({});
     expect(response.status, JSON.stringify(response.body)).toBe(state === "remote" ? 422 : 409);
     expect(response.body.code).toBe(state === "remote" ? "remote_workspace_runtime_commands_unsupported"
@@ -453,9 +453,9 @@ describe("execution workspace runtime control conflict and failure reconciliatio
   });
 
   it("returns 422 with a stable reason when the repair seed manifest is malformed", async () => {
-    const workspaceCwd = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-route-repair-malformed-"));
+    const workspaceCwd = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-route-repair-malformed-"));
     try {
-      const configDir = path.join(workspaceCwd, ".paperclip");
+      const configDir = path.join(workspaceCwd, ".outpost");
       fs.mkdirSync(configDir, { recursive: true });
       fs.writeFileSync(path.join(configDir, "config.json"), "{}\n");
       fs.writeFileSync(path.join(configDir, "seed-manifest.json"), "{ definitely-not-json\n");
@@ -480,7 +480,7 @@ describe("execution workspace runtime control conflict and failure reconciliatio
   it.each(["sibling", "foreign_instance", "symlink", "instance_mismatch"] as const)(
     "rejects a %s repair manifest source before spawn or runtime mutation",
     async (variant) => {
-      const fixture = createRegisteredRepairFixture(`paperclip-route-repair-${variant}-`);
+      const fixture = createRegisteredRepairFixture(`outpost-route-repair-${variant}-`);
       const attackerDir = path.join(path.dirname(fixture.workspaceCwd), `${path.basename(fixture.workspaceCwd)}-attacker`);
       try {
         fs.mkdirSync(attackerDir, { recursive: true });
@@ -531,9 +531,9 @@ describe("execution workspace runtime control conflict and failure reconciliatio
   );
 
   it("rejects repair when the execution workspace has no registered base workspace", async () => {
-    const workspaceCwd = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-route-repair-no-source-"));
+    const workspaceCwd = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-route-repair-no-source-"));
     try {
-      const configDir = path.join(workspaceCwd, ".paperclip");
+      const configDir = path.join(workspaceCwd, ".outpost");
       fs.mkdirSync(configDir, { recursive: true });
       fs.writeFileSync(path.join(configDir, "config.json"), "{}\n");
       fs.writeFileSync(path.join(configDir, "seed-manifest.json"), JSON.stringify({
@@ -562,8 +562,8 @@ describe("execution workspace runtime control conflict and failure reconciliatio
     }
   });
 
-  it("rejects repair when the registered base workspace has no runnable Paperclip CLI", async () => {
-    const fixture = createRegisteredRepairFixture("paperclip-route-repair-no-cli-", { withCli: false });
+  it("rejects repair when the registered base workspace has no runnable Outpost CLI", async () => {
+    const fixture = createRegisteredRepairFixture("outpost-route-repair-no-cli-", { withCli: false });
     try {
       const res = await request(await createApp())
         .post(`/api/execution-workspaces/${executionWorkspaceId}/runtime-commands/repair`)
@@ -583,7 +583,7 @@ describe("execution workspace runtime control conflict and failure reconciliatio
   });
 
   it("returns 422 with a stable reason when the verified manifest names another instance", async () => {
-    const fixture = createRegisteredRepairFixture("paperclip-route-repair-wrong-instance-");
+    const fixture = createRegisteredRepairFixture("outpost-route-repair-wrong-instance-");
     try {
       mockVerifiedReseed(fixture, "another-workspace-instance");
 
@@ -605,7 +605,7 @@ describe("execution workspace runtime control conflict and failure reconciliatio
 
   it("uses the recorded instance pointer consistently for readiness, handoff, and repair", async () => {
     const recordedInstanceId = "recorded-repair-instance";
-    const fixture = createRegisteredRepairFixture("paperclip-route-repair-success-", {
+    const fixture = createRegisteredRepairFixture("outpost-route-repair-success-", {
       targetInstanceId: recordedInstanceId,
     });
     try {
@@ -619,7 +619,7 @@ describe("execution workspace runtime control conflict and failure reconciliatio
       expect(resolveManagedWorkspaceIdentity({
         workspaceCwd: fixture.workspaceCwd,
         executionWorkspaceId,
-        companyId: "company-1",
+        spaceId: "space-1",
         env: { OUTPOST_WORKSPACE_HANDOFF_SECRET: "test-root-secret" },
       })?.instanceId).toBe(recordedInstanceId);
       mockEnsurePersistedExecutionWorkspaceAvailable.mockResolvedValue({ cwd: fixture.workspaceCwd });
@@ -634,7 +634,7 @@ describe("execution workspace runtime control conflict and failure reconciliatio
           "--seed-mode", "full", "--yes", "--backup-target",
         ]));
         expect(options.env).toMatchObject({
-          OUTPOST_SEED_EXPECTED_COMPANY_ID: "company-1",
+          OUTPOST_SEED_EXPECTED_SPACE_ID: "space-1",
           OUTPOST_WORKSPACE_BASE_CWD: fixture.baseCwd,
           OUTPOST_PROJECT_WORKSPACE_ID: projectWorkspaceId,
         });
@@ -686,7 +686,7 @@ describe("execution workspace runtime control conflict and failure reconciliatio
   });
 
   it("completes database-only repair when no managed runtime service is configured", async () => {
-    const fixture = createRegisteredRepairFixture("paperclip-route-repair-db-only-");
+    const fixture = createRegisteredRepairFixture("outpost-route-repair-db-only-");
     try {
       mockExecutionWorkspaceService.getById.mockResolvedValue(buildExecutionWorkspace({
         cwd: fixture.workspaceCwd,
@@ -714,7 +714,7 @@ describe("execution workspace runtime control conflict and failure reconciliatio
   });
 
   it("fails repair at the exact seed phase and leaves managed services stopped", async () => {
-    const fixture = createRegisteredRepairFixture("paperclip-route-repair-failure-");
+    const fixture = createRegisteredRepairFixture("outpost-route-repair-failure-");
     try {
       mockEnsurePersistedExecutionWorkspaceAvailable.mockResolvedValue({ cwd: fixture.workspaceCwd });
       mockSpawn.mockImplementation(() => {

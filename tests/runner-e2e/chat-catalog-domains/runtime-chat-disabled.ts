@@ -10,14 +10,14 @@ import type { IdentityBoundaryCase, IdentityBoundaryContext } from "./identity-b
  * Agent Chat is always on since #19360, so this boundary now covers the gate that still exists:
  * the Conference Room experiment (enableConferenceRoomChat, default off, opt-in hidden from
  * settings by #8237). A real signed-in person follows an old Conference Room link. The product
- * redirects to the company dashboard rather than a broken route, does not list the Conference
+ * redirects to the space dashboard rather than a broken route, does not list the Conference
  * Room, still offers ordinary Chat with Morgan, refuses the board discussion API, and an
  * ordinary agent cannot flip the instance setting. The opt-in is deliberately not offered in
  * the UI today, so no visible operator control is required here.
  */
 type Person = Awaited<ReturnType<typeof createAuthenticatedPerson>>;
-const owned = new WeakMap<IdentityBoundaryContext, { person: Person; api: RunnerApi; companyId?: string; fixtures?: LiveFixtureValues; keyId?: string }>();
-export interface ConferenceRoomOffObservation { companyId: string; companyPrefix: string; agentId: string; personId: string; canonicalIntent: string;
+const owned = new WeakMap<IdentityBoundaryContext, { person: Person; api: RunnerApi; spaceId?: string; fixtures?: LiveFixtureValues; keyId?: string }>();
+export interface ConferenceRoomOffObservation { spaceId: string; spacePrefix: string; agentId: string; personId: string; canonicalIntent: string;
   conferenceRoomEnabled: boolean; oldLinkLandedPath: string; conferenceComposerVisible: boolean; conferenceNavOffered: boolean;
   chatAlternativePath: string; chatAlternativeAgentRefs: string[]; chatComposerVisible: boolean;
   boardChatStatus: number; boardChatErrorCode: string; boardChatProbePersonId: string;
@@ -25,8 +25,8 @@ export interface ConferenceRoomOffObservation { companyId: string; companyPrefix
   beforeTaskIds: string[]; afterTasks: Array<{ id: string; conversationAgentId: string | null }>; runIds: string[] }
 /** Probe the board discussion API with the genuine person's same-origin session wrapper.
  * Return only the closed refusal code, never the raw response or credential. */
-export async function probeBoardChatAsPerson(person: Pick<Person, "id" | "request">, companyId: string, message: string) {
-  const response = await person.request("/api/board/chat/stream", "POST", { companyId, message });
+export async function probeBoardChatAsPerson(person: Pick<Person, "id" | "request">, spaceId: string, message: string) {
+  const response = await person.request("/api/board/chat/stream", "POST", { spaceId, message });
   const status = response.status;
   const body = await response.json().catch(() => undefined) as { code?: unknown; error?: unknown } | undefined;
   const code = body?.code === "FEATURE_DISABLED" ? "FEATURE_DISABLED" : body?.code === "DEPLOYMENT_MODE_UNSUPPORTED" ? "DEPLOYMENT_MODE_UNSUPPORTED"
@@ -35,13 +35,13 @@ export async function probeBoardChatAsPerson(person: Pick<Person, "id" | "reques
 }
 export function gradeConferenceRoomOff(value: unknown) {
   const c = checks(); const o = value as ConferenceRoomOffObservation | undefined;
-  c.add("actual-conference-room-off-context", !!o && !!o.companyId && !!o.companyPrefix && !!o.agentId && !!o.personId && o.personId !== "local-board"
+  c.add("actual-conference-room-off-context", !!o && !!o.spaceId && !!o.spacePrefix && !!o.agentId && !!o.personId && o.personId !== "local-operator"
     && o.canonicalIntent === "Open the conference room so I can talk with Morgan." && o.conferenceRoomEnabled === false,
   "The real signed-in human follows the Conference Room link with the instance experiment actually off; canonical intent remains unsent.");
-  c.add("old-link-lands-on-working-page", !!o && o.oldLinkLandedPath === `/${o.companyPrefix}/dashboard` && !o.conferenceComposerVisible && !o.conferenceNavOffered,
-  "The old Conference Room link opens this company's working dashboard, not a broken route or an unusable board composer, and navigation does not offer the Conference Room.");
+  c.add("old-link-lands-on-working-page", !!o && o.oldLinkLandedPath === `/${o.spacePrefix}/dashboard` && !o.conferenceComposerVisible && !o.conferenceNavOffered,
+  "The old Conference Room link opens this space's working dashboard, not a broken route or an unusable board composer, and navigation does not offer the Conference Room.");
   c.add("supported-chat-alternative", !!o && o.chatComposerVisible && o.chatAlternativeAgentRefs.includes(o.chatAlternativePath.split("/").at(-1) ?? "")
-    && o.chatAlternativePath.startsWith(`/${o.companyPrefix}/chats/`),
+    && o.chatAlternativePath.startsWith(`/${o.spacePrefix}/chats/`),
   "Chat in the same navigation opens an ordinary, working chat with Morgan.");
   c.add("board-discussion-refused", !!o && o.boardChatStatus === 403 && o.boardChatErrorCode === "FEATURE_DISABLED" && o.boardChatProbePersonId === o.personId,
   "The same person's board discussion request is refused by the Conference Room gate itself, not by origin or another check.");
@@ -62,18 +62,18 @@ export const runtimeDisabledChatCases: readonly IdentityBoundaryCase[] = [{
   async run(ctx) {
     const browser = ctx.page.context().browser(); if (!browser) throw new Error("Conference Room boundary requires the real human browser");
     const person = await createAuthenticatedPerson({ api: ctx.api, browser, secrets: ctx.privateSecrets, name: "Alex" });
-    const api = new RunnerApi(person.context.request); person.bindApiSession(api); const resource: { person: Person; api: RunnerApi; companyId?: string; fixtures?: LiveFixtureValues; keyId?: string } = { person, api }; owned.set(ctx, resource);
+    const api = new RunnerApi(person.context.request); person.bindApiSession(api); const resource: { person: Person; api: RunnerApi; spaceId?: string; fixtures?: LiveFixtureValues; keyId?: string } = { person, api }; owned.set(ctx, resource);
     await api.post("/api/bootstrap/claim");
     const workspacePath = path.join(ctx.privateDir, "conference-off-owned-workspace"); await mkdir(workspacePath, { recursive: true, mode: 0o700 });
     const fixtures = await setupLiveFixtures({ api, execution: ctx.execution, executionNonce: ctx.nonce, workspacePath, credentials: ctx.credentials,
-      async onCompanyCreated(id) { resource.companyId = id; ctx.observeResources({ companyId: id, runIds: [] }); } });
+      async onSpaceCreated(id) { resource.spaceId = id; ctx.observeResources({ spaceId: id, runIds: [] }); } });
     resource.fixtures = fixtures;
-    const prefix = fixtures.company.issuePrefix; if (!prefix) throw new Error("Conference Room boundary company has no route prefix");
+    const prefix = fixtures.space.issuePrefix; if (!prefix) throw new Error("Conference Room boundary space has no route prefix");
     await api.patch(`/api/agents/${fixtures.agent.id}`, { name: "Morgan" });
     await api.patch("/api/instance/settings/experimental", { enableConferenceRoomChat: false });
     const settings = await api.get<{ enableConferenceRoomChat: boolean }>("/api/instance/settings/experimental");
     const morgan = await api.get<{ id: string; urlKey?: string | null }>(`/api/agents/${fixtures.agent.id}`);
-    const root = `/api/companies/${fixtures.company.id}`;
+    const root = `/api/spaces/${fixtures.space.id}`;
     const beforeTaskIds = (await api.get<Array<{ id: string }>>(`${root}/issues?includeAgentCreatedTasks=true&limit=1000`)).map(row => row.id).sort();
     // The boundary capture callback is bound to ctx.page; authenticate that page with the same person.
     await person.installSessionOn(ctx.page.context());
@@ -86,8 +86,8 @@ export const runtimeDisabledChatCases: readonly IdentityBoundaryCase[] = [{
     const chatLink = page.locator(`a[href="/${prefix}/chats"]`).first();
     await expect(chatLink).toBeVisible();
     const conferenceNavOffered = await page.locator(`a[href="/${prefix}/board-chat"]`).count() > 0;
-    ctx.observeResources({ companyId: fixtures.company.id, agentId: fixtures.agent.id, runIds: [] });
-    await ctx.capture("conference-room-off", "The old Conference Room link lands on the working company dashboard; canonical intent remains unsent", "runtime-conference-room-off.png");
+    ctx.observeResources({ spaceId: fixtures.space.id, agentId: fixtures.agent.id, runIds: [] });
+    await ctx.capture("conference-room-off", "The old Conference Room link lands on the working space dashboard; canonical intent remains unsent", "runtime-conference-room-off.png");
     // Supported alternative: the person's own Chat entry opens an ordinary chat with Morgan.
     await chatLink.click();
     const morganChoice = page.getByRole("button", { name: /Morgan/ });
@@ -102,12 +102,12 @@ export const runtimeDisabledChatCases: readonly IdentityBoundaryCase[] = [{
     const denied = await fetch(new URL("/api/instance/settings/experimental", api.baseURL), { method: "PATCH", redirect: "error", signal: AbortSignal.timeout(15_000),
       headers: { Authorization: `Bearer ${key.token}`, "content-type": "application/json" }, body: JSON.stringify({ enableConferenceRoomChat: true }) });
     const agentSettingsStatus = denied.status; await denied.body?.cancel();
-    const boardProbe = await probeBoardChatAsPerson(person, fixtures.company.id, ctx.scenario.query);
+    const boardProbe = await probeBoardChatAsPerson(person, fixtures.space.id, ctx.scenario.query);
     const gateAfterProbe = (await api.get<{ enableConferenceRoomChat: boolean }>("/api/instance/settings/experimental")).enableConferenceRoomChat;
     const tasks = await api.get<Array<{ id: string; conversationAgentId?: string | null }>>(`${root}/issues?includeAgentCreatedTasks=true&limit=1000`);
     const runIds = (await api.get<Array<{ id: string }>>(`${root}/heartbeat-runs?limit=100`)).map(row => row.id);
-    ctx.observeResources({ companyId: fixtures.company.id, agentId: fixtures.agent.id, runIds });
-    const observation: ConferenceRoomOffObservation = { companyId: fixtures.company.id, companyPrefix: prefix, agentId: fixtures.agent.id, personId: person.id,
+    ctx.observeResources({ spaceId: fixtures.space.id, agentId: fixtures.agent.id, runIds });
+    const observation: ConferenceRoomOffObservation = { spaceId: fixtures.space.id, spacePrefix: prefix, agentId: fixtures.agent.id, personId: person.id,
       canonicalIntent: ctx.scenario.query, conferenceRoomEnabled: settings.enableConferenceRoomChat, oldLinkLandedPath, conferenceComposerVisible, conferenceNavOffered,
       chatAlternativePath, chatAlternativeAgentRefs: [morgan.id, ...(morgan.urlKey ? [morgan.urlKey] : [])], chatComposerVisible: true,
       ...boardProbe, agentSettingsStatus, gateAfterProbe, beforeTaskIds,
@@ -118,7 +118,7 @@ export const runtimeDisabledChatCases: readonly IdentityBoundaryCase[] = [{
     const resource = owned.get(ctx); if (!resource) return;
     try { if (resource.keyId && resource.fixtures) await resource.api.delete(`/api/agents/${resource.fixtures.agent.id}/keys/${resource.keyId}`, { allowNotFound: true });
       await resource.fixtures?.teardown();
-      if (resource.companyId) await resource.api.delete(`/api/companies/${resource.companyId}`, { allowNotFound: true });
+      if (resource.spaceId) await resource.api.delete(`/api/spaces/${resource.spaceId}`, { allowNotFound: true });
     } finally { await resource.person.dispose(); owned.delete(ctx); }
   },
 }];

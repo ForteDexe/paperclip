@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION paperclip_bump_issue_assignment_version()
+CREATE OR REPLACE FUNCTION outpost_bump_issue_assignment_version()
 RETURNS trigger AS $$
 BEGIN
 	IF NEW."assignee_agent_id" IS DISTINCT FROM OLD."assignee_agent_id"
@@ -8,7 +8,7 @@ BEGIN
 	RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;--> statement-breakpoint
-DROP TRIGGER IF EXISTS paperclip_issue_assignment_version_trigger ON "issues";--> statement-breakpoint
-CREATE TRIGGER paperclip_issue_assignment_version_trigger
+DROP TRIGGER IF EXISTS outpost_issue_assignment_version_trigger ON "issues";--> statement-breakpoint
+CREATE TRIGGER outpost_issue_assignment_version_trigger
 BEFORE UPDATE OF "assignee_agent_id", "assignee_user_id" ON "issues"
-FOR EACH ROW EXECUTE FUNCTION paperclip_bump_issue_assignment_version();
+FOR EACH ROW EXECUTE FUNCTION outpost_bump_issue_assignment_version();

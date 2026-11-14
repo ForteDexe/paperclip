@@ -284,7 +284,7 @@ export function rehydrateGitHubPublicAttachment(
   return attachment;
 }
 
-/** Parse references only; network I/O happens later, after Paperclip's admission fence. */
+/** Parse references only; network I/O happens later, after Outpost's admission fence. */
 export function githubPublicAttachmentsFromMessage(
   message: Message,
 ): Attachment[] {

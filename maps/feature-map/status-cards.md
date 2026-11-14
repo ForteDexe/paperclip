@@ -59,7 +59,7 @@ Capability ID: `status-cards/authoring`.
 
 Scope: ui
 Storybook: Mount CreateStatusCardDialog and StatusCardSettingsForm prompt, summarizer, refresh options, required/invalid inputs and save errors.
-Production: POST /companies/{id}/status-cards and PATCH /status-cards/{id} must enforce gate/author authority, save configuration and start expected compile task when prompt changes.
+Production: POST /spaces/{id}/status-cards and PATCH /status-cards/{id} must enforce gate/author authority, save configuration and start expected compile task when prompt changes.
 Sources: Source: [CreateStatusCardDialog.tsx](../../ui/src/pages/StatusCards/CreateStatusCardDialog.tsx), [StatusCardSettingsForm.tsx](../../ui/src/pages/StatusCards/StatusCardSettingsForm.tsx), [status-cards.ts](../../server/src/routes/status-cards.ts). Tests: [StatusCardSettingsForm.test.tsx](../../ui/src/pages/StatusCards/StatusCardSettingsForm.test.tsx), [status-cards.test.ts](../../server/src/__tests__/status-cards.test.ts)
 
 #### `generation`

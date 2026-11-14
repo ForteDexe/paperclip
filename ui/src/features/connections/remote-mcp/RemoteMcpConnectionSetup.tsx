@@ -37,10 +37,10 @@ function FieldHelp({ label, children }: { label: string; children: ReactNode }) 
 
 /** Controlled presentation shared by provider setup, configuration imports and review stories.
  * Authentication, persistence and calls belong to the controller, never these views. */
-export function RemoteMcpConnectionSetup({ provider, state: s, actions: a, agents, companyId, connectionId, fixedGrantKind, lockedAgentId, host = "page", authorizationUrl, upstreamServiceName, onCancel, additionalSettings, settingsValid = true }: {
+export function RemoteMcpConnectionSetup({ provider, state: s, actions: a, agents, spaceId, connectionId, fixedGrantKind, lockedAgentId, host = "page", authorizationUrl, upstreamServiceName, onCancel, additionalSettings, settingsValid = true }: {
   additionalSettings?: ReactNode;
   settingsValid?: boolean;
-  companyId: string;
+  spaceId: string;
   onCancel?: () => void;
   upstreamServiceName?: string;
   host?: "page" | "dialog";
@@ -85,8 +85,8 @@ export function RemoteMcpConnectionSetup({ provider, state: s, actions: a, agent
   // remove it and pin every Zapier connection to the organization.
   const authKind = "oauth";
   const defaults = (extra: ReactNode) => <ConnectionAccessDefaults
-    companyId={companyId}
-    {...(companyId ? {} : { agents })}
+    spaceId={spaceId}
+    {...(spaceId ? {} : { agents })}
     sentence={connectionDefaultSummarySentence({
       grantKind: s.grantKind,
       authKind,

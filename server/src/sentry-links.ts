@@ -2,14 +2,14 @@ import type { TaskCreationProvenance } from "./services/task-creation-provenance
 
 export interface SentryRunReference {
   runId: string;
-  companyId?: string;
+  spaceId?: string;
   agentId?: string;
   includeCreationProvenance?: boolean;
 }
 
 export interface SentryRunLinks {
-  companyId: string;
-  companyPrefix: string;
+  spaceId: string;
+  spacePrefix: string;
   agentId: string;
   taskId: string | null;
   taskIdentifier: string | null;
@@ -36,7 +36,7 @@ export function setSentryRunLinkResolver(resolver: SentryRunLinkResolver | null)
 /** Enrich only events already associated with a run. Never read a request URL or body. */
 export async function addSentryRunLinks<T extends LinkableEvent>(event: T): Promise<T> {
   if (event.request?.headers) event.request = { ...event.request, headers: Object.fromEntries(
-    Object.entries(event.request.headers).filter(([key]) => key.toLowerCase() !== "x-paperclip-source-run-token"),
+    Object.entries(event.request.headers).filter(([key]) => key.toLowerCase() !== "x-outpost-source-run-token"),
   ) };
   const failure = event.tags?.event_kind === "run_failure";
   if (failure) event.tags = { ...event.tags, automation_origin_status: "unknown", automation_routine_ids: "unknown", task_shareable: "unknown" };
@@ -51,17 +51,17 @@ export async function addSentryRunLinks<T extends LinkableEvent>(event: T): Prom
   } catch {}
   if (!base && !failure) return event;
 
-  const companyId = event.tags?.company_id;
+  const spaceId = event.tags?.space_id;
   const agentId = event.tags?.agent_id;
-  // A malformed supplied identity must not widen a lookup to another company.
-  if (companyId != null && (typeof companyId !== "string" || !UUID.test(companyId))) return event;
+  // A malformed supplied identity must not widen a lookup to another space.
+  if (spaceId != null && (typeof spaceId !== "string" || !UUID.test(spaceId))) return event;
   if (agentId != null && (typeof agentId !== "string" || !UUID.test(agentId))) return event;
   // A deadline cannot cancel a pooled database read. Bound unfinished reads so
   // repeated errors during an outage cannot build an unbounded lookup queue.
   if (pendingLookups.size >= 8) return event;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const lookup = resolver({ runId, ...(companyId ? { companyId } : {}), ...(agentId ? { agentId } : {}),
+    const lookup = resolver({ runId, ...(spaceId ? { spaceId } : {}), ...(agentId ? { agentId } : {}),
       ...(failure ? { includeCreationProvenance: true } : {}) });
     pendingLookups.add(lookup);
     void lookup.then(() => pendingLookups.delete(lookup), () => pendingLookups.delete(lookup));
@@ -71,8 +71,8 @@ export async function addSentryRunLinks<T extends LinkableEvent>(event: T): Prom
       lookup,
       new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), 1_000); }),
     ]);
-    if (!links || !UUID.test(links.companyId) || !UUID.test(links.agentId) ||
-        (companyId && links.companyId !== companyId) || (agentId && links.agentId !== agentId)) return event;
+    if (!links || !UUID.test(links.spaceId) || !UUID.test(links.agentId) ||
+        (spaceId && links.spaceId !== spaceId) || (agentId && links.agentId !== agentId)) return event;
     const provenance = links.creationProvenance;
     if (failure && provenance && Array.isArray(provenance.routineIds) && provenance.routineIds.every(id => typeof id === "string" && UUID.test(id))) {
       const routineIds = [...new Set(provenance.routineIds.map(id => id.toLowerCase()))].sort();
@@ -80,13 +80,13 @@ export async function addSentryRunLinks<T extends LinkableEvent>(event: T): Prom
       event.tags = { ...event.tags, automation_origin_status: status,
         automation_routine_ids: routineIds.slice(0, 5).join(",") || "none",
         task_shareable: provenance.shareable === true ? "true" : provenance.shareable === false ? "false" : "unknown" };
-      event.contexts = { ...event.contexts, paperclip_creation: { status, routineIds: routineIds.slice(0, 100), shareable: provenance.shareable } };
+      event.contexts = { ...event.contexts, outpost_creation: { status, routineIds: routineIds.slice(0, 100), shareable: provenance.shareable } };
     }
-    if (!base || !/^[A-Z][A-Z0-9]*$/.test(links.companyPrefix)) return event;
-    const prefix = `/${links.companyPrefix}`;
+    if (!base || !/^[A-Z][A-Z0-9]*$/.test(links.spacePrefix)) return event;
+    const prefix = `/${links.spacePrefix}`;
     const runUrl = new URL(`${prefix}/agents/${links.agentId}/runs/${runId}`, base).href;
     const identifier = links.taskIdentifier;
-    const taskKey = identifier && new RegExp(`^${links.companyPrefix}-[1-9][0-9]*$`).test(identifier)
+    const taskKey = identifier && new RegExp(`^${links.spacePrefix}-[1-9][0-9]*$`).test(identifier)
       ? identifier : links.taskId && UUID.test(links.taskId) ? links.taskId : null;
     const taskUrl = taskKey ? new URL(`${prefix}/issues/${taskKey}`, base).href : null;
     // Sentry tag values are bounded to 200 characters. Keep a full long-host URL
@@ -96,8 +96,8 @@ export async function addSentryRunLinks<T extends LinkableEvent>(event: T): Prom
       ...(taskUrl && taskUrl.length <= 200 ? { task_url: taskUrl } : {}),
       ...(identifier && identifier.length <= 200 && taskKey === identifier ? { task_identifier: identifier } : {}),
     };
-    event.contexts = { ...event.contexts, paperclip: {
-      ...event.contexts?.paperclip,
+    event.contexts = { ...event.contexts, outpost: {
+      ...event.contexts?.outpost,
       runPageUrl: runUrl,
       ...(taskUrl ? { taskUrl } : {}),
     } };

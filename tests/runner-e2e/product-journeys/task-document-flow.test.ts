@@ -12,7 +12,7 @@ describe("task document reopen navigation", () => {
     });
     const reload = vi.fn();
     const context = {
-      api: { origin: "https://qa.example.test" }, company: { issuePrefix: "QA" },
+      api: { origin: "https://qa.example.test" }, space: { issuePrefix: "QA" },
       page: {
         goto: vi.fn(async (url: string) => {
           const params = new URL(url).searchParams;

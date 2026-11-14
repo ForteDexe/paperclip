@@ -7,7 +7,7 @@ Existing agent and project subscriptions do not receive this new resource type.
 Manual inbox reads retain both legacy streams regardless of automatic subscriptions.
 They include runtime events only when the manifest opts into `agent_runtime`.
 
-An event contains company identity, agent identity in `resourceId`, a numeric
+An event contains space identity, agent identity in `resourceId`, a numeric
 sequence serialized as `id`, and its action. It contains no file contents,
 configuration, or credentials. Treat `id` as an opaque decimal revision, not a
 JavaScript floating-point value. Delivery is at least once and ordered per agent.
@@ -35,22 +35,22 @@ for listener registration. It releases the listener after the last runtime
 subscriber is disabled or removed. Legacy subscriptions keep process-local work signals.
 
 A plugin that also has `agents.lifecycle.manage` can call
-`ctx.agents.getRuntime(agentId, companyId)` from a company-scoped invocation.
+`ctx.agents.getRuntime(agentId, spaceId)` from a space-scoped invocation.
 Only the enabled, ready plugin selected in that agent's required lifecycle set
 can read these inputs. The result supplies the latest runtime revision, the
 normalized agent configuration, instruction root and entry filename, and that
 plugin's own instance secrets. Instruction paths use the same managed-folder
-recovery as the instruction reader. A missing or cross-company agent returns null.
+recovery as the instruction reader. A missing or cross-space agent returns null.
 The instruction root identifies host files that the trusted worker can package
 through its existing filesystem access. This API grants no arbitrary path reads.
 Never expose instance secrets through UI data, logs, plugin state, or agent files.
 
-Use `ctx.agents.getRuntimeIdentity(agentId, companyId)` for freshness checks.
-It returns only the revision, agent ID, company ID, status, lifecycle state and
+Use `ctx.agents.getRuntimeIdentity(agentId, spaceId)` for freshness checks.
+It returns only the revision, agent ID, space ID, status, lifecycle state and
 version, and this plugin's current instance secrets. It uses the same ownership,
-capability, and company checks as `getRuntime`. Each call reads current state;
+capability, and space checks as `getRuntime`. Each call reads current state;
 it does not cache grants or secrets. It does not resolve instruction files,
-company reporting relationships, skills, or connection assignments. Read the full
+space reporting relationships, skills, or connection assignments. Read the full
 runtime once to obtain synchronization inputs, then use the identity reader to
 fence effects against changes.
 
@@ -61,7 +61,7 @@ snapshot or permission to change an active provider session. Execution admission
 and provider activation keep their existing checks. The private transport consumer
 is a separate integration.
 
-Filesystem changes outside Paperclip's managed write APIs do not emit these
+Filesystem changes outside Outpost's managed write APIs do not emit these
 hooks. Filesystem publication and the database journal are not one filesystem
 transaction. A failed managed write must be repaired through the same API before
 claiming synchronization. Upstream repository detection remains owned by the
@@ -80,11 +80,11 @@ Consumers can skip rewriting content whose hash already matches.
 Migration 0348 invalidates referencing agents when installed skill content,
 companion files, versions, source bindings, or identities change. Rename checks
 both old and new keys. String selections, structured selections, and supported
-legacy aliases are recognized. Unrelated agents and other companies receive no
+legacy aliases are recognized. Unrelated agents and other spaces receive no
 content invalidation. Private-source bindings, membership, and privacy changes
 invalidate only agents assigned skills from the affected sources. Project workspace
-authorization-policy changes use the same boundary. Company policy
-changes conservatively invalidate the company.
+authorization-policy changes use the same boundary. Space policy
+changes conservatively invalidate the space.
 Source retry/lease bookkeeping and skill popularity counters do not emit changes.
 Multi-skill source publication defers its skill invalidation until transaction
 commit, after it acquires all skill rows. This avoids an agent-lock/skill-lock
@@ -109,21 +109,21 @@ skill mentions and a running task's saved version selection remain task-owned.
 `getRuntime` also returns `connectionAssignments`: effective `publicMcp` and
 `chatConnectors` feature switches, installed connections with `id`, `name`,
 `transport`, `enabled`, and `status`, and active profile IDs. It includes both
-company assignments and assignments for the requested agent. It excludes other
+space assignments and assignments for the requested agent. It excludes other
 agents' assignments and has no credential values, grant details, or tool schemas.
 The owning-plugin checks for the runtime reader apply to this field too.
 
 Migration 0354 records committed changes to every stored field used by this
 snapshot. Agent-targeted installation and profile binding edits invalidate only
-their old and new target agents. Company-targeted assignments invalidate company
+their old and new target agents. Space-targeted assignments invalidate space
 agent runtimes. Project, routine, issue, and gateway bindings are outside this
 snapshot and do not invalidate it. Connection metadata, profile activation or
-removal, and connector feature switches still use conservative company-wide
+removal, and connector feature switches still use conservative space-wide
 invalidation. Empty writes and changes to health bookkeeping do not. Multiple
 assignment statements in one transaction coalesce to one update per agent.
 Journal writes and their triggering changes commit or roll back together.
-Company-wide invalidation remains synchronous: it locks eligible company agents
-in order and journals one update per agent. Its work grows with company size;
+Space-wide invalidation remains synchronous: it locks eligible space agents
+in order and journals one update per agent. Its work grows with space size;
 there is no fanout ceiling or cross-transaction mutation quota.
 
 The reader orders and deduplicates assignments. It rejects more than 512
@@ -131,7 +131,7 @@ connections or 128 active profiles with status 422 instead of returning a partia
 snapshot. It rechecks the revision after reading assignments and skills, with the
 same three-attempt conflict behavior described above.
 
-Each delivery-service startup records one company baseline when an enabled
+Each delivery-service startup records one space baseline when an enabled
 runtime subscriber becomes active. This covers feature overlays supplied at
 process startup. It does not add a recurring scan. Plugins must compare desired
 state and destination hashes before rewriting external files.
@@ -144,15 +144,15 @@ authorization. Existing agent and skill invalidations still apply independently.
 Migration 0355 extends runtime invalidation to application and connection
 configuration, catalog contents, profile entries, policies, and MCP gateways.
 These changes use the same content-free journal, atomic commit behavior, and
-transaction coalescing. Bulk discovery invalidates once per company per committed
+transaction coalescing. Bulk discovery invalidates once per space per committed
 chunk instead of once per tool. Unchanged rediscovery, health bookkeeping, and
 trust-rule usage counters do not request preparation. Binding and installation
 notifications retain the scoped recipients described above. Profile-entry changes
 notify agents from the old and new profiles' standing bindings. Policies use
 their old and new `agentId` and `agentIds` selectors, including their intersection
-when both are set. Unscoped policies and company-bound profiles retain atomic
-company fanout. Other definition changes still use conservative company-wide
-fanout with the same documented company-size cost.
+when both are set. Unscoped policies and space-bound profiles retain atomic
+space fanout. Other definition changes still use conservative space-wide
+fanout with the same documented space-size cost.
 
 Profile entry mutations lock referenced applications, connections, and catalog
 rows before the parent profile. They then change the entries and parent in one
@@ -173,20 +173,20 @@ use their existing authorized readers for tool definitions and configuration.
 
 ## Access, credentials, and endpoints
 
-Migration 0356 adds connection grants, grant audiences and delegations, company
+Migration 0356 adds connection grants, grant audiences and delegations, space
 membership and permissions, secret bindings, chat/email endpoint configuration,
 and referenced credential rotation or revocation. Vault configuration and status
-changes invalidate companies whose connector credentials reference that vault.
+changes invalidate spaces whose connector credentials reference that vault.
 Vault health checks, OAuth grant refresh leases, Vercel verification timestamps,
 GitHub webhook health, and endpoint publication timestamps do not request work.
 Credential identifiers, expiry, and repository access changes remain covered.
 Events contain no credential values, phone numbers, or provider payloads.
 
-Access changes conservatively invalidate eligible company agents because
+Access changes conservatively invalidate eligible space agents because
 responsible-user and task-time access can vary across runs. Agent secret bindings
 instead invalidate their owning agent. Personal delegation creation, reassignment, and revocation invalidate only
 their old and new target agents. Whole-grant revocation and membership cleanup
-retain company invalidation. Unchanged grant audiences preserve their rows after
+retain space invalidation. Unchanged grant audiences preserve their rows after
 membership validation.
 
 OAuth persistence and membership cleanup lock affected grants before connection
@@ -201,18 +201,18 @@ conflict. Each operation adds two grant queries, bounded to the subject and
 connection. The existing connection lock still serializes provider refresh work.
 
 Membership cleanup locks credential deletion candidates without waiting before
-company agent locks. A busy credential rolls back the complete membership
+space agent locks. A busy credential rolls back the complete membership
 transaction, including its membership and grant locks. All four cleanup entry
-points re-read their state on retry, with at most three attempts. Company-access
-changes process companies in ID order.
+points re-read their state on retry, with at most three attempts. Space-access
+changes process spaces in ID order.
 
 Personal delegation creation locks its grant, connection reference, and target
 agent before insertion. Delegation revocation locks its grant and target before
-deletion. Whole-grant and membership cleanup lock eligible company agents in ID
+deletion. Whole-grant and membership cleanup lock eligible space agents in ID
 order before deleting scoped delegations. Static-key reconnect locks grants and connection inputs
-before credential writes. Secret removal locks company agents in ID order before
+before credential writes. Secret removal locks space agents in ID order before
 cascading into bindings. Plugin instance secrets cannot use ordinary bindings,
-so their removal retains its owner lock without a company sweep. It tries the secret lock without waiting, releases its
+so their removal retains its owner lock without a space sweep. It tries the secret lock without waiting, releases its
 transaction locks if that lock is busy, and retries up to three times. Continued
 contention returns a retryable conflict. Provider deletion stays outside that
 transaction; retrying resumes removal of the already disabled secret. These

@@ -1,21 +1,21 @@
 CREATE TABLE plugin_campfire_c1a2fb4ac8.rooms (
   id uuid PRIMARY KEY,
-  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  space_id uuid NOT NULL REFERENCES public.spaces(id) ON DELETE CASCADE,
   project_id uuid REFERENCES public.projects(id) ON DELETE SET NULL,
   name text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (company_id, name)
+  UNIQUE (space_id, name)
 );
 
 CREATE TABLE plugin_campfire_c1a2fb4ac8.room_members (
   room_id uuid NOT NULL REFERENCES plugin_campfire_c1a2fb4ac8.rooms(id) ON DELETE CASCADE,
-  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  space_id uuid NOT NULL REFERENCES public.spaces(id) ON DELETE CASCADE,
   agent_id uuid NOT NULL REFERENCES public.agents(id) ON DELETE CASCADE,
   handle text NOT NULL,
   joined_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (room_id, agent_id),
-  UNIQUE (company_id, agent_id)
+  UNIQUE (space_id, agent_id)
 );
 
 CREATE UNIQUE INDEX campfire_room_handle_unique
@@ -23,7 +23,7 @@ CREATE UNIQUE INDEX campfire_room_handle_unique
 
 CREATE TABLE plugin_campfire_c1a2fb4ac8.agent_sessions (
   room_id uuid NOT NULL,
-  company_id uuid NOT NULL,
+  space_id uuid NOT NULL,
   agent_id uuid NOT NULL,
   session_id text NOT NULL,
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'closed', 'failed')),
@@ -40,7 +40,7 @@ CREATE TABLE plugin_campfire_c1a2fb4ac8.messages (
   id uuid PRIMARY KEY,
   seq bigserial NOT NULL,
   room_id uuid NOT NULL REFERENCES plugin_campfire_c1a2fb4ac8.rooms(id) ON DELETE CASCADE,
-  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  space_id uuid NOT NULL REFERENCES public.spaces(id) ON DELETE CASCADE,
   author_kind text NOT NULL CHECK (author_kind IN ('human', 'agent', 'system')),
   author_agent_id uuid REFERENCES public.agents(id) ON DELETE SET NULL,
   body text NOT NULL,

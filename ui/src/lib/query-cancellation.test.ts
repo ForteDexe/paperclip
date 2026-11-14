@@ -27,8 +27,8 @@ function setup() {
   const handle = startPersistedQueryCache(client, { storage: new MemoryStorage(), buildId: "build-one", eventTarget: null, debounceMs: 100_000 });
   handles.push(() => { handle.dispose(); client.clear(); });
   client.setQueryData(queryKeys.auth.session, { session: { id: "session-alice", userId: "alice" }, user: { id: "alice" } });
-  client.setQueryData(queryKeys.companies.list("alice"), { companies: [{ id: "company-one", name: "Example" }], unauthorized: false });
-  client.setQueryData([...queryKeys.access.currentBoardAccess, "alice"], { userId: "alice", companyIds: ["company-one"], isInstanceAdmin: false });
+  client.setQueryData(queryKeys.spaces.list("alice"), { spaces: [{ id: "space-one", name: "Example" }], unauthorized: false });
+  client.setQueryData([...queryKeys.access.currentBoardAccess, "alice"], { userId: "alice", spaceIds: ["space-one"], isInstanceAdmin: false });
   return client;
 }
 afterEach(() => { for (const dispose of handles.splice(0)) dispose(); vi.clearAllMocks(); });
@@ -36,18 +36,18 @@ afterEach(() => { for (const dispose of handles.splice(0)) dispose(); vi.clearAl
 describe("persisted cache cancellation", () => {
   it("is not reported when a session denial clears an in-flight read", async () => {
     const client = setup();
-    const inFlight = client.fetchQuery({ queryKey: queryKeys.agents.list("company-one"), queryFn: pending });
+    const inFlight = client.fetchQuery({ queryKey: queryKeys.agents.list("space-one"), queryFn: pending });
     await client.fetchQuery({ queryKey: queryKeys.auth.session, staleTime: 0,
       queryFn: async () => { throw new ApiError("Unauthorized", 401, null); } }).catch(() => {});
     await expect(inFlight).rejects.toBeInstanceOf(CancelledError);
-    expect(client.getQueryCache().find({ queryKey: queryKeys.agents.list("company-one") })).toBeUndefined();
+    expect(client.getQueryCache().find({ queryKey: queryKeys.agents.list("space-one") })).toBeUndefined();
     expect(reportError).not.toHaveBeenCalled();
   });
 
   it("does not replace a task denial on an alias whose read was still in flight", async () => {
     const client = setup();
     const alias = queryKeys.issues.detail("task-one");
-    client.setQueryData(alias, { id: "task-one", identifier: "TST-1", companyId: "company-one", title: "Denied task body" });
+    client.setQueryData(alias, { id: "task-one", identifier: "TST-1", spaceId: "space-one", title: "Denied task body" });
     const inFlight = client.fetchQuery({ queryKey: alias, staleTime: 0, queryFn: pending });
     const denial = new ApiError("Forbidden", 403, null);
     await client.fetchQuery({ queryKey: [...alias, "core"], staleTime: 0, queryFn: async () => { throw denial; } }).catch(() => {});

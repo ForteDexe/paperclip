@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
-import { chatCompanyDeletion } from "../services/chat-channels/company-deletion.js";
+import { chatSpaceDeletion } from "../services/chat-channels/space-deletion.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, agents, chatConversations, chatEndpoints, chatVoiceInboundCalls, chatVoiceSessions, companies, createDb, issues, toolApplications, toolConnections } from "@outpost/db";
+import { applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, agents, chatConversations, chatEndpoints, chatVoiceInboundCalls, chatVoiceSessions, spaces, createDb, issues, toolApplications, toolConnections } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -17,10 +17,10 @@ const external = resolveExternalTestDatabaseUrl("OUTPOST_VOICE_INBOUND_TEST_DATA
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("inbound voice cleanup lifecycle", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
-  let db: ReturnType<typeof createDb>, companyId: string, endpointId: string, agentId: string, issueId: string, conversationId: string;
+  let db: ReturnType<typeof createDb>, spaceId: string, endpointId: string, agentId: string, issueId: string, conversationId: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let enabled = true;
-  const errors: unknown[] = [], fixtureCompanies: string[] = [];
+  const errors: unknown[] = [], fixtureSpaces: string[] = [];
   const terminate = vi.fn(async (_call: typeof chatVoiceInboundCalls.$inferSelect) => true);
   beforeAll(async () => {
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("voice-inbound-cleanup-");
@@ -28,33 +28,33 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     db = createDb(external ?? temporary!.connectionString, { idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   async function fixture() {
-    const companyId = randomUUID(), endpointId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), conversationId = randomUUID();
-    fixtureCompanies.push(companyId);
+    const spaceId = randomUUID(), endpointId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), conversationId = randomUUID();
+    fixtureSpaces.push(spaceId);
     const applicationId = randomUUID(), connectionId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Inbound cleanup", issuePrefix: `V${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Voice", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Voice", assigneeAgentId: agentId, status: "in_progress" });
-    await db.insert(toolApplications).values({ id: applicationId, companyId, name: "Voice", type: "chat" });
-    await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "Voice", uid: connectionId, transport: "voice", connectionPurpose: "channel", enabled: true, status: "active" });
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId, connectionId, assignedAgentId: agentId, publicId: endpointId, provider: "speko", status: "active", setup: { step: "complete", runtimeGeneration: 1 } as InternalSetupState });
-    await db.insert(chatConversations).values({ id: conversationId, companyId, endpointId, issueId, externalConversationId: conversationId, externalThreadId: conversationId, externalLabel: "Voice", isDirectMessage: true });
-    return { companyId, endpointId, agentId, issueId, conversationId };
+    await db.insert(spaces).values({ id: spaceId, name: "Inbound cleanup", issuePrefix: `V${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Voice", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Voice", assigneeAgentId: agentId, status: "in_progress" });
+    await db.insert(toolApplications).values({ id: applicationId, spaceId, name: "Voice", type: "chat" });
+    await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "Voice", uid: connectionId, transport: "voice", connectionPurpose: "channel", enabled: true, status: "active" });
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId, assignedAgentId: agentId, publicId: endpointId, provider: "speko", status: "active", setup: { step: "complete", runtimeGeneration: 1 } as InternalSetupState });
+    await db.insert(chatConversations).values({ id: conversationId, spaceId, endpointId, issueId, externalConversationId: conversationId, externalThreadId: conversationId, externalLabel: "Voice", isDirectMessage: true });
+    return { spaceId, endpointId, agentId, issueId, conversationId };
   }
   beforeEach(async () => {
     enabled = true; errors.length = 0; terminate.mockReset().mockResolvedValue(true);
-    ({ companyId, endpointId, agentId, issueId, conversationId } = await fixture());
+    ({ spaceId, endpointId, agentId, issueId, conversationId } = await fixture());
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
   });
   afterEach(async () => {
     await coordinator?.stop(); coordinator = undefined; vi.useRealTimers(); vi.restoreAllMocks();
-    for (const companyId of fixtureCompanies.splice(0)) {
-      await db.delete(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.companyId, companyId));
-      await db.delete(chatVoiceSessions).where(eq(chatVoiceSessions.companyId, companyId));
-      await db.delete(chatConversations).where(eq(chatConversations.companyId, companyId));
-      await db.delete(chatEndpoints).where(eq(chatEndpoints.companyId, companyId));
-      await db.delete(issues).where(eq(issues.companyId, companyId));
-      await db.delete(agents).where(eq(agents.companyId, companyId));
-      await db.delete(companies).where(eq(companies.id, companyId));
+    for (const spaceId of fixtureSpaces.splice(0)) {
+      await db.delete(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.spaceId, spaceId));
+      await db.delete(chatVoiceSessions).where(eq(chatVoiceSessions.spaceId, spaceId));
+      await db.delete(chatConversations).where(eq(chatConversations.spaceId, spaceId));
+      await db.delete(chatEndpoints).where(eq(chatEndpoints.spaceId, spaceId));
+      await db.delete(issues).where(eq(issues.spaceId, spaceId));
+      await db.delete(agents).where(eq(agents.spaceId, spaceId));
+      await db.delete(spaces).where(eq(spaces.id, spaceId));
     }
     expect(errors).toEqual([]);
   });
@@ -63,11 +63,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const id = patch.id ?? randomUUID();
     return writer.transaction(async tx => {
       await notifyVoiceInbound(tx, { kind: "admission", id });
-      return (await tx.insert(chatVoiceInboundCalls).values({ id, companyId, endpointId, providerSessionId: randomUUID(), state: "awaiting_approval", approvalCode: "123456", generation: 1, credentialFingerprint: "test", toolTokenHash: "a".repeat(64), requestFingerprint: id, expiresAt: new Date(Date.now() - 1), ...patch }).returning())[0];
+      return (await tx.insert(chatVoiceInboundCalls).values({ id, spaceId, endpointId, providerSessionId: randomUUID(), state: "awaiting_approval", approvalCode: "123456", generation: 1, credentialFingerprint: "test", toolTokenHash: "a".repeat(64), requestFingerprint: id, expiresAt: new Date(Date.now() - 1), ...patch }).returning())[0];
     });
   }
   async function owner(call: typeof chatVoiceInboundCalls.$inferSelect, patch: Partial<typeof chatVoiceSessions.$inferInsert> = {}) {
-    return (await db.insert(chatVoiceSessions).values({ companyId, endpointId, conversationId, issueId, assignedAgentId: agentId, callerId: call.approvedByUserId ?? `guest:${call.id}`, callerAuthority: call.callerAuthority === "member" ? "member" : "guest_intake", approvedByUserId: call.approvedByUserId,
+    return (await db.insert(chatVoiceSessions).values({ spaceId, endpointId, conversationId, issueId, assignedAgentId: agentId, callerId: call.approvedByUserId ?? `guest:${call.id}`, callerAuthority: call.callerAuthority === "member" ? "member" : "guest_intake", approvedByUserId: call.approvedByUserId,
       mode: "inbound_phone", state: "active", generation: call.generation, credentialFingerprint: call.credentialFingerprint, providerSessionId: call.providerSessionId, toolTokenHash: call.toolTokenHash, idempotencyKey: `inbound:${call.id}`, requestFingerprint: call.requestFingerprint, expiresAt: new Date(Date.now() + 600_000), ...patch }).returning())[0];
   }
   async function start(service = voiceInboundCleanup(db, terminate)) {
@@ -115,7 +115,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       await quiet(1000); expect(terminate).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(expiry - Date.now()); await settled();
       expect(terminate).toHaveBeenCalledTimes(105);
-      expect((await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.companyId, companyId)))
+      expect((await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.spaceId, spaceId)))
         .every(call => call.cleanupConfirmedAt !== null)).toBe(true);
       await quiet();
     } finally { reads.mockRestore(); }
@@ -124,12 +124,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await admission({ state: "ended", cleanupConfirmedAt: new Date() });
     await start(); await settled(); await quiet(); expect(terminate).not.toHaveBeenCalled();
   });
-  it("prevents company deletion from erasing an unfinished provider cleanup", async () => {
+  it("prevents space deletion from erasing an unfinished provider cleanup", async () => {
     const call = await admission();
-    await expect(db.transaction(tx => chatCompanyDeletion.deleteCompanyData(tx, companyId))).rejects.toMatchObject({ status: 409 });
+    await expect(db.transaction(tx => chatSpaceDeletion.deleteSpaceData(tx, spaceId))).rejects.toMatchObject({ status: 409 });
     expect(await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.id, call.id))).toHaveLength(1);
     await start(); await settled();
-    await db.transaction(tx => chatCompanyDeletion.deleteCompanyData(tx, companyId));
+    await db.transaction(tx => chatSpaceDeletion.deleteSpaceData(tx, spaceId));
     expect(await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.id, call.id))).toHaveLength(0);
   });
   it("backfills only provable legacy termination and preserves rejected cleanup debt", async () => {
@@ -215,13 +215,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const endedAt = new Date(Date.now() - 20_000);
     await owner(call, { state: "ended", endedAt });
     const service = voiceInboundCleanup(db, terminate);
-    await expect(assertVoiceInboundCleanupSettled(db, companyId)).rejects.toMatchObject({ status: 409 });
+    await expect(assertVoiceInboundCleanupSettled(db, spaceId)).rejects.toMatchObject({ status: 409 });
     expect(await service.check(call.id)).toBeNull();
     expect((await db.select().from(chatVoiceInboundCalls).where(eq(chatVoiceInboundCalls.id, call.id)))[0])
       .toMatchObject({ state, cleanupConfirmedAt: endedAt, cleanupNextAttemptAt: null });
     await start(service); await settled(); await quiet();
     expect(terminate).not.toHaveBeenCalled();
-    await assertVoiceInboundCleanupSettled(db, companyId);
+    await assertVoiceInboundCleanupSettled(db, spaceId);
   });
   it.each(["denied", "expired", "ended"] as const)("hands rejected legacy %s admissions without a binding to live recovery", async state => {
     const call = await admission({ state, approvedByUserId: randomUUID(), callerAuthority: "member", requestedIssueId: issueId });
@@ -264,7 +264,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: false });
     const broken = await admission({ id: "00000000-0000-4000-8000-000000000001" });
     for (let i = 0; i < 104; i++) await admission();
-    const other = await fixture(), last = await admission({ id: "ffffffff-ffff-4fff-bfff-ffffffffffff", companyId: other.companyId, endpointId: other.endpointId });
+    const other = await fixture(), last = await admission({ id: "ffffffff-ffff-4fff-bfff-ffffffffffff", spaceId: other.spaceId, endpointId: other.endpointId });
     let failed = true;
     terminate.mockImplementation(async call => { if (call.id === broken.id && failed) throw new Error("provider unavailable"); return true; });
     await start();

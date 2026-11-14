@@ -30,7 +30,7 @@ import type {
   SafeChatPublicationPayload,
 } from "@outpost/shared";
 import { agents } from "./agents.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { issueComments } from "./issue_comments.js";
 import { issues } from "./issues.js";
 import { toolConnections } from "./tool_access.js";
@@ -39,9 +39,9 @@ export const chatEndpoints = pgTable(
   "chat_endpoints",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     connectionId: uuid("connection_id").notNull(),
     provider: text("provider").$type<ChatProvider>().notNull(),
     publicId: text("public_id").notNull(),
@@ -134,18 +134,18 @@ export const chatEndpoints = pgTable(
       "chat_endpoints_concurrency_check",
       sql`${table.concurrencyPolicy} in ('burst', 'queue', 'debounce', 'drop', 'concurrent')`,
     ),
-    index("chat_endpoints_company_idx").on(table.companyId),
+    index("chat_endpoints_space_idx").on(table.spaceId),
     index("chat_endpoints_agent_idx").on(
-      table.companyId,
+      table.spaceId,
       table.assignedAgentId,
     ),
-    index("chat_endpoints_status_idx").on(table.companyId, table.status),
+    index("chat_endpoints_status_idx").on(table.spaceId, table.status),
     uniqueIndex("chat_endpoints_public_id_uq").on(table.publicId),
     uniqueIndex("chat_endpoints_agentmail_inbox_uq")
       .on(table.botExternalId)
       .where(sql`${table.provider} = 'agentmail' and ${table.status} != 'archived' and ${table.botExternalId} is not null`),
     uniqueIndex("chat_endpoints_connection_uq").on(table.connectionId),
-    // A native provider identity can back only one live Paperclip endpoint.
+    // A native provider identity can back only one live Outpost endpoint.
     // Historical archived/revoked endpoints retain attribution without
     // preventing an operator from deliberately reusing the provider bot later.
     uniqueIndex("chat_endpoints_live_bot_external_uq")
@@ -158,7 +158,7 @@ export const chatEndpoints = pgTable(
     // One Discord application can be installed in many guilds, but it remains
     // one native bot identity. Excluding providerAccountId closes the race
     // where concurrent setup in two guilds could otherwise claim that bot for
-    // two Paperclip agents after both application-level prechecks passed.
+    // two Outpost agents after both application-level prechecks passed.
     uniqueIndex("chat_endpoints_photon_number_uq")
       .on(table.botExternalId)
       .where(sql`${table.provider} = 'imessage-photon' and ${table.status} <> 'archived' and ${table.botExternalId} is not null`),
@@ -173,7 +173,7 @@ export const chatEndpoints = pgTable(
     // identities. Their mutable owner/tenant coordinate is useful metadata,
     // but it cannot be part of the exclusivity key: an App transfer or a
     // multi-tenant service principal must never let one native bot represent
-    // two Paperclip agents through two different webhook URLs.
+    // two Outpost agents through two different webhook URLs.
     uniqueIndex("chat_endpoints_live_global_app_bot_external_uq")
       .on(table.provider, table.botExternalId)
       .where(
@@ -190,16 +190,16 @@ export const chatEndpoints = pgTable(
           and ${table.providerAccountId} is not null
           and ${table.botUsername} is not null`,
       ),
-    unique("chat_endpoints_company_id_uq").on(table.companyId, table.id),
+    unique("chat_endpoints_space_id_uq").on(table.spaceId, table.id),
     foreignKey({
-      columns: [table.companyId, table.assignedAgentId],
-      foreignColumns: [agents.companyId, agents.id],
-      name: "chat_endpoints_company_agent_fk",
+      columns: [table.spaceId, table.assignedAgentId],
+      foreignColumns: [agents.spaceId, agents.id],
+      name: "chat_endpoints_space_agent_fk",
     }),
     foreignKey({
-      columns: [table.companyId, table.connectionId],
-      foreignColumns: [toolConnections.companyId, toolConnections.id],
-      name: "chat_endpoints_company_connection_fk",
+      columns: [table.spaceId, table.connectionId],
+      foreignColumns: [toolConnections.spaceId, toolConnections.id],
+      name: "chat_endpoints_space_connection_fk",
     }).onDelete("cascade"),
   ],
 );
@@ -207,9 +207,9 @@ export const chatEndpointResources = pgTable(
   "chat_endpoint_resources",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     endpointId: uuid("endpoint_id").notNull(),
     type: text("type").notNull(),
     providerResourceId: text("provider_resource_id").notNull(),
@@ -240,7 +240,7 @@ export const chatEndpointResources = pgTable(
       sql`${table.availability} in ('available', 'unavailable', 'removed')`,
     ),
     index("chat_endpoint_resources_endpoint_idx").on(
-      table.companyId,
+      table.spaceId,
       table.endpointId,
     ),
     uniqueIndex("chat_endpoint_resources_external_uq").on(
@@ -248,14 +248,14 @@ export const chatEndpointResources = pgTable(
       table.type,
       table.providerResourceId,
     ),
-    unique("chat_endpoint_resources_company_id_uq").on(
-      table.companyId,
+    unique("chat_endpoint_resources_space_id_uq").on(
+      table.spaceId,
       table.id,
     ),
     foreignKey({
-      columns: [table.companyId, table.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
-      name: "chat_endpoint_resources_company_endpoint_fk",
+      columns: [table.spaceId, table.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
+      name: "chat_endpoint_resources_space_endpoint_fk",
     }).onDelete("cascade"),
   ],
 );
@@ -264,9 +264,9 @@ export const chatExternalPrincipals = pgTable(
   "chat_external_principals",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     provider: text("provider").$type<ChatProvider>().notNull(),
     providerAccountId: text("provider_account_id").notNull(),
     externalId: text("external_id").notNull(),
@@ -292,15 +292,15 @@ export const chatExternalPrincipals = pgTable(
       "chat_external_principals_kind_check",
       sql`${table.kind} in ('user', 'bot', 'app', 'system')`,
     ),
-    index("chat_external_principals_company_idx").on(table.companyId),
+    index("chat_external_principals_space_idx").on(table.spaceId),
     uniqueIndex("chat_external_principals_external_uq").on(
-      table.companyId,
+      table.spaceId,
       table.provider,
       table.providerAccountId,
       table.externalId,
     ),
-    unique("chat_external_principals_company_id_uq").on(
-      table.companyId,
+    unique("chat_external_principals_space_id_uq").on(
+      table.spaceId,
       table.id,
     ),
   ],
@@ -310,12 +310,12 @@ export const chatIdentityLinks = pgTable(
   "chat_identity_links",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     endpointId: uuid("endpoint_id").notNull(),
     principalId: uuid("principal_id").notNull(),
-    paperclipUserId: text("paperclip_user_id"),
+    outpostUserId: text("outpost_user_id"),
     status: text("status")
       .$type<ChatIdentityLinkStatus>()
       .notNull()
@@ -337,25 +337,25 @@ export const chatIdentityLinks = pgTable(
       sql`${table.status} in ('pending', 'linked', 'revoked', 'expired')`,
     ),
     index("chat_identity_links_user_idx").on(
-      table.companyId,
-      table.paperclipUserId,
+      table.spaceId,
+      table.outpostUserId,
     ),
     uniqueIndex("chat_identity_links_endpoint_principal_uq").on(
       table.endpointId,
       table.principalId,
     ),
     foreignKey({
-      columns: [table.companyId, table.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
-      name: "chat_identity_links_company_endpoint_fk",
+      columns: [table.spaceId, table.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
+      name: "chat_identity_links_space_endpoint_fk",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.companyId, table.principalId],
+      columns: [table.spaceId, table.principalId],
       foreignColumns: [
-        chatExternalPrincipals.companyId,
+        chatExternalPrincipals.spaceId,
         chatExternalPrincipals.id,
       ],
-      name: "chat_identity_links_company_principal_fk",
+      name: "chat_identity_links_space_principal_fk",
     }).onDelete("cascade"),
   ],
 );
@@ -364,9 +364,9 @@ export const chatConversations = pgTable(
   "chat_conversations",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     endpointId: uuid("endpoint_id").notNull(),
     resourceId: uuid("resource_id").references(() => chatEndpointResources.id, {
       onDelete: "set null",
@@ -378,7 +378,7 @@ export const chatConversations = pgTable(
     externalThreadId: text("external_thread_id").notNull().default(""),
     // Providers with linear conversations (DMs, Telegram groups, Teams group
     // chats) reuse one native thread id. A generation preserves the native id
-    // used for replies while allowing completed Paperclip tasks to roll over.
+    // used for replies while allowing completed Outpost tasks to roll over.
     sessionGeneration: integer("session_generation").notNull().default(1),
     externalLabel: text("external_label").notNull(),
     providerUrl: text("provider_url"),
@@ -399,31 +399,31 @@ export const chatConversations = pgTable(
       "chat_conversations_state_check",
       sql`${table.state} in ('active', 'waiting', 'completed', 'unavailable', 'endpoint_removed')`,
     ),
-    index("chat_conversations_issue_idx").on(table.companyId, table.issueId),
+    index("chat_conversations_issue_idx").on(table.spaceId, table.issueId),
     uniqueIndex("chat_conversations_thread_uq").on(
       table.endpointId,
       table.externalConversationId,
       table.externalThreadId,
       table.sessionGeneration,
     ),
-    unique("chat_conversations_company_id_uq").on(table.companyId, table.id),
+    unique("chat_conversations_space_id_uq").on(table.spaceId, table.id),
     foreignKey({
-      columns: [table.companyId, table.issueId],
-      foreignColumns: [issues.companyId, issues.id],
-      name: "chat_conversations_company_issue_fk",
+      columns: [table.spaceId, table.issueId],
+      foreignColumns: [issues.spaceId, issues.id],
+      name: "chat_conversations_space_issue_fk",
     }),
     foreignKey({
-      columns: [table.companyId, table.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
-      name: "chat_conversations_company_endpoint_fk",
+      columns: [table.spaceId, table.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
+      name: "chat_conversations_space_endpoint_fk",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.companyId, table.resourceId],
+      columns: [table.spaceId, table.resourceId],
       foreignColumns: [
-        chatEndpointResources.companyId,
+        chatEndpointResources.spaceId,
         chatEndpointResources.id,
       ],
-      name: "chat_conversations_company_resource_fk",
+      name: "chat_conversations_space_resource_fk",
     }),
   ],
 );
@@ -432,9 +432,9 @@ export const chatDeliveries = pgTable(
   "chat_deliveries",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     endpointId: uuid("endpoint_id").notNull(),
     conversationId: uuid("conversation_id").references(
       () => chatConversations.id,
@@ -478,7 +478,7 @@ export const chatDeliveries = pgTable(
       sql`${table.state} in ('received', 'filtered', 'processing', 'processed', 'retry', 'failed')`,
     ),
     index("chat_deliveries_work_idx").on(table.state, table.nextAttemptAt),
-    unique("chat_deliveries_company_id_uq").on(table.companyId, table.id),
+    unique("chat_deliveries_space_id_uq").on(table.spaceId, table.id),
     uniqueIndex("chat_deliveries_event_uq").on(
       table.endpointId,
       table.providerEventId,
@@ -493,22 +493,22 @@ export const chatDeliveries = pgTable(
       .where(sql`(${table.normalizedEvent}->'githubAutomatic'->'context'->>'deliveryId') is not null`)
       .concurrently(),
     foreignKey({
-      columns: [table.companyId, table.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
-      name: "chat_deliveries_company_endpoint_fk",
+      columns: [table.spaceId, table.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
+      name: "chat_deliveries_space_endpoint_fk",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.companyId, table.conversationId],
-      foreignColumns: [chatConversations.companyId, chatConversations.id],
-      name: "chat_deliveries_company_conversation_fk",
+      columns: [table.spaceId, table.conversationId],
+      foreignColumns: [chatConversations.spaceId, chatConversations.id],
+      name: "chat_deliveries_space_conversation_fk",
     }),
     foreignKey({
-      columns: [table.companyId, table.principalId],
+      columns: [table.spaceId, table.principalId],
       foreignColumns: [
-        chatExternalPrincipals.companyId,
+        chatExternalPrincipals.spaceId,
         chatExternalPrincipals.id,
       ],
-      name: "chat_deliveries_company_principal_fk",
+      name: "chat_deliveries_space_principal_fk",
     }),
   ],
 );
@@ -517,9 +517,9 @@ export const chatPublications = pgTable(
   "chat_publications",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     endpointId: uuid("endpoint_id").notNull(),
     conversationId: uuid("conversation_id").notNull(),
     issueId: uuid("issue_id")
@@ -552,38 +552,38 @@ export const chatPublications = pgTable(
       "chat_publications_state_check",
       sql`${table.state} in ('pending', 'streaming', 'published', 'retry', 'delivery_unknown', 'failed', 'cancelled', 'awaiting_consent')`,
     ),
-    uniqueIndex("chat_publications_company_id_uq").on(
-      table.companyId,
+    uniqueIndex("chat_publications_space_id_uq").on(
+      table.spaceId,
       table.id,
     ),
     foreignKey({
-      columns: [table.companyId, table.issueId],
-      foreignColumns: [issues.companyId, issues.id],
-      name: "chat_publications_company_issue_fk",
+      columns: [table.spaceId, table.issueId],
+      foreignColumns: [issues.spaceId, issues.id],
+      name: "chat_publications_space_issue_fk",
     }),
     // Retain the single-column SET NULL action above. The additional tenant
-    // key uses NO ACTION so deletion clears only comment_id, never company_id.
+    // key uses NO ACTION so deletion clears only comment_id, never space_id.
     foreignKey({
-      columns: [table.companyId, table.commentId],
-      foreignColumns: [issueComments.companyId, issueComments.id],
-      name: "chat_publications_company_comment_fk",
+      columns: [table.spaceId, table.commentId],
+      foreignColumns: [issueComments.spaceId, issueComments.id],
+      name: "chat_publications_space_comment_fk",
     }),
     index("chat_publications_work_idx").on(table.state, table.nextAttemptAt),
-    index("chat_publications_comment_destination_idx").on(table.companyId, table.commentId, table.endpointId, table.conversationId)
+    index("chat_publications_comment_destination_idx").on(table.spaceId, table.commentId, table.endpointId, table.conversationId)
       .where(sql`${table.commentId} is not null`),
     uniqueIndex("chat_publications_idempotency_uq").on(
-      table.companyId,
+      table.spaceId,
       table.idempotencyKey,
     ),
     foreignKey({
-      columns: [table.companyId, table.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
-      name: "chat_publications_company_endpoint_fk",
+      columns: [table.spaceId, table.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
+      name: "chat_publications_space_endpoint_fk",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.companyId, table.conversationId],
-      foreignColumns: [chatConversations.companyId, chatConversations.id],
-      name: "chat_publications_company_conversation_fk",
+      columns: [table.spaceId, table.conversationId],
+      foreignColumns: [chatConversations.spaceId, chatConversations.id],
+      name: "chat_publications_space_conversation_fk",
     }).onDelete("cascade"),
   ],
 );
@@ -592,9 +592,9 @@ export const chatMessageLinks = pgTable(
   "chat_message_links",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     endpointId: uuid("endpoint_id").notNull(),
     conversationId: uuid("conversation_id").notNull(),
     deliveryId: uuid("delivery_id").references(() => chatDeliveries.id, {
@@ -619,24 +619,24 @@ export const chatMessageLinks = pgTable(
       sql`${table.direction} in ('inbound', 'outbound')`,
     ),
     foreignKey({
-      columns: [table.companyId, table.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
-      name: "chat_message_links_company_endpoint_fk",
+      columns: [table.spaceId, table.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
+      name: "chat_message_links_space_endpoint_fk",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.companyId, table.deliveryId],
-      foreignColumns: [chatDeliveries.companyId, chatDeliveries.id],
-      name: "chat_message_links_company_delivery_fk",
+      columns: [table.spaceId, table.deliveryId],
+      foreignColumns: [chatDeliveries.spaceId, chatDeliveries.id],
+      name: "chat_message_links_space_delivery_fk",
     }),
     foreignKey({
-      columns: [table.companyId, table.publicationId],
-      foreignColumns: [chatPublications.companyId, chatPublications.id],
-      name: "chat_message_links_company_publication_fk",
+      columns: [table.spaceId, table.publicationId],
+      foreignColumns: [chatPublications.spaceId, chatPublications.id],
+      name: "chat_message_links_space_publication_fk",
     }),
     foreignKey({
-      columns: [table.companyId, table.commentId],
-      foreignColumns: [issueComments.companyId, issueComments.id],
-      name: "chat_message_links_company_comment_fk",
+      columns: [table.spaceId, table.commentId],
+      foreignColumns: [issueComments.spaceId, issueComments.id],
+      name: "chat_message_links_space_comment_fk",
     }),
     uniqueIndex("chat_message_links_provider_message_uq").on(
       table.endpointId,
@@ -645,8 +645,8 @@ export const chatMessageLinks = pgTable(
     ),
     // Source-comment and delivery lookups (GitHub review waits and checks).
     // These also serve the comment and delivery `on delete set null` actions.
-    index("chat_message_links_company_comment_idx")
-      .on(table.companyId, table.commentId)
+    index("chat_message_links_space_comment_idx")
+      .on(table.spaceId, table.commentId)
       .where(sql`${table.commentId} is not null`)
       .concurrently(),
     index("chat_message_links_delivery_idx")
@@ -654,9 +654,9 @@ export const chatMessageLinks = pgTable(
       .where(sql`${table.deliveryId} is not null`)
       .concurrently(),
     foreignKey({
-      columns: [table.companyId, table.conversationId],
-      foreignColumns: [chatConversations.companyId, chatConversations.id],
-      name: "chat_message_links_company_conversation_fk",
+      columns: [table.spaceId, table.conversationId],
+      foreignColumns: [chatConversations.spaceId, chatConversations.id],
+      name: "chat_message_links_space_conversation_fk",
     }).onDelete("cascade"),
   ],
 );
@@ -665,9 +665,9 @@ export const chatActions = pgTable(
   "chat_actions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     endpointId: uuid("endpoint_id").notNull(),
     deliveryId: uuid("delivery_id").references(() => chatDeliveries.id, {
       onDelete: "set null",
@@ -691,22 +691,22 @@ export const chatActions = pgTable(
   },
   (table) => [
     index("chat_actions_continuation_work_idx")
-      .on(table.companyId, table.id)
+      .on(table.spaceId, table.id)
       .where(sql`${table.kind} = 'interaction_wakeup' AND ${table.status} IN ('issued', 'processing')`),
     index("chat_actions_confirmation_recovery_idx")
-      .on(table.companyId, table.id)
+      .on(table.spaceId, table.id)
       .where(sql`${table.kind} = 'confirmation_response' AND ${table.status} = 'processing'`),
     uniqueIndex("chat_actions_provider_action_uq").on(
       table.endpointId,
       table.providerActionId,
     ),
     // Chat-admission checks read an issue's inbound input and its failed-run
-    // retries by company and payload issue id.
-    index("chat_actions_company_issue_kind_idx")
-      .on(table.companyId, sql`(${table.payload}->>'issueId')`, table.kind, table.status)
+    // retries by space and payload issue id.
+    index("chat_actions_space_issue_kind_idx")
+      .on(table.spaceId, sql`(${table.payload}->>'issueId')`, table.kind, table.status)
       .where(sql`${table.kind} IN ('inbound_wakeup', 'failed_run_retry')`)
       .concurrently(),
-    index("chat_actions_github_stale_head_idx").on(table.companyId, table.endpointId,
+    index("chat_actions_github_stale_head_idx").on(table.spaceId, table.endpointId,
       sql`(${table.payload}->'event'->>'deliveryId')`).where(sql`${table.kind} = 'github_review_check'
         and ${table.status} = 'cancelled' and ${table.result}->>'code' = 'stale_head'`),
     index("chat_actions_github_check_work_idx").on(table.id).where(sql`${table.kind} = 'github_review_check'
@@ -718,27 +718,27 @@ export const chatActions = pgTable(
       and ${table.deliveryId} is not null and coalesce(${table.result}->>'final', 'false') <> 'true'
       and (${table.status} = 'received' or (${table.status} = 'failed' and ${table.result}->>'retryable' = 'true'))`),
     foreignKey({
-      columns: [table.companyId, table.deliveryId],
-      foreignColumns: [chatDeliveries.companyId, chatDeliveries.id],
-      name: "chat_actions_company_delivery_fk",
+      columns: [table.spaceId, table.deliveryId],
+      foreignColumns: [chatDeliveries.spaceId, chatDeliveries.id],
+      name: "chat_actions_space_delivery_fk",
     }),
     foreignKey({
-      columns: [table.companyId, table.conversationId],
-      foreignColumns: [chatConversations.companyId, chatConversations.id],
-      name: "chat_actions_company_conversation_fk",
+      columns: [table.spaceId, table.conversationId],
+      foreignColumns: [chatConversations.spaceId, chatConversations.id],
+      name: "chat_actions_space_conversation_fk",
     }),
     foreignKey({
-      columns: [table.companyId, table.principalId],
+      columns: [table.spaceId, table.principalId],
       foreignColumns: [
-        chatExternalPrincipals.companyId,
+        chatExternalPrincipals.spaceId,
         chatExternalPrincipals.id,
       ],
-      name: "chat_actions_company_principal_fk",
+      name: "chat_actions_space_principal_fk",
     }),
     foreignKey({
-      columns: [table.companyId, table.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
-      name: "chat_actions_company_endpoint_fk",
+      columns: [table.spaceId, table.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
+      name: "chat_actions_space_endpoint_fk",
     }).onDelete("cascade"),
   ],
 );
@@ -747,9 +747,9 @@ export const chatAgentRoutes = pgTable(
   "chat_agent_routes",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     sourceEndpointId: uuid("source_endpoint_id").notNull(),
     destinationEndpointId: uuid("destination_endpoint_id").notNull(),
     enabled: boolean("enabled").notNull().default(false),
@@ -773,14 +773,14 @@ export const chatAgentRoutes = pgTable(
       table.destinationEndpointId,
     ),
     foreignKey({
-      columns: [table.companyId, table.sourceEndpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
-      name: "chat_agent_routes_company_source_fk",
+      columns: [table.spaceId, table.sourceEndpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
+      name: "chat_agent_routes_space_source_fk",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.companyId, table.destinationEndpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
-      name: "chat_agent_routes_company_destination_fk",
+      columns: [table.spaceId, table.destinationEndpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
+      name: "chat_agent_routes_space_destination_fk",
     }).onDelete("cascade"),
   ],
 );
@@ -789,9 +789,9 @@ export const chatEndpointLeases = pgTable(
   "chat_endpoint_leases",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     endpointId: uuid("endpoint_id").notNull(),
     leaseKey: text("lease_key").notNull(),
     token: text("token").notNull(),
@@ -810,9 +810,9 @@ export const chatEndpointLeases = pgTable(
     ),
     index("chat_endpoint_leases_expiry_idx").on(table.expiresAt),
     foreignKey({
-      columns: [table.companyId, table.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
-      name: "chat_endpoint_leases_company_endpoint_fk",
+      columns: [table.spaceId, table.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
+      name: "chat_endpoint_leases_space_endpoint_fk",
     }).onDelete("cascade"),
   ],
 );
@@ -821,9 +821,9 @@ export const chatSdkState = pgTable(
   "chat_sdk_state",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     endpointId: uuid("endpoint_id").notNull(),
     stateKey: text("state_key").notNull(),
     version: integer("version").notNull().default(1),
@@ -840,9 +840,9 @@ export const chatSdkState = pgTable(
     uniqueIndex("chat_sdk_state_key_uq").on(table.endpointId, table.stateKey),
     index("chat_sdk_state_expiry_idx").on(table.expiresAt),
     foreignKey({
-      columns: [table.companyId, table.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
-      name: "chat_sdk_state_company_endpoint_fk",
+      columns: [table.spaceId, table.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
+      name: "chat_sdk_state_space_endpoint_fk",
     }).onDelete("cascade"),
   ],
 );

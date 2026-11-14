@@ -42,7 +42,7 @@ describe("optimistic task Retry", () => {
   it.each([
     ["a replaced attempt", { requestId: null, accepted: false, stale: true }, "already replaced, so Retry did not start new work"],
     ["a scheduled retry held by a gate", { requestId: "retry", accepted: true, stale: false,
-      scheduledRetry: { outcome: "gate_suppressed" as const, message: "The company budget is paused." } }, "The company budget is paused."],
+      scheduledRetry: { outcome: "gate_suppressed" as const, message: "The space budget is paused." } }, "The space budget is paused."],
     ["a scheduled retry still waiting", { requestId: "retry", accepted: true, stale: false,
       scheduledRetry: { outcome: "waiting" as const, message: "The retry is waiting for the workspace." } }, "waiting for the workspace"],
   ])("shows why Retry did not start work for %s", async (_label, result, reason) => {

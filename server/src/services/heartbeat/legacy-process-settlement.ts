@@ -6,7 +6,7 @@ import { legacyControllerBootId } from "../legacy-controller-lease.js";
 const schema = "outpost.legacy-process-settlement.v1";
 const statuses = ["failed", "timed_out", "interrupted"];
 export type LegacyProcessSettlementSource = Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "runtimeMode" | "controllerBootId" | "controllerLeaseExpiresAt" |
+  "id" | "spaceId" | "agentId" | "runtimeMode" | "controllerBootId" | "controllerLeaseExpiresAt" |
   "processPid" | "processGroupId" | "processStartedAt" | "finishedAt" | "status"> & { legacyProcessSettlement: unknown;
   startedAt?: Date | null; executionStage?: string | null };
 
@@ -20,7 +20,7 @@ function identityIsComplete(run: LegacyProcessSettlementSource) {
 }
 
 function receipt(run: LegacyProcessSettlementSource) {
-  return { schema, runId: run.id, companyId: run.companyId, agentId: run.agentId,
+  return { schema, runId: run.id, spaceId: run.spaceId, agentId: run.agentId,
     runtimeMode: "legacy", targetKind: "local", controllerBootId: run.controllerBootId,
     processPid: run.processPid, processGroupId: run.processGroupId,
     processStartedAt: run.processStartedAt!.toISOString(), finishedAt: run.finishedAt!.toISOString(), status: run.status };
@@ -35,7 +35,7 @@ function preparationIdentityIsComplete(run: LegacyProcessSettlementSource) {
 }
 
 function preparationReceipt(run: LegacyProcessSettlementSource) {
-  return { schema: "outpost.legacy-preparation-settlement.v1", runId: run.id, companyId: run.companyId, agentId: run.agentId,
+  return { schema: "outpost.legacy-preparation-settlement.v1", runId: run.id, spaceId: run.spaceId, agentId: run.agentId,
     runtimeMode: "legacy", targetKind: "not-dispatched", adapterDispatched: false, controllerBootId: run.controllerBootId,
     processPid: null, processGroupId: null, processStartedAt: null, executionStage: "preparing",
     startedAt: run.startedAt!.toISOString(), finishedAt: run.finishedAt!.toISOString(), status: run.status };
@@ -66,13 +66,13 @@ export async function recordLegacyProcessSettlement(db: Db, observed: LegacyProc
   if (!canCommit() || observed.controllerBootId !== legacyControllerBootId || !identityIsComplete(observed)) return false;
   return db.transaction(async transaction => {
     const tx = transaction as unknown as Db;
-    const [current] = await tx.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId,
+    const [current] = await tx.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId,
       agentId: heartbeatRuns.agentId, runtimeMode: heartbeatRuns.runtimeMode, status: heartbeatRuns.status,
       controllerBootId: heartbeatRuns.controllerBootId, controllerLeaseExpiresAt: heartbeatRuns.controllerLeaseExpiresAt,
       processPid: heartbeatRuns.processPid, processGroupId: heartbeatRuns.processGroupId,
       processStartedAt: heartbeatRuns.processStartedAt, finishedAt: heartbeatRuns.finishedAt,
       legacyProcessSettlement: heartbeatRuns.legacyProcessSettlement,
-    }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, observed.id), eq(heartbeatRuns.companyId, observed.companyId),
+    }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, observed.id), eq(heartbeatRuns.spaceId, observed.spaceId),
       eq(heartbeatRuns.agentId, observed.agentId), eq(heartbeatRuns.runtimeMode, "legacy"),
       eq(heartbeatRuns.controllerBootId, legacyControllerBootId), isNull(heartbeatRuns.controllerLeaseExpiresAt),
       inArray(heartbeatRuns.status, statuses), eq(heartbeatRuns.status, observed.status),
@@ -84,9 +84,9 @@ export async function recordLegacyProcessSettlement(db: Db, observed: LegacyProc
       eq(heartbeatRuns.costAccountingPending, false),
       sql`NOT COALESCE(${heartbeatRuns.resultJson} ?| ARRAY['startupCancellation','cancellation','executionCancellation','nativeCancellation'], false)`,
     )).for("update");
-    if (!current || !canCommit() || await hasPendingRunCleanup(tx, current.companyId, current.id) || !canCommit()) return false;
+    if (!current || !canCommit() || await hasPendingRunCleanup(tx, current.spaceId, current.id) || !canCommit()) return false;
     const updated = await tx.update(heartbeatRuns).set({ legacyProcessSettlement: receipt(current) })
-      .where(and(eq(heartbeatRuns.id, current.id), eq(heartbeatRuns.companyId, current.companyId)))
+      .where(and(eq(heartbeatRuns.id, current.id), eq(heartbeatRuns.spaceId, current.spaceId)))
       .returning({ id: heartbeatRuns.id });
     return updated.length === 1;
   });
@@ -97,13 +97,13 @@ export async function recordLegacyPreparationSettlement(db: Db, observed: Legacy
   if (!canCommit() || observed.controllerBootId !== legacyControllerBootId || !preparationIdentityIsComplete(observed)) return false;
   return db.transaction(async transaction => {
     const tx = transaction as unknown as Db;
-    const [current] = await tx.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId,
+    const [current] = await tx.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId,
       agentId: heartbeatRuns.agentId, runtimeMode: heartbeatRuns.runtimeMode, status: heartbeatRuns.status,
       controllerBootId: heartbeatRuns.controllerBootId, controllerLeaseExpiresAt: heartbeatRuns.controllerLeaseExpiresAt,
       processPid: heartbeatRuns.processPid, processGroupId: heartbeatRuns.processGroupId,
       processStartedAt: heartbeatRuns.processStartedAt, startedAt: heartbeatRuns.startedAt, finishedAt: heartbeatRuns.finishedAt,
       executionStage: heartbeatRuns.executionStage, legacyProcessSettlement: heartbeatRuns.legacyProcessSettlement,
-    }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, observed.id), eq(heartbeatRuns.companyId, observed.companyId),
+    }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, observed.id), eq(heartbeatRuns.spaceId, observed.spaceId),
       eq(heartbeatRuns.agentId, observed.agentId), eq(heartbeatRuns.runtimeMode, "legacy"),
       eq(heartbeatRuns.controllerBootId, legacyControllerBootId), isNull(heartbeatRuns.controllerLeaseExpiresAt),
       eq(heartbeatRuns.status, "failed"), eq(heartbeatRuns.executionStage, "preparing"),
@@ -115,9 +115,9 @@ export async function recordLegacyPreparationSettlement(db: Db, observed: Legacy
       sql`NOT COALESCE(${heartbeatRuns.resultJson} ?| ARRAY['startupCancellation','cancellation','executionCancellation','nativeCancellation'], false)`,
     )).for("update");
     if (!current || !preparationIdentityIsComplete(current) || !canCommit() ||
-      await hasPendingRunCleanup(tx, current.companyId, current.id) || !canCommit()) return false;
+      await hasPendingRunCleanup(tx, current.spaceId, current.id) || !canCommit()) return false;
     const updated = await tx.update(heartbeatRuns).set({ legacyProcessSettlement: preparationReceipt(current) })
-      .where(and(eq(heartbeatRuns.id, current.id), eq(heartbeatRuns.companyId, current.companyId)))
+      .where(and(eq(heartbeatRuns.id, current.id), eq(heartbeatRuns.spaceId, current.spaceId)))
       .returning({ id: heartbeatRuns.id });
     return updated.length === 1;
   });

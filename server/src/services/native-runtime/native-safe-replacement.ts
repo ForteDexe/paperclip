@@ -72,29 +72,29 @@ function historicalListenerGuardPending() {
     sql`coalesce(${profile}->'nativeProviderPackAdmission', 'null'::jsonb) = 'null'::jsonb`,
     sql`coalesce(${profile}#>>'{nativeProviderPackAdmissionState,state}', 'pending') = 'pending'`,
     sql`${profile}#>>'{nativeExecutionInput,binding,runId}' = ${heartbeatRuns.id}::text`,
-    sql`${profile}#>>'{nativeExecutionInput,binding,companyId}' = ${heartbeatRuns.companyId}::text`,
+    sql`${profile}#>>'{nativeExecutionInput,binding,spaceId}' = ${heartbeatRuns.spaceId}::text`,
     sql`${profile}#>>'{nativeExecutionInput,binding,agentId}' = ${heartbeatRuns.agentId}::text`,
     sql`${profile}#>>'{nativeExecutionInput,binding,issueId}' = ${nativeRunFinalizations.issueId}::text`,
     sql`${profile}#>>'{nativeExecutionInput,session,normalizedSessionId}' = ${heartbeatRuns.nativeSessionId}::text`,
-    sql`not exists (select 1 from ${heartbeatRuns} prior where prior.company_id = ${heartbeatRuns.companyId}
+    sql`not exists (select 1 from ${heartbeatRuns} prior where prior.space_id = ${heartbeatRuns.spaceId}
       and prior.native_session_id = ${heartbeatRuns.nativeSessionId} and prior.id <> ${heartbeatRuns.id})`,
-    sql`not exists (select 1 from ${heartbeatRunEvents} event where event.company_id = ${heartbeatRuns.companyId}
+    sql`not exists (select 1 from ${heartbeatRunEvents} event where event.space_id = ${heartbeatRuns.spaceId}
       and event.run_id = ${heartbeatRuns.id} and (event.source_event_id is not null
         or event.event_type in (${providerEvents}) or event.event_type ~ '^(turn|item|tool|semantic_tool|run[.]result)[.]'))`,
-    sql`not exists (select 1 from ${toolInvocations} invocation where invocation.company_id = ${heartbeatRuns.companyId}
+    sql`not exists (select 1 from ${toolInvocations} invocation where invocation.space_id = ${heartbeatRuns.spaceId}
       and invocation.run_id = ${heartbeatRuns.id})`,
     sql`not exists (select 1 from ${issueRecoveryActions}
-      where ${issueRecoveryActions.companyId} = ${heartbeatRuns.companyId}
+      where ${issueRecoveryActions.spaceId} = ${heartbeatRuns.spaceId}
         and ${issueRecoveryActions.sourceIssueId} = ${nativeRunFinalizations.issueId}
         and ${issueRecoveryActions.cause} = 'native_continuation_requires_reconciliation'
         and ${issueRecoveryActions.evidence}->>'runId' = ${heartbeatRuns.id}::text
         and ${issueRecoveryActions.evidence}->'automaticRecovery'->>'replay' = 'blocked'
         and not coalesce((${completedWorkspaceRecoveryCondition(heartbeatRuns.id)}), false))`,
-    sql`exists (select 1 from ${issues} task where task.company_id = ${heartbeatRuns.companyId}
+    sql`exists (select 1 from ${issues} task where task.space_id = ${heartbeatRuns.spaceId}
       and task.id = ${nativeRunFinalizations.issueId} and task.assignee_agent_id = ${heartbeatRuns.agentId}
       and task.status in ('todo', 'in_progress', 'in_review', 'blocked')
       and (task.status <> 'blocked' or exists (select 1 from ${issueRecoveryActions} hold
-        where hold.company_id = task.company_id and hold.source_issue_id = task.id and hold.kind = 'active_run_watchdog'
+        where hold.space_id = task.space_id and hold.source_issue_id = task.id and hold.kind = 'active_run_watchdog'
           and hold.cause = ${nativeRunFinalizations.failureCode} and hold.evidence->>'runId' = ${heartbeatRuns.id}::text
           and hold.evidence#>>'{nativeFailureBlock,runId}' = ${heartbeatRuns.id}::text
           and hold.evidence#>'{nativeFailureBlock,statusVersion}' = to_jsonb(task.status_version))))`,
@@ -104,7 +104,7 @@ function historicalListenerGuardPending() {
 async function historicalListenerGuardEvidence(db: ReplacementDb, run: typeof heartbeatRuns.$inferSelect) {
   const [evidence] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
     .innerJoin(nativeRunFinalizations, eq(nativeRunFinalizations.runId, heartbeatRuns.id)).where(and(
-      eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.id, run.id), historicalListenerGuardPending(),
+      eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.id, run.id), historicalListenerGuardPending(),
     )).limit(1);
   return Boolean(evidence);
 }
@@ -133,28 +133,28 @@ function preClaimFailurePending() {
     sql`coalesce(${heartbeatRuns.resultJson}#>'{executionRecovery,providerWorkStarted}', 'false'::jsonb) = 'false'::jsonb`,
     sql`not (coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) ?| array['cancellation', 'nativeCancellation', 'executionCancellation'])`,
     sql`coalesce(${heartbeatRuns.contextSnapshot}->>'nativePreClaimContinuationOf', '') = ''`,
-    sql`not exists (select 1 from ${heartbeatRunEvents} event where event.company_id = ${heartbeatRuns.companyId}
+    sql`not exists (select 1 from ${heartbeatRunEvents} event where event.space_id = ${heartbeatRuns.spaceId}
       and event.run_id = ${heartbeatRuns.id} and (event.source_event_id is not null
         or event.event_type in (${providerEvents}) or event.event_type ~ '^(turn|item|tool|semantic_tool|run[.]result)[.]'))`,
-    sql`not exists (select 1 from ${toolInvocations} invocation where invocation.company_id = ${heartbeatRuns.companyId}
+    sql`not exists (select 1 from ${toolInvocations} invocation where invocation.space_id = ${heartbeatRuns.spaceId}
       and invocation.run_id = ${heartbeatRuns.id})`,
     // Saved files come first. A no-replay hold settles only with its completed recovery.
     sql`not exists (select 1 from ${issueRecoveryActions}
-      where ${issueRecoveryActions.companyId} = ${heartbeatRuns.companyId}
+      where ${issueRecoveryActions.spaceId} = ${heartbeatRuns.spaceId}
         and ${issueRecoveryActions.sourceIssueId} = ${nativeRunFinalizations.issueId}
         and ${issueRecoveryActions.evidence}->>'runId' = ${heartbeatRuns.id}::text
         and (${issueRecoveryActions.evidence} ? 'explicitUserContinuation'
           or (${issueRecoveryActions.evidence}->'automaticRecovery'->>'replay' = 'blocked'
             and not coalesce((${completedWorkspaceRecoveryCondition(heartbeatRuns.id)}), false))))`,
     // The task has not moved on: a later run (such as a user's message) owns it.
-    sql`not exists (select 1 from ${heartbeatRuns} later where later.company_id = ${heartbeatRuns.companyId}
+    sql`not exists (select 1 from ${heartbeatRuns} later where later.space_id = ${heartbeatRuns.spaceId}
       and (later.context_snapshot ->> 'issueId') = ${nativeRunFinalizations.issueId}::text
       and later.created_at > ${heartbeatRuns.createdAt} and later.id <> ${heartbeatRuns.id})`,
-    sql`exists (select 1 from ${issues} task where task.company_id = ${heartbeatRuns.companyId}
+    sql`exists (select 1 from ${issues} task where task.space_id = ${heartbeatRuns.spaceId}
       and task.id = ${nativeRunFinalizations.issueId} and task.assignee_agent_id = ${heartbeatRuns.agentId}
       and task.status in ('todo', 'in_progress', 'in_review', 'blocked')
       and (task.status <> 'blocked' or exists (select 1 from ${issueRecoveryActions} hold
-        where hold.company_id = task.company_id and hold.source_issue_id = task.id and hold.kind = 'active_run_watchdog'
+        where hold.space_id = task.space_id and hold.source_issue_id = task.id and hold.kind = 'active_run_watchdog'
           and hold.cause = ${nativeRunFinalizations.failureCode} and hold.evidence->>'runId' = ${heartbeatRuns.id}::text
           and hold.evidence#>>'{nativeFailureBlock,runId}' = ${heartbeatRuns.id}::text
           and hold.evidence#>'{nativeFailureBlock,statusVersion}' = to_jsonb(task.status_version))))`,
@@ -164,7 +164,7 @@ function preClaimFailurePending() {
 async function preClaimFailureEvidence(db: ReplacementDb, run: typeof heartbeatRuns.$inferSelect) {
   const [evidence] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
     .innerJoin(nativeRunFinalizations, eq(nativeRunFinalizations.runId, heartbeatRuns.id)).where(and(
-      eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.id, run.id), preClaimFailurePending(),
+      eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.id, run.id), preClaimFailurePending(),
     )).limit(1);
   return Boolean(evidence);
 }
@@ -178,22 +178,22 @@ export async function remoteWorkspaceReplacementEvidence(
   lock = false,
 ) {
   const [task] = await db.select({ workspaceId: issues.executionWorkspaceId }).from(issues).where(and(
-    eq(issues.companyId, run.companyId), eq(issues.id, issueId),
+    eq(issues.spaceId, run.spaceId), eq(issues.id, issueId),
   ));
   const query = task?.workspaceId ? db.select().from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, run.companyId), eq(executionWorkspaces.id, task.workspaceId),
+    eq(executionWorkspaces.spaceId, run.spaceId), eq(executionWorkspaces.id, task.workspaceId),
   )) : null;
   const [workspace] = query ? await (lock ? query.for("update") : query) : [];
   const authority = readRemoteWorkspaceAuthority(workspace?.metadata);
   if (run.runnerProfileJson?.remoteWorkspace == null && !authority) return null;
   if (lock) {
     const [currentRun] = await db.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.id, run.id),
+      eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.id, run.id),
     )).for("update");
     if (!currentRun || currentRun.status !== "failed") return { workspacePreserved: false, providerStopped: false };
     run = currentRun;
     leases = await db.select().from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+      eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
     )).for("update");
   }
   const providerStopped = leases.length > 0 && leases.every(hasRemoteTerminationReceipt);
@@ -214,14 +214,14 @@ export async function remoteWorkspaceReplacementEvidence(
     || authority.location.providerLeaseId !== reference.providerLeaseId || authority.location.remoteCwd !== reference.remoteCwd
     : record(lease.metadata?.remoteExecutionTermination).state !== "destroyed") return denied;
   const snapshotQuery = db.select().from(executionWorkspaceSnapshots).where(and(
-    eq(executionWorkspaceSnapshots.companyId, run.companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
+    eq(executionWorkspaceSnapshots.spaceId, run.spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
     eq(executionWorkspaceSnapshots.id, reference.snapshotId!), eq(executionWorkspaceSnapshots.status, "committed"),
   ));
   const [snapshot] = await (lock ? snapshotQuery.for("update") : snapshotQuery);
   if (!snapshot?.sha256 || !snapshot.objectKey || !snapshot.key || !snapshot.manifestDigest || !snapshot.byteSize) return denied;
   const [operation] = snapshot.sourceRunId === run.id && snapshot.epoch === reference.epoch
     ? await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.id, snapshot.sourceOperationId), eq(workspaceOperations.companyId, run.companyId),
+    eq(workspaceOperations.id, snapshot.sourceOperationId), eq(workspaceOperations.spaceId, run.spaceId),
     eq(workspaceOperations.executionWorkspaceId, workspace.id), eq(workspaceOperations.heartbeatRunId, run.id),
     eq(workspaceOperations.issueId, issueId), eq(workspaceOperations.phase, "remote_workspace_snapshot"),
     eq(workspaceOperations.status, "succeeded"),
@@ -231,7 +231,7 @@ export async function remoteWorkspaceReplacementEvidence(
     sql`${workspaceOperations.metadata}->>'sha256' = ${snapshot.sha256}`,
   )) : [];
   const reused = operation ? null : await verifiedWorkspaceSnapshotReuse(db, {
-    companyId: run.companyId, issueId, runId: run.id, reference, snapshot });
+    spaceId: run.spaceId, issueId, runId: run.id, reference, snapshot });
   return { workspacePreserved: Boolean(operation || reused), providerStopped };
 }
 
@@ -264,7 +264,7 @@ export function invalidateNativeReplacementDiscovery(db: Db) {
 
 async function replacementHistoryReady(db: Db, run: typeof heartbeatRuns.$inferSelect, issueId: string, retryDatabaseErrors = false) {
   try {
-    const continuation = await buildExecutionContinuation({ db, companyId: run.companyId, issueId,
+    const continuation = await buildExecutionContinuation({ db, spaceId: run.spaceId, issueId,
       agentId: run.agentId, context: record(run.contextSnapshot), summary: null, exposeLowTrustRaw: false });
     return continuation.unresolvedInteractionIds.length === 0;
   } catch (error) {
@@ -294,7 +294,7 @@ async function discoverNativeReplacements(db: Db, after: string | undefined, lim
         ready = false;
         if (row.run.runnerProfileJson?.remoteWorkspace != null) {
           const leases = await db.select().from(environmentLeases).where(and(
-            eq(environmentLeases.companyId, row.run.companyId), eq(environmentLeases.heartbeatRunId, row.run.id),
+            eq(environmentLeases.spaceId, row.run.spaceId), eq(environmentLeases.heartbeatRunId, row.run.id),
           ));
           if (leases.every(lease => lease.releasedAt !== null)) {
             const evidence = await remoteWorkspaceReplacementEvidence(db, row.run, row.coordinator.issueId, leases);
@@ -315,7 +315,7 @@ async function discoverNativeReplacements(db: Db, after: string | undefined, lim
 /** Saved files and a stopped sandbox, or a run that had no workspace to save. */
 async function preClaimContinuationReady(db: Db, run: typeof heartbeatRuns.$inferSelect, issueId: string) {
   const leases = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+    eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
   ));
   if (leases.some(lease => lease.releasedAt === null)) return false;
   const evidence = await remoteWorkspaceReplacementEvidence(db, run, issueId, leases);
@@ -379,7 +379,7 @@ export async function reconcileSafeNativeReplacements(
         .from(environmentLeases)
         .where(
           and(
-            eq(environmentLeases.companyId, run.companyId),
+            eq(environmentLeases.spaceId, run.spaceId),
             eq(environmentLeases.heartbeatRunId, run.id),
           ),
         );
@@ -399,7 +399,7 @@ export async function reconcileSafeNativeReplacements(
         .from(toolInvocations)
         .where(
           and(
-            eq(toolInvocations.companyId, run.companyId),
+            eq(toolInvocations.spaceId, run.spaceId),
             eq(toolInvocations.runId, run.id),
           ),
         );
@@ -411,7 +411,7 @@ export async function reconcileSafeNativeReplacements(
         .from(heartbeatRunEvents)
         .where(
           and(
-            eq(heartbeatRunEvents.companyId, run.companyId),
+            eq(heartbeatRunEvents.spaceId, run.spaceId),
             eq(heartbeatRunEvents.runId, run.id),
             inArray(heartbeatRunEvents.eventType, [
               "harness.diagnostic",
@@ -428,10 +428,10 @@ export async function reconcileSafeNativeReplacements(
       const safeControlReads = new Set([
         "connections_search",
         "connection_request",
-        "paperclip_get_agent",
-        "paperclip_get_issue",
-        "paperclip_list_issues",
-        "paperclip_read_document",
+        "outpost_get_agent",
+        "outpost_get_issue",
+        "outpost_list_issues",
+        "outpost_read_document",
       ]);
       const uncertainProviderActions = events.flatMap((event) => {
         const envelope = record(event.payload);
@@ -455,7 +455,7 @@ export async function reconcileSafeNativeReplacements(
         if (event.eventType === "tool.execution.started") {
           const name = typeof p.name === "string" ? p.name : "unknown tool";
           const completedTaskControlCallIds = stoppedSession?.evidence.completedTaskControlCallIds;
-          if (name === "paperclip_finish" && Array.isArray(completedTaskControlCallIds) &&
+          if (name === "outpost_finish" && Array.isArray(completedTaskControlCallIds) &&
               completedTaskControlCallIds.includes(p.executionId)) return [];
           const receiptedRead = invocations.some(
             (row) =>
@@ -537,7 +537,7 @@ export async function reconcileSafeNativeReplacements(
             .where(
               and(
                 eq(issues.id, coordinator.issueId),
-                eq(issues.companyId, run.companyId),
+                eq(issues.spaceId, run.spaceId),
               ),
             )
             .for("update");
@@ -553,7 +553,7 @@ export async function reconcileSafeNativeReplacements(
             current.failureDetail?.replacementDenied
           )
             return;
-          await notifyExecutionRunWork(tx, { companyId: run.companyId });
+          await notifyExecutionRunWork(tx, { spaceId: run.spaceId });
           await tx
             .update(nativeRunFinalizations)
             .set({
@@ -574,10 +574,10 @@ export async function reconcileSafeNativeReplacements(
           await issueRecoveryActionService(
             tx as unknown as Db,
           ).upsertSourceScoped({
-            companyId: run.companyId,
+            spaceId: run.spaceId,
             sourceIssueId: coordinator.issueId,
             kind: "active_run_watchdog",
-            ownerType: "board",
+            ownerType: "operator",
             ownerAgentId: null,
             returnOwnerAgentId: run.agentId,
             cause: decision.cause,
@@ -601,7 +601,7 @@ export async function reconcileSafeNativeReplacements(
           .where(
             and(
               eq(issues.id, coordinator.issueId),
-              eq(issues.companyId, run.companyId),
+              eq(issues.spaceId, run.spaceId),
             ),
           )
           .for("update");
@@ -628,13 +628,13 @@ export async function reconcileSafeNativeReplacements(
         let historicalRun: typeof heartbeatRuns.$inferSelect | undefined;
         if (historicalListener || preClaim) {
           const [currentRun] = await tx.select().from(heartbeatRuns).where(and(
-            eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId),
+            eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId),
           )).for("update");
           historicalRun = currentRun;
         }
         if (task.status === "blocked") {
           const failureHolds = await tx.select().from(issueRecoveryActions).where(and(
-            eq(issueRecoveryActions.companyId, run.companyId),
+            eq(issueRecoveryActions.spaceId, run.spaceId),
             eq(issueRecoveryActions.sourceIssueId, task.id),
             eq(issueRecoveryActions.kind, "active_run_watchdog"),
             eq(issueRecoveryActions.cause, current.failureCode!),
@@ -647,7 +647,7 @@ export async function reconcileSafeNativeReplacements(
           if (!ownsBlock) return false;
         }
         const preservationHolds = historicalListener ? await tx.select().from(issueRecoveryActions).where(and(
-          eq(issueRecoveryActions.companyId, run.companyId), eq(issueRecoveryActions.sourceIssueId, task.id),
+          eq(issueRecoveryActions.spaceId, run.spaceId), eq(issueRecoveryActions.sourceIssueId, task.id),
           eq(issueRecoveryActions.kind, "active_run_watchdog"),
           eq(issueRecoveryActions.cause, "native_continuation_requires_reconciliation"),
           sql`${issueRecoveryActions.evidence}->>'runId' = ${run.id}`,
@@ -661,7 +661,7 @@ export async function reconcileSafeNativeReplacements(
         }
         if (stoppedSession) {
           const [currentRun] = await tx.select().from(heartbeatRuns).where(and(
-            eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, run.companyId),
+            eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.spaceId, run.spaceId),
           )).for("update");
           if (!currentRun || currentRun.status !== "failed" || currentRun.runnerInstanceId !== run.runnerInstanceId ||
               currentRun.nativeSessionId !== run.nativeSessionId || currentRun.processPid || currentRun.processGroupId) return false;
@@ -675,7 +675,7 @@ export async function reconcileSafeNativeReplacements(
           // If the last ownership proof changes, roll back the status restoration.
           if (!stoppedSession.retire()) throw new Error("native_replacement_stopped_session_changed");
           await appendHeartbeatRunEvent(tx as unknown as Db, {
-            companyId: run.companyId, runId: run.id, agentId: run.agentId,
+            spaceId: run.spaceId, runId: run.id, agentId: run.agentId,
             eventType: "native.stopped_text_turn_verified", stream: "system", level: "info",
             message: "The previous runner and provider stopped. The interrupted turn had no external actions; any completion bookkeeping has a verified receipt.",
             payload: stoppedSession.evidence,
@@ -689,8 +689,8 @@ export async function reconcileSafeNativeReplacements(
         for (const key of [
           "explicitUserContinuation", "wakeCommentId", "wakeCommentIds", "commentId",
           "commentIds", "latestCommentId", "resumeIntent", "followUpRequested",
-          "paperclipWake", "paperclipWakeComment", "paperclipTaskMarkdown", "paperclipTaskMarkdownCompact",
-          "paperclipTaskMarkdownAssignment", "paperclipTaskMarkdownAssignmentCompact", "paperclipTurnContext",
+          "outpostWake", "outpostWakeComment", "outpostTaskMarkdown", "outpostTaskMarkdownCompact",
+          "outpostTaskMarkdownAssignment", "outpostTaskMarkdownAssignmentCompact", "outpostTurnContext",
         ]) delete predecessorContext[key];
         const context = {
           ...predecessorContext,
@@ -707,7 +707,7 @@ export async function reconcileSafeNativeReplacements(
         const [wake] = await tx
           .insert(agentWakeupRequests)
           .values({
-            companyId: run.companyId,
+            spaceId: run.spaceId,
             agentId: run.agentId,
             source: "automation",
             triggerDetail: "system",
@@ -718,11 +718,11 @@ export async function reconcileSafeNativeReplacements(
             idempotencyKey: `native-safe-replacement:${run.id}`,
           })
           .returning();
-        await notifyExecutionRunWork(tx, { companyId: run.companyId });
-        await notifyScheduledRetryDispatch(tx, { companyId: run.companyId });
+        await notifyExecutionRunWork(tx, { spaceId: run.spaceId });
+        await notifyScheduledRetryDispatch(tx, { spaceId: run.spaceId });
         await tx.insert(heartbeatRuns).values({
           id: successorRunId,
-          companyId: run.companyId,
+          spaceId: run.spaceId,
           agentId: run.agentId,
           invocationSource: "automation",
           triggerDetail: "system",
@@ -759,7 +759,7 @@ export async function reconcileSafeNativeReplacements(
         await issueRecoveryActionService(
           tx as unknown as Db,
         ).resolveActiveForIssue({
-          companyId: run.companyId,
+          spaceId: run.spaceId,
           sourceIssueId: task.id,
           kind: "active_run_watchdog",
           fingerprint: createHash("sha256")
@@ -773,7 +773,7 @@ export async function reconcileSafeNativeReplacements(
         // an effective no-replay hold. Retire only this exact failure's hold in
         // the same transaction as its verified successor; unrelated holds remain.
         const holds = await tx.select().from(issueRecoveryActions).where(and(
-          eq(issueRecoveryActions.companyId, run.companyId),
+          eq(issueRecoveryActions.spaceId, run.spaceId),
           eq(issueRecoveryActions.sourceIssueId, task.id),
           eq(issueRecoveryActions.kind, "active_run_watchdog"),
           eq(issueRecoveryActions.cause, current.failureCode!),
@@ -781,7 +781,7 @@ export async function reconcileSafeNativeReplacements(
         )).for("update");
         holds.push(...preservationHolds);
         if (holds.some(hold => hold.status === "active" || hold.status === "escalated")) {
-          await notifyUnsafeWorkspaceExportRecovery(tx, { companyId: run.companyId, issueId: task.id });
+          await notifyUnsafeWorkspaceExportRecovery(tx, { spaceId: run.spaceId, issueId: task.id });
         }
         for (const hold of holds) {
           await tx.update(issueRecoveryActions).set({
@@ -802,7 +802,7 @@ export async function reconcileSafeNativeReplacements(
           .update(heartbeatRuns)
           .set({ executionStatusDeliveryId: randomUUID() })
           .where(eq(heartbeatRuns.id, run.id));
-        await notifyNativeStatusReassessment(tx, { companyId: run.companyId, issueId: task.id });
+        await notifyNativeStatusReassessment(tx, { spaceId: run.spaceId, issueId: task.id });
         // The successor gets task authority only through the existing admission gate.
         await tx
           .update(issues)

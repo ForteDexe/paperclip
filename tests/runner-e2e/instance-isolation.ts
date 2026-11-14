@@ -64,7 +64,7 @@ export async function assertRunnerDatabaseIsolation(
   const supervised = !docker && config.database?.mode === "postgres";
   if (docker ? config.database?.mode !== "postgres" || config.database.connectionString !== docker.connectionString : !config.database || (!supervised &&
     (config.database.mode !== "embedded-postgres" || config.database.connectionString))) {
-    throw new Error("Runner E2E Paperclip instance did not use its fixture-owned database lane");
+    throw new Error("Runner E2E Outpost instance did not use its fixture-owned database lane");
   }
   if (
     config.storage?.provider !== "local_disk" ||
@@ -108,14 +108,14 @@ export async function assertRunnerDatabaseIsolation(
           && ["127.0.0.1", "localhost", "[::1]"].includes(connection.hostname)
           && connection.pathname === `/${owner.externalDatabaseName}`;
         const embedded = owner.version === 1 && Number.isInteger(port) && Number(port) > 0 && Number(port) <= 65535
-          && config.database.connectionString === `postgres://paperclip:paperclip@127.0.0.1:${port}/paperclip`
+          && config.database.connectionString === `postgres://outpost:outpost@127.0.0.1:${port}/outpost`
           && (await stat(path.join(directory, "PG_VERSION"))).isFile();
         if ((!external && !embedded) || owner.temporaryRoot !== root || owner.dataDirectory !== directory
           || owner.configPath !== await realpath(configPath) || owner.connectionString !== config.database.connectionString) {
           throw new Error("Supervisor database ownership mismatch");
         }
       } catch (cause) {
-        throw new Error("Runner E2E Paperclip instance did not use its fixture-owned database lane", { cause });
+        throw new Error("Runner E2E Outpost instance did not use its fixture-owned database lane", { cause });
       }
     }
     const databaseStat = await stat(databasePath);

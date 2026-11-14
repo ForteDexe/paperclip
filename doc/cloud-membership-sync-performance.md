@@ -1,6 +1,6 @@
 # Cloud membership synchronization
 
-Trusted Cloud requests synchronize the user's profile, company membership and
+Trusted Cloud requests synchronize the user's profile, space membership and
 default grants before they resolve authority. Synchronization writes are shared
 only within one database client and process. Requests with different contexts
 for the same user execute in order. An A, B, A sequence still applies all three
@@ -14,13 +14,13 @@ removal remain fresh on each request. This cache does not store actors.
 Guarded upserts preserve `updated_at` when profile fields, role and status do not
 change. They still repair missing default grants. Access lists now sort these
 rows by their last actual change. Profiles remain reachable beyond the first
-200 memberships: lookup uses the existing company/principal index for an exact
-principal ID, then at most one company-scoped alias query returning one row.
+200 memberships: lookup uses the existing space/principal index for an exact
+principal ID, then at most one space-scoped alias query returning one row.
 An exact ID takes precedence over another member's name, matching the UI's
 stable-ID links. Name, email and normalized non-UUID ID aliases retain their
 newest-membership-first ordering. A missing slug performs two queries, with no
-membership paging. The fallback still scans company candidates; it does not
-add an expression index or claim constant database CPU at every company size.
+membership paging. The fallback still scans space candidates; it does not
+add an expression index or claim constant database CPU at every space size.
 
 ## Reproduce the local comparison
 
@@ -47,11 +47,11 @@ locks across replicas.
 
 ## Safety checks
 
-Run the Cloud actor, Cloud transient database retry, company provisioning,
+Run the Cloud actor, Cloud transient database retry, space provisioning,
 Cloud synchronization PostgreSQL and user profile route suites. They cover
 coalescing, A/B/A transitions, failed partial writes, expiry, distinct users and
 databases, grant repair, real role-change invalidation, imported-membership
-revocation, owner-flag changes and cross-company denial. The profile regression
+revocation, owner-flag changes and cross-space denial. The profile regression
 first returned 404 with the former 200-row lookup. The fixture now contains
 601 memberships with timestamps differing within one millisecond. It checks
 raw and normalized non-UUID IDs, a missing slug's two-statement bound, tenant

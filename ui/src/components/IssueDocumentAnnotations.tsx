@@ -15,7 +15,7 @@ import {
 import { DocumentAnnotationLayer, type AnnotationAnchorRect, type PendingAnchor } from "./DocumentAnnotationLayer";
 import { DocumentAnnotationPanel } from "./DocumentAnnotationPanel";
 import { DocumentAnnotationPopover } from "./DocumentAnnotationPopover";
-import type { CompanyUserProfile } from "@/lib/company-members";
+import type { SpaceUserProfile } from "@/lib/space-members";
 
 // Width of the right-hand comment gutter on desktop (lg+). The gutter is an
 // in-flow flex column beside the document, so it scrolls with the doc instead
@@ -46,7 +46,7 @@ export interface IssueDocumentAnnotationsProps {
   /** Keep the panel in document flow for narrow hosts such as the task properties pane. */
   panelPlacement?: "floating" | "inline" | "popover";
   agentMap?: ReadonlyMap<string, Pick<Agent, "id" | "name"> & Partial<Pick<Agent, "icon">>>;
-  userProfileMap?: ReadonlyMap<string, CompanyUserProfile>;
+  userProfileMap?: ReadonlyMap<string, SpaceUserProfile>;
   /** Seed which thread is focused on mount. Used by Storybook/screenshot harness. */
   defaultFocusedThreadId?: string;
   /**
@@ -278,7 +278,7 @@ export function IssueDocumentAnnotations({
   const content = (
     <div
       className={cn(
-        "paperclip-doc-annotation-host relative",
+        "outpost-doc-annotation-host relative",
         // Docked desktop gutter: lay the doc and the comment column side by side
         // so the panel is part of the document's scroll flow (Google-Docs style).
         showDesktopGutter && "lg:flex lg:items-stretch lg:gap-6",

@@ -5,7 +5,7 @@ import {
   type ObservedProcessGroup, type ProcessObservation,
 } from "./process-tree.js";
 
-/** Supplied by the company-scoped run API, never by process-name discovery. */
+/** Supplied by the space-scoped run API, never by process-name discovery. */
 export interface RestartRunnerIdentity {
   processPid: number;
   processGroupId: number;

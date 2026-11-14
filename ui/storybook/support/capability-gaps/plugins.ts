@@ -94,7 +94,7 @@ export function installPluginFixtures(
           return {
             id: "config-gap",
             pluginId: plugin.id,
-            companyId: "company-storybook",
+            spaceId: "space-storybook",
             configJson,
           };
         },

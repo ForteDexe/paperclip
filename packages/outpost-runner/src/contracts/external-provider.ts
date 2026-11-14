@@ -1,4 +1,4 @@
-import { digestPaperclipSemanticContent } from "../semantic-tools/receipts.js";
+import { digestOutpostSemanticContent } from "../semantic-tools/receipts.js";
 
 export type ExternalBotProviderKind = "openai_dot" | "grok_bot";
 export const GROK_BRIDGE_REVISION = "grok-bot-mcp-v1" as const;
@@ -7,7 +7,7 @@ export const MUSE_BRIDGE_REVISION = "muse-v1" as const;
 export interface DotBindingSnapshot {
   bindingId: string;
   bindingGeneration: number;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   acceptByUnixMs: number;
   expiresAtUnixMs: number;
@@ -41,5 +41,5 @@ export interface ExternalProviderPort {
   attach(send: (operation: ExternalProviderOperation) => Promise<void>, revoke?: () => Promise<void>, hasProviderCheckpoint?: boolean): Promise<() => Promise<void>>;
 }
 export function externalOperationDigest(action: ExternalProviderOperation["action"], input: Record<string, unknown>): string {
-  return digestPaperclipSemanticContent({ action, input });
+  return digestOutpostSemanticContent({ action, input });
 }

@@ -16,9 +16,9 @@ vi.mock("../api/heartbeats", async importOriginal => ({ heartbeatsApi: { ...(awa
   get, events: async () => [], workspaceOperations: async () => [] } }));
 vi.mock("../api/grokBot", () => ({ grokBotApi: { stop: grokStop } }));
 vi.mock("../api/client", () => ({ api: { get: async () => [], post: cancel }, detachInflightGet: vi.fn() }));
-vi.mock("../api/access", () => ({ accessApi: { getCurrentBoardAccess: async () => ({ userId: actor.id, source: actor.source, companyIds: ["company-1"], memberships: [] }) } }));
+vi.mock("../api/access", () => ({ accessApi: { getCurrentBoardAccess: async () => ({ userId: actor.id, source: actor.source, spaceIds: ["space-1"], memberships: [] }) } }));
 vi.mock("../context/SidebarContext", () => ({ useSidebar: () => ({ isMobile: false }) }));
-vi.mock("../context/CompanyContext", () => ({ useCompany: () => ({ selectedCompanyId: "company-1", selectedCompany: { id: "company-1", issuePrefix: "TEST" }, companies: [] }) }));
+vi.mock("../context/SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: "space-1", selectedSpace: { id: "space-1", issuePrefix: "TEST" }, spaces: [] }) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 afterEach(() => { get.mockReset(); cancel.mockReset(); grokStop.mockReset(); actor.id = "operator-1"; actor.source = "authenticated"; sessionStorage.clear(); vi.unstubAllGlobals(); });
 
@@ -51,26 +51,26 @@ const states = [
   { status: "queued", eligibility: undefined, label: "Cancel", driverKind: "grok_bot_mcp" },
 ];
 it.each([RunsTab, ProductionRunsTab].flatMap(Tab => states.map(state => ({ Tab, ...state }))))("renders and submits only eligible run cancellation (%#)", async ({ Tab, status, eligibility, label, ...state }) => {
-  if (state.local) { actor.id = "local-board"; actor.source = "local_implicit"; }
-  const run = { id: state.priorSession ? `persisted-run-${Tab === RunsTab ? "main" : "production"}` : "failed-native-run", companyId: "company-1", agentId: "agent-1", issueId: "issue-1", status, driverKind: state.driverKind, invocationSource: "manual",
+  if (state.local) { actor.id = "local-operator"; actor.source = "local_implicit"; }
+  const run = { id: state.priorSession ? `persisted-run-${Tab === RunsTab ? "main" : "production"}` : "failed-native-run", spaceId: "space-1", agentId: "agent-1", issueId: "issue-1", status, driverKind: state.driverKind, invocationSource: "manual",
     createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z", usageJson: null, resultJson: null,
     contextSnapshot: null, exitCode: 1, error: "Runner ingress unavailable", logRef: null, startedAt: null, finishedAt: null,
     execution: { canStop: eligibility, phase: "reconnecting", label: "Reconnecting", recoveryOwner: "agent", retryAt: "2026-01-01T00:00:01Z" },
   } as unknown as HeartbeatRun;
   const existingRequestId = "11111111-1111-4111-8111-111111111111";
-  const storageKey = pendingSendKeyFor(`paperclip:native-run-stop:${run.companyId}:${run.id}`, actor.id);
+  const storageKey = pendingSendKeyFor(`outpost:native-run-stop:${run.spaceId}:${run.id}`, actor.id);
   if (state.priorSession) expect(writePendingSend(storageKey, { idempotencyKey: existingRequestId,
-    payload: { runId: run.id, companyId: run.companyId, actorUserId: actor.id }, createdAt: Date.now() - 1000,
+    payload: { runId: run.id, spaceId: run.spaceId, actorUserId: actor.id }, createdAt: Date.now() - 1000,
   }, "session")).toBe(true);
   if (state.existingClaim) run.resultJson = { startupCancellation: { cancellationRequestId: existingRequestId,
-    requestedBy: { type: "board", userId: actor.id } } };
+    requestedBy: { type: "operator", userId: actor.id } } };
   get.mockResolvedValue(run);
   if (state.http) vi.stubGlobal("crypto", { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
   cancel.mockImplementation(async (_path, body) => {
     if (state.denial) throw new Error("Native retry changed; Stop was not accepted");
     if (state.uncertain && cancel.mock.calls.length === 1) {
       if (state.canonical) get.mockResolvedValue({ ...run, resultJson: { startupCancellation: {
-        cancellationRequestId: body.cancellationRequestId, requestedBy: { type: "board", userId: "operator-1" },
+        cancellationRequestId: body.cancellationRequestId, requestedBy: { type: "operator", userId: "operator-1" },
       } } });
       throw new Error("Stop outcome is unknown");
     }
@@ -81,7 +81,7 @@ it.each([RunsTab, ProductionRunsTab].flatMap(Tab => states.map(state => ({ Tab, 
     }
     if (state.pending || state.uncertain) {
       const pending = { ...run, execution: { ...run.execution, canStop: false }, resultJson: { nativeCancellation: {
-        schema: "outpost.native-cancellation.v1", runId: state.wrongIntent === "run" ? "another-run" : run.id, companyId: run.companyId, issueId: run.issueId,
+        schema: "outpost.native-cancellation.v1", runId: state.wrongIntent === "run" ? "another-run" : run.id, spaceId: run.spaceId, issueId: run.issueId,
         intentId: `native-cancellation:${state.wrongIntent === "request" ? "another-request" : body.cancellationRequestId}`, scope: "run", dispatchState: "pending", dispatched: false, intentAuditId: "recorded-intent",
       } } };
       get.mockResolvedValue(pending);
@@ -101,7 +101,7 @@ it.each([RunsTab, ProductionRunsTab].flatMap(Tab => states.map(state => ({ Tab, 
   const element = document.createElement("div"); document.body.append(element);
   let root = createRoot(element);
   const render = () => root.render(<QueryClientProvider client={client}><MemoryRouter><PanelProvider><ToastProvider>
-    <Tab runs={[]} companyId="company-1" agentId="agent-1" agentRouteId="agent-1" selectedRunId={run.id} adapterType="outpost_runner" adapterConfig={{}} />
+    <Tab runs={[]} spaceId="space-1" agentId="agent-1" agentRouteId="agent-1" selectedRunId={run.id} adapterType="outpost_runner" adapterConfig={{}} />
   </ToastProvider></PanelProvider></MemoryRouter></QueryClientProvider>);
   try {
     await act(async () => render());
@@ -111,7 +111,7 @@ it.each([RunsTab, ProductionRunsTab].flatMap(Tab => states.map(state => ({ Tab, 
       expect(control()?.textContent).toBe(expectedLabel);
       await act(async () => control()!.click());
       await vi.waitFor(() => usesGrokStop
-        ? expect(grokStop).toHaveBeenCalledExactlyOnceWith("company-1", "agent-1", run.id)
+        ? expect(grokStop).toHaveBeenCalledExactlyOnceWith("space-1", "agent-1", run.id)
         : expect(cancel).toHaveBeenCalledExactlyOnceWith(`/heartbeat-runs/${run.id}/cancel`,
           status === "failed" ? { cancellationRequestId: expect.stringMatching(/^[a-f0-9-]{36}$/) } : {}));
       expect(usesGrokStop ? cancel : grokStop).not.toHaveBeenCalled();
@@ -125,7 +125,7 @@ it.each([RunsTab, ProductionRunsTab].flatMap(Tab => states.map(state => ({ Tab, 
         const firstRequest = cancel.mock.calls[0][1];
         expect(readPendingSend(storageKey, (value): value is Record<string, unknown> => typeof value === "object" && value !== null, "session"))
           .toMatchObject({ idempotencyKey: firstRequest.cancellationRequestId,
-            payload: { runId: run.id, companyId: run.companyId, actorUserId: actor.id } });
+            payload: { runId: run.id, spaceId: run.spaceId, actorUserId: actor.id } });
         if (state.remount) {
           await act(async () => root.unmount());
           client.clear();
@@ -135,7 +135,7 @@ it.each([RunsTab, ProductionRunsTab].flatMap(Tab => states.map(state => ({ Tab, 
           await act(async () => render());
           await vi.waitFor(async () => { await act(async () => {}); expect(control()?.textContent).toBe(expectedLabel); });
           if (state.wrongRun) get.mockResolvedValue({ ...run, id: "another-run", resultJson: { startupCancellation: {
-            cancellationRequestId: firstRequest.cancellationRequestId, requestedBy: { type: "board", userId: "operator-1" },
+            cancellationRequestId: firstRequest.cancellationRequestId, requestedBy: { type: "operator", userId: "operator-1" },
           } } });
         }
         await act(async () => control()!.click());

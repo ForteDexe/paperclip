@@ -10,7 +10,7 @@ const object = (value: unknown): Record<string, unknown> => value && typeof valu
 const absolute = (value: unknown): value is string => typeof value === "string" && value !== "/"
   && !value.includes("\0") && path.posix.isAbsolute(value) && path.posix.normalize(value) === value;
 const uuid = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value);
-type Workspace = Pick<typeof executionWorkspaces.$inferSelect, "companyId" | "id">;
+type Workspace = Pick<typeof executionWorkspaces.$inferSelect, "spaceId" | "id">;
 type SessionBinding = { sourceRunId: string; agentId: string; issueId: string; sessionId: string; logicalCwd: string };
 export type NativeWorkspaceMigration = { schema: typeof SCHEMA; remoteCwd: string; sessions: SessionBinding[] };
 
@@ -18,8 +18,8 @@ export async function inspectNativeWorkspaceMigration(db: Db, workspace: Workspa
   const rows = await db.execute<{ agentId: string; issueId: string; sessionId: string; createdAt: Date }>(sql`
     select s.agent_id as "agentId", r.native_issue_id as "issueId", r.native_session_id as "sessionId", r.created_at as "createdAt"
     from agent_task_sessions s join heartbeat_runs r on r.id = s.last_run_id
-      and r.company_id = s.company_id and r.agent_id = s.agent_id
-    where s.company_id = ${workspace.companyId} and s.adapter_type = 'outpost_runner'
+      and r.space_id = s.space_id and r.agent_id = s.agent_id
+    where s.space_id = ${workspace.spaceId} and s.adapter_type = 'outpost_runner'
       and r.native_issue_id is not null and r.native_session_id is not null
       and r.runner_profile_json#>>'{nativeExecutionInput,binding,executionWorkspaceId}' = ${workspace.id}
     order by s.id limit 1001`);
@@ -27,14 +27,14 @@ export async function inspectNativeWorkspaceMigration(db: Db, workspace: Workspa
   const sessions: SessionBinding[] = [];
   let remoteCwd: string | null = null;
   for (const row of rows) {
-    const source = await findNativeSessionResumeRun(db, { companyId: workspace.companyId, agentId: row.agentId,
+    const source = await findNativeSessionResumeRun(db, { spaceId: workspace.spaceId, agentId: row.agentId,
       issueId: row.issueId, normalizedSessionId: row.sessionId, beforeCreatedAt: new Date(row.createdAt), includeProgressBarrier: true });
     if (!source) continue;
     const execution = parseNativeExecutionInput(source.runnerProfileJson.nativeExecutionInput);
     const [saved] = await db.select({ sync: sql<unknown>`${heartbeatRuns.runnerProfileJson}->'nativeWorkspaceSync'` })
-      .from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, workspace.companyId), eq(heartbeatRuns.id, source.id)));
+      .from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, workspace.spaceId), eq(heartbeatRuns.id, source.id)));
     const sync = readNativeWorkspaceSyncReference(saved?.sync);
-    if (execution.binding.executionWorkspaceId !== workspace.id || execution.binding.companyId !== workspace.companyId
+    if (execution.binding.executionWorkspaceId !== workspace.id || execution.binding.spaceId !== workspace.spaceId
       || execution.binding.agentId !== row.agentId || execution.binding.issueId !== row.issueId
       || execution.session.normalizedSessionId !== row.sessionId || !absolute(execution.workspace.cwd)
       || !sync || sync.workspaceId !== workspace.id || !absolute(sync.remoteCwd)) throw new Error("native_workspace_migration_identity_unproven");
@@ -48,11 +48,11 @@ export async function inspectNativeWorkspaceMigration(db: Db, workspace: Workspa
 export async function readNativeWorkspaceMigration(db: Pick<Db, "select">, workspace: Workspace) {
   const [row] = await db.select({ workspaceMetadata: executionWorkspaces.metadata, metadata: workspaceOperations.metadata, operationId: workspaceOperations.id })
     .from(executionWorkspaces).leftJoin(workspaceOperations, and(
-      eq(workspaceOperations.companyId, executionWorkspaces.companyId), eq(workspaceOperations.executionWorkspaceId, executionWorkspaces.id),
+      eq(workspaceOperations.spaceId, executionWorkspaces.spaceId), eq(workspaceOperations.executionWorkspaceId, executionWorkspaces.id),
       sql`${workspaceOperations.id} = case when ${executionWorkspaces.metadata}->'nativeWorkspaceMigration'->>'operationId' ~ '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
         then (${executionWorkspaces.metadata}->'nativeWorkspaceMigration'->>'operationId')::uuid end`,
       eq(workspaceOperations.phase, "remote_workspace_migration"), eq(workspaceOperations.status, "succeeded"),
-    )).where(and(eq(executionWorkspaces.companyId, workspace.companyId), eq(executionWorkspaces.id, workspace.id)));
+    )).where(and(eq(executionWorkspaces.spaceId, workspace.spaceId), eq(executionWorkspaces.id, workspace.id)));
   if (!row?.workspaceMetadata?.nativeWorkspaceMigration) return null;
   const migration = object(row.metadata?.nativeSessionContinuity);
   if (object(row.workspaceMetadata.nativeWorkspaceMigration).schema !== SCHEMA || !row.operationId || row.metadata?.schema !== "outpost.remote-workspace-migration.v1" || !uuid(row.metadata.snapshotId)
@@ -75,9 +75,9 @@ export function migratedNativeExecutionCwd(migration: NativeWorkspaceMigration |
 }
 
 export async function canRestoreMigratedNativeSession(db: Db, input: {
-  companyId: string; workspaceId: string; agentId: string; issueId: string; sessionId: string; logicalCwd: string | null; remoteCwd: string;
+  spaceId: string; workspaceId: string; agentId: string; issueId: string; sessionId: string; logicalCwd: string | null; remoteCwd: string;
 }) {
   if (input.logicalCwd === null) return false;
-  const migration = await readNativeWorkspaceMigration(db, { companyId: input.companyId, id: input.workspaceId });
+  const migration = await readNativeWorkspaceMigration(db, { spaceId: input.spaceId, id: input.workspaceId });
   return migration?.remoteCwd === input.remoteCwd && migratedNativeExecutionCwd(migration, input) === input.logicalCwd;
 }

@@ -11,11 +11,11 @@ Uploads a generated file from the current workspace to the current Outpost
 task, then creates an attachment-backed artifact work product by default.
 
 Required environment for live uploads:
-  OUTPOST_API_URL, OUTPOST_API_KEY, OUTPOST_COMPANY_ID, OUTPOST_TASK_ID, OUTPOST_RUN_ID
+  OUTPOST_API_URL, OUTPOST_API_KEY, OUTPOST_SPACE_ID, OUTPOST_TASK_ID, OUTPOST_RUN_ID
 
 Options:
   --issue-id ID          Issue id to attach to (default: OUTPOST_TASK_ID)
-  --company-id ID        Company id (default: OUTPOST_COMPANY_ID)
+  --space-id ID        Space id (default: OUTPOST_SPACE_ID)
   --title TEXT           Work product title (default: file basename)
   --summary TEXT         Work product summary
   --content-type TYPE    Override detected upload content type
@@ -137,7 +137,7 @@ request_json() {
       curl -sS -X "$method" -w '%{http_code}' -o "$response_file" \
         "$url" \
         -H "Authorization: Bearer $OUTPOST_API_KEY" \
-        -H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID" \
+        -H "X-Outpost-Run-Id: $OUTPOST_RUN_ID" \
         -H 'Content-Type: application/json' \
         --data-binary "$body"
     )"
@@ -146,7 +146,7 @@ request_json() {
       curl -sS -X "$method" -w '%{http_code}' -o "$response_file" \
         "$url" \
         -H "Authorization: Bearer $OUTPOST_API_KEY" \
-        -H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID"
+        -H "X-Outpost-Run-Id: $OUTPOST_RUN_ID"
     )"
   fi
 
@@ -179,7 +179,7 @@ upload_file() {
     curl -sS -X POST -w '%{http_code}' -o "$response_file" \
       "$url" \
       -H "Authorization: Bearer $OUTPOST_API_KEY" \
-      -H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID" \
+      -H "X-Outpost-Run-Id: $OUTPOST_RUN_ID" \
       -F "file=@\"${escaped_path}\";type=${content_type}"
   )" || curl_status=$?
 
@@ -276,7 +276,7 @@ acquire_operation_lock() {
 
 file_path=""
 issue_id="${OUTPOST_TASK_ID:-}"
-company_id="${OUTPOST_COMPANY_ID:-}"
+space_id="${OUTPOST_SPACE_ID:-}"
 title=""
 summary=""
 content_type=""
@@ -294,8 +294,8 @@ while [[ $# -gt 0 ]]; do
       issue_id="${2:-}"
       shift 2
       ;;
-    --company-id)
-      company_id="${2:-}"
+    --space-id)
+      space_id="${2:-}"
       shift 2
       ;;
     --title)
@@ -397,7 +397,7 @@ if [[ "$dry_run" == "1" ]]; then
   jq -n \
     --arg file "$file_path" \
     --arg issueId "$issue_id" \
-    --arg companyId "$company_id" \
+    --arg spaceId "$space_id" \
     --arg title "$title" \
     --arg summary "$summary" \
     --arg contentType "$content_type" \
@@ -405,7 +405,7 @@ if [[ "$dry_run" == "1" ]]; then
     --arg chatComment "$chat_comment" \
     --argjson createWorkProduct "$create_work_product_json" \
     --argjson isPrimary "$is_primary_json" \
-    '{file: $file, issueId: $issueId, companyId: $companyId, title: $title, summary: $summary, contentType: $contentType, status: $status, chatComment: (if $chatComment == "" then null else $chatComment end), createWorkProduct: $createWorkProduct, isPrimary: $isPrimary}'
+    '{file: $file, issueId: $issueId, spaceId: $spaceId, title: $title, summary: $summary, contentType: $contentType, status: $status, chatComment: (if $chatComment == "" then null else $chatComment end), createWorkProduct: $createWorkProduct, isPrimary: $isPrimary}'
   exit 0
 fi
 
@@ -414,8 +414,8 @@ if [[ -z "${OUTPOST_API_URL:-}" || -z "${OUTPOST_API_KEY:-}" || -z "${OUTPOST_RU
   exit 1
 fi
 
-if [[ -z "$issue_id" || -z "$company_id" ]]; then
-  printf 'Missing issue or company id. Pass --issue-id/--company-id or set OUTPOST_TASK_ID/OUTPOST_COMPANY_ID.\n' >&2
+if [[ -z "$issue_id" || -z "$space_id" ]]; then
+  printf 'Missing issue or space id. Pass --issue-id/--space-id or set OUTPOST_TASK_ID/OUTPOST_SPACE_ID.\n' >&2
   exit 1
 fi
 
@@ -427,7 +427,7 @@ esac
 file_sha256="$(sha256_file "$file_path")"
 original_filename="$(basename "$file_path")"
 operation_key="$(
-  sha256_text "$api_base|$company_id|$issue_id|$OUTPOST_RUN_ID|$original_filename|$file_sha256|$content_type"
+  sha256_text "$api_base|$space_id|$issue_id|$OUTPOST_RUN_ID|$original_filename|$file_sha256|$content_type"
 )"
 acquire_operation_lock "$operation_key"
 trap release_operation_lock EXIT
@@ -480,7 +480,7 @@ if [[ -z "$attachment" ]]; then
   upload_status=0
   attachment="$(
     upload_file \
-      "$api_base/companies/$company_id/issues/$issue_id/attachments" \
+      "$api_base/spaces/$space_id/issues/$issue_id/attachments" \
       "$file_path" \
       "$content_type"
   )" || upload_status=$?
@@ -525,7 +525,7 @@ if [[ "$create_work_product" == "1" ]]; then
       --argjson isPrimary "$is_primary_json" \
       '{
         type: "artifact",
-        provider: "paperclip",
+        provider: "outpost",
         title: $title,
         status: $status,
         reviewState: "none",

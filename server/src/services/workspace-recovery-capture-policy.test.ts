@@ -21,7 +21,7 @@ vi.mock("./environment-execution-target.js", async importOriginal => {
     (input.leaseId ? targets.get(input.leaseId) : undefined) ?? actual.resolveEnvironmentExecutionTarget(input) };
 });
 
-const adminText = /sandbox|environment|administrator|board member|owner must|inspect the run/i;
+const adminText = /sandbox|environment|administrator|operator member|owner must|inspect the run/i;
 
 describe("saves exhausted under an older workspace capture policy", () => {
   useWorkspaceRecoveryFixture(targets);
@@ -37,7 +37,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
    * profile in the workspace linked its SingletonSocket by absolute path into
    * /tmp. Automatic recovery then spent its whole budget on the same refusal,
    * recorded as `export_interrupted` with cause `provider_error`, and handed
-   * the hold to the board. This is the exact evidence that release saved.
+   * the hold to the operator. This is the exact evidence that release saved.
    */
   async function exhaustedCaptureHold(policyVersion?: number) {
     const f = await acceptedRemoteExport("retained");
@@ -57,7 +57,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
     const nextAction = "Automatic recovery of saved work stopped after 6 attempts (last failure: export_interrupted, cause: provider_error). "
       + "Retry to try again; the agent will not repeat its work.";
     const { capturePolicyVersion: _omitted, ...saved } = current as typeof current & { capturePolicyVersion?: number };
-    await db.update(issueRecoveryActions).set({ ownerType: "board", nextAction, evidence: { ...prior.evidence,
+    await db.update(issueRecoveryActions).set({ ownerType: "operator", nextAction, evidence: { ...prior.evidence,
       systemRecovery: { ...saved, ...(policyVersion === undefined ? {} : { capturePolicyVersion: policyVersion }),
         revision: 18, phase: "preserve_files", state: "exhausted", attempts: 6, retriesUsed: 5,
         attemptId: randomUUID(), firstFailureAt, deadlineAt: firstFailureAt + 30 * 60_000, nextAttemptAt: null,
@@ -131,8 +131,8 @@ describe("saves exhausted under an older workspace capture policy", () => {
     const exhausted = readSystemRecovery((await action(f.actionId)).evidence)!;
     const [task] = await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, f.issueId)).returning();
     const noReplayHoldId = randomUUID(), resolvedAt = new Date(Date.now() - 30 * 60_000);
-    await db.insert(issueRecoveryActions).values({ id: noReplayHoldId, companyId: f.companyId, sourceIssueId: f.issueId,
-      kind: "active_run_watchdog", status: "resolved", outcome: "blocked", ownerType: "board", resolvedAt,
+    await db.insert(issueRecoveryActions).values({ id: noReplayHoldId, spaceId: f.spaceId, sourceIssueId: f.issueId,
+      kind: "active_run_watchdog", status: "resolved", outcome: "blocked", ownerType: "operator", resolvedAt,
       cause: "native_continuation_requires_reconciliation", fingerprint: `native-workspace:${f.runId}`,
       nextAction: exportHold.nextAction, evidence: { runId: f.runId,
         systemRecovery: { ...exhausted, generationId: randomUUID(), attemptId: randomUUID() },
@@ -147,7 +147,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
         ...(failureBlock ? { nativeFailureBlock: { runId: f.runId, statusVersion: Number(task.statusVersion) },
           historicalWorkspaceSource: { schema: "outpost.historical-workspace-source.v1", runId: f.runId, leaseIds: [f.lease.id] } } : {}) } });
     // The user's "try again" comment waits for the task to be free.
-    const [waiting] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: source.agentId, source: "on_demand",
+    const [waiting] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: source.agentId, source: "on_demand",
       reason: "issue_commented", status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: "operator",
       payload: { issueId: f.issueId } }).returning();
     return { ...f, noReplayHoldId, waitingInputId: waiting.id };
@@ -158,7 +158,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
     const f = await stagingIncident(failureBlock);
     // As on staging: the no-replay sibling is the execution blocker, and it
     // offers no task Retry.
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toMatchObject({ recoveryActionId: f.noReplayHoldId,
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toMatchObject({ recoveryActionId: f.noReplayHoldId,
       workspaceRepairRequired: true, canRetry: false });
 
     // The recovery worker's own discovery, as after a deploy: it runs while
@@ -166,7 +166,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
     const blockersSeenByContinuation: unknown[] = [];
     // Normal dispatch consumes the saved input once nothing blocks the task.
     const onRecovered = vi.fn(async () => {
-      const blocker = await getExecutionBlocker(db, f.companyId, f.issueId);
+      const blocker = await getExecutionBlocker(db, f.spaceId, f.issueId);
       blockersSeenByContinuation.push(blocker);
       if (!blocker) await db.update(agentWakeupRequests).set({ status: "queued" }).where(eq(agentWakeupRequests.id, f.waitingInputId));
     });
@@ -192,10 +192,10 @@ describe("saves exhausted under an older workspace capture policy", () => {
     expect(sibling.evidence.siblingWorkspaceRecovery).toMatchObject({ recoveryActionId: f.actionId });
     expect(readWorkspaceRecovery(sibling.evidence)?.status).toBe("recovered");
     expect(String(sibling.nextAction)).not.toMatch(adminText);
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
     // The continuation hook ran once the task was free, so saved input is dispatched.
     expect(blockersSeenByContinuation.at(-1)).toBeNull();
-    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).map(row => row.id)).toEqual([f.runId]);
+    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).map(row => row.id)).toEqual([f.runId]);
     expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, f.waitingInputId)))[0]!.status).toBe("queued");
     // A hold that owned the Blocked status releases it; otherwise the status is
     // left to the run's own result finalization.
@@ -212,7 +212,7 @@ describe("saves exhausted under an older workspace capture policy", () => {
     expect((await retainedWorkspaceCandidates(db)).map(row => row.action.id)).not.toContain(f.noReplayHoldId);
     await Promise.all(await reconcileRetainedWorkspaces(db, f.environmentRuntime, onRecovered, true) ?? []);
     expect(await action(f.noReplayHoldId)).toEqual(sibling);
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
   }, 90_000);
 
   it("re-arms a save whose finished coordinator still names a lapsed finalizer owner", async () => {
@@ -221,9 +221,9 @@ describe("saves exhausted under an older workspace capture policy", () => {
     const source = (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0]!;
     await db.update(issueRecoveryActions).set({ evidence: { ...exportHold.evidence, workspaceFinalizationBlock: {
       schema: "outpost.native-workspace-finalization-block.v1", runId: f.runId, agentId: source.agentId, issueId: f.issueId,
-      companyId: f.companyId, resultId: f.resultId, contractId: source.completionContractId, resultSha256: "5".repeat(64),
+      spaceId: f.spaceId, resultId: f.resultId, contractId: source.completionContractId, resultSha256: "5".repeat(64),
       contractSha256: "0".repeat(64), statusVersion: 7, priorDecisionId: null, identityContextId: randomUUID(),
-      responsibleUserId: "board" } } }).where(eq(issueRecoveryActions.id, f.actionId));
+      responsibleUserId: "operator" } } }).where(eq(issueRecoveryActions.id, f.actionId));
     const lapsedOwner = `native-finalizer:${randomUUID()}`;
     await db.update(nativeRunFinalizations).set({ leaseOwner: lapsedOwner, leaseExpiresAt: new Date(Date.now() - 8 * 60 * 60_000),
       controllerBootId: randomUUID(), controllerPid: 2_147_000_000 }).where(eq(nativeRunFinalizations.runId, f.runId));

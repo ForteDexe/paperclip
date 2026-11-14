@@ -1,13 +1,13 @@
 # Toast semantics
 
-Toasts are transient feedback, not a company activity feed. Live task notifications
+Toasts are transient feedback, not a space activity feed. Live task notifications
 are personal to the connected human, including in multiplayer and `local_trusted`
-mode (`local-board`). Access to a task does not subscribe someone to notifications.
+mode (`local-operator`). Access to a task does not subscribe someone to notifications.
 
 ## Which tasks qualify
 
 A task qualifies when the viewer creates an ordinary human task, is its current
-human assignee, comments directly in Paperclip, receives an open addressed request,
+human assignee, comments directly in Outpost, receives an open addressed request,
 or performs a deliberate action included in the existing
 Mine participation allowlist in
 [`issue-participation.ts`](../server/src/services/issue-participation.ts).
@@ -24,7 +24,7 @@ only mention removes that qualification unless another participation rule holds.
 Historical comment lookup uses an exact viewer-link regex backed by the existing
 comment-body trigram index and returns at most one body for the shared parser.
 
-Agent ownership, primary-agent preference, task/run `responsibleUserId`, company
+Agent ownership, primary-agent preference, task/run `responsibleUserId`, space
 membership, and involvement in a parent task do not qualify on their own.
 Activity by any person or agent can notify a qualifying viewer. These rules do
 not change Mine membership, task permissions, assignment, or inbox archive state.
@@ -35,10 +35,10 @@ not change Mine membership, task permissions, assignment, or inbox archive state
 | --- | --- |
 | Task created, updated, or commented on | Requires personal task eligibility. The viewer's own activity stays quiet. |
 | Run failed, timed out, or cancelled | Requires eligibility for the persisted run's task. An event's task hint or agent identity is not sufficient. |
-| Agent error without a task, or run without a task | No live toast. Status remains available in company views. |
+| Agent error without a task, or run without a task | No live toast. Status remains available in space views. |
 | Run started or succeeded | No live toast. |
 | Save, Copy, and other direct action feedback | Existing caller-owned feedback is unchanged. |
-| Company join request | Existing join-request notification behavior is unchanged. |
+| Space join request | Existing join-request notification behavior is unchanged. |
 
 Eligibility is an additional gate, not a promise that every event produces a
 toast. Existing rules still suppress activity for the task in view and run
@@ -53,12 +53,12 @@ Archiving a task is not a notification unsubscribe.
 
 ## Delivery contract
 
-The company WebSocket authorizes each event before evaluating relevance. Its
+The space WebSocket authorizes each event before evaluating relevance. Its
 viewer-specific copy of the shared `LiveEvent` envelope contains `toastEligible`.
 Only `true` permits a live task/run toast. Missing/false values, unresolved viewer
 identity, and relevance lookup failures stay quiet. Agent-authenticated sockets
 do not receive human toast eligibility. This field is computed per connection,
-never persisted or published on the shared company event bus.
+never persisted or published on the shared space event bus.
 
 Authorized events still reach cache handling and component subscribers when
 eligibility is false. Lookup failure is logged but does not discard the authorized
@@ -69,7 +69,7 @@ unless the browser already has the identifier. Permission-check failures do not
 use this fallback.
 When an authenticated comment event omits the comment ID, the visible task thread
 refreshes through its authorized HTTP read instead of trying to hydrate the comment.
-Closed sockets cannot deliver stale notifications after account/company changes.
+Closed sockets cannot deliver stale notifications after account/space changes.
 No client-side task-list cache or new database migration is required. During a
 mixed-version rollout, a new client receiving events from an older server stays
 quiet until the server provides eligibility.

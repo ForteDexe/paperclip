@@ -29,13 +29,13 @@ Discovery reads native cancelled runs whose prepared workspace reference and
 acknowledged cancellation suggest unfinished preservation. It excludes a valid
 existing workspace-recovery receipt paired with a recognized restore-failure
 code. A schema marker alone is insufficient to declare preservation complete.
-The owner then validates the full existing acknowledgement: same run, company,
+The owner then validates the full existing acknowledgement: same run, space,
 native issue, user actor, run-only scope, cancellation reason and audit IDs.
 A missing native issue, invalid reference, foreign receipt or admitted
 workspace-less execution creates no preservation entry.
 
 Discovery pages 100 rows at a time by run ID, reads the fields needed for these
-checks, and retains only IDs/company IDs/deadlines in the scheduler. Fair batches
+checks, and retains only IDs/space IDs/deadlines in the scheduler. Fair batches
 attempt at most five entries. Cost scales with actual candidates, including
 unusual prepared history that must be classified; it is not constant time.
 
@@ -47,7 +47,7 @@ when they become actionable. Accepted results belong to native finalization;
 this worker does not take over their workspace obligation. The audited runtime
 writers do not erase an accepted coordinator result ID to create this duty.
 
-A check rereads the run and exact company/native-issue coordinator. It delegates
+A check rereads the run and exact space/native-issue coordinator. It delegates
 only at terminal_failure, without a coordinator owner or accepted result, and
 when a lease meets the prior scan's status/policy eligibility. The retention
 owner rereads under its locks and verifies the exact reference lease, provider
@@ -60,7 +60,7 @@ After delegation, the worker rereads the durable run receipt. A valid recorded
 hold, finalized reference or removed obligation disarms it. Actual unfinished
 preservation retains a 30-second retry, including missing proof, missing source
 or a still-owned coordinator. Database/owner failures use the shared bounded
-failure backoff and do not starve other companies. These are retries for known
+failure backoff and do not starve other spaces. These are retries for known
 file debt, not probes of idle configuration. Retry timing is process-local;
 restart reconstructs the durable obligation and tries it again. No unrelated
 native-finalizer business deadline is overwritten.
@@ -73,13 +73,13 @@ before the relevant write and settle with the existing outer transaction.
 
 | Producer | Boundary |
 | --- | --- |
-| Heartbeat run lifecycle | Existing run-status transaction, scoped to company/run |
+| Heartbeat run lifecycle | Existing run-status transaction, scoped to space/run |
 | Heartbeat queue, run dispatch, queued-comment and watchdog adapters | Existing terminal-write transaction, scoped to the affected run |
 | Native finalizer, restart, finalization reconciliation, session failure and status-decision committer | Existing terminal projection transaction |
 | Native cancellation acknowledgement | Existing audit/acknowledgement transaction before resultJson is updated |
 | Native workspace reference | Existing locked reference transaction; includes preparation and finalization |
 | Execution-control and task recovery | Existing eligible-run terminal-write transaction |
-| Agent/company deletion | Company-scoped invalidation before cascades |
+| Agent/space deletion | Space-scoped invalidation before cascades |
 | Worktree execution settings | Global invalidation in the existing settings transaction |
 
 The status signals can cause a scoped inspection even if that run has no relevant
@@ -107,7 +107,7 @@ startup/manual preservation entry point remains available; periodic reaping skip
 only this migrated duty. Drain/standby retain changes without passive SQL.
 Shutdown joins admitted owner transactions and removes the registration.
 
-Current migration 0409 adds a partial index (the original draft used 0397) on (id, company_id) using the same coarse
+Current migration 0409 adds a partial index (the original draft used 0397) on (id, space_id) using the same coarse
 pending predicate. It excludes the recorded completed-preservation history.
 It is concurrent, replay-safe, registered in the existing nontransactional
 migration runner, and accompanied by the five newest generated snapshots.
@@ -235,7 +235,7 @@ run. Actual database build, server types/build, boundaries and exact-head
 migration-order checks pass.
 
 A populated 0408-to0409 upgrade preserves all 407 prior migration receipts and
-all 38 companies, appends exactly one receipt and adds none on replay. The
+all 38 spaces, appends exactly one receipt and adds none on replay. The
 preservation index is valid and ready on fresh and upgraded databases.
 
 Publication remains held until the parent actually merges. An explicit-base

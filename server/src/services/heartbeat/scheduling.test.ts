@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { setTimeout as realDelay } from "node:timers/promises";
 import type { Db } from "@outpost/db";
 import {
-  activityLog, applyPendingMigrations, reconcileDatabaseWork, agents, agentSessionGoalActions, agentTaskSessions, companies, createDb,
+  activityLog, applyPendingMigrations, reconcileDatabaseWork, agents, agentSessionGoalActions, agentTaskSessions, spaces, createDb,
   completionContracts, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, issueComments, issues, nativeRunFinalizations, nativeRunResults,
 } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
@@ -11,7 +11,7 @@ import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } fro
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { heartbeatService } from "../heartbeat.js";
 import { instanceSettingsService } from "../instance-settings.js";
-import { companyService } from "../companies.js";
+import { spaceService } from "../space-service.js";
 import { issueService } from "../issues.js";
 import { createDeliveryWorkCoordinator } from "../delivery-work-coordinator.js";
 import { DELIVERY_QUEUES } from "../delivery-work-notifications.js";
@@ -23,7 +23,7 @@ import { createHeartbeatRunPreparation } from "./run-preparation.js";
 import { createHeartbeatRunState } from "./run-state.js";
 import { createHeartbeatScheduling, type HeartbeatSchedulingDependencies } from "./scheduling.js";
 import { readIdleSleepSafety } from "../idle-sleep-safety.js";
-import { PaperclipRunnerToolAuthority } from "../native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../native-runtime/outpost-runner-tool-authority.js";
 import { finalizeNativeRun } from "../native-runtime/native-run-finalizer.js";
 import { nativeCompletionFeedback } from "../native-runtime/native-completion-feedback.js";
 import type { PrpStructuredRunResult } from "../../vendor/outpost-runner/index.js";
@@ -46,7 +46,7 @@ function callbacks(db: Db) {
     getAgent: state.getAgent,
     getRun: state.getRun,
     toAgentOrgRow: preparation.toAgentOrgRow,
-    groupAgentOrgRowsByCompany: preparation.groupAgentOrgRowsByCompany,
+    groupAgentOrgRowsBySpace: preparation.groupAgentOrgRowsBySpace,
     issuesSvc: {
       listReviewAttention: vi.fn<HeartbeatSchedulingDependencies["issuesSvc"]["listReviewAttention"]>(async () => new Map()),
       create: vi.fn<HeartbeatSchedulingDependencies["issuesSvc"]["create"]>(),
@@ -96,7 +96,7 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
   let db: Db;
   beforeAll(async () => {
     if (external) await applyPendingMigrations(external);
-    else database = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-scheduling-module");
+    else database = await startEmbeddedPostgresTestDatabase("outpost-heartbeat-scheduling-module");
 
 
     db = createDb(external ?? database!.connectionString, { idleTimeoutSeconds: 0, maxLifetimeSeconds: 0, connectTimeoutSeconds: 0 });
@@ -107,26 +107,26 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
   });
   beforeEach(async () => {
     await reconcileDatabaseWork(db, DELIVERY_QUEUES.issueMonitors);
-    await db.execute(sql`truncate table companies restart identity cascade`);
+    await db.execute(sql`truncate table spaces restart identity cascade`);
   });
 
   async function fixture(adapterType = "outpost_runner") {
-    const [company] = await db.insert(companies).values({ name: "Scheduling", issuePrefix: "SCH" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Scheduled agent", adapterType, createdAt: dueAt }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Scheduling", issuePrefix: "SCH" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Scheduled agent", adapterType, createdAt: dueAt }).returning();
     const [issue] = await db.insert(issues).values({
-      companyId: company.id, title: "Check deployment", status: "in_progress", assigneeAgentId: agent.id,
+      spaceId: space.id, title: "Check deployment", status: "in_progress", assigneeAgentId: agent.id,
       monitorNextCheckAt: dueAt, monitorAttemptCount: 0, createdAt: dueAt,
       executionPolicy: { mode: "normal", commentRequired: true, stages: [], monitor: { nextCheckAt: dueAt.toISOString() } },
     }).returning();
     const deps = callbacks(db);
-    return { company, agent, issue, deps, scheduler: createHeartbeatScheduling(db, deps) };
+    return { space, agent, issue, deps, scheduler: createHeartbeatScheduling(db, deps) };
   }
   async function readIssue(id: string) {
     return db.select().from(issues).where(eq(issues.id, id)).then(rows => rows[0]!);
   }
   async function session(f: Awaited<ReturnType<typeof fixture>>, patch: Partial<typeof agentTaskSessions.$inferInsert> = {}) {
     return db.insert(agentTaskSessions).values({
-      companyId: f.company.id, agentId: f.agent.id, adapterType: f.agent.adapterType, taskKey: f.issue.id,
+      spaceId: f.space.id, agentId: f.agent.id, adapterType: f.agent.adapterType, taskKey: f.issue.id,
       goalDesiredState: "active", goalStatus: "active", goalRevision: 7, ...patch,
     }).returning().then(rows => rows[0]!);
   }
@@ -205,10 +205,10 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
   it("keeps manual error recovery distinct from scheduled client-error handling", async () => {
     const f = await fixture();
     f.deps.enqueueWakeup.mockRejectedValue(conflict("Agent is paused"));
-    await expect(f.scheduler.triggerIssueMonitor(f.issue.id, { now, actorType: "user", actorId: "board-user" })).rejects.toThrow("Agent is paused");
+    await expect(f.scheduler.triggerIssueMonitor(f.issue.id, { now, actorType: "user", actorId: "operator-user" })).rejects.toThrow("Agent is paused");
     expect(await readIssue(f.issue.id)).toMatchObject({ monitorNextCheckAt: dueAt, monitorWakeRequestedAt: null });
     expect(f.deps.enqueueWakeup).toHaveBeenLastCalledWith(f.agent.id, expect.objectContaining({
-      source: "on_demand", requestedByActorType: "user", requestedByActorId: "board-user",
+      source: "on_demand", requestedByActorType: "user", requestedByActorId: "operator-user",
     }));
     expect(await f.scheduler.tickTimers(now)).toEqual({ checked: 1, enqueued: 0, skipped: 1 });
     expect(await readIssue(f.issue.id)).toMatchObject({ monitorNextCheckAt: null });
@@ -219,10 +219,10 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, f.issue.id));
     expect(await f.scheduler.tickTimers(now)).toEqual({ checked: 0, enqueued: 0, skipped: 0 });
     expect(f.deps.enqueueWakeup).not.toHaveBeenCalled();
-    await expect(f.scheduler.triggerIssueMonitor(f.issue.id, { now, actorType: "user", actorId: "board-user" }))
+    await expect(f.scheduler.triggerIssueMonitor(f.issue.id, { now, actorType: "user", actorId: "operator-user" }))
       .resolves.toMatchObject({ outcome: "triggered" });
     expect(f.deps.enqueueWakeup).toHaveBeenCalledExactlyOnceWith(f.agent.id, expect.objectContaining({
-      source: "on_demand", requestedByActorType: "user", requestedByActorId: "board-user",
+      source: "on_demand", requestedByActorType: "user", requestedByActorId: "operator-user",
       issueStateGuard: expect.objectContaining({ statuses: ["blocked"], assigneeAgentId: f.agent.id }),
     }));
     expect(await readIssue(f.issue.id)).toMatchObject({ status: "blocked", monitorNextCheckAt: null, monitorAttemptCount: 1 });
@@ -311,7 +311,7 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
 
   it("leaves monitors alone while a native run owns the issue", async () => {
     const f = await fixture();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, nativeIssueId: f.issue.id, runtimeMode: "native", status: "running", contextSnapshot: { issueId: f.issue.id } }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id, nativeIssueId: f.issue.id, runtimeMode: "native", status: "running", contextSnapshot: { issueId: f.issue.id } }).returning();
     expect(await f.scheduler.tickTimers(now)).toEqual({ checked: 0, enqueued: 0, skipped: 0 });
     expect(f.deps.enqueueWakeup).not.toHaveBeenCalled();
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, run!.id));
@@ -321,11 +321,11 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
   it("keeps a due monitor until a terminal native run finishes finalization", async () => {
     const f = await fixture();
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId: f.company.id, agentId: f.agent.id, nativeIssueId: f.issue.id,
+      spaceId: f.space.id, agentId: f.agent.id, nativeIssueId: f.issue.id,
       runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: f.issue.id },
     }).returning();
     await db.insert(nativeRunFinalizations).values({
-      companyId: f.company.id, issueId: f.issue.id, runId: run!.id, phase: "retryable_failure",
+      spaceId: f.space.id, issueId: f.issue.id, runId: run!.id, phase: "retryable_failure",
     });
     expect(await f.scheduler.tickTimers(now)).toEqual({ checked: 0, enqueued: 0, skipped: 0 });
     await expect(f.scheduler.triggerIssueMonitor(f.issue.id, { now })).rejects.toThrow("waiting for the previous run to settle");
@@ -342,19 +342,19 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     const nextCheckAt = new Date(start.getTime() + 60_000).toISOString();
     const timeoutAt = new Date(start.getTime() + 120_000).toISOString();
     const [contract] = await db.insert(completionContracts).values({
-      companyId: f.company.id, issueId: f.issue.id, revision: 1,
+      spaceId: f.space.id, issueId: f.issue.id, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "test",
       risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "test", criteria: [] }, canonicalSha256: randomUUID(),
       createdByActorType: "system", createdByActorId: "test",
     }).returning();
     const [run] = await db.insert(heartbeatRuns).values({
-      companyId: f.company.id, agentId: f.agent.id, nativeIssueId: f.issue.id,
+      spaceId: f.space.id, agentId: f.agent.id, nativeIssueId: f.issue.id,
       runtimeMode: "native", status: "running", completionContractId: contract!.id,
       contextSnapshot: { issueId: f.issue.id },
     }).returning();
     await db.update(issues).set({ executionRunId: run!.id, checkoutRunId: run!.id }).where(eq(issues.id, f.issue.id));
-    const authority = new PaperclipRunnerToolAuthority(db, { companyId: f.company.id,
+    const authority = new OutpostRunnerToolAuthority(db, { spaceId: f.space.id,
       issueId: f.issue.id, agentId: f.agent.id, runId: run!.id });
     await authority.execute({ tool: "set_task_monitor", callId: randomUUID(), arguments: {
       idempotencyKey: "expires-during-workspace-save",
@@ -369,13 +369,13 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     };
     await expect(nativeCompletionFeedback(db, run!.id, result)).resolves.toContain("issue_monitor_due");
     const [saved] = await db.insert(nativeRunResults).values({
-      companyId: f.company.id, issueId: f.issue.id, runId: run!.id, completionContractId: contract!.id,
+      spaceId: f.space.id, issueId: f.issue.id, runId: run!.id, completionContractId: contract!.id,
       serverFingerprint: randomUUID(), canonicalSha256: randomUUID(), schemaStatus: "accepted",
       resultJson: { result, terminal: { schema: "outpost.orp.terminal.v1", runTerminalState: "succeeded",
         turnTerminalState: "completed", reportedWorkDisposition: "yielded" } },
     }).returning();
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, run!.id));
-    await db.insert(nativeRunFinalizations).values({ companyId: f.company.id, issueId: f.issue.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.space.id, issueId: f.issue.id,
       runId: run!.id, phase: "result_persisted", resultId: saved!.id });
     await finalizeNativeRun({ db, runId: run!.id, workspaceFinalizeStatus: "failed" });
     const expiredAt = new Date(start.getTime() + 180_000);
@@ -420,10 +420,10 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     }
   });
 
-  it("skips archived companies for both timers and monitors", async () => {
+  it("skips archived spaces for both timers and monitors", async () => {
     const f = await fixture();
     enableTimer(f.deps);
-    await db.update(companies).set({ status: "archived" }).where(eq(companies.id, f.company.id));
+    await db.update(spaces).set({ status: "archived" }).where(eq(spaces.id, f.space.id));
     expect(await f.scheduler.tickTimers(now)).toEqual({ checked: 0, enqueued: 0, skipped: 0 });
     expect(f.deps.claimDueTimerHeartbeat).not.toHaveBeenCalled();
     expect(f.deps.enqueueWakeup).not.toHaveBeenCalled();
@@ -497,12 +497,12 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     expect(await f.scheduler.recoverActiveSessionGoals()).toEqual({ scanned: 0, enqueued: 0 });
   });
 
-  it("excludes goals after reassignment or with a mismatched company binding", async () => {
+  it("excludes goals after reassignment or with a mismatched space binding", async () => {
     const f = await fixture();
-    const [other] = await db.insert(companies).values({ name: "Other company", issuePrefix: "OTH" }).returning();
-    const active = await session(f, { companyId: other!.id });
+    const [other] = await db.insert(spaces).values({ name: "Other space", issuePrefix: "OTH" }).returning();
+    const active = await session(f, { spaceId: other!.id });
     expect(await f.scheduler.recoverActiveSessionGoals()).toEqual({ scanned: 0, enqueued: 0 });
-    await db.update(agentTaskSessions).set({ companyId: f.company.id }).where(eq(agentTaskSessions.id, active.id));
+    await db.update(agentTaskSessions).set({ spaceId: f.space.id }).where(eq(agentTaskSessions.id, active.id));
     await db.update(issues).set({ assigneeAgentId: null }).where(eq(issues.id, f.issue.id));
     expect(await f.scheduler.recoverActiveSessionGoals()).toEqual({ scanned: 0, enqueued: 0 });
     expect(f.deps.enqueueWakeup).not.toHaveBeenCalled();
@@ -512,8 +512,8 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     const f = await fixture();
     const active = await session(f);
     const requestId = randomUUID();
-    const [action] = await db.insert(agentSessionGoalActions).values({ companyId: f.company.id, sessionId: active.id, requestId, action: "pause", payloadJson: { requestId, action: "pause" } }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, status, contextSnapshot: { goalControlRequestId: requestId } }).returning();
+    const [action] = await db.insert(agentSessionGoalActions).values({ spaceId: f.space.id, sessionId: active.id, requestId, action: "pause", payloadJson: { requestId, action: "pause" } }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.agent.id, status, contextSnapshot: { goalControlRequestId: requestId } }).returning();
     expect(await f.scheduler.recoverPendingSessionGoalActions()).toEqual({ scanned: 1, enqueued: 0, alreadyQueued: 1, invalid: 0 });
     expect(f.deps.enqueueWakeup).not.toHaveBeenCalled();
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, run!.id));
@@ -527,7 +527,7 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
   it("persists invalid goal actions as failures without wake admission", async () => {
     const f = await fixture();
     const active = await session(f);
-    const [action] = await db.insert(agentSessionGoalActions).values({ companyId: f.company.id, sessionId: active.id, requestId: "expected", action: "pause", payloadJson: { requestId: "different", action: "pause" } }).returning();
+    const [action] = await db.insert(agentSessionGoalActions).values({ spaceId: f.space.id, sessionId: active.id, requestId: "expected", action: "pause", payloadJson: { requestId: "different", action: "pause" } }).returning();
     expect(await f.scheduler.recoverPendingSessionGoalActions()).toEqual({ scanned: 1, enqueued: 0, alreadyQueued: 0, invalid: 1 });
     expect(f.deps.enqueueWakeup).not.toHaveBeenCalled();
     const failed = await db.select().from(agentSessionGoalActions).where(eq(agentSessionGoalActions.id, action!.id));
@@ -589,17 +589,17 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     it.each(["committed", "terminal_failure"] as const)("reactivates a due monitor after its last finalization hold becomes %s", async phase => {
       const f = await fixture();
       const [run] = await db.insert(heartbeatRuns).values({
-        companyId: f.company.id, agentId: f.agent.id, nativeIssueId: f.issue.id,
+        spaceId: f.space.id, agentId: f.agent.id, nativeIssueId: f.issue.id,
         runtimeMode: "native", status: "succeeded", finishedAt: now,
       }).returning();
       await db.insert(nativeRunFinalizations).values({
-        companyId: f.company.id, issueId: f.issue.id, runId: run!.id, phase: "arbitrating",
+        spaceId: f.space.id, issueId: f.issue.id, runId: run!.id, phase: "arbitrating",
       });
       await start(f);
       await quiet();
       expect(f.deps.enqueueWakeup).not.toHaveBeenCalled();
       const settle = (owner: Db) => owner.transaction(async tx => {
-        await notifyNativeFinalizationWork(tx, { companyId: f.company.id, runId: run!.id, issueId: f.issue.id });
+        await notifyNativeFinalizationWork(tx, { spaceId: f.space.id, runId: run!.id, issueId: f.issue.id });
         await tx.update(nativeRunFinalizations).set({ phase }).where(eq(nativeRunFinalizations.runId, run!.id));
       });
       await expect(db.transaction(async tx => {
@@ -676,7 +676,7 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     it("stays quiet with retained history, then a real producer schedules and consumes its deadline", async () => {
       const f = await fixture();
       await db.update(issues).set({ monitorNextCheckAt: null, executionPolicy: null }).where(eq(issues.id, f.issue.id));
-      await db.insert(issues).values({ companyId: f.company.id, title: "Old monitor", status: "done",
+      await db.insert(issues).values({ spaceId: f.space.id, title: "Old monitor", status: "done",
         assigneeAgentId: f.agent.id, monitorNextCheckAt: dueAt });
       await start(f); await quiet();
       expect(coordinator!.nextWakeAt()).toBeNull();
@@ -769,7 +769,7 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
     it("retains the overdue remainder of a capped pass until the next bounded drain", async () => {
       const f = await fixture();
       await db.insert(issues).values(Array.from({ length: 50 }, (_, index) => ({
-        companyId: f.company.id, title: `Due monitor ${index}`, status: "in_progress", assigneeAgentId: f.agent.id,
+        spaceId: f.space.id, title: `Due monitor ${index}`, status: "in_progress", assigneeAgentId: f.agent.id,
         monitorNextCheckAt: dueAt, executionPolicy: f.issue.executionPolicy,
       })));
       await start(f);
@@ -813,12 +813,12 @@ describe.skipIf(!postgres.supported)("heartbeat scheduling database boundary", (
       await quiet();
     });
 
-    it("disarms while the company is paused and reactivates on its committed resume", async () => {
+    it("disarms while the space is paused and reactivates on its committed resume", async () => {
       const f = await fixture();
-      await companyService(db).update(f.company.id, { status: "paused" });
+      await spaceService(db).update(f.space.id, { status: "paused" });
       await start(f); await quiet();
       expect(coordinator!.nextWakeAt()).toBeNull();
-      await companyService(db).update(f.company.id, { status: "active" });
+      await spaceService(db).update(f.space.id, { status: "active" });
       await vi.waitFor(async () => expect((await readIssue(f.issue.id)).monitorNextCheckAt).toBeNull());
       expect(f.deps.enqueueWakeup).toHaveBeenCalledOnce();
       await quiet();

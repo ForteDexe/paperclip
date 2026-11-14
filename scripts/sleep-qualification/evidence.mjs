@@ -183,7 +183,7 @@ export function evaluateSleepQualification(receipt, expected) {
     const storage = provider.storage;
     if (output.hostSuspension.verdict === 'VERIFIED' && storage?.identityVerified === true
       && storage.volumeId && storage.beforeVolumeId === storage.volumeId && storage.afterVolumeId === storage.volumeId
-      && storage.mountPath === '/paperclip' && storage.backupsEnabledBefore === true && storage.backupsEnabledAfter === true
+      && storage.mountPath === '/outpost' && storage.backupsEnabledBefore === true && storage.backupsEnabledAfter === true
       && /^[a-f0-9]{64}$/.test(storage.sentinelBefore ?? '') && storage.sentinelBefore === storage.sentinelAfter
       && inRun(storage.beforeAt) && inRun(storage.afterAt) && Date.parse(storage.beforeAt) < Date.parse(provider.observedAt)
       && Date.parse(storage.afterAt) > Date.parse(provider.observedAt)) {

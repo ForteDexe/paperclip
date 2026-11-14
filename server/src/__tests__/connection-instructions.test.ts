@@ -6,12 +6,12 @@ import { randomUUID } from "node:crypto";
 import { access, mkdtemp, writeFile, rm, readFile } from "node:fs/promises";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, companyMemberships, connectionGrants, createDb, heartbeatRuns, issues, toolApplications, toolCatalogEntries, toolConnections, toolPolicies, toolProfileBindings, toolActionRequests } from "@outpost/db";
+import { agents, spaces, spaceMemberships, connectionGrants, createDb, heartbeatRuns, issues, toolApplications, toolCatalogEntries, toolConnections, toolPolicies, toolProfileBindings, toolActionRequests } from "@outpost/db";
 import { createToolGatewayService } from "../services/tool-gateway.js";
 import { toolDiscoveryScheduler } from "../services/tool-discovery-scheduler.js";
 import { toolAccessService, projectedConnectionToolArguments, projectedConnectionToolInputSchema } from "../services/tool-access.js";
 import { composeConnectionInstructions, prepareConnectionInstructionDelivery } from "../services/connection-instructions.js";
-import { renderPaperclipWakePrompt } from "@outpost/adapter-utils/server-utils";
+import { renderOutpostWakePrompt } from "@outpost/adapter-utils/server-utils";
 import { canonicalNativeRuntimeContextDigest, parseNativeRuntimeContext } from "../vendor/outpost-runner/index.js";
 import { nativeRuntimeContextFixture } from "../services/native-runtime/runtime-context.test-fixture.js";
 import { execute as executeProcess } from "../adapters/process/execute.js";
@@ -19,12 +19,12 @@ import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } fro
 const support = await getEmbeddedPostgresTestSupport();
 const paragraph = "Use the release handbook before changing a deployment. Cite the relevant release checklist.";
 async function createRunFixture(db: ReturnType<typeof createDb>) {
-  const company = await db.insert(companies).values({
+  const space = await db.insert(spaces).values({
     name: `Gateway ${randomUUID()}`,
     issuePrefix: `TG${randomUUID().slice(0, 6).toUpperCase()}`,
   }).returning().then((rows) => rows[0]!);
   const agent = await db.insert(agents).values({
-    companyId: company.id,
+    spaceId: space.id,
     name: `Gateway Agent ${randomUUID()}`,
     role: "engineer",
     adapterType: "process",
@@ -33,31 +33,31 @@ async function createRunFixture(db: ReturnType<typeof createDb>) {
     permissions: {},
   }).returning().then((rows) => rows[0]!);
   const issue = await db.insert(issues).values({
-    companyId: company.id,
+    spaceId: space.id,
     title: "Gateway approval work",
     status: "in_progress",
     assigneeAgentId: agent.id,
   }).returning().then((rows) => rows[0]!);
   const run = await db.insert(heartbeatRuns).values({
-    companyId: company.id,
+    spaceId: space.id,
     agentId: agent.id,
     invocationSource: "assignment",
     status: "running",
     contextSnapshot: { issueId: issue.id },
   }).returning().then((rows) => rows[0]!);
-  return { company, agent, issue, run };
+  return { space, agent, issue, run };
 }
 
-async function createRemoteMcpToolFixture(db: ReturnType<typeof createDb>, companyId: string) {
+async function createRemoteMcpToolFixture(db: ReturnType<typeof createDb>, spaceId: string) {
   const application = await db.insert(toolApplications).values({
-    companyId,
+    spaceId,
     applicationKey: `remote-${randomUUID().slice(0, 8)}`,
     name: "Remote MCP",
     type: "mcp_http",
     status: "active",
   }).returning().then((rows) => rows[0]!);
   const connection = await db.insert(toolConnections).values({
-    companyId,
+    spaceId,
     applicationId: application.id,
     name: "Remote connection",
     uid: `test/${randomUUID()}`,
@@ -71,7 +71,7 @@ async function createRemoteMcpToolFixture(db: ReturnType<typeof createDb>, compa
     config: { url: "https://8.8.8.8/mcp" },
   }).returning().then((rows) => rows[0]!);
   await db.insert(connectionGrants).values({
-    companyId,
+    spaceId,
     connectionId: connection.id,
     kind: "organization",
     credentialSecretRefs: [],
@@ -79,7 +79,7 @@ async function createRemoteMcpToolFixture(db: ReturnType<typeof createDb>, compa
     isDefault: true,
   });
   const catalogEntry = await db.insert(toolCatalogEntries).values({
-    companyId,
+    spaceId,
     applicationId: application.id,
     connectionId: connection.id,
     entryKind: "tool",
@@ -99,18 +99,18 @@ async function createRemoteMcpToolFixture(db: ReturnType<typeof createDb>, compa
 (support.supported ? describe : describe.skip)("generic connection instruction delivery", () => {
   let db: ReturnType<typeof createDb>;
   let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
-  beforeAll(async () => { temp = await startEmbeddedPostgresTestDatabase("paperclip-connection-instructions-"); db = createDb(temp.connectionString); }, 30000);
+  beforeAll(async () => { temp = await startEmbeddedPostgresTestDatabase("outpost-connection-instructions-"); db = createDb(temp.connectionString); }, 30000);
   afterAll(async () => { await temp?.cleanup(); });
   async function fixture() {
     const run = await createRunFixture(db);
-    const connection = await createRemoteMcpToolFixture(db, run.company.id);
+    const connection = await createRemoteMcpToolFixture(db, run.space.id);
     const service = toolAccessService(db);
     await service.updateConnection(connection.connection.id, { agentInstructions: { enabled: true, text: paragraph } });
-    await service.finishGalleryAppConnection(run.company.id, connection.connection.id, {
+    await service.finishGalleryAppConnection(run.space.id, connection.connection.id, {
       enabledCatalogEntryIds: [connection.catalogEntry.id], askFirstCatalogEntryIds: [], access: { agentIds: [run.agent.id] },
     });
     const gateway = createToolGatewayService(db);
-    const binding = { companyId: run.company.id, agentId: run.agent.id, runId: run.run.id };
+    const binding = { spaceId: run.space.id, agentId: run.agent.id, runId: run.run.id };
     return { ...run, ...connection, gateway, service, binding, resolve: () => gateway.resolveConnectionInstructionsForRun(binding) };
   }
 
@@ -134,12 +134,12 @@ async function createRemoteMcpToolFixture(db: ReturnType<typeof createDb>, compa
   it("persists a non-memory paragraph and captures it in actual process input and both prompt composers", async () => {
     const f = await fixture();
     expect((await f.service.getConnection(f.connection.id)).agentInstructions).toEqual({ enabled: true, text: paragraph });
-    const context: Record<string, unknown> = { connectionInstructions: { text: "forged" }, paperclipWake: { connectionInstructions: { text: "forged wake" } } };
-    const config = await prepareConnectionInstructionDelivery({ resolve: f.resolve, context, config: { paperclipConnectionInstructions: { text: "forged config" } }, native: false });
-    const snapshot = config.paperclipConnectionInstructions as { text: string; digest: string };
+    const context: Record<string, unknown> = { connectionInstructions: { text: "forged" }, outpostWake: { connectionInstructions: { text: "forged wake" } } };
+    const config = await prepareConnectionInstructionDelivery({ resolve: f.resolve, context, config: { outpostConnectionInstructions: { text: "forged config" } }, native: false });
+    const snapshot = config.outpostConnectionInstructions as { text: string; digest: string };
     expect(snapshot.text).toContain(paragraph);
     expect(snapshot.text).not.toContain("forged");
-    expect(renderPaperclipWakePrompt(context.paperclipWake)).toContain(paragraph);
+    expect(renderOutpostWakePrompt(context.outpostWake)).toContain(paragraph);
     const runtimeContext = { ...nativeRuntimeContextFixture(), connectionInstructions: snapshot };
     runtimeContext.aggregateDigest = canonicalNativeRuntimeContextDigest(runtimeContext);
     const parsed = parseNativeRuntimeContext(runtimeContext);
@@ -185,25 +185,25 @@ async function createRemoteMcpToolFixture(db: ReturnType<typeof createDb>, compa
     expect(await f.resolve()).toBeNull();
     const session = await f.gateway.createSession(f.binding);
     expect((await f.gateway.listToolsForSession(session.token)).some(tool => tool.connectionId === f.connection.id)).toBe(true);
-    const context: Record<string, unknown> = { connectionInstructions: first, paperclipWake: { connectionInstructions: first } };
-    const config = await prepareConnectionInstructionDelivery({ resolve: f.resolve, context, config: { paperclipConnectionInstructions: first }, native: false });
-    expect(config.paperclipConnectionInstructions).toBeNull();
-    expect(renderPaperclipWakePrompt(context.paperclipWake)).not.toContain(paragraph);
+    const context: Record<string, unknown> = { connectionInstructions: first, outpostWake: { connectionInstructions: first } };
+    const config = await prepareConnectionInstructionDelivery({ resolve: f.resolve, context, config: { outpostConnectionInstructions: first }, native: false });
+    expect(config.outpostConnectionInstructions).toBeNull();
+    expect(renderOutpostWakePrompt(context.outpostWake)).not.toContain(paragraph);
   });
 
-  it("follows assignment, action policy, grant revocation, and company boundaries", async () => {
+  it("follows assignment, action policy, grant revocation, and space boundaries", async () => {
     const f = await fixture();
     expect(await f.resolve()).not.toBeNull();
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.connectionId, f.connection.id));
     expect(await f.resolve()).toBeNull();
     await db.update(connectionGrants).set({ status: "active" }).where(eq(connectionGrants.connectionId, f.connection.id));
-    const [block] = await db.insert(toolPolicies).values({ companyId: f.company.id, name: "Block handbook", policyType: "block", priority: 1000, selectors: { connectionId: f.connection.id } }).returning();
+    const [block] = await db.insert(toolPolicies).values({ spaceId: f.space.id, name: "Block handbook", policyType: "block", priority: 1000, selectors: { connectionId: f.connection.id } }).returning();
     expect(await f.resolve()).toBeNull();
     await db.delete(toolPolicies).where(eq(toolPolicies.id, block.id));
     await db.delete(toolProfileBindings).where(eq(toolProfileBindings.targetId, f.agent.id));
     expect(await f.resolve()).toBeNull();
     const other = await fixture();
-    await expect(f.gateway.resolveConnectionInstructionsForRun({ ...f.binding, companyId: other.company.id })).rejects.toMatchObject({ status: 403 });
+    await expect(f.gateway.resolveConnectionInstructionsForRun({ ...f.binding, spaceId: other.space.id })).rejects.toMatchObject({ status: 403 });
     await expect(f.gateway.resolveConnectionInstructionsForRun({ ...f.binding, agentId: other.agent.id })).rejects.toMatchObject({ status: 403 });
   });
 
@@ -212,7 +212,7 @@ async function createRemoteMcpToolFixture(db: ReturnType<typeof createDb>, compa
     const config = { ...f.connection.config, sourceTemplateKey: "honcho", connectionMethodKey: "mcp-api-key", methodConfig: { workspaceId: "before" } };
     await f.service.updateConnection(f.connection.id, { config });
     await db.update(toolCatalogEntries).set({ inputSchema: { type: "object", properties: { workspace_id: { type: "string" }, query: { type: "string" } }, required: ["workspace_id"] } }).where(eq(toolCatalogEntries.id, f.catalogEntry.id));
-    await f.service.finishGalleryAppConnection(f.company.id, f.connection.id, { enabledCatalogEntryIds: [f.catalogEntry.id], askFirstCatalogEntryIds: [f.catalogEntry.id], access: { agentIds: [f.agent.id] } });
+    await f.service.finishGalleryAppConnection(f.space.id, f.connection.id, { enabledCatalogEntryIds: [f.catalogEntry.id], askFirstCatalogEntryIds: [f.catalogEntry.id], access: { agentIds: [f.agent.id] } });
     let providerCalls = 0;
     const gateway = createToolGatewayService(db, { toolActionSigningSecret: "instruction-workspace-test", remoteHttpRequest: async () => { providerCalls++; throw new Error("Stale approval must not reach Honcho"); } });
     const session = await gateway.createSession(f.binding);
@@ -221,7 +221,7 @@ async function createRemoteMcpToolFixture(db: ReturnType<typeof createDb>, compa
     await expect(gateway.executeTool({ sessionToken: session.token, tool: tool.name, parameters: { query: "release", workspace_id: "forged" } })).rejects.toMatchObject({ reasonCode: "approval_required" });
     const [approval] = await db.select().from(toolActionRequests).where(eq(toolActionRequests.issueId, f.issue.id));
     await f.service.updateConnection(f.connection.id, { config: { ...config, methodConfig: { workspaceId: "after" } } });
-    await expect(gateway.approveActionRequest({ companyId: f.company.id, actionRequestId: approval.id, actor: { userId: "reviewer" } })).rejects.toMatchObject({ reasonCode: "approved_tool_target_changed" });
+    await expect(gateway.approveActionRequest({ spaceId: f.space.id, actionRequestId: approval.id, actor: { userId: "reviewer" } })).rejects.toMatchObject({ reasonCode: "approved_tool_target_changed" });
     expect(providerCalls).toBe(0);
   });
 
@@ -230,10 +230,10 @@ async function createRemoteMcpToolFixture(db: ReturnType<typeof createDb>, compa
     await db.update(toolConnections).set({ credentialPolicy: "per_user" }).where(eq(toolConnections.id, f.connection.id));
     await db.update(connectionGrants).set({ kind: "user", subjectUserId: "instruction-owner", isDefault: false }).where(eq(connectionGrants.connectionId, f.connection.id));
     expect(await f.resolve()).toBeNull();
-    await db.insert(companyMemberships).values({ companyId: f.company.id, principalType: "user", principalId: "instruction-owner", membershipRole: "member", status: "active" });
+    await db.insert(spaceMemberships).values({ spaceId: f.space.id, principalType: "user", principalId: "instruction-owner", membershipRole: "member", status: "active" });
     await db.update(heartbeatRuns).set({ responsibleUserId: "instruction-owner" }).where(eq(heartbeatRuns.id, f.run.id));
     expect(await f.resolve()).not.toBeNull();
-    await db.update(companyMemberships).set({ status: "inactive" }).where(eq(companyMemberships.companyId, f.company.id));
+    await db.update(spaceMemberships).set({ status: "inactive" }).where(eq(spaceMemberships.spaceId, f.space.id));
     expect(await f.resolve()).toBeNull();
   });
 });

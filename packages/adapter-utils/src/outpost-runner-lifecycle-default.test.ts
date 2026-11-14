@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { paperclipRunnerTransitionConfig } from "./outpost-runner-permissions.js";
-import { normalizePaperclipRunnerAdapterConfig } from "./server-utils.js";
+import { outpostRunnerTransitionConfig } from "./outpost-runner-permissions.js";
+import { normalizeOutpostRunnerAdapterConfig } from "./server-utils.js";
 
-const normalize = (config: Record<string, unknown>) => normalizePaperclipRunnerAdapterConfig("outpost_runner", config);
+const normalize = (config: Record<string, unknown>) => normalizeOutpostRunnerAdapterConfig("outpost_runner", config);
 
 describe("native runner lifecycle default on configuration writes", () => {
   it("stores no lifecycle for providers that follow the product default", () => {
@@ -25,10 +25,10 @@ describe("native runner lifecycle default on configuration writes", () => {
   });
 
   it("converts a local adapter without pinning the lifecycle for default providers", () => {
-    expect(paperclipRunnerTransitionConfig("codex_local", "gpt-5")).not.toHaveProperty("lifecycleMode");
-    expect(paperclipRunnerTransitionConfig("opencode_local", "openrouter/m")).not.toHaveProperty("lifecycleMode");
-    expect(paperclipRunnerTransitionConfig("claude_local", undefined)).not.toHaveProperty("lifecycleMode");
-    expect(paperclipRunnerTransitionConfig("grok_local", undefined)).toMatchObject({ lifecycleMode: "per_turn" });
-    expect(paperclipRunnerTransitionConfig("cursor_cloud", "m")).toMatchObject({ lifecycleMode: "per_turn" });
+    expect(outpostRunnerTransitionConfig("codex_local", "gpt-5")).not.toHaveProperty("lifecycleMode");
+    expect(outpostRunnerTransitionConfig("opencode_local", "openrouter/m")).not.toHaveProperty("lifecycleMode");
+    expect(outpostRunnerTransitionConfig("claude_local", undefined)).not.toHaveProperty("lifecycleMode");
+    expect(outpostRunnerTransitionConfig("grok_local", undefined)).toMatchObject({ lifecycleMode: "per_turn" });
+    expect(outpostRunnerTransitionConfig("cursor_cloud", "m")).toMatchObject({ lifecycleMode: "per_turn" });
   });
 });

@@ -113,7 +113,7 @@ export function AccessEditor({
         </p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="allowed-members">Paperclip members</Label>
+        <Label htmlFor="allowed-members">Outpost members</Label>
         <select
           id="allowed-members"
           className={selectClass}
@@ -125,7 +125,7 @@ export function AccessEditor({
             })
           }
         >
-          <option value="all">All linked company members</option>
+          <option value="all">All linked space members</option>
           <option value="selected">Selected members only</option>
         </select>
         <p className="text-xs text-muted-foreground">
@@ -142,7 +142,7 @@ export function AccessEditor({
             setMessage("");
           }}
         >
-          Add Paperclip member
+          Add Outpost member
         </Button>
         <Button
           variant="outline"
@@ -175,8 +175,8 @@ export function AccessEditor({
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {person.kind === "member"
-                    ? "Paperclip member · uses their current permissions"
-                    : "Restricted guest · no Paperclip membership or personal credentials"}
+                    ? "Outpost member · uses their current permissions"
+                    : "Restricted guest · no Outpost membership or personal credentials"}
                 </p>
               </div>
               <Button
@@ -261,13 +261,13 @@ export function AccessEditor({
           <DialogHeader>
             <DialogTitle>
               {adding === "member"
-                ? "Add Paperclip member"
+                ? "Add Outpost member"
                 : "Allow GitHub user"}
             </DialogTitle>
             <DialogDescription>
               {adding === "member"
-                ? "Choose an existing company member. They use their own Paperclip permissions and linked GitHub account."
-                : "Allow a specific GitHub account to mention this bot, without inviting them to Paperclip."}
+                ? "Choose an existing space member. They use their own Outpost permissions and linked GitHub account."
+                : "Allow a specific GitHub account to mention this bot, without inviting them to Outpost."}
             </DialogDescription>
           </DialogHeader>
           {adding === "member" ? (

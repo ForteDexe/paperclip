@@ -35,7 +35,7 @@ describe("buildOutpostEnv", () => {
     process.env.OUTPOST_LISTEN_HOST = "127.0.0.1";
     process.env.OUTPOST_LISTEN_PORT = "3101";
 
-    const env = buildOutpostEnv({ id: "agent-1", companyId: "company-1" });
+    const env = buildOutpostEnv({ id: "agent-1", spaceId: "space-1" });
 
     expect(env.OUTPOST_API_URL).toBe("http://localhost:4100");
   });
@@ -46,7 +46,7 @@ describe("buildOutpostEnv", () => {
     process.env.OUTPOST_LISTEN_HOST = "127.0.0.1";
     process.env.OUTPOST_LISTEN_PORT = "3101";
 
-    const env = buildOutpostEnv({ id: "agent-1", companyId: "company-1" });
+    const env = buildOutpostEnv({ id: "agent-1", spaceId: "space-1" });
 
     expect(env.OUTPOST_API_URL).toBe("http://203.0.113.42:3102");
   });
@@ -57,7 +57,7 @@ describe("buildOutpostEnv", () => {
     process.env.OUTPOST_LISTEN_HOST = "127.0.0.1";
     process.env.OUTPOST_LISTEN_PORT = "3101";
 
-    const env = buildOutpostEnv({ id: "agent-1", companyId: "company-1" });
+    const env = buildOutpostEnv({ id: "agent-1", spaceId: "space-1" });
 
     expect(env.OUTPOST_API_URL).toBe("http://localhost:4100");
   });
@@ -69,7 +69,7 @@ describe("buildOutpostEnv", () => {
     process.env.OUTPOST_LISTEN_PORT = "3101";
     process.env.PORT = "3100";
 
-    const env = buildOutpostEnv({ id: "agent-1", companyId: "company-1" });
+    const env = buildOutpostEnv({ id: "agent-1", spaceId: "space-1" });
 
     expect(env.OUTPOST_API_URL).toBe("http://localhost:3101");
   });
@@ -80,7 +80,7 @@ describe("buildOutpostEnv", () => {
     process.env.OUTPOST_LISTEN_HOST = "::1";
     process.env.OUTPOST_LISTEN_PORT = "3101";
 
-    const env = buildOutpostEnv({ id: "agent-1", companyId: "company-1" });
+    const env = buildOutpostEnv({ id: "agent-1", spaceId: "space-1" });
 
     expect(env.OUTPOST_API_URL).toBe("http://[::1]:3101");
   });

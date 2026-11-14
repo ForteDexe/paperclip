@@ -26,9 +26,9 @@ Configure Modal from `Instance Settings -> Environments`, not from the plugin's 
 | --- | --- | --- |
 | `appName` | yes | Modal App name. The plugin calls `modal.apps.fromName(appName, { createIfMissing: true })`, so the App is created on first acquire if it does not already exist. |
 | `image` | yes | Container image passed to `modal.images.fromRegistry()`, e.g. `python:3.13` or `node:24`. |
-| `tokenId` / `tokenSecret` | yes | Modal auth tokens. Both must be provided together. Outpost stores pasted values as company secrets. The plugin worker runs in a child process that does not inherit host env vars, so `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET` set on the Outpost server are **not** read by the plugin — provide the tokens in this form. |
+| `tokenId` / `tokenSecret` | yes | Modal auth tokens. Both must be provided together. Outpost stores pasted values as space secrets. The plugin worker runs in a child process that does not inherit host env vars, so `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET` set on the Outpost server are **not** read by the plugin — provide the tokens in this form. |
 | `environment` | no | Optional Modal environment name. Falls back to the SDK profile default. |
-| `workdir` | no | Remote working directory inside the sandbox. Defaults to `/workspace/paperclip`. |
+| `workdir` | no | Remote working directory inside the sandbox. Defaults to `/workspace/outpost`. |
 | `sandboxTimeoutMs` | no | Maximum sandbox lifetime in milliseconds. Must be a positive multiple of `1000` between `1000` and `86_400_000` (24 hours). Defaults to `3_600_000` (1 hour). |
 | `idleTimeoutMs` | no | Optional idle timeout in milliseconds. Modal terminates the sandbox if no exec is active for this duration. Must be a positive multiple of `1000`. |
 | `execTimeoutMs` | no | Default per-exec timeout in milliseconds when the caller does not pass one. Must be a positive multiple of `1000`. Defaults to `300_000` (5 minutes). |
@@ -72,4 +72,4 @@ Full end-to-end manual QA is tracked separately in [PAPA-354](/PAPA/issues/PAPA-
 - `src/manifest.ts` declares the sandbox-provider driver metadata
 - `src/plugin.ts` implements the environment lifecycle hooks
 - `src/worker.ts` boots the plugin under the host worker runtime
-- `paperclipPlugin.manifest` and `paperclipPlugin.worker` point the host at the built plugin entrypoints in `dist/`
+- `outpostPlugin.manifest` and `outpostPlugin.worker` point the host at the built plugin entrypoints in `dist/`

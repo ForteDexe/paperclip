@@ -11,7 +11,7 @@ export function taskLifecycleLabelName(campaignId: string): string {
 
 export interface LifecycleTask {
   id: string;
-  companyId: string;
+  spaceId: string;
   identifier: string;
   title: string;
   description: string;
@@ -25,7 +25,7 @@ export interface LifecycleTask {
   labelIds: string[];
   completedAt: string | null;
 }
-export interface LifecycleLabel { id: string; companyId: string; name: string; color: string }
+export interface LifecycleLabel { id: string; spaceId: string; name: string; color: string }
 export interface LifecycleObservation {
   task: LifecycleTask | null;
   runCount: number | null;
@@ -36,7 +36,7 @@ export interface LifecycleObservation {
 }
 export interface LifecycleExpectation {
   taskId: string;
-  companyId: string;
+  spaceId: string;
   userId: string;
   originalTitle: string;
   revisedTitle: string;
@@ -45,7 +45,7 @@ export interface LifecycleExpectation {
 }
 
 function ownedTask(task: LifecycleTask | null, expected: LifecycleExpectation) {
-  return Boolean(task && task.id === expected.taskId && task.companyId === expected.companyId && task.identifier
+  return Boolean(task && task.id === expected.taskId && task.spaceId === expected.spaceId && task.identifier
     && task.description === expected.description && task.assigneeUserId === expected.userId && task.assigneeAgentId === null
     && task.createdByUserId === expected.userId && task.createdByAgentId === null);
 }
@@ -65,7 +65,7 @@ export function taskLifecycleEvidence(input: {
   reopened: LifecycleObservation;
 }) {
   const { expected, label, created, edited, reloaded, completed, reopened } = input;
-  const validExpected = Boolean(expected.taskId && expected.companyId && expected.userId && expected.originalTitle
+  const validExpected = Boolean(expected.taskId && expected.spaceId && expected.userId && expected.originalTitle
     && expected.revisedTitle && expected.originalTitle !== expected.revisedTitle && expected.description && expected.labelName);
   const fresh = validExpected && ownedTask(created.task, expected) && created.task!.title === expected.originalTitle
     && ["backlog", "todo"].includes(created.task!.status) && created.task!.completedAt === null
@@ -73,7 +73,7 @@ export function taskLifecycleEvidence(input: {
     && (created.task!.projectId === null || typeof created.task!.projectId === "string" && created.task!.projectId.length > 0)
     && Array.isArray(created.task!.labelIds) && created.task!.labelIds.length === 0
     && created.titleVisible && created.descriptionVisible && created.statusVisible;
-  const labelValid = Boolean(label && label.id && label.companyId === expected.companyId && label.name === expected.labelName
+  const labelValid = Boolean(label && label.id && label.spaceId === expected.spaceId && label.name === expected.labelName
     && /^#[a-fA-F0-9]{6}$/.test(label.color));
   const saved = (observation: LifecycleObservation, status: string) => fresh && labelValid && ownedTask(observation.task, expected)
     && sameUneditedFields(observation.task, created.task) && observation.task!.title === expected.revisedTitle

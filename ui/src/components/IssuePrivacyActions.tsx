@@ -41,14 +41,14 @@ const NON_SETTER_TOOLTIP =
  */
 export function IssuePrivacyActions({
   issue,
-  companyId,
+  spaceId,
   canManage,
   closeMenu,
   implicitPrincipals = [],
   children,
 }: {
   issue: Pick<Issue, "id" | "identifier" | "visibility"> & Partial<Pick<Issue, "privacyParentIssueId" | "projectId">>;
-  companyId: string;
+  spaceId: string;
   canManage: boolean;
   closeMenu: () => void;
   implicitPrincipals?: ShareSheetImplicitPrincipal[];
@@ -80,7 +80,7 @@ export function IssuePrivacyActions({
     onSuccess: (_result, visibility) => {
       // Privacy can change descendants and remove a task from a private project.
       queryClient.invalidateQueries({ queryKey: ["issues"] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(spaceId) });
       if (issue.identifier) {
         queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issue.identifier) });
       }
@@ -163,7 +163,7 @@ export function IssuePrivacyActions({
 
       <IssueShareSheet
         issueId={issue.id}
-        companyId={companyId}
+        spaceId={spaceId}
         canManage={canManage}
         open={shareOpen}
         onOpenChange={setShareOpen}

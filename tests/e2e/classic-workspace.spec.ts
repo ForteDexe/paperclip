@@ -4,8 +4,8 @@ import { json, setup } from "./agent-chat.shared";
 test("Coordinator is standard and Classic is an explicit personal experiment", async ({ page, request }) => {
   const original = await json(await request.get("/api/workspace-preferences/me"));
   const f = await setup(request);
-  const settingsUrl = `/${f.company.issuePrefix}/company/settings/instance/experimental`;
-  const preferencePath = `/api/companies/${f.company.id}/workspace-preferences/me`;
+  const settingsUrl = `/${f.space.issuePrefix}/space/settings/instance/experimental`;
+  const preferencePath = `/api/spaces/${f.space.id}/workspace-preferences/me`;
   try {
     expect(original.coordinatorWorkspaceEnabled).toBe(true);
     await page.goto(f.route);

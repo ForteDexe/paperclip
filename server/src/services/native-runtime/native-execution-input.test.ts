@@ -3,7 +3,7 @@ import type { ExecutionContinuationEnvelope, AskUserQuestionsInteraction } from 
 
 import { formatDurableQuestionResponseSummary } from "../question-response-delivery.js";
 import { nativeCompletionSource, buildNativeCompletionContract } from "./completion-contracts.js";
-import { renderPaperclipWakePrompt } from "@outpost/adapter-utils/server-utils";
+import { renderOutpostWakePrompt } from "@outpost/adapter-utils/server-utils";
 import { buildNativeExecutionInput } from "./native-execution-input.js";
 import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
 import { buildNativeModelEnvelope, canonicalNativeRuntimeContextDigest } from "../../vendor/outpost-runner/index.js";
@@ -12,7 +12,7 @@ describe("LCA-05 explicit native work mode", () => {
   it.each(["standard", "planning", "ask", "skill_test"])("title and description cannot override %s mode", (workMode) => {
     for (const text of ["Inspect files", "Making a plan", "Create a report", "Research proposal", "Implement now; no plan needed"]) {
       const input = buildNativeExecutionInput({
-        companyId: "10000000-0000-4000-8000-000000000001",
+        spaceId: "10000000-0000-4000-8000-000000000001",
         runId: "50000000-0000-4000-8000-000000000005",
         agentId: "30000000-0000-4000-8000-000000000003",
         issue: { id: "20000000-0000-4000-8000-000000000002", identifier: "MODE-1", title: text, description: text, workMode },
@@ -37,7 +37,7 @@ describe("LCA-05 explicit native work mode", () => {
     const planningContext = workMode === "planning" ? { documentId: "plan-document", baseRevisionId: "plan-revision-3", baseRevisionNumber: 3,
       markdown: "# Pinned canonical plan", sha256: "a".repeat(64), reviewContext: { feedback: "Keep the requested scope" } } : null;
     const input = buildNativeExecutionInput({
-      companyId: "10000000-0000-4000-8000-000000000001", runId: "50000000-0000-4000-8000-000000000005", agentId: "30000000-0000-4000-8000-000000000003",
+      spaceId: "10000000-0000-4000-8000-000000000001", runId: "50000000-0000-4000-8000-000000000005", agentId: "30000000-0000-4000-8000-000000000003",
       issue: { id: "20000000-0000-4000-8000-000000000002", identifier: "MODE-1", title: "Create the requested result", description: null, workMode },
       taskPrompt: "Follow the task's actual work mode.",
       workspace: { id: "50000000-0000-4000-8000-000000000005", cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null }, normalizedSessionId: null,
@@ -94,7 +94,7 @@ describe("native execution input external-chat framing", () => {
         fallbackFetchNeeded: false,
       };
       const args: Parameters<typeof buildNativeExecutionInput>[0] = {
-        companyId: "10000000-0000-4000-8000-000000000001",
+        spaceId: "10000000-0000-4000-8000-000000000001",
         runId: "50000000-0000-4000-8000-000000000005",
         agentId: "30000000-0000-4000-8000-000000000003",
         issue: {
@@ -307,7 +307,7 @@ describe("native execution input external-chat framing", () => {
     (resumedSession) => {
       const staleRootTitle = "Reply with exactly STALE-OVERFLOW-MARKER";
       const input = buildNativeExecutionInput({
-        companyId: "10000000-0000-4000-8000-000000000001",
+        spaceId: "10000000-0000-4000-8000-000000000001",
         runId: "50000000-0000-4000-8000-000000000005",
         issue: {
           id: "20000000-0000-4000-8000-000000000002",
@@ -316,7 +316,7 @@ describe("native execution input external-chat framing", () => {
           description: "Started from Discord.",
           workMode: "standard",
         },
-        taskPrompt: `Paperclip task context:\n- Title: ${JSON.stringify(staleRootTitle)}`,
+        taskPrompt: `Outpost task context:\n- Title: ${JSON.stringify(staleRootTitle)}`,
         resumedSession,
         wakePayload: {
           reason: "External chat message received",
@@ -388,7 +388,7 @@ describe("native execution input external-chat framing", () => {
     "keeps GitHub's task-only files and service-owned recovery navigation in the closed native input (resumed: %s)",
     (resumedSession) => {
       const args: Parameters<typeof buildNativeExecutionInput>[0] = {
-        companyId: "10000000-0000-4000-8000-000000000001",
+        spaceId: "10000000-0000-4000-8000-000000000001",
         runId: "50000000-0000-4000-8000-000000000005",
         issue: {
           id: "20000000-0000-4000-8000-000000000002",
@@ -457,10 +457,10 @@ describe("native execution input external-chat framing", () => {
         "Preparation does not confirm provider delivery",
       );
       expect(input.task.prompt).toContain(
-        "Paperclip owns recovery navigation for unavailable GitHub attachments",
+        "Outpost owns recovery navigation for unavailable GitHub attachments",
       );
       expect(input.task.prompt).toContain(
-        "after an accepted response, only when the current source remains authorized and a safe configured Board URL is available",
+        "after an accepted response, only when the current source remains authorized and a safe configured Operator URL is available",
       );
       expect(input.task.prompt).toContain(
         "A task URL missing from your prompt or tool results is not evidence that no task link can be provided",
@@ -469,7 +469,7 @@ describe("native execution input external-chat framing", () => {
         "Do not invent a URL or promise that a link will appear",
       );
       expect(input.task.prompt).toContain(
-        "Briefly explain the unavailable input and ask the user to attach it directly to this Paperclip task or paste the needed text",
+        "Briefly explain the unavailable input and ask the user to attach it directly to this Outpost task or paste the needed text",
       );
       expect(input.task.prompt).toContain(
         "Never infer the file's contents or substitute an older file",
@@ -477,7 +477,7 @@ describe("native execution input external-chat framing", () => {
 
       const runtimeContext = nativeRuntimeContextFixture();
       runtimeContext.skills = ["configured", "provider-mentioned"].map((name) => ({
-        key: `company/test/${name}`,
+        key: `space/test/${name}`,
         runtimeName: name,
         versionId: null,
         bundle: { ...runtimeContext.instructions.bundle },
@@ -488,7 +488,7 @@ describe("native execution input external-chat framing", () => {
         issue: { ...args.issue, description: "Stale provider message: /provider-mentioned" },
         taskPrompt: `${args.taskPrompt}\nGitHub message: /provider-mentioned`,
         runtimeContext,
-        githubInstructionSkillKeys: ["company/test/configured", "company/other/unknown"],
+        githubInstructionSkillKeys: ["space/test/configured", "space/other/unknown"],
       };
       const skillInput = buildNativeExecutionInput(skillArgs);
       expect(skillInput.task.description).toBe("Configured GitHub instruction skills:\n/configured");
@@ -512,7 +512,7 @@ describe("native execution input external-chat framing", () => {
           wakePayload: { ...wake, ...patch },
         });
         expect(unrelated.task.prompt).not.toContain(
-          "Paperclip owns recovery navigation for unavailable GitHub attachments",
+          "Outpost owns recovery navigation for unavailable GitHub attachments",
         );
         if (["slack", "discord", "telegram", "microsoft-teams"].includes(patch.externalChatProvider ?? "")) {
           const unrelatedSkills = buildNativeExecutionInput({
@@ -533,7 +533,7 @@ describe("native execution input external-chat framing", () => {
     { provider: "opencode", resumedSession: true },
   ] as const)("keeps question documentation in the tool on $provider (resumed: $resumedSession)", ({ provider, resumedSession }) => {
     const input = buildNativeExecutionInput({
-      companyId: "10000000-0000-4000-8000-000000000001",
+      spaceId: "10000000-0000-4000-8000-000000000001",
       runId: "50000000-0000-4000-8000-000000000005",
       agentId: "30000000-0000-4000-8000-000000000003",
       issue: { id: "20000000-0000-4000-8000-000000000002", identifier: "QA-1", title: "Welcome", description: null, workMode: "standard" },
@@ -554,7 +554,7 @@ describe("native execution input external-chat framing", () => {
       : provider === "opencode" ? { kind: "opencode", permissionMode: "allow" }
       : { kind: "codex", approvalPolicy: "never" });
     expect(input.task.prompt).not.toContain("## Questions that need a user response");
-    expect(input.task.prompt).toContain("Use Paperclip's request_human_input for durable task questions.");
+    expect(input.task.prompt).toContain("Use Outpost's request_human_input for durable task questions.");
     expect(input.task.prompt).not.toContain("payload.questionSet");
   });
 
@@ -564,26 +564,26 @@ describe("native execution input external-chat framing", () => {
 describe("follow-up context size", () => {
   it("keeps old messages out of resume deltas while retaining scoped human answers", () => {
     const message = (id: string, body: string) => ({
-      id, body, authorType: "user", authorId: "board", createdAt: "2026-09-17T00:00:00Z",
+      id, body, authorType: "user", authorId: "operator", createdAt: "2026-09-17T00:00:00Z",
       updatedAt: "2026-09-17T00:00:00Z", deleted: false, sourceTrust: null,
     });
     const oldBody = "PREVIOUS_TASK_TEXT ".repeat(1000);
     const newBody = "Actually, save the plan first.";
     const answerText = "No budget. Wait for my approval.";
     const continuation: ExecutionContinuationEnvelope = {
-      version: 1, companyId: "company", issueId: "issue", objective: "Welcome",
+      version: 1, spaceId: "space", issueId: "issue", objective: "Welcome",
       trigger: { reason: "issue_commented", interactionId: "answer-id", sourceRunId: null },
       originCommentIds: ["new"], messages: [message("old", oldBody), message("new", newBody)],
       resumeDelta: { baseRunId: "previous-run", messages: [message("new", newBody)] },
       humanResponses: [{ id: "answer-id", kind: "ask_user_questions", status: "answered",
-        resolvedByUserId: "board", resolvedAt: "2026-09-17T00:01:00Z",
+        resolvedByUserId: "operator", resolvedAt: "2026-09-17T00:01:00Z",
         result: { answers: [{ questionId: "scope", optionIds: [], otherText: answerText }] } }],
       interactionOutcomes: [], completedWork: null, unresolvedInteractionIds: [],
       coverage: { kind: "full_task_history", throughCommentId: "new", summaryThroughCommentId: null },
     };
     const wake = { executionContinuation: continuation };
-    const fresh = renderPaperclipWakePrompt(wake);
-    const resumed = renderPaperclipWakePrompt(wake, { resumedSession: true });
+    const fresh = renderOutpostWakePrompt(wake);
+    const resumed = renderOutpostWakePrompt(wake, { resumedSession: true });
     const contract = buildNativeCompletionContract({ title: "Welcome", description: oldBody }, {
       immediateRequest: newBody, humanResponseId: "answer-id",
     });
@@ -602,7 +602,7 @@ describe("follow-up context size", () => {
 describe("native completion references", () => {
   const source = nativeCompletionSource("description", "task", "Repeat. Repeat.");
   const args: Parameters<typeof buildNativeExecutionInput>[0] = {
-    companyId: "company", runId: "run", agentId: "agent",
+    spaceId: "space", runId: "run", agentId: "agent",
     issue: { id: "task", identifier: "PAP-1", title: "Brief", description: "Repeat. Repeat.", workMode: "standard" },
     taskPrompt: "Issue description:\nRepeat. Repeat.",
     workspace: { id: "workspace", cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
@@ -639,7 +639,7 @@ describe("native completion references", () => {
 describe("Cursor mode native execution projection", () => {
   function fixture(acpxSessionMode?: "agent" | "plan" | "ask") {
     return {
-      companyId: "company-1", runId: "run-1", agentId: "agent-1",
+      spaceId: "space-1", runId: "run-1", agentId: "agent-1",
       issue: { id: "issue-1", identifier: "MODE-1", title: "Review a plan", description: null, workMode: "standard" },
       taskPrompt: "Review the project.",
       workspace: { id: "workspace-1", cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
@@ -663,7 +663,7 @@ describe("Cursor mode native execution projection", () => {
 describe("Pi thinking native execution projection", () => {
   function fixture(piThinkingLevel?: "off" | "low" | "high" | "max") {
     return {
-      companyId: "company-1", runId: "run-1", agentId: "agent-1",
+      spaceId: "space-1", runId: "run-1", agentId: "agent-1",
       issue: { id: "issue-1", identifier: "MODE-1", title: "Review a plan", description: null, workMode: "standard" },
       taskPrompt: "Review the project.",
       workspace: { id: "workspace-1", cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
@@ -691,7 +691,7 @@ describe("Claude effort and master home-mode compatibility", () => {
     ["isolated", "high", "v9"], ["preconfigured", "high", "v9"],
   ] as const)("retains %s home mode with effort %s in %s", (homeMode, claudeEffort, version) => {
     const value = buildNativeExecutionInput({
-      companyId: "company", runId: "run", agentId: "agent",
+      spaceId: "space", runId: "run", agentId: "agent",
       issue: { id: "issue", identifier: "CLA-1", title: "Useful output", description: null, workMode: "standard" },
       taskPrompt: "Create the requested file.",
       workspace: { id: "workspace", cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
@@ -710,7 +710,7 @@ describe("Claude effort and master home-mode compatibility", () => {
     ["isolated", undefined, undefined, "v5"], ["isolated", "high", true, "v10"], ["isolated", undefined, false, "v10"],
   ] as const)("retains %s home mode with effort %s and search policy %s in %s", (homeMode, grokEffort, grokDisableWebSearch, version) => {
     const value = buildNativeExecutionInput({
-      companyId: "company", runId: "run", agentId: "agent",
+      spaceId: "space", runId: "run", agentId: "agent",
       issue: { id: "issue", identifier: "CLA-1", title: "Useful output", description: null, workMode: "standard" },
       taskPrompt: "Create the requested file.",
       workspace: { id: "workspace", cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },

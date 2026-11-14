@@ -5,7 +5,7 @@ export { loadOrCreateState } from "./state.js";
 export {
   trackInstallStarted,
   trackInstallCompleted,
-  trackCompanyImported,
+  trackSpaceImported,
   trackProjectCreated,
   trackRoutineCreated,
   trackRoutineRun,
@@ -36,9 +36,9 @@ export type {
   RegisteredPluginEventName,
 } from "./types.js";
 export type {
-  AnyPaperclipTelemetryEvent,
+  AnyOutpostTelemetryEvent,
   EventDimensionsMap,
-  PaperclipEventName,
-} from "./generated/paperclip-telemetry.js";
+  OutpostEventName,
+} from "./generated/outpost-telemetry.js";
 export { EVENT_RETENTION_CLASS, RETENTION_DAYS } from "./retention.js";
 export type { RetentionClass } from "./retention.js";

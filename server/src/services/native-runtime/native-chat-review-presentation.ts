@@ -43,8 +43,8 @@ function presentationContextSha256(value: unknown): string {
   // finalization. They do not change the authenticated chat actor or wake.
   // Keep every other context field in the hash, including unknown fields.
   const {
-    paperclipRuntimeServices: _services,
-    paperclipRuntimePrimaryUrl: _url,
+    outpostRuntimeServices: _services,
+    outpostRuntimePrimaryUrl: _url,
     ...scope
   } = record(value);
   return nativeSha256(scope);
@@ -70,7 +70,7 @@ export interface NativeChatReviewPresentationProof {
 async function reviewPresentationEvidence(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     runId: string;
     resultId: string;
@@ -86,7 +86,7 @@ async function reviewPresentationEvidence(
       .where(
         and(
           eq(heartbeatRuns.id, input.runId),
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
           eq(heartbeatRuns.nativeIssueId, input.issueId),
         ),
       )
@@ -98,7 +98,7 @@ async function reviewPresentationEvidence(
       .where(
         and(
           eq(nativeRunResults.id, input.resultId),
-          eq(nativeRunResults.companyId, input.companyId),
+          eq(nativeRunResults.spaceId, input.spaceId),
           eq(nativeRunResults.issueId, input.issueId),
           eq(nativeRunResults.runId, input.runId),
         ),
@@ -111,7 +111,7 @@ async function reviewPresentationEvidence(
       .where(
         and(
           eq(workAssessments.id, input.assessmentId),
-          eq(workAssessments.companyId, input.companyId),
+          eq(workAssessments.spaceId, input.spaceId),
           eq(workAssessments.issueId, input.issueId),
           eq(workAssessments.runId, input.runId),
           eq(workAssessments.resultId, input.resultId),
@@ -125,7 +125,7 @@ async function reviewPresentationEvidence(
       .where(
         and(
           eq(issues.id, input.issueId),
-          eq(issues.companyId, input.companyId),
+          eq(issues.spaceId, input.spaceId),
         ),
       )
       .limit(1)
@@ -169,7 +169,7 @@ async function reviewPresentationEvidence(
     .where(
       and(
         eq(issueThreadInteractions.id, input.gateId),
-        eq(issueThreadInteractions.companyId, input.companyId),
+        eq(issueThreadInteractions.spaceId, input.spaceId),
         eq(issueThreadInteractions.issueId, input.issueId),
         eq(issueThreadInteractions.status, "pending"),
       ),
@@ -202,7 +202,7 @@ async function reviewPresentationEvidence(
         heartbeatRuns,
         and(
           eq(heartbeatRuns.id, statusDecisions.runId),
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
           eq(heartbeatRuns.nativeIssueId, input.issueId),
         ),
       )
@@ -210,7 +210,7 @@ async function reviewPresentationEvidence(
         statusDecisionEffects,
         and(
           eq(statusDecisionEffects.decisionId, statusDecisions.id),
-          eq(statusDecisionEffects.companyId, input.companyId),
+          eq(statusDecisionEffects.spaceId, input.spaceId),
           eq(statusDecisionEffects.issueId, input.issueId),
           eq(statusDecisionEffects.effectKind, "bind_reviewer"),
           eq(statusDecisionEffects.targetType, "issue_thread_interaction"),
@@ -221,7 +221,7 @@ async function reviewPresentationEvidence(
       .where(
         and(
           eq(statusDecisions.id, target.revisionId),
-          eq(statusDecisions.companyId, input.companyId),
+          eq(statusDecisions.spaceId, input.spaceId),
           eq(statusDecisions.issueId, input.issueId),
           eq(statusDecisions.runId, gate.sourceRunId),
           eq(statusDecisions.applicationState, "applied"),
@@ -234,7 +234,7 @@ async function reviewPresentationEvidence(
       .from(issueThreadInteractions)
       .where(
         and(
-          eq(issueThreadInteractions.companyId, input.companyId),
+          eq(issueThreadInteractions.spaceId, input.spaceId),
           eq(issueThreadInteractions.issueId, input.issueId),
           eq(issueThreadInteractions.status, "pending"),
           ne(issueThreadInteractions.id, gate.id),
@@ -249,12 +249,12 @@ async function reviewPresentationEvidence(
         approvals,
         and(
           eq(approvals.id, issueApprovals.approvalId),
-          eq(approvals.companyId, input.companyId),
+          eq(approvals.spaceId, input.spaceId),
         ),
       )
       .where(
         and(
-          eq(issueApprovals.companyId, input.companyId),
+          eq(issueApprovals.spaceId, input.spaceId),
           eq(issueApprovals.issueId, input.issueId),
           inArray(approvals.status, ["pending", "revision_requested"]),
         ),
@@ -299,7 +299,7 @@ async function reviewPresentationEvidence(
 export async function prepareNativeChatReviewPresentationInTransaction(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     runId: string;
     resultId: string;
@@ -326,7 +326,7 @@ export async function prepareNativeChatReviewPresentationInTransaction(
 export async function authorizeNativeChatReviewPresentation(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     runId: string;
     resultJson: Record<string, unknown>;
@@ -347,7 +347,7 @@ export async function authorizeNativeChatReviewPresentation(
     .where(
       and(
         eq(nativeRunFinalizations.runId, input.runId),
-        eq(nativeRunFinalizations.companyId, input.companyId),
+        eq(nativeRunFinalizations.spaceId, input.spaceId),
         eq(nativeRunFinalizations.issueId, input.issueId),
         eq(nativeRunFinalizations.phase, "committed"),
       ),
@@ -370,12 +370,12 @@ export async function authorizeNativeChatReviewPresentation(
     .where(
       and(
         eq(statusDecisions.id, coordinator.decisionId),
-        eq(statusDecisions.companyId, input.companyId),
+        eq(statusDecisions.spaceId, input.spaceId),
         eq(statusDecisions.issueId, input.issueId),
         eq(statusDecisions.runId, input.runId),
         eq(statusDecisions.assessmentId, coordinator.assessmentId),
         eq(statusDecisions.applicationState, "applied"),
-        eq(statusDecisions.reasonCode, "governed_response_waiting"),
+        eq(statusDecisions.reasonCode, "controlled_response_waiting"),
       ),
     )
     .limit(1);
@@ -390,14 +390,14 @@ export async function authorizeNativeChatReviewPresentation(
     nativeSha256(record(input.resultJson.nativeResult).summary) !==
       marker.summarySha256 ||
     input.resultJson.finalizationPhase !== "committed" ||
-    input.resultJson.finalizationReasonCode !== "governed_response_waiting"
+    input.resultJson.finalizationReasonCode !== "controlled_response_waiting"
   )
     return false;
   const issueQuery = db
     .select()
     .from(issues)
     .where(
-      and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId)),
+      and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId)),
     );
   const [issue] = await (lockMode === "read"
     ? issueQuery.limit(1)
@@ -408,7 +408,7 @@ export async function authorizeNativeChatReviewPresentation(
     .where(
       and(
         eq(heartbeatRuns.id, input.runId),
-        eq(heartbeatRuns.companyId, input.companyId),
+        eq(heartbeatRuns.spaceId, input.spaceId),
         eq(heartbeatRuns.nativeIssueId, input.issueId),
       ),
     );
@@ -429,7 +429,7 @@ export async function authorizeNativeChatReviewPresentation(
     .select({ status: agents.status })
     .from(agents)
     .where(
-      and(eq(agents.id, run.agentId), eq(agents.companyId, input.companyId)),
+      and(eq(agents.id, run.agentId), eq(agents.spaceId, input.spaceId)),
     );
   const [agent] = await (lockMode === "read"
     ? agentQuery.limit(1)
@@ -481,7 +481,7 @@ export async function authorizeNativeChatReviewPresentation(
   return proof !== null && nativeSha256(proof) === nativeSha256(stored);
 }
 
-/** Retry the whole comment transaction, never while holding governance locks. */
+/** Retry the whole comment transaction, never while holding policy locks. */
 export async function retryNativeChatReviewPresentation<T>(
   attempt: () => Promise<T>,
 ): Promise<T> {
@@ -502,7 +502,7 @@ export async function retryNativeChatReviewPresentation<T>(
 export async function restoreNativeChatReviewPresentationInTransaction(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     runId: string;
     decisionId: string;
@@ -516,7 +516,7 @@ export async function restoreNativeChatReviewPresentationInTransaction(
     .from(nativeRunFinalizations)
     .where(
       and(
-        eq(nativeRunFinalizations.companyId, input.companyId),
+        eq(nativeRunFinalizations.spaceId, input.spaceId),
         eq(nativeRunFinalizations.issueId, input.issueId),
         eq(nativeRunFinalizations.runId, input.runId),
         eq(nativeRunFinalizations.phase, "committed"),
@@ -536,11 +536,11 @@ export async function restoreNativeChatReviewPresentationInTransaction(
     .where(
       and(
         eq(statusDecisions.id, input.decisionId),
-        eq(statusDecisions.companyId, input.companyId),
+        eq(statusDecisions.spaceId, input.spaceId),
         eq(statusDecisions.issueId, input.issueId),
         eq(statusDecisions.runId, input.runId),
         eq(statusDecisions.assessmentId, input.assessmentId),
-        eq(statusDecisions.reasonCode, "governed_response_waiting"),
+        eq(statusDecisions.reasonCode, "controlled_response_waiting"),
         eq(statusDecisions.applicationState, "applied"),
       ),
     )
@@ -562,7 +562,7 @@ export async function restoreNativeChatReviewPresentationInTransaction(
     .where(
       and(
         eq(nativeRunResults.id, input.resultId),
-        eq(nativeRunResults.companyId, input.companyId),
+        eq(nativeRunResults.spaceId, input.spaceId),
         eq(nativeRunResults.issueId, input.issueId),
         eq(nativeRunResults.runId, input.runId),
         eq(nativeRunResults.schemaStatus, "accepted"),
@@ -587,7 +587,7 @@ export async function restoreNativeChatReviewPresentationInTransaction(
   };
   const runOwner = and(
     eq(heartbeatRuns.id, input.runId),
-    eq(heartbeatRuns.companyId, input.companyId),
+    eq(heartbeatRuns.spaceId, input.spaceId),
     eq(heartbeatRuns.nativeIssueId, input.issueId),
     eq(heartbeatRuns.runtimeMode, "native"),
   );
@@ -617,7 +617,7 @@ export async function restoreNativeChatReviewPresentationInTransaction(
 export async function hasMaterializedNativeReviewResponse(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     runId: string;
     decisionId: string;
@@ -630,13 +630,13 @@ export async function hasMaterializedNativeReviewResponse(
       heartbeatRuns,
       and(
         eq(heartbeatRuns.id, issueComments.createdByRunId),
-        eq(heartbeatRuns.companyId, issueComments.companyId),
+        eq(heartbeatRuns.spaceId, issueComments.spaceId),
         eq(heartbeatRuns.agentId, issueComments.authorAgentId),
       ),
     )
     .where(
       and(
-        eq(issueComments.companyId, input.companyId),
+        eq(issueComments.spaceId, input.spaceId),
         eq(issueComments.issueId, input.issueId),
         eq(issueComments.createdByRunId, input.runId),
         eq(issueComments.authorType, "agent"),

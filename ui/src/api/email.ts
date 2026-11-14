@@ -12,35 +12,35 @@ import type {
   EmailAddressCheckResult,
 } from "@outpost/shared";
 export const emailApi = {
-  credentials: (companyId: string) => api.get<EmailCredentialOption[]>(`/companies/${companyId}/email/connections`),
-  checkAddress: (companyId: string, connectionId: string, input: EmailAddressCheckInput, signal?: AbortSignal) =>
+  credentials: (spaceId: string) => api.get<EmailCredentialOption[]>(`/spaces/${spaceId}/email/connections`),
+  checkAddress: (spaceId: string, connectionId: string, input: EmailAddressCheckInput, signal?: AbortSignal) =>
     api.post<EmailAddressCheckResult>(
-      `/companies/${companyId}/email/connections/${connectionId}/check-address`, input, { signal },
+      `/spaces/${spaceId}/email/connections/${connectionId}/check-address`, input, { signal },
     ),
-  connect: (companyId: string, input: EmailConnectionInput) =>
+  connect: (spaceId: string, input: EmailConnectionInput) =>
     api.post<ToolConnection>(
-      `/companies/${companyId}/email/connections`,
+      `/spaces/${spaceId}/email/connections`,
       input,
     ),
-  inspectSaved: (companyId: string, connectionId: string) =>
+  inspectSaved: (spaceId: string, connectionId: string) =>
     api.post<{
       scope: { scope_type: string };
       inboxes: { inbox_id: string }[];
       domains: { domain_id: string; domain: string; status: string }[];
-    }>(`/companies/${companyId}/email/connections/${connectionId}/inspect`, {}),
-  list: (companyId: string) =>
-    api.get<EmailEndpointSummary[]>(`/companies/${companyId}/email/inboxes`),
-  setup: (companyId: string, input: EmailEndpointSetupInput) =>
+    }>(`/spaces/${spaceId}/email/connections/${connectionId}/inspect`, {}),
+  list: (spaceId: string) =>
+    api.get<EmailEndpointSummary[]>(`/spaces/${spaceId}/email/inboxes`),
+  setup: (spaceId: string, input: EmailEndpointSetupInput) =>
     api.post<EmailEndpointSummary>(
-      `/companies/${companyId}/email/inboxes`,
+      `/spaces/${spaceId}/email/inboxes`,
       input,
     ),
-  inspect: (companyId: string, apiKey: string) =>
+  inspect: (spaceId: string, apiKey: string) =>
     api.post<{
       scope: { scope_type: string };
       inboxes: { inbox_id: string }[];
       domains: { domain_id: string; domain: string; status: string }[];
-    }>(`/companies/${companyId}/email/inspect`, { apiKey }),
+    }>(`/spaces/${spaceId}/email/inspect`, { apiKey }),
   control: (id: string, action: "pause" | "resume" | "remove") =>
     api.post<EmailEndpointSummary>(`/email/inboxes/${id}/control`, { action }),
   reconnect: (
@@ -53,22 +53,22 @@ export const emailApi = {
       receiveMode,
     }),
   resolve: (
-    companyId: string,
+    spaceId: string,
     id: string,
     outcome: "sent" | "failed",
     providerMessageId?: string,
   ) =>
     api.post<EmailPublicationSummary>(
-      `/companies/${companyId}/email/deliveries/${id}/resolve`,
+      `/spaces/${spaceId}/email/deliveries/${id}/resolve`,
       { outcome, providerMessageId },
     ),
-  thread: (companyId: string, issueId: string) =>
+  thread: (spaceId: string, issueId: string) =>
     api.get<EmailThreadSummary | null>(
-      `/companies/${companyId}/email/tasks/${issueId}`,
+      `/spaces/${spaceId}/email/tasks/${issueId}`,
     ),
-  send: (companyId: string, input: EmailSendInput) =>
+  send: (spaceId: string, input: EmailSendInput) =>
     api.post<EmailPublicationSummary>(
-      `/companies/${companyId}/email/send`,
+      `/spaces/${spaceId}/email/send`,
       input,
     ),
 };

@@ -1,15 +1,15 @@
 import { acceptIssueThreadInteractionSchema } from "../../../packages/shared/src/validators/issue.js";
 
-type ProbeRun = { id: string; companyId: string; agentId: string; status: string; contextSnapshot?: Record<string, unknown> };
+type ProbeRun = { id: string; spaceId: string; agentId: string; status: string; contextSnapshot?: Record<string, unknown> };
 type ProbeBoundary = { interactionStatus: string; invocationStatus: string; actionStatus: string; providerWrites: number; trustRuleIds: string[] };
 type ProbeInput = {
   baseURL: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   issueId: string;
   interaction: { id: string; status: string; sourceRunId?: string | null };
   run: ProbeRun;
-  invocation: { companyId: string; agentId: string | null; issueId: string | null; runId: string | null; status: string };
+  invocation: { spaceId: string; agentId: string | null; issueId: string | null; runId: string | null; status: string };
   privateSecrets: string[];
   createKey(): Promise<{ id: string; token: string }>;
   revokeKey(id: string): Promise<unknown>;
@@ -40,12 +40,12 @@ async function responseCode(response: Response) {
 
 export async function probeReviewApproval(input: ProbeInput): Promise<ReviewApprovalProbe> {
   const { interaction, run, invocation } = input;
-  if (!input.privateSecrets || !input.companyId || !input.agentId || !input.issueId
+  if (!input.privateSecrets || !input.spaceId || !input.agentId || !input.issueId
     || !interaction.id || interaction.status !== "pending" || interaction.sourceRunId !== run.id
     || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(run.id)
-    || run.companyId !== input.companyId || run.agentId !== input.agentId || run.status !== "succeeded"
+    || run.spaceId !== input.spaceId || run.agentId !== input.agentId || run.status !== "succeeded"
     || run.contextSnapshot?.issueId !== input.issueId
-    || invocation.companyId !== input.companyId || invocation.agentId !== input.agentId
+    || invocation.spaceId !== input.spaceId || invocation.agentId !== input.agentId
     || invocation.issueId !== input.issueId || invocation.runId !== run.id || invocation.status !== "awaiting_approval") {
     throw new Error("Approval probe requires the actual pending owned source invocation and succeeded native run");
   }
@@ -61,7 +61,7 @@ export async function probeReviewApproval(input: ProbeInput): Promise<ReviewAppr
   try {
     const response = await (input.send ?? fetch)(target, {
       method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
-      headers: { Authorization: `Bearer ${key.token}`, "content-type": "application/json", "x-paperclip-run-id": run.id },
+      headers: { Authorization: `Bearer ${key.token}`, "content-type": "application/json", "x-outpost-run-id": run.id },
       body: JSON.stringify(body),
     });
     receipt.status = response.status;

@@ -15,7 +15,7 @@ Agent access: [companion](../agent-access-map/chat-channels.md).
 ## Sub-features
 
 - `providers`: `chat-channels/providers` — configure the available Slack, Discord, Microsoft Teams, Telegram, GitHub, AgentMail, and experimental iMessage Photon and Speko paths; availability still depends on gates and provider support.
-- `identity`: `chat-channels/identity` — link the external sender to the intended authorized Paperclip identity.
+- `identity`: `chat-channels/identity` — link the external sender to the intended authorized Outpost identity.
 - `conversation`: `chat-channels/conversation` — route inbound messages to the selected agent and send replies to the correct thread.
 - `attachments`: `chat-channels/attachments` — transfer supported files with inspectable delivery and failure states.
 - `lifecycle`: `chat-channels/lifecycle` — inspect endpoint activity, repair auth, and disable delivery when required.
@@ -25,7 +25,7 @@ Agent access: [companion](../agent-access-map/chat-channels.md).
 
 ### `external-thread`
 
-Message the configured bot/address from its external provider and follow the corresponding Paperclip conversation/task.
+Message the configured bot/address from its external provider and follow the corresponding Outpost conversation/task.
 
 ### `endpoint-management`
 
@@ -37,7 +37,7 @@ Open `/apps/chat/:endpointId/settings` and the endpoint’s other available tabs
 
 ### `outbound-agentmail`
 
-Use `paperclipai email inboxes --company-id <company-id>`, then `email send --company-id <company-id> --file <new-email.json>` or `email reply --company-id <company-id> --file <reply.json>`. Inspect `email thread <email-task-id> --company-id <company-id>` and `email delivery <publication-id> --company-id <company-id>`. Agent mutations must provide --run-id or the active OUTPOST_RUN_ID.
+Use `outpost email inboxes --space-id <space-id>`, then `email send --space-id <space-id> --file <new-email.json>` or `email reply --space-id <space-id> --file <reply.json>`. Inspect `email thread <email-task-id> --space-id <space-id>` and `email delivery <publication-id> --space-id <space-id>`. Agent mutations must provide --run-id or the active OUTPOST_RUN_ID.
 
 ## Driving it with Playwright and provider clients
 
@@ -88,7 +88,7 @@ acknowledgements do not authorize this fallback. A malformed first report can re
 explicit malformed input remains rejected. Revocation between context read,
 finish and commit preserves the task without self-waking. Done policy is unchanged.
 
-Manual: For each supported provider being changed, send a unique message, verify the intended agent/company receives it, and inspect the actual external reply in the original thread. Repeat with an unlinked/unauthorized sender, duplicate inbound delivery, and one supported attachment. Record provider-specific results separately.
+Manual: For each supported provider being changed, send a unique message, verify the intended agent/space receives it, and inspect the actual external reply in the original thread. Repeat with an unlinked/unauthorized sender, duplicate inbound delivery, and one supported attachment. Record provider-specific results separately.
 
 GitHub review prompt regression: open a PR and push twice. Each task message
 contains the event and commit identifiers; configuration comes from the admitted
@@ -139,7 +139,7 @@ also continue from a board message by the same accepted requester and complete
 the review in the original conversation, including when the original source is
 recorded only in legacy wake metadata. Revoke the linked identity and check
 that the next call fails. Repeat the boundary checks with another task, agent,
-company, and requester. The channel and provenance fixtures above cover these
+space, and requester. The channel and provenance fixtures above cover these
 contracts with synthetic providers; record a live journey separately.
 For a long-lived task, repeat more than 100 continuations and check that tool
 access remains available. Fail a later GitHub run after a final answer and
@@ -188,7 +188,7 @@ the requested credential entry and confirm the endpoint identity before
 expecting task continuation.
 
 For GitHub, submit a disposable PR and verify the summary heading uses the bot's
-display name and the check remains **Paperclip Review**. For two separate bots on one PR, verify
+display name and the check remains **Outpost Review**. For two separate bots on one PR, verify
 their App-scoped checks and comments remain independent.
 
 For GitHub publication recovery, interrupt a response after GitHub accepts a
@@ -224,9 +224,9 @@ or telephone playback. Those provider outcomes remain explicit release gates.
 
 ### `outbound-agentmail`
 
-Automated: [Email channel integration](../../server/src/__tests__/email-channels.integration.test.ts) uses controlled providers to test durable child tasks/intents, deduplication, reply binding, attachments, delivery, revocation, budgets, run authority, and company boundaries. No dedicated end-to-end CLI email test was identified; these fixtures do not establish actual recipient delivery.
+Automated: [Email channel integration](../../server/src/__tests__/email-channels.integration.test.ts) uses controlled providers to test durable child tasks/intents, deduplication, reply binding, attachments, delivery, revocation, budgets, run authority, and space boundaries. No dedicated end-to-end CLI email test was identified; these fixtures do not establish actual recipient delivery.
 
-Manual: Use a disposable parent task, authorized AgentMail inbox, and recipient you own. Put endpointId, a stable UUID idempotencyKey, text, parentIssueId, to, and subject in the new-message JSON; supply eligible attachmentIds only if needed. Send, inspect the child conversation/publication, and verify actual received mail. Repeat the identical request/key and confirm one child and provider send; changed content with that key must conflict. Reply with endpointId, conversationId, exact replyToMessageId, text, and a fresh stable idempotencyKey; inspect the actual recipients and received reply. Replies must reject caller-supplied recipient/subject/parent overrides. Test wrong inbox/task/company/run, a canceled task, revoked access/credentials, and an inaccessible attachment. Inspect uncertain provider outcomes before using the administrative resolution path.
+Manual: Use a disposable parent task, authorized AgentMail inbox, and recipient you own. Put endpointId, a stable UUID idempotencyKey, text, parentIssueId, to, and subject in the new-message JSON; supply eligible attachmentIds only if needed. Send, inspect the child conversation/publication, and verify actual received mail. Repeat the identical request/key and confirm one child and provider send; changed content with that key must conflict. Reply with endpointId, conversationId, exact replyToMessageId, text, and a fresh stable idempotencyKey; inspect the actual recipients and received reply. Replies must reject caller-supplied recipient/subject/parent overrides. Test wrong inbox/task/space/run, a canceled task, revoked access/credentials, and an inaccessible attachment. Inspect uncertain provider outcomes before using the administrative resolution path.
 
 Sources: [Email CLI](../../cli/src/commands/client/email.ts), [request schema](../../packages/shared/src/validators/email.ts), [email routes](../../server/src/routes/email.ts), and [email authority/publication](../../server/src/services/email-channels.ts).
 

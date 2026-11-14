@@ -36,7 +36,7 @@ export function createHeartbeatInstructionCopyRelease(
     // lease release), and a timeout must not be repeated in outer teardown.
     if (instructionCleanupDeferred) return;
     try {
-      await instructionCopies.release(instructionCleanupRun.companyId, instructionCleanupRun.id);
+      await instructionCopies.release(instructionCleanupRun.spaceId, instructionCleanupRun.id);
     } catch (err) {
       instructionCleanupDeferred = true;
       logger.warn({ err, runId: instructionCleanupRun.id }, "Agent file cleanup deferred; run outcome preserved");
@@ -106,7 +106,7 @@ export function createHeartbeatInstructionWorkingCopy(input: InstructionWorkingC
   const collectStoppedInstructions = async () => {
     if (!instructionCopy) return;
     const saved = await collectStoppedInstructionCopyWithRetries(() => instructionCopies.collectStopped({
-      companyId: agent.companyId, runId: readRun().id, target: executionTarget,
+      spaceId: agent.spaceId, runId: readRun().id, target: executionTarget,
     }));
     if (!saved) return;
     if (saved.state !== "superseded") await recordInstructionSave(saved);
@@ -115,13 +115,13 @@ export function createHeartbeatInstructionWorkingCopy(input: InstructionWorkingC
     ...(isAgentDirectoryCopy(instructionCopy) ? { runId: readRun().id, preparationKey: instructionPreparationKey } : {}),
     root: instructionCopy.executionRoot,
     ...(instructionCopy.receipt?.warm === true ? { checkpointWarm: async () => {
-      const saved = await instructionCopies.checkpointWarm({ companyId: agent.companyId, runId: readRun().id, target: executionTarget });
+      const saved = await instructionCopies.checkpointWarm({ spaceId: agent.spaceId, runId: readRun().id, target: executionTarget });
       if (saved) await recordInstructionSave(saved);
       return saved?.state === "warm_saved" && saved.errorCode === null;
     } } : {}),
-    hasChanges: () => instructionCopies.hasChanges({ companyId: agent.companyId, runId: readRun().id, target: executionTarget }),
+    hasChanges: () => instructionCopies.hasChanges({ spaceId: agent.spaceId, runId: readRun().id, target: executionTarget }),
     collectStopped: collectStoppedInstructions,
-    retirementFailed: async () => { await instructionCopies.reportRetirementUnconfirmed(agent.companyId, readRun().id); },
+    retirementFailed: async () => { await instructionCopies.reportRetirementUnconfirmed(agent.spaceId, readRun().id); },
   } : undefined;
 
   async function prepare({ runtimeConfig, nativeRuntimeResolution, hasInstructionFilesystem, nativeLifecyclePolicy }: {
@@ -136,7 +136,7 @@ export function createHeartbeatInstructionWorkingCopy(input: InstructionWorkingC
         // legacy format. New sessions opt into whole-directory persistence.
         const priorFileRun = taskSession?.lastRunId
           ? await db.select({ profile: heartbeatRuns.runnerProfileJson }).from(heartbeatRuns).where(and(
-              eq(heartbeatRuns.id, taskSession.lastRunId), eq(heartbeatRuns.companyId, agent.companyId), eq(heartbeatRuns.agentId, agent.id))).then(rows => rows[0])
+              eq(heartbeatRuns.id, taskSession.lastRunId), eq(heartbeatRuns.spaceId, agent.spaceId), eq(heartbeatRuns.agentId, agent.id))).then(rows => rows[0])
           : null;
         const savedFileInput = parseObject(parseObject(readRun().runnerProfileJson).nativeExecutionInput);
         const priorFileInput = Object.keys(savedFileInput).length ? savedFileInput : parseObject(parseObject(priorFileRun?.profile).nativeExecutionInput);
@@ -145,20 +145,20 @@ export function createHeartbeatInstructionWorkingCopy(input: InstructionWorkingC
           (nativeRuntimeResolution.profile.backend === "acpx_runtime" && parseObject(agent.adapterConfig).acpxAgent === "cursor")) &&
           nativeLifecyclePolicy?.mode === "warm";
         if (warmFiles && taskSessionForRun?.lastRunId) {
-          nativeInstructionReservation = await reserveWarmNativeInstructionDirectory({ companyId: agent.companyId, agentId: agent.id,
+          nativeInstructionReservation = await reserveWarmNativeInstructionDirectory({ spaceId: agent.spaceId, agentId: agent.id,
             previousRunId: taskSessionForRun.lastRunId, runId: readRun().id, target: executionTarget,
             observabilityCompatibilityKey: input.observabilityCompatibilityKey,
-            canReuse: () => instructionCopies.canReuseWarm(agent.companyId, agent.id, taskSessionForRun!.lastRunId!),
+            canReuse: () => instructionCopies.canReuseWarm(agent.spaceId, agent.id, taskSessionForRun!.lastRunId!),
           });
         }
         if (!warmFiles && nativeRuntimeResolution.kind === "native" && priorWorkingCopy.kind === "agent_files" && taskSession) {
           releaseWarmInstructionPreparation = await claimWarmNativeInstructionCopy({
             observabilityCompatibilityKey: input.observabilityCompatibilityKey,
-            priorExecution: parseNativeExecutionInput(priorFileInput), companyId: agent.companyId, agentId: agent.id,
+            priorExecution: parseNativeExecutionInput(priorFileInput), spaceId: agent.spaceId, agentId: agent.id,
             executionWorkspaceId: persistedExecutionWorkspace?.id ?? readRun().id, workspace: executionWorkspace,
             environmentId: executionTarget?.environmentId ?? null, target: executionTarget, runId: readRun().id, preparationKey: instructionPreparationKey, forceRetirement: !taskSessionForRun,
             adopt: async previousRunId => {
-              instructionCopy = await instructionCopies.adopt({ companyId: agent.companyId, agentId: agent.id,
+              instructionCopy = await instructionCopies.adopt({ spaceId: agent.spaceId, agentId: agent.id,
                 runId: readRun().id, previousRunId, target: executionTarget, cwd: executionWorkspace.cwd, allowRetirementHandoff: true });
               return nativeInstructionWorkingCopy() ?? null;
             },
@@ -168,7 +168,7 @@ export function createHeartbeatInstructionWorkingCopy(input: InstructionWorkingC
           if (!releaseWarmInstructionPreparation) instructionCopy = null;
         }
         const prepareInstructions = (reuseRunId?: string) => instructionCopies.prepare({
-          companyId: agent.companyId, agentId: agent.id, runId: readRun().id,
+          spaceId: agent.spaceId, agentId: agent.id, runId: readRun().id,
           target: executionTarget, cwd: executionWorkspace.cwd,
           legacy: Object.keys(priorFileInput).length > 0 && priorWorkingCopy.kind !== "agent_files",
           warm: warmFiles, reuseRunId,
@@ -195,7 +195,7 @@ export function createHeartbeatInstructionWorkingCopy(input: InstructionWorkingC
           message: "Persistent instruction editing is unavailable. Use an authenticated user with instruction edit access and a managed instruction bundle.",
           payload: { state: "unavailable", code: "INSTRUCTION_COPY_UNAVAILABLE" } });
         const guidance = "No editable agent instruction working copy is registered for this turn. Use authenticated agent file tools for persistent edits; do not edit a private copy named in an earlier turn or claim its changes will persist.";
-        for (const key of ["paperclipTaskMarkdown", "paperclipTaskMarkdownCompact"]) {
+        for (const key of ["outpostTaskMarkdown", "outpostTaskMarkdownCompact"]) {
           context[key] = [readNonEmptyString(context[key]), guidance].filter(Boolean).join("\n\n");
         }
       }
@@ -211,15 +211,15 @@ export function createHeartbeatInstructionWorkingCopy(input: InstructionWorkingC
         }
         runtimeConfig = { ...runtimeConfig, instructionsFilePath: path.join(instructionCopy.localRoot, instructionCopy.entryFile) };
         if (isAgentDirectoryCopy(instructionCopy)) {
-          const workspace = parseObject(context.paperclipWorkspace);
-          context.paperclipWorkspace = { ...workspace, agentHome: instructionCopy.executionRoot,
+          const workspace = parseObject(context.outpostWorkspace);
+          context.outpostWorkspace = { ...workspace, agentHome: instructionCopy.executionRoot,
             // Keep the pre-existing permission root stable for ACP session
-            // identity. The per-run copy is already under the company root.
+            // identity. The per-run copy is already under the space root.
             agentHomeForPermissions: workspace.agentHome,
           };
         }
         const guidance = instructionWorkingCopyGuidance(instructionCopy);
-        for (const key of ["paperclipTaskMarkdown", "paperclipTaskMarkdownCompact"]) {
+        for (const key of ["outpostTaskMarkdown", "outpostTaskMarkdownCompact"]) {
           context[key] = [readNonEmptyString(context[key]), guidance].filter(Boolean).join("\n\n");
         }
       }

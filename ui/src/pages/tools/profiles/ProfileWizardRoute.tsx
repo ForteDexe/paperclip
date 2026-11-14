@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useParams, useSearchParams } from "@/lib/router";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { advancedTabHref } from "../tool-tabs";
 import { ToolsAdminGate } from "./ToolsAdminGate";
 import { ProfileWizard } from "./ProfileWizard";
@@ -14,7 +14,7 @@ import { TEMPLATES, type TemplateKey } from "./profile-model";
  * the rest of the tool-access surface.
  */
 export function ProfileWizardRoute({ mode }: { mode: "new" | "edit" }) {
-  const { selectedCompany, selectedCompanyId } = useCompany();
+  const { selectedSpace, selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const params = useParams<{ profileId?: string }>();
   const [searchParams] = useSearchParams();
@@ -28,15 +28,15 @@ export function ProfileWizardRoute({ mode }: { mode: "new" | "edit" }) {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: selectedCompany?.name ?? "Outpost", href: "/dashboard" },
+      { label: selectedSpace?.name ?? "Outpost", href: "/dashboard" },
       { label: "Apps", href: "/apps" },
       { label: "Access profiles", href: advancedTabHref("profiles") },
       { label: mode === "edit" ? "Resume draft" : "New profile" },
     ]);
     return () => setBreadcrumbs([]);
-  }, [setBreadcrumbs, selectedCompany?.name, mode]);
+  }, [setBreadcrumbs, selectedSpace?.name, mode]);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <div className="p-6 text-sm text-muted-foreground">Select an outpost to create a profile.</div>;
   }
 
@@ -52,7 +52,7 @@ export function ProfileWizardRoute({ mode }: { mode: "new" | "edit" }) {
           </p>
         </header>
         <ProfileWizard
-          companyId={selectedCompanyId}
+          spaceId={selectedSpaceId}
           profileId={mode === "edit" ? params.profileId : undefined}
           initialTemplate={initialTemplate}
           initialStep={initialStep}

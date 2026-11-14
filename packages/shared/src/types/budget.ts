@@ -10,7 +10,7 @@ import type {
 
 export interface BudgetPolicy {
   id: string;
-  companyId: string;
+  spaceId: string;
   scopeType: BudgetScopeType;
   scopeId: string;
   metric: BudgetMetric;
@@ -30,7 +30,7 @@ export interface BudgetPolicy {
 
 export interface BudgetPolicySummary {
   policyId: string;
-  companyId: string;
+  spaceId: string;
   scopeType: BudgetScopeType;
   scopeId: string;
   scopeName: string;
@@ -58,7 +58,7 @@ export interface BudgetPolicySummary {
 
 export interface BudgetIncident {
   id: string;
-  companyId: string;
+  spaceId: string;
   policyId: string;
   scopeType: BudgetScopeType;
   scopeId: string;
@@ -79,7 +79,7 @@ export interface BudgetIncident {
 }
 
 export interface BudgetOverview {
-  companyId: string;
+  spaceId: string;
   policies: BudgetPolicySummary[];
   activeIncidents: BudgetIncident[];
   pausedAgentCount: number;

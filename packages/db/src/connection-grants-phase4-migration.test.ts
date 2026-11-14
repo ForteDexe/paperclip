@@ -30,9 +30,9 @@ describe("connection grants phase 4 migration", () => {
   it("adds replay-safe named-agent standing delegations", () => {
     expect(migrationSql).toContain(`CREATE TABLE IF NOT EXISTS "connection_grant_delegations"`);
     expect(migrationSql).toContain(`"connection_grant_delegations_grant_agent_uq"`);
-    expect(migrationSql).toContain(`FOREIGN KEY ("company_id","grant_id")`);
-    expect(migrationSql).toContain(`DROP CONSTRAINT IF EXISTS "connection_grant_delegations_company_grant_fk"`);
-    expect(migrationSql).toContain(`CREATE INDEX IF NOT EXISTS "connection_grant_delegations_company_agent_idx"`);
+    expect(migrationSql).toContain(`FOREIGN KEY ("space_id","grant_id")`);
+    expect(migrationSql).toContain(`DROP CONSTRAINT IF EXISTS "connection_grant_delegations_space_grant_fk"`);
+    expect(migrationSql).toContain(`CREATE INDEX IF NOT EXISTS "connection_grant_delegations_space_agent_idx"`);
     expect(migrationSql).toContain(`ON CONFLICT DO NOTHING`);
   });
 
@@ -40,7 +40,7 @@ describe("connection grants phase 4 migration", () => {
     expect(migrationSql).toContain(`phase4_ambiguous_personal_secrets`);
     expect(migrationSql).toContain(`count(DISTINCT g."subject_user_id") AS "owner_count"`);
     expect(migrationSql).toContain(`organization_grant."kind" <> 'user'`);
-    expect(migrationSql).toContain(`FROM "company_secret_bindings" binding`);
+    expect(migrationSql).toContain(`FROM "space_secret_bindings" binding`);
     expect(migrationSql).toContain(`FROM "routine_triggers" routine_trigger`);
     expect(migrationSql).toContain(`grant_row."kind" = 'user'`);
     expect(migrationSql).not.toContain(`UPDATE "tool_connections" connection_row`);
@@ -50,7 +50,7 @@ describe("connection grants phase 4 migration", () => {
 
 describeEmbeddedPostgres("connection grants phase 4 executable migration", () => {
   it("converts one owner and rejects two-owner or mixed legacy references", async () => {
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-connection-phase4-migration-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-connection-phase4-migration-");
     cleanups.push(database.cleanup);
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
 
@@ -66,43 +66,43 @@ describeEmbeddedPostgres("connection grants phase 4 executable migration", () =>
       ownerUserIds: string[];
       includeOrganizationGrant?: boolean;
       includeConnectionReference?: boolean;
-      includeCompanyBinding?: boolean;
+      includeSpaceBinding?: boolean;
       includeRoutineTrigger?: boolean;
       credentialPolicy?: "shared" | "per_user" | "per_user_with_fallback";
     }) {
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const applicationId = randomUUID();
       const connectionId = randomUUID();
       const secretId = randomUUID();
       await sql`
-        INSERT INTO "companies" ("id", "name", "issue_prefix")
-        VALUES (${companyId}, ${`Phase 4 ${companyId}`}, ${`P${companyId.slice(0, 5)}`})
+        INSERT INTO "spaces" ("id", "name", "issue_prefix")
+        VALUES (${spaceId}, ${`Phase 4 ${spaceId}`}, ${`P${spaceId.slice(0, 5)}`})
       `;
       await sql`
-        INSERT INTO "tool_applications" ("id", "company_id", "name", "type")
-        VALUES (${applicationId}, ${companyId}, ${`App ${applicationId}`}, 'mcp_http')
+        INSERT INTO "tool_applications" ("id", "space_id", "name", "type")
+        VALUES (${applicationId}, ${spaceId}, ${`App ${applicationId}`}, 'mcp_http')
       `;
       await sql`
         INSERT INTO "tool_connections" (
-          "id", "company_id", "application_id", "name", "uid", "transport",
+          "id", "space_id", "application_id", "name", "uid", "transport",
           "status", "enabled", "health_status", "credential_policy", "credential_secret_refs"
         ) VALUES (
-          ${connectionId}, ${companyId}, ${applicationId}, ${`Connection ${connectionId}`},
+          ${connectionId}, ${spaceId}, ${applicationId}, ${`Connection ${connectionId}`},
           ${`connection-${connectionId}`}, 'mcp_remote', 'active', true, 'healthy',
           ${input.credentialPolicy ?? "shared"},
           ${sql.json(input.includeConnectionReference ? [{ secretId, version: "latest" }] : [])}
         )
       `;
       await sql`
-        INSERT INTO "company_secrets" ("id", "company_id", "key", "name", "scope")
-        VALUES (${secretId}, ${companyId}, ${`secret-${secretId}`}, ${`Secret ${secretId}`}, 'company')
+        INSERT INTO "space_secrets" ("id", "space_id", "key", "name", "scope")
+        VALUES (${secretId}, ${spaceId}, ${`secret-${secretId}`}, ${`Secret ${secretId}`}, 'space')
       `;
       for (const ownerUserId of input.ownerUserIds) {
         await sql`
           INSERT INTO "connection_grants" (
-            "company_id", "connection_id", "kind", "subject_user_id", "credential_secret_refs"
+            "space_id", "connection_id", "kind", "subject_user_id", "credential_secret_refs"
           ) VALUES (
-            ${companyId}, ${connectionId}, 'user', ${ownerUserId},
+            ${spaceId}, ${connectionId}, 'user', ${ownerUserId},
             ${sql.json([{ secretId, version: "latest" }])}
           )
         `;
@@ -110,34 +110,34 @@ describeEmbeddedPostgres("connection grants phase 4 executable migration", () =>
       if (input.includeOrganizationGrant) {
         await sql`
           INSERT INTO "connection_grants" (
-            "company_id", "connection_id", "kind", "credential_secret_refs"
+            "space_id", "connection_id", "kind", "credential_secret_refs"
           ) VALUES (
-            ${companyId}, ${connectionId}, 'organization',
+            ${spaceId}, ${connectionId}, 'organization',
             ${sql.json([{ secretId, version: "latest" }])}
           )
         `;
       }
-      if (input.includeCompanyBinding) {
+      if (input.includeSpaceBinding) {
         await sql`
-          INSERT INTO "company_secret_bindings" (
-            "company_id", "secret_id", "target_type", "target_id", "config_path"
+          INSERT INTO "space_secret_bindings" (
+            "space_id", "secret_id", "target_type", "target_id", "config_path"
           ) VALUES (
-            ${companyId}, ${secretId}, 'environment', ${randomUUID()}, 'env.SHARED_TOKEN'
+            ${spaceId}, ${secretId}, 'environment', ${randomUUID()}, 'env.SHARED_TOKEN'
           )
         `;
       }
       if (input.includeRoutineTrigger) {
         const routineId = randomUUID();
         await sql`
-          INSERT INTO "routines" ("id", "company_id", "title")
-          VALUES (${routineId}, ${companyId}, ${`Routine ${routineId}`})
+          INSERT INTO "routines" ("id", "space_id", "title")
+          VALUES (${routineId}, ${spaceId}, ${`Routine ${routineId}`})
         `;
         await sql`
-          INSERT INTO "routine_triggers" ("company_id", "routine_id", "kind", "secret_id")
-          VALUES (${companyId}, ${routineId}, 'webhook', ${secretId})
+          INSERT INTO "routine_triggers" ("space_id", "routine_id", "kind", "secret_id")
+          VALUES (${spaceId}, ${routineId}, 'webhook', ${secretId})
         `;
       }
-      return { companyId, connectionId, secretId, ownerUserId: input.ownerUserIds[0]! };
+      return { spaceId, connectionId, secretId, ownerUserId: input.ownerUserIds[0]! };
     }
 
     try {
@@ -150,7 +150,7 @@ describeEmbeddedPostgres("connection grants phase 4 executable migration", () =>
         user_secret_definition_id: string | null;
       }[]>`
         SELECT "scope", "owner_user_id", "user_secret_definition_id"
-        FROM "company_secrets"
+        FROM "space_secrets"
         WHERE "id" = ${valid.secretId}
       `;
       expect(converted).toEqual([{
@@ -162,16 +162,16 @@ describeEmbeddedPostgres("connection grants phase 4 executable migration", () =>
       const bound = await seedLegacyCredential({
         ownerUserIds: ["binding-owner"],
         includeConnectionReference: true,
-        includeCompanyBinding: true,
+        includeSpaceBinding: true,
         credentialPolicy: "per_user",
       });
       await rewindMigration();
       await applyPendingMigrations(database.connectionString);
       expect(await sql<{ scope: string; owner_user_id: string | null }[]>`
         SELECT "scope", "owner_user_id"
-        FROM "company_secrets"
+        FROM "space_secrets"
         WHERE "id" = ${bound.secretId}
-      `).toEqual([{ scope: "company", owner_user_id: null }]);
+      `).toEqual([{ scope: "space", owner_user_id: null }]);
       expect(await sql<{ status: string; enabled: boolean; credential_secret_refs: unknown[] }[]>`
         SELECT "status", "enabled", "credential_secret_refs"
         FROM "tool_connections"
@@ -192,9 +192,9 @@ describeEmbeddedPostgres("connection grants phase 4 executable migration", () =>
       await applyPendingMigrations(database.connectionString);
       expect(await sql<{ scope: string; owner_user_id: string | null }[]>`
         SELECT "scope", "owner_user_id"
-        FROM "company_secrets"
+        FROM "space_secrets"
         WHERE "id" = ${routine.secretId}
-      `).toEqual([{ scope: "company", owner_user_id: null }]);
+      `).toEqual([{ scope: "space", owner_user_id: null }]);
       expect(await sql<{ status: string; enabled: boolean; credential_secret_refs: unknown[] }[]>`
         SELECT "status", "enabled", "credential_secret_refs"
         FROM "tool_connections"
@@ -207,12 +207,12 @@ describeEmbeddedPostgres("connection grants phase 4 executable migration", () =>
       expect(await sql<{ status: string; credential_secret_refs: unknown[] }[]>`
         SELECT "status", "credential_secret_refs"
         FROM "connection_grants"
-        WHERE "company_id" = ${routine.companyId} AND "kind" = 'user'
+        WHERE "space_id" = ${routine.spaceId} AND "kind" = 'user'
       `).toEqual([{ status: "needs_reauthorization", credential_secret_refs: [] }]);
       expect(await sql<{ secret_id: string }[]>`
         SELECT "secret_id"
         FROM "routine_triggers"
-        WHERE "company_id" = ${routine.companyId}
+        WHERE "space_id" = ${routine.spaceId}
       `).toEqual([{ secret_id: routine.secretId }]);
       expect(await sql<{ status: string; enabled: boolean; credential_secret_refs: unknown[] }[]>`
         SELECT "status", "enabled", "credential_secret_refs"
@@ -229,28 +229,28 @@ describeEmbeddedPostgres("connection grants phase 4 executable migration", () =>
       await applyPendingMigrations(database.connectionString);
       expect(await sql<{ scope: string; owner_user_id: string | null }[]>`
         SELECT "scope", "owner_user_id"
-        FROM "company_secrets"
+        FROM "space_secrets"
         WHERE "id" = ${routine.secretId}
-      `).toEqual([{ scope: "company", owner_user_id: null }]);
+      `).toEqual([{ scope: "space", owner_user_id: null }]);
       expect(await sql<{ status: string; credential_secret_refs: unknown[] }[]>`
         SELECT "status", "credential_secret_refs"
         FROM "connection_grants"
-        WHERE "company_id" = ${bound.companyId} AND "kind" = 'user'
+        WHERE "space_id" = ${bound.spaceId} AND "kind" = 'user'
       `).toEqual([{ status: "needs_reauthorization", credential_secret_refs: [] }]);
       expect(await sql<{ secret_id: string }[]>`
         SELECT "secret_id"
-        FROM "company_secret_bindings"
-        WHERE "company_id" = ${bound.companyId}
+        FROM "space_secret_bindings"
+        WHERE "space_id" = ${bound.spaceId}
       `).toEqual([{ secret_id: bound.secretId }]);
 
-      // Replaying the migration preserves the same company-scoped binding.
+      // Replaying the migration preserves the same space-scoped binding.
       await rewindMigration();
       await applyPendingMigrations(database.connectionString);
       expect(await sql<{ scope: string; owner_user_id: string | null }[]>`
         SELECT "scope", "owner_user_id"
-        FROM "company_secrets"
+        FROM "space_secrets"
         WHERE "id" = ${bound.secretId}
-      `).toEqual([{ scope: "company", owner_user_id: null }]);
+      `).toEqual([{ scope: "space", owner_user_id: null }]);
       expect(await sql<{ status: string; enabled: boolean; credential_secret_refs: unknown[] }[]>`
         SELECT "status", "enabled", "credential_secret_refs"
         FROM "tool_connections"
@@ -271,7 +271,7 @@ describeEmbeddedPostgres("connection grants phase 4 executable migration", () =>
       }[]>`
         SELECT "status", "is_default", "credential_secret_refs"
         FROM "connection_grants"
-        WHERE "company_id" = ${ambiguous.companyId}
+        WHERE "space_id" = ${ambiguous.spaceId}
         ORDER BY "is_default" DESC, "id"
       `).toEqual([
         { status: "active", is_default: true, credential_secret_refs: [] },
@@ -280,9 +280,9 @@ describeEmbeddedPostgres("connection grants phase 4 executable migration", () =>
       ]);
       expect(await sql<{ scope: string; owner_user_id: string | null }[]>`
         SELECT "scope", "owner_user_id"
-        FROM "company_secrets"
+        FROM "space_secrets"
         WHERE "id" = ${ambiguous.secretId}
-      `).toEqual([{ scope: "company", owner_user_id: null }]);
+      `).toEqual([{ scope: "space", owner_user_id: null }]);
 
       const mixed = await seedLegacyCredential({
         ownerUserIds: ["carol"],
@@ -314,7 +314,7 @@ describeEmbeddedPostgres("connection grants phase 4 executable migration", () =>
       }[]>`
         SELECT "kind", "status", "is_default", "credential_secret_refs"
         FROM "connection_grants"
-        WHERE "company_id" = ${mixed.companyId}
+        WHERE "space_id" = ${mixed.spaceId}
         ORDER BY "kind", "is_default" DESC, "id"
       `).toEqual([
         {

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, agentWakeupRequests, companies, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
+import { agents, agentWakeupRequests, spaces, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import { conflict } from "../errors.js";
 import { deliverConversationComments, heldConversationComments, undeliveredConversationComments } from "../services/agent-conversations.js";
 import { heartbeatService } from "../services/heartbeat.js";
@@ -21,21 +21,21 @@ const support = await getEmbeddedPostgresTestSupport();
   afterAll(async () => { await db?.$client.end({ timeout: 0 }); await temporary?.cleanup(); });
 
   async function fixture(status = "paused") {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Delivery", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Coordinator", status, adapterType: "process" });
-    const [chat] = await db.insert(issues).values({ companyId, title: "Standing chat", status: "in_review",
-      conversationAgentId: agentId, conversationUserId: "local-board", conversationState: "waiting", assigneeAgentId: agentId }).returning();
-    const [comment] = await db.insert(issueComments).values({ companyId, issueId: chat.id, authorUserId: "local-board",
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Delivery", issuePrefix: spaceId.slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Coordinator", status, adapterType: "process" });
+    const [chat] = await db.insert(issues).values({ spaceId, title: "Standing chat", status: "in_review",
+      conversationAgentId: agentId, conversationUserId: "local-operator", conversationState: "waiting", assigneeAgentId: agentId }).returning();
+    const [comment] = await db.insert(issueComments).values({ spaceId, issueId: chat.id, authorUserId: "local-operator",
       body: "Keep this request until the agent resumes.", clientRequestId: randomUUID() }).returning();
-    const pending = () => undeliveredConversationComments(db, companyId, chat.id);
-    return { companyId, agentId, chat, comment, pending };
+    const pending = () => undeliveredConversationComments(db, spaceId, chat.id);
+    return { spaceId, agentId, chat, comment, pending };
   }
 
   // Queue persistence only: these tests never start an agent or provider.
   const enqueue = () => vi.fn<Parameters<typeof recoveryService>[1]["enqueueWakeup"]>(async (agentId, options) => {
     const [agent] = await db.select().from(agents).where(eq(agents.id, agentId));
-    await db.insert(agentWakeupRequests).values({ companyId: agent.companyId, agentId,
+    await db.insert(agentWakeupRequests).values({ spaceId: agent.spaceId, agentId,
       source: options?.source ?? "on_demand", status: "queued", idempotencyKey: options?.idempotencyKey,
       payload: options?.payload, requestedByActorType: options?.requestedByActorType,
       requestedByActorId: options?.requestedByActorId });
@@ -85,7 +85,7 @@ const support = await getEmbeddedPostgresTestSupport();
   // under the outbox key, so the message counted as delivered and never ran.
   async function capReached(f: Awaited<ReturnType<typeof fixture>>, startedAt = new Date()) {
     await db.update(agents).set({ runtimeConfig: { heartbeat: { maxDailyRuns: 1 } } }).where(eq(agents.id, f.agentId));
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
       status: "succeeded", startedAt, finishedAt: startedAt }).returning();
     return run;
   }
@@ -118,7 +118,7 @@ const support = await getEmbeddedPostgresTestSupport();
     await capReached(f);
     const wake = enqueue(), deadlines: number[] = [];
     await recoveryService(db, { enqueueWakeup: wake }).reconcileStrandedAssignedIssues({
-      companyId: f.companyId, issueId: f.chat.id, onDeferredDeadline: at => deadlines.push(at) });
+      spaceId: f.spaceId, issueId: f.chat.id, onDeferredDeadline: at => deadlines.push(at) });
     expect(wake).not.toHaveBeenCalled();
     expect(deadlines).toContain(nextUtcDay());
     expect(await f.pending()).toHaveLength(1);
@@ -140,18 +140,18 @@ const support = await getEmbeddedPostgresTestSupport();
   it("makes a message owed again when dispatch cancels its accepted run at the daily limit", async () => {
     const f = await fixture("idle");
     await db.update(agents).set({ runtimeConfig: { heartbeat: { maxDailyRuns: 1 } } }).where(eq(agents.id, f.agentId));
-    const [receipt] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId,
+    const [receipt] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId,
       source: "on_demand", triggerDetail: "manual", reason: "issue_commented", status: "queued",
-      idempotencyKey: `conversation-comment:${f.comment.id}`, requestedByActorType: "user", requestedByActorId: "local-board",
+      idempotencyKey: `conversation-comment:${f.comment.id}`, requestedByActorType: "user", requestedByActorId: "local-operator",
       payload: { issueId: f.chat.id, commentId: f.comment.id } }).returning();
-    const [queued] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "queued",
+    const [queued] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "queued",
       wakeupRequestId: receipt.id, invocationSource: "on_demand",
       contextSnapshot: { issueId: f.chat.id, wakeCommentId: f.comment.id, wakeCommentIds: [f.comment.id] } }).returning();
     await db.update(agentWakeupRequests).set({ runId: queued.id }).where(eq(agentWakeupRequests.id, receipt.id));
     expect(await f.pending()).toHaveLength(0);
     // Another turn reaches the limit after the message was accepted.
     await capReached(f);
-    await heartbeatService(db).resumeQueuedRunsForAgent(f.companyId, f.agentId);
+    await heartbeatService(db).resumeQueuedRunsForAgent(f.spaceId, f.agentId);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, queued.id)))[0])
       .toMatchObject({ status: "cancelled", errorCode: "heartbeat.daily_run_limit" });
     expect((await f.pending()).map(row => row.id)).toEqual([f.comment.id]);
@@ -163,7 +163,7 @@ const support = await getEmbeddedPostgresTestSupport();
   it("keeps unrelated admission errors visible and comments pending", async () => {
     const f = await fixture("idle");
     await expect(deliverConversationComments(db, f.chat, async () => {
-      throw conflict("Budget exhausted", { scopeType: "company" });
+      throw conflict("Budget exhausted", { scopeType: "space" });
     })).rejects.toThrow("Budget exhausted");
     expect(await f.pending()).toHaveLength(1);
   });

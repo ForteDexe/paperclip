@@ -1,4 +1,4 @@
-/** Test-only external Speko transport. Paperclip routes/DB/permissions stay real. */
+/** Test-only external Speko transport. Outpost routes/DB/permissions stay real. */
 import { createServer } from "node:http";
 import { createHmac, randomUUID } from "node:crypto";
 import { once } from "node:events";
@@ -34,7 +34,7 @@ export async function installSpekoTestProvider(origin: string, port: number) {
     if (url.origin !== "https://api.speko.dev") return originalFetch(input, init);
     if (new Headers(init?.headers).get("authorization") !== "Bearer fixture-speko-key") return json({ error: "fixture credential rejected" }, 401);
     const method = init?.method ?? "GET", body = init?.body ? JSON.parse(String(init.body)) : undefined;
-    if (url.pathname === "/v1/phone-numbers" && method === "GET") return json([{id: "pn_fixture", organizationId: "org_fixture", e164: "+12015550123", label: "Fixture company line", agentId: numberAgentId, suspendedAt: null, direction: "both", setupStatus: {status: "ready", inboundReady: true, outboundReady: true, issues: []}}]);
+    if (url.pathname === "/v1/phone-numbers" && method === "GET") return json([{id: "pn_fixture", organizationId: "org_fixture", e164: "+12015550123", label: "Fixture space line", agentId: numberAgentId, suspendedAt: null, direction: "both", setupStatus: {status: "ready", inboundReady: true, outboundReady: true, issues: []}}]);
     if (url.pathname === "/v1/phone-numbers/pn_fixture" && method === "PATCH") {numberAgentId = body.agentId; persist(); return json({id: "pn_fixture"});}
     if (url.pathname === "/v1/webhooks" && method === "GET") return json({data: [...hooks.values()].map(({signingSecret: _secret, ...hook}) => hook)});
     const hook = /^\/v1\/webhooks(?:\/([^/]+))?$/.exec(url.pathname);
@@ -57,7 +57,7 @@ export async function installSpekoTestProvider(origin: string, port: number) {
       creationAttempts.set(body.agentId, (creationAttempts.get(body.agentId) ?? 0) + 1);
       if (creditRejectedAgents.has(body.agentId)) return json({error: "private fixture provider detail", code: "INSUFFICIENT_CREDITS"},402);
       const id = randomUUID();
-      sessions.set(id, { id, agentId: body.agentId, token: body.toolSecrets.paperclip_session_token, endedAt: null, mode: url.pathname.endsWith("/phone") ? "outbound_phone" : "browser" });
+      sessions.set(id, { id, agentId: body.agentId, token: body.toolSecrets.outpost_session_token, endedAt: null, mode: url.pathname.endsWith("/phone") ? "outbound_phone" : "browser" });
       persist();
       if (url.pathname.endsWith("/phone")) return json({ sessionId: id, status: "dialing" });
       return json({ sessionId: id, transportToken: `fixture:${id}`, transportUrl: "wss://speko-transport.invalid" });
@@ -104,7 +104,7 @@ export async function installSpekoTestProvider(origin: string, port: number) {
         const response = await originalFetch(`${origin}${new URL(hook.url).pathname}`, {method: "POST", headers: {"content-type": "application/json", "webhook-id": webhookId, "webhook-timestamp": timestamp, "webhook-signature": `v1,${signature}`}, body});
         const payload = await response.json() as any;
         if (!response.ok) {res.writeHead(response.status).end(JSON.stringify(payload)); return;}
-        sessions.set(id, {id, agentId: command.agentId, token: payload.toolSecrets.paperclip_session_token, endedAt: null, mode: "inbound_phone"}); persist();
+        sessions.set(id, {id, agentId: command.agentId, token: payload.toolSecrets.outpost_session_token, endedAt: null, mode: "inbound_phone"}); persist();
         res.writeHead(200, {"content-type": "application/json"}).end(JSON.stringify({sessionId: id, firstMessage: payload.firstMessage})); return;
       }
       if (command.action === "messages") {

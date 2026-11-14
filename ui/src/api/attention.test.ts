@@ -13,7 +13,7 @@ describe("attentionApi.list", () => {
   });
 
   it("encodes feed filters, decide sorting, and cursor pagination", async () => {
-    await attentionApi.list("company-1", {
+    await attentionApi.list("space-1", {
       includeDismissed: true,
       archived: true,
       activitySince: "2026-08-01T00:00:00.000Z",
@@ -25,31 +25,31 @@ describe("attentionApi.list", () => {
     });
 
     expect(mockApi.get).toHaveBeenCalledWith(
-      "/companies/company-1/attention?includeDismissed=true&archived=true&activitySince=2026-08-01T00%3A00%3A00.000Z&activityUntil=2026-08-01T23%3A59%3A59.999Z&queue=release+review&sort=decide&cursor=next%2Fpage&limit=25",
+      "/spaces/space-1/attention?includeDismissed=true&archived=true&activitySince=2026-08-01T00%3A00%3A00.000Z&activityUntil=2026-08-01T23%3A59%3A59.999Z&queue=release+review&sort=decide&cursor=next%2Fpage&limit=25",
     );
   });
 
   it("requests a complete filtered snapshot for complete-set actions", async () => {
-    await attentionApi.list("company-1", { queue: "release review", all: true });
+    await attentionApi.list("space-1", { queue: "release review", all: true });
 
     expect(mockApi.get).toHaveBeenCalledWith(
-      "/companies/company-1/attention?all=true&queue=release+review",
+      "/spaces/space-1/attention?all=true&queue=release+review",
     );
   });
 
   it("omits the query delimiter when no options are supplied", async () => {
-    await attentionApi.list("company-1");
+    await attentionApi.list("space-1");
 
-    expect(mockApi.get).toHaveBeenCalledWith("/companies/company-1/attention");
+    expect(mockApi.get).toHaveBeenCalledWith("/spaces/space-1/attention");
   });
 
   it("requests the complete task membership without decision card bodies", async () => {
-    await attentionApi.taskIndex("company-1");
-    expect(mockApi.get).toHaveBeenCalledWith("/companies/company-1/attention/tasks");
+    await attentionApi.taskIndex("space-1");
+    expect(mockApi.get).toHaveBeenCalledWith("/spaces/space-1/attention/tasks");
   });
 
   it("requests canonical counts without requesting decision cards", async () => {
-    await attentionApi.summary("company-1");
-    expect(mockApi.get).toHaveBeenCalledWith("/companies/company-1/attention/summary");
+    await attentionApi.summary("space-1");
+    expect(mockApi.get).toHaveBeenCalledWith("/spaces/space-1/attention/summary");
   });
 });

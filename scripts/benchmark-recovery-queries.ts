@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { companies, agents, issues, heartbeatRuns, issueRecoveryActions, createDb, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
+import { spaces, agents, issues, heartbeatRuns, issueRecoveryActions, createDb, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
 import * as conversation from "../server/src/services/conversation-continuation.js";
 import * as blocker from "../server/src/services/execution-blocker.js";
 import * as delivery from "../server/src/services/execution-status-delivery.js";
@@ -32,21 +32,21 @@ try {
   const oldConversation = await loadBaseline("conversation-continuation") as typeof conversation;
   const oldBlocker = await loadBaseline("execution-blocker") as typeof blocker;
   const oldDelivery = await loadBaseline("execution-status-delivery") as typeof delivery;
-  const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), otherIssueId = randomUUID();
-  await db.insert(companies).values({ id: companyId, name: "Synthetic recovery", issuePrefix: "BENCH" });
-  await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "codex_local" });
-  await db.insert(issues).values([{ id: issueId, companyId, title: "Target" }, { id: otherIssueId, companyId, title: "Other" }]);
+  const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), otherIssueId = randomUUID();
+  await db.insert(spaces).values({ id: spaceId, name: "Synthetic recovery", issuePrefix: "BENCH" });
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "codex_local" });
+  await db.insert(issues).values([{ id: issueId, spaceId, title: "Target" }, { id: otherIssueId, spaceId, title: "Other" }]);
   const prompt = randomBytes(144 * 1024).toString("base64");
-  await db.$client.unsafe(`INSERT INTO heartbeat_runs (company_id, agent_id, status, runtime_mode, native_issue_id, created_at,
+  await db.$client.unsafe(`INSERT INTO heartbeat_runs (space_id, agent_id, status, runtime_mode, native_issue_id, created_at,
       context_snapshot, runner_profile_json, process_pid, error_code, execution_status_delivery_id)
     SELECT $1::uuid, $2::uuid, 'failed', 'legacy', case when n = 2 then $3::uuid when n = 3 then $4::uuid end,
       now() + n * interval '1 millisecond', jsonb_build_object('issueId', case when n in (1,3) then $3::text else $4::text end, 'prompt', $5::text),
       '{"adapterDispatch":{"adapterType":"codex_local"}}'::jsonb, 999999999, 'process_lost',
       case when n <= 100 then gen_random_uuid() end
-    FROM generate_series(1, 1400) n`, [companyId, agentId, issueId, otherIssueId, prompt]);
+    FROM generate_series(1, 1400) n`, [spaceId, agentId, issueId, otherIssueId, prompt]);
   const runs = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).orderBy(heartbeatRuns.createdAt);
-  await db.insert(issueRecoveryActions).values(runs.slice(0, 350).map(run => ({ companyId, sourceIssueId: issueId,
-    kind: "active_run_watchdog", status: "resolved", ownerType: "board", cause: "legacy_execution_requires_reconciliation",
+  await db.insert(issueRecoveryActions).values(runs.slice(0, 350).map(run => ({ spaceId, sourceIssueId: issueId,
+    kind: "active_run_watchdog", status: "resolved", ownerType: "operator", cause: "legacy_execution_requires_reconciliation",
     fingerprint: run.id, evidence: { runId: run.id, automaticRecovery: { replay: "blocked" }, workspaceRestoreFailure: "restore_unsafe_archive" }, updatedAt: new Date(Date.UTC(2026, 0, 1) + runs.indexOf(run) * 1000), nextAction: "Fixture" })));
   await db.$client.unsafe("ANALYZE");
   async function capture(invoke: (captureDb: Db) => Promise<unknown>, actionQuery = false): Promise<Query> {
@@ -84,10 +84,10 @@ try {
     return { medianMs: samples[2], rows, plan: plan["QUERY PLAN"] };
   }
   const pairs = [
-    { name: "ownership", before: (d: Db) => oldConversation.getConversationOwnershipBlocker(d, companyId, issueId),
-      after: (d: Db) => conversation.getConversationOwnershipBlocker(d, companyId, issueId) },
-    { name: "recoveryActions", before: (d: Db) => oldBlocker.getExecutionBlocker(d, companyId, issueId),
-      after: (d: Db) => blocker.getExecutionBlocker(d, companyId, issueId) },
+    { name: "ownership", before: (d: Db) => oldConversation.getConversationOwnershipBlocker(d, spaceId, issueId),
+      after: (d: Db) => conversation.getConversationOwnershipBlocker(d, spaceId, issueId) },
+    { name: "recoveryActions", before: (d: Db) => oldBlocker.getExecutionBlocker(d, spaceId, issueId),
+      after: (d: Db) => blocker.getExecutionBlocker(d, spaceId, issueId) },
     { name: "statusDelivery", before: (d: Db) => oldDelivery.deliverExecutionStatuses(d), after: (d: Db) => delivery.deliverExecutionStatuses(d) },
   ];
   const results = [];

@@ -1,21 +1,21 @@
 DROP TABLE IF EXISTS "run_responsible_user_updated_at_sweeps";
 --> statement-breakpoint
 CREATE TEMP TABLE "run_responsible_user_updated_at_sweeps" ON COMMIT DROP AS
-SELECT i."company_id", i."updated_at" AS "sweep_at"
+SELECT i."space_id", i."updated_at" AS "sweep_at"
 FROM "issues" AS i
 WHERE EXISTS (
     SELECT 1
     FROM "heartbeat_runs" AS h
-    WHERE h."company_id" = i."company_id"
+    WHERE h."space_id" = i."space_id"
       AND h."updated_at" = i."updated_at"
   )
   AND EXISTS (
     SELECT 1
-    FROM "companies" AS c
-    WHERE c."id" = i."company_id"
+    FROM "spaces" AS c
+    WHERE c."id" = i."space_id"
       AND c."updated_at" = i."updated_at"
   )
-GROUP BY i."company_id", i."updated_at"
+GROUP BY i."space_id", i."updated_at"
 HAVING count(*) > 100;
 --> statement-breakpoint
 UPDATE "issues" AS i
@@ -30,7 +30,7 @@ SET "updated_at" = GREATEST(
     (
       SELECT max(GREATEST(c."created_at", c."updated_at"))
       FROM "issue_comments" AS c
-      WHERE c."company_id" = i."company_id"
+      WHERE c."space_id" = i."space_id"
         AND c."issue_id" = i."id"
         AND c."created_at" <= sweep."sweep_at"
         AND c."updated_at" <= sweep."sweep_at"
@@ -39,7 +39,7 @@ SET "updated_at" = GREATEST(
   )
 )
 FROM "run_responsible_user_updated_at_sweeps" AS sweep
-WHERE i."company_id" = sweep."company_id"
+WHERE i."space_id" = sweep."space_id"
   AND i."updated_at" = sweep."sweep_at";
 --> statement-breakpoint
 UPDATE "heartbeat_runs" AS h
@@ -52,7 +52,7 @@ SET "updated_at" = GREATEST(
   COALESCE(CASE WHEN h."finished_at" <= sweep."sweep_at" THEN h."finished_at" END, h."created_at")
 )
 FROM "run_responsible_user_updated_at_sweeps" AS sweep
-WHERE h."company_id" = sweep."company_id"
+WHERE h."space_id" = sweep."space_id"
   AND h."updated_at" = sweep."sweep_at";
 --> statement-breakpoint
 UPDATE "routine_runs" AS rr
@@ -62,7 +62,7 @@ SET "updated_at" = GREATEST(
   COALESCE(CASE WHEN rr."completed_at" <= sweep."sweep_at" THEN rr."completed_at" END, rr."created_at")
 )
 FROM "run_responsible_user_updated_at_sweeps" AS sweep
-WHERE rr."company_id" = sweep."company_id"
+WHERE rr."space_id" = sweep."space_id"
   AND rr."updated_at" = sweep."sweep_at";
 --> statement-breakpoint
 UPDATE "routines" AS r
@@ -72,13 +72,13 @@ SET "updated_at" = GREATEST(
   COALESCE(CASE WHEN r."last_enqueued_at" <= sweep."sweep_at" THEN r."last_enqueued_at" END, r."created_at")
 )
 FROM "run_responsible_user_updated_at_sweeps" AS sweep
-WHERE r."company_id" = sweep."company_id"
+WHERE r."space_id" = sweep."space_id"
   AND r."updated_at" = sweep."sweep_at";
 --> statement-breakpoint
-UPDATE "companies" AS c
+UPDATE "spaces" AS c
 SET "updated_at" = c."created_at"
 FROM "run_responsible_user_updated_at_sweeps" AS sweep
-WHERE c."id" = sweep."company_id"
+WHERE c."id" = sweep."space_id"
   AND c."updated_at" = sweep."sweep_at";
 --> statement-breakpoint
 DROP TABLE IF EXISTS "run_responsible_user_updated_at_sweeps";

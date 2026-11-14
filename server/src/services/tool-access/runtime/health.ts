@@ -107,7 +107,7 @@ function buildRuntimeAlerts(input: {
         "Warning at >=3 capacity deferrals in 1 hour; critical at >=10.",
       observed: `${input.capacityDeferrals} capacity deferral(s) in 1 hour.`,
       description:
-        "The runtime supervisor is refusing local stdio work because company or host slot capacity is exhausted.",
+        "The runtime supervisor is refusing local stdio work because space or host slot capacity is exhausted.",
       firstResponderAction:
         "Stop idle/stale slots, lower noisy workloads, or raise slot caps only after confirming host capacity.",
       runbookSection,
@@ -196,7 +196,7 @@ type RuntimeHealthOptions = { deploymentMode?: DeploymentMode; deploymentExposur
 
 export function createToolRuntimeHealth(db: Db, options: RuntimeHealthOptions, now: () => Date, trustedRuntimeHost: () => string | null) {
   async function runtimeHealth(
-    companyId: string,
+    spaceId: string,
   ): Promise<ToolRuntimeHealthSummary> {
     const generatedAt = now();
     const windowStartedAt = new Date(generatedAt.getTime() - 60 * 60 * 1000);
@@ -211,17 +211,17 @@ export function createToolRuntimeHealth(db: Db, options: RuntimeHealthOptions, n
       db
         .select()
         .from(toolRuntimeSlots)
-        .where(eq(toolRuntimeSlots.companyId, companyId)),
+        .where(eq(toolRuntimeSlots.spaceId, spaceId)),
       db
         .select()
         .from(toolConnections)
-        .where(eq(toolConnections.companyId, companyId)),
+        .where(eq(toolConnections.spaceId, spaceId)),
       db
         .select()
         .from(toolAccessAuditEvents)
         .where(
           and(
-            eq(toolAccessAuditEvents.companyId, companyId),
+            eq(toolAccessAuditEvents.spaceId, spaceId),
             gte(toolAccessAuditEvents.createdAt, windowStartedAt),
           ),
         )
@@ -231,7 +231,7 @@ export function createToolRuntimeHealth(db: Db, options: RuntimeHealthOptions, n
         .from(toolCallEvents)
         .where(
           and(
-            eq(toolCallEvents.companyId, companyId),
+            eq(toolCallEvents.spaceId, spaceId),
             gte(toolCallEvents.createdAt, windowStartedAt),
           ),
         )
@@ -243,7 +243,7 @@ export function createToolRuntimeHealth(db: Db, options: RuntimeHealthOptions, n
         .from(toolRuntimeMetricCounters)
         .where(
           and(
-            eq(toolRuntimeMetricCounters.companyId, companyId),
+            eq(toolRuntimeMetricCounters.spaceId, spaceId),
             eq(
               toolRuntimeMetricCounters.metric,
               TOOL_RUNTIME_AUDIT_WRITE_FAILURE_METRIC,
@@ -282,7 +282,7 @@ export function createToolRuntimeHealth(db: Db, options: RuntimeHealthOptions, n
     const capacityDeferrals = auditRows.filter(
       (row) =>
         row.action === "runtime_deferred" ||
-        row.reasonCode === "runtime_company_capacity_exhausted" ||
+        row.reasonCode === "runtime_space_capacity_exhausted" ||
         row.reasonCode === "runtime_host_capacity_exhausted",
     ).length;
     const restartAttempts = auditRows.filter(

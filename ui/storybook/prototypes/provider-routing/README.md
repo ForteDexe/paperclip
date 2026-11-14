@@ -61,7 +61,7 @@ while its new routing detail fields remain a prototype.
 - **Add connection:** familiar providers first, with OpenRouter, Bedrock, and
   custom endpoints under **Advanced providers**.
 - **Manage:** the default fixture shows ordinary connected accounts. `With advanced
-connections` shows a company that already uses gateways. Saved gateways remain
+connections` shows a space that already uses gateways. Saved gateways remain
   visible; URLs and protocols live inside **Advanced connection settings** on detail.
 
 Disclosures reuse the production `Collapsible` and `Button` primitives. The story

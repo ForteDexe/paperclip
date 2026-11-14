@@ -17,11 +17,11 @@ const pushToastMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api/tools", () => ({
   toolsApi: {
-    listActionRequests: (companyId: string, status: string) => listActionRequestsMock(companyId, status),
-    approveActionRequest: (companyId: string, actionRequestId: string, rememberAction?: boolean) =>
-      approveActionRequestMock(companyId, actionRequestId, rememberAction),
-    createTrustRuleFromActionRequest: (companyId: string, actionRequestId: string, input: unknown) =>
-      createTrustRuleFromActionRequestMock(companyId, actionRequestId, input),
+    listActionRequests: (spaceId: string, status: string) => listActionRequestsMock(spaceId, status),
+    approveActionRequest: (spaceId: string, actionRequestId: string, rememberAction?: boolean) =>
+      approveActionRequestMock(spaceId, actionRequestId, rememberAction),
+    createTrustRuleFromActionRequest: (spaceId: string, actionRequestId: string, input: unknown) =>
+      createTrustRuleFromActionRequestMock(spaceId, actionRequestId, input),
   },
 }));
 
@@ -29,11 +29,11 @@ vi.mock("@/api/issues", () => ({
   issuesApi: { listInteractions: (...args: unknown[]) => listInteractionsMock(...args) },
 }));
 
-vi.mock("@/context/CompanyContext", async importOriginal => ({
-  ...await importOriginal<typeof import("@/context/CompanyContext")>(),
-  useCompany: () => ({
-    selectedCompanyId: "company-1",
-    selectedCompany: { id: "company-1", name: "Outpost" },
+vi.mock("@/context/SpaceContext", async importOriginal => ({
+  ...await importOriginal<typeof import("@/context/SpaceContext")>(),
+  useSpace: () => ({
+    selectedSpaceId: "space-1",
+    selectedSpace: { id: "space-1", name: "Outpost" },
   }),
 }));
 
@@ -55,7 +55,7 @@ function pendingRequest() {
   return {
     request: {
       id: "request-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       invocationId: "invocation-1",
       issueId: "issue-1",
       interactionId: null,
@@ -156,7 +156,7 @@ describe("ReviewQueueCard", () => {
     expect(createTrustRuleFromActionRequestMock).not.toHaveBeenCalled();
     expect(listInteractionsMock).toHaveBeenCalledWith("issue-1");
     await act(async () => { buttonContaining("Approve & run")!.click(); });
-    await vi.waitFor(() => expect(approveActionRequestMock).toHaveBeenCalledExactlyOnceWith("company-1", "request-1", false));
+    await vi.waitFor(() => expect(approveActionRequestMock).toHaveBeenCalledExactlyOnceWith("space-1", "request-1", false));
     expect(createTrustRuleFromActionRequestMock).not.toHaveBeenCalled();
   });
 
@@ -179,7 +179,7 @@ describe("ReviewQueueCard", () => {
     await flushReact();
 
     expect(calls).toEqual(["approve"]);
-    expect(approveActionRequestMock).toHaveBeenCalledWith("company-1", "request-1", true);
+    expect(approveActionRequestMock).toHaveBeenCalledWith("space-1", "request-1", true);
     expect(createTrustRuleFromActionRequestMock).not.toHaveBeenCalled();
     expect(pushToastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "Always allowed" }));
   });

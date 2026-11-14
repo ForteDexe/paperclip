@@ -12,17 +12,17 @@ import { agentRouteRef } from "@/lib/utils";
 
 export function AgentChats() {
   const { setBreadcrumbs } = useBreadcrumbs();
-  const { companyId, userId, enabled, loaded, agents, chats, session } = useAgentChatNavigation();
+  const { spaceId, userId, enabled, loaded, agents, chats, session } = useAgentChatNavigation();
   useEffect(() => setBreadcrumbs([{ label: "Chat" }]), [setBreadcrumbs]);
-  return <AgentChatsContent key={`${companyId}:${userId}`} companyId={companyId} userId={userId}
+  return <AgentChatsContent key={`${spaceId}:${userId}`} spaceId={spaceId} userId={userId}
     enabled={enabled} loaded={loaded} agents={agents} chats={chats} session={session} />;
 }
 
-function AgentChatsContent({ companyId, userId, enabled, loaded, agents, chats, session }: Pick<ReturnType<typeof useAgentChatNavigation>, "companyId" | "userId" | "enabled" | "loaded" | "agents" | "chats" | "session">) {
-  const primary = usePrimaryAgentPresentation(companyId);
-  const openChat = useOpenAgentChat(companyId, userId);
+function AgentChatsContent({ spaceId, userId, enabled, loaded, agents, chats, session }: Pick<ReturnType<typeof useAgentChatNavigation>, "spaceId" | "userId" | "enabled" | "loaded" | "agents" | "chats" | "session">) {
+  const primary = usePrimaryAgentPresentation(spaceId);
+  const openChat = useOpenAgentChat(spaceId, userId);
   const navigate = useNavigate();
-  const recentIds = useRecentAgentChats(companyId ?? "", userId);
+  const recentIds = useRecentAgentChats(spaceId ?? "", userId);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
   const agentsView = useQueryView(agents);
@@ -36,13 +36,13 @@ function AgentChatsContent({ companyId, userId, enabled, loaded, agents, chats, 
   // An empty chat with an active agent can reopen from the roster alone. Saved
   // issue ids still need history validation, but missing/terminated agents are skipped.
   const needsHistory = recentIds.some(id => eligibleAgents.some(agent => agent.id === id)
-    && !!recordedAgentChatIssueId(companyId ?? "", userId, id));
+    && !!recordedAgentChatIssueId(spaceId ?? "", userId, id));
   const resolvingRecent = recentIds.length > 0 && !blockingError && (!agents.isFetched || !session.isFetched || (needsHistory && !chats.isFetched && !chats.error));
-  const recentChatPath = loaded && enabled && companyId && !blockingError && !resolvingRecent
+  const recentChatPath = loaded && enabled && spaceId && !blockingError && !resolvingRecent
     ? recentIds.map(id => {
       const agent = eligibleAgents.find(item => item.id === id);
       const historyIssue = chats.data?.find(chat => chat.conversationAgentId === id);
-      const savedIssueId = recordedAgentChatIssueId(companyId, userId, id);
+      const savedIssueId = recordedAgentChatIssueId(spaceId, userId, id);
       // A deleted or inaccessible issue must not silently reopen as a new chat.
       if (savedIssueId && chats.isSuccess && historyIssue?.id !== savedIssueId) return null;
       if (agent) return `/chats/${encodeURIComponent(agentRouteRef(agent))}`;
@@ -58,8 +58,8 @@ function AgentChatsContent({ companyId, userId, enabled, loaded, agents, chats, 
     if (entryPath) navigate(entryPath, { replace: true });
   }, [navigate, entryPath]);
   if (!loaded) return <p role="status" className="text-sm text-muted-foreground">Loading chat…</p>;
-  if (!enabled) return <p className="text-sm text-muted-foreground">Agent Chat is off for this instance. An administrator can enable it in <Link className="underline underline-offset-4" to="/company/settings/instance/experimental#experimental-enableAgentChat">Experimental settings</Link>. Your workspace preference does not change Chat availability.</p>;
-  if (!companyId) return <p className="text-sm text-muted-foreground">Select a outpost to start a conversation.</p>;
+  if (!enabled) return <p className="text-sm text-muted-foreground">Agent Chat is off for this instance. An administrator can enable it in <Link className="underline underline-offset-4" to="/space/settings/instance/experimental#experimental-enableAgentChat">Experimental settings</Link>. Your workspace preference does not change Chat availability.</p>;
+  if (!spaceId) return <p className="text-sm text-muted-foreground">Select a outpost to start a conversation.</p>;
   if (reconnecting) return <p role="status" className="text-sm text-muted-foreground">Loading chat…</p>;
   if (resolvingRecent || entryPath || primary?.loading) return <p role="status" className="text-sm text-muted-foreground">Opening chat…</p>;
   const error = blockingError ?? (recentIds.length > 0 && chatsView.kind === "error" ? chats.error : null);

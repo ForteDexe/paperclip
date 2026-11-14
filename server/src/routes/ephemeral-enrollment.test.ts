@@ -27,7 +27,7 @@ function assertion(action = "ephemeral-enrollment:prepare", stackId = "stack-fix
 function app(tenant = false) {
   const result = express(); result.use(express.json());
   result.use((req, _res, next) => {
-    req.actor = tenant ? { type: "board", source: "cloud_tenant", userId: "fixture-user", isInstanceAdmin: true }
+    req.actor = tenant ? { type: "operator", source: "cloud_tenant", userId: "fixture-user", isInstanceAdmin: true }
       : { type: "none", source: "none" };
     next();
   });

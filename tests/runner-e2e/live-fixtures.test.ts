@@ -26,9 +26,9 @@ describe("live runner fixtures", () => {
       async postSensitive(_url: string, data: any) { return { id: `secret-${data.key}` }; },
       async post(url: string, data: any) {
         if (url === "/api/plugins/install") return { id: "plugin", status: "ready" };
-        if (url === "/api/companies") return { id: "company", name: "Fixture" };
+        if (url === "/api/spaces") return { id: "space", name: "Fixture" };
         if (url.endsWith("/environments")) { environmentBody = data; return { id: "environment", driver: "sandbox", config: data.config }; }
-        if (url.endsWith("/agents")) { agentBody = data; return { id: "agent", companyId: "company", ...data }; }
+        if (url.endsWith("/agents")) { agentBody = data; return { id: "agent", spaceId: "space", ...data }; }
         throw new Error(`Unexpected POST ${url}`);
       },
       async delete() {},
@@ -53,20 +53,20 @@ describe("live runner fixtures", () => {
     ["receipt-smoke", 100], ["same-task-roundtrip", 1_000],
   ] as const)("bounds %s before creating its initial subscription agent", async (taskId, budget) => {
     const root = await realpath(await mkdtemp(path.join(tmpdir(), "case-fixture-limits-")));
-    const home = path.join(root, "paperclip-home");
+    const home = path.join(root, "outpost-home");
     await mkdir(home);
     vi.stubEnv("OUTPOST_RUNNER_E2E_TEMP_ROOT", root);
     vi.stubEnv("OUTPOST_HOME", home);
     vi.stubEnv("OUTPOST_INSTANCE_ID", "runner-e2e-case-fixture-test");
     const execution = runnerMatrix.find(row => row.id === `case-handoffs.runner-codex-subscription.local.${taskId}`)!;
-    const companyId = "11111111-2222-4333-8444-555555555555";
-    let companyBody: any;
+    const spaceId = "11111111-2222-4333-8444-555555555555";
+    let spaceBody: any;
     let agentBody: any;
     let fixtures: Awaited<ReturnType<typeof setupLiveFixtures>> | undefined;
     const api = {
       async get() { return [{ id: "local", driver: "local" }]; },
       async post(url: string, data: any) {
-        if (url === "/api/companies") { companyBody = data; return { id: companyId, name: "Test" }; }
+        if (url === "/api/spaces") { spaceBody = data; return { id: spaceId, name: "Test" }; }
         if (url.endsWith("/agents")) { agentBody = data; return { id: "triage", ...data }; }
         throw new Error(`Unexpected POST ${url}`);
       },
@@ -75,7 +75,7 @@ describe("live runner fixtures", () => {
       fixtures = await setupLiveFixtures({ api, execution, executionNonce: "fixture-limit-test", workspacePath: path.join(root, "workspace"),
         credentials: { CODEX_AUTH_JSON: JSON.stringify({ tokens: { account_id: "synthetic-account", access_token: "synthetic-access",
           refresh_token: "synthetic-refresh", id_token: "synthetic-id" } }) } });
-      expect(companyBody.budgetMonthlyCents).toBe(budget);
+      expect(spaceBody.budgetMonthlyCents).toBe(budget);
       expect(agentBody.budgetMonthlyCents).toBe(budget);
       expect(agentBody).not.toHaveProperty("instructionsBundle");
       expect(agentBody.adapterConfig.env).toMatchObject({ OPENAI_API_KEY: "", CODEX_API_KEY: "" });
@@ -98,19 +98,19 @@ describe("live runner fixtures", () => {
     "applies %s %s budget stops in actual setup with a nonce and only its selected credential", async (profile, task) => {
       const execution = runnerMatrix.find(row => row.id === `everyday-workflows.${profile}.local.${task}`)!;
       let agentBody: any;
-      let companyBody: any;
+      let spaceBody: any;
       const api = {
         async get() { return [{ id: "local", driver: "local" }]; },
         async postSensitive(url: string) { return url.endsWith("/ai-connections") ? { connectionId: "account" } : { id: "secret" }; },
         async post(url: string, data: any) {
-          if (url === "/api/companies") { companyBody = data; return { id: "company", name: "Test" }; }
+          if (url === "/api/spaces") { spaceBody = data; return { id: "space", name: "Test" }; }
           if (url.endsWith("/agents")) { agentBody = data; return { id: "lead", ...data }; }
           throw new Error(`Unexpected POST ${url}`);
         },
       } as unknown as RunnerApi;
       const fixtures = await setupLiveFixtures({ api, execution, executionNonce: "random-nonce", workspacePath: "/tmp/test",
         credentials: { [execution.profile.credential]: "test-value" } });
-      expect(companyBody.budgetMonthlyCents).toBe(1_000);
+      expect(spaceBody.budgetMonthlyCents).toBe(1_000);
       expect(agentBody.budgetMonthlyCents).toBe(1_000);
       await fixtures.teardown();
     },
@@ -119,36 +119,36 @@ describe("live runner fixtures", () => {
   it.each(["runner-codex", "runner-acpx-claude", "runner-opencode"])(
     "sets both connection-guidance budget stops for %s before execution", async profile => {
       const execution = runnerMatrix.find(row => row.suite.id === "native-connection-guidance" && row.profile.id === profile)!;
-      let companyBudget: unknown;
+      let spaceBudget: unknown;
       let agentBudget: unknown;
       const api = {
         async get() { return [{ id: "local", driver: "local" }]; },
         async postSensitive() { return { id: "secret" }; },
         async post(url: string, data: any) {
-          if (url === "/api/companies") { companyBudget = data.budgetMonthlyCents; return { id: "company", name: "Test" }; }
+          if (url === "/api/spaces") { spaceBudget = data.budgetMonthlyCents; return { id: "space", name: "Test" }; }
           if (url.endsWith("/agents")) { agentBudget = data.budgetMonthlyCents; return { id: "lead", ...data }; }
           throw new Error("Unexpected POST " + url);
         },
       } as unknown as RunnerApi;
       const fixtures = await setupLiveFixtures({ api, execution, executionNonce: "nonce", workspacePath: "/tmp/test",
         credentials: { [execution.profile.credential]: "test-value" } });
-      expect(companyBudget).toBe(1_000);
+      expect(spaceBudget).toBe(1_000);
       expect(agentBudget).toBe(1_000);
       await fixtures.teardown();
     },
   );
 
   it.each(["runner-codex", "legacy-codex", "runner-acpx-claude", "legacy-opencode"])(
-    "creates a production-default %s hire with company and agent budget stops", async (profile) => {
+    "creates a production-default %s hire with space and agent budget stops", async (profile) => {
       const execution = runnerMatrix.find(row => row.suite.id === "stock-harness" && row.profile.id === profile)!;
       let agentBody: any;
       const api = {
         async get() { return [{ id: "local", driver: "local" }]; },
         async postSensitive() { return { id: "secret" }; },
         async post(url: string, data: any) {
-          if (url === "/api/companies") {
+          if (url === "/api/spaces") {
             expect(data.budgetMonthlyCents).toBe(1_000);
-            return { id: "company", name: "Fixture" };
+            return { id: "space", name: "Fixture" };
           }
           if (url.endsWith("/agents")) { agentBody = data; return { id: "agent", ...data }; }
           throw new Error(`Unexpected POST ${url}`);
@@ -169,7 +169,7 @@ describe("live runner fixtures", () => {
       async get() { return [{ id: "local", driver: "local" }]; },
       async postSensitive() { return { id: "secret" }; },
       async post(url: string, data: any) {
-        if (url === "/api/companies") return { id: "company", name: "Test" };
+        if (url === "/api/spaces") return { id: "space", name: "Test" };
         if (url.endsWith("/agents")) return { id: "agent", ...data };
         if (url.endsWith("/projects")) { projectBody = data; return { id: "project", ...data }; }
         throw new Error(`Unexpected POST ${url}`);
@@ -202,7 +202,7 @@ describe("live runner fixtures", () => {
       let agentBody: any;
       const api = {
         async post(url: string, data: any) {
-          if (url === "/api/companies") return { id: "company", name: "Test" };
+          if (url === "/api/spaces") return { id: "space", name: "Test" };
           if (url.endsWith("/agents")) {
             agentBody = data;
             return { id: "lead", ...data };
@@ -268,15 +268,15 @@ describe("live runner fixtures", () => {
             status: "ready",
           };
         }
-        if (path === "/api/companies") {
-          return { id: "company-1", name: "Runner E2E" };
+        if (path === "/api/spaces") {
+          return { id: "space-1", name: "Runner E2E" };
         }
         if (path.endsWith("/environments")) {
           expect(calls).toContain("POST /api/plugins/install");
           return { id: "environment-1", driver: "sandbox", config: data?.config };
         }
         if (path.endsWith("/agents")) {
-          return { id: "agent-1", name: "Agent", companyId: "company-1" };
+          return { id: "agent-1", name: "Agent", spaceId: "space-1" };
         }
         throw new Error(`Unexpected POST ${path}`);
       },
@@ -305,11 +305,11 @@ describe("live runner fixtures", () => {
         DAYTONA_API_KEY: "daytona-test-value",
       },
       daytonaImage:
-        "ghcr.io/paperclip/image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "ghcr.io/outpost/image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     });
 
     expect(calls.indexOf("POST /api/plugins/install")).toBeLessThan(
-      calls.indexOf("POST /api/companies/company-1/environments"),
+      calls.indexOf("POST /api/spaces/space-1/environments"),
     );
     expect(calls.some(call => call.includes("/probe"))).toBe(false);
     await fixtures.teardown();
@@ -323,29 +323,29 @@ describe("live runner fixtures", () => {
     const execution = { ...original, profile: { ...original.profile, buildAgent(input: Parameters<typeof original.profile.buildAgent>[0]) {
       const payload = original.profile.buildAgent(input);
       return { ...payload, adapterType: mode === "auto" ? "codex_local" : "outpost_runner",
-        runner: mode === "auto" ? "auto" : "paperclip" };
+        runner: mode === "auto" ? "auto" : "outpost" };
     } } };
     const calls: string[] = [];
     const api = {
       async get(path: string) {
         calls.push(`GET ${path}`);
-        return [{ type: "codex_local", defaultRunner: "paperclip", supportedRunners: ["paperclip", "legacy"] }];
+        return [{ type: "codex_local", defaultRunner: "outpost", supportedRunners: ["outpost", "legacy"] }];
       },
       async post(path: string, data: any, options: any) {
         calls.push(`POST ${path}`);
         if (path === "/api/plugins/install") return { id: "plugin", status: "ready" };
-        if (path === "/api/companies") return { id: "company", name: "Fixture" };
+        if (path === "/api/spaces") return { id: "space", name: "Fixture" };
         if (path.endsWith("/environments")) return { id: "environment", driver: "sandbox", config: data.config };
-        if (path === "/api/environments/environment/probe?companyId=company") {
+        if (path === "/api/environments/environment/probe?spaceId=space") {
           expect(options).toEqual({ timeout: 330_000 });
           return { ok: true, details: { platformQualificationRecorded: true, leaseId: "setup-probe" } };
         }
         if (path.endsWith("/agents")) {
-          expect(calls).toContain("POST /api/environments/environment/probe?companyId=company");
+          expect(calls).toContain("POST /api/environments/environment/probe?spaceId=space");
           expect(data.adapterType).toBe(mode === "auto" ? "codex_local" : "outpost_runner");
-          expect(data.runner).toBe(mode === "auto" ? "auto" : "paperclip");
-          if (mode === "auto") expect(calls).toContain("GET /api/adapters?companyId=company&environmentId=environment");
-          return { id: "agent", companyId: "company", ...data };
+          expect(data.runner).toBe(mode === "auto" ? "auto" : "outpost");
+          if (mode === "auto") expect(calls).toContain("GET /api/adapters?spaceId=space&environmentId=environment");
+          return { id: "agent", spaceId: "space", ...data };
         }
         throw new Error(`Unexpected POST ${path}`);
       },
@@ -355,7 +355,7 @@ describe("live runner fixtures", () => {
     const fixtures = await setupLiveFixtures({ api, execution, executionNonce: "nonce", workspacePath: "/tmp/fixture",
       credentials: { OPENAI_API_KEY: "fixture-key", DAYTONA_API_KEY: "fixture-provider-key" },
       daytonaImage: `registry.example.test/runtime@sha256:${"a".repeat(64)}` });
-    expect(fixtures.setupProbe).toMatchObject({ leaseId: "setup-probe", ...(mode === "auto" ? { defaultRunner: "paperclip" } : {}) });
+    expect(fixtures.setupProbe).toMatchObject({ leaseId: "setup-probe", ...(mode === "auto" ? { defaultRunner: "outpost" } : {}) });
     expect(calls.filter(call => call.includes("/probe?"))).toHaveLength(1);
     expect(calls.filter(call => call.startsWith("GET"))).toHaveLength(mode === "auto" ? 1 : 0);
     await fixtures.teardown();
@@ -372,7 +372,7 @@ describe("live runner fixtures", () => {
       async post(path: string, data: any) {
         calls.push(path);
         if (path === "/api/plugins/install") return { id: "plugin", status: "ready" };
-        if (path === "/api/companies") return { id: "company", name: "Fixture" };
+        if (path === "/api/spaces") return { id: "space", name: "Fixture" };
         if (path.endsWith("/environments")) return { id: "environment", driver: "sandbox", config: data.config };
         if (path.includes("/probe?")) return { ok: failure !== "probe-failed",
           details: { platformQualificationRecorded: failure !== "not-recorded", leaseId: "setup-probe" } };
@@ -416,14 +416,14 @@ describe("live runner fixtures", () => {
             status: "ready",
           };
         }
-        if (path === "/api/companies") {
-          return { id: "company-1", name: "Runner E2E" };
+        if (path === "/api/spaces") {
+          return { id: "space-1", name: "Runner E2E" };
         }
         if (path.endsWith("/environments")) {
           return { id: "environment-1", driver: "sandbox", config: data?.config };
         }
         if (path.endsWith("/agents")) {
-          return { id: "agent-1", name: "Agent", companyId: "company-1" };
+          return { id: "agent-1", name: "Agent", spaceId: "space-1" };
         }
         if (path.startsWith("/api/environments/environment-1/probe?")) {
           return { ok: true, details: { platformQualificationRecorded: true, leaseId: "setup-probe" } };
@@ -452,7 +452,7 @@ describe("live runner fixtures", () => {
         }
         throw new Error(`Unexpected POST ${path}`);
       },
-      async get() { return [{ type: "codex_local", defaultRunner: "paperclip", supportedRunners: ["paperclip", "legacy"] }]; },
+      async get() { return [{ type: "codex_local", defaultRunner: "outpost", supportedRunners: ["outpost", "legacy"] }]; },
       async postSensitive(_path: string, data?: Record<string, unknown>) {
         return { id: `secret-${String(data?.key).toLowerCase()}` };
       },
@@ -474,13 +474,13 @@ describe("live runner fixtures", () => {
         DAYTONA_API_KEY: "daytona-test-value",
       },
       daytonaImage:
-        "ghcr.io/paperclip/image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "ghcr.io/outpost/image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     });
 
     expect(fixtures.project?.primaryWorkspace?.id).toBe("project-workspace-1");
     expect(
-      calls.indexOf("POST /api/companies/company-1/environments"),
-    ).toBeLessThan(calls.indexOf("POST /api/companies/company-1/projects"));
+      calls.indexOf("POST /api/spaces/space-1/environments"),
+    ).toBeLessThan(calls.indexOf("POST /api/spaces/space-1/projects"));
     await fixtures.teardown();
   });
 });
@@ -514,19 +514,19 @@ describe("managed setup runtime cost coverage", () => {
 });
 
 describe("Daytona fixture readiness after candidate startup", () => {
-  const companyId = "11111111-2222-4333-8444-555555555555";
+  const spaceId = "11111111-2222-4333-8444-555555555555";
   const pluginId = "22222222-2222-4333-8444-555555555555";
   const pluginKey = "outpost.daytona-sandbox-provider";
   const waitReady = () => (fixtureReadiness as unknown as {
-    waitForFixtureDaytonaProvider: (api: Pick<RunnerApi, "get">, input: { companyId: string; deadlineAt: number }) => Promise<void>;
+    waitForFixtureDaytonaProvider: (api: Pick<RunnerApi, "get">, input: { spaceId: string; deadlineAt: number }) => Promise<void>;
   }).waitForFixtureDaytonaProvider;
-  function candidateCompanyCallback(execution: unknown, api: unknown, restart: () => Promise<void>, deadlineAt: number) {
+  function candidateSpaceCallback(execution: unknown, api: unknown, restart: () => Promise<void>, deadlineAt: number) {
     const source = readFileSync(new URL("./runner.spec.ts", import.meta.url), "utf8");
-    const start = source.indexOf("    const onCompanyCreated = async (id: string) => {");
+    const start = source.indexOf("    const onSpaceCreated = async (id: string) => {");
     const end = source.indexOf("    const api = new RunnerApi(request);", start);
     expect(start).toBeGreaterThan(0); expect(end).toBeGreaterThan(start);
     const js = transformSync(source.slice(start, end), { loader: "ts", format: "cjs" }).code;
-    return new Function("kimiCandidateAdmissionForExecution", "execution", "api", "nonce", "startedAtMs", "deadlineMs", "trace", "saveTrace", "restartIsolatedPaperclipServer", "waitForFixtureDaytonaProvider", js + ";return onCompanyCreated;")(
+    return new Function("kimiCandidateAdmissionForExecution", "execution", "api", "nonce", "startedAtMs", "deadlineMs", "trace", "saveTrace", "restartIsolatedOutpostServer", "waitForFixtureDaytonaProvider", js + ";return onSpaceCreated;")(
       () => ({}), execution, api, "fixture", 0, deadlineAt, undefined, async () => {}, restart, waitReady(),
     ) as (id: string) => Promise<void>;
   }
@@ -547,8 +547,8 @@ describe("Daytona fixture readiness after candidate startup", () => {
     try {
       let running = false; setTimeout(() => { running = true; }, 1_000);
       const api = apiAt(() => running);
-      const callback = candidateCompanyCallback({ environment: { id: "daytona" } }, api, async () => {}, 5_000);
-      const outcome = (async () => { await callback(companyId); return api.post(); })().then(value => ({ ok: true, value }), error => ({ ok: false, error: error.message }));
+      const callback = candidateSpaceCallback({ environment: { id: "daytona" } }, api, async () => {}, 5_000);
+      const outcome = (async () => { await callback(spaceId); return api.post(); })().then(value => ({ ok: true, value }), error => ({ ok: false, error: error.message }));
       await vi.advanceTimersByTimeAsync(1_250);
       expect(await outcome).toMatchObject({ ok: true, value: { id: "environment" } });
       expect(api.calls.filter(x => x === "ENV_POST")).toHaveLength(1);
@@ -557,14 +557,14 @@ describe("Daytona fixture readiness after candidate startup", () => {
   });
   it("leaves local candidate restart sequencing free of Daytona readiness requests", async () => {
     const api = apiAt(() => false);
-    await candidateCompanyCallback({ environment: { id: "local" } }, api, async () => {}, Date.now() + 5_000)(companyId);
+    await candidateSpaceCallback({ environment: { id: "local" } }, api, async () => {}, Date.now() + 5_000)(spaceId);
     expect(api.calls).toEqual([]);
   });
   it("does not admit a DB-ready provider whose live worker never runs", async () => {
     vi.useFakeTimers(); vi.setSystemTime(0);
     try {
       const api = apiAt(() => false);
-      const result = waitReady()(api, { companyId, deadlineAt: 1_000 }).then(() => null, error => error);
+      const result = waitReady()(api, { spaceId, deadlineAt: 1_000 }).then(() => null, error => error);
       await vi.advanceTimersByTimeAsync(1_100);
       const error = await result;
       expect(error).toMatchObject({ failureClass: "candidate_failure" });
@@ -573,7 +573,7 @@ describe("Daytona fixture readiness after candidate startup", () => {
   });
   it("rejects a different advertised plugin identity before creating an environment", async () => {
     const api = apiAt(() => true, true);
-    await expect(waitReady()(api, { companyId, deadlineAt: Date.now() + 5_000 })).rejects.toThrow(/plugin identity/);
+    await expect(waitReady()(api, { spaceId, deadlineAt: Date.now() + 5_000 })).rejects.toThrow(/plugin identity/);
     expect(api.calls).not.toContain("ENV_POST");
   });
 });

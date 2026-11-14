@@ -55,7 +55,7 @@ let fixtureRoot: string | undefined;
 let fixture: string;
 
 beforeAll(async () => {
-  fixtureRoot = await mkdtemp(join(tmpdir(), "paperclip-opencode-fixture-"));
+  fixtureRoot = await mkdtemp(join(tmpdir(), "outpost-opencode-fixture-"));
   fixture = join(fixtureRoot, "fake-opencode-server.mjs");
   await copyFile(resolve("test/fixtures/fake-opencode-server.mjs"), fixture);
   // Tests launch the fixture directly; it must not depend on run order.
@@ -109,7 +109,7 @@ function runtimeContext(
     },
     skills: [
       {
-        key: "company/assigned",
+        key: "space/assigned",
         runtimeName: "assigned",
         versionId: "version-1",
         bundle: {
@@ -158,7 +158,7 @@ afterAll(async () => {
 describe("OpenCodeServerDriver", () => {
   it("bounds schema rejection errors in events and transcript without changing the MCP receipt", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-large-rejection-")); roots.push(root);
+    const root = await mkdtemp(join(tmpdir(), "outpost-large-rejection-")); roots.push(root);
     const handler = vi.fn();
     const driver = new OpenCodeServerDriver({ model: "openrouter/test-model", command: fixture, runtimeDirectory: root,
       environment: { PATH: process.env.PATH },
@@ -196,14 +196,14 @@ describe("OpenCodeServerDriver", () => {
     await new Promise<void>(resolve => collector.listen(0, "127.0.0.1", resolve));
     const address = collector.address();
     if (!address || typeof address === "string") throw new Error("collector did not bind");
-    const root = await mkdtemp(join(tmpdir(), "paperclip-argument-diagnostics-")); roots.push(root);
+    const root = await mkdtemp(join(tmpdir(), "outpost-argument-diagnostics-")); roots.push(root);
     const calls: unknown[] = [];
     const driver = new OpenCodeServerDriver({ model: "openrouter/test-model", command: fixture, runtimeDirectory: root,
       environment: { PATH: process.env.PATH, OUTPOST_OBSERVABILITY_OPENCODE: "1",
         OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `http://127.0.0.1:${address.port}/v1/traces`,
         OTEL_LOG_TOOL_DETAILS: "1", OTEL_LOG_TOOL_CONTENT: capture },
       taskEnvelope: createCodexTaskEnvelope({ objective: "argument-diagnostics" }),
-      dynamicTools: [{ name: "paperclip_call_assigned_tool", inputSchema: { type: "object" } }],
+      dynamicTools: [{ name: "outpost_call_assigned_tool", inputSchema: { type: "object" } }],
       dynamicToolHandler: async call => {
         calls.push(call.arguments);
         if (typeof (call.arguments as { name?: unknown }).name !== "string") throw new Error("name must be a string");
@@ -230,9 +230,9 @@ describe("OpenCodeServerDriver", () => {
       for (const [index, body] of bodies.entries()) {
         const spans = body.resourceSpans[0].scopeSpans[0].spans;
         const attrs = (span: any) => Object.fromEntries(span.attributes.map((a: any) => [a.key, a.value.stringValue ?? a.value.boolValue]));
-        const tools = spans.filter((span: any) => span.name === "tool paperclip_call_assigned_tool");
+        const tools = spans.filter((span: any) => span.name === "tool outpost_call_assigned_tool");
         expect(tools).toHaveLength(3);
-        const native = spans.filter((span: any) => span.name === "opencode tool paperclip_call_assigned_tool");
+        const native = spans.filter((span: any) => span.name === "opencode tool outpost_call_assigned_tool");
         expect(native).toHaveLength(1);
         expect(attrs(native[0])["outpost.tool.source"]).toBe("provider");
         expect(attrs(native[0])).not.toHaveProperty("braintrust.input");
@@ -254,7 +254,7 @@ describe("OpenCodeServerDriver", () => {
   });
 
   it("forwards configured bindings to the provider shell and redacts their values", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-configured-env-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-configured-env-"));
     roots.push(root);
     const bindings = { PROBE_PLAIN: "fixture-plain-binding", PROBE_SECRET: 'fixture-"quoted"\\path\nmultiline-binding' };
     const command = join(root, "probe-opencode.mjs");
@@ -330,7 +330,7 @@ describe("OpenCodeServerDriver", () => {
 
   it("preserves empty arrays in traces when all configured bindings are runtime-owned", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-empty-projection-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-empty-projection-"));
     roots.push(root);
     const tracePath = join(root, "provider-trace.ndjson");
     const driver = new OpenCodeServerDriver({
@@ -353,7 +353,7 @@ describe("OpenCodeServerDriver", () => {
 
   it.each([false, true])("ignores an ambient configured-environment projection (explicit environment: %s)", async explicit => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-ambient-env-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-ambient-env-"));
     roots.push(root);
     vi.stubEnv(CONFIGURED_ENVIRONMENT_KEYS, '["PROBE_SECRET"]');
     vi.stubEnv("PROBE_SECRET", "ambient-binding-must-not-cross");
@@ -375,7 +375,7 @@ describe("OpenCodeServerDriver", () => {
 
   it("delivers configured task values without ambient credentials or driver-owned overrides", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-task-env-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-task-env-"));
     roots.push(root);
     const command = join(root, "configured-task-opencode.mjs");
     const canaryReceipt = join(root, "task-canary.json");
@@ -405,7 +405,7 @@ describe("OpenCodeServerDriver", () => {
 
   it.each([false, true])("uses the native MCP client ceiling only for durable tool requests (%s)", async durableToolRequests => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-tool-budget-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-tool-budget-"));
     roots.push(root);
     const driver = new OpenCodeServerDriver({
       model: "openrouter/test-model", command: fixture, runtimeDirectory: root, durableToolRequests,
@@ -419,7 +419,7 @@ describe("OpenCodeServerDriver", () => {
     }
   });
 
-  it("exports company traces across warm runs without giving the ingestion key to the provider", async () => {
+  it("exports space traces across warm runs without giving the ingestion key to the provider", async () => {
     await chmod(fixture, 0o755);
     const bodies: Array<Record<string, any>> = [];
     const collector = createHttpServer((request, response) => {
@@ -430,12 +430,12 @@ describe("OpenCodeServerDriver", () => {
     await new Promise<void>(resolve => collector.listen(0, "127.0.0.1", resolve));
     const address = collector.address();
     if (!address || typeof address === "string") throw new Error("collector did not bind");
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-company-export-")); roots.push(root);
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-space-export-")); roots.push(root);
     const driver = new OpenCodeServerDriver({ model: "openrouter/test-model", command: fixture, runtimeDirectory: root,
       environment: { PATH: process.env.PATH, OUTPOST_OBSERVABILITY_OPENCODE: "1",
         OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `http://127.0.0.1:${address.port}/v1/traces`,
         OTEL_EXPORTER_OTLP_TRACES_HEADERS: "authorization=Bearer%20ingestion-canary",
-        OTEL_RESOURCE_ATTRIBUTES: "outpost.company.id=fixture-company", OTEL_LOG_USER_PROMPTS: "1", OTEL_LOG_ASSISTANT_RESPONSES: "1" } });
+        OTEL_RESOURCE_ATTRIBUTES: "outpost.space.id=fixture-space", OTEL_LOG_USER_PROMPTS: "1", OTEL_LOG_ASSISTANT_RESPONSES: "1" } });
     let session: Awaited<ReturnType<typeof driver.openSession>> | undefined;
     try {
       session = await driver.openSession({ runId: "first", normalizedSessionId: "export", workingDirectory: root });
@@ -462,7 +462,7 @@ describe("OpenCodeServerDriver", () => {
   it("advertises within-turn plans as unsupported", async () => {
     const driver = new OpenCodeServerDriver({
       model: "openrouter/deepseek/deepseek-v4-flash-0731",
-      runtimeDirectory: "/tmp/paperclip-opencode-capabilities",
+      runtimeDirectory: "/tmp/outpost-opencode-capabilities",
       command: fixture,
     });
     const descriptor = await driver.descriptor();
@@ -495,9 +495,9 @@ describe("OpenCodeServerDriver", () => {
     if (!progress || !final)
       throw new Error("missing golden assistant messages");
 
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-boundary-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-boundary-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-boundary-workspace-"),
+      join(tmpdir(), "outpost-opencode-boundary-workspace-"),
     );
     roots.push(root, workspace);
     const tracePath = join(root, "provider-trace.ndjson");
@@ -681,7 +681,7 @@ describe("OpenCodeServerDriver", () => {
         );
       }
       if (method === "GET" && url.pathname === "/mcp")
-        return json({ paperclip: { status: "connected" } });
+        return json({ outpost: { status: "connected" } });
       if (method === "POST" && url.pathname === "/session")
         return json({ id: providerSessionId });
       if (method === "GET" && url.pathname === "/question") return json([]);
@@ -948,10 +948,10 @@ describe("OpenCodeServerDriver", () => {
 
   it("projects a custom connection into the isolated OpenCode config", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-routing-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-routing-"));
     roots.push(root);
     const driver = new OpenCodeServerDriver({
-      model: "paperclip/team/model-alias",
+      model: "outpost/team/model-alias",
       runtimeDirectory: root,
       command: fixture,
       environment: { PATH: process.env.PATH, OUTPOST_AI_PROVIDER_URL: "https://gateway.example/v1", OUTPOST_AI_PROVIDER_KEY: "selected-gateway-key" },
@@ -960,8 +960,8 @@ describe("OpenCodeServerDriver", () => {
     try {
       const configPath = join(root, "routing", "config", "opencode", "opencode.json");
       expect(JSON.parse(await readFile(configPath, "utf8"))).toMatchObject({
-        model: "paperclip/team/model-alias", small_model: "paperclip/team/model-alias", plugin: [],
-        provider: { paperclip: { npm: "@ai-sdk/openai-compatible", options: { baseURL: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/v1$/), apiKey: expect.any(String) }, models: { "team/model-alias": { name: "team/model-alias" } } } },
+        model: "outpost/team/model-alias", small_model: "outpost/team/model-alias", plugin: [],
+        provider: { outpost: { npm: "@ai-sdk/openai-compatible", options: { baseURL: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/v1$/), apiKey: expect.any(String) }, models: { "team/model-alias": { name: "team/model-alias" } } } },
       });
       expect((await stat(configPath)).mode & 0o777).toBe(0o600);
       const shell = await promisify(execFile)("sh", ["-c", 'cat "$1"', "sh", configPath]);
@@ -989,12 +989,12 @@ describe("OpenCodeServerDriver", () => {
     await new Promise<void>(resolve => upstream.listen(0, "127.0.0.1", resolve));
     const address = upstream.address();
     if (!address || typeof address === "string") throw new Error("Missing fixture address");
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-media-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-media-"));
     roots.push(root);
     let session: Awaited<ReturnType<OpenCodeServerDriver["openSession"]>> | undefined;
     try {
       const driver = new OpenCodeServerDriver({
-        model: "paperclip/team/model-alias", runtimeDirectory: root, command: fixture,
+        model: "outpost/team/model-alias", runtimeDirectory: root, command: fixture,
         environment: { PATH: process.env.PATH, OUTPOST_AI_PROVIDER_URL: `http://127.0.0.1:${address.port}/v1`, OUTPOST_AI_PROVIDER_KEY: "gateway-key" },
       });
       session = await driver.openSession({ runId: "media", normalizedSessionId: "media", workingDirectory: root });
@@ -1029,7 +1029,7 @@ describe("OpenCodeServerDriver", () => {
       expect(forwarded.messages).toHaveLength(prefix.length);
       expect(forwarded.messages.at(-1)?.role).toBe("tool");
       const toolContent = String(forwarded.messages.at(-1)?.content);
-      expect(toolContent).toMatch(/^Image read successfully\n\n\[Paperclip runner: This tool result included an image attachment/);
+      expect(toolContent).toMatch(/^Image read successfully\n\n\[Outpost runner: This tool result included an image attachment/);
       expect(toolContent).toContain("not from the user");
       expect(JSON.stringify(forwarded)).not.toContain("Inform the user");
     } finally {
@@ -1054,12 +1054,12 @@ describe("OpenCodeServerDriver", () => {
     await new Promise<void>(resolve => upstream.listen(0, "127.0.0.1", resolve));
     const address = upstream.address();
     if (!address || typeof address === "string") throw new Error("Missing fixture address");
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-proxy-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-proxy-"));
     roots.push(root);
     let session: Awaited<ReturnType<OpenCodeServerDriver["openSession"]>> | undefined;
     try {
       const driver = new OpenCodeServerDriver({
-        model: "paperclip/team/model-alias", runtimeDirectory: root, command: fixture,
+        model: "outpost/team/model-alias", runtimeDirectory: root, command: fixture,
         environment: { PATH: process.env.PATH, OUTPOST_AI_PROVIDER_URL: `http://127.0.0.1:${address.port}/custom/v1`, OUTPOST_AI_PROVIDER_KEY: key },
       });
       session = await driver.openSession({ runId: "proxy", normalizedSessionId: "proxy", workingDirectory: root });
@@ -1109,7 +1109,7 @@ describe("OpenCodeServerDriver", () => {
     if (!address || typeof address === "string") throw new Error("Missing fixture address");
     upstreamTransport.endpoint = `http://127.0.0.1:${address.port}/chat/completions`;
     upstreamTransport.urls = [];
-    const root = await mkdtemp(join(tmpdir(), "paperclip-openrouter-custody-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-openrouter-custody-"));
     roots.push(root);
     let session: Awaited<ReturnType<OpenCodeServerDriver["openSession"]>> | undefined;
     try {
@@ -1174,7 +1174,7 @@ describe("OpenCodeServerDriver", () => {
     await new Promise<void>(resolve => outgoingProxy.listen(0, "127.0.0.1", resolve));
     const address = outgoingProxy.address();
     if (!address || typeof address === "string") throw new Error("Missing proxy fixture address");
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-outgoing-proxy-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-outgoing-proxy-"));
     roots.push(root);
     const certificateDir = join(root, "certificates");
     await mkdir(certificateDir);
@@ -1184,7 +1184,7 @@ describe("OpenCodeServerDriver", () => {
     const trustEnvironment = trust === "file" ? { SSL_CERT_FILE: certificatePath } : { SSL_CERT_DIR: certificateDir };
     const headersAndUrl = async (sessionId: string, noProxy: string) => {
       const driver = new OpenCodeServerDriver({
-        model: "paperclip/team/model-alias", runtimeDirectory: root, command: fixture,
+        model: "outpost/team/model-alias", runtimeDirectory: root, command: fixture,
         environment: { ...trustEnvironment, PATH: process.env.PATH, OUTPOST_AI_PROVIDER_URL: "http://gateway.invalid/v1", OUTPOST_AI_PROVIDER_KEY: "fixture-key", [proxySetting]: `http://127.0.0.1:${address.port}`, NO_PROXY: noProxy },
       });
       const session = await driver.openSession({ runId: sessionId, normalizedSessionId: sessionId, workingDirectory: root });
@@ -1212,9 +1212,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("starts an authenticated isolated server, creates a session, streams usage, aborts, and cleans up", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-driver-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-workspace-"),
+      join(tmpdir(), "outpost-opencode-workspace-"),
     );
     roots.push(root, workspace);
     const tracePath = join(root, "provider-trace.ndjson");
@@ -1382,7 +1382,7 @@ describe("OpenCodeServerDriver", () => {
     expect(environment.modelsFetchDisabled).toBe("true");
     expect(environment.defaultPluginsDisabled).toBe("true");
     expect(mcpEvidence.tools).toEqual(
-      expect.arrayContaining(["paperclip_finish", "paperclip_block"]),
+      expect.arrayContaining(["outpost_finish", "outpost_block"]),
     );
     expect(config).toContain("openrouter/deepseek/deepseek-v4-flash-0731");
     expect(config).toContain('"*": "allow"');
@@ -1397,8 +1397,8 @@ describe("OpenCodeServerDriver", () => {
 
   it.each(["role-first", "role-last", "role-last-long"])("preserves incremental text and completion with identity checks (%s)", async (roleOrder) => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-stream-"));
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-opencode-stream-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-stream-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-opencode-stream-workspace-"));
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
       model: "openrouter/deepseek/deepseek-v4-flash-0731",
@@ -1437,9 +1437,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("maps OpenCode's normal abort error to cancellation without a false provider failure notice", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-abort-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-abort-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-abort-workspace-"),
+      join(tmpdir(), "outpost-opencode-abort-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -1470,9 +1470,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("runs two consecutive turns on one session and delivers exactly one terminal event per turn", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-multi-turn-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-multi-turn-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-multi-turn-workspace-"),
+      join(tmpdir(), "outpost-opencode-multi-turn-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -1533,10 +1533,10 @@ describe("OpenCodeServerDriver", () => {
   it("drops a distinct late frame for a completed turn instead of attributing it to the next turn", async () => {
     await chmod(fixture, 0o755);
     const root = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-late-frame-"),
+      join(tmpdir(), "outpost-opencode-late-frame-"),
     );
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-late-frame-workspace-"),
+      join(tmpdir(), "outpost-opencode-late-frame-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -1600,10 +1600,10 @@ describe("OpenCodeServerDriver", () => {
   it("keeps rejecting a late frame for a sealed turn no matter how many later turns have already sealed", async () => {
     await chmod(fixture, 0o755);
     const root = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-sealed-many-turns-"),
+      join(tmpdir(), "outpost-opencode-sealed-many-turns-"),
     );
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-sealed-many-turns-workspace-"),
+      join(tmpdir(), "outpost-opencode-sealed-many-turns-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -1670,10 +1670,10 @@ describe("OpenCodeServerDriver", () => {
   it("delivers the settlement event for a runtime request whose turn fails through the same single-pass consumer that reads the turn", async () => {
     await chmod(fixture, 0o755);
     const root = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-pending-then-fail-"),
+      join(tmpdir(), "outpost-opencode-pending-then-fail-"),
     );
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-pending-then-fail-workspace-"),
+      join(tmpdir(), "outpost-opencode-pending-then-fail-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -1751,10 +1751,10 @@ describe("OpenCodeServerDriver", () => {
   it("keeps the session usable after a cancelled turn so the next turn on the same session still completes", async () => {
     await chmod(fixture, 0o755);
     const root = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-cancel-then-finish-"),
+      join(tmpdir(), "outpost-opencode-cancel-then-finish-"),
     );
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-cancel-then-finish-workspace-"),
+      join(tmpdir(), "outpost-opencode-cancel-then-finish-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -1799,10 +1799,10 @@ describe("OpenCodeServerDriver", () => {
   it("keeps the session usable after a failed turn so the next turn on the same session still completes", async () => {
     await chmod(fixture, 0o755);
     const root = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-fail-then-finish-"),
+      join(tmpdir(), "outpost-opencode-fail-then-finish-"),
     );
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-fail-then-finish-workspace-"),
+      join(tmpdir(), "outpost-opencode-fail-then-finish-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -1845,10 +1845,10 @@ describe("OpenCodeServerDriver", () => {
   it("still ends the event stream once the session closes", async () => {
     await chmod(fixture, 0o755);
     const root = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-close-ends-stream-"),
+      join(tmpdir(), "outpost-opencode-close-ends-stream-"),
     );
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-close-ends-stream-workspace-"),
+      join(tmpdir(), "outpost-opencode-close-ends-stream-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -1877,9 +1877,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("keeps OpenCode in an outer supervisor process group when requested", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-driver-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-workspace-"),
+      join(tmpdir(), "outpost-opencode-workspace-"),
     );
     roots.push(root, workspace);
     let processGroupId: number | null | undefined;
@@ -1907,9 +1907,9 @@ describe("OpenCodeServerDriver", () => {
 
   it.each([false, true])("uses the native system channel, selected skill tree, instruction root, and assigned MCP gateway after startup retry=%s", async (retryStartup) => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-context-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-context-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-context-workspace-"),
+      join(tmpdir(), "outpost-opencode-context-workspace-"),
     );
     const skillRoot = join(root, "skill-source");
     const instructionRoot = join(root, "instruction-source");
@@ -1939,7 +1939,7 @@ describe("OpenCodeServerDriver", () => {
       environment: {
         PATH: process.env.PATH,
         OPENROUTER_API_KEY: "fixture-key",
-        OUTPOST_NATIVE_MCP_NAME: "paperclip-assigned",
+        OUTPOST_NATIVE_MCP_NAME: "outpost-assigned",
         OUTPOST_NATIVE_MCP_URL: "https://outpost.example/mcp",
         OUTPOST_NATIVE_MCP_TOKEN: "x".repeat(40),
       },
@@ -2006,8 +2006,8 @@ describe("OpenCodeServerDriver", () => {
         external_directory: { "*": "deny", [`${instructionRoot}/**`]: "allow" },
       },
       mcp: {
-        paperclip: { enabled: true },
-        "paperclip-assigned": {
+        outpost: { enabled: true },
+        "outpost-assigned": {
           url: "https://outpost.example/mcp",
           enabled: true,
         },
@@ -2022,9 +2022,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("removes isolated homes left by earlier launches when a session reopens", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-legacy-home-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-legacy-home-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-legacy-home-workspace-"),
+      join(tmpdir(), "outpost-opencode-legacy-home-workspace-"),
     );
     const skillRoot = join(root, "skill-source");
     const instructionRoot = join(root, "instruction-source");
@@ -2075,10 +2075,10 @@ describe("OpenCodeServerDriver", () => {
   it("resends system instructions without repeating the task envelope on recovery", async () => {
     await chmod(fixture, 0o755);
     const root = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-resume-context-"),
+      join(tmpdir(), "outpost-opencode-resume-context-"),
     );
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-resume-workspace-"),
+      join(tmpdir(), "outpost-opencode-resume-workspace-"),
     );
     roots.push(root, workspace);
     let submittedPrompt: Record<string, unknown> | null = null;
@@ -2134,9 +2134,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("preserves omitted native custom defaults and replies with ordered OpenCode answer arrays", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-question-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-question-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-question-workspace-"),
+      join(tmpdir(), "outpost-opencode-question-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -2239,10 +2239,10 @@ describe("OpenCodeServerDriver", () => {
   it("hands a native question to the durable interaction path without touching permissions", async () => {
     await chmod(fixture, 0o755);
     const root = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-question-handoff-"),
+      join(tmpdir(), "outpost-opencode-question-handoff-"),
     );
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-question-handoff-workspace-"),
+      join(tmpdir(), "outpost-opencode-question-handoff-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -2334,10 +2334,10 @@ describe("OpenCodeServerDriver", () => {
   it("recovers a missed pending question from the list endpoint and rejects it", async () => {
     await chmod(fixture, 0o755);
     const root = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-question-recovery-"),
+      join(tmpdir(), "outpost-opencode-question-recovery-"),
     );
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-question-recovery-workspace-"),
+      join(tmpdir(), "outpost-opencode-question-recovery-workspace-"),
     );
     roots.push(root, workspace);
     const normalizedSessionId = "question-recovery";
@@ -2414,10 +2414,10 @@ describe("OpenCodeServerDriver", () => {
     async ({ style, action, reply }) => {
       await chmod(fixture, 0o755);
       const root = await mkdtemp(
-        join(tmpdir(), `paperclip-opencode-permission-${style}-`),
+        join(tmpdir(), `outpost-opencode-permission-${style}-`),
       );
       const workspace = await mkdtemp(
-        join(tmpdir(), `paperclip-opencode-permission-${style}-workspace-`),
+        join(tmpdir(), `outpost-opencode-permission-${style}-workspace-`),
       );
       roots.push(root, workspace);
       const driver = new OpenCodeServerDriver({
@@ -2486,10 +2486,10 @@ describe("OpenCodeServerDriver", () => {
     async (permissionMode) => {
       await chmod(fixture, 0o755);
       const root = await mkdtemp(
-        join(tmpdir(), `paperclip-opencode-mode-${permissionMode}-`),
+        join(tmpdir(), `outpost-opencode-mode-${permissionMode}-`),
       );
       const workspace = await mkdtemp(
-        join(tmpdir(), `paperclip-opencode-mode-${permissionMode}-workspace-`),
+        join(tmpdir(), `outpost-opencode-mode-${permissionMode}-workspace-`),
       );
       roots.push(root, workspace);
       const driver = new OpenCodeServerDriver({
@@ -2519,21 +2519,21 @@ describe("OpenCodeServerDriver", () => {
       });
       expect(config.autoupdate).toBe(false);
       expect(config.provider.openrouter.options.headers).toMatchObject({
-        "HTTP-Referer": "https://outpost.ing", "X-Title": "Paperclip", "X-OpenRouter-Title": "Paperclip",
+        "HTTP-Referer": "https://outpost.ing", "X-Title": "Outpost", "X-OpenRouter-Title": "Outpost",
       });
       expect(config.provider.openrouter.models).toHaveProperty(
         "deepseek/deepseek-v4-flash-0731",
       );
       expect(config.provider.openrouter.models["deepseek/deepseek-v4-flash-0731"].options).toBeUndefined();
-      expect(config.permission.paperclip_finish).toBeUndefined();
-      expect(config.permission["paperclip_*"]).toBe("allow");
+      expect(config.permission.outpost_finish).toBeUndefined();
+      expect(config.permission["outpost_*"]).toBe("allow");
       await session.close({ reason: "permission mode test complete" });
     },
   );
 
   it.skipIf(process.platform === "win32")("allows the selected workspace alias and its canonical path while denying other directories", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-workspace-alias-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-workspace-alias-"));
     roots.push(root);
     const workspace = join(root, "actual-workspace");
     const alias = join(root, "workspace-alias");
@@ -2563,10 +2563,10 @@ describe("OpenCodeServerDriver", () => {
   it("clears a stale active turn that already has a persisted terminal fingerprint", async () => {
     await chmod(fixture, 0o755);
     const root = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-stale-turn-"),
+      join(tmpdir(), "outpost-opencode-stale-turn-"),
     );
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-stale-workspace-"),
+      join(tmpdir(), "outpost-opencode-stale-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -2613,7 +2613,7 @@ describe("OpenCodeServerDriver", () => {
   });
 
   it("validates provider/model form", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-driver-"));
     roots.push(root);
     const driver = new OpenCodeServerDriver({
       model: "bad",
@@ -2629,8 +2629,8 @@ describe("OpenCodeServerDriver", () => {
 
   it.each(["wrong", "missing", "duplicate"])("returns a repairable tool error for %s criteria without committing a bad semantic result", async (mode) => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-criteria-"));
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-opencode-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-criteria-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-opencode-workspace-"));
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({ model: "openrouter/deepseek/deepseek-v4-flash-0731", runtimeDirectory: root, command: fixture, environment: { PATH: process.env.PATH, OPENROUTER_API_KEY: "fixture-key" }, taskEnvelope: createCodexTaskEnvelope({ objective: "Apply the accepted decision", contractRevision: "approval-v2", criteria: [{ id: "human_response", requirement: "Apply the approved response" }] }) });
     const session = await driver.openSession({ runId: "criteria-repair", normalizedSessionId: "criteria-repair", workingDirectory: workspace });
@@ -2650,8 +2650,8 @@ describe("OpenCodeServerDriver", () => {
 
   it("names the expected revision in a repairable stale-revision tool error", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-revision-"));
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-opencode-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-revision-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-opencode-workspace-"));
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({ model: "openrouter/deepseek/deepseek-v4-flash-0731", runtimeDirectory: root, command: fixture, environment: { PATH: process.env.PATH, OPENROUTER_API_KEY: "fixture-key" }, taskEnvelope: createCodexTaskEnvelope({ objective: "Apply the accepted decision", contractRevision: "approval-v2", criteria: [{ id: "human_response", requirement: "Apply the approved response" }] }) });
     const session = await driver.openSession({ runId: "revision-repair", normalizedSessionId: "revision-repair", workingDirectory: workspace });
@@ -2670,8 +2670,8 @@ describe("OpenCodeServerDriver", () => {
   it.each(["monitor", "response_wake"] as const)("resolves an omitted %s through the real OpenCode MCP boundary only from current server state", async kind => {
     for (const eligible of [true, false]) {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-monitor-"));
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-opencode-monitor-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-monitor-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-opencode-monitor-workspace-"));
     roots.push(root, workspace);
     const continuation = { kind, summary: "Wait for the saved task path.", idempotencyKey: "task-wait:saved" };
     const reads: string[] = [];
@@ -2709,11 +2709,11 @@ describe("OpenCodeServerDriver", () => {
 
   it("keeps assigned discovery operation IDs at the authenticated MCP and controller boundary", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-assigned-"));
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-opencode-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-assigned-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-opencode-workspace-"));
     roots.push(root, workspace);
     const calls: string[] = [];
-    const operation = "paperclip_search_assigned_tools";
+    const operation = "outpost_search_assigned_tools";
     const driver = new OpenCodeServerDriver({ model: "openrouter/deepseek/deepseek-v4.1-flash-1017", runtimeDirectory: root, command: fixture,
       environment: { PATH: process.env.PATH, OPENROUTER_API_KEY: "fixture-key" },
       dynamicTools: [{ name: operation, inputSchema: { type: "object" } }],
@@ -2730,9 +2730,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("normalizes a structured block result", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-driver-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-workspace-"),
+      join(tmpdir(), "outpost-opencode-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -2765,9 +2765,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("designates the substantive pre-finish response instead of a trailing acknowledgement", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-driver-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-workspace-"),
+      join(tmpdir(), "outpost-opencode-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -2810,9 +2810,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("does not promote opening commentary to the final response when work follows it", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-driver-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-workspace-"),
+      join(tmpdir(), "outpost-opencode-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -2854,9 +2854,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("correlates the final response to the native message containing the semantic tool", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-driver-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-workspace-"),
+      join(tmpdir(), "outpost-opencode-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -2938,9 +2938,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("never settles a post-completion response truncated at the output limit", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-driver-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-workspace-"),
+      join(tmpdir(), "outpost-opencode-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -2985,9 +2985,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("uses provider structure rather than prose length to select a post-tool answer", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-driver-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-workspace-"),
+      join(tmpdir(), "outpost-opencode-workspace-"),
     );
     roots.push(root, workspace);
     const driver = new OpenCodeServerDriver({
@@ -3023,8 +3023,8 @@ describe("OpenCodeServerDriver", () => {
 
   it.each(["session.idle", "session.status", "session.error", "aborted"])("settles accepted completion before a racing %s event", async terminalType => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-completion-race-"));
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-opencode-completion-race-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-completion-race-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-opencode-completion-race-workspace-"));
     roots.push(root, workspace);
     let stream: ReadableStreamDefaultController<Uint8Array>;
     let releaseFeedback!: () => void;
@@ -3070,8 +3070,8 @@ describe("OpenCodeServerDriver", () => {
 
   it.each(["close", "interrupt"] as const)("settles bound completion before explicit %s", async operation => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-completion-stop-"));
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-opencode-completion-stop-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-completion-stop-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-opencode-completion-stop-workspace-"));
     roots.push(root, workspace);
     let releaseFeedback!: () => void, feedbackStarted!: () => void;
     const started = new Promise<void>(resolve => { feedbackStarted = resolve; });
@@ -3121,8 +3121,8 @@ describe("OpenCodeServerDriver", () => {
 
   it("keeps the turn and the tool outcome when OpenCode sends an event above the payload limit", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-oversized-sse-"));
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-opencode-oversized-sse-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-oversized-sse-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-opencode-oversized-sse-workspace-"));
     roots.push(root, workspace);
     let stream!: ReadableStreamDefaultController<Uint8Array>;
     let streamOpened!: () => void;
@@ -3177,8 +3177,8 @@ describe("OpenCodeServerDriver", () => {
 
   it("keeps the provider explanation when an API error response body exceeds the payload limit", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-large-error-"));
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-opencode-large-error-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-large-error-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-opencode-large-error-workspace-"));
     roots.push(root, workspace);
     let stream!: ReadableStreamDefaultController<Uint8Array>;
     let streamOpened!: () => void;
@@ -3211,8 +3211,8 @@ describe("OpenCodeServerDriver", () => {
 
   it("fails the running turn with the exit cause when OpenCode stops mid-turn", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-server-lost-"));
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-opencode-server-lost-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-server-lost-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-opencode-server-lost-workspace-"));
     roots.push(root, workspace);
     let stream!: ReadableStreamDefaultController<Uint8Array>;
     let streamOpened!: () => void;
@@ -3284,9 +3284,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("restarts OpenCode when session startup fails transiently", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-driver-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-workspace-"),
+      join(tmpdir(), "outpost-opencode-workspace-"),
     );
     roots.push(root, workspace);
     let failSessionCreate = true;
@@ -3344,7 +3344,7 @@ describe("OpenCodeServerDriver", () => {
   });
 
   it("releases the executable binding when spawning fails before health checks", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-spawn-error-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-spawn-error-"));
     roots.push(root);
     const lifecycle: string[] = [];
     const driver = new OpenCodeServerDriver({
@@ -3364,9 +3364,9 @@ describe("OpenCodeServerDriver", () => {
 
   it("reports startup exit details with stderr captured after spawn and redacted", async () => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-driver-"));
     const workspace = await mkdtemp(
-      join(tmpdir(), "paperclip-opencode-workspace-"),
+      join(tmpdir(), "outpost-opencode-workspace-"),
     );
     roots.push(root, workspace);
     const exitingFixture = join(root, "exit-before-health.mjs");
@@ -3377,7 +3377,7 @@ describe("OpenCodeServerDriver", () => {
     );
     const diagnostics: string[] = [];
     const driver = new OpenCodeServerDriver({
-      model: "paperclip/team/model-alias",
+      model: "outpost/team/model-alias",
       runtimeDirectory: root,
       command: exitingFixture,
       onDiagnostic: (message) => { diagnostics.push(message); },
@@ -3411,12 +3411,12 @@ describe("OpenCodeServerDriver", () => {
 
   it.each(["network", "response"])("redacts custom gateway keys in %s errors", async (failure) => {
     await chmod(fixture, 0o755);
-    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));
-    const workspace = await mkdtemp(join(tmpdir(), "paperclip-opencode-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-opencode-driver-"));
+    const workspace = await mkdtemp(join(tmpdir(), "outpost-opencode-workspace-"));
     roots.push(root, workspace);
     const key = "fixture-custom-gateway-key";
     const driver = new OpenCodeServerDriver({
-      model: "paperclip/team/model-alias",
+      model: "outpost/team/model-alias",
       runtimeDirectory: root,
       command: fixture,
       environment: {

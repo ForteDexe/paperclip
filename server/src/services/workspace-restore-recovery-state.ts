@@ -11,7 +11,7 @@ export const SETTLED_WORKSPACE_RESTORE_HOLD_KEY = "workspaceRestoreRecoverySettl
  * managed Runner has a synchronization descriptor for durable recovery. That
  * descriptor alone does not create a user-file export obligation. */
 export function nativeRunHasNoWorkspaceAccess(run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "issueId" | "nativeIssueId" | "runtimeMode" | "driverKind" | "runnerProfileJson">): boolean {
+  "id" | "spaceId" | "agentId" | "issueId" | "nativeIssueId" | "runtimeMode" | "driverKind" | "runnerProfileJson">): boolean {
   const input = run.runnerProfileJson?.nativeExecutionInput as Record<string, unknown> | undefined;
   if (run.runtimeMode !== "native" || !input || (input.schema !== "outpost.native-execution-input.v6" && input.schema !== "outpost.native-execution-input.v8")) return false;
   const binding = input.binding as Record<string, unknown> | undefined;
@@ -22,7 +22,7 @@ export function nativeRunHasNoWorkspaceAccess(run: Pick<typeof heartbeatRuns.$in
     : provider?.kind === "grok_bot" ? "grok_bot_mcp"
       : provider?.kind === "openai_dot" ? "openai_dot_mcp" : null;
   return driver !== null && run.driverKind === driver && workspace?.access === "none" && workspace.cwd === null
-    && binding?.runId === run.id && binding.companyId === run.companyId && binding.agentId === run.agentId
+    && binding?.runId === run.id && binding.spaceId === run.spaceId && binding.agentId === run.agentId
     && binding.issueId === (run.nativeIssueId ?? run.issueId);
 }
 

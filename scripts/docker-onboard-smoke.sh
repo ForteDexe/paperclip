@@ -2,9 +2,9 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-IMAGE_NAME="${IMAGE_NAME:-paperclip-onboard-smoke}"
+IMAGE_NAME="${IMAGE_NAME:-outpost-onboard-smoke}"
 HOST_PORT="${HOST_PORT:-3131}"
-PAPERCLIPAI_VERSION="${PAPERCLIPAI_VERSION:-latest}"
+OUTPOST_VERSION="${OUTPOST_VERSION:-latest}"
 DATA_DIR="${DATA_DIR:-$REPO_ROOT/data/docker-onboard-smoke}"
 HOST_UID="${HOST_UID:-$(id -u)}"
 SMOKE_DETACH="${SMOKE_DETACH:-false}"
@@ -24,13 +24,13 @@ SMOKE_PROVIDER_MOCK="${SMOKE_PROVIDER_MOCK:-true}"
 OUTPOST_PUBLIC_URL="${OUTPOST_PUBLIC_URL:-http://localhost:${HOST_PORT}}"
 SMOKE_AUTO_BOOTSTRAP="${SMOKE_AUTO_BOOTSTRAP:-true}"
 # Seconds to wait for /api/health after the container starts. The container
-# cold-installs paperclipai from npm and initializes embedded postgres before
+# cold-installs outpost from npm and initializes embedded postgres before
 # it can serve health, so CI callers with no warm caches need far more than
 # the local default.
 SMOKE_READY_TIMEOUT_SECONDS="${SMOKE_READY_TIMEOUT_SECONDS:-90}"
 SMOKE_ADMIN_NAME="${SMOKE_ADMIN_NAME:-Smoke Admin}"
 SMOKE_ADMIN_EMAIL="${SMOKE_ADMIN_EMAIL:-smoke-admin@outpost.local}"
-SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-paperclip-smoke-password}"
+SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-outpost-smoke-password}"
 # Overridable so a caller can fix the name before this script runs. CI needs
 # that: a name it only learns from this script's output is a name it does not
 # have when this script fails, which is precisely when its diagnostics steps
@@ -144,7 +144,7 @@ write_metadata_file() {
     printf 'SMOKE_LOG_FILE=%q\n' "$SMOKE_LOG_FILE"
     printf 'SMOKE_DATA_DIR=%q\n' "$DATA_DIR"
     printf 'SMOKE_IMAGE_NAME=%q\n' "$IMAGE_NAME"
-    printf 'SMOKE_PAPERCLIPAI_VERSION=%q\n' "$PAPERCLIPAI_VERSION"
+    printf 'SMOKE_OUTPOST_VERSION=%q\n' "$OUTPOST_VERSION"
   } >"$SMOKE_METADATA_FILE"
 }
 
@@ -156,9 +156,9 @@ generate_bootstrap_invite_url() {
       -e OUTPOST_DEPLOYMENT_MODE="$OUTPOST_DEPLOYMENT_MODE" \
       -e OUTPOST_DEPLOYMENT_EXPOSURE="$OUTPOST_DEPLOYMENT_EXPOSURE" \
       -e OUTPOST_PUBLIC_URL="$OUTPOST_PUBLIC_URL" \
-      -e OUTPOST_HOME="/paperclip" \
+      -e OUTPOST_HOME="/outpost" \
       "$CONTAINER_NAME" bash -lc \
-      'timeout 20s npx --yes "paperclipai@${PAPERCLIPAI_VERSION}" auth bootstrap-ceo --data-dir "$OUTPOST_HOME" --base-url "$OUTPOST_PUBLIC_URL"' \
+      'timeout 20s npx --yes "@outpost/cli@${OUTPOST_VERSION}" auth bootstrap-lead --data-dir "$OUTPOST_HOME" --base-url "$OUTPOST_PUBLIC_URL"' \
       2>&1
   )"; then
     bootstrap_status=0
@@ -167,7 +167,7 @@ generate_bootstrap_invite_url() {
   fi
 
   if [[ $bootstrap_status -ne 0 && $bootstrap_status -ne 124 ]]; then
-    echo "Smoke bootstrap failed: could not run bootstrap-ceo inside container" >&2
+    echo "Smoke bootstrap failed: could not run bootstrap-lead inside container" >&2
     printf '%s\n' "$bootstrap_output" >&2
     return 1
   fi
@@ -180,13 +180,13 @@ generate_bootstrap_invite_url() {
   )"
 
   if [[ -z "$invite_url" ]]; then
-    echo "Smoke bootstrap failed: bootstrap-ceo did not print an invite URL" >&2
+    echo "Smoke bootstrap failed: bootstrap-lead did not print an invite URL" >&2
     printf '%s\n' "$bootstrap_output" >&2
     return 1
   fi
 
   if [[ $bootstrap_status -eq 124 ]]; then
-    echo "    Smoke bootstrap: bootstrap-ceo timed out after printing invite URL; continuing" >&2
+    echo "    Smoke bootstrap: bootstrap-lead timed out after printing invite URL; continuing" >&2
   fi
 
   printf '%s\n' "$invite_url"
@@ -265,7 +265,7 @@ auto_bootstrap_authenticated_smoke() {
   else
     local invite_url
     invite_url="$(generate_bootstrap_invite_url)"
-    echo "    Smoke bootstrap: generated bootstrap invite via auth bootstrap-ceo"
+    echo "    Smoke bootstrap: generated bootstrap invite via auth bootstrap-lead"
 
     local invite_token="${invite_url##*/}"
     local accept_response="$TMP_DIR/accept.json"
@@ -291,21 +291,21 @@ auto_bootstrap_authenticated_smoke() {
     return 1
   fi
 
-  local companies_json
-  companies_json="$(get_with_cookies "$OUTPOST_PUBLIC_URL/api/companies")"
-  if [[ "${companies_json:0:1}" != "[" ]]; then
-    echo "Smoke bootstrap failed: board companies endpoint did not return JSON array" >&2
-    echo "$companies_json" >&2
+  local spaces_json
+  spaces_json="$(get_with_cookies "$OUTPOST_PUBLIC_URL/api/spaces")"
+  if [[ "${spaces_json:0:1}" != "[" ]]; then
+    echo "Smoke bootstrap failed: operator spaces endpoint did not return JSON array" >&2
+    echo "$spaces_json" >&2
     return 1
   fi
 
-  echo "    Smoke bootstrap: board session verified"
+  echo "    Smoke bootstrap: operator session verified"
   echo "    Smoke admin credentials: $SMOKE_ADMIN_EMAIL / $SMOKE_ADMIN_PASSWORD"
 }
 
 echo "==> Building onboard smoke image"
 docker build \
-  --build-arg PAPERCLIPAI_VERSION="$PAPERCLIPAI_VERSION" \
+  --build-arg OUTPOST_VERSION="$OUTPOST_VERSION" \
   --build-arg HOST_UID="$HOST_UID" \
   -f "$REPO_ROOT/docker/Dockerfile.onboard-smoke" \
   -t "$IMAGE_NAME" \
@@ -419,7 +419,7 @@ docker run -d \
   -e OUTPOST_DEPLOYMENT_MODE="$OUTPOST_DEPLOYMENT_MODE" \
   -e OUTPOST_DEPLOYMENT_EXPOSURE="$OUTPOST_DEPLOYMENT_EXPOSURE" \
   -e OUTPOST_PUBLIC_URL="$OUTPOST_PUBLIC_URL" \
-  -v "$DATA_DIR:/paperclip" \
+  -v "$DATA_DIR:/outpost" \
   ${PROVIDER_MOCK_RUN_ARGS[@]+"${PROVIDER_MOCK_RUN_ARGS[@]}"} \
   "$IMAGE_NAME" >/dev/null
 
@@ -428,7 +428,7 @@ if [[ "$SMOKE_DETACH" != "true" ]]; then
   LOG_PID=$!
 fi
 
-TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/paperclip-onboard-smoke.XXXXXX")"
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/outpost-onboard-smoke.XXXXXX")"
 COOKIE_JAR="$TMP_DIR/cookies.txt"
 
 if ! wait_for_http "$OUTPOST_PUBLIC_URL/api/health" "$SMOKE_READY_TIMEOUT_SECONDS" 1; then

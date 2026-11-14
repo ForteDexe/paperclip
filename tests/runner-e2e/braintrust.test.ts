@@ -9,7 +9,7 @@ import { runnerMatrix } from "./catalog.js";
 import { buildProviderObservabilityLaunch } from "../../packages/adapter-utils/src/agent-observability.js";
 const require = createRequire(new URL("../../server/package.json", import.meta.url));
 const protobuf = require("protobufjs") as typeof import("../../server/node_modules/protobufjs/index.js");
-const projectId = "11111111-1111-4111-8111-111111111111", companyId = "22222222-2222-4222-8222-222222222222";
+const projectId = "11111111-1111-4111-8111-111111111111", spaceId = "22222222-2222-4222-8222-222222222222";
 const config = { projectId, apiKey: "private-ingestion-fixture" };
 const identity = { campaignId: "campaign", attemptId: "attempt", executionId: "hello.codex.local", provider: "codex", model: "fixture-model", environment: "local" };
 const provenance = { suiteId: "core-compatibility", suiteDefinitionHash: "a".repeat(64), profileId: "runner-codex", caseId: "message-marker", sourceRevision: "b".repeat(40) };
@@ -35,8 +35,8 @@ it("accepts only explicit loopback relay destinations and strips inherited relay
   const trace = new EvalAttemptTrace(evalBraintrustConfig(env)!, identity);
   const putSensitive = vi.fn(async () => ({ settings: { enabled: true, credentialsConfigured: true, revision: projectId,
     destination: { provider: "otlp", endpointBaseUrl } } }));
-  await trace.configureCompany({ putSensitive } as unknown as RunnerApi, companyId);
-  expect(putSensitive).toHaveBeenCalledWith(`/api/companies/${companyId}/observability`, expect.objectContaining({
+  await trace.configureSpace({ putSensitive } as unknown as RunnerApi, spaceId);
+  expect(putSensitive).toHaveBeenCalledWith(`/api/spaces/${spaceId}/observability`, expect.objectContaining({
     destination: { provider: "otlp", endpointBaseUrl }, credentials: { mode: "replace", headers: [
       { name: "authorization", value: "Bearer attempt-token" }, { name: "x-bt-parent", value: exportBraintrustAttemptParent(trace.snapshot()) },
     ] },
@@ -55,7 +55,7 @@ it.each(["codex", "claude"] as const)("preserves the attempt parent through the 
   const trace = new EvalAttemptTrace(config, identity);
   const parent = exportBraintrustAttemptParent(trace.snapshot());
   const launch = buildProviderObservabilityLaunch({
-    kind, companyId, agentId: projectId, revision: projectId, compatibilityKey: "fixture", enabled: true,
+    kind, spaceId, agentId: projectId, revision: projectId, compatibilityKey: "fixture", enabled: true,
     capture: { userPrompts: true, assistantResponses: true, toolDetails: true, toolContent: true },
     tracesEndpoint: "https://api.braintrust.dev/otel/v1/traces", logsEndpoint: "https://api.braintrust.dev/otel/v1/logs",
     headers: { authorization: `Bearer ${config.apiKey}`, "x-bt-parent": parent },
@@ -126,21 +126,21 @@ it("configures native export through a revision-fenced sensitive PUT before any 
     async get() { return [{ id: "local", driver: "local" }]; },
     async putSensitive(path: string, data: unknown) {
       order.push("observability");
-      expect(path).toBe(`/api/companies/${companyId}/observability`);
+      expect(path).toBe(`/api/spaces/${spaceId}/observability`);
       expect(data).toMatchObject({ expectedRevision: null, enabled: true,
         credentials: { mode: "replace", headers: [{ name: "authorization", value: `Bearer ${config.apiKey}` }, { name: "x-bt-parent", value: exportBraintrustAttemptParent(trace.snapshot()) }] },
         destination: { provider: "otlp", endpointBaseUrl: "https://api.braintrust.dev/otel" } });
       return { settings: { enabled: true, credentialsConfigured: true, revision: projectId, destination: { provider: "otlp", endpointBaseUrl: "https://api.braintrust.dev/otel" } } };
     },
     async postSensitive() { order.push("secret"); return { id: "secret" }; },
-    async post(path: string) { order.push(path === "/api/companies" ? "company" : "agent"); return { id: companyId, name: "fixture" }; },
+    async post(path: string) { order.push(path === "/api/spaces" ? "space" : "agent"); return { id: spaceId, name: "fixture" }; },
   } as unknown as RunnerApi;
   const execution = runnerMatrix.find(cell => cell.profile.id === "runner-codex" && cell.environment.id === "local" && cell.task.flow === "single_turn")!;
   expect(execution).toBeDefined();
-  const fixtures = await setupLiveFixtures({ api, execution, executionNonce: "fixture", workspacePath: "/tmp/fixture", credentials: { OPENAI_API_KEY: "private-provider" }, onCompanyCreated: id => trace.configureCompany(api, id) });
+  const fixtures = await setupLiveFixtures({ api, execution, executionNonce: "fixture", workspacePath: "/tmp/fixture", credentials: { OPENAI_API_KEY: "private-provider" }, onSpaceCreated: id => trace.configureSpace(api, id) });
   await fixtures.teardown();
-  expect(order.slice(0, 3)).toEqual(["company", "observability", "secret"]);
-  expect(trace.snapshot()).toMatchObject({ nativeConfiguration: "configured", companyId, revision: projectId });
+  expect(order.slice(0, 3)).toEqual(["space", "observability", "secret"]);
+  expect(trace.snapshot()).toMatchObject({ nativeConfiguration: "configured", spaceId, revision: projectId });
 });
 
 it.each([
@@ -149,7 +149,7 @@ it.each([
 ])("refuses a saved native destination that cannot carry the attempt parent", async destination => {
   const trace = new EvalAttemptTrace(config, identity);
   const api = { putSensitive: async () => ({ settings: { enabled: true, credentialsConfigured: true, revision: projectId, destination } }) } as unknown as RunnerApi;
-  await expect(trace.configureCompany(api, companyId)).rejects.toThrow("configuration failed");
+  await expect(trace.configureSpace(api, spaceId)).rejects.toThrow("configuration failed");
   expect(trace.snapshot().nativeConfiguration).toBe("failed");
 });
 
@@ -159,9 +159,9 @@ it("never sends sensitive PUT bodies through Playwright and refuses redirects or
   const api = new RunnerApi(playwright as never);
   api.setBrowserSession("session=private");
   const transport = vi.fn().mockResolvedValue(Response.json({ ok: true })); vi.stubGlobal("fetch", transport);
-  await api.putSensitive("/api/companies/fixture/observability", { apiKey: config.apiKey });
+  await api.putSensitive("/api/spaces/fixture/observability", { apiKey: config.apiKey });
   expect(playwright.put).not.toHaveBeenCalled();
-  expect(transport).toHaveBeenCalledWith(new URL("http://127.0.0.1:43123/api/companies/fixture/observability"), expect.objectContaining({ method: "PUT", redirect: "error", signal: expect.any(AbortSignal), headers: expect.objectContaining({ Cookie: "session=private" }) }));
+  expect(transport).toHaveBeenCalledWith(new URL("http://127.0.0.1:43123/api/spaces/fixture/observability"), expect.objectContaining({ method: "PUT", redirect: "error", signal: expect.any(AbortSignal), headers: expect.objectContaining({ Cookie: "session=private" }) }));
   await expect(api.putSensitive("https://other.invalid/api/collect", { apiKey: config.apiKey })).rejects.toThrow("fixture API");
   transport.mockRejectedValue(new Error(config.apiKey));
   await expect(api.putSensitive("/api/fixture", {})).rejects.toThrow("details withheld");
@@ -177,7 +177,7 @@ it.each([
   const saved = structuredClone(original);
   let captured: RequestInit | undefined;
   const finalization = await finalizeEvalAttemptTrace(config, { receipt: original, identity, provenance,
-    result: { startedAt: new Date(Date.now() - 10_000).toISOString(), ...outcome, runIds: [companyId] },
+    result: { startedAt: new Date(Date.now() - 10_000).toISOString(), ...outcome, runIds: [spaceId] },
   }, async (_url, init) => { captured = init; return new Response(null, { status: 200 }); });
   expect(finalization).toMatchObject({ status: "accepted", outcome: "failed", verification: "unverified" });
   expect(original).toEqual(saved);
@@ -203,7 +203,7 @@ it("retains finalization export failures without changing the recorded product r
   expect(result).toEqual(saved);
   expect(JSON.stringify(receipt)).not.toMatch(/private-error|private-ingestion/);
   const transport = vi.fn<typeof fetch>();
-  expect(await finalizeEvalAttemptTrace(config, { receipt: { ...trace.snapshot(), projectId: companyId }, identity, provenance, result }, transport))
+  expect(await finalizeEvalAttemptTrace(config, { receipt: { ...trace.snapshot(), projectId: spaceId }, identity, provenance, result }, transport))
     .toMatchObject({ status: "failed", errorCode: "invalid_finalization_context" });
   expect(transport).not.toHaveBeenCalled();
   expect(await finalizeEvalAttemptTrace(config, { receipt: trace.snapshot(), identity, provenance,

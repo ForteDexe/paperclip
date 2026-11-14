@@ -710,7 +710,7 @@ function cutOffRunAttachmentPayload(state: {
 }): Record<string, unknown> | null {
   if (state.warmTransition != null || state.stagedRunAttachment != null) return null;
   const attach = state.commands.findLast(command => command.type === "run.attach");
-  if (!attach || attach.payload.paperclipNextAuthority !== undefined) return null;
+  if (!attach || attach.payload.outpostNextAuthority !== undefined) return null;
   const outcomeUnknown = attach.status === "indeterminate" || (attach.status === "failed"
     && record(record(attach.result).result).code === "execution_indeterminate");
   if (!outcomeUnknown) return null;
@@ -895,7 +895,7 @@ const RUNNERD_TURN_TERMINAL_STATUSES = new Set(["completed", "failed", "interrup
  * The terminal the runner recorded for a provider turn that is no longer
  * active after restore. A provider terminal names the turn explicitly. When the
  * runner restores a conversation whose turn already ended with the semantic
- * result Paperclip accepted, it records `session.reconciled` (naming the ended
+ * result Outpost accepted, it records `session.reconciled` (naming the ended
  * turn as previous, with no active turn) followed by the run terminal, and no
  * provider turn terminal. That run terminal settles the reconciled turn.
  */
@@ -1674,7 +1674,7 @@ export interface CapabilityRunnerdCodexTransportOptions extends RunnerExecutionD
   runtimeContext?: NativeRuntimeContextSnapshot | null;
   /** Runtime-context paths rewritten for the runner-owned filesystem. */
   runnerRuntimeContext?: NativeRuntimeContextSnapshot | null;
-  /** Root path visible to runnerd when it is not on the Paperclip host. */
+  /** Root path visible to runnerd when it is not on the Outpost host. */
   runnerFilesystemRoot?: string;
   /** Workspace cwd to retain when a local provider session is reopened. */
   resumeWorkingDirectory?: string;
@@ -1704,11 +1704,11 @@ export interface CapabilityRunnerdCodexTransportOptions extends RunnerExecutionD
     providerSessionId?: string | null;
     providerIdentity?: PersistedHarnessProviderIdentity;
   };
-  /** Explicitly permits ACPX to rotate its provider-native session after a governed wait. */
+  /** Explicitly permits ACPX to rotate its provider-native session after a controlled wait. */
   providerRecoveryPolicy?:
     | "same_session_only"
     | "allow_replacement_after_resume_failure"
-    | "allow_replacement_after_governed_wait";
+    | "allow_replacement_after_controlled_wait";
   orpIdentity?: {
     runnerInstanceId: string;
     environmentLeaseId: string;
@@ -1830,7 +1830,7 @@ export function runnerdRuntimeRequestExpiryNotification(
   eventType: string, payload: Record<string, unknown>, threadId: string | null, turnId: string | null,
 ): CodexRpcNotification | null {
   if (eventType !== "runtime_request.expired") return null;
-  return { method: "paperclip/runtimeRequestExpired", params: {
+  return { method: "outpost/runtimeRequestExpired", params: {
     ...(threadId ? { threadId } : {}), ...(turnId ? { turnId } : {}),
     payload, itemId: payload.itemId,
   } };
@@ -1866,8 +1866,8 @@ export function runnerdCanonicalNotificationMethod(
       "turn.cancelled": "turn/completed",
       "usage.reported": "thread/tokenUsage/updated",
       "plan.updated": "turn/plan/updated",
-      "workspace.change.updated": "paperclip/workspaceChange/updated",
-      "run.result.proposed": "paperclip/runResult",
+      "workspace.change.updated": "outpost/workspaceChange/updated",
+      "run.result.proposed": "outpost/runResult",
       "session.goal.snapshot": "thread/goal/updated",
       "session.goal.updated": "thread/goal/updated",
       "session.goal.cleared": "thread/goal/cleared",
@@ -1978,7 +1978,7 @@ class NotificationQueue implements AsyncIterable<CodexRpcNotification> {
 }
 
 /** Internal marker: a thread/compact/start mapped onto the turn.start path. */
-const COMPACTION_TURN = "paperclipCompactionTurn";
+const COMPACTION_TURN = "outpostCompactionTurn";
 
 /**
  * Compaction runs as a provider turn so it keeps the normal turn binding.
@@ -2094,14 +2094,14 @@ function appendRunnerdRehydrationTrace(
         fieldMappings: [
           {
             inputPath: "sourceEventId",
-            outputPath: "paperclipTrace.sourceEventId",
+            outputPath: "outpostTrace.sourceEventId",
             action: "copied",
             reason:
               "Preserved the durable event identity while rehydrating the provider notification",
           },
           {
             inputPath: "eventType",
-            outputPath: "paperclipTrace.sourceEventType",
+            outputPath: "outpostTrace.sourceEventType",
             action: "renamed",
             reason:
               "Attached the canonical ORP type to the rehydrated notification",
@@ -3463,7 +3463,7 @@ function acpxProviderPackageAuthority(
         existsSync(resolve(workspaceRoot, "package.json"))) {
       const workspace = JSON.parse(readFileSync(resolve(workspaceRoot, "package.json"), "utf8"));
       const server = JSON.parse(readFileSync(resolve(serverRoot, "package.json"), "utf8"));
-      if (workspace.name === "paperclip" && workspace.private === true && server.name === "@outpost/server") {
+      if (workspace.name === "outpost" && workspace.private === true && server.name === "@outpost/server") {
         return { root: workspaceRoot, manifest: resolve(serverRoot, "package.json") };
       }
     }
@@ -3789,10 +3789,10 @@ function createCapabilityRunnerdProviderEnvironmentBase(input: {
       OUTPOST_ACPX_PROVIDER_PACKAGE_MANIFEST:
         providerPackageAuthority.manifest,
       ...(input.options.acpxCandidateAdmission?.agent !== "antigravity" && input.options.providerRecoveryPolicy ===
-      "allow_replacement_after_governed_wait"
+      "allow_replacement_after_controlled_wait"
         ? {
             OUTPOST_ACPX_PROVIDER_RECOVERY_POLICY:
-              "allow_replacement_after_governed_wait",
+              "allow_replacement_after_controlled_wait",
           }
         : {}),
     };
@@ -3891,7 +3891,7 @@ export function resolveSourceCodexHome(
 }
 
 export function unwrapToolResponse(response: Record<string, unknown>, preserveEnvelope = false): {
-  readonly __paperclipSemanticToolOutcome: true;
+  readonly __outpostSemanticToolOutcome: true;
   readonly result: unknown;
   readonly isError: boolean;
 } {
@@ -3906,7 +3906,7 @@ export function unwrapToolResponse(response: Record<string, unknown>, preserveEn
     result = response;
   }
   return {
-    __paperclipSemanticToolOutcome: true as const,
+    __outpostSemanticToolOutcome: true as const,
     result,
     isError: response.success === false,
   };
@@ -4203,7 +4203,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       if (options.provider !== "acpx") {
         throw new Error("ACPX candidate admission requires the exact ACPX provider");
       }
-      const admitted = parseAcpxCandidateAdmission(candidate, { companyId: candidate.companyId, agent: options.acpxAgent ?? "", model: candidate.model });
+      const admitted = parseAcpxCandidateAdmission(candidate, { spaceId: candidate.spaceId, agent: options.acpxAgent ?? "", model: candidate.model });
       this.options = { ...this.options, acpxCandidateAdmission: Object.freeze(admitted), ...(candidate.agent === "antigravity" ? { providerRecoveryPolicy: "same_session_only" as const } : {}) };
       if (candidate.agent === "antigravity") this.prepareConversationResume = params => this.#prepareCandidateConversationResume(params);
       if (candidate.agent === "antigravity" && (options.provider !== "acpx" || process.platform !== "darwin" || process.arch !== "arm64"
@@ -5022,7 +5022,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       }
       const payload = {
         ...runAttachTemplate,
-        paperclipNextAuthority: { identity: desired, connection,
+        outpostNextAuthority: { identity: desired, connection,
           ...(this.options.acpxCandidateAdmission?.agent === "kimi"
             ? { candidateAdmission: bindAcpxCandidateAdmission(this.options.acpxCandidateAdmission, desired) } : {}),
         },
@@ -5911,7 +5911,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
   ) {
     if (this.options.acpxCandidateAdmission) {
       const candidate = this.options.acpxCandidateAdmission;
-      parseAcpxCandidateAdmission(candidate, { companyId: candidate.companyId, agent: this.options.acpxAgent ?? "", model: String(params.model ?? "") });
+      parseAcpxCandidateAdmission(candidate, { spaceId: candidate.spaceId, agent: this.options.acpxAgent ?? "", model: String(params.model ?? "") });
     }
     if (this.options.prepareLaunch) {
       const provider = this.options.provider ?? "codex";
@@ -6366,7 +6366,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       || existsSync(resolve(this.#root, "runner", "runner-state.json"))) {
       throw new Error("ACPX candidate continuation requires a fresh daemon and the exact current conversation selection");
     }
-    parseAcpxCandidateAdmission(candidate, { companyId: candidate.companyId, agent: "antigravity", model: String(params.model) });
+    parseAcpxCandidateAdmission(candidate, { spaceId: candidate.spaceId, agent: "antigravity", model: String(params.model) });
     this.#checkpointProviderIdentityExpectation = {
       driverSessionId: prior.driverSessionId, providerSessionId: prior.providerSessionId!,
       providerIdentity: structuredClone(record(prior.providerIdentity)),
@@ -6499,7 +6499,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         return (
           command.type === "run.attach" &&
           command.status === "pending" &&
-          record(command.payload).paperclipNextAuthority !== undefined
+          record(command.payload).outpostNextAuthority !== undefined
         );
       });
     if (
@@ -6840,7 +6840,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       if ((exactAuthority || warmRecovery !== null) && !saved) {
         throw new Error("runner_launch_recovery_requirements_unavailable");
       }
-      const { paperclipNextAuthority: _authority, ...savedAttachment } =
+      const { outpostNextAuthority: _authority, ...savedAttachment } =
         warmRecovery ? core.getCommand(warmRecovery.commandId)!.payload : {};
       const template = warmRecovery ? structuredClone(savedAttachment)
         : rotatedRunAttachPayload(controlPlaneState!, desiredIdentity, this.#authorizedTools,
@@ -7014,7 +7014,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     const recoveringAttachment = warmRecovery || queuedSourceAttachment;
     const queuedCommand = queuedSourceAttachment ? core.getCommand(queuedSourceAttachment.commandId!) : undefined;
     const expectedRecoveryConnection = (warmRecovery?.proof.receipt.connection
-      ?? record(queuedCommand?.payload.paperclipNextAuthority).connection) as RunnerProcessConnection | undefined;
+      ?? record(queuedCommand?.payload.outpostNextAuthority).connection) as RunnerProcessConnection | undefined;
     const recoverySource = warmRecovery?.proof.receipt.oldIdentity ?? queuedSourceAttachment?.sourceIdentity;
     const recoveryTarget = warmRecovery?.proof.receipt.newIdentity ?? queuedSourceAttachment?.targetIdentity;
     if (recoveringAttachment && this.options.controlPlaneRegistration) {
@@ -7365,7 +7365,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
   async #recoverSemanticToolInput(call: Parameters<NonNullable<DurablePrpControlPlaneOptions["recoverSemanticToolInput"]>>[0]) {
     if (this.#retainsSourceInputs() || (this.#authorityRunId() !== undefined && call.correlation.runId !== this.#authorityRunId())) return null;
     if (this.#sourceRecoveryIdentity) throw new NativeRunnerSourceReconciliationRequiredError("semantic");
-    if (call.operationId === "paperclip_finish" || call.operationId === "paperclip_block") {
+    if (call.operationId === "outpost_finish" || call.operationId === "outpost_block") {
       return this.#handleSemanticToolInput(call);
     }
     const outcome = await this.options.recoverSemanticToolInput?.(call);
@@ -7429,7 +7429,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       throw new SemanticToolNotDispatchedError();
     }
     if (isTerminalOperation(call.operationId)) {
-      // A finish or block decided while earlier Paperclip calls of this turn
+      // A finish or block decided while earlier Outpost calls of this turn
       // had returned but not yet reached the agent (it was held across a
       // controller restart) is stale: refuse it so the agent continues with
       // those results instead of ending the task on a wait that is over.
@@ -7461,7 +7461,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         },
         ...(call.sourceEventId && call.sourceEventType
           ? {
-              paperclipTrace: {
+              outpostTrace: {
                 sourceEventId: call.sourceEventId,
                 sourceEventType: call.sourceEventType,
               },
@@ -7469,7 +7469,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
           : {}),
       }),
       this.options.provider === "acpx" &&
-        (call.operationId === "paperclip_finish" || call.operationId === "paperclip_block"),
+        (call.operationId === "outpost_finish" || call.operationId === "outpost_block"),
     );
     return this.#bindSemanticToolOutcome(call, outcome);
   }
@@ -8086,7 +8086,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       if (event.eventType === "runner.attachment.settled") continue;
       if (event.eventType === "auth.credentials.updated" && this.options.onCredentialsUpdated) continue;
       if (event.eventType === "runtime.activity.recorded") {
-        this.#queue.push({ method: "paperclip/runtimeActivityRecorded", params: {
+        this.#queue.push({ method: "outpost/runtimeActivityRecorded", params: {
           [RUNNERD_RUNTIME_ACTIVITY]: true,
           runId: event.envelope.runId,
           payload: eventPayload,
@@ -8163,7 +8163,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
             id: requestId,
             method,
             params,
-            paperclipTrace: {
+            outpostTrace: {
               sourceEventId: event.sourceEventId,
               sourceEventType: event.eventType,
             },
@@ -8203,7 +8203,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         // Operator resolution/Stop keep their existing acknowledgement path.
         const expiry = runnerdRuntimeRequestExpiryNotification(event.eventType, record(eventPayload), this.#threadId, this.#turnId);
         if (expiry) this.#queue.push({ ...expiry,
-          ...(this.options.environment?.OUTPOST_PROVIDER_TRACE_PATH ? { paperclipTrace: {
+          ...(this.options.environment?.OUTPOST_PROVIDER_TRACE_PATH ? { outpostTrace: {
             sourceEventId: event.sourceEventId, sourceEventType: event.eventType,
           } } : {}),
         });
@@ -8216,7 +8216,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       );
       const notifications =
         isCanonicalProviderEventType(event.eventType) && !canonicalMethod
-          ? [{ method: "paperclip/canonicalProviderEvent", params: {
+          ? [{ method: "outpost/canonicalProviderEvent", params: {
               ...(this.#threadId ? { threadId: this.#threadId } : {}),
               ...(this.#turnId ? { turnId: this.#turnId } : {}),
               eventType: event.eventType, payload: eventPayload,
@@ -8261,13 +8261,13 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
                   this.#threadId,
                   this.#turnId,
                 )
-            : method === "paperclip/workspaceChange/updated"
+            : method === "outpost/workspaceChange/updated"
               ? rehydrateRunnerdWorkspaceChangeNotification(
                   rawParams,
                   this.#threadId,
                   this.#turnId,
                 )
-            : method === "paperclip/runResult"
+            : method === "outpost/runResult"
               ? rehydrateRunnerdResultNotification(
                   rawParams,
                   this.#threadId,
@@ -8342,7 +8342,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
           params,
           ...(this.options.environment?.OUTPOST_PROVIDER_TRACE_PATH
             ? {
-                paperclipTrace: {
+                outpostTrace: {
                   sourceEventId: event.sourceEventId,
                   sourceEventType: event.eventType,
                 },

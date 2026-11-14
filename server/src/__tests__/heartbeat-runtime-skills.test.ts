@@ -6,8 +6,8 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   agents,
-  companies,
-  companySkills,
+  spaces,
+  spaceSkills,
   projects,
   projectWorkspaces,
   createDb,
@@ -19,13 +19,13 @@ import {
   toolProfiles,
 } from "@outpost/db";
 import type { AdapterRuntimeMcpServer } from "@outpost/adapter-utils";
-import type { PaperclipSkillEntry } from "@outpost/adapter-utils/server-utils";
+import type { OutpostSkillEntry } from "@outpost/adapter-utils/server-utils";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 import { skillInstallationMaintenance } from "../services/skill-installation-maintenance.js";
-import { companySkillService } from "../services/company-skills.ts";
+import { spaceSkillService } from "../services/space-skills.ts";
 import { heartbeatService } from "../services/heartbeat.ts";
 import { instanceSettingsService } from "../services/instance-settings.ts";
 import { registerServerAdapter, unregisterServerAdapter } from "../adapters/index.ts";
@@ -57,12 +57,12 @@ async function waitForRunToFinish(
 describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let oldPaperclipHome: string | undefined;
-  let oldPaperclipApiUrl: string | undefined;
-  let paperclipHome: string | null = null;
+  let oldOutpostHome: string | undefined;
+  let oldOutpostApiUrl: string | undefined;
+  let outpostHome: string | null = null;
   const capturedRuns: Array<{
     agentId: string;
-    skills: PaperclipSkillEntry[];
+    skills: OutpostSkillEntry[];
     mcpServers: AdapterRuntimeMcpServer[];
     config: Record<string, unknown>;
     serializedRuntimeInput: string;
@@ -72,13 +72,13 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
   beforeAll(async () => {
     tempDb = await startEmbeddedPostgresTestDatabase("heartbeat-runtime-skills-");
     db = createDb(tempDb.connectionString);
-    oldPaperclipHome = process.env.OUTPOST_HOME;
-    paperclipHome = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-runtime-skills-home-"));
-    process.env.OUTPOST_HOME = paperclipHome;
+    oldOutpostHome = process.env.OUTPOST_HOME;
+    outpostHome = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-runtime-skills-home-"));
+    process.env.OUTPOST_HOME = outpostHome;
     // The server normalizes OUTPOST_API_URL into its own env at boot
     // (server/src/index.ts); heartbeat gateway delivery requires it, so pin
     // a deterministic value for tests that never boot the full server.
-    oldPaperclipApiUrl = process.env.OUTPOST_API_URL;
+    oldOutpostApiUrl = process.env.OUTPOST_API_URL;
     process.env.OUTPOST_API_URL = "http://127.0.0.1:3100/api";
     registerServerAdapter({
       type: TEST_ADAPTER_TYPE,
@@ -91,7 +91,7 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
         await ctx.onLog("stdout", `${serializedRuntimeInput}\n`);
         capturedRuns.push({
           agentId: ctx.agent.id,
-          skills: (ctx.config.paperclipRuntimeSkills ?? []) as PaperclipSkillEntry[],
+          skills: (ctx.config.outpostRuntimeSkills ?? []) as OutpostSkillEntry[],
           mcpServers: ctx.runtimeMcp?.getServers() ?? [],
           config: ctx.config,
           serializedRuntimeInput,
@@ -126,10 +126,10 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
         "heartbeat_runs",
         "agent_wakeup_requests",
         "agent_runtime_state",
-        "company_skill_versions",
-        "company_skills",
+        "space_skill_versions",
+        "space_skills",
         "agents",
-        "companies"
+        "spaces"
       RESTART IDENTITY CASCADE
     `));
     await Promise.all(Array.from(cleanupDirs, (dir) => fs.rm(dir, { recursive: true, force: true })));
@@ -138,82 +138,82 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
 
   afterAll(async () => {
     unregisterServerAdapter(TEST_ADAPTER_TYPE);
-    if (oldPaperclipHome === undefined) delete process.env.OUTPOST_HOME;
-    else process.env.OUTPOST_HOME = oldPaperclipHome;
-    if (oldPaperclipApiUrl === undefined) delete process.env.OUTPOST_API_URL;
-    else process.env.OUTPOST_API_URL = oldPaperclipApiUrl;
-    if (paperclipHome) {
-      await fs.rm(paperclipHome, { recursive: true, force: true });
+    if (oldOutpostHome === undefined) delete process.env.OUTPOST_HOME;
+    else process.env.OUTPOST_HOME = oldOutpostHome;
+    if (oldOutpostApiUrl === undefined) delete process.env.OUTPOST_API_URL;
+    else process.env.OUTPOST_API_URL = oldOutpostApiUrl;
+    if (outpostHome) {
+      await fs.rm(outpostHome, { recursive: true, force: true });
     }
     await tempDb?.cleanup();
   });
 
   it.each(["local_path", "catalog"] as const)("snapshots changed installed %s files for new executions and keeps resume versions", async (sourceType) => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: 'Local skill snapshots', issuePrefix: 'LSK' });
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paperclip-local-snapshot-'));
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: 'Local skill snapshots', issuePrefix: 'LSK' });
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'outpost-local-snapshot-'));
     cleanupDirs.add(directory);
-    const [project] = await db.insert(projects).values({ companyId, name: 'Approved local workspace' }).returning();
-    await db.insert(projectWorkspaces).values({ companyId, projectId: project!.id, name: 'Local skill workspace', sourceType: 'local_path', cwd: directory, isPrimary: true });
+    const [project] = await db.insert(projects).values({ spaceId, name: 'Approved local workspace' }).returning();
+    await db.insert(projectWorkspaces).values({ spaceId, projectId: project!.id, name: 'Local skill workspace', sourceType: 'local_path', cwd: directory, isPrimary: true });
     await fs.mkdir(path.join(directory, 'references'));
     await fs.writeFile(path.join(directory, 'SKILL.md'), '---\nname: local-snapshot\ndescription: Read the installed reference.\n---\nRead references/marker.txt.\n');
     await fs.writeFile(path.join(directory, 'references/marker.txt'), 'v1\n');
-    const skills = companySkillService(db);
-    const imported = await skills.importFromSource(companyId, directory);
+    const skills = spaceSkillService(db);
+    const imported = await skills.importFromSource(spaceId, directory);
     const key = imported.imported[0]!.key;
     if (sourceType === "catalog") {
-      await db.update(companySkills).set({ sourceType }).where(eq(companySkills.key, key));
+      await db.update(spaceSkills).set({ sourceType }).where(eq(spaceSkills.key, key));
       const result = await skillInstallationMaintenance(db).installations({ id: imported.imported[0]!.id, apply: true, writersStopped: true });
       expect(result.results[0]!.status).toBe("converted");
     }
     const selected = { snapshotLatest: true, onlyKeys: new Set([key]) };
-    const [first] = await skills.listRuntimeSkillEntries(companyId, selected);
+    const [first] = await skills.listRuntimeSkillEntries(spaceId, selected);
     expect(first!.versionId).toBeTruthy();
     expect(await fs.readFile(path.join(first!.source, 'references/marker.txt'), 'utf8')).toBe('v1\n');
 
     // A reference-only change must be discovered even when SKILL.md is unchanged.
     await fs.writeFile(path.join(directory, 'references/marker.txt'), 'v2\n');
-    if (sourceType === "local_path") await skills.importFromSource(companyId, directory);
+    if (sourceType === "local_path") await skills.importFromSource(spaceId, directory);
     else {
-      const [beforeUpdate] = await skills.listRuntimeSkillEntries(companyId, selected);
+      const [beforeUpdate] = await skills.listRuntimeSkillEntries(spaceId, selected);
       expect(beforeUpdate!.versionId).toBe(first!.versionId);
-      const saved = (await skills.getVersion(companyId, imported.imported[0]!.id, first!.versionId!))!;
-      await skills.createVersion(companyId, imported.imported[0]!.id, {}, null, {
+      const saved = (await skills.getVersion(spaceId, imported.imported[0]!.id, first!.versionId!))!;
+      await skills.createVersion(spaceId, imported.imported[0]!.id, {}, null, {
         fileInventory: saved.fileInventory.map(file => file.path === "references/marker.txt" ? { ...file, content: "v2\n" } : file),
       });
     }
-    const [latest] = await skills.listRuntimeSkillEntries(companyId, selected);
+    const [latest] = await skills.listRuntimeSkillEntries(spaceId, selected);
     expect(latest!.versionId).not.toBe(first!.versionId);
     expect(await fs.readFile(path.join(latest!.source, 'references/marker.txt'), 'utf8')).toBe('v2\n');
-    const [unchanged] = await skills.listRuntimeSkillEntries(companyId, selected);
+    const [unchanged] = await skills.listRuntimeSkillEntries(spaceId, selected);
     expect(unchanged!.versionId).toBe(latest!.versionId);
 
-    const [resumed] = await skills.listRuntimeSkillEntries(companyId, { ...selected, versionSelections: new Map([[key, first!.versionId!]]) });
+    const [resumed] = await skills.listRuntimeSkillEntries(spaceId, { ...selected, versionSelections: new Map([[key, first!.versionId!]]) });
     expect(resumed!.versionId).toBe(first!.versionId);
     expect(await fs.readFile(path.join(resumed!.source, 'references/marker.txt'), 'utf8')).toBe('v1\n');
   });
 
   it("materializes different pinned skill versions for different agents at runtime", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const skillId = randomUUID();
     const firstAgentId = randomUUID();
     const secondAgentId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
-    const skillKey = `company/${companyId}/runtime-coach`;
-    const skillDir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-versioned-runtime-skill-"));
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const skillKey = `space/${spaceId}/runtime-coach`;
+    const skillDir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-versioned-runtime-skill-"));
     cleanupDirs.add(skillDir);
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "responsible-user",
     });
     await fs.writeFile(path.join(skillDir, "SKILL.md"), "# Runtime Coach\n\nVersion one.\n", "utf8");
-    await db.insert(companySkills).values({
+    await db.insert(spaceSkills).values({
       id: skillId,
-      companyId,
+      spaceId,
       key: skillKey,
       slug: "runtime-coach",
       name: "Runtime Coach",
@@ -227,35 +227,35 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
       metadata: { sourceKind: "local_path" },
     });
 
-    const skills = companySkillService(db);
+    const skills = spaceSkillService(db);
     const versionOne = await skills.createVersion(
-      companyId,
+      spaceId,
       skillId,
       { label: "v1" },
-      { type: "user", userId: "board" },
+      { type: "user", userId: "operator" },
     );
     await fs.writeFile(path.join(skillDir, "SKILL.md"), "# Runtime Coach\n\nVersion two.\n", "utf8");
     await db
-      .update(companySkills)
+      .update(spaceSkills)
       .set({ markdown: "# Runtime Coach\n\nVersion two.\n", updatedAt: new Date() })
-      .where(eq(companySkills.id, skillId));
+      .where(eq(spaceSkills.id, skillId));
     const versionTwo = await skills.createVersion(
-      companyId,
+      spaceId,
       skillId,
       { label: "v2" },
-      { type: "user", userId: "board" },
+      { type: "user", userId: "operator" },
     );
 
     await db.insert(agents).values([
       {
         id: firstAgentId,
-        companyId,
+        spaceId,
         name: "Pinned V1",
         role: "engineer",
         status: "idle",
         adapterType: TEST_ADAPTER_TYPE,
         adapterConfig: {
-          paperclipSkillSync: {
+          outpostSkillSync: {
             desiredSkills: [{ key: skillKey, versionId: versionOne.id }],
           },
         },
@@ -264,13 +264,13 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
       },
       {
         id: secondAgentId,
-        companyId,
+        spaceId,
         name: "Pinned V2",
         role: "engineer",
         status: "idle",
         adapterType: TEST_ADAPTER_TYPE,
         adapterConfig: {
-          paperclipSkillSync: {
+          outpostSkillSync: {
             desiredSkills: [{ key: skillKey, versionId: versionTwo.id }],
           },
         },
@@ -353,7 +353,7 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
       .where(eq(agents.id, firstAgentId))
       .then((rows) => rows[0]?.adapterConfig);
     expect(storedPreference).toMatchObject({
-      paperclipSkillSync: {
+      outpostSkillSync: {
         desiredSkills: [{ key: skillKey, versionId: versionOne.id }],
       },
     });
@@ -376,18 +376,18 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
   });
 
   it("delivers installed connections without exposing gateway bearers in adapter config or logs", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Runtime MCP Delivery",
-      issuePrefix: `M${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+      issuePrefix: `M${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "responsible-user",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Runtime MCP Capture",
       role: "engineer",
       status: "idle",
@@ -397,7 +397,7 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
       permissions: {},
     });
     const [application] = await db.insert(toolApplications).values({
-      companyId,
+      spaceId,
       applicationKey: `runtime-${randomUUID().slice(0, 8)}`,
       name: "Runtime MCP",
       type: "mcp_http",
@@ -405,7 +405,7 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
     }).returning();
     const [installed, uninstalled] = await db.insert(toolConnections).values([
       {
-        companyId,
+        spaceId,
         applicationId: application!.id,
         name: "Installed Runtime MCP",
         uid: `test/${randomUUID()}`,
@@ -415,7 +415,7 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
         config: { url: "https://installed.example.test/mcp" },
       },
       {
-        companyId,
+        spaceId,
         applicationId: application!.id,
         name: "Uninstalled Runtime MCP",
         uid: `test/${randomUUID()}`,
@@ -426,13 +426,13 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
       },
     ]).returning();
     const [profile] = await db.insert(toolProfiles).values({
-      companyId,
+      spaceId,
       profileKey: `app:${installed!.id}`,
       name: installed!.name,
       defaultAction: "deny",
     }).returning();
     await db.insert(toolProfileEntries).values({
-      companyId,
+      spaceId,
       profileId: profile!.id,
       selectorType: "connection",
       effect: "include",
@@ -440,13 +440,13 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
       connectionId: installed!.id,
     });
     await db.insert(toolProfileBindings).values({
-      companyId,
+      spaceId,
       profileId: profile!.id,
       targetType: "agent",
       targetId: agentId,
     });
     await db.insert(toolConnectionInstalls).values({
-      companyId,
+      spaceId,
       connectionId: installed!.id,
       targetType: "agent",
       targetId: agentId,
@@ -461,7 +461,7 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
     expect(captured?.mcpServers).toHaveLength(1);
     expect(captured?.mcpServers[0]).toMatchObject({
       connectionId: expect.stringMatching(/^assignment:[a-f0-9]{64}$/),
-      name: "paperclip-assigned",
+      name: "outpost-assigned",
       token: expect.stringMatching(/^pcgw_/),
       url: expect.stringMatching(/\/mcp\/gateways\/gw_[a-f0-9]{32}$/),
     });
@@ -477,7 +477,7 @@ describeEmbeddedPostgres("heartbeat runtime skill version pins", () => {
     const bearer = captured?.mcpServers[0]?.token;
     expect(bearer).toMatch(/^pcgw_/);
     if (!bearer) throw new Error("Expected runtime MCP bearer");
-    expect(captured?.config).not.toHaveProperty("paperclipRuntimeMcpServers");
+    expect(captured?.config).not.toHaveProperty("outpostRuntimeMcpServers");
     expect(JSON.stringify(captured?.config)).not.toContain(bearer);
     expect(captured?.serializedRuntimeInput).not.toContain(bearer);
     const log = await heartbeat.readLog(run!.id);

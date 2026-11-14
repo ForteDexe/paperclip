@@ -4,23 +4,23 @@ schema_version: 1
 feature: activity
 status: planned
 scenarios:
-  - id: activity.company-overview
+  - id: activity.space-overview
     capabilities:
       - activity/overview
     context: >-
       The caller can read a dashboard with active, blocked and completed work plus idle agents.
     query: >-
-      Give me a quick picture of what the company is doing right now.
+      Give me a quick picture of what the space is doing right now.
     expected_outcome: >-
       The answer summarizes actual visible work and relevant blockers with links and an
       observation time. It distinguishes idle agents from broken ones and active tasks from
-      scheduled future work. Counts reflect the caller's scope rather than hidden company
+      scheduled future work. Counts reflect the caller's scope rather than hidden space
       resources.
   - id: activity.audit-change
     capabilities:
       - activity/activity
     context: >-
-      A task's priority changed twice this week; the agent has company activity-read access.
+      A task's priority changed twice this week; the agent has space activity-read access.
     query: >-
       Who changed the priority of the website task?
     expected_outcome: >-

@@ -11,8 +11,8 @@ import {
   resolveCoreTrustPreset,
 } from "../services/trust-preset-resolver.js";
 
-const companyId = "11111111-1111-4111-8111-111111111111";
-const otherCompanyId = "22222222-2222-4222-8222-222222222222";
+const spaceId = "11111111-1111-4111-8111-111111111111";
+const otherSpaceId = "22222222-2222-4222-8222-222222222222";
 const projectA = "33333333-3333-4333-8333-333333333333";
 const projectB = "44444444-4444-4444-8444-444444444444";
 const projectC = "55555555-5555-4555-8555-555555555555";
@@ -26,7 +26,7 @@ const agentB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 function lowTrustBoundary(input: Partial<Omit<LowTrustBoundary, "mode">>): LowTrustBoundary {
   return {
     mode: LOW_TRUST_REVIEW_PRESET,
-    companyId,
+    spaceId,
     ...input,
   };
 }
@@ -42,8 +42,8 @@ function boundaryPolicy(boundary: ReturnType<typeof lowTrustBoundary>) {
 describe("resolveCoreTrustPreset", () => {
   it("defaults to standard with no boundary", () => {
     const result = resolveCoreTrustPreset({
-      companyId,
-      agent: { companyId, permissions: { canCreateAgents: false } },
+      spaceId,
+      agent: { spaceId, permissions: { canCreateAgents: false } },
     });
 
     expect(result).toMatchObject({
@@ -54,23 +54,23 @@ describe("resolveCoreTrustPreset", () => {
   });
 
   it("intersects organizational and workspace-source project restrictions", () => {
-    const organization = { companyId, executionWorkspacePolicy: boundaryPolicy(lowTrustBoundary({ projectIds: [projectA, projectB], allowedToolClasses: ["git.read", "tests.local"] })) };
-    const source = { companyId, executionWorkspacePolicy: boundaryPolicy(lowTrustBoundary({ projectIds: [projectB, projectC], allowedToolClasses: ["git.read"] })) };
-    expect(resolveCoreTrustPreset({ companyId, project: organization })).toMatchObject({ kind: "low_trust_review" });
-    expect(resolveCoreTrustPreset({ companyId, workspaceSourceProject: source })).toMatchObject({ kind: "low_trust_review" });
-    expect(resolveCoreTrustPreset({ companyId, project: organization, workspaceSourceProject: source })).toMatchObject({
+    const organization = { spaceId, executionWorkspacePolicy: boundaryPolicy(lowTrustBoundary({ projectIds: [projectA, projectB], allowedToolClasses: ["git.read", "tests.local"] })) };
+    const source = { spaceId, executionWorkspacePolicy: boundaryPolicy(lowTrustBoundary({ projectIds: [projectB, projectC], allowedToolClasses: ["git.read"] })) };
+    expect(resolveCoreTrustPreset({ spaceId, project: organization })).toMatchObject({ kind: "low_trust_review" });
+    expect(resolveCoreTrustPreset({ spaceId, workspaceSourceProject: source })).toMatchObject({ kind: "low_trust_review" });
+    expect(resolveCoreTrustPreset({ spaceId, project: organization, workspaceSourceProject: source })).toMatchObject({
       kind: "low_trust_review", boundary: { projectIds: [projectB], allowedToolClasses: ["git.read"] },
     });
-    expect(resolveCoreTrustPreset({ companyId, project: organization,
-      workspaceSourceProject: { companyId, executionWorkspacePolicy: boundaryPolicy(lowTrustBoundary({ projectIds: [projectC] })) },
+    expect(resolveCoreTrustPreset({ spaceId, project: organization,
+      workspaceSourceProject: { spaceId, executionWorkspacePolicy: boundaryPolicy(lowTrustBoundary({ projectIds: [projectC] })) },
     })).toMatchObject({ kind: "denied", reason: "missing_low_trust_boundary_scope" });
   });
 
   it("intersects low-trust agent, project, and issue policy boundaries", () => {
     const result = resolveCoreTrustPreset({
-      companyId,
+      spaceId,
       agent: {
-        companyId,
+        spaceId,
         permissions: {
           trustPreset: LOW_TRUST_REVIEW_PRESET,
           authorizationPolicy: {
@@ -86,7 +86,7 @@ describe("resolveCoreTrustPreset", () => {
         },
       },
       project: {
-        companyId,
+        spaceId,
         executionWorkspacePolicy: boundaryPolicy(lowTrustBoundary({
           projectIds: [projectB, projectC],
           issueIds: [issueB, issueC],
@@ -95,7 +95,7 @@ describe("resolveCoreTrustPreset", () => {
         })),
       },
       issue: {
-        companyId,
+        spaceId,
         executionPolicy: {
           authorizationPolicy: {
             trustBoundary: lowTrustBoundary({
@@ -110,7 +110,7 @@ describe("resolveCoreTrustPreset", () => {
     expect(result.kind).toBe("low_trust_review");
     if (result.kind !== "low_trust_review") throw new Error("expected low-trust result");
     expect(result.boundary).toMatchObject({
-      companyId,
+      spaceId,
       mode: LOW_TRUST_REVIEW_PRESET,
       rootIssueId,
       projectIds: [projectB],
@@ -118,15 +118,15 @@ describe("resolveCoreTrustPreset", () => {
       allowedAgentIds: [agentB],
       allowedToolClasses: ["git.read"],
     });
-    expect(isIssueWithinLowTrustBoundary(result.boundary, { companyId, id: issueB, projectId: projectB })).toBe(true);
-    expect(isIssueWithinLowTrustBoundary(result.boundary, { companyId, id: issueC, projectId: projectC })).toBe(false);
+    expect(isIssueWithinLowTrustBoundary(result.boundary, { spaceId, id: issueB, projectId: projectB })).toBe(true);
+    expect(isIssueWithinLowTrustBoundary(result.boundary, { spaceId, id: issueC, projectId: projectC })).toBe(false);
   });
 
   it("fails closed for unknown presets", () => {
     const result = resolveCoreTrustPreset({
-      companyId,
+      spaceId,
       agent: {
-        companyId,
+        spaceId,
         permissions: {
           trustPreset: "trusted_but_weird",
         },
@@ -142,9 +142,9 @@ describe("resolveCoreTrustPreset", () => {
 
   it("fails closed when low-trust has no concrete project or issue scope", () => {
     const result = resolveCoreTrustPreset({
-      companyId,
+      spaceId,
       agent: {
-        companyId,
+        spaceId,
         permissions: {
           trustPreset: LOW_TRUST_REVIEW_PRESET,
           authorizationPolicy: {
@@ -160,29 +160,29 @@ describe("resolveCoreTrustPreset", () => {
     });
   });
 
-  it("denies cross-company policy sources and boundaries", () => {
+  it("denies cross-space policy sources and boundaries", () => {
     const sourceMismatch = resolveCoreTrustPreset({
-      companyId,
+      spaceId,
       project: {
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         executionWorkspacePolicy: boundaryPolicy(lowTrustBoundary({ projectIds: [projectA] })),
       },
     });
     expect(sourceMismatch).toMatchObject({
       kind: "denied",
-      reason: "cross_company_boundary",
+      reason: "cross_space_boundary",
       source: "project",
     });
 
     const boundaryMismatch = resolveCoreTrustPreset({
-      companyId,
+      spaceId,
       issue: {
-        companyId,
+        spaceId,
         executionPolicy: {
           authorizationPolicy: {
             trustBoundary: {
               mode: LOW_TRUST_REVIEW_PRESET,
-              companyId: otherCompanyId,
+              spaceId: otherSpaceId,
               rootIssueId,
             },
           },
@@ -191,7 +191,7 @@ describe("resolveCoreTrustPreset", () => {
     });
     expect(boundaryMismatch).toMatchObject({
       kind: "denied",
-      reason: "cross_company_boundary",
+      reason: "cross_space_boundary",
       source: "issue",
     });
   });

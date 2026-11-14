@@ -27,7 +27,7 @@ import {
   adapterExecutionTargetEnablesSandboxDuplexBridge,
   adapterExecutionTargetSessionIdentity,
   adapterExecutionTargetToRemoteSpec,
-  adapterExecutionTargetUsesPaperclipBridge,
+  adapterExecutionTargetUsesOutpostBridge,
   ensureAdapterExecutionTargetCommandResolvable,
   formatAdapterExecutionTimeoutErrorMessage,
   formatAdapterExecutionTimeoutStartLogLine,
@@ -38,7 +38,7 @@ import {
   runAdapterExecutionTargetProcess,
   runAdapterExecutionTargetShellCommand,
   startAdapterExecutionTargetProcessSessionBridge,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
   type AdapterSandboxExecutionTarget,
   type EffectiveExecutionCapabilities,
   type EffectiveSandboxCapabilities,
@@ -199,14 +199,14 @@ describe("sandbox adapter execution targets", () => {
     runId: string,
     target: AdapterSandboxExecutionTarget,
     hostApiUrl: string,
-    options: Omit<Parameters<typeof startAdapterExecutionTargetPaperclipBridge>[0],
+    options: Omit<Parameters<typeof startAdapterExecutionTargetOutpostBridge>[0],
       "runId" | "target" | "runtimeRootDir" | "adapterKey" | "hostApiToken" | "hostApiUrl" | "enableSandboxDuplexBridge"
     > = {},
   ) {
-    return startAdapterExecutionTargetPaperclipBridge({
+    return startAdapterExecutionTargetOutpostBridge({
       runId,
       target,
-      runtimeRootDir: path.join(target.remoteCwd, ".paperclip-runtime", "codex"),
+      runtimeRootDir: path.join(target.remoteCwd, ".outpost-runtime", "codex"),
       adapterKey: "codex",
       hostApiToken: "real-run-jwt",
       hostApiUrl,
@@ -478,7 +478,7 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("preserves stdin when wrapping sandbox adapter commands for run-log streaming", async () => {
-    const rootDir = await createSandboxRoot("paperclip-run-log-stdin-");
+    const rootDir = await createSandboxRoot("outpost-run-log-stdin-");
     const target: AdapterSandboxExecutionTarget = {
       kind: "remote",
       transport: "sandbox",
@@ -488,7 +488,7 @@ describe("sandbox adapter execution targets", () => {
       streamRunLogs: true,
       runner: createLocalSandboxRunner(),
     };
-    const logsDir = path.posix.join(rootDir, ".paperclip-runtime", "bridge", "logs");
+    const logsDir = path.posix.join(rootDir, ".outpost-runtime", "bridge", "logs");
     const runLogTail = createSandboxRunLogTailFactory({
       runner: target.runner!,
       remoteCwd: rootDir,
@@ -519,7 +519,7 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("creates the process session directories only in the launch exec, not in upfront makeDir execs", async () => {
-    const rootDir = await createSandboxRoot("paperclip-process-session-makedir-");
+    const rootDir = await createSandboxRoot("outpost-process-session-makedir-");
     const childPath = path.join(rootDir, "noop-acp-child.mjs");
     await writeFile(childPath, "process.stdin.on('data', () => {});\n", "utf8");
 
@@ -536,7 +536,7 @@ describe("sandbox adapter execution targets", () => {
     const bridge = await startAdapterExecutionTargetProcessSessionBridge(processSessionInput(
       "run-process-session-makedir",
       target,
-      path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+      path.posix.join(rootDir, ".outpost-runtime", "acpx"),
       process.execPath,
       [childPath],
       rootDir,
@@ -566,7 +566,7 @@ describe("sandbox adapter execution targets", () => {
   ])(
     "preserves an explicit remote PATH equal to host PATH in $outputMode mode",
     async ({ outputMode, streamOutputViaSession }) => {
-      const rootDir = await createSandboxRoot(`paperclip-process-session-${outputMode}-path-`);
+      const rootDir = await createSandboxRoot(`outpost-process-session-${outputMode}-path-`);
       const childPath = path.join(rootDir, "print-path-child.mjs");
       await writeFile(
         childPath,
@@ -597,7 +597,7 @@ describe("sandbox adapter execution targets", () => {
       const bridge = await startAdapterExecutionTargetProcessSessionBridge({
         runId: `run-process-session-${outputMode}-path`,
         target,
-        runtimeRootDir: path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+        runtimeRootDir: path.posix.join(rootDir, ".outpost-runtime", "acpx"),
         adapterKey: "acpx",
         command: process.execPath,
         args: [childPath],
@@ -620,7 +620,7 @@ describe("sandbox adapter execution targets", () => {
   );
 
   it.each([false, true])("launches a large environment without oversized exec arguments (streamed=%s)", async (streamOutputViaSession) => {
-    const rootDir = await createSandboxRoot("paperclip-large-process-env-");
+    const rootDir = await createSandboxRoot("outpost-large-process-env-");
     const value = "x".repeat(110_000);
     const childPath = path.join(rootDir, "child.mjs");
     await writeFile(childPath, 'process.stdout.write(process.env.LARGE_CONTEXT ?? "missing");\n');
@@ -645,7 +645,7 @@ describe("sandbox adapter execution targets", () => {
         return delegate.execute(input);
       },
     };
-    const runtimeRootDir = path.join(rootDir, ".paperclip-runtime");
+    const runtimeRootDir = path.join(rootDir, ".outpost-runtime");
     const bridge = await startAdapterExecutionTargetProcessSessionBridge({
       runId: "large-process-env", adapterKey: "acpx", runtimeRootDir,
       target: { kind: "remote", transport: "sandbox", providerKey: "local-test", remoteCwd: rootDir, runner },
@@ -668,7 +668,7 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("logs a streamed wrapper launch failure before forwarding its exit", async () => {
-    const rootDir = await createSandboxRoot("paperclip-wrapper-launch-error-");
+    const rootDir = await createSandboxRoot("outpost-wrapper-launch-error-");
     const delegate = createLocalSandboxRunner();
     const logs: string[] = [];
     const bridge = await startAdapterExecutionTargetProcessSessionBridge({
@@ -693,14 +693,14 @@ describe("sandbox adapter execution targets", () => {
   }, 10_000);
 
   it("removes an incomplete private command payload when upload fails", async () => {
-    const rootDir = await createSandboxRoot("paperclip-payload-upload-error-");
+    const rootDir = await createSandboxRoot("outpost-payload-upload-error-");
     const delegate = createLocalSandboxRunner();
     await expect(startAdapterExecutionTargetProcessSessionBridge({
       runId: "payload-upload-error", adapterKey: "acpx", runtimeRootDir: rootDir,
       target: {
         kind: "remote", transport: "sandbox", providerKey: "local-test", remoteCwd: rootDir,
         runner: { execute: async (input) => {
-          if (/command\.b64\.[^/]+\.paperclip-upload\.b64/.test(input.args?.[1] ?? "") && input.args![1].includes(">>")) {
+          if (/command\.b64\.[^/]+\.outpost-upload\.b64/.test(input.args?.[1] ?? "") && input.args![1].includes(">>")) {
             throw new Error("Upload interrupted");
           }
           return delegate.execute(input);
@@ -720,7 +720,7 @@ describe("sandbox adapter execution targets", () => {
     { streamed: true, corrupt: false },
     { streamed: true, corrupt: true },
   ])("reports payload read failures without hanging (streamed=$streamed, corrupt=$corrupt)", async ({ streamed, corrupt }) => {
-    const rootDir = await createSandboxRoot("paperclip-payload-read-error-");
+    const rootDir = await createSandboxRoot("outpost-payload-read-error-");
     const delegate = createLocalSandboxRunner();
     const bridge = await startAdapterExecutionTargetProcessSessionBridge({
       runId: "payload-read-error", adapterKey: "acpx", runtimeRootDir: rootDir,
@@ -758,7 +758,7 @@ describe("sandbox adapter execution targets", () => {
     // that token. This test drives the bridge with a getter that returns a known
     // token, lets the first poll tick fire, and proves the poll exec reads that
     // token from the active step store.
-    const rootDir = await createSandboxRoot("paperclip-process-session-poll-parent-");
+    const rootDir = await createSandboxRoot("outpost-process-session-poll-parent-");
     const childPath = path.join(rootDir, "noop-acp-child.mjs");
     await writeFile(childPath, "process.stdin.on('data', () => {});\n", "utf8");
 
@@ -789,7 +789,7 @@ describe("sandbox adapter execution targets", () => {
       ...processSessionInput(
         "run-process-session-poll-parent",
         target,
-        path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+        path.posix.join(rootDir, ".outpost-runtime", "acpx"),
         process.execPath,
         [childPath],
         rootDir,
@@ -816,7 +816,7 @@ describe("sandbox adapter execution targets", () => {
     // With no `getRuntimeParentContext`, the poll tick runs with an empty active
     // step store, exactly like the earlier `runWithoutActiveStep` behavior. So a
     // poll `sandbox.exec` span opens unparented with no stale startup flag.
-    const rootDir = await createSandboxRoot("paperclip-process-session-poll-nogetter-");
+    const rootDir = await createSandboxRoot("outpost-process-session-poll-nogetter-");
     const childPath = path.join(rootDir, "noop-acp-child.mjs");
     await writeFile(childPath, "process.stdin.on('data', () => {});\n", "utf8");
 
@@ -842,7 +842,7 @@ describe("sandbox adapter execution targets", () => {
     const bridge = await startAdapterExecutionTargetProcessSessionBridge(processSessionInput(
       "run-process-session-poll-nogetter",
       target,
-      path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+      path.posix.join(rootDir, ".outpost-runtime", "acpx"),
       process.execPath,
       [childPath],
       rootDir,
@@ -866,7 +866,7 @@ describe("sandbox adapter execution targets", () => {
     // message in the `data` handler, not once at connect time. This test opens a
     // socket while `connectParent` is live, switches the getter to `turnParent`,
     // sends one stdin line, and proves the stdin write ran under `turnParent`.
-    const rootDir = await createSandboxRoot("paperclip-process-session-stdin-parent-");
+    const rootDir = await createSandboxRoot("outpost-process-session-stdin-parent-");
     const childPath = path.join(rootDir, "noop-acp-child.mjs");
     await writeFile(childPath, "process.stdin.on('data', () => {});\n", "utf8");
 
@@ -884,10 +884,10 @@ describe("sandbox adapter execution targets", () => {
     const runner = {
       execute: async (input: Parameters<typeof delegate.execute>[0]) => {
         // Record the active step for the first exec that writes the stdin file.
-        // The `.paperclip-upload` temp path under the `stdin` directory is unique
+        // The `.outpost-upload` temp path under the `stdin` directory is unique
         // to the stdin-write path; the poll loop reads the `events` directory.
         const script = (input.args ?? []).join("\n");
-        if (stdinWriteStep === "unset" && /\/stdin\/[^\s']*paperclip-upload/.test(script)) {
+        if (stdinWriteStep === "unset" && /\/stdin\/[^\s']*outpost-upload/.test(script)) {
           stdinWriteStep = getActiveStepContext();
           resolveStdinWrite();
         }
@@ -900,7 +900,7 @@ describe("sandbox adapter execution targets", () => {
       ...processSessionInput(
         "run-process-session-stdin-parent",
         target,
-        path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+        path.posix.join(rootDir, ".outpost-runtime", "acpx"),
         process.execPath,
         [childPath],
         rootDir,
@@ -956,7 +956,7 @@ describe("sandbox adapter execution targets", () => {
     // message to the agent in a `sandbox.agentSession.sendInput` span. This test
     // connects a socket, sends one stdin line, and proves the handler opens that
     // wrapper span around the write.
-    const rootDir = await createSandboxRoot("paperclip-process-session-sendinput-span-");
+    const rootDir = await createSandboxRoot("outpost-process-session-sendinput-span-");
     const childPath = path.join(rootDir, "noop-acp-child.mjs");
     await writeFile(childPath, "process.stdin.on('data', () => {});\n", "utf8");
 
@@ -972,7 +972,7 @@ describe("sandbox adapter execution targets", () => {
       ...processSessionInput(
         "run-process-session-sendinput-span",
         target,
-        path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+        path.posix.join(rootDir, ".outpost-runtime", "acpx"),
         process.execPath,
         [childPath],
         rootDir,
@@ -1017,7 +1017,7 @@ describe("sandbox adapter execution targets", () => {
     // With a span runner injected, the poll timer wraps each 100 ms poll tick in
     // a `sandbox.agentSession.pollOutput` span. This test lets the first poll tick
     // fire and proves the timer opens that wrapper span.
-    const rootDir = await createSandboxRoot("paperclip-process-session-poll-span-");
+    const rootDir = await createSandboxRoot("outpost-process-session-poll-span-");
     const childPath = path.join(rootDir, "noop-acp-child.mjs");
     await writeFile(childPath, "process.stdin.on('data', () => {});\n", "utf8");
 
@@ -1033,7 +1033,7 @@ describe("sandbox adapter execution targets", () => {
       ...processSessionInput(
         "run-process-session-poll-span",
         target,
-        path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+        path.posix.join(rootDir, ".outpost-runtime", "acpx"),
         process.execPath,
         [childPath],
         rootDir,
@@ -1055,7 +1055,7 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("bridges bidirectional sandbox process sessions through a local ACPX-spawnable proxy", async () => {
-    const rootDir = await createSandboxRoot("paperclip-process-session-");
+    const rootDir = await createSandboxRoot("outpost-process-session-");
     const childPath = path.join(rootDir, "fake-acp-child.mjs");
     await writeFile(
       childPath,
@@ -1069,12 +1069,12 @@ describe("sandbox adapter execution targets", () => {
     );
     const target: AdapterSandboxExecutionTarget = localSandboxTarget(rootDir);
 
-    const bridge = await startAdapterExecutionTargetProcessSessionBridge(processSessionInput("run-process-session", target, path.posix.join(rootDir, ".paperclip-runtime", "acpx"), process.execPath, [childPath], rootDir));
+    const bridge = await startAdapterExecutionTargetProcessSessionBridge(processSessionInput("run-process-session", target, path.posix.join(rootDir, ".outpost-runtime", "acpx"), process.execPath, [childPath], rootDir));
     expect(bridge).not.toBeNull();
 
     try {
       const result = await runProxyWithInput(bridge!.agentCommand, "hello\n");
-      const report = await describeProxyRun(result, path.posix.join(rootDir, ".paperclip-runtime", "acpx"));
+      const report = await describeProxyRun(result, path.posix.join(rootDir, ".outpost-runtime", "acpx"));
       expect(result.code, report).toBe(0);
       expect(result.stdout, report).toBe("out:hello\n");
       expect(result.stderr, report).toBe("err:hello\n");
@@ -1094,7 +1094,7 @@ describe("sandbox adapter execution targets", () => {
     streamOutputViaSession,
     exitCode,
   }) => {
-    const rootDir = await createSandboxRoot("paperclip-process-session-open-stdin-");
+    const rootDir = await createSandboxRoot("outpost-process-session-open-stdin-");
     // ACP keeps stdin open while it waits for a handshake. A remote child can
     // exit before replying; that must close the proxy and fail the handshake.
     const output = "final output\n".repeat(16_384);
@@ -1108,7 +1108,7 @@ describe("sandbox adapter execution targets", () => {
         remoteCwd: rootDir,
         runner: createLocalSandboxRunner(),
       },
-      runtimeRootDir: path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+      runtimeRootDir: path.posix.join(rootDir, ".outpost-runtime", "acpx"),
       adapterKey: "acpx",
       command: exitCode === null ? path.join(rootDir, "missing-agent") : process.execPath,
       args: ["-e", `process.stdout.write("final output\\n".repeat(16_384)); process.stderr.write("final diagnostic\\n"); process.exitCode = ${exitCode};`],
@@ -1145,7 +1145,7 @@ describe("sandbox adapter execution targets", () => {
   }, 15_000);
 
   it("flushes remote errors under backpressure and retains only bounded terminal evidence", async () => {
-    const rootDir = await createSandboxRoot("paperclip-terminal-flush-");
+    const rootDir = await createSandboxRoot("outpost-terminal-flush-");
     const delegate = createLocalSandboxRunner();
     const logs: string[] = [];
     let emit!: (frame: string) => Promise<void>;
@@ -1231,7 +1231,7 @@ describe("sandbox adapter execution targets", () => {
   }, 15_000);
 
   it("reports a streamed transport failure even when diagnostic persistence stalls", async () => {
-    const rootDir = await createSandboxRoot("paperclip-terminal-stream-");
+    const rootDir = await createSandboxRoot("outpost-terminal-stream-");
     const delegate = createLocalSandboxRunner();
     const logs: string[] = [];
     let releaseLog!: () => void;
@@ -1263,7 +1263,7 @@ describe("sandbox adapter execution targets", () => {
   }, 10_000);
 
   it("closes a failed output poll without waiting for the run log", async () => {
-    const rootDir = await createSandboxRoot("paperclip-terminal-poll-");
+    const rootDir = await createSandboxRoot("outpost-terminal-poll-");
     const delegate = createLocalSandboxRunner();
     const logs: string[] = [];
     let releaseLog!: () => void;
@@ -1296,7 +1296,7 @@ describe("sandbox adapter execution targets", () => {
   }, 10_000);
 
   it("records an unexpected authenticated proxy close once and ignores unauthenticated peers", async () => {
-    const rootDir = await createSandboxRoot("paperclip-terminal-proxy-");
+    const rootDir = await createSandboxRoot("outpost-terminal-proxy-");
     const logs: string[] = [];
     const bridge = await startAdapterExecutionTargetProcessSessionBridge({
       runId: "terminal-proxy", adapterKey: "acpx", runtimeRootDir: rootDir,
@@ -1332,7 +1332,7 @@ describe("sandbox adapter execution targets", () => {
   }, 10_000);
 
   it("buffers sandbox process session output until the local proxy connects", async () => {
-    const rootDir = await createSandboxRoot("paperclip-process-session-buffer-");
+    const rootDir = await createSandboxRoot("outpost-process-session-buffer-");
     const childPath = path.join(rootDir, "fast-acp-child.mjs");
     await writeFile(
       childPath,
@@ -1348,7 +1348,7 @@ describe("sandbox adapter execution targets", () => {
     const bridge = await startAdapterExecutionTargetProcessSessionBridge(processSessionInput(
       "run-process-session-buffer",
       target,
-      path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+      path.posix.join(rootDir, ".outpost-runtime", "acpx"),
       process.execPath,
       [childPath],
       rootDir,
@@ -1367,7 +1367,7 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("delivers full output when the sandbox child exits immediately after writing", async () => {
-    const rootDir = await createSandboxRoot("paperclip-process-session-fast-exit-");
+    const rootDir = await createSandboxRoot("outpost-process-session-fast-exit-");
     const childPath = path.join(rootDir, "instant-exit-acp-child.mjs");
     await writeFile(
       childPath,
@@ -1382,7 +1382,7 @@ describe("sandbox adapter execution targets", () => {
     const bridge = await startAdapterExecutionTargetProcessSessionBridge(processSessionInput(
       "run-process-session-fast-exit",
       target,
-      path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+      path.posix.join(rootDir, ".outpost-runtime", "acpx"),
       process.execPath,
       [childPath],
       rootDir,
@@ -1400,7 +1400,7 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("ignores unauthenticated connections to the process session bridge", async () => {
-    const rootDir = await createSandboxRoot("paperclip-process-session-auth-");
+    const rootDir = await createSandboxRoot("outpost-process-session-auth-");
     const childPath = path.join(rootDir, "guarded-acp-child.mjs");
     await writeFile(childPath, "process.stdout.write('guarded-out\\n');", "utf8");
     const target: AdapterSandboxExecutionTarget = localSandboxTarget(rootDir);
@@ -1408,7 +1408,7 @@ describe("sandbox adapter execution targets", () => {
     const bridge = await startAdapterExecutionTargetProcessSessionBridge(processSessionInput(
       "run-process-session-auth",
       target,
-      path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+      path.posix.join(rootDir, ".outpost-runtime", "acpx"),
       process.execPath,
       [childPath],
       rootDir,
@@ -1454,7 +1454,7 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("streams sandbox process session output before the remote child exits", async () => {
-    const rootDir = await createSandboxRoot("paperclip-process-session-stream-");
+    const rootDir = await createSandboxRoot("outpost-process-session-stream-");
     const childPath = path.join(rootDir, "streaming-acp-child.mjs");
     await writeFile(
       childPath,
@@ -1476,7 +1476,7 @@ describe("sandbox adapter execution targets", () => {
     const bridge = await startAdapterExecutionTargetProcessSessionBridge(processSessionInput(
       "run-process-session-stream",
       target,
-      path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+      path.posix.join(rootDir, ".outpost-runtime", "acpx"),
       process.execPath,
       [childPath],
       rootDir,
@@ -1533,7 +1533,7 @@ describe("sandbox adapter execution targets", () => {
 
   describe("streamed output (streamOutputViaSession)", () => {
     it("bridges bidirectional sessions when the wrapper streams output to stdout", async () => {
-      const rootDir = await createSandboxRoot("paperclip-process-session-stream-echo-");
+      const rootDir = await createSandboxRoot("outpost-process-session-stream-echo-");
       const childPath = path.join(rootDir, "echo-acp-child.mjs");
       await writeFile(
         childPath,
@@ -1548,14 +1548,14 @@ describe("sandbox adapter execution targets", () => {
       const target: AdapterSandboxExecutionTarget = localSandboxTarget(rootDir);
 
       const bridge = await startAdapterExecutionTargetProcessSessionBridge({
-        ...processSessionInput("run-stream-echo", target, path.posix.join(rootDir, ".paperclip-runtime", "acpx"), process.execPath, [childPath], rootDir),
+        ...processSessionInput("run-stream-echo", target, path.posix.join(rootDir, ".outpost-runtime", "acpx"), process.execPath, [childPath], rootDir),
         streamOutputViaSession: true,
       });
       expect(bridge).not.toBeNull();
 
       try {
         const result = await runProxyWithInput(bridge!.agentCommand, "hello\n");
-        const report = await describeProxyRun(result, path.posix.join(rootDir, ".paperclip-runtime", "acpx"));
+        const report = await describeProxyRun(result, path.posix.join(rootDir, ".outpost-runtime", "acpx"));
         expect(result.code, report).toBe(0);
         expect(result.stdout, report).toBe("out:hello\n");
         expect(result.stderr, report).toBe("err:hello\n");
@@ -1570,7 +1570,7 @@ describe("sandbox adapter execution targets", () => {
       // step) and stay open around the launch. Record the opened span names and
       // prove `sandbox.agentProcess` is among them, and that a normal exchange
       // still works through the wrap.
-      const rootDir = await createSandboxRoot("paperclip-process-session-stream-span-");
+      const rootDir = await createSandboxRoot("outpost-process-session-stream-span-");
       const childPath = path.join(rootDir, "echo-acp-child.mjs");
       await writeFile(
         childPath,
@@ -1585,7 +1585,7 @@ describe("sandbox adapter execution targets", () => {
 
       const spanNames: string[] = [];
       const bridge = await startAdapterExecutionTargetProcessSessionBridge({
-        ...processSessionInput("run-stream-span", target, path.posix.join(rootDir, ".paperclip-runtime", "acpx"), process.execPath, [childPath], rootDir),
+        ...processSessionInput("run-stream-span", target, path.posix.join(rootDir, ".outpost-runtime", "acpx"), process.execPath, [childPath], rootDir),
         streamOutputViaSession: true,
         runtimeSpan: async (name, work) => {
           spanNames.push(name);
@@ -1599,7 +1599,7 @@ describe("sandbox adapter execution targets", () => {
         // frame flows, so it is observable as soon as the handle resolves.
         expect(spanNames).toContain("sandbox.agentProcess");
         const result = await runProxyWithInput(bridge!.agentCommand, "hello\n");
-        const report = await describeProxyRun(result, path.posix.join(rootDir, ".paperclip-runtime", "acpx"));
+        const report = await describeProxyRun(result, path.posix.join(rootDir, ".outpost-runtime", "acpx"));
         expect(result.code, report).toBe(0);
         expect(result.stdout, report).toBe("out:hello\n");
       } finally {
@@ -1613,7 +1613,7 @@ describe("sandbox adapter execution targets", () => {
       // `bridge.process-session` bring-up step — otherwise it dangles past its
       // parent and overlaps `agent.turn`. Build the real run-rooted runner from a
       // recording trace context and assert the recorded parent.
-      const rootDir = await createSandboxRoot("paperclip-process-session-stream-parent-");
+      const rootDir = await createSandboxRoot("outpost-process-session-stream-parent-");
       const childPath = path.join(rootDir, "noop-acp-child.mjs");
       await writeFile(childPath, "process.stdin.on('data', () => {});\n", "utf8");
       const target: AdapterSandboxExecutionTarget = localSandboxTarget(rootDir);
@@ -1626,7 +1626,7 @@ describe("sandbox adapter execution targets", () => {
       const runtimeSpan = createRuntimeSpanRunner(traceContext, () => runRootContext);
 
       const bridge = await startAdapterExecutionTargetProcessSessionBridge({
-        ...processSessionInput("run-stream-parent", target, path.posix.join(rootDir, ".paperclip-runtime", "acpx"), process.execPath, [childPath], rootDir),
+        ...processSessionInput("run-stream-parent", target, path.posix.join(rootDir, ".outpost-runtime", "acpx"), process.execPath, [childPath], rootDir),
         streamOutputViaSession: true,
         runtimeSpan,
       });
@@ -1647,7 +1647,7 @@ describe("sandbox adapter execution targets", () => {
       // at `stop()`, which the caller awaits before it ends `task.run`. Use a
       // child that ignores stdin and never exits on its own, so the launch
       // command stays pending across `stop()`, and prove the span ends anyway.
-      const rootDir = await createSandboxRoot("paperclip-process-session-stream-linger-");
+      const rootDir = await createSandboxRoot("outpost-process-session-stream-linger-");
       const childPath = path.join(rootDir, "linger-acp-child.mjs");
       await writeFile(
         childPath,
@@ -1666,7 +1666,7 @@ describe("sandbox adapter execution targets", () => {
       const bridge = await startAdapterExecutionTargetProcessSessionBridge({
         runId: "run-stream-linger",
         target,
-        runtimeRootDir: path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+        runtimeRootDir: path.posix.join(rootDir, ".outpost-runtime", "acpx"),
         adapterKey: "acpx",
         command: process.execPath,
         args: [childPath],
@@ -1704,7 +1704,7 @@ describe("sandbox adapter execution targets", () => {
     });
 
     it("buffers streamed output until the local proxy connects", async () => {
-      const rootDir = await createSandboxRoot("paperclip-process-session-stream-buffer-");
+      const rootDir = await createSandboxRoot("outpost-process-session-stream-buffer-");
       const childPath = path.join(rootDir, "fast-stream-child.mjs");
       await writeFile(
         childPath,
@@ -1718,7 +1718,7 @@ describe("sandbox adapter execution targets", () => {
       const target: AdapterSandboxExecutionTarget = localSandboxTarget(rootDir);
 
       const bridge = await startAdapterExecutionTargetProcessSessionBridge({
-        ...processSessionInput("run-stream-buffer", target, path.posix.join(rootDir, ".paperclip-runtime", "acpx"), process.execPath, [childPath], rootDir),
+        ...processSessionInput("run-stream-buffer", target, path.posix.join(rootDir, ".outpost-runtime", "acpx"), process.execPath, [childPath], rootDir),
         streamOutputViaSession: true,
       });
       expect(bridge).not.toBeNull();
@@ -1737,7 +1737,7 @@ describe("sandbox adapter execution targets", () => {
     });
 
     it("delivers full streamed output when the sandbox child exits immediately", async () => {
-      const rootDir = await createSandboxRoot("paperclip-process-session-stream-fast-exit-");
+      const rootDir = await createSandboxRoot("outpost-process-session-stream-fast-exit-");
       const childPath = path.join(rootDir, "instant-stream-child.mjs");
       await writeFile(
         childPath,
@@ -1750,7 +1750,7 @@ describe("sandbox adapter execution targets", () => {
       const target: AdapterSandboxExecutionTarget = localSandboxTarget(rootDir);
 
       const bridge = await startAdapterExecutionTargetProcessSessionBridge({
-        ...processSessionInput("run-stream-fast-exit", target, path.posix.join(rootDir, ".paperclip-runtime", "acpx"), process.execPath, [childPath], rootDir),
+        ...processSessionInput("run-stream-fast-exit", target, path.posix.join(rootDir, ".outpost-runtime", "acpx"), process.execPath, [childPath], rootDir),
         streamOutputViaSession: true,
       });
       expect(bridge).not.toBeNull();
@@ -1766,7 +1766,7 @@ describe("sandbox adapter execution targets", () => {
     });
 
     it("streams live output before the child exits and never writes output event files", async () => {
-      const rootDir = await createSandboxRoot("paperclip-process-session-stream-live-");
+      const rootDir = await createSandboxRoot("outpost-process-session-stream-live-");
       const childPath = path.join(rootDir, "live-stream-child.mjs");
       await writeFile(
         childPath,
@@ -1786,7 +1786,7 @@ describe("sandbox adapter execution targets", () => {
       const target: AdapterSandboxExecutionTarget = localSandboxTarget(rootDir);
 
       const bridge = await startAdapterExecutionTargetProcessSessionBridge({
-        ...processSessionInput("run-stream-live", target, path.posix.join(rootDir, ".paperclip-runtime", "acpx"), process.execPath, [childPath], rootDir),
+        ...processSessionInput("run-stream-live", target, path.posix.join(rootDir, ".outpost-runtime", "acpx"), process.execPath, [childPath], rootDir),
         streamOutputViaSession: true,
       });
       expect(bridge).not.toBeNull();
@@ -1834,7 +1834,7 @@ describe("sandbox adapter execution targets", () => {
         // The streamed path uses the stdout wrapper, not the output-file poll, so
         // no `events` directory is ever created under the session runtime tree.
         const hasEventsDir = await readdir(
-          path.posix.join(rootDir, ".paperclip-runtime", "acpx", "process-sessions"),
+          path.posix.join(rootDir, ".outpost-runtime", "acpx", "process-sessions"),
           { withFileTypes: true, recursive: true },
         )
           .then((entries) => entries.some((entry) => entry.isDirectory() && entry.name === "events"))
@@ -1857,7 +1857,7 @@ describe("sandbox adapter execution targets", () => {
       // teardown) must run concurrently with the agent, so each must force
       // itself off the session. On the session they queue behind the agent
       // command that never returns, and the first handshake write never drains.
-      const rootDir = await createSandboxRoot("paperclip-process-session-stream-isolation-");
+      const rootDir = await createSandboxRoot("outpost-process-session-stream-isolation-");
       const childPath = path.join(rootDir, "echo-acp-child.mjs");
       await writeFile(
         childPath,
@@ -1894,7 +1894,7 @@ describe("sandbox adapter execution targets", () => {
       const bridge = await startAdapterExecutionTargetProcessSessionBridge({
         runId: "run-stream-isolation",
         target,
-        runtimeRootDir: path.posix.join(rootDir, ".paperclip-runtime", "acpx"),
+        runtimeRootDir: path.posix.join(rootDir, ".outpost-runtime", "acpx"),
         adapterKey: "acpx",
         command: process.execPath,
         args: [childPath],
@@ -1912,7 +1912,7 @@ describe("sandbox adapter execution targets", () => {
         const result = await runProxyWithInput(bridge!.agentCommand, "hello\n");
         expect(
           result.stdout,
-          await describeProxyRun(result, path.posix.join(rootDir, ".paperclip-runtime", "acpx")),
+          await describeProxyRun(result, path.posix.join(rootDir, ".outpost-runtime", "acpx")),
         ).toBe("out:hello\n");
 
         // Exactly one exec runs on the persistent session: the long-lived agent
@@ -2304,7 +2304,7 @@ describe("sandbox adapter execution targets", () => {
       spec: {
         host: "ssh.example.test",
         port: 22,
-        username: "paperclip",
+        username: "outpost",
         remoteWorkspacePath: "/workspace",
         remoteCwd: "/workspace",
         privateKey: null,
@@ -2313,12 +2313,12 @@ describe("sandbox adapter execution targets", () => {
       },
     };
 
-    expect(adapterExecutionTargetUsesPaperclipBridge(target)).toBe(true);
+    expect(adapterExecutionTargetUsesOutpostBridge(target)).toBe(true);
     expect(adapterExecutionTargetSessionIdentity(target)).toEqual({
       transport: "ssh",
       host: "ssh.example.test",
       port: 22,
-      username: "paperclip",
+      username: "outpost",
       remoteCwd: "/workspace",
     });
   });
@@ -2358,10 +2358,10 @@ describe("sandbox adapter execution targets", () => {
     }));
   });
 
-  it("starts a localhost Paperclip bridge for sandbox targets in bridge mode", async () => {
-    const rootDir = await createSandboxRoot("paperclip-execution-target-bridge-");
+  it("starts a localhost Outpost bridge for sandbox targets in bridge mode", async () => {
+    const rootDir = await createSandboxRoot("outpost-execution-target-bridge-");
     const remoteCwd = path.join(rootDir, "workspace");
-    const runtimeRootDir = path.join(remoteCwd, ".paperclip-runtime", "codex");
+    const runtimeRootDir = path.join(remoteCwd, ".outpost-runtime", "codex");
     await mkdir(runtimeRootDir, { recursive: true });
 
     const requests: Array<{ method: string; url: string; auth: string | null; runId: string | null }> = [];
@@ -2370,7 +2370,7 @@ describe("sandbox adapter execution targets", () => {
         method: req.method ?? "GET",
         url: req.url ?? "/",
         auth: req.headers.authorization ?? null,
-        runId: typeof req.headers["x-paperclip-run-id"] === "string" ? req.headers["x-paperclip-run-id"] : null,
+        runId: typeof req.headers["x-outpost-run-id"] === "string" ? req.headers["x-outpost-run-id"] : null,
       });
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
@@ -2386,7 +2386,7 @@ describe("sandbox adapter execution targets", () => {
 
     const target: AdapterSandboxExecutionTarget = queueSandboxTarget(remoteCwd);
 
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-bridge",
       target,
       runtimeRootDir,
@@ -2422,9 +2422,9 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("creates a sandbox run log tail factory when bridge streaming is enabled", async () => {
-    const rootDir = await createSandboxRoot("paperclip-execution-target-bridge-stream-");
+    const rootDir = await createSandboxRoot("outpost-execution-target-bridge-stream-");
     const remoteCwd = path.join(rootDir, "workspace");
-    const runtimeRootDir = path.join(remoteCwd, ".paperclip-runtime", "codex");
+    const runtimeRootDir = path.join(remoteCwd, ".outpost-runtime", "codex");
     await mkdir(runtimeRootDir, { recursive: true });
 
     const logs: Array<{ stream: "stdout" | "stderr"; chunk: string }> = [];
@@ -2440,7 +2440,7 @@ describe("sandbox adapter execution targets", () => {
       timeoutMs: 30_000,
     };
 
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-bridge-stream",
       target,
       runtimeRootDir,
@@ -2465,14 +2465,14 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("defaults sandbox run log streaming on and honors the explicit opt-out", async () => {
-    const rootDir = await createSandboxRoot("paperclip-execution-target-bridge-stream-default-");
+    const rootDir = await createSandboxRoot("outpost-execution-target-bridge-stream-default-");
     const remoteCwd = path.join(rootDir, "workspace");
-    const runtimeRootDir = path.join(remoteCwd, ".paperclip-runtime", "codex");
+    const runtimeRootDir = path.join(remoteCwd, ".outpost-runtime", "codex");
     await mkdir(runtimeRootDir, { recursive: true });
 
     const baseTarget: AdapterSandboxExecutionTarget = queueSandboxTarget(remoteCwd);
 
-    const defaultBridge = await startAdapterExecutionTargetPaperclipBridge({
+    const defaultBridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-bridge-stream-default",
       target: baseTarget,
       runtimeRootDir,
@@ -2486,7 +2486,7 @@ describe("sandbox adapter execution targets", () => {
       await defaultBridge?.stop();
     }
 
-    const optOutBridge = await startAdapterExecutionTargetPaperclipBridge({
+    const optOutBridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-bridge-stream-opt-out",
       target: { ...baseTarget, streamRunLogs: false },
       runtimeRootDir,
@@ -2542,7 +2542,7 @@ describe("sandbox adapter execution targets", () => {
     const tail = createSandboxRunLogTailFactory({
       runner,
       remoteCwd: "/workspace",
-      logsDir: "/workspace/.paperclip-runtime/codex/paperclip-bridge/queue/logs",
+      logsDir: "/workspace/.outpost-runtime/codex/outpost-bridge/queue/logs",
       pollIntervalMs: 1,
       maxChunkBytesPerTick: 4,
       tickTimeoutMs: 50,
@@ -2596,7 +2596,7 @@ describe("sandbox adapter execution targets", () => {
     const tail = createSandboxRunLogTailFactory({
       runner,
       remoteCwd: "/workspace",
-      logsDir: "/workspace/.paperclip-runtime/codex/paperclip-bridge/queue/logs",
+      logsDir: "/workspace/.outpost-runtime/codex/outpost-bridge/queue/logs",
       pollIntervalMs: 1,
       maxChunkBytesPerTick: 7,
       tickTimeoutMs: 50,
@@ -2630,7 +2630,7 @@ describe("sandbox adapter execution targets", () => {
     const tail = createSandboxRunLogTailFactory({
       runner,
       remoteCwd: "/workspace",
-      logsDir: "/workspace/.paperclip-runtime/codex/paperclip-bridge/queue/logs",
+      logsDir: "/workspace/.outpost-runtime/codex/outpost-bridge/queue/logs",
       pollIntervalMs: 1,
       tickTimeoutMs: 50,
       maxConsecutiveFailures: 1,
@@ -2649,10 +2649,10 @@ describe("sandbox adapter execution targets", () => {
     );
   });
 
-  it("exposes the Paperclip bridge to the sandbox shell surface", async () => {
-    const rootDir = await createSandboxRoot("paperclip-execution-target-bridge-shell-");
+  it("exposes the Outpost bridge to the sandbox shell surface", async () => {
+    const rootDir = await createSandboxRoot("outpost-execution-target-bridge-shell-");
     const remoteCwd = path.join(rootDir, "workspace");
-    const runtimeRootDir = path.join(remoteCwd, ".paperclip-runtime", "claude");
+    const runtimeRootDir = path.join(remoteCwd, ".outpost-runtime", "claude");
     await mkdir(runtimeRootDir, { recursive: true });
 
     const requests: Array<{ method: string; url: string; auth: string | null; runId: string | null }> = [];
@@ -2661,7 +2661,7 @@ describe("sandbox adapter execution targets", () => {
         method: req.method ?? "GET",
         url: req.url ?? "/",
         auth: req.headers.authorization ?? null,
-        runId: typeof req.headers["x-paperclip-run-id"] === "string" ? req.headers["x-paperclip-run-id"] : null,
+        runId: typeof req.headers["x-outpost-run-id"] === "string" ? req.headers["x-outpost-run-id"] : null,
       });
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
@@ -2690,7 +2690,7 @@ describe("sandbox adapter execution targets", () => {
       timeoutMs: 30_000,
     };
 
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-bridge-shell",
       target,
       runtimeRootDir,
@@ -2763,9 +2763,9 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("bounds callback bridge operations independently of the adapter run timeout", async () => {
-    const rootDir = await createSandboxRoot("paperclip-execution-target-bridge-timeout-");
+    const rootDir = await createSandboxRoot("outpost-execution-target-bridge-timeout-");
     const remoteCwd = path.join(rootDir, "workspace");
-    const runtimeRootDir = path.join(remoteCwd, ".paperclip-runtime", "codex");
+    const runtimeRootDir = path.join(remoteCwd, ".outpost-runtime", "codex");
     await mkdir(runtimeRootDir, { recursive: true });
 
     const delegateRunner = createLocalSandboxRunner();
@@ -2796,7 +2796,7 @@ describe("sandbox adapter execution targets", () => {
       timeoutMs: 30_000,
     };
 
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-bridge-timeout",
       target,
       runtimeRootDir,
@@ -2826,9 +2826,9 @@ describe("sandbox adapter execution targets", () => {
     // a retryable 502. The in-sandbox server maps the indeterminate 504 to a
     // non-retryable 409. A retryable status would repeat the mutation with a new
     // request id outside the broker deduplication set.
-    const rootDir = await createSandboxRoot("paperclip-execution-target-bridge-limit-");
+    const rootDir = await createSandboxRoot("outpost-execution-target-bridge-limit-");
     const remoteCwd = path.join(rootDir, "workspace");
-    const runtimeRootDir = path.join(remoteCwd, ".paperclip-runtime", "codex");
+    const runtimeRootDir = path.join(remoteCwd, ".outpost-runtime", "codex");
     await mkdir(runtimeRootDir, { recursive: true });
 
     const requests: Array<{ method: string; url: string; auth: string | null; runId: string | null }> = [];
@@ -2841,7 +2841,7 @@ describe("sandbox adapter execution targets", () => {
         method: req.method ?? "GET",
         url: req.url ?? "/",
         auth: req.headers.authorization ?? null,
-        runId: typeof req.headers["x-paperclip-run-id"] === "string" ? req.headers["x-paperclip-run-id"] : null,
+        runId: typeof req.headers["x-outpost-run-id"] === "string" ? req.headers["x-outpost-run-id"] : null,
       });
       res.writeHead(201, {
         "content-type": "application/json",
@@ -2860,7 +2860,7 @@ describe("sandbox adapter execution targets", () => {
 
     const target: AdapterSandboxExecutionTarget = queueSandboxTarget(remoteCwd);
 
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-bridge-limit",
       target,
       runtimeRootDir,
@@ -2882,7 +2882,7 @@ describe("sandbox adapter execution targets", () => {
       // The indeterminate 504 maps to a non-retryable 409, so the caller does not
       // retry the committed mutation.
       expect(response.status).toBe(409);
-      expect(response.headers.get("x-paperclip-bridge-outcome")).toBe("indeterminate");
+      expect(response.headers.get("x-outpost-bridge-outcome")).toBe("indeterminate");
       await expect(response.json()).resolves.toEqual({
         error: "Bridge response body exceeded the configured size limit of 512 bytes.",
         outcome: "indeterminate",
@@ -2908,9 +2908,9 @@ describe("sandbox adapter execution targets", () => {
     // retryable 502 with no indeterminate marker, not the non-retryable 504 the
     // forward returns for a mutating method. The in-sandbox server passes the 502
     // through, so the caller can retry the safe read.
-    const rootDir = await createSandboxRoot("paperclip-execution-target-bridge-safe-limit-");
+    const rootDir = await createSandboxRoot("outpost-execution-target-bridge-safe-limit-");
     const remoteCwd = path.join(rootDir, "workspace");
-    const runtimeRootDir = path.join(remoteCwd, ".paperclip-runtime", "codex");
+    const runtimeRootDir = path.join(remoteCwd, ".outpost-runtime", "codex");
     await mkdir(runtimeRootDir, { recursive: true });
 
     const requests: Array<{ method: string; url: string; auth: string | null; runId: string | null }> = [];
@@ -2920,7 +2920,7 @@ describe("sandbox adapter execution targets", () => {
         method: req.method ?? "GET",
         url: req.url ?? "/",
         auth: req.headers.authorization ?? null,
-        runId: typeof req.headers["x-paperclip-run-id"] === "string" ? req.headers["x-paperclip-run-id"] : null,
+        runId: typeof req.headers["x-outpost-run-id"] === "string" ? req.headers["x-outpost-run-id"] : null,
       });
       res.writeHead(200, {
         "content-type": "application/json",
@@ -2939,7 +2939,7 @@ describe("sandbox adapter execution targets", () => {
 
     const target: AdapterSandboxExecutionTarget = queueSandboxTarget(remoteCwd);
 
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-bridge-safe-limit",
       target,
       runtimeRootDir,
@@ -2959,7 +2959,7 @@ describe("sandbox adapter execution targets", () => {
       // The forward returns a retryable 502 with no indeterminate marker, so the
       // server passes it through instead of mapping it to a terminal 409.
       expect(response.status).toBe(502);
-      expect(response.headers.get("x-paperclip-bridge-outcome")).toBeNull();
+      expect(response.headers.get("x-outpost-bridge-outcome")).toBeNull();
       await expect(response.json()).resolves.toEqual({
         error: "Bridge response body exceeded the configured size limit of 512 bytes.",
       });
@@ -2977,20 +2977,20 @@ describe("sandbox adapter execution targets", () => {
 
   it("forwards the host indeterminate-outcome header so the sandbox server maps the 504 to a non-retryable 409", async () => {
     // The host marks a possibly-committed mutation with a 504 and the
-    // `x-paperclip-bridge-outcome: indeterminate` header. The forward must keep
+    // `x-outpost-bridge-outcome: indeterminate` header. The forward must keep
     // that header, so the in-sandbox server maps the 504 to a non-retryable 409.
     // If the forward drops the header, the client sees a retryable 504 and a
     // retry repeats a mutation that already committed.
-    const rootDir = await createSandboxRoot("paperclip-execution-target-bridge-outcome-");
+    const rootDir = await createSandboxRoot("outpost-execution-target-bridge-outcome-");
     const remoteCwd = path.join(rootDir, "workspace");
-    const runtimeRootDir = path.join(remoteCwd, ".paperclip-runtime", "codex");
+    const runtimeRootDir = path.join(remoteCwd, ".outpost-runtime", "codex");
     await mkdir(runtimeRootDir, { recursive: true });
 
     const responseBody = JSON.stringify({ error: "Mutation outcome is indeterminate.", outcome: "indeterminate", retryable: false });
     const apiServer = createServer((_req, res) => {
       res.writeHead(504, {
         "content-type": "application/json",
-        "x-paperclip-bridge-outcome": "indeterminate",
+        "x-outpost-bridge-outcome": "indeterminate",
       });
       res.end(responseBody);
     });
@@ -3005,7 +3005,7 @@ describe("sandbox adapter execution targets", () => {
 
     const target: AdapterSandboxExecutionTarget = queueSandboxTarget(remoteCwd);
 
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-bridge-outcome",
       target,
       runtimeRootDir,
@@ -3027,7 +3027,7 @@ describe("sandbox adapter execution targets", () => {
       expect(response.status).toBe(409);
       // The outcome header and body still reach the client, so a caller that
       // reads them still sees the indeterminate result.
-      expect(response.headers.get("x-paperclip-bridge-outcome")).toBe("indeterminate");
+      expect(response.headers.get("x-outpost-bridge-outcome")).toBe("indeterminate");
       await expect(response.json()).resolves.toEqual({
         error: "Mutation outcome is indeterminate.",
         outcome: "indeterminate",
@@ -3040,9 +3040,9 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("forwards bridge traffic to the local listen origin even when public API URLs are configured", async () => {
-    const rootDir = await createSandboxRoot("paperclip-execution-target-bridge-local-");
+    const rootDir = await createSandboxRoot("outpost-execution-target-bridge-local-");
     const remoteCwd = path.join(rootDir, "workspace");
-    const runtimeRootDir = path.join(remoteCwd, ".paperclip-runtime", "claude");
+    const runtimeRootDir = path.join(remoteCwd, ".outpost-runtime", "claude");
     await mkdir(runtimeRootDir, { recursive: true });
 
     const requests: Array<{ method: string; url: string; auth: string | null; runId: string | null }> = [];
@@ -3051,7 +3051,7 @@ describe("sandbox adapter execution targets", () => {
         method: req.method ?? "GET",
         url: req.url ?? "/",
         auth: req.headers.authorization ?? null,
-        runId: typeof req.headers["x-paperclip-run-id"] === "string" ? req.headers["x-paperclip-run-id"] : null,
+        runId: typeof req.headers["x-outpost-run-id"] === "string" ? req.headers["x-outpost-run-id"] : null,
       });
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
@@ -3077,7 +3077,7 @@ describe("sandbox adapter execution targets", () => {
 
     const target: AdapterSandboxExecutionTarget = queueSandboxTarget(remoteCwd);
 
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-bridge-local",
       target,
       runtimeRootDir,
@@ -3108,9 +3108,9 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("lets an explicit hostApiUrl input override the bridge forward target", async () => {
-    const rootDir = await createSandboxRoot("paperclip-execution-target-bridge-override-");
+    const rootDir = await createSandboxRoot("outpost-execution-target-bridge-override-");
     const remoteCwd = path.join(rootDir, "workspace");
-    const runtimeRootDir = path.join(remoteCwd, ".paperclip-runtime", "claude");
+    const runtimeRootDir = path.join(remoteCwd, ".outpost-runtime", "claude");
     await mkdir(runtimeRootDir, { recursive: true });
 
     const requests: string[] = [];
@@ -3137,7 +3137,7 @@ describe("sandbox adapter execution targets", () => {
 
     const target: AdapterSandboxExecutionTarget = queueSandboxTarget(remoteCwd);
 
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-bridge-override",
       target,
       runtimeRootDir,
@@ -3421,7 +3421,7 @@ describe("sandbox adapter execution targets", () => {
   // Build a minimal multipart/form-data request body with one binary file
   // part, plus the matching `content-type` header value.
   function buildMultipartAttachmentUpload(fileBytes: Buffer): { body: Buffer; contentType: string } {
-    const boundary = "paperclip-test-boundary";
+    const boundary = "outpost-test-boundary";
     const head = Buffer.from(
       `--${boundary}\r\n` +
         `Content-Disposition: form-data; name="file"; filename="upload.bin"\r\n` +
@@ -3470,7 +3470,7 @@ describe("sandbox adapter execution targets", () => {
           method: req.method ?? "GET",
           url: req.url ?? "/",
           auth: req.headers.authorization ?? null,
-          runId: typeof req.headers["x-paperclip-run-id"] === "string" ? req.headers["x-paperclip-run-id"] : null,
+          runId: typeof req.headers["x-outpost-run-id"] === "string" ? req.headers["x-outpost-run-id"] : null,
           headers,
           body: Buffer.concat(chunks),
         });
@@ -3505,7 +3505,7 @@ describe("sandbox adapter execution targets", () => {
     // The channel open itself fails (a provider startup fault, before any
     // READY line or preface is possible). The host must fall back to the
     // file bridge and record the typed open-failure reason, never hang.
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-startup-fail-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-startup-fail-");
     const api = await startRecordingApiServer();
     const base = createLocalSandboxRunner();
     let openCount = 0;
@@ -3531,7 +3531,7 @@ describe("sandbox adapter execution targets", () => {
       // it never admits a binary body, and it never forwards the request to
       // the host.
       const uploadResponse = await fetch(
-        `${bridge!.env.OUTPOST_API_URL}/api/companies/co-1/issues/issue-1/attachments`,
+        `${bridge!.env.OUTPOST_API_URL}/api/spaces/co-1/issues/issue-1/attachments`,
         {
           method: "POST",
           headers: {
@@ -3550,7 +3550,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("test_daytona_selects_http2_v1", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-select-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-select-");
     const api = await startRecordingApiServer();
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
@@ -3608,7 +3608,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("streams run logs on the http2 path under the same gate and log line as the file path", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-runlog-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-runlog-");
     const api = await startRecordingApiServer();
     const { runner } = makeHttp2SelectionRunner();
     const logs: Array<{ stream: "stdout" | "stderr"; chunk: string }> = [];
@@ -3644,7 +3644,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("returns no run-log tail on the http2 path when streaming is opted out", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-runlog-off-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-runlog-off-");
     const api = await startRecordingApiServer();
     const { runner } = makeHttp2SelectionRunner();
     const target: AdapterSandboxExecutionTarget = {
@@ -3669,7 +3669,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("routes http2 channel-open and fallback records to a recorder attached on the server seam", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-recorder-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-recorder-");
     const api = await startRecordingApiServer();
 
     const counters: DuplexObservabilityCounterRecord[] = [];
@@ -3694,10 +3694,10 @@ describe("sandbox adapter execution targets", () => {
       effectiveCapabilities: duplexCapabilities(true),
       duplexObservabilityRecorder: recorder,
     };
-    const openBridge = await startAdapterExecutionTargetPaperclipBridge({
+    const openBridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-http2-open",
       target: openTarget,
-      runtimeRootDir: path.join(remoteCwd, ".paperclip-runtime", "codex"),
+      runtimeRootDir: path.join(remoteCwd, ".outpost-runtime", "codex"),
       adapterKey: "codex",
       hostApiToken: "real-run-jwt",
       hostApiUrl: api.origin,
@@ -3726,10 +3726,10 @@ describe("sandbox adapter execution targets", () => {
       effectiveCapabilities: duplexCapabilities(true),
       duplexObservabilityRecorder: recorder,
     };
-    const fallbackBridge = await startAdapterExecutionTargetPaperclipBridge({
+    const fallbackBridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-duplex-fallback",
       target: fallbackTarget,
-      runtimeRootDir: path.join(remoteCwd, ".paperclip-runtime", "codex"),
+      runtimeRootDir: path.join(remoteCwd, ".outpost-runtime", "codex"),
       adapterKey: "codex",
       hostApiToken: "real-run-jwt",
       hostApiUrl: api.origin,
@@ -3751,7 +3751,7 @@ describe("sandbox adapter execution targets", () => {
     { name: "the kill switch is off with the capability granted", enable: false, capability: true },
     { name: "the capability is absent with the kill switch on", enable: true, capability: false },
   ])("selects the file bridge when $name", async ({ enable, capability }) => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-duplex-gate-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-duplex-gate-");
     const api = await startRecordingApiServer();
     const { runner, control } = makeDuplexSelectionRunner();
     const target: AdapterSandboxExecutionTarget = {
@@ -3764,10 +3764,10 @@ describe("sandbox adapter execution targets", () => {
       effectiveCapabilities: duplexCapabilities(capability),
     };
 
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-gate",
       target,
-      runtimeRootDir: path.join(remoteCwd, ".paperclip-runtime", "codex"),
+      runtimeRootDir: path.join(remoteCwd, ".outpost-runtime", "codex"),
       adapterKey: "codex",
       hostApiToken: "real-run-jwt",
       hostApiUrl: api.origin,
@@ -3807,7 +3807,7 @@ describe("sandbox adapter execution targets", () => {
       onOpen: () => {},
     },
   ])("fails closed to the file bridge on $name and leaves no live session", async ({ onOpen }) => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-duplex-fail-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-duplex-fail-");
     const api = await startRecordingApiServer();
     const { runner, control } = makeDuplexSelectionRunner(onOpen);
     const target: AdapterSandboxExecutionTarget = {
@@ -3850,7 +3850,7 @@ describe("sandbox adapter execution targets", () => {
   ])(
     "rejects a READY frame that carries $name and never sends the bridge token there",
     async ({ buildReady }) => {
-      const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-duplex-addr-");
+      const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-duplex-addr-");
 
       // An endpoint an attacker controls. No request that carries the bridge
       // token may reach it, because the host never derives the endpoint from a
@@ -3908,7 +3908,7 @@ describe("sandbox adapter execution targets", () => {
   );
 
   it("test_route_allowlist_header_cleanup_and_token_replacement_hold_on_http2", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-403-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-403-");
     const api = await startRecordingApiServer();
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
@@ -3961,7 +3961,7 @@ describe("sandbox adapter execution targets", () => {
       const upload = buildMultipartAttachmentUpload(uploadBytes);
       const uploadResponse = await http2TestRequest(sessionRef.current!, {
         method: "POST",
-        path: "/api/companies/co-1/issues/issue-1/attachments",
+        path: "/api/spaces/co-1/issues/issue-1/attachments",
         headers: {
           authorization: `Bearer ${bridgeToken}`,
           "content-type": upload.contentType,
@@ -3972,7 +3972,7 @@ describe("sandbox adapter execution targets", () => {
       expect(api.requests).toHaveLength(2);
       expect(api.requests[1]).toMatchObject({
         method: "POST",
-        url: "/api/companies/co-1/issues/issue-1/attachments",
+        url: "/api/spaces/co-1/issues/issue-1/attachments",
       });
       expect(api.requests[1].headers["content-type"]).toBe(upload.contentType);
       expect(api.requests[1].body.equals(upload.body)).toBe(true);
@@ -4017,7 +4017,7 @@ describe("sandbox adapter execution targets", () => {
       throw new Error("Expected the echo server to listen on a TCP port.");
     }
 
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-raw-bytes-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-raw-bytes-");
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
     const { runner } = makeHttp2SelectionRunner((ctx) => {
@@ -4103,7 +4103,7 @@ describe("sandbox adapter execution targets", () => {
   });
 
   it("records an http2 request span with latency and the fixed dimension keys", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-obs-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-obs-");
     const api = await startRecordingApiServer();
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
@@ -4157,7 +4157,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("increments the fallback counter with an approved reason when the capability is absent", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-duplex-fb-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-duplex-fb-");
     const api = await startRecordingApiServer();
     const { runner } = makeDuplexSelectionRunner();
     const { recorder, counters, events } = createRecordingDuplexRecorder();
@@ -4219,7 +4219,7 @@ describe("sandbox adapter execution targets", () => {
   ])(
     "names the open-failure stage $expectedReason and falls back to the file bridge on $name",
     async ({ error, expectedReason }) => {
-      const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-duplex-stage-");
+      const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-duplex-stage-");
       const api = await startRecordingApiServer();
       // A runner whose duplex open rejects. The host binds the caught error and
       // names the exact open-failure stage.
@@ -4262,7 +4262,7 @@ describe("sandbox adapter execution targets", () => {
     { name: "before any dispatch", dispatchFirst: false, expectedClass: "pre_dispatch" },
     { name: "after a dispatch", dispatchFirst: true, expectedClass: "post_dispatch" },
   ])("increments the loss counter with the loss class $name", async ({ dispatchFirst, expectedClass }) => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-loss-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-loss-");
     const api = await startRecordingApiServer();
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
@@ -4309,7 +4309,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("keeps serving the request path when the telemetry recorder throws", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-guard-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-guard-");
     const api = await startRecordingApiServer();
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
@@ -4351,7 +4351,7 @@ describe("sandbox adapter execution targets", () => {
     // error string has no code path into a sink on the http2_v1 transport, so
     // this test proves the property that does need a live run: the route,
     // the query, the body, and both tokens never ride a sink either.
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-redact-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-redact-");
     const api = await startRecordingApiServer();
 
     const ROUTE_SENTINEL = "sentinelroute8f21";
@@ -4374,12 +4374,12 @@ describe("sandbox adapter execution targets", () => {
 
     const previousDebug = process.env.OUTPOST_BRIDGE_DEBUG;
     process.env.OUTPOST_BRIDGE_DEBUG = "1";
-    let bridge: Awaited<ReturnType<typeof startAdapterExecutionTargetPaperclipBridge>> = null;
+    let bridge: Awaited<ReturnType<typeof startAdapterExecutionTargetOutpostBridge>> = null;
     try {
-      bridge = await startAdapterExecutionTargetPaperclipBridge({
+      bridge = await startAdapterExecutionTargetOutpostBridge({
         runId: "run-redact",
         target,
-        runtimeRootDir: path.join(remoteCwd, ".paperclip-runtime", "codex"),
+        runtimeRootDir: path.join(remoteCwd, ".outpost-runtime", "codex"),
         adapterKey: "codex",
         hostApiToken: AGENT_TOKEN_SENTINEL,
         hostApiUrl: api.origin,
@@ -4431,7 +4431,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("maps a sentinel provider key to the constant other across every sink", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-prov-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-prov-");
     const api = await startRecordingApiServer();
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
@@ -4491,7 +4491,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("caps the pre-READY readiness buffer and falls back with a contaminated reason", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-duplex-cap-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-duplex-cap-");
     const api = await startRecordingApiServer();
     // The fake gateway sends a large pre-READY blob with no newline, then one
     // more blob after the gate settles. The gate must cap the buffer, finish with
@@ -4527,7 +4527,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("caps the pre-READY buffer under many small newline-less chunks", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-duplex-cap-small-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-duplex-cap-small-");
     const api = await startRecordingApiServer();
     // An adversarial provider controls the chunk size. It sends many small
     // newline-less chunks that together pass the cap. The gate must scan each
@@ -4566,7 +4566,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("bounds the pre-READY newline-scan work by the bytes received", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-duplex-scan-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-duplex-scan-");
     const api = await startRecordingApiServer();
     // An adversarial provider sends many small newline-less chunks before the
     // cap fires. Each chunk must scan only the new bytes, not the whole buffer,
@@ -4607,7 +4607,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("bounds the pre-READY skip scan work by the bytes received", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-duplex-blank-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-duplex-blank-");
     const api = await startRecordingApiServer();
     // An adversarial provider sends one pre-READY chunk of many blank lines and a
     // noise line, then a valid READY frame. The gate must skip each blank line and
@@ -4651,7 +4651,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("test_a_prologue_of_any_length_before_the_ready_line_is_discarded", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-noise-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-noise-");
     const api = await startRecordingApiServer();
     // A PTY channel echoes the launch wrapper line before it sets raw mode, so the
     // first line the host reads is a non-frame echo, not the READY frame. The gate
@@ -4689,7 +4689,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("settles a wrong-nonce READY frame as a nonce mismatch, even after a noise line", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-duplex-noise-nonce-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-duplex-noise-nonce-");
     const api = await startRecordingApiServer();
     // The gate skips the echo line, then reads a READY frame that decodes cleanly
     // but carries a wrong nonce. A wrong-nonce READY authenticates as a failure,
@@ -4722,7 +4722,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("enforces the buffer cap on an over-cap blank prefix before it accepts a valid READY frame", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-duplex-capbypass-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-duplex-capbypass-");
     const api = await startRecordingApiServer();
     // The cap must bound every pre-READY path, including a skipped blank line. An
     // adversarial provider sends one chunk: an over-cap blank prefix followed by a
@@ -4762,7 +4762,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("records the channel-open span with the fallback_reason dimension on the fallback path", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-duplex-openspan-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-duplex-openspan-");
     const api = await startRecordingApiServer();
     // A wrong-nonce READY frame fails the handshake, so the gate falls back. The
     // channel-open span records the failed attempt on the duplex transport and now
@@ -4797,7 +4797,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("drops a header outside the allowlist on the host http2 forward path", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-hdr-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-hdr-");
     const api = await startRecordingApiServer();
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
@@ -4841,7 +4841,7 @@ describe("sandbox adapter execution targets", () => {
   }, 20000);
 
   it("selects the http2 transport for a large forward budget", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-budget-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-budget-");
     const api = await startRecordingApiServer();
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
@@ -4877,17 +4877,17 @@ describe("sandbox adapter execution targets", () => {
 
 
   it("test_disabled_flag_selects_queue_v1", async () => {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-disabled-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-disabled-");
     const api = await startRecordingApiServer();
     const { runner, control } = makeHttp2SelectionRunner();
     const { recorder, counters } = createRecordingDuplexRecorder();
     const target: AdapterSandboxExecutionTarget = duplexSandboxTarget(remoteCwd, runner);
 
     // The kill switch is off. The host must never open the channel at all.
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-disabled",
       target,
-      runtimeRootDir: path.join(remoteCwd, ".paperclip-runtime", "codex"),
+      runtimeRootDir: path.join(remoteCwd, ".outpost-runtime", "codex"),
       adapterKey: "codex",
       hostApiToken: "real-run-jwt",
       hostApiUrl: api.origin,
@@ -4910,7 +4910,7 @@ describe("sandbox adapter execution targets", () => {
     // The open attempt runs once per run, with no retry loop: a preface
     // failure falls through to the file bridge exactly one time, and the
     // host never re-attempts http2_v1 afterward in the same run.
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-one-way-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-one-way-");
     const api = await startRecordingApiServer();
     const { runner, control } = makeHttp2SelectionRunner((ctx) => {
       ctx.emitReady();
@@ -4948,7 +4948,7 @@ describe("sandbox adapter execution targets", () => {
     // READY: it holds the channel open, with no client preface arriving
     // (so the http2 server, if bound, would try to write its own SETTINGS
     // frame), and asserts zero bytes crossed the channel the whole time.
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-no-early-write-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-no-early-write-");
     const api = await startRecordingApiServer();
     const base = createLocalSandboxRunner();
     const hostWrites: Buffer[] = [];
@@ -5010,7 +5010,7 @@ describe("sandbox adapter execution targets", () => {
     // bytes are deliberately sentinel-marked and syntactically invalid (not
     // valid UTF-8 JSON), then a valid READY frame. No log line — on any
     // stream — may contain the sentinel bytes.
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-invalid-ready-bytes-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-invalid-ready-bytes-");
     const api = await startRecordingApiServer();
     const INVALID_LINE_SENTINEL = "sentinelinvalidreadyline62fa";
     const logLines: string[] = [];
@@ -5043,7 +5043,7 @@ describe("sandbox adapter execution targets", () => {
     // A loss ordered after a host-observed orderly completion is a normal
     // teardown, not a failure: the run already completed. The disposition
     // latch must keep the success and emit no loss event for it.
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-orderly-close-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-orderly-close-");
     const api = await startRecordingApiServer();
     let emitExit: (() => void) | null = null;
     const { runner } = makeHttp2SelectionRunner((ctx) => {
@@ -5080,7 +5080,7 @@ describe("sandbox adapter execution targets", () => {
     // retryable: the host answers 502 with no indeterminate marker, the same
     // rule `forwardBridgeRequest` already applies on every transport. This
     // proves the http2_v1 forward handler reuses that one function unchanged.
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-safe-retry-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-safe-retry-");
     const api = await startRecordingApiServer();
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
@@ -5105,7 +5105,7 @@ describe("sandbox adapter execution targets", () => {
         headers: { authorization: `Bearer ${bridgeToken}` },
       });
       expect(response.status).toBe(502);
-      expect(response.headers["x-paperclip-bridge-outcome"]).toBeUndefined();
+      expect(response.headers["x-outpost-bridge-outcome"]).toBeUndefined();
     } finally {
       sessionRef.current?.close();
       await bridge?.stop();
@@ -5123,7 +5123,7 @@ describe("sandbox adapter execution targets", () => {
     // host and the gateway share one resolved ceiling: this request carries
     // no body, so only the mock host's own response — comfortably over one
     // byte — trips the size check this test exists to force.
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-unsafe-indeterminate-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-unsafe-indeterminate-");
     const api = await startRecordingApiServer();
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
@@ -5146,7 +5146,7 @@ describe("sandbox adapter execution targets", () => {
         headers: { authorization: `Bearer ${bridgeToken}`, "content-type": "application/json" },
       });
       expect(response.status).toBe(504);
-      expect(response.headers["x-paperclip-bridge-outcome"]).toBe("indeterminate");
+      expect(response.headers["x-outpost-bridge-outcome"]).toBe("indeterminate");
     } finally {
       sessionRef.current?.close();
       await bridge?.stop();
@@ -5181,7 +5181,7 @@ describe("sandbox adapter execution targets", () => {
     }
     const apiOrigin = `http://127.0.0.1:${apiAddress.port}`;
 
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-abort-forward-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-abort-forward-");
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
     const { runner } = makeHttp2SelectionRunner((ctx) => {
@@ -5248,7 +5248,7 @@ describe("sandbox adapter execution targets", () => {
     }
     const apiOrigin = `http://127.0.0.1:${apiAddress.port}`;
 
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-denied-response-chunk-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-denied-response-chunk-");
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
     const { runner } = makeHttp2SelectionRunner((ctx) => {
@@ -5317,7 +5317,7 @@ describe("sandbox adapter execution targets", () => {
     }
     const apiOrigin = `http://127.0.0.1:${apiAddress.port}`;
 
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-denied-response-concat-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-denied-response-concat-");
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
     const { runner } = makeHttp2SelectionRunner((ctx) => {
@@ -5413,7 +5413,7 @@ describe("sandbox adapter execution targets", () => {
     }
     const apiOrigin = `http://127.0.0.1:${apiAddress.port}`;
 
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-denied-response-mutation-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-denied-response-mutation-");
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
     const { runner } = makeHttp2SelectionRunner((ctx) => {
@@ -5433,7 +5433,7 @@ describe("sandbox adapter execution targets", () => {
         headers: { authorization: `Bearer ${bridgeToken}`, "content-type": "application/json" },
       });
       expect(response.status).toBe(504);
-      expect(response.headers["x-paperclip-bridge-outcome"]).toBe("indeterminate");
+      expect(response.headers["x-outpost-bridge-outcome"]).toBe("indeterminate");
       expect(JSON.parse(response.body.toString("utf8"))).toMatchObject({
         outcome: "indeterminate",
         retryable: false,
@@ -5474,7 +5474,7 @@ describe("sandbox adapter execution targets", () => {
     }
     const apiOrigin = `http://127.0.0.1:${apiAddress.port}`;
 
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-ceiling-aggregate-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-ceiling-aggregate-");
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
     const { runner } = makeHttp2SelectionRunner((ctx) => {
@@ -5529,7 +5529,7 @@ describe("sandbox adapter execution targets", () => {
       ctx.emitReady();
       sessionRef.current = ctx.connectHttp2();
     });
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-host-body-limit-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-host-body-limit-");
     const target: AdapterSandboxExecutionTarget = duplexSandboxTarget(remoteCwd, runner);
 
     const bridge = await startTestDuplexBridge("run-host-body-limit", target, api.origin, {
@@ -5570,9 +5570,9 @@ describe("sandbox adapter execution targets", () => {
     // with no `reservation` option at all. `readBridgeForwardResponseBody`
     // must behave exactly as it did before that option existed: it still
     // forwards the request and still returns the host's body.
-    const rootDir = await createSandboxRoot("paperclip-queue-no-reservation-");
+    const rootDir = await createSandboxRoot("outpost-queue-no-reservation-");
     const remoteCwd = path.join(rootDir, "workspace");
-    const runtimeRootDir = path.join(remoteCwd, ".paperclip-runtime", "codex");
+    const runtimeRootDir = path.join(remoteCwd, ".outpost-runtime", "codex");
     await mkdir(runtimeRootDir, { recursive: true });
 
     const apiServer = createServer((req, res) => {
@@ -5590,7 +5590,7 @@ describe("sandbox adapter execution targets", () => {
 
     const target: AdapterSandboxExecutionTarget = queueSandboxTarget(remoteCwd);
 
-    const bridge = await startAdapterExecutionTargetPaperclipBridge({
+    const bridge = await startAdapterExecutionTargetOutpostBridge({
       runId: "run-queue-no-reservation",
       target,
       runtimeRootDir,
@@ -5627,7 +5627,7 @@ describe("sandbox adapter execution targets", () => {
   // ---------------------------------------------------------------------------
 
   async function runReadinessReplay(emit: (ctx: Http2OpenContext) => void) {
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-pty-replay-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-pty-replay-");
     const api = await startRecordingApiServer();
     const { runner, control } = makeHttp2SelectionRunner(emit);
     const target: AdapterSandboxExecutionTarget = {
@@ -5656,7 +5656,7 @@ describe("sandbox adapter execution targets", () => {
   it("PTY replay: accepts READY after an echoed prompt and wrapper line", async () => {
     const { mode } = await runReadinessReplay((ctx) => {
       ctx.emitRaw(
-        "daytona@212487a7f3c9:~$ exec 2>'/tmp/paperclip-duplex-x.log'; stty raw -echo; " +
+        "daytona@212487a7f3c9:~$ exec 2>'/tmp/outpost-duplex-x.log'; stty raw -echo; " +
           "exec 'bash' '-c' 'exec env OUTPOST_BRIDGE_NONCE=" + ctx.nonce + " node gateway.mjs'\r\n",
       );
       ctx.emitRaw('{"version":2,"type":"ready","nonce":"' + ctx.nonce + '"}\n');
@@ -5754,7 +5754,7 @@ describe("sandbox adapter execution targets", () => {
     // HTTP/2 server. A pre-preface byte would make the server report a
     // `PROTOCOL_ERROR`; this test proves the real session opens cleanly
     // instead, which only holds when the offset is exact.
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-preface-offset-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-preface-offset-");
     const api = await startRecordingApiServer();
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";
@@ -5790,7 +5790,7 @@ describe("sandbox adapter execution targets", () => {
     // the shell. This test embeds the exact preface bytes in the pre-READY
     // noise, then proves a session still starts only at the REAL preface
     // that follows READY.
-    const { rootDir, remoteCwd } = await createSandboxWorkspace("paperclip-http2-preface-lookalike-");
+    const { rootDir, remoteCwd } = await createSandboxWorkspace("outpost-http2-preface-lookalike-");
     const api = await startRecordingApiServer();
     const sessionRef: { current: http2.ClientHttp2Session | null } = { current: null };
     let bridgeToken = "";

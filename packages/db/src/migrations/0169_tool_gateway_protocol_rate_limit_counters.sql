@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "tool_gateway_rate_limit_counters" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "counter_key" text NOT NULL,
   "window_start_at" timestamp with time zone NOT NULL,
   "window_ms" integer NOT NULL,
@@ -15,11 +15,11 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conname = 'tool_gateway_rate_limit_counters_company_id_companies_id_fk'
+    WHERE conname = 'tool_gateway_rate_limit_counters_space_id_spaces_id_fk'
   ) THEN
     ALTER TABLE "tool_gateway_rate_limit_counters"
-      ADD CONSTRAINT "tool_gateway_rate_limit_counters_company_id_companies_id_fk"
-      FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id")
+      ADD CONSTRAINT "tool_gateway_rate_limit_counters_space_id_spaces_id_fk"
+      FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id")
       ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;
@@ -36,8 +36,8 @@ BEGIN
   END IF;
 END $$;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_gateway_rate_limit_counters_company_idx"
-  ON "tool_gateway_rate_limit_counters" USING btree ("company_id");
+CREATE INDEX IF NOT EXISTS "tool_gateway_rate_limit_counters_space_idx"
+  ON "tool_gateway_rate_limit_counters" USING btree ("space_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "tool_gateway_rate_limit_counters_window_uq"
-  ON "tool_gateway_rate_limit_counters" USING btree ("company_id","counter_key","window_start_at");
+  ON "tool_gateway_rate_limit_counters" USING btree ("space_id","counter_key","window_start_at");

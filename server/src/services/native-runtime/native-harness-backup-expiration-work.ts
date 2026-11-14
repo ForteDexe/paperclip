@@ -7,9 +7,9 @@ import { onRetainedNativeSessionCleanupRelease } from "../retained-native-sessio
 import { registerScopedDeadlineWork } from "../scoped-deadline-work.js";
 import { nativeHarnessBackupExpirationService, type NativeHarnessBackupDependencies, type NativeHarnessBackupExpirationOptions } from "./native-harness-backup-expiration.js";
 
-type Dependencies = { companyId: string; agentId: string; sessionId: string; runIds: Set<string>; issueIds: Set<string>; leaseIds: Set<string> };
-type Entry = { id: string; companyId: string; agentId: string; dueAt: number; dependencies: Dependencies };
-type Reference = "company" | "agent" | "session" | "run" | "issue" | "lease";
+type Dependencies = { spaceId: string; agentId: string; sessionId: string; runIds: Set<string>; issueIds: Set<string>; leaseIds: Set<string> };
+type Entry = { id: string; spaceId: string; agentId: string; dueAt: number; dependencies: Dependencies };
+type Reference = "space" | "agent" | "session" | "run" | "issue" | "lease";
 
 export function registerNativeHarnessBackupExpirationWork(
   coordinator: ReturnType<typeof createDeliveryWorkCoordinator>, db: Db,
@@ -19,14 +19,14 @@ export function registerNativeHarnessBackupExpirationWork(
   const cursors = new Map<string, string>();
   const sources = new Map<string, Dependencies>();
   const index = new Map<string, Set<string>>();
-  const key = (companyId: string, kind: Reference, id = "") => JSON.stringify([companyId, kind, id]);
+  const key = (spaceId: string, kind: Reference, id = "") => JSON.stringify([spaceId, kind, id]);
   const sessionKey = (agentId: string, sessionId: string) => JSON.stringify([agentId, sessionId]);
   function references(source: Dependencies) {
-    return [key(source.companyId, "company"), key(source.companyId, "agent", source.agentId),
-      key(source.companyId, "session", sessionKey(source.agentId, source.sessionId)),
-      ...[...source.runIds].map(id => key(source.companyId, "run", id)),
-      ...[...source.issueIds].map(id => key(source.companyId, "issue", id)),
-      ...[...source.leaseIds].map(id => key(source.companyId, "lease", id))];
+    return [key(source.spaceId, "space"), key(source.spaceId, "agent", source.agentId),
+      key(source.spaceId, "session", sessionKey(source.agentId, source.sessionId)),
+      ...[...source.runIds].map(id => key(source.spaceId, "run", id)),
+      ...[...source.issueIds].map(id => key(source.spaceId, "issue", id)),
+      ...[...source.leaseIds].map(id => key(source.spaceId, "lease", id))];
   }
   function add(reference: string, id: string) {
     let roots = index.get(reference);
@@ -40,7 +40,7 @@ export function registerNativeHarnessBackupExpirationWork(
       roots.delete(id); if (!roots.size) index.delete(reference);
     }
     if (!current) { sources.delete(id); return undefined; }
-    const source = { companyId: current.companyId, agentId: current.agentId,
+    const source = { spaceId: current.spaceId, agentId: current.agentId,
       sessionId: current.sessionId, runIds: new Set(current.runIds), issueIds: new Set(current.issueIds), leaseIds: new Set(current.leaseIds) };
     sources.set(id, source);
     for (const reference of references(source)) add(reference, id);
@@ -48,11 +48,11 @@ export function registerNativeHarnessBackupExpirationWork(
   }
   function selected(scope: NativeHarnessBackupExpirationScope): Set<string> {
     if (scope.scopeDigest) return new Set([scope.scopeDigest]);
-    const reference = scope.leaseId ? key(scope.companyId, "lease", scope.leaseId)
-      : scope.runId ? key(scope.companyId, "run", scope.runId)
-      : scope.sessionId && scope.agentId ? key(scope.companyId, "session", sessionKey(scope.agentId, scope.sessionId))
-      : scope.issueId ? key(scope.companyId, "issue", scope.issueId)
-      : scope.agentId ? key(scope.companyId, "agent", scope.agentId) : key(scope.companyId, "company");
+    const reference = scope.leaseId ? key(scope.spaceId, "lease", scope.leaseId)
+      : scope.runId ? key(scope.spaceId, "run", scope.runId)
+      : scope.sessionId && scope.agentId ? key(scope.spaceId, "session", sessionKey(scope.agentId, scope.sessionId))
+      : scope.issueId ? key(scope.spaceId, "issue", scope.issueId)
+      : scope.agentId ? key(scope.spaceId, "agent", scope.agentId) : key(scope.spaceId, "space");
     return new Set(index.get(reference) ?? []);
   }
   async function discoverReferences(scope: NativeHarnessBackupExpirationScope) {
@@ -61,14 +61,14 @@ export function registerNativeHarnessBackupExpirationWork(
     const roots = selected(scope);
     if (resolved.scopeDigest) roots.add(resolved.scopeDigest);
     const related = resolved.sessionId && resolved.agentId
-      ? selected({ companyId: scope.companyId, sessionId: resolved.sessionId, agentId: resolved.agentId })
-      : resolved.issueId ? selected({ companyId: scope.companyId, issueId: resolved.issueId }) : [];
+      ? selected({ spaceId: scope.spaceId, sessionId: resolved.sessionId, agentId: resolved.agentId })
+      : resolved.issueId ? selected({ spaceId: scope.spaceId, issueId: resolved.issueId }) : [];
     for (const id of related) roots.add(id);
     for (const id of roots) {
       const source = sources.get(id);
-      if (!source || source.companyId !== scope.companyId) continue;
-      if (scope.runId) { source.runIds.add(scope.runId); add(key(scope.companyId, "run", scope.runId), id); }
-      if (scope.leaseId) { source.leaseIds.add(scope.leaseId); add(key(scope.companyId, "lease", scope.leaseId), id); }
+      if (!source || source.spaceId !== scope.spaceId) continue;
+      if (scope.runId) { source.runIds.add(scope.runId); add(key(scope.spaceId, "run", scope.runId), id); }
+      if (scope.leaseId) { source.leaseIds.add(scope.leaseId); add(key(scope.spaceId, "lease", scope.leaseId), id); }
     }
   }
   async function reconcile(id: string): Promise<Entry | null> {
@@ -78,7 +78,7 @@ export function registerNativeHarnessBackupExpirationWork(
   }
   function matches(entry: Entry, scope?: NativeHarnessBackupExpirationScope) {
     if (!scope) return true;
-    if (entry.companyId !== scope.companyId) return false;
+    if (entry.spaceId !== scope.spaceId) return false;
     if (scope.scopeDigest) return entry.id === scope.scopeDigest;
     if (scope.leaseId) return entry.dependencies.leaseIds.has(scope.leaseId);
     if (scope.runId) return entry.dependencies.runIds.has(scope.runId);
@@ -102,7 +102,7 @@ export function registerNativeHarnessBackupExpirationWork(
       for (const name of page.names) {
         if (signal?.aborted || !canRun()) throw new Error("Backup expiration discovery paused");
         const entry = await reconcile(name);
-        if (entry && (!scope || entry.companyId === scope.companyId)) rows.push(entry);
+        if (entry && (!scope || entry.spaceId === scope.spaceId)) rows.push(entry);
       }
       if (page.complete) cursors.delete(hint); else cursors.set(hint, page.names.at(-1)!);
       return { rows, complete: page.complete };
@@ -110,7 +110,7 @@ export function registerNativeHarnessBackupExpirationWork(
     check: async (entry, signal) => {
       if (signal?.aborted || !canRun()) throw new Error("Backup expiration paused");
       const current = await reconcile(entry.id);
-      if (!current || current.companyId !== entry.companyId) return null;
+      if (!current || current.spaceId !== entry.spaceId) return null;
       if (current.dueAt > Date.now()) return current;
       const result = await service.expireBackup(entry.id);
       if (result.candidates || result.failed) logger.info({ ...result, dryRun: options.dryRun ?? false }, "native harness backup expiration");

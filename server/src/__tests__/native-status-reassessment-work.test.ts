@@ -22,7 +22,7 @@ import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, companies, completionContracts, createDb, heartbeatRuns, issues, issueWorkProducts, issueThreadInteractions,
+import { agents, spaces, completionContracts, createDb, heartbeatRuns, issues, issueWorkProducts, issueThreadInteractions,
   nativeRunFinalizations, nativeRunResults, statusDecisions, workAssessments, workspaceOperations } from "@outpost/db";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
@@ -37,7 +37,7 @@ describe("native reassessment worker lifecycle", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: ReturnType<typeof createDb>;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
-  const companyId = randomUUID(), agentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID();
   let logRoot: string;
   const priorLogRoot = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH;
   let admitted = true;
@@ -46,10 +46,10 @@ describe("native reassessment worker lifecycle", () => {
     logRoot = await mkdtemp(join(tmpdir(), "reassessment-workspace-logs-"));
     process.env.WORKSPACE_OPERATION_LOG_BASE_PATH = logRoot;
     const external = resolveExternalTestDatabaseUrl("OUTPOST_STATUS_REASSESSMENT_TEST_DATABASE_URL");
-    if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-status-reassessment-");
+    if (!external) temporary = await startEmbeddedPostgresTestDatabase("outpost-status-reassessment-");
     db = createDb(external ?? temporary!.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Reassessment lifecycle", issuePrefix: `RS${randomUUID().slice(0, 8)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Reassessment agent", adapterType: "codex_local", status: "idle" });
+    await db.insert(spaces).values({ id: spaceId, name: "Reassessment lifecycle", issuePrefix: `RS${randomUUID().slice(0, 8)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Reassessment agent", adapterType: "codex_local", status: "idle" });
   }, 30_000);
   afterAll(async () => {
     await db?.$client.end({ timeout: 1 }); await temporary?.cleanup();
@@ -94,50 +94,50 @@ describe("native reassessment worker lifecycle", () => {
   async function seedReview(evidenceRef?: string) {
     const issueId = randomUUID(), runId = randomUUID(), resultId = randomUUID(), contractId = randomUUID();
     const assessmentId = randomUUID(), workProductId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Persisted native result", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "succeeded", runtimeMode: "native",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Persisted native result", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "succeeded", runtimeMode: "native",
       nativeIssueId: issueId, completionContractId: contractId, contextSnapshot: { issueId }, finishedAt: new Date() });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "phase6-v1", risk: "low",
       completionAuthority: "agent_claim_policy", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "test-v1", criteria: [{ id: "objective", requirement: "Verified artifact" }] },
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "reassessment-test" });
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId, completionContractId: contractId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId, completionContractId: contractId,
       serverFingerprint: resultId, schemaStatus: "accepted", canonicalSha256: resultId,
       resultJson: { result: { reportedWorkDisposition: "done", summary: "Completed", attentionRequests: [],
         completionClaim: { contractRevision: "test-v1", objectiveSatisfied: true, remainingWork: [],
           criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: [evidenceRef ?? `work_product:${workProductId}`] }] },
         verification: [{ commandOrCheck: "artifact", status: "passed", artifactRef: evidenceRef ?? `work_product:${workProductId}` }],
       }, terminal: { runTerminalState: "succeeded" } } });
-    await db.insert(issueWorkProducts).values({ id: workProductId, companyId, issueId, type: "artifact", provider: "paperclip",
+    await db.insert(issueWorkProducts).values({ id: workProductId, spaceId, issueId, type: "artifact", provider: "outpost",
       title: "Verified artifact", status: "ready_for_review", reviewState: "approved",
       createdAt: new Date(Date.now() - 1000), updatedAt: new Date(Date.now() - 1000) });
-    await db.insert(workAssessments).values({ id: assessmentId, companyId, issueId, runId, contractId, resultId,
-      triggerKind: "native_result", triggerActorCompanyId: companyId, priorIssueStatus: "in_progress", priorStatusVersion: 0,
+    await db.insert(workAssessments).values({ id: assessmentId, spaceId, issueId, runId, contractId, resultId,
+      triggerKind: "native_result", triggerActorSpaceId: spaceId, priorIssueStatus: "in_progress", priorStatusVersion: 0,
       policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, inputDigest: assessmentId,
       assessmentJson: { reportedDisposition: "needs_review", attentionRequests: [], allCriteriaSatisfied: false } });
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "assessing", resultId, assessmentId });
-    const committed = await commitNativeStatusDecision({ db, companyId, issueId, runId, assessmentId,
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "assessing", resultId, assessmentId });
+    const committed = await commitNativeStatusDecision({ db, spaceId, issueId, runId, assessmentId,
       priorStatus: "in_progress", priorStatusVersion: 0, priorDecisionId: null,
       decision: { policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, statusAction: "in_review", toStatus: "in_review",
         reasonCode: "completion_claim_incomplete", unblockDescriptor: null,
         effects: [{ kind: "bind_reviewer", ownerUserId: null,
           prompt: "Review the persisted native-run evidence and confirm whether this issue may be completed." }] } });
-    await db.insert(workspaceOperations).values({ companyId, heartbeatRunId: runId, issueId, phase: "workspace_finalize",
+    await db.insert(workspaceOperations).values({ spaceId, heartbeatRunId: runId, issueId, phase: "workspace_finalize",
       status: "succeeded", exitCode: 0, cwd: process.cwd(), finishedAt: new Date() });
     return { issueId, runId, workProductId, decisionId: committed.decision.id };
   }
 
   it.each(["milestone", "finalization"] as const)("ignores repeated unscoped routine %s hints without reconstructing dormant reassessment history", async source => {
     const seeded = await seedReview();
-    const [other] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "failed",
+    const [other] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "failed",
       runtimeMode: "legacy", contextSnapshot: { issueId: seeded.issueId }, finishedAt: new Date() }).returning();
     await db.update(issues).set({ executionRunId: other.id }).where(eq(issues.id, seeded.issueId));
     await dismissAutomaticCompletionReviews(db, seeded.issueId);
     await start();
     await flush();
     await quiet();
-    expect(await nativeStatusReassessmentWork(db).load({ companyId, runId: seeded.runId })).toHaveLength(1);
+    expect(await nativeStatusReassessmentWork(db).load({ spaceId, runId: seeded.runId })).toHaveLength(1);
     const debug = db.$client.options.debug;
     const queries: string[] = [];
     db.$client.options.debug = (_connection, query) => {
@@ -145,8 +145,8 @@ describe("native reassessment worker lifecycle", () => {
     };
     try {
       for (let i = 0; i < 3; i++) {
-        await db.transaction(tx => source === "milestone" ? notifyChatRunMilestones(tx, { companyId })
-          : notifyNativeFinalizationWork(tx, { companyId }));
+        await db.transaction(tx => source === "milestone" ? notifyChatRunMilestones(tx, { spaceId })
+          : notifyNativeFinalizationWork(tx, { spaceId }));
         await flush();
       }
       expect(queries).toEqual([]);
@@ -172,7 +172,7 @@ describe("native reassessment worker lifecycle", () => {
   it.each(["force release", "release", "terminal execution", "terminal checkout", "queue release"] as const)(
     "wakes dormant reassessment from real %s", async action => {
       const seeded = await seedReview();
-      const [other] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "failed",
+      const [other] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "failed",
         runtimeMode: "legacy", contextSnapshot: { issueId: seeded.issueId }, finishedAt: new Date() }).returning();
       await db.update(issues).set({ executionRunId: other.id, checkoutRunId: other.id }).where(eq(issues.id, seeded.issueId));
       await dismissAutomaticCompletionReviews(db, seeded.issueId);
@@ -189,7 +189,7 @@ describe("native reassessment worker lifecycle", () => {
           getRoutineEnv: async () => ({ routineId: null, env: null, responsibleUserId: null }),
           resolveSessionBeforeForWakeup: async () => null,
         });
-        await adapter.withIssueExecutionLock({ companyId, runId: other.id, now: new Date() },
+        await adapter.withIssueExecutionLock({ spaceId, runId: other.id, now: new Date() },
           async () => ({ outcome: { kind: "released" }, postCommitEffects: [] }));
       }
       await flush();
@@ -206,7 +206,7 @@ describe("native reassessment worker lifecycle", () => {
 
   it("retains dormant reassessment through outer force-release rollback and commit", async () => {
     const seeded = await seedReview();
-    const [other] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "failed",
+    const [other] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "failed",
       runtimeMode: "legacy", contextSnapshot: { issueId: seeded.issueId }, finishedAt: new Date() }).returning();
     await db.update(issues).set({ executionRunId: other.id }).where(eq(issues.id, seeded.issueId));
     await dismissAutomaticCompletionReviews(db, seeded.issueId);
@@ -237,7 +237,7 @@ describe("native reassessment worker lifecycle", () => {
       await dismissAutomaticCompletionReviews(db, seeded.issueId);
       backlog.push(seeded);
     }
-    const work = nativeStatusReassessmentWork(db), scope = { companyId };
+    const work = nativeStatusReassessmentWork(db), scope = { spaceId };
     const expected = new Set<string>(backlog.map(row => row.runId));
     const discovered = await work.load(scope);
     expect(discovered.filter(row => expected.has(row.id))).toHaveLength(103);
@@ -269,7 +269,7 @@ describe("native reassessment worker lifecycle", () => {
     let enter!: () => void, release!: () => void;
     const entered = new Promise<void>(resolve => { enter = resolve; });
     const released = new Promise<void>(resolve => { release = resolve; });
-    const owner = withNativeWorkspaceFinalizationOwnership({ db, companyId, runId: seeded.runId }, async () => {
+    const owner = withNativeWorkspaceFinalizationOwnership({ db, spaceId, runId: seeded.runId }, async () => {
       enter(); await released;
     });
     try {
@@ -303,7 +303,7 @@ describe("native reassessment worker lifecycle", () => {
     await db.update(issueWorkProducts).set({ updatedAt: new Date() }).where(eq(issueWorkProducts.id, seeded.workProductId));
     await start(); await flush(); await quiet();
     const orpEvent = { sourceKind: "control_plane", payload: { evidenceOutcome: " accepted " } };
-    const input = { companyId, agentId, runId: seeded.runId, eventType: "evidence.recorded", payload: { orpEvent },
+    const input = { spaceId, agentId, runId: seeded.runId, eventType: "evidence.recorded", payload: { orpEvent },
       ...(path === "native source" ? { nativeSource: { sourceInstanceId: randomUUID(), sourceEventId: randomUUID(),
         sourceSeq: 1, protocolSchemaVersion: 1, canonicalPayload: orpEvent } } : {}) };
     expect((await appendHeartbeatRunEvent(db, input)).disposition).toBe("committed");
@@ -320,7 +320,7 @@ describe("native reassessment worker lifecycle", () => {
     await db.update(issueWorkProducts).set({ updatedAt: new Date() }).where(eq(issueWorkProducts.id, seeded.workProductId));
     await start(); await flush(); await quiet();
     const write = async (tx: typeof db) => {
-      await appendHeartbeatRunEvent(tx, { companyId, agentId, runId: seeded.runId, eventType: "evidence.recorded",
+      await appendHeartbeatRunEvent(tx, { spaceId, agentId, runId: seeded.runId, eventType: "evidence.recorded",
         payload: { orpEvent: { sourceKind: "control_plane", payload: { evidenceOutcome: "accepted" } } } });
       await vi.advanceTimersByTimeAsync(1000);
       expect(await status(seeded.issueId)).toBe("in_review");
@@ -344,13 +344,13 @@ describe("native reassessment worker lifecycle", () => {
     const wakes = vi.fn();
     const stop = subscribeDeliveryWork(db, DELIVERY_QUEUES.nativeStatusReassessment, wakes);
     try {
-      await appendHeartbeatRunEvent(db, { companyId, agentId, runId: seeded.runId, eventType: "log", message: "Still working" });
-      await appendHeartbeatRunEvent(db, { companyId, agentId, runId: seeded.runId, eventType: "evidence.recorded",
+      await appendHeartbeatRunEvent(db, { spaceId, agentId, runId: seeded.runId, eventType: "log", message: "Still working" });
+      await appendHeartbeatRunEvent(db, { spaceId, agentId, runId: seeded.runId, eventType: "evidence.recorded",
         payload: { orpEvent: { sourceKind: "runner", payload: { evidenceOutcome: "accepted" } } } });
       expect(wakes).not.toHaveBeenCalled();
       await quiet();
       expect(await status(seeded.issueId)).toBe("in_review");
-      await appendHeartbeatRunEvent(db, { companyId, agentId, runId: seeded.runId, eventType: "evidence.recorded",
+      await appendHeartbeatRunEvent(db, { spaceId, agentId, runId: seeded.runId, eventType: "evidence.recorded",
         payload: { orpEvent: { sourceKind: "control_plane", payload: { evidenceOutcome: "accepted" } } } });
       await flush();
       expect(await status(seeded.issueId)).toBe("done");
@@ -363,7 +363,7 @@ describe("native reassessment worker lifecycle", () => {
     await db.update(workspaceOperations).set({ status: "running" }).where(eq(workspaceOperations.heartbeatRunId, seeded.runId));
     await dismissAutomaticCompletionReviews(db, seeded.issueId);
     await start(); await flush(); await quiet();
-    const recorder = workspaceOperationService(db).createRecorder({ companyId, issueId: seeded.issueId, heartbeatRunId: seeded.runId });
+    const recorder = workspaceOperationService(db).createRecorder({ spaceId, issueId: seeded.issueId, heartbeatRunId: seeded.runId });
     await expect(recorder.recordOperation({ phase: "workspace_finalize", run: async () => { throw new Error("export interrupted"); } }))
       .rejects.toThrow("export interrupted");
     await flush(); await quiet();
@@ -391,7 +391,7 @@ describe("native reassessment worker lifecycle", () => {
     await dismissAutomaticCompletionReviews(db, seeded.issueId);
     await start(); await flush(); await quiet();
     const write = async (tx: typeof db) => {
-      await workspaceOperationService(tx).createRecorder({ companyId, issueId: seeded.issueId, heartbeatRunId: seeded.runId })
+      await workspaceOperationService(tx).createRecorder({ spaceId, issueId: seeded.issueId, heartbeatRunId: seeded.runId })
         .recordOperation({ phase: "workspace_finalize", run: async () => ({ status: "succeeded" }) });
       await vi.advanceTimersByTimeAsync(1000);
       expect(await status(seeded.issueId)).toBe("in_review");
@@ -421,21 +421,21 @@ describe("native reassessment worker lifecycle", () => {
         : kind === "request_checkbox_confirmation"
           ? { version: 1 as const, prompt: "Accept evidence", options: [{ id: "verified", label: "Verified" }] }
           : { version: 1 as const, prompt: "Accept evidence" };
-    await db.insert(issueThreadInteractions).values({ id: interactionId, companyId, issueId: seeded.issueId, kind,
-      sourceRunId: seeded.runId, continuationPolicy: "none", createdByUserId: "board-user", payload });
-    await db.update(issues).set({ createdByUserId: "board-user" }).where(eq(issues.id, seeded.issueId));
+    await db.insert(issueThreadInteractions).values({ id: interactionId, spaceId, issueId: seeded.issueId, kind,
+      sourceRunId: seeded.runId, continuationPolicy: "none", createdByUserId: "operator-user", payload });
+    await db.update(issues).set({ createdByUserId: "operator-user" }).where(eq(issues.id, seeded.issueId));
     await vi.advanceTimersByTimeAsync(1000);
     await db.update(issueWorkProducts).set({ updatedAt: new Date() }).where(eq(issueWorkProducts.id, seeded.workProductId));
     await start(); await flush(); await quiet();
     expect(await status(seeded.issueId)).toBe("in_review");
-    const scope = { id: seeded.issueId, companyId, projectId: null, goalId: null };
+    const scope = { id: seeded.issueId, spaceId, projectId: null, goalId: null };
     const interactions = issueThreadInteractionService(db);
     if (mutation === "confirmation" || mutation === "checkbox") {
-      await interactions.acceptInteraction(scope, interactionId, mutation === "checkbox" ? { selectedOptionIds: ["verified"] } : {}, { userId: "board-user" });
+      await interactions.acceptInteraction(scope, interactionId, mutation === "checkbox" ? { selectedOptionIds: ["verified"] } : {}, { userId: "operator-user" });
     } else if (mutation === "question") {
-      await interactions.answerQuestions(scope, interactionId, { answers: [{ questionId: "verified", optionIds: ["yes"] }] }, { userId: "board-user" });
+      await interactions.answerQuestions(scope, interactionId, { answers: [{ questionId: "verified", optionIds: ["yes"] }] }, { userId: "operator-user" });
     } else {
-      await interactions.submitItemVerdicts(scope, interactionId, { verdicts: [{ id: "artifact", verdict: "approve" }] }, { userId: "board-user" });
+      await interactions.submitItemVerdicts(scope, interactionId, { verdicts: [{ id: "artifact", verdict: "approve" }] }, { userId: "operator-user" });
     }
     await flush();
     expect(await status(seeded.issueId)).toBe("done");
@@ -446,14 +446,14 @@ describe("native reassessment worker lifecycle", () => {
   it.each(["resolution", "link", "bulk link"] as const)("wakes dormant evidence from real approval %s", async mutation => {
     const approvalId = randomUUID();
     const seeded = await seedReview(`approval:${approvalId}`);
-    await approvalService(db).create(companyId, { id: approvalId, type: "approve_ceo_strategy", payload: {},
+    await approvalService(db).create(spaceId, { id: approvalId, type: "approve_lead_strategy", payload: {},
       status: mutation === "resolution" ? "pending" : "approved" });
     if (mutation === "resolution") await issueApprovalService(db).link(seeded.issueId, approvalId);
     await vi.advanceTimersByTimeAsync(1000);
     await db.update(issueWorkProducts).set({ updatedAt: new Date() }).where(eq(issueWorkProducts.id, seeded.workProductId));
     await start(); await flush(); await quiet();
     expect(await status(seeded.issueId)).toBe("in_review");
-    if (mutation === "resolution") await approvalService(db).approve(approvalId, "board-user");
+    if (mutation === "resolution") await approvalService(db).approve(approvalId, "operator-user");
     if (mutation === "link") await issueApprovalService(db).link(seeded.issueId, approvalId);
     if (mutation === "bulk link") await issueApprovalService(db).linkManyForApproval(approvalId, [seeded.issueId]);
     await flush();
@@ -465,13 +465,13 @@ describe("native reassessment worker lifecycle", () => {
   it("defers approval evidence until outer commit and ignores rolled-back approval", async () => {
     const approvalId = randomUUID();
     const seeded = await seedReview(`approval:${approvalId}`);
-    await approvalService(db).create(companyId, { id: approvalId, type: "approve_ceo_strategy", payload: {} });
+    await approvalService(db).create(spaceId, { id: approvalId, type: "approve_lead_strategy", payload: {} });
     await issueApprovalService(db).link(seeded.issueId, approvalId);
     await vi.advanceTimersByTimeAsync(1000);
     await db.update(issueWorkProducts).set({ updatedAt: new Date() }).where(eq(issueWorkProducts.id, seeded.workProductId));
     await start(); await flush(); await quiet();
     await expect(db.transaction(async tx => {
-      await approvalService(tx as unknown as typeof db).approve(approvalId, "board-user");
+      await approvalService(tx as unknown as typeof db).approve(approvalId, "operator-user");
       await vi.advanceTimersByTimeAsync(1000);
       expect(await status(seeded.issueId)).toBe("in_review");
       throw new Error("rollback approval evidence");
@@ -479,7 +479,7 @@ describe("native reassessment worker lifecycle", () => {
     await flush(); await quiet();
     expect(await status(seeded.issueId)).toBe("in_review");
     await db.transaction(async tx => {
-      await approvalService(tx as unknown as typeof db).approve(approvalId, "board-user");
+      await approvalService(tx as unknown as typeof db).approve(approvalId, "operator-user");
       await vi.advanceTimersByTimeAsync(1000);
       expect(await status(seeded.issueId)).toBe("in_review");
     });
@@ -517,13 +517,13 @@ describe("native reassessment worker lifecycle", () => {
     expect(await status(seeded.issueId)).toBe("in_review");
     const products = workProductService(db);
     if (writer === "update") await products.update(seeded.workProductId, { reviewState: "approved" });
-    if (writer === "create" || writer === "primary replacement") await products.createForIssue(seeded.issueId, companyId, {
+    if (writer === "create" || writer === "primary replacement") await products.createForIssue(seeded.issueId, spaceId, {
       ...(writer === "create" ? { id: seeded.workProductId } : {}),
-      type: "artifact", provider: "paperclip", title: "Verified artifact", status: "approved", reviewState: "approved",
+      type: "artifact", provider: "outpost", title: "Verified artifact", status: "approved", reviewState: "approved",
       isPrimary: writer === "primary replacement",
     });
-    if (writer === "import") await products.createManyForImport([{ companyId, issueId: seeded.issueId, projectId: null,
-      type: "artifact", provider: "paperclip", externalId: null, title: "Imported evidence", url: null, status: "approved",
+    if (writer === "import") await products.createManyForImport([{ spaceId, issueId: seeded.issueId, projectId: null,
+      type: "artifact", provider: "outpost", externalId: null, title: "Imported evidence", url: null, status: "approved",
       reviewState: "approved", isPrimary: false, healthStatus: "unknown", summary: null, metadata: null,
       executionWorkspaceId: null, runtimeServiceId: null, createdByRunId: null, sourceTrust: null }]);
     if (writer === "attachment") await issueService(db).createAttachment({ issueId: seeded.issueId, provider: "local_disk",
@@ -532,8 +532,8 @@ describe("native reassessment worker lifecycle", () => {
     if (writer === "source promotion") {
       const app = express(); app.use(express.json());
       app.use((req, _res, next) => {
-        req.actor = { type: "board", userId: "board-user", companyIds: [companyId],
-          memberships: [{ companyId, membershipRole: "operator", status: "active" }],
+        req.actor = { type: "operator", userId: "operator-user", spaceIds: [spaceId],
+          memberships: [{ spaceId, membershipRole: "operator", status: "active" }],
           isInstanceAdmin: true, source: "local_implicit" }; next();
       });
       app.use("/api", issueRoutes(db, {} as any)); app.use(errorHandler);

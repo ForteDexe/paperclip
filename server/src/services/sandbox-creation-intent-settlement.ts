@@ -41,7 +41,7 @@ export async function settleSandboxCreationIntent(db: Db, record: InProgressReco
     }
     if (operation.nextAttemptAt <= now) return { settled: false, reason: "intent_already_due" };
     // Wake creation recovery before the write it announces.
-    await notifyEnvironmentCleanup(tx, { companyId: operation.companyId, runId: operation.runId });
+    await notifyEnvironmentCleanup(tx, { spaceId: operation.spaceId, runId: operation.runId });
     const updated = await tx.update(sandboxCreationOperations).set({ nextAttemptAt: now, updatedAt: now,
       metadata: sql`coalesce(${sandboxCreationOperations.metadata}, '{}'::jsonb) || ${JSON.stringify({
         creationControllerLost: true, creationControllerLostProof: context.proof.reason })}::jsonb` })

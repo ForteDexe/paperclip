@@ -4,7 +4,7 @@
   "outcome": "failed fixture required notification path and redundant card ID; sanitized pre-Stop calibration only",
   "scope": {
     "provider": "copilot",
-    "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+    "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
     "issueId": "af0fd9f5-9bdd-42f4-a214-328919e315f7",
     "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
     "target": "pc-denied-dUYoVS/active-stop-80fcac4754d6-1.txt",
@@ -13,7 +13,7 @@
   "rows": [
     {
       "id": 119,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 119,
@@ -87,7 +87,7 @@
                     "label": "Cancel"
                   }
                 ],
-                "threadId": "paperclip-bb9ec77ae62affebe9269afb211e8cff11b30059ee6155586f1ba46ef3758033"
+                "threadId": "outpost-bb9ec77ae62affebe9269afb211e8cff11b30059ee6155586f1ba46ef3758033"
               },
               "requestId": "acpx-input-5f82c73c88b9dec922b29e72",
               "requestKind": "permission_approval"
@@ -113,7 +113,7 @@
     },
     {
       "id": 120,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 120,
@@ -182,7 +182,7 @@
     },
     {
       "id": 121,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 121,
@@ -198,12 +198,12 @@
           "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_71c34ac179ea42ac9e5a65138c15e2b7",
           "payload": {
-            "name": "paperclip-get_task_context",
+            "name": "outpost-get_task_context",
             "schema": "outpost.tool.execution.v1",
             "status": "running",
             "target": null,
             "exitCode": null,
-            "progress": "paperclip-get_task_context (pending)",
+            "progress": "outpost-get_task_context (pending)",
             "readOnly": true,
             "namespace": null,
             "operation": "read",
@@ -235,7 +235,7 @@
     },
     {
       "id": 122,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 122,
@@ -304,7 +304,7 @@
     },
     {
       "id": 123,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 123,
@@ -346,7 +346,7 @@
     },
     {
       "id": 124,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 124,
@@ -419,7 +419,7 @@
     },
     {
       "id": 128,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 128,
@@ -471,12 +471,12 @@
                 "value": "null"
               }
             ],
-            "summary": "Paperclip returned a semantic tool result.",
-            "category": "paperclip_semantic_tool_receipt_v2",
+            "summary": "Outpost returned a semantic tool result.",
+            "category": "outpost_semantic_tool_receipt_v2",
             "noticeId": "copilot-evidence-312ceb146a219ca749ed7bba-4",
             "severity": "info",
             "provenance": {
-              "method": "paperclip/semantic_tool_result",
+              "method": "outpost/semantic_tool_result",
               "turnId": "turn_lab_71c34ac179ea42ac9e5a65138c15e2b7",
               "eventType": "semantic_result",
               "sessionId": "64118500-7098-4903-830f-58adc1333b66"
@@ -504,7 +504,7 @@
     },
     {
       "id": 129,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 129,
@@ -597,7 +597,7 @@
     },
     {
       "id": 130,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 130,
@@ -613,7 +613,7 @@
           "schema": "outpost.orp.event.v1",
           "turnId": "turn_lab_71c34ac179ea42ac9e5a65138c15e2b7",
           "payload": {
-            "name": "paperclip-get_task_context",
+            "name": "outpost-get_task_context",
             "schema": "outpost.tool.execution.v1",
             "status": "completed",
             "target": null,
@@ -650,7 +650,7 @@
     },
     {
       "id": 134,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 134,
@@ -724,7 +724,7 @@
                     "label": "Cancel"
                   }
                 ],
-                "threadId": "paperclip-bb9ec77ae62affebe9269afb211e8cff11b30059ee6155586f1ba46ef3758033"
+                "threadId": "outpost-bb9ec77ae62affebe9269afb211e8cff11b30059ee6155586f1ba46ef3758033"
               },
               "requestId": "acpx-input-ccaa35c8d2130be28a27e1d3",
               "requestKind": "permission_approval"
@@ -750,7 +750,7 @@
     },
     {
       "id": 135,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 135,
@@ -819,7 +819,7 @@
     },
     {
       "id": 136,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 136,
@@ -872,7 +872,7 @@
     },
     {
       "id": 137,
-      "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+      "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
       "runId": "861387cc-31c6-4761-bebb-24fde8539f4b",
       "agentId": "1d6760b4-ebe7-4198-9f3d-5d4568b997c6",
       "seq": 137,
@@ -950,7 +950,7 @@
   ],
   "run": {
     "id": "861387cc-31c6-4761-bebb-24fde8539f4b",
-    "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+    "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
     "nativeIssueId": "af0fd9f5-9bdd-42f4-a214-328919e315f7",
     "runtimeMode": "native",
     "status": "running",
@@ -958,7 +958,7 @@
   },
   "issue": {
     "id": "af0fd9f5-9bdd-42f4-a214-328919e315f7",
-    "companyId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
+    "spaceId": "6ce27423-9b7a-4423-9171-8d4d40e6c346",
     "status": "in_progress"
   }
 }

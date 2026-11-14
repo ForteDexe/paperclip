@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { companies, createDb, toolApplications, toolCatalogEntries, toolConnections, toolProfileEntries, toolProfiles } from "@outpost/db";
+import { spaces, createDb, toolApplications, toolCatalogEntries, toolConnections, toolProfileEntries, toolProfiles } from "@outpost/db";
 import type { CreateToolProfileEntryForProfile } from "@outpost/shared";
 import { eq } from "drizzle-orm";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -13,33 +13,33 @@ const describeDatabase = support.supported ? describe : describe.skip;
 describeDatabase("tool profile entry validation", () => {
   let db: ReturnType<typeof createDb>;
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
-  const companyIds: string[] = [];
+  const spaceIds: string[] = [];
 
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-profile-entry-validation-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-profile-entry-validation-");
     db = createDb(database.connectionString);
   }, 20_000);
 
   afterEach(async () => {
-    for (const id of companyIds.splice(0)) await db.delete(companies).where(eq(companies.id, id));
+    for (const id of spaceIds.splice(0)) await db.delete(spaces).where(eq(spaces.id, id));
   });
 
   afterAll(async () => { await database?.cleanup(); });
 
   async function fixture(count = 1) {
-    const [company] = await db.insert(companies).values({
+    const [space] = await db.insert(spaces).values({
       name: `Profile fixture ${randomUUID()}`, issuePrefix: `PV${randomUUID().slice(0, 6).toUpperCase()}`,
     }).returning();
-    companyIds.push(company.id);
+    spaceIds.push(space.id);
     const [application] = await db.insert(toolApplications).values({
-      companyId: company.id, name: `Application ${randomUUID()}`, type: "mcp_http", status: "active",
+      spaceId: space.id, name: `Application ${randomUUID()}`, type: "mcp_http", status: "active",
     }).returning();
     const [connection] = await db.insert(toolConnections).values({
-      companyId: company.id, applicationId: application.id, name: "Fixture connection", uid: `fixture/${randomUUID()}`,
+      spaceId: space.id, applicationId: application.id, name: "Fixture connection", uid: `fixture/${randomUUID()}`,
       transport: "mcp_remote", status: "active", enabled: true, config: {}, transportConfig: {}, healthStatus: "ok",
     }).returning();
     const catalog = await db.insert(toolCatalogEntries).values(Array.from({ length: count }, (_, index) => ({
-      companyId: company.id, applicationId: application.id, connectionId: connection.id,
+      spaceId: space.id, applicationId: application.id, connectionId: connection.id,
       name: `tool_${index}`, toolName: `tool_${index}`, riskLevel: "read" as const, status: "active" as const,
       versionHash: randomUUID(), schemaHash: randomUUID(),
     }))).returning();
@@ -47,7 +47,7 @@ describeDatabase("tool profile entry validation", () => {
       selectorType: "catalog_entry", effect: "include", applicationId: application.id,
       connectionId: connection.id, catalogEntryId: entry.id,
     }));
-    return { company, application, connection, catalog, entries };
+    return { space, application, connection, catalog, entries };
   }
 
   function countedService() {
@@ -67,7 +67,7 @@ describeDatabase("tool profile entry validation", () => {
     const own = await fixture(3);
     const foreign = await fixture(1);
     const service = toolAccessService(db);
-    const profile = await service.createProfile(own.company.id, {
+    const profile = await service.createProfile(own.space.id, {
       profileKey: `summary-${randomUUID()}`, name: "Summary profile", status: "active", defaultAction: "deny",
       entries: [own.entries[0]],
     });
@@ -78,17 +78,17 @@ describeDatabase("tool profile entry validation", () => {
       title: "New tool", description: "Review description",
       inputSchema: { description: "large schema ".repeat(10_000) },
       outputSchema: { description: "large output ".repeat(10_000) },
-    }).where(eq(toolCatalogEntries.companyId, own.company.id));
+    }).where(eq(toolCatalogEntries.spaceId, own.space.id));
     await db.update(toolConnections).set({ config: { notes: "connection data ".repeat(10_000) } })
       .where(eq(toolConnections.id, own.connection.id));
     const recorded = recordingDb(db);
     const narrowed = toolAccessService(recorded.db);
-    const [listed] = await narrowed.listProfiles(own.company.id);
+    const [listed] = await narrowed.listProfiles(own.space.id);
     expect(listed).toMatchObject({ id: profile.id, newToolsPendingCount: 2,
       summary: { allowedToolCount: 1, totalToolCount: 3 },
       entries: [expect.objectContaining({ catalogEntryId: own.catalog[0].id })] });
-    expect(await narrowed.getProfile(profile.id, own.company.id)).toEqual(listed);
-    const review = await narrowed.listProfileNewTools(profile.id, own.company.id);
+    expect(await narrowed.getProfile(profile.id, own.space.id)).toEqual(listed);
+    const review = await narrowed.listProfileNewTools(profile.id, own.space.id);
     expect(review.tools).toHaveLength(2);
     expect(review.tools).toEqual(expect.arrayContaining(own.catalog.slice(1).map(entry => expect.objectContaining({
       catalogEntryId: entry.id, applicationName: own.application.name, connectionName: own.connection.name,
@@ -97,7 +97,7 @@ describeDatabase("tool profile entry validation", () => {
     expect(JSON.stringify(review)).not.toContain(foreign.catalog[0].id);
     for (const query of recorded.statements.filter(q => q.includes('from "tool_catalog_entries"'))) {
       expect(query).not.toMatch(/"(?:input_schema|output_schema|metadata|annotations)"/);
-      expect(query).toContain('"tool_catalog_entries"."company_id"');
+      expect(query).toContain('"tool_catalog_entries"."space_id"');
     }
     for (const query of recorded.statements.filter(q => q.includes('from "tool_connections"'))) {
       expect(query).not.toMatch(/"(?:config|transport_config|credential_secret_refs|credential_refs)"/);
@@ -105,7 +105,7 @@ describeDatabase("tool profile entry validation", () => {
     await db.update(toolCatalogEntries).set({ status: "quarantined" })
       .where(eq(toolCatalogEntries.id, own.catalog[2].id));
     const attentionReads = recordingDb(db);
-    const attention = await toolAccessService(attentionReads.db).listAppsNeedingAttention(own.company.id);
+    const attention = await toolAccessService(attentionReads.db).listAppsNeedingAttention(own.space.id);
     expect(attention.totals).toMatchObject({ quarantinedCatalogEntries: 1, newToolsPendingReview: 1 });
     expect(attention.apps[0]).toMatchObject({ connection: { id: own.connection.id },
       newToolsPendingProfiles: [{ profileId: profile.id, profileName: profile.name, pendingCount: 1 }] });
@@ -116,30 +116,30 @@ describeDatabase("tool profile entry validation", () => {
 
   it("keeps schema payload growth out of repeated profile summary reads", async () => {
     const own = await fixture(50);
-    await toolAccessService(db).createProfile(own.company.id, {
+    await toolAccessService(db).createProfile(own.space.id, {
       profileKey: `payload-${randomUUID()}`, name: "Payload profile", status: "active", defaultAction: "deny", entries: own.entries,
     });
     const recorded = recordingDb(db);
     const service = toolAccessService(recorded.db);
-    const before = await service.listProfiles(own.company.id);
+    const before = await service.listProfiles(own.space.id);
     const index = recorded.statements.findIndex(query => query.includes('from "tool_catalog_entries"'));
     expect(index).toBeGreaterThanOrEqual(0);
     const query = recorded.statements[index];
     const params = recorded.statementParams[index];
     const bytesBefore = Buffer.byteLength(JSON.stringify(await db.$client.unsafe(query, params as never[])));
     await db.update(toolCatalogEntries).set({ inputSchema: { text: "schema data ".repeat(20_000) } })
-      .where(eq(toolCatalogEntries.companyId, own.company.id));
-    expect(await service.listProfiles(own.company.id)).toEqual(before);
+      .where(eq(toolCatalogEntries.spaceId, own.space.id));
+    expect(await service.listProfiles(own.space.id)).toEqual(before);
     const bytesAfter = Buffer.byteLength(JSON.stringify(await db.$client.unsafe(query, params as never[])));
     expect(bytesAfter).toBe(bytesBefore);
     expect(bytesAfter).toBeLessThan(50_000);
   });
 
   it("creates all 518 exact selectors without per-entry database reads", async () => {
-    const { company, entries } = await fixture(518);
+    const { space, entries } = await fixture(518);
     const { service, reads } = countedService();
     const started = performance.now();
-    const profile = await service.createProfile(company.id, {
+    const profile = await service.createProfile(space.id, {
       profileKey: `cold-${randomUUID()}`, name: "Cold runtime assignment", status: "active", defaultAction: "deny", entries,
     });
     const elapsedMs = performance.now() - started;
@@ -151,8 +151,8 @@ describeDatabase("tool profile entry validation", () => {
   });
 
   it("replaces 518 selectors without repeating per-entry reads", async () => {
-    const { company, entries } = await fixture(518);
-    const existing = await toolAccessService(db).createProfile(company.id, {
+    const { space, entries } = await fixture(518);
+    const existing = await toolAccessService(db).createProfile(space.id, {
       profileKey: `replace-${randomUUID()}`, name: "Before replacement", status: "active", defaultAction: "deny", entries: [entries[0]],
     });
     const { service, reads } = countedService();
@@ -168,7 +168,7 @@ describeDatabase("tool profile entry validation", () => {
     const own = await fixture();
     const foreign = await fixture();
     const service = toolAccessService(db);
-    const profile = await service.createProfile(own.company.id, {
+    const profile = await service.createProfile(own.space.id, {
       profileKey: `preserve-${randomUUID()}`, name: "Preserved profile", status: "active", defaultAction: "deny", entries: own.entries,
     });
     const invalid = { ...own.entries[0], ...({
@@ -178,7 +178,7 @@ describeDatabase("tool profile entry validation", () => {
     }[kind]) };
     const status = kind === "catalog" ? 422 : 404;
     const key = `rejected-${randomUUID()}`;
-    await expect(service.createProfile(own.company.id, { profileKey: key, name: "Rejected", status: "active", defaultAction: "deny", entries: [invalid] }))
+    await expect(service.createProfile(own.space.id, { profileKey: key, name: "Rejected", status: "active", defaultAction: "deny", entries: [invalid] }))
       .rejects.toMatchObject({ status });
     expect(await db.select().from(toolProfiles).where(eq(toolProfiles.profileKey, key))).toEqual([]);
     await expect(service.updateProfile(profile.id, { name: "Must not change", entries: [invalid] }))
@@ -196,8 +196,8 @@ describeDatabase("tool profile entry validation", () => {
     ["tool_name", "Tool-name profile entries require toolName"],
     ["risk_level", "Risk-level profile entries require riskLevel"],
   ] as const)("preserves the required %s selector check", async (selectorType, message) => {
-    const { company } = await fixture();
-    await expect(toolAccessService(db).createProfile(company.id, {
+    const { space } = await fixture();
+    await expect(toolAccessService(db).createProfile(space.id, {
       profileKey: `missing-${randomUUID()}`, name: "Missing selector", status: "active", defaultAction: "deny", entries: [{ selectorType, effect: "include" }],
     })).rejects.toMatchObject({ status: 400, message });
   });
@@ -205,7 +205,7 @@ describeDatabase("tool profile entry validation", () => {
   it("preserves input-order errors when a later selector has a missing field", async () => {
     const own = await fixture();
     const foreign = await fixture();
-    await expect(toolAccessService(db).createProfile(own.company.id, {
+    await expect(toolAccessService(db).createProfile(own.space.id, {
       profileKey: `ordered-${randomUUID()}`, name: "Ordered errors", status: "active", defaultAction: "deny", entries: [
         { ...own.entries[0], applicationId: foreign.application.id },
         { selectorType: "tool_name", effect: "include" },
@@ -214,11 +214,11 @@ describeDatabase("tool profile entry validation", () => {
   });
 
   it("does not reuse validation after a catalog entry is removed", async () => {
-    const { company, catalog, entries } = await fixture();
+    const { space, catalog, entries } = await fixture();
     const service = toolAccessService(db);
-    await service.createProfile(company.id, { profileKey: `valid-${randomUUID()}`, name: "Before removal", status: "active", defaultAction: "deny", entries });
+    await service.createProfile(space.id, { profileKey: `valid-${randomUUID()}`, name: "Before removal", status: "active", defaultAction: "deny", entries });
     await db.delete(toolCatalogEntries).where(eq(toolCatalogEntries.id, catalog[0].id));
-    await expect(service.createProfile(company.id, { profileKey: `after-${randomUUID()}`, name: "After removal", status: "active", defaultAction: "deny", entries }))
+    await expect(service.createProfile(space.id, { profileKey: `after-${randomUUID()}`, name: "After removal", status: "active", defaultAction: "deny", entries }))
       .rejects.toMatchObject({ status: 422 });
   });
 
@@ -226,7 +226,7 @@ describeDatabase("tool profile entry validation", () => {
     const own = await fixture();
     const foreign = await fixture();
     await db.update(toolConnections).set({ uid: foreign.connection.id }).where(eq(toolConnections.id, own.connection.id));
-    await expect(toolAccessService(db).createProfile(own.company.id, {
+    await expect(toolAccessService(db).createProfile(own.space.id, {
       profileKey: `uid-collision-${randomUUID()}`, name: "UID collision", status: "active", defaultAction: "deny", entries: [
         own.entries[0], { ...own.entries[0], connectionId: foreign.connection.id },
       ],
@@ -238,7 +238,7 @@ describeDatabase("tool profile entry validation", () => {
     const foreign = await fixture();
     own.entries[517] = { ...own.entries[517], catalogEntryId: foreign.catalog[0].id };
     const profileKey = `last-batch-${randomUUID()}`;
-    await expect(toolAccessService(db).createProfile(own.company.id, {
+    await expect(toolAccessService(db).createProfile(own.space.id, {
       profileKey, name: "Last batch", status: "active", defaultAction: "deny", entries: own.entries,
     })).rejects.toMatchObject({ status: 422 });
     expect(await db.select().from(toolProfiles).where(eq(toolProfiles.profileKey, profileKey))).toEqual([]);
@@ -246,7 +246,7 @@ describeDatabase("tool profile entry validation", () => {
 
   it("preserves PostgreSQL UUID case matching", async () => {
     const own = await fixture();
-    const profile = await toolAccessService(db).createProfile(own.company.id, {
+    const profile = await toolAccessService(db).createProfile(own.space.id, {
       profileKey: `upper-${randomUUID()}`, name: "Uppercase identifiers", status: "active", defaultAction: "deny", entries: [{
         ...own.entries[0], applicationId: own.application.id.toUpperCase(),
         connectionId: own.connection.id.toUpperCase(), catalogEntryId: own.catalog[0].id.toUpperCase(),

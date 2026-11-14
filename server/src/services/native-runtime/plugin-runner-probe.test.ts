@@ -53,7 +53,7 @@ describe("plugin Runner setup", () => {
       root = input.runtimeDirectory; options = input; throw failure;
     });
     try {
-      await expect(probePluginRunnerEnvironment({ companyId: "fixture-company", adapterType: "outpost_runner", config: { provider: "codex", model: "fixture-model" },
+      await expect(probePluginRunnerEnvironment({ spaceId: "fixture-space", adapterType: "outpost_runner", config: { provider: "codex", model: "fixture-model" },
         executionTarget: { kind: "remote", transport: "sandbox", remoteCwd: ".", leaseId: "probe-lease",
           runnerTaskProbe: { runId: "probe-run", sessionId: "probe-session" },
           runnerTask: async () => ({ kind: "description", launchPreparationVersion: 1, projectAuthCheckVersion: 1, taskId: "probe-task", runner: { version: "fixture", digest: `sha256:${"a".repeat(64)}` } }),
@@ -76,7 +76,7 @@ describe("plugin Runner setup", () => {
       return { provider: config.provider, providerDriver: config.provider === "codex" ? "codex_app_server" : "acpx_runtime", effectiveModel: config.model, helloProbePassed: true };
     });
     try {
-      const result = await probePluginRunnerEnvironment({ companyId: "fixture-company", adapterType: "outpost_runner",
+      const result = await probePluginRunnerEnvironment({ spaceId: "fixture-space", adapterType: "outpost_runner",
         config,
         executionTarget: { kind: "remote", transport: "sandbox", remoteCwd: ".", leaseId: "probe-lease",
           runnerTaskProbe: { runId: "probe-run", sessionId: "probe-session" },
@@ -93,7 +93,7 @@ describe("plugin Runner setup", () => {
     { managedAiConnection: { identity: "untrusted-config-identity" } },
   ])("rejects untrusted account input before testing an installed account: %j", async supplied => {
     const task = vi.fn();
-    const result = await probePluginRunnerEnvironment({ companyId: "fixture", adapterType: "outpost_runner",
+    const result = await probePluginRunnerEnvironment({ spaceId: "fixture", adapterType: "outpost_runner",
       config: { provider: "codex", model: "fixture", ...supplied },
       executionTarget: { kind: "remote", transport: "sandbox", remoteCwd: ".", leaseId: "probe-lease",
         runnerTaskProbe: { runId: "probe-run", sessionId: "probe-session" }, runnerTask: task } });
@@ -221,7 +221,7 @@ describe("plugin Runner setup", () => {
           const value = { prompt: { revision: "fixture", text: "Task policy", digest: createHash("sha256").update("Task policy").digest("hex") },
             instructions: { entryPath: "AGENTS.md", bundle: { schema: "outpost.runtime-asset.v1" as const,
               rootPath: "/controller-only/instructions", digest, manifestDigest: digest, fileCount: 1, totalBytes: 1 } },
-            skills: [{ key: "company/assigned", runtimeName: "assigned", versionId: "version-1",
+            skills: [{ key: "space/assigned", runtimeName: "assigned", versionId: "version-1",
               bundle: { schema: "outpost.runtime-asset.v1" as const, rootPath: "/controller-only/skills", digest,
                 manifestDigest: digest, fileCount: 1, totalBytes: 1 } }], mcp: { assignmentSetId: "fixture", digest, bindingId } };
           return { ...value, aggregateDigest: canonicalNativeRuntimeContextDigest(value) };
@@ -271,7 +271,7 @@ describe("plugin Runner setup", () => {
         expect(operations.filter(op => op.kind === "submit")[1]).toMatchObject({ resumeFrom: "task" });
         return;
       }
-      const result = await probePluginRunnerEnvironment({ companyId: "fixture", adapterType: "outpost_runner",
+      const result = await probePluginRunnerEnvironment({ spaceId: "fixture", adapterType: "outpost_runner",
         config: { provider: "codex", model: "gpt-6.1-sol", env: ["managed-account", "unsafe-project"].includes(mode)
             ? { OPENAI_API_KEY: "core-secret-not-transferred", CODEX_HOME: accountHome } : {},
           ...(["managed-account", "unsafe-project"].includes(mode) ? { managedAiConnection: { identity: "selected-revision", sessionIdentity: "selected-account" } } : {}) },

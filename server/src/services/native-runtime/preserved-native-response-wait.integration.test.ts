@@ -8,7 +8,7 @@ import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { agentWakeupRequests, agents, chatActions, chatConversations, chatEndpointResources, chatEndpoints, chatExternalPrincipals, chatIdentityLinks,
-  chatGitHubReviews, companies, completionContracts, createDb, environmentLeases, environments, executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns,
+  chatGitHubReviews, spaces, completionContracts, createDb, environmentLeases, environments, executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns,
   issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, runIdentityContexts,
   statusDecisionEffects, statusDecisions, toolConnections, workspaceOperations } from "@outpost/db";
 import { defaultGitHubReviewPolicy, readRemoteWorkspaceAuthority, type EnvironmentLease } from "@outpost/shared";
@@ -27,7 +27,7 @@ import { readPublishedGitHubReviewCompletionContinuation, resolveExternalChatRes
 import { finalizeNativeRun } from "./native-run-finalizer.js";
 import { recordNativeWorkspaceFinalizationFailure } from "./native-workspace-finalizer.js";
 import { prepareNativeWorkspaceSync } from "./native-workspace-sync.js";
-import { PaperclipControlPlanePort } from "./paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "./outpost-control-plane-port.js";
 import { readPreservedNativeResultFinalization } from "./preserved-native-result-finalization.js";
 import { pendingNativeRecoveryNotices, resolveCommittedNativeRecoveryNotices } from "./native-recovery-notices.js";
 import { reconcileNativeFinalizations } from "./native-finalization-reconciler.js";
@@ -86,11 +86,11 @@ describe("preserved native response wait", () => {
   async function recovered(scenario: Scenario = "valid") {
     const f = await seedBoundChatAuthorization(db);
     const prefix = `PW${randomUUID().slice(0, 6)}`;
-    await db.update(companies).set({ issuePrefix: prefix }).where(eq(companies.id, f.companyId));
+    await db.update(spaces).set({ issuePrefix: prefix }).where(eq(spaces.id, f.spaceId));
     await db.update(issues).set({ identifier: `${prefix}-1` }).where(eq(issues.id, f.issueId));
     await db.update(issues).set({ identifier: `${prefix}-2` }).where(eq(issues.id, f.otherIssueId));
     const context = { ...f.context, source: "chat:github", issueId: f.issueId,
-      wakeCommentId: f.commentId, paperclipWake: { checkedOutByHarness: true,
+      wakeCommentId: f.commentId, outpostWake: { checkedOutByHarness: true,
         externalChatProvider: "github", issue: { id: f.issueId }, commentIds: [f.commentId] } };
     await db.update(chatEndpoints).set({ provider: "github",
       ...(scenario === "saved_retry" ? { externalExecutionPolicy: "agent" as const } : {}) }).where(eq(chatEndpoints.id, f.endpointId));
@@ -100,23 +100,23 @@ describe("preserved native response wait", () => {
     await db.update(chatConversations).set({ externalThreadId: "github:example/repository:42" })
       .where(eq(chatConversations.id, f.conversationId));
     const contractId = randomUUID(), sourceInstanceId = randomUUID(), identityId = randomUUID();
-    await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
+    await db.insert(completionContracts).values({ id: contractId, spaceId: f.spaceId, issueId: f.issueId,
       revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "preserved-wait-test",
       risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim.contractRevision,
         objective: "Review the requested change", criteria: [{ id: "objective", requirement: "Review the change" }] },
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: f.runId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: f.runId, spaceId: f.spaceId, agentId: f.agentId,
       nativeIssueId: f.issueId, issueId: f.issueId, runtimeMode: "native", status: "running",
       nativeSessionId: f.runId, runnerInstanceId: sourceInstanceId, responsibleUserId: f.userId,
       completionContractId: contractId, completionContractSha256: contractId, contextSnapshot: context });
-    await db.insert(runIdentityContexts).values({ id: identityId, companyId: f.companyId, runId: f.runId,
+    await db.insert(runIdentityContexts).values({ id: identityId, spaceId: f.spaceId, runId: f.runId,
       revision: 1, responsibleUserId: f.userId, messageId: f.commentId, cause: "run_admission",
       correlationId: f.runId, status: "accepted", acceptedAt: new Date() });
     await db.update(heartbeatRuns).set({ activeIdentityContextId: identityId }).where(eq(heartbeatRuns.id, f.runId));
     await db.update(issues).set({ status: "in_progress", executionRunId: f.runId }).where(eq(issues.id, f.issueId));
     const head = "b".repeat(40), reviewId = randomUUID();
-    await db.insert(chatGitHubReviews).values({ id: reviewId, companyId: f.companyId, endpointId: f.endpointId,
+    await db.insert(chatGitHubReviews).values({ id: reviewId, spaceId: f.spaceId, endpointId: f.endpointId,
       issueId: f.issueId, runId: f.runId, repositoryId: "101", repository: "example/repository", pullNumber: 42,
       headSha: head, deliveryId: f.deliveryId, configurationRevision: 1, policySnapshot: defaultGitHubReviewPolicy(),
       event: { event: "mention", deliveryId: f.deliveryId, repositoryId: "101", repository: "example/repository",
@@ -126,7 +126,7 @@ describe("preserved native response wait", () => {
       state: "completed", assessment: { reviewedCommit: head, score: 3, complete: true,
         summary: "Review delivered", rationale: "Reviewed the change", findings: [],
         coverage: { reviewedPaths: ["src/example.ts"], omittedPaths: [], limitations: [] } } });
-    await db.insert(chatActions).values({ companyId: f.companyId, endpointId: f.endpointId,
+    await db.insert(chatActions).values({ spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: f.conversationId, kind: "github_review_publication", status: "processed",
       providerActionId: `github_publication:${f.issueId}:assessment:${createHash("sha256").update(JSON.stringify(reviewId)).digest("hex")}` });
     const continuation = await readPublishedGitHubReviewCompletionContinuation({ db, binding: f.binding });
@@ -134,7 +134,7 @@ describe("preserved native response wait", () => {
     expect(await resolveExternalChatResponseWaitAuthorization({ db, binding: f.binding })).toBe("authorized");
     const binding = { ...f.binding, sessionId: f.runId, completionContractId: contractId,
       completionContractSha256: contractId, sourceInstanceId, controlPlaneSourceInstanceId: "preserved-wait-test" };
-    await new PaperclipControlPlanePort(db, binding).completeRun({
+    await new OutpostControlPlanePort(db, binding).completeRun({
       result: { ...CONTROL_PLANE_CONFORMANCE_RESULT, reportedWorkDisposition: "yielded", continuation: continuation! },
       terminal: { ...CONTROL_PLANE_CONFORMANCE_TERMINAL, reportedWorkDisposition: "yielded" },
       callerResultId: `${f.runId}:result` });
@@ -143,12 +143,12 @@ describe("preserved native response wait", () => {
     if (scenario === "existing_assessment") {
       const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.id, contractId));
       const [issue] = await db.select().from(issues).where(eq(issues.id, f.issueId));
-      const assessment = await recordNativeWorkAssessment({ db, companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+      const assessment = await recordNativeWorkAssessment({ db, spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
         turnId: accepted.turnId, contractId, contractCanonicalSha256: contract.canonicalSha256,
         resultId: accepted.id, resultCanonicalSha256: accepted.canonicalSha256,
         priorIssueStatus: issue.status, priorStatusVersion: Number(issue.statusVersion), priorDecisionId: issue.lastStatusDecisionId,
         policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, assessment: await classifyNativeEvidence({ db,
-          companyId: f.companyId, issueId: f.issueId, runId: f.runId, contract: contract.contractJson,
+          spaceId: f.spaceId, issueId: f.issueId, runId: f.runId, contract: contract.contractJson,
           result: accepted.resultJson.result as Record<string, unknown> }) });
       await db.update(nativeRunFinalizations).set({ assessmentId: assessment.id }).where(eq(nativeRunFinalizations.runId, f.runId));
     }
@@ -156,7 +156,7 @@ describe("preserved native response wait", () => {
     await mkdir(host, { recursive: true }); await writeFile(path.join(host, "existing.txt"), "base\n");
     const [environment] = await db.insert(environments).values({ name: f.runId, driver: "sandbox" }).returning();
     const providerLeaseId = randomUUID();
-    const [lease] = await db.insert(environmentLeases).values({ companyId: f.companyId, issueId: f.issueId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, issueId: f.issueId,
       heartbeatRunId: f.runId, environmentId: environment.id, provider: "daytona", providerLeaseId,
       status: "released", cleanupStatus: "success", releasedAt: new Date(), leasePolicy: "retain_on_failure",
       metadata: { remoteCwd: remote, driver: "sandbox", pluginId: randomUUID(), sandboxProviderPlugin: true } }).returning();
@@ -169,7 +169,7 @@ describe("preserved native response wait", () => {
         child.stdin?.on("error", () => undefined); child.stdin?.end(input.stdin ?? "");
       }) } };
     targets.set(lease.id, target);
-    await prepareNativeWorkspaceSync({ db, companyId: f.companyId, workspaceId: f.issueId,
+    await prepareNativeWorkspaceSync({ db, spaceId: f.spaceId, workspaceId: f.issueId,
       workspaceLocalDir: host, runId: f.runId, lease: lease as EnvironmentLease, target, resourceDisposition: "keep_running" });
     await writeFile(path.join(remote, "review.txt"), "Original reviewed work\n");
     await db.update(environmentLeases).set({ metadata: { ...lease.metadata,
@@ -181,7 +181,7 @@ describe("preserved native response wait", () => {
     await issueService(db).clearExecutionRunIfTerminal(f.issueId);
     await issueService(db).clearCheckoutRunIfTerminal(f.issueId);
     const [action] = await db.select().from(issueRecoveryActions).where(and(
-      eq(issueRecoveryActions.companyId, f.companyId), eq(issueRecoveryActions.sourceIssueId, f.issueId),
+      eq(issueRecoveryActions.spaceId, f.spaceId), eq(issueRecoveryActions.sourceIssueId, f.issueId),
       eq(issueRecoveryActions.status, "active")));
     expect(action).toMatchObject({ status: "active", cause: "native_workspace_sync_out_retry_exhausted", wakePolicy: null });
     const runtime = environmentRuntimeService(db, { drivers: [{ driver: "sandbox", acquireRunLease: vi.fn(),
@@ -200,9 +200,9 @@ describe("preserved native response wait", () => {
       expect(await readFile(path.join(host, "review.txt"), "utf8")).toBe("Original reviewed work\n");
       expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0].status).toBe("in_review");
       expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, f.runId))).toEqual([accepted]);
-      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
-      expect(await db.select().from(chatActions).where(eq(chatActions.companyId, f.companyId))).toHaveLength(1);
-      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
+      expect(await db.select().from(chatActions).where(eq(chatActions.spaceId, f.spaceId))).toHaveLength(1);
+      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
       expect((await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, action.id)))[0].status)
         .toBe(scenario === "export_retry_defer" ? "active" : "resolved");
       return { ...f, actionId: action.id };
@@ -215,7 +215,7 @@ describe("preserved native response wait", () => {
       const app = express();
       app.use(express.json());
       app.use((req, _res, next) => {
-        req.actor = { type: "board", userId: f.userId, source: "local_implicit", companyIds: [f.companyId], isInstanceAdmin: false };
+        req.actor = { type: "operator", userId: f.userId, source: "local_implicit", spaceIds: [f.spaceId], isInstanceAdmin: false };
         next();
       });
       app.use("/api", issueRoutes(db, { provider: "local_disk", putFile: async () => { throw new Error("unused"); },
@@ -247,7 +247,7 @@ describe("preserved native response wait", () => {
     expect(await readFile(path.join(host, "review.txt"), "utf8")).toBe("Original reviewed work\n");
     let retryRequestId: string | null = null;
     if (scenario === "saved_retry") {
-      const retry = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issueId,
+      const retry = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issueId,
         actorId: f.userId, actorSource: "local_implicit", idempotencyKey: randomUUID(), observedRunId: f.runId });
       expect(retry.accepted).toBe(true);
       retryRequestId = retry.requestId;
@@ -257,7 +257,7 @@ describe("preserved native response wait", () => {
       const payload = { issueId: f.issueId, taskRetry: { schema: "outpost.task-retry.v1", generationId: retryRequestId,
         sourceRunId: f.runId, actorId: f.userId, actorSource: "local_implicit", strategy: "evaluate" } };
       expect(readTaskRetryIntent(payload)?.sourceRunId).toBe(f.runId);
-      await db.insert(agentWakeupRequests).values({ id: retryRequestId, companyId: f.companyId, agentId: f.agentId,
+      await db.insert(agentWakeupRequests).values({ id: retryRequestId, spaceId: f.spaceId, agentId: f.agentId,
         source: "on_demand", triggerDetail: "manual", reason: "task_retry", status: "deferred_issue_execution",
         requestedByActorType: "user", requestedByActorId: f.userId, idempotencyKey: `task-retry:${randomUUID()}`, payload });
     }
@@ -280,20 +280,20 @@ describe("preserved native response wait", () => {
     if (scenario === "stop") {
       const [current] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
       await db.update(heartbeatRuns).set({ resultJson: { ...current.resultJson,
-        nativeCancellation: { schema: "outpost.native-cancellation.v1", companyId: f.companyId,
+        nativeCancellation: { schema: "outpost.native-cancellation.v1", spaceId: f.spaceId,
           issueId: f.issueId, runId: f.runId, scope: "run", dispatchState: "requested" } } }).where(eq(heartbeatRuns.id, f.runId));
     }
     if (scenario === "cancelled_run") await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, f.runId));
     if (scenario === "cancelled_task") await issueService(db).update(f.issueId, { status: "cancelled" });
     if (scenario === "owner_changed") {
       const peerId = randomUUID();
-      await db.insert(agents).values({ id: peerId, companyId: f.companyId, name: "New owner", adapterType: "outpost_runner" });
+      await db.insert(agents).values({ id: peerId, spaceId: f.spaceId, name: "New owner", adapterType: "outpost_runner" });
       await db.update(issues).set({ assigneeAgentId: peerId }).where(eq(issues.id, f.issueId));
     }
     if (scenario === "newer_cancelled" || scenario === "newer_active") {
       const [original] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
       const newerId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: newerId, companyId: f.companyId, issueId: f.issueId,
+      await db.insert(heartbeatRuns).values({ id: newerId, spaceId: f.spaceId, issueId: f.issueId,
         agentId: f.agentId, runtimeMode: "legacy", status: scenario === "newer_cancelled" ? "cancelled" : "running",
         createdAt: new Date(original.createdAt.getTime() + 1), contextSnapshot: { issueId: f.issueId } });
       if (scenario === "newer_active") await db.update(issues).set({ executionRunId: newerId }).where(eq(issues.id, f.issueId));
@@ -306,7 +306,7 @@ describe("preserved native response wait", () => {
     const denied = ["stop", "cancelled_run", "cancelled_task", "owner_changed", "newer_cancelled", "newer_active",
       "incomplete_preservation", "missing_receipt"].includes(scenario);
     const [beforeIssue] = await db.select().from(issues).where(eq(issues.id, f.issueId));
-    expect(await resumePreservedResultFinalization(db, f.companyId, f.runId)).toBe(!denied);
+    expect(await resumePreservedResultFinalization(db, f.spaceId, f.runId)).toBe(!denied);
     if (denied) {
       expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]).toEqual(beforeIssue);
       expect(await readPreservedNativeResultFinalization(db, f.binding)).toBeNull();
@@ -327,7 +327,7 @@ describe("preserved native response wait", () => {
       if (scenario === "commit_identity") await db.update(heartbeatRuns).set({ activeIdentityContextId: null }).where(eq(heartbeatRuns.id, f.runId));
       if (scenario === "commit_newer") {
         const newerId = randomUUID();
-        await db.insert(heartbeatRuns).values({ id: newerId, companyId: f.companyId, nativeIssueId: f.issueId,
+        await db.insert(heartbeatRuns).values({ id: newerId, spaceId: f.spaceId, nativeIssueId: f.issueId,
           agentId: f.agentId, runtimeMode: "native", status: "running" });
         await db.update(issues).set({ status: "in_progress", executionRunId: newerId }).where(eq(issues.id, f.issueId));
       }
@@ -346,9 +346,9 @@ describe("preserved native response wait", () => {
     if (scenario.startsWith("commit_")) expect(injected).toBe(true);
     expect(finalized.phase, JSON.stringify(afterFinalization.failureDetail)).toBe("committed");
     expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, f.runId))).toEqual([accepted]);
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(scenario === "commit_newer" ? 2 : 1);
-    expect(await db.select().from(chatActions).where(eq(chatActions.companyId, f.companyId))).toHaveLength(1);
-    const wakes = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId));
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(scenario === "commit_newer" ? 2 : 1);
+    expect(await db.select().from(chatActions).where(eq(chatActions.spaceId, f.spaceId))).toHaveLength(1);
+    const wakes = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId));
     expect(wakes).toHaveLength(retryRequestId ? 1 : 0);
     if (retryRequestId) {
       expect(wakes[0]).toMatchObject({ id: retryRequestId, status: "coalesced", runId: f.runId });
@@ -378,7 +378,7 @@ describe("preserved native response wait", () => {
       await reconcileNativeFinalizations(db, [f.runId], { environmentRuntime: runtime });
       expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]).toEqual(settledIssue);
       expect(await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, f.runId))).toEqual([accepted]);
-      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
     }
     return { ...f, actionId: action.id };
   }
@@ -448,7 +448,7 @@ describe("preserved native response wait", () => {
       }
       if (scenario === "pending_effect") {
         const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
-        await db.insert(statusDecisionEffects).values({ companyId: f.companyId, issueId: f.issueId, decisionId: coordinator.decisionId!,
+        await db.insert(statusDecisionEffects).values({ spaceId: f.spaceId, issueId: f.issueId, decisionId: coordinator.decisionId!,
           ordinal: 0, effectKind: "release_checkout", targetType: "issue", targetId: f.issueId,
           idempotencyKey: randomUUID(), payload: {}, deliveryState: "pending" });
       }
@@ -456,7 +456,7 @@ describe("preserved native response wait", () => {
       expect(await pendingNativeRecoveryNotices(db, f.binding)).toHaveLength(0);
       await resolveCommittedNativeRecoveryNotices(db, f.binding);
       expect((await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.actionId)))[0]).toEqual(before);
-      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
     }, 60_000);
 
   it.each(["outpost.native-workspace-sync/v1", "outpost.native-workspace-sync/v2"])(
@@ -535,9 +535,9 @@ describe("preserved native response wait", () => {
   it("settles only the old notice while newer authorized work owns the task and files", async () => {
     const f = await recovered("defer_notice");
     const newerId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: newerId, companyId: f.companyId, nativeIssueId: f.issueId,
+    await db.insert(heartbeatRuns).values({ id: newerId, spaceId: f.spaceId, nativeIssueId: f.issueId,
       agentId: f.agentId, runtimeMode: "native", status: "running", nativePhase: "observed" });
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issueId, runId: newerId,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issueId, runId: newerId,
       phase: "observed", leaseOwner: "current-native-owner", leaseExpiresAt: new Date(Date.now() + 60_000) });
     await db.update(issues).set({ status: "in_progress", executionRunId: newerId, checkoutRunId: newerId })
       .where(eq(issues.id, f.issueId));
@@ -567,7 +567,7 @@ describe("preserved native response wait", () => {
     expect((await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.actionId)))[0].status).toBe("resolved");
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0]).toEqual(before);
     expect((await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, f.runId)))[0]).toEqual(result);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
   }, 60_000);
 
   it("settles the old notice when newer committed work supersedes its saved snapshot", async () => {
@@ -579,24 +579,24 @@ describe("preserved native response wait", () => {
     const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.heartbeatRunId, f.runId));
     const location = { environmentId: lease.environmentId, leaseId: lease.id, providerLeaseId: lease.providerLeaseId!,
       remoteCwd: path.join(root, f.runId, "remote") };
-    await db.insert(heartbeatRuns).values({ id: newerId, companyId: f.companyId, nativeIssueId: f.issueId,
+    await db.insert(heartbeatRuns).values({ id: newerId, spaceId: f.spaceId, nativeIssueId: f.issueId,
       agentId: f.agentId, runtimeMode: "native", status: "running", nativePhase: "observed" });
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.companyId, sourceIssueId: f.issueId,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
       mode: "task", strategyType: "isolated", name: "Retained generations", metadata: { remoteWorkspace: {
         schema: "outpost.remote-workspace.v1", epoch: 2, snapshotId: currentSnapshotId,
         source: { kind: "empty" }, location, writerRunId: newerId, dirty: true } } }).returning();
     expect(readRemoteWorkspaceAuthority(workspace.metadata)?.writerRunId).toBe(newerId);
     const [oldSave, newSave] = await db.insert(workspaceOperations).values([
-      { companyId: f.companyId, issueId: f.issueId, heartbeatRunId: f.runId, executionWorkspaceId: workspace.id,
+      { spaceId: f.spaceId, issueId: f.issueId, heartbeatRunId: f.runId, executionWorkspaceId: workspace.id,
         phase: "workspace_snapshot", status: "succeeded", metadata: { boundary: "final", epoch: 1, generation: 2, snapshotId, sha256: "a".repeat(64) } },
-      { companyId: f.companyId, issueId: f.issueId, heartbeatRunId: newerId, executionWorkspaceId: workspace.id,
+      { spaceId: f.spaceId, issueId: f.issueId, heartbeatRunId: newerId, executionWorkspaceId: workspace.id,
         phase: "workspace_snapshot", status: "succeeded", metadata: { boundary: "final", epoch: 2, generation: 3,
           snapshotId: currentSnapshotId, sha256: "b".repeat(64) } },
     ]).returning();
     await db.insert(executionWorkspaceSnapshots).values([
-      { id: snapshotId, companyId: f.companyId, executionWorkspaceId: workspace.id, sourceOperationId: oldSave.id,
+      { id: snapshotId, spaceId: f.spaceId, executionWorkspaceId: workspace.id, sourceOperationId: oldSave.id,
         sourceRunId: f.runId, generation: 2, epoch: 1, status: "superseded", sha256: "a".repeat(64), byteSize: 10 },
-      { id: currentSnapshotId, companyId: f.companyId, executionWorkspaceId: workspace.id, sourceOperationId: newSave.id,
+      { id: currentSnapshotId, spaceId: f.spaceId, executionWorkspaceId: workspace.id, sourceOperationId: newSave.id,
         sourceRunId: newerId, parentSnapshotId: snapshotId, generation: 3, epoch: 2, status: "committed", sha256: "b".repeat(64), byteSize: 20 },
     ]);
     await db.update(workspaceOperations).set({ executionWorkspaceId: workspace.id, metadata: { ...operation.metadata,
@@ -616,7 +616,7 @@ describe("preserved native response wait", () => {
     expect((await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, workspace.id)))[0]).toEqual(workspace);
     expect(await db.select().from(executionWorkspaceSnapshots).where(eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id)))
       .toEqual(beforeSnapshots);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(0);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId))).toHaveLength(0);
   }, 60_000);
 
   it.each(["missing_operation", "foreign_issue", "different_action", "wrong_barrier", "failed_operation",
@@ -653,7 +653,7 @@ describe("preserved native response wait", () => {
       const f = await recovered("defer_notice");
       const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
       if (scenario === "pending_effect" || scenario === "failed_effect") await db.insert(statusDecisionEffects).values({
-        companyId: f.companyId, issueId: f.issueId, decisionId: coordinator.decisionId!, ordinal: 0,
+        spaceId: f.spaceId, issueId: f.issueId, decisionId: coordinator.decisionId!, ordinal: 0,
         effectKind: "release_checkout", targetType: "issue", targetId: f.issueId,
         idempotencyKey: randomUUID(), payload: {}, deliveryState: scenario === "pending_effect" ? "pending" : "failed",
       });

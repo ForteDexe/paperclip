@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, applyPendingMigrations, companies, createDb, executionWorkspaceRestorePoints, executionWorkspaces, heartbeatRuns, issues, projects, projectWorkspaces } from "@outpost/db";
+import { agents, applyPendingMigrations, spaces, createDb, executionWorkspaceRestorePoints, executionWorkspaces, heartbeatRuns, issues, projects, projectWorkspaces } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { materializeManagedProjectWorkspace } from "../services/managed-repository-checkout.js";
 import { materializeIsolatedRemoteWorkspaceSource } from "../services/isolated-remote-workspace-source.js";
@@ -59,14 +59,14 @@ describeEmbeddedPostgres("nested repository clone migration", () => {
     if (external) await applyPendingMigrations(external);
     else database = await startEmbeddedPostgresTestDatabase("nested-clone-migration-");
     db = createDb(external ?? database!.connectionString);
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-nested-migration-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-nested-migration-"));
     process.env.OUTPOST_HOME = path.join(root, "home");
     process.env.OUTPOST_INSTANCE_ID = "default";
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "51".repeat(32));
   });
   afterEach(async () => {
     await db.delete(executionWorkspaceRestorePoints);
-    await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
   });
   afterAll(async () => {
     vi.unstubAllEnvs();
@@ -86,31 +86,31 @@ describeEmbeddedPostgres("nested repository clone migration", () => {
   }
 
   async function fixture(options: { issueStatus?: "in_progress" | "done"; sharedBase?: boolean } = {}) {
-    const companyId = randomUUID(), projectId = randomUUID();
-    const location = path.join(root, companyId);
+    const spaceId = randomUUID(), projectId = randomUUID();
+    const location = path.join(root, spaceId);
     const main = await repository(location, "remote", { "marker.txt": "commit A\n", ".gitignore": "node_modules/\n.claude/settings.local.json\n" });
     const nested = await repository(location, "nested", { "nested.txt": "nested A\n", "remove-me.txt": "tracked\n",
       ".gitignore": "node_modules/\n.env\n.claude/settings.local.json\n*.log\n" });
-    await db.insert(companies).values({ id: companyId, name: "Nested migration fixture", issuePrefix: `NM${companyId.slice(0, 6)}` });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Fixture project" });
-    const [source] = await db.insert(projectWorkspaces).values({ companyId, projectId, name: "Nested repository", repoUrl: nested.url, repoRef: "main" }).returning();
-    const candidates = nestedRepositoryBaseCandidates({ companyId, projectId, repoUrl: nested.url });
+    await db.insert(spaces).values({ id: spaceId, name: "Nested migration fixture", issuePrefix: `NM${spaceId.slice(0, 6)}` });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Fixture project" });
+    const [source] = await db.insert(projectWorkspaces).values({ spaceId, projectId, name: "Nested repository", repoUrl: nested.url, repoRef: "main" }).returning();
+    const candidates = nestedRepositoryBaseCandidates({ spaceId, projectId, repoUrl: nested.url });
     if (options.sharedBase !== false) await materializeManagedProjectWorkspace(candidates[0]!, { repoUrl: nested.url });
     const done = options.issueStatus === "done";
     const task = async (label: string) => {
       const issueId = randomUUID(), workspaceId = randomUUID();
-      await db.insert(issues).values({ id: issueId, companyId, projectId, title: `Task ${label}`, status: done ? "done" : "in_progress",
+      await db.insert(issues).values({ id: issueId, spaceId, projectId, title: `Task ${label}`, status: done ? "done" : "in_progress",
         ...(done ? { completedAt: new Date(Date.now() - 2 * DAY_MS) } : {}) });
-      const baseCwd = await materializeIsolatedRemoteWorkspaceSource({ companyId, issueId, repoUrl: main.url, resolveGitAuth: noAuth });
+      const baseCwd = await materializeIsolatedRemoteWorkspaceSource({ spaceId, issueId, repoUrl: main.url, resolveGitAuth: noAuth });
       const base = { baseCwd, source: "task_session" as const, projectId: null, workspaceId: null, repoUrl: main.url, repoRef: "origin/main" };
       const realized = await realizeExecutionWorkspace({ base, issue: { id: issueId, identifier: `NM-${label}`, title: "Fixture" },
-        agent: { id: null, name: "Fixture", companyId }, skipHostProvision: true,
-        config: { workspaceStrategy: { type: "git_worktree", branchTemplate: `task-${label}`, worktreeParentDir: path.join(baseCwd, ".paperclip", "worktrees"), baseRef: "origin/main" } } });
-      await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, projectId, sourceIssueId: issueId, mode: "isolated_workspace",
+        agent: { id: null, name: "Fixture", spaceId }, skipHostProvision: true,
+        config: { workspaceStrategy: { type: "git_worktree", branchTemplate: `task-${label}`, worktreeParentDir: path.join(baseCwd, ".outpost", "worktrees"), baseRef: "origin/main" } } });
+      await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, projectId, sourceIssueId: issueId, mode: "isolated_workspace",
         strategyType: "git_worktree", name: `Task ${label}`, status: "active", providerType: "local_fs", cwd: realized.cwd, providerRef: realized.cwd,
         repoUrl: main.url, baseRef: "origin/main", branchName: realized.branchName,
         metadata: { createdByRuntime: realized.branchCreatedByRuntime, gitBranchOwnershipVersion: 1, baseRefSha: realized.baseRefSha,
-          isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId, issueId, repoUrl: main.url } } });
+          isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", spaceId, issueId, repoUrl: main.url } } });
       await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, issueId));
       const [prepared] = await prepareProjectRepositoryWorkspaces({ cwd: realized.cwd, anchorRepoUrl: main.url, workspaces: [source!], resolveGitAuth: noAuth });
       const checkout = await fs.realpath(prepared!.cwd);
@@ -120,13 +120,13 @@ describeEmbeddedPostgres("nested repository clone migration", () => {
       const expire = async () => expireReconstructableGitWorkspace(db, await row(), { dryRun: false, expireBase: false, now: new Date(),
         restorePoint: { storage: getStorageService(), notBefore: new Date(Date.now() - DAY_MS), keyDurable: true } });
       const reopen = () => executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({ workspaceId,
-        issue: { id: issueId, companyId, projectId: null }, actor: { actorType: "user", agentId: null },
-        authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true } });
+        issue: { id: issueId, spaceId, projectId: null }, actor: { actorType: "user", agentId: null },
+        authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true } });
       return { issueId, workspaceId, cwd: realized.cwd, checkout, name: path.basename(checkout), prefix: await nestedWorktreeBranchPrefix(checkout),
         row, migrate, expire, reopen };
     };
     const first = await task("one");
-    return { companyId, projectId, main, nested, candidates, base: candidates[0]!, task, ...first };
+    return { spaceId, projectId, main, nested, candidates, base: candidates[0]!, task, ...first };
   }
 
   async function nestedWork(checkout: string) {
@@ -330,8 +330,8 @@ describeEmbeddedPostgres("nested repository clone migration", () => {
     const f = await fixture();
     await nestedWork(f.checkout);
     const agentId = randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId: f.companyId, name: "Fixture", role: "engineer", adapterType: "process" });
-    await db.insert(heartbeatRuns).values({ id: randomUUID(), companyId: f.companyId, agentId, issueId: f.issueId, status: "running" });
+    await db.insert(agents).values({ id: agentId, spaceId: f.spaceId, name: "Fixture", role: "engineer", adapterType: "process" });
+    await db.insert(heartbeatRuns).values({ id: randomUUID(), spaceId: f.spaceId, agentId, issueId: f.issueId, status: "running" });
     const before = await currentRestorePointSnapshot(f.checkout);
     expect(await f.migrate()).toMatchObject({ outcome: "skipped", reason: "live_or_unresolved_consumer" });
     await expectUntouched(f, before);
@@ -506,8 +506,8 @@ describeEmbeddedPostgres("nested repository clone migration", () => {
     expect(await dryRun.nextTerminalWorkspaceSweepAt()).toBeNull();
 
     const agentId = randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId: f.companyId, name: "Fixture", role: "engineer", adapterType: "process" });
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId, issueId: f.issueId, status: "running" }).returning();
+    await db.insert(agents).values({ id: agentId, spaceId: f.spaceId, name: "Fixture", role: "engineer", adapterType: "process" });
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId, issueId: f.issueId, status: "running" }).returning();
     // Make a second clock read observably different without changing the
     // scheduler's saved business deadline during an early inspection.
     let tick = Date.now();

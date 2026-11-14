@@ -1,4 +1,4 @@
-export const INSTANCE_SETTINGS_PATH_PREFIX = "/company/settings/instance";
+export const INSTANCE_SETTINGS_PATH_PREFIX = "/space/settings/instance";
 export const DEFAULT_INSTANCE_SETTINGS_PATH = `${INSTANCE_SETTINGS_PATH_PREFIX}/general`;
 
 const LEGACY_INSTANCE_SETTINGS_PATH_PREFIX = "/instance/settings";
@@ -19,11 +19,11 @@ function normalizePathForMatching(rawPath: string): { pathname: string; search: 
   const first = segments[0]?.toLowerCase();
   const second = segments[1]?.toLowerCase();
 
-  if (first === "company") {
+  if (first === "space") {
     return { pathname: `/${segments.join("/")}`, search, hash };
   }
 
-  if (second === "company" || second === "settings" || second === "instance") {
+  if (second === "space" || second === "settings" || second === "instance") {
     return { pathname: `/${segments.slice(1).join("/")}`, search, hash };
   }
 
@@ -31,7 +31,7 @@ function normalizePathForMatching(rawPath: string): { pathname: string; search: 
 }
 
 function instanceSettingsSuffix(pathname: string): string | null {
-  if (pathname === "/company/settings/environments") return "/environments";
+  if (pathname === "/space/settings/environments") return "/environments";
 
   if (pathname === INSTANCE_SETTINGS_PATH_PREFIX) return "/general";
   if (pathname.startsWith(`${INSTANCE_SETTINGS_PATH_PREFIX}/`)) {

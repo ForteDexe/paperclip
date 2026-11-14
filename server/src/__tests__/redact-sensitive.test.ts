@@ -124,17 +124,17 @@ describe("redactSensitive", () => {
 
   it("redacts an OAuth provider's error_description and error_uri from a callback query", () => {
     const out = redactSensitive({
-      state: "paperclip-state",
+      state: "outpost-state",
       error: "access_denied",
       error_description:
         "\u001b[31mPaste your recovery key\u001b[0m sk-live-canary",
       error_uri: "https://attacker.example/explain?leak=sk-live-canary",
     }) as Record<string, unknown>;
 
-    // The `error` code is Paperclip's one allowlisted label, so it stays legible
+    // The `error` code is Outpost's one allowlisted label, so it stays legible
     // in logs; the provider's prose does not.
     expect(out.error).toBe("access_denied");
-    expect(out.state).toBe("paperclip-state");
+    expect(out.state).toBe("outpost-state");
     expect(out.error_description).toBe("[REDACTED]");
     expect(out.error_uri).toBe("[REDACTED]");
     expect(JSON.stringify(out)).not.toContain("sk-live-canary");
@@ -277,12 +277,12 @@ describe("invitation bearer URL paths", () => {
     ["/api/invites/invite-bearer-canary/accept?token=query-canary", "/api/invites/[REDACTED]/accept"],
     ["/invites/invite-bearer-canary/onboarding.txt", "/invites/[REDACTED]/onboarding.txt"],
     ["/invite/invite-bearer-canary", "/invite/[REDACTED]"],
-    ["/API/INVITES/encoded%2Fbearer/skills/paperclip", "/API/INVITES/[REDACTED]/skills/paperclip"],
-    ["https://user:password@board.example/api/invites/invite-bearer-canary/accept#fragment", "https://board.example/api/invites/[REDACTED]/accept"],
+    ["/API/INVITES/encoded%2Fbearer/skills/outpost", "/API/INVITES/[REDACTED]/skills/outpost"],
+    ["https://user:password@operator.example/api/invites/invite-bearer-canary/accept#fragment", "https://operator.example/api/invites/[REDACTED]/accept"],
     ["/api/invites/invite-record-id/revoke", "/api/invites/invite-record-id/revoke"],
     ["/invites/invite-record-id/revoke/", "/invites/invite-record-id/revoke/"],
     ["/invite/invite-bearer-canary/revoke", "/invite/[REDACTED]/revoke"],
-    ["/api/companies/company/invites/invite-record-id", "/api/companies/company/invites/invite-record-id"],
+    ["/api/spaces/space/invites/invite-record-id", "/api/spaces/space/invites/invite-record-id"],
   ])("sanitizes %s without hiding the route", (input, expected) => {
     expect(stripSecretBearingUrlParts(input)).toBe(expected);
   });

@@ -1,5 +1,5 @@
 import { FilterX, RotateCcw } from "lucide-react";
-import type { CompanySearchZeroResults } from "@outpost/shared";
+import type { SpaceSearchZeroResults } from "@outpost/shared";
 import { Button } from "@/components/ui/button";
 import {
   clearFilterDimension,
@@ -19,7 +19,7 @@ export function ZeroResultsRecovery({
 }: {
   query: string;
   filters: SearchFilters;
-  zeroResults: CompanySearchZeroResults;
+  zeroResults: SpaceSearchZeroResults;
   lookups: FilterChipLookups;
   onChange: (next: SearchFilters) => void;
   onClearAll: () => void;

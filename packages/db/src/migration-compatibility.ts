@@ -14,7 +14,7 @@ export const MIGRATION_COMPATIBILITY_VALUES: readonly MigrationCompatibility[] =
   "unknown",
 ];
 
-export const MIGRATION_COMPAT_DIRECTIVE = "paperclip:migration-compat";
+export const MIGRATION_COMPAT_DIRECTIVE = "outpost:migration-compat";
 export const MIGRATION_COMPAT_MIN_JUSTIFICATION_LENGTH = 10;
 
 type ReasonDefinition = {

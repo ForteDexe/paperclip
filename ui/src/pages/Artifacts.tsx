@@ -7,7 +7,7 @@ import {
   type ArtifactGroupBy,
   type ArtifactKindFilter,
 } from "../api/artifacts";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { ArtifactEmptyGraphic } from "@/components/artifacts/v1/ArtifactEmptyGraphic";
@@ -18,7 +18,7 @@ import { ArtifactCard } from "../components/artifacts/ArtifactCard";
 import { ArtifactGroupCard } from "../components/artifacts/ArtifactGroupCard";
 import { useSearchParams, Link } from "@/lib/router";
 import { ArtifactsToolbar, ARTIFACT_KIND_FILTERS } from "@/components/artifacts/ArtifactsToolbar";
-import { ArtifactSingleTile, ArtifactStackTile, ArtifactTileGrid, ArtifactsV1Filters, artifactsV1View, subjectFromCompanyArtifact, type ArtifactsV1View } from "@/components/artifacts/v1";
+import { ArtifactSingleTile, ArtifactStackTile, ArtifactTileGrid, ArtifactsV1Filters, artifactsV1View, subjectFromSpaceArtifact, type ArtifactsV1View } from "@/components/artifacts/v1";
 import { useArtifactsV1Enabled } from "@/hooks/useArtifactsV1Enabled";
 export { ARTIFACT_KIND_FILTERS, ARTIFACT_GROUP_OPTIONS, artifactGroupByLabel } from "@/components/artifacts/ArtifactsToolbar";
 
@@ -39,7 +39,7 @@ function parseKind(value: string | null): ArtifactKindFilter {
 }
 
 export function Artifacts() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [searchParams, setSearchParams] = useSearchParams();
   const { enabled: v1 } = useArtifactsV1Enabled();
@@ -139,7 +139,7 @@ export function Artifacts() {
 
   // Build a relative `To` that preserves the active filters/search while
   // changing only the grouping selection. A bare query string keeps the current
-  // pathname (the company-prefixed /artifacts route) and stays linkable.
+  // pathname (the space-prefixed /artifacts route) and stays linkable.
   const buildTo = useCallback(
     (mutate: (next: URLSearchParams) => void): To => {
       const next = new URLSearchParams(searchParams);
@@ -170,9 +170,9 @@ export function Artifacts() {
   );
 
   const artifactsQuery = useInfiniteQuery({
-    queryKey: queryKeys.artifacts.list(selectedCompanyId!, kind, query, groupBy, groupIssueId),
+    queryKey: queryKeys.artifacts.list(selectedSpaceId!, kind, query, groupBy, groupIssueId),
     queryFn: ({ pageParam }) =>
-      artifactsApi.list(selectedCompanyId!, {
+      artifactsApi.list(selectedSpaceId!, {
         kind,
         q: query || undefined,
         groupBy,
@@ -180,7 +180,7 @@ export function Artifacts() {
         limit: ARTIFACTS_PAGE_SIZE,
         cursor: pageParam,
       }),
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
@@ -227,7 +227,7 @@ export function Artifacts() {
     }
   }, [setBreadcrumbs, viewingSelectedStack, selectedGroup]);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <EmptyState icon={Package} message="Select an outpost to view artifacts." />;
   }
 
@@ -307,15 +307,15 @@ export function Artifacts() {
                         title={group.title}
                         count={group.count}
                         updatedAt={group.updatedAt}
-                        front={preview ? subjectFromCompanyArtifact(preview) : { kind: "file", title: group.title, updatedAt: group.updatedAt, taskIdentifier: group.issue.identifier }}
+                        front={preview ? subjectFromSpaceArtifact(preview) : { kind: "file", title: group.title, updatedAt: group.updatedAt, taskIdentifier: group.issue.identifier }}
                         to={stackTo(group.issue.id)}
                       />
                     );
                   }
-                  return <ArtifactSingleTile key={group.id} subject={subjectFromCompanyArtifact(preview)} to={preview.href} />;
+                  return <ArtifactSingleTile key={group.id} subject={subjectFromSpaceArtifact(preview)} to={preview.href} />;
                 })
               : artifacts.map((artifact) => (
-                  <ArtifactSingleTile key={`${artifact.source}:${artifact.id}`} subject={subjectFromCompanyArtifact(artifact)} to={artifact.href} />
+                  <ArtifactSingleTile key={`${artifact.source}:${artifact.id}`} subject={subjectFromSpaceArtifact(artifact)} to={artifact.href} />
                 ))}
           </ArtifactTileGrid>
           <div ref={loadMoreRef} className="flex min-h-10 items-center justify-center pb-2 text-xs text-muted-foreground">

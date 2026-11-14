@@ -62,7 +62,7 @@ describe("warm controller journal", () => {
   afterEach(() => rmSync(root, { recursive: true, force: true }));
 
   const input = () => ({ db: {} as never, root, normalizedSessionId: "session",
-    binding: { companyId: "company", issueId: "issue", runId: "run-a" },
+    binding: { spaceId: "space", issueId: "issue", runId: "run-a" },
     readControlState: () => existsSync(statePath) ? readFileSync(statePath, "utf8") : null });
   const projectedTypes = () => (JSON.parse(readFileSync(statePath, "utf8")).commands as Array<{ type: string }>).map(entry => entry.type);
 

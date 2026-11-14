@@ -11,7 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import {
   chatConversations,
   chatEndpoints,
@@ -26,9 +26,9 @@ export const chatTeamsFileTransfers = pgTable(
   "chat_teams_file_transfers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     endpointId: uuid("endpoint_id").notNull(),
     conversationId: uuid("conversation_id").notNull(),
     publicationId: uuid("publication_id").notNull(),
@@ -77,7 +77,7 @@ export const chatTeamsFileTransfers = pgTable(
   },
   (t) => [
     uniqueIndex("chat_teams_file_transfers_publication_uq").on(
-      t.companyId,
+      t.spaceId,
       t.publicationId,
     ),
     uniqueIndex("chat_teams_file_transfers_token_uq").on(
@@ -90,21 +90,21 @@ export const chatTeamsFileTransfers = pgTable(
       t.expiresAt,
     ),
     foreignKey({
-      columns: [t.companyId, t.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
+      columns: [t.spaceId, t.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
     }).onDelete("cascade"),
     foreignKey({
-      columns: [t.companyId, t.publicationId],
-      foreignColumns: [chatPublications.companyId, chatPublications.id],
+      columns: [t.spaceId, t.publicationId],
+      foreignColumns: [chatPublications.spaceId, chatPublications.id],
     }).onDelete("cascade"),
     foreignKey({
-      columns: [t.companyId, t.conversationId],
-      foreignColumns: [chatConversations.companyId, chatConversations.id],
+      columns: [t.spaceId, t.conversationId],
+      foreignColumns: [chatConversations.spaceId, chatConversations.id],
     }).onDelete("cascade"),
     foreignKey({
-      columns: [t.companyId, t.principalId],
+      columns: [t.spaceId, t.principalId],
       foreignColumns: [
-        chatExternalPrincipals.companyId,
+        chatExternalPrincipals.spaceId,
         chatExternalPrincipals.id,
       ],
     }),

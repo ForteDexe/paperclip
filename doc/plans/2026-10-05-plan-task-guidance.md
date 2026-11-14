@@ -16,14 +16,14 @@ its separate checklist remains untouched.
 
 Four ordinary execution scenarios: cohesive work; independent specialist outputs;
 a real prerequisite between specialists; an independent adverse review.
-Compare current, short, and disabled planning skills using public company-copy creation
-and selection APIs in isolated companies. Archived current skill bytes come from
+Compare current, short, and disabled planning skills using public space-copy creation
+and selection APIs in isolated spaces. Archived current skill bytes come from
 the base above. The disabled variant is an unassigned-selection ablation (the library remains discoverable), not a production
 removal or an accepted-plan continuation test. Other instructions, tools, models,
 permissions, fixtures, graders, budgets, and deadlines stay matched.
 
 Initial scope: native Codex default profile, local, 12 cells, one attempt each,
-500-cent company and per-agent hard stops, at most eight total run records per
+500-cent space and per-agent hard stops, at most eight total run records per
 cell, including coordination wakes. One exact pilot cell precedes the remaining
 selection. No automatic retries or outcome rerolls. User authorization for paid
 runs persists. Extra profiles/repetitions are not part of this initial comparison.
@@ -54,11 +54,11 @@ Source review found two fixture defects before provider execution: bundled and
 catalog skills cannot be edited, and deleted core skills are automatically
 restored. Campaign `37399550253` at `843238f43cb266f6ca0bc9d255881558ffd2eb71`
 was cancelled; its paid-cell step was skipped, with zero provider runs and no
-behavioral grade. Corrected setup creates editable, byte-identical company copies
+behavioral grade. Corrected setup creates editable, byte-identical space copies
 and varies their explicit selection. No bundled deletion or in-place edit occurs.
 
 Corrected fixture admission: all three current/short/unassigned variants pass real
-company-skill creation, content readback and native-agent selection APIs against
+space-skill creation, content readback and native-agent selection APIs against
 a disposable PostgreSQL database. No heartbeat run rows were created. The
 evaluator's 35 positive/wrong/missing-evidence checks pass, including rejection
 of a bare issue-ID URL without the issues route. Product E2E typecheck passes.
@@ -72,7 +72,7 @@ revision `0e0b63e5a551388ac4601ed982b3e8f1c772f123` (workflow blob
 `0600886144d3e22ea2e4a38329a79177882f3948`). It remains an original FAIL,
 classified by the harness as `candidate_failure`. Inspection shows a browser
 fixture error before task creation: the shared helper waited for the old Task
-title field. `runIds`, the company run ledger, and planning observation are all
+title field. `runIds`, the space run ledger, and planning observation are all
 empty; no model executed. Cleanup passed. The billing summary's runCount=1 is
 its minimum-one placeholder (`billing.ts`), not evidence of a provider run;
 runtime/actual charges remain unmetered. No original result is regraded.
@@ -80,7 +80,7 @@ runtime/actual charges remain unmetered. No original result is regraded.
 The corrected planning-only browser helper uses the current description composer,
 explicitly selects the owner, and captures the public task-create response ID. A
 real browser/server/database calibration creates the exact prompt/assignment with
-paused non-provider agents, confirms zero run rows, and deletes its company. It
+paused non-provider agents, confirms zero run rows, and deletes its space. It
 passes. Before any model execution, prompts also explicitly name the already
 required result document key and exact JSON fields, avoiding an unstated oracle
 format assumption. The legacy helper and production UI remain unchanged.
@@ -89,9 +89,9 @@ Repository checks at the previous source: full typecheck and build pass. Local
 full tests: 9,591 pass, 5,796 skip and one unchanged macOS real-Git streaming test
 hits its five-minute deadline; an isolated check also fails. Preserve this
 limitation. Normal CI found a different, exact cause: truncated random fixture
-company prefixes collided in chat integration setup. An initial per-suite counter fixed within-run collisions but review found that
+space prefixes collided in chat integration setup. An initial per-suite counter fixed within-run collisions but review found that
 its values repeat against an external database on subsequent runs. The corrected
-prefix contains the complete company UUID, with no truncation; distinct company
+prefix contains the complete space UUID, with no truncation; distinct space
 IDs therefore produce distinct prefixes within and across runs. All five affected
 native-modal variants pass locally (1,058 unrelated cases filtered). This is a
 test-only repair; the measured planning fixture and production guidance remain

@@ -324,12 +324,12 @@ const SITES = [
 // (idempotent: only injected if not already present).
 const ALLOWLIST_COMMENTS = [
   {
-    file: "pages/CompanyEnvironments.tsx",
+    file: "pages/SpaceEnvironments.tsx",
     anchor: 'background: "#0a0a0a",',
     commentLine: "        // token-extraction: allowlisted — xterm.js terminal theme config; functional third-party option object, not a rendered CSS value.",
   },
   {
-    file: "pages/CompanySettings.tsx",
+    file: "pages/SpaceSettings.tsx",
     anchor: '                  <input\n                    type="color"',
     commentLine: "                  {/* token-extraction: allowlisted — <input type=\"color\"> value must be a real hex string, not a var() reference. */}",
   },
@@ -339,7 +339,7 @@ const ALLOWLIST_COMMENTS = [
     commentLine: "  // token-extraction: allowlisted — color-picker seed state, persisted into label-create payload; a var() string would break that payload.",
   },
   {
-    file: "pages/CompanySkills.tsx",
+    file: "pages/SpaceSkills.tsx",
     anchor: "const DISCOVERY_ACCENTS = [",
     commentLine: "// token-extraction: allowlisted — skill.color is persisted/compared JS data (SkillCreateDraft), not just a rendered value; a var() string would corrupt it.",
   },
@@ -349,24 +349,24 @@ const ALLOWLIST_COMMENTS = [
     commentLine: "            // token-extraction: allowlisted — accentColor also feeds pickTextColorForPillBg() contrast math; a var() string can't be parsed as a hex color there.",
   },
   {
-    file: "components/CompanyPatternIcon.tsx",
+    file: "components/SpacePatternIcon.tsx",
     anchor: "ctx.fillStyle = `rgb(${offR} ${offG} ${offB})`;",
     commentLine: "  // token-extraction: allowlisted — canvas 2D fillStyle computed at runtime from numeric channel props; not a static literal.",
   },
   {
     file: "components/FileViewerSheet.tsx",
-    anchor: 'isHighlighted && "bg-[var(--paperclip-code-highlight-bg,rgba(250,204,21,0.12))]",',
-    commentLine: "                // token-extraction: allowlisted — half-migrated var(--x, fallback) pattern; --paperclip-code-highlight-bg/-border don't exist in index.css yet. Needs human decision (see TOKEN-AUDIT.md 2) before minting, since defining the var changes a fallback-CSS-var-expression, not a plain literal swap.",
+    anchor: 'isHighlighted && "bg-[var(--outpost-code-highlight-bg,rgba(250,204,21,0.12))]",',
+    commentLine: "                // token-extraction: allowlisted — half-migrated var(--x, fallback) pattern; --outpost-code-highlight-bg/-border don't exist in index.css yet. Needs human decision (see TOKEN-AUDIT.md 2) before minting, since defining the var changes a fallback-CSS-var-expression, not a plain literal swap.",
   },
   {
     file: "pages/InviteUxLab.tsx",
-    anchor: '      <div className="flex items-start gap-4">\n        <CompanyPatternIcon\n          companyName="Acme Robotics"\n          logoUrl="/api/invites/pcp_invite_test/logo"\n          brandColor="#114488"\n          className="h-16 w-16 rounded-none border border-zinc-800"',
-    commentLine: "      {/* token-extraction: allowlisted — brandColor feeds CompanyPatternIcon's hexToHue() color math via a canvas fill; demo/showcase-only prop, not a rendered CSS value. */}",
+    anchor: '      <div className="flex items-start gap-4">\n        <SpacePatternIcon\n          spaceName="Acme Robotics"\n          logoUrl="/api/invites/pcp_invite_test/logo"\n          brandColor="#114488"\n          className="h-16 w-16 rounded-none border border-zinc-800"',
+    commentLine: "      {/* token-extraction: allowlisted — brandColor feeds SpacePatternIcon's hexToHue() color math via a canvas fill; demo/showcase-only prop, not a rendered CSS value. */}",
   },
   {
     file: "pages/InviteUxLab.tsx",
-    anchor: '      <div className="flex items-center gap-3">\n        <CompanyPatternIcon\n          companyName="Acme Robotics"\n          logoUrl="/api/invites/pcp_invite_test/logo"\n          brandColor="#114488"\n          className="h-12 w-12 rounded-none border border-zinc-800"',
-    commentLine: "      {/* token-extraction: allowlisted — brandColor feeds CompanyPatternIcon's hexToHue() color math via a canvas fill; demo/showcase-only prop, not a rendered CSS value. */}",
+    anchor: '      <div className="flex items-center gap-3">\n        <SpacePatternIcon\n          spaceName="Acme Robotics"\n          logoUrl="/api/invites/pcp_invite_test/logo"\n          brandColor="#114488"\n          className="h-12 w-12 rounded-none border border-zinc-800"',
+    commentLine: "      {/* token-extraction: allowlisted — brandColor feeds SpacePatternIcon's hexToHue() color math via a canvas fill; demo/showcase-only prop, not a rendered CSS value. */}",
   },
 ];
 
@@ -439,7 +439,7 @@ function main() {
 
   if (!cssOriginal.includes(marker)) {
     const tokenLines = NEW_TOKENS.map((t) => `  --${t.name}: ${t.value}; /* ${t.comment} */`).join("\n");
-    const block = `\n${marker}\n/* Batch 1/4: color literals only. Reused-from-existing-token sites (see\n   TOKEN-AUDIT.md section 1.1) are NOT duplicated here — they reference\n   --status-task-in_progress / --status-task-done directly at the call site.\n\n   Allowlist (sites intentionally left as hardcoded / functional literals,\n   NOT converted to tokens — each also carries an inline\n   \`token-extraction: allowlisted\` comment at the site):\n   - pages/CompanyEnvironments.tsx — xterm.js terminal theme config; functional JS values, third-party.\n   - pages/CompanySettings.tsx — <input type="color"> value; functional form control, not a rendered value.\n   - components/issue-properties/IssueProperties.tsx (newLabelColor) — color-picker seed persisted into label-create payload.\n   - pages/CompanySkills.tsx (DISCOVERY_ACCENTS) — persisted/compared skill.color JS data, not just rendered.\n   - components/IssueColumns.tsx (accentColor fallback) — also feeds pickTextColorForPillBg() contrast math.\n   - components/CompanyPatternIcon.tsx — canvas fillStyle computed at runtime from numeric props, not a static literal.\n   - components/FileViewerSheet.tsx — half-migrated var(--paperclip-code-highlight-*, fallback) pattern; needs human decision, see TOKEN-AUDIT.md section 2.\n   - pages/InviteUxLab.tsx (brandColor prop, x2) — demo/showcase-only prop feeding CompanyPatternIcon's hexToHue() color math, not a rendered CSS value.\n*/\n:root {\n${tokenLines}\n}\n`;
+    const block = `\n${marker}\n/* Batch 1/4: color literals only. Reused-from-existing-token sites (see\n   TOKEN-AUDIT.md section 1.1) are NOT duplicated here — they reference\n   --status-task-in_progress / --status-task-done directly at the call site.\n\n   Allowlist (sites intentionally left as hardcoded / functional literals,\n   NOT converted to tokens — each also carries an inline\n   \`token-extraction: allowlisted\` comment at the site):\n   - pages/SpaceEnvironments.tsx — xterm.js terminal theme config; functional JS values, third-party.\n   - pages/SpaceSettings.tsx — <input type="color"> value; functional form control, not a rendered value.\n   - components/issue-properties/IssueProperties.tsx (newLabelColor) — color-picker seed persisted into label-create payload.\n   - pages/SpaceSkills.tsx (DISCOVERY_ACCENTS) — persisted/compared skill.color JS data, not just rendered.\n   - components/IssueColumns.tsx (accentColor fallback) — also feeds pickTextColorForPillBg() contrast math.\n   - components/SpacePatternIcon.tsx — canvas fillStyle computed at runtime from numeric props, not a static literal.\n   - components/FileViewerSheet.tsx — half-migrated var(--outpost-code-highlight-*, fallback) pattern; needs human decision, see TOKEN-AUDIT.md section 2.\n   - pages/InviteUxLab.tsx (brandColor prop, x2) — demo/showcase-only prop feeding SpacePatternIcon's hexToHue() color math, not a rendered CSS value.\n*/\n:root {\n${tokenLines}\n}\n`;
     cssNext = cssOriginal + block;
     cssChanged = true;
   }

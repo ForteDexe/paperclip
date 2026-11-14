@@ -44,7 +44,7 @@ const row = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
 export function gradeFeedbackPersistence(input: {
-  evidence: unknown; nonce: string; companyId: string | undefined; agentId: string | undefined;
+  evidence: unknown; nonce: string; spaceId: string | undefined; agentId: string | undefined;
   taskId: string | undefined; runIds: string[];
 }) {
   const evidence = row(input.evidence), summary = row(evidence.summary);
@@ -53,9 +53,9 @@ export function gradeFeedbackPersistence(input: {
   const expected = expectedFixtureFeedback(input.nonce);
   const checks: Array<{ id: string; passed: boolean; detail: string }> = [];
   const check = (id: string, passed: boolean, detail: string) => checks.push({ id, passed, detail });
-  check("complete-retained-evidence", evidence.version === 1 && Boolean(input.companyId)
-    && evidence.companyId === input.companyId && summary.collection === "complete" && summary.invocationCollection === "complete",
-  "Both collection passes completed and the saved evidence belongs to this company.");
+  check("complete-retained-evidence", evidence.version === 1 && Boolean(input.spaceId)
+    && evidence.spaceId === input.spaceId && summary.collection === "complete" && summary.invocationCollection === "complete",
+  "Both collection passes completed and the saved evidence belongs to this space.");
   check("one-of-each", entries.length === 2 && new Set(entries.map(entry => entry.id)).size === 2
     && entries.every(entry => typeof entry.id === "string" && entry.id.length > 0),
   "Exactly two distinct saved feedback records remain after teardown.");

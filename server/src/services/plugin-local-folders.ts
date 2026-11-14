@@ -204,7 +204,7 @@ export async function inspectPluginLocalFolder(input: {
       if (access === "readWrite") {
         try {
           await fs.access(realPath, fsConstants.W_OK);
-          const probePath = path.join(realPath, `.paperclip-local-folder-probe-${process.pid}-${Date.now()}`);
+          const probePath = path.join(realPath, `.outpost-local-folder-probe-${process.pid}-${Date.now()}`);
           await fs.writeFile(probePath, "");
           await fs.rm(probePath, { force: true });
           writable = true;
@@ -495,7 +495,7 @@ export async function writePluginLocalFolderTextAtomic(
   await assertPathInsideRoot(rootRealPath, path.dirname(resolved.absolutePath));
   const tempPath = path.join(
     path.dirname(resolved.absolutePath),
-    `.paperclip-${path.basename(resolved.absolutePath)}-${process.pid}-${randomUUID()}.tmp`,
+    `.outpost-${path.basename(resolved.absolutePath)}-${process.pid}-${randomUUID()}.tmp`,
   );
   let tempCreated = false;
   try {
@@ -591,8 +591,8 @@ export async function deletePluginLocalFolderFile(
   });
 }
 
-export function defaultLocalFolderBasePath(pluginKey: string, companyId: string) {
-  return path.join(os.homedir(), ".paperclip", "plugin-data", companyId, pluginKey);
+export function defaultLocalFolderBasePath(pluginKey: string, spaceId: string) {
+  return path.join(os.homedir(), ".outpost", "plugin-data", spaceId, pluginKey);
 }
 
 export function assertConfiguredLocalFolder(status: PluginLocalFolderStatus) {

@@ -22,9 +22,9 @@ import {
   assets,
   agentApiKeys,
   authUsers,
-  companies,
-  companyLogos,
-  companyMemberships,
+  spaces,
+  spaceLogos,
+  spaceMemberships,
   instanceUserRoles,
   invites,
   joinRequests,
@@ -36,21 +36,21 @@ import {
   createCliAuthChallengeSchema,
   claimJoinRequestApiKeySchema,
   createBoardApiKeySchema,
-  createCompanyInviteSchema,
+  createSpaceInviteSchema,
   createOpenClawInvitePromptSchema,
-  listCompanyInvitesQuerySchema,
+  listSpaceInvitesQuerySchema,
   listJoinRequestsQuerySchema,
   resolveCliAuthChallengeSchema,
   searchAdminUsersQuerySchema,
-  updateCompanyMemberWithPermissionsSchema,
-  updateCompanyMemberSchema,
-  archiveCompanyMemberSchema,
+  updateSpaceMemberWithPermissionsSchema,
+  updateSpaceMemberSchema,
+  archiveSpaceMemberSchema,
   updateMemberPermissionsSchema,
-  updateUserCompanyAccessSchema,
+  updateUserSpaceAccessSchema,
   PERMISSION_KEYS,
   isUuidLike,
 } from "@outpost/shared";
-import type { DeploymentExposure, DeploymentMode, HumanCompanyMembershipRole } from "@outpost/shared";
+import type { DeploymentExposure, DeploymentMode, HumanSpaceMembershipRole } from "@outpost/shared";
 import {
   forbidden,
   conflict,
@@ -67,7 +67,7 @@ import { runtimeCanonicalOrigin } from "../services/cloud-runtime-identity.js";
  * (`instance.access` in OUTPOST_HIDDEN_SETTINGS), instance-admin user
  * management is rejected alongside it — user administration then belongs to
  * the operator's own control plane. Applies to the Access page's reads too;
- * invite and company-membership routes are company-scoped and stay open.
+ * invite and space-membership routes are space-scoped and stay open.
  */
 function assertAccessAdminVisible() {
   if (getHiddenSettings().has("instance.access")) {
@@ -86,26 +86,26 @@ import { collectReachableInterfaceHosts } from "../runtime-api.js";
 import {
   accessService,
   agentService,
-  boardAuthService,
+  operatorAuthService,
   deduplicateAgentName,
   logActivity,
-  notifyHireApproved
+  notifyCreateApproved
 } from "../services/index.js";
 import {
   grantsForHumanRole,
   normalizeHumanRole,
   resolveHumanInviteRole,
-} from "../services/company-member-roles.js";
+} from "../services/space-member-roles.js";
 import { agentJoinGrantsFromDefaults as standardAgentJoinGrantsFromDefaults, humanJoinGrantsFromDefaults } from "../services/invite-grants.js";
 import {
   collapseDuplicatePendingHumanJoinRequests,
   findReusableHumanJoinRequest,
 } from "../lib/join-request-dedupe.js";
-import { assertAuthenticated, assertCompanyAccess } from "./authz.js";
+import { assertAuthenticated, assertSpaceAccess } from "./authz.js";
 import {
   claimBoardOwnership,
-  inspectBoardClaimChallenge
-} from "../board-claim.js";
+  inspectOperatorClaimChallenge
+} from "../operator-claim.js";
 import { claimFirstInstanceAdmin } from "../first-admin-claim.js";
 import { getStorageService } from "../storage/index.js";
 import { secretService } from "../services/secrets.js";
@@ -122,7 +122,7 @@ const INVITE_TOKEN_PREFIX = "pcp_invite_";
 // `invites.tokenHash`; the raw value is only returned once on creation.
 const INVITE_TOKEN_ENTROPY_BYTES = 32;
 const INVITE_TOKEN_MAX_RETRIES = 5;
-const COMPANY_INVITE_TTL_MS = 72 * 60 * 60 * 1000;
+const SPACE_INVITE_TTL_MS = 72 * 60 * 60 * 1000;
 const INVITE_RESOLUTION_DNS_TIMEOUT_MS = 3_000;
 
 export function createInviteToken() {
@@ -134,8 +134,8 @@ function createClaimSecret() {
   return `pcp_claim_${randomBytes(24).toString("hex")}`;
 }
 
-export function companyInviteExpiresAt(nowMs: number = Date.now()) {
-  return new Date(nowMs + COMPANY_INVITE_TTL_MS);
+export function spaceInviteExpiresAt(nowMs: number = Date.now()) {
+  return new Date(nowMs + SPACE_INVITE_TTL_MS);
 }
 
 function tokenHashesMatch(left: string, right: string) {
@@ -194,8 +194,8 @@ function isSafeSkillName(skillName: string): boolean {
   return /^[a-z0-9][a-z0-9._-]*$/.test(skillName);
 }
 
-/** Resolve the Paperclip repo skills directory (built-in / managed skills). */
-function resolvePaperclipSkillsDir(): string | null {
+/** Resolve the Outpost repo skills directory (built-in / managed skills). */
+function resolveOutpostSkillsDir(): string | null {
   const moduleDir = path.dirname(fileURLToPath(import.meta.url));
   const candidates = [
     path.resolve(moduleDir, "../../skills"),         // published
@@ -234,7 +234,7 @@ function parseSkillFrontmatter(markdown: string): { description: string } {
 interface AvailableSkill {
   name: string;
   description: string;
-  isPaperclipManaged: boolean;
+  isOutpostManaged: boolean;
 }
 
 /** Discover all available Claude Code skills from CLAUDE_HOME or ~/.claude. */
@@ -248,14 +248,14 @@ function resolveClaudeSkillsDir(): string {
 
 function listAvailableSkills(): AvailableSkill[] {
   const claudeSkillsDir = resolveClaudeSkillsDir();
-  const paperclipSkillsDir = resolvePaperclipSkillsDir();
+  const outpostSkillsDir = resolveOutpostSkillsDir();
 
-  // Build set of Paperclip-managed skill names
-  const paperclipSkillNames = new Set<string>();
-  if (paperclipSkillsDir) {
+  // Build set of Outpost-managed skill names
+  const outpostSkillNames = new Set<string>();
+  if (outpostSkillsDir) {
     try {
-      for (const entry of fs.readdirSync(paperclipSkillsDir, { withFileTypes: true })) {
-        if (entry.isDirectory() && entry.name === "paperclip") paperclipSkillNames.add(entry.name);
+      for (const entry of fs.readdirSync(outpostSkillsDir, { withFileTypes: true })) {
+        if (entry.isDirectory() && entry.name === "outpost") outpostSkillNames.add(entry.name);
       }
     } catch { /* skip */ }
   }
@@ -263,7 +263,7 @@ function listAvailableSkills(): AvailableSkill[] {
   const skills: AvailableSkill[] = [];
   const retiredBundledSkillNames = new Set([
     "agentmail", "complain", "first-task",
-    "paperclip-converting-plans-to-tasks",
+    "outpost-converting-plans-to-tasks",
     "para-memory-files", "slack", "suggestion-box",
   ]);
 
@@ -282,17 +282,17 @@ function listAvailableSkills(): AvailableSkill[] {
       skills.push({
         name: entry.name,
         description,
-        isPaperclipManaged: paperclipSkillNames.has(entry.name),
+        isOutpostManaged: outpostSkillNames.has(entry.name),
       });
     }
   } catch { /* Claude skills directory doesn't exist */ }
 
-  if (paperclipSkillsDir) {
+  if (outpostSkillsDir) {
     const existingNames = new Set(skills.map((skill) => skill.name));
     try {
-      for (const entry of fs.readdirSync(paperclipSkillsDir, { withFileTypes: true })) {
-        if (!entry.isDirectory() || entry.name !== "paperclip" || existingNames.has(entry.name)) continue;
-        const skillMdPath = path.join(paperclipSkillsDir, entry.name, "SKILL.md");
+      for (const entry of fs.readdirSync(outpostSkillsDir, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name !== "outpost" || existingNames.has(entry.name)) continue;
+        const skillMdPath = path.join(outpostSkillsDir, entry.name, "SKILL.md");
         let description = "";
         try {
           const md = fs.readFileSync(skillMdPath, "utf8");
@@ -301,10 +301,10 @@ function listAvailableSkills(): AvailableSkill[] {
         skills.push({
           name: entry.name,
           description,
-          isPaperclipManaged: true,
+          isOutpostManaged: true,
         });
       }
-    } catch { /* skip Paperclip skills directory */ }
+    } catch { /* skip Outpost skills directory */ }
   }
 
   skills.sort((a, b) => a.name.localeCompare(b.name));
@@ -552,7 +552,7 @@ function generateEd25519PrivateKeyPem(): string {
 export function buildJoinDefaultsPayloadForAccept(input: {
   adapterType: string | null;
   defaultsPayload: unknown;
-  paperclipApiUrl?: unknown;
+  outpostApiUrl?: unknown;
   inboundOpenClawAuthHeader?: string | null;
   inboundOpenClawTokenHeader?: string | null;
 }): unknown {
@@ -564,9 +564,9 @@ export function buildJoinDefaultsPayloadForAccept(input: {
     ? { ...(input.defaultsPayload as Record<string, unknown>) }
     : ({} as Record<string, unknown>);
 
-  if (!nonEmptyTrimmedString(merged.paperclipApiUrl)) {
-    const legacyPaperclipApiUrl = nonEmptyTrimmedString(input.paperclipApiUrl);
-    if (legacyPaperclipApiUrl) merged.paperclipApiUrl = legacyPaperclipApiUrl;
+  if (!nonEmptyTrimmedString(merged.outpostApiUrl)) {
+    const legacyOutpostApiUrl = nonEmptyTrimmedString(input.outpostApiUrl);
+    if (legacyOutpostApiUrl) merged.outpostApiUrl = legacyOutpostApiUrl;
   }
   const mergedHeaders = normalizeHeaderMap(merged.headers) ?? {};
 
@@ -719,8 +719,8 @@ function summarizeOpenClawGatewayDefaultsForLog(defaultsPayload: unknown) {
     present: Boolean(defaults),
     keys: defaults ? Object.keys(defaults).sort() : [],
     url: defaults ? nonEmptyTrimmedString(defaults.url) : null,
-    paperclipApiUrl: defaults
-      ? nonEmptyTrimmedString(defaults.paperclipApiUrl)
+    outpostApiUrl: defaults
+      ? nonEmptyTrimmedString(defaults.outpostApiUrl)
       : null,
     headerKeys: headers ? Object.keys(headers).sort() : [],
     sessionKeyStrategy: defaults
@@ -1052,35 +1052,35 @@ export function normalizeAgentDefaultsForJoin(input: {
     }
   }
 
-  const rawPaperclipApiUrl =
-    typeof defaults.paperclipApiUrl === "string"
-      ? defaults.paperclipApiUrl.trim()
+  const rawOutpostApiUrl =
+    typeof defaults.outpostApiUrl === "string"
+      ? defaults.outpostApiUrl.trim()
       : "";
-  if (rawPaperclipApiUrl) {
+  if (rawOutpostApiUrl) {
     try {
-      const parsedPaperclipApiUrl = new URL(rawPaperclipApiUrl);
+      const parsedOutpostApiUrl = new URL(rawOutpostApiUrl);
       if (
-        parsedPaperclipApiUrl.protocol !== "http:" &&
-        parsedPaperclipApiUrl.protocol !== "https:"
+        parsedOutpostApiUrl.protocol !== "http:" &&
+        parsedOutpostApiUrl.protocol !== "https:"
       ) {
         diagnostics.push({
-          code: "openclaw_gateway_paperclip_api_url_protocol",
+          code: "openclaw_gateway_outpost_api_url_protocol",
           level: "warn",
-          message: `paperclipApiUrl must use http:// or https:// (got ${parsedPaperclipApiUrl.protocol}).`
+          message: `outpostApiUrl must use http:// or https:// (got ${parsedOutpostApiUrl.protocol}).`
         });
       } else {
-        normalized.paperclipApiUrl = parsedPaperclipApiUrl.toString();
+        normalized.outpostApiUrl = parsedOutpostApiUrl.toString();
         diagnostics.push({
-          code: "openclaw_gateway_paperclip_api_url_configured",
+          code: "openclaw_gateway_outpost_api_url_configured",
           level: "info",
-          message: `paperclipApiUrl set to ${parsedPaperclipApiUrl.toString()}`
+          message: `outpostApiUrl set to ${parsedOutpostApiUrl.toString()}`
         });
       }
     } catch {
       diagnostics.push({
-        code: "openclaw_gateway_paperclip_api_url_invalid",
+        code: "openclaw_gateway_outpost_api_url_invalid",
         level: "warn",
-        message: `Invalid paperclipApiUrl: ${rawPaperclipApiUrl}`
+        message: `Invalid outpostApiUrl: ${rawOutpostApiUrl}`
       });
     }
   }
@@ -1090,7 +1090,7 @@ export function normalizeAgentDefaultsForJoin(input: {
 
 export async function prepareAgentDefaultsPayloadForJoinPersistence(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   adapterType: string | null;
   normalized: Record<string, unknown> | null;
   actor?: { userId?: string | null; agentId?: string | null };
@@ -1100,7 +1100,7 @@ export async function prepareAgentDefaultsPayloadForJoinPersistence(input: {
   }
 
   return secretService(input.db).normalizeAdapterConfigForPersistence(
-    input.companyId,
+    input.spaceId,
     input.normalized,
     { adapterType: input.adapterType, actor: input.actor },
   );
@@ -1110,7 +1110,7 @@ function toInviteSummaryResponse(
   req: Request,
   token: string,
   invite: typeof invites.$inferSelect,
-  company:
+  space:
     | string
     | {
       name: string | null;
@@ -1119,9 +1119,9 @@ function toInviteSummaryResponse(
     | null = null,
   authPublicBaseUrl?: string
 ) {
-  const companyInfo = typeof company === "string"
-    ? { name: company, logoUrl: null }
-    : company;
+  const spaceInfo = typeof space === "string"
+    ? { name: space, logoUrl: null }
+    : space;
   const baseUrl = resolveBaseUrl(req, authPublicBaseUrl);
   const invitePath = `/invite/${token}`;
   const onboardingPath = `/api/invites/${token}/onboarding`;
@@ -1130,9 +1130,9 @@ function toInviteSummaryResponse(
   const inviteMessage = extractInviteMessage(invite);
   return {
     id: invite.id,
-    companyId: invite.companyId,
-    companyName: companyInfo?.name ?? null,
-    companyLogoUrl: companyInfo?.logoUrl ?? null,
+    spaceId: invite.spaceId,
+    spaceName: spaceInfo?.name ?? null,
+    spaceLogoUrl: spaceInfo?.logoUrl ?? null,
     inviteType: invite.inviteType,
     allowedJoinTypes: invite.allowedJoinTypes,
     humanRole: extractInviteHumanRole(invite),
@@ -1153,14 +1153,14 @@ function toInviteSummaryResponse(
   };
 }
 
-function actorHasActiveUserMembership(req: Request, companyId: string) {
+function actorHasActiveUserMembership(req: Request, spaceId: string) {
   return (
-    req.actor.type === "board" &&
+    req.actor.type === "operator" &&
     typeof req.actor.userId === "string" &&
     Array.isArray(req.actor.memberships) &&
     req.actor.memberships.some(
       (membership) =>
-        membership.companyId === companyId && membership.status === "active",
+        membership.spaceId === spaceId && membership.status === "active",
     )
   );
 }
@@ -1179,12 +1179,12 @@ async function loadUsersById(db: Db, userIds: string[]) {
   return new Map(rows.map((row) => [row.id, toUserProfile(row)]));
 }
 
-async function loadCompanyAccessSummary(
+async function loadSpaceAccessSummary(
   req: Request,
   access: ReturnType<typeof accessService>,
-  companyId: string,
+  spaceId: string,
 ) {
-  if (req.actor.type !== "board") {
+  if (req.actor.type !== "operator") {
     return {
       currentUserRole: null,
       canManageMembers: false,
@@ -1202,12 +1202,12 @@ async function loadCompanyAccessSummary(
   }
   const userId = req.actor.userId ?? null;
   const membership =
-    userId ? await access.getMembership(companyId, "user", userId) : null;
+    userId ? await access.getMembership(spaceId, "user", userId) : null;
   const [canManageMembers, canInviteUsers, canApproveJoinRequests] =
     await Promise.all([
-      access.canUser(companyId, userId, "users:manage_permissions"),
-      access.canUser(companyId, userId, "users:invite"),
-      access.canUser(companyId, userId, "joins:approve"),
+      access.canUser(spaceId, userId, "users:manage_permissions"),
+      access.canUser(spaceId, userId, "users:invite"),
+      access.canUser(spaceId, userId, "joins:approve"),
     ]);
 
   return {
@@ -1221,22 +1221,22 @@ async function loadCompanyAccessSummary(
   };
 }
 
-async function loadCompanyMemberRecords(
+async function loadSpaceMemberRecords(
   db: Db,
-  companyId: string,
+  spaceId: string,
   options: { includeArchived?: boolean } = {},
 ) {
   const members = await db
     .select()
-    .from(companyMemberships)
+    .from(spaceMemberships)
     .where(
       and(
-        eq(companyMemberships.companyId, companyId),
-        eq(companyMemberships.principalType, "user"),
-        options.includeArchived ? undefined : ne(companyMemberships.status, "archived"),
+        eq(spaceMemberships.spaceId, spaceId),
+        eq(spaceMemberships.principalType, "user"),
+        options.includeArchived ? undefined : ne(spaceMemberships.status, "archived"),
       ),
     )
-    .orderBy(desc(companyMemberships.updatedAt));
+    .orderBy(desc(spaceMemberships.updatedAt));
 
   const userIds = [...new Set(members.map((member) => member.principalId))];
   const [userMap, grants] = await Promise.all([
@@ -1247,7 +1247,7 @@ async function loadCompanyMemberRecords(
           .from(principalPermissionGrants)
           .where(
             and(
-              eq(principalPermissionGrants.companyId, companyId),
+              eq(principalPermissionGrants.spaceId, spaceId),
               eq(principalPermissionGrants.principalType, "user"),
               inArray(principalPermissionGrants.principalId, userIds),
             ),
@@ -1273,9 +1273,9 @@ async function loadCompanyMemberRecords(
   }));
 }
 
-type CompanyMemberRecord = Awaited<ReturnType<typeof loadCompanyMemberRecords>>[number];
+type SpaceMemberRecord = Awaited<ReturnType<typeof loadSpaceMemberRecords>>[number];
 
-const humanRoleRank: Record<HumanCompanyMembershipRole, number> = {
+const humanRoleRank: Record<HumanSpaceMembershipRole, number> = {
   viewer: 1,
   operator: 2,
   admin: 3,
@@ -1285,13 +1285,13 @@ const humanRoleRank: Record<HumanCompanyMembershipRole, number> = {
 async function resolveActorHumanRole(
   req: Request,
   access: ReturnType<typeof accessService>,
-  companyId: string,
-): Promise<HumanCompanyMembershipRole | null> {
-  if (req.actor.type !== "board") return null;
+  spaceId: string,
+): Promise<HumanSpaceMembershipRole | null> {
+  if (req.actor.type !== "operator") return null;
   if (isLocalImplicit(req) || req.actor.isInstanceAdmin) return "owner";
   const userId = req.actor.userId ?? null;
   if (!userId) return null;
-  const membership = await access.getMembership(companyId, "user", userId);
+  const membership = await access.getMembership(spaceId, "user", userId);
   if (membership?.status !== "active" || !membership.membershipRole) return null;
   return normalizeHumanRole(membership.membershipRole, "operator");
 }
@@ -1299,60 +1299,60 @@ async function resolveActorHumanRole(
 async function getProtectedMemberReason(
   req: Request,
   access: ReturnType<typeof accessService>,
-  companyId: string,
+  spaceId: string,
   member: { principalId: string; principalType: string; membershipRole: string | null },
   opts?: {
-    actorRole?: HumanCompanyMembershipRole | null;
+    actorRole?: HumanSpaceMembershipRole | null;
     instanceAdminUserIds?: ReadonlySet<string>;
     operation?: "archive" | "update";
   },
 ): Promise<string | null> {
-  if (member.principalType !== "user") return "Only human company members can be removed.";
-  if (req.actor.type !== "board") return "Board access is required to remove members.";
+  if (member.principalType !== "user") return "Only human space members can be removed.";
+  if (req.actor.type !== "operator") return "Operator access is required to remove members.";
   if (member.principalId === req.actor.userId) return "You cannot remove yourself.";
   const isTargetInstanceAdmin = opts?.instanceAdminUserIds
     ? opts.instanceAdminUserIds.has(member.principalId)
     : await access.isInstanceAdmin(member.principalId);
   if (isTargetInstanceAdmin) {
-    return "Instance admins cannot be removed from company access.";
+    return "Instance admins cannot be removed from space access.";
   }
 
   const targetRole = member.membershipRole
     ? normalizeHumanRole(member.membershipRole, "operator")
     : "operator";
   if (opts?.operation === "archive") {
-    if (targetRole === "owner") return "Board owners cannot be removed from company access.";
-    if (targetRole === "admin") return "Outpost admins cannot be removed from company access.";
+    if (targetRole === "owner") return "Operator owners cannot be removed from space access.";
+    if (targetRole === "admin") return "Outpost admins cannot be removed from space access.";
   }
 
-  const actorRole = opts?.actorRole ?? await resolveActorHumanRole(req, access, companyId);
-  if (!actorRole) return "Only active company members can remove users.";
+  const actorRole = opts?.actorRole ?? await resolveActorHumanRole(req, access, spaceId);
+  if (!actorRole) return "Only active space members can remove users.";
   if (humanRoleRank[targetRole] >= humanRoleRank[actorRole]) {
-    return "You can only remove users below your company role.";
+    return "You can only remove users below your space role.";
   }
 
   return null;
 }
 
-async function assertCanManageCompanyMember(
+async function assertCanManageSpaceMember(
   req: Request,
   access: ReturnType<typeof accessService>,
-  companyId: string,
+  spaceId: string,
   member: { principalId: string; principalType: string; membershipRole: string | null },
   operation: "archive" | "update" = "update",
 ) {
-  const reason = await getProtectedMemberReason(req, access, companyId, member, { operation });
+  const reason = await getProtectedMemberReason(req, access, spaceId, member, { operation });
   if (reason) throw forbidden(reason);
 }
 
-async function addCompanyMemberRemovalAccess(
+async function addSpaceMemberRemovalAccess(
   req: Request,
   db: Db,
   access: ReturnType<typeof accessService>,
-  companyId: string,
-  members: CompanyMemberRecord[],
+  spaceId: string,
+  members: SpaceMemberRecord[],
 ) {
-  const actorRole = await resolveActorHumanRole(req, access, companyId);
+  const actorRole = await resolveActorHumanRole(req, access, spaceId);
   const userIds = [...new Set(members
     .filter((member) => member.principalType === "user")
     .map((member) => member.principalId))];
@@ -1367,7 +1367,7 @@ async function addCompanyMemberRemovalAccess(
     : new Set<string>();
   return Promise.all(
     members.map(async (member) => {
-      const reason = await getProtectedMemberReason(req, access, companyId, member, {
+      const reason = await getProtectedMemberReason(req, access, spaceId, member, {
         actorRole,
         instanceAdminUserIds,
         operation: "archive",
@@ -1383,22 +1383,22 @@ async function addCompanyMemberRemovalAccess(
   );
 }
 
-async function loadCompanyUserDirectory(db: Db, companyId: string) {
+async function loadSpaceUserDirectory(db: Db, spaceId: string) {
   const members = await db
     .select({
-      principalId: companyMemberships.principalId,
-      status: companyMemberships.status,
-      membershipRole: companyMemberships.membershipRole,
+      principalId: spaceMemberships.principalId,
+      status: spaceMemberships.status,
+      membershipRole: spaceMemberships.membershipRole,
     })
-    .from(companyMemberships)
+    .from(spaceMemberships)
     .where(
       and(
-        eq(companyMemberships.companyId, companyId),
-        eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.status, "active"),
+        eq(spaceMemberships.spaceId, spaceId),
+        eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.status, "active"),
       ),
     )
-    .orderBy(desc(companyMemberships.updatedAt));
+    .orderBy(desc(spaceMemberships.updatedAt));
 
   const userIds = [...new Set(members.map((member) => member.principalId))];
   const userMap = await loadUsersById(db, userIds);
@@ -1437,9 +1437,9 @@ function inviteStateWhereClause(
   }
 }
 
-async function loadCompanyInviteRecords(
+async function loadSpaceInviteRecords(
   db: Db,
-  companyId: string,
+  spaceId: string,
   options: {
     state?: "active" | "accepted" | "expired" | "revoked";
     limit: number;
@@ -1450,7 +1450,7 @@ async function loadCompanyInviteRecords(
   const rows = await db
     .select()
     .from(invites)
-    .where(whereClause ? and(eq(invites.companyId, companyId), whereClause) : eq(invites.companyId, companyId))
+    .where(whereClause ? and(eq(invites.spaceId, spaceId), whereClause) : eq(invites.spaceId, spaceId))
     .orderBy(desc(invites.createdAt))
     .limit(options.limit + 1)
     .offset(options.offset);
@@ -1463,7 +1463,7 @@ async function loadCompanyInviteRecords(
         .filter((value): value is string => Boolean(value)),
     ),
   ];
-  const [userMap, joinRows, companyName] = await Promise.all([
+  const [userMap, joinRows, spaceName] = await Promise.all([
     loadUsersById(db, userIds),
     visibleRows.length
       ? db
@@ -1471,7 +1471,7 @@ async function loadCompanyInviteRecords(
           .from(joinRequests)
           .where(
             and(
-              eq(joinRequests.companyId, companyId),
+              eq(joinRequests.spaceId, spaceId),
               inArray(
                 joinRequests.inviteId,
                 visibleRows.map((invite) => invite.id),
@@ -1480,10 +1480,10 @@ async function loadCompanyInviteRecords(
           )
       : Promise.resolve([]),
     db
-      .select({ name: companies.name })
-      .from(companies)
-      .where(eq(companies.id, companyId))
-      .then((companyRows) => companyRows[0]?.name ?? null),
+      .select({ name: spaces.name })
+      .from(spaces)
+      .where(eq(spaces.id, spaceId))
+      .then((spaceRows) => spaceRows[0]?.name ?? null),
   ]);
   const joinRequestIdByInviteId = new Map(
     joinRows.map((row: { inviteId: string; id: string }) => [row.inviteId, row.id]),
@@ -1492,7 +1492,7 @@ async function loadCompanyInviteRecords(
   return {
     invites: visibleRows.map((invite) => ({
       ...invite,
-      companyName,
+      spaceName,
       humanRole: extractInviteHumanRole(invite),
       inviteMessage: extractInviteMessage(invite),
       state: inviteState(invite),
@@ -1505,12 +1505,12 @@ async function loadCompanyInviteRecords(
   };
 }
 
-async function loadJoinRequestRecords(db: Db, companyId: string) {
+async function loadJoinRequestRecords(db: Db, spaceId: string) {
   const rows = collapseDuplicatePendingHumanJoinRequests(
     await db
       .select()
       .from(joinRequests)
-      .where(eq(joinRequests.companyId, companyId))
+      .where(eq(joinRequests.spaceId, spaceId))
       .orderBy(desc(joinRequests.createdAt))
   );
   const inviteIds = [...new Set(rows.map((row) => row.inviteId))];
@@ -1566,13 +1566,13 @@ async function loadJoinRequestRecords(db: Db, companyId: string) {
   });
 }
 
-async function loadUserCompanyAccessResponse(
+async function loadUserSpaceAccessResponse(
   db: Db,
   access: ReturnType<typeof accessService>,
   userId: string,
 ) {
   const [memberships, user, isInstanceAdmin] = await Promise.all([
-    access.listUserCompanyAccess(userId),
+    access.listUserSpaceAccess(userId),
     db
       .select({
         id: authUsers.id,
@@ -1585,18 +1585,18 @@ async function loadUserCompanyAccessResponse(
       .then((rows) => rows[0] ?? null),
     access.isInstanceAdmin(userId),
   ]);
-  const companyIds = [...new Set(memberships.map((membership) => membership.companyId))];
-  const companyRows = companyIds.length
+  const spaceIds = [...new Set(memberships.map((membership) => membership.spaceId))];
+  const spaceRows = spaceIds.length
     ? await db
         .select({
-          id: companies.id,
-          name: companies.name,
-          status: companies.status,
+          id: spaces.id,
+          name: spaces.name,
+          status: spaces.status,
         })
-        .from(companies)
-        .where(inArray(companies.id, companyIds))
+        .from(spaces)
+        .where(inArray(spaces.id, spaceIds))
     : [];
-  const companyMap = new Map(companyRows.map((company) => [company.id, company]));
+  const spaceMap = new Map(spaceRows.map((space) => [space.id, space]));
 
   return {
     user: user
@@ -1605,13 +1605,13 @@ async function loadUserCompanyAccessResponse(
           isInstanceAdmin,
         }
       : null,
-    companyAccess: memberships.map((membership) => {
-      const company = companyMap.get(membership.companyId) ?? null;
+    spaceAccess: memberships.map((membership) => {
+      const space = spaceMap.get(membership.spaceId) ?? null;
       return {
         ...membership,
         principalType: "user" as const,
-        companyName: company?.name ?? null,
-        companyStatus: company?.status ?? null,
+        spaceName: space?.name ?? null,
+        spaceStatus: space?.status ?? null,
       };
     }),
   };
@@ -1682,7 +1682,7 @@ function buildOnboardingDiscoveryDiagnostics(input: {
       // metacharacter span in the host before any CLI receives argv. A
       // direct-exec form such as `npx` does not stop the outer shell. Emit
       // a static `<host>` placeholder and keep the raw host in the message only.
-      hint: `Run npx paperclipai allowed-hostname <host>`
+      hint: `Run npx @outpost/cli allowed-hostname <host>`
     });
   }
 
@@ -1739,7 +1739,7 @@ function buildInviteOnboardingManifest(
   token: string,
   invite: typeof invites.$inferSelect,
   opts: {
-    companyName?: string | null;
+    spaceName?: string | null;
     deploymentMode: DeploymentMode;
     deploymentExposure: DeploymentExposure;
     bindHost: string;
@@ -1748,7 +1748,7 @@ function buildInviteOnboardingManifest(
   }
 ) {
   const baseUrl = resolveBaseUrl(req, opts.authPublicBaseUrl);
-  const skillPath = `/api/invites/${token}/skills/paperclip`;
+  const skillPath = `/api/invites/${token}/skills/outpost`;
   const skillUrl = baseUrl ? `${baseUrl}${skillPath}` : skillPath;
   const registrationEndpointPath = `/api/invites/${token}/accept`;
   const registrationEndpointUrl = baseUrl
@@ -1776,12 +1776,12 @@ function buildInviteOnboardingManifest(
       req,
       token,
       invite,
-      opts.companyName ?? null,
+      opts.spaceName ?? null,
       opts.authPublicBaseUrl
     ),
     onboarding: {
       instructions:
-        "Join as an external Outpost agent, save your one-time claim secret, wait for board approval, then claim your Outpost API key through the standard claim endpoint. Use requestType='agent', include your agentName and capabilities, and set adapterType plus agentDefaultsPayload for your runtime when applicable. Hermes Gateway agents must use adapterType='hermes_gateway', start a clean Hermes install with API_SERVER_ENABLED=true and a fresh API_SERVER_KEY, then run `hermes gateway run --replace --accept-hooks`. Put the Hermes gateway URL in agentDefaultsPayload.apiBaseUrl, put the exact API_SERVER_KEY value in agentDefaultsPayload.apiKey, and put the reachable Outpost base URL in agentDefaultsPayload.paperclipApiUrl. If you use the default Hermes dashboard root or /chat URL on port 9119, Outpost maps it to /api automatically. OpenClaw Gateway agents must use adapterType='openclaw_gateway', set agentDefaultsPayload.url to a ws:// or wss:// gateway endpoint, and include agentDefaultsPayload.headers.x-openclaw-token." + "\n\n" + EXTERNAL_AGENT_TOOL_GUIDANCE,
+        "Join as an external Outpost agent, save your one-time claim secret, wait for operator approval, then claim your Outpost API key through the standard claim endpoint. Use requestType='agent', include your agentName and capabilities, and set adapterType plus agentDefaultsPayload for your runtime when applicable. Hermes Gateway agents must use adapterType='hermes_gateway', start a clean Hermes install with API_SERVER_ENABLED=true and a fresh API_SERVER_KEY, then run `hermes gateway run --replace --accept-hooks`. Put the Hermes gateway URL in agentDefaultsPayload.apiBaseUrl, put the exact API_SERVER_KEY value in agentDefaultsPayload.apiKey, and put the reachable Outpost base URL in agentDefaultsPayload.outpostApiUrl. If you use the default Hermes dashboard root or /chat URL on port 9119, Outpost maps it to /api automatically. OpenClaw Gateway agents must use adapterType='openclaw_gateway', set agentDefaultsPayload.url to a ws:// or wss:// gateway endpoint, and include agentDefaultsPayload.headers.x-openclaw-token." + "\n\n" + EXTERNAL_AGENT_TOOL_GUIDANCE,
       inviteMessage: extractInviteMessage(invite),
       recommendedAdapterType: null,
       requiredFields: {
@@ -1791,7 +1791,7 @@ function buildInviteOnboardingManifest(
           "Adapter type for this runtime. Use 'openclaw_gateway' only for OpenClaw Gateway agents. Use 'hermes_gateway' only for Hermes Gateway agents.",
         capabilities: "Optional capability summary",
         agentDefaultsPayload:
-          "Runtime-specific adapter config. OpenClaw Gateway agents must include url (ws:// or wss://) and headers.x-openclaw-token. Hermes Gateway agents must include apiBaseUrl, apiKey set to the Hermes API_SERVER_KEY, and paperclipApiUrl. A default Hermes dashboard root or /chat URL such as http://127.0.0.1:9119/chat is accepted and maps to /api. Other runtimes should include the config their adapter expects."
+          "Runtime-specific adapter config. OpenClaw Gateway agents must include url (ws:// or wss://) and headers.x-openclaw-token. Hermes Gateway agents must include apiBaseUrl, apiKey set to the Hermes API_SERVER_KEY, and outpostApiUrl. A default Hermes dashboard root or /chat URL such as http://127.0.0.1:9119/chat is accepted and maps to /api. Other runtimes should include the config their adapter expects."
       },
       registrationEndpoint: {
         method: "POST",
@@ -1816,7 +1816,7 @@ function buildInviteOnboardingManifest(
         guidance:
           opts.deploymentMode === "authenticated" &&
           opts.deploymentExposure === "private"
-            ? "If OpenClaw runs on another machine, ensure the Outpost hostname is reachable and allowed via `npx paperclipai allowed-hostname <host>`."
+            ? "If OpenClaw runs on another machine, ensure the Outpost hostname is reachable and allowed via `npx @outpost/cli allowed-hostname <host>`."
             : "Ensure OpenClaw can reach this Outpost API base URL for invite, claim, and skill bootstrap calls."
       },
       textInstructions: {
@@ -1825,7 +1825,7 @@ function buildInviteOnboardingManifest(
         contentType: "text/plain"
       },
       skill: {
-        name: "paperclip",
+        name: "outpost",
         path: skillPath,
         url: skillUrl,
         installPath: "runtime-specific Outpost skill location"
@@ -1839,7 +1839,7 @@ export function buildInviteOnboardingTextDocument(
   token: string,
   invite: typeof invites.$inferSelect,
   opts: {
-    companyName?: string | null;
+    spaceName?: string | null;
     deploymentMode: DeploymentMode;
     deploymentExposure: DeploymentExposure;
     bindHost: string;
@@ -1890,8 +1890,8 @@ export function buildInviteOnboardingTextDocument(
     - expiresAt: ${invite.expiresAt.toISOString()}
   `);
 
-  if (manifest.invite.companyName) {
-    lines.push(`- companyName: ${manifest.invite.companyName}`);
+  if (manifest.invite.spaceName) {
+    lines.push(`- spaceName: ${manifest.invite.spaceName}`);
   }
 
   if (onboarding.inviteMessage) {
@@ -1930,7 +1930,7 @@ export function buildInviteOnboardingTextDocument(
       "capabilities": "OpenClaw gateway agent",
       "agentDefaultsPayload": {
         "url": "wss://your-openclaw-gateway.example",
-        "paperclipApiUrl": "https://paperclip-hostname-your-agent-can-reach:3100",
+        "outpostApiUrl": "https://outpost-hostname-your-agent-can-reach:3100",
         "headers": { "x-openclaw-token": "replace-me" },
         "waitTimeoutMs": 120000,
         "sessionKeyStrategy": "issue",
@@ -1950,10 +1950,10 @@ export function buildInviteOnboardingTextDocument(
     - Set agentDefaultsPayload.apiKey to the exact same value as API_SERVER_KEY. This is the Hermes gateway key, not the Outpost key.
     - If you only have the default Hermes dashboard or chat URL, http://127.0.0.1:9119 and http://127.0.0.1:9119/chat are accepted and map to /api automatically.
     - Watch out: /chat and the dashboard root are browser UI routes. Outpost tests /api/health and starts runs with /api/v1/runs after mapping them to the API base.
-    - Set agentDefaultsPayload.paperclipApiUrl to the Outpost base URL Hermes can reach.
+    - Set agentDefaultsPayload.outpostApiUrl to the Outpost base URL Hermes can reach.
     - Use hermes_local when Outpost should start Hermes on the Outpost host.
     - Use hermes_gateway when Outpost should call an already-running Hermes API server.
-    - After board approval, claim the Outpost API key once with the claim endpoint below and save it as OUTPOST_API_KEY. Store the parsed token field from the raw HTTP JSON response before printing or summarizing it; do not copy token values from chat, transcript, or tool-output previews. A token value containing literal ... or [redacted] is a masked display preview, not a valid key. Do not rotate or invent an Outpost key manually.
+    - After operator approval, claim the Outpost API key once with the claim endpoint below and save it as OUTPOST_API_KEY. Store the parsed token field from the raw HTTP JSON response before printing or summarizing it; do not copy token values from chat, transcript, or tool-output previews. A token value containing literal ... or [redacted] is a masked display preview, not a valid key. Do not rotate or invent an Outpost key manually.
     - Hermes-originated Outpost API usage means Hermes calls Outpost with OUTPOST_API_URL and OUTPOST_API_KEY after approval/key claim. Do not confuse that with agentDefaultsPayload.apiBaseUrl, which points Outpost to Hermes.
 
     Hermes Gateway payload example:
@@ -1965,25 +1965,25 @@ export function buildInviteOnboardingTextDocument(
       "agentDefaultsPayload": {
         "apiBaseUrl": "http://127.0.0.1:8642",
         "apiKey": "<same-value-as-API_SERVER_KEY>",
-        "paperclipApiUrl": "http://localhost:3100"
+        "outpostApiUrl": "http://localhost:3100"
       }
     }
 
     Hermes Gateway network examples:
-    - Local loopback API server: agentDefaultsPayload.apiBaseUrl = "http://127.0.0.1:8642" and agentDefaultsPayload.paperclipApiUrl = "http://127.0.0.1:3100".
+    - Local loopback API server: agentDefaultsPayload.apiBaseUrl = "http://127.0.0.1:8642" and agentDefaultsPayload.outpostApiUrl = "http://127.0.0.1:3100".
     - Local loopback dashboard root or chat URL: agentDefaultsPayload.apiBaseUrl = "http://127.0.0.1:9119" or "http://127.0.0.1:9119/chat"; Outpost maps either one to "http://127.0.0.1:9119/api".
-    - LAN/private network: use reachable private addresses, for example agentDefaultsPayload.apiBaseUrl = "http://192.168.1.25:8642" and agentDefaultsPayload.paperclipApiUrl = "http://192.168.1.10:3100".
-    - Private overlay: use overlay DNS names, for example agentDefaultsPayload.apiBaseUrl = "http://hermes-host.tailnet-name.ts.net:8642" and agentDefaultsPayload.paperclipApiUrl = "http://paperclip-host.tailnet-name.ts.net:3100".
+    - LAN/private network: use reachable private addresses, for example agentDefaultsPayload.apiBaseUrl = "http://192.168.1.25:8642" and agentDefaultsPayload.outpostApiUrl = "http://192.168.1.10:3100".
+    - Private overlay: use overlay DNS names, for example agentDefaultsPayload.apiBaseUrl = "http://hermes-host.tailnet-name.ts.net:8642" and agentDefaultsPayload.outpostApiUrl = "http://outpost-host.tailnet-name.ts.net:3100".
     - Docker: if Outpost runs in Docker and Hermes runs on the host, use agentDefaultsPayload.apiBaseUrl = "http://host.docker.internal:8642"; if both run in Compose, use the Hermes service name.
-    - Reverse proxy/TLS: use HTTPS origins, for example agentDefaultsPayload.apiBaseUrl = "https://hermes-gateway.example" and agentDefaultsPayload.paperclipApiUrl = "https://outpost.example".
+    - Reverse proxy/TLS: use HTTPS origins, for example agentDefaultsPayload.apiBaseUrl = "https://hermes-gateway.example" and agentDefaultsPayload.outpostApiUrl = "https://outpost.example".
 
     Expected response includes:
     - request id
     - one-time claimSecret
     - claimApiKeyPath
 
-    ## Step 2: Wait for board approval
-    The board approves the join request in Outpost before key claim is allowed.
+    ## Step 2: Wait for operator approval
+    The operator approves the join request in Outpost before key claim is allowed.
 
     ## Step 3: Claim API key (one-time)
     ${
@@ -2000,7 +2000,7 @@ export function buildInviteOnboardingTextDocument(
     Important:
     - claim secrets expire
     - claim secrets are single-use
-    - claim fails before board approval
+    - claim fails before operator approval
 
     ## Step 4: Install Outpost skill
     GET ${onboarding.skill.url}
@@ -2038,11 +2038,11 @@ export function buildInviteOnboardingTextDocument(
 
       Test each candidate with:
       - GET <candidate>/api/health
-      - set the first reachable candidate as agentDefaultsPayload.paperclipApiUrl when submitting your join request
+      - set the first reachable candidate as agentDefaultsPayload.outpostApiUrl when submitting your join request
 
       If none are reachable: ask your human operator for a reachable hostname/address and help them update network configuration.
       For authenticated/private mode, they may need:
-      - npx paperclipai allowed-hostname <host>
+      - npx @outpost/cli allowed-hostname <host>
       - then restart Outpost and retry onboarding.
     `);
   }
@@ -2138,7 +2138,7 @@ function extractInviteHumanRole(invite: typeof invites.$inferSelect) {
 }
 
 function isLocalImplicit(req: Request) {
-  return req.actor.type === "board" && req.actor.source === "local_implicit";
+  return req.actor.type === "operator" && req.actor.source === "local_implicit";
 }
 
 function toUserProfile(
@@ -2192,10 +2192,10 @@ async function resolveAcceptedInviteJoinRequest(
     .then((rows) => rows[0] ?? null);
   if (directJoinRequest) return directJoinRequest;
 
-  if (!invite.companyId) return null;
+  if (!invite.spaceId) return null;
 
   const actorRequestingUserId = isLocalImplicit(req)
-    ? "local-board"
+    ? "local-operator"
     : req.actor.userId ?? null;
   const actorEmail = await resolveActorEmail(db, req);
   if (!actorRequestingUserId && !actorEmail) return null;
@@ -2212,7 +2212,7 @@ async function resolveAcceptedInviteJoinRequest(
       .from(joinRequests)
       .where(
         and(
-          eq(joinRequests.companyId, invite.companyId),
+          eq(joinRequests.spaceId, invite.spaceId),
           eq(joinRequests.requestType, "human"),
         ),
       )
@@ -2654,7 +2654,7 @@ export function accessRoutes(
 ) {
   const router = Router();
   const access = accessService(db);
-  const boardAuth = boardAuthService(db);
+  const operatorAuth = operatorAuthService(db);
   const agents = agentService(db);
   const agentsLifecycle = createAgentLifecycle(db);
   const routeInviteResolutionNetwork = opts.inviteResolutionNetwork
@@ -2712,35 +2712,35 @@ export function accessRoutes(
   });
 
   async function assertInstanceAdmin(req: Request) {
-    if (req.actor.type !== "board") throw unauthorized();
+    if (req.actor.type !== "operator") throw unauthorized();
     if (isLocalImplicit(req)) return;
     const allowed = await access.isInstanceAdmin(req.actor.userId);
     if (!allowed) throw forbidden("Instance admin required");
   }
 
-  router.get("/board-claim/:token", async (req, res) => {
+  router.get("/operator-claim/:token", async (req, res) => {
     const token = (req.params.token as string).trim();
     const code =
       typeof req.query.code === "string" ? req.query.code.trim() : undefined;
-    if (!token) throw notFound("Board claim challenge not found");
-    const challenge = inspectBoardClaimChallenge(token, code);
+    if (!token) throw notFound("Operator claim challenge not found");
+    const challenge = inspectOperatorClaimChallenge(token, code);
     if (challenge.status === "invalid")
-      throw notFound("Board claim challenge not found");
+      throw notFound("Operator claim challenge not found");
     res.json(challenge);
   });
 
-  router.post("/board-claim/:token/claim", async (req, res) => {
+  router.post("/operator-claim/:token/claim", async (req, res) => {
     const token = (req.params.token as string).trim();
     const code =
       typeof req.body?.code === "string" ? req.body.code.trim() : undefined;
-    if (!token) throw notFound("Board claim challenge not found");
+    if (!token) throw notFound("Operator claim challenge not found");
     if (!code) throw badRequest("Claim code is required");
     if (
-      req.actor.type !== "board" ||
+      req.actor.type !== "operator" ||
       req.actor.source !== "session" ||
       !req.actor.userId
     ) {
-      throw unauthorized("Sign in before claiming board ownership");
+      throw unauthorized("Sign in before claiming operator ownership");
     }
 
     const claimed = await claimBoardOwnership(db, {
@@ -2750,10 +2750,10 @@ export function accessRoutes(
     });
 
     if (claimed.status === "invalid")
-      throw notFound("Board claim challenge not found");
+      throw notFound("Operator claim challenge not found");
     if (claimed.status === "expired")
       throw conflict(
-        "Board claim challenge expired. Restart server to generate a new one."
+        "Operator claim challenge expired. Restart server to generate a new one."
       );
     if (claimed.status === "claimed") {
       res.json({
@@ -2763,7 +2763,7 @@ export function accessRoutes(
       return;
     }
 
-    throw conflict("Board claim challenge is no longer available");
+    throw conflict("Operator claim challenge is no longer available");
   });
 
   router.post("/bootstrap/claim", async (req, res) => {
@@ -2774,7 +2774,7 @@ export function accessRoutes(
       throw notFound("Browser first-admin claim is not available");
     }
     if (
-      req.actor.type !== "board" ||
+      req.actor.type !== "operator" ||
       req.actor.source !== "session" ||
       !req.actor.userId
     ) {
@@ -2796,7 +2796,7 @@ export function accessRoutes(
     limitCliAuth(cliAuthCreateRateLimiter),
     validate(createCliAuthChallengeSchema),
     async (req, res) => {
-      const created = await boardAuth.createCliAuthChallenge(req.body);
+      const created = await operatorAuth.createCliAuthChallenge(req.body);
       const approvalPath = buildCliAuthApprovalPath(
         created.challenge.id,
         created.challengeSecret,
@@ -2805,7 +2805,7 @@ export function accessRoutes(
       res.status(201).json({
         id: created.challenge.id,
         token: created.challengeSecret,
-        boardApiToken: created.pendingBoardToken,
+        operatorApiToken: created.pendingBoardToken,
         approvalPath,
         approvalUrl: baseUrl ? `${baseUrl}${approvalPath}` : null,
         pollPath: `/cli-auth/challenges/${created.challenge.id}`,
@@ -2821,28 +2821,28 @@ export function accessRoutes(
       typeof req.query.token === "string" ? req.query.token.trim() : "";
     if (!id || !token) throw notFound("CLI auth challenge not found");
     if (!isUuidLike(id)) throw badRequest("Invalid CLI auth challenge ID");
-    const challenge = await boardAuth.describeCliAuthChallenge(id, token, {
-      viewerUserId: req.actor.type === "board" ? req.actor.userId : undefined,
+    const challenge = await operatorAuth.describeCliAuthChallenge(id, token, {
+      viewerUserId: req.actor.type === "operator" ? req.actor.userId : undefined,
     });
     if (!challenge) throw notFound("CLI auth challenge not found");
 
-    const isSignedInBoardUser =
-      req.actor.type === "board" &&
+    const isSignedInOperatorUser =
+      req.actor.type === "operator" &&
       (req.actor.source === "session" || req.actor.source === "cloud_tenant" || isLocalImplicit(req)) &&
       Boolean(req.actor.userId);
     const canApprove =
-      isSignedInBoardUser &&
-      (!challenge.requestedCompanyId || Boolean(req.actor.isInstanceAdmin) || isLocalImplicit(req)
-        || Boolean(req.actor.companyIds?.includes(challenge.requestedCompanyId))) &&
+      isSignedInOperatorUser &&
+      (!challenge.requestedSpaceId || Boolean(req.actor.isInstanceAdmin) || isLocalImplicit(req)
+        || Boolean(req.actor.spaceIds?.includes(challenge.requestedSpaceId))) &&
       (challenge.requestedAccess !== "instance_admin_required" ||
         isLocalImplicit(req) ||
         Boolean(req.actor.isInstanceAdmin));
 
     res.json({
       ...challenge,
-      requiresSignIn: !isSignedInBoardUser,
+      requiresSignIn: !isSignedInOperatorUser,
       canApprove,
-      currentUserId: req.actor.type === "board" ? req.actor.userId ?? null : null,
+      currentUserId: req.actor.type === "operator" ? req.actor.userId ?? null : null,
     });
   });
 
@@ -2852,15 +2852,15 @@ export function accessRoutes(
     async (req, res) => {
       const id = (req.params.id as string).trim();
       if (
-        req.actor.type !== "board" ||
+        req.actor.type !== "operator" ||
         (!req.actor.userId && !isLocalImplicit(req))
       ) {
         throw unauthorized("Sign in before approving CLI access");
       }
       if (!isUuidLike(id)) throw badRequest("Invalid CLI auth challenge ID");
 
-      const userId = req.actor.userId ?? "local-board";
-      const approved = await boardAuth.approveCliAuthChallenge(
+      const userId = req.actor.userId ?? "local-operator";
+      const approved = await operatorAuth.approveCliAuthChallenge(
         id,
         req.body.token,
         userId,
@@ -2870,7 +2870,7 @@ export function accessRoutes(
         approved: approved.status === "approved",
         status: approved.status,
         userId,
-        keyId: approved.challenge.boardApiKeyId ?? null,
+        keyId: approved.challenge.operatorApiKeyId ?? null,
         expiresAt: approved.challenge.expiresAt.toISOString(),
       });
     },
@@ -2882,7 +2882,7 @@ export function accessRoutes(
     async (req, res) => {
       const id = (req.params.id as string).trim();
       if (!isUuidLike(id)) throw badRequest("Invalid CLI auth challenge ID");
-      const cancelled = await boardAuth.cancelCliAuthChallenge(id, req.body.token);
+      const cancelled = await operatorAuth.cancelCliAuthChallenge(id, req.body.token);
       res.json({
         status: cancelled.status,
         cancelled: cancelled.status === "cancelled",
@@ -2891,65 +2891,65 @@ export function accessRoutes(
   );
 
   router.get("/cli-auth/me", async (req, res) => {
-    if (req.actor.type !== "board" || !req.actor.userId) {
-      throw unauthorized("Board authentication required");
+    if (req.actor.type !== "operator" || !req.actor.userId) {
+      throw unauthorized("Operator authentication required");
     }
-    const accessSnapshot = await boardAuth.resolveBoardAccess(req.actor.userId);
+    const accessSnapshot = await operatorAuth.resolveBoardAccess(req.actor.userId);
     res.json({
       user: accessSnapshot.user,
       userId: req.actor.userId,
       isInstanceAdmin: accessSnapshot.isInstanceAdmin,
-      companyIds: accessSnapshot.companyIds,
+      spaceIds: accessSnapshot.spaceIds,
       memberships: accessSnapshot.memberships,
       source: req.actor.source ?? "none",
-      keyId: req.actor.source === "board_key" ? req.actor.keyId ?? null : null,
+      keyId: req.actor.source === "operator_key" ? req.actor.keyId ?? null : null,
     });
   });
 
-  router.get("/board-api-keys", async (req, res) => {
-    if (req.actor.type !== "board" || !req.actor.userId) {
-      throw unauthorized("Board authentication required");
+  router.get("/operator-api-keys", async (req, res) => {
+    if (req.actor.type !== "operator" || !req.actor.userId) {
+      throw unauthorized("Operator authentication required");
     }
-    const keys = await boardAuth.listBoardApiKeys(req.actor.userId, {
+    const keys = await operatorAuth.listBoardApiKeys(req.actor.userId, {
       includeInactive: req.query.includeInactive === "true",
     });
     res.json(keys);
   });
 
   router.post(
-    "/board-api-keys",
+    "/operator-api-keys",
     validate(createBoardApiKeySchema),
     async (req, res) => {
-      if (req.actor.type !== "board" || !req.actor.userId) {
-        throw unauthorized("Board authentication required");
+      if (req.actor.type !== "operator" || !req.actor.userId) {
+        throw unauthorized("Operator authentication required");
       }
 
-      if (req.body.requestedCompanyId) {
-        assertCompanyAccess(req, req.body.requestedCompanyId);
+      if (req.body.requestedSpaceId) {
+        assertSpaceAccess(req, req.body.requestedSpaceId);
       }
 
-      const key = await boardAuth.createNamedBoardApiKey({
+      const key = await operatorAuth.createNamedBoardApiKey({
         userId: req.actor.userId,
         name: req.body.name,
         expiresAt: req.body.expiresAt === undefined ? undefined : req.body.expiresAt,
       });
-      const companyIds = await boardAuth.resolveBoardActivityCompanyIds({
+      const spaceIds = await operatorAuth.resolveBoardActivitySpaceIds({
         userId: req.actor.userId,
-        requestedCompanyId: req.body.requestedCompanyId ?? null,
-        boardApiKeyId: key.id,
+        requestedSpaceId: req.body.requestedSpaceId ?? null,
+        operatorApiKeyId: key.id,
       });
-      for (const companyId of companyIds) {
+      for (const spaceId of spaceIds) {
         await logActivity(db, {
-          companyId,
+          spaceId,
           actorType: "user",
           actorId: req.actor.userId,
-          action: "board_api_key.created",
+          action: "operator_api_key.created",
           entityType: "user",
           entityId: req.actor.userId,
           details: {
-            boardApiKeyId: key.id,
+            operatorApiKeyId: key.id,
             name: key.name,
-            requestedCompanyId: req.body.requestedCompanyId ?? null,
+            requestedSpaceId: req.body.requestedSpaceId ?? null,
             expiresAt: key.expiresAt?.toISOString() ?? null,
           },
         });
@@ -2959,44 +2959,44 @@ export function accessRoutes(
     },
   );
 
-  router.delete("/board-api-keys/:keyId", async (req, res) => {
-    if (req.actor.type !== "board" || !req.actor.userId) {
-      throw unauthorized("Board authentication required");
+  router.delete("/operator-api-keys/:keyId", async (req, res) => {
+    if (req.actor.type !== "operator" || !req.actor.userId) {
+      throw unauthorized("Operator authentication required");
     }
     const keyId = (req.params.keyId as string).trim();
     if (!isUuidLike(keyId)) {
-      throw badRequest("Invalid board API key ID");
+      throw badRequest("Invalid operator API key ID");
     }
-    const key = await boardAuth.getBoardApiKeyForUser(keyId, req.actor.userId);
-    if (!key) throw notFound("Board API key not found");
-    const revoked = await boardAuth.revokeBoardApiKey(key.id, { userId: req.actor.userId, revokedVia: "board_api_key_lifecycle" });
-    if (!revoked) throw notFound("Board API key not found");
+    const key = await operatorAuth.getBoardApiKeyForUser(keyId, req.actor.userId);
+    if (!key) throw notFound("Operator API key not found");
+    const revoked = await operatorAuth.revokeBoardApiKey(key.id, { userId: req.actor.userId, revokedVia: "operator_api_key_lifecycle" });
+    if (!revoked) throw notFound("Operator API key not found");
 
     res.json({ ok: true, keyId: key.id });
   });
 
   router.post("/cli-auth/revoke-current", async (req, res) => {
-    if (req.actor.type !== "board" || req.actor.source !== "board_key") {
-      throw badRequest("Current board API key context is required");
+    if (req.actor.type !== "operator" || req.actor.source !== "operator_key") {
+      throw badRequest("Current operator API key context is required");
     }
-    const key = await boardAuth.assertCurrentBoardKey(
+    const key = await operatorAuth.assertCurrentBoardKey(
       req.actor.keyId,
       req.actor.userId,
     );
-    await boardAuth.revokeBoardApiKey(key.id, { userId: key.userId, revokedVia: "cli_auth_logout" });
+    await operatorAuth.revokeBoardApiKey(key.id, { userId: key.userId, revokedVia: "cli_auth_logout" });
     res.json({ revoked: true, keyId: key.id });
   });
 
-  async function assertCompanyPermission(
+  async function assertSpacePermission(
     req: Request,
-    companyId: string,
+    spaceId: string,
     permissionKey: any
   ) {
-    assertCompanyAccess(req, companyId);
+    assertSpaceAccess(req, spaceId);
     if (req.actor.type === "agent") {
       if (!req.actor.agentId) throw forbidden();
       const allowed = await access.hasPermission(
-        companyId,
+        spaceId,
         "agent",
         req.actor.agentId,
         permissionKey
@@ -3004,10 +3004,10 @@ export function accessRoutes(
       if (!allowed) throw forbidden("Permission denied");
       return;
     }
-    if (req.actor.type !== "board") throw unauthorized();
+    if (req.actor.type !== "operator") throw unauthorized();
     if (isLocalImplicit(req)) return;
     const allowed = await access.canUser(
-      companyId,
+      spaceId,
       req.actor.userId,
       permissionKey
     );
@@ -3016,14 +3016,14 @@ export function accessRoutes(
 
   async function assertCanGenerateOpenClawInvitePrompt(
     req: Request,
-    companyId: string
+    spaceId: string
   ) {
-    await assertCompanyPermission(req, companyId, "users:invite");
+    await assertSpacePermission(req, spaceId, "users:invite");
   }
 
-  async function createCompanyInviteForCompany(input: {
+  async function createSpaceInviteForSpace(input: {
     req: Request;
-    companyId: string;
+    spaceId: string;
     allowedJoinTypes: "human" | "agent" | "both";
     humanRole?: "owner" | "admin" | "operator" | "viewer" | null;
     defaultsPayload?: Record<string, unknown> | null;
@@ -3042,20 +3042,20 @@ export function accessRoutes(
       const roleGrants = grantsForHumanRole(effectiveHumanRole);
       for (const permissionKey of ["joins:approve", "users:manage_permissions"] as const) {
         if (roleGrants.some((grant) => grant.permissionKey === permissionKey)) {
-          await assertCompanyPermission(input.req, input.companyId, permissionKey);
+          await assertSpacePermission(input.req, input.spaceId, permissionKey);
         }
       }
     }
     const insertValues = {
-      companyId: input.companyId,
-      inviteType: "company_join" as const,
+      spaceId: input.spaceId,
+      inviteType: "space_join" as const,
       allowedJoinTypes: input.allowedJoinTypes,
       defaultsPayload: mergeInviteDefaults(
         input.defaultsPayload ?? null,
         normalizedAgentMessage,
         effectiveHumanRole,
       ),
-      expiresAt: companyInviteExpiresAt(),
+      expiresAt: spaceInviteExpiresAt(),
       invitedByUserId: input.req.actor.userId ?? null
     };
 
@@ -3092,7 +3092,7 @@ export function accessRoutes(
     req: Request;
     invite: typeof invites.$inferSelect;
     joinRequest: typeof joinRequests.$inferSelect;
-    companyId: string;
+    spaceId: string;
   }) {
     if (input.joinRequest.requestType !== "human") {
       throw badRequest("Only human join requests can be approved through a human invite");
@@ -3105,7 +3105,7 @@ export function accessRoutes(
       input.invite.defaultsPayload as Record<string, unknown> | null,
     );
     await access.ensureMembership(
-      input.companyId,
+      input.spaceId,
       "user",
       input.joinRequest.requestingUserId,
       membershipRole,
@@ -3116,7 +3116,7 @@ export function accessRoutes(
       membershipRole,
     );
     await access.setPrincipalGrants(
-      input.companyId,
+      input.spaceId,
       "user",
       input.joinRequest.requestingUserId,
       grants,
@@ -3129,7 +3129,7 @@ export function accessRoutes(
 
     const approvedAt = new Date();
     const approvedByUserId =
-      input.invite.invitedByUserId ?? (isLocalImplicit(input.req) ? "local-board" : null);
+      input.invite.invitedByUserId ?? (isLocalImplicit(input.req) ? "local-operator" : null);
     const approved = await writeJoinRequestChange(db, tx => tx
       .update(joinRequests)
       .set({
@@ -3143,9 +3143,9 @@ export function accessRoutes(
       .then((rows) => rows[0] ?? null));
 
     await logActivity(db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: "user",
-      actorId: approvedByUserId ?? "board",
+      actorId: approvedByUserId ?? "operator",
       action: "join.approved",
       entityType: "join_request",
       entityId: input.joinRequest.id,
@@ -3165,33 +3165,33 @@ export function accessRoutes(
     };
   }
 
-  async function getInviteCompanyBranding(
-    companyId: string | null,
+  async function getInviteSpaceBranding(
+    spaceId: string | null,
     inviteToken: string | null = null,
   ): Promise<{
     name: string | null;
     logoAssetId: string | null;
     logoUrl: string | null;
   }> {
-    if (!companyId) {
+    if (!spaceId) {
       return { name: null, logoAssetId: null, logoUrl: null };
     }
-    const company = await db
+    const space = await db
       .select({
-        name: companies.name,
-        logoAssetId: companyLogos.assetId,
+        name: spaces.name,
+        logoAssetId: spaceLogos.assetId,
       })
-      .from(companies)
-      .leftJoin(companyLogos, eq(companyLogos.companyId, companies.id))
-      .where(eq(companies.id, companyId))
+      .from(spaces)
+      .leftJoin(spaceLogos, eq(spaceLogos.spaceId, spaces.id))
+      .where(eq(spaces.id, spaceId))
       .then((rows) => rows[0] ?? null);
     let logoUrl: string | null = null;
-    if (inviteToken && company?.logoAssetId) {
-      const logoAsset = await getInviteLogoAsset(companyId);
-      if (logoAsset?.companyId) {
+    if (inviteToken && space?.logoAssetId) {
+      const logoAsset = await getInviteLogoAsset(spaceId);
+      if (logoAsset?.spaceId) {
         try {
           const storage = getStorageService();
-          const logoObject = await storage.headObject(logoAsset.companyId, logoAsset.objectKey);
+          const logoObject = await storage.headObject(logoAsset.spaceId, logoAsset.objectKey);
           if (logoObject.exists) {
             logoUrl = `/api/invites/${inviteToken}/logo`;
           }
@@ -3199,8 +3199,8 @@ export function accessRoutes(
           logger.warn(
             {
               err,
-              companyId,
-              logoAssetId: company.logoAssetId,
+              spaceId,
+              logoAssetId: space.logoAssetId,
             },
             "invite logo storage check failed",
           );
@@ -3209,37 +3209,37 @@ export function accessRoutes(
     }
 
     return {
-      name: company?.name ?? null,
-      logoAssetId: company?.logoAssetId ?? null,
+      name: space?.name ?? null,
+      logoAssetId: space?.logoAssetId ?? null,
       logoUrl,
     };
   }
 
-  async function getInviteLogoAsset(companyId: string | null): Promise<{
-    companyId: string | null;
+  async function getInviteLogoAsset(spaceId: string | null): Promise<{
+    spaceId: string | null;
     objectKey: string;
     contentType: string | null;
     byteSize: number | null;
     originalFilename: string | null;
   } | null> {
-    if (!companyId) return null;
+    if (!spaceId) return null;
     const logoAsset = await db
       .select({
-        companyId: companies.id,
+        spaceId: spaces.id,
         objectKey: assets.objectKey,
         contentType: assets.contentType,
         byteSize: assets.byteSize,
         originalFilename: assets.originalFilename,
       })
-      .from(companies)
-      .leftJoin(companyLogos, eq(companyLogos.companyId, companies.id))
-      .leftJoin(assets, eq(assets.id, companyLogos.assetId))
-      .where(eq(companies.id, companyId))
+      .from(spaces)
+      .leftJoin(spaceLogos, eq(spaceLogos.spaceId, spaces.id))
+      .leftJoin(assets, eq(assets.id, spaceLogos.assetId))
+      .where(eq(spaces.id, spaceId))
       .then((rows) => rows[0] ?? null);
 
     if (!logoAsset?.objectKey) return null;
     return {
-      companyId: logoAsset.companyId,
+      spaceId: logoAsset.spaceId,
       objectKey: logoAsset.objectKey,
       contentType: logoAsset.contentType,
       byteSize: logoAsset.byteSize,
@@ -3256,7 +3256,7 @@ export function accessRoutes(
     assertAuthenticated(req);
     res.json({
       skills: [
-        { name: "paperclip", path: "/api/skills/paperclip" }
+        { name: "outpost", path: "/api/skills/outpost" }
       ]
     });
   });
@@ -3270,15 +3270,15 @@ export function accessRoutes(
   });
 
   router.post(
-    "/companies/:companyId/invites",
-    validate(createCompanyInviteSchema),
+    "/spaces/:spaceId/invites",
+    validate(createSpaceInviteSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      await assertCompanyPermission(req, companyId, "users:invite");
+      const spaceId = req.params.spaceId as string;
+      await assertSpacePermission(req, spaceId, "users:invite");
       const { token, created, normalizedAgentMessage } =
-        await createCompanyInviteForCompany({
+        await createSpaceInviteForSpace({
           req,
-          companyId,
+          spaceId,
           allowedJoinTypes: req.body.allowedJoinTypes,
           humanRole: req.body.humanRole ?? null,
           defaultsPayload: req.body.defaultsPayload ?? null,
@@ -3286,12 +3286,12 @@ export function accessRoutes(
         });
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: req.actor.type === "agent" ? "agent" : "user",
         actorId:
           req.actor.type === "agent"
             ? req.actor.agentId ?? "unknown-agent"
-            : req.actor.userId ?? "board",
+            : req.actor.userId ?? "operator",
         action: "invite.created",
         entityType: "invite",
         entityId: created.id,
@@ -3304,12 +3304,12 @@ export function accessRoutes(
         }
       });
 
-      const companyBranding = await getInviteCompanyBranding(created.companyId, token);
+      const spaceBranding = await getInviteSpaceBranding(created.spaceId, token);
       const inviteSummary = toInviteSummaryResponse(
         req,
         token,
         created,
-        companyBranding,
+        spaceBranding,
         opts.authPublicBaseUrl
       );
       res.status(201).json({
@@ -3317,7 +3317,7 @@ export function accessRoutes(
         token,
         invitePath: inviteSummary.invitePath,
         inviteUrl: inviteSummary.inviteUrl,
-        companyName: companyBranding.name,
+        spaceName: spaceBranding.name,
         onboardingTextPath: inviteSummary.onboardingTextPath,
         onboardingTextUrl: inviteSummary.onboardingTextUrl,
         inviteMessage: inviteSummary.inviteMessage
@@ -3326,15 +3326,15 @@ export function accessRoutes(
   );
 
   router.post(
-    "/companies/:companyId/openclaw/invite-prompt",
+    "/spaces/:spaceId/openclaw/invite-prompt",
     validate(createOpenClawInvitePromptSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      await assertCanGenerateOpenClawInvitePrompt(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      await assertCanGenerateOpenClawInvitePrompt(req, spaceId);
       const { token, created, normalizedAgentMessage } =
-        await createCompanyInviteForCompany({
+        await createSpaceInviteForSpace({
           req,
-          companyId,
+          spaceId,
           allowedJoinTypes: "agent",
           humanRole: null,
           defaultsPayload: null,
@@ -3342,12 +3342,12 @@ export function accessRoutes(
         });
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: req.actor.type === "agent" ? "agent" : "user",
         actorId:
           req.actor.type === "agent"
             ? req.actor.agentId ?? "unknown-agent"
-            : req.actor.userId ?? "board",
+            : req.actor.userId ?? "operator",
         action: "invite.openclaw_prompt_created",
         entityType: "invite",
         entityId: created.id,
@@ -3359,12 +3359,12 @@ export function accessRoutes(
         }
       });
 
-      const companyBranding = await getInviteCompanyBranding(created.companyId, token);
+      const spaceBranding = await getInviteSpaceBranding(created.spaceId, token);
       const inviteSummary = toInviteSummaryResponse(
         req,
         token,
         created,
-        companyBranding,
+        spaceBranding,
         opts.authPublicBaseUrl
       );
       res.status(201).json({
@@ -3372,7 +3372,7 @@ export function accessRoutes(
         token,
         invitePath: inviteSummary.invitePath,
         inviteUrl: inviteSummary.inviteUrl,
-        companyName: companyBranding.name,
+        spaceName: spaceBranding.name,
         onboardingTextPath: inviteSummary.onboardingTextPath,
         onboardingTextUrl: inviteSummary.onboardingTextUrl,
         inviteMessage: inviteSummary.inviteMessage
@@ -3398,14 +3398,14 @@ export function accessRoutes(
       throw notFound("Invite not found");
     }
 
-    const companyBranding = await getInviteCompanyBranding(invite.companyId, token);
+    const spaceBranding = await getInviteSpaceBranding(invite.spaceId, token);
     const inviterName = invite.invitedByUserId
       ? await loadUsersById(db, [invite.invitedByUserId]).then(
           (m) => m.get(invite.invitedByUserId!)?.name ?? null
         )
       : null;
     res.json({
-      ...toInviteSummaryResponse(req, token, invite, companyBranding, opts.authPublicBaseUrl),
+      ...toInviteSummaryResponse(req, token, invite, spaceBranding, opts.authPublicBaseUrl),
       invitedByUserName: inviterName,
       joinRequestStatus: inviteJoinRequest?.status ?? null,
       joinRequestType: inviteJoinRequest?.requestType ?? null,
@@ -3430,18 +3430,18 @@ export function accessRoutes(
       throw notFound("Invite not found");
     }
 
-    const logoAsset = await getInviteLogoAsset(invite.companyId);
-    if (!logoAsset || !logoAsset.companyId) {
+    const logoAsset = await getInviteLogoAsset(invite.spaceId);
+    if (!logoAsset || !logoAsset.spaceId) {
       throw notFound("Invite logo not found");
     }
-    const companyId = logoAsset.companyId;
+    const spaceId = logoAsset.spaceId;
 
     const storage = getStorageService();
-    const logoHead = await storage.headObject(companyId, logoAsset.objectKey);
+    const logoHead = await storage.headObject(spaceId, logoAsset.objectKey);
     if (!logoHead.exists) {
       throw notFound("Invite logo not found");
     }
-    const object = await storage.getObject(companyId, logoAsset.objectKey);
+    const object = await storage.getObject(spaceId, logoAsset.objectKey);
     const responseContentType =
       logoAsset.contentType ||
       logoHead.contentType ||
@@ -3457,7 +3457,7 @@ export function accessRoutes(
     if (responseContentType === "image/svg+xml") {
       res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'");
     }
-    const filename = logoAsset.originalFilename ?? "company-logo";
+    const filename = logoAsset.originalFilename ?? "space-logo";
     res.setHeader("Content-Disposition", `inline; filename=\"${filename.replaceAll("\"", "")}\"`);
 
     object.stream.on("error", (err) => {
@@ -3478,10 +3478,10 @@ export function accessRoutes(
       throw notFound("Invite not found");
     }
 
-    const companyBranding = await getInviteCompanyBranding(invite.companyId);
+    const spaceBranding = await getInviteSpaceBranding(invite.spaceId);
     res.json(buildInviteOnboardingManifest(req, token, invite, {
       ...opts,
-      companyName: companyBranding.name
+      spaceName: spaceBranding.name
     }));
   });
 
@@ -3497,13 +3497,13 @@ export function accessRoutes(
       throw notFound("Invite not found");
     }
 
-    const companyBranding = await getInviteCompanyBranding(invite.companyId);
+    const spaceBranding = await getInviteSpaceBranding(invite.spaceId);
     res
       .type("text/plain; charset=utf-8")
       .send(
         buildInviteOnboardingTextDocument(req, token, invite, {
           ...opts,
-          companyName: companyBranding.name
+          spaceName: spaceBranding.name
         })
       );
   });
@@ -3523,8 +3523,8 @@ export function accessRoutes(
     res.json({
       skills: [
         {
-          name: "paperclip",
-          path: `/api/invites/${token}/skills/paperclip`,
+          name: "outpost",
+          path: `/api/invites/${token}/skills/outpost`,
         },
       ],
     });
@@ -3543,7 +3543,7 @@ export function accessRoutes(
     }
 
     const skillName = (req.params.skillName as string).trim().toLowerCase();
-    if (skillName !== "paperclip") throw notFound("Skill not found");
+    if (skillName !== "outpost") throw notFound("Skill not found");
     const markdown = readSkillMarkdown(skillName);
     if (!markdown) throw notFound("Skill not found");
     res.type("text/markdown").send(markdown);
@@ -3616,20 +3616,20 @@ export function accessRoutes(
             .then((rows) => rows[0] ?? null)
         : null;
 
-      if (invite.inviteType === "bootstrap_ceo") {
+      if (invite.inviteType === "bootstrap_lead") {
         if (inviteAlreadyAccepted) throw notFound("Invite not found");
         if (req.body.requestType !== "human") {
           throw badRequest("Bootstrap invite requires human request type");
         }
         if (
-          req.actor.type !== "board" ||
+          req.actor.type !== "operator" ||
           (!req.actor.userId && !isLocalImplicit(req))
         ) {
           throw unauthorized(
             "Authenticated user required for bootstrap acceptance"
           );
         }
-        const userId = req.actor.userId ?? "local-board";
+        const userId = req.actor.userId ?? "local-operator";
         const claimed = await claimFirstInstanceAdmin(db, {
           userId,
           onClaim: async (tx) => {
@@ -3665,8 +3665,8 @@ export function accessRoutes(
       }
 
       const requestType = req.body.requestType as "human" | "agent";
-      const companyId = invite.companyId;
-      if (!companyId) throw conflict("Invite is missing company scope");
+      const spaceId = invite.spaceId;
+      if (!spaceId) throw conflict("Invite is missing space scope");
       if (
         invite.allowedJoinTypes !== "both" &&
         invite.allowedJoinTypes !== requestType
@@ -3674,7 +3674,7 @@ export function accessRoutes(
         throw badRequest(`Invite does not allow ${requestType} joins`);
       }
 
-      if (requestType === "human" && req.actor.type !== "board") {
+      if (requestType === "human" && req.actor.type !== "operator") {
         throw unauthorized(
           "Human invite acceptance requires authenticated user"
         );
@@ -3688,9 +3688,9 @@ export function accessRoutes(
       }
       if (
         requestType === "human" &&
-        actorHasActiveUserMembership(req, companyId)
+        actorHasActiveUserMembership(req, spaceId)
       ) {
-        throw conflict("You already belong to this company");
+        throw conflict("You already belong to this space");
       }
       if (requestType === "agent" && !req.body.agentName) {
         if (
@@ -3705,7 +3705,7 @@ export function accessRoutes(
         requestType === "human" ? await resolveActorEmail(db, req) : null;
       const actorRequestingUserId =
         requestType === "human"
-          ? req.actor.userId ?? "local-board"
+          ? req.actor.userId ?? "local-operator"
           : null;
       const canReplayHumanInviteAccept =
         inviteAlreadyAccepted &&
@@ -3753,7 +3753,7 @@ export function accessRoutes(
           ? buildJoinDefaultsPayloadForAccept({
               adapterType,
               defaultsPayload: replayMergedDefaults,
-              paperclipApiUrl: req.body.paperclipApiUrl ?? null,
+              outpostApiUrl: req.body.outpostApiUrl ?? null,
               inboundOpenClawAuthHeader: req.header("x-openclaw-auth") ?? null,
               inboundOpenClawTokenHeader: req.header("x-openclaw-token") ?? null
             })
@@ -3783,7 +3783,7 @@ export function accessRoutes(
         requestType === "agent"
           ? await prepareAgentDefaultsPayloadForJoinPersistence({
               db,
-              companyId,
+              spaceId,
               adapterType,
               normalized: joinDefaults.normalized,
               actor: {
@@ -3826,7 +3826,7 @@ export function accessRoutes(
                 .from(joinRequests)
                 .where(
                   and(
-                    eq(joinRequests.companyId, companyId),
+                    eq(joinRequests.spaceId, spaceId),
                     eq(joinRequests.requestType, "human")
                   )
                 )
@@ -3869,13 +3869,13 @@ export function accessRoutes(
                 .insert(joinRequests)
                 .values({
                   inviteId: invite.id,
-                  companyId,
+                  spaceId,
                   requestType,
                   status: "pending_approval",
                   requestIp: requestIp(req),
                   requestingUserId:
                     requestType === "human"
-                      ? req.actor.userId ?? "local-board"
+                      ? req.actor.userId ?? "local-operator"
                       : null,
                   requestEmailSnapshot:
                     requestType === "human" ? actorEmail : null,
@@ -3950,12 +3950,12 @@ export function accessRoutes(
           throw conflict("Approved join request agent not found");
         }
         await logActivity(db, {
-          companyId,
+          spaceId,
           actorType: req.actor.type === "agent" ? "agent" : "user",
           actorId:
             req.actor.type === "agent"
               ? req.actor.agentId ?? "invite-agent"
-              : req.actor.userId ?? "board",
+              : req.actor.userId ?? "operator",
           action: "agent.updated_from_join_replay",
           entityType: "agent",
           entityId: updatedAgent.id,
@@ -3975,10 +3975,10 @@ export function accessRoutes(
         if (expectedDefaults.url && !persistedDefaults.url)
           missingPersistedFields.push("url");
         if (
-          expectedDefaults.paperclipApiUrl &&
-          !persistedDefaults.paperclipApiUrl
+          expectedDefaults.outpostApiUrl &&
+          !persistedDefaults.outpostApiUrl
         ) {
-          missingPersistedFields.push("paperclipApiUrl");
+          missingPersistedFields.push("outpostApiUrl");
         }
         if (expectedDefaults.gatewayToken && !persistedDefaults.gatewayToken) {
           missingPersistedFields.push("headers.x-openclaw-token");
@@ -4026,13 +4026,13 @@ export function accessRoutes(
       }
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: req.actor.type === "agent" ? "agent" : "user",
         actorId:
           req.actor.type === "agent"
             ? req.actor.agentId ?? "invite-agent"
             : req.actor.userId ??
-              (requestType === "agent" ? "invite-anon" : "board"),
+              (requestType === "agent" ? "invite-anon" : "operator"),
         action: inviteAlreadyAccepted
           ? "join.request_replayed"
           : "join.requested",
@@ -4052,20 +4052,20 @@ export function accessRoutes(
           req,
           invite,
           joinRequest: created,
-          companyId,
+          spaceId,
         });
       }
 
       const response = toJoinRequestResponse(created);
       if (claimSecret) {
-        const companyBranding = await getInviteCompanyBranding(invite.companyId);
+        const spaceBranding = await getInviteSpaceBranding(invite.spaceId);
         const onboardingManifest = buildInviteOnboardingManifest(
           req,
           token,
           invite,
           {
             ...opts,
-            companyName: companyBranding.name
+            spaceName: spaceBranding.name
           }
         );
         res.status(202).json({
@@ -4094,11 +4094,11 @@ export function accessRoutes(
       .where(eq(invites.id, id))
       .then((rows) => rows[0] ?? null);
     if (!invite) throw notFound("Invite not found");
-    if (invite.inviteType === "bootstrap_ceo") {
+    if (invite.inviteType === "bootstrap_lead") {
       await assertInstanceAdmin(req);
     } else {
-      if (!invite.companyId) throw conflict("Invite is missing company scope");
-      await assertCompanyPermission(req, invite.companyId, "users:invite");
+      if (!invite.spaceId) throw conflict("Invite is missing space scope");
+      await assertSpacePermission(req, invite.spaceId, "users:invite");
     }
     if (invite.acceptedAt) throw conflict("Invite already consumed");
     if (invite.revokedAt) return res.json(invite);
@@ -4110,14 +4110,14 @@ export function accessRoutes(
       .returning()
       .then((rows) => rows[0]);
 
-    if (invite.companyId) {
+    if (invite.spaceId) {
       await logActivity(db, {
-        companyId: invite.companyId,
+        spaceId: invite.spaceId,
         actorType: req.actor.type === "agent" ? "agent" : "user",
         actorId:
           req.actor.type === "agent"
             ? req.actor.agentId ?? "unknown-agent"
-            : req.actor.userId ?? "board",
+            : req.actor.userId ?? "operator",
         action: "invite.revoked",
         entityType: "invite",
         entityId: id
@@ -4127,19 +4127,19 @@ export function accessRoutes(
     res.json(revoked);
   });
 
-  router.get("/companies/:companyId/invites", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertCompanyPermission(req, companyId, "users:invite");
-    const query = listCompanyInvitesQuerySchema.parse(req.query);
-    const invitesForCompany = await loadCompanyInviteRecords(db, companyId, query);
-    res.json(invitesForCompany);
+  router.get("/spaces/:spaceId/invites", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertSpacePermission(req, spaceId, "users:invite");
+    const query = listSpaceInvitesQuerySchema.parse(req.query);
+    const invitesForSpace = await loadSpaceInviteRecords(db, spaceId, query);
+    res.json(invitesForSpace);
   });
 
-  router.get("/companies/:companyId/join-requests", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertCompanyPermission(req, companyId, "joins:approve");
+  router.get("/spaces/:spaceId/join-requests", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertSpacePermission(req, spaceId, "joins:approve");
     const query = listJoinRequestsQuerySchema.parse(req.query);
-    const all = await loadJoinRequestRecords(db, companyId);
+    const all = await loadJoinRequestRecords(db, spaceId);
     const filtered = all.filter((row) => {
       if (query.status && row.status !== query.status) return false;
       if (query.requestType && row.requestType !== query.requestType)
@@ -4150,18 +4150,18 @@ export function accessRoutes(
   });
 
   router.post(
-    "/companies/:companyId/join-requests/:requestId/approve",
+    "/spaces/:spaceId/join-requests/:requestId/approve",
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const requestId = req.params.requestId as string;
-      await assertCompanyPermission(req, companyId, "joins:approve");
+      await assertSpacePermission(req, spaceId, "joins:approve");
 
       const existing = await db
         .select()
         .from(joinRequests)
         .where(
           and(
-            eq(joinRequests.companyId, companyId),
+            eq(joinRequests.spaceId, spaceId),
             eq(joinRequests.id, requestId)
           )
         )
@@ -4185,7 +4185,7 @@ export function accessRoutes(
           invite.defaultsPayload as Record<string, unknown> | null,
         );
         await access.ensureMembership(
-          companyId,
+          spaceId,
           "user",
           existing.requestingUserId,
           membershipRole,
@@ -4196,7 +4196,7 @@ export function accessRoutes(
           membershipRole
         );
         await access.setPrincipalGrants(
-          companyId,
+          spaceId,
           "user",
           existing.requestingUserId,
           grants,
@@ -4204,13 +4204,13 @@ export function accessRoutes(
         );
       } else {
         assertLegacyAgentInviteAdapterType(existing.adapterType);
-        const existingAgents = await agents.list(companyId);
-        const company = await db.query.companies.findFirst({
-          where: eq(companies.id, companyId),
+        const existingAgents = await agents.list(spaceId);
+        const space = await db.query.spaces.findFirst({
+          where: eq(spaces.id, spaceId),
         });
         const managerId = resolveJoinRequestAgentManagerId(
           existingAgents,
-          company?.primaryAgentId,
+          space?.primaryAgentId,
         );
         if (!managerId) {
           throw conflict(
@@ -4227,7 +4227,7 @@ export function accessRoutes(
           }))
         );
 
-        const created = await agentsLifecycle.requestHire(companyId, {
+        const created = await agentsLifecycle.requestCreation(spaceId, {
           name: agentName,
           role: "general",
           title: null,
@@ -4249,7 +4249,7 @@ export function accessRoutes(
         });
         createdAgentId = created.id;
         await access.ensureMembership(
-          companyId,
+          spaceId,
           "agent",
           created.id,
           "member",
@@ -4260,7 +4260,7 @@ export function accessRoutes(
           created.id,
         );
         await access.setPrincipalGrants(
-          companyId,
+          spaceId,
           "agent",
           created.id,
           grants,
@@ -4273,7 +4273,7 @@ export function accessRoutes(
         .set({
           status: "approved",
           approvedByUserId:
-            req.actor.userId ?? (isLocalImplicit(req) ? "local-board" : null),
+            req.actor.userId ?? (isLocalImplicit(req) ? "local-operator" : null),
           approvedAt: new Date(),
           createdAgentId,
           updatedAt: new Date()
@@ -4283,9 +4283,9 @@ export function accessRoutes(
         .then((rows) => rows[0]));
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
-        actorId: req.actor.userId ?? "board",
+        actorId: req.actor.userId ?? "operator",
         action: "join.approved",
         entityType: "join_request",
         entityId: requestId,
@@ -4293,8 +4293,8 @@ export function accessRoutes(
       });
 
       if (createdAgentId) {
-        void notifyHireApproved(db, {
-          companyId,
+        void notifyCreateApproved(db, {
+          spaceId,
           agentId: createdAgentId,
           source: "join_request",
           sourceId: requestId,
@@ -4307,18 +4307,18 @@ export function accessRoutes(
   );
 
   router.post(
-    "/companies/:companyId/join-requests/:requestId/reject",
+    "/spaces/:spaceId/join-requests/:requestId/reject",
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const requestId = req.params.requestId as string;
-      await assertCompanyPermission(req, companyId, "joins:approve");
+      await assertSpacePermission(req, spaceId, "joins:approve");
 
       const existing = await db
         .select()
         .from(joinRequests)
         .where(
           and(
-            eq(joinRequests.companyId, companyId),
+            eq(joinRequests.spaceId, spaceId),
             eq(joinRequests.id, requestId)
           )
         )
@@ -4332,7 +4332,7 @@ export function accessRoutes(
         .set({
           status: "rejected",
           rejectedByUserId:
-            req.actor.userId ?? (isLocalImplicit(req) ? "local-board" : null),
+            req.actor.userId ?? (isLocalImplicit(req) ? "local-operator" : null),
           rejectedAt: new Date(),
           updatedAt: new Date()
         })
@@ -4341,9 +4341,9 @@ export function accessRoutes(
         .then((rows) => rows[0]));
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
-        actorId: req.actor.userId ?? "board",
+        actorId: req.actor.userId ?? "operator",
         action: "join.rejected",
         entityType: "join_request",
         entityId: requestId,
@@ -4416,7 +4416,7 @@ export function accessRoutes(
       );
 
       await logActivity(db, {
-        companyId: joinRequest.companyId,
+        spaceId: joinRequest.spaceId,
         actorType: "system",
         actorId: "join-claim",
         action: "agent_api_key.claimed",
@@ -4438,46 +4438,46 @@ export function accessRoutes(
     }
   );
 
-  router.get("/companies/:companyId/members", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await assertCompanyPermission(req, companyId, "users:manage_permissions");
+  router.get("/spaces/:spaceId/members", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await assertSpacePermission(req, spaceId, "users:manage_permissions");
     const [members, currentAccess] = await Promise.all([
-      loadCompanyMemberRecords(db, companyId),
-      loadCompanyAccessSummary(req, access, companyId),
+      loadSpaceMemberRecords(db, spaceId),
+      loadSpaceAccessSummary(req, access, spaceId),
     ]);
     res.json({
-      members: await addCompanyMemberRemovalAccess(req, db, access, companyId, members),
+      members: await addSpaceMemberRemovalAccess(req, db, access, spaceId, members),
       access: currentAccess,
     });
   });
 
-  router.get("/companies/:companyId/user-directory", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const users = await loadCompanyUserDirectory(db, companyId);
+  router.get("/spaces/:spaceId/user-directory", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const users = await loadSpaceUserDirectory(db, spaceId);
     res.json({ users });
   });
 
   router.patch(
-    "/companies/:companyId/members/:memberId",
-    validate(updateCompanyMemberSchema),
+    "/spaces/:spaceId/members/:memberId",
+    validate(updateSpaceMemberSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const memberId = req.params.memberId as string;
-      await assertCompanyPermission(req, companyId, "users:manage_permissions");
-      const memberToUpdate = await access.getMemberById(companyId, memberId);
+      await assertSpacePermission(req, spaceId, "users:manage_permissions");
+      const memberToUpdate = await access.getMemberById(spaceId, memberId);
       if (!memberToUpdate) throw notFound("Member not found");
-      await assertCanManageCompanyMember(req, access, companyId, memberToUpdate);
+      await assertCanManageSpaceMember(req, access, spaceId, memberToUpdate);
 
-      const updated = await access.updateMember(companyId, memberId, req.body);
+      const updated = await access.updateMember(spaceId, memberId, req.body);
       if (!updated) throw notFound("Member not found");
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
-        actorId: req.actor.userId ?? "board",
-        action: "company_member.updated",
-        entityType: "company_membership",
+        actorId: req.actor.userId ?? "operator",
+        action: "space_member.updated",
+        entityType: "space_membership",
         entityId: memberId,
         details: {
           membershipRole: updated.membershipRole,
@@ -4485,7 +4485,7 @@ export function accessRoutes(
         },
       });
 
-      const member = (await loadCompanyMemberRecords(db, companyId)).find(
+      const member = (await loadSpaceMemberRecords(db, spaceId)).find(
         (entry) => entry.id === memberId,
       );
       if (!member) throw notFound("Member not found");
@@ -4494,18 +4494,18 @@ export function accessRoutes(
   );
 
   router.patch(
-    "/companies/:companyId/members/:memberId/role-and-grants",
-    validate(updateCompanyMemberWithPermissionsSchema),
+    "/spaces/:spaceId/members/:memberId/role-and-grants",
+    validate(updateSpaceMemberWithPermissionsSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const memberId = req.params.memberId as string;
-      await assertCompanyPermission(req, companyId, "users:manage_permissions");
-      const memberToUpdate = await access.getMemberById(companyId, memberId);
+      await assertSpacePermission(req, spaceId, "users:manage_permissions");
+      const memberToUpdate = await access.getMemberById(spaceId, memberId);
       if (!memberToUpdate) throw notFound("Member not found");
-      await assertCanManageCompanyMember(req, access, companyId, memberToUpdate);
+      await assertCanManageSpaceMember(req, access, spaceId, memberToUpdate);
 
       const updated = await access.updateMemberAndPermissions(
-        companyId,
+        spaceId,
         memberId,
         {
           membershipRole: req.body.membershipRole,
@@ -4517,11 +4517,11 @@ export function accessRoutes(
       if (!updated) throw notFound("Member not found");
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
-        actorId: req.actor.userId ?? "board",
-        action: "company_member.access_updated",
-        entityType: "company_membership",
+        actorId: req.actor.userId ?? "operator",
+        action: "space_member.access_updated",
+        entityType: "space_membership",
         entityId: memberId,
         details: {
           membershipRole: updated.membershipRole,
@@ -4530,7 +4530,7 @@ export function accessRoutes(
         },
       });
 
-      const member = (await loadCompanyMemberRecords(db, companyId)).find(
+      const member = (await loadSpaceMemberRecords(db, spaceId)).find(
         (entry) => entry.id === memberId,
       );
       if (!member) throw notFound("Member not found");
@@ -4539,27 +4539,27 @@ export function accessRoutes(
   );
 
   router.post(
-    "/companies/:companyId/members/:memberId/archive",
-    validate(archiveCompanyMemberSchema),
+    "/spaces/:spaceId/members/:memberId/archive",
+    validate(archiveSpaceMemberSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const memberId = req.params.memberId as string;
-      await assertCompanyPermission(req, companyId, "users:manage_permissions");
-      const memberToArchive = await access.getMemberById(companyId, memberId);
+      await assertSpacePermission(req, spaceId, "users:manage_permissions");
+      const memberToArchive = await access.getMemberById(spaceId, memberId);
       if (!memberToArchive) throw notFound("Member not found");
-      await assertCanManageCompanyMember(req, access, companyId, memberToArchive, "archive");
+      await assertCanManageSpaceMember(req, access, spaceId, memberToArchive, "archive");
 
-      const result = await access.archiveMember(companyId, memberId, {
+      const result = await access.archiveMember(spaceId, memberId, {
         reassignment: req.body.reassignment ?? null,
       });
       if (!result) throw notFound("Member not found");
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
-        actorId: req.actor.userId ?? "board",
-        action: "company_member.archived",
-        entityType: "company_membership",
+        actorId: req.actor.userId ?? "operator",
+        action: "space_member.archived",
+        entityType: "space_membership",
         entityId: memberId,
         details: {
           principalId: result.member.principalId,
@@ -4568,7 +4568,7 @@ export function accessRoutes(
         },
       });
 
-      const member = (await loadCompanyMemberRecords(db, companyId, { includeArchived: true })).find(
+      const member = (await loadSpaceMemberRecords(db, spaceId, { includeArchived: true })).find(
         (entry) => entry.id === memberId,
       );
       if (!member) throw notFound("Member not found");
@@ -4580,34 +4580,34 @@ export function accessRoutes(
   );
 
   router.patch(
-    "/companies/:companyId/members/:memberId/permissions",
+    "/spaces/:spaceId/members/:memberId/permissions",
     validate(updateMemberPermissionsSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const memberId = req.params.memberId as string;
-      await assertCompanyPermission(req, companyId, "users:manage_permissions");
-      const memberToUpdate = await access.getMemberById(companyId, memberId);
+      await assertSpacePermission(req, spaceId, "users:manage_permissions");
+      const memberToUpdate = await access.getMemberById(spaceId, memberId);
       if (!memberToUpdate) throw notFound("Member not found");
-      await assertCanManageCompanyMember(req, access, companyId, memberToUpdate);
+      await assertCanManageSpaceMember(req, access, spaceId, memberToUpdate);
       const updated = await access.setMemberPermissions(
-        companyId,
+        spaceId,
         memberId,
         req.body.grants ?? [],
         req.actor.userId ?? null
       );
       if (!updated) throw notFound("Member not found");
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
-        actorId: req.actor.userId ?? "board",
-        action: "company_member.permissions_updated",
-        entityType: "company_membership",
+        actorId: req.actor.userId ?? "operator",
+        action: "space_member.permissions_updated",
+        entityType: "space_membership",
         entityId: memberId,
         details: {
           grantCount: req.body.grants?.length ?? 0,
         },
       });
-      const member = (await loadCompanyMemberRecords(db, companyId)).find(
+      const member = (await loadSpaceMemberRecords(db, spaceId)).find(
         (entry) => entry.id === memberId,
       );
       if (!member) throw notFound("Member not found");
@@ -4651,14 +4651,14 @@ export function accessRoutes(
     const memberships = userIds.length
       ? await db
           .select({
-            principalId: companyMemberships.principalId,
+            principalId: spaceMemberships.principalId,
           })
-          .from(companyMemberships)
+          .from(spaceMemberships)
           .where(
             and(
-              eq(companyMemberships.principalType, "user"),
-              eq(companyMemberships.status, "active"),
-              inArray(companyMemberships.principalId, userIds),
+              eq(spaceMemberships.principalType, "user"),
+              eq(spaceMemberships.status, "active"),
+              inArray(spaceMemberships.principalId, userIds),
             ),
           )
       : [];
@@ -4681,7 +4681,7 @@ export function accessRoutes(
       filteredUsers.slice(0, 50).map((user) => ({
         ...toUserProfile(user),
         isInstanceAdmin: adminIds.has(user.id),
-        activeCompanyMembershipCount:
+        activeSpaceMembershipCount:
           membershipCountByUserId.get(user.id) ?? 0,
       })),
     );
@@ -4699,26 +4699,26 @@ export function accessRoutes(
     }
   );
 
-  router.get("/admin/users/:userId/company-access", async (req, res) => {
+  router.get("/admin/users/:userId/space-access", async (req, res) => {
     await assertInstanceAdmin(req);
     assertAccessAdminVisible();
     const userId = req.params.userId as string;
-    res.json(await loadUserCompanyAccessResponse(db, access, userId));
+    res.json(await loadUserSpaceAccessResponse(db, access, userId));
   });
 
   router.put(
-    "/admin/users/:userId/company-access",
-    validate(updateUserCompanyAccessSchema),
+    "/admin/users/:userId/space-access",
+    validate(updateUserSpaceAccessSchema),
     async (req, res) => {
       await assertInstanceAdmin(req);
       assertAccessAdminVisible();
       const userId = req.params.userId as string;
-      await access.setUserCompanyAccess(
+      await access.setUserSpaceAccess(
         userId,
-        req.body.companyIds ?? [],
+        req.body.spaceIds ?? [],
         { actorUserId: req.actor.userId ?? null },
       );
-      res.json(await loadUserCompanyAccessResponse(db, access, userId));
+      res.json(await loadUserSpaceAccessResponse(db, access, userId));
     }
   );
 

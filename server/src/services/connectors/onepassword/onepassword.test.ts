@@ -6,11 +6,11 @@ import { callOnePassword, executeOnePasswordTool } from "./client.js";
 
 const vaultId = "a".repeat(26), itemId = "b".repeat(26);
 describe("1Password provider contract", () => {
-  it("rejects another company and an expired dispatch before starting the SDK", () => {
-    const input = { binding: { companyId: "company-a", agentId: "agent" }, connection: { companyId: "company-b" },
+  it("rejects another space and an expired dispatch before starting the SDK", () => {
+    const input = { binding: { spaceId: "space-a", agentId: "agent" }, connection: { spaceId: "space-b" },
       headers: {}, toolName: "onepassword_list_vaults", parameters: {} };
     expect(() => executeOnePasswordTool(input)).toThrow("Connection not found");
-    expect(() => executeOnePasswordTool({ ...input, connection: { companyId: "company-a" }, deadlineAt: Date.now() - 1 })).toThrow("timed out");
+    expect(() => executeOnePasswordTool({ ...input, connection: { spaceId: "space-a" }, deadlineAt: Date.now() - 1 })).toThrow("timed out");
   });
   it("rejects unreviewed actions, unknown input, invalid IDs and empty updates before authentication", async () => {
     const authenticate = vi.fn();

@@ -8,7 +8,7 @@ import { eq, sql } from "drizzle-orm";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   environmentLeases,
   executionWorkspaceRestorePoints,
@@ -54,7 +54,7 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("isolated-task-directory-retention-");
     db = createDb(database.connectionString);
-    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-task-directory-retention-")));
+    root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "outpost-task-directory-retention-")));
     process.env.OUTPOST_HOME = path.join(root, "home");
     process.env.OUTPOST_INSTANCE_ID = "default";
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
@@ -64,7 +64,7 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
   });
   afterEach(async () => {
     await db.delete(executionWorkspaceRestorePoints);
-    await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
     await fs.rm(path.join(root, "home", "instances", "default", "isolated-workspaces"), { recursive: true, force: true });
   });
   afterAll(async () => {
@@ -78,13 +78,13 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
   const restorePoints = (overrides: Partial<{ keyDurable: boolean }> = {}) => ({ storage: getStorageService(), terminalDelayMs: 3 * DAY_MS, keyDurable: true, ...overrides });
 
   async function fixture(options: { closedDaysAgo?: number | null; mode?: string; status?: string } = {}) {
-    const companyId = randomUUID(), issueId = randomUUID(), workspaceId = randomUUID(), agentId = randomUUID();
+    const spaceId = randomUUID(), issueId = randomUUID(), workspaceId = randomUUID(), agentId = randomUUID();
     const closedDaysAgo = options.closedDaysAgo === undefined ? 4 : options.closedDaysAgo;
-    await db.insert(companies).values({ id: companyId, name: "Task directory fixture", issuePrefix: `TD${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture agent" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Finished task",
+    await db.insert(spaces).values({ id: spaceId, name: "Task directory fixture", issuePrefix: `TD${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture agent" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Finished task",
       status: closedDaysAgo === null ? "in_progress" : "done", completedAt: closedDaysAgo === null ? null : new Date(Date.now() - closedDaysAgo * DAY_MS) });
-    const cwd = await materializeIsolatedTaskDirectory({ companyId, issueId });
+    const cwd = await materializeIsolatedTaskDirectory({ spaceId, issueId });
     await fs.writeFile(path.join(cwd, "report.md"), "final report\n");
     await fs.mkdir(path.join(cwd, "nested", "deeper"), { recursive: true });
     await fs.writeFile(path.join(cwd, "nested", "deeper", "data.json"), "{\"value\":1}\n");
@@ -93,7 +93,7 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
     await fs.writeFile(path.join(cwd, "package.json"), "{\"name\":\"fixture\"}\n");
     await fs.mkdir(path.join(cwd, "node_modules", "dep"), { recursive: true });
     await fs.writeFile(path.join(cwd, "node_modules", "dep", "index.js"), "module.exports = 1;\n");
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId, mode: options.mode ?? "isolated_workspace",
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issueId, mode: options.mode ?? "isolated_workspace",
       strategyType: "project_primary", name: "Fixture", status: options.status ?? "active", providerType: "local_fs", cwd,
       closedAt: options.status === "archived" ? new Date(Date.now() - closedDaysAgo! * DAY_MS) : null,
       metadata: { source: "task_session", createdByRuntime: false } });
@@ -105,9 +105,9 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
     const expire = async (overrides: Partial<Parameters<typeof expireIsolatedTaskDirectory>[2]> = {}) => expireIsolatedTaskDirectory(db, await row(), {
       dryRun: false, now: new Date(), notBefore: new Date(Date.now() - DAY_MS), restorePoint: { storage: getStorageService(), keyDurable: true }, ...overrides });
     const reopen = () => executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({ workspaceId,
-      issue: { id: issueId, companyId, projectId: null }, actor: { actorType: "user", agentId: null },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true } });
-    return { companyId, issueId, workspaceId, agentId, cwd, row, ledger, service, expire, reopen };
+      issue: { id: issueId, spaceId, projectId: null }, actor: { actorType: "user", agentId: null },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true } });
+    return { spaceId, issueId, workspaceId, agentId, cwd, row, ledger, service, expire, reopen };
   }
 
   async function expectRestored(cwd: string) {
@@ -178,26 +178,26 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
 
   type Consumer = (f: Awaited<ReturnType<typeof fixture>>) => Promise<unknown>;
   const consumers: Array<[string, Consumer, string]> = [
-    ["a live run", f => db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId, status: "running", contextSnapshot: { issueId: f.issueId } }),
+    ["a live run", f => db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId, status: "running", contextSnapshot: { issueId: f.issueId } }),
       "live_or_unresolved_consumer"],
-    ["a live runtime service", f => db.insert(workspaceRuntimeServices).values({ id: randomUUID(), companyId: f.companyId, scopeType: "execution_workspace",
+    ["a live runtime service", f => db.insert(workspaceRuntimeServices).values({ id: randomUUID(), spaceId: f.spaceId, scopeType: "execution_workspace",
       serviceName: "web", status: "running", lifecycle: "shared", provider: "local_process", executionWorkspaceId: f.workspaceId, cwd: f.cwd }),
       "live_or_unresolved_consumer"],
     ["a reopen fence", f => db.update(executionWorkspaces).set({ metadata: { source: "task_session", reopenPendingConsumption: true } })
       .where(eq(executionWorkspaces.id, f.workspaceId)), "live_or_unresolved_consumer"],
     ["an unsettled finalization", async f => {
       const runId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, status: "succeeded",
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId, status: "succeeded",
         finishedAt: new Date(Date.now() - 4 * DAY_MS), nativeIssueId: f.issueId });
-      await db.insert(nativeRunFinalizations).values({ runId, companyId: f.companyId, issueId: f.issueId, phase: "observed", leaseOwner: "native-finalizer:live" });
+      await db.insert(nativeRunFinalizations).values({ runId, spaceId: f.spaceId, issueId: f.issueId, phase: "observed", leaseOwner: "native-finalizer:live" });
     }, "live_or_unresolved_consumer"],
-    ["a live environment lease", f => db.insert(environmentLeases).values({ companyId: f.companyId, executionWorkspaceId: f.workspaceId, status: "active" }),
+    ["a live environment lease", f => db.insert(environmentLeases).values({ spaceId: f.spaceId, executionWorkspaceId: f.workspaceId, status: "active" }),
       "live_or_unresolved_consumer"],
-    ["an unresolved recovery action", f => db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
-      kind: "active_run_watchdog", status: "active", ownerType: "board", ownerAgentId: null, cause: "native_workspace_finalization_owner_unverified",
+    ["an unresolved recovery action", f => db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
+      kind: "active_run_watchdog", status: "active", ownerType: "operator", ownerAgentId: null, cause: "native_workspace_finalization_owner_unverified",
       fingerprint: randomUUID(), evidence: {}, nextAction: "Verify the owner." }), "live_or_unresolved_consumer"],
     ["an issue bound to another workspace", f => db.update(issues).set({ executionWorkspaceId: null }).where(eq(issues.id, f.issueId)), "issue_not_bound"],
-    ["a sibling live workspace in the directory", f => db.insert(executionWorkspaces).values({ companyId: f.companyId, mode: "shared_workspace",
+    ["a sibling live workspace in the directory", f => db.insert(executionWorkspaces).values({ spaceId: f.spaceId, mode: "shared_workspace",
       strategyType: "project_primary", name: "Sibling", status: "active", providerType: "local_fs", cwd: path.join(f.cwd, "nested") }),
       "live_or_unresolved_consumer"],
   ];
@@ -213,7 +213,7 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
 
   it("removes the directory despite closed sibling rows at the same path", async () => {
     const f = await fixture();
-    await db.insert(executionWorkspaces).values({ companyId: f.companyId, sourceIssueId: f.issueId, mode: "isolated_workspace",
+    await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, sourceIssueId: f.issueId, mode: "isolated_workspace",
       strategyType: "project_primary", name: "Old", status: "archived", closedAt: new Date(Date.now() - 10 * DAY_MS), providerType: "local_fs", cwd: f.cwd });
     expect(await f.expire()).toMatchObject({ expired: true });
   });
@@ -364,12 +364,12 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
       restorePoint: { storage: getStorageService(), keyDurable: true }, ...overrides });
 
     async function orphan(options: { modifiedDaysAgo?: number } = {}) {
-      const companyId = randomUUID(), issueId = randomUUID();
-      const cwd = await materializeIsolatedTaskDirectory({ companyId, issueId });
+      const spaceId = randomUUID(), issueId = randomUUID();
+      const cwd = await materializeIsolatedTaskDirectory({ spaceId, issueId });
       await fs.writeFile(path.join(cwd, "left.txt"), "left behind\n");
       await fs.symlink(outside, path.join(cwd, "outside-link"));
       await age(cwd, new Date(Date.now() - (options.modifiedDaysAgo ?? 10) * DAY_MS));
-      return { companyId, issueId, cwd };
+      return { spaceId, issueId, cwd };
     }
 
     it("removes an orphan whose issue is gone after the grace period", async () => {
@@ -398,8 +398,8 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
 
     it("keeps a folder that a live workspace points into", async () => {
       const o = await orphan();
-      await db.insert(companies).values({ id: o.companyId, name: "Live", issuePrefix: `LV${o.companyId.slice(0, 6)}` });
-      await db.insert(executionWorkspaces).values({ companyId: o.companyId, mode: "shared_workspace", strategyType: "project_primary",
+      await db.insert(spaces).values({ id: o.spaceId, name: "Live", issuePrefix: `LV${o.spaceId.slice(0, 6)}` });
+      await db.insert(executionWorkspaces).values({ spaceId: o.spaceId, mode: "shared_workspace", strategyType: "project_primary",
         name: "Live", status: "active", providerType: "local_fs", cwd: path.join(o.cwd, "sub") });
       const batch = await sweep();
       expect(batch.results).toEqual([]);
@@ -408,9 +408,9 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
 
     it("removes a folder whose archived row is unbound and whose issue closed long ago", async () => {
       const o = await orphan();
-      await db.insert(companies).values({ id: o.companyId, name: "Archived", issuePrefix: `AR${o.companyId.slice(0, 6)}` });
-      await db.insert(issues).values({ id: o.issueId, companyId: o.companyId, title: "Old", status: "done", completedAt: new Date(Date.now() - 10 * DAY_MS) });
-      await db.insert(executionWorkspaces).values({ companyId: o.companyId, sourceIssueId: o.issueId, mode: "shared_workspace", strategyType: "project_primary",
+      await db.insert(spaces).values({ id: o.spaceId, name: "Archived", issuePrefix: `AR${o.spaceId.slice(0, 6)}` });
+      await db.insert(issues).values({ id: o.issueId, spaceId: o.spaceId, title: "Old", status: "done", completedAt: new Date(Date.now() - 10 * DAY_MS) });
+      await db.insert(executionWorkspaces).values({ spaceId: o.spaceId, sourceIssueId: o.issueId, mode: "shared_workspace", strategyType: "project_primary",
         name: "Archived", status: "archived", closedAt: new Date(Date.now() - 10 * DAY_MS), providerType: "local_fs", cwd: o.cwd });
       expect((await sweep()).results).toMatchObject([{ outcome: "removed" }]);
       expect(await exists(o.cwd)).toBe(false);
@@ -418,15 +418,15 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
 
     it("keeps an orphan whose issue is still open", async () => {
       const o = await orphan();
-      await db.insert(companies).values({ id: o.companyId, name: "Open", issuePrefix: `OP${o.companyId.slice(0, 6)}` });
-      await db.insert(issues).values({ id: o.issueId, companyId: o.companyId, title: "Open", status: "todo" });
+      await db.insert(spaces).values({ id: o.spaceId, name: "Open", issuePrefix: `OP${o.spaceId.slice(0, 6)}` });
+      await db.insert(issues).values({ id: o.issueId, spaceId: o.spaceId, title: "Open", status: "todo" });
       expect((await sweep()).results).toMatchObject([{ outcome: "skipped", reason: "issue_open" }]);
       expect(await exists(o.cwd)).toBe(true);
     });
 
     it("never follows an orphan that is a symbolic link", async () => {
-      const companyId = randomUUID(), issueId = randomUUID();
-      const parent = path.dirname(await materializeIsolatedTaskDirectory({ companyId, issueId }));
+      const spaceId = randomUUID(), issueId = randomUUID();
+      const parent = path.dirname(await materializeIsolatedTaskDirectory({ spaceId, issueId }));
       await fs.rmdir(path.join(parent, issueId));
       await fs.symlink(outside, path.join(parent, issueId));
       expect((await sweep()).results).toMatchObject([{ outcome: "skipped", reason: "unsafe_task_directory" }]);
@@ -446,10 +446,10 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
     it("retries an orphan that a live run still uses", async () => {
       const o = await orphan();
       const agentId = randomUUID();
-      await db.insert(companies).values({ id: o.companyId, name: "Busy", issuePrefix: `BS${o.companyId.slice(0, 6)}` });
-      await db.insert(agents).values({ id: agentId, companyId: o.companyId, name: "Busy agent" });
-      await db.insert(issues).values({ id: o.issueId, companyId: o.companyId, title: "Old", status: "done", completedAt: new Date(Date.now() - 10 * DAY_MS) });
-      await db.insert(heartbeatRuns).values({ companyId: o.companyId, agentId, status: "running", contextSnapshot: { issueId: o.issueId } });
+      await db.insert(spaces).values({ id: o.spaceId, name: "Busy", issuePrefix: `BS${o.spaceId.slice(0, 6)}` });
+      await db.insert(agents).values({ id: agentId, spaceId: o.spaceId, name: "Busy agent" });
+      await db.insert(issues).values({ id: o.issueId, spaceId: o.spaceId, title: "Old", status: "done", completedAt: new Date(Date.now() - 10 * DAY_MS) });
+      await db.insert(heartbeatRuns).values({ spaceId: o.spaceId, agentId, status: "running", contextSnapshot: { issueId: o.issueId } });
       const batch = await sweep();
       expect(batch.results).toMatchObject([{ outcome: "skipped", reason: "live_run" }]);
       expect(batch.results[0]!.retryAt).toBeGreaterThan(Date.now());
@@ -489,7 +489,7 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
       const service = executionWorkspaceService(db, { taskDirectoryRetention: settings, gitRestorePoints: restorePoints() });
       const f = await fixture({ status: "archived" });
       const childId = randomUUID();
-      await db.insert(issues).values({ id: childId, companyId: f.companyId, parentId: f.issueId, title: "Open child", status: "todo" });
+      await db.insert(issues).values({ id: childId, spaceId: f.spaceId, parentId: f.issueId, title: "Open child", status: "todo" });
       await service.sweepTerminalWorkspaces();
       expect(await exists(f.cwd)).toBe(true);
       await db.update(issues).set({ status: "done", completedAt: new Date(Date.now() - 4 * DAY_MS) }).where(eq(issues.id, childId));
@@ -501,10 +501,10 @@ describeEmbeddedPostgres("isolated task directory retention", () => {
 
     it("keeps an orphan whose closed workspace still has a lease cleanup pending", async () => {
       const o = await orphan();
-      await db.insert(companies).values({ id: o.companyId, name: "Lease", issuePrefix: `LS${o.companyId.slice(0, 6)}` });
-      const [row] = await db.insert(executionWorkspaces).values({ companyId: o.companyId, mode: "shared_workspace", strategyType: "project_primary",
+      await db.insert(spaces).values({ id: o.spaceId, name: "Lease", issuePrefix: `LS${o.spaceId.slice(0, 6)}` });
+      const [row] = await db.insert(executionWorkspaces).values({ spaceId: o.spaceId, mode: "shared_workspace", strategyType: "project_primary",
         name: "Closed", status: "archived", closedAt: new Date(Date.now() - 10 * DAY_MS), providerType: "local_fs", cwd: o.cwd }).returning();
-      await db.insert(environmentLeases).values({ companyId: o.companyId, executionWorkspaceId: row!.id, status: "pending_cleanup",
+      await db.insert(environmentLeases).values({ spaceId: o.spaceId, executionWorkspaceId: row!.id, status: "pending_cleanup",
         releasedAt: new Date(Date.now() - 10 * DAY_MS) });
       expect((await sweep()).results).toMatchObject([{ outcome: "skipped", reason: "live_lease" }]);
       expect(await exists(o.cwd)).toBe(true);

@@ -4,7 +4,7 @@ import { agentJourneyRunCountValid } from "./success-contract.js";
 
 describe("portable clarification journey admission", () => {
   it("declares the existing two-question story as a bounded native journey", () => {
-    expect(productJourneys.find(j => j.id === "question-answer-resume")).toMatchObject({ paid: true, requires: ["company", "board-user", "task-write", "agent"] });
+    expect(productJourneys.find(j => j.id === "question-answer-resume")).toMatchObject({ paid: true, requires: ["space", "board-user", "task-write", "agent"] });
     const config = { version: 1, id: "attached", mode: "existing-cloud", adapterModule: "/private/provider.mjs",
       executionEnvironment: "daytona", journeys: ["question-answer-resume"], baseline: { features: {}, connections: [] },
       limits: { durationMs: 600_000, modelBudgetCents: 500, maxRuns: 3 } };
@@ -26,17 +26,17 @@ import { journeyRequiredChecks } from "./success-contract.js";
 import type { JourneyContext } from "./types.js";
 
 type Row = Record<string, any>;
-const context = { company: { id: "company" }, user: { id: "board" }, environmentId: "daytona",
+const context = { space: { id: "space" }, user: { id: "board" }, environmentId: "daytona",
   agent: { id: "agent", provider: "opencode", model: "model", runtimeMode: "native" } } as JourneyContext;
 function recording(paths: Array<"provider" | "semantic" | "api">, writtenReference = false) {
   const runs: Row[] = [], cards: Row[] = [], checkpoints: any[] = [];
-  const createRun = (previous?: Row) => ({ id: `run-${runs.length}`, status: "running", runtimeMode: "native", companyId: "company", issueId: "task", agentId: "agent",
+  const createRun = (previous?: Row) => ({ id: `run-${runs.length}`, status: "running", runtimeMode: "native", spaceId: "space", issueId: "task", agentId: "agent",
     contextSnapshot: { outpostEnvironment: { id: "daytona" }, ...(previous ? { issueId: "task", sourceRunId: previous.sourceRunId,
       interactionId: previous.id, interactionKind: "ask_user_questions", interactionStatus: "answered" } : {}) },
     resultJson: { semanticToolReceipts: {} }, runnerProfileJson: { nativeExecutionInput: { task: { prompt: continuationScenario("question-answer-resume", "nonce").prompt }, provider: { kind: "opencode", model: "model" } } } });
-  const document = { issueId: "task", companyId: "company", key: "welcome-note", latestRevisionId: "revision", createdByAgentId: "agent", updatedByAgentId: "agent", body: "Welcome to the afternoon meetup. Use AMBERnonce." };
+  const document = { issueId: "task", spaceId: "space", key: "welcome-note", latestRevisionId: "revision", createdByAgentId: "agent", updatedByAgentId: "agent", body: "Welcome to the afternoon meetup. Use AMBERnonce." };
   const snapshot = (phase: string) => checkpoints.push(structuredClone({ phase,
-    issue: { id: "task", companyId: "company", assigneeAgentId: "agent", status: phase === "final" ? "done" : "in_review" },
+    issue: { id: "task", spaceId: "space", assigneeAgentId: "agent", status: phase === "final" ? "done" : "in_review" },
     runs, interactions: cards, children: [], attachments: [], comments: [], documents: phase === "final" ? [document] : [] }));
   runs.push(createRun());
   for (const [index, path] of paths.entries()) {
@@ -45,7 +45,7 @@ function recording(paths: Array<"provider" | "semantic" | "api">, writtenReferen
       : writtenReference ? { id: "reference", answerMode: "single_select", options: [{ id: "none", label: "No reference" }], customAnswer: { enabled: true } }
       : { id: "reference", answerMode: "text" };
     const request = `request-${index}`, semantic = path !== "provider";
-    const card: Row = { id: `question-${index}`, kind: "ask_user_questions", status: "pending", companyId: "company", issueId: "task", createdByAgentId: "agent", sourceRunId: run.id,
+    const card: Row = { id: `question-${index}`, kind: "ask_user_questions", status: "pending", spaceId: "space", issueId: "task", createdByAgentId: "agent", sourceRunId: run.id,
       idempotencyKey: semantic ? `semantic-${index}` : `outpost-runner-question:${run.id}:${request}`, continuationPolicy: semantic ? "wake_assignee" : "none", createdByUserId: null,
       payload: { ...(semantic ? {} : { runtimeRequestId: request }), questionSet: { questions: [field] } } };
     cards.push(card);

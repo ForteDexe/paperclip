@@ -37,7 +37,7 @@ export function pendingWritesCopy(count: number): string | null {
     : `${count} changes will send when you’re back online.`;
 }
 
-// Full-page reconnect screens (CloudAccessGate before the board opens) already
+// Full-page reconnect screens (CloudAccessGate before the operator opens) already
 // say the same thing; the banner stays hidden while one is mounted.
 let suppressors = 0;
 const suppressionListeners = new Set<() => void>();
@@ -118,7 +118,7 @@ export function ConnectionStatusMessage({
       : "Connection interrupted. Reconnecting automatically…";
 
   // Fixed, not in flow: the desktop shell is exactly `h-dvh` with clipped
-  // overflow, so an in-flow banner would push the board's bottom off screen.
+  // overflow, so an in-flow banner would push the operator's bottom off screen.
   // The top offset includes the safe-area inset so a notch cannot hide it.
   return (
     <div className="pointer-events-none fixed inset-x-0 top-(--connection-banner-top) z-(--z-120) flex justify-center px-2">

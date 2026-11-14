@@ -45,7 +45,7 @@ describe("durable system recovery budget", () => {
     expect(unsafe.failure).not.toHaveProperty("cause");
   });
   it("never asks a person to inspect a sandbox, even for text saved by an older release", () => {
-    const manual = /administrator|\bowner\b|board member|inspect the run|environment/i;
+    const manual = /administrator|\bowner\b|operator member|inspect the run|environment/i;
     const exhausted = failSystemRecovery(createSystemRecovery(randomUUID()),
       new SystemRecoveryFailure("allocation_ownership_ambiguous", "service_required"));
     const copyback = failSystemRecovery(createSystemRecovery(randomUUID()),
@@ -59,7 +59,7 @@ describe("durable system recovery budget", () => {
       message: "Automatic recovery of saved work stopped after 1 attempts (last failure: allocation_ownership_ambiguous). "
         + "Retry recovery to export and merge from the retained sandbox again; no provider turn is submitted. "
         + "If Retry keeps failing, inspect the run and its environment." } }, runId);
-    expect(display?.message).toContain("Paperclip refused to recover the saved files");
+    expect(display?.message).toContain("Outpost refused to recover the saved files");
     expect(display?.message).not.toMatch(manual);
   });
 
@@ -69,12 +69,12 @@ describe("durable system recovery budget", () => {
     expect(refused).toMatchObject({ state: "exhausted", attempts: 1, retriesUsed: 0 });
     expect(isDeterministicRecoveryRefusal(refused)).toBe(true);
     const text = exhaustedSystemRecoveryAction(refused);
-    expect(text).toContain("Paperclip refused to recover the saved files");
-    expect(text).toContain("Paperclip cannot prove which runs used the sandbox that holds the saved files (allocation_ownership_ambiguous)");
+    expect(text).toContain("Outpost refused to recover the saved files");
+    expect(text).toContain("Outpost cannot prove which runs used the sandbox that holds the saved files (allocation_ownership_ambiguous)");
     expect(text).toContain("Retry runs the check again. The agent's result is saved");
     // Recovery never waits on a person or a release, and never promises a
     // fallback the hold may not get.
-    expect(text).not.toMatch(/succeeds only after|Paperclip is updated|last saved version/);
+    expect(text).not.toMatch(/succeeds only after|Outpost is updated|last saved version/);
     expect(text).not.toMatch(/after automatic retries|stopped after|Retry to try again/);
 
     const once = failSystemRecovery(reserveSystemRecoveryAttempt(createSystemRecovery(randomUUID()), 0)!,
@@ -96,7 +96,7 @@ describe("durable system recovery budget", () => {
     expect(exhaustedSystemRecoveryAction(stop)).toContain("Retry to try again");
   });
 
-  it("names the last failure and its cause in the board handoff", () => {
+  it("names the last failure and its cause in the operator handoff", () => {
     const state = reserveSystemRecoveryAttempt(createSystemRecovery(randomUUID()), 0)!;
     const withCause = failSystemRecovery(state, new SystemRecoveryFailure("provider_unavailable", "retry_transient"),
       { now: 0, cause: { label: "sandbox_not_running", code: null, status: null } });

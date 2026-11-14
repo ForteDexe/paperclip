@@ -37,7 +37,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 type PublicationDependencies = {
   now: () => Date;
   audit: ToolAccessAudit;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   discoverTools: ToolCatalogDiscovery["discoverTools"];
   assertConnectorConnectionSetupEnabled: ConnectionSetupPolicy["assertConnectorConnectionSetupEnabled"];
   updateConnectionHealth: ConnectionHealth["updateConnectionHealth"];
@@ -86,7 +86,7 @@ export function createToolCatalogPublication(db: Db, { now, audit, getConnection
         failure.message,
       );
       await audit({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         action: "tool_connection.catalog_refresh",
         outcome: "failure",
@@ -104,10 +104,10 @@ export function createToolCatalogPublication(db: Db, { now, audit, getConnection
 
     const publish = <T>(write: (client: ToolAccessMutationDb) => Promise<T>): Promise<T> => db.transaction(async tx => {
       await tx.select({ id: toolApplications.id }).from(toolApplications)
-        .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.companyId, connection.companyId)))
+        .where(and(eq(toolApplications.id, connection.applicationId), eq(toolApplications.spaceId, connection.spaceId)))
         .for("update");
       await tx.select({ id: toolConnections.id }).from(toolConnections)
-        .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.companyId, connection.companyId)))
+        .where(and(eq(toolConnections.id, connection.id), eq(toolConnections.spaceId, connection.spaceId)))
         .for("update");
       return write(tx);
     });
@@ -132,7 +132,7 @@ export function createToolCatalogPublication(db: Db, { now, audit, getConnection
         const selected = await vaultGrantForConnection(connection, actor);
         selectedWorkspaceScopes = googleWorkspaceGrantedScopes(selected);
         const grants = await db.select().from(connectionGrants).where(and(
-          eq(connectionGrants.companyId, connection.companyId), eq(connectionGrants.connectionId, connection.id),
+          eq(connectionGrants.spaceId, connection.spaceId), eq(connectionGrants.connectionId, connection.id),
           eq(connectionGrants.status, "active"),
         ));
         otherWorkspaceGrants = grants.filter((grant) => grant.id !== selected?.id).map(googleWorkspaceGrantedScopes);
@@ -146,7 +146,7 @@ export function createToolCatalogPublication(db: Db, { now, audit, getConnection
           && !unavailableServices.includes(googleWorkspaceToolTarget(entry.toolName)?.service ?? ""))).map((entry) => entry.id);
       if (removedIds.length) await publish(tx => tx.update(toolCatalogEntries)
         .set({ status: removedStatus, quarantineReason: nativeProvider ? "provider_tool_removed" : "mcp_tool_removed", updatedAt: refreshedAt })
-        .where(and(eq(toolCatalogEntries.companyId, connection.companyId), eq(toolCatalogEntries.connectionId, connection.id), inArray(toolCatalogEntries.id, removedIds))));
+        .where(and(eq(toolCatalogEntries.spaceId, connection.spaceId), eq(toolCatalogEntries.connectionId, connection.id), inArray(toolCatalogEntries.id, removedIds))));
     }
     // Retired native actions are absent from discovery, but old catalog rows
     // still need to show as disabled. Gateway denial also applies before refresh.
@@ -221,7 +221,7 @@ export function createToolCatalogPublication(db: Db, { now, audit, getConnection
       if (shouldQuarantine && !providerPermanentlyBlocked) quarantinedCount += 1;
 
       catalogValues.push({
-        id: existing?.id, companyId: connection.companyId, applicationId: connection.applicationId,
+        id: existing?.id, spaceId: connection.spaceId, applicationId: connection.applicationId,
         connectionId: connection.id, name: existing?.name ?? descriptor.name, toolName: descriptor.name, entryKind: "tool",
         title: descriptor.title ?? null, description: descriptor.description ?? null,
         inputSchema: descriptor.inputSchema ?? {}, annotations: descriptor.annotations ?? {}, riskLevel,
@@ -323,7 +323,7 @@ export function createToolCatalogPublication(db: Db, { now, audit, getConnection
       }, tx));
     }
     await audit({
-      companyId: connection.companyId,
+      spaceId: connection.spaceId,
       connectionId: connection.id,
       action: "tool_connection.catalog_refresh",
       outcome: "success",

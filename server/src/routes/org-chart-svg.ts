@@ -1,5 +1,5 @@
 /**
- * Server-side SVG renderer for Paperclip org charts.
+ * Server-side SVG renderer for Outpost org charts.
  * Supports 5 visual styles: monochrome, nebula, circuit, warmth, schematic.
  * Pure SVG output — no browser/Playwright needed. PNG via sharp.
  */
@@ -67,29 +67,23 @@ const ROLE_ICONS: Record<string, {
   iconPath: string;
   iconColor: string;
 }> = {
-  ceo: {
-    bg: "#fef3c7", roleLabel: "Chief Executive", accentColor: "#f0883e", iconColor: "#92400e",
+  lead: {
+    bg: "#fef3c7", roleLabel: "Default agent", accentColor: "#f0883e", iconColor: "#92400e",
     iconPath: "M8 1l2.2 4.5L15 6.2l-3.5 3.4.8 4.9L8 12.2 3.7 14.5l.8-4.9L1 6.2l4.8-.7z",
     // 👑 Crown
     emojiSvg: `<path fill="#F4900C" d="M14.174 17.075L6.75 7.594l-3.722 9.481z"/><path fill="#F4900C" d="M17.938 5.534l-6.563 12.389H24.5z"/><path fill="#F4900C" d="M21.826 17.075l7.424-9.481 3.722 9.481z"/><path fill="#FFCC4D" d="M28.669 15.19L23.887 3.523l-5.88 11.668-.007.003-.007-.004-5.88-11.668L7.331 15.19C4.197 10.833 1.28 8.042 1.28 8.042S3 20.75 3 33h30c0-12.25 1.72-24.958 1.72-24.958s-2.917 2.791-6.051 7.148z"/><circle fill="#5C913B" cx="17.957" cy="22" r="3.688"/><circle fill="#981CEB" cx="26.463" cy="22" r="2.412"/><circle fill="#DD2E44" cx="32.852" cy="22" r="1.986"/><circle fill="#981CEB" cx="9.45" cy="22" r="2.412"/><circle fill="#DD2E44" cx="3.061" cy="22" r="1.986"/><path fill="#FFAC33" d="M33 34H3c-.552 0-1-.447-1-1s.448-1 1-1h30c.553 0 1 .447 1 1s-.447 1-1 1zm0-3.486H3c-.552 0-1-.447-1-1s.448-1 1-1h30c.553 0 1 .447 1 1s-.447 1-1 1z"/><circle fill="#FFCC4D" cx="1.447" cy="8.042" r="1.407"/><circle fill="#F4900C" cx="6.75" cy="7.594" r="1.192"/><circle fill="#FFCC4D" cx="12.113" cy="3.523" r="1.784"/><circle fill="#FFCC4D" cx="34.553" cy="8.042" r="1.407"/><circle fill="#F4900C" cx="29.25" cy="7.594" r="1.192"/><circle fill="#FFCC4D" cx="23.887" cy="3.523" r="1.784"/><circle fill="#F4900C" cx="17.938" cy="5.534" r="1.784"/>`,
   },
-  cto: {
+  engineering_lead: {
     bg: "#dbeafe", roleLabel: "Technology", accentColor: "#58a6ff", iconColor: "#1e40af",
     iconPath: "M2 3l5 5-5 5M9 13h5",
     // 💻 Laptop
     emojiSvg: `<path fill="#CCD6DD" d="M34 29.096c-.417-.963-.896-2.008-2-2.008h-1c1.104 0 2-.899 2-2.008V8.008C33 6.899 32.104 6 31 6H5c-1.104 0-2 .899-2 2.008V25.08c0 1.109.896 2.008 2 2.008H4c-1.104 0-1.667 1.004-2 2.008l-2 4.895C0 35.101.896 36 2 36h32c1.104 0 2-.899 2-2.008l-2-4.896z"/><path fill="#9AAAB4" d="M.008 34.075l.006.057.17.692C.5 35.516 1.192 36 2 36h32c1.076 0 1.947-.855 1.992-1.925H.008z"/><path fill="#5DADEC" d="M31 24.075c0 .555-.447 1.004-1 1.004H6c-.552 0-1-.449-1-1.004V9.013c0-.555.448-1.004 1-1.004h24c.553 0 1 .45 1 1.004v15.062z"/><path fill="#AEBBC1" d="M32.906 31.042l-.76-2.175c-.239-.46-.635-.837-1.188-.837H5.11c-.552 0-.906.408-1.156 1.036l-.688 1.977c-.219.596.448 1.004 1 1.004h7.578s.937-.047 1.103-.608c.192-.648.415-1.624.463-1.796.074-.264.388-.531.856-.531h8.578c.5 0 .746.253.811.566.042.204.312 1.141.438 1.782.111.571 1.221.586 1.221.586h6.594c.551 0 1.217-.471.998-1.004z"/><path fill="#9AAAB4" d="M22.375 33.113h-7.781c-.375 0-.538-.343-.484-.675.054-.331.359-1.793.383-1.963.023-.171.274-.375.524-.375h7.015c.297 0 .49.163.55.489.059.327.302 1.641.321 1.941.019.301-.169.583-.528.583z"/>`,
   },
-  cmo: {
+  product: {
     bg: "#dcfce7", roleLabel: "Marketing", accentColor: "#3fb950", iconColor: "#166534",
     iconPath: "M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM1 8h14M8 1c-2 2-3 4.5-3 7s1 5 3 7c2-2 3-4.5 3-7s-1-5-3-7z",
     // 🌐 Globe with meridians
     emojiSvg: `<path fill="#3B88C3" d="M18 0C8.059 0 0 8.059 0 18s8.059 18 18 18 18-8.059 18-18S27.941 0 18 0zM2.05 19h3.983c.092 2.506.522 4.871 1.229 7H4.158c-1.207-2.083-1.95-4.459-2.108-7zM19 8V2.081c2.747.436 5.162 2.655 6.799 5.919H19zm7.651 2c.754 2.083 1.219 4.46 1.317 7H19v-7h7.651zM17 2.081V8h-6.799C11.837 4.736 14.253 2.517 17 2.081zM17 10v7H8.032c.098-2.54.563-4.917 1.317-7H17zM6.034 17H2.05c.158-2.54.901-4.917 2.107-7h3.104c-.705 2.129-1.135 4.495-1.227 7zm1.998 2H17v7H9.349c-.754-2.083-1.219-4.459-1.317-7zM17 28v5.919c-2.747-.437-5.163-2.655-6.799-5.919H17zm2 5.919V28h6.8c-1.637 3.264-4.053 5.482-6.8 5.919zM19 26v-7h8.969c-.099 2.541-.563 4.917-1.317 7H19zm10.967-7h3.982c-.157 2.541-.9 4.917-2.107 7h-3.104c.706-2.129 1.136-4.494 1.229-7zm0-2c-.093-2.505-.523-4.871-1.229-7h3.104c1.207 2.083 1.95 4.46 2.107 7h-3.982zm.512-9h-2.503c-.717-1.604-1.606-3.015-2.619-4.199C27.346 4.833 29.089 6.267 30.479 8zM10.643 3.801C9.629 4.985 8.74 6.396 8.023 8H5.521c1.39-1.733 3.133-3.166 5.122-4.199zM5.521 28h2.503c.716 1.604 1.605 3.015 2.619 4.198C8.654 31.166 6.911 29.733 5.521 28zm19.836 4.198c1.014-1.184 1.902-2.594 2.619-4.198h2.503c-1.39 1.733-3.133 3.166-5.122 4.198z"/>`,
-  },
-  cfo: {
-    bg: "#fef3c7", roleLabel: "Finance", accentColor: "#f0883e", iconColor: "#92400e",
-    iconPath: "M8 1v14M5 4.5C5 3.1 6.3 2 8 2s3 1.1 3 2.5S9.7 7 8 7 5 8.1 5 9.5 6.3 12 8 12s3-1.1 3-2.5",
-    // 📊 Bar chart
-    emojiSvg: `<path fill="#CCD6DD" d="M31 2H5C3.343 2 2 3.343 2 5v26c0 1.657 1.343 3 3 3h26c1.657 0 3-1.343 3-3V5c0-1.657-1.343-3-3-3z"/><path fill="#E1E8ED" d="M31 1H5C2.791 1 1 2.791 1 5v26c0 2.209 1.791 4 4 4h26c2.209 0 4-1.791 4-4V5c0-2.209-1.791-4-4-4zm0 2c1.103 0 2 .897 2 2v4h-6V3h4zm-4 16h6v6h-6v-6zm0-2v-6h6v6h-6zM25 3v6h-6V3h6zm-6 8h6v6h-6v-6zm0 8h6v6h-6v-6zM17 3v6h-6V3h6zm-6 8h6v6h-6v-6zm0 8h6v6h-6v-6zM3 5c0-1.103.897-2 2-2h4v6H3V5zm0 6h6v6H3v-6zm0 8h6v6H3v-6zm2 14c-1.103 0-2-.897-2-2v-4h6v6H5zm6 0v-6h6v6h-6zm8 0v-6h6v6h-6zm12 0h-4v-6h6v4c0 1.103-.897 2-2 2z"/><path fill="#5C913B" d="M13 33H7V16c0-1.104.896-2 2-2h2c1.104 0 2 .896 2 2v17z"/><path fill="#3B94D9" d="M29 33h-6V9c0-1.104.896-2 2-2h2c1.104 0 2 .896 2 2v24z"/><path fill="#DD2E44" d="M21 33h-6V23c0-1.104.896-2 2-2h2c1.104 0 2 .896 2 2v10z"/>`,
   },
   coo: {
     bg: "#e0f2fe", roleLabel: "Operations", accentColor: "#58a6ff", iconColor: "#075985",
@@ -118,7 +112,7 @@ const ROLE_ICONS: Record<string, {
   finance: {
     bg: "#fef3c7", roleLabel: "Finance", accentColor: "#f0883e", iconColor: "#92400e",
     iconPath: "M8 1v14M5 4.5C5 3.1 6.3 2 8 2s3 1.1 3 2.5S9.7 7 8 7 5 8.1 5 9.5 6.3 12 8 12s3-1.1 3-2.5",
-    // 📊 Bar chart (same as CFO)
+    // 📊 Bar chart (same as Operations Lead)
     emojiSvg: `<path fill="#CCD6DD" d="M31 2H5C3.343 2 2 3.343 2 5v26c0 1.657 1.343 3 3 3h26c1.657 0 3-1.343 3-3V5c0-1.657-1.343-3-3-3z"/><path fill="#E1E8ED" d="M31 1H5C2.791 1 1 2.791 1 5v26c0 2.209 1.791 4 4 4h26c2.209 0 4-1.791 4-4V5c0-2.209-1.791-4-4-4zm0 2c1.103 0 2 .897 2 2v4h-6V3h4zm-4 16h6v6h-6v-6zm0-2v-6h6v6h-6zM25 3v6h-6V3h6zm-6 8h6v6h-6v-6zm0 8h6v6h-6v-6zM17 3v6h-6V3h6zm-6 8h6v6h-6v-6zm0 8h6v6h-6v-6zM3 5c0-1.103.897-2 2-2h4v6H3V5zm0 6h6v6H3v-6zm0 8h6v6H3v-6zm2 14c-1.103 0-2-.897-2-2v-4h6v6H5zm6 0v-6h6v6h-6zm8 0v-6h6v6h-6zm12 0h-4v-6h6v4c0 1.103-.897 2-2 2z"/><path fill="#5C913B" d="M13 33H7V16c0-1.104.896-2 2-2h2c1.104 0 2 .896 2 2v17z"/><path fill="#3B94D9" d="M29 33h-6V9c0-1.104.896-2 2-2h2c1.104 0 2 .896 2 2v24z"/><path fill="#DD2E44" d="M21 33h-6V23c0-1.104.896-2 2-2h2c1.104 0 2 .896 2 2v10z"/>`,
   },
   operations: {
@@ -138,10 +132,10 @@ const ROLE_ICONS: Record<string, {
 function guessRoleTag(node: OrgNode): string {
   const name = node.name.toLowerCase();
   const role = node.role.toLowerCase();
-  if (name === "ceo" || role.includes("chief executive")) return "ceo";
-  if (name === "cto" || role.includes("chief technology") || role.includes("technology")) return "cto";
-  if (name === "cmo" || role.includes("chief marketing") || role.includes("marketing")) return "cmo";
-  if (name === "cfo" || role.includes("chief financial")) return "cfo";
+  if (name === "lead" || role.includes("default agent")) return "lead";
+  if (name === "engineering_lead" || role.includes("chief technology") || role.includes("technology")) return "engineering_lead";
+  if (name === "product" || role.includes("chief marketing") || role.includes("marketing")) return "product";
+  if (name === "operations" || role.includes("chief financial")) return "operations";
   if (name === "coo" || role.includes("chief operating")) return "coo";
   if (role.includes("engineer") || role.includes("eng")) return "engineer";
   if (role.includes("quality") || role.includes("qa")) return "quality";
@@ -213,7 +207,7 @@ const THEMES: Record<OrgChartStyle, StyleTheme> = {
     cardAccent: null,
   },
 
-  // 03 — Circuit (Linear/Raycast — indigo traces, amethyst CEO)
+  // 03 — Circuit (Linear/Raycast — indigo traces, amethyst Default agent)
   circuit: {
     bgColor: "#0c0c0e",
     cardBg: "rgba(99,102,241,0.04)",
@@ -231,9 +225,9 @@ const THEMES: Record<OrgChartStyle, StyleTheme> = {
     renderCard: (ln: LayoutNode, theme: StyleTheme) => {
       const { tag, roleLabel, emojiSvg } = getRoleInfo(ln.node);
       const cx = ln.x + ln.width / 2;
-      const isCeo = tag === "ceo";
-      const borderColor = isCeo ? "rgba(168,85,247,0.35)" : theme.cardBorder;
-      const bgColor = isCeo ? "rgba(168,85,247,0.06)" : theme.cardBg;
+      const isDefaultAgent = tag === "lead";
+      const borderColor = isDefaultAgent ? "rgba(168,85,247,0.35)" : theme.cardBorder;
+      const bgColor = isDefaultAgent ? "rgba(168,85,247,0.06)" : theme.cardBg;
 
       const avatarCY = ln.y + 27;
       const nameY = ln.y + 66;
@@ -292,8 +286,8 @@ const THEMES: Record<OrgChartStyle, StyleTheme> = {
 
       // Schematic uses monospace role labels
       const schemaRoles: Record<string, string> = {
-        ceo: "chief_executive", cto: "chief_technology", cmo: "chief_marketing",
-        cfo: "chief_financial", coo: "chief_operating", engineer: "engineer",
+        lead: "chief_leadership", engineering_lead: "chief_technology", product: "chief_marketing",
+        coo: "chief_operating", engineer: "engineer",
         quality: "quality_assurance", design: "designer", finance: "finance",
         operations: "operations", default: "agent",
       };
@@ -555,7 +549,7 @@ function treeBounds(ln: LayoutNode): { minX: number; minY: number; maxX: number;
   return { minX, minY, maxX, maxY };
 }
 
-// Paperclip logo: scaled icon (~16px) + wordmark (13px), vertically centered
+// Outpost logo: scaled icon (~16px) + wordmark (13px), vertically centered
 const OUTPOST_LOGO_SVG = `<g>
   <g transform="scale(0.72)" transform-origin="0 0">
     <path stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" d="m18 4-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"/>
@@ -570,8 +564,8 @@ const TARGET_W = 1280;
 const TARGET_H = 640;
 
 export interface OrgChartOverlay {
-  /** Company name displayed top-left */
-  companyName?: string;
+  /** Space name displayed top-left */
+  spaceName?: string;
   /** Summary stats displayed bottom-right, e.g. "Agents: 5, Skills: 8" */
   stats?: string;
 }
@@ -738,8 +732,8 @@ export function renderOrgChartSvg(orgTree: OrgNode[], style: OrgChartStyle = "wa
   const logoY = LOGO_PADDING;
 
   // Optional overlay elements
-  const overlayNameSvg = overlay?.companyName
-    ? `<text x="${LOGO_PADDING}" y="${LOGO_PADDING + 16}" font-family="'Inter', -apple-system, BlinkMacSystemFont, sans-serif" font-size="22" font-weight="700" fill="${theme.nameColor}">${svgEscape(overlay.companyName)}</text>`
+  const overlayNameSvg = overlay?.spaceName
+    ? `<text x="${LOGO_PADDING}" y="${LOGO_PADDING + 16}" font-family="'Inter', -apple-system, BlinkMacSystemFont, sans-serif" font-size="22" font-weight="700" fill="${theme.nameColor}">${svgEscape(overlay.spaceName)}</text>`
     : "";
   const overlayStatsSvg = overlay?.stats
     ? `<text x="${TARGET_W - LOGO_PADDING}" y="${TARGET_H - LOGO_PADDING}" text-anchor="end" font-family="'Inter', -apple-system, BlinkMacSystemFont, sans-serif" font-size="13" font-weight="500" fill="${theme.roleColor}">${svgEscape(overlay.stats)}</text>`

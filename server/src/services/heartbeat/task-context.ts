@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Db, agents, agentTaskSessions, heartbeatRuns } from "@outpost/db";
 import { FAST_RESPONSE_AGENT_GUIDANCE, fastResponseHistoryBody, isValidIanaTimeZone } from "@outpost/shared";
-import type { PaperclipTurnContext } from "@outpost/adapter-utils/server-utils";
+import type { OutpostTurnContext } from "@outpost/adapter-utils/server-utils";
 import { parseObject } from "../../adapters/utils.js";
 import { isConversation } from "../agent-conversations.js";
 import { chatCompletionInstruction } from "../chat-completion-delivery.js";
@@ -15,8 +15,8 @@ import { getTaskPlanContext } from "../task-plan-context.js";
 import { caseExecutionMarkdown, getCaseExecutionContext } from "../case-context.js";
 import type { TrustPresetResolution } from "../trust-preset-resolver.js";
 import { liveVoiceExecutionGuidance } from "../voice/voice-execution-guidance.js";
-import { buildPaperclipWakePayload, ConfigurationIncompleteFailure, readHeartbeatWakeComments, OUTPOST_WAKE_PAYLOAD_KEY, type createHeartbeatRunPreparation } from "./run-preparation.js";
-import { buildPaperclipTaskMarkdown } from "./task-markdown.js";
+import { buildOutpostWakePayload, ConfigurationIncompleteFailure, readHeartbeatWakeComments, OUTPOST_WAKE_PAYLOAD_KEY, type createHeartbeatRunPreparation } from "./run-preparation.js";
+import { buildOutpostTaskMarkdown } from "./task-markdown.js";
 import { deriveCommentId, extractWakeCommentIds } from "../../modules/run-dispatch/index.js";
 import { workspacePreferenceService } from "../workspace-preferences.js";
 
@@ -25,7 +25,7 @@ type IssueContext = NonNullable<Awaited<ReturnType<RunPreparation["getIssueExecu
 
 export interface HeartbeatTaskContextInput {
   run: Pick<typeof heartbeatRuns.$inferSelect, "id">;
-  agent: Pick<typeof agents.$inferSelect, "id" | "companyId" | "adapterType">;
+  agent: Pick<typeof agents.$inferSelect, "id" | "spaceId" | "adapterType">;
   task: {
     issueRef: Pick<IssueContext,
       "id" | "identifier" | "title" | "status" | "priority" | "workMode" |
@@ -55,24 +55,24 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
   const { issueRef, issueContext, context, taskSession } = input.task;
   const { trustPreset, experimentalInstanceSettings } = input.policy;
   const { issuesSvc, getPinnedSkillTestContext } = input.services;
-  const admittedScope = parseObject(context.paperclipAgentJwtScope);
+  const admittedScope = parseObject(context.outpostAgentJwtScope);
   if (!input.policy.recovering || (admittedScope.kind !== "standard" && admittedScope.kind !== "skill_test")) {
-    const savedIssue = parseObject(context.paperclipIssue);
+    const savedIssue = parseObject(context.outpostIssue);
     const skillTest = input.policy.recovering
-      ? savedIssue.workMode === "skill_test" || Boolean(context.paperclipSkillTest)
+      ? savedIssue.workMode === "skill_test" || Boolean(context.outpostSkillTest)
       : issueRef?.workMode === "skill_test";
-    context.paperclipAgentJwtScope = skillTest && issueRef
+    context.outpostAgentJwtScope = skillTest && issueRef
       ? { kind: "skill_test", issueId: issueRef.id }
       : { kind: "standard" };
   }
-  const isSkillTest = parseObject(context.paperclipAgentJwtScope).kind === "skill_test";
+  const isSkillTest = parseObject(context.outpostAgentJwtScope).kind === "skill_test";
   const wakeCommentId = deriveCommentId(context, null);
   const commentIds = [...new Set([...extractWakeCommentIds(context), ...(wakeCommentId ? [wakeCommentId] : [])])];
   const [summary, ancestors, pinnedSkillTestRead, wakeComments] = await Promise.allSettled([
     issueRef && !isConversation(issueContext) ? getIssueContinuationSummaryDocument(db, issueRef.id) : Promise.resolve(null),
     issueRef ? issuesSvc.getAncestors(issueRef.id) : Promise.resolve([]),
-    isSkillTest && issueRef ? getPinnedSkillTestContext(agent.companyId, issueRef.id) : Promise.resolve(null),
-    readHeartbeatWakeComments(db, agent.companyId, readNonEmptyString(context.issueId), commentIds),
+    isSkillTest && issueRef ? getPinnedSkillTestContext(agent.spaceId, issueRef.id) : Promise.resolve(null),
+    readHeartbeatWakeComments(db, agent.spaceId, readNonEmptyString(context.issueId), commentIds),
   ]);
   if (summary.status === "rejected") throw summary.reason;
   if (ancestors.status === "rejected") throw ancestors.reason;
@@ -108,7 +108,7 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
       ? sanitizeQuarantinedCommentForHigherTrust(wakeCommentContext)
       : wakeCommentContext;
   if (continuationSummary) {
-    context.paperclipContinuationSummary = {
+    context.outpostContinuationSummary = {
       key: safeContinuationSummary!.key,
       title: safeContinuationSummary!.title,
       body: safeContinuationSummary!.body,
@@ -116,7 +116,7 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
       updatedAt: safeContinuationSummary!.updatedAt.toISOString(),
     };
   } else {
-    delete context.paperclipContinuationSummary;
+    delete context.outpostContinuationSummary;
   }
   if (isSkillTest && !pinnedSkillTestContext) {
     throw new ConfigurationIncompleteFailure("The skill test's saved version is unavailable.", {
@@ -124,19 +124,19 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
     });
   }
   if (pinnedSkillTestContext) {
-    context.paperclipSkillTest = {
+    context.outpostSkillTest = {
       ...pinnedSkillTestContext,
       directive:
         "Use this pinned file inventory as the exact skill revision under test, regardless of synced runtime skills.",
     };
   } else {
-    delete context.paperclipSkillTest;
+    delete context.outpostSkillTest;
   }
   const executionContinuation =
     issueRef && !isConversation(issueContext) && issueContext?.assigneeAgentId === agent.id
       ? await buildExecutionContinuation({
           db,
-          companyId: agent.companyId,
+          spaceId: agent.spaceId,
           issueId: issueRef.id,
           agentId: agent.id,
           runId: run.id,
@@ -147,9 +147,9 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
         })
       : null;
   context.executionContinuation = executionContinuation;
-  const paperclipWakePayload = await buildPaperclipWakePayload({
+  const outpostWakePayload = await buildOutpostWakePayload({
     db,
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     agentId: agent.id,
     runId: run.id,
     contextSnapshot: context,
@@ -174,12 +174,12 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
       experimentalInstanceSettings.enableSimplifiedEnglishInteractions ===
       true,
   });
-  if (paperclipWakePayload) {
-    context[OUTPOST_WAKE_PAYLOAD_KEY] = paperclipWakePayload;
+  if (outpostWakePayload) {
+    context[OUTPOST_WAKE_PAYLOAD_KEY] = outpostWakePayload;
   } else {
     delete context[OUTPOST_WAKE_PAYLOAD_KEY];
   }
-  const safeWakeComments = (paperclipWakePayload?.comments ?? []).flatMap(
+  const safeWakeComments = (outpostWakePayload?.comments ?? []).flatMap(
     (comment) =>
       typeof comment.id === "string" && typeof comment.body === "string"
         ? [
@@ -221,12 +221,12 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
           ]
         : [],
   );
-  // Always replace caller-supplied context with the immutable, company-scoped
+  // Always replace caller-supplied context with the immutable, space-scoped
   // conversation snapshot. It belongs only to the endpoint's assigned agent.
   const liveVoiceGuidance = issueContext?.chatAssignedAgentId === agent.id && issueContext.chatProvider === "speko"
-    ? await liveVoiceExecutionGuidance(db, { companyId: agent.companyId, issueId: issueContext.id, agentId: agent.id })
+    ? await liveVoiceExecutionGuidance(db, { spaceId: agent.spaceId, issueId: issueContext.id, agentId: agent.id })
     : null;
-  context.paperclipTaskCommunicationGuidance =
+  context.outpostTaskCommunicationGuidance =
     issueContext?.chatAssignedAgentId === agent.id
       ? issueContext.chatCommunicationGuidance
       : null;
@@ -239,26 +239,26 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
   const coordinatorWorkspace = agent.adapterType === "outpost_runner" && isConversation(issueContext)
     && issueContext?.conversationUserId
     ? input.policy.recovering
-      ? context.paperclipCoordinatorWorkspaceEnabled === true
+      ? context.outpostCoordinatorWorkspaceEnabled === true
       : conversationOwnerPreference?.coordinatorWorkspaceEnabled === true
     : false;
-  context.paperclipCoordinatorWorkspaceEnabled = Boolean(coordinatorWorkspace);
+  context.outpostCoordinatorWorkspaceEnabled = Boolean(coordinatorWorkspace);
   const savedPersonTimeZone = input.policy.recovering
-    ? readNonEmptyString(context.paperclipConversationTimeZone)
+    ? readNonEmptyString(context.outpostConversationTimeZone)
     : conversationOwnerPreference?.timeZone ?? null;
   const personTimeZone = isConversation(issueContext) && issueContext?.conversationUserId
     && savedPersonTimeZone && isValidIanaTimeZone(savedPersonTimeZone)
     ? savedPersonTimeZone
     : null;
-  if (personTimeZone) context.paperclipConversationTimeZone = personTimeZone;
-  else delete context.paperclipConversationTimeZone;
+  if (personTimeZone) context.outpostConversationTimeZone = personTimeZone;
+  else delete context.outpostConversationTimeZone;
   const taskMarkdownInput = {
     coordinatorWorkspace: Boolean(coordinatorWorkspace),
     personTimeZone,
     statusCardsEnabled: experimentalInstanceSettings.enableStatusCards === true,
     casesEnabled: experimentalInstanceSettings.enableCases === true,
     conversationConfirmations: issueRef && isConversation(issueContext)
-      ? await getConversationConfirmationContext({ db, companyId: agent.companyId, issueId: issueRef.id, agentId: agent.id })
+      ? await getConversationConfirmationContext({ db, spaceId: agent.spaceId, issueId: issueRef.id, agentId: agent.id })
       : null,
     issue: issueRef
       ? {
@@ -275,8 +275,8 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
     ancestors: issueAncestors,
     wakeComment: safeWakeCommentContext,
     wakeComments: safeWakeComments,
-    attachmentOmissions: paperclipWakePayload?.attachmentOmissions,
-    externalChatProvider: paperclipWakePayload?.externalChatProvider,
+    attachmentOmissions: outpostWakePayload?.attachmentOmissions,
+    externalChatProvider: outpostWakePayload?.externalChatProvider,
     slackCommand: issueContext?.chatAssignedAgentId === agent.id
       ? issueContext.chatSlackCommand
       : null,
@@ -285,10 +285,10 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
       kind: readNonEmptyString(context.interactionKind),
       status: readNonEmptyString(context.interactionStatus),
     },
-    planReview: paperclipWakePayload?.planReviewContext?.interaction
+    planReview: outpostWakePayload?.planReviewContext?.interaction
       ? {
-          status: paperclipWakePayload.planReviewContext.interaction.status,
-          reason: paperclipWakePayload.planReviewContext.interaction.result?.reason,
+          status: outpostWakePayload.planReviewContext.interaction.status,
+          reason: outpostWakePayload.planReviewContext.interaction.result?.reason,
         }
       : null,
     acceptedPlanContinuation:
@@ -315,7 +315,7 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
   const taskPlan = issueRef && !isConversation(issueContext)
     ? await getTaskPlanContext({
         db,
-        companyId: agent.companyId,
+        spaceId: agent.spaceId,
         issueId: issueRef.id,
         approvedRevisionId: taskMarkdownInput.acceptedPlan?.revisionId,
         exposeLowTrustRaw,
@@ -324,32 +324,32 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
   // Unlike the frozen initial communication preferences, live-call context
   // must also reach resumed turns. Rebuild it from server records each wake.
   const liveVoiceTaskPrefix = liveVoiceGuidance ? `${liveVoiceGuidance}\n\n` : "";
-  context.paperclipCasesEnabled = experimentalInstanceSettings.enableCases === true;
+  context.outpostCasesEnabled = experimentalInstanceSettings.enableCases === true;
   const workflowCase = issueRef && experimentalInstanceSettings.enableCases
-    ? await getCaseExecutionContext(db, { companyId: agent.companyId, issueId: issueRef.id, agentId: agent.id, runId: run.id, exposeLowTrustRaw })
+    ? await getCaseExecutionContext(db, { spaceId: agent.spaceId, issueId: issueRef.id, agentId: agent.id, runId: run.id, exposeLowTrustRaw })
     : null;
-  if (workflowCase) context.paperclipCase = workflowCase;
-  else delete context.paperclipCase;
+  if (workflowCase) context.outpostCase = workflowCase;
+  else delete context.outpostCase;
   const assignmentPrefix = liveVoiceTaskPrefix + caseExecutionMarkdown(workflowCase);
-  let taskMarkdown = assignmentPrefix + buildPaperclipTaskMarkdown({ ...taskMarkdownInput, taskPlan }) + chatCompletionInstruction(context);
-  let taskMarkdownAssignment = assignmentPrefix + buildPaperclipTaskMarkdown({
+  let taskMarkdown = assignmentPrefix + buildOutpostTaskMarkdown({ ...taskMarkdownInput, taskPlan }) + chatCompletionInstruction(context);
+  let taskMarkdownAssignment = assignmentPrefix + buildOutpostTaskMarkdown({
     ...taskMarkdownInput,
     taskPlan,
     includeWakeComments: false,
   }) + chatCompletionInstruction(context);
-  const taskMarkdownCompact = assignmentPrefix + buildPaperclipTaskMarkdown({
+  const taskMarkdownCompact = assignmentPrefix + buildOutpostTaskMarkdown({
     ...taskMarkdownInput,
     taskPlan,
     includeDescription: false,
   }) + chatCompletionInstruction(context);
-  const taskMarkdownAssignmentCompact = assignmentPrefix + buildPaperclipTaskMarkdown({
+  const taskMarkdownAssignmentCompact = assignmentPrefix + buildOutpostTaskMarkdown({
     ...taskMarkdownInput,
     taskPlan,
     includeDescription: false,
     includeWakeComments: false,
   }) + chatCompletionInstruction(context);
   if (issueRef) {
-    context.paperclipIssue = {
+    context.outpostIssue = {
       id: issueRef.id,
       identifier: issueRef.identifier,
       title: issueRef.title,
@@ -357,69 +357,69 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
       workMode: issueRef.workMode,
     };
   } else {
-    delete context.paperclipIssue;
+    delete context.outpostIssue;
   }
   if (wakeCommentContext) {
-    context.paperclipWakeComment = safeWakeCommentContext;
+    context.outpostWakeComment = safeWakeCommentContext;
   } else {
-    delete context.paperclipWakeComment;
+    delete context.outpostWakeComment;
   }
   if (taskMarkdown) {
-    context.paperclipTaskMarkdown = taskMarkdown;
+    context.outpostTaskMarkdown = taskMarkdown;
   } else {
-    delete context.paperclipTaskMarkdown;
+    delete context.outpostTaskMarkdown;
   }
   if (taskMarkdownAssignment) {
-    context.paperclipTaskMarkdownAssignment = taskMarkdownAssignment;
+    context.outpostTaskMarkdownAssignment = taskMarkdownAssignment;
   } else {
-    delete context.paperclipTaskMarkdownAssignment;
+    delete context.outpostTaskMarkdownAssignment;
   }
   if (taskMarkdownCompact && taskMarkdownCompact !== taskMarkdown) {
-    context.paperclipTaskMarkdownCompact = taskMarkdownCompact;
+    context.outpostTaskMarkdownCompact = taskMarkdownCompact;
   } else {
-    delete context.paperclipTaskMarkdownCompact;
+    delete context.outpostTaskMarkdownCompact;
   }
   if (taskMarkdownAssignmentCompact && taskMarkdownAssignmentCompact !== taskMarkdownAssignment) {
-    context.paperclipTaskMarkdownAssignmentCompact = taskMarkdownAssignmentCompact;
+    context.outpostTaskMarkdownAssignmentCompact = taskMarkdownAssignmentCompact;
   } else {
-    delete context.paperclipTaskMarkdownAssignmentCompact;
+    delete context.outpostTaskMarkdownAssignmentCompact;
   }
-  context.paperclipTaskCommunicationGuidance = [context.paperclipTaskCommunicationGuidance, FAST_RESPONSE_AGENT_GUIDANCE].filter(Boolean).join("\n\n");
+  context.outpostTaskCommunicationGuidance = [context.outpostTaskCommunicationGuidance, FAST_RESPONSE_AGENT_GUIDANCE].filter(Boolean).join("\n\n");
   if (issueRef) {
     const redactedWakeContext = await createRunSecretRedactionRegistry(
       db,
-    ).redactForIssue(agent.companyId, issueRef.id, {
-      paperclipIssue: context.paperclipIssue,
-      paperclipCase: context.paperclipCase,
-      paperclipWakeComment: context.paperclipWakeComment,
-      paperclipTaskCommunicationGuidance: context.paperclipTaskCommunicationGuidance,
-      paperclipTaskMarkdown: context.paperclipTaskMarkdown,
-      paperclipTaskMarkdownCompact: context.paperclipTaskMarkdownCompact,
-      paperclipTaskMarkdownAssignment: context.paperclipTaskMarkdownAssignment,
-      paperclipTaskMarkdownAssignmentCompact: context.paperclipTaskMarkdownAssignmentCompact,
+    ).redactForIssue(agent.spaceId, issueRef.id, {
+      outpostIssue: context.outpostIssue,
+      outpostCase: context.outpostCase,
+      outpostWakeComment: context.outpostWakeComment,
+      outpostTaskCommunicationGuidance: context.outpostTaskCommunicationGuidance,
+      outpostTaskMarkdown: context.outpostTaskMarkdown,
+      outpostTaskMarkdownCompact: context.outpostTaskMarkdownCompact,
+      outpostTaskMarkdownAssignment: context.outpostTaskMarkdownAssignment,
+      outpostTaskMarkdownAssignmentCompact: context.outpostTaskMarkdownAssignmentCompact,
     });
-    context.paperclipIssue = redactedWakeContext.paperclipIssue;
-    if (redactedWakeContext.paperclipCase) context.paperclipCase = redactedWakeContext.paperclipCase;
-    context.paperclipTaskCommunicationGuidance = redactedWakeContext.paperclipTaskCommunicationGuidance;
-    if (redactedWakeContext.paperclipWakeComment) {
-      context.paperclipWakeComment =
-        redactedWakeContext.paperclipWakeComment;
+    context.outpostIssue = redactedWakeContext.outpostIssue;
+    if (redactedWakeContext.outpostCase) context.outpostCase = redactedWakeContext.outpostCase;
+    context.outpostTaskCommunicationGuidance = redactedWakeContext.outpostTaskCommunicationGuidance;
+    if (redactedWakeContext.outpostWakeComment) {
+      context.outpostWakeComment =
+        redactedWakeContext.outpostWakeComment;
     }
-    if (redactedWakeContext.paperclipTaskMarkdown) {
-      context.paperclipTaskMarkdown =
-        redactedWakeContext.paperclipTaskMarkdown;
+    if (redactedWakeContext.outpostTaskMarkdown) {
+      context.outpostTaskMarkdown =
+        redactedWakeContext.outpostTaskMarkdown;
     }
-    if (redactedWakeContext.paperclipTaskMarkdownCompact) {
-      context.paperclipTaskMarkdownCompact =
-        redactedWakeContext.paperclipTaskMarkdownCompact;
+    if (redactedWakeContext.outpostTaskMarkdownCompact) {
+      context.outpostTaskMarkdownCompact =
+        redactedWakeContext.outpostTaskMarkdownCompact;
     }
-    if (redactedWakeContext.paperclipTaskMarkdownAssignment) {
-      context.paperclipTaskMarkdownAssignment =
-        redactedWakeContext.paperclipTaskMarkdownAssignment;
+    if (redactedWakeContext.outpostTaskMarkdownAssignment) {
+      context.outpostTaskMarkdownAssignment =
+        redactedWakeContext.outpostTaskMarkdownAssignment;
     }
-    if (redactedWakeContext.paperclipTaskMarkdownAssignmentCompact) {
-      context.paperclipTaskMarkdownAssignmentCompact =
-        redactedWakeContext.paperclipTaskMarkdownAssignmentCompact;
+    if (redactedWakeContext.outpostTaskMarkdownAssignmentCompact) {
+      context.outpostTaskMarkdownAssignmentCompact =
+        redactedWakeContext.outpostTaskMarkdownAssignmentCompact;
     }
   }
   if (issueRef) {
@@ -429,8 +429,8 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
             .update(value.trim().replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ""))
             .digest("hex")
         : null;
-    const redactedIssue = parseObject(context.paperclipIssue);
-    context.paperclipTurnContext = {
+    const redactedIssue = parseObject(context.outpostIssue);
+    context.outpostTurnContext = {
       version: 1,
       assignment: {
         owner: "task_markdown",
@@ -446,11 +446,11 @@ export async function prepareHeartbeatTaskContext(db: Db, input: HeartbeatTaskCo
           revision: digest(comment.body),
         })),
       },
-    } satisfies PaperclipTurnContext;
+    } satisfies OutpostTurnContext;
   } else {
-    delete context.paperclipTurnContext;
+    delete context.outpostTurnContext;
   }
   const pinnedSkillTest = pinnedSkillTestContext
     ? { key: pinnedSkillTestContext.skillKey, versionId: pinnedSkillTestContext.skillVersionId } : null;
-  return { continuationSummary, executionContinuation, paperclipWakePayload, safeWakeComments, safeWakeCommentContext, pinnedSkillTest };
+  return { continuationSummary, executionContinuation, outpostWakePayload, safeWakeComments, safeWakeCommentContext, pinnedSkillTest };
 }

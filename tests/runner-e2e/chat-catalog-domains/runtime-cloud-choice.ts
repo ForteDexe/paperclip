@@ -27,16 +27,16 @@ export function gradeCloudChoice(value: unknown) {
 export const runtimeCloudChoiceCases = [runtimeDefinition("agents.ambiguous-cloud-code", async ctx => {
   const target = await createOwnedDaytonaTarget(ctx);
   try {
-    const selected = selectedRuntimeInputs(ctx, "agents.ambiguous-cloud-code"), companyId = ctx.input.fixtures.company.id;
+    const selected = selectedRuntimeInputs(ctx, "agents.ambiguous-cloud-code"), spaceId = ctx.input.fixtures.space.id;
     ctx.input.privateSecrets!.push(selected.credentials.ANTHROPIC_API_KEY!);
-    const localAdapters = await ctx.input.api.get<Array<{ type: string; available?: boolean; supportedRunners?: string[] }>>(`/api/adapters?companyId=${companyId}&environmentId=${ctx.input.fixtures.environment.id}`);
+    const localAdapters = await ctx.input.api.get<Array<{ type: string; available?: boolean; supportedRunners?: string[] }>>(`/api/adapters?spaceId=${spaceId}&environmentId=${ctx.input.fixtures.environment.id}`);
     if (!localAdapters.some(row => row.type === "claude_local" && row.supportedRunners?.includes("legacy"))) throw new Error("Setup blocker: actual local Claude Code availability is missing; a cloud-only target does not establish the ambiguity context");
-    const models = await ctx.input.api.get<Array<{ id: string }>>(`/api/companies/${companyId}/adapters/claude_local/models`);
+    const models = await ctx.input.api.get<Array<{ id: string }>>(`/api/spaces/${spaceId}/adapters/claude_local/models`);
     if (!models.length || !models[0]?.id) throw new Error("Actual authorized Claude model discovery returned no available model");
     const executable = (await promisify(execFile)("which", ["claude"], { timeout: 5000, maxBuffer: 4096 })).stdout.trim();
-    const account = await privateClaudeOperation({ operation: "prepare-account", companyId, environmentId: ctx.input.fixtures.environment.id, credential: selected.credentials.ANTHROPIC_API_KEY!, harnessExecutable: executable, model: models[0].id, baseURL: ctx.input.api.baseURL, cookies: await ctx.input.page.context().cookies(ctx.input.api.baseURL) });
+    const account = await privateClaudeOperation({ operation: "prepare-account", spaceId, environmentId: ctx.input.fixtures.environment.id, credential: selected.credentials.ANTHROPIC_API_KEY!, harnessExecutable: executable, model: models[0].id, baseURL: ctx.input.api.baseURL, cookies: await ctx.input.page.context().cookies(ctx.input.api.baseURL) });
     if (account.probeStatus !== "pass") throw new Error("Actual selected Claude command/account/model probe did not establish Claude Code availability");
-    return { cloudTarget: target, cloudAvailable: true, claudeAvailable: true, beforeAgents: await ctx.input.api.get<Agent[]>(`/api/companies/${companyId}/agents`), providerProbes: [...target.providerProbes, { phase: "claude-availability", operation: account.operation, publicProbeCount: 2, status: account.probeStatus, usage: "unavailable", cost: "unavailable" }] };
+    return { cloudTarget: target, cloudAvailable: true, claudeAvailable: true, beforeAgents: await ctx.input.api.get<Agent[]>(`/api/spaces/${spaceId}/agents`), providerProbes: [...target.providerProbes, { phase: "claude-availability", operation: account.operation, publicProbeCount: 2, status: account.probeStatus, usage: "unavailable", cost: "unavailable" }] };
   } catch (error) { await deleteOwnedDaytonaTarget(ctx, target); throw error; }
 }, gradeCloudChoice, {
   ...runtimePrivateSpec("agents.ambiguous-cloud-code"), authentication: "human-session", expectedRunCount: 1, attemptTimeoutMs: 900000,

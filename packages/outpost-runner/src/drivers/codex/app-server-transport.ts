@@ -13,7 +13,7 @@ export interface CodexRpcNotification {
   method: string;
   params: Record<string, unknown>;
   /** Internal-only correlation retained outside provider params and canonical ORP payloads. */
-  paperclipTrace?: {
+  outpostTrace?: {
     sourceEventId: string;
     sourceEventType: string;
   };

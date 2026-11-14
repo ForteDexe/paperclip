@@ -23,12 +23,12 @@ function isLockNotAvailable(error: unknown): boolean {
  * behaviour. `lock` takes the row locks that resumption needs. */
 type Lock = false | "nowait" | "wait";
 
-async function readPreservedResult(db: Db, companyId: string, runId: string, lock: Lock) {
-  const applicable = await readApplicableResult(db, companyId, runId, lock);
+async function readPreservedResult(db: Db, spaceId: string, runId: string, lock: Lock) {
+  const applicable = await readApplicableResult(db, spaceId, runId, lock);
   if (!applicable) return null;
   const { coordinator, issue, run, result } = applicable;
   const [action] = await db.select().from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, companyId), eq(issueRecoveryActions.sourceIssueId, issue.id),
+    eq(issueRecoveryActions.spaceId, spaceId), eq(issueRecoveryActions.sourceIssueId, issue.id),
     sql`${issueRecoveryActions.evidence}->>'runId' = ${runId}`,
   )).orderBy(desc(issueRecoveryActions.createdAt)).limit(1);
   const recovery = readSystemRecovery(action?.evidence);
@@ -37,7 +37,7 @@ async function readPreservedResult(db: Db, companyId: string, runId: string, loc
     || workspace?.status !== "recovered" || workspace.runId !== run.id
     || !await verifiedWorkspaceRepairReceipt(db, run)) return null;
   const [intent] = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.agentId, run.agentId),
+    eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.agentId, run.agentId),
     eq(agentWakeupRequests.status, "deferred_issue_execution"), eq(agentWakeupRequests.reason, "task_retry"),
     sql`${agentWakeupRequests.payload}->>'issueId' = ${issue.id}`,
     sql`${agentWakeupRequests.payload}#>>'{taskRetry,sourceRunId}' = ${runId}`,
@@ -51,35 +51,35 @@ async function readPreservedResult(db: Db, companyId: string, runId: string, loc
 /** The facts that do not depend on the saved-work proof: an accepted, succeeded
  * result held by a terminal coordinator, no Stop, no newer run, and the same
  * agent owner with no current execution. */
-async function readApplicableResult(db: Db, companyId: string, runId: string, lock: Lock) {
+async function readApplicableResult(db: Db, spaceId: string, runId: string, lock: Lock) {
   // The finalizer and owner-stop confirmation lock the coordinator before the
   // issue; Retry dispatch locks the issue first. This takes the coordinator
   // first (like the finalizer). With "nowait" it does not wait for the issue or
   // run while it holds the coordinator: a busy row fails the attempt
   // (lock_not_available) and the caller tries again.
   const coordinatorQuery = db.select().from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, companyId), eq(nativeRunFinalizations.runId, runId)));
+    eq(nativeRunFinalizations.spaceId, spaceId), eq(nativeRunFinalizations.runId, runId)));
   const [coordinator] = lock ? await coordinatorQuery.for("update") : await coordinatorQuery;
   if (!coordinator?.resultId || coordinator.phase !== "terminal_failure" || coordinator.leaseOwner ||
       coordinator.failureDetail?.successorRunId) return null;
-  const issueQuery = db.select().from(issues).where(and(eq(issues.companyId, companyId), eq(issues.id, coordinator.issueId)));
+  const issueQuery = db.select().from(issues).where(and(eq(issues.spaceId, spaceId), eq(issues.id, coordinator.issueId)));
   const [issue] = lock === "nowait" ? await issueQuery.for("update", { noWait: true })
     : lock ? await issueQuery.for("update") : await issueQuery;
-  const runQuery = db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId)));
+  const runQuery = db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, runId)));
   const [run] = lock === "nowait" ? await runQuery.for("update", { noWait: true })
     : lock ? await runQuery.for("update") : await runQuery;
   if (!issue || !run || run.status === "cancelled" || preservedResultHasStop(run.resultJson)
       || issue.assigneeAgentId !== run.agentId || issue.assigneeUserId || ["done", "cancelled"].includes(issue.status) ||
       issue.executionRunId || issue.checkoutRunId) return null;
   const [newer] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, companyId), ne(heartbeatRuns.id, runId),
+    eq(heartbeatRuns.spaceId, spaceId), ne(heartbeatRuns.id, runId),
     or(eq(heartbeatRuns.issueId, issue.id), eq(heartbeatRuns.nativeIssueId, issue.id),
       sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${issue.id}`),
     gte(heartbeatRuns.createdAt, run.createdAt),
   )).limit(1);
   if (newer) return null;
   const [result] = await db.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-    eq(nativeRunResults.companyId, companyId), eq(nativeRunResults.issueId, issue.id),
+    eq(nativeRunResults.spaceId, spaceId), eq(nativeRunResults.issueId, issue.id),
     eq(nativeRunResults.runId, runId), eq(nativeRunResults.id, coordinator.resultId),
     eq(nativeRunResults.schemaStatus, "accepted"),
     sql`${nativeRunResults.resultJson}#>>'{terminal,runTerminalState}' = 'succeeded'`,
@@ -91,15 +91,15 @@ async function readApplicableResult(db: Db, companyId: string, runId: string, lo
  * saved accepted result now (`ready`), or could once the run's saved-work
  * recovery completes (`pending`). Retry admission uses it to wait for that
  * result instead of starting a new agent turn. It takes no locks. */
-export async function canResumePreservedResultFinalization(db: Db, companyId: string, runId: string,
+export async function canResumePreservedResultFinalization(db: Db, spaceId: string, runId: string,
   when: "ready" | "pending" = "ready") {
-  return (when === "ready" ? await readPreservedResult(db, companyId, runId, false)
-    : await readApplicableResult(db, companyId, runId, false)) !== null;
+  return (when === "ready" ? await readPreservedResult(db, spaceId, runId, false)
+    : await readApplicableResult(db, spaceId, runId, false)) !== null;
 }
 
 /** Re-enter the existing finalizer only after preservation. This does not
  * recreate a result, grant an executor budget, or apply it over newer work. */
-export async function resumePreservedResultFinalization(db: Db, companyId: string, runId: string) {
+export async function resumePreservedResultFinalization(db: Db, spaceId: string, runId: string) {
   // Each attempt rereads every fact. A row held by another writer (usually a
   // Retry dispatch for this task) is briefly retried without waiting while the
   // coordinator is held. The last attempt waits for its locks, as this
@@ -107,7 +107,7 @@ export async function resumePreservedResultFinalization(db: Db, companyId: strin
   // because a row stayed busy.
   for (let attempt = 1; ; attempt += 1) {
     const wait = attempt >= PRESERVED_RESULT_LOCK_ATTEMPTS;
-    const resumed = await attemptPreservedResultFinalization(db, companyId, runId, wait);
+    const resumed = await attemptPreservedResultFinalization(db, spaceId, runId, wait);
     if (resumed !== "busy") return resumed;
     await new Promise(resolve => setTimeout(resolve, PRESERVED_RESULT_LOCK_DELAY_MS));
   }
@@ -116,12 +116,12 @@ export async function resumePreservedResultFinalization(db: Db, companyId: strin
 const PRESERVED_RESULT_LOCK_ATTEMPTS = 10;
 const PRESERVED_RESULT_LOCK_DELAY_MS = 100;
 
-async function attemptPreservedResultFinalization(db: Db, companyId: string, runId: string, wait: boolean): Promise<boolean | "busy"> {
+async function attemptPreservedResultFinalization(db: Db, spaceId: string, runId: string, wait: boolean): Promise<boolean | "busy"> {
   const resumed = await db.transaction(async tx => {
-    const found = await readPreservedResult(tx as unknown as Db, companyId, runId, wait ? "wait" : "nowait");
+    const found = await readPreservedResult(tx as unknown as Db, spaceId, runId, wait ? "wait" : "nowait");
     if (!found) return null;
     const { coordinator, issue, run, result, recovery, intent, generationId } = found;
-    await notifyNativeFinalizationWork(tx, { companyId, runId });
+    await notifyNativeFinalizationWork(tx, { spaceId, runId });
     await tx.update(nativeRunFinalizations).set({
       phase: coordinator.assessmentId ? "arbitrating" : "workspace_finalizing",
       nextAttemptAt: new Date(), failureCode: null, failureDetail: null, updatedAt: new Date(),
@@ -136,7 +136,7 @@ async function attemptPreservedResultFinalization(db: Db, companyId: string, run
       status: "coalesced", runId, finishedAt: new Date(), updatedAt: new Date(),
       payload: sql`jsonb_set(${agentWakeupRequests.payload}, '{taskRetry,strategy}', '"finalize_result"'::jsonb)`,
     }).where(eq(agentWakeupRequests.id, intent.id));
-    return persistActivity(tx as unknown as Db, { companyId, actorType: "system", actorId: "task-recovery",
+    return persistActivity(tx as unknown as Db, { spaceId, actorType: "system", actorId: "task-recovery",
       action: "issue.saved_result_finalization_resumed", entityType: "issue", entityId: issue.id, runId: run.id,
       details: { resultId: result.id, preservationGenerationId: recovery.generationId,
         ...(intent ? { requestId: intent.id, strategy: "finalize_result" } : {}) } });

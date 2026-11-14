@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import type { UseMutationResult } from "@tanstack/react-query";
 import type {
-  CompanySecret,
+  SpaceSecret,
   RoutineDetail as RoutineDetailType,
   RoutineEnvConfig,
   RoutineVariable,
@@ -94,7 +94,7 @@ type RoutineActivityList = Awaited<
 export type RoutineDetailContextValue = {
   routine: RoutineDetailType;
   routineId: string;
-  companyId: string;
+  spaceId: string;
 
   // edit state
   editDraft: RoutineEditDraft;
@@ -133,7 +133,7 @@ export type RoutineDetailContextValue = {
   setSecretMessage: (message: SecretMessage | null) => void;
   copySecretValue: (label: string, value: string) => void;
   availableSecrets: SecretList;
-  createSecret: UseMutationResult<CompanySecret, unknown, { name: string; value: string }, unknown>;
+  createSecret: UseMutationResult<SpaceSecret, unknown, { name: string; value: string }, unknown>;
 
   // entities
   agents: AgentList;

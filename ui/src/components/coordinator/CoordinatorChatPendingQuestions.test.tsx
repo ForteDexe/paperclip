@@ -9,7 +9,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), detach: vi.fn(), list: vi.fn(), answer: vi.fn(), viewer: "user-board", enabled: true }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), detach: vi.fn(), list: vi.fn(), answer: vi.fn(), viewer: "user-operator", enabled: true }));
 vi.mock("@/api/client", () => ({ api: { get: mocks.get }, detachInflightGet: mocks.detach }));
 vi.mock("@/api/issues", () => ({ issuesApi: { listInteractions: mocks.list, respondToInteraction: mocks.answer } }));
 vi.mock("@/hooks/useCoordinatorWorkspaceEnabled", () => ({ useCoordinatorWorkspaceEnabled: () => ({ enabled: mocks.enabled, userId: mocks.viewer }) }));
@@ -26,7 +26,7 @@ async function paint(conversation = true) {
   await flush(); await flush();
 }
 beforeEach(() => {
-  vi.clearAllMocks(); mocks.viewer = "user-board"; mocks.enabled = true;
+  vi.clearAllMocks(); mocks.viewer = "user-operator"; mocks.enabled = true;
   mocks.get.mockResolvedValue([coordinatorTaskQuestionAttention]); mocks.list.mockResolvedValue([coordinatorTaskQuestion]);
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
@@ -51,7 +51,7 @@ describe("pending task questions in agent chat", () => {
     await flush(); await flush();
     expect(mocks.answer).toHaveBeenCalledWith(coordinatorTaskQuestion.issueId, coordinatorTaskQuestion.id, expect.objectContaining({ answers: expect.any(Array) }));
     expect(host.querySelector("[data-testid=coordinator-chat-pending-question]")).toBeNull();
-    for (const queryKey of [queryKeys.attention(coordinatorTaskQuestion.companyId), ["issues", "pending-questions"], ["issues", "decision-receipts"]]) expect(invalidate).toHaveBeenCalledWith({ queryKey });
+    for (const queryKey of [queryKeys.attention(coordinatorTaskQuestion.spaceId), ["issues", "pending-questions"], ["issues", "decision-receipts"]]) expect(invalidate).toHaveBeenCalledWith({ queryKey });
   });
   it("drops cached questions after authorization loss and separates viewers", async () => {
     await paint(); expect(host.textContent).toContain("Who is the primary reader?");

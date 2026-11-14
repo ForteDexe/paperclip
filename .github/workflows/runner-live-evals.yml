@@ -72,7 +72,7 @@ jobs:
         run: |
           set -euo pipefail
           github_runner='ubuntu-latest'
-          aws_runner='runs-on/fleet=paperclip-public-pr-x64/env=public-ci'
+          aws_runner='runs-on/fleet=outpost-public-pr-x64/env=public-ci'
 
           if [ "$AWS_PAID_RUNNER_ENABLED" = true ]; then
             echo "runner=$aws_runner" >> "$GITHUB_OUTPUT"
@@ -131,7 +131,7 @@ jobs:
         with:
           repository: paperclipai/paperclip-evals
           ref: 0c8dfea0ef71a73e909b59a5c0484554cbee199b
-          path: .paperclip-evals
+          path: .outpost-evals
           token: ${{ steps.evals_token.outputs.value }}
           persist-credentials: false
 
@@ -151,7 +151,7 @@ jobs:
       - name: Restore compatible weekly baseline
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: packages/outpost-runner/.paperclip-local/evals/workflows/history
+          path: packages/outpost-runner/.outpost-local/evals/workflows/history
           key: runner-live-eval-history-${{ github.ref_name }}-${{ github.run_id }}
           restore-keys: |
             runner-live-eval-history-${{ github.ref_name }}-
@@ -171,13 +171,13 @@ jobs:
           OUTPOST_EVAL_CANDIDATE: ${{ inputs.candidate }}
           OUTPOST_EVAL_CASE: ${{ inputs.case }}
           OUTPOST_EVAL_LIMIT: ${{ inputs.limit }}
-          OUTPOST_EVALBOOK_PROGRAM: ${{ github.workspace }}/.paperclip-evals/evals/outpost-runner/tools/eval_program.py
+          OUTPOST_EVALBOOK_PROGRAM: ${{ github.workspace }}/.outpost-evals/evals/outpost-runner/tools/eval_program.py
         run: pnpm --filter @outpost/outpost-runner report:runner-live-evals
 
       - name: Publish job summary
         if: always()
         run: |
-          summary=packages/outpost-runner/.paperclip-local/evals/workflows/github-live-summary.md
+          summary=packages/outpost-runner/.outpost-local/evals/workflows/github-live-summary.md
           if [ -f "$summary" ]; then
             cat "$summary" >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -187,6 +187,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: runner-live-evals-${{ github.run_id }}
-          path: packages/outpost-runner/.paperclip-local/evals/workflows/
+          path: packages/outpost-runner/.outpost-local/evals/workflows/
           retention-days: 30
           if-no-files-found: error

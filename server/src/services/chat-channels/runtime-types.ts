@@ -57,7 +57,7 @@ export type InternalSetupState = ChatEndpointSetupState & {
     id: string;
     subject: string;
     instanceId: string;
-    companyId: string;
+    spaceId: string;
     endpointId: string;
     publicId: string;
     connectionId: string;
@@ -109,7 +109,7 @@ export type LiveInboundMessage = {
 };
 
 export type DiscordGatewayOwnership = {
-  companyId: string;
+  spaceId: string;
   context: RuntimeContext;
   endpointId: string;
   expiresAt: Date;

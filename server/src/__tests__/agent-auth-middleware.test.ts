@@ -6,13 +6,13 @@ import {
   activityLog,
   agentApiKeys,
   agents,
-  boardApiKeys,
+  operatorApiKeys,
   heartbeatRuns,
 } from "@outpost/db";
 import { actorMiddleware } from "../middleware/auth.js";
 import { errorHandler } from "../middleware/error-handler.js";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
-import { assertCompanyAccess } from "../routes/authz.js";
+import { assertSpaceAccess } from "../routes/authz.js";
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -31,15 +31,15 @@ function createSelectChain(rowsForTable: (table: unknown) => unknown[]) {
 }
 
 function createDbState(input: {
-  agent: { id: string; companyId: string; status?: string; lifecycleHolds?: string[] };
-  agentKey?: { id: string; agentId: string; companyId: string; keyHash: string; responsibleUserId?: string | null };
-  run?: { id: string; companyId: string; agentId: string; responsibleUserId?: string | null;
+  agent: { id: string; spaceId: string; status?: string; lifecycleHolds?: string[] };
+  agentKey?: { id: string; agentId: string; spaceId: string; keyHash: string; responsibleUserId?: string | null };
+  run?: { id: string; spaceId: string; agentId: string; responsibleUserId?: string | null;
     status?: string; contextSnapshot?: Record<string, unknown>; resultJson?: Record<string, unknown> };
 }) {
   const activity: Array<Record<string, unknown>> = [];
   const agentRow = {
     id: input.agent.id,
-    companyId: input.agent.companyId,
+    spaceId: input.agent.spaceId,
     status: input.agent.status ?? "active",
     lifecycleHolds: input.agent.lifecycleHolds ?? [],
   };
@@ -47,7 +47,7 @@ function createDbState(input: {
     ? {
         id: input.agentKey.id,
         agentId: input.agentKey.agentId,
-        companyId: input.agentKey.companyId,
+        spaceId: input.agentKey.spaceId,
         keyHash: input.agentKey.keyHash,
         responsibleUserId: input.agentKey.responsibleUserId ?? null,
         revokedAt: null,
@@ -57,7 +57,7 @@ function createDbState(input: {
   const runRow = input.run
     ? {
         id: input.run.id,
-        companyId: input.run.companyId,
+        spaceId: input.run.spaceId,
         agentId: input.run.agentId,
         responsibleUserId: input.run.responsibleUserId ?? null,
         status: input.run.status ?? "running",
@@ -69,7 +69,7 @@ function createDbState(input: {
   const db = {
     select: () =>
       createSelectChain((table) => {
-        if (table === boardApiKeys) return [];
+        if (table === operatorApiKeys) return [];
         if (table === agentApiKeys) return keyRow ? [keyRow] : [];
         if (table === agents) return [agentRow];
         if (table === heartbeatRuns) return runRow ? [runRow] : [];
@@ -113,16 +113,16 @@ function createApp(db: any, deploymentMode: "authenticated" | "local_trusted" = 
   app.post("/mcp/gateways/:gatewayPublicId", (req, res) => {
     res.json({ reachedGatewayProtocol: true, actorType: req.actor.type });
   });
-  app.get("/companies/:companyId/protected", (req, res) => {
-    assertCompanyAccess(req, req.params.companyId);
+  app.get("/spaces/:spaceId/protected", (req, res) => {
+    assertSpaceAccess(req, req.params.spaceId);
     res.json({ ok: true });
   });
-  app.get("/companies/:companyId/issues/:issueId", (req, res) => {
-    assertCompanyAccess(req, req.params.companyId);
+  app.get("/spaces/:spaceId/issues/:issueId", (req, res) => {
+    assertSpaceAccess(req, req.params.spaceId);
     res.json({ id: req.params.issueId, readable: true });
   });
-  app.patch("/companies/:companyId/issues/:issueId", (req, res) => {
-    assertCompanyAccess(req, req.params.companyId);
+  app.patch("/spaces/:spaceId/issues/:issueId", (req, res) => {
+    assertSpaceAccess(req, req.params.spaceId);
     res.json({ id: req.params.issueId, writable: true });
   });
   app.use(errorHandler);
@@ -132,7 +132,7 @@ function createApp(db: any, deploymentMode: "authenticated" | "local_trusted" = 
 function craftAgentJwtWithoutResponsibleClaim(input: {
   secret: string;
   agentId: string;
-  companyId: string;
+  spaceId: string;
   adapterType: string;
   runId: string;
   expiresInSeconds?: number;
@@ -141,22 +141,22 @@ function craftAgentJwtWithoutResponsibleClaim(input: {
   const header = { alg: "HS256", typ: "JWT" };
   const claims = {
     sub: input.agentId,
-    company_id: input.companyId,
+    space_id: input.spaceId,
     adapter_type: input.adapterType,
     run_id: input.runId,
     iat: now,
     exp: now + (input.expiresInSeconds ?? 3600),
-    iss: "paperclip",
-    aud: "paperclip-api",
+    iss: "outpost",
+    aud: "outpost-api",
   };
   const headerB64 = Buffer.from(JSON.stringify(header), "utf8").toString("base64url");
   const claimsB64 = Buffer.from(JSON.stringify(claims), "utf8").toString("base64url");
   const signingInput = `${headerB64}.${claimsB64}`;
-  // Sign with the same per-instance, per-company key the server derives. The
+  // Sign with the same per-instance, per-space key the server derives. The
   // instance defaults to "default" (beforeEach clears OUTPOST_INSTANCE_ID),
   // matching the live control plane this middleware test exercises. This helper
   // only omits the responsible_user_id claim — it is not a cross-instance token.
-  const signingKey = createHmac("sha256", input.secret).update(`jwt:default:${input.companyId}`).digest("hex");
+  const signingKey = createHmac("sha256", input.secret).update(`jwt:default:${input.spaceId}`).digest("hex");
   const signature = createHmac("sha256", signingKey).update(signingInput).digest("base64url");
   return `${signingInput}.${signature}`;
 }
@@ -190,15 +190,15 @@ describe("agent auth middleware", () => {
     { status: "running", conversationMode: true, requested: true },
   ])("revokes writes but preserves reads for a stopped run: %j", async ({ status, conversationMode, requested }) => {
     const agentId = randomUUID();
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const runId = randomUUID();
-    const { db } = createDbState({ agent: { id: agentId, companyId }, run: {
-      id: runId, companyId, agentId, status, contextSnapshot: { conversationMode },
+    const { db } = createDbState({ agent: { id: agentId, spaceId }, run: {
+      id: runId, spaceId, agentId, status, contextSnapshot: { conversationMode },
       resultJson: requested ? { executionCancellation: { state: "requested" } } : {},
     } });
-    const token = createLocalAgentJwt(agentId, companyId, "grok_local", runId, null);
+    const token = createLocalAgentJwt(agentId, spaceId, "grok_local", runId, null);
     const client = createApp(db);
-    const endpoint = `/companies/${companyId}/issues/${randomUUID()}`;
+    const endpoint = `/spaces/${spaceId}/issues/${randomUUID()}`;
     const write = await request(client).patch(endpoint).set("Authorization", `Bearer ${token}`).send({ status: "done" });
     expect(write.status).toBe(403);
     expect(write.body.code).toBe(conversationMode ? "conversation_turn_cancelled" : "agent_run_cancelled");
@@ -207,23 +207,23 @@ describe("agent auth middleware", () => {
     expect(read.body.readable).toBe(true);
   });
 
-  it("keeps header-less local requests as the implicit board actor with their run id", async () => {
+  it("keeps header-less local requests as the implicit operator actor with their run id", async () => {
     const runId = randomUUID();
-    const { db } = createDbState({ agent: { id: randomUUID(), companyId: randomUUID() } });
+    const { db } = createDbState({ agent: { id: randomUUID(), spaceId: randomUUID() } });
 
     const res = await request(createApp(db, "local_trusted"))
       .get("/actor")
-      .set("X-Paperclip-Run-Id", runId);
+      .set("X-Outpost-Run-Id", runId);
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ type: "board", userId: "local-board", runId });
+    expect(res.body).toMatchObject({ type: "operator", userId: "local-operator", runId });
   });
 
   it.each([
     ["empty bearer token", "Bearer   ", "Empty bearer token"],
     ["unverified token", "Bearer not-a-token", "Agent token did not verify"],
-  ])("rejects %s instead of retaining the implicit local-board actor", async (_label, authorization, error) => {
-    const { db } = createDbState({ agent: { id: randomUUID(), companyId: randomUUID() } });
+  ])("rejects %s instead of retaining the implicit local-operator actor", async (_label, authorization, error) => {
+    const { db } = createDbState({ agent: { id: randomUUID(), spaceId: randomUUID() } });
     let commentWrites = 0;
     const app = createApp(db, "local_trusted");
     app.post("/comments", (_req, res) => {
@@ -241,7 +241,7 @@ describe("agent auth middleware", () => {
   it.each(["authenticated", "local_trusted"] as const)(
     "leaves webhook authentication to the trigger in %s mode",
     async (deploymentMode) => {
-      const { db } = createDbState({ agent: { id: randomUUID(), companyId: randomUUID() } });
+      const { db } = createDbState({ agent: { id: randomUUID(), spaceId: randomUUID() } });
       const res = await request(createApp(db, deploymentMode))
         .post(`/api/routine-triggers/public/${"a".repeat(24)}/fire`)
         .set("Authorization", "Bearer routine-secret")
@@ -256,13 +256,13 @@ describe("agent auth middleware", () => {
     "/api/routine-triggers/public/not-a-public-id/fire",
     `/api/routine-triggers/public/${"a".repeat(24)}/fire/extra`,
   ])("does not bypass actor authentication for %s", async (path) => {
-    const { db } = createDbState({ agent: { id: randomUUID(), companyId: randomUUID() } });
+    const { db } = createDbState({ agent: { id: randomUUID(), spaceId: randomUUID() } });
     const res = await request(createApp(db)).post(path).set("Authorization", "Bearer routine-secret");
     expect(res.status).toBe(401);
   });
 
   it("leaves public MCP gateway bearers for the gateway protocol to validate", async () => {
-    const { db } = createDbState({ agent: { id: randomUUID(), companyId: randomUUID() } });
+    const { db } = createDbState({ agent: { id: randomUUID(), spaceId: randomUUID() } });
     const publicId = `gw_${"a".repeat(32)}`;
 
     const res = await request(createApp(db, "local_trusted"))
@@ -275,7 +275,7 @@ describe("agent auth middleware", () => {
   });
 
   it("does not bypass actor authentication for lookalike MCP gateway paths", async () => {
-    const { db } = createDbState({ agent: { id: randomUUID(), companyId: randomUUID() } });
+    const { db } = createDbState({ agent: { id: randomUUID(), spaceId: randomUUID() } });
 
     const res = await request(createApp(db, "local_trusted"))
       .post("/mcp/gateways/not-a-public-id")
@@ -289,12 +289,12 @@ describe("agent auth middleware", () => {
   it.each([
     ["terminated", "Agent is terminated"],
     ["pending_approval", "Agent is pending approval"],
-  ])("rejects a %s agent JWT instead of retaining local-board", async (status, error) => {
-    const companyId = randomUUID();
+  ])("rejects a %s agent JWT instead of retaining local-operator", async (status, error) => {
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
-    const { db } = createDbState({ agent: { id: agentId, companyId, status } });
-    const token = createLocalAgentJwt(agentId, companyId, "codex_local", runId, "user-1");
+    const { db } = createDbState({ agent: { id: agentId, spaceId, status } });
+    const token = createLocalAgentJwt(agentId, spaceId, "codex_local", runId, "user-1");
 
     const res = await request(createApp(db, "local_trusted"))
       .get("/actor")
@@ -305,42 +305,42 @@ describe("agent auth middleware", () => {
   });
 
   it.each(["key", "jwt"])("rejects unfinished setup authentication with a %s", async kind => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
-    const token = kind === "jwt" ? createLocalAgentJwt(agentId, companyId, "codex_local", randomUUID(), "user-1")! : "pcp_setup-test-token";
+    const token = kind === "jwt" ? createLocalAgentJwt(agentId, spaceId, "codex_local", randomUUID(), "user-1")! : "pcp_setup-test-token";
     const { db } = createDbState({
-      agent: { id: agentId, companyId, status: "paused", lifecycleHolds: ["setup"] },
-      ...(kind === "key" ? { agentKey: { id: randomUUID(), agentId, companyId, keyHash: hashToken(token), responsibleUserId: "user-1" } } : {}),
+      agent: { id: agentId, spaceId, status: "paused", lifecycleHolds: ["setup"] },
+      ...(kind === "key" ? { agentKey: { id: randomUUID(), agentId, spaceId, keyHash: hashToken(token), responsibleUserId: "user-1" } } : {}),
     });
     const res = await request(createApp(db, "local_trusted")).get("/actor").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(401);
     expect(res.body.error).toContain("setup is incomplete");
   });
 
-  it("rejects an agent JWT when the agent record belongs to another company", async () => {
-    const companyId = randomUUID();
+  it("rejects an agent JWT when the agent record belongs to another space", async () => {
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
-    const { db } = createDbState({ agent: { id: agentId, companyId: randomUUID() } });
-    const token = createLocalAgentJwt(agentId, companyId, "codex_local", runId, "user-1");
+    const { db } = createDbState({ agent: { id: agentId, spaceId: randomUUID() } });
+    const token = createLocalAgentJwt(agentId, spaceId, "codex_local", runId, "user-1");
 
     const res = await request(createApp(db, "local_trusted"))
       .get("/actor")
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(401);
-    expect(res.body.error).toContain("missing or belongs to another company");
+    expect(res.body.error).toContain("missing or belongs to another space");
   });
 
   it("reports an expired agent JWT specifically", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
-    const { db } = createDbState({ agent: { id: agentId, companyId } });
+    const { db } = createDbState({ agent: { id: agentId, spaceId } });
     const token = craftAgentJwtWithoutResponsibleClaim({
       secret: process.env.OUTPOST_AGENT_JWT_SECRET!,
       agentId,
-      companyId,
+      spaceId,
       adapterType: "codex_local",
       runId,
       expiresInSeconds: -1,
@@ -355,25 +355,25 @@ describe("agent auth middleware", () => {
   });
 
   it("uses the signed responsible_user_id claim and keeps the signed run id authoritative", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
     const { db } = createDbState({
-      agent: { id: agentId, companyId },
-      run: { id: runId, companyId, agentId, responsibleUserId: "user-row" },
+      agent: { id: agentId, spaceId },
+      run: { id: runId, spaceId, agentId, responsibleUserId: "user-row" },
     });
-    const token = createLocalAgentJwt(agentId, companyId, "codex_local", runId, "user-claim");
+    const token = createLocalAgentJwt(agentId, spaceId, "codex_local", runId, "user-claim");
 
     const res = await request(createApp(db))
       .get("/actor")
       .set("Authorization", `Bearer ${token}`)
-      .set("X-Paperclip-Run-Id", runId);
+      .set("X-Outpost-Run-Id", runId);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       type: "agent",
       agentId,
-      companyId,
+      spaceId,
       runId,
       onBehalfOfUserId: "user-claim",
       source: "agent_jwt",
@@ -381,15 +381,15 @@ describe("agent auth middleware", () => {
   });
 
   it("preserves signed skill_test JWT scope on the request actor", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
     const issueId = randomUUID();
     const { db } = createDbState({
-      agent: { id: agentId, companyId },
-      run: { id: runId, companyId, agentId, responsibleUserId: "user-claim" },
+      agent: { id: agentId, spaceId },
+      run: { id: runId, spaceId, agentId, responsibleUserId: "user-claim" },
     });
-    const token = createLocalAgentJwt(agentId, companyId, "codex_local", runId, "user-claim", {
+    const token = createLocalAgentJwt(agentId, spaceId, "codex_local", runId, "user-claim", {
       kind: "skill_test",
       issueId,
     });
@@ -397,39 +397,39 @@ describe("agent auth middleware", () => {
     const res = await request(createApp(db))
       .get("/actor")
       .set("Authorization", `Bearer ${token}`)
-      .set("X-Paperclip-Run-Id", runId);
+      .set("X-Outpost-Run-Id", runId);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       type: "agent",
       agentId,
-      companyId,
+      spaceId,
       keyScope: { kind: "skill_test", issueId },
       source: "agent_jwt",
     });
   });
 
   it("rejects mismatched run headers for agent JWTs and audits the spoof attempt", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
     const spoofedRunId = randomUUID();
     const { db, activity } = createDbState({
-      agent: { id: agentId, companyId },
-      run: { id: runId, companyId, agentId, responsibleUserId: "user-claim" },
+      agent: { id: agentId, spaceId },
+      run: { id: runId, spaceId, agentId, responsibleUserId: "user-claim" },
     });
-    const token = createLocalAgentJwt(agentId, companyId, "codex_local", runId, "user-claim");
+    const token = createLocalAgentJwt(agentId, spaceId, "codex_local", runId, "user-claim");
 
     const res = await request(createApp(db))
       .get("/actor")
       .set("Authorization", `Bearer ${token}`)
-      .set("X-Paperclip-Run-Id", spoofedRunId);
+      .set("X-Outpost-Run-Id", spoofedRunId);
 
     expect(res.status).toBe(422);
     expect(res.body.code).toBe("agent_jwt_run_id_mismatch");
     expect(activity).toHaveLength(1);
     expect(activity[0]).toMatchObject({
-      companyId,
+      spaceId,
       actorType: "agent",
       actorId: agentId,
       action: "auth.agent_jwt_run_header_mismatch",
@@ -441,25 +441,25 @@ describe("agent auth middleware", () => {
   });
 
   it("audits a run header mismatch even when the claimed run does not exist", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const claimedRunId = randomUUID();
     const spoofedRunId = randomUUID();
     const { db, activity } = createDbState({
-      agent: { id: agentId, companyId },
+      agent: { id: agentId, spaceId },
     });
-    const token = createLocalAgentJwt(agentId, companyId, "codex_local", claimedRunId, "user-claim");
+    const token = createLocalAgentJwt(agentId, spaceId, "codex_local", claimedRunId, "user-claim");
 
     const res = await request(createApp(db))
       .get("/actor")
       .set("Authorization", `Bearer ${token}`)
-      .set("X-Paperclip-Run-Id", spoofedRunId);
+      .set("X-Outpost-Run-Id", spoofedRunId);
 
     expect(res.status).toBe(422);
     expect(res.body.code).toBe("agent_jwt_run_id_mismatch");
     expect(activity).toHaveLength(1);
     expect(activity[0]).toMatchObject({
-      companyId,
+      spaceId,
       actorType: "agent",
       actorId: agentId,
       action: "auth.agent_jwt_run_header_mismatch",
@@ -473,17 +473,17 @@ describe("agent auth middleware", () => {
   });
 
   it("falls back to the run row responsible user for legacy claim-less agent JWTs", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
     const { db } = createDbState({
-      agent: { id: agentId, companyId },
-      run: { id: runId, companyId, agentId, responsibleUserId: "user-legacy" },
+      agent: { id: agentId, spaceId },
+      run: { id: runId, spaceId, agentId, responsibleUserId: "user-legacy" },
     });
     const token = craftAgentJwtWithoutResponsibleClaim({
       secret: process.env.OUTPOST_AGENT_JWT_SECRET!,
       agentId,
-      companyId,
+      spaceId,
       adapterType: "codex_local",
       runId,
     });
@@ -502,29 +502,29 @@ describe("agent auth middleware", () => {
   });
 
   it("rejects fork-minted run JWTs before issue reads or writes reach live issue data", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
     const issueId = randomUUID();
     const { db } = createDbState({
-      agent: { id: agentId, companyId },
-      run: { id: runId, companyId, agentId, responsibleUserId: "user-claim" },
+      agent: { id: agentId, spaceId },
+      run: { id: runId, spaceId, agentId, responsibleUserId: "user-claim" },
     });
 
     process.env.OUTPOST_INSTANCE_ID = "pap-12899-worktree";
-    const forkToken = createLocalAgentJwt(agentId, companyId, "codex_local", runId, "user-claim");
+    const forkToken = createLocalAgentJwt(agentId, spaceId, "codex_local", runId, "user-claim");
     expect(forkToken).not.toBeNull();
 
     process.env.OUTPOST_INSTANCE_ID = "default";
     const app = createApp(db);
     const readRes = await request(app)
-      .get(`/companies/${companyId}/issues/${issueId}`)
+      .get(`/spaces/${spaceId}/issues/${issueId}`)
       .set("Authorization", `Bearer ${forkToken}`)
-      .set("X-Paperclip-Run-Id", runId);
+      .set("X-Outpost-Run-Id", runId);
     const writeRes = await request(app)
-      .patch(`/companies/${companyId}/issues/${issueId}`)
+      .patch(`/spaces/${spaceId}/issues/${issueId}`)
       .set("Authorization", `Bearer ${forkToken}`)
-      .set("X-Paperclip-Run-Id", runId)
+      .set("X-Outpost-Run-Id", runId)
       .send({ title: "should not write" });
 
     expect(readRes.status).toBe(401);
@@ -532,15 +532,15 @@ describe("agent auth middleware", () => {
   });
 
   it("populates agent-key actors from the key responsible user binding", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const token = "pcp_test_agent_key";
     const { db } = createDbState({
-      agent: { id: agentId, companyId },
+      agent: { id: agentId, spaceId },
       agentKey: {
         id: randomUUID(),
         agentId,
-        companyId,
+        spaceId,
         keyHash: hashToken(token),
         responsibleUserId: "user-key",
       },
@@ -554,43 +554,43 @@ describe("agent auth middleware", () => {
     expect(res.body).toMatchObject({
       type: "agent",
       agentId,
-      companyId,
+      spaceId,
       onBehalfOfUserId: "user-key",
       source: "agent_key",
     });
   });
 
   it("rejects agent keys that lack a responsible user binding and audits the denial", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const keyId = randomUUID();
     const token = "pcp_test_agent_key_without_user";
     const { db, activity } = createDbState({
-      agent: { id: agentId, companyId },
+      agent: { id: agentId, spaceId },
       agentKey: {
         id: keyId,
         agentId,
-        companyId,
+        spaceId,
         keyHash: hashToken(token),
         responsibleUserId: null,
       },
     });
 
     const res = await request(createApp(db))
-      .get(`/companies/${companyId}/protected`)
+      .get(`/spaces/${spaceId}/protected`)
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe("RESPONSIBLE_USER_UNAVAILABLE");
     expect(activity).toHaveLength(1);
     expect(activity[0]).toMatchObject({
-      companyId,
+      spaceId,
       actorType: "agent",
       actorId: agentId,
       action: "auth.agent_key_missing_responsible_user",
       entityType: "agent_api_key",
       entityId: keyId,
-      details: { method: "GET", url: `/companies/${companyId}/protected` },
+      details: { method: "GET", url: `/spaces/${spaceId}/protected` },
     });
   });
 });

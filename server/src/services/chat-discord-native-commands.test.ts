@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { ChatSdkCallbackEvent } from "./chat-sdk-runtime.js";
 import {
   createDiscordCommandRegistration,
-  discordPaperclipCommandDefinition,
+  discordOutpostCommandDefinition,
 } from "./chat-discord-command-registration.js";
 import {
   isCurrentDiscordCommandRegistration,
@@ -14,7 +14,7 @@ import {
 } from "./chat-discord-native-commands.js";
 
 const scope = {
-  companyId: "11111111-1111-4111-8111-111111111111",
+  spaceId: "11111111-1111-4111-8111-111111111111",
   endpointId: "22222222-2222-4222-8222-222222222222",
   applicationId: "123456789012345678",
   guildId: "1457808928258658549",
@@ -31,7 +31,7 @@ function callback(rawOverrides: Record<string, unknown> = {}) {
     provider: "discord",
     transport: "discord_gateway",
     event: {
-      command: "/paperclip status",
+      command: "/outpost status",
       text: "",
       channelId: thread,
       channel: { id: thread },
@@ -49,7 +49,7 @@ function callback(rawOverrides: Record<string, unknown> = {}) {
         data: {
           id: commandId,
           type: 1,
-          name: "paperclip",
+          name: "outpost",
           options: [{ type: 1, name: "status" }],
         },
         user: { id: userId, username: "operator", bot: false },
@@ -63,7 +63,7 @@ function callback(rawOverrides: Record<string, unknown> = {}) {
 function registrationAction() {
   const prepared = createDiscordCommandRegistration(scope);
   return {
-    companyId: scope.companyId,
+    spaceId: scope.spaceId,
     endpointId: scope.endpointId,
     conversationId: null,
     kind: "discord_command_registration",
@@ -79,7 +79,7 @@ function registrationAction() {
           definitionDigest: createHash("sha256")
             .update(
               JSON.stringify(
-                discordPaperclipCommandDefinition(prepared.ownerId),
+                discordOutpostCommandDefinition(prepared.ownerId),
               ),
             )
             .digest("hex"),
@@ -180,7 +180,7 @@ describe("Discord native command service authority parser", () => {
         data: {
           id: commandId,
           type: 1,
-          name: "paperclip",
+          name: "outpost",
           options: [
             {
               type: 1,
@@ -197,7 +197,7 @@ describe("Discord native command service authority parser", () => {
         data: {
           id: commandId,
           type: 1,
-          name: "paperclip",
+          name: "outpost",
           options: [{ type: 1, name: "delete" }],
         },
       },
@@ -227,7 +227,7 @@ describe("Discord native command service authority parser", () => {
         c.event.user.userId = "444444444444444445";
       },
       (c: ReturnType<typeof callback>) => {
-        c.event.command = "/paperclip close";
+        c.event.command = "/outpost close";
       },
       (c: ReturnType<typeof callback>) => {
         c.event.text = "status";
@@ -269,7 +269,7 @@ describe("Discord native command service authority parser", () => {
     expect(
       parseDiscordNativeCommand(callback(), {
         ...scope,
-        companyId: "33333333-3333-4333-8333-333333333333",
+        spaceId: "33333333-3333-4333-8333-333333333333",
       })?.digest,
     ).not.toBe(first.digest);
   });
@@ -295,7 +295,7 @@ describe("Discord native command service authority parser", () => {
     for (const changed of [
       { ...row, status: "processing" },
       { ...row, endpointId: "33333333-3333-4333-8333-333333333333" },
-      { ...row, companyId: "33333333-3333-4333-8333-333333333333" },
+      { ...row, spaceId: "33333333-3333-4333-8333-333333333333" },
       { ...row, kind: "ordinary_action" },
       { ...row, conversationId: "33333333-3333-4333-8333-333333333333" },
       {
@@ -341,12 +341,12 @@ describe("Discord native command service authority parser", () => {
     const invocation = parseDiscordNativeCommand(callback(), scope)!;
     const target = {
       conversationId: scope.endpointId,
-      issueId: scope.companyId,
+      issueId: scope.spaceId,
       sessionGeneration: 1,
     };
     const row = {
       ...scope,
-      principalId: scope.companyId,
+      principalId: scope.spaceId,
       conversationId: target.conversationId,
       kind: "discord_native_command",
       providerActionId: `discord-native-command:${interactionId}`,
@@ -364,14 +364,14 @@ describe("Discord native command service authority parser", () => {
       },
     };
     expect(parseDiscordNativeCommandReceipt(row, invocation, scope)).toEqual({
-      principalId: scope.companyId,
+      principalId: scope.spaceId,
       runtimeFence: row.payload.runtimeFence,
       target,
       result: row.result,
     });
     for (const changed of [
       { ...row, status: "received" },
-      { ...row, companyId: scope.endpointId },
+      { ...row, spaceId: scope.endpointId },
       { ...row, principalId: "" },
       { ...row, conversationId: null },
       { ...row, payload: { ...row.payload, extra: true } },

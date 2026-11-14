@@ -7,21 +7,21 @@ import { constants, openSync, closeSync, fstatSync, lstatSync, readFileSync, rea
 import { mkdir, writeFile, rename, readFile } from "node:fs/promises";
 import path from "node:path";
 export const lostEmailScenario = "recovery.unknown-email-outcome";
-export interface EmailFaultRequest { schema: "outpost.email-response-loss.v1"; executionId: string; attemptId: string; companyId: string; endpointId: string; agentId: string; sourceIssueId: string; inboxId: string; recipient: string; subject: string; textSha256: string; nonce: string; createdAt: number; expiresAt: number; dedicatedDisposableInbox: true }
+export interface EmailFaultRequest { schema: "outpost.email-response-loss.v1"; executionId: string; attemptId: string; spaceId: string; endpointId: string; agentId: string; sourceIssueId: string; inboxId: string; recipient: string; subject: string; textSha256: string; nonce: string; createdAt: number; expiresAt: number; dedicatedDisposableInbox: true }
 export interface AcceptedEmailFault { schema: "outpost.email-response-loss-accepted.v1"; executionId: string; attemptId: string; nonce: string; publicationId: string; providerMessageId: string; providerThreadId: string; upstreamStatus: number; acceptedAt: number; acceptedResponseSha256: string }
 export interface EmailFaultStatus { schema: "outpost.email-response-loss-status.v1"; executionId: string; attemptId: string; nonce: string; realSendsForwarded: number; sameKeyRetriesBlocked: number; receiptReadsBlocked: number; matchingNotificationsWithheld: number; unrelatedNotificationsForwarded: number; released: boolean; expired: boolean }
 const hash = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
 const uuid = (v: string) => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(v);
 const keys = (value: unknown, expected: string[]) => !!value && typeof value === "object" && Object.keys(value).sort().join() === expected.sort().join();
 export function emailFaultRequestMatches(value: EmailFaultRequest, expected: { executionId: string; attemptId: string }, now = Date.now()) {
-  return keys(value, ["schema", "executionId", "attemptId", "companyId", "endpointId", "agentId", "sourceIssueId", "inboxId", "recipient", "subject", "textSha256", "nonce", "createdAt", "expiresAt", "dedicatedDisposableInbox"]) && value.schema === "outpost.email-response-loss.v1" && value.executionId === expected.executionId && value.executionId.endsWith(`.local.${lostEmailScenario}`) && value.attemptId === expected.attemptId && /^[a-f0-9]{32}$/.test(value.attemptId)
-    && [value.companyId, value.endpointId, value.agentId, value.sourceIssueId, value.nonce].every(uuid) && value.dedicatedDisposableInbox === true && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.inboxId) && value.recipient === value.inboxId
+  return keys(value, ["schema", "executionId", "attemptId", "spaceId", "endpointId", "agentId", "sourceIssueId", "inboxId", "recipient", "subject", "textSha256", "nonce", "createdAt", "expiresAt", "dedicatedDisposableInbox"]) && value.schema === "outpost.email-response-loss.v1" && value.executionId === expected.executionId && value.executionId.endsWith(`.local.${lostEmailScenario}`) && value.attemptId === expected.attemptId && /^[a-f0-9]{32}$/.test(value.attemptId)
+    && [value.spaceId, value.endpointId, value.agentId, value.sourceIssueId, value.nonce].every(uuid) && value.dedicatedDisposableInbox === true && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.inboxId) && value.recipient === value.inboxId
     && value.subject.includes(value.nonce) && value.subject.length <= 200 && !/[\r\n]/.test(value.subject) && /^[a-f0-9]{64}$/.test(value.textSha256) && Number.isSafeInteger(value.createdAt) && Number.isSafeInteger(value.expiresAt) && value.createdAt <= now && now < value.expiresAt && value.expiresAt - value.createdAt <= 480000;
 }
 export function matchesFaultSend(request: EmailFaultRequest, url: URL, init: RequestInit | undefined) {
   if (url.origin !== "https://api.agentmail.to" || url.pathname !== `/v0/inboxes/${encodeURIComponent(request.inboxId)}/messages/send` || url.search || init?.method !== "POST" || typeof init.body !== "string" || Buffer.byteLength(init.body) > 131072) return undefined;
   try {
-    const body = JSON.parse(init.body), key = new Headers(init.headers).get("Idempotency-Key"), publication = body.headers?.["X-Paperclip-Publication-Id"];
+    const body = JSON.parse(init.body), key = new Headers(init.headers).get("Idempotency-Key"), publication = body.headers?.["X-Outpost-Publication-Id"];
     return key && uuid(key) && publication === key && JSON.stringify(body.to) === JSON.stringify([request.recipient]) && !body.cc?.length && !body.bcc?.length && !body.attachments?.length && body.subject === request.subject && typeof body.text === "string" && hash(body.text) === request.textSha256 ? key : undefined;
   } catch { return undefined; }
 }

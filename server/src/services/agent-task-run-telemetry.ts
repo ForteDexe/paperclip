@@ -128,7 +128,7 @@ export async function emitAgentTaskRun(db: Db, run: TelemetryRun): Promise<void>
 /** Loads a committed run before emitting telemetry, keeping database rows out of application contracts. */
 export async function emitAgentTaskRunById(
   db: Db,
-  input: { runId: string; companyId: string },
+  input: { runId: string; spaceId: string },
 ): Promise<void> {
   try {
     const run = await db
@@ -142,7 +142,7 @@ export async function emitAgentTaskRunById(
         contextSnapshot: sql<Record<string, unknown>>`jsonb_build_object('issueId', ${heartbeatRuns.contextSnapshot}->'issueId')`,
       })
       .from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId)))
+      .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId)))
       .then((rows) => rows[0] ?? null);
     if (run) await emitAgentTaskRun(db, run);
   } catch (err) {

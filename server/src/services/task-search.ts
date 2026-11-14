@@ -1,6 +1,6 @@
 import { issueDisplayStatusSql } from "./issue-display-status.js";
 import { sql, type SQL } from "drizzle-orm";
-import { COMPANY_SEARCH_MAX_QUERY_LENGTH, COMPANY_SEARCH_MAX_TOKENS } from "@outpost/shared";
+import { SPACE_SEARCH_MAX_QUERY_LENGTH, SPACE_SEARCH_MAX_TOKENS } from "@outpost/shared";
 import { visibleIssueCondition } from "./issue-visibility.js";
 
 // Only grammatical filler is ignored, only in multi-term queries, and never
@@ -11,7 +11,7 @@ export function escapeTaskSearchPattern(value: string) {
 }
 
 export function parseTaskSearch(text: string) {
-  const normalizedQuery = text.slice(0, COMPANY_SEARCH_MAX_QUERY_LENGTH).trim().replace(/\s+/g, " ").toLowerCase();
+  const normalizedQuery = text.slice(0, SPACE_SEARCH_MAX_QUERY_LENGTH).trim().replace(/\s+/g, " ").toLowerCase();
   const parsed = Array.from(normalizedQuery.matchAll(/"([^"]+)"|([^\s"]+)/g), (match) => ({
     text: match[1] ?? match[2]!, quoted: match[1] !== undefined,
   }));
@@ -20,7 +20,7 @@ export function parseTaskSearch(text: string) {
   for (const term of meaningful.length > 0 ? meaningful : parsed) {
     uniqueTerms.set(term.text, { ...term, quoted: term.quoted || uniqueTerms.get(term.text)?.quoted === true });
   }
-  const terms = [...uniqueTerms.values()].slice(0, COMPANY_SEARCH_MAX_TOKENS);
+  const terms = [...uniqueTerms.values()].slice(0, SPACE_SEARCH_MAX_TOKENS);
   const tokens = terms.map((term) => term.text);
   const phrase = tokens.join(" ");
   // A copied/typed task identifier is navigation, never a fuzzy number match.
@@ -78,23 +78,23 @@ export function taskSearchScore(search: TaskSearch): SQL<number> {
   )::double precision`;
 }
 
-/** Shared task retrieval for company search and issue-list/command-palette search.
+/** Shared task retrieval for space search and issue-list/command-palette search.
  * Uses existing pg_trgm indexes and current rows: no derived corpus or worker.
  * The tagged comment/document sets are evaluated once, not once per task.
  */
-export function taskSearchCtes(companyId: string, search: TaskSearch, includeContext = true, fallbackFilters?: SQL, readCondition?: SQL<boolean>): SQL {
+export function taskSearchCtes(spaceId: string, search: TaskSearch, includeContext = true, fallbackFilters?: SQL, readCondition?: SQL<boolean>): SQL {
   const n = search.tokens.length;
   const comments = n === 0 || !includeContext ? sql`SELECT NULL::uuid AS issue_id, 0 AS ord WHERE false`
     : sql.join(search.patterns.map((_, index) => sql`
       SELECT c.issue_id, ${index}::int AS ord FROM issue_comments c
-      WHERE c.company_id = ${companyId} AND c.deleted_at IS NULL AND ${taskSearchTermMatch(sql`c.body`, search, index)}
+      WHERE c.space_id = ${spaceId} AND c.deleted_at IS NULL AND ${taskSearchTermMatch(sql`c.body`, search, index)}
       GROUP BY c.issue_id
     `), sql` UNION ALL `);
   const documents = n === 0 || !includeContext ? sql`SELECT NULL::uuid AS issue_id, 0 AS ord WHERE false`
     : sql.join(search.patterns.map((_, index) => sql`
       SELECT d.issue_id, ${index}::int AS ord FROM issue_documents d
-      JOIN documents body ON body.id = d.document_id AND body.company_id = d.company_id
-      WHERE d.company_id = ${companyId} AND (${taskSearchTermMatch(sql`body.title`, search, index)} OR ${taskSearchTermMatch(sql`body.latest_body`, search, index)})
+      JOIN documents body ON body.id = d.document_id AND body.space_id = d.space_id
+      WHERE d.space_id = ${spaceId} AND (${taskSearchTermMatch(sql`body.title`, search, index)} OR ${taskSearchTermMatch(sql`body.latest_body`, search, index)})
       GROUP BY d.issue_id
     `), sql` UNION ALL `);
   const titleTerms = search.patterns.map((_, index) => taskSearchTermMatch(sql`issues.title`, search, index));
@@ -162,7 +162,7 @@ export function taskSearchCtes(companyId: string, search: TaskSearch, includeCon
     document_matches AS MATERIALIZED (${documents}),
     literal_candidates AS MATERIALIZED (
       SELECT issues.id FROM issues
-      WHERE issues.company_id = ${companyId} AND ${visibleIssueCondition()} AND ${readCondition ?? sql`true`}
+      WHERE issues.space_id = ${spaceId} AND ${visibleIssueCondition()} AND ${readCondition ?? sql`true`}
         AND ${n === 0 ? sql`${search.normalizedQuery.length === 0}` : sql`(
           ${taskSearchAny(sql`issues.title`, search)}
           OR ${taskSearchAny(sql`issues.identifier`, search)}
@@ -173,7 +173,7 @@ export function taskSearchCtes(companyId: string, search: TaskSearch, includeCon
       UNION SELECT issue_id FROM document_matches
     ), search_flags AS MATERIALIZED (
       ${flags(sql`false`)}
-      WHERE issues.company_id = ${companyId} AND ${visibleIssueCondition()} AND ${readCondition ?? sql`true`}
+      WHERE issues.space_id = ${spaceId} AND ${visibleIssueCondition()} AND ${readCondition ?? sql`true`}
         AND issues.id IN (SELECT id FROM literal_candidates)
     ), literal_matches AS MATERIALIZED (
       SELECT * FROM search_flags
@@ -185,7 +185,7 @@ export function taskSearchCtes(companyId: string, search: TaskSearch, includeCon
         JOIN issues ON issues.id = literal.id
         ${fallbackFilters ? sql`WHERE ${fallbackFilters}` : sql``}
       )
-        AND issues.company_id = ${companyId} AND ${visibleIssueCondition()} AND ${readCondition ?? sql`true`}
+        AND issues.space_id = ${spaceId} AND ${visibleIssueCondition()} AND ${readCondition ?? sql`true`}
         AND ${fuzzy}
     ), matched AS MATERIALIZED (
       SELECT * FROM literal_matches

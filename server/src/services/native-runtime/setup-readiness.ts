@@ -7,10 +7,10 @@ import { copyBackCodexAuth } from "@outpost/adapter-codex-local/server";
 import type { AdapterEnvironmentTestContext, AdapterEnvironmentTestResult } from "@outpost/adapter-utils";
 import { ADAPTER_AUTH_MISSING_CHECK_CODE } from "@outpost/shared";
 import { NativeEnvironmentProbeCleanupError, probeNativeRunnerEnvironment, resolveSourceCodexHome } from "../../vendor/outpost-runner/index.js";
-import { resolvePaperclipRunnerBinary, resolveRemotePaperclipRunnerBinary } from "./native-codex-runner.js";
+import { resolveOutpostRunnerBinary, resolveRemoteOutpostRunnerBinary } from "./native-codex-runner.js";
 import { readLocalAiCredentialFile } from "../local-ai-credential-file.js";
 import { createNativeSshCommandRunner } from "./native-ssh-command-runner.js";
-import { resolvePaperclipRunnerTransport } from "@outpost/adapter-utils/runner-connectivity";
+import { resolveOutpostRunnerTransport } from "@outpost/adapter-utils/runner-connectivity";
 import { createNativeRunnerExecutionDriver } from "./native-runner-execution-driver.js";
 
 
@@ -100,12 +100,12 @@ async function probeRemoteNativeCodex(options: {
   const id = crypto.randomUUID();
   const runnerInstanceId = `setup-${id}`;
   const ingress = target.transport === "sandbox" && target.effectiveCapabilities?.runnerWebSocketIngress === true;
-  const outbound = !ingress ? await resolvePaperclipRunnerTransport({ target, runId: id, localConnectUrl: "ws://127.0.0.1/unused",
+  const outbound = !ingress ? await resolveOutpostRunnerTransport({ target, runId: id, localConnectUrl: "ws://127.0.0.1/unused",
     runnerPublicUrl: process.env.OUTPOST_RUNNER_PUBLIC_URL?.trim() || null,
     runnerCaBundlePath: process.env.OUTPOST_RUNNER_CA_BUNDLE_PATH?.trim() || null, runnerIngressAuthorized: true }) : null;
   if (outbound && outbound.mode !== "direct_outbound") throw new Error("runner_transport_ineligible: expected outbound native transport");
   if (outbound?.mode === "direct_outbound" && outbound.caBundlePath) await stat(outbound.caBundlePath).catch(() => { throw new Error("runner_direct_wss_failed: configured runner CA bundle is unavailable"); });
-  const remoteRoot = posix.join(target.remoteCwd, ".paperclip-runtime", `paperclip-native-setup-${id}`);
+  const remoteRoot = posix.join(target.remoteCwd, ".outpost-runtime", `outpost-native-setup-${id}`);
   const remoteBinary = posix.join(remoteRoot, "bin", "outpost-runnerd");
   const remoteStateDirectory = posix.join(remoteRoot, "runner");
   const remoteFilesystemRoot = posix.join(remoteRoot, "filesystem");
@@ -113,14 +113,14 @@ async function probeRemoteNativeCodex(options: {
   const remoteCodexNpmSpec = process.env.OUTPOST_RUNNER_REMOTE_CODEX_NPM_SPEC?.trim() || null;
   const remoteCodexBinary = remoteCodexNpmSpec ? posix.join(remoteRoot, "harnesses", "codex", "node_modules", ".bin", "codex") : posix.join(remoteRoot, "bin", "codex");
   const explicitRunner = process.env.OUTPOST_RUNNER_REMOTE_BINARY_PATH?.trim() || null;
-  const controllerRunnerBinary = await resolveRemotePaperclipRunnerBinary({ runner, remoteCwd: target.remoteCwd, configuredPath: explicitRunner });
+  const controllerRunnerBinary = await resolveRemoteOutpostRunnerBinary({ runner, remoteCwd: target.remoteCwd, configuredPath: explicitRunner });
   const artifacts = createRemoteNativeArtifactPreparation({ target, runner, remoteBinary, controllerRunnerBinary, remoteRuntimeRoot: remoteRoot, remoteCodexBinary,
     targetPlatformArtifactVerified: true,
     runnerRemoteBinaryPath: explicitRunner, runnerRemoteCodexPath: process.env.OUTPOST_RUNNER_REMOTE_CODEX_PATH?.trim(), runnerRemoteCodexNpmSpec: remoteCodexNpmSpec, model: options.model });
   const requireSuccess = (result: { timedOut: boolean; exitCode: number | null }, message: string) => {
     if (result.timedOut || result.exitCode !== 0) throw new Error(message);
   };
-  const runtimeDirectory = await realpath(await mkdtemp(join(tmpdir(), "paperclip-native-setup-")));
+  const runtimeDirectory = await realpath(await mkdtemp(join(tmpdir(), "outpost-native-setup-")));
   return probePreparedNativeRuntime(runtimeDirectory, async () => {
     const sourceCodexHome = await prepareProbeCodexSource(runtimeDirectory, options.sourceCodexHome, options.sourceAuthJson);
     let remoteDirectoryCreated = false;
@@ -134,14 +134,14 @@ async function probeRemoteNativeCodex(options: {
         runnerFilesystemRoot: remoteFilesystemRoot,
         orpIdentity: { runnerInstanceId, runId: id, environmentLeaseId: `setup-${id}`, normalizedSessionId: `setup-${id}`, turnId: `turn-${id}`, itemId: `item-${id}` },
         ...createNativeRunnerExecutionDriver({
-          target, binding: { companyId: options.context.companyId, runId: id },
+          target, binding: { spaceId: options.context.spaceId, runId: id },
           runnerIngressAuthorized: true,
           runnerPublicUrl: process.env.OUTPOST_RUNNER_PUBLIC_URL?.trim() || null,
           runnerCaBundlePath: process.env.OUTPOST_RUNNER_CA_BUNDLE_PATH?.trim() || null,
           processStarted: spawned,
           prepareRemote: async mode => {
             const created = await runner.execute({ command: "sh", args: ["-c", 'set -eu; umask 077; mkdir -p -- "$1"; test -d "$1" && test ! -L "$1"; mkdir -- "$2"; install -d -m 0700 "$3" "$4" "$5"',
-              "paperclip-native-setup", posix.dirname(remoteRoot), remoteRoot, remoteFilesystemRoot, remoteWorkspace, posix.join(remoteFilesystemRoot, "probe-home")], cwd: target.remoteCwd, bypassSession: true, timeoutMs: 10_000 });
+              "outpost-native-setup", posix.dirname(remoteRoot), remoteRoot, remoteFilesystemRoot, remoteWorkspace, posix.join(remoteFilesystemRoot, "probe-home")], cwd: target.remoteCwd, bypassSession: true, timeoutMs: 10_000 });
             requireSuccess(created, "Native setup could not claim a private runtime directory.");
             remoteDirectoryCreated = true;
             await artifacts.prepare(mode);
@@ -169,7 +169,7 @@ async function probeRemoteNativeCodex(options: {
       ...(options.credentialRefreshAuthPath ? { onCodexCredentialRefresh: async (filename: string) => {
         if (filename !== posix.join(remoteFilesystemRoot, "codex-home", "auth.json")) throw new Error("The native Codex credential refresh handoff is invalid.");
         await copyBackCodexAuth({ hostAuthPath: options.credentialRefreshAuthPath!, log: () => {}, readSandboxAuth: async () => {
-          const read = await runner.execute({ command: "sh", args: ["-c", 'set -eu; file=$1; test -f "$file" || exit 66; test ! -L "$file"; parent=$(dirname -- "$file"); while test "$parent" != /; do test -d "$parent" && test ! -L "$parent"; parent=$(dirname -- "$parent"); done; metadata=$(stat -c "%u %a %s" "$file" 2>/dev/null || stat -f "%u %Lp %z" "$file"); set -- $metadata; test "$1" = "$(id -u)" && test "$2" = 600 && test "$3" -le 65536; head -c 65537 -- "$file" | base64', "paperclip-native-refresh", filename], bypassSession: true, timeoutMs: 10_000 });
+          const read = await runner.execute({ command: "sh", args: ["-c", 'set -eu; file=$1; test -f "$file" || exit 66; test ! -L "$file"; parent=$(dirname -- "$file"); while test "$parent" != /; do test -d "$parent" && test ! -L "$parent"; parent=$(dirname -- "$parent"); done; metadata=$(stat -c "%u %a %s" "$file" 2>/dev/null || stat -f "%u %Lp %z" "$file"); set -- $metadata; test "$1" = "$(id -u)" && test "$2" = 600 && test "$3" -le 65536; head -c 65537 -- "$file" | base64', "outpost-native-refresh", filename], bypassSession: true, timeoutMs: 10_000 });
           if (read.timedOut || read.exitCode !== 0) throw Object.assign(new Error("Native Codex credential refresh handoff unavailable."), { code: read.exitCode === 66 ? "ENOENT" : "INVALID_CREDENTIAL" });
           const body = Buffer.from(read.stdout, "base64");
           if (body.length > 65_536) throw new Error("Native Codex credential refresh handoff exceeds the credential size limit.");
@@ -234,8 +234,8 @@ export async function testNativeRunnerAuthentication(context: AdapterEnvironment
       receipt = await probeRemoteNativeCodex({ context, model, environment, sourceCodexHome: sourceCodexHome ?? "", credentialRefreshAuthPath, sourceAuthJson, timeoutMs,
         ...(typeof effort === "string" && effort ? { reasoningEffort: effort } : {}) });
     } else {
-      const runnerBinary = resolvePaperclipRunnerBinary();
-      runtimeDirectory = await realpath(await mkdtemp(join(tmpdir(), "paperclip-native-setup-")));
+      const runnerBinary = resolveOutpostRunnerBinary();
+      runtimeDirectory = await realpath(await mkdtemp(join(tmpdir(), "outpost-native-setup-")));
       receipt = await probePreparedNativeRuntime(runtimeDirectory, async () => {
         const probeSourceCodexHome = await prepareProbeCodexSource(runtimeDirectory!, sourceCodexHome ?? "", sourceAuthJson);
         return { runtimeDirectory: runtimeDirectory!, provider, model, environment, timeoutMs,

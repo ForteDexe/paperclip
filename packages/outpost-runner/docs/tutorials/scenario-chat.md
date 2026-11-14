@@ -73,7 +73,7 @@ segment carries a `· 1 deny` chip so you can see it without opening the segment
 
 The session status still reads **Scripted · deterministic** and the session
 parity still passes. A denial is a correct outcome, not a broken session — this
-run simply does not hold `governance:approvals:request`. Open the turn's
+run simply does not hold `approvals:approvals:request`. Open the turn's
 **Authorization** section to see the claims considered and the missing one.
 
 ## 4. See control-plane-owned work with no agent tool
@@ -114,7 +114,7 @@ pnpm --filter @outpost/outpost-runner run test:browser:scenarios
 
 The first covers the session data contract and the chat components, the second
 drives the surface in a real browser at both viewports, and the third writes the
-ten acceptance screenshots to `.paperclip-local/evidence/capability/` — failing if any
+ten acceptance screenshots to `.outpost-local/evidence/capability/` — failing if any
 route scrolls horizontally.
 
 ## What this does not do

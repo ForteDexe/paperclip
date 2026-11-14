@@ -4,7 +4,7 @@ import type { SQL } from "drizzle-orm";
 import {
   agents,
   aiConnectionPools,
-  companyMemberships,
+  spaceMemberships,
   connectionGrants,
   principalPermissionGrants,
   routines,
@@ -18,21 +18,21 @@ import { connectionManagementService } from "../services/connection-management.j
 import type { AuthorizationActor } from "../services/authorization.js";
 import type { ConnectionManagementResource } from "../services/connection-management-policy.js";
 
-const companyId = "00000000-0000-4000-8000-000000000001";
+const spaceId = "00000000-0000-4000-8000-000000000001";
 const connectionId = "00000000-0000-4000-8000-000000000002";
 const userId = "capability-test-user";
 const agentId = (index: number) => `00000000-0000-4000-8000-${String(index + 10).padStart(12, "0")}`;
-const actor: AuthorizationActor = { type: "board", source: "cloud_tenant", userId };
-const localActor: AuthorizationActor = { type: "board", source: "local_implicit" };
+const actor: AuthorizationActor = { type: "operator", source: "cloud_tenant", userId };
+const localActor: AuthorizationActor = { type: "operator", source: "local_implicit" };
 const resource: ConnectionManagementResource = {
-  type: "connection_management", companyId, connectionId, operation: "configure", readOnly: false,
+  type: "connection_management", spaceId, connectionId, operation: "configure", readOnly: false,
 };
 const dialect = new PgDialect();
 
 /** Only the query transport is synthetic. Both paths use the real services and policy evaluator. */
 function fixture(count = 3) {
   const agentRows = Array.from({ length: count }, (_, index) => ({
-    id: agentId(index), companyId, status: "idle", role: "engineer", permissions: {}, reportsTo: null,
+    id: agentId(index), spaceId, status: "idle", role: "engineer", permissions: {}, reportsTo: null,
   }));
   const state = {
     activeMembership: true,
@@ -62,22 +62,22 @@ function fixture(count = 3) {
               if (table === toolConnections) {
                 reads.connections++;
                 const selectedId = String(query.params[0]);
-                return state.connectionExists && query.params[1] === companyId && !state.missingConnections.has(selectedId) ? [{
-                  id: selectedId, companyId, createdByUserId: state.creatorId,
+                return state.connectionExists && query.params[1] === spaceId && !state.missingConnections.has(selectedId) ? [{
+                  id: selectedId, spaceId, createdByUserId: state.creatorId,
                   connectionPurpose: selectedId === connectionId ? state.connectionPurpose : "tool",
                   credentialPolicy: "shared", config: state.provider ? { provider: state.provider } : {}, transportConfig: {},
                 }] : [];
               }
               if (table === toolConnectionInstalls) return state.installs;
-              if (table === companyMemberships) return state.activeMembership && query.params[0] === companyId
+              if (table === spaceMemberships) return state.activeMembership && query.params[0] === spaceId
                 && query.params[2] === userId ? [{
-                companyId, principalType: "user", principalId: userId,
+                spaceId, principalType: "user", principalId: userId,
                 status: "active", membershipRole: state.membershipRole,
               }] : [];
               if (table === principalPermissionGrants) {
                 const permissionKey = String(query.params[3]);
                 return state.grants.has(permissionKey) ? [{
-                  companyId, principalType: "user", principalId: userId,
+                  spaceId, principalType: "user", principalId: userId,
                   permissionKey, scope: state.grants.get(permissionKey),
                 }] : [];
               }
@@ -284,20 +284,20 @@ describe("connection agent-install capability batches", () => {
     f.state.connectionExists = false;
     const result = await f.management.describeAgentInstallCapabilities(actor, resource, [agentId(0)]);
     expect(result).toEqual(await f.baseline([agentId(0)]));
-    expect(result[0]).toMatchObject({ allowed: false, reason: "Connection is unavailable in this company" });
+    expect(result[0]).toMatchObject({ allowed: false, reason: "Connection is unavailable in this space" });
   });
 
-  it("does not reuse a prior actor's or company's descriptions", async () => {
+  it("does not reuse a prior actor's or space's descriptions", async () => {
     const f = fixture();
     expect((await f.management.describeAgentInstallCapabilities(actor, resource, [agentId(0)]))[0].allowed).toBe(true);
     const otherActor: AuthorizationActor = { ...actor, userId: "another-user" };
-    const otherResource = { ...resource, companyId: agentId(98) };
+    const otherResource = { ...resource, spaceId: agentId(98) };
     const actorResult = await f.management.describeAgentInstallCapabilities(otherActor, resource, [agentId(0)]);
-    const companyResult = await f.management.describeAgentInstallCapabilities(actor, otherResource, [agentId(0)]);
+    const spaceResult = await f.management.describeAgentInstallCapabilities(actor, otherResource, [agentId(0)]);
     expect(actorResult).toEqual(await f.baseline([agentId(0)], resource, otherActor));
-    expect(companyResult).toEqual(await f.baseline([agentId(0)], otherResource));
+    expect(spaceResult).toEqual(await f.baseline([agentId(0)], otherResource));
     expect(actorResult[0].allowed).toBe(false);
-    expect(companyResult[0].allowed).toBe(false);
+    expect(spaceResult[0].allowed).toBe(false);
   });
 
   it("allows descriptive staleness after a retained check while fresh authorization observes deletion", async () => {
@@ -317,9 +317,9 @@ describe("connection agent-install capability batches", () => {
     expect(freshDescriptions.every(result => !result.allowed)).toBe(true);
   });
 
-  it.each([4, 8])("checks company-installed targets once instead of N squared for N=%s", async count => {
+  it.each([4, 8])("checks space-installed targets once instead of N squared for N=%s", async count => {
     const f = fixture(count);
-    f.state.installs = [{ targetType: "company", targetId: companyId }];
+    f.state.installs = [{ targetType: "space", targetId: spaceId }];
     const expected = await f.baseline();
     expect(f.reads.targetIds).toHaveLength(count * count);
     f.reads.targetIds.length = 0;
@@ -334,7 +334,7 @@ describe("connection agent-install capability batches", () => {
     "not-a-uuid",
   ])("uses ordinary evaluation without repeating preparation for candidate %j", async candidate => {
     const f = fixture(2);
-    f.state.installs = [{ targetType: "company", targetId: companyId }];
+    f.state.installs = [{ targetType: "space", targetId: spaceId }];
     const candidates = [agentId(0), candidate, agentId(1)];
     const expected = await f.baseline(candidates);
     // The ordinary evaluator treats an empty selector as omitted.
@@ -393,12 +393,12 @@ describe("connection agent-install capability batches", () => {
     expect(await f.management.describeAgentInstallCapabilities(actor, selected, f.candidates)).toEqual(allowed);
   });
 
-  it("retains configure escalation for a proposed company installation", async () => {
+  it("retains configure escalation for a proposed space installation", async () => {
     const f = fixture();
     f.state.creatorId = "another-user";
     f.state.grants.set("tools:manage_profiles", null);
     expect((await f.baseline())[0].allowed).toBe(true);
-    const selected = { ...resource, requestedInstallCompanyIds: [companyId] };
+    const selected = { ...resource, requestedInstallSpaceIds: [spaceId] };
     const expected = await f.baseline(f.candidates, selected);
     expect(expected.every(result => !result.allowed)).toBe(true);
     expect(await f.management.describeAgentInstallCapabilities(actor, selected, f.candidates)).toEqual(expected);
@@ -408,7 +408,7 @@ describe("connection agent-install capability batches", () => {
     const f = fixture();
     f.state.agentStatus = "paused";
     const agentActor: AuthorizationActor = {
-      type: "agent", source: "agent_key", companyId, agentId: agentId(0), onBehalfOfUserId: userId,
+      type: "agent", source: "agent_key", spaceId, agentId: agentId(0), onBehalfOfUserId: userId,
     };
     const expected = await f.baseline(f.candidates, resource, agentActor);
     expect(expected.every(result => !result.allowed)).toBe(true);

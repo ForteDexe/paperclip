@@ -229,7 +229,7 @@ describe("Codex ACPX runtime adapter", () => {
     }
   }, 30_000);
 
-  it("captures Claude's ExitPlanMode plan for Paperclip approval and declines the native prompt", async () => {
+  it("captures Claude's ExitPlanMode plan for Outpost approval and declines the native prompt", async () => {
     const pending = pendingExtensionTurn("plan-turn");
     const runtime = fakeRuntime();
     vi.mocked(runtime.startTurn).mockReturnValue(pending.turn);
@@ -300,7 +300,7 @@ describe("Codex ACPX runtime adapter", () => {
     let created!: AcpRuntimeOptions;
     const options = openOptions(command);
     options.profile = { ...options.profile, agent: "copilot" };
-    options.permissionMode = "approve-paperclip";
+    options.permissionMode = "approve-outpost";
     const port = await openCodexAcpxRuntime(options, {
       createRegistry: () => registry(), createStore: () => store(),
       awaitProviderOwnership: providerOwnershipEstablished,
@@ -350,7 +350,7 @@ describe("Codex ACPX runtime adapter", () => {
     let created!: AcpRuntimeOptions;
     const options = openOptions(command);
     options.profile = { ...options.profile, agent: "copilot" };
-    options.permissionMode = "approve-paperclip";
+    options.permissionMode = "approve-outpost";
     const port = await openCodexAcpxRuntime(options, {
       createRegistry: () => registry(), createStore: () => store(),
       awaitProviderOwnership: providerOwnershipEstablished,
@@ -399,7 +399,7 @@ describe("Codex ACPX runtime adapter", () => {
     const providerExit = new Promise<void>(resolve => { exit = resolve; });
     const options = openOptions(command);
     options.profile = { ...options.profile, agent: "copilot" };
-    options.permissionMode = "approve-paperclip";
+    options.permissionMode = "approve-outpost";
     const port = await openCodexAcpxRuntime(options, {
       createRegistry: () => registry(), createStore: () => store(),
       awaitProviderOwnership: providerOwnershipEstablished, awaitProviderExit: () => providerExit,
@@ -485,7 +485,7 @@ describe("Codex ACPX runtime adapter", () => {
     options.launchEnvironment = { HOME: "/users/executor", OUTPOST_RUNNER_HOME_MODE: "preconfigured" };
     options.mcpServers = [
       { name: "outpost_runner_fixture", url: "http://127.0.0.1:3211/mcp", bearerToken: "runner-fixture", runnerOwned: true },
-      { name: "paperclip", url: "http://127.0.0.1:3212/mcp", bearerToken: "external-fixture", runnerOwned: false },
+      { name: "outpost", url: "http://127.0.0.1:3212/mcp", bearerToken: "external-fixture", runnerOwned: false },
     ];
     const port = await openCodexAcpxRuntime(options, {
       createRegistry: () => registry(), createStore: () => store(), createRuntime: value => { created = value; return runtime; },
@@ -587,7 +587,7 @@ describe("Codex ACPX runtime adapter", () => {
       const guard = created.protocolGuardFactory!();
       const binding = cursorInstructionBinding(options.systemInstructions);
       guard("outbound", { id: 0, method: "session/load", params: { sessionId: "backend-1" } });
-      guard("inbound", { id: 0, result: mode === "missing" ? {} : { modes: { currentModeId: "agent" }, configOptions: [{ id: "mode", currentValue: "agent" }], _meta: { paperclipCursorInstructions: {
+      guard("inbound", { id: 0, result: mode === "missing" ? {} : { modes: { currentModeId: "agent" }, configOptions: [{ id: "mode", currentValue: "agent" }], _meta: { outpostCursorInstructions: {
         schema: "outpost.cursor.instructions.v1", digest: binding.digest, byteLength: binding.byteLength,
       } } } });
       if (mode === "unsupported") throw new Error("Exact model unsupported");
@@ -614,7 +614,7 @@ describe("Codex ACPX runtime adapter", () => {
     vi.mocked(runtime.setConfigOption!).mockImplementation(async input => {
       const guard = created.protocolGuardFactory!();
       guard("outbound", { id: 0, method: "session/load", params: { sessionId: "backend-1" } });
-      guard("inbound", { id: 0, result: { modes: { currentModeId: "agent" }, configOptions: configs("agent"), _meta: { paperclipCursorInstructions: {
+      guard("inbound", { id: 0, result: { modes: { currentModeId: "agent" }, configOptions: configs("agent"), _meta: { outpostCursorInstructions: {
         schema: "outpost.cursor.instructions.v1", digest: binding.digest, byteLength: binding.byteLength,
       } } } });
       guard("outbound", { id: 1, method: "session/set_config_option", params: { sessionId: "backend-1", configId: input.key, value: input.value } });
@@ -646,7 +646,7 @@ describe("Codex ACPX runtime adapter", () => {
         const guard = value.protocolGuardFactory!();
         const binding = cursorInstructionBinding(options.systemInstructions);
         guard("outbound", { id: 0, method: "session/new", params: {} });
-        guard("inbound", { id: 0, result: { sessionId: "backend-1", modes: { currentModeId: "agent" }, configOptions: [{ id: "mode", currentValue: "agent" }], _meta: { paperclipCursorInstructions: { schema: "outpost.cursor.instructions.v1", digest: binding.digest, byteLength: binding.byteLength } } } });
+        guard("inbound", { id: 0, result: { sessionId: "backend-1", modes: { currentModeId: "agent" }, configOptions: [{ id: "mode", currentValue: "agent" }], _meta: { outpostCursorInstructions: { schema: "outpost.cursor.instructions.v1", digest: binding.digest, byteLength: binding.byteLength } } } });
         return runtime;
       },
     });
@@ -708,7 +708,7 @@ describe("Codex ACPX runtime adapter", () => {
     });
     const turn = port.startTurn({ text: "Initial", requestId: "turn-1" });
     await expect(port.steerActiveTurn!("Update", "turn-1")).rejects.toThrow("supported active turn");
-    initializeOverWire(created, { agentCapabilities: { _meta: { paperclipPi: { version: 1, steering: true, queuedFollowUp: true } } } });
+    initializeOverWire(created, { agentCapabilities: { _meta: { outpostPi: { version: 1, steering: true, queuedFollowUp: true } } } });
     expect(port.steeringCapability!()).toEqual({ steering: true, queuedFollowUp: true });
     await expect(port.steerActiveTurn!("Update", "wrong")).rejects.toThrow("supported active turn");
     await port.steerActiveTurn!("Update", "turn-1");
@@ -757,7 +757,7 @@ describe("Codex ACPX runtime adapter", () => {
     piOptions.profile = { ...piOptions.profile, agent: "pi" };
     piOptions.piThinkingLevel = "low";
     const record = { ...baseRecord, agentCapabilities: { loadSession: true,
-      _meta: { paperclipPi: { version: 1, steering: true, queuedFollowUp: false }, "outpost.goalCapability": goal } } } as unknown as AcpSessionRecord;
+      _meta: { outpostPi: { version: 1, steering: true, queuedFollowUp: false }, "outpost.goalCapability": goal } } } as unknown as AcpSessionRecord;
     const piRuntime = fakeRuntime();
     // Admit Pi's thinking level the way the earlier Pi test does.
     vi.mocked(piRuntime.setConfigOption!).mockImplementation(async input => {
@@ -815,14 +815,14 @@ describe("Codex ACPX runtime adapter", () => {
     const port = await openCodexAcpxRuntime(options, {
       createRegistry: () => registry(), createStore: () => store(),
       createRuntime: (created) => {
-        initializeOverWire(created, { agentCapabilities: { _meta: { paperclipPi: { version: 1, steering: true, queuedFollowUp: true } } } });
+        initializeOverWire(created, { agentCapabilities: { _meta: { outpostPi: { version: 1, steering: true, queuedFollowUp: true } } } });
         return runtime;
       },
     });
     expect(port.steeringCapability!()).toBeNull();
     await port.close({ reason: "test finished" });
   });
-  it.each(["approve-reads", "approve-paperclip"] as const)("%s stops unassigned operations when approval has no handler", async (permissionMode) => {
+  it.each(["approve-reads", "approve-outpost"] as const)("%s stops unassigned operations when approval has no handler", async (permissionMode) => {
     const runtime = fakeRuntime();
     let runtimeOptions: AcpRuntimeOptions | undefined;
     let signal: AbortSignal | undefined;
@@ -917,7 +917,7 @@ describe("Codex ACPX runtime adapter", () => {
     const port = await openCodexAcpxRuntime(openOptions(command), {
       createRegistry: ({ overrides }) => {
         expect(overrides).toEqual({
-          codex: ["paperclip-verified-acpx-command"],
+          codex: ["outpost-verified-acpx-command"],
         });
         return registry();
       },
@@ -938,7 +938,7 @@ describe("Codex ACPX runtime adapter", () => {
       cwd: "/workspace",
       sessionOptions: {
         model: "gpt-5.6-sol",
-        systemPrompt: { append: "Use Paperclip tools." },
+        systemPrompt: { append: "Use Outpost tools." },
       },
     });
     expect(
@@ -970,7 +970,7 @@ describe("Codex ACPX runtime adapter", () => {
       await openCodexAcpxRuntime(options, {
         createRegistry: ({ overrides }) => {
           expect(overrides).toEqual({
-            [agent]: [agent === "claude" ? "/paperclip-verified/claude-agent-acp" : "paperclip-verified-acpx-command"],
+            [agent]: [agent === "claude" ? "/outpost-verified/claude-agent-acp" : "outpost-verified-acpx-command"],
           });
           return registry();
         },
@@ -1002,7 +1002,7 @@ describe("Codex ACPX runtime adapter", () => {
       options.profile = resolveQualifiedAcpxProfile("claude", "claude-sonnet-5");
       options.launchEnvironment = { OUTPOST_ACPX_TASK_TOOL_BRIDGE_URL: "http://untrusted.invalid/mcp" };
       options.mcpServers = binding === "absent" ? [] : [{
-        name: "paperclip", url: "http://127.0.0.1:3210/mcp",
+        name: "outpost", url: "http://127.0.0.1:3210/mcp",
         bearerToken: "bridge-secret", runnerOwned: binding === "runner-owned",
       }];
       let runtimeOptions: AcpRuntimeOptions | undefined;
@@ -2573,7 +2573,7 @@ describe("Codex ACPX runtime adapter", () => {
         permissionMode: "deny-all",
         mcpServers: [
           {
-            name: "paperclip",
+            name: "outpost",
             url: "http://127.0.0.1:3210/mcp",
             bearerToken: "bridge-secret",
             runnerOwned: true,
@@ -2593,7 +2593,7 @@ describe("Codex ACPX runtime adapter", () => {
     expect(runtimeOptions?.mcpServers).toEqual([
       {
         type: "http",
-        name: "paperclip",
+        name: "outpost",
         url: "http://127.0.0.1:3210/mcp",
         headers: [{ name: "Authorization", value: "Bearer bridge-secret" }],
       },
@@ -2643,7 +2643,7 @@ describe("Codex ACPX runtime adapter", () => {
     ["codex", "gpt-5.6-sol", "deny-all", { outcome: "reject_once" }],
     ["claude", "claude-sonnet-5", "approve-all", { outcome: "allow_once" }],
     ["claude", "claude-sonnet-5", "approve-reads", { outcome: "reject_once" }],
-    ["claude", "claude-sonnet-5", "approve-paperclip", { outcome: "reject_once" }],
+    ["claude", "claude-sonnet-5", "approve-outpost", { outcome: "reject_once" }],
     ["claude", "claude-sonnet-5", "deny-all", { outcome: "reject_once" }],
   ] as const)(
     "applies the %s/%s ACPX profile's %s mode without an implicit prompt bridge",
@@ -3886,7 +3886,7 @@ function openOptions(
     // supplies both live credential-quorum listener descriptors.
     credentialFenceFds: [42, 43] as const,
     activateCredentialFenceOwner: async () => undefined,
-    systemInstructions: "Use Paperclip tools.",
+    systemInstructions: "Use Outpost tools.",
     mcpServers: [],
     retainFailedAdmissionCleanup: vi.fn(),
   };

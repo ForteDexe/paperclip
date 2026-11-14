@@ -11,7 +11,7 @@ describe("agent commentary input", () => {
   });
   it.each([
     { body: " \n\t" }, { kind: "other" }, { idempotencyKey: "" }, { idempotencyKey: "x".repeat(241) },
-    { agentId: "spoof" }, { companyId: "spoof" }, { runId: "spoof" }, { issueId: "spoof" }, { category: "tooling" },
+    { agentId: "spoof" }, { spaceId: "spoof" }, { runId: "spoof" }, { issueId: "spoof" }, { category: "tooling" },
   ])("rejects invalid or caller-owned fields: %j", (change) => {
     expect(submitAgentCommentarySchema.safeParse({ ...input, ...change }).success).toBe(false);
   });

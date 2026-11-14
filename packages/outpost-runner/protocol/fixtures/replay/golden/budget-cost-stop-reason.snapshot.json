@@ -3,7 +3,7 @@
   "fixtureName": "Budget cost stop reason",
   "identity": {
     "schema": "outpost.orp.identity.v1",
-    "companyId": "company_budget_stop",
+    "spaceId": "space_budget_stop",
     "issueId": "issue_budget_stop",
     "runId": "run_budget_stop",
     "environmentLeaseId": "lease_budget_stop",
@@ -62,7 +62,7 @@
       "reasonCode": "budget_hard_stop",
       "owner": {
         "kind": "system",
-        "name": "Paperclip budget policy"
+        "name": "Outpost budget policy"
       },
       "unblockAction": "Raise the actor budget or wait for the monthly reset.",
       "scope": "task_wide"

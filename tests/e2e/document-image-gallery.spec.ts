@@ -12,12 +12,12 @@ for (const mode of ["desktop", "mobile", "classic"] as const) {
     await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 });
     const settings = await json(await request.get("/api/instance/settings/experimental"));
     await page.route("**/api/workspace-preferences/me", route => route.fulfill({ json: {
-      userId: "local-board", coordinatorWorkspaceEnabled: mode !== "classic", updatedAt: null,
+      userId: "local-operator", coordinatorWorkspaceEnabled: mode !== "classic", updatedAt: null,
     } }));
     try {
       await json(await request.patch("/api/instance/settings/experimental", { data: { enableClassicTaskInterface: mode === "classic" } }));
-      const company = await json(await request.post("/api/companies", { data: { name: `Document gallery ${randomUUID()}` } }));
-      const issue = await json(await request.post(`/api/companies/${company.id}/issues`, {
+      const space = await json(await request.post("/api/spaces", { data: { name: `Document gallery ${randomUUID()}` } }));
+      const issue = await json(await request.post(`/api/spaces/${space.id}/issues`, {
         data: { title: "Review the design document", status: "backlog" },
       }));
       const paths: string[] = [];
@@ -43,7 +43,7 @@ for (const mode of ["desktop", "mobile", "classic"] as const) {
           }
           return canvas.toDataURL("image/png").split(",")[1]!;
         }, { index, title });
-        const attachment = await json(await request.post(`/api/companies/${company.id}/issues/${issue.id}/attachments`, {
+        const attachment = await json(await request.post(`/api/spaces/${space.id}/issues/${issue.id}/attachments`, {
           multipart: { file: { name: `step-${index + 1}.png`, mimeType: "image/png", buffer: Buffer.from(encoded, "base64") } },
         }));
         paths.push(attachment.contentPath);
@@ -51,7 +51,7 @@ for (const mode of ["desktop", "mobile", "classic"] as const) {
       const saved = await json(await request.put(`/api/issues/${issue.id}/documents/design`, {
         data: { title: "Design review", format: "markdown", body: `# Design review\n\nSelect an image to review the sequence.\n\n![Plan the work](${paths[0]})\n\n![Review the result][review]\n\n![Share the evidence](${paths[2]})\n\n[review]: ${paths[1]}` },
       }));
-      const taskPath = `/${company.issuePrefix}/issues/${issue.identifier}`;
+      const taskPath = `/${space.issuePrefix}/issues/${issue.identifier}`;
       await page.goto(`${taskPath}#document-design&viewer=full`);
       const first = page.getByRole("button", { name: "Open image: Plan the work", exact: true }).first();
       await expect(first).toBeVisible();
@@ -124,7 +124,7 @@ for (const mode of ["desktop", "mobile", "classic"] as const) {
       await expect(page.getByRole("heading", { name: "New revision", exact: true })).toBeVisible();
       await expect(gallery).toBeHidden();
       if (mode === "desktop") {
-        const owner = await json(await request.post(`/api/companies/${company.id}/issues`, { data: { title: "Document owner", status: "backlog" } }));
+        const owner = await json(await request.post(`/api/spaces/${space.id}/issues`, { data: { title: "Document owner", status: "backlog" } }));
         const owned = await json(await request.put(`/api/issues/${owner.id}/documents/design`, { data: { title: "Owned review", body: saved.body, format: "markdown" } }));
         await page.goto(`${taskPath}#document-design&viewer=full&revision=${owned.latestRevisionId}&documentIssue=${owner.id}&image=2`);
         await expect(gallery).toContainText("2 / 3");

@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issueRelations,
@@ -32,7 +32,7 @@ if (!embeddedPostgresSupport.supported) {
 }
 
 type Db = ReturnType<typeof createDb>;
-type CompanyRow = typeof companies.$inferSelect;
+type SpaceRow = typeof spaces.$inferSelect;
 type AgentRow = typeof agents.$inferSelect;
 type ProjectRow = typeof projects.$inferSelect;
 type IssueRow = typeof issues.$inferSelect;
@@ -49,40 +49,40 @@ function createApp(db: Db, actor: Express.Request["actor"]) {
   return app;
 }
 
-function boardActor(company: CompanyRow): Express.Request["actor"] {
+function operatorActor(space: SpaceRow): Express.Request["actor"] {
   return {
-    type: "board",
-    userId: "board-user",
-    companyIds: [company.id],
-    memberships: [{ companyId: company.id, membershipRole: "operator", status: "active" }],
+    type: "operator",
+    userId: "operator-user",
+    spaceIds: [space.id],
+    memberships: [{ spaceId: space.id, membershipRole: "operator", status: "active" }],
     isInstanceAdmin: true,
     source: "local_implicit",
   };
 }
 
-function agentActor(company: CompanyRow, agent: AgentRow, runId: string): Express.Request["actor"] {
+function agentActor(space: SpaceRow, agent: AgentRow, runId: string): Express.Request["actor"] {
   return {
     type: "agent",
     agentId: agent.id,
-    companyId: company.id,
+    spaceId: space.id,
     runId,
     source: "agent_jwt",
   };
 }
 
-async function seedCompany(db: Db, label = "Diagnostics") {
+async function seedSpace(db: Db, label = "Diagnostics") {
   const nonce = randomUUID().slice(0, 8);
-  const [company] = await db.insert(companies).values({
+  const [space] = await db.insert(spaces).values({
     name: `${label} ${nonce}`,
     issuePrefix: `DG${nonce.slice(0, 4).toUpperCase()}`,
-    defaultResponsibleUserId: "board-user",
+    defaultResponsibleUserId: "operator-user",
   }).returning();
-  return company!;
+  return space!;
 }
 
-async function seedAgent(db: Db, companyId: string, permissions: Record<string, unknown> = {}) {
+async function seedAgent(db: Db, spaceId: string, permissions: Record<string, unknown> = {}) {
   const [agent] = await db.insert(agents).values({
-    companyId,
+    spaceId,
     name: `Agent ${randomUUID().slice(0, 6)}`,
     role: "engineer",
     adapterType: "process",
@@ -93,9 +93,9 @@ async function seedAgent(db: Db, companyId: string, permissions: Record<string, 
   return agent!;
 }
 
-async function seedProject(db: Db, companyId: string, name: string) {
+async function seedProject(db: Db, spaceId: string, name: string) {
   const [project] = await db.insert(projects).values({
-    companyId,
+    spaceId,
     name,
     status: "in_progress",
   }).returning();
@@ -105,7 +105,7 @@ async function seedProject(db: Db, companyId: string, name: string) {
 async function seedIssue(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     projectId?: string | null;
     title: string;
     status?: string;
@@ -114,21 +114,21 @@ async function seedIssue(
   },
 ) {
   const [issue] = await db.insert(issues).values({
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     projectId: input.projectId ?? null,
     parentId: input.parentId ?? null,
     title: input.title,
     status: input.status ?? "todo",
     priority: "medium",
     assigneeAgentId: input.assigneeAgentId ?? null,
-    responsibleUserId: "board-user",
+    responsibleUserId: "operator-user",
   }).returning();
   return issue!;
 }
 
-async function blockIssue(db: Db, companyId: string, blockerIssueId: string, blockedIssueId: string) {
+async function blockIssue(db: Db, spaceId: string, blockerIssueId: string, blockedIssueId: string) {
   await db.insert(issueRelations).values({
-    companyId,
+    spaceId,
     issueId: blockerIssueId,
     relatedIssueId: blockedIssueId,
     type: "blocks",
@@ -136,7 +136,7 @@ async function blockIssue(db: Db, companyId: string, blockerIssueId: string, blo
 }
 
 async function attachLowTrustRun(db: Db, fixture: {
-  company: CompanyRow;
+  space: SpaceRow;
   agent: AgentRow;
   allowedProject: ProjectRow;
   root: IssueRow;
@@ -146,7 +146,7 @@ async function attachLowTrustRun(db: Db, fixture: {
     authorizationPolicy: {
       trustBoundary: {
         mode: LOW_TRUST_REVIEW_PRESET,
-        companyId: fixture.company.id,
+        spaceId: fixture.space.id,
         projectIds: [fixture.allowedProject.id],
         rootIssueId: fixture.root.id,
         issueIds: [fixture.root.id, fixture.visibleBlocker.id],
@@ -166,7 +166,7 @@ async function attachLowTrustRun(db: Db, fixture: {
   };
 
   const [run] = await db.insert(heartbeatRuns).values({
-    companyId: fixture.company.id,
+    spaceId: fixture.space.id,
     agentId: fixture.agent.id,
     status: "running",
     contextSnapshot: {
@@ -188,7 +188,7 @@ describeEmbeddedPostgres("issue blocker diagnostics route", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-issue-blocker-diagnostics-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-issue-blocker-diagnostics-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -198,7 +198,7 @@ describeEmbeddedPostgres("issue blocker diagnostics route", () => {
     await db.delete(issues);
     await db.delete(agents);
     await db.delete(projects);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -206,25 +206,25 @@ describeEmbeddedPostgres("issue blocker diagnostics route", () => {
   });
 
   it("returns stale-blocker diagnosis and anomaly flags for a done blocker on a blocked issue", async () => {
-    const company = await seedCompany(db);
-    const agent = await seedAgent(db, company.id);
-    const project = await seedProject(db, company.id, "Core");
+    const space = await seedSpace(db);
+    const agent = await seedAgent(db, space.id);
+    const project = await seedProject(db, space.id, "Core");
     const root = await seedIssue(db, {
-      companyId: company.id,
+      spaceId: space.id,
       projectId: project.id,
       title: "Ship root",
       status: "blocked",
       assigneeAgentId: agent.id,
     });
     const blocker = await seedIssue(db, {
-      companyId: company.id,
+      spaceId: space.id,
       projectId: project.id,
       title: "Finished blocker",
       status: "done",
     });
-    await blockIssue(db, company.id, blocker.id, root.id);
+    await blockIssue(db, space.id, blocker.id, root.id);
 
-    const res = await request(createApp(db, boardActor(company)))
+    const res = await request(createApp(db, operatorActor(space)))
       .get(`/api/issues/${root.id}/diagnostics/blockers`);
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -249,16 +249,16 @@ describeEmbeddedPostgres("issue blocker diagnostics route", () => {
   });
 
   it("returns null diagnosis for an unblocked issue with no blocker relations", async () => {
-    const company = await seedCompany(db);
-    const project = await seedProject(db, company.id, "Core");
+    const space = await seedSpace(db);
+    const project = await seedProject(db, space.id, "Core");
     const issue = await seedIssue(db, {
-      companyId: company.id,
+      spaceId: space.id,
       projectId: project.id,
       title: "Ready work",
       status: "todo",
     });
 
-    const res = await request(createApp(db, boardActor(company)))
+    const res = await request(createApp(db, operatorActor(space)))
       .get(`/api/issues/${issue.id}/diagnostics/blockers`);
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -273,34 +273,34 @@ describeEmbeddedPostgres("issue blocker diagnostics route", () => {
   });
 
   it("omits unauthorized blocker nodes and derives diagnosis only from visible data", async () => {
-    const company = await seedCompany(db);
-    const agent = await seedAgent(db, company.id);
-    const allowedProject = await seedProject(db, company.id, "Allowed");
-    const hiddenProject = await seedProject(db, company.id, "Hidden");
+    const space = await seedSpace(db);
+    const agent = await seedAgent(db, space.id);
+    const allowedProject = await seedProject(db, space.id, "Allowed");
+    const hiddenProject = await seedProject(db, space.id, "Hidden");
     const hiddenMarker = `HIDDEN-BLOCKER-${randomUUID()}`;
     const root = await seedIssue(db, {
-      companyId: company.id,
+      spaceId: space.id,
       projectId: allowedProject.id,
       title: "Scoped root",
       status: "blocked",
     });
     const visibleBlocker = await seedIssue(db, {
-      companyId: company.id,
+      spaceId: space.id,
       projectId: allowedProject.id,
       title: "Visible blocker",
       status: "in_progress",
     });
     const hiddenBlocker = await seedIssue(db, {
-      companyId: company.id,
+      spaceId: space.id,
       projectId: hiddenProject.id,
       title: hiddenMarker,
       status: "cancelled",
     });
-    await blockIssue(db, company.id, visibleBlocker.id, root.id);
-    await blockIssue(db, company.id, hiddenBlocker.id, root.id);
-    const run = await attachLowTrustRun(db, { company, agent, allowedProject, root, visibleBlocker });
+    await blockIssue(db, space.id, visibleBlocker.id, root.id);
+    await blockIssue(db, space.id, hiddenBlocker.id, root.id);
+    const run = await attachLowTrustRun(db, { space, agent, allowedProject, root, visibleBlocker });
 
-    const res = await request(createApp(db, agentActor(company, agent, run.id)))
+    const res = await request(createApp(db, agentActor(space, agent, run.id)))
       .get(`/api/issues/${root.id}/diagnostics/blockers`);
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -323,25 +323,25 @@ describeEmbeddedPostgres("issue blocker diagnostics route", () => {
     expect(serialized).not.toContain("error");
   });
 
-  it("denies cross-company issue reads", async () => {
-    const companyA = await seedCompany(db, "Company A");
-    const companyB = await seedCompany(db, "Company B");
-    const agentB = await seedAgent(db, companyB.id);
-    const projectA = await seedProject(db, companyA.id, "A");
+  it("denies cross-space issue reads", async () => {
+    const spaceA = await seedSpace(db, "Space A");
+    const spaceB = await seedSpace(db, "Space B");
+    const agentB = await seedAgent(db, spaceB.id);
+    const projectA = await seedProject(db, spaceA.id, "A");
     const issueA = await seedIssue(db, {
-      companyId: companyA.id,
+      spaceId: spaceA.id,
       projectId: projectA.id,
-      title: "Company A issue",
+      title: "Space A issue",
       status: "blocked",
     });
     const [runB] = await db.insert(heartbeatRuns).values({
-      companyId: companyB.id,
+      spaceId: spaceB.id,
       agentId: agentB.id,
       status: "running",
       contextSnapshot: { issueId: issueA.id },
     }).returning();
 
-    const res = await request(createApp(db, agentActor(companyB, agentB, runB!.id)))
+    const res = await request(createApp(db, agentActor(spaceB, agentB, runB!.id)))
       .get(`/api/issues/${issueA.id}/diagnostics/blockers`);
 
     // Uniform 404 so cross-tenant ids are indistinguishable from missing ones.
@@ -350,10 +350,10 @@ describeEmbeddedPostgres("issue blocker diagnostics route", () => {
   });
 
   it("caps blocker output and withholds readiness when truncated", async () => {
-    const company = await seedCompany(db);
-    const project = await seedProject(db, company.id, "Core");
+    const space = await seedSpace(db);
+    const project = await seedProject(db, space.id, "Core");
     const root = await seedIssue(db, {
-      companyId: company.id,
+      spaceId: space.id,
       projectId: project.id,
       title: "Wide blocked issue",
       status: "blocked",
@@ -361,23 +361,23 @@ describeEmbeddedPostgres("issue blocker diagnostics route", () => {
     const blockerRows = [];
     for (let index = 0; index < 101; index += 1) {
       blockerRows.push({
-        companyId: company.id,
+        spaceId: space.id,
         projectId: project.id,
         title: `Blocker ${String(index).padStart(3, "0")}`,
         status: "done",
         priority: "medium",
-        responsibleUserId: "board-user",
+        responsibleUserId: "operator-user",
       });
     }
     const insertedBlockers = await db.insert(issues).values(blockerRows).returning();
     await db.insert(issueRelations).values(insertedBlockers.map((blocker) => ({
-      companyId: company.id,
+      spaceId: space.id,
       issueId: blocker.id,
       relatedIssueId: root.id,
       type: "blocks" as const,
     })));
 
-    const res = await request(createApp(db, boardActor(company)))
+    const res = await request(createApp(db, operatorActor(space)))
       .get(`/api/issues/${root.id}/diagnostics/blockers`);
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);

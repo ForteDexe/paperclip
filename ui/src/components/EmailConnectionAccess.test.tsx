@@ -22,7 +22,7 @@ afterEach(async () => {
 });
 it.each([403, 500])("shows a known %s before the other access read finishes", async status => {
   mocks.grants.mockRejectedValue(new ApiError("Access lookup failed", status, {}));
-  await act(async () => root.render(<QueryClientProvider client={client}><EmailConnectionAccess companyId="company" connectionId="connection" agents={[]} /></QueryClientProvider>));
+  await act(async () => root.render(<QueryClientProvider client={client}><EmailConnectionAccess spaceId="space" connectionId="connection" agents={[]} /></QueryClientProvider>));
   await vi.waitFor(() => expect(host.querySelector('[data-query-view="error"]')).not.toBeNull());
   expect(host.textContent).not.toContain("Loading access");
   const retry = [...host.querySelectorAll("button")].find(button => button.textContent?.trim() === "Retry");

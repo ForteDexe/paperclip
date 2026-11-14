@@ -48,7 +48,7 @@ function isCompleteIssueSnapshot(value: unknown): value is Issue {
   return (
     issue.listProjection === undefined
     && isNonEmptyString(issue.id)
-    && isNonEmptyString(issue.companyId)
+    && isNonEmptyString(issue.spaceId)
     && typeof issue.title === "string"
     && typeof issue.status === "string"
     && typeof issue.workMode === "string"
@@ -268,7 +268,7 @@ export function prefetchIssueDetailForNavigation(
     queryKeys.issues.attachments(issueRef),
     queryKeys.issues.liveRuns(issueRef),
   ].every((key) => queryClient.getQueryData(key) === undefined);
-  const bootstrap = coldChat ? startIssueChatBootstrap(queryClient, options?.issue?.companyId, issueRef) : null;
+  const bootstrap = coldChat ? startIssueChatBootstrap(queryClient, options?.issue?.spaceId, issueRef) : null;
   const history = !!options?.history && !coldChat;
   return Promise.all([
     queryClient.prefetchQuery({

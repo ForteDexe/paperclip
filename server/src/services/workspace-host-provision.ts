@@ -7,7 +7,7 @@ import { resolveProjectDefaultWorkspaceId } from "./project-default-workspace.js
 export const CONTROLLER_PROVISION_COPY_ONLY = "_controllerProvisionCopyOnly";
 
 export async function workspaceRequiresCopyOnlyProvisioning(db: Db | Parameters<Parameters<Db["transaction"]>[0]>[0], input: {
-  companyId: string;
+  spaceId: string;
   task: { id: string; projectId: string | null; workspaceSelection?: TaskWorkspaceIntent | null } | null;
   sourceProjectId: string | null;
   sourceWorkspaceId: string | null;
@@ -23,10 +23,10 @@ export async function workspaceRequiresCopyOnlyProvisioning(db: Db | Parameters<
   if (intent?.source === "operator_cwd" && !input.sourceProjectId && !input.sourceWorkspaceId) return false;
   if (!input.sourceProjectId || input.sourceProjectId !== task.projectId || !input.sourceWorkspaceId) return true;
   const defaultSourceId = await resolveProjectDefaultWorkspaceId(db, {
-    companyId: input.companyId, projectId: input.sourceProjectId,
+    spaceId: input.spaceId, projectId: input.sourceProjectId,
   });
   if (defaultSourceId !== input.sourceWorkspaceId) return true;
   const [source] = await db.select({ id: projectWorkspaces.id }).from(projectWorkspaces)
-    .where(and(eq(projectWorkspaces.companyId, input.companyId), eq(projectWorkspaces.projectId, input.sourceProjectId), eq(projectWorkspaces.id, defaultSourceId))).limit(1);
+    .where(and(eq(projectWorkspaces.spaceId, input.spaceId), eq(projectWorkspaces.projectId, input.sourceProjectId), eq(projectWorkspaces.id, defaultSourceId))).limit(1);
   return !source;
 }

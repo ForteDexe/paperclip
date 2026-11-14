@@ -3,7 +3,7 @@ import { enableRunFailureReporting } from "../__tests__/helpers/run-failure-repo
 import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, completionContracts, createDb, environmentLeases, environments, heartbeatRuns, issues, issueRecoveryActions, issueThreadInteractions, nativeRunFinalizations, nativeRunResults, statusDecisions, workAssessments } from "@outpost/db";
+import { agents, spaces, completionContracts, createDb, environmentLeases, environments, heartbeatRuns, issues, issueRecoveryActions, issueThreadInteractions, nativeRunFinalizations, nativeRunResults, statusDecisions, workAssessments } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -40,27 +40,27 @@ describeEmbeddedPostgres("reconcileAbandonedExecutionControl reports a genuine f
   });
 
   async function seedAbandonedRunFixture() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
     const runId = randomUUID();
     const pastDeadline = new Date(Date.now() - 60_000);
 
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Execution Control Reconciliation",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Stuck worker",
       adapterType: "codex_local",
       status: "running",
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       executionControlDeadlineAt: pastDeadline,
@@ -68,7 +68,7 @@ describeEmbeddedPostgres("reconcileAbandonedExecutionControl reports a genuine f
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Abandoned execution control fixture",
       status: "in_progress",
       assigneeAgentId: agentId,
@@ -76,17 +76,17 @@ describeEmbeddedPostgres("reconcileAbandonedExecutionControl reports a genuine f
       checkoutRunId: runId,
     });
 
-    return { companyId, agentId, issueId, runId };
+    return { spaceId, agentId, issueId, runId };
   }
 
   it("recognizes pending cleanup selected only by the run deadline batch", async () => {
     const f = await seedAbandonedRunFixture(), now = new Date();
     const cleanupIds = Array.from({ length: 51 }, () => randomUUID());
     const hidden = cleanupIds[50]!;
-    await db.insert(heartbeatRuns).values(cleanupIds.map(id => ({ id, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values(cleanupIds.map(id => ({ id, spaceId: f.spaceId, agentId: f.agentId,
       nativeIssueId: f.issueId, runtimeMode: "native", status: "running",
       executionControlDeadlineAt: id === hidden ? new Date(now.getTime() - 120_000) : null })));
-    await db.insert(nativeRunFinalizations).values(cleanupIds.map(runId => ({ runId, companyId: f.companyId,
+    await db.insert(nativeRunFinalizations).values(cleanupIds.map(runId => ({ runId, spaceId: f.spaceId,
       issueId: f.issueId, phase: "terminal_failure", failureCode: "native_startup_cleanup_pending",
       controlDeadlineAt: new Date(now.getTime() - (runId === hidden ? 60_000 : 120_000)) })));
     const attempted: string[] = [];
@@ -106,10 +106,10 @@ describeEmbeddedPostgres("reconcileAbandonedExecutionControl reports a genuine f
     const now = new Date();
     const cleanupIds = Array.from({ length: 50 }, () => randomUUID());
     const firstDeadline = new Date(now.getTime() - 120_000);
-    await db.insert(heartbeatRuns).values(cleanupIds.map(id => ({ id, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values(cleanupIds.map(id => ({ id, spaceId: f.spaceId, agentId: f.agentId,
       nativeIssueId: f.issueId, runtimeMode: "native", status: "running", executionControlDeadlineAt: firstDeadline,
       contextSnapshot: { issueId: f.issueId } })));
-    await db.insert(nativeRunFinalizations).values(cleanupIds.map(runId => ({ runId, companyId: f.companyId,
+    await db.insert(nativeRunFinalizations).values(cleanupIds.map(runId => ({ runId, spaceId: f.spaceId,
       issueId: f.issueId, phase: "terminal_failure", failureCode: "native_startup_cleanup_pending", controlDeadlineAt: firstDeadline })));
     const attempted: string[] = [];
     const startupCleanup = async ({ runId }: { runId: string }) => { attempted.push(runId); throw new Error("Provider unavailable"); };
@@ -229,7 +229,7 @@ describeEmbeddedPostgres("reconcileAbandonedExecutionControl reports a genuine f
     const f = await seedAbandonedRunFixture();
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: f.issueId })
       .where(eq(heartbeatRuns.id, f.runId));
-    await db.insert(nativeRunFinalizations).values({ runId: f.runId, companyId: f.companyId, issueId: f.issueId,
+    await db.insert(nativeRunFinalizations).values({ runId: f.runId, spaceId: f.spaceId, issueId: f.issueId,
       phase: "observed", controlDeadlineAt: null, ...coordinator });
     return f;
   }
@@ -317,7 +317,7 @@ describeEmbeddedPostgres("reconcileAbandonedExecutionControl reports a genuine f
   it.each(["prepared", "finalized", "mismatched", "reassigned", "accepted"] as const)("preserves only an exact unfinished native workspace after its deadline (%s)", async state => {
     const f = await seedAbandonedRunFixture();
     const [environment] = await db.insert(environments).values({ name: `Deadline ${f.runId}`, driver: "sandbox" }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ companyId: f.companyId, issueId: f.issueId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, issueId: f.issueId,
       heartbeatRunId: f.runId, environmentId: environment.id, provider: "daytona", providerLeaseId: randomUUID(),
       status: "active", leasePolicy: "reuse_by_environment", metadata: { remoteCwd: "/work" },
     }).returning();
@@ -327,21 +327,21 @@ describeEmbeddedPostgres("reconcileAbandonedExecutionControl reports a genuine f
         workspaceId: f.runId, leaseId: lease.id, providerLeaseId: state === "mismatched" ? randomUUID() : lease.providerLeaseId,
         remoteCwd: "/work", resourceDisposition: "keep_running" },
     } }).where(eq(heartbeatRuns.id, f.runId));
-    await db.insert(nativeRunFinalizations).values({ runId: f.runId, companyId: f.companyId, issueId: f.issueId,
+    await db.insert(nativeRunFinalizations).values({ runId: f.runId, spaceId: f.spaceId, issueId: f.issueId,
       phase: "observed", leaseOwner: "abandoned-controller", controlDeadlineAt: new Date(Date.now() - 60_000) });
     if (state === "reassigned") {
       const nextAgentId = randomUUID();
-      await db.insert(agents).values({ id: nextAgentId, companyId: f.companyId, name: "New owner", adapterType: "codex_local" });
+      await db.insert(agents).values({ id: nextAgentId, spaceId: f.spaceId, name: "New owner", adapterType: "codex_local" });
       await db.update(issues).set({ assigneeAgentId: nextAgentId, executionRunId: null, checkoutRunId: null })
         .where(eq(issues.id, f.issueId));
     }
     if (state === "accepted") {
       const contractId = randomUUID(), resultId = randomUUID();
-      await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
+      await db.insert(completionContracts).values({ id: contractId, spaceId: f.spaceId, issueId: f.issueId,
         revision: 1, schemaVersion: "1", policyVersion: "test", risk: "low", completionAuthority: "agent_claim_policy",
         incompleteCriteriaPolicy: "block", contractJson: {}, canonicalSha256: randomUUID(), createdByActorType: "agent", createdByActorId: f.agentId });
       await db.update(heartbeatRuns).set({ completionContractId: contractId }).where(eq(heartbeatRuns.id, f.runId));
-      await db.insert(nativeRunResults).values({ id: resultId, companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+      await db.insert(nativeRunResults).values({ id: resultId, spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
         completionContractId: contractId, serverFingerprint: randomUUID(), schemaStatus: "valid", resultJson: {}, canonicalSha256: randomUUID() });
       await db.update(nativeRunFinalizations).set({ resultId }).where(eq(nativeRunFinalizations.runId, f.runId));
     }
@@ -370,7 +370,7 @@ describeEmbeddedPostgres("reconcileAbandonedExecutionControl reports a genuine f
       expect(task.assigneeAgentId).not.toBe(f.agentId);
       expect(task).toMatchObject({ status: "in_progress", executionRunId: null, checkoutRunId: null });
     }
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(1);
   });
 });
 
@@ -384,7 +384,7 @@ describeEmbeddedPostgres("native review execution reconciliation admission", () 
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await tempDb?.cleanup(); });
 
   it.each([true, false])("only releases the exact admitted review (admitted=%s)", async (admitted) => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const workerId = randomUUID();
     const reviewerId = randomUUID();
     const issueId = randomUUID();
@@ -393,35 +393,35 @@ describeEmbeddedPostgres("native review execution reconciliation admission", () 
     const decisionId = randomUUID();
     const interactionId = randomUUID();
     const now = new Date();
-    await db.insert(companies).values({ id: companyId, name: "Reviewer recovery", issuePrefix: admitted ? "RRA" : "RRN" });
+    await db.insert(spaces).values({ id: spaceId, name: "Reviewer recovery", issuePrefix: admitted ? "RRA" : "RRN" });
     await db.insert(agents).values([
-      { id: workerId, companyId, name: "Worker", adapterType: "codex_local", status: "idle" },
-      { id: reviewerId, companyId, name: "Reviewer", adapterType: "codex_local", status: "running" },
+      { id: workerId, spaceId, name: "Worker", adapterType: "codex_local", status: "idle" },
+      { id: reviewerId, spaceId, name: "Reviewer", adapterType: "codex_local", status: "running" },
     ]);
     await db.insert(heartbeatRuns).values({
-      id: runId, companyId, agentId: reviewerId, status: "running", runtimeMode: "native",
+      id: runId, spaceId, agentId: reviewerId, status: "running", runtimeMode: "native",
       nativeIssueId: issueId, executionControlDeadlineAt: new Date(now.getTime() - 60_000),
       contextSnapshot: { issueId, ...(admitted ? { nativeReviewInteractionId: interactionId, nativeReviewDecisionId: decisionId } : {}) },
     });
-    await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId, agentId: workerId, status: "succeeded", runtimeMode: "native", nativeIssueId: issueId });
+    await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId, agentId: workerId, status: "succeeded", runtimeMode: "native", nativeIssueId: issueId });
     await db.insert(issues).values({
-      id: issueId, companyId, title: "Review task", status: "in_review", statusVersion: 1,
+      id: issueId, spaceId, title: "Review task", status: "in_review", statusVersion: 1,
       lastStatusDecisionId: decisionId, assigneeAgentId: workerId, executionRunId: runId, checkoutRunId: runId,
     });
     const contractId = randomUUID();
     const resultId = randomUUID();
     const assessmentId = randomUUID();
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1, schemaVersion: "1", policyVersion: "test", risk: "low", completionAuthority: "agent_claim_policy", incompleteCriteriaPolicy: "block", contractJson: {}, canonicalSha256: randomUUID(), createdByActorType: "agent", createdByActorId: workerId });
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1, schemaVersion: "1", policyVersion: "test", risk: "low", completionAuthority: "agent_claim_policy", incompleteCriteriaPolicy: "block", contractJson: {}, canonicalSha256: randomUUID(), createdByActorType: "agent", createdByActorId: workerId });
     await db.update(heartbeatRuns).set({ completionContractId: contractId }).where(eq(heartbeatRuns.id, sourceRunId));
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId: sourceRunId, completionContractId: contractId, serverFingerprint: randomUUID(), schemaStatus: "valid", resultJson: {}, canonicalSha256: randomUUID() });
-    await db.insert(workAssessments).values({ id: assessmentId, companyId, issueId, runId: sourceRunId, contractId, resultId, triggerKind: "test", triggerActorCompanyId: companyId, priorIssueStatus: "in_progress", priorStatusVersion: 0, policyVersion: "test", assessmentJson: {}, inputDigest: randomUUID() });
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId: sourceRunId, completionContractId: contractId, serverFingerprint: randomUUID(), schemaStatus: "valid", resultJson: {}, canonicalSha256: randomUUID() });
+    await db.insert(workAssessments).values({ id: assessmentId, spaceId, issueId, runId: sourceRunId, contractId, resultId, triggerKind: "test", triggerActorSpaceId: spaceId, priorIssueStatus: "in_progress", priorStatusVersion: 0, policyVersion: "test", assessmentJson: {}, inputDigest: randomUUID() });
     await db.insert(statusDecisions).values({
-      id: decisionId, companyId, issueId, runId: sourceRunId, assessmentId: assessmentId, decisionVersion: 1,
+      id: decisionId, spaceId, issueId, runId: sourceRunId, assessmentId: assessmentId, decisionVersion: 1,
       policyVersion: "test", fromStatus: "in_progress", toStatus: "in_review", reasonCode: "completion_review",
       decisionJson: { projectedStatusVersion: 1 }, decisionDigest: randomUUID(), applicationState: "applied",
     });
     await db.insert(issueThreadInteractions).values({
-      id: interactionId, companyId, issueId, kind: "request_confirmation", status: "pending",
+      id: interactionId, spaceId, issueId, kind: "request_confirmation", status: "pending",
       continuationPolicy: "wake_assignee", requestedResolverPolicy: "anyone", effectiveResolverPolicy: "anyone",
       resolverPolicyProvenance: "inherited", sourceRunId: sourceRunId, addresseeAgentId: reviewerId,
       payload: { version: 1, prompt: "Review", target: { type: "custom", key: "native_completion_review", revisionId: decisionId } },
@@ -432,7 +432,7 @@ describeEmbeddedPostgres("native review execution reconciliation admission", () 
     const [updatedRun] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
     const [review] = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, interactionId));
     expect(updatedIssue).toMatchObject({ assigneeAgentId: workerId, executionRunId: admitted ? null : runId, checkoutRunId: admitted ? null : runId });
-    const recovery = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, companyId));
+    const recovery = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, spaceId));
     expect(recovery).toHaveLength(admitted ? 1 : 0);
     if (admitted) expect(recovery[0]).toMatchObject({ maxAttempts: 3, wakePolicy: null, returnOwnerAgentId: workerId });
     expect(updatedRun?.status).toBe("failed");

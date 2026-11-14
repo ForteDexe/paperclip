@@ -52,7 +52,7 @@ Open `/issues/:issueId` from a row, mention, or direct link. Cold opens show the
 
 Use the privacy control in New task, or open an existing task’s menu and choose **Make private**, **Share…**, or **Make public** where allowed. The share sheet lists direct grants and inherited access from private ancestors or project membership. Inherited rows have no local revoke action; manage that access at its source.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Use a
 disposable project. Persistence checks can assign work to Me or leave it
@@ -66,7 +66,7 @@ Use these checks alongside the entry-point recipes below and the operation recor
 | Capability ID | Action and persisted result | Denial, race and retry checks |
 | --- | --- | --- |
 | `tasks/create` | Create an unassigned task or assign it to Me; save its description and context, then reopen and reload the exact task. | Exercise required fields, inaccessible parents/projects, and the same API creation key with identical and changed input. Compare task IDs and run counts; saving a draft is not creation. |
-| `tasks/organize` | Find the saved task through list, project, filter, and direct-link surfaces; change supported labels separately. | Compare another actor’s private results and another company. Distinguish browser sorting/grouping preferences from saved task data. |
+| `tasks/organize` | Find the saved task through list, project, filter, and direct-link surfaces; change supported labels separately. | Compare another actor’s private results and another space. Distinguish browser sorting/grouping preferences from saved task data. |
 | `tasks/properties` | Change title, metadata, assignee, dependencies, work mode, execution settings, and monitor/watchdog configuration as separate operations. Reload each saved change. | Use an occupied checkout, stale status version, invalid dependency, stopped run, and disallowed mode. Check the specific rejection and unchanged fields; a successful title edit does not establish assignment authority. |
 | `tasks/discussion` | Post a unique comment, reload, and inspect attribution. Read history, inspect a queued message, and delete only an owned disposable comment where allowed. | Separate an ordinary comment from steering or a wake. Check inaccessible task history, author-only deletion, queued cancellation, and duplicate delivery. Feedback votes have their own human authority. |
 | `tasks/completion` | Complete, block, request review, reopen, and cancel separate disposable tasks through offered controls. Inspect the saved outcome, review gates, and execution state. | Test pending dependencies/reviews, a stale or active checkout, and late writes after handoff. Terminal status does not prove provider stop or saved files. Verify checkout/release and destructive deletion separately from completion. |
@@ -74,7 +74,7 @@ Use these checks alongside the entry-point recipes below and the operation recor
 
 ### `new-task`
 
-Automated: [board dialogs](../../ui/src/components/BoardDialogs.test.tsx) checks that the task form appears on the first synchronous open and retains its draft across reopen. [Creation dialog](../../ui/src/components/NewIssueDialog.test.tsx) covers typing while agent/project requests are pending and retaining that text when defaults arrive. These are component checks with mocked requests.
+Automated: [operator dialogs](../../ui/src/components/OperatorDialogs.test.tsx) checks that the task form appears on the first synchronous open and retains its draft across reopen. [Creation dialog](../../ui/src/components/NewIssueDialog.test.tsx) covers typing while agent/project requests are pending and retaining that text when defaults arrive. These are component checks with mocked requests.
 
 Manual: Create a uniquely named task with an agent and project. Open its resulting link and reload. Confirm text, attachment, assignment, and project persisted, and verify execution started only when the task and agent are eligible.
 
@@ -96,7 +96,7 @@ Manual: Filter by status and assignee, change grouping/sort, open a task, and re
 
 Manual: Open a long task with slow historical requests. Read the instruction and recent reply before those requests finish. Edit the title/status while enrichment is pending and verify saves and rollbacks. Expand **More messages**, verify scroll position and no duplicate replies, return to the task, and follow an older comment link. Leave a task open across new messages and runs and confirm none disappear. Reconnect after several turns and verify watched runs settle. Reopen after steering with more than 50 newer activity rows; the delivered message must not reappear in the queue.
 
-Automated: [cold-open reads](../../server/src/__tests__/task-cold-open.test.ts) cover bounded reads, event filtering and company denial. [Task detail](../../ui/src/pages/IssueDetail.test.tsx) covers component behavior, while [issue service](../../server/src/__tests__/issues-service.test.ts) covers server contracts.
+Automated: [cold-open reads](../../server/src/__tests__/task-cold-open.test.ts) cover bounded reads, event filtering and space denial. [Task detail](../../ui/src/pages/IssueDetail.test.tsx) covers component behavior, while [issue service](../../server/src/__tests__/issues-service.test.ts) covers server contracts.
 
 Failure markers have no dashed divider rules. An adjacent run error and
 no-live-execution-path notice show only the last error, with its details and

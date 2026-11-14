@@ -3,7 +3,7 @@
 @plugin "@tailwindcss/typography";
 
 /* offline-recovery:start */
-.paperclip-offline {
+.outpost-offline {
   --offline-background: #171716;
   --offline-foreground: #fafafa;
   --offline-muted: #a3a3a3;
@@ -50,7 +50,7 @@
   line-height: var(--offline-leading);
   text-align: center;
 }
-.paperclip-offline main {
+.outpost-offline main {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -58,23 +58,23 @@
   width: 100%;
   max-width: var(--offline-content-width);
 }
-.paperclip-offline-message,
-.paperclip-offline-identity {
+.outpost-offline-message,
+.outpost-offline-identity {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
-.paperclip-offline-message {
+.outpost-offline-message {
   gap: var(--offline-message-gap);
 }
-.paperclip-offline-identity {
+.outpost-offline-identity {
   gap: var(--offline-identity-gap);
 }
-.paperclip-offline-character {
+.outpost-offline-character {
   width: var(--offline-character-size);
   height: var(--offline-character-size);
 }
-.paperclip-offline h1 {
+.outpost-offline h1 {
   margin: 0;
   font-size: var(--offline-title-size);
   font-weight: var(--offline-weight);
@@ -82,12 +82,12 @@
   letter-spacing: var(--offline-tracking);
   text-wrap: balance;
 }
-.paperclip-offline p {
+.outpost-offline p {
   margin: 0;
   color: var(--offline-muted);
   text-wrap: pretty;
 }
-.paperclip-offline button {
+.outpost-offline button {
   min-height: var(--offline-control-height);
   padding: var(--offline-copy-gap) var(--offline-space);
   border: var(--offline-stroke) solid var(--offline-border);
@@ -98,10 +98,10 @@
   font-weight: var(--offline-weight);
   cursor: pointer;
 }
-.paperclip-offline button:hover {
+.outpost-offline button:hover {
   background: var(--offline-control-hover);
 }
-.paperclip-offline button:focus-visible {
+.outpost-offline button:focus-visible {
   outline: var(--offline-focus-width) solid var(--offline-focus);
   outline-offset: var(--offline-focus-offset);
 }
@@ -283,14 +283,14 @@
   --chip-match-identifier-bg: var(--muted);
   --chip-match-identifier-fg: var(--muted-foreground);
   --chip-match-identifier-border: var(--border);
-  --paperclip-doc-annotation-highlight-source: oklch(0.78 0.16 89);
-  --paperclip-doc-annotation-highlight-open: color-mix(in srgb, var(--paperclip-doc-annotation-highlight-source) 58%, var(--background));
-  --paperclip-doc-annotation-highlight-focused: color-mix(in srgb, var(--paperclip-doc-annotation-highlight-source) 60%, var(--background));
-  --paperclip-doc-annotation-highlight-stale: color-mix(in srgb, var(--paperclip-doc-annotation-highlight-source) 48%, var(--background));
-  --paperclip-doc-annotation-highlight-resolved: color-mix(in srgb, var(--paperclip-doc-annotation-highlight-source) 28%, var(--background));
-  --paperclip-doc-annotation-highlight-x-outset: 0.25rem;
-  --paperclip-doc-annotation-highlight-y-outset: 0.125rem;
-  --paperclip-doc-annotation-highlight-radius: 0.1875rem;
+  --outpost-doc-annotation-highlight-source: oklch(0.78 0.16 89);
+  --outpost-doc-annotation-highlight-open: color-mix(in srgb, var(--outpost-doc-annotation-highlight-source) 58%, var(--background));
+  --outpost-doc-annotation-highlight-focused: color-mix(in srgb, var(--outpost-doc-annotation-highlight-source) 60%, var(--background));
+  --outpost-doc-annotation-highlight-stale: color-mix(in srgb, var(--outpost-doc-annotation-highlight-source) 48%, var(--background));
+  --outpost-doc-annotation-highlight-resolved: color-mix(in srgb, var(--outpost-doc-annotation-highlight-source) 28%, var(--background));
+  --outpost-doc-annotation-highlight-x-outset: 0.25rem;
+  --outpost-doc-annotation-highlight-y-outset: 0.125rem;
+  --outpost-doc-annotation-highlight-radius: 0.1875rem;
 
   /* Brand agent-capsule gradient stops (outpost.ing/brand/).
      "The capsule is the agent" — each agent gets a 2-stop gradient,
@@ -362,7 +362,7 @@
      tint, but a bare glyph sitting next to text on the page needs a stronger
      hue to clear 3:1. Where the chip base already passes (blue liveness, red
      blocked, light violet review) the icon var simply re-points at it; the
-     gray / amber / green statuses are pinned to the board-approved AA hexes.
+     gray / amber / green statuses are pinned to the operator-approved AA hexes.
      `in_queue` is the BLOCKED shape recoloured to the in_progress blue
      (replaces the bespoke teal "covered" state). Light values here; the
      `.dark` block below overrides the hues that need a mode-specific value. */
@@ -561,7 +561,7 @@
   --shadow-profile-popover: 0 18px 45px oklch(0 0 0 / 18%);
   --organization-popover-width: 248px;
   --organization-popover-header-height: 48px;
-  --organization-popover-company-row-height: 44px;
+  --organization-popover-space-row-height: 44px;
   --organization-popover-action-row-height: 38px;
   --organization-popover-avatar-size: 30px;
   --organization-popover-row-gap: 9px;
@@ -728,50 +728,50 @@
   background-color: var(--streamlined-task-detail-bg);
 }
 
-::highlight(paperclip-doc-annotation-open) {
+::highlight(outpost-doc-annotation-open) {
   background-color: transparent;
   color: inherit;
 }
 
-::highlight(paperclip-doc-annotation-focused) {
+::highlight(outpost-doc-annotation-focused) {
   background-color: transparent;
   color: inherit;
 }
 
-::highlight(paperclip-doc-annotation-stale) {
+::highlight(outpost-doc-annotation-stale) {
   background-color: transparent;
   color: inherit;
 }
 
-::highlight(paperclip-doc-annotation-resolved) {
+::highlight(outpost-doc-annotation-resolved) {
   background-color: transparent;
   color: inherit;
 }
 
-.paperclip-doc-annotation-highlight::before {
+.outpost-doc-annotation-highlight::before {
   position: absolute;
   inset:
-    calc(-1 * var(--paperclip-doc-annotation-highlight-y-outset))
-    calc(-1 * var(--paperclip-doc-annotation-highlight-x-outset));
-  border-radius: var(--paperclip-doc-annotation-highlight-radius);
-  background-color: var(--paperclip-doc-annotation-highlight-open);
+    calc(-1 * var(--outpost-doc-annotation-highlight-y-outset))
+    calc(-1 * var(--outpost-doc-annotation-highlight-x-outset));
+  border-radius: var(--outpost-doc-annotation-highlight-radius);
+  background-color: var(--outpost-doc-annotation-highlight-open);
   content: "";
   transition-property: background-color;
   transition-duration: var(--motion-duration-fast);
   transition-timing-function: var(--motion-ease-standard);
 }
 
-.paperclip-doc-annotation-highlight[data-focused="true"]:not([data-anchor-state="stale"]):not([data-status="resolved"])::before,
-.paperclip-doc-annotation-highlight[data-hovered="true"]:not([data-anchor-state="stale"]):not([data-status="resolved"])::before {
-  background-color: var(--paperclip-doc-annotation-highlight-focused);
+.outpost-doc-annotation-highlight[data-focused="true"]:not([data-anchor-state="stale"]):not([data-status="resolved"])::before,
+.outpost-doc-annotation-highlight[data-hovered="true"]:not([data-anchor-state="stale"]):not([data-status="resolved"])::before {
+  background-color: var(--outpost-doc-annotation-highlight-focused);
 }
 
-.paperclip-doc-annotation-highlight[data-anchor-state="stale"]:not([data-status="resolved"])::before {
-  background-color: var(--paperclip-doc-annotation-highlight-stale);
+.outpost-doc-annotation-highlight[data-anchor-state="stale"]:not([data-status="resolved"])::before {
+  background-color: var(--outpost-doc-annotation-highlight-stale);
 }
 
-.paperclip-doc-annotation-highlight[data-status="resolved"]::before {
-  background-color: var(--paperclip-doc-annotation-highlight-resolved);
+.outpost-doc-annotation-highlight[data-status="resolved"]::before {
+  background-color: var(--outpost-doc-annotation-highlight-resolved);
 }
 
 @layer base {
@@ -841,8 +841,8 @@
     }
   }
   /* Let font-mono (utilities layer) override for monospace editors */
-  .paperclip-mdxeditor [class*="_placeholder_"],
-  .paperclip-mdxeditor-content {
+  .outpost-mdxeditor [class*="_placeholder_"],
+  .outpost-mdxeditor-content {
     font-family: inherit;
   }
 }
@@ -950,22 +950,22 @@ select:where(:not([multiple]):not(.appearance-none)):where(:not([size]), [size="
 /* Mobile conversations use the same single message scroller + normal footer as
    desktop. Opt in from the rendered task shell, so classic tasks, lists, and
    the empty agent-chat picker retain their existing document layout. */
-html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]),
-html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) body {
+html:has(.outpost-app-shell[data-mobile="true"] [data-task-chat-shell]),
+html:has(.outpost-app-shell[data-mobile="true"] [data-task-chat-shell]) body {
   position: fixed;
   inset: 0;
   width: 100%;
 }
 
-html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]),
-html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) body,
-html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root {
+html:has(.outpost-app-shell[data-mobile="true"] [data-task-chat-shell]),
+html:has(.outpost-app-shell[data-mobile="true"] [data-task-chat-shell]) body,
+html:has(.outpost-app-shell[data-mobile="true"] [data-task-chat-shell]) #root {
   height: 100%;
   overflow: hidden !important;
   overscroll-behavior: none;
 }
 
-.paperclip-app-shell[data-mobile="true"]:has([data-task-chat-shell]) {
+.outpost-app-shell[data-mobile="true"]:has([data-task-chat-shell]) {
   position: fixed;
   inset: 0;
   display: flex;
@@ -975,23 +975,23 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
   overflow: hidden;
 }
 
-.paperclip-app-shell[data-mobile="true"]:has([data-task-chat-shell]) :is(.app-main-row, .app-content-row) {
+.outpost-app-shell[data-mobile="true"]:has([data-task-chat-shell]) :is(.app-main-row, .app-content-row) {
   display: flex;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-.paperclip-app-shell[data-mobile="true"]:has([data-task-chat-shell]) .app-content-column {
+.outpost-app-shell[data-mobile="true"]:has([data-task-chat-shell]) .app-content-column {
   flex: 1;
   min-height: 0;
 }
 
-.paperclip-app-shell[data-mobile="true"]:has([data-task-chat-shell]) .app-breadcrumb {
+.outpost-app-shell[data-mobile="true"]:has([data-task-chat-shell]) .app-breadcrumb {
   flex-shrink: 0;
 }
 
-.paperclip-app-shell[data-mobile="true"]:has([data-task-chat-shell]) #main-content {
+.outpost-app-shell[data-mobile="true"]:has([data-task-chat-shell]) #main-content {
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -999,7 +999,7 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
   padding-bottom: var(--tc-composer-visible-nav-offset);
 }
 
-.paperclip-app-shell[data-mobile="true"][data-keyboard-open="true"]:has([data-task-chat-shell]) #main-content {
+.outpost-app-shell[data-mobile="true"][data-keyboard-open="true"]:has([data-task-chat-shell]) #main-content {
   padding-bottom: 0;
 }
 
@@ -1025,27 +1025,27 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
     flex-shrink: 0;
   }
 
-  .paperclip-task-list-toolbar > :first-child {
+  .outpost-task-list-toolbar > :first-child {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .paperclip-task-list-toolbar [data-slot="collection-toolbar-search"] {
+  .outpost-task-list-toolbar [data-slot="collection-toolbar-search"] {
     grid-column: 1;
     grid-row: 1;
   }
 
-  .paperclip-task-list-toolbar [data-slot="collection-toolbar-search"] input {
+  .outpost-task-list-toolbar [data-slot="collection-toolbar-search"] input {
     height: var(--sz-44px);
   }
 
-  .paperclip-task-list-toolbar [data-slot="collection-toolbar-context"] {
+  .outpost-task-list-toolbar [data-slot="collection-toolbar-context"] {
     grid-column: 2;
     grid-row: 1;
   }
 
-  .paperclip-task-list-toolbar [data-slot="collection-toolbar-context"] button,
-  .paperclip-task-list-toolbar [data-slot="collection-toolbar-controls"] button {
+  .outpost-task-list-toolbar [data-slot="collection-toolbar-context"] button,
+  .outpost-task-list-toolbar [data-slot="collection-toolbar-controls"] button {
     width: var(--sz-44px);
     height: var(--sz-44px);
     min-height: var(--sz-44px);
@@ -1053,7 +1053,7 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
     flex-shrink: 0;
   }
 
-  .paperclip-task-list-toolbar > :first-child > :last-child {
+  .outpost-task-list-toolbar > :first-child > :last-child {
     grid-column: 1 / -1;
     grid-row: 2;
   }
@@ -1719,8 +1719,8 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
   animation: tc-live-ping var(--motion-approval-pulse) var(--motion-ease-standard) infinite;
 }
 
-.paperclip-markdown.task-chat-reasoning-markdown,
-.paperclip-markdown.task-chat-reasoning-markdown :is(h1, h2, h3, h4, h5, h6, strong) {
+.outpost-markdown.task-chat-reasoning-markdown,
+.outpost-markdown.task-chat-reasoning-markdown :is(h1, h2, h3, h4, h5, h6, strong) {
   font-size: inherit;
   font-weight: inherit;
   line-height: inherit;
@@ -1748,14 +1748,14 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
 }
 
 /* Reasoning section prose is supporting text under its provider headline. */
-.paperclip-markdown.task-chat-reasoning-section-body {
+.outpost-markdown.task-chat-reasoning-section-body {
   color: inherit;
 }
 
 .task-chat-expanded-line-wrap,
 .task-chat-reasoning-headline,
-.paperclip-markdown.task-chat-reasoning-markdown,
-.paperclip-markdown.task-chat-reasoning-markdown :is(p, strong, em, a, code) {
+.outpost-markdown.task-chat-reasoning-markdown,
+.outpost-markdown.task-chat-reasoning-markdown :is(p, strong, em, a, code) {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -1791,11 +1791,11 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
   animation: shimmer-text-slide 2.5s linear infinite;
 }
 
-.paperclip-thinking-icon {
+.outpost-thinking-icon {
   transform-origin: 50% 50%;
 }
 
-@keyframes paperclip-thinking-draw {
+@keyframes outpost-thinking-draw {
   0% {
     stroke-dasharray: 0 85.717;
     stroke-dashoffset: -85.717;
@@ -1823,8 +1823,8 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
   }
 }
 
-.paperclip-thinking-icon-path {
-  animation: paperclip-thinking-draw 1s linear infinite;
+.outpost-thinking-icon-path {
+  animation: outpost-thinking-draw 1s linear infinite;
 }
 
 /* Muted variant (task-chat v7 activity rows): the sweep runs over the
@@ -1880,7 +1880,7 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
     background: none;
   }
 
-  .paperclip-thinking-icon-path {
+  .outpost-thinking-icon-path {
     animation: none;
     opacity: 1;
     stroke-dasharray: 85.717 85.717;
@@ -1996,8 +1996,8 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
 }
 
 /* MDXEditor theme integration */
-.paperclip-mdxeditor-scope,
-.paperclip-mdxeditor {
+.outpost-mdxeditor-scope,
+.outpost-mdxeditor {
   --baseBase: var(--background);
   --baseBg: transparent;
   --baseBgSubtle: color-mix(in oklab, var(--accent) 35%, transparent);
@@ -2029,37 +2029,37 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
 }
 
 @media (min-width: 768px) {
-  .paperclip-mdxeditor-scope,
-  .paperclip-mdxeditor {
+  .outpost-mdxeditor-scope,
+  .outpost-mdxeditor {
     font-size: 0.875rem;
   }
 }
 
-.paperclip-mdxeditor-scope [class*="_iconButton_"],
-.paperclip-mdxeditor [class*="_iconButton_"] {
+.outpost-mdxeditor-scope [class*="_iconButton_"],
+.outpost-mdxeditor [class*="_iconButton_"] {
   color: var(--baseText);
 }
 
-.paperclip-mdxeditor-scope [class*="_iconButton_"]:hover,
-.paperclip-mdxeditor [class*="_iconButton_"]:hover {
+.outpost-mdxeditor-scope [class*="_iconButton_"]:hover,
+.outpost-mdxeditor [class*="_iconButton_"]:hover {
   color: var(--baseTextContrast);
 }
 
-.paperclip-mdxeditor .mdxeditor-root-contenteditable {
+.outpost-mdxeditor .mdxeditor-root-contenteditable {
   min-height: 2.5rem;
   padding: 0;
   line-height: 1.5;
 }
 
-.paperclip-mdxeditor [class*="_contentEditable_"] {
+.outpost-mdxeditor [class*="_contentEditable_"] {
   padding: 0.375rem 0.625rem !important;
 }
 
-.paperclip-mdxeditor--borderless [class*="_contentEditable_"] {
+.outpost-mdxeditor--borderless [class*="_contentEditable_"] {
   padding: 0 !important;
 }
 
-.paperclip-mdxeditor [class*="_placeholder_"] {
+.outpost-mdxeditor [class*="_placeholder_"] {
   font-size: inherit;
   line-height: 1.5;
   color: var(--muted-foreground);
@@ -2068,54 +2068,54 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
 /* MDXEditor defaults placeholders to a single clipped line. The task-chat
    composer uses longer, assignee-aware copy, so keep it inside the editor by
    giving the absolutely positioned placeholder a wrapping inline size. */
-.paperclip-task-chat-composer .paperclip-mdxeditor [class*="_placeholder_"] {
+.outpost-task-chat-composer .outpost-mdxeditor [class*="_placeholder_"] {
   display: block;
   width: 100%;
   overflow-wrap: anywhere;
   white-space: normal;
 }
 
-.paperclip-mdxeditor-content {
+.outpost-mdxeditor-content {
   font-size: inherit;
   line-height: inherit;
   color: inherit;
 }
 
-.paperclip-edit-in-place-content {
+.outpost-edit-in-place-content {
   font-size: 0.9375rem;
   line-height: 1.75rem;
 }
 
-.paperclip-mdxeditor-content > *:first-child {
+.outpost-mdxeditor-content > *:first-child {
   margin-top: 0;
 }
 
-.paperclip-mdxeditor-content > *:last-child {
+.outpost-mdxeditor-content > *:last-child {
   margin-bottom: 0;
 }
 
-.paperclip-mdxeditor-content p {
+.outpost-mdxeditor-content p {
   margin: 0;
   line-height: inherit;
 }
 
-.paperclip-mdxeditor-content p + p {
+.outpost-mdxeditor-content p + p {
   margin-top: 1.1em;
 }
 
-.paperclip-mdxeditor-content a:not(.paperclip-mention-chip):not(.paperclip-project-mention-chip) {
+.outpost-mdxeditor-content a:not(.outpost-mention-chip):not(.outpost-project-mention-chip) {
   color: color-mix(in oklab, var(--foreground) 76%, #0969da 24%);
   text-decoration: underline;
   text-underline-offset: 0.15em;
   cursor: pointer;
 }
 
-.dark .paperclip-mdxeditor-content a:not(.paperclip-mention-chip):not(.paperclip-project-mention-chip) {
+.dark .outpost-mdxeditor-content a:not(.outpost-mention-chip):not(.outpost-project-mention-chip) {
   color: color-mix(in oklab, var(--foreground) 80%, #58a6ff 20%);
 }
 
-.paperclip-mdxeditor-content a.paperclip-mention-chip,
-.paperclip-mdxeditor-content a.paperclip-project-mention-chip {
+.outpost-mdxeditor-content a.outpost-mention-chip,
+.outpost-mdxeditor-content a.outpost-project-mention-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -2135,39 +2135,39 @@ html:has(.paperclip-app-shell[data-mobile="true"] [data-task-chat-shell]) #root 
 
 /* Strip the MDXEditor's default inline-code styling from the text inside chips
    (the link label otherwise picks up a monospace font + gray tint). */
-.paperclip-mdxeditor-content a.paperclip-mention-chip code,
-.paperclip-mdxeditor-content a.paperclip-project-mention-chip code {
+.outpost-mdxeditor-content a.outpost-mention-chip code,
+.outpost-mdxeditor-content a.outpost-project-mention-chip code {
   font-family: inherit;
   background: none;
   color: inherit;
   padding: 0;
 }
 
-.paperclip-mdxeditor-content a.paperclip-mention-chip::before,
-a.paperclip-mention-chip::before {
+.outpost-mdxeditor-content a.outpost-mention-chip::before,
+a.outpost-mention-chip::before {
   content: "";
   flex: none;
 }
 
-.paperclip-mdxeditor-content a.paperclip-mention-chip[data-mention-kind="project"]::before,
-a.paperclip-mention-chip[data-mention-kind="project"]::before {
+.outpost-mdxeditor-content a.outpost-mention-chip[data-mention-kind="project"]::before,
+a.outpost-mention-chip[data-mention-kind="project"]::before {
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 999px;
-  background-color: var(--paperclip-mention-project-color, currentColor);
+  background-color: var(--outpost-mention-project-color, currentColor);
 }
 
-.paperclip-mdxeditor-content a.paperclip-mention-chip[data-mention-kind="agent"]::before,
-a.paperclip-mention-chip[data-mention-kind="agent"]::before {
+.outpost-mdxeditor-content a.outpost-mention-chip[data-mention-kind="agent"]::before,
+a.outpost-mention-chip[data-mention-kind="agent"]::before {
   width: 1rem;
   height: 1rem;
-  background-image: var(--paperclip-mention-avatar-image);
+  background-image: var(--outpost-mention-avatar-image);
   background-position: center;
   background-repeat: no-repeat;
   background-size: contain;
 }
 
-.paperclip-mdxeditor-content a.paperclip-mention-chip[data-mention-kind="skill"] {
+.outpost-mdxeditor-content a.outpost-mention-chip[data-mention-kind="skill"] {
   display: inline;
   min-height: 0;
   margin: 0;
@@ -2182,7 +2182,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   top: auto;
 }
 
-.paperclip-mdxeditor-content a.paperclip-mention-chip[data-mention-kind="skill"]::before {
+.outpost-mdxeditor-content a.outpost-mention-chip[data-mention-kind="skill"]::before {
   display: inline-block;
   width: 1em;
   height: 1em;
@@ -2193,57 +2193,57 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   mask: var(--skill-mention-icon) center / contain no-repeat;
 }
 
-.paperclip-mdxeditor-content ul,
-.paperclip-mdxeditor-content ol {
+.outpost-mdxeditor-content ul,
+.outpost-mdxeditor-content ol {
   margin: 1.1em 0;
   padding-left: 1.6em;
 }
 
-.paperclip-mdxeditor-content ul {
+.outpost-mdxeditor-content ul {
   list-style: disc;
 }
 
-.paperclip-mdxeditor-content ol {
+.outpost-mdxeditor-content ol {
   list-style: decimal;
 }
 
-.paperclip-mdxeditor-content li {
+.outpost-mdxeditor-content li {
   display: list-item;
   margin: 0.3em 0;
   line-height: inherit;
 }
 
-.paperclip-mdxeditor-content li::marker {
+.outpost-mdxeditor-content li::marker {
   color: var(--muted-foreground);
 }
 
-.paperclip-mdxeditor-content h1 {
+.outpost-mdxeditor-content h1 {
   margin: 1.4em 0 0.9em;
   font-size: 1.75em;
   font-weight: var(--font-weight-bold);
   line-height: 1.2;
 }
 
-.paperclip-mdxeditor-content h2 {
+.outpost-mdxeditor-content h2 {
   margin: 1.3em 0 0.85em;
   font-size: 1.35em;
   font-weight: var(--font-weight-bold);
   line-height: 1.3;
 }
 
-.paperclip-mdxeditor-content h3 {
+.outpost-mdxeditor-content h3 {
   margin: 1.2em 0 0.8em;
   font-size: 1.15em;
   font-weight: 600;
   line-height: 1.35;
 }
 
-.paperclip-mdxeditor-content img {
+.outpost-mdxeditor-content img {
   max-height: 18rem;
   border-radius: calc(var(--radius) - 2px);
 }
 
-.paperclip-mdxeditor-content blockquote {
+.outpost-mdxeditor-content blockquote {
   margin: 1.2em 0;
   padding-left: 1em;
   border-left: 3px solid var(--border);
@@ -2251,12 +2251,12 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   line-height: inherit;
 }
 
-.paperclip-mdxeditor-content code {
+.outpost-mdxeditor-content code {
   font-family: var(--font-mono);
   font-size: 1em;
 }
 
-.paperclip-mdxeditor-content pre {
+.outpost-mdxeditor-content pre {
   margin: 0.4rem 0;
   padding: 0;
   border: 1px solid var(--border);
@@ -2268,50 +2268,50 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 
 /* Dark theme for CodeMirror code blocks inside the MDXEditor.
    Overrides the default cm6-theme-basic-light that MDXEditor bundles. */
-.paperclip-mdxeditor .cm-editor {
+.outpost-mdxeditor .cm-editor {
   background-color: #1e1e2e !important;
   color: #cdd6f4 !important;
   font-size: 1em;
 }
 
-.paperclip-mdxeditor .cm-gutters {
+.outpost-mdxeditor .cm-gutters {
   background-color: #181825 !important;
   color: #585b70 !important;
   border-right: 1px solid #313244 !important;
 }
 
-.paperclip-mdxeditor .cm-activeLineGutter {
+.outpost-mdxeditor .cm-activeLineGutter {
   background-color: #1e1e2e !important;
 }
 
-.paperclip-mdxeditor .cm-activeLine {
+.outpost-mdxeditor .cm-activeLine {
   background-color: color-mix(in oklab, #cdd6f4 5%, transparent) !important;
 }
 
-.paperclip-mdxeditor .cm-cursor,
-.paperclip-mdxeditor .cm-dropCursor {
+.outpost-mdxeditor .cm-cursor,
+.outpost-mdxeditor .cm-dropCursor {
   border-left-color: #cdd6f4 !important;
 }
 
-.paperclip-mdxeditor .cm-selectionBackground {
+.outpost-mdxeditor .cm-selectionBackground {
   background-color: color-mix(in oklab, #89b4fa 25%, transparent) !important;
 }
 
-.paperclip-mdxeditor .cm-focused .cm-selectionBackground {
+.outpost-mdxeditor .cm-focused .cm-selectionBackground {
   background-color: color-mix(in oklab, #89b4fa 30%, transparent) !important;
 }
 
-.paperclip-mdxeditor .cm-content {
+.outpost-mdxeditor .cm-content {
   caret-color: #cdd6f4;
 }
 
 /* MDXEditor code block language selector – show on hover only */
-.paperclip-mdxeditor-content [class*="_codeMirrorWrapper_"] {
+.outpost-mdxeditor-content [class*="_codeMirrorWrapper_"] {
   position: relative;
 }
 
-.paperclip-mdxeditor-content [class*="_codeMirrorToolbar_"],
-.paperclip-mdxeditor-content [class*="_codeBlockToolbar_"] {
+.outpost-mdxeditor-content [class*="_codeMirrorToolbar_"],
+.outpost-mdxeditor-content [class*="_codeBlockToolbar_"] {
   position: absolute;
   top: 0.25rem;
   right: 0.25rem;
@@ -2320,17 +2320,17 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   transition: opacity 150ms ease;
 }
 
-.paperclip-mdxeditor-content [class*="_codeMirrorToolbar_"] select,
-.paperclip-mdxeditor-content [class*="_codeBlockToolbar_"] select {
+.outpost-mdxeditor-content [class*="_codeMirrorToolbar_"] select,
+.outpost-mdxeditor-content [class*="_codeBlockToolbar_"] select {
   background-color: #313244;
   color: #cdd6f4;
   border-color: #45475a;
 }
 
-.paperclip-mdxeditor-content [class*="_codeMirrorWrapper_"]:hover [class*="_codeMirrorToolbar_"],
-.paperclip-mdxeditor-content [class*="_codeMirrorWrapper_"]:hover [class*="_codeBlockToolbar_"],
-.paperclip-mdxeditor-content [class*="_codeMirrorWrapper_"]:focus-within [class*="_codeMirrorToolbar_"],
-.paperclip-mdxeditor-content [class*="_codeMirrorWrapper_"]:focus-within [class*="_codeBlockToolbar_"] {
+.outpost-mdxeditor-content [class*="_codeMirrorWrapper_"]:hover [class*="_codeMirrorToolbar_"],
+.outpost-mdxeditor-content [class*="_codeMirrorWrapper_"]:hover [class*="_codeBlockToolbar_"],
+.outpost-mdxeditor-content [class*="_codeMirrorWrapper_"]:focus-within [class*="_codeMirrorToolbar_"],
+.outpost-mdxeditor-content [class*="_codeMirrorWrapper_"]:focus-within [class*="_codeBlockToolbar_"] {
   opacity: 1;
 }
 
@@ -2339,7 +2339,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
    light and dark instead of pinning the old Catppuccin #1e1e2e/#cdd6f4 in
    both modes. Override prose CSS variables so prose-invert can't revert to
    defaults. */
-.paperclip-markdown {
+.outpost-markdown {
   --tw-prose-pre-bg: var(--muted);
   --tw-prose-pre-code: var(--foreground);
   --tw-prose-code: var(--foreground);
@@ -2348,7 +2348,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   --tw-prose-invert-code: var(--foreground);
 }
 
-.paperclip-markdown pre {
+.outpost-markdown pre {
   border: 1px solid var(--border) !important;
   border-radius: var(--radius-lg) !important;
   background-color: var(--muted) !important;
@@ -2360,23 +2360,23 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   white-space: pre;
 }
 
-.paperclip-markdown code {
+.outpost-markdown code {
   font-family: var(--font-mono);
   font-size: 1em;
 }
 
-.paperclip-markdown pre code {
+.outpost-markdown pre code {
   font-size: inherit;
   color: inherit;
   background: none;
 }
 
 /* Actions for fenced and indented preformatted markdown blocks */
-.paperclip-markdown-codeblock {
+.outpost-markdown-codeblock {
   position: relative;
 }
 
-.paperclip-markdown-codeblock-actions {
+.outpost-markdown-codeblock-actions {
   position: absolute;
   top: 0.4rem;
   right: 0.4rem;
@@ -2387,7 +2387,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   transition: opacity 0.12s ease;
 }
 
-.paperclip-markdown-codeblock-action {
+.outpost-markdown-codeblock-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2404,28 +2404,28 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 
-.paperclip-markdown-codeblock:hover .paperclip-markdown-codeblock-actions,
-.paperclip-markdown-codeblock-actions:focus-within,
-.paperclip-markdown-codeblock-actions[data-active] {
+.outpost-markdown-codeblock:hover .outpost-markdown-codeblock-actions,
+.outpost-markdown-codeblock-actions:focus-within,
+.outpost-markdown-codeblock-actions[data-active] {
   opacity: 1;
 }
 
-.paperclip-markdown-codeblock-action:hover {
+.outpost-markdown-codeblock-action:hover {
   background-color: var(--accent);
   color: var(--accent-foreground);
 }
 
-.paperclip-markdown-codeblock-action[data-active],
-.paperclip-markdown-codeblock-action[data-copied] {
+.outpost-markdown-codeblock-action[data-active],
+.outpost-markdown-codeblock-action[data-copied] {
   border-color: color-mix(in oklab, var(--primary) 38%, transparent);
   color: var(--primary);
 }
 
-.paperclip-markdown-codeblock-action[data-failed] {
+.outpost-markdown-codeblock-action[data-failed] {
   color: var(--destructive);
 }
 
-.paperclip-markdown-codeblock-action-label {
+.outpost-markdown-codeblock-action-label {
   font-weight: var(--font-weight-medium);
 }
 
@@ -2447,18 +2447,18 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   background-color: #ffffff0f;
 }
 
-.paperclip-markdown.paperclip-markdown-on-accent :not(pre) > code {
+.outpost-markdown.outpost-markdown-on-accent :not(pre) > code {
   background-color: color-mix(in oklab, currentColor 24%, transparent);
   color: currentColor;
 }
 
-.paperclip-markdown {
+.outpost-markdown {
   color: var(--foreground);
   font-size: 0.9375rem;
   line-height: 1.6;
 }
 
-.paperclip-markdown.paperclip-markdown-on-accent {
+.outpost-markdown.outpost-markdown-on-accent {
   color: inherit;
   --tw-prose-body: currentColor;
   --tw-prose-headings: currentColor;
@@ -2490,62 +2490,62 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   --tw-prose-invert-td-borders: color-mix(in oklab, currentColor 22%, transparent);
 }
 
-.paperclip-markdown > :first-child {
+.outpost-markdown > :first-child {
   margin-top: 0;
 }
 
-.paperclip-markdown > :last-child {
+.outpost-markdown > :last-child {
   margin-bottom: 0;
 }
 
-.paperclip-markdown :where(p, ul, ol, blockquote, pre, .paperclip-markdown-table-scroll) {
+.outpost-markdown :where(p, ul, ol, blockquote, pre, .outpost-markdown-table-scroll) {
   margin-top: 0.7rem;
   margin-bottom: 0.7rem;
 }
 
-.paperclip-markdown :where(ul, ol) {
+.outpost-markdown :where(ul, ol) {
   padding-left: 1.5rem;
 }
 
-.paperclip-markdown ul {
+.outpost-markdown ul {
   list-style-type: disc;
 }
 
-.paperclip-markdown ol {
+.outpost-markdown ol {
   /* Enough inline start room to hold outside markers without clipped digits
      when markdown lists sit flush against an overflow-constrained container. */
   list-style-type: decimal;
   padding-left: 2.5rem;
 }
 
-.paperclip-markdown li {
+.outpost-markdown li {
   margin: 0.14rem 0;
   padding-left: 0.2rem;
 }
 
 @media (width < 48rem) {
-  .paperclip-mobile-thread .paperclip-markdown :where(ul, ol) {
+  .outpost-mobile-thread .outpost-markdown :where(ul, ol) {
     padding-left: calc(var(--spacing) * 5);
   }
 }
 
-.paperclip-markdown li > :where(p, ul, ol) {
+.outpost-markdown li > :where(p, ul, ol) {
   margin-top: 0.3rem;
   margin-bottom: 0.3rem;
 }
 
-.paperclip-markdown li::marker {
+.outpost-markdown li::marker {
   color: var(--muted-foreground);
 }
 
-.paperclip-markdown.paperclip-markdown-on-accent li::marker {
+.outpost-markdown.outpost-markdown-on-accent li::marker {
   color: currentColor;
 }
 
-.paperclip-markdown h1,
-.paperclip-markdown h2,
-.paperclip-markdown h3,
-.paperclip-markdown h4 {
+.outpost-markdown h1,
+.outpost-markdown h2,
+.outpost-markdown h3,
+.outpost-markdown h4 {
   margin-top: 1.75rem;
   margin-bottom: 0.45rem;
   color: var(--foreground);
@@ -2554,73 +2554,73 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   line-height: 1.3;
 }
 
-.paperclip-markdown h1 {
+.outpost-markdown h1 {
   font-size: 1.5rem;
 }
 
-.paperclip-markdown h2 {
+.outpost-markdown h2 {
   font-size: 1.25rem;
 }
 
-.paperclip-markdown h3 {
+.outpost-markdown h3 {
   font-size: 1.05rem;
 }
 
-.paperclip-markdown h4 {
+.outpost-markdown h4 {
   font-size: 0.95rem;
 }
 
-.paperclip-markdown.paperclip-markdown-on-accent :where(h1, h2, h3, h4, strong, b) {
+.outpost-markdown.outpost-markdown-on-accent :where(h1, h2, h3, h4, strong, b) {
   color: currentColor;
 }
 
-.paperclip-markdown :where(strong, b) {
+.outpost-markdown :where(strong, b) {
   color: var(--foreground);
   font-weight: 600;
 }
 
-.paperclip-markdown a {
+.outpost-markdown a {
   color: color-mix(in oklab, var(--foreground) 76%, #0969da 24%);
   text-decoration: underline;
   text-underline-offset: 0.15em;
   cursor: pointer;
 }
 
-.paperclip-markdown.paperclip-markdown-on-accent :where(a, a:visited) {
+.outpost-markdown.outpost-markdown-on-accent :where(a, a:visited) {
   color: currentColor;
   text-decoration-color: color-mix(in oklab, currentColor 72%, transparent);
 }
 
-.paperclip-markdown.paperclip-markdown-on-accent :where(a:hover, a:focus-visible) {
+.outpost-markdown.outpost-markdown-on-accent :where(a:hover, a:focus-visible) {
   color: currentColor;
   text-decoration-color: currentColor;
 }
 
-.paperclip-markdown a.paperclip-mention-chip {
+.outpost-markdown a.outpost-mention-chip {
   text-decoration: none;
 }
 
 /* Document cards underline only their label span; the card itself must not
    inherit the markdown link underline, or the label shows two lines. */
-.paperclip-markdown a[data-sidebar-document-link] {
+.outpost-markdown a[data-sidebar-document-link] {
   text-decoration: none;
 }
 
-.paperclip-markdown a.paperclip-mention-chip[data-mention-kind="issue"] {
+.outpost-markdown a.outpost-mention-chip[data-mention-kind="issue"] {
   border-color: color-mix(in oklab, var(--foreground) 14%, var(--border) 86%);
   background: color-mix(in oklab, var(--accent) 42%, transparent);
 }
 
 /* Inline issue references in markdown: no pill chrome, just a status icon
    beside the link label — keeps the pair from splitting across lines. */
-.paperclip-markdown-issue-ref {
+.outpost-markdown-issue-ref {
   display: inline;
   white-space: nowrap;
 }
 
 /* External object URL decorations follow the same pattern: the host renders
    the icon prefix, the link text is left untouched (Postel's Law). */
-.paperclip-markdown-external-ref {
+.outpost-markdown-external-ref {
   display: inline;
   white-space: nowrap;
 }
@@ -2639,10 +2639,10 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 .link-preview-status[data-state="merged"] { color: var(--link-preview-merged); }
 .link-preview-status[data-state="conflicts"] { color: var(--link-preview-conflicts); }
 .link-preview-status:is([data-state="unknown"], [data-state="draft"], [data-state="closed"]) { color: var(--muted-foreground); }
-.paperclip-markdown a.link-preview-status:is([data-state="unknown"], [data-state="draft"], [data-state="closed"]) { color: var(--muted-foreground); }
-.paperclip-markdown a.link-preview-status[data-state="open"] { color: var(--link-preview-open); }
-.paperclip-markdown a.link-preview-status[data-state="merged"] { color: var(--link-preview-merged); }
-.paperclip-markdown a.link-preview-status[data-state="conflicts"] { color: var(--link-preview-conflicts); }
+.outpost-markdown a.link-preview-status:is([data-state="unknown"], [data-state="draft"], [data-state="closed"]) { color: var(--muted-foreground); }
+.outpost-markdown a.link-preview-status[data-state="open"] { color: var(--link-preview-open); }
+.outpost-markdown a.link-preview-status[data-state="merged"] { color: var(--link-preview-merged); }
+.outpost-markdown a.link-preview-status[data-state="conflicts"] { color: var(--link-preview-conflicts); }
 .link-preview-card {
   z-index: 50;
   width: var(--link-preview-width);
@@ -2657,82 +2657,82 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   overflow-wrap: anywhere;
 }
 
-.dark .paperclip-markdown a {
+.dark .outpost-markdown a {
   color: color-mix(in oklab, var(--foreground) 80%, #58a6ff 20%);
 }
 
-.dark .paperclip-markdown.paperclip-markdown-on-accent :where(a, a:visited) {
+.dark .outpost-markdown.outpost-markdown-on-accent :where(a, a:visited) {
   color: currentColor;
 }
 
-.paperclip-markdown blockquote {
+.outpost-markdown blockquote {
   margin-left: 0;
   padding-left: 0.95rem;
   border-left: 0.24rem solid color-mix(in oklab, var(--border) 84%, var(--muted-foreground) 16%);
   color: var(--muted-foreground);
 }
 
-.paperclip-markdown.paperclip-markdown-on-accent blockquote {
+.outpost-markdown.outpost-markdown-on-accent blockquote {
   border-left-color: color-mix(in oklab, currentColor 56%, transparent);
   color: color-mix(in oklab, currentColor 88%, transparent);
 }
 
-.paperclip-markdown.paperclip-markdown-on-accent .paperclip-workspace-file-link {
+.outpost-markdown.outpost-markdown-on-accent .outpost-workspace-file-link {
   border-color: color-mix(in oklab, currentColor 34%, transparent);
   background-color: color-mix(in oklab, currentColor 16%, transparent);
   color: currentColor;
 }
 
-.paperclip-markdown.paperclip-markdown-on-accent .paperclip-workspace-file-link:hover {
+.outpost-markdown.outpost-markdown-on-accent .outpost-workspace-file-link:hover {
   background-color: color-mix(in oklab, currentColor 24%, transparent);
 }
 
-.paperclip-markdown.paperclip-markdown-on-accent :where(a.paperclip-mention-chip, a.paperclip-project-mention-chip) {
+.outpost-markdown.outpost-markdown-on-accent :where(a.outpost-mention-chip, a.outpost-project-mention-chip) {
   border-color: color-mix(in oklab, currentColor 34%, transparent) !important;
   background: color-mix(in oklab, currentColor 16%, transparent) !important;
   color: currentColor !important;
 }
 
-.paperclip-markdown hr {
+.outpost-markdown hr {
   margin: 1.25rem 0;
   border-color: var(--border);
 }
 
-.paperclip-markdown img {
+.outpost-markdown img {
   border-radius: calc(var(--radius) + 2px);
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 10%, transparent);
 }
 
-.paperclip-markdown-table-scroll {
+.outpost-markdown-table-scroll {
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
 }
 
-.paperclip-markdown-table-scroll:focus-visible {
+.outpost-markdown-table-scroll:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
-.paperclip-markdown-table-scroll table {
+.outpost-markdown-table-scroll table {
   width: max-content;
   min-width: 100%;
   margin: 0;
 }
 
-.paperclip-markdown-table-scroll :where(th, td) {
+.outpost-markdown-table-scroll :where(th, td) {
   min-width: 8rem;
   max-width: 18rem;
   vertical-align: top;
 }
 
-.paperclip-markdown th {
+.outpost-markdown th {
   font-weight: 600;
   text-align: left;
 }
 
-.paperclip-mermaid {
+.outpost-mermaid {
   margin: 0.5rem 0;
   padding: 0.45rem 0.55rem;
   border: 1px solid var(--border);
@@ -2741,7 +2741,7 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   overflow-x: auto;
 }
 
-.paperclip-mermaid svg {
+.outpost-mermaid svg {
   display: block;
   width: max-content;
   max-width: none;
@@ -2749,17 +2749,17 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
   height: auto;
 }
 
-.paperclip-mermaid-status {
+.outpost-mermaid-status {
   margin: 0 0 0.45rem;
   font-size: 0.75rem;
   color: var(--muted-foreground);
 }
 
-.paperclip-mermaid-status-error {
+.outpost-mermaid-status-error {
   color: var(--destructive);
 }
 
-.paperclip-mermaid-source {
+.outpost-mermaid-source {
   margin: 0;
   padding: 0;
   border: 0;
@@ -2767,10 +2767,10 @@ a.paperclip-mention-chip[data-mention-kind="agent"]::before {
 }
 
 /* Mention chips rendered inline in prose (MarkdownBody or inline anchors) */
-a.paperclip-mention-chip,
-a.paperclip-project-mention-chip,
-span.paperclip-mention-chip,
-span.paperclip-project-mention-chip {
+a.outpost-mention-chip,
+a.outpost-project-mention-chip,
+span.outpost-mention-chip,
+span.outpost-project-mention-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -2794,28 +2794,28 @@ span.paperclip-project-mention-chip {
 /* Touch target floor: WCAG 2.5.5 expects ≥24px on coarse pointers. The base
    chip is 22px; bump it on touch viewports without disturbing inline metrics. */
 @media (pointer: coarse) {
-  a.paperclip-mention-chip,
-  a.paperclip-project-mention-chip,
-  span.paperclip-mention-chip,
-  span.paperclip-project-mention-chip {
+  a.outpost-mention-chip,
+  a.outpost-project-mention-chip,
+  span.outpost-mention-chip,
+  span.outpost-project-mention-chip {
     min-height: 24px;
   }
 }
 
 /* External object pills: variant marker the host renders for known-resolved
    external URLs. Inline status icon is rendered by ExternalObjectStatusIcon. */
-a.paperclip-mention-chip[data-mention-kind="external-object"],
-span.paperclip-mention-chip[data-mention-kind="external-object"] {
+a.outpost-mention-chip[data-mention-kind="external-object"],
+span.outpost-mention-chip[data-mention-kind="external-object"] {
   /* Inherit base chip styling; status colour comes from inline classes so the
      host can vary tone per category without defining a CSS variant per state. */
 }
 
 /* When the identifier inside a chip is backtick-wrapped in markdown, strip the
    inline-code monospace/gray styling so the pill label reads cleanly. */
-.paperclip-markdown a.paperclip-mention-chip code,
-.paperclip-markdown a.paperclip-project-mention-chip code,
-.paperclip-markdown span.paperclip-mention-chip code,
-.paperclip-markdown span.paperclip-project-mention-chip code {
+.outpost-markdown a.outpost-mention-chip code,
+.outpost-markdown a.outpost-project-mention-chip code,
+.outpost-markdown span.outpost-mention-chip code,
+.outpost-markdown span.outpost-project-mention-chip code {
   font-family: inherit;
   background: none;
   color: inherit;
@@ -2872,13 +2872,13 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
    Allowlist (sites intentionally left as hardcoded / functional literals,
    NOT converted to tokens — each also carries an inline
    `token-extraction: allowlisted` comment at the site):
-   - pages/CompanySettings.tsx — <input type="color"> value; functional form control, not a rendered value. REMOVED: the company brand-color setting was deleted, so the control no longer exists.
+   - pages/SpaceSettings.tsx — <input type="color"> value; functional form control, not a rendered value. REMOVED: the space brand-color setting was deleted, so the control no longer exists.
    - components/issue-properties/IssueProperties.tsx (newLabelColor) — color-picker seed persisted into label-create payload.
-   - pages/CompanySkills.tsx (DISCOVERY_ACCENTS) — persisted/compared skill.color JS data, not just rendered.
+   - pages/SpaceSkills.tsx (DISCOVERY_ACCENTS) — persisted/compared skill.color JS data, not just rendered.
    - components/IssueColumns.tsx (accentColor fallback) — also feeds pickTextColorForPillBg() contrast math.
-   - components/CompanyPatternIcon.tsx — canvas fillStyle computed at runtime from numeric props, not a static literal.
-   - pages/InviteUxLab.tsx (brandColor prop, x2) — demo/showcase-only prop feeding CompanyPatternIcon's hexToHue() color math, not a rendered CSS value. REMOVED: the brandColor prop was deleted, so the props no longer exist.
-   - components/FileViewerSheet.tsx — half-migrated var(--paperclip-code-highlight-*, fallback) pattern at the time of Batch 1; RESOLVED in Batch 4 via *-resolved wrapper tokens (see the Batch 4 MISC token block below) — no longer allowlisted.
+   - components/SpacePatternIcon.tsx — canvas fillStyle computed at runtime from numeric props, not a static literal.
+   - pages/InviteUxLab.tsx (brandColor prop, x2) — demo/showcase-only prop feeding SpacePatternIcon's hexToHue() color math, not a rendered CSS value. REMOVED: the brandColor prop was deleted, so the props no longer exist.
+   - components/FileViewerSheet.tsx — half-migrated var(--outpost-code-highlight-*, fallback) pattern at the time of Batch 1; RESOLVED in Batch 4 via *-resolved wrapper tokens (see the Batch 4 MISC token block below) — no longer allowlisted.
 */
 :root {
   --hex-959596: #959596; /* Muted feed actor/verb/title text (ActivityFeed.tsx, FeedCard.tsx) — PRIOR-ART-flagged gap cluster, no existing token match. */
@@ -2919,7 +2919,7 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
    Allowlist (sites intentionally left as hardcoded / functional literals,
    NOT converted to tokens — each also carries an inline
    `token-extraction: allowlisted` comment at the site):
-   - pages/CompanySkills.tsx (fontSize: Math.round(size * 0.42)) — computed at
+   - pages/SpaceSkills.tsx (fontSize: Math.round(size * 0.42)) — computed at
      runtime from a prop; not a static literal, nothing to extract.
 */
 :root {
@@ -3014,7 +3014,7 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --sz-200px: 200px; /* Extracted from ui/src/components/ChatComposer.test.tsx (max-h-[200px]). */
   --sz-22px: 22px; /* Extracted from ui/src/components/ChatComposer.test.tsx (max-h-[22px]). */
   --sz-60px: 60px; /* Extracted from ui/src/components/CommentThread.tsx (min-h-[60px]). */
-  --sz-220px: 220px; /* Extracted from ui/src/components/CompanySwitcher.tsx (w-[220px]). */
+  --sz-220px: 220px; /* Extracted from ui/src/components/SpaceSwitcher.tsx (w-[220px]). */
   --sz-88vh: 88vh; /* Extracted from ui/src/components/DocumentAnnotationPanel.tsx (max-h-[88vh]). */
   --sz-80vh: 80vh; /* Extracted from ui/src/components/DocumentAnnotationPanel.tsx (max-h-[80vh]). */
   --sz-360px: 360px; /* Extracted from ui/src/components/DocumentAnnotationPanel.tsx (w-[360px]). */
@@ -3104,18 +3104,18 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --sz-7rem: 7rem; /* Extracted from ui/src/pages/Agents.test.tsx (min-w-[7rem]). */
   --sz-calc-29: calc(100% + 3rem);
   --sz-22rem: 22rem; /* SkillStudio.tsx editor minimum height. */
-  --sz-560px: 560px; /* Extracted from ui/src/pages/CompanyExport.tsx (min-h-[560px]). */
-  --sz-520px: 520px; /* Extracted from ui/src/pages/CompanyExport.tsx (min-h-[520px]). */
-  --sz-480px: 480px; /* Extracted from ui/src/pages/CompanyExport.tsx (max-h-[480px]). */
-  --sz-calc-30: calc(100vh - 12rem); /* Extracted from ui/src/pages/CompanyExport.tsx (h-[calc(100vh-12rem)]). */
-  --sz-calc-31: calc(100vh - 16rem); /* Extracted from ui/src/pages/CompanyImport.tsx (h-[calc(100vh-16rem)]). */
-  --sz-calc-32: min(28rem,70vh); /* Extracted from ui/src/pages/CompanySkills.tsx (max-h-[min(28rem,70vh)]). */
-  --sz-11_5rem: 11.5rem; /* Extracted from ui/src/pages/CompanySkills.tsx (min-h-[11.5rem]). */
+  --sz-560px: 560px; /* Extracted from ui/src/pages/SpaceExport.tsx (min-h-[560px]). */
+  --sz-520px: 520px; /* Extracted from ui/src/pages/SpaceExport.tsx (min-h-[520px]). */
+  --sz-480px: 480px; /* Extracted from ui/src/pages/SpaceExport.tsx (max-h-[480px]). */
+  --sz-calc-30: calc(100vh - 12rem); /* Extracted from ui/src/pages/SpaceExport.tsx (h-[calc(100vh-12rem)]). */
+  --sz-calc-31: calc(100vh - 16rem); /* Extracted from ui/src/pages/SpaceImport.tsx (h-[calc(100vh-16rem)]). */
+  --sz-calc-32: min(28rem,70vh); /* Extracted from ui/src/pages/SpaceSkills.tsx (max-h-[min(28rem,70vh)]). */
+  --sz-11_5rem: 11.5rem; /* Extracted from ui/src/pages/SpaceSkills.tsx (min-h-[11.5rem]). */
   --sz-11_75rem: 11.75rem; /* SkillStudio.tsx file/input browser cap: five min-h-9 rows plus p-1 vertical padding. */
-  --sz-calc-33: calc(100dvh - 6rem); /* Extracted from ui/src/pages/CompanySkills.tsx (h-[calc(100dvh-6rem)]). */
-  --sz-calc-34: clamp(14rem,45vh,28rem); /* Extracted from ui/src/pages/CompanySkills.tsx (h-[clamp(14rem,45vh,28rem)]). */
-  --sz-400px: 400px; /* Extracted from ui/src/pages/CompanySkills.tsx (min-h-[400px]). */
-  --sz-calc-35: min(34rem,55vw); /* Extracted from ui/src/pages/CompanySkills.tsx (max-w-[min(34rem,55vw)]). */
+  --sz-calc-33: calc(100dvh - 6rem); /* Extracted from ui/src/pages/SpaceSkills.tsx (h-[calc(100dvh-6rem)]). */
+  --sz-calc-34: clamp(14rem,45vh,28rem); /* Extracted from ui/src/pages/SpaceSkills.tsx (h-[clamp(14rem,45vh,28rem)]). */
+  --sz-400px: 400px; /* Extracted from ui/src/pages/SpaceSkills.tsx (min-h-[400px]). */
+  --sz-calc-35: min(34rem,55vw); /* Extracted from ui/src/pages/SpaceSkills.tsx (max-w-[min(34rem,55vw)]). */
   --sz-640px: 640px; /* Extracted from ui/src/pages/DesignGuide.tsx (max-w-[640px]). */
   --sz-28rem: 28rem; /* Extracted from ui/src/pages/DesignGuide.tsx (w-[28rem]). */
   --sz-170px: 170px; /* Extracted from ui/src/pages/Inbox.tsx (w-[170px]). */
@@ -3130,8 +3130,8 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --sz-14rem: 14rem; /* Extracted from ui/src/pages/TeamCatalog.tsx (max-w-[14rem]). */
   --rad-3: 3px; /* Extracted from ui/src/components/ExternalObjectPill.tsx (ring-[3px]). */
   --rad-4: 4px; /* Extracted from ui/src/components/IssueChatThread.tsx (rounded-br-[4px]). */
-  --rad-2: 2px; /* Extracted from ui/src/components/SidebarCompanyMenu.tsx (ring-[2px]). */
-  --rad-14: 14px; /* Extracted from ui/src/pages/CompanySettings.tsx (rounded-[14px]). */
+  --rad-2: 2px; /* Extracted from ui/src/components/SidebarSpaceMenu.tsx (ring-[2px]). */
+  --rad-14: 14px; /* Extracted from ui/src/pages/SpaceSettings.tsx (rounded-[14px]). */
   --rad-28: 28px; /* Extracted from ui/src/pages/InviteUxLab.tsx (rounded-[28px]). */
   --rad-32: 32px; /* Extracted from ui/src/pages/InviteUxLab.tsx (rounded-[32px]). */
   --pct-90: 90%; /* Extracted from ui/src/components/DocumentDiffModal.tsx (max-w-[90%]). */
@@ -3217,12 +3217,12 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --gtc-18: auto minmax(0,1fr) minmax(12rem,0.65fr); /* Extracted from ui/src/pages/AgentDetail.tsx (grid-cols-[auto_minmax(0,1fr)_minmax(12rem,0.65fr)]). */
   --gtc-19: 260px minmax(0,1fr); /* Extracted from ui/src/pages/AgentDetail.tsx (grid-cols-[260px_minmax(0,1fr)]). */
   /* --gtc-20 through --gtc-23 retired with the removed Cloud Upstream page. */
-  --gtc-25: 19rem minmax(0,1fr); /* Extracted from ui/src/pages/CompanyExport.tsx (grid-cols-[19rem_minmax(0,1fr)]). */
-  --gtc-26: 7rem minmax(0,1fr); /* Extracted from ui/src/pages/CompanySkills.tsx (grid-cols-[7rem_minmax(0,1fr)]). */
-  --gtc-27: minmax(0,1fr) auto auto; /* Extracted from ui/src/pages/CompanySkills.tsx (grid-cols-[minmax(0,1fr)_auto_auto]). */
-  --gtc-28: 13rem minmax(0,1fr); /* Extracted from ui/src/pages/CompanySkills.tsx (grid-cols-[13rem_minmax(0,1fr)]). */
-  --gtc-29: minmax(0,1fr) 18rem; /* Extracted from ui/src/pages/CompanySkills.tsx (grid-cols-[minmax(0,1fr)_18rem]). */
-  --gtc-30: 14rem minmax(0,1fr); /* Extracted from ui/src/pages/CompanySkills.tsx (grid-cols-[14rem_minmax(0,1fr)]). */
+  --gtc-25: 19rem minmax(0,1fr); /* Extracted from ui/src/pages/SpaceExport.tsx (grid-cols-[19rem_minmax(0,1fr)]). */
+  --gtc-26: 7rem minmax(0,1fr); /* Extracted from ui/src/pages/SpaceSkills.tsx (grid-cols-[7rem_minmax(0,1fr)]). */
+  --gtc-27: minmax(0,1fr) auto auto; /* Extracted from ui/src/pages/SpaceSkills.tsx (grid-cols-[minmax(0,1fr)_auto_auto]). */
+  --gtc-28: 13rem minmax(0,1fr); /* Extracted from ui/src/pages/SpaceSkills.tsx (grid-cols-[13rem_minmax(0,1fr)]). */
+  --gtc-29: minmax(0,1fr) 18rem; /* Extracted from ui/src/pages/SpaceSkills.tsx (grid-cols-[minmax(0,1fr)_18rem]). */
+  --gtc-30: 14rem minmax(0,1fr); /* Extracted from ui/src/pages/SpaceSkills.tsx (grid-cols-[14rem_minmax(0,1fr)]). */
   --gtc-31: 1.3fr,1fr; /* Extracted from ui/src/pages/Costs.tsx (grid-cols-[1.3fr,1fr]). */
   --gtc-32: 1.25fr,0.95fr; /* Extracted from ui/src/pages/Costs.tsx (grid-cols-[1.25fr,0.95fr]). */
   --gtc-33: 1.2fr,0.95fr; /* Extracted from ui/src/pages/Costs.tsx (grid-cols-[1.2fr,0.95fr]). */
@@ -3247,8 +3247,8 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --gtc-runner-inspector-presentation: minmax(18rem,0.8fr) minmax(20rem,1.2fr);
   --gtc-runner-inspector-trace: 20rem minmax(0,1fr);
   --gtr-1: auto auto; /* Extracted from ui/src/components/ui/card.tsx (grid-rows-[auto_auto]). */
-  --gtr-2: 1fr; /* Extracted from ui/src/pages/CompanySkills.tsx (grid-rows-[1fr]). */
-  --gtr-3: 0fr; /* Extracted from ui/src/pages/CompanySkills.tsx (grid-rows-[0fr]). */
+  --gtr-2: 1fr; /* Extracted from ui/src/pages/SpaceSkills.tsx (grid-rows-[1fr]). */
+  --gtr-3: 0fr; /* Extracted from ui/src/pages/SpaceSkills.tsx (grid-rows-[0fr]). */
   --tp-background-color-border-color: background-color,border-color; /* Extracted from ui/src/components/ActivityFeed.tsx (transition-[background-color,border-color]). */
   --tp-width-background-color: width,background-color; /* Extracted from ui/src/components/BudgetPolicyCard.tsx (transition-[width,background-color]). */
   --tp-width: width; /* Extracted from ui/src/components/ClaudeSubscriptionPanel.tsx (transition-[width]). */
@@ -3263,7 +3263,7 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --tp-color-background-color-border-color-box-shadow-opacity: color,background-color,border-color,box-shadow,opacity; /* Extracted from ui/src/components/ui/button.tsx (transition-[color,background-color,border-color,box-shadow,opacity]). */
   --tp-border-color-background-color: border-color,background-color; /* Extracted from ui/src/components/ui/radio-card.tsx (transition-[border-color,background-color]). */
   --tp-color-background-color-border-color-box-shadow: color,background-color,border-color,box-shadow; /* Extracted from ui/src/components/ui/tabs.tsx (transition-[color,background-color,border-color,box-shadow]). */
-  --tp-grid-template-rows-opacity: grid-template-rows,opacity; /* Extracted from ui/src/pages/CompanySkills.tsx (transition-[grid-template-rows,opacity]). */
+  --tp-grid-template-rows-opacity: grid-template-rows,opacity; /* Extracted from ui/src/pages/SpaceSkills.tsx (transition-[grid-template-rows,opacity]). */
   --tp-box-shadow-border-color: box-shadow,border-color; /* Extracted from ui/src/pages/OrgChart.tsx (transition-[box-shadow,border-color]). */
   --tp-box-shadow: box-shadow; /* Extracted from ui/src/pages/ProjectDetail.tsx (transition-[box-shadow]). */
   --tp-transform-box-shadow: transform,box-shadow; /* Extracted from ui/src/pages/ProjectDetail.tsx (transition-[transform,box-shadow]). */
@@ -3281,13 +3281,13 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
   --sw-2_3: 2.3; /* Extracted from ui/src/components/MobileBottomNav.tsx (stroke-[2.3]). */
   --blur-1px: 1px; /* Extracted from ui/src/components/ChatComposer.tsx (backdrop-blur-[1px]). */
   --blur-2px: 2px; /* Extracted from ui/src/components/IssueChatThread.tsx (backdrop-blur-[2px]). */
-  --drop-shadow-extract-1: 0 1px 2px rgba(0,0,0,0.65); /* Extracted from ui/src/components/CompanyPatternIcon.tsx (drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)]). */
-  --code-bg-resolved: var(--paperclip-code-bg, var(--muted)); /* Extracted from ui/src/components/FileViewerSheet.tsx (bg-[var(--paperclip-code-bg,theme(colors.muted.DEFAULT))]). */
-  --paperclip-code-highlight-bg: rgba(250,204,21,0.12); /* DECISION-SHEET.md A5: FileViewerSheet.tsx referenced this var without it ever being defined, relying on the var() fallback; minted here at exactly the former fallback value (zero pixels). */
-  --paperclip-code-highlight-border: rgb(234,179,8); /* DECISION-SHEET.md A5: same as --paperclip-code-highlight-bg — minted at the former fallback value. */
-  --code-highlight-bg-resolved: var(--paperclip-code-highlight-bg); /* Extracted from ui/src/components/FileViewerSheet.tsx; fallback dropped in A5 now that --paperclip-code-highlight-bg is a real token (was var(--paperclip-code-highlight-bg, rgba(250,204,21,0.12))). */
-  --code-gutter-fg-resolved: var(--paperclip-code-gutter-fg, var(--muted-foreground)); /* Extracted from ui/src/components/FileViewerSheet.tsx (text-[var(--paperclip-code-gutter-fg,theme(colors.muted.foreground))]). */
-  --code-highlight-border-resolved: var(--paperclip-code-highlight-border); /* Extracted from ui/src/components/FileViewerSheet.tsx; fallback dropped in A5 now that --paperclip-code-highlight-border is a real token (was var(--paperclip-code-highlight-border, rgb(234,179,8))). */
+  --drop-shadow-extract-1: 0 1px 2px rgba(0,0,0,0.65); /* Extracted from ui/src/components/SpacePatternIcon.tsx (drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)]). */
+  --code-bg-resolved: var(--outpost-code-bg, var(--muted)); /* Extracted from ui/src/components/FileViewerSheet.tsx (bg-[var(--outpost-code-bg,theme(colors.muted.DEFAULT))]). */
+  --outpost-code-highlight-bg: rgba(250,204,21,0.12); /* DECISION-SHEET.md A5: FileViewerSheet.tsx referenced this var without it ever being defined, relying on the var() fallback; minted here at exactly the former fallback value (zero pixels). */
+  --outpost-code-highlight-border: rgb(234,179,8); /* DECISION-SHEET.md A5: same as --outpost-code-highlight-bg — minted at the former fallback value. */
+  --code-highlight-bg-resolved: var(--outpost-code-highlight-bg); /* Extracted from ui/src/components/FileViewerSheet.tsx; fallback dropped in A5 now that --outpost-code-highlight-bg is a real token (was var(--outpost-code-highlight-bg, rgba(250,204,21,0.12))). */
+  --code-gutter-fg-resolved: var(--outpost-code-gutter-fg, var(--muted-foreground)); /* Extracted from ui/src/components/FileViewerSheet.tsx (text-[var(--outpost-code-gutter-fg,theme(colors.muted.foreground))]). */
+  --code-highlight-border-resolved: var(--outpost-code-highlight-border); /* Extracted from ui/src/components/FileViewerSheet.tsx; fallback dropped in A5 now that --outpost-code-highlight-border is a real token (was var(--outpost-code-highlight-border, rgb(234,179,8))). */
   --gradient-extract-25: linear-gradient(135deg,var(--primary) 0%,var(--accent) 55%,var(--muted) 100%); /* Extracted from ui/src/components/SidebarAccountMenu.tsx; corrected for full-color semantic tokens. */
 }
 
@@ -3317,9 +3317,9 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
    allowlisted concern. Paths are matched by the gate script as a substring
    of the file being checked (repo-relative, POSIX-style).
    * allow ui/src/components/issue-properties/IssueProperties.tsx — newLabelColor color-picker seed state persisted into the label-create payload sent to the backend; a var() string would corrupt that payload
-   * allow ui/src/pages/CompanySkills.tsx — DISCOVERY_ACCENTS palette array feeds skill.color, persisted/compared JS data (SkillCreateDraft), not just a rendered value; also fontSize: Math.round(size * 0.42), computed at runtime from a prop, not a static literal
+   * allow ui/src/pages/SpaceSkills.tsx — DISCOVERY_ACCENTS palette array feeds skill.color, persisted/compared JS data (SkillCreateDraft), not just a rendered value; also fontSize: Math.round(size * 0.42), computed at runtime from a prop, not a static literal
    * allow ui/src/components/IssueColumns.tsx — accentColor fallback also feeds pickTextColorForPillBg() contrast math (lib/color-contrast.ts), which needs a real hex string to compute luminance
-   * allow ui/src/components/CompanyPatternIcon.tsx — canvas 2D fillStyle built from a runtime-computed template literal, not a static literal at all
+   * allow ui/src/components/SpacePatternIcon.tsx — canvas 2D fillStyle built from a runtime-computed template literal, not a static literal at all
    * allow ui/src/components/onboarding/PillGuy.tsx — inline rendering of the approved pill-1 dormant/alive brand SVG assets; their fixed eye, body, tuft, and gradient fills are the illustration artwork rather than themeable interface colors
    * allow ui/src/components/ui/scroll-area.tsx — rounded-[inherit] is a CSS keyword, not a literal value; nothing to extract
    * allow ui/src/components/ui/dialog.tsx — tw-animate-css plugin utilities (zoom-in-[0.97], zoom-out-[0.97], slide-in-from-top-[1%], slide-out-to-top-[1%], animate-in, animate-out, fade-in-0, fade-out-0) are dead/no-op classes today (the tw-animate-css plugin is not installed and no matching @utility exists in this file; confirmed via grep of the built storybook-static CSS — none of these class names emit any rule); nothing to tokenize without visually changing a currently-inert class
@@ -3333,11 +3333,11 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
    Test-fixture hex-literal policy (Batch 4, resolving TOKEN-AUDIT.md section
    8 item 10 "Needs human decision" for these specific sites): the following
    *.test.tsx files pass hex-literal strings as MOCK PROP / MOCK API-RESPONSE
-   DATA (label/project/company/brand `color` fields, xterm.js theme-mock
+   DATA (label/project/space/brand `color` fields, xterm.js theme-mock
    assertions) — not as Tailwind class strings or CSS-in-JS style
    declarations. These are the test-file counterpart of the same
    "functional/persisted data, not a rendered CSS value" category Batch 1
-   already allowlisted in production source (see CompanySkills.tsx,
+   already allowlisted in production source (see SpaceSkills.tsx,
    IssueProperties.tsx, IssueColumns.tsx above); tokenizing them would
    replace realistic-looking mock data with `var()` strings that no longer
    resemble what a real API response contains, without touching any
@@ -3655,7 +3655,7 @@ span.paperclip-mention-chip[data-mention-kind="external-object"] {
 
 :root {
   /* Browser Use live viewer chrome: 30px tab strip + 40px navigation bar.
-     Provider integration measurement (2026-09-29), not Paperclip spacing.
+     Provider integration measurement (2026-09-29), not Outpost spacing.
      Keep navigation visible; the cross-origin viewer exposes no sizing message. */
   --browser-use-viewer-chrome-height: 70px;
 }
@@ -4127,7 +4127,7 @@ html:has(.design-proposal-theme) [class~="text-(length:--text-micro)"] {
 /* Tailwind prose and preflight also contain literal medium/bolder weights.
    Preserve explicit strong-heading rules and compact reasoning inheritance. */
 html:has(.design-proposal-theme) :where(b, strong) { font-weight: var(--font-weight-semibold); }
-html:has(.design-proposal-theme) .paperclip-markdown :where(a, code, blockquote) { font-weight: var(--font-weight-normal); }
+html:has(.design-proposal-theme) .outpost-markdown :where(a, code, blockquote) { font-weight: var(--font-weight-normal); }
 
 /* Conversation proposal: two size/leading recipes, shared by saved threads,
    synthetic previews and the composer. Page headers and other prose are outside
@@ -4172,7 +4172,7 @@ html:has(.design-proposal-theme) [data-conversation-typography] :where(
   line-height: inherit;
 }
 html:has(.design-proposal-theme) [data-conversation-typography] :where(
-  [data-conversation-text], [data-testid="task-chat-thinking"] .paperclip-markdown,
+  [data-conversation-text], [data-testid="task-chat-thinking"] .outpost-markdown,
   [data-testid="task-chat-composer-input"],
   [data-testid="task-chat-live-run-pill"] > span:first-child,
   [data-testid="task-chat-turn-status-header"]
@@ -4183,27 +4183,27 @@ html:has(.design-proposal-theme) [data-conversation-typography] :where(
 }
 html:has(.design-proposal-theme) [data-conversation-typography] [data-conversation-text="final"] { color: var(--foreground); }
 html:has(.design-proposal-theme) [data-conversation-typography] [data-conversation-text="human"] { color: var(--conversation-human-foreground); }
-html:has(.design-proposal-theme) [data-conversation-typography] .paperclip-markdown {
+html:has(.design-proposal-theme) [data-conversation-typography] .outpost-markdown {
   font-size: inherit;
   line-height: inherit;
   color: inherit;
 }
-html:has(.design-proposal-theme) [data-conversation-typography] .paperclip-markdown :is(h1, h2, h3, h4, h5, h6, p, ul, ol, li, blockquote, a, code, strong, b, em, th, td) {
+html:has(.design-proposal-theme) [data-conversation-typography] .outpost-markdown :is(h1, h2, h3, h4, h5, h6, p, ul, ol, li, blockquote, a, code, strong, b, em, th, td) {
   font-size: inherit;
   line-height: inherit;
   color: inherit;
   letter-spacing: normal;
 }
-html:has(.design-proposal-theme) [data-conversation-typography] .paperclip-markdown :is(h1, h2, h3, h4, h5, h6) { font-weight: var(--font-weight-normal); }
-html:has(.design-proposal-theme) [data-conversation-typography] .paperclip-markdown :is(strong, b) { font-weight: var(--font-weight-semibold); }
+html:has(.design-proposal-theme) [data-conversation-typography] .outpost-markdown :is(h1, h2, h3, h4, h5, h6) { font-weight: var(--font-weight-normal); }
+html:has(.design-proposal-theme) [data-conversation-typography] .outpost-markdown :is(strong, b) { font-weight: var(--font-weight-semibold); }
 /* Existing shared code-block rules use !important; retain their layout while
    allowing authored message and diagnostic roles to own size and contrast. */
-html:has(.design-proposal-theme) [data-conversation-typography] .paperclip-markdown pre {
+html:has(.design-proposal-theme) [data-conversation-typography] .outpost-markdown pre {
   font-size: inherit !important;
   line-height: inherit;
   color: inherit !important;
 }
-html:has(.design-proposal-theme) [data-conversation-typography] .paperclip-markdown :is(a, a:hover, a:focus-visible) { color: inherit; }
+html:has(.design-proposal-theme) [data-conversation-typography] .outpost-markdown :is(a, a:hover, a:focus-visible) { color: inherit; }
 html:has(.design-proposal-theme) [data-conversation-typography] .shimmer-text {
   --shimmer-base: var(--foreground);
   --shimmer-highlight: color-mix(in oklch, var(--foreground) 35%, transparent);
@@ -4775,7 +4775,7 @@ html:has(.design-proposal-theme) .design-navigation-group-label {
 .design-task-results { margin-block-end: calc(-1 * var(--design-page-toolbar-gap)); font-size: var(--design-page-type-size); line-height: var(--design-page-type-leading); color: var(--muted-foreground); }
 .design-task-list-panel { min-width: 0; }
 .design-task-list-panel[hidden] { display: none; }
-.design-task-board { min-width: 0; }
+.design-task-operator { min-width: 0; }
 
 /* Paper filter IA: five peer groups, with searchable option lists. Surface,
    highlight and shadow inherit the shared refreshed popover appearance. */
@@ -5099,7 +5099,7 @@ html:not(.dark) .coordinator-sidebar {
 }
 .coordinator-workspace [data-conversation-text] { font-size: var(--coordinator-body-size); line-height: var(--coordinator-body-leading); }
 .coordinator-workspace [data-conversation-text="progress"] { font-size: var(--text-sm); line-height: var(--text-sm--line-height); }
-.coordinator-workspace [data-conversation-text] .paperclip-markdown { font-size: inherit; line-height: inherit; }
+.coordinator-workspace [data-conversation-text] .outpost-markdown { font-size: inherit; line-height: inherit; }
 .coordinator-workspace [data-conversation-text="human"] { background: var(--bubble-human-bg); color: var(--bubble-human-fg); }
 .coordinator-workspace [data-question-answer] { background: var(--card); }
 .dark .coordinator-workspace [data-question-answer] { background: var(--muted); }
@@ -5112,7 +5112,7 @@ html:not(.dark) .coordinator-sidebar {
 @media (min-width: 768px) {
   .coordinator-workspace [data-testid="task-chat-thread"] { position: relative; }
   .coordinator-workspace .task-chat-composer-dock { position: absolute; inset-inline: 0; bottom: 0; }
-  .coordinator-workspace [data-testid="task-chat-scroller"] > .paperclip-mobile-thread {
+  .coordinator-workspace [data-testid="task-chat-scroller"] > .outpost-mobile-thread {
     padding-bottom: calc(var(--task-composer-dock-height, 0px) + var(--spacing) * 4);
   }
   .coordinator-workspace [data-testid="task-chat-scroller"] ~ button {
@@ -5357,16 +5357,16 @@ html:not(.dark) .coordinator-sidebar {
   max-width: var(--tc-image-grid-max-width);
 }
 
-.paperclip-patch-line { min-width: 0; }
-span.paperclip-patch-line { display: block; }
-.paperclip-patch-line[data-patch-line="add"] { color: var(--patch-add-fg); background: var(--diff-add-bg); }
-.paperclip-patch-line[data-patch-line="remove"] { color: var(--patch-remove-fg); background: var(--diff-remove-bg); }
-.paperclip-patch-line[data-patch-line="hunk"] { color: var(--patch-meta-fg); background: var(--muted); }
-.paperclip-patch-line[data-patch-line="skip"] { color: var(--patch-meta-fg); }
+.outpost-patch-line { min-width: 0; }
+span.outpost-patch-line { display: block; }
+.outpost-patch-line[data-patch-line="add"] { color: var(--patch-add-fg); background: var(--diff-add-bg); }
+.outpost-patch-line[data-patch-line="remove"] { color: var(--patch-remove-fg); background: var(--diff-remove-bg); }
+.outpost-patch-line[data-patch-line="hunk"] { color: var(--patch-meta-fg); background: var(--muted); }
+.outpost-patch-line[data-patch-line="skip"] { color: var(--patch-meta-fg); }
 
-.paperclip-patch-preview .paperclip-patch-line { overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.outpost-patch-preview .outpost-patch-line { overflow: hidden; text-overflow: ellipsis; white-space: pre; }
 
-.paperclip-patch-line[data-line-selected] { background: var(--code-highlight-bg-resolved); }
+.outpost-patch-line[data-line-selected] { background: var(--code-highlight-bg-resolved); }
 /* Agent Identity: equal panel gutters and a viewport-bound dirty footer. */
 :root {
   --agent-identity-panel-gap: calc(var(--spacing) * 6);

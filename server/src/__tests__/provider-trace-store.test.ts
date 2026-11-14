@@ -139,7 +139,7 @@ describe("provider trace retention", () => {
     return {
       id: "trace-1",
       runId: "run-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       status: "complete",
       provider: "codex",
       traceRef: "11111111-1111-4111-8111-111111111111.ndjson",
@@ -263,10 +263,10 @@ describe("provider trace retention", () => {
     name: string;
     read: (store: ReturnType<typeof providerTraceStore>) => Promise<unknown>;
   }> = [
-    { name: "inspect", read: (store) => store.inspect("run-1", "company-1") },
-    { name: "readExactEntries", read: (store) => store.readExactEntries("run-1", "company-1") },
-    { name: "revealFrame", read: (store) => store.revealFrame("run-1", "company-1", 1) },
-    { name: "download", read: (store) => store.download("run-1", "company-1") },
+    { name: "inspect", read: (store) => store.inspect("run-1", "space-1") },
+    { name: "readExactEntries", read: (store) => store.readExactEntries("run-1", "space-1") },
+    { name: "revealFrame", read: (store) => store.revealFrame("run-1", "space-1", 1) },
+    { name: "download", read: (store) => store.download("run-1", "space-1") },
   ];
 
   it.each(rawReaders)("denies and expires raw trace access through $name", async ({ name, read }) => {
@@ -288,10 +288,10 @@ describe("provider trace retention", () => {
     const { db, row } = statefulExpiredTraceDb();
     const store = providerTraceStore(db as never);
 
-    await expect(store.inspect("run-1", "company-1")).rejects.toThrow("permission denied");
+    await expect(store.inspect("run-1", "space-1")).rejects.toThrow("permission denied");
     expect(row()).toMatchObject({ status: "expired", deletedAt: expect.any(Date) });
 
-    await expect(store.inspect("run-1", "company-1")).resolves.toEqual({
+    await expect(store.inspect("run-1", "space-1")).resolves.toEqual({
       trace: null,
       entries: [],
     });
@@ -306,7 +306,7 @@ describe("provider trace retention", () => {
 
     await expect(store.prepare({
       runId: "run-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       provider: "codex",
       requestedBy: "user-1",
     })).rejects.toThrow("provider_trace_unavailable");
@@ -318,7 +318,7 @@ describe("provider trace retention", () => {
     const { db, row } = finalizeExpiryRaceDb();
     const store = providerTraceStore(db as never);
 
-    await expect(store.finalize("run-1", "company-1")).resolves.toBeNull();
+    await expect(store.finalize("run-1", "space-1")).resolves.toBeNull();
     expect(row()).toMatchObject({
       status: "expired",
       deletedAt: expect.any(Date),

@@ -1,57 +1,57 @@
 export const queryKeys = {
-  linkPreview: (companyId: string, userId: string | null, url: string) =>
-    ["link-preview", companyId, userId, url] as const,
+  linkPreview: (spaceId: string, userId: string | null, url: string) =>
+    ["link-preview", spaceId, userId, url] as const,
   workspacePreferences: {
     mine: (userId: string | null) => ["workspace-preferences", userId] as const,
   },
   agentCommentary: {
-    list: (companyId: string, filters: object) => ["agent-commentary", companyId, "list", filters] as const,
-    detail: (companyId: string, id: string | null) => ["agent-commentary", companyId, "detail", id] as const,
+    list: (spaceId: string, filters: object) => ["agent-commentary", spaceId, "list", filters] as const,
+    detail: (spaceId: string, id: string | null) => ["agent-commentary", spaceId, "detail", id] as const,
   },
   skillSources: {
-    projects: (companyId: string) => ['project-skill-repositories', companyId] as const,
-    preview: (companyId: string, repositoryUrl: string, connectionId: string | null, commitSha: string | null, skillPath: string, filePath: string) => ['skill-sources', companyId, 'preview', repositoryUrl, connectionId, commitSha, skillPath, filePath] as const,
-    all: (companyId: string) => ["skill-sources", companyId] as const,
-    repositories: (companyId: string) => ["skill-source-repositories", companyId] as const,
+    projects: (spaceId: string) => ['project-skill-repositories', spaceId] as const,
+    preview: (spaceId: string, repositoryUrl: string, connectionId: string | null, commitSha: string | null, skillPath: string, filePath: string) => ['skill-sources', spaceId, 'preview', repositoryUrl, connectionId, commitSha, skillPath, filePath] as const,
+    all: (spaceId: string) => ["skill-sources", spaceId] as const,
+    repositories: (spaceId: string) => ["skill-source-repositories", spaceId] as const,
   },
   agentChats: {
-    list: (companyId: string | null, userId?: string | null) =>
-      ["agent-chats", companyId, userId] as const,
-    detail: (companyId: string | null, userId: string | null, agentId: string | undefined) =>
-      ["agent-chat", companyId, userId, agentId] as const,
+    list: (spaceId: string | null, userId?: string | null) =>
+      ["agent-chats", spaceId, userId] as const,
+    detail: (spaceId: string | null, userId: string | null, agentId: string | undefined) =>
+      ["agent-chat", spaceId, userId, agentId] as const,
   },
-  companies: {
+  spaces: {
     /**
-     * Prefix for everything company-shaped. Matches the list, details and stats
+     * Prefix for everything space-shaped. Matches the list, details and stats
      * below, so an `invalidateQueries` against it still reaches all of them.
      * Not a cache entry of its own — the list lives under `list()`.
      */
-    all: ["companies"] as const,
+    all: ["spaces"] as const,
     /**
-     * The company list, scoped to the account it was fetched for. Which
-     * companies you belong to is an answer about *you*, and a single shared
+     * The space list, scoped to the account it was fetched for. Which
+     * spaces you belong to is an answer about *you*, and a single shared
      * entry made it look like an answer about the app: for 30 seconds after an
      * account change the previous account's list was served to anyone who
      * asked. A different account is a different entry, so there is nothing to
      * mistake. `null` is the signed-out/local_trusted key.
      */
     list: (userId: string | null) =>
-      ["companies", "list", userId ?? "anonymous"] as const,
+      ["spaces", "list", userId ?? "anonymous"] as const,
     directory: (userId: string | null) =>
-      ["companies", "directory", userId ?? "anonymous"] as const,
-    detail: (id: string) => ["companies", id] as const,
-    stats: ["companies", "stats"] as const,
-    exportFidelity: (companyId: string) =>
-      ["companies", companyId, "export-fidelity"] as const,
+      ["spaces", "directory", userId ?? "anonymous"] as const,
+    detail: (id: string) => ["spaces", id] as const,
+    stats: ["spaces", "stats"] as const,
+    exportFidelity: (spaceId: string) =>
+      ["spaces", spaceId, "export-fidelity"] as const,
   },
   apps: {
-    gallery: (companyId: string) => ["apps", companyId, "gallery"] as const,
-    attention: (companyId: string) => ["apps", companyId, "attention"] as const,
-    connectionReviewCounts: (companyId: string, connectionId: string) =>
-      ["apps", companyId, "attention", "connection", connectionId, "review-counts"] as const,
+    gallery: (spaceId: string) => ["apps", spaceId, "gallery"] as const,
+    attention: (spaceId: string) => ["apps", spaceId, "attention"] as const,
+    connectionReviewCounts: (spaceId: string, connectionId: string) =>
+      ["apps", spaceId, "attention", "connection", connectionId, "review-counts"] as const,
   },
   chatEndpoints: {
-    list: (companyId: string) => ["chat-endpoints", companyId] as const,
+    list: (spaceId: string) => ["chat-endpoints", spaceId] as const,
     detail: (endpointId: string) => ["chat-endpoints", "detail", endpointId] as const,
     resources: (endpointId: string) => ["chat-endpoints", endpointId, "resources"] as const,
     principals: (endpointId: string) => ["chat-endpoints", endpointId, "principals"] as const,
@@ -61,10 +61,10 @@ export const queryKeys = {
   tools: {
     aggregatorApps: (connectionId: string, userId: string | null) => ["tools", "aggregator-apps", connectionId, userId] as const,
     composioApps: (connectionId: string) => ["tools", "composio-apps", connectionId] as const,
-    applications: (companyId: string) =>
-      ["tools", companyId, "applications"] as const,
-    connections: (companyId: string) =>
-      ["tools", companyId, "connections"] as const,
+    applications: (spaceId: string) =>
+      ["tools", spaceId, "applications"] as const,
+    connections: (spaceId: string) =>
+      ["tools", spaceId, "connections"] as const,
     connection: (connectionId: string) =>
       ["tools", "connection", connectionId] as const,
     connectionInstalls: (connectionId: string) =>
@@ -89,38 +89,38 @@ export const queryKeys = {
         "test-calls",
         actionRequestId,
       ] as const,
-    actionRequests: (companyId: string, status: string) =>
-      ["tools", companyId, "action-requests", status] as const,
-    gateways: (companyId: string) => ["tools", "gateways", companyId] as const,
-    connectionProfileConfiguration: (companyId: string, connectionId: string) =>
-      ["tools", companyId, "profiles", "connection-configuration", connectionId] as const,
-    profiles: (companyId: string) => ["tools", companyId, "profiles"] as const,
+    actionRequests: (spaceId: string, status: string) =>
+      ["tools", spaceId, "action-requests", status] as const,
+    gateways: (spaceId: string) => ["tools", "gateways", spaceId] as const,
+    connectionProfileConfiguration: (spaceId: string, connectionId: string) =>
+      ["tools", spaceId, "profiles", "connection-configuration", connectionId] as const,
+    profiles: (spaceId: string) => ["tools", spaceId, "profiles"] as const,
     profileNewTools: (profileId: string) =>
       ["tools", "profiles", profileId, "new-tools"] as const,
-    effectiveProfilesForAgent: (companyId: string, agentId: string) =>
-      ["tools", companyId, "profiles", "effective", "agent", agentId] as const,
-    stdioTemplates: (companyId: string) =>
-      ["tools", companyId, "stdio-templates"] as const,
-    runtimeSlots: (companyId: string) =>
-      ["tools", companyId, "runtime-slots"] as const,
-    runtimeHealth: (companyId: string) =>
-      ["tools", companyId, "runtime-health"] as const,
-    runDecisions: (companyId: string, runId: string) =>
-      ["tools", companyId, "runs", runId, "decisions"] as const,
-    liveRuntimeSlots: (companyId: string) =>
-      ["tools", companyId, "runtime-slots", "live"] as const,
-    policies: (companyId: string) => ["tools", companyId, "policies"] as const,
-    trustRules: (companyId: string) =>
-      ["tools", companyId, "trust-rules"] as const,
-    audit: (companyId: string, limit: number) =>
-      ["tools", companyId, "audit", limit] as const,
+    effectiveProfilesForAgent: (spaceId: string, agentId: string) =>
+      ["tools", spaceId, "profiles", "effective", "agent", agentId] as const,
+    stdioTemplates: (spaceId: string) =>
+      ["tools", spaceId, "stdio-templates"] as const,
+    runtimeSlots: (spaceId: string) =>
+      ["tools", spaceId, "runtime-slots"] as const,
+    runtimeHealth: (spaceId: string) =>
+      ["tools", spaceId, "runtime-health"] as const,
+    runDecisions: (spaceId: string, runId: string) =>
+      ["tools", spaceId, "runs", runId, "decisions"] as const,
+    liveRuntimeSlots: (spaceId: string) =>
+      ["tools", spaceId, "runtime-slots", "live"] as const,
+    policies: (spaceId: string) => ["tools", spaceId, "policies"] as const,
+    trustRules: (spaceId: string) =>
+      ["tools", spaceId, "trust-rules"] as const,
+    audit: (spaceId: string, limit: number) =>
+      ["tools", spaceId, "audit", limit] as const,
     activity: (
-      companyId: string,
+      spaceId: string,
       filters: { gateway?: string; app?: string; agent?: string; outcome?: string; window?: string; search?: string },
     ) =>
       [
         "tools",
-        companyId,
+        spaceId,
         "activity",
         filters.gateway ?? "__all",
         filters.app ?? "__all",
@@ -131,10 +131,10 @@ export const queryKeys = {
       ] as const,
   },
   audit: {
-    runs: (companyId: string, agentId?: string | null) =>
-      ["audit", companyId, "runs", agentId ?? "__all"] as const,
+    runs: (spaceId: string, agentId?: string | null) =>
+      ["audit", spaceId, "runs", agentId ?? "__all"] as const,
     agentActions: (
-      companyId: string,
+      spaceId: string,
       filters: {
         actorScope?: "agents" | "all" | null;
         agentId?: string | null;
@@ -150,7 +150,7 @@ export const queryKeys = {
     ) =>
       [
         "audit",
-        companyId,
+        spaceId,
         "agent-actions",
         filters.actorScope ?? "agents",
         filters.agentId ?? "__all",
@@ -165,28 +165,28 @@ export const queryKeys = {
       ] as const,
   },
   smokeLab: {
-    services: (companyId: string) =>
-      ["smoke-lab", companyId, "services"] as const,
-    runs: (companyId: string) => ["smoke-lab", companyId, "runs"] as const,
-    run: (companyId: string, runId: string) =>
-      ["smoke-lab", companyId, "runs", runId] as const,
+    services: (spaceId: string) =>
+      ["smoke-lab", spaceId, "services"] as const,
+    runs: (spaceId: string) => ["smoke-lab", spaceId, "runs"] as const,
+    run: (spaceId: string, runId: string) =>
+      ["smoke-lab", spaceId, "runs", runId] as const,
   },
-  companySkills: {
-    list: (companyId: string) => ["outpost-skills", companyId] as const,
-    listRecent: (companyId: string) =>
-      ["outpost-skills", companyId, "recent-updated"] as const,
-    detail: (companyId: string, skillId: string) =>
-      ["outpost-skills", companyId, skillId] as const,
-    versions: (companyId: string, skillId: string) =>
-      ["outpost-skills", companyId, skillId, "versions"] as const,
-    comments: (companyId: string, skillId: string) =>
-      ["outpost-skills", companyId, skillId, "comments"] as const,
-    updateStatus: (companyId: string, skillId: string) =>
-      ["outpost-skills", companyId, skillId, "update-status"] as const,
-    forkPrecheck: (companyId: string, skillId: string) =>
-      ["outpost-skills", companyId, skillId, "fork-precheck"] as const,
-    file: (companyId: string, skillId: string, relativePath: string) =>
-      ["outpost-skills", companyId, skillId, "file", relativePath] as const,
+  spaceSkills: {
+    list: (spaceId: string) => ["outpost-skills", spaceId] as const,
+    listRecent: (spaceId: string) =>
+      ["outpost-skills", spaceId, "recent-updated"] as const,
+    detail: (spaceId: string, skillId: string) =>
+      ["outpost-skills", spaceId, skillId] as const,
+    versions: (spaceId: string, skillId: string) =>
+      ["outpost-skills", spaceId, skillId, "versions"] as const,
+    comments: (spaceId: string, skillId: string) =>
+      ["outpost-skills", spaceId, skillId, "comments"] as const,
+    updateStatus: (spaceId: string, skillId: string) =>
+      ["outpost-skills", spaceId, skillId, "update-status"] as const,
+    forkPrecheck: (spaceId: string, skillId: string) =>
+      ["outpost-skills", spaceId, skillId, "fork-precheck"] as const,
+    file: (spaceId: string, skillId: string, relativePath: string) =>
+      ["outpost-skills", spaceId, skillId, "file", relativePath] as const,
     catalog: (filters: { kind?: string; category?: string; q?: string } = {}) =>
       [
         "outpost-skills",
@@ -199,20 +199,20 @@ export const queryKeys = {
       ["outpost-skills", "catalog", "detail", catalogRef] as const,
     catalogFile: (catalogRef: string, relativePath: string) =>
       ["outpost-skills", "catalog", "file", catalogRef, relativePath] as const,
-    testInputs: (companyId: string, skillId: string) =>
-      ["outpost-skills", companyId, skillId, "test-inputs"] as const,
-    testRunTemplates: (companyId: string) =>
-      ["outpost-skills", companyId, "test-run-templates"] as const,
-    testRuns: (companyId: string, skillId: string, inputId?: string | null) =>
+    testInputs: (spaceId: string, skillId: string) =>
+      ["outpost-skills", spaceId, skillId, "test-inputs"] as const,
+    testRunTemplates: (spaceId: string) =>
+      ["outpost-skills", spaceId, "test-run-templates"] as const,
+    testRuns: (spaceId: string, skillId: string, inputId?: string | null) =>
       [
         "outpost-skills",
-        companyId,
+        spaceId,
         skillId,
         "test-runs",
         inputId ?? "__all-inputs__",
       ] as const,
-    testRunDetail: (companyId: string, skillId: string, runId: string) =>
-      ["outpost-skills", companyId, skillId, "test-run", runId] as const,
+    testRunDetail: (spaceId: string, skillId: string, runId: string) =>
+      ["outpost-skills", spaceId, skillId, "test-run", runId] as const,
   },
   teamCatalog: {
     catalog: (filters: { kind?: string; category?: string; q?: string } = {}) =>
@@ -227,13 +227,13 @@ export const queryKeys = {
       ["team-catalog", "catalog", "detail", catalogRef] as const,
     catalogFile: (catalogRef: string, relativePath: string) =>
       ["team-catalog", "catalog", "file", catalogRef, relativePath] as const,
-    installed: (companyId: string) =>
-      ["team-catalog", "installed", companyId] as const,
+    installed: (spaceId: string) =>
+      ["team-catalog", "installed", spaceId] as const,
   },
   agents: {
     projectAccess: (id: string) => ["agents", "detail", id, "project-access"] as const,
     identity: (id: string) => ["agents", "identity", id] as const,
-    list: (companyId: string) => ["agents", companyId] as const,
+    list: (spaceId: string) => ["agents", spaceId] as const,
     detail: (id: string) => ["agents", "detail", id] as const,
     runtimeState: (id: string) => ["agents", "runtime-state", id] as const,
     taskSessions: (id: string) => ["agents", "task-sessions", id] as const,
@@ -248,52 +248,52 @@ export const queryKeys = {
     configRevisions: (agentId: string) =>
       ["agents", "config-revisions", agentId] as const,
     adapterModels: (
-      companyId: string,
+      spaceId: string,
       adapterType: string,
       environmentId?: string | null,
       provider?: string,
     ) =>
       [
         "agents",
-        companyId,
+        spaceId,
         "adapter-models",
         adapterType,
         environmentId ?? null,
         provider ?? null,
       ] as const,
-    detectModel: (companyId: string, adapterType: string) =>
-      ["agents", companyId, "detect-model", adapterType] as const,
-    authSignal: (companyId: string, adapterType: string, environmentId?: string | null) =>
-      ["agents", companyId, "auth-signal", adapterType, environmentId ?? null] as const,
-    activeLoginSession: (companyId: string, adapterType: string) =>
-      ["agents", companyId, "active-login-session", adapterType] as const,
+    detectModel: (spaceId: string, adapterType: string) =>
+      ["agents", spaceId, "detect-model", adapterType] as const,
+    authSignal: (spaceId: string, adapterType: string, environmentId?: string | null) =>
+      ["agents", spaceId, "auth-signal", adapterType, environmentId ?? null] as const,
+    activeLoginSession: (spaceId: string, adapterType: string) =>
+      ["agents", spaceId, "active-login-session", adapterType] as const,
   },
   builtInAgents: {
-    list: (companyId: string) => ["built-in-agents", companyId] as const,
+    list: (spaceId: string) => ["built-in-agents", spaceId] as const,
   },
   summarySlots: {
     detail: (
-      companyId: string,
+      spaceId: string,
       scopeKind: string,
       slotKey: string,
       scopeId?: string | null,
     ) =>
       [
         "summary-slots",
-        companyId,
+        spaceId,
         scopeKind,
         slotKey,
         scopeId ?? null,
       ] as const,
     revisions: (
-      companyId: string,
+      spaceId: string,
       scopeKind: string,
       slotKey: string,
       scopeId?: string | null,
     ) =>
       [
         "summary-slots",
-        companyId,
+        spaceId,
         scopeKind,
         slotKey,
         scopeId ?? null,
@@ -301,8 +301,8 @@ export const queryKeys = {
       ] as const,
   },
   statusCards: {
-    list: (companyId: string, archived: boolean) =>
-      ["status-cards", companyId, archived ? "archived" : "active"] as const,
+    list: (spaceId: string, archived: boolean) =>
+      ["status-cards", spaceId, archived ? "archived" : "active"] as const,
     detail: (id: string) => ["status-cards", "detail", id] as const,
     updates: (id: string) => ["status-cards", "detail", id, "updates"] as const,
     summaryRevisions: (id: string) =>
@@ -313,76 +313,76 @@ export const queryKeys = {
     recoveryActions: (id: string, actionId: string | null, runId: string | null) =>
       ["issues", id, "recovery-actions", actionId, runId] as const,
     allRecoveryActions: (id: string) => ["issues", id, "recovery-actions"] as const,
-    list: (companyId: string) => ["issues", companyId] as const,
-    onboardingFirstTask: (companyId: string) =>
-      ["issues", companyId, "onboarding-first-task"] as const,
-    starPromptDone: (companyId: string) =>
-      ["issues", companyId, "star-prompt-done"] as const,
-    mentionPool: (companyId: string) =>
-      ["issues", companyId, "mention-pool"] as const,
+    list: (spaceId: string) => ["issues", spaceId] as const,
+    onboardingFirstTask: (spaceId: string) =>
+      ["issues", spaceId, "onboarding-first-task"] as const,
+    starPromptDone: (spaceId: string) =>
+      ["issues", spaceId, "star-prompt-done"] as const,
+    mentionPool: (spaceId: string) =>
+      ["issues", spaceId, "mention-pool"] as const,
     search: (
-      companyId: string,
+      spaceId: string,
       q: string,
       projectId?: string,
       limit?: number,
     ) =>
       [
         "issues",
-        companyId,
+        spaceId,
         "search",
         q,
         projectId ?? "__all-projects__",
         limit ?? "__no-limit__",
       ] as const,
-    listAssignedToMe: (companyId: string) =>
-      ["issues", companyId, "assigned-to-me"] as const,
-    listMineByMe: (companyId: string) =>
-      ["issues", companyId, "mine-by-me"] as const,
-    listTouchedByMe: (companyId: string) =>
-      ["issues", companyId, "touched-by-me"] as const,
-    listUnreadTouchedByMe: (companyId: string) =>
-      ["issues", companyId, "unread-touched-by-me"] as const,
-    listBlockedAttention: (companyId: string) =>
-      ["issues", companyId, "blocked-attention"] as const,
-    countBlockedAttention: (companyId: string) =>
-      ["issues", companyId, "blocked-attention", "count"] as const,
-    labels: (companyId: string) => ["issues", companyId, "labels"] as const,
-    listByProject: (companyId: string, projectId: string) =>
-      ["issues", companyId, "project", projectId] as const,
+    listAssignedToMe: (spaceId: string) =>
+      ["issues", spaceId, "assigned-to-me"] as const,
+    listMineByMe: (spaceId: string) =>
+      ["issues", spaceId, "mine-by-me"] as const,
+    listTouchedByMe: (spaceId: string) =>
+      ["issues", spaceId, "touched-by-me"] as const,
+    listUnreadTouchedByMe: (spaceId: string) =>
+      ["issues", spaceId, "unread-touched-by-me"] as const,
+    listBlockedAttention: (spaceId: string) =>
+      ["issues", spaceId, "blocked-attention"] as const,
+    countBlockedAttention: (spaceId: string) =>
+      ["issues", spaceId, "blocked-attention", "count"] as const,
+    labels: (spaceId: string) => ["issues", spaceId, "labels"] as const,
+    listByProject: (spaceId: string, projectId: string) =>
+      ["issues", spaceId, "project", projectId] as const,
     listPluginOperationsByProject: (
-      companyId: string,
+      spaceId: string,
       projectId: string,
       originKindPrefix: string,
     ) =>
       [
         "issues",
-        companyId,
+        spaceId,
         "project",
         projectId,
         "plugin-operations",
         originKindPrefix,
       ] as const,
-    listParticipatedByAgent: (companyId: string, agentId: string) =>
-      ["issues", companyId, "participated-by-agent", agentId] as const,
-    listByParent: (companyId: string, parentId: string) =>
-      ["issues", companyId, "parent", parentId] as const,
-    listCreatedFromIssue: (companyId: string, issueId: string) =>
-      ["issues", companyId, "created-from", issueId] as const,
-    listByDescendantRoot: (companyId: string, rootIssueId: string) =>
-      ["issues", companyId, "descendants", rootIssueId] as const,
+    listParticipatedByAgent: (spaceId: string, agentId: string) =>
+      ["issues", spaceId, "participated-by-agent", agentId] as const,
+    listByParent: (spaceId: string, parentId: string) =>
+      ["issues", spaceId, "parent", parentId] as const,
+    listCreatedFromIssue: (spaceId: string, issueId: string) =>
+      ["issues", spaceId, "created-from", issueId] as const,
+    listByDescendantRoot: (spaceId: string, rootIssueId: string) =>
+      ["issues", spaceId, "descendants", rootIssueId] as const,
     listByExecutionWorkspace: (
-      companyId: string,
+      spaceId: string,
       executionWorkspaceId: string,
     ) =>
       [
         "issues",
-        companyId,
+        spaceId,
         "execution-workspace",
         executionWorkspaceId,
       ] as const,
-    summaries: (companyId: string) => ["issues", companyId, "summaries"] as const,
-    summaryBatch: (companyId: string, userId: string | null | undefined, sortedIds: readonly string[]) =>
-      ["issues", companyId, "summaries", userId ?? "__local_board__", sortedIds] as const,
+    summaries: (spaceId: string) => ["issues", spaceId, "summaries"] as const,
+    summaryBatch: (spaceId: string, userId: string | null | undefined, sortedIds: readonly string[]) =>
+      ["issues", spaceId, "summaries", userId ?? "__local_board__", sortedIds] as const,
     detail: (id: string) => ["issues", "detail", id] as const,
     comments: (issueId: string) => ["issues", "comments", issueId] as const,
     acknowledgedComments: (issueId: string) => ["issues", "comments", issueId, "acknowledged"] as const,
@@ -468,17 +468,17 @@ export const queryKeys = {
       ["issues", "file-resources", issueId, "availability", refKeys] as const,
   },
   routines: {
-    list: (companyId: string, filters?: { projectId?: string | null }) =>
+    list: (spaceId: string, filters?: { projectId?: string | null }) =>
       [
         "routines",
-        companyId,
+        spaceId,
         filters?.projectId ?? "__all-projects__",
       ] as const,
     detail: (id: string) => ["routines", "detail", id] as const,
     runs: (id: string) => ["routines", "runs", id] as const,
     revisions: (id: string) => ["routines", "revisions", id] as const,
-    activity: (companyId: string, id: string) =>
-      ["routines", "activity", companyId, id] as const,
+    activity: (spaceId: string, id: string) =>
+      ["routines", "activity", spaceId, id] as const,
     documentAnnotations: (
       routineId: string,
       key: "description",
@@ -486,23 +486,23 @@ export const queryKeys = {
     ) => ["routines", "document-annotations", routineId, key, status] as const,
   },
   folders: {
-    list: (companyId: string, kind: string) =>
-      ["folders", companyId, kind] as const,
+    list: (spaceId: string, kind: string) =>
+      ["folders", spaceId, kind] as const,
   },
   executionWorkspaces: {
     list: (
-      companyId: string,
+      spaceId: string,
       filters?: Record<string, string | boolean | undefined>,
-    ) => ["execution-workspaces", companyId, filters ?? {}] as const,
+    ) => ["execution-workspaces", spaceId, filters ?? {}] as const,
     summaryList: (
-      companyId: string,
+      spaceId: string,
       filters?: Record<string, string | boolean | undefined>,
-    ) => ["execution-workspaces", companyId, "summary", filters ?? {}] as const,
+    ) => ["execution-workspaces", spaceId, "summary", filters ?? {}] as const,
     overview: (
-      companyId: string,
+      spaceId: string,
       filters?: Record<string, string | number | boolean | undefined>,
     ) =>
-      ["execution-workspaces", companyId, "overview", filters ?? {}] as const,
+      ["execution-workspaces", spaceId, "overview", filters ?? {}] as const,
     detail: (id: string) => ["execution-workspaces", "detail", id] as const,
     closeReadiness: (id: string) =>
       ["execution-workspaces", "close-readiness", id] as const,
@@ -510,21 +510,21 @@ export const queryKeys = {
       ["execution-workspaces", "workspace-operations", id] as const,
   },
   environments: {
-    list: (companyId: string) => ["environments", companyId] as const,
-    capabilities: (companyId: string) =>
-      ["environment-capabilities", companyId] as const,
+    list: (spaceId: string) => ["environments", spaceId] as const,
+    capabilities: (spaceId: string) =>
+      ["environment-capabilities", spaceId] as const,
     customImageTemplate: (environmentId: string) =>
       ["environments", environmentId, "custom-image-template"] as const,
     customImageSetupSession: (sessionId: string) =>
       ["environment-custom-image-setup-sessions", sessionId] as const,
   },
   projects: {
-    environments: (companyId: string) => ["project-environments", companyId] as const,
-    all: (companyId: string) => ["projects", companyId] as const,
-    list: (companyId: string, opts: { includeArchived?: boolean } = {}) =>
+    environments: (spaceId: string) => ["project-environments", spaceId] as const,
+    all: (spaceId: string) => ["projects", spaceId] as const,
+    list: (spaceId: string, opts: { includeArchived?: boolean } = {}) =>
       [
         "projects",
-        companyId,
+        spaceId,
         { includeArchived: opts.includeArchived === true },
       ] as const,
     detail: (id: string) => ["projects", "detail", id] as const,
@@ -532,7 +532,7 @@ export const queryKeys = {
   },
   cases: {
     handoffs: (id: string) => ["cases", "handoffs", id] as const,
-    list: (companyId: string) => ["cases", companyId] as const,
+    list: (spaceId: string) => ["cases", spaceId] as const,
     detail: (id: string) => ["cases", "detail", id] as const,
     documents: (id: string) => ["cases", "documents", id] as const,
     documentAnnotations: (
@@ -551,18 +551,18 @@ export const queryKeys = {
       ["external-objects", "by-issue", issueId] as const,
     issueSummary: (issueId: string) =>
       ["external-objects", "issue-summary", issueId] as const,
-    issueSummaries: (companyId: string, issueIds: readonly string[]) =>
-      ["external-objects", "issue-summaries", companyId, issueIds] as const,
+    issueSummaries: (spaceId: string, issueIds: readonly string[]) =>
+      ["external-objects", "issue-summaries", spaceId, issueIds] as const,
     projectSummary: (projectId: string) =>
       ["external-objects", "project-summary", projectId] as const,
   },
   goals: {
-    list: (companyId: string) => ["goals", companyId] as const,
+    list: (spaceId: string) => ["goals", spaceId] as const,
     detail: (id: string) => ["goals", "detail", id] as const,
   },
   artifacts: {
     list: (
-      companyId: string,
+      spaceId: string,
       kind?: string,
       q?: string,
       groupBy?: string,
@@ -570,22 +570,22 @@ export const queryKeys = {
     ) =>
       [
         "artifacts",
-        companyId,
+        spaceId,
         kind ?? "all",
         q ?? "",
         groupBy ?? "none",
         groupIssueId ?? "",
       ] as const,
-    byAgent: (companyId: string, agentId: string) =>
-      ["artifacts", companyId, "by-agent", agentId] as const,
+    byAgent: (spaceId: string, agentId: string) =>
+      ["artifacts", spaceId, "by-agent", agentId] as const,
   },
   budgets: {
-    overview: (companyId: string) =>
-      ["budgets", "overview", companyId] as const,
+    overview: (spaceId: string) =>
+      ["budgets", "overview", spaceId] as const,
   },
   approvals: {
-    list: (companyId: string, status?: string) =>
-      ["approvals", companyId, status] as const,
+    list: (spaceId: string, status?: string) =>
+      ["approvals", spaceId, status] as const,
     detail: (approvalId: string) =>
       ["approvals", "detail", approvalId] as const,
     comments: (approvalId: string) =>
@@ -594,37 +594,37 @@ export const queryKeys = {
       ["approvals", "issues", approvalId] as const,
   },
   access: {
-    invites: (companyId: string, state: string = "all", limit: number = 20) =>
-      ["access", "invites", "paginated-v1", companyId, state, limit] as const,
-    joinRequests: (companyId: string, status: string = "pending_approval") =>
-      ["access", "join-requests", companyId, status] as const,
-    companyMembers: (companyId: string) =>
-      ["access", "company-members", companyId] as const,
-    companyUserDirectory: (companyId: string) =>
-      ["access", "outpost-user-directory", companyId] as const,
+    invites: (spaceId: string, state: string = "all", limit: number = 20) =>
+      ["access", "invites", "paginated-v1", spaceId, state, limit] as const,
+    joinRequests: (spaceId: string, status: string = "pending_approval") =>
+      ["access", "join-requests", spaceId, status] as const,
+    spaceMembers: (spaceId: string) =>
+      ["access", "space-members", spaceId] as const,
+    spaceUserDirectory: (spaceId: string) =>
+      ["access", "outpost-user-directory", spaceId] as const,
     adminUsers: (query: string) => ["access", "admin-users", query] as const,
     invite: (token: string) => ["access", "invite", token] as const,
-    currentBoardAccess: ["access", "current-board-access"] as const,
+    currentBoardAccess: ["access", "current-operator-access"] as const,
   },
   auth: {
     session: ["auth", "session"] as const,
   },
   inboxAgentPolicy: {
-    mine: (companyId: string) =>
-      ["inbox-agent-policy", companyId, "me"] as const,
+    mine: (spaceId: string) =>
+      ["inbox-agent-policy", spaceId, "me"] as const,
   },
   sidebarPreferences: {
-    companyOrder: (userId: string) =>
+    spaceOrder: (userId: string) =>
       ["sidebar-preferences", "outpost-order", userId] as const,
-    projectOrder: (companyId: string, userId: string) =>
-      ["sidebar-preferences", "project-order", companyId, userId] as const,
+    projectOrder: (spaceId: string, userId: string) =>
+      ["sidebar-preferences", "project-order", spaceId, userId] as const,
   },
   primaryAgent: {
-    mine: (companyId: string, userId: string) => ["primary-agent", companyId, userId] as const,
+    mine: (spaceId: string, userId: string) => ["primary-agent", spaceId, userId] as const,
   },
   resourceMemberships: {
-    mine: (companyId: string) =>
-      ["resource-memberships", companyId, "me"] as const,
+    mine: (spaceId: string) =>
+      ["resource-memberships", spaceId, "me"] as const,
   },
   instance: {
     settings: ["instance", "settings"] as const,
@@ -637,91 +637,91 @@ export const queryKeys = {
     stacks: ["cloud", "stacks"] as const,
   },
   secrets: {
-    list: (companyId: string) => ["secrets", companyId] as const,
-    providers: (companyId: string) => ["secret-providers", companyId] as const,
-    providerConfigs: (companyId: string) =>
-      ["secret-provider-configs", companyId] as const,
+    list: (spaceId: string) => ["secrets", spaceId] as const,
+    providers: (spaceId: string) => ["secret-providers", spaceId] as const,
+    providerConfigs: (spaceId: string) =>
+      ["secret-provider-configs", spaceId] as const,
     usage: (secretId: string) => ["secrets", "usage", secretId] as const,
     accessEvents: (secretId: string) =>
       ["secrets", "access-events", secretId] as const,
-    userDefinitions: (companyId: string) =>
-      ["user-secret-definitions", companyId] as const,
-    userDefinitionCoverage: (companyId: string, definitionId: string) =>
-      ["user-secret-definitions", companyId, definitionId, "coverage"] as const,
-    myUserSecrets: (companyId: string) =>
-      ["my-user-secrets", companyId] as const,
-    proposals: (companyId: string, status: string = "pending") =>
-      ["secret-proposals", companyId, status] as const,
+    userDefinitions: (spaceId: string) =>
+      ["user-secret-definitions", spaceId] as const,
+    userDefinitionCoverage: (spaceId: string, definitionId: string) =>
+      ["user-secret-definitions", spaceId, definitionId, "coverage"] as const,
+    myUserSecrets: (spaceId: string) =>
+      ["my-user-secrets", spaceId] as const,
+    proposals: (spaceId: string, status: string = "pending") =>
+      ["secret-proposals", spaceId, status] as const,
   },
-  companySearch: {
+  spaceSearch: {
     search: (
-      companyId: string,
+      spaceId: string,
       q: string,
       scope: string,
       limit: number,
       offset: number,
-    ) => ["outpost-search", companyId, q, scope, limit, offset] as const,
+    ) => ["outpost-search", spaceId, q, scope, limit, offset] as const,
   },
-  dashboard: (companyId: string) => ["dashboard", companyId] as const,
-  attention: (companyId: string) => ["attention", companyId] as const,
+  dashboard: (spaceId: string) => ["dashboard", spaceId] as const,
+  attention: (spaceId: string) => ["attention", spaceId] as const,
   decisions: {
-    list: (companyId: string, status?: string) =>
-      ["decisions", companyId, status ?? "__all-statuses__"] as const,
+    list: (spaceId: string, status?: string) =>
+      ["decisions", spaceId, status ?? "__all-statuses__"] as const,
     detail: (id: string) => ["decisions", "detail", id] as const,
-    forTargetIssue: (companyId: string, issueId: string) =>
-      ["decisions", companyId, "target", issueId] as const,
-    taskRecord: (companyId: string, issueId: string, viewerId: string | null, decisionId: string | null) =>
-      ["decisions", companyId, "task-record", issueId, viewerId, decisionId] as const,
+    forTargetIssue: (spaceId: string, issueId: string) =>
+      ["decisions", spaceId, "target", issueId] as const,
+    taskRecord: (spaceId: string, issueId: string, viewerId: string | null, decisionId: string | null) =>
+      ["decisions", spaceId, "task-record", issueId, viewerId, decisionId] as const,
   },
   decisionQueues: {
-    list: (companyId: string) => ["decision-queues", companyId] as const,
-    items: (companyId: string, key: string) =>
-      ["decision-queues", companyId, "items", key] as const,
-    seedRules: (companyId: string) =>
-      ["decision-queues", companyId, "seed-rules"] as const,
-    triage: (companyId: string, sourceKind: string, sourceId: string) =>
-      ["decision-triage", companyId, sourceKind, sourceId] as const,
+    list: (spaceId: string) => ["decision-queues", spaceId] as const,
+    items: (spaceId: string, key: string) =>
+      ["decision-queues", spaceId, "items", key] as const,
+    seedRules: (spaceId: string) =>
+      ["decision-queues", spaceId, "seed-rules"] as const,
+    triage: (spaceId: string, sourceKind: string, sourceId: string) =>
+      ["decision-triage", spaceId, sourceKind, sourceId] as const,
   },
-  workTimeline: (companyId: string, lens?: string) =>
-    ["work-timeline", companyId, lens ?? "all"] as const,
-  userProfile: (companyId: string, userSlug: string) =>
-    ["user-profile", companyId, userSlug] as const,
-  sidebarBadges: (companyId: string) => ["sidebar-badges", companyId] as const,
-  inboxDismissals: (companyId: string) =>
-    ["inbox-dismissals", companyId] as const,
-  activity: (companyId: string) => ["activity", companyId] as const,
-  costs: (companyId: string, from?: string, to?: string) =>
-    ["costs", companyId, from, to] as const,
-  usageByProvider: (companyId: string, from?: string, to?: string) =>
-    ["usage-by-provider", companyId, from, to] as const,
-  usageByBiller: (companyId: string, from?: string, to?: string) =>
-    ["usage-by-biller", companyId, from, to] as const,
-  financeSummary: (companyId: string, from?: string, to?: string) =>
-    ["finance-summary", companyId, from, to] as const,
-  financeByBiller: (companyId: string, from?: string, to?: string) =>
-    ["finance-by-biller", companyId, from, to] as const,
-  financeByKind: (companyId: string, from?: string, to?: string) =>
-    ["finance-by-kind", companyId, from, to] as const,
+  workTimeline: (spaceId: string, lens?: string) =>
+    ["work-timeline", spaceId, lens ?? "all"] as const,
+  userProfile: (spaceId: string, userSlug: string) =>
+    ["user-profile", spaceId, userSlug] as const,
+  sidebarBadges: (spaceId: string) => ["sidebar-badges", spaceId] as const,
+  inboxDismissals: (spaceId: string) =>
+    ["inbox-dismissals", spaceId] as const,
+  activity: (spaceId: string) => ["activity", spaceId] as const,
+  costs: (spaceId: string, from?: string, to?: string) =>
+    ["costs", spaceId, from, to] as const,
+  usageByProvider: (spaceId: string, from?: string, to?: string) =>
+    ["usage-by-provider", spaceId, from, to] as const,
+  usageByBiller: (spaceId: string, from?: string, to?: string) =>
+    ["usage-by-biller", spaceId, from, to] as const,
+  financeSummary: (spaceId: string, from?: string, to?: string) =>
+    ["finance-summary", spaceId, from, to] as const,
+  financeByBiller: (spaceId: string, from?: string, to?: string) =>
+    ["finance-by-biller", spaceId, from, to] as const,
+  financeByKind: (spaceId: string, from?: string, to?: string) =>
+    ["finance-by-kind", spaceId, from, to] as const,
   financeEvents: (
-    companyId: string,
+    spaceId: string,
     from?: string,
     to?: string,
     limit: number = 100,
-  ) => ["finance-events", companyId, from, to, limit] as const,
-  usageWindowSpend: (companyId: string) =>
-    ["usage-window-spend", companyId] as const,
-  usageQuotaWindows: (companyId: string) =>
-    ["usage-quota-windows", companyId] as const,
-  heartbeats: (companyId: string, agentId?: string) =>
-    ["heartbeats", companyId, agentId] as const,
+  ) => ["finance-events", spaceId, from, to, limit] as const,
+  usageWindowSpend: (spaceId: string) =>
+    ["usage-window-spend", spaceId] as const,
+  usageQuotaWindows: (spaceId: string) =>
+    ["usage-quota-windows", spaceId] as const,
+  heartbeats: (spaceId: string, agentId?: string) =>
+    ["heartbeats", spaceId, agentId] as const,
   runDetail: (runId: string) => ["heartbeat-run", runId] as const,
-  providerTraceMetadata: (companyId: string, runIds: readonly string[]) =>
-    ["provider-trace-metadata", companyId, [...runIds].sort()] as const,
+  providerTraceMetadata: (spaceId: string, runIds: readonly string[]) =>
+    ["provider-trace-metadata", spaceId, [...runIds].sort()] as const,
   runWorkspaceOperations: (runId: string) =>
     ["heartbeat-run", runId, "workspace-operations"] as const,
-  liveRuns: (companyId: string) => ["live-runs", companyId] as const,
+  liveRuns: (spaceId: string) => ["live-runs", spaceId] as const,
   runIssues: (runId: string) => ["run-issues", runId] as const,
-  org: (companyId: string) => ["org", companyId] as const,
+  org: (spaceId: string) => ["org", spaceId] as const,
   skills: {
     available: ["skills", "available"] as const,
   },
@@ -731,17 +731,17 @@ export const queryKeys = {
     detail: (pluginId: string) => ["plugins", pluginId] as const,
     health: (pluginId: string) => ["plugins", pluginId, "health"] as const,
     uiContributions: ["plugins", "ui-contributions"] as const,
-    config: (pluginId: string, companyId: string) =>
-      ["plugins", pluginId, "companies", companyId, "config"] as const,
-    localFolders: (pluginId: string, companyId: string) =>
-      ["plugins", pluginId, "companies", companyId, "local-folders"] as const,
+    config: (pluginId: string, spaceId: string) =>
+      ["plugins", pluginId, "spaces", spaceId, "config"] as const,
+    localFolders: (pluginId: string, spaceId: string) =>
+      ["plugins", pluginId, "spaces", spaceId, "local-folders"] as const,
     dashboard: (pluginId: string) =>
       ["plugins", pluginId, "dashboard"] as const,
     logs: (pluginId: string) => ["plugins", pluginId, "logs"] as const,
   },
   adapters: {
     all: ["adapters"] as const,
-    availability: (companyId: string | null, environmentId?: string | null) =>
-      ["adapters", "availability", companyId, environmentId ?? null] as const,
+    availability: (spaceId: string | null, environmentId?: string | null) =>
+      ["adapters", "availability", spaceId, environmentId ?? null] as const,
   },
 };

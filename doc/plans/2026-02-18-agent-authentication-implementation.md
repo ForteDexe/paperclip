@@ -10,7 +10,7 @@
 
 - Use HS256 JWTs with claims:
   - `sub` (agent id)
-  - `company_id`
+  - `space_id`
   - `adapter_type`
   - `run_id`
   - `iat`
@@ -19,15 +19,15 @@
 - New config/env settings:
   - `OUTPOST_AGENT_JWT_SECRET`
   - `OUTPOST_AGENT_JWT_TTL_SECONDS` (default: `172800`)
-  - `OUTPOST_AGENT_JWT_ISSUER` (default: `paperclip`)
-  - `OUTPOST_AGENT_JWT_AUDIENCE` (default: `paperclip-api`)
+  - `OUTPOST_AGENT_JWT_ISSUER` (default: `outpost`)
+  - `OUTPOST_AGENT_JWT_AUDIENCE` (default: `outpost-api`)
 
 ## 2) Dual authentication path in `actorMiddleware`
 
 1. Keep the existing DB key lookup path unchanged (`agent_api_keys` hash lookup).
 2. If no DB key matches, add JWT verification in `server/src/middleware/auth.ts`.
 3. On JWT success:
-   - set `req.actor = { type: "agent", agentId, companyId }`.
+   - set `req.actor = { type: "agent", agentId, spaceId }`.
    - optionally guard against terminated agents.
 4. Continue board fallback for requests without valid authentication.
 
@@ -54,19 +54,19 @@
   - if user already sets `OUTPOST_API_KEY`, do not overwrite it.
 - Continue injecting:
   - `OUTPOST_AGENT_ID`
-  - `OUTPOST_COMPANY_ID`
+  - `OUTPOST_SPACE_ID`
   - `OUTPOST_API_URL`
 
 ## 5) Documentation updates
 
 - Update operator-facing docs to remove manual key setup expectation for local adapters:
-  - `skills/paperclip/SKILL.md`
+  - `skills/outpost/SKILL.md`
   - `cli/src/commands/heartbeat-run.ts` output/help examples if they mention manual API key setup.
 
 ## 6) P0 acceptance criteria
 
 - Local adapters authenticate without manual `OUTPOST_API_KEY` config.
 - Existing static keys (`agent_api_keys`) still work unchanged.
-- Auth remains company-scoped (`req.actor.companyId` used by existing checks).
+- Auth remains space-scoped (`req.actor.spaceId` used by existing checks).
 - JWT generation and verification errors are logged as non-leaking structured events.
 - Scope remains local-only (`claude_local`, `codex_local`) while adapter capability model is generic.

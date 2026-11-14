@@ -364,7 +364,7 @@ fn ordinary_acpx_replacement_retains_a_multi_batch_tail_behind_existing_ack_debt
             let mut descriptor = state["descriptor"].clone();
             descriptor["runId"] = json!("run-2");
             let error = executor.execute(&command(6, "run.attach", json!({"provider":descriptor,
-                "paperclipNextAuthority":{"identity":{"runId":"run-2","normalizedSessionId":config.normalized_session_id}}}))).unwrap_err();
+                "outpostNextAuthority":{"identity":{"runId":"run-2","normalizedSessionId":config.normalized_session_id}}}))).unwrap_err();
             assert!(error.to_string().contains("settled ACPX"));
             let readiness = executor
                 .execute(&command(
@@ -401,7 +401,7 @@ fn ordinary_acpx_replacement_retains_a_multi_batch_tail_behind_existing_ack_debt
                 .unwrap();
             assert_eq!(readiness.result["warmAttachReady"], true);
             let attached = executor.execute(&command(9, "run.attach", json!({"provider":descriptor,
-                "paperclipNextAuthority":{"identity":{"runId":"run-2","normalizedSessionId":config.normalized_session_id}}}))).unwrap();
+                "outpostNextAuthority":{"identity":{"runId":"run-2","normalizedSessionId":config.normalized_session_id}}}))).unwrap();
             assert_eq!(
                 attached.result["providerSessionId"],
                 opened["providerSessionId"]

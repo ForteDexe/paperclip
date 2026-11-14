@@ -21,7 +21,7 @@ This contract assumes the reviewer may process hostile PRs, diffs, comments, att
 
 ### Protected assets
 
-- Company secrets, secret refs, and provider-backed secret material
+- Space secrets, secret refs, and provider-backed secret material
 - Agent adapter/runtime config, instructions paths, session/runtime state
 - Comments, documents, work products, and attachments outside the assigned review issue
 - Runtime services, execution workspaces, preview servers, and environment leases
@@ -36,7 +36,7 @@ This contract assumes the reviewer may process hostile PRs, diffs, comments, att
 ### Primary threat classes
 
 - `OWASP LLM01 Prompt Injection`: hostile PR/comment output tries to steer the reviewer into tool abuse.
-- `OWASP API BOLA / Broken Function-Level Authorization`: same-company agent reads or mutates resources outside its assigned review issue.
+- `OWASP API BOLA / Broken Function-Level Authorization`: same-space agent reads or mutates resources outside its assigned review issue.
 - `OWASP A01 Broken Access Control`: reviewer reaches agent config, attachments, or runtime controls it does not need.
 - `OWASP A10 SSRF / outbound abuse`: plugin or runtime surfaces create network reach.
 - `STRIDE Information Disclosure`: secrets/config/artifacts leak through issue reads, `GET /agents/me`, plugin secret resolution, or attachments.
@@ -45,12 +45,12 @@ This contract assumes the reviewer may process hostile PRs, diffs, comments, att
 
 ## Current Surface Review
 
-The current product default is company-wide visibility for agents. That is correct for normal trusted workers, but it is too broad for a hostile-content review preset.
+The current product default is space-wide visibility for agents. That is correct for normal trusted workers, but it is too broad for a hostile-content review preset.
 
 Relevant current behavior:
 
 - `server/src/routes/issues.ts`
-  - Same-company agents can read `GET /issues/:id`, `/heartbeat-context`, `/comments`, `/documents`, `/work-products`, `/attachments`, and `/attachments/:id/content` after `assertCompanyAccess`.
+  - Same-space agents can read `GET /issues/:id`, `/heartbeat-context`, `/comments`, `/documents`, `/work-products`, `/attachments`, and `/attachments/:id/content` after `assertSpaceAccess`.
   - Mutations are mostly guarded by `assertAgentIssueMutationAllowed`, which protects against mutating another agent's active issue but does not narrow reads to a review issue.
 - `server/src/routes/agents.ts`
   - `GET /agents/me` returns full agent detail, including raw `adapterConfig` and `runtimeConfig`, while other config routes are access-gated or redacted.
@@ -69,28 +69,28 @@ Relevant current behavior:
 
 ### Core rules
 
-1. The preset is issue-scoped, not company-scoped.
+1. The preset is issue-scoped, not space-scoped.
 2. The reviewer may only operate on its assigned review issue and the repo workspace attached to that issue.
-3. The reviewer gets no ambient authority from org position, current company visibility defaults, plugin manifests, or existing agent grants.
+3. The reviewer gets no ambient authority from org position, current space visibility defaults, plugin manifests, or existing agent grants.
 4. Safe defaults win: any unspecified API surface is denied.
 
 ### Allowed / denied matrix
 
 | API area | Allowed in `low_trust_review` | Denied in `low_trust_review` | Why |
 |---|---|---|---|
-| Assigned issue core | Read assigned issue title, description, status, parent identifier/title, goal/project labels, own checkout state | Read arbitrary other issues, subtree reads, blocker traversal beyond minimal identifiers, company issue search/list outside assignee inbox entry | Least Privilege, Complete Mediation |
+| Assigned issue core | Read assigned issue title, description, status, parent identifier/title, goal/project labels, own checkout state | Read arbitrary other issues, subtree reads, blocker traversal beyond minimal identifiers, space issue search/list outside assignee inbox entry | Least Privilege, Complete Mediation |
 | Issue comments | Read and create comments on the assigned review issue only | Comment on other issues; use `reopen`, `resume`, or `interrupt`; create comments that auto-flow into higher-trust wake context | Prevent tampering and prompt-injection pivot |
 | Issue documents | Read/write documents on the assigned review issue only | Read/write documents on any other issue; lock/unlock/delete system docs; alter plans on higher-trust issues | Keep outputs local to quarantine boundary |
 | Work products | Create/update/list work products on the assigned review issue only | Cross-issue work products; provider actions outside the review issue | Same trust boundary as documents |
-| Attachments | Upload/list attachments on the assigned review issue only | Read attachment bytes from unrelated issues; browse company attachment inventory | Information disclosure risk |
+| Attachments | Upload/list attachments on the assigned review issue only | Read attachment bytes from unrelated issues; browse space attachment inventory | Information disclosure risk |
 | Issue status | Move assigned review issue between `todo`, `in_progress`, `in_review`, `done`, `blocked` within preset rules | Change assignee, blockers, execution policy, approvals, recovery actions, or other issues' status | Prevent authority expansion |
-| Agent identity | Read redacted self identity only: id, name, role, companyId | Raw `adapterConfig`, `runtimeConfig`, session info, instructions paths, env bindings, config revisions | `GET /agents/me` is a current must-block leak |
+| Agent identity | Read redacted self identity only: id, name, role, spaceId | Raw `adapterConfig`, `runtimeConfig`, session info, instructions paths, env bindings, config revisions | `GET /agents/me` is a current must-block leak |
 | Other agents / org | Optional read-only labels needed for mention rendering | Agent configuration routes, session routes, skill sync, agent wake/invoke, pause/resume | Avoid lateral movement |
 | Plugins | None in Phase 1 | Plugin tools, plugin bridge routes, plugin state, DB namespace, local folders, outbound HTTP, webhooks, jobs, secret refs | Plugin capability model is too broad for low trust |
 | Secrets / env | None | Secret routes, provider health, plugin secret resolution, direct secret-ref materialization, env/lease introspection | Secrets are outside review scope |
 | Runtime services | None | Start/stop/restart runtime services, environment probes, lease operations, execution workspace runtime control | Prevent runtime pivot and SSRF |
 | Recovery / watchdog | None except passive viewing of the review issue's own status notices | Resolve recovery actions, interrupt active runs, schedule monitors, wake other agents | Too much control-plane authority |
-| Interactions / approvals / child tasks | None in Phase 1 | Create approvals, interactions, child issues, blocker graphs | Reviewer should report findings, not orchestrate the company |
+| Interactions / approvals / child tasks | None in Phase 1 | Create approvals, interactions, child issues, blocker graphs | Reviewer should report findings, not orchestrate the space |
 
 ## Raw-output quarantine rule
 
@@ -137,7 +137,7 @@ This blocks the most likely confused-deputy chain:
 
 1. hostile PR injects the low-trust reviewer
 2. reviewer emits poisoned freeform output
-3. Paperclip copies that output into a higher-trust assignee wake
+3. Outpost copies that output into a higher-trust assignee wake
 4. higher-trust agent executes with broader capabilities
 
 ## Must-block surfaces
@@ -147,9 +147,9 @@ These surfaces must be explicitly denied or specially filtered for `low_trust_re
 1. `GET /api/agents/me`
    Reason: current route returns raw `adapterConfig` and `runtimeConfig`.
 
-2. Same-company issue read fanout
+2. Same-space issue read fanout
    Surfaces: `GET /api/issues/:id`, `/comments`, `/documents`, `/work-products`, `/attachments`, `/attachments/:id/content`
-   Reason: current reads are company-scoped, not review-issue-scoped.
+   Reason: current reads are space-scoped, not review-issue-scoped.
 
 3. Plugin execution and bridge surfaces
    Surfaces: `/api/plugins/tools`, `/api/plugins/tools/execute`, plugin bridge/state/DB/local-folder capabilities
@@ -197,7 +197,7 @@ and keep the actual allow/deny matrix in server code, not user-editable JSON.
 
 - New typed SQL columns for every deny/allow bit
 - Operator-editable per-issue capability lists
-- Reusing company-wide agent permissions as the enforcement source
+- Reusing space-wide agent permissions as the enforcement source
 
 ### When typed columns become justified
 
@@ -220,7 +220,7 @@ Add typed columns only if one of these becomes a real requirement:
 ## Residual risk
 
 - Hostile review output can still mislead a human board operator if the sanitized summary is poor.
-- Repo workspace content itself remains hostile; this contract narrows Paperclip API authority, not the semantic risk of reading bad code.
+- Repo workspace content itself remains hostile; this contract narrows Outpost API authority, not the semantic risk of reading bad code.
 - A future plugin or runtime integration could silently widen the surface unless the preset enforcement layer sits above per-feature route checks.
 
 ## Follow-up issues implied by this contract

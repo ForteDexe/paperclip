@@ -57,7 +57,7 @@ describe("compactAdjacentErrors", () => {
         presentation: { ...recovery.presentation!, title },
         metadata: { version: 1, sourceRunId: "run-1", sections: [{ title: "Recovery", rows: [
           { type: "key_value", label: "Recovery action", value: "recovery-action-1" },
-          { type: "key_value", label: "Recovery owner", value: "Board decision required" },
+          { type: "key_value", label: "Recovery owner", value: "Operator decision required" },
         ] }] },
       };
       const compacted = compactAdjacentErrors([failed, notice]);

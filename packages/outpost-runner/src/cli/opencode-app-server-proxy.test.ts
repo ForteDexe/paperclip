@@ -31,10 +31,10 @@ describe("OpenCode runnerd proxy executable", () => {
   it("executes the inherited artifact through the nested child fd mapping", async () => {
     if (process.platform === "win32") return;
     if (process.platform === "darwin") {
-      const root = mkdtempSync(join(tmpdir(), "paperclip-opencode-nested-"));
+      const root = mkdtempSync(join(tmpdir(), "outpost-opencode-nested-"));
       const directory = join(
         root,
-        ".paperclip-verified-executable-0123456789abcdef0123456789abcdef",
+        ".outpost-verified-executable-0123456789abcdef0123456789abcdef",
       );
       const command = join(directory, "launch");
       try {
@@ -136,7 +136,7 @@ describe("OpenCode runnerd proxy task envelope", () => {
         criterionIds: ["objective", "verification"],
       },
     })).toMatchObject({
-      constraints: ["Use Paperclip MCP tools for semantic operations."],
+      constraints: ["Use Outpost MCP tools for semantic operations."],
       completionContract: {
         revision: "17",
         criteria: [

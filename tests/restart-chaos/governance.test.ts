@@ -10,13 +10,13 @@ import type { FaultReceipt, OracleArtifacts, TaskPlan, TaskRecord, TaskSample, W
 import { g1ApprovalTitle, g1ChildTitle, g1Decision, workloadDefinitions } from "./workloads.js";
 
 process.env.RESTART_CHAOS_QUIET = "1";
-const lab: ChaosLab = { companyId: "c1", environmentId: "e1", environmentKind: "local", projectId: "p1", fixtureRepositoryPath: "/tmp/none",
+const lab: ChaosLab = { spaceId: "c1", environmentId: "e1", environmentKind: "local", projectId: "p1", fixtureRepositoryPath: "/tmp/none",
   agents: { codex: { id: "a1", name: "Chaos codex" }, claude: { id: "a2", name: "Chaos claude" }, opencode: { id: "a3", name: "Chaos opencode" } } };
 const ready = { serverReady: true, faultInProgress: false };
 const APPROVE = "0bcd1234";
 const REJECT = "1bcd1234";
 
-/** Fake board API: routes answered by prefix, every write recorded. */
+/** Fake operator API: routes answered by prefix, every write recorded. */
 function fakeApi(routes: Record<string, (route: string) => unknown>) {
   const writes: Array<{ method: string; route: string; body: unknown }> = [];
   const answer = (route: string) => {
@@ -147,14 +147,14 @@ describe("H1: budget hard stop across a restart", () => {
     const pausedAt = new Date(Date.now() + 2_000).toISOString();
     let paused = false;
     const { api, writes } = fakeApi({
-      "/budgets/overview": () => ({ policies: [{ scopeType: "company", observedAmount: 40.25 }],
-        activeIncidents: paused ? [{ id: "inc1", scopeType: "company", amountObserved: 55.5 }] : [] }),
-      "/api/companies/c1": () => paused ? { id: "c1", status: "paused", pauseReason: "budget", pausedAt } : { id: "c1", status: "active" },
+      "/budgets/overview": () => ({ policies: [{ scopeType: "space", observedAmount: 40.25 }],
+        activeIncidents: paused ? [{ id: "inc1", scopeType: "space", amountObserved: 55.5 }] : [] }),
+      "/api/spaces/c1": () => paused ? { id: "c1", status: "paused", pauseReason: "budget", pausedAt } : { id: "c1", status: "active" },
     });
     const observer = new TaskObserver(h1Plan, api, lab, new Timeline(null), ready);
     await observer.launch();
     // Whole cents: observed spend can be fractional.
-    expect(writes[0]).toMatchObject({ method: "PATCH", route: "/api/companies/c1/budgets", body: { budgetMonthlyCents: 42 } });
+    expect(writes[0]).toMatchObject({ method: "PATCH", route: "/api/spaces/c1/budgets", body: { budgetMonthlyCents: 42 } });
     const start = observer.record.createdAt!;
     paused = true;
     await observer.poll(start + 3_000);
@@ -168,7 +168,7 @@ describe("H1: budget hard stop across a restart", () => {
     expect(observer.record.governance?.resume).toMatchObject({ incidentId: "inc1", amount: 56 + BUDGET_RESUME_HEADROOM_CENTS,
       error: null, afterFault: true });
     expect(observer.record.governance?.runsStartedWhilePaused).toEqual([]);
-    expect(writes.at(-1)).toMatchObject({ method: "POST", route: "/api/companies/c1/budget-incidents/inc1/resolve",
+    expect(writes.at(-1)).toMatchObject({ method: "POST", route: "/api/spaces/c1/budget-incidents/inc1/resolve",
       body: { action: "raise_budget_and_resume", amount: 56 + BUDGET_RESUME_HEADROOM_CENTS } });
   });
 
@@ -176,9 +176,9 @@ describe("H1: budget hard stop across a restart", () => {
     let paused = true;
     let runs: unknown[] = [];
     const { api } = fakeApi({
-      "/budgets/overview": () => ({ policies: [{ scopeType: "company", observedAmount: 0 }],
-        activeIncidents: [{ id: "inc1", scopeType: "company", amountObserved: 1 }] }),
-      "/api/companies/c1": () => paused ? { id: "c1", status: "paused", pauseReason: "budget" } : { id: "c1", status: "active" },
+      "/budgets/overview": () => ({ policies: [{ scopeType: "space", observedAmount: 0 }],
+        activeIncidents: [{ id: "inc1", scopeType: "space", amountObserved: 1 }] }),
+      "/api/spaces/c1": () => paused ? { id: "c1", status: "paused", pauseReason: "budget" } : { id: "c1", status: "active" },
       "/runs": () => runs,
       "/documents/": () => null,
       "/comments": () => [],
@@ -203,8 +203,8 @@ describe("H1: budget hard stop across a restart", () => {
   it("records a pause that clears before the board resumes it, and does not resume", async () => {
     let paused = true;
     const { api, writes } = fakeApi({
-      "/budgets/overview": () => ({ policies: [{ scopeType: "company", observedAmount: 0 }], activeIncidents: [{ id: "inc1", scopeType: "company" }] }),
-      "/api/companies/c1": () => paused ? { id: "c1", status: "paused", pauseReason: "budget" } : { id: "c1", status: "active" },
+      "/budgets/overview": () => ({ policies: [{ scopeType: "space", observedAmount: 0 }], activeIncidents: [{ id: "inc1", scopeType: "space" }] }),
+      "/api/spaces/c1": () => paused ? { id: "c1", status: "paused", pauseReason: "budget" } : { id: "c1", status: "active" },
     });
     const observer = new TaskObserver(h1Plan, api, lab, new Timeline(null), ready);
     await observer.launch();
@@ -220,7 +220,7 @@ describe("H1: budget hard stop across a restart", () => {
     expect(writes.some(write => write.route.includes("/resolve"))).toBe(false);
   });
 
-  it("finds runs that started while the company was paused", () => {
+  it("finds runs that started while the space was paused", () => {
     const sample = (runs: Array<{ id: string; startedAt: string | null }>): TaskSample => ({ at: 0, reachable: true, serverReady: true,
       runs: runs.map(run => ({ ...run, status: "running", createdAt: null, finishedAt: null, errorCode: null, retryOfRunId: null,
         wakeCommentIds: [], livenessState: null })) });
@@ -231,11 +231,11 @@ describe("H1: budget hard stop across a restart", () => {
   it("grades a missing pause, a dispatch while paused and a resume that crossed no restart as failures", () => {
     const base: OracleArtifacts = { issueStatus: "done", documents: { brief: "CHAOS-abcd1234\n- a\n- b\n- c" }, agentComments: [], files: {},
       commands: {}, workspacePath: null, governance: { budgetSetCents: 41, budgetPausedAt: 1, runsStartedWhilePaused: [],
-        resume: { at: 2, amount: 3055, incidentId: "inc1", httpStatus: 200, error: null, afterFault: true }, companyActiveAtRest: true } };
+        resume: { at: 2, amount: 3055, incidentId: "inc1", httpStatus: 200, error: null, afterFault: true }, spaceActiveAtRest: true } };
     expect(workloadDefinitions.H1.grade("abcd1234", base).verdict).toBe("pass");
     const failed = (governance: OracleArtifacts["governance"]) => workloadDefinitions.H1.grade("abcd1234", { ...base, governance })
       .checks.filter(check => !check.ok).map(check => check.name);
-    expect(failed({ ...base.governance, budgetPausedAt: null })).toContain("company_paused_for_budget");
+    expect(failed({ ...base.governance, budgetPausedAt: null })).toContain("space_paused_for_budget");
     expect(failed({ ...base.governance, pauseLostAt: 5 })).toEqual(["pause_held_until_resume"]);
     expect(failed({ ...base.governance, runsStartedWhilePaused: ["r2"] })).toEqual(["nothing_dispatched_while_paused"]);
     expect(failed({ ...base.governance, resume: { ...base.governance!.resume!, afterFault: false } })).toEqual(["board_resumed_after_restart"]);

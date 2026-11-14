@@ -9,12 +9,12 @@ pnpm --filter @outpost/ui exec storybook dev --port 6010 --host 127.0.0.1 --no-o
 ## Connector catalog chips
 
 **Apps → Catalog source selection → Chips** is the focused catalog preview.
-The five text chips are **Paperclip**, **Composio**, **Arcade**, **Installed**, and **All**.
+The five text chips are **Outpost**, **Composio**, **Arcade**, **Installed**, and **All**.
 The selected chip has a neutral pill background; the other choices are plain text.
 Connected accounts stay above discovery. Installed shows only saved native and
 Composio apps. All includes every catalog source, including Arcade. Searching
-from Paperclip includes aggregator apps; choosing a chip explicitly scopes the
-search. Clearing that automatic global search returns to Paperclip, while
+from Outpost includes aggregator apps; choosing a chip explicitly scopes the
+search. Clearing that automatic global search returns to Outpost, while
 explicit All or Installed selections remain selected.
 
 Stories cover each chip, global and installed-account search, empty results,

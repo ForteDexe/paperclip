@@ -5,9 +5,9 @@ Status: Implemented behind `enableAgentChat`; verification recorded in the imple
 
 ## Contract
 
-Each person has one persistent conversation with each agent in a company. A conversation is an ordinary issue with fixed `conversationAgentId` and `conversationUserId`, a matching agent assignee, and a unique company/agent/user identity. The authenticated board actor supplies the user identity (`local-board` in local trusted mode). Company task authorization still applies: these are separate conversations, not private messages.
+Each person has one persistent conversation with each agent in a space. A conversation is an ordinary issue with fixed `conversationAgentId` and `conversationUserId`, a matching agent assignee, and a unique space/agent/user identity. The authenticated board actor supplies the user identity (`local-operator` in local trusted mode). Space task authorization still applies: these are separate conversations, not private messages.
 
-Opening an unused conversation performs a read. First send or upload resolves its backing issue atomically through `POST /api/companies/:companyId/chats/:agentRef`. `GET` on the same path returns the existing issue or null. Comments, documents, files, interactions, runs, and subscriptions use the existing task APIs. User chat comments require a stable `clientRequestId`; retries return the same comment. Comment rows also provide a durable delivery outbox, serialized across servers before admission to the normal execution queue.
+Opening an unused conversation performs a read. First send or upload resolves its backing issue atomically through `POST /api/spaces/:spaceId/chats/:agentRef`. `GET` on the same path returns the existing issue or null. Comments, documents, files, interactions, runs, and subscriptions use the existing task APIs. User chat comments require a stable `clientRequestId`; retries return the same comment. Comment rows also provide a durable delivery outbox, serialized across servers before admission to the normal execution queue.
 
 Idle conversations are `in_review` with server-owned `conversationState: waiting`. A new message makes the conversation active. A successful run parks it only after a durable agent response, with no later pending message. Failed or unanswered turns retain ordinary error handling. Finalizers, assignment recovery, liveness classification, timer eligibility, and work counts distinguish conversations from execution tasks. Completion or reassignment cannot terminate or transfer the container. Child completion does not wake the conversation.
 
@@ -27,7 +27,7 @@ Provider-session writes and run-authored replies check the generation. Cancelled
 
 `TaskDetailSurface` in `IssueDetail.tsx` is the shared controller and surface. `AgentChat.tsx` resolves the canonical task and provides an ephemeral view model before the first write. It does not implement a second transcript, composer, file panel, or run controller. The chat presentation hides task metadata and the seeded description bubble, uses task breadcrumb typography with agent avatar/name and a configuration-page gear, and defaults the existing task side panel to artifacts/plans rather than Properties.
 
-Company-prefixed `chats/:agentRef` routes open the current person's conversation. Direct task URLs remain supported. The existing Agents roster provides a Chat action. The shared sidebar lists starred agents alphabetically, then four recent unstarred conversations, without a divider. Stars appear on hover or keyboard focus. Existing resource memberships store stars; company/user-scoped recent-navigation storage records conversation visits only. The gear goes to agent runtime configuration; See all agents goes to `/agents/all`.
+Space-prefixed `chats/:agentRef` routes open the current person's conversation. Direct task URLs remain supported. The existing Agents roster provides a Chat action. The shared sidebar lists starred agents alphabetically, then four recent unstarred conversations, without a divider. Stars appear on hover or keyboard focus. Existing resource memberships store stars; space/user-scoped recent-navigation storage records conversation visits only. The gear goes to agent runtime configuration; See all agents goes to `/agents/all`.
 
 ## Rollout
 
@@ -35,7 +35,7 @@ Company-prefixed `chats/:agentRef` routes open the current person's conversation
 
 ## Verification
 
-Database and route tests cover concurrent canonical creation, independent users with ordinary company visibility, client retry identity, cross-company denial, local identity, ordered concurrent delivery, separate queued resets, generation fences, replay boundaries, idle recovery classification, disabled admission, and child wake suppression. Shared composer/sidebar/settings tests and Storybook fixtures cover the production composition. Storybook scenarios include first conversation, returning, working, paused, failed send, long history, session boundary, disabled feature, light theme, and ordinary task comparison.
+Database and route tests cover concurrent canonical creation, independent users with ordinary space visibility, client retry identity, cross-space denial, local identity, ordered concurrent delivery, separate queued resets, generation fences, replay boundaries, idle recovery classification, disabled admission, and child wake suppression. Shared composer/sidebar/settings tests and Storybook fixtures cover the production composition. Storybook scenarios include first conversation, returning, working, paused, failed send, long history, session boundary, disabled feature, light theme, and ordinary task comparison.
 
 Required handoff checks: targeted tests; token gates; Storybook build; repository typecheck, tests, and build; browser checks of first send, session divider, stars, switching, drafts, configuration, roster, and disabled states. Fixture navigation is not a claim of a live provider evaluation: task creation quality remains prompt-guided and should be observed during the experimental rollout.
 
@@ -44,7 +44,7 @@ Required handoff checks: targeted tests; token gates; Storybook build; repositor
 - Repository typecheck (`pnpm -r typecheck`), production build (`pnpm build`), token gates, and Storybook build passed.
 - Final UI suite: 563 files, 5,622 tests passed. The shared controller/live-update regression pass covers first send and upload, preservation of agent routes, read-only unused conversations, personal live-update resolution, and durable session-divider refresh.
 - General server lane: 8,345 passed and 38 skipped initially; the four failures (a stale module loaded during editing and three socket disconnects) passed in a fresh 68-test rerun. The conversation suite also executes a real process adapter: two ordinary turns invoke it twice, `/new` invokes it zero times, and each answered turn returns to idle.
-- All 144 serialized route suites were exercised. The skill-route socket failure and queued-comment fixture cleanup failures passed in a 70-test rerun. Queue test cleanup now clears its full company-scoped foreign-key closure rather than ignoring failed deletes.
+- All 144 serialized route suites were exercised. The skill-route socket failure and queued-comment fixture cleanup failures passed in a 70-test rerun. Queue test cleanup now clears its full space-scoped foreign-key closure rather than ignoring failed deletes.
 - Shared, database, CLI, adapter, skills-catalog, and plugin project suites passed. The CLI migration test exposed and verified the cloned-database constraint upgrade fix. Adapter suites that exceeded the default five-second timeout passed with capped workers and a 30-second test timeout. Tests ran against isolated temporary homes and databases; repository-standard unsupported integration cases remained skipped.
 - Browser checks used the production composition with fixture APIs: first send, retry and draft retention, agent switching, stars, configuration/roster navigation, linked subtasks, paused-agent controls, disabled navigation, long history, and `/new` preserving earlier messages and plans. Live-update unit tests cover the socket/cache behavior independently of Storybook fixtures. No live-model task-handoff quality evaluation was performed.
 
@@ -89,12 +89,12 @@ Repository-wide typecheck and build, Storybook build, and token gates passed. Th
 Persistent conversations now have dedicated `tests/e2e/agent-chat.spec.ts`
 coverage using a deterministic process adapter against a disposable real server.
 The authenticated suite additionally checks separate canonical chats, personal
-stars/recency, shared company visibility, and cross-company denial for two people.
+stars/recency, shared space visibility, and cross-space denial for two people.
 The runner catalog registers `agent-chat`: six scenarios on four local
 Codex/Claude profiles (24 paid cells). See `tests/runner-e2e/README.md` for launch
 commands, credential preflight, evidence, and reset/child-run accounting.
 
-Browser testing identified a company-cache shape mismatch in chat live updates
+Browser testing identified a space-cache shape mismatch in chat live updates
 and a dropped reset marker in compact run summaries. Preserve the shared cache
 contract and `conversationReset` summary field so messages refresh live and reset
 boundaries do not render empty model-completion notices.
@@ -230,9 +230,9 @@ to other agents. The recovery regression fails with the guard removed and passes
 with it restored; all 20 comment-wake batching tests and server typecheck pass.
 
 The other failures distinguish requested approval from ordinary draft planning,
-and a persisted Paperclip document from a workspace file. The chat directive now
+and a persisted Outpost document from a workspace file. The chat directive now
 explains how to create a revision-bound approval card when explicitly requested,
-including after a revision. Paid fixtures name the requested Paperclip document
+including after a revision. Paid fixtures name the requested Outpost document
 explicitly while retaining strict checks of approvals, transferred plans, and
 persisted execution output.
 

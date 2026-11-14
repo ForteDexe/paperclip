@@ -78,7 +78,7 @@ export interface OrgNode {
   reports: OrgNode[];
 }
 
-export interface AgentHireResponse {
+export interface AgentCreationResponse {
   agent: Agent;
   approval: Approval | null;
 }
@@ -101,42 +101,42 @@ export interface AgentWakeRequest {
   debug?: { providerTrace: "raw" };
 }
 
-function withCompanyScope(path: string, companyId?: string) {
-  if (!companyId) return path;
+function withSpaceScope(path: string, spaceId?: string) {
+  if (!spaceId) return path;
   const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}companyId=${encodeURIComponent(companyId)}`;
+  return `${path}${separator}spaceId=${encodeURIComponent(spaceId)}`;
 }
 
-function agentPath(id: string, companyId?: string, suffix = "") {
-  return withCompanyScope(`/agents/${encodeURIComponent(id)}${suffix}`, companyId);
+function agentPath(id: string, spaceId?: string, suffix = "") {
+  return withSpaceScope(`/agents/${encodeURIComponent(id)}${suffix}`, spaceId);
 }
 
 export const agentsApi = {
   projectAccess: (id: string) => api.get<AgentProjectAccess>(`/agents/${id}/project-access`),
   addProjectAccess: (id: string, projectIds: string[]) => api.post<AgentProjectAccess>(`/agents/${id}/project-access`, { projectIds }),
-  qualifyRunner: (id: string, expectedEnvironmentId: string, companyId?: string) =>
-    api.post<EnvironmentProbeResult>(agentPath(id, companyId, "/qualify-runner"), { expectedEnvironmentId }),
-  setAvatar: (companyId: string, agentId: string, imageBase64: string | null) =>
-    api.put<{ agentId: string; appearance: import("@outpost/shared").AgentAppearance; avatarUrl: string }>(`/companies/${companyId}/agents/${agentId}/avatar`, { imageBase64 }),
-  getIdentity: (id: string, companyId?: string) =>
-    api.get<AgentPublicIdentity | null>(agentPath(id, companyId, "/identity")),
-  adoptAiConnection: (agentId: string, interactionId: string, connectionId: string, companyId: string) =>
-    api.post<ConnectionIntentInteraction>(withCompanyScope(`/agents/${agentId}/connection-intents/${interactionId}/adopt`, companyId), { connectionId }),
+  qualifyRunner: (id: string, expectedEnvironmentId: string, spaceId?: string) =>
+    api.post<EnvironmentProbeResult>(agentPath(id, spaceId, "/qualify-runner"), { expectedEnvironmentId }),
+  setAvatar: (spaceId: string, agentId: string, imageBase64: string | null) =>
+    api.put<{ agentId: string; appearance: import("@outpost/shared").AgentAppearance; avatarUrl: string }>(`/spaces/${spaceId}/agents/${agentId}/avatar`, { imageBase64 }),
+  getIdentity: (id: string, spaceId?: string) =>
+    api.get<AgentPublicIdentity | null>(agentPath(id, spaceId, "/identity")),
+  adoptAiConnection: (agentId: string, interactionId: string, connectionId: string, spaceId: string) =>
+    api.post<ConnectionIntentInteraction>(withSpaceScope(`/agents/${agentId}/connection-intents/${interactionId}/adopt`, spaceId), { connectionId }),
 
-  list: (companyId: string) => api.get<Agent[]>(`/companies/${companyId}/agents`),
-  org: (companyId: string) => api.get<OrgNode[]>(`/companies/${companyId}/org`),
-  listConfigurations: (companyId: string) =>
-    api.get<Record<string, unknown>[]>(`/companies/${companyId}/agent-configurations`),
-  get: async (id: string, companyId?: string, options?: RequestOptions) => {
+  list: (spaceId: string) => api.get<Agent[]>(`/spaces/${spaceId}/agents`),
+  org: (spaceId: string) => api.get<OrgNode[]>(`/spaces/${spaceId}/org`),
+  listConfigurations: (spaceId: string) =>
+    api.get<Record<string, unknown>[]>(`/spaces/${spaceId}/agent-configurations`),
+  get: async (id: string, spaceId?: string, options?: RequestOptions) => {
     try {
-      return await api.get<AgentDetail>(agentPath(id, companyId), options);
+      return await api.get<AgentDetail>(agentPath(id, spaceId), options);
     } catch (error) {
       // Backward-compat fallback: if backend shortname lookup reports ambiguity,
-      // resolve using company agent list while ignoring terminated agents.
+      // resolve using space agent list while ignoring terminated agents.
       if (
         !(error instanceof ApiError) ||
         error.status !== 409 ||
-        !companyId ||
+        !spaceId ||
         isUuidLike(id)
       ) {
         throw error;
@@ -145,34 +145,34 @@ export const agentsApi = {
       const urlKey = normalizeAgentUrlKey(id);
       if (!urlKey) throw error;
 
-      const agents = await api.get<Agent[]>(`/companies/${companyId}/agents`, options);
+      const agents = await api.get<Agent[]>(`/spaces/${spaceId}/agents`, options);
       const matches = agents.filter(
         (agent) => agent.status !== "terminated" && normalizeAgentUrlKey(agent.urlKey) === urlKey,
       );
       if (matches.length !== 1) throw error;
-      return api.get<AgentDetail>(agentPath(matches[0]!.id, companyId), options);
+      return api.get<AgentDetail>(agentPath(matches[0]!.id, spaceId), options);
     }
   },
-  getConfiguration: (id: string, companyId?: string) =>
-    api.get<import("@outpost/shared").AgentConfigurationResponse>(agentPath(id, companyId, "/configuration")),
-  listConfigRevisions: (id: string, companyId?: string) =>
-    api.get<AgentConfigRevision[]>(agentPath(id, companyId, "/config-revisions")),
-  getConfigRevision: (id: string, revisionId: string, companyId?: string) =>
-    api.get<AgentConfigRevision>(agentPath(id, companyId, `/config-revisions/${revisionId}`)),
-  rollbackConfigRevision: (id: string, revisionId: string, companyId?: string) =>
-    api.post<Agent>(agentPath(id, companyId, `/config-revisions/${revisionId}/rollback`), {}),
-  create: (companyId: string, data: Record<string, unknown>) =>
-    api.post<Agent>(`/companies/${companyId}/agents`, data),
-  hire: (companyId: string, data: Record<string, unknown>) =>
-    api.post<AgentHireResponse>(`/companies/${companyId}/agent-hires`, data),
-  updateRuntimeSettings: (id: string, runtimeSettings: import("@outpost/shared").AgentRuntimeSettingsPatch, companyId: string) =>
-    api.patch<Agent>(agentPath(id, companyId), { runtimeSettings }),
-  update: (id: string, data: Record<string, unknown>, companyId?: string) =>
-    api.patch<Agent & import("@outpost/shared").AgentConfigurationResponse>(agentPath(id, companyId), data),
-  updatePermissions: (id: string, data: AgentPermissionUpdate, companyId?: string) =>
-    api.patch<AgentDetail>(agentPath(id, companyId, "/permissions"), data),
-  instructionsBundle: (id: string, companyId?: string) =>
-    api.get<AgentInstructionsBundle>(agentPath(id, companyId, "/instructions-bundle")),
+  getConfiguration: (id: string, spaceId?: string) =>
+    api.get<import("@outpost/shared").AgentConfigurationResponse>(agentPath(id, spaceId, "/configuration")),
+  listConfigRevisions: (id: string, spaceId?: string) =>
+    api.get<AgentConfigRevision[]>(agentPath(id, spaceId, "/config-revisions")),
+  getConfigRevision: (id: string, revisionId: string, spaceId?: string) =>
+    api.get<AgentConfigRevision>(agentPath(id, spaceId, `/config-revisions/${revisionId}`)),
+  rollbackConfigRevision: (id: string, revisionId: string, spaceId?: string) =>
+    api.post<Agent>(agentPath(id, spaceId, `/config-revisions/${revisionId}/rollback`), {}),
+  create: (spaceId: string, data: Record<string, unknown>) =>
+    api.post<Agent>(`/spaces/${spaceId}/agents`, data),
+  requestCreation: (spaceId: string, data: Record<string, unknown>) =>
+    api.post<AgentCreationResponse>(`/spaces/${spaceId}/agent-creations`, data),
+  updateRuntimeSettings: (id: string, runtimeSettings: import("@outpost/shared").AgentRuntimeSettingsPatch, spaceId: string) =>
+    api.patch<Agent>(agentPath(id, spaceId), { runtimeSettings }),
+  update: (id: string, data: Record<string, unknown>, spaceId?: string) =>
+    api.patch<Agent & import("@outpost/shared").AgentConfigurationResponse>(agentPath(id, spaceId), data),
+  updatePermissions: (id: string, data: AgentPermissionUpdate, spaceId?: string) =>
+    api.patch<AgentDetail>(agentPath(id, spaceId, "/permissions"), data),
+  instructionsBundle: (id: string, spaceId?: string) =>
+    api.get<AgentInstructionsBundle>(agentPath(id, spaceId, "/instructions-bundle")),
   updateInstructionsBundle: (
     id: string,
     data: {
@@ -182,64 +182,64 @@ export const agentsApi = {
       clearLegacyPromptTemplate?: boolean;
       requireExistingEntry?: boolean;
     },
-    companyId?: string,
-  ) => api.patch<AgentInstructionsBundle>(agentPath(id, companyId, "/instructions-bundle"), data),
-  instructionsFile: (id: string, relativePath: string, companyId?: string) =>
+    spaceId?: string,
+  ) => api.patch<AgentInstructionsBundle>(agentPath(id, spaceId, "/instructions-bundle"), data),
+  instructionsFile: (id: string, relativePath: string, spaceId?: string) =>
     api.get<AgentInstructionsFileDetail>(
-      agentPath(id, companyId, `/instructions-bundle/file?path=${encodeURIComponent(relativePath)}`),
+      agentPath(id, spaceId, `/instructions-bundle/file?path=${encodeURIComponent(relativePath)}`),
     ),
   saveInstructionsFile: (
     id: string,
     data: { path: string; content: string; baseRevisionId?: string | null; baseHash?: string | null; clearLegacyPromptTemplate?: boolean },
-    companyId?: string,
-  ) => api.put<AgentInstructionsFileDetail>(agentPath(id, companyId, "/instructions-bundle/file"), data),
-  instructionCandidates: (id: string, companyId?: string) =>
-    api.get<AgentInstructionCandidate[]>(agentPath(id, companyId, "/instructions-bundle/candidates")),
-  resolveInstructionCandidate: (id: string, runId: string, data: ResolveAgentInstructionCandidate, companyId?: string) =>
-    api.post<AgentInstructionsFileDetail>(agentPath(id, companyId, `/instructions-bundle/candidates/${runId}/resolve`), data),
-  instructionHistory: (id: string, path: string, companyId?: string, cursor?: string) =>
-    api.get<AgentInstructionHistory>(agentPath(id, companyId, `/instructions-bundle/history?path=${encodeURIComponent(path)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`)),
-  instructionRevision: (id: string, path: string, revisionId: string, companyId?: string) =>
-    api.get<AgentInstructionSnapshot>(agentPath(id, companyId, `/instructions-bundle/revision/${revisionId}?path=${encodeURIComponent(path)}`)),
-  instructionDiff: (id: string, path: string, from: string, to: string, companyId?: string) =>
-    api.get<AgentInstructionDiff>(agentPath(id, companyId, `/instructions-bundle/diff?path=${encodeURIComponent(path)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)),
-  restoreInstructions: (id: string, data: { path: string; revisionId: string; baseRevisionId: string }, companyId?: string) =>
-    api.post<AgentInstructionsFileDetail>(agentPath(id, companyId, "/instructions-bundle/restore"), data),
-  downloadInstructionsFile: (id: string, relativePath: string, companyId?: string) =>
-    `/api${agentPath(id, companyId, `/instructions-bundle/file?path=${encodeURIComponent(relativePath)}&download=true`)}`,
-  deleteInstructionsFile: (id: string, relativePath: string, companyId?: string, baseHash?: string) =>
+    spaceId?: string,
+  ) => api.put<AgentInstructionsFileDetail>(agentPath(id, spaceId, "/instructions-bundle/file"), data),
+  instructionCandidates: (id: string, spaceId?: string) =>
+    api.get<AgentInstructionCandidate[]>(agentPath(id, spaceId, "/instructions-bundle/candidates")),
+  resolveInstructionCandidate: (id: string, runId: string, data: ResolveAgentInstructionCandidate, spaceId?: string) =>
+    api.post<AgentInstructionsFileDetail>(agentPath(id, spaceId, `/instructions-bundle/candidates/${runId}/resolve`), data),
+  instructionHistory: (id: string, path: string, spaceId?: string, cursor?: string) =>
+    api.get<AgentInstructionHistory>(agentPath(id, spaceId, `/instructions-bundle/history?path=${encodeURIComponent(path)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`)),
+  instructionRevision: (id: string, path: string, revisionId: string, spaceId?: string) =>
+    api.get<AgentInstructionSnapshot>(agentPath(id, spaceId, `/instructions-bundle/revision/${revisionId}?path=${encodeURIComponent(path)}`)),
+  instructionDiff: (id: string, path: string, from: string, to: string, spaceId?: string) =>
+    api.get<AgentInstructionDiff>(agentPath(id, spaceId, `/instructions-bundle/diff?path=${encodeURIComponent(path)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)),
+  restoreInstructions: (id: string, data: { path: string; revisionId: string; baseRevisionId: string }, spaceId?: string) =>
+    api.post<AgentInstructionsFileDetail>(agentPath(id, spaceId, "/instructions-bundle/restore"), data),
+  downloadInstructionsFile: (id: string, relativePath: string, spaceId?: string) =>
+    `/api${agentPath(id, spaceId, `/instructions-bundle/file?path=${encodeURIComponent(relativePath)}&download=true`)}`,
+  deleteInstructionsFile: (id: string, relativePath: string, spaceId?: string, baseHash?: string) =>
     api.delete<AgentInstructionsBundle>(
-      agentPath(id, companyId, `/instructions-bundle/file?path=${encodeURIComponent(relativePath)}${baseHash ? `&baseHash=${baseHash}` : ""}`),
+      agentPath(id, spaceId, `/instructions-bundle/file?path=${encodeURIComponent(relativePath)}${baseHash ? `&baseHash=${baseHash}` : ""}`),
     ),
-  retryLifecycle: (id: string, companyId?: string) => api.post<Agent>(agentPath(id, companyId, "/lifecycle/retry"), {}),
-  pause: (id: string, companyId?: string) => api.post<Agent>(agentPath(id, companyId, "/pause"), {}),
-  resume: (id: string, companyId?: string) => api.post<Agent>(agentPath(id, companyId, "/resume"), {}),
-  clearError: (id: string, companyId?: string) =>
-    api.post<ClearAgentErrorResponse>(agentPath(id, companyId, "/clear-error"), {}),
-  approve: (id: string, companyId?: string) => api.post<Agent>(agentPath(id, companyId, "/approve"), {}),
-  terminate: (id: string, companyId?: string) => api.post<Agent>(agentPath(id, companyId, "/terminate"), {}),
-  remove: (id: string, companyId?: string) => api.delete<{ ok: true }>(agentPath(id, companyId)),
-  listKeys: (id: string, companyId?: string) => api.get<AgentKey[]>(agentPath(id, companyId, "/keys")),
-  skills: (id: string, companyId?: string) =>
-    api.get<AgentSkillSnapshot>(agentPath(id, companyId, "/skills")),
+  retryLifecycle: (id: string, spaceId?: string) => api.post<Agent>(agentPath(id, spaceId, "/lifecycle/retry"), {}),
+  pause: (id: string, spaceId?: string) => api.post<Agent>(agentPath(id, spaceId, "/pause"), {}),
+  resume: (id: string, spaceId?: string) => api.post<Agent>(agentPath(id, spaceId, "/resume"), {}),
+  clearError: (id: string, spaceId?: string) =>
+    api.post<ClearAgentErrorResponse>(agentPath(id, spaceId, "/clear-error"), {}),
+  approve: (id: string, spaceId?: string) => api.post<Agent>(agentPath(id, spaceId, "/approve"), {}),
+  terminate: (id: string, spaceId?: string) => api.post<Agent>(agentPath(id, spaceId, "/terminate"), {}),
+  remove: (id: string, spaceId?: string) => api.delete<{ ok: true }>(agentPath(id, spaceId)),
+  listKeys: (id: string, spaceId?: string) => api.get<AgentKey[]>(agentPath(id, spaceId, "/keys")),
+  skills: (id: string, spaceId?: string) =>
+    api.get<AgentSkillSnapshot>(agentPath(id, spaceId, "/skills")),
   syncSkills: (
     id: string,
     desiredSkills: Array<string | AgentDesiredSkillEntry>,
     mode: AgentSkillAssignmentMode,
-    companyId?: string,
-  ) => api.post<AgentSkillSnapshot>(agentPath(id, companyId, "/skills/sync"), { desiredSkills, mode }),
-  createKey: (id: string, name: string, companyId?: string, scope?: AgentApiKeyScope) =>
-    api.post<AgentKeyCreated>(agentPath(id, companyId, "/keys"), { name, ...(scope ? { scope } : {}) }),
-  revokeKey: (agentId: string, keyId: string, companyId?: string) =>
-    api.delete<{ ok: true }>(agentPath(agentId, companyId, `/keys/${encodeURIComponent(keyId)}`)),
-  runtimeState: (id: string, companyId?: string) =>
-    api.get<AgentRuntimeState>(agentPath(id, companyId, "/runtime-state")),
-  taskSessions: (id: string, companyId?: string) =>
-    api.get<AgentTaskSession[]>(agentPath(id, companyId, "/task-sessions")),
-  resetSession: (id: string, taskKey?: string | null, companyId?: string) =>
-    api.post<void>(agentPath(id, companyId, "/runtime-state/reset-session"), { taskKey: taskKey ?? null }),
+    spaceId?: string,
+  ) => api.post<AgentSkillSnapshot>(agentPath(id, spaceId, "/skills/sync"), { desiredSkills, mode }),
+  createKey: (id: string, name: string, spaceId?: string, scope?: AgentApiKeyScope) =>
+    api.post<AgentKeyCreated>(agentPath(id, spaceId, "/keys"), { name, ...(scope ? { scope } : {}) }),
+  revokeKey: (agentId: string, keyId: string, spaceId?: string) =>
+    api.delete<{ ok: true }>(agentPath(agentId, spaceId, `/keys/${encodeURIComponent(keyId)}`)),
+  runtimeState: (id: string, spaceId?: string) =>
+    api.get<AgentRuntimeState>(agentPath(id, spaceId, "/runtime-state")),
+  taskSessions: (id: string, spaceId?: string) =>
+    api.get<AgentTaskSession[]>(agentPath(id, spaceId, "/task-sessions")),
+  resetSession: (id: string, taskKey?: string | null, spaceId?: string) =>
+    api.post<void>(agentPath(id, spaceId, "/runtime-state/reset-session"), { taskKey: taskKey ?? null }),
   adapterModels: (
-    companyId: string,
+    spaceId: string,
     type: string,
     options?: { refresh?: boolean; environmentId?: string | null; provider?: string; acpxAgent?: string; aiConnection?: import("@outpost/shared").AiConnectionBinding; agentId?: string; poolId?: string },
   ) => {
@@ -253,15 +253,15 @@ export const agentsApi = {
     if (options?.environmentId) params.set("environmentId", options.environmentId);
     const query = params.size > 0 ? `?${params.toString()}` : "";
     return api.get<AdapterModel[]>(
-      `/companies/${encodeURIComponent(companyId)}/adapters/${encodeURIComponent(type)}/models${query}`,
+      `/spaces/${encodeURIComponent(spaceId)}/adapters/${encodeURIComponent(type)}/models${query}`,
     );
   },
-  detectModel: (companyId: string, type: string) =>
+  detectModel: (spaceId: string, type: string) =>
     api.get<DetectedAdapterModel | null>(
-      `/companies/${encodeURIComponent(companyId)}/adapters/${encodeURIComponent(type)}/detect-model`,
+      `/spaces/${encodeURIComponent(spaceId)}/adapters/${encodeURIComponent(type)}/detect-model`,
     ),
   testEnvironment: (
-    companyId: string,
+    spaceId: string,
     type: string,
     data: {
       adapterConfig: Record<string, unknown>;
@@ -274,31 +274,31 @@ export const agentsApi = {
     options?: RequestOptions,
   ) =>
     api.post<AdapterEnvironmentTestResult>(
-      `/companies/${companyId}/adapters/${type}/test-environment`,
+      `/spaces/${spaceId}/adapters/${type}/test-environment`,
       data,
       options,
     ),
-  getAdapterAuthSignal: (companyId: string, type: string, environmentId?: string | null) => {
+  getAdapterAuthSignal: (spaceId: string, type: string, environmentId?: string | null) => {
     const query = environmentId ? `?environmentId=${encodeURIComponent(environmentId)}` : "";
     return api.get<AdapterAuthSignalResponse>(
-      `/companies/${encodeURIComponent(companyId)}/adapters/${encodeURIComponent(type)}/auth-signal${query}`,
+      `/spaces/${encodeURIComponent(spaceId)}/adapters/${encodeURIComponent(type)}/auth-signal${query}`,
     );
   },
-  invoke: (id: string, companyId?: string, data: AgentWakeRequest = {}) =>
-    api.post<HeartbeatRun>(agentPath(id, companyId, "/heartbeat/invoke"), data),
+  invoke: (id: string, spaceId?: string, data: AgentWakeRequest = {}) =>
+    api.post<HeartbeatRun>(agentPath(id, spaceId, "/heartbeat/invoke"), data),
   wakeup: (
     id: string,
     data: AgentWakeRequest,
-    companyId?: string,
-  ) => api.post<AgentWakeupResponse>(agentPath(id, companyId, "/wakeup"), data),
+    spaceId?: string,
+  ) => api.post<AgentWakeupResponse>(agentPath(id, spaceId, "/wakeup"), data),
   retryFailedRun: async (
     id: string,
     failedRunId: string,
-    companyId: string,
+    spaceId: string,
   ) => {
     const result = await api.post<
       AgentWakeupResponse | ChatFailedRunRetryResponse
-    >(agentPath(id, companyId, "/wakeup"), {
+    >(agentPath(id, spaceId, "/wakeup"), {
       source: "on_demand",
       triggerDetail: "manual",
       reason: "retry_failed_run",
@@ -324,39 +324,39 @@ export const agentsApi = {
     }
     throw new Error(result.message ?? "Retry was skipped.");
   },
-  loginWithClaude: (id: string, companyId?: string) =>
-    api.post<ClaudeLoginResult>(agentPath(id, companyId, "/claude-login"), {}),
+  loginWithClaude: (id: string, spaceId?: string) =>
+    api.post<ClaudeLoginResult>(agentPath(id, spaceId, "/claude-login"), {}),
   startAdapterAuthLogin: (
-    companyId: string,
+    spaceId: string,
     type: string,
     data: { environmentId: string; agentId?: string; ttlSeconds?: number; aiConnection?: import("@outpost/shared").AiConnectionLoginIntent },
   ) =>
     api.post<AdapterAuthSessionResponse>(
-      `/companies/${encodeURIComponent(companyId)}/adapters/${encodeURIComponent(type)}/login-sessions`,
+      `/spaces/${encodeURIComponent(spaceId)}/adapters/${encodeURIComponent(type)}/login-sessions`,
       data,
     ),
   // The owner response repeats the live prompt on every read while the
   // session holds an active public status, so this polling call carries the
   // same no-store request option as the active-session read below.
-  getAdapterAuthLoginStatus: (companyId: string, type: string, sessionId: string, options?: { signal?: AbortSignal }) =>
+  getAdapterAuthLoginStatus: (spaceId: string, type: string, sessionId: string, options?: { signal?: AbortSignal }) =>
     api.get<AdapterAuthSessionOwnerResponse>(
-      `/companies/${encodeURIComponent(companyId)}/adapters/${encodeURIComponent(type)}/login-sessions/${encodeURIComponent(sessionId)}`,
+      `/spaces/${encodeURIComponent(spaceId)}/adapters/${encodeURIComponent(type)}/login-sessions/${encodeURIComponent(sessionId)}`,
       { cache: "no-store", ...options },
     ),
-  // Reads the caller's active login session for one company and adapter, with
+  // Reads the caller's active login session for one space and adapter, with
   // no session id, so the browser rediscovers its own session after a reload
   // with no local state. A 404 means no active session for the caller.
-  getActiveAdapterAuthLoginSession: (companyId: string, type: string, options?: { signal?: AbortSignal; fresh?: boolean }) =>
+  getActiveAdapterAuthLoginSession: (spaceId: string, type: string, options?: { signal?: AbortSignal; fresh?: boolean }) =>
     api.get<AdapterAuthSessionOwnerResponse>(
-      `/companies/${encodeURIComponent(companyId)}/adapters/${encodeURIComponent(type)}/login-sessions/active`,
+      `/spaces/${encodeURIComponent(spaceId)}/adapters/${encodeURIComponent(type)}/login-sessions/active`,
       { cache: "no-store", ...options },
     ),
-  cancelAdapterAuthLogin: (companyId: string, type: string, sessionId: string) =>
+  cancelAdapterAuthLogin: (spaceId: string, type: string, sessionId: string) =>
     api.post<AdapterAuthSessionOwnerResponse>(
-      `/companies/${encodeURIComponent(companyId)}/adapters/${encodeURIComponent(type)}/login-sessions/${encodeURIComponent(sessionId)}/cancel`,
+      `/spaces/${encodeURIComponent(spaceId)}/adapters/${encodeURIComponent(type)}/login-sessions/${encodeURIComponent(sessionId)}/cancel`,
       {},
     ),
-  // The Claude submitted-browser-code login uses the company-and-environment
+  // The Claude submitted-browser-code login uses the space-and-environment
   // setup-token routes. The route fixes the `claude_local` adapter. The start
   // response carries the panel mode; the authorization URL rides only through the
   // guarded prompt read. The completion response carries a non-secret
@@ -366,49 +366,49 @@ export const agentsApi = {
   // has no stored value (indistinguishable from a foreign value). The client
   // applies the stored token first and captures the version for a later
   // version-checked overwrite.
-  getClaudeOAuthTokenStatus: (companyId: string) =>
+  getClaudeOAuthTokenStatus: (spaceId: string) =>
     api.get<ClaudeOAuthTokenStatusResponse>(
-      `/companies/${encodeURIComponent(companyId)}/claude-oauth-token-status`,
+      `/spaces/${encodeURIComponent(spaceId)}/claude-oauth-token-status`,
     ),
   startClaudeSetupTokenLogin: (
-    companyId: string,
+    spaceId: string,
     data: { environmentId: string; agentId?: string; overwrite?: ClaudeSetupTokenOverwrite; aiConnection?: import("@outpost/shared").AiConnectionLoginIntent },
   ) =>
     api.post<ClaudeSetupTokenSessionOwnerResponse>(
-      `/companies/${encodeURIComponent(companyId)}/setup-token-login-sessions`,
+      `/spaces/${encodeURIComponent(spaceId)}/setup-token-login-sessions`,
       { adapterType: "claude_local", ...data },
     ),
-  getClaudeSetupTokenLoginStatus: (companyId: string, sessionId: string, options?: { signal?: AbortSignal }) =>
+  getClaudeSetupTokenLoginStatus: (spaceId: string, sessionId: string, options?: { signal?: AbortSignal }) =>
     api.get<ClaudeSetupTokenSessionResponse>(
-      `/companies/${encodeURIComponent(companyId)}/setup-token-login-sessions/${encodeURIComponent(sessionId)}`,
+      `/spaces/${encodeURIComponent(spaceId)}/setup-token-login-sessions/${encodeURIComponent(sessionId)}`,
       options,
     ),
   // Reads the caller's active Claude setup-token login session, with no
   // session id, so the browser rediscovers its own session after a reload with
   // no local state. A 404 means no active session for the caller.
-  getActiveClaudeSetupTokenLoginSession: (companyId: string, options?: { signal?: AbortSignal; fresh?: boolean }) =>
+  getActiveClaudeSetupTokenLoginSession: (spaceId: string, options?: { signal?: AbortSignal; fresh?: boolean }) =>
     api.get<ClaudeSetupTokenSessionOwnerResponse>(
-      `/companies/${encodeURIComponent(companyId)}/setup-token-login-sessions/active`,
+      `/spaces/${encodeURIComponent(spaceId)}/setup-token-login-sessions/active`,
       { cache: "no-store", ...options },
     ),
-  getClaudeSetupTokenLoginPrompt: (companyId: string, sessionId: string, options?: { signal?: AbortSignal }) =>
+  getClaudeSetupTokenLoginPrompt: (spaceId: string, sessionId: string, options?: { signal?: AbortSignal }) =>
     api.get<ClaudeSetupTokenSessionPrompt>(
-      `/companies/${encodeURIComponent(companyId)}/setup-token-login-sessions/${encodeURIComponent(sessionId)}/prompt`,
+      `/spaces/${encodeURIComponent(spaceId)}/setup-token-login-sessions/${encodeURIComponent(sessionId)}/prompt`,
       options,
     ),
-  submitClaudeSetupTokenBrowserCode: (companyId: string, sessionId: string, browserCode: string) =>
+  submitClaudeSetupTokenBrowserCode: (spaceId: string, sessionId: string, browserCode: string) =>
     api.post<ClaudeSetupTokenSessionResponse>(
-      `/companies/${encodeURIComponent(companyId)}/setup-token-login-sessions/${encodeURIComponent(sessionId)}/code`,
+      `/spaces/${encodeURIComponent(spaceId)}/setup-token-login-sessions/${encodeURIComponent(sessionId)}/code`,
       { browserCode } satisfies SubmitBrowserCodeRequest,
     ),
-  completeClaudeSetupTokenLogin: (companyId: string, sessionId: string) =>
+  completeClaudeSetupTokenLogin: (spaceId: string, sessionId: string) =>
     api.post<ClaudeSetupTokenCompletionResponse>(
-      `/companies/${encodeURIComponent(companyId)}/setup-token-login-sessions/${encodeURIComponent(sessionId)}/completion`,
+      `/spaces/${encodeURIComponent(spaceId)}/setup-token-login-sessions/${encodeURIComponent(sessionId)}/completion`,
       {},
     ),
-  cancelClaudeSetupTokenLogin: (companyId: string, sessionId: string) =>
+  cancelClaudeSetupTokenLogin: (spaceId: string, sessionId: string) =>
     api.post<void>(
-      `/companies/${encodeURIComponent(companyId)}/setup-token-login-sessions/${encodeURIComponent(sessionId)}/cancel`,
+      `/spaces/${encodeURIComponent(spaceId)}/setup-token-login-sessions/${encodeURIComponent(sessionId)}/cancel`,
       {},
     ),
   availableSkills: () =>
@@ -418,5 +418,5 @@ export const agentsApi = {
 export interface AvailableSkill {
   name: string;
   description: string;
-  isPaperclipManaged: boolean;
+  isOutpostManaged: boolean;
 }

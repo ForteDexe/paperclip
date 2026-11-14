@@ -1,8 +1,8 @@
 import type { IssueDocument, IssueWorkProduct } from "@outpost/shared";
-import type { CompanyArtifact, CompanyArtifactGroup } from "@/api/artifacts";
+import type { SpaceArtifact, SpaceArtifactGroup } from "@/api/artifacts";
 import type { AttachmentRef } from "@/components/task-chat/task-chat-attachments";
 import type { LabArtifact, LabGroup } from "../../kit";
-import { COMPANY } from "../../fixtures";
+import { SPACE } from "../../fixtures";
 
 /**
  * Lab fixtures → the product's own types, so the shipped components can be fed
@@ -46,7 +46,7 @@ function attachmentPaths(a: LabArtifact) {
 export function toWorkProduct(a: LabArtifact, createdAt: Date = new Date(a.updatedAt)): IssueWorkProduct {
   const base = {
     id: guid(`work-product:${a.id}`),
-    companyId: COMPANY.id,
+    spaceId: SPACE.id,
     projectId: null,
     issueId: issueIdFor(a.taskIdentifier),
     executionWorkspaceId: null,
@@ -71,7 +71,7 @@ export function toWorkProduct(a: LabArtifact, createdAt: Date = new Date(a.updat
   return {
     ...base,
     type: "artifact",
-    provider: "paperclip",
+    provider: "outpost",
     url: null,
     metadata: {
       ...attachmentPaths(a),
@@ -87,7 +87,7 @@ export function toIssueDocument(a: LabArtifact, createdAt: Date = new Date(a.upd
   const author = agentId(a.author);
   return {
     id: guid(`document:${a.id}`),
-    companyId: COMPANY.id,
+    spaceId: SPACE.id,
     issueId: issueIdFor(a.taskIdentifier),
     key: documentKey(a),
     title: a.title,
@@ -123,7 +123,7 @@ export function toAttachmentRef(a: LabArtifact): AttachmentRef {
   };
 }
 
-/** `normalizePreviewText` (server/src/services/company-artifacts.ts:89-103): one run-on line, 280 chars. */
+/** `normalizePreviewText` (server/src/services/space-artifacts.ts:89-103): one run-on line, 280 chars. */
 function previewText(text: string | undefined): string | null {
   if (!text) return null;
   const flat = text
@@ -137,10 +137,10 @@ function previewText(text: string | undefined): string | null {
 }
 
 /**
- * `classifyMediaKind` (company-artifacts.ts:105-121). "document" means a task
+ * `classifyMediaKind` (space-artifacts.ts:105-121). "document" means a task
  * document only; PDFs, decks, sheets and archives are all "file".
  */
-function mediaKind(a: LabArtifact): CompanyArtifact["mediaKind"] {
+function mediaKind(a: LabArtifact): SpaceArtifact["mediaKind"] {
   if (isTaskDocument(a)) return "document";
   const type = a.contentType ?? "";
   if (type.startsWith("image/")) return "image";
@@ -149,7 +149,7 @@ function mediaKind(a: LabArtifact): CompanyArtifact["mediaKind"] {
   return a.kind === "link" ? "empty" : "file";
 }
 
-export function toCompanyArtifact(a: LabArtifact): CompanyArtifact {
+export function toSpaceArtifact(a: LabArtifact): SpaceArtifact {
   const issue = { id: issueIdFor(a.taskIdentifier), identifier: a.taskIdentifier, title: a.taskTitle };
   const base = {
     title: a.title,
@@ -169,7 +169,7 @@ export function toCompanyArtifact(a: LabArtifact): CompanyArtifact {
       contentPath: null,
       openPath: null,
       downloadPath: null,
-      href: `/${COMPANY.issuePrefix}/issues/${a.taskIdentifier}${documentHref(a)}`,
+      href: `/${SPACE.issuePrefix}/issues/${a.taskIdentifier}${documentHref(a)}`,
     };
   }
   const paths = a.kind === "link" ? null : attachmentPaths(a);
@@ -184,12 +184,12 @@ export function toCompanyArtifact(a: LabArtifact): CompanyArtifact {
     contentPath: paths?.contentPath ?? null,
     openPath: paths?.openPath ?? null,
     downloadPath: paths?.downloadPath ?? null,
-    href: `/${COMPANY.issuePrefix}/issues/${a.taskIdentifier}#work-product-${guid(`work-product:${a.id}`)}`,
+    href: `/${SPACE.issuePrefix}/issues/${a.taskIdentifier}#work-product-${guid(`work-product:${a.id}`)}`,
   };
 }
 
-export function toCompanyArtifactGroup(g: LabGroup): CompanyArtifactGroup {
-  const artifacts = g.artifacts.map(toCompanyArtifact);
+export function toSpaceArtifactGroup(g: LabGroup): SpaceArtifactGroup {
+  const artifacts = g.artifacts.map(toSpaceArtifact);
   return {
     id: g.id,
     groupBy: "task",
@@ -199,6 +199,6 @@ export function toCompanyArtifactGroup(g: LabGroup): CompanyArtifactGroup {
     mediaKinds: [...new Set(artifacts.map((a) => a.mediaKind))],
     previewArtifacts: artifacts.slice(0, 3),
     updatedAt: g.artifacts[0]?.updatedAt ?? new Date(0).toISOString(),
-    href: `/${COMPANY.issuePrefix}/artifacts?groupIssueId=${issueIdFor(g.taskIdentifier)}`,
+    href: `/${SPACE.issuePrefix}/artifacts?groupIssueId=${issueIdFor(g.taskIdentifier)}`,
   };
 }

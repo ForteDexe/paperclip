@@ -1,4 +1,4 @@
-import { normalizePaperclipOperationalSkillPreference } from "../../packages/adapter-utils/src/server-utils.js";
+import { normalizeOutpostOperationalSkillPreference } from "../../packages/adapter-utils/src/server-utils.js";
 import { isDeepStrictEqual } from "node:util";
 import type { RunnerApi } from "./api.js";
 import { deleteDaytonaEnvironment, installFixtureDaytonaProvider, type LiveFixtureValues } from "./live-fixtures.js";
@@ -31,10 +31,10 @@ export async function startFirstTaskWithRuntimeBound(input: {
 }): Promise<void> {
   if (input.execution.profile.id === "runner-codex") {
     const snapshot = (agent: Record<string, any>) => structuredClone(Object.fromEntries([
-      "id", "companyId", "adapterType", "adapterConfig", "runtimeConfig", "permissions", "defaultEnvironmentId", "budgetMonthlyCents", "metadata",
+      "id", "spaceId", "adapterType", "adapterConfig", "runtimeConfig", "permissions", "defaultEnvironmentId", "budgetMonthlyCents", "metadata",
     ].map(key => [key, agent?.[key]]))) as Record<string, any>;
     const before = snapshot(input.agent);
-    if (!before.id || !before.companyId || before.adapterType !== "outpost_runner" || before.adapterConfig?.provider !== "codex") {
+    if (!before.id || !before.spaceId || before.adapterType !== "outpost_runner" || before.adapterConfig?.provider !== "codex") {
       throw new Error("First-task runtime bound requires the wizard's original native Codex selection");
     }
     const agentPath = `/api/agents/${encodeURIComponent(before.id)}`;
@@ -58,10 +58,10 @@ export async function provisionFirstTaskFixtures(input: {
   execution: MatrixExecution;
   nonce: string;
   daytonaImage?: string;
-  company: LiveFixtureValues["company"];
+  space: LiveFixtureValues["space"];
   credentials: Partial<Record<CredentialName, string>>;
 }): Promise<FirstTaskFixtureValues> {
-  const { api, execution, nonce, company, credentials } = input;
+  const { api, execution, nonce, space, credentials } = input;
   const managed = isManagedFirstTask(execution);
   if (
     !["first-task", "completion-updates", "confirmation-replies", APPROVAL_HISTORY_SUITE].includes(execution.suite.id) || execution.task.flow !== "first_task" ||
@@ -91,16 +91,16 @@ export async function provisionFirstTaskFixtures(input: {
     typeof previousSettings.experimental?.enableManagedSandboxOnly !== "boolean")) {
     throw new Error("Managed onboarding fixture prior instance settings could not be read");
   }
-  await api.patch(`/api/companies/${company.id}`, { budgetMonthlyCents: 500 });
+  await api.patch(`/api/spaces/${space.id}`, { budgetMonthlyCents: 500 });
   let localEnvironment: LiveFixtureValues["environment"] | undefined;
   if (!managed) {
-    const environments = await api.get<Array<LiveFixtureValues["environment"]>>(`/api/companies/${company.id}/environments?driver=local`);
+    const environments = await api.get<Array<LiveFixtureValues["environment"]>>(`/api/spaces/${space.id}/environments?driver=local`);
     localEnvironment = environments.find(candidate => candidate.driver === "local");
     if (!localEnvironment) throw new Error("Onboarding fixture local environment missing");
   }
   const secretRefs: LiveFixtureValues["secretRefs"] = {};
   for (const name of required) {
-    const secret = await api.postSensitive<{ id: string }>(`/api/companies/${company.id}/secrets`, {
+    const secret = await api.postSensitive<{ id: string }>(`/api/spaces/${space.id}/secrets`, {
       name: `First task ${name}`, key: name, value: credentials[name],
     });
     secretRefs[name] = { type: "secret_ref", secretId: secret.id, version: "latest" };
@@ -110,7 +110,7 @@ export async function provisionFirstTaskFixtures(input: {
   if (managed) {
     const remoteApi = api as Pick<RunnerApi, "post" | "delete">;
     await installFixtureDaytonaProvider(remoteApi, execution);
-    environment = await remoteApi.post<LiveFixtureValues["environment"]>(`/api/companies/${company.id}/environments`,
+    environment = await remoteApi.post<LiveFixtureValues["environment"]>(`/api/spaces/${space.id}/environments`,
       execution.environment.buildEnvironment({ secretRefs, daytonaImage: input.daytonaImage, executionId: nonce }));
     let restoreDefault = false;
     let restoreManagedOnly = false;
@@ -151,10 +151,10 @@ export async function provisionFirstTaskFixtures(input: {
   } else environment = localEnvironment!;
 
   return {
-    company,
+    space,
     environment,
     secretRefs,
-    agent: { id: "", name: `Garden lead ${nonce}`, companyId: company.id },
+    agent: { id: "", name: `Garden lead ${nonce}`, spaceId: space.id },
     ...(managed ? { setupLeases: [], setupQualification: { recorded: false, adapterType: null, platformResponses: 0, adapterResponses: 0 } } : {}),
     teardown,
   };
@@ -183,7 +183,7 @@ export function firstTaskNativeRuntimePatch(
   else config.model = agent.adapterConfig.model;
   return {
     adapterType: "outpost_runner",
-    adapterConfig: normalizePaperclipOperationalSkillPreference(
+    adapterConfig: normalizeOutpostOperationalSkillPreference(
       "outpost_runner",
       config,
     ),

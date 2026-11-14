@@ -21,7 +21,7 @@ export function stdioMcpLaunchBindings(environment: NodeJS.ProcessEnv): StdioMcp
   let values: unknown;
   try { values = JSON.parse(raw); } catch { throw invalid(); }
   if (!Array.isArray(values) || values.length > 8) throw invalid();
-  const names = new Set<string>(["paperclip", environment.OUTPOST_NATIVE_MCP_NAME ?? ""]);
+  const names = new Set<string>(["outpost", environment.OUTPOST_NATIVE_MCP_NAME ?? ""]);
   return values.map((value: unknown) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) throw invalid();
     const binding = value as Record<string, unknown>;

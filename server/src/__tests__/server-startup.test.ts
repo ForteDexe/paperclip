@@ -18,7 +18,7 @@ import { idleBackupWakeMarker, markIdleBackupWakeRequired } from "../services/id
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { decisionService, decisionRetentionService, toolAccessService, githubConnectionEventService, reconcileBuiltInAgentsOnStartup, reconcileCodexLocalManagedHomesOnStartup, reconcilePersistedRuntimeServicesOnStartup } from "../services/index.js";
 
-import { companies, runDatabaseBackup, type Db } from "@outpost/db";
+import { spaces, runDatabaseBackup, type Db } from "@outpost/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveLocalRuntimeApiUrl } from "../runtime-api.js";
 import { onNativeWorkspaceFinalizationRelease, releaseNativeWorkspaceFinalization } from "../services/native-workspace-finalization-notifications.js";
@@ -114,13 +114,13 @@ const {
         nextActionReviewInterruptionAt: vi.fn(async () => null),
         recoverApprovedActionReviews: vi.fn(async () => ({ scanned: 0, retry: false })),
         repairActionReviewProjections: vi.fn(async () => ({ scanned: 0, retry: false })),
-        actionReviewProjectionCompanies: vi.fn(async () => []),
-        approvedActionReviewCompanies: vi.fn(async () => []),
+        actionReviewProjectionSpaces: vi.fn(async () => []),
+        approvedActionReviewSpaces: vi.fn(async () => []),
         sweepActionReviews: vi.fn(async () => ({ scanned: 0 })),
         sweepExpiredActionReviews: vi.fn(async () => ({ scanned: 0 })),
         nextActionReviewExpiryAt: vi.fn(async () => null),
         actionReviewExpiryDeadlines: vi.fn(async () => []),
-        sweepExpiredActionReviewsForCompany: vi.fn(async () => ({ scanned: 0 })),
+        sweepExpiredActionReviewsForSpace: vi.fn(async () => ({ scanned: 0 })),
         cleanupExpiredSessions: vi.fn(async () => ({ deletedCount: 0 })),
         nextCredentialExpiryAt: vi.fn(async () => null),
       },
@@ -323,28 +323,28 @@ function buildTestConfig(overrides: Record<string, unknown> = {}) {
     authPublicBaseUrl: undefined,
     authDisableSignUp: false,
     databaseMode: "postgres",
-    databaseUrl: "postgres://paperclip:paperclip@127.0.0.1:5432/paperclip",
-    embeddedPostgresDataDir: "/tmp/paperclip-test-db",
+    databaseUrl: "postgres://outpost:outpost@127.0.0.1:5432/outpost",
+    embeddedPostgresDataDir: "/tmp/outpost-test-db",
     embeddedPostgresPort: 54329,
     databaseBackupEnabled: false,
     databaseBackupIntervalMinutes: 60,
     databaseBackupRetentionDays: 30,
-    databaseBackupDir: "/tmp/paperclip-test-backups",
+    databaseBackupDir: "/tmp/outpost-test-backups",
     serveUi: false,
     uiDevMiddleware: false,
     secretsProvider: "local_encrypted",
     secretsStrictMode: false,
-    secretsMasterKeyFilePath: "/tmp/paperclip-master.key",
+    secretsMasterKeyFilePath: "/tmp/outpost-master.key",
     storageProvider: "local_disk",
-    storageLocalDiskBaseDir: "/tmp/paperclip-storage",
-    storageS3Bucket: "paperclip-test",
+    storageLocalDiskBaseDir: "/tmp/outpost-storage",
+    storageS3Bucket: "outpost-test",
     storageS3Region: "us-east-1",
     storageS3Endpoint: undefined,
     storageS3Prefix: "",
     storageS3ForcePathStyle: false,
     heartbeatSchedulerEnabled: false,
     heartbeatSchedulerIntervalMs: 30000,
-    companyDeletionEnabled: false,
+    spaceDeletionEnabled: false,
     ...overrides,
   };
 }
@@ -601,7 +601,7 @@ vi.mock("../services/status-card-evaluation.js", () => ({
 vi.mock("../services/secret-proposals.js", () => ({
   createSecretProposalsService: vi.fn(() => ({
     expiryDeadlines: vi.fn(async () => []),
-    sweepExpiredForCompany: vi.fn(async () => 0),
+    sweepExpiredForSpace: vi.fn(async () => 0),
     nextExpiryAt: vi.fn(async () => null),
     sweepExpired: vi.fn(async () => 0),
   })),
@@ -619,9 +619,9 @@ vi.mock("../startup-banner.js", () => ({
   printStartupBanner: vi.fn(),
 }));
 
-vi.mock("../board-claim.js", () => ({
-  getBoardClaimWarningUrl: vi.fn(() => null),
-  initializeBoardClaimChallenge: vi.fn(async () => undefined),
+vi.mock("../operator-claim.js", () => ({
+  getOperatorClaimWarningUrl: vi.fn(() => null),
+  initializeOperatorClaimChallenge: vi.fn(async () => undefined),
 }));
 
 vi.mock("../services/native-runtime/native-harness-backup-expiration.js", () => ({
@@ -640,7 +640,7 @@ vi.mock("../services/native-runtime/native-harness-backup-expiration.js", () => 
 
 vi.mock("../services/skill-version-retention.js", () => ({
   skillVersionRetentionService: vi.fn(() => ({
-    listCompanies: vi.fn(async () => []), pruneCompany: vi.fn(async () => ({ checked: 0, truncated: false, nextRunAt: null })),
+    listSpaces: vi.fn(async () => []), pruneSpace: vi.fn(async () => ({ checked: 0, truncated: false, nextRunAt: null })),
     dispose: vi.fn(async () => {}), graceMs: 60 * 60_000,
   })),
 }));
@@ -694,7 +694,7 @@ describe("startServer wiring", () => {
     const originalHome = process.env.OUTPOST_HOME;
     const originalManaged = process.env.OUTPOST_MANAGED_CONFIG;
     const originalStorage = process.env.OUTPOST_STORAGE_PROVIDER;
-    const tempHome = mkdtempSync(path.join(tmpdir(), "paperclip-cloud-refusal-"));
+    const tempHome = mkdtempSync(path.join(tmpdir(), "outpost-cloud-refusal-"));
     process.env.OUTPOST_HOME = tempHome;
     process.env.OUTPOST_MANAGED_CONFIG = JSON.stringify({
       v: 1, mode: "cloud", catalogVersion: "2026.720.0", features: {}, plugins: { autoInstall: [] },
@@ -725,7 +725,7 @@ describe("startServer wiring", () => {
   it("rejects missing effective Cloud storage after the snapshot and before local signing mutations", async () => {
     const realConfig = await vi.importActual<typeof import("../config.js")>("../config.js");
     const { setCloudRuntimeConfigSnapshot } = await import("../services/cloud-runtime-config-snapshot.js");
-    const tempHome = mkdtempSync(path.join(tmpdir(), "paperclip-cloud-storage-refusal-"));
+    const tempHome = mkdtempSync(path.join(tmpdir(), "outpost-cloud-storage-refusal-"));
     vi.stubEnv("OUTPOST_HOME", tempHome);
     vi.stubEnv("OUTPOST_MANAGED_CONFIG", JSON.stringify({ v: 1, mode: "cloud", catalogVersion: "2026.720.0", features: {}, plugins: { autoInstall: [] } }));
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "12345678901234567890123456789012");
@@ -859,8 +859,8 @@ describe("startServer wiring", () => {
     loadConfigMock.mockReturnValue(buildTestConfig({ skillVersionRetentionEnabled: true }));
     const pending = Promise.withResolvers<Array<{ id: string }>>();
     const list = vi.fn(() => pending.promise);
-    vi.mocked(skillVersionRetentionService).mockReturnValueOnce({ listCompanies: list,
-      pruneCompany: vi.fn(), dispose: vi.fn(async () => {}), graceMs: 60 * 60_000 } as never);
+    vi.mocked(skillVersionRetentionService).mockReturnValueOnce({ listSpaces: list,
+      pruneSpace: vi.fn(), dispose: vi.fn(async () => {}), graceMs: 60 * 60_000 } as never);
     try {
       await startServer(); await settleStartupHousekeeping();
       expect(list).toHaveBeenCalledOnce(); expect(getStartupRecoveryState().phase).toBe("ready");
@@ -962,7 +962,7 @@ describe("startServer wiring", () => {
     if (enabled) expect(heartbeatServiceMock.registerNativeStatusReassessmentWork.mock.calls[0][1]()).toBe(true);
   });
 
-  it.each([false, true])("registers governed-response recovery only when maintenance is enabled (%s)", async enabled => {
+  it.each([false, true])("registers controlled-response recovery only when maintenance is enabled (%s)", async enabled => {
     loadConfigMock.mockReturnValue(buildTestConfig({ heartbeatSchedulerEnabled: enabled }));
     await startServer(); await settleStartupHousekeeping();
     expect(heartbeatServiceMock.registerNativeReviewResponseWork).toHaveBeenCalledTimes(enabled ? 1 : 0);
@@ -1127,12 +1127,12 @@ describe("startServer wiring", () => {
       expect(retention.deliverNotifications).toHaveBeenCalledOnce();
       expect(retention.nextArchiveNotificationAt).toHaveBeenCalledOnce();
       const db = createDbMock.mock.results[0]!.value as Db;
-      const companyReads = () => vi.mocked(db.select).mock.results.filter(({ value }) =>
-        vi.mocked(value.from).mock.calls.some(([table]: unknown[]) => table === companies)).length;
-      const before = companyReads();
+      const spaceReads = () => vi.mocked(db.select).mock.results.filter(({ value }) =>
+        vi.mocked(value.from).mock.calls.some(([table]: unknown[]) => table === spaces)).length;
+      const before = spaceReads();
       expect(before).toBe(0); expect(tick).toBeUndefined();
       await settleStartupHousekeeping();
-      expect(companyReads()).toBe(before);
+      expect(spaceReads()).toBe(before);
       expect(source.load).toHaveBeenCalledOnce();
       expect(retention.deliverNotifications).toHaveBeenCalledOnce();
       await registration![1].run(new AbortController().signal);
@@ -1176,7 +1176,7 @@ describe("startServer wiring", () => {
     let finish!: () => void;
     const pending = new Promise<void>(resolve => { finish = resolve; });
     const writeBackup = async (options: Parameters<typeof runDatabaseBackup>[0]) => {
-      const backupFile = path.join(directory, "paperclip-restart.sql.gz");
+      const backupFile = path.join(directory, "outpost-restart.sql.gz");
       const bytes = gzipSync("SELECT 'restart recovery';\n");
       writeFileSync(backupFile, bytes);
       expect(options.retention).toEqual({ dailyDays: 7, weeklyWeeks: 4, monthlyMonths: 1 });
@@ -1289,7 +1289,7 @@ describe("startServer wiring", () => {
   it("starts without OUTPOST_DECISION_SIGNING_SECRET by generating a persisted key", async () => {
     const originalHome = process.env.OUTPOST_HOME;
     const originalInstanceId = process.env.OUTPOST_INSTANCE_ID;
-    const tempHome = mkdtempSync(path.join(tmpdir(), "paperclip-decision-key-"));
+    const tempHome = mkdtempSync(path.join(tmpdir(), "outpost-decision-key-"));
     process.env.OUTPOST_HOME = tempHome;
     process.env.OUTPOST_INSTANCE_ID = "default";
     delete process.env.OUTPOST_DECISION_SIGNING_SECRET;
@@ -1314,7 +1314,7 @@ describe("startServer wiring", () => {
   it("repairs permissive permissions on an existing generated decision signing key", async () => {
     const originalHome = process.env.OUTPOST_HOME;
     const originalInstanceId = process.env.OUTPOST_INSTANCE_ID;
-    const tempHome = mkdtempSync(path.join(tmpdir(), "paperclip-decision-key-mode-"));
+    const tempHome = mkdtempSync(path.join(tmpdir(), "outpost-decision-key-mode-"));
     const keyPath = path.join(tempHome, "instances", "default", "secrets", "decision-signing.key");
     const existingKey = Buffer.alloc(32, 7).toString("base64");
     mkdirSync(path.dirname(keyPath), { recursive: true, mode: 0o777 });
@@ -1346,7 +1346,7 @@ describe("startServer wiring", () => {
 
     const originalHome = process.env.OUTPOST_HOME;
     const originalInstanceId = process.env.OUTPOST_INSTANCE_ID;
-    const tempHome = mkdtempSync(path.join(tmpdir(), "paperclip-decision-key-symlink-"));
+    const tempHome = mkdtempSync(path.join(tmpdir(), "outpost-decision-key-symlink-"));
     const keyPath = path.join(tempHome, "instances", "default", "secrets", "decision-signing.key");
     const plantedTarget = path.join(tempHome, "planted.key");
     const plantedKey = Buffer.alloc(32, 9).toString("base64");
@@ -1395,15 +1395,15 @@ describe("startServer wiring", () => {
     await startServer();
     completionSweepMock.mockClear();
     const { publishLiveEvent } = await import("../services/live-events.js");
-    publishLiveEvent({ companyId: "company-one", type: "activity.logged", payload: {
+    publishLiveEvent({ spaceId: "space-one", type: "activity.logged", payload: {
       action: "issue.updated", entityId: "task-one",
     } });
     expect(completionSweepMock).toHaveBeenCalled();
     for (const args of completionSweepMock.mock.calls) {
-      expect(args).toEqual([{ companyId: "company-one", taskId: "task-one" }]);
+      expect(args).toEqual([{ spaceId: "space-one", taskId: "task-one" }]);
     }
     completionSweepMock.mockClear();
-    publishLiveEvent({ companyId: "company-two", type: "activity.logged", payload: { action: "issue.updated" } });
+    publishLiveEvent({ spaceId: "space-two", type: "activity.logged", payload: { action: "issue.updated" } });
     expect(completionSweepMock).not.toHaveBeenCalled();
   });
 
@@ -1498,7 +1498,7 @@ describe("startServer wiring", () => {
     expect(deliveryWorkErrors.filter(({ queue }) => queue === DELIVERY_QUEUES.secretProposalExpiry)).toEqual([]);
     const service = vi.mocked(createSecretProposalsService).mock.results[0].value;
     expect(service.expiryDeadlines).toHaveBeenCalledExactlyOnceWith(undefined);
-    expect(service.sweepExpiredForCompany).not.toHaveBeenCalled();
+    expect(service.sweepExpiredForSpace).not.toHaveBeenCalled();
   });
 
   it("registers native replacement recovery without an execution-control interval", async () => {
@@ -1709,10 +1709,10 @@ describe("startServer wiring", () => {
       expect(scan).toHaveBeenCalledOnce();
       stop = vi.spyOn(register.mock.results[0]!.value, "stop");
       const app = await createAppMock.mock.results.at(-1)!.value as {
-        locals: { paperclipShutdown?: () => Promise<void>; paperclipDatabaseClosing?: boolean };
+        locals: { outpostShutdown?: () => Promise<void>; outpostDatabaseClosing?: boolean };
       };
       const appShutdown = vi.fn(async () => undefined);
-      app.locals.paperclipShutdown = appShutdown;
+      app.locals.outpostShutdown = appShutdown;
       vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
       let stopped = false;
       stopping = server.shutdown().then(() => { stopped = true; });
@@ -1727,7 +1727,7 @@ describe("startServer wiring", () => {
       expect(drain).toHaveBeenCalledTimes(skipDrain ? 0 : 1);
       expect(heartbeatServiceMock.drainActiveRunExecutions).toHaveBeenCalledTimes(skipDrain ? 0 : 1);
       expect(appShutdown).not.toHaveBeenCalled();
-      expect(app.locals.paperclipDatabaseClosing).toBeUndefined();
+      expect(app.locals.outpostDatabaseClosing).toBeUndefined();
       expect(stopped).toBe(false);
       releaseFirst();
       await settleStartupHousekeeping();
@@ -1736,7 +1736,7 @@ describe("startServer wiring", () => {
       releaseSecond();
       await stopping;
       expect(appShutdown).toHaveBeenCalledOnce();
-      expect(app.locals.paperclipDatabaseClosing).toBe(true);
+      expect(app.locals.outpostDatabaseClosing).toBe(true);
       expect(stopped).toBe(true);
       expect(stop).toHaveBeenCalledOnce();
     } finally {
@@ -1756,7 +1756,7 @@ describe("startServer wiring", () => {
     let releaseCleanup!: () => void;
     const ready = new Promise<void>(resolve => { releaseCleanup = resolve; });
     const notificationDb = {};
-    const notificationScope = { companyId: "held-startup-company" };
+    const notificationScope = { spaceId: "held-startup-space" };
     const onRelease = vi.fn();
     const unsubscribe = owner === "retained cleanup"
       ? onRetainedNativeSessionCleanupRelease(notificationDb, onRelease)
@@ -1959,7 +1959,7 @@ describe("startServer wiring", () => {
       deploymentExposure: "public",
       authBaseUrlMode: "explicit",
       authPublicBaseUrl: "https://tenant.example.com",
-      databaseUrl: "secret://paperclip-cloud/stacks/alpha/database/runtime-url",
+      databaseUrl: "secret://outpost-cloud/stacks/alpha/database/runtime-url",
     }));
 
     await expect(startServer()).rejects.toThrow(
@@ -1998,14 +1998,14 @@ describe("startServer authenticated auth origin setup", () => {
   it("derives trusted origins from the detected listen port before auth initializes", async () => {
     loadConfigMock.mockReturnValue(buildTestConfig({
       port: 3210,
-      allowedHostnames: ["board.example.test"],
+      allowedHostnames: ["operator.example.test"],
       authBaseUrlMode: "explicit",
       authPublicBaseUrl: "http://127.0.0.1:3210",
     }));
     detectPortMock.mockResolvedValueOnce(3211);
     deriveAuthTrustedOriginsMock.mockImplementation(
       (_config: { port: number; authPublicBaseUrl?: string }, opts?: { listenPort?: number }) => [
-        `http://board.example.test:${opts?.listenPort ?? 0}`,
+        `http://operator.example.test:${opts?.listenPort ?? 0}`,
       ],
     );
 
@@ -2024,7 +2024,7 @@ describe("startServer authenticated auth origin setup", () => {
         port: 3210,
         authPublicBaseUrl: "http://127.0.0.1:3211/",
       }),
-      ["http://board.example.test:3211"],
+      ["http://operator.example.test:3211"],
     );
     expect(createAppMock.mock.calls[0]?.[1]).toMatchObject({
       serverPort: 3211,

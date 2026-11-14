@@ -4,7 +4,7 @@ import {
   agentWakeupRequests,
   agents,
   approvals,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issueApprovals,
@@ -41,7 +41,7 @@ describeEmbeddedPostgres("issue review attention", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-issue-review-attention-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-issue-review-attention-");
     db = createDb(tempDb.connectionString);
     svc = issueService(db);
   }, 30_000);
@@ -55,7 +55,7 @@ describeEmbeddedPostgres("issue review attention", () => {
     await db.delete(agentWakeupRequests);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -63,26 +63,26 @@ describeEmbeddedPostgres("issue review attention", () => {
   });
 
   async function seed() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Review Attention Co",
       issuePrefix: "RVA",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Review Agent",
       role: "engineer",
       status: "idle",
     });
-    return { companyId, agentId };
+    return { spaceId, agentId };
   }
 
   async function insertReview(input: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     identifier: string;
     assigneeUserId?: string | null;
@@ -93,7 +93,7 @@ describeEmbeddedPostgres("issue review attention", () => {
     const id = randomUUID();
     await db.insert(issues).values({
       id,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       identifier: input.identifier,
       title: input.identifier,
       status: "in_review",
@@ -108,10 +108,10 @@ describeEmbeddedPostgres("issue review attention", () => {
   }
 
   it("surfaces a pathless agent-owned review as stalled and a queued recovery as covered", async () => {
-    const { companyId, agentId } = await seed();
-    const issueId = await insertReview({ companyId, agentId, identifier: "RVA-1" });
+    const { spaceId, agentId } = await seed();
+    const issueId = await insertReview({ spaceId, agentId, identifier: "RVA-1" });
 
-    let row = (await svc.list(companyId, { status: "in_review" })).find((issue) => issue.id === issueId);
+    let row = (await svc.list(spaceId, { status: "in_review" })).find((issue) => issue.id === issueId);
     expect(row?.reviewAttention).toMatchObject({
       state: "stalled",
       paths: [],
@@ -120,7 +120,7 @@ describeEmbeddedPostgres("issue review attention", () => {
 
     const recoveryIdempotencyKey = `issue_review_path_lost:${issueId}:fingerprint`;
     const recoveryWake = {
-      companyId,
+      spaceId,
       agentId,
       source: "automation",
       reason: "issue_review_path_lost",
@@ -136,7 +136,7 @@ describeEmbeddedPostgres("issue review attention", () => {
       },
     });
 
-    row = (await svc.list(companyId, { status: "in_review" })).find((issue) => issue.id === issueId);
+    row = (await svc.list(spaceId, { status: "in_review" })).find((issue) => issue.id === issueId);
     expect(row?.reviewAttention).toMatchObject({
       state: "covered",
       paths: [expect.objectContaining({ kind: "queued_wake", responder: "Review Agent" })],
@@ -144,34 +144,34 @@ describeEmbeddedPostgres("issue review attention", () => {
   });
 
   it("reports every healthy review path as covered", async () => {
-    const { companyId, agentId } = await seed();
-    const interactionIssueId = await insertReview({ companyId, agentId, identifier: "RVA-2" });
-    const humanOnlyInteractionIssueId = await insertReview({ companyId, agentId, identifier: "RVA-2H" });
-    const approvalIssueId = await insertReview({ companyId, agentId, identifier: "RVA-3" });
+    const { spaceId, agentId } = await seed();
+    const interactionIssueId = await insertReview({ spaceId, agentId, identifier: "RVA-2" });
+    const humanOnlyInteractionIssueId = await insertReview({ spaceId, agentId, identifier: "RVA-2H" });
+    const approvalIssueId = await insertReview({ spaceId, agentId, identifier: "RVA-3" });
     const monitorIssueId = await insertReview({
-      companyId,
+      spaceId,
       agentId,
       identifier: "RVA-4",
       monitorNextCheckAt: new Date(Date.now() + 60_000),
       executionPolicy: { monitor: { maxAttempts: 3 } },
     });
     const humanIssueId = await insertReview({
-      companyId,
+      spaceId,
       agentId,
       identifier: "RVA-5",
-      assigneeUserId: "board-user",
+      assigneeUserId: "operator-user",
     });
     const participantIssueId = await insertReview({
-      companyId,
+      spaceId,
       agentId,
       identifier: "RVA-6",
       executionState: { status: "pending", currentParticipant: { type: "agent", agentId } },
     });
-    const activeRunIssueId = await insertReview({ companyId, agentId, identifier: "RVA-7" });
-    const recoveryIssueId = await insertReview({ companyId, agentId, identifier: "RVA-8" });
+    const activeRunIssueId = await insertReview({ spaceId, agentId, identifier: "RVA-7" });
+    const recoveryIssueId = await insertReview({ spaceId, agentId, identifier: "RVA-8" });
 
     await db.insert(issueThreadInteractions).values({
-      companyId,
+      spaceId,
       issueId: interactionIssueId,
       kind: "request_confirmation",
       status: "pending",
@@ -179,7 +179,7 @@ describeEmbeddedPostgres("issue review attention", () => {
       payload: { version: 1, prompt: "Approve?" },
     });
     await db.insert(issueThreadInteractions).values({
-      companyId,
+      spaceId,
       issueId: humanOnlyInteractionIssueId,
       kind: "request_confirmation",
       status: "pending",
@@ -193,20 +193,20 @@ describeEmbeddedPostgres("issue review attention", () => {
     const approvalId = randomUUID();
     await db.insert(approvals).values({
       id: approvalId,
-      companyId,
-      type: "request_board_approval",
+      spaceId,
+      type: "request_operator_approval",
       status: "pending",
       payload: { title: "Review" },
     });
-    await db.insert(issueApprovals).values({ companyId, issueId: approvalIssueId, approvalId });
+    await db.insert(issueApprovals).values({ spaceId, issueId: approvalIssueId, approvalId });
     await db.insert(heartbeatRuns).values({
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       contextSnapshot: { issueId: activeRunIssueId },
     });
     await db.insert(issueRecoveryActions).values({
-      companyId,
+      spaceId,
       sourceIssueId: recoveryIssueId,
       kind: "missing_disposition",
       status: "active",
@@ -218,7 +218,7 @@ describeEmbeddedPostgres("issue review attention", () => {
       nextAction: "Restore review path",
     });
 
-    const rows = await svc.list(companyId, { status: "in_review" });
+    const rows = await svc.list(spaceId, { status: "in_review" });
     const byId = new Map(rows.map((row) => [row.id, row.reviewAttention]));
     const expectedKinds = new Map([
       [interactionIssueId, "interaction"],
@@ -241,15 +241,15 @@ describeEmbeddedPostgres("issue review attention", () => {
       expect.objectContaining({ kind: "interaction", responder: "Review Agent" }),
     ]));
     expect(byId.get(humanOnlyInteractionIssueId)?.paths).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "interaction", responder: "Board" }),
+      expect.objectContaining({ kind: "interaction", responder: "Operator" }),
     ]));
   });
 
   it("does not let a transiently skipped recovery consume its fingerprint", async () => {
-    const { companyId, agentId } = await seed();
+    const { spaceId, agentId } = await seed();
     const idempotencyKey = `issue_review_path_lost:${randomUUID()}:fingerprint`;
     const baseWake = {
-      companyId,
+      spaceId,
       agentId,
       source: "automation",
       reason: "issue_review_path_lost",

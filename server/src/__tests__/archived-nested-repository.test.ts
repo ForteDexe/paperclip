@@ -37,7 +37,7 @@ afterEach(async () => {
 
 it.each(["warm", "pruned", "missing-prerequisite", "ordinary-pruned"])("privately restores an archived linked checkout at a new path and keeps its files and extra history after cold restore (cache: %s)", async cache => {
   const pruned = cache !== "warm";
-  const identity = { companyId: randomUUID(), workspaceId: randomUUID() }, projectId = randomUUID();
+  const identity = { spaceId: randomUUID(), workspaceId: randomUUID() }, projectId = randomUUID();
   const remote = path.join(root, "remote"), old = path.join(root, "old");
   await fs.mkdir(remote); await fs.mkdir(old);
   git(remote, "init", "-q", "-b", "main");
@@ -55,12 +55,12 @@ it.each(["warm", "pruned", "missing-prerequisite", "ordinary-pruned"])("privatel
     git(remote, "add", "remote-advance.txt"); git(remote, "commit", "-qm", "advance remote");
     upstream = git(remote, "rev-parse", "HEAD");
   }
-  git(base!, "checkout", "-qb", "paperclip/another-task/private");
+  git(base!, "checkout", "-qb", "outpost/another-task/private");
   await fs.writeFile(path.join(base!, "other-task-only.txt"), "another task's private work\n");
   git(base!, "add", "other-task-only.txt"); git(base!, "commit", "-qm", "other task");
   const foreignCommit = git(base!, "rev-parse", "HEAD");
   git(base!, "checkout", "-q", "main");
-  const oldNested = path.join(old, ".paperclip-repositories", name);
+  const oldNested = path.join(old, ".outpost-repositories", name);
   await fs.mkdir(path.dirname(oldNested), { recursive: true });
   await addNestedRepositoryWorktree({ base: base!, cwd: oldNested, repoUrl: source.repoUrl, repoRef: source.repoRef });
   await fs.writeFile(path.join(oldNested, "note.txt"), "unpushed\n"); git(oldNested, "commit", "-qam", "saved");
@@ -81,8 +81,8 @@ it.each(["warm", "pruned", "missing-prerequisite", "ordinary-pruned"])("privatel
   const id = randomUUID(), generation = 1;
   const sealed = await sealRestorePoint(captured.payload, { ...identity, restorePointId: id, generation });
   const storage = createStorageService(createLocalDiskStorageProvider(path.join(root, "objects")));
-  const objectKey = `${identity.companyId}/git-restore-points/${identity.workspaceId}/${generation}/checkouts/${name}/${id}.pcrp`;
-  await storage.putFile({ companyId: identity.companyId, namespace: "git-restore-points", originalFilename: null,
+  const objectKey = `${identity.spaceId}/git-restore-points/${identity.workspaceId}/${generation}/checkouts/${name}/${id}.pcrp`;
+  await storage.putFile({ spaceId: identity.spaceId, namespace: "git-restore-points", originalFilename: null,
     contentType: "application/octet-stream", objectKey, body: sealed.ciphertext });
   const descriptor = await readManagedCheckoutContents(oldNested, name, source);
   const { manifest } = captured;
@@ -110,8 +110,8 @@ it.each(["warm", "pruned", "missing-prerequisite", "ordinary-pruned"])("privatel
     prepareLocalSource: async () => async () => {}, resolveGitAuth: async () => null, authorizeSource });
   if (!pruned) await expect(restore(false)).rejects.toThrow("could not be restored");
   else {
-    await fs.mkdir(path.join(moved, ".paperclip-repositories"), { recursive: true });
-    await expect(restoreNestedRepositoryWorktree({ base: base!, cwd: path.join(moved, ".paperclip-repositories", name),
+    await fs.mkdir(path.join(moved, ".outpost-repositories"), { recursive: true });
+    await expect(restoreNestedRepositoryWorktree({ base: base!, cwd: path.join(moved, ".outpost-repositories", name),
       commit: descriptor.commit, branchName: descriptor.branchName, repoRef: source.repoRef, afterAdd: async () => {} }))
       .rejects.toThrow("unowned_nested_worktree_branch");
   }
@@ -136,11 +136,11 @@ it.each(["warm", "pruned", "missing-prerequisite", "ordinary-pruned"])("privatel
   }
   const other = path.join(root, "other-import"); await fs.mkdir(other);
   await Promise.all([restore(true), restore(true, undefined, other)]);
-  expect(await currentRestorePointSnapshot(path.join(other, ".paperclip-repositories", name)))
+  expect(await currentRestorePointSnapshot(path.join(other, ".outpost-repositories", name)))
     .toEqual(expectedSnapshot);
-  const nested = path.join(moved, ".paperclip-repositories", name);
+  const nested = path.join(moved, ".outpost-repositories", name);
   expect((await fs.lstat(path.join(nested, ".git"))).isDirectory()).toBe(true);
-  expect(git(nested, "for-each-ref", "--format=%(refname)", "refs/remotes/origin/paperclip/another-task")).toBe("");
+  expect(git(nested, "for-each-ref", "--format=%(refname)", "refs/remotes/origin/outpost/another-task")).toBe("");
   expect(() => git(nested, "cat-file", "-e", `${foreignCommit}^{commit}`)).toThrow();
   expect(await currentRestorePointSnapshot(nested)).toEqual(expectedSnapshot);
   expect(git(nested, "symbolic-ref", "--short", "HEAD")).toBe(descriptor.branchName);
@@ -153,7 +153,7 @@ it.each(["warm", "pruned", "missing-prerequisite", "ordinary-pruned"])("privatel
   await fs.rm(moved, { recursive: true }); await fs.rm(other, { recursive: true }); await fs.rm(remote, { recursive: true });
   const cold = path.join(root, "cold");
   await restoreRemoteWorkspaceArchive({ archivePath, targetDir: cold, expectedManifestDigest: archive.manifestDigest });
-  const coldNested = path.join(cold, ".paperclip-repositories", name);
+  const coldNested = path.join(cold, ".outpost-repositories", name);
   expect(git(coldNested, "rev-parse", "HEAD")).toBe(head);
   expect(git(coldNested, "show", ":note.txt")).toBe("staged");
   expect(await fs.readFile(path.join(coldNested, "note.txt"), "utf8")).toBe("unstaged\n");
@@ -165,7 +165,7 @@ it.each(["warm", "pruned", "missing-prerequisite", "ordinary-pruned"])("privatel
 }, 60_000);
 
 it.each(["new", "existing"])("keeps archive-only refs out of ordinary standalone recovery (%s)", async state => {
-  const identity = { companyId: randomUUID(), workspaceId: randomUUID() };
+  const identity = { spaceId: randomUUID(), workspaceId: randomUUID() };
   const remote = path.join(root, "remote"), old = path.join(root, "old"), moved = path.join(root, "moved");
   await fs.mkdir(remote); await fs.mkdir(old); await fs.mkdir(moved);
   git(remote, "init", "-q", "-b", "main");
@@ -173,7 +173,7 @@ it.each(["new", "existing"])("keeps archive-only refs out of ordinary standalone
   git(remote, "add", "."); git(remote, "commit", "-qm", "initial");
   const upstream = git(remote, "rev-parse", "HEAD");
   const source = { id: randomUUID(), repoUrl: pathToFileURL(remote).href, repoRef: "main", cwd: null };
-  const name = managedProjectCheckoutName(source), original = path.join(old, ".paperclip-repositories", name);
+  const name = managedProjectCheckoutName(source), original = path.join(old, ".outpost-repositories", name);
   await fs.mkdir(path.dirname(original), { recursive: true }); git(root, "clone", "-q", source.repoUrl, original);
   await fs.writeFile(path.join(original, "note.txt"), "saved local commit\n");
   git(original, "commit", "-qam", "saved local commit");
@@ -185,8 +185,8 @@ it.each(["new", "existing"])("keeps archive-only refs out of ordinary standalone
   expect(captured.manifest.preserved).toContain(extra);
   const id = randomUUID(), generation = 1, sealed = await sealRestorePoint(captured.payload, { ...identity, restorePointId: id, generation });
   const storage = createStorageService(createLocalDiskStorageProvider(path.join(root, "objects")));
-  const objectKey = `${identity.companyId}/git-restore-points/${identity.workspaceId}/${generation}/checkouts/${name}/${id}.pcrp`;
-  await storage.putFile({ companyId: identity.companyId, namespace: "git-restore-points", originalFilename: null,
+  const objectKey = `${identity.spaceId}/git-restore-points/${identity.workspaceId}/${generation}/checkouts/${name}/${id}.pcrp`;
+  await storage.putFile({ spaceId: identity.spaceId, namespace: "git-restore-points", originalFilename: null,
     contentType: "application/octet-stream", objectKey, body: sealed.ciphertext });
   const { manifest } = captured;
   const descriptor = await readManagedCheckoutContents(original, name, source);
@@ -195,14 +195,14 @@ it.each(["new", "existing"])("keeps archive-only refs out of ordinary standalone
     key: sealed.key, generation, head: manifest.head, index: manifest.index, worktree: manifest.worktree,
     ignored: manifest.ignored, modes: manifest.modes, headOnRemote: false,
   } }]);
-  const target = path.join(moved, ".paperclip-repositories", name);
+  const target = path.join(moved, ".outpost-repositories", name);
   if (state === "existing") {
     await fs.mkdir(path.dirname(target), { recursive: true }); git(root, "clone", "-q", "--no-hardlinks", original, target);
     git(target, "remote", "set-url", "origin", source.repoUrl);
   }
   await restoreGitWorkspaceContents({ cwd: moved, ...identity, contents, storage,
     prepareLocalSource: async () => async () => {}, resolveGitAuth: async () => null, authorizeSource: async () => {} });
-  expect(git(target, "for-each-ref", "--format=%(refname)", "refs/paperclip-preserved")).toBe("");
+  expect(git(target, "for-each-ref", "--format=%(refname)", "refs/outpost-preserved")).toBe("");
   expect(await fs.readFile(path.join(target, "note.txt"), "utf8")).toBe("saved local commit\n");
   git(target, "reflog", "expire", "--expire=now", "--all");
   git(target, "-c", "repack.updateServerInfo=false", "repack", "-Ad");

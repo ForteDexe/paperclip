@@ -148,12 +148,12 @@ function scriptedOutputLines(directive, hostRouteId, workerSessionId) {
 const routes = new Map();
 const pendingHost = new Map();
 let nextHostCall = 0;
-function probeCompanyScope(message, entry) {
+function probeSpaceScope(message, entry) {
   const id = `scope-${++nextHostCall}`;
   return new Promise((resolve, reject) => {
     pendingHost.set(id, { resolve, reject });
-    send({ jsonrpc: "2.0", id, method: "companies.get", params: { companyId: entry.companyId, stage: message.method },
-      ...(message.paperclipInvocation ? { paperclipInvocationId: message.paperclipInvocation.id } : {}) });
+    send({ jsonrpc: "2.0", id, method: "spaces.get", params: { spaceId: entry.spaceId, stage: message.method },
+      ...(message.outpostInvocation ? { outpostInvocationId: message.outpostInvocation.id } : {}) });
   });
 }
 
@@ -173,7 +173,7 @@ rl.on("line", async (line) => {
   const message = JSON.parse(line);
   if (pendingHost.has(message.id)) {
     const pending = pendingHost.get(message.id); pendingHost.delete(message.id);
-    if (message.error) pending.reject(new Error("Host company scope denied")); else pending.resolve(message.result);
+    if (message.error) pending.reject(new Error("Host space scope denied")); else pending.resolve(message.result);
     return;
   }
   const method = message && typeof message.method === "string" ? message.method : null;
@@ -182,8 +182,8 @@ rl.on("line", async (line) => {
   if (["loginPtyInput", "loginPtyStop", "loginPtyClose"].includes(method)) {
     const entry = method === "loginPtyClose" ? routes.get(params.hostRouteId) : [...routes.values()].find(value => value.workerSessionId === params.workerSessionId);
     if (entry?.probeLifecycle) {
-      try { await probeCompanyScope(message, entry); }
-      catch { send({ jsonrpc: "2.0", id: message.id, error: { code: -32000, message: "Host company scope denied" } }); return; }
+      try { await probeSpaceScope(message, entry); }
+      catch { send({ jsonrpc: "2.0", id: message.id, error: { code: -32000, message: "Host space scope denied" } }); return; }
     }
   }
   if (method === "initialize") {
@@ -210,7 +210,7 @@ rl.on("line", async (line) => {
     const closeMode = directive.closeMode ?? "ack";
     routes.set(params.hostRouteId, {
       workerSessionId,
-      companyId: params.companyId, probeLifecycle: directive.probeLifecycle === true,
+      spaceId: params.spaceId, probeLifecycle: directive.probeLifecycle === true,
       closeMode,
       rejectInput: directive.rejectInput === true,
       pendingOutput: directive.emitOnInput === true

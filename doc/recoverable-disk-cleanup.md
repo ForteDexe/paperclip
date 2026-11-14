@@ -1,8 +1,8 @@
 # Recoverable disk cleanup
 
 The server materializes immutable skill versions under
-`<instance>/skills/<company>/__versions__/<skill>/<version>`. These are disposable
-disk copies: company-scoped versions reference durable packages in the configured
+`<instance>/skills/<space>/__versions__/<skill>/<version>`. These are disposable
+disk copies: space-scoped versions reference durable packages in the configured
 storage backend, or retain legacy database inventories. Normal skill resolution
 rebuilds missing copies, preserving binary bytes and executable flags. New Git packages
 can also restore the exact original commit from their saved recipe using current
@@ -17,7 +17,7 @@ between batches. It starts after server readiness, and respects the existing
 worker shutdown, standby, and idle-drain controls. A non-current version becomes
 eligible after one hour without use. Current versions, active-run pins and
 unsettled recovery pins are retained. If an active run's version selection is
-unknown, that company's caches remain. Non-versioned skill directories and
+unknown, that space's caches remain. Non-versioned skill directories and
 database snapshots are never removed by this worker.
 
 Queued turns and scheduled retries without any preparation, execution, or saved
@@ -32,7 +32,7 @@ protection for these unknown versions.
 
 Last-use records live separately under `__version_access__`. Older installations
 without those records receive a full one-hour observation period. Preparation,
-pin persistence and eviction share a company-scoped database lock across server
+pin persistence and eviction share a space-scoped database lock across server
 processes. Snapshot validation and byte counting run outside that lock; cleanup
 rechecks current versions, run pins, last use, and directory identity before rename. Audits hold the lock through their file reads. Eviction atomically
 moves a cache into unique `.trash-<UUID>` directories; trash deletion uses its own lock so normal
@@ -46,7 +46,7 @@ Controls:
 | `OUTPOST_SKILL_VERSION_RETENTION_ENABLED` | `true` | Set `false` to stop future sweeps; restoration stays available |
 | `OUTPOST_SKILL_VERSION_RETENTION_DRY_RUN` | `false` | Set `true` to report candidates without changing cache or access records |
 
-The internal `skillVersionRetentionService` supports company-scoped diagnosis,
+The internal `skillVersionRetentionService` supports space-scoped diagnosis,
 bounded continuations, cancellation between entries, and dry run. Explicit agent
 pins stay cached. Operators can also retain newest versions with
 `OUTPOST_SKILL_VERSION_RETENTION_KEEP` (default `0`), or change the one-hour
@@ -245,7 +245,7 @@ Before removal it saves a restore point:
   non-default file modes. Untracked `.env` and `.env.*` files are left out, because
   provisioning recreates them with current secrets;
 - a separate snapshot of ignored files, such as build caches or files an agent kept out of
-  git. It leaves out `.env` files, nested `.paperclip-repositories` checkouts (they get their
+  git. It leaves out `.env` files, nested `.outpost-repositories` checkouts (they get their
   own restore points), `.claude/settings.local.json` (saved with the workspace contents)
   and anything inside a regenerable directory such as `node_modules` or `dist`. A
   restore point with ignored files uses payload schema `v2`, which older servers reject
@@ -260,7 +260,7 @@ restoring without the saved work. Under the expiration locks, the worktree must 
 match the captured snapshot exactly; otherwise expiration rolls back, keeps the
 worktree, and drops the restore point.
 
-Nested managed checkouts under `.paperclip-repositories/` get their own restore points
+Nested managed checkouts under `.outpost-repositories/` get their own restore points
 when their checked-out branch has unpushed commits or uncommitted, untracked or
 history-only work. Each is stored under its checkout name, recorded in the recipe's
 contents, and verified against its own snapshot under the expiration locks. A nested
@@ -287,7 +287,7 @@ does not come from `OUTPOST_SECRETS_MASTER_KEY`.
 ## Isolated task directories
 
 Tasks without a project repository run in a plain (non-Git) directory at
-`<instance>/isolated-workspaces/<companyId>/<issueId>/`. Its execution workspace row has
+`<instance>/isolated-workspaces/<spaceId>/<issueId>/`. Its execution workspace row has
 strategy `project_primary`, provider `local_fs` and that exact path as `cwd`, in
 `isolated_workspace` or `shared_workspace` mode. Agents can leave the only copy of their
 work there, such as reports or generated files, because nothing pushes it anywhere.
@@ -412,8 +412,8 @@ Roll out with the dry run, inspect the candidates and skip reasons, then set the
 ## Nested project repository worktrees
 
 Extra project repositories that have no configured local folder are no longer full
-clones inside every task. Each task's `.paperclip-repositories/<name>-<key>` checkout is a
-Git worktree of one shared clone per company, project and repository URL: the managed
+clones inside every task. Each task's `.outpost-repositories/<name>-<key>` checkout is a
+Git worktree of one shared clone per space, project and repository URL: the managed
 project checkout for that URL under the instance's `projects/` directory (the same clone
 that main task worktrees use when the repository is a task's primary source). Objects are
 stored once in that clone, so a new task adds only its working files. Repositories with a
@@ -421,14 +421,14 @@ configured local folder are still seeded as independent copies. Existing standal
 nested clones keep working unchanged until the optional conversion below turns them into
 worktrees of the shared clone.
 
-Each nested worktree checks out its own branch, `paperclip/<id>/<branch>`, where `<id>`
+Each nested worktree checks out its own branch, `outpost/<id>/<branch>`, where `<id>`
 derives from the worktree path and `<branch>` is the remote's current default branch
 (refreshed before each new worktree) or the configured branch ref, tracking
 `origin/<branch>`. Reopening derives the upstream from the saved source ref, not from the
 branch name. A tag or commit ref is checked out detached, as
 before. Branch names therefore never collide between tasks. When a checkout kept under
-`.paperclip-runtime/detached-repositories/` still holds that branch, the new worktree
-uses `paperclip/<id>/r<n>/<branch>` instead, so the retained work is never reset. `git pull` works as before;
+`.outpost-runtime/detached-repositories/` still holds that branch, the new worktree
+uses `outpost/<id>/r<n>/<branch>` instead, so the retained work is never reset. `git pull` works as before;
 pushing needs an explicit destination such as `git push origin HEAD:<branch>`. Adding the
 worktree, fetching and removing registrations are serialized per shared clone. Each new
 worktree first fetches with `--prune`, so a branch deleted upstream is rejected as a fresh
@@ -438,7 +438,7 @@ disabled, so hooks an agent plants there never run in the server.
 Branches and reflogs of a worktree live partly in the shared clone. Expiration and restore
 points therefore scope their checks to what belongs to the nested worktree: its `HEAD`,
 `HEAD` reflog, `ORIG_HEAD`, index and working tree (stored per worktree) and every branch
-under its own `paperclip/<id>/` prefix together with that branch's reflog. Those must be on
+under its own `outpost/<id>/` prefix together with that branch's reflog. Those must be on
 the remote or saved in a restore point exactly as for a standalone checkout. Checking out
 any other branch, stashes, unsupported refs or custom local config in the shared clone
 still block expiration. Branches outside the prefix, other tasks' branches and their
@@ -452,13 +452,13 @@ worktree from the shared clone (re-cloning the shared clone if it is gone) on th
 branch and commit and applies its restore point. Deleting or archiving a task removes the
 registration of each of its nested worktrees and deletes their branches only when every
 commit is on a remote-tracking ref; an unpushed branch stays in the shared clone. Moving a
-nested worktree to `.paperclip-runtime/detached-repositories/` when its repository leaves
+nested worktree to `.outpost-runtime/detached-repositories/` when its repository leaves
 the project repairs its registration.
 
 ### Converting existing standalone nested clones
 
 Tasks prepared before nested worktrees existed still hold a full standalone clone in each
-`.paperclip-repositories/<name>-<key>` checkout, often of the same large repository many
+`.outpost-repositories/<name>-<key>` checkout, often of the same large repository many
 times over. With `OUTPOST_NESTED_CLONE_MIGRATION_ENABLED=true`, the terminal workspace
 reaper converts each such checkout in an open task into a worktree of the project's shared
 clone and deletes the standalone clone. It holds the source lock and workspace lifecycle
@@ -488,12 +488,12 @@ interleave. A checkout is converted only when:
   nested repositories, oversized contents or history).
 
 The conversion fetches the shared clone, then brings the clone's history in under the
-checkout's own prefix: the current branch becomes `paperclip/<id>/<branch>` at the same
+checkout's own prefix: the current branch becomes `outpost/<id>/<branch>` at the same
 commit, tracking `origin/<branch>` (or the branch's configured `origin` upstream); every
 other local branch whose tip the shared clone's remote-tracking refs do not contain becomes
-`paperclip/<id>/<branch>`, every such tag becomes `paperclip/<id>/tags/<tag>` at the
+`outpost/<id>/<branch>`, every such tag becomes `outpost/<id>/tags/<tag>` at the
 tagged commit, and every such `origin` remote-tracking ref (for example one whose branch was
-deleted or force-pushed upstream) becomes `paperclip/<id>/remotes/origin/<branch>`. `<id>` derives from the final checkout path, so later expiration and release
+deleted or force-pushed upstream) becomes `outpost/<id>/remotes/origin/<branch>`. `<id>` derives from the final checkout path, so later expiration and release
 treat those branches exactly like a nested worktree's own branches: they block expiration
 until pushed or saved and are never deleted while unpushed. A restore point of the clone,
 captured against commits both repositories share and preserving those branch tips, its
@@ -584,7 +584,7 @@ no recurring checks. At review it checks the source issue tree:
   or a hook failure the hook is retried, after 15 minutes when it failed.
 - Source issue gone: delete.
 
-Deleting an issue or a company marks its restore points `delete_requested` in the same
+Deleting an issue or a space marks its restore points `delete_requested` in the same
 transaction and notifies the worker, so their objects are removed promptly. A
 `pending` restore point older than one hour was abandoned mid-capture and is deleted.
 `superseded` and `delete_requested` restore points have their stored object removed,
@@ -592,7 +592,7 @@ then become `deleted` once the storage provider confirms the object is gone. A
 storage failure is recorded in `last_error` and retried after 15 minutes. Work is
 processed in batches of 50; a full batch continues immediately.
 
-Rows have no foreign keys, so they outlive a deleted workspace, issue or company long
+Rows have no foreign keys, so they outlive a deleted workspace, issue or space long
 enough to remove the stored object. Each run that changes anything logs its counts.
 
 
@@ -600,7 +600,7 @@ enough to remove the stored object. Each run that changes anything logs its coun
 
 For a while, workspace preparation gave some isolated `git_worktree` workspaces their
 own full clone of the project repository under
-`instances/<id>/isolated-repository-sources/<companyId>/<issueId>/checkout`, with the
+`instances/<id>/isolated-repository-sources/<spaceId>/<issueId>/checkout`, with the
 issue's worktree inside it. Workspace metadata marks these with `isolatedRemoteSource`.
 New workspaces no longer get one; they are worktrees of the project's shared managed
 clone. Each old clone still holds a full `.git` and an unused default-branch checkout.
@@ -614,7 +614,7 @@ restore can interleave. A workspace is moved only when:
 - no run, native finalization, environment lease or runtime service is still live for it,
   and it is not waiting for a reopen to be consumed (the issue may be open);
 - the project has a shared managed clone for the same `repoUrl`;
-- its worktree sits at the standard `.paperclip/worktrees/<branch>` location, and the
+- its worktree sits at the standard `.outpost/worktrees/<branch>` location, and the
   branch is absent from the shared clone, points to an ancestor of the worktree's HEAD
   there, and is not checked out in another of its worktrees;
 - the shared clone's local config sets no filter drivers, includes, attribute files, worktree
@@ -633,10 +633,10 @@ the new worktree at the same HEAD and applies the restore point (index, worktree
 untracked and ignored files, file modes). The `HEAD` reflog and `ORIG_HEAD` are copied.
 What restore points leave out is moved by rename on the same filesystem: regenerable
 directories such as `node_modules`, untracked `.env` and `.env.*` files,
-`.claude/settings.local.json`, and each nested `.paperclip-repositories/*` checkout as a
+`.claude/settings.local.json`, and each nested `.outpost-repositories/*` checkout as a
 whole. A standalone nested clone moves as is. A nested checkout that is a worktree of its own
 shared clone moves too, and the move runs `git worktree repair` in that clone so its
-registration follows the new path. Its `paperclip/<hash>/` branch is renamed to the prefix of
+registration follows the new path. Its `outpost/<hash>/` branch is renamed to the prefix of
 the new path, because that prefix proves the checkout owns the branch (a rollback moves it
 back, repairs it and renames the branch back). Items inside a moved nested checkout, such as
 its `node_modules`, move with it. Any other
@@ -666,16 +666,16 @@ else needs it and everything in it is reproducible:
 - no other workspace or project workspace refers to it (a workspace already expired with its
   worktree removed does not count) and no runtime service runs in it;
 - after `git worktree prune`, it has no worktree besides its own checkout;
-- its own checkout has no tracked changes and no untracked files (only Paperclip's
+- its own checkout has no tracked changes and no untracked files (only Outpost's
   compaction trash is allowed, even inside a directory with a regenerable name), and its
-  ignored files are only inside regenerable directories (such as `node_modules`) or Paperclip's compaction
-  trash. Empty directories, such as the `.paperclip/worktrees` parent left by the old
+  ignored files are only inside regenerable directories (such as `node_modules`) or Outpost's compaction
+  trash. Empty directories, such as the `.outpost/worktrees` parent left by the old
   worktree, do not count;
 - it has only branch, tag and remote-tracking refs (no stash, notes or replacement refs);
 - every commit that its local branches, local tags, reflogs (other than remote-tracking
   ones) or `ORIG_HEAD` hold is on one of its remote-tracking refs, present in the shared
   clone, or found on the remote. The remote is read fresh (branches and tags) with the
-  company's Git identity, falling back to anonymous access, and only when some commit is in
+  space's Git identity, falling back to anonymous access, and only when some commit is in
   neither place. `HEAD` itself counts too, so a detached checkout is covered. Remote branches and release tags that the shared clone never fetched do
   not keep a clone.
 

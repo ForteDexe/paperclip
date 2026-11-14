@@ -22,7 +22,7 @@ export interface CodexAppServerDriverOptions {
   /** Saved hosted-search restriction for the default process transport. */
   disableWebSearch?: boolean;
   approvalPolicy?: "never" | "on-request" | "untrusted";
-  /** Paperclip runtime instructions. Codex receives these as additive developer
+  /** Outpost runtime instructions. Codex receives these as additive developer
    * instructions; the historical option name remains compatible with callers. */
   baseInstructions?: string;
   includeSkillInstructions?: boolean;

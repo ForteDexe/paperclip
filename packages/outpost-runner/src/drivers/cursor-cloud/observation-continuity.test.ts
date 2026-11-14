@@ -76,11 +76,11 @@ async function fixture(options: { timeoutMs?: number; reconnectDelayMs?: number;
     throw new Error(`Unexpected synthetic API request ${method} ${target.pathname}`);
   };
   const driver = new CursorCloudDriver({ model: "explicit-model", config: { schema: "outpost.cursor-cloud.config.v1", repos: [{ url: "https://github.com/example/repo" }], timeoutMs: options.timeoutMs ?? 10_000 },
-    binding: { companyId: "company", agentId: "agent", issueId: "issue", normalizedSessionId: "session" }, runtimeDirectory: root,
+    binding: { spaceId: "space", agentId: "agent", issueId: "issue", normalizedSessionId: "session" }, runtimeDirectory: root,
     relay: { url: "https://relay.example.test/mcp", token: "synthetic-relay-token", socketPath, expiresAt: Date.now() + 60_000 }, instructions: "Perform only this controlled observation fixture.",
     dynamicToolHandler: async () => { throw new Error("No semantic tool is called by this fixture"); },
     client: new CursorCloudClient({ apiKey: "synthetic-key", baseUrl: "https://controlled.cursor.test", fetch: nativeFetch }), reconnectDelayMs: options.reconnectDelayMs ?? 1, cancelTimeoutMs: 200 });
-  const session = await driver.openSession({ runId: "paperclip-run", normalizedSessionId: "session", workingDirectory: root });
+  const session = await driver.openSession({ runId: "outpost-run", normalizedSessionId: "session", workingDirectory: root });
   const pump = (async () => { for await (const event of session.events()) events.push(event); })();
   fixtures.push({ root, session, pump, release: releaseFourthRead.resolve });
   const socket = await lstat(socketPath); expect(socket.isSocket()).toBe(true); expect(socket.mode & 0o077).toBe(0);

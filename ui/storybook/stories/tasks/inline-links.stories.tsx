@@ -38,7 +38,7 @@ function InlineLinksGallery() {
       "Already shipped: [Keep inline links readable](https://github.com/acme/web/pull/241)."
     } />
     <Sample label="Other destinations keep their usual treatment" markdown={
-      "Read the [documentation](https://example.com/docs), open [company settings](/company/settings), or share https://github.com.example.com/acme/web/pull/241.\n\nCode stays literal: `https://github.com/acme/web/pull/241`."
+      "Read the [documentation](https://example.com/docs), open [space settings](/space/settings), or share https://github.com.example.com/acme/web/pull/241.\n\nCode stays literal: `https://github.com/acme/web/pull/241`."
     } />
     <Sample label="Long references still wrap" markdown={
       "Follow https://github.com/an-organization-with-a-long-name/a-repository-with-an-equally-long-name/pull/123456/files?diff=split#discussion_r123456."
@@ -51,7 +51,7 @@ const meta = {
   title: "Tasks and conversations/Task creation and lifecycle/Inline links",
   component: InlineLinksGallery,
   parameters: {
-    paperclip: {
+    outpost: {
       capabilities: ["tasks/discussion"],
       status: "current",
       implementation: "production",

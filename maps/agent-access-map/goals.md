@@ -19,13 +19,13 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `GET /api/companies/{companyId}/goals`.
-- `POST /api/companies/{companyId}/goals`.
+- `GET /api/spaces/{spaceId}/goals`.
+- `POST /api/spaces/{spaceId}/goals`.
 - `PATCH /api/goals/{id}`.
 
 Agent access: `available` — REST / native call_api / CLI goal / MCP read helpers.
 
-Policy: Same-company access; related project/task assignments have their own resource
+Policy: Same-space access; related project/task assignments have their own resource
 permissions.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/goals.ts#L14) at the
@@ -33,7 +33,7 @@ reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Real REST path exists. Scenario list_goals declarations are not evidence of a
@@ -52,7 +52,7 @@ API: `present` — representative operation IDs:
 
 Agent access: `available` — REST / native call_api for permitted non-lifecycle fields.
 
-Policy: Same-company access; related project/task assignments have their own resource
+Policy: Same-space access; related project/task assignments have their own resource
 permissions.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/goals.ts#L14) at the
@@ -60,7 +60,7 @@ reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Goal association is data access, separate from completing or reassigning the task.
@@ -80,7 +80,7 @@ API: `present` — representative operation IDs:
 Agent access: `available` — REST and task/project/goal read tools; links returned as
 context.
 
-Policy: Same-company access; related project/task assignments have their own resource
+Policy: Same-space access; related project/task assignments have their own resource
 permissions.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/goals.ts#L14) at the
@@ -88,7 +88,7 @@ reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Navigation renders records already exposed by APIs; no separate click-navigation

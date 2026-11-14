@@ -5,21 +5,21 @@ import { and, desc, eq, or, sql } from "drizzle-orm";
 import { chatActions, chatConversations, chatEndpointResources, chatEndpoints, chatGitHubReviews, chatMessageLinks, heartbeatRuns, toolConnections, type Db } from "@outpost/db";
 
 export async function hasPublishedGitHubReview(db: Db, binding: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
 }): Promise<boolean> {
   const reviews = await db.select({ id: chatGitHubReviews.id, endpointId: chatGitHubReviews.endpointId })
     .from(chatGitHubReviews)
     .where(and(
-      eq(chatGitHubReviews.companyId, binding.companyId),
+      eq(chatGitHubReviews.spaceId, binding.spaceId),
       eq(chatGitHubReviews.issueId, binding.issueId),
       eq(chatGitHubReviews.runId, binding.runId),
       eq(chatGitHubReviews.state, "completed"),
     ));
   if (!reviews.length) return false;
   const [publication] = await db.select({ id: chatActions.id }).from(chatActions).where(and(
-    eq(chatActions.companyId, binding.companyId),
+    eq(chatActions.spaceId, binding.spaceId),
     or(...reviews.map(review => and(
       eq(chatActions.endpointId, review.endpointId),
       eq(chatActions.providerActionId, publicationActionId(binding.issueId, review.id)),
@@ -31,7 +31,7 @@ export async function hasPublishedGitHubReview(db: Db, binding: {
 }
 
 type WaitRun = Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "responsibleUserId" | "activeIdentityContextId" | "nativeIssueId" | "issueId" | "contextSnapshot">;
+  "id" | "spaceId" | "agentId" | "responsibleUserId" | "activeIdentityContextId" | "nativeIssueId" | "issueId" | "contextSnapshot">;
 
 /** The columns of one inherited review. The single read and the batch read
  * select the same columns. */
@@ -41,7 +41,7 @@ const inheritedReviewFields = {
   repositoryId: chatGitHubReviews.repositoryId, headSha: chatGitHubReviews.headSha,
   reviewedCommit: sql<unknown>`${chatGitHubReviews.assessment}->'reviewedCommit'`, reviewRunId: chatGitHubReviews.runId,
   connectionEnabled: toolConnections.enabled, connectionStatus: toolConnections.status,
-  reviewAgentId: heartbeatRuns.agentId, reviewCompanyId: heartbeatRuns.companyId,
+  reviewAgentId: heartbeatRuns.agentId, reviewSpaceId: heartbeatRuns.spaceId,
   resourceRepository: chatEndpointResources.providerResourceId,
   resourceRepositoryId: sql<string | null>`${chatEndpointResources.metadata}->>'providerRepositoryId'`,
   pullNumber: chatGitHubReviews.pullNumber, thread: chatConversations.externalThreadId,
@@ -52,18 +52,18 @@ const inheritedReviewQueries = new WeakMap<Db, ReturnType<typeof prepareInherite
 function prepareInheritedReviewQuery(db: Db) {
   return db.select(inheritedReviewFields).from(chatMessageLinks)
     .innerJoin(chatConversations, and(eq(chatConversations.id, chatMessageLinks.conversationId),
-      eq(chatConversations.companyId, sql.placeholder("companyId")), eq(chatConversations.issueId, sql.placeholder("issueId"))))
+      eq(chatConversations.spaceId, sql.placeholder("spaceId")), eq(chatConversations.issueId, sql.placeholder("issueId"))))
     .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatConversations.endpointId),
-      eq(chatEndpoints.companyId, sql.placeholder("companyId")), eq(chatEndpoints.provider, "github"),
+      eq(chatEndpoints.spaceId, sql.placeholder("spaceId")), eq(chatEndpoints.provider, "github"),
       eq(chatEndpoints.assignedAgentId, sql.placeholder("agentId"))))
     .leftJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId),
-      eq(toolConnections.companyId, sql.placeholder("companyId"))))
+      eq(toolConnections.spaceId, sql.placeholder("spaceId"))))
     .innerJoin(chatEndpointResources, and(eq(chatEndpointResources.id, chatConversations.resourceId),
-      eq(chatEndpointResources.companyId, sql.placeholder("companyId")), eq(chatEndpointResources.endpointId, chatEndpoints.id)))
+      eq(chatEndpointResources.spaceId, sql.placeholder("spaceId")), eq(chatEndpointResources.endpointId, chatEndpoints.id)))
     .innerJoin(chatGitHubReviews, and(eq(chatGitHubReviews.endpointId, chatEndpoints.id),
-      eq(chatGitHubReviews.companyId, sql.placeholder("companyId")), eq(chatGitHubReviews.issueId, sql.placeholder("issueId"))))
+      eq(chatGitHubReviews.spaceId, sql.placeholder("spaceId")), eq(chatGitHubReviews.issueId, sql.placeholder("issueId"))))
     .leftJoin(heartbeatRuns, eq(heartbeatRuns.id, chatGitHubReviews.runId))
-    .where(and(eq(chatMessageLinks.companyId, sql.placeholder("companyId")), eq(chatMessageLinks.commentId, sql.placeholder("commentId")),
+    .where(and(eq(chatMessageLinks.spaceId, sql.placeholder("spaceId")), eq(chatMessageLinks.commentId, sql.placeholder("commentId")),
       eq(chatMessageLinks.direction, "inbound")))
     .orderBy(desc(chatGitHubReviews.createdAt), desc(chatGitHubReviews.id)).limit(1)
     .prepare("inherited_github_review_wait");
@@ -87,28 +87,28 @@ function inheritedReviewKey(key: InheritedReviewKey) {
 }
 
 /** The latest review for each (source comment, task, agent) key of one
- * company. For each key this is the row of the single prepared read: the same
+ * space. For each key this is the row of the single prepared read: the same
  * joins and filters, and DISTINCT ON keeps the first row in the same order. */
-async function readInheritedReviewsForKeys(db: Db, companyId: string, keys: InheritedReviewKey[]) {
+async function readInheritedReviewsForKeys(db: Db, spaceId: string, keys: InheritedReviewKey[]) {
   const unique = (values: string[]) => [...new Set(values)];
   const rows = await db.selectDistinctOn([chatMessageLinks.commentId, chatConversations.issueId, chatEndpoints.assignedAgentId], {
     ...inheritedReviewFields,
     keyCommentId: chatMessageLinks.commentId, keyIssueId: chatConversations.issueId, keyAgentId: chatEndpoints.assignedAgentId,
   }).from(chatMessageLinks)
     .innerJoin(chatConversations, and(eq(chatConversations.id, chatMessageLinks.conversationId),
-      eq(chatConversations.companyId, companyId),
+      eq(chatConversations.spaceId, spaceId),
       sql`${chatConversations.issueId} = any(${sql.param(unique(keys.map(key => key.issueId)))}::uuid[])`))
     .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatConversations.endpointId),
-      eq(chatEndpoints.companyId, companyId), eq(chatEndpoints.provider, "github"),
+      eq(chatEndpoints.spaceId, spaceId), eq(chatEndpoints.provider, "github"),
       sql`${chatEndpoints.assignedAgentId} = any(${sql.param(unique(keys.map(key => key.agentId)))}::uuid[])`))
     .leftJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId),
-      eq(toolConnections.companyId, companyId)))
+      eq(toolConnections.spaceId, spaceId)))
     .innerJoin(chatEndpointResources, and(eq(chatEndpointResources.id, chatConversations.resourceId),
-      eq(chatEndpointResources.companyId, companyId), eq(chatEndpointResources.endpointId, chatEndpoints.id)))
+      eq(chatEndpointResources.spaceId, spaceId), eq(chatEndpointResources.endpointId, chatEndpoints.id)))
     .innerJoin(chatGitHubReviews, and(eq(chatGitHubReviews.endpointId, chatEndpoints.id),
-      eq(chatGitHubReviews.companyId, companyId), eq(chatGitHubReviews.issueId, chatConversations.issueId)))
+      eq(chatGitHubReviews.spaceId, spaceId), eq(chatGitHubReviews.issueId, chatConversations.issueId)))
     .leftJoin(heartbeatRuns, eq(heartbeatRuns.id, chatGitHubReviews.runId))
-    .where(and(eq(chatMessageLinks.companyId, companyId),
+    .where(and(eq(chatMessageLinks.spaceId, spaceId),
       sql`${chatMessageLinks.commentId} = any(${sql.param(unique(keys.map(key => key.commentId)))}::uuid[])`,
       eq(chatMessageLinks.direction, "inbound")))
     .orderBy(chatMessageLinks.commentId, chatConversations.issueId, chatEndpoints.assignedAgentId,
@@ -158,7 +158,7 @@ async function inheritedSourceComments(db: Db, runs: WaitRun[]) {
 
 function inheritedReviewRevoked(run: WaitRun, review: InheritedReviewRow) {
   return !review.connectionEnabled || review.connectionStatus !== "active" || review.state !== "completed" ||
-    review.reviewCompanyId !== run.companyId || review.reviewAgentId !== run.agentId ||
+    review.reviewSpaceId !== run.spaceId || review.reviewAgentId !== run.agentId ||
     review.reviewedCommit !== review.headSha ||
     review.resourceRepository.toLowerCase() !== review.repository.toLowerCase() ||
     review.resourceRepositoryId !== review.repositoryId ||
@@ -170,9 +170,9 @@ function publishedInheritedWait(run: WaitRun, commentId: string, review: Inherit
   // policy. This normalized source is used only by the passive-wait boundary.
   return { kind: "published" as const, endpointId: review.endpointId, reviewId: review.id, reviewRunId: review.reviewRunId,
     headSha: review.headSha, context: {
-    source: "chat:github", paperclipHarnessCheckedOut: true,
+    source: "chat:github", outpostHarnessCheckedOut: true,
     wakeCommentId: commentId, wakeCommentIds: [commentId],
-    paperclipWake: { checkedOutByHarness: true, externalChatProvider: "github",
+    outpostWake: { checkedOutByHarness: true, externalChatProvider: "github",
       issue: { id: run.nativeIssueId }, commentIds: [commentId] },
   } };
 }
@@ -186,13 +186,13 @@ export async function readInheritedGitHubReviewWait(db: Db, run: WaitRun): Promi
   if (!source || !("commentId" in source)) return source;
   const { commentId } = source;
   const [review] = await inheritedReviewQuery(db).execute({
-    companyId: run.companyId, issueId: run.nativeIssueId, agentId: run.agentId, commentId,
+    spaceId: run.spaceId, issueId: run.nativeIssueId, agentId: run.agentId, commentId,
   });
   // A newer unreviewed head cannot inherit the prior head's publication.
   if (!review) return null;
   if (inheritedReviewRevoked(run, review)) return { kind: "revoked" };
   const [publication] = await db.select({ id: chatActions.id }).from(chatActions).where(and(
-    eq(chatActions.companyId, run.companyId), eq(chatActions.endpointId, review.endpointId),
+    eq(chatActions.spaceId, run.spaceId), eq(chatActions.endpointId, review.endpointId),
     eq(chatActions.kind, "github_review_publication"), eq(chatActions.status, "processed"),
     eq(chatActions.providerActionId, publicationActionId(run.nativeIssueId!, review.id)),
   )).limit(1);
@@ -204,24 +204,24 @@ export async function readInheritedGitHubReviewWait(db: Db, run: WaitRun): Promi
  * as the waits of an issue page. Each run gets the same result as a separate
  * call. The source lineage is still checked for each run, with the same
  * decision. The lineage reads of all the runs share their statements, and the
- * reviews and the publications of all the runs of one company are read with
+ * reviews and the publications of all the runs of one space are read with
  * one statement each, so the number of statements does not follow the number
  * of runs. */
 export async function readInheritedGitHubReviewWaits(db: Db, runs: WaitRun[]): Promise<InheritedGitHubReviewWait[]> {
   const sources = await inheritedSourceComments(db, runs);
   const results: InheritedGitHubReviewWait[] = sources.map(source => source && !("commentId" in source) ? source : null);
-  const byCompany = new Map<string, Array<{ index: number; run: WaitRun; commentId: string }>>();
+  const bySpace = new Map<string, Array<{ index: number; run: WaitRun; commentId: string }>>();
   runs.forEach((run, index) => {
     const source = sources[index];
     if (!source || !("commentId" in source)) return;
-    const entries = byCompany.get(run.companyId) ?? [];
+    const entries = bySpace.get(run.spaceId) ?? [];
     entries.push({ index, run, commentId: source.commentId });
-    byCompany.set(run.companyId, entries);
+    bySpace.set(run.spaceId, entries);
   });
-  for (const [companyId, entries] of byCompany) {
+  for (const [spaceId, entries] of bySpace) {
     const keyOf = ({ run, commentId }: { run: WaitRun; commentId: string }) =>
       ({ commentId, issueId: run.nativeIssueId!, agentId: run.agentId });
-    const reviews = await readInheritedReviewsForKeys(db, companyId, entries.map(keyOf));
+    const reviews = await readInheritedReviewsForKeys(db, spaceId, entries.map(keyOf));
     const reviewed: Array<{ index: number; run: WaitRun; commentId: string; review: InheritedReviewRow; actionId: string }> = [];
     for (const entry of entries) {
       const review = reviews.get(inheritedReviewKey(keyOf(entry)));
@@ -236,7 +236,7 @@ export async function readInheritedGitHubReviewWaits(db: Db, runs: WaitRun[]): P
     if (!reviewed.length) continue;
     const publications = await db.select({ endpointId: chatActions.endpointId, providerActionId: chatActions.providerActionId })
       .from(chatActions).where(and(
-        eq(chatActions.companyId, companyId),
+        eq(chatActions.spaceId, spaceId),
         sql`${chatActions.endpointId} = any(${sql.param([...new Set(reviewed.map(entry => entry.review.endpointId))])}::uuid[])`,
         eq(chatActions.kind, "github_review_publication"), eq(chatActions.status, "processed"),
         sql`${chatActions.providerActionId} = any(${sql.param([...new Set(reviewed.map(entry => entry.actionId))])}::text[])`,

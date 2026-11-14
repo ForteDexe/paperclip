@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildNativeContinuationPrompt } from "./native-continuation.js";
 
 const issue = { title: "Original task", description: "Retain my long task brief." };
-const message = { id: "new", body: "Yes, please proceed.", authorType: "user", authorId: "board", sourceTrust: "user", createdByRunId: null };
+const message = { id: "new", body: "Yes, please proceed.", authorType: "user", authorId: "operator", sourceTrust: "user", createdByRunId: null };
 const wake = {
   reason: "issue_commented",
   executionContinuation: {
@@ -30,10 +30,10 @@ describe("native continuation event projection", () => {
     expect(build({ ...wake, executionContinuation: null })).toBeNull();
   });
   it("delivers the current authenticated answer once, not all prior answers", () => {
-    const text = build({ ...wake, interactionId: "new-question", executionContinuation: { ...wake.executionContinuation, resumeDelta: { baseRunId: "prior", messages: [] }, humanResponses: [...wake.executionContinuation.humanResponses, { id: "new-question", kind: "ask_user_questions", status: "answered", resolvedByUserId: "board", result: { answer: "NEW_ANSWER" } }] } })!;
+    const text = build({ ...wake, interactionId: "new-question", executionContinuation: { ...wake.executionContinuation, resumeDelta: { baseRunId: "prior", messages: [] }, humanResponses: [...wake.executionContinuation.humanResponses, { id: "new-question", kind: "ask_user_questions", status: "answered", resolvedByUserId: "operator", result: { answer: "NEW_ANSWER" } }] } })!;
     expect(text.split("NEW_ANSWER")).toHaveLength(2);
     expect(text).not.toContain("OLD_ANSWER");
-    expect(JSON.parse(text).humanResponses[0].resolvedByUserId).toBe("board");
+    expect(JSON.parse(text).humanResponses[0].resolvedByUserId).toBe("operator");
   });
   it("includes external child completion and actual brief edits", () => {
     const text = build({ ...wake, reason: "issue_children_completed", childIssueSummaries: [{ id: "child", status: "done", summary: "CHILD_RESULT" }] }, { ...issue, description: "old brief" })!;
@@ -47,7 +47,7 @@ describe("native continuation event projection", () => {
 
 
 describe("plain-text external chat continuation projection", () => {
-  const slackComment = { ...message, author: { type: "user", id: "board" } };
+  const slackComment = { ...message, author: { type: "user", id: "operator" } };
   const slackWake = {
     ...wake,
     reason: "External chat message received",

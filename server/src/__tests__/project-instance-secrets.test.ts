@@ -6,10 +6,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
   activityLog,
-  companies,
-  companySecrets,
-  companySecretVersions,
-  pluginCompanySettings,
+  spaces,
+  spaceSecrets,
+  spaceSecretVersions,
+  pluginSpaceSettings,
   pluginConfig,
   pluginLifecycleAcknowledgments,
   plugins,
@@ -38,7 +38,7 @@ const support = await getEmbeddedPostgresTestSupport();
   () => {
     let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>,
       db: Db;
-    const companyId = randomUUID(),
+    const spaceId = randomUUID(),
       pluginId = randomUUID();
     const value = "fixture-private-mount-grant";
     beforeAll(async () => {
@@ -47,11 +47,11 @@ const support = await getEmbeddedPostgresTestSupport();
         randomBytes(32).toString("base64"),
       );
       database = await startEmbeddedPostgresTestDatabase(
-        "paperclip-project-instance-secrets-",
+        "outpost-project-instance-secrets-",
       );
       db = createDb(database.connectionString);
-      await db.insert(companies).values({
-        id: companyId,
+      await db.insert(spaces).values({
+        id: spaceId,
         name: "Project credentials fixture",
         issuePrefix: "PCI",
       });
@@ -68,7 +68,7 @@ const support = await getEmbeddedPostgresTestSupport();
       });
       await db
         .insert(pluginConfig)
-        .values({ pluginId, companyId, configJson: {} });
+        .values({ pluginId, spaceId, configJson: {} });
     }, 90_000);
     afterAll(async () => {
       await database?.cleanup();
@@ -77,18 +77,18 @@ const support = await getEmbeddedPostgresTestSupport();
     async function fixture() {
       const [project] = await db
         .insert(projects)
-        .values({ companyId, name: "Credential owner" })
+        .values({ spaceId, name: "Credential owner" })
         .returning();
       await db.transaction((tx) =>
         recordResourceCreationEvent(
           tx as unknown as Db,
-          companyId,
+          spaceId,
           "project",
           project.id,
         ),
       );
       const inbox = pluginLifecycleInbox(db, pluginId);
-      const event = (await inbox.list(companyId, 100)).find(
+      const event = (await inbox.list(spaceId, 100)).find(
         (e) => e.resourceId === project.id,
       )!;
       const service = projectInstanceSecretService(db, pluginId);
@@ -100,7 +100,7 @@ const support = await getEmbeddedPostgresTestSupport();
         prepare: () => service.prepare(event),
         async commit(changes: unknown) {
           const { snapshot } = await service.prepare(event);
-          await inbox.acknowledge(companyId, event.id, { snapshot, changes });
+          await inbox.acknowledge(spaceId, event.id, { snapshot, changes });
         },
       };
     }
@@ -110,8 +110,8 @@ const support = await getEmbeddedPostgresTestSupport();
       await f.commit({ mount_grants: value });
       const [row] = await db
         .select()
-        .from(companySecrets)
-        .where(eq(companySecrets.ownerProjectId, f.project.id));
+        .from(spaceSecrets)
+        .where(eq(spaceSecrets.ownerProjectId, f.project.id));
       expect(row).toMatchObject({
         scope: "instance",
         ownerAgentId: null,
@@ -121,46 +121,46 @@ const support = await getEmbeddedPostgresTestSupport();
       });
       const versions = await db
         .select()
-        .from(companySecretVersions)
-        .where(eq(companySecretVersions.secretId, row.id));
+        .from(spaceSecretVersions)
+        .where(eq(spaceSecretVersions.secretId, row.id));
       expect(versions).toHaveLength(1);
       expect(JSON.stringify(versions)).not.toContain(value);
       expect(
         await projectInstanceSecretService(
           createDb(database.connectionString),
           pluginId,
-        ).read(companyId, f.project.id),
+        ).read(spaceId, f.project.id),
       ).toEqual({ mount_grants: value });
       const native = secretService(db);
       expect(
         await native.projectInstance.read({
-          companyId: randomUUID(),
+          spaceId: randomUUID(),
           projectId: f.project.id,
           pluginId,
         }),
       ).toEqual({});
       expect(
         await native.projectInstance.read({
-          companyId,
+          spaceId,
           projectId: randomUUID(),
           pluginId,
         }),
       ).toEqual({});
       expect(
         await native.projectInstance.read({
-          companyId,
+          spaceId,
           projectId: f.project.id,
           pluginId: randomUUID(),
         }),
       ).toEqual({});
       expect(
         await native.agentInstance.read({
-          companyId,
+          spaceId,
           agentId: f.project.id,
           pluginId,
         }),
       ).toEqual({});
-      expect(JSON.stringify(await native.list(companyId))).not.toContain(
+      expect(JSON.stringify(await native.list(spaceId))).not.toContain(
         row.id,
       );
       const logs = await db
@@ -170,11 +170,11 @@ const support = await getEmbeddedPostgresTestSupport();
       expect(logs).toHaveLength(1);
       expect(logs[0].details).toEqual({ key: "mount_grants" });
       expect(JSON.stringify(logs)).not.toContain(value);
-      expect(JSON.stringify(await f.inbox.list(companyId, 100))).not.toContain(
+      expect(JSON.stringify(await f.inbox.list(spaceId, 100))).not.toContain(
         value,
       );
       await expect(
-        native.resolveSecretValue(companyId, row.id, "latest"),
+        native.resolveSecretValue(spaceId, row.id, "latest"),
       ).rejects.toThrow();
     });
     it("commits credentials before publication and acknowledgment; duplicate late replies cannot overwrite them", async () => {
@@ -184,19 +184,19 @@ const support = await getEmbeddedPostgresTestSupport();
         .spyOn(activity, "publishActivity")
         .mockImplementation(() => {});
       try {
-        await f.inbox.acknowledge(companyId, f.event.id, {
+        await f.inbox.acknowledge(spaceId, f.event.id, {
           snapshot: before.snapshot,
           changes: { mount_grants: value },
         });
         expect(published).toHaveBeenCalledTimes(1);
-        expect(await f.service.read(companyId, f.project.id)).toEqual({
+        expect(await f.service.read(spaceId, f.project.id)).toEqual({
           mount_grants: value,
         });
-        await f.inbox.acknowledge(companyId, f.event.id, {
+        await f.inbox.acknowledge(spaceId, f.event.id, {
           snapshot: before.snapshot,
           changes: { mount_grants: "late" },
         });
-        expect(await f.service.read(companyId, f.project.id)).toEqual({
+        expect(await f.service.read(spaceId, f.project.id)).toEqual({
           mount_grants: value,
         });
         expect(published).toHaveBeenCalledTimes(1);
@@ -216,7 +216,7 @@ const support = await getEmbeddedPostgresTestSupport();
         .mockRejectedValueOnce(new Error(value));
       try {
         await expect(
-          f.inbox.acknowledge(companyId, f.event.id, {
+          f.inbox.acknowledge(spaceId, f.event.id, {
             snapshot: before.snapshot,
             changes: { first: value, second: value },
           }),
@@ -224,9 +224,9 @@ const support = await getEmbeddedPostgresTestSupport();
       } finally {
         spy.mockRestore();
       }
-      expect(await f.service.read(companyId, f.project.id)).toEqual({});
+      expect(await f.service.read(spaceId, f.project.id)).toEqual({});
       expect(
-        (await f.inbox.list(companyId, 100)).some((e) => e.id === f.event.id),
+        (await f.inbox.list(spaceId, 100)).some((e) => e.id === f.event.id),
       ).toBe(true);
       expect(
         await db
@@ -235,7 +235,7 @@ const support = await getEmbeddedPostgresTestSupport();
           .where(eq(activityLog.entityId, f.project.id)),
       ).toEqual([]);
       await f.commit({ mount_grants: value });
-      expect(await f.service.read(companyId, f.project.id)).toEqual({
+      expect(await f.service.read(spaceId, f.project.id)).toEqual({
         mount_grants: value,
       });
     });
@@ -257,7 +257,7 @@ const support = await getEmbeddedPostgresTestSupport();
               .where(eq(projects.id, f.project.id));
           if (change === "workspace")
             await db.insert(projectWorkspaces).values({
-              companyId,
+              spaceId,
               projectId: f.project.id,
               name: "Source",
               repoUrl: "https://github.com/fixture/project",
@@ -269,16 +269,16 @@ const support = await getEmbeddedPostgresTestSupport();
               .where(eq(pluginConfig.pluginId, pluginId));
           if (change === "disabled")
             await db
-              .insert(pluginCompanySettings)
-              .values({ pluginId, companyId, enabled: false });
+              .insert(pluginSpaceSettings)
+              .values({ pluginId, spaceId, enabled: false });
           if (change === "secret-version")
             await secretService(db).projectInstance.set(
-              { companyId, projectId: f.project.id, pluginId },
+              { spaceId, projectId: f.project.id, pluginId },
               "mount_grants",
               "newer",
             );
           await expect(
-            f.inbox.acknowledge(companyId, f.event.id, {
+            f.inbox.acknowledge(spaceId, f.event.id, {
               snapshot: before.snapshot,
               changes: { mount_grants: value },
             }),
@@ -300,8 +300,8 @@ const support = await getEmbeddedPostgresTestSupport();
         } finally {
           if (change === "disabled")
             await db
-              .delete(pluginCompanySettings)
-              .where(eq(pluginCompanySettings.pluginId, pluginId));
+              .delete(pluginSpaceSettings)
+              .where(eq(pluginSpaceSettings.pluginId, pluginId));
           if (change === "configuration")
             await db
               .update(pluginConfig)
@@ -312,13 +312,13 @@ const support = await getEmbeddedPostgresTestSupport();
     it("rotates native versions, removes credentials without an encryption key, and cascades project deletion", async () => {
       const f = await fixture();
       const native = secretService(db);
-      const scope = { companyId, projectId: f.project.id, pluginId };
+      const scope = { spaceId, projectId: f.project.id, pluginId };
       await native.projectInstance.set(scope, "mount_grants", value);
       await native.projectInstance.set(scope, "mount_grants", "replacement");
       const [row] = await db
         .select()
-        .from(companySecrets)
-        .where(eq(companySecrets.ownerProjectId, f.project.id));
+        .from(spaceSecrets)
+        .where(eq(spaceSecrets.ownerProjectId, f.project.id));
       expect(row.latestVersion).toBe(2);
       const key = process.env.OUTPOST_SECRETS_MASTER_KEY!;
       vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "invalid");
@@ -334,17 +334,17 @@ const support = await getEmbeddedPostgresTestSupport();
       expect(
         await db
           .select()
-          .from(companySecretVersions)
-          .where(eq(companySecretVersions.secretId, row.id)),
+          .from(spaceSecretVersions)
+          .where(eq(spaceSecretVersions.secretId, row.id)),
       ).toEqual([]);
       const deleted = await f.prepare();
       await expect(
-        f.inbox.acknowledge(companyId, f.event.id, {
+        f.inbox.acknowledge(spaceId, f.event.id, {
           snapshot: deleted.snapshot,
           changes: { mount_grants: value },
         }),
       ).rejects.toThrow("active project");
-      await f.inbox.acknowledge(companyId, f.event.id, {
+      await f.inbox.acknowledge(spaceId, f.event.id, {
         snapshot: deleted.snapshot,
         changes: { mount_grants: null },
       });
@@ -352,7 +352,7 @@ const support = await getEmbeddedPostgresTestSupport();
     it("can acknowledge archival removal when the encryption key is unavailable", async () => {
       const f = await fixture();
       await secretService(db).projectInstance.set(
-        { companyId, projectId: f.project.id, pluginId },
+        { spaceId, projectId: f.project.id, pluginId },
         "mount_grants",
         value,
       );
@@ -365,15 +365,15 @@ const support = await getEmbeddedPostgresTestSupport();
       try {
         const prepared = await f.prepare();
         expect(prepared.instanceSecrets).toEqual({});
-        await f.inbox.acknowledge(companyId, f.event.id, {
+        await f.inbox.acknowledge(spaceId, f.event.id, {
           snapshot: prepared.snapshot,
           changes: { mount_grants: null },
         });
         expect(
           await db
             .select()
-            .from(companySecrets)
-            .where(eq(companySecrets.ownerProjectId, f.project.id)),
+            .from(spaceSecrets)
+            .where(eq(spaceSecrets.ownerProjectId, f.project.id)),
         ).toEqual([]);
       } finally {
         vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", key);
@@ -381,19 +381,19 @@ const support = await getEmbeddedPostgresTestSupport();
     });
     it("enforces project ownership in the database and rejects archived reads and new credentials", async () => {
       const f = await fixture();
-      const otherCompany = randomUUID();
+      const otherSpace = randomUUID();
       await db
-        .insert(companies)
+        .insert(spaces)
         .values({
-          id: otherCompany,
+          id: otherSpace,
           name: "Other fixture",
           issuePrefix: "PCO",
         });
       await expect(
         db
-          .insert(companySecrets)
+          .insert(spaceSecrets)
           .values({
-            companyId: otherCompany,
+            spaceId: otherSpace,
             scope: "instance",
             ownerProjectId: f.project.id,
             ownerPluginId: pluginId,
@@ -403,10 +403,10 @@ const support = await getEmbeddedPostgresTestSupport();
       ).rejects.toThrow();
       await expect(
         db
-          .insert(companySecrets)
+          .insert(spaceSecrets)
           .values({
-            companyId,
-            scope: "company",
+            spaceId,
+            scope: "space",
             ownerProjectId: f.project.id,
             key: "INVALID",
             name: "invalid",
@@ -416,17 +416,17 @@ const support = await getEmbeddedPostgresTestSupport();
         .update(projects)
         .set({ archivedAt: new Date("2020-01-01") })
         .where(eq(projects.id, f.project.id));
-      await expect(f.service.read(companyId, f.project.id)).rejects.toThrow(
+      await expect(f.service.read(spaceId, f.project.id)).rejects.toThrow(
         "unavailable",
       );
       const { snapshot } = await f.prepare();
       await expect(
-        f.inbox.acknowledge(companyId, f.event.id, {
+        f.inbox.acknowledge(spaceId, f.event.id, {
           snapshot,
           changes: { mount_grants: value },
         }),
       ).rejects.toThrow("active project");
-      await f.inbox.acknowledge(companyId, f.event.id, {
+      await f.inbox.acknowledge(spaceId, f.event.id, {
         snapshot,
         changes: { mount_grants: null },
       });
@@ -436,16 +436,16 @@ const support = await getEmbeddedPostgresTestSupport();
         native = secretService(db),
         accountHome = "/fixture/account-home";
       await native.projectInstance.set(
-        { companyId, projectId: f.project.id, pluginId },
+        { spaceId, projectId: f.project.id, pluginId },
         "home",
         accountHome,
       );
       expect(
-        await native.hasInstanceAccountHomeClaim(companyId, accountHome),
+        await native.hasInstanceAccountHomeClaim(spaceId, accountHome),
       ).toBe(true);
       expect(
         await native.hasInstanceAccountHomeClaim(
-          companyId,
+          spaceId,
           accountHome + "-other",
         ),
       ).toBe(false);
@@ -453,26 +453,26 @@ const support = await getEmbeddedPostgresTestSupport();
   },
 );
 describe("project instance secret patches", () => {
-  it.skipIf(!support.supported)("requires a config row unless the managed config enables the plugin for this company", async () => {
+  it.skipIf(!support.supported)("requires a config row unless the managed config enables the plugin for this space", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "instance-secrets-managed-"));
     await mkdir(path.join(root, "sandbox-providers/daytona"), { recursive: true });
-    const database = await startEmbeddedPostgresTestDatabase("paperclip-instance-secrets-managed-");
+    const database = await startEmbeddedPostgresTestDatabase("outpost-instance-secrets-managed-");
     const db = createDb(database.connectionString);
     try {
-      const companyId = randomUUID(), pluginId = randomUUID();
-      await db.insert(companies).values({ id: companyId, name: "Managed credentials", issuePrefix: "MCI" });
+      const spaceId = randomUUID(), pluginId = randomUUID();
+      await db.insert(spaces).values({ id: spaceId, name: "Managed credentials", issuePrefix: "MCI" });
       await db.insert(plugins).values({ id: pluginId, pluginKey: "outpost.daytona-sandbox-provider", packageName: "managed", version: "1.0.0", status: "ready", packagePath: "/old/image/plugins/daytona",
         manifestJson: { resourceLifecycle: ["project"], capabilities: ["events.subscribe", "projects.instance-secrets"] } as never });
-      const [project] = await db.insert(projects).values({ companyId, name: "Credential owner" }).returning();
-      await db.transaction(tx => recordResourceCreationEvent(tx as unknown as Db, companyId, "project", project.id));
-      const [event] = await pluginLifecycleInbox(db, pluginId).list(companyId, 100);
+      const [project] = await db.insert(projects).values({ spaceId, name: "Credential owner" }).returning();
+      await db.transaction(tx => recordResourceCreationEvent(tx as unknown as Db, spaceId, "project", project.id));
+      const [event] = await pluginLifecycleInbox(db, pluginId).list(spaceId, 100);
       await expect(projectInstanceSecretService(db, pluginId).prepare(event)).rejects.toThrow("require plugin configuration");
       vi.stubEnv("OUTPOST_BUNDLED_PLUGIN_ROOT", root);
       vi.stubEnv("OUTPOST_MANAGED_CONFIG", JSON.stringify({ v: 1, mode: "cloud", catalogVersion: "1", features: {},
-        plugins: { autoInstall: ["daytona"], workerEnv: { daytona: ["PROVIDER_ORIGIN"] }, enabledCompanies: { daytona: [randomUUID()] } } }));
+        plugins: { autoInstall: ["daytona"], workerEnv: { daytona: ["PROVIDER_ORIGIN"] }, enabledSpaces: { daytona: [randomUUID()] } } }));
       await expect(projectInstanceSecretService(db, pluginId).prepare(event)).rejects.toThrow("require plugin configuration");
       vi.stubEnv("OUTPOST_MANAGED_CONFIG", JSON.stringify({ v: 1, mode: "cloud", catalogVersion: "1", features: {},
-        plugins: { autoInstall: ["daytona"], enabledCompanies: { daytona: [companyId] } } }));
+        plugins: { autoInstall: ["daytona"], enabledSpaces: { daytona: [spaceId] } } }));
       await expect(projectInstanceSecretService(db, pluginId).prepare(event)).resolves.toMatchObject({ instanceSecrets: expect.any(Object) });
     } finally {
       vi.unstubAllEnvs();

@@ -1,4 +1,4 @@
-# Paperclip Component Index
+# Outpost Component Index
 
 Complete inventory of all UI components. Update this file when adding new reusable components.
 
@@ -183,10 +183,10 @@ Use in property rows, comment headers, assignee displays, and anywhere a user/ag
 **File:** `GoalTree.tsx`
 **Usage:** Hierarchical goal tree with expand/collapse. Used on the goals page.
 
-### CompanySwitcher
+### SpaceSwitcher
 
-**File:** `CompanySwitcher.tsx`
-**Usage:** Company selector dropdown in sidebar header.
+**File:** `SpaceSwitcher.tsx`
+**Usage:** Space selector dropdown in sidebar header.
 
 ---
 
@@ -200,7 +200,7 @@ Use in property rows, comment headers, assignee displays, and anywhere a user/ag
 ### Sidebar
 
 **File:** `Sidebar.tsx`
-**Usage:** Left navigation sidebar (`w-60`). Contains CompanySwitcher, search button, new issue button, and SidebarSections.
+**Usage:** Left navigation sidebar (`w-60`). Contains SpaceSwitcher, search button, new issue button, and SidebarSections.
 
 ### SidebarSection
 
@@ -250,7 +250,7 @@ Use in property rows, comment headers, assignee displays, and anywhere a user/ag
 ### OnboardingWizard
 
 **File:** `OnboardingWizard.tsx`
-**Usage:** Multi-step onboarding flow for new users/companies.
+**Usage:** Multi-step onboarding flow for new users/spaces.
 
 ---
 

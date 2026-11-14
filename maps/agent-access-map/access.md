@@ -27,7 +27,7 @@ API: `present` — representative operation IDs:
 Agent access: `restricted` — Agent authenticates with its own issued bearer; board login
 uses human/client auth.
 
-Policy: Company access plus action-specific grants; instance administration requires a
+Policy: Space access plus action-specific grants; instance administration requires a
 board administrator.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/access.ts#L3018) at
@@ -46,11 +46,11 @@ Capability ID: `access/invitations`.
 
 Review: `baseline`.
 
-API: `present` — `POST /api/companies/{companyId}/openclaw-invite-prompt` supports external-agent onboarding.
+API: `present` — `POST /api/spaces/{spaceId}/openclaw-invite-prompt` supports external-agent onboarding.
 
 Agent access: `partial` — agent onboarding remains available; human invitation links and human member administration are removed from the product.
 
-Policy: Company access plus action-specific grants.
+Policy: Space access plus action-specific grants.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/access.ts) at the reviewed commit above.
 
@@ -71,7 +71,7 @@ API: `present` — representative operation IDs:
 
 Agent access: `available` — REST or scoped task/project tools.
 
-Policy: Company access plus action-specific grants; instance administration requires a
+Policy: Space access plus action-specific grants; instance administration requires a
 board administrator.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/access.ts#L3018) at
@@ -79,11 +79,11 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
-Gaps: Company/resource authorization is implemented; a negative test must cover private
-resources and another company.
+Gaps: Space/resource authorization is implemented; a negative test must cover private
+resources and another space.
 
 ## `cli-auth`
 
@@ -99,7 +99,7 @@ API: `present` — representative operation IDs:
 Agent access: `restricted` — Board CLI authorization; agents use issued agent
 credentials.
 
-Policy: Company access plus action-specific grants; instance administration requires a
+Policy: Space access plus action-specific grants; instance administration requires a
 board administrator.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/access.ts#L3018) at

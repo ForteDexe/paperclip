@@ -6,7 +6,7 @@ import { issueReadSqlCondition, type AuthorizationActor } from "../authorization
 /** Recorded decisions are evidence for the parent, never new review authority. */
 export async function childReviewOutcomes(
   db: Db,
-  companyId: string,
+  spaceId: string,
   parentIssueId: string,
   actor?: AuthorizationActor,
 ): Promise<ExecutionContinuationEnvelope["interactionOutcomes"]> {
@@ -25,22 +25,22 @@ export async function childReviewOutcomes(
   }).from(issues)
     .innerJoin(issueThreadInteractions, and(
       eq(issueThreadInteractions.issueId, issues.id),
-      eq(issueThreadInteractions.companyId, issues.companyId),
+      eq(issueThreadInteractions.spaceId, issues.spaceId),
     ))
     .innerJoin(statusDecisions, and(
       eq(statusDecisions.issueId, issues.id),
-      eq(statusDecisions.companyId, issues.companyId),
+      eq(statusDecisions.spaceId, issues.spaceId),
       eq(statusDecisions.runId, issueThreadInteractions.sourceRunId),
       sql`${statusDecisions.id}::text = ${issueThreadInteractions.payload}->'target'->>'revisionId'`,
       eq(statusDecisions.applicationState, "applied"),
     ))
     .innerJoin(heartbeatRuns, and(
       eq(heartbeatRuns.id, statusDecisions.runId),
-      eq(heartbeatRuns.companyId, issues.companyId),
+      eq(heartbeatRuns.spaceId, issues.spaceId),
       eq(heartbeatRuns.nativeIssueId, issues.id),
     ))
     .where(and(
-      eq(issues.companyId, companyId),
+      eq(issues.spaceId, spaceId),
       eq(issues.parentId, parentIssueId),
       actor ? await issueReadSqlCondition(db, actor) : undefined,
       eq(issueThreadInteractions.kind, "request_confirmation"),

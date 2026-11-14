@@ -106,7 +106,7 @@ describe("claude_local environment diagnostics", () => {
     process.env.ANTHROPIC_API_KEY = "sk-test-host";
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {
         engine: "cli",
@@ -132,7 +132,7 @@ describe("claude_local environment diagnostics", () => {
     delete process.env.ANTHROPIC_BEDROCK_BASE_URL;
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {
         engine: "cli",
@@ -160,7 +160,7 @@ describe("claude_local environment diagnostics", () => {
     process.env.CLAUDE_CODE_USE_BEDROCK = "1";
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {
         engine: "cli",
@@ -188,7 +188,7 @@ describe("claude_local environment diagnostics", () => {
     delete process.env.CLAUDE_CODE_USE_BEDROCK;
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {
         engine: "cli",
@@ -219,7 +219,7 @@ describe("claude_local environment diagnostics", () => {
     process.env.CLAUDE_CODE_USE_BEDROCK = "1";
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {
         engine: "cli",
@@ -237,14 +237,14 @@ describe("claude_local environment diagnostics", () => {
   it("creates a missing working directory when cwd is absolute", async () => {
     const cwd = path.join(
       os.tmpdir(),
-      `paperclip-claude-local-cwd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      `outpost-claude-local-cwd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       "workspace",
     );
 
     await fs.rm(path.dirname(cwd), { recursive: true, force: true });
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {
         engine: "cli",
@@ -262,7 +262,7 @@ describe("claude_local environment diagnostics", () => {
 
   it("defaults remote probes to the environment remote cwd when adapter cwd is unset", async () => {
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {
         engine: "cli",
@@ -272,7 +272,7 @@ describe("claude_local environment diagnostics", () => {
         kind: "remote",
         transport: "sandbox",
         providerKey: "test-provider",
-        remoteCwd: "/srv/paperclip/workspace",
+        remoteCwd: "/srv/outpost/workspace",
         runner: {
           execute: async () => ({
             exitCode: 0,
@@ -293,7 +293,7 @@ describe("claude_local environment diagnostics", () => {
       result.checks.some(
         (check) =>
           check.code === "claude_cwd_valid" &&
-          check.message === "Working directory is valid: /srv/paperclip/workspace",
+          check.message === "Working directory is valid: /srv/outpost/workspace",
       ),
     ).toBe(true);
     expect(result.checks.some((check) => check.code === "claude_cwd_invalid")).toBe(false);
@@ -303,7 +303,7 @@ describe("claude_local environment diagnostics", () => {
     const executeCalls: Array<{ command: string; args?: string[]; env?: Record<string, string> }> = [];
 
     const result = await testEnvironment({
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       config: {
         engine: "cli",
@@ -314,7 +314,7 @@ describe("claude_local environment diagnostics", () => {
         kind: "remote",
         transport: "sandbox",
         providerKey: "cloudflare",
-        remoteCwd: "/workspace/paperclip",
+        remoteCwd: "/workspace/outpost",
         runner: {
           execute: async (input) => {
             executeCalls.push({ command: input.command, args: input.args, env: input.env });
@@ -360,7 +360,7 @@ describe("claude_local environment diagnostics", () => {
   });
 
   it("uses the managed Claude config seed for sandbox hello probes", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-envtest-managed-config-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-envtest-managed-config-"));
     const sourceConfigDir = path.join(root, "host-claude");
     const remoteHome = path.join(root, "remote-home");
     const remoteWorkspace = path.join(root, "remote-workspace");
@@ -389,7 +389,7 @@ function fail(message) {
   process.stderr.write(message + "\\n");
   process.exit(2);
 }
-if (!configDir.includes(".paperclip-runtime/claude/config")) {
+if (!configDir.includes(".outpost-runtime/claude/config")) {
   fail("missing managed CLAUDE_CONFIG_DIR: " + configDir);
 }
 const settings = JSON.parse(fs.readFileSync(path.join(configDir, "settings.json"), "utf8"));
@@ -409,12 +409,12 @@ console.log(JSON.stringify({ type: "result", result: "hello", usage: { input_tok
     await fs.chmod(commandPath, 0o755);
 
     process.env.CLAUDE_CONFIG_DIR = sourceConfigDir;
-    process.env.OUTPOST_HOME = path.join(root, "paperclip-home");
+    process.env.OUTPOST_HOME = path.join(root, "outpost-home");
     process.env.OUTPOST_INSTANCE_ID = "test-instance";
 
     try {
       const result = await testEnvironment({
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType: "claude_local",
         config: {
           engine: "cli",
@@ -440,7 +440,7 @@ console.log(JSON.stringify({ type: "result", result: "hello", usage: { input_tok
   });
 
   it("warns and omits --effort for sandbox probes when the installed Claude CLI does not advertise it", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-envtest-sandbox-effort-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-claude-envtest-sandbox-effort-"));
     const workspace = path.join(root, "workspace");
     const remoteWorkspace = path.join(root, "remote-workspace");
     const commandPath = path.join(root, "claude");
@@ -450,7 +450,7 @@ console.log(JSON.stringify({ type: "result", result: "hello", usage: { input_tok
 
     try {
       const result = await testEnvironment({
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType: "claude_local",
         config: {
           engine: "cli",

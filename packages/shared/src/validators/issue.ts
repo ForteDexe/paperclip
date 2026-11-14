@@ -128,7 +128,7 @@ export const issueBlockedInboxAttentionSchema = z
     stoppedSinceAt: z.string().datetime().nullable(),
     owner: z
       .object({
-        type: z.enum(["agent", "user", "board", "external", "unknown"]),
+        type: z.enum(["agent", "user", "operator", "external", "unknown"]),
         agentId: z.string().guid().nullable(),
         userId: z.string().nullable(),
         label: z.string().nullable(),
@@ -568,7 +568,7 @@ export const issueExecutionStateSchema = z.object({
 
 export const issueRecoveryActionReadModelSchema = z.object({
   id: z.string().guid(),
-  companyId: z.string().guid(),
+  spaceId: z.string().guid(),
   sourceIssueId: z.string().guid(),
   recoveryIssueId: z.string().guid().nullable(),
   kind: z.enum(ISSUE_RECOVERY_ACTION_KINDS),
@@ -614,7 +614,7 @@ export const resumeWorkspaceFinalizationSchema = z.object({
   stopEvidence: z.string().trim().min(20).max(12000),
 }).strict();
 
-/** Board attestation that a native run's previous server stopped, for a
+/** Operator attestation that a native run's previous server stopped, for a
  * controller row an ephemeral server cannot judge by PID. */
 export const confirmNativeControllerStoppedSchema = z.object({
   actionId: z.string().guid(),
@@ -627,13 +627,13 @@ export const confirmRunStoppedSchema = z.object({
   stopEvidence: z.string().trim().min(20).max(12000),
 }).strict();
 
-/** Board attestation that the owner of a record Paperclip cannot judge (saved
+/** Operator attestation that the owner of a record Outpost cannot judge (saved
  * before owners were recorded) has stopped, so recovery may settle the record. */
 export const confirmOwnerGoneSchema = z.object({
   actionId: z.string().guid(),
   recordId: z.string().guid(),
   stopEvidence: z.string().trim().min(20).max(12000),
-  /** The record version the board saw (`evidence.recordUpdatedAt`); required when the request names one. */
+  /** The record version the operator saw (`evidence.recordUpdatedAt`); required when the request names one. */
   recordVersion: z.string().datetime({ offset: true }).optional(),
 }).strict();
 
@@ -705,7 +705,7 @@ export const resolveIssueRecoveryActionSchema = z
     if (value.outcome === "restored") {
       // Source repair and complete controller containment record evidence
       // without changing task state. The route checks the exact locked source,
-      // unchanged status, board authority, lease expiry, and cleanup evidence.
+      // unchanged status, operator authority, lease expiry, and cleanup evidence.
       if (value.executionReconciliation?.workspaceRepairEvidence || controllerContainment) return;
       if (
         value.sourceIssueStatus !== "todo" &&
@@ -822,7 +822,7 @@ const createIssueBaseSchema = z.object({
       owner: z.union([
         z.object({ agentId: z.string().guid() }).strict(),
         z.object({ userId: z.string().trim().min(1) }).strict(),
-        z.literal("board"),
+        z.literal("operator"),
       ]),
       action: multilineTextSchema.pipe(z.string().trim().min(1).max(2_000)),
     })
@@ -1229,7 +1229,7 @@ export const issueThreadInteractionCanonicalResolverPolicySchema = z
 export const issueThreadInteractionResolverPolicySchema = z
   .enum(ISSUE_THREAD_INTERACTION_RESOLVER_POLICIES)
   .describe(
-    "Resolver audience. Use anyone, not_creator, or human_only; board_or_agents and board_only are deprecated compatibility aliases.",
+    "Resolver audience. Use anyone, not_creator, or human_only; operator_or_agents and operator_only are deprecated compatibility aliases.",
   );
 export const issueThreadInteractionResolverPolicyProvenanceSchema = z.enum(
   ISSUE_THREAD_INTERACTION_RESOLVER_POLICY_PROVENANCES,
@@ -1432,14 +1432,14 @@ export const askUserQuestionsQuestionSchema = z.object({
   options: z.array(askUserQuestionsQuestionOptionSchema).min(1).max(129),
 });
 
-const paperclipQuestionOptionSchema = z.object({
+const outpostQuestionOptionSchema = z.object({
   id: maxStringLength(z.string().min(1), 160),
   label: maxStringLength(z.string().min(1), 1000),
   description: maxStringLength(z.string(), 4000).optional(),
   recommended: z.boolean().optional(),
 });
 
-const paperclipQuestionSchema = z
+const outpostQuestionSchema = z
   .object({
     id: maxStringLength(z.string().min(1), 160),
     header: maxStringLength(z.string(), 1000).optional(),
@@ -1448,7 +1448,7 @@ const paperclipQuestionSchema = z
     required: z.boolean(),
     answerMode: z.enum(["single_select", "multi_select", "text"]),
     initialText: z.string().refine(value => value.length <= 200000 && Array.from(value).length <= 100000, "initial text exceeds 100000 Unicode code points").optional(),
-    options: z.array(paperclipQuestionOptionSchema).max(128).optional(),
+    options: z.array(outpostQuestionOptionSchema).max(128).optional(),
     customAnswer: z
       .object({
         enabled: z.literal(true),
@@ -1542,13 +1542,13 @@ const paperclipQuestionSchema = z
     }
   });
 
-export const paperclipQuestionSetPayloadSchema = z
+export const outpostQuestionSetPayloadSchema = z
   .object({
     schema: z.literal("outpost.question_set.v1"),
     title: maxStringLength(z.string(), 1000).optional(),
     description: maxStringLength(z.string(), 100_000).optional(),
     submitLabel: maxStringLength(z.string(), 200).optional(),
-    questions: z.array(paperclipQuestionSchema).min(1).max(64),
+    questions: z.array(outpostQuestionSchema).min(1).max(64),
   })
   .superRefine((value, ctx) => {
     const questionIds = value.questions.map((question) => question.id);
@@ -1568,7 +1568,7 @@ const askUserQuestionsPayloadFields = {
   supersedeOnUserComment: z.boolean().optional(),
   questions: z.array(askUserQuestionsQuestionSchema).min(1).max(64),
   /** Exact canonical presentation retained for a recovered harness request. */
-  questionSet: paperclipQuestionSetPayloadSchema.optional(),
+  questionSet: outpostQuestionSetPayloadSchema.optional(),
   /** Stable correlation for draft handoff from a live runtime request. */
   runtimeRequestId: z.string().trim().min(1).max(255).nullable().optional(),
 };
@@ -2155,7 +2155,7 @@ const createAskUserQuestionsPayloadSchema = z.union([
     ...askUserQuestionsPayloadFields,
     // Do not discard an explicitly supplied conflicting compatibility form.
     questions: z.never().optional(),
-    questionSet: paperclipQuestionSetPayloadSchema,
+    questionSet: outpostQuestionSetPayloadSchema,
   }).transform(({ questions: _questions, ...value }): z.input<typeof createLegacyAskUserQuestionsPayloadSchema> => ({
     ...questionSetToAskUserQuestionsPayload(value.questionSet),
     ...value,

@@ -2,7 +2,7 @@ import type { TaskListItem } from "@/components/TaskList";
 import { columnData, reviewTaskItems, task } from "./task-list-data";
 
 const extraTasks: TaskListItem[] = [
-  task(458, "Simplify the first company setup", "in_progress"),
+  task(458, "Simplify the first space setup", "in_progress"),
   task(459, "Review budget notifications", "in_review"),
   task(460, "Collect feedback on the refreshed task list", "todo"),
 ].map((issue, index) => {

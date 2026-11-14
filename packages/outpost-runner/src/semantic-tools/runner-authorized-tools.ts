@@ -1,32 +1,32 @@
 import { createHash } from "node:crypto";
 
-import type { PaperclipJsonSchema } from "../catalog/semantic-action-types.js";
-import type { PaperclipSemanticToolDefinition } from "./types.js";
+import type { OutpostJsonSchema } from "../catalog/semantic-action-types.js";
+import type { OutpostSemanticToolDefinition } from "./types.js";
 
 export const OUTPOST_RUNNER_AUTHORIZED_TOOLS_SCHEMA =
   "outpost.runner.authorized-tools.v1" as const;
 
-export interface PaperclipRunnerAuthorizedTool {
+export interface OutpostRunnerAuthorizedTool {
   readonly operationId: string;
   readonly version: 1;
   readonly description: string;
-  readonly inputSchema: PaperclipJsonSchema;
-  readonly responseSchema: PaperclipJsonSchema;
+  readonly inputSchema: OutpostJsonSchema;
+  readonly responseSchema: OutpostJsonSchema;
 }
 
-export interface PaperclipRunnerAuthorizedToolSet {
+export interface OutpostRunnerAuthorizedToolSet {
   readonly schema: typeof OUTPOST_RUNNER_AUTHORIZED_TOOLS_SCHEMA;
   readonly schemaVersion: 1;
   readonly catalogDigest: string;
-  readonly operations: readonly PaperclipRunnerAuthorizedTool[];
+  readonly operations: readonly OutpostRunnerAuthorizedTool[];
 }
 
-export function createPaperclipRunnerAuthorizedToolSet(
-  definitions: readonly PaperclipSemanticToolDefinition[],
-): PaperclipRunnerAuthorizedToolSet {
+export function createOutpostRunnerAuthorizedToolSet(
+  definitions: readonly OutpostSemanticToolDefinition[],
+): OutpostRunnerAuthorizedToolSet {
   const names = new Set<string>();
   const operations = definitions
-    .map((definition): PaperclipRunnerAuthorizedTool => {
+    .map((definition): OutpostRunnerAuthorizedTool => {
       if (definition.annotations.version !== 1 || names.has(definition.name)) {
         throw new Error("outpost_runner_authorized_tools_invalid");
       }
@@ -64,7 +64,7 @@ function deepFreeze<T>(value: T): T {
 }
 
 function digestOperations(
-  operations: readonly PaperclipRunnerAuthorizedTool[],
+  operations: readonly OutpostRunnerAuthorizedTool[],
 ): string {
   return `sha256:${createHash("sha256")
     .update(canonicalJson(operations))

@@ -18,7 +18,7 @@ type SafeNativeChatProgressCandidate = {
   runId: string;
   agentId: string;
   issueId: string;
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   conversationId: string;
   agentName: string;
@@ -50,7 +50,7 @@ function nativeProgressPages(db: Db, since: Date, scope?: ChatRunProjectionScope
         runId: heartbeatRuns.id,
         agentId: heartbeatRuns.agentId,
         issueId: chatConversations.issueId,
-        companyId: chatConversations.companyId,
+        spaceId: chatConversations.spaceId,
         endpointId: chatConversations.endpointId,
         conversationId: chatConversations.id,
         agentName: agents.name,
@@ -60,7 +60,7 @@ function nativeProgressPages(db: Db, since: Date, scope?: ChatRunProjectionScope
         heartbeatRuns,
         and(
           eq(heartbeatRuns.id, heartbeatRunEvents.runId),
-          eq(heartbeatRuns.companyId, heartbeatRunEvents.companyId),
+          eq(heartbeatRuns.spaceId, heartbeatRunEvents.spaceId),
           eq(heartbeatRuns.agentId, heartbeatRunEvents.agentId),
           eq(heartbeatRuns.runtimeMode, "native"),
           eq(heartbeatRuns.status, "running"),
@@ -69,7 +69,7 @@ function nativeProgressPages(db: Db, since: Date, scope?: ChatRunProjectionScope
       .innerJoin(
         chatConversations,
         and(
-          eq(chatConversations.companyId, heartbeatRuns.companyId),
+          eq(chatConversations.spaceId, heartbeatRuns.spaceId),
           sql`coalesce(${heartbeatRuns.issueId}::text, ${issueIdFromContext}) = ${chatConversations.issueId}::text`,
           inArray(chatConversations.state, ["active", "waiting"]),
         ),
@@ -77,7 +77,7 @@ function nativeProgressPages(db: Db, since: Date, scope?: ChatRunProjectionScope
       .innerJoin(
         chatEndpoints,
         and(
-          eq(chatEndpoints.companyId, chatConversations.companyId),
+          eq(chatEndpoints.spaceId, chatConversations.spaceId),
           eq(chatEndpoints.id, chatConversations.endpointId),
           eq(chatEndpoints.publicationMode, "automatic"),
           allowsAutomaticRunPublication(),
@@ -88,7 +88,7 @@ function nativeProgressPages(db: Db, since: Date, scope?: ChatRunProjectionScope
       .innerJoin(
         basePublication,
         and(
-          eq(basePublication.companyId, heartbeatRuns.companyId),
+          eq(basePublication.spaceId, heartbeatRuns.spaceId),
           eq(basePublication.endpointId, chatConversations.endpointId),
           eq(basePublication.conversationId, chatConversations.id),
           eq(basePublication.issueId, chatConversations.issueId),
@@ -107,7 +107,7 @@ function nativeProgressPages(db: Db, since: Date, scope?: ChatRunProjectionScope
             ...SAFE_NATIVE_CHAT_PROGRESS_EVENT_TYPES,
           ]),
           gte(heartbeatRunEvents.createdAt, since),
-          scope ? eq(heartbeatRuns.companyId, scope.companyId) : undefined,
+          scope ? eq(heartbeatRuns.spaceId, scope.spaceId) : undefined,
           scope?.issueId ? eq(chatConversations.issueId, scope.issueId) : undefined,
           sql`${heartbeatRunEvents.createdAt} >= ${basePublication.createdAt} + interval '20 seconds'`,
           notExists(
@@ -116,7 +116,7 @@ function nativeProgressPages(db: Db, since: Date, scope?: ChatRunProjectionScope
               .from(laterEvent)
               .where(
                 and(
-                  eq(laterEvent.companyId, heartbeatRunEvents.companyId),
+                  eq(laterEvent.spaceId, heartbeatRunEvents.spaceId),
                   eq(laterEvent.runId, heartbeatRunEvents.runId),
                   gt(laterEvent.seq, heartbeatRunEvents.seq),
                   inArray(laterEvent.eventType, [
@@ -141,12 +141,12 @@ function nativeProgressPages(db: Db, since: Date, scope?: ChatRunProjectionScope
 
 export async function loadNativeChatProgressScopes(db: Db, scope?: ChatRunProjectionScope, signal?: AbortSignal) {
   const pages = nativeProgressPages(db, chatRunProjectionWindow({}).since, scope);
-  const scopes = new Map<string, { companyId: string; issueId: string }>();
+  const scopes = new Map<string, { spaceId: string; issueId: string }>();
   let cursor: NativeProgressCursor | null = null;
   for (;;) {
     signal?.throwIfAborted();
     const rows = await pages(200, cursor);
-    for (const row of rows) scopes.set(`${row.companyId}:${row.issueId}`, { companyId: row.companyId, issueId: row.issueId });
+    for (const row of rows) scopes.set(`${row.spaceId}:${row.issueId}`, { spaceId: row.spaceId, issueId: row.issueId });
     if (rows.length < 200) return [...scopes.values()];
     cursor = rows[rows.length - 1];
   }
@@ -185,14 +185,14 @@ export async function reconcileNativeChatProgress(db: Db, options: NativeProgres
           .where(
             and(
               eq(issues.id, row.issueId),
-              eq(issues.companyId, row.companyId),
+              eq(issues.spaceId, row.spaceId),
             ),
           )
           .for("update", { skipLocked: true })
           .then((currentRows) => currentRows[0] ?? null);
         if (!currentIssue) {
           const [existing] = await tx.select({ id: issues.id }).from(issues)
-            .where(and(eq(issues.id, row.issueId), eq(issues.companyId, row.companyId)));
+            .where(and(eq(issues.id, row.issueId), eq(issues.spaceId, row.spaceId)));
           contended ||= Boolean(existing);
           return 0;
         }
@@ -205,7 +205,7 @@ export async function reconcileNativeChatProgress(db: Db, options: NativeProgres
           .where(
             and(
               eq(heartbeatRuns.id, row.runId),
-              eq(heartbeatRuns.companyId, row.companyId),
+              eq(heartbeatRuns.spaceId, row.spaceId),
               eq(heartbeatRuns.agentId, row.agentId),
               eq(heartbeatRuns.runtimeMode, "native"),
               eq(heartbeatRuns.status, "running"),
@@ -215,7 +215,7 @@ export async function reconcileNativeChatProgress(db: Db, options: NativeProgres
           .then((currentRows) => currentRows[0] ?? null);
         if (!currentRun) {
           const [existing] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-            eq(heartbeatRuns.id, row.runId), eq(heartbeatRuns.companyId, row.companyId),
+            eq(heartbeatRuns.id, row.runId), eq(heartbeatRuns.spaceId, row.spaceId),
             eq(heartbeatRuns.agentId, row.agentId), eq(heartbeatRuns.runtimeMode, "native"),
             eq(heartbeatRuns.status, "running"),
           ));
@@ -229,7 +229,7 @@ export async function reconcileNativeChatProgress(db: Db, options: NativeProgres
           .innerJoin(
             chatEndpoints,
             and(
-              eq(chatEndpoints.companyId, chatConversations.companyId),
+              eq(chatEndpoints.spaceId, chatConversations.spaceId),
               eq(chatEndpoints.id, chatConversations.endpointId),
               eq(chatEndpoints.publicationMode, "automatic"),
               allowsAutomaticRunPublication(),
@@ -238,7 +238,7 @@ export async function reconcileNativeChatProgress(db: Db, options: NativeProgres
           )
           .where(
             and(
-              eq(chatConversations.companyId, row.companyId),
+              eq(chatConversations.spaceId, row.spaceId),
               eq(chatConversations.id, row.conversationId),
               eq(chatConversations.endpointId, row.endpointId),
               eq(chatConversations.issueId, row.issueId),
@@ -259,7 +259,7 @@ export async function reconcileNativeChatProgress(db: Db, options: NativeProgres
           .from(heartbeatRunEvents)
           .where(
             and(
-              eq(heartbeatRunEvents.companyId, row.companyId),
+              eq(heartbeatRunEvents.spaceId, row.spaceId),
               eq(heartbeatRunEvents.runId, row.runId),
               inArray(heartbeatRunEvents.eventType, [
                 ...SAFE_NATIVE_CHAT_PROGRESS_EVENT_TYPES,
@@ -288,7 +288,7 @@ export async function reconcileNativeChatProgress(db: Db, options: NativeProgres
           .from(chatPublications)
           .where(
             and(
-              eq(chatPublications.companyId, row.companyId),
+              eq(chatPublications.spaceId, row.spaceId),
               eq(chatPublications.endpointId, row.endpointId),
               eq(chatPublications.conversationId, row.conversationId),
               eq(chatPublications.issueId, row.issueId),
@@ -313,7 +313,7 @@ export async function reconcileNativeChatProgress(db: Db, options: NativeProgres
           .from(chatPublications)
           .where(
             and(
-              eq(chatPublications.companyId, row.companyId),
+              eq(chatPublications.spaceId, row.spaceId),
               eq(chatPublications.endpointId, row.endpointId),
               eq(chatPublications.conversationId, row.conversationId),
               eq(chatPublications.issueId, row.issueId),
@@ -344,7 +344,7 @@ export async function reconcileNativeChatProgress(db: Db, options: NativeProgres
 
         const bindings = await resolveChatOriginPublicationBindings(
           tx,
-          row.companyId,
+          row.spaceId,
           row.issueId,
           row.runId,
         );
@@ -359,7 +359,7 @@ export async function reconcileNativeChatProgress(db: Db, options: NativeProgres
         }
         if (
           await hasChatRunOwnedProviderInteraction(tx, {
-            companyId: row.companyId,
+            spaceId: row.spaceId,
             issueId: row.issueId,
             runId: row.runId,
           })
@@ -372,13 +372,13 @@ export async function reconcileNativeChatProgress(db: Db, options: NativeProgres
           .innerJoin(
             issueComments,
             and(
-              eq(issueComments.companyId, chatPublications.companyId),
+              eq(issueComments.spaceId, chatPublications.spaceId),
               eq(issueComments.id, chatPublications.commentId),
             ),
           )
           .where(
             and(
-              eq(chatPublications.companyId, row.companyId),
+              eq(chatPublications.spaceId, row.spaceId),
               eq(chatPublications.endpointId, row.endpointId),
               eq(chatPublications.conversationId, row.conversationId),
               eq(chatPublications.issueId, row.issueId),
@@ -397,7 +397,7 @@ export async function reconcileNativeChatProgress(db: Db, options: NativeProgres
         const insertedRows = await tx
           .insert(chatPublications)
           .values({
-            companyId: row.companyId,
+            spaceId: row.spaceId,
             endpointId: row.endpointId,
             conversationId: row.conversationId,
             issueId: row.issueId,

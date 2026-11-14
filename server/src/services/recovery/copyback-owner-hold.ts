@@ -21,10 +21,10 @@ export function copybackOwnerHoldOwner(evidence: unknown): RecordOwner {
 
 export async function settleCopybackOwnerHold(db: Db, record: InProgressRecord,
   context: { now: Date; proof: OwnerProof }): Promise<SettleOutcome> {
-  if (record.owner.kind !== "process" || !record.companyId) return { settled: false, reason: "owner_not_provable" };
+  if (record.owner.kind !== "process" || !record.spaceId) return { settled: false, reason: "owner_not_provable" };
   const { wakeCopybackOwnerRecheck } = await import("../workspace-recovery.js");
   const stamp = record.owner.stamp;
-  const woke = await wakeCopybackOwnerRecheck(db, { companyId: record.companyId, actionId: record.recordId,
+  const woke = await wakeCopybackOwnerRecheck(db, { spaceId: record.spaceId, actionId: record.recordId,
     now: context.now, owner: { pid: stamp.pid, processStartedAt: stamp.processStartedAt, bootId: stamp.bootId,
       processSpace: stamp.processSpace } });
   return woke ? { settled: false, reason: "copyback_recheck_woken" }

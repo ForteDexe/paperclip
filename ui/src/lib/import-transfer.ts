@@ -5,9 +5,9 @@
 // declaration's wire shape is the shared transfer contract.
 
 import type {
-  CompanyImportTransferDeclaration,
-  CompanyImportTransferDeclaredPart,
-} from "@outpost/shared/company-import-transfer";
+  SpaceImportTransferDeclaration,
+  SpaceImportTransferDeclaredPart,
+} from "@outpost/shared/space-import-transfer";
 
 /** Local zips larger than this take the chunked transfer path. */
 export const CHUNKED_IMPORT_THRESHOLD_BYTES = 48 * 1024 * 1024;
@@ -26,9 +26,9 @@ async function sha256Hex(bytes: BufferSource): Promise<string> {
  * caller reads from the File: the whole-file digest hashes the buffer itself
  * and each part digest hashes a view into it, so no second copy is ever held.
  */
-export async function buildImportTransferManifest(buffer: ArrayBuffer): Promise<CompanyImportTransferDeclaration> {
+export async function buildImportTransferManifest(buffer: ArrayBuffer): Promise<SpaceImportTransferDeclaration> {
   const zipSha256 = await sha256Hex(buffer);
-  const parts: CompanyImportTransferDeclaredPart[] = [];
+  const parts: SpaceImportTransferDeclaredPart[] = [];
   for (let offset = 0; offset < buffer.byteLength; offset += IMPORT_TRANSFER_PART_SIZE_BYTES) {
     const byteSize = Math.min(IMPORT_TRANSFER_PART_SIZE_BYTES, buffer.byteLength - offset);
     parts.push({

@@ -37,7 +37,7 @@ try {
   };
   const invoke = async (label: keyof typeof implementations) => {
     const service = implementations[label];
-    return { profiles: await service.profiles.listProfiles(fixture.company.id), attention: await service.attention(fixture.company.id) };
+    return { profiles: await service.profiles.listProfiles(fixture.space.id), attention: await service.attention(fixture.space.id) };
   };
   const baseline = await invoke("before"), treatment = await invoke("after");
   assert.ok(isDeepStrictEqual(baseline, treatment), "Complete profile and attention results must match baseline");

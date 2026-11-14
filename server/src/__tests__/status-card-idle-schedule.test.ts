@@ -11,7 +11,7 @@ vi.mock("../services/instance-settings.js", () => ({ instanceSettingsService: vi
 
 const now = Date.UTC(2099, 0, 1);
 function card(patch: Partial<IdleStatusCardRow> = {}): IdleStatusCardRow {
-  return { id: "card", companyId: "company", companyStatus: "active", revision: "row:1",
+  return { id: "card", spaceId: "space", spaceStatus: "active", revision: "row:1",
     archivedAt: null, generatingIssueId: null, unfinishedUpdate: false,
     state: "active", refreshPolicy: { mode: "reactive", debounceSeconds: 60 },
     nextEvalAt: null, nextEvalReason: null, pendingChangeCount: 0, compiled: true, ...patch };
@@ -35,13 +35,13 @@ it.each([
   { generatingIssueId: "task" }, { unfinishedUpdate: true },
   { pendingChangeCount: 1 }, { state: "compiling" }, { compiled: false },
   { refreshPolicy: { mode: "interval", intervalMinutes: 15 } },
-  { refreshPolicy: { mode: "unknown" } }, { nextEvalReason: "unknown" }, { companyStatus: "unknown" },
+  { refreshPolicy: { mode: "unknown" } }, { nextEvalReason: "unknown" }, { spaceStatus: "unknown" },
 ])("blocks unfinished or unsupported card state %j", patch => {
   expect(projectIdleStatusCardSchedule([card(patch)], now, true).blocked).toBe(true);
 });
 
 it("does not erase a generation claim when disabled, inactive or archived", () => {
-  for (const patch of [{}, { companyStatus: "paused" }, { archivedAt: new Date(now) }]) {
+  for (const patch of [{}, { spaceStatus: "paused" }, { archivedAt: new Date(now) }]) {
     expect(projectIdleStatusCardSchedule([card({ ...patch, generatingIssueId: "task" })], now, false).blocked).toBe(true);
   }
   expect(projectIdleStatusCardSchedule([card({ nextEvalAt: new Date(now - 1) })], now, false).blocked).toBe(false);
@@ -63,12 +63,12 @@ it("refuses a dirty null-deadline card before querying and rejects an owner chan
   expect((await readIdleStatusCardSchedule({ select } as unknown as Pick<Db, "select">, now, true, owner)).blocked).toBe(false);
 });
 
-it("blocks a deferred company's null card deadline even after the helper considers its sweep successful", async () => {
+it("blocks a deferred space's null card deadline even after the helper considers its sweep successful", async () => {
   const { statusCardEvaluationService } = await import("../services/status-card-evaluation.js");
   const { statusCardService } = await import("../services/status-cards.js");
   const { instanceSettingsService } = await import("../services/instance-settings.js");
-  const tick = vi.fn().mockResolvedValueOnce({ evaluated: 0, enqueued: [], deferredCompanyIds: new Set(["company"]) })
-    .mockResolvedValue({ evaluated: 1, enqueued: [], deferredCompanyIds: new Set() });
+  const tick = vi.fn().mockResolvedValueOnce({ evaluated: 0, enqueued: [], deferredSpaceIds: new Set(["space"]) })
+    .mockResolvedValue({ evaluated: 1, enqueued: [], deferredSpaceIds: new Set() });
   const query = { from: () => query, innerJoin: () => query, orderBy: () => query, limit: async () => [card()] };
   const select = vi.fn(() => query);
   const service = statusCardEvaluationService({ select } as unknown as Db, { wakeup: vi.fn() });

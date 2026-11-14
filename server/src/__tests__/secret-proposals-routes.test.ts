@@ -1,6 +1,6 @@
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { registerSecretProposalExpiryWork } from "../services/secret-proposal-expiry-work.js";
-import { deleteCompany } from "../services/company-deletion.js";
+import { deleteSpace } from "../services/space-deletion.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 import { randomUUID } from "node:crypto";
@@ -14,12 +14,12 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import {
   activityLog,
   agents,
-  companies,
-  companySecretBindings,
-  companySecretProposals,
-  companySecretProviderConfigs,
-  companySecretVersions,
-  companySecrets,
+  spaces,
+  spaceSecretBindings,
+  spaceSecretProposals,
+  spaceSecretProviderConfigs,
+  spaceSecretVersions,
+  spaceSecrets,
   createDb,
   heartbeatRuns,
   issueComments,
@@ -51,7 +51,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
   let stopDb: (() => Promise<void>) | null = null;
   let db!: ReturnType<typeof createDb>;
   const previousKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
-  const secretsTmpDir = path.join(os.tmpdir(), `paperclip-secret-proposals-${randomUUID()}`);
+  const secretsTmpDir = path.join(os.tmpdir(), `outpost-secret-proposals-${randomUUID()}`);
 
   beforeAll(async () => {
     mkdirSync(secretsTmpDir, { recursive: true });
@@ -66,18 +66,18 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     vi.restoreAllMocks();
     await db.delete(activityLog);
     await db.delete(issueComments);
-    await db.delete(companySecretProposals);
+    await db.delete(spaceSecretProposals);
     await db.delete(issueThreadInteractions);
-    await db.delete(companySecretBindings);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
+    await db.delete(spaceSecretBindings);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
     await db.delete(userSecretDeclarations);
     await db.delete(userSecretDefinitions);
-    await db.delete(companySecretProviderConfigs);
+    await db.delete(spaceSecretProviderConfigs);
     await db.delete(issues);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -88,19 +88,19 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     rmSync(secretsTmpDir, { recursive: true, force: true });
   });
 
-  async function seedRun(identifier = "SEC-1", companyId = randomUUID()) {
+  async function seedRun(identifier = "SEC-1", spaceId = randomUUID()) {
     const agentId = randomUUID();
     const heartbeatRunId = randomUUID();
     const issueId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Secret proposals",
-      issuePrefix: `P${companyId.slice(0, 7)}`.toUpperCase(),
+      issuePrefix: `P${spaceId.slice(0, 7)}`.toUpperCase(),
       status: "active",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Proposer",
       role: "engineer",
       adapterType: "codex_local",
@@ -110,7 +110,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: heartbeatRunId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       responsibleUserId: "user-1",
@@ -118,14 +118,14 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Needs credential",
       identifier,
       status: "in_progress",
       responsibleUserId: "user-1",
       executionRunId: heartbeatRunId,
     });
-    return { companyId, agentId, heartbeatRunId, issueId };
+    return { spaceId, agentId, heartbeatRunId, issueId };
   }
 
   async function holdIssueRowLock(issueId: string) {
@@ -171,7 +171,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     await db.transaction(async (tx) => {
       await tx.execute(sql`
         SELECT id
-        FROM company_secret_proposals
+        FROM space_secret_proposals
         WHERE id = ${proposalId}
         FOR UPDATE NOWAIT
       `);
@@ -189,7 +189,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       req.actor = {
         type: "agent",
         agentId: fixture.agentId,
-        companyId: fixture.companyId,
+        spaceId: fixture.spaceId,
         runId: fixture.heartbeatRunId,
         source,
         keyScope,
@@ -213,12 +213,12 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     app.use(express.json());
     app.use((req, _res, next) => {
       req.actor = {
-        type: "board",
-        userId: "board-user",
-        companyIds: [fixture.companyId],
+        type: "operator",
+        userId: "operator-user",
+        spaceIds: [fixture.spaceId],
         source: options?.admin === false ? "session" : "local_implicit",
         memberships: options?.admin === false
-          ? [{ companyId: fixture.companyId, status: "active", membershipRole: "member" }]
+          ? [{ spaceId: fixture.spaceId, status: "active", membershipRole: "member" }]
           : undefined,
       };
       next();
@@ -278,8 +278,8 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     async function createWithExpiry(expiresAt: Date) {
       return db.transaction(async tx => {
         const proposal = await create(createSecretProposalsService(tx as unknown as typeof db));
-        const [updated] = await tx.update(companySecretProposals).set({ expiresAt })
-          .where(eq(companySecretProposals.id, proposal.id)).returning();
+        const [updated] = await tx.update(spaceSecretProposals).set({ expiresAt })
+          .where(eq(spaceSecretProposals.id, proposal.id)).returning();
         return updated;
       });
     }
@@ -291,9 +291,9 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       const proposal = await createWithExpiry(expiresAt); await settle(1);
       expect(coordinator!.nextWakeAt()).toBe(expiresAt.getTime());
       await settle(delay / 2);
-      expect(await proposals.getById(fixture.companyId, proposal.id)).toMatchObject({ status: "pending" });
+      expect(await proposals.getById(fixture.spaceId, proposal.id)).toMatchObject({ status: "pending" });
       await settle(delay);
-      expect(await proposals.getById(fixture.companyId, proposal.id)).toMatchObject({ status: "expired", valueCiphertext: null });
+      expect(await proposals.getById(fixture.spaceId, proposal.id)).toMatchObject({ status: "expired", valueCiphertext: null });
       await quiet();
     });
 
@@ -304,22 +304,22 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       const earlier = await createWithExpiry(new Date(Date.now() + 5000)); await settle(1);
       expect(coordinator!.nextWakeAt()).toBe(earlier.expiresAt.getTime());
       await settle(6000);
-      expect(await proposals.getById(fixture.companyId, earlier.id)).toMatchObject({ status: "expired", valueCiphertext: null });
-      expect(await proposals.getById(fixture.companyId, later.id)).toMatchObject({ status: "pending" });
+      expect(await proposals.getById(fixture.spaceId, earlier.id)).toMatchObject({ status: "expired", valueCiphertext: null });
+      expect(await proposals.getById(fixture.spaceId, later.id)).toMatchObject({ status: "pending" });
       expect(coordinator!.nextWakeAt()).toBe(later.expiresAt.getTime());
       await settle(120_000); await quiet();
     });
 
-    it("keeps sequential tenant writes from scanning another company's proposals", async () => {
+    it("keeps sequential tenant writes from scanning another space's proposals", async () => {
       const other = await seedRun("OTHER-1");
       const foreign = await proposals.createSecret({ ...other, registerForRedaction: () => {} }, {
-        name: "dev/other/secret", value: "other-expiry-only", justification: "Another company's deadline",
+        name: "dev/other/secret", value: "other-expiry-only", justification: "Another space's deadline",
       });
       await start(); await settle(1);
       const reads: Array<{ query: string; params: unknown[] }> = [];
       const debug = db.$client.options.debug;
       db.$client.options.debug = (_id, query, params) => {
-        if (/^select/i.test(query) && query.includes('"company_secret_proposals"') &&
+        if (/^select/i.test(query) && query.includes('"space_secret_proposals"') &&
           (query.includes('min(') || query.includes('"expires_at" <='))) reads.push({ query, params: [...params] });
       };
       try {
@@ -327,79 +327,79 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       } finally { db.$client.options.debug = debug; }
       expect(reads.length).toBeGreaterThan(0);
       for (const read of reads) {
-        expect(read.query).toContain('"company_secret_proposals"."company_id" =');
-        expect(read.params).toContain(fixture.companyId);
-        expect(read.params).not.toContain(other.companyId);
+        expect(read.query).toContain('"space_secret_proposals"."space_id" =');
+        expect(read.params).toContain(fixture.spaceId);
+        expect(read.params).not.toContain(other.spaceId);
       }
-      expect(await proposals.getById(other.companyId, foreign.id)).toMatchObject({ status: "pending", valueCiphertext: foreign.valueCiphertext });
+      expect(await proposals.getById(other.spaceId, foreign.id)).toMatchObject({ status: "pending", valueCiphertext: foreign.valueCiphertext });
     });
 
-    it("expires only the company whose saved deadline is due", async () => {
+    it("expires only the space whose saved deadline is due", async () => {
       const other = await seedRun("OTHER-1");
       const foreign = await proposals.createSecret({ ...other, registerForRedaction: () => {} }, {
-        name: "dev/other/secret", value: "other-expiry-only", justification: "Another company's deadline",
+        name: "dev/other/secret", value: "other-expiry-only", justification: "Another space's deadline",
       });
       const due = await createWithExpiry(new Date(Date.now() + 5000));
       await start(); await settle(1);
       const reads: Array<{ query: string; params: unknown[] }> = [];
       const debug = db.$client.options.debug;
       db.$client.options.debug = (_id, query, params) => {
-        if (/^select/i.test(query) && query.includes('"company_secret_proposals"') &&
+        if (/^select/i.test(query) && query.includes('"space_secret_proposals"') &&
           (query.includes('min(') || query.includes('"expires_at" <='))) reads.push({ query, params: [...params] });
       };
       try { await settle(6000); } finally { db.$client.options.debug = debug; }
       expect(reads.some(read => read.query.includes('"expires_at" <='))).toBe(true);
       for (const read of reads) {
-        expect(read.query).toContain('"company_secret_proposals"."company_id" =');
-        expect(read.params).toContain(fixture.companyId);
-        expect(read.params).not.toContain(other.companyId);
+        expect(read.query).toContain('"space_secret_proposals"."space_id" =');
+        expect(read.params).toContain(fixture.spaceId);
+        expect(read.params).not.toContain(other.spaceId);
       }
-      expect(await proposals.getById(fixture.companyId, due.id)).toMatchObject({ status: "expired", valueCiphertext: null });
-      expect(await proposals.getById(other.companyId, foreign.id)).toMatchObject({ status: "pending", valueCiphertext: foreign.valueCiphertext });
+      expect(await proposals.getById(fixture.spaceId, due.id)).toMatchObject({ status: "expired", valueCiphertext: null });
+      expect(await proposals.getById(other.spaceId, foreign.id)).toMatchObject({ status: "pending", valueCiphertext: foreign.valueCiphertext });
       expect(coordinator!.nextWakeAt()).toBe(foreign.expiresAt.getTime());
     });
 
-    it.each([0, 3000])("keeps a failed company on backoff while another company expires on time (offset %s)", async offset => {
-      // Make the failing company first in the fair dispatch order.
+    it.each([0, 3000])("keeps a failed space on backoff while another space expires on time (offset %s)", async offset => {
+      // Make the failing space first in the fair dispatch order.
       const other = await seedRun("OTHER-1", "ffffffff-ffff-ffff-ffff-ffffffffffff");
       const failing = await createWithExpiry(new Date(Date.now() + 5000));
       const healthy = await db.transaction(async tx => {
         const proposal = await createSecretProposalsService(tx as unknown as typeof db).createSecret(
           { ...other, registerForRedaction: () => {} },
           { name: "dev/other/secret", value: "other-expiry-only", justification: "Independent expiry" });
-        const [saved] = await tx.update(companySecretProposals).set({ expiresAt: new Date(failing.expiresAt.getTime() + offset) })
-          .where(eq(companySecretProposals.id, proposal.id)).returning();
+        const [saved] = await tx.update(spaceSecretProposals).set({ expiresAt: new Date(failing.expiresAt.getTime() + offset) })
+          .where(eq(spaceSecretProposals.id, proposal.id)).returning();
         return saved;
       });
-      const sweep = proposals.sweepExpiredForCompany;
+      const sweep = proposals.sweepExpiredForSpace;
       let unavailable = true;
-      const attempts = vi.spyOn(proposals, "sweepExpiredForCompany").mockImplementation(async companyId => {
-        if (unavailable && companyId === fixture.companyId) throw new Error("company expiry unavailable");
-        return sweep(companyId);
+      const attempts = vi.spyOn(proposals, "sweepExpiredForSpace").mockImplementation(async spaceId => {
+        if (unavailable && spaceId === fixture.spaceId) throw new Error("space expiry unavailable");
+        return sweep(spaceId);
       });
       await start(); await settle(10_000);
       expect(errors).toHaveLength(1); errors.length = 0;
-      expect(await proposals.getById(other.companyId, healthy.id)).toMatchObject({ status: "expired", valueCiphertext: null });
-      expect(await proposals.getById(fixture.companyId, failing.id)).toMatchObject({ status: "pending" });
-      // A new write must refresh this company without erasing its failed sweep's backoff.
+      expect(await proposals.getById(other.spaceId, healthy.id)).toMatchObject({ status: "expired", valueCiphertext: null });
+      expect(await proposals.getById(fixture.spaceId, failing.id)).toMatchObject({ status: "pending" });
+      // A new write must refresh this space without erasing its failed sweep's backoff.
       await create(); await settle(1000);
-      expect(attempts.mock.calls.filter(([id]) => id === fixture.companyId)).toHaveLength(1);
+      expect(attempts.mock.calls.filter(([id]) => id === fixture.spaceId)).toHaveLength(1);
       unavailable = false; await settle(30_000);
-      expect(await proposals.getById(fixture.companyId, failing.id)).toMatchObject({ status: "expired", valueCiphertext: null });
+      expect(await proposals.getById(fixture.spaceId, failing.id)).toMatchObject({ status: "expired", valueCiphertext: null });
       await settle(expiryMs); await quiet();
     });
 
-    it("removes the cached expiry when the company deletion owner commits", async () => {
+    it("removes the cached expiry when the space deletion owner commits", async () => {
       await create(); await start(); await settle(1);
       expect(coordinator!.nextWakeAt()).not.toBeNull();
       await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() })
         .where(eq(heartbeatRuns.id, fixture.heartbeatRunId));
       await db.update(issues).set({ executionRunId: null }).where(eq(issues.id, fixture.issueId));
       // The deletion fixture has no live resources; its agent has already
-      // finished termination before entering the company deletion transaction.
+      // finished termination before entering the space deletion transaction.
       await db.update(agents).set({ status: "terminated", lifecycleState: "terminated" })
         .where(eq(agents.id, fixture.agentId));
-      expect(await deleteCompany(db, fixture.companyId)).toMatchObject({ id: fixture.companyId });
+      expect(await deleteSpace(db, fixture.spaceId)).toMatchObject({ id: fixture.spaceId });
       await quiet();
       expect(await proposals.expiryDeadlines()).toEqual([]);
     });
@@ -415,10 +415,10 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       await settle(24 * 60 * 60_000);
       expect(reads).not.toHaveBeenCalled(); reads.mockRestore();
       await settle(expiryMs);
-      expect(await proposals.getById(fixture.companyId, secret.id)).toMatchObject({
+      expect(await proposals.getById(fixture.spaceId, secret.id)).toMatchObject({
         status: "expired", valueCiphertext: null, ciphertextScrubbedAt: expect.any(Date),
       });
-      expect(await proposals.getById(fixture.companyId, binding.id)).toMatchObject({ status: "rejected" });
+      expect(await proposals.getById(fixture.spaceId, binding.id)).toMatchObject({ status: "rejected" });
       expect(await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, binding.interactionId!)))
         .toEqual([expect.objectContaining({ status: "rejected" })]);
       await quiet();
@@ -462,7 +462,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       try { secret = await create(); } finally { release(); }
       await starting; await settle();
       expect(coordinator!.nextWakeAt()).toBe(secret.expiresAt.getTime());
-      await proposals.transition(fixture.companyId, secret.id, "withdrawn", { proposerAgentId: fixture.agentId });
+      await proposals.transition(fixture.spaceId, secret.id, "withdrawn", { proposerAgentId: fixture.agentId });
       await quiet();
     });
 
@@ -470,9 +470,9 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       const secret = await create();
       await start(); await settle();
       expect(coordinator!.nextWakeAt()).toBe(secret.expiresAt.getTime());
-      await proposals.transition(fixture.companyId, secret.id, "withdrawn", { proposerAgentId: fixture.agentId });
+      await proposals.transition(fixture.spaceId, secret.id, "withdrawn", { proposerAgentId: fixture.agentId });
       await quiet();
-      expect(await proposals.getById(fixture.companyId, secret.id)).toMatchObject({ valueCiphertext: null });
+      expect(await proposals.getById(fixture.spaceId, secret.id)).toMatchObject({ valueCiphertext: null });
     });
 
     it.each(["startup", "first_write", "failed_pass"])("retains %s work through drain and still rejects expired approval on use", async mode => {
@@ -491,18 +491,18 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       const reads = vi.spyOn(db, "select");
       await settle(2 * 60 * 60_000);
       expect(reads).not.toHaveBeenCalled(); reads.mockRestore();
-      expect(await proposals.getById(fixture.companyId, secret.id)).toMatchObject({ status: "pending" });
-      await expect(proposals.approve(fixture.companyId, secret.id, { resolvedByUserId: "board-user" }))
+      expect(await proposals.getById(fixture.spaceId, secret.id)).toMatchObject({ status: "pending" });
+      await expect(proposals.approve(fixture.spaceId, secret.id, { resolvedByUserId: "operator-user" }))
         .rejects.toThrow("Expired proposals cannot be approved");
       draining = false; await settle();
-      expect(await proposals.getById(fixture.companyId, secret.id)).toMatchObject({ status: "expired", valueCiphertext: null });
+      expect(await proposals.getById(fixture.spaceId, secret.id)).toMatchObject({ status: "expired", valueCiphertext: null });
       await quiet();
     });
 
     it.each(["rejected", "execution_failed"])("reschedules when the interaction owner resolves a binding: %s", async mode => {
       const secret = await create();
       await start();
-      const approved = await proposals.approve(fixture.companyId, secret.id, { resolvedByUserId: "board-user" });
+      const approved = await proposals.approve(fixture.spaceId, secret.id, { resolvedByUserId: "operator-user" });
       await quiet();
       const remaining = await proposals.createBinding(fixture, { secretId: approved.createdSecretId,
         configPath: "access.SECOND", justification: "Independent binding", bindingTargetPolicy: "self_and_reports" });
@@ -510,31 +510,31 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       expect(coordinator!.nextWakeAt()).toBe(remaining.expiresAt.getTime());
       const interactions = issueThreadInteractionService(db);
       if (mode === "rejected") {
-        await interactions.rejectInteraction({ id: fixture.issueId, companyId: fixture.companyId, status: "in_progress" },
-          remaining.interactionId!, { reason: "No longer required" }, { userId: "board-user" });
+        await interactions.rejectInteraction({ id: fixture.issueId, spaceId: fixture.spaceId, status: "in_progress" },
+          remaining.interactionId!, { reason: "No longer required" }, { userId: "operator-user" });
       } else {
         await db.update(issueThreadInteractions).set({ status: "accepted", result: { version: 1, outcome: "accepted" },
-          resolvedByUserId: "board-user", resolvedAt: new Date() }).where(eq(issueThreadInteractions.id, remaining.interactionId!));
-        await interactions.recordSecretProposalExecutionResult({ id: fixture.issueId, companyId: fixture.companyId },
+          resolvedByUserId: "operator-user", resolvedAt: new Date() }).where(eq(issueThreadInteractions.id, remaining.interactionId!));
+        await interactions.recordSecretProposalExecutionResult({ id: fixture.issueId, spaceId: fixture.spaceId },
           remaining.interactionId!, remaining.id, { status: "failed", errorCode: "permission_denied" });
       }
-      expect(await proposals.getById(fixture.companyId, remaining.id)).toMatchObject({ status: "rejected" });
+      expect(await proposals.getById(fixture.spaceId, remaining.id)).toMatchObject({ status: "rejected" });
       await quiet();
     });
   });
 
-  it("requires company admin access to reject secret proposals", async () => {
+  it("requires space admin access to reject secret proposals", async () => {
     const fixture = await seedRun();
     const proposed = await request(createAgentApp(fixture))
       .post("/api/agents/me/secret-proposals")
       .send({ kind: "secret", name: "dev/reject/token", value: "reject-secret", justification: "Needed" });
 
     const rejected = await request(createBoardApp(fixture, { admin: false }))
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${proposed.body.id}/reject`)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposed.body.id}/reject`)
       .send({ reason: "Not approved" });
 
     expect(rejected.status).toBe(403);
-    expect(await db.select().from(companySecretProposals).where(eq(companySecretProposals.id, proposed.body.id)))
+    expect(await db.select().from(spaceSecretProposals).where(eq(spaceSecretProposals.id, proposed.body.id)))
       .toEqual([expect.objectContaining({ status: "pending", valueCiphertext: expect.any(Object) })]);
   });
 
@@ -546,7 +546,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     const wakeup = vi.fn().mockRejectedValue(new Error("wakeup queue unavailable"));
     const persistedIssues = issueService(db);
     const addComment = vi.fn().mockRejectedValue(new Error("comment store unavailable"));
-    const boardApp = createBoardApp(fixture, {
+    const operatorApp = createBoardApp(fixture, {
       heartbeat: { wakeup },
       issues: { getById: persistedIssues.getById, addComment },
     });
@@ -559,8 +559,8 @@ describeEmbeddedPostgres("secret proposal routes", () => {
         value: "approval-value",
         justification: "Needed by task",
       });
-    const approved = await request(boardApp)
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${approvedProposal.body.id}/approve`)
+    const approved = await request(operatorApp)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${approvedProposal.body.id}/approve`)
       .send({});
 
     expect(approved.status).toBe(200);
@@ -574,15 +574,15 @@ describeEmbeddedPostgres("secret proposal routes", () => {
         value: "rejection-value",
         justification: "Needed by task",
       });
-    const rejected = await request(boardApp)
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${rejectedProposal.body.id}/reject`)
+    const rejected = await request(operatorApp)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${rejectedProposal.body.id}/reject`)
       .send({ reason: "No longer needed" });
 
     expect(rejected.status).toBe(200);
     expect(rejected.body.status).toBe("rejected");
     expect(addComment).toHaveBeenCalledTimes(2);
     expect(wakeup).toHaveBeenCalledTimes(2);
-    expect(await db.select().from(companySecretProposals)).toEqual(expect.arrayContaining([
+    expect(await db.select().from(spaceSecretProposals)).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: approvedProposal.body.id, status: "approved", valueCiphertext: null }),
       expect.objectContaining({ id: rejectedProposal.body.id, status: "rejected", valueCiphertext: null }),
     ]));
@@ -591,13 +591,13 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
   it("uses the selected provider vault when approving a secret proposal", async () => {
     const fixture = await seedRun();
-    const vault = await secretService(db).createProviderConfig(fixture.companyId, {
+    const vault = await secretService(db).createProviderConfig(fixture.spaceId, {
       provider: "aws_secrets_manager",
       displayName: "AWS production",
       config: { region: "us-east-1", namespace: "prod-use1" },
     });
     const externalRef =
-      "arn:aws:secretsmanager:us-east-1:123456789012:secret:paperclip/prod-use1/proposed-token";
+      "arn:aws:secretsmanager:us-east-1:123456789012:secret:outpost/prod-use1/proposed-token";
     const createSecret = vi.spyOn(awsSecretsManagerProvider, "createSecret").mockResolvedValue({
       material: {
         scheme: "aws_secrets_manager_v1",
@@ -617,10 +617,10 @@ describeEmbeddedPostgres("secret proposal routes", () => {
         kind: "secret",
         name: "dev/provider/token",
         value: "provider-secret",
-        justification: "Store this credential in the company vault",
+        justification: "Store this credential in the space vault",
       });
     const approved = await request(createBoardApp(fixture))
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${proposal.body.id}/approve`)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposal.body.id}/approve`)
       .send({ overrides: { providerConfigId: vault.id } });
 
     expect(approved.status).toBe(200);
@@ -628,7 +628,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       value: "provider-secret",
       providerConfig: expect.objectContaining({ id: vault.id, provider: "aws_secrets_manager" }),
     }));
-    expect(await db.select().from(companySecrets)).toEqual([
+    expect(await db.select().from(spaceSecrets)).toEqual([
       expect.objectContaining({
         provider: "aws_secrets_manager",
         providerConfigId: vault.id,
@@ -670,7 +670,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     const [registeredRun] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, fixture.heartbeatRunId));
     expect(JSON.stringify(registeredRun.contextSnapshot)).not.toContain("top-secret");
     expect(registeredRun.contextSnapshot).toMatchObject({
-      paperclipSecretRedactions: [expect.objectContaining({ fingerprintSha256: expect.any(String), material: expect.any(Object) })],
+      outpostSecretRedactions: [expect.objectContaining({ fingerprintSha256: expect.any(String), material: expect.any(Object) })],
     });
 
     const bindingResponse = await request(createAgentApp(fixture))
@@ -693,7 +693,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       requestedResolverPolicy: "human_only",
       effectiveResolverPolicy: "human_only",
       resolverPolicyProvenance: "explicit",
-      effectiveResolverPolicySource: "governed_action",
+      effectiveResolverPolicySource: "controlled_action",
       payload: expect.objectContaining({
         secretProposal: expect.objectContaining({
           proposalId: bindingResponse.body.id,
@@ -710,19 +710,19 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(confirmation.payload).not.toHaveProperty("secretId");
 
     const agentApprovalDenied = await request(createAgentApp(fixture))
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${secretResponse.body.id}/approve`)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${secretResponse.body.id}/approve`)
       .send({});
     expect(agentApprovalDenied.status).toBe(403);
-    expect(await db.select().from(companySecrets)).toHaveLength(0);
+    expect(await db.select().from(spaceSecrets)).toHaveLength(0);
 
     const prerequisite = await request(createBoardApp(fixture))
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${bindingResponse.body.id}/approve`)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${bindingResponse.body.id}/approve`)
       .send({});
     expect(prerequisite.status).toBe(409);
-    expect(await db.select().from(companySecrets)).toHaveLength(0);
+    expect(await db.select().from(spaceSecrets)).toHaveLength(0);
 
     const approved = await request(createBoardApp(fixture))
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${bindingResponse.body.id}/approve`)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${bindingResponse.body.id}/approve`)
       .send({ cascade: true });
     expect(approved.status).toBe(200);
     expect(approved.body).toMatchObject({
@@ -731,19 +731,19 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       viewerCanApprove: false,
     });
 
-    const proposalRows = await db.select().from(companySecretProposals);
+    const proposalRows = await db.select().from(spaceSecretProposals);
     expect(proposalRows).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: secretResponse.body.id, status: "approved", valueCiphertext: null }),
       expect.objectContaining({ id: bindingResponse.body.id, status: "approved" }),
     ]));
-    const [secret] = await db.select().from(companySecrets);
+    const [secret] = await db.select().from(spaceSecrets);
     expect(secret).toMatchObject({
       name: "dev/vendor/token",
       key: "vendor_token",
       createdByAgentId: fixture.agentId,
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
-    expect(await db.select().from(companySecretBindings)).toEqual([
+    expect(await db.select().from(spaceSecretBindings)).toEqual([
       expect.objectContaining({ secretId: secret.id, targetId: fixture.agentId, configPath: "env.VENDOR_TOKEN" }),
     ]);
     const [agent] = await db.select().from(agents);
@@ -771,7 +771,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(await db.select().from(issueComments)).toEqual([
       expect.objectContaining({
         issueId: fixture.issueId,
-        authorUserId: "board-user",
+        authorUserId: "operator-user",
         body: expect.stringContaining("GET /api/agents/me/secrets"),
       }),
     ]);
@@ -780,7 +780,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
   it("keeps an approved secret after binding fails and reuses it on retry", async () => {
     const fixture = await seedRun();
     const agentApp = createAgentApp(fixture);
-    const boardApp = createBoardApp(fixture);
+    const operatorApp = createBoardApp(fixture);
     const secret = await request(agentApp).post("/api/agents/me/secret-proposals").send({
       kind: "secret", name: "dev/retry/token", value: "retry-fixture", justification: "Needed by task",
     });
@@ -791,25 +791,25 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(binding.status).toBe(201);
     await db.update(agents).set({ adapterConfig: { env: { RETRY_TOKEN: "existing-value" } } })
       .where(eq(agents.id, fixture.agentId));
-    const approve = () => request(boardApp)
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${binding.body.id}/approve`).send({ cascade: true });
+    const approve = () => request(operatorApp)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${binding.body.id}/approve`).send({ cascade: true });
 
     expect((await approve()).status).toBe(409);
-    const [saved] = await db.select().from(companySecrets);
+    const [saved] = await db.select().from(spaceSecrets);
     expect(saved).toMatchObject({ name: "dev/retry/token", status: "active" });
-    expect(await db.select().from(companySecretProposals)).toEqual(expect.arrayContaining([
+    expect(await db.select().from(spaceSecretProposals)).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: secret.body.id, status: "approved", createdSecretId: saved.id, valueCiphertext: null }),
       expect.objectContaining({ id: binding.body.id, status: "pending" }),
     ]));
-    expect(await db.select().from(companySecretBindings)).toHaveLength(0);
+    expect(await db.select().from(spaceSecretBindings)).toHaveLength(0);
     expect((await db.select().from(agents))[0].adapterConfig).toEqual({ env: { RETRY_TOKEN: "existing-value" } });
     expect((await db.select().from(issueThreadInteractions))[0].status).toBe("pending");
 
     await db.update(agents).set({ adapterConfig: {} }).where(eq(agents.id, fixture.agentId));
     expect((await approve()).status).toBe(200);
-    expect(await db.select().from(companySecrets)).toHaveLength(1);
-    expect(await db.select().from(companySecretVersions)).toHaveLength(1);
-    expect(await db.select().from(companySecretBindings)).toEqual([
+    expect(await db.select().from(spaceSecrets)).toHaveLength(1);
+    expect(await db.select().from(spaceSecretVersions)).toHaveLength(1);
+    expect(await db.select().from(spaceSecretBindings)).toEqual([
       expect.objectContaining({ secretId: saved.id, targetId: fixture.agentId, configPath: "env.RETRY_TOKEN" }),
     ]);
     const history = await db.select().from(activityLog);
@@ -823,7 +823,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
   ])("fills a target key left as %s instead of refusing the approved binding", async (_label, blank) => {
     const fixture = await seedRun();
     const agentApp = createAgentApp(fixture);
-    const boardApp = createBoardApp(fixture);
+    const operatorApp = createBoardApp(fixture);
     const secret = await request(agentApp).post("/api/agents/me/secret-proposals").send({
       kind: "secret", name: "dev/blank/token", value: "blank-fixture", justification: "Needed by task",
     });
@@ -833,15 +833,15 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     await db.update(agents).set({ adapterConfig: { env: { BLANK_TOKEN: blank, KEEP: "kept" } } })
       .where(eq(agents.id, fixture.agentId));
 
-    const approved = await request(boardApp)
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${binding.body.id}/approve`).send({ cascade: true });
+    const approved = await request(operatorApp)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${binding.body.id}/approve`).send({ cascade: true });
 
     expect(approved.status).toBe(200);
-    const [saved] = await db.select().from(companySecrets);
+    const [saved] = await db.select().from(spaceSecrets);
     const env = ((await db.select().from(agents))[0].adapterConfig as { env: Record<string, unknown> }).env;
     expect(env.BLANK_TOKEN).toMatchObject({ type: "secret_ref", secretId: saved.id, version: "latest" });
     expect(JSON.stringify(env.KEEP)).toContain("kept");
-    expect(await db.select().from(companySecretBindings)).toEqual([
+    expect(await db.select().from(spaceSecretBindings)).toEqual([
       expect.objectContaining({ secretId: saved.id, targetId: fixture.agentId, configPath: "env.BLANK_TOKEN" }),
     ]);
   });
@@ -849,7 +849,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
   it("approves a binding without cascade after its secret proposal was approved separately", async () => {
     const fixture = await seedRun();
     const agentApp = createAgentApp(fixture);
-    const boardApp = createBoardApp(fixture);
+    const operatorApp = createBoardApp(fixture);
     const secretProposal = await request(agentApp)
       .post("/api/agents/me/secret-proposals")
       .send({
@@ -870,22 +870,22 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       });
     expect(bindingProposal.status).toBe(201);
 
-    const approvedSecret = await request(boardApp)
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${secretProposal.body.id}/approve`)
+    const approvedSecret = await request(operatorApp)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${secretProposal.body.id}/approve`)
       .send({});
     expect(approvedSecret.status).toBe(200);
     expect(approvedSecret.body).toMatchObject({ status: "approved", createdSecretId: expect.any(String) });
 
-    const approvedBinding = await request(boardApp)
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${bindingProposal.body.id}/approve`)
+    const approvedBinding = await request(operatorApp)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${bindingProposal.body.id}/approve`)
       .send({});
     expect(approvedBinding.status).toBe(200);
     expect(approvedBinding.body).toMatchObject({
       status: "approved",
       appliedBindingConfigPath: "env.SEQUENTIAL_TOKEN",
     });
-    expect(await db.select().from(companySecrets)).toHaveLength(1);
-    expect(await db.select().from(companySecretBindings)).toEqual([
+    expect(await db.select().from(spaceSecrets)).toHaveLength(1);
+    expect(await db.select().from(spaceSecretBindings)).toEqual([
       expect.objectContaining({
         secretId: approvedSecret.body.createdSecretId,
         targetId: fixture.agentId,
@@ -896,23 +896,23 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
   it.each(["rejected", "approved", "pending"] as const)("deletes a secret whose %s binding proposal referenced it", async (outcome) => {
     const fixture = await seedRun();
-    const secret = await secretService(db).create(fixture.companyId, {
+    const secret = await secretService(db).create(fixture.spaceId, {
       name: "dev/deploy/publishing",
       key: "DEPLOY_PUBLISHING",
       provider: "local_encrypted",
       value: "publishing-secret",
     });
     const proposals = createSecretProposalsService(db);
-    const proposal = await proposals.createBinding({ companyId: fixture.companyId, heartbeatRunId: fixture.heartbeatRunId }, {
+    const proposal = await proposals.createBinding({ spaceId: fixture.spaceId, heartbeatRunId: fixture.heartbeatRunId }, {
       secretId: secret.id,
       configPath: "env.PUBLISHING_API_KEY",
       justification: "Publish the site",
       bindingTargetPolicy: "self_and_reports",
     });
-    if (outcome === "rejected") await proposals.transition(fixture.companyId, proposal.id, "rejected", { resolvedByUserId: "board-user" });
+    if (outcome === "rejected") await proposals.transition(fixture.spaceId, proposal.id, "rejected", { resolvedByUserId: "operator-user" });
     if (outcome === "approved") {
-      await proposals.approve(fixture.companyId, proposal.id, { resolvedByUserId: "board-user" });
-      await db.delete(companySecretBindings).where(eq(companySecretBindings.secretId, secret.id));
+      await proposals.approve(fixture.spaceId, proposal.id, { resolvedByUserId: "operator-user" });
+      await db.delete(spaceSecretBindings).where(eq(spaceSecretBindings.secretId, secret.id));
     }
 
     // The proposal's secret reference used ON DELETE SET NULL, which the binding
@@ -933,8 +933,8 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       expect(addComment.mock.calls[0]?.[1]).toContain("The referenced secret was deleted.");
     }
     expect(wakeup).toHaveBeenCalledTimes(outcome === "pending" ? 1 : 0);
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, secret.id))).toEqual([]);
-    expect(await db.select().from(companySecretProposals).where(eq(companySecretProposals.id, proposal.id))).toEqual([]);
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, secret.id))).toEqual([]);
+    expect(await db.select().from(spaceSecretProposals).where(eq(spaceSecretProposals.id, proposal.id))).toEqual([]);
     // A pending review card closes as rejected instead of pointing at a deleted proposal.
     const [card] = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, proposal.interactionId!));
     expect(card?.status).toBe(outcome === "approved" ? "accepted" : "rejected");
@@ -942,7 +942,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
   it("refuses a new binding proposal for a secret that a delete already marked deleted", async () => {
     const fixture = await seedRun();
-    const secret = await secretService(db).create(fixture.companyId, {
+    const secret = await secretService(db).create(fixture.spaceId, {
       name: "dev/deploy/deleting",
       key: "DEPLOY_DELETING",
       provider: "local_encrypted",
@@ -952,25 +952,25 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     await secretService(db).remove(secret.id, {
       beforeDelete: async () => {
         proposalDuringDelete = await createSecretProposalsService(db).createBinding(
-          { companyId: fixture.companyId, heartbeatRunId: fixture.heartbeatRunId },
+          { spaceId: fixture.spaceId, heartbeatRunId: fixture.heartbeatRunId },
           { secretId: secret.id, configPath: "env.LATE_KEY", justification: "Late request", bindingTargetPolicy: "self_and_reports" },
         ).catch((error: unknown) => error);
       },
     });
     expect(proposalDuringDelete).toMatchObject({ status: 404 });
-    expect(await db.select().from(companySecretProposals)).toEqual([]);
+    expect(await db.select().from(spaceSecretProposals)).toEqual([]);
   });
 
   it("proposes and approves a binding by resolving the proposer's own sourceConfigPath", async () => {
     const fixture = await seedRun();
-    const sourceSecret = await secretService(db).create(fixture.companyId, {
+    const sourceSecret = await secretService(db).create(fixture.spaceId, {
       name: "dev/source-path/token",
       key: "SOURCE_PATH_TOKEN",
       provider: "local_encrypted",
       value: "source-path-secret",
     });
     await secretService(db).createBinding({
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       secretId: sourceSecret.id,
       targetType: "agent",
       targetId: fixture.agentId,
@@ -993,15 +993,15 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       configPath: "access.new_alias",
       target: { id: fixture.agentId },
     });
-    expect(await db.select().from(companySecretProposals).where(eq(companySecretProposals.id, proposal.body.id)))
+    expect(await db.select().from(spaceSecretProposals).where(eq(spaceSecretProposals.id, proposal.body.id)))
       .toEqual([expect.objectContaining({ secretId: sourceSecret.id, targetId: fixture.agentId })]);
 
     const approved = await request(createBoardApp(fixture))
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${proposal.body.id}/approve`)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposal.body.id}/approve`)
       .send({});
 
     expect(approved.status).toBe(200);
-    expect(await db.select().from(companySecretBindings)).toEqual(expect.arrayContaining([
+    expect(await db.select().from(spaceSecretBindings)).toEqual(expect.arrayContaining([
       expect.objectContaining({
         secretId: sourceSecret.id,
         targetId: fixture.agentId,
@@ -1012,14 +1012,14 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
   it("rejects binding proposals that provide both secretId and sourceConfigPath", async () => {
     const fixture = await seedRun();
-    const sourceSecret = await secretService(db).create(fixture.companyId, {
+    const sourceSecret = await secretService(db).create(fixture.spaceId, {
       name: "dev/mutual-exclusion/token",
       key: "MUTUAL_EXCLUSION_TOKEN",
       provider: "local_encrypted",
       value: "mutual-exclusion-secret",
     });
     await secretService(db).createBinding({
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       secretId: sourceSecret.id,
       targetType: "agent",
       targetId: fixture.agentId,
@@ -1038,18 +1038,18 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error).toMatch(/exactly one of secretId, sourceConfigPath, or secretProposalId/);
-    expect(await db.select().from(companySecretProposals)).toHaveLength(0);
+    expect(await db.select().from(spaceSecretProposals)).toHaveLength(0);
   });
 
   it("accepts a user-scoped source secret only through the proposer's existing binding", async () => {
     const fixture = await seedRun();
     const secrets = secretService(db);
-    const definition = await secrets.createUserSecretDefinition(fixture.companyId, {
+    const definition = await secrets.createUserSecretDefinition(fixture.spaceId, {
       key: "personal_source_token",
       name: "Personal source token",
       provider: "local_encrypted",
     });
-    const userSecret = await secrets.createCurrentUserSecretValue(fixture.companyId, "user-1", {
+    const userSecret = await secrets.createCurrentUserSecretValue(fixture.spaceId, "user-1", {
       definitionId: definition.id,
       value: "personal-source-secret",
     });
@@ -1078,7 +1078,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(proposal.body).toMatchObject({ secretId: userSecret.id, target: { id: fixture.agentId } });
 
     const approved = await request(createBoardApp(fixture))
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${proposal.body.id}/approve`)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposal.body.id}/approve`)
       .send({});
 
     expect(approved.status).toBe(200);
@@ -1110,7 +1110,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     const reportAgentId = randomUUID();
     await db.insert(agents).values({
       id: reportAgentId,
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       name: "Report",
       role: "engineer",
       reportsTo: fixture.agentId,
@@ -1120,16 +1120,16 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       status: "idle",
     });
     const secrets = secretService(db);
-    const definition = await secrets.createUserSecretDefinition(fixture.companyId, {
+    const definition = await secrets.createUserSecretDefinition(fixture.spaceId, {
       key: "personal_report_source_token",
       name: "Personal report source token",
       provider: "local_encrypted",
     });
-    const userSecret = await secrets.createCurrentUserSecretValue(fixture.companyId, "user-1", {
+    const userSecret = await secrets.createCurrentUserSecretValue(fixture.spaceId, "user-1", {
       definitionId: definition.id,
       value: "personal-report-source-secret",
     });
-    await secrets.createCurrentUserSecretValue(fixture.companyId, "user-2", {
+    await secrets.createCurrentUserSecretValue(fixture.spaceId, "user-2", {
       definitionId: definition.id,
       value: "second-user-report-secret",
     });
@@ -1159,7 +1159,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(proposal.body).toMatchObject({ secretId: userSecret.id, target: { id: reportAgentId } });
 
     const approved = await request(createBoardApp(fixture))
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${proposal.body.id}/approve`)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposal.body.id}/approve`)
       .send({});
 
     expect(approved.status).toBe(200);
@@ -1178,7 +1178,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       eq(userSecretDeclarations.configPath, "access.personal_alias"),
     ))).toEqual([expect.objectContaining({ userSecretDefinitionId: definition.id })]);
     await expect(secrets.resolveUserSecretValue(
-      fixture.companyId,
+      fixture.spaceId,
       {
         definitionKey: definition.key,
         responsibleUserId: "user-1",
@@ -1190,7 +1190,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       },
     )).resolves.toMatchObject({ value: "personal-report-source-secret" });
     await expect(secrets.resolveUserSecretValue(
-      fixture.companyId,
+      fixture.spaceId,
       {
         definitionKey: definition.key,
         responsibleUserId: "user-2",
@@ -1208,7 +1208,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     const otherAgentId = randomUUID();
     await db.insert(agents).values({
       id: otherAgentId,
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       name: "Other agent",
       role: "engineer",
       adapterType: "codex_local",
@@ -1216,14 +1216,14 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       permissions: {},
       status: "idle",
     });
-    const otherSecret = await secretService(db).create(fixture.companyId, {
+    const otherSecret = await secretService(db).create(fixture.spaceId, {
       name: "dev/other-agent/token",
       key: "OTHER_AGENT_TOKEN",
       provider: "local_encrypted",
       value: "other-agent-secret",
     });
     await secretService(db).createBinding({
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       secretId: otherSecret.id,
       targetType: "agent",
       targetId: otherAgentId,
@@ -1252,19 +1252,19 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(crossAgent.status).toBe(404);
     expect(missing.body.error).toBe("Source secret binding not found");
     expect(crossAgent.body.error).toBe("Source secret binding not found");
-    expect(await db.select().from(companySecretProposals)).toHaveLength(0);
+    expect(await db.select().from(spaceSecretProposals)).toHaveLength(0);
   });
 
   it("serializes proposal quotas and exposes bounded list pagination", async () => {
     const fixture = await seedRun();
-    const liveSecret = await secretService(db).create(fixture.companyId, {
+    const liveSecret = await secretService(db).create(fixture.spaceId, {
       name: "dev/quota/source",
       key: "QUOTA_SOURCE",
       provider: "local_encrypted",
       value: "quota-source-secret",
     });
     await secretService(db).createBinding({
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       secretId: liveSecret.id,
       targetType: "agent",
       targetId: fixture.agentId,
@@ -1283,7 +1283,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
         })));
     expect(responses.filter((response) => response.status === 201)).toHaveLength(20);
     expect(responses.filter((response) => response.status === 422)).toHaveLength(1);
-    expect(await db.select().from(companySecretProposals)).toHaveLength(20);
+    expect(await db.select().from(spaceSecretProposals)).toHaveLength(20);
     expect(await db.select().from(activityLog)).toEqual(expect.arrayContaining([
       expect.objectContaining({ action: "secret.proposal.denied" }),
     ]));
@@ -1295,7 +1295,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect(firstPage.headers["x-next-offset"]).toBe("7");
 
     const lastBoardPage = await request(createBoardApp(fixture))
-      .get(`/api/companies/${fixture.companyId}/secret-proposals?status=pending&limit=7&offset=14`);
+      .get(`/api/spaces/${fixture.spaceId}/secret-proposals?status=pending&limit=7&offset=14`);
     expect(lastBoardPage.status).toBe(200);
     expect(lastBoardPage.body).toHaveLength(6);
     expect(lastBoardPage.headers["x-next-offset"]).toBeUndefined();
@@ -1303,7 +1303,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
   it("bounds each expiry sweep batch", async () => {
     const fixture = await seedRun();
-    const liveSecret = await secretService(db).create(fixture.companyId, {
+    const liveSecret = await secretService(db).create(fixture.spaceId, {
       name: "dev/sweep/source",
       key: "SWEEP_SOURCE",
       provider: "local_encrypted",
@@ -1321,32 +1321,32 @@ describeEmbeddedPostgres("secret proposal routes", () => {
         });
       expect(response.status).toBe(201);
     }
-    await db.update(companySecretProposals).set({ expiresAt: new Date(Date.now() - 1_000) });
+    await db.update(spaceSecretProposals).set({ expiresAt: new Date(Date.now() - 1_000) });
 
     const proposals = createSecretProposalsService(db);
     let injectedCollision = false;
-    await expect(proposals.sweepExpired(new Date(), 2, async (companyId, proposalId) => {
+    await expect(proposals.sweepExpired(new Date(), 2, async (spaceId, proposalId) => {
       if (!injectedCollision) {
         injectedCollision = true;
         throw conflict("Proposal is no longer pending");
       }
-      return proposals.transition(companyId, proposalId, "expired", { reason: "Pending proposal expired" });
+      return proposals.transition(spaceId, proposalId, "expired", { reason: "Pending proposal expired" });
     })).resolves.toBe(1);
-    expect((await db.select().from(companySecretProposals)).filter((proposal) => proposal.status === "pending"))
+    expect((await db.select().from(spaceSecretProposals)).filter((proposal) => proposal.status === "pending"))
       .toHaveLength(2);
     await expect(proposals.sweepExpired(new Date(), 2)).resolves.toBe(2);
   });
 
   it("mirrors binding proposal rejection, withdrawal, and expiry onto linked cards", async () => {
     const fixture = await seedRun();
-    const liveSecret = await secretService(db).create(fixture.companyId, {
+    const liveSecret = await secretService(db).create(fixture.spaceId, {
       name: "dev/lifecycle/source",
       key: "LIFECYCLE_SOURCE",
       provider: "local_encrypted",
       value: "lifecycle-secret",
     });
     const agentApp = createAgentApp(fixture);
-    const boardApp = createBoardApp(fixture);
+    const operatorApp = createBoardApp(fixture);
     const createBinding = async (configPath: string) => request(agentApp)
       .post("/api/agents/me/secret-proposals")
       .send({
@@ -1358,8 +1358,8 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
     const rejected = await createBinding("access.REJECTED_ALIAS");
     expect(rejected.status).toBe(201);
-    expect((await request(boardApp)
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${rejected.body.id}/reject`)
+    expect((await request(operatorApp)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${rejected.body.id}/reject`)
       .send({ reason: "Use a narrower alias" })).status).toBe(200);
 
     const withdrawn = await createBinding("access.WITHDRAWN_ALIAS");
@@ -1369,12 +1369,12 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
     const expired = await createBinding("access.EXPIRED_ALIAS");
     expect(expired.status).toBe(201);
-    await db.update(companySecretProposals)
+    await db.update(spaceSecretProposals)
       .set({ expiresAt: new Date(Date.now() - 1_000) })
-      .where(eq(companySecretProposals.id, expired.body.id));
+      .where(eq(spaceSecretProposals.id, expired.body.id));
     await expect(createSecretProposalsService(db).sweepExpired()).resolves.toBe(1);
 
-    const proposalRows = await db.select().from(companySecretProposals);
+    const proposalRows = await db.select().from(spaceSecretProposals);
     const cards = await db.select().from(issueThreadInteractions);
     const cardByProposalId = new Map(cards.map((card) => {
       const payload = card.payload as { secretProposal?: { proposalId?: string } };
@@ -1392,7 +1392,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
   it("mirrors card rejection onto the linked binding proposal", async () => {
     const fixture = await seedRun();
-    const liveSecret = await secretService(db).create(fixture.companyId, {
+    const liveSecret = await secretService(db).create(fixture.spaceId, {
       name: "dev/card-lifecycle/source",
       key: "CARD_LIFECYCLE_SOURCE",
       provider: "local_encrypted",
@@ -1412,14 +1412,14 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       .where(eq(issueThreadInteractions.id, proposed.body.interactionId));
     expect(card).toMatchObject({ status: "pending" });
     await issueThreadInteractionService(db).rejectInteraction(
-      { id: fixture.issueId, companyId: fixture.companyId, status: "in_progress" },
+      { id: fixture.issueId, spaceId: fixture.spaceId, status: "in_progress" },
       card!.id,
       { reason: "Use the canonical binding name" },
-      { userId: "board-user" },
+      { userId: "operator-user" },
     );
 
-    expect(await db.select().from(companySecretProposals)
-      .where(eq(companySecretProposals.id, proposed.body.id)))
+    expect(await db.select().from(spaceSecretProposals)
+      .where(eq(spaceSecretProposals.id, proposed.body.id)))
       .toEqual([expect.objectContaining({
         status: "rejected",
         resolutionReason: "Use the canonical binding name",
@@ -1428,7 +1428,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
   it("settles an accepted card execution failure on both the card and proposal", async () => {
     const fixture = await seedRun();
-    const liveSecret = await secretService(db).create(fixture.companyId, {
+    const liveSecret = await secretService(db).create(fixture.spaceId, {
       name: "dev/card-failure/source",
       key: "CARD_FAILURE_SOURCE",
       provider: "local_encrypted",
@@ -1447,13 +1447,13 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       .set({
         status: "accepted",
         result: { version: 1, outcome: "accepted" },
-        resolvedByUserId: "board-user",
+        resolvedByUserId: "operator-user",
         resolvedAt: new Date(),
       })
       .where(eq(issueThreadInteractions.id, proposed.body.interactionId));
 
     const card = await issueThreadInteractionService(db).recordSecretProposalExecutionResult(
-      { id: fixture.issueId, companyId: fixture.companyId },
+      { id: fixture.issueId, spaceId: fixture.spaceId },
       proposed.body.interactionId,
       proposed.body.id,
       { status: "failed", errorCode: "permission_denied" },
@@ -1466,18 +1466,18 @@ describeEmbeddedPostgres("secret proposal routes", () => {
         secretProposal: { status: "failed", errorCode: "permission_denied" },
       },
     });
-    expect(await db.select().from(companySecretProposals)
-      .where(eq(companySecretProposals.id, proposed.body.id)))
+    expect(await db.select().from(spaceSecretProposals)
+      .where(eq(spaceSecretProposals.id, proposed.body.id)))
       .toEqual([expect.objectContaining({
         status: "rejected",
-        resolvedByUserId: "board-user",
+        resolvedByUserId: "operator-user",
         resolutionReason: "Interaction acceptance failed: permission_denied",
       })]);
   });
 
   it("waits on the issue before locking a linked proposal during card rejection", async () => {
     const fixture = await seedRun();
-    const liveSecret = await secretService(db).create(fixture.companyId, {
+    const liveSecret = await secretService(db).create(fixture.spaceId, {
       name: "dev/card-lock-order/source",
       key: "CARD_LOCK_ORDER_SOURCE",
       provider: "local_encrypted",
@@ -1496,10 +1496,10 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     const releaseIssueLock = await holdIssueRowLock(fixture.issueId);
 
     const rejection = issueThreadInteractionService(db).rejectInteraction(
-      { id: fixture.issueId, companyId: fixture.companyId, status: "in_progress" },
+      { id: fixture.issueId, spaceId: fixture.spaceId, status: "in_progress" },
       proposed.body.interactionId,
       { reason: "Reject after the lock-order check" },
-      { userId: "board-user" },
+      { userId: "operator-user" },
     );
 
     try {
@@ -1517,7 +1517,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
   it("waits on the issue before locking a proposal execution result", async () => {
     const fixture = await seedRun();
-    const liveSecret = await secretService(db).create(fixture.companyId, {
+    const liveSecret = await secretService(db).create(fixture.spaceId, {
       name: "dev/execution-lock-order/source",
       key: "EXECUTION_LOCK_ORDER_SOURCE",
       provider: "local_encrypted",
@@ -1536,7 +1536,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       .set({
         status: "accepted",
         result: { version: 1, outcome: "accepted" },
-        resolvedByUserId: "board-user",
+        resolvedByUserId: "operator-user",
         resolvedAt: new Date(),
       })
       .where(eq(issueThreadInteractions.id, proposed.body.interactionId));
@@ -1544,7 +1544,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     const releaseIssueLock = await holdIssueRowLock(fixture.issueId);
 
     const recording = issueThreadInteractionService(db).recordSecretProposalExecutionResult(
-      { id: fixture.issueId, companyId: fixture.companyId },
+      { id: fixture.issueId, spaceId: fixture.spaceId },
       proposed.body.interactionId,
       proposed.body.id,
       { status: "failed", errorCode: "permission_denied" },
@@ -1565,7 +1565,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
   it("keeps proposal and card consistent when approval races card rejection", async () => {
     const fixture = await seedRun();
-    const liveSecret = await secretService(db).create(fixture.companyId, {
+    const liveSecret = await secretService(db).create(fixture.spaceId, {
       name: "dev/card-race/source",
       key: "CARD_RACE_SOURCE",
       provider: "local_encrypted",
@@ -1583,13 +1583,13 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
     const [approval, rejection] = await Promise.allSettled([
       request(createBoardApp(fixture))
-        .post(`/api/companies/${fixture.companyId}/secret-proposals/${proposed.body.id}/approve`)
+        .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposed.body.id}/approve`)
         .send({}),
       issueThreadInteractionService(db).rejectInteraction(
-        { id: fixture.issueId, companyId: fixture.companyId, status: "in_progress" },
+        { id: fixture.issueId, spaceId: fixture.spaceId, status: "in_progress" },
         proposed.body.interactionId,
         { reason: "Reject the racing request" },
-        { userId: "board-user" },
+        { userId: "operator-user" },
       ),
     ]);
     expect(approval.status).toBe("fulfilled");
@@ -1597,8 +1597,8 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     expect([200, 409]).toContain(approval.value.status);
     expect(rejection.status).toBe(approval.value.status === 200 ? "rejected" : "fulfilled");
 
-    const [proposal] = await db.select().from(companySecretProposals)
-      .where(eq(companySecretProposals.id, proposed.body.id));
+    const [proposal] = await db.select().from(spaceSecretProposals)
+      .where(eq(spaceSecretProposals.id, proposed.body.id));
     const [card] = await db.select().from(issueThreadInteractions)
       .where(eq(issueThreadInteractions.id, proposed.body.interactionId));
     if (proposal!.status === "approved") {
@@ -1633,20 +1633,20 @@ describeEmbeddedPostgres("secret proposal routes", () => {
         configPath: "env.EXPIRED_TOKEN",
         justification: "Inject the proposed secret",
       });
-    await db.update(companySecretProposals)
+    await db.update(spaceSecretProposals)
       .set({ expiresAt: new Date(Date.now() - 1_000) })
-      .where(eq(companySecretProposals.id, secretProposal.body.id));
+      .where(eq(spaceSecretProposals.id, secretProposal.body.id));
 
     const directApproval = await request(createBoardApp(fixture))
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${secretProposal.body.id}/approve`)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${secretProposal.body.id}/approve`)
       .send({});
     expect(directApproval.status).toBe(409);
 
     const cascadeApproval = await request(createBoardApp(fixture))
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${bindingProposal.body.id}/approve`)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${bindingProposal.body.id}/approve`)
       .send({ cascade: true });
     expect(cascadeApproval.status).toBe(409);
-    expect(await db.select().from(companySecrets)).toHaveLength(0);
+    expect(await db.select().from(spaceSecrets)).toHaveLength(0);
   });
 
   it("rechecks expiry after acquiring the proposal approval lock", async () => {
@@ -1662,23 +1662,23 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     let approvalPromise = null as Promise<{ status: number; body: Record<string, unknown> }> | null;
 
     await db.transaction(async (tx) => {
-      await tx.select().from(companySecretProposals)
-        .where(eq(companySecretProposals.id, proposal.body.id))
+      await tx.select().from(spaceSecretProposals)
+        .where(eq(spaceSecretProposals.id, proposal.body.id))
         .for("update");
       approvalPromise = request(createBoardApp(fixture))
-        .post(`/api/companies/${fixture.companyId}/secret-proposals/${proposal.body.id}/approve`)
+        .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${proposal.body.id}/approve`)
         .send({})
         .then((response) => response);
       await new Promise((resolve) => setTimeout(resolve, 100));
-      await tx.update(companySecretProposals)
+      await tx.update(spaceSecretProposals)
         .set({ expiresAt: new Date(Date.now() - 1_000) })
-        .where(eq(companySecretProposals.id, proposal.body.id));
+        .where(eq(spaceSecretProposals.id, proposal.body.id));
     });
 
     const approval = await approvalPromise;
     expect(approval?.status).toBe(409);
-    expect(await db.select().from(companySecrets)).toHaveLength(0);
-    expect(await db.select().from(companySecretProposals)).toEqual([
+    expect(await db.select().from(spaceSecrets)).toHaveLength(0);
+    expect(await db.select().from(spaceSecretProposals)).toEqual([
       expect.objectContaining({ id: proposal.body.id, status: "pending" }),
     ]);
   });
@@ -1688,7 +1688,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     const targetAgentId = randomUUID();
     await db.insert(agents).values({
       id: targetAgentId,
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       name: "Report",
       role: "engineer",
       reportsTo: fixture.agentId,
@@ -1713,11 +1713,11 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
     await db.update(agents).set({ reportsTo: null }).where(eq(agents.id, targetAgentId));
     const response = await request(createBoardApp(fixture))
-      .post(`/api/companies/${fixture.companyId}/secret-proposals/${bindingProposal.body.id}/approve`)
+      .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${bindingProposal.body.id}/approve`)
       .send({ cascade: true });
     expect(response.status).toBe(409);
-    expect(await db.select().from(companySecrets)).toHaveLength(0);
-    expect((await db.select().from(companySecretProposals)).every((proposal) => proposal.status === "pending")).toBe(true);
+    expect(await db.select().from(spaceSecrets)).toHaveLength(0);
+    expect((await db.select().from(spaceSecretProposals)).every((proposal) => proposal.status === "pending")).toBe(true);
   });
 
 
@@ -1748,7 +1748,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       });
     expect(bindingProposal.status).toBe(422);
     expect(bindingProposal.body.error).toContain("no longer pending");
-    expect(await db.select().from(companySecretProposals)).toEqual([
+    expect(await db.select().from(spaceSecretProposals)).toEqual([
       expect.objectContaining({ id: secretProposal.body.id, status: "withdrawn" }),
     ]);
   });
@@ -1767,7 +1767,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
     const advisoryLockKey = 147460186;
     await db.execute(sql.raw(`
-      CREATE OR REPLACE FUNCTION paperclip_test_pause_binding_proposal()
+      CREATE OR REPLACE FUNCTION outpost_test_pause_binding_proposal()
       RETURNS trigger
       LANGUAGE plpgsql
       AS $function$
@@ -1779,9 +1779,9 @@ describeEmbeddedPostgres("secret proposal routes", () => {
         RETURN NEW;
       END
       $function$;
-      CREATE TRIGGER paperclip_test_pause_binding_proposal
-      BEFORE INSERT ON company_secret_proposals
-      FOR EACH ROW EXECUTE FUNCTION paperclip_test_pause_binding_proposal();
+      CREATE TRIGGER outpost_test_pause_binding_proposal
+      BEFORE INSERT ON space_secret_proposals
+      FOR EACH ROW EXECUTE FUNCTION outpost_test_pause_binding_proposal();
     `));
 
     try {
@@ -1816,7 +1816,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
       let rejectionFinished = false;
       const rejectionPromise = request(createBoardApp(fixture))
-        .post(`/api/companies/${fixture.companyId}/secret-proposals/${secretProposal.body.id}/reject`)
+        .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${secretProposal.body.id}/reject`)
         .send({ reason: "Reject during binding creation" })
         .then((response) => {
           rejectionFinished = true;
@@ -1831,12 +1831,12 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       expect(rejection.status).toBe(200);
     } finally {
       await db.execute(sql.raw(`
-        DROP TRIGGER IF EXISTS paperclip_test_pause_binding_proposal ON company_secret_proposals;
-        DROP FUNCTION IF EXISTS paperclip_test_pause_binding_proposal();
+        DROP TRIGGER IF EXISTS outpost_test_pause_binding_proposal ON space_secret_proposals;
+        DROP FUNCTION IF EXISTS outpost_test_pause_binding_proposal();
       `));
     }
 
-    expect(await db.select().from(companySecretProposals)).toEqual(expect.arrayContaining([
+    expect(await db.select().from(spaceSecretProposals)).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: secretProposal.body.id, status: "rejected" }),
       expect.objectContaining({
         kind: "binding",
@@ -1874,7 +1874,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       .delete(`/api/agents/me/secret-proposals/${secretProposal.body.id}`);
     expect(withdrawn.status).toBe(200);
 
-    expect(await db.select().from(companySecretProposals)).toEqual(expect.arrayContaining([
+    expect(await db.select().from(spaceSecretProposals)).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: secretProposal.body.id, status: "withdrawn" }),
       expect.objectContaining({
         id: bindingProposal.body.id,
@@ -1889,7 +1889,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
     const targetAgentId = randomUUID();
     await db.insert(agents).values({
       id: targetAgentId,
-      companyId: fixture.companyId,
+      spaceId: fixture.spaceId,
       name: "Concurrent report",
       role: "engineer",
       reportsTo: fixture.agentId,
@@ -1919,7 +1919,7 @@ describeEmbeddedPostgres("secret proposal routes", () => {
 
     const advisoryLockKey = 147460185;
     await db.execute(sql.raw(`
-      CREATE OR REPLACE FUNCTION paperclip_test_pause_secret_approval()
+      CREATE OR REPLACE FUNCTION outpost_test_pause_secret_approval()
       RETURNS trigger
       LANGUAGE plpgsql
       AS $function$
@@ -1929,14 +1929,14 @@ describeEmbeddedPostgres("secret proposal routes", () => {
         RETURN NEW;
       END
       $function$;
-      CREATE TRIGGER paperclip_test_pause_secret_approval
-      BEFORE INSERT ON company_secrets
-      FOR EACH ROW EXECUTE FUNCTION paperclip_test_pause_secret_approval();
+      CREATE TRIGGER outpost_test_pause_secret_approval
+      BEFORE INSERT ON space_secrets
+      FOR EACH ROW EXECUTE FUNCTION outpost_test_pause_secret_approval();
     `));
 
     try {
       const approvalPromise = request(createBoardApp(fixture))
-        .post(`/api/companies/${fixture.companyId}/secret-proposals/${bindingProposal.body.id}/approve`)
+        .post(`/api/spaces/${fixture.spaceId}/secret-proposals/${bindingProposal.body.id}/approve`)
         .send({ cascade: true })
         .then((response) => response);
 
@@ -1975,14 +1975,14 @@ describeEmbeddedPostgres("secret proposal routes", () => {
       expect(approval.body.error).toContain("chain-of-command policy");
     } finally {
       await db.execute(sql.raw(`
-        DROP TRIGGER IF EXISTS paperclip_test_pause_secret_approval ON company_secrets;
-        DROP FUNCTION IF EXISTS paperclip_test_pause_secret_approval();
+        DROP TRIGGER IF EXISTS outpost_test_pause_secret_approval ON space_secrets;
+        DROP FUNCTION IF EXISTS outpost_test_pause_secret_approval();
       `));
     }
 
-    expect(await db.select().from(companySecretBindings)).toHaveLength(0);
-    expect(await db.select().from(companySecrets)).toHaveLength(1);
-    expect(await db.select().from(companySecretProposals)).toEqual(expect.arrayContaining([
+    expect(await db.select().from(spaceSecretBindings)).toHaveLength(0);
+    expect(await db.select().from(spaceSecrets)).toHaveLength(1);
+    expect(await db.select().from(spaceSecretProposals)).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: secretProposal.body.id, status: "approved", valueCiphertext: null }),
       expect.objectContaining({ id: bindingProposal.body.id, status: "pending" }),
     ]));

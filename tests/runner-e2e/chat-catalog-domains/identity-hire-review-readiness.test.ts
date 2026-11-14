@@ -29,10 +29,10 @@ function fixture(options: Options = {}) {
   const source = "source", approval = "approval", query = "Switch this hiring proposal to a cheaper model and send it back for approval.";
   const model = options.shortRevision ? "openrouter/deepseek/deepseek-v4.1-flash-1017" : "requested-model";
   const readyAt = options.readyAt ?? 210_000, href = options.href ?? "/approvals/approval";
-  const run = { id: "native", companyId: "company", agentId: options.wrongActor ? "other" : "ceo", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: source, commentId: options.wrongNativeComment ? "other" : "human" } };
-  const comments = [{ id: "human", companyId: "company", issueId: source, authorUserId: "person", body: query },
-    ...(options.progress ? [{ id: "progress", companyId: "company", issueId: source, authorAgentId: "ceo", createdByRunId: "native", body: "I am checking this proposal before revising it." }] : []),
-    { id: "reply", companyId: "company", issueId: source, authorAgentId: "ceo", createdByRunId: "native", body: options.genericReply ? "Revised and resubmitted for approval." : options.shortRevision ? "Revised to `deepseek-v4.1-flash-1017`, pending proposal." : "Revised to requested-model, pending proposal." }];
+  const run = { id: "native", spaceId: "space", agentId: options.wrongActor ? "other" : "ceo", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: source, commentId: options.wrongNativeComment ? "other" : "human" } };
+  const comments = [{ id: "human", spaceId: "space", issueId: source, authorUserId: "person", body: query },
+    ...(options.progress ? [{ id: "progress", spaceId: "space", issueId: source, authorAgentId: "ceo", createdByRunId: "native", body: "I am checking this proposal before revising it." }] : []),
+    { id: "reply", spaceId: "space", issueId: source, authorAgentId: "ceo", createdByRunId: "native", body: options.genericReply ? "Revised and resubmitted for approval." : options.shortRevision ? "Revised to `deepseek-v4.1-flash-1017`, pending proposal." : "Revised to requested-model, pending proposal." }];
   function sync() {
     document.body.innerHTML = '<section data-testid="task-chat-thread"><div id="comment-human"></div>' + (options.progress ? '<div id="comment-progress"></div>' : '') + '<div id="comment-' + (options.wrongComment ? "foreign" : "reply") + '"></div></section>';
     if (clock.now >= readyAt) { const a = document.createElement("a"); a.setAttribute("href", href); a.textContent = "pending approval"; document.querySelector('div:last-child')!.append(a); if (options.progress) document.getElementById("comment-progress")!.append(a.cloneNode(true)); }
@@ -51,13 +51,13 @@ function fixture(options: Options = {}) {
   };
   const deadline = options.deadline === undefined ? 300_000 : options.deadline;
   const ctx = { ...(deadline === "missing" ? {} : { observationDeadlineAt: deadline }), scenario: { query },
-    input: { page, fixtures: { company: { id: "company", issuePrefix: "ACORN" }, agent: { id: "ceo" } }, api: { baseURL: "https://fixture.test", get: async (url: string) => {
+    input: { page, fixtures: { space: { id: "space", issuePrefix: "ACORN" }, agent: { id: "ceo" } }, api: { baseURL: "https://fixture.test", get: async (url: string) => {
       if (url === "/api/issues/source/comments?order=asc") return comments;
-      if (url === "/api/approvals/approval") return { id: approval, companyId: "company", status: options.notPending ? "approved" : "pending", payload: { adapterConfig: { model } } };
+      if (url === "/api/approvals/approval") return { id: approval, spaceId: "space", status: options.notPending ? "approved" : "pending", payload: { adapterConfig: { model } } };
       throw Error("Unexpected read");
     } } }, issue: () => ({ id: options.foreignSource ? "foreign" : source, conversationState: "waiting" }), refreshIssue: async () => {}, allRuns: async () => [run],
   } as unknown as ChatCatalogContext;
-  return { ctx, state: { originalApproval: { id: approval, companyId: "company" }, humanId: "person", sourceIssueId: source, cheaperModel: model, eligibleModels: [model] }, clicks: () => clicks, url: () => current };
+  return { ctx, state: { originalApproval: { id: approval, spaceId: "space" }, humanId: "person", sourceIssueId: source, cheaperModel: model, eligibleModels: [model] }, clicks: () => clicks, url: () => current };
 }
 it("awaits the delayed genuine canonical-reply review link within original300s, clicks and inspects actual pending revised model", async () => {
   const f = fixture(); await hireRevisionIdentityCases[0]!.act!(f.ctx, f.state);
@@ -69,7 +69,7 @@ it("awaits the delayed genuine canonical-reply review link within original300s, 
 it.each([{ href: "https://foreign.test/approvals/approval" }, { href: "/OTHER/approvals/approval" }, { href: "/approvals/other" }, { wrongComment: true }, { foreignSource: true }, { wrongActor: true }, { wrongNativeComment: true }, { readyAt: 300_001 }, { lateDom: true }, { deadline: "missing" }, { deadline: NaN }, { deadline: 29_999 }])("rejects absent/foreign/late review readiness before any click %j", async options => {
   const f = fixture(options as Options); await expect(hireRevisionIdentityCases[0]!.act!(f.ctx, f.state)).rejects.toThrow(); expect(f.clicks()).toBe(0);
 });
-it("accepts the same owned company-prefixed ordinary approval route", async () => {
+it("accepts the same owned space-prefixed ordinary approval route", async () => {
   const f = fixture({ readyAt:30_000, href:"/ACORN/approvals/approval" }); await hireRevisionIdentityCases[0]!.act!(f.ctx,f.state); expect(f.clicks()).toBe(1);
 });
 it.each([{ wrongModel: true }, { notPending: true }])("does not turn review visibility into a wrong model/approved proposal PASS %j", async options => {
@@ -84,7 +84,7 @@ it("captures the model-specific bound revision note when progress also renders t
 });
 
 it("rereads the actual source comment independently of the captured history receipt", async () => {
-  const captured = { id: "reply", issueId: "source", companyId: "company", createdByRunId: "native", authorAgentId: "ceo", body: "Revised model, pending approval." };
+  const captured = { id: "reply", issueId: "source", spaceId: "space", createdByRunId: "native", authorAgentId: "ceo", body: "Revised model, pending approval." };
   const observed = structuredClone(captured), child = { id: "child-comment", issueId: "child", body: "Child history." };
   const state = { sourceIssueId: "source", originalApproval: { id: "approval", payload: { adapterConfig: { model: "old" } } }, revisionHistoryComment: captured };
   observations.read.mockResolvedValue({ comments: [child], state });

@@ -78,7 +78,7 @@ export async function prepareEvalObservabilityRuntime(
     if (source.kind !== kind || !/^[A-Za-z0-9_-]{1,128}$/.test(text(source.compatibilityKey))) throw invalid();
     const state = new CapabilityMockControlPlaneAdapter(request.session.seed).snapshot();
     const attributes = {
-      "outpost.company.id": request.session.companyId ?? state.company.id,
+      "outpost.space.id": request.session.spaceId ?? state.space.id,
       "outpost.agent.id": request.session.actorId ?? state.actors[0]!.id,
       "outpost.observability.revision": source.compatibilityKey,
     };

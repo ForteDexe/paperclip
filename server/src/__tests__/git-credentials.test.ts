@@ -19,11 +19,11 @@ import {
 const fakeDb = null as unknown as Db;
 
 function buildSecretsFake(byName: Record<string, string | Error>) {
-  const getByName = vi.fn(async (_companyId: string, name: string) => {
+  const getByName = vi.fn(async (_spaceId: string, name: string) => {
     if (!(name in byName)) return null;
     return { id: `secret-${name}` };
   });
-  const resolveSecretValue = vi.fn(async (_companyId: string, secretId: string) => {
+  const resolveSecretValue = vi.fn(async (_spaceId: string, secretId: string) => {
     const name = secretId.replace(/^secret-/, "");
     const value = byName[name];
     if (value instanceof Error) throw value;
@@ -50,18 +50,18 @@ describe("isGitHubHttpsRemoteUrl", () => {
 });
 
 describe("resolveGitHubApiCredential", () => {
-  it("prefers a company secret over the server environment and marks it company-scoped", async () => {
+  it("prefers a space secret over the server environment and marks it space-scoped", async () => {
     const secrets = buildSecretsFake({ GH_TOKEN: "gh-token" });
-    const credential = await resolveGitHubApiCredential(fakeDb, "company-1", {
+    const credential = await resolveGitHubApiCredential(fakeDb, "space-1", {
       secrets,
       env: { GITHUB_TOKEN: "env-token" },
     });
-    expect(credential).toEqual({ token: "gh-token", source: "company_secret", secretName: "GH_TOKEN" });
+    expect(credential).toEqual({ token: "gh-token", source: "space_secret", secretName: "GH_TOKEN" });
   });
 
   it("falls back to the server environment and marks it server_env so callers can restrict it", async () => {
     const secrets = buildSecretsFake({});
-    const credential = await resolveGitHubApiCredential(fakeDb, "company-1", {
+    const credential = await resolveGitHubApiCredential(fakeDb, "space-1", {
       secrets,
       env: { GITHUB_TOKEN: "env-token" },
     });
@@ -70,7 +70,7 @@ describe("resolveGitHubApiCredential", () => {
 
   it("returns null when neither a secret nor the environment provides a token", async () => {
     const secrets = buildSecretsFake({});
-    const credential = await resolveGitHubApiCredential(fakeDb, "company-1", { secrets, env: {} });
+    const credential = await resolveGitHubApiCredential(fakeDb, "space-1", { secrets, env: {} });
     expect(credential).toBeNull();
   });
 });
@@ -78,22 +78,22 @@ describe("resolveGitHubApiCredential", () => {
 describe("createGitRemoteAuthProvider", () => {
   const githubUrl = "https://github.com/example/repo.git";
 
-  it("prefers company secrets in declared order", async () => {
+  it("prefers space secrets in declared order", async () => {
     const secrets = buildSecretsFake({ GH_TOKEN: "gh-token", OUTPOST_GITHUB_TOKEN: "pc-token" });
-    const provider = createGitRemoteAuthProvider(fakeDb, "company-1", undefined, {
+    const provider = createGitRemoteAuthProvider(fakeDb, "space-1", undefined, {
       secrets,
       env: { GITHUB_TOKEN: "env-token" },
     });
     const invocation = await provider(githubUrl);
     expect(invocation?.env[GIT_CREDENTIAL_TOKEN_ENV_KEY]).toBe("gh-token");
-    expect(invocation?.source).toBe("company_secret");
+    expect(invocation?.source).toBe("space_secret");
     expect(invocation?.secretName).toBe("GH_TOKEN");
     // GITHUB_TOKEN is probed first even though only GH_TOKEN exists.
     expect(secrets.getByName.mock.calls.map((call) => call[1])).toEqual(["GITHUB_TOKEN", "GH_TOKEN"]);
   });
 
   it("falls back to the server env, GITHUB_TOKEN before GH_TOKEN", async () => {
-    const provider = createGitRemoteAuthProvider(fakeDb, "company-1", undefined, {
+    const provider = createGitRemoteAuthProvider(fakeDb, "space-1", undefined, {
       secrets: buildSecretsFake({}),
       env: { GITHUB_TOKEN: "env-github", GH_TOKEN: "env-gh" },
     });
@@ -104,7 +104,7 @@ describe("createGitRemoteAuthProvider", () => {
   });
 
   it("returns null when no token is available anywhere", async () => {
-    const provider = createGitRemoteAuthProvider(fakeDb, "company-1", undefined, {
+    const provider = createGitRemoteAuthProvider(fakeDb, "space-1", undefined, {
       secrets: buildSecretsFake({}),
       env: {},
     });
@@ -113,7 +113,7 @@ describe("createGitRemoteAuthProvider", () => {
 
   it("accepts GitHub SSH remotes for process-scoped HTTPS rewriting", async () => {
     const secrets = buildSecretsFake({ GITHUB_TOKEN: "token" });
-    const provider = createGitRemoteAuthProvider(fakeDb, "company-1", undefined, {
+    const provider = createGitRemoteAuthProvider(fakeDb, "space-1", undefined, {
       secrets,
       env: {},
     });
@@ -124,7 +124,7 @@ describe("createGitRemoteAuthProvider", () => {
 
   it("returns null for non-GitHub URLs without touching the secret store", async () => {
     const secrets = buildSecretsFake({ GITHUB_TOKEN: "token" });
-    const provider = createGitRemoteAuthProvider(fakeDb, "company-1", undefined, {
+    const provider = createGitRemoteAuthProvider(fakeDb, "space-1", undefined, {
       secrets,
       env: {},
     });
@@ -134,7 +134,7 @@ describe("createGitRemoteAuthProvider", () => {
 
   it("memoizes the credential lookup across calls", async () => {
     const secrets = buildSecretsFake({ GITHUB_TOKEN: "token" });
-    const provider = createGitRemoteAuthProvider(fakeDb, "company-1", undefined, {
+    const provider = createGitRemoteAuthProvider(fakeDb, "space-1", undefined, {
       secrets,
       env: {},
     });
@@ -149,12 +149,12 @@ describe("createGitRemoteAuthProvider", () => {
     const secrets = buildSecretsFake({ GITHUB_TOKEN: "token" });
     const provider = createGitRemoteAuthProvider(
       fakeDb,
-      "company-1",
+      "space-1",
       { issueId: "issue-1", heartbeatRunId: "run-1" },
       { secrets, env: {} },
     );
     await provider(githubUrl);
-    expect(secrets.resolveSecretValue).toHaveBeenCalledWith("company-1", "secret-GITHUB_TOKEN", "latest", {
+    expect(secrets.resolveSecretValue).toHaveBeenCalledWith("space-1", "secret-GITHUB_TOKEN", "latest", {
       accessContext: expect.objectContaining({
         consumerType: "system",
         consumerId: "workspace-git-credential",
@@ -170,7 +170,7 @@ describe("createGitRemoteAuthProvider", () => {
       GITHUB_TOKEN: new Error("provider outage"),
       GH_TOKEN: "gh-token",
     });
-    const provider = createGitRemoteAuthProvider(fakeDb, "company-1", undefined, {
+    const provider = createGitRemoteAuthProvider(fakeDb, "space-1", undefined, {
       secrets,
       env: {},
     });
@@ -186,27 +186,27 @@ describe("createGitRemoteAuthProvider", () => {
       select: vi.fn()
         .mockReturnValueOnce(query([{
           id: "github-connection",
-          companyId: "company-1",
+          spaceId: "space-1",
           enabled: true,
           status: "active",
           config: { sourceTemplateKey: "github" },
         }]))
         .mockReturnValueOnce(query([{
           connectionId: "github-connection",
-          companyId: "company-1",
+          spaceId: "space-1",
           targetType: "agent",
           targetId: "agent-a",
         }])),
     } as unknown as Db;
     const secrets = buildSecretsFake({ GH_TOKEN: "agent-b-legacy-token" });
-    const provider = createGitRemoteAuthProvider(db, "company-1", { agentId: "agent-b" }, {
+    const provider = createGitRemoteAuthProvider(db, "space-1", { agentId: "agent-b" }, {
       secrets,
       env: {},
     });
 
     const invocation = await provider(githubUrl);
 
-    expect(invocation?.source).toBe("company_secret");
+    expect(invocation?.source).toBe("space_secret");
     expect(invocation?.secretName).toBe("GH_TOKEN");
     expect(invocation?.env[GIT_CREDENTIAL_TOKEN_ENV_KEY]).toBe("agent-b-legacy-token");
     expect(db.select).toHaveBeenCalledTimes(2);
@@ -217,7 +217,7 @@ describe("buildGitAuthInvocation", () => {
   it("keeps the token out of argv and installs the helper URL-scoped to github.com", () => {
     const invocation = buildGitAuthInvocation({
       token: "super-secret-token",
-      source: "company_secret",
+      source: "space_secret",
       secretName: "GITHUB_TOKEN",
     });
     expect(invocation.configArgs.join(" ")).not.toContain("super-secret-token");
@@ -254,11 +254,11 @@ describe("buildGitAuthInvocation", () => {
 
 describe("credential helper execution (real git, no network)", () => {
   async function runCredentialFill(description: string) {
-    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-git-cred-fill-"));
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-git-cred-fill-"));
     try {
       const invocation = buildGitAuthInvocation({
         token: "abc123",
-        source: "company_secret",
+        source: "space_secret",
         secretName: "GITHUB_TOKEN",
       });
       return await new Promise<{ code: number | null; stdout: string; stderr: string }>(
@@ -360,11 +360,11 @@ describe("scrubGitCredentialText", () => {
 });
 
 describe("describeGitAuthFailure", () => {
-  it("names the company secret when a stored credential was used", () => {
+  it("names the space secret when a stored credential was used", () => {
     expect(describeGitAuthFailure({
       error: "fatal: Authentication failed",
-      used: { source: "company_secret", secretName: "GH_TOKEN" },
-    })).toContain("the GH_TOKEN company-secret GitHub credential");
+      used: { source: "space_secret", secretName: "GH_TOKEN" },
+    })).toContain("the GH_TOKEN space-secret GitHub credential");
   });
 
   it("names the server environment when an env credential was used", () => {
@@ -378,7 +378,7 @@ describe("describeGitAuthFailure", () => {
     expect(describeGitAuthFailure({
       error: "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
       used: null,
-    })).toContain("add a GITHUB_TOKEN or GH_TOKEN company secret");
+    })).toContain("add a GITHUB_TOKEN or GH_TOKEN space secret");
   });
 
   it("stays silent for non-auth failures without a credential", () => {
@@ -393,7 +393,7 @@ describe("describeGitAuthFailure", () => {
     // collision) must not be blamed for it.
     expect(describeGitAuthFailure({
       error: "fatal: destination path '/x/y' already exists and is not an empty directory.",
-      used: { source: "company_secret", secretName: "GH_TOKEN" },
+      used: { source: "space_secret", secretName: "GH_TOKEN" },
     })).toBeNull();
   });
 });
@@ -409,7 +409,7 @@ describe("DEFAULT_GITHUB_TOKEN_SECRET_NAMES", () => {
 });
 
 describe("createIssueGitRemoteAuthProvider", () => {
-  const githubUrl = "https://github.com/paperclipai/private-repo.git";
+  const githubUrl = "https://github.com/outpost/private-repo.git";
   function issueDb(rows: unknown[]) {
     const where = vi.fn(async () => rows);
     return { db: { select: vi.fn(() => ({ from: () => ({ where }) })) } as unknown as Db, where };
@@ -419,9 +419,9 @@ describe("createIssueGitRemoteAuthProvider", () => {
     const { db } = issueDb([{ responsibleUserId: "user-1", assigneeAgentId: "agent-1" }]);
     const inner = vi.fn(async () => ({ env: {}, configArgs: [], source: "managed_connection" }));
     const create = vi.fn(() => inner) as unknown as typeof createGitRemoteAuthProvider;
-    const provider = createIssueGitRemoteAuthProvider(db, "company-1", "issue-1", create);
+    const provider = createIssueGitRemoteAuthProvider(db, "space-1", "issue-1", create);
     await expect(provider(githubUrl)).resolves.toMatchObject({ source: "managed_connection" });
-    expect(create).toHaveBeenCalledWith(db, "company-1", { issueId: "issue-1", responsibleUserId: "user-1", agentId: "agent-1" });
+    expect(create).toHaveBeenCalledWith(db, "space-1", { issueId: "issue-1", responsibleUserId: "user-1", agentId: "agent-1" });
     expect(inner).toHaveBeenCalledWith(githubUrl);
   });
 
@@ -429,7 +429,7 @@ describe("createIssueGitRemoteAuthProvider", () => {
     const { db } = issueDb([{ responsibleUserId: "user-1", assigneeAgentId: null }]);
     const inner = vi.fn(async () => null);
     const create = vi.fn(() => inner) as unknown as typeof createGitRemoteAuthProvider;
-    const provider = createIssueGitRemoteAuthProvider(db, "company-1", "issue-1", create);
+    const provider = createIssueGitRemoteAuthProvider(db, "space-1", "issue-1", create);
     await provider(githubUrl); await provider(githubUrl);
     expect(db.select).toHaveBeenCalledTimes(1);
     expect(create).toHaveBeenCalledTimes(1);
@@ -439,7 +439,7 @@ describe("createIssueGitRemoteAuthProvider", () => {
   it("falls back to the issue-only context when the issue is missing", async () => {
     const { db } = issueDb([]);
     const create = vi.fn(() => vi.fn(async () => null)) as unknown as typeof createGitRemoteAuthProvider;
-    await createIssueGitRemoteAuthProvider(db, "company-1", "issue-1", create)(githubUrl);
-    expect(create).toHaveBeenCalledWith(db, "company-1", { issueId: "issue-1", responsibleUserId: null, agentId: null });
+    await createIssueGitRemoteAuthProvider(db, "space-1", "issue-1", create)(githubUrl);
+    expect(create).toHaveBeenCalledWith(db, "space-1", { issueId: "issue-1", responsibleUserId: null, agentId: null });
   });
 });

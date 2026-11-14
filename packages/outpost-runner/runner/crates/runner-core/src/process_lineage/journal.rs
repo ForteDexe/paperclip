@@ -80,7 +80,7 @@ pub(crate) struct ProcessIdentity {
 impl ProcessIdentity {
     fn current() -> Option<Self> {
         let pid = i32::try_from(std::process::id()).ok()?;
-        let entry = paperclip_process_table::read(pid).entry()?;
+        let entry = outpost_process_table::read(pid).entry()?;
         Some(Self {
             pid,
             started: entry.started,
@@ -90,12 +90,12 @@ impl ProcessIdentity {
     /// True while the exact process still exists. An unreadable process is
     /// treated as alive: its exit is not established.
     fn is_alive(self) -> bool {
-        match paperclip_process_table::read(self.pid) {
-            paperclip_process_table::Read::Present(entry) => {
+        match outpost_process_table::read(self.pid) {
+            outpost_process_table::Read::Present(entry) => {
                 entry.started == self.started && !entry.zombie
             }
-            paperclip_process_table::Read::Gone => false,
-            paperclip_process_table::Read::Unreadable => true,
+            outpost_process_table::Read::Gone => false,
+            outpost_process_table::Read::Unreadable => true,
         }
     }
 }
@@ -506,7 +506,7 @@ mod tests {
 
     fn temporary_directory(name: &str) -> PathBuf {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-lineage-{name}-{}-{}",
+            "outpost-lineage-{name}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -538,7 +538,7 @@ mod tests {
             .spawn()
             .unwrap();
         let pid = i32::try_from(child.id()).unwrap();
-        let started = paperclip_process_table::read(pid).entry().unwrap().started;
+        let started = outpost_process_table::read(pid).entry().unwrap().started;
         child.kill().unwrap();
         child.wait().unwrap();
         ProcessIdentity { pid, started }
@@ -604,7 +604,7 @@ mod tests {
             .spawn()
             .unwrap();
         let provider_pid = i32::try_from(provider.id()).unwrap();
-        let root = paperclip_process_table::read(provider_pid).entry().unwrap();
+        let root = outpost_process_table::read(provider_pid).entry().unwrap();
         let mut state = LineageState::with_known_root(root);
         let deadline = Instant::now() + Duration::from_secs(10);
         let job = loop {
@@ -640,7 +640,7 @@ mod tests {
             Duration::from_secs(10),
         );
         let _ = provider.wait();
-        let job_alive = paperclip_process_table::read(job.pid)
+        let job_alive = outpost_process_table::read(job.pid)
             .entry()
             .is_some_and(|current| current.started == job.started && !current.zombie);
         if job_alive {
@@ -710,7 +710,7 @@ mod tests {
             if let Some(entry) = fs::read_to_string(&pid_file)
                 .ok()
                 .and_then(|text| text.trim().parse::<i32>().ok())
-                .and_then(|pid| paperclip_process_table::read(pid).entry())
+                .and_then(|pid| outpost_process_table::read(pid).entry())
                 .filter(|entry| entry.ppid == 1 && entry.pgid != entry.pid)
             {
                 break entry;

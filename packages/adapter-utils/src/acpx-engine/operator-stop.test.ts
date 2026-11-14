@@ -11,13 +11,13 @@ const fixture = fileURLToPath(new URL('../../../../scripts/mcp-fixtures/servers/
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => fs.rm(root, { recursive: true, force: true }))); });
 async function setup(tool?: string) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'paperclip-acp-stop-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'outpost-acp-stop-'));
   roots.push(root);
   const abort = new AbortController();
   let ready!: () => void;
   const started = new Promise<void>(resolve => { ready = resolve; });
   const ctx = {
-    runId: 'stop-test', agent: { id: 'agent', companyId: 'company' }, runtime: {},
+    runId: 'stop-test', agent: { id: 'agent', spaceId: 'space' }, runtime: {},
     config: { agent: 'custom', agentCommand: `${JSON.stringify(process.execPath)} ${JSON.stringify(fixture)}`, mode: 'persistent',
       stateDir: path.join(root, 'state'), cwd: root, graceSec: 5,
       env: { OUTPOST_STOP_FIXTURE_ROOT: root, ...(tool ? { OUTPOST_STOP_FIXTURE_TOOL: tool } : {}) } },

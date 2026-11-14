@@ -61,7 +61,7 @@ export async function createRemoteFixtureClient(apiKey: string): Promise<RemoteF
  * No production hook, steering support or remote setup-command execution is
  * assumed. Bootstrap reads are distinct from the native action under test. */
 export function createRemoteNativeBootstrap(input: {
-  api: RemoteFixtureApi; daytona: RemoteFixtureDaytona; companyId: string; environmentId: string;
+  api: RemoteFixtureApi; daytona: RemoteFixtureDaytona; spaceId: string; environmentId: string;
   agentId: string; image: string; nodeSha256: string; runnerdSha256: string; deadlineAt: number;
   requireCopilotTaskContext?: boolean;
   evidence(name: string, data: unknown): Promise<void>;
@@ -75,13 +75,13 @@ export function createRemoteNativeBootstrap(input: {
       if (!/^[A-Za-z0-9_-]{1,128}$/u.test(nonce) || bindings.has(nonce)) throw new Error("Invalid or reused remote bootstrap nonce");
       // Keep Copilot setup paths short enough to copy without dropping hex pairs.
       // The isolated run still binds the exact random path before action delivery.
-      const path = `.paperclip-eval-action-${randomBytes(input.requireCopilotTaskContext ? 6 : 18).toString("hex")}.txt`;
+      const path = `.outpost-eval-action-${randomBytes(input.requireCopilotTaskContext ? 6 : 18).toString("hex")}.txt`;
       bindings.set(nonce, { path, consumed: false });
       return [
         `Your task instructions will be published by the operator in the workspace file ${path}.`,
         "Use your native file-read tool to read that exact relative file in the current execution workspace. If it is not present yet, retry the read for up to 20 seconds, then report the setup failure.",
         ...(input.requireCopilotTaskContext ? [
-          "The dedicated Paperclip get_task_context tool is already available directly. Read this setup file first, then invoke get_task_context exactly once and wait for its successful returned context before performing the supplied native command or edit.",
+          "The dedicated Outpost get_task_context tool is already available directly. Read this setup file first, then invoke get_task_context exactly once and wait for its successful returned context before performing the supplied native command or edit.",
           "No discovery is needed. search_api discovers HTTP routes, not semantic tools. Do not call search_api or use call_api or an HTTP route as a substitute for get_task_context.",
         ] : []),
         "Before reading those instructions: do not infer the task. Do not run shell commands. Do not create or modify any file.",
@@ -112,9 +112,9 @@ export function createRemoteNativeBootstrap(input: {
               const issue = issueRead.status === "fulfilled" ? issueRead.value : undefined;
               const run = runRead.status === "fulfilled" ? runRead.value : undefined;
               const rows = leasesRead.status === "fulfilled" ? leasesRead.value : undefined;
-              const issueOwned = issue?.id === request.issueId && issue.companyId === input.companyId
+              const issueOwned = issue?.id === request.issueId && issue.spaceId === input.spaceId
                 && issue.assigneeAgentId === input.agentId;
-              const runOwned = run?.companyId === input.companyId && run.agentId === input.agentId && run.id === request.runId;
+              const runOwned = run?.spaceId === input.spaceId && run.agentId === input.agentId && run.id === request.runId;
               const owned = issueOwned && runOwned;
               const runLeases = Array.isArray(rows) ? rows.filter(row => row?.heartbeatRunId === request.runId) : undefined;
               const active = runLeases?.filter(row => row.issueId === request.issueId && row.status === "active" && row.providerLeaseId);
@@ -190,7 +190,7 @@ export function createRemoteNativeBootstrap(input: {
         const lease = ready.lease!;
         lastState = { ...lastState, phase: "observer_setup" };
         fixture = await bind({ api: input.api, daytona: input.daytona, sdkVersion: "0.203.0", nodeSha256: input.nodeSha256, runnerdSha256: input.runnerdSha256,
-          authority: { companyId: input.companyId, environmentId: input.environmentId, runId: request.runId, leaseId: lease.id, sandboxId: lease.providerLeaseId, image: input.image },
+          authority: { spaceId: input.spaceId, environmentId: input.environmentId, runId: request.runId, leaseId: lease.id, sandboxId: lease.providerLeaseId, image: input.image },
           targets: [...request.targets], crossRoot: request.crossRoot, actionFile: setup.path, deadlineAt: input.deadlineAt,
           retainTerminalDiagnostics: diagnostics => input.evidence(`remote-native-terminal-diagnostics-${request.runId}.json`, diagnostics),
         });

@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, applyPendingMigrations, companies, createDb, executionWorkspaceRestorePoints, executionWorkspaces, heartbeatRuns, issues, projects } from "@outpost/db";
+import { agents, applyPendingMigrations, spaces, createDb, executionWorkspaceRestorePoints, executionWorkspaces, heartbeatRuns, issues, projects } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveManagedProjectWorkspaceDir } from "../home-paths.js";
 import { materializeManagedProjectWorkspace, ensureManagedRepositoriesIgnored } from "../services/managed-repository-checkout.js";
@@ -40,14 +40,14 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     if (external) await applyPendingMigrations(external);
     else database = await startEmbeddedPostgresTestDatabase("isolated-repository-rehome-");
     db = createDb(external ?? database!.connectionString);
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-isolated-rehome-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-isolated-rehome-"));
     process.env.OUTPOST_HOME = path.join(root, "home");
     process.env.OUTPOST_INSTANCE_ID = "default";
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "41".repeat(32));
   });
   afterEach(async () => {
     await db.delete(executionWorkspaceRestorePoints);
-    await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
     await fs.rm(path.join(root, "home", "instances", "default", "isolated-repository-sources"), { recursive: true, force: true });
   });
   afterAll(async () => {
@@ -58,8 +58,8 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
   });
 
   async function fixture(options: { sharedBase?: boolean; issueStatus?: "in_progress" | "done" } = {}) {
-    const companyId = randomUUID(), issueId = randomUUID(), workspaceId = randomUUID(), projectId = randomUUID();
-    const location = path.join(root, companyId), author = path.join(location, "author"), remote = path.join(location, "remote.git");
+    const spaceId = randomUUID(), issueId = randomUUID(), workspaceId = randomUUID(), projectId = randomUUID();
+    const location = path.join(root, spaceId), author = path.join(location, "author"), remote = path.join(location, "remote.git");
     await fs.mkdir(author, { recursive: true });
     git(author, "init", "--initial-branch=main");
     await fs.writeFile(path.join(author, "marker.txt"), "commit A\n");
@@ -68,25 +68,25 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     git(author, "add", "."); git(author, "commit", "-m", "A");
     git(location, "clone", "--bare", author, remote);
     const done = options.issueStatus === "done";
-    await db.insert(companies).values({ id: companyId, name: "Re-home fixture", issuePrefix: `RH${companyId.slice(0, 6)}` });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Fixture project" });
-    await db.insert(issues).values({ id: issueId, companyId, projectId, title: "Open task", status: done ? "done" : "in_progress",
+    await db.insert(spaces).values({ id: spaceId, name: "Re-home fixture", issuePrefix: `RH${spaceId.slice(0, 6)}` });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Fixture project" });
+    await db.insert(issues).values({ id: issueId, spaceId, projectId, title: "Open task", status: done ? "done" : "in_progress",
       ...(done ? { completedAt: new Date(Date.now() - 4 * DAY_MS) } : {}) });
     const repoUrl = pathToFileURL(remote).href;
-    const sharedPath = resolveManagedProjectWorkspaceDir({ companyId, projectId, repoName: "remote" });
+    const sharedPath = resolveManagedProjectWorkspaceDir({ spaceId, projectId, repoName: "remote" });
     if (options.sharedBase !== false) await materializeManagedProjectWorkspace(sharedPath, { repoUrl });
-    const clone = await materializeIsolatedRemoteWorkspaceSource({ companyId, issueId, repoUrl, resolveGitAuth: async () => null });
+    const clone = await materializeIsolatedRemoteWorkspaceSource({ spaceId, issueId, repoUrl, resolveGitAuth: async () => null });
     const realized = await realizeExecutionWorkspace({ base: { baseCwd: clone, source: "task_session", projectId: null, workspaceId: null, repoUrl, repoRef: "origin/main" },
-      issue: { id: issueId, identifier: "RH-1", title: "Fixture" }, agent: { id: null, name: "Fixture", companyId },
+      issue: { id: issueId, identifier: "RH-1", title: "Fixture" }, agent: { id: null, name: "Fixture", spaceId },
       config: { workspaceStrategy: { type: "git_worktree", branchTemplate: "fixture-task", baseRef: "origin/main" } }, skipHostProvision: true });
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, projectId, sourceIssueId: issueId, mode: "isolated_workspace", strategyType: "git_worktree",
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, projectId, sourceIssueId: issueId, mode: "isolated_workspace", strategyType: "git_worktree",
       name: "Fixture", status: "active", providerType: "local_fs", cwd: realized.cwd, providerRef: realized.cwd, repoUrl, baseRef: "origin/main",
       branchName: realized.branchName, metadata: { createdByRuntime: realized.branchCreatedByRuntime, gitBranchOwnershipVersion: 1, baseRefSha: realized.baseRefSha,
-        isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId, issueId, repoUrl } } });
+        isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", spaceId, issueId, repoUrl } } });
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, issueId));
     const row = () => db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, workspaceId)).then(rows => rows[0]!);
-    const target = path.join(await fs.realpath(root), path.relative(root, sharedPath), ".paperclip", "worktrees", "fixture-task");
-    return { companyId, issueId, workspaceId, projectId, cwd: realized.cwd, clone, sharedPath, target, repoUrl, remote, author, row };
+    const target = path.join(await fs.realpath(root), path.relative(root, sharedPath), ".outpost", "worktrees", "fixture-task");
+    return { spaceId, issueId, workspaceId, projectId, cwd: realized.cwd, clone, sharedPath, target, repoUrl, remote, author, row };
   }
 
   async function makeWork(cwd: string) {
@@ -116,9 +116,9 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     await fs.writeFile(path.join(author, "guide.md"), "guide\n"); git(author, "add", "."); git(author, "commit", "-m", "docs");
     git(location, "clone", "--bare", author, remote);
     const repoUrl = pathToFileURL(remote).href;
-    const base = (await materializeManagedProjectWorkspace(nestedRepositoryBaseCandidates({ companyId: f.companyId, projectId: f.projectId, repoUrl })[0]!, { repoUrl })).cwd;
+    const base = (await materializeManagedProjectWorkspace(nestedRepositoryBaseCandidates({ spaceId: f.spaceId, projectId: f.projectId, repoUrl })[0]!, { repoUrl })).cwd;
     await ensureManagedRepositoriesIgnored(f.cwd);
-    const checkout = path.join(f.cwd, ".paperclip-repositories", "docs-linked");
+    const checkout = path.join(f.cwd, ".outpost-repositories", "docs-linked");
     await fs.mkdir(path.dirname(checkout), { recursive: true });
     const { branchName } = await addNestedRepositoryWorktree({ base, cwd: checkout, repoUrl, repoRef: null });
     await fs.writeFile(path.join(checkout, "guide.md"), "edited in the nested worktree\n");
@@ -144,8 +144,8 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     const f = await fixture();
     const unpushed = await makeWork(f.cwd);
     await ensureManagedRepositoriesIgnored(f.cwd);
-    await fs.appendFile(path.join(f.cwd, ".gitignore"), "/.paperclip-repositories/\n");
-    const nested = path.join(f.cwd, ".paperclip-repositories", "docs");
+    await fs.appendFile(path.join(f.cwd, ".gitignore"), "/.outpost-repositories/\n");
+    const nested = path.join(f.cwd, ".outpost-repositories", "docs");
     await fs.mkdir(nested, { recursive: true });
     git(nested, "init", "--initial-branch=main");
     await fs.writeFile(path.join(nested, "readme.md"), "nested\n");
@@ -171,8 +171,8 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     expect(await fs.readFile(path.join(f.target, "node_modules", "pkg", "index.js"), "utf8")).toBe("module.exports = 1;\n");
     expect(await fs.readFile(path.join(f.target, ".env"), "utf8")).toBe("LOCAL_SETTING=1\n");
     expect(await fs.readFile(path.join(f.target, ".claude", "settings.local.json"), "utf8")).toBe("{\"local\":true}\n");
-    expect(git(path.join(f.target, ".paperclip-repositories", "docs"), "log", "-1", "--format=%s")).toBe("nested");
-    expect(await fs.readFile(path.join(f.target, ".paperclip-repositories", "docs", "node_modules", "dep", "index.js"), "utf8")).toBe("nested dependency\n");
+    expect(git(path.join(f.target, ".outpost-repositories", "docs"), "log", "-1", "--format=%s")).toBe("nested");
+    expect(await fs.readFile(path.join(f.target, ".outpost-repositories", "docs", "node_modules", "dep", "index.js"), "utf8")).toBe("nested dependency\n");
 
     const row = await f.row();
     expect(row).toMatchObject({ cwd: f.target, providerRef: f.target, branchName: "fixture-task" });
@@ -180,7 +180,7 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     expect(row.metadata?.isolatedRepositoryRehome).toMatchObject({ from: f.cwd, to: f.target, cleanedAt: expect.any(String) });
     expect(await exists(f.cwd)).toBe(false);
     expect(await exists(f.clone)).toBe(false);
-    expect(await exists(isolatedRemoteSourcePath(f.companyId, f.issueId))).toBe(false);
+    expect(await exists(isolatedRemoteSourcePath(f.spaceId, f.issueId))).toBe(false);
     expect(await rehomeIsolatedRepositoryWorkspace(db, row)).toMatchObject({ rehomed: false, reason: "not_candidate" });
   });
 
@@ -194,7 +194,7 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     const result = await rehomeIsolatedRepositoryWorkspace(db, await f.row());
     expect(result).toMatchObject({ rehomed: true, cloneRemoved: true, reason: null });
     expect(await currentRestorePointSnapshot(f.target)).toEqual(before);
-    const moved = path.join(f.target, ".paperclip-repositories", "docs-linked");
+    const moved = path.join(f.target, ".outpost-repositories", "docs-linked");
     expect(await readLinkedNestedCheckout(moved)).toMatchObject({ base: nested.realBase, checkout: moved });
     expect(worktreePaths(nested.base)).toContain(moved);
     expect(worktreePaths(nested.base)).not.toContain(oldCheckout);
@@ -213,7 +213,7 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     const nested = await addLinkedNested(f);
     const oldCheckout = await fs.realpath(nested.checkout);
     const result = await rehomeIsolatedRepositoryWorkspace(db, await f.row(), { hooks: { beforeVerify: async ({ from, to }) => {
-      expect(worktreePaths(nested.base)).toContain(path.join(to, ".paperclip-repositories", "docs-linked"));
+      expect(worktreePaths(nested.base)).toContain(path.join(to, ".outpost-repositories", "docs-linked"));
       await fs.writeFile(path.join(from, "late.txt"), "written by a concurrent run\n");
     } } });
     expect(result).toMatchObject({ rehomed: false, reason: "snapshot_mismatch" });
@@ -228,8 +228,8 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     const f = await fixture();
     await makeWork(f.cwd);
     const agentId = randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId: f.companyId, name: "Fixture", role: "engineer", adapterType: "process" });
-    await db.insert(heartbeatRuns).values({ id: randomUUID(), companyId: f.companyId, agentId, issueId: f.issueId, status: "running" });
+    await db.insert(agents).values({ id: agentId, spaceId: f.spaceId, name: "Fixture", role: "engineer", adapterType: "process" });
+    await db.insert(heartbeatRuns).values({ id: randomUUID(), spaceId: f.spaceId, agentId, issueId: f.issueId, status: "running" });
     const before = await currentRestorePointSnapshot(f.cwd);
     expect(await rehomeIsolatedRepositoryWorkspace(db, await f.row())).toMatchObject({ rehomed: false, reason: "live_or_unresolved_consumer" });
     await expectUntouched(f, before);
@@ -376,9 +376,9 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
   it("keeps the clone while another workspace still references it", async () => {
     const f = await fixture();
     await makeWork(f.cwd);
-    await db.insert(executionWorkspaces).values({ companyId: f.companyId, projectId: f.projectId, sourceIssueId: f.issueId, mode: "isolated_workspace",
+    await db.insert(executionWorkspaces).values({ spaceId: f.spaceId, projectId: f.projectId, sourceIssueId: f.issueId, mode: "isolated_workspace",
       strategyType: "git_worktree", name: "Sibling", status: "active", providerType: "local_fs", cwd: path.join(f.clone, "sibling"), repoUrl: f.repoUrl,
-      metadata: { isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", companyId: f.companyId, issueId: f.issueId, repoUrl: f.repoUrl } } });
+      metadata: { isolatedRemoteSource: { schema: "outpost.isolated-remote-source.v1", spaceId: f.spaceId, issueId: f.issueId, repoUrl: f.repoUrl } } });
     const result = await rehomeIsolatedRepositoryWorkspace(db, await f.row());
     expect(result).toMatchObject({ rehomed: true, cloneRemoved: false, cloneKeptReason: "base_has_consumers" });
     expect(await exists(f.clone)).toBe(true);
@@ -437,8 +437,8 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     await fs.rm(f.clone, { recursive: true, force: true });
 
     const reopened = await executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({ workspaceId: f.workspaceId,
-      issue: { id: f.issueId, companyId: f.companyId, projectId: f.projectId }, actor: { actorType: "user", agentId: null },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true } });
+      issue: { id: f.issueId, spaceId: f.spaceId, projectId: f.projectId }, actor: { actorType: "user", agentId: null },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true } });
     expect(reopened).toMatchObject({ ok: true, reopened: true });
     expect(await exists(f.clone)).toBe(false);
     const row = await f.row();
@@ -473,8 +473,8 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     expect(() => git(f.sharedPath, "cat-file", "-e", `${upstream}^{commit}`)).toThrow();
 
     const reopened = await executionWorkspaceService(db).reopenClosedIsolatedExecutionWorkspaceForIssue({ workspaceId: f.workspaceId,
-      issue: { id: f.issueId, companyId: f.companyId, projectId: f.projectId }, actor: { actorType: "user", agentId: null },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true } });
+      issue: { id: f.issueId, spaceId: f.spaceId, projectId: f.projectId }, actor: { actorType: "user", agentId: null },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true } });
     expect(reopened).toMatchObject({ ok: true, reopened: true });
     const row = await f.row();
     expect(row.cwd).toBe(f.cwd);
@@ -505,7 +505,7 @@ describeEmbeddedPostgres("isolated repository source re-home", () => {
     const f = await fixture();
     await makeWork(f.cwd);
     const { feature, release } = await publishUnfetchedHistory(f);
-    await fs.appendFile(path.join(f.clone, ".git", "info", "exclude"), "\n.paperclip/\n");
+    await fs.appendFile(path.join(f.clone, ".git", "info", "exclude"), "\n.outpost/\n");
     await crashedRehome(f);
     expect(() => git(f.sharedPath, "cat-file", "-e", `${release}^{commit}`)).toThrow();
     expect(() => git(f.sharedPath, "cat-file", "-e", `${feature}^{commit}`)).toThrow();

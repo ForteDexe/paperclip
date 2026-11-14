@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { PUBLIC_MCP_SCOPES, DOT_RUNNER_MCP_SCOPES } from "@outpost/shared";
 import { and, asc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import {
-  agents, authUsers, companies, companyMemberships, dotAgentBindings,
+  agents, authUsers, spaces, spaceMemberships, dotAgentBindings,
   mcpOauthGrants, mcpOauthTokens, type Db,
 } from "@outpost/db";
 import { mcpRevocationAuthorityId, parseMcpRevocationIndexReceipt, type McpRevocationIndexReceipt } from "./revocation-index-contract.js";
@@ -19,7 +19,7 @@ export interface IdleMcpWakeProof {
 }
 export interface IdleMcpCredentialRow {
   grantId: string;
-  companyId: string;
+  spaceId: string;
   clientId: string;
   resource: string;
   purpose: string;
@@ -62,9 +62,9 @@ export function projectIdleMcpWakeProof(rows: IdleMcpCredentialRow[], input: Idl
   for (const row of rows) {
     input.budget?.check();
     const personal = input.personalEnabled && row.resource === input.personalResource && row.purpose === "personal"
-      && row.scopes.includes("paperclip:read") && row.scopes.every(scope => (PUBLIC_MCP_SCOPES as readonly string[]).includes(scope));
+      && row.scopes.includes("outpost:read") && row.scopes.every(scope => (PUBLIC_MCP_SCOPES as readonly string[]).includes(scope));
     const dot = input.dotEnabled && row.resource === input.dotResource && row.purpose === "agent"
-      && row.scopes.includes("paperclip:agent") && row.scopes.every(scope => (DOT_RUNNER_MCP_SCOPES as readonly string[]).includes(scope)) && row.membershipRole !== "viewer"
+      && row.scopes.includes("outpost:agent") && row.scopes.every(scope => (DOT_RUNNER_MCP_SCOPES as readonly string[]).includes(scope)) && row.membershipRole !== "viewer"
       && row.dotProvider === "openai_dot" && ["connected", "ready"].includes(row.dotStatus ?? "")
       && row.dotBindingId !== null && row.dotGeneration !== null && Number.isSafeInteger(row.dotGeneration) && row.dotGeneration > 0
       && row.dotPairingHash === null && row.dotChallengeHash === null
@@ -90,23 +90,23 @@ export function projectIdleMcpWakeProof(rows: IdleMcpCredentialRow[], input: Idl
 export async function readIdleMcpWakeProof(tx: Pick<Db, "select">, input: IdleMcpWakeProofInput): Promise<IdleMcpWakeProof> {
   await input.budget?.beforeRead();
   const rows = await tx.select({
-    grantId: mcpOauthGrants.id, companyId: mcpOauthGrants.companyId, clientId: mcpOauthGrants.clientId,
+    grantId: mcpOauthGrants.id, spaceId: mcpOauthGrants.spaceId, clientId: mcpOauthGrants.clientId,
     resource: mcpOauthGrants.resource, purpose: mcpOauthGrants.purpose, scopes: mcpOauthGrants.scopes,
     tokenHash: mcpOauthTokens.tokenHash, tokenKind: mcpOauthTokens.kind,
     tokenExpiresAt: mcpOauthTokens.expiresAt, tokenUsedAt: mcpOauthTokens.usedAt,
     dotBindingId: dotAgentBindings.id, dotProvider: dotAgentBindings.providerKind,
     dotStatus: dotAgentBindings.status, dotGeneration: dotAgentBindings.generation,
     dotPairingHash: dotAgentBindings.pairingCodeHash, dotChallengeHash: dotAgentBindings.challengeHash,
-    agentStatus: agents.status, membershipRole: companyMemberships.membershipRole,
+    agentStatus: agents.status, membershipRole: spaceMemberships.membershipRole,
   }).from(mcpOauthTokens)
     .innerJoin(mcpOauthGrants, and(eq(mcpOauthGrants.id, mcpOauthTokens.grantId), isNull(mcpOauthGrants.revokedAt)))
-    .innerJoin(companies, and(eq(companies.id, mcpOauthGrants.companyId), sql`${companies.status} <> 'archived'`))
+    .innerJoin(spaces, and(eq(spaces.id, mcpOauthGrants.spaceId), sql`${spaces.status} <> 'archived'`))
     .innerJoin(authUsers, eq(authUsers.id, mcpOauthGrants.userId))
-    .innerJoin(companyMemberships, and(eq(companyMemberships.companyId, mcpOauthGrants.companyId),
-      eq(companyMemberships.principalId, mcpOauthGrants.userId), eq(companyMemberships.principalType, "user"), eq(companyMemberships.status, "active")))
-    .leftJoin(agents, and(eq(agents.id, mcpOauthGrants.agentId), eq(agents.companyId, mcpOauthGrants.companyId)))
+    .innerJoin(spaceMemberships, and(eq(spaceMemberships.spaceId, mcpOauthGrants.spaceId),
+      eq(spaceMemberships.principalId, mcpOauthGrants.userId), eq(spaceMemberships.principalType, "user"), eq(spaceMemberships.status, "active")))
+    .leftJoin(agents, and(eq(agents.id, mcpOauthGrants.agentId), eq(agents.spaceId, mcpOauthGrants.spaceId)))
     .leftJoin(dotAgentBindings, and(eq(dotAgentBindings.grantId, mcpOauthGrants.id),
-      eq(dotAgentBindings.companyId, mcpOauthGrants.companyId), eq(dotAgentBindings.agentId, mcpOauthGrants.agentId),
+      eq(dotAgentBindings.spaceId, mcpOauthGrants.spaceId), eq(dotAgentBindings.agentId, mcpOauthGrants.agentId),
       eq(dotAgentBindings.operatorId, mcpOauthGrants.userId), isNull(dotAgentBindings.revokedAt)))
     .where(and(or(gt(mcpOauthTokens.expiresAt, new Date(input.now)), isNull(mcpOauthTokens.expiresAt)),
 
@@ -120,14 +120,14 @@ export async function readIdleMcpWakeProof(tx: Pick<Db, "select">, input: IdleMc
     dotBindingId: dotAgentBindings.id, dotProvider: dotAgentBindings.providerKind, dotStatus: dotAgentBindings.status,
     dotGeneration: dotAgentBindings.generation, dotPairingHash: dotAgentBindings.pairingCodeHash,
     dotChallengeHash: dotAgentBindings.challengeHash, agentStatus: agents.status,
-    membershipRole: companyMemberships.membershipRole,
+    membershipRole: spaceMemberships.membershipRole,
   }).from(mcpOauthGrants)
-    .innerJoin(companies, and(eq(companies.id, mcpOauthGrants.companyId), sql`${companies.status} <> 'archived'`))
+    .innerJoin(spaces, and(eq(spaces.id, mcpOauthGrants.spaceId), sql`${spaces.status} <> 'archived'`))
     .innerJoin(authUsers, eq(authUsers.id, mcpOauthGrants.userId))
-    .innerJoin(companyMemberships, and(eq(companyMemberships.companyId, mcpOauthGrants.companyId),
-      eq(companyMemberships.principalId, mcpOauthGrants.userId), eq(companyMemberships.principalType, "user"), eq(companyMemberships.status, "active")))
-    .leftJoin(agents, and(eq(agents.id, mcpOauthGrants.agentId), eq(agents.companyId, mcpOauthGrants.companyId)))
-    .leftJoin(dotAgentBindings, and(eq(dotAgentBindings.grantId, mcpOauthGrants.id), eq(dotAgentBindings.companyId, mcpOauthGrants.companyId),
+    .innerJoin(spaceMemberships, and(eq(spaceMemberships.spaceId, mcpOauthGrants.spaceId),
+      eq(spaceMemberships.principalId, mcpOauthGrants.userId), eq(spaceMemberships.principalType, "user"), eq(spaceMemberships.status, "active")))
+    .leftJoin(agents, and(eq(agents.id, mcpOauthGrants.agentId), eq(agents.spaceId, mcpOauthGrants.spaceId)))
+    .leftJoin(dotAgentBindings, and(eq(dotAgentBindings.grantId, mcpOauthGrants.id), eq(dotAgentBindings.spaceId, mcpOauthGrants.spaceId),
       eq(dotAgentBindings.agentId, mcpOauthGrants.agentId), eq(dotAgentBindings.operatorId, mcpOauthGrants.userId), isNull(dotAgentBindings.revokedAt)))
     .where(isNull(mcpOauthGrants.revokedAt)).orderBy(asc(mcpOauthGrants.id)).limit(1001);
   if (authorities.length > 1000) throw new Error("Too many active MCP grant authorities");
@@ -136,9 +136,9 @@ export async function readIdleMcpWakeProof(tx: Pick<Db, "select">, input: IdleMc
     input.budget?.check();
     const grant = row.grant;
     const personal = input.personalEnabled && grant.purpose === "personal" && grant.resource === input.personalResource
-      && grant.scopes.includes("paperclip:read") && grant.scopes.every(scope => (PUBLIC_MCP_SCOPES as readonly string[]).includes(scope));
+      && grant.scopes.includes("outpost:read") && grant.scopes.every(scope => (PUBLIC_MCP_SCOPES as readonly string[]).includes(scope));
     const dot = input.dotEnabled && grant.purpose === "agent" && grant.resource === input.dotResource
-      && grant.scopes.includes("paperclip:agent") && grant.scopes.every(scope => (DOT_RUNNER_MCP_SCOPES as readonly string[]).includes(scope))
+      && grant.scopes.includes("outpost:agent") && grant.scopes.every(scope => (DOT_RUNNER_MCP_SCOPES as readonly string[]).includes(scope))
       && row.membershipRole !== "viewer" && row.dotProvider === "openai_dot" && ["connected", "ready"].includes(row.dotStatus ?? "")
       && row.dotBindingId !== null && row.dotGeneration !== null && Number.isSafeInteger(row.dotGeneration) && row.dotGeneration > 0
       && row.dotPairingHash === null && row.dotChallengeHash === null && row.agentStatus !== null && !["terminated", "pending_approval"].includes(row.agentStatus);

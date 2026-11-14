@@ -50,16 +50,16 @@ describe.skipIf(!runControlPostgresSupport.supported)("execution release reads",
     { errorCode: "configuration_incomplete", livenessState: "blocked", resultJson: { configurationIncomplete: { reason: "secret_binding_missing", agentId: "owner", missingBindings: [{ bindingType: "user_secret_ref", consumerType: "agent", consumerId: "owner", errorCode: "user_secret_missing", envKey: "OPENAI_API_KEY", configPath: "env.OPENAI_API_KEY" }] } } },
     { errorCode: "configuration_incomplete", livenessState: "blocked", resultJson: { configurationIncomplete: { reason: "workspace_unavailable" } } },
   ])("preserves authentication admission for %j without loading execution payloads", async failure => {
-    const { company, agent } = await fixture();
+    const { space, agent } = await fixture();
     const payload = randomBytes(128 * 1024).toString("base64");
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "failed", ...failure, contextSnapshot: { prompt: payload }, runnerProfileJson: { prompt: payload }, stdoutExcerpt: payload,
     }).returning();
     const { database, reads } = recordRunReads();
     const deps = callbacks(database);
     await createHeartbeatRunControl(database, deps).releaseIssueExecutionAndPromote(run);
     expect(deps.wakeQueue.releaseIssueExecution).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      companyId: company.id, runId: run.id, suppressImmediateRecovery: isAiAuthenticationBlocked(run),
+      spaceId: space.id, runId: run.id, suppressImmediateRecovery: isAiAuthenticationBlocked(run),
     }));
     expect(deps.getRun).not.toHaveBeenCalled();
     expect(reads).toHaveLength(2);
@@ -69,9 +69,9 @@ describe.skipIf(!runControlPostgresSupport.supported)("execution release reads",
   });
 
   it("reads the completed identity after post-commit effects and preserves the full record", async () => {
-    const { company, agent } = await fixture();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Release destination" }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id,
+    const { space, agent } = await fixture();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Release destination" }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id,
       status: "running", contextSnapshot: { issueId: 42, taskId: "", prompt: "retained" },
     }).returning();
     const deps = callbacks(db);
@@ -80,7 +80,7 @@ describe.skipIf(!runControlPostgresSupport.supported)("execution release reads",
     });
     vi.mocked(settleSlackConversation).mockClear();
     await createHeartbeatRunControl(db, deps).releaseIssueExecutionAndPromote(run, { resumeStrandedQueue: true });
-    expect(settleSlackConversation).toHaveBeenCalledExactlyOnceWith(db, company.id, issue.id);
+    expect(settleSlackConversation).toHaveBeenCalledExactlyOnceWith(db, space.id, issue.id);
     expect(deps.wakeQueue.releaseIssueExecution).toHaveBeenCalledWith(expect.objectContaining({ resumeStrandedQueue: true }));
     expect(deps.getRun).not.toHaveBeenCalled();
   });

@@ -5,7 +5,7 @@ import { readBoundTaskFinalReply } from "./native-task-reply.js";
 
 const markdown = "I **couldn't retrieve** the pages. See [Connection outcome](/QA/issues/QA-123#document-outcome).";
 const rendered = "I <strong>couldn't retrieve</strong> the pages. See <a data-mention-kind='issue' href='/QA/issues/QA-123#document-outcome'><svg aria-hidden='true'></svg>QA-123</a>.";
-const run = { id: "final-run", companyId: "company", agentId: "agent", status: "succeeded", runtimeMode: "native",
+const run = { id: "final-run", spaceId: "space", agentId: "agent", status: "succeeded", runtimeMode: "native",
   resultJson: { presentationDecision: { commentId: "selected" } } };
 const comment = { id: "selected", authorAgentId: "agent", createdByRunId: run.id, body: markdown };
 
@@ -33,7 +33,7 @@ for (const [source, html, passes] of [
   await page.route(url, route => route.fulfill({ contentType: "text/html", body:
     `<div data-testid='task-chat-thread'><div data-thread-anchor='selected'><div data-testid='task-chat-agent-bubble'>${html}</div></div></div>` }));
   await page.goto(url);
-  const result = readBoundTaskFinalReply({ page, runId: run.id, agentId: "agent", knownCompanyPrefixes: ["QA"], deadlineAt: Date.now() + (passes ? 3000 : 300),
+  const result = readBoundTaskFinalReply({ page, runId: run.id, agentId: "agent", knownSpacePrefixes: ["QA"], deadlineAt: Date.now() + (passes ? 3000 : 300),
     load: async () => ({ run, comments: [{ ...comment, body: source }], events: [] }) });
   if (passes) expect((await result).sourceBody).toBe(source);
   else await expect(result).rejects.toThrow();
@@ -51,7 +51,7 @@ for (const [name, content, passes] of [
   await page.route("https://fixture.test/QA/issues/QA-123", route => route.fulfill({ contentType: "text/html", body:
     `<div data-testid='task-chat-thread'><div data-thread-anchor='selected'><div data-testid='task-chat-agent-bubble'>${content}</div></div></div>` }));
   await page.goto("https://fixture.test/QA/issues/QA-123");
-  const result = readBoundTaskFinalReply({ page, runId: run.id, agentId: "agent", knownCompanyPrefixes: ["QA"], deadlineAt: Date.now() + (passes ? 3000 : 300),
+  const result = readBoundTaskFinalReply({ page, runId: run.id, agentId: "agent", knownSpacePrefixes: ["QA"], deadlineAt: Date.now() + (passes ? 3000 : 300),
     load: async () => ({ run, comments: [comment], events: [] }) });
   if (passes) {
     const receipt = await result;
@@ -74,7 +74,7 @@ for (const [sourceHref, renderedHref, passes] of [
   await page.route(url, route => route.fulfill({ contentType: "text/html", body:
     `<div data-testid='task-chat-thread'><div data-thread-anchor='selected'><div data-testid='task-chat-agent-bubble'>Read <a href='${renderedHref}'>Outcome</a></div></div></div>` }));
   await page.goto(url);
-  const result = readBoundTaskFinalReply({ page, runId: run.id, agentId: "agent", knownCompanyPrefixes: ["QA"], deadlineAt: Date.now() + (passes ? 3000 : 300),
+  const result = readBoundTaskFinalReply({ page, runId: run.id, agentId: "agent", knownSpacePrefixes: ["QA"], deadlineAt: Date.now() + (passes ? 3000 : 300),
     load: async () => ({ run, comments: [{ ...comment, body: `Read [Outcome](${sourceHref})` }], events: [] }) });
   if (passes) expect((await result).pageUrl).toBe(url);
   else await expect(result).rejects.toThrow();

@@ -10,7 +10,7 @@ import type { InboxTab } from "./inbox";
  * Each view declares which surface renders it:
  *   - `inbox`  — the attention-ordered inbox list (unread state, archive,
  *                date groups, mixed approval/failed-run/join-request rows).
- *   - `issues` — the task collection list (board/list modes, filters, columns).
+ *   - `issues` — the task collection list (operator/list modes, filters, columns).
  *
  * Views are *not* reimplemented on the other surface: pointing a view at the
  * component that already owns those behaviours is what keeps them intact.
@@ -78,7 +78,7 @@ const VIEWS_BY_KEY = new Map<TaskViewKey, TaskView>(
 
 export const DEFAULT_TASK_VIEW: TaskViewKey = "all";
 export const TASK_VIEW_PARAM = "view";
-export const TASK_LAST_VIEW_KEY = "paperclip:tasks:last-view";
+export const TASK_LAST_VIEW_KEY = "outpost:tasks:last-view";
 
 export function isTaskViewKey(value: unknown): value is TaskViewKey {
   return typeof value === "string" && VIEWS_BY_KEY.has(value as TaskViewKey);

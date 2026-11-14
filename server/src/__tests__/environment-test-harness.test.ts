@@ -9,9 +9,9 @@ import {
   assertExecutionLifecycle,
   assertEnvironmentError,
 } from "@outpost/plugin-sdk/testing";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 
-const FAKE_MANIFEST: PaperclipPluginManifestV1 = {
+const FAKE_MANIFEST: OutpostPluginManifestV1 = {
   id: "test-env-plugin",
   apiVersion: 1,
   version: "0.1.0",
@@ -26,7 +26,7 @@ const FAKE_MANIFEST: PaperclipPluginManifestV1 = {
 
 const BASE_PARAMS = {
   driverKey: "fake",
-  companyId: "co-1",
+  spaceId: "co-1",
   environmentId: "env-1",
   config: {},
 };

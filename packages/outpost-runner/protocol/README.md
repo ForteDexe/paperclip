@@ -41,7 +41,7 @@ Events:
 - `session.goal.updated`
 - `session.goal.cleared`
 
-North Star state is separate from Outpost's company/business goal hierarchy. The
+North Star state is separate from Outpost's space/business goal hierarchy. The
 snapshot distinguishes the durable status from `workingNow`, because an active
 goal can be idle between autonomous turns. A runner emits the full capability
 and authoritative snapshot after every session open or resume. Missing v1
@@ -138,7 +138,7 @@ points and exclude C0 controls and DEL. `namespace` groups a producer's activity
 types; `activityKey` names an activity within that group. Consumers use the pair
 to select a response to activity in the run. The authenticated outer envelope
 provides run and session identity, source sequence and emission time. Core resolves
-the run's company, task and agent through its existing authorized run binding;
+the run's space, task and agent through its existing authorized run binding;
 callers cannot supply those identities in the payload. Recording activity does
 not independently verify the reported action or grant access to any resource.
 The event uses the ordinary durable outbox, acknowledgement and replay contract.

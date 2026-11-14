@@ -7,10 +7,10 @@ import {
 // interface import these helpers, so both sides use one source. The helpers map
 // the internal status to the public status and name the active statuses.
 
-// The active internal statuses. The company credential slot allows one active
+// The active internal statuses. The space credential slot allows one active
 // session at a time, so the concurrency index applies to exactly these three
 // statuses. The `promoting` state stays active because the slot still holds the
-// company credential until the promotion window ends.
+// space credential until the promotion window ends.
 export const ADAPTER_AUTH_SESSION_ACTIVE_STATUSES = [
   "starting",
   "waiting_for_user",
@@ -24,7 +24,7 @@ const ACTIVE_STATUS_SET: ReadonlySet<AdapterAuthSessionInternalStatus> = new Set
   ADAPTER_AUTH_SESSION_ACTIVE_STATUSES,
 );
 
-/** Returns true when the status holds the company credential slot. */
+/** Returns true when the status holds the space credential slot. */
 export function isActiveAdapterAuthSessionStatus(
   status: AdapterAuthSessionInternalStatus,
 ): status is AdapterAuthSessionActiveStatus {

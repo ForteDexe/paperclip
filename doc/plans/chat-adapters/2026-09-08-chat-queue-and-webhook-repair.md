@@ -57,7 +57,7 @@ remain on the private control plane, not in external chat.
 - Independent review found the two queue defects above and confirmed the final
   corrections without an authorization/privacy bypass.
 
-Logs are retained under `.paperclip-runtime/chat-adapters-live/` with the
+Logs are retained under `.outpost-runtime/chat-adapters-live/` with the
 `chat-queue-gateway-webhook-full-final-0908`, `chat-queue-webhook-unit-final-0908`,
 and `github-reconnect-copy-browser-final-0908` prefixes.
 
@@ -107,9 +107,9 @@ deployment candidate but has not yet passed its fresh live qualification.
 
 The first source message `1788868365.043179` was sent at 11:52:45.043, but the
 first matching local HTTP request arrived at 11:53:45.946: **60.903 seconds
-before Paperclip received it**. The request carried retry 2 / `http_error`
+before Outpost received it**. The request carried retry 2 / `http_error`
 hints; those hints are diagnostic, not authenticated authority. No earlier
-matching request appears in this server log. Paperclip acknowledged the
+matching request appears in this server log. Outpost acknowledged the
 received request in 22.738 ms. Run `e007b44a-a6d9-4f17-92ba-19ee10c44552`
 took 22.542 seconds and its actual answer was published at 11:54:09.815:
 84.772 seconds from source to answer. All publications used one attempt and
@@ -197,7 +197,7 @@ round trips remain to be verified after this correction.
 
 The failed Slack session is retained in quarantine; an audited task-scoped
 session reset after deployment will create a new provider session, not recover
-or replay the failed accepted answer. Paperclip issue, message, file, and run
+or replay the failed accepted answer. Outpost issue, message, file, and run
 history will remain. No reset has been performed yet.
 
 The ignored, local webhook-only qualification proxy now has closed timing
@@ -249,8 +249,8 @@ substitution was used to work around the browser state.
   and draining both lanes on shutdown. This does not claim every provider
   lane is universally lock-free.
 - Workspace-finalization recovery uses an execution-workspace FK only when
-  the candidate resolves to a company-owned row. Directory-only tokens stay
-  nullable; prior-operation cwd recovery requires exact company/run/issue
+  the candidate resolves to a space-owned row. Directory-only tokens stay
+  nullable; prior-operation cwd recovery requires exact space/run/issue
   binding. Tests cover a real owned workspace, a directory-only run token,
   and rejection of a foreign workspace / mismatched prior issue.
 
@@ -291,7 +291,7 @@ native execution profile. No Terra substitution or legacy adapter was used.
   `e9b877f2-4087-413e-bc3d-4f1edd313420` succeeded in 59.769 seconds.
   Working feedback appeared at 12:49:03.800; a safe native progress update
   reused the same message `1546864951203864586`. The complete long answer
-  was delivered as `paperclip-response.md` in message `1546865203755614239`
+  was delivered as `outpost-response.md` in message `1546865203755614239`
   at 12:50:04.135, **62.277 seconds** after submission. The attachment was
   opened in Discord's whole-file preview, not inferred from an outbox flag.
   Two follow-ups submitted at 12:49:19.640/.670 shared one queued notice,
@@ -329,13 +329,13 @@ native execution profile. No Terra substitution or legacy adapter was used.
 - **GitHub native question:** new PR comment `5585485583`, submitted at
   12:56:45.673, started run `1ac82077-478b-444a-a459-efa52aaf9d4d` at
   12:56:49.409. It succeeded in 12.884 seconds and visibly published
-  “Choose Quartz or Jade” with its normal Paperclip link. Opening that link
+  “Choose Quartz or Jade” with its normal Outpost link. Opening that link
   reached the actual pending Board question. Its answer is intentionally
   pending deployment of the separately reproduced native Board-answer
   continuation correction; question creation is not a completed round trip.
 
 These are individual live samples, not latency percentiles. Private reasoning
-and raw tool/diagnostic events stay in Paperclip; external progress uses the
+and raw tool/diagnostic events stay in Outpost; external progress uses the
 closed, safe phase projection. Teams still lacks a qualified Microsoft 365
 tenant and is not counted among these four active live endpoints.
 
@@ -355,7 +355,7 @@ The parallel audit reproduced an actual progress-lane collision: a run can
 legitimately yield an authorized selected answer and later fail, but the
 failure milestone reused the old working-message ID after that ID held the
 answer. The reverse order could erase the truthful failure notice. The fix
-checks the current exact outbound message link, scoped to company, endpoint,
+checks the current exact outbound message link, scoped to space, endpoint,
 conversation and issue, before either the run lane or older queued-wake lane
 can be reused. Authored answers and failure notices consume their lane;
 ordinary working→failure and interleaved task-status updates retain their
@@ -575,7 +575,7 @@ submitted `TG-AFTER-RETIRED-CHECKPOINT-0908` at 14:00:46.314. Run
 `a4938fcc-dc2c-4146-a776-12512cf4b613` started at 14:00:47.771 using
 Outpost Runner, Codex app-server, and Luna. The configured low-effort field
 was later found not to reach this native path; effective effort is unverified.
-The provider produced `paperclip_finish` at 14:01:26.348, but the run stayed
+The provider produced `outpost_finish` at 14:01:26.348, but the run stayed
 active without delivering its answer. Working/progress publications each
 used one attempt against Telegram message `417200359:123`.
 
@@ -690,7 +690,7 @@ answer or wake authority and no weakened destination/runtime/identity checks.
 
 `6dab18bba` fixes targeted operator session resets when the UI supplies an
 issue UUID but saved chat sessions use the issue identifier. The DELETE resolves
-only the current same-company issue's aliases within its own snapshot and
+only the current same-space issue's aliases within its own snapshot and
 retains agent/adapter scoping. Arbitrary custom keys remain exact-match; model
 or run context grants no alias. Seven real-PostgreSQL cases passed twice,
 including a root rerun; the combined compatibility cohort passed **217/217**
@@ -840,7 +840,7 @@ errors and objects that merely resemble its code stay on their existing
 paths. A database-confirmed replay conflict now uses the typed class after
 the existing authorization and exact-run lock. The server's recovery decision
 is permanent/operator-owned, and external chat receives only a safe request
-to have a Paperclip admin review the run.
+to have a Outpost admin review the run.
 
 Initial verification passed **130/130** controller/staged-transport tests,
 **238/238** Codex-driver/backend tests, **78/78** runtime tests, and **183/183**
@@ -863,7 +863,7 @@ claim that all subsequent edits have completed verification.
 ## Composed damaged-session replacement proof
 
 A new **35/35** resume cohort includes a real PostgreSQL, runnerd, driver,
-native runtime and Paperclip control-plane path. Only the Codex provider
+native runtime and Outpost control-plane path. Only the Codex provider
 process and a generated historical corruption seed are synthetic. A normally
 suspended disposable root receives an invalid pending semantic event. A
 nonterminal prior database owner prevents rotation without changing its bytes.
@@ -964,7 +964,7 @@ Slack `1788884841.421029`, GitHub `5588442165`, Telegram `417200359:132`.
 No duplicate final reply was observed. Slack's browser initially retained an
 older scrolled thread and needed a reload to restore its composer; the new
 message then sent normally. This is provider-browser navigation friction,
-not evidence of a failed Paperclip delivery.
+not evidence of a failed Outpost delivery.
 
 Discord's Eigenjoy browser login had expired, so no new Discord live send is
 claimed. Its login tab was left open and the user notified; the bot connection
@@ -1036,7 +1036,7 @@ context loss predates this PR. The follow-up must bind an explicit failed run
 on the server, preserve exact request/comment and task-key lineage, and
 revalidate current chat generation, identity and reach before any mutation.
 A retired conversation must yield actionable guidance and no queued run.
-Concurrent restart/newer input, duplicate retries, cross-company references
+Concurrent restart/newer input, duplicate retries, cross-space references
 and operator-required native faults need negative tests. This is not fixed
 by restoring stale chat credentials or bypassing corrupt-session guards.
 
@@ -1051,7 +1051,7 @@ event diagnostics were added; none of the ownership, archive or result
 assertions was relaxed. The exact historical failure cause remains unproven.
 
 Independent investigation did produce a deterministic related failure: an
-authenticated `paperclip_finish` can arrive on the semantic callback path
+authenticated `outpost_finish` can arrive on the semantic callback path
 before the turn-start response establishes the driver’s active provider turn.
 The driver rejected that valid call as `tool_binding_mismatch`. Waiting only
 in the driver is insufficient because the transport had already copied its
@@ -1091,7 +1091,7 @@ with one skipped and three embedded-PostgreSQL bootstrap failures. The entire
 affected CLI worktree suite then passed **63/63** unchanged with exclusive
 database-test access. One serialized server suite hit the same startup error;
 a later serialized run passed that suite but stopped on a `socket hang up` in
-the unchanged company-import transfer suite. Its full isolated repeat passed
+the unchanged space-import transfer suite. Its full isolated repeat passed
 **24/24**. The local machine had 29–30 shared-memory segments against a limit
 of 32. Contention is a supported inference, not captured historical stderr.
 No global IPC state, unrelated PostgreSQL process or system limit was changed.
@@ -1126,26 +1126,26 @@ Before this admission fix, PR head `5aa2ac46c` passed all CI lanes in
 `34252696878` and Greptile at **5/5**. Those gates must run again for the new
 patch and latest master `be6bb768b`, which arrived during final qualification.
 
-### Accessible-company master merge and final landing pass
+### Accessible-space master merge and final landing pass
 
 Merge `49de75691` incorporates master `be6bb768b` after admission fix
 `46a946aae`. The only manual conflict retained both the chat OpenAPI assertions
-and upstream accessible-company query assertions. The review diff remains
+and upstream accessible-space query assertions. The review diff remains
 **497 files** and has no lockfile delta. The merged compatibility cohort passed
-**256 UI + 32 server tests**, covering company selection, catalog routes,
+**256 UI + 32 server tests**, covering space selection, catalog routes,
 production GitHub tools, experimental chat visibility, authorization and
 OpenAPI. Full workspace typecheck and build passed again after this merge.
 
 Isolated server **48** started at **17:03:55.700 UTC** from `49de75691`,
 with zero active/queued heartbeats before shutdown. Server 47's three live
 native continuations above cover the unchanged native admission code; this
-restart additionally loads the merged company route. The broad local test
+restart additionally loads the merged space route. The broad local test
 invocation began before this small master merge and is still running; its
 earlier failed invocations remain recorded. New final-head CI and Greptile
 review are required before merge, even though the preceding published head
 passed both.
 
-Root reloaded the existing Board catalog. It showed the expected company,
+Root reloaded the existing Board catalog. It showed the expected space,
 all four configured connections as active, and the enabled experimental chat
 surfaces without an error banner. The initial loading screen resolved and
 the server health became ready. This is a catalog smoke on the merged server,
@@ -1181,13 +1181,13 @@ same SHA-256; no Rust restaging was needed. The server loaded the final
 malformed-response guard, with only test-fixture edits dirty at startup.
 
 Root repeated the disabled-experiment journey on server 48 after the
-accessible-company merge: **Settings → Experimental → Chat connectors off →
+accessible-space merge: **Settings → Experimental → Chat connectors off →
 Connectors → GitHub → Connect**. Chat-only providers and existing chat
 connections disappeared, but GitHub opened its production tool account setup
 directly, without the chat/tool choice. Root canceled that setup without
 creating a connection, restored the experiment through the UI, and verified
-all four active connections. The expected company remained selected and no
-error banner appeared. This covers the final company-navigation merge, not
+all four active connections. The expected space remained selected and no
+error banner appeared. This covers the final space-navigation merge, not
 every viewport or transition timing.
 
 New signed-in browser file checks on server 48 used native Codex app-server
@@ -1332,7 +1332,7 @@ App webhook API then redelivered only the exact original created event once.
 The [attachment authority record](2026-09-08-github-private-attachment-authority.md)
 records the exact source hashes and bounded proof.
 
-Paperclip rejected the canonical body mismatch before selecting a signed image
+Outpost rejected the canonical body mismatch before selecting a signed image
 target. The current input had one unavailable omission and no attachment or
 view event. Native Luna took **14.881 seconds**; one final publication arrived
 **17.755 seconds after ingress** and truthfully said the exact image could not
@@ -1342,8 +1342,8 @@ not deleted-source or in-flight revocation qualification.
 The test also exposed a separate callback failure: GitHub reported a bot-created
 event **502 in 0.1 seconds**, with an empty response and no headers. Its
 destination exactly matched the current App webhook and successful neighboring
-deliveries. No matching request reached the local proxy or Paperclip. The later
-bot-edit callback reached Paperclip and was correctly filtered, but that does
+deliveries. No matching request reached the local proxy or Outpost. The later
+bot-edit callback reached Outpost and was correctly filtered, but that does
 not explain the missing created callback. A bounded Tailscale/system-log query
 found no matching failure diagnostic. Its pre-proxy cause remains open.
 
@@ -1566,7 +1566,7 @@ screenshot was taken because its unrelated chat list was outside this check.
 Only sampled transitions were inspected; this is not an exhaustive flicker test.
 
 The first Slack follow-up pair, `QUEUE-MERGE-0908`, produced correct ordered
-replies but did **not** exercise queuing: B's webhook reached Paperclip
+replies but did **not** exercise queuing: B's webhook reached Outpost
 **1.073 seconds after A finished**. It remains sequential-continuation proof.
 The next pair, `QUEUE-INFLIGHT-0908`, submitted B immediately after the current
 working indicator appeared: A at **18:26:29.050**, B at **18:26:31.781 UTC**.
@@ -1652,7 +1652,7 @@ The proxy was restarted without fault injection and a public Board health
 request remained **404**. Existing local Board access stayed available.
 
 Functionally, this specific lost-callback journey succeeded. It remains slower
-than normal chat, since Paperclip cannot acknowledge an input it never received.
+than normal chat, since Outpost cannot acknowledge an input it never received.
 The intermittent upstream/Funnel 502 cause remains unproven. Automatic recovery
 does not retroactively restore message order after later requests have run,
 recover edited/deleted/lifecycle events, or scan unbounded high-volume history.
@@ -1660,7 +1660,7 @@ recover edited/deleted/lifecycle events, or scan unbounded high-volume history.
 The hands-on check also found a misleading Activity row: it still said
 **redelivery requested / pending** after authenticated receipt. A correlated
 query's unqualified fields bound to its inner table instead of the recovery
-row. An explicit alias join now keys receipt status by company, endpoint,
+row. An explicit alias join now keys receipt status by space, endpoint,
 kind and GUID. The PostgreSQL regression went red to green; a processed
 same-GUID receipt on another endpoint cannot mark this one received. Server 53
 loaded the final source at **19:22:49.015 UTC**, became ready at
@@ -1705,7 +1705,7 @@ to green and the four-file cohort passed **304/304**.
 A separate generic recovery-action restore route committed task/action changes
 before its best-effort wake, also without exact failed-request lineage. Five
 route regressions first reproduced misleading success and mutations. A new
-company-scoped guard rejects only unsupported chat `restored` → `todo` inside
+space-scoped guard rejects only unsupported chat `restored` → `todo` inside
 the locked transaction, before task update or recovery resolution. The changed
 route suite and adjacent recovery/comment routes passed **153/153**, with
 ordinary non-chat hand-back and `done` / `in_review` resolutions preserved.
@@ -1753,7 +1753,7 @@ note is archived with an exact Git link, keeping this one PR at **500 files**;
 current design, production code and test coverage are retained.
 
 Full merged workspace typecheck and build passed. Root reloaded the live Board
-after a transient `useCompany` error during merge editing; the normal reload
+after a transient `useSpace` error during merge editing; the normal reload
 restored Activity, agent overview and Channels. The overview identifies
 Outpost Runner and `gpt-5.6-luna`. The new upstream section heading duplicated
 the Channels panel's own heading. A browser regression reproduced **two**
@@ -1828,7 +1828,7 @@ that the separate Discord restart crash was fixed.
 
 The existing 115-reply Slack thread remained at **Loading replies…** without a
 reply composer after normal refresh/reopen attempts. No continuation was sent
-there; this is not a Paperclip ingress failure. A fresh root mention in the
+there; this is not a Outpost ingress failure. A fresh root mention in the
 same authorized QA channel is the bounded post-patch alternate journey.
 
 Server 56 loaded the frozen patch at **20:13:21.244 UTC**, became ready at
@@ -1843,11 +1843,11 @@ Root opened the actual thread and inspected the reply, eyes reaction and usable
 continuation composer. The initial mention autocomplete incorrectly labeled the
 existing bot as not in the channel; actual mention resolution, ingress and
 delivery succeeded without changing membership. The old long-thread stall and
-this provider autocomplete inconsistency are not claimed fixed by Paperclip.
+this provider autocomplete inconsistency are not claimed fixed by Outpost.
 
 The final fresh PostgreSQL integration run passed **421/421**, with no skips,
 in **91.49 seconds**. Its database was absent before creation and held zero
-companies, endpoints or tasks before the single suite invocation. Two setup
+spaces, endpoints or tasks before the single suite invocation. Two setup
 commands failed before any test: a cleanup helper lacked its URL argument, then
 an unnecessary ESM import attempt failed resolution. Neither is a product-test
 failure or a retry of a populated fixture. Source and dependency patch hashes
@@ -1990,7 +1990,7 @@ to native session `ce94db0c-3aec-40be-8caa-c80d008fcbbb`.
 
 Five publication records, each with one attempt, updated two Telegram messages
 (`417200359:150` and `417200359:152`). Both ended with **Maya E2E stopped before
-completing this turn. Open the task in Paperclip:** and the correct task URL.
+completing this turn. Open the task in Outpost:** and the correct task URL.
 There were zero generated attachments, work products or file publications;
 B never executed a file reuse/register action. Its actual file consumption,
 returned bytes and output isolation therefore remain unqualified. This is a
@@ -2074,7 +2074,7 @@ in the existing PR conversation, CHA-9, issue
 | Failure                | `native_session_cleanup_quarantined`   | `setup_failed`: `reviewed_chat_execution_binding_not_authorized` |
 
 A failed before B was submitted: **no queued execution was exercised**. The
-runtime cleanup domain is company plus backend kind/name, so Telegram A's
+runtime cleanup domain is space plus backend kind/name, so Telegram A's
 retained operator-required cleanup also blocks GitHub. This does not establish
 a second damaged GitHub checkpoint. B's reviewed execution binding needs a
 separate diagnosis. Neither request reached native provider execution; the new
@@ -2083,7 +2083,7 @@ binary's presence alone is not live proof of its control-first repair.
 Each input produced one published failure notice in one attempt (GitHub
 `5592126063` and `5592127485`), respectively 1.812 and 2.274 seconds after local
 receipt. Root read both actual rendered messages: **Maya E2E stopped before
-completing this turn. Open the task in Paperclip:** with the correct CHA-9 URL.
+completing this turn. Open the task in Outpost:** with the correct CHA-9 URL.
 There was no plan or requested short answer. The functional outcome failed;
 the experience needs improvement because identical generic notices conceal
 different setup/recovery causes and provide no usable in-channel recovery.
@@ -2093,7 +2093,7 @@ The shared external milestone copy now recognizes only the typed cleanup
 quarantine code. It explains that an earlier session needs admin recovery,
 the request is saved, and resending will not repair it. Unknown errors remain
 generic, and neither checkpoint/process details nor private error text leave
-Paperclip. Two exact-copy regressions failed against the old projection;
+Outpost. Two exact-copy regressions failed against the old projection;
 the final milestone/task-link/safe-projection cohort passed **43/43**. This
 copy change is not deployed or visually retested yet, and it is not the
 session recovery implementation itself.
@@ -2126,7 +2126,7 @@ approval checks. Direct and answered-question positives were red before the
 fix; paused, terminated and pending-approval agents still fail authorization.
 The full external-chat-wait suite passed **142/142**. Its first full run also
 caught an unrelated 20-bit random fixture-prefix collision; prefixes now derive
-injectively from each company UUID, without changing production behavior.
+injectively from each space UUID, without changing production behavior.
 
 Wider finalizer testing caught and fixed two regressions during this work.
 Already-materialized clean successful runs must not acquire a new timestamp on
@@ -2213,7 +2213,7 @@ log in again” in Discord. No new Discord message or account switch was made.
 GitHub's recently released CLI media upload was checked as a potential native
 file-delivery improvement, but its official implementation explicitly accepts
 OAuth/PAT credentials, not App installation tokens. It is not a supported
-substitute for the bot's existing authenticated Paperclip download links:
+substitute for the bot's existing authenticated Outpost download links:
 [GitHub CLI upload implementation](https://github.com/cli/cli/blob/v2.99.0/internal/attachments/client.go).
 
 ### Already-ended provider shutdown and recovery qualification
@@ -2547,7 +2547,7 @@ no provider credential or permission change was needed for this retry.
 ### Revoked-editor source invalidation
 
 A provider-authenticated edit of an already-admitted source now records a
-content-free invalidation even when its actor no longer has Paperclip admission
+content-free invalidation even when its actor no longer has Outpost admission
 rights. Regranting that actor cannot resurrect the stale file or make an exact
 old-source retry admissible. GitHub bot edits can invalidate only an exact linked
 inbound source; unknown, self and outbound echoes remain suppressed. New edited
@@ -2816,7 +2816,7 @@ anchor, no signed download target. Anonymous retrieval returned 404 without a
 redirect; the body was not consumed. The image comparison `5589001728` exposes
 an exact same-asset signed image target through the equivalent App read.
 Removing the generic-file guard alone cannot fix this fixture. Preserve the
-safe omission and offer direct Paperclip attachment or pasted text; never
+safe omission and offer direct Outpost attachment or pasted text; never
 borrow browser cookies or send App credentials to upload/CDN URLs. The focused
 attachment suite passed 96/96. This is evidence for these fixtures and the
 supported App-read route, not a claim that GitHub can never add another route.
@@ -2954,7 +2954,7 @@ runner denied snapshot/open before a second provider launch or RPC; the launch
 ledger, complete provider trace, original startup receipt and failed-command
 result were unchanged. Both runner ChildProcesses were joined with exit 1.
 
-Root fixture `paperclip-real-startup-fXxrjh` and its summary/trace remain under
+Root fixture `outpost-real-startup-fXxrjh` and its summary/trace remain under
 the host's temporary directory for inspection; provider PID was 35821. CLI
 preflight checks observed zero launches and fixture creation, and eight isolated
 emergency-cleanup checks covered absent, matching, mismatched and still-live
@@ -3006,7 +3006,7 @@ cohort passed **49/49**, package types/build and strict binary signature passed.
 The normally staged candidate is
 `2400740c02b85a0099c18c17cb8567905c8dd07fc677363c90f98d0d9b9dbbc8`.
 The final actual-Codex canary also passed against it, fixture
-`paperclip-real-startup-87DVmb`, provider PID 61163, with only the three expected
+`outpost-real-startup-87DVmb`, provider PID 61163, with only the three expected
 initialization/resume methods and no second provider launch after reopen.
 The final full transport cohort passed **105/105**, zero skips, in **143.09s**
 on that exact normal binary. This includes the startup/no-relaunch, legacy
@@ -3064,12 +3064,12 @@ TXT matches throughout. Remote downloaded bytes were not independently hashed.
 GitHub's new private-file fallback request was sent through the dedicated QA
 PR's comment UI, not the implementation PR. Source comment `5594742103` yielded
 one native Luna run and one reply, `5594742965`, stating that the exact file
-could not be imported and offering direct Paperclip attachment or pasted text.
+could not be imported and offering direct Outpost attachment or pasted text.
 No file content was guessed and no browser credential was borrowed. Root then
 followed the paste suggestion with the complete synthetic original text and
 visually verified reply `5594755807`: “Shape: hexagon. Color: teal. Count: 47.”
 The paste recovery is functional. Experience still needs improvement: the
-direct-attachment advice names “this Paperclip task” without a clickable task
+direct-attachment advice names “this Outpost task” without a clickable task
 link. A focused fix is under investigation; unavailable GitHub private generic
 file import itself is not claimed to work.
 
@@ -3123,16 +3123,16 @@ files can be imported. The live paste fallback remains the qualified alternative
 Destination follow-through also found a separate existing Board defect: opening
 an unprefixed task UUID while another organization is selected keeps that wrong
 organization in the canonical task route. The ordinary upload then posts the
-wrong company and receives **422 Issue does not belong to company**. Four real
+wrong space and receives **422 Issue does not belong to space**. Four real
 isolated-browser cases reproduce this, including wrong-prefix identifier links
-and both task interfaces. The loaded-task-company navigation/upload correction
+and both task interfaces. The loaded-task-space navigation/upload correction
 is in progress; it is not covered by the GitHub service tests above.
 
-The task-company correction now derives both upload IDs from the loaded task
-and the canonical route prefix from its visible company mapping. Placeholder
+The task-space correction now derives both upload IDs from the loaded task
+and the canonical route prefix from its visible space mapping. Placeholder
 or prior-task data cannot redirect or upload. Both interfaces, normal/uppercase
 UUID links and wrong-prefix identifier links pass **6/6** focused browser cases:
-the upload reaches the correct company/UUID, stored bytes match, and uploading
+the upload reaches the correct space/UUID, stored bytes match, and uploading
 does not create a comment. The original immediate-upload case also passed three
 consecutive repeats without an added wait.
 
@@ -3140,12 +3140,12 @@ The first correction exposed a real transition failure (3/4 passing): the old
 UUID composer could open a chooser, then be replaced while canonical comments
 loaded, leaving no attachment and no HTTP request. The existing noninteractive
 header/loading surface now covers outgoing canonical-route/interface transitions.
-This does not block on selected-company state or weaken server company checks.
+This does not block on selected-space state or weaken server space checks.
 Nonlegacy search/hash preservation and final organization selection are included
 in the broader rerun. UI types, all four styling gates and **48/48** focused
 cache/navigation/contract tests pass. Root reloaded the live canonical Discord
 task and visually verified its settled header, content and composer. That is
-not a live multi-company fallback or continuous transition recording.
+not a live multi-space fallback or continuous transition recording.
 The final full deterministic chat browser cohort passed **29/29**, zero retries,
 in **2.8 minutes**, including the six new navigation/upload cases and preserved
 nonlegacy query/hash and selected-organization checks.
@@ -3245,7 +3245,7 @@ executor tests; package TS build/types, direct server types and Rust formatting
 passed. Server 68 drained zero active runs and exited; the normal five-second
 HTTP close deadline retired remaining connections. Root deliberately staged
 and strict-verified the exact optimized `6279d39a…` artifact. Its real-Codex
-canary (`paperclip-real-startup-phHTMj`) passed with exactly one provider process,
+canary (`outpost-real-startup-phHTMj`) passed with exactly one provider process,
 no model turn, original startup receipt retained and reopen denied before RPC.
 
 Server **69**, PID **12088**, started **03:36:05.657 UTC**, loaded
@@ -3313,7 +3313,7 @@ provider message.
 ### September 9: actual Discord button-denial boundary
 
 The new standalone test joins the installed patched Discord adapter, actual
-Chat SDK and Paperclip runtime instead of stopping at a mocked SDK callback.
+Chat SDK and Outpost runtime instead of stopping at a mocked SDK callback.
 It showed that Gateway normalization produces plain JSON: the raw
 `deferUpdate` and `isMessageComponent` functions used by the service's denial
 check do not survive. A real service/database composition then reproduced the
@@ -3396,7 +3396,7 @@ parsed denial case, in **5.31 seconds** on
 socket remain simulated; this is not a native model turn or live click proof.
 This coverage addition did not reproduce another product defect.
 
-The new Slack modal bridge uses real Paperclip form construction, signed
+The new Slack modal bridge uses real Outpost form construction, signed
 synthetic envelopes, the installed adapter/Chat SDK and runtime, with a local
 fake Web API. It verifies opaque field IDs and wrapped private metadata,
 canonical answer validation, inline field errors, corrected retries after
@@ -3420,7 +3420,7 @@ two text blocks. Original inputs and Submit disappeared, and the visible error
 label exposed an opaque field ID. The first focused run passed 12/13, with
 this missing-correction path as the genuine failure.
 
-Paperclip now rebuilds an invalid-but-current Teams form after the existing
+Outpost now rebuilds an invalid-but-current Teams form after the existing
 source, actor, destination, publication and pending-interaction checks. The
 replacement preserves the original durable callback token and known choices,
 uses canonical question labels for errors, and retains text up to the existing
@@ -3645,7 +3645,7 @@ remains outstanding. No provider request or server restart occurred here.
 ### September 9: Discord native form workflow and concurrency qualification
 
 The v6 pinned adapter implements native text/select modal opening and submission,
-with closed rendering limits and opaque Paperclip action IDs. Discord interaction
+with closed rendering limits and opaque Outpost action IDs. Discord interaction
 tokens are kept out of persisted Chat SDK context. A failed or ambiguous modal
 open cannot receive a second success acknowledgment or automatic resend.
 Duplicate open attempts remain unconfirmed rather than fabricating success.
@@ -3747,7 +3747,7 @@ survives expiry recovery without a second consent POST or PUT; maintenance
 itself never performs provider I/O.
 
 Discord command registration groundwork now has a closed durable descriptor
-for `/paperclip status`, `new`, and `close`. It preserves other app commands,
+for `/outpost status`, `new`, and `close`. It preserves other app commands,
 uses individual writes only, and reconciles uncertain writes with GET rather
 than blindly reposting. A public ownership marker is an identifier, not a
 credential; the stored descriptor and exact provider identity remain required.
@@ -3867,7 +3867,7 @@ original runtime and callbacks. Plain server types pass.
 The durable ownership store and its adjacent helper/parser tests pass 61/61
 on fresh `chat_discord_registration_20260909_protocol02`. Generated migration
 0258 adds only an instance-wide public app/opaque owner-ID tombstone, without
-cascading foreign keys or credentials. Company deletion cannot erase an
+cascading foreign keys or credentials. Space deletion cannot erase an
 uncertain write and implicitly grant a new command owner. Provider-admin races
 outside this local fence remain an explicit limitation. DB build, fresh
 migration chain and snapshot consistency check pass. This is working-tree
@@ -3936,10 +3936,10 @@ native-command callback was installed through one automatic runtime rebuild.
 The Gateway reconnected successfully. At `06:29:05.036 UTC`, the service stored
 processed registration action `6900a77f-147b-407a-89f7-04398d73b8f0` with phase
 and outcome `registered`, and real provider command ID `1547131713472430131`.
-Its instance-wide ownership row points to the original company/endpoint/action;
+Its instance-wide ownership row points to the original space/endpoint/action;
 the active endpoint now exposes slash commands and ephemeral messages. This is
 real provider registration through existing secret references, not a mocked
-receipt. It does **not** prove the live `/paperclip` invocation, private reply,
+receipt. It does **not** prove the live `/outpost` invocation, private reply,
 DM-new or close experience; those still require browser qualification.
 
 The safe run inventory at `06:30:30.324 UTC` remained 290 terminal runs
@@ -4201,7 +4201,7 @@ RED → GREEN and the final ten-case cohort pass, with server types clean.
 The preserved failed database shows exactly one wake receipt for the new
 Telegram video. The second global-sweep callback belonged to an earlier
 Slack `deferredChatQueueFixture(admissionFails=true)` source
-`C-DEFERRED-NOTICE:1999000.1`, in a different company and agent. This was not
+`C-DEFERRED-NOTICE:1999000.1`, in a different space and agent. This was not
 the denied-action test's cleanup and was not duplicate Telegram admission.
 The Telegram replay now targets its exact delivery and still requires one
 wake, the correct agent and one matching durable receipt. The stale 25 MB
@@ -4543,7 +4543,7 @@ continued the independent code/test lanes. No new Discord journey is asserted.
 
 The pinned adapter did not subscribe or dispatch native generation-stop events
 and allocated process-local draft IDs. The implemented handshake gives each
-private approved-output draft durable, company/endpoint-scoped ownership in
+private approved-output draft durable, space/endpoint-scoped ownership in
 `chat_actions`, binding conversation, publication attempt, runtime, credential,
 bot/chat/topic and approved-text digest. The authenticated actorless provider
 callback can stop only that presentation; it never cancels the current model
@@ -4560,7 +4560,7 @@ retry may commit once. Unknown final delivery remains non-replayable after
 restart. Each new draft/final boundary rechecks current source and authority.
 
 Independent review found that retaining random draft IDs in endpoint-owned
-actions was insufficient: company/endpoint deletion erases those records.
+actions was insufficient: space/endpoint deletion erases those records.
 The proper generated migration `0259_lively_runaways.sql` adds the content-free
 instance sequence `chat_telegram_draft_ids`, positive 31-bit, cache one and
 noncycling. The schema is exported; DB build, numbering/safety checks and
@@ -4598,7 +4598,7 @@ seconds (`native-streams-helpers-root-0909.log`). DB/shared/UI plain types pass.
 Full chat integration passes **825/825** in 174.88 seconds and deterministic
 browser checks pass **31/31** in 2.8 minutes on separate fresh
 `chat_native_streams_{full,browser}_20260909_root01` databases, each migrated
-through 0259 after confirming zero fixture companies
+through 0259 after confirming zero fixture spaces
 (`native-streams-{full,browser}-root-0909.log`). Root formatted the two new
 helper files and verified identical esbuild-emitted JavaScript, then repeated
 the installed transport/helper checks: 19/19. The first equivalence probe used
@@ -4790,7 +4790,7 @@ checkout on 3103 were not restarted; guarded runner/lockfile hashes are intact.
 The original Telegram endpoint upgraded automatically on **attempt one**.
 Its exact subscription receipt committed at `09:18:29.075`, and the durable
 maintenance operation settled processed/provider-confirmed at `.082`. Root's
-read-only check compares the receipt's current company, bot, generation,
+read-only check compares the receipt's current space, bot, generation,
 credential fingerprint and managed callback URL hash, not just its status.
 At `09:18:33.627`, it matched current authority, all four endpoints remained
 active, and run history remained 290 terminal/zero active, latest start still
@@ -4817,7 +4817,7 @@ used the production bundle helper and materialized publish manifests only in
 scratch with one synthetic sibling version. npm **10.9.7** packed all 17 and
 installed **340 packages** in a fresh consumer/cache. No package was published.
 
-The local registry trap rejected every Paperclip sibling metadata request
+The local registry trap rejected every Outpost sibling metadata request
 (18 probes, HTTP 409). The initial harness incorrectly required zero probes
 and therefore failed after the install itself succeeded. Subsequent inspection
 verified all 17 installed sibling lock entries point to the exact local
@@ -4831,7 +4831,7 @@ streaming/awaited completion receipt and compiled Telegram draft Stop passed
 with synthetic provider transport. An explicit outside-consumer import failed
 as intended. These checks do not make real provider requests or model runs.
 
-The retained stage is `.paperclip-runtime/current-server-consumer.VjpmfK`.
+The retained stage is `.outpost-runtime/current-server-consumer.VjpmfK`.
 Its server tarball is **45,576,751 bytes**, **26,297 entries**, SHA256
 `9296a3817ea16882c78dfa4f3fc317556d399bddfc4f3201cb6a4e1b6cab28c2`.
 The compiled server tree has 4,037 files, SHA256
@@ -4854,33 +4854,33 @@ fixture code changed; no product or packed artifact was altered.
 Earlier assembly/validation guards also needed fixture-only correction: absent
 optional declared `files` entries are now recorded rather than invented, and
 the sibling-path matcher distinguishes nested third-party packages from
-Paperclip siblings. Those failed attempts remain separate from final proof.
+Outpost siblings. Those failed attempts remain separate from final proof.
 
 Root's packaged static-UI qualification uses a separate owned port **3221**,
 fresh migrated database `chat_current_consumer_browser_20260909_root01`, and a
-fresh temporary Paperclip home. Source CLI onboarding is used only to create
+fresh temporary Outpost home. Source CLI onboarding is used only to create
 fixture configuration (`invokedByRun: true`, no service installation); the
 server process runs the actual installed compiled entry with a resolution
 guard denying outside-consumer and TypeScript-module fallback. It does not
 test the published CLI. The first launch guard mistakenly rejected `@` in
 the scoped package path; the second launch correctly rejected a too-short
-synthetic signing key. Both stopped before tests or company creation; a
-read-only zero-company check preceded the third attempt with valid fixture
+synthetic signing key. Both stopped before tests or space creation; a
+read-only zero-space check preceded the third attempt with valid fixture
 keys. No production code or artifact was changed for those harness repairs.
 
 During the third attempt, HTTP GETs of `index.html`, `sw.js` and the main
 `assets/index-7u1MFQgd.js` returned 200 with the correct MIME types and exact
 staged byte hashes. The proof is in
-`.paperclip-runtime/current-chat-ui.MnjT3M/static-http-proof.log`;
+`.outpost-runtime/current-chat-ui.MnjT3M/static-http-proof.log`;
 the fresh Vite build log is alongside it. Existing large-chunk and mixed
 static/dynamic import warnings remain, not a clean-bundle-size claim.
 The packaged browser suite passes **31/31** in **2.0 minutes**, exit 0, without
 retries. It covers the default-off experiment gate preserving GitHub tool
 setup, all five provider setup/management UIs, task-bound uploads, pending
 consent and file-batch state across reload, uncertain delivery and exact failed
-run retry feedback. Its `page.route('**/api/**')` fixtures mock Paperclip's
+run retry feedback. Its `page.route('**/api/**')` fixtures mock Outpost's
 chat-control-plane routes, not just remote provider requests. The compiled
-server handles unmocked bootstrap/company/agent/catalog requests and serves
+server handles unmocked bootstrap/space/agent/catalog requests and serves
 the current built UI. This does **not** establish compiled chat-backend or
 real-provider end-to-end delivery. Log: `consumer-browser-03.log`; earlier
 launch failures remain in `consumer-browser.log` and `consumer-browser-02.log`.
@@ -4922,7 +4922,7 @@ They supersede the earlier locked-browser state, not the historical failures.
 
 Fresh source `1788957912.689909` created CHA-37 (issue
 `6fc3059c-5a87-4124-8cb7-af8fdec7e391`) in the authorized private channel
-`C0BUT55N9RV`. [Open the actual Slack thread](https://papercliplabs.slack.com/archives/C0BUT55N9RV/p1788957912689909).
+`C0BUT55N9RV`. [Open the actual Slack thread](https://outpostlabs.slack.com/archives/C0BUT55N9RV/p1788957912689909).
 The provider UI's “1 member” and autocomplete “not in channel” labels were
 misleading: normal authenticated `auth.test`, `conversations.info` and member
 reads confirmed the current bot `U0C05EDC10R` was already a member. No access
@@ -4952,7 +4952,7 @@ proved both output files match the **Slack-stored input** bytes:
 
 - PNG source `F0C0NHCVBL1`, output `F0C0QA0G5FW`: 2,088,249 bytes,
   SHA256 `005f8dabdb19ef786c0e2e76695596d22c1d0bb53de374e0be209cc6d89851c9`.
-  Slack changed the uploaded local PNG before Paperclip received it; the local
+  Slack changed the uploaded local PNG before Outpost received it; the local
   file was 2,111,878 bytes / `7693966f…`. Do not claim original-local byte identity.
 - TXT source `F0C0NHDCA81`, output `F0C0593M2R5`: 152 bytes,
   SHA256 `e5ea1c89ad69c0ae9dffea0599c730e5d284816dbcd9dae44746c7a29f790293`.
@@ -4971,7 +4971,7 @@ oversized cached-mention boundary.
 
 ### GitHub: fresh replies pass; real fallback finds two deeper failures
 
-Root created disposable [issue 4](https://github.com/cryppadotta/paperclip-chat-e2e-enabled/issues/4)
+Root created disposable [issue 4](https://github.com/cryppadotta/outpost-chat-e2e-enabled/issues/4)
 and sent A as a native bot mention, then unmentioned B. Both mapped to CHA-38,
 issue `350675e8-ce15-44f7-a995-d8f55f9b2d6d`, and one native session. A's
 source comment `5602056149` received exact `GH78-A-READY` at 12:46:24.538
@@ -4982,14 +4982,14 @@ Each progress/final pair used one provider message, one attempt.
 C (`5602115684`) attached the fresh TXT through GitHub's real chooser. The
 native run correctly refused to guess unavailable attachment contents, but
 its 12:51:08.147 final said that no task link could be provided immediately
-before Paperclip appended the correct task link. Root verified the actual
+before Outpost appended the correct task link. Root verified the actual
 DOM and screenshot. Native-only guidance fix **`d399d7a41`** is committed and
 pushed: explain service-owned navigation, conditional on current-source
 authorization and a safe configured Board URL; do not invent or promise a
 URL. Fresh/resumed GitHub tests fail before the fix; the final focused cohort
 is **58/58** with plain server types. This code was not loaded by server 78.
 
-Root clicked the actual appended link, reached the right company and CHA-38,
+Root clicked the actual appended link, reached the right space and CHA-38,
 and uploaded the same TXT through **Attach file**. Attachment
 `7c8d6a34-ac6a-432b-ba2b-2a602d38d53c` was stored at 12:56:08.044;
 the exact stored object's 152 bytes and full SHA256 match the original.
@@ -5022,7 +5022,7 @@ coherent deployment and repetition of the complete browser journey.
 Fresh Clawd root/thread `1547228059797561475` created CHA-39 (issue
 `9e0afdaa-b34d-40c0-a01c-c25dafcf6c5e`). A returned exact
 `DISCORD78-A-READY` at 12:52:09.364, 13.782s from ingestion. The actual native
-picker displayed `/paperclip status`, `/paperclip new`, `/paperclip close`.
+picker displayed `/outpost status`, `/outpost new`, `/outpost close`.
 Root invoked status and guild-new. Both visibly said “Only you can see this”;
 status action `8a2af942…` processed at 12:56:08.225 with no run, ordinary wake
 or public publication. Guild-new explained how to create a new root and did
@@ -5109,16 +5109,16 @@ All provider actions used the already signed-in in-app browser, Eigenjoy's
 account and the existing Maya bot. The live process still loaded server 78
 (`ea528f44c`), with `outpost_runner` / Codex / `gpt-5.6-luna`.
 
-DM command attempts at 13:20 and 13:25 were rejected before Paperclip because
+DM command attempts at 13:20 and 13:25 were rejected before Outpost because
 Discord required a shared guild with DMs enabled. They later appeared as
-“The application did not respond”; no corresponding Paperclip action existed.
+“The application did not respond”; no corresponding Outpost action existed.
 Clawd's original Direct Messages setting was off. Root temporarily enabled
 that server's switch for the DM test, verified the checked state, then restored
 it off after the test. Message requests became disabled again; activity
 sharing/joining were unchanged. A first click did not persist the toggle;
 keyboard Space did. No other server or global privacy settings were changed.
 
-The successful `/paperclip new` at 13:28:33.828 produced a private recorded
+The successful `/outpost new` at 13:28:33.828 produced a private recorded
 acknowledgement and the normal “Send your request” confirmation. The next
 message created CHA-41, issue `20e15668-0011-4dd0-85db-528fc226d546`, conversation
 `cb6becfa-fbb2-4f7e-9f91-eb37f26e8e1a`, generation 2, provider DM
@@ -5191,7 +5191,7 @@ browser tests prove byte-identical TXT/PNG receipts, reload persistence, real
 comment binding, accepted-but-response-lost handling, explicit review/discard,
 known-rejection retry and pending/failed attachment removal. This is not a
 cross-tab atomicity or server-idempotency claim. Screenshots and all failed
-attempts remain under `.paperclip-runtime/board-receipts-browser.bzXvpe/`.
+attempts remain under `.outpost-runtime/board-receipts-browser.bzXvpe/`.
 
 Runner fixes are frozen in local commit `c76988f93`: 227 serial source tests
 and 27 composed tests against the actual optimized release binary passed.
@@ -5213,7 +5213,7 @@ Stop/restart group passed 34/34; do not combine these partial suites into a
 fictional full green result. All databases were newly created per attempt.
 
 `e67df56fa` also corrects close wording and provider command descriptions:
-closing a chat conversation does not claim a Paperclip task status change,
+closing a chat conversation does not claim a Outpost task status change,
 nor does it imply physical Discord-thread or Telegram-topic archival. Six
 fresh-database control tests and 62 focused unit tests passed; task status is
 explicitly checked unchanged. These words are not yet deployed. The causal
@@ -5250,7 +5250,7 @@ No installed binary, live server, old runner journal or agent status changed.
 
 Fresh database `chat_snapshot_full_20260909_root06` passed all **860/860** chat
 integration tests (177.16s tests, 185.33s total). The exact log is
-`.paperclip-runtime/chat-adapters-live/chat-snapshot-full-root06-0909.log`.
+`.outpost-runtime/chat-adapters-live/chat-snapshot-full-root06-0909.log`.
 All previous RED logs/databases remain. UI/shared TypeScript checks also passed.
 Recovery's separate full file passed 183/183 before its final durable admission
 marker was added. That last change addresses a newly prepared native turn
@@ -5314,7 +5314,7 @@ gave a private receipt, an Answered card and
 15.777, 12.753 and 14.545 seconds. This is real provider interaction, not an
 injected interaction response.
 
-The subsequent native `/paperclip close` interaction `1547257864891142196`
+The subsequent native `/outpost close` interaction `1547257864891142196`
 arrived at 14:50:21 but remained “thinking.” There was no durable command action
 or close effect. The stored command receipt matched the exact previous close
 description; a current-definition-only parser rejected it, and initialization
@@ -5345,10 +5345,10 @@ ran 15:10:03.589–15:10:19.840 and returned exactly
 `SLACK79-AFTER-STOP-READY`, without resuming the checklist.
 
 **GitHub private-file journey:** actual issue
-<https://github.com/cryppadotta/paperclip-chat-e2e-enabled/issues/5> and comment
+<https://github.com/cryppadotta/outpost-chat-e2e-enabled/issues/5> and comment
 `5603841952` admitted CHA-45. The final replaced progress comment `5603843439`
 after 21.701 seconds from ingress, truthfully reported the private upload
-unavailable, and exposed a working stable “Open this Paperclip task” link.
+unavailable, and exposed a working stable “Open this Outpost task” link.
 Root clicked it and uploaded the original 152-byte TXT through the actual Board
 composer. Attachment `398ed177-8316-4cf3-8ed5-4d5e6ce7fd82` remained bound to
 comment `4da2353e-1888-411e-b931-39c1563cbb06`; stored SHA256 was exactly
@@ -5382,7 +5382,7 @@ are fixture-backed; real transactional rejection behavior is separately tested
 with PostgreSQL. The live GitHub explicit-send journey remains pending.
 
 **Telegram:** fresh `/new` acknowledged at 14:56:48, followed by a long native
-answer delivered as `paperclip-response.md` after exceeding the message limit.
+answer delivered as `outpost-response.md` after exceeding the message limit.
 This was not a draft Stop test: the ordinary answer replaces progress, and the
 overflow is an attachment. Telegram draft Stop is a presentation control, not
 an agent-run cancellation. No Stop success is claimed. Teams work-tenant/admin
@@ -5491,11 +5491,11 @@ then sent once with new key `ab57a871-24f0-4a5d-a817-1b2ece106a15`.
 One Board comment `10519b6a-48f8-4f87-93ba-f8f2d675cf5e` owns the new
 attachment `2a3880ef-297f-44f6-9ca0-389c4eeccb11`. The original
 `398ed177-8316-4cf3-8ed5-4d5e6ce7fd82` binding was not changed. Actual GitHub
-comments [text](https://github.com/cryppadotta/paperclip-chat-e2e-enabled/issues/5#issuecomment-5604427235)
-and [file fallback](https://github.com/cryppadotta/paperclip-chat-e2e-enabled/issues/5#issuecomment-5604427382)
+comments [text](https://github.com/cryppadotta/outpost-chat-e2e-enabled/issues/5#issuecomment-5604427235)
+and [file fallback](https://github.com/cryppadotta/outpost-chat-e2e-enabled/issues/5#issuecomment-5604427382)
 were visible after refresh. Both publications succeeded on attempt 1 by
 15:29:35.618. The file fallback truthfully links to the stable authenticated
-Paperclip task; it does not claim GitHub App comment-file upload support.
+Outpost task; it does not claim GitHub App comment-file upload support.
 
 **Discord close: PASS; fresh-after-close publication: FAIL.** The old cached
 Discord client initially did not show current command suggestions. Reloading
@@ -5764,7 +5764,7 @@ ready at **16:15:43.931 UTC**. Maya resumed through the audited API. Private
 Board health returned 200; the webhook-only public Funnel still returned
 404 for `/api/health`, as intended. No historical owner claim was cleared.
 
-Fresh actual Discord `/paperclip close` interaction
+Fresh actual Discord `/outpost close` interaction
 `1547279491607437352` returned a private receipt and public confirmation
 `1547279493977210942` at 16:16:18.642. A later explicit source
 `1547279569520824380` started run `1d4162d4-d0b5-43f9-9b6c-422febc8514a`
@@ -5801,7 +5801,7 @@ wrong human link, then passed on fresh
 908 filtered, 10.56s, plus helper 7/7 and plain server types. It reuses the
 existing provider-link helper for Telegram DM issue bindings; current bot
 username or null is projected, never rewriting historical rows. Route and
-direct binding, wrong-company denial, missing-bot null and legitimate group
+direct binding, wrong-space denial, missing-bot null and legitimate group
 link preservation are covered. Unrelated formatting was restored and an
 independent review is clear. This source is not yet deployed on server 81.
 
@@ -5847,7 +5847,7 @@ Close `ea6960ee…` published as `417200359:180` at 16:24:17.645 and the
 actual Telegram chat confirmed that the next message starts a new task.
 The launched run continued internally and succeeded at 16:24:52.599;
 there was no later final publication into the closed conversation. This is
-the intended conversation-only closure, not cancellation of Paperclip work.
+the intended conversation-only closure, not cancellation of Outpost work.
 
 The exact already-published working message `417200359:178` nonetheless
 remained "Maya E2E is working…" after the run finished. Independent code
@@ -5937,7 +5937,7 @@ closing Telegram, Slack, Discord or Teams. It requires the current outbound link
 current publication ownership and historical same-run milestone proof. It refuses
 multiple lanes, cards, authored finals and possibly delivered consuming questions.
 After a confirmed close commit it removes only that run's owned receipt reactions;
-the Paperclip run continues internally under the existing close semantics.
+the Outpost run continues internally under the existing close semantics.
 
 Independent review reproduced four pending/unknown question or confirmation
 consumer cases that the initial final-only veto missed. A second root review then
@@ -6066,7 +6066,7 @@ rule; this is not a claim that all historical tasks were exempted. Resume was
 audited at 17:10:18.426. Six quarantined historical owners remain untouched.
 
 The untouched CHA-40 Board page now actually shows Open Telegram pointing to
-`https://t.me/MayaPaperclipQA1234bot`. Independent database inspection confirms
+`https://t.me/MayaOutpostQA1234bot`. Independent database inspection confirms
 its stored historical URL is still `https://t.me/cryppadotta/162`; the successful
 projection was not manufactured by rewriting that conversation.
 
@@ -6210,7 +6210,7 @@ gates; no chat merge or broad whole-workspace pass is claimed here.
 ### Provider-owned delivery evidence and control-boundary RED (17:32 UTC)
 
 Read-only GitHub App delivery diagnostics used the user-supplied PEM privately,
-first verifying exact App 4853886 / `paperclip-maya-e2e-0906`. No credentials,
+first verifying exact App 4853886 / `outpost-maya-e2e-0906`. No credentials,
 headers or full request payloads were emitted, and the diagnostic requested no
 redelivery or configuration change. Source D `5605906590`, GUID
 `8ab03910-ac72-11f1-9e07-66a68432143c`, has two provider delivery records:
@@ -6220,7 +6220,7 @@ redelivery or configuration change. Source D `5605906590`, GUID
   failure classification, not proof an upstream HTTP server emitted a 502 body.
 - `3841793250094514176`, 17:19:50.434: successful 202 redelivery, 0.54s duration.
 
-Paperclip recovery action `050f9df7…` began its scan at 17:19:48.249, requested
+Outpost recovery action `050f9df7…` began its scan at 17:19:48.249, requested
 the exact redelivery at 17:19:49.491, and confirmed that request at 17:19:49.688.
 The callback reached the proxy at 17:19:50.296. Thus the existing scheduled
 repair genuinely recovered this failed callback. The normal 60-second scan
@@ -6316,7 +6316,7 @@ The older-control confirmation test now uses normal Board task completion,
 a new DM generation, its newer close, then confirmation of the old unknown
 publication; no FIFO bypass or fabricated transport receipt. Final test SHA256
 is `84ed28cc3e506b85360744089a244291ba21159256bcfdce634d5499bc157b03`;
-production SHA above is unchanged. Logs are `.paperclip-runtime/first-seen-control-final02.log`
+production SHA above is unchanged. Logs are `.outpost-runtime/first-seen-control-final02.log`
 and `first-seen-control-types-final02.log`. Root12 retains the earlier test
 snapshot; its in-progress result is not the final repeat of these corrections.
 
@@ -6324,11 +6324,11 @@ snapshot; its in-progress result is not the final repeat of these corrections.
 
 Root12 completed **964/968** on the original test snapshot in 452.85s, with
 exactly the four previously classified fixture failures and no additional
-failures. Log: `.paperclip-runtime/chat-adapters-live/chat-snapshot-full-root12-0909.log`.
+failures. Log: `.outpost-runtime/chat-adapters-live/chat-snapshot-full-root12-0909.log`.
 The full deterministic chat plus Board attachment/receipt browser run passed
 **43/43**, zero retries, in 5.8 minutes on fresh
 `board_receipts_browser_20260909_final09`, against the frozen production guard.
-Log: `.paperclip-runtime/board-receipts-browser.bzXvpe/channel-and-board-full-browser-final09-0909.log`.
+Log: `.outpost-runtime/board-receipts-browser.bzXvpe/channel-and-board-full-browser-final09-0909.log`.
 
 An additional consistency probe is genuinely red, separately from the 64-case
 green cohort. The real-shaped native Discord close command dates to
@@ -6340,7 +6340,7 @@ requires provider source time after publication confirmation, unlike the new
 command-clock admission proof. The test establishes the exact admission/run
 prerequisites; it does not separately instrument every later grant predicate.
 Fresh DB: `chat_control_confirmation_gap_20260909_red01`; log:
-`.paperclip-runtime/control-confirmation-gap-red01.log`; test 666ms, total10.11s.
+`.outpost-runtime/control-confirmation-gap-red01.log`; test 666ms, total10.11s.
 
 The planned correction shares the exact read-only command-chronology proof.
 Affirmative presentation additionally requires proof coverage for every
@@ -6361,8 +6361,8 @@ published-control histories remain negative. Intake treats absence as no
 boundary; presentation requires the explicit affirmative proof, complete raw
 published-candidate inventory, and all previous causal/current-authority guards.
 An earlier 68/69 run failed constructing a null NOT NULL issue ID; its corrected
-negative uses another real same-company issue, without changing production.
-Logs: `.paperclip-runtime/control-chronology-shared-green02.log` and
+negative uses another real same-space issue, without changing production.
+Logs: `.outpost-runtime/control-chronology-shared-green02.log` and
 `control-chronology-shared-types-green02.log`.
 
 A separate Teams native-thread probe failed before presentation: `/close` there
@@ -6378,12 +6378,12 @@ qualification.
 The bounded probe confirmed a real mismatch: actual Telegram `/close\n` was
 accepted and published, but proof used PostgreSQL's space-only `btrim`, allowing
 an older first-seen source to be processed. The one-case RED took 559ms;
-log `.paperclip-runtime/control-whitespace-red01.log`. The narrow correction
+log `.outpost-runtime/control-whitespace-red01.log`. The narrow correction
 uses the exact ECMAScript trim-character set in SQL, retaining the same anchored
 command and bot-suffix grammar rather than accepting new command shapes.
 The truthful Teams personal close → regional service URL → new-generation
 presentation positive also passes (644ms tests, 10.92s total), log
-`.paperclip-runtime/teams-post-close-route-green01.log`, without a route-authority
+`.outpost-runtime/teams-post-close-route-green01.log`, without a route-authority
 production change. The combined final cohort and full suite are still pending.
 
 Root full integration `chat_snapshot_full_20260909_root13` and deterministic
@@ -6392,12 +6392,12 @@ against frozen helper `ed01066a…`, service `836d899c…`, issues `65d79903…`
 and test `e17162c4…`. They are pending, not passing gates. The exact whitespace
 parity probe found all 25 ECMAScript trim characters and matching SQL results
 for nine valid/invalid command shapes; log
-`.paperclip-runtime/control-whitespace-parity-final01.log`.
+`.outpost-runtime/control-whitespace-parity-final01.log`.
 
 Final focused/adjacent repeat passes **71/71** (35.12s tests, 43.01s total) on
 fresh `chat_control_chronology_shared_20260909_final01`, with plain server types,
 diff check and independent final source review clear. Logs:
-`.paperclip-runtime/control-chronology-shared-final01.log` and
+`.outpost-runtime/control-chronology-shared-final01.log` and
 `control-chronology-shared-types-final01.log`. The four frozen hashes are
 unchanged. Full root13 and browser final10 remain in progress; no live cutover
 or merge is implied by this focused result.
@@ -6408,7 +6408,7 @@ processed sources in Discord CHA-43 and Telegram CHA-48 return
 `after_all_proven_controls`; Slack CHA-44 and GitHub CHA-45 correctly return
 `no_proven_control`. This checks chronology only, not the complete run-level
 presentation grant, and changes no live state. Log:
-`.paperclip-runtime/chat-adapters-live/control-chronology-preflight-83.log`.
+`.outpost-runtime/chat-adapters-live/control-chronology-preflight-83.log`.
 The isolated qualified runner's SHA256 remains `6844f20e…` and its strict code
 signature check passes; tracked runner binary and lockfile remain unchanged.
 
@@ -6416,7 +6416,7 @@ The full deterministic chat/Board receipt browser repeat completed **43/43**,
 zero retries, in 5.3 minutes (exit 0) on fresh
 `board_receipts_browser_20260909_final10`. All four frozen source/test hashes
 remain unchanged. Log:
-`.paperclip-runtime/board-receipts-browser.bzXvpe/channel-and-board-full-browser-final10-0909.log`.
+`.outpost-runtime/board-receipts-browser.bzXvpe/channel-and-board-full-browser-final10-0909.log`.
 Full root13 remains pending; server82 is still the live process.
 
 ### Full shared-proof run and bare-control fixture correction (18:18 UTC)
@@ -6433,7 +6433,7 @@ negatives, explicitly checks missing authorization, and denies presentation
 after this unproven published record. It does not manufacture a supported Teams
 native-thread close or relax production authority. The 71 genuine-control cases
 remain separate coverage. Log:
-`.paperclip-runtime/chat-adapters-live/chat-snapshot-full-root13-0909.log`.
+`.outpost-runtime/chat-adapters-live/chat-snapshot-full-root13-0909.log`.
 Fresh root14 is being prepared; server83 remains undeployed.
 
 The test-only correction is green on fresh
@@ -6442,7 +6442,7 @@ all 11 timestamp-provenance cases), 48.90s tests/60.99s total, plus plain server
 types. Test SHA256 is
 `ddab366732298fa43e8272d824eef516ad7be42f29a56b6b5450aea5e2c8d3ec`;
 all production hashes remain unchanged. Logs:
-`.paperclip-runtime/timestamp-proof-fixture-final01.log` and
+`.outpost-runtime/timestamp-proof-fixture-final01.log` and
 `timestamp-proof-fixture-types-final01.log`. Fresh full root14 started at
 18:20:15 UTC and is still pending. Root13's failed result is retained; no
 production fix, full green claim, or live cutover is implied by this correction.
@@ -6453,13 +6453,13 @@ Fresh `chat_snapshot_full_20260909_root14` passes **975/975**, no skips, exit 0:
 409.45s tests/422.95s total. Production hashes remain `ed01066a…` helper,
 `836d899c…` service and `65d79903…` issues; test `ddab3667…`. This joins final10
 browser **43/43**, zero retries, and the 82-case focused/types gate. Log:
-`.paperclip-runtime/chat-adapters-live/chat-snapshot-full-root14-0909.log`.
+`.outpost-runtime/chat-adapters-live/chat-snapshot-full-root14-0909.log`.
 The earlier root13 970/975 result remains recorded rather than overwritten.
 
 At 18:27:38 UTC the exact QA agent was idle with zero queued/running runs and
 queued/claimed wakes. An audited pause rechecked both sets before SIGTERM of
 server82 PID60999. Backup
-`.paperclip-runtime/chat-adapters-live/pre-83-backup.1FdJts/pre-server-83-20260909-132744.sql.gz`
+`.outpost-runtime/chat-adapters-live/pre-83-backup.1FdJts/pre-server-83-20260909-132744.sql.gz`
 is 14,920,506 bytes, directory0700/file0600, gzip verified, no pruned backups;
 restore was not tested. Schema258 was already up to date, so no migration ran.
 Server83 loaded root `0c7f29207`, PID2295, loopback3137; proxy3104 and shared
@@ -6509,7 +6509,7 @@ temporarily busy; the server explicitly records no provider delivery attempted.
 Attempt2 published the final at18:34:05.210. This is not an ambiguous replay.
 All scoped publications/actions settled, all receipt removals processed, and
 actual Slack/GitHub browser final text matches the receipts. Sources:
-`.paperclip-runtime/chat-adapters-live/live83-final-receipts.json`,
+`.outpost-runtime/chat-adapters-live/live83-final-receipts.json`,
 `live83-queue-overlap-receipts.json` and `server-experimental-landing-83.log`.
 No new live Teams or Telegram native draft-Stop qualification is claimed.
 
@@ -6559,7 +6559,7 @@ no success or live deployment of that repair is claimed. Ignored evidence:
 `terminal-ack-holdspawned-baseline-0909.log`,
 `terminal-ack-fsync-zero-evidence-0909.log` and
 `terminal-ack-fsync-ten-evidence-0909.log` under
-`.paperclip-runtime/chat-adapters-live/`.
+`.outpost-runtime/chat-adapters-live/`.
 
 ### September 9, 19:11 UTC — terminal replay, queue drain and final authority qualified
 
@@ -6592,7 +6592,7 @@ not count as production REDs.
 Root independently repeated the original delayed-fsync case on final source:
 1/1 passed,16.67s tests/17.41s total. The same10ms injection recorded525 target
 fsyncs and about9.383s cumulative latency across the fixture. Evidence is
-`.paperclip-runtime/chat-adapters-live/terminal-ack-fsync-ten-fixed-authority-final-0909.log`.
+`.outpost-runtime/chat-adapters-live/terminal-ack-fsync-ten-fixed-authority-final-0909.log`.
 Frozen SHA-256 values:
 
 - Transport: `266dfb99e6a5a022e9994a6af7bb919451b6d07ada6a02d383f2495634866392`.
@@ -6603,7 +6603,7 @@ Frozen SHA-256 values:
 The prior ac714 CI finished982/982 chat integration tests; only runner Build
 and dependent verify were red. The actual post-foundation base composition has
 workspace-wide types and40/40 master queue/batching tests green. Strict fixture
-cleanup needed exact agent runtime-state and company-skills deletion after a
+cleanup needed exact agent runtime-state and space-skills deletion after a
 real process; the original FK failures and downstream duplicate-prefix errors
 are retained, and no route/schema behavior or assertion was weakened. Full
 runner qualification and the final rebased remote update/review are still
@@ -6627,7 +6627,7 @@ The failing files were artifact metadata, local runner, installed-provider
 integrity and Codex credentials. The10 skips are three opt-in benchmarks and
 seven Linux-only cases; Linux/x64 CI skips only those same three benchmarks.
 No skip was added by the candidate. Evidence is the landing worktree's
-`.paperclip-runtime/landing-20260909/integration-base-verify-YAhDBQ/final-runner-check-all02.log`.
+`.outpost-runtime/landing-20260909/integration-base-verify-YAhDBQ/final-runner-check-all02.log`.
 
 The artifact failure compares `/var/folders/...` with its intended production
 `realpath` result `/private/var/folders/...`; SHA, byte size and metadata all
@@ -6745,7 +6745,7 @@ unselected tests, 17.58s test time/18.44s total, exit 1. The log confirms the
 fixture-only intervention. This is causal diagnostic RED, not qualification,
 and the preload is not installed in any server or subsequent qualification.
 Evidence: original worktree
-`.paperclip-runtime/chat-adapters-live/terminal-ack-fast-save-old-fixture-0909.log`.
+`.outpost-runtime/chat-adapters-live/terminal-ack-fast-save-old-fixture-0909.log`.
 The physical source and release binary were not edited for this control.
 
 The proposed test-only correction uses the existing public authenticated-wire
@@ -6770,7 +6770,7 @@ in Downloads. The effective download interface exposes no local-path accessor;
 no downloaded-byte hash is claimed and no provider defect is inferred from
 that observation. No fallback account/browser, raw HTTP or repeated downloads
 were used. Detailed ignored evidence:
-`.paperclip-runtime/chat-adapters-live/discord-existing-media-recheck-0909.md`.
+`.outpost-runtime/chat-adapters-live/discord-existing-media-recheck-0909.md`.
 
 ### September 9, 20:01 UTC — deterministic terminal-loss fixture qualified
 
@@ -6798,10 +6798,10 @@ Production transport remains SHA-256
 `266dfb99e6a5a022e9994a6af7bb919451b6d07ada6a02d383f2495634866392`.
 The code delta is one existing test file. Final independent source review is
 clear. Evidence under the landing worktree's physical
-`.paperclip-runtime/landing-20260909/integration-base-verify-YAhDBQ/`:
+`.outpost-runtime/landing-20260909/integration-base-verify-YAhDBQ/`:
 `terminal-ack-wire-full171-final01.log` and
 `terminal-ack-wire-focused-final.log`; owned formatting evidence is
-`.paperclip-runtime/landing-20260909/terminal-ack-wire-format01.log`.
+`.outpost-runtime/landing-20260909/terminal-ack-wire-format01.log`.
 The initial three-case run on the earlier `cd1c…` artifact passed separately,
 but is not substituted for this current-base evidence.
 
@@ -6824,7 +6824,7 @@ one setup-reaction entry; its later formatted diff also contains the exact
 expected `telegram:77118896` / `77118896:930` / `eyes` entry. This is concrete
 evidence that the mutable result changed after the assertion, not proof that
 the requested removal was wrong or lost. Log:
-`.paperclip-runtime/landing-20260909/ci-585-server4-job.log`.
+`.outpost-runtime/landing-20260909/ci-585-server4-job.log`.
 
 Source inspection confirms the relevant asynchronous contract. After terminal
 publication and action durability, the service schedules non-critical receipt
@@ -6873,7 +6873,7 @@ source review is clear. Final integration test SHA-256:
 `9bd5f108d0790731a5816df31dddf715df8c85af38f429b9b8e1d182cfdeacc9`.
 Production service remains
 `b9ad5151cb91b72f97a7fe24773021e6eb72350639bfee84c5adef5998b2b008`.
-Logs in the landing `.paperclip-runtime/landing-20260909/`:
+Logs in the landing `.outpost-runtime/landing-20260909/`:
 `close-receipt-held-red01.log`, `close-receipt-held-green01.log` and
 `close-receipt-types01.log`. Earlier complete 585 CI remains failed; a new
 exact-head full CI run is still required. Original/live state is untouched.
@@ -6932,14 +6932,14 @@ That review does not override the failed browser check in fresh CI run
 cancelled parent/child runs, dead process PIDs, a paused subtree and an
 unaffected unrelated running task, then fails its unchanged zero-notification
 assertion. The screenshot shows the redundant informational parent-run
-cancellation toast. The later archived-company toast is teardown output, not
+cancellation toast. The later archived-space toast is teardown output, not
 the original one-toast failure. No websocket trace was uploaded by that job,
 so exact packet attribution is inferred from source and causal reproduction.
 
 The visible route uses the task identifier, whereas IssueDetail fetches linked
 run history under the canonical UUID. The resolver learned both aliases but
 read run caches using only the route identifier. A rich terminal event correctly
-suppressed its toast and evicted company live membership. The retryable terminal
+suppressed its toast and evicted space live membership. The retryable terminal
 delivery intentionally lacks issueId; it then missed durable UUID-keyed history.
 A mounted actual-provider/socket regression against exact 892 production fails
 with one bodyless informational cancellation toast: one failed, nine unselected,
@@ -6954,7 +6954,7 @@ one failed, 15 unselected, 1.00s total. It is separately reproduced, not claimed
 to be the particular parent toast observed in CI.
 
 The final two-file fix reads active/live/linked run caches through known root
-aliases and id/identifier pairs of current exact company/root descendants. Child
+aliases and id/identifier pairs of current exact space/root descendants. Child
 IDs contribute only to subtree notification membership, not root invalidation.
 No global cache scan, same-agent run inference, persistent suppression registry,
 browser assertion relaxation or deadline increase was introduced. Controls retain
@@ -6968,7 +6968,7 @@ Mounted test SHA-256:
 The final cohort passes **70/70**, two files, 1.19s tests/2.27s total; plain
 UI types, scoped formatting and diff checks pass. Root independently verifies
 hashes, reviews the source and runs token gates successfully. Independent child
-scope review is clear. Logs under landing `.paperclip-runtime/landing-20260909/`:
+scope review is clear. Logs under landing `.outpost-runtime/landing-20260909/`:
 `composer-stop-toast-alias-red01.log`, `composer-stop-toast-child-red01.log`,
 `composer-stop-toast-child-green-final.log`, and
 `composer-stop-toast-child-types-final.log`.
@@ -7018,12 +7018,12 @@ overall result. Remaining independent jobs are being allowed to complete.
 ### September 9, 20:42 UTC — safe retry routing qualifies; full CI exposes a separate deadlock
 
 The retryable status delivery now projects one additional nullable scalar,
-`issueId`, from an existing same-company issue. A left join uses nativeIssueId
+`issueId`, from an existing same-space issue. A left join uses nativeIssueId
 first, otherwise a JSON-string legacy context issueId. Text equality avoids
 casting malformed input; missing, deleted, malformed or foreign associations
 yield null, with no fallback from a present invalid native association. The
 query never selects the complete context, errors or provider output. The existing
-company/run/delivery-marker comparison-and-set and crash/retry semantics remain
+space/run/delivery-marker comparison-and-set and crash/retry semantics remain
 unchanged. This is presentation routing, not new execution authority.
 
 Fresh `chat_close_receipt_20260909_status_route_red01` reproduces the missing
@@ -7090,7 +7090,7 @@ or speculative source change has been made. The next remote head remains held.
 ### September 9, 20:50 UTC — exact delayed-event browser acceptance and lock-order repair
 
 The process browser observer now keeps only whitelisted status metadata for
-its own company and exact run. It requires the final newly resumed child to
+its own space and exact run. It requires the final newly resumed child to
 receive an actual `cancelled` retry delivery with a nonempty deliveryId and its
 exact issueId, then checks zero notifications and captures the final screenshot.
 The bounded 20s observation covers the existing 15s status sweep; the effective
@@ -7483,7 +7483,7 @@ complete-response caption. The actual Telegram Web Instant View reader opened
 the file; root visually inspected beginning/Unicode/escaped punctuation/code
 formatting and the ending marker. The middle marker was present in the actual
 reader accessibility tree, not separately screenshotted. The native downloaded
-`paperclip-response.md` is exactly 100,009 bytes and has the complete source
+`outpost-response.md` is exactly 100,009 bytes and has the complete source
 hash; root and an independent agent read and verified it. The independent check
 also validated UTF-8 and all marker positions. Source text existed only in
 memory before the provider download, not in a precreated local lookalike file.
@@ -7499,11 +7499,11 @@ path retains deterministic coverage but remains live-unqualified.
 The existing Clawd QA thread `1547256172023779448`, under #general
 `1457808933082108089`, remained bound to CHA-43. A read-only preflight confirmed
 no running/queued agent work or unsettled provider effects. Root used Discord's
-real native command picker to invoke `/paperclip status` at 22:02:30.612 UTC;
+real native command picker to invoke `/outpost status` at 22:02:30.612 UTC;
 the private reply identified CHA-43 / in_progress. Root disabled only
 **Enable #general** at 22:03:52.783, verified OFF after reload at 22:04:11.181,
 and invoked a fresh native status at 22:04:18.858. The actual private response
-was: “This command is not available here. Open the Paperclip task or ask an
+was: “This command is not available here. Open the Outpost task or ask an
 operator to link this account.” It showed **Only you can see this**.
 
 Root restored #general at 22:06:55.237 (persisted at 55.261), reloaded and
@@ -7512,7 +7512,7 @@ A fresh native status at 22:07:27.846 again returned CHA-43 / in_progress
 privately. The 22:07:47.488 screenshot shows baseline, denial and restored
 responses together. An independent 22:08:08.184 read-only snapshot confirms
 the original endpoint/runtime/identity/settings and unchanged task state:
-50 company tasks, 222 channel comments, 94 runs, 103 wakes, 266 endpoint
+50 space tasks, 222 channel comments, 94 runs, 103 wakes, 266 endpoint
 publications and 120 deliveries; no pending work. Only the two successful
 status receipts were added. This tests current destination authorization, not
 actor-role revocation, Discord-side 403 or an in-flight race.
@@ -7899,7 +7899,7 @@ The existing checkout now reconciles the extraction with the exact chat
 retry authorization and native recovery guards. Independent review checks
 policy placement and lock order. The test merge preserves every prior batching
 test byte and adds the two upstream deleted/self-authored wake cases. Issue
-service preserves the new company-scoped wrapper with its chat rules unchanged;
+service preserves the new space-scoped wrapper with its chat rules unchanged;
 19 focused tests pass. Initial pure module tests pass 37/37. These preliminary
 checks do not qualify the still-changing combined module or permit a merge.
 
@@ -7911,7 +7911,7 @@ retired question-source proof before native incident creation; and denial of
 generic failed-chat/nonretryable recovery after independently admitted deferred
 input has had its chance to promote. The adapter carries exact database facts
 through the module's ports. It does not turn serialized hints into authority.
-Existing issue-to-wake lock ordering, company guards, dedicated-answer adoption,
+Existing issue-to-wake lock ordering, space guards, dedicated-answer adoption,
 Stop-registration barriers, and ordinary post-commit dispatch remain intact.
 
 Final module tests pass **49/49** across four files, including eight real
@@ -7947,7 +7947,7 @@ admission use case. Chat admission carries its own durable receipt identity,
 actor partition, and non-coalescing contract through those ports. A merge into
 an existing deferred wake still inserts the incoming receipt in the same
 transaction; a real PostgreSQL regression forces that insert to fail and
-verifies that the preceding target update rolls back. Upstream company and
+verifies that the preceding target update rolls back. Upstream space and
 status compare-and-set guards remain intact. All previous release guards,
 dedicated-answer adoption rules, and Stop-registration barriers survive.
 
@@ -8014,7 +8014,7 @@ A test-only correction gates the exact modal statement and transaction PID
 before executing it, acquires the actual connection row lock, releases that
 statement, and proves the precise blocking relationship before mutation.
 The original prepared statement still executes unchanged. Matching includes
-the modal projection and exact company/connection parameters; the PostgreSQL
+the modal projection and exact space/connection parameters; the PostgreSQL
 observation includes database, transaction PID, SQL text, and blocking owner.
 Real locks, the one-second lock observation, the overall 15-second test bound,
 and final state assertions remain unchanged. Gates are released, transactions

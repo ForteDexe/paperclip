@@ -36,12 +36,12 @@ export function oauthRefreshLeaseId(
   return typeof lease.id === "string" && lease.id ? lease.id : null;
 }
 
-export function createOAuthRefreshLeases(db: Db, now: () => Date, getConnectionRow: (idOrUid: string, companyId?: string) => Promise<typeof toolConnections.$inferSelect>, getOAuthGrantRow: OAuthCredentialStore["getOAuthGrantRow"]) {
+export function createOAuthRefreshLeases(db: Db, now: () => Date, getConnectionRow: (idOrUid: string, spaceId?: string) => Promise<typeof toolConnections.$inferSelect>, getOAuthGrantRow: OAuthCredentialStore["getOAuthGrantRow"]) {
   async function clearOAuthRefreshLease(
     connection: typeof toolConnections.$inferSelect,
     leaseId: string,
   ) {
-    const latest = await getConnectionRow(connection.id, connection.companyId);
+    const latest = await getConnectionRow(connection.id, connection.spaceId);
     if (oauthRefreshLeaseId(latest) !== leaseId) return latest;
     const [updated] = await db
       .update(toolConnections)
@@ -53,12 +53,12 @@ export function createOAuthRefreshLeases(db: Db, now: () => Date, getConnectionR
       .where(
         and(
           eq(toolConnections.id, latest.id),
-          eq(toolConnections.companyId, latest.companyId),
+          eq(toolConnections.spaceId, latest.spaceId),
           sql`${toolConnections.config} -> 'oauth' -> 'refreshLease' ->> 'id' = ${leaseId}`,
         ),
       )
       .returning();
-    return updated ?? getConnectionRow(connection.id, connection.companyId);
+    return updated ?? getConnectionRow(connection.id, connection.spaceId);
   }
 
   async function acquireOAuthRefreshLease(
@@ -71,7 +71,7 @@ export function createOAuthRefreshLeases(db: Db, now: () => Date, getConnectionR
     while (true) {
       const latest = await getConnectionRow(
         connection.id,
-        connection.companyId,
+        connection.spaceId,
       );
       const latestExpiresAtMs = oauthExpiresAtMs(latest);
       if (latestExpiresAtMs && latestExpiresAtMs > Date.now() + 60_000) {
@@ -117,7 +117,7 @@ export function createOAuthRefreshLeases(db: Db, now: () => Date, getConnectionR
           .where(
             and(
               eq(toolConnections.id, latest.id),
-              eq(toolConnections.companyId, latest.companyId),
+              eq(toolConnections.spaceId, latest.spaceId),
               sql`${toolConnections.config} = ${JSON.stringify(latest.config)}::jsonb`,
               sql`${toolConnections.config} #>> '{oauth,refreshLease,id}' is null`,
             ),
@@ -155,7 +155,7 @@ export function createOAuthRefreshLeases(db: Db, now: () => Date, getConnectionR
     leaseId: string,
   ) {
     const latest = await getOAuthGrantRow({
-      companyId: grant.companyId,
+      spaceId: grant.spaceId,
       connectionId: grant.connectionId,
       grantId: grant.id,
     });
@@ -170,7 +170,7 @@ export function createOAuthRefreshLeases(db: Db, now: () => Date, getConnectionR
       .where(
         and(
           eq(connectionGrants.id, latest.id),
-          eq(connectionGrants.companyId, latest.companyId),
+          eq(connectionGrants.spaceId, latest.spaceId),
           sql`${connectionGrants.providerTenant} -> 'oauth' -> 'refreshLease' ->> 'id' = ${leaseId}`,
         ),
       )
@@ -178,7 +178,7 @@ export function createOAuthRefreshLeases(db: Db, now: () => Date, getConnectionR
     return (
       updated ??
       getOAuthGrantRow({
-        companyId: grant.companyId,
+        spaceId: grant.spaceId,
         connectionId: grant.connectionId,
         grantId: grant.id,
       })
@@ -197,7 +197,7 @@ export function createOAuthRefreshLeases(db: Db, now: () => Date, getConnectionR
     const initialOAuth = JSON.stringify(withoutOAuthGrantRefreshLease(oauthGrantConfig(grant)));
     while (true) {
       const latest = await getOAuthGrantRow({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionId: connection.id,
         grantId: grant.id,
       });
@@ -256,7 +256,7 @@ export function createOAuthRefreshLeases(db: Db, now: () => Date, getConnectionR
           .where(
             and(
               eq(connectionGrants.id, latest.id),
-              eq(connectionGrants.companyId, latest.companyId),
+              eq(connectionGrants.spaceId, latest.spaceId),
               eq(connectionGrants.status, "active"),
               // SQL NULL and JSON null both represent absent optional metadata.
               // Keep object snapshots exact so concurrent metadata writes win the CAS.

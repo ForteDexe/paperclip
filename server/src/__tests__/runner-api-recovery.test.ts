@@ -8,13 +8,13 @@ describe("private API output in provider recovery", () => {
     const first = new FakeCodexTransport();
     const second = new FakeCodexTransport();
     const backend = new HarnessDriverBackend(makeDriver([first, second]));
-    const identity = { runId: "api-recovery-run", sessionId: "api-recovery-session", companyId: "company", issueId: "issue", agentId: "agent" };
+    const identity = { runId: "api-recovery-run", sessionId: "api-recovery-session", spaceId: "space", issueId: "issue", agentId: "agent" };
     const original = await backend.openSession({ identity, workingDirectory: WORKSPACE });
     await original.startTurn({ message: { role: "user", text: "Finish the task." } });
-    const receipt = { operationId: "call_api", apiOperationId: "POST /api/companies/{companyId}/exports", callId: "export", ok: true, status: 200, data: { credential: "private-recovery-value" } };
+    const receipt = { operationId: "call_api", apiOperationId: "POST /api/spaces/{spaceId}/exports", callId: "export", ok: true, status: 200, data: { credential: "private-recovery-value" } };
     const completion = { ...result, summary: JSON.stringify(receipt) };
     expect(await first.invoke({ id: "finish", method: "item/tool/call", params: {
-      threadId: "thread-1", turnId: "turn-1", callId: "finish", tool: "paperclip_finish", arguments: completion,
+      threadId: "thread-1", turnId: "turn-1", callId: "finish", tool: "outpost_finish", arguments: completion,
     } })).toMatchObject({ success: true });
     const raw = await original.snapshot();
     expect(raw.activeTurnId).toBe("turn-1");

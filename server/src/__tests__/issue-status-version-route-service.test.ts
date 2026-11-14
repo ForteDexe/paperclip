@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, issues } from "@outpost/db";
+import { agents, spaces, createDb, issues } from "@outpost/db";
 import { errorHandler } from "../middleware/index.js";
 import { issueRoutes } from "../routes/issues.js";
 import { buildInitialIssueMonitorFields, normalizeIssueExecutionPolicy } from "../services/issue-execution-policy.js";
@@ -16,29 +16,29 @@ const support = await getEmbeddedPostgresTestSupport();
   let db: ReturnType<typeof createDb>;
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-status-version-route-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-status-version-route-");
     db = createDb(temporary.connectionString, { maxConnections: 4 });
   });
   afterAll(async () => { await temporary?.cleanup(); });
 
   async function fixture() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Guarded promotion", issuePrefix: `V${companyId.slice(0, 6)}` });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Paused executor", role: "engineer", adapterType: "process", status: "paused" }).returning();
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Guarded promotion", issuePrefix: `V${spaceId.slice(0, 6)}` });
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Paused executor", role: "engineer", adapterType: "process", status: "paused" }).returning();
     const policy = normalizeIssueExecutionPolicy({
       maxReviewRounds: 4,
       stages: [{ type: "review", participants: [{ type: "user", userId: "reviewer" }] }],
       monitor: { nextCheckAt: "2099-01-01T00:00:00.000Z" },
     });
     const [issue] = await db.insert(issues).values({
-      companyId, title: "Promote backlog with retained monitor", status: "backlog", assigneeAgentId: agent!.id,
+      spaceId, title: "Promote backlog with retained monitor", status: "backlog", assigneeAgentId: agent!.id,
       executionPolicy: policy as Record<string, unknown> | null,
       ...buildInitialIssueMonitorFields({ policy, status: "in_progress", assigneeAgentId: agent!.id }),
     }).returning();
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", userId: "board-user", companyIds: [companyId], isInstanceAdmin: true, source: "local_implicit" };
+      req.actor = { type: "operator", userId: "operator-user", spaceIds: [spaceId], isInstanceAdmin: true, source: "local_implicit" };
       next();
     });
     app.use("/api", issueRoutes(db, {} as any));

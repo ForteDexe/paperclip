@@ -40,7 +40,7 @@ type Workspace = typeof executionWorkspaces.$inferSelect;
 export async function pluginWorkspaceSupportsMergeAncestry(db: Db, workers: WorkspaceWorkers | undefined, workspace: Workspace) {
   const pluginId = readWorkspaceProviderBinding(workspace.metadata)?.pluginId;
   if (!pluginId) return true;
-  const selected = await requireWorkspaceProviderWorker(db, workers, workspace.companyId, pluginId);
+  const selected = await requireWorkspaceProviderWorker(db, workers, workspace.spaceId, pluginId);
   return selected.manifestJson.workspaceProvider?.supportsMergeAncestry !== false;
 }
 
@@ -63,7 +63,7 @@ export async function callWorkspaceProvider(
   const pluginId = binding?.pluginId ?? input.pluginId;
   if (!pluginId || !workspace.projectId)
     throw conflict("Workspace storage ownership is missing");
-  const selectedProvider = await requireWorkspaceProviderWorker(db, workers, workspace.companyId, pluginId, true);
+  const selectedProvider = await requireWorkspaceProviderWorker(db, workers, workspace.spaceId, pluginId, true);
   const verifyExisting = input.operation.kind === "prepare" && input.operation.verifyExisting === true;
   if (verifyExisting && selectedProvider.manifestJson.workspaceProvider?.workspaceVerificationVersion !== 1)
     throw conflict("Workspace verification is unavailable");
@@ -85,12 +85,12 @@ export async function callWorkspaceProvider(
     && selectedProvider.manifestJson.workspaceProvider?.recoveryPullRequestVersion !== 1) delete operation.recoveryPullRequest;
   if (operation.kind === "prepare" && operation.fresh && !verifyExisting) {
     if (!workspace.sourceIssueId) throw conflict("Fresh workspace task ownership is missing");
-    operation.fresh = await stageProviderFreshWorkspace({ db, companyId: workspace.companyId,
+    operation.fresh = await stageProviderFreshWorkspace({ db, spaceId: workspace.spaceId,
       issueId: workspace.sourceIssueId, ...operation.fresh, existing: operation.fresh });
   }
   const params: Omit<PluginWorkspaceParams, "deadline"> = {
     pluginId,
-    companyId: workspace.companyId,
+    spaceId: workspace.spaceId,
     projectId: workspace.projectId,
     executionWorkspaceId: workspace.id,
     operationId: input.removalOperationId ?? (
@@ -117,14 +117,14 @@ export async function callWorkspaceProvider(
     throw workspaceProviderCallFailure(error);
   }
   // Recheck enablement and ownership after an external effect, including an ambiguous retry.
-  await requireWorkspaceProviderWorker(db, workers, workspace.companyId, pluginId);
+  await requireWorkspaceProviderWorker(db, workers, workspace.spaceId, pluginId);
   const [fresh] = await db
     .select()
     .from(executionWorkspaces)
     .where(
       and(
         eq(executionWorkspaces.id, workspace.id),
-        eq(executionWorkspaces.companyId, workspace.companyId),
+        eq(executionWorkspaces.spaceId, workspace.spaceId),
       ),
     );
   if (
@@ -144,7 +144,7 @@ export async function preparePluginWorkspace(
   db: Db,
   workers: WorkspaceWorkers | undefined,
   input: {
-    companyId: string;
+    spaceId: string;
     projectId: string | null;
     projectWorkspaceId: string | null;
     issueId: string | null;
@@ -171,12 +171,12 @@ export async function preparePluginWorkspace(
         .where(
           and(
             eq(executionWorkspaces.id, input.existingWorkspaceId),
-            eq(executionWorkspaces.companyId, input.companyId),
+            eq(executionWorkspaces.spaceId, input.spaceId),
           ),
         )
     : [];
   const [reservation] = input.fresh ? await db.select().from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, input.companyId),
+    eq(executionWorkspaces.spaceId, input.spaceId),
     eq(executionWorkspaces.sourceIssueId, input.issueId!),
     sql`${executionWorkspaces.metadata}#>>'{workspaceProviderFresh,attemptId}' = ${input.fresh.attemptId}`,
   )).limit(1) : [];
@@ -202,14 +202,14 @@ export async function preparePluginWorkspace(
         .where(
           and(
             eq(projects.id, projectId),
-            eq(projects.companyId, input.companyId),
+            eq(projects.spaceId, input.spaceId),
           ),
         )
     : [];
   if (prior && prior.providerType !== "plugin" && !priorBinding && !prior.metadata?.workspaceProviderOwner) return null;
   const owner = priorBinding?.pluginId ?? prior?.metadata?.workspaceProviderOwner ??
     (!existing && input.selectedProviderPluginId !== undefined ? input.selectedProviderPluginId :
-      !existing && project ? (await effectiveProjectWorkspacePolicy(db, input.companyId, project.executionWorkspacePolicy, false))?.storageProviderPluginId : null);
+      !existing && project ? (await effectiveProjectWorkspacePolicy(db, input.spaceId, project.executionWorkspacePolicy, false))?.storageProviderPluginId : null);
   const pluginId = typeof owner === "string" ? owner : null;
   if (!pluginId) {
     if (existing?.providerType === "plugin")
@@ -236,7 +236,7 @@ export async function preparePluginWorkspace(
     throw conflict(
       "An existing local workspace cannot change storage providers",
     );
-  const selectedProvider = await requireWorkspaceProviderWorker(db, workers, input.companyId, pluginId, true);
+  const selectedProvider = await requireWorkspaceProviderWorker(db, workers, input.spaceId, pluginId, true);
   if (input.environment) assertProjectStorageEnvironment(selectedProvider, input.environment);
   const declaration = selectedProvider.manifestJson.workspaceProvider!;
   if (input.fresh && declaration.freshWorkspaceVersion !== 1)
@@ -252,16 +252,16 @@ export async function preparePluginWorkspace(
   const actor = {
     type: "agent" as const,
     source: "agent_jwt" as const,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     agentId: input.agentId,
     runId: input.runId,
     onBehalfOfUserId:
-      input.responsibleUserId === "local-board"
+      input.responsibleUserId === "local-operator"
         ? null
         : input.responsibleUserId,
   };
   const authorize = async () => {
-    await assertTaskWorkspaceExecutionAccess(db, actor, input.companyId, {
+    await assertTaskWorkspaceExecutionAccess(db, actor, input.spaceId, {
       issueId: input.issueId!,
       ...(existing
         ? { workspaceId: existing.id }
@@ -270,7 +270,7 @@ export async function preparePluginWorkspace(
     await assertTaskWorkspaceSourceProjectAccess(
       db,
       actor,
-      input.companyId,
+      input.spaceId,
       project.id,
     );
     const [run] = await db
@@ -279,7 +279,7 @@ export async function preparePluginWorkspace(
       .where(
         and(
           eq(heartbeatRuns.id, input.runId),
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
         ),
       );
     if (
@@ -301,7 +301,7 @@ export async function preparePluginWorkspace(
           saved?.projectWorkspaceId ?? input.projectWorkspaceId,
         ),
         eq(projectWorkspaces.projectId, project.id),
-        eq(projectWorkspaces.companyId, input.companyId),
+        eq(projectWorkspaces.spaceId, input.spaceId),
       ),
     );
   if (!source) throw conflict("Workspace repository source is unavailable");
@@ -345,7 +345,7 @@ export async function preparePluginWorkspace(
       if (
         !currentProject ||
         currentProject.archivedAt ||
-        (await effectiveProjectWorkspacePolicy(tx, input.companyId, currentProject.executionWorkspacePolicy, false))?.storageProviderPluginId !==
+        (await effectiveProjectWorkspacePolicy(tx, input.spaceId, currentProject.executionWorkspacePolicy, false))?.storageProviderPluginId !==
           pluginId ||
         !currentSource ||
         currentSource.repoUrl !== source.repoUrl ||
@@ -362,7 +362,7 @@ export async function preparePluginWorkspace(
         .where(
           and(
             eq(issues.id, input.issueId!),
-            eq(issues.companyId, input.companyId),
+            eq(issues.spaceId, input.spaceId),
           ),
         )
         .for("update");
@@ -374,7 +374,7 @@ export async function preparePluginWorkspace(
         .insert(executionWorkspaces)
         .values({
           id,
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           projectId: project.id,
           projectWorkspaceId: source.id,
           sourceIssueId: input.issueId,
@@ -397,7 +397,7 @@ export async function preparePluginWorkspace(
           },
         })
         .returning();
-      await notifyStatusCardIssueChange(tx, task.companyId);
+      await notifyStatusCardIssueChange(tx, task.spaceId);
       await tx
         .update(issues)
         .set({
@@ -501,7 +501,7 @@ export async function preparePluginWorkspace(
       .where(
         and(
           eq(executionWorkspaces.id, workspace.id),
-          eq(executionWorkspaces.companyId, input.companyId),
+          eq(executionWorkspaces.spaceId, input.spaceId),
           sql`coalesce((${executionWorkspaces.metadata}->>'lifecycleGeneration')::int, 0) = ${workspace.metadata?.lifecycleGeneration ?? 0}`,
           sql`${executionWorkspaces.providerRef} IS NOT DISTINCT FROM ${workspace.providerRef}`,
         ),
@@ -525,7 +525,7 @@ async function reconcilePluginWorkspaceReservation(
     .where(
       and(
         eq(executionWorkspaces.id, snapshot.id),
-        eq(executionWorkspaces.companyId, snapshot.companyId),
+        eq(executionWorkspaces.spaceId, snapshot.spaceId),
       ),
     );
   if (!workspace) throw conflict("Workspace is unavailable");
@@ -573,7 +573,7 @@ async function reconcilePluginWorkspaceReservation(
       .where(
         and(
           eq(executionWorkspaces.id, workspace.id),
-          eq(executionWorkspaces.companyId, workspace.companyId),
+          eq(executionWorkspaces.spaceId, workspace.spaceId),
           sql`${executionWorkspaces.providerRef} IS NULL`,
           sql`coalesce((${executionWorkspaces.metadata}->>'lifecycleGeneration')::int, 0) = ${workspace.metadata?.lifecycleGeneration ?? 0}`,
         ),
@@ -629,7 +629,7 @@ export async function finalizePluginWorkspace(db: Db, workers: WorkspaceWorkers 
       throw conflict("Workspace was removed before finalization");
     const binding = readWorkspaceProviderBinding(current.metadata);
     if (!binding) throw conflict("Workspace storage ownership is missing");
-    const selected = await requireWorkspaceProviderWorker(db, workers, current.companyId, binding.pluginId);
+    const selected = await requireWorkspaceProviderWorker(db, workers, current.spaceId, binding.pluginId);
     // Existing providers continue to use their established inspection contract.
     if (selected.manifestJson.workspaceProvider?.finalizationVersion !== 1)
       return inspectBinding(db, workers, current);
@@ -703,7 +703,7 @@ async function finishPendingRestoration(
       .where(
         and(
           eq(executionWorkspaces.id, workspace.id),
-          eq(executionWorkspaces.companyId, workspace.companyId),
+          eq(executionWorkspaces.spaceId, workspace.spaceId),
           eq(executionWorkspaces.status, workspace.status),
           sql`coalesce((${executionWorkspaces.metadata}->>'lifecycleGeneration')::int, 0) = ${generation}`,
           sql`${executionWorkspaces.metadata}->'workspaceProviderRestoration' = ${JSON.stringify(pending)}::jsonb`,
@@ -750,7 +750,7 @@ async function finishPendingRemoval(
   if (result.kind !== "removed")
     throw conflict("Workspace removal is incomplete");
   if (workspace.metadata?.workspaceProviderFresh)
-    await releaseProviderRecoveryTransfers(workspace.companyId, workspace.metadata.workspaceProviderFresh as PluginFreshWorkspace);
+    await releaseProviderRecoveryTransfers(workspace.spaceId, workspace.metadata.workspaceProviderFresh as PluginFreshWorkspace);
   const [updated] = await db.transaction(async (tx) => {
     await notifyTerminalWorkspaceWork(tx, `workspace:${workspace.id}`);
     return tx
@@ -769,7 +769,7 @@ async function finishPendingRemoval(
       .where(
         and(
           eq(executionWorkspaces.id, workspace.id),
-          eq(executionWorkspaces.companyId, workspace.companyId),
+          eq(executionWorkspaces.spaceId, workspace.spaceId),
           sql`coalesce((${executionWorkspaces.metadata}->>'lifecycleGeneration')::int, 0) = ${pending!.generation}`,
         ),
       )
@@ -793,7 +793,7 @@ export async function removePluginWorkspace(
     throw conflict("Workspace restoration must be reconciled before removal");
   if (workspace.metadata?.workspaceProviderRemoved === true) {
     if (workspace.metadata?.workspaceProviderFresh)
-      await releaseProviderRecoveryTransfers(workspace.companyId, workspace.metadata.workspaceProviderFresh as PluginFreshWorkspace);
+      await releaseProviderRecoveryTransfers(workspace.spaceId, workspace.metadata.workspaceProviderFresh as PluginFreshWorkspace);
     return;
   }
   if (workspace.metadata?.workspaceProviderRemoval) {
@@ -817,7 +817,7 @@ export async function removePluginWorkspace(
   }
   await beforeRemove?.();
   const generation = workspace.metadata?.lifecycleGeneration ?? 0;
-  const selectedProvider = await requireWorkspaceProviderWorker(db, workers, workspace.companyId, binding.pluginId);
+  const selectedProvider = await requireWorkspaceProviderWorker(db, workers, workspace.spaceId, binding.pluginId);
   const operation = workspaceProviderOperationSchema.parse({ kind: "remove", binding, expectedHeadSha,
     ...(recoveryPullRequest && selectedProvider.manifestJson.workspaceProvider?.recoveryPullRequestVersion === 1 ? { recoveryPullRequest } : {}) });
   const operationId = createHash("sha256").update(JSON.stringify([workspace.id, generation, operation])).digest("hex");
@@ -835,7 +835,7 @@ export async function removePluginWorkspace(
       .where(
         and(
           eq(executionWorkspaces.id, workspace.id),
-          eq(executionWorkspaces.companyId, workspace.companyId),
+          eq(executionWorkspaces.spaceId, workspace.spaceId),
           sql`coalesce((${executionWorkspaces.metadata}->>'lifecycleGeneration')::int, 0) = ${generation}`,
           eq(executionWorkspaces.providerRef, binding.workspaceRef),
         ),
@@ -940,7 +940,7 @@ export async function restorePluginWorkspace(
       .where(
         and(
           eq(executionWorkspaces.id, workspace.id),
-          eq(executionWorkspaces.companyId, workspace.companyId),
+          eq(executionWorkspaces.spaceId, workspace.spaceId),
           sql`coalesce((${executionWorkspaces.metadata}->>'lifecycleGeneration')::int, 0) = ${workspace.metadata?.lifecycleGeneration ?? 0}`,
         ),
       )

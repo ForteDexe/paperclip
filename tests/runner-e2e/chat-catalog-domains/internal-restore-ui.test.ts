@@ -84,7 +84,7 @@ function control(options: { document?: Partial<Entity>; renderedBody?: string; r
   const o = { origin: "https://fixture.test", documents: [{ ...fixture.document, ...options.observationDocument }], links: ["/RUN/issues/RUN-1"] } as unknown as InternalObservation;
   const state = { task: { id: "task", identifier: "RUN-1", title: "Website task" } };
   const api = { get: vi.fn(async () => current) }, evidence = vi.fn(async () => {});
-  const ctx = { input: { page: view.page, api, evidence, fixtures: { company: { issuePrefix: "RUN" } } } } as unknown as ChatCatalogContext;
+  const ctx = { input: { page: view.page, api, evidence, fixtures: { space: { issuePrefix: "RUN" } } } } as unknown as ChatCatalogContext;
   const primary = { sourceFiles: [], grade: () => ({ passed: true, checks: [] }) } as unknown as ChatCatalogCase;
   return { ...view, api, evidence, verify: () => withRestoreConcurrency(primary).verifyResult(ctx, state, o) };
 }

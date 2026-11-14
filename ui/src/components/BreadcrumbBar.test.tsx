@@ -38,8 +38,8 @@ vi.mock("../context/SidebarContext", () => ({
   }),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1", selectedCompany: { issuePrefix: "TES" } }),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1", selectedSpace: { issuePrefix: "TES" } }),
 }));
 
 vi.mock("../context/PanelContext", () => ({
@@ -63,7 +63,7 @@ function TaskBreadcrumbs({
   identifier = "PAP-16679",
   sourceHref = "/issues",
   parentTitle,
-  title = "Hire your first engineer and create a hiring plan",
+  title = "Create your first engineer and create a creation plan",
 }: {
   onOpen?: () => void;
   panelControl?: { open: boolean; onToggle: () => void };
@@ -229,7 +229,7 @@ describe("BreadcrumbBar", () => {
     expect(container.querySelector('button[aria-label="Hide properties"]')).not.toBeNull();
   });
 
-  it("shows only the title followed by its identifier for a company-scoped mobile task header", async () => {
+  it("shows only the title followed by its identifier for a space-scoped mobile task header", async () => {
     viewport.isMobile = true;
     await act(async () => {
       root.render(
@@ -241,8 +241,8 @@ describe("BreadcrumbBar", () => {
     expect(container.querySelector('a[href="/TES/issues"]')).toBeNull();
     const identifier = container.querySelector('[data-slot="task-title-identifier"]');
     expect(identifier?.textContent).toBe("TES-3");
-    expect(identifier?.previousElementSibling?.textContent).toBe("Hire your first engineer and create a hiring pl…");
-    expect(identifier?.previousElementSibling?.getAttribute("title")).toBe("Hire your first engineer and create a hiring plan");
+    expect(identifier?.previousElementSibling?.textContent).toBe("Create your first engineer and create a creation pl…");
+    expect(identifier?.previousElementSibling?.getAttribute("title")).toBe("Create your first engineer and create a creation plan");
     expect(identifier?.previousElementSibling?.className).toContain("truncate");
     expect(container.querySelector('button[aria-label="Open sidebar"]')).not.toBeNull();
   });
@@ -285,7 +285,7 @@ describe("BreadcrumbBar", () => {
 
   it.each([false, true])("caps each task breadcrumb at 48 characters and preserves full names (mobile=%s)", async (mobile) => {
     viewport.isMobile = mobile;
-    const parentTitle = "Plan the engineering team and hiring process for the next product launch";
+    const parentTitle = "Plan the engineering team and creation process for the next product launch";
     const title = "🚀".repeat(60);
     await act(async () => root.render(
       <BreadcrumbProvider><TaskBreadcrumbs taskDetailLayout parentTitle={parentTitle} title={title} /></BreadcrumbProvider>,
@@ -317,7 +317,7 @@ describe("BreadcrumbBar", () => {
     expect(identifier?.closest(".relative")?.className).toContain("h-(--sz-60px)");
 
     const title = Array.from(container.querySelectorAll("span"))
-      .find((element) => element.getAttribute("title") === "Hire your first engineer and create a hiring plan");
+      .find((element) => element.getAttribute("title") === "Create your first engineer and create a creation plan");
     const tasksLink = container.querySelector<HTMLAnchorElement>('a[href="/issues"]');
     const header = tasksLink?.closest(".relative");
     expect(header?.classList).toContain("px-4");

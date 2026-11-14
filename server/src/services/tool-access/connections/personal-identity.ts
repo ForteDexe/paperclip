@@ -29,7 +29,7 @@ async function fixedPersonalIdentityForReconnect(
       .from(connectionGrants)
       .where(
         and(
-          eq(connectionGrants.companyId, connection.companyId),
+          eq(connectionGrants.spaceId, connection.spaceId),
           eq(connectionGrants.connectionId, connection.id),
           eq(connectionGrants.kind, "user"),
         ),
@@ -58,7 +58,7 @@ async function fixedPersonalIdentityForReconnect(
     }
     if (actorUserId && subjectUserId !== actorUserId) {
       throw forbidden(
-        "Board users may only reconnect their own personal connection",
+        "Operator users may only reconnect their own personal connection",
       );
     }
     if (fixedSubjectUserId && subjectUserId !== fixedSubjectUserId) {

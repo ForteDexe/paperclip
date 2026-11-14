@@ -100,7 +100,7 @@ export function matchesContentType(contentType: string, allowedPatterns: string[
 
 export function normalizeContentType(contentType: string | null | undefined): string {
   // Provider APIs commonly return a complete Content-Type header value (for
-  // example Discord uses `text/plain; charset=utf-8`) while Paperclip's
+  // example Discord uses `text/plain; charset=utf-8`) while Outpost's
   // allowlist and persisted asset metadata operate on the MIME essence. MIME
   // parameters do not change the media type, so normalize them away before
   // enforcing the allowlist. Invalid/empty essences still fail closed to the
@@ -158,7 +158,7 @@ export function isAllowedContentType(contentType: string): boolean {
 
 /**
  * The one attachment size ceiling for this deployment. Every upload path —
- * assets, task attachments, cases, and company import — bounds itself by this
+ * assets, task attachments, cases, and space import — bounds itself by this
  * value, so an operator raises or lowers the limit in exactly one place.
  */
 export const MAX_ATTACHMENT_BYTES =

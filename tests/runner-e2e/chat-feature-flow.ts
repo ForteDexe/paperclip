@@ -27,10 +27,10 @@ export async function runChatFeatureFlow(context: {
   if (!scenario) throw new Error(`Unregistered chat feature scenario: ${caseId}`);
   const marker = execution.task.buildVisibleMarker(nonce);
   const brief = `Acorn Notes launches on November 12. The invitation code is ${marker}. Write a welcoming announcement that includes the product name, date and invitation code.`;
-  const company = `/api/companies/${f.company.id}`;
+  const space = `/api/spaces/${f.space.id}`;
   const setupObservations: Array<Record<string, unknown>> = [];
   const registry = new FixtureRegistry();
-  registry.register<{ id: string }>({ id: "project", setup: () => api.post(`${company}/projects`, { name: "Launch", description: brief }) });
+  registry.register<{ id: string }>({ id: "project", setup: () => api.post(`${space}/projects`, { name: "Launch", description: brief }) });
   registry.register<{ id: string }>({ id: "worker", dependencies: ["project"], async setup() {
     const base = execution.profile.buildAgent({ environmentId: f.environment.id, environmentFixtureId: execution.environment.id,
       workspacePath: input.workspacePath, secretRefs: f.secretRefs, executionId: nonce });
@@ -38,20 +38,20 @@ export async function runChatFeatureFlow(context: {
       capabilities: "Writes clear product announcements using the project brief.",
       runtimeConfig: { ...(base.runtimeConfig as Record<string, unknown>),
         heartbeat: { enabled: false, maxConcurrentRuns: 1, maxDailyRuns: 1, maxDailyCostCents: CHAT_FEATURE_BUDGET_CENTS } } };
-    return api.post(`${company}/agents`, execution.profile.credential === "CODEX_AUTH_JSON"
-      ? codexSubscriptionAgentConfig(worker, process.env, f.company.id) : worker);
+    return api.post(`${space}/agents`, execution.profile.credential === "CODEX_AUTH_JSON"
+      ? codexSubscriptionAgentConfig(worker, process.env, f.space.id) : worker);
   } });
   const fixtures = await registry.setupAll();
   const projectId = (fixtures.values.get("project") as { id: string }).id;
   const workerId = (fixtures.values.get("worker") as { id: string }).id;
-  let observation: ChatFeatureObservation = { caseId, companyId: f.company.id, leadId: f.agent.id, workerId, projectId,
+  let observation: ChatFeatureObservation = { caseId, spaceId: f.space.id, leadId: f.agent.id, workerId, projectId,
     source: null, tasks: [], runs: [], comments: [], documents: [], activity: [], query: scenario.query, marker, renderedLinks: [] };
   let failure: unknown;
   async function refresh() {
     await context.refreshIssue();
     const source = context.issue();
     const [tasks, runs, comments] = await Promise.all([
-      api.get<FeatureTask[]>(`${company}/issues?includeAgentCreatedTasks=true&limit=100`), context.allRuns(),
+      api.get<FeatureTask[]>(`${space}/issues?includeAgentCreatedTasks=true&limit=100`), context.allRuns(),
       source ? api.get<ChatFeatureObservation["comments"]>(`/api/issues/${source.id}/comments?order=asc`) : [],
     ]);
     const task = tasks.length === 1 ? tasks[0] : undefined;
@@ -80,11 +80,11 @@ export async function runChatFeatureFlow(context: {
   async function saveEvidence() {
     await input.evidence("chat-feature.json", { schema: CHAT_FEATURE_GRADER, scenarioId: scenario!.id,
       capabilities: scenario!.capabilities, observation, grade: gradeChatFeature(observation),
-      setupObservations, setupProbeReceipts: await readChatReadinessReceipts(process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT ?? "", f.company.id),
+      setupObservations, setupProbeReceipts: await readChatReadinessReceipts(process.env.OUTPOST_RUNNER_E2E_TEMP_ROOT ?? "", f.space.id),
       setupUsageCoverage: "Production agent hello probes are outside heartbeat usage; their detailed tokens and cost are unavailable." });
   }
   try {
-    expect(await api.get(`${company}/issues?includeAgentCreatedTasks=true`)).toEqual([]);
+    expect(await api.get(`${space}/issues?includeAgentCreatedTasks=true`)).toEqual([]);
     for (const agentId of [f.agent.id, workerId]) {
       await pollUntil({ label: `chat feature agent readiness ${agentId}`, deadlineAt: Date.now() + 45_000, intervalMs: 500,
         load: async () => {
@@ -98,17 +98,17 @@ export async function runChatFeatureFlow(context: {
           : agent.lifecycleHolds?.length ? "Agent setup held" : undefined,
       });
     }
-    const budgets = await Promise.all([api.get<Record<string, unknown>>(company), ...[f.agent.id, workerId].map(id => api.get<Record<string, unknown>>(`/api/agents/${id}`))]);
-    expect(budgets.every(record => record.budgetMonthlyCents === CHAT_FEATURE_BUDGET_CENTS), "Saved company and both agent budget limits").toBe(true);
-    const scopes = [{ scopeType: "company", scopeId: f.company.id }, ...[f.agent.id, workerId].map(scopeId => ({ scopeType: "agent", scopeId }))];
-    for (const scope of scopes) await api.post(`${company}/budgets/policies`, { ...scope,
+    const budgets = await Promise.all([api.get<Record<string, unknown>>(space), ...[f.agent.id, workerId].map(id => api.get<Record<string, unknown>>(`/api/agents/${id}`))]);
+    expect(budgets.every(record => record.budgetMonthlyCents === CHAT_FEATURE_BUDGET_CENTS), "Saved space and both agent budget limits").toBe(true);
+    const scopes = [{ scopeType: "space", scopeId: f.space.id }, ...[f.agent.id, workerId].map(scopeId => ({ scopeType: "agent", scopeId }))];
+    for (const scope of scopes) await api.post(`${space}/budgets/policies`, { ...scope,
       amount: CHAT_FEATURE_BUDGET_CENTS, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
-    const { policies } = await api.get<{ policies: Array<{ scopeType: string; scopeId: string; amount: number; hardStopEnabled: boolean; isActive: boolean; unpricedUsagePolicy: string }> }>(`${company}/budgets/overview`);
+    const { policies } = await api.get<{ policies: Array<{ scopeType: string; scopeId: string; amount: number; hardStopEnabled: boolean; isActive: boolean; unpricedUsagePolicy: string }> }>(`${space}/budgets/overview`);
     const funding = policies.filter(policy => scopes.some(scope => scope.scopeType === policy.scopeType && scope.scopeId === policy.scopeId))
       .map(({ scopeType, scopeId, amount, hardStopEnabled, isActive, unpricedUsagePolicy }) => ({ scopeType, scopeId, amount, hardStopEnabled, isActive, unpricedUsagePolicy }));
     expect(funding).toHaveLength(3);
     expect(funding.every(policy => policy.amount === CHAT_FEATURE_BUDGET_CENTS && policy.hardStopEnabled && policy.isActive && policy.unpricedUsagePolicy === "allow")).toBe(true);
-    await input.evidence("chat-feature-setup.json", { scenarioId: scenario.id, companyId: f.company.id,
+    await input.evidence("chat-feature-setup.json", { scenarioId: scenario.id, spaceId: f.space.id,
       leadId: f.agent.id, workerId, projectId, brief, budgetMonthlyCents: CHAT_FEATURE_BUDGET_CENTS,
       maximumProviderRuns: execution.task.expectedRunCount, providerRunTimeoutMs: execution.task.turnTimeoutMs,
       setupObservations, funding, instructions: "Production role defaults; no fixture procedure or expected outcome is injected." });

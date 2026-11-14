@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { companies, createDb, pluginConfig, plugins } from "@outpost/db";
+import { spaces, createDb, pluginConfig, plugins } from "@outpost/db";
 import { pluginRegistryService } from "../services/plugin-registry.js";
 import {
   getEmbeddedPostgresTestSupport,
@@ -8,11 +8,11 @@ import {
 } from "./helpers/embedded-postgres.js";
 
 /**
- * LOOA-629: a plugin worker is spawned once per plugin (not per company) with
- * an empty bootstrap config, and can only read company-scoped config from
- * inside a company-scoped invocation. A proactive plugin (e.g. the chat
+ * LOOA-629: a plugin worker is spawned once per plugin (not per space) with
+ * an empty bootstrap config, and can only read space-scoped config from
+ * inside a space-scoped invocation. A proactive plugin (e.g. the chat
  * gateway) has no such invocation at setup(), so the loader must replay every
- * configured company's config to the freshly-started worker. That replay reads
+ * configured space's config to the freshly-started worker. That replay reads
  * the config rows via `registry.listConfigs(pluginId)`, which this exercises.
  */
 
@@ -34,14 +34,14 @@ describeEmbeddedPostgres("registry.listConfigs (startup config delivery)", () =>
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-plugin-config-delivery-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-plugin-config-delivery-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
   afterEach(async () => {
     await db.delete(pluginConfig);
     await db.delete(plugins);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -63,7 +63,7 @@ describeEmbeddedPostgres("registry.listConfigs (startup config delivery)", () =>
         version: "0.0.1",
         displayName: pluginKey,
         description: "Test plugin",
-        author: "Paperclip",
+        author: "Outpost",
         categories: ["automation"],
         capabilities: [],
         entrypoints: { worker: "./dist/worker.js" },
@@ -74,51 +74,51 @@ describeEmbeddedPostgres("registry.listConfigs (startup config delivery)", () =>
     return pluginId;
   }
 
-  async function seedCompany() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: `Co ${companyId.slice(0, 6)}`,
-      issuePrefix: issuePrefix(companyId),
+  async function seedSpace() {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: `Co ${spaceId.slice(0, 6)}`,
+      issuePrefix: issuePrefix(spaceId),
     });
-    return companyId;
+    return spaceId;
   }
 
-  it("returns every company-scoped config row for a plugin", async () => {
+  it("returns every space-scoped config row for a plugin", async () => {
     const registry = pluginRegistryService(db);
     const pluginId = await seedPlugin("outpost.gateway-test", 1);
-    const companyA = await seedCompany();
-    const companyB = await seedCompany();
+    const spaceA = await seedSpace();
+    const spaceB = await seedSpace();
 
-    await registry.upsertConfig(pluginId, companyA, {
-      companyId: companyA,
+    await registry.upsertConfig(pluginId, spaceA, {
+      spaceId: spaceA,
       configJson: { slackBotToken: "xoxb-a", slackAppToken: "xapp-a" },
     });
-    await registry.upsertConfig(pluginId, companyB, {
-      companyId: companyB,
+    await registry.upsertConfig(pluginId, spaceB, {
+      spaceId: spaceB,
       configJson: { slackBotToken: "xoxb-b", slackAppToken: "xapp-b" },
     });
 
     const rows = await registry.listConfigs(pluginId);
     expect(rows).toHaveLength(2);
 
-    const byCompany = new Map(rows.map((r) => [r.companyId, r]));
-    expect(byCompany.get(companyA)?.configJson).toMatchObject({ slackBotToken: "xoxb-a" });
-    expect(byCompany.get(companyB)?.configJson).toMatchObject({ slackBotToken: "xoxb-b" });
+    const bySpace = new Map(rows.map((r) => [r.spaceId, r]));
+    expect(bySpace.get(spaceA)?.configJson).toMatchObject({ slackBotToken: "xoxb-a" });
+    expect(bySpace.get(spaceB)?.configJson).toMatchObject({ slackBotToken: "xoxb-b" });
   });
 
   it("only returns rows for the requested plugin (no cross-plugin bleed)", async () => {
     const registry = pluginRegistryService(db);
     const pluginId = await seedPlugin("outpost.gateway-test", 1);
     const otherPluginId = await seedPlugin("outpost.other-test", 2);
-    const companyA = await seedCompany();
+    const spaceA = await seedSpace();
 
-    await registry.upsertConfig(pluginId, companyA, {
-      companyId: companyA,
+    await registry.upsertConfig(pluginId, spaceA, {
+      spaceId: spaceA,
       configJson: { marker: "mine" },
     });
-    await registry.upsertConfig(otherPluginId, companyA, {
-      companyId: companyA,
+    await registry.upsertConfig(otherPluginId, spaceA, {
+      spaceId: spaceA,
       configJson: { marker: "theirs" },
     });
 
@@ -127,7 +127,7 @@ describeEmbeddedPostgres("registry.listConfigs (startup config delivery)", () =>
     expect(rows[0]?.configJson).toMatchObject({ marker: "mine" });
   });
 
-  it("returns an empty list when the plugin has no configured companies", async () => {
+  it("returns an empty list when the plugin has no configured spaces", async () => {
     const registry = pluginRegistryService(db);
     const pluginId = await seedPlugin("outpost.gateway-test", 1);
     const rows = await registry.listConfigs(pluginId);

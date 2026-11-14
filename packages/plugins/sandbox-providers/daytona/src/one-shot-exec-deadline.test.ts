@@ -14,7 +14,7 @@ function fixture() {
   const fs = { uploadFile: vi.fn().mockResolvedValue(undefined), deleteFile: vi.fn().mockResolvedValue(undefined) };
   getSandbox.mockResolvedValue({ id: "fixture-sandbox", state: "started", process, fs });
   const execute = (stdin?: string) => plugin.definition.onEnvironmentExecute!({
-    driverKey: "daytona", companyId: "fixture-company", environmentId: "fixture-environment",
+    driverKey: "daytona", spaceId: "fixture-space", environmentId: "fixture-environment",
     config: { apiKey: "fixture-not-a-key", timeoutMs: 300_000 }, bypassSession: true,
     lease: { providerLeaseId: "fixture-sandbox", metadata: {} },
     command: "/pack/bin/opencode", args: ["--version"], timeoutMs: 30_000,

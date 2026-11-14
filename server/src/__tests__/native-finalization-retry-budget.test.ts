@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import {
   agents,
-  companies,
+  spaces,
   completionContracts,
   createDb,
   heartbeatRuns,
@@ -19,7 +19,7 @@ import {
 } from "../vendor/outpost-runner/testing.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { reconcileNativeFinalizations } from "../services/native-runtime/native-finalization-reconciler.js";
-import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "../services/native-runtime/outpost-control-plane-port.js";
 
 const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_FINALIZATION_TEST_DATABASE_URL");
 
@@ -31,23 +31,23 @@ const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_FINALIZATION_TES
 describe("native finalization retry budget after restart resumes", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  const companyId = "72100000-0000-4000-8000-000000000001";
+  const spaceId = "72100000-0000-4000-8000-000000000001";
   const agentId = "72100000-0000-4000-8000-000000000002";
   const issueId = "72100000-0000-4000-8000-000000000003";
   const contractId = "72100000-0000-4000-8000-000000000004";
   const runId = "72100000-0000-4000-8000-000000000005";
 
   beforeAll(async () => {
-    if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-retry-budget-");
+    if (!external) temporary = await startEmbeddedPostgresTestDatabase("outpost-native-retry-budget-");
     db = createDb(external ?? temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Native retry budget", issuePrefix: "NRB" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Budget agent", adapterType: "codex_local", status: "running" });
+    await db.insert(spaces).values({ id: spaceId, name: "Native retry budget", issuePrefix: "NRB" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Budget agent", adapterType: "codex_local", status: "running" });
     await db.insert(issues).values({
-      id: issueId, companyId, title: "Finalize after three resumes", status: "in_progress",
+      id: issueId, spaceId, title: "Finalize after three resumes", status: "in_progress",
       assigneeAgentId: agentId, workMode: "standard",
     });
     await db.insert(completionContracts).values({
-      id: contractId, companyId, issueId, revision: 1,
+      id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "phase6-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: {
@@ -57,19 +57,19 @@ describe("native finalization retry budget after restart resumes", () => {
       canonicalSha256: "native-retry-budget-contract", createdByActorType: "system", createdByActorId: "test",
     });
     await db.insert(heartbeatRuns).values({
-      id: runId, companyId, agentId, status: "running", runtimeMode: "native",
+      id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
       runtimeModeReason: "persisted_before_kill_switch", nativeIssueId: issueId, nativeSessionId: runId,
       runnerInstanceId: contractId, completionContractId: contractId,
       completionContractSha256: "native-retry-budget-contract", contextSnapshot: { issueId },
     });
-    const port = new PaperclipControlPlanePort(db, {
-      companyId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
+    const port = new OutpostControlPlanePort(db, {
+      spaceId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
       completionContractSha256: "native-retry-budget-contract", sourceInstanceId: contractId,
       controlPlaneSourceInstanceId: "budget-control",
     });
     await port.openRun({
       ...CONTROL_PLANE_CONFORMANCE_OPEN,
-      identity: { companyId, issueId, runId, agentId, sessionId: runId },
+      identity: { spaceId, issueId, runId, agentId, sessionId: runId },
       sourceInstanceId: contractId,
     });
     await port.completeRun({
@@ -87,7 +87,7 @@ describe("native finalization retry budget after restart resumes", () => {
       },
     }).where(eq(nativeRunResults.id, stored.id));
     await db.insert(workspaceOperations).values({
-      companyId, heartbeatRunId: runId, issueId, phase: "workspace_finalize", status: "succeeded",
+      spaceId, heartbeatRunId: runId, issueId, phase: "workspace_finalize", status: "succeeded",
     });
     // Saved as the previous release left it after three restart resumes: the
     // provider attempt count is spent and no finalization count exists yet.

@@ -19,11 +19,11 @@ function column(table: Parameters<typeof getTableConfig>[0], columnName: string)
 }
 
 describe("summary slot schema", () => {
-  it("enforces one slot per company scope and key, including null singleton scope ids", () => {
-    const constraint = uniqueConstraint(summarySlots, "summary_slots_company_scope_slot_uq");
+  it("enforces one slot per space scope and key, including null singleton scope ids", () => {
+    const constraint = uniqueConstraint(summarySlots, "summary_slots_space_scope_slot_uq");
 
     expect(constraint?.columns.map((candidate) => candidate.name)).toEqual([
-      "company_id",
+      "space_id",
       "scope_kind",
       "scope_id",
       "slot_key",
@@ -31,18 +31,18 @@ describe("summary slot schema", () => {
     expect(constraint?.nullsNotDistinct).toBe(true);
   });
 
-  it("keeps lookup indexes company-scoped", () => {
-    expect(indexColumns(summarySlots, "summary_slots_company_scope_idx")).toEqual([
-      "company_id",
+  it("keeps lookup indexes space-scoped", () => {
+    expect(indexColumns(summarySlots, "summary_slots_space_scope_idx")).toEqual([
+      "space_id",
       "scope_kind",
       "scope_id",
     ]);
-    expect(indexColumns(summarySlots, "summary_slots_company_generating_issue_idx")).toEqual([
-      "company_id",
+    expect(indexColumns(summarySlots, "summary_slots_space_generating_issue_idx")).toEqual([
+      "space_id",
       "generating_issue_id",
     ]);
-    expect(indexColumns(summarySlots, "summary_slots_company_updated_idx")).toEqual([
-      "company_id",
+    expect(indexColumns(summarySlots, "summary_slots_space_updated_idx")).toEqual([
+      "space_id",
       "updated_at",
     ]);
   });

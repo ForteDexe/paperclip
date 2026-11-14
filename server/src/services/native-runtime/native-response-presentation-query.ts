@@ -5,7 +5,7 @@ import type { NativeResponsePresentationScope } from "../native-response-present
 
 export function nativeResponsePresentationCandidates(scope?: NativeResponsePresentationScope, after?: string, runId?: string) {
   const db = new QueryBuilder();
-  return db.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId,
+  return db.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId,
     issueId: nativeRunFinalizations.issueId, agentId: heartbeatRuns.agentId, nextAttemptAt: nativeRunFinalizations.nextAttemptAt,
     endpointId: chatActions.endpointId, principalId: chatActions.principalId,
     // Durable publication retry schedule for an ordinary final task reply.
@@ -15,15 +15,15 @@ export function nativeResponsePresentationCandidates(scope?: NativeResponsePrese
       and (coalesce(${issues.conversationAgentId}::text, '') = '' or coalesce(${issues.conversationUserId}, '') = ''), false)`.as("task_reply"),
   }).from(nativeRunFinalizations)
     .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, nativeRunFinalizations.runId),
-      eq(heartbeatRuns.companyId, nativeRunFinalizations.companyId), eq(heartbeatRuns.nativeIssueId, nativeRunFinalizations.issueId)))
+      eq(heartbeatRuns.spaceId, nativeRunFinalizations.spaceId), eq(heartbeatRuns.nativeIssueId, nativeRunFinalizations.issueId)))
     .leftJoin(chatActions, and(eq(chatActions.id, heartbeatRuns.wakeupRequestId),
-      eq(chatActions.companyId, heartbeatRuns.companyId)))
-    .innerJoin(issues, and(eq(issues.id, nativeRunFinalizations.issueId), eq(issues.companyId, nativeRunFinalizations.companyId)))
+      eq(chatActions.spaceId, heartbeatRuns.spaceId)))
+    .innerJoin(issues, and(eq(issues.id, nativeRunFinalizations.issueId), eq(issues.spaceId, nativeRunFinalizations.spaceId)))
     .innerJoin(nativeRunResults, and(eq(nativeRunResults.id, nativeRunFinalizations.resultId),
-      eq(nativeRunResults.companyId, nativeRunFinalizations.companyId), eq(nativeRunResults.issueId, nativeRunFinalizations.issueId),
+      eq(nativeRunResults.spaceId, nativeRunFinalizations.spaceId), eq(nativeRunResults.issueId, nativeRunFinalizations.issueId),
       eq(nativeRunResults.runId, heartbeatRuns.id), eq(nativeRunResults.completionContractId, heartbeatRuns.completionContractId)))
     .innerJoin(statusDecisions, and(eq(statusDecisions.id, nativeRunFinalizations.decisionId),
-      eq(statusDecisions.companyId, nativeRunFinalizations.companyId), eq(statusDecisions.issueId, nativeRunFinalizations.issueId),
+      eq(statusDecisions.spaceId, nativeRunFinalizations.spaceId), eq(statusDecisions.issueId, nativeRunFinalizations.issueId),
       eq(statusDecisions.runId, heartbeatRuns.id), eq(statusDecisions.assessmentId, nativeRunFinalizations.assessmentId)))
     .where(and(
       eq(heartbeatRuns.runtimeMode, "native"), inArray(heartbeatRuns.status, ["succeeded", "failed", "timed_out"]),
@@ -52,7 +52,7 @@ export function nativeResponsePresentationCandidates(scope?: NativeResponsePrese
               sql`jsonb_typeof(${heartbeatRuns.contextSnapshot}->'conversationSessionGeneration') = 'number'`,
               sql`${heartbeatRuns.contextSnapshot}->>'conversationSessionGeneration' = ${issues.conversationSessionGeneration}::text`,
               exists(db.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(
-                eq(heartbeatRunEvents.companyId, heartbeatRuns.companyId), eq(heartbeatRunEvents.runId, heartbeatRuns.id),
+                eq(heartbeatRunEvents.spaceId, heartbeatRuns.spaceId), eq(heartbeatRunEvents.runId, heartbeatRuns.id),
                 eq(heartbeatRunEvents.agentId, heartbeatRuns.agentId), eq(heartbeatRunEvents.eventType, "item.completed"),
                 sql`${heartbeatRunEvents.payload} #>> '{orpEvent,runId}' = ${heartbeatRuns.id}::text`,
                 sql`${heartbeatRunEvents.payload} #>> '{orpEvent,normalizedSessionId}' = ${heartbeatRuns.nativeSessionId}::text`,
@@ -91,12 +91,12 @@ export function nativeResponsePresentationCandidates(scope?: NativeResponsePrese
           )),
       ),
       notExists(db.select({ id: statusDecisionEffects.id }).from(statusDecisionEffects).where(and(
-        eq(statusDecisionEffects.companyId, nativeRunFinalizations.companyId),
+        eq(statusDecisionEffects.spaceId, nativeRunFinalizations.spaceId),
         eq(statusDecisionEffects.issueId, nativeRunFinalizations.issueId),
         eq(statusDecisionEffects.decisionId, nativeRunFinalizations.decisionId),
         inArray(statusDecisionEffects.deliveryState, ["pending", "failed"]),
       ))),
-      scope ? and(eq(heartbeatRuns.companyId, scope.companyId), scope.issueId ? eq(nativeRunFinalizations.issueId, scope.issueId) : undefined) : undefined,
+      scope ? and(eq(heartbeatRuns.spaceId, scope.spaceId), scope.issueId ? eq(nativeRunFinalizations.issueId, scope.issueId) : undefined) : undefined,
       scope?.runId ? eq(heartbeatRuns.id, scope.runId) : undefined,
       scope?.agentId ? eq(heartbeatRuns.agentId, scope.agentId) : undefined,
       after ? gt(heartbeatRuns.id, after) : undefined, runId ? eq(heartbeatRuns.id, runId) : undefined,

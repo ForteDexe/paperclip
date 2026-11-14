@@ -71,7 +71,7 @@ export type GuardedRemoteHttpFetchOptions = RemoteHttpEndpointGuardOptions & {
  * `fetch`, which resolved the hostname a second time. An attacker who controls
  * the name server for the hostname could answer with a public address for the
  * guard's lookup and a loopback, RFC 1918 or link-local address for the
- * connection, reaching internal services and cloud metadata from the Paperclip
+ * connection, reaching internal services and cloud metadata from the Outpost
  * server. This function instead:
  *
  * 1. resolves and validates the hostname exactly once, keeping the approved

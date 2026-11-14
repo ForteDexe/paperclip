@@ -1,5 +1,5 @@
 export async function copyTextToClipboard(text: string): Promise<void> {
-  // The async Clipboard API is only reliable in a secure context. Over plain
+  // The async Clipoperator API is only reliable in a secure context. Over plain
   // HTTP on a non-localhost host (e.g. a Tailscale name) `writeText` may resolve
   // without actually writing, so gate on `isSecureContext` and otherwise fall
   // through to the execCommand path below.
@@ -9,7 +9,7 @@ export async function copyTextToClipboard(text: string): Promise<void> {
       await navigator.clipboard.writeText(text);
       return;
     } catch {
-      // Fall back for environments where the Clipboard API exists but is blocked.
+      // Fall back for environments where the Clipoperator API exists but is blocked.
     }
   }
 

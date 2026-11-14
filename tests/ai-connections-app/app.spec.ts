@@ -1,12 +1,12 @@
 import { test, expect } from "@playwright/test";
 
 // Opt in against an isolated test drive; never seed or modify a production account.
-const companyId = process.env.AI_CONNECTIONS_TEST_COMPANY_ID;
-test.skip(!companyId, "Provide the isolated test-drive company ID");
+const spaceId = process.env.AI_CONNECTIONS_TEST_SPACE_ID;
+test.skip(!spaceId, "Provide the isolated test-drive space ID");
 let prefix: string;
 
 test.beforeAll(async ({ request }) => {
-  const response = await request.get(`/api/companies/${companyId}`);
+  const response = await request.get(`/api/spaces/${spaceId}`);
   expect(response.ok()).toBe(true);
   prefix = (await response.json()).issuePrefix;
 });
@@ -16,7 +16,7 @@ test("existing Connections lists AI providers and keeps account management compa
   for (const provider of ["Anthropic", "OpenAI", "OpenRouter", "Grok"]) {
     await expect(page.getByRole("button", { name: new RegExp(`^(Add account|Connect) ${provider}$`) })).toBeVisible();
   }
-  const { connections } = await (await request.get(`/api/companies/${companyId}/ai-connections`)).json();
+  const { connections } = await (await request.get(`/api/spaces/${spaceId}/ai-connections`)).json();
   const account = connections.find((entry: { ownership: string; isDefault: boolean }) => entry.ownership === "personal" && entry.isDefault);
   expect(account, "The isolated drive should include an imported personal account").toBeTruthy();
   await page.goto(`/${prefix}/apps/${account.id}/permissions`);
@@ -37,7 +37,7 @@ test("existing Connections lists AI providers and keeps account management compa
 });
 
 test("rejected API credentials do not create a connection, and cancellation returns to Connections", async ({ page, request }, testInfo) => {
-  const before = await (await request.get(`/api/companies/${companyId}/ai-connections`)).json();
+  const before = await (await request.get(`/api/spaces/${spaceId}/ai-connections`)).json();
   await page.goto(`/${prefix}/apps/connect?source=openrouter&method=ai-api_key`);
   await page.getByRole("button", { name: /^(Save and continue|Continue)$/ }).click();
   await page.getByLabel("Connection name").fill("Rejected browser test account");
@@ -45,14 +45,14 @@ test("rejected API credentials do not create a connection, and cancellation retu
   await page.getByRole("button", { name: "Connect", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText(/rejected|Could not verify|could not verify/);
   await expect(page.getByRole("textbox", { name: "API key", exact: true })).toHaveValue("");
-  const after = await (await request.get(`/api/companies/${companyId}/ai-connections`)).json();
+  const after = await (await request.get(`/api/spaces/${spaceId}/ai-connections`)).json();
   expect(after.connections.map((entry: { id: string }) => entry.id).sort()).toEqual(before.connections.map((entry: { id: string }) => entry.id).sort());
   await page.getByRole("button", { name: "Cancel", exact: true }).last().click();
   await expect(page).toHaveURL(new RegExp(`/${prefix}/apps$`));
 });
 
 test("legacy adoption and inline account cancellation preserve the agent configuration", async ({ page, request }, testInfo) => {
-  const agents = await (await request.get(`/api/companies/${companyId}/agents`)).json();
+  const agents = await (await request.get(`/api/spaces/${spaceId}/agents`)).json();
   const agent = agents.find((entry: { adapterType: string; runtimeConfig: { aiConnection?: unknown } }) => ["claude_local", "codex_local", "grok_local"].includes(entry.adapterType) && !entry.runtimeConfig.aiConnection);
   expect(agent, "The drive should include a legacy agent for adoption review").toBeTruthy();
   await page.goto(`/${prefix}/agents/${agent.urlKey ?? agent.id}/runtime`);
@@ -78,7 +78,7 @@ test("legacy adoption and inline account cancellation preserve the agent configu
 test("connection setup waits for provider details before enabling Continue", async ({ page }) => {
   let release!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
-  await page.route(`**/api/companies/${companyId}/tools/gallery`, async route => {
+  await page.route(`**/api/spaces/${spaceId}/tools/gallery`, async route => {
     await held;
     await route.continue();
   });
@@ -92,7 +92,7 @@ test("connection setup waits for provider details before enabling Continue", asy
 });
 
 test("personal provider defaults move the crown only after saving and survive refresh", async ({ page, request }, testInfo) => {
-  const list = await (await request.get(`/api/companies/${companyId}/ai-connections`)).json();
+  const list = await (await request.get(`/api/spaces/${spaceId}/ai-connections`)).json();
   const own = list.connections.filter((account: { provider: string; ownership: string; ownerUserId: string; canSetDefault: boolean; status: string }) =>
     account.provider === "openai" && account.ownership === "personal" && account.ownerUserId === list.currentUserId && account.canSetDefault && account.status === "connected");
   const previous = own.find((account: { isDefault: boolean }) => account.isDefault);
@@ -115,7 +115,7 @@ test("personal provider defaults move the crown only after saving and survive re
   let release!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
   let writes = 0;
-  await page.route(`**/api/companies/${companyId}/ai-connections/default`, async route => {
+  await page.route(`**/api/spaces/${spaceId}/ai-connections/default`, async route => {
     writes++;
     expect(route.request().postDataJSON()).toEqual({ grantId: target.grantId });
     await held;
@@ -134,8 +134,8 @@ test("personal provider defaults move the crown only after saving and survive re
   await expect(crown.locator("..")).toContainText(target.name);
   await expect(manage).toBeFocused();
   await page.screenshot({ path: testInfo.outputPath("default-saved.png"), fullPage: true });
-  await page.unroute(`**/api/companies/${companyId}/ai-connections/default`);
-  const saved = await (await request.get(`/api/companies/${companyId}/ai-connections`)).json();
+  await page.unroute(`**/api/spaces/${spaceId}/ai-connections/default`);
+  const saved = await (await request.get(`/api/spaces/${spaceId}/ai-connections`)).json();
   expect(saved.connections.filter((account: { provider: string; isDefault: boolean }) => account.provider === "openai" && account.isDefault).map((account: { grantId: string }) => account.grantId)).toEqual([target.grantId]);
   expect(saved.connections.filter((account: { provider: string; isDefault: boolean }) => account.provider !== "openai" && account.isDefault).map((account: { grantId: string }) => account.grantId).sort()).toEqual(others);
   await page.reload();
@@ -147,7 +147,7 @@ test("personal provider defaults move the crown only after saving and survive re
   await page.keyboard.press("Shift+Tab");
   await expect(page.getByRole("tooltip")).toHaveText("Your default for OpenAI");
 
-  await page.route(`**/api/companies/${companyId}/ai-connections/default`, async route => {
+  await page.route(`**/api/spaces/${spaceId}/ai-connections/default`, async route => {
     await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Disposable QA save failure" }) });
   }, { times: 1 });
   await provider.getByRole("button", { name: `Manage ${previous.name} connection` }).click();
@@ -165,7 +165,7 @@ test("personal provider defaults move the crown only after saving and survive re
 });
 
 test("personal provider defaults expose crown meaning on touch in both themes at 390px", async ({ browser, request }, testInfo) => {
-  const list = await (await request.get(`/api/companies/${companyId}/ai-connections`)).json();
+  const list = await (await request.get(`/api/spaces/${spaceId}/ai-connections`)).json();
   const selected = list.connections.find((account: { provider: string; isDefault: boolean }) => account.provider === "openai" && account.isDefault);
   expect(selected).toBeTruthy();
   for (const colorScheme of ["light", "dark"] as const) {
@@ -191,11 +191,11 @@ test("personal provider defaults expose crown meaning on touch in both themes at
 
 test("new OpenRouter agents use the visible binding and provider model catalog", async ({ page }) => {
   let tested: { aiConnection?: unknown; adapterConfig?: { model?: string } } | undefined;
-  await page.route(`**/api/companies/${companyId}/adapters/opencode_local/models*`, async route => {
+  await page.route(`**/api/spaces/${spaceId}/adapters/opencode_local/models*`, async route => {
     expect(new URL(route.request().url()).searchParams.get("provider")).toBe("openrouter");
     await route.fulfill({ json: [{ id: "openrouter/anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" }] });
   });
-  await page.route(`**/api/companies/${companyId}/adapters/opencode_local/test-environment`, async route => {
+  await page.route(`**/api/spaces/${spaceId}/adapters/opencode_local/test-environment`, async route => {
     tested = route.request().postDataJSON();
     await route.fulfill({ json: { status: "pass", checks: [], testedAt: new Date().toISOString() } });
   });
@@ -235,7 +235,7 @@ test("explicit OpenAI API method survives continuing and reloading", async ({ pa
 for (const [provider, label] of [["anthropic", "Claude"], ["openai", "OpenAI"]]) {
   test(`Connections reuses the local browser sign-in step for ${label} (simulated auth)`, async ({ page }, testInfo) => {
     // UI contract only: real subscription qualification is provider-connections.
-    const base = `/api/companies/${companyId}/ai-connections/local`;
+    const base = `/api/spaces/${spaceId}/ai-connections/local`;
     const sessionId = "22222222-2222-4222-8222-222222222222";
     await page.route(`**${base}/attempts`, route => route.fulfill({ json: { sessionId, expiresAt: new Date(Date.now() + 300000).toISOString() } }));
     await page.route(`**${base}/check`, route => route.fulfill({ json: { status: "sign_in_required", authorizationUrl: "https://provider.example/authorize", ...(provider === "openai" ? { code: "ABCD-EFGH" } : {}) } }));
@@ -268,7 +268,7 @@ for (const [provider, label, adapter] of [["anthropic", "Claude", "claude_local"
   test(`Connections uses onboarding browser sign-in for ${label}`, async ({ page }, testInfo) => {
     const environmentId = "11111111-1111-4111-8111-111111111111";
     const sessionId = "22222222-2222-4222-8222-222222222222";
-    const base = `/api/companies/${companyId}`;
+    const base = `/api/spaces/${spaceId}`;
     const sessions = provider === "anthropic" ? `${base}/setup-token-login-sessions` : `${base}/adapters/${adapter}/login-sessions`;
     let starts = 0;
     let cancels = 0;

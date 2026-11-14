@@ -96,7 +96,7 @@ recovery and same-run provider recovery keep their existing paths. An export
 that has already finalized does not create this file obligation.
 
 Native workspace export and merge acquire a PostgreSQL advisory lock scoped to
-company and run before the first physical copyback. The live heartbeat and the
+space and run before the first physical copyback. The live heartbeat and the
 reconciler share that lock. Recovery skips a busy owner without recording another
 workspace operation or spending a retry. Recovery also rechecks the coordinator's terminal state and retry time under ownership: an earlier sweep snapshot cannot
 start another export after live finalization publishes a permanent repair or delay.
@@ -234,7 +234,7 @@ by upgrading. Never infer one from elapsed time or a hostname.
 
 Generic orphan recovery does not turn a missing provider PID into `process_lost`
 while the native coordinator is `workspace_finalizing` with an accepted result
-bound to the same company, issue, and run. The finalizer owns that unfinished
+bound to the same space, issue, and run. The finalizer owns that unfinished
 suffix, including the interval before it acquires its physical owner receipt.
 The heartbeat's phase or profile alone does not establish this authority.
 The conditional orphan write rechecks the durable result and the heartbeat's
@@ -278,7 +278,7 @@ exact prior controller **and its copyback subprocesses** have stopped. Retain th
 sandbox, accepted native result, and workspace descriptor. Do not run a new
 provider turn, delete workspace contents, or relax archive confinement.
 
-For legacy receipts, an authorized company owner, company administrator or
+For legacy receipts, an authorized space owner, space administrator or
 instance administrator records independently verified platform evidence through
 the operator API. The task shows this as its one action: its interruption is
 `waiting_for_user` with `userAction: "confirm_owner_stop"`, and the chat offers
@@ -299,7 +299,7 @@ calls the same API. The control is shown only to roles that hold
 
 This is an operator attestation, not an automatic deployment-platform probe.
 The separate `runtime:confirm_owner_stop` authorization action limits this
-attestation to active company owners or administrators, the trusted local board,
+attestation to active space owners or administrators, the trusted local board,
 or an instance administrator. Ordinary runtime managers and agents cannot release
 the physical owner receipt. Missing role data keeps the client notice read-only.
 A
@@ -326,7 +326,7 @@ For older servers without this action, the maintenance fallback follows.
 
 After that platform verification, use a database maintenance transaction to
 release only the exact receipt shown by the recovery action. Replace the four
-placeholders with the action's company, run, token, and source issue. The advisory
+placeholders with the action's space, run, token, and source issue. The advisory
 lock prevents concurrent acquisition during this change; the token comparison
 prevents clearing a newer owner. A zero-row update means ownership changed and
 requires fresh inspection. This maintenance operation is for a full-control
@@ -335,10 +335,10 @@ instance operator, not an agent tool.
 ```sql
 BEGIN;
 SELECT pg_advisory_xact_lock(hashtextextended(
-  'native-workspace-finalization:<company-id>:<run-id>', 0));
+  'native-workspace-finalization:<space-id>:<run-id>', 0));
 UPDATE heartbeat_runs
 SET runner_profile_json = runner_profile_json - 'nativeWorkspaceFinalizationOwner'
-WHERE company_id = '<company-id>'::uuid
+WHERE space_id = '<space-id>'::uuid
   AND id = '<run-id>'::uuid
   AND native_issue_id = '<issue-id>'::uuid
   AND runtime_mode = 'native'
@@ -385,7 +385,7 @@ files as ordinary bytes, and preserves directory exclusions and empty directorie
 A fixed informational message records the fallback in the provider log.
 
 If native copyback still rejects the archive or its source confinement check,
-Paperclip discards that export, records `workspace_export_omitted` at info level
+Outpost discards that export, records `workspace_export_omitted` at info level
 in the local run log, and completes finalization using the original accepted
 result. It does not create a task warning, recovery card, repair request, or new
 provider turn. The normal completion policy still enforces ownership and explicit
@@ -414,7 +414,7 @@ Historical unsafe-archive holds recover automatically as described below; they d
 
 A board member with runtime management access can complete the saved result:
 
-1. Read the recovery action, run, and environment lease. Verify the company, run,
+1. Read the recovery action, run, and environment lease. Verify the space, run,
    provider sandbox ID, and stopped-provider receipt. Preserve that exact sandbox;
    do not acquire a replacement or seed the host workspace over it.
 2. Through the provider console or official SDK, resume that sandbox and inspect
@@ -496,7 +496,7 @@ Disabling auto-delete retains provider storage while repair waits. No automatic 
 An explicit sandbox `stop_and_retain` also requires the dedicated provider hook
 when no export repair is involved, including successful per-turn reusable runs
 and startup cancellation. Before dispatch, the controller stores a separate
-`sandboxStopAndRetain` intent bound to the company, run, lease, provider allocation,
+`sandboxStopAndRetain` intent bound to the space, run, lease, provider allocation,
 and original plugin. The initial cleanup and restart sweep both require that
 plugin to advertise `environmentStopLease`. Missing capability or failed stop
 leaves pending cleanup; ordinary release and destroy are never fallback methods.
@@ -522,7 +522,7 @@ A legacy adapter can report failed workspace copy-back after cancellation has
 already stopped and released its sandbox lease. The host records the exact lease
 snapshot from before adapter dispatch. For an originally ephemeral source, the
 recorder can preserve the released allocation for repair only while the current
-lease is still ephemeral and its company, run, issue, workspace, provider,
+lease is still ephemeral and its space, run, issue, workspace, provider,
 allocation, acquisition time, plugin, and realized root still match. It requires
 both the dedicated stop-and-retain receipt and the matching stopped-execution
 receipt. A competing owner or changed source fails closed. The recorder leaves
@@ -554,7 +554,7 @@ stop-receipt and evidence checks.
 
 After a remote provider pack passes full integrity verification and the session
 passes authenticated admission, the controller saves its manifest and runner
-binary identity in `provider-pack-authority.json`. The receipt binds the company,
+binary identity in `provider-pack-authority.json`. The receipt binds the space,
 agent, workspace, session, runner instance, environment lease, remote working
 directory, and provider descriptor. It stays in private controller state, outside
 guest workspace and harness backup directories. Projectless runs use their
@@ -602,7 +602,7 @@ operator does not need to manufacture a separate blocker merely to record recove
 `POST /api/issues/{id}/recovery-actions/reconstruct-workspace` records this choice.
 It validates the source run, accepted result, prepared descriptor, exact destroyed
 lease, current task owner and status version. It rejects active copyback owners,
-competing recovery, unreconciled newer executions, and attachments from another task or company.
+competing recovery, unreconciled newer executions, and attachments from another task or space.
 The transaction records attachment hashes and a durable fresh-session delivery
 intent. The old run, result, descriptor and failed finalization remain intact.
 Repeated submissions adopt the original intent. Normal admission rechecks source
@@ -625,7 +625,7 @@ the identities and hashes of those repair decisions. Queue claim and dispatch
 recheck the same evidence, so a changed receipt or another later run requires a
 fresh decision. The cancelled run stays cancelled and is never replayed.
 
-Stop also preserves a native workspace prepared before `paperclip_finish`.
+Stop also preserves a native workspace prepared before `outpost_finish`.
 The executor pins its files before releasing the environment. Startup and periodic
 recovery process a bounded batch of historical acknowledged cancellations that
 missed this step. The existing stop-only cleanup worker retains their exact
@@ -670,7 +670,7 @@ remote termination receipts, local process checks, task ownership, and admission
 checks keep their existing behavior. Stored runs retain all of their data.
 
 One periodic stranded-message pass coalesces successful native release checks
-for the same company, task, source run, and current source row version. The release
+for the same space, task, source run, and current source row version. The release
 path already drains that
 task's queue through current admission checks. Each saved request still advances
 its recovery cursor. Rejected attempts, changed source runs, and updated source evidence remain eligible,

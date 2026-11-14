@@ -35,7 +35,7 @@ export async function prepareApprovedToolReview(db: Db, input: {
       errorCode: string;
       errorMessage: string;
     }) {
-      await notifyToolReviewChange(tx, request.companyId);
+      await notifyToolReviewChange(tx, request.spaceId);
       if (failure) await tx.update(toolInvocations).set({ ...failure, completedAt: now, updatedAt: now })
         .where(eq(toolInvocations.id, invocation.id));
       await tx.update(toolActionRequests).set({ status: projection.status,
@@ -49,10 +49,10 @@ export async function prepareApprovedToolReview(db: Db, input: {
       return settle({ actionRequestId: request.id, status, errorCode, errorMessage },
         { status: invocationStatus, errorCode, errorMessage });
     }
-    if (invocation.companyId !== request.companyId) {
-      // Quarantine the request without modifying another company's invocation.
+    if (invocation.spaceId !== request.spaceId) {
+      // Quarantine the request without modifying another space's invocation.
       return settle({ actionRequestId: request.id, status: "failed",
-        errorCode: "action_context_mismatch", errorMessage: "Tool action and invocation companies do not match." });
+        errorCode: "action_context_mismatch", errorMessage: "Tool action and invocation spaces do not match." });
     }
     if (["succeeded", "failed", "denied", "cancelled", "timed_out", "rate_limited", "executing"].includes(invocation.status)) {
       return settle({ actionRequestId: request.id,
@@ -75,10 +75,10 @@ export async function prepareApprovedToolReview(db: Db, input: {
       "Stored tool arguments are no longer verifiable; submit a new action for review.");
     if (request.approvalId) {
       const [formal] = await tx.select({ status: approvals.status }).from(approvals)
-        .where(and(eq(approvals.id, request.approvalId), eq(approvals.companyId, request.companyId)));
+        .where(and(eq(approvals.id, request.approvalId), eq(approvals.spaceId, request.spaceId)));
       if (!formal || formal.status === "rejected" || formal.status === "cancelled") {
         return fail("cancelled", "denied", "formal_approval_unavailable",
-          "Required formal board approval is unavailable or was declined; submit a new action for review.");
+          "Required formal operator approval is unavailable or was declined; submit a new action for review.");
       }
       // Human input has no deadline. The approval owner publishes a committed
       // resolution/cancellation to this queue; startup also rediscovers the row.
@@ -86,33 +86,33 @@ export async function prepareApprovedToolReview(db: Db, input: {
         return { kind: "skip" } as const;
       }
     }
-    // A passive connection wait cannot outlive a withdrawn governance decision.
+    // A passive connection wait cannot outlive a withdrawn policy decision.
     if (invocation.errorCode === TOOL_APPROVAL_CONNECTION_REQUIRED &&
-      !await toolApprovalConnectionCanResume(tx as unknown as Db, invocation.companyId, invocation.connectionId,
+      !await toolApprovalConnectionCanResume(tx as unknown as Db, invocation.spaceId, invocation.connectionId,
         payload.approvalSnapshot, invocation.policyExplanation?.approvalConnectionWait)) return { kind: "skip" } as const;
     return { kind: "ready", request, invocation, payload } as const;
   });
 }
 
-export function approvedToolReviewCompanies(db: Db, companyId?: string) {
-  return db.select({ companyId: toolActionRequests.companyId }).from(toolActionRequests)
+export function approvedToolReviewSpaces(db: Db, spaceId?: string) {
+  return db.select({ spaceId: toolActionRequests.spaceId }).from(toolActionRequests)
     .innerJoin(toolInvocations, eq(toolInvocations.id, toolActionRequests.invocationId))
     .where(and(eq(toolActionRequests.status, "approved"),
-      companyId ? eq(toolActionRequests.companyId, companyId) : undefined))
-    .groupBy(toolActionRequests.companyId);
+      spaceId ? eq(toolActionRequests.spaceId, spaceId) : undefined))
+    .groupBy(toolActionRequests.spaceId);
 }
 
 export async function recoverApprovedToolReviews(db: Db, recover: (input: {
   request: typeof toolActionRequests.$inferSelect;
   invocation: typeof toolInvocations.$inferSelect;
-}) => Promise<boolean>, companyId?: string) {
+}) => Promise<boolean>, spaceId?: string) {
   let cursor: string | undefined;
   let scanned = 0, retry = false;
   for (;;) {
     const rows = await db.select({ request: toolActionRequests, invocation: toolInvocations })
       .from(toolActionRequests).innerJoin(toolInvocations, eq(toolInvocations.id, toolActionRequests.invocationId))
       .where(and(eq(toolActionRequests.status, "approved"),
-        companyId ? eq(toolActionRequests.companyId, companyId) : undefined,
+        spaceId ? eq(toolActionRequests.spaceId, spaceId) : undefined,
         cursor ? gt(toolActionRequests.id, cursor) : undefined))
       .orderBy(asc(toolActionRequests.id)).limit(100);
     for (const row of rows) retry = await recover(row) || retry;

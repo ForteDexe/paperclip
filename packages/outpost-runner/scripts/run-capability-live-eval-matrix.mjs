@@ -116,7 +116,7 @@ const faultBundle = {
     callTemplate: "Invoke the declared semantic operation sequence.",
     restraintTemplate: "Make no semantic call.",
   },
-  grants: ["control_plane:wakes", "governance:approvals:decide"],
+  grants: ["control_plane:wakes", "approvals:approvals:decide"],
   runner: {
     package: packageManifest.name,
     binary: "node",
@@ -144,7 +144,7 @@ const report = {
   providerModel: liveModel,
   matrix,
 };
-const evidenceDirectory = resolve(packageRoot, ".paperclip-local/evidence/capability");
+const evidenceDirectory = resolve(packageRoot, ".outpost-local/evidence/capability");
 const output = resolve(evidenceDirectory, "live-codex-matrix.json");
 const markdown = resolve(evidenceDirectory, "live-codex-matrix.md");
 const liveSliceJson = resolve(evidenceDirectory, "live-eval-slice-report.json");

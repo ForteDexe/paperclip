@@ -59,7 +59,7 @@ it("retains attribution across streamed chunks and continues to reject session r
 it("preserves the original provider failure as sanitized scan provenance", () => {
   const evidence = secretScanFailureEvidence({
     scanError: "Secret leak in persisted state: exact secret value (CODEX_AUTH_JSON.tokens.account_id)",
-    finding: { file: "codex-home/sessions/rollout.jsonl", stateArea: "Paperclip home", reason: "exact secret value",
+    finding: { file: "codex-home/sessions/rollout.jsonl", stateArea: "Outpost home", reason: "exact secret value",
       matchCategory: "CODEX_AUTH_JSON.tokens.account_id" },
     originalResult: { status: "failed", failureClass: "transient_infrastructure", error: `HTTP 429 provider unavailable: ${tokens.access_token}` },
   }, secrets) as Record<string, any>;
@@ -72,7 +72,7 @@ it("preserves the original provider failure as sanitized scan provenance", () =>
 
 it("permits only account identity in private Codex diagnostic databases, never artifact scans or tokens", async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), "codex-private-log-")); directories.push(temporary);
-  const root = path.join(temporary, "paperclip-home");
+  const root = path.join(temporary, "outpost-home");
   const home = path.join(root, "instances/runner-e2e-test/runtime/outpost-runner/durable-sessions/session/codex-home");
   await mkdir(home, { recursive: true });
   const file = path.join(home, "logs_2.sqlite-wal");
@@ -105,7 +105,7 @@ it("permits only account identity in private Codex diagnostic databases, never a
 
 it("allows the exact upstream rollout ownership field while scanning all conversation content", async () => {
   const temporary = await mkdtemp(path.join(tmpdir(), "codex-private-rollout-")); directories.push(temporary);
-  const root = path.join(temporary, "paperclip-home");
+  const root = path.join(temporary, "outpost-home");
   const file = path.join(root, "instances/test/runtime/outpost-runner/durable-sessions/session/codex-home/sessions/2026/10/26/rollout-test.jsonl");
   await mkdir(path.dirname(file), { recursive: true });
   const options = { sources, includeShapes: false, privateCodexRuntimeIdentityRoot: root };
@@ -133,30 +133,30 @@ describe("product-delivered credential persisted-state scope", () => {
   const otherSecret = "unregistered-private-canary-0123456789";
   async function home(files: Record<string, string>) {
     const root = await mkdtemp(path.join(tmpdir(), "delivered-scan-")); directories.push(root);
-    const paperclipHome = path.join(root, "paperclip-home");
-    await mkdir(paperclipHome, { recursive: true });
+    const outpostHome = path.join(root, "outpost-home");
+    await mkdir(outpostHome, { recursive: true });
     for (const [relative, text] of Object.entries(files)) {
-      await mkdir(path.dirname(path.join(paperclipHome, relative)), { recursive: true });
-      await writeFile(path.join(paperclipHome, relative), text);
+      await mkdir(path.dirname(path.join(outpostHome, relative)), { recursive: true });
+      await writeFile(path.join(outpostHome, relative), text);
     }
-    return paperclipHome;
+    return outpostHome;
   }
   const dbFile = "instances/runner-e2e-1/db/base/16384/24601";
   const scan = (root: string, productStateRoot?: string) =>
     findSecretLeakInPersistedState(root, [joinToken, otherSecret], [joinToken], { includeShapes: false, ...(productStateRoot ? { productStateRoot } : {}) });
 
   it("accepts the registered join token inside the embedded database only", async () => {
-    const paperclipHome = await home({ [dbFile]: `reply /invite/${joinToken}`, "instances/runner-e2e-1/db/pg_wal/000000010000000000000001": joinToken });
-    expect(await scan(paperclipHome, paperclipHome)).toBeNull();
+    const outpostHome = await home({ [dbFile]: `reply /invite/${joinToken}`, "instances/runner-e2e-1/db/pg_wal/000000010000000000000001": joinToken });
+    expect(await scan(outpostHome, outpostHome)).toBeNull();
   });
 
   it.each([
-    ["agent run log", "instances/runner-e2e-1/data/run-logs/company/agent/run.ndjson"],
+    ["agent run log", "instances/runner-e2e-1/data/run-logs/space/agent/run.ndjson"],
     ["server log", "instances/runner-e2e-1/logs/server.log"],
     ["other instance data", "instances/runner-e2e-1/data/storage/attachment.txt"],
   ])("still rejects the join token in the %s", async (_label, relative) => {
-    const paperclipHome = await home({ [dbFile]: joinToken, [relative]: `link /invite/${joinToken}` });
-    expect(await scan(paperclipHome, paperclipHome)).toMatchObject({ file: path.join(paperclipHome, relative), reason: "exact secret value" });
+    const outpostHome = await home({ [dbFile]: joinToken, [relative]: `link /invite/${joinToken}` });
+    expect(await scan(outpostHome, outpostHome)).toMatchObject({ file: path.join(outpostHome, relative), reason: "exact secret value" });
   });
 
   it("still rejects the join token in the workspace and in published evidence", async () => {
@@ -173,7 +173,7 @@ describe("product-delivered credential persisted-state scope", () => {
   });
 
   it("still rejects a different unregistered secret inside the embedded database", async () => {
-    const paperclipHome = await home({ [dbFile]: `${joinToken} ${otherSecret}` });
-    expect(await scan(paperclipHome, paperclipHome)).toMatchObject({ file: path.join(paperclipHome, dbFile), reason: "exact secret value" });
+    const outpostHome = await home({ [dbFile]: `${joinToken} ${otherSecret}` });
+    expect(await scan(outpostHome, outpostHome)).toMatchObject({ file: path.join(outpostHome, dbFile), reason: "exact secret value" });
   });
 });

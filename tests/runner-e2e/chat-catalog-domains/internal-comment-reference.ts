@@ -101,7 +101,7 @@ export function withRenderedCommentReference(base: ChatCatalogCase): ChatCatalog
         await expect(page.getByRole("heading", { name: design.title!, exact: true }).first()).toBeVisible();
         const actual = await ctx.input.api.get<Entity>(`/api/issues/${design.id}`);
         state.savedCommentReference = { commentId: added[0]!.id, taskId: target.id, designId: design.id, bodySha256: digest(added[0]!.body ?? ""), href,
-          visible: true, destinationMatched: true, publicReadMatched: actual.id === design.id && actual.companyId === o.companyId } satisfies ReferenceProof;
+          visible: true, destinationMatched: true, publicReadMatched: actual.id === design.id && actual.spaceId === o.spaceId } satisfies ReferenceProof;
         await ctx.input.evidence("chat-saved-comment-reference.json", state.savedCommentReference);
       } finally { await page.goto(source, { waitUntil: "domcontentloaded" }); await expect(page.getByTestId("task-chat-composer-input")).toBeVisible(); }
     },

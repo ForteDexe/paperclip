@@ -15,12 +15,12 @@ import { createCapabilityRunnerdCodexTransport, defaultCapabilityRunnerdBinary }
 const fakeCodex = resolve(import.meta.dirname, "../../runner/target/debug/fake-codex-app-server");
 const identity = { runnerInstanceId: "runner-plugin", environmentLeaseId: "lease-plugin", runId: "run",
   normalizedSessionId: "session", turnId: "turn-plugin", itemId: "item-plugin" };
-const sessionIdentity = { runId: "run", sessionId: "session", companyId: "company", issueId: "issue", agentId: "agent" };
+const sessionIdentity = { runId: "run", sessionId: "session", spaceId: "space", issueId: "issue", agentId: "agent" };
 
 function execution(): NativeExecutionInput {
   return {
     schema: "outpost.native-execution-input.v1",
-    binding: { companyId: "company", runId: "run", issueId: "issue", agentId: "agent", executionWorkspaceId: "workspace" },
+    binding: { spaceId: "space", runId: "run", issueId: "issue", agentId: "agent", executionWorkspaceId: "workspace" },
     task: { identifier: "PAP-1", title: "Plugin-owned workspace", description: null, prompt: "Complete the task.", workMode: "standard" },
     workspace: { cwd: "/controller/workspace", repoUrl: null, repoRef: null, branchName: null },
     session: { normalizedSessionId: "session", driverKind: "codex_app_server", protocolVersion: 1,

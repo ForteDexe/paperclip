@@ -3,12 +3,12 @@ title: Activity
 summary: Activity log queries
 ---
 
-Query the audit trail of all mutations across the company.
+Query the audit trail of all mutations across the space.
 
 ## List Activity
 
 ```
-GET /api/companies/{companyId}/activity
+GET /api/spaces/{spaceId}/activity
 ```
 
 Query parameters:
@@ -41,6 +41,6 @@ All mutations are recorded:
 - Approval creation, approval/rejection decisions
 - Comment creation
 - Budget changes
-- Company configuration changes
+- Space configuration changes
 
 The activity log is append-only and immutable.

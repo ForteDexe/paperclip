@@ -9,13 +9,13 @@ import {
   buildOutpostEnv,
   buildRuntimeToolsEnv,
   parseObject,
-  readPaperclipIssueWorkModeFromContext,
+  readOutpostIssueWorkModeFromContext,
   hydrateFreshSessionHandoff,
-  selectPaperclipPromptSections,
+  selectOutpostPromptSections,
   selectInitialCommunicationGuidance,
   joinPromptSections,
-  stringifyPaperclipWakePayload,
-  paperclipWakeCommentsArePromptOwned,
+  stringifyOutpostWakePayload,
+  outpostWakeCommentsArePromptOwned,
 } from "@outpost/adapter-utils/server-utils";
 import crypto, { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
@@ -25,7 +25,7 @@ type SessionKeyStrategy = "fixed" | "issue" | "run";
 type WakePayload = {
   runId: string;
   agentId: string;
-  companyId: string;
+  spaceId: string;
   taskId: string | null;
   issueId: string | null;
   wakeReason: string | null;
@@ -95,7 +95,7 @@ const PROTOCOL_VERSION = 4;
 const DEFAULT_SCOPES = ["operator.admin"];
 const DEFAULT_CLIENT_ID = "gateway-client";
 const DEFAULT_CLIENT_MODE = "backend";
-const DEFAULT_CLIENT_VERSION = "paperclip";
+const DEFAULT_CLIENT_VERSION = "outpost";
 const DEFAULT_ROLE = "operator";
 
 const SENSITIVE_LOG_KEY_PATTERN =
@@ -151,12 +151,12 @@ export function resolveSessionKey(input: {
   runId: string;
   issueId: string | null;
 }): string {
-  const fallback = input.configuredSessionKey ?? "paperclip";
+  const fallback = input.configuredSessionKey ?? "outpost";
   if (input.strategy === "run") {
-    return prefixSessionKeyForAgent(`paperclip:run:${input.runId}`, input.agentId);
+    return prefixSessionKeyForAgent(`outpost:run:${input.runId}`, input.agentId);
   }
   if (input.strategy === "issue" && input.issueId) {
-    return prefixSessionKeyForAgent(`paperclip:issue:${input.issueId}`, input.agentId);
+    return prefixSessionKeyForAgent(`outpost:issue:${input.issueId}`, input.agentId);
   }
   return prefixSessionKeyForAgent(fallback, input.agentId);
 }
@@ -313,7 +313,7 @@ function buildWakePayload(ctx: AdapterExecutionContext): WakePayload {
   return {
     runId,
     agentId: agent.id,
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     taskId: nonEmpty(context.taskId) ?? nonEmpty(context.issueId),
     issueId: nonEmpty(context.issueId),
     wakeReason: nonEmpty(context.wakeReason),
@@ -328,7 +328,7 @@ function buildWakePayload(ctx: AdapterExecutionContext): WakePayload {
   };
 }
 
-function resolvePaperclipApiUrlOverride(value: unknown): string | null {
+function resolveOutpostApiUrlOverride(value: unknown): string | null {
   const raw = nonEmpty(value);
   if (!raw) return null;
   try {
@@ -340,25 +340,25 @@ function resolvePaperclipApiUrlOverride(value: unknown): string | null {
   }
 }
 
-const DEFAULT_CLAIMED_API_KEY_PATH = "~/.openclaw/workspace/paperclip-claimed-api-key.json";
+const DEFAULT_CLAIMED_API_KEY_PATH = "~/.openclaw/workspace/outpost-claimed-api-key.json";
 
 export function resolveClaimedApiKeyPath(value: unknown): string {
   return nonEmpty(value) ?? DEFAULT_CLAIMED_API_KEY_PATH;
 }
 
 function buildOutpostEnvForWake(ctx: AdapterExecutionContext, wakePayload: WakePayload): Record<string, string> {
-  const paperclipApiUrlOverride = resolvePaperclipApiUrlOverride(ctx.config.paperclipApiUrl);
+  const outpostApiUrlOverride = resolveOutpostApiUrlOverride(ctx.config.outpostApiUrl);
   const outpostEnv: Record<string, string> = {
     ...buildOutpostEnv(ctx.agent),
     ...buildRuntimeToolsEnv(ctx.runtimeTools),
     OUTPOST_RUN_ID: ctx.runId,
   };
 
-  if (paperclipApiUrlOverride) {
-    outpostEnv.OUTPOST_API_URL = paperclipApiUrlOverride;
+  if (outpostApiUrlOverride) {
+    outpostEnv.OUTPOST_API_URL = outpostApiUrlOverride;
   }
   if (wakePayload.taskId) outpostEnv.OUTPOST_TASK_ID = wakePayload.taskId;
-  const issueWorkMode = readPaperclipIssueWorkModeFromContext(ctx.context);
+  const issueWorkMode = readOutpostIssueWorkModeFromContext(ctx.context);
   if (issueWorkMode) outpostEnv.OUTPOST_ISSUE_WORK_MODE = issueWorkMode;
   if (wakePayload.wakeReason) outpostEnv.OUTPOST_WAKE_REASON = wakePayload.wakeReason;
   if (wakePayload.wakeCommentId) outpostEnv.OUTPOST_WAKE_COMMENT_ID = wakePayload.wakeCommentId;
@@ -381,7 +381,7 @@ function buildWakeText(
   const orderedKeys = [
     "OUTPOST_RUN_ID",
     "OUTPOST_AGENT_ID",
-    "OUTPOST_COMPANY_ID",
+    "OUTPOST_SPACE_ID",
     "OUTPOST_API_URL",
     "OUTPOST_TASK_ID",
     "OUTPOST_WAKE_REASON",
@@ -407,7 +407,7 @@ function buildWakeText(
       "Set these values in your run context:",
       ...envLines,
       `Load OUTPOST_API_KEY from ${claimedApiKeyPath} (the token saved after claim-api-key).`,
-      "Use Authorization: Bearer $OUTPOST_API_KEY on every API call and X-Paperclip-Run-Id: $OUTPOST_RUN_ID on every mutation.",
+      "Use Authorization: Bearer $OUTPOST_API_KEY on every API call and X-Outpost-Run-Id: $OUTPOST_RUN_ID on every mutation.",
       "Follow the supplied chat mode directive. Keep this conversation available for the next message.",
       structuredWakePrompt,
       conversationTaskMarkdown,
@@ -436,7 +436,7 @@ function buildWakeText(
     "",
     "HTTP rules:",
     "- Use Authorization: Bearer $OUTPOST_API_KEY on every API call.",
-    "- Use X-Paperclip-Run-Id: $OUTPOST_RUN_ID on every mutating API call.",
+    "- Use X-Outpost-Run-Id: $OUTPOST_RUN_ID on every mutating API call.",
     "- Use only /api endpoints listed below.",
     "- Do NOT call guessed endpoints like /api/cloud-adapter/*, /api/cloud-adapters/*, /api/adapters/cloud/*, or /api/heartbeat.",
     "",
@@ -456,13 +456,13 @@ function buildWakeText(
     "   - If instructions require a comment, POST /api/issues/{issueId}/comments with {\"body\":\"...\"}.",
     "   - PATCH /api/issues/{issueId} with {\"status\":\"done\",\"comment\":\"what changed and why\"}.",
     "4) If issueId does not exist:",
-    "   - GET /api/companies/$OUTPOST_COMPANY_ID/issues?assigneeAgentId=$OUTPOST_AGENT_ID&status=todo,in_progress,in_review,blocked",
+    "   - GET /api/spaces/$OUTPOST_SPACE_ID/issues?assigneeAgentId=$OUTPOST_AGENT_ID&status=todo,in_progress,in_review,blocked",
     "   - Pick in_progress first, then in_review when you were woken by a comment, then todo, then blocked, then execute step 3.",
     "",
     "Useful endpoints for issue work:",
     "- POST /api/issues/{issueId}/comments",
     "- PATCH /api/issues/{issueId}",
-    "- POST /api/companies/{companyId}/issues (when asked to create a new issue)",
+    "- POST /api/spaces/{spaceId}/issues (when asked to create a new issue)",
     ...(structuredWakePrompt
       ? [
           "",
@@ -506,7 +506,7 @@ export function buildAgentParams(input: {
     idempotencyKey: input.runId,
   };
   delete agentParams.text;
-  delete agentParams.paperclip;
+  delete agentParams.outpost;
 
   if (input.configuredAgentId && !nonEmpty(agentParams.agentId)) {
     agentParams.agentId = input.configuredAgentId;
@@ -765,7 +765,7 @@ class GatewayWsClient {
 
   close() {
     if (!this.ws) return;
-    this.ws.close(1000, "paperclip-complete");
+    this.ws.close(1000, "outpost-complete");
     this.ws = null;
   }
 
@@ -1108,14 +1108,14 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   // No heartbeat prompt template is sent over the gateway, so the wake prompt
   // must carry the execution contract itself.
   await hydrateFreshSessionHandoff(ctx, { resumedSession: Boolean(ctx.runtime?.sessionId) });
-  const { taskContextNote, wakePrompt: structuredWakePrompt } = selectPaperclipPromptSections(ctx.context, {
+  const { taskContextNote, wakePrompt: structuredWakePrompt } = selectOutpostPromptSections(ctx.context, {
     resumedSession: Boolean(ctx.runtime?.sessionId),
     includeExecutionContract: true,
     includeCommunicationGuidance: false,
   });
-  const structuredWakeJson = paperclipWakeCommentsArePromptOwned(ctx.context)
+  const structuredWakeJson = outpostWakeCommentsArePromptOwned(ctx.context)
     ? null
-    : stringifyPaperclipWakePayload(ctx.context.paperclipWake, {
+    : stringifyOutpostWakePayload(ctx.context.outpostWake, {
         omitIssueDescription: Boolean(taskContextNote),
       });
   const wakeText = buildWakeText(

@@ -46,7 +46,7 @@ function snapshot(): CapabilityLiveSessionSnapshot {
     },
     authority: {
       active: true,
-      companyId: "company-1",
+      spaceId: "space-1",
       actorId: "actor-1",
       taskId: "task-1",
       runId: "run-1",
@@ -70,7 +70,7 @@ function snapshot(): CapabilityLiveSessionSnapshot {
     mockState: JSON.stringify(current),
     authorizationRecords: [],
     process: null,
-    networkEvidence: { realPaperclipRequests: 0, childOutpostEnvironmentKeys: [] },
+    networkEvidence: { realOutpostRequests: 0, childOutpostEnvironmentKeys: [] },
     createdAt: "2026-08-09T00:00:00.000Z",
     updatedAt: "2026-08-09T00:00:01.000Z",
     stateHistory: [{
@@ -84,7 +84,7 @@ function snapshot(): CapabilityLiveSessionSnapshot {
 }
 
 describe("projectCapabilityDevtools", () => {
-  it("projects the seed and complete current company scaffolding", () => {
+  it("projects the seed and complete current space scaffolding", () => {
     const result = projectCapabilityDevtools(snapshot());
     const state = result.revisions.at(-1)!.state as Record<string, unknown>;
 
@@ -93,7 +93,7 @@ describe("projectCapabilityDevtools", () => {
       "session.open",
     ]);
     expect(Object.keys(state)).toEqual(expect.arrayContaining([
-      "company", "actors", "tasks", "comments", "documents", "interactions",
+      "space", "actors", "tasks", "comments", "documents", "interactions",
       "approvals", "artifacts", "workProducts", "blockers", "workspaceServices",
       "budgets", "runs", "wakes", "audit", "decisions", "idempotency", "faults",
     ]));

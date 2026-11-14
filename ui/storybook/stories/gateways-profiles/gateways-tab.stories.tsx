@@ -6,12 +6,12 @@ import { ToastProvider } from "@/context/ToastContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { GatewaysTab } from "@/pages/tools/GatewaysTab";
 
-const COMPANY = "company-storybook";
+const SPACE = "space-storybook";
 
 const POPULATED: ToolMcpGatewayWithTokens[] = [
   {
     id: "gw-1",
-    companyId: COMPANY,
+    spaceId: SPACE,
     name: "Engineering inbox",
     slug: "engineering-inbox",
     description: "Shared MCP endpoint for the engineering org's editors and IDEs.",
@@ -29,7 +29,7 @@ const POPULATED: ToolMcpGatewayWithTokens[] = [
     tokens: [
       {
         id: "tok-1",
-        companyId: COMPANY,
+        spaceId: SPACE,
         gatewayId: "gw-1",
         name: "Dotta's MacBook",
         expiresAt: new Date("2026-09-01T00:00:00Z"),
@@ -42,7 +42,7 @@ const POPULATED: ToolMcpGatewayWithTokens[] = [
       },
       {
         id: "tok-2",
-        companyId: COMPANY,
+        spaceId: SPACE,
         gatewayId: "gw-1",
         name: "CI runner",
         expiresAt: null,
@@ -55,7 +55,7 @@ const POPULATED: ToolMcpGatewayWithTokens[] = [
       },
       {
         id: "tok-3",
-        companyId: COMPANY,
+        spaceId: SPACE,
         gatewayId: "gw-1",
         name: "Old laptop (rotated)",
         expiresAt: null,
@@ -73,7 +73,7 @@ const POPULATED: ToolMcpGatewayWithTokens[] = [
         label: "Cursor",
         config: {
           mcpServers: {
-            "paperclip-engineering-inbox": {
+            "outpost-engineering-inbox": {
               url: "https://outpost.app/api/mcp/gateways/engineering-inbox",
               headers: { Authorization: "Bearer YOUR_TOKEN" },
             },
@@ -86,7 +86,7 @@ const POPULATED: ToolMcpGatewayWithTokens[] = [
         label: "Claude Desktop",
         config: {
           mcpServers: {
-            "paperclip-engineering-inbox": {
+            "outpost-engineering-inbox": {
               url: "https://outpost.app/api/mcp/gateways/engineering-inbox",
               headers: { Authorization: "Bearer YOUR_TOKEN" },
             },
@@ -99,7 +99,7 @@ const POPULATED: ToolMcpGatewayWithTokens[] = [
         label: "VS Code",
         config: {
           servers: {
-            "paperclip-engineering-inbox": {
+            "outpost-engineering-inbox": {
               type: "http",
               url: "https://outpost.app/api/mcp/gateways/engineering-inbox",
               headers: { Authorization: "Bearer YOUR_TOKEN" },
@@ -112,7 +112,7 @@ const POPULATED: ToolMcpGatewayWithTokens[] = [
   } as unknown as ToolMcpGatewayWithTokens,
   {
     id: "gw-2",
-    companyId: COMPANY,
+    spaceId: SPACE,
     name: "Support ops (read-only)",
     slug: "support-ops",
     description: null,
@@ -134,7 +134,7 @@ const POPULATED: ToolMcpGatewayWithTokens[] = [
         label: "Claude Code",
         config: {
           mcpServers: {
-            "paperclip-support-ops": {
+            "outpost-support-ops": {
               url: "https://outpost.app/api/mcp/gateways/support-ops",
               headers: { Authorization: "Bearer YOUR_TOKEN" },
             },
@@ -146,7 +146,7 @@ const POPULATED: ToolMcpGatewayWithTokens[] = [
   } as unknown as ToolMcpGatewayWithTokens,
   {
     id: "gw-3",
-    companyId: COMPANY,
+    spaceId: SPACE,
     name: "Disabled legacy gateway with an unusually long human-readable name for truncation testing",
     slug: "legacy-long",
     description:
@@ -165,7 +165,7 @@ const POPULATED: ToolMcpGatewayWithTokens[] = [
     tokens: [
       {
         id: "tok-4",
-        companyId: COMPANY,
+        spaceId: SPACE,
         gatewayId: "gw-3",
         name: "Legacy IDE",
         expiresAt: new Date("2026-06-30T00:00:00Z"),
@@ -187,23 +187,23 @@ function seededClient(gateways: ToolMcpGatewayWithTokens[]) {
       queries: { staleTime: Infinity, gcTime: Infinity, retry: false, refetchOnMount: false },
     },
   });
-  c.setQueryData(["tools", "gateways", COMPANY], { gateways });
-  c.setQueryData(queryKeys.tools.profiles(COMPANY), {
+  c.setQueryData(["tools", "gateways", SPACE], { gateways });
+  c.setQueryData(queryKeys.tools.profiles(SPACE), {
     profiles: [
       profile("profile-eng", "Engineering", 18),
       profile("profile-support", "Support ops", 7),
       profile("profile-legacy", "Legacy read-only", 3),
     ],
   });
-  c.setQueryData(queryKeys.agents.list(COMPANY), []);
-  c.setQueryData(queryKeys.projects.list(COMPANY), []);
+  c.setQueryData(queryKeys.agents.list(SPACE), []);
+  c.setQueryData(queryKeys.projects.list(SPACE), []);
   return c;
 }
 
 function profile(id: string, name: string, allowedToolCount: number) {
   return {
     id,
-    companyId: COMPANY,
+    spaceId: SPACE,
     profileKey: id,
     name,
     description: null,
@@ -223,7 +223,7 @@ function profile(id: string, name: string, allowedToolCount: number) {
       totalToolCount: 24,
       assignmentCount: 1,
       appliesToAgentCount: 0,
-      isCompanyDefault: false,
+      isSpaceDefault: false,
     },
   };
 }
@@ -234,7 +234,7 @@ function GatewaysHost({ gateways }: { gateways: ToolMcpGatewayWithTokens[] }) {
     <QueryClientProvider client={client}>
       <ToastProvider>
         <div className="mx-auto max-w-4xl p-4 sm:p-6">
-          <GatewaysTab companyId={COMPANY} />
+          <GatewaysTab spaceId={SPACE} />
         </div>
       </ToastProvider>
     </QueryClientProvider>
@@ -245,7 +245,7 @@ const meta: Meta = {
   id: "tools-gateways-pap-11182",
   title: "Apps, channels, and extensions/Tool gateways and access profiles/Tools/Gateways (PAP-11182)",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "gateways-profiles/gateway"
       ],

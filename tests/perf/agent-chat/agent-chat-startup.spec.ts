@@ -47,15 +47,15 @@ test.beforeAll(async ({ request }) => {
   const experimental = await request.patch("/api/instance/settings/experimental", { data: { enableAgentChat: true, enableStreamlinedUi: true } });
   expect(experimental.ok()).toBeTruthy();
   fixture = await longChatFixture(request);
-  const preference = await request.put(`/api/companies/${fixture.company.id}/workspace-preferences/me`, { data: { coordinatorWorkspaceEnabled: true } });
+  const preference = await request.put(`/api/spaces/${fixture.space.id}/workspace-preferences/me`, { data: { coordinatorWorkspaceEnabled: true } });
   expect(preference.ok()).toBeTruthy();
   const announcementResponse = await request.get("/api/announcements/current");
   const announcement = await announcementResponse.json();
   if (announcement) {
-    const dismissed = await request.post(`/api/announcements/${announcement.id}/dismiss`, { data: { companyId: fixture.company.id } });
+    const dismissed = await request.post(`/api/announcements/${announcement.id}/dismiss`, { data: { spaceId: fixture.space.id } });
     expect(dismissed.ok()).toBeTruthy();
   }
-  chatPath = `/${fixture.company.issuePrefix}/chats/${fixture.agent.id}`;
+  chatPath = `/${fixture.space.issuePrefix}/chats/${fixture.agent.id}`;
 });
 
 test("cold long chat reveals one recent window without full-history reads or redraws", async ({ page, request }, info) => {
@@ -225,7 +225,7 @@ test("live updates keep an unpinned reader and draft, and the saved message appe
   expect(sourceRunId).toBeTruthy();
   const body = `Live saved message ${randomUUID()}`;
   const response = await request.post(`/api/issues/${fixture.issue.id}/comments`, {
-    headers: { authorization: `Bearer ${key.token}`, "x-paperclip-run-id": sourceRunId! }, data: { body },
+    headers: { authorization: `Bearer ${key.token}`, "x-outpost-run-id": sourceRunId! }, data: { body },
   });
   await request.delete(`/api/agents/${fixture.agent.id}/keys/${key.id}`);
   expect(response.ok(), await response.text()).toBeTruthy();
@@ -244,7 +244,7 @@ test("sending before the first upward scroll leaves earlier history reachable", 
   const own = await longChatFixture(request, `send-first-${info.project.name}`);
   const snapshot = await request.get(`/api/issues/${own.issue.id}/recent-comments`);
   const oldest = (await snapshot.json()).oldestCommentId;
-  await page.goto(`/${own.company.issuePrefix}/chats/${own.agent.id}`); await ready(page);
+  await page.goto(`/${own.space.issuePrefix}/chats/${own.agent.id}`); await ready(page);
   const body = `Saved before paging ${randomUUID()}`;
   await editor(page).fill(body);
   const posted = page.waitForResponse(response => response.request().method() === "POST"
@@ -273,8 +273,8 @@ test("a receipts outage leaves message paging available with one independent ret
 
 test("successive older pages hydrate each message and run id only once", async ({ page, request }) => {
   const fixture = await longChatFixture(request, "metadata");
-  await request.put(`/api/companies/${fixture.company.id}/workspace-preferences/me`, { data: { coordinatorWorkspaceEnabled: true } });
-  const chatPath = `/${fixture.company.issuePrefix}/chats/${fixture.agent.id}`;
+  await request.put(`/api/spaces/${fixture.space.id}/workspace-preferences/me`, { data: { coordinatorWorkspaceEnabled: true } });
+  const chatPath = `/${fixture.space.issuePrefix}/chats/${fixture.agent.id}`;
   const nativeIds: string[] = [];
   page.on("response", response => {
     const match = new URL(response.url()).pathname.match(/^\/api\/heartbeat-runs\/([^/]+)\/events$/);
@@ -310,7 +310,7 @@ test("successive older pages hydrate each message and run id only once", async (
 
 for (const pinned of [true, false]) test(`a delayed image preserves ${pinned ? "latest following" : "the reading anchor"}`, async ({ page, request }, info) => {
   const own = await longChatFixture(request, `image-v3-${pinned}-${info.project.name}`, { delayedImage: true });
-  const preference = await request.put(`/api/companies/${own.company.id}/workspace-preferences/me`, { data: { coordinatorWorkspaceEnabled: true } });
+  const preference = await request.put(`/api/spaces/${own.space.id}/workspace-preferences/me`, { data: { coordinatorWorkspaceEnabled: true } });
   expect(preference.ok()).toBeTruthy();
   let release!: () => void, requested!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
@@ -320,7 +320,7 @@ for (const pinned of [true, false]) test(`a delayed image preserves ${pinned ? "
     await route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="gray"/></svg>' });
   });
   try {
-    await page.goto(`/${own.company.issuePrefix}/chats/${own.agent.id}`); await ready(page);
+    await page.goto(`/${own.space.issuePrefix}/chats/${own.agent.id}`); await ready(page);
     await scrollUp(page, 1200);
     const images = await page.locator('img[alt="Delayed evidence"]').evaluateAll(nodes => nodes.map(node => ({ src: (node as HTMLImageElement).src, complete: (node as HTMLImageElement).complete, rect: node.getBoundingClientRect().toJSON() })));
     await fs.writeFile(info.outputPath("image-before-release.json"), JSON.stringify({ images }));

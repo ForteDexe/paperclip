@@ -2,10 +2,10 @@ import { UserPlus, Lightbulb, ShieldAlert, ShieldCheck } from "lucide-react";
 import { MarkdownBody } from "./MarkdownBody";
 
 export const typeLabel: Record<string, string> = {
-  hire_agent: "Hire Agent",
-  approve_ceo_strategy: "Outpost Lead Strategy",
+  create_agent: "Create Agent",
+  approve_lead_strategy: "Default agent Strategy",
   budget_override_required: "Legacy Policy Notice",
-  request_board_approval: "Board Approval",
+  request_operator_approval: "Operator Approval",
 };
 
 function firstNonEmptyString(...values: unknown[]): string | null {
@@ -26,7 +26,7 @@ export function approvalSubject(payload?: Record<string, unknown> | null): strin
   );
 }
 
-/** Build a contextual label for an approval, e.g. "Hire Agent: Designer" */
+/** Build a contextual label for an approval, e.g. "Create Agent: Designer" */
 export function approvalLabel(type: string, payload?: Record<string, unknown> | null): string {
   const base = typeLabel[type] ?? type;
   const subject = approvalSubject(payload);
@@ -37,10 +37,10 @@ export function approvalLabel(type: string, payload?: Record<string, unknown> | 
 }
 
 export const typeIcon: Record<string, typeof UserPlus> = {
-  hire_agent: UserPlus,
-  approve_ceo_strategy: Lightbulb,
+  create_agent: UserPlus,
+  approve_lead_strategy: Lightbulb,
   budget_override_required: ShieldAlert,
-  request_board_approval: ShieldCheck,
+  request_operator_approval: ShieldCheck,
 };
 
 export const defaultTypeIcon = ShieldCheck;
@@ -80,7 +80,7 @@ function SkillList({ values }: { values: unknown }) {
   );
 }
 
-export function HireAgentPayload({ payload }: { payload: Record<string, unknown> }) {
+export function CreateAgentPayload({ payload }: { payload: Record<string, unknown> }) {
   return (
     <div className="mt-3 space-y-1.5 text-sm">
       <div className="flex items-center gap-2">
@@ -109,7 +109,7 @@ export function HireAgentPayload({ payload }: { payload: Record<string, unknown>
   );
 }
 
-export function CeoStrategyPayload({ payload }: { payload: Record<string, unknown> }) {
+export function DefaultAgentStrategyPayload({ payload }: { payload: Record<string, unknown> }) {
   const plan = payload.plan ?? payload.description ?? payload.strategy ?? payload.text;
   return (
     <div className="mt-3 space-y-1.5 text-sm">
@@ -137,7 +137,7 @@ export function BudgetOverridePayload({ payload }: { payload: Record<string, unk
   );
 }
 
-export function BoardApprovalPayload({
+export function OperatorApprovalPayload({
   payload,
   hideTitle = false,
 }: {
@@ -146,7 +146,7 @@ export function BoardApprovalPayload({
 }) {
   const nextPayload = hideTitle ? { ...payload, title: undefined } : payload;
   return (
-    <BoardApprovalPayloadContent payload={nextPayload} />
+    <OperatorApprovalPayloadContent payload={nextPayload} />
   );
 }
 
@@ -158,7 +158,7 @@ function stripLeadingListMarker(value: string): string {
   return value.replace(/^(?:[-*•]|\d+[.)])\s+/, "");
 }
 
-function BoardApprovalPayloadContent({ payload }: { payload: Record<string, unknown> }) {
+function OperatorApprovalPayloadContent({ payload }: { payload: Record<string, unknown> }) {
   const risks = Array.isArray(payload.risks)
     ? payload.risks
         .filter((value): value is string => typeof value === "string")
@@ -235,10 +235,10 @@ export function ApprovalPayloadRenderer({
   payload: Record<string, unknown>;
   hidePrimaryTitle?: boolean;
 }) {
-  if (type === "hire_agent") return <HireAgentPayload payload={payload} />;
+  if (type === "create_agent") return <CreateAgentPayload payload={payload} />;
   if (type === "budget_override_required") return <BudgetOverridePayload payload={payload} />;
-  if (type === "request_board_approval") {
-    return <BoardApprovalPayload payload={payload} hideTitle={hidePrimaryTitle} />;
+  if (type === "request_operator_approval") {
+    return <OperatorApprovalPayload payload={payload} hideTitle={hidePrimaryTitle} />;
   }
-  return <CeoStrategyPayload payload={payload} />;
+  return <DefaultAgentStrategyPayload payload={payload} />;
 }

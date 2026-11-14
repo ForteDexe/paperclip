@@ -40,7 +40,7 @@ export async function cloudOnboarding(input: CloudOnboardingInput): Promise<Jour
   await input.beforeWorkspace(name);
   await page.getByRole("button", { name: firstRun ? "Next" : "Create organization", exact: true }).click();
   const context = await input.workspaceCreated();
-  const { api, company } = context;
+  const { api, space } = context;
   evidence.deployment = context.identity;
   evidence.checks.push({ id: "fresh-workspace", passed: true });
   await input.phase("setup");
@@ -60,7 +60,7 @@ export async function cloudOnboarding(input: CloudOnboardingInput): Promise<Jour
   await input.own({ kind: "connection", name: connectionName });
   await dialog.getByRole("button", { name: "Save connection", exact: true }).click();
   await expect(dialog).not.toBeVisible();
-  const connections = (await api.get(`/api/companies/${company.id}/ai-connections`)).connections as Row[];
+  const connections = (await api.get(`/api/spaces/${space.id}/ai-connections`)).connections as Row[];
   const connection = connections.find(c => c.name === connectionName && c.provider === "openai" && c.method === "api_key" && c.status === "connected");
   if (!connection || connections.length !== 1) throw new JourneyError("failed", "onboarding_connection_not_saved");
   await input.own({ kind: "connection", name: connectionName, id: connection.id });
@@ -70,15 +70,15 @@ export async function cloudOnboarding(input: CloudOnboardingInput): Promise<Jour
   await page.getByRole("option", { name: /^Outpost Runner/ }).click();
   await input.qualify(context, connection.id);
   // Connect performs the production probe and agent creation. Never press Retry.
-  const connect = await onboardingConnect({ page, origin: api.origin, companyId: company.id, deadlineAt: input.deadlineAt,
+  const connect = await onboardingConnect({ page, origin: api.origin, spaceId: space.id, deadlineAt: input.deadlineAt,
     retain: value => { evidence.onboardingConnect = value; } });
-  const agents = await api.get<Row[]>(`/api/companies/${company.id}/agents`);
+  const agents = await api.get<Row[]>(`/api/spaces/${space.id}/agents`);
   const agent = agents.find(a => a.name === name);
   if (!agent || agents.length !== 1 || agent.adapterType !== "outpost_runner" || agent.adapterConfig?.provider !== "codex" || agent.adapterConfig?.model !== input.gateway.model) throw new JourneyError("failed", "onboarding_agent_configuration_mismatch");
   connect.checkpoint = "agent-verification";
   await input.own({ kind: "agent", name, id: agent.id });
   evidence.checks.push({ id: "ui-connection-and-native-agent", passed: true });
-  await input.own({ kind: "issue", name: "Paperclip onboarding" });
+  await input.own({ kind: "issue", name: "Outpost onboarding" });
   await page.getByRole("button", { name: "Get started", exact: true }).click();
   await input.phase("agent");
   const completed = await onboardingFirstTask({ context, agent: { id: agent.id }, connectionId: connection.id,

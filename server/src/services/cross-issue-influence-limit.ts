@@ -15,7 +15,7 @@ const CROSS_ISSUE_INFLUENCE_REJECTED_ACTIVITY = "issue.cross_issue_influence_cap
  * Every kind shares one per-run counter. `interaction_resolution` covers the
  * issue-thread accept/reject/respond/verdict routes: an open `anyone` resolver
  * audience is not a licence to resolve, wake, and spawn suggested tasks across
- * the whole company from one run.
+ * the whole space from one run.
  */
 export type CrossIssueInfluenceKind = "comment" | "update" | "interaction_resolution";
 
@@ -70,7 +70,7 @@ export function evaluateCrossIssueInfluenceLimit(input: {
 export async function observeCrossIssueInfluence(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     runId: string;
     agentId: string;
     responsibleUserId?: string | null;
@@ -88,7 +88,7 @@ export async function observeCrossIssueInfluence(
     const run = await tx
       .select({
         id: heartbeatRuns.id,
-        companyId: heartbeatRuns.companyId,
+        spaceId: heartbeatRuns.spaceId,
         agentId: heartbeatRuns.agentId,
         responsibleUserId: heartbeatRuns.responsibleUserId,
         contextSnapshot: heartbeatRuns.contextSnapshot,
@@ -96,14 +96,14 @@ export async function observeCrossIssueInfluence(
       .from(heartbeatRuns)
       .where(and(
         eq(heartbeatRuns.id, input.runId),
-        eq(heartbeatRuns.companyId, input.companyId),
+        eq(heartbeatRuns.spaceId, input.spaceId),
         eq(heartbeatRuns.agentId, input.agentId),
       ))
       .for("update")
       .then((rows) => rows[0] ?? null);
     if (
       !run ||
-      run.companyId !== input.companyId ||
+      run.spaceId !== input.spaceId ||
       run.agentId !== input.agentId
     ) {
       throw crossIssueInfluenceRunContextError();
@@ -127,7 +127,7 @@ export async function observeCrossIssueInfluence(
       .select({ count: count() })
       .from(activityLog)
       .where(and(
-        eq(activityLog.companyId, input.companyId),
+        eq(activityLog.spaceId, input.spaceId),
         eq(activityLog.runId, input.runId),
         eq(activityLog.action, CROSS_ISSUE_INFLUENCE_ACTIVITY),
       ))
@@ -135,7 +135,7 @@ export async function observeCrossIssueInfluence(
     const decision = evaluateCrossIssueInfluenceLimit({ priorCount, now: input.now });
 
     await tx.insert(activityLog).values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: "agent",
       actorId: input.agentId,
       agentId: input.agentId,
@@ -161,7 +161,7 @@ export async function observeCrossIssueInfluence(
 
     const logContext = {
       event: "cross_issue_influence_cap",
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       runId: input.runId,
       agentId: input.agentId,
       sourceIssueId,

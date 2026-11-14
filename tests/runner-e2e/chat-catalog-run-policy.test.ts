@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
 import { gradeChatCatalogRuns, chatCatalogAllowedRunStatuses, assertExpectedWorkerCancellation, chatCatalogRunStatusAllowed, createChatCatalogFinalRunVerifier, chatCatalogNeverStartedTerminalTaskRun } from "./chat-catalog-run-policy.js";
 import type { ChatRun } from "./chat-flow.js";
-const succeeded: ChatRun = { id: "source-run", companyId: "company", agentId: "ceo", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "source" } };
-const worker: ChatRun = { id: "worker-run", companyId: "company", agentId: "worker", status: "running", runtimeMode: "native", contextSnapshot: { issueId: "task" } };
-const scope = { companyId: "company", leadId: "ceo", source: { id: "source", companyId: "company", title: "Chat", status: "in_review", conversationState: "waiting" } };
+const succeeded: ChatRun = { id: "source-run", spaceId: "space", agentId: "ceo", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "source" } };
+const worker: ChatRun = { id: "worker-run", spaceId: "space", agentId: "worker", status: "running", runtimeMode: "native", contextSnapshot: { issueId: "task" } };
+const scope = { spaceId: "space", leadId: "ceo", source: { id: "source", spaceId: "space", title: "Chat", status: "in_review", conversationState: "waiting" } };
 it("requires successful native work by default and exact declared cancellation counts", () => {
   expect(gradeChatCatalogRuns({ ...scope, implementation: { expectedRunCount: 1 }, runs: [succeeded] }).passed).toBe(true);
   const cancelled = { ...succeeded, status: "cancelled" };
@@ -15,12 +15,12 @@ it("requires successful native work by default and exact declared cancellation c
 it("admits declared separate active work while rejecting active CEO, wrong scope, unbound and excess work", () => {
   const implementation = { expectedRunCount: 2, runPolicy: { kind: "source-settled-with-active-work" as const, maximumActiveWorkerRuns: 1 } };
   expect(gradeChatCatalogRuns({ ...scope, implementation, runs: [succeeded, worker] }).passed).toBe(true);
-  for (const bad of [{ ...succeeded, status: "running" }, { ...worker, companyId: "other" }, { ...worker, contextSnapshot: {} }, { ...worker, agentId: "ceo" }])
+  for (const bad of [{ ...succeeded, status: "running" }, { ...worker, spaceId: "other" }, { ...worker, contextSnapshot: {} }, { ...worker, agentId: "ceo" }])
     expect(gradeChatCatalogRuns({ ...scope, implementation, runs: [succeeded, bad] }).passed).toBe(false);
   expect(gradeChatCatalogRuns({ ...scope, implementation, runs: [succeeded, worker, { ...worker, id: "extra" }] }).passed).toBe(false);
 });
 it("admits a lead run outside the source only as a declared case handback", () => {
-  const handback: ChatRun = { id: "handback", companyId: "company", agentId: "ceo", status: "running", runtimeMode: "native", contextSnapshot: { issueId: "task", wakeReason: "case_handoff" } };
+  const handback: ChatRun = { id: "handback", spaceId: "space", agentId: "ceo", status: "running", runtimeMode: "native", contextSnapshot: { issueId: "task", wakeReason: "case_handoff" } };
   const done = { ...worker, status: "succeeded" };
   const declared = { expectedRunCount: 3, runPolicy: { kind: "source-settled-with-active-work" as const, maximumActiveWorkerRuns: 1, maximumLeadCaseHandbackRuns: 1 } };
   expect(gradeChatCatalogRuns({ ...scope, implementation: declared, runs: [succeeded, done, handback] }).passed).toBe(true);
@@ -33,19 +33,19 @@ it("admits a lead run outside the source only as a declared case handback", () =
 function reassignment() {
   const receipt = { runId: "worker-run", taskId: "task", workerId: "worker", sourceRunId: "final-source" };
   const stopped: ChatRun = { ...worker, status: "cancelled", errorCode: "issue_reassigned", resultJson: {
-    reassignmentStopConfirmed: true, nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: "worker-run", issueId: "task", companyId: "company", dispatchState: "acknowledged", acknowledgedAt: "2026-10-27T10:00:00Z", intentAuditId: "intent", acknowledgementAuditId: "ack" },
+    reassignmentStopConfirmed: true, nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: "worker-run", issueId: "task", spaceId: "space", dispatchState: "acknowledged", acknowledgedAt: "2026-10-27T10:00:00Z", intentAuditId: "intent", acknowledgementAuditId: "ack" },
   } };
   const implementation = { scenarioId: "tasks.edit-properties", expectedRunCount: 4, minimumRunCount: 3,
     runPolicy: { kind: "source-settled-with-active-work" as const, maximumActiveWorkerRuns: 1, expectedWorkerCancellation: "owned-task-reassignment" as const },
     expectedCancelledWorkerRun: (observation: unknown) => (observation as { proofComplete?: boolean } | undefined)?.proofComplete ? receipt : undefined };
-  const observation = { proofComplete: true, state: { heldRun: { ...worker }, heldTask: { id: "task", companyId: "company", assigneeAgentId: "worker", executionRunId: "worker-run" }, riley: { id: "worker" } } };
+  const observation = { proofComplete: true, state: { heldRun: { ...worker }, heldTask: { id: "task", spaceId: "space", assigneeAgentId: "worker", executionRunId: "worker-run" }, riley: { id: "worker" } } };
   return { implementation, stopped, receipt, observation, runs: [succeeded, { ...succeeded, id: "final-source" }, stopped] };
 }
 it("defers only the declared worker cancellation during polling and requires final independent proof", () => {
   const v = reassignment();
   expect(chatCatalogAllowedRunStatuses(v.implementation)).toContain("cancelled");
   expect(chatCatalogRunStatusAllowed({ ...scope, implementation: v.implementation, run: v.stopped, observation: { ...v.observation, proofComplete: false } })).toBe(true);
-  for (const run of [{ ...v.stopped, id: "other" }, { ...v.stopped, agentId: "ceo" }, { ...v.stopped, companyId: "foreign" }, { ...v.stopped, errorCode: "user_cancelled" }])
+  for (const run of [{ ...v.stopped, id: "other" }, { ...v.stopped, agentId: "ceo" }, { ...v.stopped, spaceId: "foreign" }, { ...v.stopped, errorCode: "user_cancelled" }])
     expect(chatCatalogRunStatusAllowed({ ...scope, implementation: v.implementation, run, observation: v.observation })).toBe(false);
   expect(gradeChatCatalogRuns({ ...scope, implementation: v.implementation, runs: v.runs }).passed).toBe(false);
   expect(gradeChatCatalogRuns({ ...scope, implementation: v.implementation, runs: v.runs, observation: v.observation }).passed).toBe(true);
@@ -58,7 +58,7 @@ it("rejects wrong cancellation identities, scope, reason, acknowledgement and un
     (v: ReturnType<typeof reassignment>) => { v.receipt.taskId = "other-task"; },
     (v: ReturnType<typeof reassignment>) => { v.receipt.workerId = "other-worker"; },
     (v: ReturnType<typeof reassignment>) => { v.receipt.sourceRunId = "unrelated-source"; },
-    (v: ReturnType<typeof reassignment>) => { v.stopped.companyId = "foreign"; },
+    (v: ReturnType<typeof reassignment>) => { v.stopped.spaceId = "foreign"; },
     (v: ReturnType<typeof reassignment>) => { v.stopped.agentId = "ceo"; },
     (v: ReturnType<typeof reassignment>) => { v.stopped.errorCode = "user_cancelled"; },
     (v: ReturnType<typeof reassignment>) => { v.stopped.resultJson!.reassignmentStopConfirmed = false; },
@@ -93,15 +93,15 @@ it("binds cancellation proof presence through the actual lazy registry loader", 
 
 it("retains the executable cancellation proof at the outer final-run boundary", () => {
   const v = reassignment();
-  const verify = createChatCatalogFinalRunVerifier({ implementation: v.implementation, companyId: scope.companyId,
+  const verify = createChatCatalogFinalRunVerifier({ implementation: v.implementation, spaceId: scope.spaceId,
     leadId: scope.leadId, observation: v.observation });
   expect(verify(scope.source, v.runs).passed).toBe(true);
   // JSON declarations cannot replace the executable independent proof callback.
   expect(() => createChatCatalogFinalRunVerifier({ implementation: JSON.parse(JSON.stringify(v.implementation)),
-    companyId: scope.companyId, leadId: scope.leadId, observation: v.observation })).toThrow("cancellation proof");
+    spaceId: scope.spaceId, leadId: scope.leadId, observation: v.observation })).toThrow("cancellation proof");
   for (const run of [
     { ...v.stopped, errorCode: "user_cancelled" },
-    { ...v.stopped, companyId: "foreign" },
+    { ...v.stopped, spaceId: "foreign" },
     { ...v.stopped, resultJson: { ...v.stopped.resultJson, nativeCancellation: { ...(v.stopped.resultJson!.nativeCancellation as object), dispatchState: "pending" } } },
   ]) expect(verify(scope.source, v.runs.map(row => row.id === run.id ? run : row)).passed).toBe(false);
   expect(verify(scope.source, [...v.runs, { ...v.stopped, id: "new-cancellation" }]).passed).toBe(false);
@@ -111,14 +111,14 @@ it("retains the executable cancellation proof at the outer final-run boundary", 
 it("keeps an ordinary ownership-denial boundary strict without a cancellation declaration", () => {
   const implementation = { expectedRunCount: 2,
     runPolicy: { kind: "source-settled-with-active-work" as const, maximumActiveWorkerRuns: 1 } };
-  const verify = createChatCatalogFinalRunVerifier({ implementation, companyId: scope.companyId,
+  const verify = createChatCatalogFinalRunVerifier({ implementation, spaceId: scope.spaceId,
     leadId: scope.leadId, observation: undefined });
   expect(verify(scope.source, [succeeded, worker]).passed).toBe(true);
   expect(verify(scope.source, [succeeded, { ...worker, status: "cancelled" }]).passed).toBe(false);
 });
 it("treats only a never-started run cancelled by its own task's terminal status as lifecycle, and still grades it", () => {
   // Shape recorded for tasks.website-task: the agent cancelled its own stray task before the queued run started.
-  const queued: ChatRun = { id: "stray-run", companyId: "company", agentId: "ceo", status: "cancelled", runtimeMode: "legacy", startedAt: null,
+  const queued: ChatRun = { id: "stray-run", spaceId: "space", agentId: "ceo", status: "cancelled", runtimeMode: "legacy", startedAt: null,
     errorCode: "issue_terminal_status", error: "Cancelled because issue reached terminal status (cancelled) before the queued run could start",
     resultJson: { stopReason: "issue_terminal_status", timeoutFired: false }, contextSnapshot: { issueId: "stray-task", wakeReason: "issue_assigned" } };
   expect(chatCatalogNeverStartedTerminalTaskRun(queued, scope.source)).toBe(true);

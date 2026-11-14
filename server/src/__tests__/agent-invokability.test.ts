@@ -7,7 +7,7 @@ import {
 
 function agent(partial: Partial<AgentOrgRow> & Pick<AgentOrgRow, "id">): AgentOrgRow {
   return {
-    companyId: "company-1",
+    spaceId: "space-1",
     name: partial.id,
     reportsTo: null,
     status: "active",
@@ -18,9 +18,9 @@ function agent(partial: Partial<AgentOrgRow> & Pick<AgentOrgRow, "id">): AgentOr
 describe("agent invokability", () => {
   it("blocks active descendants under a terminated manager as invalid-org-chain", () => {
     const rows = [
-      agent({ id: "ceo", status: "terminated" }),
-      agent({ id: "cto", reportsTo: "ceo" }),
-      agent({ id: "coder", reportsTo: "cto" }),
+      agent({ id: "lead", status: "terminated" }),
+      agent({ id: "engineering_lead", reportsTo: "lead" }),
+      agent({ id: "coder", reportsTo: "engineering_lead" }),
     ];
 
     const result = evaluateAgentInvokability(rows[2], rows);
@@ -30,8 +30,8 @@ describe("agent invokability", () => {
       reason: "manager_terminated",
       invalidOrgChain: true,
       details: {
-        managerId: "ceo",
-        reportingChainAgentIds: ["cto", "ceo"],
+        managerId: "lead",
+        reportingChainAgentIds: ["engineering_lead", "lead"],
       },
     });
   });
@@ -57,13 +57,13 @@ describe("agent invokability", () => {
 
   it("lists non-terminated descendants made invalid by a terminated root", () => {
     const rows = [
-      agent({ id: "ceo", status: "terminated" }),
-      agent({ id: "cto", reportsTo: "ceo" }),
-      agent({ id: "coder", reportsTo: "cto" }),
-      agent({ id: "old-coder", reportsTo: "cto", status: "terminated" }),
+      agent({ id: "lead", status: "terminated" }),
+      agent({ id: "engineering_lead", reportsTo: "lead" }),
+      agent({ id: "coder", reportsTo: "engineering_lead" }),
+      agent({ id: "old-coder", reportsTo: "engineering_lead", status: "terminated" }),
       agent({ id: "other-root" }),
     ];
 
-    expect(listInvalidOrgChainDescendantIds("ceo", rows).sort()).toEqual(["coder", "cto"]);
+    expect(listInvalidOrgChainDescendantIds("lead", rows).sort()).toEqual(["coder", "engineering_lead"]);
   });
 });

@@ -13,7 +13,7 @@ import type { CapabilitySeedKind } from "./scenario-index.js";
  * identical artifacts (UX map §7 determinism contract).
  */
 
-const COMPANY_ID = "company-1";
+const SPACE_ID = "space-1";
 const ACTOR_ID = "actor-1";
 const PEER_ACTOR_ID = "actor-2";
 const TASK_ID = "task-1";
@@ -23,7 +23,7 @@ const ROLE_NAMES: Record<string, string> = {
   engineer: "Mock Engineer",
   manager: "Mock Engineering Manager",
   reviewer: "Mock Reviewer",
-  board: "Mock Board Member",
+  operator: "Mock Operator",
 };
 
 function at(offsetSeconds: number): string {
@@ -32,7 +32,7 @@ function at(offsetSeconds: number): string {
 
 function task(overrides: Partial<CapabilityFixtureTask> & { id: string; identifier: string; title: string }): CapabilityFixtureTask {
   return {
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     description: null,
     status: "todo",
     priority: "medium",
@@ -77,17 +77,17 @@ export function capabilityScenarioFixture(entry: CapabilityScenarioIndexEntry): 
   });
   const seed: CapabilityFixtureSeed = {
     epochMs: FIXTURE_EPOCH_MS,
-    company: {
-      id: COMPANY_ID,
+    space: {
+      id: SPACE_ID,
       name: "Mock Outpost Outpost",
       issuePrefix: "MCK",
       status: "active",
-      budgetId: "budget-company-1",
+      budgetId: "budget-space-1",
     },
     actors: [
       {
         id: ACTOR_ID,
-        companyId: COMPANY_ID,
+        spaceId: SPACE_ID,
         name: ROLE_NAMES[entry.actorRole] ?? ROLE_NAMES.engineer!,
         role: entry.actorRole,
         status: "active",
@@ -136,7 +136,7 @@ function applySeedKind(
       seed.approvals = [
         {
           id: refs.approvalId,
-          companyId: COMPANY_ID,
+          spaceId: SPACE_ID,
           taskIds: [TASK_ID],
           type: "mcp_tool_access",
           status: "pending",
@@ -155,7 +155,7 @@ function applySeedKind(
       seed.approvals = [
         {
           id: refs.approvalId,
-          companyId: COMPANY_ID,
+          spaceId: SPACE_ID,
           taskIds: [TASK_ID],
           type: "spend_authorisation",
           status: "pending",
@@ -294,7 +294,7 @@ function applySeedKind(
       return;
     case "budget_tight":
       seed.budgets = [
-        { id: "budget-company-1", scope: "company", scopeId: COMPANY_ID, limitCents: 10_000, spentCents: 9_800, hardStop: true },
+        { id: "budget-space-1", scope: "space", scopeId: SPACE_ID, limitCents: 10_000, spentCents: 9_800, hardStop: true },
         { id: "budget-actor-1", scope: "actor", scopeId: ACTOR_ID, limitCents: 1_000, spentCents: 940, hardStop: true },
       ];
       return;
@@ -334,7 +334,7 @@ function addPeerActor(seed: CapabilityFixtureSeed): void {
     ...(seed.actors ?? []),
     {
       id: PEER_ACTOR_ID,
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       name: "Mock Teammate",
       role: "engineer",
       status: "active",
@@ -344,7 +344,7 @@ function addPeerActor(seed: CapabilityFixtureSeed): void {
   ];
   seed.budgets = [
     ...(seed.budgets ?? [
-      { id: "budget-company-1", scope: "company", scopeId: COMPANY_ID, limitCents: 10_000, spentCents: 0, hardStop: true },
+      { id: "budget-space-1", scope: "space", scopeId: SPACE_ID, limitCents: 10_000, spentCents: 0, hardStop: true },
       { id: "budget-actor-1", scope: "actor", scopeId: ACTOR_ID, limitCents: 1_000, spentCents: 0, hardStop: true },
     ]),
     { id: "budget-actor-2", scope: "actor", scopeId: PEER_ACTOR_ID, limitCents: 1_000, spentCents: 0, hardStop: true },

@@ -2,7 +2,7 @@ import { validateManagedCloudBootstrapPrerequisites, validateManagedCloudPrerequ
 import { readConfigFile, resolveDeploymentMode } from "./config-file.js";
 import { isCloudManagedInstance } from "./services/cloud-instance.js";
 import { StartupRefusalError } from "./startup-refusals.js";
-import type { PaperclipConfig } from "@outpost/shared";
+import type { OutpostConfig } from "@outpost/shared";
 import { parseChatWebhookPublicBaseUrl } from "./chat-webhook-public-url.js";
 import { execFileSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
@@ -52,7 +52,7 @@ if (!isCloudManagedInstance()) {
     loadDotenv({ path: CWD_ENV_PATH, override: false, quiet: true });
   }
 
-  if (basename(dirname(OUTPOST_ENV_FILE_PATH)) === ".paperclip") {
+  if (basename(dirname(OUTPOST_ENV_FILE_PATH)) === ".outpost") {
     applyEmptyWorktreeSigningSecrets(dirname(dirname(OUTPOST_ENV_FILE_PATH)));
   }
   maybeRepairLegacyWorktreeConfigAndEnvFiles();
@@ -117,7 +117,7 @@ export interface Config extends StorageConfig {
   secretsMasterKeyFilePath: string;
   heartbeatSchedulerEnabled: boolean;
   heartbeatSchedulerIntervalMs: number;
-  companyDeletionEnabled: boolean;
+  spaceDeletionEnabled: boolean;
   telemetryEnabled: boolean;
   announcementsEnabled: boolean;
   announcementsFeedUrl: string;
@@ -149,7 +149,7 @@ function runTailscaleAddressCommand(): string | undefined {
   }
 }
 
-export function loadConfig(override?: PaperclipConfig | null): Config {
+export function loadConfig(override?: OutpostConfig | null): Config {
   const configFile = override === undefined ? readConfigFile({ includeProvenance: true })
     : override ? { config: override, explicitStorageS3Bucket: true } : null;
   const fileConfig = configFile?.config ?? null;
@@ -259,10 +259,10 @@ export function loadConfig(override?: PaperclipConfig | null): Config {
         .filter(Boolean),
     ),
   );
-  const companyDeletionEnvRaw = process.env.OUTPOST_ENABLE_COMPANY_DELETION;
-  const companyDeletionEnabled =
-    companyDeletionEnvRaw !== undefined
-      ? companyDeletionEnvRaw === "true"
+  const spaceDeletionEnvRaw = process.env.OUTPOST_ENABLE_SPACE_DELETION;
+  const spaceDeletionEnabled =
+    spaceDeletionEnvRaw !== undefined
+      ? spaceDeletionEnvRaw === "true"
       : deploymentMode === "local_trusted";
   const databaseBackupEnabled =
     process.env.OUTPOST_DB_BACKUP_ENABLED !== undefined
@@ -321,7 +321,7 @@ export function loadConfig(override?: PaperclipConfig | null): Config {
         ? workspaceCompactionDelayHoursRaw
         : 1;
   // Skill version retention removes materialized version directories under
-  // `skills/<companyId>/__versions__/` that no current version, agent pin, or
+  // `skills/<spaceId>/__versions__/` that no current version, agent pin, or
   // live run uses. It keeps this many newest versions per skill as a warm
   // cache. A version directory used within the grace window also stays. A
   // removed directory is written again from its version row on next use.
@@ -428,7 +428,7 @@ export function loadConfig(override?: PaperclipConfig | null): Config {
     ...storage,
     heartbeatSchedulerEnabled: process.env.HEARTBEAT_SCHEDULER_ENABLED !== "false",
     heartbeatSchedulerIntervalMs: Math.max(10000, Number(process.env.HEARTBEAT_SCHEDULER_INTERVAL_MS) || 30000),
-    companyDeletionEnabled,
+    spaceDeletionEnabled,
     telemetryEnabled: false,
     announcementsEnabled: false,
     announcementsFeedUrl: process.env.OUTPOST_ANNOUNCEMENTS_FEED_URL?.trim() || "https://pages.outpost.ing/announcements/v1/current.json",

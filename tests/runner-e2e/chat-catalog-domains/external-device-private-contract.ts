@@ -1,6 +1,6 @@
 export interface DevicePrivateInput {
   userId: string;
-  companyName: string;
+  spaceName: string;
 }
 
 /** Only the owned issuer's exact device-code UI is allowed, never arbitrary
@@ -9,7 +9,7 @@ export function validDevicePrivateInput(
   mode: string,
   baseURL: string,
   setupURL: string,
-  companyId: unknown,
+  spaceId: unknown,
   device: DevicePrivateInput | undefined,
   userCode: string,
 ) {
@@ -22,10 +22,10 @@ export function validDevicePrivateInput(
       && setup.pathname === "/mcp-device" && !setup.hash
       && setup.searchParams.size === 1 && setup.searchParams.get("user_code") === userCode
       && /^[A-Za-z0-9 -]{8,12}$/.test(userCode)
-      && typeof companyId === "string" && /^[a-f0-9-]{36}$/i.test(companyId)
+      && typeof spaceId === "string" && /^[a-f0-9-]{36}$/i.test(spaceId)
       && !!device && typeof device.userId === "string" && device.userId.length > 0 && device.userId.length <= 256
-      && typeof device.companyName === "string" && device.companyName.trim().length > 0 && device.companyName.length <= 256
-      && !/[\r\n]/.test(device.userId + device.companyName);
+      && typeof device.spaceName === "string" && device.spaceName.trim().length > 0 && device.spaceName.length <= 256
+      && !/[\r\n]/.test(device.userId + device.spaceName);
   } catch { return false; }
 }
 
@@ -36,7 +36,7 @@ export function matchesDevicePrivateReceipt(mode: string, value: unknown) {
     processIsolation: true, testRunnerAttached: false, tracingEnabled: false,
     videoEnabled: false, apiStepRecorder: false, deviceSessionVerified: true,
     ...(mode === "device-approve" ? {
-      currentCodeVisible: true, companyConsentVisible: true, readScopeVisible: true,
+      currentCodeVisible: true, spaceConsentVisible: true, readScopeVisible: true,
       humanApproved: true,
     } : mode === "device-expired" ? { expiredPageVisible: true } : {}),
   };

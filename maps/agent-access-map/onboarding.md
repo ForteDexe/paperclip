@@ -27,7 +27,7 @@ by that not-yet-running instance.
 
 Agent access: `operator-only` — Existing CLI onboard/run/doctor / test-drive.
 
-Policy: Instance setup is operator work; company creation is board; agent creation/task
+Policy: Instance setup is operator work; space creation is board; agent creation/task
 creation retain their individual permissions.
 
 Evidence: `source-only` —
@@ -36,26 +36,26 @@ commit above.
 
 Verification: `not-run` — exercise the listed local workflow in an authorized, owned
 operator environment. Verify its isolation and result; do not count local machine
-authority as company-agent API access.
+authority as space-agent API access.
 
 Gaps: Bootstrapping an instance cannot depend solely on an API served by that
 not-yet-running instance.
 
-## `company`
+## `space`
 
-Capability ID: `onboarding/company`.
+Capability ID: `onboarding/space`.
 
 Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `POST /api/companies`.
-- `POST /api/companies/{companyId}/agents`.
+- `POST /api/spaces`.
+- `POST /api/spaces/{spaceId}/agents`.
 
-Agent access: `partial` — Board company creation; authorized in-company agent hiring
+Agent access: `partial` — Board space creation; authorized in-space agent hiring
 API.
 
-Policy: Instance setup is operator work; company creation is board; agent creation/task
+Policy: Instance setup is operator work; space creation is board; agent creation/task
 creation retain their individual permissions.
 
 Evidence: `source-only` —
@@ -64,11 +64,11 @@ commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
-Gaps: API building blocks exist; an ordinary agent cannot create its parent company with
-a company key.
+Gaps: API building blocks exist; an ordinary agent cannot create its parent space with
+a space key.
 
 ## `adapter`
 
@@ -78,13 +78,13 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `GET /api/companies/{companyId}/adapters/{type}/models`.
-- `POST /api/companies/{companyId}/adapters/{type}/test-environment`.
+- `GET /api/spaces/{spaceId}/adapters/{type}/models`.
+- `POST /api/spaces/{spaceId}/adapters/{type}/test-environment`.
 
 Agent access: `partial` — Permitted agent/model API; operator
 provider-account/environment setup.
 
-Policy: Instance setup is operator work; company creation is board; agent creation/task
+Policy: Instance setup is operator work; space creation is board; agent creation/task
 creation retain their individual permissions.
 
 The wizard selects the Codex harness and lets the server resolve an automatic
@@ -119,19 +119,19 @@ commands remain operator-managed. Controls:
 authorization and subscription execution remain `not-run` for this change.
 
 For fresh managed Codex Auto setup, the wizard's explicit Connect path can call
-`POST /api/environments/{environmentId}/probe?companyId={companyId}` before
+`POST /api/environments/{environmentId}/probe?spaceId={spaceId}` before
 selected-runtime testing, then refresh scoped adapter discovery. This reuses the
 existing board instance-admin/local-implicit probe gate; `agents:create` alone
 is insufficient. A 403, absent proof, changed configuration, missing response
 identity or unconfirmed cleanup remains visible. No probe is added to creation
-or discovery, no agent/company grant is broadened, and provider authentication
+or discovery, no agent/space grant is broadened, and provider authentication
 errors never cause an automatic runner switch.
 
 Native setup derives outer sandbox isolation from the server-resolved execution
 target, as task execution does. This is an internal transport choice, not a
 request/configuration permission. Local and SSH setup keep Codex isolation;
 caller-supplied environment flags do not authorize an external sandbox. Existing
-company, account, probe and registration-cleanup gates still apply.
+space, account, probe and registration-cleanup gates still apply.
 The bounded hello probe retains read-only permissions and no dynamic tools. Its
 trusted launch skips project-instruction discovery in the new, empty setup
 workspace. This grants no filesystem or networking permission and does not
@@ -162,7 +162,7 @@ commit. Existing agent/approval execution preservation follows
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Account authorization, environment administration and model selection need
@@ -170,7 +170,7 @@ separate checks.
 
 Verify automatic onboarding without a post-hire runner change, explicit Legacy,
 saved configuration after reload and the actual selected runtime's useful task
-plus follow-up. Assert denied agent login/probe and foreign-company account or
+plus follow-up. Assert denied agent login/probe and foreign-space account or
 environment access separately. These agent-context checks remain `not-run`.
 
 ## `first-task`
@@ -181,12 +181,12 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `POST /api/companies/{companyId}/issues`.
+- `POST /api/spaces/{spaceId}/issues`.
 - `POST /api/issues/{issueId}/children`.
 
 Agent access: `available` — Native create_task / agent REST / CLI issue.
 
-Policy: Instance setup is operator work; company creation is board; agent creation/task
+Policy: Instance setup is operator work; space creation is board; agent creation/task
 creation retain their individual permissions.
 
 An authenticated run bound to the server-created onboarding first task must
@@ -214,13 +214,13 @@ the human acceptance and can reuse the unconsumed command key. Other blocker
 relationships remain available. The child needs self-contained approved inputs;
 the parent uses `set_dependencies` to wait on the child, not the reverse.
 
-Native `paperclip_finish` does not grant completion authority from an opening
+Native `outpost_finish` does not grant completion authority from an opening
 answer. The onboarding parent requires a trusted saved human decision on its
 latest proposal. Acceptance permits completion under the existing policy;
 rejection permits acknowledgment and closure without authorizing new work.
 The native status commit checks this decision again under its existing task/run
-locks. This adds no new agent endpoint or cross-company authority. The
-[native completion controls](../../server/src/services/native-runtime/paperclip-control-plane-port.test.ts)
+locks. This adds no new agent endpoint or cross-space authority. The
+[native completion controls](../../server/src/services/native-runtime/outpost-control-plane-port.test.ts)
 check persisted outcomes on disposable PostgreSQL; they are not live Cloud
 credential or onboarding qualification.
 Source: [creation admission](../../server/src/services/onboarding-first-task-admission.ts).
@@ -233,7 +233,7 @@ commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Task creation is agent-accessible where permitted; scheduling/readiness does not
@@ -268,7 +268,7 @@ classify explicitly or intentionally make it a cross-client product feature.
 Agent access: `not-applicable` — Browser localStorage wizard draft; persisted resources
 use their domain APIs.
 
-Policy: Instance setup is operator work; company creation is board; agent creation/task
+Policy: Instance setup is operator work; space creation is board; agent creation/task
 creation retain their individual permissions.
 
 Evidence: `source-only` —
@@ -288,12 +288,12 @@ a selection change. Browser draft continuity is not API or live-agent evidence,
 and opening a saved Legacy agent does not apply new-agent defaults.
 
 The initial matching route opening preserves the authorized saved wizard step
-on bare and company-prefixed reloads. Explicit new-company or changed-company
-openings retain their navigation override and clear foreign company resource
+on bare and space-prefixed reloads. Explicit new-space or changed-space
+openings retain their navigation override and clear foreign space resource
 IDs. Historical browser coverage exercised these presentation and account boundaries. This scoped correction adds
 no server draft API, agent grant or proof of live actor authorization. The
 managed first-task eval still reloads before Get started and remains a separate
 live acceptance gate. The existing mocked-login browser case also checks the
-same company-scoped active session and saved selection through route reopening
+same space-scoped active session and saved selection through route reopening
 and a real reload, with one login start and no pending-login hire. These fixture
 assertions do not prove server authorization or live credential use.

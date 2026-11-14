@@ -19,19 +19,19 @@ export const OUTPOST_RUNNER_COMPATIBILITY = Object.freeze({
   evalCorpus: Object.freeze({ minimum: 1, maximum: 1 }),
 });
 
-export type PaperclipRunnerCompatibilityComponent =
+export type OutpostRunnerCompatibilityComponent =
   keyof typeof OUTPOST_RUNNER_COMPATIBILITY.components;
 
-export type PaperclipRunnerCompatibilityIssueCode =
+export type OutpostRunnerCompatibilityIssueCode =
   | "component_version_mismatch"
   | "eval_corpus_version_unsupported"
   | "catalog_operation_unknown"
   | "provider_capabilities_missing"
   | "provider_operation_unsupported";
 
-export interface PaperclipRunnerCompatibilityIssue {
-  readonly code: PaperclipRunnerCompatibilityIssueCode;
-  readonly component?: PaperclipRunnerCompatibilityComponent | "evalCorpus" | "provider";
+export interface OutpostRunnerCompatibilityIssue {
+  readonly code: OutpostRunnerCompatibilityIssueCode;
+  readonly component?: OutpostRunnerCompatibilityComponent | "evalCorpus" | "provider";
   readonly expected?: string;
   readonly received?: string;
   readonly operationId?: string;
@@ -39,33 +39,33 @@ export interface PaperclipRunnerCompatibilityIssue {
   readonly message: string;
 }
 
-export interface PaperclipProviderCompatibility {
+export interface OutpostProviderCompatibility {
   readonly id: string;
   readonly supportedOperationIds: readonly string[];
 }
 
-export interface PaperclipRunnerCompatibilityRequirement {
+export interface OutpostRunnerCompatibilityRequirement {
   readonly consumer: string;
-  readonly components?: Partial<Readonly<Record<PaperclipRunnerCompatibilityComponent, number>>>;
+  readonly components?: Partial<Readonly<Record<OutpostRunnerCompatibilityComponent, number>>>;
   readonly evalCorpusVersion?: number;
   readonly requiredOperationIds?: readonly string[];
-  readonly provider?: PaperclipProviderCompatibility;
+  readonly provider?: OutpostProviderCompatibility;
 }
 
-export class PaperclipRunnerCompatibilityError extends Error {
+export class OutpostRunnerCompatibilityError extends Error {
   readonly code = "outpost_runner_incompatible" as const;
-  readonly issues: readonly PaperclipRunnerCompatibilityIssue[];
+  readonly issues: readonly OutpostRunnerCompatibilityIssue[];
 
   constructor(
     readonly consumer: string,
-    issues: readonly PaperclipRunnerCompatibilityIssue[],
+    issues: readonly OutpostRunnerCompatibilityIssue[],
   ) {
     super(
       `Outpost runner compatibility check failed for ${consumer}: ${issues
         .map((issue) => `${issue.code}: ${issue.message}`)
         .join("; ")}`,
     );
-    this.name = "PaperclipRunnerCompatibilityError";
+    this.name = "OutpostRunnerCompatibilityError";
     this.issues = Object.freeze(issues.map((issue) => Object.freeze({ ...issue })));
   }
 }
@@ -75,13 +75,13 @@ export class PaperclipRunnerCompatibilityError extends Error {
  * eval bundles. Provider limitations are reported as stable compatibility
  * issues instead of being inferred from provider-specific failures later.
  */
-export function assertPaperclipRunnerCompatibility(
-  requirement: PaperclipRunnerCompatibilityRequirement,
+export function assertOutpostRunnerCompatibility(
+  requirement: OutpostRunnerCompatibilityRequirement,
 ): typeof OUTPOST_RUNNER_COMPATIBILITY {
-  const issues: PaperclipRunnerCompatibilityIssue[] = [];
+  const issues: OutpostRunnerCompatibilityIssue[] = [];
 
   for (const [component, received] of Object.entries(requirement.components ?? {}) as Array<
-    [PaperclipRunnerCompatibilityComponent, number]
+    [OutpostRunnerCompatibilityComponent, number]
   >) {
     const expected = OUTPOST_RUNNER_COMPATIBILITY.components[component];
     if (received !== expected) {
@@ -148,7 +148,7 @@ export function assertPaperclipRunnerCompatibility(
   }
 
   if (issues.length > 0) {
-    throw new PaperclipRunnerCompatibilityError(requirement.consumer, issues);
+    throw new OutpostRunnerCompatibilityError(requirement.consumer, issues);
   }
   return OUTPOST_RUNNER_COMPATIBILITY;
 }

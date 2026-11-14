@@ -38,8 +38,8 @@ describe("Better Auth legacy account issuer", () => {
 
 describe("Better Auth cookie scoping", () => {
   it("derives an instance-scoped cookie prefix", () => {
-    expect(deriveAuthCookiePrefix("default")).toBe("paperclip-default");
-    expect(deriveAuthCookiePrefix("PAP-1601-worktree")).toBe("paperclip-PAP-1601-worktree");
+    expect(deriveAuthCookiePrefix("default")).toBe("outpost-default");
+    expect(deriveAuthCookiePrefix("PAP-1601-worktree")).toBe("outpost-PAP-1601-worktree");
   });
 
   it("uses OUTPOST_INSTANCE_ID for the Better Auth cookie prefix", () => {
@@ -48,10 +48,10 @@ describe("Better Auth cookie scoping", () => {
     const advanced = buildBetterAuthAdvancedOptions({ disableSecureCookies: false });
 
     expect(advanced).toEqual({
-      cookiePrefix: "paperclip-sat-worktree",
+      cookiePrefix: "outpost-sat-worktree",
     });
     expect(getCookies({ advanced } as BetterAuthOptions).sessionToken.name).toMatch(
-      /paperclip-sat-worktree\.session_token$/,
+      /outpost-sat-worktree\.session_token$/,
     );
   });
 
@@ -59,12 +59,12 @@ describe("Better Auth cookie scoping", () => {
     process.env.OUTPOST_INSTANCE_ID = "pap-worktree";
 
     expect(buildBetterAuthAdvancedOptions({ disableSecureCookies: true })).toEqual({
-      cookiePrefix: "paperclip-pap-worktree",
+      cookiePrefix: "outpost-pap-worktree",
       useSecureCookies: false,
     });
     expect(getCookies({
       advanced: buildBetterAuthAdvancedOptions({ disableSecureCookies: true }),
-    } as BetterAuthOptions).sessionToken.name).toBe("paperclip-pap-worktree.session_token");
+    } as BetterAuthOptions).sessionToken.name).toBe("outpost-pap-worktree.session_token");
   });
 
   it("enables Better Auth rate limiting for authenticated private instances by default", () => {
@@ -149,7 +149,7 @@ describe("Better Auth cookie scoping", () => {
     expect(shouldDisableSecureAuthCookies({
       deploymentMode: "authenticated",
       authBaseUrlMode: "explicit",
-      authPublicBaseUrl: "http://paperclip-dev:46259",
+      authPublicBaseUrl: "http://outpost-dev:46259",
     } as Parameters<typeof shouldDisableSecureAuthCookies>[0])).toBe(true);
     expect(shouldDisableSecureAuthCookies({
       deploymentMode: "authenticated",
@@ -165,7 +165,7 @@ describe("Better Auth cookie scoping", () => {
       deploymentMode: "authenticated",
       authBaseUrlMode: "explicit",
       authPublicBaseUrl: "https://outpost.example.test",
-      publicUrl: "http://paperclip-dev:46259",
+      publicUrl: "http://outpost-dev:46259",
     } as Parameters<typeof shouldDisableSecureAuthCookies>[0])).toBe(true);
   });
 
@@ -183,7 +183,7 @@ describe("Better Auth cookie scoping", () => {
       deploymentMode: "authenticated",
       deploymentExposure: "private",
       authBaseUrlMode: "explicit",
-      authPublicBaseUrl: "http://board.example.test:3101",
+      authPublicBaseUrl: "http://operator.example.test:3101",
     })).toBe(true);
   });
 
@@ -192,7 +192,7 @@ describe("Better Auth cookie scoping", () => {
       deploymentMode: "authenticated",
       deploymentExposure: "public",
       authBaseUrlMode: "explicit",
-      authPublicBaseUrl: "https://board.example.test",
+      authPublicBaseUrl: "https://operator.example.test",
     })).toBe(false);
   });
 
@@ -221,7 +221,7 @@ describe("Better Auth cookie scoping", () => {
     } as Parameters<typeof shouldDisableSecureAuthCookies>[0])).toBe(false);
     expect(shouldDisableSecureAuthCookies({
       ...managedRuntimeInput,
-      requestUrl: "http://board.example.test:42013/api/auth/sign-in/email",
+      requestUrl: "http://operator.example.test:42013/api/auth/sign-in/email",
     } as Parameters<typeof shouldDisableSecureAuthCookies>[0])).toBe(false);
   });
 
@@ -230,15 +230,15 @@ describe("Better Auth cookie scoping", () => {
       deploymentMode: "authenticated",
       authBaseUrlMode: "auto",
       authPublicBaseUrl: undefined,
-      allowedHostnames: ["Board.Example.Test"],
+      allowedHostnames: ["Operator.Example.Test"],
       port: 3101,
     } as Parameters<typeof deriveAuthTrustedOrigins>[0]);
 
     expect(trustedOrigins).toEqual(expect.arrayContaining([
-      "https://board.example.test",
-      "http://board.example.test",
-      "https://board.example.test:3101",
-      "http://board.example.test:3101",
+      "https://operator.example.test",
+      "http://operator.example.test",
+      "https://operator.example.test:3101",
+      "http://operator.example.test:3101",
     ]));
   });
 
@@ -247,15 +247,15 @@ describe("Better Auth cookie scoping", () => {
       deploymentMode: "authenticated",
       authBaseUrlMode: "auto",
       authPublicBaseUrl: undefined,
-      allowedHostnames: ["board.example.test"],
+      allowedHostnames: ["operator.example.test"],
       port: 3100,
     } as Parameters<typeof deriveAuthTrustedOrigins>[0], { listenPort: 3101 });
 
     expect(trustedOrigins).toEqual(expect.arrayContaining([
-      "https://board.example.test:3101",
-      "http://board.example.test:3101",
+      "https://operator.example.test:3101",
+      "http://operator.example.test:3101",
     ]));
-    expect(trustedOrigins).not.toContain("https://board.example.test:3100");
-    expect(trustedOrigins).not.toContain("http://board.example.test:3100");
+    expect(trustedOrigins).not.toContain("https://operator.example.test:3100");
+    expect(trustedOrigins).not.toContain("http://operator.example.test:3100");
   });
 });

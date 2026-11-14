@@ -1,7 +1,7 @@
 ---
 name: honeycomb-tracing
 description: >-
-  Trace Paperclip runs, requests, and full CI suites in Honeycomb. Use to find
+  Trace Outpost runs, requests, and full CI suites in Honeycomb. Use to find
   traces, diagnose latency, design readable and foldable waterfalls, configure
   opt-in OpenTelemetry, or add missing spans.
 ---
@@ -32,7 +32,7 @@ Keep the repository's three paths distinct:
 - **Observability:** operator-configured OpenTelemetry export to Honeycomb or
   another OTLP destination. With no endpoint, this tracing stays off.
 - **Telemetry:** first-party events under `packages/shared/src/telemetry/`, sent
-  to Paperclip by default unless opted out. Adding these requires the generated
+  to Outpost by default unless opted out. Adding these requires the generated
   contract, Telemetry README, and privacy-review workflow in
   `rules/data-paths.mdc`.
 - **Run log:** local `heartbeat_run_events` and measured performance events.
@@ -43,17 +43,17 @@ Telemetry privacy review. Preserve the endpoint gate and no-operation behavior.
 
 ## Find the application's trace
 
-1. Resolve the instance, company, issue, agent, **run UUID**, and UTC interval.
+1. Resolve the instance, space, issue, agent, **run UUID**, and UTC interval.
    Record the effective harness/model, workspace/repository, warm or fresh session,
    and actual deployed revision. A task identifier is not a run UUID; one task
    can have several runs, and one run can have several execution attempts.
 2. Prefer existing Honeycomb tools when exposed and authorized. Otherwise use
-   the signed-in browser. The current project link targets team `paperclip`,
-   environment `test`, dataset `paperclip`, and `service.name = paperclip`.
+   the signed-in browser. The current project link targets team `outpost`,
+   environment `test`, dataset `outpost`, and `service.name = outpost`.
    These are defaults in `ui/src/lib/honeycomb-run-link.ts`, not proof of every
    deployment's destination. Verify the target before comparing data.
 3. Open **View in Honeycomb** on the run page when available. It requires
-   Paperclip Developer Mode and local implicit board or instance-admin access.
+   Outpost Developer Mode and local implicit board or instance-admin access.
    This link queries existing data. **Re-run with provider trace** is a different
    action: it starts work and is not needed to read Honeycomb.
 4. Without the link, calculate the same correlation value locally:
@@ -114,7 +114,7 @@ Neither proves that the user saw the response. Choose the boundary the user aske
 to improve, then measure the whole path to that boundary.
 
 For slow issue pages, combine `issue.read.<phase>` with `Server-Timing`
-(`paperclip_issue`, `issue_<phase>`) and the browser's request waterfall and
+(`outpost_issue`, `issue_<phase>`) and the browser's request waterfall and
 `issue-detail:navigate→content-paint` measure. Concurrent reads overlap. Fast
 API completion does not establish fast conversation reveal or rendering.
 

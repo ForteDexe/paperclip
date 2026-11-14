@@ -16,7 +16,7 @@ export function assertDockerCustodyMetadata(value: { uid: number; mode: number; 
 }
 export async function readDockerConfigForSecretScan(home: string, input: DockerConfigCustody): Promise<string> {
   const { temporaryRoot: root, configPath } = input;
-  const expectedHome = path.join(root, "paperclip-home"), relative = path.relative(expectedHome, configPath);
+  const expectedHome = path.join(root, "outpost-home"), relative = path.relative(expectedHome, configPath);
   if (home !== expectedHome || !/^instances\/runner-e2e-[A-Za-z0-9-]+\/config\.json$/.test(relative)) throw new Error("Docker config custody requires the exact owned instance path");
   for (const dir of [root, expectedHome, path.join(expectedHome, "instances"), path.dirname(configPath)]) {
     assertDockerCustodyMetadata(await lstat(dir), true);

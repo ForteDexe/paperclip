@@ -708,7 +708,7 @@ describe("one-project resolution", () => {
   function makeSessionApp() {
     const app = express();
     app.use((req, _res, next) => {
-      req.actor = { type: "board", userId: "user-1", source: "session" };
+      req.actor = { type: "operator", userId: "user-1", source: "session" };
       next();
     });
     const db = {
@@ -864,7 +864,7 @@ describe.skipIf(!sentryPackage)("captured event shape against the real @sentry/n
 
   /**
    * `skipOpenTelemetrySetup: true` (set above) keeps this module out of
-   * Paperclip's separate, independently opt-in OpenTelemetry feature. It
+   * Outpost's separate, independently opt-in OpenTelemetry feature. It
    * also turns off Sentry's own per-request async-context tracking. The
    * `RequestData` integration reads the inbound URL, method, headers,
    * cookies, and query string from that per-request context. With the

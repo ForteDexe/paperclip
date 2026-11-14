@@ -474,7 +474,7 @@ fn valid_agentcore_usage_snapshot(value: &Value) -> bool {
         && conservative_floor
             .zip(estimated_cost)
             .is_none_or(|(floor, estimated)| estimated >= floor)
-        && object.get("costSource").and_then(Value::as_str) == Some("paperclip_estimate")
+        && object.get("costSource").and_then(Value::as_str) == Some("outpost_estimate")
 }
 
 fn valid_claude_managed_skill_ref(value: &ClaudeManagedSkillRef) -> bool {
@@ -1023,7 +1023,7 @@ impl ManagedProviderCommandExecutor {
                 ));
             }
             let next_run_id =
-                if let Some(identity) = payload.pointer("/paperclipNextAuthority/identity") {
+                if let Some(identity) = payload.pointer("/outpostNextAuthority/identity") {
                     if identity.get("normalizedSessionId").and_then(Value::as_str)
                         != Some(self.config.normalized_session_id.as_str())
                     {
@@ -1156,7 +1156,7 @@ impl ManagedProviderCommandExecutor {
                 state.lifecycle = "session_opening".to_owned();
                 if kind == ManagedProviderKind::AwsAgentcore {
                     state.provider_session_id =
-                        Some(format!("paperclip-{}-{}", Uuid::new_v4(), Uuid::new_v4()));
+                        Some(format!("outpost-{}-{}", Uuid::new_v4(), Uuid::new_v4()));
                 }
                 self.save_state()?;
             } else if !matches!(
@@ -2196,7 +2196,7 @@ fn managed_usage_event(
             "cumulative": measurement,
             "runDeltaAvailable": false,
             "runDelta": Value::Null,
-            "costSource": if descriptor.kind() == ManagedProviderKind::AwsAgentcore { "paperclip_estimate" } else { "provider_reported" },
+            "costSource": if descriptor.kind() == ManagedProviderKind::AwsAgentcore { "outpost_estimate" } else { "provider_reported" },
         }),
     }
 }
@@ -2658,7 +2658,7 @@ mod tests {
                 "memoryId": "memory-1",
                 "invocationRoleArn": "arn:aws:iam::123456789012:role/runner",
                 "contextBucket": "context-bucket",
-                "contextPrefix": "companies/company/profiles/profile",
+                "contextPrefix": "spaces/space/profiles/profile",
                 "contextKmsKeyArn": "arn:aws:kms:us-east-1:123456789012:key/test",
                 "qualificationRevision": QUALIFIED_AGENTCORE_REVISION,
                 "eventExpiryDays": 90,
@@ -2702,7 +2702,7 @@ mod tests {
     #[test]
     fn disconnected_managed_executor_does_not_restore_or_reconcile_remote_streams() {
         let directory =
-            std::env::temp_dir().join(format!("paperclip-managed-disconnected-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("outpost-managed-disconnected-{}", Uuid::new_v4()));
         let config = test_config(&directory);
         let mut executor = ManagedProviderCommandExecutor::with_runner_config(&directory, &config);
         let mut payload = claude_prepare_payload();
@@ -2766,7 +2766,7 @@ mod tests {
     #[test]
     fn attach_refreshes_tools_in_the_same_session_and_preserves_profile_fences() {
         let directory =
-            std::env::temp_dir().join(format!("paperclip-managed-refresh-{}", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("outpost-managed-refresh-{}", Uuid::new_v4()));
         fs::create_dir_all(&directory).unwrap();
         #[cfg(unix)]
         fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).unwrap();
@@ -2810,7 +2810,7 @@ mod tests {
         invalid["provider"]["instructions"] = json!("different instructions");
         assert!(executor.attach(&invalid).is_err());
         let mut invalid_identity = payload.clone();
-        invalid_identity["paperclipNextAuthority"] = json!({"identity": {
+        invalid_identity["outpostNextAuthority"] = json!({"identity": {
             "normalizedSessionId": "another-session", "runId": "next-run"
         }});
         assert!(executor.attach(&invalid_identity).is_err());
@@ -2828,7 +2828,7 @@ mod tests {
         };
         executor.project_event(usage(21, "25")).unwrap();
         executor.state.as_mut().unwrap().pending_events.clear();
-        payload["paperclipNextAuthority"] = json!({"identity": {
+        payload["outpostNextAuthority"] = json!({"identity": {
             "normalizedSessionId": config.normalized_session_id, "runId": "next-run"
         }});
         executor.attach(&payload).unwrap();
@@ -2896,7 +2896,7 @@ mod tests {
             })
             .unwrap();
         executor.state.as_mut().unwrap().pending_events.clear();
-        payload["paperclipNextAuthority"]["identity"]["runId"] = json!("third-run");
+        payload["outpostNextAuthority"]["identity"]["runId"] = json!("third-run");
         executor.attach(&payload).unwrap();
         assert!(executor
             .state
@@ -2921,7 +2921,7 @@ mod tests {
 
     fn managed_failure_event_types(recovery: bool) -> Vec<String> {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-managed-terminal-test-{}",
+            "outpost-managed-terminal-test-{}",
             Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -2946,7 +2946,7 @@ mod tests {
             "cacheWriteInputTokens": 0,
             "requestCount": 1,
             "estimatedCostUsd": 0.0,
-            "costSource": "paperclip_estimate",
+            "costSource": "outpost_estimate",
         }));
         state.pending_events.clear();
         if recovery {
@@ -3286,7 +3286,7 @@ mod tests {
             "cacheWriteInputTokens": 5,
             "requestCount": 2,
             "estimatedCostUsd": 0.75,
-            "costSource": "paperclip_estimate"
+            "costSource": "outpost_estimate"
         });
         assert!(valid_agentcore_usage_snapshot(&usage));
 
@@ -3339,7 +3339,7 @@ mod tests {
     #[test]
     fn durable_pending_agentcore_usage_is_charged_once_before_turn_admission() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-managed-provider-test-{}",
+            "outpost-managed-provider-test-{}",
             Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -3353,7 +3353,7 @@ mod tests {
             "cacheWriteInputTokens": 5,
             "requestCount": 2,
             "estimatedCostUsd": 0.75,
-            "costSource": "paperclip_estimate",
+            "costSource": "outpost_estimate",
             "usageReconciliation": AGENTCORE_USAGE_RECONCILIATION_PENDING,
             "pendingInvocationId": "invocation-before-restart",
             "pendingEstimatedCeilingUsd": 1.0
@@ -3495,7 +3495,7 @@ mod tests {
     #[test]
     fn durable_claude_skill_ownership_is_reused_on_cold_recovery() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-managed-provider-test-{}",
+            "outpost-managed-provider-test-{}",
             Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -3563,7 +3563,7 @@ mod tests {
     #[test]
     fn failed_fresh_bootstrap_checkpoints_session_and_skills_before_recovery() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-managed-provider-test-{}",
+            "outpost-managed-provider-test-{}",
             Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -3628,7 +3628,7 @@ mod tests {
     #[test]
     fn ambiguous_fresh_create_checkpoints_skills_before_metadata_reconciliation() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-managed-provider-test-{}",
+            "outpost-managed-provider-test-{}",
             Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -3683,7 +3683,7 @@ mod tests {
     #[test]
     fn claude_skill_ids_cannot_be_supplied_by_the_prepare_caller() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-managed-provider-test-{}",
+            "outpost-managed-provider-test-{}",
             Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -3702,8 +3702,8 @@ mod tests {
         );
         let mut payload = claude_prepare_payload();
         payload["provider"]["claudeManagedSkills"] = json!([{
-            "skillId": "skill_not_owned_by_paperclip",
-            "version": "skver_not_owned_by_paperclip"
+            "skillId": "skill_not_owned_by_outpost",
+            "version": "skver_not_owned_by_outpost"
         }]);
         let error = executor
             .execute(&test_command(1, "run.prepare", payload))
@@ -3717,7 +3717,7 @@ mod tests {
     #[test]
     fn claude_destroy_reports_closed_only_after_all_owned_resources_are_deleted() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-managed-provider-test-{}",
+            "outpost-managed-provider-test-{}",
             Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();

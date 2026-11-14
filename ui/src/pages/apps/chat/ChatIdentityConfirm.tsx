@@ -90,7 +90,7 @@ export function ChatIdentityConfirm() {
     );
   }
   const identity = preview.data;
-  const paperclipAccount = local ? "Local Board" :
+  const outpostAccount = local ? "Local Operator" :
     session.data?.user.name?.trim() ||
     session.data?.user.email?.trim() ||
     session.data?.user.id ||
@@ -103,7 +103,7 @@ export function ChatIdentityConfirm() {
           <h1 className="text-xl font-bold">Identity linked</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Future messages from {identity.externalLabel} use your current
-            Outpost permissions in {identity.companyName}.
+            Outpost permissions in {identity.spaceName}.
           </p>
         </div>
         {identity.provider === "slack" && <Button asChild><a href="https://app.slack.com/" target="_blank" rel="noopener noreferrer">Return to Slack</a></Button>}
@@ -113,7 +113,7 @@ export function ChatIdentityConfirm() {
   return (
     <main className="mx-auto max-w-lg space-y-6 px-6 py-12">
       <div>
-        <p className="text-sm text-muted-foreground">{identity.companyName}</p>
+        <p className="text-sm text-muted-foreground">{identity.spaceName}</p>
         <h1 className="mt-1 text-xl font-bold">Link your external identity</h1>
       </div>
       <dl className="divide-y divide-border border-y border-border">
@@ -132,7 +132,7 @@ export function ChatIdentityConfirm() {
         </div>
         <div className="flex items-center justify-between gap-4 py-3">
           <dt className="text-sm text-muted-foreground">Outpost account</dt>
-          <dd className="text-right text-sm font-medium">{paperclipAccount}</dd>
+          <dd className="text-right text-sm font-medium">{outpostAccount}</dd>
         </div>
         <div className="flex items-center justify-between gap-4 py-3">
           <dt className="text-sm text-muted-foreground">Agent</dt>
@@ -153,7 +153,7 @@ export function ChatIdentityConfirm() {
       ) : null}
       {identity.canConfirm === false ? (
         <div className="space-y-3">
-          <p className="text-sm">You need membership in {identity.companyName} before linking this account.</p>
+          <p className="text-sm">You need membership in {identity.spaceName} before linking this account.</p>
           {requestAccess.isSuccess ? <p role="status" className="text-sm">Access requested. An admin can approve it in Outpost. After approval, return here to confirm; if this link expires, send the connect command in Slack again.</p>
             : <Button disabled={requestAccess.isPending || !identity.selfService} onClick={() => requestAccess.mutate()}>Request access</Button>}
           {requestAccess.error ? <p role="alert" className="text-sm text-destructive">Couldn&apos;t request access. The link may have expired. Send the connect command again and retry.</p> : null}

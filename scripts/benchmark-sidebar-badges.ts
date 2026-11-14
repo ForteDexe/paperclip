@@ -39,18 +39,18 @@ try {
     fixtures.push(fixture);
     await db.$client.unsafe("ANALYZE heartbeat_runs");
     await db.$client.unsafe("ANALYZE agents");
-    const users = mode === "mixed" ? [undefined, null, "", "user-1", "user-2", "local-board", "nobody"] : [undefined];
+    const users = mode === "mixed" ? [undefined, null, "", "user-1", "user-2", "local-operator", "nobody"] : [undefined];
     for (const currentUserId of users) {
       const queries = { baseline: [] as CapturedQuery[], treatment: [] as CapturedQuery[] };
       const before = baseline.sidebarBadgeService(captureSidebarQueries(db, queries.baseline));
       const after = sidebarBadgeService(captureSidebarQueries(db, queries.treatment));
       const options = { ...fixture.options, currentUserId };
-      const baselineResponse = await before.get(fixture.companyId, options);
-      const treatmentResponse = await after.get(fixture.companyId, options);
+      const baselineResponse = await before.get(fixture.spaceId, options);
+      const treatmentResponse = await after.get(fixture.spaceId, options);
       assert.deepEqual(treatmentResponse, baselineResponse);
       assert.equal(queries.baseline.length, 1);
       assert.equal(queries.treatment.length, 1);
-      const expected = await observedSidebarFailures(db, fixture.companyId, currentUserId);
+      const expected = await observedSidebarFailures(db, fixture.spaceId, currentUserId);
       const normalize = (rows: unknown[][]) => rows.map(row => JSON.stringify(row)).sort();
       const baselineQuery = queries.baseline[0]!, treatmentQuery = queries.treatment[0]!;
       const treatmentRows = await db.$client.unsafe(treatmentQuery.sql, treatmentQuery.params as never[]).values();

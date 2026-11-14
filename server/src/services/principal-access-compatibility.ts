@@ -1,8 +1,8 @@
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { agents, companyMemberships, principalPermissionGrants } from "@outpost/db";
+import { agents, spaceMemberships, principalPermissionGrants } from "@outpost/db";
 import type { PermissionKey, PrincipalType } from "@outpost/shared";
-import { grantsForHumanRole, normalizeHumanRole } from "./company-member-roles.js";
+import { grantsForHumanRole, normalizeHumanRole } from "./space-member-roles.js";
 
 type GrantInput = {
   permissionKey: PermissionKey;
@@ -17,7 +17,7 @@ export type PrincipalAccessCompatibilityBackfillStats = {
 export async function insertMissingPrincipalGrants(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     principalType: PrincipalType;
     principalId: string;
     grants: GrantInput[];
@@ -36,7 +36,7 @@ export async function insertMissingPrincipalGrants(
     .from(principalPermissionGrants)
     .where(
       and(
-        eq(principalPermissionGrants.companyId, input.companyId),
+        eq(principalPermissionGrants.spaceId, input.spaceId),
         eq(principalPermissionGrants.principalType, input.principalType),
         eq(principalPermissionGrants.principalId, input.principalId),
         inArray(
@@ -54,7 +54,7 @@ export async function insertMissingPrincipalGrants(
     .insert(principalPermissionGrants)
     .values(
       missing.map((grant) => ({
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         principalType: input.principalType,
         principalId: input.principalId,
         permissionKey: grant.permissionKey,
@@ -66,7 +66,7 @@ export async function insertMissingPrincipalGrants(
     )
     .onConflictDoNothing({
       target: [
-        principalPermissionGrants.companyId,
+        principalPermissionGrants.spaceId,
         principalPermissionGrants.principalType,
         principalPermissionGrants.principalId,
         principalPermissionGrants.permissionKey,
@@ -80,7 +80,7 @@ export async function insertMissingPrincipalGrants(
 export async function ensureHumanRoleDefaultGrants(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     principalId: string;
     membershipRole: string | null | undefined;
     grantedByUserId: string | null;
@@ -88,7 +88,7 @@ export async function ensureHumanRoleDefaultGrants(
 ): Promise<number> {
   const role = normalizeHumanRole(input.membershipRole, "operator");
   return insertMissingPrincipalGrants(db, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     principalType: "user",
     principalId: input.principalId,
     grants: grantsForHumanRole(role),
@@ -102,7 +102,7 @@ export async function backfillPrincipalAccessCompatibility(
   const now = new Date();
   const nonTerminalAgents = await db
     .select({
-      companyId: agents.companyId,
+      spaceId: agents.spaceId,
       principalId: agents.id,
     })
     .from(agents)
@@ -110,10 +110,10 @@ export async function backfillPrincipalAccessCompatibility(
 
   const agentMembershipsInserted = nonTerminalAgents.length > 0
     ? await db
-      .insert(companyMemberships)
+      .insert(spaceMemberships)
       .values(
         nonTerminalAgents.map((agent) => ({
-          companyId: agent.companyId,
+          spaceId: agent.spaceId,
           principalType: "agent",
           principalId: agent.principalId,
           status: "active",
@@ -124,33 +124,33 @@ export async function backfillPrincipalAccessCompatibility(
       )
       .onConflictDoNothing({
         target: [
-          companyMemberships.companyId,
-          companyMemberships.principalType,
-          companyMemberships.principalId,
+          spaceMemberships.spaceId,
+          spaceMemberships.principalType,
+          spaceMemberships.principalId,
         ],
       })
-      .returning({ id: companyMemberships.id })
+      .returning({ id: spaceMemberships.id })
       .then((rows) => rows.length)
     : 0;
 
   const activeHumanMemberships = await db
     .select({
-      companyId: companyMemberships.companyId,
-      principalId: companyMemberships.principalId,
-      membershipRole: companyMemberships.membershipRole,
+      spaceId: spaceMemberships.spaceId,
+      principalId: spaceMemberships.principalId,
+      membershipRole: spaceMemberships.membershipRole,
     })
-    .from(companyMemberships)
+    .from(spaceMemberships)
     .where(
       and(
-        eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.status, "active"),
+        eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.status, "active"),
       ),
     );
 
   let humanGrantsInserted = 0;
   for (const membership of activeHumanMemberships) {
     humanGrantsInserted += await ensureHumanRoleDefaultGrants(db, {
-      companyId: membership.companyId,
+      spaceId: membership.spaceId,
       principalId: membership.principalId,
       membershipRole: membership.membershipRole,
       grantedByUserId: null,

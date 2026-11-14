@@ -9,12 +9,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "../lib/queryKeys";
 import { isLiveReconciledQuery } from "../lib/live-reconcile";
 
-const { pushToast, companySelection } = vi.hoisted(() => ({
+const { pushToast, spaceSelection } = vi.hoisted(() => ({
   pushToast: vi.fn(() => "toast-id"),
-  companySelection: { id: "company-1" },
+  spaceSelection: { id: "space-1" },
 }));
-vi.mock("./CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: companySelection.id, selectedCompany: { id: companySelection.id } }),
+vi.mock("./SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: spaceSelection.id, selectedSpace: { id: spaceSelection.id } }),
 }));
 vi.mock("./ToastContext", () => ({ useToastActions: () => ({ pushToast }) }));
 vi.mock("../lib/router", () => ({ useLocation: () => ({ pathname: "/PAP/issues/PAP-204" }) }));
@@ -24,8 +24,8 @@ vi.mock("../api/auth", () => ({
 import {
   __liveUpdatesTestUtils,
   LiveUpdatesProvider,
-  useCompanyLiveEvent,
-  type CompanyLiveEventHandler,
+  useSpaceLiveEvent,
+  type SpaceLiveEventHandler,
 } from "./LiveUpdatesProvider";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -39,7 +39,7 @@ function act(callback: () => void) {
 function progressEvent(overrides: Partial<LiveEvent> = {}): LiveEvent {
   return {
     id: 1,
-    companyId: "company-1",
+    spaceId: "space-1",
     type: "heartbeat.run.progress",
     createdAt: "2026-07-15T00:00:00.000Z",
     payload: { issueId: "issue-1", message: "reviewing 14 open issues" },
@@ -47,7 +47,7 @@ function progressEvent(overrides: Partial<LiveEvent> = {}): LiveEvent {
   };
 }
 
-describe("useCompanyLiveEvent", () => {
+describe("useSpaceLiveEvent", () => {
   let container: HTMLDivElement;
   let root: Root | null = null;
 
@@ -62,10 +62,10 @@ describe("useCompanyLiveEvent", () => {
     container.remove();
   });
 
-  function renderWithSubscription(handler: CompanyLiveEventHandler) {
-    const subscribers = new Set<CompanyLiveEventHandler>();
+  function renderWithSubscription(handler: SpaceLiveEventHandler) {
+    const subscribers = new Set<SpaceLiveEventHandler>();
     const subscription = {
-      subscribe: (fn: CompanyLiveEventHandler) => {
+      subscribe: (fn: SpaceLiveEventHandler) => {
         subscribers.add(fn);
         return () => {
           subscribers.delete(fn);
@@ -74,7 +74,7 @@ describe("useCompanyLiveEvent", () => {
     };
 
     function Consumer() {
-      useCompanyLiveEvent(handler);
+      useSpaceLiveEvent(handler);
       return null;
     }
 
@@ -94,7 +94,7 @@ describe("useCompanyLiveEvent", () => {
     const received: LiveEvent[] = [];
     const subscribers = renderWithSubscription((event) => received.push(event));
 
-    act(() => dispatchLiveEventToSubscribers(subscribers, "company-1", progressEvent()));
+    act(() => dispatchLiveEventToSubscribers(subscribers, "space-1", progressEvent()));
 
     expect(received).toHaveLength(1);
     expect(received[0].payload.message).toBe("reviewing 14 open issues");
@@ -107,14 +107,14 @@ describe("useCompanyLiveEvent", () => {
     act(() => root?.unmount());
     root = null;
 
-    act(() => dispatchLiveEventToSubscribers(subscribers, "company-1", progressEvent()));
+    act(() => dispatchLiveEventToSubscribers(subscribers, "space-1", progressEvent()));
 
     expect(received).toHaveLength(0);
   });
 
   it("no-ops without a surrounding provider", () => {
     function Consumer() {
-      useCompanyLiveEvent(() => {
+      useSpaceLiveEvent(() => {
         throw new Error("should never be called");
       });
       return null;
@@ -137,16 +137,16 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
 
   beforeEach(() => {
     pushToast.mockClear();
-    companySelection.id = "company-1";
+    spaceSelection.id = "space-1";
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
     queryClient.setQueryData(queryKeys.auth.session, { user: { id: "viewer" }, session: { id: "session", userId: "viewer" } });
     queryClient.setQueryData(queryKeys.issues.detail("PAP-204"), {
-      id: "root", companyId: "company-1", identifier: "PAP-204", assigneeAgentId: "parent-agent",
+      id: "root", spaceId: "space-1", identifier: "PAP-204", assigneeAgentId: "parent-agent",
     });
-    queryClient.setQueryData(queryKeys.issues.listByDescendantRoot("company-1", "root"), [
-      { id: "child", companyId: "company-1", identifier: "PAP-205", assigneeAgentId: "child-agent", executionRunId: "child-run" },
+    queryClient.setQueryData(queryKeys.issues.listByDescendantRoot("space-1", "root"), [
+      { id: "child", spaceId: "space-1", identifier: "PAP-205", assigneeAgentId: "child-agent", executionRunId: "child-run" },
     ]);
-    queryClient.setQueryData(queryKeys.liveRuns("company-1"), [
+    queryClient.setQueryData(queryKeys.liveRuns("space-1"), [
       { id: "child-run", issueId: "child", agentId: "child-agent", status: "running" },
     ]);
     vi.spyOn(document, "hasFocus").mockReturnValue(true);
@@ -182,7 +182,7 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
     await vi.waitFor(() => expect(sockets).toHaveLength(1));
     expect(sockets[0]?.onmessage).toBeTypeOf("function");
     await reactAct(async () => sockets[0]!.onmessage!(new MessageEvent("message", {
-      data: JSON.stringify({ id: Date.now(), companyId: "company-1", type: "heartbeat.run.status", createdAt, payload, toastEligible }),
+      data: JSON.stringify({ id: Date.now(), spaceId: "space-1", type: "heartbeat.run.status", createdAt, payload, toastEligible }),
     })));
   }
 
@@ -191,7 +191,7 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
     // Pass an event directly to exercise a missing property, not the helper default.
     await receiveStatus({ runId: "setup", agentId: "other-agent", status: "running" });
     await reactAct(async () => sockets[0]!.onmessage!(new MessageEvent("message", {
-      data: JSON.stringify({ id: 99, companyId: "company-1", type: "heartbeat.run.status",
+      data: JSON.stringify({ id: 99, spaceId: "space-1", type: "heartbeat.run.status",
         createdAt: "2026-09-09T18:00:00.000Z", toastEligible: eligibility,
         payload: { runId: "other-run", agentId: "other-agent", status: "failed" } }),
     })));
@@ -202,7 +202,7 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
   it.each([true, false, undefined])("gates task activity (%s)", async (eligibility) => {
     await receiveStatus({ runId: "setup", agentId: "other-agent", status: "running" });
     await reactAct(async () => sockets[0]!.onmessage!(new MessageEvent("message", {
-      data: JSON.stringify({ id: 99, companyId: "company-1", type: "activity.logged",
+      data: JSON.stringify({ id: 99, spaceId: "space-1", type: "activity.logged",
         createdAt: "2026-09-09T18:00:00.000Z", toastEligible: eligibility,
         payload: { entityType: "issue", entityId: "other-task", action: "issue.comment_added", actorType: "user", actorId: "another-user" } }),
     })));
@@ -213,7 +213,7 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
     await receiveStatus({ runId: "setup", agentId: "other-agent", status: "running" });
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     await reactAct(async () => sockets[0]!.onmessage!(new MessageEvent("message", {
-      data: JSON.stringify({ id: 99, companyId: "company-1", type: "agent.status", toastEligible: true,
+      data: JSON.stringify({ id: 99, spaceId: "space-1", type: "agent.status", toastEligible: true,
         createdAt: "2026-09-09T18:00:00.000Z", payload: { agentId: "other-agent", status: "error" } }),
     })));
     expect(pushToast).not.toHaveBeenCalled();
@@ -228,13 +228,13 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
     await reactAct(async () => root!.unmount());
     root = null;
     staleCallback(new MessageEvent("message", { data: JSON.stringify({
-      id: 99, companyId: "company-1", type: "heartbeat.run.status", toastEligible: true,
+      id: 99, spaceId: "space-1", type: "heartbeat.run.status", toastEligible: true,
       createdAt: "2026-09-09T18:00:00.000Z", payload: { runId: "stale-run", agentId: "other-agent", status: "failed" },
     }) }));
     expect(pushToast).not.toHaveBeenCalled();
   });
 
-  it.each(["account", "company"])("ignores old socket messages after switching %s", async (scope) => {
+  it.each(["account", "space"])("ignores old socket messages after switching %s", async (scope) => {
     await receiveStatus({ runId: "setup", agentId: "other-agent", status: "running" });
     const staleCallback = sockets[0]!.onmessage!;
     await reactAct(async () => {
@@ -243,13 +243,13 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
           user: { id: "new-viewer" }, session: { id: "new-session", userId: "new-viewer" },
         });
       } else {
-        companySelection.id = "company-2";
+        spaceSelection.id = "space-2";
       }
       root!.render(<QueryClientProvider client={queryClient}><LiveUpdatesProvider><span>New scope</span></LiveUpdatesProvider></QueryClientProvider>);
     });
     await vi.waitFor(() => expect(sockets).toHaveLength(2));
     await reactAct(async () => staleCallback(new MessageEvent("message", { data: JSON.stringify({
-      id: 99, companyId: "company-1", type: "heartbeat.run.status", toastEligible: true,
+      id: 99, spaceId: "space-1", type: "heartbeat.run.status", toastEligible: true,
       createdAt: "2026-09-09T18:00:00.000Z", payload: { runId: "stale-run", agentId: "other-agent", status: "failed" },
     }) })));
     expect(pushToast).not.toHaveBeenCalled();
@@ -298,7 +298,7 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
     });
     await vi.waitFor(() => expect(sockets).toHaveLength(2));
     await reactAct(async () => sockets[1]!.onmessage!(new MessageEvent("message", {
-      data: JSON.stringify({ id: 2, companyId: "company-1", toastEligible: true, type: "heartbeat.run.status", createdAt: "2026-09-09T18:01:00.000Z", payload }),
+      data: JSON.stringify({ id: 2, spaceId: "space-1", toastEligible: true, type: "heartbeat.run.status", createdAt: "2026-09-09T18:01:00.000Z", payload }),
     })));
     expect(pushToast).toHaveBeenCalledTimes(1);
   });
@@ -339,7 +339,7 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
   it("suppresses an exact descendant run before terminal cache removal", async () => {
     await receiveStatus({ runId: "child-run", agentId: "child-agent", status: "cancelled" });
     expect(pushToast).not.toHaveBeenCalled();
-    expect(queryClient.getQueryData(queryKeys.liveRuns("company-1"))).toEqual([]);
+    expect(queryClient.getQueryData(queryKeys.liveRuns("space-1"))).toEqual([]);
   });
 
   it("keeps a stopped visible task quiet when its retryable status follows live-cache eviction", async () => {
@@ -348,7 +348,7 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
     queryClient.setQueryData(queryKeys.issues.runs("root"), [
       { runId: "parent-run", agentId: "parent-agent", status: "cancelled" },
     ]);
-    queryClient.setQueryData(queryKeys.liveRuns("company-1"), [
+    queryClient.setQueryData(queryKeys.liveRuns("space-1"), [
       {
         id: "parent-run",
         issueId: "root",
@@ -364,7 +364,7 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
       triggerDetail: "system",
     });
     expect(pushToast).not.toHaveBeenCalled();
-    expect(queryClient.getQueryData(queryKeys.liveRuns("company-1"))).toEqual(
+    expect(queryClient.getQueryData(queryKeys.liveRuns("space-1"))).toEqual(
       [],
     );
     expect(
@@ -467,15 +467,15 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
       triggerDetail: "system",
     });
     expect(pushToast).not.toHaveBeenCalled();
-    expect(queryClient.getQueryData(queryKeys.liveRuns("company-1"))).toEqual(
+    expect(queryClient.getQueryData(queryKeys.liveRuns("space-1"))).toEqual(
       [],
     );
     queryClient.setQueryData(
-      queryKeys.issues.listByDescendantRoot("company-1", "root"),
+      queryKeys.issues.listByDescendantRoot("space-1", "root"),
       [
         {
           id: "child",
-          companyId: "company-1",
+          spaceId: "space-1",
           identifier: "PAP-205",
           assigneeAgentId: "child-agent",
           executionRunId: null,
@@ -507,13 +507,13 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
   ] as const)(
     "uses the current descendant's exact %s %s cache",
     async (ref, cache) => {
-      queryClient.setQueryData(queryKeys.liveRuns("company-1"), []);
+      queryClient.setQueryData(queryKeys.liveRuns("space-1"), []);
       queryClient.setQueryData(
-        queryKeys.issues.listByDescendantRoot("company-1", "root"),
+        queryKeys.issues.listByDescendantRoot("space-1", "root"),
         [
           {
             id: "child",
-            companyId: "company-1",
+            spaceId: "space-1",
             identifier: "PAP-205",
             assigneeAgentId: "child-agent",
             executionRunId: null,
@@ -549,15 +549,15 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
     "unrelated same-agent run",
     "removed descendant",
   ])("retains child-history notifications for %s", async (scope) => {
-    queryClient.setQueryData(queryKeys.liveRuns("company-1"), []);
+    queryClient.setQueryData(queryKeys.liveRuns("space-1"), []);
     queryClient.setQueryData(
-      queryKeys.issues.listByDescendantRoot("company-1", "root"),
+      queryKeys.issues.listByDescendantRoot("space-1", "root"),
       scope === "removed descendant"
         ? []
         : [
             {
               id: "child",
-              companyId: "company-1",
+              spaceId: "space-1",
               identifier: "PAP-205",
               assigneeAgentId: "child-agent",
               executionRunId: null,
@@ -594,13 +594,13 @@ describe("LiveUpdatesProvider socket run notification scope", () => {
   it.each(["child", "unrelated"])(
     "routes a never-visited child's retryable status by its explicit %s task",
     async (issueId) => {
-      queryClient.setQueryData(queryKeys.liveRuns("company-1"), []);
+      queryClient.setQueryData(queryKeys.liveRuns("space-1"), []);
       queryClient.setQueryData(
-        queryKeys.issues.listByDescendantRoot("company-1", "root"),
+        queryKeys.issues.listByDescendantRoot("space-1", "root"),
         [
           {
             id: "child",
-            companyId: "company-1",
+            spaceId: "space-1",
             identifier: "PAP-205",
             assigneeAgentId: "child-agent",
             executionRunId: null,

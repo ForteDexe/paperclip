@@ -10,7 +10,7 @@ import {
 } from "@outpost/shared";
 import type { Db } from "@outpost/db";
 import { validate } from "../middleware/validate.js";
-import { assertBoard, assertCompanyAccess, hasCompanyAccess } from "./authz.js";
+import { assertOperator, assertSpaceAccess, hasSpaceAccess } from "./authz.js";
 import { emailConnectionService } from "../services/email-connections.js";
 import { accessService } from "../services/access.js";
 import { badRequest, forbidden, HttpError, notFound } from "../errors.js";
@@ -26,12 +26,12 @@ function actor(req: Request): EmailActor {
     ? { agentId: req.actor.agentId, runId: req.actor.runId ?? undefined,
         ...(connectionRequestContext(req) ? { userId: connectionRequestUserId(req) ?? undefined, managementContext: connectionRequestContext(req) } : {}) }
     : {
-        userId: req.actor.userId ?? "board",
+        userId: req.actor.userId ?? "operator",
         localImplicit: req.actor.source === "local_implicit",
       };
 }
 
-// Provider rejections describe setup/account problems, not Paperclip crashes.
+// Provider rejections describe setup/account problems, not Outpost crashes.
 // Only local messages and operation names reach the UI; never forward a body.
 const agentmailErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
   if (!(error instanceof AgentmailApiError)) return next(error);
@@ -89,18 +89,18 @@ const agentmailErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
 export function emailRoutes(db: Db, service: EmailChannelService) {
   const router = Router();
   const managementGuard = connectionManagementGuard(db, "chat");
-  async function manager(req: Request, companyId: string) {
+  async function manager(req: Request, spaceId: string) {
     if (req.actor.type === "agent" && connectionRequestContext(req)) return;
-    assertBoard(req);
-    if (!hasCompanyAccess(req, companyId))
+    assertOperator(req);
+    if (!hasSpaceAccess(req, spaceId))
       throw notFound("Email inbox not found");
-    assertCompanyAccess(req, companyId);
+    assertSpaceAccess(req, spaceId);
     if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin)
       return;
     if (
       !req.actor.userId ||
       !(await accessService(db).hasPermission(
-        companyId,
+        spaceId,
         "user",
         req.actor.userId,
         "tools:manage_connections",
@@ -108,24 +108,24 @@ export function emailRoutes(db: Db, service: EmailChannelService) {
     )
       throw forbidden("Missing permission: tools:manage_connections");
   }
-  router.get("/companies/:companyId/email/connections", managementGuard("connections:read", "GET /companies/:companyId/email/connections", { personal: true }), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    await manager(req, companyId);
+  router.get("/spaces/:spaceId/email/connections", managementGuard("connections:read", "GET /spaces/:spaceId/email/connections", { personal: true }), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    await manager(req, spaceId);
     res.set("Cache-Control", "no-store").json(
-      await emailConnectionService(db).listCredentials(companyId, actor(req)),
+      await emailConnectionService(db).listCredentials(spaceId, actor(req)),
     );
   });
   router.post(
-    "/companies/:companyId/email/connections", managementGuard("connections:configure", "POST /companies/:companyId/email/connections", { personal: true }),
+    "/spaces/:spaceId/email/connections", managementGuard("connections:configure", "POST /spaces/:spaceId/email/connections", { personal: true }),
     validate(emailConnectionSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      await manager(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      await manager(req, spaceId);
       res
         .status(201)
         .json(
           await emailConnectionService(db).connect(
-            companyId,
+            spaceId,
             req.body,
             actor(req),
           ),
@@ -133,12 +133,12 @@ export function emailRoutes(db: Db, service: EmailChannelService) {
     },
   );
   router.post(
-    "/companies/:companyId/email/connections/:connectionId/inspect", managementGuard("connections:configure", "POST /companies/:companyId/email/connections/:connectionId/inspect", { personal: true }),
+    "/spaces/:spaceId/email/connections/:connectionId/inspect", managementGuard("connections:configure", "POST /spaces/:spaceId/email/connections/:connectionId/inspect", { personal: true }),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      await manager(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      await manager(req, spaceId);
       const saved = await emailConnectionService(db).credential(
-        companyId,
+        spaceId,
         req.params.connectionId as string,
         actor(req),
       );
@@ -148,22 +148,22 @@ export function emailRoutes(db: Db, service: EmailChannelService) {
     },
   );
   router.post(
-    "/companies/:companyId/email/connections/:connectionId/check-address", managementGuard("connections:configure", "POST /companies/:companyId/email/connections/:connectionId/check-address", { personal: true }),
+    "/spaces/:spaceId/email/connections/:connectionId/check-address", managementGuard("connections:configure", "POST /spaces/:spaceId/email/connections/:connectionId/check-address", { personal: true }),
     validate(emailAddressCheckSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      await manager(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      await manager(req, spaceId);
       const saved = await emailConnectionService(db).credential(
-        companyId, req.params.connectionId as string, actor(req),
+        spaceId, req.params.connectionId as string, actor(req),
       );
       res.set("Cache-Control", "no-store").json(await agentmailApi(saved.value)
         .checkAddress(`${req.body.username}@${req.body.domain}`));
     },
   );
-  router.get("/companies/:companyId/email/inboxes", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const rows = await service.list(companyId);
+  router.get("/spaces/:spaceId/email/inboxes", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const rows = await service.list(spaceId);
     res.json(
       req.actor.type === "agent"
         ? rows.filter((r) => r.assignedAgentId === req.actor.agentId)
@@ -171,24 +171,24 @@ export function emailRoutes(db: Db, service: EmailChannelService) {
     );
   });
   router.post(
-    "/companies/:companyId/email/inspect", managementGuard("connections:configure", "POST /companies/:companyId/email/inspect", { personal: true }),
+    "/spaces/:spaceId/email/inspect", managementGuard("connections:configure", "POST /spaces/:spaceId/email/inspect", { personal: true }),
     validate(z.object({ apiKey: z.string().min(1).max(4096) }).strict()),
     async (req, res) => {
-      await manager(req, req.params.companyId as string);
+      await manager(req, req.params.spaceId as string);
       res.set("Cache-Control", "no-store");
       res.json(await service.inspect(req.body.apiKey));
     },
   );
   router.post(
-    "/companies/:companyId/email/inboxes", managementGuard("connections:configure", "POST /companies/:companyId/email/inboxes", { personal: true }),
+    "/spaces/:spaceId/email/inboxes", managementGuard("connections:configure", "POST /spaces/:spaceId/email/inboxes", { personal: true }),
     validate(emailEndpointSetupSchema),
     async (req, res) => {
-      await manager(req, req.params.companyId as string);
+      await manager(req, req.params.spaceId as string);
       res
         .status(201)
         .json(
           await service.setup(
-            req.params.companyId as string,
+            req.params.spaceId as string,
             req.body,
             actor(req),
           ),
@@ -204,7 +204,7 @@ export function emailRoutes(db: Db, service: EmailChannelService) {
       const endpoint = await service.getEndpoint(
         req.params.endpointId as string,
       );
-      await manager(req, endpoint.companyId);
+      await manager(req, endpoint.spaceId);
       res.json(await service.control(endpoint.id, req.body.action, actor(req)));
     },
   );
@@ -222,7 +222,7 @@ export function emailRoutes(db: Db, service: EmailChannelService) {
       const endpoint = await service.getEndpoint(
         req.params.endpointId as string,
       );
-      await manager(req, endpoint.companyId);
+      await manager(req, endpoint.spaceId);
       res.json(
         await service.reconnect(
           endpoint.id,
@@ -234,7 +234,7 @@ export function emailRoutes(db: Db, service: EmailChannelService) {
     },
   );
   router.post(
-    "/companies/:companyId/email/deliveries/:publicationId/resolve",
+    "/spaces/:spaceId/email/deliveries/:publicationId/resolve",
     validate(
       z
         .object({
@@ -244,11 +244,11 @@ export function emailRoutes(db: Db, service: EmailChannelService) {
         .strict(),
     ),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      await manager(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      await manager(req, spaceId);
       res.json(
         await service.resolveUncertain(
-          companyId,
+          spaceId,
           req.params.publicationId as string,
           req.body,
           actor(req),
@@ -257,30 +257,30 @@ export function emailRoutes(db: Db, service: EmailChannelService) {
     },
   );
   router.post(
-    "/companies/:companyId/email/send",
+    "/spaces/:spaceId/email/send",
     validate(emailSendSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      assertSpaceAccess(req, spaceId);
       res
         .status(202)
-        .json(await service.queueSend(companyId, req.body, actor(req)));
+        .json(await service.queueSend(spaceId, req.body, actor(req)));
     },
   );
-  router.get("/companies/:companyId/email/tasks/:issueId", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/email/tasks/:issueId", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const issueId = req.params.issueId as string;
     if (issueId !== issueId.trim() || !isUuidLike(issueId)) {
       throw badRequest("Task ID must be a UUID");
     }
     await service.authorizeRead(
-      companyId,
+      spaceId,
       issueId,
       actor(req),
     );
     const thread = await service.thread(
-      companyId,
+      spaceId,
       issueId,
     );
     if (
@@ -292,16 +292,16 @@ export function emailRoutes(db: Db, service: EmailChannelService) {
     res.json(thread);
   });
   router.get(
-    "/companies/:companyId/email/deliveries/:publicationId",
+    "/spaces/:spaceId/email/deliveries/:publicationId",
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      assertSpaceAccess(req, spaceId);
       const delivery = await service.publication(
         req.params.publicationId as string,
-        companyId,
+        spaceId,
       );
-      await service.authorizeRead(companyId, delivery.issueId, actor(req));
-      const thread = await service.thread(companyId, delivery.issueId);
+      await service.authorizeRead(spaceId, delivery.issueId, actor(req));
+      const thread = await service.thread(spaceId, delivery.issueId);
       if (
         req.actor.type === "agent" &&
         thread?.endpoint.assignedAgentId !== req.actor.agentId

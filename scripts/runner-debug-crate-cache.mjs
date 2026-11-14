@@ -22,7 +22,7 @@ function readMetadata(root) {
 
 // The workspace is the Runner crate plus its process-table library, which
 // has only a lib target. Any other shape needs this contract reviewed.
-const PROCESS_TABLE = "paperclip-process-table";
+const PROCESS_TABLE = "outpost-process-table";
 
 export function debugContract(root, metadata = readMetadata(root)) {
   const packages = metadata.packages.filter(pkg => metadata.workspace_members.includes(pkg.id));
@@ -41,7 +41,7 @@ export function debugContract(root, metadata = readMetadata(root)) {
     `${directory}/deps/outpost_runner_core-*.d`, ...bins.flatMap(bin => [
       `${directory}/deps/${bin.replaceAll("-", "_")}-*`, `${directory}/${bin}`, `${directory}/${bin}.d`,
     ]), ...(withProcessTable ? [`${directory}/.fingerprint/${PROCESS_TABLE}-*`,
-      `${directory}/deps/libpaperclip_process_table-*`, `${directory}/deps/paperclip_process_table-*.d`] : [])];
+      `${directory}/deps/liboutpost_process_table-*`, `${directory}/deps/outpost_process_table-*.d`] : [])];
   const required = [
     { label: "lib fingerprint", glob: `${fingerprint}/lib-outpost_runner_core` },
     { label: "lib dep-info", glob: `${fingerprint}/dep-lib-outpost_runner_core` },

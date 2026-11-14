@@ -1,6 +1,6 @@
 CREATE TABLE "chat_teams_file_transfers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"endpoint_id" uuid NOT NULL,
 	"conversation_id" uuid NOT NULL,
 	"publication_id" uuid NOT NULL,
@@ -43,14 +43,14 @@ CREATE TABLE "chat_teams_file_transfers" (
 );
 --> statement-breakpoint
 ALTER TABLE "chat_publications" DROP CONSTRAINT "chat_publications_state_check";--> statement-breakpoint
-CREATE UNIQUE INDEX "chat_publications_company_id_uq" ON "chat_publications" USING btree ("company_id","id");--> statement-breakpoint
-ALTER TABLE "chat_teams_file_transfers" ADD CONSTRAINT "chat_teams_file_transfers_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "chat_publications_space_id_uq" ON "chat_publications" USING btree ("space_id","id");--> statement-breakpoint
+ALTER TABLE "chat_teams_file_transfers" ADD CONSTRAINT "chat_teams_file_transfers_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_teams_file_transfers" ADD CONSTRAINT "chat_teams_file_transfers_issue_id_issues_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issues"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "chat_teams_file_transfers" ADD CONSTRAINT "chat_teams_file_transfers_company_id_endpoint_id_chat_endpoints_company_id_id_fk" FOREIGN KEY ("company_id","endpoint_id") REFERENCES "public"."chat_endpoints"("company_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "chat_teams_file_transfers" ADD CONSTRAINT "chat_teams_file_transfers_company_id_publication_id_chat_publications_company_id_id_fk" FOREIGN KEY ("company_id","publication_id") REFERENCES "public"."chat_publications"("company_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "chat_teams_file_transfers" ADD CONSTRAINT "chat_teams_file_transfers_company_id_conversation_id_chat_conversations_company_id_id_fk" FOREIGN KEY ("company_id","conversation_id") REFERENCES "public"."chat_conversations"("company_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "chat_teams_file_transfers" ADD CONSTRAINT "chat_teams_file_transfers_company_id_principal_id_chat_external_principals_company_id_id_fk" FOREIGN KEY ("company_id","principal_id") REFERENCES "public"."chat_external_principals"("company_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "chat_teams_file_transfers_publication_uq" ON "chat_teams_file_transfers" USING btree ("company_id","publication_id");--> statement-breakpoint
+ALTER TABLE "chat_teams_file_transfers" ADD CONSTRAINT "chat_teams_file_transfers_space_id_endpoint_id_chat_endpoints_space_id_id_fk" FOREIGN KEY ("space_id","endpoint_id") REFERENCES "public"."chat_endpoints"("space_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_teams_file_transfers" ADD CONSTRAINT "chat_teams_file_transfers_space_id_publication_id_chat_publications_space_id_id_fk" FOREIGN KEY ("space_id","publication_id") REFERENCES "public"."chat_publications"("space_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_teams_file_transfers" ADD CONSTRAINT "chat_teams_file_transfers_space_id_conversation_id_chat_conversations_space_id_id_fk" FOREIGN KEY ("space_id","conversation_id") REFERENCES "public"."chat_conversations"("space_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_teams_file_transfers" ADD CONSTRAINT "chat_teams_file_transfers_space_id_principal_id_chat_external_principals_space_id_id_fk" FOREIGN KEY ("space_id","principal_id") REFERENCES "public"."chat_external_principals"("space_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "chat_teams_file_transfers_publication_uq" ON "chat_teams_file_transfers" USING btree ("space_id","publication_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "chat_teams_file_transfers_token_uq" ON "chat_teams_file_transfers" USING btree ("endpoint_id","token_sha256");--> statement-breakpoint
 CREATE INDEX "chat_teams_file_transfers_work_idx" ON "chat_teams_file_transfers" USING btree ("phase","attempt_expires_at","expires_at");--> statement-breakpoint
 ALTER TABLE "chat_publications" ADD CONSTRAINT "chat_publications_state_check" CHECK ("chat_publications"."state" in ('pending', 'streaming', 'published', 'retry', 'delivery_unknown', 'failed', 'cancelled', 'awaiting_consent'));

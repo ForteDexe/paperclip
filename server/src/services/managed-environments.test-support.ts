@@ -117,7 +117,7 @@ export function pluginEnvironmentRow(overrides: Record<string, unknown> = {}) {
     name: "Remote Host",
     driver: "plugin",
     config: { pluginKey: PLUGIN_KEY, driverKey: "tasks", driverConfig: {} },
-    metadata: { managedByPaperclip: true, managedPluginEnvironment: `${PLUGIN_KEY}:tasks` },
+    metadata: { managedByOutpost: true, managedPluginEnvironment: `${PLUGIN_KEY}:tasks` },
     ...overrides,
   }) as never;
 }

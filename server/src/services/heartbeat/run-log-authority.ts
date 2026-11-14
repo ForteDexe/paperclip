@@ -22,7 +22,7 @@ export function createRunLogWriterAuthority(
       .where(
         and(
           eq(heartbeatRuns.id, admitted.id),
-          eq(heartbeatRuns.companyId, admitted.companyId),
+          eq(heartbeatRuns.spaceId, admitted.spaceId),
           eq(heartbeatRuns.agentId, admitted.agentId),
           eq(heartbeatRuns.status, "running"),
         ),
@@ -47,7 +47,7 @@ export function createRunLogWriterAuthority(
       .where(
         and(
           eq(nativeRunFinalizations.runId, admitted.id),
-          eq(nativeRunFinalizations.companyId, admitted.companyId),
+          eq(nativeRunFinalizations.spaceId, admitted.spaceId),
         ),
       );
 

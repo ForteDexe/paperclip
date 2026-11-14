@@ -157,7 +157,7 @@ export function Management({
   return (
     <Surface
       title={selected.name}
-      description={`${selected.ownership === "shared" ? "Company connection" : "Personal connection"} · ${selected.status === "connected" ? "Connected" : "Credential revoked"}`}
+      description={`${selected.ownership === "shared" ? "Space connection" : "Personal connection"} · ${selected.status === "connected" ? "Connected" : "Credential revoked"}`}
     >
       <Button
         variant="ghost"

@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, companies, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations,
+import { agents, spaces, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations,
   nativeRunResults, issueRecoveryActions, workspaceOperations, type Db } from "@outpost/db";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { issueService } from "../services/issues.js";
@@ -20,7 +20,7 @@ import { resumeNativeWorkspaceAfterOwnerStop } from "../services/native-runtime/
 import * as platformProof from "../services/native-runtime/native-workspace-platform-proof.js";
 import { reconcileNativeFinalizations } from "../services/native-runtime/native-finalization-reconciler.js";
 import { NativeRunCoordinatorStore } from "../services/native-runtime/native-run-coordinator-store.js";
-import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "../services/native-runtime/outpost-control-plane-port.js";
 import { notifyNativeFinalizationWork } from "../services/native-finalization-notifications.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 import { CONTROL_PLANE_CONFORMANCE_RESULT, CONTROL_PLANE_CONFORMANCE_TERMINAL } from "../vendor/outpost-runner/testing.js";
@@ -34,7 +34,7 @@ describe("workspace finalization scheduled lifecycle", () => {
   let worker: ReturnType<ReturnType<typeof nativeWorkspaceFinalizationWork>["register"]> | undefined;
   let root: string;
   const priorLogs = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH;
-  const companyId = randomUUID(), agentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID();
   let admitted = true;
   const errors: unknown[] = [];
   const settled = vi.fn(async () => {});
@@ -44,8 +44,8 @@ describe("workspace finalization scheduled lifecycle", () => {
     const external = resolveExternalTestDatabaseUrl("OUTPOST_WORKSPACE_FINALIZATION_WORK_TEST_DATABASE_URL");
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("workspace-finalization-work-");
     db = createDb(external ?? temporary!.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Workspace finalization", issuePrefix: `WF${randomUUID().slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Workspace worker", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Workspace finalization", issuePrefix: `WF${randomUUID().slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Workspace worker", adapterType: "outpost_runner" });
   }, 30_000);
   beforeEach(() => {
     admitted = true; errors.length = 0; settled.mockClear();
@@ -54,7 +54,7 @@ describe("workspace finalization scheduled lifecycle", () => {
   afterEach(async () => {
     worker?.stop(); await coordinator?.stop(); worker = undefined; coordinator = undefined;
     vi.useRealTimers(); vi.restoreAllMocks();
-    await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, companyId));
+    await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, spaceId));
     expect(errors).toEqual([]);
   });
   afterAll(async () => {
@@ -84,25 +84,25 @@ describe("workspace finalization scheduled lifecycle", () => {
   }
   async function seed() {
     const runId = randomUUID(), issueId = randomUUID(), contractId = randomUUID(), sourceInstanceId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Preserve completed work", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Preserve completed work", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "workspace-worker-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "workspace-worker-v1", objective: "Finish", criteria: [{ id: "objective", requirement: "Complete the task" }] },
       canonicalSha256: contractId, createdByActorType: "system", createdByActorId: "test" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, runtimeMode: "native", status: "running",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, runtimeMode: "native", status: "running",
       nativeIssueId: issueId, nativeSessionId: runId, runnerInstanceId: sourceInstanceId,
       completionContractId: contractId, completionContractSha256: contractId, contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
 
-    await db.insert(workspaceOperations).values({ companyId, issueId, heartbeatRunId: runId,
+    await db.insert(workspaceOperations).values({ spaceId, issueId, heartbeatRunId: runId,
       phase: "workspace_finalize", status: "failed", cwd: root });
-    return { companyId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
+    return { spaceId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
       completionContractSha256: contractId, sourceInstanceId, controlPlaneSourceInstanceId: "workspace-worker-test" };
   }
   async function complete(binding: Awaited<ReturnType<typeof seed>>, writer: Db = db,
     producer: "control_plane" | "coordinator" = "control_plane") {
-    const port = producer === "control_plane" ? new PaperclipControlPlanePort(writer, binding)
+    const port = producer === "control_plane" ? new OutpostControlPlanePort(writer, binding)
       : new NativeRunCoordinatorStore(writer, { ...binding, normalizedSessionId: binding.sessionId,
         runnerSourceInstanceId: binding.sourceInstanceId,
         completionContractRevision: CONTROL_PLANE_CONFORMANCE_RESULT.completionClaim.contractRevision,
@@ -125,7 +125,7 @@ describe("workspace finalization scheduled lifecycle", () => {
         return { kind: "inactive" } as const;
       });
       const service = nativeWorkspaceFinalizationWork(db, { attempt, onWorkspaceSettled: settled });
-      const entries = await service.load({ companyId, runId: binding.runId });
+      const entries = await service.load({ spaceId, runId: binding.runId });
       expect(entries).toHaveLength(1);
       await expect(service.check(entries[0])).resolves.toBeNull();
       expect(attempt).toHaveBeenCalledOnce();
@@ -163,7 +163,7 @@ describe("workspace finalization scheduled lifecycle", () => {
     worker!.stop(); await coordinator!.stop(); await start(); await flush(); await quiet();
     expect(await successful(binding.runId)).toHaveLength(1);
   });
-  it("ignores routine company-only finalization hints and still wakes on accepted work", async () => {
+  it("ignores routine space-only finalization hints and still wakes on accepted work", async () => {
     await start(); await flush(); await quiet();
     const previous = db.$client.options.debug;
     const queries: string[] = [];
@@ -172,7 +172,7 @@ describe("workspace finalization scheduled lifecycle", () => {
     };
     try {
       for (let index = 0; index < 3; index += 1) {
-        await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, { companyId }); });
+        await db.transaction(async tx => { await notifyNativeFinalizationWork(tx, { spaceId }); });
         await flush();
       }
       expect(queries).toEqual([]);
@@ -185,9 +185,9 @@ describe("workspace finalization scheduled lifecycle", () => {
 
   it("lets result reconciliation use a successful barrier despite a later stale failure", async () => {
     const binding = await seed(); await complete(binding);
-    await db.insert(workspaceOperations).values({ companyId, heartbeatRunId: binding.runId, issueId: binding.issueId,
+    await db.insert(workspaceOperations).values({ spaceId, heartbeatRunId: binding.runId, issueId: binding.issueId,
       phase: "workspace_finalize", status: "succeeded", cwd: root });
-    await db.insert(workspaceOperations).values({ companyId, heartbeatRunId: binding.runId, issueId: binding.issueId,
+    await db.insert(workspaceOperations).values({ spaceId, heartbeatRunId: binding.runId, issueId: binding.issueId,
       phase: "workspace_finalize", status: "failed", cwd: root, createdAt: new Date(Date.now() + 1000) });
     await start(); await flush(); await quiet();
     await reconcileNativeFinalizations(db, [binding.runId], { skipNativeWorkspaceFinalization: true });
@@ -313,7 +313,7 @@ describe("workspace finalization scheduled lifecycle", () => {
       .where(eq(nativeRunFinalizations.runId, overdue.runId));
     // A copy-back interrupted by a later restart has no saved retry deadline.
     const interrupted = await seed(); await complete(interrupted);
-    const entries = await nativeWorkspaceFinalizationWork(db, { onWorkspaceSettled: settled }).load({ companyId });
+    const entries = await nativeWorkspaceFinalizationWork(db, { onWorkspaceSettled: settled }).load({ spaceId });
     const pending = entries.find(item => item.id === interrupted.runId)!;
     expect(pending.dueAt).toBeGreaterThan(failedAt.getTime());
     expect(pending.dueAt).toBeLessThanOrEqual(Date.now());
@@ -322,7 +322,7 @@ describe("workspace finalization scheduled lifecycle", () => {
   });
   it("waits quietly for the actual local owner to release", async () => {
     const binding = await seed(); await complete(binding);
-    await withNativeWorkspaceFinalizationOwnership({ db, companyId, runId: binding.runId }, async () => {
+    await withNativeWorkspaceFinalizationOwnership({ db, spaceId, runId: binding.runId }, async () => {
       await start(); await flush(); await quiet();
       expect(await successful(binding.runId)).toHaveLength(0);
     });
@@ -374,7 +374,7 @@ describe("workspace finalization scheduled lifecycle", () => {
     const owner = { token: randomUUID(), hostname: "another-controller", pid: 1234, processStartedAt: new Date().toISOString(), worker: deployment };
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceFinalizationOwner: owner } }).where(eq(heartbeatRuns.id, binding.runId));
     const probe = vi.spyOn(platformProof, "requestWorkspaceWorkerStopProof").mockResolvedValueOnce({ status: "pending" })
-      .mockResolvedValue({ status: "verified", proof: { v: 1, iss: "paperclip-cloud", aud: "paperclip-workspace-worker-stop/v1",
+      .mockResolvedValue({ status: "verified", proof: { v: 1, iss: "outpost-cloud", aud: "outpost-workspace-worker-stop/v1",
         sub: "stack", runId: binding.runId, ownerToken: owner.token, worker: deployment, stopped: true, iat: 1, exp: 61 } });
     await start();
     expect(probe).toHaveBeenCalledOnce();
@@ -392,7 +392,7 @@ describe("workspace finalization scheduled lifecycle", () => {
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceFinalizationOwner: owner } }).where(eq(heartbeatRuns.id, binding.runId));
     await db.update(issues).set({ status: "done" }).where(eq(issues.id, binding.issueId));
     const probe = vi.spyOn(platformProof, "requestWorkspaceWorkerStopProof").mockResolvedValue({ status: "verified", proof: {
-      v: 1, iss: "paperclip-cloud", aud: "paperclip-workspace-worker-stop/v1", sub: "stack", runId: binding.runId,
+      v: 1, iss: "outpost-cloud", aud: "outpost-workspace-worker-stop/v1", sub: "stack", runId: binding.runId,
       ownerToken: owner.token, worker: deployment, stopped: true, iat: 1, exp: 61,
     } });
     await start(); await flush(); await quiet();
@@ -422,7 +422,7 @@ describe("workspace finalization scheduled lifecycle", () => {
     const timeout = "remote_workspace_operation_timed_out: capture (configured timeout 300000ms)";
     const causes = [cause, "remote_workspace_operation_failed: /home/SYNTHETIC/private", timeout];
     const attempt = vi.fn(async (input: Parameters<typeof attemptNativeWorkspaceFinalization>[0]) => {
-      const [operation] = await db.insert(workspaceOperations).values({ companyId, issueId: binding.issueId,
+      const [operation] = await db.insert(workspaceOperations).values({ spaceId, issueId: binding.issueId,
         heartbeatRunId: input.runId, phase: "workspace_finalize", status: "failed", exitCode: 1,
         stderrExcerpt: "workspace_sync_out_failed\n",
         metadata: { workspaceSync: { code: "workspace_sync_out_failed", cause: causes[attempt.mock.calls.length - 1] } } }).returning();
@@ -430,7 +430,7 @@ describe("workspace finalization scheduled lifecycle", () => {
     });
     const service = nativeWorkspaceFinalizationWork(db, { attempt, onWorkspaceSettled: settled });
     for (let index = 0; index < 3; index++) {
-      const [entry] = await service.load({ companyId, runId: binding.runId });
+      const [entry] = await service.load({ spaceId, runId: binding.runId });
       if (!entry) break;
       await vi.advanceTimersByTimeAsync(Math.max(0, entry.dueAt - Date.now()));
       await service.check(entry);

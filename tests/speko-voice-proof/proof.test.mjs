@@ -114,7 +114,7 @@ test("HTTP surface only accepts JSON on the signed tool route", async (t) => {
   await once(server, "listening");
   const base = `http://127.0.0.1:${server.address().port}`;
   assert.equal((await fetch(`${base}/health`)).status, 200);
-  assert.equal((await fetch(`${base}/api/companies`)).status, 404);
+  assert.equal((await fetch(`${base}/api/spaces`)).status, 404);
   assert.equal((await fetch(`${base}${TOOL_PATH}`, { method: "POST", body: "{}" })).status, 415);
   const signed = request("submit_request", { text: "start" });
   const response = await fetch(`${base}${TOOL_PATH}`, { method: "POST", headers: { ...signed.headers, "content-type": "application/json" }, body: signed.body });

@@ -46,24 +46,24 @@ export function renderNativeSessionHandoff(input: {
   return render();
 }
 
-/** All reads are company/task scoped, row bounded and text bounded in SQL. */
+/** All reads are space/task scoped, row bounded and text bounded in SQL. */
 export async function buildNativeSessionHandoff(input: {
-  db: Db; companyId: string; issueId: string; agentId: string; before: Date;
+  db: Db; spaceId: string; issueId: string; agentId: string; before: Date;
   throughCommentId?: string | null;
 }): Promise<string | null> {
-  const { db, companyId, issueId, agentId } = input;
+  const { db, spaceId, issueId, agentId } = input;
   const [issue] = await db.select({
-    id: issues.id, companyId: issues.companyId, projectId: issues.projectId,
+    id: issues.id, spaceId: issues.spaceId, projectId: issues.projectId,
     executionPolicy: issues.executionPolicy, conversationAgentId: issues.conversationAgentId,
     generation: issues.conversationSessionGeneration, boundaryId: issues.conversationBoundaryCommentId,
-  }).from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, companyId), eq(issues.assigneeAgentId, agentId))).limit(1);
+  }).from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, spaceId), eq(issues.assigneeAgentId, agentId))).limit(1);
   if (!issue || (issue.conversationAgentId && issue.conversationAgentId !== agentId)) return null;
   const [boundary] = issue.boundaryId ? await db.select({ id: issueComments.id, createdAt: issueComments.createdAt })
-    .from(issueComments).where(and(eq(issueComments.id, issue.boundaryId), eq(issueComments.companyId, companyId), eq(issueComments.issueId, issueId))).limit(1) : [];
+    .from(issueComments).where(and(eq(issueComments.id, issue.boundaryId), eq(issueComments.spaceId, spaceId), eq(issueComments.issueId, issueId))).limit(1) : [];
   // An invalid reset boundary must never expose the earlier conversation.
   if (issue.boundaryId && !boundary) return null;
   const [cutoff] = input.throughCommentId ? await db.select({ id: issueComments.id, createdAt: issueComments.createdAt })
-    .from(issueComments).where(and(eq(issueComments.id, input.throughCommentId), eq(issueComments.companyId, companyId), eq(issueComments.issueId, issueId))).limit(1) : [];
+    .from(issueComments).where(and(eq(issueComments.id, input.throughCommentId), eq(issueComments.spaceId, spaceId), eq(issueComments.issueId, issueId))).limit(1) : [];
   if (input.throughCommentId && !cutoff) return null;
   const afterBoundary = (date: typeof issueComments.createdAt | typeof issueThreadInteractions.createdAt | typeof heartbeatRuns.createdAt | typeof issueDocuments.createdAt) =>
     boundary ? sql`${date} > ${boundary.createdAt.toISOString()}::timestamptz` : undefined;
@@ -75,7 +75,7 @@ export async function buildNativeSessionHandoff(input: {
     authorAgentId: issueComments.authorAgentId, sourceTrust: issueComments.sourceTrust,
     createdAt: issueComments.createdAt, origin: issueComments.origin,
   };
-  const commentScope = and(eq(issueComments.companyId, companyId), eq(issueComments.issueId, issueId), isNull(issueComments.deletedAt),
+  const commentScope = and(eq(issueComments.spaceId, spaceId), eq(issueComments.issueId, issueId), isNull(issueComments.deletedAt),
     lte(issueComments.createdAt, input.before),
     boundary ? sql`(${issueComments.createdAt}, ${issueComments.id}) > (${boundary.createdAt.toISOString()}::timestamptz, ${boundary.id}::uuid)` : undefined,
     cutoff ? sql`(${issueComments.createdAt}, ${issueComments.id}) <= (${cutoff.createdAt.toISOString()}::timestamptz, ${cutoff.id}::uuid)` : undefined);
@@ -95,7 +95,7 @@ export async function buildNativeSessionHandoff(input: {
       title: sql<string>`left(coalesce(${issueThreadInteractions.title}, ''), 256)`,
       body: excerpt(sql`coalesce(${issueThreadInteractions.result}->>'summaryMarkdown', ${issueThreadInteractions.summary}, '')`),
       truncated: sql<boolean>`length(coalesce(${issueThreadInteractions.result}->>'summaryMarkdown', ${issueThreadInteractions.summary}, '')) > ${ENTRY_MAX_CHARS}`,
-    }).from(issueThreadInteractions).where(and(eq(issueThreadInteractions.companyId, companyId), eq(issueThreadInteractions.issueId, issueId),
+    }).from(issueThreadInteractions).where(and(eq(issueThreadInteractions.spaceId, spaceId), eq(issueThreadInteractions.issueId, issueId),
       eq(issueThreadInteractions.createdByAgentId, agentId), sql`${issueThreadInteractions.status} <> 'pending'`,
       sql`${issueThreadInteractions.kind} in ('ask_user_questions', 'request_confirmation', 'request_checkbox_confirmation', 'connection_intent')`,
       sql`not (${issueThreadInteractions.payload} ?| array['toolAction', 'secretProposal', 'connectionAuthorization'])`,
@@ -106,8 +106,8 @@ export async function buildNativeSessionHandoff(input: {
       executionPolicy: sql<unknown>`${heartbeatRuns.contextSnapshot}->'executionPolicy'`,
       body: excerpt(sql`${heartbeatRunEvents.payload} #>> '{orpEvent,payload,text}'`),
       truncated: sql<boolean>`length(${heartbeatRunEvents.payload} #>> '{orpEvent,payload,text}') > ${ENTRY_MAX_CHARS}`,
-    }).from(heartbeatRunEvents).innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, heartbeatRunEvents.runId), eq(heartbeatRuns.companyId, companyId)))
-      .where(and(eq(heartbeatRunEvents.companyId, companyId), eq(heartbeatRunEvents.agentId, agentId), eq(heartbeatRuns.agentId, agentId),
+    }).from(heartbeatRunEvents).innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, heartbeatRunEvents.runId), eq(heartbeatRuns.spaceId, spaceId)))
+      .where(and(eq(heartbeatRunEvents.spaceId, spaceId), eq(heartbeatRunEvents.agentId, agentId), eq(heartbeatRuns.agentId, agentId),
         runIssueScope, eq(heartbeatRunEvents.eventType, "item.completed"),
         sql`${heartbeatRunEvents.payload} #>> '{orpEvent,payload,kind}' = 'agentMessage'`, sql`${heartbeatRunEvents.payload} #>> '{orpEvent,payload,channel}' = 'final'`,
         sql`nullif(${heartbeatRunEvents.payload} #>> '{orpEvent,payload,text}', '') is not null`,
@@ -123,15 +123,15 @@ export async function buildNativeSessionHandoff(input: {
         else ${excerpt(sql`${documents.latestBody}`)} end`,
       truncated: sql<boolean>`case when ${issueDocuments.key} = 'workflow' then false
         else length(${documents.latestBody}) > ${ENTRY_MAX_CHARS} end`, sourceTrust: documents.sourceTrust,
-    }).from(issueDocuments).innerJoin(documents, and(eq(documents.id, issueDocuments.documentId), eq(documents.companyId, companyId)))
-      .where(and(eq(issueDocuments.companyId, companyId), eq(issueDocuments.issueId, issueId), lte(documents.updatedAt, input.before), afterBoundary(issueDocuments.createdAt),
+    }).from(issueDocuments).innerJoin(documents, and(eq(documents.id, issueDocuments.documentId), eq(documents.spaceId, spaceId)))
+      .where(and(eq(issueDocuments.spaceId, spaceId), eq(issueDocuments.issueId, issueId), lte(documents.updatedAt, input.before), afterBoundary(issueDocuments.createdAt),
         cutoff ? lte(documents.updatedAt, cutoff.createdAt) : undefined))
       .orderBy(sql`case when ${issueDocuments.key} = 'plan' then 0 else 1 end`, desc(documents.updatedAt)).limit(4),
     db.select({ id: heartbeatRuns.id, status: heartbeatRuns.status,
       executionPolicy: sql<unknown>`${heartbeatRuns.contextSnapshot}->'executionPolicy'`,
       body: excerpt(runSummaryBody),
       truncated: sql<boolean>`length(${runSummaryBody}) > ${ENTRY_MAX_CHARS}`,
-    }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, agentId), runIssueScope,
+    }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, agentId), runIssueScope,
       lte(heartbeatRuns.finishedAt, input.before), afterBoundary(heartbeatRuns.createdAt),
       issue.conversationAgentId ? sql`${heartbeatRuns.contextSnapshot}->>'conversationSessionGeneration' = ${String(issue.generation)}` : undefined,
       cutoff ? and(lte(heartbeatRuns.createdAt, cutoff.createdAt), lte(heartbeatRuns.finishedAt, cutoff.createdAt)) : undefined,
@@ -141,14 +141,14 @@ export async function buildNativeSessionHandoff(input: {
   // Historical output inherits its dispatch policy. Later agent/project/task
   // edits cannot promote it. Invalid retained policy also stays quarantined.
   const historicalTrust = (runId: string, executionPolicy: unknown) => {
-    const trust = resolveCoreTrustPreset({ companyId, run: { companyId, executionPolicy } });
+    const trust = resolveCoreTrustPreset({ spaceId, run: { spaceId, executionPolicy } });
     return trust.kind === "standard" ? null : buildLowTrustSourceTrust({ issueId, agentId, runId });
   };
   const addComment = (row: typeof recent[number], kind: string) => {
     if (entries.some(entry => entry.id === row.id)) return;
     const safe = sanitizeQuarantinedCommentForHigherTrust(row);
     entries.push({ ...safe, body: fastResponseHistoryBody(safe), kind,
-      author: row.origin === "fast_response" ? "paperclip_receipt" : row.authorAgentId ? "agent" : "user" });
+      author: row.origin === "fast_response" ? "outpost_receipt" : row.authorAgentId ? "agent" : "user" });
   };
   if (origin[0]) addComment(origin[0], "original_request");
   recent.slice(0, LIMIT).forEach(row => addComment(row, "message"));
@@ -176,6 +176,6 @@ export async function buildNativeSessionHandoff(input: {
     entries.find(entry => entry.kind === "resolved_interaction"), entries.find(entry => entry.kind === "document"), entries.find(entry => entry.kind === "run_summary"), entries.find(entry => entry.kind === "agent_reply")]
     .filter((entry): entry is HandoffEntry => entry !== undefined);
   const prioritized = [...new Set([...priority, ...entries])];
-  const redacted = await createRunSecretRedactionRegistry(db).redactForIssue(companyId, issueId, prioritized);
+  const redacted = await createRunSecretRedactionRegistry(db).redactForIssue(spaceId, issueId, prioritized);
   return renderNativeSessionHandoff({ issueId, generation: issue.conversationAgentId ? issue.generation : null, entries: redacted, omittedEntriesAtLeast });
 }

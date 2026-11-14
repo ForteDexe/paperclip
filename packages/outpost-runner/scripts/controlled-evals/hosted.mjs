@@ -52,7 +52,7 @@ export function prepareHostedManifest({ catalog, catalogSha256, prepared, defaul
   if (prepared.schema !== 'outpost.runner-eval.prepared-requests/v1' || prepared.githubRunId !== runId || prepared.githubRunAttempt !== 1
       || prepared.campaignId !== `gha-${runId}-1` || prepared.catalogSha256 !== catalogSha256
       || catalog.schema !== 'outpost.runner-protocol-eval.catalog/v1' || catalog.campaignId !== prepared.campaignId
-      || prepared.sourceRevision !== environment.GITHUB_SHA || prepared.sourceRevision !== environment.OUTPOST_PROTOCOL_EVAL_SOURCE_SHA || prepared.sourceRevision !== catalog.source?.paperclipSha
+      || prepared.sourceRevision !== environment.GITHUB_SHA || prepared.sourceRevision !== environment.OUTPOST_PROTOCOL_EVAL_SOURCE_SHA || prepared.sourceRevision !== catalog.source?.outpostSha
       || prepared.definitionsRevision !== environment.OUTPOST_PROTOCOL_EVALS_SHA || prepared.definitionsRevision !== catalog.source?.evalsSha
       || !Array.isArray(prepared.cells) || !prepared.cells.length || prepared.cells.length > policy.maxCells
       || !Array.isArray(catalog.cells) || catalog.cells.length !== prepared.cells.length

@@ -1,8 +1,8 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { companies, heartbeatRuns, issueComments, issueThreadInteractions, issues, type Db } from "@outpost/db";
+import { spaces, heartbeatRuns, issueComments, issueThreadInteractions, issues, type Db } from "@outpost/db";
 import {
   normalizeIssueThreadInteractionResolverPolicy, resolveConfirmationFromCommentSchema,
-  type InteractionResolverGovernance, type IssueThreadInteractionKind, type ResolveConfirmationFromComment,
+  type InteractionResolverPolicy, type IssueThreadInteractionKind, type ResolveConfirmationFromComment,
 } from "@outpost/shared";
 import { assertAgentRunWriteAllowed } from "../agent-run-cancellation.js";
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
@@ -17,11 +17,11 @@ type ResolutionActor = Parameters<ReturnType<typeof issueThreadInteractionServic
  * The message is provenance, not a credential or server-verified proof of consent.
  * Never promote its author to the resolver. One narrow relay exists: a card the
  * agent itself requested as human_only may record the latest reply of the user
- * this run or conversation serves. Company caps, governed actions, quality and
+ * this run or conversation serves. Space caps, controlled actions, quality and
  * independent-review gates still reject this agent, even when the text says yes.
  */
 export async function resolveConfirmationFromComment(db: Db, args: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   interactionId: string;
   input: ResolveConfirmationFromComment;
@@ -34,12 +34,12 @@ export async function resolveConfirmationFromComment(db: Db, args: {
     const tx = transaction as unknown as Db;
     // Match task mutation/Stop/reset lock ordering, including replay checks.
     const [issue] = await tx.select().from(issues).where(and(
-      eq(issues.id, args.issueId), eq(issues.companyId, args.companyId),
+      eq(issues.id, args.issueId), eq(issues.spaceId, args.spaceId),
     )).for("update");
     if (!issue) throw notFound("Issue not found");
-    await assertAgentRunWriteAllowed(tx, args.companyId, args.actor);
+    await assertAgentRunWriteAllowed(tx, args.spaceId, args.actor);
     const [run] = await tx.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, args.actor.runId), eq(heartbeatRuns.companyId, args.companyId),
+      eq(heartbeatRuns.id, args.actor.runId), eq(heartbeatRuns.spaceId, args.spaceId),
       eq(heartbeatRuns.agentId, args.actor.agentId),
     )).for("share");
     if (!run || run.status !== "running" || issue.executionRunId !== run.id
@@ -48,7 +48,7 @@ export async function resolveConfirmationFromComment(db: Db, args: {
       throw forbidden("Only the active responding run can record a conversational decision");
     }
     const [card] = await tx.select().from(issueThreadInteractions).where(and(
-      eq(issueThreadInteractions.id, args.interactionId), eq(issueThreadInteractions.companyId, args.companyId),
+      eq(issueThreadInteractions.id, args.interactionId), eq(issueThreadInteractions.spaceId, args.spaceId),
       eq(issueThreadInteractions.issueId, issue.id),
     )).for("update");
     if (!card) throw notFound("Interaction not found");
@@ -57,10 +57,10 @@ export async function resolveConfirmationFromComment(db: Db, args: {
     }
     const payload = card.payload as unknown as Record<string, unknown>;
     if (payload.toolAction || payload.secretProposal || payload.connectionAuthorization) {
-      throw forbidden("Governed actions must use their dedicated approval controls");
+      throw forbidden("Controlled actions must use their dedicated approval controls");
     }
     const [comment] = await tx.select().from(issueComments).where(and(
-      eq(issueComments.id, input.commentId), eq(issueComments.companyId, args.companyId),
+      eq(issueComments.id, input.commentId), eq(issueComments.spaceId, args.spaceId),
       eq(issueComments.issueId, issue.id),
     )).for("share");
     if (!comment || comment.deletedAt || comment.authorType !== "user"
@@ -79,7 +79,7 @@ export async function resolveConfirmationFromComment(db: Db, args: {
       }
       if (issue.conversationBoundaryCommentId) {
         const [boundary] = await tx.select().from(issueComments).where(and(
-          eq(issueComments.id, issue.conversationBoundaryCommentId), eq(issueComments.companyId, args.companyId),
+          eq(issueComments.id, issue.conversationBoundaryCommentId), eq(issueComments.spaceId, args.spaceId),
           eq(issueComments.issueId, issue.id),
         ));
         if (!boundary || card.createdAt <= boundary.createdAt || comment.createdAt <= boundary.createdAt) {
@@ -88,7 +88,7 @@ export async function resolveConfirmationFromComment(db: Db, args: {
       }
     }
     const [latest] = await tx.select({ id: issueComments.id }).from(issueComments).where(and(
-      eq(issueComments.companyId, args.companyId), eq(issueComments.issueId, issue.id),
+      eq(issueComments.spaceId, args.spaceId), eq(issueComments.issueId, issue.id),
       eq(issueComments.authorType, "user"), isNull(issueComments.deletedAt),
     )).orderBy(desc(issueComments.createdAt), desc(issueComments.id)).limit(1);
     if (latest?.id !== comment.id) throw conflict("A newer user message must be considered before resolving this confirmation");
@@ -98,16 +98,16 @@ export async function resolveConfirmationFromComment(db: Db, args: {
     // A human-only card the agent created for itself may record the bound
     // user's verified decision. Quality reviews keep their on-card decision,
     // and the reply must come from the user this run or conversation serves.
-    // A current company cap of human_only also keeps the card on-card, even
+    // A current space cap of human_only also keeps the card on-card, even
     // when it tied with the agent's request and so did not become its source.
     const boundUserId = card.addresseeUserId ?? issue.conversationUserId ?? run.responsibleUserId ?? null;
-    const [company] = card.effectiveResolverPolicy === "human_only"
-      ? await tx.select({ governance: companies.interactionResolverGovernance }).from(companies)
-        .where(eq(companies.id, args.companyId))
+    const [space] = card.effectiveResolverPolicy === "human_only"
+      ? await tx.select({ policy: spaces.interactionResolverPolicy }).from(spaces)
+        .where(eq(spaces.id, args.spaceId))
       : [];
-    const cap = (company?.governance as InteractionResolverGovernance | null | undefined)?.[card.kind as IssueThreadInteractionKind]?.cap;
-    const companyRequiresHuman = cap !== undefined && normalizeIssueThreadInteractionResolverPolicy(cap) === "human_only";
-    const relayedHumanUserId = card.effectiveResolverPolicy === "human_only" && !payload.qualityReview && !companyRequiresHuman
+    const cap = (space?.policy as InteractionResolverPolicy | null | undefined)?.[card.kind as IssueThreadInteractionKind]?.cap;
+    const spaceRequiresHuman = cap !== undefined && normalizeIssueThreadInteractionResolverPolicy(cap) === "human_only";
+    const relayedHumanUserId = card.effectiveResolverPolicy === "human_only" && !payload.qualityReview && !spaceRequiresHuman
       && boundUserId !== null && comment.authorUserId === boundUserId ? comment.authorUserId : null;
     const actor = { ...args.actor, relayedHumanUserId };
     assertIssueThreadInteractionResolverAudience({
@@ -132,7 +132,7 @@ export async function resolveConfirmationFromComment(db: Db, args: {
       return { interaction: current, deduplicated: true };
     }
 
-    // These service methods recheck resolver audience, company review policy,
+    // These service methods recheck resolver audience, space review policy,
     // target revision, selection bounds and issue lifecycle under the same lock.
     const mutationOptions = { deferConfirmationCommitEffects: (effect: (committedDb: Db) => Promise<void>) => { commitEffects.push(effect); } };
     const interaction = input.decision === "accept"
@@ -143,9 +143,9 @@ export async function resolveConfirmationFromComment(db: Db, args: {
     }
     await tx.update(issueThreadInteractions).set({
       result: { ...interaction.result, commentId: comment.id },
-    }).where(and(eq(issueThreadInteractions.id, card.id), eq(issueThreadInteractions.companyId, args.companyId)));
+    }).where(and(eq(issueThreadInteractions.id, card.id), eq(issueThreadInteractions.spaceId, args.spaceId)));
     publication = (await persistActivity(tx, {
-      companyId: args.companyId, actorType: "agent", actorId: args.actor.agentId,
+      spaceId: args.spaceId, actorType: "agent", actorId: args.actor.agentId,
       agentId: args.actor.agentId, runId: args.actor.runId,
       action: `issue.thread_interaction_${expected}`, entityType: "issue", entityId: issue.id,
       details: { interactionId: card.id, interactionKind: card.kind, interactionStatus: expected,

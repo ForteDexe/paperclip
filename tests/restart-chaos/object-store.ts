@@ -9,7 +9,7 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 export const MINIO_RELEASE = "RELEASE.2025-04-22T22-12-26Z";
-export const DEFAULT_MINIO_BINARY = path.join(os.homedir(), ".cache", "paperclip", "tools", "minio", "minio");
+export const DEFAULT_MINIO_BINARY = path.join(os.homedir(), ".cache", "outpost", "tools", "minio", "minio");
 
 export function minioBinary(environment: NodeJS.ProcessEnv = process.env): string | null {
   const candidate = environment.RESTART_CHAOS_MINIO_BIN || DEFAULT_MINIO_BINARY;

@@ -38,7 +38,7 @@ import { issueThreadInteractionService } from "../../issue-thread-interactions.j
 
 type InteractionContinuationsOptions = {
   heartbeat: IssueAssignmentWakeupDeps;
-  preparePublications: (scope: { companyId: string; endpointId: string; conversationId: string }, canContinue: () => boolean) => Promise<unknown>;
+  preparePublications: (scope: { spaceId: string; endpointId: string; conversationId: string }, canContinue: () => boolean) => Promise<unknown>;
   redactError: (error: unknown) => string;
   CONFIRMATION_WAKEUP_RETRY_BACKOFF_MS: number;
 };
@@ -102,13 +102,13 @@ export function createChatInteractionContinuations(db: Db, options: InteractionC
     let processed = 0;
     for (const candidate of candidates) {
       if (preparePublications && candidate.conversationId) {
-        await options.preparePublications({ companyId: candidate.companyId,
+        await options.preparePublications({ spaceId: candidate.spaceId,
           endpointId: candidate.endpointId, conversationId: candidate.conversationId }, canContinue);
       }
       if (!canContinue()) break;
       const writeAction = <T>(write: (tx: Parameters<Parameters<Db["transaction"]>[0]>[0]) => PromiseLike<T>) =>
         db.transaction(async tx => {
-          await notifyChatContinuationWork(tx, { companyId: candidate.companyId, actionId: candidate.id });
+          await notifyChatContinuationWork(tx, { spaceId: candidate.spaceId, actionId: candidate.id });
           return write(tx);
         });
       const [claimed] = await writeAction(tx => tx
@@ -184,7 +184,7 @@ export function createChatInteractionContinuations(db: Db, options: InteractionC
         .from(issues)
         .where(
           and(
-            eq(issues.companyId, claimed.companyId),
+            eq(issues.spaceId, claimed.spaceId),
             eq(issues.id, payload.issueId),
           ),
         )
@@ -199,7 +199,7 @@ export function createChatInteractionContinuations(db: Db, options: InteractionC
       if (
         !currentIssue ||
         !currentInteraction ||
-        currentInteraction.companyId !== claimed.companyId ||
+        currentInteraction.spaceId !== claimed.spaceId ||
         currentInteraction.kind !== payload.interactionKind ||
         currentInteraction.status !== payload.interactionStatus ||
         currentIssue.assigneeAgentId !== payload.agentId ||
@@ -263,13 +263,13 @@ export function createChatInteractionContinuations(db: Db, options: InteractionC
               .innerJoin(
                 chatMessageLinks,
                 and(
-                  eq(chatMessageLinks.companyId, chatEndpoints.companyId),
+                  eq(chatMessageLinks.spaceId, chatEndpoints.spaceId),
                   eq(chatMessageLinks.endpointId, chatEndpoints.id),
                 ),
               )
               .where(
                 and(
-                  eq(chatEndpoints.companyId, claimed.companyId),
+                  eq(chatEndpoints.spaceId, claimed.spaceId),
                   eq(chatEndpoints.id, claimed.endpointId),
                   eq(chatMessageLinks.conversationId, claimed.conversationId),
                   eq(chatMessageLinks.direction, "inbound"),
@@ -292,7 +292,7 @@ export function createChatInteractionContinuations(db: Db, options: InteractionC
           .from(agentWakeupRequests)
           .where(
             and(
-              eq(agentWakeupRequests.companyId, claimed.companyId),
+              eq(agentWakeupRequests.spaceId, claimed.spaceId),
               eq(agentWakeupRequests.idempotencyKey, idempotencyKey),
               notInArray(agentWakeupRequests.status, [
                 "skipped",
@@ -374,7 +374,7 @@ export function createChatInteractionContinuations(db: Db, options: InteractionC
             .from(agentWakeupRequests)
             .where(
               and(
-                eq(agentWakeupRequests.companyId, claimed.companyId),
+                eq(agentWakeupRequests.spaceId, claimed.spaceId),
                 eq(agentWakeupRequests.idempotencyKey, idempotencyKey),
                 notInArray(agentWakeupRequests.status, [
                   "skipped",
@@ -431,7 +431,7 @@ export function createChatInteractionContinuations(db: Db, options: InteractionC
               .from(agentWakeupRequests)
               .where(
                 and(
-                  eq(agentWakeupRequests.companyId, claimed.companyId),
+                  eq(agentWakeupRequests.spaceId, claimed.spaceId),
                   eq(agentWakeupRequests.idempotencyKey, idempotencyKey),
                   notInArray(agentWakeupRequests.status, [
                     "skipped",
@@ -493,15 +493,15 @@ export function createChatInteractionContinuations(db: Db, options: InteractionC
     coordinator: ReturnType<typeof createDeliveryWorkCoordinator>,
     canRun: () => boolean,
   ) {
-    type Entry = { id: string; companyId: string; issueId: string | null; dueAt: number };
+    type Entry = { id: string; spaceId: string; issueId: string | null; dueAt: number };
     const selection = {
-      id: chatActions.id, companyId: chatActions.companyId,
+      id: chatActions.id, spaceId: chatActions.spaceId,
       issueId: sql<string | null>`${chatActions.payload}->>'issueId'`,
       status: chatActions.status, result: chatActions.result, updatedAt: chatActions.updatedAt,
     };
-    const entry = (row: { id: string; companyId: string; issueId: string | null; status: string;
+    const entry = (row: { id: string; spaceId: string; issueId: string | null; status: string;
       result: unknown; updatedAt: Date }): Entry => ({
-      id: row.id, companyId: row.companyId, issueId: row.issueId,
+      id: row.id, spaceId: row.spaceId, issueId: row.issueId,
       dueAt: row.status === "processing" ? row.updatedAt.getTime() + 30_000
         : row.result === null ? 0 : row.updatedAt.getTime() + CONFIRMATION_WAKEUP_RETRY_BACKOFF_MS,
     });
@@ -509,19 +509,19 @@ export function createChatInteractionContinuations(db: Db, options: InteractionC
       queue: DELIVERY_QUEUES.chatInteractionContinuations,
       decodeScope: (hint: string): ChatContinuationScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
       matches: (value: Entry, scope?: ChatContinuationScope) => !scope ||
-        (value.companyId === scope.companyId && (!scope.actionId || value.id === scope.actionId) &&
+        (value.spaceId === scope.spaceId && (!scope.actionId || value.id === scope.actionId) &&
           (!scope.issueId || value.issueId === scope.issueId)),
       load: async (scope?: ChatContinuationScope, signal?: AbortSignal): Promise<Entry[]> => {
         const entries: Entry[] = [];
-        let cursor: { companyId: string; id: string } | undefined;
+        let cursor: { spaceId: string; id: string } | undefined;
         while (!signal?.aborted) {
           const rows = await db.select(selection).from(chatActions).where(and(
             sql`${chatActions.kind} = 'interaction_wakeup' AND ${chatActions.status} IN ('issued', 'processing')`,
-            scope ? eq(chatActions.companyId, scope.companyId) : undefined,
+            scope ? eq(chatActions.spaceId, scope.spaceId) : undefined,
             scope?.actionId ? eq(chatActions.id, scope.actionId) : undefined,
             scope?.issueId ? eq(sql<string>`${chatActions.payload}->>'issueId'`, scope.issueId) : undefined,
-            cursor ? sql`(${chatActions.companyId}, ${chatActions.id}) > (${cursor.companyId}, ${cursor.id})` : undefined,
-          )).orderBy(asc(chatActions.companyId), asc(chatActions.id)).limit(100);
+            cursor ? sql`(${chatActions.spaceId}, ${chatActions.id}) > (${cursor.spaceId}, ${cursor.id})` : undefined,
+          )).orderBy(asc(chatActions.spaceId), asc(chatActions.id)).limit(100);
           entries.push(...rows.map(entry));
           if (rows.length < 100) return entries;
           cursor = rows[rows.length - 1];

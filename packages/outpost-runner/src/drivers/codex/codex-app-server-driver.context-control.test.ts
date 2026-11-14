@@ -132,7 +132,7 @@ describe("Codex app-server Codex driver", () => {
       },
       permissions: "outpost-runner-workspace-only",
       runtimeWorkspaceRoots: [WORKSPACE],
-      dynamicTools: [{ name: "paperclip_finish" }, { name: "paperclip_block" }],
+      dynamicTools: [{ name: "outpost_finish" }, { name: "outpost_block" }],
     });
     const commandPolicy = transport.calls.find(
       (call) => call.method === "thread/start",

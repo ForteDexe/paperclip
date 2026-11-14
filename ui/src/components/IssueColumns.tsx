@@ -41,8 +41,8 @@ const issueColumnLabels: Record<InboxIssueColumn, string> = {
 const issueColumnDescriptions: Record<InboxIssueColumn, string> = {
   status: "Task state chip on the left edge.",
   id: "Ticket identifier like PAP-1009.",
-  assignee: "Responsible agent or board user.",
-  kickedOffBy: "Board user or agent who created the task.",
+  assignee: "Responsible agent or operator user.",
+  kickedOffBy: "Operator user or agent who created the task.",
   project: "Linked project pill with its color.",
   workspace: "Execution or project workspace used for the task.",
   parent: "Parent task identifier and title.",

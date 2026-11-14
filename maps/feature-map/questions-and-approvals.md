@@ -24,7 +24,7 @@ Agent access: [companion](../agent-access-map/questions-and-approvals.md).
 - `plan-review`: `questions-and-approvals/plan-review` — inspect the requested plan revision before accepting or asking
   for changes. An ordinary planning task can proceed to execution; Agent Chat
   hands work to linked tasks and remains a conversation.
-- `audience`: `questions-and-approvals/audience` — the current actor, company, named audience, and review policy govern
+- `audience`: `questions-and-approvals/audience` — the current actor, space, named audience, and review policy govern
   resolution. A visible request is not necessarily actionable by that viewer.
 - `governance`: `questions-and-approvals/governance` — pending/history views, approve/reject, revision request, and
   resubmission for formal board approvals.
@@ -69,12 +69,12 @@ Use **Approve & run**, **Always allow**, or **Decline** on the surface under tes
 ### `skill-test`
 
 Open Skill Studio, run a skill test that produces an interaction, and inspect
-its output card. Skill-test authority is narrower than an ordinary company run.
+its output card. Skill-test authority is narrower than an ordinary space run.
 
 ### `external-channel`
 
 In a configured chat channel, answer a published question or confirmation as a
-linked sender. Open the associated Paperclip task to inspect the saved outcome.
+linked sender. Open the associated Outpost task to inspect the saved outcome.
 Channel-specific forms and identity linking require separate provider evidence.
 
 ## Driving it
@@ -94,7 +94,7 @@ Use these checks alongside the entry-point recipes below and the operation recor
 | `questions-and-approvals/dismiss-and-reopen` | Dismiss questions, completion reviews, confirmations, choices, and item requests without deciding; reload and reopen from history. | Confirm the server request remains pending and a new ordinary comment does not answer it. Resolve in another tab and refresh the old form. Saved-request dismissals persist on the server and suppress repeated agent demands; drafts and raw runtime dismissals remain browser-local. Protected actions still require authorization. |
 | `questions-and-approvals/confirmations` | Use separate accept, decline/change-request, checkbox subset, suggested-task selection, and partial item-verdict requests. Inspect the actual selected items and created task IDs. | Test invalid selections, child-without-parent selection, expiry, supersession, withdrawal, and repeated/conflicting decisions. Partial verdicts persist; skip must not start a continuation. |
 | `questions-and-approvals/plan-review` | Open the exact requested plan revision; reject one request and accept another. Inspect saved revision, work mode, owner, and the resulting continuation. | Edit after requesting review and reject stale acceptance. Test finalization readiness and bound completion review separately. In Agent Chat, inspect the later project/task creation and its source-plan provenance; acceptance alone is not a completed handoff. |
-| `questions-and-approvals/audience` | Repeat a request for a named person, named agent, human-only resolver, and independent reviewer. Inspect actionability and final attribution. | Test creator exclusion, wrong audience/company, private task, missing or cancelled run, and changed responsible-user access. A human comment used by an agent remains subject to that agent’s resolver authority. |
+| `questions-and-approvals/audience` | Repeat a request for a named person, named agent, human-only resolver, and independent reviewer. Inspect actionability and final attribution. | Test creator exclusion, wrong audience/space, private task, missing or cancelled run, and changed responsible-user access. A human comment used by an agent remains subject to that agent’s resolver authority. |
 | `questions-and-approvals/governance` | Create and inspect a formal request, comment, request revision, resubmit, then approve or reject distinct requests. Reload history and linked task state. | Test board decision authority separately from agent request/comment/resubmit authority. A repeated decision cannot repeat activation. Current pending status, payload revision, and governed side effects must agree. |
 | `questions-and-approvals/tool-review` | Invoke a harmless Ask first action with a proposal longer than its preview. Open Arguments and audit hash on task and Apps review surfaces and inspect the tail before a decision. Then exercise Approve once, Always allow, and Decline separately. | No provider call before approval. Repeat decisions and compare invocation count. Change the tool definition, revoke access, or set Off before a decision. Record the approval decision and provider outcome independently. |
 | `questions-and-approvals/continuation` | After answering, inspect the saved response, delivery receipt, eligible run, and useful result in the original task/thread. | Reload, race two tabs, and interrupt delivery after saving. Require one continuation without repeated external actions. Reassignment, Stop, pause, budget, and external-thread boundaries remain effective. |
@@ -198,7 +198,7 @@ suggested tasks use Create, selection, and Dismiss. Connection requests offer
 Review connection and native Not now, without granting access from Slack.
 
 Governed approvals, unsupported mixed forms, attachments, and oversized requests
-retain the full Paperclip review path. Link clicks navigate without attempting an
+retain the full Outpost review path. Link clicks navigate without attempting an
 answer. Terminal edits preserve the submitted response in the same authorized
 conversation and remove stale controls. Inspect the saved interaction, exactly
 one continuation, and useful reply independently. See the

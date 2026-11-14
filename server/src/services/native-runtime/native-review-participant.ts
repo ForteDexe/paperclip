@@ -25,16 +25,16 @@ type ReviewPayload = {
   secretProposal?: unknown;
 };
 type InteractionFacts = Pick<typeof issueThreadInteractions.$inferSelect,
-  "id" | "companyId" | "issueId" | "kind" | "status" | "sourceRunId" | "addresseeAgentId" |
+  "id" | "spaceId" | "issueId" | "kind" | "status" | "sourceRunId" | "addresseeAgentId" |
   "addresseeUserId" | "effectiveResolverPolicy" | "resolverPolicyProvenance" |
   "resolvedByAgentId" | "resolvedByRunId"> & { payload: ReviewPayload };
 type DecisionFacts = Pick<typeof statusDecisions.$inferSelect,
-  "id" | "companyId" | "issueId" | "runId" | "decisionJson" | "applicationState">;
+  "id" | "spaceId" | "issueId" | "runId" | "decisionJson" | "applicationState">;
 type SourceRunFacts = Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "nativeIssueId">;
+  "id" | "spaceId" | "agentId" | "nativeIssueId">;
 
 export type NativeReviewAssignmentFacts = {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   agentId: string;
   issueStatus: string;
@@ -48,7 +48,7 @@ export type NativeReviewAssignmentFacts = {
   agentInvokable: boolean;
   actingRun?: {
     id: string;
-    companyId: string;
+    spaceId: string;
     agentId: string;
     status: string;
     nativeIssueId: string | null;
@@ -88,10 +88,10 @@ export function validateNativeReviewAssignmentFacts(input: NativeReviewAssignmen
   if (!input.agentInvokable) return false;
   if (input.issueAssigneeAgentId !== sourceRun?.agentId) return false;
   if (sourceRun?.agentId === input.agentId) return false;
-  if (!interaction || interaction.companyId !== input.companyId || interaction.issueId !== input.issueId) return false;
-  if (!decision || decision.companyId !== input.companyId || decision.issueId !== input.issueId) return false;
+  if (!interaction || interaction.spaceId !== input.spaceId || interaction.issueId !== input.issueId) return false;
+  if (!decision || decision.spaceId !== input.spaceId || decision.issueId !== input.issueId) return false;
   if (decision.applicationState !== "applied") return false;
-  if (!sourceRun || sourceRun.companyId !== input.companyId || sourceRun.nativeIssueId !== input.issueId) return false;
+  if (!sourceRun || sourceRun.spaceId !== input.spaceId || sourceRun.nativeIssueId !== input.issueId) return false;
   if (interaction.kind !== "request_confirmation") return false;
   if (interaction.sourceRunId !== decision.runId || interaction.sourceRunId !== sourceRun.id) return false;
   if (interaction.addresseeAgentId !== input.agentId) return false;
@@ -105,7 +105,7 @@ export function validateNativeReviewAssignmentFacts(input: NativeReviewAssignmen
     );
     if (
       input.actingRun.id.length === 0 ||
-      input.actingRun.companyId !== input.companyId ||
+      input.actingRun.spaceId !== input.spaceId ||
       input.actingRun.agentId !== input.agentId ||
       input.actingRun.status !== "running" ||
       input.actingRun.nativeIssueId !== input.issueId ||
@@ -144,7 +144,7 @@ export function validateNativeReviewAssignmentFacts(input: NativeReviewAssignmen
 export async function getNativeReviewAssignment(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     agentId: string;
     contextSnapshot: unknown;
@@ -156,26 +156,26 @@ export async function getNativeReviewAssignment(
   const context = readNativeReviewAssignmentContext(input.contextSnapshot);
   if (!context) return null;
   const issue = await db.select().from(issues).where(and(
-    eq(issues.companyId, input.companyId), eq(issues.id, input.issueId),
+    eq(issues.spaceId, input.spaceId), eq(issues.id, input.issueId),
   )).limit(1).then((rows) => rows[0] ?? null);
   const agent = await db.select().from(agents).where(and(
-    eq(agents.companyId, input.companyId), eq(agents.id, input.agentId),
+    eq(agents.spaceId, input.spaceId), eq(agents.id, input.agentId),
   )).limit(1).then((rows) => rows[0] ?? null);
   if (!issue || !agent) return null;
   const interaction = await db.select().from(issueThreadInteractions).where(and(
     eq(issueThreadInteractions.id, context.nativeReviewInteractionId),
-    eq(issueThreadInteractions.companyId, input.companyId),
+    eq(issueThreadInteractions.spaceId, input.spaceId),
     eq(issueThreadInteractions.issueId, input.issueId),
   )).limit(1).then((rows) => rows[0] ?? null);
   const decision = await db.select().from(statusDecisions).where(and(
     eq(statusDecisions.id, context.nativeReviewDecisionId),
-    eq(statusDecisions.companyId, input.companyId),
+    eq(statusDecisions.spaceId, input.spaceId),
     eq(statusDecisions.issueId, input.issueId),
   )).limit(1).then((rows) => rows[0] ?? null);
   if (!interaction || !decision) return null;
   const sourceRun = await db.select().from(heartbeatRuns).where(and(
     eq(heartbeatRuns.id, decision.runId),
-    eq(heartbeatRuns.companyId, input.companyId),
+    eq(heartbeatRuns.spaceId, input.spaceId),
     eq(heartbeatRuns.agentId, issue.assigneeAgentId ?? "00000000-0000-0000-0000-000000000000"),
     eq(heartbeatRuns.nativeIssueId, input.issueId),
   )).limit(1).then((rows) => rows[0] ?? null);
@@ -183,14 +183,14 @@ export async function getNativeReviewAssignment(
   const actingRun = input.actingRunId
     ? await db.select().from(heartbeatRuns).where(and(
         eq(heartbeatRuns.id, input.actingRunId),
-        eq(heartbeatRuns.companyId, input.companyId),
+        eq(heartbeatRuns.spaceId, input.spaceId),
         eq(heartbeatRuns.agentId, input.agentId),
       )).limit(1).then((rows) => rows[0] ?? null)
     : undefined;
   if (input.actingRunId && !actingRun) return null;
   const invokability = await evaluateAgentInvokabilityFromDb(db, agent);
   const valid = validateNativeReviewAssignmentFacts({
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     issueId: input.issueId,
     agentId: input.agentId,
     issueStatus: issue.status,
@@ -204,7 +204,7 @@ export async function getNativeReviewAssignment(
     actingRun: actingRun
       ? {
           id: actingRun.id,
-          companyId: actingRun.companyId,
+          spaceId: actingRun.spaceId,
           agentId: actingRun.agentId,
           status: actingRun.status,
           nativeIssueId: actingRun.nativeIssueId,
@@ -220,7 +220,7 @@ export async function getNativeReviewAssignment(
 
 /** Claim the normal issue execution lock without changing the worker assignee. */
 export async function claimNativeReviewExecutionLock(db: Db, input: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   agentId: string;
   runId: string;
@@ -230,11 +230,11 @@ export async function claimNativeReviewExecutionLock(db: Db, input: {
 }): Promise<boolean> {
   return db.transaction(async (tx) => {
     const issue = await tx.select({ id: issues.id }).from(issues).where(and(
-      eq(issues.id, input.issueId), eq(issues.companyId, input.companyId),
+      eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId),
     )).for("update").limit(1).then((rows) => rows[0]);
     if (!issue || !await getNativeReviewAssignment(tx as unknown as Db, input)) return false;
     const run = await tx.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId),
+      eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId),
       eq(heartbeatRuns.agentId, input.agentId),
     )).limit(1).then((rows) => rows[0]);
     const admitted = readNativeReviewAssignmentContext(run?.contextSnapshot);
@@ -242,15 +242,15 @@ export async function claimNativeReviewExecutionLock(db: Db, input: {
     if (!run || !["queued", "running"].includes(run.status) || !admitted || !expected
       || admitted.nativeReviewInteractionId !== expected.nativeReviewInteractionId
       || admitted.nativeReviewDecisionId !== expected.nativeReviewDecisionId) return false;
-    await notifyStatusCardIssueChange(tx, input.companyId);
-    await notifyAttentionRetentionWork(tx, { companyId: input.companyId });
+    await notifyStatusCardIssueChange(tx, input.spaceId);
+    await notifyAttentionRetentionWork(tx, { spaceId: input.spaceId });
     const claimed = await tx.update(issues).set({
       executionRunId: input.runId,
       executionAgentNameKey: input.agentNameKey,
       executionLockedAt: input.claimedAt,
       updatedAt: input.claimedAt,
     }).where(and(
-      eq(issues.id, input.issueId), eq(issues.companyId, input.companyId),
+      eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId),
       or(isNull(issues.executionRunId), eq(issues.executionRunId, input.runId)),
     )).returning({ id: issues.id });
     return claimed.length === 1;

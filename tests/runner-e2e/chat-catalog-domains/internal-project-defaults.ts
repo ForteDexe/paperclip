@@ -97,8 +97,8 @@ function defaults(): ChatCatalogCase {
     const worker = await fixtureWorker(ctx); const futureWorker = await fixtureWorker(ctx); await ctx.input.api.patch(`/api/agents/${futureWorker.id}`, { name: "Riley" });
     const p = await project(ctx); const g = await goal(ctx, "Growth: reach 1,000 signups");
     const checklist = await task(ctx, "Accessibility checklist", p.id, { description: "All Launch work must support keyboard navigation, sufficient color contrast, and explicitly labeled controls." });
-    const root = `/api/companies/${ctx.input.fixtures.company.id}`;
-    for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, ...[worker, futureWorker].map(row => ({ scopeType: "agent", scopeId: row.id }))])
+    const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
+    for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, ...[worker, futureWorker].map(row => ({ scopeType: "agent", scopeId: row.id }))])
       await ctx.input.api.post(`${root}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
     const holdDeadlineAt = ctx.observationDeadlineAt!;
     gate = await startNativeRunBriefGate(worker.id, holdDeadlineAt, ctx.input.privateSecrets);
@@ -142,7 +142,7 @@ function defaults(): ChatCatalogCase {
       return { ...o, futureProjectReads: run ? projectReadCalls(events, run.id, entity(state, "project").id, o.projects.find(project => project.id === entity(state, "project").id)?.description ?? undefined) : [],
       futureContext: state.futureTask ? await ctx.input.api.get(`/api/issues/${entity(state, "futureTask").id}/heartbeat-context`) : {},
       futureComments: state.futureTask ? await ctx.input.api.get(`/api/issues/${entity(state, "futureTask").id}/comments?order=asc`) : [] }; },
-    async verifyResult(ctx, state) { const source = ctx.input.page.url(); try { await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.company.issuePrefix}/projects/${entity(state, "project").id}`, ctx.input.api.baseURL).href); await expect(ctx.input.page.getByRole("heading", { name: "Launch", exact: true }).first()).toBeVisible(); } finally { await ctx.input.page.goto(source); await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); } },
+    async verifyResult(ctx, state) { const source = ctx.input.page.url(); try { await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.space.issuePrefix}/projects/${entity(state, "project").id}`, ctx.input.api.baseURL).href); await expect(ctx.input.page.getByRole("heading", { name: "Launch", exact: true }).first()).toBeVisible(); } finally { await ctx.input.page.goto(source); await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible(); } },
     async cleanup() { await gate?.close(); gate = undefined; },
   };
 }

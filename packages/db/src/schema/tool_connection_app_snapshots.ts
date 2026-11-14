@@ -1,12 +1,12 @@
 import { foreignKey, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import type { ComposioAppAccount } from "@outpost/shared";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { toolConnections } from "./tool_access.js";
 
 /** Non-secret upstream account observations, scoped to the viewing human's credential. */
 export const toolConnectionAppSnapshots = pgTable("tool_connection_app_snapshots", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   connectionId: uuid("connection_id").notNull(),
   userId: text("user_id").notNull(),
   credentialKey: text("credential_key").notNull(),
@@ -16,6 +16,6 @@ export const toolConnectionAppSnapshots = pgTable("tool_connection_app_snapshots
   checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
   errorAt: timestamp("error_at", { withTimezone: true }),
 }, t => [
-  uniqueIndex("tool_connection_app_snapshots_owner_toolkit_uq").on(t.companyId, t.connectionId, t.userId, t.toolkit),
-  foreignKey({ columns: [t.companyId, t.connectionId], foreignColumns: [toolConnections.companyId, toolConnections.id], name: "tool_connection_app_snapshots_company_connection_fk" }).onDelete("cascade"),
+  uniqueIndex("tool_connection_app_snapshots_owner_toolkit_uq").on(t.spaceId, t.connectionId, t.userId, t.toolkit),
+  foreignKey({ columns: [t.spaceId, t.connectionId], foreignColumns: [toolConnections.spaceId, toolConnections.id], name: "tool_connection_app_snapshots_space_connection_fk" }).onDelete("cascade"),
 ]);

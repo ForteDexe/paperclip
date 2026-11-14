@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ONBOARDING_STORAGE_KEY } from "@/components/OnboardingWizard";
 import {
   ONBOARDING_ARC_ENTRY_STEP,
-  STORYBOOK_COMPANY_ID,
+  STORYBOOK_SPACE_ID,
   clearOnboardingDraft,
   readOnboardingDraft,
   seedOnboardingDraft,
@@ -57,12 +57,12 @@ describe("storybook onboarding draft", () => {
   });
 
   // `restoreOnboardingState` treats restoring as an authorization decision and
-  // throws the whole blob away when the saved company is not one the account
-  // owns. Seeding a company the fixtures do not report would silently restore
+  // throws the whole blob away when the saved space is not one the account
+  // owns. Seeding a space the fixtures do not report would silently restore
   // nothing, and every story would quietly fall back to its `initialStep`.
-  it("names the company the fixtures report as owned", () => {
+  it("names the space the fixtures report as owned", () => {
     seedOnboardingDraft();
-    expect(readOnboardingDraft()?.createdCompanyId).toBe(STORYBOOK_COMPANY_ID);
+    expect(readOnboardingDraft()?.createdSpaceId).toBe(STORYBOOK_SPACE_ID);
   });
 
   it("survives a malformed value without throwing", () => {

@@ -2,7 +2,7 @@ import {
   TelemetryClient,
   trackInstallStarted,
   trackInstallCompleted,
-  trackCompanyImported,
+  trackSpaceImported,
 } from "../../packages/shared/src/telemetry/index.js";
 
 export function initTelemetry(_fileConfig?: { enabled?: boolean }): TelemetryClient | null {
@@ -24,5 +24,5 @@ export async function flushTelemetry(): Promise<void> {
 export {
   trackInstallStarted,
   trackInstallCompleted,
-  trackCompanyImported,
+  trackSpaceImported,
 };

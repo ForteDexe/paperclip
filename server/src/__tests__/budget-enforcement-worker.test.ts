@@ -71,15 +71,15 @@ describe("budget accounting delivery", () => {
     await worker.ready;
     expect(deliverResumeContinuations).toHaveBeenCalledTimes(1);
     // Another tenant's cancellation without a resume claim wakes nothing.
-    publishLiveEvent({ companyId: "company-2", type: "heartbeat.run.status", payload: { runId: "run-unclaimed", status: "cancelled" } } as never);
+    publishLiveEvent({ spaceId: "space-2", type: "heartbeat.run.status", payload: { runId: "run-unclaimed", status: "cancelled" } } as never);
     await vi.advanceTimersByTimeAsync(1_500);
     expect(deliverResumeContinuations).toHaveBeenCalledTimes(1);
-    publishLiveEvent({ companyId: "company-1", type: "heartbeat.run.status", payload: { runId: "run-1", status: "cancelled" } } as never);
+    publishLiveEvent({ spaceId: "space-1", type: "heartbeat.run.status", payload: { runId: "run-1", status: "cancelled" } } as never);
     await vi.advanceTimersByTimeAsync(1_500);
     expect(deliverResumeContinuations).toHaveBeenCalledTimes(2);
     // Stopping the worker removes the listener: later Stops wake nothing.
     await worker.stop();
-    publishLiveEvent({ companyId: "company-1", type: "heartbeat.run.status", payload: { runId: "run-2", status: "cancelled" } } as never);
+    publishLiveEvent({ spaceId: "space-1", type: "heartbeat.run.status", payload: { runId: "run-2", status: "cancelled" } } as never);
     await vi.advanceTimersByTimeAsync(1_500);
     expect(deliverResumeContinuations).toHaveBeenCalledTimes(2);
   });
@@ -108,13 +108,13 @@ describe("budget accounting delivery", () => {
     expect(s.coordinator.nextWakeAt()).toBeNull();
   });
 
-  it("rotates evaluation pages past failed companies before revisiting the first page", async () => {
+  it("rotates evaluation pages past failed spaces before revisiting the first page", async () => {
     const s = setup();
-    work.evaluate.mockResolvedValueOnce({ consumed: 0, nextCursor: "failed-company" });
+    work.evaluate.mockResolvedValueOnce({ consumed: 0, nextCursor: "failed-space" });
     await registerBudgetEnforcementWork(s.db, s.coordinator, {}).ready;
     expect(work.deliver).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(1000);
-    expect(work.evaluate).toHaveBeenLastCalledWith(s.db, { cursor: "failed-company" });
+    expect(work.evaluate).toHaveBeenLastCalledWith(s.db, { cursor: "failed-space" });
     expect(work.deliver).toHaveBeenCalledTimes(2);
     expect(s.coordinator.nextWakeAt()).toBeNull();
   });
@@ -165,12 +165,12 @@ describe("budget accounting delivery", () => {
 
   it("continues bounded startup pages without forgetting the cursor after notifications", async () => {
     const s = setup();
-    work.reconcile.mockResolvedValueOnce({ nextCursor: "company:agent:scope" });
+    work.reconcile.mockResolvedValueOnce({ nextCursor: "space:agent:scope" });
     await registerBudgetEnforcementWork(s.db, s.coordinator, {}).ready;
     expect(work.reconcile).toHaveBeenLastCalledWith(s.db, { startup: true });
     await s.owner.transaction(tx => notifyDeliveryWork(tx as object, DELIVERY_QUEUES.budgetEnforcement));
     await vi.advanceTimersByTimeAsync(1000);
-    expect(work.reconcile).toHaveBeenLastCalledWith(s.db, { startup: true, cursor: "company:agent:scope" });
+    expect(work.reconcile).toHaveBeenLastCalledWith(s.db, { startup: true, cursor: "space:agent:scope" });
     expect(s.coordinator.nextWakeAt()).toBeNull();
   });
 
@@ -184,7 +184,7 @@ describe("budget accounting delivery", () => {
     await worker.ready;
     await vi.advanceTimersByTimeAsync(60_000);
     expect(recover).toHaveBeenCalledOnce();
-    publishLiveEvent({ companyId: "company", type: "heartbeat.run.status", payload: { status: "succeeded" } });
+    publishLiveEvent({ spaceId: "space", type: "heartbeat.run.status", payload: { status: "succeeded" } });
     await vi.advanceTimersByTimeAsync(1);
     expect(recover).toHaveBeenCalledTimes(2);
     work.accounting.mockResolvedValue({ pending: false, nextRunAt: null });

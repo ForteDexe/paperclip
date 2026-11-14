@@ -94,7 +94,7 @@ export function buildBraintrustExperiment(projectId: string, campaign: RunnerE2E
         unresolved_requests: cost.unresolvedRequests, journal_hash: operations!.journalHash,
       } : null } };
   });
-  const metadata = { importer: "paperclip-retained-attempts-v1", campaign_id: campaign.campaignId,
+  const metadata = { importer: "outpost-retained-attempts-v1", campaign_id: campaign.campaignId,
     expected_execution_ids: [...campaign.expected].sort(), retained_attempts: events.length,
     missing_attempts: accounting.missingAttempts,
     request_ledger: operations ? { journal_hash: operations.journalHash, known_usd: operations.knownUsd,

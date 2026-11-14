@@ -80,7 +80,7 @@ type HeartbeatRunRow = typeof heartbeatRuns.$inferSelect;
 type IssueRow = Pick<
   typeof issues.$inferSelect,
   | "id"
-  | "companyId"
+  | "spaceId"
   | "identifier"
   | "title"
   | "description"
@@ -91,7 +91,7 @@ type IssueRow = Pick<
   | "executionState"
   | "originKind"
 >;
-type AgentRow = Pick<typeof agents.$inferSelect, "id" | "companyId" | "status">;
+type AgentRow = Pick<typeof agents.$inferSelect, "id" | "spaceId" | "status">;
 type NoticeIssue = Pick<typeof issues.$inferSelect, "id" | "identifier" | "title" | "status">;
 type NoticeRun = Pick<typeof heartbeatRuns.$inferSelect, "id" | "status" | "agentId">;
 type NoticeAgent = Pick<typeof agents.$inferSelect, "id" | "name">;
@@ -233,7 +233,7 @@ export function buildSuccessfulRunHandoffExhaustedNotice(input: {
               : issueLinkRow("Recovery issue", input.recoveryIssue),
             input.recoveryOwner
               ? agentLinkRow("Recovery owner", input.recoveryOwner)
-              : keyValueRow("Recovery owner", "Board decision required"),
+              : keyValueRow("Recovery owner", "Operator decision required"),
             agentLinkRow("Source assignee", input.sourceAssignee),
             keyValueRow("Suggested action", "inspect the evidence, then retry the original owner, explicitly reassign, or record a valid issue disposition"),
           ],
@@ -270,7 +270,7 @@ export function buildFinishSuccessfulRunHandoffIdempotencyKey(input: {
 export async function findExistingFinishSuccessfulRunHandoffWake(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     idempotencyKey: string;
   },
 ) {
@@ -279,7 +279,7 @@ export async function findExistingFinishSuccessfulRunHandoffWake(
     .from(agentWakeupRequests)
     .where(
       and(
-        eq(agentWakeupRequests.companyId, input.companyId),
+        eq(agentWakeupRequests.spaceId, input.spaceId),
         eq(agentWakeupRequests.idempotencyKey, input.idempotencyKey),
         inArray(agentWakeupRequests.status, IDEMPOTENT_HANDOFF_WAKE_STATUSES),
       ),
@@ -503,8 +503,8 @@ export function decideSuccessfulRunHandoff(input: {
     return { kind: "skip", reason: "routine execution owns its own disposition" };
   }
   if (!agent) return { kind: "skip", reason: "agent not found" };
-  if (issue.companyId !== run.companyId || agent.companyId !== run.companyId) {
-    return { kind: "skip", reason: "company scope mismatch" };
+  if (issue.spaceId !== run.spaceId || agent.spaceId !== run.spaceId) {
+    return { kind: "skip", reason: "space scope mismatch" };
   }
   if (issue.assigneeAgentId !== run.agentId) {
     return { kind: "skip", reason: "issue is no longer assigned to the source run agent" };

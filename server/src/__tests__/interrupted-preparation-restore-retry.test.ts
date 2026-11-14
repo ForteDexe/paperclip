@@ -5,8 +5,8 @@ import {
   agents,
   agentWakeupRequests,
   authUsers,
-  companyMemberships,
-  companies,
+  spaceMemberships,
+  spaces,
   createDb,
   environmentLeases,
   environments,
@@ -33,21 +33,21 @@ const suite = support.supported ? describe : describe.skip;
 suite("Retry after a shutdown interrupted workspace restore before provider work", () => {
   let db!: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId = "", agentId = "", environmentId = "";
+  let spaceId = "", agentId = "", environmentId = "";
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-restore-retry-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-restore-retry-");
     db = createDb(temporary.connectionString);
-    companyId = randomUUID(); agentId = randomUUID(); environmentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "RRT",
-      requireBoardApprovalForNewAgents: false });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Coder", role: "engineer", status: "idle",
+    spaceId = randomUUID(); agentId = randomUUID(); environmentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "RRT",
+      requireOperatorApprovalForNewAgents: false });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Coder", role: "engineer", status: "idle",
       adapterType: "outpost_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
     await db.insert(environments).values({ id: environmentId, name: "Sandbox", driver: "sandbox", status: "active",
       config: { provider: "fake" } });
-    await db.insert(authUsers).values({ id: "local-board", name: "Local operator", email: "local-board@example.invalid",
+    await db.insert(authUsers).values({ id: "local-operator", name: "Local operator", email: "local-operator@example.invalid",
       createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "local-board", membershipRole: "owner" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "local-operator", membershipRole: "owner" });
   }, 30_000);
 
   afterAll(async () => { await temporary?.cleanup(); });
@@ -58,9 +58,9 @@ suite("Retry after a shutdown interrupted workspace restore before provider work
     const finishedAt = new Date(Date.now() - 30_000);
     const restoreRecovery = { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [leaseId] };
     const snapshotId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Follow-up", status: "blocked",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Follow-up", status: "blocked",
       assigneeAgentId: agentId, statusVersion: 5 });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "automation",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "automation",
       issueId, status: "interrupted", errorCode: "server_shutdown_interrupted", runtimeMode: "legacy",
       executionStage: "preparing", startedAt: new Date(finishedAt.getTime() - 3_000), finishedAt, nextEventSeq: 1,
       contextSnapshot: { issueId, wakeReason: "issue_commented" },
@@ -71,20 +71,20 @@ suite("Retry after a shutdown interrupted workspace restore before provider work
       resultJson: { stopReason: "interrupted", workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: restoreRecovery,
         cancellation: { reason: "Server shutdown interrupted execution", source: options.cancellationSource ?? "shutdown",
           expected: true, initiator: { type: "system" }, recordedAt: finishedAt.toISOString() } } });
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId, issueId, heartbeatRunId: runId,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId, issueId, heartbeatRunId: runId,
       status: "expired", cleanupStatus: "success", leasePolicy: "reuse_by_environment", provider: "fake", providerLeaseId,
       releasedAt: new Date(finishedAt.getTime() + 2_000),
       metadata: options.terminationReceipt === false ? {} : { remoteExecutionTermination: { schema: "outpost.remote-termination.v1",
-        companyId, runId, leaseId, provider: "fake", providerLeaseId, state: "destroyed", confirmedAt: finishedAt.toISOString() } } });
+        spaceId, runId, leaseId, provider: "fake", providerLeaseId, state: "destroyed", confirmedAt: finishedAt.toISOString() } } });
     const holdId = randomUUID(), preservationId = randomUUID();
     await db.insert(workspaceOperations).values([
-      { id: preservationId, companyId, issueId, heartbeatRunId: runId, phase: "workspace_recovery", status: "succeeded",
+      { id: preservationId, spaceId, issueId, heartbeatRunId: runId, phase: "workspace_recovery", status: "succeeded",
         metadata: { recoveryActionId: holdId, storage: "remote_workspace", leaseId, providerLeaseId,
           snapshotId: options.recoveredSnapshotId ?? snapshotId } },
-      { companyId, issueId, heartbeatRunId: runId, phase: "workspace_finalize", status: "succeeded",
+      { spaceId, issueId, heartbeatRunId: runId, phase: "workspace_finalize", status: "succeeded",
         metadata: { owningService: "workspace_recovery", preservationOperationIds: [preservationId] } },
     ]);
-    await db.insert(issueRecoveryActions).values({ id: holdId, companyId, sourceIssueId: issueId,
+    await db.insert(issueRecoveryActions).values({ id: holdId, spaceId, sourceIssueId: issueId,
       kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation",
       fingerprint: `legacy-execution:${runId}`, status: "resolved", outcome: "blocked", ownerType: "system",
       nextAction: "Verify the stop receipt and record workspace repair evidence.", resolvedAt: finishedAt,
@@ -99,19 +99,19 @@ suite("Retry after a shutdown interrupted workspace restore before provider work
     return { issueId, runId, holdId };
   }
 
-  const retry = (f: { issueId: string; runId: string }) => requestTaskRetry({ db, companyId, issueId: f.issueId,
-    actorId: "local-board", actorSource: "local_implicit", idempotencyKey: randomUUID(), observedRunId: f.runId });
+  const retry = (f: { issueId: string; runId: string }) => requestTaskRetry({ db, spaceId, issueId: f.issueId,
+    actorId: "local-operator", actorSource: "local_implicit", idempotencyKey: randomUUID(), observedRunId: f.runId });
   const successors = (f: { issueId: string; runId: string }) => db.select().from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.issueId, f.issueId),
+    eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.issueId, f.issueId),
     inArray(heartbeatRuns.status, ["queued", "running", "scheduled_retry"])));
 
   it("starts the Retry because no provider work can have an unknown outcome", async () => {
     const heartbeat = heartbeatService(db);
     const f = await interruptedRestore();
-    expect(await getExecutionBlocker(db, companyId, f.issueId)).toBeNull();
+    expect(await getExecutionBlocker(db, spaceId, f.issueId)).toBeNull();
     const receipt = await retry(f);
     expect(receipt).toMatchObject({ accepted: true });
-    await heartbeat.resumeTaskRetry(companyId, receipt.requestId!);
+    await heartbeat.resumeTaskRetry(spaceId, receipt.requestId!);
     const [wake] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, receipt.requestId!));
     expect(wake?.status).not.toBe("deferred_issue_execution");
     const [started] = await successors(f);
@@ -127,13 +127,13 @@ suite("Retry after a shutdown interrupted workspace restore before provider work
   it.each([
     ["a provider turn started", async () => {
       const f = await interruptedRestore();
-      await db.insert(heartbeatRunEvents).values({ companyId, runId: f.runId, agentId, seq: 1, eventType: "turn.started",
+      await db.insert(heartbeatRunEvents).values({ spaceId, runId: f.runId, agentId, seq: 1, eventType: "turn.started",
         stream: "system", level: "info", message: "turn started" });
       return f;
     }],
     ["a runner event was recorded", async () => {
       const f = await interruptedRestore();
-      await db.insert(heartbeatRunEvents).values({ companyId, runId: f.runId, agentId, seq: 1, eventType: "harness.ready",
+      await db.insert(heartbeatRunEvents).values({ spaceId, runId: f.runId, agentId, seq: 1, eventType: "harness.ready",
         stream: "system", level: "info", message: "harness ready", sourceEventId: randomUUID() });
       return f;
     }],
@@ -143,6 +143,6 @@ suite("Retry after a shutdown interrupted workspace restore before provider work
     ["recovery saved a different snapshot", () => interruptedRestore({ recoveredSnapshotId: randomUUID() })],
   ] as const)("keeps the hold when %s", async (_label, arrange) => {
     const f = await arrange();
-    expect(await getExecutionBlocker(db, companyId, f.issueId)).toMatchObject({ recoveryActionId: f.holdId, runId: f.runId });
+    expect(await getExecutionBlocker(db, spaceId, f.issueId)).toMatchObject({ recoveryActionId: f.holdId, runId: f.runId });
   }, 60_000);
 });

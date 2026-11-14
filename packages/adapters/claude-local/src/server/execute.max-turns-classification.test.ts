@@ -66,7 +66,7 @@ function buildContext() {
     runId: "run-1",
     agent: {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Claude Coder",
       adapterType: "claude_local",
       adapterConfig: {},

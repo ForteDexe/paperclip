@@ -93,14 +93,14 @@ export function parseWorkspaceRuntimeLeaseOwnerKey(ownerKey: string): { kind: "i
  */
 export async function proveWorkspaceRuntimeLeaseOwnerGone(
   tx: Pick<Db, "select">,
-  lease: Pick<ExecutionWorkspaceRuntimeLeaseRow, "ownerKey" | "companyId">,
+  lease: Pick<ExecutionWorkspaceRuntimeLeaseRow, "ownerKey" | "spaceId">,
 ): Promise<Exclude<WorkspaceRuntimeLeaseStaleReason, "lease_expired"> | null> {
   const owner = parseWorkspaceRuntimeLeaseOwnerKey(lease.ownerKey);
   if (owner?.kind === "issue") {
     const ownerIssue = await tx
       .select({ status: issues.status, hiddenAt: issues.hiddenAt })
       .from(issues)
-      .where(and(eq(issues.id, owner.id), eq(issues.companyId, lease.companyId)))
+      .where(and(eq(issues.id, owner.id), eq(issues.spaceId, lease.spaceId)))
       .then((rows) => rows[0] ?? null);
     if (!ownerIssue) return "owner_issue_missing";
     if (ownerIssue.hiddenAt) return "owner_issue_hidden";
@@ -112,7 +112,7 @@ export async function proveWorkspaceRuntimeLeaseOwnerGone(
     const ownerRun = await tx
       .select({ status: heartbeatRuns.status })
       .from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.id, owner.id), eq(heartbeatRuns.companyId, lease.companyId)))
+      .where(and(eq(heartbeatRuns.id, owner.id), eq(heartbeatRuns.spaceId, lease.spaceId)))
       .then((rows) => rows[0] ?? null);
     if (!ownerRun) return "owner_run_missing";
     if (TERMINAL_HEARTBEAT_RUN_STATUSES.has(ownerRun.status)) return "owner_run_terminal";
@@ -182,11 +182,11 @@ export function workspaceRuntimeLeaseService(db: Db) {
      * constraint on execution_workspace_id plus a `SELECT ... FOR UPDATE` on the existing
      * row, so competing claims serialize in the database rather than in one process.
      *
-     * Board/operator actors bypass the lease entirely: they keep unconditional control
+     * Operator/operator actors bypass the lease entirely: they keep unconditional control
      * and never take the lane away from an agent run.
      */
     async claim(input: {
-      companyId: string;
+      spaceId: string;
       executionWorkspaceId: string;
       action: string;
       owner: WorkspaceRuntimeLeaseOwner;
@@ -215,7 +215,7 @@ export function workspaceRuntimeLeaseService(db: Db) {
         const created = await tx
           .insert(executionWorkspaceRuntimeLeases)
           .values({
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             executionWorkspaceId: input.executionWorkspaceId,
             ...ownerColumns,
             lastAction: input.action,
@@ -276,7 +276,7 @@ export function workspaceRuntimeLeaseService(db: Db) {
         const reclaimed = await tx
           .update(executionWorkspaceRuntimeLeases)
           .set({
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             ...ownerColumns,
             lastAction: input.action,
             claimedAt: now,

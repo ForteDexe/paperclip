@@ -26,7 +26,7 @@ Ownership is:
 | Eval consumers | Scenario corpus, provider configuration, experiment reports, and provider-backed orchestration |
 
 The production binding remains App code at
-`server/src/services/native-runtime/paperclip-control-plane-port.ts`. It
+`server/src/services/native-runtime/outpost-control-plane-port.ts`. It
 implements the App-owned `ControlPlanePort`; the runner package never imports
 the server, database, UI, or CLI.
 
@@ -91,7 +91,7 @@ contracts are published in `OUTPOST_RUNNER_COMPATIBILITY`:
 | Testkit | 1 | Breaking mock seed, vector, observation, or conformance behavior requires a new version |
 | Eval corpus | 1 | Runner declares a supported inclusive corpus-version range; out-of-range bundles fail before execution |
 
-`assertPaperclipRunnerCompatibility` performs a fail-closed preflight. It emits
+`assertOutpostRunnerCompatibility` performs a fail-closed preflight. It emits
 `outpost_runner_incompatible` with stable issue codes for component mismatch,
 unsupported corpus versions, unknown catalog operations, missing provider
 capability declarations, and provider-operation gaps. Provider-specific runtime

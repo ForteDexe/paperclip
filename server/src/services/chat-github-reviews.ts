@@ -29,7 +29,7 @@ import {
   chatGitHubConfigurations,
   chatGitHubReviews,
   chatMessageLinks,
-  companies,
+  spaces,
   heartbeatRuns,
   issues,
   projects,
@@ -68,7 +68,7 @@ import { logActivity } from "./activity-log.js";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 
 type Session = {
-  companyId: string;
+  spaceId: string;
   agentId: string | null;
   issueId: string | null;
   runId: string | null;
@@ -107,7 +107,7 @@ const hash = (value: unknown) =>
     )
     .digest("hex");
 const marker = (kind: string, key: string) =>
-  `<!-- paperclip-${kind}:${hash(key)} -->`;
+  `<!-- outpost-${kind}:${hash(key)} -->`;
 const readSchema = z
   .object({
     section: z.enum([
@@ -145,7 +145,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
       .where(
         and(
           eq(heartbeatRuns.id, session.runId),
-          eq(heartbeatRuns.companyId, session.companyId),
+          eq(heartbeatRuns.spaceId, session.spaceId),
           eq(heartbeatRuns.agentId, session.agentId),
         ),
       );
@@ -191,7 +191,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
             )
             .where(
               and(
-                eq(chatMessageLinks.companyId, session.companyId),
+                eq(chatMessageLinks.spaceId, session.spaceId),
                 eq(chatMessageLinks.commentId, commentId),
                 eq(chatConversations.issueId, session.issueId),
                 eq(chatEndpoints.assignedAgentId, session.agentId),
@@ -247,7 +247,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
       .from(agents)
       .where(
         and(
-          eq(agents.companyId, session.companyId),
+          eq(agents.spaceId, session.spaceId),
           eq(agents.id, session.agentId),
         ),
       );
@@ -256,7 +256,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, session.companyId),
+          eq(issues.spaceId, session.spaceId),
           eq(issues.id, session.issueId),
         ),
       );
@@ -268,25 +268,25 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
           .from(projects)
           .where(
             and(
-              eq(projects.companyId, session.companyId),
+              eq(projects.spaceId, session.spaceId),
               eq(projects.id, issue.projectId),
             ),
           )
       : [];
     const trust = resolveCoreTrustPreset({
-      companyId: session.companyId,
+      spaceId: session.spaceId,
       agent,
       issue,
       project,
       run: {
-        companyId: session.companyId,
+        spaceId: session.spaceId,
         executionPolicy: run.contextSnapshot?.executionPolicy,
       },
     });
     if (trust.kind === "denied")
       throw forbidden("The agent's trust policy is incomplete");
     // The caller's task/run binding is fixed; never export credentials. Review
-    // submissions are governed output, not authority to mutate other tasks.
+    // submissions are controlled output, not authority to mutate other tasks.
     if (
       trust.kind === "low_trust_review" &&
       (!(trust.boundary.allowedToolClasses ?? []).includes("github.pr.read") ||
@@ -318,7 +318,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
   ) {
     const token = await githubBotRepositoryToken(
       db,
-      source.endpoint.companyId,
+      source.endpoint.spaceId,
       source.endpoint.id,
       source.repositoryId,
       requestFetch,
@@ -342,7 +342,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
       .from(chatGitHubReviews)
       .where(
         and(
-          eq(chatGitHubReviews.companyId, source.endpoint.companyId),
+          eq(chatGitHubReviews.spaceId, source.endpoint.spaceId),
           eq(chatGitHubReviews.endpointId, source.endpoint.id),
           eq(chatGitHubReviews.issueId, source.issue.id),
           eq(chatGitHubReviews.headSha, pull.head.sha),
@@ -353,8 +353,8 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
     if (prior && prior.runId === source.run.id) return prior;
     if (prior && !prior.runId && prior.deliveryId === source.delivery.id) {
       const [claimed] = await db.transaction(async tx => {
-        await notifyGitHubReviewProjection(tx, { companyId: source.endpoint.companyId, endpointId: source.endpoint.id });
-        await notifyGitHubReviewChecks(tx, { companyId: source.endpoint.companyId, endpointId: source.endpoint.id,
+        await notifyGitHubReviewProjection(tx, { spaceId: source.endpoint.spaceId, endpointId: source.endpoint.id });
+        await notifyGitHubReviewChecks(tx, { spaceId: source.endpoint.spaceId, endpointId: source.endpoint.id,
           repositoryId: source.repositoryId, number: source.number });
         return tx
           .update(chatGitHubReviews)
@@ -415,12 +415,12 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
       ...(automatic ? automatic.context : {}),
     };
     const [review] = await db.transaction(async tx => {
-      await notifyGitHubReviewChecks(tx, { companyId: source.endpoint.companyId, endpointId: source.endpoint.id,
+      await notifyGitHubReviewChecks(tx, { spaceId: source.endpoint.spaceId, endpointId: source.endpoint.id,
         repositoryId: source.repositoryId, number: source.number });
       return tx
         .insert(chatGitHubReviews)
         .values({
-          companyId: source.endpoint.companyId,
+          spaceId: source.endpoint.spaceId,
           endpointId: source.endpoint.id,
           issueId: source.issue.id,
           runId: source.run.id,
@@ -473,10 +473,10 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
   ): Promise<string> {
     if (writer === db) return db.transaction(tx => stage(source, operation, payload, key, invocationId, toolName, parameters, tx));
     const actionKey = `github_publication:${source.issue.id}:${operation}:${hash(key)}`;
-    await notifyChatResponseAvailability(writer, { companyId: source.endpoint.companyId, issueId: source.issue.id });
+    await notifyChatResponseAvailability(writer, { spaceId: source.endpoint.spaceId, issueId: source.issue.id });
     await notifyDeliveryWork(writer, DELIVERY_QUEUES.chatGitHubPublications);
     const values = {
-      companyId: source.endpoint.companyId,
+      spaceId: source.endpoint.spaceId,
       endpointId: source.endpoint.id,
       conversationId: source.conversation.id,
       principalId: source.delivery.principalId,
@@ -493,7 +493,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
           (source.endpoint.setup as { runtimeGeneration?: number })
             .runtimeGeneration ?? 0,
         session: {
-          companyId: source.endpoint.companyId,
+          spaceId: source.endpoint.spaceId,
           agentId: source.agent.id,
           issueId: source.issue.id,
           runId: source.run.id,
@@ -561,20 +561,20 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
   async function readPublicationReceipt(session: Session, name: string, input: unknown, invocationId: string) {
     const source = await scope(session);
     const [action] = await db.select().from(chatActions).where(and(
-      eq(chatActions.companyId, session.companyId), eq(chatActions.endpointId, source.endpoint.id),
+      eq(chatActions.spaceId, session.spaceId), eq(chatActions.endpointId, source.endpoint.id),
       eq(chatActions.conversationId, source.conversation.id), eq(chatActions.kind, "github_review_publication"),
       sql`${chatActions.payload}->>'invocationId' = ${invocationId}`, sql`${chatActions.payload}->>'toolName' = ${name}`,
     ));
     if (!action) return null;
     const binding = action.payload.session as Session;
-    if (binding.companyId !== session.companyId || binding.agentId !== session.agentId || binding.runId !== session.runId ||
+    if (binding.spaceId !== session.spaceId || binding.agentId !== session.agentId || binding.runId !== session.runId ||
       binding.issueId !== session.issueId || hash(action.payload.parameters) !== hash(input))
       throw conflict("This GitHub invocation is bound to a different publication");
     await assertPublicationAuthority(source, action);
     const result = await receipt(action.id);
     if (name !== "submit_review") return result;
     const [review] = await db.select().from(chatGitHubReviews).where(and(
-      eq(chatGitHubReviews.companyId, session.companyId), eq(chatGitHubReviews.id, String(action.payload.reviewId)),
+      eq(chatGitHubReviews.spaceId, session.spaceId), eq(chatGitHubReviews.id, String(action.payload.reviewId)),
       eq(chatGitHubReviews.runId, session.runId!), eq(chatGitHubReviews.endpointId, source.endpoint.id),
     ));
     if (!review?.assessment) throw conflict("GitHub publication assessment is unavailable");
@@ -590,20 +590,20 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
     const source = await scope(session);
     if (invocationId && ["comment", "update_comment", "submit_review"].includes(name)) {
       const [existing] = await db.select().from(chatActions).where(and(
-        eq(chatActions.companyId, session.companyId), eq(chatActions.endpointId, source.endpoint.id),
+        eq(chatActions.spaceId, session.spaceId), eq(chatActions.endpointId, source.endpoint.id),
         eq(chatActions.conversationId, source.conversation.id), eq(chatActions.kind, "github_review_publication"),
         sql`${chatActions.payload}->>'invocationId' = ${invocationId}`,
         sql`${chatActions.payload}->>'toolName' = ${name}`,
       ));
       if (existing) {
         const binding = existing.payload.session as Session;
-        if (binding.companyId !== session.companyId || binding.agentId !== session.agentId ||
+        if (binding.spaceId !== session.spaceId || binding.agentId !== session.agentId ||
           binding.runId !== session.runId || binding.issueId !== session.issueId || hash(existing.payload.parameters) !== hash(input))
           throw conflict("This GitHub invocation is bound to a different publication");
         const result = await publishAndWait(existing.id, deadline);
         if (name !== "submit_review") return result;
         const [review] = await db.select().from(chatGitHubReviews).where(and(
-          eq(chatGitHubReviews.companyId, session.companyId), eq(chatGitHubReviews.id, String(existing.payload.reviewId)),
+          eq(chatGitHubReviews.spaceId, session.spaceId), eq(chatGitHubReviews.id, String(existing.payload.reviewId)),
           eq(chatGitHubReviews.runId, session.runId!), eq(chatGitHubReviews.endpointId, source.endpoint.id),
         ));
         if (!review?.assessment) throw conflict("GitHub publication assessment is unavailable");
@@ -873,7 +873,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
           .where(
             and(
               eq(chatGitHubReviews.id, review.id),
-              eq(chatGitHubReviews.companyId, session.companyId),
+              eq(chatGitHubReviews.spaceId, session.spaceId),
             ),
           );
         return stage(
@@ -957,7 +957,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
     const toolName = String(action.payload.toolName);
     const tool = (
       await githubBotToolsForSession(db, {
-        companyId: source.endpoint.companyId,
+        spaceId: source.endpoint.spaceId,
         agentId: source.agent.id,
         issueId: source.issue.id,
         runId: source.run.id,
@@ -969,7 +969,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
     );
     if (!tool) throw forbidden("The bot tool is no longer available");
     const decision = await toolAccessPolicyService(db).decide({
-      companyId: source.endpoint.companyId,
+      spaceId: source.endpoint.spaceId,
       actor: {
         actorType: "agent",
         actorId: source.agent.id,
@@ -1005,7 +1005,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
         .where(
           and(
             eq(toolInvocations.id, action.payload.invocationId),
-            eq(toolInvocations.companyId, source.endpoint.companyId),
+            eq(toolInvocations.spaceId, source.endpoint.spaceId),
             eq(toolInvocations.runId, source.run.id),
             eq(toolInvocations.agentId, source.agent.id),
             eq(toolInvocations.connectionId, source.endpoint.connectionId),
@@ -1051,7 +1051,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
       .where(
         and(
           eq(chatConversations.id, action.conversationId!),
-          eq(chatConversations.companyId, action.companyId),
+          eq(chatConversations.spaceId, action.spaceId),
           eq(chatConversations.endpointId, action.endpointId),
         ),
       );
@@ -1060,17 +1060,17 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
     )?.[1];
     if (!number || !binding?.repository.providerRepositoryId) {
       await db.transaction(async tx => {
-        await notifyChatResponseAvailability(tx, { companyId: action.companyId, conversationId: action.conversationId ?? undefined });
+        await notifyChatResponseAvailability(tx, { spaceId: action.spaceId, conversationId: action.conversationId ?? undefined });
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.chatGitHubPublications);
         await tx.update(chatActions).set({ status: "cancelled", result: { code: "publication_binding_unavailable", retryable: false }, updatedAt: new Date() })
-          .where(and(eq(chatActions.id, actionId), eq(chatActions.companyId, action.companyId)));
+          .where(and(eq(chatActions.id, actionId), eq(chatActions.spaceId, action.spaceId)));
       });
       return;
     }
     await withGitHubPublicationLease(
       db,
       {
-        companyId: action.companyId,
+        spaceId: action.spaceId,
         endpointId: action.endpointId,
         repositoryId: String(binding.repository.providerRepositoryId),
         number: Number(number),
@@ -1084,7 +1084,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
         if (!fresh || !publicationIsDue(fresh)) return;
         const session = action.payload.session as Session;
         try {
-          if (!session || session.companyId !== action.companyId)
+          if (!session || session.spaceId !== action.spaceId)
             throw forbidden("Invalid GitHub publication binding");
           const source = await scope(session, true);
           if (
@@ -1166,7 +1166,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
             receipt = await writeGitHubResponseComment(db, source, api, lease, {
               body: String(action.payload.body), final: operation === "comment", versionAt: action.createdAt,
             }, async () => assertPublicationAuthority(await scope(session, true), action));
-            if (operation === "comment") await githubResponseCommentService(db, fetchImpl).finishRun({ companyId: session.companyId, issueId: source.issue.id, runId: source.run.id, endpointId: source.endpoint.id }, source,
+            if (operation === "comment") await githubResponseCommentService(db, fetchImpl).finishRun({ spaceId: session.spaceId, issueId: source.issue.id, runId: source.run.id, endpointId: source.endpoint.id }, source,
               receipt as { id: string; url: string }, api, lease, async () => assertPublicationAuthority(await scope(session, true), action));
           } else if (operation === "formal_review") {
             const parsed = formalSchema.parse({
@@ -1202,7 +1202,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
               .where(
                 and(
                   eq(chatGitHubReviews.id, String(action.payload.reviewId)),
-                  eq(chatGitHubReviews.companyId, action.companyId),
+                  eq(chatGitHubReviews.spaceId, action.spaceId),
                   eq(chatGitHubReviews.endpointId, action.endpointId),
                   eq(chatGitHubReviews.runId, session.runId!),
                 ),
@@ -1227,22 +1227,22 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
               review.policySnapshot.ratingThreshold,
             );
             const origin = runtimePublicOrigin();
-            const [company] = await db
-              .select({ prefix: companies.issuePrefix })
-              .from(companies)
-              .where(eq(companies.id, source.endpoint.companyId));
-            const board =
-              origin && company
-                ? `${origin}/${encodeURIComponent(company.prefix)}`
+            const [space] = await db
+              .select({ prefix: spaces.issuePrefix })
+              .from(spaces)
+              .where(eq(spaces.id, source.endpoint.spaceId));
+            const operator =
+              origin && space
+                ? `${origin}/${encodeURIComponent(space.prefix)}`
                 : null;
-            const taskLink = board
-              ? `[${source.issue.identifier}](${board}/issues/${source.issue.id})`
+            const taskLink = operator
+              ? `[${source.issue.identifier}](${operator}/issues/${source.issue.id})`
               : source.issue.identifier;
-            const runLink = board
-              ? `[Run](${board}/agents/${source.agent.id}/runs/${source.run.id})`
+            const runLink = operator
+              ? `[Run](${operator}/agents/${source.agent.id}/runs/${source.run.id})`
               : `Run: ${source.run.id}`;
-            const historyLink = board
-              ? ` · [Review history](${board}/apps/chat/${source.endpoint.id}/reviews)`
+            const historyLink = operator
+              ? ` · [Review history](${operator}/apps/chat/${source.endpoint.id}/reviews)`
               : "";
             const summary = projectSafeChatPublicationText(
               `${githubReviewSummary({
@@ -1273,7 +1273,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
                 await tx.update(chatGitHubReviews).set({ summaryId: published.id, summaryUrl: published.url,
                   publicationReceipts: receipts, updatedAt: new Date() }).where(eq(chatGitHubReviews.id, review.id));
               });
-              await githubResponseCommentService(db, fetchImpl).finishRun({ companyId: session.companyId, issueId: source.issue.id, runId: source.run.id, endpointId: source.endpoint.id }, source, published, api, lease,
+              await githubResponseCommentService(db, fetchImpl).finishRun({ spaceId: session.spaceId, issueId: source.issue.id, runId: source.run.id, endpointId: source.endpoint.id }, source, published, api, lease,
                 async () => { await currentHead(review.headSha); });
             }
             let firstInlineReceipt: { id: string; url: string } | null = null;
@@ -1337,7 +1337,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
                   await tx
                     .insert(chatConversations)
                     .values({
-                      companyId: source.endpoint.companyId,
+                      spaceId: source.endpoint.spaceId,
                       endpointId: source.endpoint.id,
                       resourceId: source.resource.id,
                       issueId: source.issue.id,
@@ -1362,7 +1362,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
               }
             if (!source.policy.publishSummary && firstInlineReceipt) {
               await githubResponseCommentService(db, fetchImpl).finishRun({
-                companyId: session.companyId, issueId: source.issue.id, runId: source.run.id,
+                spaceId: session.spaceId, issueId: source.issue.id, runId: source.run.id,
                 endpointId: source.endpoint.id, closePrimary: true,
               }, source, firstInlineReceipt, api, lease, async () => { await currentHead(review.headSha); });
             }
@@ -1392,7 +1392,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
                 name: "Outpost Review",
                 head_sha: review.headSha,
                 external_id: `${source.endpoint.id}:${source.number}:${review.headSha}`,
-                ...(board ? { details_url: `${board}/issues/${source.issue.id}` } : {}),
+                ...(operator ? { details_url: `${operator}/issues/${source.issue.id}` } : {}),
                 status: "completed",
                 conclusion,
                 output: {
@@ -1440,7 +1440,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
             // transaction; a restart or failed removal is retried independently.
             if (
               (await githubRunReplyState(tx as unknown as Db, {
-                companyId: action.companyId,
+                spaceId: action.spaceId,
                 endpointId: action.endpointId,
                 issueId: source.issue.id,
                 runId: source.run.id,
@@ -1449,7 +1449,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
               await stageReceiptReactionRemovals(tx as unknown as Db, {
                 endpoint: source.endpoint,
                 binding: {
-                  companyId: action.companyId,
+                  spaceId: action.spaceId,
                   endpointId: action.endpointId,
                   conversationId: source.conversation.id,
                   issueId: source.issue.id,
@@ -1463,7 +1463,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
               });
             }
             await logActivity(tx as unknown as Db, {
-              companyId: action.companyId,
+              spaceId: action.spaceId,
               actorType: "agent",
               actorId: source.agent.id,
               action: "chat_github.published",
@@ -1488,7 +1488,7 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
                 .where(
                   and(
                     eq(chatGitHubReviews.id, String(action.payload.reviewId)),
-                    eq(chatGitHubReviews.companyId, action.companyId),
+                    eq(chatGitHubReviews.spaceId, action.spaceId),
                   ),
                 );
             });
@@ -1550,9 +1550,9 @@ export function githubChatReviewService(db: Db, fetchImpl = fetch) {
   }
   function publicationLeaseExpiresAt() {
     return sql`(select max(l.expires_at) from chat_endpoint_leases l
-      inner join chat_conversations c on c.id = ${chatActions.conversationId} and c.company_id = ${chatActions.companyId}
-      inner join chat_endpoint_resources r on r.id = c.resource_id and r.company_id = ${chatActions.companyId}
-      where l.company_id = ${chatActions.companyId} and l.endpoint_id = ${chatActions.endpointId}
+      inner join chat_conversations c on c.id = ${chatActions.conversationId} and c.space_id = ${chatActions.spaceId}
+      inner join chat_endpoint_resources r on r.id = c.resource_id and r.space_id = ${chatActions.spaceId}
+      where l.space_id = ${chatActions.spaceId} and l.endpoint_id = ${chatActions.endpointId}
         and l.lease_key = 'github-publication:' || (r.metadata->>'providerRepositoryId') || ':' ||
           substring(c.external_thread_id from '^github:[^:]+:(?:issue:)?([1-9][0-9]*)'))`;
   }

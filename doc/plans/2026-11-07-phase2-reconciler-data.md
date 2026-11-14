@@ -24,7 +24,7 @@ Long holds (K4 up to 579 s, so outages up to 588 s, past the Runner's 7-minute r
 
 TTFT, boot and restart recovery stay within the p50 budgets for cold starts and for recovery. The exceptions are claude cold TTFT, at the budget (16.3–17.5 s against 16.5 s), and warm follow-ups on claude (about 3×) and codex (slightly over). See "Speed".
 
-One Daytona wave ran afterwards. It found the claimed-wake leak again, slower remote settling (76–107 s), and a Retry blocked by the company-wide accounting gate. See "Daytona wave".
+One Daytona wave ran afterwards. It found the claimed-wake leak again, slower remote settling (76–107 s), and a Retry blocked by the space-wide accounting gate. See "Daytona wave".
 
 ## Waves
 
@@ -140,7 +140,7 @@ All 6 tasks crossed a fault and 5 passed. R6 (sandbox leaks) was clean.
 
 - **t03 (claude A1 K2) failed R3 `retry_no_new_run` (P, Phase 3).**
   - The previous run failed `process_lost`, and the task offered Retry.
-  - The Retry run `7a93bd1e` was cancelled `budget_blocked` by the company-wide accounting gate: "New work must wait while a native run recovers its unfinished accounting."
+  - The Retry run `7a93bd1e` was cancelled `budget_blocked` by the space-wide accounting gate: "New work must wait while a native run recovers its unfinished accounting."
   - The same gate skipped assignment wake `c0b2a035` terminally, which is a real I4 (the other I4 in this wave was a delivered retry, the known false positive).
   - Spend was far below the 3,000-cent cap.
   - This is the gate that decision 1 removes. The evidence went to the Phase 3 session.

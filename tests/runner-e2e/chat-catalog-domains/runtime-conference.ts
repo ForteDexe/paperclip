@@ -7,19 +7,19 @@ import { runtimeDefinition, runtimeObservation, observeRuntime } from "./runtime
 /**
  * The reply must send the person to the real Conference Room: the scripted human clicks the
  * link the reply rendered (no typed-URL fallback) and must land on the board composer in the
- * same company. How the reply words the surface's scope is free-form and is not graded by
+ * same space. How the reply words the surface's scope is free-form and is not graded by
  * keywords; read the passing reply to confirm it describes a separate board surface without
  * promising this chat's history or execution.
  */
 export function gradeConference(value: unknown) {
   const c = checks(); const o = runtimeObservation(value);
-  c.add("independent-conference-evidence", !!o, "Actual deployment, gate, company route and rendered board surface are required."); if (!o) return c.result();
+  c.add("independent-conference-evidence", !!o, "Actual deployment, gate, space route and rendered board surface are required."); if (!o) return c.result();
   c.add("supported-local-enabled-context", o.state.deploymentMode === "local_trusted" && o.state.conferenceEnabled === true
     && o.state.agentChatEnabled === true, "Both actual gates are enabled in the supported local-trusted deployment.");
   c.add("reply-links-conference-room", o.state.conferenceLinkClicked === true,
-    "The reply rendered a link to this company's Conference Room and the person followed it.");
-  c.add("real-company-conference-surface", o.state.conferenceVisible === true && o.state.openedCompanyPrefix === o.state.companyPrefix
-    && o.state.noBrokenRoute === true, "The reply's link opens the real Conference Room composer within the original company.");
+    "The reply rendered a link to this space's Conference Room and the person followed it.");
+  c.add("real-space-conference-surface", o.state.conferenceVisible === true && o.state.openedSpacePrefix === o.state.spacePrefix
+    && o.state.noBrokenRoute === true, "The reply's link opens the real Conference Room composer within the original space.");
   c.add("navigation-has-no-provider-action", o.state.runsBeforeOpen === 1 && o.state.runsAfterOpen === 1
     && o.state.standingIssueBefore === o.state.standingIssueAfter, "Opening the board surface preserves the ordinary source and starts no hidden execution.");
   return c.result();
@@ -33,7 +33,7 @@ export const runtimeConferenceCases = [runtimeDefinition("agent-chat.conference-
   // arriving after the instance enabled it loads the current settings, so reload before the query is sent.
   await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
   return { deploymentMode: health.deploymentMode, conferenceEnabled: settings.enableConferenceRoomChat,
-    agentChatEnabled: settings.enableAgentChat, companyPrefix: ctx.input.fixtures.company.issuePrefix };
+    agentChatEnabled: settings.enableAgentChat, spacePrefix: ctx.input.fixtures.space.issuePrefix };
 }, gradeConference, {
   oracleVersion: "outpost.chat-catalog.runtime-conference.v5",
   sourceFiles: ["chat-catalog-domains/runtime-conference.ts", "chat-catalog-domains/runtime-support.ts", "chat-catalog-domains/internal-comment-reference.ts", "chat-scenarios/agent-chat.yaml"],
@@ -47,18 +47,18 @@ export const runtimeConferenceCases = [runtimeDefinition("agent-chat.conference-
     const rendered = await anchors.evaluateAll(nodes => nodes.map(node => (node as HTMLAnchorElement).href));
     const origin = new URL(ctx.input.page.url()).origin;
     const index = rendered.findIndex(href => { try { const url = new URL(href);
-      return url.origin === origin && url.pathname === `/${state.companyPrefix}/board-chat`; } catch { return false; } });
+      return url.origin === origin && url.pathname === `/${state.spacePrefix}/board-chat`; } catch { return false; } });
     state.conferenceLinkClicked = index >= 0;
-    await ctx.input.evidence("runtime-conference-links.json", { companyId: o.companyId, rendered, replyLinks: o.links });
+    await ctx.input.evidence("runtime-conference-links.json", { spaceId: o.spaceId, rendered, replyLinks: o.links });
     if (index < 0) return;
     const source = ctx.input.page.url();
     await anchors.nth(index).click();
     await expect(ctx.input.page.getByPlaceholder("Ask anything about your organization...")).toBeVisible();
     await expect(ctx.input.page.getByText("Conference Room", { exact: true }).first()).toBeVisible();
     state.conferenceVisible = true;
-    const parts = new URL(ctx.input.page.url()).pathname.split("/"); state.openedCompanyPrefix = parts[1];
+    const parts = new URL(ctx.input.page.url()).pathname.split("/"); state.openedSpacePrefix = parts[1];
     state.noBrokenRoute = parts.at(-1) === "board-chat";
-    await ctx.input.evidence("runtime-conference-opened.json", { companyId: o.companyId, url: ctx.input.page.url(), composerVisible: true });
+    await ctx.input.evidence("runtime-conference-opened.json", { spaceId: o.spaceId, url: ctx.input.page.url(), composerVisible: true });
     state.runsAfterOpen = (await ctx.allRuns()).length;
     await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible();

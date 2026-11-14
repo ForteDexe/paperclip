@@ -3,11 +3,11 @@ import { cardWorkFixture, successfulCardWorkFixture } from "./status-card-work-f
 import { gradeIntegratorCards, integratorStatusCardsCases } from "./integrator-status-cards.js";
 function valid(id: string) {
   const creation = id === "status-cards.create-card"; const archive = id === "status-cards.archive-card";
-  const card = { id: "card", companyId: "company", createdByAgentId: id === "status-cards.other-authors-card" ? "morgan" : "ceo", title: "Launch blockers", interestPrompt: "Launch's biggest blockers", agentId: "morgan", queries: [{ projectId: "project" }], fingerprint: { source: { status: "blocked" } }, refreshPolicy: { mode: "manual" }, archivedAt: archive ? "2026-10-26T12:00:00Z" : null, archivedByAgentId: archive ? "ceo" : null, summaryBody: "Payment approval blocks Launch.", lastGeneratedAt: "2026-10-26T11:00:00Z" };
+  const card = { id: "card", spaceId: "space", createdByAgentId: id === "status-cards.other-authors-card" ? "morgan" : "ceo", title: "Launch blockers", interestPrompt: "Launch's biggest blockers", agentId: "morgan", queries: [{ projectId: "project" }], fingerprint: { source: { status: "blocked" } }, refreshPolicy: { mode: "manual" }, archivedAt: archive ? "2026-10-26T12:00:00Z" : null, archivedByAgentId: archive ? "ceo" : null, summaryBody: "Payment approval blocks Launch.", lastGeneratedAt: "2026-10-26T11:00:00Z" };
   const update = { id: "update", kind: "full", status: "ok", runId: "worker-run", generationIssueId: "generation-task" };
   const summary = { id: "summary", body: card.summaryBody };
-  const source = { id: "source", identifier: "ACORN-1", companyId: "company", title: "Payment approval blocks launch", status: "blocked" };
-  const result = { scenarioId: id, origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { project: { id: "project" }, worker: { id: "morgan" }, sourceTasks: [structuredClone(source)], ...(creation ? {} : { card: { ...card, archivedAt: null, archivedByAgentId: null }, originalUpdates: [structuredClone(update)], originalSummaries: [structuredClone(summary)], ...(archive ? { otherCard: { ...card, id: "other", interestPrompt: "Research blockers", archivedAt: null, archivedByAgentId: null } } : {}) }) },
+  const source = { id: "source", identifier: "ACORN-1", spaceId: "space", title: "Payment approval blocks launch", status: "blocked" };
+  const result = { scenarioId: id, origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { project: { id: "project" }, worker: { id: "morgan" }, sourceTasks: [structuredClone(source)], ...(creation ? {} : { card: { ...card, archivedAt: null, archivedByAgentId: null }, originalUpdates: [structuredClone(update)], originalSummaries: [structuredClone(summary)], ...(archive ? { otherCard: { ...card, id: "other", interestPrompt: "Research blockers", archivedAt: null, archivedByAgentId: null } } : {}) }) },
     tasks: [source], projects: [], goals: [], comments: [], documents: [], revisions: [], humanQueries: [], links: ["/ACORN/status/card"],
     runs: [{ id: "source-run", agentId: "ceo", status: "succeeded" }, { id: "worker-run", agentId: "morgan", status: "succeeded" }],
     activity: creation ? [{ id: "create", action: "status_card.created", entityId: "card", agentId: "ceo" }] : [], cardsEnabled: true, cardOperations: undefined as Record<string, string[]> | undefined, cards: archive ? [card, { ...card, id: "other", interestPrompt: "Research blockers", archivedAt: null, archivedByAgentId: null }] : [card], updates: { card: [update] }, summaries: { card: [summary] },
@@ -71,7 +71,7 @@ describe("saved card state and truthful generation controls", () => {
     expect(gradeIntegratorCards({ ...o, summaries: { card: [] } }).passed).toBe(false);
     expect(gradeIntegratorCards({ ...o, links: [] }).passed).toBe(false);
     expect(gradeIntegratorCards({ ...o, links: ["/ACORN/status/other", "https://foreign.test/ACORN/status/card"] }).passed).toBe(false);
-    // Another company's status page cannot list this company's archived card.
+    // Another space's status page cannot list this space's archived card.
     expect(gradeIntegratorCards({ ...o, links: ["/OTHER/status"] }).passed).toBe(false);
     expect(gradeIntegratorCards({ ...o, cards: o.cards.map(row => row.id === "card" ? { ...row, archivedAt: null, archivedByAgentId: null } : row) }).passed).toBe(false);
     const altered = structuredClone(o); altered.tasks[0]!.status = "done";
@@ -80,7 +80,7 @@ describe("saved card state and truthful generation controls", () => {
   it("accepts handing the change to the card's author, who changes it under its own identity", () => {
     const o = valid("status-cards.other-authors-card");
     const handed = { ...structuredClone(o), links: ["/ACORN/issues/ACORN-4"], reply: "Morgan owns that card, so I asked Morgan to change it in ACORN-4." };
-    handed.tasks.push({ id: "handoff", identifier: "ACORN-4", companyId: "company", title: "Set card to hourly", status: "done", createdByAgentId: "ceo", assigneeAgentId: "morgan" } as typeof handed.tasks[number]);
+    handed.tasks.push({ id: "handoff", identifier: "ACORN-4", spaceId: "space", title: "Set card to hourly", status: "done", createdByAgentId: "ceo", assigneeAgentId: "morgan" } as typeof handed.tasks[number]);
     handed.cards[0]!.refreshPolicy = { mode: "interval" }; handed.activity.push({ id: "owner-write", action: "status_card.updated", entityId: "card", agentId: "morgan" } as typeof handed.activity[number]);
     handed.runs.push({ id: "handoff-run", agentId: "morgan", status: "succeeded" });
     expect(gradeIntegratorCards(handed).passed).toBe(true);
@@ -149,8 +149,8 @@ describe("saved card state and truthful generation controls", () => {
     // A read in the earlier refresh turn does not answer the later question.
     const earlier = structuredClone(o); delete earlier.cardOperations!["ceo-four"]; earlier.cardOperations!["ceo-three"]!.push("GET /api/status-cards/{id}/updates");
     expect(gradeIntegratorCards(earlier).passed).toBe(false);
-    // The company card list carries the card's error state, so reading it answers the question; revisions alone do not.
-    const listed = structuredClone(o); listed.cardOperations!["ceo-four"] = ["GET /api/companies/{companyId}/status-cards", "GET /api/status-cards/{id}/summary-revisions"];
+    // The space card list carries the card's error state, so reading it answers the question; revisions alone do not.
+    const listed = structuredClone(o); listed.cardOperations!["ceo-four"] = ["GET /api/spaces/{spaceId}/status-cards", "GET /api/status-cards/{id}/summary-revisions"];
     expect(gradeIntegratorCards(listed).passed).toBe(true);
     const revisionsOnly = structuredClone(o); revisionsOnly.cardOperations!["ceo-four"] = ["GET /api/status-cards/{id}/summary-revisions"];
     expect(gradeIntegratorCards(revisionsOnly).passed).toBe(false);
@@ -163,12 +163,12 @@ describe("saved card state and truthful generation controls", () => {
 
 import { sourceTaskReads, statusCardOperations } from "./integrator-status-cards.js";
 import { savedCall } from "./api-read-receipts.test-fixtures.js";
-it("counts only successful status-card reads bound to this card or company, as the port saves them", () => {
-  const ops = (...events: Record<string, unknown>[][]) => statusCardOperations(events.flat(), "card", "company");
+it("counts only successful status-card reads bound to this card or space, as the port saves them", () => {
+  const ops = (...events: Record<string, unknown>[][]) => statusCardOperations(events.flat(), "card", "space");
   expect(ops(savedCall({ operationId: "GET /api/status-cards/{id}", pathParams: { id: "card" } }, 200, "1"),
-    savedCall({ operationId: "GET /api/companies/{companyId}/status-cards", pathParams: { companyId: "company" }, query: { archived: "true" } }, 200, "2"),
+    savedCall({ operationId: "GET /api/spaces/{spaceId}/status-cards", pathParams: { spaceId: "space" }, query: { archived: "true" } }, 200, "2"),
     savedCall({ operationId: "GET /api/status-cards/{id}/updates", pathParams: { id: "card" }, query: { limit: 20 } }, 200, "3")))
-    .toEqual(["GET /api/status-cards/{id}", "GET /api/companies/{companyId}/status-cards", "GET /api/status-cards/{id}/updates"]);
+    .toEqual(["GET /api/status-cards/{id}", "GET /api/spaces/{spaceId}/status-cards", "GET /api/status-cards/{id}/updates"]);
   // A failed request, a different card, or a request that never completed is not proof of a read.
   expect(ops(savedCall({ operationId: "GET /api/status-cards/{id}", pathParams: { id: "card" } }, 404, "1"))).toEqual([]);
   expect(ops(savedCall({ operationId: "GET /api/status-cards/{id}", pathParams: { id: "other-card" } }, 200, "1"))).toEqual([]);
@@ -189,8 +189,8 @@ it("grades a created card by saved state and its link, not by the reply's wordin
   // A card that has not yet been summarized passes when its compiled query watches Launch.
   const pending = structuredClone(o); pending.cards[0]!.summaryBody = null as unknown as string; pending.cards[0]!.lastGeneratedAt = null as unknown as string;
   expect(gradeIntegratorCards(pending).passed).toBe(true);
-  const companyWide = structuredClone(o); companyWide.cards[0]!.queries = [{ status: ["blocked"] } as unknown as typeof companyWide.cards[0]["queries"][0]];
-  expect(gradeIntegratorCards(companyWide).passed).toBe(true);
+  const spaceWide = structuredClone(o); spaceWide.cards[0]!.queries = [{ status: ["blocked"] } as unknown as typeof spaceWide.cards[0]["queries"][0]];
+  expect(gradeIntegratorCards(spaceWide).passed).toBe(true);
   const otherProject = structuredClone(o); otherProject.cards[0]!.queries = [{ projectId: "research" }];
   expect(gradeIntegratorCards(otherProject).passed).toBe(false);
   const unwatched = structuredClone(o); unwatched.cards[0]!.fingerprint = {} as typeof unwatched.cards[0]["fingerprint"];
@@ -225,7 +225,7 @@ it("classifies live and unavailable source reads by their redacted saved receipt
   expect(sourceTaskReads(read("other", 200), "source", "ACORN-1")).toEqual({ live: false, unavailable: false });
   expect(sourceTaskReads(read("other", 404), "source", "ACORN-1")).toEqual({ live: false, unavailable: false });
   // An unredacted dedicated-tool output naming the source still counts as a live read.
-  const event = (output: string, status = "completed") => ({ eventType: "tool.execution.completed", payload: { orpEvent: { sourceKind: "runner", payload: { name: "paperclip_get_task", status, output } } } });
+  const event = (output: string, status = "completed") => ({ eventType: "tool.execution.completed", payload: { orpEvent: { sourceKind: "runner", payload: { name: "outpost_get_task", status, output } } } });
   const live = event(JSON.stringify({ text: JSON.stringify({ apiOperationId: "GET /api/issues/{id}", data: { id: "source", status: "done" } }) }));
   expect(sourceTaskReads([live], "source")).toEqual({ live: true, unavailable: false });
   expect(sourceTaskReads([event(JSON.parse(JSON.stringify(live.payload.orpEvent.payload.output)), "running")], "source")).toEqual({ live: false, unavailable: false });
@@ -242,7 +242,7 @@ it("delivers only actual selected card and saved generation/source context, not 
   expect(context).toContain("[Launch blockers](/ACN/status/card)"); expect(context).toContain(card.summaryBody!); expect(context).toContain(card.lastGeneratedAt!);
   expect(context).toContain("Payment approval blocks launch"); expect(context).toContain("/ACN/issues/ACN-1");
   expect(context).not.toMatch(/private-current-title|unrelated-private-detail|must|expected|archive|restore|DELETE|PATCH|\/api\//i);
-  expect(() => selectedStatusCardReference(card, [], undefined)).toThrow("actual company issue prefix");
+  expect(() => selectedStatusCardReference(card, [], undefined)).toThrow("actual space issue prefix");
   const other = selectedStatusCardReference({ ...card, id: "other-card", title: "Research" }, [], "ACN");
   expect(other).not.toContain("/ACN/status/card)"); expect(other).toContain("/ACN/status/other-card");
 });

@@ -4,11 +4,11 @@ import { skillCreatedItems } from "./skill-created-items";
 
 const event = (overrides: Partial<ActivityEvent> = {}): ActivityEvent => ({
   id: "activity",
-  companyId: "company",
+  spaceId: "space",
   actorType: "agent",
   actorId: "agent",
-  action: "company.skill_created",
-  entityType: "company_skill",
+  action: "space.skill_created",
+  entityType: "space_skill",
   entityId: "skill",
   createdAt: new Date("2026-09-16T12:00:00Z"),
   details: { name: "Release helper", description: "Ships releases.", slug: "release-helper", versionId: "version" },

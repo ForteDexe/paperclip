@@ -26,13 +26,13 @@ Agent preview headings, harness/model values, form buttons, and provider simulat
 
 ## Existing components investigated and reused
 
-The current `/:company/apps` route renders **Browse**, not the older Connections page. Its actual provider groups, account rows, search, Add account buttons, status icons, owner identities, and management menus are mounted in the stories. A small optional account-detail slot adds AI sign-in method, personal/shared identity, default, and delegation metadata to its existing rows.
+The current `/:space/apps` route renders **Browse**, not the older Connections page. Its actual provider groups, account rows, search, Add account buttons, status icons, owner identities, and management menus are mounted in the stories. A small optional account-detail slot adds AI sign-in method, personal/shared identity, default, and delegation metadata to its existing rows.
 
 | Existing component | Reuse in this milestone |
 | --- | --- |
 | `pages/apps/Browse.tsx` | Real Connectors list; existing provider groups and account rows. No standalone AI list. |
 | `pages/apps/AppDetail.tsx` | Existing header, naming, identities, permission loading and account status. |
-| `app-detail/IdentitiesSection.tsx` | Existing personal/company ownership display, member audience selection, and revoke confirmation dialog. |
+| `app-detail/IdentitiesSection.tsx` | Existing personal/space ownership display, member audience selection, and revoke confirmation dialog. |
 | `app-detail/PermissionsPanel.tsx` | Existing agent access radio cards and agent selector. Only the irrelevant tool-action section is replaced with AI account/default controls. |
 | `app-detail/AdvancedPanel.tsx` | Existing reconnect banner with an optional provider-auth callback, behind its existing permission check. |
 | `features/connections/ConnectionSetupFlow.tsx` | Existing branded setup shell, human/agent access step, navigation, cancellation and reuse flow. Provider login is composed in a credential-content slot. |
@@ -72,8 +72,8 @@ The counts above record the original UI review. Integration verification is reco
 
 ## Agreed implementation after review
 
-- Extend existing applications/connections/grants/installations/delegations with an AI purpose and runtime-auth transport. Reuse encrypted secret storage and company access checks; keep tool/channel execution separate.
-- Add typed agent bindings and personal defaults keyed by company, user, provider, and sign-in method. First successful personal connection becomes default only when none exists. Additional defaults require explicit selection; revocation never chooses a replacement.
+- Extend existing applications/connections/grants/installations/delegations with an AI purpose and runtime-auth transport. Reuse encrypted secret storage and space access checks; keep tool/channel execution separate.
+- Add typed agent bindings and personal defaults keyed by space, user, provider, and sign-in method. First successful personal connection becomes default only when none exists. Additional defaults require explicit selection; revocation never chooses a replacement.
 - Resolve personal defaults from the run's responsible user. Shared and dedicated personal bindings are explicit. Only the owner can authorize their personal account across responsible users.
 - Resolve the chosen grant before local, sandbox, native-runner, and test execution. Prevent inherited credentials or cached homes from overriding it; partition session/auth reuse by grant identity, preserve refresh ownership, and report actionable missing-access blockers.
 - Keep provider, method, harness, and model routing fixed during connection selection. Start with Claude, OpenAI/ChatGPT, OpenRouter, and Grok/xAI, using only supported existing authentication methods and harness integrations.

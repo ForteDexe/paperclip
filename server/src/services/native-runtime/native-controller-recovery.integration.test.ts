@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agentTaskSessions, agents, companies, createDb, environmentLeases, environments, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, nativeRunnerCheckpoints } from "@outpost/db";
+import { agentTaskSessions, agents, spaces, createDb, environmentLeases, environments, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, nativeRunnerCheckpoints } from "@outpost/db";
 import { DurablePrpControlPlane, parseNativeExecutionInput, type PersistedNativeSession } from "../../vendor/outpost-runner/index.js";
 import { startRecoveryPostgres, recoveryPostgresSupport } from "../../__tests__/helpers/recovery-postgres.js";
 import { createIsolatedTestHome } from "../../__tests__/helpers/isolated-test-home.js";
@@ -29,7 +29,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
   let home: ReturnType<typeof createIsolatedTestHome>;
   let root: string;
   const previousHome = process.env.OUTPOST_HOME;
-  const companyId = randomUUID(), agentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID();
   const compatibility = { configDigest: `sha256:${"a".repeat(64)}`, processConfigDigest: null };
   beforeAll(async () => {
     home = createIsolatedTestHome();
@@ -37,8 +37,8 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     root = await mkdtemp(join(tmpdir(), "native-controller-discovery-"));
     database = await startRecoveryPostgres("native-controller-discovery-");
     db = createDb(database.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Controller discovery", issuePrefix: "NCD" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Runner", adapterType: "outpost_runner", adapterConfig: { provider: "codex" } });
+    await db.insert(spaces).values({ id: spaceId, name: "Controller discovery", issuePrefix: "NCD" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Runner", adapterType: "outpost_runner", adapterConfig: { provider: "codex" } });
   }, 60_000);
   afterAll(async () => {
     await database?.cleanup();
@@ -50,11 +50,11 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
 
   async function seed() {
     const issueId = randomUUID(), runId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Continue retained execution", assigneeAgentId: agentId, status: "in_progress" });
-    const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId }).returning();
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Continue retained execution", assigneeAgentId: agentId, status: "in_progress" });
+    const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId }).returning();
     const native = await prepareNativeHeartbeatRun({ db, run, issue: { id: issueId, title: "Continue retained execution", description: null, reviewPolicy: null }, environmentLeaseId: randomUUID() });
-    const owner = { companyId, issueId, runId, authorityRunId: runId, bootId: randomUUID(), generation: 1, leaseOwner: randomUUID() };
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "observed", controllerBootId: owner.bootId,
+    const owner = { spaceId, issueId, runId, authorityRunId: runId, bootId: randomUUID(), generation: 1, leaseOwner: randomUUID() };
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "observed", controllerBootId: owner.bootId,
       controllerGeneration: 1, leaseOwner: owner.leaseOwner, leaseExpiresAt: new Date(Date.now() + 60_000) });
     const core = new DurablePrpControlPlane({ stateDirectory: join(root, runId),
       identity: { runId, normalizedSessionId: native.normalizedSessionId, runnerInstanceId: native.runnerInstanceId,
@@ -64,15 +64,15 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     await core.flushCheckpoint();
     await core.stop();
     const snapshot: PersistedNativeSession = { backendKind: "mock", sessionId: native.normalizedSessionId,
-      identity: { companyId, agentId, issueId, runId, sessionId: native.normalizedSessionId } };
+      identity: { spaceId, agentId, issueId, runId, sessionId: native.normalizedSessionId } };
     const [prepared] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
-    const [result] = await db.insert(nativeRunResults).values({ companyId, issueId, runId,
+    const [result] = await db.insert(nativeRunResults).values({ spaceId, issueId, runId,
       completionContractId: prepared.completionContractId!, serverFingerprint: "fixture", schemaStatus: "accepted",
       resultJson: {}, canonicalSha256: "fixture" }).returning();
     await db.update(nativeRunFinalizations).set({ phase: "committed", resultId: result.id, leaseOwner: null, leaseExpiresAt: null }).where(eq(nativeRunFinalizations.runId, runId));
     const profile = { ...prepared.runnerProfileJson, sessionCheckpoint: snapshot };
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date(), runnerProfileJson: profile }).where(eq(heartbeatRuns.id, runId));
-    const scope = { companyId, agentId, issueId, runId, normalizedSessionId: native.normalizedSessionId };
+    const scope = { spaceId, agentId, issueId, runId, normalizedSessionId: native.normalizedSessionId };
     return { scope, native, profile, snapshot, owner,
       supervisor: { schema: "outpost.native-session-supervisor.v1", ...compatibility, snapshot } };
   }
@@ -86,7 +86,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     expect(await importNativeControllerRecovery(db, input)).toEqual({ kind: "unchanged" });
     await rm(join(root, fixture.scope.runId), { recursive: true });
     const currentRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: currentRunId, companyId, agentId, nativeIssueId: fixture.scope.issueId,
+    await db.insert(heartbeatRuns).values({ id: currentRunId, spaceId, agentId, nativeIssueId: fixture.scope.issueId,
       nativeSessionId: fixture.scope.normalizedSessionId, status: "running", runtimeMode: "native" });
     const recovered = await resolveNativeControllerRecovery(db, { ...fixture.scope, currentRunId });
     expect(recovered.kind).toBe("recoverable");
@@ -104,7 +104,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const remoteCwd = join(root, runId, "remote"), providerLeaseId = randomUUID();
     const previous = parseNativeExecutionInput({
       schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
-      binding: { companyId, agentId, issueId: fixture.scope.issueId, runId: fixture.scope.runId,
+      binding: { spaceId, agentId, issueId: fixture.scope.issueId, runId: fixture.scope.runId,
         executionWorkspaceId: randomUUID() },
       task: { identifier: "NCD-1", title: "Continue retained work", description: null,
         prompt: "Continue the saved work.", workMode: "standard" },
@@ -122,21 +122,21 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const sourceProfile = { ...fixture.profile, nativeExecutionInput: previous, sessionCheckpoint: checkpoint,
       nativeToolContractFingerprint: nativeToolContractFingerprintForTarget("remote", "codex") };
     await db.update(heartbeatRuns).set({ runnerProfileJson: sourceProfile }).where(eq(heartbeatRuns.id, fixture.scope.runId));
-    const rebound = rebindNativeSessionCheckpoint({ previousRun: { id: fixture.scope.runId, companyId, agentId,
+    const rebound = rebindNativeSessionCheckpoint({ previousRun: { id: fixture.scope.runId, spaceId, agentId,
       nativeSessionId: fixture.scope.normalizedSessionId, runnerProfileJson: sourceProfile }, currentExecution: current, executionTargetKind: "remote" });
     expect(rebound).toMatchObject({ providerSessionId: "historical-provider-thread", cursor: null, identity: { runId } });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: fixture.scope.issueId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: fixture.scope.issueId,
       nativeSessionId: fixture.scope.normalizedSessionId, runnerInstanceId: randomUUID(), status: "running", runtimeMode: "native",
       runnerProfileJson: { nativeExecutionInput: current, sessionCheckpoint: rebound, nativePreparationFencingVersion: 1 } });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId: fixture.scope.issueId, runId, phase: "observed" });
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId: fixture.scope.issueId, runId, phase: "observed" });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, fixture.scope.issueId));
     await db.insert(environments).values({ id: environmentId, name: runId, driver: "sandbox" });
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId, issueId: fixture.scope.issueId,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId, issueId: fixture.scope.issueId,
       heartbeatRunId: fixture.scope.runId, provider: "daytona", providerLeaseId, status: "released", metadata: { remoteCwd } });
     const identity = { runId: fixture.scope.runId, normalizedSessionId: fixture.scope.normalizedSessionId,
       runnerInstanceId: fixture.native.runnerInstanceId, environmentLeaseId: fixture.native.environmentLeaseId,
       turnId: fixture.native.turnId, itemId: fixture.native.itemId };
-    const runnerRoot = join(remoteCwd, ".paperclip-runtime", "outpost-runner", "sessions",
+    const runnerRoot = join(remoteCwd, ".outpost-runtime", "outpost-runner", "sessions",
       createHash("sha256").update(fixture.scope.normalizedSessionId).digest("hex"), "runner");
     await mkdir(runnerRoot, { recursive: true });
     await writeFile(join(runnerRoot, "runner-state.json"), JSON.stringify({ ...identity, lifecycle: "ready", outbox: [], pendingTerminalDelivery: null }));
@@ -162,7 +162,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const recovery = await nativeProviderRecoveryEvidence({ db, runId, executionTargetKind: target.kind, sourceFailureCode: nativeSessionFailureSourceCode(failure) });
     expect(recovery).toMatchObject({ providerSessionEstablished: true, providerEventsExist: false, checkpointExists: true });
     expect(recovery.recoveryMode).toBe("ambiguous_state");
-    const currentOwner = { companyId, issueId: fixture.scope.issueId, runId, authorityRunId: runId,
+    const currentOwner = { spaceId, issueId: fixture.scope.issueId, runId, authorityRunId: runId,
       bootId: randomUUID(), generation: 1, leaseOwner: randomUUID() };
     await db.update(nativeRunFinalizations).set({ controllerBootId: currentOwner.bootId, controllerGeneration: 1,
       leaseOwner: currentOwner.leaseOwner, leaseExpiresAt: new Date(Date.now() + 60_000) }).where(eq(nativeRunFinalizations.runId, runId));
@@ -205,7 +205,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     await db.update(heartbeatRuns).set({ runnerProfileJson: { ...fixture.profile, sessionCheckpoint: checkpoint } })
       .where(eq(heartbeatRuns.id, fixture.scope.runId));
     const rebound = { ...checkpoint, cursor: null, identity: { ...checkpoint.identity, runId } };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: fixture.scope.issueId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: fixture.scope.issueId,
       nativeSessionId: fixture.scope.normalizedSessionId, runnerInstanceId: randomUUID(), status: "running", runtimeMode: "native",
       createdAt: new Date(Date.now() + 1_000),
       runnerProfileJson: { sessionCheckpoint: rebound, nativePreparationFencingVersion: 1 } });
@@ -232,9 +232,9 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
       identity: { runId, normalizedSessionId: fixture.scope.normalizedSessionId, runnerInstanceId: randomUUID(),
         environmentLeaseId: fixture.native.environmentLeaseId, turnId: fixture.native.turnId, itemId: fixture.native.itemId },
       expectedRunnerVersion: "discovery-fixture", expectedRunnerDigest: `sha256:${"a".repeat(64)}` });
-    const runnerOwner = { companyId, issueId: fixture.scope.issueId, runId, authorityRunId: runId,
+    const runnerOwner = { spaceId, issueId: fixture.scope.issueId, runId, authorityRunId: runId,
       bootId: randomUUID(), generation: 1, leaseOwner: randomUUID() };
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId: fixture.scope.issueId, runId, phase: "observed",
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId: fixture.scope.issueId, runId, phase: "observed",
       controllerBootId: runnerOwner.bootId, controllerGeneration: 1, leaseOwner: runnerOwner.leaseOwner,
       leaseExpiresAt: new Date(Date.now() + 60_000) });
     core.setCheckpointPersistence(nativeRunnerCheckpointWriter(db, runnerOwner));
@@ -244,7 +244,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     } finally { await core.stop(); }
     await db.delete(nativeRunnerCheckpoints).where(eq(nativeRunnerCheckpoints.runId, runId));
     expect((await evidence("local_runtime_api_listener_unavailable")).recoveryMode).toBe("bootstrap_retry");
-    await db.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: 1, stream: "system", level: "info",
+    await db.insert(heartbeatRunEvents).values({ spaceId, runId, agentId, seq: 1, stream: "system", level: "info",
       eventType: "session.resumed" });
     expect((await evidence("local_runtime_api_listener_unavailable")).recoveryMode).toBe("ambiguous_state");
   });
@@ -265,7 +265,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const fixture = await seed(), currentRunId = randomUUID();
     const metadata = createNativeControllerRecovery(fixture.snapshot, compatibility, { runId: fixture.scope.runId,
       runnerInstanceId: fixture.native.runnerInstanceId, normalizedSessionId: fixture.scope.normalizedSessionId });
-    await db.insert(heartbeatRuns).values({ id: currentRunId, companyId, agentId, nativeIssueId: fixture.scope.issueId,
+    await db.insert(heartbeatRuns).values({ id: currentRunId, spaceId, agentId, nativeIssueId: fixture.scope.issueId,
       nativeSessionId: fixture.scope.normalizedSessionId, status: "running", runtimeMode: "native" });
     for (const envelope of [{ ...metadata, snapshotSha256: "wrong" }, { ...metadata, checkpoint: { ...metadata.checkpoint!, runnerInstanceId: randomUUID() } }]) {
       await db.update(heartbeatRuns).set({ runnerProfileJson: { ...fixture.profile, nativeControllerRecovery: envelope } }).where(eq(heartbeatRuns.id, fixture.scope.runId));
@@ -276,14 +276,14 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
 
   async function seedBusyDirectoryRun(input: { checkpoint?: boolean; resultJson?: Record<string, unknown> } = {}) {
     const issueId = randomUUID(), runId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Busy agent directory", assigneeAgentId: agentId, status: "in_progress" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, status: "running", runtimeMode: "native",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Busy agent directory", assigneeAgentId: agentId, status: "in_progress" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId, status: "running", runtimeMode: "native",
       resultJson: input.resultJson ?? null,
-      runnerProfileJson: { nativeExecutionInput: { binding: { companyId, agentId, issueId, runId } },
+      runnerProfileJson: { nativeExecutionInput: { binding: { spaceId, agentId, issueId, runId } },
         ...(input.checkpoint ? { sessionCheckpoint: { backendKind: "mock", sessionId: randomUUID(), providerSessionId: "provider-session",
-          identity: { companyId, agentId, issueId, runId } } } : {}) } });
+          identity: { spaceId, agentId, issueId, runId } } } : {}) } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "retryable_failure", attempt: 3,
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "retryable_failure", attempt: 3,
       failureDetail: { recoveryMode: "exact_checkpoint_resume", providerSessionEstablished: true, providerEventsExist: true } });
     const read = async () => (await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, runId)))[0]!;
     const readRun = async () => (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)))[0]!;
@@ -298,7 +298,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
       expect(claim).toBeDefined();
       expect((await read()).failureDetail?.agentDirectoryBusyDeferrals).toBeUndefined();
       const retryAt = new Date(now.getTime() + 10_000);
-      expect(await deferNativeRunForBusyAgentDirectory(db, { companyId, runId, leaseOwner: claim!.leaseOwner, retryAt, maxDeferrals: 3 })).toBe("deferred");
+      expect(await deferNativeRunForBusyAgentDirectory(db, { spaceId, runId, leaseOwner: claim!.leaseOwner, retryAt, maxDeferrals: 3 })).toBe("deferred");
       expect(await read()).toMatchObject({ phase: "retryable_failure", attempt: 3, leaseOwner: null, nextAttemptAt: retryAt,
         failureCode: NATIVE_AGENT_DIRECTORY_BUSY_WAIT, failureDetail: { recoveryMode: "same_session_resume" } });
       expect(await readRun()).toMatchObject({ status: "running", errorCode: null, contextSnapshot: { agentDirectoryBusyDeferrals: cycle } });
@@ -306,7 +306,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
       now = retryAt;
     }
     const [claim] = await claimNativeSessionResumptions({ db, runnerInstanceId: "successor", runIds: [runId], now });
-    expect(await deferNativeRunForBusyAgentDirectory(db, { companyId, runId, leaseOwner: claim!.leaseOwner,
+    expect(await deferNativeRunForBusyAgentDirectory(db, { spaceId, runId, leaseOwner: claim!.leaseOwner,
       retryAt: new Date(now.getTime() + 10_000), maxDeferrals: 3 })).toBe("refused");
     expect(await read()).toMatchObject({ phase: "observed", leaseOwner: claim!.leaseOwner });
   });
@@ -315,27 +315,27 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const retryAt = new Date(Date.now() + 10_000);
     const stopped = await seedBusyDirectoryRun({ checkpoint: true });
     const [stoppedClaim] = await claimNativeSessionResumptions({ db, runnerInstanceId: "successor", runIds: [stopped.runId] });
-    await db.update(heartbeatRuns).set({ resultJson: { cancellation: { source: "operator", expected: true, initiator: { type: "user", userId: "board" },
+    await db.update(heartbeatRuns).set({ resultJson: { cancellation: { source: "operator", expected: true, initiator: { type: "user", userId: "operator" },
       reason: "Stopped", recordedAt: new Date().toISOString() } } }).where(eq(heartbeatRuns.id, stopped.runId));
-    expect(await deferNativeRunForBusyAgentDirectory(db, { companyId, runId: stopped.runId, leaseOwner: stoppedClaim!.leaseOwner, retryAt, maxDeferrals: 30 })).toBe("refused");
+    expect(await deferNativeRunForBusyAgentDirectory(db, { spaceId, runId: stopped.runId, leaseOwner: stoppedClaim!.leaseOwner, retryAt, maxDeferrals: 30 })).toBe("refused");
     expect((await stopped.read()).nextAttemptAt).toBeNull();
     const foreign = await seedBusyDirectoryRun({ checkpoint: true });
     await claimNativeSessionResumptions({ db, runnerInstanceId: "successor", runIds: [foreign.runId] });
-    expect(await deferNativeRunForBusyAgentDirectory(db, { companyId, runId: foreign.runId, leaseOwner: "another-controller", retryAt, maxDeferrals: 30 })).toBe("refused");
+    expect(await deferNativeRunForBusyAgentDirectory(db, { spaceId, runId: foreign.runId, leaseOwner: "another-controller", retryAt, maxDeferrals: 30 })).toBe("refused");
     const moved = await seedBusyDirectoryRun({ checkpoint: true });
     const [movedClaim] = await claimNativeSessionResumptions({ db, runnerInstanceId: "successor", runIds: [moved.runId] });
     await db.update(issues).set({ executionRunId: null }).where(eq(issues.id, moved.issueId));
-    expect(await deferNativeRunForBusyAgentDirectory(db, { companyId, runId: moved.runId, leaseOwner: movedClaim!.leaseOwner, retryAt, maxDeferrals: 30 })).toBe("refused");
+    expect(await deferNativeRunForBusyAgentDirectory(db, { spaceId, runId: moved.runId, leaseOwner: movedClaim!.leaseOwner, retryAt, maxDeferrals: 30 })).toBe("refused");
     const fresh = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: fresh, companyId, agentId, status: "running", runtimeMode: "native" });
-    expect(await deferNativeRunForBusyAgentDirectory(db, { companyId, runId: fresh, retryAt, maxDeferrals: 30 })).toBe("pre_admission");
+    await db.insert(heartbeatRuns).values({ id: fresh, spaceId, agentId, status: "running", runtimeMode: "native" });
+    expect(await deferNativeRunForBusyAgentDirectory(db, { spaceId, runId: fresh, retryAt, maxDeferrals: 30 })).toBe("pre_admission");
   });
 
   it("defers only a busy agent directory met during preparation, never a busy collection after a turn", async () => {
     const { runId, read } = await seedBusyDirectoryRun({ checkpoint: true });
     const [claim] = await claimNativeSessionResumptions({ db, runnerInstanceId: "successor", runIds: [runId] });
     const schedule = vi.fn(), record = vi.fn(async () => undefined);
-    const run = { id: runId, companyId };
+    const run = { id: runId, spaceId };
     expect(await deferRunForBusyAgentDirectory(db, { run, error: new AgentDirectoryOperationBusyError(), leaseOwner: claim!.leaseOwner, schedule, record })).toBe("not_applicable");
     expect(await deferRunForBusyAgentDirectory(db, { run, error: new Error("unrelated"), leaseOwner: claim!.leaseOwner, schedule, record })).toBe("not_applicable");
     expect(schedule).not.toHaveBeenCalled();
@@ -355,13 +355,13 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const fixture = await seed(), runId = randomUUID();
     const scope = { ...fixture.scope, runId };
     const deadline = new Date(Date.now() + 60_000);
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: scope.issueId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: scope.issueId,
       nativeSessionId: scope.normalizedSessionId, status: "running", runtimeMode: "native",
       // The admission boundary has already stored its input; the deferral
       // and resumption owners never execute this transport-independent fixture.
       runnerProfileJson: { nativeExecutionInput: { binding: scope } } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, scope.issueId));
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId: scope.issueId, runId, phase: "observed" });
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId: scope.issueId, runId, phase: "observed" });
     await deferNativeControllerRecovery(db, { ...scope, retryAt: deadline });
     const read = () => db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, runId));
     expect((await read())[0]).toMatchObject({ phase: "retryable_failure", attempt: 0, leaseOwner: null,
@@ -383,7 +383,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     const fixture = await seed(), runId = randomUUID(), environmentId = randomUUID();
     const previous = parseNativeExecutionInput({
       schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
-      binding: { companyId, agentId, issueId: fixture.scope.issueId, runId: fixture.scope.runId,
+      binding: { spaceId, agentId, issueId: fixture.scope.issueId, runId: fixture.scope.runId,
         executionWorkspaceId: randomUUID() },
       task: { identifier: "NCD-1", title: "Continue retained execution", description: null,
         prompt: "Continue the saved work.", workMode: "standard" },
@@ -401,14 +401,14 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
       runnerInstanceId: fixture.native.runnerInstanceId, normalizedSessionId: fixture.scope.normalizedSessionId });
     await db.update(heartbeatRuns).set({ runnerProfileJson: { ...fixture.profile, nativeExecutionInput: previous,
       sessionCheckpoint: checkpoint, nativeControllerRecovery: metadata } }).where(eq(heartbeatRuns.id, fixture.scope.runId));
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: fixture.scope.issueId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: fixture.scope.issueId,
       nativeSessionId: fixture.scope.normalizedSessionId, status: "running", runtimeMode: "native",
       runnerProfileJson: { nativeExecutionInput: current, sessionCheckpoint: { ...checkpoint,
         identity: { ...checkpoint.identity, runId } } } });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId: fixture.scope.issueId, runId, phase: "observed" });
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId: fixture.scope.issueId, runId, phase: "observed" });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, fixture.scope.issueId));
     await db.insert(environments).values({ id: environmentId, name: `Retained ${environmentId}`, driver: "sandbox" });
-    await db.insert(environmentLeases).values({ companyId, environmentId, issueId: fixture.scope.issueId,
+    await db.insert(environmentLeases).values({ spaceId, environmentId, issueId: fixture.scope.issueId,
       heartbeatRunId: fixture.scope.runId, provider: "daytona", providerLeaseId: "retained-sandbox", status: "released",
       metadata: { remoteCwd: "/workspace" } });
     const deadline = new Date(Date.now() + 60_000);
@@ -429,7 +429,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
       loadCheckpoint: () => checkpoint, canReuseProcess: () => true, ...overrides,
     });
     const denied = "runner_state_identity_mismatch: prior_owner_terminal_state_indeterminate";
-    await expect(inspect({ execution: { ...current, binding: { ...current.binding, companyId: randomUUID() } } }))
+    await expect(inspect({ execution: { ...current, binding: { ...current.binding, spaceId: randomUUID() } } }))
       .rejects.toThrow(denied);
     await expect(inspect({ matchesExecution: () => false })).rejects.toThrow(denied);
     await expect(readSandbox({ remoteCwd: "/unrelated" })).rejects.toThrow("retained_sandbox_binding");
@@ -477,12 +477,12 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
   it("binds a retained Runner read to the source's directory after the workspace moved within the same sandbox", async () => {
     const fixture = await seed(), environmentId = randomUUID(), workspaceId = randomUUID();
     const sourceLeaseId = randomUUID(), currentLeaseId = randomUUID(), providerLeaseId = randomUUID();
-    const allocations = "/home/daytona/paperclip-workspace/.paperclip-workspaces";
+    const allocations = "/home/daytona/outpost-workspace/.outpost-workspaces";
     const sourceCwd = `${allocations}/${workspaceId}-1-${randomUUID()}`;
     const movedCwd = `${allocations}/${workspaceId}-6-${currentLeaseId}`;
     await db.insert(environments).values({ id: environmentId, name: `Moved ${environmentId}`, driver: "sandbox" });
     // Saved by the source run (status expired after its reusable handoff).
-    await db.insert(environmentLeases).values({ id: sourceLeaseId, companyId, environmentId, issueId: fixture.scope.issueId,
+    await db.insert(environmentLeases).values({ id: sourceLeaseId, spaceId, environmentId, issueId: fixture.scope.issueId,
       heartbeatRunId: fixture.scope.runId, provider: "daytona", providerLeaseId, status: "expired",
       leasePolicy: "reuse_by_environment", metadata: { remoteCwd: sourceCwd } });
     const target = { kind: "remote", transport: "sandbox", environmentId, leaseId: currentLeaseId, providerKey: "daytona",
@@ -501,7 +501,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     // Strict checks stay strict: another workspace's allocation, another
     // parent, a non-canonical path or name, or another sandbox never bind.
     for (const remoteCwd of [`${allocations}/${randomUUID()}-6-${currentLeaseId}`, `/elsewhere/${workspaceId}-6-${currentLeaseId}`,
-      `${allocations}/../.paperclip-workspaces/${workspaceId}-6-${currentLeaseId}`, `${allocations}/${workspaceId}-0-${currentLeaseId}`,
+      `${allocations}/../.outpost-workspaces/${workspaceId}-6-${currentLeaseId}`, `${allocations}/${workspaceId}-0-${currentLeaseId}`,
       `${allocations}/${workspaceId}-6-${currentLeaseId}-extra`, "/unrelated"]) {
       await expect(readSandbox({ remoteCwd })).rejects.toThrow("retained_sandbox_binding");
     }
@@ -513,18 +513,18 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
   // the Runner command may touch only paths inside the sandbox's workspace base.
   it.each(["suspended", "ready"] as const)("reads a moved source's %s Runner state from its own directory through a confined sandbox", async lifecycle => {
     const fixture = await seed(), environmentId = randomUUID(), workspaceId = randomUUID(), runId = randomUUID();
-    const providerLeaseId = randomUUID(), base = join(root, `sandbox-${runId}`, "paperclip-workspace");
-    const sourceCwd = join(base, ".paperclip-workspaces", `${workspaceId}-1-${randomUUID()}`);
-    const movedCwd = join(base, ".paperclip-workspaces", `${workspaceId}-6-${randomUUID()}`);
+    const providerLeaseId = randomUUID(), base = join(root, `sandbox-${runId}`, "outpost-workspace");
+    const sourceCwd = join(base, ".outpost-workspaces", `${workspaceId}-1-${randomUUID()}`);
+    const movedCwd = join(base, ".outpost-workspaces", `${workspaceId}-6-${randomUUID()}`);
     await mkdir(movedCwd, { recursive: true });
     await db.insert(environments).values({ id: environmentId, name: `Confined ${environmentId}`, driver: "sandbox" });
-    await db.insert(environmentLeases).values({ companyId, environmentId, issueId: fixture.scope.issueId,
+    await db.insert(environmentLeases).values({ spaceId, environmentId, issueId: fixture.scope.issueId,
       heartbeatRunId: fixture.scope.runId, provider: "daytona", providerLeaseId, status: "expired",
       leasePolicy: "reuse_by_environment", metadata: { remoteCwd: sourceCwd } });
     const identity = { runId: fixture.scope.runId, normalizedSessionId: fixture.scope.normalizedSessionId,
       runnerInstanceId: fixture.native.runnerInstanceId, environmentLeaseId: fixture.native.environmentLeaseId,
       turnId: fixture.native.turnId, itemId: fixture.native.itemId };
-    const runnerDirectory = (cwd: string) => join(cwd, ".paperclip-runtime", "outpost-runner", "sessions",
+    const runnerDirectory = (cwd: string) => join(cwd, ".outpost-runtime", "outpost-runner", "sessions",
       createHash("sha256").update(fixture.scope.normalizedSessionId).digest("hex"), "runner");
     await mkdir(runnerDirectory(sourceCwd), { recursive: true });
     await writeFile(join(runnerDirectory(sourceCwd), "runner-state.json"), JSON.stringify({ schema: "outpost.runner.durable.state.v1",
@@ -545,7 +545,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     };
     const execution = parseNativeExecutionInput({
       schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
-      binding: { companyId, agentId, issueId: fixture.scope.issueId, runId, executionWorkspaceId: workspaceId },
+      binding: { spaceId, agentId, issueId: fixture.scope.issueId, runId, executionWorkspaceId: workspaceId },
       task: { identifier: "NCD-1", title: "Continue retained work", description: null,
         prompt: "Continue the saved work.", workMode: "standard" },
       workspace: { cwd: movedCwd, repoUrl: null, repoRef: null, branchName: null },
@@ -592,17 +592,17 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     { name: "journal with a later command", accepted: false, laterCommand: true },
   ] as const)("reads a resumed sandbox's suspended Runner with an $name", async variant => {
     const fixture = await seed(), environmentId = randomUUID(), workspaceId = randomUUID(), runId = randomUUID();
-    const providerLeaseId = randomUUID(), base = join(root, `sandbox-${runId}`, "paperclip-workspace");
-    const cwd = join(base, ".paperclip-workspaces", `${workspaceId}-1-${randomUUID()}`);
+    const providerLeaseId = randomUUID(), base = join(root, `sandbox-${runId}`, "outpost-workspace");
+    const cwd = join(base, ".outpost-workspaces", `${workspaceId}-1-${randomUUID()}`);
     await mkdir(cwd, { recursive: true });
     await db.insert(environments).values({ id: environmentId, name: `Suspended ${environmentId}`, driver: "sandbox" });
-    await db.insert(environmentLeases).values({ companyId, environmentId, issueId: fixture.scope.issueId,
+    await db.insert(environmentLeases).values({ spaceId, environmentId, issueId: fixture.scope.issueId,
       heartbeatRunId: fixture.scope.runId, provider: "daytona", providerLeaseId, status: "expired",
       leasePolicy: "reuse_by_environment", metadata: { remoteCwd: cwd } });
     const identity = { runId: fixture.scope.runId, normalizedSessionId: fixture.scope.normalizedSessionId,
       runnerInstanceId: fixture.native.runnerInstanceId, environmentLeaseId: fixture.native.environmentLeaseId,
       turnId: fixture.native.turnId, itemId: fixture.native.itemId };
-    const runnerDirectory = join(cwd, ".paperclip-runtime", "outpost-runner", "sessions",
+    const runnerDirectory = join(cwd, ".outpost-runtime", "outpost-runner", "sessions",
       createHash("sha256").update(fixture.scope.normalizedSessionId).digest("hex"), "runner");
     const suspend = { commandId: randomUUID(), controllerSeq: 7 };
     await mkdir(runnerDirectory, { recursive: true });
@@ -623,7 +623,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
     };
     const execution = parseNativeExecutionInput({
       schema: "outpost.native-execution-input.v1", provider: { kind: "codex", model: null },
-      binding: { companyId, agentId, issueId: fixture.scope.issueId, runId, executionWorkspaceId: workspaceId },
+      binding: { spaceId, agentId, issueId: fixture.scope.issueId, runId, executionWorkspaceId: workspaceId },
       task: { identifier: "NCD-1", title: "Continue retained work", description: null,
         prompt: "Continue the saved work.", workMode: "standard" },
       workspace: { cwd, repoUrl: null, repoRef: null, branchName: null },
@@ -659,13 +659,13 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
   it.each(["live-owner", "expired-owner", "provider-attempt", "stopped", "operator-stop"])("does not publish an admission wait after authority changes: %s", async scenario => {
     const fixture = await seed(), runId = randomUUID();
     const scope = { ...fixture.scope, runId };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: scope.issueId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: scope.issueId,
       status: scenario === "stopped" ? "cancelled" : "running", runtimeMode: "native",
       resultJson: scenario === "operator-stop" ? { cancellation: { source: "operator", expected: true,
         initiator: { type: "user" }, reason: "Stop", recordedAt: new Date().toISOString() } } : null,
       runnerProfileJson: { nativeExecutionInput: { binding: scope } } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, scope.issueId));
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId: scope.issueId, runId, phase: "observed",
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId: scope.issueId, runId, phase: "observed",
       attempt: scenario === "provider-attempt" ? 1 : 0,
       leaseOwner: scenario.endsWith("-owner") ? "other-controller" : null,
       leaseExpiresAt: scenario === "expired-owner" ? new Date(Date.now() - 1_000) : null });
@@ -679,7 +679,7 @@ describe.skipIf(!recoveryPostgresSupport.supported)("native controller durable d
   it("reports bounded retained-pointer coverage without loading historical payloads", async () => {
     const fixture = await seed();
     await importNativeControllerRecovery(db, { ...fixture.scope, expectedConfigDigest: compatibility.configDigest, supervisor: fixture.supervisor });
-    await db.insert(agentTaskSessions).values([0, 1].map(index => ({ companyId, agentId, taskKey: `${fixture.scope.issueId}-${index}`,
+    await db.insert(agentTaskSessions).values([0, 1].map(index => ({ spaceId, agentId, taskKey: `${fixture.scope.issueId}-${index}`,
       adapterType: "outpost_runner", lastRunId: fixture.scope.runId })));
     const first = await readNativeControllerRecoveryInventory(db, { limit: 1 });
     expect(first).toMatchObject({ inspected: 1, coverage: "partial", truncated: true, selectedRetainedEvidence: 1, fullPayloadsValidated: false });

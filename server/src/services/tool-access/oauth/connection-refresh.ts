@@ -5,7 +5,7 @@ import { oauthConfig, normalizeOauthScopes } from "./metadata.js";
 import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { companySecrets, toolConnections } from "@outpost/db";
+import { spaceSecrets, toolConnections } from "@outpost/db";
 import { conflict, HttpError, unprocessable } from "../../../errors.js";
 import { secretService } from "../../secrets.js";
 
@@ -25,7 +25,7 @@ type LegacyRefreshDependencies = {
   secrets: ReturnType<typeof secretService>;
   store: Pick<OAuthCredentialStore, "createOrRotateOAuthSecret" | "oauthClientForConnection" | "syncCredentialBindings">;
   leases: Pick<OAuthRefreshLeases, "acquireOAuthRefreshLease" | "clearOAuthRefreshLease">;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   exchangeOAuthToken: ReturnType<typeof createOAuthClientProtocol>["exchangeOAuthToken"];
 };
 
@@ -78,13 +78,13 @@ const oauthRefreshFlights = new Map<string, Promise<unknown>>();
       .where(
         and(
           eq(toolConnections.id, connection.id),
-          eq(toolConnections.companyId, connection.companyId),
+          eq(toolConnections.spaceId, connection.spaceId),
           sql`${toolConnections.config} -> 'oauth' -> 'refreshLease' ->> 'id' = ${guard.leaseId}`,
           sql`exists (
-          select 1 from ${companySecrets}
-          where ${companySecrets.id} = ${guard.refreshSecretId}
-            and ${companySecrets.companyId} = ${connection.companyId}
-            and ${companySecrets.latestVersion} = ${guard.refreshTokenVersion}
+          select 1 from ${spaceSecrets}
+          where ${spaceSecrets.id} = ${guard.refreshSecretId}
+            and ${spaceSecrets.spaceId} = ${connection.spaceId}
+            and ${spaceSecrets.latestVersion} = ${guard.refreshTokenVersion}
         )`,
         ),
       )
@@ -104,7 +104,7 @@ const oauthRefreshFlights = new Map<string, Promise<unknown>>();
       actorSource?:
         | "local_implicit"
         | "session"
-        | "board_key"
+        | "operator_key"
         | "agent_key"
         | "agent_jwt"
         | "mcp_oauth"
@@ -149,12 +149,12 @@ const oauthRefreshFlights = new Map<string, Promise<unknown>>();
       );
     const [refreshSecret] = refreshRef
       ? await db
-          .select({ latestVersion: companySecrets.latestVersion })
-          .from(companySecrets)
+          .select({ latestVersion: spaceSecrets.latestVersion })
+          .from(spaceSecrets)
           .where(
             and(
-              eq(companySecrets.id, refreshRef.secretId),
-              eq(companySecrets.companyId, connection.companyId),
+              eq(spaceSecrets.id, refreshRef.secretId),
+              eq(spaceSecrets.spaceId, connection.spaceId),
             ),
           )
           .limit(1)
@@ -163,7 +163,7 @@ const oauthRefreshFlights = new Map<string, Promise<unknown>>();
     const refreshToken =
       refreshRef && refreshTokenVersion !== null
         ? await secrets.resolveSecretValue(
-            connection.companyId,
+            connection.spaceId,
             refreshRef.secretId,
             refreshTokenVersion,
             {
@@ -217,7 +217,7 @@ const oauthRefreshFlights = new Map<string, Promise<unknown>>();
         if (!marked) {
           const latest = await getConnectionRow(
             connection.id,
-            connection.companyId,
+            connection.spaceId,
           );
           const latestExpiresAtMs = oauthExpiresAtMs(latest);
           if (latestExpiresAtMs && latestExpiresAtMs > Date.now() + 60_000)
@@ -246,7 +246,7 @@ const oauthRefreshFlights = new Map<string, Promise<unknown>>();
     > | null = null;
     if (token.refreshToken) {
       nextRefreshRef = await createOrRotateOAuthSecret({
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connection,
         configPath: "oauth.refresh_token",
         label: "OAuth refresh token",
@@ -255,7 +255,7 @@ const oauthRefreshFlights = new Map<string, Promise<unknown>>();
       });
     }
     const accessRef = await createOrRotateOAuthSecret({
-      companyId: connection.companyId,
+      spaceId: connection.spaceId,
       connection,
       configPath: "oauth.access_token",
       label: "OAuth access token",
@@ -320,7 +320,7 @@ const oauthRefreshFlights = new Map<string, Promise<unknown>>();
       .where(
         and(
           eq(toolConnections.id, connection.id),
-          eq(toolConnections.companyId, connection.companyId),
+          eq(toolConnections.spaceId, connection.spaceId),
           sql`${toolConnections.config} -> 'oauth' -> 'refreshLease' ->> 'id' = ${leaseId}`,
         ),
       )
@@ -358,7 +358,7 @@ const oauthRefreshFlights = new Map<string, Promise<unknown>>();
       actorSource?:
         | "local_implicit"
         | "session"
-        | "board_key"
+        | "operator_key"
         | "agent_key"
         | "agent_jwt"
         | "mcp_oauth"

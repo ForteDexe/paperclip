@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CompanySearchIssueSummary, StatusCardUpdate, SummarySlotIssueRef } from "@outpost/shared";
+import type { SpaceSearchIssueSummary, StatusCardUpdate, SummarySlotIssueRef } from "@outpost/shared";
 import { AlertTriangle, ChevronDown, ExternalLink, History, Loader2, RefreshCw, Wand2 } from "lucide-react";
 
 import { statusCardsApi, type StatusCardDryRun } from "@/api/statusCards";
@@ -43,13 +43,13 @@ import { taskStatusIconProps } from "@/lib/task-status-presentation";
 
 export function StatusCardDetailDrawer({
   card,
-  companyId,
+  spaceId,
   open,
   onOpenChange,
   initialTab = "summary",
 }: {
   card: StatusCardView | null;
-  companyId: string | null | undefined;
+  spaceId: string | null | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialTab?: string;
@@ -112,12 +112,12 @@ export function StatusCardDetailDrawer({
         : null,
     [card, lifecycle],
   );
-  const draftStream = useSummaryDraftStream(companyId, generatingIssue);
+  const draftStream = useSummaryDraftStream(spaceId, generatingIssue);
 
   const invalidateCard = async () => {
     if (!card) return;
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.list(card.companyId, false) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.list(card.spaceId, false) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.detail(card.id) }),
     ]);
   };
@@ -168,7 +168,7 @@ export function StatusCardDetailDrawer({
     onSuccess: async () => {
       if (!card) return;
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.list(card.companyId, false) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.list(card.spaceId, false) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.detail(card.id) }),
       ]);
     },
@@ -474,7 +474,7 @@ export function StatusCardDetailDrawer({
               <section className="space-y-2">
                 <h3 className="text-sm font-semibold">Agent</h3>
                 <SummarizerAgentSelect
-                  companyId={card.companyId}
+                  spaceId={card.spaceId}
                   value={summarizerAgentId}
                   onChange={setSummarizerAgentId}
                   enabled={open}
@@ -536,9 +536,9 @@ function QueryDebugSection({ card }: { card: StatusCardView }) {
  * one query are deduplicated by id. Issues mentioned in the latest summary
  * join the watched set too and render as their own group below the matches.
  */
-function MatchedIssueList({ queries, mentioned }: { queries: StatusCardDryRun["queries"]; mentioned: CompanySearchIssueSummary[] }) {
+function MatchedIssueList({ queries, mentioned }: { queries: StatusCardDryRun["queries"]; mentioned: SpaceSearchIssueSummary[] }) {
   const seen = new Set<string>();
-  const matched: CompanySearchIssueSummary[] = [];
+  const matched: SpaceSearchIssueSummary[] = [];
   for (const { result } of queries) {
     for (const item of result.results) {
       if (!item.issue || seen.has(item.issue.id)) continue;
@@ -575,7 +575,7 @@ function MatchedIssueList({ queries, mentioned }: { queries: StatusCardDryRun["q
   );
 }
 
-function WatchedIssueRow({ issue }: { issue: CompanySearchIssueSummary }) {
+function WatchedIssueRow({ issue }: { issue: SpaceSearchIssueSummary }) {
   return (
     <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs">
       <Link

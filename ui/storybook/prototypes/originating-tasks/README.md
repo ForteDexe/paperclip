@@ -31,11 +31,11 @@ components backed by local fixtures.
 
 ## Production integration
 
-`GET /api/companies/:companyId/issues?createdFromIssueId=<uuid>` projects creation
+`GET /api/spaces/:spaceId/issues?createdFromIssueId=<uuid>` projects creation
 provenance through `issues.originRunId` and the originating heartbeat run. Native
 runs use `nativeIssueId`; legacy/historical runs fall back to the persisted
 `issueId`, `taskId`, or `taskKey` context. The source, run and results must belong
-to the requested company. When the origin run is absent, recorded issue creation activity can recover its
+to the requested space. When the origin run is absent, recorded issue creation activity can recover its
 run. Comments and shared creators are never used to infer attribution.
 The normal issue creation service persists the actor run when no explicit origin
 run was provided, including the legacy child helper. Native creation already
@@ -43,6 +43,6 @@ provides its run. No schema migration or runner-mode distinction is needed.
 
 The real issue page queries this projection alongside its existing subtask query.
 Both queries page by immutable task ID with an afterId cursor so task activity
-and removal of earlier rows do not shift later pages. Existing company issue-list invalidation refreshes both on task activity. Errors
+and removal of earlier rows do not shift later pages. Existing space issue-list invalidation refreshes both on task activity. Errors
 remain visible with a Retry action. Historical rows without either an origin run or attributed creation activity
 cannot be attributed and are not included in project groups.

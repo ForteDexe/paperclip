@@ -10,8 +10,8 @@ function claims(value: unknown) {
   return json(Buffer.from(value.split(".")[1] ?? "", "base64url").toString());
 }
 
-export function subscriptionIdentityKey(companyId: string, provider: string, parts: string[]): string {
-  return createHash("sha256").update(JSON.stringify([companyId, provider, ...parts])).digest("hex");
+export function subscriptionIdentityKey(spaceId: string, provider: string, parts: string[]): string {
+  return createHash("sha256").update(JSON.stringify([spaceId, provider, ...parts])).digest("hex");
 }
 
 export interface SubscriptionIdentity {
@@ -24,8 +24,8 @@ export interface SubscriptionIdentity {
 /** Credential-local hints cannot authenticate a provider account. In particular,
  * a user may edit an ID token independently of the bearer token sent upstream.
  * No ambient host credentials, emails, raw account IDs, or tokens leave this helper. */
-export function subscriptionCredentialIdentity(companyId: string, provider: string, credential: string): SubscriptionIdentity {
-  const credentialKey = subscriptionIdentityKey(companyId, provider, ["credential", credential]);
+export function subscriptionCredentialIdentity(spaceId: string, provider: string, credential: string): SubscriptionIdentity {
+  const credentialKey = subscriptionIdentityKey(spaceId, provider, ["credential", credential]);
   const auth = json(credential);
   let plan: string | null = null;
   if (provider === "openai") {
@@ -39,8 +39,8 @@ export function subscriptionCredentialIdentity(companyId: string, provider: stri
   return { credentialKey, accountKey: credentialKey, verified: false, plan };
 }
 
-export async function probeSubscriptionIdentity(companyId: string, provider: AiProvider, credential: string, request: typeof fetch = fetch) {
-  const identity = subscriptionCredentialIdentity(companyId, provider, credential);
+export async function probeSubscriptionIdentity(spaceId: string, provider: AiProvider, credential: string, request: typeof fetch = fetch) {
+  const identity = subscriptionCredentialIdentity(spaceId, provider, credential);
   if (provider === "anthropic") {
     // Same account-scoped OAuth profile used by Claude Code / CodexBar. A
     // setup-token may lack user:profile; failure must preserve the prior record.
@@ -55,7 +55,7 @@ export async function probeSubscriptionIdentity(companyId: string, provider: AiP
       : type === "claude_max" && tier === "default_claude_max_20x" ? "max_20x"
       : ({ claude_pro: "pro", claude_max: "max", claude_team: "team", claude_enterprise: "enterprise" } as Record<string, string>)[type ?? ""] ?? null;
     if (!seat || !workspace) throw new Error("Subscription profile unavailable");
-    return { ...identity, accountKey: subscriptionIdentityKey(companyId, provider, ["account", workspace, seat]), verified: true, plan };
+    return { ...identity, accountKey: subscriptionIdentityKey(spaceId, provider, ["account", workspace, seat]), verified: true, plan };
   }
   const usage = await probeAiConnectionUsage({ provider, method: "subscription" }, credential, { request });
   if (usage.status !== "ok") throw new Error("Subscription profile unavailable");
@@ -71,7 +71,7 @@ export async function probeSubscriptionIdentity(companyId: string, provider: AiP
     const selectedWorkspace = string(tokens.account_id ?? auth.accountId);
     const seat = string(account.chatgpt_user_id) ?? string(token.sub);
     if (workspace && seat && (!selectedWorkspace || selectedWorkspace === workspace)) {
-      return { ...identity, accountKey: subscriptionIdentityKey(companyId, provider, ["account", workspace, seat]), verified: true, plan: string(usage.planType) };
+      return { ...identity, accountKey: subscriptionIdentityKey(spaceId, provider, ["account", workspace, seat]), verified: true, plan: string(usage.planType) };
     }
   }
   return { ...identity, plan: string(usage.planType) };

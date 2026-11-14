@@ -8,7 +8,7 @@ export interface AntigravityJourneyConfig {
   setupId: string;
   hosting: "self-hosted";
   executionEnvironment: "local";
-  target: Extract<ConnectionConfig["target"], { mode: "attach" }> & { companyId: string; environmentId: string };
+  target: Extract<ConnectionConfig["target"], { mode: "attach" }> & { spaceId: string; environmentId: string };
   browser: ConnectionConfig["browser"];
   savedConnection: { id: string; name: string; ownerUserId: string };
   candidate: { platform: "darwin"; architecture: "arm64"; nativeVersion: string; profileDigest: string; nativeClosureDigest: string };
@@ -48,7 +48,7 @@ export function parseAntigravityJourneyConfig(input: unknown): AntigravityJourne
     const turnTimeoutMs = number(limits.turnTimeoutMs, 10_000, 600_000);
     if (turnTimeoutMs * 2 > durationMs) return invalid();
     return { version: 1, setupId: text(v.setupId, /^[a-z0-9-]{1,80}$/), hosting: "self-hosted", executionEnvironment: "local",
-      target: { ...common.target, companyId: text(common.target.companyId, uuid), environmentId: text(common.target.environmentId, uuid) }, browser: common.browser,
+      target: { ...common.target, spaceId: text(common.target.spaceId, uuid), environmentId: text(common.target.environmentId, uuid) }, browser: common.browser,
       savedConnection: { id: text(connection.id, uuid), name: text(connection.name), ownerUserId: text(connection.ownerUserId) },
       candidate: { platform: "darwin", architecture: "arm64", nativeVersion: text(candidate.nativeVersion, /^\d+\.\d+\.\d+-outpost\.\d+$/),
         profileDigest: text(candidate.profileDigest, /^sha256:[a-f0-9]{64}$/), nativeClosureDigest: text(candidate.nativeClosureDigest, /^sha256:[a-f0-9]{64}$/) },
@@ -71,5 +71,5 @@ export async function loadAntigravityJourneyConfig(file?: string) {
 
 export function antigravityConnectionConfig(config: AntigravityJourneyConfig): ConnectionConfig {
   return { target: config.target, browser: config.browser, models: {}, routes: {}, credentials: {}, budgetCents: config.limits.budgetCents,
-    maxRuns: config.limits.maxRuns, turnTimeoutMs: config.limits.turnTimeoutMs, retainCompany: true };
+    maxRuns: config.limits.maxRuns, turnTimeoutMs: config.limits.turnTimeoutMs, retainSpace: true };
 }

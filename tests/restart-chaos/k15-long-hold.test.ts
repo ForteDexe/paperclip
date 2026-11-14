@@ -12,7 +12,7 @@ import { T1_CLOCK_SLACK_MS, T1_TICKS, parseT1Report, t1Command, t1Marker, withT1
 import { planMatrixTasks } from "./journey-matrix.js";
 
 const IMAGE = `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:${"c".repeat(64)}`;
-const COMPANY = "11111111-1111-4111-8111-111111111111";
+const SPACE = "11111111-1111-4111-8111-111111111111";
 const ENVIRONMENT = "22222222-2222-4222-8222-222222222222";
 
 describe("--k15-hold-seconds", () => {
@@ -127,7 +127,7 @@ describe("Daytona Runner log capture", () => {
 
   it("captures this wave's started sandboxes only, redacts secrets, and records failures instead of throwing", async () => {
     const outDir = await mkdtemp(path.join(os.tmpdir(), "runner-logs-"));
-    const labels = { "paperclip-company-id": COMPANY, "paperclip-environment-id": ENVIRONMENT };
+    const labels = { "outpost-space-id": SPACE, "outpost-environment-id": ENVIRONMENT };
     const executeCommand = vi.fn(async () => ({ exitCode: 0, result: "== runnerd.stderr.log\nruntime token sk-live-secret exited signal=9\n" }));
     const get = vi.fn(async (id: string) => {
       if (id === "broken") throw new Error("toolbox unavailable");
@@ -138,11 +138,11 @@ describe("Daytona Runner log capture", () => {
         yield { id: "live", state: "started", labels };
         yield { id: "stopped", state: "stopped", labels };
         yield { id: "broken", state: "started", labels };
-        yield { id: "other-wave", state: "started", labels: { ...labels, "paperclip-environment-id": "33333333-3333-4333-8333-333333333333" } };
+        yield { id: "other-wave", state: "started", labels: { ...labels, "outpost-environment-id": "33333333-3333-4333-8333-333333333333" } };
       },
       get,
     };
-    const capture = await captureWaveRunnerLogs({ apiKey: "unused", companyId: COMPANY, environmentId: ENVIRONMENT, outDir,
+    const capture = await captureWaveRunnerLogs({ apiKey: "unused", spaceId: SPACE, environmentId: ENVIRONMENT, outDir,
       label: "f01-stopped", secrets: ["sk-live-secret"], client });
     expect(capture.error).toBeNull();
     expect(capture.sandboxes.map(sandbox => [sandbox.id, sandbox.file, sandbox.error])).toEqual([
@@ -153,18 +153,18 @@ describe("Daytona Runner log capture", () => {
     expect(text).toContain("exited signal=9");
     expect(text).not.toContain("sk-live-secret");
     expect((await readdir(path.join(outDir, "f01-stopped"))).sort()).toEqual(["index.json", "live.txt"]);
-    const failed = await captureWaveRunnerLogs({ apiKey: "unused", companyId: COMPANY, environmentId: ENVIRONMENT, outDir, label: "f02-stopped",
+    const failed = await captureWaveRunnerLogs({ apiKey: "unused", spaceId: SPACE, environmentId: ENVIRONMENT, outDir, label: "f02-stopped",
       secrets: [], client: { async *list() { throw new Error("list failed"); }, get } });
     expect(failed.error).toBe("list failed");
   });
 
   it("stops at one deadline for the whole capture, so the outage it runs in does not grow", async () => {
     const outDir = await mkdtemp(path.join(os.tmpdir(), "runner-logs-"));
-    const labels = { "paperclip-company-id": COMPANY, "paperclip-environment-id": ENVIRONMENT };
+    const labels = { "outpost-space-id": SPACE, "outpost-environment-id": ENVIRONMENT };
     const hung = { async *list() { yield { id: "slow", state: "started", labels }; },
       get: () => new Promise<never>(() => { /* a Daytona API that never answers */ }) };
     const started = Date.now();
-    const capture = await captureWaveRunnerLogs({ apiKey: "unused", companyId: COMPANY, environmentId: ENVIRONMENT, outDir,
+    const capture = await captureWaveRunnerLogs({ apiKey: "unused", spaceId: SPACE, environmentId: ENVIRONMENT, outDir,
       label: "f03-stopped", secrets: [], client: hung, deadlineMs: 200 });
     expect(Date.now() - started).toBeLessThan(2_000);
     expect(capture.deadlineExceeded).toBe(true);
@@ -175,10 +175,10 @@ describe("Daytona Runner log capture", () => {
 
   it("keeps a sandbox id to one path segment and lists only files it wrote", async () => {
     const outDir = await mkdtemp(path.join(os.tmpdir(), "runner-logs-"));
-    const labels = { "paperclip-company-id": COMPANY, "paperclip-environment-id": ENVIRONMENT };
+    const labels = { "outpost-space-id": SPACE, "outpost-environment-id": ENVIRONMENT };
     const client = { async *list() { yield { id: "../escape", state: "started", labels }; },
       get: async () => ({ process: { executeCommand: async () => ({ exitCode: 0, result: "ok" }) } }) };
-    const capture = await captureWaveRunnerLogs({ apiKey: "unused", companyId: COMPANY, environmentId: ENVIRONMENT, outDir,
+    const capture = await captureWaveRunnerLogs({ apiKey: "unused", spaceId: SPACE, environmentId: ENVIRONMENT, outDir,
       label: "f05-stopped", secrets: [], client });
     expect(capture.sandboxes[0]?.file).toBe("..-escape.txt");
     expect((await readdir(path.join(outDir, "f05-stopped"))).sort()).toEqual(["..-escape.txt", "index.json"]);
@@ -187,14 +187,14 @@ describe("Daytona Runner log capture", () => {
 
   it("never writes evidence that arrives after the deadline", async () => {
     const outDir = await mkdtemp(path.join(os.tmpdir(), "runner-logs-"));
-    const labels = { "paperclip-company-id": COMPANY, "paperclip-environment-id": ENVIRONMENT };
+    const labels = { "outpost-space-id": SPACE, "outpost-environment-id": ENVIRONMENT };
     const executeCommand = vi.fn(async () => ({ exitCode: 0, result: "late evidence" }));
     let release: (() => void) | undefined;
     const late = { async *list() { yield { id: "late", state: "started", labels }; yield { id: "unreached", state: "started", labels }; },
       get: () => new Promise<{ process: { executeCommand: typeof executeCommand } }>(resolve => {
         release = () => resolve({ process: { executeCommand } });
       }) };
-    const capture = await captureWaveRunnerLogs({ apiKey: "unused", companyId: COMPANY, environmentId: ENVIRONMENT, outDir,
+    const capture = await captureWaveRunnerLogs({ apiKey: "unused", spaceId: SPACE, environmentId: ENVIRONMENT, outDir,
       label: "f04-before_start", secrets: [], client: late, deadlineMs: 100 });
     expect(capture.deadlineExceeded).toBe(true);
     release?.();
@@ -206,11 +206,11 @@ describe("Daytona Runner log capture", () => {
 
   it("drops a probe result that arrives after the deadline, and records an unusable label instead of throwing", async () => {
     const outDir = await mkdtemp(path.join(os.tmpdir(), "runner-logs-"));
-    const labels = { "paperclip-company-id": COMPANY, "paperclip-environment-id": ENVIRONMENT };
+    const labels = { "outpost-space-id": SPACE, "outpost-environment-id": ENVIRONMENT };
     let release: ((value: { exitCode: number; result: string }) => void) | undefined;
     const client = { async *list() { yield { id: "slow-probe", state: "started", labels }; },
       get: async () => ({ process: { executeCommand: () => new Promise<{ exitCode: number; result: string }>(resolve => { release = resolve; }) } }) };
-    const capture = await captureWaveRunnerLogs({ apiKey: "unused", companyId: COMPANY, environmentId: ENVIRONMENT, outDir,
+    const capture = await captureWaveRunnerLogs({ apiKey: "unused", spaceId: SPACE, environmentId: ENVIRONMENT, outDir,
       label: "///", secrets: [], client, deadlineMs: 100 });
     expect(capture.label).toBe("capture");
     expect(capture.error).toMatch(/deadline 100 ms exceeded/);

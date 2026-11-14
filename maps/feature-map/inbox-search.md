@@ -4,7 +4,7 @@ navigation: {"section":"Tasks and conversations","sectionOrder":20,"order":30}
 
 # Inbox, decisions, and search
 
-People find work that needs their attention, distinguish unread activity from required decisions, archive handled items, and search across the company.
+People find work that needs their attention, distinguish unread activity from required decisions, archive handled items, and search across the space.
 
 Feature ID: `inbox-search`.
 
@@ -17,7 +17,7 @@ Agent access: [companion](../agent-access-map/inbox-search.md).
 - `views`: `inbox-search/views` — use Mine, Recent, Unread, Blocked, and broader task views.
 - `triage`: `inbox-search/triage` — read or archive attention items without pretending the underlying task is complete.
 - `decisions`: `inbox-search/decisions` — open the source of a decision and act in the right context.
-- `search`: `inbox-search/search` — query company work and follow a result to its original record.
+- `search`: `inbox-search/search` — query space work and follow a result to its original record.
 - `toasts`: `inbox-search/toasts` — receive live task notifications only for personal participation or explicit mentions.
 
 ## How to get to it (user POV)
@@ -55,10 +55,10 @@ Open `/search` or the navigation search entry.
 
 ### `toasts`
 
-Keep a company page open while another person or agent updates a task.
+Keep a space page open while another person or agent updates a task.
 See [toast semantics](../../doc/TOASTS.md) for eligibility and suppression rules.
 
-## Driving it with Playwright and the Paperclip CLI
+## Driving it with Playwright and the Outpost CLI
 
 Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Seed assigned, unread, blocked, and resolved tasks plus a pending decision. Record the combined Inbox/Tasks experimental setting.
 
@@ -78,7 +78,7 @@ historical questions and closed requests while preserving authorization requests
 
 Manual: Seed GitHub, Slack, scheduled routine, and manual routine tasks. Attribution, imported comments, and reading alone keep them outside Mine. Direct board/API comments, human assignment, and open addressed requests admit them. Resolve the request and check that another valid reason is needed. Inbox discovery and Blocked hide unrelated automation by default; the **Show agent-created tasks** checkbox reveals it without subscribing the user. Reload and verify membership, unread badges, archive/resurfacing, and preference persistence.
 
-Manual: Read an unread task, return to Unread, archive a handled item, and reload. Verify personal triage state changes while task status stays correct. Switch users and companies to check isolation.
+Manual: Read an unread task, return to Unread, archive a handled item, and reload. Verify personal triage state changes while task status stays correct. Switch users and spaces to check isolation.
 
 Seed a completed task whose only activity under the viewing user is automatic
 read cleanup. Refresh Mine and Unread: the task must not appear through that
@@ -102,10 +102,10 @@ Manual: Open a pending decision, follow its source, resolve it through the suppo
 
 Coordinator regression sources: [canonical history](../../server/src/__tests__/decision-history.test.ts)
 exercises real PostgreSQL cross-source pagination, answered-question retention,
-company/private-task isolation, and private v1 targets.
+space/private-task isolation, and private v1 targets.
 [Attention service regressions](../../server/src/__tests__/attention-service.test.ts)
 cover pending question forms and confirmations in persistent agent chats, removal
-after an answer with retained history, and company/task-visibility/addressee checks.
+after an answer with retained history, and space/task-visibility/addressee checks.
 Idle chats without structured requests remain absent. The
 [Inbox component test](../../ui/src/components/coordinator/CoordinatorNeedsYou.test.tsx)
 checks that a chat-sourced canonical question reaches its original resolver and context.
@@ -122,15 +122,15 @@ task context on receipt click. Turning the setting off restores the classic surf
 
 ### `search`
 
-Automated: [search page](../../ui/src/pages/Search.test.tsx) and [company search service](../../server/src/__tests__/company-search-service.test.ts) cover UI and server search separately.
+Automated: [search page](../../ui/src/pages/Search.test.tsx) and [space search service](../../server/src/__tests__/space-search-service.test.ts) cover UI and server search separately.
 
-Manual: Search a unique task title and content phrase, open the result, and compare the actual record. Test filters, no results, and a second company. Verify stale results do not expose inaccessible data.
+Manual: Search a unique task title and content phrase, open the result, and compare the actual record. Test filters, no results, and a second space. Verify stale results do not expose inaccessible data.
 
 ### `toasts`
 
 Automated: [persisted eligibility](../../server/src/__tests__/task-toast-eligibility.test.ts)
 checks creation, assignment, comments, mentions, deliberate edits, excluded read
-activity, company isolation, local-board, and persisted run-task attribution.
+activity, space isolation, local-operator, and persisted run-task attribution.
 [Socket delivery](../../server/src/__tests__/live-events-toast.test.ts) checks
 viewer-specific projection; [UI delivery](../../ui/src/context/LiveUpdatesProvider.hook.test.tsx)
 checks eligibility gating, cache updates, stale callbacks, and existing suppression.
@@ -141,8 +141,8 @@ The `task toasts follow personal involvement in multiplayer` case in the
 exercises quiet unrelated updates, read-only visits, first/historical mentions,
 self-activity, and visible-task suppression against persisted data.
 
-Manual: Use two authenticated browser sessions in the same isolated company.
-Create separate tasks for each person and use one shared agent. From a company
+Manual: Use two authenticated browser sessions in the same isolated space.
+Create separate tasks for each person and use one shared agent. From a space
 task list, verify that the other person's unrelated task updates produce no
 toast but still refresh the list. Comment on one of their tasks, then have them
 update it: a toast should appear. Repeat using assignment, a deliberate edit,
@@ -151,7 +151,7 @@ later update to prove eligibility does not depend on browser history. Mere
 viewing, agent ownership, responsible-user attribution, and parent participation
 must remain quiet. Task-linked failures follow the same participation rule;
 generic agent errors remain quiet. Repeat while viewing the relevant task and
-after switching company/account to verify suppression and isolation.
+after switching space/account to verify suppression and isolation.
 
 ## Gotchas
 
@@ -179,6 +179,6 @@ Sources: [Issues.tsx](../../ui/src/pages/Issues.tsx). Tests: [Issues.test.tsx](.
 Capability ID: `inbox-search/toasts`.
 
 Scope: ui
-Storybook: Eligible live task toast, explicit mention, quiet unrelated event, own-action/visible-task suppression, dedupe and company/account switch.
+Storybook: Eligible live task toast, explicit mention, quiet unrelated event, own-action/visible-task suppression, dedupe and space/account switch.
 Production: Persisted participation and mentions determine per-viewer socket eligibility; quiet events still refresh caches; reload retains eligibility, unauthorized resources remain denied.
 Sources: Source: [ToastViewport.tsx](../../ui/src/components/ToastViewport.tsx), [ToastContext.tsx](../../ui/src/context/ToastContext.tsx), [LiveUpdatesProvider.tsx](../../ui/src/context/LiveUpdatesProvider.tsx), [task-toast-eligibility.ts](../../server/src/realtime/task-toast-eligibility.ts). Tests: [ToastContext.test.tsx](../../ui/src/context/ToastContext.test.tsx), [ToastViewport.test.tsx](../../ui/src/components/ToastViewport.test.tsx), [LiveUpdatesProvider.hook.test.tsx](../../ui/src/context/LiveUpdatesProvider.hook.test.tsx), [task-toast-eligibility.test.ts](../../server/src/__tests__/task-toast-eligibility.test.ts), [live-events-toast.test.ts](../../server/src/__tests__/live-events-toast.test.ts), [multi-user-authenticated.spec.ts](../../tests/e2e/multi-user-authenticated.spec.ts)

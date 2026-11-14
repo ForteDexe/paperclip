@@ -10,7 +10,7 @@ function valid(): TaskWorkspaceObservation {
       issue: { id: "issue", projectId: null, executionWorkspaceId: "workspace", status: "done" },
       workspace: { id: "workspace", projectId: null, cwd }, confinedTaskRoot: true,
       note: `task-files-turn-${turn}-${nonce}\n`,
-      repositories: [{ id: "repo", state: turn === 1 ? "pending" : "ready", relativePath: `.paperclip-repositories/task-repo-${"a".repeat(24)}`,
+      repositories: [{ id: "repo", state: turn === 1 ? "pending" : "ready", relativePath: `.outpost-repositories/task-repo-${"a".repeat(24)}`,
         pinnedCommit: turn === 1 ? null : pin, requestedByIssueId: "issue", requestKeys: [`repository-${nonce}`] }],
       run: { id: `run-${turn}`, status: "succeeded", runtimeMode: "native", nativePhase: "committed", nativeBinding: "workspace",
         nativeCwd: "/workspace/task", transport: "provider_ingress", authenticated: true, nativeCompleted: true },
@@ -45,7 +45,7 @@ describe("task workspace product E2E", () => {
   });
   it("recognizes the normalized provider receipt and rejects claims from another source/run", () => {
     const receipt = { eventType: "tool.execution.completed", payload: { orpEvent: {
-      sourceKind: "runner", runId: "run-1", payload: { name: "paperclip_prepare_repository", status: "completed" },
+      sourceKind: "runner", runId: "run-1", payload: { name: "outpost_prepare_repository", status: "completed" },
     } } };
     expect(isRepositoryPreparationReceipt(receipt, "run-1")).toBe(true);
     expect(isRepositoryPreparationReceipt(receipt, "another-run")).toBe(false);

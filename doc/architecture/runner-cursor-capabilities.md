@@ -34,11 +34,11 @@ records all ten local and all ten remote gates, including cleanup. The final
 public installed-package smoke is recorded separately there. The historical
 results below retain their own identities and limits.
 
-The public installation path is `paperclipai runtime setup cursor`. It explicitly
+The public installation path is `outpost runtime setup cursor`. It explicitly
 downloads the pinned CLI `2026.09.26-dd393fe`, applies the source-owned patch, and
 verifies the complete runtime closure. npm installation does not download Cursor.
-Run setup as the OS user that runs Paperclip. Local assets live in that account's
-`~/.paperclip/runtimes/cursor/<platform>-<arch>/<closure-sha256>`, independently of
+Run setup as the OS user that runs Outpost. Local assets live in that account's
+`~/.outpost/runtimes/cursor/<platform>-<arch>/<closure-sha256>`, independently of
 npm directory ownership and isolated provider HOME/XDG settings. Existing image
 assets remain authoritative; an invalid packaged runtime cannot fall back to the
 user cache. Release assembly and runtime loading reject stale Cursor profile or
@@ -46,7 +46,7 @@ closure identities even when the supplied manifest has been rehashed.
 Ordinary provider packs include those assets, and Daytona image preparation uses
 the same distribution. Supported targets are macOS ARM64/x64 and Linux x64.
 
-Configure a company secret and bind it in the agent environment as
+Configure a space secret and bind it in the agent environment as
 `CURSOR_API_KEY` or `CURSOR_AUTH_TOKEN`. Select the model explicitly; native ACP
 must acknowledge that exact model before execution. Missing assets, credentials,
 model access, and entitlement failures are surfaced without selecting a substitute.
@@ -54,7 +54,7 @@ model access, and entitlement failures are surfaced without selecting a substitu
 identity. Acceptance of a native plan succeeds the planning run while leaving the
 task open awaiting explicit direction; acceptance alone never starts implementation.
 
-Paperclip semantic questions are the supported question path. The native
+Outpost semantic questions are the supported question path. The native
 AskQuestion handler is defensive compatibility code and is not certified for this
 release. Per-run dollar usage is unavailable. Partial counters remain diagnostic
 observations with unknown semantics; they do not establish measured spend or an
@@ -79,7 +79,7 @@ cover both permission/tool arrival orders and an unresolved real ACPX callback;
 fresh local and Daytona qualification is still required.
 
 Historical source candidate (2026-09-30): **Cursor profile v9 is unqualified**.
-Its declaration binds `paperclip-cursor-usage-v4`, all three newly verified native
+Its declaration binds `outpost-cursor-usage-v4`, all three newly verified native
 closures and the shared ACPX patch that persists bounded diagnostic observations.
 Every native counter receipt remains partial with unverified semantics; it cannot
 satisfy token or dollar accounting. The exact model remains unpriced until a
@@ -125,7 +125,7 @@ This historical field inventory distinguishes implemented transport behavior fro
 its original qualification gaps. The current release proof and exclusions are in
 the readiness report linked above; native AskQuestion remains uncertified.
 
-| Capability | Cursor harness/ACP evidence | Paperclip treatment | Remaining gap or qualification |
+| Capability | Cursor harness/ACP evidence | Outpost treatment | Remaining gap or qualification |
 |---|---|---|---|
 | Streaming assistant/reasoning | `agent_message_chunk`, `agent_thought_chunk` in live and replay presenters | Existing ACP streaming path | Authenticated event capture required |
 | Tool lifecycle/input/output | `tool_call` and `tool_call_update`, including raw input/output, locations and content | Canonical lifecycle, bounded output, input-changed indicator and one relative target; Cursor extensions add semantic activity | Raw input body, structured content/diffs/media and additional locations are not projected. See the exact field audit below |
@@ -143,21 +143,21 @@ the readiness report linked above; native AskQuestion remains uncertified.
 | Cancellation | `session/cancel` calls the active prompt cancellation callback | Existing interruption path | Process/child cleanup and exact terminal settlement require live qualification |
 | Turn settlement | Prompt implementation drains background subagent completion and awaits child publishers | Existing prompt result terminal boundary; explicit owned process cleanup | Native write denial settled without side effects. Background shell/child error settlement remains unverified. Credential-free stdin EOF did not exit within five seconds; do not advertise clean EOF |
 | Session continuity | `session/new`, `session/load`; load replays historical messages, reasoning, tools, images and children | Existing session load/recovery boundary with identity fencing | Duplicate replay suppression and provider-death recovery need authenticated proof |
-| Session discovery | `session/list` implemented, cwd filter absolute; pagination cursor rejected | Discovered and reported | Currently unused: runner recovers only its exact recorded session; arbitrary history browsing needs company-scoped discovery API |
+| Session discovery | `session/list` implemented, cwd filter absolute; pagination cursor rejected | Discovered and reported | Currently unused: runner recovers only its exact recorded session; arbitrary history browsing needs space-scoped discovery API |
 | Fork/resume methods | `session/fork` and `session/resume` absent in agent implementation and return method-not-found | Unsupported | Session load is available; do not infer fork from SDK schema |
 | Modes | `agent`, `plan`, `ask`; `session/set_config_option` returns exact mode; native mode updates are observable | v5 admits an explicit selected mode, binds recovery identity, and gates every prompt against native acknowledgement | Default Agent; mode is independent of permission policy. Plan acceptance does not switch to Agent. Native callback availability and Plan-mode completion remain unqualified |
 | Model selection | `session/set_model`, config option `model`, model-parameter options, `config_option_update`; `cursor/list_available_models` extension | Exact requested model must be selected/verified by shared admission | Authenticated listing and exact Luna variant echo passed. Native parameterized picker metadata and separate parameter changes also passed; this richer configuration path is not exposed by the runner. See the authenticated discovery evidence below |
 | Available commands | `available_commands_update`, including skills/slash commands | ACPX persists command metadata; runner canonical mapper deliberately emits no display event | Command picker and bounded command-discovery surface are not implemented |
 | Session metadata | `session_info_update` title after automatic naming | Capability documented | Runner owns normalized session identity; provider title is currently not surfaced |
 | Prompt media | Image=true, audio=false, embeddedContext=false in observed initialize | The shared runner turn contract accepts text only; it does not forward image attachment blocks to ACP | P1: implement bounded, validated attachment-to-ACP conversion with capability checks, then qualify the exact model. Audio/embedded context are explicitly unsupported by this advertisement |
-| MCP and semantic tools | Session MCP injection supports stdio/HTTP/SSE; user/project config also loaded | Runner-owned authenticated MCP bridge only; the owned distribution patch never initializes ambient MCP | Exact tool discovery and company/token boundary remain live tests |
+| MCP and semantic tools | Session MCP injection supports stdio/HTTP/SSE; user/project config also loaded | Runner-owned authenticated MCP bridge only; the owned distribution patch never initializes ambient MCP | Exact tool discovery and space/token boundary remain live tests |
 | Usage/cost | Vendor ACP emits only prompt `stopReason`; native `TurnEndedUpdate` separately exposes optional input/output/cache/reasoning counters | The observation-only patch below preserves bounded native counters as partial diagnostic metadata; it emits no standard usage or dollar receipt | Native counter aggregation semantics and exact-model pricing remain unverified; accounting stays unavailable |
 | Reviews, compaction, hooks, memory | Native mode changes, hooks present internally; no dedicated ACP counterparts to Codex context/hook/memory lifecycle found | No fabricated event families | Distinguish confirmed absence of ACP event mapping from unverified native internals |
 | Goal controls / lineage | No ACP goal or fork lineage protocol found | Unsupported | No equivalent of Codex native goals/thread lineage |
 
 ## Wire and isolation findings
 
-The observation-only usage candidate adds `_meta.paperclipCursorUsage` to a
+The observation-only usage candidate adds `_meta.outpostCursorUsage` to a
 prompt response. Its `outpost.cursor.native-usage.v1` envelope contains a fresh
 opaque prompt ID and separate native invocation/run observations. It allows at
 most 64 observations, 64 invocation identities and 16 KiB of JSON. Only observed,
@@ -181,7 +181,7 @@ cancelled-work accounting. A thrown JSON-RPC error returns no prompt envelope,
 so these observations are not retained on that error path. This is a new source candidate, not a change to
 the frozen v7 runtime or a regrading of historical evidence.
 
-The `paperclip-cursor-usage-v4` candidate retains the vendor version and archive
+The `outpost-cursor-usage-v4` candidate retains the vendor version and archive
 pins. Private full-tree materialization verifies 446 files per macOS target and
 454 files on Linux; only the ACP implementation chunk differs from each vendor
 tree. Its patched closures are:
@@ -215,7 +215,7 @@ Question and plan requests lack a session ID. The shared hook binds them to the 
 
 Fixed launch arguments are `--disable-project-configs --disable-auto-update acp`, using the verified bundled Node and absolute verified `index.js`. Private HOME/XDG roots are required together with CURSOR_CONFIG_DIR, CURSOR_DATA_DIR, disabled compilation caching, `AGENT_CLI_CREDENTIAL_STORE=memory`, and `NO_OPEN_BROWSER=1`. Only explicitly bound CURSOR_API_KEY or CURSOR_AUTH_TOKEN may enter. The controller creates a provider/session-scoped credential-name binding from the explicit task environment, ignoring inherited or caller-supplied markers. Rust forwards it through the closed sidecar environment boundary. Before host admission, the sidecar rejects missing, stale, wrong-provider or unbound credentials and removes the marker before provider launch. Tests cover this full boundary and preserve legacy credential behavior. Do not use `--force`, `--trust`, or `--approve-mcps` to paper over governance.
 
-`--disable-project-configs` only suppresses `.cursor/cli.json`. It does not suppress project MCP, Cursor/Claude hooks, or installed plugins. `assertCursorWorkspacePolicy` refuses ambient project execution config from the workspace through its nearest Git root, including symlinks and unreadable configuration. Ordinary Claude settings with neither hooks nor plugins remain admissible. Enterprise system hooks are checked too. The host repeats admission checks before native launch. The vendor admission check alone cannot prevent a concurrent file mutation. The current `paperclip-cursor-usage-v4` distribution patch removes local hook loading, asynchronous team hook synchronization, ambient MCP loader initialization, and ambient-client merging from the ACP source. The retained admission check remains defense in depth. This closes those discovery paths independently of filesystem polling; authenticated validation on the patched final runtime remains required.
+`--disable-project-configs` only suppresses `.cursor/cli.json`. It does not suppress project MCP, Cursor/Claude hooks, or installed plugins. `assertCursorWorkspacePolicy` refuses ambient project execution config from the workspace through its nearest Git root, including symlinks and unreadable configuration. Ordinary Claude settings with neither hooks nor plugins remain admissible. Enterprise system hooks are checked too. The host repeats admission checks before native launch. The vendor admission check alone cannot prevent a concurrent file mutation. The current `outpost-cursor-usage-v4` distribution patch removes local hook loading, asynchronous team hook synchronization, ambient MCP loader initialization, and ambient-client merging from the ACP source. The retained admission check remains defense in depth. This closes those discovery paths independently of filesystem polling; authenticated validation on the patched final runtime remains required.
 
 Artifact paths are never automatically read or uploaded. References require a present regular file under the physical workspace, reject traversal and symbolic links, and retain `registered:false`. Private/outside paths are omitted and produce a visible warning. This is metadata validation, not durable file ownership or a replacement for artifact registration checks.
 
@@ -293,7 +293,7 @@ The first subsequent server-restart attempt **failed**; the later authorized ret
 
 The explicitly authorized serialized restart retry passed on source `d35b83074a018537f5475568d7410e3b1d676789`, using the final pack and matching release daemon, from 20:42:13.120 to 20:43:10.985 UTC. All six matchers passed, no invariant failed, and cleanup passed; a separate process inspection confirmed no remaining task-owned processes. The real pending semantic question survived the server restart, was answered Cobalt through the browser, and produced one successful continuation and Done. Both screenshots were inspected. This establishes semantic interaction persistence and wake-assignee recovery, not restoration of a blocked native `cursor/ask_question` request. The dashboard attributes two Luna rows at 20:42:26 UTC (23.8K tokens) and 20:42:57 UTC (41.7K), both Included with zero incremental cash; the displayed current-account total is 458.1K across eleven requests. Native metered dollars remain unknown. Original launcher and PostgreSQL failures remain retained.
 
-A separate native AskQuestion sidecar probe on final pack source `25fb1b5b317e52a8ad50208d7681a1ee34bd939c` sent one prompt at 20:39:47.990 UTC, with no Paperclip semantic tools. It requested single and multiple selection through Cursor's native question tool. The provider instead replied “The native AskQuestion tool is unavailable in this session,” emitted zero native input requests, and ended normally. The qualification oracle correctly failed; session close passed. The dashboard attributes a 20:39:48 UTC row with 17.4K tokens as Included, with zero incremental cash and unknown native metered dollars. This is observed default-mode tool unavailability, not proof of absence in every Cursor mode. The pinned source implements `session/set_mode` for agent/plan/ask and native question/plan handlers; the runner currently has no explicit mode-selection command. Retained native initialization exposes modes and model settings but no native tool inventory or question/plan availability bit. The bundled `ask_question_all_modes:true` default does not prove the server-selected tool catalog. No native Plan prompt was attempted, and no native interaction pass is claimed.
+A separate native AskQuestion sidecar probe on final pack source `25fb1b5b317e52a8ad50208d7681a1ee34bd939c` sent one prompt at 20:39:47.990 UTC, with no Outpost semantic tools. It requested single and multiple selection through Cursor's native question tool. The provider instead replied “The native AskQuestion tool is unavailable in this session,” emitted zero native input requests, and ended normally. The qualification oracle correctly failed; session close passed. The dashboard attributes a 20:39:48 UTC row with 17.4K tokens as Included, with zero incremental cash and unknown native metered dollars. This is observed default-mode tool unavailability, not proof of absence in every Cursor mode. The pinned source implements `session/set_mode` for agent/plan/ask and native question/plan handlers; the runner currently has no explicit mode-selection command. Retained native initialization exposes modes and model settings but no native tool inventory or question/plan availability bit. The bundled `ask_question_all_modes:true` default does not prove the server-selected tool catalog. No native Plan prompt was attempted, and no native interaction pass is claimed.
 
 The restrictive native denial probe used the final verified pack and exact Luna model, with one prompt submitted at 20:52:07.462 UTC. Cursor emitted numeric request ID `0` for the shell write. Its offered IDs were `allow-once`, `allow-always`, and `reject-once`; the client selected the unchanged `reject-once` and acknowledged the pipe write at 20:52:10.919 UTC. The provider ended at 20:52:11.980 UTC. The forbidden marker was absent in all 98 independent samples, including before launch, at the terminal, five seconds later, and after process-group and lease cleanup at 20:52:16.996 UTC. This establishes the native harness denial behavior, not sidecar normalization, Rust durability, or Product approval UI.
 
@@ -305,28 +305,28 @@ The first attempt also exposed the shared live-eval layer's rejection of missing
 
 ## Exact remaining field audit
 
-This source audit follows pinned native update → ACPX runtime → `canonicalProviderEventsFromAcpxRuntimeEvent` → Paperclip activity. It supplements the higher-level capability matrix and does not claim an authenticated trace was captured.
+This source audit follows pinned native update → ACPX runtime → `canonicalProviderEventsFromAcpxRuntimeEvent` → Outpost activity. It supplements the higher-level capability matrix and does not claim an authenticated trace was captured.
 
 | Native field/interface | Preserved boundary | Current projection / reason for partial use | Follow-up |
 |---|---|---|---|
 | Prompt image blocks | Pinned native initialize advertises image input | Shared `AcpxRuntimeTurnInput` has only `text`; `acpx-runtime-adapter.ts` passes that text to ACPX, so no image blocks reach the wrapper from a runner turn | P1: add validated, bounded attachment inputs through the runner/ACPX contract, then prove exact-model behavior; native advertisement alone is not implementation evidence |
-| Parent tool `rawInput` | ACPX forwards the body | Canonical tool schema exposes only `inputUpdated`; full native arguments are not displayed | P1: bounded/redacted tool-argument presentation with company and path checks |
+| Parent tool `rawInput` | ACPX forwards the body | Canonical tool schema exposes only `inputUpdated`; full native arguments are not displayed | P1: bounded/redacted tool-argument presentation with space and path checks |
 | Parent tool `content[]` diff `path`, `oldText`, `newText` | ACPX forwards structured content; native permission requests also use it for proposed changes | Canonical tool mapper uses `rawOutput`, so completed provider-reported diff blocks have no dedicated output surface; separate workspace evidence is not equivalent | P1: validate physical workspace locations and expose attributed diff artifacts |
 | Parent tool `content[]` images/resource blocks | ACPX forwards blocks and produces a summary | Structured media is unused by canonical tool output; safe registration/location semantics must precede ingestion | P1: validated artifact reference projection with explicit provenance |
 | Parent tool `locations[]` | ACPX forwards bounded locations | Only first relative location becomes `target`; absolute paths and additional locations are discarded | P1: workspace-aware multi-file attribution; never strip arbitrary absolute prefixes |
 | Parent tool `rawOutput` | ACPX forwards raw value | Canonical output is bounded serialized text, not lossless structured data; truncation is marked by output metadata | P2: typed tool-result detail viewer when useful |
 | Plan step priority/native extras | ACPX plan entries | Display uses body/status and fixed ordinal step IDs; priority and unknown metadata have no canonical fields | P2: add explicit bounded fields if native traces show product value |
-| Commands, config options, session title | ACPX persists/normalizes `available_commands_update`, `config_option_update`, `session_info_update` | Canonical display mapper explicitly skips these tags; exact model admission remains separate | P2: company-scoped command/config/title surfaces |
+| Commands, config options, session title | ACPX persists/normalizes `available_commands_update`, `config_option_update`, `session_info_update` | Canonical display mapper explicitly skips these tags; exact model admission remains separate | P2: space-scoped command/config/title surfaces |
 | Child tool raw arguments/results, locations, diffs and media | Cursor child intercept retains validated update for its adapter | Child activity keeps bounded attributed summaries, with visible partial-detail notices; there is no nested transcript/tool detail surface | P1: canonical child transcript and tool/artifact relation model |
 | Child `_meta.cursor.agentId` / tool origin / parent ID | Retained for immutable-origin and descendant checks | Internal identity guards; parent relationship is textual metadata because canonical delegation lacks an edge field | P2: typed delegation lineage |
 | Task numeric `durationMs`, optional accepted `planUri` | Native task/plan extensions | Duration is visible in summary; no numeric delegation field. No plan URI is returned because no plan artifact is registered | P2: typed duration; only return an actually registered plan URI |
-| Session list, model parameters, generic mode control | Confirmed native ACP methods | No operator UI or cross-session discovery API in this integration; recovery loads only the runner-owned exact session | P2: explicit company-scoped controls; authenticated model catalog first |
+| Session list, model parameters, generic mode control | Confirmed native ACP methods | No operator UI or cross-session discovery API in this integration; recovery loads only the runner-owned exact session | P2: explicit space-scoped controls; authenticated model catalog first |
 
 True steering, native queueing, fork/resume, native usage receipts and interactive child questions are absent from this pinned ACP implementation as described above. Their absence is distinct from the implemented-but-unused fields in this table. Remote team hooks, provider-native artifact traces, interruption settlement and authenticated Linux/Daytona behavior remain unverified, not confirmed absent.
 
 ## Initial isolation patch, profile v3 (2026-09-29)
 
-The initial profile v3 materialized `paperclip-cursor-isolation-v1` on top of the
+The initial profile v3 materialized `outpost-cursor-isolation-v1` on top of the
 unchanged vendor `2026.09.26-dd393fe` archives. The materializer first verifies
 the archive and **vendor** execution closure, requires exact single-occurrence
 source anchors in an input-digest-pinned ACP chunk, applies the owned patch,
@@ -407,12 +407,12 @@ qualification must use an image whose content hash includes that script.
 
 The pinned native ACP implementation ignores `_meta.systemPrompt` on session
 creation, and ACPX does not send it on load. Native workspace rules do not read
-Paperclip's registered `AGENT_HOME`. The hidden `--system-prompt` option is an
+Outpost's registered `AGENT_HOME`. The hidden `--system-prompt` option is an
 internal-team-gated interactive CLI feature and is not used by this integration.
 Those facts invalidate any assumption that prior transport success alone proved
 canonical governance or custom entry instructions reached Cursor.
 
-The owned `paperclip-cursor-instructions-v2` patch preserves the v3 isolation and
+The owned `outpost-cursor-instructions-v2` patch preserves the v3 isolation and
 typed-error changes and adds the composed instructions through Cursor's native
 `LocalResourceProvider.additionalRules` path. The sandbox supplies an ephemeral,
 controller-owned `OUTPOST_CURSOR_INSTRUCTIONS` payload. Ambient environment
@@ -423,12 +423,12 @@ agent-home context, without discovering another workspace instruction file.
 Explicit empty content has an empty rules list and the SHA-256 of empty bytes.
 
 Native session creation and load both use this process-owned snapshot and return
-`_meta.paperclipCursorInstructions` with schema, exact digest, and byte length.
+`_meta.outpostCursorInstructions` with schema, exact digest, and byte length.
 The additional rule uses the native global-rule representation and retains
 native ordering: additional rules precede the ordinarily discovered project
 rules in `RequestContext.rules`. It is not prepended to the user's message and
 does not replace Cursor's built-in system prompt. The synthetic rule identifier
-is `paperclip://runtime/instructions`; no generated instruction file is exposed
+is `outpost://runtime/instructions`; no generated instruction file is exposed
 to workspace discovery.
 
 A synchronous ACPX `protocolGuardFactory` checks each connection independently.
@@ -501,7 +501,7 @@ storage, transport, and enum-converter doubles. Real ACPX fixture tests separate
 prove cold-manager load/control ordering and automatic reconnect rejection before
 prompt bytes. Neither is paid model/tool qualification.
 
-Native mode does not change Paperclip permission policy, company governance, or
+Native mode does not change Outpost permission policy, space governance, or
 filesystem isolation. The native descriptions say Plan is read-only planning and
 Ask has no edits or command execution; these descriptions are not an OS sandbox
 claim. Native ACP CreatePlan acceptance does not itself mutate session mode in
@@ -521,9 +521,9 @@ identified empty rich-input chunks at the native parser boundary.
 ## Accepted native plans wait for explicit continuation (2026-09-30)
 
 With Cursor CLI `2026.09.26-dd393fe`, accepting native CreatePlan can finish the
-planning turn normally without a Paperclip semantic completion result. The
+planning turn normally without a Outpost semantic completion result. The
 controller recognizes this boundary only from the admitted Plan-mode run,
-company/task scope, exact native plan request and accepted revision, acknowledged
+space/task scope, exact native plan request and accepted revision, acknowledged
 human response delivery, and normal terminal event. An explicit semantic result
 still takes precedence.
 

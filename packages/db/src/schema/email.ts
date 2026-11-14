@@ -27,7 +27,7 @@ export const emailEndpoints = pgTable(
   "email_endpoints",
   {
     endpointId: uuid("endpoint_id").primaryKey(),
-    companyId: uuid("company_id").notNull(),
+    spaceId: uuid("space_id").notNull(),
     receiveMode: text("receive_mode")
       .$type<"websocket" | "webhook">()
       .notNull(),
@@ -43,8 +43,8 @@ export const emailEndpoints = pgTable(
       sql`${t.receiveMode} in ('websocket', 'webhook')`,
     ),
     foreignKey({
-      columns: [t.companyId, t.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
+      columns: [t.spaceId, t.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
     }).onDelete("cascade"),
   ],
 );
@@ -53,7 +53,7 @@ export const emailMessages = pgTable(
   "email_messages",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull(),
+    spaceId: uuid("space_id").notNull(),
     endpointId: uuid("endpoint_id").notNull(),
     conversationId: uuid("conversation_id").notNull(),
     providerMessageId: text("provider_message_id").notNull(),
@@ -78,17 +78,17 @@ export const emailMessages = pgTable(
       t.providerMessageId,
     ),
     index("email_messages_conversation_idx").on(
-      t.companyId,
+      t.spaceId,
       t.conversationId,
       t.timestamp,
     ),
     foreignKey({
-      columns: [t.companyId, t.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
+      columns: [t.spaceId, t.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
     }).onDelete("cascade"),
     foreignKey({
-      columns: [t.companyId, t.conversationId],
-      foreignColumns: [chatConversations.companyId, chatConversations.id],
+      columns: [t.spaceId, t.conversationId],
+      foreignColumns: [chatConversations.spaceId, chatConversations.id],
     }).onDelete("cascade"),
   ],
 );
@@ -97,7 +97,7 @@ export const emailSends = pgTable(
   "email_sends",
   {
     publicationId: uuid("publication_id").primaryKey(),
-    companyId: uuid("company_id").notNull(),
+    spaceId: uuid("space_id").notNull(),
     endpointId: uuid("endpoint_id").notNull(),
     request: jsonb("request").$type<EmailSendInput>().notNull(),
     actor: jsonb("actor")
@@ -117,12 +117,12 @@ export const emailSends = pgTable(
   },
   (t) => [
     foreignKey({
-      columns: [t.companyId, t.endpointId],
-      foreignColumns: [chatEndpoints.companyId, chatEndpoints.id],
+      columns: [t.spaceId, t.endpointId],
+      foreignColumns: [chatEndpoints.spaceId, chatEndpoints.id],
     }).onDelete("cascade"),
     foreignKey({
-      columns: [t.companyId, t.publicationId],
-      foreignColumns: [chatPublications.companyId, chatPublications.id],
+      columns: [t.spaceId, t.publicationId],
+      foreignColumns: [chatPublications.spaceId, chatPublications.id],
     }).onDelete("cascade"),
     check(
       "email_sends_outcome_check",

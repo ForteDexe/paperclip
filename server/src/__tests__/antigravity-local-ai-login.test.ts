@@ -7,7 +7,7 @@ import type { LocalBrowserLoginState } from "../services/local-ai-browser-login.
 import { PgDialect } from "drizzle-orm/pg-core";
 
 const mocks = vi.hoisted(() => ({ root: vi.fn(), browser: vi.fn(), credential: vi.fn(), save: vi.fn(), notify: vi.fn(), activity: vi.fn() }));
-vi.mock("../home-paths.js", () => ({ resolvePaperclipInstanceRoot: mocks.root }));
+vi.mock("../home-paths.js", () => ({ resolveOutpostInstanceRoot: mocks.root }));
 vi.mock("../services/local-ai-browser-login.js", () => ({ startLocalBrowserLogin: mocks.browser }));
 vi.mock("../services/local-ai-credentials.js", () => ({ readVerifiedLocalAiCredentialDetails: mocks.credential }));
 vi.mock("../services/ai-connections.js", () => ({ aiConnectionService: () => ({ save: mocks.save }) }));
@@ -75,7 +75,7 @@ function database() {
 }
 
 async function fixture() {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-google-local-login-service-"))); roots.push(root);
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-google-local-login-service-"))); roots.push(root);
   mocks.root.mockReturnValue(root);
   let release: () => void;
   const retirement = new Promise<void>(resolve => { release = resolve; });
@@ -85,7 +85,7 @@ async function fixture() {
   mocks.save.mockResolvedValue({ connectionId: "connection-1", grantId: "grant-1" });
   const db = database(), service = localAiLoginService(db);
   db.selections.push([], [{ id: "local-environment", driver: "local", status: "active" }]);
-  const attempt = await service.start("company", "user", intent);
+  const attempt = await service.start("space", "user", intent);
   const home = join(root, "ai-local-logins", attempt.sessionId);
   return { db, service, browser, attempt, home, release: release! };
 }
@@ -96,20 +96,20 @@ describe("Google local sign-in service admission", () => {
     await mkdir(join(f.home, "antigravity-acp"), { mode: 0o700 });
     await writeFile(join(f.home, "antigravity-acp", "acp_token.json"), "early-native-token", { mode: 0o600 });
     f.db.selections.push([f.db.session]);
-    expect(await f.service.check("company", "user", intent, f.attempt.sessionId)).toMatchObject({ status: "sign_in_required", authorizationUrl: f.browser.authorizationUrl });
+    expect(await f.service.check("space", "user", intent, f.attempt.sessionId)).toMatchObject({ status: "sign_in_required", authorizationUrl: f.browser.authorizationUrl });
     f.db.selections.push([f.db.session]);
-    await expect(f.service.complete("company", "user", f.attempt.sessionId, intent)).rejects.toThrow("Finish Google browser sign-in");
+    await expect(f.service.complete("space", "user", f.attempt.sessionId, intent)).rejects.toThrow("Finish Google browser sign-in");
     expect(mocks.credential).not.toHaveBeenCalled(); expect(mocks.save).not.toHaveBeenCalled();
-    f.release(); f.db.selections.push([f.db.session], [f.db.session]); await f.service.cancel("company", "user", f.attempt.sessionId);
+    f.release(); f.db.selections.push([f.db.session], [f.db.session]); await f.service.cancel("space", "user", f.attempt.sessionId);
   });
 
   it("returns the verified account email and passes it to the saved connection", async () => {
     const f = await fixture(); f.browser.outcome = "success";
     f.db.selections.push([f.db.session]);
-    expect(await f.service.check("company", "user", intent, f.attempt.sessionId)).toEqual({ status: "ready", accountLabel: "person@example.test" });
+    expect(await f.service.check("space", "user", intent, f.attempt.sessionId)).toEqual({ status: "ready", accountLabel: "person@example.test" });
     f.release(); f.db.selections.push([f.db.session]);
-    expect(await f.service.complete("company", "user", f.attempt.sessionId, intent)).toEqual({ connectionId: "connection-1", grantId: "grant-1" });
-    expect(mocks.save).toHaveBeenCalledWith("company", "user", intent, "private-native-credential", { id: f.attempt.sessionId }, expect.any(Date), undefined, "person@example.test");
+    expect(await f.service.complete("space", "user", f.attempt.sessionId, intent)).toEqual({ connectionId: "connection-1", grantId: "grant-1" });
+    expect(mocks.save).toHaveBeenCalledWith("space", "user", intent, "private-native-credential", { id: f.attempt.sessionId }, expect.any(Date), undefined, "person@example.test");
     await expect(access(f.home)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
@@ -118,9 +118,9 @@ describe("Google local sign-in service admission", () => {
     const session = { id: "unknown-browser-process", aiConnection: intent, status: "waiting_for_user", connectionMethod: "local_subscription", expiresAt: new Date(Date.now() + 60_000) };
     mocks.root.mockReturnValue(await realpath(tmpdir()));
     db.selections.push([session]);
-    expect(await service.check("company", "user", intent, session.id)).toMatchObject({ status: "sign_in_required", error: "The server restarted during sign-in. Start sign-in again." });
+    expect(await service.check("space", "user", intent, session.id)).toMatchObject({ status: "sign_in_required", error: "The server restarted during sign-in. Start sign-in again." });
     db.selections.push([session]);
-    await expect(service.complete("company", "user", session.id, intent)).rejects.toThrow("Finish Google browser sign-in");
+    await expect(service.complete("space", "user", session.id, intent)).rejects.toThrow("Finish Google browser sign-in");
     expect(mocks.credential).not.toHaveBeenCalled(); expect(mocks.save).not.toHaveBeenCalled();
   });
 
@@ -133,7 +133,7 @@ describe("Google local sign-in service admission", () => {
     mocks.browser.mockReturnValue({ abort: vi.fn() });
     let attempt: Awaited<ReturnType<typeof otherService.start>> | undefined;
     let failure: unknown;
-    const starting = otherService.start("another-company", "another-user", { ...intent, provider: "openai" })
+    const starting = otherService.start("another-space", "another-user", { ...intent, provider: "openai" })
       .then(result => { attempt = result; }, error => { failure = error; });
     try {
       await vi.waitFor(() => { if (failure) throw failure; expect(attempt).toBeDefined(); });
@@ -141,8 +141,8 @@ describe("Google local sign-in service admission", () => {
       await expect(access(f.home)).resolves.toBeUndefined();
     } finally {
       f.release(); await starting;
-      f.db.selections.push([f.db.session], [f.db.session]); await f.service.cancel("company", "user", f.attempt.sessionId);
-      if (attempt) { other.selections.push([other.session], [other.session]); await otherService.cancel("another-company", "another-user", attempt.sessionId); }
+      f.db.selections.push([f.db.session], [f.db.session]); await f.service.cancel("space", "user", f.attempt.sessionId);
+      if (attempt) { other.selections.push([other.session], [other.session]); await otherService.cancel("another-space", "another-user", attempt.sessionId); }
     }
   });
 
@@ -166,7 +166,7 @@ describe("Google local sign-in service admission", () => {
     const browser = { abort: vi.fn(() => retirement) };
     mocks.browser.mockReturnValue(browser);
     f.db.selections.push([], [{ id: "local-environment", driver: "local", status: "active" }]);
-    const second = await f.service.start("company", "another-user", { ...intent, provider: "openai" });
+    const second = await f.service.start("space", "another-user", { ...intent, provider: "openai" });
     first.expiresAt = f.db.session.expiresAt = new Date(Date.now() - 1);
     f.db.selections.push([{ id: first.id }, { id: second.sessionId }], [first], [f.db.session]);
     const reaping = f.service.reapExpired();
@@ -243,8 +243,8 @@ describe("Google local sign-in service admission", () => {
     f.db.selections.push([f.db.session], [f.db.session]);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     let result: unknown;
-    const operation = (action === "cancel" ? f.service.cancel("company", "user", f.attempt.sessionId)
-      : f.service.start("company", "user", intent, true)).then(value => { result = value; }, error => { result = error; });
+    const operation = (action === "cancel" ? f.service.cancel("space", "user", f.attempt.sessionId)
+      : f.service.start("space", "user", intent, true)).then(value => { result = value; }, error => { result = error; });
     try {
       await vi.waitFor(() => expect(f.browser.abort).toHaveBeenCalledOnce());
       expect(f.db.activeTransactions).toBe(0);
@@ -267,16 +267,16 @@ describe("Google local sign-in service admission", () => {
     const f = await fixture();
     let operation: Promise<unknown>;
     if (action === "cancel") {
-      f.db.selections.push([f.db.session], [f.db.session]); operation = f.service.cancel("company", "user", f.attempt.sessionId);
+      f.db.selections.push([f.db.session], [f.db.session]); operation = f.service.cancel("space", "user", f.attempt.sessionId);
     } else if (action === "expiry") {
       f.db.session.expiresAt = new Date(Date.now() - 1);
       f.db.selections.push([{ id: f.attempt.sessionId }], [f.db.session]); operation = f.service.reapExpired();
     } else if (action === "restart") {
       f.db.selections.push([f.db.session], [f.db.session], [{ id: "local-environment", driver: "local", status: "active" }]);
-      operation = f.service.start("company", "user", intent, true);
+      operation = f.service.start("space", "user", intent, true);
     } else {
       f.browser.outcome = "success";
-      f.db.selections.push([f.db.session]); operation = f.service.complete("company", "user", f.attempt.sessionId, intent);
+      f.db.selections.push([f.db.session]); operation = f.service.complete("space", "user", f.attempt.sessionId, intent);
     }
     await vi.waitFor(() => expect(f.browser.abort).toHaveBeenCalledOnce());
     await expect(access(f.home)).resolves.toBeUndefined();

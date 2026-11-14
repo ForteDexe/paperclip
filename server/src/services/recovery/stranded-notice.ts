@@ -226,7 +226,7 @@ export function buildExecutionReviewParticipantRecoveryNoticeSeed(): StrandedRec
   return {
     body:
       "Outpost retried the pending execution-review participant once, but the review stage still has no " +
-      "completed decision or live reviewer run. Moving it to `blocked` so the board can inspect the evidence, repair the " +
+      "completed decision or live reviewer run. Moving it to `blocked` so the operator can inspect the evidence, repair the " +
       "reviewer runtime, restore the review stage, or record an intentional manual resolution.",
     title: "Review recovery stalled",
     tone: "danger",
@@ -238,7 +238,7 @@ export function buildExecutionReviewParticipantUnavailableNoticeSeed(): Stranded
     body:
       "Outpost cannot continue the pending execution-review participant because the participant is not " +
       "invokable and the review stage has no completed decision or live reviewer run. Moving it to `blocked` " +
-      "so the board can inspect the evidence, repair the reviewer runtime, restore the review stage, or record an " +
+      "so the operator can inspect the evidence, repair the reviewer runtime, restore the review stage, or record an " +
       "intentional manual resolution.",
     title: "Review recovery stalled",
     tone: "danger",
@@ -282,8 +282,8 @@ export function buildStrandedRecoveryEscalationNotice(input: {
       ? agentLinkRow("Recovery owner", input.recoveryOwner)
       : keyValueRow(
           "Recovery owner",
-          // A pre-dispatch provider outage needs no board decision, only Retry.
-          input.recoveryCause === ENVIRONMENT_PROVIDER_UNAVAILABLE_CODE ? "Retry when ready" : "Board decision required",
+          // A pre-dispatch provider outage needs no operator decision, only Retry.
+          input.recoveryCause === ENVIRONMENT_PROVIDER_UNAVAILABLE_CODE ? "Retry when ready" : "Operator decision required",
         ),
     keyValueRow(
       "Next action",

@@ -11,29 +11,29 @@ export function completedVoiceAction(a: string): string {
     OR (${alias}.status = 'call_ended' AND ${alias}.result->>'errorCode' = 'provider_unavailable')
     OR (${alias}.status = 'failed' AND ${alias}.result->>'errorCode' IN
       ('credentials_rejected', 'insufficient_credits', 'provider_unavailable', 'voice_authority_unavailable'))`;
-  // Nonnull company/endpoint keys let PostgreSQL hash each debt set once,
+  // Nonnull space/endpoint keys let PostgreSQL hash each debt set once,
   // rather than rescanning every old session for every retained voice marker.
-  const settled = `(${a}.company_id, ${a}.endpoint_id) NOT IN (
-      SELECT session.company_id, session.endpoint_id FROM chat_voice_sessions session
+  const settled = `(${a}.space_id, ${a}.endpoint_id) NOT IN (
+      SELECT session.space_id, session.endpoint_id FROM chat_voice_sessions session
         WHERE (${closedSession('session')}) IS NOT TRUE)
-    AND (${a}.company_id, ${a}.endpoint_id) NOT IN (
-      SELECT admission.company_id, admission.endpoint_id FROM chat_voice_inbound_calls admission
+    AND (${a}.space_id, ${a}.endpoint_id) NOT IN (
+      SELECT admission.space_id, admission.endpoint_id FROM chat_voice_inbound_calls admission
         WHERE admission.state NOT IN ('denied', 'expired', 'ended')
           OR admission.cleanup_confirmed_at IS NULL OR admission.cleanup_next_attempt_at IS NOT NULL)
-    AND (${a}.company_id, ${a}.endpoint_id) NOT IN (
-      SELECT push.company_id, push.endpoint_id FROM chat_actions push
+    AND (${a}.space_id, ${a}.endpoint_id) NOT IN (
+      SELECT push.space_id, push.endpoint_id FROM chat_actions push
         WHERE push.kind = 'speko_voice_reply_push' AND (${submitted('push')}) IS NOT TRUE)`;
   // Configuration records this existing audit event only after tools, webhook,
   // voice defaults and runtime setup all succeeded. A partial setup cannot use
   // individual resource receipts to certify the rest of the owning operation.
   const setupCommitted = `EXISTS (SELECT 1 FROM activity_log receipt JOIN chat_endpoints endpoint
-    ON endpoint.id = ${a}.endpoint_id AND endpoint.company_id = ${a}.company_id
-    WHERE receipt.company_id = ${a}.company_id AND receipt.entity_type = 'tool_connection'
+    ON endpoint.id = ${a}.endpoint_id AND endpoint.space_id = ${a}.space_id
+    WHERE receipt.space_id = ${a}.space_id AND receipt.entity_type = 'tool_connection'
       AND receipt.entity_id = endpoint.connection_id::text AND receipt.details->>'endpointId' = endpoint.id::text
       AND receipt.details->>'provider' = 'speko' AND receipt.action IN ('chat_endpoint.credentials_verified', 'chat_endpoint.reconnected')
       AND receipt.created_at >= ${a}.updated_at)`;
   return `EXISTS (SELECT 1 FROM chat_endpoints endpoint WHERE endpoint.id = ${a}.endpoint_id
-      AND endpoint.company_id = ${a}.company_id AND endpoint.provider = 'speko') AND ${settled} AND (
+      AND endpoint.space_id = ${a}.space_id AND endpoint.provider = 'speko') AND ${settled} AND (
     (${a}.kind = 'speko_tool_setup' AND ${a}.status = 'completed' AND ${setupCommitted}
       AND ${a}.payload->>'name' IN ('submit_request', 'get_updates', 'answer_question')
       AND ${a}.payload->>'fingerprint' ~ '^[a-f0-9]{64}$' AND ${a}.payload->>'ownershipDefinitionHash' ~ '^[a-f0-9]{64}$'
@@ -47,9 +47,9 @@ export function completedVoiceAction(a: string): string {
       AND ${a}.payload->>'type' IN ('call.status', 'call.report') AND ${a}.payload->>'fingerprint' ~ '^[a-f0-9]{64}$'
       AND ${a}.provider_action_id LIKE 'speko_event:%' AND (
         EXISTS (SELECT 1 FROM chat_voice_sessions session WHERE session.id::text = ${a}.payload->>'sessionId'
-          AND session.company_id = ${a}.company_id AND session.endpoint_id = ${a}.endpoint_id AND ${closedSession('session')})
+          AND session.space_id = ${a}.space_id AND session.endpoint_id = ${a}.endpoint_id AND ${closedSession('session')})
         OR (${a}.payload->'sessionId' = 'null'::jsonb AND EXISTS (
-          SELECT 1 FROM chat_voice_inbound_calls admission WHERE admission.company_id = ${a}.company_id
+          SELECT 1 FROM chat_voice_inbound_calls admission WHERE admission.space_id = ${a}.space_id
             AND admission.endpoint_id = ${a}.endpoint_id AND admission.state IN ('denied', 'expired', 'ended')
             AND admission.cleanup_confirmed_at IS NOT NULL AND admission.cleanup_next_attempt_at IS NULL))))
     OR (${a}.kind = 'speko_voice_reply_push' AND (${submitted(a)})
@@ -58,9 +58,9 @@ export function completedVoiceAction(a: string): string {
       AND CASE WHEN ${a}.payload->>'partIndex' ~ '^[0-9]+$' AND ${a}.payload->>'partCount' ~ '^[1-9][0-9]*$'
         THEN (${a}.payload->>'partIndex')::numeric < (${a}.payload->>'partCount')::numeric ELSE false END
       AND EXISTS (SELECT 1 FROM chat_voice_sessions session JOIN chat_voice_replies reply
-        ON reply.session_id = session.id AND reply.company_id = session.company_id
-        JOIN chat_publications publication ON publication.id = reply.publication_id AND publication.company_id = reply.company_id
-        WHERE session.id::text = ${a}.payload->>'sessionId' AND session.company_id = ${a}.company_id
+        ON reply.session_id = session.id AND reply.space_id = session.space_id
+        JOIN chat_publications publication ON publication.id = reply.publication_id AND publication.space_id = reply.space_id
+        WHERE session.id::text = ${a}.payload->>'sessionId' AND session.space_id = ${a}.space_id
           AND session.endpoint_id = ${a}.endpoint_id AND session.conversation_id = ${a}.conversation_id
           AND session.provider_session_id = ${a}.payload->>'providerSessionId' AND session.generation::text = ${a}.payload->>'generation'
           AND reply.id::text = ${a}.payload->>'replyId' AND publication.id::text = ${a}.payload->>'publicationId'

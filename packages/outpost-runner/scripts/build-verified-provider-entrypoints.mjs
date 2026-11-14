@@ -104,14 +104,14 @@ export async function bundleVerifiedProviderEntrypoints({ write = true } = {}) {
         banner:
           format === "cjs"
             ? {
-                js: 'const __paperclipVerifiedEntrypointUrl = require("node:url").pathToFileURL(__filename).href;',
+                js: 'const __outpostVerifiedEntrypointUrl = require("node:url").pathToFileURL(__filename).href;',
               }
             : undefined,
         define:
           format === "cjs"
             ? {
                 "import.meta.dirname": "__dirname",
-                "import.meta.url": "__paperclipVerifiedEntrypointUrl",
+                "import.meta.url": "__outpostVerifiedEntrypointUrl",
               }
             : undefined,
       });
@@ -141,8 +141,8 @@ export async function bundlePiProvisioner({ write = true, outputRoot = resolve(p
     bundle: true, platform: "node", format: "cjs", target: "node24", packages: "bundle",
     splitting: false, sourcemap: false, legalComments: "none", metafile: true,
     treeShaking: true, write, logLevel: "silent",
-    banner: { js: 'const __paperclipVerifiedEntrypointUrl = require("node:url").pathToFileURL(__filename).href;' },
-    define: { "import.meta.dirname": "__dirname", "import.meta.url": "__paperclipVerifiedEntrypointUrl" },
+    banner: { js: 'const __outpostVerifiedEntrypointUrl = require("node:url").pathToFileURL(__filename).href;' },
+    define: { "import.meta.dirname": "__dirname", "import.meta.url": "__outpostVerifiedEntrypointUrl" },
   });
   assertSelfContainedBundle(entrypoint, result);
   if (write) {
@@ -167,8 +167,8 @@ export async function bundleKimiProvisioner({ write = true, outputRoot = resolve
     bundle: true, platform: "node", format: "cjs", target: "node24", packages: "bundle",
     splitting: false, sourcemap: false, legalComments: "none", metafile: true,
     treeShaking: true, write, logLevel: "silent",
-    banner: { js: 'const __paperclipVerifiedEntrypointUrl = require("node:url").pathToFileURL(__filename).href;' },
-    define: { "import.meta.dirname": "__dirname", "import.meta.url": "__paperclipVerifiedEntrypointUrl" },
+    banner: { js: 'const __outpostVerifiedEntrypointUrl = require("node:url").pathToFileURL(__filename).href;' },
+    define: { "import.meta.dirname": "__dirname", "import.meta.url": "__outpostVerifiedEntrypointUrl" },
   });
   assertSelfContainedBundle(entrypoint, result);
   if (write) {

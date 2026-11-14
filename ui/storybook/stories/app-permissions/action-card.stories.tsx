@@ -21,7 +21,7 @@ const baseProps = {
 };
 
 const meta: Meta<typeof ActionCard> = {
-  parameters: { paperclip: {
+  parameters: { outpost: {
       "capabilities": [
         "app-permissions/test-action",
         "app-permissions/action-policy"

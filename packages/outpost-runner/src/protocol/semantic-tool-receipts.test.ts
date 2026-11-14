@@ -119,10 +119,10 @@ describe("ORP provider-neutral semantic receipts", () => {
   });
 
   it("maps denial and conflict codes onto protocol authorization boundaries", () => {
-    expect(semanticAuthorizationBoundaryForCode("company_scope_denied")).toBe("company");
+    expect(semanticAuthorizationBoundaryForCode("space_scope_denied")).toBe("space");
     expect(semanticAuthorizationBoundaryForCode("actor_role_denied")).toBe("actor");
     expect(semanticAuthorizationBoundaryForCode("document_revision_conflict")).toBe("revision");
-    expect(semanticAuthorizationBoundaryForCode("approval_required")).toBe("governed_action");
+    expect(semanticAuthorizationBoundaryForCode("approval_required")).toBe("controlled_action");
   });
 });
 

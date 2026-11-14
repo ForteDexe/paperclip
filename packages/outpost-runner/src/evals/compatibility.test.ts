@@ -7,14 +7,14 @@ import {
   OUTPOST_RUNNERD_BUILD_METADATA_SCHEMA,
 } from "./build-metadata.js";
 import {
-  PaperclipRunnerEvalCompatibilityError,
-  assertPaperclipRunnerEvalCompatibility,
-  type PaperclipRunnerEvalCompatibilityRequirement,
+  OutpostRunnerEvalCompatibilityError,
+  assertOutpostRunnerEvalCompatibility,
+  type OutpostRunnerEvalCompatibilityRequirement,
 } from "./compatibility.js";
 
-function compatible(): PaperclipRunnerEvalCompatibilityRequirement {
+function compatible(): OutpostRunnerEvalCompatibilityRequirement {
   return {
-    consumer: "paperclip-evals",
+    consumer: "outpost-evals",
     packageVersion: OUTPOST_RUNNER_BUILD_METADATA.package.version,
     runnerd: {
       schema: OUTPOST_RUNNERD_BUILD_METADATA_SCHEMA,
@@ -36,7 +36,7 @@ function compatible(): PaperclipRunnerEvalCompatibilityRequirement {
       contractVersion: 1,
       requiredCapabilities: ["typedEvents", "interruption", "usage", "dynamicTools"],
       descriptor: {
-        kind: "paperclip-deterministic",
+        kind: "outpost-deterministic",
         displayName: "Deterministic",
         version: "1.0.0",
         protocolVersion: "orp.v1",
@@ -54,7 +54,7 @@ function compatible(): PaperclipRunnerEvalCompatibilityRequirement {
   };
 }
 
-describe("Paperclip Evals integration compatibility", () => {
+describe("Outpost Evals integration compatibility", () => {
   it("keeps build metadata synchronized with package semver", () => {
     const packageJson = JSON.parse(readFileSync(
       fileURLToPath(new URL("../../package.json", import.meta.url)),
@@ -64,11 +64,11 @@ describe("Paperclip Evals integration compatibility", () => {
   });
 
   it("negotiates package, binary, ORP, catalog, and driver V1", () => {
-    expect(assertPaperclipRunnerEvalCompatibility(compatible())).toMatchObject({
+    expect(assertOutpostRunnerEvalCompatibility(compatible())).toMatchObject({
       schema: "outpost-runner/evals-integration/v1",
-      consumer: "paperclip-evals",
+      consumer: "outpost-evals",
       negotiatedPrpVersion: 1,
-      driverKind: "paperclip-deterministic",
+      driverKind: "outpost-deterministic",
     });
   });
 
@@ -88,11 +88,11 @@ describe("Paperclip Evals integration compatibility", () => {
     requirement.driver.descriptor.capabilities.dynamicTools = false;
 
     try {
-      assertPaperclipRunnerEvalCompatibility(requirement);
+      assertOutpostRunnerEvalCompatibility(requirement);
       throw new Error("expected compatibility failure");
     } catch (error) {
-      expect(error).toBeInstanceOf(PaperclipRunnerEvalCompatibilityError);
-      expect((error as PaperclipRunnerEvalCompatibilityError).issues.map((item) => item.code))
+      expect(error).toBeInstanceOf(OutpostRunnerEvalCompatibilityError);
+      expect((error as OutpostRunnerEvalCompatibilityError).issues.map((item) => item.code))
         .toEqual([
           "package_version_mismatch",
           "binary_package_version_mismatch",
@@ -112,7 +112,7 @@ describe("Paperclip Evals integration compatibility", () => {
     const requirement = compatible();
     requirement.driver.descriptor.protocolVersion = "orp.v2";
 
-    expect(() => assertPaperclipRunnerEvalCompatibility(requirement)).toThrow(
+    expect(() => assertOutpostRunnerEvalCompatibility(requirement)).toThrow(
       expect.objectContaining({
         issues: [expect.objectContaining({ code: "driver_protocol_version_mismatch" })],
       }),

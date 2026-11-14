@@ -31,7 +31,7 @@ function verifiedCacheDigest(run: typeof heartbeatRuns.$inferSelect, workspaceId
     || typeof state.admissionEpoch !== "string" || !uuidPattern.test(state.admissionEpoch)
     || admission.schema !== "outpost.native-provider-pack-admission.v1" || admission.stage !== "session_admitted"
     || admission.authority !== "core_verified_selection" || admission.runId !== run.id
-    || admission.companyId !== run.companyId || admission.agentId !== run.agentId
+    || admission.spaceId !== run.spaceId || admission.agentId !== run.agentId
     || workspace.workspaceId !== workspaceId || workspace.remoteCwd !== target.remoteCwd || workspace.leaseId !== target.leaseId
     || typeof admission.providerPackDigest !== "string" || !digestPattern.test(admission.providerPackDigest)) return null;
   return admission.providerPackDigest;
@@ -43,7 +43,7 @@ const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('n
  const [mode,root,source,expected,raw]=process.argv.slice(1),schema='outpost.native-provider-cache-reclaim.v1';
  if(!['inventory','stage','reclaim'].includes(mode)||!path.isAbsolute(root)||!/^[a-f0-9-]{36}$/.test(source)
    ||!/^sha256:[a-f0-9]{64}$/.test(expected)||await fs.realpath(root)!==root)throw Error('invalid_binding');
- const runtime=path.join(root,'.paperclip-runtime'),runner=path.join(runtime,'outpost-runner'),pack=path.join(runner,'provider-pack');
+ const runtime=path.join(root,'.outpost-runtime'),runner=path.join(runtime,'outpost-runner'),pack=path.join(runner,'provider-pack');
  const sessions=path.join(runner,'sessions'),file=path.join(pack,'provider-pack.json');
  const stat=async p=>fs.lstat(p,{bigint:true}).catch(e=>{if(e.code==='ENOENT')return null;throw e;});
  const directory=async p=>{const x=await fs.lstat(p,{bigint:true});if(!x.isDirectory()||x.isSymbolicLink()||await fs.realpath(p)!==p)throw Error('unsafe_directory');return x;};
@@ -73,8 +73,8 @@ const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('n
    ||plan.sourceRunId!==source||plan.manifestDigest!==expected||plan.manifestSha256!==manifestSha256
    ||!same(plan.root,rootIdentity)||!same(plan.pack,packIdentity,false)||!same(plan.manifest,manifestIdentity)||!same(plan.sessions,sessionIdentity)
    ||!Array.isArray(plan.targets)||plan.targets.length>2||new Set(plan.targets.map(x=>x.name)).size!==plan.targets.length)throw Error('plan_changed');
- const markerName='.paperclip-reclaim-'+request.preparationOperationId+'.json';
- const stagedPath=item=>path.join(pack,item.name+'.paperclip-reclaim-'+request.preparationOperationId);
+ const markerName='.outpost-reclaim-'+request.preparationOperationId+'.json';
+ const stagedPath=item=>path.join(pack,item.name+'.outpost-reclaim-'+request.preparationOperationId);
  const markerText=item=>JSON.stringify({preparationOperationId:request.preparationOperationId,source,expected,item});
  const markerState=async(p,item,partial=false)=>{const x=await stat(p);
   if(!x||!x.isFile()||x.isSymbolicLink()||x.nlink!==1n||x.size>4096n)throw Error('marker_changed');
@@ -165,15 +165,15 @@ function readInventory(value: unknown, runId: string, expected: string): Invento
 export type NativeProviderCacheReclaim = { changed: boolean; confirmed: boolean };
 
 export async function reclaimInactiveNativeProviderCache(input: {
-  db: Db; companyId: string; issueId: string; runId: string; workspaceId: string;
+  db: Db; spaceId: string; issueId: string; runId: string; workspaceId: string;
   target: RemoteWorkspaceTarget; assertOwned: () => Promise<void>;
 }): Promise<NativeProviderCacheReclaim> {
   const nothing = { changed: false, confirmed: true } as const;
   await input.assertOwned();
   const [source] = await input.db.select({ run: heartbeatRuns, coordinator: nativeRunFinalizations })
-    .from(heartbeatRuns).innerJoin(nativeRunFinalizations, and(eq(nativeRunFinalizations.companyId, heartbeatRuns.companyId),
+    .from(heartbeatRuns).innerJoin(nativeRunFinalizations, and(eq(nativeRunFinalizations.spaceId, heartbeatRuns.spaceId),
       eq(nativeRunFinalizations.runId, heartbeatRuns.id)))
-    .where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId),
+    .where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId),
       eq(nativeRunFinalizations.issueId, input.issueId))).limit(1);
   if (!source || source.run.status !== "failed" || source.run.runtimeMode !== "native"
     || (source.run.nativeIssueId ?? source.run.issueId ?? source.run.contextSnapshot?.issueId) !== input.issueId
@@ -181,7 +181,7 @@ export async function reclaimInactiveNativeProviderCache(input: {
     || record(source.coordinator.failureDetail).recoverable === true) return nothing;
   const expected = verifiedCacheDigest(source.run, input.workspaceId, input.target);
   if (!expected) return nothing;
-  const scope = and(eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.issueId, input.issueId),
+  const scope = and(eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.issueId, input.issueId),
     eq(workspaceOperations.heartbeatRunId, input.runId), eq(workspaceOperations.executionWorkspaceId, input.workspaceId));
   const execute = async (mode: "inventory" | "stage" | "reclaim",
     preparation?: { preparationOperationId: string; inventory: Inventory; staged?: Staged }) => {
@@ -207,7 +207,7 @@ export async function reclaimInactiveNativeProviderCache(input: {
       await input.assertOwned();
       [prepared] = await withDedicatedDbConnection(input.db, journal => journal.transaction(async tx => {
         await tx.execute(sql`select set_config('statement_timeout', '10000', true), set_config('lock_timeout', '2000', true)`);
-        return tx.insert(workspaceOperations).values({ companyId: input.companyId, issueId: input.issueId,
+        return tx.insert(workspaceOperations).values({ spaceId: input.spaceId, issueId: input.issueId,
           heartbeatRunId: input.runId, executionWorkspaceId: input.workspaceId, phase: preparePhase,
           status: "succeeded", startedAt, finishedAt: new Date(),
           metadata: { schema: prepareSchema, intentOnly: true, leaseId: input.target.leaseId,
@@ -257,7 +257,7 @@ export async function reclaimInactiveNativeProviderCache(input: {
     confirmed = true;
     changed = receipt.changed;
   } catch {}
-  await input.db.insert(workspaceOperations).values({ companyId: input.companyId, issueId: input.issueId,
+  await input.db.insert(workspaceOperations).values({ spaceId: input.spaceId, issueId: input.issueId,
     heartbeatRunId: input.runId, executionWorkspaceId: input.workspaceId, phase: "native_provider_cache_reclaim",
     status: confirmed ? "succeeded" : "failed", startedAt, finishedAt: new Date(), metadata });
   return { changed, confirmed };

@@ -1,12 +1,12 @@
 /**
- * Whether a terminal Paperclip call (paperclip_finish or paperclip_block) was
+ * Whether a terminal Outpost call (outpost_finish or outpost_block) was
  * decided before the agent saw results that had already returned.
  *
  * Codex keeps a dynamic tool call pending while its client is silent and
  * samples the model again about once a minute. When the controller is down
  * (a restart or a long hold) the Runner keeps Codex's tool requests until
- * Paperclip is back, so the model can conclude "Paperclip is not answering"
- * and call paperclip_block while its earlier calls are still pending. After
+ * Outpost is back, so the model can conclude "Outpost is not answering"
+ * and call outpost_block while its earlier calls are still pending. After
  * the reattach the Runner delivers that backlog in order: the earlier calls
  * run and return (for example the document is saved), then the stale block
  * arrives and would end a task that is no longer blocked (restart chaos t03).
@@ -15,7 +15,7 @@
  * - committed `tool.execution.started` with transport `dynamic`: the provider
  *   made a call (its `executionId` is the provider call id);
  * - the controller's `semantic_tool.result` command for that `callId`:
- *   Paperclip returned a result to the Runner (an `item.completed` tool_result,
+ *   Outpost returned a result to the Runner (an `item.completed` tool_result,
  *   which some drivers commit, counts the same);
  * - committed `tool.execution.completed` for that call: the provider received it.
  * A call with a result but no provider completion before the terminal call was
@@ -30,7 +30,7 @@
  * agent decided without it, and its outcome is not known yet.
  */
 
-const TERMINAL_OPERATIONS = new Set(["paperclip_finish", "paperclip_block"]);
+const TERMINAL_OPERATIONS = new Set(["outpost_finish", "outpost_block"]);
 
 type CommittedEvent = { sourceEventId: string; envelope: Record<string, unknown> };
 type Command = { type: string; payload: Record<string, unknown> };
@@ -64,7 +64,7 @@ function unseenReturnedCalls(events: readonly CommittedEvent[], commands: readon
  * reached the agent. After a reattach the Runner hands the controller its
  * held calls and the agent's later terminal call together, so these are
  * usually about to return (restart chaos t05: a held write_document returned
- * a few milliseconds after the paperclip_block decided without it).
+ * a few milliseconds after the outpost_block decided without it).
  */
 export function pendingEarlierToolCalls(
   events: readonly CommittedEvent[],

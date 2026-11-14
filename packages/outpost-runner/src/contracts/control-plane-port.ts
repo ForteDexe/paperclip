@@ -29,7 +29,7 @@ export interface AppendControlPlaneEventOptions {
    */
   signal: AbortSignal;
   /**
-   * For an authoritative governed-cancellation terminal only, a port may
+   * For an authoritative controlled-cancellation terminal only, a port may
    * return its committed receipt before postcommit observers finish. Such a
    * port owns that observer debt and must join it before checkpoint or result
    * acceptance. Ports that do not support deferral keep their usual behavior.
@@ -76,7 +76,7 @@ export interface CompleteControlPlaneRunInput {
 /**
  * The only control-plane surface the standalone runner may call.
  *
- * Production Paperclip implements this port in a later integration phase. The
+ * Production Outpost implements this port in a later integration phase. The
  * runner package never imports the server, UI, or database that sits behind it.
  */
 export interface ControlPlanePort {

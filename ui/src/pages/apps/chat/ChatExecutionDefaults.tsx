@@ -4,7 +4,7 @@ import type { ChatExecutionDefaults as Defaults, TaskWorkspaceSelection } from "
 import { executionWorkspacesApi } from "@/api/execution-workspaces";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/select";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 
 function selectionKey(value: TaskWorkspaceSelection | null | undefined): string {
   if (value === undefined) return "inherit";
@@ -14,8 +14,8 @@ function selectionKey(value: TaskWorkspaceSelection | null | undefined): string 
   return `source:${value.projectWorkspaceId}:${value.mode}`;
 }
 
-export function ChatExecutionDefaults({ companyId, value, resource = false, onSave }: {
-  companyId: string;
+export function ChatExecutionDefaults({ spaceId, value, resource = false, onSave }: {
+  spaceId: string;
   value: Defaults | null | undefined;
   resource?: boolean;
   onSave: (defaults: Defaults | null) => Promise<void>;
@@ -25,10 +25,10 @@ export function ChatExecutionDefaults({ companyId, value, resource = false, onSa
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedFrom, setSavedFrom] = useState<string | null>(null);
-  const projects = useQuery({ ...companyProjectsQuery(companyId) });
+  const projects = useQuery({ ...spaceProjectsQuery(spaceId) });
   const workspaces = useQuery({
-    queryKey: ["channel-workspace-choices", companyId],
-    queryFn: () => executionWorkspacesApi.listSummaries(companyId, { selectableForTask: true }),
+    queryKey: ["channel-workspace-choices", spaceId],
+    queryFn: () => executionWorkspacesApi.listSummaries(spaceId, { selectableForTask: true }),
   });
   const current = draft ?? value ?? {};
   const valueKey = JSON.stringify(value ?? {});

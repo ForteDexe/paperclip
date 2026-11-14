@@ -12,7 +12,7 @@ import {
   preparePosthogLiveSmoke,
 } from "./posthog-live-lib.mjs";
 
-const TARGET_COMPANY_PREFIX = "PAP";
+const TARGET_SPACE_PREFIX = "PAP";
 const TARGET_AGENT_NAME = "CodexCoderPro";
 const PROJECT_GET = "project-get";
 const PROJECT_SETTINGS_UPDATE = "project-settings-update";
@@ -138,7 +138,7 @@ async function expectVisible(locator, checkpoint, code, timeout = 30_000) {
   }
 }
 
-async function gotoPaperclipPage(
+async function gotoOutpostPage(
   page,
   url,
   readyLocator,
@@ -158,8 +158,8 @@ async function gotoPaperclipPage(
   fail(checkpoint, code);
 }
 
-async function stabilizeCompanyContext(page, config, companyId) {
-  const galleryPath = `/api/companies/${companyId}/tools/gallery`;
+async function stabilizeSpaceContext(page, config, spaceId) {
+  const galleryPath = `/api/spaces/${spaceId}/tools/gallery`;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
       const galleryResponsePromise = page.waitForResponse(
@@ -167,7 +167,7 @@ async function stabilizeCompanyContext(page, config, companyId) {
           && new URL(response.url()).pathname === galleryPath,
         { timeout: 30_000 },
       );
-      await page.goto(new URL(`/${TARGET_COMPANY_PREFIX}/apps`, config.baseUrl).toString(), {
+      await page.goto(new URL(`/${TARGET_SPACE_PREFIX}/apps`, config.baseUrl).toString(), {
         waitUntil: "domcontentloaded",
         timeout: 30_000,
       });
@@ -177,21 +177,21 @@ async function stabilizeCompanyContext(page, config, companyId) {
         name: /^(?:Connect for PostHog|Add another PostHog account)$/,
       }).first();
       await posthogAction.waitFor({ state: "visible", timeout: 30_000 });
-      // The company-prefixed route and selected-company provider settle in
+      // The space-prefixed route and selected-space provider settle in
       // separate renders. Clicking the tile immediately can carry the prior
-      // company's gallery cache into the setup effect and redirect back out.
+      // space's gallery cache into the setup effect and redirect back out.
       await page.waitForTimeout(2_000);
       return;
     } catch {
       if (attempt < 3) await page.waitForTimeout(500);
     }
   }
-  fail("A.company-context", "posthog_gallery_context_missing");
+  fail("A.space-context", "posthog_gallery_context_missing");
 }
 
-async function openPosthogSetupFromGallery(page, config, companyId) {
+async function openPosthogSetupFromGallery(page, config, spaceId) {
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    await stabilizeCompanyContext(page, config, companyId);
+    await stabilizeSpaceContext(page, config, spaceId);
     const addAnother = page.getByRole("button", { name: /^Add another PostHog account$/ }).first();
     const connect = page.getByRole("button", { name: /^Connect for PostHog$/ }).first();
     const action = await addAnother.isVisible().catch(() => false) ? addAnother : connect;
@@ -209,7 +209,7 @@ async function openPosthogSetupFromGallery(page, config, companyId) {
   fail("A.setup-route", "oauth_method_missing");
 }
 
-async function safePageState(page, resourceFailures, paperclipOrigin) {
+async function safePageState(page, resourceFailures, outpostOrigin) {
   let current;
   try {
     current = new URL(page.url());
@@ -218,7 +218,7 @@ async function safePageState(page, resourceFailures, paperclipOrigin) {
   }
   const bodyText = await page.locator("body").innerText().catch(() => "");
   return {
-    location: current.origin === paperclipOrigin
+    location: current.origin === outpostOrigin
       ? `${current.hostname}${current.pathname}`
       : current.hostname,
     headingCount: await page.getByRole("heading").count().catch(() => 0),
@@ -275,7 +275,7 @@ async function selectPosthogCloudRegion(page) {
 }
 
 async function completePosthogAuthorization(page, config) {
-  const paperclipOrigin = new URL(config.baseUrl).origin;
+  const outpostOrigin = new URL(config.baseUrl).origin;
   const providerTimeoutMs = Number(process.env.POSTHOG_PROVIDER_TIMEOUT_MS || 4 * 60_000);
   const deadline = Date.now() + (Number.isFinite(providerTimeoutMs) && providerTimeoutMs > 0
     ? providerTimeoutMs
@@ -289,7 +289,7 @@ async function completePosthogAuthorization(page, config) {
     } catch {
       fail("B.oauth-callback", "invalid_navigation_url");
     }
-    if (current.origin === paperclipOrigin && current.pathname.includes("/apps/")) return;
+    if (current.origin === outpostOrigin && current.pathname.includes("/apps/")) return;
 
     const emailInput = page.locator('input[type="email"], input[name="email"], input[autocomplete="username"]').filter({ visible: true }).first();
     const passwordInput = page.locator('input[type="password"], input[name="password"], input[autocomplete="current-password"]').filter({ visible: true }).first();
@@ -386,7 +386,7 @@ async function completePosthogAuthorization(page, config) {
 
 async function safeScreenshot(page, outputPath, config, checkpoint) {
   const current = new URL(page.url());
-  if (current.origin !== new URL(config.baseUrl).origin) fail(checkpoint, "screenshot_not_on_paperclip");
+  if (current.origin !== new URL(config.baseUrl).origin) fail(checkpoint, "screenshot_not_on_outpost");
   for (const queryKey of ["code", "state", "token", "access_token", "refresh_token"]) {
     if (current.searchParams.has(queryKey)) fail(checkpoint, "credential_query_in_screenshot_url");
   }
@@ -414,14 +414,14 @@ function catalogFacts(catalog, checkpoint) {
   return { active, projectGet, projectSettings };
 }
 
-async function finishAgentOnlySetup(request, config, companyId, connectionId, catalog, agentId) {
+async function finishAgentOnlySetup(request, config, spaceId, connectionId, catalog, agentId) {
   const { active } = catalogFacts(catalog, "C.catalog-policy");
   const enabledCatalogEntryIds = active.filter((entry) => entry.isReadOnly).map((entry) => entry.id);
   await apiJson(
     request,
     config.baseUrl,
     "POST",
-    `/api/companies/${companyId}/tools/apps/${connectionId}/finish`,
+    `/api/spaces/${spaceId}/tools/apps/${connectionId}/finish`,
     {
       enabledCatalogEntryIds,
       askFirstCatalogEntryIds: [],
@@ -440,12 +440,12 @@ async function finishAgentOnlySetup(request, config, companyId, connectionId, ca
   );
 }
 
-async function findConnectionIdByName(request, config, companyId, connectionName) {
+async function findConnectionIdByName(request, config, spaceId, connectionName) {
   const connectionsResponse = await apiJson(
     request,
     config.baseUrl,
     "GET",
-    `/api/companies/${companyId}/tools/connections`,
+    `/api/spaces/${spaceId}/tools/connections`,
     undefined,
     "F.cleanup-recovery",
   );
@@ -459,7 +459,7 @@ async function findConnectionIdByName(request, config, companyId, connectionName
 async function cleanupConnection(
   request,
   config,
-  companyId,
+  spaceId,
   connectionId,
   connectionName,
   { requireInstalledState = true } = {},
@@ -486,7 +486,7 @@ async function cleanupConnection(
     request,
     config.baseUrl,
     "GET",
-    `/api/companies/${companyId}/tools/connections`,
+    `/api/spaces/${spaceId}/tools/connections`,
     undefined,
     "F.cleanup-verification",
   );
@@ -499,7 +499,7 @@ async function cleanupConnection(
     request,
     config.baseUrl,
     "GET",
-    `/api/companies/${companyId}/tools/profiles`,
+    `/api/spaces/${spaceId}/tools/profiles`,
     undefined,
     "F.cleanup-verification",
   );
@@ -510,7 +510,7 @@ async function cleanupConnection(
     request,
     config.baseUrl,
     "GET",
-    `/api/companies/${companyId}/tools/action-requests?status=pending`,
+    `/api/spaces/${spaceId}/tools/action-requests?status=pending`,
     undefined,
     "F.cleanup-verification",
   );
@@ -542,10 +542,10 @@ async function runSmoke({ config, chromium }) {
     passed: false,
     startedAt: startedAt.toISOString(),
     completedAt: null,
-    target: { companyPrefix: TARGET_COMPANY_PREFIX, projectId: config.projectId },
+    target: { spacePrefix: TARGET_SPACE_PREFIX, projectId: config.projectId },
     connection: null,
     catalog: null,
-    boardTest: null,
+    operatorTest: null,
     freshRun: null,
     cleanup: null,
     screenshots: [],
@@ -556,7 +556,7 @@ async function runSmoke({ config, chromium }) {
   let context;
   let page;
   let connectionId = null;
-  let companyId = null;
+  let spaceId = null;
   let cleanupComplete = false;
   let caughtFailure = null;
   let activeCheckpoint = "A.browser-launch";
@@ -586,12 +586,12 @@ async function runSmoke({ config, chromium }) {
       }
     });
 
-    activeCheckpoint = "A.paperclip-login";
-    await gotoPaperclipPage(
+    activeCheckpoint = "A.outpost-login";
+    await gotoOutpostPage(
       page,
       new URL("/auth?next=/", config.baseUrl).toString(),
       page.locator("#email"),
-      "A.paperclip-login",
+      "A.outpost-login",
       "email_field_missing",
     );
     await page.locator("#email").fill(config.email);
@@ -601,23 +601,23 @@ async function runSmoke({ config, chromium }) {
     );
     await page.getByRole("button", { name: /^sign in$/i }).click();
     const loginResponse = await loginResponsePromise;
-    if (!loginResponse.ok()) fail("A.paperclip-login", `http_${loginResponse.status()}`);
+    if (!loginResponse.ok()) fail("A.outpost-login", `http_${loginResponse.status()}`);
     await page.waitForURL((url) => url.pathname !== "/auth", { timeout: 30_000 }).catch(() => {
-      fail("A.paperclip-login", "login_redirect_missing");
+      fail("A.outpost-login", "login_redirect_missing");
     });
 
-    activeCheckpoint = "A.company-selection";
-    const companiesResponse = await apiJson(context.request, config.baseUrl, "GET", "/api/companies", undefined, "A.company-selection");
-    const company = asArray(companiesResponse, "companies").find((candidate) => candidate.issuePrefix === TARGET_COMPANY_PREFIX);
-    if (!company) fail("A.company-selection", "pap_company_missing");
-    companyId = company.id;
+    activeCheckpoint = "A.space-selection";
+    const spacesResponse = await apiJson(context.request, config.baseUrl, "GET", "/api/spaces", undefined, "A.space-selection");
+    const space = asArray(spacesResponse, "spaces").find((candidate) => candidate.issuePrefix === TARGET_SPACE_PREFIX);
+    if (!space) fail("A.space-selection", "pap_space_missing");
+    spaceId = space.id;
 
     activeCheckpoint = "C.agent-scope";
     const agentsResponse = await apiJson(
       context.request,
       config.baseUrl,
       "GET",
-      `/api/companies/${companyId}/agents`,
+      `/api/spaces/${spaceId}/agents`,
       undefined,
       "C.agent-scope",
     );
@@ -625,7 +625,7 @@ async function runSmoke({ config, chromium }) {
     if (!agent) fail("C.agent-scope", "codex_coder_pro_missing");
 
     activeCheckpoint = "A.setup-route";
-    await openPosthogSetupFromGallery(page, config, companyId);
+    await openPosthogSetupFromGallery(page, config, spaceId);
     await expectVisible(page.getByRole("button", { name: "Use a personal API key" }), "A.setup-route", "api_key_method_missing");
 
     activeCheckpoint = "B.oauth-setup";
@@ -650,7 +650,7 @@ async function runSmoke({ config, chromium }) {
       (response) => {
         const target = new URL(response.url());
         return response.request().method() === "POST"
-          && target.pathname === `/api/companies/${companyId}/tools/apps/connect`;
+          && target.pathname === `/api/spaces/${spaceId}/tools/apps/connect`;
       },
       { timeout: 120_000 },
     );
@@ -667,15 +667,15 @@ async function runSmoke({ config, chromium }) {
     }
     connectionId = connectResult?.connectionId ?? await waitFor(
       "B.oauth-start",
-      () => findConnectionIdByName(context.request, config, companyId, connectionName),
+      () => findConnectionIdByName(context.request, config, spaceId, connectionName),
       { timeoutMs: 15_000, intervalMs: 500 },
     );
     if (typeof connectionId !== "string" || !connectionId) fail("B.oauth-start", "connection_id_missing");
 
     activeCheckpoint = "B.oauth-callback";
     await completePosthogAuthorization(page, config);
-    const permissionsPath = `/${TARGET_COMPANY_PREFIX}/apps/${connectionId}/permissions`;
-    await gotoPaperclipPage(
+    const permissionsPath = `/${TARGET_SPACE_PREFIX}/apps/${connectionId}/permissions`;
+    await gotoOutpostPage(
       page,
       new URL(permissionsPath, config.baseUrl).toString(),
       page.getByText("PostHog connected", { exact: true }),
@@ -718,7 +718,7 @@ async function runSmoke({ config, chromium }) {
     );
     let catalog = asArray(catalogResponse, "catalog");
     let facts = catalogFacts(catalog, "C.catalog-policy");
-    await finishAgentOnlySetup(context.request, config, companyId, connectionId, catalog, agent.id);
+    await finishAgentOnlySetup(context.request, config, spaceId, connectionId, catalog, agent.id);
 
     const health = await apiJson(
       context.request,
@@ -739,7 +739,7 @@ async function runSmoke({ config, chromium }) {
     );
     catalog = asArray(refreshed, "catalog");
     facts = catalogFacts(catalog, "C.catalog-refresh");
-    await finishAgentOnlySetup(context.request, config, companyId, connectionId, catalog, agent.id);
+    await finishAgentOnlySetup(context.request, config, spaceId, connectionId, catalog, agent.id);
 
     connection = await apiJson(context.request, config.baseUrl, "GET", `/api/tool-connections/${connectionId}`, undefined, "C.connection-detail");
     safeConnectionConfig(connection, config.projectId);
@@ -754,7 +754,7 @@ async function runSmoke({ config, chromium }) {
       context.request,
       config.baseUrl,
       "GET",
-      `/api/companies/${companyId}/tools/connections`,
+      `/api/spaces/${spaceId}/tools/connections`,
       undefined,
       "C.connection-detail",
     );
@@ -801,9 +801,9 @@ async function runSmoke({ config, chromium }) {
     };
 
     activeCheckpoint = "C.permissions-ui";
-    await gotoPaperclipPage(
+    await gotoOutpostPage(
       page,
-      new URL(`/${TARGET_COMPANY_PREFIX}/apps/${connectionId}/permissions`, config.baseUrl).toString(),
+      new URL(`/${TARGET_SPACE_PREFIX}/apps/${connectionId}/permissions`, config.baseUrl).toString(),
       page.getByText("Who can use it", { exact: true }),
       "C.permissions-ui",
       "permissions_panel_missing",
@@ -820,9 +820,9 @@ async function runSmoke({ config, chromium }) {
     summary.screenshots.push(permissionsShot);
 
     activeCheckpoint = "D.test-panel";
-    await gotoPaperclipPage(
+    await gotoOutpostPage(
       page,
-      new URL(`/${TARGET_COMPANY_PREFIX}/apps/${connectionId}/test`, config.baseUrl).toString(),
+      new URL(`/${TARGET_SPACE_PREFIX}/apps/${connectionId}/test`, config.baseUrl).toString(),
       page.getByLabel("Choose which agent to test as"),
       "D.test-panel",
       "agent_picker_missing",
@@ -838,7 +838,7 @@ async function runSmoke({ config, chromium }) {
     await expectVisible(page.getByText("This action takes no inputs."), "D.test-panel", "empty_input_form_missing");
 
     activeCheckpoint = "D.project-get";
-    const boardTestStartedAt = Date.now();
+    const operatorTestStartedAt = Date.now();
     const testCallResponsePromise = page.waitForResponse((response) =>
       response.request().method() === "POST"
       && new URL(response.url()).pathname === `/api/tool-connections/${connectionId}/test-calls`,
@@ -869,21 +869,21 @@ async function runSmoke({ config, chromium }) {
     if (testCall.decision !== "allowed" || testCall.error || typeof testCall.invocationId !== "string") {
       fail("D.project-get", "gateway_call_not_allowed");
     }
-    const boardProject = extractProjectSummary(testCall.result, config.projectId);
-    if (!boardProject?.name) fail("D.project-get", "project_result_missing");
+    const operatorProject = extractProjectSummary(testCall.result, config.projectId);
+    if (!operatorProject?.name) fail("D.project-get", "project_result_missing");
     await expectVisible(page.getByText(/^Worked\./), "D.project-get", "success_result_missing");
-    const boardShot = "03-board-project-get.png";
-    await safeScreenshot(page, screenshotFile(outputDirectory, boardShot), config, "F.board-test-screenshot");
-    summary.screenshots.push(boardShot);
-    summary.boardTest = {
+    const operatorShot = "03-operator-project-get.png";
+    await safeScreenshot(page, screenshotFile(outputDirectory, operatorShot), config, "F.operator-test-screenshot");
+    summary.screenshots.push(operatorShot);
+    summary.operatorTest = {
       catalogEntryId: facts.projectGet.id,
       toolName: PROJECT_GET,
       invocationId: testCall.invocationId,
       decision: testCall.decision,
       httpStatus: testCallResponse.status(),
       resultStatus: "succeeded",
-      project: boardProject,
-      durationMs: Date.now() - boardTestStartedAt,
+      project: operatorProject,
+      durationMs: Date.now() - operatorTestStartedAt,
     };
 
     activeCheckpoint = "E.create-proof-issue";
@@ -899,7 +899,7 @@ async function runSmoke({ config, chromium }) {
         description: [
           "Invoke exactly one installed PostHog action: the read-only upstream `project-get` tool, with an empty `{}` input.",
           `Verify the returned project ID is exactly ${config.projectId} and make no PostHog mutations.`,
-          "Then post exactly one JSON object with keys `projectId`, `projectName`, and `invocationId` (the Paperclip invocation ID), and mark this issue done.",
+          "Then post exactly one JSON object with keys `projectId`, `projectName`, and `invocationId` (the Outpost invocation ID), and mark this issue done.",
           "Do not report tokens, cookies, authorization data, request headers, raw tool payloads, or any other fields.",
         ].join("\n\n"),
         status: "todo",
@@ -908,7 +908,7 @@ async function runSmoke({ config, chromium }) {
         assigneeAgentId: agent.id,
         acceptanceCriteria: [
           `The installed PostHog project-get action returns project ${config.projectId}.`,
-          "The comment contains only sanitized project ID/name and Paperclip invocation ID.",
+          "The comment contains only sanitized project ID/name and Outpost invocation ID.",
           "No mutation is attempted.",
         ],
       },
@@ -977,7 +977,7 @@ async function runSmoke({ config, chromium }) {
     if (new Set(childToolEvents.map((event) => event.invocationId)).size !== 1) {
       fail("E.agent-audit", "project_get_invoked_more_than_once");
     }
-    if (proof.projectName !== boardProject.name) fail("E.agent-proof-comment", "project_name_mismatch");
+    if (proof.projectName !== operatorProject.name) fail("E.agent-proof-comment", "project_name_mismatch");
 
     const agentRun = await waitFor("E.agent-run-status", async () => {
       const run = await apiJson(
@@ -1009,9 +1009,9 @@ async function runSmoke({ config, chromium }) {
     };
 
     activeCheckpoint = "F.evidence";
-    await gotoPaperclipPage(
+    await gotoOutpostPage(
       page,
-      new URL(`/${TARGET_COMPANY_PREFIX}/issues/${child.identifier}`, config.baseUrl).toString(),
+      new URL(`/${TARGET_SPACE_PREFIX}/issues/${child.identifier}`, config.baseUrl).toString(),
       page.getByText(child.title, { exact: true }).first(),
       "F.child-screenshot",
       "child_issue_missing",
@@ -1020,9 +1020,9 @@ async function runSmoke({ config, chromium }) {
     await safeScreenshot(page, screenshotFile(outputDirectory, childShot), config, "F.child-screenshot");
     summary.screenshots.push(childShot);
 
-    await gotoPaperclipPage(
+    await gotoOutpostPage(
       page,
-      new URL(`/${TARGET_COMPANY_PREFIX}/apps/${connectionId}/activity`, config.baseUrl).toString(),
+      new URL(`/${TARGET_SPACE_PREFIX}/apps/${connectionId}/activity`, config.baseUrl).toString(),
       page.getByText(PROJECT_GET, { exact: false }).first(),
       "F.activity-screenshot",
       "project_get_activity_missing",
@@ -1032,7 +1032,7 @@ async function runSmoke({ config, chromium }) {
     summary.screenshots.push(activityShot);
 
     activeCheckpoint = "F.cleanup";
-    summary.cleanup = await cleanupConnection(context.request, config, companyId, connectionId, connectionName);
+    summary.cleanup = await cleanupConnection(context.request, config, spaceId, connectionId, connectionName);
     cleanupComplete = true;
     summary.passed = true;
   } catch (error) {
@@ -1044,12 +1044,12 @@ async function runSmoke({ config, chromium }) {
       };
     }
   } finally {
-    if (!connectionId && companyId && context) {
+    if (!connectionId && spaceId && context) {
       try {
         connectionId = await findConnectionIdByName(
           context.request,
           config,
-          companyId,
+          spaceId,
           connectionName,
         );
       } catch (error) {
@@ -1059,12 +1059,12 @@ async function runSmoke({ config, chromium }) {
         };
       }
     }
-    if (connectionId && companyId && context && !cleanupComplete) {
+    if (connectionId && spaceId && context && !cleanupComplete) {
       try {
         summary.cleanup = await cleanupConnection(
           context.request,
           config,
-          companyId,
+          spaceId,
           connectionId,
           connectionName,
           { requireInstalledState: false },

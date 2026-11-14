@@ -3,10 +3,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, GitFork } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type {
-  CompanySkillDetail,
-  CompanySkillForkPrecheckResult,
-  CompanySkillForkSummary,
-  CompanySkillUsageAgent,
+  SpaceSkillDetail,
+  SpaceSkillForkPrecheckResult,
+  SpaceSkillForkSummary,
+  SpaceSkillUsageAgent,
 } from "@outpost/shared";
 import { ForkSkillDialog } from "@/components/skill-studio/ForkSkillDialog";
 import {
@@ -18,12 +18,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/lib/queryKeys";
 
-const COMPANY_ID = "company-storybook";
+const SPACE_ID = "space-storybook";
 const SKILL_ID = "skill-deep-research";
 const ORIGINAL_ID = "skill-deep-research"; // external original
 const FORK_ID = "skill-deep-research-copy"; // the editable fork
 
-function usageAgent(over: Partial<CompanySkillUsageAgent>): CompanySkillUsageAgent {
+function usageAgent(over: Partial<SpaceSkillUsageAgent>): SpaceSkillUsageAgent {
   return {
     id: "agent-1",
     name: "Reviewer",
@@ -36,16 +36,16 @@ function usageAgent(over: Partial<CompanySkillUsageAgent>): CompanySkillUsageAge
   };
 }
 
-const USAGE_AGENTS: CompanySkillUsageAgent[] = [
+const USAGE_AGENTS: SpaceSkillUsageAgent[] = [
   usageAgent({ id: "agent-1", name: "Reviewer", urlKey: "reviewer" }),
   usageAgent({ id: "agent-2", name: "Coder", urlKey: "coder", adapterType: "codex_local" }),
   usageAgent({ id: "agent-3", name: "Planner", urlKey: "planner" }),
 ];
 
-function makeSkill(over: Partial<CompanySkillDetail> = {}): CompanySkillDetail {
+function makeSkill(over: Partial<SpaceSkillDetail> = {}): SpaceSkillDetail {
   return {
     id: SKILL_ID,
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     key: "github/anthropics/skills",
     slug: "deep-research",
     name: "Deep Research",
@@ -63,10 +63,10 @@ function makeSkill(over: Partial<CompanySkillDetail> = {}): CompanySkillDetail {
     authorName: null,
     homepageUrl: null,
     categories: [],
-    sharingScope: "company",
+    sharingScope: "space",
     publicShareToken: null,
     forkedFromSkillId: null,
-    forkedFromCompanyId: null,
+    forkedFromSpaceId: null,
     starCount: 0,
     installCount: 0,
     forkCount: 0,
@@ -89,8 +89,8 @@ function makeSkill(over: Partial<CompanySkillDetail> = {}): CompanySkillDetail {
 }
 
 function makePrecheck(
-  over: Partial<CompanySkillForkPrecheckResult> = {},
-): CompanySkillForkPrecheckResult {
+  over: Partial<SpaceSkillForkPrecheckResult> = {},
+): SpaceSkillForkPrecheckResult {
   return {
     skillId: SKILL_ID,
     original: {
@@ -108,7 +108,7 @@ function makePrecheck(
   };
 }
 
-function makeForkSummary(over: Partial<CompanySkillForkSummary> = {}): CompanySkillForkSummary {
+function makeForkSummary(over: Partial<SpaceSkillForkSummary> = {}): SpaceSkillForkSummary {
   return {
     id: "fork-existing",
     name: "Deep Research (copy)",
@@ -116,9 +116,9 @@ function makeForkSummary(over: Partial<CompanySkillForkSummary> = {}): CompanySk
     sourceType: "local_path",
     sourceLocator: null,
     sourceRef: null,
-    key: "company/deep-research-fork",
+    key: "space/deep-research-fork",
     forkedFromSkillId: ORIGINAL_ID,
-    forkedFromCompanyId: COMPANY_ID,
+    forkedFromSpaceId: SPACE_ID,
     currentVersionId: "v1",
     createdByCurrentActor: true,
     diverged: false,
@@ -134,18 +134,18 @@ function Seed({
   precheck,
   children,
 }: {
-  skill: CompanySkillDetail;
-  precheck?: CompanySkillForkPrecheckResult;
+  skill: SpaceSkillDetail;
+  precheck?: SpaceSkillForkPrecheckResult;
   children: ReactNode;
 }) {
   const queryClient = useQueryClient();
   queryClient.setQueryData(
-    queryKeys.companySkills.forkPrecheck(COMPANY_ID, skill.id),
+    queryKeys.spaceSkills.forkPrecheck(SPACE_ID, skill.id),
     precheck ?? makePrecheck(),
   );
   // Original detail for the lineage chip on forked skills.
   queryClient.setQueryData(
-    queryKeys.companySkills.detail(COMPANY_ID, ORIGINAL_ID),
+    queryKeys.spaceSkills.detail(SPACE_ID, ORIGINAL_ID),
     makeSkill(),
   );
   return <>{children}</>;
@@ -155,7 +155,7 @@ const meta: Meta = {
   id: "skill-studio-editacopy",
   title: "Agents and reusable capabilities/Skills and Skill Studio/Skill Studio/EditACopy",
   parameters: { layout: "centered",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "skills/authoring"
       ],
@@ -196,7 +196,7 @@ export const ForkDialogAgentsSwitchOn: Story = {
     const skill = makeSkill();
     return (
       <Seed skill={skill}>
-        <ForkSkillDialog companyId={COMPANY_ID} skill={skill} open onOpenChange={() => {}} />
+        <ForkSkillDialog spaceId={SPACE_ID} skill={skill} open onOpenChange={() => {}} />
       </Seed>
     );
   },
@@ -208,7 +208,7 @@ export const ForkDialogNoAgents: Story = {
     const skill = makeSkill({ usedByAgents: [], attachedAgentCount: 0 });
     return (
       <Seed skill={skill} precheck={makePrecheck({ agentUsageCount: 0, usedByAgents: [] })}>
-        <ForkSkillDialog companyId={COMPANY_ID} skill={skill} open onOpenChange={() => {}} />
+        <ForkSkillDialog spaceId={SPACE_ID} skill={skill} open onOpenChange={() => {}} />
       </Seed>
     );
   },
@@ -221,7 +221,7 @@ export const ForkDialogExistingCopy: Story = {
     const skill = makeSkill({ existingForks: existing });
     return (
       <Seed skill={skill} precheck={makePrecheck({ existingForks: existing })}>
-        <ForkSkillDialog companyId={COMPANY_ID} skill={skill} open onOpenChange={() => {}} />
+        <ForkSkillDialog spaceId={SPACE_ID} skill={skill} open onOpenChange={() => {}} />
       </Seed>
     );
   },
@@ -248,8 +248,8 @@ export const ForkedSkillHeader: Story = {
         <div className="flex items-center gap-3 rounded-md border border-border bg-card px-3 py-2">
           <span className="text-base font-semibold">Deep Research (copy)</span>
           <Badge variant="secondary">Unsaved edits</Badge>
-          <SkillLineageChip companyId={COMPANY_ID} forkedFromSkillId={ORIGINAL_ID} />
-          <AgentsUsingSkillBadge companyId={COMPANY_ID} skill={fork} />
+          <SkillLineageChip spaceId={SPACE_ID} forkedFromSkillId={ORIGINAL_ID} />
+          <AgentsUsingSkillBadge spaceId={SPACE_ID} skill={fork} />
         </div>
       </Seed>
     );

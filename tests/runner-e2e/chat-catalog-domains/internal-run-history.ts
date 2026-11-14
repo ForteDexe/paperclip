@@ -60,8 +60,8 @@ export function gradeRunHistory(value: unknown) {
 function findRuns(): ChatCatalogCase {
   let gate: Awaited<ReturnType<typeof startRunBriefGate>> | undefined; let key: { id: string; token: string } | undefined;
   const base = makeDefinition("activity.find-runs", async ctx => {
-    const worker = await fixtureWorker(ctx); const p = await project(ctx); const root = `/api/companies/${ctx.input.fixtures.company.id}`;
-    for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: worker.id }])
+    const worker = await fixtureWorker(ctx); const p = await project(ctx); const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
+    for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: worker.id }])
       await ctx.input.api.post(`${root}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
     gate = await startRunBriefGate(ctx, worker.id);
     try {

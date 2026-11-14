@@ -26,6 +26,6 @@ ALTER TABLE "document_annotation_comments" DROP CONSTRAINT IF EXISTS "document_a
 --> statement-breakpoint
 ALTER TABLE "document_annotation_comments" ADD CONSTRAINT "document_annotation_comments_exactly_one_owner_chk" CHECK (num_nonnulls("issue_id", "routine_id", "case_id") = 1);
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_threads_company_case_status_idx" ON "document_annotation_threads" USING btree ("company_id","case_id","status");
+CREATE INDEX IF NOT EXISTS "document_annotation_threads_space_case_status_idx" ON "document_annotation_threads" USING btree ("space_id","case_id","status");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "document_annotation_comments_company_case_created_at_idx" ON "document_annotation_comments" USING btree ("company_id","case_id","created_at");
+CREATE INDEX IF NOT EXISTS "document_annotation_comments_space_case_created_at_idx" ON "document_annotation_comments" USING btree ("space_id","case_id","created_at");

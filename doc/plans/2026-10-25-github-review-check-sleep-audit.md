@@ -51,8 +51,8 @@ deadline dispatch rechecks only known entry IDs. No configuration-only timer.
   run signal inside their short database transactions. Provider calls remain
   outside those transactions.
 - Existing run/lineage and endpoint-configuration notification ownership fans
-  out to the new topic by company. These hints conservatively rebuild that
-  company's outstanding checks; they do not inspect completed history. Narrow
+  out to the new topic by space. These hints conservatively rebuild that
+  space's outstanding checks; they do not inspect completed history. Narrow
   repository/PR hints are used by check enqueue, review writes, and lease release.
 - Assessment and publication receipts are serialized by the existing GitHub
   publication lease. Its transactional release wakes the affected repository/PR.

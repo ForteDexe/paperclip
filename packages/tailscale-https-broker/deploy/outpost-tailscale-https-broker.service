@@ -1,0 +1,26 @@
+[Unit]
+Description=Outpost Tailscale HTTPS broker
+After=tailscaled.service
+Requires=tailscaled.service
+
+[Service]
+Type=simple
+User=outpost-tsbroker
+Group=outpost-tsbroker-sock
+EnvironmentFile=/etc/outpost/tailscale-https-broker.env
+ExecStart=/usr/bin/node /opt/outpost/packages/tailscale-https-broker/dist/main.js
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+RuntimeDirectory=outpost-tailscale-broker
+RuntimeDirectoryMode=0750
+StateDirectory=outpost-tailscale-broker
+StateDirectoryMode=0700
+LogsDirectory=outpost-tailscale-broker
+LogsDirectoryMode=0700
+ReadWritePaths=/run/outpost-tailscale-broker /var/lib/outpost-tailscale-broker /var/log/outpost-tailscale-broker
+
+[Install]
+WantedBy=multi-user.target

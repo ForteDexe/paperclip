@@ -12,7 +12,7 @@ import { resolveExternalTestDatabaseUrl } from './helpers/external-test-database
 import { githubFixture } from './helpers/github-skills.js';
 import { startMaintenanceServer, withMaintenanceProvider } from './helpers/maintenance/server-harness.js';
 import { createMaintenanceS3Boundary } from './helpers/maintenance/s3-boundary.js';
-import { provisionManagedSleepCompany, managedTenantActor } from './helpers/maintenance/managed-profile.js';
+import { provisionManagedSleepSpace, managedTenantActor } from './helpers/maintenance/managed-profile.js';
 import { startDefaultCadenceBridge } from './helpers/maintenance/default-cadence-bridge.js';
 
 const enabled = process.env.OUTPOST_SKILL_DEFAULT_CADENCE_ACCEPTANCE === '1';
@@ -80,7 +80,7 @@ describe.skipIf(!enabled)('default skill cadence actual signed host handoff', ()
 
 
         const setupDb = createDb(databaseUrl!, { maxConnections: 1 });
-        const company = await provisionManagedSleepCompany(server, setupDb).finally(() => setupDb.$client.end({ timeout: 1 }));
+        const space = await provisionManagedSleepSpace(server, setupDb).finally(() => setupDb.$client.end({ timeout: 1 }));
         await server.settled();
         bridge = await startDefaultCadenceBridge({ checkout: cloudCheckout!, node: cloudNode!,
           physicalStop: async () => { assert(server); await server.stop(); server = undefined; upstream++; },
@@ -90,15 +90,15 @@ describe.skipIf(!enabled)('default skill cadence actual signed host handoff', ()
           appOrigin: `http://127.0.0.1:${server.port}`, privateJwk, jwks });
         await server.settled();
 
-        await server.api('POST', `/companies/${company.id}/projects`, { name: 'Default cadence source',
+        await server.api('POST', `/spaces/${space.id}/projects`, { name: 'Default cadence source',
           workspace: { name: 'Repository', repoUrl: 'https://github.com/acme/skills', defaultRef: 'HEAD' } });
         const persisted = async () => {
           const observerUrl = new URL(databaseUrl!); observerUrl.searchParams.set('application_name', 'skill-default-readonly-observer');
           const observer = createDb(observerUrl.href, { maxConnections: 1 });
           try {
             const rows = await observer.$client.begin('read only', tx => tx`select s.id,s.current_version_id,s.markdown,c.next_sync_at,c.last_success_at,c.last_scan_commit,c.lease_token,c.automatic_updates,c.enabled
-            from company_skills s join company_skill_source_entries e on e.skill_id=s.id and e.company_id=s.company_id
-            join company_skill_sources c on c.id=e.source_id and c.company_id=s.company_id where s.company_id=${company.id}`);
+            from space_skills s join space_skill_source_entries e on e.skill_id=s.id and e.space_id=s.space_id
+            join space_skill_sources c on c.id=e.source_id and c.space_id=s.space_id where s.space_id=${space.id}`);
             assert.equal(rows.length, 1); return rows[0]!;
           } finally { await observer.$client.end({ timeout: 1 }); }
         };

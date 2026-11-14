@@ -45,7 +45,7 @@ import { parseTarVerboseListingLine, splitLinkEntryOnce } from "./file-sync.js";
 import * as duplexCommands from "./duplex-command-stream.js";
 
 describe("Daytona read-only resource inspection", () => {
-  const params = { driverKey: "daytona", companyId: "fixture-company", environmentId: "fixture-environment",
+  const params = { driverKey: "daytona", spaceId: "fixture-space", environmentId: "fixture-environment",
     providerLeaseId: "sandbox-123", config: { apiKey: "fixture-not-a-key" } };
   afterEach(() => { vi.clearAllMocks(); vi.unstubAllEnvs(); __resetDaytonaSandboxHandleCacheForTest(); });
   it.each(["started", "stopped"])("observes a %s sandbox without lifecycle calls", async state => {
@@ -97,21 +97,21 @@ describe("Daytona read-only resource inspection", () => {
 describe("Daytona durable creation identity", () => {
   const id = "16cd534e-27a1-45de-a4ad-5adbb6481361";
   const runId = "8cbd0194-e322-4b5b-9800-df4d5a682479";
-  const params = { driverKey: "daytona", companyId: "fixture-company", environmentId: "fixture-environment",
+  const params = { driverKey: "daytona", spaceId: "fixture-space", environmentId: "fixture-environment",
     providerLeaseId: id, config: { apiKey: "fixture-not-a-key" },
     creationOperation: { id, runId } };
   beforeEach(() => { mockCreate.mockReset(); mockGet.mockReset(); __resetDaytonaSandboxHandleCacheForTest(); });
   afterEach(() => { vi.unstubAllEnvs(); __resetDaytonaSandboxHandleCacheForTest(); });
-  function resource() { return { ...createMockSandbox({ name: `paperclip-create-${id}` }), labels: {
-    "paperclip-provider": "daytona", "paperclip-create-attempt": id,
-    "paperclip-company-id": params.companyId, "paperclip-environment-id": params.environmentId,
-    "paperclip-run-id": runId,
+  function resource() { return { ...createMockSandbox({ name: `outpost-create-${id}` }), labels: {
+    "outpost-provider": "daytona", "outpost-create-attempt": id,
+    "outpost-space-id": params.spaceId, "outpost-environment-id": params.environmentId,
+    "outpost-run-id": runId,
   } }; }
   it("locates the exact resource by stable name without creation or lifecycle calls", async () => {
     const sandbox = resource(); mockGet.mockResolvedValue(sandbox);
     const observed = await plugin.definition.onEnvironmentInspectLease!(params);
-    expect(mockGet).toHaveBeenCalledWith(`paperclip-create-${id}`);
-    expect(observed).toMatchObject({ providerLeaseId: `paperclip-create-${id}`, state: "active",
+    expect(mockGet).toHaveBeenCalledWith(`outpost-create-${id}`);
+    expect(observed).toMatchObject({ providerLeaseId: `outpost-create-${id}`, state: "active",
       creationCleanup: { observedProviderLeaseId: sandbox.id, attemptId: id, runId } });
     expect(mockCreate).not.toHaveBeenCalled(); expect(sandbox.delete).not.toHaveBeenCalled();
     await plugin.definition.onEnvironmentDestroyLease!({ ...params, providerLeaseId: observed.providerLeaseId,
@@ -120,11 +120,11 @@ describe("Daytona durable creation identity", () => {
   });
   it("retains uncertainty when a creation name is absent", async () => {
     mockGet.mockRejectedValue(new MockDaytonaNotFoundError("not yet visible"));
-    expect(await plugin.definition.onEnvironmentInspectLease!(params)).toEqual({ providerLeaseId: `paperclip-create-${id}`, state: "unknown" });
+    expect(await plugin.definition.onEnvironmentInspectLease!(params)).toEqual({ providerLeaseId: `outpost-create-${id}`, state: "unknown" });
     expect(mockCreate).not.toHaveBeenCalled();
   });
   it("rejects a name or label owned by another creation", async () => {
-    mockGet.mockResolvedValue({ ...resource(), labels: { "paperclip-company-id": "foreign" } });
+    mockGet.mockResolvedValue({ ...resource(), labels: { "outpost-space-id": "foreign" } });
     await expect(plugin.definition.onEnvironmentInspectLease!(params)).rejects.toThrow("ownership does not match");
   });
   it("requires the recorded endpoint when ambient configuration changes", async () => {
@@ -135,7 +135,7 @@ describe("Daytona durable creation identity", () => {
 });
 
 describe("Daytona idle eligibility", () => {
-  const params = { driverKey: "daytona", companyId: "fixture-company", environmentId: "fixture-environment",
+  const params = { driverKey: "daytona", spaceId: "fixture-space", environmentId: "fixture-environment",
     config: { apiKey: "fixture-not-a-key", reuseLease: true } };
   const signal = new AbortController().signal;
   beforeEach(() => { mockCreate.mockReset(); mockGet.mockReset(); __resetDaytonaSandboxHandleCacheForTest(); });
@@ -146,7 +146,7 @@ describe("Daytona idle eligibility", () => {
     expect(await plugin.definition.onIdleDrain!(signal)).toBe("none");
     mockGet.mockRejectedValueOnce(new Error("provider unreachable"));
     await plugin.definition.onEnvironmentProbe!({
-      driverKey: "daytona", companyId: "fixture-company", environmentId: "fixture-environment",
+      driverKey: "daytona", spaceId: "fixture-space", environmentId: "fixture-environment",
       config: { apiKey: "fixture-not-a-key" },
     }).catch(() => undefined);
     expect(await plugin.definition.onIdleDrain!(signal)).toBe("present");
@@ -282,9 +282,9 @@ describe("Daytona idle eligibility", () => {
   describe("a sandbox in a state change during workspace realize", () => {
     beforeEach(() => { vi.stubEnv("DAYTONA_API_KEY", "host-key"); });
     const realize = (timeoutMs = 300_000) => plugin.definition.onEnvironmentRealizeWorkspace!({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
       config: { timeoutMs, reuseLease: false },
-      lease: { providerLeaseId: "sandbox-transition", metadata: { remoteCwd: "/home/daytona/paperclip-workspace" } },
+      lease: { providerLeaseId: "sandbox-transition", metadata: { remoteCwd: "/home/daytona/outpost-workspace" } },
       workspace: { localPath: "/tmp/workspace" },
     } as never);
     const stateChangeInProgress = () => Object.assign(new Error("Sandbox state change in progress"), { statusCode: 409 });
@@ -297,9 +297,9 @@ describe("Daytona idle eligibility", () => {
         if (sandbox.state !== "stopped") throw stateChangeInProgress();
         sandbox.state = "started";
       });
-      await expect(realize()).resolves.toMatchObject({ cwd: "/home/daytona/paperclip-workspace" });
+      await expect(realize()).resolves.toMatchObject({ cwd: "/home/daytona/outpost-workspace" });
       expect(sandbox.start).toHaveBeenCalledTimes(1);
-      expect(sandbox.fs.createFolder).toHaveBeenCalledWith("/home/daytona/paperclip-workspace", "755");
+      expect(sandbox.fs.createFolder).toHaveBeenCalledWith("/home/daytona/outpost-workspace", "755");
     });
 
     it("retries a start the provider rejected while its state was changing", async () => {
@@ -307,7 +307,7 @@ describe("Daytona idle eligibility", () => {
       mockGet.mockResolvedValue(sandbox);
       sandbox.start.mockRejectedValueOnce(stateChangeInProgress())
         .mockImplementationOnce(async () => { sandbox.state = "started"; });
-      await expect(realize()).resolves.toMatchObject({ cwd: "/home/daytona/paperclip-workspace" });
+      await expect(realize()).resolves.toMatchObject({ cwd: "/home/daytona/outpost-workspace" });
       expect(sandbox.start).toHaveBeenCalledTimes(2);
     });
 
@@ -326,7 +326,7 @@ describe("Daytona idle eligibility", () => {
       let reads = 0;
       sandbox.refreshData.mockImplementation(async () => { if (++reads === 2) sandbox.state = "stopped"; });
       sandbox.start.mockImplementation(async () => { sandbox.state = "started"; });
-      await expect(realize(4_000)).resolves.toMatchObject({ cwd: "/home/daytona/paperclip-workspace" });
+      await expect(realize(4_000)).resolves.toMatchObject({ cwd: "/home/daytona/outpost-workspace" });
       expect(reads).toBe(2);
       expect(sandbox.start.mock.calls[0]![0]).toBeLessThanOrEqual(2);
     });
@@ -336,7 +336,7 @@ describe("Daytona idle eligibility", () => {
       mockGet.mockResolvedValue(sandbox);
       sandbox.refreshData.mockImplementation(async () => { sandbox.state = "stopped"; });
       sandbox.start.mockImplementation(async () => { sandbox.state = "started"; });
-      await expect(realize()).resolves.toMatchObject({ cwd: "/home/daytona/paperclip-workspace" });
+      await expect(realize()).resolves.toMatchObject({ cwd: "/home/daytona/outpost-workspace" });
       expect(sandbox.stop).not.toHaveBeenCalled();
     });
 
@@ -355,7 +355,7 @@ describe("Daytona idle eligibility", () => {
       try {
         const realized = realize();
         await vi.advanceTimersByTimeAsync(STUCK_STOPPING_FORCE_AFTER_MS + 5_000);
-        await expect(realized).resolves.toMatchObject({ cwd: "/home/daytona/paperclip-workspace" });
+        await expect(realized).resolves.toMatchObject({ cwd: "/home/daytona/outpost-workspace" });
       } finally {
         vi.useRealTimers();
       }
@@ -386,8 +386,8 @@ describe("Daytona idle eligibility", () => {
         expect(sandbox.start).not.toHaveBeenCalled();
         finishStop();
         await vi.advanceTimersByTimeAsync(2_000);
-        await expect(first).resolves.toMatchObject({ cwd: "/home/daytona/paperclip-workspace" });
-        await expect(second).resolves.toMatchObject({ cwd: "/home/daytona/paperclip-workspace" });
+        await expect(first).resolves.toMatchObject({ cwd: "/home/daytona/outpost-workspace" });
+        await expect(second).resolves.toMatchObject({ cwd: "/home/daytona/outpost-workspace" });
       } finally {
         vi.useRealTimers();
       }
@@ -409,7 +409,7 @@ describe("Daytona idle eligibility", () => {
           sandbox.state = "stopping"; // The next graceful stop is stuck again.
           const realized = realize();
           await vi.advanceTimersByTimeAsync(STUCK_STOPPING_FORCE_AFTER_MS + 5_000);
-          await expect(realized).resolves.toMatchObject({ cwd: "/home/daytona/paperclip-workspace" });
+          await expect(realized).resolves.toMatchObject({ cwd: "/home/daytona/outpost-workspace" });
         }
       } finally {
         vi.useRealTimers();
@@ -511,7 +511,7 @@ function createMockSandbox(overrides: {
 } = {}) {
   return {
     id: overrides.id ?? "sandbox-123",
-    name: overrides.name ?? "paperclip-sandbox",
+    name: overrides.name ?? "outpost-sandbox",
     state: overrides.state ?? "started",
     recoverable: overrides.recoverable ?? false,
     target: "us",
@@ -589,7 +589,7 @@ describe("Daytona sandbox provider plugin", () => {
   });
 
   const snapshotRecord = { id: "a6b9e7d0-f886-471a-b461-640dd03e8d0f", name: "managed-snapshot", organizationId: "provider-account", createdAt: "2026-10-07T23:19:57.133Z" };
-  const snapshotProbe = { driverKey: "daytona", companyId: "company-1", environmentId: "env-1", runId: "probe-1",
+  const snapshotProbe = { driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", runId: "probe-1",
     resolveSnapshotIdentity: true, config: { apiKey: "fixture-key", snapshot: "managed-snapshot", reuseLease: false } };
 
   it("qualifies a named snapshot by creating from its immutable provider ID", async () => {
@@ -682,7 +682,7 @@ describe("Daytona sandbox provider plugin", () => {
     mockCreate.mockResolvedValue(sandbox);
     const base = {
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { image: "node:20", timeoutMs: 300_000, reuseLease: false },
     };
@@ -731,7 +731,7 @@ describe("Daytona sandbox provider plugin", () => {
     mockCreate.mockResolvedValue(sandbox);
     const base = {
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { image: "node:20", timeoutMs: 300_000, reuseLease: false },
     };
@@ -811,7 +811,7 @@ describe("Daytona sandbox provider plugin", () => {
     try {
       await plugin.definition.onEnvironmentAcquireLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         runId: "run-1",
         agentId: "agent-1",
@@ -823,10 +823,10 @@ describe("Daytona sandbox provider plugin", () => {
       const open = await plugin.definition.onDuplexChannelOpen?.({
         hostRouteId: "route-1",
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "sandbox-123",
-        command: ["node", "/paperclip/gateway.mjs"],
+        command: ["node", "/outpost/gateway.mjs"],
       });
       expect(open?.workerSessionId).toMatch(/^duplex-/);
       // The open reply echoes the host route id, so the host binds the exact pair.
@@ -836,8 +836,8 @@ describe("Daytona sandbox provider plugin", () => {
       // The launch wrapper sets raw mode with echo off and redirects diagnostics.
       // It quotes each command argument and the diagnostics path as a shell word.
       expect(inputs[0]).toContain("stty raw -echo");
-      expect(inputs[0]).toContain("exec 'node' '/paperclip/gateway.mjs'");
-      expect(inputs[0]).toMatch(/2>'\/tmp\/paperclip-duplex-.+\.log'/);
+      expect(inputs[0]).toContain("exec 'node' '/outpost/gateway.mjs'");
+      expect(inputs[0]).toMatch(/2>'\/tmp\/outpost-duplex-.+\.log'/);
 
       // A host write on the exact pair reaches the process on the same channel.
       // `data` arrives in the wire-safe base64 form (see `ChannelBytesWireValue`
@@ -884,7 +884,7 @@ describe("Daytona sandbox provider plugin", () => {
           await new Promise<void>(resolve => { finishBlocked = resolve; });
           return { exitCode: 0, result: "done", artifacts: { stdout: "done" } };
         });
-        blocked = plugin.definition.onEnvironmentExecute?.({ driverKey: "daytona", companyId: "company-1",
+        blocked = plugin.definition.onEnvironmentExecute?.({ driverKey: "daytona", spaceId: "space-1",
           environmentId: "env-1", config: { timeoutMs: 300000 }, bypassSession: true,
           lease: { providerLeaseId: "sandbox-123", metadata: {} }, command: "printf", args: ["done"] });
         await vi.waitFor(() => expect(finishBlocked).toBeTypeOf("function"));
@@ -893,7 +893,7 @@ describe("Daytona sandbox provider plugin", () => {
       // Route invalidation must happen before provider stop, including after drain timeout.
       await plugin.definition.onEnvironmentReleaseLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "sandbox-123",
         config: { image: "node:20", timeoutMs: 300000, livenessTimeoutMs: 5, reuseLease: true },
@@ -921,7 +921,7 @@ describe("Daytona sandbox provider plugin", () => {
 
   describe("retired duplex ownership", () => {
     async function fixture() {
-      const params = { driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+      const params = { driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
         config: { apiKey: "fixture-key", image: "fixture-image", timeoutMs: 3_000, livenessTimeoutMs: 1_000, reuseLease: true } };
       const pty = { waitForConnection: vi.fn(async () => {}), sendInput: vi.fn(async () => {}),
         wait: vi.fn(() => new Promise<{ exitCode: number }>(() => {})),
@@ -931,7 +931,7 @@ describe("Daytona sandbox provider plugin", () => {
       Object.assign(sandbox.process, { createPty });
       mockCreate.mockResolvedValue(sandbox);
       await plugin.definition.onEnvironmentAcquireLease!({ ...params, runId: "run-1" });
-      const opening = { driverKey: params.driverKey, companyId: params.companyId, environmentId: params.environmentId,
+      const opening = { driverKey: params.driverKey, spaceId: params.spaceId, environmentId: params.environmentId,
         providerLeaseId: sandbox.id, command: ["fixture-bridge"] };
       return { params: { ...params, providerLeaseId: sandbox.id }, opening, pty, createPty };
     }
@@ -1105,7 +1105,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       config: {
@@ -1131,7 +1131,7 @@ describe("Daytona sandbox provider plugin", () => {
       process.env.DAYTONA_API_KEY = "host-key";
       mockCreate.mockResolvedValue(createMockSandbox());
       await plugin.definition.onEnvironmentAcquireLease?.({
-        driverKey: "daytona", companyId: "company-1", environmentId: "env-1", runId: "run-1",
+        driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", runId: "run-1",
         config: { image: "node:20", timeoutMs: 300000, ...config },
       });
       const [createParams] = mockCreate.mock.calls.at(-1) as [Record<string, unknown>];
@@ -1144,10 +1144,10 @@ describe("Daytona sandbox provider plugin", () => {
         result: command.startsWith("cat ") ? JSON.stringify({ token: "sentinel-token" }) : "bash" }));
       mockGet.mockResolvedValue(sandbox);
       await plugin.definition.onEnvironmentResumeLease!({
-        driverKey: "daytona", companyId: "company-1", environmentId: "env-1", providerLeaseId: sandbox.id,
+        driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", providerLeaseId: sandbox.id,
         config,
         leaseMetadata: { workspaceSentinel: {
-          path: "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json",
+          path: "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json",
           token: "sentinel-token", result: "written" } },
       });
       return sandbox;
@@ -1198,10 +1198,10 @@ describe("Daytona sandbox provider plugin", () => {
           result: command.startsWith("cat ") ? JSON.stringify({ token: "sentinel-token" }) : "bash" }));
         mockGet.mockResolvedValue(sandbox);
         const pending = plugin.definition.onEnvironmentResumeLease!({
-          driverKey: "daytona", companyId: "company-1", environmentId: "env-1", providerLeaseId: sandbox.id,
+          driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", providerLeaseId: sandbox.id,
           config: { reuseLease: true, warmRunnerIdleTimeoutMs: 900_000 },
           leaseMetadata: { workspaceSentinel: {
-            path: "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json",
+            path: "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json",
             token: "sentinel-token", result: "written" } },
         });
         await vi.advanceTimersByTimeAsync(6_000);
@@ -1244,10 +1244,10 @@ describe("Daytona sandbox provider plugin", () => {
         result: command.startsWith("cat ") ? JSON.stringify({ token: "sentinel-token" }) : "bash" }));
       mockGet.mockResolvedValue(sandbox);
       await plugin.definition.onEnvironmentResumeLease!({
-        driverKey: "daytona", companyId: "company-1", environmentId: "env-1", providerLeaseId: sandbox.id,
+        driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", providerLeaseId: sandbox.id,
         config: { reuseLease: false, runnerLifecycleMode: "per_turn", autoStopInterval: 5, runnerReconnectGraceMs: 420_000 },
         leaseMetadata: { workspaceSentinel: {
-          path: "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json",
+          path: "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json",
           token: "sentinel-token", result: "written" } },
       });
       expect(sandbox.setAutostopInterval).toHaveBeenCalledTimes(1);
@@ -1271,7 +1271,7 @@ describe("Daytona sandbox provider plugin", () => {
 
   describe("fresh acquisition deadline", () => {
     const params = {
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1", runId: "run-1",
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", runId: "run-1",
       config: { image: "node:20", reuseLease: false },
     };
 
@@ -1333,7 +1333,7 @@ describe("Daytona sandbox provider plugin", () => {
       ["absent", () => mockGet.mockRejectedValue(new MockDaytonaNotFoundError("private-not-found"))],
       ["unavailable", () => mockGet.mockRejectedValue(new Error("private-provider-failure"))],
       ["unavailable", () => mockGet.mockImplementation(async () => {
-        const foreign = ownedCreation("started"); foreign.labels["paperclip-run-id"] = "foreign-run"; return foreign;
+        const foreign = ownedCreation("started"); foreign.labels["outpost-run-id"] = "foreign-run"; return foreign;
       })],
     ])("records %s when the deadline lookup cannot attribute an allocation", async (expected, arrange) => {
       mockCreate.mockImplementation(() => new Promise(() => {}));
@@ -1526,7 +1526,7 @@ describe("Daytona sandbox provider plugin", () => {
       const pending = plugin.definition.onEnvironmentAcquireLease!(params).catch(error => error);
       await vi.advanceTimersByTimeAsync(180_000);
       const cleanup = readEnvironmentCreationCleanupError(await pending);
-      expect(cleanup).toMatchObject({ companyId: params.companyId, environmentId: params.environmentId,
+      expect(cleanup).toMatchObject({ spaceId: params.spaceId, environmentId: params.environmentId,
         runId: params.runId, observedProviderLeaseId: sandbox.id, providerLeaseId: mockCreate.mock.calls[0][0].name });
       await vi.advanceTimersByTimeAsync(35_000);
       expect(sandbox.setTtl).not.toHaveBeenCalled();
@@ -1558,7 +1558,7 @@ describe("Daytona sandbox provider plugin", () => {
       }).catch(error => error);
       await vi.advanceTimersByTimeAsync(2_000);
       expect(readEnvironmentCreationCleanupError(await pending)).toMatchObject({
-        observedProviderLeaseId: sandbox.id, companyId: params.companyId, runId: params.runId,
+        observedProviderLeaseId: sandbox.id, spaceId: params.spaceId, runId: params.runId,
       });
       expect(sandbox.delete).toHaveBeenCalledOnce();
     });
@@ -1570,7 +1570,7 @@ describe("Daytona sandbox provider plugin", () => {
       sandbox.delete.mockRejectedValue(new Error("delete unavailable"));
       const error = await plugin.definition.onEnvironmentAcquireLease!(params).catch(error => error);
       expect(readEnvironmentCreationCleanupError(error)).toMatchObject({
-        observedProviderLeaseId: sandbox.id, companyId: params.companyId, runId: params.runId,
+        observedProviderLeaseId: sandbox.id, spaceId: params.spaceId, runId: params.runId,
       });
       expect(vi.getTimerCount()).toBe(0);
       expect(readEnvironmentAcquisitionDiagnostic(error)).toEqual({ phase: "workspace", elapsedMs: 0, budgetMs: 180_000 });
@@ -1579,7 +1579,7 @@ describe("Daytona sandbox provider plugin", () => {
 
   describe("failed sandbox creation cleanup", () => {
     const params = {
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1", runId: "run-1",
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", runId: "run-1",
       config: { image: "node:20", timeoutMs: 300_000, reuseLease: false, livenessTimeoutMs: 100 },
     };
     const createError = new MockDaytonaTimeoutError("Failed to create and start sandbox within 300 seconds");
@@ -1613,7 +1613,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     it("hands non-secret cleanup ownership to the host when creation is uncertain", async () => {
       const { error, cleanup } = await unresolvedCreation();
-      expect(cleanup).toMatchObject({ companyId: params.companyId, environmentId: params.environmentId, runId: params.runId,
+      expect(cleanup).toMatchObject({ spaceId: params.spaceId, environmentId: params.environmentId, runId: params.runId,
         providerLeaseId: mockCreate.mock.calls[0][0].name, labels: mockCreate.mock.calls[0][0].labels });
       expect(cleanup.accountFingerprint).toMatch(/^[a-f0-9]{64}$/);
       expect(JSON.stringify(environmentCreationCleanupErrorData(error))).not.toContain("host-key");
@@ -1685,12 +1685,12 @@ describe("Daytona sandbox provider plugin", () => {
       })).resolves.toEqual({ providerLeaseId: cleanup.providerLeaseId, state: "destroyed" });
     });
 
-    it.each(["company", "account", "labels"])("fences failed-creation retries by %s", async (mismatch) => {
+    it.each(["space", "account", "labels"])("fences failed-creation retries by %s", async (mismatch) => {
       const { cleanup } = await unresolvedCreation();
       const orphan = ownedSandbox(); mockGet.mockResolvedValue(orphan);
-      if (mismatch === "labels") orphan.labels["paperclip-run-id"] = "foreign-run";
+      if (mismatch === "labels") orphan.labels["outpost-run-id"] = "foreign-run";
       const retry = { ...params, providerLeaseId: cleanup.providerLeaseId, leaseMetadata: { failedCreateCleanup: cleanup } };
-      if (mismatch === "company") retry.companyId = "foreign-company";
+      if (mismatch === "space") retry.spaceId = "foreign-space";
       if (mismatch === "account") process.env.DAYTONA_API_KEY = "another-account-key";
       await expect(plugin.definition.onEnvironmentDestroyLease!(retry)).rejects.toThrow();
       expect(orphan.delete).not.toHaveBeenCalled();
@@ -1700,13 +1700,13 @@ describe("Daytona sandbox provider plugin", () => {
       let orphan: ReturnType<typeof ownedSandbox>;
       mockGet.mockImplementation(async () => (orphan = ownedSandbox()));
       await expect(plugin.definition.onEnvironmentAcquireLease?.(params)).rejects.toBe(createError);
-      expect(mockCreate.mock.calls[0][0].name).toMatch(/^paperclip-create-[0-9a-f-]{36}$/);
+      expect(mockCreate.mock.calls[0][0].name).toMatch(/^outpost-create-[0-9a-f-]{36}$/);
       expect(mockGet).toHaveBeenCalledWith(mockCreate.mock.calls[0][0].name);
       expect(orphan!.delete).toHaveBeenCalledWith(10, true);
       expect(orphan!.process.executeCommand).not.toHaveBeenCalled();
     });
 
-    it.each(["paperclip-company-id", "paperclip-environment-id", "paperclip-run-id", "paperclip-create-attempt", "paperclip-provider"])("never deletes a sandbox with a mismatched %s", async (label) => {
+    it.each(["outpost-space-id", "outpost-environment-id", "outpost-run-id", "outpost-create-attempt", "outpost-provider"])("never deletes a sandbox with a mismatched %s", async (label) => {
       let orphan: ReturnType<typeof ownedSandbox>;
       mockGet.mockImplementation(async () => {
         orphan = ownedSandbox(); orphan.labels[label] = "different-owner"; return orphan;
@@ -1804,7 +1804,7 @@ describe("Daytona sandbox provider plugin", () => {
       const requests = mockCreate.mock.calls.map(([request]) => request);
       expect(requests).toHaveLength(2);
       expect(new Set(requests.map((r) => r.name)).size).toBe(2);
-      expect(new Set(requests.map((r) => r.labels["paperclip-create-attempt"])).size).toBe(2);
+      expect(new Set(requests.map((r) => r.labels["outpost-create-attempt"])).size).toBe(2);
     });
   });
 
@@ -1835,7 +1835,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentProbe?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         snapshot: "base-snapshot",
@@ -1845,7 +1845,7 @@ describe("Daytona sandbox provider plugin", () => {
     });
 
     expect(mockCreate).toHaveBeenCalled();
-    expect(sandbox.fs.createFolder).toHaveBeenCalledWith("/home/daytona/paperclip-workspace", "755");
+    expect(sandbox.fs.createFolder).toHaveBeenCalledWith("/home/daytona/outpost-workspace", "755");
     expect(sandbox.delete).toHaveBeenCalledWith(300, true);
     expect(result).toMatchObject({
       ok: true,
@@ -1853,7 +1853,7 @@ describe("Daytona sandbox provider plugin", () => {
         provider: "daytona",
         shellCommand: "bash",
         sandboxId: "sandbox-123",
-        remoteCwd: "/home/daytona/paperclip-workspace",
+        remoteCwd: "/home/daytona/outpost-workspace",
       },
     });
   });
@@ -1865,7 +1865,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const lease = await plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       agentId: "agent-1",
@@ -1884,29 +1884,29 @@ describe("Daytona sandbox provider plugin", () => {
         provider: "daytona",
         shellCommand: "bash",
         sandboxId: "sandbox-123",
-        remoteCwd: "/home/daytona/paperclip-workspace",
+        remoteCwd: "/home/daytona/outpost-workspace",
         reuseLease,
         workspaceSentinel: {
-          path: "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json",
+          path: "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json",
           result: "written",
         },
       },
     });
     const uploaded = sandbox.fs.uploadFile.mock.calls.find(call => call[1] ===
-      "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json")?.[0];
+      "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json")?.[0];
     expect(Buffer.isBuffer(uploaded)).toBe(true);
     expect(lease?.metadata?.workspaceAllocationFiles).toEqual({ providerLeaseId: "sandbox-123",
-      remoteCwd: "/home/daytona/paperclip-workspace", files: [{
-        relativePath: ".paperclip-runtime/reusable-sandbox-lease.json",
+      remoteCwd: "/home/daytona/outpost-workspace", files: [{
+        relativePath: ".outpost-runtime/reusable-sandbox-lease.json",
         sha256: createHash("sha256").update(uploaded as Buffer).digest("hex"),
       }] });
     expect(sandbox.fs.createFolder).toHaveBeenCalledWith(
-      "/home/daytona/paperclip-workspace/.paperclip-runtime",
+      "/home/daytona/outpost-workspace/.outpost-runtime",
       "755",
     );
     expect(sandbox.fs.uploadFile).toHaveBeenCalledWith(
       expect.any(Buffer),
-      "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json",
+      "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json",
       180,
     );
   });
@@ -1918,7 +1918,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const lease = await plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       config: { image: "node:20", timeoutMs: 300000, reuseLease: false },
@@ -1935,7 +1935,7 @@ describe("Daytona sandbox provider plugin", () => {
     const sandbox = createMockSandbox({ autoDestroyAt });
     mockCreate.mockResolvedValue(sandbox);
     const lease = await plugin.definition.onEnvironmentAcquireLease?.({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1", runId: "run-1",
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", runId: "run-1",
       config: { ...source, ttlMinutes: 30, reuseLease: false },
     });
     expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ ...source, ttlMinutes: 30 }), expect.anything());
@@ -1951,7 +1951,7 @@ describe("Daytona sandbox provider plugin", () => {
     const sandbox = createMockSandbox();
     mockCreate.mockResolvedValue(sandbox);
     const lease = await plugin.definition.onEnvironmentAcquireLease?.({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1", runId: "run-1", config,
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", runId: "run-1", config,
     });
     expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("ttlMinutes");
     expect(lease?.expiresAt ?? null).toBeNull();
@@ -1965,7 +1965,7 @@ describe("Daytona sandbox provider plugin", () => {
     sandbox.refreshData.mockImplementation(() => new Promise<void>(resolve => { finishRead = resolve; }));
     mockCreate.mockImplementation(async params => Object.assign(sandbox, { name: params.name, labels: params.labels }));
     mockGet.mockResolvedValue(sandbox);
-    const params = { driverKey: "daytona", companyId: "company-1", environmentId: "env-1", runId: "run-1", sessionId: "setup-1",
+    const params = { driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", runId: "run-1", sessionId: "setup-1",
       config: { image: "node:20", ttlMinutes: 1, timeoutMs: 60_000, livenessTimeoutMs: 5, reuseLease: false } };
     const pending = mode === "probe" ? plugin.definition.onEnvironmentProbe!(params)
       : mode === "interactive" ? plugin.definition.onEnvironmentStartInteractiveSetup!(params)
@@ -1994,7 +1994,7 @@ describe("Daytona sandbox provider plugin", () => {
     expect(await plugin.definition.onEnvironmentValidateConfig?.({ driverKey: "daytona", config }))
       .toMatchObject({ ok: false, errors: expect.arrayContaining([expect.stringContaining("ttlMinutes")]) });
     await expect(plugin.definition.onEnvironmentAcquireLease?.({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1", runId: "run-1", config,
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", runId: "run-1", config,
     })).rejects.toThrow("ttlMinutes");
     expect(mockCreate).not.toHaveBeenCalled();
   });
@@ -2006,7 +2006,7 @@ describe("Daytona sandbox provider plugin", () => {
       mockCreate.mockImplementation(async params => Object.assign(sandbox, { name: params.name, labels: params.labels }));
       mockGet.mockResolvedValue(sandbox);
       await expect(plugin.definition.onEnvironmentAcquireLease?.({
-        driverKey: "daytona", companyId: "company-1", environmentId: "env-1", runId: "run-1",
+        driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", runId: "run-1",
         config: { image: "node:20", ttlMinutes: 30, reuseLease: false },
       })).rejects.toThrow("TTL");
       expect(sandbox.delete).toHaveBeenCalled();
@@ -2020,7 +2020,7 @@ describe("Daytona sandbox provider plugin", () => {
     const sandbox = createMockSandbox({ autoDestroyAt });
     mockCreate.mockResolvedValue(sandbox);
     const lease = await plugin.definition.onEnvironmentAcquireLease?.({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1", runId: "run-1",
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", runId: "run-1",
       config: { image: "node:20", ttlMinutes: 30, reuseLease: false },
       requestedExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
     });
@@ -2035,7 +2035,7 @@ describe("Daytona sandbox provider plugin", () => {
     mockCreate.mockResolvedValue(sandbox);
     const requestedExpiresAt = new Date(Date.now() + 5 * 60_000 + 30_000).toISOString();
     const lease = await plugin.definition.onEnvironmentAcquireLease?.({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1", runId: "run-1",
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", runId: "run-1",
       config: { image: "node:20", ttlMinutes: 30, reuseLease: false }, requestedExpiresAt,
     });
     expect(sandbox.setTtl).toHaveBeenCalledWith(5);
@@ -2051,7 +2051,7 @@ describe("Daytona sandbox provider plugin", () => {
     const requestedExpiresAt = new Date(Date.now() + 30 * 60_000 + 30_000).toISOString();
     const lease = await plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       config: { image: "node:20", timeoutMs: 300000, reuseLease: false },
@@ -2075,7 +2075,7 @@ describe("Daytona sandbox provider plugin", () => {
     const requestedExpiresAt = new Date(Date.now() + 30_000).toISOString();
     const lease = await plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       config: { image: "node:20", timeoutMs: 300000, reuseLease: false },
@@ -2096,7 +2096,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const session = await plugin.definition.onEnvironmentStartInteractiveSetup?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       sessionId: "setup-1",
       sourceTemplateRef: "existing-secret-snapshot",
@@ -2113,9 +2113,9 @@ describe("Daytona sandbox provider plugin", () => {
     expect(createParams).toMatchObject({
       snapshot: "existing-secret-snapshot",
       labels: {
-        "paperclip-provider": "daytona",
-        "paperclip-setup-session-id": "setup-1",
-        "paperclip-purpose": "interactive_setup",
+        "outpost-provider": "daytona",
+        "outpost-setup-session-id": "setup-1",
+        "outpost-purpose": "interactive_setup",
       },
     });
     expect(createParams).not.toHaveProperty("image");
@@ -2153,7 +2153,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentStartInteractiveSetup?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       sessionId: "setup-image-1",
       sourceTemplateRef: "node:20",
@@ -2170,9 +2170,9 @@ describe("Daytona sandbox provider plugin", () => {
     expect(createParams).toMatchObject({
       image: "node:20",
       labels: {
-        "paperclip-provider": "daytona",
-        "paperclip-setup-session-id": "setup-image-1",
-        "paperclip-purpose": "interactive_setup",
+        "outpost-provider": "daytona",
+        "outpost-setup-session-id": "setup-image-1",
+        "outpost-purpose": "interactive_setup",
       },
     });
     expect(createParams).not.toHaveProperty("snapshot");
@@ -2186,7 +2186,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentStartInteractiveSetup?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       sessionId: "setup-1",
       config: {
@@ -2206,7 +2206,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const session = await plugin.definition.onEnvironmentGetInteractiveSetup?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-setup",
       includeConnectionPayload: false,
@@ -2236,7 +2236,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentGetInteractiveSetup?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-missing",
       includeConnectionPayload: true,
@@ -2264,7 +2264,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentCaptureTemplate?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-setup",
       templateLabel: " Outpost Env 1 ",
@@ -2278,10 +2278,10 @@ describe("Daytona sandbox provider plugin", () => {
       },
     });
 
-    expect(sandbox._experimental_createSnapshot).toHaveBeenCalledWith("paperclip-env-1", 120);
+    expect(sandbox._experimental_createSnapshot).toHaveBeenCalledWith("outpost-env-1", 120);
     expect(result).toMatchObject({
       templateKind: "snapshot",
-      templateRef: "paperclip-env-1",
+      templateRef: "outpost-env-1",
       metadata: {
         provider: "daytona",
         sandboxId: "sandbox-setup",
@@ -2300,7 +2300,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentCancelInteractiveSetup?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-setup",
       reason: "user_cancelled",
@@ -2329,7 +2329,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentDeleteTemplate?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       templateRef: "captured-template",
       templateKind: "snapshot",
@@ -2361,7 +2361,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       agentId: "agent-1",
@@ -2394,7 +2394,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       agentId: "agent-1",
@@ -2444,7 +2444,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       agentId: "agent-1",
@@ -2470,7 +2470,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const lease = await plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       agentId: "agent-1",
@@ -2494,7 +2494,7 @@ describe("Daytona sandbox provider plugin", () => {
     process.env.DAYTONA_API_KEY = "host-key";
     const sandbox = createMockSandbox({ id: "ephemeral-owned" });
     mockCreate.mockResolvedValue(sandbox);
-    const base = { driverKey: "daytona", companyId: "company-1", environmentId: "env-1", agentId: "agent-1",
+    const base = { driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", agentId: "agent-1",
       issueId: "issue-1", adapterType: "outpost_runner", config: { reuseLease: false } };
     const lease = await plugin.definition.onEnvironmentAcquireLease!({ ...base, runId: "run-1" });
     const sentinel = lease.metadata!.workspaceSentinel as { token: string; result: string };
@@ -2524,7 +2524,7 @@ describe("Daytona sandbox provider plugin", () => {
       mockCreate.mockResolvedValueOnce(sandbox);
       await plugin.definition.onEnvironmentAcquireLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         runId: "run-1",
         agentId: "agent-1",
@@ -2562,7 +2562,7 @@ describe("Daytona sandbox provider plugin", () => {
     await expect(
       plugin.definition.onEnvironmentAcquireLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         runId: "run-1",
         config: {
@@ -2588,7 +2588,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const lease = await plugin.definition.onEnvironmentAcquireLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       runId: "run-1",
       config: {
@@ -2614,7 +2614,7 @@ describe("Daytona sandbox provider plugin", () => {
     await expect(
       plugin.definition.onEnvironmentResumeLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "sandbox-resume",
         config: {
@@ -2634,7 +2634,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentResumeLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-123",
       config: {
@@ -2665,7 +2665,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const lease = await plugin.definition.onEnvironmentResumeLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-reuse",
       config: {
@@ -2674,7 +2674,7 @@ describe("Daytona sandbox provider plugin", () => {
       },
       leaseMetadata: {
         workspaceSentinel: {
-          path: "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json",
+          path: "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json",
           token: "sentinel-token",
           result: "written",
         },
@@ -2698,15 +2698,15 @@ describe("Daytona sandbox provider plugin", () => {
 
   it.each([true, false])("resumes the recorded workspace cwd after workspace preparation (reuse=%s)", async reuseLease => {
     const sandbox = createMockSandbox({ id: "sandbox-retained", state: "stopped" });
-    const allocationRoot = "/home/daytona/paperclip-workspace";
+    const allocationRoot = "/home/daytona/outpost-workspace";
     const workspaceId = "6028a46b-b65a-421f-952d-66b9c002b8e2";
-    const remoteCwd = `${allocationRoot}/.paperclip-workspaces/${workspaceId}`;
-    const sentinelPath = `${allocationRoot}/.paperclip-runtime/reusable-sandbox-lease.json`;
+    const remoteCwd = `${allocationRoot}/.outpost-workspaces/${workspaceId}`;
+    const sentinelPath = `${allocationRoot}/.outpost-runtime/reusable-sandbox-lease.json`;
     sandbox.process.executeCommand.mockImplementation(async command => ({ exitCode: 0,
       result: command.startsWith("cat ") ? JSON.stringify({ token: "sentinel-token" }) : "bash" }));
     mockGet.mockResolvedValue(sandbox);
     const resumed = await plugin.definition.onEnvironmentResumeLease!({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1", providerLeaseId: sandbox.id,
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", providerLeaseId: sandbox.id,
       config: { apiKey: "fixture-key", reuseLease }, requestedCwd: remoteCwd, leaseMetadata: { remoteCwd, remoteWorkspaceId: workspaceId,
         sandboxId: sandbox.id, reuseLease, workspaceSentinel: { path: sentinelPath, token: "sentinel-token",
           runId: "fixture-run", providerLeaseId: sandbox.id, result: "written" } },
@@ -2722,10 +2722,10 @@ describe("Daytona sandbox provider plugin", () => {
 
   it("resumes a retained sandbox stuck stopping by forcing the stop", async () => {
     const sandbox = createMockSandbox({ id: "sandbox-retained", state: "stopping" });
-    const allocationRoot = "/home/daytona/paperclip-workspace";
+    const allocationRoot = "/home/daytona/outpost-workspace";
     const workspaceId = "6028a46b-b65a-421f-952d-66b9c002b8e2";
-    const remoteCwd = `${allocationRoot}/.paperclip-workspaces/${workspaceId}`;
-    const sentinelPath = `${allocationRoot}/.paperclip-runtime/reusable-sandbox-lease.json`;
+    const remoteCwd = `${allocationRoot}/.outpost-workspaces/${workspaceId}`;
+    const sentinelPath = `${allocationRoot}/.outpost-runtime/reusable-sandbox-lease.json`;
     sandbox.process.executeCommand.mockImplementation(async command => ({ exitCode: 0,
       result: command.startsWith("cat ") ? JSON.stringify({ token: "sentinel-token" }) : "bash" }));
     sandbox.refreshData.mockImplementation(async () => {});
@@ -2737,7 +2737,7 @@ describe("Daytona sandbox provider plugin", () => {
     vi.useFakeTimers();
     try {
       const resuming = plugin.definition.onEnvironmentResumeLease!({
-        driverKey: "daytona", companyId: "company-1", environmentId: "env-1", providerLeaseId: sandbox.id,
+        driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", providerLeaseId: sandbox.id,
         config: { apiKey: "fixture-key", reuseLease: true }, requestedCwd: remoteCwd, leaseMetadata: { remoteCwd,
           remoteWorkspaceId: workspaceId, sandboxId: sandbox.id, reuseLease: true, workspaceSentinel: { path: sentinelPath,
             token: "sentinel-token", runId: "fixture-run", providerLeaseId: sandbox.id, result: "written" } },
@@ -2755,7 +2755,7 @@ describe("Daytona sandbox provider plugin", () => {
 
   it.each([null, 7, "", "relative/workspace", "/workspace/../other", "/workspace\0other"])(
     "rejects a malformed recorded cwd before touching the provider: %j", async remoteCwd => {
-      await expect(plugin.definition.onEnvironmentResumeLease!({ driverKey: "daytona", companyId: "company-1",
+      await expect(plugin.definition.onEnvironmentResumeLease!({ driverKey: "daytona", spaceId: "space-1",
         environmentId: "env-1", providerLeaseId: "sandbox-retained", config: { apiKey: "fixture-key" },
         requestedCwd: remoteCwd as string, leaseMetadata: { remoteCwd },
       })).rejects.toThrow("recorded Daytona workspace directory");
@@ -2768,11 +2768,11 @@ describe("Daytona sandbox provider plugin", () => {
     const sandbox = createMockSandbox({ state: "stopped" });
     sandbox.process.executeCommand.mockResolvedValue({ exitCode: 0, result: JSON.stringify({ token: "foreign" }) });
     mockGet.mockResolvedValue(sandbox);
-    const resumed = await plugin.definition.onEnvironmentResumeLease!({ driverKey: "daytona", companyId: "company-1",
+    const resumed = await plugin.definition.onEnvironmentResumeLease!({ driverKey: "daytona", spaceId: "space-1",
       environmentId: "env-1", providerLeaseId: sandbox.id, config: { apiKey: "fixture-key" },
-      requestedCwd: "/home/daytona/paperclip-workspace/.paperclip-workspaces/fixture-workspace", leaseMetadata: {
-        remoteCwd: "/home/daytona/paperclip-workspace/.paperclip-workspaces/fixture-workspace",
-        workspaceSentinel: { path: "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json",
+      requestedCwd: "/home/daytona/outpost-workspace/.outpost-workspaces/fixture-workspace", leaseMetadata: {
+        remoteCwd: "/home/daytona/outpost-workspace/.outpost-workspaces/fixture-workspace",
+        workspaceSentinel: { path: "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json",
           token: "expected", result: "written" },
       } });
     expect(resumed).toMatchObject({ providerLeaseId: null, metadata: { expired: true, workspaceSentinel: { result: "mismatch" } } });
@@ -2783,25 +2783,25 @@ describe("Daytona sandbox provider plugin", () => {
 
   it.each(["same-workspace", "later-task-workspace"])("keeps the allocation root for ordinary %s admission", async workspaceId => {
     const sandbox = createMockSandbox({ state: "stopped" });
-    const allocationRoot = "/home/daytona/paperclip-workspace";
+    const allocationRoot = "/home/daytona/outpost-workspace";
     sandbox.process.executeCommand.mockImplementation(async command => ({ exitCode: 0,
       result: command.startsWith("cat ") ? JSON.stringify({ token: "sentinel-token" }) : "bash" }));
     mockGet.mockResolvedValue(sandbox);
-    const resumed = await plugin.definition.onEnvironmentResumeLease!({ driverKey: "daytona", companyId: "company-1",
+    const resumed = await plugin.definition.onEnvironmentResumeLease!({ driverKey: "daytona", spaceId: "space-1",
       environmentId: "env-1", providerLeaseId: sandbox.id, config: { apiKey: "fixture-key" }, leaseMetadata: {
-        remoteCwd: `${allocationRoot}/.paperclip-workspaces/${workspaceId}`,
-        workspaceSentinel: { path: `${allocationRoot}/.paperclip-runtime/reusable-sandbox-lease.json`, token: "sentinel-token" },
+        remoteCwd: `${allocationRoot}/.outpost-workspaces/${workspaceId}`,
+        workspaceSentinel: { path: `${allocationRoot}/.outpost-runtime/reusable-sandbox-lease.json`, token: "sentinel-token" },
       } });
     expect(resumed).toMatchObject({ providerLeaseId: sandbox.id, metadata: { remoteCwd: allocationRoot } });
     expect(sandbox.fs.createFolder).not.toHaveBeenCalled();
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  it.each([undefined, null, "/home/daytona/paperclip-workspace/.paperclip-workspaces/foreign"])(
+  it.each([undefined, null, "/home/daytona/outpost-workspace/.outpost-workspaces/foreign"])(
     "rejects an export cwd without an exact recorded source: %j", async recordedCwd => {
-      await expect(plugin.definition.onEnvironmentResumeLease!({ driverKey: "daytona", companyId: "company-1",
+      await expect(plugin.definition.onEnvironmentResumeLease!({ driverKey: "daytona", spaceId: "space-1",
         environmentId: "env-1", providerLeaseId: "sandbox-retained", config: { apiKey: "fixture-key" },
-        requestedCwd: "/home/daytona/paperclip-workspace/.paperclip-workspaces/owned",
+        requestedCwd: "/home/daytona/outpost-workspace/.outpost-workspaces/owned",
         leaseMetadata: recordedCwd === undefined ? {} : { remoteCwd: recordedCwd },
       })).rejects.toThrow("recorded Daytona workspace directory");
       expect(mockGet).not.toHaveBeenCalled();
@@ -2811,9 +2811,9 @@ describe("Daytona sandbox provider plugin", () => {
 
   it("opens existing files in the recorded directory after a stopped sandbox resumes", async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "daytona-resume-cwd-"));
-    const allocationRoot = path.join(directory, "paperclip-workspace");
-    const remoteCwd = path.join(allocationRoot, ".paperclip-workspaces", "fixture-workspace");
-    const sentinelPath = path.join(allocationRoot, ".paperclip-runtime", "reusable-sandbox-lease.json");
+    const allocationRoot = path.join(directory, "outpost-workspace");
+    const remoteCwd = path.join(allocationRoot, ".outpost-workspaces", "fixture-workspace");
+    const sentinelPath = path.join(allocationRoot, ".outpost-runtime", "reusable-sandbox-lease.json");
     await fs.mkdir(remoteCwd, { recursive: true });
     await fs.mkdir(path.dirname(sentinelPath), { recursive: true });
     await fs.writeFile(sentinelPath, JSON.stringify({ token: "file-token" }));
@@ -2823,7 +2823,7 @@ describe("Daytona sandbox provider plugin", () => {
       result: execFileSync("sh", ["-c", command], { encoding: "utf8", cwd: directory }) }));
     mockGet.mockResolvedValue(sandbox);
     try {
-      const resumed = await plugin.definition.onEnvironmentResumeLease!({ driverKey: "daytona", companyId: "company-1",
+      const resumed = await plugin.definition.onEnvironmentResumeLease!({ driverKey: "daytona", spaceId: "space-1",
         environmentId: "env-1", providerLeaseId: sandbox.id, config: { apiKey: "fixture-key" }, requestedCwd: remoteCwd,
         leaseMetadata: { remoteCwd, workspaceSentinel: { path: sentinelPath, token: "file-token" } } });
       expect(await fs.readFile(path.join(resumed.metadata!.remoteCwd as string, "saved.txt"), "utf8")).toBe("retained work\n");
@@ -2839,9 +2839,9 @@ describe("Daytona sandbox provider plugin", () => {
     const sandboxId = "00000000-0000-4000-8000-000000000001";
     const missing = `not found: failed to inspect sandbox container ${sandboxId}: Error response from daemon: No such container: ${sandboxId}`;
     const params = {
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1", providerLeaseId: sandboxId,
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", providerLeaseId: sandboxId,
       config: { apiKey: "host-key", timeoutMs: 300000, livenessTimeoutMs: 100, reuseLease: true },
-      leaseMetadata: { workspaceSentinel: { path: "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json", token: "sentinel-token" } },
+      leaseMetadata: { workspaceSentinel: { path: "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json", token: "sentinel-token" } },
     };
     const resume = () => plugin.definition.onEnvironmentResumeLease!(params);
     function missingSandbox() {
@@ -2973,7 +2973,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentResumeLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-reuse",
       config: {
@@ -2982,7 +2982,7 @@ describe("Daytona sandbox provider plugin", () => {
       },
       leaseMetadata: {
         workspaceSentinel: {
-          path: "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json",
+          path: "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json",
           token: "sentinel-token",
           result: "written",
         },
@@ -2992,7 +2992,7 @@ describe("Daytona sandbox provider plugin", () => {
       metadata: {
         expired: true,
         workspaceSentinel: {
-          path: "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json",
+          path: "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json",
           token: "sentinel-token",
           result: "mismatch",
         },
@@ -3008,7 +3008,7 @@ describe("Daytona sandbox provider plugin", () => {
     sandbox.refreshData.mockImplementation(async () => { sandbox.state = "started"; });
     mockGet.mockResolvedValue(sandbox);
     await expect(plugin.definition.onEnvironmentReleaseLease?.({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
       providerLeaseId: sandbox.id, config: { reuseLease: true },
     })).resolves.toEqual({ providerLeaseId: sandbox.id, state: "stopped" });
     expect(sandbox.refreshData).toHaveBeenCalled();
@@ -3022,7 +3022,7 @@ describe("Daytona sandbox provider plugin", () => {
     sandbox.delete.mockRejectedValueOnce(new Error("delete failed"));
     mockGet.mockResolvedValue(sandbox);
     await expect(plugin.definition.onEnvironmentReleaseLease?.({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
       providerLeaseId: sandbox.id, config: { reuseLease: true },
     })).rejects.toThrow("delete failed");
   });
@@ -3033,7 +3033,7 @@ describe("Daytona sandbox provider plugin", () => {
     if (fail) sandbox.stop.mockRejectedValueOnce(new Error("stop failed"));
     mockGet.mockResolvedValue(sandbox);
     const stop = plugin.definition.onEnvironmentStopLease!({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
       providerLeaseId: sandbox.id, config: { reuseLease: false },
     });
     if (fail) await expect(stop).rejects.toThrow("stop failed");
@@ -3043,7 +3043,7 @@ describe("Daytona sandbox provider plugin", () => {
   });
 
   describe("explicit stop of a sandbox in the provider error state", () => {
-    const stopParams = (sandboxId: string) => ({ driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+    const stopParams = (sandboxId: string) => ({ driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
       providerLeaseId: sandboxId, config: { reuseLease: false } });
     function erroredSandbox(recoverable: boolean) {
       const sandbox = { ...createMockSandbox({ id: "sandbox-disk-full", state: "error", recoverable }),
@@ -3138,7 +3138,7 @@ describe("Daytona sandbox provider plugin", () => {
     sandbox.refreshData.mockImplementation(async () => { sandbox.autoDeleteInterval = confirmed ? -1 : 0; });
     mockGet.mockResolvedValue(sandbox);
     const stop = plugin.definition.onEnvironmentStopLease!({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
       providerLeaseId: sandbox.id, config: { reuseLease: false },
     });
     if (confirmed) await expect(stop).resolves.toEqual({ providerLeaseId: sandbox.id, state: "stopped" });
@@ -3157,7 +3157,7 @@ describe("Daytona sandbox provider plugin", () => {
     sandbox.refreshData.mockImplementation(async () => { sandbox.state = "started"; });
     mockGet.mockResolvedValue(sandbox);
     await expect(plugin.definition.onEnvironmentStopLease!({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
       providerLeaseId: sandbox.id, config: { reuseLease: false },
     })).resolves.toEqual({ providerLeaseId: sandbox.id, state: "stopped" });
     expect(sandbox.stop).toHaveBeenCalledOnce();
@@ -3172,7 +3172,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const reusableReceipt = await plugin.definition.onEnvironmentReleaseLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-reusable",
       config: {
@@ -3182,7 +3182,7 @@ describe("Daytona sandbox provider plugin", () => {
     });
     const ephemeralReceipt = await plugin.definition.onEnvironmentReleaseLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-ephemeral",
       config: {
@@ -3204,7 +3204,7 @@ describe("Daytona sandbox provider plugin", () => {
     if (stopFails) sandbox.stop.mockRejectedValueOnce(new Error("injected stop transport failure"));
     mockGet.mockResolvedValue(sandbox);
     const stop = plugin.definition.onEnvironmentReleaseLease?.({
-      driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+      driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
       providerLeaseId: sandbox.id, config: { timeoutMs: 300000, reuseLease: false },
       resourceDisposition: "stop_and_retain",
     } as Parameters<NonNullable<typeof plugin.definition.onEnvironmentReleaseLease>>[0]);
@@ -3230,7 +3230,7 @@ describe("Daytona sandbox provider plugin", () => {
     });
     sandbox.stop.mockImplementation(async () => { implicitlyDeleted = providerAutoDelete === 0; });
     mockGet.mockResolvedValue(sandbox);
-    const stop = plugin.definition.onEnvironmentStopLease!({ driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+    const stop = plugin.definition.onEnvironmentStopLease!({ driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
       providerLeaseId: sandbox.id, config: { reuseLease: false, autoDeleteInterval: 0 } });
     if (kind === "confirmed") {
       await expect(stop).resolves.toEqual({ providerLeaseId: sandbox.id, state: "stopped" });
@@ -3253,7 +3253,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentReleaseLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-test-probe",
       config: {
@@ -3278,7 +3278,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentReleaseLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-test-probe",
       config: {
@@ -3302,7 +3302,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentReleaseLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-error",
       config: {
@@ -3324,7 +3324,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentReleaseLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-running",
       config: {
@@ -3374,7 +3374,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const sessionExecParams = (overrides: Record<string, unknown> = {}) => ({
       driverKey: "daytona" as const,
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: { providerLeaseId: "sandbox-123", metadata: {} },
@@ -3414,7 +3414,7 @@ describe("Daytona sandbox provider plugin", () => {
       // Teardown deletes the same single session id, so no session leaks.
       await plugin.definition.onEnvironmentReleaseLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "sandbox-123",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -3455,7 +3455,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       expect(sandbox.process.createSession).toHaveBeenCalledTimes(1);
       const sessionId = sandbox.process.createSession.mock.calls[0]![0] as string;
-      expect(sessionId).toMatch(/^paperclip-/);
+      expect(sessionId).toMatch(/^outpost-/);
     });
 
     it("deletes the session and clears the store on release", async () => {
@@ -3468,7 +3468,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       await plugin.definition.onEnvironmentReleaseLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "sandbox-123",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -3489,7 +3489,7 @@ describe("Daytona sandbox provider plugin", () => {
       await expect(
         plugin.definition.onEnvironmentDestroyLease?.({
           driverKey: "daytona",
-          companyId: "company-1",
+          spaceId: "space-1",
           environmentId: "env-1",
           providerLeaseId: "sandbox-123",
           config: { timeoutMs: 300000, reuseLease: false },
@@ -3509,7 +3509,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       await plugin.definition.onEnvironmentCancelInteractiveSetup?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "sandbox-123",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -3530,7 +3530,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       await plugin.definition.onEnvironmentReleaseLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "sandbox-123",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -3548,7 +3548,7 @@ describe("Daytona sandbox provider plugin", () => {
       let complete!: () => void;
       sandbox.delete.mockImplementationOnce(() => new Promise<void>(resolve => { complete = resolve; }));
       const release = plugin.definition.onEnvironmentDestroyLease!({ driverKey: "daytona",
-        companyId: "company-1", environmentId: "env-1", providerLeaseId: "sandbox-123",
+        spaceId: "space-1", environmentId: "env-1", providerLeaseId: "sandbox-123",
         config: { timeoutMs: 300000, reuseLease: false } });
       let settled = false;
       void Promise.resolve(release).then(() => { settled = true; });
@@ -3564,7 +3564,7 @@ describe("Daytona sandbox provider plugin", () => {
       mockGet.mockResolvedValue(sandbox);
       const releaseParams = {
         driverKey: "daytona" as const,
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "sandbox-123",
         config: { timeoutMs: 300000, reuseLease: true },
@@ -3591,14 +3591,14 @@ describe("Daytona sandbox provider plugin", () => {
 
       await plugin.definition.onEnvironmentResumeLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "sandbox-123",
         config: { timeoutMs: 300000, reuseLease: false },
         leaseMetadata: {
-          remoteCwd: "/home/daytona/paperclip-workspace",
+          remoteCwd: "/home/daytona/outpost-workspace",
           workspaceSentinel: {
-            path: "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json",
+            path: "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json",
             token: "token-1",
           },
         },
@@ -3622,14 +3622,14 @@ describe("Daytona sandbox provider plugin", () => {
 
       await plugin.definition.onEnvironmentResumeLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "sandbox-123",
         config: { timeoutMs: 300000, reuseLease: false },
         leaseMetadata: {
-          remoteCwd: "/home/daytona/paperclip-workspace",
+          remoteCwd: "/home/daytona/outpost-workspace",
           workspaceSentinel: {
-            path: "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json",
+            path: "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json",
             token: "token-1",
           },
         },
@@ -3642,7 +3642,7 @@ describe("Daytona sandbox provider plugin", () => {
       // Teardown deletes the one session id, so no shell leaks.
       await plugin.definition.onEnvironmentReleaseLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "sandbox-123",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -3676,10 +3676,10 @@ describe("Daytona sandbox provider plugin", () => {
       sandbox.state = "stopped";
       await plugin.definition.onEnvironmentRealizeWorkspace?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
-        lease: { providerLeaseId: "sandbox-123", metadata: { remoteCwd: "/home/daytona/paperclip-workspace" } },
+        lease: { providerLeaseId: "sandbox-123", metadata: { remoteCwd: "/home/daytona/outpost-workspace" } },
         workspace: { localPath: "/tmp/workspace" },
       } as never);
       expect(sandbox.start).toHaveBeenCalledTimes(1);
@@ -3701,9 +3701,9 @@ describe("Daytona sandbox provider plugin", () => {
       sandbox.state = "starting";
       sandbox.refreshData.mockImplementationOnce(async () => { sandbox.state = "started"; });
       await plugin.definition.onEnvironmentRealizeWorkspace?.({
-        driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+        driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
-        lease: { providerLeaseId: "sandbox-123", metadata: { remoteCwd: "/home/daytona/paperclip-workspace" } },
+        lease: { providerLeaseId: "sandbox-123", metadata: { remoteCwd: "/home/daytona/outpost-workspace" } },
         workspace: { localPath: "/tmp/workspace" },
       } as never);
       expect(sandbox.start).not.toHaveBeenCalled();
@@ -3723,10 +3723,10 @@ describe("Daytona sandbox provider plugin", () => {
       sandbox.state = "stopped";
       await plugin.definition.onEnvironmentSyncIn?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
-        lease: { providerLeaseId: "sandbox-123", metadata: { remoteCwd: "/home/daytona/paperclip-workspace" } },
+        lease: { providerLeaseId: "sandbox-123", metadata: { remoteCwd: "/home/daytona/outpost-workspace" } },
         operations: [],
       } as never);
       expect(sandbox.start).toHaveBeenCalledTimes(1);
@@ -3743,10 +3743,10 @@ describe("Daytona sandbox provider plugin", () => {
       await plugin.definition.onEnvironmentExecute?.(sessionExecParams());
       await plugin.definition.onEnvironmentRealizeWorkspace?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
-        lease: { providerLeaseId: "sandbox-123", metadata: { remoteCwd: "/home/daytona/paperclip-workspace" } },
+        lease: { providerLeaseId: "sandbox-123", metadata: { remoteCwd: "/home/daytona/outpost-workspace" } },
         workspace: { localPath: "/tmp/workspace" },
       } as never);
       await plugin.definition.onEnvironmentExecute?.(sessionExecParams());
@@ -3770,7 +3770,7 @@ describe("Daytona sandbox provider plugin", () => {
 
         await plugin.definition.onEnvironmentReleaseLease?.({
           driverKey: "daytona",
-          companyId: "company-1",
+          spaceId: "space-1",
           environmentId: "env-1",
           providerLeaseId: "sandbox-123",
           config: { timeoutMs: 300000, reuseLease: false },
@@ -3834,7 +3834,7 @@ describe("Daytona sandbox provider plugin", () => {
         { command: string; runAsync?: boolean },
         number,
       ];
-      expect(sid).toMatch(/^paperclip-/);
+      expect(sid).toMatch(/^outpost-/);
       expect(req.runAsync).toBe(true);
       expect(timeoutArg).toBe(1);
       // The built command carries the login-shell script and the user command.
@@ -3877,7 +3877,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       expect(sandbox.process.createSession).toHaveBeenCalledTimes(1);
       const sessionId = sandbox.process.createSession.mock.calls[0]![0] as string;
-      expect(sessionId).toMatch(/^paperclip-/);
+      expect(sessionId).toMatch(/^outpost-/);
       const firstSid = sandbox.process.executeSessionCommand.mock.calls[0]![0] as string;
       const secondSid = sandbox.process.executeSessionCommand.mock.calls[1]![0] as string;
       expect(firstSid).toBe(secondSid);
@@ -3959,7 +3959,7 @@ describe("Daytona sandbox provider plugin", () => {
           expect(sandbox.process.executeSessionCommand.mock.calls[0]![1]).toMatchObject({ runAsync: true });
           expect(sandbox.process.executeSessionCommand.mock.calls[0]![2]).toBe(14400);
           await plugin.definition.onEnvironmentReleaseLease?.({
-            driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+            driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
             providerLeaseId: "sandbox-123", config: params.config,
           });
           expect(sandbox.process.deleteSession).toHaveBeenCalledTimes(1);
@@ -4060,7 +4060,7 @@ describe("Daytona sandbox provider plugin", () => {
           expect(executionLog.mock.calls.length).toBe(logged);
           expect(JSON.stringify(result)).not.toContain("late private");
           clearInterval(keepAlive);
-          await plugin.definition.onEnvironmentReleaseLease?.({ driverKey: "daytona", companyId: "company-1", environmentId: "env-1", providerLeaseId: "sandbox-123", config: streamExecParams().config });
+          await plugin.definition.onEnvironmentReleaseLease?.({ driverKey: "daytona", spaceId: "space-1", environmentId: "env-1", providerLeaseId: "sandbox-123", config: streamExecParams().config });
           expect(sandbox.process.deleteSession).toHaveBeenCalledTimes(1);
           expect(vi.getTimerCount()).toBe(0);
         } finally { clearInterval(keepAlive); restore(); vi.useRealTimers(); }
@@ -4740,7 +4740,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         timeoutMs: 300000,
@@ -4797,7 +4797,7 @@ describe("Daytona sandbox provider plugin", () => {
     try {
       const result = await plugin.definition.onEnvironmentExecute?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         bypassSession: true,
@@ -4826,7 +4826,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const execParams = {
       driverKey: "daytona" as const,
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       bypassSession: true,
@@ -4857,7 +4857,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         timeoutMs: 300000,
@@ -4874,16 +4874,16 @@ describe("Daytona sandbox provider plugin", () => {
 
     expect(sandbox.fs.uploadFile).toHaveBeenCalledWith(
       Buffer.from("input payload", "utf8"),
-      expect.stringMatching(/^\/tmp\/paperclip-stdin-/),
+      expect.stringMatching(/^\/tmp\/outpost-stdin-/),
       1,
     );
     const [command] = sandbox.process.executeCommand.mock.calls[0] as [string];
     expect(command).toMatch(/\/etc\/profile/);
     expect(command).not.toMatch(/nvm\.sh/);
     expect(command).toMatch(/&& cd '\/workspace'/);
-    expect(command).toMatch(/env .* 'cat' < '\/tmp\/paperclip-stdin-/);
+    expect(command).toMatch(/env .* 'cat' < '\/tmp\/outpost-stdin-/);
     expect(command).not.toMatch(/(?:^|&& )exec /);
-    expect(sandbox.fs.deleteFile).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/paperclip-stdin-/));
+    expect(sandbox.fs.deleteFile).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/outpost-stdin-/));
     expect(result).toMatchObject({
       exitCode: 0,
       timedOut: false,
@@ -4897,11 +4897,11 @@ describe("Daytona sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentExecute?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       bypassSession: true,
-      lease: { providerLeaseId: "sandbox-123", metadata: { remoteCwd: "/home/daytona/paperclip-workspace" } },
+      lease: { providerLeaseId: "sandbox-123", metadata: { remoteCwd: "/home/daytona/outpost-workspace" } },
       command: "printf",
       args: ["hello"],
       cwd: "/workspace",
@@ -4921,7 +4921,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await expect(plugin.definition.onEnvironmentExecute?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: {
         timeoutMs: 300000,
@@ -4954,7 +4954,7 @@ describe("Daytona sandbox provider plugin", () => {
     try {
       result = await plugin.definition.onEnvironmentExecute?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: {
           timeoutMs: 300000,
@@ -4990,7 +4990,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentExecute?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       bypassSession: true,
@@ -5016,7 +5016,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       bypassSession: true,
@@ -5050,7 +5050,7 @@ describe("Daytona sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       bypassSession: true,
@@ -5085,7 +5085,7 @@ describe("Daytona sandbox provider plugin", () => {
     // wrapper sources the profiles but no longer sources `nvm.sh`.
     await plugin.definition.onEnvironmentExecute?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       bypassSession: true,
@@ -5105,7 +5105,7 @@ describe("Daytona sandbox provider plugin", () => {
 
   // ─── Per-lease started-sandbox handle cache ────────────────────────────────
   // These prove the security conditions: single-fetch-per-lease, strict
-  // composite-key isolation (no cross-lease / cross-company / cross-env reuse),
+  // composite-key isolation (no cross-lease / cross-space / cross-env reuse),
   // eviction at every teardown, no caching of failed populates, single-flight
   // concurrency, and sentinel re-verification on a cached resume — plus that a
   // handle left idle past the provider auto-stop window is refreshed before
@@ -5113,11 +5113,11 @@ describe("Daytona sandbox provider plugin", () => {
   describe("started-sandbox handle cache", () => {
     function execParams(
       providerLeaseId: string,
-      overrides: { companyId?: string; environmentId?: string; driverKey?: string } = {},
+      overrides: { spaceId?: string; environmentId?: string; driverKey?: string } = {},
     ) {
       return {
         driverKey: overrides.driverKey ?? "daytona",
-        companyId: overrides.companyId ?? "company-1",
+        spaceId: overrides.spaceId ?? "space-1",
         environmentId: overrides.environmentId ?? "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         bypassSession: true,
@@ -5167,13 +5167,13 @@ describe("Daytona sandbox provider plugin", () => {
       expect(sandboxB.process.executeCommand).toHaveBeenCalledTimes(1);
     });
 
-    it("does not share a handle across companies or environments for the same providerLeaseId", async () => {
+    it("does not share a handle across spaces or environments for the same providerLeaseId", async () => {
       process.env.DAYTONA_API_KEY = "host-key";
       mockGet.mockImplementation(async () => createMockSandbox({ id: "sandbox-x" }));
 
-      await plugin.definition.onEnvironmentExecute?.(execParams("sandbox-x", { companyId: "company-1", environmentId: "env-1" }));
-      await plugin.definition.onEnvironmentExecute?.(execParams("sandbox-x", { companyId: "company-2", environmentId: "env-1" }));
-      await plugin.definition.onEnvironmentExecute?.(execParams("sandbox-x", { companyId: "company-1", environmentId: "env-2" }));
+      await plugin.definition.onEnvironmentExecute?.(execParams("sandbox-x", { spaceId: "space-1", environmentId: "env-1" }));
+      await plugin.definition.onEnvironmentExecute?.(execParams("sandbox-x", { spaceId: "space-2", environmentId: "env-1" }));
+      await plugin.definition.onEnvironmentExecute?.(execParams("sandbox-x", { spaceId: "space-1", environmentId: "env-2" }));
 
       // Three distinct composite keys → three independent fetches; the bare
       // providerLeaseId is never a shared cache slot.
@@ -5202,7 +5202,7 @@ describe("Daytona sandbox provider plugin", () => {
       await plugin.definition.onEnvironmentExecute?.(execParams("lease-a")); // miss → get #1 (cached)
       const releasePromise = plugin.definition.onEnvironmentReleaseLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -5235,7 +5235,7 @@ describe("Daytona sandbox provider plugin", () => {
       await plugin.definition.onEnvironmentExecute?.(execParams("lease-a"));
       const releasePromise = plugin.definition.onEnvironmentReleaseLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: true },
@@ -5267,7 +5267,7 @@ describe("Daytona sandbox provider plugin", () => {
       const execute = plugin.definition.onEnvironmentExecute!(execParams("lease-a"));
       await vi.waitFor(() => expect(release).toBeTypeOf("function"));
       const cancellation = plugin.definition.onEnvironmentReleaseLease!({
-        driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+        driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
         providerLeaseId: "lease-a", config: { timeoutMs: 300000, reuseLease: true },
         cancelActiveWork: true,
       });
@@ -5277,7 +5277,7 @@ describe("Daytona sandbox provider plugin", () => {
         expect(await plugin.definition.onIdleDrain!(new AbortController().signal)).toBe("present");
         await expect(plugin.definition.onEnvironmentExecute!(execParams("lease-a"))).rejects.toThrow(/no longer active/);
         await expect(plugin.definition.onEnvironmentResumeLease!({
-          driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+          driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
           providerLeaseId: "lease-a", config: { timeoutMs: 300000, reuseLease: true },
         })).rejects.toThrow(/still settling cancelled work/);
         expect(sandbox.start).not.toHaveBeenCalled();
@@ -5291,7 +5291,7 @@ describe("Daytona sandbox provider plugin", () => {
       expect(await plugin.definition.onIdleDrain!(new AbortController().signal)).toBe("present");
       sandbox.state = "stopped";
       await plugin.definition.onEnvironmentInspectLease!({
-        driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+        driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
         providerLeaseId: "lease-a", config: { apiKey: "host-key" },
       });
       expect(await plugin.definition.onIdleDrain!(new AbortController().signal)).toBe("none");
@@ -5303,7 +5303,7 @@ describe("Daytona sandbox provider plugin", () => {
       sandbox.stop.mockRejectedValue(new Error("provider unavailable"));
       mockGet.mockResolvedValue(sandbox);
       await expect(plugin.definition.onEnvironmentReleaseLease!({
-        driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+        driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
         providerLeaseId: "lease-a", config: { timeoutMs: 300000, reuseLease: true },
         cancelActiveWork: true,
       })).rejects.toThrow("provider unavailable");
@@ -5322,7 +5322,7 @@ describe("Daytona sandbox provider plugin", () => {
       mockGet.mockResolvedValue(sandbox);
       const execute = plugin.definition.onEnvironmentExecute?.(execParams("lease-a"));
       await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
-      const params = { driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+      const params = { driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
         providerLeaseId: "lease-a", config: { timeoutMs: 300000, livenessTimeoutMs: 5, reuseLease: true } };
       try {
         const receipt = kind === "release"
@@ -5355,7 +5355,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       const releasePromise = plugin.definition.onEnvironmentReleaseLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: true },
@@ -5397,7 +5397,7 @@ describe("Daytona sandbox provider plugin", () => {
       await plugin.definition.onEnvironmentExecute?.(execParams("lease-a"));
       const releasePromise = plugin.definition.onEnvironmentReleaseLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: true },
@@ -5407,7 +5407,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       const destroyPromise = plugin.definition.onEnvironmentDestroyLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: true },
@@ -5437,7 +5437,7 @@ describe("Daytona sandbox provider plugin", () => {
       await plugin.definition.onEnvironmentExecute?.(execParams("lease-a"));
       const destroyPromise = plugin.definition.onEnvironmentDestroyLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -5458,7 +5458,7 @@ describe("Daytona sandbox provider plugin", () => {
       await plugin.definition.onEnvironmentExecute?.(execParams("lease-a"));
       const cancelPromise = plugin.definition.onEnvironmentCancelInteractiveSetup?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -5494,7 +5494,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       const cancelPromise = plugin.definition.onEnvironmentCancelInteractiveSetup?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -5516,7 +5516,7 @@ describe("Daytona sandbox provider plugin", () => {
       const hostDir = await fs.mkdtemp(path.join(os.tmpdir(), "daytona-cancel-sync-"));
       const source = path.join(hostDir, "payload.txt");
       await fs.writeFile(source, "payload");
-      const remoteDir = "/home/daytona/paperclip-workspace";
+      const remoteDir = "/home/daytona/outpost-workspace";
 
       const sandbox = createMockSandbox({ id: "lease-a" });
       let resolveUpload!: () => void;
@@ -5529,7 +5529,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       const syncPromise = plugin.definition.onEnvironmentSyncIn?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: { providerLeaseId: "lease-a", metadata: { remoteCwd: remoteDir } },
@@ -5551,7 +5551,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       const cancelPromise = plugin.definition.onEnvironmentCancelInteractiveSetup?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -5594,7 +5594,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       const cancelPromise = plugin.definition.onEnvironmentCancelInteractiveSetup?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -5637,7 +5637,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       const capturePromise = plugin.definition.onEnvironmentCaptureTemplate?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -5647,7 +5647,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       const destroyPromise = plugin.definition.onEnvironmentDestroyLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: false },
@@ -5671,7 +5671,7 @@ describe("Daytona sandbox provider plugin", () => {
 
       const first = await plugin.definition.onEnvironmentResumeLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: true },
@@ -5740,13 +5740,13 @@ describe("Daytona sandbox provider plugin", () => {
       // Resume hits the cache but MUST still verify the sentinel; mismatch expires.
       const resumed = await plugin.definition.onEnvironmentResumeLease?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         providerLeaseId: "lease-a",
         config: { timeoutMs: 300000, reuseLease: true },
         leaseMetadata: {
           workspaceSentinel: {
-            path: "/home/daytona/paperclip-workspace/.paperclip-runtime/reusable-sandbox-lease.json",
+            path: "/home/daytona/outpost-workspace/.outpost-runtime/reusable-sandbox-lease.json",
             token: "expected-token",
             result: "written",
           },
@@ -5967,7 +5967,7 @@ describe("Daytona sandbox provider plugin", () => {
       const sandbox = createMockSandbox({ id: "sandbox-default-target" });
       mockCreate.mockResolvedValue(sandbox);
       mockGet.mockResolvedValue(sandbox);
-      const base = { driverKey: "daytona", companyId: "company-1", environmentId: "env-1" };
+      const base = { driverKey: "daytona", spaceId: "space-1", environmentId: "env-1" };
       const config = { image: "node:20", timeoutMs: 300000, reuseLease: true };
       const lease = await plugin.definition.onEnvironmentAcquireLease!({
         ...base, runId: "run-1", agentId: "agent-1", config,
@@ -5979,7 +5979,7 @@ describe("Daytona sandbox provider plugin", () => {
       expect(realizedConfig).toMatchObject({ target: "us" });
       await plugin.definition.onEnvironmentRealizeWorkspace!({
         ...base, config: realizedConfig, lease,
-        workspace: { remotePath: "/home/daytona/paperclip-workspace" },
+        workspace: { remotePath: "/home/daytona/outpost-workspace" },
       });
       expect(mockGet).not.toHaveBeenCalled();
       await plugin.definition.onEnvironmentReleaseLease!({
@@ -5987,11 +5987,11 @@ describe("Daytona sandbox provider plugin", () => {
       });
       await expect(plugin.definition.onEnvironmentRealizeWorkspace!({
         ...base, config, lease,
-        workspace: { remotePath: "/home/daytona/paperclip-workspace" },
+        workspace: { remotePath: "/home/daytona/outpost-workspace" },
       })).rejects.toThrow(/no longer active/);
       await expect(plugin.definition.onEnvironmentRealizeWorkspace!({
         ...base, config: realizedConfig, lease,
-        workspace: { remotePath: "/home/daytona/paperclip-workspace" },
+        workspace: { remotePath: "/home/daytona/outpost-workspace" },
       })).rejects.toThrow(/no longer active/);
 
       sandbox.state = "stopped";
@@ -6009,8 +6009,8 @@ describe("Daytona sandbox provider plugin", () => {
       });
       await expect(plugin.definition.onEnvironmentRealizeWorkspace!({
         ...base, config: { ...config, ...resumed.metadata }, lease: resumed,
-        workspace: { remotePath: "/home/daytona/paperclip-workspace" },
-      })).resolves.toMatchObject({ cwd: "/home/daytona/paperclip-workspace" });
+        workspace: { remotePath: "/home/daytona/outpost-workspace" },
+      })).resolves.toMatchObject({ cwd: "/home/daytona/outpost-workspace" });
     });
 
     it("realizes the workspace from the acquire-seeded handle without a client.get", async () => {
@@ -6018,7 +6018,7 @@ describe("Daytona sandbox provider plugin", () => {
       const sandbox = createMockSandbox({ id: "sandbox-seed" });
       mockCreate.mockResolvedValue(sandbox);
 
-      const base = { driverKey: "daytona", companyId: "company-1", environmentId: "env-1" };
+      const base = { driverKey: "daytona", spaceId: "space-1", environmentId: "env-1" };
       const config = { image: "node:20", timeoutMs: 300000, reuseLease: false };
 
       const lease = await plugin.definition.onEnvironmentAcquireLease?.({
@@ -6031,21 +6031,21 @@ describe("Daytona sandbox provider plugin", () => {
       const realize = await plugin.definition.onEnvironmentRealizeWorkspace?.({
         ...base,
         lease: { providerLeaseId: lease!.providerLeaseId, metadata: lease!.metadata },
-        workspace: { remotePath: "/home/daytona/paperclip-workspace" },
+        workspace: { remotePath: "/home/daytona/outpost-workspace" },
         config,
       });
 
       // Acquire seeded the handle under the exact scope realize reads, so realize
       // reuses it and never pays a real REST re-fetch.
       expect(mockGet).not.toHaveBeenCalled();
-      expect(sandbox.fs.createFolder).toHaveBeenCalledWith("/home/daytona/paperclip-workspace", "755");
-      expect(realize?.cwd).toBe("/home/daytona/paperclip-workspace");
+      expect(sandbox.fs.createFolder).toHaveBeenCalledWith("/home/daytona/outpost-workspace", "755");
+      expect(realize?.cwd).toBe("/home/daytona/outpost-workspace");
     });
   });
 });
 
 describe("daytona native file-sync hooks", () => {
-  const REMOTE_DIR = "/home/daytona/paperclip-workspace";
+  const REMOTE_DIR = "/home/daytona/outpost-workspace";
   const tempDirs: string[] = [];
 
   async function makeHostDir(): Promise<string> {
@@ -6117,7 +6117,7 @@ describe("daytona native file-sync hooks", () => {
   }) {
     return {
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -6137,7 +6137,7 @@ describe("daytona native file-sync hooks", () => {
   }) {
     return {
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -6175,7 +6175,7 @@ describe("daytona native file-sync hooks", () => {
 
     const params = {
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -6188,7 +6188,7 @@ describe("daytona native file-sync hooks", () => {
               // post-upload command extracts it into the workspace directory. So
               // `writablePath` names the real read-write destination.
               sourcePath: source,
-              targetPath: `${REMOTE_DIR}/.paperclip-runtime/workspace-upload.tar`,
+              targetPath: `${REMOTE_DIR}/.outpost-runtime/workspace-upload.tar`,
               kind: "file" as const,
               access: "rw" as const,
               writablePath: REMOTE_DIR,
@@ -6202,7 +6202,7 @@ describe("daytona native file-sync hooks", () => {
     // The set holds the extract destination, not the staging archive parent.
     const recorded = __getDaytonaWritableDirsForTest(params);
     expect(recorded).toContain(REMOTE_DIR);
-    expect(recorded).not.toContain(`${REMOTE_DIR}/.paperclip-runtime`);
+    expect(recorded).not.toContain(`${REMOTE_DIR}/.outpost-runtime`);
   });
 
   it("falls back to the parent directory of an rw mapping with no writablePath", async () => {
@@ -6215,7 +6215,7 @@ describe("daytona native file-sync hooks", () => {
 
     const params = {
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -6253,7 +6253,7 @@ describe("daytona native file-sync hooks", () => {
 
     const params = {
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -6263,14 +6263,14 @@ describe("daytona native file-sync hooks", () => {
           files: [
             {
               sourcePath: roSource,
-              targetPath: `${REMOTE_DIR}/.paperclip-runtime/project-proj-first`,
+              targetPath: `${REMOTE_DIR}/.outpost-runtime/project-proj-first`,
               kind: "directory" as const,
               access: "ro" as const,
             },
             {
               // An absent `access` defaults to read-only, so it is not recorded.
               sourcePath: defaultSource,
-              targetPath: `${REMOTE_DIR}/.paperclip-runtime/default-upload.tar`,
+              targetPath: `${REMOTE_DIR}/.outpost-runtime/default-upload.tar`,
               kind: "file" as const,
             },
           ],
@@ -6352,7 +6352,7 @@ describe("daytona native file-sync hooks", () => {
 
     const result = await plugin.definition.onEnvironmentSyncIn?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -6374,7 +6374,7 @@ describe("daytona native file-sync hooks", () => {
     // String sources stream from the local path; destinations are reserved temps.
     expect(uploads[0].source).toBe(secretSource);
     for (const upload of uploads) {
-      expect(path.posix.basename(upload.destination)).toMatch(/^\.paperclip-upload-/);
+      expect(path.posix.basename(upload.destination)).toMatch(/^\.outpost-upload-/);
       expect(upload.destination).not.toBe(`${REMOTE_DIR}/.secret/auth.json`);
       // TOCTOU-hardened: the privileged upload destination is a DIRECT child of the
       // workspace root, never a sibling under the target's (sandbox-swappable)
@@ -6386,7 +6386,7 @@ describe("daytona native file-sync hooks", () => {
     // never appears at a widened window; applied via setFilePermissions as "600".
     expect(sandbox.fs.setFilePermissions).toHaveBeenCalledTimes(1);
     const [permPath, perms] = sandbox.fs.setFilePermissions.mock.calls[0] as [string, { mode: string }];
-    expect(path.posix.basename(permPath)).toMatch(/^\.paperclip-upload-/);
+    expect(path.posix.basename(permPath)).toMatch(/^\.outpost-upload-/);
     expect(perms).toEqual({ mode: "600" });
 
     // The setFilePermissions on the temp precedes the mv that promotes it.
@@ -6451,7 +6451,7 @@ describe("daytona native file-sync hooks", () => {
     try {
       await plugin.definition.onEnvironmentSyncIn?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -6550,7 +6550,7 @@ describe("daytona native file-sync hooks", () => {
     try {
       await plugin.definition.onEnvironmentSyncIn?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -6558,7 +6558,7 @@ describe("daytona native file-sync hooks", () => {
           {
             operationId: "sync-op-dir",
             files: [
-              { sourcePath: sourceDir, targetPath: `${REMOTE_DIR}/.paperclip-runtime/assets`, kind: "directory" },
+              { sourcePath: sourceDir, targetPath: `${REMOTE_DIR}/.outpost-runtime/assets`, kind: "directory" },
             ],
           },
         ],
@@ -6591,7 +6591,7 @@ describe("daytona native file-sync hooks", () => {
     try {
       await plugin.definition.onEnvironmentSyncIn?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -6636,7 +6636,7 @@ describe("daytona native file-sync hooks", () => {
     try {
       await plugin.definition.onEnvironmentSyncIn?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -6644,7 +6644,7 @@ describe("daytona native file-sync hooks", () => {
           {
             operationId: "sync-op-dir-order",
             files: [
-              { sourcePath: sourceDir, targetPath: `${REMOTE_DIR}/.paperclip-runtime/assets`, kind: "directory" },
+              { sourcePath: sourceDir, targetPath: `${REMOTE_DIR}/.outpost-runtime/assets`, kind: "directory" },
             ],
           },
         ],
@@ -6676,7 +6676,7 @@ describe("daytona native file-sync hooks", () => {
     try {
       await plugin.definition.onEnvironmentSyncIn?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -6725,7 +6725,7 @@ describe("daytona native file-sync hooks", () => {
     // Preserve-symlink case (followSymlinks falsy → no -h).
     await plugin.definition.onEnvironmentSyncIn?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -6735,7 +6735,7 @@ describe("daytona native file-sync hooks", () => {
           files: [
             {
               sourcePath: sourceDir,
-              targetPath: `${REMOTE_DIR}/.paperclip-runtime/assets`,
+              targetPath: `${REMOTE_DIR}/.outpost-runtime/assets`,
               kind: "directory",
               exclude: ["*.log"],
             },
@@ -6748,7 +6748,7 @@ describe("daytona native file-sync hooks", () => {
     const [uploads] = sandbox.fs.uploadFiles.mock.calls[0] as [Array<{ source: string; destination: string }>];
     expect(uploads).toHaveLength(1);
     expect(uploads[0].source).toMatch(/\.tar\.gz$/);
-    expect(path.posix.basename(uploads[0].destination)).toMatch(/^\.paperclip-upload-.*\.tar\.gz$/);
+    expect(path.posix.basename(uploads[0].destination)).toMatch(/^\.outpost-upload-.*\.tar\.gz$/);
     expect(uploads[0].destination.startsWith(`${REMOTE_DIR}/`)).toBe(true);
 
     // Inspect the real host tar: excluded file gone; symlink preserved AS a link.
@@ -6760,7 +6760,7 @@ describe("daytona native file-sync hooks", () => {
     const mkdirCall = sandbox.process.executeCommand.mock.calls.find(
       ([cmd]) =>
         String(cmd).includes("mkdir -p") &&
-        String(cmd).includes(`'${REMOTE_DIR}/.paperclip-runtime/assets'`) &&
+        String(cmd).includes(`'${REMOTE_DIR}/.outpost-runtime/assets'`) &&
         !String(cmd).includes("tar -xf"),
     );
     expect(mkdirCall).toBeDefined();
@@ -6770,9 +6770,9 @@ describe("daytona native file-sync hooks", () => {
     const extractCommand = String(extractCall?.[0]);
     // The extract is one plain `tar -xf <scratch-tar> -C <target>` command,
     // followed by removing the scratch tar.
-    expect(extractCommand).toContain(".paperclip-runtime/assets");
+    expect(extractCommand).toContain(".outpost-runtime/assets");
     expect(extractCommand).toContain("tar -xf");
-    expect(extractCommand).toMatch(/rm -f .*\.paperclip-upload-.*\.tar\.gz/);
+    expect(extractCommand).toMatch(/rm -f .*\.outpost-upload-.*\.tar\.gz/);
   });
 
   it("syncIn dereferences symlinks to bytes when followSymlinks is true (tar -h)", async () => {
@@ -6791,7 +6791,7 @@ describe("daytona native file-sync hooks", () => {
 
     await plugin.definition.onEnvironmentSyncIn?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -6828,7 +6828,7 @@ describe("daytona native file-sync hooks", () => {
     const secretTarget = path.join(hostDir, "secret.key");
     const result = await plugin.definition.onEnvironmentSyncOut?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -6847,11 +6847,11 @@ describe("daytona native file-sync hooks", () => {
     const [requests] = sandbox.fs.downloadFiles.mock.calls[0] as [Array<{ source: string; destination: string }>];
     expect(requests).toHaveLength(2);
     for (const req of requests) {
-      expect(path.basename(req.destination)).toMatch(/^\.paperclip-upload-/);
+      expect(path.basename(req.destination)).toMatch(/^\.outpost-upload-/);
       // TOCTOU-closed: the download reads a reserved snapshot inside the remote
       // dir, never the mutable original source path.
       expect(req.source.startsWith(`${REMOTE_DIR}/`)).toBe(true);
-      expect(path.posix.basename(req.source)).toMatch(/^\.paperclip-upload-/);
+      expect(path.posix.basename(req.source)).toMatch(/^\.outpost-upload-/);
     }
     expect(requests.map((req) => req.source)).not.toContain(`${REMOTE_DIR}/out/result.txt`);
     expect(requests.map((req) => req.source)).not.toContain(`${REMOTE_DIR}/out/secret.key`);
@@ -6881,7 +6881,7 @@ describe("daytona native file-sync hooks", () => {
     }
     await withEnvironmentSyncErrorCapture(async () => {
       const error = await plugin.definition.onEnvironmentSyncOut!({
-        driverKey: "daytona", companyId: "company-1", environmentId: "env-1",
+        driverKey: "daytona", spaceId: "space-1", environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: true }, lease: syncLease(),
         operations: [{ operationId: "sync-op-missing-sandbox", files: [{
           sourcePath: `${REMOTE_DIR}/out/result.txt`, targetPath: path.join(hostDir, "result.txt"), kind: "file",
@@ -6911,7 +6911,7 @@ describe("daytona native file-sync hooks", () => {
 
     await plugin.definition.onEnvironmentSyncOut?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -6958,7 +6958,7 @@ describe("daytona native file-sync hooks", () => {
     await expect(
       plugin.definition.onEnvironmentSyncOut?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -6997,7 +6997,7 @@ describe("daytona native file-sync hooks", () => {
     await expect(
       plugin.definition.onEnvironmentSyncOut?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -7032,7 +7032,7 @@ describe("daytona native file-sync hooks", () => {
     await expect(
       plugin.definition.onEnvironmentSyncOut?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -7056,7 +7056,7 @@ describe("daytona native file-sync hooks", () => {
 
     const sandbox = createMockSandbox();
     // mkdir + realpath guard succeed; the promoting `mv -f` fails, leaving staged
-    // `.paperclip-upload-*` temps that the error path must sweep with `rm -f`.
+    // `.outpost-upload-*` temps that the error path must sweep with `rm -f`.
     sandbox.process.executeCommand.mockImplementation(async (command: string) => {
       if (command.includes("mv -f")) {
         return { exitCode: 1, result: "mv: permission denied", artifacts: { stdout: "mv: permission denied" } };
@@ -7068,7 +7068,7 @@ describe("daytona native file-sync hooks", () => {
     await expect(
       plugin.definition.onEnvironmentSyncIn?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -7084,7 +7084,7 @@ describe("daytona native file-sync hooks", () => {
     // The upload happened, so a temp was staged; the error path cleans it up.
     expect(sandbox.fs.uploadFiles).toHaveBeenCalledTimes(1);
     const cleanupCall = sandbox.process.executeCommand.mock.calls.find(
-      ([cmd]) => String(cmd).includes("rm -f") && String(cmd).includes(".paperclip-upload-"),
+      ([cmd]) => String(cmd).includes("rm -f") && String(cmd).includes(".outpost-upload-"),
     );
     expect(cleanupCall).toBeDefined();
   });
@@ -7120,7 +7120,7 @@ describe("daytona native file-sync hooks", () => {
     await expect(
       plugin.definition.onEnvironmentSyncOut?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -7138,7 +7138,7 @@ describe("daytona native file-sync hooks", () => {
     await expect(fs.stat(path.join(hostRoot, "escape.txt"))).rejects.toThrow();
   });
 
-  it.each(["../../outside.txt", "/tmp/paperclip-git-workspace-example/skills/demo"])("syncOut refuses a sandbox-authored tarball with escaping symlink target %s", async (linkTarget) => {
+  it.each(["../../outside.txt", "/tmp/outpost-git-workspace-example/skills/demo"])("syncOut refuses a sandbox-authored tarball with escaping symlink target %s", async (linkTarget) => {
     const hostRoot = await makeHostDir();
     const restored = path.join(hostRoot, "restored");
     const sandbox = createMockSandbox();
@@ -7160,7 +7160,7 @@ describe("daytona native file-sync hooks", () => {
     await expect(
       plugin.definition.onEnvironmentSyncOut?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -7202,7 +7202,7 @@ describe("daytona native file-sync hooks", () => {
     await expect(
       plugin.definition.onEnvironmentSyncOut?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -7259,7 +7259,7 @@ describe("daytona native file-sync hooks", () => {
 
     await plugin.definition.onEnvironmentSyncIn?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -7271,7 +7271,7 @@ describe("daytona native file-sync hooks", () => {
     const restored = path.join(hostRoot, "restored");
     await plugin.definition.onEnvironmentSyncOut?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -7306,7 +7306,7 @@ describe("daytona native file-sync hooks", () => {
 
     await plugin.definition.onEnvironmentSyncIn?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -7364,7 +7364,7 @@ describe("daytona native file-sync hooks", () => {
     await expect(
       plugin.definition.onEnvironmentSyncIn?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -7398,7 +7398,7 @@ describe("daytona native file-sync hooks", () => {
     const overlayTar = path.join(hostDir, "workspace.tar");
     await fs.writeFile(gitTar, "git-bytes");
     await fs.writeFile(overlayTar, "overlay-bytes");
-    const runtimeDir = `${REMOTE_DIR}/.paperclip-runtime/adapter`;
+    const runtimeDir = `${REMOTE_DIR}/.outpost-runtime/adapter`;
 
     const sandbox = createMockSandbox();
     mockGet.mockResolvedValue(sandbox);
@@ -7407,7 +7407,7 @@ describe("daytona native file-sync hooks", () => {
     const overlayExtract = "workspace-overlay-extract";
     const result = await plugin.definition.onEnvironmentSyncIn?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -7456,7 +7456,7 @@ describe("daytona native file-sync hooks", () => {
     const overlayTar = path.join(hostDir, "workspace.tar");
     await fs.writeFile(gitTar, "git-bytes");
     await fs.writeFile(overlayTar, "overlay-bytes");
-    const runtimeDir = `${REMOTE_DIR}/.paperclip-runtime/adapter`;
+    const runtimeDir = `${REMOTE_DIR}/.outpost-runtime/adapter`;
 
     const sandbox = createMockSandbox();
     // The first (git-history) extract exits non-zero; every transfer/guard script
@@ -7472,7 +7472,7 @@ describe("daytona native file-sync hooks", () => {
     await expect(
       plugin.definition.onEnvironmentSyncIn?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -7510,7 +7510,7 @@ describe("daytona native file-sync hooks", () => {
     mockGet.mockResolvedValue(baseline);
     await plugin.definition.onEnvironmentSyncIn?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -7531,7 +7531,7 @@ describe("daytona native file-sync hooks", () => {
     mockGet.mockResolvedValue(withEmpty);
     await plugin.definition.onEnvironmentSyncIn?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       config: { timeoutMs: 300000, reuseLease: false },
       lease: syncLease(),
@@ -7581,7 +7581,7 @@ describe("daytona native file-sync hooks", () => {
     );
     expect(destinations).toHaveLength(2);
     for (const destination of destinations) {
-      expect(path.posix.basename(destination)).toMatch(/^\.paperclip-upload-/);
+      expect(path.posix.basename(destination)).toMatch(/^\.outpost-upload-/);
       expect(path.posix.dirname(destination)).toBe(REMOTE_DIR);
     }
     expect(new Set(destinations).size).toBe(destinations.length);
@@ -7622,7 +7622,7 @@ describe("daytona native file-sync hooks", () => {
     expect(sources).toHaveLength(2);
     for (const source of sources) {
       expect(source.startsWith(`${REMOTE_DIR}/`)).toBe(true);
-      expect(path.posix.basename(source)).toMatch(/^\.paperclip-upload-/);
+      expect(path.posix.basename(source)).toMatch(/^\.outpost-upload-/);
     }
     expect(new Set(sources).size).toBe(sources.length);
     expect(await fs.readFile(targetA, "utf8")).toBe("bytes");
@@ -7676,7 +7676,7 @@ describe("daytona native file-sync hooks", () => {
 
     const destroyCall = plugin.definition.onEnvironmentDestroyLease?.({
       driverKey: "daytona",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "env-1",
       providerLeaseId: "sandbox-123",
       config: { timeoutMs: 300000, reuseLease: false },
@@ -7720,7 +7720,7 @@ describe("daytona native file-sync hooks", () => {
     try {
       await plugin.definition.onEnvironmentSyncOut?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -7761,7 +7761,7 @@ describe("daytona native file-sync hooks", () => {
     try {
       await plugin.definition.onEnvironmentSyncOut?.({
         driverKey: "daytona",
-        companyId: "company-1",
+        spaceId: "space-1",
         environmentId: "env-1",
         config: { timeoutMs: 300000, reuseLease: false },
         lease: syncLease(),
@@ -7835,7 +7835,7 @@ describe("daytona manifest form defaults", () => {
     );
   });
 
-  it("declares no default on secret-ref fields, which would be persisted as a company secret", () => {
+  it("declares no default on secret-ref fields, which would be persisted as a space secret", () => {
     for (const prop of Object.values(properties)) {
       if (prop.format === "secret-ref") {
         expect(prop.default).toBeUndefined();

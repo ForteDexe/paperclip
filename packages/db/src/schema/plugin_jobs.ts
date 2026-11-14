@@ -8,7 +8,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { plugins } from "./plugins.js";
 import type { PluginJobStatus, PluginJobRunStatus, PluginJobRunTrigger } from "@outpost/shared";
 
@@ -81,8 +81,8 @@ export const pluginJobRuns = pgTable(
     pluginId: uuid("plugin_id")
       .notNull()
       .references(() => plugins.id, { onDelete: "cascade" }),
-    /** Company scope — NULL for instance-level jobs. */
-    companyId: uuid("company_id").references(() => companies.id, { onDelete: "cascade" }),
+    /** Space scope — NULL for instance-level jobs. */
+    spaceId: uuid("space_id").references(() => spaces.id, { onDelete: "cascade" }),
     /** What caused this run to start (`"scheduled"` or `"manual"`). */
     trigger: text("trigger").$type<PluginJobRunTrigger>().notNull(),
     /** Current lifecycle state of this run. */
@@ -100,7 +100,7 @@ export const pluginJobRuns = pgTable(
   (table) => ({
     jobIdx: index("plugin_job_runs_job_idx").on(table.jobId),
     pluginIdx: index("plugin_job_runs_plugin_idx").on(table.pluginId),
-    companyIdx: index("plugin_job_runs_company_idx").on(table.companyId),
+    spaceIdx: index("plugin_job_runs_space_idx").on(table.spaceId),
     statusIdx: index("plugin_job_runs_status_idx").on(table.status),
   }),
 );

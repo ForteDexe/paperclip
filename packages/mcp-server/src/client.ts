@@ -1,6 +1,6 @@
-import type { PaperclipMcpConfig } from "./config.js";
+import type { OutpostMcpConfig } from "./config.js";
 
-export class PaperclipApiError extends Error {
+export class OutpostApiError extends Error {
   readonly status: number;
   readonly method: string;
   readonly path: string;
@@ -14,7 +14,7 @@ export class PaperclipApiError extends Error {
     message: string;
   }) {
     super(input.message);
-    this.name = "PaperclipApiError";
+    this.name = "OutpostApiError";
     this.status = input.status;
     this.method = input.method;
     this.path = input.path;
@@ -48,21 +48,21 @@ async function parseResponseBody(response: Response): Promise<unknown> {
   }
 }
 
-export class PaperclipApiClient {
-  constructor(private readonly config: PaperclipMcpConfig) {}
+export class OutpostApiClient {
+  constructor(private readonly config: OutpostMcpConfig) {}
 
   get defaults() {
     return {
-      companyId: this.config.companyId,
+      spaceId: this.config.spaceId,
       agentId: this.config.agentId,
       runId: this.config.runId,
     };
   }
 
-  resolveCompanyId(companyId?: string | null): string {
-    const resolved = companyId?.trim() || this.config.companyId;
+  resolveSpaceId(spaceId?: string | null): string {
+    const resolved = spaceId?.trim() || this.config.spaceId;
     if (!resolved) {
-      throw new Error("companyId is required because OUTPOST_COMPANY_ID is not set");
+      throw new Error("spaceId is required because OUTPOST_SPACE_ID is not set");
     }
     return resolved;
   }
@@ -89,7 +89,7 @@ export class PaperclipApiClient {
       headers["Content-Type"] = "application/json";
     }
     if ((options.includeRunId ?? isWriteMethod(method)) && this.config.runId) {
-      headers["X-Paperclip-Run-Id"] = this.config.runId;
+      headers["X-Outpost-Run-Id"] = this.config.runId;
     }
 
     const response = await fetch(url, {
@@ -100,7 +100,7 @@ export class PaperclipApiClient {
     const parsedBody = await parseResponseBody(response);
 
     if (!response.ok) {
-      throw new PaperclipApiError({
+      throw new OutpostApiError({
         status: response.status,
         method: method.toUpperCase(),
         path,

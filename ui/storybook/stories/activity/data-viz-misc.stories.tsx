@@ -23,7 +23,7 @@ import {
   SuccessRateChart,
 } from "@/components/ActivityCharts";
 import { AsciiArtAnimation } from "@/components/AsciiArtAnimation";
-import { CompanyPatternIcon } from "@/components/CompanyPatternIcon";
+import { SpacePatternIcon } from "@/components/SpacePatternIcon";
 import { EntityRow } from "@/components/EntityRow";
 import { FilterBar, type FilterValue } from "@/components/FilterBar";
 import { KanbanBoard } from "@/components/KanbanBoard";
@@ -50,15 +50,15 @@ import {
   storybookAgents,
   storybookIssues,
   storybookLiveRuns,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 
-const companyId = "company-storybook";
+const spaceId = "space-storybook";
 const primaryIssueId = "issue-storybook-1";
 
 function StoryShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="paperclip-story">
-      <main className="paperclip-story__inner space-y-6">{children}</main>
+    <div className="outpost-story">
+      <main className="outpost-story__inner space-y-6">{children}</main>
     </div>
   );
 }
@@ -73,9 +73,9 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="paperclip-story__frame overflow-hidden">
+    <section className="outpost-story__frame overflow-hidden">
       <div className="border-b border-border px-5 py-4">
-        <div className="paperclip-story__label">{eyebrow}</div>
+        <div className="outpost-story__label">{eyebrow}</div>
         <h2 className="mt-1 text-xl font-semibold">{title}</h2>
       </div>
       <div className="p-5">{children}</div>
@@ -94,7 +94,7 @@ function makeHeartbeatRun(overrides: Partial<HeartbeatRun>): HeartbeatRun {
   const createdAt = overrides.createdAt ?? daysAgo(1);
   const run: HeartbeatRun = {
     id: "run-fixture",
-    companyId,
+    spaceId,
     agentId: "agent-codex",
     issueId: null,
     responsibleUserId: null,
@@ -140,7 +140,7 @@ function makeHeartbeatRun(overrides: Partial<HeartbeatRun>): HeartbeatRun {
     nextAction: null,
     contextSnapshot: null,
     ...overrides,
-    scopeKind: overrides.scopeKind ?? "company",
+    scopeKind: overrides.scopeKind ?? "space",
     createdAt,
     updatedAt: overrides.updatedAt ?? createdAt,
   };
@@ -175,7 +175,7 @@ const kanbanIssues: Issue[] = [
     id: "issue-kanban-backlog",
     identifier: "PAP-1701",
     issueNumber: 1701,
-    title: "Sketch company analytics dashboard",
+    title: "Sketch space analytics dashboard",
     status: "backlog",
     priority: "low",
     assigneeAgentId: "agent-cto",
@@ -192,8 +192,8 @@ const kanbanIssues: Issue[] = [
 ];
 
 const packageFiles: Record<string, string> = {
-  "COMPANY.md": "---\nname: Paperclip Storybook\nkind: company\n---\nFixture company package for UI review.",
-  "agents/codexcoder/AGENTS.md": "---\nname: CodexCoder\nskills:\n  - frontend-design\n  - paperclip\n---\nShips product UI and verifies changes.",
+  "COMPANY.md": "---\nname: Outpost Storybook\nkind: space\n---\nFixture space package for UI review.",
+  "agents/codexcoder/AGENTS.md": "---\nname: CodexCoder\nskills:\n  - frontend-design\n  - outpost\n---\nShips product UI and verifies changes.",
   "agents/qachecker/AGENTS.md": "---\nname: QAChecker\nskills:\n  - web-design-guidelines\n---\nReviews browser behavior and acceptance criteria.",
   "projects/board-ui/PROJECT.md": "---\ntitle: Board UI\nstatus: in_progress\n---\nStorybook and operator control-plane surfaces.",
   "tasks/PAP-1641.md": "---\ntitle: Create super-detailed storybooks\npriority: high\n---\nParent issue for Storybook coverage.",
@@ -331,11 +331,11 @@ function OpenOnboardingOnMount({ initialStep }: { initialStep: 1 | 2 }) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    queryClient.setQueryData(queryKeys.agents.adapterModels(companyId, "claude_local"), [
+    queryClient.setQueryData(queryKeys.agents.adapterModels(spaceId, "claude_local"), [
       { id: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
       { id: "claude-opus-4-1", label: "Claude Opus 4.1" },
     ]);
-    openOnboarding(initialStep === 1 ? { initialStep } : { initialStep, companyId });
+    openOnboarding(initialStep === 1 ? { initialStep } : { initialStep, spaceId });
   }, [initialStep, openOnboarding, queryClient]);
 
   return <OnboardingWizard />;
@@ -387,7 +387,7 @@ function PackageFileTreeDemo({ empty = false }: { empty?: boolean }) {
 
   return (
     <StoryShell>
-      <Section eyebrow="PackageFileTree" title={empty ? "Empty package export" : "Selectable company package tree"}>
+      <Section eyebrow="PackageFileTree" title={empty ? "Empty package export" : "Selectable space package tree"}>
         {empty ? (
           <div className="rounded-lg border border-dashed border-border bg-background/70 p-6 text-sm text-muted-foreground">
             No files are included in this package preview.
@@ -556,9 +556,9 @@ function SwipeToArchiveDemo({ disabled = false }: { disabled?: boolean }) {
   );
 }
 
-function CompanyPatternIconMatrix() {
-  const companies = [
-    "Paperclip Storybook",
+function SpacePatternIconMatrix() {
+  const spaces = [
+    "Outpost Storybook",
     "Research Bureau",
     "Launch Ops",
     "Atlas Finance",
@@ -567,17 +567,17 @@ function CompanyPatternIconMatrix() {
 
   return (
     <StoryShell>
-      <Section eyebrow="CompanyPatternIcon" title="Generated company pattern icons by size">
+      <Section eyebrow="SpacePatternIcon" title="Generated space pattern icons by size">
         <div className="grid gap-4 md:grid-cols-2">
-          {companies.map((companyName) => (
-            <Card key={companyName} className="shadow-none">
+          {spaces.map((spaceName) => (
+            <Card key={spaceName} className="shadow-none">
               <CardHeader>
-                <CardTitle className="text-base">{companyName}</CardTitle>
-                <CardDescription>Hue derived from the company name</CardDescription>
+                <CardTitle className="text-base">{spaceName}</CardTitle>
+                <CardDescription>Hue derived from the space name</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap items-end gap-4">
                 {sizes.map((size) => (
-                  <CompanyPatternIcon key={size} companyName={companyName} className={size} />
+                  <SpacePatternIcon key={size} spaceName={spaceName} className={size} />
                 ))}
               </CardContent>
             </Card>
@@ -591,7 +591,7 @@ function CompanyPatternIconMatrix() {
 function AsciiArtAnimationDemo({ loading = false }: { loading?: boolean }) {
   return (
     <StoryShell>
-      <Section eyebrow="AsciiArtAnimation" title={loading ? "Loading art surface" : "Animated ASCII paperclip field"}>
+      <Section eyebrow="AsciiArtAnimation" title={loading ? "Loading art surface" : "Animated ASCII outpost field"}>
         <div className="h-[360px] overflow-hidden rounded-xl border border-border bg-background">
           {loading ? (
             <div className="flex h-full items-center justify-center gap-3 text-sm text-muted-foreground">
@@ -651,7 +651,7 @@ const meta = {
           "Fixture-backed stories for charting, board, filtering, live run, onboarding, package preview, entity row, mobile gesture, generated icon, ASCII animation, and skeleton states.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "activity/overview"
       ],
@@ -710,8 +710,8 @@ export const LiveRunWidgetEmpty: Story = {
   render: () => <LiveRunWidgetStory empty />,
 };
 
-export const OnboardingWizardCompanyStep: Story = {
-  name: "OnboardingWizard / Company Step",
+export const OnboardingWizardSpaceStep: Story = {
+  name: "OnboardingWizard / Space Step",
   render: () => <OpenOnboardingOnMount initialStep={1} />,
 };
 
@@ -750,9 +750,9 @@ export const SwipeToArchiveDisabled: Story = {
   render: () => <SwipeToArchiveDemo disabled />,
 };
 
-export const CompanyPatternIconSizes: Story = {
-  name: "CompanyPatternIcon / Sizes",
-  render: () => <CompanyPatternIconMatrix />,
+export const SpacePatternIconSizes: Story = {
+  name: "SpacePatternIcon / Sizes",
+  render: () => <SpacePatternIconMatrix />,
 };
 
 export const AsciiArtAnimationPopulated: Story = {

@@ -7,7 +7,7 @@ const goodRun = (extra: Partial<ContentionRun> = {}): ContentionRun => ({ id: "r
   logEvents: 120, logBytes: 900_000, receipts: 14, duplicateReceipts: [], terminalReceipt: true, nativeProducer: true, costAccounted: true,
   recordedCostCents: 12.5, costEventCents: 12.5, ...extra });
 const evidence = (runs: ContentionRun[], extra: Partial<ContentionEvidence> = {}): ContentionEvidence => ({ runs,
-  companyCostEventCents: 12.5, summary: { spendCents: 12.5, pendingRunCount: 0 }, error: null, ...extra });
+  spaceCostEventCents: 12.5, summary: { spendCents: 12.5, pendingRunCount: 0 }, error: null, ...extra });
 const failing = (result: ReturnType<typeof contentionChecks>) => result.filter(check => !check.ok).map(check => check.name);
 
 describe("L1 contention oracle", () => {
@@ -25,7 +25,7 @@ describe("L1 contention oracle", () => {
   it("fails duplicated receipts and spend that does not add up", () => {
     expect(failing(contentionChecks(evidence([goodRun({ duplicateReceipts: ["s:evt-3"] })])))).toEqual(["usage_receipts_committed_once"]);
     expect(failing(contentionChecks(evidence([goodRun({ costEventCents: 25 })])))).toEqual(["run_spend_matches_cost_events"]);
-    expect(failing(contentionChecks(evidence([goodRun()], { summary: { spendCents: 12.5, pendingRunCount: 1 } })))).toEqual(["company_spend_settled"]);
+    expect(failing(contentionChecks(evidence([goodRun()], { summary: { spendCents: 12.5, pendingRunCount: 1 } })))).toEqual(["space_spend_settled"]);
   });
 
   it("fails a task that did not produce the contention it tests", () => {

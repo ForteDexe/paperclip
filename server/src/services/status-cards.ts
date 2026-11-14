@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { and, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import {
   agents,
-  companies,
+  spaces,
   costEvents,
   documentRevisions,
   documents,
@@ -16,18 +16,18 @@ import {
   type Db,
 } from "@outpost/db";
 import type {
-  CompanySearchIssueSummary,
+  SpaceSearchIssueSummary,
   CreateStatusCard,
   PatchStatusCard,
   WriteStatusCardQuery,
   WriteStatusCardSummary,
 } from "@outpost/shared";
-import { companySearchQuerySchema, ISSUE_PRIORITIES, ISSUE_STATUSES, STATUS_CARD_AGENT_MAX_CARDS } from "@outpost/shared";
+import { spaceSearchQuerySchema, ISSUE_PRIORITIES, ISSUE_STATUSES, STATUS_CARD_AGENT_MAX_CARDS } from "@outpost/shared";
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { readBuiltInAgentMarker } from "../lib/built-in-agent-metadata.js";
 import { builtInAgentService } from "./built-in-agents.js";
-import { companySearchService } from "./company-search.js";
+import { spaceSearchService } from "./space-search.js";
 import { executeIssuePostCommitActions, issueService, type IssuePostCommitAction } from "./issues.js";
 import { publishActivity, type ActivityPublication } from "./activity-log.js";
 import { SUMMARIZER_BUILT_IN_KEY } from "./summary-slots.js";
@@ -79,7 +79,7 @@ function compilePayload(card: StatusCardRow, generationIssueId: string | null, h
   return {
     operation: "compile",
     statusCardId: card.id,
-    companyId: card.companyId,
+    spaceId: card.spaceId,
     generationIssueId,
     promptHash: hash,
   };
@@ -93,21 +93,21 @@ function updateDescription(input: {
   kind: "full" | "incremental";
   trigger: "manual" | "interval" | "reactive" | "restore";
   previousSummary: string | null;
-  snapshot: CompanySearchIssueSummary[];
+  snapshot: SpaceSearchIssueSummary[];
 }) {
-  const mechanical = `Return the completed Markdown through \`PUT /api/status-cards/${input.card.id}/summary\` with \`generationIssueId\`, a short non-empty \`changeSummary\`, and the model id. Do not call issue-list endpoints. While you work, write short plain-text \`STATUS:\` lines; before the write, put the final Markdown between a \`<<<SUMMARY-DRAFT>>>\` line and a \`<<<END-SUMMARY-DRAFT>>>\` line in your reply text. These lines only drive the card's live preview; the PUT body is the plain Markdown, and there is no other format to look up. If you cannot produce a summary from what you can read, comment the reason on this task and set it to blocked; the card then keeps its previous summary and shows the failure. Issues the Markdown references by identifier (e.g. ABC-123) or issue link automatically join the card's watched set, so reference an issue only when the board should keep tracking it.`;
-  // The card prompt is the board's single standing request: it already says
+  const mechanical = `Return the completed Markdown through \`PUT /api/status-cards/${input.card.id}/summary\` with \`generationIssueId\`, a short non-empty \`changeSummary\`, and the model id. Do not call issue-list endpoints. While you work, write short plain-text \`STATUS:\` lines; before the write, put the final Markdown between a \`<<<SUMMARY-DRAFT>>>\` line and a \`<<<END-SUMMARY-DRAFT>>>\` line in your reply text. These lines only drive the card's live preview; the PUT body is the plain Markdown, and there is no other format to look up. If you cannot produce a summary from what you can read, comment the reason on this task and set it to blocked; the card then keeps its previous summary and shows the failure. Issues the Markdown references by identifier (e.g. ABC-123) or issue link automatically join the card's watched set, so reference an issue only when the operator should keep tracking it.`;
+  // The card prompt is the operator's single standing request: it already says
   // what to watch and how the update should read, so it doubles as the
   // summary instructions — there is no separate default prompt to append to
   // or replace.
   const task = `${input.kind === "incremental"
     ? "Patch the previous status summary using only the changed issues."
-    : "Rebuild the status summary from the bounded issue snapshot."} Write the update the way the card prompt below asks — it describes what the board is watching and how they want the update written. Honor it when compatible with the trusted mechanical requirements, and default to roughly 300–500 output tokens when it does not say otherwise.`;
-  const promptBlock = `\n\n## Card prompt (board-provided)\n\n${untrustedPromptBlock("card-prompt", input.card.interestPrompt)}`;
+    : "Rebuild the status summary from the bounded issue snapshot."} Write the update the way the card prompt below asks — it describes what the operator is watching and how they want the update written. Honor it when compatible with the trusted mechanical requirements, and default to roughly 300–500 output tokens when it does not say otherwise.`;
+  const promptBlock = `\n\n## Card prompt (operator-provided)\n\n${untrustedPromptBlock("card-prompt", input.card.interestPrompt)}`;
   const payload = {
     operation: "update",
     statusCardId: input.card.id,
-    companyId: input.card.companyId,
+    spaceId: input.card.spaceId,
     generationIssueId: input.generationIssueId,
     fingerprint: input.fingerprint,
     fingerprintHash: statusCardFingerprintHash(input.fingerprint),
@@ -121,7 +121,7 @@ function updateDescription(input: {
 
 /**
  * Query-compilation guidance inlined into every compile task. The compile task
- * can be assigned to any company agent (the built-in Summarizer or a per-card
+ * can be assigned to any space agent (the built-in Summarizer or a per-card
  * override), and nothing provisions the `status-card-query` catalog skill to
  * that agent, so the task must carry everything the run needs instead of
  * pointing it at a skill it may not have.
@@ -134,14 +134,14 @@ function compileQueryGuidance(card: StatusCardRow, generationIssueId: string | n
 
 ## Query format
 
-\`queries\` is an array of 1–10 company-search query objects with union semantics: an issue matching any query belongs to the card. Prefer one narrow query; add another only for genuinely distinct populations. Each object accepts:
+\`queries\` is an array of 1–10 space-search query objects with union semantics: an issue matching any query belongs to the card. Prefer one narrow query; add another only for genuinely distinct populations. Each object accepts:
 
 - \`scope\`: always \`"issues"\`.
 - \`q\`: optional short free text, only for concepts no structured filter covers. Never paste the whole prompt into it.
 - \`status\`: array of ${ISSUE_STATUSES.map((status) => `\`${status}\``).join(", ")}.
 - \`priority\`: array of ${ISSUE_PRIORITIES.map((priority) => `\`${priority}\``).join(", ")}.
 - \`assigneeAgentId\` / \`assigneeUserId\`: one resolved assignee id.
-- \`projectId\` / \`labelId\`: one resolved UUID each. Resolve names with \`GET /api/companies/${card.companyId}/projects\` and \`GET /api/companies/${card.companyId}/labels\`; never put a name in an id field. Use separate query objects for multiple projects or labels.
+- \`projectId\` / \`labelId\`: one resolved UUID each. Resolve names with \`GET /api/spaces/${card.spaceId}/projects\` and \`GET /api/spaces/${card.spaceId}/labels\`; never put a name in an id field. Use separate query objects for multiple projects or labels.
 - \`updatedWithin\`: a bounded window such as \`24h\`, \`7d\`, \`4w\`, or \`3m\`. Add it whenever the prompt implies recency (recent, this week, lately, current).
 - \`sort\`: \`relevance\`, \`updated\`, \`created\`, or \`priority\`.
 - \`limit\`: 1–50, normally 20. \`offset\`: 0.
@@ -157,7 +157,7 @@ Example \`PUT /api/status-cards/${card.id}/query\` body:
 
 export function compileDescription(card: StatusCardRow, generationIssueId: string | null, hash: string) {
   const payload = compilePayload(card, generationIssueId, hash);
-  return `Compile this status-card interest prompt into structured Outpost company-search queries, then continue in the same run and write the first full summary.
+  return `Compile this status-card interest prompt into structured Outpost space-search queries, then continue in the same run and write the first full summary.
 
 ${compileQueryGuidance(card, generationIssueId)}
 
@@ -194,11 +194,11 @@ export function statusCardService(
   deps: { issuesSvc?: ReturnType<typeof issueService> } = {},
 ) {
   const issuesSvc = () => deps.issuesSvc ?? issueService(db);
-  const searchSvc = companySearchService(db);
+  const searchSvc = spaceSearchService(db);
   type Transaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
-  function mutate<T>(companyId: string, write: (tx: Transaction) => Promise<T>) {
+  function mutate<T>(spaceId: string, write: (tx: Transaction) => Promise<T>) {
     return db.transaction(async tx => {
-      await notifyStatusCardEvaluation(tx, companyId);
+      await notifyStatusCardEvaluation(tx, spaceId);
       return write(tx);
     });
   }
@@ -214,7 +214,7 @@ export function statusCardService(
       return { count: visible.length, privacyRedacted: total.length !== visible.length };
     } catch (err) {
       logger.warn(
-        { err, cardId: card.id, companyId: card.companyId },
+        { err, cardId: card.id, spaceId: card.spaceId },
         "status card watched-issue count hydration failed",
       );
       return undefined;
@@ -228,7 +228,7 @@ export function statusCardService(
       card.documentId
         ? db.select({ latestBody: documents.latestBody })
           .from(documents)
-          .where(and(eq(documents.id, card.documentId), eq(documents.companyId, card.companyId)))
+          .where(and(eq(documents.id, card.documentId), eq(documents.spaceId, card.spaceId)))
           .then((rows) => rows[0] ?? null)
         : Promise.resolve(null),
       db.select({
@@ -253,11 +253,11 @@ export function statusCardService(
     };
   }
 
-  async function list(companyId: string, archived: boolean, options: StatusCardReadOptions = {}) {
+  async function list(spaceId: string, archived: boolean, options: StatusCardReadOptions = {}) {
     const cards = await db
       .select()
       .from(statusCards)
-      .where(and(eq(statusCards.companyId, companyId), archived ? isNotNull(statusCards.archivedAt) : isNull(statusCards.archivedAt)))
+      .where(and(eq(statusCards.spaceId, spaceId), archived ? isNotNull(statusCards.archivedAt) : isNull(statusCards.archivedAt)))
       .orderBy(desc(statusCards.updatedAt));
     return Promise.all(cards.map((card) => hydrate(card, options)));
   }
@@ -266,17 +266,17 @@ export function statusCardService(
     return db.select().from(statusCards).where(eq(statusCards.id, id)).then((rows) => rows[0] ?? null);
   }
 
-  async function create(companyId: string, input: CreateStatusCard, actor: StatusCardActor) {
+  async function create(spaceId: string, input: CreateStatusCard, actor: StatusCardActor) {
     if (input.agentId) {
       const summarizer = await db
         .select({ id: agents.id })
         .from(agents)
-        .where(and(eq(agents.id, input.agentId), eq(agents.companyId, companyId)))
+        .where(and(eq(agents.id, input.agentId), eq(agents.spaceId, spaceId)))
         .then((rows) => rows[0] ?? null);
-      if (!summarizer) throw unprocessable("Summarizer agent must belong to this company");
+      if (!summarizer) throw unprocessable("Summarizer agent must belong to this space");
     }
     const values = {
-      companyId,
+      spaceId,
       createdByAgentId: actor.agentId,
       createdByUserId: actor.userId,
       title: input.title ?? null,
@@ -288,22 +288,22 @@ export function statusCardService(
     };
     const agentId = actor.agentId;
     if (!agentId) {
-      return mutate(companyId, tx => tx.insert(statusCards).values(values).returning().then((rows) => rows[0]!));
+      return mutate(spaceId, tx => tx.insert(statusCards).values(values).returning().then((rows) => rows[0]!));
     }
 
-    return mutate(companyId, async (tx) => {
+    return mutate(spaceId, async (tx) => {
       const author = await tx
         .select({ id: agents.id })
         .from(agents)
-        .where(and(eq(agents.id, agentId), eq(agents.companyId, companyId)))
+        .where(and(eq(agents.id, agentId), eq(agents.spaceId, spaceId)))
         .for("update")
         .then((rows) => rows[0] ?? null);
-      if (!author) throw forbidden("Agent cannot author status cards for this company");
+      if (!author) throw forbidden("Agent cannot author status cards for this space");
 
       const authoredCount = await tx
         .select({ count: sql<number>`count(*)::int` })
         .from(statusCards)
-        .where(and(eq(statusCards.companyId, companyId), eq(statusCards.createdByAgentId, agentId)))
+        .where(and(eq(statusCards.spaceId, spaceId), eq(statusCards.createdByAgentId, agentId)))
         .then((rows) => rows[0]?.count ?? 0);
       if (authoredCount >= STATUS_CARD_AGENT_MAX_CARDS) {
         throw unprocessable(`Agents can author at most ${STATUS_CARD_AGENT_MAX_CARDS} status cards`);
@@ -319,9 +319,9 @@ export function statusCardService(
       const summarizer = await db
         .select({ id: agents.id })
         .from(agents)
-        .where(and(eq(agents.id, input.agentId), eq(agents.companyId, card.companyId)))
+        .where(and(eq(agents.id, input.agentId), eq(agents.spaceId, card.spaceId)))
         .then((rows) => rows[0] ?? null);
-      if (!summarizer) throw unprocessable("Summarizer agent must belong to this company");
+      if (!summarizer) throw unprocessable("Summarizer agent must belong to this space");
     }
     const agentChanged = input.agentId !== undefined && input.agentId !== card.agentId;
     const archiveChanged = input.archived !== undefined && input.archived !== Boolean(card.archivedAt);
@@ -359,7 +359,7 @@ export function statusCardService(
           }
         : {}),
     };
-    const next = await mutate(card.companyId, tx => tx.update(statusCards).set({
+    const next = await mutate(card.spaceId, tx => tx.update(statusCards).set({
       ...values,
       ...(archiveChanged && input.archived ? { generatingIssueId: null, pendingChangeHash: null } : {}),
     }).where(eq(statusCards.id, card.id)).returning().then((rows) => rows[0]!));
@@ -375,14 +375,14 @@ export function statusCardService(
   async function remove(id: string) {
     const card = await getById(id);
     if (!card) return null;
-    return mutate(card.companyId, tx => tx.delete(statusCards).where(eq(statusCards.id, id)).returning().then((rows) => rows[0] ?? null));
+    return mutate(card.spaceId, tx => tx.delete(statusCards).where(eq(statusCards.id, id)).returning().then((rows) => rows[0] ?? null));
   }
 
   async function listUpdates(cardId: string) {
     return db.select().from(statusCardUpdates).where(eq(statusCardUpdates.cardId, cardId)).orderBy(desc(statusCardUpdates.startedAt));
   }
 
-  async function listSummaryRevisions(card: Pick<StatusCardRow, "companyId" | "documentId">) {
+  async function listSummaryRevisions(card: Pick<StatusCardRow, "spaceId" | "documentId">) {
     if (!card.documentId) return [];
     return db
       .select({
@@ -394,13 +394,13 @@ export function statusCardService(
         createdAt: documentRevisions.createdAt,
       })
       .from(documentRevisions)
-      .where(and(eq(documentRevisions.documentId, card.documentId), eq(documentRevisions.companyId, card.companyId)))
+      .where(and(eq(documentRevisions.documentId, card.documentId), eq(documentRevisions.spaceId, card.spaceId)))
       .orderBy(desc(documentRevisions.revisionNumber));
   }
 
   /**
    * The agent that runs this card's generation tasks: the per-card override
-   * when one is set (and still exists in the company), otherwise the built-in
+   * when one is set (and still exists in the space), otherwise the built-in
    * Summarizer.
    */
   async function resolveSummarizerAgentId(card: StatusCardRow): Promise<string> {
@@ -408,11 +408,11 @@ export function statusCardService(
       const override = await db
         .select({ id: agents.id })
         .from(agents)
-        .where(and(eq(agents.id, card.agentId), eq(agents.companyId, card.companyId)))
+        .where(and(eq(agents.id, card.agentId), eq(agents.spaceId, card.spaceId)))
         .then((rows) => rows[0] ?? null);
       if (override) return override.id;
     }
-    const builtIn = await builtInAgentService(db).get(card.companyId, SUMMARIZER_BUILT_IN_KEY);
+    const builtIn = await builtInAgentService(db).get(card.spaceId, SUMMARIZER_BUILT_IN_KEY);
     if (builtIn.status !== "ready" || !builtIn.agentId) {
       throw unprocessable("Summarizer built-in agent is not configured", {
         code: "summarizer_not_configured",
@@ -443,7 +443,7 @@ export function statusCardService(
 
     let deduplicated = false;
     const createdAt = new Date();
-    const created = await issuesSvc().create(card.companyId, {
+    const created = await issuesSvc().create(card.spaceId, {
       title: `Compile status card: ${card.title ?? card.interestPrompt.slice(0, 80)}`,
       description: compileDescription(card, null, hash),
       status: "todo",
@@ -466,7 +466,7 @@ export function statusCardService(
     const generationIssue = await issuesSvc().update(reopened!.id, {
       description: compileDescription(card, reopened!.id, hash),
     });
-    const [nextCard] = await mutate(card.companyId, tx => tx
+    const [nextCard] = await mutate(card.spaceId, tx => tx
       .update(statusCards)
       .set({ generatingIssueId: generationIssue!.id, state: "compiling", failureReason: null, updatedAt: createdAt })
       .where(eq(statusCards.id, card.id))
@@ -488,21 +488,21 @@ export function statusCardService(
     // may write. Both stay eligible so a generation task created before an
     // agent switch can still land its result.
     const isCardAgent = Boolean(card.agentId && agent?.id === card.agentId);
-    if (!agent || agent.companyId !== card.companyId || (!isCardAgent && readBuiltInAgentMarker(agent.metadata)?.key !== SUMMARIZER_BUILT_IN_KEY)) {
+    if (!agent || agent.spaceId !== card.spaceId || (!isCardAgent && readBuiltInAgentMarker(agent.metadata)?.key !== SUMMARIZER_BUILT_IN_KEY)) {
       throw forbidden("Only the card's summarizer agent may write status cards");
     }
     if (!card.generatingIssueId || card.generatingIssueId !== generationIssueId) {
       throw forbidden("Status-card write does not match the active generation task");
     }
     const issue = await db.select().from(issues).where(eq(issues.id, generationIssueId)).then((rows) => rows[0] ?? null);
-    if (!issue || issue.companyId !== card.companyId || issue.assigneeAgentId !== actor.agentId) {
+    if (!issue || issue.spaceId !== card.spaceId || issue.assigneeAgentId !== actor.agentId) {
       throw forbidden("Generation task is not assigned to this agent");
     }
     if (TERMINAL_ISSUE_STATUSES.has(issue.status)) {
       throw forbidden("Generation task is no longer active");
     }
     const payload = parseGenerationPayload(issue.description);
-    if (payload?.statusCardId !== card.id || payload?.companyId !== card.companyId || payload?.generationIssueId !== generationIssueId) {
+    if (payload?.statusCardId !== card.id || payload?.spaceId !== card.spaceId || payload?.generationIssueId !== generationIssueId) {
       throw forbidden("Generation task does not target this status card");
     }
     if (!actor.runId || (issue.checkoutRunId !== actor.runId && issue.executionRunId !== actor.runId)) {
@@ -516,7 +516,7 @@ export function statusCardService(
     if (card.archivedAt) throw unprocessable("Archived status cards cannot accept generation writes");
     await assertSummarizerWriter(card, input.generationIssueId, actor);
     const now = new Date();
-    return mutate(card.companyId, async (tx) => {
+    return mutate(card.spaceId, async (tx) => {
       const current = await tx.select().from(statusCards).where(eq(statusCards.id, card.id)).then((rows) => rows[0] ?? null);
       if (!current || current.archivedAt || current.generatingIssueId !== input.generationIssueId) {
         throw conflict("Status-card compilation was superseded by a newer task");
@@ -577,11 +577,11 @@ export function statusCardService(
   }
 
   async function loadIssueSummaries(
-    companyId: string,
+    spaceId: string,
     issueIds: string[],
     options: StatusCardReadOptions = {},
     queryDb: Db = db,
-  ): Promise<CompanySearchIssueSummary[]> {
+  ): Promise<SpaceSearchIssueSummary[]> {
     if (issueIds.length === 0) return [];
     const rows = await queryDb
       .select({
@@ -598,24 +598,24 @@ export function statusCardService(
       })
       .from(issues)
       .where(and(
-        eq(issues.companyId, companyId),
+        eq(issues.spaceId, spaceId),
         inArray(issues.id, issueIds),
         options.issueReadCondition ?? sql<boolean>`true`,
       ));
     return rows.map((row) => ({
       ...row,
-      status: row.status as CompanySearchIssueSummary["status"],
-      priority: row.priority as CompanySearchIssueSummary["priority"],
+      status: row.status as SpaceSearchIssueSummary["status"],
+      priority: row.priority as SpaceSearchIssueSummary["priority"],
       updatedAt: row.updatedAt.toISOString(),
     }));
   }
 
   /**
-   * Resolve markdown issue mentions to real issue ids in the card's company.
-   * Unknown identifiers and foreign-company links drop out here, so a summary
+   * Resolve markdown issue mentions to real issue ids in the card's space.
+   * Unknown identifiers and foreign-space links drop out here, so a summary
    * cannot join arbitrary ids to the watched set.
    */
-  async function resolveMentionedIssueIds(companyId: string, markdown: string) {
+  async function resolveMentionedIssueIds(spaceId: string, markdown: string) {
     const mentions = extractIssueMentions(markdown);
     const conditions = [
       ...(mentions.identifiers.length > 0 ? [inArray(issues.identifier, mentions.identifiers)] : []),
@@ -625,20 +625,20 @@ export function statusCardService(
     const rows = await db
       .select({ id: issues.id })
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), or(...conditions)))
+      .where(and(eq(issues.spaceId, spaceId), or(...conditions)))
       .limit(STATUS_CARD_MAX_MENTIONED_ISSUES);
     return rows.map((row) => row.id).sort();
   }
 
   async function listMentionedIssues(card: StatusCardRow, options: StatusCardReadOptions = {}) {
-    return loadIssueSummaries(card.companyId, card.mentionedIssueIds ?? [], options);
+    return loadIssueSummaries(card.spaceId, card.mentionedIssueIds ?? [], options);
   }
 
   async function executeQueries(card: StatusCardRow, options: StatusCardReadOptions = {}, onNextMembershipChange?: (at: Date | null) => void, queryDb: Db = db) {
-    const issueMap = new Map<string, CompanySearchIssueSummary>();
+    const issueMap = new Map<string, SpaceSearchIssueSummary>();
     for (const storedQuery of card.queries) {
-      const query = companySearchQuerySchema.parse(storedQuery);
-      const response = await companySearchService(queryDb).search(card.companyId, query, {
+      const query = spaceSearchQuerySchema.parse(storedQuery);
+      const response = await spaceSearchService(queryDb).search(card.spaceId, query, {
         issueReadCondition: options.issueReadCondition, onNextMembershipChange, issueResultsOnly: true,
       });
       for (const result of response.results) {
@@ -648,7 +648,7 @@ export function statusCardService(
     // Issues mentioned in the latest summary join the watched set alongside the
     // compiled-query matches, so their later changes fire deltas too.
     const mentioned = await loadIssueSummaries(
-      card.companyId,
+      card.spaceId,
       (card.mentionedIssueIds ?? []).filter((issueId) => !issueMap.has(issueId)),
       options, queryDb,
     );
@@ -689,7 +689,7 @@ export function statusCardService(
       // Match the canonical mutation's issue-first lock order. A terminal
       // transition cannot race this recheck and have its receipt rewritten.
       const [current] = await tx.select({ status: issues.status }).from(issues)
-        .where(and(eq(issues.id, issueId), eq(issues.companyId, card.companyId))).for("update");
+        .where(and(eq(issues.id, issueId), eq(issues.spaceId, card.spaceId))).for("update");
       if (!current) return false;
       const [generation] = await tx.select({ id: statusCardUpdates.id }).from(statusCardUpdates)
         .where(and(eq(statusCardUpdates.cardId, card.id), eq(statusCardUpdates.generationIssueId, issueId))).limit(1);
@@ -701,7 +701,7 @@ export function statusCardService(
       // Bind preflight readers to this transaction too: a root-pool reader
       // would wait forever when this transaction owns its only connection.
       await issueService(tx as unknown as Db).update(issueId,
-        { status: "cancelled", companyGuard: card.companyId }, tx, publications, postCommitActions);
+        { status: "cancelled", spaceGuard: card.spaceId }, tx, publications, postCommitActions);
       return false;
     });
     for (const publication of publications) publishActivity(publication);
@@ -745,7 +745,7 @@ export function statusCardService(
     const forceRun = trigger === "manual" || trigger === "restore";
     const nextEvalAt = nextEvaluationAt(card, membershipAt, now);
     if (!forceRun && changes.length === 0) {
-      const [next] = await mutate(card.companyId, tx => tx.update(statusCards).set({
+      const [next] = await mutate(card.spaceId, tx => tx.update(statusCards).set({
         pendingChangeCount: 0,
         pendingChangeHash: null,
         lastChangeAt: null,
@@ -775,7 +775,7 @@ export function statusCardService(
       manual: forceRun,
     });
     if (decision.action !== "run") {
-      const [next] = await mutate(card.companyId, tx => tx.update(statusCards).set({
+      const [next] = await mutate(card.spaceId, tx => tx.update(statusCards).set({
         pendingChangeCount: changes.length,
         pendingChangeHash,
         lastChangeAt,
@@ -810,7 +810,7 @@ export function statusCardService(
       : null;
     const fingerprintHash = statusCardFingerprintHash(fingerprint);
     let deduplicated = false;
-    const created = await issuesSvc().create(card.companyId, {
+    const created = await issuesSvc().create(card.spaceId, {
       title: `${kind === "full" ? "Rebuild" : "Update"} status card: ${card.title ?? card.interestPrompt.slice(0, 80)}`,
       description: updateDescription({ card, generationIssueId: null, fingerprint, changes, kind, trigger, previousSummary, snapshot }),
       status: "todo",
@@ -835,7 +835,7 @@ export function statusCardService(
     const priorGenerationPredicate = card.generatingIssueId
       ? eq(statusCards.generatingIssueId, card.generatingIssueId)
       : isNull(statusCards.generatingIssueId);
-    const [next] = await mutate(card.companyId, tx => tx.update(statusCards).set({
+    const [next] = await mutate(card.spaceId, tx => tx.update(statusCards).set({
       generatingIssueId: generationIssue!.id,
       pendingChangeCount: changes.length,
       pendingChangeHash,
@@ -883,9 +883,9 @@ export function statusCardService(
     throw conflict("Status-card refresh was superseded by concurrent edits");
   }
 
-  async function tickDueStatusCards(now = new Date(), reactiveCompanies?: ReadonlySet<string> | "changed", reconstruct = false) {
-    const changedScope = reactiveCompanies === "changed" ? sql`true` : reactiveCompanies?.size
-      ? inArray(statusCards.companyId, [...reactiveCompanies]) : sql`false`;
+  async function tickDueStatusCards(now = new Date(), reactiveSpaces?: ReadonlySet<string> | "changed", reconstruct = false) {
+    const changedScope = reactiveSpaces === "changed" ? sql`true` : reactiveSpaces?.size
+      ? inArray(statusCards.spaceId, [...reactiveSpaces]) : sql`false`;
     // Startup recovers lost source hints for membership deadlines as well as
     // disarmed cards. Saved policy gates and retry leases keep their owner.
     // Legacy untagged leases are at most five minutes from their claim time:
@@ -897,8 +897,8 @@ export function statusCardService(
     ) : undefined;
     const reactiveScope = or(startupScope, changedScope);
     const due = await db.select({ card: statusCards }).from(statusCards)
-      .innerJoin(companies, eq(companies.id, statusCards.companyId))
-      .where(and(eq(companies.status, "active"), isNull(statusCards.archivedAt), isNull(statusCards.generatingIssueId),
+      .innerJoin(spaces, eq(spaces.id, statusCards.spaceId))
+      .where(and(eq(spaces.status, "active"), isNull(statusCards.archivedAt), isNull(statusCards.generatingIssueId),
         or(and(isNotNull(statusCards.nextEvalAt), lte(statusCards.nextEvalAt, now)),
           and(reactiveScope,
             or(isNull(statusCards.nextEvalReason), ne(statusCards.nextEvalReason, "retry"), isNull(statusCards.nextEvalAt), lte(statusCards.nextEvalAt, now)),
@@ -906,7 +906,7 @@ export function statusCardService(
       .then(rows => rows.map(row => row.card));
     const enqueued: Array<{ cardId: string; generatingIssue: typeof issues.$inferSelect }> = [];
     let evaluated = 0;
-    const deferredCompanyIds = new Set<string>();
+    const deferredSpaceIds = new Set<string>();
     for (const candidate of due) {
       // nextEvalAt is both a retry lease and an evaluation deadline. A source
       // event may preempt a genuine future deadline, so serialize scheduler
@@ -916,9 +916,9 @@ export function statusCardService(
         const [lock] = await lockTx.execute<{ acquired: boolean }>(
           sql`select pg_try_advisory_xact_lock(hashtextextended(${candidate.id}, 0)) as acquired`,
         );
-        if (!lock?.acquired) { deferredCompanyIds.add(candidate.companyId); return; }
+        if (!lock?.acquired) { deferredSpaceIds.add(candidate.spaceId); return; }
         const claimUntil = new Date(now.getTime() + 5 * 60 * 1000);
-        const [claimed] = await mutate(candidate.companyId, tx => tx.update(statusCards).set({ nextEvalAt: claimUntil, nextEvalReason: "retry" })
+        const [claimed] = await mutate(candidate.spaceId, tx => tx.update(statusCards).set({ nextEvalAt: claimUntil, nextEvalReason: "retry" })
           .where(and(eq(statusCards.id, candidate.id), isNull(statusCards.archivedAt), isNull(statusCards.generatingIssueId),
             candidate.nextEvalAt ? eq(statusCards.nextEvalAt, candidate.nextEvalAt) : isNull(statusCards.nextEvalAt)))
           .returning());
@@ -929,13 +929,13 @@ export function statusCardService(
           if (result.enqueued && result.generatingIssue) enqueued.push({ cardId: claimed.id, generatingIssue: result.generatingIssue });
         } catch (err) {
           logger.warn(
-            { err, cardId: claimed.id, companyId: claimed.companyId },
+            { err, cardId: claimed.id, spaceId: claimed.spaceId },
             "status card scheduled refresh failed",
           );
         }
       }));
     }
-    return { evaluated, enqueued, deferredCompanyIds };
+    return { evaluated, enqueued, deferredSpaceIds };
   }
 
   async function writeSummary(cardId: string, input: WriteStatusCardSummary, actor: StatusCardWriter) {
@@ -945,7 +945,7 @@ export function statusCardService(
     await assertSummarizerWriter(card, input.generationIssueId, actor);
     if (card.queries.length === 0) throw conflict("Compile the status-card query before writing its summary");
     const now = new Date();
-    return mutate(card.companyId, async (tx) => {
+    return mutate(card.spaceId, async (tx) => {
       const current = await tx.select().from(statusCards).where(eq(statusCards.id, card.id)).then((rows) => rows[0] ?? null);
       if (!current || current.archivedAt || current.generatingIssueId !== input.generationIssueId) {
         throw conflict("Status-card generation was superseded by a newer task");
@@ -962,7 +962,7 @@ export function statusCardService(
       const payloadFingerprint = payload?.operation === "update" && payload.fingerprint && typeof payload.fingerprint === "object"
         ? payload.fingerprint as StatusCardFingerprint
         : null;
-      const mentionedIssueIds = await resolveMentionedIssueIds(current.companyId, input.markdown);
+      const mentionedIssueIds = await resolveMentionedIssueIds(current.spaceId, input.markdown);
       // Current watched membership: compiled-query matches plus the issues this
       // summary mentions.
       let membershipAt: Date | null = null;
@@ -989,13 +989,13 @@ export function statusCardService(
         snapshot = watchedNow;
       }
       const existing = current.documentId
-        ? await tx.select().from(documents).where(and(eq(documents.id, current.documentId), eq(documents.companyId, current.companyId))).then((rows) => rows[0] ?? null)
+        ? await tx.select().from(documents).where(and(eq(documents.id, current.documentId), eq(documents.spaceId, current.spaceId))).then((rows) => rows[0] ?? null)
         : null;
       let document = existing;
       const revisionNumber = (existing?.latestRevisionNumber ?? 0) + 1;
       if (!document) {
         [document] = await tx.insert(documents).values({
-          companyId: current.companyId,
+          spaceId: current.spaceId,
           title: input.title ?? current.title,
           format: "markdown",
           latestBody: input.markdown,
@@ -1007,7 +1007,7 @@ export function statusCardService(
         }).returning();
       }
       const [revision] = await tx.insert(documentRevisions).values({
-        companyId: current.companyId,
+        spaceId: current.spaceId,
         documentId: document!.id,
         revisionNumber,
         title: input.title ?? current.title,
@@ -1083,10 +1083,10 @@ export function statusCardService(
 
   async function dryRun(card: StatusCardRow, options: StatusCardReadOptions = {}) {
     return Promise.all(card.queries.map(async (storedQuery) => {
-      const query = companySearchQuerySchema.parse(storedQuery);
+      const query = spaceSearchQuerySchema.parse(storedQuery);
       return {
         query,
-        result: await searchSvc.search(card.companyId, query, {
+        result: await searchSvc.search(card.spaceId, query, {
           issueReadCondition: options.issueReadCondition, issueResultsOnly: true,
         }),
       };

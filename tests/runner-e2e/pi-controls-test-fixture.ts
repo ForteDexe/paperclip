@@ -4,14 +4,14 @@ import { observePiControlPending } from "./pi-controls-evidence.js";
 import { readActiveStopCaller } from "./native-active-stop-evidence.js";
 
 type Row = Record<string, any>;
-export const piControlCaller = readActiveStopCaller({ deploymentMode: "local_trusted" }, { session: { userId: "local-board", id: "paperclip:local_implicit:local-board" } });
+export const piControlCaller = readActiveStopCaller({ deploymentMode: "local_trusted" }, { session: { userId: "local-operator", id: "outpost:local_implicit:local-operator" } });
 export const piCancellationId = "11111111-2222-4333-8444-555555555555";
 export function piControlFixture(target = "target.txt") {
-  const scope = { companyId: "company", issueId: "issue", runId: "run", target };
+  const scope = { spaceId: "space", issueId: "issue", runId: "run", target };
   const events: Row[] = [];
   const row = (eventType: string, payload: Row, extra: Row = {}) => {
     const seq = events.length + 1;
-    return { companyId: "company", runId: "run", seq, eventType, protocolSchemaVersion: 1,
+    return { spaceId: "space", runId: "run", seq, eventType, protocolSchemaVersion: 1,
       payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn", normalizedSessionId: "session", sourceInstanceId: "source", sourceSeq: seq,
         sourceEventId: `source:run:${seq}`, emittedAt: "2026-10-01T00:00:00Z", payload, ...extra } } };
   };
@@ -21,8 +21,8 @@ export function piControlFixture(target = "target.txt") {
   const request = { schema: "outpost.runtime_request.v2", type: "permission", requestKind: "permission_approval", method: "session/request_permission", status: "pending", requestId: "request", turnId: "turn", itemId: "permission-item",
     origin: { adapter: "acpx-runtime-sidecar", provider: "pi", method: "session/request_permission" }, details: { toolCallId: "pi-tool" }, choices: [{ key: "decline", label: "Deny" }] };
   append("runtime_request.created", { request });
-  const run: Row = { id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "running", resultJson: {}, processPid: 123, processGroupId: 123, processStartedAt: "2026-10-01T00:00:00Z" };
-  const issue: Row = { id: "issue", companyId: "company", identifier: "PI-1", status: "in_progress" };
+  const run: Row = { id: "run", spaceId: "space", nativeIssueId: "issue", runtimeMode: "native", status: "running", resultJson: {}, processPid: 123, processGroupId: 123, processStartedAt: "2026-10-01T00:00:00Z" };
+  const issue: Row = { id: "issue", spaceId: "space", identifier: "PI-1", status: "in_progress" };
   const state = () => ({ events, run, issue });
   const pending = () => observePiControlPending({ ...state(), scope });
   const responses: unknown[] = [];
@@ -37,8 +37,8 @@ export function piControlFixture(target = "target.txt") {
     } as unknown as CodexSessionState;
     mapTerminalTurn(session, { id: "turn", status: "cancelled", error: null }, "turn");
     run.status = "cancelled";
-    run.resultJson = { startupCancellation: { cancellationRequestId, requestedBy: { type: "board", userId: "local-board" } }, nativeCancellation: {
-      schema: "outpost.native-cancellation.v1", intentId: `native-cancellation:${cancellationRequestId}`, companyId: "company", runId: "run", issueId: "issue", scope: "run",
+    run.resultJson = { startupCancellation: { cancellationRequestId, requestedBy: { type: "board", userId: "local-operator" } }, nativeCancellation: {
+      schema: "outpost.native-cancellation.v1", intentId: `native-cancellation:${cancellationRequestId}`, spaceId: "space", runId: "run", issueId: "issue", scope: "run",
       dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentAuditId: "intent-audit", acknowledgementAuditId: "ack-audit",
     } };
     return run;

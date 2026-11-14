@@ -109,7 +109,7 @@ function executionInput(
   return {
     schema: "outpost.native-execution-input.v1",
     binding: {
-      companyId: "company-local-integrity",
+      spaceId: "space-local-integrity",
       runId,
       issueId: "issue-local-integrity",
       agentId: `agent-${profile.key}`,
@@ -187,7 +187,7 @@ function nativeIdentity(
   return {
     runId,
     sessionId: normalizedSessionId,
-    companyId: "company-local-integrity",
+    spaceId: "space-local-integrity",
     issueId: "issue-local-integrity",
     agentId: `agent-${profile.key}`,
   };
@@ -199,7 +199,7 @@ function orpIdentity(
 ): PrpIdentity {
   return {
     schema: "outpost.orp.identity.v1",
-    companyId: identity.companyId,
+    spaceId: identity.spaceId,
     issueId: identity.issueId,
     runId: identity.runId,
     environmentLeaseId: "lease-local-integrity",
@@ -323,7 +323,7 @@ async function proposeResult(
   return await transport.invoke({
     id: sourceEventId,
     method: "item/tool/call",
-    paperclipTrace: {
+    outpostTrace: {
       sourceEventId,
       sourceEventType: "semantic_tool.input",
     },
@@ -331,7 +331,7 @@ async function proposeResult(
       threadId: transport.threadId,
       turnId,
       callId: `finish-${profile.key}`,
-      tool: "paperclip_finish",
+      tool: "outpost_finish",
       arguments: completionResult(profile),
     },
   });

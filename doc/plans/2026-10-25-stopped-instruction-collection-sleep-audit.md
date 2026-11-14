@@ -13,13 +13,13 @@ physical release (#17671) remain separate workers. No new table is needed.
 The instruction working-copy service owns eligibility, reconstruction and
 collection scheduling. The directory service still owns directory locks,
 materialization identity, warm handoff, stop proof and physical operations.
-Native and legacy run owners emit a normalized company/run signal before their
+Native and legacy run owners emit a normalized space/run signal before their
 status writes. They do not inspect instruction receipts or perform file work.
 Startup only wires the existing coordinator and scheduler.
 
 ## Existing durable predicate
 
-A copy is eligible when its same-company run is terminal (succeeded, failed,
+A copy is eligible when its same-space run is terminal (succeeded, failed,
 cancelled, timed_out or interrupted), its receipt has no retainedByRunId key,
 and either:
 
@@ -33,11 +33,11 @@ Active prepared copies and retained warm owners are excluded. Exhausted or
 completed copy history is passive. Terminal run status is eligibility for
 inspection, not proof that the provider has stopped.
 
-Startup loads scalar run IDs, company IDs and nextAttemptAt in keyset pages of
+Startup loads scalar run IDs, space IDs and nextAttemptAt in keyset pages of
 100. The shared worker keeps outstanding IDs and selects fair batches of 20.
 Each due check rereads eligibility, honors a later saved deadline, and reserves
 30 seconds through the existing copy CAS before I/O. The claim also verifies
-that the same-company run is still terminal. A resumed run cannot be collected
+that the same-space run is still terminal. A resumed run cannot be collected
 merely because it was in an earlier discovery result.
 
 The existing collection owner then applies its rules:
@@ -70,13 +70,13 @@ as both instruction-copy owners.
 | Legacy copy preparation | Signal before the preparing insert; stage files outside the new short transaction |
 | Directory preparation and warm successor insert | Signal in a short insert transaction; preserve insertion before the agent-row handoff lock |
 | Directory adoption | Signal prior and successor scopes inside the existing handoff transaction |
-| Heartbeat run lifecycle and legacy terminalization | Signal exact company/run inside existing status transaction |
+| Heartbeat run lifecycle and legacy terminalization | Signal exact space/run inside existing status transaction |
 | Heartbeat queue and run-dispatch adapter | Signal cancellation, supersession and other terminal writes inside their existing transactions |
 | Queued-comment adapter and active-run watchdog | Signal exact terminalized run in the existing transaction |
 | Execution-control and task recovery | Signal after candidate eligibility checks, before terminal write |
 | Native finalizer, restart recovery and finalization reconciler | Signal terminal projection and terminal recovery writes in their owning transactions |
 | Native session executor and status-decision committer | Signal verified terminal failure/cancellation; retain unverified-ownership behavior |
-| Agent/company deletion | Invalidate company scope before cascades |
+| Agent/space deletion | Invalidate space scope before cascades |
 | Worktree execution policy | Signal globally through the existing settings transaction |
 
 Metadata-only run writes do not create eligibility. A reset to running is
@@ -100,8 +100,8 @@ retires subscriptions and deadlines. Manual/startup recoverStopped remains
 available; only the migrated periodic caller skips it.
 
 Migration `0408_short_red_skull.sql` adds the concurrent, replay-safe partial collection index on
-(run_id, company_id). Its predicate excludes ineligible copy history; terminal
-run eligibility remains a same-company join. The migration is registered with
+(run_id, space_id). Its predicate excludes ineligible copy history; terminal
+run eligibility remains a same-space join. The migration is registered with
 the existing nontransactional runner and retains snapshots 0404 through 0408.
 The original draft used 0396; later regeneration history remains recorded below.
 Memory and startup cost scale with actual pending copy candidates, including
@@ -246,7 +246,7 @@ Actual database build, server types/build, boundaries and exact-current migratio
 order pass with commands selected by name.
 
 A populated 0407-to0408 upgrade preserves every one of the 406 prior migration
-receipts and all 38 companies, adds exactly one receipt, and adds none on replay.
+receipts and all 38 spaces, adds exactly one receipt, and adds none on replay.
 The collection index is valid and ready on upgraded and fresh databases.
 
 Adopting published parent `210fcb1215a3b5e5ed84e420ddb73ab5952d9365` changes

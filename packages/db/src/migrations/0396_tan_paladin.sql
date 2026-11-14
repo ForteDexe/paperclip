@@ -22,7 +22,7 @@ BEGIN
     WHERE c.id = ANY(batch_ids) AND c.cleanup_confirmed_at IS NULL AND c.state = 'ended'
       AND (c.approved_by_user_id IS NULL OR EXISTS (
         SELECT 1 FROM activity_log a
-        WHERE a.company_id = c.company_id AND a.entity_type = 'voice_inbound_call'
+        WHERE a.space_id = c.space_id AND a.entity_type = 'voice_inbound_call'
           AND a.entity_id = c.id::text AND a.action = 'voice.call.ended'
       ));
     cursor_id := batch_ids[array_length(batch_ids, 1)];

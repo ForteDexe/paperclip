@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-  agentWakeupRequests, agents, applyPendingMigrations, companies, createDb, environmentLeases, executionWorkspaces,
+  agentWakeupRequests, agents, applyPendingMigrations, spaces, createDb, environmentLeases, executionWorkspaces,
   heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, projects, workspaceOperations, type Db,
 } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
@@ -29,7 +29,7 @@ describe.skipIf(!support.supported)("Retry workspace continuity after exhausted 
   let db: Db;
   let root: string;
   beforeAll(async () => {
-    root = await mkdtemp(join(tmpdir(), "paperclip-retry-workspace-"));
+    root = await mkdtemp(join(tmpdir(), "outpost-retry-workspace-"));
     if (externalUrl) {
       await applyPendingMigrations(externalUrl);
       database = { connectionString: externalUrl, cleanup: async () => {} } as typeof database;
@@ -48,12 +48,12 @@ describe.skipIf(!support.supported)("Retry workspace continuity after exhausted 
 
   type Kind = "exhausted_generation" | "blocked_recovery" | "blocked_without_generation" | "duplicate_holds";
   async function seed(kind: Kind) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), sourceRunId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Retry continuity", defaultResponsibleUserId: "board",
-      issuePrefix: `R${companyId.replaceAll("-", "").slice(0, 8)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Native", role: "engineer",
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), sourceRunId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Retry continuity", defaultResponsibleUserId: "operator",
+      issuePrefix: `R${spaceId.replaceAll("-", "").slice(0, 8)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Native", role: "engineer",
       adapterType: "outpost_runner", status: "idle", runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } });
-    const [project] = await db.insert(projects).values({ companyId, name: "Repository" }).returning();
+    const [project] = await db.insert(projects).values({ spaceId, name: "Repository" }).returning();
     // A real primary checkout and the task's own git worktree with uncommitted edits.
     const primary = join(root, `${issueId}-primary`);
     await execFile("git", ["init", "--initial-branch=main", primary]);
@@ -67,21 +67,21 @@ describe.skipIf(!support.supported)("Retry workspace continuity after exhausted 
     await git(primary, "worktree", "add", "-b", branchName, worktree, "main");
     await writeFile(join(worktree, "README.md"), "committed\nedited before the fault\n");
     await writeFile(join(worktree, "NOTES.md"), "untracked pre-fault work\n");
-    await db.insert(issues).values({ id: issueId, companyId, projectId: project.id, title: "Edit the repository",
+    await db.insert(issues).values({ id: issueId, spaceId, projectId: project.id, title: "Edit the repository",
       status: "blocked", assigneeAgentId: agentId,
       executionWorkspacePreference: "reuse_existing", executionWorkspaceSettings: { mode: "isolated_workspace" } });
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId, projectId: project.id, sourceIssueId: issueId,
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId, projectId: project.id, sourceIssueId: issueId,
       mode: "isolated_workspace", strategyType: "git_worktree", name: branchName, status: "active", cwd: worktree,
       providerType: "git_worktree", providerRef: worktree, baseRef: "main", branchName }).returning();
     await db.update(issues).set({ executionWorkspaceId: workspace.id }).where(eq(issues.id, issueId));
     const blockedKind = kind === "blocked_recovery" || kind === "blocked_without_generation";
     const errorCode = blockedKind ? "native_restart_recovery_blocked" : "native_session_retry_exhausted";
-    const [source] = await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId, agentId, nativeIssueId: issueId,
+    const [source] = await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId, agentId, nativeIssueId: issueId,
       runtimeMode: "native", status: "failed", errorCode, processPid: 999_999_999,
       contextSnapshot: { issueId }, startedAt: new Date(Date.now() - 120_000), finishedAt: new Date(Date.now() - 60_000) }).returning();
-    await db.insert(nativeRunFinalizations).values({ runId: sourceRunId, companyId, issueId,
+    await db.insert(nativeRunFinalizations).values({ runId: sourceRunId, spaceId, issueId,
       phase: "terminal_failure", attempt: 3, failureCode: errorCode });
-    await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId: sourceRunId, provider: "local",
+    await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId: sourceRunId, provider: "local",
       status: "expired", leasePolicy: "ephemeral", executionWorkspaceId: workspace.id, releasedAt: new Date(Date.now() - 50_000),
       cleanupStatus: "success" });
     expect(await db.transaction(tx => recordNativeLocalProcessStop(tx as unknown as Db, source))).toBe(true);
@@ -91,31 +91,31 @@ describe.skipIf(!support.supported)("Retry workspace continuity after exhausted 
     const systemRecovery = kind === "exhausted_generation" || kind === "duplicate_holds"
       ? failSystemRecovery(generation, new SystemRecoveryFailure("source_unavailable", "use_alternative_strategy"))
       : { ...generation, state: "complete" as const, phase: "settle_result_or_dispatch" as const };
-    const [action] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId,
-      kind: "active_run_watchdog", ownerType: blockedKind ? "board" : "system", returnOwnerAgentId: agentId,
+    const [action] = await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId,
+      kind: "active_run_watchdog", ownerType: blockedKind ? "operator" : "system", returnOwnerAgentId: agentId,
       cause: blockedKind ? "native_restart_recovery_blocked" : "native_continuation_requires_reconciliation",
       fingerprint: `native-restart:${sourceRunId}`, nextAction: "Retry the task.",
       // A blocked restart without an admission hold records no generation.
       evidence: kind === "blocked_without_generation" ? { runId: sourceRunId, reason: "ownership changed" }
         : { runId: sourceRunId, systemRecovery } }).returning();
     // Several holds can describe the same failed run; a historical one has no generation.
-    if (kind === "duplicate_holds") await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId,
+    if (kind === "duplicate_holds") await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId,
       kind: "active_run_watchdog", ownerType: "system", returnOwnerAgentId: agentId, cause: "native_session_retry_exhausted",
       status: "resolved", fingerprint: randomUUID(), nextAction: "Retry the task.", evidence: { runId: sourceRunId } });
-    return { companyId, agentId, issueId, source, workspace, worktree, primary, branchName, action };
+    return { spaceId, agentId, issueId, source, workspace, worktree, primary, branchName, action };
   }
 
   async function retry(f: Awaited<ReturnType<typeof seed>>) {
-    const receipt = await requestTaskRetry({ db, companyId: f.companyId, issueId: f.issueId, actorId: "board",
+    const receipt = await requestTaskRetry({ db, spaceId: f.spaceId, issueId: f.issueId, actorId: "operator",
       observedRunId: f.source.id, idempotencyKey: randomUUID() });
     const successorRunId = randomUUID();
     const blocked: string[] = [];
     const continuation = await db.transaction(async tx => {
       await tx.select().from(issues).where(eq(issues.id, f.issueId)).for("update");
-      const admitted = await admitExplicitNativeContinuation({ db: tx as unknown as Db, companyId: f.companyId,
-        issueId: f.issueId, agentId: f.agentId, actorId: "board", actorType: "user", reason: "task_retry",
+      const admitted = await admitExplicitNativeContinuation({ db: tx as unknown as Db, spaceId: f.spaceId,
+        issueId: f.issueId, agentId: f.agentId, actorId: "operator", actorType: "user", reason: "task_retry",
         commentId: null, successorRunId, taskRetryRequestId: receipt.requestId!, onBlocked: reason => blocked.push(reason) });
-      await tx.insert(heartbeatRuns).values({ id: successorRunId, companyId: f.companyId, agentId: f.agentId,
+      await tx.insert(heartbeatRuns).values({ id: successorRunId, spaceId: f.spaceId, agentId: f.agentId,
         nativeIssueId: f.issueId, runtimeMode: "native", status: "queued",
         contextSnapshot: { issueId: f.issueId, taskRetryRequestId: receipt.requestId } });
       await tx.update(agentWakeupRequests).set({ status: "coalesced", runId: successorRunId })
@@ -152,7 +152,7 @@ describe.skipIf(!support.supported)("Retry workspace continuity after exhausted 
   it("verifies a local checkout after fresh fallback without a plugin worker", async () => {
     const f = await seed("blocked_without_generation");
     const { successor, requestId } = await retry(f);
-    expect(await verifyRetryWorkspace(db, undefined, successor, f.issueId, "board", {
+    expect(await verifyRetryWorkspace(db, undefined, successor, f.issueId, "operator", {
       mode: "fresh_isolated_workspace", retryIntentId: requestId, sourceRunId: f.source.id, retainedSourceIds: [],
     })).toEqual({ mode: "reuse_issue_workspace", retryIntentId: requestId,
       sourceRunId: f.source.id, workspaceId: f.workspace.id, cwd: f.worktree });
@@ -165,7 +165,7 @@ describe.skipIf(!support.supported)("Retry workspace continuity after exhausted 
 
   it("names the retained prior worktree and its uncommitted files for a fresh attempt", async () => {
     const f = await seed("exhausted_generation");
-    const prior = await describeRetainedPriorWorkspace(db, { companyId: f.companyId, issueId: f.issueId,
+    const prior = await describeRetainedPriorWorkspace(db, { spaceId: f.spaceId, issueId: f.issueId,
       sourceRunId: f.source.id, successorRunId: randomUUID(), freshCwd: join(root, "fresh") });
     expect(prior).toEqual({ sourceRunId: f.source.id, path: f.worktree, branchName: f.branchName,
       changedFilesKnown: true, changedFileCount: 2, changedFiles: expect.arrayContaining(["NOTES.md", "README.md"]) });
@@ -174,7 +174,7 @@ describe.skipIf(!support.supported)("Retry workspace continuity after exhausted 
   it("ignores a workspace operation orphaned by a restart of the stopped source", async () => {
     const f = await seed("blocked_recovery");
     // The server died during the source's preparation; no process can still run it.
-    await db.insert(workspaceOperations).values({ companyId: f.companyId, executionWorkspaceId: f.workspace.id,
+    await db.insert(workspaceOperations).values({ spaceId: f.spaceId, executionWorkspaceId: f.workspace.id,
       heartbeatRunId: f.source.id, issueId: f.issueId, phase: "worktree_prepare", status: "running",
       startedAt: new Date(Date.now() - 24 * 60 * 60_000) });
     const { readiness } = await retry(f);
@@ -184,9 +184,9 @@ describe.skipIf(!support.supported)("Retry workspace continuity after exhausted 
   it.each(["live_lease", "running_operation", "corrupt_git", "missing_directory", "remote_authority", "shared_workspace", "export_pending", "repair_required", "live_source_operation"] as const)(
     "keeps the fresh isolated attempt when the prior workspace is unsafe: %s", async unsafe => {
       const f = await seed("exhausted_generation");
-      if (unsafe === "live_lease") await db.insert(environmentLeases).values({ companyId: f.companyId, issueId: f.issueId,
+      if (unsafe === "live_lease") await db.insert(environmentLeases).values({ spaceId: f.spaceId, issueId: f.issueId,
         provider: "local", status: "active", leasePolicy: "ephemeral", executionWorkspaceId: f.workspace.id });
-      if (unsafe === "running_operation") await db.insert(workspaceOperations).values({ companyId: f.companyId,
+      if (unsafe === "running_operation") await db.insert(workspaceOperations).values({ spaceId: f.spaceId,
         // A workspace-control job has no run and can predate the source settling.
         executionWorkspaceId: f.workspace.id, issueId: f.issueId, phase: "worktree_prepare", status: "running",
         startedAt: new Date(Date.now() - 24 * 60 * 60_000) });
@@ -203,7 +203,7 @@ describe.skipIf(!support.supported)("Retry workspace continuity after exhausted 
       // The source settled just now; an operation it started in this server process may still be running.
       if (unsafe === "live_source_operation") {
         await db.update(heartbeatRuns).set({ finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.source.id));
-        await db.insert(workspaceOperations).values({ companyId: f.companyId, executionWorkspaceId: f.workspace.id,
+        await db.insert(workspaceOperations).values({ spaceId: f.spaceId, executionWorkspaceId: f.workspace.id,
           heartbeatRunId: f.source.id, issueId: f.issueId, phase: "worktree_prepare", status: "running", startedAt: new Date(Date.now() - 1_000) });
       }
       if (unsafe === "export_pending") await db.update(issueRecoveryActions).set({ evidence: { ...f.action.evidence,
@@ -213,12 +213,12 @@ describe.skipIf(!support.supported)("Retry workspace continuity after exhausted 
       expect(readiness).toMatchObject({ mode: "fresh_isolated_workspace", sourceRunId: f.source.id });
       // The fresh attempt names the retained directory only when reuse would also
       // trust it as a source: task-owned, local, settled and with no other writer.
-      const prior = await describeRetainedPriorWorkspace(db, { companyId: f.companyId, issueId: f.issueId,
+      const prior = await describeRetainedPriorWorkspace(db, { spaceId: f.spaceId, issueId: f.issueId,
         sourceRunId: f.source.id, successorRunId: successor.id, freshCwd: join(root, "fresh") });
       if (unsafe === "corrupt_git") expect(prior).toEqual({ sourceRunId: f.source.id, path: f.worktree,
         branchName: f.branchName, changedFilesKnown: false, changedFileCount: 0, changedFiles: [] });
       else expect(prior).toBeNull();
-      const [task] = await db.select().from(issues).where(and(eq(issues.id, f.issueId), eq(issues.companyId, f.companyId)));
+      const [task] = await db.select().from(issues).where(and(eq(issues.id, f.issueId), eq(issues.spaceId, f.spaceId)));
       expect(task.executionWorkspaceId).toBe(f.workspace.id);
     }, 30_000);
 });

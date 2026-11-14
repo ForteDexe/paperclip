@@ -46,7 +46,7 @@ function rejectSignature(req: IncomingMessage, res: ServerResponse) {
 describe("S3 storage failure diagnostics", () => {
   it("records the failed operation and provider correlation fields on the original SDK error", async () => {
     handler = rejectSignature;
-    const error = await provider().getObject({ objectKey: "company/asset.png" }).catch((err: unknown) => err);
+    const error = await provider().getObject({ objectKey: "space/asset.png" }).catch((err: unknown) => err);
 
     expect(error).toMatchObject({ name: "SignatureDoesNotMatch" });
     expect(storageFailureDiagnosticsFor(error)).toEqual({
@@ -89,7 +89,7 @@ describe("S3 storage failure diagnostics", () => {
       res.writeHead(200, { "content-type": "application/octet-stream", "content-length": "1024", "x-amz-request-id": "req-body-1" });
       res.write(Buffer.alloc(16), () => req.socket.destroy());
     };
-    const object = await provider().getObject({ objectKey: "company/snapshot.bin" });
+    const object = await provider().getObject({ objectKey: "space/snapshot.bin" });
     const error = await (async () => { for await (const _chunk of object.stream) { /* drain */ } })().catch((err: unknown) => err);
 
     expect(error).toMatchObject({ message: "aborted", code: "ECONNRESET" });

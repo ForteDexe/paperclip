@@ -12,8 +12,8 @@ import { INSTANCE_FEATURE_KEYS, type InstanceFeatureKey } from "./feature-catalo
  * routes are also floored with a 403 carrying
  * `SETTINGS_OPERATOR_MANAGED_ERROR_CODE`: the Access, Plugins, and Adapters
  * pages, every field-backed General section, every experimental toggle
- * (individually or via the whole Experimental page), and the company Import
- * page (whose whole route surface is floored). The other company pages are
+ * (individually or via the whole Experimental page), and the space Import
+ * page (whose whole route surface is floored). The other space pages are
  * UI-visibility keys only: their APIs (memberships, invites, secrets,
  * exports) stay live for agents and integrations.
  *
@@ -43,33 +43,33 @@ export const HIDEABLE_INSTANCE_PAGES = [
 export type HideableInstancePage = (typeof HIDEABLE_INSTANCE_PAGES)[number];
 
 /**
- * Company-level settings pages that can be hidden (nav entry + tab + route).
- * The company General page is deliberately not hideable: it is the settings
- * root and the redirect target for hidden pages. `company.import` also floors
+ * Space-level settings pages that can be hidden (nav entry + tab + route).
+ * The space General page is deliberately not hideable: it is the settings
+ * root and the redirect target for hidden pages. `space.import` also floors
  * the import API routes; the rest only hide UI surfaces.
  */
-export const HIDEABLE_COMPANY_PAGES = [
-  "company.members",
-  "company.invites",
-  "company.secrets",
-  "company.export",
-  "company.import",
+export const HIDEABLE_SPACE_PAGES = [
+  "space.members",
+  "space.invites",
+  "space.secrets",
+  "space.export",
+  "space.import",
 ] as const;
 
-export type HideableCompanyPage = (typeof HIDEABLE_COMPANY_PAGES)[number];
+export type HideableSpacePage = (typeof HIDEABLE_SPACE_PAGES)[number];
 
 /**
- * Sub-surfaces of company settings pages that can be hidden individually.
+ * Sub-surfaces of space settings pages that can be hidden individually.
  * UI-visibility keys only: the backing APIs stay live for agents and
- * integrations. Hiding the whole page (`company.secrets`) already removes
+ * integrations. Hiding the whole page (`space.secrets`) already removes
  * everything inside it; these keys hide one tab while the page stays up.
  */
-export const HIDEABLE_COMPANY_SECTIONS = [
-  "company.secrets.vaults",
-  "company.secrets.proposals",
+export const HIDEABLE_SPACE_SECTIONS = [
+  "space.secrets.vaults",
+  "space.secrets.proposals",
 ] as const;
 
-export type HideableCompanySection = (typeof HIDEABLE_COMPANY_SECTIONS)[number];
+export type HideableSpaceSection = (typeof HIDEABLE_SPACE_SECTIONS)[number];
 
 /**
  * Sections of Instance → General that can be hidden. Field-backed sections
@@ -106,8 +106,8 @@ export type HideableWorkspaceSection = (typeof HIDEABLE_WORKSPACE_SECTIONS)[numb
 export type HideableSettingKey =
   | HideableWorkspaceSection
   | HideableInstancePage
-  | HideableCompanyPage
-  | HideableCompanySection
+  | HideableSpacePage
+  | HideableSpaceSection
   | HideableGeneralSection
   | HideableExperimentalSetting;
 
@@ -115,8 +115,8 @@ export type HideableSettingKey =
 export const HIDEABLE_SETTING_KEYS: readonly HideableSettingKey[] = [
   ...HIDEABLE_WORKSPACE_SECTIONS,
   ...HIDEABLE_INSTANCE_PAGES,
-  ...HIDEABLE_COMPANY_PAGES,
-  ...HIDEABLE_COMPANY_SECTIONS,
+  ...HIDEABLE_SPACE_PAGES,
+  ...HIDEABLE_SPACE_SECTIONS,
   ...HIDEABLE_GENERAL_SECTIONS,
   ...INSTANCE_FEATURE_KEYS.map(experimentalSettingKey),
 ];
@@ -178,16 +178,16 @@ export function hidesInstancePage(
   return hidden.has(page);
 }
 
-export function hidesCompanyPage(
+export function hidesSpacePage(
   hidden: ReadonlySet<string>,
-  page: HideableCompanyPage,
+  page: HideableSpacePage,
 ): boolean {
   return hidden.has(page);
 }
 
-export function hidesCompanySection(
+export function hidesSpaceSection(
   hidden: ReadonlySet<string>,
-  section: HideableCompanySection,
+  section: HideableSpaceSection,
 ): boolean {
   return hidden.has(section);
 }

@@ -5,8 +5,8 @@ import { buildRunnerE2EProcessEnvironment } from "./harness-env.js";
 
 const binding = { provider: "anthropic", method: "api_key", mode: "responsible_user" };
 const hire = { id: "hire", name: "Morgan", reportsTo: "lead", adapterType: "outpost_runner", adapterConfig: { model: "model" }, runtimeConfig: { aiConnection: binding } };
-const task = { id: "task", companyId: "company", title: "Checklist", status: "done", assigneeAgentId: "hire", parentId: null, projectId: "project" };
-const run = { id: "run", companyId: "company", agentId: "hire", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "task", aiConnection: { connectionId: "account" } } };
+const task = { id: "task", spaceId: "space", title: "Checklist", status: "done", assigneeAgentId: "hire", parentId: null, projectId: "project" };
+const run = { id: "run", spaceId: "space", agentId: "hire", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "task", aiConnection: { connectionId: "account" } } };
 const hiring = { agents: [{ id: "lead", name: "Lead", adapterConfig: { model: "model" } }, hire], leadId: "lead", hireName: "Morgan", hiredId: "hire", connectionId: "account", binding, taskIds: ["task"], tasks: [task], runs: [run] };
 
 describe("agent chat hardening oracles", () => {
@@ -109,7 +109,7 @@ describe("agent chat hardening oracles", () => {
       const config = cell.profile.buildAgent({ executionId: "fixture", workspacePath: "/workspace", environmentId: "local",
         environmentFixtureId: "local", secretRefs: { [cell.profile.credential]: { type: "secret_ref", secretId: "secret", version: "latest" } } });
       expect(config.role).toBe("ceo");
-      expect(JSON.stringify(config.instructionsBundle)).not.toMatch(/mark the task done|paperclip_finish|POST \/api|PUT \/api/);
+      expect(JSON.stringify(config.instructionsBundle)).not.toMatch(/mark the task done|outpost_finish|POST \/api|PUT \/api/);
       expect(config.adapterConfig).not.toHaveProperty("codexPermissionMode");
       expect(config.adapterConfig).not.toHaveProperty("acpxPermissionMode");
     }

@@ -26,36 +26,36 @@ function dateParams(from?: string, to?: string): string {
 }
 
 export const costsApi = {
-  dataQuality: (companyId: string, from?: string, to?: string) =>
-    api.get<CostDataQualityReport>(`/companies/${companyId}/costs/data-quality${dateParams(from, to)}`),
-  retryAccounting: (companyId: string, runId: string) =>
-    api.post<{ accounted: boolean }>(`/companies/${companyId}/costs/retry-accounting`, { runId }),
-  summary: (companyId: string, from?: string, to?: string) =>
-    api.get<CostSummary>(`/companies/${companyId}/costs/summary${dateParams(from, to)}`),
-  byUser: (companyId: string, from?: string, to?: string) =>
-    api.get<CostByUserReport>(`/companies/${companyId}/costs/by-user${dateParams(from, to)}`),
-  byAgent: (companyId: string, from?: string, to?: string) =>
-    api.get<CostByAgent[]>(`/companies/${companyId}/costs/by-agent${dateParams(from, to)}`),
-  byAgentModel: (companyId: string, from?: string, to?: string) =>
-    api.get<CostByAgentModel[]>(`/companies/${companyId}/costs/by-agent-model${dateParams(from, to)}`),
-  byProject: (companyId: string, from?: string, to?: string) =>
-    api.get<CostByProject[]>(`/companies/${companyId}/costs/by-project${dateParams(from, to)}`),
-  byProvider: (companyId: string, from?: string, to?: string) =>
-    api.get<CostByProviderModel[]>(`/companies/${companyId}/costs/by-provider${dateParams(from, to)}`),
-  byBiller: (companyId: string, from?: string, to?: string) =>
-    api.get<CostByBiller[]>(`/companies/${companyId}/costs/by-biller${dateParams(from, to)}`),
-  financeSummary: (companyId: string, from?: string, to?: string) =>
-    api.get<FinanceSummary>(`/companies/${companyId}/costs/finance-summary${dateParams(from, to)}`),
-  financeByBiller: (companyId: string, from?: string, to?: string) =>
-    api.get<FinanceByBiller[]>(`/companies/${companyId}/costs/finance-by-biller${dateParams(from, to)}`),
-  financeByKind: (companyId: string, from?: string, to?: string) =>
-    api.get<FinanceByKind[]>(`/companies/${companyId}/costs/finance-by-kind${dateParams(from, to)}`),
-  financeEvents: (companyId: string, from?: string, to?: string, limit: number = 100) =>
-    api.get<FinanceEvent[]>(`/companies/${companyId}/costs/finance-events${dateParamsWithLimit(from, to, limit)}`),
-  windowSpend: (companyId: string) =>
-    api.get<CostWindowSpendRow[]>(`/companies/${companyId}/costs/window-spend`),
-  quotaWindows: (companyId: string) =>
-    api.get<ProviderQuotaResult[]>(`/companies/${companyId}/costs/quota-windows`),
+  dataQuality: (spaceId: string, from?: string, to?: string) =>
+    api.get<CostDataQualityReport>(`/spaces/${spaceId}/costs/data-quality${dateParams(from, to)}`),
+  retryAccounting: (spaceId: string, runId: string) =>
+    api.post<{ accounted: boolean }>(`/spaces/${spaceId}/costs/retry-accounting`, { runId }),
+  summary: (spaceId: string, from?: string, to?: string) =>
+    api.get<CostSummary>(`/spaces/${spaceId}/costs/summary${dateParams(from, to)}`),
+  byUser: (spaceId: string, from?: string, to?: string) =>
+    api.get<CostByUserReport>(`/spaces/${spaceId}/costs/by-user${dateParams(from, to)}`),
+  byAgent: (spaceId: string, from?: string, to?: string) =>
+    api.get<CostByAgent[]>(`/spaces/${spaceId}/costs/by-agent${dateParams(from, to)}`),
+  byAgentModel: (spaceId: string, from?: string, to?: string) =>
+    api.get<CostByAgentModel[]>(`/spaces/${spaceId}/costs/by-agent-model${dateParams(from, to)}`),
+  byProject: (spaceId: string, from?: string, to?: string) =>
+    api.get<CostByProject[]>(`/spaces/${spaceId}/costs/by-project${dateParams(from, to)}`),
+  byProvider: (spaceId: string, from?: string, to?: string) =>
+    api.get<CostByProviderModel[]>(`/spaces/${spaceId}/costs/by-provider${dateParams(from, to)}`),
+  byBiller: (spaceId: string, from?: string, to?: string) =>
+    api.get<CostByBiller[]>(`/spaces/${spaceId}/costs/by-biller${dateParams(from, to)}`),
+  financeSummary: (spaceId: string, from?: string, to?: string) =>
+    api.get<FinanceSummary>(`/spaces/${spaceId}/costs/finance-summary${dateParams(from, to)}`),
+  financeByBiller: (spaceId: string, from?: string, to?: string) =>
+    api.get<FinanceByBiller[]>(`/spaces/${spaceId}/costs/finance-by-biller${dateParams(from, to)}`),
+  financeByKind: (spaceId: string, from?: string, to?: string) =>
+    api.get<FinanceByKind[]>(`/spaces/${spaceId}/costs/finance-by-kind${dateParams(from, to)}`),
+  financeEvents: (spaceId: string, from?: string, to?: string, limit: number = 100) =>
+    api.get<FinanceEvent[]>(`/spaces/${spaceId}/costs/finance-events${dateParamsWithLimit(from, to, limit)}`),
+  windowSpend: (spaceId: string) =>
+    api.get<CostWindowSpendRow[]>(`/spaces/${spaceId}/costs/window-spend`),
+  quotaWindows: (spaceId: string) =>
+    api.get<ProviderQuotaResult[]>(`/spaces/${spaceId}/costs/quota-windows`),
 };
 
 function dateParamsWithLimit(from?: string, to?: string, limit?: number): string {

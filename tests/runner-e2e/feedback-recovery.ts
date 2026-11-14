@@ -22,14 +22,14 @@ export async function recoverInterruptedFeedback(input: {
   const deadline = AbortSignal.timeout(Math.max(1, input.deadlineAt - Date.now()));
   if (await exists(path.join(input.caseDirectory, "result.json"))) return;
   const snapshots = path.join(input.caseDirectory, "snapshots");
-  let fixture: { executionId?: string; companyId?: string };
+  let fixture: { executionId?: string; spaceId?: string };
   try { fixture = JSON.parse(await readFile(path.join(snapshots, "fixtures.json"), { encoding: "utf8", signal: deadline })); }
   catch { return; }
-  if (fixture.executionId !== input.identity.executionId || !/^[a-f0-9-]{36}$/i.test(fixture.companyId ?? "")) return;
-  const companyId = fixture.companyId!;
+  if (fixture.executionId !== input.identity.executionId || !/^[a-f0-9-]{36}$/i.test(fixture.spaceId ?? "")) return;
+  const spaceId = fixture.spaceId!;
   let summary = emptyFeedbackSummary();
   let checkpoint: FeedbackEvidence | undefined;
-  const recoveryReceipt = (summary: FeedbackSummary) => ({ version: 1, ...input.identity, companyId,
+  const recoveryReceipt = (summary: FeedbackSummary) => ({ version: 1, ...input.identity, spaceId,
     reason: "worker_exited_without_result", summary });
   const save = async (name: string, value: unknown, signal: AbortSignal = deadline) => {
     const text = JSON.stringify(sanitizeJson(value, input.secrets), null, 2) + "\n";
@@ -44,7 +44,7 @@ export async function recoverInterruptedFeedback(input: {
       invocationCollection: evidence.invocations.length ? "partial" : "unavailable" }) }, signal);
   try {
     const original = JSON.parse(await readFile(path.join(snapshots, "agent-feedback.json"), { encoding: "utf8", signal: deadline }));
-    if (original.version === 1 && original.companyId === companyId && original.summary?.version === 1
+    if (original.version === 1 && original.spaceId === spaceId && original.summary?.version === 1
       && Array.isArray(original.entries) && Array.isArray(original.invocations)
       && original.summary.bodiesCollected === original.entries.length) {
       await saveCheckpoint(original);
@@ -53,7 +53,7 @@ export async function recoverInterruptedFeedback(input: {
     }
   } catch {}
   try {
-    const collected = await collectAttemptFeedback({ api: input.api, companyId, deadlineAt: input.deadlineAt,
+    const collected = await collectAttemptFeedback({ api: input.api, spaceId, deadlineAt: input.deadlineAt,
       persist: async (evidence, signal) => {
         if (checkpoint && (!checkpoint.entries.every(entry => evidence.entries.some(next => next.id === entry.id))
           || !checkpoint.invocations.every(call => evidence.invocations.some(next => next.runId === call.runId && next.callId === call.callId)))) return;
@@ -80,7 +80,7 @@ export async function readRecoveredFeedback(caseDirectory: string, identity: Fee
     try { receipt = JSON.parse(await readFile(path.join(snapshots, "feedback-recovery.json"), "utf8")); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") return; }
     if (receipt?.version !== 1 || evidence.version !== 1 || receipt.reason !== "worker_exited_without_result"
-      || !receipt.companyId || receipt.companyId !== evidence.companyId
+      || !receipt.spaceId || receipt.spaceId !== evidence.spaceId
       || Object.entries(identity).some(([key, value]) => receipt[key] !== value)) return;
     const summary = evidence.summary as FeedbackSummary;
     const statuses = ["complete", "partial", "unavailable", "not_started"];

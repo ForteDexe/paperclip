@@ -12,7 +12,7 @@ import type { CredentialName, MatrixExecution, RunnerTaskFixture } from "./types
 
 type Row = Record<string, any>;
 export { nativeCompletionProfile as repositorySkillsProfile };
-export const POTETO_REPOSITORY = "https://github.com/paperclipai/poteto-stack";
+export const POTETO_REPOSITORY = "https://github.com/example/poteto-stack";
 const SKILLS = ["architect", "bro"];
 export const repositorySkillsTask: RunnerTaskFixture = {
   id: "poteto-package", label: "Private Poteto repository package", flow: "repository_skills",
@@ -34,17 +34,17 @@ export async function runRepositorySkillsFlow(input: {
   evidence(name: string, data: unknown): Promise<void>;
 }) {
   const { api, page, fixtures, nonce, execution } = input;
-  const company = `/api/companies/${fixtures.company.id}`;
+  const space = `/api/spaces/${fixtures.space.id}`;
   await api.patch("/api/instance/settings/experimental", { enableBetaSkills: true, enableClassicTaskInterface: false });
-  await api.patch(`${company}/budgets`, { budgetMonthlyCents: 1_000 });
-  const github = await api.post<Row>(`${company}/tools/connections`, {
+  await api.patch(`${space}/budgets`, { budgetMonthlyCents: 1_000 });
+  const github = await api.post<Row>(`${space}/tools/connections`, {
     name: `Repository E2E GitHub ${nonce}`, applicationName: "GitHub", transport: "mcp_remote", authKind: "api_key",
     credentialPolicy: "shared", status: "active", enabled: true,
     config: { sourceTemplateKey: "github", url: "https://api.githubcopilot.com/mcp/" }, transportConfig: { sourceTemplateKey: "github", url: "https://api.githubcopilot.com/mcp/" },
     credentialRefs: [{ name: "GitHub", secretId: fixtures.secretRefs.GITHUB_TOKEN!.secretId, version: "latest", placement: "header", key: "Authorization", prefix: "Bearer " }],
     credentialSecretRefs: [{ secretId: fixtures.secretRefs.GITHUB_TOKEN!.secretId, versionSelector: "latest", configPath: "headers.Authorization", required: true }],
   });
-  await page.goto(`/${fixtures.company.issuePrefix}/skills/sources/new`);
+  await page.goto(`/${fixtures.space.issuePrefix}/skills/sources/new`);
   const dialog = page.getByRole("dialog", { name: "Import from GitHub", exact: true });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "... or add public repo by URL", exact: true }).click();
@@ -59,7 +59,7 @@ export async function runRepositorySkillsFlow(input: {
   if (await all.isChecked()) await all.uncheck();
   else { await all.check(); await all.uncheck(); }
   for (const skill of SKILLS) await dialog.getByRole("checkbox", { name: `Import skills/${skill}/SKILL.md`, exact: true }).check();
-  const importedResponse = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === `${company}/skill-sources`, { timeout: 120_000 });
+  const importedResponse = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === `${space}/skill-sources`, { timeout: 120_000 });
   await dialog.getByRole("button", { name: "Import repository", exact: true }).click();
   const response = await importedResponse;
   expect(response.ok()).toBe(true);
@@ -67,7 +67,7 @@ export async function runRepositorySkillsFlow(input: {
   expect(imported.imported).toHaveLength(2);
   expect(imported.source.packageMode).toBe("repository");
   const commit = imported.source.lastScanCommit as string;
-  const treeResponse = await fetch(`https://api.github.com/repos/paperclipai/poteto-stack/git/trees/${commit}?recursive=1`, {
+  const treeResponse = await fetch(`https://api.github.com/repos/example/poteto-stack/git/trees/${commit}?recursive=1`, {
     headers: { Authorization: `Bearer ${input.credentials.GITHUB_TOKEN}`, Accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(30_000),
   });
   if (!treeResponse.ok) throw new Error(`Independent GitHub tree read failed (${treeResponse.status})`);
@@ -76,8 +76,8 @@ export async function runRepositorySkillsFlow(input: {
   const expected: RepositoryFileReceipt[] = tree.tree.filter(file => file.type === "blob").map(file => ({ path: file.path, sha: file.sha, size: file.size, executable: file.mode === "100755" }));
   expect(expected.some(file => file.path === "agents/poteto-agent.md")).toBe(true);
   expect(expected.some(file => file.path === "NOTICE.md")).toBe(true);
-  await api.post(`/api/agents/${fixtures.agent.id}/skills/sync?companyId=${fixtures.company.id}`, { desiredSkills: imported.imported.map((skill: Row) => skill.key), mode: "replace" });
-  const assigned = await api.get<Row>(`/api/agents/${fixtures.agent.id}/skills?companyId=${fixtures.company.id}`);
+  await api.post(`/api/agents/${fixtures.agent.id}/skills/sync?spaceId=${fixtures.space.id}`, { desiredSkills: imported.imported.map((skill: Row) => skill.key), mode: "replace" });
+  const assigned = await api.get<Row>(`/api/agents/${fixtures.agent.id}/skills?spaceId=${fixtures.space.id}`);
   expect(assigned.desiredSkills).toHaveLength(2);
   // Source credentials are disabled before the provider starts: delivery must use persisted bytes.
   await api.patch(`/api/tool-connections/${github.id}`, { enabled: false });
@@ -85,12 +85,12 @@ export async function runRepositorySkillsFlow(input: {
   const names = imported.imported.map((skill: Row) => skill.slug);
   const prompt = [
     `Read both assigned skills ${names.map((name: string) => `/${name}`).join(" and ")} using the skill mechanism. Follow each wrapper to its canonical original SKILL.md. This task only verifies their installation; do not perform architecture changes.`,
-    "Use the filesystem paths provided for your assigned skills to read the two selected wrappers on this provider's filesystem. Read their canonical original instructions, then use Node.js fs to traverse each .paperclip-repository and verify that sibling skills, agents/poteto-agent.md and NOTICE.md can be read. Use the delivered provider home or prepared runtime-context bundle, not an ordinary company skill-library directory; CODEX_HOME may be absent from the shell environment.",
+    "Use the filesystem paths provided for your assigned skills to read the two selected wrappers on this provider's filesystem. Read their canonical original instructions, then use Node.js fs to traverse each .outpost-repository and verify that sibling skills, agents/poteto-agent.md and NOTICE.md can be read. Use the delivered provider home or prepared runtime-context bundle, not an ordinary space skill-library directory; CODEX_HOME may be absent from the shell environment.",
     `Publish a progress comment on this task containing exactly POTETO-ROOTS-${nonce} followed by JSON {"roots":["<absolute provider wrapper parent for first skill>","<absolute provider wrapper parent for second skill>"]}.`,
     "After publishing that comment, execute the ordinary shell command sleep 120 and wait for it to finish. The operator will independently inspect these files during that pause. Do not alter any imported file, install dependencies, fetch repository contents, or finish before the pause completes.",
     `Then reply ${execution.task.buildVisibleMarker(nonce)} and complete this task.`,
   ].join("\n");
-  const created = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name,
+  const created = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name,
     title: execution.task.buildTitle(nonce), prompt, workMode: "standard", requireExplicitTitle: true });
   let issue = await api.get<Row>(`/api/issues/${created.issueId}`), runs: Row[] = [];
   const refresh = async () => {
@@ -112,9 +112,9 @@ export async function runRepositorySkillsFlow(input: {
   expect(runs).toHaveLength(1);
   expect(runs[0]!.status).toBe("running");
   expect(runs[0]!.runtimeMode).toBe(execution.profile.expectedRuntimeMode);
-  expect(runs[0]!.companyId).toBe(fixtures.company.id);
+  expect(runs[0]!.spaceId).toBe(fixtures.space.id);
   expect(runs[0]!.agentId).toBe(fixtures.agent.id);
-  expect(issue.companyId).toBe(fixtures.company.id);
+  expect(issue.spaceId).toBe(fixtures.space.id);
   expect(issue.assigneeAgentId).toBe(fixtures.agent.id);
   expect(runs[0]!.contextSnapshot?.outpostEnvironment?.id).toBe(fixtures.environment.id);
   expect(typeof runs[0]!.nativeSessionId).toBe("string");
@@ -129,19 +129,19 @@ export async function runRepositorySkillsFlow(input: {
     // Read the active run's persisted, digest-validated execution context. These
     // immutable assets are normal provider inputs, not a fixture or library copy.
     const executionInput = parseNativeExecutionInput(runs[0]!.runnerProfileJson.nativeExecutionInput);
-    expect(executionInput.binding).toMatchObject({ companyId: fixtures.company.id, agentId: fixtures.agent.id, runId: runs[0]!.id, issueId: issue.id, executionWorkspaceId: runs[0]!.id });
+    expect(executionInput.binding).toMatchObject({ spaceId: fixtures.space.id, agentId: fixtures.agent.id, runId: runs[0]!.id, issueId: issue.id, executionWorkspaceId: runs[0]!.id });
     expect(executionInput.session.normalizedSessionId).toBe(sessionId);
     expect(executionInput.provider.kind).toBe("codex");
     if (!("runtimeContext" in executionInput) || "access" in executionInput.workspace) throw new Error("Missing local repository runtime context");
     const context = executionInput.runtimeContext;
     expect(context.skills.map(skill => skill.key).sort()).toEqual(imported.imported.map((skill: Row) => skill.key).sort());
-    runtimeLocation = { kind: "local", instanceRoot, owner: { companyId: executionInput.binding.companyId, agentId: executionInput.binding.agentId,
+    runtimeLocation = { kind: "local", instanceRoot, owner: { spaceId: executionInput.binding.spaceId, agentId: executionInput.binding.agentId,
       driverKind: executionInput.session.driverKind, workspace: executionInput.workspace }, contextSkills: { sessionId, roots: context.skills.map(skill => skill.bundle.rootPath) } };
     await input.evidence("repository-owned-context.json", { nativeSessionId: sessionId, aggregateDigest: context.aggregateDigest,
       skills: context.skills.map(skill => ({ key: skill.key, versionId: skill.versionId, root: skill.bundle.rootPath, digest: skill.bundle.digest })) });
   } else {
     const leases = await api.get<Row[]>(`/api/environments/${fixtures.environment.id}/leases`);
-    const owned = leases.filter(lease => lease.companyId === fixtures.company.id && lease.environmentId === fixtures.environment.id && lease.heartbeatRunId === runs[0]!.id && lease.issueId === issue.id && lease.status === "active" && lease.provider === "daytona");
+    const owned = leases.filter(lease => lease.spaceId === fixtures.space.id && lease.environmentId === fixtures.environment.id && lease.heartbeatRunId === runs[0]!.id && lease.issueId === issue.id && lease.status === "active" && lease.provider === "daytona");
     expect(owned).toHaveLength(1);
     expect(owned[0]!.metadata.agentId).toBe(fixtures.agent.id);
     runtimeLocation = { kind: "daytona", remoteCwd: owned[0]!.metadata.remoteCwd };
@@ -162,7 +162,7 @@ export async function runRepositorySkillsFlow(input: {
     accept: state => state.issue.status === "done" && state.runs.length === 1 && state.runs[0]!.status === "succeeded",
     reject: state => state.runs.some(run => ["failed", "cancelled", "timed_out"].includes(run.status)) ? "Repository task failed" : undefined });
   await input.evidence("api-state.json", { issue, run: runs[0], runs, comments: await api.get<Row[]>(`/api/issues/${created.issueId}/comments`), checks });
-  await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
+  await page.goto(`/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
   await expect(page.getByTestId("task-chat-agent-bubble").filter({ hasText: execution.task.buildVisibleMarker(nonce) }).last()).toBeVisible();
   await input.capture("final-state", "Poteto repository skills verified in the actual agent runtime", "final-state.png");
   return { issue, runs, checks };

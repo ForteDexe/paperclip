@@ -50,7 +50,7 @@ export interface RunTranscriptSource {
 
 interface UseLiveRunTranscriptsOptions {
   runs: RunTranscriptSource[];
-  companyId?: string | null;
+  spaceId?: string | null;
   /**
    * Compact chunk-count cap for ticker-style consumers (dashboard). When set,
    * trimming is silent — the historical behavior. Full task views omit this and
@@ -91,7 +91,7 @@ export function resolveInitialLogOffset(run: RunTranscriptSource, limitBytes: nu
 
 export function useLiveRunTranscripts({
   runs,
-  companyId,
+  spaceId,
   maxChunksPerRun,
   maxBytesPerRun = TASK_VIEW_MAX_BYTES_PER_RUN,
   logPollIntervalMs = LOG_POLL_INTERVAL_MS,
@@ -194,17 +194,17 @@ export function useLiveRunTranscripts({
     parserTick: number;
     transcript: TranscriptEntry[];
   }>());
-  const previousCompanyRef = useRef(companyId);
+  const previousSpaceRef = useRef(spaceId);
   useEffect(() => {
-    if (previousCompanyRef.current === companyId) return;
-    previousCompanyRef.current = companyId;
+    if (previousSpaceRef.current === spaceId) return;
+    previousSpaceRef.current = spaceId;
     setChunksByRun(new Map()); setHydratedRunIds(new Set()); setErrorsByRun(new Map());
     seenChunkKeysRef.current.clear(); trimmedSeqFloorByRunRef.current.clear();
     pendingLogRowsByRunRef.current.clear(); logOffsetByRunRef.current.clear(); logReadLimitByRunRef.current.clear();
     logIdentityRef.current.clear(); retiredLogIdentitiesRef.current.clear(); sequencesRef.current.clear();
     gapPendingRef.current.clear(); missingTerminalLogRunIdsRef.current.clear();
     absenceDeadlineByRunRef.current.clear(); prevKnownRunIdsRef.current.clear(); transcriptCacheRef.current.clear();
-  }, [companyId]);
+  }, [spaceId]);
 
   // Tick counter to force transcript recomputation when dynamic parser loads
   const [parserTick, setParserTick] = useState(0);
@@ -351,8 +351,8 @@ export function useLiveRunTranscripts({
     }
   }, [normalizedRuns, pruneTick]);
 
-  const stream = useTranscriptLiveStream([...activeRunIds], { companyId, enabled: enabled && enableRealtimeUpdates }, event => {
-        if (event.companyId !== companyId) return;
+  const stream = useTranscriptLiveStream([...activeRunIds], { spaceId, enabled: enabled && enableRealtimeUpdates }, event => {
+        if (event.spaceId !== spaceId) return;
         const payload = event.payload ?? {};
         const runId = readString(payload["runId"]);
         if (!runId) return;
@@ -554,7 +554,7 @@ export function useLiveRunTranscripts({
       for (const timer of retryTimers.values()) window.clearTimeout(timer);
       if (interval !== null) window.clearInterval(interval);
     };
-  }, [visible, enableRealtimeUpdates, logPollIntervalMs, logReadLimitBytes, normalizedRuns, runIdsKey, retryGeneration, enabled, companyId, stream.healthy, stream.epoch]);
+  }, [visible, enableRealtimeUpdates, logPollIntervalMs, logReadLimitBytes, normalizedRuns, runIdsKey, retryGeneration, enabled, spaceId, stream.healthy, stream.epoch]);
 
 
   const transcriptByRun = useMemo(() => {

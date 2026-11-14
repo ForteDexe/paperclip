@@ -11,7 +11,7 @@ import { CapabilityLiveSessionService } from "../live/live-session.js";
 
 const GENERATED_HEADER = "# GENERATED FILE — DO NOT EDIT. Run pnpm generate:capability-inventory.\n";
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../..");
-const REPORT_DIRECTORY = resolve(PACKAGE_ROOT, ".paperclip-local/evidence/capability");
+const REPORT_DIRECTORY = resolve(PACKAGE_ROOT, ".outpost-local/evidence/capability");
 
 type AssertionClass =
   | "control_plane_invariant"
@@ -84,7 +84,7 @@ export const CAPABILITY_LIVE_EVAL_GRANTS = Object.freeze([
   "delegation:tasks:create",
   "discovery:agents:read",
   "discovery:tasks:read",
-  "governance:approvals:request",
+  "approvals:approvals:request",
 ]);
 
 export interface CapabilityEvalParityReport {
@@ -248,7 +248,7 @@ function operationPlan(row: CapabilityEvalRow): OperationPlan {
   const optionalByGroup: Partial<Record<string, OperationPlan>> = {
     se: { operationId: "search_tasks", input: { query: row.id }, grants: ["discovery:tasks:read"] },
     su: { operationId: "create_task", input: { title: marker }, grants: ["delegation:tasks:create"] },
-    ap: { operationId: "request_approval", input: { approvalType: "fixture", payload: { caseId: row.id } }, grants: ["governance:approvals:request"] },
+    ap: { operationId: "request_approval", input: { approvalType: "fixture", payload: { caseId: row.id } }, grants: ["approvals:approvals:request"] },
     rf: { operationId: "list_agents", input: {}, grants: ["discovery:agents:read"] },
     mh: { operationId: "create_task", input: { title: marker }, grants: ["delegation:tasks:create"] },
   };
@@ -261,7 +261,7 @@ async function runtimeFor(actorGrants: string[] = []) {
   const seed: CapabilityFixtureSeed = {
     actors: [{
       id: "actor-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Eval fixture actor",
       role: "engineer",
       status: "active",
@@ -275,7 +275,7 @@ async function runtimeFor(actorGrants: string[] = []) {
     identity: {
       runId: "run-capability-eval",
       sessionId: "session-capability-eval",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "task-1",
       agentId: "actor-1",
     },
@@ -423,7 +423,7 @@ function liveFixtureSeed(actorGrants: readonly string[]): CapabilityFixtureSeed 
   return {
     actors: [{
       id: "actor-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Eval fixture actor",
       role: "engineer",
       status: "active",
@@ -453,7 +453,7 @@ async function toolSurfaceParity(sample: Array<{ caseId: string; group: string; 
     "discovery:tasks:read",
     "discovery:agents:read",
     "delegation:tasks:create",
-    "governance:approvals:request",
+    "approvals:approvals:request",
   ]);
   const visible = runtime.visibleTools();
   const fake = new CapabilityFakeAgentToolBinding().bind(visible).map((tool) => tool.operationId);

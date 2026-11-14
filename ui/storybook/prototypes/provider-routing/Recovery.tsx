@@ -11,7 +11,7 @@ type Problem = "expired" | "missing" | "protocol" | "quota";
 const initial: ConnectionIntentInteraction = {
   ...pendingConnectionIntentInteraction,
   id: "provider-routing-repair",
-  companyId: "company-storybook",
+  spaceId: "space-storybook",
   addresseeUserId: "dotta",
   payload: {
     version: 1,

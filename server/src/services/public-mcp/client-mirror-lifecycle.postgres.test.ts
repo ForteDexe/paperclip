@@ -9,11 +9,11 @@ import {eq,sql} from "drizzle-orm";
 import {PgDatabase} from "drizzle-orm/pg-core";
 import {subscribeDatabaseWork} from "@outpost/db/work-signals";
 import {DELIVERY_QUEUES} from "../delivery-work-notifications.js";
-import {applyPendingMigrations,createDb,companies,authUsers,companyMemberships,mcpOauthClients as clients,mcpOauthClientMirrorState as state,mcpOauthClientChanges as changes,mcpOauthDeviceRequests as devices,mcpOauthGrants as grants} from "@outpost/db";
+import {applyPendingMigrations,createDb,spaces,authUsers,spaceMemberships,mcpOauthClients as clients,mcpOauthClientMirrorState as state,mcpOauthClientChanges as changes,mcpOauthDeviceRequests as devices,mcpOauthGrants as grants} from "@outpost/db";
 import {resolveExternalTestDatabaseUrl} from "../../__tests__/helpers/external-test-database.js";
 import {createDeliveryWorkCoordinator} from "../delivery-work-coordinator.js";
 import {instanceSettingsService} from "../instance-settings.js";
-import {deleteCompany} from "../company-deletion.js";
+import {deleteSpace} from "../space-deletion.js";
 import {createPublicMcpOAuth,DEVICE_GRANT} from "./oauth.js";
 import {startMcpRevocationIndexSync} from "./revocation-index-sync.js";
 import {startMcpClientMirrorSync} from "./client-mirror-sync.js";
@@ -30,22 +30,22 @@ const configured=resolveExternalTestDatabaseUrl("OUTPOST_MCP_SLEEP_TEST_DATABASE
 const budget={beforeRead:async()=>{},check:()=>{}};
 describe.skipIf(!configured)("MCP mirror actual transaction lifecycle",()=>{
   let db:ReturnType<typeof createDb>,coordinator:ReturnType<typeof createDeliveryWorkCoordinator>|undefined;
-  let home:string,companyId:string,userId:string,remoteAvailable:boolean,failures:number,ack:McpClientMirrorReceipt|undefined;
+  let home:string,spaceId:string,userId:string,remoteAvailable:boolean,failures:number,ack:McpClientMirrorReceipt|undefined;
   const sent:McpClientMirrorRequest[]=[];
   const errors:unknown[]=[];
   let onAppend:(()=>Promise<void>)|undefined;
   beforeAll(async()=>{await applyPendingMigrations(configured!);db=createDb(configured!,{maxConnections:2});},90_000);
   beforeEach(async()=>{
-    await db.execute(sql`TRUNCATE TABLE companies,mcp_oauth_clients,mcp_oauth_client_mirror_state,mcp_oauth_client_changes CASCADE`);
-    companyId=randomUUID();userId=randomUUID();remoteAvailable=false;failures=0;ack=undefined;sent.length=0;errors.length=0;onAppend=undefined;
+    await db.execute(sql`TRUNCATE TABLE spaces,mcp_oauth_clients,mcp_oauth_client_mirror_state,mcp_oauth_client_changes CASCADE`);
+    spaceId=randomUUID();userId=randomUUID();remoteAvailable=false;failures=0;ack=undefined;sent.length=0;errors.length=0;onAppend=undefined;
     home=await mkdtemp(path.join(tmpdir(),"mcp-mirror-lifecycle-"));vi.stubEnv("OUTPOST_HOME",home);
     managed.identity={stackId,canonicalOrigin:origin};vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY",randomBytes(32).toString("base64"));
-    await db.insert(companies).values({id:companyId,name:"Mirror lifecycle",issuePrefix:"MIRROR"});
+    await db.insert(spaces).values({id:spaceId,name:"Mirror lifecycle",issuePrefix:"MIRROR"});
     await db.insert(authUsers).values({id:userId,name:"Mirror operator",email:`${userId}@example.test`,createdAt:new Date(),updatedAt:new Date()});
-    await db.insert(companyMemberships).values({companyId,principalId:userId,principalType:"user",membershipRole:"owner",status:"active"});
+    await db.insert(spaceMemberships).values({spaceId,principalId:userId,principalType:"user",membershipRole:"owner",status:"active"});
     await instanceSettingsService(db).updateExperimental({enablePublicMcp:true,enableOpenAiDot:false});
   });
-  afterEach(async()=>{await coordinator?.stop();coordinator=undefined;managed.identity=null;await db.execute(sql`TRUNCATE TABLE companies,mcp_oauth_clients,mcp_oauth_client_mirror_state,mcp_oauth_client_changes CASCADE`);await db.delete(authUsers).where(eq(authUsers.id,userId));await rm(home,{recursive:true,force:true});vi.unstubAllEnvs();});
+  afterEach(async()=>{await coordinator?.stop();coordinator=undefined;managed.identity=null;await db.execute(sql`TRUNCATE TABLE spaces,mcp_oauth_clients,mcp_oauth_client_mirror_state,mcp_oauth_client_changes CASCADE`);await db.delete(authUsers).where(eq(authUsers.id,userId));await rm(home,{recursive:true,force:true});vi.unstubAllEnvs();});
   afterAll(async()=>{await db?.$client.end({timeout:1});});
   async function publish(value:McpClientMirrorRequest){
     sent.push(structuredClone(value));if(value.operation==="append"&&onAppend){const append=onAppend;onAppend=undefined;await append();}if(failures>0){failures--;throw new Error("controlled mirror outage");}
@@ -64,13 +64,13 @@ describe.skipIf(!configured)("MCP mirror actual transaction lifecycle",()=>{
   async function acknowledged(){await vi.waitFor(async()=>{const row=await current();expect(row).toBeDefined();expect(row?.receipt).toBeTruthy();expect(row?.receipt?.revision).toBe(row?.revision);},{timeout:10_000});return(await current())!;}
   const inspect=()=>readIdleMcpClientMirror(db,{budget,enabled:true,origin,instanceId,managedStackId:stackId});
   async function device(){
-    const oauth=createPublicMcpOAuth(db,{origin,resource:origin+"/mcp/paperclip"});
+    const oauth=createPublicMcpOAuth(db,{origin,resource:origin+"/mcp/outpost"});
     const client=await oauth.register({client_name:"Legacy device",redirect_uris:["https://client.example.test/callback"],grant_types:["authorization_code","refresh_token",DEVICE_GRANT],response_types:["code"],token_endpoint_auth_method:"none"});
-    const authorization=await oauth.deviceAuthorize({client_id:client.client_id,resource:oauth.config.resource,scope:"paperclip:read offline_access"});
+    const authorization=await oauth.deviceAuthorize({client_id:client.client_id,resource:oauth.config.resource,scope:"outpost:read offline_access"});
     return{oauth,client,authorization};
   }
   it("indexes a normally approved abandoned authorization code after an empty index startup",async()=>{
-    const oauth=createPublicMcpOAuth(db,{origin,resource:origin+"/mcp/paperclip"});
+    const oauth=createPublicMcpOAuth(db,{origin,resource:origin+"/mcp/outpost"});
     const client=await oauth.register({client_name:"Abandoned approved client",redirect_uris:["https://client.example.test/callback"],grant_types:["authorization_code"]});
     await start();
     const published:string[]=[];
@@ -78,12 +78,12 @@ describe.skipIf(!configured)("MCP mirror actual transaction lifecycle",()=>{
       if(value.operation==="complete"){published.push(value.authorityId);return{complete:true,receipt:{version:1,authorityId:value.authorityId,keyId:value.keyId,revision:value.revision,generation:createHash("sha256").update(value.authorityId).digest("hex")}};}
       return{complete:false,baseRevision:-1};
     }}});await index.ready;expect(published).toEqual([]);
-    const verifier="v".repeat(43),location=await oauth.authorize({response_type:"code",client_id:client.client_id,redirect_uri:"https://client.example.test/callback",resource:oauth.config.resource,scope:"paperclip:read",code_challenge:createHash("sha256").update(verifier).digest("base64url"),code_challenge_method:"S256"});
-    const actor:Request["actor"]={type:"board",source:"session",userId,companyIds:[companyId]};
+    const verifier="v".repeat(43),location=await oauth.authorize({response_type:"code",client_id:client.client_id,redirect_uri:"https://client.example.test/callback",resource:oauth.config.resource,scope:"outpost:read",code_challenge:createHash("sha256").update(verifier).digest("base64url"),code_challenge_method:"S256"});
+    const actor:Request["actor"]={type:"operator",source:"session",userId,spaceIds:[spaceId]};
     const grantInsert=vi.spyOn(PgDatabase.prototype,"insert"),intents:Array<{hints:string[];grantInserts:number}>=[];
     const unsubscribe=subscribeDatabaseWork(db,DELIVERY_QUEUES.mcpRevocationIndex,(event,hints)=>{if(event==="intent"&&hints?.size)intents.push({hints:[...hints],grantInserts:grantInsert.mock.calls.filter(([table])=>table===grants).length});});
     try{
-      const approved=await oauth.consent(new URL(location).pathname.split("/").at(-1)!,actor,{decision:"approve",companyId,allowWrites:false});
+      const approved=await oauth.consent(new URL(location).pathname.split("/").at(-1)!,actor,{decision:"approve",spaceId,allowWrites:false});
       expect(new URL(approved.redirectUrl).searchParams.get("code")).toBeTruthy();
       const [approvedGrant]=await db.select().from(grants);
       expect(intents,JSON.stringify({expectedGrantInserts:0,observed:intents})).toEqual([{hints:[approvedGrant.id],grantInserts:0}]);
@@ -113,7 +113,7 @@ describe.skipIf(!configured)("MCP mirror actual transaction lifecycle",()=>{
     expect((await db.select().from(devices))[0].expiresAt).toEqual(originalDevice.expiresAt);expect(await db.select().from(changes)).toEqual([]);expect(errors.length).toBeGreaterThanOrEqual(1);
   });
   it("a normal client mutation supersedes an in-flight page without acknowledging or logging the old revision",async()=>{
-    const oauth=createPublicMcpOAuth(db,{origin,resource:origin+"/mcp/paperclip"});
+    const oauth=createPublicMcpOAuth(db,{origin,resource:origin+"/mcp/outpost"});
     const register=(name:string)=>oauth.register({client_name:name,redirect_uris:["https://client.example.test/callback"],grant_types:["authorization_code","refresh_token"],response_types:["code"],token_endpoint_auth_method:"none"});
     await register("First client");remoteAvailable=true;let superseded:number|undefined;
     onAppend=async()=>{superseded=(await current())!.revision;await register("Concurrent client");};
@@ -136,9 +136,9 @@ describe.skipIf(!configured)("MCP mirror actual transaction lifecycle",()=>{
     expect((await current())!.receipt?.instanceId).toBe(instanceId);failures=0;replacement.wake();const replaced=await acknowledged();expect(replaced.receipt?.instanceId).toBe("replacement-instance");expect(replaced.deviceCutoverAt).toEqual(ready.deviceCutoverAt);
     const before=sent.length;managed.identity=null;await start();expect(sent).toHaveLength(before);
   });
-  it("actual company deletion rolls back mirror intent and invalidates source status and token proof on commit",async()=>{
-    const f=await device();const actor:Request["actor"]={type:"board",source:"session",userId,companyIds:[companyId]};
-    await f.oauth.consentDevice(f.authorization.user_code,actor,{decision:"approve",companyId,allowWrites:false});
+  it("actual space deletion rolls back mirror intent and invalidates source status and token proof on commit",async()=>{
+    const f=await device();const actor:Request["actor"]={type:"operator",source:"session",userId,spaceIds:[spaceId]};
+    await f.oauth.consentDevice(f.authorization.user_code,actor,{decision:"approve",spaceId,allowWrites:false});
     const approved=(await db.select().from(devices))[0];expect(approved.grantId).toBeTruthy();
     await new Promise(resolve=>setTimeout(resolve,5001));
     const tokens=await f.oauth.token({grant_type:DEVICE_GRANT,client_id:f.client.client_id,resource:f.oauth.config.resource,device_code:f.authorization.device_code});expect(tokens.access_token).toMatch(/^pcmcp_at_/);
@@ -147,24 +147,24 @@ describe.skipIf(!configured)("MCP mirror actual transaction lifecycle",()=>{
     const before=await acknowledged(),receipt=before.receipt!;
     await coordinator!.stop();coordinator=undefined;
     const proofOwnerId=randomUUID(),proofNow=Date.now();
-    const inspectTokens=()=>readIdleMcpWakeProof(db,{stackId,ownerId:proofOwnerId,capabilityGeneration:"a".repeat(64),challenge:"c".repeat(64),personalResource:origin+"/mcp/paperclip",dotResource:origin+"/mcp/runner",personalEnabled:true,dotEnabled:false,clientMirror:receipt,now:proofNow,budget});
+    const inspectTokens=()=>readIdleMcpWakeProof(db,{stackId,ownerId:proofOwnerId,capabilityGeneration:"a".repeat(64),challenge:"c".repeat(64),personalResource:origin+"/mcp/outpost",dotResource:origin+"/mcp/runner",personalEnabled:true,dotEnabled:false,clientMirror:receipt,now:proofNow,budget});
     const existing=await inspectTokens();expect(existing.grantIds).toContain(approved.grantId);expect(existing.admission.revocationAuthorities).toHaveLength(1);expect(existing.admission.lanes.length).toBeGreaterThan(0);
     expect((await readIdleMcpDeviceStatus(db,{enabled:true,receipt,budget})).blocked).toBe(false);
-    const retained={company:await db.select().from(companies).where(eq(companies.id,companyId)),clients:await db.select().from(clients),devices:await db.select().from(devices),grants:await db.select().from(grants),changes:await db.select().from(changes),state:await current(),status:await readIdleMcpDeviceStatus(db,{enabled:true,receipt,budget})};
+    const retained={space:await db.select().from(spaces).where(eq(spaces.id,spaceId)),clients:await db.select().from(clients),devices:await db.select().from(devices),grants:await db.select().from(grants),changes:await db.select().from(changes),state:await current(),status:await readIdleMcpDeviceStatus(db,{enabled:true,receipt,budget})};
     const suffix=randomUUID().replaceAll("-",""),barrier=`mcp_delete_barrier_${suffix}`,constraint=`mcp_delete_fk_${suffix}`;
-    await db.execute(sql`CREATE TABLE ${sql.identifier(barrier)} (company_id uuid NOT NULL, CONSTRAINT ${sql.identifier(constraint)} FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE RESTRICT)`);
+    await db.execute(sql`CREATE TABLE ${sql.identifier(barrier)} (space_id uuid NOT NULL, CONSTRAINT ${sql.identifier(constraint)} FOREIGN KEY (space_id) REFERENCES spaces(id) ON DELETE RESTRICT)`);
     try{
-      await db.execute(sql`INSERT INTO ${sql.identifier(barrier)} (company_id) VALUES (${companyId})`);
-      await expect(deleteCompany(db,companyId)).rejects.toMatchObject({cause:{code:"23503",constraint_name:constraint}});
-      expect(await db.select().from(companies).where(eq(companies.id,companyId))).toEqual(retained.company);expect(await db.select().from(clients)).toEqual(retained.clients);expect(await db.select().from(devices)).toEqual(retained.devices);expect(await db.select().from(grants)).toEqual(retained.grants);expect(await db.select().from(changes)).toEqual(retained.changes);expect(await current()).toEqual(retained.state);
+      await db.execute(sql`INSERT INTO ${sql.identifier(barrier)} (space_id) VALUES (${spaceId})`);
+      await expect(deleteSpace(db,spaceId)).rejects.toMatchObject({cause:{code:"23503",constraint_name:constraint}});
+      expect(await db.select().from(spaces).where(eq(spaces.id,spaceId))).toEqual(retained.space);expect(await db.select().from(clients)).toEqual(retained.clients);expect(await db.select().from(devices)).toEqual(retained.devices);expect(await db.select().from(grants)).toEqual(retained.grants);expect(await db.select().from(changes)).toEqual(retained.changes);expect(await current()).toEqual(retained.state);
       expect(await inspectTokens()).toEqual(existing);expect(await readIdleMcpDeviceStatus(db,{enabled:true,receipt,budget})).toEqual(retained.status);
       expect((await current())?.revision).toBe(before.revision);expect((await db.select().from(devices))[0].id).toBe(approved.id);expect((await readIdleMcpDeviceStatus(db,{enabled:true,receipt,budget})).blocked).toBe(false);
     }finally{await db.execute(sql`DROP TABLE ${sql.identifier(barrier)}`);}
-    await deleteCompany(db,companyId);
+    await deleteSpace(db,spaceId);
     expect(await db.select().from(devices)).toEqual([]);expect(await db.select().from(grants)).toEqual([]);expect((await current())!.revision).toBeGreaterThan(before.revision);
     expect((await readIdleMcpDeviceStatus(db,{enabled:true,receipt,budget})).blocked).toBe(true);
     await start();const after=await acknowledged();expect(after.receipt?.deviceStatus?.count).toBe(0);expect(after.receipt?.deviceStatus?.generation).not.toBe(receipt.deviceStatus?.generation);
-    const proof=await readIdleMcpWakeProof(db,{stackId,ownerId:randomUUID(),capabilityGeneration:"a".repeat(64),challenge:"c".repeat(64),personalResource:origin+"/mcp/paperclip",dotResource:origin+"/mcp/runner",personalEnabled:true,dotEnabled:false,clientMirror:after.receipt!,now:Date.now(),budget});
+    const proof=await readIdleMcpWakeProof(db,{stackId,ownerId:randomUUID(),capabilityGeneration:"a".repeat(64),challenge:"c".repeat(64),personalResource:origin+"/mcp/outpost",dotResource:origin+"/mcp/runner",personalEnabled:true,dotEnabled:false,clientMirror:after.receipt!,now:Date.now(),budget});
     expect(proof.grantIds).toEqual([]);expect(proof.admission.revocationAuthorities).toEqual([]);expect(await db.select().from(changes)).toEqual([]);
   },30_000);
   it("rotated local key invalidates old status and only the current bounded source publication restores it",async()=>{

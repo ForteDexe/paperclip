@@ -11,10 +11,10 @@ import { capturePolicyRearmDueAt, capturePolicyRearmPendingCondition, retainedSo
 export async function adoptSystemRecovery(db: Db, source: WorkspaceRecoverySourceIdentity) {
   return db.transaction(async tx => {
     const [existing] = await tx.select({ evidence: issueRecoveryActions.evidence }).from(issueRecoveryActions)
-      .where(and(eq(issueRecoveryActions.companyId, source.companyId), eq(issueRecoveryActions.id, source.actionId),
+      .where(and(eq(issueRecoveryActions.spaceId, source.spaceId), eq(issueRecoveryActions.id, source.actionId),
         eq(issueRecoveryActions.sourceIssueId, source.issueId))).for("update");
     if (!existing || existing.evidence.systemRecovery) return;
-    await notifyIssueRecovery(tx, { companyId: source.companyId });
+    await notifyIssueRecovery(tx, { spaceId: source.spaceId });
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.workspaceRecovery);
     const state = createSystemRecovery(source.runId);
     // Atomic, once per source. An exhausted previous execution budget is history;
@@ -29,7 +29,7 @@ export async function adoptSystemRecovery(db: Db, source: WorkspaceRecoverySourc
           stage: "verifying_stop", attempt: 0, attemptLimit: 6, requestIds: [],
         })}::jsonb)`,
       updatedAt: new Date(),
-    }).where(and(eq(issueRecoveryActions.companyId, source.companyId), eq(issueRecoveryActions.id, source.actionId),
+    }).where(and(eq(issueRecoveryActions.spaceId, source.spaceId), eq(issueRecoveryActions.id, source.actionId),
       eq(issueRecoveryActions.sourceIssueId, source.issueId),
       sql`${issueRecoveryActions.evidence}->>'runId' = ${source.runId}`,
       sql`not (${issueRecoveryActions.evidence} ? 'systemRecovery')`))
@@ -40,7 +40,7 @@ export async function adoptSystemRecovery(db: Db, source: WorkspaceRecoverySourc
     // neither user prose nor unrelated user-action notices are suppressed.
     await tx.update(issueComments).set({
       metadata: sql`${issueComments.metadata} || '{"recoveryResponsibility":"system"}'::jsonb`,
-    }).where(and(eq(issueComments.companyId, source.companyId), eq(issueComments.issueId, source.issueId),
+    }).where(and(eq(issueComments.spaceId, source.spaceId), eq(issueComments.issueId, source.issueId),
       eq(issueComments.authorType, "system"),
       sql`${issueComments.presentation}->>'kind' = 'system_notice'`,
       sql`${issueComments.metadata}->>'recoveryResponsibility' is null`,
@@ -57,7 +57,7 @@ export async function updateSystemRecovery(db: Db, source: WorkspaceRecoverySour
   previous: SystemRecoveryState, next: SystemRecoveryState) {
   const status = next.state === "complete" ? "recovered" : next.state === "exhausted" ? "blocked"
     : next.state === "running" ? "recovering" : "queued";
-  // A spent budget is not system work any more. Hand it to the board with the
+  // A spent budget is not system work any more. Hand it to the operator with the
   // one action that can progress it, instead of leaving an inert system owner.
   const exhausted = next.state === "exhausted";
   const handoff = exhausted ? exhaustedSystemRecoveryAction(next, await loadActionEvidence(db, source)) : null;
@@ -69,7 +69,7 @@ export async function updateSystemRecovery(db: Db, source: WorkspaceRecoverySour
   };
   return writeExecutionControl(db, DELIVERY_QUEUES.workspaceRecovery, async tx => {
     const [updated] = await tx.update(issueRecoveryActions).set({
-      ownerType: exhausted ? "board" : "system", ownerAgentId: null, ownerUserId: null,
+      ownerType: exhausted ? "operator" : "system", ownerAgentId: null, ownerUserId: null,
       ...(handoff ? { nextAction: handoff } : {}),
       evidence: sql`${issueRecoveryActions.evidence} || jsonb_build_object('systemRecovery', ${JSON.stringify(next)}::jsonb ||
         ${next.generationId === previous.generationId && next.intentId === previous.intentId
@@ -78,25 +78,25 @@ export async function updateSystemRecovery(db: Db, source: WorkspaceRecoverySour
         'workspaceRecovery', ${JSON.stringify(compatibility)}::jsonb || jsonb_build_object('requestIds',
           coalesce(${issueRecoveryActions.evidence}#>'{workspaceRecovery,requestIds}', '[]'::jsonb)))`,
       updatedAt: new Date(),
-    }).where(and(eq(issueRecoveryActions.companyId, source.companyId), eq(issueRecoveryActions.id, source.actionId),
+    }).where(and(eq(issueRecoveryActions.spaceId, source.spaceId), eq(issueRecoveryActions.id, source.actionId),
       sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,generationId}' = ${previous.generationId}`,
       sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,revision}' = ${String(previous.revision)}`))
       .returning({ id: issueRecoveryActions.id });
     return Boolean(updated);
-  }, { companyId: source.companyId });
+  }, { spaceId: source.spaceId });
 }
 
-/** Bookkeeping only: an action that was exhausted before the board handoff
- * existed still reaches the board. It grants no attempt and keeps the generation. */
+/** Bookkeeping only: an action that was exhausted before the operator handoff
+ * existed still reaches the operator. It grants no attempt and keeps the generation. */
 export async function handOffExhaustedSystemRecovery(db: Db, source: WorkspaceRecoverySourceIdentity,
   state: SystemRecoveryState) {
   if (state.state !== "exhausted") return false;
   const handoff = exhaustedSystemRecoveryAction(state, await loadActionEvidence(db, source));
   const [updated] = await db.update(issueRecoveryActions).set({
-    ownerType: "board", ownerAgentId: null, ownerUserId: null, nextAction: handoff,
+    ownerType: "operator", ownerAgentId: null, ownerUserId: null, nextAction: handoff,
     evidence: sql`jsonb_set(${issueRecoveryActions.evidence}, '{workspaceRecovery,message}', ${JSON.stringify(handoff)}::jsonb)`,
     updatedAt: new Date(),
-  }).where(and(eq(issueRecoveryActions.companyId, source.companyId), eq(issueRecoveryActions.id, source.actionId),
+  }).where(and(eq(issueRecoveryActions.spaceId, source.spaceId), eq(issueRecoveryActions.id, source.actionId),
     eq(issueRecoveryActions.sourceIssueId, source.issueId), eq(issueRecoveryActions.ownerType, "system"),
     sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,state}' = 'exhausted'`,
     sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,generationId}' = ${state.generationId}`,
@@ -108,13 +108,13 @@ export async function handOffExhaustedSystemRecovery(db: Db, source: WorkspaceRe
 
 async function loadActionEvidence(db: Db, source: WorkspaceRecoverySourceIdentity) {
   const [row] = await db.select({ evidence: issueRecoveryActions.evidence }).from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, source.companyId), eq(issueRecoveryActions.id, source.actionId)));
+    eq(issueRecoveryActions.spaceId, source.spaceId), eq(issueRecoveryActions.id, source.actionId)));
   return row?.evidence ?? null;
 }
 
 export async function loadSystemRecovery(db: Db, source: WorkspaceRecoverySourceIdentity) {
   const [row] = await db.select({ evidence: issueRecoveryActions.evidence }).from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, source.companyId), eq(issueRecoveryActions.sourceIssueId, source.issueId),
+    eq(issueRecoveryActions.spaceId, source.spaceId), eq(issueRecoveryActions.sourceIssueId, source.issueId),
     eq(issueRecoveryActions.id, source.actionId)));
   return readSystemRecovery(row?.evidence);
 }
@@ -127,7 +127,7 @@ export async function nextWorkspaceRecoveryAt(db: Db): Promise<number | null> {
     when jsonb_typeof(${issueRecoveryActions.evidence}#>'{systemRecovery,nextAttemptAt}') = 'number'
     then (${issueRecoveryActions.evidence}#>>'{systemRecovery,nextAttemptAt}')::bigint else 0 end` })
     .from(issueRecoveryActions).innerJoin(heartbeatRuns, and(
-      eq(heartbeatRuns.companyId, issueRecoveryActions.companyId),
+      eq(heartbeatRuns.spaceId, issueRecoveryActions.spaceId),
       eq(heartbeatRuns.id, sql`case when ${issueRecoveryActions.evidence}->>'runId' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         then (${issueRecoveryActions.evidence}->>'runId')::uuid end`),
       sql`${heartbeatRuns.status} in ('failed', 'interrupted', 'timed_out', 'cancelled', 'succeeded')`,
@@ -141,8 +141,8 @@ export async function nextWorkspaceRecoveryAt(db: Db): Promise<number | null> {
           and ${issueRecoveryActions.evidence}->>'bootstrapPreparationSettledAt' is not null
           and coalesce(${issueRecoveryActions.evidence}->>'bootstrapPreparationContinuation', 'pending') = 'pending'
           and exists (select 1 from ${issues} inner join ${agents}
-            on ${agents.id} = ${heartbeatRuns.agentId} and ${agents.companyId} = ${heartbeatRuns.companyId}
-            where ${issues.id} = ${issueRecoveryActions.sourceIssueId} and ${issues.companyId} = ${heartbeatRuns.companyId}
+            on ${agents.id} = ${heartbeatRuns.agentId} and ${agents.spaceId} = ${heartbeatRuns.spaceId}
+            where ${issues.id} = ${issueRecoveryActions.sourceIssueId} and ${issues.spaceId} = ${heartbeatRuns.spaceId}
               and ${issues.assigneeAgentId} = ${heartbeatRuns.agentId}
               and ${issues.status} in ('todo', 'in_progress', 'in_review')
               and ${issues.executionRunId} is null and ${issues.checkoutRunId} is null

@@ -8,12 +8,12 @@ import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from "rea
 import type { CaseSummary } from "@/api/cases";
 import { Cases } from "./Cases";
 
-const companyState = vi.hoisted(() => ({ selectedCompanyId: "company-1" as string | null }));
+const spaceState = vi.hoisted(() => ({ selectedSpaceId: "space-1" as string | null }));
 const casesApi = vi.hoisted(() => ({ list: vi.fn(), listTypes: vi.fn(), get: vi.fn(), patch: vi.fn() }));
 const projectsApi = vi.hoisted(() => ({ list: vi.fn() }));
 const setBreadcrumbs = vi.hoisted(() => vi.fn());
 
-vi.mock("@/context/CompanyContext", () => ({ useCompany: () => companyState }));
+vi.mock("@/context/SpaceContext", () => ({ useSpace: () => spaceState }));
 vi.mock("@/context/BreadcrumbContext", () => ({ useBreadcrumbs: () => ({ setBreadcrumbs }) }));
 vi.mock("@/api/cases", async importOriginal => ({
   ...(await importOriginal<typeof import("@/api/cases")>()), casesApi,
@@ -28,7 +28,7 @@ vi.mock("@/lib/router", async () => ({
 
 function createCase(overrides: Partial<CaseSummary> = {}): CaseSummary {
   return {
-    id: "case-1", companyId: "company-1", projectId: null, caseNumber: 1,
+    id: "case-1", spaceId: "space-1", projectId: null, caseNumber: 1,
     identifier: "PAP-C1", caseType: "Bug", key: null, title: "Webhook delivery",
     summary: "Preserve the original event receipt", status: "in_progress", fields: {},
     parentCaseId: null, createdByAgentId: null, createdByUserId: null, completedAt: null,
@@ -109,7 +109,7 @@ describe("Read-only cases list", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
-    companyState.selectedCompanyId = "company-1";
+    spaceState.selectedSpaceId = "space-1";
     casesApi.list.mockReset().mockResolvedValue([createCase()]);
     casesApi.listTypes.mockReset().mockResolvedValue(["Bug", "Research"]);
     casesApi.get.mockReset();
@@ -144,14 +144,14 @@ describe("Read-only cases list", () => {
     expect(container.querySelector('[aria-label*="Kanban"]')).toBeNull();
     expect(casesApi.get).not.toHaveBeenCalled();
     expect(casesApi.patch).not.toHaveBeenCalled();
-    expect(casesApi.list).toHaveBeenCalledWith("company-1", expect.objectContaining({ limit: 51, offset: 0, status: undefined }));
+    expect(casesApi.list).toHaveBeenCalledWith("space-1", expect.objectContaining({ limit: 51, offset: 0, status: undefined }));
   });
 
   it("sends URL filters before paging, including No project, and retains them through detail and back", async () => {
     const query = "?q=webhook&status=in_review&type=Bug&project=none&page=3";
     await renderPage(`/PAP/cases${query}`);
     await waitFor(() => expect(container.querySelector('a[href^="/PAP/cases/PAP-C1"]')).not.toBeNull());
-    expect(casesApi.list).toHaveBeenLastCalledWith("company-1", {
+    expect(casesApi.list).toHaveBeenLastCalledWith("space-1", {
       q: "webhook", status: "in_review", type: "Bug", projectId: undefined,
       includeNoProject: true, limit: 51, offset: 100,
     });
@@ -172,11 +172,11 @@ describe("Read-only cases list", () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "all");
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    await waitFor(() => expect(casesApi.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({
+    await waitFor(() => expect(casesApi.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({
       q: "all", status: "in_progress", projectId: "project-1", offset: 0,
     })));
     expect(container.querySelector('[data-testid="location"]')?.textContent).not.toContain("page=");
-    expect(casesApi.listTypes).toHaveBeenCalledWith("company-1");
+    expect(casesApi.listTypes).toHaveBeenCalledWith("space-1");
   });
 
   it("preserves a newly selected type when search changes before its navigation settles", async () => {
@@ -194,7 +194,7 @@ describe("Read-only cases list", () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "webhook");
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    await waitFor(() => expect(casesApi.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({
+    await waitFor(() => expect(casesApi.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({
       q: "webhook", type: "Bug", offset: 0,
     })));
     expect(new URLSearchParams(container.querySelector('[data-testid="location"]')!.textContent!.split("?")[1]).get("type"))
@@ -212,13 +212,13 @@ describe("Read-only cases list", () => {
     await escape();
     await click(button("History back"));
     for (const [type, query] of [["Bug", "restored back"], ["Research", "restored forward"]]) {
-      await waitFor(() => expect(casesApi.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({ type })));
+      await waitFor(() => expect(casesApi.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({ type })));
       const input = container.querySelector<HTMLInputElement>('input[aria-label="Search cases"]')!;
       await act(async () => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, query);
         input.dispatchEvent(new Event("input", { bubbles: true }));
       });
-      await waitFor(() => expect(casesApi.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({ type, q: query })));
+      await waitFor(() => expect(casesApi.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({ type, q: query })));
       if (type === "Bug") await click(button("History forward"));
     }
   });
@@ -241,7 +241,7 @@ describe("Read-only cases list", () => {
     expect(document.body.querySelector('[aria-label="Filter by type"]')?.textContent).toBe("receipt");
     expect(document.body.querySelector('[aria-label="Filter by status"]')?.textContent).toBe("In review");
     expect(container.querySelector('[data-testid="location"]')?.textContent).toBe(`/PAP/cases${query}`);
-    expect(casesApi.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({ q: "Pacific", type: "receipt", status: "in_review", projectId: "project-1" }));
+    expect(casesApi.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({ q: "Pacific", type: "receipt", status: "in_review", projectId: "project-1" }));
   });
 
   it("changes visible columns without editing case data and preserves the view through navigation", async () => {
@@ -273,7 +273,7 @@ describe("Read-only cases list", () => {
     const title = [...document.body.querySelectorAll('[aria-label="Sort cases"] button')]
       .find(element => element.textContent === "Title")!;
     await click(title);
-    await waitFor(() => expect(casesApi.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({
+    await waitFor(() => expect(casesApi.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({
       sortField: "title", sortDir: "asc", offset: 0,
     })));
     expect(container.querySelector('[data-testid="location"]')?.textContent).toBe("/PAP/cases?sort=title&dir=asc");
@@ -283,7 +283,7 @@ describe("Read-only cases list", () => {
     const type = [...document.body.querySelectorAll('[aria-label="Group cases"] button')]
       .find(element => element.textContent === "Type")!;
     await click(type);
-    await waitFor(() => expect(casesApi.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({
+    await waitFor(() => expect(casesApi.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({
       sortField: "title", sortDir: "asc", groupBy: "type", offset: 0,
     })));
     await escape();
@@ -298,13 +298,13 @@ describe("Read-only cases list", () => {
     const records = Array.from({ length: 51 }, (_, index) => createCase({
       id: `case-${index + 1}`, identifier: `PAP-C${index + 1}`, title: `Record ${index + 1}`,
     }));
-    casesApi.list.mockImplementation((_companyId, filters) => Promise.resolve(filters.offset ? [records[50]] : records));
+    casesApi.list.mockImplementation((_spaceId, filters) => Promise.resolve(filters.offset ? [records[50]] : records));
     await renderPage("/PAP/cases?type=Bug");
     await waitFor(() => expect(container.textContent).toContain("50+ cases"));
     expect(container.querySelector('a[href*="PAP-C51"]')).toBeNull();
     await click(button("Next"));
     await waitFor(() => expect(container.querySelector('a[href*="PAP-C51"]')).not.toBeNull());
-    expect(casesApi.list).toHaveBeenLastCalledWith("company-1", expect.objectContaining({ type: "Bug", offset: 50, limit: 51 }));
+    expect(casesApi.list).toHaveBeenLastCalledWith("space-1", expect.objectContaining({ type: "Bug", offset: 50, limit: 51 }));
     expect(button("Next").disabled).toBe(true);
     expect(button("Previous").disabled).toBe(false);
     await click(button("Previous"));
@@ -324,8 +324,8 @@ describe("Read-only cases list", () => {
     expect(container.textContent).not.toMatch(/Create case|New case|references\/cases/);
   });
 
-  it("does not request company data before a company is selected", async () => {
-    companyState.selectedCompanyId = null;
+  it("does not request space data before a space is selected", async () => {
+    spaceState.selectedSpaceId = null;
     await renderPage();
     expect(container.textContent).toContain("Select a Space to view cases.");
     expect(casesApi.list).not.toHaveBeenCalled();

@@ -17,7 +17,7 @@ import { ToolbarSearch } from "@/components/ToolbarSearch";
 import { SidePanelWindowControls } from "@/components/side-panel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useDialogActions } from "@/context/DialogContext";
 import { DesignProposalAccess } from "./DesignProposalAccess";
 import { workloadAgents, workloadTasks } from "./agent-workload-trial-data";
@@ -53,7 +53,7 @@ function TaskSection({ title, tasks, label, emptyMessage }: { title: string; tas
 }
 
 function AgentWorkloadContent({ initialQuery = "", initialFilter = "all", initialAgentId, emptyOrganization = false }: AgentWorkloadTrialProps) {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { openNewIssue } = useDialogActions();
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState<WorkloadFilter>(initialFilter);
@@ -61,8 +61,8 @@ function AgentWorkloadContent({ initialQuery = "", initialFilter = "all", initia
   const [maximized, setMaximized] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const cardRefs = useRef(new Map<string, HTMLButtonElement>());
-  const agents = emptyOrganization ? [] : workloadAgents.filter(agent => agent.companyId === selectedCompanyId);
-  const tasks = workloadTasks.filter(task => task.companyId === selectedCompanyId && agents.some(agent => agent.id === task.assigneeAgentId));
+  const agents = emptyOrganization ? [] : workloadAgents.filter(agent => agent.spaceId === selectedSpaceId);
+  const tasks = workloadTasks.filter(task => task.spaceId === selectedSpaceId && agents.some(agent => agent.id === task.assigneeAgentId));
   const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   const visibleAgents = agents.filter(agent => (filter === "all" || workloadState(agent) === filter)
     && words.every(word => `${agent.name} ${agent.role} ${agent.title ?? ""}`.toLocaleLowerCase().includes(word)));
@@ -153,6 +153,6 @@ function AgentWorkloadContent({ initialQuery = "", initialFilter = "all", initia
 }
 
 export function AgentWorkloadTrial(props: AgentWorkloadTrialProps) {
-  const { selectedCompanyId } = useCompany();
-  return <DesignProposalAccess><AgentWorkloadContent key={selectedCompanyId} {...props} /></DesignProposalAccess>;
+  const { selectedSpaceId } = useSpace();
+  return <DesignProposalAccess><AgentWorkloadContent key={selectedSpaceId} {...props} /></DesignProposalAccess>;
 }

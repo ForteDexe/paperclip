@@ -3,8 +3,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { and, asc, eq, gt, or, sql } from "drizzle-orm";
-import { heartbeatRuns, companySkillRepositorySnapshots as snapshots, type Db } from "@outpost/db";
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { heartbeatRuns, spaceSkillRepositorySnapshots as snapshots, type Db } from "@outpost/db";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 import type { StorageService } from "../../storage/types.js";
 import { getStorageService } from "../../storage/index.js";
 import { skillPackageStore, withSkillPackageReadScope } from "../skill-package-store.js";
@@ -20,7 +20,7 @@ import type { NativeExecutionInput, NativeRuntimeAssetReference, NativeRuntimeCo
 
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const retainedRuntimeSkillsSql = () => and(hasUnversionedRuntimeSkillInputSql(), or(skillRunNeedsFilesSql(),
-  sql`exists (select 1 from agent_task_sessions s where s.company_id = ${heartbeatRuns.companyId}
+  sql`exists (select 1 from agent_task_sessions s where s.space_id = ${heartbeatRuns.spaceId}
     and s.agent_id = ${heartbeatRuns.agentId} and s.last_run_id = ${heartbeatRuns.id})`));
 type ManifestFile = { path: string; sha256: string; mode: number; size: number };
 function manifestFiles(asset: NativeRuntimeAssetReference, text: string): ManifestFile[] {
@@ -42,7 +42,7 @@ function manifestFiles(asset: NativeRuntimeAssetReference, text: string): Manife
   return files;
 }
 async function readLocalManifest(asset: NativeRuntimeAssetReference) {
-  const root = path.join(resolvePaperclipInstanceRoot(), "runtime-context-assets");
+  const root = path.join(resolveOutpostInstanceRoot(), "runtime-context-assets");
   const expected = path.join(root, "bundles", asset.digest);
   if (asset.rootPath !== expected) throw new Error("runtime_skill_source_path_mismatch");
   await ensureSkillCacheDirectory(expected);
@@ -74,30 +74,30 @@ async function readSource(asset: NativeRuntimeAssetReference) {
   return { manifestText, files };
 }
 
-async function captureSkills(db: Db, companyId: string, admitted: ReturnType<typeof admittedRuntimeSkills>, storage?: StorageService, signal?: AbortSignal) {
+async function captureSkills(db: Db, spaceId: string, admitted: ReturnType<typeof admittedRuntimeSkills>, storage?: StorageService, signal?: AbortSignal) {
   const store = skillPackageStore(db, storage), assets: PreservedRuntimeSkill[] = [];
   for (const skill of admitted.skills) {
     signal?.throwIfAborted();
     const captured = await withRuntimeAssetUse(skill.bundle.digest, () => readSource(skill.bundle), true);
-    const packageSnapshotId = await store.prepare(companyId, captured.files, true, signal);
-    if (!await store.verifyDurable(companyId, packageSnapshotId, signal)) throw new Error("runtime_skill_package_not_durable");
+    const packageSnapshotId = await store.prepare(spaceId, captured.files, true, signal);
+    if (!await store.verifyDurable(spaceId, packageSnapshotId, signal)) throw new Error("runtime_skill_package_not_durable");
     assets.push({ key: skill.key, runtimeName: skill.runtimeName, bundle: skill.bundle, manifestText: captured.manifestText,
       packageSnapshotId, packageContentHash: skillSnapshotHash(captured.files) });
   }
   return assets;
 }
 
-async function lockPackages(db: Db, companyId: string, assets: PreservedRuntimeSkill[]) {
+async function lockPackages(db: Db, spaceId: string, assets: PreservedRuntimeSkill[]) {
   for (const asset of [...assets].sort((a, b) => a.packageSnapshotId.localeCompare(b.packageSnapshotId))) {
-    const [row] = await db.select().from(snapshots).where(and(eq(snapshots.companyId, companyId), eq(snapshots.id, asset.packageSnapshotId))).for("update");
+    const [row] = await db.select().from(snapshots).where(and(eq(snapshots.spaceId, spaceId), eq(snapshots.id, asset.packageSnapshotId))).for("update");
     if (!row?.storage || row.storage.provider !== "s3" || row.storage.durable !== true
       || row.contentHash !== asset.packageContentHash) throw new Error("runtime_skill_package_not_durable");
   }
 }
 
-type Admission = { companyId: string; runId: string; agentId: string; issueId: string; execution: NativeExecutionInput };
+type Admission = { spaceId: string; runId: string; agentId: string; issueId: string; execution: NativeExecutionInput };
 export type StagedRuntimeSkillAssets = { inputDigest: string; receipt: RuntimeSkillPreservation };
-const admissionSource = (input: Admission) => ({ id: input.runId, companyId: input.companyId, agentId: input.agentId,
+const admissionSource = (input: Admission) => ({ id: input.runId, spaceId: input.spaceId, agentId: input.agentId,
   nativeIssueId: input.issueId, runnerProfileJson: { nativeExecutionInput: input.execution } });
 
 export async function stageNativeRuntimeSkillAssets(db: Db, input: Admission & { signal?: AbortSignal }, storage?: StorageService): Promise<StagedRuntimeSkillAssets | null> {
@@ -107,7 +107,7 @@ export async function stageNativeRuntimeSkillAssets(db: Db, input: Admission & {
   const shared = storage ?? getStorageService();
   if (shared.provider !== "s3") return null;
   const [current] = await db.select({ receipt: sql<unknown>`${heartbeatRuns.runnerProfileJson}->${RUNTIME_SKILL_PRESERVATION_KEY}` }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.agentId, input.agentId), eq(heartbeatRuns.id, input.runId)));
+    eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.agentId, input.agentId), eq(heartbeatRuns.id, input.runId)));
   if (!current) throw new Error("runtime_skill_source_unavailable");
   const previous = current.receipt;
   let receipt = previous == null ? null : readRuntimeSkillPreservation({ ...source,
@@ -117,11 +117,11 @@ export async function stageNativeRuntimeSkillAssets(db: Db, input: Admission & {
     const store = skillPackageStore(db, shared);
     for (const asset of receipt.assets) {
       manifestFiles(asset.bundle, asset.manifestText);
-      const row = await store.descriptor(input.companyId, asset.packageSnapshotId);
+      const row = await store.descriptor(input.spaceId, asset.packageSnapshotId);
       if (row.storage?.provider !== "s3" || row.storage.durable !== true || row.contentHash !== asset.packageContentHash) throw new Error("runtime_skill_package_not_durable");
     }
   } else receipt = { schema: RUNTIME_SKILL_PRESERVATION_SCHEMA, inputDigest: admitted.inputDigest,
-    bindingDigest: admitted.bindingDigest, assets: await captureSkills(db, input.companyId, admitted, shared, input.signal) };
+    bindingDigest: admitted.bindingDigest, assets: await captureSkills(db, input.spaceId, admitted, shared, input.signal) };
   return { inputDigest: admitted.inputDigest, receipt };
 }
 
@@ -131,14 +131,14 @@ export async function bindStagedNativeRuntimeSkillAssets(db: Db, input: Admissio
   const receipt = readRuntimeSkillPreservation({ ...source, runnerProfileJson: {
     ...source.runnerProfileJson, [RUNTIME_SKILL_PRESERVATION_KEY]: input.staged.receipt } });
   if (!receipt || input.staged.inputDigest !== admitted.inputDigest) throw new Error("runtime_skill_preservation_binding_changed");
-  await lockPackages(db, input.companyId, receipt.assets);
+  await lockPackages(db, input.spaceId, receipt.assets);
   return receipt;
 }
 
 /** Copy immutable admitted assets, never resolve a run's business/recovery state
  * or infer that its provider stopped. Local source bytes and null pins survive. */
-export async function preserveRuntimeSkillAssets(db: Db, input: { companyId: string; runId: string; signal?: AbortSignal }, storage?: StorageService) {
-  const where = and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId));
+export async function preserveRuntimeSkillAssets(db: Db, input: { spaceId: string; runId: string; signal?: AbortSignal }, storage?: StorageService) {
+  const where = and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId));
   const [source] = await db.select().from(heartbeatRuns).where(where);
   if (!source || source.runtimeMode !== "native") throw new Error("runtime_skill_source_unavailable");
   const admitted = admittedRuntimeSkills(source);
@@ -148,24 +148,24 @@ export async function preserveRuntimeSkillAssets(db: Db, input: { companyId: str
   if (existing) {
     for (const asset of existing.assets) {
       manifestFiles(asset.bundle, asset.manifestText);
-      const row = await store.descriptor(input.companyId, asset.packageSnapshotId);
+      const row = await store.descriptor(input.spaceId, asset.packageSnapshotId);
       if (row.storage?.provider !== "s3" || row.storage.durable !== true || row.contentHash !== asset.packageContentHash
-        || !await store.verifyDurable(input.companyId, asset.packageSnapshotId, input.signal)) throw new Error("runtime_skill_package_not_durable");
+        || !await store.verifyDurable(input.spaceId, asset.packageSnapshotId, input.signal)) throw new Error("runtime_skill_package_not_durable");
     }
     return { preserved: existing.assets.length };
   }
-  const assets = await captureSkills(db, input.companyId, admitted, storage, input.signal);
+  const assets = await captureSkills(db, input.spaceId, admitted, storage, input.signal);
   if (!assets.length) return { preserved: 0 };
   const publications: ActivityPublication[] = [];
   await db.transaction(async tx => {
     const [current] = await tx.select().from(heartbeatRuns).where(where).for("update");
     if (!current || admittedRuntimeSkills(current).inputDigest !== admitted.inputDigest || current.status !== source.status
       || current.finishedAt?.getTime() !== source.finishedAt?.getTime()) throw new Error("runtime_skill_preservation_binding_changed");
-    await lockPackages(tx as unknown as Db, input.companyId, assets);
+    await lockPackages(tx as unknown as Db, input.spaceId, assets);
     await tx.update(heartbeatRuns).set({ runnerProfileJson: { ...current.runnerProfileJson,
       [RUNTIME_SKILL_PRESERVATION_KEY]: { schema: RUNTIME_SKILL_PRESERVATION_SCHEMA, inputDigest: admitted.inputDigest,
         bindingDigest: admitted.bindingDigest, assets } } }).where(where);
-    await logActivity(tx as unknown as Db, { companyId: input.companyId, actorType: "system", actorId: "runtime-skill-preservation",
+    await logActivity(tx as unknown as Db, { spaceId: input.spaceId, actorType: "system", actorId: "runtime-skill-preservation",
       action: "native_runtime_skill_assets_preserved", entityType: "heartbeat_run", entityId: input.runId,
       agentId: source.agentId, runId: input.runId, details: { inputDigest: admitted.inputDigest, assets: assets.length } }, publications);
   });
@@ -177,7 +177,7 @@ export async function hasLocalRuntimeSkillObligations(db: Db): Promise<boolean> 
   let after: string | undefined;
   const checkedPackages = new Map<string, { hash: string; storage: typeof snapshots.$inferSelect.storage }>();
   for (;;) {
-    const rows = await db.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+    const rows = await db.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
       nativeIssueId: heartbeatRuns.nativeIssueId, runnerProfileJson: sql<Record<string, unknown>>`jsonb_build_object(
         'nativeExecutionInput', ${heartbeatRuns.runnerProfileJson}->'nativeExecutionInput',
         'nativeRuntimeSkillPreservation', ${heartbeatRuns.runnerProfileJson}->'nativeRuntimeSkillPreservation')` })
@@ -189,11 +189,11 @@ export async function hasLocalRuntimeSkillObligations(db: Db): Promise<boolean> 
       if (!receipt) return true;
       for (const asset of receipt.assets) {
         try { manifestFiles(asset.bundle, asset.manifestText); } catch { return true; }
-        const key = `${row.companyId}:${asset.packageSnapshotId}`;
+        const key = `${row.spaceId}:${asset.packageSnapshotId}`;
         let snapshot = checkedPackages.get(key);
         if (!snapshot) {
           [snapshot] = await db.select({ hash: snapshots.contentHash, storage: snapshots.storage }).from(snapshots)
-            .where(and(eq(snapshots.companyId, row.companyId), eq(snapshots.id, asset.packageSnapshotId)));
+            .where(and(eq(snapshots.spaceId, row.spaceId), eq(snapshots.id, asset.packageSnapshotId)));
           if (snapshot) checkedPackages.set(key, snapshot);
         }
         if (snapshot?.storage?.provider !== "s3" || snapshot.storage.durable !== true || snapshot.hash !== asset.packageContentHash) return true;
@@ -206,10 +206,10 @@ export async function hasLocalRuntimeSkillObligations(db: Db): Promise<boolean> 
 
 /** Existing bounded skill maintenance owns this optional online conversion;
  * there is no scanner, new execution admission or controller takeover. */
-export async function migrateRuntimeSkillAssets(db: Db, options: { companyId?: string; after?: string;
+export async function migrateRuntimeSkillAssets(db: Db, options: { spaceId?: string; after?: string;
   limit?: number; apply?: boolean; signal?: AbortSignal } = {}, storage?: StorageService) {
-  const rows = await db.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId }).from(heartbeatRuns)
-    .where(and(retainedRuntimeSkillsSql(), options.companyId ? eq(heartbeatRuns.companyId, options.companyId) : undefined,
+  const rows = await db.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId }).from(heartbeatRuns)
+    .where(and(retainedRuntimeSkillsSql(), options.spaceId ? eq(heartbeatRuns.spaceId, options.spaceId) : undefined,
       options.after ? gt(heartbeatRuns.id, options.after) : undefined)).orderBy(asc(heartbeatRuns.id))
     .limit(Math.max(1, Math.min(50, options.limit ?? 10)));
   const results: Array<{ runId: string; status: "candidate" | "preserved"; preserved?: number }> = [];
@@ -217,7 +217,7 @@ export async function migrateRuntimeSkillAssets(db: Db, options: { companyId?: s
     for (const row of rows) {
       options.signal?.throwIfAborted();
       if (!options.apply) { results.push({ runId: row.id, status: "candidate" }); continue; }
-      const result = await preserveRuntimeSkillAssets(db, { companyId: row.companyId, runId: row.id, signal: options.signal }, storage);
+      const result = await preserveRuntimeSkillAssets(db, { spaceId: row.spaceId, runId: row.id, signal: options.signal }, storage);
       results.push({ runId: row.id, status: "preserved", preserved: result.preserved });
     }
   });
@@ -231,12 +231,12 @@ export async function rehydratePreservedRuntimeSkill(db: Db, row: Parameters<typ
   if (!asset) throw new Error("runtime_skill_preservation_required");
   const files = manifestFiles(asset.bundle, asset.manifestText);
   const store = skillPackageStore(db);
-  const descriptor = await store.descriptor(row.companyId, asset.packageSnapshotId);
+  const descriptor = await store.descriptor(row.spaceId, asset.packageSnapshotId);
   if (descriptor.storage?.provider !== "s3" || descriptor.storage.durable !== true
     || descriptor.contentHash !== asset.packageContentHash) throw new Error("runtime_skill_package_not_durable");
   // An intact disposable cache remains useful during a storage outage. Only
   // use the current host's canonical cache, never the old host's recorded path.
-  const local = { ...skill.bundle, rootPath: path.join(resolvePaperclipInstanceRoot(), "runtime-context-assets", "bundles", skill.bundle.digest) };
+  const local = { ...skill.bundle, rootPath: path.join(resolveOutpostInstanceRoot(), "runtime-context-assets", "bundles", skill.bundle.digest) };
   const healthy = await withRuntimeAssetUse(local.digest, async () => {
     try {
       const { expected, entries } = await readLocalManifest(local);
@@ -248,7 +248,7 @@ export async function rehydratePreservedRuntimeSkill(db: Db, row: Parameters<typ
     }
   });
   if (healthy) return local;
-  return store.withIsolatedPackage(row.companyId, asset.packageSnapshotId, async (root, manifest) => {
+  return store.withIsolatedPackage(row.spaceId, asset.packageSnapshotId, async (root, manifest) => {
     if (manifest.files.length !== files.length || files.some(file => !manifest.files.some(entry => entry.path === file.path
       && entry.sha256 === file.sha256 && entry.size === file.size && entry.executable === Boolean(file.mode & 0o111)))) throw new Error("runtime_skill_package_mismatch");
     // Package storage preserves executable bits; the authenticated native

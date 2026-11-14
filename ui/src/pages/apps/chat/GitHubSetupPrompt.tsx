@@ -3,16 +3,16 @@ import { buildSetupPrompt, SetupPrompt } from "./SetupPrompt";
 export const githubSetupPrompt = `Help me set up a GitHub review bot in Outpost. Use your embedded browser to operate the real Outpost and GitHub interfaces. Do not use a Chrome extension. If you do not have embedded browser tools, tell me before starting.
 
 Start by asking these four short questions together, then wait for my answers. Reuse information I have already given you:
-1. Which company in this Outpost instance and which agent should own this bot? If I am unsure, help me choose from the agents in that company.
+1. Which space in this Outpost instance and which agent should own this bot? If I am unsure, help me choose from the agents in that space.
 2. Which GitHub account or organization and repositories should it access? Should we create a new GitHub App, or reuse an existing bot App?
 3. Should it run only when mentioned, or also automatically for new PRs and updated commits? What should the review focus on? Should its rating be advisory, or must its check pass before merging (default threshold: 5/5)?
 4. Who should be allowed to start work: linked Outpost members only, or also explicitly sponsored GitHub users? Which member should be responsible for automatic events? May we create a disposable test PR in one of the selected repositories?
 
 Explain the three independent choices before configuring them: installing the App grants access; Outpost trigger settings decide when the agent runs; GitHub branch protection or rulesets decide whether its result is required before merging. Installation alone does not enable automatic reviews or block merges. A failing check only blocks merging when GitHub requires that check.
 
-Use the following workflow. Work through normal UI controls, inspect the result after each step, and resume saved progress if a connection already exists. Avoid duplicate Apps, connections, installations, and test PRs. A Storybook preview is only a design demonstration: use the Outpost instance URL supplied above (ask for it only if unavailable), and never use the preview’s fixture company, agents, or repositories as setup values.
+Use the following workflow. Work through normal UI controls, inspect the result after each step, and resume saved progress if a connection already exists. Avoid duplicate Apps, connections, installations, and test PRs. A Storybook preview is only a design demonstration: use the Outpost instance URL supplied above (ask for it only if unavailable), and never use the preview’s fixture space, agents, or repositories as setup values.
 
-1. Open Outpost and select the company. Go to Apps and start the GitHub chat bot setup, or resume the saved connection. Ask me to take over for login, two-factor authentication, or a permission decision that needs my account. Never ask me to paste passwords, recovery codes, private keys, or access tokens into chat.
+1. Open Outpost and select the space. Go to Apps and start the GitHub chat bot setup, or resume the saved connection. Ask me to take over for login, two-factor authentication, or a permission decision that needs my account. Never ask me to paste passwords, recovery codes, private keys, or access tokens into chat.
 
 2. Choose the assigned agent. This is a permanent assignment: GitHub messages and PR events must create or continue ordinary Outpost tasks on this agent, with its existing budgets, permissions, and tools. Inspect its trust configuration. If it is not configured for low-trust review, explain the warning and open https://docs.outpost.ing/administration/trust-and-low-trust-review/ so I can decide. Do not silently change its trust policy or grant it personal credentials.
 

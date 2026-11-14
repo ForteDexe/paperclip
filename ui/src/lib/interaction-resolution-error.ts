@@ -3,7 +3,7 @@
  * (PAP-17287).
  *
  * The resolution routes deny with a specific reason — human-only, creator
- * excluded, addressee mismatch, a governed action, an already-resolved card.
+ * excluded, addressee mismatch, a controlled action, an already-resolved card.
  * Collapsing all of that to `Try again` tells an operator to repeat an action
  * that will never succeed, so this module keeps the server's explanation and,
  * for an audience denial, follows it with who *can* respond.
@@ -25,7 +25,7 @@ export const INTERACTION_AUDIENCE_DENIAL_CODES = [
   "interaction_human_only",
   "interaction_creator_excluded",
   "interaction_addressee_mismatch",
-  "interaction_governed_action_denied",
+  "interaction_controlled_action_denied",
   "interaction_run_attribution_required",
   "interaction_scope_denied",
 ] as const;

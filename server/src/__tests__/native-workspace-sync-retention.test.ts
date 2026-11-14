@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { sql } from "drizzle-orm";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   environmentLeases,
   heartbeatRuns,
@@ -78,7 +78,7 @@ describeEmbeddedPostgres("native workspace sync retention", () => {
   const now = new Date();
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-native-workspace-sync-retention-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-native-workspace-sync-retention-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -90,7 +90,7 @@ describeEmbeddedPostgres("native workspace sync retention", () => {
     await db.delete(heartbeatRuns);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     if (stateRoot) await fs.rm(stateRoot, { recursive: true, force: true });
     stateRoot = "";
   });
@@ -100,7 +100,7 @@ describeEmbeddedPostgres("native workspace sync retention", () => {
   });
 
   async function root() {
-    if (!stateRoot) stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-native-workspace-sync-"));
+    if (!stateRoot) stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-native-workspace-sync-"));
     return stateRoot;
   }
 
@@ -116,10 +116,10 @@ describeEmbeddedPostgres("native workspace sync retention", () => {
   }
 
   async function seed(input: SeedInput = {}) {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Sync", issuePrefix: `S${companyId.slice(0, 6)}` });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Coder" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Work", status: "done" }).returning();
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Sync", issuePrefix: `S${spaceId.slice(0, 6)}` });
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Coder" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Work", status: "done" }).returning();
     const runId = randomUUID();
     const leaseId = randomUUID();
     const runStatus = input.runStatus ?? "succeeded";
@@ -141,7 +141,7 @@ describeEmbeddedPostgres("native workspace sync retention", () => {
     if (input.owner) profile.nativeWorkspaceFinalizationOwner = { token: randomUUID() };
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId: agent!.id,
       status: runStatus,
       issueId: issue!.id,
@@ -161,7 +161,7 @@ describeEmbeddedPostgres("native workspace sync retention", () => {
     if (finalization) {
       await db.insert(nativeRunFinalizations).values({
         runId,
-        companyId,
+        spaceId,
         issueId: issue!.id,
         phase: finalization.phase,
         recoveryState: finalization.recoveryState ?? null,
@@ -174,7 +174,7 @@ describeEmbeddedPostgres("native workspace sync retention", () => {
     if (input.leaseMetadata || input.leasePolicy || input.leaseProvider !== undefined) {
       await db.insert(environmentLeases).values({
         id: leaseId,
-        companyId,
+        spaceId,
         heartbeatRunId: runId,
         status: "released",
         provider: input.leaseProvider ?? null,
@@ -184,7 +184,7 @@ describeEmbeddedPostgres("native workspace sync retention", () => {
     }
     if (input.recoveryAction) {
       await db.insert(issueRecoveryActions).values({
-        companyId,
+        spaceId,
         sourceIssueId: issue!.id,
         kind: "active_run_watchdog",
         ownerType: "system",
@@ -196,7 +196,7 @@ describeEmbeddedPostgres("native workspace sync retention", () => {
       });
     }
     const folder = await writeFolder(runId, input.folderAgeDays ?? 9);
-    return { companyId, runId, folder };
+    return { spaceId, runId, folder };
   }
 
   const processStart = new Date(now.getTime() - 20 * DAY_MS);
@@ -505,10 +505,10 @@ describeEmbeddedPostgres("native workspace sync retention", () => {
   });
 
   it("skips a run while its finalization ownership lock is held", async () => {
-    const { companyId, runId, folder } = await seed();
+    const { spaceId, runId, folder } = await seed();
     let result: Awaited<ReturnType<ReturnType<typeof service>["tick"]>> | undefined;
     await db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${nativeWorkspaceFinalizationLockKey(companyId, runId)}, 0))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${nativeWorkspaceFinalizationLockKey(spaceId, runId)}, 0))`);
       result = await service().tick();
     });
     expect(result?.skipped.finalization_locked).toBe(1);
@@ -580,7 +580,7 @@ describeEmbeddedPostgres("native workspace sync retention", () => {
     });
 
     it("wakes the quiet coordinator when a run creates its folder", async () => {
-      const home = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-sync-home-"));
+      const home = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-sync-home-"));
       const originalHome = process.env.OUTPOST_HOME;
       const originalInstance = process.env.OUTPOST_INSTANCE_ID;
       process.env.OUTPOST_HOME = home;
@@ -619,11 +619,11 @@ describeEmbeddedPostgres("native workspace sync retention", () => {
     });
 
     it("retries soon when the finalization lock was held", async () => {
-      const { companyId, runId } = await seed();
+      const { spaceId, runId } = await seed();
       const worker = register();
       const before = Date.now();
       await db.transaction(async (tx) => {
-        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${nativeWorkspaceFinalizationLockKey(companyId, runId)}, 0))`);
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${nativeWorkspaceFinalizationLockKey(spaceId, runId)}, 0))`);
         await worker.task().run(new AbortController().signal);
       });
       const next = worker.task().nextRunAt?.() ?? 0;

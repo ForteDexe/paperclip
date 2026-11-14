@@ -4,12 +4,12 @@ import { Link } from "@/lib/router";
 import { ActiveAgentsPanel } from "../components/ActiveAgentsPanel";
 import { EmptyState } from "../components/EmptyState";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 
 const DASHBOARD_LIVE_RUN_LIMIT = 50;
 
 export function DashboardLive() {
-  const { selectedCompanyId, companies } = useCompany();
+  const { selectedSpaceId, spaces } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
 
   useEffect(() => {
@@ -19,11 +19,11 @@ export function DashboardLive() {
     ]);
   }, [setBreadcrumbs]);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return (
       <EmptyState
         icon={RadioTower}
-        message={companies.length === 0 ? "Create an outpost to view live runs." : "Select an outpost to view live runs."}
+        message={spaces.length === 0 ? "Create an outpost to view live runs." : "Select an outpost to view live runs."}
       />
     );
   }
@@ -48,7 +48,7 @@ export function DashboardLive() {
       </div>
 
       <ActiveAgentsPanel
-        companyId={selectedCompanyId}
+        spaceId={selectedSpaceId}
         title="Active / recent"
         minRunCount={DASHBOARD_LIVE_RUN_LIMIT}
         fetchLimit={DASHBOARD_LIVE_RUN_LIMIT}

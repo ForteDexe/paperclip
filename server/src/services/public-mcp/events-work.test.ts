@@ -6,7 +6,7 @@ import express, { type Request } from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { applyPendingMigrations, createDb, companies, authUsers, companyMemberships, instanceSettings, mcpOauthClients, mcpOauthGrants, mcpOauthRequests, mcpOauthDeviceRequests, issues, agents, dotAgentBindings, dotMailboxItems, dotRunnerAssignments, heartbeatRuns, mcpEventDeliveries, mcpEventSubscriptions, mcpOauthTokens, mcpFileTickets } from "@outpost/db";
+import { applyPendingMigrations, createDb, spaces, authUsers, spaceMemberships, instanceSettings, mcpOauthClients, mcpOauthGrants, mcpOauthRequests, mcpOauthDeviceRequests, issues, agents, dotAgentBindings, dotMailboxItems, dotRunnerAssignments, heartbeatRuns, mcpEventDeliveries, mcpEventSubscriptions, mcpOauthTokens, mcpFileTickets } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "../../__tests__/helpers/external-test-database.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { createPublicMcpEvents } from "./events.js";
@@ -44,7 +44,7 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
   let db: ReturnType<typeof createDb>;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator>;
   let service: ReturnType<typeof createPublicMcpEvents>;
-  let companyId: string, userId: string, taskId: string;
+  let spaceId: string, userId: string, taskId: string;
   let draining: boolean, standby: boolean;
   let calls: string[], received: Array<{ eventId: string; data: Record<string, unknown> }>;
   let errors: unknown[], status: number;
@@ -57,35 +57,35 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
     db = createDb(externalUrl ?? temporary.connectionString, { maxConnections: 4 });
   }, 90000);
   beforeEach(async () => {
-    await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
     draining = false; standby = false; calls = []; received = []; errors = []; status = 204; failRead = false; duringDelivery = undefined;
-    companyId = randomUUID(); userId = randomUUID(); taskId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "MCP idle", issuePrefix: "MCP" });
+    spaceId = randomUUID(); userId = randomUUID(); taskId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "MCP idle", issuePrefix: "MCP" });
     await db.insert(authUsers).values({ id: userId, name: "MCP test", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", membershipRole: "owner", status: "active" });
-    await db.insert(issues).values({ id: taskId, companyId, title: "Events" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", membershipRole: "owner", status: "active" });
+    await db.insert(issues).values({ id: taskId, spaceId, title: "Events" });
     await instanceSettingsService(db).updateExperimental({ enablePublicMcp: true, enableOpenAiDot: true });
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"], shouldAdvanceTime: true });
   });
   afterEach(async () => {
     await service?.stop(); await coordinator?.stop();
     vi.useRealTimers();
-    await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
     await db.delete(authUsers).where(eq(authUsers.id, userId));
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); vi.unstubAllEnvs(); });
 
-  async function fixture(dot = false, scope = { companyId, taskId }) {
-    const { companyId, taskId } = scope;
-    const config = { origin: "https://outpost.example", resource: `https://outpost.example/mcp/${dot ? "runner" : "paperclip"}` };
+  async function fixture(dot = false, scope = { spaceId, taskId }) {
+    const { spaceId, taskId } = scope;
+    const config = { origin: "https://outpost.example", resource: `https://outpost.example/mcp/${dot ? "runner" : "outpost"}` };
     const clientId = randomUUID();
     await db.insert(mcpOauthClients).values({ id: clientId, name: "Sleep fixture", redirectUris: ["https://receiver.example/oauth"] });
     const agentId = dot ? randomUUID() : null;
-    if (agentId) await db.insert(agents).values({ id: agentId, companyId, name: "Dot", status: "active", adapterType: "outpost_runner", adapterConfig: { provider: "openai_dot" } });
-    const [grant] = await db.insert(mcpOauthGrants).values({ companyId, userId, clientId, resource: config.resource, purpose: dot ? "agent" : "personal", agentId, scopes: [dot ? "paperclip:agent" : "paperclip:read"] }).returning();
+    if (agentId) await db.insert(agents).values({ id: agentId, spaceId, name: "Dot", status: "active", adapterType: "outpost_runner", adapterConfig: { provider: "openai_dot" } });
+    const [grant] = await db.insert(mcpOauthGrants).values({ spaceId, userId, clientId, resource: config.resource, purpose: dot ? "agent" : "personal", agentId, scopes: [dot ? "outpost:agent" : "outpost:read"] }).returning();
     const bindingId = dot ? randomUUID() : null;
     if (bindingId && agentId) {
-      await db.insert(dotAgentBindings).values({ id: bindingId, companyId, agentId, operatorId: userId, grantId: grant.id, status: "connected" });
+      await db.insert(dotAgentBindings).values({ id: bindingId, spaceId, agentId, operatorId: userId, grantId: grant.id, status: "connected" });
       await db.update(agents).set({ adapterConfig: { provider: "openai_dot", dotBindingId: bindingId } }).where(eq(agents.id, agentId));
     }
     const observed = new Proxy(db, { get(target, key) {
@@ -98,9 +98,9 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
     } });
     const oauth = createPublicMcpOAuth(observed, config);
     const principal = await oauth.authorizeGrant(grant.id);
-    const input = { name: dot ? "outpost.dot.mailbox_updated" : "outpost.task.status_changed", arguments: { companyId, ...(dot ? { bindingId } : { taskId }) },
+    const input = { name: dot ? "outpost.dot.mailbox_updated" : "outpost.task.status_changed", arguments: { spaceId, ...(dot ? { bindingId } : { taskId }) },
       delivery: { mode: "webhook", url: "https://receiver.example/events", secret: "whsec_" + randomBytes(32).toString("base64") } };
-    const makeService = () => createPublicMcpEvents(observed, oauth, async () => ({ id: taskId, companyId }), { enableDotRunner: dot,
+    const makeService = () => createPublicMcpEvents(observed, oauth, async () => ({ id: taskId, spaceId }), { enableDotRunner: dot,
       isBackgroundWorkEnabled: () => !draining && !standby,
       fetch: async (_url, init) => {
         const body = JSON.parse(String(init.body));
@@ -131,7 +131,7 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
     expect(calls).toEqual(baseline); expect(received).toHaveLength(deliveries);
   }
   async function activity(database = db, matching = true) {
-    return logActivity(database, { companyId, actorType: "user", actorId: userId, entityType: "issue", entityId: taskId, action: matching ? "issue.updated" : "issue.unrelated", details: { status: "done", _previous: { status: "todo" } } });
+    return logActivity(database, { spaceId, actorType: "user", actorId: userId, entityType: "issue", entityId: taskId, action: matching ? "issue.updated" : "issue.unrelated", details: { status: "done", _previous: { status: "todo" } } });
   }
   async function delivered(count: number) { await vi.waitFor(() => expect(received).toHaveLength(count), { timeout: 8_000 }); await settle(); }
 
@@ -221,7 +221,7 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
 
   it("publishes real OAuth rotation only after commit and indexes only the new token revision", async () => {
     const f = await fixture(); await f.start();
-    await db.update(mcpOauthGrants).set({ scopes: ["paperclip:read", "offline_access"] }).where(eq(mcpOauthGrants.id, f.principal.grant.id));
+    await db.update(mcpOauthGrants).set({ scopes: ["outpost:read", "offline_access"] }).where(eq(mcpOauthGrants.id, f.principal.grant.id));
     const refresh = "pcmcp_rt_" + randomBytes(32).toString("base64url");
     await db.insert(mcpOauthTokens).values({ grantId: f.principal.grant.id, kind: "refresh",
       tokenHash: createHash("sha256").update(refresh).digest("hex"), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000) });
@@ -262,7 +262,7 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
 
   it("keeps real minted reusable file tickets awake through upload/download and becomes quiet after expiry", async () => {
     const f = await fixture(); await f.start();
-    await db.update(mcpOauthGrants).set({ scopes: ["paperclip:read", "paperclip:write"] }).where(eq(mcpOauthGrants.id,f.principal.grant.id));
+    await db.update(mcpOauthGrants).set({ scopes: ["outpost:read", "outpost:write"] }).where(eq(mcpOauthGrants.id,f.principal.grant.id));
     const principal = await f.oauth.authorizeGrant(f.principal.grant.id);
     const index = startMcpRevocationIndexSync(f.observed,coordinator,{ key: Buffer.alloc(32,9).toString("base64url"), client: {
       publish: async value => {
@@ -272,7 +272,7 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
       },
     } });
     await index.ready; await startMcpIngressHandoffExpiry(f.observed,coordinator).ready; await settle(); await quiet();
-    const directory = await mkdtemp(path.join(tmpdir(),"paperclip-mcp-ticket-test-"));
+    const directory = await mkdtemp(path.join(tmpdir(),"outpost-mcp-ticket-test-"));
     const unregister = registerIdleMcpOwners(db,{ config: f.oauth.config, personal: service, dot: null });
     try {
       const storage = createStorageService(createLocalDiskStorageProvider(directory));
@@ -282,7 +282,7 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
       },storage);
       const app = express(); app.use(transfers.router);
       const bytes = Buffer.from("real ticket lifecycle");
-      const uploaded = await transfers.getUploadUrl(principal,{ companyId, taskId, requestId: randomUUID(), filename: "ticket.txt", contentType: "text/plain",
+      const uploaded = await transfers.getUploadUrl(principal,{ spaceId, taskId, requestId: randomUUID(), filename: "ticket.txt", contentType: "text/plain",
         byteSize: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") });
       expect("url" in uploaded).toBe(true); if (!("url" in uploaded) || typeof uploaded.url !== "string") throw new Error("missing minted upload ticket");
       const budget = { beforeRead: async () => {}, check: () => {} };
@@ -317,22 +317,22 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
     const inspectHandoffs = () => readIdleMcpAuthorizationHandoffs(db,{now:Date.now(),budget});
     const client = await f.oauth.register({client_name:"Handoff",redirect_uris:["https://receiver.example/oauth"],token_endpoint_auth_method:"none",
       grant_types:["authorization_code","refresh_token",DEVICE_GRANT],response_types:["code"]});
-    const actor: Request["actor"] = {type:"board",source:"session",userId,companyIds:[companyId]};
+    const actor: Request["actor"] = {type:"operator",source:"session",userId,spaceIds:[spaceId]};
     let exchange!: () => ReturnType<typeof f.oauth.token>, grantId: string;
     if (kind === "code") {
       const verifier = "v".repeat(64);
       const start = await f.oauth.authorize({client_id:client.client_id,redirect_uri:"https://receiver.example/oauth",resource:f.oauth.config.resource,
-        response_type:"code",code_challenge:createHash("sha256").update(verifier).digest("base64url"),code_challenge_method:"S256",scope:"paperclip:read offline_access",company_id:companyId});
+        response_type:"code",code_challenge:createHash("sha256").update(verifier).digest("base64url"),code_challenge_method:"S256",scope:"outpost:read offline_access",space_id:spaceId});
       const id = new URL(start).pathname.split("/").at(-1)!;
       expect((await inspectHandoffs()).blocked).toBe(false);
-      const approved = await f.oauth.consent(id,actor,{decision:"approve",companyId,allowWrites:false});
+      const approved = await f.oauth.consent(id,actor,{decision:"approve",spaceId,allowWrites:false});
       grantId = (await db.select().from(mcpOauthRequests).where(eq(mcpOauthRequests.id,id)))[0].grantId!;
       exchange = () => f.oauth.token({grant_type:"authorization_code",client_id:client.client_id,resource:f.oauth.config.resource,redirect_uri:"https://receiver.example/oauth",
         code:new URL(approved.redirectUrl).searchParams.get("code"),code_verifier:verifier});
     } else {
-      const start = await f.oauth.deviceAuthorize({client_id:client.client_id,resource:f.oauth.config.resource,scope:"paperclip:read offline_access",company_id:companyId});
+      const start = await f.oauth.deviceAuthorize({client_id:client.client_id,resource:f.oauth.config.resource,scope:"outpost:read offline_access",space_id:spaceId});
       expect((await inspectHandoffs()).blocked).toBe(false);
-      await f.oauth.consentDevice(start.user_code,actor,{decision:"approve",companyId,allowWrites:false});
+      await f.oauth.consentDevice(start.user_code,actor,{decision:"approve",spaceId,allowWrites:false});
       grantId = (await db.select().from(mcpOauthDeviceRequests))[0].grantId!;
       await vi.advanceTimersByTimeAsync(5001);
       exchange = () => f.oauth.token({grant_type:DEVICE_GRANT,client_id:client.client_id,resource:f.oauth.config.resource,device_code:start.device_code});
@@ -441,14 +441,14 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
 
   it.each([false, true])("keeps tenant content wakes scoped with Dot=%s", async dot => {
     const first = await fixture(dot); const firstSubscription = await first.subscribe();
-    const other = { companyId: randomUUID(), taskId: randomUUID() };
-    await db.insert(companies).values({ id: other.companyId, name: "Other tenant", issuePrefix: "OTHER" });
-    await db.insert(companyMemberships).values({ companyId: other.companyId, principalId: userId, principalType: "user", membershipRole: "owner", status: "active" });
-    await db.insert(issues).values({ id: other.taskId, companyId: other.companyId, title: "Other task" });
+    const other = { spaceId: randomUUID(), taskId: randomUUID() };
+    await db.insert(spaces).values({ id: other.spaceId, name: "Other tenant", issuePrefix: "OTHER" });
+    await db.insert(spaceMemberships).values({ spaceId: other.spaceId, principalId: userId, principalType: "user", membershipRole: "owner", status: "active" });
+    await db.insert(issues).values({ id: other.taskId, spaceId: other.spaceId, title: "Other task" });
     const second = await fixture(dot, other); const secondSubscription = await second.subscribe(); await second.start();
     if (dot) await delivered(2);
     await db.update(mcpEventSubscriptions).set({ scannedAt: new Date(0) });
-    if (dot) await insertIssueComment(db, { companyId, issueId: taskId, authorUserId: userId, body: "Tenant-local comment" });
+    if (dot) await insertIssueComment(db, { spaceId, issueId: taskId, authorUserId: userId, body: "Tenant-local comment" });
     else await activity();
     await vi.waitFor(async () => {
       const subscriptions = await db.select().from(mcpEventSubscriptions);
@@ -479,7 +479,7 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
     const [challenge] = await db.select().from(dotMailboxItems);
     await dotRunnerBroker(db).confirmChallenge(f.principal, String(challenge.references.challenge));
     await quiet(11 * 60_000);
-    await dotRunnerBroker(db).challenge(companyId, f.agentId); await delivered(2); await quiet();
+    await dotRunnerBroker(db).challenge(spaceId, f.agentId); await delivered(2); await quiet();
     expect(coordinator.nextWakeAt()).toBeNull();
   });
 
@@ -489,8 +489,8 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
     await dotRunnerBroker(db).confirmChallenge(f.principal, String(challenge.references.challenge));
     await service.subscribe(f.principal, { ...f.input, delivery: { ...f.input.delivery, url: "https://receiver.example/second" } });
     await settle();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId: f.agentId, invocationSource: "assignment", status: "queued" }).returning();
-    await db.insert(dotRunnerAssignments).values({ companyId, agentId: f.agentId, bindingId: f.bindingId, bindingGeneration: 1,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: f.agentId, invocationSource: "assignment", status: "queued" }).returning();
+    await db.insert(dotRunnerAssignments).values({ spaceId, agentId: f.agentId, bindingId: f.bindingId, bindingGeneration: 1,
       runId: run.id, normalizedSessionId: randomUUID(), turnId: randomUUID(), controllerGeneration: 1, catalogDigest: "test", status: "offered", projection: {},
       acceptBy: new Date(Date.now() + 600_000), expiresAt: new Date(Date.now() + 3600_000) });
     await quiet();
@@ -504,13 +504,13 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
     const broker = dotRunnerBroker(db);
     const [challenge] = await db.select().from(dotMailboxItems);
     await broker.confirmChallenge(f.principal, String(challenge.references.challenge));
-    const snapshot = await broker.snapshot(companyId, f.agentId, f.bindingId);
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId: f.agentId, invocationSource: "assignment", status: "queued", nativeIssueId: taskId }).returning();
-    const [assignment] = await db.insert(dotRunnerAssignments).values({ companyId, agentId: f.agentId, bindingId: f.bindingId, bindingGeneration: 1,
+    const snapshot = await broker.snapshot(spaceId, f.agentId, f.bindingId);
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: f.agentId, invocationSource: "assignment", status: "queued", nativeIssueId: taskId }).returning();
+    const [assignment] = await db.insert(dotRunnerAssignments).values({ spaceId, agentId: f.agentId, bindingId: f.bindingId, bindingGeneration: 1,
       runId: run.id, normalizedSessionId: randomUUID(), turnId: randomUUID(), controllerGeneration: 1, catalogDigest: "test", status: "offered", projection: {},
       acceptBy: new Date(Date.now() + 60_000), expiresAt: new Date(Date.now() + 3600_000) }).returning();
     await quiet();
-    const port = broker.port({ binding: { companyId, agentId: f.agentId, runId: run.id }, provider: { binding: snapshot } });
+    const port = broker.port({ binding: { spaceId, agentId: f.agentId, runId: run.id }, provider: { binding: snapshot } });
     await port.dispatch({ sourceEventId: randomUUID(), payload: { kind: "authority_revoked", binding: { ...snapshot, runId: run.id,
       normalizedSessionId: assignment.normalizedSessionId, turnId: assignment.turnId, assignmentRevision: assignment.revision } } });
     await delivered(2); expect(received[1].data.kind).toBe("authority_revoked"); await quiet();
@@ -520,10 +520,10 @@ describe.skipIf(!support.supported)("MCP event committed work", () => {
     const f = await fixture(true); await f.subscribe(); await f.start(); await delivered(1);
     const [challenge] = await db.select().from(dotMailboxItems);
     await dotRunnerBroker(db).confirmChallenge(f.principal, String(challenge.references.challenge));
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId: f.agentId, invocationSource: "on_demand", status: "running", nativeIssueId: taskId }).returning();
-    await db.insert(dotRunnerAssignments).values({ companyId, agentId: f.agentId, bindingId: f.bindingId, bindingGeneration: 1, runId: run.id, normalizedSessionId: randomUUID(), turnId: randomUUID(), controllerGeneration: 1, catalogDigest: "test", status: "accepted", projection: {}, acceptBy: new Date(Date.now() + 60_000), expiresAt: new Date(Date.now() + 3600_000) });
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId: f.agentId, invocationSource: "on_demand", status: "running", nativeIssueId: taskId }).returning();
+    await db.insert(dotRunnerAssignments).values({ spaceId, agentId: f.agentId, bindingId: f.bindingId, bindingGeneration: 1, runId: run.id, normalizedSessionId: randomUUID(), turnId: randomUUID(), controllerGeneration: 1, catalogDigest: "test", status: "accepted", projection: {}, acceptBy: new Date(Date.now() + 60_000), expiresAt: new Date(Date.now() + 3600_000) });
     await quiet();
-    await insertIssueComment(db, { companyId, issueId: taskId, authorUserId: userId, body: "Follow up" });
+    await insertIssueComment(db, { spaceId, issueId: taskId, authorUserId: userId, body: "Follow up" });
     await delivered(2); expect(received[1].data.kind).toBe("follow_up"); await quiet();
   });
 });

@@ -50,7 +50,7 @@ describe("Codex driver stale-generation events", () => {
     ["an item update", "item/agentMessage/delta", { turnId: "turn-1", itemId: "late-1", delta: "late" }],
     ["a repeated terminal", "turn/completed", { turn: { id: "turn-1", status: "failed", items: [],
       error: { code: "provider_failed", message: "late", recoverable: false } } }],
-    ["a workspace change", "paperclip/workspaceChange/updated", { turnId: "turn-1", changes: [] }],
+    ["a workspace change", "outpost/workspaceChange/updated", { turnId: "turn-1", changes: [] }],
   ] as const)("records %s for a settled turn as history while the next turn runs", async (_label, method, params) => {
     const { transport, session, events, consume } = await settledThenActive(`stale-${method.replace(/\W+/g, "-")}`);
     transport.push(method, { threadId: "thread-1", ...params });

@@ -5,13 +5,13 @@ Branch: `feat/scaled-kanban-board`
 
 ## Context
 
-The Issues page currently supports list and board modes. List mode already has grouping, sorting, filtering, nested parent/child rows, deferred row rendering, and incremental render limits. Board mode uses classic status columns with draggable cards. It fetches per-status board data, but the current UI still presents each lane as an unbounded stack of cards, which becomes tall and heavy when a company has hundreds of issues.
+The Issues page currently supports list and board modes. List mode already has grouping, sorting, filtering, nested parent/child rows, deferred row rendering, and incremental render limits. Board mode uses classic status columns with draggable cards. It fetches per-status board data, but the current UI still presents each lane as an unbounded stack of cards, which becomes tall and heavy when a space has hundreds of issues.
 
 The goal is to keep the Kanban mental model while making high-volume boards usable. This is a UI-first change. It should not introduce schema changes or new API contracts in the first pass.
 
 ## Problem
 
-When Paperclip has many issues, board columns get too tall and slow. The operator loses the ability to scan the board quickly, and rendering or dragging through long columns becomes unpleasant. The first version should solve this by reducing the number of visible cards per column and by collapsing low-signal columns, not by replacing Kanban with a different inventory surface.
+When Outpost has many issues, board columns get too tall and slow. The operator loses the ability to scan the board quickly, and rendering or dragging through long columns becomes unpleasant. The first version should solve this by reducing the number of visible cards per column and by collapsing low-signal columns, not by replacing Kanban with a different inventory surface.
 
 ## Design
 
@@ -34,7 +34,7 @@ The toolbar should expose compact controls for:
 - choosing cards per column
 - resetting board density to defaults
 
-These preferences should persist through the existing issue view-state/localStorage mechanism and remain scoped by company.
+These preferences should persist through the existing issue view-state/localStorage mechanism and remain scoped by space.
 
 ## Component Shape
 

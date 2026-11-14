@@ -10,7 +10,7 @@ outside universal `skills/`, and contribute them only with authorized connection
 tools in the agent's task run. Remove them when access is revoked. Preserve
 pre-release connection and cost records when migrating the old provider key.
 
-Persist company/task/agent/credential-grant ownership, conversation sessions,
+Persist space/task/agent/credential-grant ownership, conversation sessions,
 individual runs with durable event cursors and accounting checkpoints, and browser
 instances separately. Observe browser.ready while work proceeds. Reconcile after
 restart; never replay an uncertain paid create. Continue idle conversations with

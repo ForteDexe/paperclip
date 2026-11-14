@@ -3,7 +3,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { and, eq } from "drizzle-orm";
-import { agents, agentWakeupRequests, companies, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
+import { agents, agentWakeupRequests, spaces, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
 import { expect, it } from "vitest";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
 import { createIsolatedTestHome } from "../../__tests__/helpers/isolated-test-home.js";
@@ -21,7 +21,7 @@ it.skipIf(process.env.OUTPOST_LIVE_QUARANTINED_RETRY !== "true")("starts a fresh
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>> | undefined;
   let heartbeat: ReturnType<typeof heartbeatService> | undefined;
-  let companyId: string | undefined;
+  let spaceId: string | undefined;
   try {
     const codexHome = join(home.home, "codex"), stateBase = join(home.home, "runner-state");
     await mkdir(codexHome, { mode: 0o700 });
@@ -34,13 +34,13 @@ it.skipIf(process.env.OUTPOST_LIVE_QUARANTINED_RETRY !== "true")("starts a fresh
     server = await startRunnerApiTestServer({ deploymentMode: "authenticated", humanSessions: true });
     process.env.OUTPOST_API_URL = server.apiUrl;
     const f = await server.fixture({ connectionScenario: "fresh" }), db = server.db;
-    companyId = f.companyId;
+    spaceId = f.spaceId;
     const markers = [randomUUID(), randomUUID()];
     await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.runId));
     await db.update(issues).set({ status: "todo", executionRunId: null, executionWorkspaceSettings: { mode: "shared_workspace" },
-      title: "Preserve work through task Retry", description: "Follow the latest human comment. Use the task workspace. Complete only that requested file step and finish with paperclip_finish, reportedWorkDisposition done. This is a local file task; no external writes are needed.",
+      title: "Preserve work through task Retry", description: "Follow the latest human comment. Use the task workspace. Complete only that requested file step and finish with outpost_finish, reportedWorkDisposition done. This is a local file task; no external writes are needed.",
     }).where(eq(issues.id, f.issueId));
-    await db.update(companies).set({ defaultResponsibleUserId: f.userId }).where(eq(companies.id, f.companyId));
+    await db.update(spaces).set({ defaultResponsibleUserId: f.userId }).where(eq(spaces.id, f.spaceId));
     await db.update(agents).set({ adapterConfig: { provider: "codex", model: "gpt-6.1-sol", modelReasoningEffort: "high",
       cwd: f.workspace, workspaceStrategy: { type: "project_primary" }, env: { CODEX_HOME: codexHome }, timeoutSec: 180, lifecycleMode: "per_turn" },
       runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true, maxConcurrentRuns: 1 } },
@@ -63,7 +63,7 @@ it.skipIf(process.env.OUTPOST_LIVE_QUARANTINED_RETRY !== "true")("starts a fresh
     const owner = await withReleasedNativeRunProcess(db, original);
     expect(owner.processPid).toBeTruthy();
     const execution = parseNativeExecutionInput(owner.runnerProfileJson!.nativeExecutionInput);
-    const root = join(stateBase, nativeSha256({ schema: "outpost.native-session-scope.v2", companyId: f.companyId, agentId: f.agentId,
+    const root = join(stateBase, nativeSha256({ schema: "outpost.native-session-scope.v2", spaceId: f.spaceId, agentId: f.agentId,
       workspace: { kind: "managed", executionWorkspaceId: execution.binding.executionWorkspaceId },
       provider: { driverKind: "codex_app_server", identity: { kind: "codex" } }, normalizedSessionId: owner.nativeSessionId }));
     const controlPath = join(root, "control-plane/control-plane-state.json"), providerPath = join(root, "runner/codex-provider-state.json");
@@ -76,7 +76,7 @@ it.skipIf(process.env.OUTPOST_LIVE_QUARANTINED_RETRY !== "true")("starts a fresh
     const retryComment = await service.addComment(f.issueId, `Read retry-proof.txt and preserve its existing line. Append exactly ${markers[1]} and a newline once. Never repeat the earlier file step. Read the complete file and finish.`, { userId: f.userId! });
     const oldFingerprint = `sha256:${"1".repeat(64)}`;
     await db.update(heartbeatRuns).set({ runnerProfileJson: { ...owner.runnerProfileJson, nativeToolContractFingerprint: oldFingerprint } }).where(eq(heartbeatRuns.id, owner.id));
-    await db.insert(heartbeatRuns).values({ id: sourceId, companyId: f.companyId, agentId: f.agentId, issueId: f.issueId,
+    await db.insert(heartbeatRuns).values({ id: sourceId, spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId,
       nativeIssueId: f.issueId, runtimeMode: "native", nativeSessionId: owner.nativeSessionId, runnerInstanceId: owner.runnerInstanceId,
       processPid: owner.processPid, processGroupId: owner.processGroupId, processStartedAt: owner.processStartedAt,
       status: "failed", finishedAt: new Date(), errorCode: "native_session_cleanup_quarantined", responsibleUserId: f.userId,
@@ -84,8 +84,8 @@ it.skipIf(process.env.OUTPOST_LIVE_QUARANTINED_RETRY !== "true")("starts a fresh
         nativeExecutionInput: { ...execution, binding: { ...execution.binding, runId: sourceId },
           task: { ...execution.task, prompt: retryComment.body } }, nativeToolContractFingerprint: oldFingerprint },
     });
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issueId, runId: sourceId, phase: "terminal_failure" });
-    await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId, kind: "active_run_watchdog",
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issueId, runId: sourceId, phase: "terminal_failure" });
+    await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId, kind: "active_run_watchdog",
       cause: "native_session_cleanup_quarantined", fingerprint: sourceId, status: "resolved", outcome: "blocked",
       nextAction: "Automatic recovery stopped.", evidence: { runId: sourceId, automaticRecovery: { replay: "blocked", actionOutcome: "unknown" } } });
     await db.update(issues).set({ status: "blocked", executionRunId: null, checkoutRunId: null }).where(eq(issues.id, f.issueId));
@@ -122,8 +122,8 @@ it.skipIf(process.env.OUTPOST_LIVE_QUARANTINED_RETRY !== "true")("starts a fresh
     if (process.env.OUTPOST_LIVE_EVIDENCE_PATH) await writeFile(process.env.OUTPOST_LIVE_EVIDENCE_PATH, JSON.stringify(evidence, null, 2) + "\n");
     console.log(JSON.stringify(evidence));
   } catch (error) {
-    if (server && companyId && process.env.OUTPOST_LIVE_EVIDENCE_PATH) {
-      const runs = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
+    if (server && spaceId && process.env.OUTPOST_LIVE_EVIDENCE_PATH) {
+      const runs = await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId));
       await writeFile(`${process.env.OUTPOST_LIVE_EVIDENCE_PATH}.failure.json`, JSON.stringify({ error: String(error),
         runs: runs.map(run => ({ id: run.id, status: run.status, error: run.error, result: run.resultJson,
           execution: (run.runnerProfileJson?.nativeExecutionInput as { workspace?: unknown } | undefined)?.workspace,

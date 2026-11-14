@@ -35,7 +35,7 @@ import type {
   WorkspaceInboundMode,
 } from "@outpost/adapter-utils/sandbox-managed-runtime";
 import { assertWorkspaceManifestDiskSpace, isPathManifest, manifestFileSha256, readManifestRecords, type PathManifest, type WorkspacePaths } from "@outpost/adapter-utils/workspace-manifest";
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 import { parseObject } from "../../adapters/utils.js";
 import type { NativeRestartRecoveryClaim } from "./native-restart-recovery.js";
 
@@ -60,7 +60,7 @@ interface NativeWorkspaceSyncDescriptor {
   schema: DescriptorSchema;
   binding: {
     runId: string;
-    companyId: string;
+    spaceId: string;
     workspaceId: string;
     leaseId: string;
     providerLeaseId: string;
@@ -155,7 +155,7 @@ function requireSafeSegment(value: string, label: string): string {
 }
 
 export function nativeWorkspaceSyncStateRoot(): string {
-  return path.join(resolvePaperclipInstanceRoot(), STATE_ROOT_NAME);
+  return path.join(resolveOutpostInstanceRoot(), STATE_ROOT_NAME);
 }
 
 function descriptorDirectory(runId: string): string {
@@ -433,7 +433,7 @@ function parseGitSnapshot(
     const seen = new Set<string>();
     for (const raw of candidate.repositories) {
       const repo = parseObject(raw);
-      if (typeof repo.path !== "string" || !/^\.paperclip-repositories\/[a-zA-Z0-9_-]+$/.test(repo.path) || seen.has(repo.path)) return undefined;
+      if (typeof repo.path !== "string" || !/^\.outpost-repositories\/[a-zA-Z0-9_-]+$/.test(repo.path) || seen.has(repo.path)) return undefined;
       const snapshot = parseGitSnapshot(repo.snapshot, true);
       if (!snapshot) return undefined;
       seen.add(repo.path);
@@ -555,7 +555,7 @@ async function readDescriptor(input: {
     binding.leaseId !== input.reference.leaseId ||
     binding.providerLeaseId !== input.reference.providerLeaseId ||
     binding.remoteCwd !== input.reference.remoteCwd ||
-    typeof binding.companyId !== "string" ||
+    typeof binding.spaceId !== "string" ||
     typeof binding.localCwd !== "string" ||
     !path.isAbsolute(binding.localCwd) ||
     typeof binding.remoteCwd !== "string" ||
@@ -585,7 +585,7 @@ async function readDescriptor(input: {
       schema: candidate.schema,
       binding: {
         runId: binding.runId as string,
-        companyId: binding.companyId,
+        spaceId: binding.spaceId,
         workspaceId: binding.workspaceId as string,
         leaseId: binding.leaseId as string,
         providerLeaseId: binding.providerLeaseId as string,
@@ -617,14 +617,14 @@ async function persistRunReference(
 ): Promise<void> {
   await db.transaction(async (tx) => {
     const run = await tx
-      .select({ companyId: heartbeatRuns.companyId, runnerProfileJson: heartbeatRuns.runnerProfileJson })
+      .select({ spaceId: heartbeatRuns.spaceId, runnerProfileJson: heartbeatRuns.runnerProfileJson })
       .from(heartbeatRuns)
       .where(eq(heartbeatRuns.id, runId))
       .for("update")
       .limit(1)
       .then((rows) => rows[0] ?? null);
     if (!run) throw new Error("native_workspace_sync_run_missing");
-    await notifyCancelledWorkspacePreservation(tx, { companyId: run.companyId, runId });
+    await notifyCancelledWorkspacePreservation(tx, { spaceId: run.spaceId, runId });
     await tx
       .update(heartbeatRuns)
       .set({
@@ -645,14 +645,14 @@ async function persistLeaseStamp(input: {
 }): Promise<void> {
   await input.db.transaction(async (tx) => {
     const lease = await tx
-      .select({ metadata: environmentLeases.metadata, companyId: environmentLeases.companyId, heartbeatRunId: environmentLeases.heartbeatRunId })
+      .select({ metadata: environmentLeases.metadata, spaceId: environmentLeases.spaceId, heartbeatRunId: environmentLeases.heartbeatRunId })
       .from(environmentLeases)
       .where(eq(environmentLeases.id, input.leaseId))
       .for("update")
       .limit(1)
       .then((rows) => rows[0] ?? null);
     if (!lease) throw new Error("native_workspace_sync_lease_missing");
-    await notifyEnvironmentCleanup(tx, { companyId: lease.companyId, runId: lease.heartbeatRunId ?? undefined });
+    await notifyEnvironmentCleanup(tx, { spaceId: lease.spaceId, runId: lease.heartbeatRunId ?? undefined });
     await tx
       .update(environmentLeases)
       .set({
@@ -692,7 +692,7 @@ async function writeRemoteStamp(input: {
   }
   const runtimeDir = path.posix.join(
     input.target.remoteCwd,
-    ".paperclip-runtime",
+    ".outpost-runtime",
     "outpost-runner",
   );
   const stampPath = path.posix.join(runtimeDir, REMOTE_STAMP_NAME);
@@ -725,7 +725,7 @@ async function remoteStampMatches(input: {
   if (!input.target.runner) return false;
   const stampPath = path.posix.join(
     input.target.remoteCwd,
-    ".paperclip-runtime",
+    ".outpost-runtime",
     "outpost-runner",
     REMOTE_STAMP_NAME,
   );
@@ -814,7 +814,7 @@ async function prepareRuntime(input: {
   repositories?: NonNullable<GitWorkspaceSnapshot["repositories"]>;
   durableSeed?: WorkspaceDurableSeedPaths;
   seedCacheDirectory?: string;
-  seedCacheCompanyDirectory?: string;
+  seedCacheSpaceDirectory?: string;
   workspaceGitIndexRefresh?: boolean;
   onPhase?: RuntimeSpanRunner;
   onCheckpoint?: (metrics: WorkspaceCheckpointMetrics) => Promise<void>;
@@ -840,8 +840,8 @@ async function prepareRuntime(input: {
     workspaceCheckpoint: true,
     onWorkspaceCheckpoint: input.onCheckpoint,
     workspaceSeedCacheDirectory: input.seedCacheDirectory,
-    workspaceSeedCacheCompanyDirectory: input.seedCacheCompanyDirectory,
-    workspaceSeedCacheScope: "company",
+    workspaceSeedCacheSpaceDirectory: input.seedCacheSpaceDirectory,
+    workspaceSeedCacheScope: "space",
     runtimeSpan: input.onPhase,
   }));
 }
@@ -897,7 +897,7 @@ async function finalizePreparedRuntime(input: {
 export async function prepareNativeWorkspaceSync(input: {
   db: Db;
   runId: string;
-  companyId: string;
+  spaceId: string;
   workspaceId: string;
   workspaceLocalDir: string;
   target: AdapterExecutionTarget | null;
@@ -925,7 +925,7 @@ export async function prepareNativeWorkspaceSync(input: {
     if (mismatch) throw remoteRecoveryLeaseMismatch("workspace_sync", mismatch);
   }
   const run = await measureRunPhase("workspace_sync.run_read", () => input.db
-    .select({ companyId: heartbeatRuns.companyId, runnerProfileJson: heartbeatRuns.runnerProfileJson })
+    .select({ spaceId: heartbeatRuns.spaceId, runnerProfileJson: heartbeatRuns.runnerProfileJson })
     .from(heartbeatRuns)
     .where(eq(heartbeatRuns.id, input.runId))
     .limit(1)
@@ -949,7 +949,7 @@ export async function prepareNativeWorkspaceSync(input: {
       reference: existingReference,
     }));
     if (
-      existing.descriptor.binding.companyId !== input.companyId ||
+      existing.descriptor.binding.spaceId !== input.spaceId ||
       existing.descriptor.binding.workspaceId !== input.workspaceId ||
       path.resolve(existing.descriptor.binding.localCwd) !==
         path.resolve(input.workspaceLocalDir) ||
@@ -1013,8 +1013,8 @@ export async function prepareNativeWorkspaceSync(input: {
       acquisition,
       hasPriorStamp: priorStamp !== null,
     });
-    const seedCacheCompanyDirectory = path.join(resolvePaperclipInstanceRoot(), STATE_ROOT_NAME, "generations", requireSafeSegment(input.companyId, "company_id"));
-    const seedCacheDirectory = path.join(seedCacheCompanyDirectory, "shared-v1");
+    const seedCacheSpaceDirectory = path.join(resolveOutpostInstanceRoot(), STATE_ROOT_NAME, "generations", requireSafeSegment(input.spaceId, "space_id"));
+    const seedCacheDirectory = path.join(seedCacheSpaceDirectory, "shared-v1");
     runtime = await prepareRuntime({
       runId: input.runId,
       target,
@@ -1022,7 +1022,7 @@ export async function prepareNativeWorkspaceSync(input: {
       onCheckpoint: input.onCheckpoint,
       workspaceLocalDir: input.workspaceLocalDir,
       mode,
-      seedCacheCompanyDirectory,
+      seedCacheSpaceDirectory,
       seedCacheDirectory,
       workspaceGitIndexRefresh: input.workspaceGitIndexRefresh === true
         && acquisition === "created" && mode === "host_current"
@@ -1066,7 +1066,7 @@ export async function prepareNativeWorkspaceSync(input: {
           target,
           workspaceLocalDir: input.workspaceLocalDir,
           mode: preparedSeed ? "durable_seed" : mode,
-          seedCacheCompanyDirectory,
+          seedCacheSpaceDirectory,
           seedCacheDirectory,
           baseline: currentSnapshot.baseline,
           gitSnapshot: currentSnapshot.gitSnapshot,
@@ -1090,7 +1090,7 @@ export async function prepareNativeWorkspaceSync(input: {
       schema: DESCRIPTOR_SCHEMA,
       binding: {
         runId: input.runId,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         workspaceId: input.workspaceId,
         leaseId: target.leaseId ?? input.lease.id,
         providerLeaseId,
@@ -1155,14 +1155,14 @@ export async function prepareNativeWorkspaceSync(input: {
 }
 
 export async function readNativeWorkspaceSyncLocalCwd(input: {
-  companyId: string;
+  spaceId: string;
   runId: string;
   workspaceId: string;
   reference: NativeWorkspaceSyncReference;
 }): Promise<string> {
   const existing = await readDescriptor(input);
   try {
-    if (existing.descriptor.binding.companyId !== input.companyId ||
+    if (existing.descriptor.binding.spaceId !== input.spaceId ||
         existing.descriptor.binding.workspaceId !== input.workspaceId) {
       throw new Error("native_workspace_sync_descriptor_binding_mismatch");
     }
@@ -1188,7 +1188,7 @@ export async function resumeNativeWorkspaceSync(input: {
     throw new Error("workspace_sync_out_unrecoverable");
   }
   const run = await input.db
-    .select({ companyId: heartbeatRuns.companyId, runnerProfileJson: heartbeatRuns.runnerProfileJson })
+    .select({ spaceId: heartbeatRuns.spaceId, runnerProfileJson: heartbeatRuns.runnerProfileJson })
     .from(heartbeatRuns)
     .where(eq(heartbeatRuns.id, input.runId))
     .limit(1)
@@ -1197,7 +1197,7 @@ export async function resumeNativeWorkspaceSync(input: {
     parseObject(run?.runnerProfileJson).nativeWorkspaceSync,
   );
   if (!reference) return false;
-  if (run && await hasMigratedLegacyWorkspaceSource(input.db, { companyId: run.companyId, runId: input.runId, reference }))
+  if (run && await hasMigratedLegacyWorkspaceSource(input.db, { spaceId: run.spaceId, runId: input.runId, reference }))
     throw new Error("native_workspace_sync_source_migrated");
   const existing = await readDescriptor({ runId: input.runId, reference });
   const providerLeaseId =

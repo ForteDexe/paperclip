@@ -18,7 +18,7 @@ the [scenario explorer](capability-scenario-explorer.md) diffs:
 (artifacts and work products), `blockers`, `workspace` (workspace services),
 `budget`, and `run`.
 
-The fixture state also carries supporting records — company, actors, wakes,
+The fixture state also carries supporting records — space, actors, wakes,
 audit, decisions, idempotency, faults, counters, and a fixture clock — that back
 behavior but are not diff domains.
 

@@ -1,4 +1,4 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { describeError } from "../api/errors";
 import { useWarmTaskDetailCode } from "@/hooks/useWarmTaskDetailCode";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -23,7 +23,7 @@ import {
   type BlockedInboxGroupBy,
   type BlockedInboxSort,
 } from "../lib/blockedInbox";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useToastActions } from "../context/ToastContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useSidebar } from "../context/SidebarContext";
@@ -37,7 +37,7 @@ import {
 } from "../lib/issue-filters";
 import { collectLiveIssueIds, collectSubtreeLiveCounts } from "../lib/liveIssueIds";
 import { formatAssigneeUserLabel } from "../lib/assignees";
-import { buildCompanyUserLabelMap, buildCompanyUserProfileMap } from "../lib/company-members";
+import { buildSpaceUserLabelMap, buildSpaceUserProfileMap } from "../lib/space-members";
 import {
   armIssueDetailInboxQuickArchive,
   createIssueDetailLocationState,
@@ -170,7 +170,7 @@ import {
   type InboxIssueColumn,
   type InboxKeyboardNavEntry,
   saveLastInboxTab,
-  shouldShowCompanyAlerts,
+  shouldShowSpaceAlerts,
   shouldShowInboxSection,
   type InboxGroupedSection,
   type InboxTab,
@@ -694,7 +694,7 @@ function JoinRequestInboxRow({
 }
 
 export function Inbox() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const { openNewIssue } = useDialogActions();
   const { isMobile } = useSidebar();
@@ -711,14 +711,14 @@ export function Inbox() {
   const [searchQuery, setSearchQuery] = useState("");
   const normalizedSearchQuery = searchQuery.trim();
   const [filterPreferences, setFilterPreferences] = useState<InboxFilterPreferences>(
-    () => loadInboxFilterPreferences(selectedCompanyId),
+    () => loadInboxFilterPreferences(selectedSpaceId),
   );
   const [groupBy, setGroupBy] = useState<InboxWorkItemGroupBy>(() => loadInboxWorkItemGroupBy());
   const [blockedGroupBy, setBlockedGroupBy] = useState<BlockedInboxGroupBy>("none");
   const [blockedSortBy, setBlockedSortBy] = useState<BlockedInboxSort>("most_recent");
   const [visibleIssueColumns, setVisibleIssueColumns] = useState<InboxIssueColumn[]>(loadInboxIssueColumns);
   const { dismissed: dismissedAlerts, dismiss: dismissAlert } = useDismissedInboxAlerts();
-  const { dismissedAtByKey, dismiss: dismissInboxItem } = useInboxDismissals(selectedCompanyId);
+  const { dismissedAtByKey, dismiss: dismissInboxItem } = useInboxDismissals(selectedSpaceId);
   const { readItems, markRead: markItemRead, markUnread: markItemUnread } = useReadInboxItems();
   const { allCategoryFilter, allApprovalFilter, issueFilters } = filterPreferences;
 
@@ -748,28 +748,28 @@ export function Inbox() {
   });
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
 
   const { data: projects } = useQuery({
-    ...companyProjectsQuery(selectedCompanyId!, { includeArchived: true }),
-    enabled: !!selectedCompanyId,
+    ...spaceProjectsQuery(selectedSpaceId!, { includeArchived: true }),
+    enabled: !!selectedSpaceId,
   });
   const { data: labels } = useQuery({
-    queryKey: queryKeys.issues.labels(selectedCompanyId!),
-    queryFn: () => issuesApi.listLabels(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.issues.labels(selectedSpaceId!),
+    queryFn: () => issuesApi.listLabels(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const isolatedWorkspacesEnabled = experimentalSettings?.enableIsolatedWorkspaces === true;
   const externalObjectsEnabled = experimentalSettings?.enableExternalObjects === true;
   const { data: executionWorkspaces = [] } = useQuery({
-    queryKey: selectedCompanyId
-      ? queryKeys.executionWorkspaces.summaryList(selectedCompanyId)
+    queryKey: selectedSpaceId
+      ? queryKeys.executionWorkspaces.summaryList(selectedSpaceId)
       : ["execution-workspaces", "__disabled__"],
-    queryFn: () => executionWorkspacesApi.listSummaries(selectedCompanyId!),
-    enabled: !!selectedCompanyId && isolatedWorkspacesEnabled,
+    queryFn: () => executionWorkspacesApi.listSummaries(selectedSpaceId!),
+    enabled: !!selectedSpaceId && isolatedWorkspacesEnabled,
   });
 
   useEffect(() => {
@@ -782,20 +782,20 @@ export function Inbox() {
     setSearchQuery("");
   }, [tab]);
 
-  const previousSelectedCompanyIdRef = useRef<string | null>(selectedCompanyId);
+  const previousSelectedSpaceIdRef = useRef<string | null>(selectedSpaceId);
   useEffect(() => {
-    if (previousSelectedCompanyIdRef.current !== selectedCompanyId) {
-      previousSelectedCompanyIdRef.current = selectedCompanyId;
-      setFilterPreferences(loadInboxFilterPreferences(selectedCompanyId));
-      setCollapsedGroupKeys(loadCollapsedInboxGroupKeys(selectedCompanyId));
-      setCollapsedInboxParents(loadCollapsedInboxParentIds(selectedCompanyId));
+    if (previousSelectedSpaceIdRef.current !== selectedSpaceId) {
+      previousSelectedSpaceIdRef.current = selectedSpaceId;
+      setFilterPreferences(loadInboxFilterPreferences(selectedSpaceId));
+      setCollapsedGroupKeys(loadCollapsedInboxGroupKeys(selectedSpaceId));
+      setCollapsedInboxParents(loadCollapsedInboxParentIds(selectedSpaceId));
     }
-  }, [selectedCompanyId]);
+  }, [selectedSpaceId]);
 
   const approvalsQuery = useQuery({
-    queryKey: queryKeys.approvals.list(selectedCompanyId!),
-    queryFn: () => approvalsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.approvals.list(selectedSpaceId!),
+    queryFn: () => approvalsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const {
     data: approvals,
@@ -804,17 +804,17 @@ export function Inbox() {
   const approvalsView = useQueryView(approvalsQuery);
 
   const joinRequestsQuery = useQuery({
-    queryKey: queryKeys.access.joinRequests(selectedCompanyId!),
+    queryKey: queryKeys.access.joinRequests(selectedSpaceId!),
     queryFn: async () => {
       try {
-        const requests = await accessApi.listJoinRequests(selectedCompanyId!, "pending_approval");
+        const requests = await accessApi.listJoinRequests(selectedSpaceId!, "pending_approval");
         return requests.filter((request) => request.requestType === "agent");
       } catch (err) {
         if (err instanceof ApiError && (err.status === 403 || err.status === 401)) return [];
         throw err;
       }
     },
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
   });
   const {
     data: joinRequests = [],
@@ -822,38 +822,38 @@ export function Inbox() {
   } = joinRequestsQuery;
   const joinRequestsView = useQueryView(joinRequestsQuery);
 
-  const dashboardQueryKey = queryKeys.dashboard(selectedCompanyId!);
+  const dashboardQueryKey = queryKeys.dashboard(selectedSpaceId!);
   const sharedDashboard = useSharedPollingQuery({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     resourceKey: "dashboard",
     queryKey: dashboardQueryKey,
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
   });
   const dashboardQuery = useQuery({
     queryKey: dashboardQueryKey,
-    queryFn: () => dashboardApi.summary(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryFn: () => dashboardApi.summary(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const { data: dashboard, isLoading: isDashboardLoading, dataUpdatedAt: dashboardUpdatedAt } = dashboardQuery;
   const dashboardView = useQueryView(dashboardQuery);
   usePublishSharedQueryData(sharedDashboard, dashboard, dashboardUpdatedAt);
 
-  const inboxIssuesQueryKey = [...queryKeys.issues.list(selectedCompanyId!), "compact", "with-routine-executions", "live-descendant-summary", INBOX_ISSUE_LIST_LIMIT] as const;
+  const inboxIssuesQueryKey = [...queryKeys.issues.list(selectedSpaceId!), "compact", "with-routine-executions", "live-descendant-summary", INBOX_ISSUE_LIST_LIMIT] as const;
   const sharedInboxIssues = useSharedPollingQuery<Issue[]>({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     resourceKey: "inbox:issues",
     queryKey: inboxIssuesQueryKey,
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
   });
   const inboxIssuesQuery = useQuery({
     queryKey: inboxIssuesQueryKey,
     queryFn: () =>
-      issuesApi.listCompact(selectedCompanyId!, {
+      issuesApi.listCompact(selectedSpaceId!, {
         includeRoutineExecutions: true,
         includeLiveDescendantSummary: true,
         limit: INBOX_ISSUE_LIST_LIMIT,
       }).then((rows) => rows as Issue[]),
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
     refetchOnWindowFocus: false,
     staleTime: INBOX_HOT_PATH_STALE_MS,
   });
@@ -861,9 +861,9 @@ export function Inbox() {
   const inboxIssuesView = useQueryView(inboxIssuesQuery);
   usePublishSharedQueryData(sharedInboxIssues, issues, issuesUpdatedAt);
   const mineIssuesQuery = useQuery({
-    queryKey: [...queryKeys.issues.listMineByMe(selectedCompanyId!), "compact", "with-routine-executions", "live-descendant-summary", INBOX_ISSUE_LIST_LIMIT] as const,
+    queryKey: [...queryKeys.issues.listMineByMe(selectedSpaceId!), "compact", "with-routine-executions", "live-descendant-summary", INBOX_ISSUE_LIST_LIMIT] as const,
     queryFn: () =>
-      issuesApi.listCompact(selectedCompanyId!, {
+      issuesApi.listCompact(selectedSpaceId!, {
         touchedByUserId: "me",
         inboxArchivedByUserId: "me",
         status: INBOX_MINE_ISSUE_STATUS_FILTER,
@@ -871,7 +871,7 @@ export function Inbox() {
         includeLiveDescendantSummary: true,
         limit: INBOX_ISSUE_LIST_LIMIT,
       }).then((rows) => rows as Issue[]),
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
     refetchOnWindowFocus: false,
     staleTime: INBOX_HOT_PATH_STALE_MS,
   });
@@ -881,25 +881,25 @@ export function Inbox() {
     dataUpdatedAt: mineIssuesUpdatedAt,
   } = mineIssuesQuery;
   const mineIssuesView = useQueryView(mineIssuesQuery);
-  const mineIssuesQueryKey = [...queryKeys.issues.listMineByMe(selectedCompanyId!), "compact", "with-routine-executions", "live-descendant-summary", INBOX_ISSUE_LIST_LIMIT] as const;
+  const mineIssuesQueryKey = [...queryKeys.issues.listMineByMe(selectedSpaceId!), "compact", "with-routine-executions", "live-descendant-summary", INBOX_ISSUE_LIST_LIMIT] as const;
   const sharedMineIssues = useSharedPollingQuery<Issue[]>({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     resourceKey: "inbox:mine-issues",
     queryKey: mineIssuesQueryKey,
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
   });
   usePublishSharedQueryData(sharedMineIssues, mineIssuesRaw, mineIssuesUpdatedAt);
   const touchedIssuesQuery = useQuery({
-    queryKey: [...queryKeys.issues.listTouchedByMe(selectedCompanyId!), "compact", "with-routine-executions", "live-descendant-summary", INBOX_ISSUE_LIST_LIMIT] as const,
+    queryKey: [...queryKeys.issues.listTouchedByMe(selectedSpaceId!), "compact", "with-routine-executions", "live-descendant-summary", INBOX_ISSUE_LIST_LIMIT] as const,
     queryFn: () =>
-      issuesApi.listCompact(selectedCompanyId!, {
+      issuesApi.listCompact(selectedSpaceId!, {
         touchedByUserId: "me",
         status: INBOX_MINE_ISSUE_STATUS_FILTER,
         includeRoutineExecutions: true,
         includeLiveDescendantSummary: true,
         limit: INBOX_ISSUE_LIST_LIMIT,
       }).then((rows) => rows as Issue[]),
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
     refetchOnWindowFocus: false,
     staleTime: INBOX_HOT_PATH_STALE_MS,
   });
@@ -909,51 +909,51 @@ export function Inbox() {
     dataUpdatedAt: touchedIssuesUpdatedAt,
   } = touchedIssuesQuery;
   const touchedIssuesView = useQueryView(touchedIssuesQuery);
-  const touchedIssuesQueryKey = [...queryKeys.issues.listTouchedByMe(selectedCompanyId!), "compact", "with-routine-executions", "live-descendant-summary", INBOX_ISSUE_LIST_LIMIT] as const;
+  const touchedIssuesQueryKey = [...queryKeys.issues.listTouchedByMe(selectedSpaceId!), "compact", "with-routine-executions", "live-descendant-summary", INBOX_ISSUE_LIST_LIMIT] as const;
   const sharedTouchedIssues = useSharedPollingQuery<Issue[]>({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     resourceKey: "inbox:touched-issues",
     queryKey: touchedIssuesQueryKey,
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
   });
   usePublishSharedQueryData(sharedTouchedIssues, touchedIssuesRaw, touchedIssuesUpdatedAt);
 
   const heartbeatRunsQuery = useQuery({
-    queryKey: [...queryKeys.heartbeats(selectedCompanyId!), "limit", INBOX_HEARTBEAT_RUN_LIMIT],
-    queryFn: () => heartbeatsApi.list(selectedCompanyId!, undefined, INBOX_HEARTBEAT_RUN_LIMIT, { summary: true }),
-    enabled: !!selectedCompanyId,
+    queryKey: [...queryKeys.heartbeats(selectedSpaceId!), "limit", INBOX_HEARTBEAT_RUN_LIMIT],
+    queryFn: () => heartbeatsApi.list(selectedSpaceId!, undefined, INBOX_HEARTBEAT_RUN_LIMIT, { summary: true }),
+    enabled: !!selectedSpaceId,
     refetchOnWindowFocus: false,
     staleTime: INBOX_HOT_PATH_STALE_MS,
   });
   const { data: heartbeatRuns, isLoading: isRunsLoading } = heartbeatRunsQuery;
   const heartbeatRunsView = useQueryView(heartbeatRunsQuery);
-  const liveRunsQueryKey = queryKeys.liveRuns(selectedCompanyId!);
+  const liveRunsQueryKey = queryKeys.liveRuns(selectedSpaceId!);
   const sharedLiveRuns = useSharedPollingQuery({
-    companyId: selectedCompanyId,
+    spaceId: selectedSpaceId,
     resourceKey: "live-runs",
     queryKey: liveRunsQueryKey,
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
     // Event-sourced via LiveUpdatesProvider (GitHub issue 9627); no interval poll needed.
     refetchInterval: false,
     leaderOnly: true,
   });
   const { data: liveRuns, dataUpdatedAt: liveRunsUpdatedAt } = useQuery({
     queryKey: liveRunsQueryKey,
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedCompanyId!),
+    queryFn: () => heartbeatsApi.liveRunsForSpace(selectedSpaceId!),
     enabled: sharedLiveRuns.enabled,
     refetchInterval: sharedLiveRuns.refetchInterval,
   });
   usePublishSharedQueryData(sharedLiveRuns, liveRuns, liveRunsUpdatedAt);
-  const { data: companyMembers } = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(selectedCompanyId!),
-    queryFn: () => accessApi.listUserDirectory(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+  const { data: spaceMembers } = useQuery({
+    queryKey: queryKeys.access.spaceUserDirectory(selectedSpaceId!),
+    queryFn: () => accessApi.listUserDirectory(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const currentUserId = session?.user.id ?? session?.session.userId ?? null;
   const [archivingIssueIds, setArchivingIssueIds] = useState<Set<string>>(new Set());
   const [undoableArchiveIssueIds, setUndoableArchiveIssueIds] = useState<string[]>([]);
   const [unarchivingIssueIds, setUnarchivingIssueIds] = useState<Set<string>>(new Set());
-  const guardedArchiveIssueIds = useLocalInboxArchiveIssueIds(selectedCompanyId);
+  const guardedArchiveIssueIds = useLocalInboxArchiveIssueIds(selectedSpaceId);
   const locallyArchivedIssueIds = useMemo(() => {
     const issueIds = new Set(guardedArchiveIssueIds);
     for (const issueId of undoableArchiveIssueIds) issueIds.add(issueId);
@@ -962,13 +962,13 @@ export function Inbox() {
     return issueIds;
   }, [archivingIssueIds, guardedArchiveIssueIds, undoableArchiveIssueIds, unarchivingIssueIds]);
 
-  const companyUserLabelMap = useMemo(
-    () => buildCompanyUserLabelMap(companyMembers?.users),
-    [companyMembers?.users],
+  const spaceUserLabelMap = useMemo(
+    () => buildSpaceUserLabelMap(spaceMembers?.users),
+    [spaceMembers?.users],
   );
-  const companyUserProfileMap = useMemo(
-    () => buildCompanyUserProfileMap(companyMembers?.users),
-    [companyMembers?.users],
+  const spaceUserProfileMap = useMemo(
+    () => buildSpaceUserProfileMap(spaceMembers?.users),
+    [spaceMembers?.users],
   );
 
   const mineIssues = useMemo(
@@ -980,18 +980,18 @@ export function Inbox() {
     [locallyArchivedIssueIds, touchedIssuesRaw],
   );
   const shouldUseIssueSearchSupplement =
-    !!selectedCompanyId
+    !!selectedSpaceId
     && normalizedSearchQuery.length > 0;
   const { data: remoteIssueSearchResults = [] } = useQuery({
     queryKey: [
-      ...queryKeys.issues.search(selectedCompanyId!, normalizedSearchQuery, undefined, 25),
+      ...queryKeys.issues.search(selectedSpaceId!, normalizedSearchQuery, undefined, 25),
       "compact",
       "inbox-supplement",
       issueFilters.showAgentCreatedTasks,
       "live-descendant-summary",
     ],
     queryFn: () =>
-      issuesApi.listCompact(selectedCompanyId!, {
+      issuesApi.listCompact(selectedSpaceId!, {
         q: normalizedSearchQuery,
         limit: 25,
         includeAgentCreatedTasks: issueFilters.showAgentCreatedTasks,
@@ -1022,7 +1022,7 @@ export function Inbox() {
     isLoading: externalObjectSummariesLoading,
     isReady: externalObjectSummariesReady,
   } = useIssueExternalObjectSummaries(
-    selectedCompanyId,
+    selectedSpaceId,
     inboxIssueIdsForExternalObjectSummaries,
   );
   const issueFilterContext = useMemo(() => ({
@@ -1048,9 +1048,9 @@ export function Inbox() {
     if (currentUserId) {
       options.set(`user:${currentUserId}`, {
         id: `user:${currentUserId}`,
-        label: currentUserId === "local-board" ? "You" : "Me",
+        label: currentUserId === "local-operator" ? "You" : "Me",
         kind: "user",
-        searchText: currentUserId === "local-board" ? "board me human local-board" : `me board human ${currentUserId}`,
+        searchText: currentUserId === "local-operator" ? "operator me human local-operator" : `me operator human ${currentUserId}`,
       });
     }
 
@@ -1062,7 +1062,7 @@ export function Inbox() {
             id,
             label: formatAssigneeUserLabel(issue.createdByUserId, currentUserId) ?? issue.createdByUserId.slice(0, 5),
             kind: "user",
-            searchText: `${issue.createdByUserId} board user human`,
+            searchText: `${issue.createdByUserId} operator user human`,
           });
         }
       }
@@ -1175,12 +1175,12 @@ export function Inbox() {
       projectWorkspaceById,
       defaultProjectWorkspaceIdByProjectId,
       projectById,
-      userLabelById: companyUserLabelMap,
+      userLabelById: spaceUserLabelMap,
       currentUserId,
     }),
     [
       agentById,
-      companyUserLabelMap,
+      spaceUserLabelMap,
       currentUserId,
       defaultProjectWorkspaceIdByProjectId,
       executionWorkspaceById,
@@ -1375,28 +1375,28 @@ export function Inbox() {
     });
   }, []);
   const [collapsedInboxParents, setCollapsedInboxParents] = useState<Set<string>>(
-    () => loadCollapsedInboxParentIds(selectedCompanyId),
+    () => loadCollapsedInboxParentIds(selectedSpaceId),
   );
-  const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(() => loadCollapsedInboxGroupKeys(selectedCompanyId));
+  const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(() => loadCollapsedInboxGroupKeys(selectedSpaceId));
   const toggleGroupCollapse = useCallback((groupKey: string) => {
     setCollapsedGroupKeys((prev) => {
       const next = new Set(prev);
       if (next.has(groupKey)) next.delete(groupKey);
       else next.add(groupKey);
-      saveCollapsedInboxGroupKeys(selectedCompanyId, next);
+      saveCollapsedInboxGroupKeys(selectedSpaceId, next);
       return next;
     });
-  }, [selectedCompanyId]);
+  }, [selectedSpaceId]);
   const setGroupCollapsed = useCallback((groupKey: string, collapsed: boolean) => {
     setCollapsedGroupKeys((prev) => {
       if (collapsed ? prev.has(groupKey) : !prev.has(groupKey)) return prev;
       const next = new Set(prev);
       if (collapsed) next.add(groupKey);
       else next.delete(groupKey);
-      saveCollapsedInboxGroupKeys(selectedCompanyId, next);
+      saveCollapsedInboxGroupKeys(selectedSpaceId, next);
       return next;
     });
-  }, [selectedCompanyId]);
+  }, [selectedSpaceId]);
   const freshGroupedSections = useMemo<InboxGroupedSection[]>(() => [
     ...buildGroupedInboxSections(filteredWorkItems, groupBy, inboxWorkspaceGrouping, { nestingEnabled }),
     ...buildGroupedInboxSections(
@@ -1441,7 +1441,7 @@ export function Inbox() {
   const inboxSortViewIdentity = useMemo(
     () =>
       JSON.stringify([
-        selectedCompanyId,
+        selectedSpaceId,
         tab,
         groupBy,
         nestingEnabled,
@@ -1457,7 +1457,7 @@ export function Inbox() {
       issueFilters,
       nestingEnabled,
       normalizedSearchQuery,
-      selectedCompanyId,
+      selectedSpaceId,
       tab,
     ],
   );
@@ -1512,20 +1512,20 @@ export function Inbox() {
       const next = new Set(prev);
       if (next.has(parentId)) next.delete(parentId);
       else next.add(parentId);
-      saveCollapsedInboxParentIds(selectedCompanyId, next);
+      saveCollapsedInboxParentIds(selectedSpaceId, next);
       return next;
     });
-  }, [selectedCompanyId]);
+  }, [selectedSpaceId]);
   const setInboxParentCollapsed = useCallback((parentId: string, collapsed: boolean) => {
     setCollapsedInboxParents((prev) => {
       if (prev.has(parentId) === collapsed) return prev;
       const next = new Set(prev);
       if (collapsed) next.add(parentId);
       else next.delete(parentId);
-      saveCollapsedInboxParentIds(selectedCompanyId, next);
+      saveCollapsedInboxParentIds(selectedSpaceId, next);
       return next;
     });
-  }, [selectedCompanyId]);
+  }, [selectedSpaceId]);
 
   // Build flat navigation list from visible rows so keyboard traversal respects collapsed groups.
   const flatNavItems = useMemo((): NavEntry[] => {
@@ -1597,11 +1597,11 @@ export function Inbox() {
     (updater: (previous: InboxFilterPreferences) => InboxFilterPreferences) => {
       setFilterPreferences((previous) => {
         const next = updater(previous);
-        saveInboxFilterPreferences(selectedCompanyId, next);
+        saveInboxFilterPreferences(selectedSpaceId, next);
         return next;
       });
     },
-    [selectedCompanyId],
+    [selectedSpaceId],
   );
   const updateIssueFilters = useCallback((patch: Partial<IssueFilterState>) => {
     updateFilterPreferences((previous) => ({
@@ -1633,7 +1633,7 @@ export function Inbox() {
     mutationFn: (id: string) => approvalsApi.approve(id),
     onSuccess: (_approval, id) => {
       setActionError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedSpaceId!) });
       navigate(`/approvals/${id}?resolved=approved`);
     },
     onError: (err) => {
@@ -1645,7 +1645,7 @@ export function Inbox() {
     mutationFn: (id: string) => approvalsApi.reject(id),
     onSuccess: () => {
       setActionError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(selectedSpaceId!) });
     },
     onError: (err) => {
       setActionError(describeError(err, { action: "reject this request" }).body);
@@ -1654,13 +1654,13 @@ export function Inbox() {
 
   const approveJoinMutation = useMutation({
     mutationFn: (joinRequest: JoinRequest) =>
-      accessApi.approveJoinRequest(selectedCompanyId!, joinRequest.id),
+      accessApi.approveJoinRequest(selectedSpaceId!, joinRequest.id),
     onSuccess: () => {
       setActionError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.access.joinRequests(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.access.joinRequests(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all });
     },
     onError: (err) => {
       setActionError(describeError(err, { action: "approve the join request" }).body);
@@ -1669,11 +1669,11 @@ export function Inbox() {
 
   const rejectJoinMutation = useMutation({
     mutationFn: (joinRequest: JoinRequest) =>
-      accessApi.rejectJoinRequest(selectedCompanyId!, joinRequest.id),
+      accessApi.rejectJoinRequest(selectedSpaceId!, joinRequest.id),
     onSuccess: () => {
       setActionError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.access.joinRequests(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.access.joinRequests(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(selectedSpaceId!) });
     },
     onError: (err) => {
       setActionError(describeError(err, { action: "reject the join request" }).body);
@@ -1687,7 +1687,7 @@ export function Inbox() {
       const result = await agentsApi.retryFailedRun(
         run.agentId,
         run.id,
-        run.companyId,
+        run.spaceId,
       );
       return { newRun: result, originalRun: run };
     },
@@ -1695,8 +1695,8 @@ export function Inbox() {
       setRetryingRunIds((prev) => new Set(prev).add(run.id));
     },
     onSuccess: ({ newRun, originalRun }) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(originalRun.companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(originalRun.companyId, originalRun.agentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(originalRun.spaceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(originalRun.spaceId, originalRun.agentId) });
       if (newRun.runId)
         navigate(`/agents/${originalRun.agentId}/runs/${newRun.runId}`);
       else if (newRun.issueId) navigate(`/issues/${newRun.issueId}`);
@@ -1755,8 +1755,8 @@ export function Inbox() {
   }, [noteInboxSortInteraction]);
 
   const invalidateInboxIssueQueryCaches = () => {
-    if (!selectedCompanyId) return;
-    invalidateInboxIssueQueries(queryClient, selectedCompanyId);
+    if (!selectedSpaceId) return;
+    invalidateInboxIssueQueries(queryClient, selectedSpaceId);
   };
 
   const archiveIssueMutation = useMutation({
@@ -1767,18 +1767,18 @@ export function Inbox() {
       setActionError(null);
       setArchivingIssueIds((prev) => new Set(prev).add(id));
 
-      if (!selectedCompanyId) return { previousData: [] as InboxIssueCacheSnapshot };
-      beginLocalInboxArchive(selectedCompanyId, id);
+      if (!selectedSpaceId) return { previousData: [] as InboxIssueCacheSnapshot };
+      beginLocalInboxArchive(selectedSpaceId, id);
 
-      await cancelInboxIssueQueries(queryClient, selectedCompanyId);
-      const previousData = snapshotInboxIssueCaches(queryClient, selectedCompanyId);
-      removeIssueFromInboxCaches(queryClient, selectedCompanyId, id);
+      await cancelInboxIssueQueries(queryClient, selectedSpaceId);
+      const previousData = snapshotInboxIssueCaches(queryClient, selectedSpaceId);
+      removeIssueFromInboxCaches(queryClient, selectedSpaceId, id);
 
-      return { companyId: selectedCompanyId, previousData };
+      return { spaceId: selectedSpaceId, previousData };
     },
     onError: (err, id, context) => {
       setActionError(describeError(err, { action: "archive the task" }).body);
-      if (context?.companyId) clearLocalInboxArchive(context.companyId, id);
+      if (context?.spaceId) clearLocalInboxArchive(context.spaceId, id);
       setArchivingIssueIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
@@ -1796,12 +1796,12 @@ export function Inbox() {
         next.delete(id);
         return next;
       });
-      if (!context?.companyId) return;
-      if (!error) boundLocalInboxArchive(context.companyId, id);
-      await invalidateInboxIssueQueries(queryClient, context.companyId);
+      if (!context?.spaceId) return;
+      if (!error) boundLocalInboxArchive(context.spaceId, id);
+      await invalidateInboxIssueQueries(queryClient, context.spaceId);
       if (!error) {
-        const presence = getIssuePresenceInActiveInboxCaches(queryClient, context.companyId, id);
-        if (presence !== "unknown") confirmLocalInboxArchive(context.companyId, id);
+        const presence = getIssuePresenceInActiveInboxCaches(queryClient, context.spaceId, id);
+        if (presence !== "unknown") confirmLocalInboxArchive(context.spaceId, id);
       }
     },
     onSuccess: (_data, id) => {
@@ -1814,14 +1814,14 @@ export function Inbox() {
     onMutate: (id) => {
       setActionError(null);
       setUnarchivingIssueIds((prev) => new Set(prev).add(id));
-      if (selectedCompanyId) clearLocalInboxArchive(selectedCompanyId, id);
-      return { companyId: selectedCompanyId };
+      if (selectedSpaceId) clearLocalInboxArchive(selectedSpaceId, id);
+      return { spaceId: selectedSpaceId };
     },
     onError: (err, id, context) => {
       setActionError(describeError(err, { action: "undo the inbox archive" }).body);
-      if (context?.companyId) {
-        beginLocalInboxArchive(context.companyId, id);
-        boundLocalInboxArchive(context.companyId, id);
+      if (context?.spaceId) {
+        beginLocalInboxArchive(context.spaceId, id);
+        boundLocalInboxArchive(context.spaceId, id);
       }
     },
     onSuccess: (_data, id) => {
@@ -1966,7 +1966,7 @@ export function Inbox() {
   useEffect(() => {
     setUndoableArchiveIssueIds([]);
     setUnarchivingIssueIds(new Set());
-  }, [selectedCompanyId]);
+  }, [selectedSpaceId]);
 
   // Use refs for keyboard handler to avoid stale closures
   const kbStateRef = useRef({
@@ -2231,16 +2231,16 @@ export function Inbox() {
     !isMineIssuesLoading &&
     !isTouchedIssuesLoading &&
     !isRunsLoading;
-  useWarmTaskDetailCode(Boolean(selectedCompanyId) && allLoaded && tab !== "blocked" && totalVisibleWorkItems > 0);
+  useWarmTaskDetailCode(Boolean(selectedSpaceId) && allLoaded && tab !== "blocked" && totalVisibleWorkItems > 0);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <EmptyState icon={InboxIcon} message="Select a outpost to view inbox." />;
   }
 
   const hasRunFailures = failedRuns.length > 0;
-  const showCompanyAlerts = shouldShowCompanyAlerts(tab) && showAlertsCategory;
+  const showSpaceAlerts = shouldShowSpaceAlerts(tab) && showAlertsCategory;
   const showAggregateAgentError =
-    showCompanyAlerts &&
+    showSpaceAlerts &&
     !!dashboard &&
     dashboard.agents.error > 0 &&
     !hasRunFailures &&
@@ -2597,10 +2597,10 @@ export function Inbox() {
       {tab === "blocked" ? (
         <BlockedInboxView
           presentation="legacy"
-          companyId={selectedCompanyId!}
+          spaceId={selectedSpaceId!}
           searchQuery={searchQuery}
           agentNameById={agentById}
-          userLabelById={companyUserLabelMap}
+          userLabelById={spaceUserLabelMap}
           issueLinkState={issueLinkState}
           groupBy={blockedGroupBy}
           sortBy={blockedSortBy}
@@ -2671,7 +2671,7 @@ export function Inbox() {
                   const isArchiving = archivingIssueIds.has(issue.id);
                   const project = issue.projectId ? projectById.get(issue.projectId) ?? null : null;
                   const assigneeUserProfile = issue.assigneeUserId
-                    ? companyUserProfileMap.get(issue.assigneeUserId) ?? null
+                    ? spaceUserProfileMap.get(issue.assigneeUserId) ?? null
                     : null;
                   const originatingActor = deriveOriginatingActor(issue);
                   const originatingUserId = originatingActor?.kind === "user" ? originatingActor.id : null;
@@ -2785,14 +2785,14 @@ export function Inbox() {
                             assigneeAgent={agents?.find((agent) => agent.id === issue.assigneeAgentId)}
                             creatorAgent={agents?.find((agent) => agent.id === issue.createdByAgentId)}
                             assigneeUserName={
-                              formatAssigneeUserLabel(issue.assigneeUserId, currentUserId, companyUserLabelMap)
+                              formatAssigneeUserLabel(issue.assigneeUserId, currentUserId, spaceUserLabelMap)
                               ?? assigneeUserProfile?.label
                               ?? null
                             }
                             assigneeUserAvatarUrl={assigneeUserProfile?.image ?? null}
                             creatorAgentName={agentName(issue.createdByAgentId)}
-                            creatorUserName={originatingUserId ? (companyUserProfileMap.get(originatingUserId)?.label ?? null) : null}
-                            creatorUserAvatarUrl={originatingUserId ? (companyUserProfileMap.get(originatingUserId)?.image ?? null) : null}
+                            creatorUserName={originatingUserId ? (spaceUserProfileMap.get(originatingUserId)?.label ?? null) : null}
+                            creatorUserAvatarUrl={originatingUserId ? (spaceUserProfileMap.get(originatingUserId)?.image ?? null) : null}
                             viaAgentName={originatingViaAgentId ? agentName(originatingViaAgentId) : null}
                             currentUserId={currentUserId}
                             parentIdentifier={issue.parentId ? (issueById.get(issue.parentId)?.identifier ?? null) : null}

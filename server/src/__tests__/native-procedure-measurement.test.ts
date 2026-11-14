@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { afterAll, describe, expect, it } from "vitest";
 import type { Db } from "@outpost/db";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { buildNativeModelEnvelope, parseNativeExecutionInput, type NativeExecutionInput } from "../../../packages/outpost-runner/src/contracts/native-execution.js";
 import type { PersistedNativeSession } from "../../../packages/outpost-runner/src/contracts/native-session-backend.js";
 import { NATIVE_RUNTIME_ASSET_SCHEMA, OUTPOST_EXECUTION_PROMPT, OUTPOST_EXECUTION_PROMPT_REVISION, canonicalNativeRuntimeContextDigest, nativeRuntimePromptDigest } from "../../../packages/outpost-runner/src/contracts/runtime-context.js";
@@ -13,11 +13,11 @@ import { FakeCodexTransport, WORKSPACE } from "../../../packages/outpost-runner/
 import { startOpenCodeMcpBridge } from "../../../packages/outpost-runner/src/drivers/opencode/mcp-bridge.js";
 
 // Production catalog selection, scripted provider transport: this measures what
-// Paperclip delivers, not the vendor's private prompt, tokenizer or billing.
+// Outpost delivers, not the vendor's private prompt, tokenizer or billing.
 const root = new URL("../../../", import.meta.url);
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
-const identity = { companyId: "company", agentId: "agent", issueId: "issue", runId: "run", sessionId: "session" };
-const tools = new PaperclipRunnerToolAuthority({} as Db, {
+const identity = { spaceId: "space", agentId: "agent", issueId: "issue", runId: "run", sessionId: "session" };
+const tools = new OutpostRunnerToolAuthority({} as Db, {
   ...identity, apiToolsEnabled: true, workspaceRoot: WORKSPACE,
 }).definitions();
 const { qualificationModel: _model, reportedModelId: _reportedModel, permissionPolicy: _policy, ...profile } = resolveQualifiedAcpxProfile("claude", "claude-sonnet-5");
@@ -45,7 +45,7 @@ function execution(provider: NativeExecutionInput["provider"]): NativeExecutionI
     skills: [], mcp: { assignmentSetId: "none", digest: "0".repeat(64), bindingId: null },
   };
   return parseNativeExecutionInput({
-    schema: "outpost.native-execution-input.v5", binding: { companyId: identity.companyId, agentId: identity.agentId, issueId: identity.issueId, runId: identity.runId, executionWorkspaceId: "workspace" },
+    schema: "outpost.native-execution-input.v5", binding: { spaceId: identity.spaceId, agentId: identity.agentId, issueId: identity.issueId, runId: identity.runId, executionWorkspaceId: "workspace" },
     task: { identifier: "TASK-1", title: "Review delegated work", description: "Review delegated work", prompt: "Review delegated work.", workMode: "standard" },
     workspace: { cwd: WORKSPACE, repoUrl: null, repoRef: null, branchName: null },
     session: { normalizedSessionId: "session", driverKind: provider.kind === "acpx" ? "acpx_runtime" : provider.kind === "opencode" ? "opencode_server" : "codex_app_server", protocolVersion: 1 },
@@ -74,11 +74,11 @@ describe("production native procedure instruction measurement", () => {
 
   it("uses the real standard-mode authority, including optional and connection tools", () => {
     expect(tools.map(tool => tool.name)).toEqual(expect.arrayContaining([
-      "hire_agent", "list_agents", "create_task", "set_dependencies", "connections_search", "connection_request", "register_deliverable",
+      "create_agent", "list_agents", "create_task", "set_dependencies", "connections_search", "connection_request", "register_deliverable",
     ]));
     expect(new Set(tools.map(tool => tool.name)).size).toBe(tools.length);
-    const withoutApi = new PaperclipRunnerToolAuthority({} as Db, { ...identity, apiToolsEnabled: false }).definitions();
-    expect(withoutApi.some(tool => tool.name === "hire_agent")).toBe(false);
+    const withoutApi = new OutpostRunnerToolAuthority({} as Db, { ...identity, apiToolsEnabled: false }).definitions();
+    expect(withoutApi.some(tool => tool.name === "create_agent")).toBe(false);
   });
 
   for (const provider of providers) it(`captures the full ${provider.kind} start/resume/continuation payload`, async () => {
@@ -101,7 +101,7 @@ describe("production native procedure instruction measurement", () => {
         const turn = captured.calls.find(call => call.method === "turn/start")!.params;
         const instructions = setup.developerInstructions ?? setup.baseInstructions;
         const delivered = setup.dynamicTools as Record<string, unknown>[];
-        expect(delivered.filter(tool => !["paperclip_finish", "paperclip_block"].includes(String(tool.name)))).toEqual(tools);
+        expect(delivered.filter(tool => !["outpost_finish", "outpost_block"].includes(String(tool.name)))).toEqual(tools);
         expect(delivered).toHaveLength(tools.length + 2);
         expect(instructions).toContain(OUTPOST_EXECUTION_PROMPT);
         expect(JSON.parse((turn.input as {text: string}[])[0]!.text)).toEqual(envelope);
@@ -118,7 +118,7 @@ describe("production native procedure instruction measurement", () => {
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }) });
       expect(response.ok).toBe(true);
       const result = await response.json() as { result: { tools: Record<string, unknown>[] } };
-      expect(result.result.tools.filter(tool => !["paperclip_finish", "paperclip_block"].includes(String(tool.name)))).toEqual(
+      expect(result.result.tools.filter(tool => !["outpost_finish", "outpost_block"].includes(String(tool.name)))).toEqual(
         tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
       );
       mcpReceipt = { boundary: "authenticated loopback MCP tools/list; no OpenCode/provider process", serverAnnotationsForwarded: false, tools: measure(result.result.tools), count: result.result.tools.length };
@@ -133,7 +133,7 @@ afterAll(() => {
   const paths = [
     "server/src/onboarding-assets/default/AGENTS.md",
     "packages/outpost-runner/src/contracts/runtime-context.ts",
-    "packages/outpost-runner/src/protocol-actions/hire-agent.ts",
+    "packages/outpost-runner/src/protocol-actions/create-agent.ts",
     "packages/outpost-runner/src/protocol-actions/create-task.ts",
     "packages/outpost-runner/src/protocol-actions/set-dependencies.ts",
     "packages/outpost-runner/src/catalog/semantic-action-catalog.ts",

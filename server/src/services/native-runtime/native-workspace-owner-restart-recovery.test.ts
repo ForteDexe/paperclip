@@ -21,31 +21,31 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
-  activityLog, agentWakeupRequests, agents, companies, completionContracts, createDb, heartbeatRuns,
+  activityLog, agentWakeupRequests, agents, spaces, completionContracts, createDb, heartbeatRuns,
   issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults,
 } from "@outpost/db";
 
 // RC-47: a control-plane restart kills the controller mid-copyback, before the
 // completed-copyback barrier exists. The dead controller can never confirm its
 // own stop. Same-host process evidence releases it; otherwise the task names
-// one board action instead of a silent `running`.
+// one operator action instead of a silent `running`.
 describe("native workspace owner recovery after a restart", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: ReturnType<typeof createDb>;
   let workspaceRoot: string;
   let priorLogRoot: string | undefined;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
 
   beforeAll(async () => {
-    workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-native-owner-restart-"));
+    workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-native-owner-restart-"));
     priorLogRoot = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH;
     process.env.WORKSPACE_OPERATION_LOG_BASE_PATH = path.join(workspaceRoot, "operation-logs");
     const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_WORKSPACE_FINALIZER_TEST_DATABASE_URL");
-    if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-owner-restart-");
+    if (!external) temporary = await startEmbeddedPostgresTestDatabase("outpost-native-owner-restart-");
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 6 });
-    await db.insert(companies).values({ id: companyId, name: "Native owner restart", issuePrefix: "NOR" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Native owner agent", adapterType: "outpost_runner", status: "running" });
+    await db.insert(spaces).values({ id: spaceId, name: "Native owner restart", issuePrefix: "NOR" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Native owner agent", adapterType: "outpost_runner", status: "running" });
   }, 30_000);
 
   afterAll(async () => {
@@ -59,28 +59,28 @@ describe("native workspace owner recovery after a restart", () => {
   /** An accepted result whose copyback was abandoned by a recorded owner. */
   async function seedAbandonedCopyback() {
     const issueId = randomUUID(), contractId = randomUUID(), runId = randomUUID(), resultId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Accepted yield, abandoned copyback",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Accepted yield, abandoned copyback",
       status: "in_progress", workMode: "standard", assigneeAgentId: agentId });
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId, revision: 1,
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "native-owner-restart-test-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { objective: "copyback" }, canonicalSha256: `contract-${contractId}`,
       createdByActorType: "system", createdByActorId: "test" });
     const owner = { token: randomUUID(), hostname: "replaced-controller", pid: 2,
       processStartedAt: "2026-10-10T00:02:55.560Z", controllerBootId: randomUUID() };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
       nativeIssueId: issueId, completionContractId: contractId, nativePhase: "workspace_finalizing",
       runnerProfileJson: { nativeWorkspaceFinalizationOwner: owner, preserved: "workspace descriptor",
         nativeExecutionInput: { binding: { executionWorkspaceId: randomUUID() } } } });
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId, completionContractId: contractId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId, completionContractId: contractId,
       serverFingerprint: `result-${resultId}`, schemaStatus: "accepted", resultJson: {}, canonicalSha256: `result-${resultId}` });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "workspace_finalizing", resultId });
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "workspace_finalizing", resultId });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    const action = await issueRecoveryActionService(db).upsertSourceScoped({ companyId, sourceIssueId: issueId,
-      kind: "active_run_watchdog", ownerType: "board", cause: "native_workspace_finalization_owner_unverified",
+    const action = await issueRecoveryActionService(db).upsertSourceScoped({ spaceId, sourceIssueId: issueId,
+      kind: "active_run_watchdog", ownerType: "operator", cause: "native_workspace_finalization_owner_unverified",
       fingerprint: nativeSha256({ runId, owner }), evidence: { runId, owner }, maxAttempts: 1,
       nextAction: "Verify the previous controller and its workspace-copyback processes have stopped." });
-    return { issueId, runId, owner, actionId: action.id, companyId, db, ownerToken: owner.token,
+    return { issueId, runId, owner, actionId: action.id, spaceId, db, ownerToken: owner.token,
       actorId: "operator", controllerAndCopybackStopped: true as const,
       stopEvidence: "Deployment platform confirms the exact old container and all its processes exited." };
   }
@@ -120,14 +120,14 @@ describe("native workspace owner recovery after a restart", () => {
     const verified = await db.select().from(activityLog).where(and(eq(activityLog.entityId, seed.issueId), eq(activityLog.action, "issue.workspace_owner_stop_verified")));
     expect(verified).toHaveLength(1);
     expect(verified[0].details).toMatchObject({ localProof: { pid: owner.pid, processGroupId: owner.processGroupId } });
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId))).toHaveLength(0);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId))).toHaveLength(0);
   });
 
   it("does not let a locally proven stop restore files for a task that moved on", async () => {
     const seed = await seedAbandonedCopyback();
     const { owner } = await killedControllerOwner({ orphanChild: false });
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceFinalizationOwner: owner } }).where(eq(heartbeatRuns.id, seed.runId));
-    await db.insert(heartbeatRuns).values({ companyId, agentId, status: "running", startedAt: new Date(), nativeIssueId: seed.issueId });
+    await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "running", startedAt: new Date(), nativeIssueId: seed.issueId });
     const work = vi.fn(async () => "stale restore");
     expect(await withNativeWorkspaceFinalizationOwnership(seed, work)).toEqual({ acquired: false, reason: "binding_changed" });
     expect(work).not.toHaveBeenCalled();
@@ -143,23 +143,23 @@ describe("native workspace owner recovery after a restart", () => {
       process.kill(childPid!, 0); // The copyback child outlived its controller.
       await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceFinalizationOwner: owner } }).where(eq(heartbeatRuns.id, seeded.runId));
       const work = vi.fn(async () => "second physical writer");
-      expect(await withNativeWorkspaceFinalizationOwnership({ db, companyId, runId: seeded.runId }, work))
+      expect(await withNativeWorkspaceFinalizationOwnership({ db, spaceId, runId: seeded.runId }, work))
         .toEqual({ acquired: false, reason: "local_stop_pending" });
       expect(work).not.toHaveBeenCalled();
       const [action] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, seeded.issueId));
-      expect(action).toMatchObject({ ownerType: "board", cause: "native_workspace_finalization_owner_unverified" });
+      expect(action).toMatchObject({ ownerType: "operator", cause: "native_workspace_finalization_owner_unverified" });
       process.kill(childPid!, "SIGKILL");
       for (let attempt = 0; attempt < 50; attempt += 1) {
         try { process.kill(childPid!, 0); await new Promise(resolve => setTimeout(resolve, 20)); } catch { break; }
       }
-      expect(await withNativeWorkspaceFinalizationOwnership({ db, companyId, runId: seeded.runId }, async () => "resumed"))
+      expect(await withNativeWorkspaceFinalizationOwnership({ db, spaceId, runId: seeded.runId }, async () => "resumed"))
         .toEqual({ acquired: true, value: "resumed" });
     } finally {
       try { process.kill(childPid!, "SIGKILL"); } catch { /* already exited */ }
     }
   });
 
-  it("shows one board action for a previous server on another host, and clears it once confirmed", async () => {
+  it("shows one operator action for a previous server on another host, and clears it once confirmed", async () => {
     const seed = await seedAbandonedCopyback();
     const work = vi.fn(async () => "must not run");
     expect(await withNativeWorkspaceFinalizationOwnership(seed, work)).toEqual({ acquired: false, reason: "owner_unverified" });
@@ -172,12 +172,12 @@ describe("native workspace owner recovery after a restart", () => {
     expect(await taskInterruptionPresentation(db, issue)).toMatchObject({ responsibility: "system", state: "working", userAction: null });
   });
 
-  it("requires the board confirmation for a dead controller recorded without its process group", async () => {
+  it("requires the operator confirmation for a dead controller recorded without its process group", async () => {
     const seeded = await seedAbandonedCopyback();
     const { owner } = await killedControllerOwner({ orphanChild: false });
     const { processGroupId: _omitted, ...legacy } = owner;
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceFinalizationOwner: legacy } }).where(eq(heartbeatRuns.id, seeded.runId));
-    expect(await withNativeWorkspaceFinalizationOwnership({ db, companyId, runId: seeded.runId }, async () => "must not run"))
+    expect(await withNativeWorkspaceFinalizationOwnership({ db, spaceId, runId: seeded.runId }, async () => "must not run"))
       .toEqual({ acquired: false, reason: "owner_unverified" });
   });
 
@@ -206,8 +206,8 @@ describe("native workspace owner recovery after a restart", () => {
       expect(work).not.toHaveBeenCalled();
       expect(await proveLocalWorkspaceOwnerStopped({ owner: foreign, identity: await currentNativeControllerIdentity() }))
         .toEqual({ status: "unsupported", reason: "foreign_host" });
-      // The board can still attest the stop of an owner it cannot observe here.
-      const current = await issueRecoveryActionService(db).getActiveForIssue(companyId, seed.issueId);
+      // The operator can still attest the stop of an owner it cannot observe here.
+      const current = await issueRecoveryActionService(db).getActiveForIssue(spaceId, seed.issueId);
       await resumeNativeWorkspaceAfterOwnerStop({ ...seed, actionId: current!.id, ownerToken: foreign.token });
     });
 
@@ -250,7 +250,7 @@ describe("native workspace owner recovery after a restart", () => {
       const [record] = (await kind.listInProgress!(db, 500, 0)).records.filter(entry => entry.recordId === legacySeed.actionId);
       expect(record!.owner).toMatchObject({ kind: "process", stamp: { processSpace: null } });
 
-      // A hold whose recheck no longer waits (exhausted) is the board's: still
+      // A hold whose recheck no longer waits (exhausted) is the operator's: still
       // listed, but the reconciler keeps no settle watch on it.
       const before = await runOwnershipReconciliationPass(db, { state: createOwnershipReportState(), kinds: [kind] });
       const exhaustedSeed = await seedAbandonedCopyback();
@@ -266,7 +266,7 @@ describe("native workspace owner recovery after a restart", () => {
       expect(after.settleWatch).toBe(before.settleWatch);
     });
 
-    it("lets the board attest an owner on another hostname even when its PID space is unreadable", async () => {
+    it("lets the operator attest an owner on another hostname even when its PID space is unreadable", async () => {
       const proof = await proveCopybackOwnerGone({ hostname: "another-host", pid: 4_194_303,
         processStartedAt: new Date(0).toISOString(), hostHash: "unknown" });
       expect(proof).toMatchObject({ verdict: "unprovable", reason: "different_host" });
@@ -290,7 +290,7 @@ describe("native workspace owner recovery after a restart", () => {
     function currentDeployment(overrides: Partial<Record<string, string>> = {}) {
       const env = { RAILWAY_PROJECT_ID: worker.projectId, RAILWAY_ENVIRONMENT_ID: worker.environmentId,
         RAILWAY_SERVICE_ID: worker.serviceId, RAILWAY_DEPLOYMENT_ID: randomUUID(),
-        RAILWAY_VOLUME_ID: randomUUID(), RAILWAY_VOLUME_MOUNT_PATH: "/paperclip", ...overrides };
+        RAILWAY_VOLUME_ID: randomUUID(), RAILWAY_VOLUME_MOUNT_PATH: "/outpost", ...overrides };
       for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value ?? "");
     }
     afterEach(() => vi.unstubAllEnvs());
@@ -307,7 +307,7 @@ describe("native workspace owner recovery after a restart", () => {
       return { ...seed, owner };
     }
 
-    it("resumes the interrupted save automatically, with no board action", async () => {
+    it("resumes the interrupted save automatically, with no operator action", async () => {
       currentDeployment();
       const seed = await previousDeploymentOwner();
       const [issue] = await db.select().from(issues).where(eq(issues.id, seed.issueId));
@@ -327,7 +327,7 @@ describe("native workspace owner recovery after a restart", () => {
       expect(verified).toHaveLength(1);
       expect(verified[0].details).toMatchObject({ deploymentProof: { reason: "deployment_replaced",
         previousDeploymentId: worker.deploymentId } });
-      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId))).toHaveLength(0);
+      expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId))).toHaveLength(0);
     });
 
     it("records the volume on a new receipt only when the volume is fully configured", async () => {

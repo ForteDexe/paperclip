@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { CornerUpLeft, Folder, KeyRound, Plus } from "lucide-react";
-import type { CompanySecret, SecretStatus } from "@outpost/shared";
+import type { SpaceSecret, SecretStatus } from "@outpost/shared";
 import {
   SearchableSelect,
   type SearchableSelectGroup,
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 interface SecretOption extends SearchableSelectOption {
   kind?: "secret" | "folder" | "back";
-  secret?: CompanySecret;
+  secret?: SpaceSecret;
   missing?: boolean;
   status?: SecretStatus;
   folderPath?: string;
@@ -52,7 +52,7 @@ function folderValue(parts: readonly string[]) {
 }
 
 function buildFolderGroup(
-  secrets: readonly CompanySecret[],
+  secrets: readonly SpaceSecret[],
   currentPath: readonly string[],
   currentSecretId: string,
 ): SearchableSelectGroup<string, SecretOption> {
@@ -127,8 +127,8 @@ function buildFolderGroup(
 export interface SecretPickerProps {
   /** Currently-bound secret id, or "" when unbound. */
   secretId: string;
-  secrets: readonly CompanySecret[];
-  recentlyUsedSecrets?: readonly CompanySecret[];
+  secrets: readonly SpaceSecret[];
+  recentlyUsedSecrets?: readonly SpaceSecret[];
   disabled?: boolean;
   onSelect: (secretId: string) => void;
   /** Open the create-secret popover, seeded with the current query. */

@@ -68,7 +68,7 @@ RUN if ! printf '%s' "${OUTPOST_RUNNER_LOCK_SHA256}" | grep -Eqx '[0-9a-f]{64}';
     && rm -rf /workspace /root/.local/share/pnpm/store
 
 # Fleet sandbox base image. Keep this section aligned with
-# paperclipai/paperclip-cloud/fleet-sandbox-image/Dockerfile. The only Paperclip
+# paperclipai/paperclip-cloud/fleet-sandbox-image/Dockerfile. The only Outpost
 # runner-specific addition is /usr/local/bin/outpost-runnerd below.
 FROM daytonaio/sandbox:0.8.0@sha256:eadf88e4391072b7ad4bed27d9cadfc9fe9d8ed375d9219d34c2ccb518f213e3
 
@@ -123,7 +123,7 @@ RUN set -eu; \
 
 COPY packages/outpost-runner/scripts/provision-grok.mjs /tmp/grok-provision/scripts/provision-grok.mjs
 COPY packages/outpost-runner/src/providers/grok/platforms.json /tmp/grok-provision/src/providers/grok/platforms.json
-RUN node /tmp/grok-provision/scripts/provision-grok.mjs /opt/paperclip/providers/grok/1.0.13/grok && rm -rf /tmp/grok-provision
+RUN node /tmp/grok-provision/scripts/provision-grok.mjs /opt/outpost/providers/grok/1.0.13/grok && rm -rf /tmp/grok-provision
 
 # Keep revision-dependent metadata below the stable agent CLI installation
 # layers. A source-only image miss can then reuse those expensive layers from

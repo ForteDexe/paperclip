@@ -25,7 +25,7 @@ type WorkProductTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 async function validateExecutionWorkspace(
   tx: WorkProductTransaction,
-  companyId: string,
+  spaceId: string,
   executionWorkspaceId: string | null | undefined,
 ): Promise<void> {
   if (!executionWorkspaceId) return;
@@ -34,13 +34,13 @@ async function validateExecutionWorkspace(
     .from(executionWorkspaces)
     .where(and(
       eq(executionWorkspaces.id, executionWorkspaceId),
-      eq(executionWorkspaces.companyId, companyId),
+      eq(executionWorkspaces.spaceId, spaceId),
     ))
     // Keep a concurrent delete from invalidating the reference before the write.
     .for("key share");
   if (!workspace) {
     throw unprocessable(
-      "executionWorkspaceId must identify an execution workspace in this company. " +
+      "executionWorkspaceId must identify an execution workspace in this space. " +
       "Project workspace IDs are not execution workspace IDs. Omit this field when no execution workspace is available.",
     );
   }
@@ -107,7 +107,7 @@ export async function refreshPullRequestWorkProductMetadata(
     const reference = references[0];
     if (!reference) return product;
     try {
-      const details = await resolvePullRequestDetails(product.companyId, reference);
+      const details = await resolvePullRequestDetails(product.spaceId, reference);
       if (!details.workProductState) return product;
       return {
         ...product,
@@ -133,7 +133,7 @@ export async function refreshPullRequestWorkProductMetadata(
 function toIssueWorkProduct(row: IssueWorkProductRow): IssueWorkProduct {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     projectId: row.projectId ?? null,
     issueId: row.issueId,
     executionWorkspaceId: row.executionWorkspaceId ?? null,
@@ -251,7 +251,7 @@ export function workProductService(
     },
 
     resolveCommitDiffSummary: async (
-      companyId: string,
+      spaceId: string,
       input: { provider: string; url?: string | null; metadata?: Record<string, unknown> | null },
     ): Promise<WorkProductDiffSummary | null> => {
       if (input.provider.toLowerCase() !== "github") return null;
@@ -262,7 +262,7 @@ export function workProductService(
         input.url,
         repo && sha ? `${repo}@${sha}` : null,
       ]);
-      return reference ? await resolveCommitDetails(companyId, reference) : null;
+      return reference ? await resolveCommitDetails(spaceId, reference) : null;
     },
 
     getById: async (id: string) => {
@@ -274,23 +274,23 @@ export function workProductService(
       return row ? toIssueWorkProduct(row) : null;
     },
 
-    createForIssue: async (issueId: string, companyId: string, data: Omit<typeof issueWorkProducts.$inferInsert, "issueId" | "companyId">, actorAgentId?: string | null) => {
+    createForIssue: async (issueId: string, spaceId: string, data: Omit<typeof issueWorkProducts.$inferInsert, "issueId" | "spaceId">, actorAgentId?: string | null) => {
       const row = await db.transaction(async (tx) => {
-        await assertAgentInteraction(tx, { companyId, actorAgentId, operation: "edit", issueId,
+        await assertAgentInteraction(tx, { spaceId, actorAgentId, operation: "edit", issueId,
           texts: [data.title, data.summary ?? ""], lock: true });
-        await notifyNativeStatusReassessment(tx, { companyId, issueId });
+        await notifyNativeStatusReassessment(tx, { spaceId, issueId });
         if (data.type === "pull_request") {
           await notifyTerminalWorkspaceWork(tx, `issue:${issueId}`);
-          await notifyApprovalQueueWork(tx, companyId);
+          await notifyApprovalQueueWork(tx, spaceId);
         }
-        await validateExecutionWorkspace(tx, companyId, data.executionWorkspaceId);
+        await validateExecutionWorkspace(tx, spaceId, data.executionWorkspaceId);
         if (data.isPrimary) {
           await tx
             .update(issueWorkProducts)
             .set({ isPrimary: false, updatedAt: new Date() })
             .where(
               and(
-                eq(issueWorkProducts.companyId, companyId),
+                eq(issueWorkProducts.spaceId, spaceId),
                 eq(issueWorkProducts.issueId, issueId),
                 eq(issueWorkProducts.type, data.type),
               ),
@@ -300,7 +300,7 @@ export function workProductService(
           .insert(issueWorkProducts)
           .values({
             ...data,
-            companyId,
+            spaceId,
             issueId,
           })
           .returning()
@@ -317,26 +317,26 @@ export function workProductService(
           .where(eq(issueWorkProducts.id, id))
           .then((rows) => rows[0] ?? null);
         if (!existing) return null;
-        await assertAgentInteraction(tx, { companyId: existing.companyId, actorAgentId, operation: "edit", issueId: existing.issueId,
+        await assertAgentInteraction(tx, { spaceId: existing.spaceId, actorAgentId, operation: "edit", issueId: existing.issueId,
           texts: [
             ...(patch.title !== undefined && patch.title !== existing.title ? [patch.title] : []),
             ...(patch.summary !== undefined && patch.summary !== existing.summary ? [patch.summary ?? ""] : []),
           ], lock: true });
-        if ((patch.issueId && patch.issueId !== existing.issueId) || (patch.companyId && patch.companyId !== existing.companyId)) {
-          await assertAgentInteraction(tx, { companyId: patch.companyId ?? existing.companyId, actorAgentId,
+        if ((patch.issueId && patch.issueId !== existing.issueId) || (patch.spaceId && patch.spaceId !== existing.spaceId)) {
+          await assertAgentInteraction(tx, { spaceId: patch.spaceId ?? existing.spaceId, actorAgentId,
             operation: "edit", issueId: patch.issueId ?? existing.issueId, lock: true });
         }
-        await notifyNativeStatusReassessment(tx, { companyId: existing.companyId, issueId: existing.issueId });
-        if ((patch.companyId && patch.companyId !== existing.companyId) || (patch.issueId && patch.issueId !== existing.issueId)) {
-          await notifyNativeStatusReassessment(tx, { companyId: patch.companyId ?? existing.companyId, issueId: patch.issueId ?? existing.issueId });
+        await notifyNativeStatusReassessment(tx, { spaceId: existing.spaceId, issueId: existing.issueId });
+        if ((patch.spaceId && patch.spaceId !== existing.spaceId) || (patch.issueId && patch.issueId !== existing.issueId)) {
+          await notifyNativeStatusReassessment(tx, { spaceId: patch.spaceId ?? existing.spaceId, issueId: patch.issueId ?? existing.issueId });
         }
 
         if (existing.type === "pull_request" || patch.type === "pull_request") {
           await notifyTerminalWorkspaceWork(tx, `issue:${existing.issueId}`);
-          await notifyApprovalQueueWork(tx, existing.companyId);
+          await notifyApprovalQueueWork(tx, existing.spaceId);
         }
 
-        await validateExecutionWorkspace(tx, existing.companyId, patch.executionWorkspaceId);
+        await validateExecutionWorkspace(tx, existing.spaceId, patch.executionWorkspaceId);
 
         if (patch.isPrimary === true) {
           await tx
@@ -344,7 +344,7 @@ export function workProductService(
             .set({ isPrimary: false, updatedAt: new Date() })
             .where(
               and(
-                eq(issueWorkProducts.companyId, existing.companyId),
+                eq(issueWorkProducts.spaceId, existing.spaceId),
                 eq(issueWorkProducts.issueId, existing.issueId),
                 eq(issueWorkProducts.type, existing.type),
               ),
@@ -362,21 +362,21 @@ export function workProductService(
     },
 
     /**
-     * Batched work-product insert for company import.
+     * Batched work-product insert for space import.
      *
      * {@link createForIssue} clears the prior primary of the same type on every
      * call; imported issues are brand new, so the only primaries in play are the
      * imported rows themselves. We reproduce "last primary wins" within each
      * (issue, type) group and insert the whole batch in chunked statements.
      */
-    createManyForImport: async (rows: ImportIssueWorkProductRow[], actorAgentId?: string | null, actorCompanyId?: string | null): Promise<void> => {
+    createManyForImport: async (rows: ImportIssueWorkProductRow[], actorAgentId?: string | null, actorSpaceId?: string | null): Promise<void> => {
       if (rows.length === 0) return;
       const lastPrimaryIndexByGroup = new Map<string, number>();
       rows.forEach((row, index) => {
         if (row.isPrimary) lastPrimaryIndexByGroup.set(`${row.issueId}:${row.type}`, index);
       });
       const values = rows.map((row, index) => ({
-        companyId: row.companyId,
+        spaceId: row.spaceId,
         issueId: row.issueId,
         projectId: row.projectId ?? null,
         type: row.type,
@@ -403,13 +403,13 @@ export function workProductService(
       // prefix behind (which a retry would then duplicate). Mirrors the
       // per-writer transaction the batched issue/document writers use.
       await db.transaction(async (tx) => {
-        for (const row of rows) await assertAgentInteraction(tx, { companyId: row.companyId, actorAgentId, actorCompanyId: actorCompanyId ?? undefined,
+        for (const row of rows) await assertAgentInteraction(tx, { spaceId: row.spaceId, actorAgentId, actorSpaceId: actorSpaceId ?? undefined,
           operation: "mention", issueId: row.issueId, texts: [row.title, row.summary ?? ""], lock: true });
-        for (const scope of new Map(values.map(value => [value.issueId, { companyId: value.companyId, issueId: value.issueId }])).values()) {
+        for (const scope of new Map(values.map(value => [value.issueId, { spaceId: value.spaceId, issueId: value.issueId }])).values()) {
           await notifyNativeStatusReassessment(tx, scope);
         }
-        for (const companyId of new Set(values.filter(value => value.type === "pull_request").map(value => value.companyId))) {
-          await notifyApprovalQueueWork(tx, companyId);
+        for (const spaceId of new Set(values.filter(value => value.type === "pull_request").map(value => value.spaceId))) {
+          await notifyApprovalQueueWork(tx, spaceId);
         }
         for (const value of values) {
           if (value.type === "pull_request") await notifyTerminalWorkspaceWork(tx, `issue:${value.issueId}`);
@@ -420,14 +420,14 @@ export function workProductService(
 
     remove: async (id: string, actorAgentId?: string | null) => {
       const row = await db.transaction(async tx => {
-        const [existing] = await tx.select({ type: issueWorkProducts.type, issueId: issueWorkProducts.issueId, companyId: issueWorkProducts.companyId })
+        const [existing] = await tx.select({ type: issueWorkProducts.type, issueId: issueWorkProducts.issueId, spaceId: issueWorkProducts.spaceId })
           .from(issueWorkProducts).where(eq(issueWorkProducts.id, id));
-        if (existing) await assertAgentInteraction(tx, { companyId: existing.companyId, actorAgentId,
+        if (existing) await assertAgentInteraction(tx, { spaceId: existing.spaceId, actorAgentId,
           operation: "edit", issueId: existing.issueId, lock: true });
-        if (existing) await notifyNativeStatusReassessment(tx, { companyId: existing.companyId, issueId: existing.issueId });
+        if (existing) await notifyNativeStatusReassessment(tx, { spaceId: existing.spaceId, issueId: existing.issueId });
         if (existing?.type === "pull_request") {
           await notifyTerminalWorkspaceWork(tx, `issue:${existing.issueId}`);
-          await notifyApprovalQueueWork(tx, existing.companyId);
+          await notifyApprovalQueueWork(tx, existing.spaceId);
         }
         return tx.delete(issueWorkProducts).where(eq(issueWorkProducts.id, id))
           .returning().then(rows => rows[0] ?? null);

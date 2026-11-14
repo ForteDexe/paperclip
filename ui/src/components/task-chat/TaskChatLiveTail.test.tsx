@@ -92,7 +92,7 @@ describe("TaskChatLiveTail", () => {
   });
 
   it("drops the debug plumbing kinds RunTranscriptView surfaced", () => {
-    // Feed the exact noise the board flagged: init row, stdout/stderr/system
+    // Feed the exact noise the operator flagged: init row, stdout/stderr/system
     // dumps, and a result line — interleaved with real content. None of the
     // noise may reach the DOM; only the assistant text + tool row survive.
     const items = parse([
@@ -202,7 +202,7 @@ describe("TaskChatLiveTail", () => {
 
   it("bounds long tool targets and wraps the full value only when expanded", () => {
     const longPath =
-      "/Users/dotta/paperclip/instances/default/companies/company-id/codex/home/skills/paperclip/references/API-reference.md";
+      "/Users/dotta/outpost/instances/default/spaces/space-id/codex/home/skills/outpost/references/API-reference.md";
     const items = parse([
       {
         kind: "tool_call",

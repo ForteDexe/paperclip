@@ -165,7 +165,7 @@ describe("TaskChatProtocolActivityRow", () => {
       summary: "Searching the task index",
       details: [
         { label: "Transport", value: "mcp" },
-        { label: "Namespace", value: "paperclip", mono: true },
+        { label: "Namespace", value: "outpost", mono: true },
         { label: "Operation", value: "search" },
         { label: "Name", value: "search_tasks", mono: true },
       ],

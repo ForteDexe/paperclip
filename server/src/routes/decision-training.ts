@@ -4,7 +4,7 @@ import type { Db } from "@outpost/db";
 import { authorizationService, issueReadSqlCondition } from "../services/authorization.js";
 import { validate } from "../middleware/validate.js";
 import { decisionTrainingService, logActivity } from "../services/index.js";
-import { assertBoard, assertCompanyAccess, getActorInfo, hasCompanyAccess } from "./authz.js";
+import { assertOperator, assertSpaceAccess, getActorInfo, hasSpaceAccess } from "./authz.js";
 
 const sourceKindSchema = z.enum(["interaction", "approval", "execution_decision"]);
 const exampleIdSchema = z.string().guid();
@@ -22,12 +22,12 @@ const previewSchema = z.object({
 }).strict();
 
 function requireHumanUser(req: Request, res: Response) {
-  if (req.actor.type !== "board") {
+  if (req.actor.type !== "operator") {
     res.status(403).json({ error: "Decision training writes require a human user" });
     return null;
   }
   if (!req.actor.userId) {
-    res.status(403).json({ error: "Board user context required" });
+    res.status(403).json({ error: "Operator user context required" });
     return null;
   }
   return req.actor.userId;
@@ -53,27 +53,27 @@ function requireExampleOwner(res: Response, userId: string, createdByUserId: str
 export function decisionTrainingRoutes(db: Db) {
   const router = Router();
   const svc = decisionTrainingService(db);
-  async function canRead(req: Request, companyId: string, issueId: string) {
-    return (await authorizationService(db).decide({ actor: req.actor, action: "issue:read", resource: { type: "issue", companyId, issueId } })).allowed;
+  async function canRead(req: Request, spaceId: string, issueId: string) {
+    return (await authorizationService(db).decide({ actor: req.actor, action: "issue:read", resource: { type: "issue", spaceId, issueId } })).allowed;
   }
-  async function requireRead(req: Request, res: Response, companyId: string, issueId: string) {
-    if (await canRead(req, companyId, issueId)) return true;
+  async function requireRead(req: Request, res: Response, spaceId: string, issueId: string) {
+    if (await canRead(req, spaceId, issueId)) return true;
     res.status(404).json({ error: "Decision training source not found" });
     return false;
   }
 
   router.post(
-    "/companies/:companyId/decision-training",
+    "/spaces/:spaceId/decision-training",
     validate(createSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      assertSpaceAccess(req, spaceId);
       const userId = requireHumanUser(req, res);
       if (!userId) return;
-      if (!(await requireRead(req, res, companyId, req.body.issueId))) return;
+      if (!(await requireRead(req, res, spaceId, req.body.issueId))) return;
 
       const example = await svc.create({
-        companyId,
+        spaceId,
         sourceKind: req.body.sourceKind,
         sourceId: req.body.sourceId,
         issueId: req.body.issueId,
@@ -82,7 +82,7 @@ export function decisionTrainingRoutes(db: Db) {
       });
       const actor = getActorInfo(req);
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         agentId: actor.agentId,
@@ -100,16 +100,16 @@ export function decisionTrainingRoutes(db: Db) {
   // (humans only) since it exposes the same captured decision state, but it
   // never persists anything.
   router.post(
-    "/companies/:companyId/decision-training/preview",
+    "/spaces/:spaceId/decision-training/preview",
     validate(previewSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      assertSpaceAccess(req, spaceId);
       const userId = requireHumanUser(req, res);
       if (!userId) return;
-      if (!(await requireRead(req, res, companyId, req.body.issueId))) return;
+      if (!(await requireRead(req, res, spaceId, req.body.issueId))) return;
       const preview = await svc.preview({
-        companyId,
+        spaceId,
         sourceKind: req.body.sourceKind,
         sourceId: req.body.sourceId,
         issueId: req.body.issueId,
@@ -122,10 +122,10 @@ export function decisionTrainingRoutes(db: Db) {
     },
   );
 
-  router.get("/companies/:companyId/decision-training", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertBoard(req);
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/decision-training", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertOperator(req);
+    assertSpaceAccess(req, spaceId);
     const parsed = z.object({
       project: z.string().guid().optional(),
       kind: sourceKindSchema.optional(),
@@ -136,7 +136,7 @@ export function decisionTrainingRoutes(db: Db) {
       res.status(400).json({ error: "Invalid decision training query", details: parsed.error.flatten() });
       return;
     }
-    res.json(await svc.list(companyId, {
+    res.json(await svc.list(spaceId, {
       readCondition: await issueReadSqlCondition(db, req.actor),
       projectId: parsed.data.project,
       kind: parsed.data.kind,
@@ -145,11 +145,11 @@ export function decisionTrainingRoutes(db: Db) {
     }));
   });
 
-  router.get("/companies/:companyId/decision-training/export.jsonl", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertBoard(req);
-    assertCompanyAccess(req, companyId);
-    const rows = await svc.list(companyId, { readCondition: await issueReadSqlCondition(db, req.actor) });
+  router.get("/spaces/:spaceId/decision-training/export.jsonl", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertOperator(req);
+    assertSpaceAccess(req, spaceId);
+    const rows = await svc.list(spaceId, { readCondition: await issueReadSqlCondition(db, req.actor) });
     const body = rows
       .map(({ example }) => JSON.stringify({
         retentionPolicy: example.retentionPolicy,
@@ -159,31 +159,31 @@ export function decisionTrainingRoutes(db: Db) {
       .join("\n");
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
       runId: actor.runId,
       action: "decision_training.exported",
       entityType: "decision_training_export",
-      entityId: companyId,
+      entityId: spaceId,
       details: { exampleCount: rows.length, exampleIds: rows.map(({ example }) => example.id) },
     });
     res.type("application/x-ndjson").send(body ? `${body}\n` : "");
   });
 
   router.get("/decision-training/:id", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const exampleId = parseExampleId(req, res);
     if (!exampleId) return;
     const example = await svc.getById(exampleId);
-    if (!example || !hasCompanyAccess(req, example.companyId) || !(await canRead(req, example.companyId, example.issueId))) {
+    if (!example || !hasSpaceAccess(req, example.spaceId) || !(await canRead(req, example.spaceId, example.issueId))) {
       res.status(404).json({ error: "Decision training example not found" });
       return;
     }
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId: example.companyId,
+      spaceId: example.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -200,7 +200,7 @@ export function decisionTrainingRoutes(db: Db) {
     const exampleId = parseExampleId(req, res);
     if (!exampleId) return;
     const existing = await svc.getById(exampleId);
-    if (!existing || !hasCompanyAccess(req, existing.companyId)) {
+    if (!existing || !hasSpaceAccess(req, existing.spaceId)) {
       res.status(404).json({ error: "Decision training example not found" });
       return;
     }
@@ -216,7 +216,7 @@ export function decisionTrainingRoutes(db: Db) {
     if (notesChanged) {
       const actor = getActorInfo(req);
       await logActivity(db, {
-        companyId: existing.companyId,
+        spaceId: existing.spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         agentId: actor.agentId,
@@ -234,7 +234,7 @@ export function decisionTrainingRoutes(db: Db) {
     const exampleId = parseExampleId(req, res);
     if (!exampleId) return;
     const existing = await svc.getById(exampleId);
-    if (!existing || !hasCompanyAccess(req, existing.companyId)) {
+    if (!existing || !hasSpaceAccess(req, existing.spaceId)) {
       res.status(404).json({ error: "Decision training example not found" });
       return;
     }
@@ -248,7 +248,7 @@ export function decisionTrainingRoutes(db: Db) {
     }
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,

@@ -48,11 +48,11 @@ function required(name: string) {
 
 const logPath = required("OUTPOST_RUNNER_E2E_SERVER_LOG");
 const temporaryRoot = required("OUTPOST_RUNNER_E2E_TEMP_ROOT");
-const paperclipHome = required("OUTPOST_HOME");
+const outpostHome = required("OUTPOST_HOME");
 const configPath = required("OUTPOST_CONFIG");
 const port = required("OUTPOST_RUNNER_E2E_PORT");
 const repositoryRoot = path.resolve(import.meta.dirname, "../..");
-const paperclipCli = path.join(repositoryRoot, "tests/runner-e2e/server-entry.ts");
+const outpostCli = path.join(repositoryRoot, "tests/runner-e2e/server-entry.ts");
 const executionIds: string[] = JSON.parse(process.env.OUTPOST_RUNNER_E2E_EXECUTION_IDS ?? "[]");
 const upgradeArtifacts = await readUpgradeArtifacts(process.env[upgradeArtifactKey]);
 let artifactIndex = 0;
@@ -91,7 +91,7 @@ const serverEnvironment = buildOutpostServerEnvironment(installedRelease
   // Keep provider caches attempt-private without changing Playwright's browser
   // cache lookup in the parent process.
   XDG_CACHE_HOME: path.join(temporaryRoot, "xdg-cache"),
-  OUTPOST_HOME: paperclipHome,
+  OUTPOST_HOME: outpostHome,
   OUTPOST_CONFIG: configPath,
   OUTPOST_INSTANCE_ID: required("OUTPOST_INSTANCE_ID"),
   OUTPOST_AGENT_JWT_SECRET: required("OUTPOST_AGENT_JWT_SECRET"),
@@ -132,7 +132,7 @@ const serverEnvironment = buildOutpostServerEnvironment(installedRelease
 });
 assertIsolatedServerEnvironment(serverEnvironment, {
   temporaryRoot,
-  paperclipHome,
+  outpostHome,
   configPath,
   workspaceStorage,
 });
@@ -222,7 +222,7 @@ function describeChildExit(candidate: ChildProcess) {
 let invitationSourceGeneration: string | undefined;
 async function startServer() {
   if (shutdownRequested()) {
-    throw new Error("Refusing to start Paperclip after wrapper shutdown");
+    throw new Error("Refusing to start Outpost after wrapper shutdown");
   }
   if (process.env[CHAT_INSTALL_PLAN]) refreshInstalledChatPins(process.env, selectedExecutions[0]!.id);
   // Recheck bytes and dependency resolution on every controller restart.
@@ -241,7 +241,7 @@ async function startServer() {
   }
   invitationSourceGeneration = undefined;
   await rm(invitationSourceProofPath(temporaryRoot), { force: true });
-  const sourceArgs = runnerE2ETypeScriptProcessArgs(repositoryRoot, paperclipCli, ["onboard", "--yes", "--run"]);
+  const sourceArgs = runnerE2ETypeScriptProcessArgs(repositoryRoot, outpostCli, ["onboard", "--yes", "--run"]);
   const sourceSpawnedAt = new Date().toISOString();
   const candidate = spawn(
     process.execPath,
@@ -271,7 +271,7 @@ async function startServer() {
     childErrors.set(candidate, error);
     if (!expectedStops.has(candidate) && !shutdownRequested()) {
       unexpectedChildFailure = new Error(
-        `Paperclip server spawn failed: ${error.message}`,
+        `Outpost server spawn failed: ${error.message}`,
       );
     }
   });
@@ -279,7 +279,7 @@ async function startServer() {
     appendLog(`\n${describeChildExit(candidate)}\n`);
     if (!expectedStops.has(candidate) && !shutdownRequested()) {
       unexpectedChildFailure = new Error(
-        `Paperclip server stopped unexpectedly: ${describeChildExit(candidate)}`,
+        `Outpost server stopped unexpectedly: ${describeChildExit(candidate)}`,
       );
     }
   });
@@ -316,11 +316,11 @@ async function waitForHealth(candidate: ChildProcess) {
   const healthUrl = `http://127.0.0.1:${port}/api/health`;
   while (Date.now() < deadline) {
     if (shutdownRequested()) {
-      throw new Error("Wrapper shutdown interrupted the Paperclip restart");
+      throw new Error("Wrapper shutdown interrupted the Outpost restart");
     }
     if (childErrors.has(candidate) || childExited(candidate)) {
       throw new Error(
-        `Replacement Paperclip server could not start: ${describeChildExit(candidate)}`,
+        `Replacement Outpost server could not start: ${describeChildExit(candidate)}`,
       );
     }
     try {
@@ -339,7 +339,7 @@ async function waitForHealth(candidate: ChildProcess) {
     await delay(250);
   }
   throw new Error(
-    `Replacement Paperclip server did not become healthy within ${restartTimeoutMs}ms`,
+    `Replacement Outpost server did not become healthy within ${restartTimeoutMs}ms`,
   );
 }
 
@@ -348,7 +348,7 @@ async function waitForHealthToStop() {
   const deadline = Date.now() + gracefulStopTimeoutMs;
   while (Date.now() < deadline) {
     if (shutdownRequested()) {
-      throw new Error("Wrapper shutdown interrupted the Paperclip restart");
+      throw new Error("Wrapper shutdown interrupted the Outpost restart");
     }
     try {
       await fetch(healthUrl, { signal: AbortSignal.timeout(500) });
@@ -358,7 +358,7 @@ async function waitForHealthToStop() {
     await delay(100);
   }
   throw new Error(
-    "The old Paperclip server remained healthy after its launcher exited",
+    "The old Outpost server remained healthy after its launcher exited",
   );
 }
 
@@ -391,11 +391,11 @@ async function writeRestartAck(
 
 async function restartServer({ requestId, kimiCandidateAdmission: stagedKimiAdmission, preserveRunner, discardControllerCache, crashAfterResult, controllerOutage, recoveryBinding, controllerDowntimeMs = 0 }: RestartRequest) {
   activeRestartRequestId = requestId;
-  appendLog(`\nRestart request ${requestId}: stopping Paperclip\n`);
+  appendLog(`\nRestart request ${requestId}: stopping Outpost\n`);
   const previous = child;
-  if (!previous) throw new Error("No Paperclip server is available to restart");
+  if (!previous) throw new Error("No Outpost server is available to restart");
   const discardCache = async () => {
-    const cache = path.join(paperclipHome, "instances", required("OUTPOST_INSTANCE_ID"), "runtime", "outpost-runner");
+    const cache = path.join(outpostHome, "instances", required("OUTPOST_INSTANCE_ID"), "runtime", "outpost-runner");
     await retireControllerCache(cache, path.join(controlDirectory, `retired-controller-cache-${requestId}`));
     appendLog(`Restart request ${requestId}: old controller cache made unavailable\n`);
   };
@@ -422,7 +422,7 @@ async function restartServer({ requestId, kimiCandidateAdmission: stagedKimiAdmi
         },
       });
       await writeRestartAck(requestId, "ready", undefined, true, undefined, receipt);
-      appendLog(`Restart request ${requestId}: Paperclip is healthy after ${Math.round(receipt.readyAfterMs!)}ms\n`);
+      appendLog(`Restart request ${requestId}: Outpost is healthy after ${Math.round(receipt.readyAfterMs!)}ms\n`);
       activeRestartRequestId = null;
       return;
     } finally { await observer?.close(); }
@@ -448,18 +448,18 @@ async function restartServer({ requestId, kimiCandidateAdmission: stagedKimiAdmi
     await discardCache();
   }
   if (shutdownRequested()) {
-    throw new Error("Wrapper shutdown interrupted the Paperclip restart");
+    throw new Error("Wrapper shutdown interrupted the Outpost restart");
   }
 
   if (stagedKimiAdmission) kimiCandidateAdmission = stagedKimiAdmission;
-  appendLog(`Restart request ${requestId}: starting Paperclip\n`);
+  appendLog(`Restart request ${requestId}: starting Outpost\n`);
   const replacement = await startServer();
   await waitForHealth(replacement);
   if (shutdownRequested()) {
-    throw new Error("Wrapper shutdown interrupted the Paperclip restart");
+    throw new Error("Wrapper shutdown interrupted the Outpost restart");
   }
   await writeRestartAck(requestId, "ready", undefined, discardControllerCache, crashBoundary);
-  appendLog(`Restart request ${requestId}: Paperclip is healthy\n`);
+  appendLog(`Restart request ${requestId}: Outpost is healthy\n`);
   activeRestartRequestId = null;
 }
 
@@ -529,7 +529,7 @@ try {
 } catch (error) {
   exitCode = 1;
   const message = error instanceof Error ? error.message : String(error);
-  appendLog(`\nPaperclip E2E server supervisor failed: ${message}\n`);
+  appendLog(`\nOutpost E2E server supervisor failed: ${message}\n`);
   if (activeRestartRequestId) {
     try {
       await writeRestartAck(activeRestartRequestId, "failed", message);
@@ -543,7 +543,7 @@ try {
     await recoverFeedbackBeforeShutdown();
     await stopServer.stopAll();
   } catch (stopError) {
-    appendLog(`Failed to stop Paperclip after supervisor failure: ${stopError instanceof Error ? stopError.message : String(stopError)}\n`);
+    appendLog(`Failed to stop Outpost after supervisor failure: ${stopError instanceof Error ? stopError.message : String(stopError)}\n`);
   }
 }
 

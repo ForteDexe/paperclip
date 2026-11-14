@@ -24,7 +24,7 @@ function createBackupService(overrides: Partial<InstanceDatabaseBackupService> =
   return {
     runManualBackup: vi.fn().mockResolvedValue({
       trigger: "manual",
-      backupFile: "/tmp/paperclip-20260416.sql.gz",
+      backupFile: "/tmp/outpost-20260416.sql.gz",
       sizeBytes: 1234,
       prunedCount: 2,
       backupDir: "/tmp",
@@ -46,7 +46,7 @@ describe("instance database backup routes", () => {
     const service = createBackupService();
     const app = createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "admin-1",
         source: "session",
         isInstanceAdmin: true,
@@ -60,7 +60,7 @@ describe("instance database backup routes", () => {
     expect(service.runManualBackup).toHaveBeenCalledTimes(1);
     expect(res.body).toEqual({
       trigger: "manual",
-      backupFile: "/tmp/paperclip-20260416.sql.gz",
+      backupFile: "/tmp/outpost-20260416.sql.gz",
       sizeBytes: 1234,
       prunedCount: 2,
       backupDir: "/tmp",
@@ -75,12 +75,12 @@ describe("instance database backup routes", () => {
     });
   });
 
-  it("allows local implicit board access", async () => {
+  it("allows local implicit operator access", async () => {
     const service = createBackupService();
     const app = createApp(
       {
-        type: "board",
-        userId: "local-board",
+        type: "operator",
+        userId: "local-operator",
         source: "local_implicit",
         isInstanceAdmin: false,
       },
@@ -92,15 +92,15 @@ describe("instance database backup routes", () => {
     expect(service.runManualBackup).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects non-admin board users", async () => {
+  it("rejects non-admin operator users", async () => {
     const service = createBackupService();
     const app = createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "user-1",
         source: "session",
         isInstanceAdmin: false,
-        companyIds: ["company-1"],
+        spaceIds: ["space-1"],
       },
       service,
     );
@@ -116,7 +116,7 @@ describe("instance database backup routes", () => {
       {
         type: "agent",
         agentId: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         source: "agent_key",
       },
       service,
@@ -133,7 +133,7 @@ describe("instance database backup routes", () => {
     });
     const app = createApp(
       {
-        type: "board",
+        type: "operator",
         userId: "admin-1",
         source: "session",
         isInstanceAdmin: true,
@@ -159,7 +159,7 @@ describe("instance database backup routes", () => {
       const service = createBackupService();
       const app = createApp(
         {
-          type: "board",
+          type: "operator",
           userId: "admin-1",
           source: "session",
           isInstanceAdmin: true,
@@ -178,11 +178,11 @@ describe("instance database backup routes", () => {
       const service = createBackupService();
       const app = createApp(
         {
-          type: "board",
+          type: "operator",
           userId: "owner-1",
           source: "cloud_tenant",
           isInstanceAdmin: true,
-          companyIds: ["company-1"],
+          spaceIds: ["space-1"],
         },
         service,
       );

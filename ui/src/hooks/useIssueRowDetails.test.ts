@@ -3,7 +3,7 @@ import type { Issue } from "@outpost/shared";
 import { mergeIssueRowDetails } from "./useIssueRowDetails";
 
 const index = {
-  id: "task-1", companyId: "company-1", title: "Current title", status: "todo",
+  id: "task-1", spaceId: "space-1", title: "Current title", status: "todo",
   updatedAt: new Date("2026-10-26T10:00:00Z"), isUnreadForMe: true, listProjection: "index",
 } as Issue;
 
@@ -21,11 +21,11 @@ describe("visible task row enrichment", () => {
     expect(merged.updatedAt).toBe(index.updatedAt);
   });
 
-  it("rejects stale diagnostics and a different task or company", () => {
+  it("rejects stale diagnostics and a different task or space", () => {
     for (const overrides of [
       { updatedAt: new Date("2026-10-26T09:00:00Z") },
       { id: "task-2" },
-      { companyId: "company-2" },
+      { spaceId: "space-2" },
     ]) {
       expect(mergeIssueRowDetails(index, { ...index, ...overrides })).toBe(index);
     }

@@ -84,7 +84,7 @@ describe("proveOwnerGone: local owners", () => {
     } finally { vi.unstubAllEnvs(); }
   });
 
-  it("accepts a board attestation that this exact recorded owner stopped", async () => {
+  it("accepts a operator attestation that this exact recorded owner stopped", async () => {
     expect(await proveOwnerGone(stamp({ processSpace: "operator_attested" }), probe({ alive: [4242], starts: { 4242: at(0) } })))
       .toEqual({ verdict: "gone", reason: "operator_attested" });
   });

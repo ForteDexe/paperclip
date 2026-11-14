@@ -64,7 +64,7 @@ function recording(caseId = "task-reply-accept"): FirstTaskEvidence {
     tasks: [task],
     agents: [{ id: "agent" }],
     comments: [
-      { id: "greeting", authorAgentId: "agent", body: "Welcome to Paperclip" },
+      { id: "greeting", authorAgentId: "agent", body: "Welcome to Outpost" },
     ],
     interactions: [
       {
@@ -398,7 +398,7 @@ describe("first-task question presentation grading", () => {
   it("documents an API-valid text card that renders without a one-option choice", async () => {
     const reference = await readFile(
       new URL(
-        "../../skills/paperclip/references/api-reference.md",
+        "../../skills/outpost/references/api-reference.md",
         import.meta.url,
       ),
       "utf8",
@@ -856,21 +856,21 @@ Accept the card above and I write it. This task stays in review until then.`;
       api: { get, patch, postSensitive },
       execution,
       nonce: "test",
-      company: {
-        id: "ui-created-company",
+      space: {
+        id: "ui-created-space",
         name: "First task test",
         issuePrefix: "FIRST",
       },
       credentials: { OPENAI_API_KEY: "fixture-key" },
     });
     expect(get).toHaveBeenCalledExactlyOnceWith(
-      "/api/companies/ui-created-company/environments?driver=local",
+      "/api/spaces/ui-created-space/environments?driver=local",
     );
     expect(patch).toHaveBeenCalledExactlyOnceWith(
-      "/api/companies/ui-created-company", { budgetMonthlyCents: 500 },
+      "/api/spaces/ui-created-space", { budgetMonthlyCents: 500 },
     );
     expect(postSensitive).toHaveBeenCalledExactlyOnceWith(
-      "/api/companies/ui-created-company/secrets",
+      "/api/spaces/ui-created-space/secrets",
       expect.objectContaining({ key: "OPENAI_API_KEY", value: "fixture-key" }),
     );
     expect(fixtures.secretRefs.OPENAI_API_KEY).toEqual({
@@ -885,7 +885,7 @@ Accept the card above and I write it. This task stays in review until then.`;
         api: { get, patch, postSensitive },
         execution,
         nonce: "test",
-        company: fixtures.company,
+        space: fixtures.space,
         credentials: {},
       }),
     ).rejects.toThrow("Missing credential");
@@ -896,9 +896,9 @@ Accept the card above and I write it. This task stays in review until then.`;
     function harness(environment = "local", profile = "runner-codex") {
       const execution = runnerMatrix.find(entry => entry.task.flow === "first_task" && entry.profile.id === profile && entry.environment.id === environment)!;
       const original = {
-        id: "agent", companyId: "company", adapterType: "outpost_runner",
+        id: "agent", spaceId: "space", adapterType: "outpost_runner",
         adapterConfig: { provider: "codex", timeoutSec: 0, model: "gpt-5.6-sol", modelReasoningEffort: "high", codexPermissionMode: "readOnly",
-          env: { OPENAI_API_KEY: { type: "secret_ref", secretId: "encrypted-key", version: "latest" } }, paperclipSkillSync: { desiredSkills: ["paperclipai/paperclip/first-task"] } },
+          env: { OPENAI_API_KEY: { type: "secret_ref", secretId: "encrypted-key", version: "latest" } }, outpostSkillSync: { desiredSkills: ["outpost/outpost/first-task"] } },
         runtimeConfig: { aiConnection: { provider: "openai", method: "api_key", mode: "responsible_user" },
           heartbeat: { maxConcurrentRuns: 20, enabled: false, intervalSec: 0, wakeOnAssignment: true, customHeartbeatSetting: "retained" }, customSetting: "retained" },
         permissions: { canCreateAgents: true }, defaultEnvironmentId: environment, budgetMonthlyCents: 500, metadata: { ownerUserId: "qa-user" },
@@ -956,7 +956,7 @@ Accept the card above and I write it. This task stays in review until then.`;
       const h = harness();
       if (mode === "legacy") h.original.adapterType = "codex_local";
       if (mode === "wrong-provider") h.original.adapterConfig.provider = "claude";
-      if (mode === "foreign-agent") h.api.get.mockResolvedValue({ ...h.original, companyId: "another-company" });
+      if (mode === "foreign-agent") h.api.get.mockResolvedValue({ ...h.original, spaceId: "another-space" });
       if (mode === "changed-account") h.api.get.mockResolvedValue({ ...h.original, runtimeConfig: { ...h.original.runtimeConfig,
         aiConnection: { ...h.original.runtimeConfig.aiConnection, method: "subscription" } } });
       await expect(h.admit()).rejects.toThrow();
@@ -976,7 +976,7 @@ Accept the card above and I write it. This task stays in review until then.`;
       if (field === "account") altered.runtimeConfig.aiConnection.mode = "fixed";
       if (field === "permissions") altered.permissions.canCreateAgents = false;
       if (field === "environment") altered.defaultEnvironmentId = "another-environment";
-      if (field === "instructions") altered.adapterConfig.paperclipSkillSync.desiredSkills = [];
+      if (field === "instructions") altered.adapterConfig.outpostSkillSync.desiredSkills = [];
       if (field === "heartbeat-policy") altered.runtimeConfig.heartbeat.wakeOnAssignment = false;
       if (field === "other-runtime") altered.runtimeConfig.customSetting = "lost";
       if (field === "missing-heartbeat") delete (altered.runtimeConfig as Partial<typeof altered.runtimeConfig>).heartbeat;
@@ -1008,16 +1008,16 @@ Accept the card above and I write it. This task stays in review until then.`;
         version: "latest" as const,
       };
       const fixtures = {
-        company: { id: "company", name: "Garden" },
+        space: { id: "space", name: "Garden" },
         environment: { id: "local", driver: "local" },
-        agent: { id: "agent", companyId: "company", name: "Lead" },
+        agent: { id: "agent", spaceId: "space", name: "Lead" },
         secretRefs: { [execution.profile.credential]: secret },
         teardown: async () => {},
       };
       const original = {
         adapterConfig: {
           instructionsFilePath: "/managed/AGENTS.md",
-          paperclipSkillSync: { desiredSkills: ["first-task"] },
+          outpostSkillSync: { desiredSkills: ["first-task"] },
           model: null,
         },
         permissions: { canCreateAgents: true },
@@ -1030,27 +1030,27 @@ Accept the card above and I write it. This task stays in review until then.`;
       expect(patch.adapterType).toBe("outpost_runner");
       expect(patch.adapterConfig).toMatchObject({
         instructionsFilePath: "/managed/AGENTS.md",
-        paperclipSkillSync: original.adapterConfig.paperclipSkillSync,
+        outpostSkillSync: original.adapterConfig.outpostSkillSync,
         provider: execution.profile.provider,
       });
       expect(patch.adapterConfig).not.toHaveProperty("model");
       const withOperational = firstTaskNativeRuntimePatch(execution, fixtures, {
         adapterConfig: {
-          paperclipSkillSync: {
+          outpostSkillSync: {
             desiredSkills: [
-              "paperclipai/paperclip/paperclip",
-              "paperclipai/paperclip/first-task",
+              "outpost/outpost/outpost",
+              "outpost/outpost/first-task",
             ],
           },
         },
       });
       expect(
         (
-          withOperational.adapterConfig.paperclipSkillSync as {
+          withOperational.adapterConfig.outpostSkillSync as {
             desiredSkills: string[];
           }
         ).desiredSkills,
-      ).toEqual(["paperclipai/paperclip/first-task"]);
+      ).toEqual(["outpost/outpost/first-task"]);
       expect(patch).not.toHaveProperty("instructionsBundle");
       expect(
         (patch.adapterConfig.env as Record<string, unknown>)[
@@ -1219,7 +1219,7 @@ Accept the card above and I write it. This task stays in review until then.`;
   });
   it("keeps source and display hashes distinct when instruction examples are redacted", () => {
     const content = 'curl -H "Authorization: Bearer some-example-token"';
-    const snapshot = snapshotInstruction("paperclip/SKILL.md", content);
+    const snapshot = snapshotInstruction("outpost/SKILL.md", content);
     expect(snapshot.redacted).toBe(true);
     expect(snapshot.sha256).toBe(digestText(content));
     expect(snapshot.contentSha256).toBe(digestText(snapshot.content));
@@ -1646,7 +1646,7 @@ describe("managed onboarding through the production wizard", () => {
       }),
       delete: vi.fn(async (path: string) => { calls.push(`DELETE ${path}`); }),
     };
-    const provision = () => provisionFirstTaskFixtures({ api: api as any, execution: execution(), nonce: "private", company: { id: "company", name: "Fresh" },
+    const provision = () => provisionFirstTaskFixtures({ api: api as any, execution: execution(), nonce: "private", space: { id: "space", name: "Fresh" },
       daytonaImage: image, credentials: { OPENAI_API_KEY: "synthetic-key", DAYTONA_API_KEY: "synthetic-platform" } });
     return { api, state, calls, provision };
   }
@@ -1778,16 +1778,16 @@ describe("managed onboarding through the production wizard", () => {
       post: vi.fn(async (path: string, data: any) => {
         calls.push(`POST ${path}`);
         if (path === "/api/plugins/install") return { id: "plugin", status: "ready" };
-        expect(path).toBe("/api/companies/company/environments");
+        expect(path).toBe("/api/spaces/space/environments");
         expect(data.config).toMatchObject({ image, apiKey: { type: "secret_ref", secretId: "encrypted-DAYTONA_API_KEY", version: "latest" } });
         expect(data).not.toHaveProperty("metadata");
         return { id: "environment", driver: "sandbox", config: data.config };
       }),
       delete: vi.fn(async () => {}),
     };
-    const fixtures = await provisionFirstTaskFixtures({ api: api as any, execution: execution(), nonce: "private", company: { id: "company", name: "Fresh" },
+    const fixtures = await provisionFirstTaskFixtures({ api: api as any, execution: execution(), nonce: "private", space: { id: "space", name: "Fresh" },
       daytonaImage: image, credentials: { OPENAI_API_KEY: "synthetic-key", DAYTONA_API_KEY: "synthetic-platform" } });
-    expect(calls).toEqual(["PATCH /api/companies/company", "POST /api/plugins/install", "POST /api/companies/company/environments", "PATCH /api/instance/settings", "PATCH /api/instance/settings/experimental"]);
+    expect(calls).toEqual(["PATCH /api/spaces/space", "POST /api/plugins/install", "POST /api/spaces/space/environments", "PATCH /api/instance/settings", "PATCH /api/instance/settings/experimental"]);
     expect(api.patch).toHaveBeenCalledWith("/api/instance/settings", { defaultEnvironmentId: "environment" });
     expect(api.patch).toHaveBeenCalledWith("/api/instance/settings/experimental", { enableManagedSandboxOnly: true });
     expect(fixtures.agent.id).toBe("");
@@ -1799,7 +1799,7 @@ describe("managed onboarding through the production wizard", () => {
 
   it.each(["missing-key", "mutable-image", "other-cell"])("rejects %s before admitting a managed browser fixture", async mode => {
     const api = { get: vi.fn(), patch: vi.fn(), postSensitive: vi.fn(), post: vi.fn(), delete: vi.fn() };
-    await expect(provisionFirstTaskFixtures({ api, execution: mode === "other-cell" ? { ...execution(), id: "other" } : execution(), nonce: "private", company: { id: "company", name: "Fresh" },
+    await expect(provisionFirstTaskFixtures({ api, execution: mode === "other-cell" ? { ...execution(), id: "other" } : execution(), nonce: "private", space: { id: "space", name: "Fresh" },
       daytonaImage: mode === "mutable-image" ? "ubuntu:24.04" : image,
       credentials: mode === "missing-key" ? { OPENAI_API_KEY: "synthetic" } : { OPENAI_API_KEY: "synthetic", DAYTONA_API_KEY: "synthetic" } })).rejects.toThrow();
     expect(api.post).not.toHaveBeenCalled();
@@ -1835,19 +1835,19 @@ describe("managed onboarding through the production wizard", () => {
     const listeners = new Map<string, Set<(event: any) => void>>();
     const page = { on: (name: string, callback: (event: any) => void) => { const set = listeners.get(name) ?? new Set(); set.add(callback); listeners.set(name, set); },
       off: (name: string, callback: (event: any) => void) => listeners.get(name)?.delete(callback) };
-    const fixtures = { company: { id: "company", name: "Fresh" }, environment: { id: "environment", driver: "sandbox" },
-      agent: { id: "", companyId: "company", name: "Ada" }, secretRefs: {}, setupLeases: [],
+    const fixtures = { space: { id: "space", name: "Fresh" }, environment: { id: "environment", driver: "sandbox" },
+      agent: { id: "", spaceId: "space", name: "Ada" }, secretRefs: {}, setupLeases: [],
       setupQualification: { recorded: false, adapterType: null, platformResponses: 0, adapterResponses: 0 }, teardown: async () => {} } as import("./live-fixtures.js").LiveFixtureValues;
-    const rows = ["platform", "adapter"].map(id => ({ id, companyId: "company", environmentId: "environment", provider: "daytona", heartbeatRunId: null, issueId: null,
+    const rows = ["platform", "adapter"].map(id => ({ id, spaceId: "space", environmentId: "environment", provider: "daytona", heartbeatRunId: null, issueId: null,
       status: mode === "cleanup" ? "failed" : "released", cleanupStatus: "success" }));
-    if (mode === "foreign") rows[0]!.companyId = "another-company";
+    if (mode === "foreign") rows[0]!.spaceId = "another-space";
     let begun = false;
     const api = { get: vi.fn(async (path: string) => path.includes("environment-leases/") ? rows.find(row => path.endsWith(`/${row.id}`))
       : begun ? [...rows, { ...rows[0], id: "unrelated", issueId: "other-task" }] : []) } as unknown as RunnerApi;
     const start = (kind: "platform" | "discovery" | "adapter", runner?: string) => {
       begun = true;
-      const request = { url: () => `http://fixture.test${kind === "platform" ? "/api/environments/environment/probe?companyId=company"
-        : kind === "discovery" ? "/api/adapters?companyId=company&environmentId=environment" : "/api/companies/company/adapters/codex_local/test-environment"}`,
+      const request = { url: () => `http://fixture.test${kind === "platform" ? "/api/environments/environment/probe?spaceId=space"
+        : kind === "discovery" ? "/api/adapters?spaceId=space&environmentId=environment" : "/api/spaces/space/adapters/codex_local/test-environment"}`,
         method: () => kind === "discovery" ? "GET" : "POST", postDataJSON: () => runner ? { runner } : {} };
       for (const listener of listeners.get("request") ?? []) listener(request);
       return request;
@@ -1901,7 +1901,7 @@ describe("managed onboarding through the production wizard", () => {
     h.emit("platform", { ok: true, details: { platformQualificationRecorded: true, leaseId: "platform" } });
     const request = h.start("adapter");
     h.fail(request);
-    h.respond(request, { adapterType: "outpost_runner", status: "pass", checks: [{ code: "sandbox_test_identity", detail: "paperclipLeaseId=adapter" }] });
+    h.respond(request, { adapterType: "outpost_runner", status: "pass", checks: [{ code: "sandbox_test_identity", detail: "outpostLeaseId=adapter" }] });
     await stop(false);
     expect(h.fixtures.setupLeases!.map(row => row.leaseId)).toEqual(["platform", "adapter"]);
     expect(h.fixtures.setupLeaseAccountingIncomplete).toBe(true);
@@ -1913,8 +1913,8 @@ describe("managed onboarding through the production wizard", () => {
     const platform = { ok: true, details: { platformQualificationRecorded: true, leaseId: "platform" } };
     h.emit("platform", platform);
     if (mode === "duplicate") h.emit("platform", platform);
-    if (mode !== "missing-discovery") h.emit("discovery", [{ type: "codex_local", defaultRunner: "paperclip", supportedRunners: ["paperclip", "legacy"] }]);
-    h.emit("adapter", { adapterType: "outpost_runner", status: "pass", checks: [{ code: "sandbox_test_identity", detail: "paperclipLeaseId=adapter; providerLeaseId=private-provider" }] }, mode === "explicit-runner" ? "paperclip" : undefined);
+    if (mode !== "missing-discovery") h.emit("discovery", [{ type: "codex_local", defaultRunner: "outpost", supportedRunners: ["outpost", "legacy"] }]);
+    h.emit("adapter", { adapterType: "outpost_runner", status: "pass", checks: [{ code: "sandbox_test_identity", detail: "outpostLeaseId=adapter; providerLeaseId=private-provider" }] }, mode === "explicit-runner" ? "outpost" : undefined);
     if (mode === "success") { await stop(true); expect(h.fixtures.setupLeases!.map(row => row.leaseId)).toEqual(["platform", "adapter"]); }
     else await expect(stop(true)).rejects.toThrow();
     expect(h.fixtures.setupLeases!.some(row => row.leaseId === "unrelated")).toBe(false);
@@ -1945,7 +1945,7 @@ describe("managed onboarding through the production wizard", () => {
     const h = setupHarness();
     const stop = await observeManagedFirstTaskSetup(h.page, h.api, h.fixtures, Date.now() + 1000);
     h.emit("platform", { ok: true, details: { leaseId: "platform", platformQualificationRecorded: true } });
-    h.emit("adapter", { adapterType: "outpost_runner", status: "fail", checks: [{ code: "sandbox_test_identity", detail: "paperclipLeaseId=adapter; providerLeaseId=private-provider" }] });
+    h.emit("adapter", { adapterType: "outpost_runner", status: "fail", checks: [{ code: "sandbox_test_identity", detail: "outpostLeaseId=adapter; providerLeaseId=private-provider" }] });
     await stop(false);
     expect(h.fixtures.setupLeases!.map(row => row.leaseId)).toEqual(["platform", "adapter"]);
     expect(h.fixtures.setupQualification!.adapterType).toBeNull();

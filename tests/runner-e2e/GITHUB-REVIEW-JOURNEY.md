@@ -8,7 +8,7 @@ bot mention, and checks the matching automatic task, review, GitHub delivery,
 failed check, task completion, and persistence.
 
 The suite is applicable to self-hosted deployments with public GitHub webhook
-ingress and to Paperclip Cloud with GitHub App support. Hosting is independent of
+ingress and to Outpost Cloud with GitHub App support. Hosting is independent of
 the configured agent's `local` or `daytona` execution environment. Both cells are
 registered; select exactly one and bind it in the private setup profile. Browser
 registration and oracle tests do not establish live qualification of either cell.
@@ -16,7 +16,7 @@ registration and oracle tests do not establish live qualification of either cell
 ## Dependencies and starting state
 
 Use a dedicated private browser profile outside the checkout. Supply the intended
-company, serving SHA, deployment mode, existing agent/model/provider/runtime,
+space, serving SHA, deployment mode, existing agent/model/provider/runtime,
 review skill, agent environment ID, GitHub account handle, App owner, and private
 reusable repository. The GitHub login identifier may be an email; the handle is
 separate. The agent and its provider connection must already be configured.
@@ -50,7 +50,7 @@ pnpm test:e2e:runner -- \
 ```
 
 The private definition, reference-only setup example, credential setup utilities,
-and source-step mapping live in `paperclip-evals/evals/product-journeys/ponytail`.
+and source-step mapping live in `outpost-evals/evals/product-journeys/ponytail`.
 Its wrapper supports the host's Keychain bootstrap without putting a token in
 shell arguments. The suite is excluded from `--all` and generated CI matrices.
 It has no scheduler, public upload, or automatic retry. A full setup needs
@@ -67,7 +67,7 @@ repeat an already covered approval; obey any required host approval boundary.
 assertion that the source walkthrough had identical fixture bytes. A passing
 eval requires a complete assessment of that path and head, a relevant inline
 precision finding, a score below 5, and a correctly failed GitHub check. The
-oracle rejects a stale/foreign company, endpoint, issue, PR, or head, manual
+oracle rejects a stale/foreign space, endpoint, issue, PR, or head, manual
 triggering, missing findings/delivery, and false completion. It does not require
 the source's exact 3/5 score. Persisted skill selection proves binding; this
 variant does not yet independently verify a runtime skill-read receipt.
@@ -89,7 +89,7 @@ SVG titles, and narrative text saying Done cannot satisfy that UI checkpoint.
 
 Each attempt records endpoint, App, PR/branch, task, and run ownership. Cleanup
 removes the owned endpoint, closes the owned PR/deletes its branch, and asks for
-the owned App's removal. App identity must match the created endpoint, company,
+the owned App's removal. App identity must match the created endpoint, space,
 agent, exact name, GitHub-confirmed owner/slug, and immutable App ID. Installation
 management is recorded separately: uninstalling alone does not prove App deletion.
 It retains the shared repository, account, provider/user
@@ -110,7 +110,7 @@ The configured deadline and observed run limit bound the attempt. They are not
 a hard provider-dollar cap or proof that no request outlives cancellation. Use
 the existing budgeted Cloud operations adapter before automated paid campaigns;
 this attended attached-agent variant does not replace that infrastructure.
-Effective company/agent budget policies are recorded when readable. A route
+Effective space/agent budget policies are recorded when readable. A route
 that reports tokens without a dollar cost can stop on `unpricedUsagePolicy:
 block` despite a zero legacy spend counter. Any authorized exception is a
 distinct tested setup condition; normal fixture setup must not silently grant

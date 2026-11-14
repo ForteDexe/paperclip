@@ -21,7 +21,7 @@ export async function inventoryKimiRuntimeFiles(root: string): Promise<KimiRunti
   const visit = async (directory: string, prefix = ""): Promise<void> => {
     for (const name of (await readdir(directory)).sort()) {
       const path = prefix ? `${prefix}/${name}` : name;
-      if (!safePath(path) || path.startsWith(".paperclip-") || path === "manifest.json") throw new Error("Kimi runtime contains an invalid path");
+      if (!safePath(path) || path.startsWith(".outpost-") || path === "manifest.json") throw new Error("Kimi runtime contains an invalid path");
       const absolute = join(directory, name);
       const stat = await lstat(absolute);
       if (stat.isSymbolicLink() || await realpath(absolute) !== absolute) throw new Error("Kimi runtime contains a symbolic link");

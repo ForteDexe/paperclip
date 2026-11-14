@@ -16,7 +16,7 @@ describe.skipIf(!binary)("incomplete snapshot uploads against MinIO", () => {
   let store: ObjectStore;
   let client: InstanceType<typeof sdk.S3Client>;
   const prefix = "chaos/w-orphan";
-  const snapshot = "company/workspace-snapshots/ws/snapshot";
+  const snapshot = "space/workspace-snapshots/ws/snapshot";
 
   beforeAll(async () => {
     root = await mkdtemp(path.join(os.tmpdir(), "restart-chaos-orphan-"));

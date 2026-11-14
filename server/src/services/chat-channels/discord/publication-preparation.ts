@@ -102,7 +102,7 @@ export function createDiscordPublicationPreparation(db: Db, options: Publication
         delete attachmentPayload.progressState;
         await notifyChatPublicationWork(tx);
         await tx.insert(chatPublications).values({
-          companyId: current.companyId,
+          spaceId: current.spaceId,
           endpointId: current.endpointId,
           conversationId: current.conversationId,
           issueId: current.issueId,

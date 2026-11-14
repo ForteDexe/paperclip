@@ -11,14 +11,14 @@ import {
   index,
   unique,
 } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { environments } from "./environments.js";
 
 export const agents = pgTable(
   "agents",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     name: text("name").notNull(),
     role: text("role").notNull().default("general"),
     title: text("title"),
@@ -54,10 +54,10 @@ export const agents = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyIdUq: unique("agents_company_id_uq").on(table.companyId, table.id),
+    spaceIdUq: unique("agents_space_id_uq").on(table.spaceId, table.id),
     lifecycleWorkIdx: index("agents_lifecycle_work_idx").on(table.lifecycleState, table.updatedAt, table.id),
-    companyStatusIdx: index("agents_company_status_idx").on(table.companyId, table.status),
-    companyReportsToIdx: index("agents_company_reports_to_idx").on(table.companyId, table.reportsTo),
-    companyDefaultEnvironmentIdx: index("agents_company_default_environment_idx").on(table.companyId, table.defaultEnvironmentId),
+    spaceStatusIdx: index("agents_space_status_idx").on(table.spaceId, table.status),
+    spaceReportsToIdx: index("agents_space_reports_to_idx").on(table.spaceId, table.reportsTo),
+    spaceDefaultEnvironmentIdx: index("agents_space_default_environment_idx").on(table.spaceId, table.defaultEnvironmentId),
   }),
 );

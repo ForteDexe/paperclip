@@ -5,16 +5,16 @@ import { createServer } from "node:net";
 import * as p from "@clack/prompts";
 import pc from "picocolors";
 import { Option, type Command } from "commander";
-import type { Agent, Company, InstanceExperimentalSettings } from "@outpost/shared";
-import { PaperclipApiClient } from "../client/http.js";
-import { openUrl } from "../client/board-auth.js";
+import type { Agent, Space, InstanceExperimentalSettings } from "@outpost/shared";
+import { OutpostApiClient } from "../client/http.js";
+import { openUrl } from "../client/operator-auth.js";
 import {
   expandHomePrefix,
   resolveDefaultConfigPath,
   resolveDefaultContextPath,
 } from "../config/home.js";
 import { readConfig } from "../config/store.js";
-import type { PaperclipConfig } from "../config/schema.js";
+import type { OutpostConfig } from "../config/schema.js";
 import { runCommand, type StartedServer } from "./run.js";
 import { isLinkedGitWorktree } from "./git-workspace.js";
 
@@ -23,7 +23,7 @@ export type TestDriveHarness = (typeof TEST_DRIVE_HARNESSES)[number];
 
 export interface TestDriveOptions {
   dataDir?: string;
-  companyName?: string;
+  spaceName?: string;
   agentName?: string;
   harness?: TestDriveHarness;
   model?: string;
@@ -32,7 +32,7 @@ export interface TestDriveOptions {
   browser?: boolean;
 }
 
-export type TestDriveApi = Pick<PaperclipApiClient, "get" | "post" | "patch" | "delete">;
+export type TestDriveApi = Pick<OutpostApiClient, "get" | "post" | "patch" | "delete">;
 
 type HarnessDefinition = {
   adapterType: "claude_local" | "codex_local" | "opencode_local";
@@ -41,7 +41,7 @@ type HarnessDefinition = {
 };
 
 export type ResolvedTestDriveBootstrap = HarnessDefinition & {
-  companyName: string;
+  spaceName: string;
   agentName: string;
   model?: string;
   credential: string;
@@ -50,7 +50,7 @@ export type ResolvedTestDriveBootstrap = HarnessDefinition & {
 
 export type TestDriveBootstrapResult = {
   reused: boolean;
-  company: Company;
+  space: Space;
   agent: Agent | null;
 };
 
@@ -136,7 +136,7 @@ export function resolveTestDriveDataDir(dataDir?: string): string {
   if (explicit) {
     return path.resolve(expandHomePrefix(explicit));
   }
-  return fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-test-drive-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "outpost-test-drive-"));
 }
 
 async function loopbackPortAvailable(port: number): Promise<boolean> {
@@ -163,7 +163,7 @@ export async function resolveTestDriveServerPort(preferredPort = 3100, available
 /**
  * Establish isolation before the CLI's normal config and .env loading hook.
  * The selected credential source is preserved in case its name happens to use
- * a OUTPOST_ prefix; all other Paperclip routing/configuration is discarded.
+ * a OUTPOST_ prefix; all other Outpost routing/configuration is discarded.
  */
 export async function prepareTestDriveEnvironment(
   options: Pick<TestDriveOptions, "dataDir" | "apiKeyEnv">,
@@ -213,7 +213,7 @@ export async function prepareTestDriveEnvironment(
 export function assertTestDriveDatabaseIsolation(
   configPath?: string,
   env: NodeJS.ProcessEnv = process.env,
-  readConfigFile: (path?: string) => PaperclipConfig | null = readConfig,
+  readConfigFile: (path?: string) => OutpostConfig | null = readConfig,
 ): void {
   if (env.DATABASE_URL?.trim() || env.DATABASE_MIGRATION_URL?.trim()) {
     throw new Error(
@@ -245,9 +245,9 @@ export function resolveTestDriveBootstrap(
     throw new Error(`Unsupported test-drive harness: ${String(harness)}.`);
   }
 
-  const companyName = (options.companyName ?? "Test Outpost").trim();
-  const agentName = (options.agentName ?? "Outpost Lead").trim();
-  if (!companyName) throw new Error("--company-name cannot be empty.");
+  const spaceName = (options.spaceName ?? "Test Outpost").trim();
+  const agentName = (options.agentName ?? "Default agent").trim();
+  if (!spaceName) throw new Error("--space-name cannot be empty.");
   if (!agentName) throw new Error("--agent-name cannot be empty.");
 
   const model = options.model;
@@ -276,7 +276,7 @@ export function resolveTestDriveBootstrap(
 
   return {
     ...definition,
-    companyName,
+    spaceName,
     agentName,
     ...(model ? { model } : {}),
     credential,
@@ -334,33 +334,33 @@ export async function bootstrapTestDrive(input: {
   instanceId: string;
   env?: NodeJS.ProcessEnv;
 }): Promise<TestDriveBootstrapResult> {
-  const companies = requiredApiResult(
-    await input.api.get<Company[]>("/api/companies"),
-    "reading companies",
+  const spaces = requiredApiResult(
+    await input.api.get<Space[]>("/api/spaces"),
+    "reading spaces",
   );
-  const existingCompany = companies[0];
-  if (existingCompany) {
+  const existingSpace = spaces[0];
+  if (existingSpace) {
     if (input.linkedWorktree) {
       await reconcileTestDriveWorktreeExecution(input.api, input.instanceId);
     }
-    return { reused: true, company: existingCompany, agent: null };
+    return { reused: true, space: existingSpace, agent: null };
   }
 
   // Resolve every bootstrap input before the first mutation. In particular,
-  // OpenCode model validation and credential lookup happen before company
+  // OpenCode model validation and credential lookup happen before space
   // creation so an invalid invocation leaves the database untouched.
   const resolved = resolveTestDriveBootstrap(input.options, input.env);
-  let company: Company | null = null;
+  let space: Space | null = null;
   try {
-    company = requiredApiResult(
-      await input.api.post<Company>("/api/companies", { name: resolved.companyName }),
-      "creating the test company",
+    space = requiredApiResult(
+      await input.api.post<Space>("/api/spaces", { name: resolved.spaceName }),
+      "creating the test space",
     );
-    await input.api.post(`/api/companies/${company.id}/user-secret-definitions`, {
+    await input.api.post(`/api/spaces/${space.id}/user-secret-definitions`, {
       key: resolved.credentialTarget,
       name: resolved.credentialName,
     });
-    await input.api.post(`/api/companies/${company.id}/me/user-secrets`, {
+    await input.api.post(`/api/spaces/${space.id}/me/user-secrets`, {
       definitionKey: resolved.credentialTarget,
       value: resolved.credential,
     });
@@ -378,26 +378,26 @@ export async function bootstrapTestDrive(input: {
     if (resolved.model) adapterConfig.model = resolved.model;
 
     const agent = requiredApiResult(
-      await input.api.post<Agent>(`/api/companies/${company.id}/agents`, {
+      await input.api.post<Agent>(`/api/spaces/${space.id}/agents`, {
         name: resolved.agentName,
-        role: "ceo",
+        role: "lead",
         adapterType: resolved.adapterType,
         adapterConfig,
       }),
-      "creating the Outpost Lead agent",
+      "creating the Default agent agent",
     );
 
     if (input.linkedWorktree) {
       await reconcileTestDriveWorktreeExecution(input.api, input.instanceId);
     }
-    return { reused: false, company, agent };
+    return { reused: false, space, agent };
   } catch (error) {
-    if (company) {
+    if (space) {
       try {
-        await input.api.delete(`/api/companies/${company.id}`);
+        await input.api.delete(`/api/spaces/${space.id}`);
       } catch (cleanupError) {
         throw new Error(
-          `${errorMessage(error)} Cleanup also failed for newly-created company ${company.id}: ${errorMessage(cleanupError)}`,
+          `${errorMessage(error)} Cleanup also failed for newly-created space ${space.id}: ${errorMessage(cleanupError)}`,
           { cause: error },
         );
       }
@@ -415,7 +415,7 @@ export async function testDriveCommand(
   options: TestDriveOptions,
   dependencies: TestDriveDependencies = {
     run: runCommand,
-    createApi: (apiBase) => new PaperclipApiClient({ apiBase }),
+    createApi: (apiBase) => new OutpostApiClient({ apiBase }),
     openBrowser: openUrl,
   },
 ): Promise<void> {
@@ -450,7 +450,7 @@ export async function testDriveCommand(
       // Auto-created directories are private to this process. Explicitly reused
       // directories retain the normal guard against an already-managed instance.
       skipServiceManagerCheck: !options.dataDir?.trim(),
-      introLabel: "paperclipai test-drive",
+      introLabel: "outpost test-drive",
       afterStart: async (server) => {
         const url = dashboardUrl(server);
         const api = dependencies.createApi(url);
@@ -463,11 +463,11 @@ export async function testDriveCommand(
         });
         if (result.reused) {
           p.log.message(
-            `Using existing data for ${pc.cyan(result.company.name)}; bootstrap flags were ignored.`,
+            `Using existing data for ${pc.cyan(result.space.name)}; bootstrap flags were ignored.`,
           );
         } else {
           p.log.success(
-            `Created ${pc.cyan(result.company.name)} with agent ${pc.cyan(result.agent?.name ?? "Outpost Lead")}.`,
+            `Created ${pc.cyan(result.space.name)} with agent ${pc.cyan(result.agent?.name ?? "Default agent")}.`,
           );
         }
         if (linkedWorktree) {
@@ -496,8 +496,8 @@ export function registerTestDriveCommand(program: Command): void {
     .command("test-drive")
     .description("Start an isolated, initialized Outpost instance for manual testing")
     .option("-d, --data-dir <path>", "Outpost data directory to create or reuse")
-    .option("--company-name <name>", "Initial company name", "Test Outpost")
-    .option("--agent-name <name>", "Initial Outpost Lead agent name", "Outpost Lead")
+    .option("--space-name <name>", "Initial space name", "Test Outpost")
+    .option("--agent-name <name>", "Initial Default agent agent name", "Default agent")
     .addOption(
       new Option("--harness <harness>", "Initial agent harness")
         .choices(TEST_DRIVE_HARNESSES)

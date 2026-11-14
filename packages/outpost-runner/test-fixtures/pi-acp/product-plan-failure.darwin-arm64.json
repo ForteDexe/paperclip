@@ -52,7 +52,7 @@
     }
   },
   "canonicalToolEvent": {
-    "name": "mcp__paperclip__write_document",
+    "name": "mcp__outpost__write_document",
     "status": "completed",
     "transport": "builtin",
     "namespace": null,
@@ -68,7 +68,7 @@
     "oracleRemainsUnchanged": true
   },
   "diagnosis": {
-    "cause": "Rust ACPX projection hardcodes builtin transport and null namespace while preserving mcp__paperclip__write_document as the name; UI exact write_document matching therefore creates a fallback Plan.",
+    "cause": "Rust ACPX projection hardcodes builtin transport and null namespace while preserving mcp__outpost__write_document as the name; UI exact write_document matching therefore creates a fallback Plan.",
     "productionSeam": "packages/outpost-runner/runner/crates/runner-core/src/provider_events.rs:normalize_acpx_tool_call",
     "presentationSeam": "ui/src/components/task-chat/transcript-adapter.ts:embedPlanDocumentAtWriteBoundary",
     "selectorDefect": false,

@@ -8,7 +8,7 @@ import { visibleIssueCondition } from "./issue-visibility.js";
 import { activityEntityIdCondition, caseAwareActivitySource } from "./case-activity-source.js";
 
 export interface AgentActionAuditFilters {
-  companyId: string;
+  spaceId: string;
   actorScope?: "agents" | "all";
   agentId?: string;
   responsibleUserId?: string;
@@ -56,7 +56,7 @@ export function agentActionAuditService(db: Db) {
       const cursor = decodeCursor(filters.cursor);
       if (filters.cursor && !cursor) throw badRequest("Invalid audit cursor");
       const effectiveResponsibleUserId = sql<string | null>`coalesce(${activityLog.responsibleUserId}, ${heartbeatRuns.responsibleUserId})`;
-      const conditions = [eq(activityLog.companyId, filters.companyId),
+      const conditions = [eq(activityLog.spaceId, filters.spaceId),
         filters.caseReadCondition ?? sql<boolean>`${activityLog.entityType} <> 'case'`];
       // Preserve the historical agent-audit query unless the caller opts into
       // the unified all-actors feed explicitly.
@@ -88,7 +88,7 @@ export function agentActionAuditService(db: Db) {
 
       const rows = await db.select({
         id: activityLog.id,
-        companyId: activityLog.companyId,
+        spaceId: activityLog.spaceId,
         actorType: activityLog.actorType,
         actorId: activityLog.actorId,
         action: activityLog.action,
@@ -100,8 +100,8 @@ export function agentActionAuditService(db: Db) {
         details: activityLog.details,
         createdAt: activityLog.createdAt,
         cursorCreatedAt: sql<string>`to_char(${activityLog.createdAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`.as("cursor_created_at"),
-      }).from(caseAwareActivitySource(db, filters.companyId)).leftJoin(heartbeatRuns, and(
-        eq(heartbeatRuns.companyId, activityLog.companyId),
+      }).from(caseAwareActivitySource(db, filters.spaceId)).leftJoin(heartbeatRuns, and(
+        eq(heartbeatRuns.spaceId, activityLog.spaceId),
         eq(heartbeatRuns.id, activityLog.runId),
       )).where(and(...conditions)).orderBy(desc(activityLog.createdAt), desc(activityLog.id)).limit(filters.limit + 1);
 
@@ -110,7 +110,7 @@ export function agentActionAuditService(db: Db) {
       // The page has already passed the retained-source case predicate above.
       const caseRows = caseEntityIds.length === 0 ? [] : await db.select({
         id: cases.id, identifier: cases.identifier, title: cases.title,
-      }).from(cases).where(and(eq(cases.companyId, filters.companyId), inArray(cases.id, caseEntityIds)));
+      }).from(cases).where(and(eq(cases.spaceId, filters.spaceId), inArray(cases.id, caseEntityIds)));
       const caseMap = new Map(caseRows.map((row) => [row.id, row]));
       const commentEntityIds = [...new Set(page
         .filter((row) => row.entityType === "issue_comment")
@@ -125,16 +125,16 @@ export function agentActionAuditService(db: Db) {
         id: issueComments.id, body: issueComments.body, issueId: issues.id, identifier: issues.identifier, title: issues.title,
       }).from(issueComments).innerJoin(issues, and(
         eq(issues.id, issueComments.issueId),
-        eq(issues.companyId, filters.companyId),
+        eq(issues.spaceId, filters.spaceId),
         visibleIssueCondition(),
       )).where(and(
-        eq(issueComments.companyId, filters.companyId),
+        eq(issueComments.spaceId, filters.spaceId),
         inArray(issueComments.id, commentEntityIds),
       ));
       const issueRows = issueEntityIds.length === 0 ? [] : await db.select({
         id: issues.id, identifier: issues.identifier, title: issues.title,
       }).from(issues).where(and(
-        eq(issues.companyId, filters.companyId),
+        eq(issues.spaceId, filters.spaceId),
         visibleIssueCondition(),
         inArray(issues.id, issueEntityIds),
       ));
@@ -143,10 +143,10 @@ export function agentActionAuditService(db: Db) {
         issueId: issues.id, identifier: issues.identifier, title: issues.title,
       }).from(issueDocuments).innerJoin(issues, and(
         eq(issues.id, issueDocuments.issueId),
-        eq(issues.companyId, filters.companyId),
+        eq(issues.spaceId, filters.spaceId),
         visibleIssueCondition(),
       )).where(and(
-        eq(issueDocuments.companyId, filters.companyId),
+        eq(issueDocuments.spaceId, filters.spaceId),
         or(
           inArray(issueDocuments.id, documentEntityIds),
           inArray(issueDocuments.documentId, documentEntityIds),
@@ -176,7 +176,7 @@ export function agentActionAuditService(db: Db) {
           || row.entityType === "issue_document";
         return {
           id: row.id,
-          companyId: row.companyId,
+          spaceId: row.spaceId,
           actorType: row.actorType,
           actorId: row.actorId,
           action: row.action,

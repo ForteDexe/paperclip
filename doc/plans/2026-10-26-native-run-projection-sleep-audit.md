@@ -31,7 +31,7 @@ Heartbeat and server startup only wire lifecycle and execution policy.
 ## Durable truth and quiet condition
 
 Candidates join the committed coordinator to its issue and heartbeat run. A
-correlated existence predicate binds its accepted result by company, issue and
+correlated existence predicate binds its accepted result by space, issue and
 run IDs. The periodic candidate scan reuses this predicate for ordering. The accepted terminal state must
 be succeeded, failed or cancelled. The worker excludes pending decision effects
 and held native runner ownership.
@@ -45,7 +45,7 @@ completed history is not work. The accepted result envelope remains immutable.
 Discovery reads IDs in keyset pages of 100. It does not transfer full result or
 run payloads. Due execution reads the small run fields needed by the projection
 owner and only the accepted terminal-state scalar. The worker reuses shared
-company-fair batches, coalesced dirty scopes and delivery scheduling. There is no
+space-fair batches, coalesced dirty scopes and delivery scheduling. There is no
 recurring query after an empty or settled result. No fleet-scale query benchmark
 is claimed.
 
@@ -151,7 +151,7 @@ Initial evidence is retained:
   cases. Their interception watched a full result JSON selection; projection now
   selects only the terminal scalar. Updating that interception restored the same
   concurrent-write assertion. The 29-case telemetry suite then passed in full.
-- An intermediate rerun reused a database with a fixed `TLM` company prefix.
+- An intermediate rerun reused a database with a fixed `TLM` space prefix.
   Setup rejected the duplicate; 29 telemetry cases were skipped, not passed.
   Fresh dedicated databases passed all 65 telemetry/recovery cases.
 - The new ordering regression failed because cleanup ran before delegated run
@@ -200,7 +200,7 @@ and physical-owner evidence. Status decisions, external effects and resource
 settlement remain with their existing owners.
 
 The new real-database regression starts an idle projection worker and submits
-three routine company-only finalization hints. A controlled baseline moves only
+three routine space-only finalization hints. A controlled baseline moves only
 projection fanout outside the guard and keeps all other parent guards intact.
 It produces three candidate SELECTs and fails the zero-query assertion. Restoring
 the production helper passes the same assertion. A real accepted result and

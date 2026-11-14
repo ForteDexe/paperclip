@@ -67,7 +67,7 @@ export interface InstanceExperimentalSettings {
   enableStreamlinedUi: boolean;
   /** @deprecated Compatibility key only. Apps is always enabled. */
   enableApps: boolean;
-  /** Exposes chat connector setup and Board surfaces; existing delivery continues when hidden. */
+  /** Exposes chat connector setup and Operator surfaces; existing delivery continues when hidden. */
   enableChatConnectors: boolean;
   /** Show GitHub review bot setup and management independently of chat connectors. */
   enableGitHubReviewBots: boolean;
@@ -82,7 +82,7 @@ export interface InstanceExperimentalSettings {
   enableMcpAggregators: boolean;
   /** Show experimental memory connection setup. Existing connections remain usable. */
   enableMemoryConnectors: boolean;
-  enablePaperclipNotebook: boolean;
+  enableOutpostNotebook: boolean;
   /** Show and allow the built-in Google Workspace connector while its Google verification is pending. */
   enableGoogleWorkspaceConnector: boolean;
   enableCases: boolean;
@@ -103,12 +103,12 @@ export interface InstanceExperimentalSettings {
   enableSummaries: boolean;
   enableStatusCards: boolean;
   enableDecisions: boolean;
-  /** Show company connection settings and allow contextual fast-response acknowledgements. */
+  /** Show space connection settings and allow contextual fast-response acknowledgements. */
   enableFastResponses: boolean;
   enableGoalsSidebarLink: boolean;
   enableServerInfoDebugView: boolean;
-  /** Shows internal Paperclip maintainer tools and observability links. */
-  enablePaperclipDeveloperMode: boolean;
+  /** Shows internal Outpost maintainer tools and observability links. */
+  enableOutpostDeveloperMode: boolean;
   /**
    * Instructs agents to write user-interaction content (confirmations,
    * questions, suggested tasks, checkbox prompts) in ASD-STE100 Simplified
@@ -176,7 +176,7 @@ export type ManagedExperimentalFeatureKey = {
     : never;
 }[keyof InstanceExperimentalSettings];
 
-export const OUTPOST_CLOUD_MANAGED_BY = "paperclip-cloud" as const;
+export const OUTPOST_CLOUD_MANAGED_BY = "outpost-cloud" as const;
 
 /** Per-key metadata attached to settings responses for cloud-overlaid keys. */
 export interface ManagedSettingMetadata {

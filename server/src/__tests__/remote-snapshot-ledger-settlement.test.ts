@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { eq, sql } from "drizzle-orm";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   executionWorkspaceSnapshots,
   executionWorkspaces,
@@ -21,7 +21,7 @@ import { OWNABLE_KINDS } from "../services/recovery/ownership-registry.js";
 
 const aborted = vi.hoisted(() => ({ keys: [] as string[] }));
 vi.mock("../storage/index.js", () => ({
-  getStorageService: () => ({ abortIncompleteUploads: async (_companyId: string, key: string) => { aborted.keys.push(key); return 1; } }),
+  getStorageService: () => ({ abortIncompleteUploads: async (_spaceId: string, key: string) => { aborted.keys.push(key); return 1; } }),
 }));
 
 const external = resolveExternalTestDatabaseUrl("OUTPOST_HISTORY_TEST_DATABASE_URL");
@@ -35,7 +35,7 @@ const quiesced = { schema: "outpost.remote-workspace-save-work.v1", activeIds: [
 describe("remote snapshot ledger settlement", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: ReturnType<typeof createDb>;
-  let companyId: string;
+  let spaceId: string;
   let agentId: string;
 
   beforeAll(async () => {
@@ -48,22 +48,22 @@ describe("remote snapshot ledger settlement", () => {
 
   beforeEach(async () => {
     await db.execute(sql`truncate execution_workspace_snapshots, activity_log, workspace_operations, execution_workspaces,
-      heartbeat_runs, agents, companies cascade`);
-    companyId = randomUUID(); agentId = randomUUID(); aborted.keys = [];
-    await db.insert(companies).values({ id: companyId, name: "Ledger fixture", issuePrefix: "LED" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", role: "engineer", adapterType: "codex_local" });
+      heartbeat_runs, agents, spaces cascade`);
+    spaceId = randomUUID(); agentId = randomUUID(); aborted.keys = [];
+    await db.insert(spaces).values({ id: spaceId, name: "Ledger fixture", issuePrefix: "LED" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", role: "engineer", adapterType: "codex_local" });
   });
 
   async function run(status: string) {
     const id = randomUUID();
-    await db.insert(heartbeatRuns).values({ id, companyId, agentId, status, invocationSource: "manual",
+    await db.insert(heartbeatRuns).values({ id, spaceId, agentId, status, invocationSource: "manual",
       ...(status === "running" ? {} : { finishedAt: minutesAgo(2), errorCode: "process_lost" }) });
     return id;
   }
 
   async function workspace(authority: { epoch: number; writerRunId: string | null; dirty: boolean }) {
     const id = randomUUID();
-    await db.insert(executionWorkspaces).values({ id, companyId, mode: "isolated_workspace", strategyType: "test", name: id,
+    await db.insert(executionWorkspaces).values({ id, spaceId, mode: "isolated_workspace", strategyType: "test", name: id,
       metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1", snapshotId: null,
         source: { kind: "git", repoUrl: "https://example.invalid/repo.git", ref: null }, location: null, ...authority } } });
     return id;
@@ -72,12 +72,12 @@ describe("remote snapshot ledger settlement", () => {
   async function save(input: { workspaceId: string; runId: string; epoch?: number; status?: string;
     saveWork?: Record<string, unknown>; snapshot?: Partial<typeof executionWorkspaceSnapshots.$inferInsert>; lastFailure?: boolean }) {
     const operationId = randomUUID(), snapshotId = randomUUID(), epoch = input.epoch ?? 1;
-    await db.insert(workspaceOperations).values({ id: operationId, companyId, executionWorkspaceId: input.workspaceId,
+    await db.insert(workspaceOperations).values({ id: operationId, spaceId, executionWorkspaceId: input.workspaceId,
       heartbeatRunId: input.runId, phase: "remote_workspace_snapshot", status: input.status ?? "failed",
       metadata: { epoch, boundary: "initial", generation: 1, saveWork: input.saveWork ?? quiesced,
         exportCleanup: { state: "pending" },
         ...(input.lastFailure === false ? {} : { lastFailure: { code: "remote_workspace_save_abandoned", at: minutesAgo(20).toISOString() } }) } });
-    await db.insert(executionWorkspaceSnapshots).values({ id: snapshotId, companyId, executionWorkspaceId: input.workspaceId,
+    await db.insert(executionWorkspaceSnapshots).values({ id: snapshotId, spaceId, executionWorkspaceId: input.workspaceId,
       sourceOperationId: operationId, sourceRunId: input.runId, generation: 1, epoch,
       deleteAfter: new Date(Date.now() + 7 * 86400_000), createdAt: minutesAgo(30), updatedAt: minutesAgo(30), ...input.snapshot });
     return { operationId, snapshotId };
@@ -109,7 +109,7 @@ describe("remote snapshot ledger settlement", () => {
     const failed = await run("failed"), live = await run("running"), writer = await run("failed");
     const ended = await workspace({ epoch: 2, writerRunId: null, dirty: false });
     const held = await workspace({ epoch: 1, writerRunId: writer, dirty: true });
-    const objectKey = `${companyId}/workspace-snapshots/${ended}/x/a.pcws`;
+    const objectKey = `${spaceId}/workspace-snapshots/${ended}/x/a.pcws`;
     const rows = {
       attempted: await save({ workspaceId: ended, runId: failed, snapshot: { metadata: { uploads: [{ objectKey }] } } }),
       uploaded: await save({ workspaceId: await workspace({ epoch: 2, writerRunId: null, dirty: false }), runId: failed,
@@ -149,16 +149,16 @@ describe("remote snapshot ledger settlement", () => {
   it("aborts the incomplete multipart uploads of every attempt when the reconciler retires an abandoned save", async () => {
     const failed = await run("failed");
     const ledgerWorkspace = await workspace({ epoch: 2, writerRunId: null, dirty: false });
-    const ledgerId = randomUUID(), ledgerKeys = ["a", "b"].map(name => `${companyId}/workspace-snapshots/${ledgerWorkspace}/${ledgerId}/${name}.pcws`);
+    const ledgerId = randomUUID(), ledgerKeys = ["a", "b"].map(name => `${spaceId}/workspace-snapshots/${ledgerWorkspace}/${ledgerId}/${name}.pcws`);
     await save({ workspaceId: ledgerWorkspace, runId: failed,
-      snapshot: { id: ledgerId, metadata: { uploads: [...ledgerKeys.map(objectKey => ({ objectKey })), { objectKey: `${companyId}/elsewhere/c.pcws` }] } } });
+      snapshot: { id: ledgerId, metadata: { uploads: [...ledgerKeys.map(objectKey => ({ objectKey })), { objectKey: `${spaceId}/elsewhere/c.pcws` }] } } });
     await runOwnershipReconciliationPass(db, { state: createOwnershipReportState(),
       kinds: OWNABLE_KINDS.filter(kind => kind.id === "remote_snapshot_ledger") });
     expect(aborted.keys).toEqual(ledgerKeys);
 
     aborted.keys = [];
     const saveWorkspace = await workspace({ epoch: 2, writerRunId: null, dirty: false });
-    const saveId = randomUUID(), saveKey = `${companyId}/workspace-snapshots/${saveWorkspace}/${saveId}/cut.pcws`;
+    const saveId = randomUUID(), saveKey = `${spaceId}/workspace-snapshots/${saveWorkspace}/${saveId}/cut.pcws`;
     await save({ workspaceId: saveWorkspace, runId: failed, status: "running", lastFailure: false,
       snapshot: { id: saveId, metadata: { uploads: [{ objectKey: saveKey }] } } });
     await runOwnershipReconciliationPass(db, { state: createOwnershipReportState(),

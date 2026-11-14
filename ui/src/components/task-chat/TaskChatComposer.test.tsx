@@ -1034,7 +1034,7 @@ describe("TaskChatComposer", () => {
       reassignOptions: [{ id: "agent:runner", label: "Runner" }],
     });
 
-    const composer = container.querySelector<HTMLElement>(".paperclip-task-chat-composer")!;
+    const composer = container.querySelector<HTMLElement>(".outpost-task-chat-composer")!;
     const mode = container.querySelector<HTMLElement>(
       '[data-testid="task-chat-composer-mode"]',
     )!;
@@ -1061,7 +1061,7 @@ describe("TaskChatComposer", () => {
     render(<TaskChatComposer onAdd={vi.fn()} workMode="standard" />);
 
     expect(container.querySelector("[data-testid='task-chat-composer-input']")?.parentElement?.classList).toContain(
-      "paperclip-task-chat-composer",
+      "outpost-task-chat-composer",
     );
   });
 
@@ -2468,7 +2468,7 @@ describe("TaskChatComposer", () => {
     const agents = new Map([[agent.id, agent]]);
     const onAdd = vi.fn().mockResolvedValue(undefined);
     const paint = (coordinator: boolean) => render(<QueryClientProvider client={client}><CoordinatorPresentation.Provider value={coordinator}>
-      <TaskChatComposer onAdd={onAdd} conversationMode companyId="chat-company" workMode="standard"
+      <TaskChatComposer onAdd={onAdd} conversationMode spaceId="chat-space" workMode="standard"
         currentAssigneeValue="agent:chat-agent" suggestedAssigneeValue="agent:someone-else" modelAgents={agents}
         reassignOptions={[{ id: "agent:chat-agent", label: "Mira" }]} />
     </CoordinatorPresentation.Provider></QueryClientProvider>);
@@ -2746,7 +2746,7 @@ describe("TaskChatComposer", () => {
           ?.textContent,
       ).toContain("Which environment should receive this?");
       const card = container.querySelector('[data-testid="task-chat-composer-takeover"]')!;
-      const composer = container.querySelector('.paperclip-task-chat-composer')!;
+      const composer = container.querySelector('.outpost-task-chat-composer')!;
       expect(card.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(container.querySelector('[data-testid="mdx-editor"]')).not.toBeNull();
       expect(container.querySelector<HTMLButtonElement>('[data-testid="task-chat-composer-send"]')).not.toBeNull();
@@ -3514,9 +3514,9 @@ describe("composer Stop", () => {
 
   function nativeStopAwaitingContainment(): HeartbeatRun & { runtimeMode: "native" } {
     const observed: Partial<HeartbeatRun> & { runtimeMode: "native" } = {
-      id: "run", companyId: "company", status: "cancelled", runtimeMode: "native",
+      id: "run", spaceId: "space", status: "cancelled", runtimeMode: "native",
       resultJson: { executionCancellation: { state: "requested" }, nativeCancellation: {
-        schema: "outpost.native-cancellation.v1", runId: "run", companyId: "company",
+        schema: "outpost.native-cancellation.v1", runId: "run", spaceId: "space",
         scope: "run", dispatched: true, dispatchState: "acknowledged",
       } } };
     return observed as HeartbeatRun & { runtimeMode: "native" };

@@ -45,7 +45,7 @@ export async function parkWorkspaceBusyRetryInTx(tx: Db, run: HeartbeatRun, now:
       ownerFenceHeld: runOwnerFenceHeldSql(),
     })
     .from(heartbeatRuns)
-    .where(and(eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.id, wait.holderRunId)));
+    .where(and(eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.id, wait.holderRunId)));
   // A remote writer that ended still holds its workspace until its save and
   // sandbox release settle (a run stopped by reassignment, for example).
   // Reservation defers on that hold, so the wait stays parked through it too.
@@ -63,7 +63,7 @@ export async function parkWorkspaceBusyRetryInTx(tx: Db, run: HeartbeatRun, now:
     .select({ id: heartbeatRuns.id })
     .from(heartbeatRuns)
     .where(and(
-      eq(heartbeatRuns.companyId, run.companyId),
+      eq(heartbeatRuns.spaceId, run.spaceId),
       ne(heartbeatRuns.id, run.id),
       inArray(heartbeatRuns.status, ["scheduled_retry", "queued", "running"]),
       eq(heartbeatRuns.scheduledRetryReason, WORKSPACE_BUSY_RETRY_REASON),
@@ -80,7 +80,7 @@ export async function parkWorkspaceBusyRetryInTx(tx: Db, run: HeartbeatRun, now:
     now.getTime() + (holderLive && settlingSince ? WORKSPACE_BUSY_SETTLING_RECHECK_MS : WORKSPACE_BUSY_PARKED_RECHECK_MS),
     holderLive ? holderStaleAt! + 1_000 : Number.POSITIVE_INFINITY,
   ));
-  await notifyScheduledRetryCancellation(tx, { companyId: run.companyId, runId: run.id });
+  await notifyScheduledRetryCancellation(tx, { spaceId: run.spaceId, runId: run.id });
   const [parked] = await tx
     .update(heartbeatRuns)
     .set({
@@ -90,7 +90,7 @@ export async function parkWorkspaceBusyRetryInTx(tx: Db, run: HeartbeatRun, now:
     })
     .where(and(
       eq(heartbeatRuns.id, run.id),
-      eq(heartbeatRuns.companyId, run.companyId),
+      eq(heartbeatRuns.spaceId, run.spaceId),
       eq(heartbeatRuns.status, "scheduled_retry"),
     ))
     .returning({ id: heartbeatRuns.id });
@@ -107,10 +107,10 @@ async function settlingWriterActivityAt(tx: Db, run: HeartbeatRun, wait: Workspa
   const [workspace] = await tx
     .select({ metadata: executionWorkspaces.metadata })
     .from(executionWorkspaces)
-    .where(and(eq(executionWorkspaces.companyId, run.companyId), eq(executionWorkspaces.id, wait.key.slice("execution:".length))));
+    .where(and(eq(executionWorkspaces.spaceId, run.spaceId), eq(executionWorkspaces.id, wait.key.slice("execution:".length))));
   const authority = readRemoteWorkspaceAuthority(workspace?.metadata);
   if (!authority || authority.writerRunId !== wait.holderRunId) return null;
-  const hold = await readRemoteWorkspaceWriterHold(tx, { companyId: run.companyId, authority });
+  const hold = await readRemoteWorkspaceWriterHold(tx, { spaceId: run.spaceId, authority });
   return hold.kind === "held" && hold.writer.ended && hold.writer.runId === wait.holderRunId
     ? new Date(hold.writer.lastActivityAt)
     : null;
@@ -123,7 +123,7 @@ async function taskStillUsesWaitedWorkspace(tx: Db, run: HeartbeatRun, wait: Wor
   const [issue] = await tx
     .select({ executionWorkspaceId: issues.executionWorkspaceId, projectWorkspaceId: issues.projectWorkspaceId })
     .from(issues)
-    .where(and(eq(issues.companyId, run.companyId), eq(issues.id, issueId)));
+    .where(and(eq(issues.spaceId, run.spaceId), eq(issues.id, issueId)));
   if (!issue) return false;
   // An execution-workspace wait depends only on that binding. A project wait
   // also ends when the task gains an execution workspace, which takes precedence.
@@ -140,7 +140,7 @@ async function taskStillUsesWaitedWorkspace(tx: Db, run: HeartbeatRun, wait: Wor
  * then admits them in arrival order.
  */
 export async function wakeWorkspaceBusyWaitersInTx(tx: Db, input: {
-  companyId: string;
+  spaceId: string;
   runId: string;
   contextSnapshot: Record<string, unknown> | null | undefined;
   scheduledRetryReason: string | null | undefined;
@@ -148,7 +148,7 @@ export async function wakeWorkspaceBusyWaitersInTx(tx: Db, input: {
 }): Promise<number> {
   const ownKey = readWorkspaceBusyWait(input.scheduledRetryReason, input.contextSnapshot)?.key ?? null;
   const waiting = and(
-    eq(heartbeatRuns.companyId, input.companyId),
+    eq(heartbeatRuns.spaceId, input.spaceId),
     eq(heartbeatRuns.status, "scheduled_retry"),
     eq(heartbeatRuns.scheduledRetryReason, WORKSPACE_BUSY_RETRY_REASON),
     gt(heartbeatRuns.scheduledRetryAt, input.now),
@@ -158,7 +158,7 @@ export async function wakeWorkspaceBusyWaitersInTx(tx: Db, input: {
   );
   const waiters = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(waiting).for("update");
   if (waiters.length === 0) return 0;
-  await notifyScheduledRetryDispatch(tx, { companyId: input.companyId });
+  await notifyScheduledRetryDispatch(tx, { spaceId: input.spaceId });
   const woken = await tx
     .update(heartbeatRuns)
     .set({ scheduledRetryAt: input.now, updatedAt: input.now })

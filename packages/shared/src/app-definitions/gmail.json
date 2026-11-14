@@ -29,11 +29,11 @@
   "redirectConstraints": "https-or-loopback-http",
   "methods": [
     {
-      "key": "paperclip-read",
+      "key": "outpost-read",
       "label": "Connect with Outpost",
       "transport": "mcp_remote",
       "auth": "oauth",
-      "oauthStrategy": "paperclip_cloud_connector",
+      "oauthStrategy": "outpost_cloud_connector",
       "connectorProfile": "gmail.read",
       "capabilityProfile": {
         "key": "read",
@@ -102,11 +102,11 @@
       "riskTier": "S3"
     },
     {
-      "key": "paperclip-draft",
+      "key": "outpost-draft",
       "label": "Connect with Outpost",
       "transport": "mcp_remote",
       "auth": "oauth",
-      "oauthStrategy": "paperclip_cloud_connector",
+      "oauthStrategy": "outpost_cloud_connector",
       "connectorProfile": "gmail.draft",
       "capabilityProfile": {
         "key": "draft",
@@ -179,11 +179,11 @@
       "riskTier": "S4"
     },
     {
-      "key": "paperclip-archive",
+      "key": "outpost-archive",
       "label": "Connect with Outpost",
       "transport": "mcp_remote",
       "auth": "oauth",
-      "oauthStrategy": "paperclip_cloud_connector",
+      "oauthStrategy": "outpost_cloud_connector",
       "connectorProfile": "gmail.archive",
       "capabilityProfile": {
         "key": "archive",

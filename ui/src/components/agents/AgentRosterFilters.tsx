@@ -13,16 +13,16 @@ const emptyAgents: Agent[] = [];
 const labels: Record<AgentRosterFilterField, string> = { model: "Model", status: "Status", harness: "Harness", connection: "Connection" };
 const allLabels: Record<AgentRosterFilterField, string> = { model: "All models", status: "All statuses", harness: "All harnesses", connection: "All connections" };
 
-/** Page-owned state keeps filters when switching views and isolates them by company. */
-export function useAgentRosterFilters(companyId: string | null, agents: Agent[] = emptyAgents) {
-  const [selection, setSelection] = useState({ companyId, filters: emptyAgentRosterFilters });
-  const filters = selection.companyId === companyId ? selection.filters : emptyAgentRosterFilters;
-  const accounts = useQuery({ queryKey: ["ai-connections", companyId], queryFn: () => aiConnectionsApi.list(companyId!), enabled: !!companyId });
+/** Page-owned state keeps filters when switching views and isolates them by space. */
+export function useAgentRosterFilters(spaceId: string | null, agents: Agent[] = emptyAgents) {
+  const [selection, setSelection] = useState({ spaceId, filters: emptyAgentRosterFilters });
+  const filters = selection.spaceId === spaceId ? selection.filters : emptyAgentRosterFilters;
+  const accounts = useQuery({ queryKey: ["ai-connections", spaceId], queryFn: () => aiConnectionsApi.list(spaceId!), enabled: !!spaceId });
   const index = useMemo(() => buildAgentRosterIndex(agents, accounts.data), [agents, accounts.data]);
   const activeCount = agentRosterFilterFields.filter(field => filters[field]).length;
   return {
     filters, options: index.options, activeCount,
-    onChange: (next: FilterState) => setSelection({ companyId, filters: next }),
+    onChange: (next: FilterState) => setSelection({ spaceId, filters: next }),
     matches: (agent: Agent) => matchesAgentRosterFilters(index.byAgentId.get(agent.id), filters),
     connectionError: accounts.error,
     retryConnections: () => void accounts.refetch(),

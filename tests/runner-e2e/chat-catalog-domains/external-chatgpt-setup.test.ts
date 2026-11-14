@@ -17,10 +17,10 @@ import {
 } from "./external-chatgpt-contract.js";
 import type { ExternalObservation } from "./external-support.js";
 import type { McpConnectionRequest } from "../../../packages/shared/src/public-mcp.js";
-const company = "11111111-1111-4111-8111-111111111111",
+const space = "11111111-1111-4111-8111-111111111111",
   grant = "22222222-2222-4222-8222-222222222222",
   comment = "33333333-3333-4333-8333-333333333333";
-const scopes = ["paperclip:read", "paperclip:write", "offline_access"];
+const scopes = ["outpost:read", "outpost:write", "offline_access"];
 function input(): ChatgptInput {
   return {
     operation: "setup",
@@ -30,8 +30,8 @@ function input(): ChatgptInput {
     receiptPath: "/private/receipt.json",
     backendOrigin: "http://127.0.0.1:3100",
     publicOrigin: "https://fixture.example.test",
-    companyId: company,
-    companyName: "Synthetic Company",
+    spaceId: space,
+    spaceName: "Synthetic Space",
     prefix: "ACORN",
     humanId: "person",
     operatorRef: "qa-operator",
@@ -61,7 +61,7 @@ function receipt(): ChatgptReceipt {
     operation: "setup",
     executionId: input().executionId,
     attemptId: input().attemptId,
-    companyId: company,
+    spaceId: space,
     humanId: "person",
     processIsolation: true,
     testRunnerAttached: false,
@@ -80,14 +80,14 @@ function receipt(): ChatgptReceipt {
     requestedScopes: [...scopes],
     acceptedScopes: [...scopes],
     configureDisclosed: true,
-    consentWording: "Write all of your Paperclip data",
+    consentWording: "Write all of your Outpost data",
   };
 }
 function valid(): ExternalObservation {
   return {
     scenarioId: chatgptSetupCase.scenarioId,
     origin: "http://fixture.invalid",
-    companyId: company,
+    spaceId: space,
     leadId: "ceo",
     reply: "Open the ChatGPT connection setup and complete the human consent.",
     links: ["/ACORN/apps/assistant-connection"],
@@ -101,7 +101,7 @@ function valid(): ExternalObservation {
       assistantConnections: [
         {
           id: grant,
-          companyId: company,
+          spaceId: space,
           clientName: "ChatGPT",
           scopes: [...scopes],
           revokedAt: null,
@@ -113,7 +113,7 @@ function valid(): ExternalObservation {
       controlCommentCount: 1,
       controlComment: {
         id: comment,
-        companyId: company,
+        spaceId: space,
         issueId: "control",
         authorUserId: "person",
         authorAgentId: null,
@@ -144,7 +144,7 @@ function valid(): ExternalObservation {
         actorId: "person",
         details: {
           clientId: "actual-chatgpt-client",
-          operation: "paperclip_add_comment",
+          operation: "outpost_add_comment",
           requestId: "tool-request",
         },
       },
@@ -177,8 +177,8 @@ describe("named ChatGPT real human setup independent authorities", () => {
         o.state.assistantConnections as Array<{ clientName: string }>
       )[0]!.clientName = "Synthetic MCP";
     },
-    "wrong company": (o) => {
-      (o.state.namedReceipt as ChatgptReceipt).companyId = "other";
+    "wrong space": (o) => {
+      (o.state.namedReceipt as ChatgptReceipt).spaceId = "other";
     },
     "wrong person": (o) => {
       o.state.currentPersonPreserved = false;
@@ -192,7 +192,7 @@ describe("named ChatGPT real human setup independent authorities", () => {
     "authorized scopes differ from saved grant": (o) => {
       o.activity[0]!.details = {
         ...o.activity[0]!.details,
-        scopes: ["paperclip:read"],
+        scopes: ["outpost:read"],
       };
     },
     "REST surrogate lacks MCP audit": (o) => {
@@ -220,7 +220,7 @@ describe("named ChatGPT real human setup independent authorities", () => {
     "task mutation": (o) => {
       o.state.controlTaskUnchanged = false;
     },
-    "company hint authority": (o) => {
+    "space hint authority": (o) => {
       o.state.unauthenticatedMcpStatus = 200;
     },
     "connected before actual human action": (o) => {
@@ -229,12 +229,12 @@ describe("named ChatGPT real human setup independent authorities", () => {
     "unexpected configure": (o) => {
       (
         o.state.assistantConnections as Array<{ scopes: string[] }>
-      )[0]!.scopes.push("paperclip:configure");
+      )[0]!.scopes.push("outpost:configure");
     },
     "grant to agent impersonation": (o) => {
       (
         o.state.assistantConnections as Array<{ scopes: string[] }>
-      )[0]!.scopes.push("paperclip:agent");
+      )[0]!.scopes.push("outpost:agent");
     },
   };
   for (const [name, mutate] of Object.entries(wrong))
@@ -246,12 +246,12 @@ describe("named ChatGPT real human setup independent authorities", () => {
   it("permits requested, visibly disclosed, explicitly accepted configure but rejects hidden or extra authority", () => {
     const o = valid(),
       r = o.state.namedReceipt as ChatgptReceipt;
-    r.requestedScopes!.push("paperclip:configure");
-    r.acceptedScopes!.push("paperclip:configure");
+    r.requestedScopes!.push("outpost:configure");
+    r.acceptedScopes!.push("outpost:configure");
     (
       o.state.assistantConnections as Array<{ scopes: string[] }>
-    )[0]!.scopes.push("paperclip:configure");
-    o.activity[0]!.details!.scopes = [...scopes, "paperclip:configure"];
+    )[0]!.scopes.push("outpost:configure");
+    o.activity[0]!.details!.scopes = [...scopes, "outpost:configure"];
     expect(gradeChatgptSetup(o).passed).toBe(true);
     r.configureDisclosed = false;
     expect(gradeChatgptSetup(o).passed).toBe(false);
@@ -301,7 +301,7 @@ describe("finite private named-provider contract", () => {
       { humanId: "other" },
       { accessToken: "must-not-be-exported" },
       { actualProviderCallback: false },
-      { acceptedScopes: [...scopes, "paperclip:agent"] },
+      { acceptedScopes: [...scopes, "outpost:agent"] },
     ])
       expect(
         validChatgptReceipt(
@@ -312,23 +312,23 @@ describe("finite private named-provider contract", () => {
   });
   it("accepts actual broad write wording plus explicit requested configure acknowledgement", () => {
     expect(
-      chatgptConsentDisclosure(true, "Write all of your Paperclip data", true),
+      chatgptConsentDisclosure(true, "Write all of your Outpost data", true),
     ).toBe(true);
     expect(
-      chatgptConsentDisclosure(true, "Write all of your Paperclip data", false),
+      chatgptConsentDisclosure(true, "Write all of your Outpost data", false),
     ).toBe(false);
     expect(
-      chatgptConsentDisclosure(true, "Read all of your Paperclip data", true),
+      chatgptConsentDisclosure(true, "Read all of your Outpost data", true),
     ).toBe(false);
     expect(
       chatgptConsentDisclosure(
         false,
-        "Write all of your Paperclip data",
+        "Write all of your Outpost data",
         false,
       ),
     ).toBe(true);
   });
-  it("requires actual named official callback/person/company request", () => {
+  it("requires actual named official callback/person/space request", () => {
     const r = {
       id: "request",
       clientName: "ChatGPT",
@@ -339,53 +339,53 @@ describe("finite private named-provider contract", () => {
       requestedConfigure: false,
       offlineAccess: true,
       requiresSignIn: false,
-      requestedCompanyId: company,
-      companies: [
-        { id: company, name: "Synthetic", logoUrl: null, canWrite: true },
+      requestedSpaceId: space,
+      spaces: [
+        { id: space, name: "Synthetic", logoUrl: null, canWrite: true },
       ],
       setupUrl: null,
     } satisfies McpConnectionRequest;
-    expect(namedChatgptRequest(r, company)).toBe(true);
+    expect(namedChatgptRequest(r, space)).toBe(true);
     for (const delta of [
       { clientName: "Test MCP" },
       { redirectOrigin: "https://attacker.invalid" },
-      { requestedCompanyId: "other" },
+      { requestedSpaceId: "other" },
       { agentConnection: true },
       { requiresSignIn: true },
       { requestedWrite: false },
-      { companies: [] },
+      { spaces: [] },
     ])
-      expect(namedChatgptRequest({ ...r, ...delta }, company)).toBe(false);
+      expect(namedChatgptRequest({ ...r, ...delta }, space)).toBe(false);
   });
   it("accepts only exact requested and accepted scopes, with actual configure disclosure", () => {
     expect(exactAcceptedChatgptScopes(scopes, scopes, false)).toBe(true);
     expect(
       exactAcceptedChatgptScopes(
-        [...scopes, "paperclip:configure"],
-        [...scopes, "paperclip:configure"],
+        [...scopes, "outpost:configure"],
+        [...scopes, "outpost:configure"],
         true,
       ),
     ).toBe(true);
     for (const [r, a, d] of [
-      [scopes, [...scopes, "paperclip:configure"], true],
+      [scopes, [...scopes, "outpost:configure"], true],
       [
-        [...scopes, "paperclip:configure"],
-        [...scopes, "paperclip:configure"],
+        [...scopes, "outpost:configure"],
+        [...scopes, "outpost:configure"],
         false,
       ],
-      [scopes, ["paperclip:read"], true],
-      [[...scopes, "paperclip:agent"], [...scopes, "paperclip:agent"], true],
+      [scopes, ["outpost:read"], true],
+      [[...scopes, "outpost:agent"], [...scopes, "outpost:agent"], true],
     ])
       expect(exactAcceptedChatgptScopes(r, a, d)).toBe(false);
   });
   it("scopes provider cleanup to actual new app ID and submitted actual URL/name", () => {
-    const text = "New owned app https://fixture.example.test/mcp/paperclip";
+    const text = "New owned app https://fixture.example.test/mcp/outpost";
     expect(
       createdChatgptAppId(
         { app: { id: "owned_app_123" } },
         "New owned app",
         text,
-        "https://fixture.example.test/mcp/paperclip",
+        "https://fixture.example.test/mcp/outpost",
       ),
     ).toBe("owned_app_123");
     expect(
@@ -393,7 +393,7 @@ describe("finite private named-provider contract", () => {
         { id: "owned_app_123" },
         "Unrelated app",
         text,
-        "https://fixture.example.test/mcp/paperclip",
+        "https://fixture.example.test/mcp/outpost",
       ),
     ).toBeUndefined();
     expect(
@@ -401,7 +401,7 @@ describe("finite private named-provider contract", () => {
         { id: "../escape" },
         "New owned app",
         text,
-        "https://fixture.example.test/mcp/paperclip",
+        "https://fixture.example.test/mcp/outpost",
       ),
     ).toBeUndefined();
   });

@@ -5,7 +5,7 @@ import { DELIVERY_QUEUES } from "./delivery-work-notifications.js";
 import type { createDeliveryWorkCoordinator } from "./delivery-work-coordinator.js";
 import { activeNativeExecutionRunIds, subscribeActiveNativeExecutions } from "./native-runtime/native-active-runs.js";
 import { isIdleTaskDrainActive, subscribeTaskDrainChanges } from "./task-admission.js";
-import { subscribeAllCompanyLiveEvents } from "./live-events.js";
+import { subscribeAllSpaceLiveEvents } from "./live-events.js";
 
 /** Temporary overlap, not steady-state horizontal scaling. Listen while startup
  * and its 120-second handoff window are active, or while this process owns a
@@ -29,7 +29,7 @@ export function deploymentNotifications(db: Db, coordinator: ReturnType<typeof c
       if (!wanted()) { await close(); return; }
       if (client) return;
       const opened = createDb(input.directDatabaseUrl, { maxConnections: 1, connectTimeoutSeconds: 5,
-        applicationName: "paperclip-deployment-notifications" }).$client;
+        applicationName: "outpost-deployment-notifications" }).$client;
       client = opened;
       const abort = () => { void opened.end({ timeout: 0 }); };
       signal.addEventListener("abort", abort, { once: true });
@@ -46,22 +46,22 @@ export function deploymentNotifications(db: Db, coordinator: ReturnType<typeof c
   const stopActive = subscribeActiveNativeExecutions(listener.wake);
   const stopDrain = subscribeTaskDrainChanges(listener.wake);
 
-  // Only company identity crosses the hint channel, never event contents or
+  // Only space identity crosses the hint channel, never event contents or
   // authorization decisions. A receiving tab refreshes through its normal API.
-  const companies = new Set<string>();
+  const spaces = new Set<string>();
   let flushAt: number | null = null;
   const publisher = coordinator.register(DELIVERY_QUEUES.liveInvalidations, {
     retryMs: 1000, runDuringDrain: true,
     async run() {
       if (flushAt === null || Date.now() < flushAt) return;
-      // Remove before awaiting: a same-company event arriving during the SQL
+      // Remove before awaiting: a same-space event arriving during the SQL
       // write belongs to the next batch and must not be cleared by this one.
       flushAt = null;
-      for (const companyId of [...companies]) {
-        companies.delete(companyId);
-        try { await publishDatabaseWorkHint(db, `live:${companyId}`); }
+      for (const spaceId of [...spaces]) {
+        spaces.delete(spaceId);
+        try { await publishDatabaseWorkHint(db, `live:${spaceId}`); }
         catch (error) {
-          companies.add(companyId);
+          spaces.add(spaceId);
           flushAt ??= Date.now() + 1000;
           throw error;
         }
@@ -70,9 +70,9 @@ export function deploymentNotifications(db: Db, coordinator: ReturnType<typeof c
     hasPending: async () => false,
     nextRunAt: () => flushAt,
   });
-  const stopEvents = subscribeAllCompanyLiveEvents(event => {
-    if (stopped || !/^[a-f0-9-]{36}$/i.test(event.companyId)) return;
-    companies.add(event.companyId);
+  const stopEvents = subscribeAllSpaceLiveEvents(event => {
+    if (stopped || !/^[a-f0-9-]{36}$/i.test(event.spaceId)) return;
+    spaces.add(event.spaceId);
     flushAt ??= Date.now() + 1000;
     publisher.wake();
   });
@@ -87,8 +87,8 @@ export function deploymentNotifications(db: Db, coordinator: ReturnType<typeof c
       handoffEndsAt = Date.now() + (input.handoffMs ?? 120_000);
       listener.wake();
     },
-    subscribeCompany(companyId: string, resync: () => void) {
-      return subscribeDatabaseWork(db, `live:${companyId}`, event => { if (event === "settled") resync(); });
+    subscribeSpace(spaceId: string, resync: () => void) {
+      return subscribeDatabaseWork(db, `live:${spaceId}`, event => { if (event === "settled") resync(); });
     },
     async stop() {
       stopped = true;

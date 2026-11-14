@@ -4,7 +4,7 @@ import { equal, type AgentConfigurationSnapshot } from "./load";
 import { requireItem, requireExplicitFields, unique, type AddConfigurationStep } from "./steps";
 
 export function planChannelChanges(snapshot: AgentConfigurationSnapshot, document: AgentConfigurationDocument, add: AddConfigurationStep) {
-  const { id: agentId, companyId } = snapshot.agent;
+  const { id: agentId, spaceId } = snapshot.agent;
   const before = snapshot.document.spec.channels!;
   const next = document.spec.channels;
   if (next) {
@@ -35,7 +35,7 @@ export function planChannelChanges(snapshot: AgentConfigurationSnapshot, documen
   const operations = document.spec.channelOperations;
   if (!operations) return;
   unique(operations.setup.map(row => row.id), "channelOperations.setup");
-  for (const input of operations.create) add(`Create ${input.provider} channel`, () => chatEndpointsApi.create(companyId, { ...input, assignedAgentId: agentId }));
+  for (const input of operations.create) add(`Create ${input.provider} channel`, () => chatEndpointsApi.create(spaceId, { ...input, assignedAgentId: agentId }));
   for (const operation of operations.setup) {
     const previous = requireItem(before, channel => channel.id === operation.id, `Channel ${operation.id}`);
     if (operation.input.action === "remove" && next && !equal(next.find(row => row.id === operation.id), previous)) throw new Error(`Channel ${operation.id} cannot be edited and removed in the same save.`);

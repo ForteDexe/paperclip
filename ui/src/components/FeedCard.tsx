@@ -88,7 +88,7 @@ function formatVerb(
       return "requested changes on";
 
     case "agent.created":
-      return context === "pinned" ? "wants to hire" : "hired";
+      return context === "pinned" ? "wants to create" : "created";
     case "agent.paused":
       return "paused";
     case "agent.resumed":
@@ -115,13 +115,13 @@ function formatVerb(
       return "updated north star";
     case "goal.deleted":
       return "deleted north star";
-    case "company.created":
+    case "space.created":
       return "created outpost";
-    case "company.updated":
+    case "space.updated":
       return "updated outpost";
-    case "company.archived":
+    case "space.archived":
       return "archived outpost";
-    case "company.budget_updated":
+    case "space.budget_updated":
       return "updated a legacy policy";
 
     default:
@@ -316,7 +316,7 @@ function resolveContent(
   const isDocEvent =
     event.action === "issue.document_created" || event.action === "issue.document_updated";
   const issueSlug = entityName ?? event.entityId;
-  const hiredAgentId = details?.hiredAgentId as string | undefined;
+  const createdAgentId = details?.createdAgentId as string | undefined;
   const approvalAgentId = details?.requestedByAgentId as string | undefined;
   const approvalAgentName = approvalAgentId ? agentMap.get(approvalAgentId)?.name ?? null : null;
   const approvalType = details?.type as string | undefined;
@@ -330,8 +330,8 @@ function resolveContent(
       : event.entityType === "agent"
         ? `/agents/${event.entityId}`
         : event.entityType === "approval"
-          ? event.action === "approval.approved" && hiredAgentId
-            ? `/agents/${hiredAgentId}`
+          ? event.action === "approval.approved" && createdAgentId
+            ? `/agents/${createdAgentId}`
             : `/approvals/${event.entityId}`
           : event.entityType === "project"
             ? `/projects/${deriveProjectUrlKey(entityName, event.entityId)}`
@@ -344,7 +344,7 @@ function resolveContent(
   let title: string | null = null;
 
   if (event.entityType === "issue") {
-    // Docs (e.g. FOA-2#hiring-plan) previously showed the doc key, but it
+    // Docs (e.g. FOA-2#creation-plan) previously showed the doc key, but it
     // duplicates the human-readable title that follows. Show just the task
     // slug; the title carries the document name.
     identifier = entityName;
@@ -410,7 +410,7 @@ interface FeedCardProps {
    *  timestamp retain their color; leading icon retains its color. */
   isMuted?: boolean;
   /** Tier 0 treatment: adds a trailing "Review →" affordance and swaps in
-   *  pinned-context verb phrasing ("needs approval on", "wants to hire"). */
+   *  pinned-context verb phrasing ("needs approval on", "wants to create"). */
   isPinned?: boolean;
   className?: string;
 }

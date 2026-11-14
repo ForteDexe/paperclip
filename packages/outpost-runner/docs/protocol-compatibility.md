@@ -74,7 +74,7 @@ Codex `turn/diff/updated` is normalized separately as the latest same-turn
 families can drive a turn-status UI without changing the public ORP family or
 adding a control-plane endpoint.
 
-## Governance activity: hooks and automatic approval reviews
+## Approvals activity: hooks and automatic approval reviews
 
 `hook.started` / `hook.completed` (`outpost.hook.v1`) and
 `safety.review.started` / `safety.review.completed`
@@ -116,7 +116,7 @@ preconfigured home.
   belong on the wire.
 - Result receipts distinguish success, denial, conflict, exact duplicate,
   unavailable, and failure. They can name the authorization boundary, safe
-  revision, artifact/work-product refs, immutable governed targets, and bounded
+  revision, artifact/work-product refs, immutable controlled targets, and bounded
   wake/monitor causality.
 - `terminal.stopReason` records budget/cost kind, stable code, retryability,
   limit class, safe aggregate, and decision receipt.
@@ -149,7 +149,7 @@ sequences; legacy and select custom answers retain their existing normalization.
 JSON Schema, TypeScript and Rust count draft Unicode code points alike. Existing
 submitted-answer limits still count UTF-16 code units; a draft can require editing
 before it satisfies those limits or field-specific constraints. Required blank
-answers remain invalid. Redaction, company scope and durable
+answers remain invalid. Redaction, space scope and durable
 replay rules remain in force.
 
 Question and option order is significant, while answers are keyed by stable
@@ -215,7 +215,7 @@ See [Adding a harness](adding-a-harness.md) for the permission catalog,
 isolation rules, and provider conformance requirements.
 
 Seven conformance fixtures cover artifact success, redacted denial without
-fallback, stale conflict plus duplicate retry, governed target and continuation
+fallback, stale conflict plus duplicate retry, controlled target and continuation
 causality, budget/cost stop, unknown optional fields, and rejection of an
 unknown required version. The six accepted fixtures have shared TypeScript and
 Rust golden parity summaries.
@@ -309,7 +309,7 @@ remain in v1 only when old consumers can safely ignore them.
 ORP is one independently versioned component of the runner bundle. Catalog,
 runner-client, control-plane-adapter, testkit, and eval-corpus compatibility is
 declared by `OUTPOST_RUNNER_COMPATIBILITY` and checked before execution by
-`assertPaperclipRunnerCompatibility`. A mismatch fails with
+`assertOutpostRunnerCompatibility`. A mismatch fails with
 `outpost_runner_incompatible` and stable per-issue codes; a provider-specific
 tool error is not a compatibility negotiation mechanism.
 
@@ -319,7 +319,7 @@ component rules and clean-consumer packaging gate.
 ## Evals integration negotiation
 
 The packed `./evals` entry point adds a stricter execution preflight for the
-App/Evals join. `assertPaperclipRunnerEvalCompatibility` requires simultaneous
+App/Evals join. `assertOutpostRunnerEvalCompatibility` requires simultaneous
 agreement on package semver, runnerd build metadata, a common ORP version,
 semantic catalog version and SHA-256 digest, harness-driver contract and
 required capabilities, and the native-execution version. It reports
@@ -328,7 +328,7 @@ mismatch and must run before launching a provider.
 
 runnerd itself reports `outpost-runner/runnerd-build-metadata/v1` from
 `--build-metadata`. The consumer passes its path and expected content digest to
-`resolvePaperclipRunnerdArtifact`; implicit PATH or source-tree discovery is
+`resolveOutpostRunnerdArtifact`; implicit PATH or source-tree discovery is
 not part of the contract. Native attempt output is
 `outpost-runner/native-execution/v1`, whose parser accepts unknown additive
 fields but rejects unknown required versions and inconsistent terminal,
@@ -350,8 +350,8 @@ fresh compatibility checks; earlier provider runs retain their original identiti
 
 ## Claude essential task tools
 
-Claude's runner-owned MCP bridge marks `set_task_title`, `paperclip_finish` and
-`paperclip_block` with `_meta["anthropic/alwaysLoad"]: true`. The pinned SDK can
+Claude's runner-owned MCP bridge marks `set_task_title`, `outpost_finish` and
+`outpost_block` with `_meta["anthropic/alwaysLoad"]: true`. The pinned SDK can
 include these definitions in its first request without a ToolSearch round trip.
 Other public tools keep their existing deferral policy. Private operations stay
 undiscoverable, and incoming tool definitions cannot set this metadata themselves.

@@ -1,6 +1,6 @@
 # Capability Outpost-style issue-thread UI
 
-Capability renders the mock Outpost issue as a native issue thread. A board user
+Capability renders the mock Outpost issue as a native issue thread. A operator
 reads the thread, answers typed interactions inline, and inspects the evidence
 behind every mock mutation. The implementation follows the binding
 [Capability issue-thread UX contract](design/capability-issue-thread-ux-contract.md).
@@ -89,8 +89,8 @@ there would make two tabs of one surface revoke each other on every load while
 protecting nothing: one browser is one principal, and cross-browser denial rests
 on the binding rather than on how often the value changes.
 
-The two surfaces use separate cookie names (`paperclip_capability_issue`,
-`paperclip_capability_chat`) because they are separate pages of one origin: a single
+The two surfaces use separate cookie names (`outpost_capability_issue`,
+`outpost_capability_chat`) because they are separate pages of one origin: a single
 name would make opening the explorer revoke the clean room. A script that drives
 these routes has to behave like one browser — `scripts/capability-cookie-jar.mjs` is
 what the smoke scripts use for that.
@@ -117,7 +117,7 @@ what the smoke scripts use for that.
   *cannot* call is first-class evidence. Every strip, denial, and card deep-links
   into the matching record, and each record links back to its thread anchor.
   Live sessions additionally put a six-tab DevTools inspector above these
-  sections: revision timeline, complete browser-safe company state, structural
+  sections: revision timeline, complete browser-safe space state, structural
   diff, protocol records, runtime, and authority. The inspector can pause live
   following, export redacted JSON, and fork a retained revision.
 
@@ -173,7 +173,7 @@ Hosts without the Playwright chromium system libraries can either run
 `OUTPOST_RUNNER_CHROMIUM_PATH` to a preinstalled Chromium.
 
 The committed PNGs are pinned to the Chromium build listed in
-`.paperclip-local/evidence/capability/ui/index.md`, so `check:capability:ui` needs that same
+`.outpost-local/evidence/capability/ui/index.md`, so `check:capability:ui` needs that same
 browser. Point `OUTPOST_RUNNER_CHROMIUM_PATH` at the recorded browser before
 comparing — and when that path is the agent-browser wrapper, also set
 `OUTPOST_CHROMIUM_BIN` to the exact binary, because the wrapper otherwise
@@ -219,6 +219,6 @@ One deviation is recorded against the Capability contract:
 Fake-mode fixtures render from authored data with a fixed clock, so two captures
 of a slug from a clean checkout are byte-identical. Live sessions are not
 byte-stable — a real model writes their prose — so live evidence lives in
-`.paperclip-local/evidence/capability/ui-live/` and is excluded from the determinism gate.
+`.outpost-local/evidence/capability/ui-live/` and is excluded from the determinism gate.
 Durable comments in live mode carry the mock control plane's own deterministic
 clock rather than wall time, because that is the timestamp on the mock record.

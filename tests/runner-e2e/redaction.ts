@@ -104,12 +104,12 @@ export function findSecretLeakMatch(value: string | Buffer, secrets: readonly st
 }
 
 export function isEphemeralCodexRuntimeAuthFile(
-  paperclipHome: string,
+  outpostHome: string,
   file: string,
 ) {
-  const relative = path.relative(paperclipHome, file).split(path.sep).join("/");
+  const relative = path.relative(outpostHome, file).split(path.sep).join("/");
   return (
-    /^instances\/[^/]+\/companies\/[^/]+\/agents\/[^/]+\/codex-home\/auth\.json$/.test(
+    /^instances\/[^/]+\/spaces\/[^/]+\/agents\/[^/]+\/codex-home\/auth\.json$/.test(
       relative,
     ) ||
     /^instances\/[^/]+\/runtime\/outpost-runner\/durable-sessions\/[^/]+\/codex-home\/auth\.json$/.test(
@@ -121,14 +121,14 @@ export function isEphemeralCodexRuntimeAuthFile(
   );
 }
 
-export function isEphemeralCodexRuntimeIdentityDatabase(paperclipHome: string, file: string) {
+export function isEphemeralCodexRuntimeIdentityDatabase(outpostHome: string, file: string) {
   return /^(?:logs|state)_\d+\.sqlite(?:-wal|-shm)?$/.test(path.basename(file)) &&
-    isEphemeralCodexRuntimeAuthFile(paperclipHome, path.join(path.dirname(file), "auth.json"));
+    isEphemeralCodexRuntimeAuthFile(outpostHome, path.join(path.dirname(file), "auth.json"));
 }
 
-function isEphemeralCodexRolloutFile(paperclipHome: string, file: string) {
+function isEphemeralCodexRolloutFile(outpostHome: string, file: string) {
   const match = /^(.*\/codex-home)\/sessions\/\d{4}\/\d{2}\/\d{2}\/rollout-[\w-]+\.jsonl$/.exec(file.split(path.sep).join("/"));
-  return Boolean(match && isEphemeralCodexRuntimeAuthFile(paperclipHome, path.join(match[1]!, "auth.json")));
+  return Boolean(match && isEphemeralCodexRuntimeAuthFile(outpostHome, path.join(match[1]!, "auth.json")));
 }
 
 function privateCodexAccountIdentity(sources: SecretScanOptions["sources"]): string | undefined {
@@ -262,16 +262,16 @@ export function assertSecretFree(
   if (leak) throw new Error(`Secret leak in ${label}: ${leak}`);
 }
 
-export function isEphemeralPostgresPidFile(paperclipHome: string, file: string): boolean {
-  const relative = path.relative(paperclipHome, file).split(path.sep).join("/");
+export function isEphemeralPostgresPidFile(outpostHome: string, file: string): boolean {
+  const relative = path.relative(outpostHome, file).split(path.sep).join("/");
   return /^instances\/[^/]+\/db\/postmaster\.pid$/.test(relative);
 }
 
-export function isEphemeralPostgresScanFile(paperclipHome: string, file: string): boolean {
-  const relative = path.relative(paperclipHome, file).split(path.sep).join("/");
+export function isEphemeralPostgresScanFile(outpostHome: string, file: string): boolean {
+  const relative = path.relative(outpostHome, file).split(path.sep).join("/");
   // A relation can be unlinked during PostgreSQL shutdown/checkpoint. Existing
   // files are always scanned; this predicate only permits ENOENT after readdir.
-  return isEphemeralPostgresPidFile(paperclipHome, file) ||
+  return isEphemeralPostgresPidFile(outpostHome, file) ||
     /^instances\/[^/]+\/db\/base\/\d+\/\d+(?:_(?:fsm|vm|init))?(?:\.\d+)?$/.test(relative);
 }
 
@@ -279,14 +279,14 @@ export function isEphemeralPostgresScanFile(paperclipHome: string, file: string)
  * hold a product-delivered credential (the saved chat reply and the run events
  * it is built from). Run logs, server/HTTP logs and every other file stay
  * strict. */
-export function isProductDeliveredStateFile(paperclipHome: string, file: string): boolean {
-  const relative = path.relative(paperclipHome, file).split(path.sep).join("/");
+export function isProductDeliveredStateFile(outpostHome: string, file: string): boolean {
+  const relative = path.relative(outpostHome, file).split(path.sep).join("/");
   return /^instances\/[^/]+\/db\//.test(relative);
 }
 
 /** Scan persisted state. A product-delivered value is held to every rule
  * except inside the embedded database under `productStateRoot` (the isolated
- * Paperclip home); every other secret is held to every rule everywhere. */
+ * Outpost home); every other secret is held to every rule everywhere. */
 export async function findSecretLeakInPersistedState(
   root: string,
   secrets: readonly string[],
@@ -316,7 +316,7 @@ export async function findSecretLeakInDirectory(
   } = {},
 ): Promise<({ file: string } & SecretLeakMatch) | null> {
   const index = secretMatchIndex(secrets, options.sources);
-  if (options.privateDockerDatabaseConfig && root !== path.join(options.privateDockerDatabaseConfig.temporaryRoot, "paperclip-home")) throw new Error("Docker config custody requires the isolated home scan");
+  if (options.privateDockerDatabaseConfig && root !== path.join(options.privateDockerDatabaseConfig.temporaryRoot, "outpost-home")) throw new Error("Docker config custody requires the isolated home scan");
   const dockerConfigText = options.privateDockerDatabaseConfig ? await readDockerConfigForSecretScan(root, options.privateDockerDatabaseConfig) : undefined;
   let privateIdentity: string | undefined;
   if (options.privateCodexRuntimeIdentityRoot) {

@@ -7,11 +7,11 @@ Both are free-form, internally attributed records, not anonymous feedback.
 ## Agent entry points
 
 Skill-capable legacy adapters automatically receive `complain` and
-`suggestion-box` alongside the `paperclip` operational skill, including existing
+`suggestion-box` alongside the `outpost` operational skill, including existing
 agents with empty optional-skill selections. The shared helper lives in that
 operational skill at `scripts/submit-agent-commentary.mjs`. It reads the body
 from stdin and uses the existing `OUTPOST_API_URL`, `OUTPOST_API_KEY`,
-`OUTPOST_COMPANY_ID`, and `OUTPOST_RUN_ID`. The helper uses the existing
+`OUTPOST_SPACE_ID`, and `OUTPOST_RUN_ID`. The helper uses the existing
 Node.js runtime with no additional dependencies; custom runtimes can call HTTP
 directly. Sandboxed runs use the callback bridge.
 
@@ -24,7 +24,7 @@ Submit before finishing the run.
 Instructions closely adapt Warp's
 [complain](https://github.com/warpdotdev/common-skills/blob/main/.agents/skills/complain/SKILL.md)
 and [suggestion-box](https://github.com/warpdotdev/common-skills/blob/main/.agents/skills/suggestion-box/SKILL.md)
-skills, with their MIT notices included. Paperclip changes the transport,
+skills, with their MIT notices included. Outpost changes the transport,
 attribution, suggestion form, and size limit. Agents submit proactively when
 warranted, without routine previews or announcements, then continue working.
 Answer truthfully if a user asks about feedback or submitted content. Operators
@@ -34,8 +34,8 @@ Do not report the same incident through both paths or retry failed submissions.
 
 ## HTTP contract
 
-`POST /api/companies/:companyId/agent-commentary` accepts an authenticated agent
-and its active run (`Authorization: Bearer …`, `X-Paperclip-Run-Id: …`):
+`POST /api/spaces/:spaceId/agent-commentary` accepts an authenticated agent
+and its active run (`Authorization: Bearer …`, `X-Outpost-Run-Id: …`):
 
 ```json
 {"kind":"suggestion","body":"The tool returned before persistence completed. Wait for the write before returning success.","idempotencyKey":"write-completion-1"}
@@ -51,7 +51,7 @@ Existing 10 MiB HTTP and callback bridge request limits remain. Keys are nonempt
 and at most 240 characters.
 
 Creation returns HTTP 201 with `{id, kind, createdAt, replayed:false}`. Identical
-replay in the same company/run returns HTTP 200 with the same ID and timestamp
+replay in the same space/run returns HTTP 200 with the same ID and timestamp
 and `replayed:true`. Conflicting key reuse returns 409. Invalid input returns 400;
 invalid authority returns 401/403; storage failure returns a sanitized 503.
 Authorization precedes replay. The helper accepts an optional second argument
@@ -61,7 +61,7 @@ It never follows redirects with credentials or claims an uncertain write succeed
 
 ## Storage and inspection
 
-Rows contain company, agent, run, nullable issue, kind, body, retry key, payload
+Rows contain space, agent, run, nullable issue, kind, body, retry key, payload
 hash, and timestamp. Known run secrets and credential syntax are redacted before
 storage; instructions remain essential because redaction cannot guarantee
 secrecy. Writes and one content-free activity record commit together. Feedback
@@ -72,10 +72,10 @@ text search, agent/type filters, 50-message pages and a full-message dialog with
 task/run context. Filters, page offsets and selected messages have shareable
 URLs (`?entry=<message-id>` opens a message directly).
 
-The board-only read API is `GET /api/companies/:companyId/agent-commentary`
+The board-only read API is `GET /api/spaces/:spaceId/agent-commentary`
 (`agentId`, `kind`, `q`, `limit` up to 100, `offset`) and
-`GET /api/companies/:companyId/agent-commentary/:id`. Both require company access
-and `commentary:view`. All human company roles, including viewers, receive this
+`GET /api/spaces/:spaceId/agent-commentary/:id`. Both require space access
+and `commentary:view`. All human space roles, including viewers, receive this
 permission by default. The upgrade migration grants it to existing active human
 members without changing existing commentary grants. Human invitation approval
 adds the default to saved grant lists that omit it, including older invitations,
@@ -96,12 +96,12 @@ Authorized operators inspect the instance database, for example:
 ```sql
 SELECT id, kind, body, agent_id, run_id, issue_id, created_at
 FROM agent_commentary
-WHERE company_id = '<company UUID>'
+WHERE space_id = '<space UUID>'
 ORDER BY created_at DESC;
 ```
 
-The service enforces company/run ownership. Foreign keys clear the task reference
-on task deletion and cascade deletion with its run, agent, or company. Normal
+The service enforces space/run ownership. Foreign keys clear the task reference
+on task deletion and cascade deletion with its run, agent, or space. Normal
 logical database backups include these rows. No retention scheduler or backfill.
 
 ## Verification
@@ -154,7 +154,7 @@ the real agent submits all feedback. This is a focused feedback transport smoke,
 not a full Runner E2E catalog qualification or browser onboarding test.
 
 Both paths passed locally and on Daytona on 2026-10-06. Each persisted one complaint and one suggestion
-with company, agent, run, and task attribution; each then wrote the continuation
+with space, agent, run, and task attribution; each then wrote the continuation
 marker. Both exited zero, left task status unchanged, created no task comments,
 and recorded two content-free activity entries. The script emits the attributed
 row IDs and timestamps as evidence, optionally saves a JSON report, and deletes

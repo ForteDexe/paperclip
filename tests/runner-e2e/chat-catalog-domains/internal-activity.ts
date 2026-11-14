@@ -13,7 +13,7 @@ export function grade_activity(value: unknown) {
   const authored = (action: string, id: string) => o.activity.some(row => row.action === action && row.entityId === id && row.agentId === o.leadId);
   const linkedTask = () => !!current && hasLink(o, "issues", current);
   switch (o.scenarioId) {
-    case "activity.company-overview": {
+    case "activity.space-overview": {
       const blocked = entity(o.state, "blockedTask"); const done = entity(o.state, "doneTask"); const worker = entity(o.state, "worker");
       const expected = [before, blocked, done].filter((row): row is Entity => !!row);
       // Saved task states, links, the recorded blocker and Morgan's status are graded here. How the
@@ -27,7 +27,7 @@ export function grade_activity(value: unknown) {
         "The idle engineer stays idle and is not woken by the overview.");
       const asserted = [...o.reply.matchAll(/\b(\d+)\s+(active|blocked|completed|done)\s+(?:tasks?|items?)\b/gi)];
       c.add("scoped-counts", asserted.every(match => Number(match[1]) === 1) && !o.reply.includes(String(o.state.hiddenMarker)),
-        "Any explicit state counts match the three visible tasks, and hidden-company work is absent.");
+        "Any explicit state counts match the three visible tasks, and hidden-space work is absent.");
       c.add("observation-time", statesObservationTime(o.reply, o.runs, String(o.state.timezone ?? "UTC")),
         "The overview states a clock time that falls inside the answering run, in UTC or the browser's timezone; relative words such as \"right now\" are not a time.");
       break;
@@ -50,7 +50,7 @@ export function grade_activity(value: unknown) {
 
 const define = (id: string, setup: ChatCatalogCase["setup"]) => makeDefinition(id, setup, grade_activity);
 export const activityCases: readonly ChatCatalogCase[] = [
-  companyOverview(),
+  spaceOverview(),
   { ...define("activity.audit-change", async ctx => {
     const p = await project(ctx); let t = await task(ctx, "Website task", p.id);
     await ctx.input.api.patch(`/api/issues/${t.id}`, { priority: "high" });
@@ -139,32 +139,32 @@ function clockTime(hour: number, minute: string, meridiem?: string): string | un
   return `${String(value).padStart(2, "0")}:${minute}`;
 }
 
-function companyOverview(): ChatCatalogCase {
-  const base = define("activity.company-overview", async ctx => {
+function spaceOverview(): ChatCatalogCase {
+  const base = define("activity.space-overview", async ctx => {
     const p = await project(ctx); const worker = await fixtureWorker(ctx);
-    const active = await task(ctx, "Website draft", p.id, { status: "in_progress", assigneeUserId: "local-board" });
+    const active = await task(ctx, "Website draft", p.id, { status: "in_progress", assigneeUserId: "local-operator" });
     const blocker = `approved launch colors ${ctx.input.nonce}`;
     const blockedTask = await task(ctx, "Accessibility review", p.id, { status: "blocked", description: `Waiting for ${blocker}.` });
     const doneTask = await task(ctx, "Launch brief delivered", p.id, { status: "done" });
-    const hiddenCompany = await ctx.input.api.post<Entity>("/api/companies", { name: `Hidden company ${ctx.input.nonce}` });
+    const hiddenSpace = await ctx.input.api.post<Entity>("/api/spaces", { name: `Hidden space ${ctx.input.nonce}` });
     const hiddenMarker = `Hidden acquisition ${ctx.input.nonce}`;
-    await ctx.input.api.post(`/api/companies/${hiddenCompany.id}/issues`, { title: hiddenMarker, status: "blocked" });
+    await ctx.input.api.post(`/api/spaces/${hiddenSpace.id}/issues`, { title: hiddenMarker, status: "blocked" });
     const timezone = await ctx.input.page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
-    return { project: p, task: active, blockedTask, doneTask, worker, blocker, hiddenCompany, hiddenMarker, timezone };
+    return { project: p, task: active, blockedTask, doneTask, worker, blocker, hiddenSpace, hiddenMarker, timezone };
   });
   return { ...base, oracleVersion: "outpost.chat-catalog.activity-overview.grounded.v4", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/recorded-work-claims.ts"], async verifySetup(ctx, state) {
     const active = await ctx.input.api.get<Entity & { assigneeUserId: string | null }>(`/api/issues/${entity(state, "task").id}`);
     const worker = await ctx.input.api.get<Entity>(`/api/agents/${entity(state, "worker").id}`);
     const c = checks();
-    c.add("human-owned-active-work", active.status === "in_progress" && active.assigneeUserId === "local-board" && !active.assigneeAgentId,
+    c.add("human-owned-active-work", active.status === "in_progress" && active.assigneeUserId === "local-operator" && !active.assigneeAgentId,
       "The active task has a real local board owner without admitting agent execution.");
     c.add("idle-worker-no-setup-run", worker.status === "idle" && (await ctx.allRuns()).length === 0,
       "Morgan remains genuinely idle and fixture preparation admits no native run.");
     return c.result();
   }, async observe(ctx, state) {
     const o = await observeInternal(ctx, state);
-    return { ...o, agents: await ctx.input.api.get<Entity[]>(`/api/companies/${ctx.input.fixtures.company.id}/agents`) };
-  }, async cleanup(ctx, state) { await ctx.input.api.delete(`/api/companies/${entity(state, "hiddenCompany").id}`, { allowNotFound: true }); } };
+    return { ...o, agents: await ctx.input.api.get<Entity[]>(`/api/spaces/${ctx.input.fixtures.space.id}/agents`) };
+  }, async cleanup(ctx, state) { await ctx.input.api.delete(`/api/spaces/${entity(state, "hiddenSpace").id}`, { allowNotFound: true }); } };
 }
 import { observeInternal } from "./internal-support.js";
 
@@ -173,7 +173,7 @@ const wordPattern = (value: string) => new RegExp(`(?<![\\w-])${value.replace(/[
 /** Grades the facts the question asked for (who, and the from/to values) by structure rather than
  * sentence grammar: each recorded editor is named somewhere in the reply, every stated transition is a
  * real one, and each recorded change's new value is reported. Mentions of other actors are not graded.
- * How the reply phrases the attribution ("by local-board", "local-board made both", a table, a
+ * How the reply phrases the attribution ("by local-operator", "local-operator made both", a table, a
  * header over bullets) is left to a human reader. */
 export function attributedPriorityChanges(reply: string, events: Entity[], target?: Entity): boolean {
   if (events.length !== 2 || events.some(event => !event.actorId || !event.details?.priority)) return false;
@@ -197,7 +197,7 @@ export function attributedPriorityChanges(reply: string, events: Entity[], targe
   const reported = events.every(event => tokens.some(token => token[1]!.toLowerCase() === change(event).to
     && (!pairs.some(pair => pair.start === token.index) || pairs.some(pair => pair.end === token.index))));
   const actors = [...new Set(events.map(event => event.actorId!))];
-  const aliases = (actor: string) => actor === "local-board" ? [actor, "local board", "board"] : [actor];
+  const aliases = (actor: string) => actor === "local-operator" ? [actor, "local board", "board"] : [actor];
   const named = actors.every(actor => aliases(actor).some(alias => wordPattern(alias).test(plain)));
   return reported && named;
 }

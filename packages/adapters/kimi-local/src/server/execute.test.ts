@@ -21,7 +21,7 @@ vi.mock("@outpost/adapter-utils/execution-target", () => ({
   adapterExecutionTargetSessionIdentity: () => ({ kind: "local" }),
   adapterExecutionTargetSessionMatches: () => true,
   adapterExecutionTargetUsesManagedHome: () => false,
-  adapterExecutionTargetUsesPaperclipBridge: () => false,
+  adapterExecutionTargetUsesOutpostBridge: () => false,
   describeAdapterExecutionTarget: () => "local",
   ensureAdapterExecutionTargetCommandResolvable: ensureCommandMock,
   ensureAdapterExecutionTargetRuntimeCommandInstalled: ensureRuntimeInstalledMock,
@@ -32,7 +32,7 @@ vi.mock("@outpost/adapter-utils/execution-target", () => ({
   resolveAdapterExecutionTargetTimeoutSec: (_target: unknown, timeoutSec: number) => timeoutSec,
   runAdapterExecutionTargetProcess: runProcessMock,
   runAdapterExecutionTargetShellCommand: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
-  startAdapterExecutionTargetPaperclipBridge: async () => null,
+  startAdapterExecutionTargetOutpostBridge: async () => null,
 }));
 
 import { execute } from "./execute.js";
@@ -40,7 +40,7 @@ import { execute } from "./execute.js";
 const tempRoots: string[] = [];
 
 async function makeTempRoot() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-kimi-local-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-kimi-local-"));
   tempRoots.push(root);
   return root;
 }
@@ -50,7 +50,7 @@ function makeContext(root: string, overrides: Partial<AdapterExecutionContext> =
     runId: "run-1",
     agent: {
       id: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       name: "Kimi Agent",
       adapterType: "kimi_local",
       adapterConfig: {},
@@ -149,7 +149,7 @@ describe("kimi_local execute", () => {
       context: fixture,
     }));
 
-    expect(deliveredPrompt).toContain(fixture.paperclipTaskMarkdownAssignment);
+    expect(deliveredPrompt).toContain(fixture.outpostTaskMarkdownAssignment);
     expect(deliveredPrompt.indexOf("Append the same ledger entry.")).toBeLessThan(
       deliveredPrompt.lastIndexOf("Append the same ledger entry."),
     );
@@ -290,7 +290,7 @@ describe("kimi_local execute", () => {
     expect(runProcessMock).toHaveBeenCalledTimes(2);
     expect(seenArgLists[0]).toContain("-r");
     expect(seenArgLists[1]).not.toContain("-r");
-    expect(seenArgLists[1].at(-1)).toContain(fixture.paperclipTaskMarkdownAssignment);
+    expect(seenArgLists[1].at(-1)).toContain(fixture.outpostTaskMarkdownAssignment);
     expect(seenArgLists[1].at(-1)).toContain("BOOTSTRAP run-1");
     expect(seenArgLists[1].at(-1)).toContain("comment-first");
     expect(result).toMatchObject({ exitCode: 0, sessionId: "session_abc-123" });
@@ -450,6 +450,6 @@ describe("kimi_local execute", () => {
     await execute(makeContext(root, { config: { cwd: root, model: "kimi-code/k3" } }));
 
     expect(seenArgs).toContain("--skills-dir");
-    expect(seenArgs[seenArgs.indexOf("--skills-dir") + 1]).toContain("paperclip-kimi-skills-");
+    expect(seenArgs[seenArgs.indexOf("--skills-dir") + 1]).toContain("outpost-kimi-skills-");
   });
 });

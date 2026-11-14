@@ -30,7 +30,7 @@
           "mcp"
         ]
       },
-      "guidanceMd": "Connect Gauge in the browser and choose the organization this connection may use. Write tools start enabled and remain governed by Outpost's action policies.",
+      "guidanceMd": "Connect Gauge in the browser and choose the organization this connection may use. Write tools start enabled and remain controlled by Outpost's action policies.",
       "riskTier": "S3",
       "label": "Sign in with Gauge",
       "consoleLinks": {

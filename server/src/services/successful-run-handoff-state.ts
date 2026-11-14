@@ -15,13 +15,13 @@ const heartbeatRunIssueId = sql<string>`coalesce(
 const wakeRequestIssueId = sql<string>`coalesce(
   ${agentWakeupRequests.payload} ->> 'issueId',
   ${agentWakeupRequests.payload} ->> 'taskId',
-  ${agentWakeupRequests.payload} -> '_paperclipWakeContext' ->> 'issueId',
-  ${agentWakeupRequests.payload} -> '_paperclipWakeContext' ->> 'taskId'
+  ${agentWakeupRequests.payload} -> '_outpostWakeContext' ->> 'issueId',
+  ${agentWakeupRequests.payload} -> '_outpostWakeContext' ->> 'taskId'
 )`;
 
 export async function hydrateSuccessfulRunHandoffLiveness(
   dbOrTx: any,
-  companyId: string,
+  spaceId: string,
   states: Map<string, SuccessfulRunHandoffState>,
 ) {
   const unresolvedIssueIds = [...states.entries()]
@@ -34,7 +34,7 @@ export async function hydrateSuccessfulRunHandoffLiveness(
       .select({ id: heartbeatRuns.id, issueId: heartbeatRunIssueId })
       .from(heartbeatRuns)
       .where(and(
-        eq(heartbeatRuns.companyId, companyId),
+        eq(heartbeatRuns.spaceId, spaceId),
         inArray(heartbeatRuns.status, [...SUCCESSFUL_RUN_HANDOFF_LIVE_RUN_STATUSES]),
         inArray(heartbeatRunIssueId, unresolvedIssueIds),
       )),
@@ -42,7 +42,7 @@ export async function hydrateSuccessfulRunHandoffLiveness(
       .select({ issueId: wakeRequestIssueId })
       .from(agentWakeupRequests)
       .where(and(
-        eq(agentWakeupRequests.companyId, companyId),
+        eq(agentWakeupRequests.spaceId, spaceId),
         inArray(agentWakeupRequests.status, [...SUCCESSFUL_RUN_HANDOFF_LIVE_WAKE_STATUSES]),
         inArray(wakeRequestIssueId, unresolvedIssueIds),
       )),
@@ -75,7 +75,7 @@ export async function hydrateSuccessfulRunHandoffLiveness(
 export async function resolveRequiredSuccessfulRunHandoffOnValidPath(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     issueIdentifier: string | null;
     agentId: string;
@@ -87,7 +87,7 @@ export async function resolveRequiredSuccessfulRunHandoffOnValidPath(
     .select({ action: activityLog.action, runId: activityLog.runId, details: activityLog.details })
     .from(activityLog)
     .where(and(
-      eq(activityLog.companyId, input.companyId),
+      eq(activityLog.spaceId, input.spaceId),
       eq(activityLog.entityType, "issue"),
       eq(activityLog.entityId, input.issueId),
       inArray(activityLog.action, [
@@ -108,7 +108,7 @@ export async function resolveRequiredSuccessfulRunHandoffOnValidPath(
     .find((value): value is string => typeof value === "string" && value.trim().length > 0)
     ?.trim() ?? latestHandoff.runId;
   await logActivity(db, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     actorType: "system",
     actorId: "heartbeat",
     agentId: input.agentId,

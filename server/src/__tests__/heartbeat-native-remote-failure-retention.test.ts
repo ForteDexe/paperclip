@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
-import { activityLog, agents, agentWakeupRequests, authUsers, companyMemberships, environmentLeases, environments, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issueComments, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
+import { activityLog, agents, agentWakeupRequests, authUsers, spaceMemberships, environmentLeases, environments, executionWorkspaces, heartbeatRunEvents, heartbeatRuns, issueComments, issueRecoveryActions, issues, nativeRunFinalizations } from "@outpost/db";
 import { beforeAll, expect, it, vi } from "vitest";
 import { DurablePrpControlPlane } from "../vendor/outpost-runner/index.js";
 import * as storageBackend from "../storage/index.js";
@@ -21,8 +21,8 @@ import { describeEmbeddedPostgres, nativeRestartFixture } from "./helpers/native
 
 describeEmbeddedPostgres("heartbeat native remote preparation failure retention", () => {
   const fixture = nativeRestartFixture();
-  let runtimeRoot: string, companyId: string, agentId: string;
-  beforeAll(() => { ({ runtimeRoot, companyId, agentId } = fixture.current); });
+  let runtimeRoot: string, spaceId: string, agentId: string;
+  beforeAll(() => { ({ runtimeRoot, spaceId, agentId } = fixture.current); });
 
   /** Seeds a running remote native run whose controller was lost, so restart
    * recovery claims it to reattach its original sandbox allocation. Callers
@@ -61,7 +61,7 @@ describeEmbeddedPostgres("heartbeat native remote preparation failure retention"
     process.env.OUTPOST_SECRETS_MASTER_KEY = "71".repeat(32);
     const userId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Original operator", email: `${userId}@example.invalid`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "owner" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "owner" });
     const remoteCwd = path.join(runtimeRoot, workspaceId), providerLeaseId = `sandbox://fake/${randomUUID()}`;
     await mkdir(remoteCwd, { recursive: true });
     await writeFile(path.join(remoteCwd, "saved.txt"), "unfinished original work\n");
@@ -70,23 +70,23 @@ describeEmbeddedPostgres("heartbeat native remote preparation failure retention"
     await db.update(agents).set({ defaultEnvironmentId: environmentId }).where(eq(agents.id, agentId));
     const reference = { schema: "outpost.remote-workspace-run.v1", workspaceId, leaseId, providerLeaseId,
       remoteCwd, epoch: 1, state: "prepared", snapshotId: null };
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: f.issueId,
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: f.issueId,
       mode: "isolated_workspace", strategyType: "project_primary", providerType: "cloud_sandbox", name: "Original files",
       cwd: `/workspaces/${workspaceId}`, metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1",
         epoch: 1, snapshotId: null, source: { kind: "empty" }, location: { environmentId, leaseId, providerLeaseId, remoteCwd },
         writerRunId: f.runId, dirty: true } } });
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, f.issueId));
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, issueId: f.issueId, heartbeatRunId: f.runId,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, issueId: f.issueId, heartbeatRunId: f.runId,
       executionWorkspaceId: workspaceId, environmentId, provider: "fake", providerLeaseId, status: "active",
       leasePolicy: "ephemeral", metadata: { driver: "sandbox", provider: "fake", image: "fixture:test", remoteCwd, agentId } });
-    const execution = buildNativeExecutionInput({ companyId, agentId, runId: f.runId,
+    const execution = buildNativeExecutionInput({ spaceId, agentId, runId: f.runId,
       issue: { id: f.issueId, identifier: "NRR-MODERN-PREPARATION-FAILURE", title: "Preserve original work", description: null, workMode: "standard" },
       taskPrompt: "Continue the original task.", provider: "codex",
       workspace: { id: workspaceId, cwd: remoteCwd, repoUrl: null, repoRef: null, branchName: null },
       normalizedSessionId: f.native.normalizedSessionId, runtimeContext: nativeRuntimeContextFixture(),
       completionContract: { id: randomUUID(), sha256: `sha256:${"a".repeat(64)}`, schemaVersion: "outpost.run-result.v1",
         contract: { revision: "1", objective: "Preserve original work", criteria: [{ id: "objective", requirement: "Retain files" }] } } });
-    const identity = { companyId, issueId: f.issueId, runId: f.runId, agentId, sessionId: f.native.normalizedSessionId };
+    const identity = { spaceId, issueId: f.issueId, runId: f.runId, agentId, sessionId: f.native.normalizedSessionId };
     await db.update(heartbeatRuns).set({ runnerProfileJson: { ...f.preparedProfile, remoteWorkspace: reference,
       nativeExecutionInput: execution, sessionCheckpoint: { identity, providerSessionId: "original-provider" },
       ...(options.legacyProfile ? { nativeWorkspaceSync: { schema: "outpost.native-workspace-sync/v3", state: "prepared",
@@ -99,7 +99,7 @@ describeEmbeddedPostgres("heartbeat native remote preparation failure retention"
     const authority = new DurablePrpControlPlane({ stateDirectory: path.join(runtimeRoot, f.runId, "control-plane"),
       identity: fixture.transportOptions(f, runtimeRoot).orpIdentity,
       expectedRunnerVersion: "retention-fixture", expectedRunnerDigest: `sha256:${"a".repeat(64)}` });
-    await registerNativeRunnerCheckpoint({ db, binding: { companyId, issueId: f.issueId, runId: f.runId },
+    await registerNativeRunnerCheckpoint({ db, binding: { spaceId, issueId: f.issueId, runId: f.runId },
       bootId: fixture.current.successor.bootId, authority });
     await authority.stop();
     if (options.providerHistory) {
@@ -107,13 +107,13 @@ describeEmbeddedPostgres("heartbeat native remote preparation failure retention"
         sourceEventId: randomUUID(), sourceSeq: 1, schemaVersion: 1, sourceKind: "runner", runId: f.runId,
         normalizedSessionId: f.native.normalizedSessionId, turnId: f.native.turnId, eventType: "tool.execution.started",
         priority: 0, emittedAt: new Date().toISOString(), payload: { toolName: "fixture.external_effect", toolCallId: randomUUID() } };
-      await appendHeartbeatRunEvent(db, { companyId, agentId, runId: f.runId, eventType: event.eventType,
+      await appendHeartbeatRunEvent(db, { spaceId, agentId, runId: f.runId, eventType: event.eventType,
         stream: "system", level: "info", message: "Original external action has an unknown outcome", payload: { orpEvent: event },
         nativeSource: { sourceEventId: event.sourceEventId, sourceInstanceId: event.sourceInstanceId,
           sourceSeq: event.sourceSeq, protocolSchemaVersion: 1, canonicalPayload: event } });
     }
-    await issueRecoveryActionService(db).upsertSourceScoped({ companyId, sourceIssueId: f.issueId,
-      kind: "active_run_watchdog", ownerType: "board", returnOwnerAgentId: agentId, cause: "native_session_interrupted",
+    await issueRecoveryActionService(db).upsertSourceScoped({ spaceId, sourceIssueId: f.issueId,
+      kind: "active_run_watchdog", ownerType: "operator", returnOwnerAgentId: agentId, cause: "native_session_interrupted",
       fingerprint: `native-interruption:${f.runId}`, evidence: { runId: f.runId },
       nextAction: "Inspect the interrupted source and preserve its work.", maxAttempts: 3, wakePolicy: null,
       supersedeOnIdentityChange: true });
@@ -153,7 +153,7 @@ describeEmbeddedPostgres("heartbeat native remote preparation failure retention"
       expect(claimedTask.executionRunId).toBe(runId);
       expect(claimedOwner.leaseExpiresAt!.getTime()).toBeGreaterThan(Date.now());
       expect(claimedOwner.controllerGeneration).toBe(2);
-      expect(await pinFailedObservedWorkspace(db, companyId, runId)).toBe(false);
+      expect(await pinFailedObservedWorkspace(db, spaceId, runId)).toBe(false);
       throw preparationFailure;
     });
     let arranged: Awaited<ReturnType<typeof arrangeRemoteRestart>> | undefined;
@@ -166,7 +166,7 @@ describeEmbeddedPostgres("heartbeat native remote preparation failure retention"
       await heartbeat.drainActiveRunExecutions();
       expect(readyAllocation).toHaveBeenCalledExactlyOnceWith({
         environment: expect.objectContaining({ id: environmentId }),
-        lease: expect.objectContaining({ id: leaseId, companyId, environmentId,
+        lease: expect.objectContaining({ id: leaseId, spaceId, environmentId,
           executionWorkspaceId: workspaceId, heartbeatRunId: f.runId, providerLeaseId,
           status: "active", leasePolicy: "ephemeral" }),
         requestedCwd: remoteCwd,
@@ -211,9 +211,9 @@ describeEmbeddedPostgres("heartbeat native remote preparation failure retention"
         execute: async () => { throw new Error("A lost allocation must not execute"); },
       });
       const { f, db, heartbeat, userId, readyAllocation } = arranged;
-      const [comment] = await db.insert(issueComments).values({ companyId, issueId: f.issueId,
+      const [comment] = await db.insert(issueComments).values({ spaceId, issueId: f.issueId,
         authorType: "user", authorUserId: userId, body: "Please continue the change." }).returning();
-      const [wake] = await db.insert(agentWakeupRequests).values({ companyId, agentId, source: "automation",
+      const [wake] = await db.insert(agentWakeupRequests).values({ spaceId, agentId, source: "automation",
         triggerDetail: "system", reason: "issue_commented", status: "claimed", runId: f.runId,
         requestedByActorType: "user", requestedByActorId: userId,
         payload: { issueId: f.issueId, commentId: comment.id, mutation: "comment" } }).returning();
@@ -233,11 +233,11 @@ describeEmbeddedPostgres("heartbeat native remote preparation failure retention"
       const retryKey = `task-retry:restart-interrupted-turn:${f.runId}`;
       await vi.waitFor(async () => {
         const retries = await db.select().from(agentWakeupRequests).where(and(
-          eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.reason, "task_retry")));
+          eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.reason, "task_retry")));
         expect(retries).toEqual([expect.objectContaining({ idempotencyKey: retryKey,
           requestedByActorType: "user", requestedByActorId: userId })]);
       }, { timeout: 10_000, interval: 50 });
-      const activity = await db.select().from(activityLog).where(and(eq(activityLog.companyId, companyId),
+      const activity = await db.select().from(activityLog).where(and(eq(activityLog.spaceId, spaceId),
         eq(activityLog.action, "issue.retry_requested"), eq(activityLog.entityId, f.issueId)));
       expect(activity).toEqual([expect.objectContaining({ actorType: "system", actorId: "restart-recovery",
         details: expect.objectContaining({ initiatedBy: "restart_recovery", onBehalfOfUserId: userId, sourceRunId: f.runId }) })]);

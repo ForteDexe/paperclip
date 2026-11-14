@@ -13,13 +13,13 @@ export function expandHomePrefix(value: string): string {
   return value;
 }
 
-export function resolvePaperclipHomeDir(homeOverride?: string): string {
+export function resolveOutpostHomeDir(homeOverride?: string): string {
   const raw = homeOverride?.trim() || process.env.OUTPOST_HOME?.trim();
   if (raw) return path.resolve(expandHomePrefix(raw));
-  return path.resolve(os.homedir(), ".paperclip");
+  return path.resolve(os.homedir(), ".outpost");
 }
 
-export function resolvePaperclipInstanceId(instanceIdOverride?: string): string {
+export function resolveOutpostInstanceId(instanceIdOverride?: string): string {
   const raw = instanceIdOverride?.trim() || process.env.OUTPOST_INSTANCE_ID?.trim() || DEFAULT_OUTPOST_INSTANCE_ID;
   if (!PATH_SEGMENT_RE.test(raw)) {
     throw new Error(`Invalid OUTPOST_INSTANCE_ID '${raw}'.`);
@@ -27,25 +27,25 @@ export function resolvePaperclipInstanceId(instanceIdOverride?: string): string 
   return raw;
 }
 
-export function resolvePaperclipInstanceRoot(input: {
+export function resolveOutpostInstanceRoot(input: {
   homeDir?: string;
   instanceId?: string;
 } = {}): string {
-  return path.resolve(resolvePaperclipHomeDir(input.homeDir), "instances", resolvePaperclipInstanceId(input.instanceId));
+  return path.resolve(resolveOutpostHomeDir(input.homeDir), "instances", resolveOutpostInstanceId(input.instanceId));
 }
 
-export function resolvePaperclipInstanceConfigPath(input: {
+export function resolveOutpostInstanceConfigPath(input: {
   homeDir?: string;
   instanceId?: string;
 } = {}): string {
-  return path.resolve(resolvePaperclipInstanceRoot(input), OUTPOST_CONFIG_BASENAME);
+  return path.resolve(resolveOutpostInstanceRoot(input), OUTPOST_CONFIG_BASENAME);
 }
 
-export function resolvePaperclipConfigPathForInstance(input: {
+export function resolveOutpostConfigPathForInstance(input: {
   homeDir?: string;
   instanceId?: string;
 } = {}): string {
-  return resolvePaperclipInstanceConfigPath(input);
+  return resolveOutpostInstanceConfigPath(input);
 }
 
 export function resolveOutpostEnvPathForConfig(configPath: string): string {
@@ -56,35 +56,35 @@ export function resolveDefaultEmbeddedPostgresDir(input: {
   homeDir?: string;
   instanceId?: string;
 } = {}): string {
-  return path.resolve(resolvePaperclipInstanceRoot(input), "db");
+  return path.resolve(resolveOutpostInstanceRoot(input), "db");
 }
 
 export function resolveDefaultLogsDir(input: {
   homeDir?: string;
   instanceId?: string;
 } = {}): string {
-  return path.resolve(resolvePaperclipInstanceRoot(input), "logs");
+  return path.resolve(resolveOutpostInstanceRoot(input), "logs");
 }
 
 export function resolveDefaultSecretsKeyFilePath(input: {
   homeDir?: string;
   instanceId?: string;
 } = {}): string {
-  return path.resolve(resolvePaperclipInstanceRoot(input), "secrets", "master.key");
+  return path.resolve(resolveOutpostInstanceRoot(input), "secrets", "master.key");
 }
 
 export function resolveDefaultStorageDir(input: {
   homeDir?: string;
   instanceId?: string;
 } = {}): string {
-  return path.resolve(resolvePaperclipInstanceRoot(input), "data", "storage");
+  return path.resolve(resolveOutpostInstanceRoot(input), "data", "storage");
 }
 
 export function resolveDefaultBackupDir(input: {
   homeDir?: string;
   instanceId?: string;
 } = {}): string {
-  return path.resolve(resolvePaperclipInstanceRoot(input), "data", "backups");
+  return path.resolve(resolveOutpostInstanceRoot(input), "data", "backups");
 }
 
 export function resolveHomeAwarePath(value: string): string {

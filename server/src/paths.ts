@@ -11,7 +11,7 @@ function findConfigFileFromAncestors(startDir: string): string | null {
   let currentDir = absoluteStartDir;
 
   while (true) {
-    const candidate = path.resolve(currentDir, ".paperclip", OUTPOST_CONFIG_BASENAME);
+    const candidate = path.resolve(currentDir, ".outpost", OUTPOST_CONFIG_BASENAME);
     if (fs.existsSync(candidate)) {
       return candidate;
     }
@@ -24,7 +24,7 @@ function findConfigFileFromAncestors(startDir: string): string | null {
   return null;
 }
 
-export function resolvePaperclipConfigPath(overridePath?: string): string {
+export function resolveOutpostConfigPath(overridePath?: string): string {
   if (overridePath) return path.resolve(overridePath);
   if (process.env.OUTPOST_CONFIG) return path.resolve(process.env.OUTPOST_CONFIG);
   if (isCloudManagedInstance()) return resolveDefaultConfigPath();
@@ -32,5 +32,5 @@ export function resolvePaperclipConfigPath(overridePath?: string): string {
 }
 
 export function resolveOutpostEnvPath(overrideConfigPath?: string): string {
-  return path.resolve(path.dirname(resolvePaperclipConfigPath(overrideConfigPath)), OUTPOST_ENV_FILENAME);
+  return path.resolve(path.dirname(resolveOutpostConfigPath(overrideConfigPath)), OUTPOST_ENV_FILENAME);
 }

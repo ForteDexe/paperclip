@@ -112,7 +112,7 @@ its existing callback/service wiring. Shared app startup selects this owner; it
 has no Telegram payload or decision policy. The owner reconstructs processing
 action IDs from existing rows, using 100-row UUID-keyset pages, and registers
 per-action entries with `registerScopedDeadlineWork`. The shared worker attempts
-at most 25 entries per sweep, rotates companies, retains commits arriving during
+at most 25 entries per sweep, rotates spaces, retains commits arriving during
 an attempt, and backs off query/settlement failures from 30 seconds to five
 minutes. A failed entry does not prevent later entries from progressing.
 
@@ -126,13 +126,13 @@ processing forever. Other invalid-binding and authorization policy stays with th
 existing settler.
 
 Both real callback decision transactions await a confirmation intent before
-writing processing state. The existing issue/company milestone notification
+writing processing state. The existing issue/space milestone notification
 boundary also emits an identifier-only confirmation hint. This covers board
 accept/reject, expiry, withdrawal, supersession and other supported interaction
 changes without adding wrappers to each writer. It also means unrelated milestone
 changes can cause one scoped reconstruction; an issue hint never restarts a global
-inventory. The company/issue query includes orphaned conversation bindings in the
-same company so invalid work can receive an explicit failure record. Company-wide
+inventory. The space/issue query includes orphaned conversation bindings in the
+same space so invalid work can receive an explicit failure record. Space-wide
 hints and startup reconstruct the full matching processing inventory in bounded
 SQL pages; total enumeration and memory are proportional to that inventory, not
 capped at 100 rows. No claim of constant startup cost is made.
@@ -181,7 +181,7 @@ process loss.
 At implementation head `aeaaed7b3e17e1377433165a38fef558acacb631`, workspace
 `pnpm -r typecheck` and `pnpm build` passed. The fresh full chat/startup run passed
 1,511 of 1,512 tests in 450.49 seconds (`/tmp/sleep32-full-chat.log`, database
-`paperclip_sleep32_full_20261025_test`). Every new confirmation test passed. The
+`outpost_sleep32_full_20261025_test`). Every new confirmation test passed. The
 old failed-retry notice test's disabled case captured a real
 `CONNECT_TIMEOUT localhost:55438` while its result wait advanced fake time by
 30 seconds during DB work. The prior slice had corrected a different wait loop;
@@ -207,7 +207,7 @@ into fixture cleanup failures (27 plugin cases failed in
 `/tmp/sleep32-check-fixes.log`). Those step changes were reverted. The same
 combined run passed all 13 selected chat lifecycle cases, including the five
 corrected retry-notice cases. The final one-line plugin clock fix passes all 28
-plugin scheduling tests on fresh `paperclip_sleep32_plugin_fixed_20261025_test`
+plugin scheduling tests on fresh `outpost_sleep32_plugin_fixed_20261025_test`
 (`/tmp/sleep32-plugin-fixed.log`). No production scheduling code was changed for
 these two test failures. Earlier databases and logs are retained.
 
@@ -351,7 +351,7 @@ reconstruction still examined retained completed actions. A returned-row limit
 alone does not limit database work. This finding is fixed before merge.
 
 The generated `0398_yielding_random.sql` migration adds a partial index on
-`chat_actions(company_id, id)` only for processing `confirmation_response` rows.
+`chat_actions(space_id, id)` only for processing `confirmation_response` rows.
 It uses `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, registered with the existing
 top-level migration runner. Existing SQL/journal history and retained snapshot
 bytes are preserved; generation prunes snapshot 0393 and retains 0394–0398.
@@ -360,21 +360,21 @@ This adds no table or scheduler service.
 The index alone was insufficient. PostgreSQL still preferred the primary key
 for global `ORDER BY id`, examining 20,206 action rows and hitting 20,276 buffers
 in the recorded plan. Reconstruction now orders and keyset-pages by
-`(company_id, id)`, matching the one sparse index for startup and scoped reads.
+`(space_id, id)`, matching the one sparse index for startup and scoped reads.
 The fixed kind/status predicates remain SQL literals so their partial-index
 eligibility does not depend on parameter values in a prepared plan. Selection
-continues to page 100 rows and keeps the existing company-fair dispatch owner.
+continues to page 100 rows and keeps the existing space-fair dispatch owner.
 
 The regression captures actual emitted discovery SQL and executes it unchanged
 under `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`. With 20,000 completed/unrelated
 actions and one pending decision, the original query failed at 20,009 examined
-rows. Both final startup and company-scoped queries must return the correct
+rows. Both final startup and space-scoped queries must return the correct
 pending action, examine at most two action rows, and touch fewer than 20 action
 buffers. The empty scoped query must also stay below 20 buffers. Planner
 settings are unchanged. The fixture vacuums/analyzes its owned table first to
 separate retained live history from dead index entries left by prior tests.
 The existing 101 pending/101 malformed prefix case also passes with composite
-paging and a terminal action in another company.
+paging and a terminal action in another space.
 
 **110 distinct cases pass:** 17 final confirmation lifecycle/query-cost cases
 (1,671 skipped), seven real Runner environment-prepared descriptor cases

@@ -12,10 +12,10 @@ let draftIssue: { id: string; identifier: string };
 let oldestCommentId: string;
 
 test.beforeAll(async ({ request }) => {
-  const company = await (await request.post("/api/companies", { data: { name: `Layout acceptance ${Date.now()}` } })).json();
-  prefix = company.issuePrefix;
+  const space = await (await request.post("/api/spaces", { data: { name: `Layout acceptance ${Date.now()}` } })).json();
+  prefix = space.issuePrefix;
   const createIssue = async (title: string) => {
-    const response = await request.post(`/api/companies/${company.id}/issues`, {
+    const response = await request.post(`/api/spaces/${space.id}/issues`, {
       data: { title, status: "backlog", description: "A rich task with a long conversation.\n\n".repeat(15) },
     });
     expect(response.ok(), await response.text()).toBeTruthy();
@@ -243,7 +243,7 @@ test("a draft survives background task refresh, reload, and one persisted reply"
   const draft = "This draft survives task refresh and is submitted exactly once.";
   await editor.fill(draft);
   await editor.evaluate((el) => { el.setAttribute("data-draft-mount-proof", "retained"); });
-  await expect.poll(() => page.evaluate((id) => localStorage.getItem(`paperclip:issue-comment-draft:${id}`), draftIssue.id)).toBe(draft);
+  await expect.poll(() => page.evaluate((id) => localStorage.getItem(`outpost:issue-comment-draft:${id}`), draftIssue.id)).toBe(draft);
 
   let release!: () => void;
   const held = new Promise<void>((resolve) => { release = resolve; });

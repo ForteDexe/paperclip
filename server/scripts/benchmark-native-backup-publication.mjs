@@ -43,7 +43,7 @@ if (process.argv.includes("--worker")) {
     publishing = true;
     try {
       await publishNativeHarnessBackup({
-        db: {}, companyId: "benchmark", scopeDigest: "fixture",
+        db: {}, spaceId: "benchmark", scopeDigest: "fixture",
         backupRoot: message.backupRoot, pendingRoot: message.pendingRoot,
         stamp: async () => {},
       });

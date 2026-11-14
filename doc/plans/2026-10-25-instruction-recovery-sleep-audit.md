@@ -37,7 +37,7 @@ Producer map:
   direct inserts/adoption/deletes need explicit audit but currently create prepared
   or staging rows, not pending_commit. Do not assume legacy candidate payloads
   and agent-directory receipts have the same semantics.
-- Run/company/agent deletion cascades can remove obligations: signal exact scope
+- Run/space/agent deletion cascades can remove obligations: signal exact scope
   before supported deletion to disarm stale entries.
 
 Concurrency risk to test before relying on events:
@@ -64,7 +64,7 @@ Testing planned:
 Real managed instruction file and authorization, actual collectStopped producer;
 no-config/prepared/history/exhausted/conflict quiet; exact saved deadline; transient
 save error; rollback/outer commit; foreground race; restart; drain/standby; shutdown;
-more than one page and company fairness. Assert file bytes and save receipts, not
+more than one page and space fairness. Assert file bytes and save receipts, not
 only callback invocation. Existing test harnesses currently require embedded DB;
 use guarded external disposable URLs here as needed, maintaining embedded default.
 
@@ -84,7 +84,7 @@ Parent: slice 39 at `ecef7776a4b38e0c7e0b86d7009fcd01ed7658e5`.
 Remote master remains `5a28f7acf8a8c86536c4f5c5369bfeb49a46c41a`.
 
 The instruction service owns eligibility, saved retry times, and save attempts.
-The existing scoped delivery worker owns coalescing, company-fair batches of 20,
+The existing scoped delivery worker owns coalescing, space-fair batches of 20,
 reconstruction, pause/resume, failure backoff, and shutdown. Inventory uses scalar
 fields and keyset pages of 100. Candidate bytes are read only for an actual attempt.
 No table, migration, provider-specific scheduler, or Cloud alarm contract is added.
@@ -100,8 +100,8 @@ The existing copy mutation boundary emits intent before writes that enter or
 leave pending commit. Other copy mutations keep their existing query boundary.
 The notification and update share a short transaction, including a caller-owned
 outer transaction. Filesystem reads, file replacement, directory merge locks, and
-provider transport operations are not enclosed in that new transaction. Company
-and agent deletion signal company scope before cascading run deletion. Worktree
+provider transport operations are not enclosed in that new transaction. Space
+and agent deletion signal space scope before cascading run deletion. Worktree
 execution settings signal reconstruction; the heartbeat facade reads that policy
 fresh and gates drain/standby. Local process signals do not cover independent SQL
 writers or another replica; this remains the existing supported writer model.
@@ -173,7 +173,7 @@ the copy receipt: an incremented attempt invalidated the foreground failure CAS
 and could lose its 30-second retry deadline.
 
 The instruction-copy service now serializes collection and captured recovery per
-company/run using the existing database work scope. Separate service instances and
+space/run using the existing database work scope. Separate service instances and
 dedicated connections belonging to that scope share the same in-flight owner.
 Recovery joins the live operation, then rereads durable state and its deadline
 before claiming an attempt. Rejected operations release ownership; no elapsed-time
@@ -209,7 +209,7 @@ the exact CI assertion: expected three attempts, received two. The test now wait
 for the completed attempt's persisted deadline and advances to that deadline.
 It retains the deliberate slow-save barrier, the three-attempt cap, the original
 canonical bytes, the captured candidate, and the absence of later retries. The
-captured-commit group also retires its own company fixture during teardown, so a
+captured-commit group also retires its own space fixture during teardown, so a
 failed test cannot leave retry debt in the next test's global reconstruction.
 
 All 38 instruction-copy cases pass on a fresh PostgreSQL 17 database with the

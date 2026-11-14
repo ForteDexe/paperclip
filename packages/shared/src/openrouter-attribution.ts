@@ -1,4 +1,4 @@
-/** Public product identity only: never include company, user, run, or credential data. */
+/** Public product identity only: never include space, user, run, or credential data. */
 export const OPENROUTER_ATTRIBUTION_HEADERS = Object.freeze({
   "HTTP-Referer": "https://outpost.ing",
   "X-Title": "Outpost",

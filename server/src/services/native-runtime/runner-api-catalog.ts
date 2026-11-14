@@ -28,8 +28,8 @@ export interface RunnerApiOperation {
 
 const METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options"]);
 const SYNONYMS: Record<string, string> = {
-  task: "issue", tasks: "issues", employee: "agent", employees: "agents",
-  hire: "agent", hiring: "agents", expense: "cost", expenses: "costs",
+  task: "issue", tasks: "issues", agent: "agent", agents: "agents",
+  create: "agent", creation: "agents", expense: "cost", expenses: "costs",
   cron: "routines", schedule: "routines", recurring: "routines",
   blocker: "dependencies", blockers: "dependencies", files: "attachments",
 };
@@ -46,16 +46,16 @@ function words(text: string): string[] {
 
 function dedicatedTools(method: string, path: string): string[] {
   if (method === "POST" && path === "/api/agents/me/chat/messages") return ["send_chat_message"];
-  if (/\/companies\/\{[^}]+\}\/workflows$/.test(path)) return method === "GET" ? ["list_workflows"] : method === "POST" ? ["create_workflow"] : [];
+  if (/\/spaces\/\{[^}]+\}\/workflows$/.test(path)) return method === "GET" ? ["list_workflows"] : method === "POST" ? ["create_workflow"] : [];
   if (/\/workflows\/\{[^}]+\}$/.test(path)) return method === "GET" ? ["read_workflow"] : method === "PATCH" ? ["update_workflow"] : [];
   if (/\/issues\/\{[^}]+\}\/title$/.test(path) && method === "PUT") return ["set_task_title"];
   if (/\/agents\/\{[^}]+\}\/instructions-bundle\/file$/.test(path)) return method === "GET" ? ["read_agent_instructions"] : method === "PUT" ? ["update_agent_instructions"] : [];
   if (/\/agents\/\{[^}]+\}\/instructions-bundle\/history$/.test(path) && method === "GET") return ["get_agent_instruction_history"];
   if (/\/agents\/\{[^}]+\}\/instructions-bundle\/revision\/\{[^}]+\}$/.test(path) && method === "GET") return ["read_agent_instructions"];
   if (/\/agents\/\{[^}]+\}\/instructions-bundle\/restore$/.test(path) && method === "POST") return ["restore_agent_instructions"];
-  if (/\/companies\/\{[^}]+\}\/skills$/.test(path) && method === "POST") return ["create_skill"];
-  if (/\/companies\/\{[^}]+\}\/skills\/\{[^}]+\}\/files$/.test(path) && method === "PATCH") return ["update_skill"];
-  if (/\/companies\/\{[^}]+\}\/agent-hires$/.test(path) && method === "POST") return ["hire_agent"];
+  if (/\/spaces\/\{[^}]+\}\/skills$/.test(path) && method === "POST") return ["create_skill"];
+  if (/\/spaces\/\{[^}]+\}\/skills\/\{[^}]+\}\/files$/.test(path) && method === "PATCH") return ["update_skill"];
+  if (/\/spaces\/\{[^}]+\}\/agent-creations$/.test(path) && method === "POST") return ["create_agent"];
   if (/\/projects$/.test(path)) return method === "GET" ? ["list_projects"] : method === "POST" ? ["create_project"] : [];
   if (/\/project-repositories$/.test(path) && method === "GET") return ["list_project_repositories"];
   if (/\/issues\/\{[^}]+\}\/comments$/.test(path)) return method === "GET" ? ["get_task_history"] : ["report_progress"];
@@ -72,7 +72,7 @@ function dedicatedTools(method: string, path: string): string[] {
 }
 
 // Descriptions and schemas are documentation, never authorization. Routes remain
-// authoritative, including conditional role, company and resource checks.
+// authoritative, including conditional role, space and resource checks.
 export function buildRunnerApiCatalog(document: Json = buildOpenApiDocument()): RunnerApiOperation[] {
   function dereference(value: any, seen = new Set<string>()): any {
     if (Array.isArray(value)) return value.map((entry) => dereference(entry, seen));
@@ -94,9 +94,9 @@ export function buildRunnerApiCatalog(document: Json = buildOpenApiDocument()): 
         && /^\/api\/issues\/\{[^}]+\}\/interactions\/\{[^}]+\}\/resolve-from-comment$/.test(path);
       const taskTitleUpdate = method === "PUT" && /^\/api\/issues\/\{[^}]+\}\/title$/.test(path);
       // Computes an install plan without saving it, so read-only modes may call it.
-      const readOnlyPreview = method === "POST" && path === "/api/companies/{companyId}/teams/catalog/{catalogId}/preview";
+      const readOnlyPreview = method === "POST" && path === "/api/spaces/{spaceId}/teams/catalog/{catalogId}/preview";
       const skillReference = runnerApiReference[`${method} ${path.replace(/\{[^}]+\}/g, "{}")}`];
-      const protocol = operation["x-paperclip-transport"] === "protocol" || (operation["x-paperclip-transport"] !== "rest" && (!path.startsWith("/api/") || /\/(oauth|auth|runtime-tools|mcp|ws)(\/|$)/.test(path)
+      const protocol = operation["x-outpost-transport"] === "protocol" || (operation["x-outpost-transport"] !== "rest" && (!path.startsWith("/api/") || /\/(oauth|auth|runtime-tools|mcp|ws)(\/|$)/.test(path)
         || /\/(claude-login|login-sessions|start-authorization|finalize-oauth-access)(\/|$)/.test(path)
         || /event-stream|websocket/i.test(JSON.stringify(operation.responses))));
       result.push({
@@ -106,7 +106,7 @@ export function buildRunnerApiCatalog(document: Json = buildOpenApiDocument()): 
         parameters: dereference([...(item.parameters ?? []), ...(operation.parameters ?? [])]),
         ...(operation.requestBody ? { requestBody: dereference(operation.requestBody) } : {}),
         responses: dereference(operation.responses ?? {}),
-        authorization: operation["x-paperclip-authorization"] ?? { actor: "board_or_agent" },
+        authorization: operation["x-outpost-authorization"] ?? { actor: "operator_or_agent" },
         transport: protocol ? "protocol" : "rest",
         callPolicy: protocol ? "protocol" : "rest",
         dedicatedTools: dedicatedTools(method, path),
@@ -116,12 +116,12 @@ export function buildRunnerApiCatalog(document: Json = buildOpenApiDocument()): 
         }),
         runnerRestrictions: ["Active run and assignment must remain authorized.",
           conversationalConfirmation
-            ? "This records an ordinary conversational confirmation under existing resolver permissions. It cannot decide governed approvals or impersonate the user."
-            : "The HTTP route enforces the same endpoint, payload, company, resource and approval permissions as agent REST access."],
-        dedicatedToolGuidance: dedicatedTools(method, path).includes("hire_agent")
-          ? "Prefer hire_agent for native teammate identity and persona fields. It fixes the reportsTo and source task context and inherits the caller's native runtime. Additional API fields use the route's existing agent permissions."
+            ? "This records an ordinary conversational confirmation under existing resolver permissions. It cannot decide controlled approvals or impersonate the user."
+            : "The HTTP route enforces the same endpoint, payload, space, resource and approval permissions as agent REST access."],
+        dedicatedToolGuidance: dedicatedTools(method, path).includes("create_agent")
+          ? "Prefer create_agent for native teammate identity and persona fields. It fixes the reportsTo and source task context and inherits the caller's native runtime. Additional API fields use the route's existing agent permissions."
           : "Prefer an available dedicated tool for its supported fields. call_api supports the route's other operations and fields under the same agent permissions.",
-        allowedModes: operation["x-paperclip-connection-management"] ? (method === "GET" ? ["standard", "ask", "planning"] : ["standard"]) : method !== "GET" && (path.endsWith("/case-handoffs") || /\/handoffs\//.test(path)) ? ["standard"]
+        allowedModes: operation["x-outpost-connection-management"] ? (method === "GET" ? ["standard", "ask", "planning"] : ["standard"]) : method !== "GET" && (path.endsWith("/case-handoffs") || /\/handoffs\//.test(path)) ? ["standard"]
           : method === "GET" || method === "HEAD" || taskTitleUpdate || readOnlyPreview ? ["standard", "ask", "planning", "skill_test"]
           : conversationalConfirmation ? ["standard", "planning", "skill_test"] : ["standard", "skill_test"],
         ...(skillReference ? { skillReference } : {}),
@@ -129,9 +129,9 @@ export function buildRunnerApiCatalog(document: Json = buildOpenApiDocument()): 
     }
   }
   for (const [path, summary, actor] of [
-    ["/api/companies/{companyId}/events/ws", "Live company events WebSocket; use the existing event client", "board_or_agent"],
+    ["/api/spaces/{spaceId}/events/ws", "Live space events WebSocket; use the existing event client", "operator_or_agent"],
     ["/api/runner/v1/connect/{runId}", "Authenticated runner ORP WebSocket; runner-owned transport", "runner"],
-    ["/api/environment-custom-image-setup-sessions/{sessionId}/terminal/ws", "Image setup terminal WebSocket; use the existing terminal client", "board"],
+    ["/api/environment-custom-image-setup-sessions/{sessionId}/terminal/ws", "Image setup terminal WebSocket; use the existing terminal client", "operator"],
   ]) {
     if (result.some(operation => operation.path === path)) continue;
     result.push({ operationId: `GET ${path}`, method: "GET", path, summary,

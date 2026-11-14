@@ -33,9 +33,9 @@ import {
   ActivitySection,
 } from "@/components/routine-sections/operate-sections";
 import { queryKeys } from "@/lib/queryKeys";
-import { storybookAgents, storybookProjects } from "../../fixtures/paperclipData";
+import { storybookAgents, storybookProjects } from "../../fixtures/outpostData";
 
-const COMPANY_ID = "company-storybook";
+const SPACE_ID = "space-storybook";
 const ROUTINE_ID = "routine-storybook";
 
 const now = new Date("2026-06-09T12:00:00Z");
@@ -48,7 +48,7 @@ const variables: RoutineVariable[] = [
 const triggers: RoutineTrigger[] = [
   {
     id: "trigger-schedule",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     routineId: ROUTINE_ID,
     kind: "schedule",
     label: "schedule",
@@ -74,7 +74,7 @@ const triggers: RoutineTrigger[] = [
 
 const routine: RoutineDetailType = {
   id: ROUTINE_ID,
-  companyId: COMPANY_ID,
+  spaceId: SPACE_ID,
   projectId: storybookProjects[0]?.id ?? null,
   goalId: null,
   parentIssueId: null,
@@ -88,7 +88,7 @@ const routine: RoutineDetailType = {
   concurrencyPolicy: "coalesce_if_active",
   catchUpPolicy: "skip_missed",
   activityGatePolicy: "always",
-  activityGateScope: "company",
+  activityGateScope: "space",
   variables,
   env: { DATABASE_URL: { type: "secret_ref", secretId: "secret-prod-db", version: "latest" } } as never,
   latestRevisionId: "rev-17",
@@ -112,7 +112,7 @@ const routine: RoutineDetailType = {
 
 const routineDescriptionDocument: RoutineDescriptionDocument = {
   id: "routine-description-doc",
-  companyId: COMPANY_ID,
+  spaceId: SPACE_ID,
   routineId: ROUTINE_ID,
   key: "description",
   title: "Description",
@@ -131,7 +131,7 @@ const routineDescriptionDocument: RoutineDescriptionDocument = {
 const routineAnnotationThreads: DocumentAnnotationThreadWithComments[] = [
   {
     id: "routine-thread-1",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     issueId: null,
     routineId: ROUTINE_ID,
     documentId: routineDescriptionDocument.id,
@@ -168,7 +168,7 @@ const routineAnnotationThreads: DocumentAnnotationThreadWithComments[] = [
     comments: [
       {
         id: "routine-comment-1",
-        companyId: COMPANY_ID,
+        spaceId: SPACE_ID,
         threadId: "routine-thread-1",
         issueId: null,
         routineId: ROUTINE_ID,
@@ -195,10 +195,10 @@ const routineRuns = [
 function stubSecret(id: string, name: string, latestVersion: number, referenceCount: number) {
   return {
     id,
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     key: name.toLowerCase(),
     name,
-    provider: "paperclip",
+    provider: "outpost",
     status: "active",
     managedMode: "managed",
     externalRef: null,
@@ -253,7 +253,7 @@ function makeContext(
     concurrencyPolicy: routineDetail.concurrencyPolicy,
     catchUpPolicy: routineDetail.catchUpPolicy,
     activityGatePolicy: "always",
-    activityGateScope: "company",
+    activityGateScope: "space",
     variables: routineDetail.variables,
     env: routineDetail.env ?? null,
   };
@@ -265,7 +265,7 @@ function makeContext(
   return {
     routine: routineDetail,
     routineId: ROUTINE_ID,
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     editDraft,
     setEditDraft: () => {},
     routineDefaults: defaults,
@@ -446,7 +446,7 @@ const meta: Meta<typeof RoutineCShell> = {
   parameters: {
     layout: "fullscreen",
     a11y: { test: "off" },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "routines/definition",
         "routines/management",

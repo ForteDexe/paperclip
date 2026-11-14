@@ -62,13 +62,13 @@ describe("useSignOut", () => {
     localStorage.clear();
     queryClient.setQueryData(queryKeys.health, { status: "ok", deploymentMode, cloud: deploymentMode === "cloud" ? { managed: true } : undefined });
     queryClient.setQueryData(queryKeys.auth.session, { user: { id: "alice" } });
-    queryClient.setQueryData(queryKeys.companies.list("alice"), { companies: [{ id: "company-a" }] });
+    queryClient.setQueryData(queryKeys.spaces.list("alice"), { spaces: [{ id: "space-a" }] });
     const taskKey = [...queryKeys.issues.detail("task-a"), "core"];
-    queryClient.setQueryData(taskKey, { id: "task-a", companyId: "company-a", title: "Old account task" });
+    queryClient.setQueryData(taskKey, { id: "task-a", spaceId: "space-a", title: "Old account task" });
     const stamped = startPersistedQueryCache(queryClient, { buildId: "build-one", eventTarget: null });
     stamped.flush(); stamped.dispose();
-    expect(localStorage.getItem(`${QUERY_CACHE_PREFIX}alice:company-a`)).toContain("Old account task");
-    localStorage.setItem("paperclip:private-draft", "Keep my draft");
+    expect(localStorage.getItem(`${QUERY_CACHE_PREFIX}alice:space-a`)).toContain("Old account task");
+    localStorage.setItem("outpost:private-draft", "Keep my draft");
     const cache = startPersistedQueryCache(queryClient, { buildId, eventTarget: null });
     const account = bindAccount(queryClient);
     const onSignedOut = vi.fn();
@@ -80,7 +80,7 @@ describe("useSignOut", () => {
       expect(onSignedOut).toHaveBeenCalledOnce();
       expect(account.isCurrentScope()).toBe(false);
       expect(Object.keys(localStorage).filter(key => key.startsWith(QUERY_CACHE_PREFIX))).toEqual([]);
-      expect(localStorage.getItem("paperclip:private-draft")).toBe("Keep my draft");
+      expect(localStorage.getItem("outpost:private-draft")).toBe("Keep my draft");
       if (deploymentMode === "cloud") {
         expect(mockNavigateTopLevel).toHaveBeenCalledWith("/cloud/logout");
         expect(mockAuthApi.signOut).not.toHaveBeenCalled();
@@ -101,7 +101,7 @@ describe("useSignOut", () => {
       status: "ok",
       cloud: {
         managed: true,
-        managedBy: "paperclip-cloud",
+        managedBy: "outpost-cloud",
         stackSlug: "acme",
         cloudBaseUrl: "https://cloud.example.test",
       },
@@ -125,15 +125,15 @@ describe("useSignOut", () => {
     }));
     queryClient.setQueryData(queryKeys.health, { status: "ok", deploymentMode: "authenticated" });
     queryClient.setQueryData(queryKeys.auth.session, { session: { id: "session-1" } });
-    queryClient.setQueryData(queryKeys.companies.all, {
-      companies: [{ id: "company-a", name: "Account A Co" }],
+    queryClient.setQueryData(queryKeys.spaces.all, {
+      spaces: [{ id: "space-a", name: "Account A Co" }],
       unauthorized: false,
     });
     queryClient.setQueryData(queryKeys.access.currentBoardAccess, {
       isInstanceAdmin: false,
-      companyIds: ["company-a"],
+      spaceIds: ["space-a"],
     });
-    queryClient.setQueryData(queryKeys.issues.list("company-a"), [{ id: "issue-a" }]);
+    queryClient.setQueryData(queryKeys.issues.list("space-a"), [{ id: "issue-a" }]);
     const onSignedOut = vi.fn();
     const root = renderHarness(onSignedOut);
 
@@ -154,9 +154,9 @@ describe("useSignOut", () => {
     // invalidated entry keeps serving its old value until a refetch succeeds,
     // which is the leak this guards.
     expect(queryClient.getQueryData(queryKeys.auth.session)).toBeUndefined();
-    expect(queryClient.getQueryData(queryKeys.companies.all)).toBeUndefined();
+    expect(queryClient.getQueryData(queryKeys.spaces.all)).toBeUndefined();
     expect(queryClient.getQueryData(queryKeys.access.currentBoardAccess)).toBeUndefined();
-    expect(queryClient.getQueryData(queryKeys.issues.list("company-a"))).toBeUndefined();
+    expect(queryClient.getQueryData(queryKeys.issues.list("space-a"))).toBeUndefined();
 
     // Health describes the instance, not the account, and several observers
     // read it with `enabled: false`. It is refreshed in place.
@@ -170,31 +170,31 @@ describe("useSignOut", () => {
   });
 
   it("leaves the previous account nothing to read when the next account's refetch fails", async () => {
-    // The end-to-end shape of the leak. Account A's company list is in cache,
-    // A signs out, B signs in, and B's companies request fails.
-    // `companiesListQueryOptions` sets `retry: false`, so that single failure
+    // The end-to-end shape of the leak. Account A's space list is in cache,
+    // A signs out, B signs in, and B's spaces request fails.
+    // `spacesListQueryOptions` sets `retry: false`, so that single failure
     // is final — and under `invalidateQueries` the observer would still be
     // holding A's list, which consumers read as "this account owns these
-    // companies".
+    // spaces".
     mockAuthApi.signOut.mockResolvedValue(undefined);
     queryClient.setQueryData(queryKeys.health, { status: "ok", deploymentMode: "authenticated" });
 
-    const companiesQueryFn = vi
+    const spacesQueryFn = vi
       .fn()
       .mockResolvedValueOnce({
-        companies: [{ id: "company-a", name: "Account A Co" }],
+        spaces: [{ id: "space-a", name: "Account A Co" }],
         unauthorized: false,
       })
       .mockRejectedValue(new Error("refetch failed for the new account"));
 
-    // A live observer, standing in for CompanyProvider — which sits above the
+    // A live observer, standing in for SpaceProvider — which sits above the
     // router and stays mounted across the whole sign-out/sign-in cycle, so it
     // never gets a fresh mount to clear it.
     let observed: unknown = "unset";
-    function CompaniesObserver() {
+    function SpacesObserver() {
       const { data } = useQuery({
-        queryKey: queryKeys.companies.all,
-        queryFn: companiesQueryFn,
+        queryKey: queryKeys.spaces.all,
+        queryFn: spacesQueryFn,
         retry: false,
       });
       observed = data;
@@ -206,7 +206,7 @@ describe("useSignOut", () => {
       root.render(
         <QueryClientProvider client={queryClient}>
           <Harness />
-          <CompaniesObserver />
+          <SpacesObserver />
         </QueryClientProvider>,
       );
     });
@@ -214,7 +214,7 @@ describe("useSignOut", () => {
     await act(async () => {
       await vi.waitFor(() =>
         expect(observed).toEqual({
-          companies: [{ id: "company-a", name: "Account A Co" }],
+          spaces: [{ id: "space-a", name: "Account A Co" }],
           unauthorized: false,
         }),
       );
@@ -225,10 +225,10 @@ describe("useSignOut", () => {
       // The sign-out resolves, its cache reset fires, and the refetch that
       // reset kicks off is the one that fails.
       await vi.waitFor(() => expect(captured?.isSuccess).toBe(true));
-      await vi.waitFor(() => expect(companiesQueryFn).toHaveBeenCalledTimes(2));
+      await vi.waitFor(() => expect(spacesQueryFn).toHaveBeenCalledTimes(2));
     });
 
-    expect(queryClient.getQueryData(queryKeys.companies.all)).toBeUndefined();
+    expect(queryClient.getQueryData(queryKeys.spaces.all)).toBeUndefined();
     expect(observed).toBeUndefined();
 
     await act(async () => {
@@ -240,8 +240,8 @@ describe("useSignOut", () => {
     mockAuthApi.signOut.mockRejectedValue(new Error("Sign-out request failed"));
     queryClient.setQueryData(queryKeys.health, { status: "ok", deploymentMode: "authenticated" });
     queryClient.setQueryData(queryKeys.auth.session, { session: { id: "session-1" } });
-    queryClient.setQueryData(queryKeys.companies.all, {
-      companies: [{ id: "company-a", name: "Account A Co" }],
+    queryClient.setQueryData(queryKeys.spaces.all, {
+      spaces: [{ id: "space-a", name: "Account A Co" }],
       unauthorized: false,
     });
     const onSignedOut = vi.fn();
@@ -255,8 +255,8 @@ describe("useSignOut", () => {
     // The account is still signed in, so its caches must survive intact —
     // a failed sign-out must not blank the app the user is still using.
     expect(queryClient.getQueryData(queryKeys.auth.session)).toEqual({ session: { id: "session-1" } });
-    expect(queryClient.getQueryData(queryKeys.companies.all)).toEqual({
-      companies: [{ id: "company-a", name: "Account A Co" }],
+    expect(queryClient.getQueryData(queryKeys.spaces.all)).toEqual({
+      spaces: [{ id: "space-a", name: "Account A Co" }],
       unauthorized: false,
     });
     expect(queryClient.getQueryState(queryKeys.auth.session)?.isInvalidated).toBe(false);
@@ -274,13 +274,13 @@ describe("useSignOut", () => {
       status: "ok",
       cloud: {
         managed: true,
-        managedBy: "paperclip-cloud",
+        managedBy: "outpost-cloud",
         stackSlug: "acme",
         cloudBaseUrl: "https://cloud.example.test",
       },
     });
-    queryClient.setQueryData(queryKeys.companies.all, {
-      companies: [{ id: "company-a", name: "Account A Co" }],
+    queryClient.setQueryData(queryKeys.spaces.all, {
+      spaces: [{ id: "space-a", name: "Account A Co" }],
       unauthorized: false,
     });
     const root = renderHarness();
@@ -288,8 +288,8 @@ describe("useSignOut", () => {
     flushSync(() => captured?.mutate());
 
     await vi.waitFor(() => expect(mockNavigateTopLevel).toHaveBeenCalledOnce());
-    expect(queryClient.getQueryData(queryKeys.companies.all)).toEqual({
-      companies: [{ id: "company-a", name: "Account A Co" }],
+    expect(queryClient.getQueryData(queryKeys.spaces.all)).toEqual({
+      spaces: [{ id: "space-a", name: "Account A Co" }],
       unauthorized: false,
     });
 
@@ -303,11 +303,11 @@ describe("isAccountScopedQueryKey", () => {
   });
 
   it("treats every other key root as account-scoped, including ones added later", () => {
-    expect(isAccountScopedQueryKey(queryKeys.companies.all)).toBe(true);
+    expect(isAccountScopedQueryKey(queryKeys.spaces.all)).toBe(true);
     expect(isAccountScopedQueryKey(queryKeys.auth.session)).toBe(true);
     expect(isAccountScopedQueryKey(queryKeys.access.currentBoardAccess)).toBe(true);
-    expect(isAccountScopedQueryKey(queryKeys.issues.list("company-a"))).toBe(true);
-    expect(isAccountScopedQueryKey(queryKeys.secrets.list("company-a"))).toBe(true);
+    expect(isAccountScopedQueryKey(queryKeys.issues.list("space-a"))).toBe(true);
+    expect(isAccountScopedQueryKey(queryKeys.secrets.list("space-a"))).toBe(true);
     expect(isAccountScopedQueryKey(["some-key-nobody-has-written-yet"])).toBe(true);
   });
 });

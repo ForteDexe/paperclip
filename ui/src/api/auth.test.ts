@@ -14,21 +14,21 @@ describe("authApi.getSession", () => {
   it("keeps a valid session when optional bootstrap is malformed or belongs to another account", async () => {
     const session = { session: { id: "session", userId: "one" },
       user: { id: "one", email: "one@example.com", name: "One", image: null }, sentryDsn: null };
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({ ...session, boardBootstrap: {
-      userId: "two", companies: [], boardAccess: { userId: "two", isInstanceAdmin: true, companyIds: ["foreign"] },
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ ...session, operatorBootstrap: {
+      userId: "two", spaces: [], operatorAccess: { userId: "two", isInstanceAdmin: true, spaceIds: ["foreign"] },
     } }));
     vi.stubGlobal("fetch", fetchMock);
     expect(await authApi.getSession()).toEqual(session);
-    fetchMock.mockResolvedValue(Response.json({ ...session, boardBootstrap: { userId: "one", companies: "invalid" } }));
+    fetchMock.mockResolvedValue(Response.json({ ...session, operatorBootstrap: { userId: "one", spaces: "invalid" } }));
     expect(await authApi.getSession()).toEqual(session);
   });
 
   it("retains a same-account bootstrap alongside the ordinary session", async () => {
     const session = { session: { id: "session", userId: "one" },
       user: { id: "one", email: "one@example.com", name: "One", image: null }, sentryDsn: null };
-    const boardBootstrap = { userId: "one", companies: [], boardAccess: { userId: "one", isInstanceAdmin: false, companyIds: [] } };
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ...session, boardBootstrap })));
-    expect(await authApi.getSession()).toEqual({ ...session, boardBootstrap });
+    const operatorBootstrap = { userId: "one", spaces: [], operatorAccess: { userId: "one", isInstanceAdmin: false, spaceIds: [] } };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ...session, operatorBootstrap })));
+    expect(await authApi.getSession()).toEqual({ ...session, operatorBootstrap });
   });
 
   it("returns null for an ordinary local 401", async () => {

@@ -64,7 +64,7 @@ export interface SavedWorkspaceArchive {
 }
 
 export type OpenSavedWorkspaceArchive = (input: {
-  companyId: string; workspaceId: string; snapshotId: string; signal?: AbortSignal;
+  spaceId: string; workspaceId: string; snapshotId: string; signal?: AbortSignal;
 }) => Promise<SavedWorkspaceArchive>;
 
 type ArchiveIndex = { entries: Map<string, SavedArchiveEntry>; children: Map<string, SavedArchiveEntry[]>; charge: number };
@@ -141,14 +141,14 @@ export function createSavedWorkspaceArchiveOpener(db: Db, storage: StorageServic
   return async input => {
     input.signal?.throwIfAborted();
     const [row] = await db.select({ updatedAt: executionWorkspaceSnapshots.updatedAt }).from(executionWorkspaceSnapshots).where(and(
-      eq(executionWorkspaceSnapshots.companyId, input.companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, input.workspaceId),
+      eq(executionWorkspaceSnapshots.spaceId, input.spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, input.workspaceId),
       eq(executionWorkspaceSnapshots.id, input.snapshotId), eq(executionWorkspaceSnapshots.status, "committed")));
     const saved = row ? await getWorkspaceSnapshot(db, input) : null;
     if (!row || !saved) throw new Error("remote_workspace_snapshot_unavailable");
     const ranges = await openWorkspaceSnapshotRanges({ storage, reference: saved, signal: input.signal,
       ...(options.idleTimeoutMs ? { idleTimeoutMs: options.idleTimeoutMs } : {}) });
     try {
-      const key = `${saved.companyId}/${saved.workspaceId}/${saved.id}/${saved.manifestDigest}`;
+      const key = `${saved.spaceId}/${saved.workspaceId}/${saved.id}/${saved.manifestDigest}`;
       let index: ArchiveIndex | undefined;
       for (;;) {
         index = cache.get(key);

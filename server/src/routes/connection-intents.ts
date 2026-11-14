@@ -16,7 +16,7 @@ import { connectionIntentService } from "../services/connection-intents.js";
 import { logActivity } from "../services/activity-log.js";
 import { accessService } from "../services/access.js";
 import type { heartbeatService } from "../services/heartbeat.js";
-import { assertBoard, assertCompanyAccess } from "./authz.js";
+import { assertOperator, assertSpaceAccess } from "./authz.js";
 import { resolveGitHubOperationCredentials } from "../services/github-operation-credentials.js";
 
 function bearer(req: Request) {
@@ -46,15 +46,15 @@ export function runtimeConnectionIntentRoutes(db: Db) {
   const service = connectionIntentService(db);
 
   router.post("/runtime-tools/github/credentials", async (req, res) => {
-    // This capability is never accepted as board/session authentication.
+    // This capability is never accepted as operator/session authentication.
     // Node fetch sends Sec-Fetch-Mode too; browsers additionally send Origin or Sec-Fetch-Site.
     if (req.headers.origin || req.headers.cookie || req.headers["sec-fetch-site"]) throw forbidden("GitHub credentials require runtime authentication");
-    const claims = verifyRuntimeToolsToken(typeof req.headers["x-paperclip-github-capability"] === "string"
-      ? req.headers["x-paperclip-github-capability"] : bearer(req), "github_credentials");
+    const claims = verifyRuntimeToolsToken(typeof req.headers["x-outpost-github-capability"] === "string"
+      ? req.headers["x-outpost-github-capability"] : bearer(req), "github_credentials");
     if (!claims) throw unauthorized("Invalid GitHub runtime capability");
     res.setHeader("Cache-Control", "no-store");
     res.json(await resolveGitHubOperationCredentials(db, {
-      companyId: claims.company_id, agentId: claims.sub, runId: claims.run_id,
+      spaceId: claims.space_id, agentId: claims.sub, runId: claims.run_id,
     }));
   });
 
@@ -78,7 +78,7 @@ export function runtimeConnectionIntentRoutes(db: Db) {
         result: {
           protocolVersion: "2025-03-26",
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "paperclip-runtime-tools", version: "1" },
+          serverInfo: { name: "outpost-runtime-tools", version: "1" },
         },
       });
       return;
@@ -151,10 +151,10 @@ export function connectionIntentBoardRoutes(db: Db, heartbeat: Heartbeat) {
     return req.actor.source === "local_implicit" || req.actor.isInstanceAdmin === true;
   }
 
-  async function canManageCompanyConnections(req: Request, companyId: string) {
+  async function canManageSpaceConnections(req: Request, spaceId: string) {
     if (bypassCurrentMembershipCheck(req)) return true;
     return Boolean(req.actor.userId && await access.hasPermission(
-      companyId,
+      spaceId,
       "user",
       req.actor.userId,
       "tools:manage_connections",
@@ -162,10 +162,10 @@ export function connectionIntentBoardRoutes(db: Db, heartbeat: Heartbeat) {
   }
 
   async function addressedIntent(req: Request) {
-    assertBoard(req);
+    assertOperator(req);
     const loaded = await service.loadIntent(req.params.interactionId as string);
-    assertCompanyAccess(req, loaded.issue.companyId);
-    const userId = req.actor.userId ?? "local-board";
+    assertSpaceAccess(req, loaded.issue.spaceId);
+    const userId = req.actor.userId ?? "local-operator";
     if (loaded.interaction.addresseeUserId !== userId) {
       throw forbidden("Only the addressed user can act on this connection request");
     }
@@ -183,7 +183,7 @@ export function connectionIntentBoardRoutes(db: Db, heartbeat: Heartbeat) {
   router.get("/connection-intents/:interactionId/setup-options", async (req, res) => {
     const { loaded } = await addressedIntent(req);
     res.json(await service.setupOptions(req.params.interactionId as string, {
-      canManageOrganizationGrant: await canManageCompanyConnections(req, loaded.issue.companyId),
+      canManageOrganizationGrant: await canManageSpaceConnections(req, loaded.issue.spaceId),
     }));
   });
 
@@ -196,7 +196,7 @@ export function connectionIntentBoardRoutes(db: Db, heartbeat: Heartbeat) {
     }
     res.json(await service.updatePhase(req.params.interactionId as string, phase, userId, {
       bypassCurrentMembershipCheck: bypassCurrentMembershipCheck(req),
-      canManageOrganizationGrant: await canManageCompanyConnections(req, loaded.issue.companyId),
+      canManageOrganizationGrant: await canManageSpaceConnections(req, loaded.issue.spaceId),
       setupAccess: connectionIntentPayloadSchema.shape.setupAccess.parse(req.body?.setupAccess),
     }));
   });
@@ -205,11 +205,11 @@ export function connectionIntentBoardRoutes(db: Db, heartbeat: Heartbeat) {
     const { loaded, userId } = await addressedIntent(req);
     const input = completeConnectionIntentSchema.parse(req.body);
     const interaction = await service.complete(loaded.interaction.id, input.connectionId, userId, {
-      canManageOrganizationGrant: await canManageCompanyConnections(req, loaded.issue.companyId),
+      canManageOrganizationGrant: await canManageSpaceConnections(req, loaded.issue.spaceId),
       bypassCurrentMembershipCheck: bypassCurrentMembershipCheck(req),
     });
     await logActivity(db, {
-      companyId: loaded.issue.companyId,
+      spaceId: loaded.issue.spaceId,
       actorType: "user",
       actorId: userId,
       action: "issue.connection_intent_connected",
@@ -232,7 +232,7 @@ export function connectionIntentBoardRoutes(db: Db, heartbeat: Heartbeat) {
       bypassCurrentMembershipCheck: bypassCurrentMembershipCheck(req),
     });
     await logActivity(db, {
-      companyId: loaded.issue.companyId,
+      spaceId: loaded.issue.spaceId,
       actorType: "user",
       actorId: userId,
       action: "issue.connection_intent_declined",

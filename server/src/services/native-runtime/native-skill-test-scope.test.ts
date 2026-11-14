@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { agentWakeupRequests, heartbeatRuns, issues } from "@outpost/db";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 describe("native Studio test authorization", () => {
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
@@ -23,12 +23,12 @@ describe("native Studio test authorization", () => {
     await server.db.update(issues).set({ workMode }).where(eq(issues.id, fixture.issueId));
     await server.db.update(issues).set({ parentId: fixture.issueId }).where(eq(issues.id, fixture.blockerId));
     await server.db.update(heartbeatRuns).set({ contextSnapshot: {
-      issueId: fixture.issueId, paperclipAgentJwtScope: { kind: "skill_test", issueId: fixture.issueId },
+      issueId: fixture.issueId, outpostAgentJwtScope: { kind: "skill_test", issueId: fixture.issueId },
     } }).where(eq(heartbeatRuns.id, fixture.runId));
-    const authority = new PaperclipRunnerToolAuthority(server.db, { ...fixture, workMode });
+    const authority = new OutpostRunnerToolAuthority(server.db, { ...fixture, workMode });
     const call = (tool: string, args: unknown = {}) => ({ tool, callId: randomUUID(), arguments: args });
     const before = await fixture.snapshot();
-    const wakes = await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, fixture.companyId));
+    const wakes = await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, fixture.spaceId));
     const create = call("create_task", { title: "Must not escape Studio", idempotencyKey: "denied-create", assigneeActorId: fixture.agentId });
     for (const denied of [create, call("search_tasks"), call("list_agents"), call("list_people"), call("list_approvals"),
       call("get_agent", { actorId: fixture.agentId }), call("connection_request", { service: "notion" })]) {
@@ -36,7 +36,7 @@ describe("native Studio test authorization", () => {
       await expect(authority.recover(denied)).rejects.toMatchObject({ status: 403 });
     }
     expect((await fixture.snapshot()).issues).toEqual(before.issues);
-    expect(await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, fixture.companyId))).toEqual(wakes);
+    expect(await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, fixture.spaceId))).toEqual(wakes);
     const context = await authority.execute(call("get_task_context"));
     expect(context).toMatchObject({ activeTask: { id: fixture.issueId }, childTasks: [], childReviewOutcomes: [] });
     expect(JSON.stringify(context)).not.toContain(fixture.blockerId);

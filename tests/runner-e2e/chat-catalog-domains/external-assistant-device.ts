@@ -12,13 +12,13 @@ const DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 interface DeviceCode { device_code: string; user_code: string; verification_uri: string; verification_uri_complete: string; expires_in: number; interval: number }
 interface DeviceFixture { personId: string; clientId: string; otherClientId: string; primary: DeviceCode; expiring: DeviceCode; expiresAt: number; polledAt: number; tokens?: Tokens }
 const fixtures = new WeakMap<ChatCatalogContext, DeviceFixture>();
-async function requestDevice(clientId: string, companyId: string): Promise<DeviceCode> {
-  const response = await oauthPost("device_authorization", { client_id: clientId, resource, company_id: companyId, scope: "paperclip:read offline_access" });
+async function requestDevice(clientId: string, spaceId: string): Promise<DeviceCode> {
+  const response = await oauthPost("device_authorization", { client_id: clientId, resource, space_id: spaceId, scope: "outpost:read offline_access" });
   if (response.status !== 200) { await response.body?.cancel(); throw new Error("Device authorization setup failed; response withheld"); }
   return response.json() as Promise<DeviceCode>;
 }
 async function registerClient() {
-  const response = await oauthPost("register", { client_name: "Paperclip disposable CLI", application_type: "native", redirect_uris: [], grant_types: [DEVICE_GRANT, "refresh_token"] });
+  const response = await oauthPost("register", { client_name: "Outpost disposable CLI", application_type: "native", redirect_uris: [], grant_types: [DEVICE_GRANT, "refresh_token"] });
   if (response.status !== 201) { await response.body?.cancel(); throw new Error("Disposable CLI registration failed; response withheld"); }
   return (await response.json() as { client_id: string }).client_id;
 }
@@ -28,9 +28,9 @@ async function exchange(fixture: DeviceFixture, code: DeviceCode, override: Reco
 export function gradeDeviceLogin(value: unknown) {
   const c = checks(), o = externalObservation(value);
   c.add("complete-device-evidence", !!o, "Actual CLI device request, browser consent, token/resource tests and real expiration are required."); if (!o) return c.result();
-  c.add("correct-human-verification", o.state.verificationPath === "/mcp-device" && o.state.currentCodeVisible === true && o.state.companyConsentVisible === true && o.state.readScopeVisible === true
-    && o.state.humanApproved === true && o.state.clientCompanyId === o.companyId && o.state.clientReadOnly === true,
-    "The person follows the issuer's actual page/current code and authorizes exactly the intended company and read scope.");
+  c.add("correct-human-verification", o.state.verificationPath === "/mcp-device" && o.state.currentCodeVisible === true && o.state.spaceConsentVisible === true && o.state.readScopeVisible === true
+    && o.state.humanApproved === true && o.state.clientSpaceId === o.spaceId && o.state.clientReadOnly === true,
+    "The person follows the issuer's actual page/current code and authorizes exactly the intended space and read scope.");
   c.add("private-device-ui", matchesDevicePrivateReceipt("device-approve", o.state.approvalUi) && matchesDevicePrivateReceipt("device-expired", o.state.expiredUi),
     "Both actual device UI phases use the isolated finite browser with closed receipts, outside Test reporting.");
   c.add("pending-without-human-approval", o.state.pendingError === "authorization_pending", "The waiting CLI cannot obtain credentials before human approval.");
@@ -49,9 +49,9 @@ export const assistantDeviceExternalCases = [definition("assistant-connections.d
   const setup = await ctx.input.api.get<{ enabled: boolean; serverUrl: string }>("/api/mcp/setup");
   if (!setup.enabled || setup.serverUrl !== resource) throw new Error("Setup blocker: this disposable instance has no compatible public MCP issuer/resource");
   const clientId = await registerClient(), otherClientId = await registerClient();
-  const primary = await requestDevice(clientId, ctx.input.fixtures.company.id);
+  const primary = await requestDevice(clientId, ctx.input.fixtures.space.id);
   ctx.input.privateSecrets.push(primary.device_code, primary.user_code, primary.verification_uri_complete);
-  const expiring = await requestDevice(clientId, ctx.input.fixtures.company.id);
+  const expiring = await requestDevice(clientId, ctx.input.fixtures.space.id);
   ctx.input.privateSecrets.push(expiring.device_code, expiring.user_code, expiring.verification_uri_complete);
   if (primary.expires_in !== 600 || expiring.expires_in !== 600 || primary.verification_uri !== `${origin}/mcp-device`) throw new Error("Declared bounded device-code lifetime or verification origin differs from the real issuer");
   const session = await ctx.input.api.get<{ user: { id: string } }>("/api/auth/get-session");
@@ -67,13 +67,13 @@ export const assistantDeviceExternalCases = [definition("assistant-connections.d
     await waitForReply(ctx, chatCatalogOriginalPhaseDeadline(ctx)); const fixture = fixtures.get(ctx); if (!fixture) throw new Error("Device fixture missing");
     const approvalUi = await privateBrowserEntry({
       mode: "device-approve", baseURL: origin, setupURL: fixture.primary.verification_uri_complete,
-      providerURL: origin, credential: fixture.primary.user_code, companyId: ctx.input.fixtures.company.id,
-      device: { userId: fixture.personId, companyName: ctx.input.fixtures.company.name },
+      providerURL: origin, credential: fixture.primary.user_code, spaceId: ctx.input.fixtures.space.id,
+      device: { userId: fixture.personId, spaceName: ctx.input.fixtures.space.name },
       cookies: await ctx.input.page.context().cookies(origin),
     });
     state.approvalUi = approvalUi;
     state.currentCodeVisible = approvalUi.currentCodeVisible;
-    state.companyConsentVisible = approvalUi.companyConsentVisible;
+    state.spaceConsentVisible = approvalUi.spaceConsentVisible;
     state.readScopeVisible = approvalUi.readScopeVisible;
     state.humanApproved = approvalUi.humanApproved;
     const wrongResource = await exchange(fixture, fixture.primary, { resource: origin + "/mcp/not-the-resource" }); state.wrongResourceDenied = wrongResource.status === 400; await wrongResource.body?.cancel();
@@ -83,8 +83,8 @@ export const assistantDeviceExternalCases = [definition("assistant-connections.d
     if (!correct.ok) { await correct.body?.cancel(); throw new Error("Approved device exchange failed; response withheld"); }
     fixture.tokens = await correct.json() as Tokens; ctx.input.privateSecrets!.push(fixture.tokens.access_token, fixture.tokens.refresh_token);
     const client = await mcp(fixture.tokens);
-    try { const receipt = (await client.call("paperclip_connection")).structuredContent; state.clientCompanyId = receipt?.companyId;
-      state.clientReadOnly = Array.isArray(receipt?.scopes) && receipt.scopes.includes("paperclip:read") && !receipt.scopes.includes("paperclip:write");
+    try { const receipt = (await client.call("outpost_connection")).structuredContent; state.clientSpaceId = receipt?.spaceId;
+      state.clientReadOnly = Array.isArray(receipt?.scopes) && receipt.scopes.includes("outpost:read") && !receipt.scopes.includes("outpost:write");
     } finally { await client.close(); }
     const reused = await exchange(fixture, fixture.primary); state.reusedCodeDenied = reused.status === 400; await reused.body?.cancel();
     // Deliberately spend the issuer's actual 10-minute lifetime, never mock time,
@@ -96,8 +96,8 @@ export const assistantDeviceExternalCases = [definition("assistant-connections.d
     state.expiredCodeDenied = expired.status === 400 && body.error === "expired_token";
     const expiredUi = await privateBrowserEntry({
       mode: "device-expired", baseURL: origin, setupURL: fixture.expiring.verification_uri_complete,
-      providerURL: origin, credential: fixture.expiring.user_code, companyId: ctx.input.fixtures.company.id,
-      device: { userId: fixture.personId, companyName: ctx.input.fixtures.company.name },
+      providerURL: origin, credential: fixture.expiring.user_code, spaceId: ctx.input.fixtures.space.id,
+      device: { userId: fixture.personId, spaceName: ctx.input.fixtures.space.name },
       cookies: await ctx.input.page.context().cookies(origin),
     });
     state.expiredUi = expiredUi;

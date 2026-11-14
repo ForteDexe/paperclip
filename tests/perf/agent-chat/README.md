@@ -11,7 +11,7 @@ its matching PostgreSQL URL, with a database name ending in `_test`:
 
 ```sh
 OUTPOST_ISSUE_PERF_BASE_URL=http://127.0.0.1:3221 \
-OUTPOST_CHAT_PERF_DATABASE_URL=postgres://paperclip:paperclip@127.0.0.1:55503/fast_chat_preview_test \
+OUTPOST_CHAT_PERF_DATABASE_URL=postgres://outpost:outpost@127.0.0.1:55503/fast_chat_preview_test \
   pnpm exec playwright test --config tests/perf/agent-chat/playwright.config.ts
 ```
 
@@ -39,7 +39,7 @@ not the loading shell. Retain per-frame geometry and server timings alongside
 sample medians/ranges; do not treat fewer transcript requests as latency proof.
 
 Terminal native transcripts read during a visit are retained in the application's
-query cache by company, run, status and projection. A cached return can reveal
+query cache by space, run, status and projection. A cached return can reveal
 those rows immediately while the normal cursor-based catch-up read runs in the
 background. Live runs and uncached projections still wait for hydration. Cache
 reuse does not remove reconnect or retry reads. Return navigation also exercises
@@ -81,9 +81,9 @@ from a persistent 198-pixel bottom gap to zero.
 
 The chat's pending task questions use the attention service's scoped question
 projection. It keeps current access, audience, dismissal, queue, snooze and archive
-rules without constructing the company feed. Ranks are relative to the returned
+rules without constructing the space feed. Ranks are relative to the returned
 questions. Seeded queue membership checks use bounded batches on both scoped
-questions and the company feed. New memberships keep their existing audit path.
+questions and the space feed. New memberships keep their existing audit path.
 The first reveal still waits for these cards so their arrival does not move an
 already visible conversation.
 
@@ -96,7 +96,7 @@ pnpm --filter @outpost/server exec tsx ../scripts/benchmark-chat-questions.ts \
 
 The benchmark creates a disposable PostgreSQL database with two relevant tasks
 and the requested number of unrelated blocked tasks and questions. It alternates
-five baseline/candidate pairs for chat questions and the company badge summary,
+five baseline/candidate pairs for chat questions and the space badge summary,
 compares all returned fields except contextual rank and the generated timestamp,
 counts SQL calls and captures the actual interaction query plans.
 `OUTPOST_CHAT_QUESTIONS_TEST_DATABASE_URL` can reuse a dedicated database ending

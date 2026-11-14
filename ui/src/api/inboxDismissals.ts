@@ -2,15 +2,15 @@ import type { InboxDismissal } from "@outpost/shared";
 import { api } from "./client";
 
 export const inboxDismissalsApi = {
-  list: (companyId: string) => api.get<InboxDismissal[]>(`/companies/${companyId}/inbox-dismissals`),
-  dismiss: (companyId: string, itemKey: string) =>
-    api.post<InboxDismissal>(`/companies/${companyId}/inbox-dismissals`, { itemKey }),
-  snooze: (companyId: string, itemKey: string, snoozedUntil: string) =>
-    api.post<InboxDismissal>(`/companies/${companyId}/inbox-dismissals`, {
+  list: (spaceId: string) => api.get<InboxDismissal[]>(`/spaces/${spaceId}/inbox-dismissals`),
+  dismiss: (spaceId: string, itemKey: string) =>
+    api.post<InboxDismissal>(`/spaces/${spaceId}/inbox-dismissals`, { itemKey }),
+  snooze: (spaceId: string, itemKey: string, snoozedUntil: string) =>
+    api.post<InboxDismissal>(`/spaces/${spaceId}/inbox-dismissals`, {
       itemKey,
       kind: "snooze",
       snoozedUntil,
     }),
-  restore: (companyId: string, itemKey: string) =>
-    api.delete<void>(`/companies/${companyId}/inbox-dismissals/${encodeURIComponent(itemKey)}`),
+  restore: (spaceId: string, itemKey: string) =>
+    api.delete<void>(`/spaces/${spaceId}/inbox-dismissals/${encodeURIComponent(itemKey)}`),
 };

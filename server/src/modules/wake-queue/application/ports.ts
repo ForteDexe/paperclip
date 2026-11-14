@@ -42,7 +42,7 @@ export interface WakeQueueHost {
    * module's own transaction is open.
    */
   resolveResponsibleUserId(input: {
-    companyId: string;
+    spaceId: string;
     contextSnapshot: Record<string, unknown>;
     issue: IssueSnapshot;
     /** From a prior `getRoutineEnv` call against the same issue; pass `{ routineId: null, env: null, responsibleUserId: null }` when the issue is not a routine execution. */
@@ -59,11 +59,11 @@ export interface WakeQueueHost {
    * module's own transaction is open.
    */
   getRoutineEnv(input: {
-    companyId: string;
+    spaceId: string;
     issue: IssueSnapshot;
   }): Promise<{ routineId: string | null; env: unknown; responsibleUserId: string | null }>;
   resolveSessionBeforeForWakeup(input: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     taskKey: string | null;
   }): Promise<string | null>;
@@ -71,7 +71,7 @@ export interface WakeQueueHost {
 
 export type DeferredWakeCandidate = {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   reason: string | null;
   source: string | null;
@@ -83,7 +83,7 @@ export type DeferredWakeCandidate = {
   queuedCommentIds: string[];
   /** True when the wake carries an independent reason to continue even with no live queued comments. */
   preservesIndependentContinuation: boolean;
-  /** `payload._paperclipWakeContext`, already parsed to a plain object. */
+  /** `payload._outpostWakeContext`, already parsed to a plain object. */
   deferredContextSeed: Record<string, unknown>;
   /** The comment ids the wake's context snapshot carries (a separate set from queuedCommentIds), used for the reopen check. */
   deferredCommentIds: string[];
@@ -93,7 +93,7 @@ export type DeferredWakeCandidate = {
 };
 
 export type PromoteDeferredWakeInput = {
-  companyId: string;
+  spaceId: string;
   wakeId: string;
   deferredAgent: InvokableAgentSnapshot;
   issue: IssueSnapshot;
@@ -116,10 +116,10 @@ export type PromoteDeferredWakeInput = {
  * the deferred-wake queue.
  */
 export interface WakeQueueTransaction {
-  findInvokableAgent(input: { companyId: string; agentId: string }): Promise<InvokableAgentSnapshot | null>;
-  findNextDeferredWake(input: { companyId: string; issueId: string; excludedWakeIds?: string[] }): Promise<DeferredWakeCandidate | null>;
+  findInvokableAgent(input: { spaceId: string; agentId: string }): Promise<InvokableAgentSnapshot | null>;
+  findNextDeferredWake(input: { spaceId: string; issueId: string; excludedWakeIds?: string[] }): Promise<DeferredWakeCandidate | null>;
   getQueuedCommentLiveness(input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     wakeAgentId: string;
     finishingRunId: string;
@@ -133,14 +133,14 @@ export interface WakeQueueTransaction {
   }>;
   /** Cancels the wake with `status = 'deferred_issue_execution'` as an atomic compare-and-set guard. */
   cancelDeferredWake(input: {
-    companyId: string;
+    spaceId: string;
     wakeId: string;
     agentId: string;
     reason: string;
     now: Date;
   }): Promise<boolean>;
   normalizeDeferredWakeCommentIds(input: {
-    companyId: string;
+    spaceId: string;
     wakeId: string;
     /** The wake's current payload, as already read by `findNextDeferredWake`, used as the rewrite base. */
     payload: Record<string, unknown>;
@@ -148,9 +148,9 @@ export interface WakeQueueTransaction {
     now: Date;
   }): Promise<DeferredWakeCandidate | null>;
   /** Sets `status = 'failed'` guarded by the current `deferred_issue_execution` status. */
-  failDeferredWake(input: { companyId: string; wakeId: string; agentId: string; now: Date }): Promise<boolean>;
+  failDeferredWake(input: { spaceId: string; wakeId: string; agentId: string; now: Date }): Promise<boolean>;
   getPauseHoldFacts(input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     wakeAgentId: string;
     deferredContextSeed: Record<string, unknown>;
@@ -166,22 +166,22 @@ export interface WakeQueueTransaction {
     releasePolicy: unknown;
   }>;
   getCommentSelfAuthorship(input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     finishingRunId: string;
     commentIds: string[];
   }): Promise<{ allSelfAuthored: boolean }>;
   /** Proves all candidate comments only report completed child work in the finishing parent's own run. */
   isCompletedDelegationMention(input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     finishingRunId: string;
     wakeAgentId: string;
     commentIds: string[];
   }): Promise<boolean>;
-  reopenIssue(input: { companyId: string; issueId: string; runId: string }): Promise<IssueSnapshot | null>;
+  reopenIssue(input: { spaceId: string; issueId: string; runId: string }): Promise<IssueSnapshot | null>;
   /** Verifies a Done onboarding parent's completion wake against its own completed children. */
-  isCompletedOnboardingHandoffWake(input: { companyId: string; issueId: string; agentId: string;
+  isCompletedOnboardingHandoffWake(input: { spaceId: string; issueId: string; agentId: string;
     reason: string | null; contextSnapshot: Record<string, unknown> }): Promise<boolean>;
   /**
    * Atomically claims the wake for promotion, guarded on its current
@@ -190,7 +190,7 @@ export interface WakeQueueTransaction {
    * leave another write committed underneath it. Returns `false` when a
    * concurrent writer already changed the wake's status.
    */
-  claimDeferredWakeForPromotion(input: { companyId: string; wakeId: string; now: Date }): Promise<boolean>;
+  claimDeferredWakeForPromotion(input: { spaceId: string; wakeId: string; now: Date }): Promise<boolean>;
   /**
    * Finalizes a wake that `claimDeferredWakeForPromotion` already claimed:
    * inserts the queued run, links it back onto the wake row, and takes the
@@ -199,18 +199,18 @@ export interface WakeQueueTransaction {
   finalizePromotedWake(input: PromoteDeferredWakeInput): Promise<RunSummary>;
   /** An open run already on this issue (optionally scoped to one agent) that would race a new recovery run. */
   hasExistingExecutionPath(input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     excludeRunId: string;
     agentId: string | null;
   }): Promise<boolean>;
   /** An open, non-hidden issue that still lists this issue as a `blocks` predecessor. */
-  hasExplicitBlockerPath(input: { companyId: string; issueId: string }): Promise<boolean>;
-  isAutomaticRecoverySuppressedByPauseHold(input: { companyId: string; issueId: string }): Promise<boolean>;
+  hasExplicitBlockerPath(input: { spaceId: string; issueId: string }): Promise<boolean>;
+  isAutomaticRecoverySuppressedByPauseHold(input: { spaceId: string; issueId: string }): Promise<boolean>;
   /** Deny-only facts from the exact finishing run and its durable chat wake owner. */
-  isImmediateRecoverySourceBlocked(input: { companyId: string; runId: string }): Promise<boolean>;
+  isImmediateRecoverySourceBlocked(input: { spaceId: string; runId: string }): Promise<boolean>;
   queueReviewParticipantRecoveryRun(input: {
-    companyId: string;
+    spaceId: string;
     issue: IssueSnapshot;
     finishingRun: RunSnapshot;
     recoveryAgent: InvokableAgentSnapshot;
@@ -222,7 +222,7 @@ export interface WakeQueueTransaction {
    * caller already resolved.
    */
   queueImmediateRecoveryRun(input: {
-    companyId: string;
+    spaceId: string;
     issue: IssueSnapshot;
     finishingRun: RunSnapshot;
     recoveryAgent: InvokableAgentSnapshot;
@@ -248,7 +248,7 @@ export interface WakeQueueTransaction {
  */
 export interface IssueLockWriter {
   withIssueExecutionLock(
-    input: { companyId: string; runId: string; now: Date; resumeStrandedQueue?: boolean },
+    input: { spaceId: string; runId: string; now: Date; resumeStrandedQueue?: boolean },
     fn: (
       locked: LockedIssueExecution,
       ports: { host: WakeQueueHost; transaction: WakeQueueTransaction },
@@ -290,19 +290,19 @@ export type { PostCommitEffect, ReleaseOutcome };
  */
 export class TransactionScope {
   private constructor(
-    private readonly companyId: string,
+    private readonly spaceId: string,
     private readonly rawTx: unknown,
   ) {}
 
-  static create(companyId: string, rawTx: unknown): TransactionScope {
-    return new TransactionScope(companyId, rawTx);
+  static create(spaceId: string, rawTx: unknown): TransactionScope {
+    return new TransactionScope(spaceId, rawTx);
   }
 
-  /** Returns the bound transaction only when `companyId` matches the scope's own company. */
-  requireTx(companyId: string): unknown {
-    if (companyId !== this.companyId) {
+  /** Returns the bound transaction only when `spaceId` matches the scope's own space. */
+  requireTx(spaceId: string): unknown {
+    if (spaceId !== this.spaceId) {
       throw new Error(
-        "wake-queue: the transaction scope belongs to a different company than the requested write",
+        "wake-queue: the transaction scope belongs to a different space than the requested write",
       );
     }
     return this.rawTx;
@@ -312,12 +312,12 @@ export class TransactionScope {
 /** Reads a scope's bound transaction. Rejects a missing scope with the same clear error as a mismatched one; never falls back to any other executor. */
 export function requireTransactionScopeTx(
   scope: TransactionScope | null | undefined,
-  companyId: string,
+  spaceId: string,
 ): unknown {
   if (!scope) {
     throw new Error("wake-queue: this call carries no transaction scope");
   }
-  return scope.requireTx(companyId);
+  return scope.requireTx(spaceId);
 }
 
 /** The active execution run a new wake arrives behind. */
@@ -353,7 +353,7 @@ export type ExistingDeferredWake = {
   id: string;
   runId?: string | null;
   payload: Record<string, unknown>;
-  /** `payload._paperclipWakeContext`, already parsed to a plain object. */
+  /** `payload._outpostWakeContext`, already parsed to a plain object. */
   deferredContext: Record<string, unknown>;
   coalescedCount: number | null;
 };
@@ -394,13 +394,13 @@ export type AdmitWakeBehindIssueExecutionResult =
   | { kind: "coalesced"; run: Record<string, unknown> }
   | { kind: "deferred" };
 
-/** Read-only lookups the admission use case needs, each scoped to a company. */
+/** Read-only lookups the admission use case needs, each scoped to a space. */
 export interface WakeAdmissionReader {
   /** A durable incoming request may share an active run only with the exact actor on its persisted wake receipt. */
   matchesActiveWakeActor(
     scope: TransactionScope,
     input: {
-      companyId: string;
+      spaceId: string;
       wakeupRequestId: string | null;
       requestedByActorType: string | null;
       requestedByActorId: string | null;
@@ -410,7 +410,7 @@ export interface WakeAdmissionReader {
   isSameExecutionAgent(
     scope: TransactionScope,
     input: {
-      companyId: string;
+      spaceId: string;
       activeExecutionRunAgentId: string;
       issueExecutionAgentNameKey: string | null;
       agentNameKey: string | null;
@@ -419,7 +419,7 @@ export interface WakeAdmissionReader {
   findExistingDeferredWake(
     scope: TransactionScope,
     input: {
-      companyId: string;
+      spaceId: string;
       agentId: string;
       issueId: string;
       /** Matches only deferred wakes for this chat conversation or for no conversation. */
@@ -435,7 +435,7 @@ export interface WakeAdmissionWriter {
   coalesceIntoActiveExecutionRun(
     scope: TransactionScope,
     input: {
-      companyId: string;
+      spaceId: string;
       activeExecutionRunId: string;
       activeExecutionRunStatus: WakeAdmissionActiveExecutionRun["status"];
       mergedContextSnapshot: Record<string, unknown>;
@@ -453,7 +453,7 @@ export interface WakeAdmissionWriter {
   mergeIntoExistingDeferredWake(
     scope: TransactionScope,
     input: {
-      companyId: string;
+      spaceId: string;
       existingDeferredWakeId: string;
       mergedPayload: Record<string, unknown>;
       nextCoalescedCount: number;
@@ -467,7 +467,7 @@ export interface WakeAdmissionWriter {
   insertNewDeferredWake(
     scope: TransactionScope,
     input: {
-      companyId: string;
+      spaceId: string;
       agentId: string;
       source: string;
       triggerDetail: string | null;

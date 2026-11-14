@@ -31,11 +31,11 @@
   "redirectConstraints": "https-or-loopback-http",
   "methods": [
     {
-      "key": "paperclip-read",
+      "key": "outpost-read",
       "label": "Connect with Outpost",
       "transport": "mcp_remote",
       "auth": "oauth",
-      "oauthStrategy": "paperclip_cloud_connector",
+      "oauthStrategy": "outpost_cloud_connector",
       "connectorProfile": "sheets.read",
       "capabilityProfile": {
         "key": "read",
@@ -104,11 +104,11 @@
       "riskTier": "S3"
     },
     {
-      "key": "paperclip-write",
+      "key": "outpost-write",
       "label": "Connect with Outpost",
       "transport": "mcp_remote",
       "auth": "oauth",
-      "oauthStrategy": "paperclip_cloud_connector",
+      "oauthStrategy": "outpost_cloud_connector",
       "connectorProfile": "sheets.write",
       "capabilityProfile": {
         "key": "write",

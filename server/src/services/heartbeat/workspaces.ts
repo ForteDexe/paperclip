@@ -40,7 +40,7 @@ import {
 } from "@outpost/shared";
 import {
   agents,
-  companies,
+  spaces,
   heartbeatRuns,
   issues,
   projects,
@@ -59,7 +59,7 @@ import {
 import {
   resolveDefaultAgentWorkspaceDir,
   resolveManagedProjectWorkspaceDir,
-  resolvePaperclipInstanceRoot,
+  resolveOutpostInstanceRoot,
 } from "../../home-paths.js";
 import {
   formatManagedGitWorktreeBranchInspection,
@@ -100,13 +100,13 @@ import {
 
 const execFile = promisify(execFileCallback);
 
-const REPO_ONLY_CWD_SENTINEL = "/__paperclip_repo_only__";
+const REPO_ONLY_CWD_SENTINEL = "/__outpost_repo_only__";
 
 
 export const WORKSPACE_VALIDATION_FAILURE_CODE = "workspace_validation_failed";
 
 const GITHUB_PR_WORKFLOW_SKILL_KEY =
-  "paperclipai/bundled/software-development/github-pr-workflow";
+  "outpost/bundled/software-development/github-pr-workflow";
 
 const GITHUB_PR_WORKFLOW_SKILL_SLUG = "github-pr-workflow";
 
@@ -369,7 +369,7 @@ export async function preflightLowTrustWorkspaceIsolation(input: {
   isolatedWorkspacesEnabled: boolean;
   effectiveExecutionWorkspaceMode: string | null | undefined;
   issue: {
-    companyId: string;
+    spaceId: string;
     id?: string | null;
     projectId?: string | null;
   } | null;
@@ -407,7 +407,7 @@ export async function resolveWorkspaceAfterLowTrustPreflight<
   isolatedWorkspacesEnabled: boolean;
   effectiveExecutionWorkspaceMode: string | null | undefined;
   issue: {
-    companyId: string;
+    spaceId: string;
     id?: string | null;
     projectId?: string | null;
   } | null;
@@ -446,7 +446,7 @@ const managedCheckoutMaterializations = new Map<
 >();
 
 export async function ensureManagedProjectWorkspace(input: {
-  companyId: string;
+  spaceId: string;
   projectId: string;
   repoUrl: string | null;
   prepareLocalSource?: PrepareManagedLocalSource;
@@ -454,7 +454,7 @@ export async function ensureManagedProjectWorkspace(input: {
   resolveGitAuth?: GitRemoteAuthProvider | null;
 }): Promise<{ cwd: string; warning: string | null }> {
   const defaultCwd = resolveManagedProjectWorkspaceDir({
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     projectId: input.projectId,
     repoName: deriveRepoNameFromRepoUrl(input.repoUrl),
   });
@@ -507,7 +507,7 @@ export async function prepareProjectRepositoryWorkspaces(input: {
   beforePublish?: () => Promise<void>;
   prepareLocalSource?: (sourceCwd: string, projectWorkspaceId: string) => Promise<() => Promise<void>>;
   restoredContents?: GitWorkspaceContents;
-  sharedBase?: { companyId: string; projectId: string };
+  sharedBase?: { spaceId: string; projectId: string };
 }): Promise<Array<{ workspaceId: string; cwd: string; repoUrl: string; repoRef: string | null }>> {
   const identity = projectRepositoryIdentity;
   const seen = new Set(input.anchorRepoUrl ? [identity(input.anchorRepoUrl)] : []);
@@ -567,7 +567,7 @@ export async function prepareProjectRepositoryWorkspaces(input: {
   const active = new Set(results.map((repo) => path.basename(repo.cwd)));
   for (const entry of await fs.readdir(root)) {
     if (active.has(entry) || entry.startsWith("task-repo-") || entry.includes(".clone-")) continue;
-    const retained = path.join(input.cwd, ".paperclip-runtime", "detached-repositories", randomUUID());
+    const retained = path.join(input.cwd, ".outpost-runtime", "detached-repositories", randomUUID());
     const linked = await readLinkedNestedCheckout(path.join(root, entry)).catch(() => null);
     await fs.mkdir(path.dirname(retained), { recursive: true });
     await fs.rename(path.join(root, entry), retained);
@@ -583,7 +583,7 @@ export async function prepareProjectRepositoryWorkspaces(input: {
  * checkout cannot be prepared (for example, a clone failure).
  */
 async function resolveConfiguredOrManagedProjectCwd(input: {
-  companyId: string;
+  spaceId: string;
   projectId: string;
   cwd: string | null;
   repoUrl: string | null;
@@ -596,7 +596,7 @@ async function resolveConfiguredOrManagedProjectCwd(input: {
     return { cwd: configuredCwd, warning: null };
   }
   return ensureManagedProjectWorkspace({
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     projectId: input.projectId,
     repoUrl: readNonEmptyString(input.repoUrl),
     resolveGitAuth: input.resolveGitAuth ?? null,
@@ -611,7 +611,7 @@ async function resolveConfiguredOrManagedProjectCwd(input: {
  */
 export interface ResolveAdditionalProjectWorkspaceDeps {
   loadProjectWorkspaceRows: (
-    companyId: string,
+    spaceId: string,
     projectId: string,
   ) => Promise<Array<typeof projectWorkspaces.$inferSelect>>;
   resolveConfiguredOrManagedProjectCwd: typeof resolveConfiguredOrManagedProjectCwd;
@@ -626,13 +626,13 @@ function defaultAdditionalProjectWorkspaceDeps(
   prepareLocalSource?: PrepareManagedLocalSource,
 ): ResolveAdditionalProjectWorkspaceDeps {
   return {
-    loadProjectWorkspaceRows: (companyId, projectId) =>
+    loadProjectWorkspaceRows: (spaceId, projectId) =>
       db
         .select()
         .from(projectWorkspaces)
         .where(
           and(
-            eq(projectWorkspaces.companyId, companyId),
+            eq(projectWorkspaces.spaceId, spaceId),
             eq(projectWorkspaces.projectId, projectId),
           ),
         )
@@ -644,7 +644,7 @@ function defaultAdditionalProjectWorkspaceDeps(
         resolveGitAuth:
           input.resolveGitAuth ??
           resolveGitAuth ??
-          createGitRemoteAuthProvider(db, input.companyId),
+          createGitRemoteAuthProvider(db, input.spaceId),
       }),
     ensureManagedProjectWorkspace: (input) =>
       ensureManagedProjectWorkspace({
@@ -653,7 +653,7 @@ function defaultAdditionalProjectWorkspaceDeps(
         resolveGitAuth:
           input.resolveGitAuth ??
           resolveGitAuth ??
-          createGitRemoteAuthProvider(db, input.companyId),
+          createGitRemoteAuthProvider(db, input.spaceId),
       }),
     // A realized workspace must hold real content. An empty directory gives the agent an empty
     // referenced workspace, so treat an empty directory the same as a missing one.
@@ -683,15 +683,15 @@ function defaultAdditionalProjectWorkspaceDeps(
  */
 export async function resolveAdditionalProjectWorkspace(
   input: {
-    companyId: string;
+    spaceId: string;
     project: RunReferencedProject;
   },
   deps: ResolveAdditionalProjectWorkspaceDeps,
 ): Promise<ResolvedAdditionalWorkspace> {
-  const { companyId } = input;
+  const { spaceId } = input;
   const projectId = input.project.projectId;
   const workspaceRows = await deps.loadProjectWorkspaceRows(
-    companyId,
+    spaceId,
     projectId,
   );
   for (const workspace of workspaceRows) {
@@ -704,7 +704,7 @@ export async function resolveAdditionalProjectWorkspace(
       continue;
     }
     const { cwd } = await deps.resolveConfiguredOrManagedProjectCwd({
-      companyId,
+      spaceId,
       projectId,
       cwd: workspace.cwd,
       repoUrl: workspace.repoUrl,
@@ -736,7 +736,7 @@ export async function resolveAdditionalProjectWorkspace(
     );
   }
   const managed = await deps.ensureManagedProjectWorkspace({
-    companyId,
+    spaceId,
     projectId,
     repoUrl: fallbackRepoUrl,
   });
@@ -1572,16 +1572,16 @@ export function isConfinedRemoteStagingDriver(
 export const MAX_RUN_REFERENCED_ADDITIONAL_PROJECTS = 10;
 
 /**
- * Upper bound on how many *available* (same-company, hydrated) candidate projects a single run will
+ * Upper bound on how many *available* (same-space, hydrated) candidate projects a single run will
  * *authorize* before the admitted-project cap is applied.
  *
  * This is a fan-out guard distinct from {@link MAX_RUN_REFERENCED_ADDITIONAL_PROJECTS}:
  * the admitted cap counts only projects that were successfully authorized, so on its own it
- * does not bound how many `project:read` decisions a run performs — an adversarial same-company
+ * does not bound how many `project:read` decisions a run performs — an adversarial same-space
  * mention flood in which every candidate is denied would authorize every candidate before the
  * admitted cap is ever reached. This limit caps the number of authorization decisions regardless of
  * how many candidates are admitted, so denied mentions cannot force unbounded authorization work.
- * Only available candidates count against it — unavailable mentions are filtered by the company-scoped
+ * Only available candidates count against it — unavailable mentions are filtered by the space-scoped
  * hydration first and never consume an evaluation slot. It is always at least the admitted cap so the
  * admitted cap remains reachable in the normal (non-flood) case.
  */
@@ -1632,7 +1632,7 @@ export interface ResolvedRunReferencedProjects {
 }
 
 export interface ResolveRunReferencedProjectsOptions {
-  companyId: string;
+  spaceId: string;
   /** The run actor; every additional project is authorized against this actor. */
   actor: AuthorizationActor;
   issues: Pick<ReturnType<typeof issueService>, "findMentionedProjectIds">;
@@ -1649,25 +1649,25 @@ export interface ResolveRunReferencedProjectsOptions {
 }
 
 /**
- * Produce the deduped, company-scoped, per-project-authorized referenced-project set
+ * Produce the deduped, space-scoped, per-project-authorized referenced-project set
  * `[anchor, ...additional]` for a run.
  *
  * The anchor keeps its existing issue/run authorization path and is never re-authorized or
  * inherited by the additional projects. Every additional (mentioned) project must independently
  * pass a fail-closed `project:read` authorization check against the run actor before it is
- * admitted — any non-`allowed` decision, company mismatch, missing/unknown project, or thrown
+ * admitted — any non-`allowed` decision, space mismatch, missing/unknown project, or thrown
  * authorization error drops the project and appends a warning (the run always continues).
  *
  * Candidate evaluation is bounded twice, independently: at most
  * {@link ResolveRunReferencedProjectsOptions.maxCandidateEvaluations} *available* candidates are ever
- * hydrated and authorized (a fan-out guard against an adversarial same-company mention flood of denied
+ * hydrated and authorized (a fan-out guard against an adversarial same-space mention flood of denied
  * projects), and at most {@link ResolveRunReferencedProjectsOptions.maxAdditionalProjects} of those are
  * admitted. The evaluation cap bounds hydration as well as authorization: candidates are hydrated and
  * availability-filtered in mention order in bounded batches, and hydration stops as soon as the
  * evaluation window is filled with available candidates (or the mention set is exhausted), so hydration
  * never processes the complete mention set — its cost is bounded by the window, not by mention volume.
  * Availability filtering still runs before a candidate consumes an evaluation slot, so an unavailable
- * mention (foreign-company, deleted, or malformed id) never occupies a slot or displaces a later
+ * mention (foreign-space, deleted, or malformed id) never occupies a slot or displaces a later
  * authorized project. Available candidates beyond the evaluation window are left un-hydrated and dropped
  * with a warning, never triggering an authorization decision.
  */
@@ -1676,7 +1676,7 @@ export async function resolveRunReferencedProjects(
   anchorProjectId: string | null,
   opts: ResolveRunReferencedProjectsOptions,
 ): Promise<ResolvedRunReferencedProjects> {
-  const { companyId, actor, issues, projects, access } = opts;
+  const { spaceId, actor, issues, projects, access } = opts;
   const warnings: string[] = [];
   const failures: ReferencedProjectFailure[] = [];
   const cap = Math.max(
@@ -1690,7 +1690,7 @@ export async function resolveRunReferencedProjects(
     opts.maxCandidateEvaluations ?? MAX_RUN_REFERENCED_CANDIDATE_EVALUATIONS,
   );
 
-  // Company-scoped, deduped, order-preserving mention set (title + description + comment bodies).
+  // Space-scoped, deduped, order-preserving mention set (title + description + comment bodies).
   // Run prep counts mentions in comments, so comment bodies are always included.
   const mentionedIds = await issues.findMentionedProjectIds(issueId, {
     includeCommentBodies: true,
@@ -1710,10 +1710,10 @@ export async function resolveRunReferencedProjects(
   // set than the evaluation window needs. Candidates are pulled in bounded batches sized to what the
   // window still needs, and hydration stops as soon as `evaluationCap` *available* candidates are
   // collected (or the mention set is exhausted). This bounds hydration by the evaluation window rather
-  // than by mention volume: an adversarial same-company mention flood can neither force an unbounded
+  // than by mention volume: an adversarial same-space mention flood can neither force an unbounded
   // hydration query nor displace a later authorized project out of the window. `listByIds` filters by
-  // company, so each batch both fetches the records and performs availability filtering — a mention that
-  // did not resolve inside this company (foreign-company, deleted, or malformed id) is dropped here with
+  // space, so each batch both fetches the records and performs availability filtering — a mention that
+  // did not resolve inside this space (foreign-space, deleted, or malformed id) is dropped here with
   // a warning and never occupies an evaluation slot. The anchor is co-hydrated with the first batch (it
   // was excluded from `allCandidateIds` above, so it never double-counts) and is never re-authorized.
   const availableCandidates: RunReferencedProject[] = [];
@@ -1735,7 +1735,7 @@ export async function resolveRunReferencedProjects(
       !anchorHydrated && anchorProjectId
         ? [anchorProjectId, ...batchCandidateIds]
         : batchCandidateIds;
-    const hydrated = await projects.listByIds(companyId, hydrateIds);
+    const hydrated = await projects.listByIds(spaceId, hydrateIds);
     const byId = new Map(hydrated.map((project) => [project.id, project]));
 
     if (!anchorHydrated && anchorProjectId) {
@@ -1747,7 +1747,7 @@ export async function resolveRunReferencedProjects(
       const project = byId.get(projectId);
       if (!project) {
         warnings.push(
-          `Referenced project ${projectId} was skipped because it is not available in this company.`,
+          `Referenced project ${projectId} was skipped because it is not available in this space.`,
         );
         failures.push({ projectId, reason: "resolution" });
         continue;
@@ -1758,7 +1758,7 @@ export async function resolveRunReferencedProjects(
 
   // Hydrate the anchor on its own if the candidate loop never ran (no mentions to co-hydrate it with).
   if (!anchorHydrated && anchorProjectId) {
-    const hydrated = await projects.listByIds(companyId, [anchorProjectId]);
+    const hydrated = await projects.listByIds(spaceId, [anchorProjectId]);
     anchorRecord =
       hydrated.find((project) => project.id === anchorProjectId) ?? null;
     anchorHydrated = true;
@@ -1795,7 +1795,7 @@ export async function resolveRunReferencedProjects(
       const decision = await access.decide({
         actor,
         action: "project:read",
-        resource: { type: "project", companyId, projectId },
+        resource: { type: "project", spaceId, projectId },
         scope: { projectId },
       });
       allowed = decision.allowed === true;
@@ -1854,7 +1854,7 @@ export async function resolveRunReferencedProjects(
 export interface ResolveAdditionalRunWorkspacesOptions {
   /** Gate that mirrors {@link isMultiProjectWorkspaceSyncEnabled}. When false, the result is empty. */
   enabled: boolean;
-  companyId: string;
+  spaceId: string;
   /** The run actor; every additional project is authorized against this actor. */
   actor: AuthorizationActor;
   issues: Pick<ReturnType<typeof issueService>, "findMentionedProjectIds">;
@@ -1963,7 +1963,7 @@ export async function resolveAdditionalRunWorkspaces(
     issueId,
     anchorProjectId,
     {
-      companyId: opts.companyId,
+      spaceId: opts.spaceId,
       actor: opts.actor,
       issues: opts.issues,
       projects: opts.projects,
@@ -2105,19 +2105,19 @@ export function resolveRuntimeSessionParamsForWorkspace(input: {
   };
 }
 
-const SESSION_AI_CREDENTIAL_IDENTITY_KEY = "paperclipAiCredentialIdentity";
+const SESSION_AI_CREDENTIAL_IDENTITY_KEY = "outpostCredentialIdentity";
 
-const SESSION_CONFIGURED_MODEL_KEY = "__paperclipConfiguredModel";
+const SESSION_CONFIGURED_MODEL_KEY = "__outpostConfiguredModel";
 
-const SESSION_CONFIG_FINGERPRINT_KEY = "__paperclipConfigFingerprint";
+const SESSION_CONFIG_FINGERPRINT_KEY = "__outpostConfigFingerprint";
 
 const SESSION_CONFIG_FINGERPRINT_VERSION_KEY =
-  "__paperclipConfigFingerprintVersion";
+  "__outpostConfigFingerprintVersion";
 
-const SESSION_CONFIG_CATEGORIES_KEY = "__paperclipConfigCategories";
+const SESSION_CONFIG_CATEGORIES_KEY = "__outpostConfigCategories";
 
 const SESSION_CONFIG_CATEGORY_FINGERPRINTS_KEY =
-  "__paperclipConfigCategoryFingerprints";
+  "__outpostConfigCategoryFingerprints";
 
 const OUTPOST_SESSION_METADATA_KEYS = new Set([
   SESSION_AI_CREDENTIAL_IDENTITY_KEY,
@@ -2885,8 +2885,8 @@ export async function buildEffectiveRunSessionConfigMetadata(input: {
       ? { key: skill.key, runtimeName: skill.runtimeName, versionId: skill.versionId }
       : entry;
   }) : value;
-  if (effectiveAdapterConfig.paperclipRuntimeSkills !== undefined) {
-    effectiveAdapterConfig.paperclipRuntimeSkills = versionedSkills(effectiveAdapterConfig.paperclipRuntimeSkills);
+  if (effectiveAdapterConfig.outpostRuntimeSkills !== undefined) {
+    effectiveAdapterConfig.outpostRuntimeSkills = versionedSkills(effectiveAdapterConfig.outpostRuntimeSkills);
   }
   const categoryValues = buildSessionConfigCategoryValues({
     adapterType: input.adapterType,
@@ -3170,7 +3170,7 @@ export function readConfiguredModelFromAdapterConfig(
   return readNonEmptyString(adapterConfig?.model);
 }
 
-export function attachPaperclipSessionMetadataToSessionParams(
+export function attachOutpostSessionMetadataToSessionParams(
   sessionParams: Record<string, unknown> | null | undefined,
   configuredModel: string | null,
   configMetadata?: EffectiveRunSessionConfigMetadata | null,
@@ -3214,7 +3214,7 @@ export function stripConfiguredModelFromSessionParams(
   return next;
 }
 
-export function stripPaperclipSessionMetadataFromSessionParams(
+export function stripOutpostSessionMetadataFromSessionParams(
   sessionParams: Record<string, unknown> | null | undefined,
 ) {
   if (!sessionParams) return null;
@@ -3317,7 +3317,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
       const [run] = runId
         ? await db.select().from(heartbeatRuns).where(and(
             eq(heartbeatRuns.id, runId),
-            eq(heartbeatRuns.companyId, agent.companyId),
+            eq(heartbeatRuns.spaceId, agent.spaceId),
             eq(heartbeatRuns.agentId, agent.id),
           ))
         : [];
@@ -3329,27 +3329,27 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
       const actor = {
         type: "agent" as const,
         source: "agent_jwt" as const,
-        companyId: agent.companyId,
+        spaceId: agent.spaceId,
         agentId: agent.id,
         runId: run.id,
-        onBehalfOfUserId: run.responsibleUserId === "local-board" ? null : run.responsibleUserId,
+        onBehalfOfUserId: run.responsibleUserId === "local-operator" ? null : run.responsibleUserId,
       };
       if (!issueId) throw forbidden("Local repository source requires a current task");
       const sourceIdentity = await fs.realpath(sourceCwd);
       const targetIdentity = await canonicalRepositoryRoot(targetCwd);
-      const selected = await assertTaskWorkspaceExecutionAccess(db, actor, agent.companyId, { issueId });
+      const selected = await assertTaskWorkspaceExecutionAccess(db, actor, agent.spaceId, { issueId });
       const [sourceConfiguration] = selected.task.projectWorkspaceId
         ? await db.select({ id: projectWorkspaces.id, cwd: projectWorkspaces.cwd,
             repoUrl: projectWorkspaces.repoUrl, repoRef: projectWorkspaces.repoRef })
           .from(projectWorkspaces).where(and(eq(projectWorkspaces.id, selected.task.projectWorkspaceId),
-            eq(projectWorkspaces.companyId, agent.companyId)))
+            eq(projectWorkspaces.spaceId, agent.spaceId)))
         : [];
       const validate = async () => {
         if (await fs.realpath(sourceCwd) !== sourceIdentity
           || await canonicalRepositoryRoot(targetCwd) !== targetIdentity) {
           throw forbidden("Local repository copy identity changed during preparation");
         }
-        const current = await assertTaskWorkspaceExecutionAccess(db, actor, agent.companyId, { issueId });
+        const current = await assertTaskWorkspaceExecutionAccess(db, actor, agent.spaceId, { issueId });
         if (current.task.projectWorkspaceId !== selected.task.projectWorkspaceId
           || current.task.projectId !== selected.task.projectId) {
           throw forbidden("Local repository source configuration changed during preparation");
@@ -3357,7 +3357,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
         if (sourceConfiguration) {
           const [source] = await db.select({ id: projectWorkspaces.id, cwd: projectWorkspaces.cwd,
             repoUrl: projectWorkspaces.repoUrl, repoRef: projectWorkspaces.repoRef }).from(projectWorkspaces)
-            .where(and(eq(projectWorkspaces.id, sourceConfiguration.id), eq(projectWorkspaces.companyId, agent.companyId)));
+            .where(and(eq(projectWorkspaces.id, sourceConfiguration.id), eq(projectWorkspaces.spaceId, agent.spaceId)));
           if (!source || source.cwd !== sourceConfiguration.cwd || source.repoUrl !== sourceConfiguration.repoUrl
             || source.repoRef !== sourceConfiguration.repoRef) {
             throw forbidden("Local repository source configuration changed during preparation");
@@ -3391,18 +3391,18 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
     // check; only an already-admitted native input owns immutable source scope.
     const currentIssueSource = input.issueId && !input.immutableNativeBinding
       ? await db.select({ projectId: issues.projectId, projectWorkspaceId: issues.projectWorkspaceId }).from(issues)
-          .where(and(eq(issues.id, input.issueId), eq(issues.companyId, agent.companyId))).then(rows => rows[0] ?? null)
+          .where(and(eq(issues.id, input.issueId), eq(issues.spaceId, agent.spaceId))).then(rows => rows[0] ?? null)
       : null;
     const sourceProjectId = workspace.projectId;
     const explicitProjectWorkspaceId = currentIssueSource?.projectWorkspaceId ?? input.explicitProjectWorkspaceId;
     const projectWorkspaceRows = await db.select().from(projectWorkspaces).where(and(
-      eq(projectWorkspaces.companyId, agent.companyId),
+      eq(projectWorkspaces.spaceId, agent.spaceId),
       workspace.projectId ? eq(projectWorkspaces.projectId, workspace.projectId) : sql`false`,
     )).orderBy(asc(projectWorkspaces.createdAt), asc(projectWorkspaces.id));
     const boundProjectWorkspace = projectWorkspaceRows.find(row => row.id === workspace.projectWorkspaceId) ?? null;
     const configuredSource = prioritizeProjectWorkspaceCandidatesForRun(projectWorkspaceRows, explicitProjectWorkspaceId)[0];
     const managedBase = workspace.repoUrl && workspace.projectId ? resolveManagedProjectWorkspaceDir({
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       projectId: workspace.projectId,
       repoName: deriveRepoNameFromRepoUrl(workspace.repoUrl),
     }) : null;
@@ -3414,20 +3414,20 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
     ].filter((value): value is string => Boolean(value));
     for (const sourceCwd of localWorkspaceSourcePaths(workspace)) await retainCurrentWorkspaceSource(sourceCwd);
     const cwd = await resolvePersistedGitWorkspaceSource({
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       projectId: sourceProjectId,
       explicitProjectWorkspaceId,
       workspace,
       boundProjectWorkspace,
       candidateBaseCwds,
-      managedSourceRoot: resolvePaperclipInstanceRoot(),
+      managedSourceRoot: resolveOutpostInstanceRoot(),
       materializeOriginalRepository: workspace.repoUrl && workspace.projectId ? async () => {
         const original = await ensureManagedProjectWorkspace({
-          companyId: agent.companyId,
+          spaceId: agent.spaceId,
           projectId: workspace.projectId!,
           repoUrl: workspace.repoUrl,
           prepareLocalSource: managedLocalSourceGuard(agent, input.issueId, input.runId),
-          resolveGitAuth: createGitRemoteAuthProvider(db, agent.companyId, {
+          resolveGitAuth: createGitRemoteAuthProvider(db, agent.spaceId, {
             issueId: input.issueId, heartbeatRunId: input.runId, agentId: agent.id,
             responsibleUserId: input.responsibleUserId,
           }),
@@ -3467,11 +3467,11 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
     // root wins over task hints, agent cwd overrides, and cwd saved by a prior
     // provider session. This mirrors Codex/Claude's native behavior: sessions
     // created from one repository are not resumed from another repository.
-    // Legacy companies have no workspaceRoot and retain the existing resolver.
+    // Legacy spaces have no workspaceRoot and retain the existing resolver.
     const [space] = await db
-      .select({ workspaceRoot: companies.workspaceRoot })
-      .from(companies)
-      .where(eq(companies.id, agent.companyId));
+      .select({ workspaceRoot: spaces.workspaceRoot })
+      .from(spaces)
+      .where(eq(spaces.id, agent.spaceId));
     const spaceRoot = readNonEmptyString(space?.workspaceRoot);
     if (spaceRoot) {
       const resolvedSpaceRoot = path.resolve(spaceRoot);
@@ -3485,7 +3485,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
           {
             workspaceValidation: {
               reason: "space_workspace_unavailable",
-              companyId: agent.companyId,
+              spaceId: agent.spaceId,
               workspaceRoot: resolvedSpaceRoot,
             },
           },
@@ -3495,7 +3495,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
       const spaceWorkspaces = await db
         .select()
         .from(projectWorkspaces)
-        .where(eq(projectWorkspaces.companyId, agent.companyId))
+        .where(eq(projectWorkspaces.spaceId, agent.spaceId))
         .orderBy(asc(projectWorkspaces.createdAt), asc(projectWorkspaces.id));
       const binding = spaceWorkspaces.find((workspace) =>
         sameResolvedPath(workspace.cwd, resolvedSpaceRoot),
@@ -3525,7 +3525,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
 
     const issueId =
       readNonEmptyString(context.issueId) ?? readNonEmptyString(context.taskId);
-    const resolveGitAuth = createGitRemoteAuthProvider(db, agent.companyId, {
+    const resolveGitAuth = createGitRemoteAuthProvider(db, agent.spaceId, {
       issueId,
       heartbeatRunId: readNonEmptyString(context.executionIdentityRunId),
       responsibleUserId:
@@ -3546,7 +3546,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
           })
           .from(issues)
           .where(
-            and(eq(issues.id, issueId), eq(issues.companyId, agent.companyId)),
+            and(eq(issues.id, issueId), eq(issues.spaceId, agent.spaceId)),
           )
           .then((rows) => rows[0] ?? null)
       : null;
@@ -3557,7 +3557,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
     const preferredProjectWorkspaceId =
       configuredSourceId ?? issueProjectRef?.projectWorkspaceId ?? contextProjectWorkspaceId ?? null;
     const [selectedSource] = preferredProjectWorkspaceId ? await db.select({ projectId: projectWorkspaces.projectId }).from(projectWorkspaces)
-      .where(and(eq(projectWorkspaces.id, preferredProjectWorkspaceId), eq(projectWorkspaces.companyId, agent.companyId))) : [];
+      .where(and(eq(projectWorkspaces.id, preferredProjectWorkspaceId), eq(projectWorkspaces.spaceId, agent.spaceId))) : [];
     const resolvedProjectId = selectedSource?.projectId ?? issueProjectId ?? contextProjectId;
     const forceTaskDirectory = workspaceSelection?.kind === "task_directory";
     const useProjectWorkspace = opts?.useProjectWorkspace !== false;
@@ -3569,7 +3569,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
           .from(projectWorkspaces)
           .where(
             and(
-              eq(projectWorkspaces.companyId, agent.companyId),
+              eq(projectWorkspaces.spaceId, agent.spaceId),
               eq(projectWorkspaces.projectId, workspaceProjectId),
             ),
           )
@@ -3593,7 +3593,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
     if (opts?.executionEnvironmentDriver === "plugin" && agent.adapterType === "outpost_runner") {
       if (workspaceProjectId) {
         const project = await db.select({ id: projects.id }).from(projects).where(and(
-          eq(projects.companyId, agent.companyId), eq(projects.id, workspaceProjectId),
+          eq(projects.spaceId, agent.spaceId), eq(projects.id, workspaceProjectId),
         )).then(rows => rows[0] ?? null);
         if (!project) throw new WorkspaceValidationFailure("The selected plugin project is unavailable.", { reason: "plugin_project_unavailable" });
       }
@@ -3622,9 +3622,9 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
         preferredWorkspaceWarning = `Selected project workspace "${preferredProjectWorkspaceId}" is not available on this project.`;
       }
       const [sourceProject] = projectWorkspaceRows.length ? await db.select({ policy: projects.executionWorkspacePolicy }).from(projects)
-        .where(and(eq(projects.id, workspaceProjectId!), eq(projects.companyId, agent.companyId))) : [];
+        .where(and(eq(projects.id, workspaceProjectId!), eq(projects.spaceId, agent.spaceId))) : [];
       const storageProviderPluginId = opts?.storageProviderPluginId !== undefined ? opts.storageProviderPluginId : sourceProject?.policy?.storageProviderPluginId ??
-        (sourceProject ? (await effectiveProjectWorkspacePolicy(db, agent.companyId, sourceProject.policy,
+        (sourceProject ? (await effectiveProjectWorkspacePolicy(db, agent.spaceId, sourceProject.policy,
           projectWorkspaceRows.some(workspace => Boolean(workspace.repoUrl))))?.storageProviderPluginId : null);
       for (const workspace of projectWorkspaceRows) {
         if (storageProviderPluginId) {
@@ -3636,7 +3636,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
         let managedWorkspaceWarning: string | null = null;
         try {
           const resolvedCwd = await resolveConfiguredOrManagedProjectCwd({
-            companyId: agent.companyId,
+            spaceId: agent.spaceId,
             projectId:
               workspaceProjectId ?? resolvedProjectId ?? workspace.projectId,
             cwd: workspace.cwd,
@@ -3747,7 +3747,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
       : opts?.configuredCwd !== undefined ? opts.configuredCwd
       : readNonEmptyString(parseObject(agent.adapterConfig).cwd);
     const cwd = configuredCwd ? path.resolve(configuredCwd)
-      : issueId ? await materializeIsolatedTaskDirectory({ companyId: agent.companyId, issueId })
+      : issueId ? await materializeIsolatedTaskDirectory({ spaceId: agent.spaceId, issueId })
       : resolveDefaultAgentWorkspaceDir(agent.id);
     await retainCurrentWorkspaceSource(cwd);
     await fs.mkdir(cwd, { recursive: true });
@@ -3825,10 +3825,10 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
     const responsibleUserId = readNonEmptyString(context.responsibleUserId)
       ?? readNonEmptyString(context.responsible_user_id);
     const referencedOptions: ResolveRunReferencedProjectsOptions = {
-      companyId: agent.companyId,
-      actor: { type: "agent", agentId: agent.id, companyId: agent.companyId, source: "agent_key",
+      spaceId: agent.spaceId,
+      actor: { type: "agent", agentId: agent.id, spaceId: agent.spaceId, source: "agent_key",
         runId: readNonEmptyString(context.executionIdentityRunId),
-        onBehalfOfUserId: responsibleUserId === "local-board" ? null : responsibleUserId },
+        onBehalfOfUserId: responsibleUserId === "local-operator" ? null : responsibleUserId },
       issues: issueService(db), projects: projectService(db), access: authorizationService(db),
     };
     if (executionEnvironmentDriver === "plugin" && agent.adapterType === "outpost_runner" &&
@@ -3839,7 +3839,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
           .filter((id): id is string => id !== null),
         referencedProjectFailures: referenced.failures, warnings: [...anchor.warnings, ...referenced.warnings] };
     }
-    const resolveGitAuth = createGitRemoteAuthProvider(db, agent.companyId, {
+    const resolveGitAuth = createGitRemoteAuthProvider(db, agent.spaceId, {
       issueId,
       heartbeatRunId: readNonEmptyString(context.executionIdentityRunId),
       responsibleUserId,
@@ -3858,7 +3858,7 @@ export function createHeartbeatWorkspaceResolver(db: Db) {
         ...referencedOptions,
         resolveProjectWorkspace: (project) =>
           resolveAdditionalProjectWorkspace(
-            { companyId: agent.companyId, project },
+            { spaceId: agent.spaceId, project },
             defaultAdditionalProjectWorkspaceDeps(db, resolveGitAuth,
               managedLocalSourceGuard(agent, issueId, readNonEmptyString(context.executionIdentityRunId))),
           ),

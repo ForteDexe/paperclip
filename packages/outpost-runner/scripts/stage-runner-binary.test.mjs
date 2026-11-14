@@ -8,7 +8,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { stageBuiltRunnerBinary, stageRunnerBinary } from "./stage-runner-binary.mjs";
 import { RELEASE_RUNNER_TARGETS, releaseRunnerTargets, releaseDaemonManifest, verifyReleaseRunnerMetadata } from "./stage-release-runner-binaries.mjs";
-import { paperclipRunnerBinaryNeedsBuild, resolveNativeRunnerDevBinary } from "../../../scripts/dev-runner-native-binary.mjs";
+import { outpostRunnerBinaryNeedsBuild, resolveNativeRunnerDevBinary } from "../../../scripts/dev-runner-native-binary.mjs";
 import { resolvePackagedRunnerBinary } from "../src/live/runner-binary.ts";
 
 const contract = { package: { name: "@outpost/outpost-runner", version: "0.0.0" },
@@ -180,7 +180,7 @@ test("a source rebuild selects fresh dev bytes while preserving release binaries
     const old = start(hostTarget, ["30"]);
     await old.spawned;
     const requirement = { repoRoot: root, nativeRunnerRequired: true };
-    assert.equal(paperclipRunnerBinaryNeedsBuild(requirement), true);
+    assert.equal(outpostRunnerBinaryNeedsBuild(requirement), true);
 
     await stageBuiltRunnerBinary(packageRoot);
 
@@ -194,7 +194,7 @@ test("a source rebuild selects fresh dev bytes while preserving release binaries
     assert.equal(await readFile(manifestPath, "utf8"), manifest);
     for (const [artifact, bytes] of releaseBytes) assert.deepEqual(await readFile(artifact), bytes);
     assert.equal(resolvePackagedRunnerBinary(path.join(packageRoot, "dist")), hostTarget);
-    assert.equal(paperclipRunnerBinaryNeedsBuild(requirement), false);
+    assert.equal(outpostRunnerBinaryNeedsBuild(requirement), false);
     assert.equal(old.child.exitCode, null);
     assert.equal(old.child.signalCode, null);
     const next = start(selected.binary, ["rebuilt"]);

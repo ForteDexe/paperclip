@@ -59,7 +59,7 @@ async function logWindow(serverLogPath: string, faults: readonly FaultReceipt[])
   } finally { await handle.close(); }
 }
 
-/** Bundle everything a fix-failed-paperclip-run session needs to start (plan §5.7). */
+/** Bundle everything a fix-failed-outpost-run session needs to start (plan §5.7). */
 export async function writeEvidenceBundle(input: {
   directory: string; api: ChaosApi; plan: WavePlan; record: TaskRecord; grade: TaskGrade; artifacts: OracleArtifacts | null;
   faults: readonly FaultReceipt[]; timeline: readonly TimelineEntry[]; serverLogPath: string; gitSha: string; gitDirty: boolean;

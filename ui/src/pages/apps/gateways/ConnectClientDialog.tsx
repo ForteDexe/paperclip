@@ -118,7 +118,7 @@ export function ConnectClientDialog({
   const issueTokenMutation = useMutation({
     mutationFn: () => {
       const name = defaultGatewayTokenName(gateway);
-      return toolsApi.createGatewayToken(gateway.companyId, gateway.id, {
+      return toolsApi.createGatewayToken(gateway.spaceId, gateway.id, {
         name,
         clientLabel: name,
         ownerNote: "",
@@ -134,7 +134,7 @@ export function ConnectClientDialog({
         body: "The copy buttons now include its full Authorization header.",
         tone: "success",
       });
-      await queryClient.invalidateQueries({ queryKey: gatewaysQueryKey(gateway.companyId) });
+      await queryClient.invalidateQueries({ queryKey: gatewaysQueryKey(gateway.spaceId) });
     },
     onError: (error) => pushToast({
       title: "Token was not issued",

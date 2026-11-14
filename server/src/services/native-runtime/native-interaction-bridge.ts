@@ -25,7 +25,7 @@ import { findSatisfiedToolConnection } from "../satisfied-connection-intents.js"
 import {
   NATIVE_STATUS_ARBITER_POLICY_VERSION,
   type NativeAuthoritativeIssueStatus,
-  type NativeGovernanceGate,
+  type NativePolicyGate,
   type NativeStatusDecision,
   type NativeStatusEffect,
 } from "./status-arbiter.js";
@@ -65,7 +65,7 @@ export type NativeAttentionMaterializedTarget = {
  */
 export async function applyNativeAttentionStatusDecision(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   decision: NativeStatusDecision;
@@ -86,7 +86,7 @@ export async function applyNativeAttentionStatusDecision(input: {
           summary: issueThreadInteractions.summary,
         })
           .from(issueThreadInteractions).where(and(
-            eq(issueThreadInteractions.companyId, input.companyId),
+            eq(issueThreadInteractions.spaceId, input.spaceId),
             eq(issueThreadInteractions.issueId, input.issueId),
             ...(boundIds.length > 0 ? [inArray(issueThreadInteractions.id, boundIds)] : []),
           )).limit(2);
@@ -115,7 +115,7 @@ export async function applyNativeAttentionStatusDecision(input: {
           summary: issueThreadInteractions.summary,
         })
           .from(issueThreadInteractions).where(and(
-            eq(issueThreadInteractions.companyId, input.companyId),
+            eq(issueThreadInteractions.spaceId, input.spaceId),
             eq(issueThreadInteractions.issueId, input.issueId),
             ...(input.targetInteractionId ? [eq(issueThreadInteractions.id, input.targetInteractionId)] : []),
           )).limit(1).then((rows) => rows[0] ?? null);
@@ -142,7 +142,7 @@ export async function applyNativeAttentionStatusDecision(input: {
           updatedAt: new Date(),
         }).where(and(
           eq(nativeRunFinalizations.runId, input.runId),
-          eq(nativeRunFinalizations.companyId, input.companyId),
+          eq(nativeRunFinalizations.spaceId, input.spaceId),
           eq(nativeRunFinalizations.issueId, input.issueId),
         )).returning({ runId: nativeRunFinalizations.runId });
         if (!coordinator) throw new NativeInteractionBridgeError("native_finalization_coordinator_missing", "Native coordinator is required");
@@ -151,7 +151,7 @@ export async function applyNativeAttentionStatusDecision(input: {
           nativePhaseUpdatedAt: new Date(),
           errorCode: effect.cause,
           updatedAt: new Date(),
-        }).where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId)));
+        }).where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId)));
         targets.push({ effectKind: effect.kind, targetType: "native_run_finalization", targetId: coordinator.runId });
         continue;
       }
@@ -168,7 +168,7 @@ export async function applyNativeAttentionStatusDecision(input: {
  */
 export async function materializeNativeInteractionResponses(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   agentId: string;
@@ -180,7 +180,7 @@ export async function materializeNativeInteractionResponses(input: {
     issueThreadInteractionService(input.db).listForIssue(input.issueId),
     input.db.select().from(issues).where(and(
       eq(issues.id, input.issueId),
-      eq(issues.companyId, input.companyId),
+      eq(issues.spaceId, input.spaceId),
     )).limit(1).then((rows) => rows[0] ?? null),
   ]);
   if (!issue) throw new NativeInteractionBridgeError("native_interaction_binding_mismatch", "Issue binding not found");
@@ -188,38 +188,38 @@ export async function materializeNativeInteractionResponses(input: {
 
   for (const interaction of interactions) {
     if (!requestedIds.has(interaction.id)) continue;
-    if (interaction.companyId !== input.companyId || interaction.issueId !== input.issueId) {
+    if (interaction.spaceId !== input.spaceId || interaction.issueId !== input.issueId) {
       throw new NativeInteractionBridgeError(
         "native_interaction_binding_mismatch",
-        `Interaction ${interaction.id} is not bound to the native company and issue`,
+        `Interaction ${interaction.id} is not bound to the native space and issue`,
       );
     }
     if (interaction.kind === "request_confirmation" && interaction.payload.toolAction) {
       const action = interaction.payload.toolAction;
       if (["accepted", "rejected"].includes(interaction.status) && (interaction.resolvedByAgentId || interaction.resolvedByRunId === input.runId)) {
-        throw new NativeInteractionBridgeError("native_interaction_self_approval", "Agents cannot resolve governed tool reviews");
+        throw new NativeInteractionBridgeError("native_interaction_self_approval", "Agents cannot resolve controlled tool reviews");
       }
-      const [request] = await input.db.select().from(toolActionRequests).where(and(eq(toolActionRequests.id, action.actionRequestId), eq(toolActionRequests.companyId, input.companyId), eq(toolActionRequests.issueId, input.issueId), eq(toolActionRequests.interactionId, interaction.id), eq(toolActionRequests.invocationId, action.invocationId)));
-      const [invocation] = await input.db.select().from(toolInvocations).where(and(eq(toolInvocations.id, action.invocationId), eq(toolInvocations.companyId, input.companyId), eq(toolInvocations.issueId, input.issueId), eq(toolInvocations.agentId, input.agentId)));
+      const [request] = await input.db.select().from(toolActionRequests).where(and(eq(toolActionRequests.id, action.actionRequestId), eq(toolActionRequests.spaceId, input.spaceId), eq(toolActionRequests.issueId, input.issueId), eq(toolActionRequests.interactionId, interaction.id), eq(toolActionRequests.invocationId, action.invocationId)));
+      const [invocation] = await input.db.select().from(toolInvocations).where(and(eq(toolInvocations.id, action.invocationId), eq(toolInvocations.spaceId, input.spaceId), eq(toolInvocations.issueId, input.issueId), eq(toolInvocations.agentId, input.agentId)));
       if (!request || !invocation || request.requestedByAgentId !== input.agentId || request.canonicalArgumentsHash !== action.argumentsHash) {
-        throw new NativeInteractionBridgeError("native_interaction_governed_request_unresolved", "Tool review has no matching authoritative invocation");
+        throw new NativeInteractionBridgeError("native_interaction_controlled_request_unresolved", "Tool review has no matching authoritative invocation");
       }
       if (["expired", "cancelled"].includes(request.status)) {
-        if (interaction.status !== request.status && !(interaction.status === "accepted" && interaction.result?.toolAction?.status === "expired")) throw new NativeInteractionBridgeError("native_interaction_governed_result_mismatch", "Tool review lifecycle does not match its request");
+        if (interaction.status !== request.status && !(interaction.status === "accepted" && interaction.result?.toolAction?.status === "expired")) throw new NativeInteractionBridgeError("native_interaction_controlled_result_mismatch", "Tool review lifecycle does not match its request");
         responses.push({ interactionId: interaction.id, kind: interaction.kind, response: { status: interaction.status, result: structuredClone(interaction.result), executionStatus: request.status } });
         continue;
       }
       if (!request.decidedByUserId || request.decidedByUserId !== interaction.resolvedByUserId || !["executed", "failed", "rejected"].includes(request.status) || (request.status === "rejected" ? interaction.status !== "rejected" : interaction.status !== "accepted")) {
-        throw new NativeInteractionBridgeError("native_interaction_governed_request_unresolved", "Tool review must have a human decision and an authoritative terminal execution outcome");
+        throw new NativeInteractionBridgeError("native_interaction_controlled_request_unresolved", "Tool review must have a human decision and an authoritative terminal execution outcome");
       }
       const expectedInvocationStatus = request.status === "executed" ? "succeeded" : request.status === "rejected" ? "denied" : "failed";
-      if (invocation.status !== expectedInvocationStatus || (request.status !== "rejected" && interaction.result?.toolAction?.status !== request.status)) throw new NativeInteractionBridgeError("native_interaction_governed_result_mismatch", "Tool review outcome does not match its invocation");
+      if (invocation.status !== expectedInvocationStatus || (request.status !== "rejected" && interaction.result?.toolAction?.status !== request.status)) throw new NativeInteractionBridgeError("native_interaction_controlled_result_mismatch", "Tool review outcome does not match its invocation");
     }
     const interactionResult = record(interaction.result);
     if (interaction.kind === "connection_intent" && interaction.status === "expired"
       && interactionResult.outcome === "expired" && typeof interactionResult.connectionId === "string") {
       const [run] = await input.db.select({ responsibleUserId: heartbeatRuns.responsibleUserId }).from(heartbeatRuns)
-        .where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.agentId, input.agentId)));
+        .where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.agentId, input.agentId)));
       const ready = issue.assigneeAgentId === input.agentId && run?.responsibleUserId === interaction.addresseeUserId
         ? await findSatisfiedToolConnection(input.db, issue, { ...interaction, addresseeUserId: interaction.addresseeUserId ?? null, status: "pending" }, input.runId) : null;
       if (!ready || ready.id !== interactionResult.connectionId) {
@@ -236,13 +236,13 @@ export async function materializeNativeInteractionResponses(input: {
       const decision = resolveNativeAttentionStatus({
         facts: duplicate
           ? {
-              companyScopeValid: true,
+              spaceScopeValid: true,
               responseState: "none",
               route: "duplicate",
               summary: interaction.summary ?? interaction.title ?? "Duplicate native attention request",
             }
           : {
-              companyScopeValid: true,
+              spaceScopeValid: true,
               responseState: "stale",
               route: "context",
               summary: interaction.summary ?? interaction.title ?? "Stale native attention response",
@@ -252,7 +252,7 @@ export async function materializeNativeInteractionResponses(input: {
       });
       await applyNativeAttentionStatusDecision({
         db: input.db,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         issueId: input.issueId,
         runId: input.runId,
         decision,
@@ -320,7 +320,7 @@ export async function materializeNativeInteractionResponses(input: {
       }
       const resolution = resolveNativeAttentionStatus({
         facts: {
-          companyScopeValid: true,
+          spaceScopeValid: true,
           responseState: "resolved",
           route: "context",
           summary: interaction.summary ?? interaction.title ?? "Resolved native interaction",
@@ -372,7 +372,7 @@ export async function materializeNativeInteractionResponses(input: {
       }
       const resolution = resolveNativeAttentionStatus({
         facts: {
-          companyScopeValid: true,
+          spaceScopeValid: true,
           responseState: "resolved",
           route: "context",
           summary: interaction.summary ?? interaction.title ?? "Answered native interaction",
@@ -464,7 +464,7 @@ export type LegacyQuestionResponseWakeProjection = {
  */
 export async function materializeLegacyQuestionResponseWakeProjection(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   agentId: string;
@@ -500,12 +500,12 @@ export function rejectUnsupportedNativeRuntimeRequest(requestKind: string) {
 }
 
 export type NativeAttentionFacts = {
-  companyScopeValid: boolean;
+  spaceScopeValid: boolean;
   responseState: "none" | "resolved" | "stale" | "expired";
   route: "alternate_track" | "context" | "retry" | "agent" | "human" | "duplicate" | "recovery";
   summary: string;
   budgetExhausted?: boolean;
-  governanceGate?: NativeGovernanceGate | null;
+  policyGate?: NativePolicyGate | null;
   resolvedTargetAgentId?: string | null;
 };
 
@@ -514,9 +514,9 @@ export type NativeAttentionCandidate = {
   summary: string;
   responseState?: NativeAttentionFacts["responseState"];
   targetAgentId?: string | null;
-  targetCompanyId?: string | null;
+  targetSpaceId?: string | null;
   budgetExhausted?: boolean;
-  governanceGate?: NativeGovernanceGate | null;
+  policyGate?: NativePolicyGate | null;
   targetInteractionId?: string;
   canonicalRequestId?: string;
 };
@@ -538,7 +538,7 @@ function candidateFromPersistedRequest(request: Record<string, unknown>): Native
   const ownerClass = nonEmptyText(target.ownerClass);
   const requiredAuthority = nonEmptyText(request.requiredAuthority);
   const responseState = nonEmptyText(request.responseState);
-  const governanceGate = record(request.governanceGate);
+  const policyGate = record(request.policyGate);
   let route: NativeAttentionCandidate["route"];
   if (capability === "context_lookup") route = "context";
   else if (capability === "retry") route = "retry";
@@ -546,9 +546,9 @@ function candidateFromPersistedRequest(request: Record<string, unknown>): Native
   else if (capability === "alternate_track" || ownerClass === "current_agent") route = "alternate_track";
   else if (capability === "domain_expertise" || ownerClass === "agent") route = "agent";
   else if (
-    ["review", "credential_grant", "governed_approval", "subjective_decision", "external_action"].includes(capability ?? "")
-    || ["board_user", "external_system"].includes(ownerClass ?? "")
-    || ["board", "external"].includes(requiredAuthority ?? "")
+    ["review", "credential_grant", "controlled_approval", "subjective_decision", "external_action"].includes(capability ?? "")
+    || ["operator_user", "external_system"].includes(ownerClass ?? "")
+    || ["operator", "external"].includes(requiredAuthority ?? "")
   ) route = "human";
   else {
     throw new NativeInteractionBridgeError(
@@ -563,10 +563,10 @@ function candidateFromPersistedRequest(request: Record<string, unknown>): Native
       ? responseState as NativeAttentionFacts["responseState"]
       : undefined,
     targetAgentId: nonEmptyText(target.agentId),
-    targetCompanyId: nonEmptyText(target.companyId),
+    targetSpaceId: nonEmptyText(target.spaceId),
     budgetExhausted: request.budgetExhausted === true,
-    governanceGate: governanceGate.kind === "interaction" && nonEmptyText(governanceGate.id)
-      ? { kind: "interaction", id: nonEmptyText(governanceGate.id)! }
+    policyGate: policyGate.kind === "interaction" && nonEmptyText(policyGate.id)
+      ? { kind: "interaction", id: nonEmptyText(policyGate.id)! }
       : null,
     targetInteractionId: nonEmptyText(request.targetInteractionId) ?? undefined,
     canonicalRequestId: nonEmptyText(request.canonicalRequestId) ?? undefined,
@@ -595,7 +595,7 @@ export async function routePersistedNativeResultAttention(input: {
   runId: string;
 }): Promise<PersistedNativeAttentionReceipt[]> {
   const binding = await input.db.select({
-    companyId: heartbeatRuns.companyId,
+    spaceId: heartbeatRuns.spaceId,
     runtimeMode: heartbeatRuns.runtimeMode,
     resultId: nativeRunFinalizations.resultId,
     issueId: nativeRunFinalizations.issueId,
@@ -612,7 +612,7 @@ export async function routePersistedNativeResultAttention(input: {
   }
   const resultRow = await input.db.select().from(nativeRunResults).where(and(
     eq(nativeRunResults.id, binding.resultId),
-    eq(nativeRunResults.companyId, binding.companyId),
+    eq(nativeRunResults.spaceId, binding.spaceId),
     eq(nativeRunResults.issueId, binding.issueId),
     eq(nativeRunResults.runId, input.runId),
     eq(nativeRunResults.schemaStatus, "accepted"),
@@ -639,7 +639,7 @@ export async function routePersistedNativeResultAttention(input: {
     });
     const existingAssessment = await input.db.select({ id: workAssessments.id })
       .from(workAssessments).where(and(
-        eq(workAssessments.companyId, binding.companyId),
+        eq(workAssessments.spaceId, binding.spaceId),
         eq(workAssessments.issueId, binding.issueId),
         eq(workAssessments.runId, input.runId),
         eq(workAssessments.triggerKind, "native_attention"),
@@ -651,7 +651,7 @@ export async function routePersistedNativeResultAttention(input: {
         reasonCode: statusDecisions.reasonCode,
         decisionJson: statusDecisions.decisionJson,
       }).from(statusDecisions).where(and(
-        eq(statusDecisions.companyId, binding.companyId),
+        eq(statusDecisions.spaceId, binding.spaceId),
         eq(statusDecisions.assessmentId, existingAssessment.id),
       )).limit(1).then((rows) => rows[0] ?? null);
       if (existingDecision) {
@@ -660,7 +660,7 @@ export async function routePersistedNativeResultAttention(input: {
         const delegation = effects.find((effect) => effect.kind === "create_delegated_issue");
         const finalizationError = effects.find((effect) => effect.kind === "record_finalization_error");
         await input.db.transaction(async tx => {
-          await notifyNativeFinalizationWork(tx, { companyId: binding.companyId, runId: input.runId });
+          await notifyNativeFinalizationWork(tx, { spaceId: binding.spaceId, runId: input.runId });
           await tx.update(nativeRunFinalizations).set({
             phase: finalizationError ? "retryable_failure" : "committed",
             assessmentId: existingAssessment.id,
@@ -678,7 +678,7 @@ export async function routePersistedNativeResultAttention(input: {
             updatedAt: new Date(),
           }).where(and(
             eq(nativeRunFinalizations.runId, input.runId),
-            eq(nativeRunFinalizations.companyId, binding.companyId),
+            eq(nativeRunFinalizations.spaceId, binding.spaceId),
             eq(nativeRunFinalizations.issueId, binding.issueId),
           ));
         });
@@ -702,7 +702,7 @@ export async function routePersistedNativeResultAttention(input: {
       lastStatusDecisionId: issues.lastStatusDecisionId,
     }).from(issues).where(and(
       eq(issues.id, binding.issueId),
-      eq(issues.companyId, binding.companyId),
+      eq(issues.spaceId, binding.spaceId),
     )).limit(1).then((rows) => rows[0] ?? null);
     if (!issue) throw new NativeInteractionBridgeError("native_attention_binding_mismatch", "Issue binding not found");
     const coordinator = await input.db.select({
@@ -714,7 +714,7 @@ export async function routePersistedNativeResultAttention(input: {
     if (!coordinator) throw new NativeInteractionBridgeError("native_attention_binding_mismatch", "Coordinator binding not found");
     const assessment = await recordNativeAttentionAssessment({
       db: input.db,
-      companyId: binding.companyId,
+      spaceId: binding.spaceId,
       issueId: binding.issueId,
       runId: input.runId,
       turnId: resultRow.turnId,
@@ -754,7 +754,7 @@ export async function routePersistedNativeResultAttention(input: {
       const run = await tx.select({ resultJson: heartbeatRuns.resultJson })
         .from(heartbeatRuns).where(and(
           eq(heartbeatRuns.id, input.runId),
-          eq(heartbeatRuns.companyId, binding.companyId),
+          eq(heartbeatRuns.spaceId, binding.spaceId),
         )).for("update").limit(1).then((rows) => rows[0] ?? null);
       if (!run) throw new NativeInteractionBridgeError("native_attention_binding_mismatch", "Heartbeat run missing");
       await tx.update(heartbeatRuns).set({
@@ -769,7 +769,7 @@ export async function routePersistedNativeResultAttention(input: {
 /**
  * Internal owner-routing step for native attention. The persisted-result
  * ingress above supplies the server-owned assessment and untrusted candidate;
- * this step resolves company scope and commits or audit-materializes the
+ * this step resolves space scope and commits or audit-materializes the
  * authority decision.
  */
 export async function routeNativeAttention(input: {
@@ -780,7 +780,7 @@ export async function routeNativeAttention(input: {
   candidate: NativeAttentionCandidate;
 }) {
   const binding = await input.db.select({
-    companyId: heartbeatRuns.companyId,
+    spaceId: heartbeatRuns.spaceId,
     agentId: heartbeatRuns.agentId,
     runtimeMode: heartbeatRuns.runtimeMode,
     issueId: nativeRunFinalizations.issueId,
@@ -792,7 +792,7 @@ export async function routeNativeAttention(input: {
     .innerJoin(nativeRunFinalizations, eq(nativeRunFinalizations.runId, heartbeatRuns.id))
     .innerJoin(issues, and(
       eq(issues.id, nativeRunFinalizations.issueId),
-      eq(issues.companyId, heartbeatRuns.companyId),
+      eq(issues.spaceId, heartbeatRuns.spaceId),
     ))
     .where(eq(heartbeatRuns.id, input.runId))
     .limit(1)
@@ -801,44 +801,44 @@ export async function routeNativeAttention(input: {
     throw new NativeInteractionBridgeError("native_attention_binding_mismatch", "Native attention run binding not found");
   }
 
-  const companyAgents = await input.db.select({
+  const spaceAgents = await input.db.select({
     id: agents.id,
-    companyId: agents.companyId,
+    spaceId: agents.spaceId,
     name: agents.name,
     status: agents.status,
     reportsTo: agents.reportsTo,
-  }).from(agents).where(eq(agents.companyId, binding.companyId)).orderBy(asc(agents.createdAt), asc(agents.id));
+  }).from(agents).where(eq(agents.spaceId, binding.spaceId)).orderBy(asc(agents.createdAt), asc(agents.id));
   const targetSuggestion = input.candidate.targetAgentId
-    ? await input.db.select({ id: agents.id, companyId: agents.companyId })
+    ? await input.db.select({ id: agents.id, spaceId: agents.spaceId })
         .from(agents).where(eq(agents.id, input.candidate.targetAgentId)).limit(1)
         .then((rows) => rows[0] ?? null)
     : null;
-  const companyScopeValid = (
-    !input.candidate.targetCompanyId
-    || input.candidate.targetCompanyId === binding.companyId
+  const spaceScopeValid = (
+    !input.candidate.targetSpaceId
+    || input.candidate.targetSpaceId === binding.spaceId
   ) && (
     !input.candidate.targetAgentId
-    || targetSuggestion?.companyId === binding.companyId
+    || targetSuggestion?.spaceId === binding.spaceId
   );
   let resolvedTargetAgentId: string | null = null;
-  if (companyScopeValid && input.candidate.route === "agent") {
-    const eligible = companyAgents.filter((candidate) =>
+  if (spaceScopeValid && input.candidate.route === "agent") {
+    const eligible = spaceAgents.filter((candidate) =>
       candidate.id !== binding.agentId
-      && getAgentWorkEligibility({ agent: candidate, agents: companyAgents }).invokable
+      && getAgentWorkEligibility({ agent: candidate, agents: spaceAgents }).invokable
     );
     const requested = eligible.find((candidate) => candidate.id === input.candidate.targetAgentId);
     resolvedTargetAgentId = requested?.id ?? eligible[0]?.id ?? null;
   }
 
   const facts: NativeAttentionFacts = {
-    companyScopeValid,
+    spaceScopeValid,
     responseState: input.candidate.responseState ?? "none",
     route: input.candidate.route === "agent" && !resolvedTargetAgentId
       ? "recovery"
       : input.candidate.route,
     summary: input.candidate.summary,
     budgetExhausted: input.candidate.budgetExhausted,
-    governanceGate: input.candidate.governanceGate,
+    policyGate: input.candidate.policyGate,
     resolvedTargetAgentId,
   };
   const decision = resolveNativeAttentionStatus({
@@ -850,7 +850,7 @@ export async function routeNativeAttention(input: {
   if (auditOnly) {
     const targets = await applyNativeAttentionStatusDecision({
       db: input.db,
-      companyId: binding.companyId,
+      spaceId: binding.spaceId,
       issueId: binding.issueId,
       runId: input.runId,
       decision,
@@ -868,7 +868,7 @@ export async function routeNativeAttention(input: {
   }
   const committed = await commitNativeStatusDecision({
     db: input.db,
-    companyId: binding.companyId,
+    spaceId: binding.spaceId,
     issueId: binding.issueId,
     runId: input.runId,
     assessmentId,
@@ -915,11 +915,11 @@ export function resolveNativeAttentionStatus(input: {
     }],
   });
 
-  if (!input.facts.companyScopeValid) {
+  if (!input.facts.spaceScopeValid) {
     return preserve("result_schema_rejected", [{
       kind: "record_finalization_error",
       cause: "result_schema_rejected",
-      nextAction: "Remove the cross-company attention target.",
+      nextAction: "Remove the cross-space attention target.",
       agentId: input.agentId,
     }]);
   }
@@ -940,16 +940,16 @@ export function resolveNativeAttentionStatus(input: {
   if (input.facts.route === "duplicate") {
     return preserve("attention_duplicate_suppressed", [{ kind: "link_canonical_request" }]);
   }
-  if (input.facts.governanceGate) {
+  if (input.facts.policyGate) {
     return {
       policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION,
       statusAction: "in_review",
       toStatus: "in_review",
-      reasonCode: "governed_gate_pending",
+      reasonCode: "controlled_gate_pending",
       unblockDescriptor: null,
       effects: [
-        { kind: "create_interaction", gate: input.facts.governanceGate },
-        { kind: "notify_owner", agentId: input.agentId, reason: "governed_gate_pending" },
+        { kind: "create_interaction", gate: input.facts.policyGate },
+        { kind: "notify_owner", agentId: input.agentId, reason: "controlled_gate_pending" },
       ],
     };
   }
@@ -964,7 +964,7 @@ export function resolveNativeAttentionStatus(input: {
       return preserve("attention_budget_exhausted", [{
         kind: "record_finalization_error",
         cause: "attention_no_valid_route",
-        nextAction: "Assign a same-company eligible delegate.",
+        nextAction: "Assign a same-space eligible delegate.",
         agentId: input.agentId,
       }]);
     }

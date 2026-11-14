@@ -19,7 +19,7 @@ The host plugin installer runs `npm install` into the managed plugin directory, 
 Configure Novita from `Instance Settings -> Environments`, not from the plugin's plugin page.
 
 - Put the Novita API key on the sandbox environment itself.
-- When you save an environment, Outpost stores pasted API keys as company secrets.
+- When you save an environment, Outpost stores pasted API keys as space secrets.
 - `NOVITA_API_KEY` remains an optional host-level fallback when an environment omits the key.
 
 ## Local development
@@ -39,4 +39,4 @@ These commands assume the repo root has already been installed once so the local
 - `src/manifest.ts` declares the sandbox-provider driver metadata
 - `src/plugin.ts` implements the environment lifecycle hooks
 - `src/worker.ts` boots the plugin under the host worker runtime
-- `paperclipPlugin.manifest` and `paperclipPlugin.worker` point the host at the built plugin entrypoints in `dist/`
+- `outpostPlugin.manifest` and `outpostPlugin.worker` point the host at the built plugin entrypoints in `dist/`

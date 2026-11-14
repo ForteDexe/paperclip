@@ -5,7 +5,7 @@ import { canonicalRemoteCopilotCommand, copilotDeathArguments, selectOwnedCopilo
 
 describe("owned Copilot provider death selector", () => {
   const root = { pid: 10, parent: 1 }, sidecar = { pid: 11, parent: 10 }, native = { pid: 12, parent: 11 };
-  const argv = ["/private/paperclip-acpx-native-owned/distribution/copilot", ...copilotDeathArguments];
+  const argv = ["/private/outpost-acpx-native-owned/distribution/copilot", ...copilotDeathArguments];
   it("selects only the native child of the live owned run", () => {
     expect(selectOwnedCopilotProcess(10, [root, sidecar, native], [10, 11, 12], new Map([[12, argv]]))).toEqual(native);
   });
@@ -41,15 +41,15 @@ import { assertCopilotProviderDeath } from "./copilot-provider-death.js";
 import type { ActiveStopPending } from "./copilot-active-stop-evidence.js";
 
 describe("provider-death independent evidence", () => {
-  const pending = { scope: { companyId: "company", runId: "run", issueId: "issue", provider: "copilot", target: "target.txt" }, requestId: "request", toolCallId: "tool", turnId: "turn", normalizedSessionId: "session" } as ActiveStopPending;
-  const row = (seq: number, eventType: string, payload: Record<string, unknown>) => ({ companyId: "company", runId: "run", seq, eventType, protocolSchemaVersion: 1, payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn", normalizedSessionId: "session", sourceInstanceId: "source", sourceSeq: seq, sourceEventId: `source:run:${seq}`, emittedAt: "2026-10-03T00:00:00Z", payload } } });
+  const pending = { scope: { spaceId: "space", runId: "run", issueId: "issue", provider: "copilot", target: "target.txt" }, requestId: "request", toolCallId: "tool", turnId: "turn", normalizedSessionId: "session" } as ActiveStopPending;
+  const row = (seq: number, eventType: string, payload: Record<string, unknown>) => ({ spaceId: "space", runId: "run", seq, eventType, protocolSchemaVersion: 1, payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn", normalizedSessionId: "session", sourceInstanceId: "source", sourceSeq: seq, sourceEventId: `source:run:${seq}`, emittedAt: "2026-10-03T00:00:00Z", payload } } });
   const notice = row(1, "provider.notice.recorded", { schema: "outpost.provider.notice.v1", scope: "turn", category: "copilot_tool_evidence_v1", provenance: { sessionId: "native-session", turnId: "turn", eventType: "permission_requested", method: "session/request_permission" }, details: Object.entries({ stage: "permission_requested", toolCallId: "tool", requestId: "request", operation: "edit", target: "target.txt", declineOffered: "true" }).map(([name, value]) => ({ name, value })) });
-  const facts = () => ({ pending, run: { id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "failed" }, issue: { id: "issue", status: "blocked" }, events: [notice, row(2, "runtime_request.expired", { requestId: "request", turnId: "turn", requestKind: "permission_approval", reason: "provider_exit" }), row(3, "turn.failed", { error: { code: "AGENT_DISCONNECTED", message: "Provider exited" } })] });
+  const facts = () => ({ pending, run: { id: "run", spaceId: "space", nativeIssueId: "issue", runtimeMode: "native", status: "failed" }, issue: { id: "issue", status: "blocked" }, events: [notice, row(2, "runtime_request.expired", { requestId: "request", turnId: "turn", requestKind: "permission_approval", reason: "provider_exit" }), row(3, "turn.failed", { error: { code: "AGENT_DISCONNECTED", message: "Provider exited" } })] });
   it("accepts callback expiry and an unfinished failed task with no replay", () => {
     expect(assertCopilotProviderDeath(facts())).toMatchObject({ expired: true, mutationReplay: false });
   });
   it("exempts only an exactly attested completed remote instruction-file read", () => {
-    const actionFile = `.paperclip-eval-action-${"a".repeat(36)}.txt`, toolCallId = "instruction-read";
+    const actionFile = `.outpost-eval-action-${"a".repeat(36)}.txt`, toolCallId = "instruction-read";
     const native = (seq: number, status: string) => row(seq, "provider.notice.recorded", { schema: "outpost.provider.notice.v1", scope: "turn", category: "copilot_tool_evidence_v1", provenance: { sessionId: "native-session", turnId: "turn", eventType: "tool", method: "session/update" }, details: Object.entries({ stage: "tool", toolCallId, operation: "read", status, readTargetSha256: `sha256:${createHash("sha256").update(actionFile).digest("hex")}` }).map(([name, value]) => ({ name, value })) });
     const canonical = (seq: number, eventType: string, status: string) => row(seq, eventType, { schema: "outpost.tool.execution.v1", transport: "builtin", operation: "read", target: actionFile, executionId: bootstrapReadExecutionId(toolCallId), status });
     const state = facts();
@@ -75,6 +75,6 @@ describe("provider-death independent evidence", () => {
     const resolved = facts(); resolved.events.push(row(4, "runtime_request.resolved", { requestId: "request" })); expect(() => assertCopilotProviderDeath(resolved)).toThrow();
     const succeeded = facts(); succeeded.run.status = "succeeded"; expect(() => assertCopilotProviderDeath(succeeded)).toThrow();
     const done = facts(); done.issue.status = "done"; expect(() => assertCopilotProviderDeath(done)).toThrow();
-    const foreign = facts(); foreign.events[0]!.companyId = "foreign"; expect(() => assertCopilotProviderDeath(foreign)).toThrow();
+    const foreign = facts(); foreign.events[0]!.spaceId = "foreign"; expect(() => assertCopilotProviderDeath(foreign)).toThrow();
   });
 });

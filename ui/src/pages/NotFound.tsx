@@ -4,9 +4,9 @@ import { AlertTriangle, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 
-type NotFoundScope = "board" | "invalid_company_prefix" | "global";
+type NotFoundScope = "operator" | "invalid_space_prefix" | "global";
 
 interface NotFoundPageProps {
   scope?: NotFoundScope;
@@ -16,20 +16,20 @@ interface NotFoundPageProps {
 export function NotFoundPage({ scope = "global", requestedPrefix }: NotFoundPageProps) {
   const location = useLocation();
   const { setBreadcrumbs } = useBreadcrumbs();
-  const { companies, selectedCompany } = useCompany();
+  const { spaces, selectedSpace } = useSpace();
 
   useEffect(() => {
     setBreadcrumbs([{ label: "Not Found" }]);
   }, [setBreadcrumbs]);
 
-  const fallbackCompany = selectedCompany ?? companies[0] ?? null;
-  const dashboardHref = fallbackCompany ? `/${fallbackCompany.issuePrefix}/dashboard` : "/";
+  const fallbackSpace = selectedSpace ?? spaces[0] ?? null;
+  const dashboardHref = fallbackSpace ? `/${fallbackSpace.issuePrefix}/dashboard` : "/";
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
   const normalizedPrefix = requestedPrefix?.toUpperCase();
 
-  const title = scope === "invalid_company_prefix" ? "Outpost not found" : "Page not found";
+  const title = scope === "invalid_space_prefix" ? "Outpost not found" : "Page not found";
   const description =
-    scope === "invalid_company_prefix"
+    scope === "invalid_space_prefix"
       ? `No Outpost matches prefix "${normalizedPrefix ?? "unknown"}".`
       : "This route does not exist.";
 

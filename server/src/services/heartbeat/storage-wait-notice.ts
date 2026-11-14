@@ -22,7 +22,7 @@ export function createStorageWaitNotice(input: {
   const status = (phase: typeof STORAGE_WAIT_PHASE | "run_activity", message: string) => {
     const at = new Date();
     const published = setHeartbeatRunRuntimeStatus({
-      companyId: run.companyId, issueId: runIssueId(run), agentId: run.agentId, runId: run.id,
+      spaceId: run.spaceId, issueId: runIssueId(run), agentId: run.agentId, runId: run.id,
       phase, message, updatedAt: at, lastEventAt: at,
     });
     if (published) publishHeartbeatRunRuntimeProgress(published);

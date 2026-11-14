@@ -29,21 +29,21 @@ export function slackPublicationCard(payload: SafeChatPublicationPayload): CardE
   if (actions.length) children.push(Actions(actions));
   const rendered = Card({ title: Array.from(card.title).slice(0, 150).join(""), children });
   if (!card.selection) return rendered;
-  return Object.assign(rendered, { paperclipSelection: card.selection, paperclipInteractionId: payload.interactionId });
+  return Object.assign(rendered, { outpostSelection: card.selection, outpostInteractionId: payload.interactionId });
 }
 
 /** Slack-only wire rendering; the durable publication contains provider-neutral choices. */
 export function slackSelectionMessage(message: AdapterPostableMessage) {
   if (typeof message !== "object" || !("card" in message)) return null;
   const card = message.card as CardElement & {
-    paperclipSelection?: NonNullable<SafeChatPublicationPayload["card"]>["selection"];
-    paperclipInteractionId?: string;
+    outpostSelection?: NonNullable<SafeChatPublicationPayload["card"]>["selection"];
+    outpostInteractionId?: string;
   };
-  const selection = card.paperclipSelection;
-  if (!selection || !card.paperclipInteractionId) return null;
+  const selection = card.outpostSelection;
+  if (!selection || !card.outpostInteractionId) return null;
   const options = selection.options.map(option => ({
     text: { type: "plain_text" as const, text: option.label },
-    value: selection.multiple ? option.actionId : `${option.actionId}|${card.paperclipInteractionId}`,
+    value: selection.multiple ? option.actionId : `${option.actionId}|${card.outpostInteractionId}`,
     ...(option.description ? { description: { type: "plain_text" as const, text: option.description } } : {}),
   }));
   const blocks = cardToBlockKit(card);
@@ -55,7 +55,7 @@ export function slackSelectionMessage(message: AdapterPostableMessage) {
     blocks.push({ type: "actions", elements: [options.length <= 10
       ? { type: "checkboxes", action_id: `pcsv:${selection.actionId}`, options, ...initial }
       : { type: "multi_static_select", action_id: `pcsv:${selection.actionId}`, placeholder: { type: "plain_text", text: selection.label }, options, ...initial }] });
-    blocks.push({ type: "actions", elements: [{ type: "button", action_id: selection.actionId, text: { type: "plain_text", text: selection.submitLabel ?? "Submit" }, value: card.paperclipInteractionId, style: "primary" }, ...footer.flatMap(block => block.type === "actions" ? block.elements : [])] });
+    blocks.push({ type: "actions", elements: [{ type: "button", action_id: selection.actionId, text: { type: "plain_text", text: selection.submitLabel ?? "Submit" }, value: card.outpostInteractionId, style: "primary" }, ...footer.flatMap(block => block.type === "actions" ? block.elements : [])] });
   } else {
     blocks.push({ type: "actions", elements: [{ type: "static_select", action_id: selection.actionId, placeholder: { type: "plain_text", text: selection.label }, options, ...(initial_options[0] ? { initial_option: initial_options[0] } : {}) }] });
   }

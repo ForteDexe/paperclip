@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "tool_applications" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "name" text NOT NULL,
   "type" text NOT NULL,
   "status" text DEFAULT 'active' NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS "tool_applications" (
 
 CREATE TABLE IF NOT EXISTS "tool_connections" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "application_id" uuid NOT NULL,
   "name" text NOT NULL,
   "transport" text NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS "tool_connections" (
 
 CREATE TABLE IF NOT EXISTS "tool_catalog_entries" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "connection_id" uuid NOT NULL,
   "name" text NOT NULL,
   "title" text,
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS "tool_catalog_entries" (
 
 CREATE TABLE IF NOT EXISTS "tool_runtime_slots" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "connection_id" uuid NOT NULL,
   "slot_key" text NOT NULL,
   "status" text DEFAULT 'stopped' NOT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS "tool_runtime_slots" (
 
 CREATE TABLE IF NOT EXISTS "tool_access_audit_events" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "connection_id" uuid,
   "catalog_entry_id" uuid,
   "actor_type" text DEFAULT 'system' NOT NULL,
@@ -79,29 +79,29 @@ CREATE TABLE IF NOT EXISTS "tool_access_audit_events" (
 );--> statement-breakpoint
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_applications_company_id_companies_id_fk') THEN
-    ALTER TABLE "tool_applications" ADD CONSTRAINT "tool_applications_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_applications_space_id_spaces_id_fk') THEN
+    ALTER TABLE "tool_applications" ADD CONSTRAINT "tool_applications_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_connections_company_id_companies_id_fk') THEN
-    ALTER TABLE "tool_connections" ADD CONSTRAINT "tool_connections_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_connections_space_id_spaces_id_fk') THEN
+    ALTER TABLE "tool_connections" ADD CONSTRAINT "tool_connections_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_connections_application_id_tool_applications_id_fk') THEN
     ALTER TABLE "tool_connections" ADD CONSTRAINT "tool_connections_application_id_tool_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."tool_applications"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_catalog_entries_company_id_companies_id_fk') THEN
-    ALTER TABLE "tool_catalog_entries" ADD CONSTRAINT "tool_catalog_entries_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_catalog_entries_space_id_spaces_id_fk') THEN
+    ALTER TABLE "tool_catalog_entries" ADD CONSTRAINT "tool_catalog_entries_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_catalog_entries_connection_id_tool_connections_id_fk') THEN
     ALTER TABLE "tool_catalog_entries" ADD CONSTRAINT "tool_catalog_entries_connection_id_tool_connections_id_fk" FOREIGN KEY ("connection_id") REFERENCES "public"."tool_connections"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_runtime_slots_company_id_companies_id_fk') THEN
-    ALTER TABLE "tool_runtime_slots" ADD CONSTRAINT "tool_runtime_slots_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_runtime_slots_space_id_spaces_id_fk') THEN
+    ALTER TABLE "tool_runtime_slots" ADD CONSTRAINT "tool_runtime_slots_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_runtime_slots_connection_id_tool_connections_id_fk') THEN
     ALTER TABLE "tool_runtime_slots" ADD CONSTRAINT "tool_runtime_slots_connection_id_tool_connections_id_fk" FOREIGN KEY ("connection_id") REFERENCES "public"."tool_connections"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_access_audit_events_company_id_companies_id_fk') THEN
-    ALTER TABLE "tool_access_audit_events" ADD CONSTRAINT "tool_access_audit_events_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_access_audit_events_space_id_spaces_id_fk') THEN
+    ALTER TABLE "tool_access_audit_events" ADD CONSTRAINT "tool_access_audit_events_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tool_access_audit_events_connection_id_tool_connections_id_fk') THEN
     ALTER TABLE "tool_access_audit_events" ADD CONSTRAINT "tool_access_audit_events_connection_id_tool_connections_id_fk" FOREIGN KEY ("connection_id") REFERENCES "public"."tool_connections"("id") ON DELETE set null ON UPDATE no action;
@@ -111,16 +111,16 @@ DO $$ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 
-CREATE INDEX IF NOT EXISTS "tool_applications_company_idx" ON "tool_applications" USING btree ("company_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "tool_applications_company_name_uq" ON "tool_applications" USING btree ("company_id", "name");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_connections_company_idx" ON "tool_connections" USING btree ("company_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tool_applications_space_idx" ON "tool_applications" USING btree ("space_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "tool_applications_space_name_uq" ON "tool_applications" USING btree ("space_id", "name");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tool_connections_space_idx" ON "tool_connections" USING btree ("space_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "tool_connections_application_idx" ON "tool_connections" USING btree ("application_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "tool_connections_company_name_uq" ON "tool_connections" USING btree ("company_id", "name");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_catalog_entries_company_idx" ON "tool_catalog_entries" USING btree ("company_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "tool_connections_space_name_uq" ON "tool_connections" USING btree ("space_id", "name");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tool_catalog_entries_space_idx" ON "tool_catalog_entries" USING btree ("space_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "tool_catalog_entries_connection_idx" ON "tool_catalog_entries" USING btree ("connection_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "tool_catalog_entries_connection_name_uq" ON "tool_catalog_entries" USING btree ("connection_id", "name");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_runtime_slots_company_idx" ON "tool_runtime_slots" USING btree ("company_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tool_runtime_slots_space_idx" ON "tool_runtime_slots" USING btree ("space_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "tool_runtime_slots_connection_idx" ON "tool_runtime_slots" USING btree ("connection_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "tool_runtime_slots_slot_key_uq" ON "tool_runtime_slots" USING btree ("company_id", "slot_key");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "tool_access_audit_company_created_idx" ON "tool_access_audit_events" USING btree ("company_id", "created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "tool_runtime_slots_slot_key_uq" ON "tool_runtime_slots" USING btree ("space_id", "slot_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tool_access_audit_space_created_idx" ON "tool_access_audit_events" USING btree ("space_id", "created_at");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "tool_access_audit_connection_idx" ON "tool_access_audit_events" USING btree ("connection_id");

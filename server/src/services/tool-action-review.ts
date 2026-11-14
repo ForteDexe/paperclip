@@ -24,7 +24,7 @@ import {
 export async function commitToolActionReview(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     actionRequestId: string;
     issueId?: string;
     interactionId?: string;
@@ -42,7 +42,7 @@ export async function commitToolActionReview(
     .where(
       and(
         eq(toolActionRequests.id, input.actionRequestId),
-        eq(toolActionRequests.companyId, input.companyId),
+        eq(toolActionRequests.spaceId, input.spaceId),
       ),
     )
     .limit(1);
@@ -59,7 +59,7 @@ export async function commitToolActionReview(
           .where(
             and(
               eq(issues.id, source.issueId),
-              eq(issues.companyId, input.companyId),
+              eq(issues.spaceId, input.spaceId),
             ),
           )
           .for("update")
@@ -71,7 +71,7 @@ export async function commitToolActionReview(
           .where(
             and(
               eq(issueThreadInteractions.id, source.interactionId),
-              eq(issueThreadInteractions.companyId, input.companyId),
+              eq(issueThreadInteractions.spaceId, input.spaceId),
             ),
           )
           .for("update")
@@ -82,7 +82,7 @@ export async function commitToolActionReview(
       .where(
         and(
           eq(toolActionRequests.id, source.id),
-          eq(toolActionRequests.companyId, input.companyId),
+          eq(toolActionRequests.spaceId, input.spaceId),
         ),
       )
       .for("update");
@@ -109,7 +109,7 @@ export async function commitToolActionReview(
       .where(
         and(
           eq(toolInvocations.id, current.invocationId),
-          eq(toolInvocations.companyId, input.companyId),
+          eq(toolInvocations.spaceId, input.spaceId),
         ),
       )
       .limit(1);
@@ -134,22 +134,22 @@ export async function commitToolActionReview(
       )
         throw conflict("Tool review context does not match");
       assertIssueThreadInteractionResolverAudience({
-        actor: { type: "user", userId: input.actor.userId ?? "board" },
+        actor: { type: "user", userId: input.actor.userId ?? "operator" },
         interaction,
-        governedAction: true,
+        controlledAction: true,
       });
       if (interaction.status !== "pending")
         throw conflict("This review has already been resolved");
     }
     const now = new Date();
     if (interaction && issue) await notifyChatRunMilestones(tx, interaction);
-    await notifyToolReviewChange(tx, current.companyId);
+    await notifyToolReviewChange(tx, current.spaceId);
     const [updated] = await tx
       .update(toolActionRequests)
       .set({
         status: input.decision,
-        resolvedByUserId: input.actor.userId ?? "board",
-        decidedByUserId: input.actor.userId ?? "board",
+        resolvedByUserId: input.actor.userId ?? "operator",
+        decidedByUserId: input.actor.userId ?? "operator",
         decidedAt: now,
         resolvedAt: now,
         updatedAt: now,
@@ -162,10 +162,10 @@ export async function commitToolActionReview(
       await toolAccessPolicyService(
         tx as unknown as Db,
       ).createTrustRuleFromActionRequest({
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         actionRequestId: current.id,
         body: { approvalThreshold: 1, priority: 40, argumentMode: "action" },
-        actor: { userId: input.actor.userId ?? "board" },
+        actor: { userId: input.actor.userId ?? "operator" },
       });
     }
     await tx
@@ -185,7 +185,7 @@ export async function commitToolActionReview(
       .where(
         and(
           eq(toolInvocations.id, current.invocationId),
-          eq(toolInvocations.companyId, input.companyId),
+          eq(toolInvocations.spaceId, input.spaceId),
         ),
       );
     if (interaction && issue) {
@@ -193,7 +193,7 @@ export async function commitToolActionReview(
         .update(issueThreadInteractions)
         .set({
           status: input.decision === "approved" ? "accepted" : "rejected",
-          resolvedByUserId: input.actor.userId ?? "board",
+          resolvedByUserId: input.actor.userId ?? "operator",
           resolvedAt: now,
           updatedAt: now,
           result:
@@ -215,7 +215,7 @@ export async function commitToolActionReview(
       await tx
         .insert(toolActionDeliveries)
         .values({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           actionRequestId: current.id,
           issueId: issue.id,
           interactionId: interaction.id,
@@ -224,9 +224,9 @@ export async function commitToolActionReview(
       await logActivity(
         tx as unknown as Db,
         {
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           actorType: "user",
-          actorId: input.actor.userId ?? "board",
+          actorId: input.actor.userId ?? "operator",
           action:
             input.decision === "approved"
               ? "issue.thread_interaction_accepted"

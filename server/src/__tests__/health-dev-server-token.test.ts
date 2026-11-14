@@ -12,7 +12,7 @@ import { resolveHotRestartIntentPath } from "../services/hot-restart.js";
 const tempDirs: string[] = [];
 
 function createDevServerStatusFile(payload: unknown) {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "paperclip-health-dev-server-"));
+  const dir = mkdtempSync(path.join(os.tmpdir(), "outpost-health-dev-server-"));
   tempDirs.push(dir);
   const filePath = path.join(dir, "dev-server-status.json");
   writeFileSync(filePath, `${JSON.stringify(payload)}\n`, "utf8");
@@ -87,7 +87,7 @@ describe("GET /health dev-server supervisor access", () => {
           deploymentMode: "authenticated",
           deploymentExposure: "private",
           authReady: true,
-          companyDeletionEnabled: true,
+          spaceDeletionEnabled: true,
           // Pin server info so the commit field is deterministic (null)
           // instead of picking up the checkout's real git metadata.
           serverInfo: {
@@ -99,7 +99,7 @@ describe("GET /health dev-server supervisor access", () => {
 
       const res = await request(app)
         .get("/health")
-        .set("X-Paperclip-Dev-Server-Status-Token", "dev-runner-token");
+        .set("X-Outpost-Dev-Server-Status-Token", "dev-runner-token");
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({
@@ -205,7 +205,7 @@ describe("POST /health/dev-server/restart", () => {
       changedPathsSample: ["server/src/routes/health.ts"],
       pendingMigrations: [],
     });
-    const home = mkdtempSync(path.join(os.tmpdir(), "paperclip-health-restart-home-"));
+    const home = mkdtempSync(path.join(os.tmpdir(), "outpost-health-restart-home-"));
     tempDirs.push(home);
     process.env.OUTPOST_HOME = home;
     vi.spyOn(devServerStatus, "writeDevServerRestartRequest").mockReturnValue(false);
@@ -256,14 +256,14 @@ describe("POST /health/dev-server/restart", () => {
           deploymentMode: "authenticated",
           deploymentExposure: "private",
           authReady: true,
-          companyDeletionEnabled: true,
+          spaceDeletionEnabled: true,
         }),
       );
 
       const res = await request(app).post("/health/dev-server/restart");
 
       expect(res.status).toBe(403);
-      expect(res.body).toEqual({ error: "board_access_required" });
+      expect(res.body).toEqual({ error: "operator_access_required" });
     } finally {
       if (previousFile === undefined) {
         delete process.env.OUTPOST_DEV_SERVER_STATUS_FILE;

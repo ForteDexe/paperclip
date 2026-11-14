@@ -5,7 +5,7 @@ import { loadConfig } from "../config.js";
 import { conflict, unauthorized } from "../errors.js";
 import { persistActivity, publishActivity } from "./activity-log.js";
 import type { CloudControlClaims } from "./cloud-runtime-identity.js";
-import { cloudTenantPrimaryCompanyId, getCloudStackContext } from "./cloud-instance.js";
+import { cloudTenantPrimarySpaceId, getCloudStackContext } from "./cloud-instance.js";
 import { resolveDecisionSigningSecret } from "./decision-signing.js";
 import { assertEphemeralServerConfig, ephemeralServerEnabled, readEphemeralServerDataEligibility } from "./ephemeral-server-contract.js";
 
@@ -29,12 +29,12 @@ export async function prepareOnlineEphemeralEnrollment(db: Db, attemptId: string
     enrollmentReady: false as const,
   };
   if (control.exp * 1000 <= Date.now()) throw unauthorized("Cloud preparation assertion expired");
-  const bytes = createHash("sha256").update(`paperclip-ephemeral-preparation:v1:${stackId}:${control.requestId}`).digest().subarray(0, 16);
+  const bytes = createHash("sha256").update(`outpost-ephemeral-preparation:v1:${stackId}:${control.requestId}`).digest().subarray(0, 16);
   bytes[6] = (bytes[6]! & 0x0f) | 0x50; bytes[8] = (bytes[8]! & 0x3f) | 0x80;
   const hex = bytes.toString("hex");
   const id = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   try {
-    const { publication } = await persistActivity(db, { companyId: cloudTenantPrimaryCompanyId(stackId), actorType: "system", actorId: "paperclip-cloud",
+    const { publication } = await persistActivity(db, { spaceId: cloudTenantPrimarySpaceId(stackId), actorType: "system", actorId: "outpost-cloud",
       action: "instance.ephemeral_enrollment.prepared", entityType: "instance", entityId: stackId, details: receipt }, { id });
     publishActivity(publication);
   } catch (error) {

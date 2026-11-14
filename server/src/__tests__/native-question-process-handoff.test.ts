@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { setTimeout as delay } from "node:timers/promises";
 import { fork } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { createDb, companies, agents, issues, heartbeatRuns, authUsers, companyMemberships, issueQuestionResponseDeliveries } from "@outpost/db";
+import { createDb, spaces, agents, issues, heartbeatRuns, authUsers, spaceMemberships, issueQuestionResponseDeliveries } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { questionResponseDeliveryService } from "../services/question-response-delivery.js";
 import { deliverNativeQuestionResponse, projectNativeRuntimeRequest } from "../services/native-runtime/native-question-bridge.js";
@@ -12,7 +12,7 @@ import { deploymentNotifications } from "../services/deployment-notifications.js
 it("delivers a B-to-A native answer promptly after a competing claim and becomes idle after settlement", async () => {
   const database = await startEmbeddedPostgresTestDatabase("question-handoff-");
   const db = createDb(database.connectionString),
-    companyId = randomUUID(),
+    spaceId = randomUUID(),
     agentId = randomUUID(),
     issueId = randomUUID(),
     runId = randomUUID(),
@@ -70,8 +70,8 @@ it("delivers a B-to-A native answer promptly after a competing claim and becomes
     });
   try {
     await bridge.ready();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Question handoff proof",
       issuePrefix: "QHO"
     });
@@ -82,8 +82,8 @@ it("delivers a B-to-A native answer promptly after a competing claim and becomes
       createdAt: new Date(),
       updatedAt: new Date()
     });
-    await db.insert(companyMemberships).values({
-      companyId,
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "user",
       principalId: userId,
       status: "active",
@@ -91,7 +91,7 @@ it("delivers a B-to-A native answer promptly after a competing claim and becomes
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Handoff fixture",
       adapterType: "outpost_runner",
       status: "running",
@@ -101,7 +101,7 @@ it("delivers a B-to-A native answer promptly after a competing claim and becomes
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Answer across processes",
       status: "in_progress",
       assigneeAgentId: agentId,
@@ -109,7 +109,7 @@ it("delivers a B-to-A native answer promptly after a competing claim and becomes
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       runtimeMode: "native",
@@ -124,7 +124,7 @@ it("delivers a B-to-A native answer promptly after a competing claim and becomes
     const createQuestion = (requestId: string) => projectNativeRuntimeRequest({
       db,
       binding: {
-        companyId,
+        spaceId,
         issueId,
         runId,
         agentId,
@@ -172,7 +172,7 @@ it("delivers a B-to-A native answer promptly after a competing claim and becomes
       type: "init",
       url: database.connectionString,
       binding: {
-        companyId,
+        spaceId,
         issueId,
         runId,
         agentId
@@ -181,7 +181,7 @@ it("delivers a B-to-A native answer promptly after a competing claim and becomes
     await wait("ready");
     await issueThreadInteractionService(db).answerQuestions({
       id: issueId,
-      companyId,
+      spaceId,
       status: "in_progress"
     }, interaction!.id, {
       answers: [{
@@ -253,7 +253,7 @@ it("delivers a B-to-A native answer promptly after a competing claim and becomes
     // A has become idle. The next real producer on B must wake it through
     // PostgreSQL without a test-owned sweep or another child control message.
     const next = await createQuestion("question-2");
-    await issueThreadInteractionService(db).answerQuestions({ id: issueId, companyId, status: "in_progress" }, next!.id,
+    await issueThreadInteractionService(db).answerQuestions({ id: issueId, spaceId, status: "in_progress" }, next!.id,
       { answers: [{ questionId: "color", optionIds: ["green"] }] }, { userId });
     expect(await wait("command", 5_000, `question_${next!.id}`)).toMatchObject({ commandType: "request.resolve" });
     await expect.poll(async () => (await db.select().from(issueQuestionResponseDeliveries)).every(row => row.status === "delivered")).toBe(true);

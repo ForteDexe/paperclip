@@ -3,8 +3,8 @@ import { open } from "node:fs/promises";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { instanceSettings, type Db } from "@outpost/db";
-import { paperclipConfigSchema } from "@outpost/shared";
-import { resolvePaperclipConfigPathForInstance } from "@outpost/shared/home-paths";
+import { outpostConfigSchema } from "@outpost/shared";
+import { resolveOutpostConfigPathForInstance } from "@outpost/shared/home-paths";
 import { validateManagedCloudStoragePrerequisites } from "../managed-cloud-prerequisites.js";
 import { loadStorageConfig } from "../storage/config.js";
 import { isCloudManagedInstance, type CloudInstanceEnv } from "./cloud-instance.js";
@@ -59,7 +59,7 @@ export function cloudRuntimeConfigService(db: CloudRuntimeConfigDb) {
 export function legacyCloudRuntimeConfigPath(env: CloudInstanceEnv = process.env): string {
   return env.OUTPOST_CONFIG
     ? path.resolve(env.OUTPOST_CONFIG)
-    : resolvePaperclipConfigPathForInstance({ homeDir: env.OUTPOST_HOME, instanceId: env.OUTPOST_INSTANCE_ID });
+    : resolveOutpostConfigPathForInstance({ homeDir: env.OUTPOST_HOME, instanceId: env.OUTPOST_INSTANCE_ID });
 }
 
 export async function readLegacyCloudRuntimeConfig(env: CloudInstanceEnv = process.env): Promise<CloudRuntimeConfig | null> {
@@ -91,7 +91,7 @@ export async function readLegacyCloudRuntimeConfig(env: CloudInstanceEnv = proce
   if (typeof legacyStorage?.s3?.bucket !== "string" || !legacyStorage.s3.bucket.trim()) {
     throw new Error("Legacy Cloud runtime configuration requires an explicit nonblank storage.s3.bucket");
   }
-  const parsed = paperclipConfigSchema.safeParse(raw);
+  const parsed = outpostConfigSchema.safeParse(raw);
   if (!parsed.success) throw new Error("Legacy Cloud runtime configuration is invalid");
   if (parsed.data.llm?.provider === "openai" && parsed.data.llm.apiKey?.trim() && !env.OPENAI_API_KEY?.trim()) {
     throw new Error("Move the legacy OpenAI API key to OPENAI_API_KEY before initializing Cloud runtime configuration");

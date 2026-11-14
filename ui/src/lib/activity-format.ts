@@ -1,5 +1,5 @@
 import type { Agent } from "@outpost/shared";
-import type { CompanyUserProfile } from "./company-members";
+import type { SpaceUserProfile } from "./space-members";
 import { formatReviewPolicyValue } from "./review-policy";
 
 type ActivityDetails = Record<string, unknown> | null | undefined;
@@ -18,7 +18,7 @@ type ActivityIssueReference = {
 
 interface ActivityFormatOptions {
   agentMap?: Map<string, Agent>;
-  userProfileMap?: Map<string, CompanyUserProfile>;
+  userProfileMap?: Map<string, SpaceUserProfile>;
   currentUserId?: string | null;
 }
 
@@ -117,11 +117,11 @@ const ACTIVITY_ROW_VERBS: Record<string, string> = {
   "goal.deleted": "deleted",
   "cost.reported": "reported legacy usage for",
   "cost.recorded": "recorded legacy usage for",
-  "company.created": "created outpost",
-  "company.updated": "updated outpost",
-  "company.archived": "archived",
-  "company.reactivated": "reactivated",
-  "company.budget_updated": "updated legacy policy for",
+  "space.created": "created outpost",
+  "space.updated": "updated outpost",
+  "space.archived": "archived",
+  "space.reactivated": "reactivated",
+  "space.budget_updated": "updated legacy policy for",
   "audit.exported": "exported the agent audit log for",
   "tool_app.connected": "connected",
   "tool_app.oauth_connected": "connected credentials for",
@@ -168,7 +168,7 @@ const ISSUE_ACTIVITY_LABELS: Record<string, string> = {
   "issue.monitor_exhausted": "exhausted a monitor",
   "issue.monitor_recovery_wake_queued": "queued a monitor recovery wake",
   "issue.monitor_recovery_issue_created": "created a monitor recovery issue",
-  "issue.monitor_escalated_to_board": "escalated a monitor to the board",
+  "issue.monitor_escalated_to_board": "escalated a monitor to the operator",
   "issue.deleted": "deleted the issue",
   "issue.successful_run_handoff_required": "Run finished without a clear next step",
   "issue.successful_run_handoff_resolved": "Next step chosen",
@@ -288,7 +288,7 @@ function readIssueReferences(details: ActivityDetails, key: string): ActivityIss
 }
 
 function formatUserLabel(userId: string | null | undefined, options: ActivityFormatOptions = {}): string {
-  if (!userId || userId === "local-board") return "You";
+  if (!userId || userId === "local-operator") return "You";
   if (options.currentUserId && userId === options.currentUserId) return "You";
   const profile = options.userProfileMap?.get(userId);
   if (profile) return profile.label;

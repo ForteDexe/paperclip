@@ -17,7 +17,7 @@ export const updateDecisionModelSchema = z.object({
 export type UpdateDecisionModel = z.infer<typeof updateDecisionModelSchema>;
 export interface DecisionModelSettings extends UpdateDecisionModel {
   allowBackground: boolean;
-  companyId: string;
+  spaceId: string;
   provider: DecisionProvider | null;
   model: string | null;
 }

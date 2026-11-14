@@ -4,7 +4,7 @@ import { AuditRuns } from "@/pages/audit/AuditRuns";
 import {
   storybookLiveRuns,
   storybookAgents,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 import {
   prepareFixtureApi,
   type FixtureState,
@@ -14,9 +14,9 @@ const meta = {
   title:
     "Oversight and operation/Dashboards and audit trails/Execution history",
   component: AuditRuns,
-  args: { companyId: "company-storybook" },
+  args: { spaceId: "space-storybook" },
   parameters: { layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "activity/runs"
       ],
@@ -30,7 +30,7 @@ const meta = {
     prepareFixtureApi(
       [
         {
-          path: "/api/companies/company-storybook/heartbeat-runs",
+          path: "/api/spaces/space-storybook/heartbeat-runs",
           read: () =>
             parameters.fixtureState === "empty"
               ? []

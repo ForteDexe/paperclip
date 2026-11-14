@@ -51,8 +51,8 @@ const backup = privilegedDefinition("instance-operations.backup-and-restore", "p
     } else {
       if (config.database?.mode !== "embedded-postgres" || !Number.isSafeInteger(config.database.embeddedPostgresPort))
         throw new Error("Backup requires the launcher's owned embedded or qualified Docker PostgreSQL cluster");
-      url = `postgres://paperclip:paperclip@127.0.0.1:${config.database.embeddedPostgresPort}/paperclip`;
-      database = "paperclip";
+      url = `postgres://outpost:outpost@127.0.0.1:${config.database.embeddedPostgresPort}/outpost`;
+      database = "outpost";
       verify = async () => {
         const data = await getPostgresDataDirectory(url);
         if (!data || !(await realpath(data)).startsWith(owned + path.sep)) throw new Error("Backup source PostgreSQL data directory is not owned by this attempt");
@@ -78,7 +78,7 @@ const backup = privilegedDefinition("instance-operations.backup-and-restore", "p
     let targetCreated = false;
     const markerId = (state.task as { id: string }).id;
     const readMarker = async (client: typeof sql) => {
-      const tasks = await client.unsafe("select id, company_id, project_id, title, description, status from issues where id = $1", [markerId]);
+      const tasks = await client.unsafe("select id, space_id, project_id, title, description, status from issues where id = $1", [markerId]);
       const docs = await client.unsafe("select d.id, d.issue_id, d.key, doc.latest_revision_id from issue_documents d join documents doc on doc.id = d.document_id where d.issue_id = $1 and d.key = 'plan'", [markerId]);
       const revisions = await client.unsafe("select id, document_id, body from document_revisions where id = $1", [String(state.documentRevisionId)]);
       return { tasks: [...tasks], docs: [...docs], revisions: [...revisions] };

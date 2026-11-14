@@ -28,7 +28,7 @@ import type { PreparedAdapterExecutionTargetRuntime } from "@outpost/adapter-uti
 
 function makeStagedRuntime(id: string): PreparedAdapterExecutionTargetRuntime {
   return {
-    runtimeRootDir: `/remote/${id}/.paperclip-runtime/acpx`,
+    runtimeRootDir: `/remote/${id}/.outpost-runtime/acpx`,
     additionalSourceDirs: {},
     additionalSourceFailures: [],
   } as unknown as PreparedAdapterExecutionTargetRuntime;
@@ -89,7 +89,7 @@ function makeSite(overrides: Partial<SandboxRunSiteOptions> = {}) {
     publishStagedProjectHints: () => {},
     onReuseLog: async () => {},
     startOutpostBridge: async () => {
-      bridgeCalls.push("paperclip:start");
+      bridgeCalls.push("outpost:start");
       return { env: { OUTPOST_API_KEY: "run-token" }, stop: async () => {} } as never;
     },
     startProcessSessionBridge: async ({ launchEnv }) => {
@@ -125,8 +125,8 @@ function makeReady(stagedRuntime: PreparedAdapterExecutionTargetRuntime): ReadyR
 describe("sandbox run site", () => {
   it("test_sandbox_site_registers_staging_bridges_and_lease_in_ledger", async () => {
     const { site, registered } = makeSite();
-    await site.placeWorkspace(makeContext("paperclip:c:a:t:fp"));
-    await site.startTransport(makeContext("paperclip:c:a:t:fp"));
+    await site.placeWorkspace(makeContext("outpost:c:a:t:fp"));
+    await site.startTransport(makeContext("outpost:c:a:t:fp"));
 
     const byId = new Set(registered.map((entry) => entry.id));
     // Staging registers the staged runtime, the managed-home copy-back, and the
@@ -148,7 +148,7 @@ describe("sandbox run site", () => {
     // A referenced project that fails to stage carries its failure reason back on
     // the placed-workspace result, so a reader of the run learns why it dropped.
     const failedStaged = {
-      runtimeRootDir: "/remote/fail/.paperclip-runtime/acpx",
+      runtimeRootDir: "/remote/fail/.outpost-runtime/acpx",
       additionalSourceDirs: {},
       additionalSourceFailures: [{ projectId: "proj-x", error: "extract failed: boom" }],
     } as unknown as PreparedAdapterExecutionTargetRuntime;
@@ -163,16 +163,16 @@ describe("sandbox run site", () => {
 
   it("test_sandbox_site_preserves_bridge_overlap_and_callback_sequencing", async () => {
     const events: string[] = [];
-    let releasePaperclip!: () => void;
-    const paperclipGate = new Promise<void>((resolve) => {
-      releasePaperclip = resolve;
+    let releaseOutpost!: () => void;
+    const outpostGate = new Promise<void>((resolve) => {
+      releaseOutpost = resolve;
     });
     let processLaunchEnv: Record<string, string> | null = null;
     const { site } = makeSite({
       startOutpostBridge: async () => {
-        events.push("paperclip:start");
-        await paperclipGate;
-        events.push("paperclip:env-ready");
+        events.push("outpost:start");
+        await outpostGate;
+        events.push("outpost:env-ready");
         return { env: { OUTPOST_API_KEY: "run-token" }, stop: async () => {} } as never;
       },
       startProcessSessionBridge: async ({ launchEnv }) => {
@@ -189,15 +189,15 @@ describe("sandbox run site", () => {
     // Both bridges start before the outpost env resolves: their setup overlaps.
     await Promise.resolve();
     await Promise.resolve();
-    expect(events).toContain("paperclip:start");
+    expect(events).toContain("outpost:start");
     expect(events).toContain("process-session:start");
     expect(events).not.toContain("process-session:launch");
 
     // Release the outpost env; the process-session launch now observes the
     // merged run-scoped env (the single sequencing point).
-    releasePaperclip();
+    releaseOutpost();
     const transport = await transportPromise;
-    expect(events.indexOf("paperclip:env-ready")).toBeLessThan(events.indexOf("process-session:launch"));
+    expect(events.indexOf("outpost:env-ready")).toBeLessThan(events.indexOf("process-session:launch"));
     expect(processLaunchEnv).toEqual({ BASE: "1", CODEX_HOME: "/remote/home", OUTPOST_API_KEY: "run-token" });
     expect(transport.launchEnv).toEqual(processLaunchEnv);
   });
@@ -246,7 +246,7 @@ describe("sandbox run site", () => {
     const cachedRuntime = makeStagedRuntime("cached");
     const stagedRuntimes = new Map<string, StagedRuntimeStoreEntry>([
       [
-        "paperclip:c:a:t:fp",
+        "outpost:c:a:t:fp",
         {
           stagedRuntime: cachedRuntime,
           envDelta: { CODEX_HOME: "/remote/home" },
@@ -260,15 +260,15 @@ describe("sandbox run site", () => {
 
     // A borrow reads the staged entry without removal, so an overlapping run of
     // the same session still reads it.
-    const borrowed = site.reuse().borrow("paperclip:c:a:t:fp");
+    const borrowed = site.reuse().borrow("outpost:c:a:t:fp");
     expect(borrowed?.stagedRuntime).toBe(cachedRuntime);
-    expect(stagedRuntimes.has("paperclip:c:a:t:fp")).toBe(true);
+    expect(stagedRuntimes.has("outpost:c:a:t:fp")).toBe(true);
 
     // A reuse hit yields the staged FILES (not a live runtime): `placeWorkspace`
     // reports `reused` and re-applies the seam env delta, and the reuse candidate
     // names the staged files only. So the run still creates the runtime and runs
     // the handshake against the reused files.
-    await site.placeWorkspace(makeContext("paperclip:c:a:t:fp"));
+    await site.placeWorkspace(makeContext("outpost:c:a:t:fp"));
     expect(site.staged?.reused).toBe(true);
     expect(site.staged?.stagedRuntime).toBe(cachedRuntime);
     expect(env.CODEX_HOME).toBe("/remote/home");
@@ -293,12 +293,12 @@ describe("sandbox run site", () => {
   it("replaces staged exporter configuration without changing the resumed conversation key", async () => {
     const dispose = vi.fn(async () => {});
     const cachedRuntime = makeStagedRuntime("old-exporter");
-    const stagedRuntimes = new Map<string, StagedRuntimeStoreEntry>([["paperclip:c:a:t:fp", {
+    const stagedRuntimes = new Map<string, StagedRuntimeStoreEntry>([["outpost:c:a:t:fp", {
       stagedRuntime: cachedRuntime, envDelta: { CODEX_HOME: "/remote/old-home" },
       teardown: null, dispose, lastUsedAt: 500, observabilityCompatibilityKey: "old-revision",
     }]]);
     const { site, env } = makeSite({ stagedRuntimes, isCompatibleResume: true, observabilityCompatibilityKey: "new-revision" });
-    await site.placeWorkspace(makeContext("paperclip:c:a:t:fp"));
+    await site.placeWorkspace(makeContext("outpost:c:a:t:fp"));
     expect(dispose).toHaveBeenCalledOnce();
     expect(site.staged?.reused).toBe(false);
     expect(site.staged?.stagedRuntime).not.toBe(cachedRuntime);

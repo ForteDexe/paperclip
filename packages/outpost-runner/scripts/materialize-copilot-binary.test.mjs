@@ -9,7 +9,7 @@ import { COPILOT_DISTRIBUTIONS, materializePinnedCopilotBinary, resolveCopilotDi
 const directories = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true, force: true }))); });
 async function fixture(version = "1.0.88") {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-copilot-materializer-")); directories.push(root);
+  const root = await mkdtemp(join(tmpdir(), "outpost-copilot-materializer-")); directories.push(root);
   await writeFile(join(root, "package.json"), JSON.stringify({ name: "@github/copilot-linux-x64", version }));
   await writeFile(join(root, "copilot"), "#!/bin/sh\nexit 98\n", { mode: 0o755 });
   return fs.realpathSync(root);
@@ -45,7 +45,7 @@ const outputFiles = () => [
   { path: "copilot", bytes: Buffer.from("verified executable"), executable: true },
   { path: "distribution/nested/first.js", bytes: Buffer.from("verified first asset"), executable: false },
   { path: "distribution/nested/last.js", bytes: Buffer.from("verified last asset"), executable: false },
-  { path: ".paperclip-copilot-closure.json", bytes: Buffer.from("verified closure"), executable: false },
+  { path: ".outpost-copilot-closure.json", bytes: Buffer.from("verified closure"), executable: false },
 ];
 
 test("partial inner writes roll back only owned entries and permit a clean retry", async t => {

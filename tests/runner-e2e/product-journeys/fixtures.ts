@@ -6,12 +6,12 @@ export function journeyFixtures(session: TargetSession, campaignId?: string) {
   let ready: JourneyContext | undefined;
   let preparation: Promise<JourneyContext> | undefined;
   let backlogTask: Promise<PreparedBacklogTask> | undefined;
-  let taskCompanyId: string | undefined;
+  let taskSpaceId: string | undefined;
   const registry = new FixtureRegistry().register({
     id: "ready-context",
     async setup() { return ready ??= await (preparation ??= session.prepare()); },
   });
-  for (const id of ["company", "board-user", "task-write", "agent", "agent-settings-write", "skill-write", "review-service", "inbox-author", "company-access"]) registry.register({
+  for (const id of ["space", "board-user", "task-write", "agent", "agent-settings-write", "skill-write", "review-service", "inbox-author", "space-access"]) registry.register({
     id, dependencies: ["ready-context"],
     async setup(resolved) {
       const context = resolved.get("ready-context") as JourneyContext;
@@ -20,16 +20,16 @@ export function journeyFixtures(session: TargetSession, campaignId?: string) {
     },
   });
   registry.register({
-    id: "backlog-task", dependencies: ["company", "board-user", "task-write"],
+    id: "backlog-task", dependencies: ["space", "board-user", "task-write"],
     async setup(resolved) {
       if (!campaignId?.trim()) throw new JourneyError("blocked", "campaign_id_required_for_backlog_task");
       const context = resolved.get("ready-context") as JourneyContext;
-      if (backlogTask && taskCompanyId !== context.company.id) throw new JourneyError("failed", "backlog_task_company_changed");
-      taskCompanyId = context.company.id;
+      if (backlogTask && taskSpaceId !== context.space.id) throw new JourneyError("failed", "backlog_task_space_changed");
+      taskSpaceId = context.space.id;
       backlogTask ??= (async () => {
         const title = `Journey QA ${campaignId}`;
         await session.own({ kind: "issue", name: title });
-        const issue = await context.api.post<{ id: string; identifier: string }>(`/api/companies/${context.company.id}/issues`, {
+        const issue = await context.api.post<{ id: string; identifier: string }>(`/api/spaces/${context.space.id}/issues`, {
           title, description: "Disposable task-property verification", status: "backlog",
         });
         if (typeof issue?.id !== "string" || !issue.id) throw new JourneyError("failed", "invalid_backlog_task_receipt");

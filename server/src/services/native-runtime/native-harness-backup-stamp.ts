@@ -3,7 +3,7 @@ import { constants, lstatSync, readFileSync, readdirSync, readlinkSync } from "n
 import { lstat, open, readdir, readlink } from "node:fs/promises";
 import { MAX_NATIVE_HARNESS_BYTES, MAX_NATIVE_HARNESS_ENTRIES } from "./native-harness-backup-archive.js";
 import { dirname, resolve } from "node:path";
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 
 export interface NativeHarnessBackupStamp {
   schema: "outpost.native-harness-backup-stamp.v2";
@@ -20,7 +20,7 @@ export function nativeHarnessStateBase(): string {
   return resolve(
     process.env.OUTPOST_RUNNER_STATE_DIR ??
       resolve(
-        resolvePaperclipInstanceRoot(),
+        resolveOutpostInstanceRoot(),
         "runtime",
         "outpost-runner",
         "durable-sessions",

@@ -1,16 +1,16 @@
 # Control-plane restart chaos loop: make tasks survive server restarts
 
 Date: 2026-11-06
-Target: a local, isolated Paperclip control plane with agent runs in Daytona sandboxes
-Fix workflow: `fix-failed-paperclip-run` (one session per failure signature)
-Predecessor: `2026-11-04-staging-soak-loop.md` (staging soak campaign, PR worktree `paperclip-staging-test-plan-24ca37`)
+Target: a local, isolated Outpost control plane with agent runs in Daytona sandboxes
+Fix workflow: `fix-failed-outpost-run` (one session per failure signature)
+Predecessor: `2026-11-04-staging-soak-loop.md` (staging soak campaign, PR worktree `outpost-staging-test-plan-24ca37`)
 
 ## 1. Why this plan exists
 
 The staging soak campaign (2026-11-04 to 2026-11-06) ran about 430 graded tasks
 in waves of about 10. It used a fixed task library (sections A to H), mechanical
 oracles (U1 to U9), and a dedupe-by-signature ledger. Each new failure signature
-went to its own `fix-failed-paperclip-run` session. The campaign merged 42 fixes,
+went to its own `fix-failed-outpost-run` session. The campaign merged 42 fixes,
 and the hard-failure rate on test tasks fell from 43% to about 0%.
 
 The largest remaining source of failures was restarts. Staging restarted up to
@@ -65,7 +65,7 @@ is never graded "environment, ignore".
  Daytona: one sandbox per run or lease, holding the real runner and provider (Claude, Codex)
 ```
 
-- **Use an isolated instance**, not `~/.paperclip/instances/default`. Chaos kills
+- **Use an isolated instance**, not `~/.outpost/instances/default`. Chaos kills
   and the leftover Postgres state must never touch Dotta's working data.
 - **Own the server process.** Reuse the existing supervisor in
   `tests/runner-e2e/server.ts` and `controller-outage.ts`
@@ -172,9 +172,9 @@ The harness is a script, not an LLM, for the same reasons as the soak harness:
 deterministic grading and cheap polling. It reuses the runner-e2e process code.
 It does not copy that code.
 
-1. **`config`:** isolated instance path, port, `DAYTONA_API_KEY`, company,
+1. **`config`:** isolated instance path, port, `DAYTONA_API_KEY`, space,
    agents, budget, and concurrency.
-2. **`seed`:** creates the "Chaos Lab" company, Claude and Codex agents on
+2. **`seed`:** creates the "Chaos Lab" space, Claude and Codex agents on
    Daytona, and the `chaos-sandbox` project with a fixture repository. This
    includes `bench.sh` and one failing test. It sets hard budgets.
 3. **`supervisor`:** wraps `server.ts` and `controller-outage.ts`, exposing
@@ -209,7 +209,7 @@ It does not copy that code.
 wave (N tasks × sampled K/B/A cells)
   → grade R1–R6 and the T-oracles
   → classify failures; signature = component + first causal error + boundary
-  → new P signature  → fixer session running /fix-failed-paperclip-run with the bundle and a replay command
+  → new P signature  → fixer session running /fix-failed-outpost-run with the bundle and a replay command
   → known signature  → add the bundle to the existing record
   → fix PR merged    → rebase the harness worktree on master, replay that signature 5× plus its neighboring cells
 ```
@@ -219,7 +219,7 @@ wave (N tasks × sampled K/B/A cells)
   applies to the fault we injected. Only an unrelated provider or Daytona outage
   counts as E.
 - **Fixers start from the replay.** Each fixer gets `--replay`, so the first
-  step of `fix-failed-paperclip-run` (establish the incident) is already done.
+  step of `fix-failed-outpost-run` (establish the incident) is already done.
   The fixer then writes the smallest red test at the right layer. Usually that
   is a server integration test on embedded Postgres, like the six in #19399, or
   a `native-runner-restart-*.integration.test.ts`. The fix makes it green.

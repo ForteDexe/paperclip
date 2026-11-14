@@ -44,7 +44,7 @@ export async function verifyKimiInstallation(profile: AcpxReleaseProfile): Promi
   };
   try { await assertDirectories(); }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error("Kimi runtime is not installed on this host; run paperclipai runtime setup kimi before selecting Kimi Code");
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error("Kimi runtime is not installed on this host; run outpost runtime setup kimi before selecting Kimi Code");
     throw error;
   }
   const metadata = await readMetadata(join(assets, "kimi-distribution.json"));

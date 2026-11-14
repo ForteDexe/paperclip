@@ -98,7 +98,7 @@ function abandonedWorkspaceOperationSettle(spec: { phases: readonly string[]; st
         .returning({ id: workspaceOperations.id });
       if (!row) return { settled: false, reason: "attempt_no_longer_in_progress" };
       const activity = await persistActivity(tx, {
-        companyId: operation.companyId, actorType: "system", actorId: "ownership-reconciler",
+        spaceId: operation.spaceId, actorType: "system", actorId: "ownership-reconciler",
         action: "workspace_operation.reconciled", entityType: "workspace_operation", entityId: operation.id,
         runId: operation.heartbeatRunId, issueId: operation.issueId, details: provenance,
       });
@@ -167,19 +167,19 @@ export async function settleAbandonedRemoteSnapshotSave(db: Db, record: InProgre
     }).where(and(eq(workspaceOperations.id, operation.id), eq(workspaceOperations.status, operation.status)))
       .returning({ id: workspaceOperations.id });
     if (!row) return { settled: false, reason: "attempt_no_longer_in_progress" };
-    retired = await retireAbandonedSaveLedgerRows(tx, { companyId: operation.companyId, operationId: operation.id, now, proof: context.proof.reason });
+    retired = await retireAbandonedSaveLedgerRows(tx, { spaceId: operation.spaceId, operationId: operation.id, now, proof: context.proof.reason });
     if (operation.executionWorkspaceId) {
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.workspaceRecovery);
       await tx.update(issueRecoveryActions).set({
         evidence: sql`${issueRecoveryActions.evidence} - ${RETAINED_SOURCE_FALLBACK_CHECK_KEY}::text`,
-      }).where(and(eq(issueRecoveryActions.companyId, operation.companyId), inArray(issueRecoveryActions.status, ["active", "escalated"]),
+      }).where(and(eq(issueRecoveryActions.spaceId, operation.spaceId), inArray(issueRecoveryActions.status, ["active", "escalated"]),
         sql`${issueRecoveryActions.evidence}->${RETAINED_SOURCE_FALLBACK_CHECK_KEY}->>'reason' = 'workspace_operation_running'`,
-        sql`exists (select 1 from heartbeat_runs source where source.company_id = ${issueRecoveryActions.companyId}
+        sql`exists (select 1 from heartbeat_runs source where source.space_id = ${issueRecoveryActions.spaceId}
           and source.id::text = ${issueRecoveryActions.evidence}->>'runId'
           and source.runner_profile_json#>>'{remoteWorkspace,workspaceId}' = ${operation.executionWorkspaceId})`));
     }
     const activity = await persistActivity(tx, {
-      companyId: operation.companyId, actorType: "system", actorId: "ownership-reconciler",
+      spaceId: operation.spaceId, actorType: "system", actorId: "ownership-reconciler",
       action: "workspace_operation.reconciled", entityType: "workspace_operation", entityId: operation.id,
       runId: operation.heartbeatRunId, issueId: operation.issueId, details: provenance,
     });

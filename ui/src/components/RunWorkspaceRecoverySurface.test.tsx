@@ -14,7 +14,7 @@ const issueGetMock = vi.hoisted(() => vi.fn());
 const issueCreateMock = vi.hoisted(() => vi.fn());
 const resolveRecoveryMock = vi.hoisted(() => vi.fn());
 const reconcileMock = vi.hoisted(() => vi.fn());
-const boardAccessMock = vi.hoisted(() => vi.fn());
+const operatorAccessMock = vi.hoisted(() => vi.fn());
 const recoveryActionsMock = vi.hoisted(() => vi.fn());
 const recoverWorkspaceMock = vi.hoisted(() => vi.fn());
 
@@ -43,7 +43,7 @@ vi.mock("../api/execution-workspaces", () => ({
 
 vi.mock("../api/access", () => ({
   accessApi: {
-    getCurrentBoardAccess: boardAccessMock,
+    getCurrentBoardAccess: operatorAccessMock,
   },
 }));
 
@@ -78,7 +78,7 @@ afterEach(() => {
 function buildRun(overrides: Partial<HeartbeatRun> = {}): HeartbeatRun {
   return {
     id: "run-aaaa1111",
-    companyId: "company-1",
+    spaceId: "space-1",
     agentId: "agent-1",
     status: "failed",
     errorCode: "workspace_validation_failed",
@@ -92,12 +92,12 @@ function buildRun(overrides: Partial<HeartbeatRun> = {}): HeartbeatRun {
 function buildRecoveryAction(): IssueRecoveryAction {
   return {
     id: "action-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     sourceIssueId: "issue-1",
     recoveryIssueId: null,
     kind: "workspace_validation",
     status: "active",
-    ownerType: "board",
+    ownerType: "operator",
     ownerAgentId: null,
     ownerUserId: null,
     previousOwnerAgentId: null,
@@ -141,7 +141,7 @@ function buildIssue(action: IssueRecoveryAction | null): Issue {
   return {
     id: "issue-1",
     identifier: "PAP-1405",
-    companyId: "company-1",
+    spaceId: "space-1",
     title: "Do the thing",
     description: "body",
     priority: "medium",
@@ -170,7 +170,7 @@ async function renderSurface(run: HeartbeatRun, viewerId?: string) {
       </QueryClientProvider>,
     );
   });
-  // Let the issue + board-access queries settle and commit.
+  // Let the issue + operator-access queries settle and commit.
   await flush();
   return container!;
 }
@@ -281,15 +281,15 @@ describe("RunWorkspaceRecoverySurface", () => {
     expect(choices()).toHaveLength(2);
   });
 
-  it("offers the same governed file preservation from the exact failed run without resolving its hold", async () => {
+  it("offers the same controlled file preservation from the exact failed run without resolving its hold", async () => {
     const run = buildRun({ errorCode: "native_workspace_sync_out_retry_exhausted" });
     const action = { ...buildRecoveryAction(), kind: "active_run_watchdog", ownerType: "system",
       cause: "native_workspace_sync_out_retry_exhausted", evidence: { runId: run.id, workspaceRecovery: {
         schema: "outpost.workspace-recovery.v1", runId: run.id, status: "blocked",
         stage: "restoring_files", retryable: true, requestIds: [],
       }, systemRecovery: { state: "exhausted", preservationOperationIds: [] } } } as IssueRecoveryAction;
-    boardAccessMock.mockResolvedValue({ source: "session", companyIds: ["company-1"], userId: "run-operator",
-      memberships: [{ companyId: "company-1", membershipRole: "operator", status: "active" }] });
+    operatorAccessMock.mockResolvedValue({ source: "session", spaceIds: ["space-1"], userId: "run-operator",
+      memberships: [{ spaceId: "space-1", membershipRole: "operator", status: "active" }] });
     recoveryActionsMock.mockResolvedValue({ active: action, actions: [action], sourceInspection: {
       actionId: action.id, runId: run.id, scope: "recorded_source_identity", status: "verified",
       observedAt: "2026-11-03T12:00:00Z",
@@ -311,7 +311,7 @@ describe("RunWorkspaceRecoverySurface", () => {
 
   it("renders nothing for a run that is not a workspace-validation failure", async () => {
     issueGetMock.mockResolvedValue(buildIssue(buildRecoveryAction()));
-    boardAccessMock.mockResolvedValue(undefined);
+    operatorAccessMock.mockResolvedValue(undefined);
     const node = await renderSurface(buildRun({ errorCode: "process_lost" }));
     expect(node.querySelector("[data-testid='run-workspace-recovery-surface']")).toBeNull();
     expect(issueGetMock).not.toHaveBeenCalled();
@@ -319,14 +319,14 @@ describe("RunWorkspaceRecoverySurface", () => {
 
   it("renders nothing when the source issue has no workspace_validation recovery action", async () => {
     issueGetMock.mockResolvedValue(buildIssue(null));
-    boardAccessMock.mockResolvedValue(undefined);
+    operatorAccessMock.mockResolvedValue(undefined);
     const node = await renderSurface(buildRun());
     expect(node.querySelector("[data-testid='run-workspace-recovery-surface']")).toBeNull();
   });
 
   it("renders the compact recovery card and repair action for a dirty divergence", async () => {
     issueGetMock.mockResolvedValue(buildIssue(buildRecoveryAction()));
-    boardAccessMock.mockResolvedValue({ source: "local_implicit", companyIds: ["company-1"] });
+    operatorAccessMock.mockResolvedValue({ source: "local_implicit", spaceIds: ["space-1"] });
     const node = await renderSurface(buildRun());
     expect(node.querySelector("[data-testid='run-workspace-recovery-surface']")).not.toBeNull();
     expect(node.querySelector("[data-testid='recovery-divergence-diagnosis']")).not.toBeNull();
@@ -337,7 +337,7 @@ describe("RunWorkspaceRecoverySurface", () => {
 
   it("wires the repair confirm to reconcile in quarantine_restore mode against the pinned workspace", async () => {
     issueGetMock.mockResolvedValue(buildIssue(buildRecoveryAction()));
-    boardAccessMock.mockResolvedValue({ source: "local_implicit", companyIds: ["company-1"] });
+    operatorAccessMock.mockResolvedValue({ source: "local_implicit", spaceIds: ["space-1"] });
     reconcileMock.mockResolvedValue({ id: "ws-1" });
     const node = await renderSurface(buildRun());
     click(node.querySelector("[data-testid='recovery-action-repair-trigger']"));

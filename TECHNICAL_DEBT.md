@@ -39,8 +39,8 @@ them only when the related compatibility code and migrations are also gone.
 ## Legacy terminology identifiers
 
 Outpost presents **Spaces**, **tasks**, **users/humans**, and a routing-only
-**default agent**. The inherited implementation still uses `Paperclip`,
-`company`, `project`, `issue`, and `board` in compatibility-critical places:
+**default agent**. The inherited implementation still uses `Outpost`,
+`space`, `project`, `issue`, and `board` in compatibility-critical places:
 
 - published package names and npm scopes such as `@outpost/*`;
 - `OUTPOST_*` environment variables and protocol/header identifiers;

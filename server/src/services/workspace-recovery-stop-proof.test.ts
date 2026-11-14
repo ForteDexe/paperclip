@@ -29,7 +29,7 @@ vi.mock("./environment-execution-target.js", async importOriginal => {
 });
 
 // Recovery text never asks a person to inspect or fix a sandbox.
-const adminText = /sandbox|environment|administrator|board member|owner must|inspect the run/i;
+const adminText = /sandbox|environment|administrator|operator member|owner must|inspect the run/i;
 const workspace = async (id: string) => (await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, id)))[0]!;
 
 describe("exhausted stop-proof holds", () => {
@@ -51,11 +51,11 @@ describe("exhausted stop-proof holds", () => {
   async function exhaustedStopProofHold() {
     const f = await acceptedRemoteExport("retained");
     const source = await run(f.runId);
-    const [parent] = await db.insert(issues).values({ companyId: f.companyId, title: "Landing page", status: "blocked",
+    const [parent] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Landing page", status: "blocked",
       assigneeAgentId: source.agentId, executionWorkspaceId: f.workspaceId, executionWorkspacePreference: "reuse_existing" }).returning();
     await db.update(executionWorkspaces).set({ sourceIssueId: parent.id }).where(eq(executionWorkspaces.id, f.workspaceId));
     await db.update(issues).set({ parentId: parent.id, executionWorkspacePreference: "reuse_existing" }).where(eq(issues.id, f.issueId));
-    const siblings = await db.insert(issues).values(["Hero copy", "Pricing table"].map(title => ({ companyId: f.companyId, title,
+    const siblings = await db.insert(issues).values(["Hero copy", "Pricing table"].map(title => ({ spaceId: f.spaceId, title,
       parentId: parent.id, status: "blocked" as const, assigneeAgentId: source.agentId, executionWorkspaceId: f.workspaceId,
       executionWorkspacePreference: "reuse_existing" }))).returning();
     const firstFailureAt = Date.now() - 5 * 86_400_000;
@@ -77,9 +77,9 @@ describe("exhausted stop-proof holds", () => {
     return { ...f, parentIssueId: parent.id, siblingIssueIds: siblings.map(row => row.id) };
   }
 
-  async function parentHold(f: { companyId: string; workspaceId: string }) {
+  async function parentHold(f: { spaceId: string; workspaceId: string }) {
     const authority = readRemoteWorkspaceAuthority((await workspace(f.workspaceId)).metadata)!;
-    return readRemoteWorkspaceWriterHold(db as never, { companyId: f.companyId, authority, runId: randomUUID() });
+    return readRemoteWorkspaceWriterHold(db as never, { spaceId: f.spaceId, authority, runId: randomUUID() });
   }
 
   it("re-proves the stop, saves the files and frees the shared workspace without a person", async () => {
@@ -309,8 +309,8 @@ describe("exhausted stop-proof holds", () => {
       automaticRecovery: { runId: f.runId, policy: "preserve_without_replay_v1", replay: "blocked" } } })
       .where(eq(issueRecoveryActions.id, f.actionId));
     const source = await run(f.runId);
-    await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: source.agentId, source: "on_demand",
-      reason: "issue_commented", status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: "board",
+    await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: source.agentId, source: "on_demand",
+      reason: "issue_commented", status: "deferred_issue_execution", requestedByActorType: "user", requestedByActorId: "operator",
       payload: { issueId: f.issueId } });
     return f;
   }

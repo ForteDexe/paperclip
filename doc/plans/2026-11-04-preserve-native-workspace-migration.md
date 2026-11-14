@@ -2,12 +2,12 @@
 
 A retained native session binds both its Core workspace address and the provider's
 sandbox address. Migrating files to object storage must preserve these addresses;
-a new `.paperclip-workspaces` directory alone is not session continuity.
+a new `.outpost-workspaces` directory alone is not session continuity.
 
 The offline workspace owner records selected native source bindings in its
 successful migration operation. It checks the source again before publication.
 The workspace points to that operation; arbitrary metadata is insufficient.
-Each binding retains company/workspace, agent, task, normalized session, source
+Each binding retains space/workspace, agent, task, normalized session, source
 run, logical address, and the shared provider address. Conflicting or missing
 identity blocks publication without deleting source files.
 
@@ -125,7 +125,7 @@ The first full legacy import exposed a false binding failure: the controller's
 `nativeWorkspaceSync.leaseId` identified a distinct physical sandbox lease row.
 The migration now validates the sync record's `workspaceId` against the frozen
 execution workspace. The saved provider-pack authority still independently
-verifies the exact protocol lease, runner, session, company, agent, provider and
+verifies the exact protocol lease, runner, session, space, agent, provider and
 remote path. A database-backed fixture uses distinct IDs, rejects foreign
 workspaces and protocol identities, and restores the original checkpoint after
 the predecessor home is deleted. The original failed live attempt and its
@@ -153,7 +153,7 @@ the oversized writes and subsequent memory exhaustion; the earlier SQL-shape
 probe passed a narrow binding and therefore did not reproduce the actual owner
 payload. The previous write failures and killed attempts remain in the evidence.
 
-The checkpoint writer now selects company, issue, run, part and contents explicitly.
+The checkpoint writer now selects space, issue, run, part and contents explicitly.
 The real database migration test decrypts each imported envelope and requires
 exactly those fields, with the original record content. It failed before the fix.
 Existing envelopes remain readable. For the staging imports from this attempt,

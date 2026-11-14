@@ -6,7 +6,7 @@ import { createLocalAgentJwt } from "../../agent-auth-jwt.js";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
 import { initializeRunIdentity } from "../run-identity.js";
 import { issueThreadInteractionService } from "../issue-thread-interactions.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 describe("confirmation reply through the native API tool", () => {
   let server: Awaited<ReturnType<typeof startRunnerApiTestServer>>;
@@ -25,7 +25,7 @@ describe("confirmation reply through the native API tool", () => {
       payload: { version: 1, supersedeOnUserComment: false, acceptLabel: "Approve", rejectLabel: "Revise", rejectRequiresReason: true },
     } });
     const [card] = await server.db.select().from(issueThreadInteractions).where(and(
-      eq(issueThreadInteractions.companyId, f.companyId), eq(issueThreadInteractions.idempotencyKey, idempotencyKey),
+      eq(issueThreadInteractions.spaceId, f.spaceId), eq(issueThreadInteractions.idempotencyKey, idempotencyKey),
     ));
     if (!card) throw new Error("Native proposal did not persist its confirmation");
     expect(result).toMatchObject({ disposition: "applied", interaction: { id: card.id, status: "pending" } });
@@ -34,7 +34,7 @@ describe("confirmation reply through the native API tool", () => {
   async function seed(mode: "standard" | "planning" | "ask" = "standard", resolverPolicy?: "human_only") {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true, mode });
     const card = await proposal(f, "first-task-proposal-confirmation", "Approve creating one child task to write the welcome note?", resolverPolicy);
-    const [comment] = await server.db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId, authorType: "user", authorUserId: f.userId, body: "Yes, write it." }).returning();
+    const [comment] = await server.db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId, authorType: "user", authorUserId: f.userId, body: "Yes, write it." }).returning();
     const call = { tool: "call_api", callId: randomUUID(), arguments: { operationId: "POST /api/issues/{id}/interactions/{interactionId}/resolve-from-comment", pathParams: { id: f.issueId, interactionId: card.id }, body: { commentId: comment!.id, decision: "accept" } } };
     return { f, card, comment: comment!, call };
   }
@@ -73,7 +73,7 @@ describe("confirmation reply through the native API tool", () => {
   it("records acceptance on the revised native proposal without accepting its superseded predecessor", async () => {
     const { f, card: original } = await seed();
     const revised = await proposal(f, "first-task-proposal-confirmation-revised", "Approve creating one child task to write the revised Sunday welcome note?");
-    const [comment] = await server.db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+    const [comment] = await server.db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
       authorType: "user", authorUserId: f.userId, body: "Yes, I accept the revised Sunday proposal. Please do it." }).returning();
     const call = { tool: "call_api", callId: randomUUID(), arguments: {
       operationId: "POST /api/issues/{id}/interactions/{interactionId}/resolve-from-comment",
@@ -96,24 +96,24 @@ describe("confirmation reply through the native API tool", () => {
     const nativeSessionId = randomUUID();
     await server.db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date(), nativeSessionId })
       .where(eq(heartbeatRuns.id, f.runId));
-    const [comment] = await server.db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+    const [comment] = await server.db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
       authorType: "user", authorUserId: f.userId,
       body: "Change the note to our Sunday meetup. Please revise your proposal; I have not accepted it yet." }).returning();
     const runId = randomUUID();
-    await server.db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId,
+    await server.db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId,
       status: "running", responsibleUserId: f.userId, runtimeMode: "native", nativeIssueId: f.issueId, nativeSessionId,
       invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId: f.issueId, commentId: comment!.id } });
-    await initializeRunIdentity(server.db, { companyId: f.companyId, runId, issueId: f.issueId,
+    await initializeRunIdentity(server.db, { spaceId: f.spaceId, runId, issueId: f.issueId,
       responsibleUserId: f.userId!, cause: "instruction" });
     const lockedAt = new Date();
-    const lease = { runId, companyId: f.companyId, issueId: f.issueId, phase: "observed", attempt: 1,
+    const lease = { runId, spaceId: f.spaceId, issueId: f.issueId, phase: "observed", attempt: 1,
       leaseOwner: `response-${randomUUID()}`, leaseExpiresAt: new Date(lockedAt.getTime() + 20 * 60_000),
       controllerBootId: randomUUID(), controllerPid: process.pid, controllerProcessStartedAt: lockedAt,
       controllerGeneration: 1 };
     await server.db.insert(nativeRunFinalizations).values(lease);
     await server.db.update(issues).set({ status: "in_review", executionRunId: runId, checkoutRunId: runId,
       executionLockedAt: lockedAt, executionAgentNameKey: "api-eval-agent" }).where(eq(issues.id, f.issueId));
-    const current = new PaperclipRunnerToolAuthority(server.db, { ...f.authority.binding, runId });
+    const current = new OutpostRunnerToolAuthority(server.db, { ...f.authority.binding, runId });
     await expect(current.execute({ tool: "get_task_context", callId: randomUUID(), arguments: {} })).resolves.toBeDefined();
     const rejected = await current.execute({ tool: "call_api", callId: randomUUID(), arguments: {
       operationId: "POST /api/issues/{id}/interactions/{interactionId}/resolve-from-comment",
@@ -144,7 +144,7 @@ describe("confirmation reply through the native API tool", () => {
     const { f, card, call } = await seed();
     await server.db.update(issues).set({ status: "in_review", checkoutRunId: f.runId,
       executionLockedAt: new Date() }).where(eq(issues.id, f.issueId));
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.userId);
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.userId);
     const response = await fetch(`${server.apiUrl}/api/issues/${f.issueId}/interactions/${card.id}/resolve-from-comment`, {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ ...call.arguments.body, decision: "reject", reason: "Revise this proposal." }),
@@ -157,14 +157,14 @@ describe("confirmation reply through the native API tool", () => {
   it("preserves human-only native completion-review rejection without ordinary continuation", async () => {
     const f = await server.fixture({ conversation: true, disableWakeOnDemand: true });
     const service = issueThreadInteractionService(server.db);
-    const card = await service.create({ id: f.issueId, companyId: f.companyId }, {
+    const card = await service.create({ id: f.issueId, spaceId: f.spaceId }, {
       kind: "request_confirmation", sourceRunId: f.runId, resolverPolicy: "human_only", continuationPolicy: "none",
       payload: { version: 1, prompt: "Review the completed work.",
         target: { type: "custom", key: "native_completion_review", revisionId: randomUUID() } },
     }, { agentId: f.agentId, runId: f.runId });
     await server.db.update(issues).set({ status: "in_review", checkoutRunId: f.runId,
       executionLockedAt: new Date() }).where(eq(issues.id, f.issueId));
-    expect(await service.rejectInteraction({ id: f.issueId, companyId: f.companyId }, card.id,
+    expect(await service.rejectInteraction({ id: f.issueId, spaceId: f.spaceId }, card.id,
       { reason: "The work needs revision." }, { userId: f.userId }))
       .toMatchObject({ status: "rejected", effectiveResolverPolicy: "human_only", resolvedByUserId: f.userId });
     expect((await server.db.select().from(issues).where(eq(issues.id, f.issueId)))[0])
@@ -173,13 +173,13 @@ describe("confirmation reply through the native API tool", () => {
   it.each([false, true])("preserves human rejection requeueing with a newer response owner=%s", async (hasNewOwner) => {
     const { f, card } = await seed();
     const runId = hasNewOwner ? randomUUID() : null;
-    if (runId) await server.db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId,
+    if (runId) await server.db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId,
       agentId: f.agentId, status: "running", runtimeMode: "native", nativeIssueId: f.issueId,
       invocationSource: "assignment", triggerDetail: "system" });
     await server.db.update(issues).set({ status: "in_review", executionRunId: runId,
       checkoutRunId: runId, executionLockedAt: runId ? new Date() : null }).where(eq(issues.id, f.issueId));
     const rejected = await issueThreadInteractionService(server.db).rejectInteraction(
-      { id: f.issueId, companyId: f.companyId }, card.id, { reason: "Please revise the proposal." }, { userId: f.userId });
+      { id: f.issueId, spaceId: f.spaceId }, card.id, { reason: "Please revise the proposal." }, { userId: f.userId });
     expect(rejected).toMatchObject({ status: "rejected", resolvedByUserId: f.userId });
     expect((await server.db.select().from(issues).where(eq(issues.id, f.issueId)))[0])
       .toMatchObject({ status: "todo", executionRunId: null, checkoutRunId: null, executionLockedAt: null });
@@ -195,7 +195,7 @@ describe("confirmation reply through the native API tool", () => {
     const { f, card, call, comment } = await seed();
     const url = `${server.apiUrl}/api/issues/${f.issueId}/interactions/${card.id}/resolve-from-comment`;
     expect((await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(call.arguments.body) })).status).toBe(404);
-    const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.userId);
+    const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.userId);
     expect((await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...call.arguments.body, actorUserId: f.userId }) })).status).toBe(400);
   });
   it("preserves formal approval authority in the HTTP route", async () => {

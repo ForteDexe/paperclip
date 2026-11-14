@@ -87,7 +87,7 @@ export async function prepareAntigravityCredentialRecovery(input: {
   scope: RetainedGoogleCleanupScope;
   persistVerified: (credential: string) => Promise<void>;
 }): Promise<string> {
-  const home = await realpath(await mkdtemp(join(tmpdir(), "paperclip-google-recovery-")));
+  const home = await realpath(await mkdtemp(join(tmpdir(), "outpost-google-recovery-")));
   const directory = join(home, "antigravity-acp");
   try {
     await mkdir(directory, { mode: 0o700 });
@@ -98,7 +98,7 @@ export async function prepareAntigravityCredentialRecovery(input: {
   }
   let verified: string | undefined;
   let persisted = false;
-  const cleanup = () => withAccountHomeSecretMutationLock(undefined, input.scope.companyId, async () => {
+  const cleanup = () => withAccountHomeSecretMutationLock(undefined, input.scope.spaceId, async () => {
     // A failed verification may itself have rotated the token. Retry the
     // private home's current generation, never the earlier journal value.
     if (!persisted) {

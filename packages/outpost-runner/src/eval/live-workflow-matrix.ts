@@ -223,7 +223,7 @@ export const RUNNER_LIVE_CANDIDATE_SLOTS: readonly RunnerLiveCandidateSlot[] =
 const CORE_LIVE_REPEAT_CASE_IDS = new Set<RunnerWorkflowEvalCase["id"]>([
   "final-response",
   "rich-activity",
-  "governed-interaction",
+  "controlled-interaction",
   "completion-robustness",
 ]);
 
@@ -563,7 +563,7 @@ export const RUNNER_CHAOS_SCENARIOS: readonly {
     id: "chaos-interaction-timeout",
     lane: "chaos",
     fault: "interaction_timeout",
-    expectedInvariant: "governed wait remains visible and owned",
+    expectedInvariant: "controlled wait remains visible and owned",
   },
   {
     id: "chaos-wake-race",

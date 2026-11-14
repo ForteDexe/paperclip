@@ -9,7 +9,7 @@ import { githubResponseExecution } from "./response-execution.js";
 import { HttpError } from "../../../errors.js";
 
 type Scope = ChatResponseScope & { endpointId?: string; repositoryId?: string; number?: number };
-type Entry = { id: string; companyId: string; endpointId: string; deliveryId: string;
+type Entry = { id: string; spaceId: string; endpointId: string; deliveryId: string;
   issueId: string; conversationId: string; repositoryId: string | null; number: number | null; dueAt: number };
 
 export function registerGitHubTerminalResponseWork(
@@ -27,39 +27,39 @@ export function registerGitHubTerminalResponseWork(
   // candidate does not walk (and detoast) the agent's whole run history.
   const latestIssueRunStatus = sql<string | null>`select latest.status from (
     (select r.status, r.created_at, r.id from ${heartbeatRuns} r
-      where r.company_id = ${chatActions.companyId} and r.native_issue_id = ${chatConversations.issueId}
+      where r.space_id = ${chatActions.spaceId} and r.native_issue_id = ${chatConversations.issueId}
         and r.agent_id = ${chatEndpoints.assignedAgentId}
       order by r.created_at desc, r.id desc limit 1)
     union all
     (select r.status, r.created_at, r.id from ${heartbeatRuns} r
-      where r.company_id = ${chatActions.companyId} and r.native_issue_id is null
+      where r.space_id = ${chatActions.spaceId} and r.native_issue_id is null
         and r.context_snapshot->>'issueId' = ${chatConversations.issueId}::text
         and r.agent_id = ${chatEndpoints.assignedAgentId}
       order by r.created_at desc, r.id desc limit 1)
   ) latest order by latest.created_at desc, latest.id desc limit 1`;
   async function page(scope?: Scope, cursor?: string, actionId?: string) {
     return db.select({
-      id: chatActions.id, companyId: chatActions.companyId, endpointId: chatActions.endpointId,
+      id: chatActions.id, spaceId: chatActions.spaceId, endpointId: chatActions.endpointId,
       deliveryId: chatActions.deliveryId, conversationId: chatConversations.id, issueId: issues.id,
       agentId: chatEndpoints.assignedAgentId, issueStatus: issues.status,
       deliveryCreatedAt: chatDeliveries.createdAt, repositoryId, number, result: chatActions.result,
       sourceMessageId: sql<string | null>`(select l.comment_id from ${chatMessageLinks} l
-        where l.company_id = ${chatActions.companyId} and l.endpoint_id = ${chatActions.endpointId}
+        where l.space_id = ${chatActions.spaceId} and l.endpoint_id = ${chatActions.endpointId}
           and l.delivery_id = ${chatActions.deliveryId} and l.direction = 'inbound' limit 1)`,
       leaseExpiresAt: sql<string | null>`(select max(l.expires_at) from ${chatEndpointLeases} l
-        where l.company_id = ${chatActions.companyId} and l.endpoint_id = ${chatActions.endpointId}
+        where l.space_id = ${chatActions.spaceId} and l.endpoint_id = ${chatActions.endpointId}
           and l.lease_key = 'github-publication:' || (${repositoryId}) || ':' || ${number})`,
     }).from(chatActions)
-      .innerJoin(chatConversations, and(eq(chatConversations.id, chatActions.conversationId), eq(chatConversations.companyId, chatActions.companyId)))
-      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.companyId, chatActions.companyId)))
-      .innerJoin(chatDeliveries, and(eq(chatDeliveries.id, chatActions.deliveryId), eq(chatDeliveries.companyId, chatActions.companyId)))
-      .innerJoin(issues, and(eq(issues.id, chatConversations.issueId), eq(issues.companyId, chatActions.companyId)))
-      .leftJoin(chatEndpointResources, and(eq(chatEndpointResources.id, chatConversations.resourceId), eq(chatEndpointResources.companyId, chatActions.companyId)))
+      .innerJoin(chatConversations, and(eq(chatConversations.id, chatActions.conversationId), eq(chatConversations.spaceId, chatActions.spaceId)))
+      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.spaceId, chatActions.spaceId)))
+      .innerJoin(chatDeliveries, and(eq(chatDeliveries.id, chatActions.deliveryId), eq(chatDeliveries.spaceId, chatActions.spaceId)))
+      .innerJoin(issues, and(eq(issues.id, chatConversations.issueId), eq(issues.spaceId, chatActions.spaceId)))
+      .leftJoin(chatEndpointResources, and(eq(chatEndpointResources.id, chatConversations.resourceId), eq(chatEndpointResources.spaceId, chatActions.spaceId)))
       .where(and(eq(chatActions.kind, "github_response_comment"), eq(chatActions.status, "processed"),
         isNotNull(chatActions.deliveryId), isNotNull(chatEndpoints.assignedAgentId),
         sql`coalesce(${chatActions.result}->>'final', 'false') <> 'true'`,
         sql`(${issues.status} = 'blocked' or (${latestIssueRunStatus}) in ('succeeded', 'failed', 'interrupted', 'timed_out', 'cancelled'))`,
-        scope ? eq(chatActions.companyId, scope.companyId) : undefined,
+        scope ? eq(chatActions.spaceId, scope.spaceId) : undefined,
         scope?.issueId ? eq(issues.id, scope.issueId) : undefined,
         scope?.conversationId ? eq(chatActions.conversationId, scope.conversationId) : undefined,
         scope?.deliveryId ? eq(chatActions.deliveryId, scope.deliveryId) : undefined,
@@ -70,7 +70,7 @@ export function registerGitHubTerminalResponseWork(
       )).orderBy(asc(chatActions.id)).limit(100);
   }
   async function entry(row: Awaited<ReturnType<typeof page>>[number]): Promise<Entry | null> {
-    const pending: Entry = { id: row.id, companyId: row.companyId, endpointId: row.endpointId, deliveryId: row.deliveryId!,
+    const pending: Entry = { id: row.id, spaceId: row.spaceId, endpointId: row.endpointId, deliveryId: row.deliveryId!,
       issueId: row.issueId, conversationId: row.conversationId, repositoryId: row.repositoryId,
       number: row.number ? Number(row.number) : null, dueAt: row.leaseExpiresAt ? Date.parse(row.leaseExpiresAt) : 0 };
     try {
@@ -88,7 +88,7 @@ export function registerGitHubTerminalResponseWork(
   return registerScopedDeadlineWork(coordinator, {
     queue: DELIVERY_QUEUES.chatGitHubTerminalResponses,
     decodeScope: (hint: string): Scope | undefined => hint === "*" ? undefined : JSON.parse(hint),
-    matches: (value: Entry, scope?: Scope) => !scope || (value.companyId === scope.companyId &&
+    matches: (value: Entry, scope?: Scope) => !scope || (value.spaceId === scope.spaceId &&
       (!scope.issueId || value.issueId === scope.issueId) && (!scope.deliveryId || value.deliveryId === scope.deliveryId) &&
       (!scope.conversationId || value.conversationId === scope.conversationId) &&
       (!scope.endpointId || value.endpointId === scope.endpointId) && (!scope.repositoryId || value.repositoryId === scope.repositoryId) &&

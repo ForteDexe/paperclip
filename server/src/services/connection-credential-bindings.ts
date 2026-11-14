@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { type Db, toolConnections, companySecretBindings, connectionGrants, companySecrets, userSecretDefinitions } from "@outpost/db";
+import { type Db, toolConnections, spaceSecretBindings, connectionGrants, spaceSecrets, userSecretDefinitions } from "@outpost/db";
 import type { ToolCredentialSecretRef } from "@outpost/shared";
 import { secretService } from "./secrets.js";
 import { connectionCredentialConfigPath as credentialRefConfigPath } from "./connection-credentials.js";
@@ -11,19 +11,19 @@ export async function syncConnectionCredentialBindings(
   ) {
     const secrets = secretService(db);
     await dbClient
-      .delete(companySecretBindings)
+      .delete(spaceSecretBindings)
       .where(
         and(
-          eq(companySecretBindings.companyId, connection.companyId),
-          eq(companySecretBindings.targetType, "tool_connection"),
-          eq(companySecretBindings.targetId, connection.id),
+          eq(spaceSecretBindings.spaceId, connection.spaceId),
+          eq(spaceSecretBindings.targetType, "tool_connection"),
+          eq(spaceSecretBindings.targetId, connection.id),
         ),
       );
     // A metadata edit or pause/resume must retain declarations for every
     // active personal/dedicated grant, not just connection-owned credentials.
     const activeGrants = await dbClient.select({ refs: connectionGrants.credentialSecretRefs })
       .from(connectionGrants).where(and(
-        eq(connectionGrants.companyId, connection.companyId),
+        eq(connectionGrants.spaceId, connection.spaceId),
         eq(connectionGrants.connectionId, connection.id),
         eq(connectionGrants.status, "active"),
       ));
@@ -55,12 +55,12 @@ export async function syncConnectionCredentialBindings(
     ])).values()];
     const secretRows = bindings.length > 0
       ? await dbClient.select({
-          id: companySecrets.id,
-          scope: companySecrets.scope,
-          userSecretDefinitionId: companySecrets.userSecretDefinitionId,
-        }).from(companySecrets).where(and(
-          eq(companySecrets.companyId, connection.companyId),
-          inArray(companySecrets.id, [...new Set(bindings.map((ref) => ref.secretId))]),
+          id: spaceSecrets.id,
+          scope: spaceSecrets.scope,
+          userSecretDefinitionId: spaceSecrets.userSecretDefinitionId,
+        }).from(spaceSecrets).where(and(
+          eq(spaceSecrets.spaceId, connection.spaceId),
+          inArray(spaceSecrets.id, [...new Set(bindings.map((ref) => ref.secretId))]),
         ))
       : [];
     const secretById = new Map(secretRows.map((row) => [row.id, row]));
@@ -69,7 +69,7 @@ export async function syncConnectionCredentialBindings(
       ? await dbClient.select({ id: userSecretDefinitions.id, key: userSecretDefinitions.key })
           .from(userSecretDefinitions)
           .where(and(
-            eq(userSecretDefinitions.companyId, connection.companyId),
+            eq(userSecretDefinitions.spaceId, connection.spaceId),
             inArray(userSecretDefinitions.id, definitionIds),
           ))
       : [];
@@ -91,15 +91,15 @@ export async function syncConnectionCredentialBindings(
         : [];
     }).map((ref) => [`${ref.definitionKey}:${ref.configPath}`, ref])).values()];
     await secrets.syncUserSecretDeclarationsForTarget(
-      connection.companyId,
+      connection.spaceId,
       { targetType: "tool_connection", targetId: connection.id },
       userDeclarations,
       { replaceAll: true, db: dbClient },
     );
-    const companyBindings = bindings.filter((ref) => secretById.get(ref.secretId)?.scope !== "user");
-    if (companyBindings.length === 0) return;
-    await dbClient.insert(companySecretBindings).values(companyBindings.map((ref) => ({
-      companyId: connection.companyId,
+    const spaceBindings = bindings.filter((ref) => secretById.get(ref.secretId)?.scope !== "user");
+    if (spaceBindings.length === 0) return;
+    await dbClient.insert(spaceSecretBindings).values(spaceBindings.map((ref) => ({
+      spaceId: connection.spaceId,
       secretId: ref.secretId,
       targetType: "tool_connection" as const,
       targetId: connection.id,

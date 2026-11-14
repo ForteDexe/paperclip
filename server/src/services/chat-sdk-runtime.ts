@@ -16,7 +16,7 @@ import {
   type DiscordAdapterConfig,
 } from "@chat-adapter/discord";
 import type { SlackAdapterConfig } from "@chat-adapter/slack";
-import { PaperclipSlackAdapter } from "./chat-channels/slack/adapter.js";
+import { OutpostSlackAdapter } from "./chat-channels/slack/adapter.js";
 import { verifySlackSignature } from "@chat-adapter/slack/webhook";
 import { slackCloudAcceptedAt } from "./chat-channels/slack/cloud-event.js";
 import {
@@ -119,7 +119,7 @@ import {
   type GitHubAttachmentCommentRequest,
 } from "./chat-github-attachments.js";
 import {
-  createPaperclipChatSdkState,
+  createOutpostChatSdkState,
   type ChatSdkStatePersistence,
 } from "./chat-sdk-state.js";
 
@@ -135,7 +135,7 @@ const DISCORD_GATEWAY_SESSION_MS = 24 * 60 * 60_000;
 const DISCORD_GATEWAY_RESTART_MAX_DELAY_MS = 60_000;
 const DISCORD_GATEWAY_HEALTHY_SESSION_MS = 60_000;
 
-/** Public Paperclip provider ids. The Teams SDK name remains an internal detail. */
+/** Public Outpost provider ids. The Teams SDK name remains an internal detail. */
 export type ChatSdkProvider =
   "slack" | "github" | "discord" | "microsoft-teams" | "telegram" | "imessage-photon";
 type ChatSdkAdapterKey = "slack" | "github" | "discord" | "teams" | "telegram" | "imessage-photon";
@@ -387,7 +387,7 @@ function microsoftTeamsTenantIds(raw: unknown): string[] {
   );
 }
 
-/** Chat SDK-normalized inbound message plus Paperclip endpoint identity. */
+/** Chat SDK-normalized inbound message plus Outpost endpoint identity. */
 export interface ChatSdkMessageCallbackEvent {
   context?: MessageContext;
   endpointId: string;
@@ -463,7 +463,7 @@ export interface DiscordGatewayCallbackEvent extends ChatSdkCallbackEvent<Discor
 }
 
 /**
- * Provider-neutral callbacks consumed by the Paperclip control-plane service.
+ * Provider-neutral callbacks consumed by the Outpost control-plane service.
  * All provider events have already passed the installed adapter's verifier and
  * normalization. Raw provider payloads remain available only through the
  * Chat SDK event escape hatches; callers must never publish them directly.
@@ -522,7 +522,7 @@ export interface ChatSdkRuntimeCallbacks {
 
 export interface CreateChatSdkEndpointRuntimeOptions {
   callbacks: ChatSdkRuntimeCallbacks;
-  companyId: string;
+  spaceId: string;
   concurrency?: ConcurrencyConfig | ConcurrencyStrategy;
   /** Start Discord's long-lived Gateway listener for the elected owner only. */
   enableDiscordGateway?: boolean;
@@ -560,7 +560,7 @@ const OFFICIAL_TEAMS_CONNECTOR_HOST_SUFFIXES = [
   // Signed Teams activity can carry regional Microsoft-owned Bot Framework
   // service URLs, so the egress trust boundary recognizes these exact domain
   // families. Host acceptance is defensive routing validation, not a claim
-  // that Paperclip's commercial-cloud-only credential flow supports every
+  // that Outpost's commercial-cloud-only credential flow supports every
   // Microsoft cloud represented by a first-party hostname.
   "botframework.com",
   "smba.trafficmanager.net",
@@ -628,10 +628,10 @@ export interface SlackFileUploadAcceptedReceipt {
 }
 
 interface SlackAdapterInternals {
-  paperclipFileUploadReceiptContext?: AsyncLocalStorage<
+  outpostFileUploadReceiptContext?: AsyncLocalStorage<
     (receipt: SlackFileUploadAcceptedReceipt) => Promise<void>
   >;
-  paperclipResolveFileUploadReceipt?: (
+  outpostResolveFileUploadReceipt?: (
     fileIds: string[],
     threadId: string,
   ) => Promise<string | null>;
@@ -639,7 +639,7 @@ interface SlackAdapterInternals {
 
 interface DiscordAdapterInternals {
   ensureRootThread?: unknown;
-  paperclipCompatibilityRevision?: unknown;
+  outpostCompatibilityRevision?: unknown;
   startGatewayListener?: unknown;
 }
 
@@ -787,7 +787,7 @@ function installDiscordNativeCommands(
       interaction.type === 2 &&
       interaction.commandType === 1 &&
       interaction.applicationId === applicationId &&
-      interaction.commandName === "paperclip" &&
+      interaction.commandName === "outpost" &&
       snowflake(interaction.commandId) &&
       snowflake(interaction.user?.id) &&
       !interaction.user.bot &&
@@ -821,7 +821,7 @@ function installDiscordNativeCommands(
         data: {
           id: interaction.commandId,
           type: 1,
-          name: "paperclip",
+          name: "outpost",
           options: [{ type: 1, name: option.name }],
         },
       };
@@ -832,7 +832,7 @@ function installDiscordNativeCommands(
         try {
           await dispatchContext.run(dispatch, () =>
             sdk.handleSlashCommandEvent({
-              command: `/paperclip ${option.name}`,
+              command: `/outpost ${option.name}`,
               text: "",
               adapter,
               raw,
@@ -882,9 +882,9 @@ function installDiscordNativeCommands(
 
 function assertDiscordAdapterCompatibility(adapter: Adapter, chat: Chat): void {
   const discord = adapter as unknown as DiscordAdapterInternals;
-  if (discord.paperclipCompatibilityRevision !== "paperclip-discord-v6") {
+  if (discord.outpostCompatibilityRevision !== "outpost-discord-v6") {
     throw new DiscordAdapterCompatibilityError(
-      "Outpost patch revision paperclip-discord-v6 is unavailable",
+      "Outpost patch revision outpost-discord-v6 is unavailable",
     );
   }
   if (typeof discord.startGatewayListener !== "function") {
@@ -942,12 +942,12 @@ interface TeamsAdapterInternals {
   getIncomingUser?: (...args: unknown[]) => Promise<unknown>;
   getUser?: (...args: unknown[]) => Promise<unknown>;
   openDM?: (userId: string) => Promise<unknown>;
-  paperclipRecordAcceptedActivity?: (activity: unknown) => Promise<void>;
-  paperclipRecordThreadServiceUrl?: (
+  outpostRecordAcceptedActivity?: (activity: unknown) => Promise<void>;
+  outpostRecordThreadServiceUrl?: (
     threadId: string,
     serviceUrl: unknown,
   ) => Promise<void>;
-  paperclipSendFileCard?: (
+  outpostSendFileCard?: (
     threadId: string,
     kind: "consent" | "file_info",
     card: unknown,
@@ -1071,15 +1071,15 @@ export function scopeMicrosoftTeamsEgress(
     : null;
 
   // The pinned Teams adapter caches activity/user metadata and may query the
-  // members or Graph APIs before Chat dispatches to Paperclip's reach and
+  // members or Graph APIs before Chat dispatches to Outpost's reach and
   // tenant checks. Keep authenticated but unadmitted events observationally
   // inert. Accepted activities explicitly persist the minimum routing context
-  // through paperclipRecordAcceptedActivity below.
+  // through outpostRecordAcceptedActivity below.
   teams.cacheUserContext = () => {};
   teams.getIncomingUser = async () => null;
   teams.getUser = async () => null;
 
-  teams.paperclipRecordAcceptedActivity = async (activityValue: unknown) => {
+  teams.outpostRecordAcceptedActivity = async (activityValue: unknown) => {
     if (!isRecord(activityValue)) return;
     const from = isRecord(activityValue.from) ? activityValue.from : null;
     const conversation = isRecord(activityValue.conversation)
@@ -1243,7 +1243,7 @@ export function scopeMicrosoftTeamsEgress(
         "file-consent App hooks are unavailable",
       );
     }
-    teams.paperclipSendFileCard = async (threadId, kind, input) => {
+    teams.outpostSendFileCard = async (threadId, kind, input) => {
       const card =
         kind === "consent"
           ? parseTeamsFileConsentCard(input)
@@ -1299,7 +1299,7 @@ export function scopeMicrosoftTeamsEgress(
     };
   }
 
-  teams.paperclipRecordThreadServiceUrl = async (
+  teams.outpostRecordThreadServiceUrl = async (
     threadId: string,
     serviceUrlValue: unknown,
   ) => {
@@ -1342,7 +1342,7 @@ export function scopeMicrosoftTeamsEgress(
     return await withServiceUrl(serviceUrl, async () => {
       const threadId = await Reflect.apply(originalOpenDM, teams, [userId]);
       if (typeof threadId === "string") {
-        await teams.paperclipRecordThreadServiceUrl!(threadId, serviceUrl);
+        await teams.outpostRecordThreadServiceUrl!(threadId, serviceUrl);
       }
       return threadId;
     });
@@ -1374,7 +1374,7 @@ function createProviderAdapter(
         mode: "webhook",
         nativeStreaming: true,
         userName: config.userName,
-        // Paperclip's durable publication outbox owns retry timing and
+        // Outpost's durable publication outbox owns retry timing and
         // ambiguous-delivery handling. Slack's default client can otherwise
         // retry for roughly 30 minutes, well beyond the 60-second streaming
         // lease, allowing another worker to quarantine an in-flight send.
@@ -1384,10 +1384,10 @@ function createProviderAdapter(
           timeout: SLACK_WEB_API_TIMEOUT_MS,
         },
       };
-      const adapter = new PaperclipSlackAdapter(adapterConfig);
+      const adapter = new OutpostSlackAdapter(adapterConfig);
       (
         adapter as unknown as SlackAdapterInternals
-      ).paperclipFileUploadReceiptContext = new AsyncLocalStorage<
+      ).outpostFileUploadReceiptContext = new AsyncLocalStorage<
         (receipt: SlackFileUploadAcceptedReceipt) => Promise<void>
       >();
       return adapter;
@@ -1405,7 +1405,7 @@ function createProviderAdapter(
       } as GitHubAdapterConfig;
       const adapter = createGitHubAdapter(adapterConfig);
       // Octokit otherwise delegates to fetch without a deadline. A hung token
-      // exchange or API request could outlive Paperclip's publication lease
+      // exchange or API request could outlive Outpost's publication lease
       // and make another worker quarantine a still-running send as ambiguous.
       // Wrap every request with a fresh deadline instead of creating one at
       // adapter construction time, which would expire for the whole runtime.
@@ -1439,7 +1439,7 @@ function createProviderAdapter(
         apiUrl: config.credentials.apiUrl,
         applicationId: config.credentials.applicationId,
         botToken: config.credentials.botToken,
-        // Paperclip receives Discord messages and interactions over its
+        // Outpost receives Discord messages and interactions over its
         // authenticated Gateway session. Keep the unused public HTTP
         // interaction surface closed instead of making setup collect a key it
         // does not need.
@@ -1774,14 +1774,14 @@ async function telegramWebhookUpdateId(
 
 /**
  * Chat SDK's message and provider-level retry markers are written before the
- * application callback runs. That ordering is unsafe for Paperclip: if the
+ * application callback runs. That ordering is unsafe for Outpost: if the
  * `chat_deliveries` insert fails, a provider retry can be discarded by the SDK
- * even though Paperclip never durably accepted it. Paperclip's delivery ledger
+ * even though Outpost never durably accepted it. Outpost's delivery ledger
  * is the authoritative dedupe boundary, so these early SDK markers are
  * deliberately bypassed while subscriptions and all other adapter state stay
  * durable.
  */
-function paperclipAuthoritativeIngressState(
+function outpostAuthoritativeIngressState(
   state: StateAdapter,
   recordFailure: (error: unknown) => void,
 ): StateAdapter {
@@ -1937,7 +1937,7 @@ function registerCallbacks(
       if (!acceptsProviderScope(event.raw)) {
         if (transport === "discord_gateway") {
           // Resolving would tell the Gateway adapter to acknowledge a click
-          // that never reached Paperclip's scoped action authorization.
+          // that never reached Outpost's scoped action authorization.
           throw Object.assign(
             new Error("Discord Gateway action is outside the configured guild"),
             { code: "chat_discord_gateway_action_rejected" },
@@ -2013,9 +2013,9 @@ function registerCallbacks(
   }
 }
 
-/** One isolated Chat instance and provider adapter for one Paperclip endpoint. */
+/** One isolated Chat instance and provider adapter for one Outpost endpoint. */
 export class ChatSdkEndpointRuntime {
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly endpointId: string;
   readonly provider: ChatSdkProvider;
   readonly sdkAdapterKey: ChatSdkAdapterKey;
@@ -2062,7 +2062,7 @@ export class ChatSdkEndpointRuntime {
 
   constructor(options: CreateChatSdkEndpointRuntimeOptions) {
     this.runtimeOptions = options;
-    this.companyId = options.companyId;
+    this.spaceId = options.spaceId;
     this.endpointId = options.endpointId;
     this.provider = options.providerConfig.provider;
     this.githubReceiptApp =
@@ -2114,7 +2114,7 @@ export class ChatSdkEndpointRuntime {
     this.adapter = options.providerConfig.provider === "imessage-photon"
       ? new PhotonChatAdapter(options.providerConfig.userName,
           new PhotonLineAuthentication(options.providerConfig.credentials, options.providerConfig.credentials.projectSecret),
-          new PhotonState({ companyId: options.companyId, endpointId: options.endpointId }, options.persistence))
+          new PhotonState({ spaceId: options.spaceId, endpointId: options.endpointId }, options.persistence))
       : createProviderAdapter(
       options.providerConfig,
       options.logger,
@@ -2169,7 +2169,7 @@ export class ChatSdkEndpointRuntime {
         if (attempt && adapter.botUserId) {
           const captured = captureTelegramCallbackProvenance(
             {
-              companyId: this.companyId,
+              spaceId: this.spaceId,
               endpointId: this.endpointId,
               botUserId: adapter.botUserId,
             },
@@ -2182,13 +2182,13 @@ export class ChatSdkEndpointRuntime {
         processUpdate(update, webhookOptions);
       };
     }
-    const durableState = createPaperclipChatSdkState({
-      companyId: options.companyId,
+    const durableState = createOutpostChatSdkState({
+      spaceId: options.spaceId,
       endpointId: options.endpointId,
       persistence: options.persistence,
       maxValueBytes: options.maxStateValueBytes,
     });
-    const state = paperclipAuthoritativeIngressState(durableState, (error) => {
+    const state = outpostAuthoritativeIngressState(durableState, (error) => {
       const attempt = this.webhookIngress.getStore();
       if (attempt && attempt.callbackError === undefined) {
         attempt.callbackError = error;
@@ -2196,7 +2196,7 @@ export class ChatSdkEndpointRuntime {
     });
     this.chat = new Chat({
       adapters: { [this.sdkAdapterKey]: this.adapter },
-      // Paperclip acknowledges only after its own durable ledger write and
+      // Outpost acknowledges only after its own durable ledger write and
       // drains that ledger under database leases. An SDK-side queue can accept
       // a webhook before the application callback has run, so it must not sit
       // in front of the authoritative receipt boundary.
@@ -2263,7 +2263,7 @@ export class ChatSdkEndpointRuntime {
       }
       const callback = options.callbacks.onTeamsFileConsent!;
       installTeamsFileConsentHook(app as TeamsConsentApp, {
-        companyId: this.companyId,
+        spaceId: this.spaceId,
         endpointId: this.endpointId,
         tenantId: this.microsoftTeamsTenantId,
         botAppId: options.providerConfig.credentials.appId,
@@ -2503,7 +2503,7 @@ export class ChatSdkEndpointRuntime {
     control: TelegramDraftControl,
   ): Promise<{ id: string } | TelegramDraftStopped> {
     const adapter = this.adapter as unknown as {
-      paperclipDraftStopVersion?: number;
+      outpostDraftStopVersion?: number;
       stream(
         threadId: string,
         stream: AsyncIterable<string>,
@@ -2513,12 +2513,12 @@ export class ChatSdkEndpointRuntime {
     if (
       this.provider !== "telegram" ||
       !telegramPrivateDraftDestination(threadId) ||
-      adapter.paperclipDraftStopVersion !== 1
+      adapter.outpostDraftStopVersion !== 1
     ) {
       throw new Error("Telegram durable draft transport is unavailable");
     }
     return adapter.stream(threadId, textStream, {
-      paperclipDraftControl: control,
+      outpostDraftControl: control,
     });
   }
 
@@ -2542,14 +2542,14 @@ export class ChatSdkEndpointRuntime {
     }
     const slack = this.adapter as unknown as SlackAdapterInternals;
     if (
-      !slack.paperclipFileUploadReceiptContext ||
-      typeof slack.paperclipResolveFileUploadReceipt !== "function"
+      !slack.outpostFileUploadReceiptContext ||
+      typeof slack.outpostResolveFileUploadReceipt !== "function"
     ) {
       throw new SlackAdapterCompatibilityError(
         "file publication receipt capture is unavailable",
       );
     }
-    return await slack.paperclipFileUploadReceiptContext.run(
+    return await slack.outpostFileUploadReceiptContext.run(
       onUploadAccepted,
       async () => await this.chat.thread(threadId).post(message),
     );
@@ -2566,12 +2566,12 @@ export class ChatSdkEndpointRuntime {
       );
     }
     const slack = this.adapter as unknown as SlackAdapterInternals;
-    if (typeof slack.paperclipResolveFileUploadReceipt !== "function") {
+    if (typeof slack.outpostResolveFileUploadReceipt !== "function") {
       throw new SlackAdapterCompatibilityError(
         "file publication receipt lookup is unavailable",
       );
     }
-    return await slack.paperclipResolveFileUploadReceipt.call(
+    return await slack.outpostResolveFileUploadReceipt.call(
       this.adapter,
       fileIds,
       threadId,
@@ -2592,7 +2592,7 @@ export class ChatSdkEndpointRuntime {
   ): Promise<void> {
     if (this.provider !== "microsoft-teams") return;
     const teams = this.adapter as unknown as TeamsAdapterInternals;
-    const recorder = teams.paperclipRecordThreadServiceUrl;
+    const recorder = teams.outpostRecordThreadServiceUrl;
     if (typeof recorder !== "function") {
       throw new TeamsAdapterCompatibilityError(
         "durable route recorder is unavailable",
@@ -2600,7 +2600,7 @@ export class ChatSdkEndpointRuntime {
     }
     await recorder.call(this.adapter, threadId, serviceUrl);
     if (raw !== undefined) {
-      const acceptedActivityRecorder = teams.paperclipRecordAcceptedActivity;
+      const acceptedActivityRecorder = teams.outpostRecordAcceptedActivity;
       if (typeof acceptedActivityRecorder !== "function") {
         throw new TeamsAdapterCompatibilityError(
           "durable accepted-activity recorder is unavailable",
@@ -2632,13 +2632,13 @@ export class ChatSdkEndpointRuntime {
     const teams = this.adapter as unknown as TeamsAdapterInternals;
     if (
       !this.teamsFileConsentEnabled ||
-      typeof teams.paperclipSendFileCard !== "function"
+      typeof teams.outpostSendFileCard !== "function"
     ) {
       throw new TeamsAdapterCompatibilityError(
         "file-consent runtime is not enabled",
       );
     }
-    return await teams.paperclipSendFileCard(threadId, kind, card);
+    return await teams.outpostSendFileCard(threadId, kind, card);
   }
 
   channel(channelId: string): Channel {
@@ -2694,7 +2694,7 @@ export class ChatSdkEndpointRuntime {
   /**
    * Reuse the pinned provider parser when a Telegram slash command also
    * carries media in its caption. The Chat SDK exposes slash-command fields
-   * separately from the parsed Message, so without this bridge Paperclip
+   * separately from the parsed Message, so without this bridge Outpost
    * would silently discard a captioned document/photo/audio/video.
    */
   parseTelegramCommandMessage(raw: unknown): Message | null {
@@ -2790,7 +2790,7 @@ export class ChatSdkEndpointRuntime {
 
   private telegramMediaScope(source?: ChatSdkAttachmentSource): TelegramMediaScope | null {
     if (!source || source.runtimeGeneration === undefined || !source.credentialFingerprint || !source.principalExternalId) return null;
-    return { companyId: this.companyId, endpointId: this.endpointId, runtimeGeneration: source.runtimeGeneration,
+    return { spaceId: this.spaceId, endpointId: this.endpointId, runtimeGeneration: source.runtimeGeneration,
       credentialFingerprint: source.credentialFingerprint, threadId: source.threadId, messageId: source.messageId,
       principalExternalId: source.principalExternalId };
   }
@@ -2808,7 +2808,7 @@ export class ChatSdkEndpointRuntime {
     )
       return null;
     return {
-      companyId: this.companyId,
+      spaceId: this.spaceId,
       endpointId: this.endpointId,
       tenantId: this.microsoftTeamsTenantId,
       botAppId: this.microsoftTeamsAppId,
@@ -2858,7 +2858,7 @@ export class ChatSdkEndpointRuntime {
     if (
       this.provider !== "telegram" ||
       !this.telegramEphemeralBotToken ||
-      receipt.companyId !== this.companyId ||
+      receipt.spaceId !== this.spaceId ||
       receipt.endpointId !== this.endpointId
     ) {
       throw Object.assign(
@@ -3183,7 +3183,7 @@ export class ChatSdkEndpointNotRegisteredError extends Error {
   }
 }
 
-/** Process-local lifecycle registry; durable state remains in Paperclip persistence. */
+/** Process-local lifecycle registry; durable state remains in Outpost persistence. */
 export class ChatSdkRuntime {
   private readonly endpoints = new Map<string, ChatSdkEndpointRuntime>();
   private readonly retiringEndpoints = new Map<

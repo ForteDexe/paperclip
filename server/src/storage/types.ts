@@ -82,9 +82,9 @@ export interface StorageProvider {
 
 export type PutFileInput = {
   signal?: AbortSignal;
-  /** Server-allocated, company-prefixed key for durable idempotent uploads. Never accept from client input. */
+  /** Server-allocated, space-prefixed key for durable idempotent uploads. Never accept from client input. */
   objectKey?: string;
-  companyId: string;
+  spaceId: string;
   namespace: string;
   originalFilename: string | null;
   contentType: string;
@@ -105,8 +105,8 @@ export interface StorageService {
   provider: StorageProviderId;
   readonly immutableObjectNamespace?: string;
   putFile(input: PutFileInput): Promise<PutFileResult>;
-  getObject(companyId: string, objectKey: string, options?: Pick<GetObjectInput, "range" | "signal">): Promise<GetObjectResult>;
-  headObject(companyId: string, objectKey: string, options?: Pick<GetObjectInput, "signal">): Promise<HeadObjectResult>;
-  deleteObject(companyId: string, objectKey: string, options?: Pick<DeleteObjectInput, "signal" | "allVersions">): Promise<void>;
-  abortIncompleteUploads?(companyId: string, objectKey: string, options?: { signal?: AbortSignal }): Promise<number>;
+  getObject(spaceId: string, objectKey: string, options?: Pick<GetObjectInput, "range" | "signal">): Promise<GetObjectResult>;
+  headObject(spaceId: string, objectKey: string, options?: Pick<GetObjectInput, "signal">): Promise<HeadObjectResult>;
+  deleteObject(spaceId: string, objectKey: string, options?: Pick<DeleteObjectInput, "signal" | "allVersions">): Promise<void>;
+  abortIncompleteUploads?(spaceId: string, objectKey: string, options?: { signal?: AbortSignal }): Promise<number>;
 }

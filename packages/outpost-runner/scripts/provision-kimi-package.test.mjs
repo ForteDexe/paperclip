@@ -15,7 +15,7 @@ import { KIMI_DISTRIBUTION_CLOSURE_SHA256 } from "../src/drivers/acpx/kimi-closu
 const run = promisify(execFile);
 
 test("installed Kimi setup is self-contained, rejects corrupt assets and cancels pending downloads", { timeout: 10_000 }, async t => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-kimi-public-layout-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-kimi-public-layout-")));
   t.after(() => rm(root, { recursive: true, force: true }));
   const pkg = join(root, "package"), cli = join(pkg, "dist/vendor/outpost-runner/cli");
   await mkdir(cli, { recursive: true });
@@ -73,7 +73,7 @@ test("fresh archived installed provisioner downloads the exact closure, reuses i
   skip: process.env.OUTPOST_TEST_KIMI_PUBLIC_SETUP !== "1" && "Set OUTPOST_TEST_KIMI_PUBLIC_SETUP=1 for public registry downloads; no model calls or provider credentials",
   timeout: 180_000,
 }, async t => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-kimi-public-setup-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-kimi-public-setup-")));
   t.after(() => rm(root, { recursive: true, force: true }));
   const packed = join(root, "packed"), pkg = join(packed, "package"), cli = join(pkg, "dist/vendor/outpost-runner/cli");
   await mkdir(cli, { recursive: true });
@@ -108,5 +108,5 @@ test("fresh archived installed provisioner downloads the exact closure, reuses i
     return true;
   });
   assert.deepEqual(await readFile(worker), changed, "Invalid existing assets must not be silently replaced");
-  t.diagnostic(JSON.stringify({ target, closure: metadata.nativeClosureSha256, patch: metadata.patch.version, provisionerSha256: createHash("sha256").update(await readFile(entry)).digest("hex"), freshInstalled: true, offlineReuse: true, tamperRejected: true, modelPrompts: 0, scope: "self-contained public-layout setup component; full Paperclip tarball is a separate proof" }));
+  t.diagnostic(JSON.stringify({ target, closure: metadata.nativeClosureSha256, patch: metadata.patch.version, provisionerSha256: createHash("sha256").update(await readFile(entry)).digest("hex"), freshInstalled: true, offlineReuse: true, tamperRejected: true, modelPrompts: 0, scope: "self-contained public-layout setup component; full Outpost tarball is a separate proof" }));
 });

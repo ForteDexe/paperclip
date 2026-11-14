@@ -17,7 +17,7 @@ it("redacts a routine caller run token on ordinary HTTP routes", async () => {
   const app = express();
   app.use(createHttpLogger(pino({ redact: [...HTTP_LOG_REDACT_PATHS] }, stream)));
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
-  await request(app).get("/api/health").set("X-Paperclip-Source-Run-Token", "private-routine-caller-token");
+  await request(app).get("/api/health").set("X-Outpost-Source-Run-Token", "private-routine-caller-token");
   expect(chunks.join("")).not.toContain("private-routine-caller-token");
 });
 
@@ -42,11 +42,11 @@ describe("HTTP logger redaction", () => {
       }));
     }
     responses.push(await request(app).get("/api/chat-slack/oauth/callback").query({ code: canaries[4], error_description: canaries[5] }));
-    responses.push(await request(app).put("/api/companies/company/observability").query({ unexpected: canaries[2] }).set("x-diagnostic", canaries[3]).send({
+    responses.push(await request(app).put("/api/spaces/space/observability").query({ unexpected: canaries[2] }).set("x-diagnostic", canaries[3]).send({
       credentials: { mode: "replace", apiKey: canaries[0] },
       unexpected: canaries[1],
     }));
-    responses.push(await request(app).put("/api/companies/company/observability").send({
+    responses.push(await request(app).put("/api/spaces/space/observability").send({
       credentials: { mode: "replace", headers: [{ name: "x-custom", value: canaries[1] }] },
       unexpected: canaries[0],
     }));
@@ -73,24 +73,24 @@ describe("HTTP logger redaction", () => {
     const app = express();
     app.use(express.json());
     app.use(createHttpLogger(pino({ redact: [...HTTP_LOG_REDACT_PATHS] }, stream)));
-    app.post("/mcp/paperclip", (_req, res) => res.status(400).json({ error: "invalid_request" }));
+    app.post("/mcp/outpost", (_req, res) => res.status(400).json({ error: "invalid_request" }));
     app.post("/mcp/oauth/token", (_req, res) => res.status(400).json({ error: "invalid_grant" }));
     app.get("/mcp/oauth/authorize", (_req, res) => res.redirect("https://client.example/callback?code=redirect-canary"));
     await request(app).post("/mcp/oauth/token").send({ code: "code-canary", code_verifier: "pkce-canary", refresh_token: "refresh-canary" });
     await request(app).get("/mcp/oauth/authorize?state=state-canary");
-    await request(app).post("/mcp/paperclip").send({ params: { delivery: { url: "https://receiver.example/callback-path-canary", secret: "whsec_callback-secret-canary" }, _meta: { "ai.paperclip/cloudAuthority": { token: "cloud-authority-canary" } } } });
+    await request(app).post("/mcp/outpost").send({ params: { delivery: { url: "https://receiver.example/callback-path-canary", secret: "whsec_callback-secret-canary" }, _meta: { "ai.outpost/cloudAuthority": { token: "cloud-authority-canary" } } } });
     expect(chunks.join("")).not.toMatch(/callback-path-canary|callback-secret-canary|cloud-authority-canary/);
     expect(chunks.join("")).not.toMatch(/code-canary|pkce-canary|refresh-canary|redirect-canary|state-canary/);
   });
 
-  it.each([[400, "/api/companies/company/agent-commentary"], [503, "/API/COMPANIES/company/AGENT-COMMENTARY"], [503, "http://localhost/api/companies/company/agent-commentary"]] as const)("keeps rejected commentary content out of %i diagnostics for %s", async (status, url) => {
+  it.each([[400, "/api/spaces/space/agent-commentary"], [503, "/API/SPACES/space/AGENT-COMMENTARY"], [503, "http://localhost/api/spaces/space/agent-commentary"]] as const)("keeps rejected commentary content out of %i diagnostics for %s", async (status, url) => {
     const canary = "private-agent-commentary-canary";
     const chunks: string[] = [];
     const stream = new Writable({ write(chunk, _encoding, callback) { chunks.push(chunk.toString()); callback(); } });
     const app = express();
     app.use(createHttpLogger(pino({ redact: [...HTTP_LOG_REDACT_PATHS] }, stream)));
     app.use(express.json());
-    app.post("/api/companies/:companyId/agent-commentary", (_req, res) => {
+    app.post("/api/spaces/:spaceId/agent-commentary", (_req, res) => {
       if (status === 503) (res as any).err = new Error(`Driver echoed ${canary}`);
       res.status(status).end();
     });
@@ -512,7 +512,7 @@ describe("HTTP logger redaction", () => {
     app.post(path, (_req, res) => { res.status(status).json({ status }); });
 
     await request(app).post(path)
-      .set("X-Paperclip-Runner-Scope-Token", "Bearer " + capability)
+      .set("X-Outpost-Runner-Scope-Token", "Bearer " + capability)
       .send({}).expect(status);
 
     expect(chunks.join("")).not.toContain(capability);
@@ -539,24 +539,24 @@ describe("HTTP logger redaction", () => {
 
     await request(app)
       .post("/runtime-tools/github/credentials")
-      .set("X-Paperclip-Github-Capability", capability)
+      .set("X-Outpost-Github-Capability", capability)
       .send({})
       .expect(status);
 
     const output = chunks.join("");
     expect(output).not.toContain(capability);
     const log = JSON.parse(output.trim());
-    expect(log.req.headers["x-paperclip-github-capability"]).toBe("[Redacted]");
+    expect(log.req.headers["x-outpost-github-capability"]).toBe("[Redacted]");
     expect(log.req.url).toBe("/runtime-tools/github/credentials");
     expect(log.res.statusCode).toBe(status);
   });
 
   it.each([200, 403, 500])("redacts cloud credentials and assertions from HTTP %i logs", async (status) => {
     const headers = {
-      "X-Paperclip-Cloud-Tenant-Token": "cloud-tenant-token-canary",
-      "X-Paperclip-Cloud-Session-Id": "cloud-session-id-canary",
-      "X-Paperclip-Cloud-Runtime-Identity": "cloud-runtime-identity-canary",
-      "X-Paperclip-Cloud-Control": "cloud-control-canary",
+      "X-Outpost-Cloud-Tenant-Token": "cloud-tenant-token-canary",
+      "X-Outpost-Cloud-Session-Id": "cloud-session-id-canary",
+      "X-Outpost-Cloud-Runtime-Identity": "cloud-runtime-identity-canary",
+      "X-Outpost-Cloud-Control": "cloud-control-canary",
     };
     const chunks: string[] = [];
     const stream = new Writable({
@@ -567,7 +567,7 @@ describe("HTTP logger redaction", () => {
     });
     const app = express();
     app.use(createHttpLogger(pino({ redact: [...HTTP_LOG_REDACT_PATHS] }, stream)));
-    app.get("/api/companies", (_req, res, next) => {
+    app.get("/api/spaces", (_req, res, next) => {
       if (status === 403) {
         next(new HttpError(403, "Cloud tenant authentication required"));
         return;
@@ -580,7 +580,7 @@ describe("HTTP logger redaction", () => {
     });
     app.use(errorHandler);
 
-    const response = await request(app).get("/api/companies").set(headers).expect(status);
+    const response = await request(app).get("/api/spaces").set(headers).expect(status);
     if (status === 403) {
       expect(response.body).toEqual({ error: "Cloud tenant authentication required" });
     } else if (status === 500) {
@@ -594,7 +594,7 @@ describe("HTTP logger redaction", () => {
       expect(log.req.headers[header.toLowerCase()]).toBe("[Redacted]");
     }
     expect(log.req.method).toBe("GET");
-    expect(log.req.url).toBe("/api/companies");
+    expect(log.req.url).toBe("/api/spaces");
     expect(log.res.statusCode).toBe(status);
     expect(log.level).toBe(status === 500 ? 50 : status === 403 ? 40 : 30);
     if (status === 500) {
@@ -661,12 +661,12 @@ describe("HTTP logger redaction", () => {
     const app = express();
     app.use(express.json());
     app.use(createHttpLogger(testLogger));
-    app.post("/api/companies/:companyId/secrets", (_req, res) => {
+    app.post("/api/spaces/:spaceId/secrets", (_req, res) => {
       res.status(422).json({ error: "validation failed" });
     });
 
     const response = await request(app)
-      .post("/api/companies/company-1/secrets")
+      .post("/api/spaces/space-1/secrets")
       .send({
         name: "OpenAI",
         value: "value-canary-4c845d",
@@ -904,7 +904,7 @@ describe("HTTP logger redaction", () => {
         },
         reqParams: {},
       },
-      "POST /api/companies/company-1/tools/apps/connect 502 — OAuth authorization expired.",
+      "POST /api/spaces/space-1/tools/apps/connect 502 — OAuth authorization expired.",
     );
     await new Promise((resolve) => setImmediate(resolve));
 

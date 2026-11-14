@@ -32,12 +32,12 @@ export function createConnectionSetupPolicy(db: Db) {
     }
   }
 
-  async function assertConnectorConnectionSetupEnabled(connection: { config?: Record<string, unknown>; transportConfig?: Record<string, unknown>; applicationId?: string; companyId?: string; status?: string }, applicationKey?: unknown) {
+  async function assertConnectorConnectionSetupEnabled(connection: { config?: Record<string, unknown>; transportConfig?: Record<string, unknown>; applicationId?: string; spaceId?: string; status?: string }, applicationKey?: unknown) {
     let resolvedApplicationKey = applicationKey;
-    if (resolvedApplicationKey == null && connection.applicationId && connection.companyId) {
+    if (resolvedApplicationKey == null && connection.applicationId && connection.spaceId) {
       const [application] = await db.select({ applicationKey: toolApplications.applicationKey })
         .from(toolApplications).where(and(eq(toolApplications.id, connection.applicationId),
-          eq(toolApplications.companyId, connection.companyId))).limit(1);
+          eq(toolApplications.spaceId, connection.spaceId))).limit(1);
       resolvedApplicationKey = application?.applicationKey;
     }
     const marker = connection.config?.sourceTemplateKey ?? connection.transportConfig?.sourceTemplateKey;

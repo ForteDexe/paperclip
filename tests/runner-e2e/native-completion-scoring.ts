@@ -9,7 +9,7 @@ const terminalName = (value: unknown, expected: string) => typeof value === "str
 
 export interface NativeCompletionObservation {
   caseId: "assigned-skill-explicit-invocation" | "native-blocked-report";
-  companyId: string; agentId: string; issue: Row; runs: readonly Row[];
+  spaceId: string; agentId: string; issue: Row; runs: readonly Row[];
   comments: readonly Row[]; events: readonly Row[];
   state: { issueIds: string[]; agentIds: string[]; documentCount: number; interactionCount: number };
   initial: { issueIds: string[]; agentIds: string[] };
@@ -34,15 +34,15 @@ function gradeObservation(input: NativeCompletionObservation, finalAnswer: boole
   const blocked = input.caseId === "native-blocked-report";
   const run = input.runs[0] ?? {};
   const expectedDisposition = blocked ? "blocked" : "done";
-  const expectedTool = blocked ? "paperclip_block" : "paperclip_finish";
+  const expectedTool = blocked ? "outpost_block" : "outpost_finish";
   const nativeResult = row(row(run.resultJson).nativeResult);
   check("one-native-attempt", input.runs.length === 1 && run.status === "succeeded" && run.runtimeMode === "native"
     && typeof run.id === "string" && run.id.length > 0 && typeof input.issue.id === "string" && input.issue.id.length > 0
     && run.nativeIssueId === input.issue.id
-    && run.companyId === input.companyId && run.agentId === input.agentId
+    && run.spaceId === input.spaceId && run.agentId === input.agentId
     && !run.retryOfRunId && !run.continuationAttempt && !input.issue.scheduledRetry,
   "Exactly one succeeded native run, with no continuation/retry or uncounted extra work.");
-  check("durable-disposition", input.issue.companyId === input.companyId && input.issue.assigneeAgentId === input.agentId
+  check("durable-disposition", input.issue.spaceId === input.spaceId && input.issue.assigneeAgentId === input.agentId
     && input.issue.status === expectedDisposition && nativeResult.reportedWorkDisposition === expectedDisposition,
   "Public durable issue status and the native semantic result agree with the requested disposition.");
   if (blocked) {

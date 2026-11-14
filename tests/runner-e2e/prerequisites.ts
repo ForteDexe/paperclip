@@ -13,7 +13,7 @@ export const PENDING_PROFILE_PREREQUISITES = {
 export const UNQUALIFIED_PROFILE_GAPS = {
 } as const;
 
-/** Reject missing remote observer authority before creating a company or run. */
+/** Reject missing remote observer authority before creating a space or run. */
 export function assertRemoteNativeEvidencePrerequisites(
   executions: readonly MatrixExecution[],
   environment: NodeJS.ProcessEnv,

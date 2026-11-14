@@ -29,26 +29,26 @@ describe("Daytona idle evidence", () => {
 
   it("does not treat absence of an unobserved creation name as deletion", () => {
     const activity = new DaytonaIdleActivity();
-    const allocation = activity.resource("account/company/environment/create-name", true);
-    activity.confirm(activity.proof("account/company/environment/create-name"), true);
+    const allocation = activity.resource("account/space/environment/create-name", true);
+    activity.confirm(activity.proof("account/space/environment/create-name"), true);
     expect(activity.present()).toBe(true);
-    activity.observe(allocation, "account/company/environment/immutable-id");
-    activity.confirm(activity.proof("account/company/environment/immutable-id"), true);
+    activity.observe(allocation, "account/space/environment/immutable-id");
+    activity.confirm(activity.proof("account/space/environment/immutable-id"), true);
     expect(activity.present()).toBe(false);
-    activity.observe(allocation, "account/company/environment/immutable-id");
+    activity.observe(allocation, "account/space/environment/immutable-id");
     expect(activity.present()).toBe(false);
   });
 
   it("clears aliases only for the resource with exact scope and cleanup proof", () => {
     const activity = new DaytonaIdleActivity();
-    const allocation = activity.resource("account-a/company-a/environment-a/create", true);
-    activity.observe(allocation, "account-a/company-a/environment-a/id");
-    for (const key of ["account-b/company-a/environment-a/id", "account-a/company-b/environment-a/id", "account-a/company-a/environment-b/id"]) {
+    const allocation = activity.resource("account-a/space-a/environment-a/create", true);
+    activity.observe(allocation, "account-a/space-a/environment-a/id");
+    for (const key of ["account-b/space-a/environment-a/id", "account-a/space-b/environment-a/id", "account-a/space-a/environment-b/id"]) {
       activity.resource(key);
     }
-    activity.confirm(activity.proof("account-a/company-a/environment-a/id"));
+    activity.confirm(activity.proof("account-a/space-a/environment-a/id"));
     expect(activity.present()).toBe(true);
-    for (const key of ["account-b/company-a/environment-a/id", "account-a/company-b/environment-a/id", "account-a/company-a/environment-b/id"]) {
+    for (const key of ["account-b/space-a/environment-a/id", "account-a/space-b/environment-a/id", "account-a/space-a/environment-b/id"]) {
       activity.confirm(activity.proof(key));
     }
     expect(activity.present()).toBe(false);

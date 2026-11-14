@@ -6,8 +6,8 @@ import { withVoiceSessionChange, type VoiceRecoveryScope } from "./voice-recover
 
 export const LIVE_VOICE_STATES = ["reserved", "creating", "creation_unknown", "connecting", "active", "ending"] as const;
 type Session = typeof chatVoiceSessions.$inferSelect;
-export type VoiceRecoveryEntry = { id: string; companyId: string; endpointId: string; connectionId: string; dueAt: number };
-type Candidate<T = Pick<Session, "id" | "companyId" | "endpointId" | "providerSessionId" | "expiresAt" | "updatedAt" | "generation" | "state" | "errorCode">> = { session: T; connectionId: string; endpointStatus: string; enabled: boolean; generation: number };
+export type VoiceRecoveryEntry = { id: string; spaceId: string; endpointId: string; connectionId: string; dueAt: number };
+type Candidate<T = Pick<Session, "id" | "spaceId" | "endpointId" | "providerSessionId" | "expiresAt" | "updatedAt" | "generation" | "state" | "errorCode">> = { session: T; connectionId: string; endpointStatus: string; enabled: boolean; generation: number };
 
 export function voiceSessionRecoveryAt(row: Candidate, featureEnabled: boolean): number {
   const session = row.session;
@@ -29,7 +29,7 @@ export function voiceSessionRecovery(db: Db, operations: {
       scope?.kind === "session" ? eq(chatVoiceSessions.id, scope.id) : undefined,
       scope?.kind === "endpoint" ? eq(chatVoiceSessions.endpointId, scope.id) : undefined,
       scope?.kind === "connection" ? eq(toolConnections.id, scope.id) : undefined,
-      scope?.kind === "company" ? eq(chatVoiceSessions.companyId, scope.id) : undefined,
+      scope?.kind === "space" ? eq(chatVoiceSessions.spaceId, scope.id) : undefined,
       cursor ? gt(chatVoiceSessions.id, cursor) : undefined);
   }
   async function candidates(scope?: VoiceRecoveryScope, signal?: AbortSignal) {
@@ -40,8 +40,8 @@ export function voiceSessionRecovery(db: Db, operations: {
       const page = await db.select({ session: chatVoiceSessions, connectionId: toolConnections.id,
         endpointStatus: chatEndpoints.status, enabled: toolConnections.enabled, generation: sql<number>`coalesce((${chatEndpoints.setup}->>'runtimeGeneration')::integer, 0)` })
         .from(chatVoiceSessions)
-        .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.companyId, chatVoiceSessions.companyId)))
-        .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, chatVoiceSessions.companyId)))
+        .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.spaceId, chatVoiceSessions.spaceId)))
+        .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, chatVoiceSessions.spaceId)))
         .where(sessionConditions(scope, cursor))
         .orderBy(chatVoiceSessions.id).limit(100);
       rows.push(...page);
@@ -53,16 +53,16 @@ export function voiceSessionRecovery(db: Db, operations: {
     const rows = await candidates(scope, signal);
     if (!rows.length) return [];
     const enabled = (await instanceSettingsService(db).getExperimental()).enableChatConnectors;
-    return rows.map(row => ({ id: row.session.id, companyId: row.session.companyId, endpointId: row.session.endpointId,
+    return rows.map(row => ({ id: row.session.id, spaceId: row.session.spaceId, endpointId: row.session.endpointId,
       connectionId: row.connectionId, dueAt: voiceSessionRecoveryAt(row, enabled) }));
   }
-  type Parent = { id: string; companyId: string; connectionId: string; signature: string | null };
+  type Parent = { id: string; spaceId: string; connectionId: string; signature: string | null };
   type Scan = { phase: "parents" | "sessions"; cursor?: string; parents: Map<string, Parent> };
   const parents = new Map<string, Parent>();
   const scans = new Map<string, Scan>();
   function scopeKey(scope?: VoiceRecoveryScope) { return scope ? `${scope.kind}:${scope.id}` : "*"; }
   function parentMatches(row: Parent, scope?: VoiceRecoveryScope) {
-    return !scope || (scope.kind === "endpoint" ? row.id : scope.kind === "connection" ? row.connectionId : row.companyId) === scope.id;
+    return !scope || (scope.kind === "endpoint" ? row.id : scope.kind === "connection" ? row.connectionId : row.spaceId) === scope.id;
   }
   function remember(target: Map<string, Parent>, row: Parent) {
     const prior = target.get(row.id);
@@ -73,18 +73,18 @@ export function voiceSessionRecovery(db: Db, operations: {
     const scan = scans.get(key) ?? { phase: scope && scope.kind !== "session" ? "parents" as const : "sessions" as const, parents: new Map<string, Parent>() };
     signal?.throwIfAborted();
     if (scan.phase === "parents") {
-      const page = await db.select({ id: chatEndpoints.id, companyId: chatEndpoints.companyId, connectionId: toolConnections.id,
+      const page = await db.select({ id: chatEndpoints.id, spaceId: chatEndpoints.spaceId, connectionId: toolConnections.id,
         endpointStatus: chatEndpoints.status, enabled: toolConnections.enabled,
         generation: sql<number>`coalesce((${chatEndpoints.setup}->>'runtimeGeneration')::integer, 0)` })
-        .from(chatEndpoints).innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, chatEndpoints.companyId)))
+        .from(chatEndpoints).innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, chatEndpoints.spaceId)))
         .where(and(scope?.kind === "endpoint" ? eq(chatEndpoints.id, scope.id) : undefined,
           scope?.kind === "connection" ? eq(toolConnections.id, scope.id) : undefined,
-          scope?.kind === "company" ? eq(chatEndpoints.companyId, scope.id) : undefined,
+          scope?.kind === "space" ? eq(chatEndpoints.spaceId, scope.id) : undefined,
           scan.cursor ? gt(chatEndpoints.id, scan.cursor) : undefined))
         .orderBy(chatEndpoints.id).limit(100);
       const enabled = page.length ? (await instanceSettingsService(db).getExperimental()).enableChatConnectors : false;
       const next = new Map(scan.parents);
-      for (const row of page) remember(next, { id: row.id, companyId: row.companyId, connectionId: row.connectionId,
+      for (const row of page) remember(next, { id: row.id, spaceId: row.spaceId, connectionId: row.connectionId,
         signature: JSON.stringify([row.connectionId, row.endpointStatus, row.enabled, row.generation, enabled]) });
       signal?.throwIfAborted();
       if (page.length === 100) {
@@ -98,22 +98,22 @@ export function voiceSessionRecovery(db: Db, operations: {
       scans.set(key, { phase: "sessions", parents: next });
       return { rows: [], complete: false };
     }
-    const page = await db.select({ session: { id: chatVoiceSessions.id, companyId: chatVoiceSessions.companyId,
+    const page = await db.select({ session: { id: chatVoiceSessions.id, spaceId: chatVoiceSessions.spaceId,
       endpointId: chatVoiceSessions.endpointId, state: chatVoiceSessions.state, providerSessionId: chatVoiceSessions.providerSessionId,
       expiresAt: chatVoiceSessions.expiresAt, updatedAt: chatVoiceSessions.updatedAt, generation: chatVoiceSessions.generation,
       errorCode: chatVoiceSessions.errorCode }, connectionId: toolConnections.id,
       endpointStatus: chatEndpoints.status, enabled: toolConnections.enabled,
       generation: sql<number>`coalesce((${chatEndpoints.setup}->>'runtimeGeneration')::integer, 0)` })
       .from(chatVoiceSessions)
-      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.companyId, chatVoiceSessions.companyId)))
-      .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, chatVoiceSessions.companyId)))
+      .innerJoin(chatEndpoints, and(eq(chatEndpoints.id, chatVoiceSessions.endpointId), eq(chatEndpoints.spaceId, chatVoiceSessions.spaceId)))
+      .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, chatVoiceSessions.spaceId)))
       .where(sessionConditions(scope, scan.cursor))
       .orderBy(chatVoiceSessions.id).limit(100);
     const enabled = page.length ? (await instanceSettingsService(db).getExperimental()).enableChatConnectors : false;
     const next = new Map(scan.parents);
-    for (const row of page) remember(next, { id: row.session.endpointId, companyId: row.session.companyId, connectionId: row.connectionId,
+    for (const row of page) remember(next, { id: row.session.endpointId, spaceId: row.session.spaceId, connectionId: row.connectionId,
       signature: JSON.stringify([row.connectionId, row.endpointStatus, row.enabled, row.generation, enabled]) });
-    const rows = page.map(row => ({ id: row.session.id, companyId: row.session.companyId, endpointId: row.session.endpointId,
+    const rows = page.map(row => ({ id: row.session.id, spaceId: row.session.spaceId, endpointId: row.session.endpointId,
       connectionId: row.connectionId, dueAt: voiceSessionRecoveryAt(row, enabled) }));
     signal?.throwIfAborted();
     const complete = page.length < 100;

@@ -9,7 +9,7 @@ const meta = {
   parameters: {
     layout: "fullscreen",
     docs: { description: { component: "Interactive design prototype: name → adapter → simulated creation → connection → configuration → confirmation. Each screen is directly inspectable below. All state is local to the story; subscription and API-key connections are simulated, and actual hiring is deferred. Use Start over to replay. The adapter and runner are fixed after creation." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "agents/hire"
       ],

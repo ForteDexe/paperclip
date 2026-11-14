@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
   __liveUpdatesTestUtils,
-  type CompanyLiveEventHandler,
+  type SpaceLiveEventHandler,
 } from "@/context/LiveUpdatesProvider";
 import type {
   GetSummarySlotResponse,
@@ -21,7 +21,7 @@ import { queryKeys } from "@/lib/queryKeys";
 // QA fixtures for PAP-13939 — mirror the shapes exercised by
 // SummarySlotCard.test.tsx so the browser render matches the unit coverage.
 
-const COMPANY_ID = "company-1";
+const SPACE_ID = "space-1";
 const SCOPE_KIND = "project" as const;
 const SCOPE_ID = "project-1";
 const SLOT_KEY = "header" as const;
@@ -88,7 +88,7 @@ function needsSetupSummarizer(): BuiltInAgentState {
 function slot(overrides: Partial<SummarySlot> = {}): SummarySlot {
   return {
     id: "slot-1",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     scopeKind: SCOPE_KIND,
     scopeId: SCOPE_ID,
     slotKey: SLOT_KEY,
@@ -108,7 +108,7 @@ function slot(overrides: Partial<SummarySlot> = {}): SummarySlot {
 function summaryDocument(overrides: Partial<SummarySlotDocument> = {}): SummarySlotDocument {
   return {
     id: "doc-1",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     title: "Project summary",
     format: "markdown",
     body: LATEST_BODY,
@@ -137,7 +137,7 @@ function issue(overrides: Partial<SummarySlotIssueRef> = {}): SummarySlotIssueRe
 function revision(overrides: Partial<SummarySlotRevision> = {}): SummarySlotRevision {
   return {
     id: "rev-1",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     documentId: "doc-1",
     revisionNumber: 1,
     title: "Project summary",
@@ -165,17 +165,17 @@ function Seed({ seed, children }: { seed: SeedInput; children: ReactNode }) {
     enableSummaries: seed.enableSummaries ?? true,
   });
   if (seed.agent) {
-    queryClient.setQueryData(queryKeys.builtInAgents.list(COMPANY_ID), [seed.agent]);
+    queryClient.setQueryData(queryKeys.builtInAgents.list(SPACE_ID), [seed.agent]);
   }
   if (seed.slotResponse) {
     queryClient.setQueryData(
-      queryKeys.summarySlots.detail(COMPANY_ID, SCOPE_KIND, SLOT_KEY, SCOPE_ID),
+      queryKeys.summarySlots.detail(SPACE_ID, SCOPE_KIND, SLOT_KEY, SCOPE_ID),
       seed.slotResponse,
     );
   }
   if (seed.revisionsResponse) {
     queryClient.setQueryData(
-      queryKeys.summarySlots.revisions(COMPANY_ID, SCOPE_KIND, SLOT_KEY, SCOPE_ID),
+      queryKeys.summarySlots.revisions(SPACE_ID, SCOPE_KIND, SLOT_KEY, SCOPE_ID),
       seed.revisionsResponse,
     );
   }
@@ -187,7 +187,7 @@ function CardHarness({ seed, width }: { seed: SeedInput; width: number }) {
     <Seed seed={seed}>
       <div style={{ width, maxWidth: "100%" }}>
         <SummarySlotCard
-          companyId={COMPANY_ID}
+          spaceId={SPACE_ID}
           scopeKind={SCOPE_KIND}
           scopeId={SCOPE_ID}
           slotKey={SLOT_KEY}
@@ -205,9 +205,9 @@ const { LiveEventSubscriptionContext, dispatchLiveEventToSubscribers } = __liveU
 // heartbeat.run.progress event once the card has mounted, so the generating
 // state renders its live status line (PAP-13984).
 function LiveStatusHarness({ seed, width, message }: { seed: SeedInput; width: number; message: string }) {
-  const subscribersRef = useRef<Set<CompanyLiveEventHandler>>(new Set());
+  const subscribersRef = useRef<Set<SpaceLiveEventHandler>>(new Set());
   const subscription = useRef({
-    subscribe: (fn: CompanyLiveEventHandler) => {
+    subscribe: (fn: SpaceLiveEventHandler) => {
       subscribersRef.current.add(fn);
       return () => {
         subscribersRef.current.delete(fn);
@@ -216,9 +216,9 @@ function LiveStatusHarness({ seed, width, message }: { seed: SeedInput; width: n
   });
 
   useEffect(() => {
-    dispatchLiveEventToSubscribers(subscribersRef.current, COMPANY_ID, {
+    dispatchLiveEventToSubscribers(subscribersRef.current, SPACE_ID, {
       id: 1,
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       type: "heartbeat.run.progress",
       createdAt: "2026-07-15T00:00:00.000Z",
       payload: { issueId: "issue-1", message },
@@ -247,9 +247,9 @@ function StreamingDraftHarness({
   draftText: string;
   sliceSize?: number;
 }) {
-  const subscribersRef = useRef<Set<CompanyLiveEventHandler>>(new Set());
+  const subscribersRef = useRef<Set<SpaceLiveEventHandler>>(new Set());
   const subscription = useRef({
-    subscribe: (fn: CompanyLiveEventHandler) => {
+    subscribe: (fn: SpaceLiveEventHandler) => {
       subscribersRef.current.add(fn);
       return () => {
         subscribersRef.current.delete(fn);
@@ -259,9 +259,9 @@ function StreamingDraftHarness({
 
   useEffect(() => {
     const runId = "run-summary-1";
-    dispatchLiveEventToSubscribers(subscribersRef.current, COMPANY_ID, {
+    dispatchLiveEventToSubscribers(subscribersRef.current, SPACE_ID, {
       id: 1,
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       type: "heartbeat.run.progress",
       createdAt: "2026-07-15T00:00:00.000Z",
       payload: { issueId: "issue-1", runId },
@@ -271,9 +271,9 @@ function StreamingDraftHarness({
     const timer = window.setTimeout(() => {
       let seq = 1;
       for (let i = 0; i < draftText.length; i += sliceSize) {
-        dispatchLiveEventToSubscribers(subscribersRef.current, COMPANY_ID, {
+        dispatchLiveEventToSubscribers(subscribersRef.current, SPACE_ID, {
           id: seq + 1,
-          companyId: COMPANY_ID,
+          spaceId: SPACE_ID,
           type: "heartbeat.run.log",
           createdAt: "2026-07-15T00:00:00.000Z",
           payload: {
@@ -329,7 +329,7 @@ const meta: Meta<typeof CardHarness> = {
   title: "Agents and reusable capabilities/Hiring, configuration, and organization/Summaries/SummarySlotCard",
   component: CardHarness,
   parameters: { layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "agents/built-in"
       ],

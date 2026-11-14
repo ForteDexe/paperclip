@@ -311,7 +311,7 @@ export interface RunnerPrpOutboundHandle {
 }
 
 /**
- * Keep a Paperclip-originated provider-ingress WebSocket attached to one ORP
+ * Keep a Outpost-originated provider-ingress WebSocket attached to one ORP
  * authority. Authentication is the readiness signal; HTTP success alone is not.
  */
 export function connectRunnerPrpIngress(input: {

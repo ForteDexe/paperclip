@@ -3,9 +3,9 @@ import { questionEvidencePasses } from "./basic-evidence.js";
 import { parseTargetConfig } from "./catalog.js";
 
 function evidence() {
-  return { companyId: "company", agentId: "agent", environmentId: "daytona", marker: "answer", model: "model", provider: "opencode", runtimeMode: "native",
-    issue: { id: "task", companyId: "company", workMode: "ask", status: "done", assigneeAgentId: "agent" },
-    runs: [{ id: "run", companyId: "company", agentId: "agent", issueId: "task", status: "succeeded", runtimeMode: "native",
+  return { spaceId: "space", agentId: "agent", environmentId: "daytona", marker: "answer", model: "model", provider: "opencode", runtimeMode: "native",
+    issue: { id: "task", spaceId: "space", workMode: "ask", status: "done", assigneeAgentId: "agent" },
+    runs: [{ id: "run", spaceId: "space", agentId: "agent", issueId: "task", status: "succeeded", runtimeMode: "native",
       contextSnapshot: { outpostEnvironment: { id: "daytona" } }, runnerProfileJson: { nativeExecutionInput: { provider: { kind: "opencode", model: "model" } } } }],
     comments: [{ authorAgentId: "agent", body: "answer" }] };
 }
@@ -13,7 +13,7 @@ describe("attached basic journey oracle", () => {
   it("accepts the bound saved answer and rejects plausible false passes", () => {
     expect(questionEvidencePasses(evidence())).toBe(true);
     const changes = [
-      (e: ReturnType<typeof evidence>) => { e.issue.companyId = "other"; },
+      (e: ReturnType<typeof evidence>) => { e.issue.spaceId = "other"; },
       (e: ReturnType<typeof evidence>) => { e.issue.workMode = "standard"; },
       (e: ReturnType<typeof evidence>) => { e.runs[0]!.issueId = "other"; },
       (e: ReturnType<typeof evidence>) => { e.runs[0]!.status = "failed"; },

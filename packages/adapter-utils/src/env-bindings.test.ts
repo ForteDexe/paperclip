@@ -2,18 +2,18 @@ import { describe, expect, it } from "vitest";
 import { buildAdapterEnvConfig, parseEnvBindings, parseEnvVars } from "./env-bindings.js";
 
 describe("parseEnvBindings", () => {
-  it("keeps plain, company secret, and user-scoped bindings", () => {
+  it("keeps plain, space secret, and user-scoped bindings", () => {
     const env = parseEnvBindings({
       PLAIN: { type: "plain", value: "on" },
       LEGACY_STRING: "raw",
-      COMPANY: { type: "secret_ref", secretId: "11111111-1111-1111-1111-111111111111", version: "latest" },
+      SPACE: { type: "secret_ref", secretId: "11111111-1111-1111-1111-111111111111", version: "latest" },
       USER: { type: "user_secret_ref", key: "github_token", version: "latest", required: true },
     });
 
     expect(env).toEqual({
       PLAIN: { type: "plain", value: "on" },
       LEGACY_STRING: { type: "plain", value: "raw" },
-      COMPANY: { type: "secret_ref", secretId: "11111111-1111-1111-1111-111111111111", version: "latest" },
+      SPACE: { type: "secret_ref", secretId: "11111111-1111-1111-1111-111111111111", version: "latest" },
       USER: { type: "user_secret_ref", key: "github_token", version: "latest", required: true },
     });
   });

@@ -29,7 +29,7 @@ disclosed local timeout and passing owner reproduction, lives in
 | --- | ---: | ---: | ---: | ---: |
 | server/src/__tests__/environment-runtime.test.ts | 8,110 | 7,223 | 887 | 162 |
 | server/src/__tests__/execution-workspaces-service.test.ts | 4,751 | 4,638 | 113 | 67 |
-| server/src/__tests__/company-portability.test.ts | 6,194 | 6,100 | 94 | 94 |
+| server/src/__tests__/space-portability.test.ts | 6,194 | 6,100 | 94 | 94 |
 | ui/src/pages/IssueDetail.test.tsx | 6,652 | 6,338 | 314 | 141 |
 | ui/src/components/IssueChatThread.test.tsx | 5,032 | 4,399 | 633 | 100 |
 | **Changed owners** | **30,739** | **28,698** | **2,041** | **564** |
@@ -43,18 +43,18 @@ skip condition, filename, CI route or production seam is removed.
 All nominated cases are retained. Each original case remains the primary
 keeper of its regression assertions; helpers own only repeated inputs.
 
-- Environment runtime: 71 repeated plugin/lease/worker/foreign-company
+- Environment runtime: 71 repeated plugin/lease/worker/foreign-space
   expressions become synchronous file-local fixture builders. Complete
   identity, author, schema, readiness, capability, install-order, stale lease,
   fingerprint and RPC-budget variants remain defaults or explicit overrides.
-  Preserve real persisted rows and the actual foreign-company rejection,
+  Preserve real persisted rows and the actual foreign-space rejection,
   orphan teardown/spool recovery and lease-reuse paths. Dynamic/spread rows
   and the named-constant secret provider stay inline.
 - Execution workspaces: 19 repeated task/recovery/branch/runtime/agent inputs
   become synchronous builders. Real Git operations, active claimant/runtime
   rows, locked races, clean/dirty divergence and durable recovery assertions
   remain in their original cases.
-- Company portability: 15 identical export invocations use one local helper;
+- Space portability: 15 identical export invocations use one local helper;
   their distinct fixture data, redaction, permission, import, selected-file,
   logo and membership expectations remain explicit.
 - IssueDetail: 98 identical root/provider render frames share one synchronous

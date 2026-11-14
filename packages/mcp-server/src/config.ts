@@ -1,7 +1,7 @@
-export interface PaperclipMcpConfig {
+export interface OutpostMcpConfig {
   apiUrl: string;
   apiKey: string;
-  companyId: string | null;
+  spaceId: string | null;
   agentId: string | null;
   runId: string | null;
 }
@@ -19,7 +19,7 @@ export function normalizeApiUrl(apiUrl: string): string {
   return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
 }
 
-export function readConfigFromEnv(env: NodeJS.ProcessEnv = process.env): PaperclipMcpConfig {
+export function readConfigFromEnv(env: NodeJS.ProcessEnv = process.env): OutpostMcpConfig {
   const apiUrl = nonEmpty(env.OUTPOST_API_URL);
   if (!apiUrl) {
     throw new Error("Missing OUTPOST_API_URL");
@@ -32,7 +32,7 @@ export function readConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Papercl
   return {
     apiUrl: normalizeApiUrl(apiUrl),
     apiKey,
-    companyId: nonEmpty(env.OUTPOST_COMPANY_ID),
+    spaceId: nonEmpty(env.OUTPOST_SPACE_ID),
     agentId: nonEmpty(env.OUTPOST_AGENT_ID),
     runId: nonEmpty(env.OUTPOST_RUN_ID),
   };

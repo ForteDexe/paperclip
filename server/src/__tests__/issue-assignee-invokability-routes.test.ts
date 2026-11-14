@@ -49,8 +49,8 @@ vi.mock("../services/cross-issue-influence-limit.js", async (importOriginal) => 
 }));
 
 vi.mock("../services/index.js", () => ({
-  companyService: () => ({
-    getById: vi.fn(async () => ({ id: "company-1" })),
+  spaceService: () => ({
+    getById: vi.fn(async () => ({ id: "space-1" })),
   }),
   accessService: () => ({
     canUser: vi.fn(async () => true),
@@ -65,20 +65,20 @@ vi.mock("../services/index.js", () => ({
   agentService: () => ({
     getById: vi.fn(async (id: string) => ({
       id,
-      companyId: "company-1",
+      spaceId: "space-1",
       status: agentStatusById[id] ?? "idle",
     })),
-    resolveByReference: vi.fn(async (_companyId: string, raw: string) => ({
+    resolveByReference: vi.fn(async (_spaceId: string, raw: string) => ({
       ambiguous: false,
       agent: {
         id: raw,
-        companyId: "company-1",
+        spaceId: "space-1",
         status: agentStatusById[raw] ?? "idle",
         orgChainHealth: { status: "healthy" },
       },
     })),
   }),
-  companySkillService: () => ({
+  spaceSkillService: () => ({
     completeTestRunForIssue: vi.fn(async () => null),
   }),
   documentAnnotationService: () => ({ remapOpenThreadsForDocument: async () => [] }),
@@ -98,7 +98,7 @@ vi.mock("../services/index.js", () => ({
         feedbackDataSharingPreference: "prompt",
       },
     })),
-    listCompanyIds: vi.fn(async () => ["company-1"]),
+    listSpaceIds: vi.fn(async () => ["space-1"]),
   }),
   issueApprovalService: () => ({}),
   issueReferenceService: () => ({
@@ -137,11 +137,11 @@ import { issueRoutes } from "../routes/issues.js";
 
 type Actor = Record<string, unknown>;
 
-function boardActor(): Actor {
+function operatorActor(): Actor {
   return {
-    type: "board",
-    userId: "local-board",
-    companyIds: ["company-1"],
+    type: "operator",
+    userId: "local-operator",
+    spaceIds: ["space-1"],
     source: "local_implicit",
     isInstanceAdmin: false,
   };
@@ -151,7 +151,7 @@ function agentActor(): Actor {
   return {
     type: "agent",
     agentId: AGENT_ACTOR_ID,
-    companyId: "company-1",
+    spaceId: "space-1",
     source: "agent_key",
     runId: AGENT_RUN_ID,
   };
@@ -168,7 +168,7 @@ function stubDb(): any {
     if (name !== "issues" && name !== "agents") return query;
     const rows = async () => name === "issues"
       ? [await mockIssueService.getById()].filter(Boolean)
-      : Object.entries(agentStatusById).map(([id, status]) => ({ id, status, companyId: "company-1", permissions: null }));
+      : Object.entries(agentStatusById).map(([id, status]) => ({ id, status, spaceId: "space-1", permissions: null }));
     const result = {
       where: () => result,
       orderBy: () => result,
@@ -196,7 +196,7 @@ function createApp(actor: Actor) {
 function makeIssue(overrides: Record<string, unknown> = {}) {
   return {
     id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    companyId: "company-1",
+    spaceId: "space-1",
     status: "todo",
     priority: "medium",
     projectId: null,
@@ -204,7 +204,7 @@ function makeIssue(overrides: Record<string, unknown> = {}) {
     parentId: null,
     assigneeAgentId: AGENT_ACTOR_ID,
     assigneeUserId: null,
-    createdByUserId: "local-board",
+    createdByUserId: "local-operator",
     identifier: "PAP-999",
     title: "Invokability test",
     executionPolicy: null,
@@ -273,13 +273,13 @@ describe("issue assignee invokability guard", () => {
     expect(mockIssueService.update).toHaveBeenCalled();
   });
 
-  it("allows a board user to assign to a paused agent deliberately", async () => {
+  it("allows a operator user to assign to a paused agent deliberately", async () => {
     const existing = makeIssue({ assigneeAgentId: null });
     const updated = makeIssue({ assigneeAgentId: PAUSED_AGENT_ID });
     mockIssueService.getById.mockResolvedValue(existing);
     mockIssueService.update.mockResolvedValue(updated);
 
-    const res = await request(createApp(boardActor()))
+    const res = await request(createApp(operatorActor()))
       .patch(`/api/issues/${existing.id}`)
       .send({ assigneeAgentId: PAUSED_AGENT_ID });
 
@@ -343,7 +343,7 @@ describe("agent delegation cycle guard", () => {
     expect(mockIssueService.createChild).toHaveBeenCalled();
   });
 
-  it("does not consult the guard for board actors", async () => {
+  it("does not consult the guard for operator actors", async () => {
     const parent = makeIssue({ assigneeAgentId: null });
     mockIssueService.getById.mockResolvedValue(parent);
     mockIssueService.createChild.mockResolvedValue({
@@ -351,7 +351,7 @@ describe("agent delegation cycle guard", () => {
       parentBlockerAdded: false,
     });
 
-    const res = await request(createApp(boardActor()))
+    const res = await request(createApp(operatorActor()))
       .post(`/api/issues/${parent.id}/children`)
       .send({
         title: "Human-created child",

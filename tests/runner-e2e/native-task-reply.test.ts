@@ -1,10 +1,10 @@
 import { expect, it } from "vitest";
 import { taskReplyBelongsToRun, uniqueBoundTaskReply, type TaskReplyObservation } from "./native-task-reply.js";
 
-const run = { id: "final-run", companyId: "owned-company", agentId: "owned-agent", status: "succeeded", runtimeMode: "native", resultJson: {} };
+const run = { id: "final-run", spaceId: "owned-space", agentId: "owned-agent", status: "succeeded", runtimeMode: "native", resultJson: {} };
 const observed: TaskReplyObservation = { body: "The exact final reply", anchor: "final-run:turn", settled: true, nativeFinal: true, visible: true };
 function events() {
-  return [{ seq: 1, runId: run.id, companyId: run.companyId, agentId: run.agentId, eventType: "item.completed", protocolSchemaVersion: 1,
+  return [{ seq: 1, runId: run.id, spaceId: run.spaceId, agentId: run.agentId, eventType: "item.completed", protocolSchemaVersion: 1,
     sourceEventId: "event", sourceInstanceId: "instance", sourceSeq: 1,
     payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, runId: run.id, sourceKind: "runner", eventType: "item.completed",
       sourceEventId: "event", sourceInstanceId: "instance", sourceSeq: 1, payload: { kind: "agentMessage", channel: "final", text: observed.body } } } }];
@@ -43,7 +43,7 @@ it("rejects a rendered finish summary with no durable final assistant message", 
   expect(taskReplyBelongsToRun(observed, summaryOnly, "owned-agent", [])).toBe(false);
   const changes = [
     (e: ReturnType<typeof events>[number]) => { e.runId = "other"; },
-    (e: ReturnType<typeof events>[number]) => { e.companyId = "other"; },
+    (e: ReturnType<typeof events>[number]) => { e.spaceId = "other"; },
     (e: ReturnType<typeof events>[number]) => { e.agentId = "other"; },
     (e: ReturnType<typeof events>[number]) => { e.protocolSchemaVersion = 99; },
     (e: ReturnType<typeof events>[number]) => { e.payload.orpEvent.sourceKind = "control_plane"; },

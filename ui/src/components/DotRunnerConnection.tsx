@@ -15,14 +15,14 @@ interface Connection {
 }
 
 /** Pairing codes stay in component memory and expire; never save them in config. */
-export function DotRunnerConnection({ companyId, agentId, bindingId, onBinding }: {
-  companyId?: string; agentId?: string; bindingId?: string; onBinding: (id: string) => void;
+export function DotRunnerConnection({ spaceId, agentId, bindingId, onBinding }: {
+  spaceId?: string; agentId?: string; bindingId?: string; onBinding: (id: string) => void;
 }) {
   const client = useQueryClient();
   const [pairing, setPairing] = useState<{ pairingCode: string; expiresAt: string } | null>(null);
-  const path = `/companies/${companyId}/agents/${agentId}/dot-binding`;
-  const key = ["dot-binding", companyId, agentId];
-  const state = useQuery({ queryKey: key, enabled: !!companyId && !!agentId,
+  const path = `/spaces/${spaceId}/agents/${agentId}/dot-binding`;
+  const key = ["dot-binding", spaceId, agentId];
+  const state = useQuery({ queryKey: key, enabled: !!spaceId && !!agentId,
     queryFn: () => api.get<Connection>(path),
     refetchInterval: query => query.state.data?.binding?.status === "pairing" ||
       (query.state.data?.binding?.connected && !query.state.data.binding.subscriptionVerified) ||
@@ -54,8 +54,8 @@ export function DotRunnerConnection({ companyId, agentId, bindingId, onBinding }
   if (!agentId) return <p className="text-sm text-muted-foreground">Save the agent, then return here to pair your Dot.</p>;
   const mutationError = pair.error ?? test.error ?? revoke.error;
   const b = state.data?.binding;
-  const setupPrompt = pairing && state.data?.resourceUrl && companyId && agentId
-    ? buildDotSetupPrompt({ companyId, agentId, resourceUrl: state.data.resourceUrl, ...pairing })
+  const setupPrompt = pairing && state.data?.resourceUrl && spaceId && agentId
+    ? buildDotSetupPrompt({ spaceId, agentId, resourceUrl: state.data.resourceUrl, ...pairing })
     : "";
   return <div className="space-y-3">
     <p className="text-sm text-muted-foreground">Dot manages its model and external tools. Outpost supplies task coordination, people, assigned skills, and connected app tools. Dot can start a task directly from its conversation. Enable Read task attachments below to send assigned task file contents to OpenAI. Enable workspace files and commands for work in the assigned workspace. Provider usage details are not imported; stopping an Outpost run revokes access without confirming an external stop.</p>

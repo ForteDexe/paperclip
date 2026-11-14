@@ -19,7 +19,7 @@ export async function installCommentaryReader(ctx: ChatCatalogContext, person: P
   // mutation methods never escape: the approved observer exposes GETs only.
   const evidenceApi = new RunnerApi(page.context().request);
   evidenceApi.setBrowserSession(cookie);
-  ctx.input.ownedRunEvidenceObserver = createOwnedChatRunEvidenceObserver(evidenceApi, ctx.input.fixtures.company.id);
+  ctx.input.ownedRunEvidenceObserver = createOwnedChatRunEvidenceObserver(evidenceApi, ctx.input.fixtures.space.id);
   let restored = false;
   const restore = async () => {
     if (restored) return;
@@ -48,10 +48,10 @@ export async function installCommentaryReader(ctx: ChatCatalogContext, person: P
     } finally { if (!response.bodyUsed) await response.body?.cancel(); }
     if (apiPerson.user?.id !== person.id || browserPerson.user?.id !== person.id)
       throw new Error("Commentary API and browser do not represent the same real reader");
-    const source = await api.post<{ id: string; companyId: string; conversationUserId: string; conversationAgentId: string }>(
-      `/api/companies/${ctx.input.fixtures.company.id}/chats/${ctx.input.fixtures.agent.id}`);
+    const source = await api.post<{ id: string; spaceId: string; conversationUserId: string; conversationAgentId: string }>(
+      `/api/spaces/${ctx.input.fixtures.space.id}/chats/${ctx.input.fixtures.agent.id}`);
     await ctx.refreshIssue();
-    if (source.companyId !== ctx.input.fixtures.company.id || source.conversationUserId !== person.id
+    if (source.spaceId !== ctx.input.fixtures.space.id || source.conversationUserId !== person.id
       || source.conversationAgentId !== ctx.input.fixtures.agent.id || ctx.issue()?.id !== source.id)
       throw new Error("Canonical commentary conversation is not owned by its actual reader");
     const receipt = { ownerId, readerId: person.id, apiUserId: apiPerson.user.id, browserUserId: browserPerson.user.id,

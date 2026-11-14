@@ -1,10 +1,10 @@
 # First-task onboarding assets
 
 Everything the very first agent is told during onboarding lives here as plain
-markdown so the board can edit the wording without touching TypeScript. The
+markdown so the operator can edit the wording without touching TypeScript. The
 server loads these files (see `server/src/services/onboarding-first-task-assets.ts`
 and `server/src/services/onboarding-greeting.ts`) when it creates a new
-Outpost's first task and when it hires the first agent. The first agent
+Outpost's first task and when it creations the first agent. The first agent
 also receives the bundled `first-task` skill through the normal Outpost skill
 inventory and agent skill assignment flow.
 
@@ -16,7 +16,7 @@ inventory and agent skill assignment flow.
 | `opening-question.json` | C | The deterministic `ask_user_questions` card the server posts as the agent right after the greeting: "Interview me and propose a plan and an agent team to execute it." or "I have a task in mind" (free text). The option ids `interview` and `task` are fixed because the `first-task` skill refers to them; the `task` option must keep `freeText: true`. No LLM. |
 | `brief.md` | A | The first task's hidden description: a short `/first-task` invocation and the `{{proposalMode}}` selected at creation. |
 | `skills/first-task/SKILL.md` | A (workflow) | The full first-task policy: opening-answer handling, interview, proposals, approval, and execution. Includes both single-task proposal modes. |
-| `chief-of-staff/AGENTS.md` | B | The chief-of-staff persona seeded over the first agent's entry instruction file at hire time. |
+| `chief-of-staff/AGENTS.md` | B | The chief-of-staff persona seeded over the first agent's entry instruction file at create time. |
 | `README.md` | — | This file. |
 
 ## The opening card
@@ -66,8 +66,8 @@ change an existing first task.
 ## Skill assignment and invocation
 
 The Outpost skill service imports `skills/first-task/SKILL.md` with canonical
-key `paperclipai/paperclip/first-task` and runtime name `first-task`. The agent
-create and hire routes add it alongside the five core skills for board-created
+key `outpost/outpost/first-task` and runtime name `first-task`. The agent
+create and create routes add it alongside the five core skills for operator-created
 `onboardingFirstAgent` agents on skills-capable adapters, including Codex and
 Claude. Other agents do not receive it automatically.
 

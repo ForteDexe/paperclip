@@ -24,7 +24,7 @@ export function DispositionRecoveryProvider({ value, children }: { value: Dispos
 /** Older notices can be identified by their stored action/run IDs, never their copy. */
 export function readDispositionRecoverySnapshot(metadata: IssueCommentMetadata | null | undefined, action?: DispositionRecoveryContextValue["issue"]["activeRecoveryAction"]): DispositionRecoverySnapshot | null {
   if (metadata?.recovery?.kind === "disposition_repair_escalated") return metadata.recovery;
-  if (!metadata || !action || action.kind !== "deliberate_wait_without_target" || action.ownerType !== "board" || action.wakePolicy?.type !== "board_escalation") return null;
+  if (!metadata || !action || action.kind !== "deliberate_wait_without_target" || action.ownerType !== "operator" || action.wakePolicy?.type !== "operator_escalation") return null;
   const evidence = action.evidence;
   if (!metadata.sourceRunId || metadata.sourceRunId !== evidence?.latestRunId) return null;
   if (!metadata.sections.some(section => section.rows.some(row => row.type === "key_value" && row.value === action.id))) return null;
@@ -43,7 +43,7 @@ export function dispositionRetryUnavailableReason(snapshot: DispositionRecoveryS
   const action = issue.activeRecoveryAction;
   if (!action || action.id !== snapshot.actionId || action.status !== "active") return "This recovery notice is no longer active.";
   if (issue.status !== "blocked") return "The task’s state has changed. Review its current state before retrying.";
-  if (action.kind !== "deliberate_wait_without_target" || action.ownerType !== "board" || action.wakePolicy?.type !== "board_escalation") return "The task’s recovery state has changed. Refresh to see the current action.";
+  if (action.kind !== "deliberate_wait_without_target" || action.ownerType !== "operator" || action.wakePolicy?.type !== "operator_escalation") return "The task’s recovery state has changed. Refresh to see the current action.";
   if (!snapshot.assigneeAgentId || issue.assigneeAgentId !== snapshot.assigneeAgentId || action.returnOwnerAgentId !== snapshot.assigneeAgentId) return "The assigned agent has changed. Review the task before retrying.";
   if (context.unavailableReason) return context.unavailableReason;
   if (context.hasPendingInteraction) return "Respond to the pending question or confirmation before retrying.";

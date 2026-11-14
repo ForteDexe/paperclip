@@ -183,7 +183,7 @@ export class PiAssistantMessages {
         this.active = null;
       }
     }
-    return { ...event, paperclipAssistantMessage: boundary };
+    return { ...event, outpostAssistantMessage: boundary };
   }
 }
 
@@ -464,7 +464,7 @@ export class PiUiBridge {
         const input = record(permission.input);
         const result = record(await this.connection.requestPermission({
           sessionId: this.sessionId,
-          toolCall: { toolCallId, _meta: { paperclipPi: { nativeToolCallId: text(permission.nativeToolCallId, 256), modelIteration: permission.modelIteration } }, title: `Pi ${toolName}`, kind: toolName === "bash" ? "execute" : ["write", "edit"].includes(toolName) ? "edit" : "read", status: "pending", rawInput: input },
+          toolCall: { toolCallId, _meta: { outpostPi: { nativeToolCallId: text(permission.nativeToolCallId, 256), modelIteration: permission.modelIteration } }, title: `Pi ${toolName}`, kind: toolName === "bash" ? "execute" : ["write", "edit"].includes(toolName) ? "edit" : "read", status: "pending", rawInput: input },
           options: PERMISSION_CHOICES,
         }));
         const outcome = record(result.outcome);
@@ -484,7 +484,7 @@ export class PiUiBridge {
       const result = record(await this.connection.unstable_createElicitation({
         sessionId: this.sessionId, mode: "form", message: typeof event.message === "string" ? text(event.message) : title,
         requestedSchema: { type: "object", title, properties: { answer: property }, required: ["answer"] },
-        _meta: { paperclipPi: { version: 1, requestId: id, method } },
+        _meta: { outpostPi: { version: 1, requestId: id, method } },
       }));
       if (result.action !== "accept") { await finish({ cancelled: true }); return; }
       const answer = record(result.content).answer;
@@ -570,7 +570,7 @@ export class PiTurnUsage {
 
   response(stopReason?: "end_turn" | "cancelled"): RecordValue {
     return {
-      ...(this.observed ? { usage: { ...Object.fromEntries(Object.entries(this.total).filter(([name]) => !this.unknown.has(name as keyof typeof this.total))), _meta: { paperclipPi: { provenance: this.compactionObserved ? "assistant_message_and_compaction_receipts" : "assistant_message_receipts", ...(this.costObserved && !this.costIncomplete ? { costUsd: this.cost, costSource: "pi_pricing_estimate" } : {}) } } } } : {}),
+      ...(this.observed ? { usage: { ...Object.fromEntries(Object.entries(this.total).filter(([name]) => !this.unknown.has(name as keyof typeof this.total))), _meta: { outpostPi: { provenance: this.compactionObserved ? "assistant_message_and_compaction_receipts" : "assistant_message_receipts", ...(this.costObserved && !this.costIncomplete ? { costUsd: this.cost, costSource: "pi_pricing_estimate" } : {}) } } } } : {}),
       ...(this.failed && stopReason !== "cancelled" ? { _meta: { jetbrains: { air: { version: 1, sessionFailure: { severity: "error", category: "service", title: "Pi provider request failed" } } } } } : {}),
     };
   }

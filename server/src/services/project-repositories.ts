@@ -67,7 +67,7 @@ export function normalizeProjectRepositoryUrl(value: string): { fullName: string
  * sources need anonymous discovery; unknown visibility must never start a private clone. */
 export async function projectRepositoryIsPrivate(
   db: import("@outpost/db").Db,
-  companyId: string,
+  spaceId: string,
   workspace: Pick<ProjectWorkspace, "repoUrl" | "metadata">,
 ): Promise<boolean> {
   const repo = normalizeProjectRepositoryUrl(workspace.repoUrl!);
@@ -78,8 +78,8 @@ export async function projectRepositoryIsPrivate(
     from jsonb_array_elements(coalesce(${connectionGrants.providerTenant}->'github'->'repositories', '[]'::jsonb)) repository
     where lower(repository->>'fullName') = ${repo.fullName.toLowerCase()}
   )` }).from(connectionGrants).innerJoin(toolConnections, and(
-    eq(toolConnections.id, connectionGrants.connectionId), eq(toolConnections.companyId, companyId),
-  )).where(and(eq(connectionGrants.companyId, companyId), eq(connectionGrants.status, "active"),
+    eq(toolConnections.id, connectionGrants.connectionId), eq(toolConnections.spaceId, spaceId),
+  )).where(and(eq(connectionGrants.spaceId, spaceId), eq(connectionGrants.status, "active"),
     eq(toolConnections.status, "active"), eq(toolConnections.enabled, true)));
   // OAuth refreshes change updatedAt without observing repository visibility.
   const current = visibility.filter(row => typeof row.private === "boolean" && Number.isFinite(Date.parse(row.refreshedAt ?? "")))

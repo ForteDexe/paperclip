@@ -25,12 +25,12 @@ export const getAgentAction = {
     "orpEvidence": "read projection surfaced via a tool-result item event; no control-plane state diff",
     "orpBindingStatus": "audit_pending",
     "legacyAliases": [
-      "mcp:paperclipGetAgent"
+      "mcp:outpostGetAgent"
     ],
     "note": "Live-only single-actor read; the scenario suite covers actor discovery through list_agents."
   },
   "documentation": {
-    "title": "Get company agent",
+    "title": "Get space agent",
     "description": "Read one redacted actor profile.",
     "note": "Live-only single-actor read; the scenario suite covers actor discovery through list_agents."
   },
@@ -53,7 +53,7 @@ export const getAgentAction = {
       "schema": "outpost.semantic-tool.v1",
       "operationId": "get_agent",
       "version": 1,
-      "title": "Get company agent",
+      "title": "Get space agent",
       "description": "Read one redacted actor profile.",
       "exposure": "optional",
       "requiredClaims": [

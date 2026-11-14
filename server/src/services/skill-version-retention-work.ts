@@ -1,5 +1,5 @@
 import path from "node:path";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 import { logger } from "../middleware/logger.js";
 import { registerDeadlineWork } from "./deadline-work.js";
 import type { createDeliveryWorkCoordinator } from "./delivery-work-coordinator.js";
@@ -8,14 +8,14 @@ import { onSkillVersionCacheChange } from "./skill-version-retention-notificatio
 import type { skillVersionRetentionService, SkillVersionPruneResult } from "./skill-version-retention.js";
 
 type RetentionService = ReturnType<typeof skillVersionRetentionService>;
-type ActiveCompany = { id: string; cursor: SkillVersionPruneResult["cursor"]; nextRunAt: number | null; rescanOwed: boolean };
+type ActiveSpace = { id: string; cursor: SkillVersionPruneResult["cursor"]; nextRunAt: number | null; rescanOwed: boolean };
 
 export function registerSkillVersionRetentionWork(
   coordinator: ReturnType<typeof createDeliveryWorkCoordinator>,
   service: RetentionService,
   canRun: () => boolean,
 ) {
-  const root = path.resolve(resolvePaperclipInstanceRoot(), "skills");
+  const root = path.resolve(resolveOutpostInstanceRoot(), "skills");
   const dirty = new Set<string>();
   const deadlines = new Map<string, number>();
   const failures = new Map<string, number>();
@@ -28,7 +28,7 @@ export function registerSkillVersionRetentionWork(
   };
   let discoveryAfter = 0, discoveryLoading = false, discoveryAgain = false;
   let discovery: { after?: string; retryAt: number } | null = { retryAt: 0 };
-  let active: ActiveCompany | null = null;
+  let active: ActiveSpace | null = null;
   let continuationAt = 0;
   const readyAt = (id: string) => Math.max(failures.get(id) ?? 0,
     Math.min(deadlines.get(id) ?? Infinity, cacheDeadline(id)) <= Date.now() ? 0 : freshScanAfter.get(id) ?? 0);
@@ -65,12 +65,12 @@ export function registerSkillVersionRetentionWork(
         if (entries.size === 0) cacheChanges.delete(id);
       }
       let inspected = 0;
-      let companies = 0;
+      let spaces = 0;
       const scope = discovery;
       if (scope && scope.retryAt <= Date.now() && admitted()) {
         discoveryLoading = true;
         try {
-          const rows = await service.listCompanies(scope.after);
+          const rows = await service.listSpaces(scope.after);
           for (const row of rows) dirty.add(row.id);
           if (discovery === scope) {
             if (rows.length === 51) discovery = { after: rows.at(-1)!.id, retryAt: 0 };
@@ -82,10 +82,10 @@ export function registerSkillVersionRetentionWork(
           }
         } catch (err) {
           if (discovery === scope) scope.retryAt = Date.now() + 30_000;
-          logger.warn({ err }, "skill cache retention company discovery failed");
+          logger.warn({ err }, "skill cache retention space discovery failed");
         } finally { discoveryLoading = false; }
       }
-      while (companies < 50 && inspected < 50 && admitted()) {
+      while (spaces < 50 && inspected < 50 && admitted()) {
         if (!active) {
           const id = [...dirty].find(id => readyAt(id) <= Date.now());
           if (!id) break;
@@ -94,36 +94,36 @@ export function registerSkillVersionRetentionWork(
           deadlines.delete(id);
           cacheChanges.delete(id);
         }
-        const company = active;
+        const space = active;
         try {
-          const result = await service.pruneCompany(company.id, {
-            cursor: company.cursor, maxEntries: 50 - inspected, shouldContinue: admitted,
+          const result = await service.pruneSpace(space.id, {
+            cursor: space.cursor, maxEntries: 50 - inspected, shouldContinue: admitted,
           });
           if (result.checked > 0 || result.failed > 0 || Object.keys(result.skipped).length > 0) {
-            logger.info({ ...result, companyId: company.id, dryRun: service.dryRun }, "skill version snapshot retention");
+            logger.info({ ...result, spaceId: space.id, dryRun: service.dryRun }, "skill version snapshot retention");
           }
           inspected += result.checked;
-          companies++;
-          if (result.nextRunAt !== null) company.nextRunAt = Math.min(company.nextRunAt ?? Infinity, result.nextRunAt);
-          company.cursor = result.cursor;
-          failures.delete(company.id);
+          spaces++;
+          if (result.nextRunAt !== null) space.nextRunAt = Math.min(space.nextRunAt ?? Infinity, result.nextRunAt);
+          space.cursor = result.cursor;
+          failures.delete(space.id);
           if (result.interrupted || !admitted()) {
-            company.cursor = null;
-            company.nextRunAt = null;
+            space.cursor = null;
+            space.nextRunAt = null;
             continuationAt = Date.now() + 1000;
             return;
           }
           if (result.truncated) break;
-          if (company.rescanOwed) freshScanAfter.delete(company.id);
-          else freshScanAfter.set(company.id, Date.now() + 30_000);
-          if (company.nextRunAt !== null) deadlines.set(company.id, company.nextRunAt);
+          if (space.rescanOwed) freshScanAfter.delete(space.id);
+          else freshScanAfter.set(space.id, Date.now() + 30_000);
+          if (space.nextRunAt !== null) deadlines.set(space.id, space.nextRunAt);
           active = null;
         } catch (err) {
-          dirty.add(company.id);
-          failures.set(company.id, Date.now() + 30_000);
+          dirty.add(space.id);
+          failures.set(space.id, Date.now() + 30_000);
           active = null;
-          companies++;
-          logger.warn({ err, companyId: company.id }, "skill cache retention company inspection failed");
+          spaces++;
+          logger.warn({ err, spaceId: space.id }, "skill cache retention space inspection failed");
         }
       }
       continuationAt = Date.now() + 1000;
@@ -141,10 +141,10 @@ export function registerSkillVersionRetentionWork(
   });
   const unsubscribe = onSkillVersionCacheChange(change => {
     if (change.root !== root) return;
-    let entries = cacheChanges.get(change.companyId);
-    if (!entries) { entries = new Map(); cacheChanges.set(change.companyId, entries); }
+    let entries = cacheChanges.get(change.spaceId);
+    if (!entries) { entries = new Map(); cacheChanges.set(change.spaceId, entries); }
     entries.set(change.directory, change.occurredAt + service.graceMs);
-    if (change.source === "publication") dirty.add(change.companyId);
+    if (change.source === "publication") dirty.add(change.spaceId);
     worker.wake();
   });
   return { ...worker, unsubscribe, dispose: () => { unsubscribe(); cacheChanges.clear(); return service.dispose(); } };

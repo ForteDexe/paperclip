@@ -9,14 +9,14 @@ import type { CurrentBoardAccess } from "@/api/access";
 import {
   storybookAgents,
   storybookAuthSession,
-  storybookCompanies,
+  storybookSpaces,
   storybookIssues,
   storybookProjects,
   storybookSidebarBadges,
   storybookDashboardSummary,
-} from "./paperclipData";
+} from "./outpostData";
 
-export const privacyCompanyId = "company-storybook";
+export const privacySpaceId = "space-storybook";
 export const privacyOwnerId = "user-board";
 export const privacyReaderId = "user-product";
 const createdAt = new Date("2026-09-30T09:00:00Z");
@@ -132,7 +132,7 @@ export function privacyTask(overrides: Partial<Issue> = {}): Issue {
     visibility: "private",
     privacyRootIssueId: "privacy-root",
     privacyParentIssueId: null,
-    companyId: privacyCompanyId,
+    spaceId: privacySpaceId,
     responsibleUserId: privacyOwnerId,
     createdByUserId: privacyOwnerId,
     createdByAgentId: null,
@@ -230,8 +230,8 @@ export function createPrivacyState(options: PrivacyScenario = {}) {
     project,
     privacyProject({
       id: "project-open",
-      name: "Company operations",
-      urlKey: "company-operations",
+      name: "Space operations",
+      urlKey: "space-operations",
       visibility: "open",
     }),
   ];
@@ -301,7 +301,7 @@ export function createPrivacyState(options: PrivacyScenario = {}) {
     .map((item) => ({
       id: "member-" + item.id,
       projectId: project.id,
-      companyId: privacyCompanyId,
+      spaceId: privacySpaceId,
       subjectType: "user",
       subjectId: item.id,
       subjectDisplayName: item.name,
@@ -312,10 +312,10 @@ export function createPrivacyState(options: PrivacyScenario = {}) {
     user,
     userId: user.id,
     isInstanceAdmin: false,
-    companyIds: [privacyCompanyId],
+    spaceIds: [privacySpaceId],
     memberships: [
       {
-        companyId: privacyCompanyId,
+        spaceId: privacySpaceId,
         membershipRole: role === "admin" ? "admin" : "member",
         status: "active",
       },
@@ -345,7 +345,7 @@ export type PrivacyState = ReturnType<typeof createPrivacyState>;
 export function installPrivacyApi(state: PrivacyState) {
   const previous = window.fetch;
   const failed = new Set<string>();
-  const draftKey = `paperclip:issue-draft:${state.user.id}`;
+  const draftKey = `outpost:issue-draft:${state.user.id}`;
   const oldDraft = localStorage.getItem(draftKey);
   localStorage.removeItem(draftKey);
   if (state.options.draft)
@@ -357,7 +357,7 @@ export function installPrivacyApi(state: PrivacyState) {
         isPrivate: true,
         status: "todo",
         priority: "medium",
-        companyId: privacyCompanyId,
+        spaceId: privacySpaceId,
       }),
     );
   const fail = (key: PrivacyScenario["failure"]) => {
@@ -427,7 +427,7 @@ export function installPrivacyApi(state: PrivacyState) {
     if (path.endsWith("/budgets/overview")) return json({ policies: [] });
     if (path === "/api/auth/get-session") return json(state.session);
     if (path === "/api/cli-auth/me") return json(state.access);
-    if (path === "/api/companies") return json(storybookCompanies);
+    if (path === "/api/spaces") return json(storybookSpaces);
     if (path === "/api/health")
       return json({
         status: "ok",
@@ -459,11 +459,11 @@ export function installPrivacyApi(state: PrivacyState) {
         documentStarredAt: {},
         updatedAt: null,
       });
-    if (path === "/api/companies/" + privacyCompanyId + "/agents")
+    if (path === "/api/spaces/" + privacySpaceId + "/agents")
       return json(privacyAgents);
-    if (path === "/api/companies/" + privacyCompanyId + "/projects")
+    if (path === "/api/spaces/" + privacySpaceId + "/projects")
       return json(state.projects);
-    if (path === "/api/companies/" + privacyCompanyId + "/issues") {
+    if (path === "/api/spaces/" + privacySpaceId + "/issues") {
       if (method === "POST") {
         const error = fail("create");
         if (error) return error;
@@ -677,7 +677,7 @@ export function installPrivacyApi(state: PrivacyState) {
           {
             id: "privacy-comment",
             issueId: item.id,
-            companyId: privacyCompanyId,
+            spaceId: privacySpaceId,
             authorUserId: privacyOwnerId,
             authorAgentId: null,
             body: "Use the research in [PAP-411](/PAP/issues/PAP-411). Keep the briefing and compensation notes private.",
@@ -719,7 +719,7 @@ export function installPrivacyApi(state: PrivacyState) {
         );
         const member: ProjectAccessMember = {
           id: "member-added-" + data.subjectId,
-          companyId: privacyCompanyId,
+          spaceId: privacySpaceId,
           projectId: project.id,
           createdAt,
           subjectAvatarUrl: null,
@@ -757,7 +757,7 @@ export function installPrivacyApi(state: PrivacyState) {
     if (path.endsWith("/sidebar-badges")) return json(storybookSidebarBadges);
     if (path.endsWith("/budgets/overview"))
       return json({
-        companyId: privacyCompanyId,
+        spaceId: privacySpaceId,
         policies: [],
         activeIncidents: [],
         pausedAgentCount: 0,
@@ -766,7 +766,7 @@ export function installPrivacyApi(state: PrivacyState) {
       });
     if (path.endsWith("/budget-summary")) return json({});
     if (path.includes("/settings")) return json({});
-    // These stories never contact a real company, connector, or backend.
+    // These stories never contact a real space, connector, or backend.
     return json([]);
   };
   return () => {

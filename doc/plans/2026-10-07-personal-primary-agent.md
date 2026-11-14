@@ -11,14 +11,14 @@ now includes persistence, API wiring, and production defaults.
 - Source: `ui/storybook/stories/primary-agent/` (one feature folder).
 - Shared presentation: `ui/src/components/primary-agent/PrimaryAgentPresentation.tsx`.
 - Stories keep simulated state as the approved reference. The application now
-  mounts a separate provider backed by a user/company preference endpoint.
+  mounts a separate provider backed by a user/space preference endpoint.
 - Delivery includes real test-drive acceptance on desktop/mobile and required
   repository checks. After reviewing the working feature, the user requested a
   pull request with passing checks and merge into master.
 
 ## Agreed product contract
 
-Each person has one primary agent per company, marked with an accessible
+Each person has one primary agent per space, marked with an accessible
 "My primary agent" crown on the profile and agent list. Neither the Agents
 sidebar nor the Chat sidebar shows a crown. Different people can choose different agents; the
 preference will persist across devices. Crowning does not change roles,
@@ -82,10 +82,10 @@ not evidence of authorization, persistence, concurrency, or real execution.
 
 ## Implementation delivered
 
-1. Added a company/user preference with nullable primaryAgentId and initialization
+1. Added a space/user preference with nullable primaryAgentId and initialization
    state; enforce uniqueness. Synchronize db/shared/server/ui contracts.
-2. Added authenticated GET/PUT `/api/companies/:companyId/primary-agent/me`, deriving
-   the user from authentication, enforcing company access and agent visibility,
+2. Added authenticated GET/PUT `/api/spaces/:spaceId/primary-agent/me`, deriving
+   the user from authentication, enforcing space access and agent visibility,
    rejecting agent actors, and recording mutation activity.
 3. Initialized transactionally during human-attributed creation. Concurrent
    creations establish one primary and cannot overwrite an explicit choice or
@@ -93,14 +93,14 @@ not evidence of authorization, persistence, concurrency, or real execution.
    if that original agent is gone or terminated, leave the crown empty. Unknown
    ownership remains unset.
 4. Added lifecycle cleanup and existing membership rejoin behavior. Connected a
-   user/company-scoped query hook to the reviewed presentation and defaults.
-5. Verified concurrency, backfill, lifecycle cleanup, user/company isolation
+   user/space-scoped query hook to the reviewed presentation and defaults.
+5. Verified concurrency, backfill, lifecycle cleanup, user/space isolation
    (including local trusted mode), drafts, recent selections, unavailable agents,
    and real desktop/mobile task and Chat journeys.
 
 ## Real test-drive acceptance (2026-10-07)
 
-- Isolated CLI test drive: `/tmp/paperclip-primary-agent-test-drive`, company
+- Isolated CLI test drive: `/tmp/outpost-primary-agent-test-drive`, space
   **Primary Agent Test Drive**, prefix `PRI`, at http://localhost:3104.
 - Maia was crowned automatically through the real creation API. Creating Alex
   preserved Maia. The simplified creation wizard's model-connection step rejected
@@ -122,7 +122,7 @@ not evidence of authorization, persistence, concurrency, or real execution.
   and the page has no horizontal overflow. Viewport override reset afterward.
 - Focused tests cover initialization, simultaneous creation/selection, audit order,
   leave races, backfill, visibility boundaries, viewer self-service, auth-derived
-  user/company isolation, optimistic rollback/retry, session retry, task defaults,
+  user/space isolation, optimistic rollback/retry, session retry, task defaults,
   and recent Chat precedence.
 
 ## Verification results
@@ -136,7 +136,7 @@ not evidence of authorization, persistence, concurrency, or real execution.
   resolves that migration-verification concern.
 - Focused primary/default/provider checks passed: **106 tests** across final
   runs (9 database/API tests, plus provider, composer, and Chat tests).
-- Existing onboarding, hire idempotency, resource membership, and company import
+- Existing onboarding, hire idempotency, resource membership, and space import
   suites passed: **125 tests**. Legacy approval plus terminalization checks:
   **15 tests passed**. Import/approval expectations now assert original creator
   attribution rather than dropping the new creation option.
@@ -165,16 +165,16 @@ the primary is their fallback when no eligible recent choice or draft exists.
   directory; the local config copy caused the delay. The large Git streaming test
   also passes when run alone (296 seconds).
 - Initial CI identified stale creation-option assertions and app remounts on
-  company changes. Preserve mounted app children and bind each pending mutation
-  to its original user/company. Refresh membership caches for primary changes
+  space changes. Preserve mounted app children and bind each pending mutation
+  to its original user/space. Refresh membership caches for primary changes
   received from other devices.
-- Security review identified agent mappings in company activity. Preference
+- Security review identified agent mappings in space activity. Preference
   events now record only the affected user and action, with no selected agent IDs.
   An authenticated cross-user activity endpoint test covers this boundary.
 - Review fixes pass 96 database/permission-route tests and 127 provider,
   live-update, and skill-route tests. Final merge requires fresh-head CI and review.
 - The affected browser suites pass all 10 tests, including onboarding, archived
-  company navigation, Chat fallback without execution, and slow-CPU reloads.
+  space navigation, Chat fallback without execution, and slow-CPU reloads.
 - The second PR run passed 52 checks and Greptile 5/5, with one OpenAPI inventory
   failure. Both personal endpoints now have board-only request/response contracts
   in OpenAPI. Its 14 tests and the remaining 28 tests in that shard pass locally.

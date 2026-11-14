@@ -8,7 +8,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { agents, companies, createDb, heartbeatRuns, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
+import { agents, spaces, createDb, heartbeatRuns, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
 import {
   listPendingBudgetCancellationScopes,
   pendingBudgetRunCancellationExistsQuery,
@@ -38,40 +38,40 @@ try {
 
   // Two tenants. Most runs carry an incompressible result JSON, so a scan must
   // read TOAST. A few runs carry committed Stops: pending, delivered, decoys.
-  const companyIds = [randomUUID(), randomUUID()];
+  const spaceIds = [randomUUID(), randomUUID()];
   const agentIds = [randomUUID(), randomUUID(), randomUUID()];
-  await db.insert(companies).values(companyIds.map((id, n) => ({ id, name: `Budget scan ${n}`, issuePrefix: `BS${n}` })));
-  await db.insert(agents).values(agentIds.map((id, n) => ({ id, companyId: companyIds[n % 2]!, name: `Agent ${n}`, adapterType: "process" })));
+  await db.insert(spaces).values(spaceIds.map((id, n) => ({ id, name: `Budget scan ${n}`, issuePrefix: `BS${n}` })));
+  await db.insert(agents).values(agentIds.map((id, n) => ({ id, spaceId: spaceIds[n % 2]!, name: `Agent ${n}`, adapterType: "process" })));
   const payload = randomBytes(payloadKib * 768).toString("base64");
-  await db.$client.unsafe(`insert into heartbeat_runs (company_id, agent_id, status, runtime_mode, created_at, updated_at, result_json)
+  await db.$client.unsafe(`insert into heartbeat_runs (space_id, agent_id, status, runtime_mode, created_at, updated_at, result_json)
     select case when n % 2 = 0 then $1::uuid else $2::uuid end, case when n % 2 = 0 then $3::uuid else $4::uuid end,
       (array['succeeded','failed','cancelled','timed_out'])[1 + n % 4], 'legacy',
       timestamptz '2026-10-01' + n * interval '1 second', timestamptz '2026-10-01' + n * interval '1 second',
       jsonb_build_object('summary', $5::text, 'stdoutExcerpt', left($5::text, 512))
-    from generate_series(1, $6::int) n`, [companyIds[0], companyIds[1], agentIds[0], agentIds[1], payload, runCount]);
+    from generate_series(1, $6::int) n`, [spaceIds[0], spaceIds[1], agentIds[0], agentIds[1], payload, runCount]);
   const policyId = randomUUID();
-  const intent = (companyId: string, scopeType: string, scopeId: string, extra: Record<string, unknown> = {}) =>
-    ({ companyId, scopeType, scopeId, policyId, version: 3, ...extra });
-  const special: Array<{ companyId: string; agentId: string; status: string; updatedAt: Date; resultJson: Record<string, unknown> }> = [];
+  const intent = (spaceId: string, scopeType: string, scopeId: string, extra: Record<string, unknown> = {}) =>
+    ({ spaceId, scopeType, scopeId, policyId, version: 3, ...extra });
+  const special: Array<{ spaceId: string; agentId: string; status: string; updatedAt: Date; resultJson: Record<string, unknown> }> = [];
   for (let n = 0; n < 40; n++) {
-    const companyId = companyIds[n % 2]!, agentId = n % 2 === 0 ? agentIds[0]! : agentIds[1]!;
-    const scopes: Array<[string, string]> = [["company", companyId], ["agent", agentId], ["agent", agentIds[2]!]];
+    const spaceId = spaceIds[n % 2]!, agentId = n % 2 === 0 ? agentIds[0]! : agentIds[1]!;
+    const scopes: Array<[string, string]> = [["space", spaceId], ["agent", agentId], ["agent", agentIds[2]!]];
     const [scopeType, scopeId] = scopes[n % 3]!;
     const extra = n % 5 === 0 ? { lastAttemptAt: new Date(Date.UTC(2026, 10, 1, 0, n)).toISOString() } : {};
-    special.push({ companyId, agentId, status: n % 4 === 0 ? "cancelled" : "running", updatedAt: new Date(Date.UTC(2026, 10, 2, 0, n)),
+    special.push({ spaceId, agentId, status: n % 4 === 0 ? "cancelled" : "running", updatedAt: new Date(Date.UTC(2026, 10, 2, 0, n)),
       resultJson: { summary: payload, startupCancellation: {
         ...(n % 7 === 0 ? {} : { requestedAt: new Date(Date.UTC(2026, 10, 1, 1, 40 - n)).toISOString() }),
-        budgetEnforcement: intent(companyId, scopeType, scopeId, extra) } } });
+        budgetEnforcement: intent(spaceId, scopeType, scopeId, extra) } } });
   }
   // Delivered Stops and malformed intents are not pending.
-  for (let n = 0; n < 200; n++) special.push({ companyId: companyIds[n % 2]!, agentId: agentIds[n % 2]!, status: "cancelled",
+  for (let n = 0; n < 200; n++) special.push({ spaceId: spaceIds[n % 2]!, agentId: agentIds[n % 2]!, status: "cancelled",
     updatedAt: new Date(Date.UTC(2026, 10, 3, 0, 0, n)), resultJson: { summary: payload, startupCancellation: {
-      budgetEnforcement: n % 10 === 0 ? "legacy-string" : intent(companyIds[n % 2]!, "company", companyIds[n % 2]!,
+      budgetEnforcement: n % 10 === 0 ? "legacy-string" : intent(spaceIds[n % 2]!, "space", spaceIds[n % 2]!,
         { deliveredAt: new Date(Date.UTC(2026, 10, 3)).toISOString() }) } } });
-  // An intent whose company does not match its run is returned by SQL and
+  // An intent whose space does not match its run is returned by SQL and
   // filtered by the service; it must stay visible to both treatments.
-  special.push({ companyId: companyIds[0]!, agentId: agentIds[0]!, status: "running", updatedAt: new Date(Date.UTC(2026, 10, 4)),
-    resultJson: { startupCancellation: { budgetEnforcement: intent(companyIds[1]!, "company", companyIds[1]!) } } });
+  special.push({ spaceId: spaceIds[0]!, agentId: agentIds[0]!, status: "running", updatedAt: new Date(Date.UTC(2026, 10, 4)),
+    resultJson: { startupCancellation: { budgetEnforcement: intent(spaceIds[1]!, "space", spaceIds[1]!) } } });
   await db.insert(heartbeatRuns).values(special.map(row => ({ ...row, runtimeMode: "legacy" })));
   await db.$client.unsafe("vacuum analyze heartbeat_runs");
   const [{ total_bytes: tableBytes }] = await db.$client.unsafe(`select pg_total_relation_size('heartbeat_runs')::bigint as total_bytes`);
@@ -91,7 +91,7 @@ try {
   await captureOne("hasPendingBudgetEnforcement(limit 1)", () => listPendingBudgetCancellationScopes(db!, 1));
   await captureOne("deliverBudgetEnforcement(limit 100)", () => listPendingBudgetCancellationScopes(db!));
   await captureOne("runControl.cancelBudgetScopeWork", async () => pendingBudgetRunIdsForScopeQuery(db!,
-    { companyId: companyIds[0]!, scopeType: "agent", scopeId: agentIds[2]! }));
+    { spaceId: spaceIds[0]!, scopeType: "agent", scopeId: agentIds[2]! }));
   await captureOne("idleSleep.budget_cancellation", () => db!.execute(sql`select exists (${pendingBudgetRunCancellationExistsQuery()}) as pending`));
   capturing = false;
 

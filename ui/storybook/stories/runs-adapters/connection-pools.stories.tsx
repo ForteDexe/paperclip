@@ -10,12 +10,12 @@ import { ComposerRunSettingsPicker } from "@/components/task-chat/ComposerRunSet
 import type { ComposerRunSettings } from "@/components/task-chat/composer-run-settings";
 import { RunRetryDetails } from "@/components/RunRetryDetails";
 import { queryKeys } from "@/lib/queryKeys";
-import { storybookAgents, storybookIssues } from "../../fixtures/paperclipData";
+import { storybookAgents, storybookIssues } from "../../fixtures/outpostData";
 
-const companyId = "company-storybook", agentId = "agent-codex";
+const spaceId = "space-storybook", agentId = "agent-codex";
 const poolId = "10000000-0000-4000-8000-000000000001";
 const pool: AiConnectionPool = {
-  id: poolId, companyId, pluginKey: "paperclip-cloud.plugin-connection-pool", revision: 3,
+  id: poolId, spaceId, pluginKey: "outpost-cloud.plugin-connection-pool", revision: 3,
   name: "Research accounts", enabled: true, mode: "round_robin", thresholdPercent: 90,
   members: [
     { id: "20000000-0000-4000-8000-000000000001", binding: { mode: "delegated", provider: "openai", method: "subscription", connectionId: "30000000-0000-4000-8000-000000000001", grantId: "40000000-0000-4000-8000-000000000001" }, profile: { provider: "codex", model: "gpt-6.1-sol", effort: "high" } },
@@ -23,7 +23,7 @@ const pool: AiConnectionPool = {
   ],
 };
 const accounts: AiConnectionList = { currentUserId: "user-board", canManageConnections: true, pools: [pool], connections: pool.members.map((m, index) => ({
-  id: m.binding.connectionId!, grantId: m.binding.grantId!, companyId, provider: m.binding.provider, method: m.binding.method!, name: index === 0 ? "My OpenAI subscription" : "My Claude subscription", ownership: "personal", ownerUserId: "user-board", isDefault: true, status: "connected",
+  id: m.binding.connectionId!, grantId: m.binding.grantId!, spaceId, provider: m.binding.provider, method: m.binding.method!, name: index === 0 ? "My OpenAI subscription" : "My Claude subscription", ownership: "personal", ownerUserId: "user-board", isDefault: true, status: "connected",
 })) };
 const models = [{ id: "gpt-6.1-sol", label: "GPT-6.1 Sol · Codex" }, { id: "claude-sonnet-5", label: "Claude Sonnet 5 · Claude ACP" }];
 const agent: Agent = { ...storybookAgents.find(a => a.id === agentId)!, adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-6.1-sol" }, runtimeConfig: { aiConnection: { mode: "router", connectionId: poolId } } };
@@ -33,7 +33,7 @@ function PoolComposer({ scenario }: { scenario: Scenario }) {
   const [settings, setSettings] = useState<ComposerRunSettings>({ model: scenario === "claude-model" ? "claude-sonnet-5" : "gpt-6.1-sol", effort: null, fast: false });
   return <div className="space-y-3 rounded-xl border bg-card p-4">
     <p className="text-sm">Choose settings for the next turn. The task keeps its account and harness.</p>
-    <ComposerRunSettingsPicker companyId={companyId} assigneeValue={`agent:${agentId}`} currentAssigneeValue={`agent:${agentId}`}
+    <ComposerRunSettingsPicker spaceId={spaceId} assigneeValue={`agent:${agentId}`} currentAssigneeValue={`agent:${agentId}`}
       options={[{ id: `agent:${agentId}`, label: agent.name }]} agents={new Map([[agentId, agent]])}
       settings={settings} onSettingsChange={(next) => setSettings(next ?? { model: null, effort: null, fast: false })} onAssigneeChange={() => setSettings({ model: null, effort: null, fast: false })}
       modelOptionsOverride={models} mobile={scenario === "mobile"} initialOpen={scenario !== "overview"}
@@ -58,7 +58,7 @@ function PoolRun({ scenario }: { scenario: Scenario }) {
 function PoolSurfaces({ scenario = "overview" }: { scenario?: Scenario }) {
   const [client] = useState(() => {
     const query = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-    query.setQueryData(["ai-connections", companyId, agentId], { ...accounts, pools: scenario === "unavailable" ? [] : accounts.pools });
+    query.setQueryData(["ai-connections", spaceId, agentId], { ...accounts, pools: scenario === "unavailable" ? [] : accounts.pools });
     query.setQueryData(queryKeys.instance.settings, {});
     return query;
   });
@@ -66,7 +66,7 @@ function PoolSurfaces({ scenario = "overview" }: { scenario?: Scenario }) {
   const overview = scenario === "overview";
   return <QueryClientProvider client={client}><main className="mx-auto max-w-3xl space-y-6 p-6">
     {scenario !== "adoption" && <header className="space-y-2"><h1 className="text-xl font-semibold">Experimental connection pools</h1><a className="text-sm text-primary underline" href="http://127.0.0.1:6010/?path=/story/plugins-connection-pools--in-connectors">Connection pool connector in Cloud Storybook</a></header>}
-    {(overview || ["selector", "legacy", "adoption", "unavailable", "read-only"].includes(scenario)) && <section className="space-y-2"><h2 className="text-sm font-semibold">Agent connection</h2><AiConnectionField companyId={companyId} agentId={agentId} agentName={agent.name}
+    {(overview || ["selector", "legacy", "adoption", "unavailable", "read-only"].includes(scenario)) && <section className="space-y-2"><h2 className="text-sm font-semibold">Agent connection</h2><AiConnectionField spaceId={spaceId} agentId={agentId} agentName={agent.name}
       adapterType={scenario === "legacy" ? "claude_local" : "codex_local"} routerAdapterType={scenario === "legacy" ? "claude_local" : "outpost_runner"}
       value={binding} onChange={setBinding} legacy={scenario === "adoption"} readOnly={scenario === "read-only"} /></section>}
     {(overview || ["models", "effort", "mobile", "claude-model"].includes(scenario)) && <section className="space-y-2"><h2 className="text-sm font-semibold">Composer model and effort</h2><PoolComposer scenario={scenario} /></section>}
@@ -76,7 +76,7 @@ function PoolSurfaces({ scenario = "overview" }: { scenario?: Scenario }) {
 }
 const meta = { id: "ai-connections-connection-pools",
   title: "Agents and reusable capabilities/Runs, harnesses, and model accounts/AI Connections/Connection pools", component: PoolSurfaces, parameters: { layout: "fullscreen", docs: { description: { component: "All user-facing Core additions for the private connection-pool plugin. These stories mount the production selector, composer, quota banners, and run details/retry metadata. Routing requires manual operator configuration; there is no settings toggle. Accounts are fixtures; no live provider calls or instance mutations occur." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "runs-adapters/validation"
       ],

@@ -23,7 +23,7 @@ const validFixtures = [
   "semantic-tool-artifact-happy-path.json",
   "semantic-tool-denial-redaction.json",
   "semantic-tool-conflict-duplicate-retry.json",
-  "semantic-tool-governance-wake-monitor.json",
+  "semantic-tool-approvals-wake-monitor.json",
   "semantic-tool-unknown-optional-envelope.json",
 ];
 

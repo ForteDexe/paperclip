@@ -191,13 +191,13 @@ export function renderRuntimeBrandingMeta(branding: WorktreeUiBranding): string 
   if (!branding.enabled || !branding.name || !branding.color || !branding.textColor) return "";
 
   const tags = [
-    '<meta name="paperclip-worktree-enabled" content="true" />',
-    `<meta name="paperclip-worktree-name" content="${escapeHtmlAttribute(branding.name)}" />`,
-    `<meta name="paperclip-worktree-color" content="${escapeHtmlAttribute(branding.color)}" />`,
-    `<meta name="paperclip-worktree-text-color" content="${escapeHtmlAttribute(branding.textColor)}" />`,
+    '<meta name="outpost-worktree-enabled" content="true" />',
+    `<meta name="outpost-worktree-name" content="${escapeHtmlAttribute(branding.name)}" />`,
+    `<meta name="outpost-worktree-color" content="${escapeHtmlAttribute(branding.color)}" />`,
+    `<meta name="outpost-worktree-text-color" content="${escapeHtmlAttribute(branding.textColor)}" />`,
   ];
   if (branding.instanceId) {
-    tags.push(`<meta name="paperclip-instance-id" content="${escapeHtmlAttribute(branding.instanceId)}" />`);
+    tags.push(`<meta name="outpost-instance-id" content="${escapeHtmlAttribute(branding.instanceId)}" />`);
   }
   return tags.join("\n");
 }

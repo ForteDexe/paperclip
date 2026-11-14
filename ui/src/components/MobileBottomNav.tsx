@@ -10,7 +10,7 @@ import {
   MessageCircle,
   Inbox,
 } from "lucide-react";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useDialogActions } from "../context/DialogContext";
 import { SIDEBAR_SCROLL_RESET_STATE } from "../lib/navigation-scroll";
 import { cn } from "../lib/utils";
@@ -42,13 +42,13 @@ type MobileNavItem = MobileNavLinkItem | MobileNavActionItem;
 
 export function MobileBottomNav({ visible }: MobileBottomNavProps) {
   const location = useLocation();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { openNewIssue } = useDialogActions();
   const { enabled: agentChatEnabled } = useAgentChatEnabled();
   const { enabled: coordinatorWorkspaceEnabled } = useCoordinatorWorkspaceEnabled();
-  const inboxBadge = useInboxBadge(coordinatorWorkspaceEnabled ? null : selectedCompanyId);
+  const inboxBadge = useInboxBadge(coordinatorWorkspaceEnabled ? null : selectedSpaceId);
   const { enabled: combinedInboxTasksEnabled } = useCombinedInboxTasksEnabled();
-  const attentionCount = useCoordinatorAttentionCount(selectedCompanyId, coordinatorWorkspaceEnabled);
+  const attentionCount = useCoordinatorAttentionCount(selectedSpaceId, coordinatorWorkspaceEnabled);
 
   // PAP-670: with both flags off the bar is the original Home · Tasks · + ·
   // Agents · Inbox. Agent Chat adds Chat in the second slot (Home · Chat · + ·

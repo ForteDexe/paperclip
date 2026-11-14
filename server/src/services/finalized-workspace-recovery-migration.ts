@@ -28,25 +28,25 @@ function canonical(value: unknown): string {
 }
 
 export async function inspectFinalizedWorkspaceRecoveryHold(db: ReadDb, input: {
-  companyId: string; workspaceId: string; recovery: Recovery;
+  spaceId: string; workspaceId: string; recovery: Recovery;
 }): Promise<FinalizedWorkspaceRecoveryHold | null> {
   const action = input.recovery;
   if (action.kind !== "active_run_watchdog" || typeof action.evidence.runId !== "string"
     || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(action.evidence.runId)) return null;
   const [run] = await db.select().from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, action.evidence.runId)));
+    eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, action.evidence.runId)));
   const reference = readNativeWorkspaceSyncReference(run?.runnerProfileJson?.nativeWorkspaceSync);
   if (!run || run.runtimeMode !== "native" || run.nativeIssueId !== action.sourceIssueId
     || !terminalWorkspaceRunStates.includes(run.status) || !reference || reference.state !== "finalized"
     || !reference.finalHostSha256 || run.runnerProfileJson?.remoteWorkspace != null
     || adapterExecutionControls.has(run.id) || run.controllerLeaseExpiresAt && run.controllerLeaseExpiresAt > new Date()) return null;
   const [owner] = await db.select().from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.runId, run.id),
+    eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.runId, run.id),
     eq(nativeRunFinalizations.issueId, action.sourceIssueId)));
   if (!owner || owner.leaseOwner) return null;
   const [workspace] = await db.select().from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.id, reference.workspaceId)));
-  if (!workspace || !await isLegacyWorkspaceTaskRelated(db, { companyId: input.companyId,
+    eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.id, reference.workspaceId)));
+  if (!workspace || !await isLegacyWorkspaceTaskRelated(db, { spaceId: input.spaceId,
     issueId: run.nativeIssueId, sourceIssueId: workspace.sourceIssueId })) return null;
   if (reference.workspaceId !== input.workspaceId && !readRemoteWorkspaceAuthority(workspace.metadata)
     && (!workspace.cwd || !["local_fs", "git_worktree"].includes(workspace.providerType))) return null;
@@ -54,11 +54,11 @@ export async function inspectFinalizedWorkspaceRecoveryHold(db: ReadDb, input: {
   if (!["committed", "terminal_failure"].includes(owner.phase)) {
     if (owner.phase !== "retryable_failure" || !owner.resultId || !run.completionContractId) return null;
     const [result] = await db.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-      eq(nativeRunResults.companyId, input.companyId), eq(nativeRunResults.issueId, action.sourceIssueId),
+      eq(nativeRunResults.spaceId, input.spaceId), eq(nativeRunResults.issueId, action.sourceIssueId),
       eq(nativeRunResults.runId, run.id), eq(nativeRunResults.id, owner.resultId),
       eq(nativeRunResults.completionContractId, run.completionContractId), eq(nativeRunResults.schemaStatus, "accepted")));
     const [receipt] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-      eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.issueId, action.sourceIssueId),
+      eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.issueId, action.sourceIssueId),
       eq(workspaceOperations.heartbeatRunId, run.id), eq(workspaceOperations.phase, "workspace_finalize"),
       eq(workspaceOperations.status, "succeeded")));
     if (!result || !receipt) return null;
@@ -74,7 +74,7 @@ export async function inspectFinalizedWorkspaceRecoveryHold(db: ReadDb, input: {
         && !isDeepStrictEqual(action.evidence.workspaceRestoreRecovery, run.resultJson?.workspaceRestoreRecovery)) return null;
     try {
       const inspected = await inspectWorkspaceRecoverySource(db as Db, {
-        companyId: input.companyId, issueId: action.sourceIssueId, runId: run.id, actionId: action.id,
+        spaceId: input.spaceId, issueId: action.sourceIssueId, runId: run.id, actionId: action.id,
       });
       source = { runId: run.id, issueId: action.sourceIssueId, reference,
         recoveryAllocations: inspected.sources.map(item => ({ leaseId: item.lease.id,

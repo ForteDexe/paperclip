@@ -7,11 +7,11 @@ import { googleWorkspaceEffectiveScopes, isGoogleWorkspaceScopeGrant } from "@ou
 import { emitConnectionUpdated } from "../../connector-telemetry.js";
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { connectionGrants, companySecrets, toolConnections } from "@outpost/db";
+import { connectionGrants, spaceSecrets, toolConnections } from "@outpost/db";
 import type { ToolCredentialSecretRef } from "@outpost/shared";
 import { conflict, HttpError, unprocessable } from "../../../errors.js";
 import { secretService } from "../../secrets.js";
-import { isPaperclipCloudConnectorStrategy, PaperclipCloudConnectorError, type PaperclipCloudConnector } from "../../paperclip-cloud-connector.js";
+import { isOutpostCloudConnectorStrategy, OutpostCloudConnectorError, type OutpostCloudConnector } from "../../outpost-cloud-connector.js";
 
 import { actorForSecret, type OAuthCredentialStore } from "./credential-store.js";
 import { withoutOAuthRefreshLease, type OAuthRefreshLeases } from "./refresh-leases.js";
@@ -28,8 +28,8 @@ type GrantRefreshDependencies = {
   now: () => Date;
   store: Pick<OAuthCredentialStore, "getOAuthGrantRow" | "resolveOAuthGrantSecret" | "createOrRotateOAuthSecret" | "oauthClientForConnection" | "syncCredentialBindings">;
   leases: Pick<OAuthRefreshLeases, "acquireOAuthGrantRefreshLease" | "clearOAuthGrantRefreshLease">;
-  currentCloudConnector: () => PaperclipCloudConnector | null;
-  getConnectionRow(idOrUid: string, companyId?: string): Promise<typeof toolConnections.$inferSelect>;
+  currentCloudConnector: () => OutpostCloudConnector | null;
+  getConnectionRow(idOrUid: string, spaceId?: string): Promise<typeof toolConnections.$inferSelect>;
   exchangeOAuthToken: ReturnType<typeof createOAuthClientProtocol>["exchangeOAuthToken"];
 };
 
@@ -38,7 +38,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
   const { getOAuthGrantRow, resolveOAuthGrantSecret, createOrRotateOAuthSecret, oauthClientForConnection, syncCredentialBindings } = store;
   const { acquireOAuthGrantRefreshLease, clearOAuthGrantRefreshLease } = leases;
   async function refreshOAuthGrantCredentials(input: {
-    companyId: string;
+    spaceId: string;
     connectionId: string;
     grantId: string;
     forceRefresh?: boolean;
@@ -48,7 +48,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
   }): Promise<typeof connectionGrants.$inferSelect> {
     const connection = await getConnectionRow(
       input.connectionId,
-      input.companyId,
+      input.spaceId,
     );
     const initialGrant = await getOAuthGrantRow(input);
     const oauth = oauthConfig(connection);
@@ -58,8 +58,8 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
       typeof oauth.tokenUrl === "string" ? oauth.tokenUrl : null;
     if (
       connection.authKind === "oauth" &&
-      connection.credentialSource === "paperclip_vault" &&
-      isPaperclipCloudConnectorStrategy(oauth.strategy)
+      connection.credentialSource === "outpost_vault" &&
+      isOutpostCloudConnectorStrategy(oauth.strategy)
     ) {
       const grantOauth = oauthGrantConfig(initialGrant);
       const expiresAt =
@@ -139,7 +139,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
             try {
               credentials = await cloudConnector.refresh({
                 subject: connectorSubject,
-                companyId: connection.companyId,
+                spaceId: connection.spaceId,
                 profile: profile.id,
                 refreshToken: refreshSecret.value,
               });
@@ -148,11 +148,11 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
                 credentials.scopes = googleWorkspaceEffectiveScopes(requested, credentials.scopes);
               }
               if (profile.id === "workspace.all" && !isGoogleWorkspaceScopeGrant(credentials.scopes)) {
-                throw new PaperclipCloudConnectorError("Google did not return verifiable permissions", "REAUTHORIZATION_REQUIRED");
+                throw new OutpostCloudConnectorError("Google did not return verifiable permissions", "REAUTHORIZATION_REQUIRED");
               }
             } catch (error) {
               if (
-                error instanceof PaperclipCloudConnectorError &&
+                error instanceof OutpostCloudConnectorError &&
                 error.code === "REAUTHORIZATION_REQUIRED"
               ) {
                 await db
@@ -161,7 +161,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
                   .where(
                     and(
                       eq(connectionGrants.id, grant.id),
-                      eq(connectionGrants.companyId, grant.companyId),
+                      eq(connectionGrants.spaceId, grant.spaceId),
                     ),
                   );
                 throw unprocessable(
@@ -180,7 +180,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
                 ? { actorType: "user", actorId: grant.subjectUserId }
                 : input.actor;
             const oauthUpdates = {
-                strategy: "paperclip_cloud_connector",
+                strategy: "outpost_cloud_connector",
                 accessTokenExpiresAt: credentials.accessTokenExpiresAt,
                 scopes: credentials.scopes,
                 tokenType: credentials.tokenType,
@@ -192,7 +192,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
             const updated = await db.transaction(async (tx) => {
               await notifyGitHubCredentialChange(tx, connection);
               const [current] = await tx.select({ id: connectionGrants.id }).from(connectionGrants)
-                .where(and(eq(connectionGrants.id, grant.id), eq(connectionGrants.companyId, grant.companyId),
+                .where(and(eq(connectionGrants.id, grant.id), eq(connectionGrants.spaceId, grant.spaceId),
                   eq(connectionGrants.status, "active"),
                   sql`${connectionGrants.providerTenant} -> 'oauth' -> 'refreshLease' ->> 'id' = ${lease.leaseId}`))
                 .for("update");
@@ -222,7 +222,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
                 .where(
                   and(
                     eq(connectionGrants.id, grant.id),
-                    eq(connectionGrants.companyId, grant.companyId),
+                    eq(connectionGrants.spaceId, grant.spaceId),
                     eq(connectionGrants.status, "active"),
                     sql`${connectionGrants.providerTenant} -> 'oauth' -> 'refreshLease' ->> 'id' = ${lease.leaseId}`,
                   ),
@@ -249,7 +249,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
     }
     if (
       connection.authKind !== "oauth" ||
-      connection.credentialSource !== "paperclip_vault" ||
+      connection.credentialSource !== "outpost_vault" ||
       !oauthTokenUrl ||
       !oauthProvider
     ) {
@@ -351,14 +351,14 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
               .where(
                 and(
                   eq(connectionGrants.id, grant.id),
-                  eq(connectionGrants.companyId, grant.companyId),
+                  eq(connectionGrants.spaceId, grant.spaceId),
                   eq(connectionGrants.status, "active"),
                   sql`${connectionGrants.providerTenant} -> 'oauth' -> 'refreshLease' ->> 'id' = ${lease.leaseId}`,
                   sql`exists (
-                select 1 from ${companySecrets}
-                where ${companySecrets.id} = ${refreshRef.secretId}
-                  and ${companySecrets.companyId} = ${connection.companyId}
-                  and ${companySecrets.latestVersion} = ${refreshSecret.latestVersion}
+                select 1 from ${spaceSecrets}
+                where ${spaceSecrets.id} = ${refreshRef.secretId}
+                  and ${spaceSecrets.spaceId} = ${connection.spaceId}
+                  and ${spaceSecrets.latestVersion} = ${refreshSecret.latestVersion}
               )`,
                 ),
               )
@@ -383,7 +383,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
             if (marked.kind === "organization") {
               const latestConnection = await getConnectionRow(
                 connection.id,
-                connection.companyId,
+                connection.spaceId,
               );
               const [reauthorizationRequired] = await writeToolConnectionHealthChange(db, latestConnection, tx => tx
                 .update(toolConnections)
@@ -406,7 +406,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
                 .where(
                   and(
                     eq(toolConnections.id, latestConnection.id),
-                    eq(toolConnections.companyId, latestConnection.companyId),
+                    eq(toolConnections.spaceId, latestConnection.spaceId),
                   ),
                 )
                 .returning());
@@ -424,7 +424,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
                 .from(connectionGrants)
                 .where(
                   and(
-                    eq(connectionGrants.companyId, connection.companyId),
+                    eq(connectionGrants.spaceId, connection.spaceId),
                     eq(connectionGrants.connectionId, connection.id),
                     eq(connectionGrants.status, "active"),
                   ),
@@ -446,13 +446,13 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
         if (connection.config.sourceTemplateKey === "google-workspace"
           && !isGoogleWorkspaceScopeGrant(normalizeOauthScopes(token.scope))) {
           await db.update(connectionGrants).set({ status: "needs_reauthorization", updatedAt: now() })
-            .where(and(eq(connectionGrants.id, grant.id), eq(connectionGrants.companyId, connection.companyId)));
+            .where(and(eq(connectionGrants.id, grant.id), eq(connectionGrants.spaceId, connection.spaceId)));
           throw unprocessable("Google did not return verifiable permissions. Reconnect Google Workspace.", { code: "oauth_reauthorization_required" });
         }
         let nextRefreshRef: ToolCredentialSecretRef | null = null;
         if (token.refreshToken) {
           nextRefreshRef = await createOrRotateOAuthSecret({
-            companyId: connection.companyId,
+            spaceId: connection.spaceId,
             connection,
             configPath: "oauth.refresh_token",
             label: "OAuth refresh token",
@@ -467,7 +467,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
           });
         }
         const accessRef = await createOrRotateOAuthSecret({
-          companyId: connection.companyId,
+          spaceId: connection.spaceId,
           connection,
           configPath: "oauth.access_token",
           label: "OAuth access token",
@@ -493,7 +493,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
           ? new Date(Date.now() + token.expiresIn * 1000).toISOString()
           : null;
         // A refresh carries no fresh authorization request, so the baseline stays what
-        // Paperclip asked for when *this* grant was authorized. Judging the response against
+        // Outpost asked for when *this* grant was authorized. Judging the response against
         // the grant's own scopes instead would let an over-grant that the provider re-asserts
         // on every refresh read back as clean, because the widened grant would have become
         // its own baseline. The connection-level list is only a fallback for grants created
@@ -539,7 +539,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
           .where(
             and(
               eq(connectionGrants.id, grant.id),
-              eq(connectionGrants.companyId, grant.companyId),
+              eq(connectionGrants.spaceId, grant.spaceId),
               eq(connectionGrants.status, "active"),
               sql`${connectionGrants.providerTenant} -> 'oauth' -> 'refreshLease' ->> 'id' = ${lease.leaseId}`,
             ),
@@ -557,7 +557,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
         if (grant.kind === "organization") {
           const latestConnection = await getConnectionRow(
             connection.id,
-            connection.companyId,
+            connection.spaceId,
           );
           const latestOauth = oauthConfig(latestConnection);
           const nextConfig = {
@@ -593,7 +593,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
             .where(
               and(
                 eq(toolConnections.id, latestConnection.id),
-                eq(toolConnections.companyId, latestConnection.companyId),
+                eq(toolConnections.spaceId, latestConnection.spaceId),
               ),
             );
         }
@@ -618,7 +618,7 @@ export function createOAuthGrantRefresh(db: Db, { now, store, leases, currentClo
             .from(connectionGrants)
             .where(
               and(
-                eq(connectionGrants.companyId, connection.companyId),
+                eq(connectionGrants.spaceId, connection.spaceId),
                 eq(connectionGrants.connectionId, connection.id),
                 eq(connectionGrants.status, "active"),
               ),

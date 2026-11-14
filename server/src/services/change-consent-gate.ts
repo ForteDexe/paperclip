@@ -87,23 +87,23 @@ function legacyTargetKeysFor(targetKey: string) {
   }
   if (targetKey.startsWith("skill:")) {
     const skillId = targetKey.slice("skill:".length);
-    if (skillId) return [`reflection-coach:company-skill:${skillId}`];
+    if (skillId) return [`reflection-coach:space-skill:${skillId}`];
   }
   if (targetKey.startsWith("skill-slug:")) {
     const slug = targetKey.slice("skill-slug:".length);
-    if (slug) return [`reflection-coach:company-skill-slug:${slug}`];
+    if (slug) return [`reflection-coach:space-skill-slug:${slug}`];
   }
   if (targetKey.startsWith("skill-import:")) {
     const source = targetKey.slice("skill-import:".length);
     if (source) {
       return [
-        `reflection-coach:company-skill-import:${source}`,
-        `reflection-coach:company-skill-catalog:${source}`,
+        `reflection-coach:space-skill-import:${source}`,
+        `reflection-coach:space-skill-catalog:${source}`,
       ];
     }
   }
   if (targetKey === "skills:scan-projects") {
-    return ["reflection-coach:company-skills:scan-projects"];
+    return ["reflection-coach:space-skills:scan-projects"];
   }
   return [];
 }
@@ -122,7 +122,7 @@ function expandTargetKeysForLegacyCompatibility(targetKeys: string[]) {
 export function changeConsentGateService(db: Db | Parameters<Parameters<Db["transaction"]>[0]>[0]) {
   return {
     assertConsented: async (input: {
-      companyId: string;
+      spaceId: string;
       actorAgentId: string | null | undefined;
       actorRunId: string | null | undefined;
       targetKeys: string[];
@@ -160,7 +160,7 @@ export function changeConsentGateService(db: Db | Parameters<Parameters<Db["tran
         })
         .from(issueThreadInteractions)
         .where(and(
-          eq(issueThreadInteractions.companyId, input.companyId),
+          eq(issueThreadInteractions.spaceId, input.spaceId),
           eq(issueThreadInteractions.createdByAgentId, actorAgentId),
           eq(issueThreadInteractions.kind, "request_confirmation"),
           eq(issueThreadInteractions.status, "accepted"),
@@ -213,7 +213,7 @@ export function changeConsentGateService(db: Db | Parameters<Parameters<Db["tran
         })
         .where(and(
           eq(issueThreadInteractions.id, accepted.id),
-          eq(issueThreadInteractions.companyId, input.companyId),
+          eq(issueThreadInteractions.spaceId, input.spaceId),
           eq(issueThreadInteractions.createdByAgentId, actorAgentId),
           eq(issueThreadInteractions.kind, "request_confirmation"),
           eq(issueThreadInteractions.status, "accepted"),

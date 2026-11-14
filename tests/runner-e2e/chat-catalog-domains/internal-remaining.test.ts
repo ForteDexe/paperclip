@@ -4,7 +4,7 @@ import { gradeProjectDefaults, gradeProjectDefaultsSetup, projectReadCalls } fro
 import { callApiInputDigest, gradeRoutineAudit, localClock, morningTimezone } from "./internal-routine-audit.js";
 import { gradeWorkTimeline } from "./internal-work-timeline.js";
 import { gradeArchivePartial } from "./internal-archive-partial.js";
-function base(scenarioId: string) { return { scenarioId, origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: {} as Record<string, unknown>, tasks: [] as any[], projects: [] as any[], goals: [] as any[], comments: [] as any[], activity: [] as any[], documents: [], revisions: [], links: [] as string[], reply: "", humanQueries: [], runs: [] as any[] }; }
+function base(scenarioId: string) { return { scenarioId, origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: {} as Record<string, unknown>, tasks: [] as any[], projects: [] as any[], goals: [] as any[], comments: [] as any[], activity: [] as any[], documents: [], revisions: [], links: [] as string[], reply: "", humanQueries: [], runs: [] as any[] }; }
 it("preserves the exact active prerequisite while independently proving ready canonical and future agents", () => {
   const ready = { id: "ceo", lifecycleState: "ready", status: "idle", adapterConfig: { timeoutSec: 0 } };
   const prepared = { lead: ready, future: { ...ready, id: "riley" }, held: { ...ready, id: "morgan", status: "running", adapterConfig: { timeoutSec: 0 } }, task: { id: "task", assigneeAgentId: "morgan", executionRunId: "held" }, runs: [{ id: "held", agentId: "morgan", status: "running" }], activeRunId: "held", gateCalls: [{ workerBound: true, workerId: "morgan" }] };
@@ -88,12 +88,12 @@ it("accepts a correlated dedicated project read only with the exact saved defaul
 });
 function routine() {
   const o = base("activity.routine-audit"); const zone = "Asia/Tokyo";
-  const r = { id: "routine", companyId: "company", title: "Daily launch readiness", description: "Read the launch-readiness document", updatedAt: "2026-10-25T23:40:10Z" };
+  const r = { id: "routine", spaceId: "space", title: "Daily launch readiness", description: "Read the launch-readiness document", updatedAt: "2026-10-25T23:40:10Z" };
   o.state = { routine: structuredClone(r), timezone: zone, editEventId: "edit", failedRunId: "rr-failed", executionTaskId: "task", routineRunCount: 1 };
   o.activity = [{ id: "edit", entityId: r.id, action: "routine.updated", createdAt: "2026-10-25T23:40:10Z", actorType: "user", actorId: "person" }];
   o.links = ["/RUN/routines/routine"]; o.reply = "This morning's 08:42 run failed: Morgan blocked its task because the launch-readiness document is missing.";
   const failed = { id: "rr-failed", routineId: r.id, source: "schedule", status: "failed", triggeredAt: "2026-10-25T23:42:00Z", linkedIssueId: "task", failureReason: "Execution issue blocked" };
-  const read = { eventType: "tool.execution.completed", payload: { orpEvent: { sourceKind: "runner", payload: { name: "paperclip_api", status: "completed", output: JSON.stringify({ recentRuns: [failed] }) } } } };
+  const read = { eventType: "tool.execution.completed", payload: { orpEvent: { sourceKind: "runner", payload: { name: "outpost_api", status: "completed", output: JSON.stringify({ recentRuns: [failed] }) } } } };
   return { ...o, routine: r, routineRuns: [failed] as any[], executionTask: { id: "task", identifier: "RUN-1", status: "blocked" }, leadEvents: [read] as any[], observedAt: "2026-10-25T23:50:00Z" };
 }
 it("picks a real timezone where the evaluation clock reads 08:xx in every season", () => {
@@ -108,15 +108,15 @@ it("accepts a redacted call_api read of the routine runs and a link to the block
   const call = (input: Record<string, unknown>, status = 200) => [
     { eventType: "item.started", payload: { orpEvent: { sourceKind: "runner", payload: { item: { id: "7", type: "tool_use", name: "call_api", input: { data: "***REDACTED***", operationId: input.operationId, apiPayloadRedacted: true, apiPayloadSha256: callApiInputDigest(input) } } } } } },
     { eventType: "item.completed", payload: { orpEvent: { sourceKind: "runner", payload: { item: { type: "tool_result", tool_use_id: "7", result: { ok: status === 200, status, data: "***REDACTED***", apiOperationId: input.operationId } } } } } }] as any[];
-  o.leadEvents = call({ operationId: "GET /api/companies/{companyId}/routines", pathParams: { companyId: "company" } });
+  o.leadEvents = call({ operationId: "GET /api/spaces/{spaceId}/routines", pathParams: { spaceId: "space" } });
   expect(gradeRoutineAudit(o).passed).toBe(true);
   for (const input of [{ operationId: "GET /api/routines/{id}/runs", pathParams: { id: "routine" } }, { operationId: "GET /api/routines/{id}", pathParams: { id: "routine" } },
     { operationId: "GET /api/routines/{id}/runs", pathParams: { id: "routine" }, query: { limit: 50 } }, { operationId: "GET /api/routines/{id}/runs", pathParams: { id: "routine" }, query: { limit: "10" } }, { operationId: "GET /api/routines/{id}/runs", pathParams: { id: "routine" }, query: { limit: 1000 } }, { operationId: "GET /api/routines/{id}/runs", pathParams: { id: "routine" }, query: { limit: 0 } },
-    { operationId: "GET /api/companies/{companyId}/routines" }, { operationId: "GET /api/companies/{companyId}/routines", pathParams: {}, query: {} }]) { const v = structuredClone(o); v.leadEvents = call(input); expect(gradeRoutineAudit(v).passed).toBe(true); }
+    { operationId: "GET /api/spaces/{spaceId}/routines" }, { operationId: "GET /api/spaces/{spaceId}/routines", pathParams: {}, query: {} }]) { const v = structuredClone(o); v.leadEvents = call(input); expect(gradeRoutineAudit(v).passed).toBe(true); }
   for (const input of [{ operationId: "GET /api/routines/{id}/revisions", pathParams: { id: "routine" } }, { operationId: "GET /api/routines/{id}/runs", pathParams: { id: "other-routine" } },
-    { operationId: "GET /api/companies/{companyId}/routines", pathParams: { companyId: "company" }, query: { projectId: "unrelated" } },
-    { operationId: "GET /api/routines/{id}/runs", pathParams: { id: "other-routine" }, query: { limit: 50 } }, { operationId: "GET /api/companies/{companyId}/routines", pathParams: { companyId: "other-company" } }]) { const v = structuredClone(o); v.leadEvents = call(input); expect(gradeRoutineAudit(v).passed).toBe(false); }
-  const failedRead = structuredClone(o); failedRead.leadEvents = call({ operationId: "GET /api/companies/{companyId}/routines", pathParams: { companyId: "company" } }, 403); expect(gradeRoutineAudit(failedRead).passed).toBe(false);
+    { operationId: "GET /api/spaces/{spaceId}/routines", pathParams: { spaceId: "space" }, query: { projectId: "unrelated" } },
+    { operationId: "GET /api/routines/{id}/runs", pathParams: { id: "other-routine" }, query: { limit: 50 } }, { operationId: "GET /api/spaces/{spaceId}/routines", pathParams: { spaceId: "other-space" } }]) { const v = structuredClone(o); v.leadEvents = call(input); expect(gradeRoutineAudit(v).passed).toBe(false); }
+  const failedRead = structuredClone(o); failedRead.leadEvents = call({ operationId: "GET /api/spaces/{spaceId}/routines", pathParams: { spaceId: "space" } }, 403); expect(gradeRoutineAudit(failedRead).passed).toBe(false);
   const otherTask = structuredClone(o); otherTask.links = ["/RUN/issues/RUN-2"]; expect(gradeRoutineAudit(otherTask).passed).toBe(false);
 });
 it("rejects an edit after the run, a run outside the morning, or a manual run", () => {
@@ -125,8 +125,8 @@ it("rejects an edit after the run, a run outside the morning, or a manual run", 
   const manual = routine(); manual.routineRuns[0].source = "manual"; expect(gradeRoutineAudit(manual).passed).toBe(false);
   const machine = routine(); machine.activity[0].actorType = "agent"; expect(gradeRoutineAudit(machine).passed).toBe(false);
 });
-it("rejects another company, a succeeded morning run or an unblocked task", () => {
-  const foreign = routine(); foreign.routine.companyId = "foreign"; expect(gradeRoutineAudit(foreign).passed).toBe(false);
+it("rejects another space, a succeeded morning run or an unblocked task", () => {
+  const foreign = routine(); foreign.routine.spaceId = "foreign"; expect(gradeRoutineAudit(foreign).passed).toBe(false);
   const ok = routine(); ok.routineRuns.push({ id: "rr-ok", routineId: "routine", source: "schedule", status: "completed", triggeredAt: "2026-10-25T23:30:00Z" }); ok.state.routineRunCount = 2; expect(gradeRoutineAudit(ok).passed).toBe(false);
   const fixed = routine(); fixed.executionTask.status = "todo"; expect(gradeRoutineAudit(fixed).passed).toBe(false);
 });

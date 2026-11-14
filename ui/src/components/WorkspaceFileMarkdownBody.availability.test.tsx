@@ -28,8 +28,8 @@ vi.mock("@/lib/router", () => ({
   useCaseHref: () => (identifier: string) => `/cases/${identifier}`,
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useOptionalCompany: () => null,
+vi.mock("../context/SpaceContext", () => ({
+  useOptionalSpace: () => null,
 }));
 
 import { FileViewerProvider } from "@/context/FileViewerContext";

@@ -4,7 +4,7 @@ import { aiConnectionRouterPluginKey, aiConnectionRouterSlug, humanizeConnection
 import type { ToolApplication, ToolConnection } from "@outpost/shared";
 import { Link } from "@/lib/router";
 import { toolsApi } from "@/api/tools";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { queryKeys } from "@/lib/queryKeys";
 import {
@@ -30,7 +30,7 @@ type AppDetailSidebarProps =
   | { kind: "application"; applicationId: string };
 
 export function AppDetailSidebar(props: AppDetailSidebarProps) {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { isMobile, setSidebarOpen } = useSidebar();
 
   const connectionQuery = useQuery({
@@ -39,19 +39,19 @@ export function AppDetailSidebar(props: AppDetailSidebarProps) {
     enabled: props.kind === "connection" && !!props.connectionId,
   });
   const applicationsQuery = useQuery({
-    queryKey: queryKeys.tools.applications(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listApplications(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.tools.applications(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listApplications(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const connectionsQuery = useQuery({
-    queryKey: queryKeys.tools.connections(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listConnections(selectedCompanyId!),
-    enabled: props.kind === "application" && !!selectedCompanyId,
+    queryKey: queryKeys.tools.connections(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listConnections(selectedSpaceId!),
+    enabled: props.kind === "application" && !!selectedSpaceId,
   });
   const galleryQuery = useQuery({
-    queryKey: queryKeys.apps.gallery(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listGallery(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.apps.gallery(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listGallery(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const connection = connectionQuery.data;
   const poolPluginKey = connection && aiConnectionRouterPluginKey(connection);
@@ -72,9 +72,9 @@ export function AppDetailSidebar(props: AppDetailSidebarProps) {
     ?? (logoEntry ? appDefinitionSlug(logoEntry) : null);
   const reviewConnectionId = connection?.id ?? previousConnection?.id ?? null;
   const reviewCountsQuery = useQuery({
-    queryKey: queryKeys.apps.connectionReviewCounts(selectedCompanyId ?? "__none__", reviewConnectionId ?? "__none__"),
+    queryKey: queryKeys.apps.connectionReviewCounts(selectedSpaceId ?? "__none__", reviewConnectionId ?? "__none__"),
     queryFn: () => toolsApi.getConnectionReviewCounts(reviewConnectionId!),
-    enabled: !!selectedCompanyId && !!reviewConnectionId,
+    enabled: !!selectedSpaceId && !!reviewConnectionId,
     refetchInterval: 30_000,
   });
   const reviewCount =

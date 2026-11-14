@@ -8,12 +8,12 @@ import { retainSlackFormOpeningProof } from "../services/chat-channels/slack/for
 import { readSlackFormRetainedConsumer } from "../services/chat-channels/slack/cloud-consumer.js";
 import { parseSlackFormAckWork, transferSlackFormAckReceipt } from "../services/chat-channels/slack/form-ack-work.js";
 import { parseSlackFormFinalizedReceipt, slackFormFinalizedReceiptDigest } from "../services/chat-channels/slack/ack-receipt.js";
-import { createPaperclipCloudConnector } from "../services/paperclip-cloud-connector.js";
+import { createOutpostCloudConnector } from "../services/outpost-cloud-connector.js";
 import { githubConnectionEventService } from "../services/github-connection-events.js";
 import { createHash, createHmac, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, applyPendingMigrations, authUsers, chatActions, chatEndpoints, companies, companyMemberships,
+import { activityLog, agents, applyPendingMigrations, authUsers, chatActions, chatEndpoints, spaces, spaceMemberships,
   toolApplications, toolConnections, createDb, closeCheckpointDb, closeFileStorageDb, closeLivenessDb } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { stageSlackFormEnrollment, stageSlackFormOwnerConfiguration, reconcileSlackFormEnrollment, reconcilePendingSlackFormWork } from "../services/chat-channels/slack/form-owner.js";
@@ -26,10 +26,10 @@ import { connectionManagementService } from "../services/connection-management.j
 const external = resolveExternalTestDatabaseUrl("OUTPOST_SLACK_RETIREMENT_TEST_DATABASE_URL");
 if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error("Guarded retirement SQL requires an explicit external database");
 (external ? describe : describe.skip)("Slack retirement original-custody SQL handoff", () => {
-  let db: ReturnType<typeof createDb>, companyId: string, endpointId: string, connectionId: string, applicationId: string, agentId: string, actorId: string, actionId: string;
+  let db: ReturnType<typeof createDb>, spaceId: string, endpointId: string, connectionId: string, applicationId: string, agentId: string, actorId: string, actionId: string;
   const identity = { instanceId: "retirement-sql-instance", environment: "test" as const };
   let binding: ReturnType<typeof parseSlackFormBinding>, compactJws: string;
-  const row = async () => (await db.select().from(chatActions).where(and(eq(chatActions.id, actionId), eq(chatActions.companyId, companyId))))[0]!;
+  const row = async () => (await db.select().from(chatActions).where(and(eq(chatActions.id, actionId), eq(chatActions.spaceId, spaceId))))[0]!;
   const trigger = "slack_retirement_controlled_update";
   function signCurrentReceipt(kid = "retirement-sql-key") {
     const pair = generateKeyPairSync("ed25519");
@@ -37,7 +37,7 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
     vi.stubEnv("OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS", JSON.stringify({ keys: [{ ...pair.publicKey.export({ format: "jwk" }), kid, alg: "EdDSA", use: "sig" }] }));
     const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
     const receipt = slackFormRetirementReceipt(binding, identity.environment, actorId);
-    const body = encode({ alg: "EdDSA", typ: "paperclip-connector-ack-receipt+jwt", kid }) + "." + encode({ v: 1, iss: "paperclip-cloud", aud: "paperclip-connector-ack-receipt/v1", sub: identity.instanceId, receipt });
+    const body = encode({ alg: "EdDSA", typ: "outpost-connector-ack-receipt+jwt", kid }) + "." + encode({ v: 1, iss: "outpost-cloud", aud: "outpost-connector-ack-receipt/v1", sub: identity.instanceId, receipt });
     return body + "." + sign(null, Buffer.from(body), pair.privateKey).toString("base64url");
   }
 
@@ -47,29 +47,29 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
     db = createDb(external, { maxConnections: 2, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
   }, 60000);
   beforeEach(async () => {
-    companyId = randomUUID(); endpointId = randomUUID(); connectionId = randomUUID(); applicationId = randomUUID(); agentId = randomUUID(); actorId = `retirement-${randomUUID()}`;
+    spaceId = randomUUID(); endpointId = randomUUID(); connectionId = randomUUID(); applicationId = randomUUID(); agentId = randomUUID(); actorId = `retirement-${randomUUID()}`;
     const now = new Date();
-    await db.insert(companies).values({ id: companyId, name: "Retirement custody", issuePrefix: `R${companyId.slice(0, 7)}` });
+    await db.insert(spaces).values({ id: spaceId, name: "Retirement custody", issuePrefix: `R${spaceId.slice(0, 7)}` });
     await db.insert(authUsers).values({ id: actorId, name: "Original owner", email: `${actorId}@example.test`, emailVerified: true, createdAt: now, updatedAt: now });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: actorId, membershipRole: "operator", status: "active" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Custody fixture", adapterType: "process", status: "idle", runtimeConfig: { heartbeat: { wakeOnDemand: false, intervalSec: 0 } } });
-    await db.insert(toolApplications).values({ id: applicationId, companyId, name: "Slack custody", type: "chat" });
-    await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "Slack custody", uid: `slack-${connectionId}`,
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: actorId, membershipRole: "operator", status: "active" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Custody fixture", adapterType: "process", status: "idle", runtimeConfig: { heartbeat: { wakeOnDemand: false, intervalSec: 0 } } });
+    await db.insert(toolApplications).values({ id: applicationId, spaceId, name: "Slack custody", type: "chat" });
+    await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "Slack custody", uid: `slack-${connectionId}`,
       connectionPurpose: "channel", transport: "chat_sdk", status: "active", enabled: true, createdByUserId: actorId, config: { provider: "slack" } });
-    binding = parseSlackFormBinding({ version: 1, instanceId: identity.instanceId, companyId, endpointId, connectionId, publicId: "p".repeat(43), runtimeGeneration: 1,
+    binding = parseSlackFormBinding({ version: 1, instanceId: identity.instanceId, spaceId, endpointId, connectionId, publicId: "p".repeat(43), runtimeGeneration: 1,
       teamId: "TTEST", appId: "ATEST", eventBindingId: "slack-event:" + "a".repeat(64), credentialFingerprint: "b".repeat(64) });
     const { credentialFingerprint, eventBindingId, ...base } = binding, enrollment = { ...base, bindingId: eventBindingId };
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId, connectionId, assignedAgentId: agentId, provider: "slack", publicId: binding.publicId,
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId, assignedAgentId: agentId, provider: "slack", publicId: binding.publicId,
       sponsorUserId: actorId, status: "active", allowUnlinkedPeople: false, setup: { step: "provider_setup" } });
     await db.update(chatEndpoints).set({ setup: sql`${JSON.stringify({ step: "provider_setup", runtimeGeneration: 1, slackCloudInstanceId: identity.instanceId,
       slackCloudSubject: actorId, slackCloudEvents: { runtimeGeneration: 1, bindingId: eventBindingId, teamId: binding.teamId, appId: binding.appId } })}::jsonb` }).where(eq(chatEndpoints.id, endpointId));
     actionId = await db.transaction(tx => stageSlackFormEnrollment(tx, { enrollment, subject: actorId, environment: identity.environment }));
     await reconcileSlackFormEnrollment(db, { actionId, identity, resolveBotToken: async () => "xoxb-controlled-test-only", protocol: async input => {
-      expect(input.operation.kind).toBe("enroll"); expect(input.subject).toBe(actorId); expect(input.companyId).toBe(companyId); return { binding };
+      expect(input.operation.kind).toBe("enroll"); expect(input.subject).toBe(actorId); expect(input.spaceId).toBe(spaceId); return { binding };
     } });
     expect((await row()).result?.phase).toBe("enrolled");
     await db.transaction(async tx => {
-      await tx.update(chatEndpoints).set({ status: "paused" }).where(and(eq(chatEndpoints.id, endpointId), eq(chatEndpoints.companyId, companyId)));
+      await tx.update(chatEndpoints).set({ status: "paused" }).where(and(eq(chatEndpoints.id, endpointId), eq(chatEndpoints.spaceId, spaceId)));
       await stageSlackFormOwnerConfiguration(tx, endpointId, false, actorId, identity);
     });
     compactJws = signCurrentReceipt();
@@ -79,14 +79,14 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
     for (const cleanup of [
       () => db.execute(sql.raw(`DROP TRIGGER IF EXISTS ${trigger} ON chat_actions`)),
       () => db.execute(sql.raw(`DROP FUNCTION IF EXISTS ${trigger}()`)),
-      () => db.delete(chatActions).where(eq(chatActions.companyId, companyId)),
-      () => db.delete(chatEndpoints).where(eq(chatEndpoints.companyId, companyId)),
-      () => db.delete(toolConnections).where(eq(toolConnections.companyId, companyId)),
-      () => db.delete(toolApplications).where(eq(toolApplications.companyId, companyId)),
-      () => db.delete(agents).where(eq(agents.companyId, companyId)),
-      () => db.delete(activityLog).where(eq(activityLog.companyId, companyId)),
-      () => db.delete(companyMemberships).where(eq(companyMemberships.companyId, companyId)),
-      () => db.delete(companies).where(eq(companies.id, companyId)),
+      () => db.delete(chatActions).where(eq(chatActions.spaceId, spaceId)),
+      () => db.delete(chatEndpoints).where(eq(chatEndpoints.spaceId, spaceId)),
+      () => db.delete(toolConnections).where(eq(toolConnections.spaceId, spaceId)),
+      () => db.delete(toolApplications).where(eq(toolApplications.spaceId, spaceId)),
+      () => db.delete(agents).where(eq(agents.spaceId, spaceId)),
+      () => db.delete(activityLog).where(eq(activityLog.spaceId, spaceId)),
+      () => db.delete(spaceMemberships).where(eq(spaceMemberships.spaceId, spaceId)),
+      () => db.delete(spaces).where(eq(spaces.id, spaceId)),
       () => db.delete(authUsers).where(eq(authUsers.id, actorId)),
     ]) try { await cleanup(); } catch (error) { errors.push(error); }
     vi.unstubAllEnvs();
@@ -103,7 +103,7 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
     const capabilities={incomingWake:{version:1,ownerId:randomUUID(),generation,routes:["slack-broker-events-v1"],
       slackBroker:{version:1,instanceId:identity.instanceId,generation,bindingsFingerprint:slackConfiguredBindingsFingerprint([]),entries:[]}}};
     const encode=(value:unknown)=>Buffer.from(JSON.stringify(value)).toString("base64url");
-    const body=encode({alg:"EdDSA",typ:CLOUD_CONTROL_JWS_TYPE,kid})+"."+encode({v:1,iss:"paperclip-cloud",aud:CLOUD_CONTROL_AUDIENCE,
+    const body=encode({alg:"EdDSA",typ:CLOUD_CONTROL_JWS_TYPE,kid})+"."+encode({v:1,iss:"outpost-cloud",aud:CLOUD_CONTROL_AUDIENCE,
       sub:identity.instanceId,action:"task-drain:read",requestId:randomUUID(),iat:now,exp:now+60,idleCapabilities:capabilities});
     const claims=verifyCloudControlAssertion({compactJws:body+"."+sign(null,Buffer.from(body),key.privateKey).toString("base64url"),expectedAction:"task-drain:read",
       env:{OUTPOST_CLOUD_STACK_ID:identity.instanceId,OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS:JSON.stringify({keys:[{...key.publicKey.export({format:"jwk"}),kid,use:"sig",alg:"EdDSA"}]})}});
@@ -120,7 +120,7 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
       :input.operation.acceptedRetirementReceipt?{acceptedRetirementDigest:receipt.receiptId}:{releasedRetirementDigest:receipt.receiptId};
     if(!ownerAlreadyTransferred){await transferSlackFormRetirement(db,await row(),identity,protocol);await transferSlackFormRetirement(db,await row(),identity,protocol);}
     expect(slackFormRetirementHistoryReceipt(await row())).not.toBeNull();
-    const history=Array.from({length:1005},(_,index)=>({id:`b1000000-0000-4000-8000-${String(index).padStart(12,"0")}`,companyId,endpointId,
+    const history=Array.from({length:1005},(_,index)=>({id:`b1000000-0000-4000-8000-${String(index).padStart(12,"0")}`,spaceId,endpointId,
       kind:"slack_form_grant",providerActionId:"slack-form-grant-history:"+index,status:"cancelled",
       payload:{binding,environment:identity.environment,subject:actorId},result:{phase:"transferred",nextAttemptAt:null,
         retirement:{version:1,binding,instanceId:identity.instanceId,environment:identity.environment,subject:actorId,receiptDigest:receipt.receiptId,receipt}}}));
@@ -159,9 +159,9 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
     expect(result.proof?.endpointIds).toEqual([]);expect(result.proof?.connectionIds).toEqual([]);
     expect(result.blockers).toBe(0);expect(result.reads).toBeGreaterThanOrEqual(5);
   },15000);
-  for(const fault of ["unfinished","malformed","foreign_company"] as const)it(`a ${fault} receipt after the first completed history page still blocks the actual action owner`,async()=>{
+  for(const fault of ["unfinished","malformed","foreign_space"] as const)it(`a ${fault} receipt after the first completed history page still blocks the actual action owner`,async()=>{
     const{history,receipt}=await finishedHistory(),id="ffffffff-ffff-4fff-bfff-ffffffffffff",last=history.at(-1)!;
-    const payload=fault==="foreign_company"?{...last.payload,binding:{...binding,companyId:randomUUID()}}:last.payload;
+    const payload=fault==="foreign_space"?{...last.payload,binding:{...binding,spaceId:randomUUID()}}:last.payload;
     const result=fault==="unfinished"?{phase:"issued",nextAttemptAt:null}:fault==="malformed"
       ?{...last.result,retirement:{...last.result.retirement,receipt:{...receipt,receiptId:"not-a-retirement-digest"}}}:last.result;
     await db.insert(chatActions).values({...last,id,providerActionId:"slack-form-grant-history:last",status:fault==="unfinished"?"issued":last.status,payload,result});
@@ -180,14 +180,14 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
     const digest=slackFormFinalizedReceiptDigest(work.receipt);
     const protocol=async(input:{operation:Record<string,unknown>})=>input.operation.refreshAckReceipt?{ackReceiptJws:ack.currentJws}
       :input.operation.acceptedAckReceipt?{acceptedReceiptDigest:digest,needsTerminalOriginal:false}:{releasedAckDigest:digest};
-    await transferSlackFormAckReceipt(db,{companyId,actionId:ack.id,instanceId:identity.instanceId,protocol});
-    await transferSlackFormAckReceipt(db,{companyId,actionId:ack.id,instanceId:identity.instanceId,protocol});
+    await transferSlackFormAckReceipt(db,{spaceId,actionId:ack.id,instanceId:identity.instanceId,protocol});
+    await transferSlackFormAckReceipt(db,{spaceId,actionId:ack.id,instanceId:identity.instanceId,protocol});
     const finished=await readAck();expect(parseSlackFormAckWork(finished.result?.formAck).phase).toBe("transferred");
     const openId="00000000-0000-4000-8000-000000000001",submitId="00000000-0000-4000-8000-000000000002";
     const payload={interactionId:finished.payload.interactionId,publicationId:finished.payload.publicationId};
     await db.insert(chatActions).values([
-      {id:openId,companyId,endpointId,kind:"question_form_open",status:"processed",providerActionId:"slack-history-linked-open",payload},
-      {id:submitId,companyId,endpointId,kind:"question_form_submit",status:"processed",providerActionId:"slack-history-linked-submit",payload}]);
+      {id:openId,spaceId,endpointId,kind:"question_form_open",status:"processed",providerActionId:"slack-history-linked-open",payload},
+      {id:submitId,spaceId,endpointId,kind:"question_form_submit",status:"processed",providerActionId:"slack-history-linked-submit",payload}]);
     await db.update(chatActions).set({payload:{...finished.payload,openActionRowId:openId,submitActionRowId:submitId}}).where(eq(chatActions.id,ack.id));
     await finishedHistory(true);
     const proof=await inspectHistory();expect(proof.proof?.completedActionIds).toHaveLength(1009);expect(proof.blockers).toBe(0);
@@ -217,18 +217,18 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
     const signAck = (kid: string) => {
       const pair = generateKeyPairSync("ed25519"), encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
       vi.stubEnv("OUTPOST_CLOUD_RUNTIME_IDENTITY_JWKS", JSON.stringify({ keys: [{ ...pair.publicKey.export({ format: "jwk" }), kid, alg: "EdDSA", use: "sig" }] }));
-      const body = encode({ alg: "EdDSA", typ: "paperclip-connector-ack-receipt+jwt", kid }) + "." + encode({ v: 1, iss: "paperclip-cloud", aud: "paperclip-connector-ack-receipt/v1", sub: identity.instanceId, receipt });
+      const body = encode({ alg: "EdDSA", typ: "outpost-connector-ack-receipt+jwt", kid }) + "." + encode({ v: 1, iss: "outpost-cloud", aud: "outpost-connector-ack-receipt/v1", sub: identity.instanceId, receipt });
       return body + "." + sign(null, Buffer.from(body), pair.privateKey).toString("base64url");
     };
     const oldJws = signAck("ack-before-refresh");
-    await db.insert(chatActions).values({ id, companyId, endpointId, kind: "slack_form_session", providerActionId: `slack-form-session:${operationId}`,
+    await db.insert(chatActions).values({ id, spaceId, endpointId, kind: "slack_form_session", providerActionId: `slack-form-session:${operationId}`,
       status: "failed", payload: { binding, environment: identity.environment, operationId, requestDigest, userId: "UTEST", grantId: "grant", publicationId: "publication", interactionId: "interaction" },
       result: { phase: "not_opened", terminalIntent: { version: 1, binding, operationId, deliveryId, userId: "UTEST", grantId: "grant", publicationId: "publication", interactionId: "interaction",
         appReceiptId: id, view: null, outcome: "no_effect", submitReceiptId: null, rejectionDigest: receipt.terminalDigest, encryptedEvidence: null },
         cloudProofAcceptance: { version: 1, binding, operationId, appReceiptId: id, outcome: "no_effect", terminalDigest: receipt.terminalDigest, acceptedAt: now },
         formAck: { version: 1, phase: "accepted", leaseId: "exact-refresh-lease", deliveryId, receiptJws: oldJws, receipt }, nextAttemptAt: now } });
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "9".repeat(64));
-    await db.transaction(tx => retainSlackFormOpeningProof(tx, { companyId, appReceiptId: id, original,
+    await db.transaction(tx => retainSlackFormOpeningProof(tx, { spaceId, appReceiptId: id, original,
       operation: { version: 1, binding, grantId: "grant", id: operationId, externalId: "controlled-external-id", deliveryId, requestDigest, triggerDigest: "f".repeat(64),
         userId: "UTEST", acceptedAt: now, triggerDeadline: now, phase: "rejected", view: null, closed: null, acknowledgement: null, rejection: null } }));
     return { id, oldJws, currentJws: signAck("ack-after-refresh"), original };
@@ -240,7 +240,7 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
         await acceptSlackFormRetirementLocally(db, await row(), identity, compactJws);
         id = actionId; oldJws = compactJws; currentJws = signCurrentReceipt("retirement-after-refresh");
       } else ({ id, oldJws, currentJws, original } = await acceptedAckForRefresh());
-      const read = async () => (await db.select().from(chatActions).where(and(eq(chatActions.id, id), eq(chatActions.companyId, companyId))))[0]!;
+      const read = async () => (await db.select().from(chatActions).where(and(eq(chatActions.id, id), eq(chatActions.spaceId, spaceId))))[0]!;
       const before = await read(), reported: string[] = [];
       let refreshes = 0, transfers = 0, concurrent: typeof before | undefined;
       const owner = { identity, resolveBotToken: async () => { throw new Error("retained work must not read credentials"); },
@@ -281,14 +281,14 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
   it("commits original-subject acceptance before Cloud compaction and retries a lost transfer after reconstruction", async () => {
     let retireCalls = 0, cleanupCalls = 0;
     await reconcileSlackFormEnrollment(db, { actionId, identity, resolveBotToken: async () => { throw new Error("retirement must not read credentials"); }, protocol: async input => {
-      expect(input.subject).toBe(actorId); expect(input.companyId).toBe(companyId);
+      expect(input.subject).toBe(actorId); expect(input.spaceId).toBe(spaceId);
       if (input.operation.kind === "retire") { retireCalls++; return { retired: true }; }
       cleanupCalls++; return { cleaned: true, instanceId: identity.instanceId, environment: identity.environment, binding, retirementReceiptJws: compactJws };
     } });
     const accepted = await row(); expect(accepted.result?.phase).toBe("retirement_accepted"); expect(accepted.result?.retirementReceiptJws).toBe(compactJws);
     let compacted = false, transfers = 0; const lost = new Error("lost actual transfer response");
-    const protocol = async (input: { subject: string; companyId: string; operation: Record<string, unknown> }) => {
-      expect(input.subject).toBe(actorId); expect(input.companyId).toBe(companyId);
+    const protocol = async (input: { subject: string; spaceId: string; operation: Record<string, unknown> }) => {
+      expect(input.subject).toBe(actorId); expect(input.spaceId).toBe(spaceId);
       if (input.operation.refreshRetirementReceipt) return { retirementReceiptJws: compactJws };
       if (input.operation.releaseRetirementFact) return { releasedRetirementDigest: slackFormRetirementReceipt(binding, identity.environment, actorId).receiptId };
       expect(input.operation).toEqual({ kind: "cleanup", binding, acceptedRetirementReceipt: compactJws });
@@ -333,21 +333,21 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
     const successor = await row(); await expect(acceptSlackFormRetirementLocally(db, before, identity, compactJws)).rejects.toMatchObject({ code: "form_retirement_acceptance_changed" });
     expect(await row()).toEqual(successor);
   });
-  it("foreign company and a changed accepted digest cannot clear local responsibility", async () => {
-    const before = await row(); await expect(acceptSlackFormRetirementLocally(db, { ...before, companyId: randomUUID() }, identity, compactJws)).rejects.toMatchObject({ code: "form_retirement_authority_changed" });
+  it("foreign space and a changed accepted digest cannot clear local responsibility", async () => {
+    const before = await row(); await expect(acceptSlackFormRetirementLocally(db, { ...before, spaceId: randomUUID() }, identity, compactJws)).rejects.toMatchObject({ code: "form_retirement_authority_changed" });
     expect(await row()).toEqual(before); await acceptSlackFormRetirementLocally(db, before, identity, compactJws); const accepted = await row();
     await expect(transferSlackFormRetirement(db, accepted, identity, async input => input.operation.refreshRetirementReceipt ? { retirementReceiptJws: compactJws } : { acceptedRetirementDigest: "0".repeat(64) })).rejects.toMatchObject({ code: "form_retirement_transfer_unconfirmed" });
     expect(await row()).toEqual(accepted);
   });
-  it("current company-authorized Retry rearms retained debt and revoked authority cannot", async () => {
+  it("current space-authorized Retry rearms retained debt and revoked authority cannot", async () => {
     await acceptSlackFormRetirementLocally(db, await row(), identity, compactJws);
     await db.update(chatActions).set({ status: "attention", result: { ...(await row()).result, failureCode: "form_retirement_verifier_unavailable", nextAttemptAt: null } }).where(eq(chatActions.id, actionId));
-    const management = await connectionManagementService(db).authorize({ type: "board", userId: actorId, source: "session", ignoreInstanceAdmin: true }, "connections:configure",
-      { type: "connection_management", companyId, connectionId, purpose: "chat", operation: "configure", readOnly: false });
-    const before = await row(); expect((await retrySlackFormAcknowledgement(db, { companyId, endpointId, actionId, identity: () => identity, management })).state).toBe("scheduled");
+    const management = await connectionManagementService(db).authorize({ type: "operator", userId: actorId, source: "session", ignoreInstanceAdmin: true }, "connections:configure",
+      { type: "connection_management", spaceId, connectionId, purpose: "chat", operation: "configure", readOnly: false });
+    const before = await row(); expect((await retrySlackFormAcknowledgement(db, { spaceId, endpointId, actionId, identity: () => identity, management })).state).toBe("scheduled");
     const pending = await row(); expect(pending.payload).toEqual(before.payload); expect(pending.result?.retirementReceiptJws).toBe(compactJws); expect(pending.result?.nextAttemptAt).not.toBeNull();
-    await db.delete(companyMemberships).where(and(eq(companyMemberships.companyId, companyId), eq(companyMemberships.principalId, actorId)));
-    await expect(retrySlackFormAcknowledgement(db, { companyId, endpointId, actionId, identity: () => identity, management })).rejects.toThrow();
+    await db.delete(spaceMemberships).where(and(eq(spaceMemberships.spaceId, spaceId), eq(spaceMemberships.principalId, actorId)));
+    await expect(retrySlackFormAcknowledgement(db, { spaceId, endpointId, actionId, identity: () => identity, management })).rejects.toThrow();
     expect(await row()).toEqual(pending);
   });
   it("current signature refresh changes only the JWS and a successor CAS cannot be overwritten", async () => {
@@ -420,11 +420,11 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
       viewDigest: null, terminalDigest: "d".repeat(64), outcome: "no_effect", finalizedAt: now });
     const pair = generateKeyPairSync("ed25519"), kid = "session-canonical-control";
     const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
-    const input = encode({ alg: "EdDSA", typ: "paperclip-connector-ack-receipt+jwt", kid }) + "." + encode({ v: 1, iss: "paperclip-cloud", aud: "paperclip-connector-ack-receipt/v1", sub: identity.instanceId, receipt });
+    const input = encode({ alg: "EdDSA", typ: "outpost-connector-ack-receipt+jwt", kid }) + "." + encode({ v: 1, iss: "outpost-cloud", aud: "outpost-connector-ack-receipt/v1", sub: identity.instanceId, receipt });
     const receiptJws = input + "." + sign(null, Buffer.from(input), pair.privateKey).toString("base64url");
     const terminalIntent = { version: 1, binding, operationId, deliveryId, userId: "UTEST", grantId: "grant", publicationId: "publication", interactionId: "interaction",
       appReceiptId: sessionId, view: null, outcome: "no_effect", submitReceiptId: null, rejectionDigest: receipt.terminalDigest, encryptedEvidence: null };
-    await db.insert(chatActions).values({ id: sessionId, companyId, endpointId, kind: "slack_form_session", providerActionId: `slack-form-session:${operationId}`,
+    await db.insert(chatActions).values({ id: sessionId, spaceId, endpointId, kind: "slack_form_session", providerActionId: `slack-form-session:${operationId}`,
       status: "failed", payload: { binding, environment: identity.environment, operationId, userId: "UTEST", grantId: "grant", publicationId: "publication", interactionId: "interaction" },
       result: { phase: "not_opened", terminalIntent,
         cloudProofAcceptance: { version: 1, binding, operationId, appReceiptId: sessionId, outcome: "no_effect", terminalDigest: receipt.terminalDigest, acceptedAt: now },
@@ -432,20 +432,20 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
     const signing = generateKeyPairSync("ed25519"), sealing = generateKeyPairSync("x25519");
     const signPrivateKey = signing.privateKey.export({ format: "jwk" }).d, sealPrivateKey = sealing.privateKey.export({ format: "jwk" }).d;
     if (!signPrivateKey || !sealPrivateKey) throw new Error("normal controlled connector private keys absent");
-    const connector = createPaperclipCloudConnector({ config: { baseUrl: "https://broker.example.test", instanceId: identity.instanceId,
+    const connector = createOutpostCloudConnector({ config: { baseUrl: "https://broker.example.test", instanceId: identity.instanceId,
       environment: identity.environment, signPrivateKey, sealPrivateKey }, request: async () => { throw new Error("Unexpected external connector request"); } });
     const lease = vi.spyOn(connector, "leaseEvents").mockResolvedValue(null);
-    expect((await readSlackFormRetainedConsumer(db, connector)).owner).toMatchObject({ companyId, requiresDelivery: false });
+    expect((await readSlackFormRetainedConsumer(db, connector)).owner).toMatchObject({ spaceId, requiresDelivery: false });
     const pendingWorker = githubConnectionEventService(db, { connector, env: { OUTPOST_GITHUB_EVENT_POLLING: "1" } });
     await pendingWorker.pollOnce(); expect(lease).toHaveBeenCalledTimes(1); expect(pendingWorker.nextPollAt()).not.toBeNull();
     let releases = 0;
-    await transferSlackFormAckReceipt(db, { companyId, actionId: sessionId, instanceId: identity.instanceId, protocol: async values => {
-      expect(values.subject).toBe("github-bot-events"); expect(values.companyId).toBe(companyId);
+    await transferSlackFormAckReceipt(db, { spaceId, actionId: sessionId, instanceId: identity.instanceId, protocol: async values => {
+      expect(values.subject).toBe("github-bot-events"); expect(values.spaceId).toBe(spaceId);
       expect(values.operation).toEqual({ kind: "receipt", binding, operationId, deliveryId,
         releaseAckFact: { leaseId: "exact-session-lease", receiptDigest: slackFormFinalizedReceiptDigest(receipt), appReceiptId: sessionId } });
       releases++; return { releasedAckDigest: slackFormFinalizedReceiptDigest(receipt) };
     } });
-    const [completed] = await db.select().from(chatActions).where(and(eq(chatActions.id, sessionId), eq(chatActions.companyId, companyId)));
+    const [completed] = await db.select().from(chatActions).where(and(eq(chatActions.id, sessionId), eq(chatActions.spaceId, spaceId)));
     expect(completed?.result?.formAck).toMatchObject({ phase: "transferred", leaseId: "exact-session-lease", receipt });
     expect(completed?.result?.nextAttemptAt).toBeNull(); expect(releases).toBe(1);
     expect(await readSlackFormRetainedConsumer(db, connector)).toEqual({ owner: null, attention: [] });
@@ -469,23 +469,23 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
       viewDigest: null, terminalDigest: "d".repeat(64), outcome: "no_effect", finalizedAt: now });
     const pair = generateKeyPairSync("ed25519"), kid = "session-canonical-control";
     const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
-    const input = encode({ alg: "EdDSA", typ: "paperclip-connector-ack-receipt+jwt", kid }) + "." + encode({ v: 1, iss: "paperclip-cloud", aud: "paperclip-connector-ack-receipt/v1", sub: identity.instanceId, receipt });
+    const input = encode({ alg: "EdDSA", typ: "outpost-connector-ack-receipt+jwt", kid }) + "." + encode({ v: 1, iss: "outpost-cloud", aud: "outpost-connector-ack-receipt/v1", sub: identity.instanceId, receipt });
     const receiptJws = input + "." + sign(null, Buffer.from(input), pair.privateKey).toString("base64url");
     const terminalIntent = { version: 1, binding, operationId, deliveryId, userId: "UTEST", grantId: "grant", publicationId: "publication", interactionId: "interaction",
       appReceiptId: sessionId, view: null, outcome: "no_effect", submitReceiptId: null, rejectionDigest: receipt.terminalDigest, encryptedEvidence: null };
-    await db.insert(chatActions).values({ id: sessionId, companyId, endpointId, kind: "slack_form_session", providerActionId: `slack-form-session:${operationId}`,
+    await db.insert(chatActions).values({ id: sessionId, spaceId, endpointId, kind: "slack_form_session", providerActionId: `slack-form-session:${operationId}`,
       status: "failed", payload: { binding, environment: identity.environment, operationId, userId: "UTEST", grantId: "grant", publicationId: "publication", interactionId: "interaction" },
       result: { phase: "not_opened", terminalIntent,
         cloudProofAcceptance: { version: 1, binding, operationId, appReceiptId: sessionId, outcome: "no_effect", terminalDigest: receipt.terminalDigest, acceptedAt: now },
         formAck: { version: 1, phase: "gc_pending", leaseId: "exact-session-lease", deliveryId, receiptJws, receipt }, nextAttemptAt: now } });
-    await transferSlackFormAckReceipt(db, { companyId, actionId: sessionId, instanceId: identity.instanceId,
+    await transferSlackFormAckReceipt(db, { spaceId, actionId: sessionId, instanceId: identity.instanceId,
       protocol: async () => ({ releasedAckDigest: slackFormFinalizedReceiptDigest(receipt) }) });
-    const [completed] = await db.select().from(chatActions).where(and(eq(chatActions.id, sessionId), eq(chatActions.companyId, companyId)));
+    const [completed] = await db.select().from(chatActions).where(and(eq(chatActions.id, sessionId), eq(chatActions.spaceId, spaceId)));
     if (!completed) throw new Error("Actual GC transition lost its session");
     for (let n = 1; n <= 33; n++) {
       const id = `00000000-0000-4000-8000-${n.toString(16).padStart(12, "0")}`, op = n.toString(16).padStart(64, "0"), delivery = `slack_form_${op}`;
       const historyReceipt = { ...receipt, operationId: op, deliveryId: delivery, appReceiptId: id };
-      const body = encode({ alg: "EdDSA", typ: "paperclip-connector-ack-receipt+jwt", kid }) + "." + encode({ v: 1, iss: "paperclip-cloud", aud: "paperclip-connector-ack-receipt/v1", sub: identity.instanceId, receipt: historyReceipt });
+      const body = encode({ alg: "EdDSA", typ: "outpost-connector-ack-receipt+jwt", kid }) + "." + encode({ v: 1, iss: "outpost-cloud", aud: "outpost-connector-ack-receipt/v1", sub: identity.instanceId, receipt: historyReceipt });
       const historyJws = body + "." + sign(null, Buffer.from(body), pair.privateKey).toString("base64url");
       await db.insert(chatActions).values({ ...completed, id, providerActionId: `slack-form-session:${op}`,
         payload: { ...completed.payload, operationId: op }, result: { phase: "not_opened",
@@ -494,15 +494,15 @@ if (process.env.SLACK_GATE_EXPECT_PRELOAD === "1" && !external) throw new Error(
           formAck: { version: 1, phase: "transferred", leaseId: "exact-session-lease", deliveryId: delivery, receiptJws: historyJws, receipt: historyReceipt }, nextAttemptAt: null } });
     }
     const tailId = "ffffffff-ffff-4fff-8fff-ffffffffffff", tailOp = "f".repeat(64);
-    await db.insert(chatActions).values({ id: tailId, companyId, endpointId, kind: "slack_form_session", status: "processing", providerActionId: `slack-form-session:${tailOp}`,
+    await db.insert(chatActions).values({ id: tailId, spaceId, endpointId, kind: "slack_form_session", status: "processing", providerActionId: `slack-form-session:${tailOp}`,
       payload: { binding, environment: identity.environment, operationId: tailOp, userId: "UTEST", grantId: "grant", publicationId: "publication", interactionId: "interaction" },
       result: { phase: "update_attempted", view: { id: "VTAIL", hash: "same-loading-hash", externalId: `pc-form-${tailOp}` } } });
     const connector = { instanceIdentity: () => identity };
-    expect((await readSlackFormRetainedConsumer(db, connector)).owner).toEqual({ subject: "github-bot-events", companyId, binding, requiresDelivery: true });
-    await db.insert(chatActions).values({ id: "00000000-0000-4000-8000-000000000000", companyId, endpointId, kind: "slack_form_session", status: "attention", providerActionId: "malformed-retained-page",
+    expect((await readSlackFormRetainedConsumer(db, connector)).owner).toEqual({ subject: "github-bot-events", spaceId, binding, requiresDelivery: true });
+    await db.insert(chatActions).values({ id: "00000000-0000-4000-8000-000000000000", spaceId, endpointId, kind: "slack_form_session", status: "attention", providerActionId: "malformed-retained-page",
       payload: { binding: { instanceId: identity.instanceId }, environment: identity.environment }, result: {} });
     const withMalformed = await readSlackFormRetainedConsumer(db, connector);
-    expect(withMalformed.owner).toMatchObject({ companyId, requiresDelivery: true });
+    expect(withMalformed.owner).toMatchObject({ spaceId, requiresDelivery: true });
     expect(withMalformed.attention).toContainEqual({ actionId: "00000000-0000-4000-8000-000000000000", code: "form_retained_owner_invalid" });
     expect(withMalformed.attention.length).toBeLessThanOrEqual(32);
   });

@@ -48,7 +48,7 @@ import "./index.css";
  * What is faked is only the server. The three delays below stand in for a
  * session start, a prompt round trip, and the poll that lands while the
  * customer is finishing a login somewhere else. The wizard itself is not here:
- * it needs a query client, a router and a company.
+ * it needs a query client, a router and a space.
  */
 
 
@@ -110,7 +110,7 @@ const POLL_DELAY_MS = 3000;
 const DISPLAYED_CODE = "Q2RJ-E1YIF";
 
 const OAUTH_URL: Record<string, string> = {
-  claude_local: "https://claude.ai/oauth/authorize?code=true&client=paperclip",
+  claude_local: "https://claude.ai/oauth/authorize?code=true&client=outpost",
   codex_local: "https://auth.openai.com/codex/device",
 };
 

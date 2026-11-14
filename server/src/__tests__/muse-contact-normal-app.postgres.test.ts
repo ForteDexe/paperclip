@@ -9,7 +9,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { activityLog, agents, authUsers, checkpointDb, closeRegisteredClients,
-  companies, createDb, fileStorageDb, heartbeatRuns, livenessDb, mcpOauthGrants,
+  spaces, createDb, fileStorageDb, heartbeatRuns, livenessDb, mcpOauthGrants,
   museAgentBindings, museMailboxItems, museReceiverContactBuckets, subscribeDatabaseWork } from "@outpost/db";
 import { MUSE_OAUTH_SCOPES, MUSE_RESOURCE_PATH } from "@outpost/shared";
 import { resolveExternalTestDatabaseUrl } from "../lib/dedicated-test-database-url.js";
@@ -62,7 +62,7 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
   let retryObservedAt: number | undefined;
   let attemptOverflow = 0;
   const attempts: Array<{ owner: "original" | "reconstructed"; atMs: number; outcome: "injected-failure" | "committed" | "error" }> = [];
-  const userId = randomUUID(), companyId = randomUUID();
+  const userId = randomUUID(), spaceId = randomUUID();
   let agentId: string | undefined;
   let bindingId: string | undefined;
   let generation: number | undefined;
@@ -75,11 +75,11 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
   function classifyInvitationFailure(status: number, body: unknown) {
     const parsed = z.object({ error: z.string().optional() }).safeParse(body);
     const fixed = [
-      { message: "Board access required", code: "board_access_required" },
-      { message: "User does not have access to this company", code: "company_access_denied" },
-      { message: "User does not have active company access", code: "active_company_access_required" },
+      { message: "Operator access required", code: "operator_access_required" },
+      { message: "User does not have access to this space", code: "space_access_denied" },
+      { message: "User does not have active space access", code: "active_space_access_required" },
       { message: "Viewer access is read-only", code: "viewer_read_only" },
-      { message: "Sign in as a company operator to configure Muse.", code: "company_operator_required" },
+      { message: "Sign in as a space operator to configure Muse.", code: "space_operator_required" },
       { message: "Missing permission: agents:create.", code: "agents_create_permission_missing" },
       { message: "Permission agents:create does not cover the requested scope.", code: "agents_create_scope_denied" },
       { message: "Enable Muse and Outpost Runner in experimental settings.", code: "muse_runner_disabled" },
@@ -116,7 +116,7 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
       storageService: createStorageService(createLocalDiskStorageProvider(path.join(home, "objects"))),
       deploymentMode: "authenticated", deploymentExposure: "private", bindHost: "127.0.0.1",
       allowedHostnames: [host], authPublicBaseUrl: origin, authReady: true,
-      companyDeletionEnabled: false, managedPluginAutoInstall: [],
+      spaceDeletionEnabled: false, managedPluginAutoInstall: [],
       decisionServiceOptions: { wakeOriginAgent: async () => {
         unexpectedDecisionWakes++;
         throw new Error("This Muse contact fixture does not admit Decision continuation work");
@@ -131,7 +131,7 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
     await app.locals.bundledPluginsStartup;
   }
   async function closeNormalApp() {
-    if (app) { await app.locals.paperclipShutdown(); app = undefined; }
+    if (app) { await app.locals.outpostShutdown(); app = undefined; }
     restoreVerify?.(); restoreVerify = undefined;
     unsubscribe?.(); unsubscribe = undefined;
     if (db) { await db.$client.end({ timeout: 1 }); db = undefined; }
@@ -156,10 +156,10 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
     if (!databaseUrl) throw new Error("Explicit Muse test database required");
     await openNormalApp();
     const owner = currentDb();
-    await owner.insert(companies).values({ id: companyId, name: "Muse contact recovery", issuePrefix: "MCR0", requireBoardApprovalForNewAgents: false });
+    await owner.insert(spaces).values({ id: spaceId, name: "Muse contact recovery", issuePrefix: "MCR0", requireOperatorApprovalForNewAgents: false });
     await owner.insert(authUsers).values({ id: userId, name: "Muse fixture operator", email: userId + "@example.test", createdAt: new Date(), updatedAt: new Date() });
-    await accessService(owner).ensureMembership(companyId, "user", userId, "owner", "active");
-    await accessService(owner).ensureRoleDefaultGrants(companyId, userId, "owner", userId);
+    await accessService(owner).ensureMembership(spaceId, "user", userId, "owner", "active");
+    await accessService(owner).ensureRoleDefaultGrants(spaceId, userId, "owner", userId);
     await instanceSettingsService(owner).updateExperimental({ enableMuse: true, enableNativeRunner: true });
   }, 90_000);
 
@@ -184,14 +184,14 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
 
   it("recovers the sole failed contact verification through normal retry and a new Db owner, then stays quiet", async () => {
     stage = "normal-invitation";
-    const invite = await request(currentApp()).post(`/api/companies/${companyId}/muse-invitations`)
+    const invite = await request(currentApp()).post(`/api/spaces/${spaceId}/muse-invitations`)
       .set("Host", host).set("Origin", origin).set("x-muse-test-operator", userId)
       .send({ name: "Contact recovery Muse", role: "Contact verification regression" });
     if (invite.status !== 200) invitationFailure = classifyInvitationFailure(invite.status, invite.body);
     expect(invite.status, invitationFailure ? JSON.stringify(invitationFailure) : undefined).toBe(200);
     const createdAgentId = z.object({ agent: z.object({ id: z.uuid() }) }).parse(invite.body).agent.id;
     agentId = createdAgentId;
-    const pairing = await request(currentApp()).post(`/api/companies/${companyId}/agents/${agentId}/muse-binding`)
+    const pairing = await request(currentApp()).post(`/api/spaces/${spaceId}/agents/${agentId}/muse-binding`)
       .set("Host", host).set("Origin", origin).set("x-muse-test-operator", userId).send({});
     expect(pairing.status).toBe(201);
     const paired = pairingSchema.parse(pairing.body);
@@ -219,12 +219,12 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
     accessToken = credentials.access_token; refreshToken = credentials.refresh_token;
     const owner = currentDb();
     const [authorized] = await owner.select().from(museAgentBindings).where(eq(museAgentBindings.id, paired.bindingId));
-    expect(authorized).toMatchObject({ companyId, agentId, operatorId: userId, generation: paired.generation,
+    expect(authorized).toMatchObject({ spaceId, agentId, operatorId: userId, generation: paired.generation,
       status: "connected", receiverContactAt: null, verifiedReplyAt: null, challengeHash: null });
     expect(authorized.pairedAt).not.toBeNull(); expect(authorized.grantId).not.toBeNull();
     grantId = z.uuid().parse(authorized.grantId);
     const [grant] = await owner.select().from(mcpOauthGrants).where(eq(mcpOauthGrants.id, grantId));
-    expect(grant).toMatchObject({ companyId, agentId, userId, clientId, resource, purpose: "agent", revokedAt: null });
+    expect(grant).toMatchObject({ spaceId, agentId, userId, clientId, resource, purpose: "agent", revokedAt: null });
     expect(grant.scopes).toEqual([...MUSE_OAUTH_SCOPES]);
     expect((await request(currentApp()).post("/api/muse/v1/pair").set("Host", host).send({})).status).toBe(404);
 
@@ -246,7 +246,7 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
       throw Object.assign(new Error("Injected Muse verification infrastructure failure"), { code: "MUSE_TEST_VERIFICATION_UNAVAILABLE" });
     });
     restoreVerify = () => fault.mockRestore();
-    const signal = await request(currentApp()).get("/api/muse/v1/signal").set("Host", host).set("X-Paperclip-Muse-Binding", paired.bindingId);
+    const signal = await request(currentApp()).get("/api/muse/v1/signal").set("Host", host).set("X-Outpost-Muse-Binding", paired.bindingId);
     expect(signal.status).toBe(200); expect(signal.body.version).toBe(1); expect(signal.body.signal === null).toBe(true);
     await vi.waitFor(() => {
       expect(firstFailureState).toEqual({ contactPersisted: true, challengeAbsent: true, mailboxCount: 0 });
@@ -283,7 +283,7 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
     expect(reconstructed).not.toBe(owner);
     await vi.waitFor(() => { expect(reconstructedCommits).toBe(1); }, { timeout: 15_000, interval: 25 });
     const [recovered] = await reconstructed.select().from(museAgentBindings).where(eq(museAgentBindings.id, paired.bindingId));
-    expect(recovered).toMatchObject({ companyId, agentId, operatorId: userId, generation: paired.generation,
+    expect(recovered).toMatchObject({ spaceId, agentId, operatorId: userId, generation: paired.generation,
       grantId, status: "connected", verifiedReplyAt: null, revision: beforeRestart.revision + 1 });
     expect(recovered.pairedAt).toEqual(beforeRestart.pairedAt);
     expect(recovered.receiverContactAt).toEqual(beforeRestart.receiverContactAt);
@@ -294,10 +294,10 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
     const challengeRows = await reconstructed.select().from(museMailboxItems).where(and(
       eq(museMailboxItems.bindingId, paired.bindingId), eq(museMailboxItems.kind, "readiness_challenge")));
     expect(challengeRows.length).toBe(1);
-    expect({ companyId: challengeRows[0].companyId, bindingGeneration: challengeRows[0].bindingGeneration,
-      assignmentId: challengeRows[0].assignmentId }).toEqual({ companyId, bindingGeneration: paired.generation, assignmentId: null });
+    expect({ spaceId: challengeRows[0].spaceId, bindingGeneration: challengeRows[0].bindingGeneration,
+      assignmentId: challengeRows[0].assignmentId }).toEqual({ spaceId, bindingGeneration: paired.generation, assignmentId: null });
     expect(await reconstructed.select({ id: activityLog.id }).from(activityLog).where(and(
-      eq(activityLog.companyId, companyId), eq(activityLog.entityId, createdAgentId), eq(activityLog.action, "muse.readiness_challenge_created")))).toHaveLength(1);
+      eq(activityLog.spaceId, spaceId), eq(activityLog.entityId, createdAgentId), eq(activityLog.action, "muse.readiness_challenge_created")))).toHaveLength(1);
     stage = "healthy-lifecycle-reply-wait";
     await vi.waitFor(() => {
       expect(getTaskDrainStatus()).toMatchObject({ activeRuns: 0, pendingWakes: 0, quiescent: true });
@@ -339,7 +339,7 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
       expect(idleWorkSnapshot().active).toBe(0);
     }, { timeout: 15_000, interval: 25 });
     const beforeRequiredRead = { total: queryCount, main: poolQueryCounts.main };
-    expect(await reconstructed.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId))).toHaveLength(0);
+    expect(await reconstructed.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId))).toHaveLength(0);
     const afterRequiredRead = { total: queryCount, main: poolQueryCounts.main };
     expect(afterRequiredRead.total).toBeGreaterThan(beforeRequiredRead.total);
     expect(afterRequiredRead.main).toBeGreaterThan(beforeRequiredRead.main);
@@ -358,7 +358,7 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
     expect(revoke.status).toBe(200);
     expect((await request(currentApp()).post("/api/muse/v1/queries").set("Host", host).set("Authorization", "Bearer " + accessToken)
       .send({ version: 1, query: "mailbox", after: mailbox.nextCursor })).status).toBe(401);
-    expect((await request(currentApp()).get("/api/muse/v1/signal").set("Host", host).set("X-Paperclip-Muse-Binding", paired.bindingId)).status).toBe(410);
+    expect((await request(currentApp()).get("/api/muse/v1/signal").set("Host", host).set("X-Outpost-Muse-Binding", paired.bindingId)).status).toBe(410);
     const [revokedGrant] = await reconstructed.select().from(mcpOauthGrants).where(eq(mcpOauthGrants.id, grantId));
     expect(revokedGrant.revokedAt).not.toBeNull();
     const [finalBinding] = await reconstructed.select().from(museAgentBindings).where(eq(museAgentBindings.id, paired.bindingId));
@@ -366,7 +366,7 @@ describe.skipIf(!databaseUrl)("normal Muse contact verification failure, durable
     expect(unexpectedDecisionWakes).toBe(0);
     if (!artifactPath) throw new Error("Missing owned Muse acceptance path");
     await writeFile(artifactPath, JSON.stringify({ contract: "normal Muse contact verification recovery",
-      companyId, userId, agentId, bindingId, generation, clientId, grantId, normalOAuth: true,
+      spaceId, userId, agentId, bindingId, generation, clientId, grantId, normalOAuth: true,
       receiverSignals: 1, oldOwnerFailures, retryObservedAtMs: retryObservedAt, firstFailureState,
       reconstructedDbObject: true, challengeCount: challengeRows.length, challengeConfirmed: true,
       healthyLifecycleWait: { elapsedMs: waitingElapsedMs, before: waitingBefore, after: waitingAfter,

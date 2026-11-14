@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -27,7 +27,7 @@ describeEmbeddedPostgres("unread steered messages", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-unread-steered-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-unread-steered-");
     db = createDb(tempDb.connectionString);
   }, 120_000);
 
@@ -36,41 +36,41 @@ describeEmbeddedPostgres("unread steered messages", () => {
     await tempDb?.cleanup();
   });
 
-  async function seedIssue(companyId: string, agentId: string, issueNumber: number, prefix: string) {
+  async function seedIssue(spaceId: string, agentId: string, issueNumber: number, prefix: string) {
     const id = randomUUID();
     await db.insert(issues).values({
-      id, companyId, title: "Steered task", status: "in_progress", priority: "medium",
+      id, spaceId, title: "Steered task", status: "in_progress", priority: "medium",
       assigneeAgentId: agentId, issueNumber, identifier: `${prefix}-${issueNumber}`,
     });
     return id;
   }
 
   it("returns acknowledged steers the model never read, from the durable run log only", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
-    const prefix = `S${companyId.replaceAll("-", "").slice(0, 6)}`;
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: prefix, requireBoardApprovalForNewAgents: false });
+    const prefix = `S${spaceId.replaceAll("-", "").slice(0, 6)}`;
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: prefix, requireOperatorApprovalForNewAgents: false });
     await db.insert(agents).values({
-      id: agentId, companyId, name: "Codex", role: "engineer", status: "running",
+      id: agentId, spaceId, name: "Codex", role: "engineer", status: "running",
       adapterType: "outpost_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {},
     });
-    const issueId = await seedIssue(companyId, agentId, 1, prefix);
-    const otherIssueId = await seedIssue(companyId, agentId, 2, prefix);
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", contextSnapshot: { issueId } });
+    const issueId = await seedIssue(spaceId, agentId, 1, prefix);
+    const otherIssueId = await seedIssue(spaceId, agentId, 2, prefix);
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", contextSnapshot: { issueId } });
     const [read, unread, notValidated, otherIssue] = await db.insert(issueComments).values([
-      { companyId, issueId, authorUserId: "board", body: "Already read" },
-      { companyId, issueId, authorUserId: "board", body: "HELLO unread" },
-      { companyId, issueId, authorUserId: "board", body: "Never acknowledged by the transport" },
-      { companyId, issueId: otherIssueId, authorUserId: "board", body: "Another task" },
+      { spaceId, issueId, authorUserId: "operator", body: "Already read" },
+      { spaceId, issueId, authorUserId: "operator", body: "HELLO unread" },
+      { spaceId, issueId, authorUserId: "operator", body: "Never acknowledged by the transport" },
+      { spaceId, issueId: otherIssueId, authorUserId: "operator", body: "Another task" },
     ]).returning();
     const [interaction] = await db.insert(issueThreadInteractions).values({
-      companyId, issueId, kind: "ask_user_questions", status: "answered", effectiveResolverPolicy: "human_only",
+      spaceId, issueId, kind: "ask_user_questions", status: "answered", effectiveResolverPolicy: "human_only",
       sourceRunId: runId, payload: { version: 1, questions: [] }, result: { version: 1, answers: [] },
     }).returning();
     let seq = 0;
     const event = (eventType: string, turnId: string, kind: string | null, itemId?: string, validated = true) => ({
-      companyId, runId, agentId, seq: ++seq, eventType, sourceEventId: validated ? randomUUID() : null,
+      spaceId, runId, agentId, seq: ++seq, eventType, sourceEventId: validated ? randomUUID() : null,
       payload: { orpEvent: { turnId, ...(itemId ? { itemId } : {}), payload: kind ? { kind } : {} } },
     });
     await db.insert(heartbeatRunEvents).values([
@@ -86,13 +86,13 @@ describeEmbeddedPostgres("unread steered messages", () => {
       event("turn.failed", "t1", null),
     ]);
 
-    expect(await readUnreadSteeredMessages(db, { companyId, runId, issueId })).toEqual([
+    expect(await readUnreadSteeredMessages(db, { spaceId, runId, issueId })).toEqual([
       { id: unread!.id, text: "HELLO unread" },
       { id: interaction!.id, text: queuedInteractionSteeringBody(interaction!) },
     ]);
 
     // The continuation's input reaches the model: nothing is delivered twice.
     await db.insert(heartbeatRunEvents).values(event("item.started", "t2", "userMessage", "t2:input"));
-    expect(await readUnreadSteeredMessages(db, { companyId, runId, issueId })).toEqual([]);
+    expect(await readUnreadSteeredMessages(db, { spaceId, runId, issueId })).toEqual([]);
   });
 });

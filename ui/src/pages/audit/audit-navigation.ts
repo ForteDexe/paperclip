@@ -31,7 +31,7 @@ export function auditSectionHref(section: AuditSection, scope: AuditLinkScope = 
   return query ? `${base}?${query}` : base;
 }
 
-/** Link target for an agent's attributed activity or company-wide run history. */
+/** Link target for an agent's attributed activity or space-wide run history. */
 export function agentAuditHref(agentId: string, section: "activity" | "runs" = "activity") {
   return auditSectionHref(section, {
     mode: section === "activity" ? "agents" : undefined,

@@ -46,7 +46,7 @@ export type NativeProviderArtifactReceipt = {
 };
 export type BlobReference = {
   schema: typeof schema;
-  companyId: string;
+  spaceId: string;
   artifactId: string;
   closureDigest: string;
   objectKey: string;
@@ -60,11 +60,11 @@ export const fail = (reason: string): never => {
   throw new Error(`native_provider_artifacts_${reason}`);
 };
 export const aad = (
-  companyId: string,
+  spaceId: string,
   artifactId: string,
   closureDigest: string,
 ) =>
-  Buffer.from(JSON.stringify([schema, companyId, artifactId, closureDigest]));
+  Buffer.from(JSON.stringify([schema, spaceId, artifactId, closureDigest]));
 export const safeRelative = (value: unknown): value is string =>
   typeof value === "string" &&
   value.length > 0 &&
@@ -131,7 +131,7 @@ export function launchRootIdentity(
     posix.normalize(root) !== root ||
     /[\\\u0000-\u001f\u007f]/u.test(root) ||
     !root.endsWith(
-      `/.paperclip-runtime/outpost-runner/provider-artifacts/${manifest.digest.slice(7)}`,
+      `/.outpost-runtime/outpost-runner/provider-artifacts/${manifest.digest.slice(7)}`,
     )
   )
     fail("launch_root_invalid");
@@ -211,14 +211,14 @@ export async function readDescriptor(path: string): Promise<Descriptor> {
 
 export function artifactReference(
   value: Record<string, unknown>,
-  companyId: string,
+  spaceId: string,
   artifactId: string,
   closureDigest: string,
 ): BlobReference {
   const reference = value as BlobReference;
   if (
     reference.schema !== schema ||
-    reference.companyId !== companyId ||
+    reference.spaceId !== spaceId ||
     reference.artifactId !== artifactId ||
     reference.closureDigest !== closureDigest ||
     !validDigest(reference.sha256) ||
@@ -227,7 +227,7 @@ export function artifactReference(
     reference.byteSize > MAX_NATIVE_PROVIDER_ARTIFACT_BYTES + 1024 * 1024 ||
     typeof reference.objectKey !== "string" ||
     !reference.objectKey.startsWith(
-      `${companyId}/native-provider-artifacts/${artifactId}/`,
+      `${spaceId}/native-provider-artifacts/${artifactId}/`,
     ) ||
     !/^[a-f0-9-]{36}\.pcpa$/.test(reference.objectKey.split("/").at(-1)!) ||
     reference.objectKey.split("/").length !== 4
@@ -348,7 +348,7 @@ export async function receive(
   signal?: AbortSignal,
 ) {
   const object = await storage.getObject(
-    reference.companyId,
+    reference.spaceId,
     reference.objectKey,
     { signal },
   );

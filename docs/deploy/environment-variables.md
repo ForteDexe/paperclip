@@ -3,7 +3,7 @@ title: Environment Variables
 summary: Full environment variable reference
 ---
 
-All environment variables that Paperclip uses for server configuration.
+All environment variables that Outpost uses for server configuration.
 
 ## Server Configuration
 
@@ -14,19 +14,19 @@ All environment variables that Paperclip uses for server configuration.
 | `OUTPOST_BIND_HOST` | (unset) | Required when `OUTPOST_BIND=custom` |
 | `HOST` | `127.0.0.1` | Legacy host override; prefer `OUTPOST_BIND` for new setups |
 | `DATABASE_URL` | (embedded) | PostgreSQL connection string |
-| `OUTPOST_HOME` | `~/.paperclip` | Base directory for all Paperclip data |
+| `OUTPOST_HOME` | `~/.outpost` | Base directory for all Outpost data |
 | `OUTPOST_INSTANCE_ID` | `default` | Instance identifier (for multiple local instances) |
 | `OUTPOST_DEPLOYMENT_MODE` | `local_trusted` | Runtime mode override |
 | `OUTPOST_DEPLOYMENT_EXPOSURE` | `private` | Exposure policy when deployment mode is `authenticated` |
-| `OUTPOST_API_URL` | (auto-derived) | Paperclip API base URL. When set externally (e.g., via Kubernetes ConfigMap, load balancer, or reverse proxy), the server preserves the value instead of deriving it from the listen host and port. Useful for deployments where the public-facing URL differs from the local bind address. |
+| `OUTPOST_API_URL` | (auto-derived) | Outpost API base URL. When set externally (e.g., via Kubernetes ConfigMap, load balancer, or reverse proxy), the server preserves the value instead of deriving it from the listen host and port. Useful for deployments where the public-facing URL differs from the local bind address. |
 | `OUTPOST_CHAT_WEBHOOK_PUBLIC_URL` | (board public origin) | Optional HTTPS origin for native chat provider webhooks when ingress and the board use different hosts. Must have no credentials, path, query, or fragment; invalid configuration refuses startup. Used only for provider callback URLs, not board links, authentication, trusted hosts, or identity confirmation. |
-| `OUTPOST_RUNNER_PUBLIC_URL` | (unset) | Explicit `wss://` base URL used only when a remote `outpost_runner` target dials Paperclip directly. Paperclip appends `/api/runner/v1/connect/<runId>`; the reverse proxy must forward WebSocket upgrades for that route. This value is never inferred from request headers. Daytona ignores it and uses provider ingress. |
+| `OUTPOST_RUNNER_PUBLIC_URL` | (unset) | Explicit `wss://` base URL used only when a remote `outpost_runner` target dials Outpost directly. Outpost appends `/api/runner/v1/connect/<runId>`; the reverse proxy must forward WebSocket upgrades for that route. This value is never inferred from request headers. Daytona ignores it and uses provider ingress. |
 | `OUTPOST_RUNNER_CA_BUNDLE_PATH` | (unset) | Optional PEM CA bundle for direct runner WSS. Platform roots remain enabled. There is no insecure TLS bypass. |
-| `OUTPOST_RUNNER_REMOTE_BINARY_PATH` | (host build) | Host-local path to a `outpost-runnerd` artifact built for the remote target OS and architecture. Required when Paperclip and the remote sandbox do not share a compatible platform; build metadata and the required transport mode are verified before launch. |
-| `OUTPOST_RUNNER_REMOTE_CODEX_PATH` | (unset) | Optional host-local path to a Codex executable built for the remote target OS and architecture. For remote Codex-backed runners, Paperclip stages and verifies this executable beside `outpost-runnerd`. |
-| `OUTPOST_RUNNER_REMOTE_CODEX_NPM_SPEC` | (unset) | Optional pinned npm package spec (for example, `@openai/codex@0.160.0`) installed inside each fresh remote lease when its Codex harness is not baked into the sandbox image. Mutually exclusive with `OUTPOST_RUNNER_REMOTE_CODEX_PATH`; Paperclip verifies the installed executable before starting `runnerd`. |
-| `OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH` | `/opt/outpost-runner/provider-pack` in Docker; otherwise unset | Host-local path to the immutable provider pack built by `pnpm --filter @outpost/outpost-runner build:provider-pack`. Stamped standard Docker images include the pack; downstream compositions and the `cloud` target inherit it. Unstamped local Docker builds skip pack generation. The pack includes its target-built Node 24.11+ runtime, locked production dependencies, OpenCode proxy/executable, and ACPX sidecar. Remote OpenCode and ACPX fail closed without it. A preinstalled pack is accepted only when its complete digested manifest matches this build-owned pack; otherwise Paperclip stages this pack into the sandbox. |
-| `OUTPOST_HIDDEN_SETTINGS` | (unset) | Comma-separated settings surfaces to hide from the UI and floor at the API, for operators hosting Paperclip for others (managed cloud, internal shared server). See [Hiding settings surfaces](#hiding-settings-surfaces). |
+| `OUTPOST_RUNNER_REMOTE_BINARY_PATH` | (host build) | Host-local path to a `outpost-runnerd` artifact built for the remote target OS and architecture. Required when Outpost and the remote sandbox do not share a compatible platform; build metadata and the required transport mode are verified before launch. |
+| `OUTPOST_RUNNER_REMOTE_CODEX_PATH` | (unset) | Optional host-local path to a Codex executable built for the remote target OS and architecture. For remote Codex-backed runners, Outpost stages and verifies this executable beside `outpost-runnerd`. |
+| `OUTPOST_RUNNER_REMOTE_CODEX_NPM_SPEC` | (unset) | Optional pinned npm package spec (for example, `@openai/codex@0.160.0`) installed inside each fresh remote lease when its Codex harness is not baked into the sandbox image. Mutually exclusive with `OUTPOST_RUNNER_REMOTE_CODEX_PATH`; Outpost verifies the installed executable before starting `runnerd`. |
+| `OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH` | `/opt/outpost-runner/provider-pack` in Docker; otherwise unset | Host-local path to the immutable provider pack built by `pnpm --filter @outpost/outpost-runner build:provider-pack`. Stamped standard Docker images include the pack; downstream compositions and the `cloud` target inherit it. Unstamped local Docker builds skip pack generation. The pack includes its target-built Node 24.11+ runtime, locked production dependencies, OpenCode proxy/executable, and ACPX sidecar. Remote OpenCode and ACPX fail closed without it. A preinstalled pack is accepted only when its complete digested manifest matches this build-owned pack; otherwise Outpost stages this pack into the sandbox. |
+| `OUTPOST_HIDDEN_SETTINGS` | (unset) | Comma-separated settings surfaces to hide from the UI and floor at the API, for operators hosting Outpost for others (managed cloud, internal shared server). See [Hiding settings surfaces](#hiding-settings-surfaces). |
 | `OUTPOST_SETTING_DEFAULTS` | (unset) | JSON object replacing the schema default of selected instance settings, for hosting operators. See [Operator setting defaults](#operator-setting-defaults). |
 
 Daytona connectivity for `outpost_runner` uses authenticated provider
@@ -47,7 +47,7 @@ only `POST /api/chat-webhooks/*` from that host. Provider signatures still gate
 ingress; this variable does not expose routes or grant provider access.
 Never forward the private `local_trusted` board through a public tunnel.
 
-In Paperclip Cloud, chat callback URLs and account-linking URLs follow the
+In Outpost Cloud, chat callback URLs and account-linking URLs follow the
 instance's signed canonical origin after a warm instance is claimed, without
 requiring a restart. An explicit `OUTPOST_CHAT_WEBHOOK_PUBLIC_URL` still takes
 precedence for provider callbacks only; board links follow the claimed origin.
@@ -56,7 +56,7 @@ with an old URL.
 
 Task links in external messages require an externally safe HTTPS board URL.
 Local/private board URLs are omitted with instructions to open the task in
-Paperclip; the public webhook host is never substituted for the board. Identity
+Outpost; the public webhook host is never substituted for the board. Identity
 confirmation stays on the board and requires the user to be able to reach it.
 
 ### Preinstalled remote runner images
@@ -65,7 +65,7 @@ Remote sandbox images may preinstall `outpost-runnerd`, `codex`, and the
 provider pack at `/opt/outpost-runner/provider-pack` instead of
 paying the upload and npm-install cost on every fresh lease. Put both executable
 names on the sandbox user's `PATH`; `$HOME/.local/bin` is checked explicitly
-before `PATH`. Paperclip verifies runner build metadata, the selected ORP
+before `PATH`. Outpost verifies runner build metadata, the selected ORP
 transport capability, Codex startup, the provider-pack digest, exact harness
 pins, Node compatibility, and packaged bridge digests before linking artifacts
 into the run-specific runtime directory. A missing or incompatible executable falls back
@@ -74,10 +74,10 @@ to `OUTPOST_RUNNER_REMOTE_BINARY_PATH` and
 `OUTPOST_RUNNER_REMOTE_CODEX_PATH`) without changing the selected transport.
 OpenCode and ACPX instead fall back only to
 `OUTPOST_RUNNER_REMOTE_PROVIDER_PACK_PATH`; they never start a provider
-process on the Paperclip host for a remote target.
+process on the Outpost host for a remote target.
 The Daytona environment editor's **Configure image** action can create this
 image without a separate container registry: install the executables in its
-setup sandbox, finish setup, and Paperclip captures and promotes the resulting
+setup sandbox, finish setup, and Outpost captures and promotes the resulting
 Daytona snapshot for future leases.
 
 ### Hiding settings surfaces
@@ -107,17 +107,17 @@ Daytona snapshot for future leases.
   page remains available. Exceptions only apply to the wildcard; an explicit
   hidden toggle or `instance.experimental` page restriction always wins,
   regardless of entry order. Unknown exceptions are logged and ignored.
-- Any top-level company settings page: `company.members`, `company.invites`,
-  `company.secrets`, `company.export`, `company.import` — removed from the
-  settings sidebar, tab bar, and routing (the company General page is the
+- Any top-level space settings page: `space.members`, `space.invites`,
+  `space.secrets`, `space.export`, `space.import` — removed from the
+  settings sidebar, tab bar, and routing (the space General page is the
   settings root and stays visible). These are UI-visibility keys: the
   membership, invite, secret, and export APIs stay live for agents and
-  integrations. `company.import` is the exception — hiding it also floors
-  every company-import route with `403 settings_operator_managed`. On
+  integrations. `space.import` is the exception — hiding it also floors
+  every space-import route with `403 settings_operator_managed`. On
   cloud-managed instances import is floored unconditionally with
   `403 cloud_managed`, independent of this variable.
-- A single tab of the Secrets page: `company.secrets.vaults` (Provider
-  vaults) and `company.secrets.proposals` (Proposals) — the tab disappears
+- A single tab of the Secrets page: `space.secrets.vaults` (Provider
+  vaults) and `space.secrets.proposals` (Proposals) — the tab disappears
   while the rest of the page stays up. UI-visibility only; the secret
   provider-config and proposal APIs stay live for agents and integrations.
 
@@ -184,7 +184,7 @@ configuration fails closed.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OUTPOST_SECRETS_MASTER_KEY` | (from file) | 32-byte encryption key (base64/hex/raw) |
-| `OUTPOST_SECRETS_MASTER_KEY_FILE` | `~/.paperclip/.../secrets/master.key` | Path to key file |
+| `OUTPOST_SECRETS_MASTER_KEY_FILE` | `~/.outpost/.../secrets/master.key` | Path to key file |
 | `OUTPOST_SECRETS_STRICT_MODE` | `false` | Require secret refs for sensitive env vars |
 
 ## Agent Runtime (Injected into agent processes)
@@ -194,8 +194,8 @@ These are set automatically by the server when invoking agents:
 | Variable | Description |
 |----------|-------------|
 | `OUTPOST_AGENT_ID` | Agent's unique ID |
-| `OUTPOST_COMPANY_ID` | Company ID |
-| `OUTPOST_API_URL` | Paperclip API base URL (inherits the server-level value; see Server Configuration above) |
+| `OUTPOST_SPACE_ID` | Space ID |
+| `OUTPOST_API_URL` | Outpost API base URL (inherits the server-level value; see Server Configuration above) |
 | `OUTPOST_API_KEY` | Short-lived JWT for API auth |
 | `OUTPOST_RUN_ID` | Current heartbeat run ID |
 | `OUTPOST_TASK_ID` | Issue that triggered this wake |

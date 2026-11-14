@@ -18,7 +18,7 @@ context to explain each match.
 | Typo | Conservative title-word correction; all other terms still required | Ignoring a short term changes the query's meaning |
 | Result explanation | Show the best evidence and link to its source | A title hit jumps into an unrelated comment |
 | Old work | Strong completed-task matches remain ahead of weak recent hits | Recency/activity replaces relevance |
-| Boundaries | Company, visibility, deletion and explicit filters always apply | Content leaks through counts, snippets or typo matches |
+| Boundaries | Space, visibility, deletion and explicit filters always apply | Content leaks through counts, snippets or typo matches |
 | Operations | PostgreSQL only, synchronous current-row reads, bounded query/page sizes | A worker, remote index or eventual-consistency repair is required |
 
 Judge results on a 0–3 scale: **3** directly answers the remembered task intent,
@@ -54,7 +54,7 @@ substring across title, identifier, description and comments, prioritized titles
 before identifiers, and did not search documents or recover typos. Reordered
 words commonly returned no result.
 
-Company search used a different algorithm: any token admitted a result, bonuses
+Space search used a different algorithm: any token admitted a result, bonuses
 from titles, comments and documents accumulated, and title-only token coverage
 was indistinguishable from words scattered across a long thread. It ran edit
 distance for title words, discarded short terms from fuzzy matching, and also
@@ -116,7 +116,7 @@ the real services against a temporary embedded PostgreSQL database with the
 normal migrations. `SEARCH_EVAL_BASELINE=1` records judgments without asserting
 improved behavior. To compare another revision, copy this test, its fixture and
 `task-search.ts` into a separate worktree for that revision, leave its actual
-`company-search.ts` and `issues.ts` services unchanged, and run with
+`space-search.ts` and `issues.ts` services unchanged, and run with
 `SEARCH_EVAL_BASELINE=1`. The copied helper is not used by the baseline services;
 its query-plan branch is disabled in baseline mode.
 
@@ -153,7 +153,7 @@ measurements, not production capacity or a controlled concurrency benchmark.
 | `routine` (matches all 10,000 added tasks) | 239 → 253 | 152 → 371 |
 
 Selective full searches improved. Quick search is more expensive: it now
-evaluates term coverage, searches documents, and can scan company titles for
+evaluates term coverage, searches documents, and can scan space titles for
 typo recovery. The old quick search returned no answers for the reordered and
 typo queries, so its lower cost did not deliver equivalent results. The relative
 regression threshold is triggered, and broad-query p95 does **not** meet the
@@ -166,7 +166,7 @@ literal searches. Removing descriptions from intermediate materialized rows
 eliminated 1,699 temporary blocks (~13 MiB) of writes in the broad-query core
 plan; its final measured execution was 139 ms with no temporary writes. The
 quick-search endpoint also performs its existing activity sorting and task
-hydration. Larger companies, long threads and sustained concurrent searches
+hydration. Larger spaces, long threads and sustained concurrent searches
 still need production-shaped measurement before a stronger latency claim.
 
 Browser acceptance used the real built app against an isolated PostgreSQL
@@ -193,7 +193,7 @@ closed-choice question, settles its Slack card, and delivers its exact
 continuation response”; that test passed when rerun alone. The remaining broad
 suite was not completed, so this is not a claim of a green repository-wide run.
 
-The API response contracts and company authorization stay unchanged. Artifact,
+The API response contracts and space authorization stay unchanged. Artifact,
 agent and project ranking are separate from the task relevance rubric. Extraction
 search and the specialized blocked-attention queue retain their existing
 literal matching. Pure semantic paraphrases and

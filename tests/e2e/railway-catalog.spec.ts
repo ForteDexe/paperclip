@@ -4,10 +4,10 @@ import { expect, test } from "@playwright/test";
 // not account consent or a live Railway deployment.
 test("Railway is discoverable and opens its OAuth setup", async ({ page, request }) => {
   test.setTimeout(120000);
-  const response = await request.post("/api/companies", { data: { name: `Railway catalog QA ${Date.now()}` } });
+  const response = await request.post("/api/spaces", { data: { name: `Railway catalog QA ${Date.now()}` } });
   expect(response.ok()).toBe(true);
-  const company = await response.json();
-  await page.goto(`/${company.issuePrefix}/apps`, { waitUntil: "domcontentloaded" });
+  const space = await response.json();
+  await page.goto(`/${space.issuePrefix}/apps`, { waitUntil: "domcontentloaded" });
   const card = page.getByRole("list", { name: "Connector list" }).getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Railway", exact: true }) });
   await expect(card).toBeVisible({ timeout: 30000 });
   await card.getByRole("button", { name: /Connect/ }).click();

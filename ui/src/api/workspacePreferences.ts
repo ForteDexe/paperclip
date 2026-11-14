@@ -9,6 +9,6 @@ export const workspacePreferencesApi = {
     detachInflightGet(path);
     return api.get<WorkspacePreference>(path, { cache: "no-store" });
   },
-  update: (companyId: string, data: UpdateWorkspacePreference) =>
-    api.put<WorkspacePreference>(`/companies/${companyId}/workspace-preferences/me`, data),
+  update: (spaceId: string, data: UpdateWorkspacePreference) =>
+    api.put<WorkspacePreference>(`/spaces/${spaceId}/workspace-preferences/me`, data),
 };

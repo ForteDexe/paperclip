@@ -7,7 +7,7 @@
 -- forces the delete to raise a foreign_key_violation rather than cascade.
 --
 -- NO ACTION (end-of-statement check) rather than RESTRICT (immediate check) is deliberate so a
--- company delete still cascades cleanly: companies -> tool_applications and companies ->
+-- space delete still cascades cleanly: spaces -> tool_applications and spaces ->
 -- tool_connections both fire within the one DELETE statement, and the connections are already
 -- gone by the time this constraint is verified.
 DO $$ BEGIN

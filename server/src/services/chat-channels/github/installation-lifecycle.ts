@@ -181,7 +181,7 @@ export function createGitHubInstallationLifecycle(db: Db, options: GitHubInstall
             .set({ availability: "unavailable", updatedAt: revokedAt })
             .where(
               and(
-                eq(chatEndpointResources.companyId, current.companyId),
+                eq(chatEndpointResources.spaceId, current.spaceId),
                 eq(chatEndpointResources.endpointId, current.id),
               ),
             );
@@ -190,7 +190,7 @@ export function createGitHubInstallationLifecycle(db: Db, options: GitHubInstall
             .set({ state: "unavailable", updatedAt: revokedAt })
             .where(
               and(
-                eq(chatConversations.companyId, current.companyId),
+                eq(chatConversations.spaceId, current.spaceId),
                 eq(chatConversations.endpointId, current.id),
                 inArray(chatConversations.state, ["active", "waiting"]),
               ),
@@ -441,8 +441,8 @@ export function createGitHubInstallationLifecycle(db: Db, options: GitHubInstall
             .where(
               and(
                 eq(
-                  chatEndpointResources.companyId,
-                  currentEndpoint.companyId,
+                  chatEndpointResources.spaceId,
+                  currentEndpoint.spaceId,
                 ),
                 eq(chatEndpointResources.endpointId, currentEndpoint.id),
               ),
@@ -453,8 +453,8 @@ export function createGitHubInstallationLifecycle(db: Db, options: GitHubInstall
             .where(
               and(
                 eq(
-                  chatConversations.companyId,
-                  currentEndpoint.companyId,
+                  chatConversations.spaceId,
+                  currentEndpoint.spaceId,
                 ),
                 eq(chatConversations.endpointId, currentEndpoint.id),
                 inArray(chatConversations.state, ["active", "waiting"]),

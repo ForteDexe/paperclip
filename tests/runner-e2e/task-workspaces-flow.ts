@@ -28,7 +28,7 @@ export async function runTaskWorkspacesFlow(input: {
   const { page, api, fixtures, execution, nonce } = input;
   const native = execution.profile.generation === "native";
   const files = taskWorkspaceFiles(nonce);
-  const companyPath = `/api/companies/${fixtures.company.id}`;
+  const spacePath = `/api/spaces/${fixtures.space.id}`;
   let issue: Row | undefined;
   let runs: Row[] = [];
   const evidence: TaskWorkspaceObservation = { nonce, native, daytona: execution.environment.id === "daytona", initial: null,
@@ -38,7 +38,7 @@ export async function runTaskWorkspacesFlow(input: {
   async function refresh() {
     if (!issue) return;
     issue = await api.get<Row>(`/api/issues/${issue.id}`);
-    const listed = await api.get<Row[]>(`${companyPath}/heartbeat-runs?limit=100`);
+    const listed = await api.get<Row[]>(`${spacePath}/heartbeat-runs?limit=100`);
     runs = await Promise.all(listed.map(run => api.get<Row>(`/api/heartbeat-runs/${run.id}`)));
     runs.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)) || a.id.localeCompare(b.id));
     evidence.runCount = runs.length;
@@ -62,9 +62,9 @@ export async function runTaskWorkspacesFlow(input: {
     if (!view.workspace?.id || !view.workspace.cwd) throw new Error("Task has no durable workspace binding");
     const cwd = await realpath(view.workspace.cwd);
     const isolated = await realpath(input.temporaryRoot);
-    const suffix = `/isolated-workspaces/${fixtures.company.id}/${issue!.id}`;
+    const suffix = `/isolated-workspaces/${fixtures.space.id}/${issue!.id}`;
     const confinedTaskRoot = cwd.startsWith(`${isolated}${path.sep}`) && cwd.endsWith(suffix);
-    if (!confinedTaskRoot) throw new Error("Task workspace is not its confined company/task directory");
+    if (!confinedTaskRoot) throw new Error("Task workspace is not its confined space/task directory");
     return { view, cwd, confinedTaskRoot };
   }
   async function settled(turn: number) {
@@ -91,7 +91,7 @@ export async function runTaskWorkspacesFlow(input: {
   async function checkpoint(turn: 1 | 2 | 3) {
     const { view, cwd, confinedTaskRoot } = await observeWorkspace();
     const run = runs[turn - 1]!;
-    if (run.companyId !== fixtures.company.id || run.agentId !== fixtures.agent.id
+    if (run.spaceId !== fixtures.space.id || run.agentId !== fixtures.agent.id
       || ![run.nativeIssueId, run.issueId, run.contextSnapshot?.issueId, run.contextSnapshot?.taskId].includes(issue!.id)) {
       throw new Error("Provider run is not attributed to the selected task and agent");
     }
@@ -115,7 +115,7 @@ export async function runTaskWorkspacesFlow(input: {
     };
     if (turn > 1) {
       const repository = view.repositories[0];
-      if (!repository || !/^\.paperclip-repositories\/task-repo-[a-f0-9]{24}$/.test(repository.relativePath)) throw new Error("No contained managed repository receipt");
+      if (!repository || !/^\.outpost-repositories\/task-repo-[a-f0-9]{24}$/.test(repository.relativePath)) throw new Error("No contained managed repository receipt");
       const checkout = await realpath(path.join(cwd, repository.relativePath));
       if (!checkout.startsWith(`${cwd}${path.sep}`)) throw new Error("Repository oracle path escaped the isolated task root");
       const git = async (...args: string[]) => (await execFile("git", ["-C", checkout, ...args], { timeout: 15_000, maxBuffer: 65_536 })).stdout.trim();
@@ -125,7 +125,7 @@ export async function runTaskWorkspacesFlow(input: {
         content: await readFile(`${repository.relativePath}/${files.repositoryFile}`) };
     }
     evidence.checkpoints.push(point);
-    evidence.projectCount = (await api.get<Row[]>(`${companyPath}/projects`)).length;
+    evidence.projectCount = (await api.get<Row[]>(`${spacePath}/projects`)).length;
     if (execution.environment.id === "daytona") evidence.remoteLeaseRunIds = (await api.get<Row[]>(`/api/environments/${fixtures.environment.id}/leases`))
       .filter(lease => lease.issueId === issue!.id && typeof lease.providerLeaseId === "string").map(lease => lease.heartbeatRunId);
     await save(`turn-${turn}`);
@@ -138,12 +138,12 @@ export async function runTaskWorkspacesFlow(input: {
     if (fixtures.project) throw new Error("Task-workspaces fixture must not create a project");
     const agent = await api.get<Row>(`/api/agents/${fixtures.agent.id}`);
     if (agent.adapterConfig?.cwd) throw new Error("Task-workspaces fixture must not configure operator cwd");
-    await api.patch(`/api/companies/${fixtures.company.id}/budgets`, { budgetMonthlyCents: TASK_WORKSPACES_BUDGET_CENTS });
+    await api.patch(`/api/spaces/${fixtures.space.id}/budgets`, { budgetMonthlyCents: TASK_WORKSPACES_BUDGET_CENTS });
     await api.patch(`/api/agents/${fixtures.agent.id}/budgets`, { budgetMonthlyCents: TASK_WORKSPACES_BUDGET_CENTS });
-    const created = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name,
+    const created = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name,
       title: execution.task.buildTitle(nonce), prompt: taskWorkspacePrompt(nonce, 1, native), workMode: "standard", requireExplicitTitle: true });
     issue = await api.get<Row>(`/api/issues/${created.issueId}`);
-    await page.goto(`/${encodeURIComponent(fixtures.company.issuePrefix!)}/issues/${encodeURIComponent(issue.identifier ?? issue.id)}`);
+    await page.goto(`/${encodeURIComponent(fixtures.space.issuePrefix!)}/issues/${encodeURIComponent(issue.identifier ?? issue.id)}`);
     const before = await pollUntil({ label: "initial projectless workspace admission", deadlineAt: input.deadlineAt,
       load: () => api.get<Row>(`/api/issues/${issue!.id}/workspace`), accept: view => Boolean(view.workspace?.id), intervalMs: 300 });
     evidence.initial = { workspaceId: before.workspace.id, cwd: await realpath(before.workspace.cwd), repositories: before.repositories.length };

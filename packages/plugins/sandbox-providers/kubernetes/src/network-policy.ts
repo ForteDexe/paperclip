@@ -1,6 +1,6 @@
 export interface BuildNetworkPolicyInput {
   namespace: string;
-  paperclipServerNamespace: string;
+  outpostServerNamespace: string;
   egressAllowCidrs: string[];
   /**
    * Adapter-configured FQDNs (e.g. `api.anthropic.com`). Standard
@@ -38,20 +38,20 @@ const PRIVATE_AND_LINK_LOCAL_EXCEPT_CIDRS = [
 ];
 
 // Design note: the deny-all baseline blocks all ingress to agent pods.
-// Paperclip-server does NOT push to agent pods — the agent shim makes
-// outbound calls to paperclip-server via the egress allow-list (port 3100).
+// Outpost-server does NOT push to agent pods — the agent shim makes
+// outbound calls to outpost-server via the egress allow-list (port 3100).
 // This pull/callback model means no ingress rule is needed. If a future
 // feature requires server→agent push (e.g. forced shutdown, live exec),
-// add a targeted ingress rule here scoped to the paperclip-server pod
+// add a targeted ingress rule here scoped to the outpost-server pod
 // selector.
 export function buildNetworkPolicyManifests(input: BuildNetworkPolicyInput): Record<string, unknown>[] {
   const denyAll = {
     apiVersion: "networking.k8s.io/v1",
     kind: "NetworkPolicy",
     metadata: {
-      name: "paperclip-deny-all",
+      name: "outpost-deny-all",
       namespace: input.namespace,
-      labels: { "outpost.io/managed-by": "paperclip-k8s-plugin" },
+      labels: { "outpost.io/managed-by": "outpost-k8s-plugin" },
     },
     spec: {
       podSelector: {},
@@ -64,7 +64,7 @@ export function buildNetworkPolicyManifests(input: BuildNetworkPolicyInput): Rec
     kind: "NetworkPolicy",
     metadata: {
       namespace: input.namespace,
-      labels: { "outpost.io/managed-by": "paperclip-k8s-plugin" },
+      labels: { "outpost.io/managed-by": "outpost-k8s-plugin" },
     },
     spec: {
       podSelector: { matchLabels: input.podSelector ?? { "outpost.io/role": "agent" } },
@@ -85,8 +85,8 @@ export function buildNetworkPolicyManifests(input: BuildNetworkPolicyInput): Rec
         ...(input.includeBaseRules === false ? [] : [{
           to: [
             {
-              namespaceSelector: { matchLabels: { "kubernetes.io/metadata.name": input.paperclipServerNamespace } },
-              podSelector: { matchLabels: { app: "paperclip-server" } },
+              namespaceSelector: { matchLabels: { "kubernetes.io/metadata.name": input.outpostServerNamespace } },
+              podSelector: { matchLabels: { app: "outpost-server" } },
             },
           ],
           ports: [{ protocol: "TCP", port: 3100 }],
@@ -131,7 +131,7 @@ export function buildNetworkPolicyManifests(input: BuildNetworkPolicyInput): Rec
     },
   };
 
-  (egressAllow.metadata as Record<string, unknown>).name = input.name ?? "paperclip-egress-allow";
+  (egressAllow.metadata as Record<string, unknown>).name = input.name ?? "outpost-egress-allow";
   if (input.ownerReferences) {
     (egressAllow.metadata as Record<string, unknown>).ownerReferences = input.ownerReferences;
   }

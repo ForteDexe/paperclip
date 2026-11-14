@@ -82,7 +82,7 @@ export function startCursorCloudAppServerProxy(options: {
     const relayExpiresAt = Number(env.OUTPOST_CURSOR_CLOUD_RELAY_EXPIRES_AT);
     if (!relayUrl || !relayToken || !socketPath || !Number.isSafeInteger(relayExpiresAt) || relayExpiresAt <= 0) throw new Error("Cursor Cloud semantic relay binding and expiry are required");
     const driver = new CursorCloudDriver({ model, config, binding, runtimeDirectory: dirname(resolve(configPath)), artifactRoot: env.OUTPOST_CURSOR_CLOUD_ARTIFACT_ROOT, relay: { url: relayUrl, token: relayToken, socketPath, expiresAt: relayExpiresAt },
-      instructions: text(params.baseInstructions, "Complete only the supplied Outpost task. Use Outpost tools and finish with paperclip_finish or paperclip_block."), runtimeContext,
+      instructions: text(params.baseInstructions, "Complete only the supplied Outpost task. Use Outpost tools and finish with outpost_finish or outpost_block."), runtimeContext,
       dynamicTools: Array.isArray(params.dynamicTools) ? params.dynamicTools.map(value => cursorCloudRecord(value)) : [],
       dynamicToolHandler: async call => requestController({ ...call }), environment: env,
       runnerInstanceId: env.OUTPOST_RUNNER_INSTANCE_ID ?? "cursor-cloud-sidecar" });
@@ -160,11 +160,11 @@ export function startCursorCloudAppServerProxy(options: {
         const activeTurnId = ["creating", "running", "stopping"].includes(String(state.phase)) && typeof state.turnId === "string" ? state.turnId : null;
         result = { cursorCloudTerminalDelivery: state.pendingTerminalDelivery, thread: { id: session.ids().driverSessionId, cwd, turns: activeTurnId ? [{ id: activeTurnId, status: "inProgress" }] : [] }, transcript: state }; break;
       }
-      case "paperclip/ackTerminal":
+      case "outpost/ackTerminal":
         if (!session || typeof params.turnId !== "string" || typeof params.receiptId !== "string") throw new Error("Cursor Cloud terminal receipt is missing");
         await session.acknowledgeTerminalDelivery({ turnId: params.turnId, receiptId: params.receiptId });
         result = { turnId: params.turnId, receiptId: params.receiptId, acknowledged: true }; break;
-      case "paperclip/shutdown": result = await stopReceipt(params); break;
+      case "outpost/shutdown": result = await stopReceipt(params); break;
       default: throw new Error("Unsupported Cursor Cloud proxy method");
     }
     send({ id: message.id, result });
@@ -183,7 +183,7 @@ export function startCursorCloudAppServerProxy(options: {
     if (closed) return;
     if (message.method === undefined && message.id !== undefined) { void handle(message); return; }
     commandQueue = enqueueSerialInput(commandQueue, async () => {
-      if (bootstrapFailed && message.method !== "paperclip/shutdown") throw new Error("Cursor Cloud bootstrap previously failed");
+      if (bootstrapFailed && message.method !== "outpost/shutdown") throw new Error("Cursor Cloud bootstrap previously failed");
       await handle(message);
     }, error => {
       if (["initialize", "thread/start", "thread/resume"].includes(message.method ?? "")) bootstrapFailed = true;

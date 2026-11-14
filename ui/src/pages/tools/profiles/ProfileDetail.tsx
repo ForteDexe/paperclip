@@ -48,12 +48,12 @@ interface AllowRow {
 }
 
 export function ProfileDetail({
-  companyId,
+  spaceId,
   profileId,
   initialCreated,
   initialReviewOpen,
 }: {
-  companyId: string;
+  spaceId: string;
   profileId: string;
   initialCreated?: boolean;
   initialReviewOpen?: boolean;
@@ -62,7 +62,7 @@ export function ProfileDetail({
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
-  const data = useProfilesData(companyId);
+  const data = useProfilesData(spaceId);
   const profilesView = useQueryView(data.profiles);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [assignmentToRemove, setAssignmentToRemove] = useState<ToolProfileBinding | null>(null);
@@ -81,7 +81,7 @@ export function ProfileDetail({
   const newToolsLoading = newTools.isLoading || newToolsView.kind === "reconnecting";
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.tools.profiles(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.tools.profiles(spaceId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.tools.testAgentAccesses() });
   };
   const errorBody = (error: unknown) => String((error as Error)?.message ?? error);
@@ -138,7 +138,7 @@ export function ProfileDetail({
 
   const removeAssignment = useMutation({
     mutationFn: (binding: ToolProfileBinding) =>
-      toolsApi.unbindProfile(companyId, profileId, { targetType: binding.targetType, targetId: binding.targetId }),
+      toolsApi.unbindProfile(spaceId, profileId, { targetType: binding.targetType, targetId: binding.targetId }),
     onSuccess: () => {
       setAssignmentToRemove(null);
       invalidate();
@@ -158,7 +158,7 @@ export function ProfileDetail({
     onSuccess: () => {
       setReviewOpen(false);
       setSearchParams({});
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.profiles(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.profiles(spaceId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.tools.profileNewTools(profileId) });
       pushToast({ title: "New tools reviewed", tone: "success" });
     },
@@ -279,7 +279,7 @@ export function ProfileDetail({
         </div>
         <Assignments
           profile={profile}
-          companyId={companyId}
+          spaceId={spaceId}
           maps={data.maps}
           archived={archived}
           onRemove={setAssignmentToRemove}
@@ -315,7 +315,7 @@ export function ProfileDetail({
 
       <RemoveAssignmentDialog
         binding={assignmentToRemove}
-        label={assignmentToRemove ? assignmentLabel(assignmentToRemove, companyId, data.maps) : ""}
+        label={assignmentToRemove ? assignmentLabel(assignmentToRemove, spaceId, data.maps) : ""}
         pending={removeAssignment.isPending}
         onClose={() => setAssignmentToRemove(null)}
         onConfirm={() => assignmentToRemove && removeAssignment.mutate(assignmentToRemove)}
@@ -530,13 +530,13 @@ function AllowList({ rows, total }: { rows: AllowRow[]; total: number }) {
 
 function Assignments({
   profile,
-  companyId,
+  spaceId,
   maps,
   archived,
   onRemove,
 }: {
   profile: ToolProfileWithDetails;
-  companyId: string;
+  spaceId: string;
   maps: ReturnType<typeof useProfilesData>["maps"];
   archived: boolean;
   onRemove: (binding: ToolProfileBinding) => void;
@@ -555,10 +555,10 @@ function Assignments({
         <div key={binding.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-              {binding.targetType === "company" ? "Or" : binding.targetType.slice(0, 2).toUpperCase()}
+              {binding.targetType === "space" ? "Or" : binding.targetType.slice(0, 2).toUpperCase()}
             </span>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">{assignmentLabel(binding, companyId, maps)}</p>
+              <p className="truncate text-sm font-medium text-foreground">{assignmentLabel(binding, spaceId, maps)}</p>
               <p className="text-xs text-muted-foreground">{assignmentTypeLabel(binding.targetType)}</p>
             </div>
           </div>
@@ -750,7 +750,7 @@ function RemoveAssignmentDialog({
         <DialogHeader>
           <DialogTitle>Remove assignment</DialogTitle>
           <DialogDescription>
-            {binding?.targetType === "company"
+            {binding?.targetType === "space"
               ? "Removing the outpost default changes access for every agent that relies on it."
               : `Remove this profile from ${label}.`}
           </DialogDescription>
@@ -849,19 +849,19 @@ function isRecentTool(tool: ToolCatalogEntry): boolean {
 
 function assignmentLabel(
   binding: ToolProfileBinding,
-  companyId: string,
+  spaceId: string,
   maps: ReturnType<typeof useProfilesData>["maps"],
 ): string {
-  if (binding.targetType === "company") return "Outpost default";
+  if (binding.targetType === "space") return "Outpost default";
   if (binding.targetType === "agent") return maps.agentsById.get(binding.targetId) ?? "Unknown agent";
   if (binding.targetType === "project") return maps.projectsById.get(binding.targetId) ?? "Unknown project";
   if (binding.targetType === "routine") return maps.routinesById.get(binding.targetId) ?? "Unknown routine";
-  if (binding.targetId === companyId) return "Outpost";
+  if (binding.targetId === spaceId) return "Outpost";
   return binding.targetId;
 }
 
 function assignmentTypeLabel(type: ToolProfileBinding["targetType"]): string {
-  if (type === "company") return "Outpost default";
+  if (type === "space") return "Outpost default";
   if (type === "agent") return "Agent";
   if (type === "project") return "Project";
   if (type === "routine") return "Routine";

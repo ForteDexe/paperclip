@@ -123,7 +123,7 @@ test('useful authorized deadline outcome requires a durable alarm before the exa
   }
 });
 test('writable path alone cannot establish backup persistence across stop and wake', () => {
-  const f = deployed(); f.provider.storage = { identityVerified: true, volumeId: 'volume', beforeVolumeId: 'volume', afterVolumeId: 'volume', mountPath: '/paperclip', backupsEnabledBefore: true, backupsEnabledAfter: true, sentinelBefore: 'd'.repeat(64), sentinelAfter: 'd'.repeat(64), beforeAt: '2099-01-01T00:13:00Z', afterAt: '2099-01-01T00:25:00Z' };
+  const f = deployed(); f.provider.storage = { identityVerified: true, volumeId: 'volume', beforeVolumeId: 'volume', afterVolumeId: 'volume', mountPath: '/outpost', backupsEnabledBefore: true, backupsEnabledAfter: true, sentinelBefore: 'd'.repeat(64), sentinelAfter: 'd'.repeat(64), beforeAt: '2099-01-01T00:13:00Z', afterAt: '2099-01-01T00:25:00Z' };
   assert.equal(evaluateSleepQualification(f, expected).layers.backupPersistence.verdict, 'VERIFIED');
   for (const change of [x => delete x.provider.storage.volumeId, x => x.provider.storage.afterVolumeId = 'replacement', x => x.provider.storage.backupsEnabledAfter = false, x => x.provider.storage.sentinelAfter = 'e'.repeat(64)]) {
     const x = structuredClone(f); change(x); assert.equal(evaluateSleepQualification(x, expected).layers.backupPersistence.verdict, 'INCONCLUSIVE');

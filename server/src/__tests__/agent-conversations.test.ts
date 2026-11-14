@@ -19,8 +19,8 @@ import {
   agents,
   agentTaskSessions,
   agentWakeupRequests,
-  companyMemberships,
-  companies,
+  spaceMemberships,
+  spaces,
   createDb,
   heartbeatRuns,
   issueComments,
@@ -38,7 +38,7 @@ import { documentService } from "../services/documents.js";
 import { getTaskPlanContext } from "../services/task-plan-context.js";
 import { terminalizeLegacyExecution, LEGACY_RECOVERY_CAUSE } from "../services/legacy-execution-recovery.js";
 import { settleUnrecoverableExecutions } from "../services/execution-recovery-resolution.js";
-import { renderPaperclipWakePrompt } from "@outpost/adapter-utils/server-utils";
+import { renderOutpostWakePrompt } from "@outpost/adapter-utils/server-utils";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import {
   AGENT_CHAT_DIRECTIVE,
@@ -55,8 +55,8 @@ import { classifyIssueGraphLiveness } from "../services/recovery/issue-graph-liv
 import { NATIVE_STATUS_ARBITER_POLICY_VERSION } from "../services/native-runtime/status-arbiter.js";
 import { runningProcesses } from "../adapters/index.js";
 import {
-  buildPaperclipTaskMarkdown,
-  buildPaperclipWakePayload,
+  buildOutpostTaskMarkdown,
+  buildOutpostWakePayload,
   heartbeatService,
 } from "../services/heartbeat.js";
 
@@ -65,38 +65,38 @@ import {
   () => {
     let database: Awaited<ReturnType<typeof startRecoveryPostgres>>;
     let db: ReturnType<typeof createDb>;
-    let companyId: string;
+    let spaceId: string;
     let agentId: string;
     beforeAll(async () => {
       database = await startRecoveryPostgres(
-        "paperclip-agent-conversations-",
+        "outpost-agent-conversations-",
       );
       db = createDb(database.connectionString);
-      companyId = randomUUID();
+      spaceId = randomUUID();
       agentId = randomUUID();
       await db
         .insert(authUsers)
         .values({
-          id: "local-board",
-          name: "Local Board",
+          id: "local-operator",
+          name: "Local Operator",
           email: "local@outpost.test",
           createdAt: new Date(),
           updatedAt: new Date(),
         })
         .onConflictDoNothing();
       await db
-        .insert(companies)
+        .insert(spaces)
         .values({
-          id: companyId,
+          id: spaceId,
           name: "Chats",
           issuePrefix: "CHAT",
-          requireBoardApprovalForNewAgents: false,
+          requireOperatorApprovalForNewAgents: false,
         });
       await db
         .insert(agents)
         .values({
           id: agentId,
-          companyId,
+          spaceId,
           name: "Planner",
           role: "engineer",
           status: "idle",
@@ -111,7 +111,7 @@ import {
       await database?.cleanup();
     });
     const create = (user = randomUUID()) =>
-      issueService(db).create(companyId, {
+      issueService(db).create(spaceId, {
         title: "Conversation",
         conversationAgentId: agentId,
         conversationUserId: user,
@@ -124,7 +124,7 @@ import {
         await db
           .insert(heartbeatRuns)
           .values({
-            companyId,
+            spaceId,
             agentId,
             status: "running",
             contextSnapshot: {
@@ -141,7 +141,7 @@ import {
     it("atomically resolves one task per person and agent and excludes it from ordinary lists", async () => {
       const user = randomUUID();
       expect(
-        await issueService(db).getConversation(companyId, agentId, user),
+        await issueService(db).getConversation(spaceId, agentId, user),
       ).toBeNull();
       const results = await Promise.all(
         Array.from({ length: 6 }, () => create(user)),
@@ -149,13 +149,13 @@ import {
       expect(new Set(results.map((issue) => issue.id)).size).toBe(1);
       expect((await create()).id).not.toBe(results[0].id);
       expect(
-        (await issueService(db).list(companyId)).some(
+        (await issueService(db).list(spaceId)).some(
           (issue) => issue.id === results[0].id,
         ),
       ).toBe(false);
       expect(
         (
-          await issueService(db).list(companyId, { q: results[0].identifier! })
+          await issueService(db).list(spaceId, { q: results[0].identifier! })
         ).some((issue) => issue.id === results[0].id),
       ).toBe(true);
       expect(
@@ -168,7 +168,7 @@ import {
         issueService(db).update(results[0].id, { assigneeAgentId: null }),
       ).rejects.toThrow(/conversation/i);
     });
-    it("resolves through authenticated company routes, keeps opens read-only, and derives ownership", async () => {
+    it("resolves through authenticated space routes, keeps opens read-only, and derives ownership", async () => {
       const appFor = (userId?: string, allowed = true) => {
         const app = express();
         app.use(express.json());
@@ -177,10 +177,10 @@ import {
         else
           app.use((req, _res, next) => {
             req.actor = {
-              type: "board",
+              type: "operator",
               source: "session",
               userId,
-              companyIds: allowed ? [companyId] : [],
+              spaceIds: allowed ? [spaceId] : [],
             };
             next();
           });
@@ -188,22 +188,22 @@ import {
         app.use(errorHandler);
         return app;
       };
-      const path = `/api/companies/${companyId}/chats/${agentId}`;
+      const path = `/api/spaces/${spaceId}/chats/${agentId}`;
       const owner = randomUUID();
       const colleague = randomUUID();
       const app = appFor(owner);
       for (const userId of [owner, colleague]) {
         await db
-          .insert(companyMemberships)
+          .insert(spaceMemberships)
           .values({
-            companyId,
+            spaceId,
             principalType: "user",
             principalId: userId,
             status: "active",
             membershipRole: "operator",
           });
         await ensureHumanRoleDefaultGrants(db, {
-          companyId,
+          spaceId,
           principalId: userId,
           membershipRole: "operator",
           grantedByUserId: null,
@@ -211,7 +211,7 @@ import {
       }
       expect((await request(app).get(path)).body).toBeNull();
       expect(
-        await issueService(db).getConversation(companyId, agentId, owner),
+        await issueService(db).getConversation(spaceId, agentId, owner),
       ).toBeNull();
       const resolved = await Promise.all([
         request(app).post(path).send({ conversationUserId: "spoof" }),
@@ -220,7 +220,7 @@ import {
       expect(resolved.every((response) => response.status === 200)).toBe(true);
       expect(resolved[0].body.id).toBe(resolved[1].body.id);
       expect(resolved[0].body.conversationUserId).toBe(owner);
-      const listPath = `/api/companies/${companyId}/chats`;
+      const listPath = `/api/spaces/${spaceId}/chats`;
       const owned = await request(app).get(listPath);
       expect(owned.status).toBe(200);
       expect(owned.body.map((chat: { id: string }) => chat.id)).toEqual([resolved[0].body.id]);
@@ -255,18 +255,18 @@ import {
           .send({ body, clientRequestId: randomUUID() })).status).toBe(403);
       }
       expect((await request(appFor(colleague))
-        .post(`/api/companies/${companyId}/issues/${chatId}/attachments`)
+        .post(`/api/spaces/${spaceId}/issues/${chatId}/attachments`)
         .attach("file", Buffer.from("foreign upload"), "note.txt")).status).toBe(403);
 
       const [planReview] = await db.insert(issueThreadInteractions).values({
-        companyId, issueId: chatId, kind: "request_confirmation", status: "pending",
+        spaceId, issueId: chatId, kind: "request_confirmation", status: "pending",
         continuationPolicy: "wake_assignee_on_accept", payload: { version: 1, prompt: "Hand off this plan?" },
       }).returning();
       expect((await request(appFor(colleague))
         .post(`/api/issues/${chatId}/interactions/${planReview.id}/accept`).send({})).status).toBe(403);
       expect((await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, planReview.id)))[0].status).toBe("pending");
       const [pause] = await db.insert(issueTreeHolds).values({
-        companyId, rootIssueId: chatId, mode: "pause", status: "active",
+        spaceId, rootIssueId: chatId, mode: "pause", status: "active",
         createdByActorType: "user", createdByUserId: owner,
         releasePolicy: { strategy: "manual", note: "leaf_pause" },
       }).returning();
@@ -287,7 +287,7 @@ import {
 
       expect((await db.select().from(issueTreeHolds).where(eq(issueTreeHolds.id, pause.id)))[0].status).toBe("released");
       const local = await request(appFor()).post(path);
-      expect(local.body.conversationUserId).toBe("local-board");
+      expect(local.body.conversationUserId).toBe("local-operator");
       await instanceSettingsService(db).updateExperimental({
         enableAgentChat: false,
       });
@@ -307,20 +307,20 @@ import {
           issueService(db).addComment(
             issue.id,
             "Help scope a project",
-            { userId: "local-board" },
+            { userId: "local-operator" },
             { clientRequestId },
           ),
         ),
       );
       expect(new Set(messages.map((message) => message.id)).size).toBe(1);
       expect(
-        await undeliveredConversationComments(db, companyId, issue.id),
+        await undeliveredConversationComments(db, spaceId, issue.id),
       ).toHaveLength(1);
       await expect(
         issueService(db).addComment(
           issue.id,
           "Different",
-          { userId: "local-board" },
+          { userId: "local-operator" },
           { clientRequestId },
         ),
       ).rejects.toThrow(/different content/);
@@ -331,7 +331,7 @@ import {
       const before = await issueService(db).addComment(
         issue.id,
         "Old session secret context",
-        { userId: "local-board" },
+        { userId: "local-operator" },
       );
       const oldRun = await runFor(issue.id, before.id);
       await prepareConversationTurn(db, oldRun);
@@ -339,14 +339,14 @@ import {
         await db
           .insert(agentTaskSessions)
           .values({
-            companyId,
+            spaceId,
             agentId,
             adapterType: "process",
             taskKey: target.id,
             sessionDisplayId: "old-session",
           });
       const command = await issueService(db).addComment(issue.id, "/new", {
-        userId: "local-board",
+        userId: "local-operator",
       });
       const resetRun = await runFor(issue.id, command.id);
       expect((await prepareConversationTurn(db, resetRun)).reset).toBe(true);
@@ -404,20 +404,20 @@ import {
           )[0]!,
         ),
       ).rejects.toThrow(/older turn/);
-      expect(await applyRunnerGoalPrpEvent(db, { companyId, agentId, issueId: issue.id, adapterType: "process" }, {
+      expect(await applyRunnerGoalPrpEvent(db, { spaceId, agentId, issueId: issue.id, adapterType: "process" }, {
         eventType: "session.capabilities.updated", sourceRunId: oldRun.id, sourceSeq: 500, payload: {},
       })).toBeNull();
       expect(await db.select().from(agentTaskSessions).where(eq(agentTaskSessions.taskKey, issue.id))).toHaveLength(0);
       const next = await issueService(db).addComment(
         issue.id,
         "Fresh context",
-        { userId: "local-board" },
+        { userId: "local-operator" },
       );
       expect(
-        await conversationReplay(db, companyId, issue.id, next.id),
+        await conversationReplay(db, spaceId, issue.id, next.id),
       ).not.toContain("Old session");
-      const payload = await buildPaperclipWakePayload({
-        db, companyId,
+      const payload = await buildOutpostWakePayload({
+        db, spaceId,
         contextSnapshot: { issueId: issue.id, conversationMode: true, wakeCommentId: next.id },
         continuationSummary: { key: "summary", title: null, body: "Old session summary", updatedAt: new Date() },
         issueSummary: { ...issue, description: "Old session description" },
@@ -428,13 +428,13 @@ import {
       const later = await issueService(db).addComment(
         issue.id,
         "Following turn",
-        { userId: "local-board" },
+        { userId: "local-operator" },
       );
       expect(
-        await conversationReplay(db, companyId, issue.id, later.id),
+        await conversationReplay(db, spaceId, issue.id, later.id),
       ).toContain("Fresh context");
       expect(
-        await conversationReplay(db, companyId, issue.id, next.id),
+        await conversationReplay(db, spaceId, issue.id, next.id),
       ).not.toContain("Following turn");
     });
     it("projects the resolved chat plan review into fresh and resumed prompts without replaying old reviews", async () => {
@@ -443,46 +443,46 @@ import {
         issueId: issue.id, key: "plan", title: "Plan", format: "markdown", body: "Draft plan",
       });
       const [interaction] = await db.insert(issueThreadInteractions).values({
-        companyId, issueId: issue.id, kind: "request_confirmation", status: "rejected",
+        spaceId, issueId: issue.id, kind: "request_confirmation", status: "rejected",
         payload: { version: 1, prompt: "Approve the plan?", target: { type: "issue_document", key: "plan", documentId: document.id,
           revisionId: document.latestRevisionId!, revisionNumber: document.latestRevisionNumber } },
         result: { version: 1, outcome: "rejected", reason: "Include CHAT_REVIEW_MARKER in the revised plan." },
       }).returning();
-      const input = { db, companyId, issueSummary: { ...issue, workMode: "planning" },
+      const input = { db, spaceId, issueSummary: { ...issue, workMode: "planning" },
         contextSnapshot: { issueId: issue.id, conversationMode: true, interactionId: interaction!.id,
           interactionKind: "request_confirmation", interactionStatus: "rejected" } };
-      const payload = await buildPaperclipWakePayload(input);
+      const payload = await buildOutpostWakePayload(input);
       expect(payload?.planReviewContext?.interaction).toMatchObject({
         status: "rejected", acceptedTargetRevision: null,
         result: { outcome: "rejected", reason: "Include CHAT_REVIEW_MARKER in the revised plan." },
       });
       for (const resumedSession of [false, true]) {
-        const prompt = renderPaperclipWakePrompt(payload, { resumedSession });
+        const prompt = renderOutpostWakePrompt(payload, { resumedSession });
         expect(prompt).toContain("request_confirmation rejected");
         expect(prompt).toContain("Include CHAT_REVIEW_MARKER in the revised plan.");
         expect(prompt).toContain("not approval to implement or hand off execution tasks");
         expect(prompt).not.toContain("- accepted target:");
       }
-      const later = await buildPaperclipWakePayload({ ...input,
+      const later = await buildOutpostWakePayload({ ...input,
         contextSnapshot: { issueId: issue.id, conversationMode: true } });
       expect(later?.planReviewContext).toBeNull();
       // An unrelated confirmation must not cause old plan context to be replayed.
       await db.update(issueThreadInteractions).set({ payload: { version: 1, prompt: "Proceed?" } })
         .where(eq(issueThreadInteractions.id, interaction!.id));
-      expect((await buildPaperclipWakePayload(input))?.planReviewContext).toBeNull();
+      expect((await buildOutpostWakePayload(input))?.planReviewContext).toBeNull();
     });
     it("includes an initial handoff plan in the first execution prompt and pins approved revisions", async () => {
-      const task = await issueService(db).create(companyId, {
+      const task = await issueService(db).create(spaceId, {
         title: "Execute handed-off work",
         assigneeAgentId: agentId,
         status: "todo",
         initialPlan: "Write an output document containing HANDOFF_ACCEPTANCE_PHRASE.",
       });
-      const initial = await getTaskPlanContext({ db, companyId, issueId: task.id });
+      const initial = await getTaskPlanContext({ db, spaceId, issueId: task.id });
       expect(task.description).toBeNull();
       expect(initial?.body).toContain("HANDOFF_ACCEPTANCE_PHRASE");
       for (const includeDescription of [true, false]) {
-        const prompt = buildPaperclipTaskMarkdown({
+        const prompt = buildOutpostTaskMarkdown({
           issue: task,
           taskPlan: initial,
           includeDescription,
@@ -497,22 +497,22 @@ import {
         body: "A later unapproved draft.",
         baseRevisionId: initial!.revisionId,
       });
-      expect((await getTaskPlanContext({ db, companyId, issueId: task.id }))?.revisionId)
+      expect((await getTaskPlanContext({ db, spaceId, issueId: task.id }))?.revisionId)
         .toBe(revision.latestRevisionId);
       const approved = await getTaskPlanContext({
-        db, companyId, issueId: task.id, approvedRevisionId: initial!.revisionId,
+        db, spaceId, issueId: task.id, approvedRevisionId: initial!.revisionId,
       });
       expect(approved?.body).toContain("HANDOFF_ACCEPTANCE_PHRASE");
       expect(approved?.body).not.toContain("unapproved");
-      expect(await getTaskPlanContext({ db, companyId: randomUUID(), issueId: task.id })).toBeNull();
+      expect(await getTaskPlanContext({ db, spaceId: randomUUID(), issueId: task.id })).toBeNull();
       expect(await getTaskPlanContext({
-        db, companyId, issueId: task.id, approvedRevisionId: randomUUID(),
+        db, spaceId, issueId: task.id, approvedRevisionId: randomUUID(),
       })).toBeNull();
       const conversation = await create();
       await documentService(db).upsertIssueDocument({
         issueId: conversation.id, key: "plan", format: "markdown", body: "Pre-reset chat draft",
       });
-      expect(await getTaskPlanContext({ db, companyId, issueId: conversation.id })).toBeNull();
+      expect(await getTaskPlanContext({ db, spaceId, issueId: conversation.id })).toBeNull();
       await documentService(db).upsertIssueDocument({
         issueId: task.id,
         key: "plan",
@@ -527,16 +527,16 @@ import {
           sourceAgentId: agentId,
         },
       });
-      expect((await getTaskPlanContext({ db, companyId, issueId: task.id }))?.body)
+      expect((await getTaskPlanContext({ db, spaceId, issueId: task.id }))?.body)
         .not.toContain("QUARANTINED_PLAN_BODY");
       expect((await getTaskPlanContext({
-        db, companyId, issueId: task.id, exposeLowTrustRaw: true,
+        db, spaceId, issueId: task.id, exposeLowTrustRaw: true,
       }))?.body).toBe("QUARANTINED_PLAN_BODY");
     });
     it("keeps concurrent delivery and multiple resets in separate ordered queue entries", async () => {
       const issue = await create();
       const first = await issueService(db).addComment(issue.id, "First", {
-        userId: "local-board",
+        userId: "local-operator",
       });
       const active = await runFor(issue.id, first.id);
       await prepareConversationTurn(db, active);
@@ -556,7 +556,7 @@ import {
             await issueService(db).addComment(
               issue.id,
               body,
-              { userId: "local-board" },
+              { userId: "local-operator" },
               { clientRequestId: randomUUID() },
             ),
           );
@@ -584,7 +584,7 @@ import {
           ),
         ).toEqual(commands.map((comment) => comment.id));
         expect(
-          await undeliveredConversationComments(db, companyId, issue.id),
+          await undeliveredConversationComments(db, spaceId, issue.id),
         ).toHaveLength(0);
         for (const command of commands.slice(1, 3)) {
           const reset = await runFor(issue.id, command.id);
@@ -601,15 +601,15 @@ import {
       }
     });
     it.each([false, true])("runs real process turns and resets without replaying pre-Stop queued input (queued=%s)", async (queuedBeforeStop) => {
-      const runtimeCompany = randomUUID();
+      const runtimeSpace = randomUUID();
       const runtimeAgent = randomUUID();
       await db
-        .insert(companies)
+        .insert(spaces)
         .values({
-          id: runtimeCompany,
+          id: runtimeSpace,
           name: "Runtime chat",
           issuePrefix: queuedBeforeStop ? "RCHATQ" : "RCHAT",
-          requireBoardApprovalForNewAgents: false,
+          requireOperatorApprovalForNewAgents: false,
         });
       const generations: unknown[] = [];
       const app = express();
@@ -636,7 +636,7 @@ import {
         .insert(agents)
         .values({
           id: runtimeAgent,
-          companyId: runtimeCompany,
+          spaceId: runtimeSpace,
           name: "Conversation runtime",
           role: "engineer",
           status: "idle",
@@ -648,10 +648,10 @@ import {
           },
           runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },
         });
-      const chat = await issueService(db).create(runtimeCompany, {
+      const chat = await issueService(db).create(runtimeSpace, {
         title: "Runtime chat",
         conversationAgentId: runtimeAgent,
-        conversationUserId: "local-board",
+        conversationUserId: "local-operator",
         assigneeAgentId: runtimeAgent,
         conversationState: "waiting",
         status: "in_review",
@@ -661,7 +661,7 @@ import {
         await issueService(db).addComment(
           chat.id,
           body,
-          { userId: "local-board" },
+          { userId: "local-operator" },
           { clientRequestId: randomUUID() },
         );
         await deliverConversationComments(db, chat, heartbeat.wakeup);
@@ -693,28 +693,28 @@ import {
         expect(generations).toEqual([0]);
         // Stop leaves a pause and a no-replay recovery disposition. /new must
         // get through dispatch, release the chat pause, and reset in queue order.
-        await db.insert(issueTreeHolds).values({ companyId: runtimeCompany,
+        await db.insert(issueTreeHolds).values({ spaceId: runtimeSpace,
           rootIssueId: chat.id, mode: "pause", status: "active", createdByActorType: "user",
-          createdByUserId: "local-board", releasePolicy: { strategy: "manual", note: "leaf_pause" },
+          createdByUserId: "local-operator", releasePolicy: { strategy: "manual", note: "leaf_pause" },
         });
-        await db.insert(issueRecoveryActions).values({ companyId: runtimeCompany,
-          sourceIssueId: chat.id, kind: "active_run_watchdog", ownerType: "board",
+        await db.insert(issueRecoveryActions).values({ spaceId: runtimeSpace,
+          sourceIssueId: chat.id, kind: "active_run_watchdog", ownerType: "operator",
           cause: "uncertain_provider_action", status: "resolved", fingerprint: randomUUID(),
           evidence: { automaticRecovery: { replay: "blocked" } }, nextAction: "Do not replay the stopped turn.",
         });
-        await db.insert(issueThreadInteractions).values({ companyId: runtimeCompany, issueId: chat.id,
+        await db.insert(issueThreadInteractions).values({ spaceId: runtimeSpace, issueId: chat.id,
           kind: "ask_user_questions", status: "pending", title: "Old topic", payload: { version: 1, questions: [{ id: "old", prompt: "Old topic?", options: [{ id: "yes", label: "Yes" }], selectionMode: "single", required: true }], supersedeOnUserComment: false },
         });
         let stoppedQueuedWakeId: string | null = null;
         if (queuedBeforeStop) {
-          const [pending] = await db.insert(issueComments).values({ companyId: runtimeCompany,
-            issueId: chat.id, authorUserId: "local-board", body: "Old topic queued before Stop",
+          const [pending] = await db.insert(issueComments).values({ spaceId: runtimeSpace,
+            issueId: chat.id, authorUserId: "local-operator", body: "Old topic queued before Stop",
           }).returning();
-          const [stoppedQueuedWake] = await db.insert(agentWakeupRequests).values({ companyId: runtimeCompany, agentId: runtimeAgent,
+          const [stoppedQueuedWake] = await db.insert(agentWakeupRequests).values({ spaceId: runtimeSpace, agentId: runtimeAgent,
             source: "on_demand", reason: "issue_execution_deferred", status: "deferred_issue_execution",
-            requestedByActorType: "user", requestedByActorId: "local-board",
+            requestedByActorType: "user", requestedByActorId: "local-operator",
             payload: { issueId: chat.id, commentId: pending.id,
-              _paperclipWakeContext: { issueId: chat.id, wakeReason: "issue_commented", wakeCommentId: pending.id, wakeCommentIds: [pending.id] } },
+              _outpostWakeContext: { issueId: chat.id, wakeReason: "issue_commented", wakeCommentId: pending.id, wakeCommentIds: [pending.id] } },
           }).returning();
           stoppedQueuedWakeId = stoppedQueuedWake.id;
         }
@@ -749,12 +749,12 @@ import {
     }, 30000);
     it("parks successful native interaction-only turns without consuming unrelated or stale gates", async () => {
       const chat = await create();
-      const message = await issueService(db).addComment(chat.id, "Plan the work", { userId: "local-board" });
+      const message = await issueService(db).addComment(chat.id, "Plan the work", { userId: "local-operator" });
       const run = await runFor(chat.id, message.id);
       const prepared = await prepareConversationTurn(db, run);
       const succeeded = { ...run, contextSnapshot: prepared.context, status: "succeeded" };
       const [interaction] = await db.insert(issueThreadInteractions).values({
-        companyId, issueId: chat.id, sourceRunId: run.id, createdByAgentId: agentId,
+        spaceId, issueId: chat.id, sourceRunId: run.id, createdByAgentId: agentId,
         kind: "request_confirmation", status: "answered", payload: { version: 1, prompt: "Proceed?" },
       }).returning();
       expect(await settleConversationTurn(db, succeeded)).toBe(false);
@@ -783,7 +783,7 @@ import {
     });
     it("rejects late replies and session events from cancelled conversation turns", async () => {
       const chat = await create();
-      const message = await issueService(db).addComment(chat.id, "Old topic", { userId: "local-board" });
+      const message = await issueService(db).addComment(chat.id, "Old topic", { userId: "local-operator" });
       const run = await runFor(chat.id, message.id);
       await prepareConversationTurn(db, run);
       await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, run.id));
@@ -793,7 +793,7 @@ import {
         const app = express();
         app.use(actorMiddleware(db, { deploymentMode: "local_trusted" }));
         app.post("/mutate", (_req, res) => res.sendStatus(204));
-        const token = createLocalAgentJwt(agentId, companyId, "process", run.id)!;
+        const token = createLocalAgentJwt(agentId, spaceId, "process", run.id)!;
         expect((await request(app).post("/mutate").set("Authorization", `Bearer ${token}`)).status).toBe(403);
       } finally {
         if (previousSecret === undefined) delete process.env.OUTPOST_AGENT_JWT_SECRET;
@@ -801,16 +801,16 @@ import {
       }
       await expect(issueService(db).addComment(chat.id, "Late old reply", { agentId, runId: run.id }))
         .rejects.toThrow(/cancelled/);
-      expect(await applyRunnerGoalPrpEvent(db, { companyId, agentId, issueId: chat.id, adapterType: "process" }, {
+      expect(await applyRunnerGoalPrpEvent(db, { spaceId, agentId, issueId: chat.id, adapterType: "process" }, {
         eventType: "session.capabilities.updated", sourceRunId: run.id, sourceSeq: 500, payload: {},
       })).toBeNull();
     });
     it("ignores execution dependency wakes during active and idle chat turns", async () => {
       const chat = await create();
       const heartbeat = heartbeatService(db);
-      const blocker = await issueService(db).create(companyId, { title: "Linked execution", status: "done" });
+      const blocker = await issueService(db).create(spaceId, { title: "Linked execution", status: "done" });
       await issueService(db).update(chat.id, { blockedByIssueIds: [blocker.id] });
-      const ordinary = await issueService(db).create(companyId, {
+      const ordinary = await issueService(db).create(spaceId, {
         title: "Ordinary dependent",
         status: "in_review",
         assigneeAgentId: agentId,
@@ -843,7 +843,7 @@ import {
       { name: "ordinary review task", generation: 0, sourceGeneration: 0, waiting: true, ordinary: true, superseded: false },
     ])("guards delayed cancelled-run recovery for $name", async (scenario) => {
       const task = scenario.ordinary
-        ? await issueService(db).create(companyId, { title: "Ordinary review", status: "in_review", assigneeAgentId: agentId })
+        ? await issueService(db).create(spaceId, { title: "Ordinary review", status: "in_review", assigneeAgentId: agentId })
         : await create();
       const status = scenario.waiting ? "in_review" : "in_progress";
       await db.update(issues).set({
@@ -862,8 +862,8 @@ import {
       // Also exercise an action queued before /new or the newer reply settled.
       if (!actions.length) {
         actions = await db.insert(issueRecoveryActions).values({
-          companyId, sourceIssueId: task.id, kind: "active_run_watchdog",
-          ownerType: "board", returnOwnerAgentId: agentId,
+          spaceId, sourceIssueId: task.id, kind: "active_run_watchdog",
+          ownerType: "operator", returnOwnerAgentId: agentId,
           cause: LEGACY_RECOVERY_CAUSE, fingerprint: `legacy-execution:${run.id}`,
           evidence: { runId: run.id }, nextAction: "Reconcile stopped work",
         }).returning();
@@ -880,19 +880,19 @@ import {
     it.each(["answered", "new-message", "response-less", "failed", "stale-session", "failed-gap", "missing-gap"])("settles a historical question using completed conversation progress (%s)", async scenario => {
       const chat = await create();
       const svc = issueService(db);
-      const first = await svc.addComment(chat.id, "Which color?", { userId: "local-board" });
+      const first = await svc.addComment(chat.id, "Which color?", { userId: "local-operator" });
       const original = await runFor(chat.id, first.id);
-      const [question] = await db.insert(issueThreadInteractions).values({ companyId, issueId: chat.id,
+      const [question] = await db.insert(issueThreadInteractions).values({ spaceId, issueId: chat.id,
         kind: "ask_user_questions", status: "answered", continuationPolicy: "wake_assignee", sourceRunId: original.id,
-        createdByAgentId: agentId, resolvedByUserId: "local-board", payload: { version: 1, questions: [] }, result: { version: 1, answers: [] } }).returning();
+        createdByAgentId: agentId, resolvedByUserId: "local-operator", payload: { version: 1, questions: [] }, result: { version: 1, answers: [] } }).returning();
       if (scenario === "failed-gap" || scenario === "missing-gap") {
-        const skipped = await svc.addComment(chat.id, "This request still needs an answer.", { userId: "local-board" });
+        const skipped = await svc.addComment(chat.id, "This request still needs an answer.", { userId: "local-operator" });
         if (scenario === "failed-gap") {
           const failed = await runFor(chat.id, skipped.id, { conversationSessionGeneration: 0 });
           await db.update(heartbeatRuns).set({ status: "failed" }).where(eq(heartbeatRuns.id, failed.id));
         }
       }
-      const newer = await svc.addComment(chat.id, "What is the capital of France?", { userId: "local-board" });
+      const newer = await svc.addComment(chat.id, "What is the capital of France?", { userId: "local-operator" });
       const replyRun = await runFor(chat.id, newer.id, { conversationSessionGeneration: 0 });
       if (scenario !== "response-less") await svc.addComment(chat.id, "Paris.", { agentId, runId: replyRun.id });
       await db.update(heartbeatRuns).set({ status: scenario === "failed" ? "failed" : "succeeded",
@@ -904,7 +904,7 @@ import {
       expect(preparedContext.wakeCommentId).toBe(first.id);
       expect(preparedContext.conversationReplyBoundaryCommentId).toBe(["answered", "new-message"].includes(scenario) ? newer.id : first.id);
       // A retry reuses the frozen boundary, even if another message has arrived.
-      if (scenario === "new-message") await svc.addComment(chat.id, "New instructions while you answer", { userId: "local-board" });
+      if (scenario === "new-message") await svc.addComment(chat.id, "New instructions while you answer", { userId: "local-operator" });
       const retry = await prepareConversationTurn(db, { ...answerRun, contextSnapshot: prepared.context });
       const retryContext: Record<string, unknown> = retry.context;
       expect(retryContext.conversationReplyBoundaryCommentId).toBe(preparedContext.conversationReplyBoundaryCommentId);
@@ -913,7 +913,7 @@ import {
       const [settled] = await db.select().from(issues).where(eq(issues.id, chat.id));
       expect(settled.conversationState).toBe(scenario === "answered" ? "waiting" : "active");
       expect(retryContext.conversationReplayThroughCommentId).toBe(preparedContext.conversationReplayThroughCommentId);
-      const replay = await conversationReplay(db, companyId, chat.id, first.id,
+      const replay = await conversationReplay(db, spaceId, chat.id, first.id,
         preparedContext.conversationReplayThroughCommentId as string);
       if (["answered", "new-message"].includes(scenario)) {
         expect(replay).toContain("What is the capital of France?");
@@ -932,7 +932,7 @@ import {
       const message = await issueService(db).addComment(
         issue.id,
         "Which goal matters?",
-        { userId: "local-board" },
+        { userId: "local-operator" },
       );
       const run = await runFor(issue.id, message.id);
       const prepared = await prepareConversationTurn(db, run);
@@ -960,7 +960,7 @@ import {
           agents: [],
         }),
       ).toEqual([]);
-      const child = await issueService(db).create(companyId, { title: "Execute work", status: "done" });
+      const child = await issueService(db).create(spaceId, { title: "Execute work", status: "done" });
       await db.update(issues).set({ parentId: issue.id }).where(eq(issues.id, child.id));
       expect(
         await issueService(db).getWakeableParentAfterChildCompletion(issue.id, {
@@ -991,13 +991,13 @@ describe("chat prompt policy", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("must not start until another task is done or approved");
     expect(AGENT_CHAT_DIRECTIVE).toContain("add the prerequisite to the waiting task's blockedByIssueIds with PATCH /api/issues/{id}, keeping its existing blockers");
     expect(AGENT_CHAT_DIRECTIVE).toContain("A comment or a promise to hold the work does not stop it");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
     expect(prompt).toContain("blockedByIssueIds with PATCH /api/issues/{id}");
   });
   it("tells chat to link the profile of an agent it acted on without turning the link into a wake mention", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("link its profile at /<prefix>/agents/<urlKey or id>");
     expect(AGENT_CHAT_DIRECTIVE).toContain("use agent:// only when you intend to notify that agent");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
     expect(prompt).toContain("/<prefix>/agents/<urlKey or id>");
   });
 
@@ -1009,36 +1009,36 @@ describe("chat prompt policy", () => {
   });
 
   it("points chat at the teams catalog for ready-made teams and stops the search there", () => {
-    expect(AGENT_CHAT_DIRECTIVE).toContain("Ready-made teams are installable packages in Paperclip's teams catalog");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Ready-made teams are installable packages in Outpost's teams catalog");
     expect(AGENT_CHAT_DIRECTIVE).toContain("list the catalog with GET /api/teams/catalog");
     expect(AGENT_CHAT_DIRECTIVE).toContain("do not look for others in package registries, repositories or the web");
     expect(AGENT_CHAT_DIRECTIVE).toContain("The web app has no teams catalog page, so do not link one");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("paperclipai teams install <team id> --company-id <companyId>");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("outpost teams install <team id> --space-id <spaceId>");
     expect(AGENT_CHAT_DIRECTIVE).toContain("When you recommend a team, name its roles (agentSlugs), every required skill (requiredSkills, by its ref) and every configuration input (envInputs)");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: "RUN-1", title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: "RUN-1", title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
     expect(prompt).toContain("GET /api/teams/catalog");
   });
 
   it("tells chat to answer terminal requests with the person's own CLI commands", () => {
-    expect(AGENT_CHAT_DIRECTIVE).toContain("they mean their own terminal: give them commands using the Paperclip CLI, npx paperclipai");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("they mean their own terminal: give them commands using the Outpost CLI, npx @outpost/cli");
     expect(AGENT_CHAT_DIRECTIVE).toContain("instead of doing the work yourself, saving a file in your workspace or writing curl");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("Fill in values you can read here, such as this company's id");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("Write the Paperclip address as <your Paperclip URL>");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("npx paperclipai run cancel <runId> stops a queued or running one (board users only)");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Fill in values you can read here, such as this space's id");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Write the Outpost address as <your Outpost URL>");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("npx @outpost/cli run cancel <runId> stops a queued or running one (operator users only)");
     expect(AGENT_CHAT_DIRECTIVE).toContain("a command whose output is piped cannot open the sign-in prompt");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: "RUN-1", title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
-    expect(prompt).toContain("npx paperclipai issue document:get <task id or identifier> <key> --json | jq -r .body > <file name>");
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: "RUN-1", title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+    expect(prompt).toContain("npx @outpost/cli issue document:get <task id or identifier> <key> --json | jq -r .body > <file name>");
   });
 
   it("answers a person's inbox question from their Mine list and links Mine", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("GET /api/agents/me/inbox/mine?userId=<their user id>, using the authorUserId of their message");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("your own queue and a company-wide task search are not their inbox");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("your own queue and a space-wide task search are not their inbox");
     expect(AGENT_CHAT_DIRECTIVE).toContain("[Mine](/<prefix>/inbox/mine)");
   });
 
-  it("tells chat where a person can hire when the agent cannot", () => {
-    expect(AGENT_CHAT_DIRECTIVE).toContain("send the person to the hire form at /<prefix>/agents/new");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("to your own /permissions page, where they can turn on hiring for you");
+  it("tells chat where a person can create when the agent cannot", () => {
+    expect(AGENT_CHAT_DIRECTIVE).toContain("send the person to the create form at /<prefix>/agents/new");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("to your own /permissions page, where they can turn on creation for you");
   });
 
   it("tells chat overviews to state their observation time from the message timestamp", () => {
@@ -1049,14 +1049,14 @@ describe("chat prompt policy", () => {
   it("tells chat to link the agent profile page that holds a control, including the unlisted API keys page", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("/<prefix>/agents/<urlKey or id>/api-keys for API keys");
     expect(AGENT_CHAT_DIRECTIVE).toContain("The API keys page is not in the profile's navigation");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: "RUN-1", title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: "RUN-1", title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
     expect(prompt).toContain("/<prefix>/agents/<urlKey or id>/api-keys");
   });
 
-  it("says how to read the company link prefix from a task identifier so agent links are not guessed", () => {
-    expect(AGENT_CHAT_DIRECTIVE).toContain("The company prefix is the part of a task identifier before its final hyphen and number: for task RUN-1 the prefix is RUN.");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("Never build a prefix from the company name");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: "RUN-1", title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+  it("says how to read the space link prefix from a task identifier so agent links are not guessed", () => {
+    expect(AGENT_CHAT_DIRECTIVE).toContain("The space prefix is the part of a task identifier before its final hyphen and number: for task RUN-1 the prefix is RUN.");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Never build a prefix from the space name");
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: "RUN-1", title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
     expect(prompt).toContain("for task RUN-1 the prefix is RUN");
   });
 
@@ -1064,9 +1064,9 @@ describe("chat prompt policy", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("Pausing, stopping or resuming a whole task tree (a parent task and all of its subtasks) is a person's control, not an agent action.");
     expect(AGENT_CHAT_DIRECTIVE).toContain("chooses More task actions, then Pause subtree");
     expect(AGENT_CHAT_DIRECTIVE).toContain("do not change task statuses or assignees, cancel runs, pause agents, or create tasks or routines to resume it later");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("Paperclip has no scheduled resume");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Outpost has no scheduled resume");
     expect(AGENT_CHAT_DIRECTIVE).toContain("[<identifier>](/<prefix>/issues/<identifier>)");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: "RUN-1", title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: "RUN-1", title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
     expect(prompt).toContain("then Pause subtree");
   });
 
@@ -1074,7 +1074,7 @@ describe("chat prompt policy", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("matches several records you can access and nothing in the conversation selects one, ask which one before changing any of them");
     expect(AGENT_CHAT_DIRECTIVE).toContain("link each candidate");
     expect(AGENT_CHAT_DIRECTIVE).toContain("Do not pick the first match, change every match");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
     expect(prompt).toContain("ask which one before changing any of them");
   });
 
@@ -1100,7 +1100,7 @@ describe("chat prompt policy", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("use id only from responses that return the run itself, such as GET /api/heartbeat-runs/{runId}");
     expect(AGENT_CHAT_DIRECTIVE).not.toContain("returned agentId and id");
     expect(AGENT_CHAT_DIRECTIVE).toContain("read the agent and name it rather than showing a raw ID");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
     expect(prompt).toContain("/<prefix>/agents/<agentId>/runs/<runId>");
   });
 
@@ -1110,7 +1110,7 @@ describe("chat prompt policy", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("agent profiles, projects, goals) uses that same prefix");
     expect(AGENT_CHAT_DIRECTIVE).toContain("For a project, link /<prefix>/projects/<projectId>.");
     expect(AGENT_CHAT_DIRECTIVE).toContain("When a tool result gives a record's href, such as a project or a workspace, link that href; a workspace without an href has no page on this instance");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
     expect(prompt).toContain("/<prefix>/projects/<projectId>");
   });
 
@@ -1118,8 +1118,8 @@ describe("chat prompt policy", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("Some developer labs, including the task-chat interaction lab at /<prefix>/dev/task-chat-lab, are registered only in a development build of the UI");
     expect(AGENT_CHAT_DIRECTIVE).not.toContain("Developer labs, such as");
     expect(AGENT_CHAT_DIRECTIVE).toContain("the design guide and the ux-lab pages, are registered in every build");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("running pnpm dev in their own Paperclip checkout and visiting /<prefix>/dev/task-chat-lab");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+    expect(AGENT_CHAT_DIRECTIVE).toContain("running pnpm dev in their own Outpost checkout and visiting /<prefix>/dev/task-chat-lab");
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
     expect(prompt).toContain("/<prefix>/dev/task-chat-lab");
   });
 
@@ -1132,7 +1132,7 @@ describe("chat prompt policy", () => {
     }
     expect(AGENT_CHAT_DIRECTIVE).toContain("link its existing reference page instead of creating a real card, request or record and instead of drawing a mock");
     expect(AGENT_CHAT_DIRECTIVE).toContain("the design guide at /<prefix>/design-guide shows the standard components, including the pending question card");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("The ux-lab pages take no company prefix.");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("The ux-lab pages take no space prefix.");
     expect(AGENT_CHAT_DIRECTIVE).toContain("synthetic presentation fixtures, not proof that the live flow works");
   });
 
@@ -1147,19 +1147,19 @@ describe("chat prompt policy", () => {
   it("asks for a missing name before building or handing off work that must carry it", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("ask for that name before starting: use request_human_input with interactionKind: \"questions\" and one required free-text question");
     expect(AGENT_CHAT_DIRECTIVE).toContain("Do not build, delegate or brief the work with an invented or placeholder name");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
     expect(prompt).toContain("Do not build, delegate or brief the work with an invented or placeholder name");
   });
 
-  it("routes a task identifier from another company to a company switch instead of a search", () => {
-    expect(AGENT_CHAT_DIRECTIVE).toContain("A task identifier whose prefix differs from this conversation's prefix belongs to another company or to none");
+  it("routes a task identifier from another space to a space switch instead of a search", () => {
+    expect(AGENT_CHAT_DIRECTIVE).toContain("A task identifier whose prefix differs from this conversation's prefix belongs to another space or to none");
     expect(AGENT_CHAT_DIRECTIVE).toContain("a lookup that is not found does not mean the task does not exist");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("the person can switch to its company and open a chat there");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("the person can switch to its space and open a chat there");
     expect(AGENT_CHAT_DIRECTIVE).toContain("Link the task at /<its prefix>/issues/<identifier>, taking the prefix from the identifier the person gave");
-    const prompt = buildPaperclipTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
+    const prompt = buildOutpostTaskMarkdown({ issue: { id: "chat", identifier: null, title: "Chat", workMode: "ask", conversationAgentId: "agent" } });
     expect(prompt).toContain("/<its prefix>/issues/<identifier>");
   });
-  it("treats a same-company task the agent cannot find as possibly private instead of searching for a way in", () => {
+  it("treats a same-space task the agent cannot find as possibly private instead of searching for a way in", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("A private task is hidden from you unless you have access to it");
     expect(AGENT_CHAT_DIRECTIVE).toContain("it may be private rather than missing. Do not search for it further");
     expect(AGENT_CHAT_DIRECTIVE).toContain("share it with you from its sharing controls");
@@ -1173,14 +1173,14 @@ describe("chat prompt policy", () => {
   it("gives chat replies a usable route for both task and approval sources", () => {
     expect(AGENT_CHAT_DIRECTIVE).toContain("/<prefix>/issues/<identifier>");
     expect(AGENT_CHAT_DIRECTIVE).toContain("For approval links, use /<prefix>/approvals/<approvalId>");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("Never invent a hostname for a Paperclip link.");
-    expect(AGENT_CHAT_DIRECTIVE).toContain("Write every company link as a Markdown link");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Never invent a hostname for a Outpost link.");
+    expect(AGENT_CHAT_DIRECTIVE).toContain("Write every space link as a Markdown link");
     expect(AGENT_CHAT_DIRECTIVE).toContain("a bare path or a path in inline code is not clickable");
     expect(AGENT_CHAT_DIRECTIVE).toContain("Start each link target with exactly one slash");
   });
 
   it.each([true, false])("preserves rejected-plan changes in task markdown (includeDescription=%s)", (includeDescription) => {
-    const prompt = buildPaperclipTaskMarkdown({
+    const prompt = buildOutpostTaskMarkdown({
       issue: { id: "chat", identifier: null, title: "Chat", workMode: "planning", conversationAgentId: "agent" },
       interaction: { kind: "request_confirmation", status: "rejected" },
       planReview: { status: "rejected", reason: "Add CHAT_REVIEW_MARKER and a validation step." },
@@ -1200,7 +1200,7 @@ describe("chat prompt policy", () => {
   it.each(["standard", "ask", "planning"])(
     "keeps handoff instructions in %s, including accepted plans and resumes",
     (workMode) => {
-      const prompt = buildPaperclipTaskMarkdown({
+      const prompt = buildOutpostTaskMarkdown({
         issue: {
           id: "chat",
           identifier: null,
@@ -1244,7 +1244,7 @@ describe("native conversation finalization", () => {
       conversation: true,
       terminalState: "succeeded",
       workspaceFinalizeStatus: "succeeded",
-      hasGovernanceGate: false,
+      hasPolicyGate: false,
       priorStatus: "in_progress" as const,
       decision,
     };
@@ -1253,7 +1253,7 @@ describe("native conversation finalization", () => {
       effects: [],
     });
     expect(
-      conversationNativeDecision({ ...input, hasGovernanceGate: true }),
+      conversationNativeDecision({ ...input, hasPolicyGate: true }),
     ).toBe(decision);
     expect(
       conversationNativeDecision({ ...input, terminalState: "failed" }),

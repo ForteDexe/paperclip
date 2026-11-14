@@ -14,14 +14,14 @@ drain/resume, and shutdown. Startup reconstructs eligible deadlines from existin
 connection rows. No new table, polling listener, or private interval is added.
 
 Eligible rows are active and enabled, excluding `chat_sdk`, `runtime_auth`, and
-applications of type `paperclip_plugin`. Disabled experimental connectors have
+applications of type `outpost_plugin`. Disabled experimental connectors have
 no deadline until the settings producer enables them. Application status and
-company status are not new filters: this migration preserves the old policy.
+space status are not new filters: this migration preserves the old policy.
 
 An unchecked row is due immediately. Otherwise its deadline is `healthCheckedAt`
 plus 15 minutes. Individual writes carry a connection ID and reload only that
 connection. Application mutations refresh only that application's connections;
-company deletion invalidates the company's cache. Startup and instance feature
+space deletion invalidates the space's cache. Startup and instance feature
 settings can refresh the whole instance. Inventory reads use UUID keyset pages
 of at most 100 rows and observe shutdown cancellation between pages. Refreshes are
 coalesced with a 30-second minimum spacing when no due backlog remains.
@@ -29,14 +29,14 @@ Batches retain at most 25 checks and continue after one second while already due
 rows remain, so the batch limit does not cap dispatch at 50 checks per minute. There is no scheduled refresh when
 there are no eligible rows or unresolved changes. Future checks cause no SQL
 before their deadline. Each pass checks at most 25 due connections, taking turns
-across companies and preserving due order within each company. The company cursor
-rotates across passes when more companies are due than fit in one batch.
+across spaces and preserving due order within each space. The space cursor
+rotates across passes when more spaces are due than fit in one batch.
 
 Before a provider check, the service reloads current eligibility and deadline.
 A saved health result, including a failed health observation, owns the next
 15-minute deadline. A check that cannot persist an observation retains recovery
 debt with exponential backoff from 30 seconds to 15 minutes. A failed scoped
-refresh does not prevent checks outside that connection, application, or company. Dirty scopes arriving during
+refresh does not prevent checks outside that connection, application, or space. Dirty scopes arriving during
 a refresh remain pending. Drain retains them without passive database reads.
 Shutdown joins admitted work; it does not abandon a provider call midway.
 
@@ -55,8 +55,8 @@ Shutdown joins admitted work; it does not abandon a provider call midway.
 | Shared chat lifecycle | Voice health activation, setup, pause/resume/removal, resource reconciliation, inbound activation, and failure observations; SDK-only chat mutations do not wake this worker |
 | Access removal | Losing the last applicable credential grant disables the connection |
 | Smoke Lab | Connection setup and fixture health updates |
-| Company deletion | Removes cached deadlines after cascading deletion commits |
-| Instance settings | Experimental connector eligibility changes use an administrative all-company hint |
+| Space deletion | Removes cached deadlines after cascading deletion commits |
+| Instance settings | Experimental connector eligibility changes use an administrative all-space hint |
 
 Notifications are awaited before the relevant SQL write. Existing transactions
 remain the owner; standalone mutations use the same small transaction helper.
@@ -70,7 +70,7 @@ aggregator account metadata, and install markers do not change health eligibilit
 or `healthCheckedAt`. They do not gain health notifications. A due probe reads
 current credentials. AI writers use the excluded runtime-auth transport.
 Application display/status updates do not change the old health eligibility.
-Application deletion refuses linked connections; company cascade is covered.
+Application deletion refuses linked connections; space cascade is covered.
 New draft-only connections remain ineligible until their activation producer.
 
 ## Limits
@@ -97,7 +97,7 @@ one scheduled-worker reconstruction and no health inventory work from aggregate
 ticks. Seventeen real-PostgreSQL lifecycle tests pass: empty/configured quiet,
 excluded transports, first writes, nested commit/rollback, drain/resume, saved
 observations, restart, page progress, real API activation/disable/archive,
-company failure isolation, feature toggles, company deletion, voice activation,
+space failure isolation, feature toggles, space deletion, voice activation,
 concurrent producer writes, failed persistence, and admitted shutdown.
 
 The first consumer run passed 514 cases and failed a rollback fault fixture tied
@@ -119,21 +119,21 @@ all 72 access/email/GitHub/smoke-lab cases then pass. Three selected chat creden
 and pause cases pass; 1,414 deselected cases are not counted as passing coverage.
 The producer mapping/voice wake contract is covered by the health lifecycle test.
 Server build passes. The scoped inventory SQL with 40,000 archived and 10 active
-rows uses `tool_connections_company_enabled_idx`, 13 shared buffer hits, and
+rows uses `tool_connections_space_enabled_idx`, 13 shared buffer hits, and
 0.022 ms execution; the diagnostic data was rolled back. No new index is needed
 for this observed query. The local passing selection totals 770 distinct tests.
 Full workspace and remote acceptance gates remain required.
 
 Review repair: a controlled 503 probe persisted its failed health observation,
 but the warning regression failed before the fix. Scheduled probe failures now
-log company/connection identifiers and a fixed message, without provider prose.
+log space/connection identifiers and a fixed message, without provider prose.
 The saved 15-minute deadline still controls the next check. All 64 health/startup
 cases and server typechecking pass after repair; total selected coverage is now
 771 unique tests. Fresh remote gates are required for this repair.
 
 
-Review follow-up: fair round-robin company batching replaces the global oldest-25
-selection. The two-company regression failed before the repair; 19 health-worker
+Review follow-up: fair round-robin space batching replaces the global oldest-25
+selection. The two-space regression failed before the repair; 19 health-worker
 and three shared batching cases pass afterward. Each probe's pre/post eligibility
 query already includes the connection ID, so those indexed current-state checks
 remain. A scheduled observation still emits the normal transaction signal and
@@ -171,16 +171,16 @@ immediate coordinator wake; acceptance measures actual probe timestamps instead.
 
 ## Security review: bounded refresh scope
 
-Security review identified amplification in the original company hints. Five
-separate real `updateConnection` calls in a company with 205 eligible connections
+Security review identified amplification in the original space hints. Five
+separate real `updateConnection` calls in a space with 205 eligible connections
 returned 1,025 inventory rows. A regression reproduced that result. The repaired
 producer contract returns exactly five rows across those updates. Saved probe
 observations use the same single-connection scope, so draining a due backlog no
-longer reloads its whole company after each batch.
+longer reloads its whole space after each batch.
 
-The typed hint accepts an existing connection row (only company and connection
-IDs are encoded), or an explicit application target. Company/global scopes remain
-for company deletion and administrative feature changes. Smoke Lab allocates a
+The typed hint accepts an existing connection row (only space and connection
+IDs are encoded), or an explicit application target. Space/global scopes remain
+for space deletion and administrative feature changes. Smoke Lab allocates a
 new connection ID before its insert so the transaction intent is registered before
 the write. No schema, outer transaction ownership, or provider policy changes.
 Application eligibility changes retain their own scoped refresh. Single-connection
@@ -197,8 +197,8 @@ later scopes.
 The first amplification fixture lacked its required remote endpoint and failed
 validation before reaching its assertion. After adding a controlled endpoint
 lookup, the baseline reproduced 1,025 versus five. The first typecheck found a
-partial access-service projection without companyId; the target now supplies the
-already-owned companyId explicitly. These failures are retained as evidence, not
+partial access-service projection without spaceId; the target now supplies the
+already-owned spaceId explicitly. These failures are retained as evidence, not
 counted as passes. Final verification and remote review are recorded below.
 
 
@@ -260,7 +260,7 @@ missing settled hint; the original source is restored after that mutation check.
 No provider call moves inside this transaction.
 
 The latest Greptile finding also reproduced: while 60 healthy due connections
-drained in three bounded batches, a different company's failing inventory read
+drained in three bounded batches, a different space's failing inventory read
 ran three times instead of once. Failed inventory scopes now retain their own
 30-second retry deadline. Healthy backlog continuations cannot shorten it, and
 cached connections in an unavailable scope cannot be probed from stale data.
@@ -280,7 +280,7 @@ These source checks do not establish deployed suspension, Cloud wake coverage,
 a full local repository-suite pass, or savings. Fresh current-head reviews and
 all CI gates remain mandatory before merge.
 
-Final retry-repair acceptance: all four complete health, company-batching,
+Final retry-repair acceptance: all four complete health, space-batching,
 GitHub health recovery, and server startup suites pass 80 cases. Together with
 the five complete producer suites above, this covers 623 distinct cases; the
 26 earlier health cases are included in that total rather than added again.

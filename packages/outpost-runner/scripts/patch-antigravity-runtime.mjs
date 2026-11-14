@@ -13,7 +13,7 @@ const SDK_ROOT = "google3/third_party/py/google/antigravity/connections/local/";
 const SERVER_SOURCE = ACP_ROOT + "server.py";
 const SDK_SOURCE = SDK_ROOT + "local_connection.py";
 const EVENT_PROCESSOR_SOURCE = SDK_ROOT + "event_processor.py";
-const ADMISSION_SOURCE = ACP_ROOT + "paperclip_admission.py";
+const ADMISSION_SOURCE = ACP_ROOT + "outpost_admission.py";
 const REMOVED_BYTECODE = new Set([
   ACP_ROOT + "__pycache__/server.cpython-314.pyc",
   SDK_ROOT + "__pycache__/local_connection.cpython-314.pyc",
@@ -168,14 +168,14 @@ export function antigravityPatchedSources(server, sdk, eventProcessor) {
 
 `,
   );
-  server += "\n\n# Outpost's owned admission patch, applied to this pinned release only.\nfrom google3.cloud.developer_experience.antigravity_extensions.acp_server import paperclip_admission\npaperclip_admission.install(AgyAdapter)\n";
+  server += "\n\n# Outpost's owned admission patch, applied to this pinned release only.\nfrom google3.cloud.developer_experience.antigravity_extensions.acp_server import outpost_admission\noutpost_admission.install(AgyAdapter)\n";
   sdk = replaceAntigravitySource(sdk,
     "    harness_config = self._build_harness_config()\n    process, ws, ws_url = await self._spawn_harness_and_connect_ws()",
-    "    harness_config = self._build_harness_config()\n    from google3.cloud.developer_experience.antigravity_extensions.acp_server import paperclip_admission\n    paperclip_prepared = paperclip_admission.prepare_native_config(harness_config, self)\n    process, ws, ws_url = await self._spawn_harness_and_connect_ws()",
+    "    harness_config = self._build_harness_config()\n    from google3.cloud.developer_experience.antigravity_extensions.acp_server import outpost_admission\n    outpost_prepared = outpost_admission.prepare_native_config(harness_config, self)\n    process, ws, ws_url = await self._spawn_harness_and_connect_ws()",
   );
   sdk = replaceAntigravitySource(sdk,
     "        init_resp = init_resp_event.initialize_conversation_response\n        parsed = event_processor.parse_initialize_response(init_resp)",
-    "        self._paperclip_native_admission = paperclip_admission.acknowledge_native_config(paperclip_prepared, init_resp_event, harness_config)\n        init_resp = init_resp_event.initialize_conversation_response\n        parsed = event_processor.parse_initialize_response(init_resp)",
+    "        self._outpost_native_admission = outpost_admission.acknowledge_native_config(outpost_prepared, init_resp_event, harness_config)\n        init_resp = init_resp_event.initialize_conversation_response\n        parsed = event_processor.parse_initialize_response(init_resp)",
   );
   eventProcessor = replaceAntigravitySource(eventProcessor,
 `      result = await self._execute_client_tool(tc)
@@ -208,7 +208,7 @@ export function antigravityPatchedSources(server, sdk, eventProcessor) {
 }
 
 function rebuildZip(entries, length) {
-  const paddingName = "paperclip_native_patch_padding";
+  const paddingName = "outpost_native_patch_padding";
   const used = entries.reduce((total, entry) => total + entry.localHeader.length + entry.payload.length + entry.central.length, 0);
   const paddingLength = length - used - 22 - 30 - 46 - Buffer.byteLength(paddingName) * 2;
   if (paddingLength < 0 || entries.length + 1 > 0xffff) fail("patched source exceeds the pinned native section");

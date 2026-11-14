@@ -52,7 +52,7 @@
 +      onClaim: (claim: any, scope: any) => {
 +        result.claims.push({ runId: claim.runId, kind: claim.kind, elapsedMs: performance.now() - claimStarted, generation: claim.controllerGeneration });
 +        renewals.push(startNativeSessionExecutionLeaseRenewal({ db: replacement,
-+          companyId: scope.companyId, issueId: scope.issueId, runId: claim.runId, leaseOwner: claim.leaseOwner,
++          spaceId: scope.spaceId, issueId: scope.issueId, runId: claim.runId, leaseOwner: claim.leaseOwner,
 +          attempt: claim.providerAttempt, controller: successor, remote: true,
 +          onLost: async () => { result.renewedOwnerLosses++; } }));
 +      },
@@ -65,14 +65,14 @@
 +    await Promise.all(Array.from({ length: 4 }, async () => {
 +      while (work.length) {
 +        const claim: any = work.shift(), item = items.find(i => i.runId === claim.runId);
-+        const checkpoint = await loadNativeRunnerCheckpoint(replacement, { companyId: item.companyId, issueId: item.issueId, runId: item.runId });
++        const checkpoint = await loadNativeRunnerCheckpoint(replacement, { spaceId: item.spaceId, issueId: item.issueId, runId: item.runId });
 +        assert(checkpoint);
 +        const directory = root + "/replacement-states/" + item.runId;
 +        checkpoint.restoreSessionDirectory(directory);
 +        const header = JSON.parse(checkpoint.records.get("header")!);
 +        const core = new CandidateCore({ stateDirectory: directory, identity: header.state.identity,
 +          expectedRunnerVersion: checkpoint.runnerVersion, expectedRunnerDigest: checkpoint.runnerDigest });
-+        const binding = { companyId: item.companyId, issueId: item.issueId, runId: item.runId,
++        const binding = { spaceId: item.spaceId, issueId: item.issueId, runId: item.runId,
 +          authorityRunId: item.runId, bootId: successor.bootId, generation: claim.controllerGeneration, leaseOwner: claim.leaseOwner };
 +        core.setCheckpointPersistence(CandidateWriter(replacement, binding));
 +        core.queueCommand("semantic_tool.result", { callId: "replacement-capacity", operationId: "fixture_read", result: { body: "x".repeat(4096) }, isError: false }, "replacement-control");

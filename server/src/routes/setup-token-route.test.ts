@@ -36,8 +36,8 @@ import { SETUP_TOKEN_TRANSPORT_ADVISORY_CODE } from "@outpost/shared";
 
 // --- Test fixtures -----------------------------------------------------------
 
-const COMPANY_ID = "company-1";
-const OTHER_COMPANY_ID = "company-2";
+const SPACE_ID = "space-1";
+const OTHER_SPACE_ID = "space-2";
 const OWNER_USER_ID = "owner-user-1";
 const OTHER_USER_ID = "other-user-2";
 const AGENT_ID = "11111111-1111-4111-8111-111111111111";
@@ -76,12 +76,12 @@ function expectNoSecret(text: string): void {
 // --- Service mocks -----------------------------------------------------------
 
 const mockAgentService = vi.hoisted(() => ({ getById: vi.fn() }));
-// The environment service the company-and-environment routes call to resolve the
+// The environment service the space-and-environment routes call to resolve the
 // sandbox environment server-side. A test sets the resolved environment shape to
 // prove the fail-closed environment guard.
 const mockEnvironmentService = vi.hoisted(() => ({
   getById: vi.fn(),
-  listBoundCompanyIds: vi.fn(),
+  listBoundSpaceIds: vi.fn(),
 }));
 // The provider-capability resolver the setup-token routes call to gate the login
 // on the provider setup-token capability. The default resolves "daytona" as a
@@ -95,10 +95,10 @@ const mockInstanceSettingsService = vi.hoisted(() => ({
   get: vi.fn(),
   getExperimental: vi.fn(),
   getGeneral: vi.fn(),
-  listCompanyIds: vi.fn(),
+  listSpaceIds: vi.fn(),
 }));
 const mockRunSecretRedactionRegistry = vi.hoisted(() => ({
-  redactForRun: vi.fn(async (_companyId: string, _runId: string, value: unknown) => value),
+  redactForRun: vi.fn(async (_spaceId: string, _runId: string, value: unknown) => value),
 }));
 // The narrow secrets service the status route calls. The route reads only
 // `readClaudeOAuthUserSecretStatus`; a test drives its result to prove the route
@@ -164,8 +164,8 @@ function registerModuleMocks(): void {
       hasPermission: vi.fn(async () => true),
     }),
     approvalService: () => ({}),
-    builtInAgentService: () => ({ ensureCompanyDefaultAgentGrants: vi.fn() }),
-    companySkillService: () => ({ listRuntimeSkillEntries: vi.fn() }),
+    builtInAgentService: () => ({ ensureSpaceDefaultAgentGrants: vi.fn() }),
+    spaceSkillService: () => ({ listRuntimeSkillEntries: vi.fn() }),
     budgetService: () => ({}),
     heartbeatService: () => mockHeartbeatService,
     issueApprovalService: () => ({}),
@@ -194,27 +194,27 @@ function registerModuleMocks(): void {
 let currentActor: Record<string, unknown>;
 function useOwner(userId: string = OWNER_USER_ID): void {
   currentActor = {
-    type: "board",
+    type: "operator",
     userId,
-    companyIds: [COMPANY_ID],
+    spaceIds: [SPACE_ID],
     source: "local_implicit",
     isInstanceAdmin: false,
   };
 }
 
-// Installs a non-`local_implicit` company member. The actor is a signed-in
-// board user with an explicit company allow-list, so `hasCompanyAccess` denies a
-// company that is not on the list. A test uses this actor to prove the
-// cross-company read returns the fixed not-found error, not a membership oracle.
-function useCompanyMember(userId: string = OWNER_USER_ID, companyIds: string[] = [COMPANY_ID]): void {
+// Installs a non-`local_implicit` space member. The actor is a signed-in
+// operator user with an explicit space allow-list, so `hasSpaceAccess` denies a
+// space that is not on the list. A test uses this actor to prove the
+// cross-space read returns the fixed not-found error, not a membership oracle.
+function useSpaceMember(userId: string = OWNER_USER_ID, spaceIds: string[] = [SPACE_ID]): void {
   currentActor = {
-    type: "board",
+    type: "operator",
     userId,
-    companyIds,
+    spaceIds,
     source: "session",
     isInstanceAdmin: false,
-    memberships: companyIds.map((companyId) => ({
-      companyId,
+    memberships: spaceIds.map((spaceId) => ({
+      spaceId,
       status: "active",
       membershipRole: "admin",
     })),
@@ -299,7 +299,7 @@ function buildTransport(opts: { onSubmit?: "complete" | "throw" | "pending" } = 
     async findActiveDurable(key, now) {
       for (const row of rows.values()) {
         if (
-          row.companyId === key.companyId &&
+          row.spaceId === key.spaceId &&
           row.ownerUserId === key.ownerUserId &&
           row.adapterType === key.adapterType &&
           !isTerminalSessionState(row.state) &&
@@ -490,7 +490,7 @@ beforeEach(() => {
   mockSecretService.readClaudeOAuthUserSecretStatus.mockResolvedValue(null);
   mockAgentService.getById.mockResolvedValue({
     id: AGENT_ID,
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     name: "Claude agent",
     adapterType: "claude_local",
     defaultEnvironmentId: ENVIRONMENT_ID,
@@ -505,10 +505,10 @@ beforeEach(() => {
     status: "active",
     config: { provider: "daytona" },
   });
-  // The default environment has no company binding, so it is instance-global
+  // The default environment has no space binding, so it is instance-global
   // and open to every member. A test overrides this to prove the guard rejects
-  // an environment that another company owns.
-  mockEnvironmentService.listBoundCompanyIds.mockResolvedValue([]);
+  // an environment that another space owns.
+  mockEnvironmentService.listBoundSpaceIds.mockResolvedValue([]);
   // The default provider advertises the setup-token login capability. A test
   // overrides this to prove an unsupported provider fails closed.
   mockResolvePluginSandboxProviderDriverByKey.mockImplementation(
@@ -519,32 +519,32 @@ beforeEach(() => {
   );
 });
 
-// --- Company-and-environment routes ------------------------------------------
+// --- Space-and-environment routes ------------------------------------------
 //
 // These tests drive the agentless Claude login. The scope binds one login to one
-// company, one owner, one adapter, and one environment. The route carries no
+// space, one owner, one adapter, and one environment. The route carries no
 // agent id, resolves the environment server-side, and returns the same not-found
 // error for a foreign session as for a missing session.
 
-const COMPANY_BASE = `/api/companies/${COMPANY_ID}/setup-token-login-sessions`;
+const SPACE_BASE = `/api/spaces/${SPACE_ID}/setup-token-login-sessions`;
 
-// Starts a company-and-environment login and returns the session id. The default
+// Starts a space-and-environment login and returns the session id. The default
 // body names the Claude adapter and the resolved sandbox environment.
-async function startCompanySession(
+async function startSpaceSession(
   app: express.Express,
   body: Record<string, unknown> = { environmentId: ENVIRONMENT_ID, adapterType: "claude_local" },
 ): Promise<request.Response> {
-  return request(app).post(COMPANY_BASE).send(body);
+  return request(app).post(SPACE_BASE).send(body);
 }
 
-describe("company-and-environment setup-token route — full path", () => {
+describe("space-and-environment setup-token route — full path", () => {
   it("drives start, status, prompt, code, and completion with no agent id", async () => {
     const transport = buildTransport({ onSubmit: "complete" });
     const { app } = await createApp({ transport });
 
     // Start. The response carries the environment, the panel mode, and no prompt
     // and no secret. The full login URL rides only in the guarded prompt read.
-    const startRes = await startCompanySession(app);
+    const startRes = await startSpaceSession(app);
     expect(startRes.status, JSON.stringify(startRes.body)).toBe(201);
     const sessionId = startRes.body.sessionId as string;
     expect(sessionId).toBeTruthy();
@@ -562,7 +562,7 @@ describe("company-and-environment setup-token route — full path", () => {
     expect(transport.records.map((r) => r.environmentId)).toEqual([ENVIRONMENT_ID]);
 
     // Read the public status. It carries no prompt and no secret.
-    const statusRes = await request(app).get(`${COMPANY_BASE}/${sessionId}`).send();
+    const statusRes = await request(app).get(`${SPACE_BASE}/${sessionId}`).send();
     expect(statusRes.status, JSON.stringify(statusRes.body)).toBe(200);
     expect(statusRes.body.status).toBe("waiting_for_user");
     expect(statusRes.body.environmentId).toBe(ENVIRONMENT_ID);
@@ -570,7 +570,7 @@ describe("company-and-environment setup-token route — full path", () => {
     expectNoSecret(JSON.stringify(statusRes.body));
 
     // Read the prompt. The owner response carries the full URL, with no-store.
-    const promptRes = await request(app).get(`${COMPANY_BASE}/${sessionId}/prompt`).send();
+    const promptRes = await request(app).get(`${SPACE_BASE}/${sessionId}/prompt`).send();
     expect(promptRes.status, JSON.stringify(promptRes.body)).toBe(200);
     expect(promptRes.body.authorizationUrl).toBe(FULL_LOGIN_URL);
     expect(promptRes.headers["cache-control"]).toBe("no-store");
@@ -580,7 +580,7 @@ describe("company-and-environment setup-token route — full path", () => {
 
     // Submit the one browser code. The response carries no secret.
     const codeRes = await request(app)
-      .post(`${COMPANY_BASE}/${sessionId}/code`)
+      .post(`${SPACE_BASE}/${sessionId}/code`)
       .send({ browserCode: BROWSER_CODE });
     expect(codeRes.status, JSON.stringify(codeRes.body)).toBe(200);
     expect(codeRes.body.transportAdvisory).toBeNull();
@@ -592,7 +592,7 @@ describe("company-and-environment setup-token route — full path", () => {
 
     // Read the completion. The owner response carries the non-secret
     // storedSessionId and no token, with no-store.
-    const completionRes = await request(app).post(`${COMPANY_BASE}/${sessionId}/completion`).send();
+    const completionRes = await request(app).post(`${SPACE_BASE}/${sessionId}/completion`).send();
     expect(completionRes.status, JSON.stringify(completionRes.body)).toBe(200);
     expect(completionRes.body.storedSessionId).toBe(sessionId);
     expect(completionRes.body.token).toBeUndefined();
@@ -602,19 +602,19 @@ describe("company-and-environment setup-token route — full path", () => {
 
   it("returns the fixed no-secret error when no transport is bound", async () => {
     const { app } = await createApp({});
-    const startRes = await startCompanySession(app);
+    const startRes = await startSpaceSession(app);
     expect(startRes.status).toBe(503);
     expect(startRes.headers["cache-control"]).toBe("no-store");
     expectNoSecret(JSON.stringify(startRes.body));
   });
 });
 
-describe("company-and-environment setup-token route — object-level authorization", () => {
+describe("space-and-environment setup-token route — object-level authorization", () => {
   it("returns the same not-found for a cross-owner caller on every action", async () => {
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
 
-    const startRes = await startCompanySession(app);
+    const startRes = await startSpaceSession(app);
     const sessionId = startRes.body.sessionId as string;
 
     // A different owner reads the same id. Every read action returns the
@@ -622,10 +622,10 @@ describe("company-and-environment setup-token route — object-level authorizati
     // missing one.
     useOwner(OTHER_USER_ID);
     const paths: Array<() => request.Test> = [
-      () => request(app).get(`${COMPANY_BASE}/${sessionId}`).send(),
-      () => request(app).get(`${COMPANY_BASE}/${sessionId}/prompt`).send(),
-      () => request(app).post(`${COMPANY_BASE}/${sessionId}/code`).send({ browserCode: BROWSER_CODE }),
-      () => request(app).post(`${COMPANY_BASE}/${sessionId}/completion`).send(),
+      () => request(app).get(`${SPACE_BASE}/${sessionId}`).send(),
+      () => request(app).get(`${SPACE_BASE}/${sessionId}/prompt`).send(),
+      () => request(app).post(`${SPACE_BASE}/${sessionId}/code`).send({ browserCode: BROWSER_CODE }),
+      () => request(app).post(`${SPACE_BASE}/${sessionId}/completion`).send(),
     ];
     for (const call of paths) {
       const res = await call();
@@ -639,32 +639,32 @@ describe("company-and-environment setup-token route — object-level authorizati
     // identical for a foreign, an already-terminal, and a missing session, so it
     // is not an existence oracle. The route cancels nothing for a foreign id: the
     // scope check throws before the cancel runs, so the session stays active.
-    const cancelRes = await request(app).post(`${COMPANY_BASE}/${sessionId}/cancel`).send();
+    const cancelRes = await request(app).post(`${SPACE_BASE}/${sessionId}/cancel`).send();
     expect(cancelRes.status).toBe(200);
     expectNoSecret(JSON.stringify(cancelRes.body));
 
     // The owner reads the session again. It is still active, so the cross-owner
     // cancel did not terminate it.
     useOwner(OWNER_USER_ID);
-    const ownerStatus = await request(app).get(`${COMPANY_BASE}/${sessionId}`).send();
+    const ownerStatus = await request(app).get(`${SPACE_BASE}/${sessionId}`).send();
     expect(ownerStatus.status).toBe(200);
     expect(ownerStatus.body.status).toBe("waiting_for_user");
 
     expect(transport.submittedCodes).toEqual([]);
   });
 
-  it("returns the same not-found for a cross-company caller", async () => {
+  it("returns the same not-found for a cross-space caller", async () => {
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
 
-    const startRes = await startCompanySession(app);
+    const startRes = await startSpaceSession(app);
     const sessionId = startRes.body.sessionId as string;
 
-    // The same owner reads the session under a different company path. The
-    // session belongs to the first company, so the read returns the not-found
-    // error and never confirms the session across a company boundary.
-    const crossCompanyBase = `/api/companies/${OTHER_COMPANY_ID}/setup-token-login-sessions`;
-    const res = await request(app).get(`${crossCompanyBase}/${sessionId}`).send();
+    // The same owner reads the session under a different space path. The
+    // session belongs to the first space, so the read returns the not-found
+    // error and never confirms the session across a space boundary.
+    const crossSpaceBase = `/api/spaces/${OTHER_SPACE_ID}/setup-token-login-sessions`;
+    const res = await request(app).get(`${crossSpaceBase}/${sessionId}`).send();
     expect(res.status).toBe(404);
     expect(res.body.error).toBe(SETUP_TOKEN_SESSION_NOT_FOUND);
   });
@@ -673,10 +673,10 @@ describe("company-and-environment setup-token route — object-level authorizati
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
 
-    const startRes = await startCompanySession(app);
+    const startRes = await startSpaceSession(app);
     const sessionId = startRes.body.sessionId as string;
 
-    const active = await request(app).get(`${COMPANY_BASE}/active`).send();
+    const active = await request(app).get(`${SPACE_BASE}/active`).send();
     expect(active.status, JSON.stringify(active.body)).toBe(200);
     expect(active.body.sessionId).toBe(sessionId);
     expect(active.body.status).toBe("waiting_for_user");
@@ -688,52 +688,52 @@ describe("company-and-environment setup-token route — object-level authorizati
     expect(active.headers["cache-control"]).toBe("no-store, private");
   });
 
-  it("returns the identical not-found on the active route for no active session, a cross-owner caller, and a cross-company caller", async () => {
+  it("returns the identical not-found on the active route for no active session, a cross-owner caller, and a cross-space caller", async () => {
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
 
     // No session has started yet.
-    const none = await request(app).get(`${COMPANY_BASE}/active`).send();
+    const none = await request(app).get(`${SPACE_BASE}/active`).send();
     expect(none.status).toBe(404);
     expect(none.body.error).toBe(SETUP_TOKEN_SESSION_NOT_FOUND);
 
-    await startCompanySession(app);
+    await startSpaceSession(app);
 
-    // A different board user in the same company holds no active session.
+    // A different operator user in the same space holds no active session.
     useOwner(OTHER_USER_ID);
-    const otherOwner = await request(app).get(`${COMPANY_BASE}/active`).send();
+    const otherOwner = await request(app).get(`${SPACE_BASE}/active`).send();
     expect(otherOwner.status).toBe(404);
     expect(otherOwner.body.error).toBe(SETUP_TOKEN_SESSION_NOT_FOUND);
     useOwner();
 
-    // The same owner under a different company holds no active session there.
-    const crossCompanyBase = `/api/companies/${OTHER_COMPANY_ID}/setup-token-login-sessions`;
-    const otherCompany = await request(app).get(`${crossCompanyBase}/active`).send();
-    expect(otherCompany.status).toBe(404);
-    expect(otherCompany.body.error).toBe(SETUP_TOKEN_SESSION_NOT_FOUND);
+    // The same owner under a different space holds no active session there.
+    const crossSpaceBase = `/api/spaces/${OTHER_SPACE_ID}/setup-token-login-sessions`;
+    const otherSpace = await request(app).get(`${crossSpaceBase}/active`).send();
+    expect(otherSpace.status).toBe(404);
+    expect(otherSpace.body.error).toBe(SETUP_TOKEN_SESSION_NOT_FOUND);
   });
 
-  it("returns the fixed not-found for a non-member on every action across a company boundary", async () => {
+  it("returns the fixed not-found for a non-member on every action across a space boundary", async () => {
     const transport = buildTransport({ onSubmit: "complete" });
     const { app } = await createApp({ transport });
 
-    // A member of one company starts the session in that company.
-    const startRes = await startCompanySession(app);
+    // A member of one space starts the session in that space.
+    const startRes = await startSpaceSession(app);
     const sessionId = startRes.body.sessionId as string;
 
-    // A signed-in board member of the first company reads the session under a
-    // second company it is not a member of. The company reference is a
-    // cross-company reference. The route must return the same fixed not-found
-    // error as a missing session, so it is not a company-membership oracle. It
+    // A signed-in operator member of the first space reads the session under a
+    // second space it is not a member of. The space reference is a
+    // cross-space reference. The route must return the same fixed not-found
+    // error as a missing session, so it is not a space-membership oracle. It
     // must not return a 403, a login URL, a token, or the browser code forward.
-    useCompanyMember(OWNER_USER_ID, [COMPANY_ID]);
-    const crossCompanyBase = `/api/companies/${OTHER_COMPANY_ID}/setup-token-login-sessions`;
+    useSpaceMember(OWNER_USER_ID, [SPACE_ID]);
+    const crossSpaceBase = `/api/spaces/${OTHER_SPACE_ID}/setup-token-login-sessions`;
     const paths: Array<() => request.Test> = [
-      () => request(app).get(`${crossCompanyBase}/${sessionId}`).send(),
-      () => request(app).get(`${crossCompanyBase}/${sessionId}/prompt`).send(),
-      () => request(app).post(`${crossCompanyBase}/${sessionId}/code`).send({ browserCode: BROWSER_CODE }),
-      () => request(app).post(`${crossCompanyBase}/${sessionId}/completion`).send(),
-      () => request(app).post(`${crossCompanyBase}/${sessionId}/cancel`).send(),
+      () => request(app).get(`${crossSpaceBase}/${sessionId}`).send(),
+      () => request(app).get(`${crossSpaceBase}/${sessionId}/prompt`).send(),
+      () => request(app).post(`${crossSpaceBase}/${sessionId}/code`).send({ browserCode: BROWSER_CODE }),
+      () => request(app).post(`${crossSpaceBase}/${sessionId}/completion`).send(),
+      () => request(app).post(`${crossSpaceBase}/${sessionId}/cancel`).send(),
     ];
     for (const call of paths) {
       const res = await call();
@@ -757,7 +757,7 @@ describe("company-and-environment setup-token route — object-level authorizati
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
 
-    const res = await startCompanySession(app, {
+    const res = await startSpaceSession(app, {
       environmentId: ENVIRONMENT_ID,
       adapterType: "codex_local",
     });
@@ -785,7 +785,7 @@ describe("company-and-environment setup-token route — object-level authorizati
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
 
-    const res = await startCompanySession(app, {
+    const res = await startSpaceSession(app, {
       environmentId: ENVIRONMENT_ID,
       adapterType: "gemini_local",
     });
@@ -801,28 +801,28 @@ describe("company-and-environment setup-token route — object-level authorizati
   });
 });
 
-describe("company-and-environment setup-token route — idempotent cancel", () => {
+describe("space-and-environment setup-token route — idempotent cancel", () => {
   it("cancels an active session, then returns 200 on a repeat cancel", async () => {
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
 
-    const startRes = await startCompanySession(app);
+    const startRes = await startSpaceSession(app);
     const sessionId = startRes.body.sessionId as string;
 
     // The first cancel terminates the active session and returns success.
-    const firstCancel = await request(app).post(`${COMPANY_BASE}/${sessionId}/cancel`).send();
+    const firstCancel = await request(app).post(`${SPACE_BASE}/${sessionId}/cancel`).send();
     expect(firstCancel.status).toBe(200);
     expect(firstCancel.headers["cache-control"]).toBe("no-store");
     await settle();
 
     // The server removed the terminal session, so the status read now returns the
     // not-found error. This is the state the panel used to poll forever.
-    const statusRes = await request(app).get(`${COMPANY_BASE}/${sessionId}`).send();
+    const statusRes = await request(app).get(`${SPACE_BASE}/${sessionId}`).send();
     expect(statusRes.status).toBe(404);
 
     // The repeat cancel finds no record. It returns the same 200 success instead
     // of a hard 404, so the client can stop the poll.
-    const repeatCancel = await request(app).post(`${COMPANY_BASE}/${sessionId}/cancel`).send();
+    const repeatCancel = await request(app).post(`${SPACE_BASE}/${sessionId}/cancel`).send();
     expect(repeatCancel.status).toBe(200);
     expect(repeatCancel.headers["cache-control"]).toBe("no-store");
     expectNoSecret(JSON.stringify(repeatCancel.body));
@@ -832,10 +832,10 @@ describe("company-and-environment setup-token route — idempotent cancel", () =
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
 
-    // The owner is a member of the company, but the session id never existed. The
+    // The owner is a member of the space, but the session id never existed. The
     // cancel is idempotent, so it returns success, not a 404.
     const res = await request(app)
-      .post(`${COMPANY_BASE}/00000000-0000-4000-8000-000000000000/cancel`)
+      .post(`${SPACE_BASE}/00000000-0000-4000-8000-000000000000/cancel`)
       .send();
     expect(res.status).toBe(200);
     expect(res.headers["cache-control"]).toBe("no-store");
@@ -843,13 +843,13 @@ describe("company-and-environment setup-token route — idempotent cancel", () =
   });
 });
 
-describe("company-and-environment setup-token route — fail-closed environment", () => {
+describe("space-and-environment setup-token route — fail-closed environment", () => {
   it("rejects a missing environment and writes no scope", async () => {
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
     mockEnvironmentService.getById.mockResolvedValue(null);
 
-    const res = await startCompanySession(app);
+    const res = await startSpaceSession(app);
     expect(res.status).toBe(422);
     // The route rejected the environment before it started a session, so no
     // store holds an empty environment scope.
@@ -860,7 +860,7 @@ describe("company-and-environment setup-token route — fail-closed environment"
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
 
-    const res = await startCompanySession(app, { adapterType: "claude_local" });
+    const res = await startSpaceSession(app, { adapterType: "claude_local" });
     expect(res.status).toBe(400);
     expect(transport.records).toEqual([]);
   });
@@ -877,36 +877,36 @@ describe("company-and-environment setup-token route — fail-closed environment"
     ];
     for (const environment of cases) {
       mockEnvironmentService.getById.mockResolvedValueOnce(environment);
-      const res = await startCompanySession(app);
+      const res = await startSpaceSession(app);
       expect(res.status, JSON.stringify(environment)).toBe(422);
     }
     // No rejected environment reached the store.
     expect(transport.records).toEqual([]);
   });
 
-  it("rejects an environment that another company owns", async () => {
+  it("rejects an environment that another space owns", async () => {
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
-    // The environment binds to another company only, so the request company does
+    // The environment binds to another space only, so the request space does
     // not own it. The guard fails closed before the session starts.
-    mockEnvironmentService.listBoundCompanyIds.mockResolvedValue([OTHER_COMPANY_ID]);
+    mockEnvironmentService.listBoundSpaceIds.mockResolvedValue([OTHER_SPACE_ID]);
 
-    const res = await startCompanySession(app);
+    const res = await startSpaceSession(app);
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe("The selected environment belongs to another company.");
+    expect(res.body.error).toBe("The selected environment belongs to another space.");
     // No rejected environment reached the store.
     expect(transport.records).toEqual([]);
   });
 
-  it("accepts an environment the request company also owns", async () => {
+  it("accepts an environment the request space also owns", async () => {
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
-    // The environment binds to the request company and another company. A shared
-    // managed sandbox binds to many companies at once, so a co-owned binding
-    // stays open to the request company.
-    mockEnvironmentService.listBoundCompanyIds.mockResolvedValue([OTHER_COMPANY_ID, COMPANY_ID]);
+    // The environment binds to the request space and another space. A shared
+    // managed sandbox binds to many spaces at once, so a co-owned binding
+    // stays open to the request space.
+    mockEnvironmentService.listBoundSpaceIds.mockResolvedValue([OTHER_SPACE_ID, SPACE_ID]);
 
-    const res = await startCompanySession(app);
+    const res = await startSpaceSession(app);
     expect(res.status).toBe(201);
   });
 
@@ -923,7 +923,7 @@ describe("company-and-environment setup-token route — fail-closed environment"
       config: { provider: "e2b" },
     });
 
-    const res = await startCompanySession(app);
+    const res = await startSpaceSession(app);
     expect(res.status, JSON.stringify(res.body)).toBe(422);
     expect(res.body.error).toBe(SETUP_TOKEN_PROVIDER_UNSUPPORTED);
     // No session row, no lease, and no pseudo-terminal started.
@@ -934,28 +934,28 @@ describe("company-and-environment setup-token route — fail-closed environment"
   });
 });
 
-describe("company-and-environment setup-token route — browser-code grammar", () => {
+describe("space-and-environment setup-token route — browser-code grammar", () => {
   it("rejects a missing, an oversized, and a control-byte code before it forwards", async () => {
     const transport = buildTransport({ onSubmit: "complete" });
     const { app } = await createApp({ transport });
 
-    const startRes = await startCompanySession(app);
+    const startRes = await startSpaceSession(app);
     const sessionId = startRes.body.sessionId as string;
 
     // A missing code.
-    const missing = await request(app).post(`${COMPANY_BASE}/${sessionId}/code`).send({});
+    const missing = await request(app).post(`${SPACE_BASE}/${sessionId}/code`).send({});
     expect(missing.status).toBe(400);
 
     // An oversized code (one character over the bounded maximum).
     const oversized = await request(app)
-      .post(`${COMPANY_BASE}/${sessionId}/code`)
+      .post(`${SPACE_BASE}/${sessionId}/code`)
       .send({ browserCode: "a".repeat(513) });
     expect(oversized.status).toBe(400);
 
     // A control byte and a space are both rejected.
     for (const badCode of ["abc\ndef", "abc def"]) {
       const res = await request(app)
-        .post(`${COMPANY_BASE}/${sessionId}/code`)
+        .post(`${SPACE_BASE}/${sessionId}/code`)
         .send({ browserCode: badCode });
       expect(res.status).toBe(400);
     }
@@ -965,12 +965,12 @@ describe("company-and-environment setup-token route — browser-code grammar", (
   });
 });
 
-describe("company-and-environment setup-token route — strict request contract", () => {
+describe("space-and-environment setup-token route — strict request contract", () => {
   it("rejects a legacy ttlSeconds at start before any session or lease side effect", async () => {
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
 
-    const res = await startCompanySession(app, {
+    const res = await startSpaceSession(app, {
       environmentId: ENVIRONMENT_ID,
       adapterType: "claude_local",
       ttlSeconds: 300,
@@ -986,7 +986,7 @@ describe("company-and-environment setup-token route — strict request contract"
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
 
-    const res = await startCompanySession(app, {
+    const res = await startSpaceSession(app, {
       environmentId: ENVIRONMENT_ID,
       adapterType: "claude_local",
       unknownField: "unsupported",
@@ -1000,11 +1000,11 @@ describe("company-and-environment setup-token route — strict request contract"
     const transport = buildTransport({ onSubmit: "complete" });
     const { app } = await createApp({ transport });
 
-    const startRes = await startCompanySession(app);
+    const startRes = await startSpaceSession(app);
     const sessionId = startRes.body.sessionId as string;
 
     const res = await request(app)
-      .post(`${COMPANY_BASE}/${sessionId}/code`)
+      .post(`${SPACE_BASE}/${sessionId}/code`)
       .send({ browserCode: BROWSER_CODE, ttlSeconds: 300 });
     expect(res.status).toBe(400);
     // The unknown field failed the strict parse before the code reached the
@@ -1013,7 +1013,7 @@ describe("company-and-environment setup-token route — strict request contract"
   });
 });
 
-describe("company-and-environment setup-token route — advisory transport", () => {
+describe("space-and-environment setup-token route — advisory transport", () => {
   it("proceeds on a non-TLS prompt and code request and attaches the advisory", async () => {
     const transport = buildTransport({ onSubmit: "complete" });
     const { app } = await createApp({
@@ -1022,12 +1022,12 @@ describe("company-and-environment setup-token route — advisory transport", () 
       confidentialProxyAllowlist: [],
     });
 
-    const startRes = await startCompanySession(app);
+    const startRes = await startSpaceSession(app);
     const sessionId = startRes.body.sessionId as string;
 
     // The prompt over plain HTTP surfaces the URL with the advisory. The URL
     // query is the owner-only confidential value, so the body holds it by design.
-    const promptRes = await request(app).get(`${COMPANY_BASE}/${sessionId}/prompt`).send();
+    const promptRes = await request(app).get(`${SPACE_BASE}/${sessionId}/prompt`).send();
     expect(promptRes.status).toBe(200);
     expect(promptRes.body.authorizationUrl).toBe(FULL_LOGIN_URL);
     expect(promptRes.body.transportAdvisory).toEqual({ code: SETUP_TOKEN_TRANSPORT_ADVISORY_CODE });
@@ -1035,7 +1035,7 @@ describe("company-and-environment setup-token route — advisory transport", () 
     // The code over plain HTTP proceeds. The code reaches the process and the
     // response carries the advisory.
     const codeRes = await request(app)
-      .post(`${COMPANY_BASE}/${sessionId}/code`)
+      .post(`${SPACE_BASE}/${sessionId}/code`)
       .send({ browserCode: BROWSER_CODE });
     expect(codeRes.status).toBe(200);
     expect(codeRes.body.transportAdvisory).toEqual({ code: SETUP_TOKEN_TRANSPORT_ADVISORY_CODE });
@@ -1057,16 +1057,16 @@ describe("company-and-environment setup-token route — advisory transport", () 
       confidentialEdgeTlsTerminated: true,
     });
 
-    const startRes = await startCompanySession(app);
+    const startRes = await startSpaceSession(app);
     const sessionId = startRes.body.sessionId as string;
 
-    const promptRes = await request(app).get(`${COMPANY_BASE}/${sessionId}/prompt`).send();
+    const promptRes = await request(app).get(`${SPACE_BASE}/${sessionId}/prompt`).send();
     expect(promptRes.status).toBe(200);
     expect(promptRes.body.authorizationUrl).toBe(FULL_LOGIN_URL);
     expect(promptRes.body.transportAdvisory).toBeNull();
 
     const codeRes = await request(app)
-      .post(`${COMPANY_BASE}/${sessionId}/code`)
+      .post(`${SPACE_BASE}/${sessionId}/code`)
       .send({ browserCode: BROWSER_CODE });
     expect(codeRes.status).toBe(200);
     expect(codeRes.body.transportAdvisory).toBeNull();
@@ -1081,10 +1081,10 @@ describe("company-and-environment setup-token route — advisory transport", () 
 // confirmed-overwrite capture into the immutable session scope, so the final
 // secret write rotates the stored value instead of a first write.
 
-const STATUS_BASE = `/api/companies/${COMPANY_ID}/claude-oauth-token-status`;
+const STATUS_BASE = `/api/spaces/${SPACE_ID}/claude-oauth-token-status`;
 const STORED_SECRET_ID = "44444444-4444-4444-8444-444444444444";
 
-describe("company-and-environment stored-token status route", () => {
+describe("space-and-environment stored-token status route", () => {
   it("returns the owner metadata with no token and no-store, and never a token", async () => {
     mockSecretService.readClaudeOAuthUserSecretStatus.mockResolvedValue({
       secretId: STORED_SECRET_ID,
@@ -1098,7 +1098,7 @@ describe("company-and-environment stored-token status route", () => {
     expect(res.headers["cache-control"]).toBe("no-store");
     // The owner comes from the actor, never from the request.
     expect(mockSecretService.readClaudeOAuthUserSecretStatus).toHaveBeenCalledWith(
-      COMPANY_ID,
+      SPACE_ID,
       OWNER_USER_ID,
     );
     // The response carries no token.
@@ -1115,12 +1115,12 @@ describe("company-and-environment stored-token status route", () => {
     expect(res.headers["cache-control"]).toBe("no-store");
   });
 
-  it("gives a same-company other user no existence distinction", async () => {
+  it("gives a same-space other user no existence distinction", async () => {
     // The route derives the owner from the actor. The service returns the value
-    // only for the real owner, so a same-company other user gets the same fixed
+    // only for the real owner, so a same-space other user gets the same fixed
     // not-found as an owner with no value.
     mockSecretService.readClaudeOAuthUserSecretStatus.mockImplementation(
-      async (_companyId: string, ownerUserId: string) =>
+      async (_spaceId: string, ownerUserId: string) =>
         ownerUserId === OWNER_USER_ID ? { secretId: STORED_SECRET_ID, latestVersion: 1 } : null,
     );
     const { app } = await createApp({});
@@ -1128,7 +1128,7 @@ describe("company-and-environment stored-token status route", () => {
     const ownerRes = await request(app).get(STATUS_BASE).send();
     expect(ownerRes.status).toBe(200);
 
-    // A different same-company user reads the same path. The route derives the
+    // A different same-space user reads the same path. The route derives the
     // owner as that user and gets the fixed not-found.
     useOwner(OTHER_USER_ID);
     const otherRes = await request(app).get(STATUS_BASE).send();
@@ -1137,10 +1137,10 @@ describe("company-and-environment stored-token status route", () => {
     expect(otherRes.headers["cache-control"]).toBe("no-store");
   });
 
-  it("gives a cross-company caller the fixed not-found and never reads the value", async () => {
-    // A signed-in board user who is not a member of the company. The company
+  it("gives a cross-space caller the fixed not-found and never reads the value", async () => {
+    // A signed-in operator user who is not a member of the space. The space
     // gate returns the fixed not-found before any owner-value read runs.
-    useCompanyMember(OWNER_USER_ID, [OTHER_COMPANY_ID]);
+    useSpaceMember(OWNER_USER_ID, [OTHER_SPACE_ID]);
     const { app } = await createApp({});
 
     const res = await request(app).get(STATUS_BASE).send();
@@ -1152,12 +1152,12 @@ describe("company-and-environment stored-token status route", () => {
   });
 });
 
-describe("company-and-environment login overwrite capture", () => {
+describe("space-and-environment login overwrite capture", () => {
   it("threads the confirmed-overwrite capture into the session scope", async () => {
     const transport = buildTransport({ onSubmit: "complete" });
     const { app } = await createApp({ transport });
 
-    const startRes = await startCompanySession(app, {
+    const startRes = await startSpaceSession(app, {
       environmentId: ENVIRONMENT_ID,
       adapterType: "claude_local",
       overwrite: { expectedSecretId: STORED_SECRET_ID, expectedLatestVersion: 2 },
@@ -1166,7 +1166,7 @@ describe("company-and-environment login overwrite capture", () => {
     const sessionId = startRes.body.sessionId as string;
 
     await request(app)
-      .post(`${COMPANY_BASE}/${sessionId}/code`)
+      .post(`${SPACE_BASE}/${sessionId}/code`)
       .send({ browserCode: BROWSER_CODE });
     await settle();
 
@@ -1182,10 +1182,10 @@ describe("company-and-environment login overwrite capture", () => {
     const transport = buildTransport({ onSubmit: "complete" });
     const { app } = await createApp({ transport });
 
-    const startRes = await startCompanySession(app);
+    const startRes = await startSpaceSession(app);
     const sessionId = startRes.body.sessionId as string;
     await request(app)
-      .post(`${COMPANY_BASE}/${sessionId}/code`)
+      .post(`${SPACE_BASE}/${sessionId}/code`)
       .send({ browserCode: BROWSER_CODE });
     await settle();
 
@@ -1196,7 +1196,7 @@ describe("company-and-environment login overwrite capture", () => {
     const transport = buildTransport({ onSubmit: "pending" });
     const { app } = await createApp({ transport });
 
-    const res = await startCompanySession(app, {
+    const res = await startSpaceSession(app, {
       environmentId: ENVIRONMENT_ID,
       adapterType: "claude_local",
       overwrite: { expectedSecretId: "not-a-uuid", expectedLatestVersion: 0 },

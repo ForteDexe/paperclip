@@ -68,11 +68,11 @@ export const createProjectAction = {
       "standard",
       "skill_test"
     ],
-    "sideEffectClass": "company_write",
+    "sideEffectClass": "space_write",
     "idempotency": "required",
     "disabledByDefault": false,
     "realBindingStatus": "live_codex",
-    "realServiceBinding": "PaperclipRunnerToolAuthority",
+    "realServiceBinding": "OutpostRunnerToolAuthority",
     "orpEvidence": "Authenticated project tools, persisted projects and repository workspaces, and run-bound activity.",
     "orpBindingStatus": "bound",
     "legacyAliases": []

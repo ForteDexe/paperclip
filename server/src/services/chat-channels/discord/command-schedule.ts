@@ -5,7 +5,7 @@ import type { CommandRegistrationScope } from "./command-work-notifications.js";
 
 export type CommandRegistrationDeadline = {
   id: string;
-  companyId: string;
+  spaceId: string;
   connectionId: string;
   dueAt: number;
 };
@@ -18,13 +18,13 @@ export function discordCommandSchedule(db: Db, reconcile: (endpointId: string) =
       signal?.throwIfAborted();
       const rows = await db.select({
         id: chatEndpoints.id,
-        companyId: chatEndpoints.companyId,
+        spaceId: chatEndpoints.spaceId,
         connectionId: chatEndpoints.connectionId,
         applicationId: chatEndpoints.botExternalId,
         guildId: chatEndpoints.providerAccountId,
       }).from(chatEndpoints).innerJoin(toolConnections, and(
         eq(toolConnections.id, chatEndpoints.connectionId),
-        eq(toolConnections.companyId, chatEndpoints.companyId),
+        eq(toolConnections.spaceId, chatEndpoints.spaceId),
       )).where(and(
         eq(chatEndpoints.provider, "discord"),
         inArray(chatEndpoints.status, ["verifying", "active", "attention"]),
@@ -33,17 +33,17 @@ export function discordCommandSchedule(db: Db, reconcile: (endpointId: string) =
         isNotNull(chatEndpoints.botExternalId), isNotNull(chatEndpoints.providerAccountId),
         scope?.kind === "endpoint" ? eq(chatEndpoints.id, scope.id) : undefined,
         scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
-        scope?.kind === "company" ? eq(chatEndpoints.companyId, scope.id) : undefined,
+        scope?.kind === "space" ? eq(chatEndpoints.spaceId, scope.id) : undefined,
         cursor ? gt(chatEndpoints.id, cursor) : undefined,
       )).orderBy(chatEndpoints.id).limit(100);
       for (const row of rows) {
         signal?.throwIfAborted();
         if (!row.applicationId || !row.guildId) continue;
         const dueAt = await readDiscordCommandRegistrationDeadline(db, {
-          companyId: row.companyId, endpointId: row.id,
+          spaceId: row.spaceId, endpointId: row.id,
           applicationId: row.applicationId, guildId: row.guildId,
         });
-        if (dueAt !== null) deadlines.push({ id: row.id, companyId: row.companyId, connectionId: row.connectionId, dueAt });
+        if (dueAt !== null) deadlines.push({ id: row.id, spaceId: row.spaceId, connectionId: row.connectionId, dueAt });
       }
       if (rows.length < 100) return deadlines;
       cursor = rows[rows.length - 1].id;

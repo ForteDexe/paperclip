@@ -54,7 +54,7 @@ class FakeUpgradeSocket extends EventEmitter {
 
 function createUpgradeRequest(overrides: Partial<IncomingMessage> = {}) {
   return {
-    url: "/api/companies/company-1/events/ws",
+    url: "/api/spaces/space-1/events/ws",
     headers: {},
     ...overrides,
   } as IncomingMessage;
@@ -79,7 +79,7 @@ describe("setupLiveEventsWebSocketServer", () => {
       resolveCloudActor: async () => {
         await pending;
         if (fail) throw new Error("fixture authentication write failed");
-        return { userId: "fixture-user", companyIds: ["company-1"] };
+        return { userId: "fixture-user", spaceIds: ["space-1"] };
       },
     });
     server.emit("upgrade", createUpgradeRequest(), socket as unknown as Duplex, Buffer.alloc(0));
@@ -137,7 +137,7 @@ describe("setupLiveEventsWebSocketServer", () => {
     await flushPromises();
 
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ err: expect.any(Error), path: "/api/companies/company-1/events/ws" }),
+      expect.objectContaining({ err: expect.any(Error), path: "/api/spaces/space-1/events/ws" }),
       "live websocket upgrade socket error",
     );
     expect(socket.endedChunks).toEqual([]);
@@ -160,7 +160,7 @@ describe("setupLiveEventsWebSocketServer", () => {
     expect(socket.listenerCount("finish")).toBe(0);
   });
 
-  it("authorizes a cloud-proxied browser for a company in its membership scope", async () => {
+  it("authorizes a cloud-proxied browser for a space in its membership scope", async () => {
     const server = new EventEmitter();
     const resolveSessionFromHeaders = vi.fn(async () => null);
     const socket = new FakeUpgradeSocket();
@@ -171,7 +171,7 @@ describe("setupLiveEventsWebSocketServer", () => {
         // Stop before the ws handshake writes to the fake socket; the
         // assertion is that authorization passed without any rejection.
         socket.writable = false;
-        return { userId: "cloud-user-1", companyIds: ["company-1", "company-2"] };
+        return { userId: "cloud-user-1", spaceIds: ["space-1", "space-2"] };
       },
     });
 
@@ -183,13 +183,13 @@ describe("setupLiveEventsWebSocketServer", () => {
     expect(resolveSessionFromHeaders).not.toHaveBeenCalled();
   });
 
-  it("rejects a cloud actor for a company outside its membership scope", async () => {
+  it("rejects a cloud actor for a space outside its membership scope", async () => {
     const server = new EventEmitter();
     const resolveSessionFromHeaders = vi.fn(async () => null);
     setupLiveEventsWebSocketServer(server as never, {} as never, {
       deploymentMode: "authenticated",
       resolveSessionFromHeaders,
-      resolveCloudActor: async () => ({ userId: "cloud-user-1", companyIds: ["company-other"] }),
+      resolveCloudActor: async () => ({ userId: "cloud-user-1", spaceIds: ["space-other"] }),
     });
     const socket = new FakeUpgradeSocket();
 

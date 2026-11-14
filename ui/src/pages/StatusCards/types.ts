@@ -1,7 +1,7 @@
 import type { StatusCard, StatusCardUpdate } from "@outpost/shared";
 
 /**
- * Board/drawer view of a status card.
+ * Operator/drawer view of a status card.
  *
  * The API returns the base {@link StatusCard} row plus the optional enrichment
  * fields below, hydrated from the compile + update pipelines (summary document

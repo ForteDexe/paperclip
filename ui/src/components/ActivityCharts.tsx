@@ -99,7 +99,7 @@ function aggregateRuns(runs: readonly HeartbeatRun[] = []): DashboardRunActivity
       entry.succeeded++;
     } else if (run.status === "failed" || run.status === "timed_out") {
       // A flat run list has no retry-chain linkage, so recovery can't be derived
-      // here (the company dashboard computes it server-side). Attribute the
+      // here (the space dashboard computes it server-side). Attribute the
       // failure to its error class so the breakdown still renders.
       entry.failed++;
       const code = run.errorCode && run.errorCode.length > 0 ? run.errorCode : "unknown";

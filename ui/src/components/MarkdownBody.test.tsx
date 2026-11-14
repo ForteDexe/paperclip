@@ -14,7 +14,7 @@ import {
   appearanceForPalette,
 } from "@outpost/shared";
 import { ThemeProvider } from "../context/ThemeContext";
-import { companyPathFromProtocolRelativeHref, MarkdownBody } from "./MarkdownBody";
+import { spacePathFromProtocolRelativeHref, MarkdownBody } from "./MarkdownBody";
 import { StatusIcon } from "./StatusIcon";
 import { taskStatusIconProps } from "../lib/task-status-presentation";
 import type { IssueBlockerAttention } from "@outpost/shared";
@@ -56,14 +56,14 @@ vi.mock("../api/issues", () => ({
 
 // Defaults to null (no provider) so the existing suite exercises the permissive
 // path unchanged. Gating tests override the return value per-case.
-const mockUseOptionalCompany = vi.hoisted(() => vi.fn<() => { companies: Array<{ issuePrefix: string }>; selectedCompanyId?: string } | null>(() => null));
+const mockUseOptionalSpace = vi.hoisted(() => vi.fn<() => { spaces: Array<{ issuePrefix: string }>; selectedSpaceId?: string } | null>(() => null));
 
-vi.mock("../context/CompanyContext", () => ({
-  useOptionalCompany: mockUseOptionalCompany,
+vi.mock("../context/SpaceContext", () => ({
+  useOptionalSpace: mockUseOptionalSpace,
 }));
 
 afterEach(() => {
-  mockUseOptionalCompany.mockReturnValue(null);
+  mockUseOptionalSpace.mockReturnValue(null);
 });
 
 function renderMarkdown(
@@ -102,26 +102,26 @@ function renderMarkdown(
 }
 
 describe("MarkdownBody", () => {
-  it("renders a company link written as //PREFIX/... as that company path", () => {
-    mockUseOptionalCompany.mockReturnValue({ companies: [{ issuePrefix: "RUN" }] });
+  it("renders a space link written as //PREFIX/... as that space path", () => {
+    mockUseOptionalSpace.mockReturnValue({ spaces: [{ issuePrefix: "RUN" }] });
     const html = renderMarkdown("[Failed run](//RUN/agents/agent-1/runs/run-1)");
     expect(html).toContain('href="/RUN/agents/agent-1/runs/run-1"');
     expect(html).not.toContain('href="//RUN');
     expect(html).not.toContain('target="_blank"');
   });
 
-  it("keeps the query and fragment of a normalized company link", () => {
-    expect(companyPathFromProtocolRelativeHref("//RUN/issues/RUN-1#document-plan", ["RUN"])).toBe("/RUN/issues/RUN-1#document-plan");
-    expect(companyPathFromProtocolRelativeHref("//RUN", ["RUN"])).toBe("/RUN");
-    expect(companyPathFromProtocolRelativeHref("/RUN/issues/RUN-1", ["RUN"])).toBe("/RUN/issues/RUN-1");
-    expect(companyPathFromProtocolRelativeHref("https://RUN/x", ["RUN"])).toBe("https://RUN/x");
+  it("keeps the query and fragment of a normalized space link", () => {
+    expect(spacePathFromProtocolRelativeHref("//RUN/issues/RUN-1#document-plan", ["RUN"])).toBe("/RUN/issues/RUN-1#document-plan");
+    expect(spacePathFromProtocolRelativeHref("//RUN", ["RUN"])).toBe("/RUN");
+    expect(spacePathFromProtocolRelativeHref("/RUN/issues/RUN-1", ["RUN"])).toBe("/RUN/issues/RUN-1");
+    expect(spacePathFromProtocolRelativeHref("https://RUN/x", ["RUN"])).toBe("https://RUN/x");
   });
 
   it("leaves protocol-relative links to other hosts unchanged", () => {
-    mockUseOptionalCompany.mockReturnValue({ companies: [{ issuePrefix: "RUN" }] });
+    mockUseOptionalSpace.mockReturnValue({ spaces: [{ issuePrefix: "RUN" }] });
     expect(renderMarkdown("[Docs](//docs.example.com/RUN/guide)")).toContain('href="//docs.example.com/RUN/guide"');
     expect(renderMarkdown("[Other](//OTHER/agents/a/runs/r)")).toContain('href="//OTHER/agents/a/runs/r"');
-    mockUseOptionalCompany.mockReturnValue(null);
+    mockUseOptionalSpace.mockReturnValue(null);
     expect(renderMarkdown("[Unknown](//RUN/agents/a/runs/r)")).toContain('href="//RUN/agents/a/runs/r"');
   });
 
@@ -186,7 +186,7 @@ describe("MarkdownBody", () => {
 
     expect(html).toContain('class="language-mermaid"');
     expect(html).toContain("https://provider.invalid/diagram.png");
-    expect(html).not.toContain('class="paperclip-mermaid"');
+    expect(html).not.toContain('class="outpost-mermaid"');
     expect(html).not.toContain("Rendering Mermaid diagram");
   });
 
@@ -202,14 +202,14 @@ describe("MarkdownBody", () => {
     );
 
     expect(html).toContain('data-mention-kind="user"');
-    expect(html).not.toContain('href="/company/settings/access"');
+    expect(html).not.toContain('href="/space/settings/access"');
     expect(html).toContain('href="/agents/agent-123"');
     expect(html).toContain('data-mention-kind="agent"');
-    expect(html).toContain("--paperclip-mention-avatar-image");
-    expect(html).not.toContain("--paperclip-mention-icon-mask");
+    expect(html).toContain("--outpost-mention-avatar-image");
+    expect(html).not.toContain("--outpost-mention-icon-mask");
     expect(html).toContain('href="/projects/project-456"');
     expect(html).toContain('data-mention-kind="project"');
-    expect(html).toContain("--paperclip-mention-project-color:#336699");
+    expect(html).toContain("--outpost-mention-project-color:#336699");
     expect(html).toContain('href="/skills/skill-789"');
     expect(html).toContain('data-mention-kind="skill"');
     expect(html).toContain('href="/routines/routine-123"');
@@ -224,10 +224,10 @@ describe("MarkdownBody", () => {
     expect(html).not.toContain("javascript:");
   });
 
-  it("uses the current company agent appearance for an old saved mention", () => {
-    mockUseOptionalCompany.mockReturnValue({ companies: [{ issuePrefix: "PAP" }], selectedCompanyId: "company-1" });
+  it("uses the current space agent appearance for an old saved mention", () => {
+    mockUseOptionalSpace.mockReturnValue({ spaces: [{ issuePrefix: "PAP" }], selectedSpaceId: "space-1" });
     const client = new QueryClient();
-    client.setQueryData(queryKeys.agents.list("company-1"), [
+    client.setQueryData(queryKeys.agents.list("space-1"), [
       { id: "agent-123", appearance: appearanceForPalette("electric-grove") },
     ]);
     const html = renderToStaticMarkup(
@@ -334,8 +334,8 @@ describe("MarkdownBody", () => {
     expect(html).toContain("var(--status-task-icon-done)");
     expect(html).toContain(">PAP-1271<");
     expect(html).toContain('data-mention-kind="issue"');
-    expect(html).toContain("paperclip-markdown-issue-ref");
-    expect(html).not.toContain("paperclip-mention-chip--issue");
+    expect(html).toContain("outpost-markdown-issue-ref");
+    expect(html).not.toContain("outpost-mention-chip--issue");
   });
 
   it("draws a blocked task mention with the same glyph and colour token as the task list (BUG-07)", () => {
@@ -352,7 +352,7 @@ describe("MarkdownBody", () => {
       sampleStalledBlockerIdentifier: null,
     };
     const html = renderMarkdown("This stays open until all four are done (BRA-1).", [
-      { identifier: "BRA-1", status: "blocked", title: "Paperclip onboarding", blockerAttention },
+      { identifier: "BRA-1", status: "blocked", title: "Outpost onboarding", blockerAttention },
     ]);
     const listGlyph = renderToStaticMarkup(
       <StatusIcon {...taskStatusIconProps({ status: "blocked", blockerAttention })} />,
@@ -376,7 +376,7 @@ describe("MarkdownBody", () => {
 
     expect(html).toContain('data-mention-pending="true"');
     expect(html).toContain('data-mention-kind="issue"');
-    expect(html).toContain("paperclip-markdown-issue-ref");
+    expect(html).toContain("outpost-markdown-issue-ref");
     // Clickability is preserved through the loading state.
     expect(html).toContain('href="/issues/PAP-1271"');
     expect(html).toContain(">PAP-1271<");
@@ -412,7 +412,7 @@ describe("MarkdownBody", () => {
     expect(html).toContain('target="_blank"');
     expect(html).toContain("lucide-external-link");
     expect(html).not.toContain('href="/issues/PAPA-115"');
-    expect(html).not.toContain("paperclip-markdown-issue-ref");
+    expect(html).not.toContain("outpost-markdown-issue-ref");
   });
 
   it("linkifies plain internal issue paths in markdown text", () => {
@@ -460,21 +460,21 @@ describe("MarkdownBody", () => {
     expect(html).toContain('href="/issues/PAP-1271"');
     expect(html).toContain('<code style="overflow-wrap:anywhere;word-break:break-word">PAP-1271</code>');
     expect(html).toContain("var(--status-task-icon-done)");
-    expect(html).toContain("paperclip-markdown-issue-ref");
+    expect(html).toContain("outpost-markdown-issue-ref");
   });
 
   it("renders linked inline-code workspace paths as file viewer links before issue links", () => {
     const html = renderMarkdown(
-      "- **MP4**: [`videos/90-days-paperclip/out/90-days-paperclip-1x1.mp4`](/PAP/issues/PAP-10306 \"Publish handoff\")",
+      "- **MP4**: [`videos/90-days-outpost/out/90-days-outpost-1x1.mp4`](/PAP/issues/PAP-10306 \"Publish handoff\")",
       [{ identifier: "PAP-10306", status: "in_review", title: "Publish handoff" }],
       { resolveWorkspaceFileRef: () => OPENABLE_AUTO_TARGET },
     );
 
     expect(html).toContain('data-workspace-file-link="true"');
-    expect(html).toContain('data-workspace-file-path="videos/90-days-paperclip/out/90-days-paperclip-1x1.mp4"');
-    expect(html).toContain("videos/90-days-paperclip/out/90-days-paperclip-1x1.mp4");
+    expect(html).toContain('data-workspace-file-path="videos/90-days-outpost/out/90-days-outpost-1x1.mp4"');
+    expect(html).toContain("videos/90-days-outpost/out/90-days-outpost-1x1.mp4");
     expect(html).not.toContain("max-w-(--sz-38ch)");
-    expect(html).not.toContain("paperclip-markdown-issue-ref");
+    expect(html).not.toContain("outpost-markdown-issue-ref");
     expect(html).not.toContain('href="/issues/PAP-10306"');
   });
 
@@ -482,7 +482,7 @@ describe("MarkdownBody", () => {
     const html = renderMarkdown("Check `ui/src/pages/IssueDetail.tsx:42` please.");
 
     expect(html).not.toContain("data-workspace-file-link");
-    expect(html).not.toContain("paperclip-workspace-file-link");
+    expect(html).not.toContain("outpost-workspace-file-link");
     expect(html).toContain("ui/src/pages/IssueDetail.tsx:42");
   });
 
@@ -495,7 +495,7 @@ describe("MarkdownBody", () => {
 
     expect(html).not.toContain("data-workspace-file-link");
     expect(html).not.toContain('role="button"');
-    expect(html).not.toContain("paperclip-workspace-file-link");
+    expect(html).not.toContain("outpost-workspace-file-link");
     expect(html).toContain("<code");
   });
 
@@ -553,15 +553,15 @@ describe("MarkdownBody", () => {
   });
 
   it("leaves wiki links as text unless explicitly enabled", () => {
-    const html = renderMarkdown("See [[wiki/entities/paperclip]].");
+    const html = renderMarkdown("See [[wiki/entities/outpost]].");
 
-    expect(html).toContain("[[wiki/entities/paperclip]]");
+    expect(html).toContain("[[wiki/entities/outpost]]");
     expect(html).not.toContain('href="/wiki/page/wiki/entities/outpost.md"');
   });
 
   it("renders wiki links with a custom resolver when enabled", () => {
     const html = renderMarkdown(
-      "See [[wiki/entities/paperclip|Outpost]] and [[wiki/entities/dotta-b]].",
+      "See [[wiki/entities/outpost|Outpost]] and [[wiki/entities/dotta-b]].",
       [],
       {
         enableWikiLinks: true,
@@ -570,17 +570,17 @@ describe("MarkdownBody", () => {
     );
 
     expect(html).toContain('href="/wiki/page/wiki/entities/outpost.md"');
-    expect(html).toContain('data-paperclip-wiki-link="true"');
-    expect(html).toContain('data-paperclip-wiki-target="wiki/entities/paperclip"');
+    expect(html).toContain('data-outpost-wiki-link="true"');
+    expect(html).toContain('data-outpost-wiki-target="wiki/entities/outpost"');
     expect(html).toContain(">Outpost</a>");
     expect(html).toContain('href="/wiki/page/wiki/entities/dotta-b.md"');
     expect(html).toContain(">wiki/entities/dotta-b</a>");
-    expect(html).not.toContain("[[wiki/entities/paperclip");
+    expect(html).not.toContain("[[wiki/entities/outpost");
   });
 
   it("keeps wiki links as text when the custom resolver rejects them", () => {
     const html = renderMarkdown(
-      "See [[wiki/entities/paperclip]].",
+      "See [[wiki/entities/outpost]].",
       [],
       {
         enableWikiLinks: true,
@@ -589,14 +589,14 @@ describe("MarkdownBody", () => {
       },
     );
 
-    expect(html).toContain("[[wiki/entities/paperclip]]");
-    expect(html).not.toContain('data-paperclip-wiki-link="true"');
-    expect(html).not.toContain('href="/wiki/page/wiki/entities/paperclip"');
+    expect(html).toContain("[[wiki/entities/outpost]]");
+    expect(html).not.toContain('data-outpost-wiki-link="true"');
+    expect(html).not.toContain('href="/wiki/page/wiki/entities/outpost"');
   });
 
   it("does not render wiki links inside code spans or code blocks", () => {
     const html = renderMarkdown(
-      "Inline `[[wiki/entities/paperclip]]`.\n\n```md\n[[wiki/entities/dotta-b]]\n```",
+      "Inline `[[wiki/entities/outpost]]`.\n\n```md\n[[wiki/entities/dotta-b]]\n```",
       [],
       {
         enableWikiLinks: true,
@@ -604,16 +604,16 @@ describe("MarkdownBody", () => {
       },
     );
 
-    expect(html).toContain("[[wiki/entities/paperclip]]");
+    expect(html).toContain("[[wiki/entities/outpost]]");
     expect(html).toContain("[[wiki/entities/dotta-b]]");
-    expect(html).not.toContain('href="/wiki/page/wiki/entities/paperclip"');
+    expect(html).not.toContain('href="/wiki/page/wiki/entities/outpost"');
     expect(html).not.toContain('href="/wiki/page/wiki/entities/dotta-b"');
   });
 
   it("applies wrap-friendly styles to long inline content", () => {
     const html = renderMarkdown("averyveryveryveryveryveryveryveryveryverylongtoken");
 
-    expect(html).toContain('class="paperclip-markdown prose prose-sm min-w-0 max-w-full break-words overflow-hidden');
+    expect(html).toContain('class="outpost-markdown prose prose-sm min-w-0 max-w-full break-words overflow-hidden');
     expect(html).toContain('style="overflow-wrap:anywhere;word-break:break-word"');
     expect(html).toContain("<p");
   });
@@ -632,7 +632,7 @@ describe("MarkdownBody", () => {
       "| 2026-04-30T14:31:35Z | PAP-2505 | in_review_without_action_path | PAP-2779 | PAP-2910 |",
     ].join("\n"));
 
-    expect(html).toContain('class="paperclip-markdown-table-scroll"');
+    expect(html).toContain('class="outpost-markdown-table-scroll"');
     expect(html).toContain('aria-label="Scrollable table"');
     expect(html).toContain('tabindex="0"');
     expect(html).toContain("<table>");
@@ -658,9 +658,9 @@ describe("MarkdownBody", () => {
   });
 
   it("does not set target on relative internal links", () => {
-    const html = renderMarkdown("[settings](/company/settings)");
+    const html = renderMarkdown("[settings](/space/settings)");
 
-    expect(html).toContain('href="/company/settings"');
+    expect(html).toContain('href="/space/settings"');
     expect(html).not.toContain('target="_blank"');
     expect(html).toContain('rel="noreferrer"');
   });
@@ -751,7 +751,7 @@ describe("MarkdownBody", () => {
   ;
 
   it("does not render the new-tab icon on internal links", () => {
-    const html = renderMarkdown("[settings](/company/settings)");
+    const html = renderMarkdown("[settings](/space/settings)");
 
     expect(html).not.toContain("lucide-external-link");
   });
@@ -766,13 +766,13 @@ describe("MarkdownBody", () => {
   it("renders a copy button alongside fenced code blocks", () => {
     const html = renderMarkdown("```ts\nconst a = 1;\n```");
 
-    expect(html).toContain("paperclip-markdown-codeblock");
-    expect(html).toContain("paperclip-markdown-codeblock-actions");
+    expect(html).toContain("outpost-markdown-codeblock");
+    expect(html).toContain("outpost-markdown-codeblock-actions");
     expect(html).toContain("position:absolute;top:0.4rem;right:0.4rem;display:inline-flex");
-    expect(html).toContain("paperclip-markdown-codeblock-wrap");
+    expect(html).toContain("outpost-markdown-codeblock-wrap");
     expect(html).toContain('aria-label="Wrap lines"');
     expect(html).toContain("position:static;opacity:1;display:inline-flex");
-    expect(html).toContain("paperclip-markdown-codeblock-copy");
+    expect(html).toContain("outpost-markdown-codeblock-copy");
     expect(html).toContain('aria-label="Copy code"');
     expect(html).toContain("lucide-copy");
   });
@@ -780,16 +780,16 @@ describe("MarkdownBody", () => {
   it("renders code block actions for indented preformatted markdown blocks", () => {
     const html = renderMarkdown("Plan:\n\n    source fetch/sync -> signal inbox");
 
-    expect(html).toContain("paperclip-markdown-codeblock");
-    expect(html).toContain("paperclip-markdown-codeblock-wrap");
+    expect(html).toContain("outpost-markdown-codeblock");
+    expect(html).toContain("outpost-markdown-codeblock-wrap");
     expect(html).toContain('aria-label="Wrap lines"');
-    expect(html).toContain("paperclip-markdown-codeblock-copy");
+    expect(html).toContain("outpost-markdown-codeblock-copy");
   });
 
   it("does not render a copy button on inline code", () => {
     const html = renderMarkdown("Reference `inline-code` here.");
 
-    expect(html).not.toContain("paperclip-markdown-codeblock-copy");
+    expect(html).not.toContain("outpost-markdown-codeblock-copy");
   });
 
   it("renders internal issue links and bare identifiers as inline issue refs", () => {
@@ -801,12 +801,12 @@ describe("MarkdownBody", () => {
     expect(html).toContain('href="/issues/PAP-42"');
     expect(html).toContain('href="/issues/PAP-77"');
     expect(html).toContain('data-mention-kind="issue"');
-    expect(html).toContain("paperclip-markdown-issue-ref");
-    expect(html).not.toContain("paperclip-mention-chip--issue");
+    expect(html).toContain("outpost-markdown-issue-ref");
+    expect(html).not.toContain("outpost-mention-chip--issue");
   });
 
-  it("gates bare-identifier auto-linking to known company prefixes", () => {
-    mockUseOptionalCompany.mockReturnValue({ companies: [{ issuePrefix: "PAP" }] });
+  it("gates bare-identifier auto-linking to known space prefixes", () => {
+    mockUseOptionalSpace.mockReturnValue({ spaces: [{ issuePrefix: "PAP" }] });
 
     const html = renderMarkdown("Depends on PAP-1271 and blocked by JIRA-2.", [
       { identifier: "PAP-1271", status: "done" },
@@ -819,8 +819,8 @@ describe("MarkdownBody", () => {
     expect(html).toContain("blocked by JIRA-2.");
   });
 
-  it("stays permissive when companies are loaded but the list is empty", () => {
-    mockUseOptionalCompany.mockReturnValue({ companies: [] });
+  it("stays permissive when spaces are loaded but the list is empty", () => {
+    mockUseOptionalSpace.mockReturnValue({ spaces: [] });
 
     const html = renderMarkdown("See JIRA-2 for context.", [
       { identifier: "JIRA-2", status: "done" },
@@ -851,7 +851,7 @@ describe("MarkdownBody", () => {
   });
 
   it("never gates explicit internal issue paths, even for unknown prefixes", () => {
-    mockUseOptionalCompany.mockReturnValue({ companies: [{ issuePrefix: "PAP" }] });
+    mockUseOptionalSpace.mockReturnValue({ spaces: [{ issuePrefix: "PAP" }] });
 
     const html = renderMarkdown("See /ACME/issues/ACME-1 for the writeup.", [
       { identifier: "ACME-1", status: "done" },

@@ -204,7 +204,7 @@ it("does not dispatch an expired durable request when its consumer resumes", asy
     peer.current!.emit("runtime_request.expired", { requestId: "permission-7" });
     fixture.emitMarker();
     expect((await fixture.iterator.next()).value).toMatchObject({
-      method: "paperclip/runtimeRequestExpired",
+      method: "outpost/runtimeRequestExpired",
       params: { payload: { requestId: "permission-7" } },
     });
     expect((await fixture.iterator.next()).value?.method).toBe("item/agentMessage/delta");

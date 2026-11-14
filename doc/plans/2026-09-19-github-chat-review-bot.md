@@ -7,7 +7,7 @@ Status: Design approved on 2026-09-19. Functional implementation and private-rep
 
 Freshly fetched origin/master worktrees:
 
-- Paperclip: `codex/github-chat-review-bot`, base `04546c82d`.
+- Outpost: `codex/github-chat-review-bot`, base `04546c82d`.
 - Cloud: `codex/github-chat-review-ingress`, base `6072ef7`; ingress implementation `c74f786`.
 - Docs: `codex/github-low-trust-docs`, base `480c133`; trust guide update `0eedb32`.
 
@@ -20,8 +20,8 @@ rollout and merging are outside scope.
 
 ## Product invariants
 
-A GitHub bot represents one permanently assigned Paperclip agent. Mentions,
-comments, and configured PR events create or continue ordinary Paperclip tasks.
+A GitHub bot represents one permanently assigned Outpost agent. Mentions,
+comments, and configured PR events create or continue ordinary Outpost tasks.
 Existing execution, identity, permissions, budgets, activity, and tools apply.
 There is no second review scheduler or execution engine.
 
@@ -31,7 +31,7 @@ ownership across follow-ups, but resolve each initiating actor's current authori
 through existing run-identity rules. Record external sender and causal event.
 Linked human requests use responsible-user resolution. Automatic events use the
 explicitly configured responsible member, initially the configuring member. Store
-PR author and webhook sender separately; neither grants Paperclip authority.
+PR author and webhook sender separately; neither grants Outpost authority.
 
 Unlinked-person access is off by default. Enabling it requires a sponsor and the
 existing restricted guest permission profile. Guests remain nonmembers and never
@@ -44,7 +44,7 @@ must not enable reviews or broaden permissions.
 Use the shared design system, setup sidebar, visible field help, step-owned
 footer, and saved/resumable progress. Steps:
 
-1. Choose the permanent agent assignment. Warn immediately if the selected agent is not configured for `low_trust_review`; link the maintained Paperclip Docs trust guide. Do not silently change permissions. Verify boundary and sandbox prerequisites separately.
+1. Choose the permanent agent assignment. Warn immediately if the selected agent is not configured for `low_trust_review`; link the maintained Outpost Docs trust guide. Do not silently change permissions. Verify boundary and sandbox prerequisites separately.
 2. Connect GitHub App, preferring manifest registration; support existing App
    credentials and reconnect. Explain public HTTPS before registration. Keep raw
    manifests, URLs, and recovery diagnostics behind supporting links.
@@ -61,13 +61,13 @@ footer, and saved/resumable progress. Steps:
    the verified account. If missing/expired, reuse normal personal GitHub sign-in
    or reconnect and return to this step. No at-mention identity challenge.
 7. Configure responsible user, guest access, events, prompts, and publication.
-8. Copy a mention, observe its Paperclip task/response, or finish without testing.
+8. Copy a mention, observe its Outpost task/response, or finish without testing.
 
 ### Reusing personal GitHub identity
 
 The regular connector already fetches `/user` and stores the stable GitHub
 `userId` and display `login` in `providerTenant.github` of a connection grant.
-Use an active, company-scoped, current-user-owned personal grant with verified
+Use an active, space-scoped, current-user-owned personal grant with verified
 provider metadata. Do not accept a shared organization's credential, an agent
 credential, a username typed by the user, or another member's grant as proof.
 Revalidate server-side, match by GitHub numeric account ID rather than handle,
@@ -83,18 +83,18 @@ stale metadata alone is insufficient. Reuse the normal connection flow, but do
 not force a second bot App installation just to identify a person.
 
 Existing members link their own personal connections from Access. Access offers
-all linked company members or a selected member list. Adding a specific member
+all linked space members or a selected member list. Adding a specific member
 switches to the selected list, preserving existing entries; explain this before
-confirmation. Only existing members are selected here: company invitations and
+confirmation. Only existing members are selected here: space invitations and
 membership approval remain outside bot setup.
 
 An operator can explicitly allow an external GitHub account without granting
-Paperclip membership. Look up and confirm the provider account, store its stable
+Outpost membership. Look up and confirm the provider account, store its stable
 GitHub ID (not just its mutable handle), and require a currently authorized
 responsible sponsor. Signed webhook actor identity must match the allowed ID;
 this authorizes a restricted guest execution and never links the external person
 to the sponsor's identity or personal credentials. Record both requester and
-sponsor in task/run context. Restrict lookup/updates to authorized company actors,
+sponsor in task/run context. Restrict lookup/updates to authorized space actors,
 audit mutations, reject duplicates, and recheck sponsor authority at execution
 and publication. Removing access prevents further authorized work/publication.
 
@@ -145,7 +145,7 @@ diffs, files, comments, and prior reviews; post/reply to comments; submit struct
 findings, summary, score, coverage, and reviewed commit. Formal APPROVE and
 REQUEST_CHANGES are separate governed tools/actions and both default off.
 
-Every invocation derives company, agent, task, run, connection, and permitted
+Every invocation derives space, agent, task, run, connection, and permitted
 repository from server-side context. Recheck authority, repository access,
 installation status, and connection status before publication. Credentials stay
 inside the connection service, especially for guest runs. Setup probes effective
@@ -160,7 +160,7 @@ Save immutable prompt revisions with execution context. Templates supplement
 agent instructions; provider text is untrusted and cannot change authority,
 connection selection, or the rating policy.
 
-Connection defaults have per-repository overrides in Paperclip UI:
+Connection defaults have per-repository overrides in Outpost UI:
 
 | Setting | Default / controls |
 | --- | --- |
@@ -211,7 +211,7 @@ webhook delivery, task wakeup, and publication mechanisms. Deduplicate deliverie
 combine rapid pushes, and reject stale results from updating the latest summary
 or check. Handle retries and restarts without duplicated comments.
 
-The stable `Paperclip Review` check is tied to the exact PR head. Execution
+The stable `Outpost Review` check is tied to the exact PR head. Execution
 controls queued/running/error states; validated results determine score success
 or failure. New commits require a new assessment. If automatic work is disallowed,
 show that an authorized manual review is required. Document how to require this
@@ -222,7 +222,7 @@ New review installations request Contents read, Pull requests write, and Checks
 write alongside existing chat permissions. Existing installations receive an
 explicit permission upgrade path.
 
-Manifest registration uses expiring, single-use state bound to user, company,
+Manifest registration uses expiring, single-use state bound to user, space,
 endpoint, and trusted origin. Exchange the returned code server-side and vault
 credentials. Verify installation through GitHub, not return query parameters.
 Recover registration-time webhook races using verified signed delivery. Limit
@@ -236,12 +236,12 @@ redirects. Never expose private keys through browser state or logs.
 | `POST /api/chat-webhooks/:publicId/github` | Exact public route; preserve raw body and GitHub event, delivery, and signature headers; instance verifies signature |
 | `GET /api/chat-github/manifest/callback` | Narrow callback exception; instance verifies registration state |
 | Installation return | Authenticated setup-resume page |
-| Configuration and identity confirmation | Existing authenticated company-scoped routes |
+| Configuration and identity confirmation | Existing authenticated space-scoped routes |
 
 Use the trusted current vanity hostname when generating URLs; honor explicit
 webhook-ingress overrides. Cover warm-pool handoff and HTTPS proxy termination.
 Do not add a broad webhook or management-route exemption. Test wrong paths,
-methods, bad signatures, state replay, and company mismatches, not just accepted
+methods, bad signatures, state replay, and space mismatches, not just accepted
 requests. Configuration remains authenticated even though delivery must not
 require browser login.
 
@@ -276,7 +276,7 @@ files, and auto-fix are deferred.
 The approved setup and management UI, database migration, task admission, bot
 capability bridge, structured assessment/publication outbox, and narrow Cloud
 routes are implemented in the worktrees named above. The UI warns for standard
-agents and links the existing Paperclip Docs low-trust guide; a separate Docs
+agents and links the existing Outpost Docs low-trust guide; a separate Docs
 worktree adds GitHub-specific guidance to that guide.
 
 Verified so far:
@@ -308,7 +308,7 @@ this as a completely green full-suite run.
 
 Follow-up revision `72bb47c1b` pins automatic tool requests to the commit admitted
 by their causal event, preserves the event's policy/prompt revision, and fixes
-published links to include the company prefix and the underlying run. Both the
+published links to include the space prefix and the underlying run. Both the
 signed-event/head-fence and governed-publication integration cases passed after
 this change; server typecheck passed.
 
@@ -321,13 +321,13 @@ CLI import timeout passed its rerun; three database-heavy worktree cases still
 need a clean run. The serialized server suite's initial import timeout passed
 when rerun after the high-concurrency jobs finished.
 
-Private live fixture: https://github.com/cryppadotta/paperclip-github-review-qa-20260919
+Private live fixture: https://github.com/cryppadotta/outpost-github-review-qa-20260919
 at baseline `d4f8bd2` (three deterministic invoice tests pass). A local evaluation
 branch `codex/qa-discount-regression` at `76028b7` deliberately breaks percentage
 conversion and fails the expected test; it has not been pushed or opened as a PR.
 This fixture does not count as an agent evaluation result.
 
-Qualification is incomplete. The remaining broad Paperclip tests are running.
+Qualification is incomplete. The remaining broad Outpost tests are running.
 Chrome reports that an extension popup blocks automation on the GitHub setup
 page; the user has been asked to dismiss it. No GitHub App installation, real
 agent PR-review run, live tool invocation, live review/check, or staging deployment
@@ -367,11 +367,11 @@ application build, Storybook build, server/UI typechecks, and token gates passed
 
 After the user completed GitHub's access confirmation, a fresh manifest submitted
 through the embedded browser successfully registered
-[Paperclip Review QA260920](https://github.com/apps/paperclip-review-qa260920).
+[Outpost Review QA260920](https://github.com/apps/outpost-review-qa260920).
 The App was installed as installation `163220189`, selecting only the disposable
-private repository `cryppadotta/paperclip-github-review-qa-20260919` (ID
+private repository `cryppadotta/outpost-github-review-qa-20260919` (ID
 `1377781534`). No other repositories were selected. The manifest callback vaulted
-the App credentials and resumed the saved Paperclip bot.
+the App credentials and resumed the saved Outpost bot.
 
 Live signed delivery was observed at `2026-09-20T11:28:48.689Z`. Setup retrieved
 the installation repository list, saved the enabled repository, and verified

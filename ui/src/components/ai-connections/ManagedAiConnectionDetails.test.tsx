@@ -19,10 +19,10 @@ vi.mock("./AiConnectionUsagePanel", () => ({ AiConnectionUsagePanel: () => null 
 vi.mock("./AiConnectionAccountDetails", () => ({ AiConnectionAccountDetails: () => null }));
 
 const account: AiManagedConnectionSummary = {
-  id: "connection", grantId: "grant", companyId: "company", provider: "anthropic", method: "subscription",
+  id: "connection", grantId: "grant", spaceId: "space", provider: "anthropic", method: "subscription",
   name: "My account", ownership: "personal", isDefault: true, status: "connected",
 };
-const connection = { id: account.id, companyId: account.companyId } as ToolConnection;
+const connection = { id: account.id, spaceId: account.spaceId } as ToolConnection;
 const accounts = { currentUserId: "user", connections: [account], pools: [], canManageConnections: true };
 const grants = { currentUserId: "user", grants: [{ id: account.grantId }] };
 let root: ReturnType<typeof createRoot>;
@@ -89,7 +89,7 @@ it("reports a failed session lookup and retries it before loading account data",
   expect(host.querySelector("button")?.textContent).toBe("Retry");
   const accountReads = () => fetchMock.mock.calls.filter(([url]) => url.endsWith("/ai-connections"));
   expect(accountReads()).toHaveLength(0);
-  expect(client.getQueryData(["ai-connections", "company", undefined, null])).toBeUndefined();
+  expect(client.getQueryData(["ai-connections", "space", undefined, null])).toBeUndefined();
   await act(async () => {
     host.querySelector("button")!.click();
     await vi.advanceTimersByTimeAsync(10);

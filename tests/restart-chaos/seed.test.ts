@@ -10,7 +10,7 @@ import { Timeline } from "./timeline.js";
 
 type Call = { method: string; route: string; body?: unknown };
 
-/** Records the seed's board API calls; answers like a fresh local_trusted instance. */
+/** Records the seed's operator API calls; answers like a fresh local_trusted instance. */
 function fakeApi(experimentalResponse: (body: Record<string, unknown>) => Record<string, unknown>) {
   const calls: Call[] = [];
   let ids = 0;
@@ -63,10 +63,10 @@ describe("seedChaosLab workspace isolation", () => {
   it("registers a remote git source, with no host folder, for a Daytona workspace repository", async () => {
     const { api, calls } = fakeApi(body => ({ ...body }));
     await seedChaosLab({ api, env: "local", adapters: ["codex"], concurrency: 2, budgetCents: 3_000, fixtureRoot: path.join(fixtureRoot, "remote"),
-      waveId: "w-test", timeline: new Timeline(null), workspaceGitUrl: "https://github.com/paperclipai/outpost.git", workspaceCommit: "a".repeat(40) });
+      waveId: "w-test", timeline: new Timeline(null), workspaceGitUrl: "https://github.com/example/outpost.git", workspaceCommit: "a".repeat(40) });
     const project = calls.find(call => call.method === "POST" && call.route.endsWith("/projects"));
     expect((project!.body as { workspace: unknown }).workspace).toEqual({ name: "Primary", sourceType: "git_repo",
-      repoUrl: "https://github.com/paperclipai/outpost.git", repoRef: "a".repeat(40), isPrimary: true });
+      repoUrl: "https://github.com/example/outpost.git", repoRef: "a".repeat(40), isPrimary: true });
   });
 
   // RC-21: the project's git_worktree policy is gated behind the instance's
@@ -104,23 +104,23 @@ describe("seedChaosLab RC-06 mask", () => {
 
   const seed = (api: ChaosApi, timeline: Timeline, masks?: string[]) => seedChaosLab({ api, env: "local", adapters: ["codex"],
     concurrency: 2, budgetCents: 3_000, fixtureRoot, waveId: "w-test", timeline, ...(masks ? { masks } : {}) });
-  const isPolicyCall = (call: Call) => call.method === "POST" && /^\/api\/companies\/[^/]+\/budgets\/policies$/.test(call.route);
+  const isPolicyCall = (call: Call) => call.method === "POST" && /^\/api\/spaces\/[^/]+\/budgets\/policies$/.test(call.route);
 
-  it("keeps the budget amount and disables only the company hard stop", async () => {
+  it("keeps the budget amount and disables only the space hard stop", async () => {
     const { api, calls } = fakeApi(body => ({ ...body }));
     const timeline = new Timeline(null);
     await seed(api, timeline, ["rc06"]);
-    const company = calls.find(call => call.method === "POST" && call.route === "/api/companies")!;
-    expect((company.body as { budgetMonthlyCents: number }).budgetMonthlyCents).toBe(3_000);
+    const space = calls.find(call => call.method === "POST" && call.route === "/api/spaces")!;
+    expect((space.body as { budgetMonthlyCents: number }).budgetMonthlyCents).toBe(3_000);
     const policies = calls.filter(isPolicyCall);
     expect(policies).toHaveLength(1);
-    expect(policies[0]!.route).toBe("/api/companies/id-1/budgets/policies");
-    expect(policies[0]!.body).toEqual({ scopeType: "company", scopeId: "id-1", amount: 3_000, hardStopEnabled: false });
+    expect(policies[0]!.route).toBe("/api/spaces/id-1/budgets/policies");
+    expect(policies[0]!.body).toEqual({ scopeType: "space", scopeId: "id-1", amount: 3_000, hardStopEnabled: false });
     expect(timeline.entries.filter(entry => entry.kind === "seed_mask_rc06"))
-      .toEqual([expect.objectContaining({ companyId: "id-1", budgetCents: 3_000, hardStopEnabled: false })]);
+      .toEqual([expect.objectContaining({ spaceId: "id-1", budgetCents: 3_000, hardStopEnabled: false })]);
   });
 
-  it("leaves the company hard stop on without the mask", async () => {
+  it("leaves the space hard stop on without the mask", async () => {
     const { api, calls } = fakeApi(body => ({ ...body }));
     const timeline = new Timeline(null);
     await seed(api, timeline);

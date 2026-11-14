@@ -10,7 +10,7 @@ import { BudgetIncidentCard } from "./BudgetIncidentCard";
 function incident(overrides: Partial<BudgetIncident> = {}): BudgetIncident {
   return {
     id: "incident-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     policyId: "policy-1",
     scopeType: "agent",
     scopeId: "agent-1",

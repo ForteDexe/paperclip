@@ -37,7 +37,7 @@ Master: `6cafcaf89b`. Host: macOS, local runner (Daytona image pending a CI buil
 | RC-04 | P (latency) | Graceful shutdown always waits the full 30 s heartbeat finalizer drain when a native run is restart-suspended (`server/src/index.ts` ~L2032, `drainActiveRunExecutions`). Every graceful restart (K2) or deploy takes ≥30 s and, under the harness, escalates to SIGKILL | queued for a fixer |
 
 | RC-05 | **P** | Dead Retry after restart (fails R3): Retry accepted but no run for >15 min, stuck at `retryWait.reason=execution_recovery`. After the next restart the Retry vanished (`waiting_for_user`, `canRetry=false`). OpenCode t01, Claude t02 | fixer running (with RC-06) |
-| RC-06 | **P** | False over-budget stop after restarts: a new issue was blocked "original recovery target is over budget" at 22¢ of 500¢, then a company `hard_stop` with `pendingRunCount=1`, `reservationCents=0`, `unpricedUsagePolicy=block` (`recovery/service.ts` ~L4826). Codex t03 never ran | fixer running (with RC-05) |
+| RC-06 | **P** | False over-budget stop after restarts: a new issue was blocked "original recovery target is over budget" at 22¢ of 500¢, then a space `hard_stop` with `pendingRunCount=1`, `reservationCents=0`, `unpricedUsagePolicy=block` (`recovery/service.ts` ~L4826). Codex t03 never ran | fixer running (with RC-05) |
 | RC-02b | **P** | OpenCode mid-turn kill also ends as a provider failure (t01). Sent to the RC-02 fixer | with RC-02 |
 
 ### Harness smoke `w-20261106T144559-s7` (seed 7, K1 ×3, local, concurrency 2)

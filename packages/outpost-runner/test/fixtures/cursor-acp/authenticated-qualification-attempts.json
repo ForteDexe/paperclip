@@ -1,5 +1,5 @@
 {
-  "schema": "paperclip-cursor-authenticated-qualification/v1",
+  "schema": "outpost-cursor-authenticated-qualification/v1",
   "providerVersion": "2026.09.26-dd393fe",
   "qualification": "pending",
   "attempts": [
@@ -36,7 +36,7 @@
       "interpretation": "Native entitlement denial text was followed by normal ACP completion; missing usage then masked the semantic failure. This attempt is not a pass.",
       "networkEvidence": {
         "childOutpostEnvironmentKeys": [],
-        "realPaperclipRequests": 0
+        "realOutpostRequests": 0
       },
       "cleanup": {
         "runnerExited": true,
@@ -127,7 +127,7 @@
       "scoreDigest": "sha256:0e39e3067a928b9ff4da7a70426f2e643bf9e869bbee514de8dd6a3661bc0942",
       "networkEvidence": {
         "childOutpostEnvironmentKeys": [],
-        "realPaperclipRequests": 0
+        "realOutpostRequests": 0
       },
       "cleanup": {
         "runnerExited": true,
@@ -410,7 +410,7 @@
         }
       ],
       "questionEvidence": {
-        "origin": "Paperclip request_human_input semantic tool",
+        "origin": "Outpost request_human_input semantic tool",
         "kind": "ask_user_questions",
         "selectionMode": "single",
         "pendingBeforeAnswer": true,
@@ -523,7 +523,7 @@
       },
       "scope": "Real local browser Plan display, exact-revision approval, wake-assignee continuation and completion. Does not qualify cursor/create_plan native RPC, restrictive permissions, restart recovery, or Daytona.",
       "planEvidence": {
-        "origin": "Paperclip write_document and request_human_input semantic tools",
+        "origin": "Outpost write_document and request_human_input semantic tools",
         "kind": "request_confirmation",
         "revisionNumber": 1,
         "pendingBeforeApproval": true,
@@ -610,7 +610,7 @@
         }
       ],
       "questionEvidence": {
-        "origin": "Paperclip request_human_input semantic tool",
+        "origin": "Outpost request_human_input semantic tool",
         "pendingQuestionVisible": true,
         "options": [
           "Cobalt",
@@ -646,7 +646,7 @@
       }
     },
     {
-      "schema": "paperclip-cursor-native-question-probe/v1",
+      "schema": "outpost-cursor-native-question-probe/v1",
       "sourceRevision": "25fb1b5b317e52a8ad50208d7681a1ee34bd939c",
       "providerPackDigest": "sha256:38bc6dd39c13b0f5478a1018e26deb61b0333ab0242f3d857e3c79d3a34b7682",
       "model": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
@@ -773,7 +773,7 @@
         }
       ],
       "questionEvidence": {
-        "origin": "Paperclip request_human_input semantic tool",
+        "origin": "Outpost request_human_input semantic tool",
         "kind": "ask_user_questions",
         "selectionMode": "single",
         "pendingBeforeAnswer": true,

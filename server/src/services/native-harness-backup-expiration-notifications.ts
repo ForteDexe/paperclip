@@ -1,11 +1,11 @@
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 
 export type NativeHarnessBackupExpirationScope = {
-  companyId: string; scopeDigest?: string; leaseId?: string; runId?: string; issueId?: string; agentId?: string; sessionId?: string;
+  spaceId: string; scopeDigest?: string; leaseId?: string; runId?: string; issueId?: string; agentId?: string; sessionId?: string;
 };
 
 export function nativeHarnessBackupScopeHint(scope: NativeHarnessBackupExpirationScope) {
-  return JSON.stringify({ companyId: scope.companyId, scopeDigest: scope.scopeDigest, leaseId: scope.leaseId,
+  return JSON.stringify({ spaceId: scope.spaceId, scopeDigest: scope.scopeDigest, leaseId: scope.leaseId,
     runId: scope.runId, issueId: scope.issueId, agentId: scope.agentId, sessionId: scope.sessionId });
 }
 

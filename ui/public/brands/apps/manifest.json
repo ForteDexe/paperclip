@@ -704,11 +704,11 @@
       "darkAsset": "/brands/apps/daytona-dark.svg"
     },
     {
-      "slug": "paperclip-notebook",
-      "provider": "Paperclip Notebook",
+      "slug": "outpost-notebook",
+      "provider": "Outpost Notebook",
       "catalogVisible": true,
-      "localAsset": "/brands/apps/paperclip-notebook.svg",
-      "darkAsset": "/brands/apps/paperclip-notebook-dark.svg"
+      "localAsset": "/brands/apps/outpost-notebook.svg",
+      "darkAsset": "/brands/apps/outpost-notebook-dark.svg"
     },
     {
       "slug": "unikraft",

@@ -66,14 +66,14 @@ function patchReceipt(tx: Db, runId: string, receipt: Receipt) {
 /** Record one unsuccessful attempt. Returns the next due time, or null once
  * the bounded retry is exhausted and the failure has been recorded. */
 export async function recordNativeResponsePublicationAttempt(db: Db, input: {
-  companyId: string; issueId: string; runId: string;
+  spaceId: string; issueId: string; runId: string;
   reason: NativeResponsePublicationReason; error?: unknown;
 }): Promise<{ state: "retrying"; nextAttemptAt: number } | { state: "failed" } | null> {
   return db.transaction(async transaction => {
     const tx = transaction as unknown as Db;
     const [run] = await tx.select({ id: heartbeatRuns.id, agentId: heartbeatRuns.agentId, resultJson: heartbeatRuns.resultJson })
       .from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId)))
+      .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId)))
       .for("update");
     if (!run) return null;
     const previous = readReceipt(run.resultJson);
@@ -97,7 +97,7 @@ export async function recordNativeResponsePublicationAttempt(db: Db, input: {
       const [updated] = await patchReceipt(tx, run.id, { ...base, state: "retrying", nextAttemptAt: nextAttemptAt.toISOString() });
       if (!updated) return null;
       await appendHeartbeatRunEvent(tx, {
-        companyId: input.companyId, runId: run.id, agentId: run.agentId,
+        spaceId: input.spaceId, runId: run.id, agentId: run.agentId,
         eventType: "run.response_publication.retrying", stream: "system", level: "warn",
         message: `Final reply publication ${input.reason === "publication_error" ? "failed" : "was refused"}; retry ${attempts + 1} of ${NATIVE_RESPONSE_PUBLICATION_MAX_ATTEMPTS} is scheduled`,
         payload: { attempts, reason: input.reason, nextAttemptAt: nextAttemptAt.toISOString() },
@@ -109,13 +109,13 @@ export async function recordNativeResponsePublicationAttempt(db: Db, input: {
       reasonCode: NATIVE_RESPONSE_PUBLICATION_FAILED, owner, failedAt: now.toISOString() });
     if (!updated) return null;
     await appendHeartbeatRunEvent(tx, {
-      companyId: input.companyId, runId: run.id, agentId: run.agentId,
+      spaceId: input.spaceId, runId: run.id, agentId: run.agentId,
       eventType: "run.response_publication.failed", stream: "system", level: "error",
       message: `The accepted final reply could not be published to the task after ${attempts} attempts`,
       payload: { reasonCode: NATIVE_RESPONSE_PUBLICATION_FAILED, attempts, lastReason: input.reason, owner },
     });
     await logActivity(tx, {
-      companyId: input.companyId, actorType: "system", actorId: "native-response-publication",
+      spaceId: input.spaceId, actorType: "system", actorId: "native-response-publication",
       action: "issue.response_publication_failed", entityType: "issue", entityId: input.issueId,
       agentId: run.agentId, runId: run.id,
       details: { runId: run.id, reasonCode: NATIVE_RESPONSE_PUBLICATION_FAILED, attempts, lastReason: input.reason,

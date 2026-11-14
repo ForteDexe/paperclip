@@ -1,0 +1,90 @@
+{
+  "schema": "outpost.orp.fixture.v1",
+  "fixtureVersion": 1,
+  "protocolVersion": 1,
+  "name": "Semantic approvals target and continuation chain",
+  "description": "A semantic result binds immutable interaction and approval targets while carrying only safe wake and monitor causal references.",
+  "identity": {
+    "schema": "outpost.orp.identity.v1", "spaceId": "space_semantic_approvals", "issueId": "issue_semantic_approvals",
+    "runId": "run_semantic_approvals", "environmentLeaseId": "lease_semantic_approvals", "runnerInstanceId": "runner_semantic_approvals",
+    "normalizedSessionId": "session_semantic_approvals", "driverSessionId": "driver_semantic_approvals"
+  },
+  "capabilities": {
+    "schema": "outpost.orp.capabilities.v1", "sessionReusePolicy": "reuse_per_issue",
+    "driver": { "kind": "provider-neutral", "version": "1.0.0" },
+    "steer": true, "interrupt": true, "resume": true, "runtimeRequests": true, "structuredResult": true, "typedEvents": true,
+    "semanticTools": { "schema": "outpost.orp.semantic_tools.v1", "schemaVersion": 1, "operations": [{
+      "operationId": "request_human_input", "version": 1, "availability": "available", "redactionDisposition": "digest_only", "requiredClaims": []
+    }] },
+    "unsupported": []
+  },
+  "commands": [],
+  "events": [
+    {
+      "schema": "outpost.orp.event.v1", "sourceEventId": "semantic_approvals_01", "sourceSeq": 1, "sourceInstanceId": "runner_semantic_approvals",
+      "sourceKind": "runner", "runId": "run_semantic_approvals", "normalizedSessionId": "session_semantic_approvals",
+      "turnId": "turn_semantic_approvals", "itemId": "item_semantic_approvals", "eventType": "mcp_app.tool_input",
+      "schemaVersion": 1, "priority": 1, "emittedAt": "2026-08-11T10:30:00.000Z",
+      "payload": { "semantic_tool": {
+        "schema": "outpost.orp.semantic_tool.v1", "schemaVersion": 1, "phase": "input", "operationId": "request_human_input", "callId": "call_semantic_approvals",
+        "correlation": { "runId": "run_semantic_approvals", "normalizedSessionId": "session_semantic_approvals", "turnId": "turn_semantic_approvals", "itemId": "item_semantic_approvals", "requestId": "request_semantic_approvals" },
+        "idempotencyKey": "interaction_once",
+        "content": { "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555", "redactionDisposition": "digest_only", "references": [{ "kind": "document_revision", "id": "revision_plan_7" }] }
+      } }
+    },
+    {
+      "schema": "outpost.orp.event.v1", "sourceEventId": "semantic_approvals_02", "sourceSeq": 2, "sourceInstanceId": "runner_semantic_approvals",
+      "sourceKind": "runner", "runId": "run_semantic_approvals", "normalizedSessionId": "session_semantic_approvals",
+      "turnId": "turn_semantic_approvals", "itemId": "item_semantic_approvals", "eventType": "mcp_app.tool_result",
+      "schemaVersion": 1, "priority": 1, "emittedAt": "2026-08-11T10:30:00.010Z",
+      "payload": { "semantic_tool": {
+        "schema": "outpost.orp.semantic_tool.v1", "schemaVersion": 1, "phase": "result", "operationId": "request_human_input", "callId": "call_semantic_approvals",
+        "correlation": { "runId": "run_semantic_approvals", "normalizedSessionId": "session_semantic_approvals", "turnId": "turn_semantic_approvals", "itemId": "item_semantic_approvals", "requestId": "request_semantic_approvals" },
+        "idempotencyKey": "interaction_once",
+        "content": { "digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666", "redactionDisposition": "allowlisted_references", "references": [{ "kind": "interaction", "id": "interaction_semantic_approvals" }, { "kind": "wake", "id": "wake_semantic_approvals" }, { "kind": "monitor", "id": "monitor_semantic_approvals" }] },
+        "outcome": "succeeded", "code": "ok", "retryable": false, "authorizationBoundary": "controlled_action",
+        "operationReceiptId": "receipt_semantic_approvals", "auditReceiptId": "audit_semantic_approvals", "currentRevision": 8,
+        "targets": [
+          { "kind": "interaction", "id": "interaction_semantic_approvals", "immutable": true, "revisionId": "revision_plan_7" },
+          { "kind": "approval", "id": "approval_semantic_approvals", "immutable": true, "decisionId": "decision_approval_semantic_approvals" }
+        ],
+        "causalRefs": [
+          { "kind": "document_revision", "id": "revision_plan_7" },
+          { "kind": "interaction", "id": "interaction_semantic_approvals" },
+          { "kind": "approval", "id": "approval_semantic_approvals" },
+          { "kind": "decision", "id": "decision_approval_semantic_approvals" },
+          { "kind": "wake", "id": "wake_semantic_approvals" },
+          { "kind": "monitor", "id": "monitor_semantic_approvals" }
+        ]
+      } }
+    },
+    {
+      "schema": "outpost.orp.event.v1", "sourceEventId": "semantic_approvals_03", "sourceSeq": 3, "sourceInstanceId": "runner_semantic_approvals",
+      "sourceKind": "runner", "runId": "run_semantic_approvals", "normalizedSessionId": "session_semantic_approvals", "turnId": "turn_semantic_approvals",
+      "eventType": "run.result.proposed", "schemaVersion": 1, "priority": 0, "emittedAt": "2026-08-11T10:30:00.020Z",
+      "payload": {
+        "schema": "outpost.run_result.v1", "reportedWorkDisposition": "yielded", "summary": "The immutable decision target is waiting on a bounded monitor continuation.",
+        "completionClaim": { "contractRevision": "semantic-receipts-v1", "objectiveSatisfied": false, "criteria": [], "remainingWork": [{ "description": "Wait for the interaction response.", "blocksCompletion": true }] },
+        "evidence": [{ "receiptId": "receipt_semantic_approvals" }],
+        "verification": [{ "commandOrCheck": "immutable target and causal chain", "status": "passed" }],
+        "attentionRequests": [], "artifacts": [],
+        "continuation": { "kind": "monitor", "summary": "Recheck after the typed response wake.", "idempotencyKey": "monitor_semantic_approvals" }
+      }
+    },
+    {
+      "schema": "outpost.orp.event.v1", "sourceEventId": "semantic_approvals_04", "sourceSeq": 4, "sourceInstanceId": "runner_semantic_approvals",
+      "sourceKind": "runner", "runId": "run_semantic_approvals", "normalizedSessionId": "session_semantic_approvals", "turnId": "turn_semantic_approvals",
+      "eventType": "run.terminal", "schemaVersion": 1, "priority": 0, "emittedAt": "2026-08-11T10:30:00.030Z",
+      "payload": { "schema": "outpost.orp.terminal.v1", "turnTerminalState": "completed", "runTerminalState": "succeeded", "reportedWorkDisposition": "yielded", "workAssessmentId": "assessment_semantic_approvals", "statusDecisionId": "decision_semantic_approvals" }
+    }
+  ],
+  "requests": [],
+  "result": {
+    "schema": "outpost.run_result.v1", "reportedWorkDisposition": "yielded", "summary": "The immutable decision target is waiting on a bounded monitor continuation.",
+    "completionClaim": { "contractRevision": "semantic-receipts-v1", "objectiveSatisfied": false, "criteria": [], "remainingWork": [{ "description": "Wait for the interaction response.", "blocksCompletion": true }] },
+    "evidence": [{ "receiptId": "receipt_semantic_approvals" }],
+    "verification": [{ "commandOrCheck": "immutable target and causal chain", "status": "passed" }],
+    "attentionRequests": [], "artifacts": [],
+    "continuation": { "kind": "monitor", "summary": "Recheck after the typed response wake.", "idempotencyKey": "monitor_semantic_approvals" }
+  }
+}

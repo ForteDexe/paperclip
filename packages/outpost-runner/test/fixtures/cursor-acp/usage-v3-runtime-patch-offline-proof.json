@@ -1,6 +1,6 @@
 {
   "schema": "outpost.cursor.runtime-patch-proof.v1",
-  "patchVersion": "paperclip-cursor-usage-v3",
+  "patchVersion": "outpost-cursor-usage-v3",
   "providerCalls": 0,
   "qualification": "offline-only",
   "platforms": [

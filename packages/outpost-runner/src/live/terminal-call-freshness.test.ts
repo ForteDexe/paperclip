@@ -13,20 +13,20 @@ const result = (id: string) => event("item.completed", { item: { type: "tool_res
 
 describe("unseenReturnedToolCalls", () => {
   it("names a call that returned but that the agent had not seen when it decided (restart chaos t03)", () => {
-    const block = started("b", "paperclip_block");
+    const block = started("b", "outpost_block");
     const events = [started("w", "write_document"), result("w"), block, completed("w", "write_document")];
     expect(unseenReturnedToolCalls(events, [], { terminalSourceEventId: block.sourceEventId, turnId: "turn-1" }))
       .toEqual(["write_document"]);
   });
 
   it("is empty once the agent saw the result before deciding", () => {
-    const block = started("b", "paperclip_block");
+    const block = started("b", "outpost_block");
     const events = [started("w", "write_document"), result("w"), completed("w", "write_document"), block];
     expect(unseenReturnedToolCalls(events, [], { terminalSourceEventId: block.sourceEventId })).toEqual([]);
   });
 
   it("reports a call with no result yet as pending, not as returned", () => {
-    const block = started("b", "paperclip_block");
+    const block = started("b", "outpost_block");
     const events = [started("w", "write_document"), block];
     expect(unseenReturnedToolCalls(events, [], { terminalSourceEventId: block.sourceEventId })).toEqual([]);
     expect(pendingEarlierToolCalls(events, [], { terminalSourceEventId: block.sourceEventId })).toEqual(["write_document"]);
@@ -36,7 +36,7 @@ describe("unseenReturnedToolCalls", () => {
     const events = [
       started("old", "write_document", "turn-0"), result("old"),
       event("tool.execution.started", { executionId: "sh", transport: "process", name: "/bin/sh" }), result("sh"),
-      started("f", "paperclip_finish"), result("f"),
+      started("f", "outpost_finish"), result("f"),
     ];
     expect(unseenReturnedToolCalls(events, [], { turnId: "turn-1" })).toEqual([]);
   });
@@ -44,7 +44,7 @@ describe("unseenReturnedToolCalls", () => {
 
 it("forgets calls of a provider turn lost on restore once a new turn starts (restart chaos K2 t110)", () => {
   const commands = [{ type: "semantic_tool.result", payload: { callId: "lost", operationId: "read_agent_instructions" } }];
-  const finish = started("f", "paperclip_finish");
+  const finish = started("f", "outpost_finish");
   const events = [
     event("turn.started", {}), started("lost", "read_agent_instructions"),
     event("turn.failed", { error: { code: "provider_turn_lost_on_restore" } }),
@@ -54,37 +54,37 @@ it("forgets calls of a provider turn lost on restore once a new turn starts (res
 });
 
 describe("a call whose result never reaches the agent (two staging Codex runs, 2026-11-11)", () => {
-  const commands = [{ type: "semantic_tool.result", payload: { callId: "s", operationId: "paperclip_search_assigned_tools" } }];
+  const commands = [{ type: "semantic_tool.result", payload: { callId: "s", operationId: "outpost_search_assigned_tools" } }];
 
   it("names the returned call once; a finish decided after that refusal is judged without it", async () => {
-    const first = started("f1", "paperclip_finish");
-    const second = started("f2", "paperclip_finish");
+    const first = started("f1", "outpost_finish");
+    const second = started("f2", "outpost_finish");
     const events = [
-      event("turn.started", {}), started("s", "paperclip_search_assigned_tools"),
+      event("turn.started", {}), started("s", "outpost_search_assigned_tools"),
       started("r", "read_document"), result("r"), completed("r", "read_document"),
-      first, completed("f1", "paperclip_finish"), second,
+      first, completed("f1", "outpost_finish"), second,
     ];
     const refused = await settleEarlierToolCalls(() => ({ events, commands }), { terminalSourceEventId: first.sourceEventId, turnId: "turn-1" });
-    expect(refused).toEqual({ unseen: ["paperclip_search_assigned_tools"], unseenCallIds: ["s"], pending: [] });
+    expect(refused).toEqual({ unseen: ["outpost_search_assigned_tools"], unseenCallIds: ["s"], pending: [] });
     const refusals = new Map([["f1", refused!.unseenCallIds]]);
     expect(unseenReturnedToolCalls(events, commands, { terminalSourceEventId: second.sourceEventId, turnId: "turn-1" }))
-      .toEqual(["paperclip_search_assigned_tools"]);
+      .toEqual(["outpost_search_assigned_tools"]);
     expect(unseenReturnedToolCalls(events, commands, { terminalSourceEventId: second.sourceEventId, turnId: "turn-1", refusals }))
       .toEqual([]);
   });
 
   it("still refuses a terminal call queued before the agent received the refusal", () => {
-    const second = started("f2", "paperclip_block");
-    const events = [event("turn.started", {}), started("s", "paperclip_search_assigned_tools"), started("f1", "paperclip_finish"),
-      second, completed("f1", "paperclip_finish")];
+    const second = started("f2", "outpost_block");
+    const events = [event("turn.started", {}), started("s", "outpost_search_assigned_tools"), started("f1", "outpost_finish"),
+      second, completed("f1", "outpost_finish")];
     expect(unseenReturnedToolCalls(events, commands, { terminalSourceEventId: second.sourceEventId, turnId: "turn-1",
-      refusals: new Map([["f1", ["s"]]]) })).toEqual(["paperclip_search_assigned_tools"]);
+      refusals: new Map([["f1", ["s"]]]) })).toEqual(["outpost_search_assigned_tools"]);
   });
 
   it("still refuses for a write that was pending at the earlier refusal and returned unseen during the next wait", async () => {
-    const second = started("f2", "paperclip_finish");
-    const events = [event("turn.started", {}), started("w", "write_document"), started("f1", "paperclip_finish"),
-      completed("f1", "paperclip_finish"), second];
+    const second = started("f2", "outpost_finish");
+    const events = [event("turn.started", {}), started("w", "write_document"), started("f1", "outpost_finish"),
+      completed("f1", "outpost_finish"), second];
     const writeCommands: { type: string; payload: Record<string, unknown> }[] = [];
     const first = await settleEarlierToolCalls(() => ({ events, commands: writeCommands }),
       { terminalSourceEventId: events[2]!.sourceEventId, turnId: "turn-1" }, { timeoutMs: 20, pollMs: 5 });
@@ -98,7 +98,7 @@ describe("a call whose result never reaches the agent (two staging Codex runs, 2
 });
 
 it("counts the controller's semantic_tool.result command as the returned result", () => {
-  const block = started("b", "paperclip_block");
+  const block = started("b", "outpost_block");
   const commands = [{ type: "semantic_tool.result", payload: { callId: "w", operationId: "write_document" } }];
   expect(unseenReturnedToolCalls([started("w", "write_document"), block], commands, { terminalSourceEventId: block.sourceEventId }))
     .toEqual(["write_document"]);
@@ -106,9 +106,9 @@ it("counts the controller's semantic_tool.result command as the returned result"
 
 describe("staleTerminalCallResult", () => {
   it("is a retryable error that names the calls", () => {
-    expect(isTerminalOperation("paperclip_block")).toBe(true);
+    expect(isTerminalOperation("outpost_block")).toBe(true);
     expect(isTerminalOperation("write_document")).toBe(false);
-    const outcome = staleTerminalCallResult("paperclip_block", ["write_document"]);
+    const outcome = staleTerminalCallResult("outpost_block", ["write_document"]);
     expect(outcome).toMatchObject({ isError: true, result: { error: { code: "terminal_call_before_results", retryable: true } } });
     expect(outcome.result.error.message).toContain("write_document");
   });
@@ -116,7 +116,7 @@ describe("staleTerminalCallResult", () => {
 
 describe("settleEarlierToolCalls", () => {
   it("waits for a held call that returns after the terminal call arrived (restart chaos t05)", async () => {
-    const block = started("b", "paperclip_block");
+    const block = started("b", "outpost_block");
     const events = [started("w", "write_document"), block];
     const commands: { type: string; payload: Record<string, unknown> }[] = [];
     setTimeout(() => commands.push({ type: "semantic_tool.result", payload: { callId: "w", operationId: "write_document" } }), 30);
@@ -126,18 +126,18 @@ describe("settleEarlierToolCalls", () => {
   });
 
   it("reports a call still pending after the bound", async () => {
-    const block = started("b", "paperclip_block");
+    const block = started("b", "outpost_block");
     const events = [started("w", "write_document"), block];
     const settled = await settleEarlierToolCalls(() => ({ events, commands: [] }),
       { terminalSourceEventId: block.sourceEventId }, { timeoutMs: 20, pollMs: 5 });
     expect(settled).toEqual({ unseen: [], unseenCallIds: [], pending: ["write_document"] });
-    const outcome = staleTerminalCallResult("paperclip_block", settled!.unseen, settled!.pending);
+    const outcome = staleTerminalCallResult("outpost_block", settled!.unseen, settled!.pending);
     expect(outcome).toMatchObject({ isError: true, result: { error: { code: "terminal_call_before_results", retryable: true } } });
     expect(outcome.result.error.message).toContain("has not returned yet");
   });
 
   it("does not wait when every earlier call was seen, and stops when the session is gone", async () => {
-    const block = started("b", "paperclip_block");
+    const block = started("b", "outpost_block");
     const events = [started("w", "write_document"), result("w"), completed("w", "write_document"), block];
     const startedAt = Date.now();
     expect(await settleEarlierToolCalls(() => ({ events, commands: [] }), { terminalSourceEventId: block.sourceEventId }))

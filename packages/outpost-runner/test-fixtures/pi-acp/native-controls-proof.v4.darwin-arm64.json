@@ -17,7 +17,7 @@
       "cachedWriteTokens": 0,
       "totalTokens": 8955,
       "_meta": {
-        "paperclipPi": {
+        "outpostPi": {
           "provenance": "assistant_message_receipts",
           "costUsd": 0.000803936,
           "costSource": "pi_pricing_estimate"

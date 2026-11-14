@@ -7,15 +7,15 @@ import type { Request, Response } from "express";
 
 export const pluginApiUpgrade = Symbol("pluginApiUpgrade");
 type UpgradeRequest = IncomingMessage & {
-  paperclipWebSocketHandled?: boolean;
+  outpostWebSocketHandled?: boolean;
   [pluginApiUpgrade]?: { socket: Socket; head: Buffer };
 };
 
-/** Reuse the full HTTP authentication/company pipeline for plugin upgrades. */
+/** Reuse the full HTTP authentication/space pipeline for plugin upgrades. */
 export function setupPluginApiWebSocketServer(server: Server, handler: RequestListener) {
   server.on("upgrade", (request: UpgradeRequest, socket: Socket, head: Buffer) => {
-    if (request.paperclipWebSocketHandled || !/^\/api\/plugins\/[^/]+\/api\//.test(request.url ?? "")) return;
-    request.paperclipWebSocketHandled = true;
+    if (request.outpostWebSocketHandled || !/^\/api\/plugins\/[^/]+\/api\//.test(request.url ?? "")) return;
+    request.outpostWebSocketHandled = true;
     socket.on("error", () => socket.destroy());
     if (request.method !== "GET" || request.headers.upgrade?.toLowerCase() !== "websocket"
       || request.headers["content-length"] || request.headers["transfer-encoding"]) {

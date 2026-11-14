@@ -64,7 +64,7 @@ try {
     return () => ({ isCloudManaged: isCloudManagedInstance(), deploymentMode: config.deploymentMode,
       storageProvider: config.storageProvider, apiActivityActive: idleApiActivity.active() });
   })() : undefined;
-  const app = server.server.listeners("request")[0] as unknown as { locals: { paperclipDb: Db } };
+  const app = server.server.listeners("request")[0] as unknown as { locals: { outpostDb: Db } };
   try { incomingHttp = observeMaintenanceIncomingHttp(server.server); }
   catch (error) {
     try { await server.shutdown(); }
@@ -76,7 +76,7 @@ try {
   }
   try { announcement?.assertIntercepted(); } catch (error) { await shutdownServer(); throw error; }
   process.send?.({ kind: "ready", port: server.listenPort });
-  process.on("message", async (message: { id: number; command: string; ms?: number; issueUpdate?: { id: string; status: "done" }; orphanLease?: { companyId: string }; publication?: { companyId: string; scopeDigest: string; backupRoot: string; pendingRoot: string }; github?: { companyId?: string; connectionId?: string; grantId?: string } }) => {
+  process.on("message", async (message: { id: number; command: string; ms?: number; issueUpdate?: { id: string; status: "done" }; orphanLease?: { spaceId: string }; publication?: { spaceId: string; scopeDigest: string; backupRoot: string; pendingRoot: string }; github?: { spaceId?: string; connectionId?: string; grantId?: string } }) => {
     try {
       if (message.command === "snapshot" || message.command === "advance" || message.command === "drain" || message.command === "resume" || message.command === "freeze" || message.command === "realtime") {
         if (message.command === "freeze" && bootClock) { clearRealInterval(bootClock); bootClock = realInterval(() => mock.timers.tick(0), 10); }
@@ -94,12 +94,12 @@ try {
         const input = message.github;
         if (!input) throw new Error("Missing GitHub fixture identity");
         const result = message.command === "prepareGitHub"
-          ? await prepareGitHubConfiguration(app.locals.paperclipDb, input.companyId!)
-          : await settleGitHubConfiguration(app.locals.paperclipDb, { connectionId: input.connectionId!, grantId: input.grantId! });
+          ? await prepareGitHubConfiguration(app.locals.outpostDb, input.spaceId!)
+          : await settleGitHubConfiguration(app.locals.outpostDb, { connectionId: input.connectionId!, grantId: input.grantId! });
         process.send?.({ id: message.id, kind: "githubConfiguration", result });
       } else if (message.command === "produceChatHistory") {
         const { produceChatHistory } = await import("./chat-history-producer.js");
-        process.send?.({ id: message.id, kind: "chatHistory", result: await produceChatHistory(app.locals.paperclipDb) });
+        process.send?.({ id: message.id, kind: "chatHistory", result: await produceChatHistory(app.locals.outpostDb) });
       } else if (message.command === "trace") {
         const { getStartupTracer } = await import("../../../instrumentation.js");
         const span = getStartupTracer("outpost.sleep-qualification").startSpan("sleep-qualification-stimulus");
@@ -110,21 +110,21 @@ try {
         const { environmentLeases } = await import("@outpost/db");
         const { writeEnvironmentCleanup } = await import("../../../services/environment-cleanup-notifications.js");
         const old = new Date(Date.now() - 6 * 60_000);
-        const companyId = message.orphanLease.companyId;
-        const [lease] = await writeEnvironmentCleanup(app.locals.paperclipDb, tx => tx.insert(environmentLeases).values({
-          companyId, provider: "local", providerLeaseId: null, status: "active", leasePolicy: "ephemeral", metadata: { driver: "local" },
+        const spaceId = message.orphanLease.spaceId;
+        const [lease] = await writeEnvironmentCleanup(app.locals.outpostDb, tx => tx.insert(environmentLeases).values({
+          spaceId, provider: "local", providerLeaseId: null, status: "active", leasePolicy: "ephemeral", metadata: { driver: "local" },
           acquiredAt: old, lastUsedAt: old, createdAt: old, updatedAt: old,
-        }).returning(), { companyId });
+        }).returning(), { spaceId });
         process.send?.({ id: message.id, kind: "leaseCreated", leaseId: lease!.id });
       } else if (message.command === "updateIssue") {
         if (!message.issueUpdate) throw new Error("Missing issue update");
         const { issueService } = await import("../../../services/issues.js");
-        await issueService(app.locals.paperclipDb).update(message.issueUpdate.id, { status: message.issueUpdate.status });
+        await issueService(app.locals.outpostDb).update(message.issueUpdate.id, { status: message.issueUpdate.status });
         process.send?.({ id: message.id, kind: "updated" });
       } else if (message.command === "publishBackup") {
         if (!message.publication) throw new Error("Missing backup publication");
         const { publishNativeHarnessBackup } = await import("../../../services/native-runtime/native-harness-backup-publication.js");
-        await publishNativeHarnessBackup({ db: app.locals.paperclipDb, ...message.publication });
+        await publishNativeHarnessBackup({ db: app.locals.outpostDb, ...message.publication });
         process.send?.({ id: message.id, kind: "published" });
       } else if (message.command === "shutdown") {
         if (fakeClock) runClock();

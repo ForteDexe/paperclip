@@ -9,7 +9,7 @@ import {
 } from "./common.js";
 
 interface AdapterOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   payloadJson?: string;
   refresh?: boolean;
   environmentId?: string;
@@ -102,28 +102,28 @@ export function registerAdapterCommands(program: Command): void {
   addCommonClientOptions(
     adapter
       .command("models")
-      .description("List adapter models for a company")
+      .description("List adapter models for a space")
       .argument("<type>", "Adapter type")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .option("--refresh", "Refresh provider model list", false)
       .option("--environment-id <id>", "Environment ID for environment-aware adapters")
       .action(async (type: string, opts: AdapterOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const query = new URLSearchParams();
           if (opts.refresh) query.set("refresh", "true");
           if (opts.environmentId?.trim()) query.set("environmentId", opts.environmentId.trim());
           const suffix = query.size > 0 ? `?${query.toString()}` : "";
-          printOutput(await ctx.api.get(`${apiPath`/api/companies/${ctx.companyId}/adapters/${type}/models`}${suffix}`), { json: ctx.json });
+          printOutput(await ctx.api.get(`${apiPath`/api/spaces/${ctx.spaceId}/adapters/${type}/models`}${suffix}`), { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
-  addCompanyAdapterGet(adapter, "detect-model", "Detect adapter model", "detect-model");
-  addCompanyAdapterPost(adapter, "test-environment", "Test adapter environment configuration", "test-environment");
+  addSpaceAdapterGet(adapter, "detect-model", "Detect adapter model", "detect-model");
+  addSpaceAdapterPost(adapter, "test-environment", "Test adapter environment configuration", "test-environment");
 }
 
 function addJsonPost(parent: Command, name: string, description: string, path: string): void {
@@ -175,45 +175,45 @@ function addAdapterPost(parent: Command, name: string, description: string, suff
   );
 }
 
-function addCompanyAdapterGet(parent: Command, name: string, description: string, suffix: string): void {
+function addSpaceAdapterGet(parent: Command, name: string, description: string, suffix: string): void {
   addCommonClientOptions(
     parent
       .command(name)
       .description(description)
       .argument("<type>", "Adapter type")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .action(async (type: string, opts: AdapterOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          printOutput(await ctx.api.get(`${apiPath`/api/companies/${ctx.companyId}/adapters/${type}`}/${suffix}`), { json: ctx.json });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          printOutput(await ctx.api.get(`${apiPath`/api/spaces/${ctx.spaceId}/adapters/${type}`}/${suffix}`), { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 
-function addCompanyAdapterPost(parent: Command, name: string, description: string, suffix: string): void {
+function addSpaceAdapterPost(parent: Command, name: string, description: string, suffix: string): void {
   addCommonClientOptions(
     parent
       .command(name)
       .description(description)
       .argument("<type>", "Adapter type")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .option("--payload-json <json>", "JSON payload", "{}")
       .action(async (type: string, opts: AdapterOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           printOutput(
-            await ctx.api.post(`${apiPath`/api/companies/${ctx.companyId}/adapters/${type}`}/${suffix}`, parseJson(opts.payloadJson ?? "{}")),
+            await ctx.api.post(`${apiPath`/api/spaces/${ctx.spaceId}/adapters/${type}`}/${suffix}`, parseJson(opts.payloadJson ?? "{}")),
             { json: ctx.json },
           );
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 

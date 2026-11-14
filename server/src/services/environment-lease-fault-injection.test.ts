@@ -10,7 +10,7 @@ describe("lease acquisition fault injection (chaos EP1)", () => {
   let seam: typeof import("./environment-lease-fault-injection.js");
   // Loaded after the reset, so it shares the seam's diagnostic receipts.
   let readTransientLeaseAcquisitionFailure: typeof import("./environment-provider-unavailable-error.js").readTransientLeaseAcquisitionFailure;
-  const input = (issueId: string | null = "issue-1") => ({ companyId: "company-1", environmentId: "env-1", heartbeatRunId: "run-1", issueId });
+  const input = (issueId: string | null = "issue-1") => ({ spaceId: "space-1", environmentId: "env-1", heartbeatRunId: "run-1", issueId });
 
   beforeAll(async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), "lease-fault-"));
@@ -42,7 +42,7 @@ describe("lease acquisition fault injection (chaos EP1)", () => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       let thrown: unknown;
       try { seam.injectLeaseAcquisitionFault(input()); } catch (error) { thrown = error; }
-      expect(readTransientLeaseAcquisitionFailure(thrown, { id: "run-1", companyId: "company-1" })).toEqual({ acquisitionTimedOut: true });
+      expect(readTransientLeaseAcquisitionFailure(thrown, { id: "run-1", spaceId: "space-1" })).toEqual({ acquisitionTimedOut: true });
     }
     expect(() => seam.injectLeaseAcquisitionFault(input())).not.toThrow();
     // Another task keeps its own count; a run with no task is never faulted.
@@ -55,7 +55,7 @@ describe("lease acquisition fault injection (chaos EP1)", () => {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       let thrown: unknown;
       try { seam.injectLeaseAcquisitionFault(input()); } catch (error) { thrown = error; }
-      expect(readTransientLeaseAcquisitionFailure(thrown, { id: "run-1", companyId: "company-1" })).toEqual({ reason: "database_error" });
+      expect(readTransientLeaseAcquisitionFailure(thrown, { id: "run-1", spaceId: "space-1" })).toEqual({ reason: "database_error" });
     }
     await writeFile(control, "");
     expect(() => seam.injectLeaseAcquisitionFault(input())).not.toThrow();

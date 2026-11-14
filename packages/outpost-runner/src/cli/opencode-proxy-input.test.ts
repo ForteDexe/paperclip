@@ -73,7 +73,7 @@ it.each([true, false])("settles a real proxy interrupt with controller feedback 
   const { join, resolve } = await import("node:path");
   const { createInterface } = await import("node:readline");
   const root = await mkdtemp(join(tmpdir(), "opencode-proxy-interrupt-feedback-"));
-  const launchRoot = join(root, `.paperclip-verified-executable-${randomUUID().replaceAll("-", "")}`);
+  const launchRoot = join(root, `.outpost-verified-executable-${randomUUID().replaceAll("-", "")}`);
   await mkdir(launchRoot, { mode: 0o700 });
   await chmod(launchRoot, 0o700);
   const executable = join(launchRoot, "launch");
@@ -98,11 +98,11 @@ it.each([true, false])("settles a real proxy interrupt with controller feedback 
   await new Promise<void>(resolve => collector.listen(0, "127.0.0.1", resolve));
   const address = collector.address();
   if (!address || typeof address === "string") throw new Error("collector did not bind");
-  const child = spawn(process.execPath, [proxy, "--paperclip-trusted-opencode-executable", fd === undefined ? executable : "/proc/self/fd/3"], {
+  const child = spawn(process.execPath, [proxy, "--outpost-trusted-opencode-executable", fd === undefined ? executable : "/proc/self/fd/3"], {
     env: { ...process.env, OUTPOST_OPENCODE_RUNTIME_DIR: runtime, OPENROUTER_API_KEY: "fixture-key",
       OUTPOST_RUN_ID: "stale-launch-run", OUTPOST_OBSERVABILITY_OPENCODE: "1",
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `http://127.0.0.1:${address.port}/v1/traces`,
-      OTEL_RESOURCE_ATTRIBUTES: "outpost.company.id=fixture-company" },
+      OTEL_RESOURCE_ATTRIBUTES: "outpost.space.id=fixture-space" },
     stdio: fd === undefined ? ["pipe", "pipe", "pipe"] : ["pipe", "pipe", "pipe", fd],
     detached: process.platform !== "win32",
   });
@@ -125,11 +125,11 @@ it.each([true, false])("settles a real proxy interrupt with controller feedback 
     await response(1);
     send({ id: 2, method: "thread/start", params: { cwd: root, model: "openrouter/deepseek/deepseek-v4-flash-0731", completionContract: { revision: "proxy-v1", criterionIds: ["objective"] }, conversationMode: "prepared" } });
     await response(2);
-    send({ id: 3, method: "turn/start", params: { paperclipRunId: "current-run-1", input: [{ type: "text", text: JSON.stringify({ schema: "outpost.native-model-envelope.v3", task: { prompt: "invalid-tool-feedback completion-feedback" }, completionContract: { revision: "proxy-v1", criteria: [{ id: "objective", requirement: "Complete the fixture." }] } }) }] } });
+    send({ id: 3, method: "turn/start", params: { outpostRunId: "current-run-1", input: [{ type: "text", text: JSON.stringify({ schema: "outpost.native-model-envelope.v3", task: { prompt: "invalid-tool-feedback completion-feedback" }, completionContract: { revision: "proxy-v1", criteria: [{ id: "objective", requirement: "Complete the fixture." }] } }) }] } });
     await response(3);
     await expect.poll(() => messages.find(message => message.method === "item/tool/call"), { timeout: 5_000 }).toBeDefined();
     const call = messages.find(message => message.method === "item/tool/call")!;
-    expect(call.params!.tool).toBe("paperclip_finish");
+    expect(call.params!.tool).toBe("outpost_finish");
     const toolFrames = messages.filter(message => (message.params?.item as { id?: string } | undefined)?.id === "part-invalid");
     expect(toolFrames.map(message => message.method)).toEqual(["item/started", "item/updated", "item/completed"]);
     expect(toolFrames.at(-1)?.params).toMatchObject({
@@ -154,8 +154,8 @@ it.each([true, false])("settles a real proxy interrupt with controller feedback 
       await expect.poll(() => bodies.length, { timeout: 5_000 }).toBe(1);
       // The warm second run has its own contract revision. Runnerd sends it with
       // the run identity; the proxy's launch parameters still name proxy-v1.
-      send({ id: 5, method: "turn/start", params: { paperclipRunId: "current-run-2",
-        paperclipCompletionContract: { revision: "proxy-v2", criterionIds: ["objective"] },
+      send({ id: 5, method: "turn/start", params: { outpostRunId: "current-run-2",
+        outpostCompletionContract: { revision: "proxy-v2", criterionIds: ["objective"] },
         input: [{ type: "text", text: JSON.stringify({ schema: "outpost.native-model-envelope.v3", task: { prompt: "completion-feedback" }, completionContract: { revision: "proxy-v2", criteria: [{ id: "objective", requirement: "Complete the fixture." }] } }) }] } });
       await response(5);
       await expect.poll(() => messages.find(message => message.method === "item/tool/call" && message.id !== call.id), { timeout: 5_000 }).toBeDefined();
@@ -168,7 +168,7 @@ it.each([true, false])("settles a real proxy interrupt with controller feedback 
     }
     await expect.poll(() => exited, { timeout: 5_000 }).toBe(true);
     await exit;
-    const results = messages.filter(message => message.method === "paperclip/runResult");
+    const results = messages.filter(message => message.method === "outpost/runResult");
     expect(results).toHaveLength(respond ? 2 : 0);
     if (respond) expect(JSON.stringify(results[1])).toContain("proxy-v2");
   } finally {
@@ -196,7 +196,7 @@ it("binds the current contract when a restored launch already names the attached
   const { join, resolve } = await import("node:path");
   const { createInterface } = await import("node:readline");
   const root = await mkdtemp(join(tmpdir(), "opencode-proxy-restored-contract-"));
-  const launchRoot = join(root, `.paperclip-verified-executable-${randomUUID().replaceAll("-", "")}`);
+  const launchRoot = join(root, `.outpost-verified-executable-${randomUUID().replaceAll("-", "")}`);
   await mkdir(launchRoot, { mode: 0o700 });
   await chmod(launchRoot, 0o700);
   const executable = join(launchRoot, "launch");
@@ -210,7 +210,7 @@ it("binds the current contract when a restored launch already names the attached
   const proxy = join(root, "proxy.cjs");
   await (await import("node:fs/promises")).writeFile(proxy, execFileSync(process.execPath, ["--input-type=module", "-e", `import { bundleVerifiedProviderEntrypoints } from "./scripts/build-verified-provider-entrypoints.mjs"; const entries = await bundleVerifiedProviderEntrypoints({ write: false }); process.stdout.write(entries.find(({ entrypoint }) => entrypoint.name === "opencode-app-server-proxy").verifiedResult.outputFiles[0].contents);`], { maxBuffer: 16 * 1024 * 1024 }));
   const fd = process.platform === "linux" ? openSync(executable, "r") : undefined;
-  const child = spawn(process.execPath, [proxy, "--paperclip-trusted-opencode-executable", fd === undefined ? executable : "/proc/self/fd/3"], {
+  const child = spawn(process.execPath, [proxy, "--outpost-trusted-opencode-executable", fd === undefined ? executable : "/proc/self/fd/3"], {
     env: { ...process.env, OUTPOST_OPENCODE_RUNTIME_DIR: join(root, "runtime"), OPENROUTER_API_KEY: "fixture-key",
       OUTPOST_RUN_ID: "attached-run-2" },
     stdio: fd === undefined ? ["pipe", "pipe", "pipe"] : ["pipe", "pipe", "pipe", fd],
@@ -236,18 +236,18 @@ it("binds the current contract when a restored launch already names the attached
     // Launch parameters carry the saved run's contract.
     send({ id: 2, method: "thread/start", params: { cwd: root, model: "openrouter/deepseek/deepseek-v4-flash-0731", completionContract: { revision: "1", criterionIds: ["objective"] }, conversationMode: "prepared" } });
     await response(2);
-    send({ id: 3, method: "turn/start", params: { paperclipRunId: "attached-run-2",
-      paperclipCompletionContract: { revision: "2", criterionIds: ["pending_comment_1", "pending_comment_2"] },
+    send({ id: 3, method: "turn/start", params: { outpostRunId: "attached-run-2",
+      outpostCompletionContract: { revision: "2", criterionIds: ["pending_comment_1", "pending_comment_2"] },
       input: [{ type: "text", text: JSON.stringify({ schema: "outpost.native-model-envelope.v3", task: { prompt: "completion-feedback" },
         completionContract: { revision: "2", criteria: [{ id: "pending_comment_1", requirement: "Use a readable font." }, { id: "pending_comment_2", requirement: "Add a contact section." }] } }) }] } });
     await response(3);
     // The finish claim reaches the controller on its first try.
     await expect.poll(() => messages.find(message => message.method === "item/tool/call"), { timeout: 5_000 }).toBeDefined();
     const call = messages.find(message => message.method === "item/tool/call")!;
-    expect(call.params).toMatchObject({ tool: "paperclip_finish", arguments: { completionClaim: { contractRevision: "2" } } });
+    expect(call.params).toMatchObject({ tool: "outpost_finish", arguments: { completionClaim: { contractRevision: "2" } } });
     send({ id: call.id, result: { success: true, contentItems: [{ type: "inputText", text: "Accepted." }] } });
-    await expect.poll(() => messages.filter(message => message.method === "paperclip/runResult").length, { timeout: 5_000 }).toBe(1);
-    expect(JSON.stringify(messages.find(message => message.method === "paperclip/runResult"))).toContain('"contractRevision":"2"');
+    await expect.poll(() => messages.filter(message => message.method === "outpost/runResult").length, { timeout: 5_000 }).toBe(1);
+    expect(JSON.stringify(messages.find(message => message.method === "outpost/runResult"))).toContain('"contractRevision":"2"');
     child.stdin!.end();
     await expect.poll(() => exited, { timeout: 5_000 }).toBe(true);
     await exit;

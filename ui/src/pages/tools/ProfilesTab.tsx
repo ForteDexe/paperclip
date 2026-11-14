@@ -1,4 +1,4 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { useMemo, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Layers, Plus, Pencil, Trash2, Link2, ShieldCheck } from "lucide-react";
@@ -68,7 +68,7 @@ const SELECTOR_TYPES: Array<{ value: ToolProfileEntrySelectorType; label: string
 ];
 
 const TARGET_TYPES: Array<{ value: ToolProfileBindingTargetType; label: string }> = [
-  { value: "company", label: "Outpost" },
+  { value: "space", label: "Outpost" },
   { value: "agent", label: "Agent" },
   { value: "project", label: "Project" },
   { value: "routine", label: "Routine" },
@@ -93,14 +93,14 @@ function statusVariant(status: ToolProfileStatus): "default" | "secondary" | "ou
 }
 
 function targetIdForType(input: {
-  companyId: string;
+  spaceId: string;
   targetType: ToolProfileBindingTargetType;
   agentId: string;
   projectId: string;
   routineId: string;
   issueId: string;
 }) {
-  if (input.targetType === "company") return input.companyId;
+  if (input.targetType === "space") return input.spaceId;
   if (input.targetType === "agent") return input.agentId;
   if (input.targetType === "project") return input.projectId;
   if (input.targetType === "routine") return input.routineId;
@@ -150,13 +150,13 @@ function bindingLabel(
   targetType: ToolProfileBindingTargetType,
   targetId: string,
   labels: {
-    companyId: string;
+    spaceId: string;
     agentsById: Map<string, string>;
     projectsById: Map<string, string>;
     routinesById: Map<string, string>;
   },
 ) {
-  if (targetType === "company") return targetId === labels.companyId ? "Outpost" : targetId;
+  if (targetType === "space") return targetId === labels.spaceId ? "Outpost" : targetId;
   if (targetType === "agent") return labels.agentsById.get(targetId) ?? targetId;
   if (targetType === "project") return labels.projectsById.get(targetId) ?? targetId;
   if (targetType === "routine") return labels.routinesById.get(targetId) ?? targetId;
@@ -307,25 +307,25 @@ export function resolveAllowList(
   return rows.sort((a, b) => a.toolName.localeCompare(b.toolName));
 }
 
-function useLookupData(companyId: string) {
+function useLookupData(spaceId: string) {
   const agents = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
   });
   const projects = useQuery({
-    ...companyProjectsQuery(companyId, { includeArchived: true }),
+    ...spaceProjectsQuery(spaceId, { includeArchived: true }),
   });
   const routines = useQuery({
-    queryKey: queryKeys.routines.list(companyId),
-    queryFn: () => routinesApi.list(companyId),
+    queryKey: queryKeys.routines.list(spaceId),
+    queryFn: () => routinesApi.list(spaceId),
   });
   const applications = useQuery({
-    queryKey: queryKeys.tools.applications(companyId),
-    queryFn: () => toolsApi.listApplications(companyId),
+    queryKey: queryKeys.tools.applications(spaceId),
+    queryFn: () => toolsApi.listApplications(spaceId),
   });
   const connections = useQuery({
-    queryKey: queryKeys.tools.connections(companyId),
-    queryFn: () => toolsApi.listConnections(companyId),
+    queryKey: queryKeys.tools.connections(spaceId),
+    queryFn: () => toolsApi.listConnections(spaceId),
   });
 
   const maps = useMemo(() => ({
@@ -470,13 +470,13 @@ function EntryFields({
   );
 }
 
-export function EffectiveAgentPanel({ companyId, agentOptions }: { companyId: string; agentOptions: Array<{ id: string; name: string }> }) {
+export function EffectiveAgentPanel({ spaceId, agentOptions }: { spaceId: string; agentOptions: Array<{ id: string; name: string }> }) {
   const [agentId, setAgentId] = useState("");
   const effective = useQuery({
     queryKey: agentId
-      ? queryKeys.tools.effectiveProfilesForAgent(companyId, agentId)
-      : ["tools", companyId, "profiles", "effective", "agent", "__none__"],
-    queryFn: () => toolsApi.getEffectiveProfilesForAgent(companyId, agentId),
+      ? queryKeys.tools.effectiveProfilesForAgent(spaceId, agentId)
+      : ["tools", spaceId, "profiles", "effective", "agent", "__none__"],
+    queryFn: () => toolsApi.getEffectiveProfilesForAgent(spaceId, agentId),
     enabled: Boolean(agentId),
   });
   const effectiveView = useQueryView(effective);
@@ -532,7 +532,7 @@ export function EffectiveAgentPanel({ companyId, agentOptions }: { companyId: st
                 {(effective.data?.profiles ?? []).map((profile) => (
                   <div key={profile.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
                     <span className="min-w-0 truncate text-sm font-medium text-foreground">{profile.name}</span>
-                    {profile.summary.isCompanyDefault ? (
+                    {profile.summary.isSpaceDefault ? (
                       <Badge variant="secondary">Outpost default</Badge>
                     ) : null}
                   </div>
@@ -641,7 +641,7 @@ function AllowList({ rows, catalogLoading }: { rows: AllowListRow[]; catalogLoad
   );
 }
 
-export function ProfilesTab({ companyId }: { companyId: string }) {
+export function ProfilesTab({ spaceId }: { spaceId: string }) {
   const qc = useQueryClient();
   const { pushToast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
@@ -671,15 +671,15 @@ export function ProfilesTab({ companyId }: { companyId: string }) {
   const [targetIssueId, setTargetIssueId] = useState("");
   const [priority, setPriority] = useState("100");
 
-  const lookups = useLookupData(companyId);
+  const lookups = useLookupData(spaceId);
   const profiles = useQuery({
-    queryKey: queryKeys.tools.profiles(companyId),
-    queryFn: () => toolsApi.listProfiles(companyId),
+    queryKey: queryKeys.tools.profiles(spaceId),
+    queryFn: () => toolsApi.listProfiles(spaceId),
   });
   const profilesView = useQueryView(profiles);
 
   const connectionList = lookups.connections.data?.connections ?? [];
-  // Company-wide catalog, assembled per connection (there is no aggregate
+  // Space-wide catalog, assembled per connection (there is no aggregate
   // endpoint). It powers allow-list resolution: concrete tool + capabilities +
   // risk + which selector pulled it in.
   const catalogQueries = useQueries({
@@ -702,8 +702,8 @@ export function ProfilesTab({ companyId }: { companyId: string }) {
   const routineOptions = lookups.routines.data ?? [];
 
   const invalidateProfiles = () => {
-    qc.invalidateQueries({ queryKey: queryKeys.tools.profiles(companyId) });
-    qc.invalidateQueries({ queryKey: ["tools", companyId, "profiles", "effective"] });
+    qc.invalidateQueries({ queryKey: queryKeys.tools.profiles(spaceId) });
+    qc.invalidateQueries({ queryKey: ["tools", spaceId, "profiles", "effective"] });
     qc.invalidateQueries({ queryKey: queryKeys.tools.testAgentAccesses() });
   };
 
@@ -726,7 +726,7 @@ export function ProfilesTab({ companyId }: { companyId: string }) {
   };
 
   const createProfile = useMutation({
-    mutationFn: (input: CreateToolProfileInput) => toolsApi.createProfile(companyId, input),
+    mutationFn: (input: CreateToolProfileInput) => toolsApi.createProfile(spaceId, input),
     onSuccess: (created) => {
       invalidateProfiles();
       setCreateOpen(false);
@@ -789,7 +789,7 @@ export function ProfilesTab({ companyId }: { companyId: string }) {
 
   const bind = useMutation({
     mutationFn: ({ profileId, input }: { profileId: string; input: ToolProfileBindingInput }) =>
-      toolsApi.bindProfile(companyId, profileId, input),
+      toolsApi.bindProfile(spaceId, profileId, input),
     onSuccess: () => {
       invalidateProfiles();
       setBindProfileFor(null);
@@ -809,7 +809,7 @@ export function ProfilesTab({ companyId }: { companyId: string }) {
       profileId: string;
       targetType: ToolProfileBindingTargetType;
       targetId: string;
-    }) => toolsApi.unbindProfile(companyId, profileId, { targetType, targetId }),
+    }) => toolsApi.unbindProfile(spaceId, profileId, { targetType, targetId }),
     onSuccess: () => {
       invalidateProfiles();
       pushToast({ title: "Binding removed", tone: "success" });
@@ -901,7 +901,7 @@ export function ProfilesTab({ companyId }: { companyId: string }) {
   const saveBinding = () => {
     if (!bindProfileFor) return;
     const targetId = targetIdForType({
-      companyId,
+      spaceId,
       targetType,
       agentId: targetAgentId,
       projectId: targetProjectId,
@@ -935,7 +935,7 @@ export function ProfilesTab({ companyId }: { companyId: string }) {
         }
       />
 
-      <EffectiveAgentPanel companyId={companyId} agentOptions={agentOptions} />
+      <EffectiveAgentPanel spaceId={spaceId} agentOptions={agentOptions} />
 
       {list.length === 0 ? (
         <EmptyState
@@ -995,7 +995,7 @@ export function ProfilesTab({ companyId }: { companyId: string }) {
               catalog={catalog}
               catalogLoading={catalogLoading}
               maps={lookups.maps}
-              companyId={companyId}
+              spaceId={spaceId}
               onEdit={() => openEdit(selected)}
               onAddEntry={() => {
                 setEntryProfile(selected);
@@ -1240,7 +1240,7 @@ function ProfileDetail({
   catalog,
   catalogLoading,
   maps,
-  companyId,
+  spaceId,
   onEdit,
   onAddEntry,
   onBind,
@@ -1251,14 +1251,14 @@ function ProfileDetail({
   catalog: ToolCatalogEntry[];
   catalogLoading: boolean;
   maps: {
-    companyId?: string;
+    spaceId?: string;
     agentsById: Map<string, string>;
     projectsById: Map<string, string>;
     routinesById: Map<string, string>;
     applicationsById: Map<string, string>;
     connectionsById: Map<string, string>;
   };
-  companyId: string;
+  spaceId: string;
   onEdit: () => void;
   onAddEntry: () => void;
   onBind: () => void;
@@ -1319,7 +1319,7 @@ function ProfileDetail({
             ) : profile.bindings.map((binding) => (
               <span key={binding.id} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs">
                 <Badge variant="outline">{binding.targetType}</Badge>
-                <span>{bindingLabel(binding.targetType, binding.targetId, { companyId, ...maps })}</span>
+                <span>{bindingLabel(binding.targetType, binding.targetId, { spaceId, ...maps })}</span>
                 <span className="text-muted-foreground">p{binding.priority}</span>
                 <button
                   type="button"

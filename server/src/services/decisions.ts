@@ -3,7 +3,7 @@ import { decisionTargetService, notifyDecisionTargetWork } from "./decision-targ
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { databaseWorkScopeKey, companyMemberships, decisionBundles, decisionEffectExecutions, decisionRetention, decisions, decisionTargetIssues, heartbeatRuns, issueRelations, issues } from "@outpost/db";
+import { databaseWorkScopeKey, spaceMemberships, decisionBundles, decisionEffectExecutions, decisionRetention, decisions, decisionTargetIssues, heartbeatRuns, issueRelations, issues } from "@outpost/db";
 import { ATTENTION_SOURCE_KINDS, decisionEffectTargetIssueIds } from "@outpost/shared";
 import type { AttentionArchiveManifestEntry, DecisionEffect, DecisionInput, DecisionOption, DecisionStatsCounts, DecisionStatsResponse } from "@outpost/shared";
 import { conflict, forbidden, notFound, tooManyRequests, unprocessable } from "../errors.js";
@@ -66,7 +66,7 @@ function spec(decision: { id: string; options: DecisionOption[]; targetSnapshots
 }
 
 function resource(issue: typeof issues.$inferSelect) {
-  return { type: "issue" as const, companyId: issue.companyId, issueId: issue.id, projectId: issue.projectId,
+  return { type: "issue" as const, spaceId: issue.spaceId, issueId: issue.id, projectId: issue.projectId,
     parentIssueId: issue.parentId, assigneeAgentId: issue.assigneeAgentId, assigneeUserId: issue.assigneeUserId, status: issue.status };
 }
 
@@ -84,7 +84,7 @@ function canonicalJson(value: unknown): string {
 }
 
 function parseAttentionArchiveManifest(
-  companyId: string,
+  spaceId: string,
   targetSnapshots: Record<string, Snapshot>,
 ): AttentionArchiveManifestEntry[] | null {
   const entries: AttentionArchiveManifestEntry[] = [];
@@ -94,7 +94,7 @@ function parseAttentionArchiveManifest(
     const entry = snapshot.attentionArchive;
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
     const candidate = entry as Record<string, unknown>;
-    if (candidate.companyId !== companyId
+    if (candidate.spaceId !== spaceId
       || typeof candidate.sourceKind !== "string"
       || !ATTENTION_SOURCE_KINDS.includes(candidate.sourceKind as (typeof ATTENTION_SOURCE_KINDS)[number])
       || typeof candidate.sourceId !== "string"
@@ -109,7 +109,7 @@ function parseAttentionArchiveManifest(
     if (key !== expectedKey || seen.has(expectedKey)) return null;
     seen.add(expectedKey);
     entries.push({
-      companyId,
+      spaceId,
       sourceKind: candidate.sourceKind,
       sourceId: candidate.sourceId,
       expectedVersion: Number(candidate.expectedVersion),
@@ -120,11 +120,11 @@ function parseAttentionArchiveManifest(
   return entries.length > 0 ? entries : null;
 }
 
-function boardCanActDirectly(actor: AuthorizationActor, companyId: string) {
-  if (actor.type !== "board") return false;
+function operatorCanActDirectly(actor: AuthorizationActor, spaceId: string) {
+  if (actor.type !== "operator") return false;
   if (actor.source === "local_implicit" || actor.isInstanceAdmin) return true;
-  return actor.companyIds?.includes(companyId) === true ||
-    actor.memberships?.some((membership) => membership.companyId === companyId && membership.status === "active") === true;
+  return actor.spaceIds?.includes(spaceId) === true ||
+    actor.memberships?.some((membership) => membership.spaceId === spaceId && membership.status === "active") === true;
 }
 
 export function decisionService(db: Db, options: DecisionServiceOptions) {
@@ -137,13 +137,13 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
   if (!flights) effectFlights.set(scope, flights = new Map());
   const executing = flights;
   const authz = authorizationService(db);
-  type CreateInput = { companyId: string; actor: AuthorizationActor; agentId: string; runId: string; bundleId?: string | null;
+  type CreateInput = { spaceId: string; actor: AuthorizationActor; agentId: string; runId: string; bundleId?: string | null;
     ruleKey?: string | null; title: string; body: string; options: DecisionOption[]; inputs?: DecisionInput[] | null; expiresAt?: Date | null;
     idempotencyKey?: string | null; continuationPolicy?: "none" | "wake_origin_agent"; metadata?: Record<string, unknown> };
   type CreateInputWithSnapshots = CreateInput & { additionalTargetSnapshots?: Record<string, Snapshot> };
 
-  async function origin(companyId: string, agentId: string, runId: string) {
-    const run = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, agentId)))
+  async function origin(spaceId: string, agentId: string, runId: string) {
+    const run = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, agentId)))
       .then((rows) => rows[0] ?? null);
     if (!run) throw forbidden("Decision provenance requires the origin run");
     const issueId = typeof run.contextSnapshot?.issueId === "string" ? run.contextSnapshot.issueId : null;
@@ -151,20 +151,20 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
     return { run, issueId };
   }
 
-  async function recoveryActor(companyId: string, userId: string): Promise<AuthorizationActor> {
-    const membership = await db.select({ companyId: companyMemberships.companyId, membershipRole: companyMemberships.membershipRole,
-      status: companyMemberships.status }).from(companyMemberships).where(and(eq(companyMemberships.companyId, companyId),
-      eq(companyMemberships.principalType, "user"), eq(companyMemberships.principalId, userId), eq(companyMemberships.status, "active")))
+  async function recoveryActor(spaceId: string, userId: string): Promise<AuthorizationActor> {
+    const membership = await db.select({ spaceId: spaceMemberships.spaceId, membershipRole: spaceMemberships.membershipRole,
+      status: spaceMemberships.status }).from(spaceMemberships).where(and(eq(spaceMemberships.spaceId, spaceId),
+      eq(spaceMemberships.principalType, "user"), eq(spaceMemberships.principalId, userId), eq(spaceMemberships.status, "active")))
       .then((rows) => rows[0] ?? null);
     if (!membership) return { type: "none", source: "none" };
-    return { type: "board", userId, companyIds: [companyId], memberships: [membership], source: "session" };
+    return { type: "operator", userId, spaceIds: [spaceId], memberships: [membership], source: "session" };
   }
 
-  async function collectDescendantIds(companyId: string, rootId: string, dbOrTx: Db) {
+  async function collectDescendantIds(spaceId: string, rootId: string, dbOrTx: Db) {
     const queue = [rootId]; const visited = new Set([rootId]); const result: string[] = [];
     while (queue.length) {
       const parentId = queue.shift()!;
-      const children = await dbOrTx.select({ id: issues.id }).from(issues).where(and(eq(issues.companyId, companyId), eq(issues.parentId, parentId)));
+      const children = await dbOrTx.select({ id: issues.id }).from(issues).where(and(eq(issues.spaceId, spaceId), eq(issues.parentId, parentId)));
       for (const child of children) {
         if (visited.has(child.id)) continue;
         visited.add(child.id);
@@ -175,10 +175,10 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
     return result;
   }
 
-  async function snapshots(companyId: string, ids: string[], actor: AuthorizationActor, requiredActions: ReturnType<typeof targetActions>,
+  async function snapshots(spaceId: string, ids: string[], actor: AuthorizationActor, requiredActions: ReturnType<typeof targetActions>,
     cancellationTargetIds: ReadonlySet<string>, dbOrTx: Db) {
-    const rows = ids.length ? await dbOrTx.select().from(issues).where(and(eq(issues.companyId, companyId), inArray(issues.id, ids))) : [];
-    if (rows.length !== ids.length) throw unprocessable("All referenced issues must exist in the company");
+    const rows = ids.length ? await dbOrTx.select().from(issues).where(and(eq(issues.spaceId, spaceId), inArray(issues.id, ids))) : [];
+    if (rows.length !== ids.length) throw unprocessable("All referenced issues must exist in the space");
     const result: Record<string, Snapshot> = {};
     for (const issue of rows) {
       const access = await authz.decide({ actor, action: "issue:read", resource: resource(issue) });
@@ -188,10 +188,10 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
         if (!effectAccess.allowed) throw forbidden("Decision effect exceeds the origin authority boundary");
       }
       const cancellationTarget = cancellationTargetIds.has(issue.id);
-      const descendantIds = cancellationTarget ? await collectDescendantIds(companyId, issue.id, dbOrTx) : [];
+      const descendantIds = cancellationTarget ? await collectDescendantIds(spaceId, issue.id, dbOrTx) : [];
       if (cancellationTarget && descendantIds.length) {
         const descendants = await dbOrTx.select().from(issues)
-          .where(and(eq(issues.companyId, companyId), inArray(issues.id, descendantIds)));
+          .where(and(eq(issues.spaceId, spaceId), inArray(issues.id, descendantIds)));
         const descendantAccess = await Promise.all(descendants.map((descendant) =>
           authz.decide({ actor, action: "issue:mutate", resource: resource(descendant) })));
         if (descendants.length !== descendantIds.length || descendantAccess.some((access) => !access.allowed)) {
@@ -207,12 +207,12 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
 
   async function createInStore(input: CreateInputWithSnapshots, dbOrTx: Db) {
     if (input.idempotencyKey) {
-      const lockKey = `decision-create:${input.companyId}:${input.idempotencyKey}`;
+      const lockKey = `decision-create:${input.spaceId}:${input.idempotencyKey}`;
       await dbOrTx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
     }
-    const provenance = await origin(input.companyId, input.agentId, input.runId);
+    const provenance = await origin(input.spaceId, input.agentId, input.runId);
     if (input.idempotencyKey) {
-      const existing = await dbOrTx.select().from(decisions).where(and(eq(decisions.companyId, input.companyId), eq(decisions.idempotencyKey, input.idempotencyKey)))
+      const existing = await dbOrTx.select().from(decisions).where(and(eq(decisions.spaceId, input.spaceId), eq(decisions.idempotencyKey, input.idempotencyKey)))
         .then((rows) => rows[0] ?? null);
       if (existing) {
         const archiveEquivalent = input.additionalTargetSnapshots === undefined || (
@@ -227,7 +227,7 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
         return existing;
       }
     }
-    const open = await dbOrTx.select({ value: count() }).from(decisions).where(and(eq(decisions.companyId, input.companyId), eq(decisions.originAgentId, input.agentId), eq(decisions.status, "open")));
+    const open = await dbOrTx.select({ value: count() }).from(decisions).where(and(eq(decisions.spaceId, input.spaceId), eq(decisions.originAgentId, input.agentId), eq(decisions.status, "open")));
     const cap = Number(process.env.OUTPOST_DECISIONS_OPEN_CAP ?? 50);
     if (Number(open[0]?.value ?? 0) >= cap) throw tooManyRequests("Open decision cap reached");
     const expiresAt = input.expiresAt ?? new Date(Date.now() + 7 * DAY);
@@ -236,20 +236,20 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
     const cancellationTargetIds = new Set(input.options.flatMap((option) => option.effects
       .filter((effect) => effect.type === "cancel_issue_tree").map((effect) => effect.targetIssueId)));
     const targetSnapshots = {
-      ...await snapshots(input.companyId, ids, input.actor, targetActions(input.options), cancellationTargetIds, dbOrTx),
+      ...await snapshots(input.spaceId, ids, input.actor, targetActions(input.options), cancellationTargetIds, dbOrTx),
       ...(input.additionalTargetSnapshots ?? {}),
     };
     const id = randomUUID();
-    await notifyDecisionCreated(dbOrTx, { companyId: input.companyId, sourceId: id });
+    await notifyDecisionCreated(dbOrTx, { spaceId: input.spaceId, sourceId: id });
     await notifyDecisionTargetWork(dbOrTx, `decision:${id}`);
-    const [created] = await dbOrTx.insert(decisions).values({ id, companyId: input.companyId, bundleId: input.bundleId ?? null,
+    const [created] = await dbOrTx.insert(decisions).values({ id, spaceId: input.spaceId, bundleId: input.bundleId ?? null,
       originAgentId: input.agentId, originIssueId: provenance.issueId, originRunId: input.runId, ruleKey: input.ruleKey ?? null,
       title: input.title, body: input.body, options: input.options, inputs: input.inputs ?? null, expiresAt,
       idempotencyKey: input.idempotencyKey ?? null, signedSpec: signDecisionSpec(spec({ id, options: input.options, targetSnapshots })),
       targetSnapshots, continuationPolicy: input.continuationPolicy ?? "none", metadata: input.metadata ?? {} }).onConflictDoNothing().returning();
     if (!created) {
       const existing = input.idempotencyKey
-        ? await dbOrTx.select().from(decisions).where(and(eq(decisions.companyId, input.companyId), eq(decisions.idempotencyKey, input.idempotencyKey))).then((rows) => rows[0] ?? null)
+        ? await dbOrTx.select().from(decisions).where(and(eq(decisions.spaceId, input.spaceId), eq(decisions.idempotencyKey, input.idempotencyKey))).then((rows) => rows[0] ?? null)
         : null;
       const archiveEquivalent = !existing || input.additionalTargetSnapshots === undefined || (
         canonicalJson(existing.metadata ?? {}) === canonicalJson(input.metadata ?? {}) &&
@@ -262,8 +262,8 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
       if (equivalent) return existing;
       throw conflict("Decision idempotency key already used with a different payload");
     }
-    if (ids.length) await dbOrTx.insert(decisionTargetIssues).values(ids.map((issueId) => ({ decisionId: id, issueId, companyId: input.companyId })));
-    await logActivity(dbOrTx, { companyId: input.companyId, actorType: "agent", actorId: input.agentId, agentId: input.agentId,
+    if (ids.length) await dbOrTx.insert(decisionTargetIssues).values(ids.map((issueId) => ({ decisionId: id, issueId, spaceId: input.spaceId })));
+    await logActivity(dbOrTx, { spaceId: input.spaceId, actorType: "agent", actorId: input.agentId, agentId: input.agentId,
       runId: input.runId, action: "decision.created", entityType: "decision", entityId: id,
       details: { originIssueId: provenance.issueId, originAgentId: input.agentId, originResponsibleUserId: provenance.run.responsibleUserId } });
     return created;
@@ -281,13 +281,13 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
     return { ...decision, executions };
   }
 
-  async function list(companyId: string, filter: { status?: string; bundleId?: string; targetIssueId?: string; originAgentId?: string; limit?: number } = {}) {
-    const conditions = [eq(decisions.companyId, companyId)];
+  async function list(spaceId: string, filter: { status?: string; bundleId?: string; targetIssueId?: string; originAgentId?: string; limit?: number } = {}) {
+    const conditions = [eq(decisions.spaceId, spaceId)];
     if (filter.status) conditions.push(eq(decisions.status, filter.status));
     if (filter.bundleId) conditions.push(eq(decisions.bundleId, filter.bundleId));
     if (filter.originAgentId) conditions.push(eq(decisions.originAgentId, filter.originAgentId));
     if (filter.targetIssueId) {
-      const links = await db.select({ id: decisionTargetIssues.decisionId }).from(decisionTargetIssues).where(and(eq(decisionTargetIssues.companyId, companyId), eq(decisionTargetIssues.issueId, filter.targetIssueId)));
+      const links = await db.select({ id: decisionTargetIssues.decisionId }).from(decisionTargetIssues).where(and(eq(decisionTargetIssues.spaceId, spaceId), eq(decisionTargetIssues.issueId, filter.targetIssueId)));
       if (!links.length) return [];
       conditions.push(inArray(decisions.id, links.map((row) => row.id)));
     }
@@ -298,8 +298,8 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
     const currentTargets = openDecisionIds.length && currentIssueTargetIds.length
       ? await db.select({ id: issues.id, updatedAt: issues.updatedAt })
         .from(decisionTargetIssues)
-        .innerJoin(issues, and(eq(issues.companyId, companyId), eq(issues.id, decisionTargetIssues.issueId)))
-        .where(and(eq(decisionTargetIssues.companyId, companyId), inArray(decisionTargetIssues.decisionId, openDecisionIds), inArray(issues.id, currentIssueTargetIds)))
+        .innerJoin(issues, and(eq(issues.spaceId, spaceId), eq(issues.id, decisionTargetIssues.issueId)))
+        .where(and(eq(decisionTargetIssues.spaceId, spaceId), inArray(decisionTargetIssues.decisionId, openDecisionIds), inArray(issues.id, currentIssueTargetIds)))
       : [];
     const currentTargetsById = new Map(currentTargets.map((target) => [target.id, target.updatedAt]));
     const attentionSnapshotIds = rows.flatMap((decision) => Object.values(decision.targetSnapshots as Record<string, Snapshot>))
@@ -308,7 +308,7 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
       .map((entry) => entry.sourceId);
     const currentAttentionStates = attentionSnapshotIds.length
       ? await db.select().from(decisionRetention).where(and(
-        eq(decisionRetention.companyId, companyId),
+        eq(decisionRetention.spaceId, spaceId),
         inArray(decisionRetention.sourceId, attentionSnapshotIds),
       ))
       : [];
@@ -346,8 +346,8 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
     });
   }
 
-  async function stats(companyId: string, filter: { originAgentId?: string; since?: Date } = {}): Promise<DecisionStatsResponse> {
-    const conditions = [eq(decisions.companyId, companyId)];
+  async function stats(spaceId: string, filter: { originAgentId?: string; since?: Date } = {}): Promise<DecisionStatsResponse> {
+    const conditions = [eq(decisions.spaceId, spaceId)];
     if (filter.originAgentId) conditions.push(eq(decisions.originAgentId, filter.originAgentId));
     if (filter.since) conditions.push(gte(decisions.createdAt, filter.since));
     const dismissed = sql<boolean>`coalesce(${decisions.metadata}->'dismissed' = 'true'::jsonb, false)`;
@@ -402,7 +402,7 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
 
   async function effectAudit(tx: Db, decision: typeof decisions.$inferSelect, executionId: string, effect: DecisionEffect,
     status: "executed" | "failed" | "skipped", decidedByUserId: string, originResponsibleUserId: string | null, details: Record<string, unknown>) {
-    return logActivity(tx, { companyId: decision.companyId, actorType: "system", actorId: "decision-executor", agentId: decision.originAgentId,
+    return logActivity(tx, { spaceId: decision.spaceId, actorType: "system", actorId: "decision-executor", agentId: decision.originAgentId,
       runId: decision.originRunId, responsibleUserIdOverride: decidedByUserId, action: `decision.effect_${status}`, entityType: "decision", entityId: decision.id,
       details: { effectType: effect.type, targetIssueId: effect.targetIssueId, originIssueId: decision.originIssueId, originAgentId: decision.originAgentId,
         chosenOptionId: decision.chosenOptionId, executionId, decidedByUserId, originResponsibleUserId, ...details } });
@@ -453,10 +453,10 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
           return finish("failed", "invalid_signed_cancellation_scope", { reason: "invalid_signed_cancellation_scope" });
         }
         const referencedIds = new Set([...directReferencedIds, ...(cancellationDescendantIds ?? [])]);
-        const referencedIssues = await tx.select().from(issues).where(and(eq(issues.companyId, decision.companyId), inArray(issues.id, [...referencedIds])));
+        const referencedIssues = await tx.select().from(issues).where(and(eq(issues.spaceId, decision.spaceId), inArray(issues.id, [...referencedIds])));
         if (referencedIssues.length !== referencedIds.size) return finish("failed", "invalid_effect_reference", { reason: "invalid_effect_reference" });
         const target = referencedIssues.find((item) => item.id === effect.targetIssueId)!;
-        const originActor: AuthorizationActor = { type: "agent", agentId: decision.originAgentId, companyId: decision.companyId,
+        const originActor: AuthorizationActor = { type: "agent", agentId: decision.originAgentId, spaceId: decision.spaceId,
           runId: decision.originRunId, onBehalfOfUserId: originResponsibleUserId, source: "agent_jwt" };
         const originAction = effect.type === "comment_on_issue" ? "issue:comment" : "issue:mutate";
         const originAccess = await Promise.all(referencedIssues.map((item) => authz.decide({ actor: originActor, action: originAction, resource: resource(item) })));
@@ -469,16 +469,16 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
           userAccess = await authz.decide({ actor: userActor, action: "tasks:assign", resource: { ...resource(target), parentIssueId, projectId },
             scope: { issueId: target.id, parentIssueId, projectId, assigneeAgentId, assigneeUserId } });
         } else {
-          userAccess = boardCanActDirectly(userActor, decision.companyId)
+          userAccess = operatorCanActDirectly(userActor, decision.spaceId)
             ? { allowed: true, reason: "allow_board_direct_route" }
-            : { allowed: false, reason: "deny_company_boundary" };
+            : { allowed: false, reason: "deny_space_boundary" };
         }
         const deniedOrigin = originAccess.find((access) => !access.allowed);
         if (!userAccess.allowed || deniedOrigin) return finish("failed", "deny_decision_intersection",
           { reason: "deny_decision_intersection", userReason: userAccess.reason, originReason: deniedOrigin?.reason ?? null });
         const assignment = effect.type === "assign_issue" ? effect : effect.type === "create_issue" ? effect.draft : null;
         await assertAgentInteraction(tx, {
-          companyId: decision.companyId, actorAgentId: decision.originAgentId,
+          spaceId: decision.spaceId, actorAgentId: decision.originAgentId,
           operation: assignment ? "assign" : effect.type === "comment_on_issue" ? "comment" : "edit",
           issueId: effect.type === "create_issue" ? undefined : target.id,
           targetAgentId: assignment?.assigneeAgentId, assigneeUserId: assignment?.assigneeUserId,
@@ -488,12 +488,12 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
         const effectComment = effect.type === "cancel_issue_tree" ? effect.reasonComment
           : "comment" in effect ? effect.comment : undefined;
         if (effectComment) await assertAgentInteraction(tx, {
-          companyId: decision.companyId, actorAgentId: decision.originAgentId,
+          spaceId: decision.spaceId, actorAgentId: decision.originAgentId,
           operation: "comment", issueId: target.id, texts: [interpolate(effectComment, decision.inputValues ?? {})], lock: true,
         });
         if (effect.type === "cancel_issue_tree") {
           for (const child of referencedIssues.filter(item => item.id !== target.id)) {
-            await assertAgentInteraction(tx, { companyId: decision.companyId, actorAgentId: decision.originAgentId,
+            await assertAgentInteraction(tx, { spaceId: decision.spaceId, actorAgentId: decision.originAgentId,
               operation: "edit", issueId: child.id, lock: true });
           }
         }
@@ -501,7 +501,7 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
           const staleReference = referencedIssues.some((item) => directReferencedIds.has(item.id) &&
             snapshots[item.id]?.updatedAt !== item.updatedAt.toISOString());
           const changedTree = effect.type === "cancel_issue_tree" && !sameIds(cancellationDescendantIds!,
-            await collectDescendantIds(decision.companyId, target.id, tx as unknown as Db));
+            await collectDescendantIds(decision.spaceId, target.id, tx as unknown as Db));
           if (staleReference || changedTree) return finish("skipped", "target_changed", { reason: "target_changed" });
         }
         const svc = issueService(db);
@@ -535,7 +535,7 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
           if (effect.comment) await svc.addComment(target.id, interpolate(effect.comment, values), { userId: decidedByUserId, runId: decision.originRunId }, { clientRequestId: lockKey }, tx);
           result = { issueId: updated?.id };
         } else if (effect.type === "resolve_blocker") {
-          const current = await tx.select({ id: issueRelations.issueId }).from(issueRelations).where(and(eq(issueRelations.companyId, decision.companyId), eq(issueRelations.relatedIssueId, target.id), eq(issueRelations.type, "blocks")));
+          const current = await tx.select({ id: issueRelations.issueId }).from(issueRelations).where(and(eq(issueRelations.spaceId, decision.spaceId), eq(issueRelations.relatedIssueId, target.id), eq(issueRelations.type, "blocks")));
           await svc.update(
             target.id,
             {
@@ -549,7 +549,7 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
           result = { removedBlockedByIssueIds: effect.removeBlockedByIssueIds };
         } else if (effect.type === "create_issue") {
           const draft = effect.draft;
-          const created = await svc.create(decision.companyId, { title: draft.title, description: draft.description ?? null, parentId: draft.parentId ?? target.id,
+          const created = await svc.create(decision.spaceId, { title: draft.title, description: draft.description ?? null, parentId: draft.parentId ?? target.id,
             assigneeAgentId: draft.assigneeAgentId ?? null, assigneeUserId: draft.assigneeUserId ?? null, projectId: draft.projectId ?? target.projectId,
             goalId: draft.goalId ?? null, blockedByIssueIds: draft.blockedByIssueIds ?? [], createdByUserId: decidedByUserId, actorRunId: decision.originRunId,
             idempotencyKey: `decision-effect:${decision.id}:${effectIndex}` });
@@ -595,7 +595,7 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
       }
       // Recovery derives authority from the current claim inside the shared flight.
       const actor = userActor ?? (current.decidedByUserId
-        ? await recoveryActor(current.companyId, current.decidedByUserId)
+        ? await recoveryActor(current.spaceId, current.decidedByUserId)
         : { type: "none" as const, source: "none" as const });
       return { outcome: await executeDecisionEffects(current, actor), resumed: true };
     })().finally(() => { executing.delete(id); });
@@ -619,12 +619,12 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
         effectRecoveryError: reason,
         ...(current.continuationPolicy === "wake_origin_agent" ? { continuationPending: true } : {}),
       } }).where(eq(decisions.id, id));
-      await logActivity(tx, { companyId: current.companyId, actorType: "system", actorId: "decision-executor",
+      await logActivity(tx, { spaceId: current.spaceId, actorType: "system", actorId: "decision-executor",
         agentId: current.originAgentId, runId: current.originRunId, responsibleUserIdOverride: current.decidedByUserId,
         action: "decision.recovery_failed", entityType: "decision", entityId: id,
         details: { reason, executionStatus, chosenOptionId: current.chosenOptionId, decidedByUserId: current.decidedByUserId },
       }, publications);
-    }, { companyId: decision.companyId, sourceId: id });
+    }, { spaceId: decision.spaceId, sourceId: id });
     for (const publication of publications) publishActivity(publication);
     return outcome(id);
   }
@@ -641,31 +641,31 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
         targetSnapshots: decision.targetSnapshots as Record<string, Snapshot>,
       }), decision.signedSpec)) {
         await writeDecisionChange(db, async tx => tx.update(decisions).set({ executionStatus: "failed", updatedAt: new Date(), metadata: { ...metadata, archiveProposalError: "invalid_signature", ...(decision.continuationPolicy === "wake_origin_agent" ? { continuationPending: true } : {}) } })
-          .where(and(eq(decisions.id, decision.id), eq(decisions.executionStatus, "running"))), { companyId: decision.companyId, sourceId: decision.id });
+          .where(and(eq(decisions.id, decision.id), eq(decisions.executionStatus, "running"))), { spaceId: decision.spaceId, sourceId: decision.id });
         return outcome(decision.id);
       }
       if (option.id === "archive") {
         const manifest = parseAttentionArchiveManifest(
-          decision.companyId,
+          decision.spaceId,
           decision.targetSnapshots as Record<string, Snapshot>,
         );
         const manifestHash = manifest ? hashAttentionArchiveManifest(manifest) : null;
         if (!manifest || manifestHash !== metadata.manifestHash) {
           await writeDecisionChange(db, async tx => tx.update(decisions).set({ executionStatus: "failed", updatedAt: new Date(), metadata: { ...metadata, archiveProposalError: "manifest_mismatch", ...(decision.continuationPolicy === "wake_origin_agent" ? { continuationPending: true } : {}) } })
-            .where(and(eq(decisions.id, decision.id), eq(decisions.executionStatus, "running"))), { companyId: decision.companyId, sourceId: decision.id });
+            .where(and(eq(decisions.id, decision.id), eq(decisions.executionStatus, "running"))), { spaceId: decision.spaceId, sourceId: decision.id });
           return outcome(decision.id);
         }
         const originActor: AuthorizationActor = {
           type: "agent",
           agentId: decision.originAgentId,
-          companyId: decision.companyId,
+          spaceId: decision.spaceId,
           runId: decision.originRunId,
           onBehalfOfUserId: run?.responsibleUserId ?? null,
           source: "agent_jwt",
         };
         try {
           await decisionRetentionService(db).archiveReviewedManifest({
-            companyId: decision.companyId,
+            spaceId: decision.spaceId,
             manifest,
             originActor,
             decidingActor: userActor,
@@ -674,7 +674,7 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
         } catch (error) {
           const message = error instanceof Error ? error.message : "archive_proposal_failed";
           await writeDecisionChange(db, async tx => tx.update(decisions).set({ executionStatus: "failed", updatedAt: new Date(), metadata: { ...metadata, archiveProposalError: message, ...(decision.continuationPolicy === "wake_origin_agent" ? { continuationPending: true } : {}) } })
-            .where(and(eq(decisions.id, decision.id), eq(decisions.executionStatus, "running"))), { companyId: decision.companyId, sourceId: decision.id });
+            .where(and(eq(decisions.id, decision.id), eq(decisions.executionStatus, "running"))), { spaceId: decision.spaceId, sourceId: decision.id });
           return outcome(decision.id);
         }
       }
@@ -682,7 +682,7 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
         executionStatus: "succeeded",
         updatedAt: new Date(),
         metadata: { ...metadata, ...(decision.continuationPolicy === "wake_origin_agent" ? { continuationPending: true } : {}) },
-      }).where(and(eq(decisions.id, decision.id), eq(decisions.executionStatus, "running"))), { companyId: decision.companyId, sourceId: decision.id });
+      }).where(and(eq(decisions.id, decision.id), eq(decisions.executionStatus, "running"))), { spaceId: decision.spaceId, sourceId: decision.id });
       return outcome(decision.id);
     }
     for (let index = 0; index < option.effects.length; index += 1) await executeEffect(decision, option.effects[index]!, index, userActor, decision.decidedByUserId, run?.responsibleUserId ?? null);
@@ -690,7 +690,7 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
     const successful = rows.filter((row) => row.status === "executed").length;
     const status = rows.every((row) => row.status === "executed") ? "succeeded" : successful ? "partial" : "failed";
     await writeDecisionChange(db, async tx => tx.update(decisions).set({ executionStatus: status, updatedAt: new Date(), metadata: { ...decision.metadata,
-      ...(decision.continuationPolicy === "wake_origin_agent" ? { continuationPending: true } : {}) } }).where(and(eq(decisions.id, decision.id), eq(decisions.executionStatus, "running"))), { companyId: decision.companyId, sourceId: decision.id });
+      ...(decision.continuationPolicy === "wake_origin_agent" ? { continuationPending: true } : {}) } }).where(and(eq(decisions.id, decision.id), eq(decisions.executionStatus, "running"))), { spaceId: decision.spaceId, sourceId: decision.id });
     return outcome(decision.id);
   }
 
@@ -729,10 +729,10 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
         decideIdempotencyKey: input.idempotencyKey ?? null,
         ...(current.continuationPolicy === "wake_origin_agent" ? { continuationPending: true } : {}),
         ...(input.dismissed ? { dismissed: true, dismissReason: input.dismissReason ?? null } : {}) } })
-      .where(and(eq(decisions.id, current.id), eq(decisions.status, "open"))).returning(), { companyId: current.companyId, sourceId: current.id });
+      .where(and(eq(decisions.id, current.id), eq(decisions.status, "open"))).returning(), { spaceId: current.spaceId, sourceId: current.id });
     if (!claimed) throw conflict("decision_already_resolved", { code: "decision_already_resolved" });
     const run = await db.select({ responsibleUserId: heartbeatRuns.responsibleUserId }).from(heartbeatRuns).where(eq(heartbeatRuns.id, claimed.originRunId)).then((rows) => rows[0] ?? null);
-    await logActivity(db, { companyId: claimed.companyId, actorType: "system", actorId: "decision-executor", agentId: claimed.originAgentId, runId: claimed.originRunId,
+    await logActivity(db, { spaceId: claimed.spaceId, actorType: "system", actorId: "decision-executor", agentId: claimed.originAgentId, runId: claimed.originRunId,
       responsibleUserIdOverride: input.decidedByUserId, action: input.dismissed ? "decision.dismissed" : "decision.decided", entityType: "decision", entityId: claimed.id,
       details: { chosenOptionId: input.optionId, decidedByUserId: input.decidedByUserId, originResponsibleUserId: run?.responsibleUserId ?? null,
         ...(input.dismissed ? { dismissed: true, dismissReason: input.dismissReason ?? null } : {}) } });
@@ -747,9 +747,9 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
       return (await get(id))!;
     }
     const [updated] = await writeDecisionChange(db, async tx => tx.update(decisions).set({ status: "cancelled", updatedAt: new Date(), metadata: { ...current.metadata,
-      ...(current.continuationPolicy === "wake_origin_agent" ? { continuationPending: true } : {}) } }).where(and(eq(decisions.id, id), eq(decisions.status, "open"))).returning(), { companyId: current.companyId, sourceId: id });
+      ...(current.continuationPolicy === "wake_origin_agent" ? { continuationPending: true } : {}) } }).where(and(eq(decisions.id, id), eq(decisions.status, "open"))).returning(), { spaceId: current.spaceId, sourceId: id });
     if (!updated) throw conflict("decision_already_resolved", { code: "decision_already_resolved" });
-    await logActivity(db, { companyId: updated.companyId, actorType: actor.actorType, actorId: actor.actorId, runId: actor.runId, action: "decision.cancelled", entityType: "decision", entityId: id });
+    await logActivity(db, { spaceId: updated.spaceId, actorType: actor.actorType, actorId: actor.actorId, runId: actor.runId, action: "decision.cancelled", entityType: "decision", entityId: id });
     await continuations.deliver(updated.id);
     return (await get(id))!;
   }
@@ -761,20 +761,20 @@ export function decisionService(db: Db, options: DecisionServiceOptions) {
     if (empty) return decide({ id, optionId: empty.id, decidedByUserId: userId, userActor, dismissed: true, dismissReason: reason });
     const [updated] = await writeDecisionChange(db, async tx => tx.update(decisions).set({ status: "decided", executionStatus: "succeeded", chosenOptionId: "dismissed", decidedByUserId: userId,
       decidedAt: new Date(), updatedAt: new Date(), metadata: { ...current.metadata, dismissed: true, dismissReason: reason ?? null,
-        ...(current.continuationPolicy === "wake_origin_agent" ? { continuationPending: true } : {}) } }).where(and(eq(decisions.id, id), eq(decisions.status, "open"))).returning(), { companyId: current.companyId, sourceId: id });
+        ...(current.continuationPolicy === "wake_origin_agent" ? { continuationPending: true } : {}) } }).where(and(eq(decisions.id, id), eq(decisions.status, "open"))).returning(), { spaceId: current.spaceId, sourceId: id });
     if (!updated) throw conflict("decision_already_resolved", { code: "decision_already_resolved" });
-    await logActivity(db, { companyId: updated.companyId, actorType: "system", actorId: "decision-executor", agentId: updated.originAgentId,
+    await logActivity(db, { spaceId: updated.spaceId, actorType: "system", actorId: "decision-executor", agentId: updated.originAgentId,
       runId: updated.originRunId, responsibleUserIdOverride: userId, action: "decision.dismissed", entityType: "decision", entityId: updated.id,
       details: { chosenOptionId: "dismissed", decidedByUserId: userId, dismissed: true } });
     await continuations.deliver(updated.id);
     return outcome(id);
   }
 
-  async function createBundle(input: { companyId: string; actor: AuthorizationActor; agentId: string; runId: string; title: string; summary: string;
-    decisions: Array<Omit<Parameters<typeof create>[0], "companyId" | "actor" | "agentId" | "runId" | "bundleId">> }) {
-    return db.transaction(async (tx) => { const provenance = await origin(input.companyId, input.agentId, input.runId);
-      const [bundle] = await tx.insert(decisionBundles).values({ companyId: input.companyId, title: input.title, summary: input.summary, originAgentId: input.agentId, originIssueId: provenance.issueId, originRunId: input.runId }).returning();
-      const created = []; for (const item of input.decisions) created.push(await create({ ...item, companyId: input.companyId, actor: input.actor, agentId: input.agentId, runId: input.runId, bundleId: bundle.id }, tx as unknown as Db));
+  async function createBundle(input: { spaceId: string; actor: AuthorizationActor; agentId: string; runId: string; title: string; summary: string;
+    decisions: Array<Omit<Parameters<typeof create>[0], "spaceId" | "actor" | "agentId" | "runId" | "bundleId">> }) {
+    return db.transaction(async (tx) => { const provenance = await origin(input.spaceId, input.agentId, input.runId);
+      const [bundle] = await tx.insert(decisionBundles).values({ spaceId: input.spaceId, title: input.title, summary: input.summary, originAgentId: input.agentId, originIssueId: provenance.issueId, originRunId: input.runId }).returning();
+      const created = []; for (const item of input.decisions) created.push(await create({ ...item, spaceId: input.spaceId, actor: input.actor, agentId: input.agentId, runId: input.runId, bundleId: bundle.id }, tx as unknown as Db));
       return { ...bundle, decisions: created }; });
   }
 

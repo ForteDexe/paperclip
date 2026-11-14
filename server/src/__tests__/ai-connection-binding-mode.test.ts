@@ -20,7 +20,7 @@ describe("AI connection binding mode guard", () => {
     } as unknown as AiConnectionBinding;
 
     const error = await service.select({
-      companyId: "33333333-3333-4333-8333-333333333333",
+      spaceId: "33333333-3333-4333-8333-333333333333",
       userId: "user-1",
       agentId: "44444444-4444-4444-8444-444444444444",
       adapterType: "codex_local",

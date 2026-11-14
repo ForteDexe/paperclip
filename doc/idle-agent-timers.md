@@ -1,7 +1,7 @@
 # Agent timer deadlines
 
 The agent timer worker reconstructs its next deadline from existing agent,
-company, issue, run, and cost records. It no longer receives a wake from the
+space, issue, run, and cost records. It no longer receives a wake from the
 server's recurring heartbeat interval. The queue service owns timer policy and
 admission; scheduling selects eligible agents and registers the earliest result
 with the shared delivery coordinator. No table or independent scheduler is added.
@@ -15,7 +15,7 @@ checks. Successful finalization updates the last heartbeat and moves the next
 deadline. An attempted admission still follows the existing claim semantics;
 this change does not promise replay of every elapsed interval.
 
-Only active companies and invokable agents with valid reporting chains qualify.
+Only active spaces and invokable agents with valid reporting chains qualify.
 Worktree execution suppression and the worktree issue creation cutoff still
 apply. A disabled timer or zero interval has no deadline. When
 `skipTimerWhenNoActionableWork` is enabled, the queue's existing actionable-work
@@ -44,7 +44,7 @@ notifications request another read and are not an in-memory queue length.
 | --- | --- |
 | Timer configuration or reporting chain | Agent configuration service, including `updateAgentConfigurationInTransaction`; agent deletion's report reassignment |
 | Agent eligibility | Lifecycle status transition hook, including rejection through a saved hire approval |
-| Company eligibility | Company update/archive; company budget pause/resume |
+| Space eligibility | Space update/archive; space budget pause/resume |
 | Last heartbeat and daily run claim | Queue timer claim/skip paths, suppression claim release, heartbeat finalization, active-run watchdog finalization |
 | Actionable task creation/status/assignment/visibility | Issue create/update/checkout/release/admin release/delete, including checkout's second adoption transaction |
 | Restored or reassigned tasks | Subtree cancellation restoration, member archival reassignment, native workspace reconstruction |
@@ -54,7 +54,7 @@ notifications request another read and are not an in-memory queue length.
 | Worktree activation | Experimental settings owner; scheduling requests a fresh suppression read |
 
 Agent creation/approval remains governed by lifecycle preparation and its eventual
-status transition. Company deletion requires completed agent termination, which
+status transition. Space deletion requires completed agent termination, which
 already removes timer eligibility. Ordinary run insertion, execution-lock changes,
 monitor metadata, nonnegative cost accumulation, and terminal run retention do
 not create earlier timer eligibility by themselves. In particular, a conversation

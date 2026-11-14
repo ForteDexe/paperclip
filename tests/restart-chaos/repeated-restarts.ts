@@ -198,7 +198,7 @@ export async function runRepeatedRestarts<P>(input: {
     }
     if (hooks.cancelled()) throw new Error(`Harness shutdown interrupted repeated restart ${index}`);
     const exited = hooks.exitStatus(server);
-    if (exited) throw new Error(`Paperclip server exited on its own before repeated restart ${index} (code=${exited.code} signal=${exited.signal})`);
+    if (exited) throw new Error(`Outpost server exited on its own before repeated restart ${index} (code=${exited.code} signal=${exited.signal})`);
     const phaseAtStop = stopOn ? await hooks.waitForStopPhase!(server, stopOn) : await hooks.readPhase();
     const entry: RepeatedRestartEntry = { index, signal: step.signal, gapMs: stopOn ? null : step.gapMs, pid: hooks.pidOf(server), phaseAtStop,
       stopAt: hooks.now(), stoppedAt: null, restartedAt: null, replacementPid: null, healthyAt: null };

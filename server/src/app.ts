@@ -67,7 +67,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Db } from "@outpost/db";
 import {
-  derivePaperclipViteHmrPort,
+  deriveOutpostViteHmrPort,
   type DeploymentExposure,
   type DeploymentMode,
 } from "@outpost/shared";
@@ -76,7 +76,7 @@ import type { StorageService } from "./storage/types.js";
 import { httpLogger, errorHandler } from "./middleware/index.js";
 import { skillAccessRequestContext } from "./services/skill-access.js";
 import { actorMiddleware } from "./middleware/auth.js";
-import { boardMutationGuard } from "./middleware/board-mutation-guard.js";
+import { operatorMutationGuard } from "./middleware/operator-mutation-guard.js";
 import {
   privateHostnameGuard,
   resolvePrivateHostnameAllowSet,
@@ -87,18 +87,18 @@ import {
 } from "./middleware/trust-proxy.js";
 import {
   resolveDefaultImportTransferSpoolRoot,
-} from "./services/company-import-transfers.js";
+} from "./services/space-import-transfers.js";
 import { registerImportSpoolCleanupWork } from "./services/import-spool-cleanup-work.js";
-import { companyTransferRunService } from "./services/company-transfer-runs.js";
+import { spaceTransferRunService } from "./services/space-transfer-runs.js";
 import { healthRoutes } from "./routes/health.js";
 import { readinessRoutes } from "./routes/ready.js";
 import { livenessRoutes } from "./routes/liveness.js";
 import { cloudRuntimeIdentityMiddleware } from "./middleware/cloud-runtime-identity.js";
 import { cloudControlMiddleware } from "./middleware/cloud-control.js";
 import { cloudRoutes } from "./routes/cloud.js";
-import { companyRoutes } from "./routes/companies.js";
-import { companySkillRoutes } from "./routes/company-skills.js";
-import { companySkillPolicyRoutes } from "./routes/company-skill-policy.js";
+import { spaceRoutes } from "./routes/spaces.js";
+import { spaceSkillRoutes } from "./routes/space-skills.js";
+import { spaceSkillPolicyRoutes } from "./routes/space-skill-policy.js";
 import { inboxAgentPolicyRoutes } from "./routes/inbox-agent-policy.js";
 import { builtInAgentRoutes } from "./routes/built-in-agents.js";
 import { folderRoutes } from "./routes/folders.js";
@@ -108,7 +108,7 @@ import { teamsCatalogRoutes } from "./routes/teams-catalog.js";
 import { agentRoutes } from "./routes/agents.js";
 import { agentInteractionPermissionRoutes } from "./routes/agent-interaction-permissions.js";
 import { agentPermissionGrantRoutes } from "./routes/agent-permission-grants.js";
-import { resolveAgentRunnerTargetForCompany } from "./services/agent-runner-selection.js";
+import { resolveAgentRunnerTargetForSpace } from "./services/agent-runner-selection.js";
 import type { SetupTokenSessionService } from "./services/setup-token-session.js";
 import {
   buildSetupTokenLoginTransport,
@@ -242,7 +242,7 @@ import {
   DEFAULT_JSON_BODY_LIMIT,
   PORTABLE_JSON_BODY_LIMIT,
 } from "./http/body-limits.js";
-import { COMPANY_IMPORT_API_PATH } from "./routes/company-import-paths.js";
+import { SPACE_IMPORT_API_PATH } from "./routes/space-import-paths.js";
 import { apiCompression } from "./middleware/api-compression.js";
 import { apiServerTiming } from "./middleware/api-server-timing.js";
 import { chatWebhookBodyParser } from "./middleware/chat-webhook-body.js";
@@ -277,7 +277,7 @@ export function isDatabaseConnectionUnavailableError(err: unknown): boolean {
 }
 
 export function resolveViteHmrPort(serverPort: number): number {
-  return derivePaperclipViteHmrPort(serverPort);
+  return deriveOutpostViteHmrPort(serverPort);
 }
 
 export function resolveViteHmrHost(bindHost: string): string | undefined {
@@ -451,7 +451,7 @@ export async function createApp(
     authPublicBaseUrl?: string;
     chatWebhookPublicBaseUrl?: string;
     authReady: boolean;
-    companyDeletionEnabled: boolean;
+    spaceDeletionEnabled: boolean;
     announcements?: { enabled: boolean; feedUrl: string };
     instanceId?: string;
     hostVersion?: string;
@@ -480,13 +480,13 @@ export async function createApp(
   app.use(databaseOperationMiddleware);
   app.use(idleAdmissionMiddleware);
   const staticUi = express.Router();
-  app.locals.paperclipDb = db;
+  app.locals.outpostDb = db;
   const isWarmStandby = opts.cloudWarmStandby ?? (() => false);
   const health = healthRoutes(db, {
     deploymentMode: opts.deploymentMode,
     deploymentExposure: opts.deploymentExposure,
     authReady: opts.authReady,
-    companyDeletionEnabled: opts.companyDeletionEnabled,
+    spaceDeletionEnabled: opts.spaceDeletionEnabled,
     databaseBackupHealth: opts.databaseBackupHealth,
     isWarmStandby,
   });
@@ -504,7 +504,7 @@ export async function createApp(
   applyTrustProxy(app, parseTrustProxyEnv(process.env.TRUST_PROXY));
 
   app.use(
-    COMPANY_IMPORT_API_PATH,
+    SPACE_IMPORT_API_PATH,
     express.json({
       limit: PORTABLE_JSON_BODY_LIMIT,
       verify: captureRawBody,
@@ -554,7 +554,7 @@ export async function createApp(
   app.use("/api/liveness", livenessRoutes());
   app.use("/api/ready", readinessRoutes());
   // A signed claim above commits identity before any normal request can seed
-  // company data. Unclaimed probes bypass session resolution as well as SQL.
+  // space data. Unclaimed probes bypass session resolution as well as SQL.
   app.use(cloudWarmStandbyMiddleware(isWarmStandby, health, staticUi));
   const workerManager = opts.pluginWorkerManager ?? createPluginWorkerManager();
   app.use("/api/customer-success/v1", customerSuccessRoutes(db, opts.storageService, {
@@ -590,7 +590,7 @@ export async function createApp(
   });
   if (opts.budgetResumeDelivery) opts.budgetResumeDelivery.prepareChatRetry = chatChannels.prepareFailedChatRunRetry;
   // Voice capabilities are verified by the signed callback route, not by
-  // board/agent bearer authentication. Mount before actorMiddleware so its
+  // operator/agent bearer authentication. Mount before actorMiddleware so its
   // per-session Bearer cannot be mistaken for an agent API key.
   app.use(voiceWebhookRoutes(db, chatChannels.voice));
   app.use(
@@ -611,9 +611,9 @@ export async function createApp(
   }
   app.use(llmRoutes(db));
 
-  // Provider-authenticated ingress is intentionally outside the board
+  // Provider-authenticated ingress is intentionally outside the operator
   // mutation guard. The Chat SDK adapter verifies the provider signature
-  // before Paperclip persists or acts on any event.
+  // before Outpost persists or acts on any event.
   const emailChannels = emailChannelService(db, {
     isReconciliationEnabled: () => !isWarmStandby(),
     isBackgroundWorkEnabled: () => !isWarmStandby() && !isIdleTaskDrainActive(),
@@ -688,15 +688,15 @@ export async function createApp(
   const api = Router();
   const agentAvatars = agentAvatarRoutes();
   api.use(agentAvatars.router);
-  api.use(boardMutationGuard());
+  api.use(operatorMutationGuard());
   api.use("/health", health);
   api.use(openApiRoutes());
   api.use("/cloud", cloudRoutes());
-  api.use("/companies", companyRoutes(db, opts.storageService));
+  api.use("/spaces", spaceRoutes(db, opts.storageService));
   api.use(llmRoutes(db));
   api.use(folderRoutes(db));
-  api.use(companySkillRoutes(db, { pluginWorkerManager: workerManager }));
-  api.use(companySkillPolicyRoutes(db));
+  api.use(spaceSkillRoutes(db, { pluginWorkerManager: workerManager }));
+  api.use(spaceSkillPolicyRoutes(db));
   api.use(inboxAgentPolicyRoutes(db));
   api.use(agentCommentaryRoutes(db));
   api.use(agentChatMessageRoutes(db));
@@ -761,7 +761,7 @@ export async function createApp(
     store: createProductionSetupTokenCleanupStore(db),
     // Bind the atomic credential-claim writer, so a completed login transitions
     // the durable row to `stored` and stores the minted token in one control-plane
-    // transaction. The writer reads the company and the owner only from the
+    // transaction. The writer reads the space and the owner only from the
     // immutable session scope. The confirm-replacement flow owns rotation. Without
     // this writer the router falls back to the deferred, fail-closed 503 and never
     // stores the token.
@@ -1009,7 +1009,7 @@ export async function createApp(
   api.use(
     adapterRoutes({
       db,
-      resolveRunnerTarget: (companyId, environmentId) => resolveAgentRunnerTargetForCompany(db, companyId, environmentId),
+      resolveRunnerTarget: (spaceId, environmentId) => resolveAgentRunnerTargetForSpace(db, spaceId, environmentId),
       getNativeRunnerEnabled: async () =>
         (await instanceSettingsService(db).getExperimental())
           .enableNativeRunner === true,
@@ -1285,18 +1285,18 @@ export async function createApp(
   registerBrowserUseCleanup(deliveryWork, browserUse, () => !isIdleTaskDrainActive());
 
 
-  void companyTransferRunService
+  void spaceTransferRunService
     .recoverStrandedApplyingRuns(db)
     .then((recovered) => {
       if (recovered.length > 0) {
         logger.warn(
           { count: recovered.length, runIds: recovered },
-          "failed company transfer runs stranded in applying by a restart",
+          "failed space transfer runs stranded in applying by a restart",
         );
       }
     })
     .catch((err) => {
-      logger.error({ err }, "stranded company transfer apply recovery failed");
+      logger.error({ err }, "stranded space transfer apply recovery failed");
     });
   void toolDispatcher.initialize().catch((err) => {
     logger.error({ err }, "Failed to initialize plugin tool dispatcher");
@@ -1402,7 +1402,7 @@ export async function createApp(
     });
     return appServicesShutdown;
   };
-  app.locals.paperclipShutdown = shutdownAppServices;
+  app.locals.outpostShutdown = shutdownAppServices;
 
   // The `exit` event is synchronous. It cannot await the teardown, so it runs
   // the best-effort cleanup and drops the returned promise. The orderly signal

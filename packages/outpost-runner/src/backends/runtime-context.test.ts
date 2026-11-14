@@ -33,7 +33,7 @@ function runtimeInput(
   return {
     provider: { kind: "codex" },
     runtimeContext: {
-      prompt: { text: "Paperclip runtime." },
+      prompt: { text: "Outpost runtime." },
       instructions: { bundle: { rootPath }, entryPath },
     },
   } as unknown as NativeExecutionInput;
@@ -48,7 +48,7 @@ describe("native runtime context files", () => {
 
   it("reads an instruction entry contained by its bundle root", () => {
     const temporaryRoot = mkdtempSync(
-      join(tmpdir(), "paperclip-runtime-context-"),
+      join(tmpdir(), "outpost-runtime-context-"),
     );
     temporaryRoots.push(temporaryRoot);
     const bundleRoot = join(temporaryRoot, "bundle");
@@ -66,7 +66,7 @@ describe("native runtime context files", () => {
     ).join("\n");
 
     expect(constraints).toContain(
-      "Obtain one accepted result from paperclip_finish or paperclip_block before writing",
+      "Obtain one accepted result from outpost_finish or outpost_block before writing",
     );
     expect(constraints).toContain("before writing the complete user-facing final response.");
     expect(constraints).toContain("If blocked, explain why work cannot continue, name the owner and give the unblock action.");
@@ -85,9 +85,9 @@ describe("native runtime context files", () => {
     );
   });
 
-  it("distinguishes durable Paperclip documents from requested file deliverables", () => {
+  it("distinguishes durable Outpost documents from requested file deliverables", () => {
     const constraints = nativeTaskConstraints(runtimeInput("/bundle", "AGENTS.md")).join("\n");
-    expect(constraints).toContain("Paperclip documents directly with write_document");
+    expect(constraints).toContain("Outpost documents directly with write_document");
     expect(constraints).toContain("unless the user also requests a downloadable file");
     expect(constraints).toContain("register_deliverable");
     expect(constraints).toContain("deliverable:");
@@ -310,7 +310,7 @@ describe("native runtime context files", () => {
       },
       credentialBindings: [],
       binding: {
-        companyId: "company",
+        spaceId: "space",
         runId: "run",
         issueId: "issue",
         agentId: "agent",
@@ -324,7 +324,7 @@ describe("native runtime context files", () => {
       },
       provider: { kind: "codex", model: "gpt-test", approvalPolicy: "never" },
       runtimeContext: {
-        prompt: { text: "Paperclip runtime." },
+        prompt: { text: "Outpost runtime." },
         instructions: {
           bundle: { rootPath: "/workspace" },
           entryPath: "AGENTS.md",
@@ -374,7 +374,7 @@ describe("native runtime context files", () => {
 
   it("rejects traversal and symlink escapes from the bundle root", () => {
     const temporaryRoot = mkdtempSync(
-      join(tmpdir(), "paperclip-runtime-context-"),
+      join(tmpdir(), "outpost-runtime-context-"),
     );
     temporaryRoots.push(temporaryRoot);
     const bundleRoot = join(temporaryRoot, "bundle");
@@ -397,8 +397,8 @@ describe("native runtime context files", () => {
 
 describe("explicit task skill selection", () => {
   const context = {
-    skills: [{ key: "company/onboarding", runtimeName: "first-task", bundle: { rootPath: "/assigned/content-addressed-bundle" } },
-      { key: "company/research", runtimeName: "research", bundle: { rootPath: "/assigned/research" } }],
+    skills: [{ key: "space/onboarding", runtimeName: "first-task", bundle: { rootPath: "/assigned/content-addressed-bundle" } },
+      { key: "space/research", runtimeName: "research", bundle: { rootPath: "/assigned/research" } }],
   } as unknown as import("../contracts/runtime-context.js").NativeRuntimeContextSnapshot;
   it("resolves the actual assigned path for initial and subsequent onboarding wakes", () => {
     const description = "Use the `first-task` skill (/first-task) for this onboarding task, including subsequent wakes.";

@@ -7,7 +7,7 @@ matrices. The [conversion brief](../../doc/plans/2026-10-29-antigravity-journey-
 records all 47 source-step dispositions, immutable source hashes, original grades,
 earlier failures and evidence limits.
 
-The fixed browser driver starts on the company dashboard, follows Agents → New
+The fixed browser driver starts on the space dashboard, follows Agents → New
 Agent, selects Google Antigravity in the ordinary grid with Advanced collapsed,
 reuses the saved personal Google subscription, selects the exact low model and
 Local environment, and runs the native prompt-free Test. Finish must reach actual
@@ -29,18 +29,18 @@ target, not an implemented or verified remote observer path.
 
 Required existing state:
 
-- A dedicated test company and local execution environment; expected and observed
+- A dedicated test space and local execution environment; expected and observed
   serving commit and deployment mode must match. The harness never resets or
   restarts an attached target. Its roster already contains a nonterminated agent,
   so the measured creation is an additional-agent path.
 - A dedicated signed-in QA browser profile for the intended board operator, with
-  company agent/instruction/task creation and saved-connection use rights. The
+  space agent/instruction/task creation and saved-connection use rights. The
   normal profile ownership marker and exclusive lock apply; do not use a normal
   personal Chrome profile.
 - The same person's saved managed Google subscription, with its existing personal
-  default grant. The private setup names exact connection, owner, company and
+  default grant. The private setup names exact connection, owner, space and
   environment references. Names alone do not establish the binding.
-- A current, finite **trusted operator startup admission** for that company,
+- A current, finite **trusted operator startup admission** for that space,
   `gemini-3.8-flash-low`, local darwin-arm64, native version, profile and closure.
   The config's pins assert provenance; they cannot grant admission. The global
   release remains pending and closed by default.
@@ -66,7 +66,7 @@ One-time test-drive/bootstrap setup remains the operator's supported workspace
 owner responsibility. This suite does not implement a managed-local target
 bootstrap, mint candidate authority, install a provider through a test-only path,
 or import an operator's CLI credential home. Install the maintained native assets
-through `paperclipai runtime setup antigravity` as the OS user running Paperclip.
+through `outpost runtime setup antigravity` as the OS user running Outpost.
 Then use the existing product UI to establish the saved account once. Per-attempt
 preflight verifies those declared prerequisites; the measured **new agent** must
 remain absent until the visible creation flow.
@@ -93,7 +93,7 @@ setup and retains a blocked report.
     "baseURL": "http://127.0.0.1:YOUR_PORT",
     "expectedCommit": "EXACT_40_CHARACTER_SERVING_COMMIT",
     "deploymentMode": "local_trusted",
-    "companyId": "EXISTING_TEST_COMPANY_UUID",
+    "spaceId": "EXISTING_TEST_SPACE_UUID",
     "environmentId": "EXISTING_LOCAL_ENVIRONMENT_UUID"
   },
   "browser": {
@@ -138,7 +138,7 @@ run or inference edge must be recorded, not omitted from accounting.
 
 ## Commands
 
-Run from the Paperclip repository root, with its normal workspace dependencies
+Run from the Outpost repository root, with its normal workspace dependencies
 installed. The maintained source files own all behavior; no author-local helper
 script is required. Discovery and credential-free checks do no provider work:
 
@@ -234,7 +234,7 @@ price preservation. Browser calibration includes hidden duplicate/menu/SVG Done
 text beside the intended visible task status. Synthetic fixtures establish these
 gates, not Google behavior or discoverability.
 
-Raw authenticated setup screenshots, concrete account/company/agent/task/native
+Raw authenticated setup screenshots, concrete account/space/agent/task/native
 session identifiers, browser state and ownership receipts stay private. Do not
 mark these captures `public-runner-fixture`, publish original walkthrough HTML,
 or copy provider payloads into public evidence. Source aliases and hashes are
@@ -243,19 +243,19 @@ safe provenance; any public projection remains the existing sanitizer's allowlis
 ## Cleanup and interrupted recovery
 
 Before forwarding the ordinary wizard's draft POST unchanged, the campaign
-journals only its future `setupId`, exact company/name/origin, intended harness
+journals only its future `setupId`, exact space/name/origin, intended harness
 and preflight browser-user identity. It does not store the full request body or
 credentials. The private journal serializes snapshots, fsyncs a private temporary
 file, atomically renames it, and fsyncs its directory; failure aborts forwarding.
 The response must match that future ID and creator. If the response is lost,
-recovery reads that exact ID, verifies company/name/creator and uniqueness, then
+recovery reads that exact ID, verifies space/name/creator and uniqueness, then
 persists the verified ID before cleanup mutations. A pending creation returning
 404 remains unconfirmed; a name match alone grants no ownership. Existing
 receipts with a known response and no new optional witness remain supported.
-The receipt binds target/company, execution/attempt and immutable created
+The receipt binds target/space, execution/attempt and immutable created
 resources before later task dispatch. Cleanup stops only owned active work, verifies
 settlement and native retirement, then pauses/removes the owned agent according
-to `retainAgent`. Supplied company/environment/browser identity and saved Google
+to `retainAgent`. Supplied space/environment/browser identity and saved Google
 connection/default grant remain intact and are reverified. It never revokes a
 shared credential or resets the target. Retained task history remains inspectable.
 Use `retainAgent: true` for accounted work: cleanup leaves the owned agent paused
@@ -263,7 +263,7 @@ and preserves its task and cost history. Purge remains subject to the product's
 ledger constraints; the fixture never removes accounting rows to force deletion.
 For cancellation before native selection, cleanup instead persists a closed
 no-launch receipt from the server's settled preparation and explicit null native
-ownership fields, settled accounting, and exact company/run/environment lease.
+ownership fields, settled accounting, and exact space/run/environment lease.
 That lease must have a concrete release timestamp no later than preparation
 settlement; `expired` is accepted only in this no-launch variant. Missing or
 pending receipts retain the agent. This branch creates no physical capture proof.

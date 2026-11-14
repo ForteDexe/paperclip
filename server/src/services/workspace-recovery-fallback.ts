@@ -54,7 +54,7 @@ const transientReasons = ["writer_active", "workspace_operation_running", "execu
   "allocation_in_use", "ownership_busy", "fallback_failed", "source_changed"];
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
-type Source = { companyId: string; issueId: string; runId: string; actionId: string };
+type Source = { spaceId: string; issueId: string; runId: string; actionId: string };
 type Ownership = { token: string; assertHeld(): Promise<void> };
 type Quarantine = NonNullable<ExecutionReconciliation["retainedSourceFallback"]>["quarantine"];
 export type RetainedSourceFallbackResult = { kind: "continued" | "settled" } | { kind: "ineligible"; reason: string };
@@ -91,7 +91,7 @@ async function uncertainExternalAction(db: Db, run: typeof heartbeatRuns.$inferS
   // Semantic control-plane receipts are written in the same transaction as
   // their effect, so they are never uncertain. Upstream tool calls can be.
   const [invocation] = await db.select({ id: toolInvocations.id }).from(toolInvocations).where(and(
-    eq(toolInvocations.companyId, run.companyId), eq(toolInvocations.runId, run.id),
+    eq(toolInvocations.spaceId, run.spaceId), eq(toolInvocations.runId, run.id),
     sql`${toolInvocations.riskLevel} is distinct from 'read'`,
     inArray(toolInvocations.status, ["executing", "failed", "timed_out"]),
     sql`${toolInvocations.startedAt} is not null`)).limit(1);
@@ -104,11 +104,11 @@ async function inspectFallback(db: Db, input: Source, lock: boolean, requireStop
   const one = async <T>(query: PromiseLike<T[]> & { for(mode: "update"): PromiseLike<T[]> }): Promise<T | null> =>
     (await (lock ? query.for("update") : query))[0] ?? null;
   const refuse = (reason: string) => ({ kind: "ineligible" as const, reason });
-  const issue = await one(db.select().from(issues).where(and(eq(issues.companyId, input.companyId), eq(issues.id, input.issueId))).limit(1));
+  const issue = await one(db.select().from(issues).where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, input.issueId))).limit(1));
   const coordinator = await one(db.select().from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.runId, input.runId))).limit(1));
-  const run = await one(db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId))).limit(1));
-  const action = await one(db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, input.companyId),
+    eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.runId, input.runId))).limit(1));
+  const run = await one(db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId))).limit(1));
+  const action = await one(db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, input.spaceId),
     eq(issueRecoveryActions.sourceIssueId, input.issueId), eq(issueRecoveryActions.id, input.actionId))).limit(1));
   if (!issue || !run || !action) return refuse("source_changed");
   if (object(action.evidence.retainedSourceFallback).schema === RETAINED_SOURCE_FALLBACK_SCHEMA) return { kind: "settled" as const };
@@ -125,7 +125,7 @@ async function inspectFallback(db: Db, input: Source, lock: boolean, requireStop
   if (!parsed.success || parsed.data.state !== "prepared") return refuse("not_remote_workspace_source");
   const reference = parsed.data;
   const workspace = await one(db.select().from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.id, reference.workspaceId))).limit(1));
+    eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.id, reference.workspaceId))).limit(1));
   let authority;
   try { authority = readRemoteWorkspaceAuthority(workspace?.metadata); } catch { return refuse("workspace_authority_invalid"); }
   // Only the exact epoch this run wrote is abandoned; a newer writer is never touched.
@@ -136,14 +136,14 @@ async function inspectFallback(db: Db, input: Source, lock: boolean, requireStop
   }
   if (reference.snapshotId) {
     const [snapshot] = await db.select({ id: executionWorkspaceSnapshots.id }).from(executionWorkspaceSnapshots).where(and(
-      eq(executionWorkspaceSnapshots.companyId, input.companyId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
+      eq(executionWorkspaceSnapshots.spaceId, input.spaceId), eq(executionWorkspaceSnapshots.executionWorkspaceId, workspace.id),
       eq(executionWorkspaceSnapshots.id, reference.snapshotId), eq(executionWorkspaceSnapshots.status, "committed"))).limit(1);
     if (!snapshot) return refuse("last_save_missing");
   }
   // A live writer keeps its files. A queued turn of this task that never
   // started cannot write: this hold gates its dispatch.
   const [writer] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), ne(heartbeatRuns.id, run.id), inArray(heartbeatRuns.status, ["queued", "running"]),
+    eq(heartbeatRuns.spaceId, input.spaceId), ne(heartbeatRuns.id, run.id), inArray(heartbeatRuns.status, ["queued", "running"]),
     sql`not coalesce(${heartbeatRuns.status} = 'queued' and ${heartbeatRuns.startedAt} is null
       and ${heartbeatRuns.processPid} is null and ${heartbeatRuns.processGroupId} is null, false)`,
     or(eq(heartbeatRuns.nativeIssueId, issue.id), eq(heartbeatRuns.issueId, issue.id),
@@ -152,18 +152,18 @@ async function inspectFallback(db: Db, input: Source, lock: boolean, requireStop
   if (writer) return refuse("writer_active");
   // No second executor: every allocation of the source run has a provider stop receipt.
   if (requireStopped) {
-    const leases = await db.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId),
+    const leases = await db.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId),
       eq(environmentLeases.heartbeatRunId, run.id)));
     if (!leases.some(lease => lease.id === reference.leaseId)
       || leases.some(lease => !hasRemoteTerminationReceipt(lease) && !hasRecoveredCleanupStopReceipt(lease))) return refuse("execution_not_stopped");
   }
   const [operation] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
+    eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
     eq(workspaceOperations.status, "running"))).limit(1);
   if (operation) return refuse("workspace_operation_running");
   // Pending and uncertain effects keep the existing reconciliation path.
   const [effect] = coordinator?.decisionId ? await db.select({ id: statusDecisionEffects.id }).from(statusDecisionEffects).where(and(
-    eq(statusDecisionEffects.companyId, input.companyId), eq(statusDecisionEffects.issueId, issue.id),
+    eq(statusDecisionEffects.spaceId, input.spaceId), eq(statusDecisionEffects.issueId, issue.id),
     eq(statusDecisionEffects.decisionId, coordinator.decisionId), inArray(statusDecisionEffects.deliveryState, ["pending", "failed"]))).limit(1) : [];
   if (effect) return refuse("side_effect_pending");
   if (await uncertainExternalAction(db, run)) return refuse("external_action_uncertain");
@@ -193,24 +193,24 @@ function unreadable(reason: string): Quarantine {
 async function quarantineRetainedRoot(db: Db, input: Source & { environmentRuntime: EnvironmentRuntimeService; ownership: Ownership },
   source: Extract<Awaited<ReturnType<typeof inspectFallback>>, { kind: "eligible" }>): Promise<Quarantine> {
   const [existing] = await db.select({ metadata: workspaceOperations.metadata }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.heartbeatRunId, input.runId),
+    eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.heartbeatRunId, input.runId),
     eq(workspaceOperations.phase, RETAINED_SOURCE_QUARANTINE_PHASE), eq(workspaceOperations.status, "succeeded"),
     sql`${workspaceOperations.metadata}->>'recoveryActionId' = ${input.actionId}`)).limit(1);
   const saved = object(existing?.metadata?.quarantine);
   if (saved.state === "captured") return saved as Quarantine;
   const { reference } = source;
-  const [lease] = await db.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId),
+  const [lease] = await db.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId),
     eq(environmentLeases.id, reference.leaseId), eq(environmentLeases.heartbeatRunId, input.runId)));
   if (!lease?.environmentId || lease.providerLeaseId !== reference.providerLeaseId) return unreadable("allocation_missing");
   if (hasRemoteTerminationReceipt(lease) && object(lease.metadata?.remoteExecutionTermination).state === "destroyed")
     return unreadable("sandbox_destroyed");
   const [environment] = await db.select().from(environments).where(eq(environments.id, lease.environmentId));
   if (!environment) return unreadable("environment_missing");
-  const scratch = await mkdtemp(path.join(os.tmpdir(), "paperclip-quarantine-"));
+  const scratch = await mkdtemp(path.join(os.tmpdir(), "outpost-quarantine-"));
   try {
     const tarball = path.join(scratch, "unverified.tar");
     try {
-      const target = await resolveEnvironmentExecutionTarget({ db, companyId: input.companyId, adapterType: "outpost_runner",
+      const target = await resolveEnvironmentExecutionTarget({ db, spaceId: input.spaceId, adapterType: "outpost_runner",
         environment, leaseId: lease.id, leaseMetadata: lease.metadata, lease: lease as EnvironmentLease, environmentRuntime: input.environmentRuntime });
       if (target?.kind !== "remote" || target.transport !== "sandbox" || !target.runner) return unreadable("target_unavailable");
       await input.ownership.assertHeld();
@@ -233,17 +233,17 @@ async function quarantineRetainedRoot(db: Db, input: Source & { environmentRunti
     const sha256 = hash.digest("hex");
     const filename = `unverified-files-run-${input.runId}.tar`;
     await input.ownership.assertHeld();
-    const stored = await getStorageService().putFile({ companyId: input.companyId, namespace: "workspace-recovery-quarantine",
-      objectKey: `${input.companyId}/workspace-recovery-quarantine/${input.runId}/${sha256}.tar`, originalFilename: filename,
+    const stored = await getStorageService().putFile({ spaceId: input.spaceId, namespace: "workspace-recovery-quarantine",
+      objectKey: `${input.spaceId}/workspace-recovery-quarantine/${input.runId}/${sha256}.tar`, originalFilename: filename,
       contentType: "application/x-tar", body: createReadStream(tarball), byteSize, sha256 });
     await input.ownership.assertHeld();
     return await db.transaction(async tx => {
-      const [asset] = await tx.insert(assets).values({ companyId: input.companyId, provider: stored.provider, objectKey: stored.objectKey,
+      const [asset] = await tx.insert(assets).values({ spaceId: input.spaceId, provider: stored.provider, objectKey: stored.objectKey,
         contentType: "application/x-tar", byteSize, sha256, originalFilename: filename }).returning();
-      const [attachment] = await tx.insert(issueAttachments).values({ companyId: input.companyId, issueId: input.issueId,
+      const [attachment] = await tx.insert(issueAttachments).values({ spaceId: input.spaceId, issueId: input.issueId,
         assetId: asset!.id }).returning();
       const quarantine: Quarantine = { state: "captured", attachmentId: attachment!.id, filename, sha256, byteSize };
-      await tx.insert(workspaceOperations).values({ companyId: input.companyId, issueId: input.issueId, heartbeatRunId: input.runId,
+      await tx.insert(workspaceOperations).values({ spaceId: input.spaceId, issueId: input.issueId, heartbeatRunId: input.runId,
         executionWorkspaceId: source.workspace.id, phase: RETAINED_SOURCE_QUARANTINE_PHASE, status: "succeeded", finishedAt: new Date(),
         metadata: { schema: RETAINED_SOURCE_FALLBACK_SCHEMA, recoveryActionId: input.actionId, verified: false, applied: false,
           leaseId: lease.id, providerLeaseId: lease.providerLeaseId, remoteCwd: reference.remoteCwd, epoch: reference.epoch, quarantine } });
@@ -265,7 +265,7 @@ async function sandboxHeldByAnotherLease(db: Db, lease: Pick<typeof environmentL
  * is never stopped from here. */
 async function confirmSourceAllocationStopped(db: Db, input: Source & { environmentRuntime: EnvironmentRuntimeService; ownership: Ownership },
   leaseId: string): Promise<"stopped" | "in_use" | "unconfirmed"> {
-  const [lease] = await db.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId),
+  const [lease] = await db.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId),
     eq(environmentLeases.id, leaseId), eq(environmentLeases.heartbeatRunId, input.runId)));
   if (!lease?.environmentId || !lease.provider || !lease.providerLeaseId) return "unconfirmed";
   if (hasRemoteTerminationReceipt(lease) || hasRecoveredCleanupStopReceipt(lease)) return "stopped";
@@ -274,7 +274,7 @@ async function confirmSourceAllocationStopped(db: Db, input: Source & { environm
   if (!environment) return "unconfirmed";
   await input.ownership.assertHeld();
   const pending = await db.transaction(async tx => {
-    const [fresh] = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId),
+    const [fresh] = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId),
       eq(environmentLeases.id, lease.id))).for("update");
     if (!fresh || fresh.metadata?.pendingCleanupInFlight === true) return null;
     const prepared = hasStopOnlyCleanup(fresh) ? fresh : fresh.status === "released"
@@ -310,7 +310,7 @@ export async function continueFromLastSavedWorkspace(input: Source & {
   const initial = await inspectFallback(db, input, false);
   if (initial.kind !== "eligible") return initial;
   // An unstopped source in a sandbox another lease holds waits; nothing is read or stopped.
-  const [sourceLease] = await db.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId),
+  const [sourceLease] = await db.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId),
     eq(environmentLeases.id, initial.reference.leaseId), eq(environmentLeases.heartbeatRunId, input.runId)));
   if (sourceLease && !hasRemoteTerminationReceipt(sourceLease) && !hasRecoveredCleanupStopReceipt(sourceLease)
     && await sandboxHeldByAnotherLease(db, sourceLease)) return { kind: "ineligible", reason: "allocation_in_use" };
@@ -325,10 +325,10 @@ export async function continueFromLastSavedWorkspace(input: Source & {
     if (current.system.generationId !== initial.system.generationId || current.system.revision !== initial.system.revision)
       return { result: { kind: "ineligible" as const, reason: "source_changed" }, publication: null };
     const { issue, run, action, reference } = current;
-    const abandoned = await abandonUnverifiedRemoteWorkspaceEpoch(tx, { companyId: input.companyId, workspaceId: reference.workspaceId,
+    const abandoned = await abandonUnverifiedRemoteWorkspaceEpoch(tx, { spaceId: input.spaceId, workspaceId: reference.workspaceId,
       runId: run.id, epoch: reference.epoch, snapshotId: reference.snapshotId, location: current.authority.location! });
     const [waitingInput] = await tx.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, input.companyId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
+      eq(agentWakeupRequests.spaceId, input.spaceId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
       eq(agentWakeupRequests.requestedByActorType, "user"), sql`${agentWakeupRequests.payload}->>'issueId' = ${issue.id}`)).limit(1);
     const fallback: NonNullable<ExecutionReconciliation["retainedSourceFallback"]> = { schema: RETAINED_SOURCE_FALLBACK_SCHEMA,
       outcome: RETAINED_SOURCE_FALLBACK_OUTCOME, workspaceId: reference.workspaceId, abandonedEpoch: reference.epoch,
@@ -360,11 +360,11 @@ export async function continueFromLastSavedWorkspace(input: Source & {
     await tx.update(issueRecoveryActions).set({ status: "resolved", outcome: "restored", resolvedAt: now, updatedAt: now,
       ownerType: "system", ownerAgentId: null, ownerUserId: null, returnOwnerAgentId: action.returnOwnerAgentId ?? run.agentId,
       resolutionNote: RETAINED_SOURCE_FALLBACK_OUTCOME, nextAction: userText, wakePolicy: null, monitorPolicy: null, evidence,
-    }).where(and(eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, action.id)));
+    }).where(and(eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, action.id)));
     // The abandoned source must never be replayed or replaced automatically.
     await tx.update(nativeRunFinalizations).set({ failureDetail: sql`coalesce(${nativeRunFinalizations.failureDetail}, '{}'::jsonb)
       || ${JSON.stringify({ replacementDenied: RETAINED_SOURCE_FALLBACK_OUTCOME })}::jsonb` }).where(and(
-      eq(nativeRunFinalizations.companyId, input.companyId), eq(nativeRunFinalizations.runId, run.id)));
+      eq(nativeRunFinalizations.spaceId, input.spaceId), eq(nativeRunFinalizations.runId, run.id)));
     if (ownsBlock) {
       await tx.update(issues).set({ status: "todo", unblockDescriptor: null, blockedTransitionAt: null,
         blockedOwnerNotifiedAt: null, updatedAt: now }).where(eq(issues.id, issue.id));
@@ -372,9 +372,9 @@ export async function continueFromLastSavedWorkspace(input: Source & {
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionContinuation);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-    await notifyStatusCardIssueChange(tx, input.companyId);
-    await notifyRoutineExecutionStatus(tx, issue.id, input.companyId);
-    const publication = await persistActivity(tx as unknown as Db, { companyId: input.companyId, actorType: "system",
+    await notifyStatusCardIssueChange(tx, input.spaceId);
+    await notifyRoutineExecutionStatus(tx, issue.id, input.spaceId);
+    const publication = await persistActivity(tx as unknown as Db, { spaceId: input.spaceId, actorType: "system",
       actorId: "workspace-recovery", action: "issue.workspace_recovery_continued_from_last_saved", entityType: "issue",
       entityId: issue.id, runId: run.id, details: { recoveryActionId: action.id, failureCode: current.system.failure?.code ?? null,
         ...fallback } });
@@ -391,7 +391,7 @@ export async function continueFromLastSavedWorkspace(input: Source & {
  * permanent one waits for new input, Retry or a new recovery generation. */
 export async function recordRetainedSourceFallbackDeferral(db: Db, input: Source, reason: string) {
   const [row] = await db.select({ evidence: issueRecoveryActions.evidence }).from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.sourceIssueId, input.issueId),
+    eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.sourceIssueId, input.issueId),
     eq(issueRecoveryActions.id, input.actionId)));
   const system = readSystemRecovery(row?.evidence);
   // A hold outside the fallback's scope keeps its evidence unchanged.
@@ -403,7 +403,7 @@ export async function recordRetainedSourceFallbackDeferral(db: Db, input: Source
     nextCheckAt: transient ? Date.now() + FALLBACK_RECHECK_MS : null };
   await db.update(issueRecoveryActions).set({ evidence: sql`${issueRecoveryActions.evidence} ||
     jsonb_build_object(${RETAINED_SOURCE_FALLBACK_CHECK_KEY}::text, ${JSON.stringify(marker)}::jsonb)` }).where(and(
-    eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, input.actionId),
+    eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, input.actionId),
     sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,generationId}' = ${system.generationId}`,
     sql`${issueRecoveryActions.evidence}->'retainedSourceFallback' is null`));
 }
@@ -420,7 +420,7 @@ export async function settleExhaustedRetainedHold(input: Source & { db: Db; envi
   const sibling = await settleSiblingRecoveredHold(db, input);
   if (sibling === "settled") return true;
   const [row] = options.fallback ? await db.select({ evidence: issueRecoveryActions.evidence }).from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.sourceIssueId, input.issueId),
+    eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.sourceIssueId, input.issueId),
     eq(issueRecoveryActions.id, input.actionId))) : [];
   if (!options.fallback || !retainedHoldFallbackEligible(row?.evidence, state)) {
     // A sibling marked recovered without a receipt that still verifies cannot
@@ -430,7 +430,7 @@ export async function settleExhaustedRetainedHold(input: Source & { db: Db; envi
   }
   let reason: string;
   try {
-    const owned = await withNativeWorkspaceFinalizationOwnership({ db, companyId: input.companyId, runId: input.runId,
+    const owned = await withNativeWorkspaceFinalizationOwnership({ db, spaceId: input.spaceId, runId: input.runId,
       retainedRepairActionId: input.actionId }, ownership => continueFromLastSavedWorkspace({ ...input, ownership }));
     if (owned.acquired && owned.value.kind !== "ineligible") return true;
     reason = !owned.acquired ? "ownership_busy" : owned.value.kind === "ineligible" ? owned.value.reason : "fallback_failed";
@@ -450,11 +450,11 @@ export async function settleExhaustedRetainedHold(input: Source & { db: Db; envi
  */
 export async function settleSiblingRecoveredHold(db: Db, input: Source) {
   const settled = await db.transaction(async tx => {
-    const [issue] = await tx.select().from(issues).where(and(eq(issues.companyId, input.companyId),
+    const [issue] = await tx.select().from(issues).where(and(eq(issues.spaceId, input.spaceId),
       eq(issues.id, input.issueId))).for("update");
-    const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId),
+    const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId),
       eq(heartbeatRuns.id, input.runId))).for("update");
-    const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, input.companyId),
+    const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, input.spaceId),
       eq(issueRecoveryActions.sourceIssueId, input.issueId), eq(issueRecoveryActions.id, input.actionId))).for("update");
     if (!issue || !run || !action || action.evidence.runId !== run.id) return null;
     if (object(action.evidence.siblingWorkspaceRecovery).schema === SIBLING_WORKSPACE_RECOVERY_SCHEMA) return "already" as const;
@@ -468,11 +468,11 @@ export async function settleSiblingRecoveredHold(db: Db, input: Source) {
       || system?.state !== "exhausted" || system.sourceRunId !== run.id) return null;
     const receiptId = await verifiedWorkspaceRepairReceipt(tx as unknown as Db, run);
     const [receipt] = receiptId ? await tx.select({ metadata: workspaceOperations.metadata }).from(workspaceOperations).where(and(
-      eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.id, receiptId))) : [];
+      eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.id, receiptId))) : [];
     const siblingActionId = receipt?.metadata?.recoveryActionId;
     if (!receiptId || typeof siblingActionId !== "string" || siblingActionId === action.id) {
       const [recoveredSibling] = await tx.select({ id: issueRecoveryActions.id }).from(issueRecoveryActions).where(and(
-        eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.sourceIssueId, input.issueId),
+        eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.sourceIssueId, input.issueId),
         ne(issueRecoveryActions.id, action.id), sql`${issueRecoveryActions.evidence}->>'runId' = ${run.id}`,
         sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,state}' = 'complete'`,
         sql`${issueRecoveryActions.evidence}#>>'{workspaceRecovery,status}' = 'recovered'`)).limit(1);
@@ -490,7 +490,7 @@ export async function settleSiblingRecoveredHold(db: Db, input: Source) {
           attempt: prior?.attempt ?? system.attempts, attemptLimit: prior?.attemptLimit ?? 6, requestIds: prior?.requestIds ?? [], retryable: false },
         siblingWorkspaceRecovery: { schema: SIBLING_WORKSPACE_RECOVERY_SCHEMA, receiptId, recoveryActionId: siblingActionId,
           recordedAt: now.toISOString() } },
-    }).where(and(eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, action.id)));
+    }).where(and(eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, action.id)));
     // A no-replay hold that still owns the task's Blocked status releases it,
     // so saved input and normal wakes continue the task. An export hold's
     // status stays with its own result finalization. A newer decision's
@@ -500,11 +500,11 @@ export async function settleSiblingRecoveredHold(db: Db, input: Source) {
         blockedOwnerNotifiedAt: null, updatedAt: now }).where(eq(issues.id, issue.id));
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.issueMonitors);
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.agentTimers);
-      await notifyStatusCardIssueChange(tx, input.companyId);
-      await notifyRoutineExecutionStatus(tx, issue.id, input.companyId);
+      await notifyStatusCardIssueChange(tx, input.spaceId);
+      await notifyRoutineExecutionStatus(tx, issue.id, input.spaceId);
     }
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionContinuation);
-    return persistActivity(tx as unknown as Db, { companyId: input.companyId, actorType: "system", actorId: "workspace-recovery",
+    return persistActivity(tx as unknown as Db, { spaceId: input.spaceId, actorType: "system", actorId: "workspace-recovery",
       action: "issue.workspace_recovered", entityType: "issue", entityId: issue.id, runId: run.id,
       details: { recoveryActionId: action.id, recoveredByRecoveryActionId: siblingActionId, receiptId,
         summary: "Saved work recovered by another recovery of the same run." } });

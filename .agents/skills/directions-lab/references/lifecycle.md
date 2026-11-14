@@ -84,7 +84,7 @@ Precondition: Tonio chose the direction. Then, in one product PR plus one lab PR
 2. A feature-home story modelled on `ui/storybook/stories/documents-artifacts/artifact-v1-primitives.stories.tsx:43-62`:
    meta id under the feature (`:44`, `components-artifact-v1-primitives`), title under the feature prefix
    (`:45`), a description that names the setting (`:51`, "behind Settings > Experimental > Artifacts V1"),
-   and `paperclip` with `capabilities` (`:55`), `status: "proposed"` (`:56`), `implementation: "production"`
+   and `outpost` with `capabilities` (`:55`), `status: "proposed"` (`:56`), `implementation: "production"`
    (`:57`), `boundary: "fixtures"` (`:58`), `notes` (`:59`); no `home`, no `exception`. Why `proposed`
    there: the status is legal anywhere (only the proposals home forces it, `storybook-catalog.mjs:99`) and it
    keeps a flagged presentation out of coverage counts (`:165`) until the flag goes.

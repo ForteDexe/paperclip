@@ -1,9 +1,9 @@
-import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
+import type { OutpostPluginManifestV1 } from "@outpost/plugin-sdk";
 
 const PLUGIN_ID = "outpost.cloudflare-sandbox-provider";
 const PLUGIN_VERSION = "0.1.0";
 
-const manifest: PaperclipPluginManifestV1 = {
+const manifest: OutpostPluginManifestV1 = {
   id: PLUGIN_ID,
   apiVersion: 1,
   version: PLUGIN_VERSION,
@@ -35,7 +35,7 @@ const manifest: PaperclipPluginManifestV1 = {
             type: "string",
             format: "secret-ref",
             description:
-              "Bearer token used by the provider plugin when calling the Cloudflare bridge. Pasted values are stored as company secrets.",
+              "Bearer token used by the provider plugin when calling the Cloudflare bridge. Pasted values are stored as space secrets.",
           },
           reuseLease: {
             type: "boolean",
@@ -60,7 +60,7 @@ const manifest: PaperclipPluginManifestV1 = {
           },
           requestedCwd: {
             type: "string",
-            default: "/workspace/paperclip",
+            default: "/workspace/outpost",
             description: "Workspace directory to create inside the sandbox lease.",
           },
           sessionStrategy: {
@@ -71,7 +71,7 @@ const manifest: PaperclipPluginManifestV1 = {
           },
           sessionId: {
             type: "string",
-            default: "paperclip",
+            default: "outpost",
             description: "Named Cloudflare session ID used when sessionStrategy is named.",
           },
           timeoutMs: {

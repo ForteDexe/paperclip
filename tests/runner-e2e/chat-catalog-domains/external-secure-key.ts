@@ -24,8 +24,8 @@ export function gradeSecureKey(value: unknown) {
     "The selected nonsecret account is delivered as an actual human-uploaded canonical attachment with independently verified source and bytes.");
   c.add("actual-secure-credential-control", o.state.challengeVisible === true && o.state.passwordInput === true && o.state.autocompleteOff === true && o.state.humanSubmittedSecurely === true
     && o.state.secureBrowserUntraced === true && o.state.visibleReady === true, "A separate untraced human browser enters the credential only into the product's password control and sees actual completed setup.");
-  const connection = o.state.connectionAfter as { companyId: string; createdByUserId: string | null; providerURL: unknown; id: string; status: string; enabled: boolean; healthStatus: string; secretIds: string[]; serializedValueLeaked: boolean } | undefined;
-  c.add("stored-reference-and-verified-connectivity", !!connection && connection.companyId === o.companyId && connection.createdByUserId === o.state.personId && connection.providerURL === o.state.serverUrl && connection.id === o.state.connectionId && connection.status === "active" && connection.enabled === true
+  const connection = o.state.connectionAfter as { spaceId: string; createdByUserId: string | null; providerURL: unknown; id: string; status: string; enabled: boolean; healthStatus: string; secretIds: string[]; serializedValueLeaked: boolean } | undefined;
+  c.add("stored-reference-and-verified-connectivity", !!connection && connection.spaceId === o.spaceId && connection.createdByUserId === o.state.personId && connection.providerURL === o.state.serverUrl && connection.id === o.state.connectionId && connection.status === "active" && connection.enabled === true
     && connection.healthStatus === "ok" && connection.secretIds.length >= 1 && connection.serializedValueLeaked === false && Number(o.state.providerAuthorizedCatalogReads) > 0
     && o.connections.length === 1 && o.state.secureSecretsExist === true,
     "Exactly one active connection stores real credential references and a successful authenticated provider catalog check; no value is copied into public connection configuration.");
@@ -45,7 +45,7 @@ export const secureKeyExternalCases = [definition("connection-setup.secure-api-k
     const factualContextAttachment = await uploadFactualQueryAttachment(ctx, {
       filename: "provider-account.md", body: secureProviderFacts(provider.url),
     });
-    return { serverUrl: provider.url, personId: factualContextAttachment.createdByUserId, factualContextAttachment, setupPath: `/${ctx.input.fixtures.company.issuePrefix}/apps/byo` };
+    return { serverUrl: provider.url, personId: factualContextAttachment.createdByUserId, factualContextAttachment, setupPath: `/${ctx.input.fixtures.space.issuePrefix}/apps/byo` };
   } catch (error) { fixtures.delete(ctx); await provider.close(); throw error; }
 }, gradeSecureKey, {
   oracleVersion: "outpost.chat-catalog.external.v9", authentication: "human-session",
@@ -75,7 +75,7 @@ export const secureKeyExternalCases = [definition("connection-setup.secure-api-k
     const human = comments.find(row => row.authorUserId && !row.authorAgentId);
     state.factualContextVerified = !!human && await verifyChatQueryAttachments(ctx, [state.factualContextAttachment as ChatQueryAttachmentReceipt], human);
     const secretIds = [...new Set(connection.credentialSecretRefs.map(ref => ref.secretId))];
-    state.connectionAfter = { companyId: connection.companyId, createdByUserId: connection.createdByUserId, providerURL: connection.config?.url, id: connection.id, status: connection.status, enabled: connection.enabled, healthStatus: connection.healthStatus, secretIds, serializedValueLeaked: JSON.stringify(connection).includes(provider.token) };
+    state.connectionAfter = { spaceId: connection.spaceId, createdByUserId: connection.createdByUserId, providerURL: connection.config?.url, id: connection.id, status: connection.status, enabled: connection.enabled, healthStatus: connection.healthStatus, secretIds, serializedValueLeaked: JSON.stringify(connection).includes(provider.token) };
     state.secretIds = secretIds; const o = await observeExternal(ctx, state); state.secureSecretsExist = secretIds.length > 0 && secretIds.every(id => o.secrets.some(secret => secret.id === id));
     state.providerAuthorizedCatalogReads = provider.calls.filter(call => call.authorized && call.method === "tools/list").length;
     const events: unknown[] = []; for (const run of o.runs) events.push(...await collectRunEvents(afterSeq => privateScanJson(ctx, `/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=1000`)));

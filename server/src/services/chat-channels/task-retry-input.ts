@@ -20,24 +20,24 @@ export const taskRetryInputSchema = z.object({
 export type TaskRetryInput = z.infer<typeof taskRetryInputSchema>;
 
 export async function selectTaskRetryInput(tx: DbOrTransaction, input: {
-  companyId: string; issueId: string; agentId: string; failedRunId: string;
+  spaceId: string; issueId: string; agentId: string; failedRunId: string;
 }) {
   const [conversation] = await tx.select({ id: chatConversations.id, runCreatedAt: heartbeatRuns.createdAt }).from(chatConversations)
     .innerJoin(chatEndpoints, eq(chatEndpoints.id, chatConversations.endpointId))
-    .innerJoin(chatActions, and(eq(chatActions.companyId, chatConversations.companyId),
+    .innerJoin(chatActions, and(eq(chatActions.spaceId, chatConversations.spaceId),
       eq(chatActions.conversationId, chatConversations.id)))
-    .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.companyId, chatConversations.companyId),
+    .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.spaceId, chatConversations.spaceId),
       eq(heartbeatRuns.wakeupRequestId, chatActions.id))).where(and(
-      eq(chatConversations.companyId, input.companyId), eq(chatConversations.issueId, input.issueId),
+      eq(chatConversations.spaceId, input.spaceId), eq(chatConversations.issueId, input.issueId),
       eq(heartbeatRuns.id, input.failedRunId), eq(heartbeatRuns.agentId, input.agentId),
       eq(chatEndpoints.provider, "github"), eq(chatEndpoints.assignedAgentId, input.agentId),
       eq(chatEndpoints.externalExecutionPolicy, "restricted"),
     )).limit(1);
   if (!conversation) return undefined;
   const pending = await tx.select({ id: chatActions.id, status: agentWakeupRequests.status }).from(chatActions)
-    .innerJoin(agentWakeupRequests, and(eq(agentWakeupRequests.companyId, chatActions.companyId),
+    .innerJoin(agentWakeupRequests, and(eq(agentWakeupRequests.spaceId, chatActions.spaceId),
       eq(agentWakeupRequests.id, chatActions.id))).where(and(
-      eq(chatActions.companyId, input.companyId), eq(chatActions.conversationId, conversation.id),
+      eq(chatActions.spaceId, input.spaceId), eq(chatActions.conversationId, conversation.id),
       eq(chatActions.kind, "inbound_wakeup"), eq(agentWakeupRequests.agentId, input.agentId),
       or(and(eq(chatActions.status, "processed"), eq(agentWakeupRequests.status, "deferred_issue_execution")),
         and(eq(chatActions.status, "failed"), eq(agentWakeupRequests.status, "skipped"),
@@ -51,55 +51,55 @@ export async function selectTaskRetryInput(tx: DbOrTransaction, input: {
 }
 
 export async function claimTaskRetryInput(tx: DbOrTransaction, input: {
-  companyId: string; retryActionId: string; sourceActionIds: string[];
+  spaceId: string; retryActionId: string; sourceActionIds: string[];
 }) {
   if (!input.sourceActionIds.length) return;
   await tx.update(agentWakeupRequests).set({ status: "coalesced", updatedAt: new Date(),
     payload: sql`coalesce(${agentWakeupRequests.payload}, '{}'::jsonb) || ${JSON.stringify({
       coalescedIntoWakeupRequestId: input.retryActionId })}::jsonb`,
-  }).where(and(eq(agentWakeupRequests.companyId, input.companyId),
+  }).where(and(eq(agentWakeupRequests.spaceId, input.spaceId),
     inArray(agentWakeupRequests.id, input.sourceActionIds), eq(agentWakeupRequests.status, "deferred_issue_execution"),
     isNull(agentWakeupRequests.runId)));
 }
 
-export async function settleTaskRetryInput(tx: DbOrTransaction, input: { companyId: string; retryActionId: string; runId: string | null }) {
+export async function settleTaskRetryInput(tx: DbOrTransaction, input: { spaceId: string; retryActionId: string; runId: string | null }) {
   if (!input.runId) return;
   await tx.update(agentWakeupRequests).set({ runId: input.runId, updatedAt: new Date() }).where(and(
-    eq(agentWakeupRequests.companyId, input.companyId), eq(agentWakeupRequests.status, "coalesced"),
+    eq(agentWakeupRequests.spaceId, input.spaceId), eq(agentWakeupRequests.status, "coalesced"),
     isNull(agentWakeupRequests.runId),
     sql`${agentWakeupRequests.payload}->>'coalescedIntoWakeupRequestId' = ${input.retryActionId}`,
   ));
 }
 
-export async function releaseUnadmittedTaskRetryInput(db: Db, input: { companyId: string; retryActionId: string }) {
+export async function releaseUnadmittedTaskRetryInput(db: Db, input: { spaceId: string; retryActionId: string }) {
   await db.transaction(async tx => {
     const [snapshot] = await tx.select({ payload: chatActions.payload }).from(chatActions).where(and(
-      eq(chatActions.companyId, input.companyId), eq(chatActions.id, input.retryActionId),
+      eq(chatActions.spaceId, input.spaceId), eq(chatActions.id, input.retryActionId),
     ));
     const issueId = z.string().uuid().safeParse(snapshot?.payload.issueId);
     if (!issueId.success) return;
     const [issue] = await tx.select({ id: issues.id }).from(issues).where(and(
-      eq(issues.companyId, input.companyId), eq(issues.id, issueId.data),
+      eq(issues.spaceId, input.spaceId), eq(issues.id, issueId.data),
     )).for("update");
     if (!issue) return;
-    const [action] = await tx.select().from(chatActions).where(and(eq(chatActions.companyId, input.companyId),
+    const [action] = await tx.select().from(chatActions).where(and(eq(chatActions.spaceId, input.spaceId),
       eq(chatActions.id, input.retryActionId), eq(chatActions.kind, "failed_run_retry"),
       sql`${chatActions.payload}->>'issueId' = ${issue.id}`,
       inArray(chatActions.status, ["failed", "cancelled"]))).for("update");
     if (!action || typeof action.payload.taskRetryIntentId !== "string") return;
     const [receipt] = await tx.select({ runId: agentWakeupRequests.runId }).from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, input.companyId), eq(agentWakeupRequests.id, input.retryActionId),
+      eq(agentWakeupRequests.spaceId, input.spaceId), eq(agentWakeupRequests.id, input.retryActionId),
     )).for("update");
     if (receipt?.runId) return;
-    await notifyChatInboundWakeNotices(tx, { companyId: input.companyId, issueId: issue.id });
-    await notifyDeferredExecutionWork(tx, { companyId: input.companyId });
+    await notifyChatInboundWakeNotices(tx, { spaceId: input.spaceId, issueId: issue.id });
+    await notifyDeferredExecutionWork(tx, { spaceId: input.spaceId });
     await tx.update(agentWakeupRequests).set({ status: "deferred_issue_execution", finishedAt: null,
       payload: sql`${agentWakeupRequests.payload} - 'coalescedIntoWakeupRequestId'`, updatedAt: new Date(),
-    }).where(and(eq(agentWakeupRequests.companyId, input.companyId), eq(agentWakeupRequests.status, "coalesced"),
+    }).where(and(eq(agentWakeupRequests.spaceId, input.spaceId), eq(agentWakeupRequests.status, "coalesced"),
       isNull(agentWakeupRequests.runId),
       sql`${agentWakeupRequests.payload}->>'coalescedIntoWakeupRequestId' = ${input.retryActionId}`));
     await tx.update(agentWakeupRequests).set({ status: "failed", finishedAt: new Date(), updatedAt: new Date() }).where(and(
-      eq(agentWakeupRequests.companyId, input.companyId), eq(agentWakeupRequests.id, action.payload.taskRetryIntentId),
+      eq(agentWakeupRequests.spaceId, input.spaceId), eq(agentWakeupRequests.id, action.payload.taskRetryIntentId),
       eq(agentWakeupRequests.reason, "task_retry"), isNull(agentWakeupRequests.runId),
       inArray(agentWakeupRequests.status, ["deferred_issue_execution", "queued", "claimed"]),
       sql`${agentWakeupRequests.payload}#>>'{taskRetry,chatActionId}' = ${action.id}`,

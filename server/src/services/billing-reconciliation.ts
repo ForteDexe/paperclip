@@ -10,12 +10,12 @@ import { logActivity } from "./activity-log.js";
 import { applyCostCorrectionInTransaction, lockCostCorrectionOwner } from "./accounting-corrections.js";
 import type { BudgetServiceHooks } from "./budgets.js";
 
-async function invoiceCostCandidates(tx: Db, companyId: string, biller: string, line: {
+async function invoiceCostCandidates(tx: Db, spaceId: string, biller: string, line: {
   costEventId?: string | null; runId?: string | null; providerRequestId?: string | null; model?: string | null;
 }) {
   if (!(line.costEventId || line.runId || line.providerRequestId)) return [];
   return tx.select({ id: costEvents.id, cents: sql<string>`${costEvents.costCents}::text`, status: costEvents.costStatus })
-    .from(costEvents).where(and(eq(costEvents.companyId, companyId), eq(costEvents.biller, biller),
+    .from(costEvents).where(and(eq(costEvents.spaceId, spaceId), eq(costEvents.biller, biller),
       line.costEventId ? eq(costEvents.id, line.costEventId) : undefined,
       line.runId ? eq(costEvents.heartbeatRunId, line.runId) : undefined,
       line.providerRequestId ? eq(costEvents.providerRequestId, line.providerRequestId) : undefined,
@@ -24,35 +24,35 @@ async function invoiceCostCandidates(tx: Db, companyId: string, biller: string, 
 
 export function billingReconciliationService(db: Db, hooks: BudgetServiceHooks = {}) {
   return {
-    importInvoice: (companyId: string, raw: ImportBillingInvoice, actorId: string) => withAccountingTransaction(db, companyId, async (tx, publications) => {
+    importInvoice: (spaceId: string, raw: ImportBillingInvoice, actorId: string) => withAccountingTransaction(db, spaceId, async (tx, publications) => {
       const input = importBillingInvoiceSchema.parse(raw);
       // Line order in an export is not part of invoice identity.
       input.lines.sort((a,b) => a.externalId.localeCompare(b.externalId));
       const receiptHash = receiptFingerprint(input);
-      const [existing] = await tx.select().from(billingInvoices).where(and(eq(billingInvoices.companyId, companyId), eq(billingInvoices.biller, input.biller), eq(billingInvoices.externalId, input.externalId)));
+      const [existing] = await tx.select().from(billingInvoices).where(and(eq(billingInvoices.spaceId, spaceId), eq(billingInvoices.biller, input.biller), eq(billingInvoices.externalId, input.externalId)));
       if (existing) {
         if (existing.receiptHash !== receiptHash) throw conflict("Invoice identifier already has different contents");
         return existing;
       }
       // Validate explicit references, even on non-USD invoices that we cannot
-      // compare with the USD cost ledger. Never infer cross-company matches.
+      // compare with the USD cost ledger. Never infer cross-space matches.
       for (const line of input.lines) {
         if (line.costEventId) {
-          const [event] = await tx.select({ id: costEvents.id }).from(costEvents).where(and(eq(costEvents.companyId, companyId), eq(costEvents.id, line.costEventId)));
+          const [event] = await tx.select({ id: costEvents.id }).from(costEvents).where(and(eq(costEvents.spaceId, spaceId), eq(costEvents.id, line.costEventId)));
           if (!event) throw notFound("Invoice cost event not found");
         }
         if (line.runId) {
-          const [run] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, line.runId)));
+          const [run] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, line.runId)));
           if (!run) throw notFound("Invoice run not found");
         }
       }
-      const [invoice] = await tx.insert(billingInvoices).values({ companyId, biller: input.biller, externalId: input.externalId, currency: input.currency, receiptHash, importedBy: actorId }).onConflictDoNothing().returning();
+      const [invoice] = await tx.insert(billingInvoices).values({ spaceId, biller: input.biller, externalId: input.externalId, currency: input.currency, receiptHash, importedBy: actorId }).onConflictDoNothing().returning();
       if (!invoice) throw Object.assign(new Error("Concurrent invoice requires a fresh snapshot"), { code: "40001" });
-      await tx.insert(billingInvoiceLines).values(input.lines.map(line => ({ ...line, companyId, invoiceId: invoice.id, occurredAt: new Date(line.occurredAt), pricing: line.pricing ?? {} })));
+      await tx.insert(billingInvoiceLines).values(input.lines.map(line => ({ ...line, spaceId, invoiceId: invoice.id, occurredAt: new Date(line.occurredAt), pricing: line.pricing ?? {} })));
       const matches = [];
       const matchCounts = new Map<string, number>();
       for (const line of input.lines) {
-        const candidates = line.kind === "inference" ? await invoiceCostCandidates(tx, companyId, input.biller, line) : [];
+        const candidates = line.kind === "inference" ? await invoiceCostCandidates(tx, spaceId, input.biller, line) : [];
         matches.push({ line, candidates });
         if (candidates.length === 1) matchCounts.set(candidates[0].id, (matchCounts.get(candidates[0].id) ?? 0) + 1);
       }
@@ -63,14 +63,14 @@ export function billingReconciliationService(db: Db, hooks: BudgetServiceHooks =
         const costEventId = line.costEventId ?? candidates[0]?.id;
         if (line.kind === "inference" && costEventId) {
           const [recorded] = await tx.select({ id: financeEvents.id }).from(financeEvents).where(and(
-            eq(financeEvents.companyId, companyId), eq(financeEvents.costEventId, costEventId),
+            eq(financeEvents.spaceId, spaceId), eq(financeEvents.costEventId, costEventId),
             eq(financeEvents.biller, input.biller), eq(financeEvents.currency, input.currency),
             eq(financeEvents.eventKind, "inference_charge"), eq(financeEvents.direction, "debit"),
             sql`${financeEvents.metadataJson}->>'source' is distinct from 'provider_cost_report'`,
           )).limit(1);
           if (recorded) continue;
         }
-        await createFinanceEventInTransaction(tx, publications, companyId, {
+        await createFinanceEventInTransaction(tx, publications, spaceId, {
           idempotencyKey: `invoice:${invoice.id}:${receiptFingerprint(line.externalId)}`,
           biller: input.biller, externalInvoiceId: input.externalId,
           eventKind: line.kind === "inference" ? "inference_charge" : line.kind === "credit" ? "credit_refund" : "platform_fee",
@@ -81,19 +81,19 @@ export function billingReconciliationService(db: Db, hooks: BudgetServiceHooks =
           metadataJson: { source: "provider_invoice", invoiceId: invoice.id, externalLineId: line.externalId },
         }, { actorType: "user", actorId });
       }
-      await logActivity(tx, { companyId, actorType: "user", actorId, action: "accounting.invoice_imported", entityType: "billing_invoice", entityId: invoice.id,
+      await logActivity(tx, { spaceId, actorType: "user", actorId, action: "accounting.invoice_imported", entityType: "billing_invoice", entityId: invoice.id,
         details: { biller: invoice.biller, externalId: invoice.externalId, currency: invoice.currency, lineCount: input.lines.length, receiptHash } }, publications);
       return invoice;
     }),
-    list: (companyId: string) => db.select().from(billingInvoices).where(eq(billingInvoices.companyId, companyId)).orderBy(desc(billingInvoices.createdAt)).limit(100),
-    reconcile: (companyId: string, invoiceId: string) => withAccountingReadSnapshot(db, companyId, async tx => {
-      const [invoice] = await tx.select().from(billingInvoices).where(and(eq(billingInvoices.companyId, companyId), eq(billingInvoices.id, invoiceId)));
+    list: (spaceId: string) => db.select().from(billingInvoices).where(eq(billingInvoices.spaceId, spaceId)).orderBy(desc(billingInvoices.createdAt)).limit(100),
+    reconcile: (spaceId: string, invoiceId: string) => withAccountingReadSnapshot(db, spaceId, async tx => {
+      const [invoice] = await tx.select().from(billingInvoices).where(and(eq(billingInvoices.spaceId, spaceId), eq(billingInvoices.id, invoiceId)));
       if (!invoice) throw notFound("Invoice not found");
-      const lines = await tx.select().from(billingInvoiceLines).where(and(eq(billingInvoiceLines.companyId, companyId), eq(billingInvoiceLines.invoiceId, invoiceId))).orderBy(billingInvoiceLines.externalId);
+      const lines = await tx.select().from(billingInvoiceLines).where(and(eq(billingInvoiceLines.spaceId, spaceId), eq(billingInvoiceLines.invoiceId, invoiceId))).orderBy(billingInvoiceLines.externalId);
       const rows = [];
       for (const line of lines) {
         const candidates = invoice.currency !== "USD" || line.kind !== "inference" ? []
-          : await invoiceCostCandidates(tx, companyId, invoice.biller, line);
+          : await invoiceCostCandidates(tx, spaceId, invoice.biller, line);
         const match = candidates.length === 1 ? candidates[0] : null;
         const differenceCents = match ? subtractCents(line.amountCents, match.cents) : null;
         const status = invoice.currency !== "USD" ? "unsupported_currency" : line.kind !== "inference" ? "non_inference"
@@ -107,24 +107,24 @@ export function billingReconciliationService(db: Db, hooks: BudgetServiceHooks =
       for (const row of rows) if (row.matchedEventId && counts.get(row.matchedEventId)! > 1) row.status = "ambiguous";
       return { invoice, lines: rows };
     }),
-    adjustments: (companyId: string, eventId: string) => db.select().from(costAdjustments).where(and(eq(costAdjustments.companyId, companyId), eq(costAdjustments.costEventId, eventId))).orderBy(desc(costAdjustments.createdAt)),
-    adjust: async (companyId: string, eventId: string, raw: AdjustCost, actorId: string) => {
+    adjustments: (spaceId: string, eventId: string) => db.select().from(costAdjustments).where(and(eq(costAdjustments.spaceId, spaceId), eq(costAdjustments.costEventId, eventId))).orderBy(desc(costAdjustments.createdAt)),
+    adjust: async (spaceId: string, eventId: string, raw: AdjustCost, actorId: string) => {
       const input = adjustCostSchema.parse(raw);
-      const result = await withOperationAccountingTransaction(db, companyId, async (tx, publications) => {
+      const result = await withOperationAccountingTransaction(db, spaceId, async (tx, publications) => {
         const hash = receiptFingerprint({ eventId, ...input });
-        const [existing] = await tx.select().from(costAdjustments).where(and(eq(costAdjustments.companyId, companyId), eq(costAdjustments.idempotencyKey, input.idempotencyKey)));
+        const [existing] = await tx.select().from(costAdjustments).where(and(eq(costAdjustments.spaceId, spaceId), eq(costAdjustments.idempotencyKey, input.idempotencyKey)));
         if (existing) {
           if (existing.receiptHash !== hash) throw conflict("Correction key already has different contents");
           return existing;
         }
-        await lockCostCorrectionOwner(tx, companyId, eventId);
+        await lockCostCorrectionOwner(tx, spaceId, eventId);
         const [event] = await tx.select({ event: costEvents, exact: sql<string>`${costEvents.costCents}::text` }).from(costEvents)
-          .where(and(eq(costEvents.companyId, companyId), eq(costEvents.id, eventId))).for("update");
+          .where(and(eq(costEvents.spaceId, spaceId), eq(costEvents.id, eventId))).for("update");
         if (!event) throw notFound("Cost event not found");
         if (normalizeCents(event.exact) !== input.expectedCents) throw conflict("Charge changed since review; review it again");
         if (input.invoiceLineId) {
           const reportLine = await tx.select({ line: billingInvoiceLines, invoice: billingInvoices }).from(billingInvoiceLines)
-            .innerJoin(billingInvoices, eq(billingInvoices.id, billingInvoiceLines.invoiceId)).where(and(eq(billingInvoiceLines.id, input.invoiceLineId), eq(billingInvoiceLines.companyId, companyId), eq(billingInvoices.companyId, companyId)));
+            .innerJoin(billingInvoices, eq(billingInvoices.id, billingInvoiceLines.invoiceId)).where(and(eq(billingInvoiceLines.id, input.invoiceLineId), eq(billingInvoiceLines.spaceId, spaceId), eq(billingInvoices.spaceId, spaceId)));
           const row = reportLine[0];
           if (!row) throw notFound("Invoice line not found");
           if (row.invoice.currency !== "USD" || row.line.kind !== "inference" || row.invoice.biller !== event.event.biller
@@ -133,36 +133,36 @@ export function billingReconciliationService(db: Db, hooks: BudgetServiceHooks =
             || row.line.runId && row.line.runId !== event.event.heartbeatRunId
             || row.line.providerRequestId && row.line.providerRequestId !== event.event.providerRequestId
             || row.line.model && row.line.model !== event.event.model) throw unprocessable("Invoice line does not support this correction");
-          const review = await billingReconciliationService(tx).reconcile(companyId, row.invoice.id);
+          const review = await billingReconciliationService(tx).reconcile(spaceId, row.invoice.id);
           const reviewedLine = review.lines.find(line => line.id === input.invoiceLineId);
           if (!reviewedLine || !["matched", "difference"].includes(reviewedLine.status) || reviewedLine.matchedEventId !== eventId)
             throw unprocessable("Invoice match is ambiguous or unverified; review an explicit correction without attaching this line");
-          const [used] = await tx.select().from(costAdjustments).where(and(eq(costAdjustments.companyId, companyId), eq(costAdjustments.invoiceLineId, input.invoiceLineId)));
+          const [used] = await tx.select().from(costAdjustments).where(and(eq(costAdjustments.spaceId, spaceId), eq(costAdjustments.invoiceLineId, input.invoiceLineId)));
           if (used) throw conflict("Invoice line has already been applied");
         }
         const adjustment = await applyCostCorrectionInTransaction(tx, publications, {
-          companyId, eventId, ...input, actorId, receiptHash: hash,
+          spaceId, eventId, ...input, actorId, receiptHash: hash,
         });
-        const [updated] = await tx.select().from(costEvents).where(and(eq(costEvents.id, eventId), eq(costEvents.companyId, companyId)));
+        const [updated] = await tx.select().from(costEvents).where(and(eq(costEvents.id, eventId), eq(costEvents.spaceId, spaceId)));
         if (updated.usageKind === "decision") {
           const [invocation] = await tx.select({ id: decisionInvocations.id }).from(decisionInvocations).where(and(
-            eq(decisionInvocations.companyId, companyId), eq(decisionInvocations.costEventId, eventId),
+            eq(decisionInvocations.spaceId, spaceId), eq(decisionInvocations.costEventId, eventId),
           ));
           if (invocation) await tx.update(budgetReservations).set({ state: "settled", settledAt: new Date() }).where(and(
-            eq(budgetReservations.companyId, companyId), eq(budgetReservations.decisionInvocationId, invocation.id), eq(budgetReservations.state, "held"),
+            eq(budgetReservations.spaceId, spaceId), eq(budgetReservations.decisionInvocationId, invocation.id), eq(budgetReservations.state, "held"),
           ));
         }
         if (updated.usageKind === "prompt_injection") {
           const [invocation] = await tx.select({ id: promptInjectionInvocations.id }).from(promptInjectionInvocations).where(and(
-            eq(promptInjectionInvocations.companyId, companyId), eq(promptInjectionInvocations.costEventId, eventId),
+            eq(promptInjectionInvocations.spaceId, spaceId), eq(promptInjectionInvocations.costEventId, eventId),
           ));
           if (invocation) await tx.update(budgetReservations).set({ state: "settled", settledAt: new Date() }).where(and(
-            eq(budgetReservations.companyId, companyId), eq(budgetReservations.promptInjectionInvocationId, invocation.id), eq(budgetReservations.state, "held"),
+            eq(budgetReservations.spaceId, spaceId), eq(budgetReservations.promptInjectionInvocationId, invocation.id), eq(budgetReservations.state, "held"),
           ));
         }
         if (updated.usageKind === "fast_response") {
-          const [invocation] = await tx.select({ id: fastResponseRequests.id }).from(fastResponseRequests).where(and(eq(fastResponseRequests.companyId, companyId), eq(fastResponseRequests.costEventId, eventId)));
-          if (invocation) await tx.update(budgetReservations).set({ state: "settled", settledAt: new Date() }).where(and(eq(budgetReservations.companyId, companyId), eq(budgetReservations.fastResponseRequestId, invocation.id), eq(budgetReservations.state, "held")));
+          const [invocation] = await tx.select({ id: fastResponseRequests.id }).from(fastResponseRequests).where(and(eq(fastResponseRequests.spaceId, spaceId), eq(fastResponseRequests.costEventId, eventId)));
+          if (invocation) await tx.update(budgetReservations).set({ state: "settled", settledAt: new Date() }).where(and(eq(budgetReservations.spaceId, spaceId), eq(budgetReservations.fastResponseRequestId, invocation.id), eq(budgetReservations.state, "held")));
         }
         return adjustment;
       });

@@ -6,7 +6,7 @@ import {
   MAX_WINDOW_WEEKS,
   recoveryObservabilityService,
 } from "../services/recovery-observability.js";
-import { assertCompanyAccess } from "./authz.js";
+import { assertSpaceAccess } from "./authz.js";
 
 function parsePositiveNumber(
   value: unknown,
@@ -24,22 +24,22 @@ export function dashboardRoutes(db: Db) {
   const svc = dashboardService(db);
   const recoveryObservability = recoveryObservabilityService(db);
 
-  router.get("/companies/:companyId/dashboard", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const summary = await svc.summary(companyId);
+  router.get("/spaces/:spaceId/dashboard", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const summary = await svc.summary(spaceId);
     res.json(summary);
   });
 
-  router.get("/companies/:companyId/recovery-observability", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/recovery-observability", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const weeks = parsePositiveNumber(req.query.weeks, 8, MAX_WINDOW_WEEKS);
     const thresholdPercent = parsePositiveNumber(
       req.query.threshold,
       DEFAULT_RECOVERY_RATE_THRESHOLD_PERCENT,
     );
-    const report = await recoveryObservability.report(companyId, {
+    const report = await recoveryObservability.report(spaceId, {
       weeks,
       thresholdPercent,
     });

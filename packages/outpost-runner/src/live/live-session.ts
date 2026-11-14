@@ -51,19 +51,19 @@ import {
   type CapabilityRunnerdProcessEvidence,
 } from "./runnerd-codex-transport.js";
 import {
-  capturePaperclipWorkspace,
-  diffPaperclipWorkspace,
-  type PaperclipWorkspaceDiff,
-  type PaperclipWorkspaceSnapshot,
+  captureOutpostWorkspace,
+  diffOutpostWorkspace,
+  type OutpostWorkspaceDiff,
+  type OutpostWorkspaceSnapshot,
 } from "./workspace-diff.js";
 import {
-  discoverPaperclipWorkspaceFileReferences,
-  type PaperclipWorkspaceFileReference,
+  discoverOutpostWorkspaceFileReferences,
+  type OutpostWorkspaceFileReference,
 } from "./workspace-file-reference.js";
 
 const LIVE_SESSION_SCHEMA = "outpost.capability.live-session.v1" as const;
 const LIVE_COMPLETION_CONTRACT = Object.freeze({
-  revision: "paperclip-capability-live-v1",
+  revision: "outpost-capability-live-v1",
   criterionIds: ["objective"],
 });
 const LIVE_COMPLETION_ENVELOPE = createCodexTaskEnvelope({
@@ -119,7 +119,7 @@ export interface CapabilityLiveEvidenceEntry {
 export interface CapabilityLiveAuthoritySnapshot {
   active: boolean;
   runId: string;
-  companyId: string;
+  spaceId: string;
   actorId: string;
   taskId: string;
   sessionId: string;
@@ -234,13 +234,13 @@ export interface CapabilityLiveStateRevision {
 export interface CapabilityLiveWorkspaceDiffEntry {
   turnId: string;
   at: string;
-  diff: PaperclipWorkspaceDiff;
+  diff: OutpostWorkspaceDiff;
 }
 
 export interface CapabilityLiveWorkspaceFileReferenceEntry {
   turnId: string;
   at: string;
-  reference: PaperclipWorkspaceFileReference;
+  reference: OutpostWorkspaceFileReference;
 }
 
 export interface RecordCapabilityLiveUsageInput {
@@ -280,10 +280,10 @@ export interface CapabilityLiveSessionSnapshot {
   authorizationRecords: CapabilitySemanticAuthorizationRecord[];
   process: CapabilityRunnerdProcessEvidence | null;
   networkEvidence: {
-    realPaperclipRequests: 0;
+    realOutpostRequests: 0;
     childOutpostEnvironmentKeys: string[];
   };
-  /** Governed worker attempts. A resumed worker is a new attempt, never a rewrite. */
+  /** Controlled worker attempts. A resumed worker is a new attempt, never a rewrite. */
   attempts?: CapabilityLiveAttemptSnapshot[];
   currentAttemptId?: string;
   /** Provider terminal facts reconciled by the attempt that observed them. */
@@ -335,7 +335,7 @@ export interface CreateCapabilityLiveSessionInput {
   scenario?: CapabilitySemanticScenarioPolicy;
   capabilities?: string[];
   explicitClaims?: string[];
-  companyId?: string;
+  spaceId?: string;
   actorId?: string;
   taskId?: string;
   runId?: string;
@@ -464,12 +464,12 @@ const CAPABILITY_ADMISSION_SHUTDOWN_DEADLINE_MS = 1_000;
 
 async function captureWorkspaceBaselineBeforeAdmission(
   workingDirectory: string,
-): Promise<PaperclipWorkspaceSnapshot | null> {
+): Promise<OutpostWorkspaceSnapshot | null> {
   const controller = new AbortController();
   let timeout: ReturnType<typeof setTimeout> | null = null;
   try {
     return await Promise.race([
-      capturePaperclipWorkspace(workingDirectory, { signal: controller.signal }),
+      captureOutpostWorkspace(workingDirectory, { signal: controller.signal }),
       new Promise<null>((resolveTimeout) => {
         timeout = setTimeout(() => {
           resolveTimeout(null);
@@ -602,7 +602,7 @@ export function assertCapabilityLiveSessionSnapshot(
     throw new Error("capability_live_checkpoint_corrupt: invalid revision");
   }
   const authority = record(snapshot.authority);
-  for (const name of ["runId", "companyId", "actorId", "taskId", "sessionId"] as const) {
+  for (const name of ["runId", "spaceId", "actorId", "taskId", "sessionId"] as const) {
     if (text(authority[name]).length === 0) {
       throw new Error(`capability_live_checkpoint_corrupt: missing authority.${name}`);
     }
@@ -909,7 +909,7 @@ export class CapabilityLiveSessionService {
   async create(input: CreateCapabilityLiveSessionInput = {}): Promise<CapabilityLiveSession> {
     resolvePiThinkingLevel(input.provider === "acpx" ? input.acpxAgent ?? "codex" : "", input.piThinkingLevel);
     if (this.#transportOptions.acpxCandidateAdmission) {
-      parseAcpxCandidateAdmission(this.#transportOptions.acpxCandidateAdmission, { companyId: input.companyId ?? "", agent: input.acpxAgent ?? "", model: input.requestedModel ?? "" });
+      parseAcpxCandidateAdmission(this.#transportOptions.acpxCandidateAdmission, { spaceId: input.spaceId ?? "", agent: input.acpxAgent ?? "", model: input.requestedModel ?? "" });
     }
     if (input.provider === "acpx" && input.acpxAgent !== undefined
       && ACPX_CAPABILITY_PROFILES[input.acpxAgent].qualification === "pending"
@@ -943,7 +943,7 @@ export class CapabilityLiveSessionService {
     const authority: CapabilityLiveAuthoritySnapshot = {
       active: true,
       runId,
-      companyId: input.companyId ?? state.company.id,
+      spaceId: input.spaceId ?? state.space.id,
       actorId: input.actorId ?? state.actors[0]!.id,
       taskId: input.taskId ?? state.tasks[0]!.id,
       sessionId,
@@ -955,7 +955,7 @@ export class CapabilityLiveSessionService {
       identity: {
         runId,
         sessionId,
-        companyId: authority.companyId,
+        spaceId: authority.spaceId,
         issueId: authority.taskId,
         agentId: authority.actorId,
       },
@@ -1130,7 +1130,7 @@ export class CapabilityLiveSessionService {
   async reset(sessionId: string): Promise<CapabilityLiveSession> {
     const session = await this.restore(sessionId);
     const config = session.snapshot().config;
-    // Reset starts a distinct governed chat, but the prior chat is an archive,
+    // Reset starts a distinct controlled chat, but the prior chat is an archive,
     // not disposable state.  Suspending preserves its provider checkpoint and
     // authority binding so selecting it from history can restore it safely.
     await session.suspend("reset archived prior session");
@@ -1443,7 +1443,7 @@ export class CapabilityLiveSession {
       authorizationRecords: structuredClone(records),
       process: this.#processEvidence === null ? null : structuredClone(this.#processEvidence),
       networkEvidence: {
-        realPaperclipRequests: 0,
+        realOutpostRequests: 0,
         childOutpostEnvironmentKeys: childKeys.filter((key) => key.startsWith("OUTPOST_")),
       },
       attempts: structuredClone(this.#attempts),
@@ -1575,10 +1575,10 @@ export class CapabilityLiveSession {
         }
       }
       // A transport without cross-run attachment keeps subsequent provider
-      // turns inside this capability session's existing governed run. This is
+      // turns inside this capability session's existing controlled run. This is
       // distinct from reusing the provider under a different ORP authority.
     }
-    let workspaceBefore: PaperclipWorkspaceSnapshot | null = null;
+    let workspaceBefore: OutpostWorkspaceSnapshot | null = null;
     try {
       workspaceBefore = await workspaceBeforePromise;
     } catch (error) {
@@ -1688,7 +1688,7 @@ export class CapabilityLiveSession {
       this.#releaseTurnAdmission(admission);
       result = await terminal;
     }
-    const workspaceFileReferences = await discoverPaperclipWorkspaceFileReferences(
+    const workspaceFileReferences = await discoverOutpostWorkspaceFileReferences(
       this.#config.workingDirectory,
       result.assistantText,
       result.turnId,
@@ -1705,9 +1705,9 @@ export class CapabilityLiveSession {
     }
     const workspaceDiff = workspaceBefore === null
       ? null
-      : diffPaperclipWorkspace(
+      : diffOutpostWorkspace(
           workspaceBefore,
-          await capturePaperclipWorkspace(this.#config.workingDirectory),
+          await captureOutpostWorkspace(this.#config.workingDirectory),
           `${this.id}:${result.turnId}:workspace`,
         );
     if (workspaceDiff !== null) {
@@ -1932,7 +1932,7 @@ export class CapabilityLiveSession {
     this.#appendTranscript(
       "assistant",
       result.ok
-        ? `DevTools call \`${operationId}\` completed at company state revision ${result.stateRevision}.`
+        ? `DevTools call \`${operationId}\` completed at space state revision ${result.stateRevision}.`
         : `DevTools call \`${operationId}\` was denied: ${result.denial.message}`,
       turnId,
     );
@@ -2368,12 +2368,12 @@ export class CapabilityLiveSession {
     this.#providerRunBinding = providerRunBinding;
     // ORP run-attach metadata binds server validation, but ACP providers receive
     // only these system instructions. Make the same immutable contract visible
-    // without expanding the model's separately governed mock task authority.
+    // without expanding the model's separately controlled mock task authority.
     const baseInstructions = [
       this.#transportOptions.baseInstructions ?? LIVE_BASE_INSTRUCTIONS,
       "",
       "Native completion report contract: " + JSON.stringify(LIVE_COMPLETION_CONTRACT),
-      "For paperclip_finish or paperclip_block, use that exact contract revision and criterion IDs. These tools report the current provider run result; they do not change mock task state. Mock task mutations still require separately authorized semantic tools and an explicit user request.",
+      "For outpost_finish or outpost_block, use that exact contract revision and criterion IDs. These tools report the current provider run result; they do not change mock task state. Mock task mutations still require separately authorized semantic tools and an explicit user request.",
     ].join("\n");
     const authorizedTools = this.#dispatcher.listTools(this.#authority.runId);
     const tools = (this.#config.toolExposure ?? "eager") === "lazy"
@@ -2388,7 +2388,7 @@ export class CapabilityLiveSession {
       provider,
       ...(provider === "opencode"
         ? {
-            // Capability-live sessions expose only governed semantic tools and
+            // Capability-live sessions expose only controlled semantic tools and
             // use approvalPolicy=never. Keep OpenCode's ambient shell/file
             // tools fail-closed instead of brokering broader permissions.
             opencodePermissionMode:
@@ -2772,7 +2772,7 @@ export class CapabilityLiveSession {
 
   async #handleNotification(notification: CodexRpcNotification): Promise<void> {
     const params = notification.params;
-    if (notification.method === "paperclip/canonicalProviderEvent"
+    if (notification.method === "outpost/canonicalProviderEvent"
       && params.eventType === "provider.notice.recorded") {
       const notice = normalizeProviderNotice(params, {
         provider: this.#config.provider, agent: this.#config.acpxAgent,

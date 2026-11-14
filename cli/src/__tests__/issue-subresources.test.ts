@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerIssueCommands } from "../commands/client/issue.js";
 
-const COMPANY_ID = "22222222-2222-4222-8222-222222222222";
+const SPACE_ID = "22222222-2222-4222-8222-222222222222";
 const ISSUE_ID = "44444444-4444-4444-8444-444444444444";
 const COMMENT_ID = "55555555-5555-4555-8555-555555555555";
 const APPROVAL_ID = "66666666-6666-4666-8666-666666666666";
@@ -31,7 +31,7 @@ async function run(args: string[]): Promise<void> {
   await createProgram().parseAsync([
     ...args,
     "--api-base", "http://localhost:3100",
-    "--api-key", "board-token",
+    "--api-key", "operator-token",
   ], { from: "user" });
 }
 
@@ -162,7 +162,7 @@ describe("issue subresource commands", () => {
   });
 
   it("wraps interactions, tree holds, labels, feedback votes, and attachments", async () => {
-    const tmp = await mkdtemp(join(tmpdir(), "paperclip-cli-test-"));
+    const tmp = await mkdtemp(join(tmpdir(), "outpost-cli-test-"));
     const filePath = join(tmp, "attachment.txt");
     await writeFile(filePath, "hello", "utf8");
     const fetchMock = vi
@@ -196,11 +196,11 @@ describe("issue subresource commands", () => {
       await run(["issue", "tree-hold:get", ISSUE_ID, HOLD_ID]);
       await run(["issue", "tree-hold:release", ISSUE_ID, HOLD_ID]);
       await run(["issue", "attachments", ISSUE_ID]);
-      await run(["issue", "attachment:upload", ISSUE_ID, "--company-id", COMPANY_ID, "--file", filePath]);
+      await run(["issue", "attachment:upload", ISSUE_ID, "--space-id", SPACE_ID, "--file", filePath]);
       await run(["issue", "attachment:download", ATTACHMENT_ID]);
       await run(["issue", "attachment:delete", ATTACHMENT_ID]);
-      await run(["issue", "label:list", "--company-id", COMPANY_ID]);
-      await run(["issue", "label:create", "--company-id", COMPANY_ID, "--name", "bug", "--color", "#ff0000"]);
+      await run(["issue", "label:list", "--space-id", SPACE_ID]);
+      await run(["issue", "label:create", "--space-id", SPACE_ID, "--name", "bug", "--color", "#ff0000"]);
       await run(["issue", "label:delete", LABEL_ID]);
       await run(["issue", "feedback:votes", ISSUE_ID]);
       await run([
@@ -227,11 +227,11 @@ describe("issue subresource commands", () => {
       ["GET", `http://localhost:3100/api/issues/${ISSUE_ID}/tree-holds/${HOLD_ID}`],
       ["POST", `http://localhost:3100/api/issues/${ISSUE_ID}/tree-holds/${HOLD_ID}/release`],
       ["GET", `http://localhost:3100/api/issues/${ISSUE_ID}/attachments`],
-      ["POST", `http://localhost:3100/api/companies/${COMPANY_ID}/issues/${ISSUE_ID}/attachments`],
+      ["POST", `http://localhost:3100/api/spaces/${SPACE_ID}/issues/${ISSUE_ID}/attachments`],
       ["GET", `http://localhost:3100/api/attachments/${ATTACHMENT_ID}/content`],
       ["DELETE", `http://localhost:3100/api/attachments/${ATTACHMENT_ID}`],
-      ["GET", `http://localhost:3100/api/companies/${COMPANY_ID}/labels`],
-      ["POST", `http://localhost:3100/api/companies/${COMPANY_ID}/labels`],
+      ["GET", `http://localhost:3100/api/spaces/${SPACE_ID}/labels`],
+      ["POST", `http://localhost:3100/api/spaces/${SPACE_ID}/labels`],
       ["DELETE", `http://localhost:3100/api/labels/${LABEL_ID}`],
       ["GET", `http://localhost:3100/api/issues/${ISSUE_ID}/feedback-votes`],
       ["POST", `http://localhost:3100/api/issues/${ISSUE_ID}/feedback-votes`],
@@ -243,10 +243,10 @@ describe("issue subresource commands", () => {
 
   it("forwards the agent run-id header and inferred content-type on attachment:upload", async () => {
     // Regression: the multipart upload uses a hand-rolled fetch (not the JSON
-    // client), so it must forward X-Paperclip-Run-Id itself — otherwise an
+    // client), so it must forward X-Outpost-Run-Id itself — otherwise an
     // agent-authenticated upload is rejected with "401 Agent run id required".
     const RUN_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
-    const tmp = await mkdtemp(join(tmpdir(), "paperclip-cli-test-"));
+    const tmp = await mkdtemp(join(tmpdir(), "outpost-cli-test-"));
     const filePath = join(tmp, "deliverable.html");
     await writeFile(filePath, "<html><body>hi</body></html>", "utf8");
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse()));
@@ -256,7 +256,7 @@ describe("issue subresource commands", () => {
     try {
       await run([
         "issue", "attachment:upload", ISSUE_ID,
-        "--company-id", COMPANY_ID,
+        "--space-id", SPACE_ID,
         "--file", filePath,
         "--run-id", RUN_ID,
       ]);
@@ -266,11 +266,11 @@ describe("issue subresource commands", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(`http://localhost:3100/api/companies/${COMPANY_ID}/issues/${ISSUE_ID}/attachments`);
+    expect(url).toBe(`http://localhost:3100/api/spaces/${SPACE_ID}/issues/${ISSUE_ID}/attachments`);
     expect(init.method).toBe("POST");
     const headers = init.headers as Record<string, string>;
-    expect(headers["x-paperclip-run-id"]).toBe(RUN_ID);
-    expect(headers.authorization).toBe("Bearer board-token");
+    expect(headers["x-outpost-run-id"]).toBe(RUN_ID);
+    expect(headers.authorization).toBe("Bearer operator-token");
     const file = (init.body as FormData).get("file") as File;
     expect(file.type).toBe("text/html");
   });

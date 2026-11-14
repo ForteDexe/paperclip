@@ -176,7 +176,7 @@ export type AiConnectionResolution =
 export interface AiManagedConnectionSummary {
   id: string;
   grantId: string;
-  companyId: string;
+  spaceId: string;
   provider: AiProvider;
   method: AiAuthMethod;
   name: string;

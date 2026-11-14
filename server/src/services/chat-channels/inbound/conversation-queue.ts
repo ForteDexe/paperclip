@@ -115,7 +115,7 @@ export function createChatConversationDeliveryQueue(db: Db, options: Conversatio
       .then((rows) => rows[0] ?? null);
     if (!candidate) return null;
 
-    // A lifecycle callback can reach Paperclip before its create callback. If
+    // A lifecycle callback can reach Outpost before its create callback. If
     // the root becomes durable while the lifecycle row is waiting, always
     // return that exact dependency first even when a coarse or malformed
     // provider timestamp would otherwise put the edit/delete at the head.
@@ -136,7 +136,7 @@ export function createChatConversationDeliveryQueue(db: Db, options: Conversatio
   }
 
   async function acquireConversationDeliveryLease(input: {
-    companyId: string;
+    spaceId: string;
     endpointId: string;
     threadId: string;
   }): Promise<{ leaseKey: string; token: string } | null> {
@@ -147,7 +147,7 @@ export function createChatConversationDeliveryQueue(db: Db, options: Conversatio
     const inserted = await db
       .insert(chatEndpointLeases)
       .values({
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         endpointId: input.endpointId,
         leaseKey,
         token,
@@ -161,7 +161,7 @@ export function createChatConversationDeliveryQueue(db: Db, options: Conversatio
       .set({ token, expiresAt, updatedAt: now })
       .where(
         and(
-          eq(chatEndpointLeases.companyId, input.companyId),
+          eq(chatEndpointLeases.spaceId, input.spaceId),
           eq(chatEndpointLeases.endpointId, input.endpointId),
           eq(chatEndpointLeases.leaseKey, leaseKey),
           lte(chatEndpointLeases.expiresAt, now),
@@ -380,7 +380,7 @@ export function createChatConversationDeliveryQueue(db: Db, options: Conversatio
    * Drain one external conversation in durable receipt order. The database
    * lease is endpoint + thread scoped, so separate server processes can work
    * on different conversations concurrently but can never mutate the same
-   * Paperclip task from two inbound turns at once.
+   * Outpost task from two inbound turns at once.
    */
   async function drainConversationDeliveries(
     endpointId: string,
@@ -396,7 +396,7 @@ export function createChatConversationDeliveryQueue(db: Db, options: Conversatio
       return false;
 
     const lease = await acquireConversationDeliveryLease({
-      companyId: endpoint.companyId,
+      spaceId: endpoint.spaceId,
       endpointId,
       threadId,
     });
@@ -478,7 +478,7 @@ export function createChatConversationDeliveryQueue(db: Db, options: Conversatio
                 .where(
                   and(
                     eq(chatDeliveries.id, delivery.id),
-                    eq(chatDeliveries.companyId, endpoint.companyId),
+                    eq(chatDeliveries.spaceId, endpoint.spaceId),
                     eq(chatDeliveries.endpointId, endpoint.id),
                   ),
                 )
@@ -721,7 +721,7 @@ export function createChatConversationDeliveryQueue(db: Db, options: Conversatio
         select min(case when a.status = 'processing' then a.updated_at + ${DELIVERY_PROCESSING_STALE_MS} * interval '1 millisecond'
           else coalesce((a.result->>'retryAt')::timestamptz, now()) end)
         from chat_actions a where a.delivery_id = chat_deliveries.id
-          and a.company_id = chat_deliveries.company_id and a.endpoint_id = chat_deliveries.endpoint_id
+          and a.space_id = chat_deliveries.space_id and a.endpoint_id = chat_deliveries.endpoint_id
           and a.kind = 'inbound_wakeup' and a.status in ('issued', 'processing'))
       else coalesce(${chatDeliveries.nextAttemptAt}, now()) end` })
       .from(chatDeliveries).where(and(

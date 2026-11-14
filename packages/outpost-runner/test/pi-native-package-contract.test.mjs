@@ -29,7 +29,7 @@ test("Pi 1 offline catalog retains the exact qualification model", async () => {
 test("owned gate authorizes the actual pinned SDK path expansions and read fallbacks", async () => {
   assert.equal(metadata.version, "1.0.0");
   const { resolveToCwd, resolveReadPathAsync } = await import(pathToFileURL(join(packageRoot, "dist/core/tools/path-utils.js")).href);
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-native-paths-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-pi-native-paths-")));
   try {
     const workspace = join(root, "workspace"); const privateRoot = join(root, "private");
     await mkdir(workspace); await mkdir(privateRoot);
@@ -61,7 +61,7 @@ test("owned gate authorizes the actual pinned SDK path expansions and read fallb
 for (const brokenCatalog of [false, true]) {
   test(`real pinned Pi ${brokenCatalog ? "withholds" : "registers"} readiness after MCP initialization`, { timeout: 20_000 }, async (t) => {
     assert.equal(metadata.version, "1.0.0");
-    const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-native-contract-")));
+    const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-pi-native-contract-")));
     await mkdir(join(root, "workspace")); await mkdir(join(root, "agent"));
     const extension = join(root, "extension.mjs");
     await writeFile(extension, stripTypeScriptTypes(extensionSource));
@@ -86,7 +86,7 @@ for (const brokenCatalog of [false, true]) {
         OUTPOST_PI_RUNTIME_CONFIGURATION: JSON.stringify({
           invocationNamespace: "00000000-0000-4000-8000-000000000000",
           workspace: join(root, "workspace"), readOnly: true, readRoots: [], protectedRoots: [join(root, "agent")], instructions: "Use the assigned tools",
-          servers: [{ type: "http", name: "paperclip", url: `http://127.0.0.1:${port}/mcp`, headers: [{ name: "Authorization", value: "Bearer 0123456789abcdef0123456789abcdef" }] }],
+          servers: [{ type: "http", name: "outpost", url: `http://127.0.0.1:${port}/mcp`, headers: [{ name: "Authorization", value: "Bearer 0123456789abcdef0123456789abcdef" }] }],
         }),
       },
     });
@@ -121,8 +121,8 @@ for (const brokenCatalog of [false, true]) {
     const result = await admission;
     assert.equal(result.success, true);
     assert.deepEqual(calls, ["initialize", "tools/list"]);
-    const readiness = result.data.commands.find((command) => command.name === "paperclip-runtime-ready-v1");
-    assert.equal(readiness?.description, "Paperclip runtime gate v1");
+    const readiness = result.data.commands.find((command) => command.name === "outpost-runtime-ready-v1");
+    assert.equal(readiness?.description, "Outpost runtime gate v1");
   });
 }
 
@@ -132,7 +132,7 @@ test("real pinned Pi model iterations align owned identities across warm prompts
   const [{ createAgentSession }, { DefaultResourceLoader }, { ModelRuntime }, { SessionManager }, { SettingsManager }, { AuthStorage }] = await Promise.all(
     ["sdk", "resource-loader", "model-runtime", "session-manager", "settings-manager", "auth-storage"].map(load),
   );
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-native-order-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-pi-native-order-")));
   let session;
   try {
     await writeFile(join(root, "helper.mjs"), stripTypeScriptTypes(await readFile(new URL("../src/drivers/acpx/pi-acp-runtime.ts", import.meta.url), "utf8")));
@@ -160,8 +160,8 @@ test("real pinned Pi model iterations align owned identities across warm prompts
     await session.bindExtensions({ onError: (error) => extensionErrors.push(error.event) });
     session.subscribe((event) => {
       const normalized = wrapperIds.normalize(assistantIds.normalize(event));
-      if (normalized.paperclipAssistantMessage && event.type !== "message_update") boundaries.push(piAssistantChunk(normalized.paperclipAssistantMessage));
-      if (event.type === "message_update" && ["text_delta", "thinking_delta"].includes(event.assistantMessageEvent.type)) boundaries.push(piAssistantChunk(normalized.paperclipAssistantMessage, event.assistantMessageEvent.delta, event.assistantMessageEvent.type === "thinking_delta"));
+      if (normalized.outpostAssistantMessage && event.type !== "message_update") boundaries.push(piAssistantChunk(normalized.outpostAssistantMessage));
+      if (event.type === "message_update" && ["text_delta", "thinking_delta"].includes(event.assistantMessageEvent.type)) boundaries.push(piAssistantChunk(normalized.outpostAssistantMessage, event.assistantMessageEvent.delta, event.assistantMessageEvent.type === "thinking_delta"));
       if (event.type === "turn_start") events.push({ surface: "session", type: event.type });
       if (event.type === "tool_execution_start") displayed.push(normalized.toolCallId);
     });
@@ -192,7 +192,7 @@ test("real pinned Pi model iterations align owned identities across warm prompts
     ({ session } = await createAgentSession({ cwd: root, agentDir: root, model, modelRuntime, settingsManager: settings, sessionManager: SessionManager.open(persistedFile), resourceLoader, noTools: "builtin", thinkingLevel: "off" }));
     await session.bindExtensions({ onError: error => extensionErrors.push(error.event) });
     assert.ok(session.agent.state.messages.some(message => message.role === "assistant"));
-    session.subscribe(event => { const normalized = loadedMessages.normalize(event); if (normalized.paperclipAssistantMessage && event.type !== "message_update") loaded.push(piAssistantChunk(normalized.paperclipAssistantMessage)); });
+    session.subscribe(event => { const normalized = loadedMessages.normalize(event); if (normalized.outpostAssistantMessage && event.type !== "message_update") loaded.push(piAssistantChunk(normalized.outpostAssistantMessage)); });
     session.agent.streamFunction = () => {
       const message = { role: "assistant", content: [], api: model.api, provider: model.provider, model: model.id, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: "stop", timestamp: 100 };
       return { async *[Symbol.asyncIterator]() { yield { type: "start", partial: message }; yield { type: "done", reason: "stop", message }; }, result: async () => message };
@@ -211,7 +211,7 @@ test("real pinned Pi executes all four owned native question methods without per
   const [{ createAgentSession }, { DefaultResourceLoader }, { ModelRuntime }, { SessionManager }, { SettingsManager }, { AuthStorage }] = await Promise.all(
     ["sdk", "resource-loader", "model-runtime", "session-manager", "settings-manager", "auth-storage"].map(load),
   );
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-native-questions-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-pi-native-questions-")));
   let session;
   try {
     await writeFile(join(root, "extension.mjs"), stripTypeScriptTypes(extensionSource));
@@ -265,7 +265,7 @@ test("real pinned Pi dispatches aliased MCP tools with their exact original name
   const [{ createAgentSession }, { DefaultResourceLoader }, { ModelRuntime }, { SessionManager }, { SettingsManager }, { AuthStorage }] = await Promise.all(
     ["sdk", "resource-loader", "model-runtime", "session-manager", "settings-manager", "auth-storage"].map(load),
   );
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-mcp-alias-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-pi-mcp-alias-")));
   let session;
   try {
     await writeFile(join(root, "extension.mjs"), stripTypeScriptTypes(extensionSource));
@@ -280,7 +280,7 @@ test("real pinned Pi dispatches aliased MCP tools with their exact original name
     const modelRuntime = await ModelRuntime.create({ credentials: AuthStorage.inMemory({}), modelsPath: null, refreshOnCreate: false, allowModelNetwork: false });
     const model = { id: "fixture", name: "Fixture", api: "openai-completions", provider: "fixture", baseUrl: "http://127.0.0.1:1", reasoning: false, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 8192, maxTokens: 64 };
     const resourceLoader = new DefaultResourceLoader({ cwd: root, agentDir: root, settingsManager: settings, noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
-      extensionFactories: [pi => installPiRuntimeExtension(pi, { invocationNamespace: "00000000-0000-4000-8000-000000000000", workspace: root, readOnly: true, readRoots: [], protectedRoots: [], instructions: "", servers: [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1", headers: [] }] }, request)] });
+      extensionFactories: [pi => installPiRuntimeExtension(pi, { invocationNamespace: "00000000-0000-4000-8000-000000000000", workspace: root, readOnly: true, readRoots: [], protectedRoots: [], instructions: "", servers: [{ type: "http", name: "outpost", url: "http://127.0.0.1:1", headers: [] }] }, request)] });
     await resourceLoader.reload();
     ({ session } = await createAgentSession({ cwd: root, agentDir: root, model, modelRuntime, settingsManager: settings, sessionManager: SessionManager.inMemory(root), resourceLoader, noTools: "builtin", thinkingLevel: "off" }));
     const errors = []; const results = [];
@@ -308,7 +308,7 @@ test("real pinned Pi tool dispatch admits registered agent files and rejects una
   const [{ createAgentSession }, { DefaultResourceLoader }, { ModelRuntime }, { SessionManager }, { SettingsManager }, { AuthStorage }] = await Promise.all(
     ["sdk", "resource-loader", "model-runtime", "session-manager", "settings-manager", "auth-storage"].map(load),
   );
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-native-agent-files-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-pi-native-agent-files-")));
   let session;
   try {
     const workspace = join(root, "workspace"); const agentHome = join(root, "agent-files"); const privateRoot = join(root, "private"); const outside = join(root, "outside");
@@ -361,7 +361,7 @@ test("real pinned Pi tool dispatch admits registered agent files and rejects una
 // dummy authentication is unrelated to any provider account.
 for (const scenario of ["hello", "interleaved-tools", "provider-error", "provider-unknown", "thinking-modes", "warm-recovery", "warm-pending-cancel"]) {
   test(`real Pi 1 serialized RPC ${scenario} through owned ACP/MCP bridge`, { timeout: 30_000 }, async t => {
-    const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-stream-")));
+    const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-pi-stream-")));
     let child; let server;
     const warm = scenario.startsWith("warm-");
     const retirements = [];
@@ -402,7 +402,7 @@ for (const scenario of ["hello", "interleaved-tools", "provider-error", "provide
       evidence: [], verification: [],
     });
     let stalledResponse;
-    const tools = ["paperclip_get_context", "paperclip_finish"].map(name => ({ name, description: name, inputSchema: { type: "object", properties: {}, additionalProperties: true } }));
+    const tools = ["outpost_get_context", "outpost_finish"].map(name => ({ name, description: name, inputSchema: { type: "object", properties: {}, additionalProperties: true } }));
     server = createServer(async (request, response) => {
       let body = ""; for await (const chunk of request) { body += chunk; assert.ok(body.length < 1_048_576); }
       const value = JSON.parse(body);
@@ -425,7 +425,7 @@ for (const scenario of ["hello", "interleaved-tools", "provider-error", "provide
             ? { name: index === 0 ? "write" : "read", arguments: index === 0
               ? { path: join(agentHomes[index], "memory.txt"), content: "T1 fixture memory\n" }
               : { path: join(agentHomes[index], "memory.txt") } }
-            : { name: "mcp__paperclip__paperclip_finish", arguments: finishArguments(index) };
+            : { name: "mcp__outpost__outpost_finish", arguments: finishArguments(index) };
           const chunks = [];
           if (step < 2) {
             const args = JSON.stringify(tool.arguments);
@@ -447,7 +447,7 @@ for (const scenario of ["hello", "interleaved-tools", "provider-error", "provide
         const names = scenario === "interleaved-tools" ? tools.map(tool => tool.name) : [n === 1 ? tools[0].name : tools[1].name];
         const chunks = [];
         if (toolTurn) {
-          chunks.push({ choices: [{ index: 0, delta: { tool_calls: names.map((name, index) => ({ index, id: `call_${n}_${index}`, type: "function", function: { name: `mcp__paperclip__${name}`, arguments: '{"fixture":' } })) } }] });
+          chunks.push({ choices: [{ index: 0, delta: { tool_calls: names.map((name, index) => ({ index, id: `call_${n}_${index}`, type: "function", function: { name: `mcp__outpost__${name}`, arguments: '{"fixture":' } })) } }] });
           // Reverse delivery order proves index correlation, not FIFO guessing.
           for (const index of names.map((_, index) => index).reverse()) chunks.push({ choices: [{ index: 0, delta: { tool_calls: [{ index, function: { arguments: `${index}}` } }] } }] });
         } else chunks.push({ choices: [{ index: 0, delta: { reasoning: "Fixture thought", content: "HELLO_COMPLETE" } }] });
@@ -458,7 +458,7 @@ for (const scenario of ["hello", "interleaved-tools", "provider-error", "provide
       assert.equal(request.url, "/mcp");
       calls.push({ method: value.method, name: value.params?.name, args: value.params?.arguments });
       if (warm && value.method === "tools/call") {
-        assert.equal(value.params.name, "paperclip_finish");
+        assert.equal(value.params.name, "outpost_finish");
         const index = calls.filter(call => call.method === "tools/call").length - 1;
         assert.deepEqual(value.params.arguments, finishArguments(index));
       }
@@ -560,7 +560,7 @@ await import(${JSON.stringify(pathToFileURL(join(wrapperRoot, "dist/index.js")).
       child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
     });
     await call("initialize", { protocolVersion: 1, clientCapabilities: {} });
-    const session = await call("session/new", { cwd: join(root, "workspace"), mcpServers: [{ type: "http", name: "paperclip", url: `http://127.0.0.1:${port}/mcp`, headers: [{ name: "Authorization", value: "Bearer 0123456789abcdef0123456789abcdef" }] }] });
+    const session = await call("session/new", { cwd: join(root, "workspace"), mcpServers: [{ type: "http", name: "outpost", url: `http://127.0.0.1:${port}/mcp`, headers: [{ name: "Authorization", value: "Bearer 0123456789abcdef0123456789abcdef" }] }] });
     const model = "openrouter/deepseek/deepseek-v4-flash-0731";
     const selected = await call("session/set_config_option", { sessionId: session.sessionId, configId: "model", value: model });
     if (warm) {
@@ -570,7 +570,7 @@ await import(${JSON.stringify(pathToFileURL(join(wrapperRoot, "dist/index.js")).
       assert.equal((await call("session/prompt", { sessionId: session.sessionId, prompt: prompt(0) })).stopReason, "end_turn");
       assert.equal(await readFile(join(agentHomes[0], "memory.txt"), "utf8"), "T1 fixture memory\n");
       const firstUpdates = notifications.map(event => event.params?.update).filter(Boolean);
-      const firstFinish = firstUpdates.find(update => update.sessionUpdate === "tool_call" && update.title === "mcp__paperclip__paperclip_finish");
+      const firstFinish = firstUpdates.find(update => update.sessionUpdate === "tool_call" && update.title === "mcp__outpost__outpost_finish");
       assert.ok(firstFinish);
       assert.equal(firstUpdates.filter(update => update.toolCallId === firstFinish.toolCallId && update.status === "completed").length, 1);
       // Product ends the old provider for registered-file collection. Reopen
@@ -582,7 +582,7 @@ await import(${JSON.stringify(pathToFileURL(join(wrapperRoot, "dist/index.js")).
       await rm(agentHomes[0], { recursive: true });
       await launchWrapper(agentHomes[1]);
       await call("initialize", { protocolVersion: 1, clientCapabilities: {} });
-      const loaded = await call("session/load", { sessionId: session.sessionId, cwd: join(root, "workspace"), mcpServers: [{ type: "http", name: "paperclip", url: `http://127.0.0.1:${port}/mcp`, headers: [{ name: "Authorization", value: "Bearer 0123456789abcdef0123456789abcdef" }] }] });
+      const loaded = await call("session/load", { sessionId: session.sessionId, cwd: join(root, "workspace"), mcpServers: [{ type: "http", name: "outpost", url: `http://127.0.0.1:${port}/mcp`, headers: [{ name: "Authorization", value: "Bearer 0123456789abcdef0123456789abcdef" }] }] });
       assert.equal(loaded.modes.currentModeId, "low");
       const secondStart = notifications.length;
       const second = call("session/prompt", { sessionId: session.sessionId, prompt: prompt(1) });
@@ -592,7 +592,7 @@ await import(${JSON.stringify(pathToFileURL(join(wrapperRoot, "dist/index.js")).
           const until = Date.now() + 5000;
           const check = () => {
             const updates = notifications.slice(secondStart).map(event => event.params?.update).filter(Boolean);
-            const finish = updates.find(update => update.sessionUpdate === "tool_call" && update.title === "mcp__paperclip__paperclip_finish");
+            const finish = updates.find(update => update.sessionUpdate === "tool_call" && update.title === "mcp__outpost__outpost_finish");
             if (stalledResponse && finish && updates.some(update => update.toolCallId === finish.toolCallId && JSON.stringify(update.rawInput) === JSON.stringify(finishArguments(1)))) return resolve();
             if (Date.now() >= until) return reject(new Error("pending-only fixture boundary not observed"));
             setTimeout(check, 10);
@@ -612,7 +612,7 @@ await import(${JSON.stringify(pathToFileURL(join(wrapperRoot, "dist/index.js")).
       const readCompleted = readLifecycle.filter(update => update.status === "completed");
       assert.equal(readCompleted.length, 1);
       assert.ok(readCompleted[0].content.some(block => block.type === "content" && block.content?.type === "text" && block.content.text.includes("T1 fixture memory")));
-      const secondFinish = updates.find(update => update.sessionUpdate === "tool_call" && update.title === "mcp__paperclip__paperclip_finish");
+      const secondFinish = updates.find(update => update.sessionUpdate === "tool_call" && update.title === "mcp__outpost__outpost_finish");
       assert.ok(secondFinish); assert.notEqual(secondFinish.toolCallId, firstFinish.toolCallId);
       const lifecycle = updates.filter(update => update.toolCallId === secondFinish.toolCallId);
       const executed = scenario === "warm-recovery";
@@ -650,18 +650,18 @@ await import(${JSON.stringify(pathToFileURL(join(wrapperRoot, "dist/index.js")).
       assert.equal(calls.filter(call => call.method === "tools/call").length, 0);
       return;
     }
-    const result = await call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: "Call paperclip_get_context, then paperclip_finish. Finally say HELLO_COMPLETE." }] });
+    const result = await call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: "Call outpost_get_context, then outpost_finish. Finally say HELLO_COMPLETE." }] });
     assert.deepEqual(JSON.parse(await readFile(join(root, "network-denial.json"), "utf8")), { deniedBeforeConnect: true, underlyingConnections: 0 });
     assert.ok(modelRequests.every(value => value === "deepseek/deepseek-v4-flash-0731"));
     assert.doesNotMatch(JSON.stringify({ result, notifications, stderr }), /sensitive-canary/);
     if (scenario.startsWith("provider-")) {
       assert.equal(modelRequests.length, 1); assert.equal(calls.filter(call => call.method === "tools/call").length, 0);
       assert.equal(result._meta.jetbrains.air.sessionFailure.severity, "error");
-      const notice = notifications.find(event => event.method === "paperclip/pi_notice" && event.params.category === "runtime_failure");
+      const notice = notifications.find(event => event.method === "outpost/pi_notice" && event.params.category === "runtime_failure");
       assert.equal(notice?.params.details.reason, scenario === "provider-error" ? "provider_http_401" : "unknown_native_failure"); return;
     }
     assert.equal(result.stopReason, "end_turn"); assert.equal(result._meta?.jetbrains, undefined);
-    assert.deepEqual(calls.filter(call => call.method === "tools/call").map(call => call.name), ["paperclip_get_context", "paperclip_finish"]);
+    assert.deepEqual(calls.filter(call => call.method === "tools/call").map(call => call.name), ["outpost_get_context", "outpost_finish"]);
     assert.equal(result.usage.totalTokens, (scenario === "hello" ? 3 : 2) * 13);
     const updates = notifications.map(event => event.params?.update).filter(Boolean);
     assert.equal(updates.filter(update => update.content?.text === "HELLO_COMPLETE").length, 1);

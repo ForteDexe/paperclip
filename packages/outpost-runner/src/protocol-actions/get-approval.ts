@@ -9,7 +9,7 @@ export const getApprovalAction = {
     "placement": "optional_agent_tool",
     "optionalGroup": null,
     "requiredClaims": [
-      "governance:approvals:read"
+      "approvals:approvals:read"
     ],
     "taskModes": [
       "standard",
@@ -55,7 +55,7 @@ export const getApprovalAction = {
       "description": "Read one approval without protected data.",
       "exposure": "optional",
       "requiredClaims": [
-        "governance:approvals:read"
+        "approvals:approvals:read"
       ],
       "allowedModes": [
         "standard",

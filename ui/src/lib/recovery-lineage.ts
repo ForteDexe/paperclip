@@ -6,11 +6,11 @@ import { formatMonitorOffset } from "./issue-monitor";
  *
  * The owner-sticky contract keeps one recovery-action row per source issue and rewrites
  * its `wakePolicy` as the action moves between budgets: the original owner's repair
- * attempts, then a manager's path-repair attempts, then the board. The policy type is
+ * attempts, then a manager's path-repair attempts, then the operator. The policy type is
  * therefore the canonical lane signal — every surface reads the same stored value rather
  * than re-deriving liveness on its own.
  */
-export type RecoveryRetryLane = "source_owner" | "recovery_owner" | "native_run" | "board";
+export type RecoveryRetryLane = "source_owner" | "recovery_owner" | "native_run" | "operator";
 
 export interface RecoveryRetryLineage {
   lane: RecoveryRetryLane;
@@ -18,7 +18,7 @@ export interface RecoveryRetryLineage {
   attempt: number;
   maxAttempts: number | null;
   attemptsRemaining: number | null;
-  /** The lane has no attempts left (always true once the board owns the action). */
+  /** The lane has no attempts left (always true once the operator owns the action). */
   exhausted: boolean;
   /** When the stored next attempt is due, as an ISO string. Null once a lane is exhausted. */
   nextRetryAt: string | null;
@@ -54,7 +54,7 @@ export interface RecoveryRetryLineage {
 
 const SOURCE_LANE_POLICY = "bounded_owner_disposition_repair";
 const RECOVERY_LANE_POLICY = "bounded_recovery_owner";
-const BOARD_LANE_POLICY = "board_escalation";
+const OPERATOR_LANE_POLICY = "operator_escalation";
 const NATIVE_RESUME_POLICY = "resume_native_run";
 
 /** Scheduled-run states that mean the parked attempt is actually in flight right now. */
@@ -134,7 +134,7 @@ function resolveLiveRunId(
 
 /**
  * Read the bounded retry lineage the server stored on a recovery action, or null when the
- * action does not carry one (older kinds, or a board escalation that is not part of the
+ * action does not carry one (older kinds, or a operator escalation that is not part of the
  * owner-sticky contract).
  */
 export function readRecoveryRetryLineage(
@@ -155,10 +155,10 @@ export function readRecoveryRetryLineage(
   else if (type === SOURCE_LANE_POLICY) lane = "source_owner";
   else if (type === RECOVERY_LANE_POLICY) lane = "recovery_owner";
   else if (
-    type === BOARD_LANE_POLICY &&
+    type === OPERATOR_LANE_POLICY &&
     (preservesSourceAssignee || evidenceSourceMaxAttempts !== null)
   ) {
-    lane = "board";
+    lane = "operator";
   } else return null;
 
   const attempt = asCount(policy.attempt) ?? asCount(action.attemptCount) ?? 0;
@@ -170,7 +170,7 @@ export function readRecoveryRetryLineage(
   const storedRetryAt = nativeResume
     ? asIsoDate(policy.notBefore)
     : asIsoDate(policy.retryAt) ?? asIsoDate(action.timeoutAt);
-  const exhausted = lane === "board" || (maxAttempts !== null && attempt >= maxAttempts);
+  const exhausted = lane === "operator" || (maxAttempts !== null && attempt >= maxAttempts);
   const nextRetryAt = exhausted ? null : storedRetryAt;
   const liveRunId = nativeResume
     ? resolveLiveRunId(scheduledRunId, action.nativeRunActivity)

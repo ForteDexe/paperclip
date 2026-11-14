@@ -18,7 +18,7 @@ const testEstimates: readonly TableSizeEstimate[] = [
     bucket: "large",
   },
   {
-    table: "companies",
+    table: "spaces",
     localRows: 1,
     estimateFactor: TABLE_SIZE_ESTIMATE_FACTOR,
     estimatedRows: TABLE_SIZE_ESTIMATE_FACTOR,
@@ -144,11 +144,11 @@ describe("migration safety check", () => {
         LOOP
           WITH batch AS (
             SELECT "id"
-            FROM "companies"
+            FROM "spaces"
             ORDER BY "id"
             LIMIT 100
           )
-          UPDATE "companies" c
+          UPDATE "spaces" c
           SET "description" = c."description"
           FROM batch b
           WHERE c."id" = b."id";
@@ -363,8 +363,8 @@ describe("migration safety check", () => {
     const result = analyze(`
       UPDATE "issue_comments"
         SET "derived_author_agent_id" = NULL
-        FROM "companies"
-        WHERE "companies"."id" = '00000000-0000-0000-0000-000000000000';
+        FROM "spaces"
+        WHERE "spaces"."id" = '00000000-0000-0000-0000-000000000000';
     `);
 
     expect(result.newFindings.map((f) => f.rule)).toContain(
@@ -376,7 +376,7 @@ describe("migration safety check", () => {
     const result = analyze(`
       UPDATE "issue_comments"
         SET "derived_author_agent_id" = NULL
-        FROM "companies" c
+        FROM "spaces" c
         WHERE c."id" = '00000000-0000-0000-0000-000000000000';
     `);
 
@@ -389,8 +389,8 @@ describe("migration safety check", () => {
     const result = analyze(`
       UPDATE "issue_comments"
         SET "derived_author_agent_id" = NULL
-        FROM companies
-        WHERE companies.id = '00000000-0000-0000-0000-000000000000';
+        FROM spaces
+        WHERE spaces.id = '00000000-0000-0000-0000-000000000000';
     `);
 
     expect(result.newFindings.map((f) => f.rule)).toContain(
@@ -482,7 +482,7 @@ describe("migration safety check", () => {
 
   it("honors suppressions only when they name a rule and reason", () => {
     const result = analyze(`
-      -- paperclip:migration-safety-ignore full-table-mutation-large-table: one-time metadata reset approved in issue thread
+      -- outpost:migration-safety-ignore full-table-mutation-large-table: one-time metadata reset approved in issue thread
       UPDATE "issue_comments"
       SET "derived_author_source" = NULL;
     `);

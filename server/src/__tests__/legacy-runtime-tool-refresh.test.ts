@@ -29,7 +29,7 @@ describe("legacy environment tool access on resumed conversations", () => {
     ["gemini_local", gemini, "--resume"], ["kimi_local", kimi, "-r"],
     ["cursor", cursor, "--resume"], ["opencode_local", opencode, "--session"], ["pi_local", pi, "--session"],
   ] as const)("refreshes %s without dropping its conversation", async (type, execute, resumeFlag) => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-cli-tool-refresh-")); roots.push(root);
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-cli-tool-refresh-")); roots.push(root);
     const command = path.join(root, "agent");
     await fs.writeFile(command, "#!/bin/sh\nprintf 'provider  model\\nopenai  gpt-5\\n'\n", { mode: 0o755 });
     const sessionId = type === "pi_local" ? path.join(root, "session.jsonl") : "existing-session";
@@ -49,10 +49,10 @@ describe("legacy environment tool access on resumed conversations", () => {
     const getFreshSessionHandoff = vi.fn(async () => "FRESH_HANDOFF_ONLY");
     const ctx: AdapterExecutionContext = {
       getFreshSessionHandoff,
-      runId: "refresh", agent: { id: "agent", companyId: "company", name: "Agent", adapterType: type, adapterConfig: {} },
+      runId: "refresh", agent: { id: "agent", spaceId: "space", name: "Agent", adapterType: type, adapterConfig: {} },
       runtime: { sessionId, sessionParams: { sessionId, cwd: root }, sessionDisplayId: sessionId, taskKey: null },
       config: { command, cwd: root, model: "openai/gpt-5", engine: "cli", env: { HOME: root, XDG_CONFIG_HOME: root, OPENCODE_ALLOW_ALL_MODELS: "1" } },
-      context: { refreshTools: true, paperclipFreshSessionHandoffMarkdown: "FRESH_HANDOFF_ONLY" }, onLog: async () => {},
+      context: { refreshTools: true, outpostFreshSessionHandoffMarkdown: "FRESH_HANDOFF_ONLY" }, onLog: async () => {},
       runtimeTools: { version: 1, guidance: "Tools available", mcpEndpoint: "https://example.test/current-tools/mcp",
         rest: { connectionsSearch: "https://example.test/search", connectionRequest: "https://example.test/request" },
         bearerToken: "current-tool-token", expiresAt: "2027-01-01T00:00:00Z", tools: ["connections_search", "connection_request"] },

@@ -298,7 +298,7 @@ user input, subagents, goals, reconnect, replay).
 
 These are the testable ACs for the component/keyboard/a11y checks required by
 the spec evidence list. Implementation must satisfy every row; QA verifies
-each with keyboard-only and screen-reader passes.
+each with keyoperator-only and screen-reader passes.
 
 **Keyboard**
 
@@ -366,7 +366,7 @@ each with keyboard-only and screen-reader passes.
    third-party message-type imports (see decision record).
 2. Every state named in §1–§9 is reachable via the demo manifests, and each
    has a distinct, labeled visual state (no two states share identical UI).
-3. All K/A/V criteria in §10 pass keyboard-only and screen-reader passes.
+3. All K/A/V criteria in §10 pass keyoperator-only and screen-reader passes.
 4. Unsupported capabilities render exact diagnostics (§5, §6, §8-Capabilities)
    — zero fabricated controls, zero silently hidden controls.
 5. Token compliance: no raw color/spacing/radius/type values in new component

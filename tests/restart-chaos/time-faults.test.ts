@@ -105,7 +105,7 @@ describe("aging", () => {
     ], 2 * HOUR, window);
     expect(statements.map(statement => statement.table)).toEqual(["agents", "heartbeat_runs"]);
     expect(statements[1]!.sql).toBe("update public.\"heartbeat_runs\" set \"created_at\" = \"created_at\" - interval '7200000 milliseconds', "
-      + "\"context_snapshot\" = pg_temp.paperclip_shift_json(\"context_snapshot\", 7200000, 1000, 2000) "
+      + "\"context_snapshot\" = pg_temp.outpost_shift_json(\"context_snapshot\", 7200000, 1000, 2000) "
       + "where \"created_at\" is not null or \"context_snapshot\" is not null");
   });
 

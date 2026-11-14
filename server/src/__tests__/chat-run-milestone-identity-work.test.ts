@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agentWakeupRequests, chatActions, chatExternalPrincipals, chatIdentityLinks, chatMessageLinks, chatPublications, companyMemberships, createDb, heartbeatRuns, issueComments, issues, subscribeDatabaseWork } from "@outpost/db";
+import { agentWakeupRequests, chatActions, chatExternalPrincipals, chatIdentityLinks, chatMessageLinks, chatPublications, spaceMemberships, createDb, heartbeatRuns, issueComments, issues, subscribeDatabaseWork } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { createChatMilestoneFixtures } from "./helpers/chat-milestone-fixtures.js";
@@ -49,39 +49,39 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   const publications = () => db.select().from(chatPublications).where(eq(chatPublications.issueId, f.issueId));
 
   it.each([false, true])("rechecks concurrent membership suspension before restoring notice access (rollback=%s)", async rollback => {
-    const membershipWhere = and(eq(companyMemberships.companyId, f.companyId), eq(companyMemberships.principalId, f.userId));
-    // A Board-origin reply uses the linked author and current membership.
+    const membershipWhere = and(eq(spaceMemberships.spaceId, f.spaceId), eq(spaceMemberships.principalId, f.userId));
+    // A Operator-origin reply uses the linked author and current membership.
     // Remove the fixture's unrelated provider-ingress provenance.
     await db.delete(chatMessageLinks).where(eq(chatMessageLinks.commentId, f.commentId));
     await db.update(issueComments).set({ authorUserId: f.userId }).where(eq(issueComments.id, f.commentId));
-    const [principal] = await db.insert(chatExternalPrincipals).values({ companyId: f.companyId,
+    const [principal] = await db.insert(chatExternalPrincipals).values({ spaceId: f.spaceId,
       provider: "slack", providerAccountId: "", externalId: f.userId,
     }).returning();
-    await db.insert(chatIdentityLinks).values({ companyId: f.companyId, endpointId: f.endpointId,
-      principalId: principal.id, paperclipUserId: f.userId, status: "linked",
+    await db.insert(chatIdentityLinks).values({ spaceId: f.spaceId, endpointId: f.endpointId,
+      principalId: principal.id, outpostUserId: f.userId, status: "linked",
     });
-    await db.insert(chatActions).values({ companyId: f.companyId, endpointId: f.endpointId,
+    await db.insert(chatActions).values({ spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: f.conversationId, kind: "slack_board_message", status: "processed",
-      providerActionId: `board-comment:${f.commentId}`, payload: { issueId: f.issueId, commentId: f.commentId,
+      providerActionId: `operator-comment:${f.commentId}`, payload: { issueId: f.issueId, commentId: f.commentId,
         userId: f.userId, principalId: principal.id, agentId: f.agentId },
     });
     const runId = randomUUID(), sourceId = randomUUID();
     const nextCheckAt = new Date(Date.now() - 1000).toISOString();
-    await db.insert(heartbeatRuns).values({ id: sourceId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: sourceId, spaceId: f.spaceId, agentId: f.agentId,
       nativeIssueId: f.issueId, runtimeMode: "native", status: "succeeded", responsibleUserId: f.userId,
       contextSnapshot: { issueId: f.issueId, source: "chat:slack", endpointId: f.endpointId, wakeCommentId: f.commentId },
       resultJson: { semanticToolReceipts: { schedule: { operationId: "set_task_monitor",
         result: { taskId: f.issueId, monitor: { status: "scheduled", nextCheckAt } } } } },
     });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId,
       nativeIssueId: f.issueId, runtimeMode: "native", status: "running", responsibleUserId: f.userId,
       contextSnapshot: { issueId: f.issueId, source: "issue.monitor" },
     });
-    await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId, runId,
+    await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId, runId,
       source: "automation", reason: "issue_monitor_due", status: "claimed",
       idempotencyKey: `issue-monitor:${f.issueId}:${nextCheckAt}`, payload: { issueId: f.issueId, nextCheckAt },
     });
-    await initializeRunIdentity(db, { companyId: f.companyId, runId, issueId: f.issueId,
+    await initializeRunIdentity(db, { spaceId: f.spaceId, runId, issueId: f.issueId,
       responsibleUserId: f.userId, cause: "dispatch" });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, f.issueId));
     let releaseSuspension!: () => void;
@@ -93,7 +93,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     let restored = false;
     let restorationPid = 0;
     const suspending = db.transaction(async tx => {
-      await tx.update(companyMemberships).set({ status: "suspended" }).where(membershipWhere);
+      await tx.update(spaceMemberships).set({ status: "suspended" }).where(membershipWhere);
       markSuspended();
       await suspensionHeld;
     });
@@ -101,7 +101,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const restoring = db.transaction(async tx => {
       const [backend] = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
       restorationPid = backend.pid;
-      await accessService(tx as unknown as typeof db).ensureMembership(f.companyId, "user", f.userId, "operator");
+      await accessService(tx as unknown as typeof db).ensureMembership(f.spaceId, "user", f.userId, "operator");
       restored = true;
       await restorationHeld;
       if (rollback) throw new Error("outer membership rollback");
@@ -122,12 +122,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       await chatRunMilestoneWork(db).register(coordinator, () => true).ready;
       await vi.advanceTimersByTimeAsync(1000);
       expect(await publications()).toEqual([]);
-      expect((await db.select().from(companyMemberships).where(membershipWhere))[0].status).toBe("suspended");
+      expect((await db.select().from(spaceMemberships).where(membershipWhere))[0].status).toBe("suspended");
       releaseRestoration();
       if (rollback) await expect(restoring).rejects.toThrow("outer membership rollback");
       else await restoring;
       await flush();
-      expect((await db.select().from(companyMemberships).where(membershipWhere))[0].status)
+      expect((await db.select().from(spaceMemberships).where(membershipWhere))[0].status)
         .toBe(rollback ? "suspended" : "active");
       expect(await publications()).toEqual(rollback ? [] : [expect.objectContaining({ idempotencyKey: `run:${runId}:working:${f.endpointId}` })]);
       await quiet();
@@ -135,7 +135,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         const notices: string[] = [];
         const unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.chatRunMilestones, event => notices.push(event));
         try {
-          await accessService(db).ensureMembership(f.companyId, "user", f.userId, "operator");
+          await accessService(db).ensureMembership(f.spaceId, "user", f.userId, "operator");
           expect(notices).toEqual([]);
         } finally { unsubscribe(); }
         await quiet();
@@ -150,21 +150,21 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it.each(["initialization", "steering"] as const)("wakes matching monitor lineage after %s commits, preserving rollback and replay", async kind => {
     const nextCheckAt = new Date(Date.now() - 1000).toISOString();
     const sourceId = randomUUID(), successorId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: sourceId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: sourceId, spaceId: f.spaceId, agentId: f.agentId,
       nativeIssueId: f.issueId, runtimeMode: "native", status: "succeeded", responsibleUserId: f.userId,
       contextSnapshot: { issueId: f.issueId, source: "chat:slack", endpointId: f.endpointId, wakeCommentId: f.commentId },
       resultJson: { semanticToolReceipts: { schedule: { operationId: "set_task_monitor",
         result: { taskId: f.issueId, monitor: { status: "scheduled", nextCheckAt } } } } },
     });
-    await db.insert(heartbeatRuns).values({ id: successorId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: successorId, spaceId: f.spaceId, agentId: f.agentId,
       nativeIssueId: f.issueId, runtimeMode: "native", status: "running", responsibleUserId: null,
       contextSnapshot: { issueId: f.issueId, source: "issue.monitor" },
     });
-    await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId, runId: successorId,
+    await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId, runId: successorId,
       source: "automation", reason: "issue_monitor_due", status: "claimed",
       idempotencyKey: `issue-monitor:${f.issueId}:${nextCheckAt}`, payload: { issueId: f.issueId, nextCheckAt },
     });
-    const identityInput = { companyId: f.companyId, runId: successorId, issueId: f.issueId, responsibleUserId: f.userId, cause: "dispatch" };
+    const identityInput = { spaceId: f.spaceId, runId: successorId, issueId: f.issueId, responsibleUserId: f.userId, cause: "dispatch" };
     if (kind === "steering") {
       await initializeRunIdentity(db, { ...identityInput, responsibleUserId: null });
       await db.update(issueComments).set({ authorUserId: f.userId }).where(eq(issueComments.id, f.commentId));
@@ -173,7 +173,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await chatRunMilestoneWork(db).register(coordinator, () => true).ready;
     await flush(); expect(await publications()).toEqual([]); await quiet();
     const pending = kind === "steering" ? await reserveSteeredIdentity(db, {
-      companyId: f.companyId, runId: successorId, issueId: f.issueId, messageId: f.commentId,
+      spaceId: f.spaceId, runId: successorId, issueId: f.issueId, messageId: f.commentId,
     }) : null;
     // Reserving an unacknowledged message must not activate its identity.
     if (kind === "steering") expect(pending?.status).toBe("pending");

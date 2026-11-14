@@ -1,7 +1,7 @@
-# Stock harness with Paperclip
+# Stock harness with Outpost
 
 This suite covers the instruction reductions tracked in the
-[working checklist](../../doc/plans/2026-10-02-stock-harness-paperclip-checklist.md).
+[working checklist](../../doc/plans/2026-10-02-stock-harness-outpost-checklist.md).
 Existing context-integrity and chat evals supplied a custom QA instruction
 bundle. Their passing results therefore did not qualify a hire with the tiny
 production default. The new suite omits that fixture bundle and lets the public
@@ -44,13 +44,13 @@ needed by route tests on a cold install with lifecycle scripts disabled.
 The direct Playwright path also requires the retained prerequisite receipt. It
 verifies the exact checkout SHA, evaluated-source fingerprint, all requested
 Vitest reports and required assertions, and the Rust result before creating a
-company. Missing, stale, partial, or failed prerequisites cannot qualify a cell.
+space. Missing, stale, partial, or failed prerequisites cannot qualify a cell.
 Oracle/admission calibration is itself included in the prerequisite gate.
 
 ## Checkout observations
 
 Legacy context-integrity journeys retain `checkout-activity.json` from the public
-issue activity API. Each receipt must match the exact company, issue, agent and
+issue activity API. Each receipt must match the exact space, issue, agent and
 run. An idempotent agent checkout still records a successful route call; the
 server's pre-dispatch checkout does not. Missing or mismatched evidence is
 unavailable or uncomparable, never a zero. This observation leaves the original
@@ -74,7 +74,7 @@ existing journeys with independently calibrated graders.
 
 A full matrix expects 48 provider turns. Models, credentials, effort,
 permissions, assigned skills, environment, and managed secret references are
-inherited from the existing profile; only its QA manual is omitted. Both company
+inherited from the existing profile; only its QA manual is omitted. Both space
 and agent receive a 1,000-cent monthly hard stop before provider execution,
 verified through public records. These limits do not predict final spend:
 attempts, retries, partial runs, unknown billing, and cleanup remain in the
@@ -182,9 +182,9 @@ and its fixture; verification binds both binaries to the retained receipt.
 
 That final cold pilot passed all 537 prerequisites on GitHub and reached Claude
 Sonnet 4.6. It saved a workspace `task-output.md` and completed the issue, while
-the independent durable-document oracle found no Paperclip issue document.
+the independent durable-document oracle found no Outpost issue document.
 The pinned skill's phrase "task document" does not explicitly name storage in
-Paperclip; matched historical results must precede any regression attribution.
+Outpost; matched historical results must precede any regression attribution.
 The task, instruction delivery, budget, and cleanup receipts remain retained.
 
 Its trusted merged report rejected the prerequisite folder alongside the campaign
@@ -230,14 +230,14 @@ source hashes, all campaign and recovery links, timing/usage, cost coverage,
 security failures, clipping limits and publication-layout recovery. Candidate
 `f02d8d0df` has 24 retained results: 15 pass and nine fail. Historical
 `12c5433c6` also has 24 retained results: 15 pass and nine fail. Its single
-AWS-runner recovery timed out; original missing evidence remains recorded. Classic Claude/OpenCode skill runs save no Paperclip task document
+AWS-runner recovery timed out; original missing evidence remains recorded. Classic Claude/OpenCode skill runs save no Outpost task document
 where historical runs save one; the original oracle remains failed.
 
 The merged native Codex change is held constant. Same aggregate success counts
 would not establish equivalence: case outcomes differ, fixture storage wording
 is ambiguous, ACP credential guards fail, and some public prompt receipts are
 clipped. Native finish/block tool guidance belongs to native runners; legacy
-document-delivery guidance must use the actual Paperclip skill/API path. No
+document-delivery guidance must use the actual Outpost skill/API path. No
 production or skill instructions have been changed to turn the measured failures
 into passes. PR #14948 remains draft.
 
@@ -253,6 +253,6 @@ run. Use a separate frozen-source branch when independent campaigns must overlap
 
 ## Focused legacy delivery repair
 
-The original 24 cells and original assigned-skill request/procedure remain unchanged. Two added explicit Paperclip-document cells apply only to classic Claude and OpenCode, making 26 catalog cells (50 expected turns if every cell is selected). The repair campaign selects only the original skill case and new document case for those two profiles: four cells per variant, eight expected turns total. No full matrix rerun is planned.
+The original 24 cells and original assigned-skill request/procedure remain unchanged. Two added explicit Outpost-document cells apply only to classic Claude and OpenCode, making 26 catalog cells (50 expected turns if every cell is selected). The repair campaign selects only the original skill case and new document case for those two profiles: four cells per variant, eight expected turns total. No full matrix rerun is planned.
 
 Both skill sources are recorded in definition/admission digests. The pre-fix baseline restores the old SKILL.md and records the new reference as absent, without copying the new recipe into that baseline. It holds the tiny manual/shared prompts and all fixture/model/auth/effort inputs fixed. The explicit document oracle checks actual public content/revision and an exact same-app document link, with plausible-negative calibrations.

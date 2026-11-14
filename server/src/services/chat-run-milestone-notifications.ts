@@ -8,20 +8,20 @@ import { notifyChatNativeProgress } from "./chat-native-progress-notifications.j
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 
 /** Lineage changes can authorize descendants, so invalidate the issue rather
- * than just the run whose row changed. Configuration may invalidate a company. */
-export type ChatRunMilestoneScope = { companyId: string; issueId?: string; runId?: string };
+ * than just the run whose row changed. Configuration may invalidate a space. */
+export type ChatRunMilestoneScope = { spaceId: string; issueId?: string; runId?: string };
 
 export async function notifyChatRunMilestones(tx: object, scope: ChatRunMilestoneScope) {
   if (!scope.issueId && !scope.runId) await notifyRunDispatch(tx, scope);
   if (scope.issueId || scope.runId) {
-    await notifyIssueReviewState(tx, { companyId: scope.companyId, issueId: scope.issueId,
+    await notifyIssueReviewState(tx, { spaceId: scope.spaceId, issueId: scope.issueId,
       runId: scope.issueId ? undefined : scope.runId });
-    await notifyNativeResponsePresentation(tx, { companyId: scope.companyId, issueId: scope.issueId,
+    await notifyNativeResponsePresentation(tx, { spaceId: scope.spaceId, issueId: scope.issueId,
       runId: scope.issueId ? undefined : scope.runId });
   }
-  await notifyDeliveryWork(tx, DELIVERY_QUEUES.chatGitHubReviewChecks, JSON.stringify({ companyId: scope.companyId }));
-  await notifyDeliveryWork(tx, DELIVERY_QUEUES.chatGitHubTerminalResponses, JSON.stringify({ companyId: scope.companyId, issueId: scope.issueId }));
-  await notifyDeliveryWork(tx, DELIVERY_QUEUES.chatRunMilestones, JSON.stringify({ companyId: scope.companyId, issueId: scope.issueId }));
+  await notifyDeliveryWork(tx, DELIVERY_QUEUES.chatGitHubReviewChecks, JSON.stringify({ spaceId: scope.spaceId }));
+  await notifyDeliveryWork(tx, DELIVERY_QUEUES.chatGitHubTerminalResponses, JSON.stringify({ spaceId: scope.spaceId, issueId: scope.issueId }));
+  await notifyDeliveryWork(tx, DELIVERY_QUEUES.chatRunMilestones, JSON.stringify({ spaceId: scope.spaceId, issueId: scope.issueId }));
   // Lifecycle and coarse native progress share lineage and authority. Extend
   // this eligibility boundary once rather than adding wrappers to its callers.
   await notifyChatNativeProgress(tx, scope);
@@ -32,7 +32,7 @@ export async function notifyChatRunMilestones(tx: object, scope: ChatRunMileston
   await notifyChatResponseAvailability(tx, scope, { notifySettlement: false });
 }
 
-export async function notifyChatCompanyAuthorityChange(tx: object, scope: { companyId: string }) {
+export async function notifyChatSpaceAuthorityChange(tx: object, scope: { spaceId: string }) {
   await notifyChatRunMilestones(tx, scope);
   await notifyNativeResponsePresentation(tx, scope);
   await notifyIssueReviewState(tx, scope);

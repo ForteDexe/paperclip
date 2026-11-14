@@ -5,7 +5,7 @@ import {
   activityLog,
   agents,
   agentWakeupRequests,
-  companies,
+  spaces,
   completionContracts,
   createDb,
   heartbeatRuns,
@@ -24,28 +24,28 @@ import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.j
 import { reconcileNativeFinalizations } from "../services/native-runtime/native-finalization-reconciler.js";
 import { finalizeNativeRun, NATIVE_FINALIZATION_AUTOMATIC_BACKOFF_MS } from "../services/native-runtime/native-run-finalizer.js";
 import { refinalizeSavedNativeResult } from "../services/native-runtime/exhausted-finalization-retry.js";
-import { PaperclipControlPlanePort } from "../services/native-runtime/paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "../services/native-runtime/outpost-control-plane-port.js";
 import { taskInterruptionPresentation } from "../services/task-interruption-presentation.js";
 import { requestTaskRetry } from "../services/task-retry.js";
 
 const external = resolveExternalTestDatabaseUrl("OUTPOST_NATIVE_FINALIZATION_TEST_DATABASE_URL");
 
 // A provider-succeeded native run whose accepted result could not be applied
-// to its task used to rest in review with a board recovery card and no Retry.
+// to its task used to rest in review with a operator recovery card and no Retry.
 // Retry must apply the same saved result again, never start a provider run.
 describe("Retry after native finalization runs out of retries", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  const companyId = "72200000-0000-4000-8000-000000000001";
+  const spaceId = "72200000-0000-4000-8000-000000000001";
   const agentId = "72200000-0000-4000-8000-000000000002";
-  const userId = "board-user";
+  const userId = "operator-user";
   let seq = 0;
 
   beforeAll(async () => {
-    if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-native-exhausted-retry-");
+    if (!external) temporary = await startEmbeddedPostgresTestDatabase("outpost-native-exhausted-retry-");
     db = createDb(external ?? temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Exhausted finalization", issuePrefix: "NEF" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Finalizing agent", adapterType: "codex_local", status: "running" });
+    await db.insert(spaces).values({ id: spaceId, name: "Exhausted finalization", issuePrefix: "NEF" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Finalizing agent", adapterType: "codex_local", status: "running" });
   }, 30_000);
 
   afterAll(async () => {
@@ -57,10 +57,10 @@ describe("Retry after native finalization runs out of retries", () => {
     seq += 1;
     const id = (n: number) => `72200000-0000-4000-8${String(seq).padStart(3, "0")}-${String(n).padStart(12, "0")}`;
     const issueId = id(1), contractId = id(2), runId = id(3);
-    await db.insert(issues).values({ id: issueId, companyId, title: `Finalize saved result ${seq}`, status: "in_progress",
+    await db.insert(issues).values({ id: issueId, spaceId, title: `Finalize saved result ${seq}`, status: "in_progress",
       assigneeAgentId: agentId, workMode: "standard" });
     await db.insert(completionContracts).values({
-      id: contractId, companyId, issueId, revision: 1,
+      id: contractId, spaceId, issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "phase6-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "phase6-v1", objective: "Finalize the saved result",
@@ -68,22 +68,22 @@ describe("Retry after native finalization runs out of retries", () => {
       canonicalSha256: `exhausted-contract-${seq}`, createdByActorType: "system", createdByActorId: "test",
     });
     await db.insert(heartbeatRuns).values({
-      id: runId, companyId, agentId, status: "running", runtimeMode: "native",
+      id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
       runtimeModeReason: "persisted_before_kill_switch", nativeIssueId: issueId, nativeSessionId: runId,
       runnerInstanceId: contractId, completionContractId: contractId,
       completionContractSha256: `exhausted-contract-${seq}`, contextSnapshot: { issueId },
     });
-    const port = new PaperclipControlPlanePort(db, {
-      companyId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
+    const port = new OutpostControlPlanePort(db, {
+      spaceId, issueId, runId, agentId, sessionId: runId, completionContractId: contractId,
       completionContractSha256: `exhausted-contract-${seq}`, sourceInstanceId: contractId,
       controlPlaneSourceInstanceId: `exhausted-control-${seq}`,
     });
     await port.openRun({ ...CONTROL_PLANE_CONFORMANCE_OPEN,
-      identity: { companyId, issueId, runId, agentId, sessionId: runId }, sourceInstanceId: contractId });
+      identity: { spaceId, issueId, runId, agentId, sessionId: runId }, sourceInstanceId: contractId });
     await port.completeRun({ result: CONTROL_PLANE_CONFORMANCE_RESULT, terminal: CONTROL_PLANE_CONFORMANCE_TERMINAL,
       callerResultId: `exhausted-result-${seq}` });
     if (options.brokenResult) await setResultTerminal(runId, "unknown");
-    await db.insert(workspaceOperations).values({ companyId, heartbeatRunId: runId, issueId,
+    await db.insert(workspaceOperations).values({ spaceId, heartbeatRunId: runId, issueId,
       phase: "workspace_finalize", status: "succeeded" });
     return { issueId, runId };
   }
@@ -106,9 +106,9 @@ describe("Retry after native finalization runs out of retries", () => {
     .where(eq(nativeRunFinalizations.runId, runId)).then(rows => rows[0]!);
   const issueRow = (issueId: string) => db.select().from(issues).where(eq(issues.id, issueId)).then(rows => rows[0]!);
   const runCount = (issueId: string) => db.select({ count: sql<number>`count(*)::int` }).from(heartbeatRuns)
-    .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.nativeIssueId, issueId))).then(rows => rows[0]!.count);
+    .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.nativeIssueId, issueId))).then(rows => rows[0]!.count);
   const presentation = async (issueId: string) => taskInterruptionPresentation(db, await issueRow(issueId));
-  const retry = (issueId: string, runId: string, key: string) => requestTaskRetry({ db, companyId, issueId,
+  const retry = (issueId: string, runId: string, key: string) => requestTaskRetry({ db, spaceId, issueId,
     actorId: userId, actorSource: "session", idempotencyKey: key, observedRunId: runId });
 
   async function expectStuckButRetryable(issueId: string, runId: string) {
@@ -146,7 +146,7 @@ describe("Retry after native finalization runs out of retries", () => {
     await expect(retry(issueId, runId, "refinalize-2")).resolves.toMatchObject({ accepted: true,
       requestId: receipt.requestId, finalizeRunId: runId });
     const providerRetries = () => db.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.reason, "task_retry"),
+      eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.reason, "task_retry"),
       sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
       sql`${agentWakeupRequests.status} <> 'coalesced' or ${agentWakeupRequests.payload}#>>'{taskRetry,strategy}' <> 'finalize_result'`));
     await expect(providerRetries()).resolves.toHaveLength(0);
@@ -162,7 +162,7 @@ describe("Retry after native finalization runs out of retries", () => {
     await expect(presentation(issueId)).resolves.toMatchObject({ state: "working", canRetry: false,
       recoveryStep: "finishing_recovery" });
 
-    await refinalizeSavedNativeResult(db, { companyId, runId });
+    await refinalizeSavedNativeResult(db, { spaceId, runId });
     // A stale click after the result applied also joins; nothing new runs.
     const late = await retry(issueId, runId, "refinalize-3");
     expect(late).toMatchObject({ accepted: true, requestId: receipt.requestId });
@@ -179,7 +179,7 @@ describe("Retry after native finalization runs out of retries", () => {
     expect(settled?.canRetry ?? false).toBe(false);
     expect(settled?.state ?? "resolved").toBe("resolved");
     await expect(db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.sourceIssueId, issueId),
-      eq(issueRecoveryActions.status, "active"), eq(issueRecoveryActions.ownerType, "board")))).resolves.toHaveLength(0);
+      eq(issueRecoveryActions.status, "active"), eq(issueRecoveryActions.ownerType, "operator")))).resolves.toHaveLength(0);
   });
 
   it("offers the same Retry for a coordinator an older build left terminal", async () => {
@@ -193,7 +193,7 @@ describe("Retry after native finalization runs out of retries", () => {
     await setResultTerminal(runId, CONTROL_PLANE_CONFORMANCE_TERMINAL.runTerminalState);
 
     await expect(retry(issueId, runId, "refinalize-old")).resolves.toMatchObject({ finalizeRunId: runId });
-    await refinalizeSavedNativeResult(db, { companyId, runId });
+    await refinalizeSavedNativeResult(db, { spaceId, runId });
     await expect(coordinator(runId)).resolves.toMatchObject({ phase: "committed", attempt: 3 });
     expect(await runCount(issueId)).toBe(1);
   });
@@ -204,7 +204,7 @@ describe("Retry after native finalization runs out of retries", () => {
     await expectStuckButRetryable(issueId, runId);
 
     await expect(retry(issueId, runId, "refinalize-fails")).resolves.toMatchObject({ finalizeRunId: runId });
-    await refinalizeSavedNativeResult(db, { companyId, runId });
+    await refinalizeSavedNativeResult(db, { spaceId, runId });
     // The click granted a fresh budget: the first failure stays automatic.
     await expect(coordinator(runId)).resolves.toMatchObject({ phase: "retryable_failure",
       failureCode: "native_finalization_invalid" });
@@ -235,11 +235,11 @@ describe("Retry after native finalization runs out of retries", () => {
       await expect(db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)).then(rows => rows[0]?.resultJson))
         .resolves.toMatchObject({ finalizationFailureCount: 0 });
     }
-    // Each delay is used once; then the board gets a working Retry.
+    // Each delay is used once; then the operator gets a working Retry.
     await failOnce();
     await expectStuckButRetryable(issueId, runId);
     await expect(retry(issueId, runId, "refinalize-after-backoff")).resolves.toMatchObject({ finalizeRunId: runId });
-    await refinalizeSavedNativeResult(db, { companyId, runId });
+    await refinalizeSavedNativeResult(db, { spaceId, runId });
     await expect(coordinator(runId)).resolves.toMatchObject({ phase: "committed" });
     expect(await runCount(issueId)).toBe(1);
   });

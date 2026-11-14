@@ -59,7 +59,7 @@ const meta = {
     layout: "fullscreen",
     initialEntries: ["/PAP/issues/PAP-121"],
     waitForViewport: true,
-    paperclip: {
+    outpost: {
       capabilities: ["task-coordination/delegation", "navigation-preferences/navigation"],
       status: "current",
       implementation: "production",

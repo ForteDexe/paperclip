@@ -1,5 +1,5 @@
-import { agents, companies, type Db } from "@outpost/db";
-import { AGENT_STATUSES, COMPANY_STATUSES } from "@outpost/shared";
+import { agents, spaces, type Db } from "@outpost/db";
+import { AGENT_STATUSES, SPACE_STATUSES } from "@outpost/shared";
 import { eq, getTableColumns } from "drizzle-orm";
 import { evaluateAgentInvokability } from "../agent-invokability.js";
 import { supportsUnscopedTimerHeartbeat } from "../heartbeat-policy.js";
@@ -13,25 +13,25 @@ export async function readIdleAgentTimerSchedule(tx: Pick<Db, "select">, now: nu
   const state: unknown[] = [flags];
   const blocked = () => ({ blocked: true, state, deadlines: [] });
   if (flags[0] === "false" || flags.slice(1).some(v => ["true", "1", "yes", "on"].includes(v ?? ""))) return blocked();
-  const rows = await tx.select({ agent: getTableColumns(agents), companyStatus: companies.status,
-    companyUpdatedAt: companies.updatedAt }).from(agents).leftJoin(companies, eq(companies.id, agents.companyId))
+  const rows = await tx.select({ agent: getTableColumns(agents), spaceStatus: spaces.status,
+    spaceUpdatedAt: spaces.updatedAt }).from(agents).leftJoin(spaces, eq(spaces.id, agents.spaceId))
     .orderBy(agents.id).limit(idleDeadlineRowLimit + 1);
   state.push(rows);
   if (rows.length > idleDeadlineRowLimit) return blocked();
-  const byCompany = new Map<string, Map<string, typeof agents.$inferSelect>>();
+  const bySpace = new Map<string, Map<string, typeof agents.$inferSelect>>();
   for (const { agent } of rows) {
-    const group = byCompany.get(agent.companyId) ?? new Map<string, typeof agents.$inferSelect>();
+    const group = bySpace.get(agent.spaceId) ?? new Map<string, typeof agents.$inferSelect>();
     if (group.has(agent.id)) return blocked();
     group.set(agent.id, agent);
-    byCompany.set(agent.companyId, group);
+    bySpace.set(agent.spaceId, group);
   }
   const owner = createHeartbeatTimerPolicy(tx);
   const candidates: typeof agents.$inferSelect[] = [];
   const deadlines: number[] = [];
-  for (const { agent, companyStatus } of rows) {
+  for (const { agent, spaceStatus } of rows) {
     checkBudget();
-    if (!AGENT_STATUSES.includes(agent.status as typeof AGENT_STATUSES[number]) || !companyStatus || !COMPANY_STATUSES.includes(companyStatus as typeof COMPANY_STATUSES[number]) || agent.status === "running") return blocked();
-    if (companyStatus !== "active") continue;
+    if (!AGENT_STATUSES.includes(agent.status as typeof AGENT_STATUSES[number]) || !spaceStatus || !SPACE_STATUSES.includes(spaceStatus as typeof SPACE_STATUSES[number]) || agent.status === "running") return blocked();
+    if (spaceStatus !== "active") continue;
     if (!heartbeatTimerPolicyIsWellFormed(agent)) return blocked();
     const policy = owner.parseHeartbeatPolicy(agent);
     if (!Number.isFinite(policy.intervalSec)) return blocked();
@@ -43,7 +43,7 @@ export async function readIdleAgentTimerSchedule(tx: Pick<Db, "select">, now: nu
       checkBudget();
       seen.add(current.id);
       ancestors.push(current);
-      current = current.reportsTo ? byCompany.get(agent.companyId)!.get(current.reportsTo) : undefined;
+      current = current.reportsTo ? bySpace.get(agent.spaceId)!.get(current.reportsTo) : undefined;
     }
     const invokability = evaluateAgentInvokability(agent, ancestors);
     if (!invokability.invokable) {

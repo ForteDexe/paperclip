@@ -10,7 +10,7 @@ import {
   plugins,
 } from "@outpost/db";
 import type {
-  PaperclipPluginManifestV1,
+  OutpostPluginManifestV1,
   PluginDatabaseCoreReadTable,
   PluginMigrationRecord,
 } from "@outpost/shared";
@@ -366,7 +366,7 @@ export function pluginDatabaseService(db: PluginDatabaseRootClient) {
   async function ensureNamespaceWithClient(
     client: PluginDatabaseClient,
     pluginId: string,
-    manifest: PaperclipPluginManifestV1,
+    manifest: OutpostPluginManifestV1,
   ) {
     if (!manifest.database) return null;
     const namespaceName = derivePluginDatabaseNamespace(
@@ -397,7 +397,7 @@ export function pluginDatabaseService(db: PluginDatabaseRootClient) {
     return rows[0] ?? null;
   }
 
-  async function ensureNamespace(pluginId: string, manifest: PaperclipPluginManifestV1) {
+  async function ensureNamespace(pluginId: string, manifest: OutpostPluginManifestV1) {
     return ensureNamespaceWithClient(db, pluginId, manifest);
   }
 
@@ -462,7 +462,7 @@ export function pluginDatabaseService(db: PluginDatabaseRootClient) {
 
     async applyMigrations(
       pluginId: string,
-      manifest: PaperclipPluginManifestV1,
+      manifest: OutpostPluginManifestV1,
       packageRoot: string,
       options: ApplyPluginMigrationsOptions = {},
     ) {

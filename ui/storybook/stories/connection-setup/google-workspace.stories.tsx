@@ -10,7 +10,7 @@ const noop = () => {};
 const meta = {
   id: "apps-connections-google-workspace",
   title: "Apps, channels, and extensions/Connection setup/Google Workspace",
-  parameters: { layout: "fullscreen", paperclip: {
+  parameters: { layout: "fullscreen", outpost: {
     capabilities: ["connection-setup/catalog", "app-permissions/account-maintenance"],
     status: "current", implementation: "production", boundary: "fixtures",
     notes: "Production connection setup with simulated gallery metadata. Mutations are rejected; no successful Google grant or persistence is simulated.",
@@ -21,7 +21,7 @@ const meta = {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.origin);
       if (url.pathname.endsWith("/tools/gallery")) return Response.json({
         apps: [{ ...workspace, ownershipAvailability: { ...workspace.ownershipAvailability, platform_shared: true } }],
-        capabilities: { canCreateOrganizationGrant: true, canSetCompanyInstall: true },
+        capabilities: { canCreateOrganizationGrant: true, canSetSpaceInstall: true },
       });
       const method = init?.method ?? (input instanceof Request ? input.method : "GET");
       if (url.pathname.startsWith("/api/") && !["GET", "HEAD"].includes(method.toUpperCase())) {

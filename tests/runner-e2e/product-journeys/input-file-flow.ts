@@ -26,7 +26,7 @@ export async function runInputFile(context: JourneyContext, session: TargetSessi
     + "acceptedRows (the accepted row count), and acceptedUnits (their units total). Do not count declined rows. "
     + "Keep the original attachment unchanged, then finish the task. No other tasks or agents are needed.";
   const created = await createTaskThroughUi({ page: context.page, origin: context.api.origin,
-    issuePrefix: context.company.issuePrefix, agentName: agent.name, title, prompt, workMode: "standard",
+    issuePrefix: context.space.issuePrefix, agentName: agent.name, title, prompt, workMode: "standard",
     requireExplicitTitle: true, attachments: [file],
     beforeDispatch: () => session.own({ kind: "issue", name: title, journeyId: id }) });
   await session.own({ kind: "issue", name: title, id: created.issueId, journeyId: id });
@@ -40,7 +40,7 @@ export async function runInputFile(context: JourneyContext, session: TargetSessi
   const original = inputs.find(row => row.originalFilename === fixture.filename);
   const inputBytes = original ? await context.api.bytes(`/api/attachments/${original.id}/content`) : Buffer.alloc(0);
   check("input-upload-bytes-preserved", inputs.filter(row => row.originalFilename === fixture.filename).length === 1 && inputFileAttachmentMatches(original,
-    { companyId: context.company.id, issueId: created.issueId, fixture, downloaded: inputBytes }));
+    { spaceId: context.space.id, issueId: created.issueId, fixture, downloaded: inputBytes }));
 
   const state = await waitFor(options.deadlineAt, async () => {
     const [currentIssue, runs, comments, interactions] = await Promise.all([
@@ -58,11 +58,11 @@ export async function runInputFile(context: JourneyContext, session: TargetSessi
   const document = await context.api.get<Row>(`${route}/documents/${key}`);
   const revision = await context.api.get<Row>(`${route}/documents/${key}/revisions/${document.latestRevisionId}`);
   check("input-content-used-correctly", inputFileSummaryMatches(document.body, fixture.expected));
-  check("input-result-attributed-to-run", document.companyId === context.company.id && document.issueId === created.issueId
+  check("input-result-attributed-to-run", document.spaceId === context.space.id && document.issueId === created.issueId
     && document.createdByAgentId === agent.id && document.createdByUserId === null
     && revision.documentId === document.id && revision.createdByRunId === state.taskRuns[0]!.id
     && revision.createdByAgentId === agent.id && inputFileSummaryMatches(revision.body, fixture.expected));
-  const url = `${context.api.origin}/${context.company.issuePrefix}/issues/${state.currentIssue.identifier ?? created.issueId}`;
+  const url = `${context.api.origin}/${context.space.issuePrefix}/issues/${state.currentIssue.identifier ?? created.issueId}`;
   await context.page.goto(url, { waitUntil: "domcontentloaded" });
   await context.page.reload();
   await openDocumentAuthoring(context);
@@ -74,7 +74,7 @@ export async function runInputFile(context: JourneyContext, session: TargetSessi
   check("input-result-reopened", reopened.latestRevisionId === document.latestRevisionId
     && inputFileSummaryMatches(reopened.body, fixture.expected));
   check("original-input-retained", retainedInputs.filter(row => row.originalFilename === fixture.filename).length === 1 && inputFileAttachmentMatches(retained,
-    { companyId: context.company.id, issueId: created.issueId, fixture,
+    { spaceId: context.space.id, issueId: created.issueId, fixture,
       downloaded: retained ? await context.api.bytes(`/api/attachments/${retained.id}/content`) : Buffer.alloc(0) }));
   check("configured-model-and-environment", true); // Every observed run was independently checked above.
   await writeFile(path.join(options.directory, "input-file-checks.json"), JSON.stringify({

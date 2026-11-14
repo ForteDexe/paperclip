@@ -191,7 +191,7 @@ export function createProviderEffects(db: Db, options: ProviderEffectsOptions) {
     const [inserted] = await database
       .insert(chatActions)
       .values({
-        companyId: input.endpoint.companyId,
+        spaceId: input.endpoint.spaceId,
         endpointId: input.endpoint.id,
         deliveryId: input.deliveryId ?? null,
         conversationId: input.conversationId ?? null,
@@ -457,7 +457,7 @@ export function createProviderEffects(db: Db, options: ProviderEffectsOptions) {
         .where(
           and(
             eq(chatDeliveries.id, action.deliveryId),
-            eq(chatDeliveries.companyId, action.companyId),
+            eq(chatDeliveries.spaceId, action.spaceId),
             eq(chatDeliveries.endpointId, action.endpointId),
             eq(chatDeliveries.state, "filtered"),
           ),
@@ -490,7 +490,7 @@ export function createProviderEffects(db: Db, options: ProviderEffectsOptions) {
           .from(chatConversations)
           .where(
             and(
-              eq(chatConversations.companyId, endpoint.companyId),
+              eq(chatConversations.spaceId, endpoint.spaceId),
               eq(chatConversations.endpointId, endpoint.id),
               eq(chatConversations.id, action.conversationId),
               inArray(chatConversations.state, ["active", "waiting"]),
@@ -509,7 +509,7 @@ export function createProviderEffects(db: Db, options: ProviderEffectsOptions) {
       .from(chatEndpointResources)
       .where(
         and(
-          eq(chatEndpointResources.companyId, endpoint.companyId),
+          eq(chatEndpointResources.spaceId, endpoint.spaceId),
           eq(chatEndpointResources.endpointId, endpoint.id),
           payload.resourceId || conversation?.resourceId
             ? eq(

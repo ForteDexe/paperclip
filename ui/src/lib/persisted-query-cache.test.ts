@@ -21,29 +21,29 @@ class MemoryStorage {
   removeItem(key: string) { this.values.delete(key); }
 }
 const session = (id = "alice") => ({ session: { id: `session-${id}`, userId: id, token: "never-store-session-token" },
-  user: { id, name: id, email: `${id}@example.test`, image: null }, sentryDsn: "never-store-dsn", boardBootstrap: { private: "not-allowlisted" } });
+  user: { id, name: id, email: `${id}@example.test`, image: null }, sentryDsn: "never-store-dsn", operatorBootstrap: { private: "not-allowlisted" } });
 const handles: Array<() => void> = [];
 function setup(storage = new MemoryStorage(), now?: () => number, client = new QueryClient({ defaultOptions: { queries: { retry: false } } }), buildId: string | null = "build-one") {
   const handle = startPersistedQueryCache(client, { storage, now, buildId, eventTarget: null, debounceMs: 100_000 });
   handles.push(() => { handle.dispose(); client.clear(); });
   return { client, handle, storage };
 }
-function seed(client: QueryClient, userId = "alice", companyId = "company-one") {
+function seed(client: QueryClient, userId = "alice", spaceId = "space-one") {
   client.setQueryData(queryKeys.auth.session, session(userId));
-  client.setQueryData(queryKeys.companies.list(userId), { companies: [{ id: companyId, name: "Example" }], unauthorized: false });
+  client.setQueryData(queryKeys.spaces.list(userId), { spaces: [{ id: spaceId, name: "Example" }], unauthorized: false });
   client.setQueryData(queryKeys.health, { status: "ok", deploymentMode: "authenticated" });
-  client.setQueryData([...queryKeys.access.currentBoardAccess, userId], { userId, companyIds: [companyId], isInstanceAdmin: false });
-  client.setQueryData([...queryKeys.issues.detail("task-one"), "core"], { id: "task-one", companyId, title: "Saved task" });
+  client.setQueryData([...queryKeys.access.currentBoardAccess, userId], { userId, spaceIds: [spaceId], isInstanceAdmin: false });
+  client.setQueryData([...queryKeys.issues.detail("task-one"), "core"], { id: "task-one", spaceId, title: "Saved task" });
 }
 afterEach(() => { for (const dispose of handles.splice(0)) dispose(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("persisted read cache", () => {
   it("restores learned PR status and negative reads without invalidating their demand-driven freshness", () => {
     const first = setup(); seed(first.client);
-    const key = queryKeys.linkPreview("company-one", "alice", "https://github.com/acme/web/pull/241");
+    const key = queryKeys.linkPreview("space-one", "alice", "https://github.com/acme/web/pull/241");
     const result = { preview: { title: "Saved PR status", state: "merged" }, maxAgeMs: 60_000 };
     first.client.setQueryData(key, result);
-    const absentKey = queryKeys.linkPreview("company-one", "alice", "https://github.com/acme/web/pull/242");
+    const absentKey = queryKeys.linkPreview("space-one", "alice", "https://github.com/acme/web/pull/242");
     first.client.setQueryData(absentKey, { preview: null, maxAgeMs: 60_000 });
     const updatedAt = first.client.getQueryState(key)!.dataUpdatedAt;
     first.handle.flush();
@@ -53,16 +53,16 @@ describe("persisted read cache", () => {
     expect(restored.client.getQueryState(key)).toMatchObject({ dataUpdatedAt: updatedAt, isInvalidated: false });
   });
 
-  it("persists PR reads only for the active viewer and an accessible company", () => {
+  it("persists PR reads only for the active viewer and an accessible space", () => {
     const first = setup(); seed(first.client);
     const url = "https://github.com/acme/web/pull/241";
     const result = { preview: { title: "Private PR" }, maxAgeMs: 60_000 };
     const forbidden = [
-      queryKeys.linkPreview("company-one", "bob", url),
-      queryKeys.linkPreview("other-company", "alice", url),
-      ["link-preview", "company-one", null, url],
-      ["link-preview", "company-one", "alice"],
-      ["link-preview", "company-one", "alice", url, "extra"],
+      queryKeys.linkPreview("space-one", "bob", url),
+      queryKeys.linkPreview("other-space", "alice", url),
+      ["link-preview", "space-one", null, url],
+      ["link-preview", "space-one", "alice"],
+      ["link-preview", "space-one", "alice", url, "extra"],
     ];
     for (const key of forbidden) first.client.setQueryData(key, result);
     first.handle.flush();
@@ -75,33 +75,33 @@ describe("persisted read cache", () => {
     let now = Date.now();
     const first = setup(undefined, () => now); seed(first.client);
     for (let i = 0; i < 120; i += 1) first.client.setQueryData(
-      queryKeys.linkPreview("company-one", "alice", `https://github.com/acme/web/pull/${i + 1}`),
+      queryKeys.linkPreview("space-one", "alice", `https://github.com/acme/web/pull/${i + 1}`),
       { preview: { title: `PR ${i + 1}`, state: "open" }, maxAgeMs: 60_000 }, { updatedAt: now - 120 + i });
     first.handle.flush();
     const restored = setup(first.storage, () => now);
     expect(restored.client.getQueryCache().findAll({ queryKey: ["link-preview"] })).toHaveLength(100);
-    expect(restored.client.getQueryData(queryKeys.linkPreview("company-one", "alice", "https://github.com/acme/web/pull/1"))).toBeUndefined();
-    expect(restored.client.getQueryData(queryKeys.linkPreview("company-one", "alice", "https://github.com/acme/web/pull/120"))).toBeDefined();
+    expect(restored.client.getQueryData(queryKeys.linkPreview("space-one", "alice", "https://github.com/acme/web/pull/1"))).toBeUndefined();
+    expect(restored.client.getQueryData(queryKeys.linkPreview("space-one", "alice", "https://github.com/acme/web/pull/120"))).toBeDefined();
     first.client.removeQueries({ queryKey: ["link-preview"] });
     now += 10 * 60_000;
     first.handle.flush();
     expect(setup(first.storage, () => now).client.getQueryCache().findAll({ queryKey: ["link-preview"] })).toHaveLength(100);
     now += QUERY_CACHE_MAX_AGE;
     first.client.setQueryData(queryKeys.auth.session, session(), { updatedAt: now });
-    first.client.setQueryData(queryKeys.companies.list("alice"), { companies: [{ id: "company-one" }] }, { updatedAt: now });
+    first.client.setQueryData(queryKeys.spaces.list("alice"), { spaces: [{ id: "space-one" }] }, { updatedAt: now });
     first.handle.flush();
     expect(setup(first.storage, () => now).client.getQueryCache().findAll({ queryKey: ["link-preview"] })).toHaveLength(0);
   });
 
   it.each(["sign-out", "account-change", "membership-loss"])("removes persisted private PR reads on %s", action => {
     const first = setup(); seed(first.client);
-    const key = queryKeys.linkPreview("company-one", "alice", "https://github.com/acme/private/pull/241");
+    const key = queryKeys.linkPreview("space-one", "alice", "https://github.com/acme/private/pull/241");
     first.client.setQueryData(key, { preview: { title: "Private PR status" }, maxAgeMs: 60_000 });
     first.handle.flush();
     expect([...first.storage.values.values()].join(" ")).toContain("Private PR status");
     if (action === "sign-out") clearPersistedQueryCache(first.client);
     if (action === "account-change") first.client.setQueryData(queryKeys.auth.session, session("bob"));
-    if (action === "membership-loss") first.client.setQueryData(queryKeys.companies.list("alice"), { companies: [] });
+    if (action === "membership-loss") first.client.setQueryData(queryKeys.spaces.list("alice"), { spaces: [] });
     first.handle.flush();
     expect([...first.storage.values.values()].join(" ")).not.toContain("Private PR status");
     expect(setup(first.storage).client.getQueryData(key)).toBeUndefined();
@@ -119,9 +119,9 @@ describe("persisted read cache", () => {
     expect([...first.storage.values.keys()].some(key => key.startsWith(QUERY_CACHE_PREFIX))).toBe(false);
   });
 
-  it.each([QUERY_CACHE_CLEARED, "paperclip:query-cache-revision:alice"])("revokes a stamped tab through exported sign-out cleanup in an unstamped build (%s)", async eventKey => {
+  it.each([QUERY_CACHE_CLEARED, "outpost:query-cache-revision:alice"])("revokes a stamped tab through exported sign-out cleanup in an unstamped build (%s)", async eventKey => {
     const first = setup(); seed(first.client); first.handle.flush();
-    first.storage.setItem("paperclip:private-draft", "draft retained");
+    first.storage.setItem("outpost:private-draft", "draft retained");
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const events = new EventTarget();
     const other = startPersistedQueryCache(client, { storage: first.storage, buildId: "build-one", eventTarget: events as Window });
@@ -139,7 +139,7 @@ describe("persisted read cache", () => {
     expect(account.isCurrentScope()).toBe(false);
     other.flush();
     expect(first.storage.getItem(QUERY_CACHE_ACTIVE)).toBeNull();
-    expect(first.storage.getItem("paperclip:private-draft")).toBe("draft retained");
+    expect(first.storage.getItem("outpost:private-draft")).toBe("draft retained");
   });
 
   it("rejects a stamped tab's delayed flush after unstamped sign-out before storage events arrive", async () => {
@@ -154,24 +154,24 @@ describe("persisted read cache", () => {
     expect([...first.storage.values.keys()].filter(key => key.startsWith(QUERY_CACHE_PREFIX))).toEqual([]);
   });
 
-  it("keeps recent task reads and company membership after actual five-minute memory garbage collection", async () => {
+  it("keeps recent task reads and space membership after actual five-minute memory garbage collection", async () => {
     vi.useFakeTimers();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
     const key = [...queryKeys.issues.detail("task-one"), "core"];
     client.setQueryDefaults(key, { gcTime: 5 * 60_000 });
-    client.setQueryDefaults(queryKeys.companies.list("alice"), { gcTime: 5 * 60_000 });
+    client.setQueryDefaults(queryKeys.spaces.list("alice"), { gcTime: 5 * 60_000 });
     const first = setup(undefined, undefined, client); seed(client); first.handle.flush();
     const observer = new QueryObserver(client, { queryKey: key, enabled: false });
     const unsubscribe = observer.subscribe(() => {});
     unsubscribe();
     await vi.advanceTimersByTimeAsync(5 * 60_000 + 1);
     expect(client.getQueryData(key)).toBeUndefined();
-    expect(client.getQueryData(queryKeys.companies.list("alice"))).toBeUndefined();
+    expect(client.getQueryData(queryKeys.spaces.list("alice"))).toBeUndefined();
     client.setQueryData(queryKeys.health, { status: "ok", restarted: true });
     first.handle.flush();
     const restored = setup(first.storage);
     expect(restored.client.getQueryData(key)).toMatchObject({ title: "Saved task" });
-    expect(restored.client.getQueryData(queryKeys.companies.list("alice"))).toMatchObject({ companies: [{ id: "company-one" }] });
+    expect(restored.client.getQueryData(queryKeys.spaces.list("alice"))).toMatchObject({ spaces: [{ id: "space-one" }] });
   });
 
   it("expires retained task data from its original read time despite later snapshot writes", () => {
@@ -185,7 +185,7 @@ describe("persisted read cache", () => {
     expect([...first.storage.values.values()].join(" ")).toContain("Saved task");
     now += QUERY_CACHE_MAX_AGE;
     first.client.setQueryData(queryKeys.auth.session, session(), { updatedAt: now });
-    first.client.setQueryData(queryKeys.companies.list("alice"), { companies: [{ id: "company-one" }] }, { updatedAt: now });
+    first.client.setQueryData(queryKeys.spaces.list("alice"), { spaces: [{ id: "space-one" }] }, { updatedAt: now });
     first.handle.flush();
     expect([...first.storage.values.values()].join(" ")).not.toContain("Saved task");
     expect(setup(first.storage, () => now).client.getQueryData(key)).toBeUndefined();
@@ -197,10 +197,10 @@ describe("persisted read cache", () => {
     const first = setup(undefined, () => now); seed(first.client);
     first.client.removeQueries({ queryKey: queryKeys.issues.detail("task-one") });
     for (let i = 0; i < 20; i += 1) first.client.setQueryData([...queryKeys.issues.detail(`task-${i}`), "core"],
-      { id: `task-${i}`, companyId: "company-one", title: `Retained task ${i}` }, { updatedAt: now - 20 + i });
+      { id: `task-${i}`, spaceId: "space-one", title: `Retained task ${i}` }, { updatedAt: now - 20 + i });
     first.handle.flush();
     first.client.removeQueries({ queryKey: ["issues", "detail"] });
-    first.client.setQueryData([...queryKeys.issues.detail("new-task"), "core"], { id: "new-task", companyId: "company-one", title: "Newest task" }, { updatedAt: now });
+    first.client.setQueryData([...queryKeys.issues.detail("new-task"), "core"], { id: "new-task", spaceId: "space-one", title: "Newest task" }, { updatedAt: now });
     first.handle.flush();
     const restored = setup(first.storage, () => now);
     const details = restored.client.getQueryCache().getAll().filter(query => query.queryKey[0] === "issues" && query.queryKey[1] === "detail");
@@ -211,11 +211,11 @@ describe("persisted read cache", () => {
 
   it.each([403, 404])("scrubs saved aliases and inbox rows after a %s denial following memory GC, even before session verification", async status => {
     const first = setup(); seed(first.client);
-    const task = { id: "task-one", identifier: "TST-1", companyId: "company-one", title: "Denied task body" };
+    const task = { id: "task-one", identifier: "TST-1", spaceId: "space-one", title: "Denied task body" };
     const keys = [queryKeys.issues.detail(task.id), [...queryKeys.issues.detail(task.id), "core"],
       queryKeys.issues.detail(task.identifier), [...queryKeys.issues.detail(task.identifier), "core"]];
     for (const key of keys) first.client.setQueryData(key, task);
-    const inboxKey = [...queryKeys.issues.listMineByMe("company-one"), "index", "with-routine-executions", "live-descendant-summary", 100, "alice"];
+    const inboxKey = [...queryKeys.issues.listMineByMe("space-one"), "index", "with-routine-executions", "live-descendant-summary", 100, "alice"];
     first.client.setQueryData(inboxKey, [task, { id: "allowed-task", title: "Other task" }]);
     first.handle.flush();
     first.client.removeQueries({ queryKey: ["issues"] });
@@ -228,10 +228,10 @@ describe("persisted read cache", () => {
     expect(restored.client.getQueryData(inboxKey)).toEqual([{ id: "allowed-task", title: "Other task" }]);
   });
 
-  it("removes retained company reads after fresh membership denial and does not resurrect them after memory GC", async () => {
+  it("removes retained space reads after fresh membership denial and does not resurrect them after memory GC", async () => {
     const first = setup(); seed(first.client); first.handle.flush();
     first.client.removeQueries({ queryKey: ["issues", "detail"] });
-    const membership = queryKeys.companies.list("alice");
+    const membership = queryKeys.spaces.list("alice");
     await first.client.fetchQuery({ queryKey: membership, queryFn: async () => { throw new ApiError("Forbidden", 403, null); } }).catch(() => {});
     first.client.removeQueries({ queryKey: membership, exact: true });
     first.handle.flush();
@@ -245,7 +245,7 @@ describe("persisted read cache", () => {
     const first = setup(undefined, () => now); seed(first.client); first.handle.flush();
     const key = [...queryKeys.issues.detail("task-one"), "core"];
     first.client.removeQueries({ queryKey: key, exact: true });
-    first.client.setQueryData(key, { id: "task-one", companyId: "company-one", title: "Newer task", planDocument: { body: "excluded-new-document" } }, { updatedAt: now });
+    first.client.setQueryData(key, { id: "task-one", spaceId: "space-one", title: "Newer task", planDocument: { body: "excluded-new-document" } }, { updatedAt: now });
     first.handle.flush();
     const restored = setup(first.storage, () => now);
     expect(restored.client.getQueryData(key)).toMatchObject({ title: "Newer task" });
@@ -256,7 +256,7 @@ describe("persisted read cache", () => {
   it("retains visible task run preferences while excluding private override options", () => {
     const first = setup(); seed(first.client);
     first.client.setQueryData([...queryKeys.issues.detail("task-one"), "core"], {
-      id: "task-one", companyId: "company-one", title: "Saved task",
+      id: "task-one", spaceId: "space-one", title: "Saved task",
       assigneeAdapterOverrides: { useProjectWorkspace: true, adapterConfig: {
         model: "display-model", modelReasoningEffort: "high", fastMode: true,
         chrome: true, command: "excluded-command", env: { PRIVATE_VALUE: "excluded-env" },
@@ -274,13 +274,13 @@ describe("persisted read cache", () => {
   it.each(["account-switch", "sign-out"])("does not share or persist another account's pending private-project request after %s", async boundary => {
     const first = setup(); seed(first.client); first.handle.flush();
     let finishAlice!: (value: Response) => void;
-    const bobProjects = [{ id: "project-bob", companyId: "company-one", name: "Bob project" }];
+    const bobProjects = [{ id: "project-bob", spaceId: "space-one", name: "Bob project" }];
     const fetch = vi.fn().mockImplementationOnce(() => new Promise<Response>(resolve => { finishAlice = resolve; }))
       .mockResolvedValue(new Response(JSON.stringify(bobProjects), { headers: { "Content-Type": "application/json" } }));
     vi.stubGlobal("fetch", fetch);
     try {
-      const key = queryKeys.projects.list("company-one");
-      const path = "/companies/company-one/projects";
+      const key = queryKeys.projects.list("space-one");
+      const path = "/spaces/space-one/projects";
       // Match sidebar reads that do not forward React Query's AbortSignal.
       const oldRead = first.client.fetchQuery({ queryKey: key, queryFn: () => api.get(path) }).catch(() => undefined);
       expect(fetch).toHaveBeenCalledTimes(1);
@@ -290,7 +290,7 @@ describe("persisted read cache", () => {
       const currentRead = first.client.fetchQuery({ queryKey: key, queryFn: () => api.get(path) });
       expect(fetch).toHaveBeenCalledTimes(2);
       await expect(currentRead).resolves.toEqual(bobProjects);
-      finishAlice(new Response(JSON.stringify([{ id: "project-alice", companyId: "company-one", name: "Alice private project" }]), { headers: { "Content-Type": "application/json" } }));
+      finishAlice(new Response(JSON.stringify([{ id: "project-alice", spaceId: "space-one", name: "Alice private project" }]), { headers: { "Content-Type": "application/json" } }));
       await oldRead;
       await Promise.resolve();
       first.handle.flush();
@@ -334,7 +334,7 @@ describe("persisted read cache", () => {
       storage.values = new Map(entries);
     });
     const first = setup(storage); seed(first.client);
-    first.client.setQueryData(queryKeys.companies.list("alice"), { companies: Array.from({ length: 8 }, (_, i) => ({ id: `company-${i}` })) });
+    first.client.setQueryData(queryKeys.spaces.list("alice"), { spaces: Array.from({ length: 8 }, (_, i) => ({ id: `space-${i}` })) });
     first.handle.flush();
     expect([...storage.values.keys()].filter(key => key.startsWith(QUERY_CACHE_PREFIX))).toHaveLength(10);
     first.handle.clear();
@@ -385,27 +385,27 @@ describe("persisted read cache", () => {
     expect(cold.client.getQueryData([...queryKeys.issues.detail("task-one"), "core"])).toBeUndefined();
     await second.client.fetchQuery({ queryKey: queryKeys.auth.session, staleTime: 0, queryFn: async () => session() });
     seed(second.client);
-    second.client.setQueryData([...queryKeys.issues.detail("task-one"), "core"], { id: "task-one", companyId: "company-one", title: "Freshly authorized task" });
+    second.client.setQueryData([...queryKeys.issues.detail("task-one"), "core"], { id: "task-one", spaceId: "space-one", title: "Freshly authorized task" });
     second.handle.flush();
     expect([...first.storage.values.values()].join(" ")).toContain("Freshly authorized task");
   });
 
   it("restores a bounded first page of all legacy Inbox task queries", () => {
     const first = setup(); seed(first.client);
-    const keys = [queryKeys.issues.list("company-one"), queryKeys.issues.listMineByMe("company-one"), queryKeys.issues.listTouchedByMe("company-one")]
+    const keys = [queryKeys.issues.list("space-one"), queryKeys.issues.listMineByMe("space-one"), queryKeys.issues.listTouchedByMe("space-one")]
       .map(key => [...key, "compact", "with-routine-executions", "live-descendant-summary", 500]);
-    const rows = Array.from({ length: 500 }, (_, i) => ({ id: `legacy-${i}`, companyId: "company-one", title: `Legacy task ${i}`, planDocument: { body: "excluded-legacy-document" } }));
+    const rows = Array.from({ length: 500 }, (_, i) => ({ id: `legacy-${i}`, spaceId: "space-one", title: `Legacy task ${i}`, planDocument: { body: "excluded-legacy-document" } }));
     for (const key of keys) first.client.setQueryData(key, rows);
     first.handle.flush();
     const restored = setup(first.storage);
     for (const key of keys) {
       expect(first.client.getQueryData(key)).toHaveLength(500);
       expect(restored.client.getQueryData(key)).toHaveLength(100);
-      expect(restored.client.getQueryData(key)).toContainEqual({ id: "legacy-0", companyId: "company-one", title: "Legacy task 0" });
-      expect(persistedQueryScope([...key, "extra"], rows, "alice", ["company-one"])).toBeUndefined();
+      expect(restored.client.getQueryData(key)).toContainEqual({ id: "legacy-0", spaceId: "space-one", title: "Legacy task 0" });
+      expect(persistedQueryScope([...key, "extra"], rows, "alice", ["space-one"])).toBeUndefined();
     }
     expect([...first.storage.values.values()].join(" ")).not.toContain("excluded-legacy-document");
-    const recordKey = `${QUERY_CACHE_PREFIX}alice:company-one`;
+    const recordKey = `${QUERY_CACHE_PREFIX}alice:space-one`;
     const record = JSON.parse(first.storage.getItem(recordKey)!);
     for (const query of record.state.queries) if (query.queryKey.includes("compact")) query.state.data = rows;
     first.storage.setItem(recordKey, JSON.stringify(record));
@@ -413,13 +413,13 @@ describe("persisted read cache", () => {
     for (const key of keys) expect(older.client.getQueryData(key)).toHaveLength(100);
   });
 
-  it("restores the approved shell and company reads without persisting authentication material", () => {
+  it("restores the approved shell and space reads without persisting authentication material", () => {
     const first = setup();
     seed(first.client);
-    first.client.setQueryData(["secrets", "company-one"], { token: "not-allowed" });
+    first.client.setQueryData(["secrets", "space-one"], { token: "not-allowed" });
     first.client.setQueryData(["issues", "browser", "task-one"], { url: "https://viewer.example.test/capability" });
     first.client.setQueryData(["issues", "documents", "task-one"], [{ body: "not-allowlisted" }]);
-    const inboxKey = [...queryKeys.issues.listMineByMe("company-one"), "index", "with-routine-executions", "live-descendant-summary", 100, "alice"];
+    const inboxKey = [...queryKeys.issues.listMineByMe("space-one"), "index", "with-routine-executions", "live-descendant-summary", 100, "alice"];
     first.client.setQueryData(inboxKey, [{ id: "inbox-task", title: "First page" }]);
     first.client.setQueryData(queryKeys.plugins.uiContributions, [{ pluginId: "example-plugin", displayName: "Example extension" }]);
     first.handle.flush();
@@ -427,7 +427,7 @@ describe("persisted read cache", () => {
     expect(disk).not.toMatch(/never-store|not-allowed|not-allowlisted|viewer\.example/);
     const restored = setup(first.storage);
     expect(restored.client.getQueryData([...queryKeys.issues.detail("task-one"), "core"])).toMatchObject({ title: "Saved task" });
-    expect(restored.client.getQueryData(queryKeys.companies.list("alice"))).toMatchObject({ companies: [{ id: "company-one" }] });
+    expect(restored.client.getQueryData(queryKeys.spaces.list("alice"))).toMatchObject({ spaces: [{ id: "space-one" }] });
     expect(restored.client.getQueryData(inboxKey)).toEqual([{ id: "inbox-task", title: "First page" }]);
     expect(restored.client.getQueryData(queryKeys.plugins.uiContributions)).toMatchObject([{ displayName: "Example extension" }]);
     expect(hasUnverifiedSession(restored.client)).toBe(true);
@@ -445,16 +445,16 @@ describe("persisted read cache", () => {
 
   it("strips embedded documents and capabilities from real task-shaped responses and nested inbox rows", () => {
     const first = setup(); seed(first.client);
-    const task = { id: "task-one", companyId: "company-one", title: "Saved task", description: "Approved task description",
+    const task = { id: "task-one", spaceId: "space-one", title: "Saved task", description: "Approved task description",
       planDocument: { id: "plan-one", key: "plan", format: "markdown", body: "excluded-plan-body" },
       legacyPlanDocument: { body: "excluded-legacy-body" }, documentSummaries: [{ key: "plan" }],
       workProducts: [{ type: "preview_url", url: "https://viewer.example.test/excluded-capability" }] };
     first.client.setQueryData([...queryKeys.issues.detail(task.id), "core"], task);
-    first.client.setQueryData([...queryKeys.issues.listMineByMe("company-one"), "index", "with-routine-executions", "live-descendant-summary", 100, "alice"], [task]);
-    first.client.setQueryData(queryKeys.agents.list("company-one"), [{ id: "agent-one", name: "Saved agent", adapterConfig: { provider: "codex", model: "display-model", Authorization: "excluded-header", access_token: "excluded-token" }, runtimeConfig: { env: { OPENAI_API_KEY: "excluded-env-token" } } }]);
+    first.client.setQueryData([...queryKeys.issues.listMineByMe("space-one"), "index", "with-routine-executions", "live-descendant-summary", 100, "alice"], [task]);
+    first.client.setQueryData(queryKeys.agents.list("space-one"), [{ id: "agent-one", name: "Saved agent", adapterConfig: { provider: "codex", model: "display-model", Authorization: "excluded-header", access_token: "excluded-token" }, runtimeConfig: { env: { OPENAI_API_KEY: "excluded-env-token" } } }]);
     first.handle.flush();
     expect([...first.storage.values.values()].join(" ")).not.toMatch(/excluded-/);
-    const key = `${QUERY_CACHE_PREFIX}alice:company-one`;
+    const key = `${QUERY_CACHE_PREFIX}alice:space-one`;
     const record = JSON.parse(first.storage.getItem(key)!);
     record.state.queries.find((query: { queryKey: string[] }) => query.queryKey[1] === "detail").state.data.planDocument = { body: "excluded-old-body" };
     first.storage.setItem(key, JSON.stringify(record));
@@ -464,7 +464,7 @@ describe("persisted read cache", () => {
     expect(cached).not.toHaveProperty("planDocument");
     expect(cached).not.toHaveProperty("legacyPlanDocument");
     expect(cached).not.toHaveProperty("workProducts");
-    const cachedAgents = restored.client.getQueryData<Agent[]>(queryKeys.agents.list("company-one"))!;
+    const cachedAgents = restored.client.getQueryData<Agent[]>(queryKeys.agents.list("space-one"))!;
     expect(cachedAgents).toEqual([{ id: "agent-one", name: "Saved agent", adapterConfig: { provider: "codex", model: "display-model" }, runtimeConfig: {} }]);
     expect(agentDefaultModel(cachedAgents[0]!)).toBe("display-model");
     expect(agentConnection(cachedAgents[0]!)).toBeUndefined();
@@ -473,7 +473,7 @@ describe("persisted read cache", () => {
   it("counts a task's UUID and identifier reads as one recent task", () => {
     const first = setup(); seed(first.client);
     for (let i = 0; i < 20; i += 1) {
-      const task = { id: `task-${i}`, companyId: "company-one", title: `Recent task ${i}` };
+      const task = { id: `task-${i}`, spaceId: "space-one", title: `Recent task ${i}` };
       first.client.setQueryData([...queryKeys.issues.detail(task.id), "core"], task);
       first.client.setQueryData([...queryKeys.issues.detail(`TST-${i}`), "core"], task);
     }
@@ -515,17 +515,17 @@ describe("persisted read cache", () => {
     unsubscribe();
   });
 
-  it("enforces company ownership, exact allowlist entries and the recent-issue bound", () => {
+  it("enforces space ownership, exact allowlist entries and the recent-issue bound", () => {
     const first = setup(); seed(first.client);
-    for (let i = 0; i < 25; i += 1) first.client.setQueryData([...queryKeys.issues.detail(`task-${i}`), "core"], { id: `task-${i}`, companyId: "company-one", title: `Task ${i}` });
-    first.client.setQueryData([...queryKeys.issues.detail("foreign"), "core"], { id: "foreign", companyId: "other-company", title: "Private elsewhere" });
+    for (let i = 0; i < 25; i += 1) first.client.setQueryData([...queryKeys.issues.detail(`task-${i}`), "core"], { id: `task-${i}`, spaceId: "space-one", title: `Task ${i}` });
+    first.client.setQueryData([...queryKeys.issues.detail("foreign"), "core"], { id: "foreign", spaceId: "other-space", title: "Private elsewhere" });
     first.handle.flush();
     const restored = setup(first.storage);
     const details = restored.client.getQueryCache().getAll().filter(query => query.queryKey[0] === "issues" && query.queryKey[1] === "detail");
     expect(details).toHaveLength(20);
     expect(restored.client.getQueryData([...queryKeys.issues.detail("foreign"), "core"])).toBeUndefined();
-    expect(persistedQueryScope(["agents", "company-one", "keys"], [], "alice", ["company-one"])).toBeUndefined();
-    expect(persistedQueryScope(["agent-chats", "company-one", "bob"], [], "alice", ["company-one"])).toBeUndefined();
+    expect(persistedQueryScope(["agents", "space-one", "keys"], [], "alice", ["space-one"])).toBeUndefined();
+    expect(persistedQueryScope(["agent-chats", "space-one", "bob"], [], "alice", ["space-one"])).toBeUndefined();
   });
 
   it.each(["build", "expiry"])("discards snapshots after %s changes", kind => {
@@ -538,12 +538,12 @@ describe("persisted read cache", () => {
 
   it("clears query records on sign-out, retains drafts and resumes caching only after a new verified login", async () => {
     const first = setup(); seed(first.client); first.handle.flush();
-    first.storage.setItem("paperclip:private-draft", "draft retained");
+    first.storage.setItem("outpost:private-draft", "draft retained");
     clearPersistedQueryCache(first.client);
     first.client.setQueryData(queryKeys.health, { status: "ok" });
     first.handle.flush();
     expect(first.storage.getItem(QUERY_CACHE_ACTIVE)).toBeNull();
-    expect(first.storage.getItem("paperclip:private-draft")).toBe("draft retained");
+    expect(first.storage.getItem("outpost:private-draft")).toBe("draft retained");
     await first.client.fetchQuery({ queryKey: queryKeys.auth.session, queryFn: async () => session("bob"), staleTime: 0 });
     first.handle.flush();
     expect(first.storage.getItem(QUERY_CACHE_ACTIVE)).toBe("bob");
@@ -562,11 +562,11 @@ describe("persisted read cache", () => {
 
   it.each([{ status: 403, uncachedAlias: false }, { status: 404, uncachedAlias: false }, { status: 403, uncachedAlias: true }])("evicts UUID, identifier, core and inbox copies after a $status task denial (uncached alias=$uncachedAlias)", async ({ status, uncachedAlias }) => {
     const first = setup(); seed(first.client);
-    const task = { id: "task-one", identifier: "TST-1", companyId: "company-one", title: "Denied task body" };
+    const task = { id: "task-one", identifier: "TST-1", spaceId: "space-one", title: "Denied task body" };
     const keys = [queryKeys.issues.detail(task.id), [...queryKeys.issues.detail(task.id), "core"],
       queryKeys.issues.detail(task.identifier), [...queryKeys.issues.detail(task.identifier), "core"]];
     for (const key of keys) first.client.setQueryData(key, task);
-    first.client.setQueryData([...queryKeys.issues.listMineByMe("company-one"), "index", "with-routine-executions", "live-descendant-summary", 100, "alice"], [task]);
+    first.client.setQueryData([...queryKeys.issues.listMineByMe("space-one"), "index", "with-routine-executions", "live-descendant-summary", 100, "alice"], [task]);
     first.handle.flush();
     await first.client.fetchQuery({ queryKey: uncachedAlias ? [...queryKeys.issues.detail("tst-1"), "core"] : keys[3]!, queryFn: async () => { throw new ApiError("Denied", status, null); } }).catch(() => {});
     for (const key of keys) expect(first.client.getQueryData(key)).toBeUndefined();
@@ -580,7 +580,7 @@ describe("persisted read cache", () => {
 
   it("ignores malformed saved queries while retaining valid recent reads on the next flush", () => {
     const first = setup(); seed(first.client); first.handle.flush();
-    const key = `${QUERY_CACHE_PREFIX}alice:company-one`;
+    const key = `${QUERY_CACHE_PREFIX}alice:space-one`;
     const record = JSON.parse(first.storage.getItem(key)!);
     record.state.queries.push(null, {}, { queryKey: ["unapproved"], state: {} });
     first.storage.setItem(key, JSON.stringify(record));
@@ -643,7 +643,7 @@ describe("persisted read cache", () => {
     expect(hasUnverifiedSession(restored.client)).toBe(false);
   });
 
-  it.each([QUERY_CACHE_CLEARED, "paperclip:query-cache-revision:alice"])("removes another tab's restored account data on the %s sign-out event", eventKey => {
+  it.each([QUERY_CACHE_CLEARED, "outpost:query-cache-revision:alice"])("removes another tab's restored account data on the %s sign-out event", eventKey => {
     const first = setup(); seed(first.client); first.handle.flush();
     const client = new QueryClient();
     const events = new EventTarget();
@@ -682,7 +682,7 @@ describe("persisted read cache", () => {
     const bob = new QueryClient();
     bob.setQueryData(queryKeys.auth.session, session("bob"));
     const fresh = setup(first.storage, undefined, bob);
-    seed(bob, "bob", "company-two");
+    seed(bob, "bob", "space-two");
     fresh.handle.flush();
     events.dispatchEvent(Object.assign(new Event("storage"), { key: QUERY_CACHE_CLEARED, newValue: token }));
     expect(first.storage.getItem(QUERY_CACHE_ACTIVE)).toBe("bob");

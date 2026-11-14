@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, assets, chatTaskHandoffs, companies, companyMemberships, createDb, applyPendingMigrations, decisionRetention, decisionTriage, documentRevisions, documents, heartbeatRuns,
+import { agents, assets, chatTaskHandoffs, spaces, spaceMemberships, createDb, applyPendingMigrations, decisionRetention, decisionTriage, documentRevisions, documents, heartbeatRuns,
   inboxDismissals, issueAttachments, issueComments, issueDocuments, issues, issueThreadInteractions } from "@outpost/db";
 import { requestConfirmationTargetSchema, suggestedTaskDraftSchema } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -35,14 +35,14 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
 
   async function seed() {
-    const companyId = randomUUID(), agentId = randomUUID(), conversationId = randomUUID();
-    const userId = "local-board";
-    await db.insert(companies).values({ id: companyId, name: "Coordinator", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Writer", status: "idle", adapterType: "process" });
-    await db.insert(issues).values({ id: conversationId, companyId, title: "Writer chat", status: "in_progress",
+    const spaceId = randomUUID(), agentId = randomUUID(), conversationId = randomUUID();
+    const userId = "local-operator";
+    await db.insert(spaces).values({ id: spaceId, name: "Coordinator", issuePrefix: spaceId.slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Writer", status: "idle", adapterType: "process" });
+    await db.insert(issues).values({ id: conversationId, spaceId, title: "Writer chat", status: "in_progress",
       conversationAgentId: agentId, conversationUserId: userId, conversationState: "waiting", assigneeAgentId: agentId,
       visibility: "private", privacyRootIssueId: conversationId, responsibleUserId: userId });
-    const scope = { id: conversationId, companyId, projectId: null, goalId: null };
+    const scope = { id: conversationId, spaceId, projectId: null, goalId: null };
     const service = issueThreadInteractionService(db);
     const propose = () => service.create(scope, { kind: "suggest_tasks", payload: { version: 1, tasks: [
       { clientKey: "blog", title: "Write the launch post", description: "Review-ready blog copy.", initialPlan: "Draft, review, revise." },
@@ -53,28 +53,28 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
       const [task] = await db.select().from(issues).where(eq(issues.id, accepted.createdIssues[0]!.id));
       return { task, suggestion, accepted };
     };
-    const receipts = () => conversationDecisionReceiptsService(db).list(companyId, conversationId, {
-      actor: { type: "board", userId, source: "session", ignoreInstanceAdmin: true }, userId,
+    const receipts = () => conversationDecisionReceiptsService(db).list(spaceId, conversationId, {
+      actor: { type: "operator", userId, source: "session", ignoreInstanceAdmin: true }, userId,
     });
-    const pendingQuestions = () => conversationDecisionReceiptsService(db).listPendingQuestions(companyId, conversationId, {
-      actor: { type: "board", userId, source: "session", ignoreInstanceAdmin: true }, userId,
+    const pendingQuestions = () => conversationDecisionReceiptsService(db).listPendingQuestions(spaceId, conversationId, {
+      actor: { type: "operator", userId, source: "session", ignoreInstanceAdmin: true }, userId,
     });
-    const ask = (issue: { id: string; companyId: string }) => service.create(issue, {
+    const ask = (issue: { id: string; spaceId: string }) => service.create(issue, {
       kind: "ask_user_questions", payload: { version: 1, questions: [
         { id: "channel", prompt: "Which channel?", selectionMode: "single", options: [{ id: "blog", label: "Blog" }] },
       ] },
     }, { userId });
-    const direct = () => issueService(db).create(companyId, {
+    const direct = () => issueService(db).create(spaceId, {
       title: "Task from the New Task composer", description: "Prepare the next launch post.",
       status: "todo", createdByUserId: userId, assigneeAgentId: agentId,
     });
-    return { companyId, agentId, conversationId, userId, scope, service, propose, handoff, receipts, pendingQuestions, ask, direct };
+    return { spaceId, agentId, conversationId, userId, scope, service, propose, handoff, receipts, pendingQuestions, ask, direct };
   }
 
   it.each(["omitted", "null", "agent", "person", "non-chat"])("assigns accepted suggestions correctly for %s ownership", async (mode) => {
     const f = await seed();
-    const [otherAgent] = await db.insert(agents).values({ companyId: f.companyId, name: "Editor", status: "idle", adapterType: "process" }).returning();
-    await db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user", principalId: f.userId, status: "active", membershipRole: "owner" });
+    const [otherAgent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Editor", status: "idle", adapterType: "process" }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user", principalId: f.userId, status: "active", membershipRole: "owner" });
     const source = mode === "non-chat" ? await f.direct() : f.scope;
     const assignment = mode === "agent" ? { assigneeAgentId: otherAgent.id }
       : mode === "person" ? { assigneeUserId: f.userId }
@@ -96,22 +96,22 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     const question = await f.ask(task);
     expect(await f.pendingQuestions()).toMatchObject([{ subject: { id: question.id }, relatedIssue: { id: task.id } }]);
     expect(await db.select().from(chatTaskHandoffs).where(eq(chatTaskHandoffs.taskId, task.id))).toEqual([]);
-    expect((await conversationDecisionReceiptsService(db).listCreatedTasks(f.companyId, f.conversationId, {
-      actor: { type: "board", userId: f.userId, source: "session", ignoreInstanceAdmin: true }, userId: f.userId,
+    expect((await conversationDecisionReceiptsService(db).listCreatedTasks(f.spaceId, f.conversationId, {
+      actor: { type: "operator", userId: f.userId, source: "session", ignoreInstanceAdmin: true }, userId: f.userId,
     })).items).toEqual([]);
     await f.service.answerQuestions(task, question.id, { answers: [{ questionId: "channel", optionIds: ["blog"] }] }, { userId: f.userId });
     expect(await f.pendingQuestions()).toEqual([]);
     expect((await f.receipts()).items).toMatchObject([{ sourceId: question.id, outcome: "answered", issueId: task.id }]);
   });
 
-  it("limits direct-task projections to this creator, current assignee and company, retaining current privacy checks", async () => {
+  it("limits direct-task projections to this creator, current assignee and space, retaining current privacy checks", async () => {
     const f = await seed(), other = await seed();
     const task = await f.direct();
-    const [otherAgent] = await db.insert(agents).values({ companyId: f.companyId, name: "Other", adapterType: "process" }).returning();
+    const [otherAgent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Other", adapterType: "process" }).returning();
     const [otherCreator, otherAssignee, privateTask] = await db.insert(issues).values([
-      { companyId: f.companyId, title: "Another person's task", createdByUserId: "another-person", assigneeAgentId: f.agentId },
-      { companyId: f.companyId, title: "My task with another agent", createdByUserId: f.userId, assigneeAgentId: otherAgent.id },
-      { companyId: f.companyId, title: "Someone else's private task", createdByUserId: "another-person", assigneeAgentId: f.agentId, visibility: "private" },
+      { spaceId: f.spaceId, title: "Another person's task", createdByUserId: "another-person", assigneeAgentId: f.agentId },
+      { spaceId: f.spaceId, title: "My task with another agent", createdByUserId: f.userId, assigneeAgentId: otherAgent.id },
+      { spaceId: f.spaceId, title: "Someone else's private task", createdByUserId: "another-person", assigneeAgentId: f.agentId, visibility: "private" },
     ]).returning();
     const foreignTask = await other.direct();
     const questions = await Promise.all([task, otherCreator, otherAssignee, privateTask, foreignTask].map(t => f.ask(t)));
@@ -141,7 +141,7 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     await db.update(issueThreadInteractions).set({ resolvedAt: new Date(base + 10_000) }).where(eq(issueThreadInteractions.id, oldAnswer.id));
     const pending = await f.ask(task);
     expect((await f.receipts()).items.map(item => item.sourceId)).toEqual([oldAnswer.id]);
-    const [boundary] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.conversationId,
+    const [boundary] = await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.conversationId,
       authorUserId: f.userId, body: "/new", conversationSessionGeneration: 1, createdAt: new Date(base + 20_000) }).returning();
     await db.update(issues).set({ conversationSessionGeneration: 1, conversationBoundaryCommentId: boundary.id })
       .where(eq(issues.id, f.conversationId));
@@ -174,8 +174,8 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     const collected: string[] = [];
     let cursor: string | undefined;
     for (let pageNumber = 0; pageNumber < 4; pageNumber += 1) {
-      const page = await conversationDecisionReceiptsService(db).list(f.companyId, f.conversationId, {
-        actor: { type: "board", userId: f.userId, source: "session", ignoreInstanceAdmin: true }, userId: f.userId, cursor, limit: 1,
+      const page = await conversationDecisionReceiptsService(db).list(f.spaceId, f.conversationId, {
+        actor: { type: "operator", userId: f.userId, source: "session", ignoreInstanceAdmin: true }, userId: f.userId, cursor, limit: 1,
       });
       collected.push(...page.items.map(item => item.sourceId));
       cursor = page.nextCursor ?? undefined;
@@ -191,11 +191,11 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     const question = await f.ask(task);
     await f.ask(f.scope);
     await f.service.create(task, { kind: "request_confirmation", payload: { version: 1, prompt: "Approve quality?" } }, { userId: f.userId });
-    const [unlinked] = await db.insert(issues).values({ companyId: f.companyId, title: "Unrelated task" }).returning();
+    const [unlinked] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Unrelated task" }).returning();
     await f.ask(unlinked);
-    const canonical = await attentionService(db).list(f.companyId, {
+    const canonical = await attentionService(db).list(f.spaceId, {
       all: true, allowUnscopedAll: true,
-      actor: { type: "board", userId: f.userId, source: "session", ignoreInstanceAdmin: true }, userId: f.userId,
+      actor: { type: "operator", userId: f.userId, source: "session", ignoreInstanceAdmin: true }, userId: f.userId,
     });
     const withoutRank = ({ rank: _rank, ...item }: (typeof canonical.items)[number]) => item;
     expect((await f.pendingQuestions()).map(withoutRank)).toEqual(canonical.items.filter(item => item.subject.id === question.id).map(withoutRank));
@@ -245,8 +245,8 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
       { id: "business", prompt: "What does your organization do?", selectionMode: "single" as const, options: [{ id: "shop", label: "A shop" }] },
     ] };
     await f.service.create(onboarding, { kind: "ask_user_questions", continuationPolicy: "wake_assignee", payload }, { agentId: f.agentId });
-    const stalledReviewCards = async () => (await attentionService(db).list(f.companyId, {
-      actor: { type: "board", source: "local_implicit", userId: f.userId }, userId: f.userId,
+    const stalledReviewCards = async () => (await attentionService(db).list(f.spaceId, {
+      actor: { type: "operator", source: "local_implicit", userId: f.userId }, userId: f.userId,
     })).items.filter(item => item.sourceKind === "review" && item.subject.id === onboarding.id)
       .map(item => item.subject.metadata?.reviewAttentionState);
     expect(await stalledReviewCards()).toEqual([]);
@@ -269,7 +269,7 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
       { id: "business", prompt: "What does your organization do?", selectionMode: "single" as const, options: [{ id: "shop", label: "A shop" }] },
     ] };
     await f.service.create(onboarding, { kind: "ask_user_questions", payload }, { agentId: f.agentId });
-    await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: onboarding.id,
+    await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: onboarding.id,
       kind: "ask_user_questions", createdByAgentId: f.agentId, addresseeUserId: "teammate-user", payload });
     await f.service.create(f.scope, { kind: "ask_user_questions", payload }, { agentId: f.agentId });
     const [task] = await db.select().from(issues).where(eq(issues.id, onboarding.id));
@@ -284,10 +284,10 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
       { id: "business", prompt: "What does your organization do?", selectionMode: "single" as const, options: [{ id: "shop", label: "A shop" }] },
     ] };
     const taskInterview = await f.service.create(onboarding, { kind: "ask_user_questions", payload }, { agentId: f.agentId });
-    const [teammateCard] = await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: onboarding.id,
+    const [teammateCard] = await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: onboarding.id,
       kind: "ask_user_questions", createdByAgentId: f.agentId, addresseeUserId: "teammate-user", payload }).returning();
-    const [otherAgent] = await db.insert(agents).values({ companyId: f.companyId, name: "Reviewer", status: "idle", adapterType: "process" }).returning();
-    const [agentCard] = await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: onboarding.id,
+    const [otherAgent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Reviewer", status: "idle", adapterType: "process" }).returning();
+    const [agentCard] = await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: onboarding.id,
       kind: "ask_user_questions", createdByAgentId: f.agentId, addresseeAgentId: otherAgent.id, payload }).returning();
 
     // Same options the native question bridge passes for provider requests.
@@ -314,18 +314,18 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     expect((await f.pendingQuestions()).map(item => item.subject.id)).toEqual([taskQuestion.id]);
   });
 
-  it("does not materialize unrelated company attention when opening task questions", async () => {
+  it("does not materialize unrelated space attention when opening task questions", async () => {
     const f = await seed();
     const task = await f.direct();
     const question = await f.ask(task);
-    const [unrelated] = await db.insert(issues).values({ companyId: f.companyId, title: "Unrelated", status: "blocked" }).returning();
+    const [unrelated] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Unrelated", status: "blocked" }).returning();
     const unrelatedQuestion = await f.ask(unrelated);
     expect((await f.pendingQuestions()).map(item => item.subject.id)).toEqual([question.id]);
-    const materialized = await db.select().from(decisionRetention).where(eq(decisionRetention.companyId, f.companyId));
+    const materialized = await db.select().from(decisionRetention).where(eq(decisionRetention.spaceId, f.spaceId));
     expect(materialized.map(row => row.sourceId)).toEqual([question.id]);
     expect(materialized.map(row => row.sourceId)).not.toContain(unrelatedQuestion.id);
-    const options = { actor: { type: "board" as const, source: "local_implicit" as const, userId: f.userId }, userId: f.userId };
-    expect(await attentionService(db).taskQuestions(f.companyId, [], options)).toEqual([]);
+    const options = { actor: { type: "operator" as const, source: "local_implicit" as const, userId: f.userId }, userId: f.userId };
+    expect(await attentionService(db).taskQuestions(f.spaceId, [], options)).toEqual([]);
     expect(await attentionService(db).taskQuestions(randomUUID(), [task.id], options)).toEqual([]);
   });
 
@@ -334,12 +334,12 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     const task = await f.direct();
     const question = await f.ask(task);
     expect(await f.pendingQuestions()).toHaveLength(1);
-    await db.insert(decisionTriage).values({ companyId: f.companyId, sourceKind: "issue_thread_interaction",
+    await db.insert(decisionTriage).values({ spaceId: f.spaceId, sourceKind: "issue_thread_interaction",
       sourceId: question.id, snoozedUntil: new Date(Date.now() + 60_000), setByType: "user", setByUserId: f.userId });
     expect(await f.pendingQuestions()).toEqual([]);
-    await db.delete(decisionTriage).where(eq(decisionTriage.companyId, f.companyId));
+    await db.delete(decisionTriage).where(eq(decisionTriage.spaceId, f.spaceId));
     expect(await f.pendingQuestions()).toHaveLength(1);
-    await db.update(decisionRetention).set({ archivedAt: new Date() }).where(eq(decisionRetention.companyId, f.companyId));
+    await db.update(decisionRetention).set({ archivedAt: new Date() }).where(eq(decisionRetention.spaceId, f.spaceId));
     expect(await f.pendingQuestions()).toEqual([]);
   });
 
@@ -353,22 +353,22 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     const current = await f.handoff();
     const question = await f.ask(current.task);
     expect((await f.pendingQuestions()).map(item => item.subject.id)).toEqual([question.id]);
-    const [otherAgent] = await db.insert(agents).values({ companyId: f.companyId, name: "Other", adapterType: "process" }).returning();
+    const [otherAgent] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Other", adapterType: "process" }).returning();
     await db.update(chatTaskHandoffs).set({ agentId: otherAgent.id }).where(eq(chatTaskHandoffs.taskId, current.task.id));
     expect(await f.pendingQuestions()).toEqual([]);
   });
 
-  it("denies another conversation owner or company and omits tasks after private access is revoked", async () => {
+  it("denies another conversation owner or space and omits tasks after private access is revoked", async () => {
     const f = await seed(), other = await seed();
     const { task } = await f.handoff();
     await f.ask(task);
     const service = conversationDecisionReceiptsService(db);
-    const actor = { type: "board" as const, userId: f.userId, source: "session" as const, ignoreInstanceAdmin: true };
+    const actor = { type: "operator" as const, userId: f.userId, source: "session" as const, ignoreInstanceAdmin: true };
     expect(await f.pendingQuestions()).toHaveLength(1);
-    await expect(service.listPendingQuestions(f.companyId, f.conversationId, {
-      actor: { type: "board", userId: "another-person", source: "local_implicit" }, userId: "another-person",
+    await expect(service.listPendingQuestions(f.spaceId, f.conversationId, {
+      actor: { type: "operator", userId: "another-person", source: "local_implicit" }, userId: "another-person",
     })).rejects.toMatchObject({ status: 404, message: "Conversation not found" });
-    await expect(service.listPendingQuestions(other.companyId, f.conversationId, {
+    await expect(service.listPendingQuestions(other.spaceId, f.conversationId, {
       actor, userId: f.userId,
     })).rejects.toMatchObject({ status: 404, message: "Conversation not found" });
     await db.update(issues).set({ visibility: "private", privacyParentIssueId: null, privacyRootIssueId: task.id,
@@ -382,10 +382,10 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     const question = await f.ask(task);
     const [item] = await f.pendingQuestions();
     expect(item.subject.id).toBe(question.id);
-    await db.insert(inboxDismissals).values({ companyId: f.companyId, userId: f.userId,
+    await db.insert(inboxDismissals).values({ spaceId: f.spaceId, userId: f.userId,
       itemKey: item.dismissalKey, kind: "dismiss", dismissedAt: new Date(Date.now() + 1_000) });
     expect(await f.pendingQuestions()).toEqual([]);
-    await db.delete(inboxDismissals).where(eq(inboxDismissals.companyId, f.companyId));
+    await db.delete(inboxDismissals).where(eq(inboxDismissals.spaceId, f.spaceId));
     expect(await f.pendingQuestions()).toHaveLength(1);
     await db.update(issueThreadInteractions).set({ addresseeUserId: "another-person" }).where(eq(issueThreadInteractions.id, question.id));
     expect(await f.pendingQuestions()).toEqual([]);
@@ -396,8 +396,8 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
   it("creates exactly one standalone task only on acceptance, with atomic plan, privacy and durable chat audience", async () => {
     const f = await seed();
     const suggestion = await f.propose();
-    expect(await db.select().from(issues).where(eq(issues.companyId, f.companyId))).toHaveLength(1);
-    expect(await db.select().from(chatTaskHandoffs).where(eq(chatTaskHandoffs.companyId, f.companyId))).toHaveLength(0);
+    expect(await db.select().from(issues).where(eq(issues.spaceId, f.spaceId))).toHaveLength(1);
+    expect(await db.select().from(chatTaskHandoffs).where(eq(chatTaskHandoffs.spaceId, f.spaceId))).toHaveLength(0);
     const accepted = await f.service.acceptSuggestedTasks(f.scope, suggestion.id, {}, { userId: f.userId });
     const taskId = accepted.createdIssues[0]!.id;
     expect(accepted.interaction.result).toMatchObject({ createdTasks: [{ issueId: taskId, parentIssueId: null }] });
@@ -406,8 +406,8 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     expect(await db.select().from(chatTaskHandoffs).where(eq(chatTaskHandoffs.taskId, taskId))).toMatchObject([
       { conversationId: f.conversationId, agentId: f.agentId, sessionGeneration: 0 },
     ]);
-    expect(await conversationDecisionReceiptsService(db).listCreatedTasks(f.companyId, f.conversationId, {
-      actor: { type: "board", userId: f.userId, source: "session", ignoreInstanceAdmin: true }, userId: f.userId,
+    expect(await conversationDecisionReceiptsService(db).listCreatedTasks(f.spaceId, f.conversationId, {
+      actor: { type: "operator", userId: f.userId, source: "session", ignoreInstanceAdmin: true }, userId: f.userId,
     })).toMatchObject({ items: [{ issueId: taskId, suggestionInteractionId: suggestion.id, sourceRunId: null, status: "todo" }] });
     const plan = await db.select({ body: documentRevisions.body }).from(issueDocuments)
       .innerJoin(documents, eq(documents.id, issueDocuments.documentId))
@@ -415,19 +415,19 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
       .where(and(eq(issueDocuments.issueId, taskId), eq(issueDocuments.key, "plan")));
     expect(plan).toEqual([{ body: "Draft, review, revise." }]);
     await expect(f.service.acceptSuggestedTasks(f.scope, suggestion.id, {}, { userId: f.userId })).rejects.toThrow("already been resolved");
-    expect(await db.select().from(issues).where(eq(issues.companyId, f.companyId))).toHaveLength(2);
+    expect(await db.select().from(issues).where(eq(issues.spaceId, f.spaceId))).toHaveLength(2);
   });
 
   it("projects a native explicit task creation without a duplicate suggestion and respects later task access changes", async () => {
     const f = await seed();
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, status: "succeeded",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId, status: "succeeded",
       nativeIssueId: f.conversationId, contextSnapshot: { issueId: f.conversationId, conversationSessionGeneration: 0 } });
-    const task = await issueService(db).create(f.companyId, {
+    const task = await issueService(db).create(f.spaceId, {
       title: "Explicitly requested task", createdByAgentId: f.agentId, actorRunId: runId, initialPlan: "Use the authorized scope.",
     });
-    const list = () => conversationDecisionReceiptsService(db).listCreatedTasks(f.companyId, f.conversationId, {
-      actor: { type: "board", userId: f.userId, source: "session", ignoreInstanceAdmin: true }, userId: f.userId,
+    const list = () => conversationDecisionReceiptsService(db).listCreatedTasks(f.spaceId, f.conversationId, {
+      actor: { type: "operator", userId: f.userId, source: "session", ignoreInstanceAdmin: true }, userId: f.userId,
     });
     expect(await list()).toMatchObject({ items: [{ id: `chat_handoff:${task.id}`, issueId: task.id, sourceRunId: runId, suggestionInteractionId: null }] });
     const confirmation = await f.service.create(task, { kind: "request_confirmation", payload: { version: 1, prompt: "Approve quality?" } }, { userId: f.userId });
@@ -442,13 +442,13 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
   it("keeps the proposing run as the source when a person accepts a task suggestion", async () => {
     const f = await seed();
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, status: "succeeded",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId, status: "succeeded",
       nativeIssueId: f.conversationId, contextSnapshot: { issueId: f.conversationId, conversationSessionGeneration: 0 } });
     const suggestion = await f.service.create(f.scope, { kind: "suggest_tasks", sourceRunId: runId,
       payload: { version: 1, tasks: [{ clientKey: "post", title: "Write the launch post" }] } }, { agentId: f.agentId });
     const accepted = await f.service.acceptSuggestedTasks(f.scope, suggestion.id, {}, { userId: f.userId });
-    const page = await conversationDecisionReceiptsService(db).listCreatedTasks(f.companyId, f.conversationId, {
-      actor: { type: "board", userId: f.userId, source: "session", ignoreInstanceAdmin: true }, userId: f.userId,
+    const page = await conversationDecisionReceiptsService(db).listCreatedTasks(f.spaceId, f.conversationId, {
+      actor: { type: "operator", userId: f.userId, source: "session", ignoreInstanceAdmin: true }, userId: f.userId,
     });
     expect(page.items).toMatchObject([{ issueId: accepted.createdIssues[0]!.id, sourceRunId: runId, suggestionInteractionId: suggestion.id }]);
   });
@@ -461,10 +461,10 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     ] } }, { userId: f.userId });
     await expect(f.service.acceptSuggestedTasks(f.scope, suggestion.id, {}, { userId: f.userId })).rejects.toThrow();
     expect((await f.service.getById(suggestion.id))?.status).toBe("pending");
-    expect(await db.select().from(issues).where(eq(issues.companyId, f.companyId))).toHaveLength(1);
-    expect(await db.select().from(chatTaskHandoffs).where(eq(chatTaskHandoffs.companyId, f.companyId))).toHaveLength(0);
+    expect(await db.select().from(issues).where(eq(issues.spaceId, f.spaceId))).toHaveLength(1);
+    expect(await db.select().from(chatTaskHandoffs).where(eq(chatTaskHandoffs.spaceId, f.spaceId))).toHaveLength(0);
     await expect(f.service.acceptSuggestedTasks(f.scope, suggestion.id, {}, { userId: "another-person" })).rejects.toThrow();
-    await expect(issueService(db).create(f.companyId, { title: "Stale handoff", createdByUserId: f.userId,
+    await expect(issueService(db).create(f.spaceId, { title: "Stale handoff", createdByUserId: f.userId,
       conversationHandoff: { conversationId: f.conversationId, sessionGeneration: 2 } })).rejects.toThrow("reset");
   });
 
@@ -472,28 +472,28 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     const f = await seed();
     const first = await f.handoff(), second = await f.handoff();
     const service = conversationDecisionReceiptsService(db);
-    const options = { actor: { type: "board" as const, userId: f.userId, source: "session" as const, ignoreInstanceAdmin: true }, userId: f.userId, limit: 1 };
-    const page = await service.listCreatedTasks(f.companyId, f.conversationId, options);
+    const options = { actor: { type: "operator" as const, userId: f.userId, source: "session" as const, ignoreInstanceAdmin: true }, userId: f.userId, limit: 1 };
+    const page = await service.listCreatedTasks(f.spaceId, f.conversationId, options);
     expect(page.items).toHaveLength(1);
     expect(page.nextCursor).not.toBeNull();
-    const older = await service.listCreatedTasks(f.companyId, f.conversationId, { ...options, cursor: page.nextCursor! });
+    const older = await service.listCreatedTasks(f.spaceId, f.conversationId, { ...options, cursor: page.nextCursor! });
     expect(older.nextCursor).toBeNull();
     expect(new Set([...page.items, ...older.items].map(item => item.issueId))).toEqual(new Set([first.task.id, second.task.id]));
-    await expect(service.listCreatedTasks(f.companyId, f.conversationId, { ...options, cursor: "invalid" })).rejects.toThrow("Invalid chat handoff cursor");
+    await expect(service.listCreatedTasks(f.spaceId, f.conversationId, { ...options, cursor: "invalid" })).rejects.toThrow("Invalid chat handoff cursor");
     // These valid opaque JSON cursors passed the former 36-character regex,
     // but are not UUIDs. Reject as a client error before PostgreSQL's UUID cast.
     for (const id of ["a".repeat(36), "-".repeat(36), "00000000-0000-0000-0000-00000000000-"]) {
       const malformed = Buffer.from(JSON.stringify({ at: page.items[0]!.createdAt, id })).toString("base64url");
-      await expect(service.listCreatedTasks(f.companyId, f.conversationId, { ...options, cursor: malformed }))
+      await expect(service.listCreatedTasks(f.spaceId, f.conversationId, { ...options, cursor: malformed }))
         .rejects.toMatchObject({ status: 400, message: "Invalid chat handoff cursor" });
     }
   });
 
   async function attach(f: Awaited<ReturnType<typeof seed>>, taskId: string) {
     const assetId = randomUUID(), attachmentId = randomUUID(), sha256 = "a".repeat(64);
-    await db.insert(assets).values({ id: assetId, companyId: f.companyId, provider: "local_disk", objectKey: assetId,
+    await db.insert(assets).values({ id: assetId, spaceId: f.spaceId, provider: "local_disk", objectKey: assetId,
       contentType: "image/png", byteSize: 100, sha256, originalFilename: "visual.png", createdByUserId: f.userId });
-    await db.insert(issueAttachments).values({ id: attachmentId, companyId: f.companyId, issueId: taskId, assetId });
+    await db.insert(issueAttachments).values({ id: attachmentId, spaceId: f.spaceId, issueId: taskId, assetId });
     return { type: "issue_attachment" as const, attachmentId, assetId, sha256, label: "Launch visual" };
   }
 
@@ -535,8 +535,8 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     ] } }, { userId: f.userId });
     await f.service.answerQuestions(task, question.id, { answers: [{ questionId: "channel", optionIds: ["blog"] }] }, { userId: f.userId });
     expect((await f.receipts()).items).toEqual(expect.arrayContaining([expect.objectContaining({ sourceId: question.id, outcome: "answered" })]));
-    await expect(conversationDecisionReceiptsService(db).list(f.companyId, f.conversationId, {
-      actor: { type: "board", userId: "another-person", source: "local_implicit" }, userId: "another-person",
+    await expect(conversationDecisionReceiptsService(db).list(f.spaceId, f.conversationId, {
+      actor: { type: "operator", userId: "another-person", source: "local_implicit" }, userId: "another-person",
     })).rejects.toThrow("Conversation not found");
   });
 });

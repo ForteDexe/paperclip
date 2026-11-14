@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpDown, File, FileText, Image, Search, Video } from "lucide-react";
-import type { CompanyArtifact, Issue } from "@outpost/shared";
+import type { SpaceArtifact, Issue } from "@outpost/shared";
 import { artifactsApi } from "@/api/artifacts";
 import { issuesApi } from "@/api/issues";
 import { IssueFiltersPopover } from "@/components/IssueFiltersPopover";
@@ -21,7 +21,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { Link } from "@/lib/router";
 import { cn, formatDate, relativeTime } from "@/lib/utils";
 import { taskStatusIconProps } from "@/lib/task-status-presentation";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 
 /**
  * The agent-scoped side panels shown beside an agent chat: every task the
@@ -106,11 +106,11 @@ export function AgentTaskCard({ task }: { task: Issue }) {
 }
 
 export function AgentTasksPanel({
-  companyId,
+  spaceId,
   agentId,
   excludeIssueId,
 }: {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   /** The conversation issue itself, which is not one of the agent's tasks. */
   excludeIssueId?: string;
@@ -121,8 +121,8 @@ export function AgentTasksPanel({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const tasksQuery = useQuery({
-    queryKey: queryKeys.issues.listParticipatedByAgent(companyId, agentId),
-    queryFn: () => issuesApi.list(companyId, {
+    queryKey: queryKeys.issues.listParticipatedByAgent(spaceId, agentId),
+    queryFn: () => issuesApi.list(spaceId, {
       participantAgentId: agentId,
       sortField: "updated",
       sortDir: "desc",
@@ -131,7 +131,7 @@ export function AgentTasksPanel({
   });
   const tasksView = useQueryView(tasksQuery);
   const projectsQuery = useQuery({
-    ...companyProjectsQuery(companyId),
+    ...spaceProjectsQuery(spaceId),
   });
 
   const visible = useMemo(() => {
@@ -241,7 +241,7 @@ export function AgentTasksPanel({
   );
 }
 
-function ArtifactKindIcon({ artifact }: { artifact: CompanyArtifact }) {
+function ArtifactKindIcon({ artifact }: { artifact: SpaceArtifact }) {
   const className = "mt-0.5 h-4 w-4 shrink-0 text-muted-foreground";
   switch (artifact.mediaKind) {
     case "image": return <Image className={className} aria-hidden />;
@@ -252,7 +252,7 @@ function ArtifactKindIcon({ artifact }: { artifact: CompanyArtifact }) {
   }
 }
 
-export function AgentArtifactCard({ artifact }: { artifact: CompanyArtifact }) {
+export function AgentArtifactCard({ artifact }: { artifact: SpaceArtifact }) {
   return (
     <Link
       // design-allow(card-pattern): navigation <Link> card; Card renders a div and would break anchor semantics
@@ -283,11 +283,11 @@ export function AgentArtifactCard({ artifact }: { artifact: CompanyArtifact }) {
  * capped so an unusually prolific agent can't stall the panel; the cap only
  * ever drops its oldest artifacts.
  */
-async function listAgentArtifacts(companyId: string, agentId: string) {
-  const artifacts: CompanyArtifact[] = [];
+async function listAgentArtifacts(spaceId: string, agentId: string) {
+  const artifacts: SpaceArtifact[] = [];
   let cursor: string | undefined;
   for (let page = 0; page < ARTIFACT_MAX_PAGES; page += 1) {
-    const response = await artifactsApi.list(companyId, { agentId, limit: ARTIFACT_PAGE_SIZE, cursor });
+    const response = await artifactsApi.list(spaceId, { agentId, limit: ARTIFACT_PAGE_SIZE, cursor });
     artifacts.push(...response.artifacts);
     if (!response.nextCursor) return { artifacts, truncated: false };
     cursor = response.nextCursor;
@@ -295,10 +295,10 @@ async function listAgentArtifacts(companyId: string, agentId: string) {
   return { artifacts, truncated: true };
 }
 
-export function AgentArtifactsPanel({ companyId, agentId }: { companyId: string; agentId: string }) {
+export function AgentArtifactsPanel({ spaceId, agentId }: { spaceId: string; agentId: string }) {
   const artifactsQuery = useQuery({
-    queryKey: queryKeys.artifacts.byAgent(companyId, agentId),
-    queryFn: () => listAgentArtifacts(companyId, agentId),
+    queryKey: queryKeys.artifacts.byAgent(spaceId, agentId),
+    queryFn: () => listAgentArtifacts(spaceId, agentId),
   });
 
   const artifactsView = useQueryView(artifactsQuery);

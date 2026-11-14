@@ -127,12 +127,12 @@ beforeEach(() => {
   scenario.failBranding = false;
   scenario.config = parseAntigravityJourneyConfig({ version: 1, setupId: "assisted-login-calibration", hosting: "self-hosted", executionEnvironment: "local",
     target: { mode: "attach", baseURL: "http://127.0.0.1:3104", expectedCommit: "a".repeat(40), deploymentMode: "authenticated",
-      companyId: "11111111-1111-4111-8111-111111111111", environmentId: "22222222-2222-4222-8222-222222222222" },
+      spaceId: "11111111-1111-4111-8111-111111111111", environmentId: "22222222-2222-4222-8222-222222222222" },
     browser: { headed: true, channel: "chromium", freshness: "signed-in" },
     savedConnection: { id: "33333333-3333-4333-8333-333333333333", name: "Synthetic subscription", ownerUserId: "synthetic-operator" },
     candidate: { platform: "darwin", architecture: "arm64", nativeVersion: "1.4.3-outpost.5", profileDigest: `sha256:${"b".repeat(64)}`, nativeClosureDigest: `sha256:${"c".repeat(64)}` },
     limits: { durationMs: 900_000, turnTimeoutMs: 300_000, maxRuns: 2, budgetCents: 100 } });
-  scenario.prepare.mockResolvedValue({ identity: { commit: "a".repeat(40) }, company: { issuePrefix: "QA" },
+  scenario.prepare.mockResolvedValue({ identity: { commit: "a".repeat(40) }, space: { issuePrefix: "QA" },
     connection: { id: scenario.config.savedConnection.id, grantId: "synthetic-grant", ownerUserId: "synthetic-operator", isDefault: true, method: "subscription" }, accounting: {} });
 });
 afterEach(async () => {
@@ -146,7 +146,7 @@ async function resourceJournal() {
   outputs.push(directory);
   const file = path.join(directory, "owned-resources.json");
   const resources: AntigravityJourneyResources = { version: 1, executionId: ANTIGRAVITY_JOURNEY_EXECUTION,
-    origin: scenario.config.target.baseURL, companyId: scenario.config.target.companyId, environmentId: scenario.config.target.environmentId,
+    origin: scenario.config.target.baseURL, spaceId: scenario.config.target.spaceId, environmentId: scenario.config.target.environmentId,
     connectionId: scenario.config.savedConnection.id, agentName: "Antigravity QA abcdef123456", runIds: [], retained: false,
     setupProbe: "not_started", processes: {} };
   await writeFile(file, JSON.stringify(resources), { mode: 0o600 });
@@ -225,7 +225,7 @@ it.each(["cancelled", "interrupted", "timed_out"])("packages settled %s usage ca
   const first = "44444444-4444-4444-8444-444444444444", discovered = "55555555-5555-4555-8555-555555555555";
   const agentId = "66666666-6666-4666-8666-666666666666";
   const issueId = "88888888-8888-4888-8888-888888888888";
-  const run = (id: string, cost: number) => ({ id, agentId, issueId, companyId: scenario.config.target.companyId,
+  const run = (id: string, cost: number) => ({ id, agentId, issueId, spaceId: scenario.config.target.spaceId,
     status: terminalStatus, costAccountingPending: false, usageJson: { inputTokens: 100, outputTokens: 20, costUsd: cost },
     startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:00:01Z" });
   scenario.flow.mockImplementationOnce(async ({ resources, observeRun }) => {
@@ -274,11 +274,11 @@ it.each(["", "attempt-error.json", "progress.json", "attempt-result.json", "brow
   scenario.flow.mockImplementationOnce(async ({ resources, persistResources, observeRun, phase }) => {
     await phase("agent_creation");
     resources.agentId = agentId;
-    resources.agentCreationRequest = { setupId: agentId, companyId: resources.companyId, agentName: resources.agentName,
+    resources.agentCreationRequest = { setupId: agentId, spaceId: resources.spaceId, agentName: resources.agentName,
       provider: "antigravity", creatorUserId: scenario.config.savedConnection.ownerUserId, origin: resources.origin };
     resources.retained = true;
     await persistResources();
-    await observeRun({ id: "44444444-4444-4444-8444-444444444444", agentId, companyId: resources.companyId,
+    await observeRun({ id: "44444444-4444-4444-8444-444444444444", agentId, spaceId: resources.spaceId,
       status: "failed", costAccountingPending: false, usageJson: { inputTokens: 100, outputTokens: 20, costUsd: 0.25 },
       startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:00:01Z" });
     previousJournal = await readFile(path.join(journalFs.directory, "owned-resources.json"), "utf8");
@@ -332,7 +332,7 @@ it.each(["", "attempt-error.json", "progress.json", "attempt-result.json", "brow
 it.each(["missing_screenshot", "late_assets"])("preserves the primary failure and accounting when real report packaging fails at %s", async failure => {
   scenario.authReads = 1;
   const run = { id: "44444444-4444-4444-8444-444444444444", agentId: "66666666-6666-4666-8666-666666666666",
-    companyId: scenario.config.target.companyId, status: "failed", costAccountingPending: false,
+    spaceId: scenario.config.target.spaceId, status: "failed", costAccountingPending: false,
     usageJson: { inputTokens: 100, outputTokens: 20, costUsd: 0.25 }, startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:00:01Z" };
   scenario.flow.mockImplementationOnce(async ({ resources, observeRun, checkpoint }) => {
     resources.agentId = run.agentId;

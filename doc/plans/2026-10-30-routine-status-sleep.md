@@ -15,8 +15,8 @@ grouped write. Restored history does not depend on an optional agent wake. It us
 transaction-aware work notification protocol. An outer transaction owns the hint;
 a savepoint release does not wake the repair worker before commit.
 
-An execution must retain reciprocal task/invocation links in the same company
-and belong to a routine in that company. This is the existing routine status
+An execution must retain reciprocal task/invocation links in the same space
+and belong to a routine in that space. This is the existing routine status
 owner contract. Origin labels can change when a plugin declaration changes or
 is removed; retained reciprocal links preserve historical execution custody. Repair
 locks the routine and task and rechecks the linked invocation before writing.
@@ -40,8 +40,8 @@ enablement gates remain in place. Ordinary routine scheduling is unchanged.
 
 Supported app writers register `notifyRoutineExecutionStatus(tx, issueId)` before
 their mutation. Common execution writers without an issue hint request debt reconstruction only
-for their recorded company. Projection debt settles even when that company is
-paused; company activity does not create or cancel this obligation. Backups and independent SQL import/repair tools must restore
+for their recorded space. Projection debt settles even when that space is
+paused; space activity does not create or cancel this obligation. Backups and independent SQL import/repair tools must restore
 before startup or call that same transaction contract; process-local hints do
 not observe independent SQL or another process. No permanent listener or periodic
 configured-routine scan is added.

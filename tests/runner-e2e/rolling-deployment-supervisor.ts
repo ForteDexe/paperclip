@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { paperclipConfigSchema } from "../../packages/shared/src/config-schema.js";
+import { outpostConfigSchema } from "../../packages/shared/src/config-schema.js";
 import { createControllerRecoveryObserver } from "./controller-recovery-observer.js";
 import { rollController, validControllerRollingDeploymentReceipt } from "./controller-rolling-deployment.js";
 import { readRestartRequest } from "./server-restart-request.js";
@@ -19,7 +19,7 @@ export async function superviseRollingDeployment(input: {
   temporaryRoot: string; repositoryRoot: string; configPath: string; port: number;
   environment: NodeJS.ProcessEnv; executionIds: string[]; cancelled: () => boolean;
 }) {
-  const config = paperclipConfigSchema.parse(JSON.parse(await readFile(input.configPath, "utf8")));
+  const config = outpostConfigSchema.parse(JSON.parse(await readFile(input.configPath, "utf8")));
   if (config.database.mode !== "postgres" || !config.database.connectionString) throw new Error("Rolling qualification requires independently owned Postgres");
   if (input.environment.OUTPOST_STORAGE_PROVIDER !== "s3") throw new Error("Rolling qualification requires disposable S3 storage");
   const databaseUrl = config.database.connectionString;
@@ -77,10 +77,10 @@ export async function superviseRollingDeployment(input: {
       const writes: Array<{ id: string; body: string }> = [];
       try {
         if (!probeIssueId) {
-          // The business oracle observes every task in its company. Keep the
+          // The business oracle observes every task in its space. Keep the
           // unassigned read/save probe outside that workload and its agent budget.
-          const companyId = (await api<{ id: string }>("/companies", "POST", { name: "Synthetic deployment probes" })).id;
-          const issue = await api<{ id: string }>(`/companies/${companyId}/issues`, "POST", {
+          const spaceId = (await api<{ id: string }>("/spaces", "POST", { name: "Synthetic deployment probes" })).id;
+          const issue = await api<{ id: string }>(`/spaces/${spaceId}/issues`, "POST", {
             title: "Synthetic deployment read/save probe", description: "Unassigned fixture for ordinary user saves during deployment.", status: "todo",
           });
           probeIssueId = issue.id;

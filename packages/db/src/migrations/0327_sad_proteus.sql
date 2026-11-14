@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "chat_voice_reports" (
 	"session_id" uuid PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"transcript" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"cost_micro_usd" text,
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS "chat_voice_reports" (
 --> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_reports_session_fk' AND conrelid = 'chat_voice_reports'::regclass) THEN
-    ALTER TABLE "chat_voice_reports" ADD CONSTRAINT "chat_voice_reports_session_fk" FOREIGN KEY ("company_id","session_id") REFERENCES "public"."chat_voice_sessions"("company_id","id") ON DELETE cascade ON UPDATE no action;
+    ALTER TABLE "chat_voice_reports" ADD CONSTRAINT "chat_voice_reports_session_fk" FOREIGN KEY ("space_id","session_id") REFERENCES "public"."chat_voice_sessions"("space_id","id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "chat_voice_reports_pending_idx" ON "chat_voice_reports" USING btree ("status","next_check_at");

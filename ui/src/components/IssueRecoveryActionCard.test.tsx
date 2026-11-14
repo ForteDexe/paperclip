@@ -66,7 +66,7 @@ function click(element: Element | null) {
 
 const ownerAgent: Agent = {
   id: "11111111-1111-1111-1111-111111111111",
-  companyId: "company-1",
+  spaceId: "space-1",
   name: "ClaudeCoder",
   role: "engineer",
   status: "idle",
@@ -87,7 +87,7 @@ const returnAgent: Agent = {
 function buildAction(overrides: Partial<IssueRecoveryAction> = {}): IssueRecoveryAction {
   return {
     id: "00000000-0000-0000-0000-0000000000aa",
-    companyId: "company-1",
+    spaceId: "space-1",
     sourceIssueId: "00000000-0000-0000-0000-0000000000ff",
     recoveryIssueId: null,
     kind: "missing_disposition",
@@ -155,9 +155,9 @@ describe("IssueRecoveryActionCard", () => {
     expect(node.querySelector('[data-testid="recovery-retry-progress"]')?.getAttribute("data-recovery-lane")).toBe("native_run");
   });
 
-  it("describes actual export progress after the board retries an exhausted repair", () => {
+  it("describes actual export progress after the operator retries an exhausted repair", () => {
     const node = render(<IssueRecoveryActionCard action={buildAction({
-      kind: "active_run_watchdog", cause: "native_finalization_invalid", ownerType: "board", status: "escalated", attemptCount: 3,
+      kind: "active_run_watchdog", cause: "native_finalization_invalid", ownerType: "operator", status: "escalated", attemptCount: 3,
       wakePolicy: { kind: "resume_native_run", runId: "native-run" },
       nativeRunActivity: { runId: "native-run", status: "running", workspaceOperationId: "export-operation" },
     })} />);
@@ -207,21 +207,21 @@ describe("IssueRecoveryActionCard", () => {
 
   it.each(["active", "escalated", "resolved"] as const)("keeps %s runner recovery in the run log without a card", status => {
     const node = render(<IssueRecoveryActionCard action={buildAction({
-      kind: "active_run_watchdog", cause: "uncertain_external_action", status, ownerType: "board",
+      kind: "active_run_watchdog", cause: "uncertain_external_action", status, ownerType: "operator",
     })} />);
     expect(node.textContent).toBe("");
     expect(node.querySelector("section")).toBeNull();
   });
 
   it.each(["active", "escalated"] as const)(
-    "describes a %s board-owned watchdog as a human decision, not a live run",
+    "describes a %s operator-owned watchdog as a human decision, not a live run",
     (status) => {
       const node = render(
         <IssueRecoveryActionCard
           action={buildAction({
             kind: "active_run_watchdog",
             status,
-            ownerType: "board",
+            ownerType: "operator",
             ownerAgentId: null,
             wakePolicy: null,
           })}
@@ -238,13 +238,13 @@ describe("IssueRecoveryActionCard", () => {
     },
   );
 
-  it("retains the existing authorized controls for a board-owned watchdog", () => {
+  it("retains the existing authorized controls for a operator-owned watchdog", () => {
     const onResolve = vi.fn();
     const node = render(
       <IssueRecoveryActionCard
         action={buildAction({
           kind: "active_run_watchdog",
-          ownerType: "board",
+          ownerType: "operator",
           ownerAgentId: null,
           wakePolicy: null,
         })}
@@ -745,7 +745,7 @@ describe("IssueRecoveryActionCard repair workspace (quarantine_restore)", () => 
     // rescue branch preview mirrors the server naming (prefix + timestamp marker)
     expect(
       document.body.querySelector("[data-testid='recovery-repair-rescue-branch']")?.textContent,
-    ).toContain("paperclip/rescue/PAP-1405/");
+    ).toContain("outpost/rescue/PAP-1405/");
     // recorded branch to be restored
     expect(text).toContain("PAP-522-recorded");
 
@@ -1103,20 +1103,20 @@ describe("IssueRecoveryActionCard owner-sticky retry lineage", () => {
     expect(node.textContent).not.toContain("Times out");
   });
 
-  it("shows a current-policy board recovery action without implying the board owns the task", () => {
+  it("shows a current-policy operator recovery action without implying the operator owns the task", () => {
     const node = render(
       <IssueRecoveryActionCard
         action={buildSourceLaneAction({
           status: "active",
-          ownerType: "board",
+          ownerType: "operator",
           ownerAgentId: null,
           evidence: {
             sourceAttemptCount: 5,
             sourceMaxAttempts: 5,
-            routingPolicy: "board_escalation_no_takeover_v1",
+            routingPolicy: "operator_escalation_no_takeover_v1",
           },
           wakePolicy: {
-            type: "board_escalation",
+            type: "operator_escalation",
             reason: "unchanged_source_state_exhausted",
             preservesSourceAssignee: true,
           },
@@ -1129,7 +1129,7 @@ describe("IssueRecoveryActionCard owner-sticky retry lineage", () => {
     );
     const section = node.querySelector("section[aria-label]");
     expect(section?.getAttribute("data-recovery-state")).toBe("needed");
-    expect(section?.getAttribute("data-recovery-lane")).toBe("board");
+    expect(section?.getAttribute("data-recovery-lane")).toBe("operator");
     expect(node.textContent).toContain("Automatic recovery is exhausted");
     expect(node.textContent).toContain("Human decision required");
     const recoveryOwner = node.querySelector("[data-testid='recovery-recovery-owner']");
@@ -1153,12 +1153,12 @@ describe("IssueRecoveryActionCard owner-sticky retry lineage", () => {
 
 it.each(["active", "escalated", "resolved"] as const)("does not show a historical unsafe-export repair card: %s", status => {
   const node = render(<IssueRecoveryActionCard action={buildAction({ status, kind: "active_run_watchdog",
-    cause: "native_workspace_sync_out_unsafe_archive", ownerType: "board", nextAction: "Repair the unsafe link manually" })} onResolve={() => {}} />);
+    cause: "native_workspace_sync_out_unsafe_archive", ownerType: "operator", nextAction: "Repair the unsafe link manually" })} onResolve={() => {}} />);
   expect(node.textContent).toBe("");
 });
 
-it("requires export retry for ordinary restoration while keeping explicit board overrides", () => {
-  const node = render(<IssueRecoveryActionCard action={buildAction({ kind: "active_run_watchdog", ownerType: "board",
+it("requires export retry for ordinary restoration while keeping explicit operator overrides", () => {
+  const node = render(<IssueRecoveryActionCard action={buildAction({ kind: "active_run_watchdog", ownerType: "operator",
     cause: "native_workspace_sync_out_retry_exhausted" })} onResolve={() => {}} canFalsePositive />);
   click(node.querySelector("[data-testid='recovery-action-resolve-trigger']"));
   expect(document.body.textContent).not.toContain("Try again");
@@ -1167,8 +1167,8 @@ it("requires export retry for ordinary restoration while keeping explicit board 
   expect(document.body.textContent).toContain("False positive, done");
 });
 
-it("requires owner-stop recovery even for board false-positive dispositions", () => {
-  const node = render(<IssueRecoveryActionCard action={buildAction({ kind: "active_run_watchdog", ownerType: "board",
+it("requires owner-stop recovery even for operator false-positive dispositions", () => {
+  const node = render(<IssueRecoveryActionCard action={buildAction({ kind: "active_run_watchdog", ownerType: "operator",
     cause: "native_workspace_finalization_owner_unverified" })} onResolve={() => {}} canFalsePositive />);
   expect(node.querySelector("[data-testid='recovery-action-resolve-trigger']")).toBeNull();
   expect(node.textContent).not.toContain("False positive");
@@ -1187,7 +1187,7 @@ describe("original-host controller containment in task recovery", () => {
   });
   afterEach(() => client.clear());
   function mount(canManage = true, reason = "controller_process_space_unverified", authority = digest) {
-    const action = buildAction({ kind: "active_run_watchdog", ownerType: "board", cause: "native_restart_recovery_blocked",
+    const action = buildAction({ kind: "active_run_watchdog", ownerType: "operator", cause: "native_restart_recovery_blocked",
       evidence: { runId, reason, controllerAuthority: { schema: "outpost.native-controller-authority.v1", digest: authority } } });
     const issue = { id: "ordinary-task", status: "in_progress" as const, activeRecoveryAction: action };
     const element = <QueryClientProvider client={client}><NativeControllerContainmentRecovery key={authority} issue={issue}
@@ -1232,15 +1232,15 @@ describe("original-host controller containment in task recovery", () => {
       },
     }));
   });
-  it("does not expose a confirmation form to non-board runtime managers", () => {
+  it("does not expose a confirmation form to non-operator runtime managers", () => {
     const node = mount(false);
     expect(node.querySelector("button")).toBeNull();
     expect(node.textContent).toContain("Verify the original execution stopped");
     expect(containmentApi.resolveRecoveryAction).not.toHaveBeenCalled();
   });
-  it.each(["owner", "admin", "operator", "viewer"] as const)("shows the containment form only for a board %s with owner-stop authority", role => {
-    const allowed = canBoardConfirmOwnerStop("company", { source: "session", user: null, userId: "board-user", keyId: null, companyIds: ["company"], isInstanceAdmin: false,
-      memberships: [{ companyId: "company", status: "active", membershipRole: role }] });
+  it.each(["owner", "admin", "operator", "viewer"] as const)("shows the containment form only for a operator %s with owner-stop authority", role => {
+    const allowed = canBoardConfirmOwnerStop("space", { source: "session", user: null, userId: "operator-user", keyId: null, spaceIds: ["space"], isInstanceAdmin: false,
+      memberships: [{ spaceId: "space", status: "active", membershipRole: role }] });
     const node = mount(allowed);
     expect(node.querySelectorAll('[role="checkbox"]').length).toBe(role === "owner" || role === "admin" ? 2 : 0);
     expect(Boolean(node.querySelector("button"))).toBe(role === "owner" || role === "admin");

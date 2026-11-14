@@ -298,7 +298,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .from(heartbeatRunEvents)
       .where(
         and(
-          eq(heartbeatRunEvents.companyId, run.companyId),
+          eq(heartbeatRunEvents.spaceId, run.spaceId),
           eq(heartbeatRunEvents.runId, run.id),
         ),
       )
@@ -328,7 +328,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
           hint?.version !== 1 || hint.actionId !== run.wakeupRequestId || hint.failedRunId !== run.retryOfRunId ||
           explicit?.previousRunId !== run.retryOfRunId || explicit.taskRetryRequestId !== intentId ||
           explicit.commentId !== run.contextSnapshot?.wakeCommentId) return false;
-      const prior = await readTaskChatRetryIntent(tx as unknown as Db, { companyId: run.companyId,
+      const prior = await readTaskChatRetryIntent(tx as unknown as Db, { spaceId: run.spaceId,
         issueId: String(run.contextSnapshot?.issueId), agentId: run.agentId,
         sourceRunId: run.retryOfRunId, intentId, chatActionId: run.wakeupRequestId });
       if (!prior || prior.wake.status !== "coalesced" || prior.wake.runId !== run.id) return false;
@@ -361,9 +361,9 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
     )
       return false;
     const evidence = await tx.execute(sql`select 1 where
-      exists (select 1 from native_run_finalizations where company_id = ${run.companyId}::uuid and run_id = ${run.id}::uuid)
-      or exists (select 1 from native_run_results where company_id = ${run.companyId}::uuid and run_id = ${run.id}::uuid)
-      or exists (select 1 from environment_leases where company_id = ${run.companyId}::uuid and heartbeat_run_id = ${run.id}::uuid)`);
+      exists (select 1 from native_run_finalizations where space_id = ${run.spaceId}::uuid and run_id = ${run.id}::uuid)
+      or exists (select 1 from native_run_results where space_id = ${run.spaceId}::uuid and run_id = ${run.id}::uuid)
+      or exists (select 1 from environment_leases where space_id = ${run.spaceId}::uuid and heartbeat_run_id = ${run.id}::uuid)`);
     return evidence.length === 0;
   }
 
@@ -378,7 +378,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .where(
         and(
           eq(nativeRunFinalizations.runId, run.id),
-          eq(nativeRunFinalizations.companyId, run.companyId),
+          eq(nativeRunFinalizations.spaceId, run.spaceId),
           eq(nativeRunFinalizations.issueId, issueId),
         ),
       )
@@ -418,7 +418,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
         .from(heartbeatRunEvents)
         .where(
           and(
-            eq(heartbeatRunEvents.companyId, run.companyId),
+            eq(heartbeatRunEvents.spaceId, run.spaceId),
             eq(heartbeatRunEvents.runId, run.id),
             or(
               isNotNull(heartbeatRunEvents.sourceInstanceId),
@@ -432,7 +432,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
         .from(nativeRunResults)
         .where(
           and(
-            eq(nativeRunResults.companyId, run.companyId),
+            eq(nativeRunResults.spaceId, run.spaceId),
             eq(nativeRunResults.runId, run.id),
           ),
         )
@@ -446,7 +446,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       if (
         !event &&
         !result &&
-        binding?.companyId === run.companyId &&
+        binding?.spaceId === run.spaceId &&
         binding?.issueId === issueId &&
         binding?.agentId === run.agentId &&
         binding?.runId === run.id &&
@@ -462,7 +462,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
           .from(heartbeatRuns)
           .where(
             and(
-              eq(heartbeatRuns.companyId, run.companyId),
+              eq(heartbeatRuns.spaceId, run.spaceId),
               eq(heartbeatRuns.agentId, run.agentId),
               eq(heartbeatRuns.nativeIssueId, issueId),
               eq(heartbeatRuns.nativeSessionId, run.nativeSessionId),
@@ -475,7 +475,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
               // owner is a candidate; the physical check below must still prove
               // that this exact run owns the canonical suspended checkpoint.
               sql`exists (select 1 from native_run_finalizations retired
-            where retired.company_id = ${heartbeatRuns.companyId}
+            where retired.space_id = ${heartbeatRuns.spaceId}
               and retired.run_id = ${heartbeatRuns.id}
               and retired.phase = 'committed'
               and exists (select 1 from jsonb_array_elements(retired.recovery_history) receipt
@@ -492,7 +492,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
             .from(nativeRunFinalizations)
             .where(
               and(
-                eq(nativeRunFinalizations.companyId, run.companyId),
+                eq(nativeRunFinalizations.spaceId, run.spaceId),
                 eq(nativeRunFinalizations.issueId, issueId),
                 eq(nativeRunFinalizations.runId, predecessor.id),
               ),
@@ -506,7 +506,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
             .from(environmentLeases)
             .where(
               and(
-                eq(environmentLeases.companyId, run.companyId),
+                eq(environmentLeases.spaceId, run.spaceId),
                 eq(environmentLeases.heartbeatRunId, run.id),
               ),
             )
@@ -627,7 +627,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .from(environmentLeases)
       .where(
         and(
-          eq(environmentLeases.companyId, run.companyId),
+          eq(environmentLeases.spaceId, run.spaceId),
           eq(environmentLeases.heartbeatRunId, run.id),
         ),
       )
@@ -647,7 +647,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
   async function assertFailedNativeRetryState(
     tx: DbOrTransaction,
     source: Pick<FailedChatRetrySource, "failedRunId" | "issueId" | "agentId" | "commentIds" | "taskRetryInput" | "requestedByActorType" | "requestedByActorId">,
-    companyId: string,
+    spaceId: string,
     taskRetryIntentId?: string,
     allowPendingRecovery = false,
     executionRunId?: string,
@@ -658,14 +658,14 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .where(
         and(
           eq(heartbeatRuns.id, source.failedRunId),
-          eq(heartbeatRuns.companyId, companyId),
+          eq(heartbeatRuns.spaceId, spaceId),
           eq(heartbeatRuns.agentId, source.agentId),
         ),
       )
       .for("share", { noWait: true });
     if (!run) throw failedChatRetryDenied();
     if (taskRetryIntentId) {
-      if (!await readTaskChatRetryIntent(tx as unknown as Db, { companyId, issueId: source.issueId,
+      if (!await readTaskChatRetryIntent(tx as unknown as Db, { spaceId, issueId: source.issueId,
         agentId: source.agentId, sourceRunId: run.id, intentId: taskRetryIntentId })) throw failedChatRetryDenied();
       const previousComments = new Set(source.taskRetryInput?.sourceActionIds.length
         ? retryCommentIds(run.contextSnapshot ?? {}, source.taskRetryInput) : []);
@@ -679,7 +679,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
           issueId: source.issueId, intentId: taskRetryIntentId, successorRunId: executionRunId,
           commentId: source.commentIds.at(-1)!,
         })) return;
-        if (await admitExplicitNativeContinuation({ db: tx as Db, companyId, issueId: source.issueId,
+        if (await admitExplicitNativeContinuation({ db: tx as Db, spaceId, issueId: source.issueId,
           agentId: source.agentId, actorType: "user", actorId: source.requestedByActorId,
           reason: "issue_commented", commentId: source.commentIds.at(-1)!, successorRunId: taskRetryIntentId,
           dryRun: true })) return;
@@ -703,7 +703,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
           failedExecution: run.runnerProfileJson?.nativeExecutionInput,
           retiredExecution:
             retiredOwner.predecessor.runnerProfileJson?.nativeExecutionInput,
-          companyId,
+          spaceId,
           issueId: source.issueId,
           agentId: source.agentId,
           failedRunId: run.id,
@@ -731,7 +731,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
           checkpoint.providerSessionId.trim().length === 0)) ||
       !nativeFailedRunRetryStateIsSafe({
         execution: run.runnerProfileJson?.nativeExecutionInput,
-        companyId,
+        spaceId,
         issueId: source.issueId,
         agentId: source.agentId,
         runId: run.id,
@@ -762,7 +762,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
   async function failedChatRetrySource(
     tx: DbOrTransaction,
     input: {
-      companyId: string;
+      spaceId: string;
       issueId: string;
       agentId: string;
       failedRunId: string;
@@ -794,7 +794,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .where(
         and(
           eq(issues.id, input.issueId),
-          eq(issues.companyId, input.companyId),
+          eq(issues.spaceId, input.spaceId),
         ),
       )
       .for(
@@ -807,7 +807,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .where(
         and(
           eq(agents.id, input.agentId),
-          eq(agents.companyId, input.companyId),
+          eq(agents.spaceId, input.spaceId),
         ),
       )
       .for("share", { noWait: true });
@@ -840,7 +840,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
     )
       throw failedChatRetryDenied();
     if (input.taskRetryIntentId && !await readTaskChatRetryIntent(tx as unknown as Db, {
-      companyId: input.companyId, issueId: issue.id, agentId: input.agentId,
+      spaceId: input.spaceId, issueId: issue.id, agentId: input.agentId,
       sourceRunId: failedRun.id, intentId: input.taskRetryIntentId,
     })) throw failedChatRetryDenied();
     if (failedRun.runtimeMode === "native" && evidence.kind === "retry" && !input.taskRetryIntentId)
@@ -857,7 +857,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       // Explain the existing refusal before raw chat-source validation hides
       // the supported new-message path. This branch grants no continuation.
       const [recorded] = await tx.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-        eq(nativeRunResults.companyId, input.companyId), eq(nativeRunResults.issueId, issue.id),
+        eq(nativeRunResults.spaceId, input.spaceId), eq(nativeRunResults.issueId, issue.id),
         eq(nativeRunResults.runId, failedRun.id), eq(nativeRunResults.schemaStatus, "accepted"),
       )).limit(1).for("share", { noWait: true });
       if (recorded) throw failedChatRetryDenied("accepted_result_without_new_input");
@@ -878,7 +878,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
     } : undefined);
     if (reauthorization && selectedInput?.skippedActionIds) reauthorization.skippedActionIds = selectedInput.skippedActionIds;
     const pendingSources = selectedInput?.sourceActionIds.length ? await tx.select().from(chatActions).where(and(
-      eq(chatActions.companyId, input.companyId), eq(chatActions.kind, "inbound_wakeup"),
+      eq(chatActions.spaceId, input.spaceId), eq(chatActions.kind, "inbound_wakeup"),
       sql`${chatActions.payload}->>'issueId' = ${issue.id}`,
       inArray(chatActions.id, selectedInput.sourceActionIds),
     )) : null;
@@ -891,7 +891,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .from(nativeRunResults)
       .where(
         and(
-          eq(nativeRunResults.companyId, input.companyId),
+          eq(nativeRunResults.spaceId, input.spaceId),
           eq(nativeRunResults.runId, failedRun.id),
           eq(nativeRunResults.schemaStatus, "accepted"),
           input.committedResponse
@@ -907,7 +907,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
         .from(nativeRunFinalizations)
         .where(
           and(
-            eq(nativeRunFinalizations.companyId, input.companyId),
+            eq(nativeRunFinalizations.spaceId, input.spaceId),
             eq(nativeRunFinalizations.issueId, issue.id),
             eq(nativeRunFinalizations.runId, failedRun.id),
           ),
@@ -955,7 +955,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       input.committedResponse?.continuingTeamsFileTransfer;
     if (continuingTransfer !== undefined) {
       continuingUnknownPublicationId = await continuingTeamsFilePublication(tx, {
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         agentId: input.agentId,
         issueId: issue.id,
         failedRunId: failedRun.id,
@@ -971,7 +971,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .from(issueThreadInteractions)
       .where(
         and(
-          eq(issueThreadInteractions.companyId, input.companyId),
+          eq(issueThreadInteractions.spaceId, input.spaceId),
           eq(issueThreadInteractions.issueId, issue.id),
           eq(issueThreadInteractions.sourceRunId, failedRun.id),
         ),
@@ -982,7 +982,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .from(issueQuestionResponseDeliveries)
       .where(
         and(
-          eq(issueQuestionResponseDeliveries.companyId, input.companyId),
+          eq(issueQuestionResponseDeliveries.spaceId, input.spaceId),
           eq(issueQuestionResponseDeliveries.targetRunId, failedRun.id),
         ),
       )
@@ -997,7 +997,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .from(chatPublications)
       .where(
         and(
-          eq(chatPublications.companyId, input.companyId),
+          eq(chatPublications.spaceId, input.spaceId),
           eq(chatPublications.issueId, issue.id),
           input.committedResponse
             ? eq(chatPublications.state, "delivery_unknown")
@@ -1015,7 +1015,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
               eq(chatPublications.state, "delivery_unknown"),
             ),
             sql`exists (select 1 from issue_comments result_comment where result_comment.id = ${chatPublications.commentId}
-          and result_comment.company_id = ${input.companyId}::uuid and result_comment.created_by_run_id = ${failedRun.id}::uuid
+          and result_comment.space_id = ${input.spaceId}::uuid and result_comment.created_by_run_id = ${failedRun.id}::uuid
           )`,
           ),
         ),
@@ -1033,7 +1033,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
         .where(
           and(
             eq(chatActions.id, failedRun.wakeupRequestId),
-            eq(chatActions.companyId, input.companyId),
+            eq(chatActions.spaceId, input.spaceId),
           ),
         )
         .for("share", { noWait: true });
@@ -1043,7 +1043,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
         .where(
           and(
             eq(agentWakeupRequests.id, failedRun.wakeupRequestId),
-            eq(agentWakeupRequests.companyId, input.companyId),
+            eq(agentWakeupRequests.spaceId, input.spaceId),
           ),
         )
         .for("share", { noWait: true });
@@ -1090,7 +1090,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       assertFailedRetryReceipt(
         createDurableChatWakeupRequest({
           id: priorIntent.id,
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           agentId: input.agentId,
           issueId: input.issueId,
           commentId: parent.commentIds.at(-1)!,
@@ -1121,10 +1121,10 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
     const admittedBatch =
       pendingSources ? [] : await tx.execute(sql`select source.id, source.payload->>'commentId' as comment_id
       from agent_wakeup_requests receipt join chat_actions source on source.id = receipt.id
-      where receipt.company_id = ${input.companyId}::uuid and receipt.agent_id = ${input.agentId}::uuid
+      where receipt.space_id = ${input.spaceId}::uuid and receipt.agent_id = ${input.agentId}::uuid
         and (receipt.run_id = ${failedRun.id}::uuid or receipt.id = ${failedRun.wakeupRequestId}::uuid
           or receipt.payload->>'coalescedIntoWakeupRequestId' = ${failedRun.wakeupRequestId})
-        and source.company_id = ${input.companyId}::uuid and source.kind = 'inbound_wakeup'
+        and source.space_id = ${input.spaceId}::uuid and source.kind = 'inbound_wakeup'
         ${selectedInput ? sql`` : sql`limit 51`}`);
     if (
       !pendingSources && (admittedBatch.length !== commentIds.length ||
@@ -1138,7 +1138,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, input.companyId),
+          eq(chatActions.spaceId, input.spaceId),
           eq(chatActions.kind, "inbound_wakeup"),
           sql`${chatActions.payload}->>'issueId' = ${issue.id}`,
           inArray(
@@ -1177,19 +1177,19 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
     const endpointContention = input.taskRetryIntentId && !input.publication && !input.committedResponse
       ? { onEndpointContention: deferSourceAuthorization } : {};
     const identity = await tx.execute(
-      sql`select pg_try_advisory_xact_lock(hashtextextended(${`chat-identity:${input.companyId}:${first.principalId}`}, 0)) as locked`,
+      sql`select pg_try_advisory_xact_lock(hashtextextended(${`chat-identity:${input.spaceId}:${first.principalId}`}, 0)) as locked`,
     );
     if (!identity[0]?.locked) deferSourceAuthorization();
     const actionIds = ordered.map(action => action.id);
-    const currentActions = await tx.select().from(chatActions).where(and(eq(chatActions.companyId, input.companyId),
+    const currentActions = await tx.select().from(chatActions).where(and(eq(chatActions.spaceId, input.spaceId),
       inArray(chatActions.id, actionIds))).orderBy(asc(chatActions.id)).for("update", { noWait: true });
-    const deliveries = await tx.select().from(chatDeliveries).where(and(eq(chatDeliveries.companyId, input.companyId),
+    const deliveries = await tx.select().from(chatDeliveries).where(and(eq(chatDeliveries.spaceId, input.spaceId),
       inArray(chatDeliveries.id, ordered.map(action => action.deliveryId!))))
       .orderBy(asc(chatDeliveries.id)).for("update", { noWait: true });
-    const comments = await tx.select().from(issueComments).where(and(eq(issueComments.companyId, input.companyId),
+    const comments = await tx.select().from(issueComments).where(and(eq(issueComments.spaceId, input.spaceId),
       eq(issueComments.issueId, issue.id), inArray(issueComments.id, commentIds)))
       .orderBy(asc(issueComments.id)).for("share", { noWait: true });
-    const receipts = await tx.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, input.companyId),
+    const receipts = await tx.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, input.spaceId),
       inArray(agentWakeupRequests.id, [...actionIds, failedRun.wakeupRequestId!, ...(input.retryActionId ? [input.retryActionId] : [])])))
       .orderBy(asc(agentWakeupRequests.id)).for("share", { noWait: true });
     const actionsById = new Map(currentActions.map(action => [action.id, action]));
@@ -1199,7 +1199,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
     const lifecycleRows = await tx.select({
       target: sql<string>`${chatDeliveries.normalizedEvent}->'message'->>'targetProviderEventId'`,
       context: sql<Record<string, unknown>>`${chatDeliveries.normalizedEvent}->'runtimeContext'`,
-    }).from(chatDeliveries).where(and(eq(chatDeliveries.companyId, input.companyId),
+    }).from(chatDeliveries).where(and(eq(chatDeliveries.spaceId, input.spaceId),
       eq(chatDeliveries.endpointId, first.endpointId),
       or(isNull(chatDeliveries.conversationId), eq(chatDeliveries.conversationId, first.conversationId)),
       ne(chatDeliveries.state, "filtered"), inArray(chatDeliveries.eventKind, ["message_updated", "message_deleted", "message_restored"]),
@@ -1257,7 +1257,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       assertFailedRetryReceipt(
         createDurableChatWakeupRequest({
           id: action.id,
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           agentId: input.agentId,
           issueId: issue.id,
           commentId: comment.id,
@@ -1337,7 +1337,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, input.companyId),
+          eq(chatActions.spaceId, input.spaceId),
           eq(chatActions.conversationId, first.conversationId),
           eq(chatActions.kind, "inbound_wakeup"),
           notInArray(
@@ -1346,7 +1346,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
           ),
           gte(chatActions.createdAt, newestSource),
           sql`exists (select 1 from agent_wakeup_requests newer_admission where newer_admission.id = ${chatActions.id}
-        and newer_admission.company_id = ${input.companyId}::uuid and newer_admission.status <> 'skipped')`,
+        and newer_admission.space_id = ${input.spaceId}::uuid and newer_admission.status <> 'skipped')`,
         ),
       )
       .limit(1);
@@ -1396,16 +1396,16 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       }
     });
 
-  /** A historical queue merge can consume independent board input before chat
-   * dispatch rejects the changed batch. A new board Retry may restore those
+  /** A historical queue merge can consume independent operator input before chat
+   * dispatch rejects the changed batch. A new operator Retry may restore those
    * never-delivered receipts, after certifying both their original authorities.
    * The failed run and its canonical Retry remain unchanged history. */
   async function restoreUnstartedRetryInput(tx: DbOrTransaction, input: {
-    companyId: string; issueId: string; agentId: string; failedRunId: string; initiatedByUserId: string;
+    spaceId: string; issueId: string; agentId: string; failedRunId: string; initiatedByUserId: string;
     onIdentityContention?: (binding: PendingRetryBinding) => void;
   }) {
     const [run] = await tx.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.agentId, input.agentId),
+      eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.agentId, input.agentId),
       eq(heartbeatRuns.id, input.failedRunId),
     )).for("share", { noWait: true });
     const queueIds = run?.contextSnapshot?.queuedCommentSourceWakeIds;
@@ -1417,12 +1417,12 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
     if (source.provider !== "github" || !sourceIds?.length || !source.intent.payload.taskRetryIntentId)
       throw failedChatRetryDenied();
     const queues = await tx.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, input.companyId), eq(agentWakeupRequests.agentId, input.agentId),
+      eq(agentWakeupRequests.spaceId, input.spaceId), eq(agentWakeupRequests.agentId, input.agentId),
       inArray(agentWakeupRequests.id, queueIds as string[]),
     )).for("update");
     const byId = new Map(queues.map(queue => [queue.id, queue]));
     if (queues.length !== queueIds.length) throw failedChatRetryDenied();
-    const boardIds = (queueIds as string[]).flatMap(id => {
+    const operatorIds = (queueIds as string[]).flatMap(id => {
       const queue = byId.get(id)!;
       const ids = queuedCommentIdsFromWakePayload(queue.payload);
       if (queue.status !== "coalesced" || queue.runId !== run.id || queue.payload?.issueId !== input.issueId ||
@@ -1433,12 +1433,12 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
         throw failedChatRetryDenied();
       return ids;
     });
-    if (new Set(boardIds).size !== boardIds.length || boardIds.some(id => source.commentIds.includes(id)) ||
-        JSON.stringify(run.contextSnapshot?.wakeCommentIds) !== JSON.stringify([...boardIds, ...source.commentIds]) ||
+    if (new Set(operatorIds).size !== operatorIds.length || operatorIds.some(id => source.commentIds.includes(id)) ||
+        JSON.stringify(run.contextSnapshot?.wakeCommentIds) !== JSON.stringify([...operatorIds, ...source.commentIds]) ||
         run.contextSnapshot?.wakeCommentId !== source.commentIds.at(-1)) throw failedChatRetryDenied();
     const comments = await tx.select().from(issueComments).where(and(
-      eq(issueComments.companyId, input.companyId), eq(issueComments.issueId, input.issueId),
-      inArray(issueComments.id, boardIds),
+      eq(issueComments.spaceId, input.spaceId), eq(issueComments.issueId, input.issueId),
+      inArray(issueComments.id, operatorIds),
     )).for("share", { noWait: true });
     const commentsById = new Map(comments.map(comment => [comment.id, comment]));
     for (const queue of queues) for (const id of queuedCommentIdsFromWakePayload(queue.payload)) {
@@ -1448,27 +1448,27 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
           comment.updatedAt.getTime() !== comment.createdAt.getTime()) throw failedChatRetryDenied();
     }
     const [delivered] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.agentId, input.agentId), ne(heartbeatRuns.id, run.id),
+      eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.agentId, input.agentId), ne(heartbeatRuns.id, run.id),
       sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${input.issueId}`,
       sql`not (${heartbeatRuns.status} = 'cancelled' and ${heartbeatRuns.startedAt} is null)`,
       // Budget-skipped source receipts remain immutable even after a later
       // Retry delivers them. Check run history for both input authorities.
-      or(...[...boardIds, ...source.commentIds].map(id => or(sql`${heartbeatRuns.contextSnapshot}->>'wakeCommentId' = ${id}`,
+      or(...[...operatorIds, ...source.commentIds].map(id => or(sql`${heartbeatRuns.contextSnapshot}->>'wakeCommentId' = ${id}`,
         sql`${heartbeatRuns.contextSnapshot}->'wakeCommentIds' @> ${JSON.stringify([id])}::jsonb`))),
     )).limit(1);
     if (delivered) throw failedChatRetryDenied();
     // Source authorization above checked every external receipt and its owner.
     // Reset only this certified unstarted batch under the task's admission lock.
     const skippedIds = source.taskRetryInput?.skippedActionIds ?? [];
-    await notifyDeferredExecutionWork(tx, { companyId: input.companyId });
+    await notifyDeferredExecutionWork(tx, { spaceId: input.spaceId });
     await tx.update(agentWakeupRequests).set({ status: "deferred_issue_execution", runId: null, finishedAt: null,
       payload: sql`${agentWakeupRequests.payload} - 'coalescedIntoWakeupRequestId'`, updatedAt: new Date(),
-    }).where(and(eq(agentWakeupRequests.companyId, input.companyId), eq(agentWakeupRequests.agentId, input.agentId),
+    }).where(and(eq(agentWakeupRequests.spaceId, input.spaceId), eq(agentWakeupRequests.agentId, input.agentId),
       inArray(agentWakeupRequests.id, [...sourceIds, ...queueIds as string[]]),
       ne(agentWakeupRequests.status, "skipped")));
-    await persistActivity(tx as unknown as Db, { companyId: input.companyId, actorType: "user", actorId: input.initiatedByUserId,
+    await persistActivity(tx as unknown as Db, { spaceId: input.spaceId, actorType: "user", actorId: input.initiatedByUserId,
       action: "issue.retry_inputs_restored", entityType: "issue", entityId: input.issueId, runId: run.id,
-      details: { sourceRetryActionId: source.intent.id, externalRequestIds: sourceIds, boardRequestIds: queueIds } });
+      details: { sourceRetryActionId: source.intent.id, externalRequestIds: sourceIds, operatorRequestIds: queueIds } });
     // The old skipped receipts stay unchanged. The certified failed attempt
     // proves this batch was never delivered even though it predates that run.
     return { sourceActionIds: sourceIds, skippedActionIds: skippedIds } satisfies TaskRetryInput;
@@ -1477,7 +1477,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
   async function prepareFailedChatRunRetry(
     tx: DbOrTransaction,
     input: {
-      companyId: string;
+      spaceId: string;
       issueId: string;
       agentId: string;
       failedRunId: string;
@@ -1526,7 +1526,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
     if (existing) {
       if (
         existing.kind !== "failed_run_retry" ||
-        existing.companyId !== input.companyId ||
+        existing.spaceId !== input.spaceId ||
         (source ? existing.payload.sourceScopeSha256 !== source.sourceScopeSha256
           : JSON.stringify(existing.payload) !== JSON.stringify(payload))
       )
@@ -1535,14 +1535,14 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
     }
     if (!input.retryIntentId) {
       if (!source) throw failedChatRetryDenied();
-      await assertFailedNativeRetryState(tx, source, input.companyId);
+      await assertFailedNativeRetryState(tx, source, input.spaceId);
     }
     const [busy] = await tx
       .select({ id: heartbeatRuns.id })
       .from(heartbeatRuns)
       .where(
         and(
-          eq(heartbeatRuns.companyId, input.companyId),
+          eq(heartbeatRuns.spaceId, input.spaceId),
           inArray(heartbeatRuns.status, [
             "queued",
             "running",
@@ -1558,7 +1558,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
     const [intent] = await tx
       .insert(chatActions)
       .values({
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         endpointId: binding.endpointId,
         conversationId: binding.conversationId,
         principalId: binding.principalId,
@@ -1574,7 +1574,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       })
       .returning();
     await logActivity(tx as unknown as Db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: "user",
       actorId: input.initiatedByUserId,
       action: "chat.failed_run_retry_requested",
@@ -1602,21 +1602,21 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
     return db.transaction(async tx => {
       const input = pending.data;
       const restored = input.restoreUnstartedInput ? await restoreUnstartedRetryInput(tx, {
-        companyId: action.companyId, issueId: input.issueId, agentId: input.agentId,
+        spaceId: action.spaceId, issueId: input.issueId, agentId: input.agentId,
         failedRunId: input.failedRunId, initiatedByUserId: input.initiatedByUserId,
       }) : undefined;
-      const source = await failedChatRetrySource(tx, { companyId: action.companyId,
+      const source = await failedChatRetrySource(tx, { spaceId: action.spaceId,
         issueId: input.issueId, agentId: input.agentId, failedRunId: input.failedRunId,
         taskRetryIntentId: input.taskRetryIntentId, taskRetryInput: restored ?? input.taskRetryInput });
-      const retry = await readTaskChatRetryIntent(tx as unknown as Db, { companyId: action.companyId,
+      const retry = await readTaskChatRetryIntent(tx as unknown as Db, { spaceId: action.spaceId,
         issueId: input.issueId, agentId: input.agentId, sourceRunId: input.failedRunId,
         intentId: input.taskRetryIntentId, chatActionId: action.id });
       if (!retry || retry.wake.status !== "deferred_issue_execution" || retry.wake.runId ||
           retry.intent.actorId !== input.initiatedByUserId ||
-          !await taskRetryMutationAllowed(tx as unknown as Db, { companyId: action.companyId,
+          !await taskRetryMutationAllowed(tx as unknown as Db, { spaceId: action.spaceId,
             issueId: input.issueId, actorId: retry.intent.actorId, actorSource: retry.intent.actorSource })) throw failedChatRetryDenied();
       const [latest] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, action.companyId), or(eq(heartbeatRuns.issueId, input.issueId),
+        eq(heartbeatRuns.spaceId, action.spaceId), or(eq(heartbeatRuns.issueId, input.issueId),
           eq(heartbeatRuns.nativeIssueId, input.issueId), sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${input.issueId}`),
       )).orderBy(desc(heartbeatRuns.createdAt), desc(heartbeatRuns.id)).limit(1);
       if (latest?.id !== input.failedRunId || source.endpointId !== action.endpointId ||
@@ -1625,7 +1625,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       assertIdentityContentionDeadline(action);
       const [prepared] = await tx.update(chatActions).set({ payload: { version: 1, ...source,
         initiatedByUserId: input.initiatedByUserId, taskRetryIntentId: input.taskRetryIntentId } }).where(and(
-        eq(chatActions.id, action.id), eq(chatActions.companyId, action.companyId), eq(chatActions.status, "processing"),
+        eq(chatActions.id, action.id), eq(chatActions.spaceId, action.spaceId), eq(chatActions.status, "processing"),
         eq(chatActions.updatedAt, action.updatedAt), sql`${chatActions.payload}->'sourceAuthorizationPending' = 'true'::jsonb`,
       )).returning();
       if (!prepared) throw failedChatRetryDenied();
@@ -1636,7 +1636,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
   async function authorizeFailedChatRunRetry(
     tx: DbOrTransaction,
     input: {
-      companyId: string;
+      spaceId: string;
       issueId: string;
       agentId: string;
       retryActionId: string;
@@ -1651,7 +1651,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .where(
         and(
           eq(chatActions.id, input.retryActionId),
-          eq(chatActions.companyId, input.companyId),
+          eq(chatActions.spaceId, input.spaceId),
         ),
       );
     if (
@@ -1674,7 +1674,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       taskRetryInput: snapshot.payload.taskRetryInput as TaskRetryInput | undefined,
     });
     if (typeof snapshot.payload.taskRetryIntentId === "string" && !await readTaskChatRetryIntent(tx as unknown as Db, {
-      companyId: input.companyId, issueId: input.issueId, agentId: input.agentId,
+      spaceId: input.spaceId, issueId: input.issueId, agentId: input.agentId,
       sourceRunId: source.failedRunId, intentId: snapshot.payload.taskRetryIntentId, chatActionId: snapshot.id,
     })) throw failedChatRetryDenied();
     const [intent] = await tx
@@ -1706,7 +1706,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       assertFailedRetryReceipt(
         createDurableChatWakeupRequest({
           id: intent.id,
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           agentId: input.agentId,
           issueId: input.issueId,
           commentId: source.commentIds.at(-1)!,
@@ -1731,7 +1731,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
         .where(
           and(
             eq(heartbeatRuns.id, input.runId),
-            eq(heartbeatRuns.companyId, input.companyId),
+            eq(heartbeatRuns.spaceId, input.spaceId),
             eq(heartbeatRuns.agentId, input.agentId),
           ),
         )
@@ -1753,7 +1753,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
         ...input,
         retryActionId: input.wakeupRequestId,
       });
-      await assertFailedNativeRetryState(tx, source, input.companyId,
+      await assertFailedNativeRetryState(tx, source, input.spaceId,
         typeof source.intent.payload.taskRetryIntentId === "string" ? source.intent.payload.taskRetryIntentId : undefined,
         input.phase === "admission", input.phase === "execution" ? input.runId : undefined);
       const context = input.contextSnapshot;
@@ -1800,7 +1800,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
       .where(
         and(
           eq(agentWakeupRequests.id, action.id),
-          eq(agentWakeupRequests.companyId, action.companyId),
+          eq(agentWakeupRequests.spaceId, action.spaceId),
         ),
       );
     const [run] = receipt?.runId
@@ -1810,7 +1810,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
           .where(
             and(
               eq(heartbeatRuns.id, receipt.runId),
-              eq(heartbeatRuns.companyId, action.companyId),
+              eq(heartbeatRuns.spaceId, action.spaceId),
             ),
           )
       : [];
@@ -1842,10 +1842,10 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
   async function reconcileFailedTaskRetry(action: typeof chatActions.$inferSelect) {
     if (!["failed", "cancelled"].includes(action.status) || !action.payload.taskRetryIntentId ||
         action.result?.taskRetryInputReconciled === true) return action;
-    await releaseUnadmittedTaskRetryInput(db, { companyId: action.companyId, retryActionId: action.id });
+    await releaseUnadmittedTaskRetryInput(db, { spaceId: action.spaceId, retryActionId: action.id });
     const [settled] = await db.update(chatActions).set({
       result: sql`coalesce(${chatActions.result}, '{}'::jsonb) || '{"taskRetryInputReconciled":true}'::jsonb`,
-    }).where(and(eq(chatActions.companyId, action.companyId), eq(chatActions.id, action.id),
+    }).where(and(eq(chatActions.spaceId, action.spaceId), eq(chatActions.id, action.id),
       inArray(chatActions.status, ["failed", "cancelled"]))).returning();
     return settled ?? action;
   }
@@ -1911,11 +1911,11 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
         : settledResult;
       const [current] = await db.transaction(async (tx) => {
         if (typeof claimed.payload.taskRetryIntentId === "string") await notifyTaskRetrySettlement(tx, {
-          companyId: claimed.companyId, requestId: claimed.payload.taskRetryIntentId,
+          spaceId: claimed.spaceId, requestId: claimed.payload.taskRetryIntentId,
         });
         await notifyChatActionWork(tx, "failed_run_retry");
         if (status === "processed") await notifyNativeResponsePresentation(tx, {
-          companyId: claimed.companyId, issueId: String(claimed.payload.issueId),
+          spaceId: claimed.spaceId, issueId: String(claimed.payload.issueId),
         });
         return tx
           .update(chatActions)
@@ -1938,7 +1938,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
         claimed = await preparePendingRetrySource(claimed);
       }
       const scope = {
-        companyId: claimed.companyId,
+        spaceId: claimed.spaceId,
         issueId: String(claimed.payload.issueId),
         agentId: String(claimed.payload.agentId),
         retryActionId: claimed.id,
@@ -1950,7 +1950,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
           assertIdentityContentionDeadline(claimed);
           const [advanced] = await tx.update(chatActions).set({
             result: sql`coalesce(${chatActions.result}, '{}'::jsonb) - 'identityContentionPending'`,
-          }).where(and(eq(chatActions.companyId, claimed.companyId), eq(chatActions.id, claimed.id),
+          }).where(and(eq(chatActions.spaceId, claimed.spaceId), eq(chatActions.id, claimed.id),
             eq(chatActions.status, "processing"), eq(chatActions.updatedAt, now))).returning({ id: chatActions.id });
           if (!advanced) throw failedChatRetryDenied();
         }
@@ -2000,7 +2000,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
           requestedByActorId: source.requestedByActorId,
           durableChatRequest: createDurableChatWakeupRequest({
             id: claimed.id,
-            companyId: claimed.companyId,
+            spaceId: claimed.spaceId,
             agentId: source.agentId,
             issueId: source.issueId,
             commentId: source.commentIds.at(-1)!,
@@ -2013,17 +2013,17 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
               await assertFailedNativeRetryState(
                 tx,
                 current,
-                claimed.companyId,
+                claimed.spaceId,
                 typeof claimed.payload.taskRetryIntentId === "string" ? claimed.payload.taskRetryIntentId : undefined,
                 true, // The durable wake callback validates admission; later phases recheck containment.
               );
-              await notifyChatInboundWakeNotices(tx, { companyId: scope.companyId, issueId: scope.issueId });
+              await notifyChatInboundWakeNotices(tx, { spaceId: scope.spaceId, issueId: scope.issueId });
             },
             onAdmitted: async (tx, receipt) => {
               if (!source.taskRetryInput) return;
-              await claimTaskRetryInput(tx, { companyId: claimed.companyId,
+              await claimTaskRetryInput(tx, { spaceId: claimed.spaceId,
                 retryActionId: claimed.id, sourceActionIds: source.taskRetryInput.sourceActionIds });
-              await settleTaskRetryInput(tx, { companyId: claimed.companyId, retryActionId: claimed.id, runId: receipt.runId });
+              await settleTaskRetryInput(tx, { spaceId: claimed.spaceId, retryActionId: claimed.id, runId: receipt.runId });
             },
           }),
         });
@@ -2033,7 +2033,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
         .from(agentWakeupRequests)
         .where(eq(agentWakeupRequests.id, claimed.id));
       if (!receipt) throw new Error("chat_retry_receipt_not_committed");
-      await settleTaskRetryInput(db, { companyId: claimed.companyId, retryActionId: claimed.id, runId: receipt.runId });
+      await settleTaskRetryInput(db, { spaceId: claimed.spaceId, retryActionId: claimed.id, runId: receipt.runId });
       return settle(
         ["skipped", "failed", "cancelled"].includes(receipt.status)
           ? "failed"
@@ -2063,15 +2063,15 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
           // Receipt existence proves the earlier wait, not current authority.
           // Retire only this unadmitted wake; an admitted run keeps its history.
           await db.transaction(async tx => {
-            await notifyStrandedAgentStatus(tx, { companyId: claimed.companyId, agentId: receipt.agentId });
+            await notifyStrandedAgentStatus(tx, { spaceId: claimed.spaceId, agentId: receipt.agentId });
             await notifyChatInboundWakeNotices(tx, {
-              companyId: claimed.companyId, issueId: String(claimed.payload.issueId),
+              spaceId: claimed.spaceId, issueId: String(claimed.payload.issueId),
             });
             await tx.update(agentWakeupRequests).set({
               status: "failed", error: "chat_failed_run_retry_not_authorized",
               finishedAt: new Date(), updatedAt: new Date(),
             }).where(and(eq(agentWakeupRequests.id, receipt.id),
-              eq(agentWakeupRequests.companyId, claimed.companyId),
+              eq(agentWakeupRequests.spaceId, claimed.spaceId),
               eq(agentWakeupRequests.status, "deferred_issue_execution"), isNull(agentWakeupRequests.runId)));
           });
           return settle("failed", { code: "failed_chat_retry_not_authorized", attemptCount });
@@ -2146,7 +2146,7 @@ export function createChatFailedRunRetry(db: Db, options: ChatFailedRunRetryOpti
 
   const retryNotices = createFailedRetryNotices(db, {
     authorize: (tx, action) => authorizeFailedChatRunRetry(tx, {
-      companyId: action.companyId, issueId: String(action.payload.issueId),
+      spaceId: action.spaceId, issueId: String(action.payload.issueId),
       agentId: String(action.payload.agentId), retryActionId: action.id, publication: true,
     }),
     isExternalActionAuthorizationChange, isShuttingDown,

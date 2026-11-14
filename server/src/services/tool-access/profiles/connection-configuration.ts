@@ -8,12 +8,12 @@ type ProfileRow = typeof toolProfiles.$inferSelect;
 /** Saved profiles shown by connection Permissions; this is not effective access. */
 export function createConnectionProfileConfigurationReader(db: Db) {
   return async (
-    companyId: string,
+    spaceId: string,
     connectionId: string,
     visibleProfiles: (profiles: ProfileRow[]) => Promise<ProfileRow[]>,
   ): Promise<ToolProfileConfiguration[]> => {
     const candidates = await db.select().from(toolProfiles).where(and(
-      eq(toolProfiles.companyId, companyId),
+      eq(toolProfiles.spaceId, spaceId),
       or(
         eq(toolProfiles.profileKey, `app:${connectionId}`),
         and(
@@ -23,7 +23,7 @@ export function createConnectionProfileConfigurationReader(db: Db) {
           sql`jsonb_typeof(${toolProfiles.metadata}->'agentId') = 'string'`,
           sql`${toolProfiles.profileKey} = 'connection-intent:' || ${connectionId} || ':' || (${toolProfiles.metadata}->>'agentId')`,
           sql`exists (select 1 from ${toolProfileBindings} where
-            ${toolProfileBindings.companyId} = ${toolProfiles.companyId}
+            ${toolProfileBindings.spaceId} = ${toolProfiles.spaceId}
             and ${toolProfileBindings.profileId} = ${toolProfiles.id}
             and ${toolProfileBindings.targetType} = 'agent'
             and ${toolProfileBindings.targetId} = ${toolProfiles.metadata}->>'agentId')`,
@@ -37,10 +37,10 @@ export function createConnectionProfileConfigurationReader(db: Db) {
     const ids = profiles.map(profile => profile.id);
     const [entries, bindings] = await Promise.all([
       db.select().from(toolProfileEntries).where(and(
-        eq(toolProfileEntries.companyId, companyId), inArray(toolProfileEntries.profileId, ids),
+        eq(toolProfileEntries.spaceId, spaceId), inArray(toolProfileEntries.profileId, ids),
       )).orderBy(asc(toolProfileEntries.createdAt), asc(toolProfileEntries.id)),
       db.select().from(toolProfileBindings).where(and(
-        eq(toolProfileBindings.companyId, companyId), inArray(toolProfileBindings.profileId, ids),
+        eq(toolProfileBindings.spaceId, spaceId), inArray(toolProfileBindings.profileId, ids),
       )).orderBy(asc(toolProfileBindings.priority), asc(toolProfileBindings.createdAt)),
     ]);
     const entriesByProfile = new Map<string, ToolProfileConfiguration["entries"]>();

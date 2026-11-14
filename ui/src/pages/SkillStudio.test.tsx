@@ -5,9 +5,9 @@ import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type {
-  CompanySkillDetail,
-  CompanySkillLastEditor,
-  CompanySkillListItem,
+  SpaceSkillDetail,
+  SpaceSkillLastEditor,
+  SpaceSkillListItem,
 } from "@outpost/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SkillStudio } from "./SkillStudio";
@@ -22,7 +22,7 @@ const routeState = vi.hoisted(() => ({
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockSetBreadcrumbs = vi.hoisted(() => vi.fn());
 
-const mockCompanySkillsApi = vi.hoisted(() => ({
+const mockSpaceSkillsApi = vi.hoisted(() => ({
   list: vi.fn(),
   detail: vi.fn(),
   create: vi.fn(),
@@ -70,12 +70,12 @@ vi.mock("@/context/BreadcrumbContext", () => ({
   useBreadcrumbs: () => ({ setBreadcrumbs: mockSetBreadcrumbs }),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 
-vi.mock("@/api/companySkills", () => ({
-  companySkillsApi: mockCompanySkillsApi,
+vi.mock("@/api/spaceSkills", () => ({
+  spaceSkillsApi: mockSpaceSkillsApi,
 }));
 
 vi.mock("@/api/agents", () => ({
@@ -132,7 +132,7 @@ vi.mock("@/components/ui/resizable-panels", () => ({
   ResizableHandle: () => <div />,
 }));
 
-vi.mock("./CompanySkills", () => ({
+vi.mock("./SpaceSkills", () => ({
   SkillCardIcon: ({ card }: { card: { name: string } }) => (
     <div data-testid="skill-card-icon">{card.name}</div>
   ),
@@ -209,11 +209,11 @@ async function keyDown(element: HTMLElement, key: string) {
   });
 }
 
-function makeSkill(overrides: Partial<CompanySkillDetail> = {}): CompanySkillDetail {
+function makeSkill(overrides: Partial<SpaceSkillDetail> = {}): SpaceSkillDetail {
   return {
     id: "source-skill",
-    companyId: "company-1",
-    key: "paperclip/demo-skill",
+    spaceId: "space-1",
+    key: "outpost/demo-skill",
     slug: "demo-skill",
     name: "Demo Skill",
     description: "A demo skill.",
@@ -230,10 +230,10 @@ function makeSkill(overrides: Partial<CompanySkillDetail> = {}): CompanySkillDet
     authorName: null,
     homepageUrl: null,
     categories: ["engineering"],
-    sharingScope: "company",
+    sharingScope: "space",
     publicShareToken: null,
     forkedFromSkillId: null,
-    forkedFromCompanyId: null,
+    forkedFromSpaceId: null,
     starCount: 0,
     installCount: 0,
     forkCount: 0,
@@ -267,14 +267,14 @@ beforeEach(() => {
   routeState.skillId = "new";
   mockNavigate.mockReset();
   mockSetBreadcrumbs.mockReset();
-  mockCompanySkillsApi.list.mockResolvedValue([]);
-  mockCompanySkillsApi.detail.mockResolvedValue(makeSkill());
-  mockCompanySkillsApi.create.mockResolvedValue({
+  mockSpaceSkillsApi.list.mockResolvedValue([]);
+  mockSpaceSkillsApi.detail.mockResolvedValue(makeSkill());
+  mockSpaceSkillsApi.create.mockResolvedValue({
     id: "created-skill",
     name: "Code Review",
     forkedFromSkillId: null,
   });
-  mockCompanySkillsApi.file.mockResolvedValue({
+  mockSpaceSkillsApi.file.mockResolvedValue({
     versionId: "read-version",
     path: "SKILL.md",
     content: "---\nname: Demo Skill\ndescription: Existing\n---\n\n# Demo Skill\n",
@@ -282,29 +282,29 @@ beforeEach(() => {
     editable: true,
     editableReason: null,
   });
-  mockCompanySkillsApi.updateFile.mockResolvedValue({
+  mockSpaceSkillsApi.updateFile.mockResolvedValue({
     path: "SKILL.md",
     content: "---\nname: Demo Skill\ndescription: Existing\n---\n\n# Demo Skill\n",
     markdown: true,
     editable: true,
     editableReason: null,
   });
-  mockCompanySkillsApi.deleteFile.mockResolvedValue({ deletedPaths: [] });
-  mockCompanySkillsApi.testInputs.mockResolvedValue([]);
-  mockCompanySkillsApi.updateTestInput.mockResolvedValue({ id: "input-1", name: "input.md", content: "" });
-  mockCompanySkillsApi.deleteTestInput.mockResolvedValue({ id: "input-1" });
-  mockCompanySkillsApi.createTestInput.mockResolvedValue({ id: "input-1", name: "input.md", content: "" });
-  mockCompanySkillsApi.testRunTemplates.mockResolvedValue([]);
-  mockCompanySkillsApi.testRuns.mockResolvedValue([]);
-  mockCompanySkillsApi.createTestRunTemplate.mockResolvedValue({ id: "template-1", name: "Template" });
-  mockCompanySkillsApi.updateTestRunTemplate.mockResolvedValue({ id: "template-1", name: "Template" });
-  mockCompanySkillsApi.deleteTestRunTemplate.mockResolvedValue({ id: "template-1", name: "Template" });
-  mockCompanySkillsApi.createTestRun.mockResolvedValue({ id: "run-1", status: "queued" });
-  mockCompanySkillsApi.testRunDetail.mockResolvedValue(null);
-  mockCompanySkillsApi.cancelTestRun.mockResolvedValue({ id: "run-1", status: "cancelled" });
-  mockCompanySkillsApi.deleteTestRun.mockResolvedValue({ id: "run-1" });
-  mockCompanySkillsApi.versions.mockResolvedValue([]);
-  mockCompanySkillsApi.createVersion.mockResolvedValue({ id: "version-1" });
+  mockSpaceSkillsApi.deleteFile.mockResolvedValue({ deletedPaths: [] });
+  mockSpaceSkillsApi.testInputs.mockResolvedValue([]);
+  mockSpaceSkillsApi.updateTestInput.mockResolvedValue({ id: "input-1", name: "input.md", content: "" });
+  mockSpaceSkillsApi.deleteTestInput.mockResolvedValue({ id: "input-1" });
+  mockSpaceSkillsApi.createTestInput.mockResolvedValue({ id: "input-1", name: "input.md", content: "" });
+  mockSpaceSkillsApi.testRunTemplates.mockResolvedValue([]);
+  mockSpaceSkillsApi.testRuns.mockResolvedValue([]);
+  mockSpaceSkillsApi.createTestRunTemplate.mockResolvedValue({ id: "template-1", name: "Template" });
+  mockSpaceSkillsApi.updateTestRunTemplate.mockResolvedValue({ id: "template-1", name: "Template" });
+  mockSpaceSkillsApi.deleteTestRunTemplate.mockResolvedValue({ id: "template-1", name: "Template" });
+  mockSpaceSkillsApi.createTestRun.mockResolvedValue({ id: "run-1", status: "queued" });
+  mockSpaceSkillsApi.testRunDetail.mockResolvedValue(null);
+  mockSpaceSkillsApi.cancelTestRun.mockResolvedValue({ id: "run-1", status: "cancelled" });
+  mockSpaceSkillsApi.deleteTestRun.mockResolvedValue({ id: "run-1" });
+  mockSpaceSkillsApi.versions.mockResolvedValue([]);
+  mockSpaceSkillsApi.createVersion.mockResolvedValue({ id: "version-1" });
   mockAgentsApi.list.mockResolvedValue([]);
   mockIssuesApi.listInteractions.mockResolvedValue([]);
   mockIssuesApi.acceptInteraction.mockResolvedValue({});
@@ -328,7 +328,7 @@ describe("SkillStudio create mode", () => {
     await waitFor(() => expect(node.textContent).toContain("Create a new skill"));
 
     expect(node.textContent).not.toContain("Skill not found.");
-    expect(mockCompanySkillsApi.detail).not.toHaveBeenCalledWith("company-1", "new");
+    expect(mockSpaceSkillsApi.detail).not.toHaveBeenCalledWith("space-1", "new");
     expect(mockSetBreadcrumbs).toHaveBeenCalledWith([
       { label: "Skills", href: "/skills" },
       { label: "Studio", href: "/skills/studio" },
@@ -343,7 +343,7 @@ describe("SkillStudio create mode", () => {
 
     await waitFor(() => expect(node.textContent).toContain("Forking Demo Skill"));
 
-    expect(mockCompanySkillsApi.detail).toHaveBeenCalledWith("company-1", "source-skill");
+    expect(mockSpaceSkillsApi.detail).toHaveBeenCalledWith("space-1", "source-skill");
     expect((node.querySelector("#skill-name") as HTMLInputElement).value).toBe("Demo Skill Fork");
     expect((node.querySelector("#skill-slug") as HTMLInputElement).value).toBe("demo-skill-fork");
   });
@@ -355,14 +355,14 @@ describe("SkillStudio create mode", () => {
     await inputValue(node.querySelector("#skill-name") as HTMLInputElement, "Code Review");
     await click(buttonsNamed(node, "Create skill")[0] as HTMLButtonElement);
 
-    await waitFor(() => expect(mockCompanySkillsApi.create).toHaveBeenCalled());
+    await waitFor(() => expect(mockSpaceSkillsApi.create).toHaveBeenCalled());
 
-    expect(mockCompanySkillsApi.create).toHaveBeenCalledWith(
-      "company-1",
+    expect(mockSpaceSkillsApi.create).toHaveBeenCalledWith(
+      "space-1",
       expect.objectContaining({
         name: "Code Review",
         slug: "code-review",
-        sharingScope: "company",
+        sharingScope: "space",
         forkedFromSkillId: null,
       }),
     );
@@ -378,10 +378,10 @@ describe("SkillStudio create mode", () => {
     await inputValue(node.querySelector("#skill-name") as HTMLInputElement, "Code Review");
     await click(buttonsNamed(node, "Create skill")[0] as HTMLButtonElement);
 
-    await waitFor(() => expect(mockCompanySkillsApi.create).toHaveBeenCalled());
+    await waitFor(() => expect(mockSpaceSkillsApi.create).toHaveBeenCalled());
 
-    expect(mockCompanySkillsApi.create).toHaveBeenCalledWith(
-      "company-1",
+    expect(mockSpaceSkillsApi.create).toHaveBeenCalledWith(
+      "space-1",
       expect.objectContaining({
         name: "Code Review",
         folderId: "folder-my-skills",
@@ -399,10 +399,10 @@ describe("SkillStudio create mode", () => {
     expect((node.querySelector("#skill-categories") as HTMLInputElement).value).toBe("AI Tools, Developer Experience, ");
 
     await click(buttonsNamed(node, "Create skill")[0] as HTMLButtonElement);
-    await waitFor(() => expect(mockCompanySkillsApi.create).toHaveBeenCalled());
+    await waitFor(() => expect(mockSpaceSkillsApi.create).toHaveBeenCalled());
 
-    expect(mockCompanySkillsApi.create).toHaveBeenCalledWith(
-      "company-1",
+    expect(mockSpaceSkillsApi.create).toHaveBeenCalledWith(
+      "space-1",
       expect.objectContaining({
         categories: ["AI Tools", "Developer Experience"],
       }),
@@ -411,10 +411,10 @@ describe("SkillStudio create mode", () => {
 });
 
 function makeListItem(
-  overrides: Partial<CompanySkillListItem> & { id: string },
-): CompanySkillListItem {
+  overrides: Partial<SpaceSkillListItem> & { id: string },
+): SpaceSkillListItem {
   return {
-    companyId: "company-1",
+    spaceId: "space-1",
     key: overrides.id,
     slug: overrides.id,
     name: overrides.id,
@@ -434,7 +434,7 @@ function makeListItem(
     sharingScope: "private",
     publicShareToken: null,
     forkedFromSkillId: null,
-    forkedFromCompanyId: null,
+    forkedFromSpaceId: null,
     starCount: 0,
     installCount: 0,
     forkCount: 0,
@@ -455,13 +455,13 @@ function makeListItem(
   };
 }
 
-const userEditor = (name: string): CompanySkillLastEditor => ({
+const userEditor = (name: string): SpaceSkillLastEditor => ({
   kind: "user",
   id: `user-${name}`,
   name,
   imageUrl: null,
 });
-const agentEditor: CompanySkillLastEditor = {
+const agentEditor: SpaceSkillLastEditor = {
   kind: "agent",
   id: "agent-1",
   name: "Bot",
@@ -483,8 +483,8 @@ describe("SkillStudio landing", () => {
   });
 
   it("renders recently-visited and recently-updated sections, gating avatars to humans", async () => {
-    localStorage.setItem("paperclip:recent-studio-skills", JSON.stringify(["visited-1"]));
-    mockCompanySkillsApi.list.mockResolvedValue([
+    localStorage.setItem("outpost:recent-studio-skills", JSON.stringify(["visited-1"]));
+    mockSpaceSkillsApi.list.mockResolvedValue([
       makeListItem({
         id: "visited-1",
         name: "Visited One",
@@ -531,7 +531,7 @@ describe("SkillStudio landing", () => {
   });
 
   it("opens the clicked skill in Studio", async () => {
-    mockCompanySkillsApi.list.mockResolvedValue([
+    mockSpaceSkillsApi.list.mockResolvedValue([
       makeListItem({ id: "user-updated", name: "User Updated", lastEditor: userEditor("Grace Hopper") }),
     ]);
 
@@ -545,7 +545,7 @@ describe("SkillStudio landing", () => {
   });
 
   it("falls back to the empty state when there are no skills", async () => {
-    mockCompanySkillsApi.list.mockResolvedValue([]);
+    mockSpaceSkillsApi.list.mockResolvedValue([]);
 
     const node = await renderStudio();
 
@@ -555,7 +555,7 @@ describe("SkillStudio landing", () => {
   });
 
   it("shows the loading fallback while skills load", async () => {
-    mockCompanySkillsApi.list.mockReturnValue(new Promise(() => {}));
+    mockSpaceSkillsApi.list.mockReturnValue(new Promise(() => {}));
 
     const node = await renderStudio();
 
@@ -571,40 +571,40 @@ describe("SkillStudio editor frontmatter", () => {
   });
 
   it.each(["local_path", "managed"] as const)("restores %s history through its supported authoring path", async (sourceType) => {
-    mockCompanySkillsApi.detail.mockResolvedValue(makeSkill({ sourceType, currentVersionId: "head-version" }));
-    mockCompanySkillsApi.versions.mockResolvedValue([{ id: "old-version", revisionNumber: 1, createdAt: new Date() }]);
-    mockCompanySkillsApi.version.mockResolvedValue({ revisionNumber: 1, fileInventory: [
+    mockSpaceSkillsApi.detail.mockResolvedValue(makeSkill({ sourceType, currentVersionId: "head-version" }));
+    mockSpaceSkillsApi.versions.mockResolvedValue([{ id: "old-version", revisionNumber: 1, createdAt: new Date() }]);
+    mockSpaceSkillsApi.version.mockResolvedValue({ revisionNumber: 1, fileInventory: [
       { path: "SKILL.md", content: "# Restored" }, { path: "support.txt", content: "support" },
     ] });
     if (sourceType === "local_path") {
-      mockCompanySkillsApi.updateFile.mockResolvedValueOnce({ versionId: "first-save" }).mockResolvedValueOnce({ versionId: "second-save" });
+      mockSpaceSkillsApi.updateFile.mockResolvedValueOnce({ versionId: "first-save" }).mockResolvedValueOnce({ versionId: "second-save" });
     }
     const node = await renderStudio();
     await waitFor(() => expect(buttonsNamed(node, "Version history")[0]).toBeTruthy());
     await click(buttonsNamed(node, "Version history")[0]!);
     await waitFor(() => expect(buttonsNamed(document, "Restore as v2")[0]).toBeTruthy());
     await click(buttonsNamed(document, "Restore as v2")[0]!);
-    await waitFor(() => expect(mockCompanySkillsApi.createVersion).toHaveBeenCalled());
+    await waitFor(() => expect(mockSpaceSkillsApi.createVersion).toHaveBeenCalled());
     if (sourceType === "managed") {
-      expect(mockCompanySkillsApi.updateFile).not.toHaveBeenCalled();
-      expect(mockCompanySkillsApi.createVersion).toHaveBeenCalledWith("company-1", "source-skill", {
+      expect(mockSpaceSkillsApi.updateFile).not.toHaveBeenCalled();
+      expect(mockSpaceSkillsApi.createVersion).toHaveBeenCalledWith("space-1", "source-skill", {
         sourceVersionId: "old-version", expectedVersionId: "head-version", label: "Restored saved version",
       });
     } else {
-      expect(mockCompanySkillsApi.updateFile).toHaveBeenNthCalledWith(1, "company-1", "source-skill", "SKILL.md", "# Restored", {
+      expect(mockSpaceSkillsApi.updateFile).toHaveBeenNthCalledWith(1, "space-1", "source-skill", "SKILL.md", "# Restored", {
         executable: false, expectedVersionId: "head-version",
       });
-      expect(mockCompanySkillsApi.updateFile).toHaveBeenNthCalledWith(2, "company-1", "source-skill", "support.txt", "support", {
+      expect(mockSpaceSkillsApi.updateFile).toHaveBeenNthCalledWith(2, "space-1", "source-skill", "support.txt", "support", {
         executable: false, expectedVersionId: "first-save",
       });
-      expect(mockCompanySkillsApi.createVersion).toHaveBeenCalledWith("company-1", "source-skill", {
+      expect(mockSpaceSkillsApi.createVersion).toHaveBeenCalledWith("space-1", "source-skill", {
         label: "Restore of v1", expectedVersionId: "second-save",
       });
     }
   });
 
   it("does not show the frontmatter section when the selected markdown file has no frontmatter", async () => {
-    mockCompanySkillsApi.file.mockResolvedValueOnce({
+    mockSpaceSkillsApi.file.mockResolvedValueOnce({
       path: "SKILL.md",
       content: "# Demo Skill\n\nNo YAML block here.\n",
       markdown: true,
@@ -615,7 +615,7 @@ describe("SkillStudio editor frontmatter", () => {
     const node = await renderStudio();
 
     await waitFor(() => {
-      expect(mockCompanySkillsApi.file).toHaveBeenCalledWith("company-1", "source-skill", "SKILL.md");
+      expect(mockSpaceSkillsApi.file).toHaveBeenCalledWith("space-1", "source-skill", "SKILL.md");
     });
     await waitFor(() => {
       const textareas = Array.from(node.querySelectorAll("textarea"));
@@ -639,8 +639,8 @@ describe("SkillStudio editor frontmatter", () => {
   });
 
   it("marks rich markdown body edits dirty and saves the edited markdown", async () => {
-    mockCompanySkillsApi.updateFile.mockImplementationOnce((
-      _companyId: string,
+    mockSpaceSkillsApi.updateFile.mockImplementationOnce((
+      _spaceId: string,
       _skillId: string,
       path: string,
       content: string,
@@ -671,16 +671,16 @@ describe("SkillStudio editor frontmatter", () => {
     await click(saveButton as HTMLButtonElement);
 
     await waitFor(() => {
-      expect(mockCompanySkillsApi.updateFile).toHaveBeenCalledWith(
-        "company-1",
+      expect(mockSpaceSkillsApi.updateFile).toHaveBeenCalledWith(
+        "space-1",
         "source-skill",
         "SKILL.md",
         expect.stringContaining("Edited body"),
         { expectedVersionId: "read-version" },
       );
     });
-    expect(mockCompanySkillsApi.updateFile).toHaveBeenCalledWith(
-      "company-1",
+    expect(mockSpaceSkillsApi.updateFile).toHaveBeenCalledWith(
+      "space-1",
       "source-skill",
       "SKILL.md",
       expect.stringContaining("---\nname: Demo Skill"),
@@ -689,7 +689,7 @@ describe("SkillStudio editor frontmatter", () => {
   });
 
   it("keeps unsaved text on a version conflict and reloads only after confirmation", async () => {
-    mockCompanySkillsApi.updateFile.mockRejectedValueOnce(new ApiError("Skill version changed", 409, {}));
+    mockSpaceSkillsApi.updateFile.mockRejectedValueOnce(new ApiError("Skill version changed", 409, {}));
     const node = await renderStudio();
     let editor: HTMLTextAreaElement;
     await waitFor(() => {
@@ -701,7 +701,7 @@ describe("SkillStudio editor frontmatter", () => {
     await click(buttonsNamed(node, "Save").find(button => !button.disabled)!);
     await waitFor(() => expect(node.textContent).toContain("This skill changed since you opened it"));
     expect(editor!.value).toContain("Edited body");
-    mockCompanySkillsApi.file.mockResolvedValue({ path: "SKILL.md", content: "# New saved version", versionId: "new-version", markdown: true, editable: true });
+    mockSpaceSkillsApi.file.mockResolvedValue({ path: "SKILL.md", content: "# New saved version", versionId: "new-version", markdown: true, editable: true });
     const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
     await click(buttonsNamed(node, "Load latest saved file")[0]!);
     expect(editor!.value).toContain("Edited body");
@@ -712,7 +712,7 @@ describe("SkillStudio editor frontmatter", () => {
   });
 
   it("preserves text typed while a confirmed latest-file reload is pending", async () => {
-    mockCompanySkillsApi.updateFile.mockRejectedValueOnce(new ApiError("Skill version changed", 409, {}));
+    mockSpaceSkillsApi.updateFile.mockRejectedValueOnce(new ApiError("Skill version changed", 409, {}));
     const node = await renderStudio();
     let editor: HTMLTextAreaElement;
     await waitFor(() => {
@@ -725,7 +725,7 @@ describe("SkillStudio editor frontmatter", () => {
     await waitFor(() => expect(node.textContent).toContain("This skill changed since you opened it"));
     const latest = { path: "SKILL.md", content: "# New saved version", versionId: "new-version", markdown: true, editable: true };
     let resolveReload!: (value: typeof latest) => void;
-    mockCompanySkillsApi.file.mockImplementationOnce(() => new Promise(resolve => { resolveReload = resolve; }));
+    mockSpaceSkillsApi.file.mockImplementationOnce(() => new Promise(resolve => { resolveReload = resolve; }));
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     await click(buttonsNamed(node, "Load latest saved file")[0]!);
     await waitFor(() => expect(resolveReload).toBeTypeOf("function"));
@@ -740,7 +740,7 @@ describe("SkillStudio editor frontmatter", () => {
   });
 
   it("offers a 'Make a copy' CTA on the read-only banner (PAP-13112)", async () => {
-    mockCompanySkillsApi.detail.mockResolvedValueOnce(makeSkill({
+    mockSpaceSkillsApi.detail.mockResolvedValueOnce(makeSkill({
       editable: false,
       editableReason: "Bundled skill.",
     }));

@@ -25,18 +25,18 @@ Generates:
 - example UI widget using the supported `@outpost/plugin-sdk/ui` hooks
 - test file using `@outpost/plugin-sdk/testing`
 - `esbuild` and `rollup` config files using SDK bundler presets
-- dev server script for hot-reload (`paperclip-plugin-dev-server`)
+- dev server script for hot-reload (`outpost-plugin-dev-server`)
 
 The scaffold starts with plain React elements so the generated plugin stays minimal. For Outpost-native controls, import shared host components such as `MarkdownEditor`, `FileTree`, `AssigneePicker`, and `ProjectPicker` from `@outpost/plugin-sdk/ui`.
 
 Inside this repo, the generated package uses `@outpost/plugin-sdk` via `workspace:*`.
 
-Outside this repo, the scaffold snapshots `@outpost/plugin-sdk` from your local Outpost checkout into a `.paperclip-sdk/` tarball and points the generated package at that local file by default. You can override the SDK source explicitly:
+Outside this repo, the scaffold snapshots `@outpost/plugin-sdk` from your local Outpost checkout into a `.outpost-sdk/` tarball and points the generated package at that local file by default. You can override the SDK source explicitly:
 
 ```bash
 node packages/plugins/create-outpost-plugin/dist/bin.js @acme/my-plugin \
   --output /absolute/path/to/plugins \
-  --sdk-path /absolute/path/to/paperclip/packages/plugins/sdk
+  --sdk-path /absolute/path/to/outpost/packages/plugins/sdk
 ```
 
 That gives you an outside-repo local development path before the SDK is published to npm.

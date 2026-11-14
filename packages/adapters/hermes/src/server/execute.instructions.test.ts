@@ -8,7 +8,7 @@ import { execute } from "./execute.js";
 import { sessionCodec } from "./index.js";
 
 const SESSION_ID = "20261006_200000_abcdef";
-const INSTRUCTIONS = "Synthetic governance marker: request approval before governed actions.";
+const INSTRUCTIONS = "Synthetic approvals marker: request approval before controlled actions.";
 
 interface Invocation {
   args: string[];
@@ -23,7 +23,7 @@ describe("Hermes managed instruction delivery (real capture process)", () => {
   let capturePath: string;
 
   beforeEach(async () => {
-    dir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-hermes-instructions-"));
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-hermes-instructions-"));
     command = path.join(dir, "hermes.cjs");
     instructionsFilePath = path.join(dir, "instructions.md");
     capturePath = path.join(dir, "invocations.jsonl");
@@ -57,7 +57,7 @@ console.log("Fixture completed\\nsession_id: ${SESSION_ID}");
     return {
       runId: "run-fresh",
       agent: {
-        id: "agent-synthetic", companyId: "company-synthetic", name: "Hermes fixture",
+        id: "agent-synthetic", spaceId: "space-synthetic", name: "Hermes fixture",
         adapterType: "hermes_local", adapterConfig: {},
       },
       runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: "task-synthetic" },
@@ -67,9 +67,9 @@ console.log("Fixture completed\\nsession_id: ${SESSION_ID}");
       },
       context: {
         issueId: "task-synthetic",
-        paperclipTaskMarkdownAssignment: "Complete current synthetic task.",
-        paperclipTaskMarkdownCompact: "Current synthetic task.",
-        paperclipWake: {
+        outpostTaskMarkdownAssignment: "Complete current synthetic task.",
+        outpostTaskMarkdownCompact: "Current synthetic task.",
+        outpostWake: {
           reason: "issue_commented",
           issue: { id: "task-synthetic", title: "Synthetic task", status: "in_progress" },
           comments: [{ id: "comment-synthetic", body: "Fresh human direction." }],
@@ -108,9 +108,9 @@ console.log("Fixture completed\\nsession_id: ${SESSION_ID}");
       expect(query(invocation)).not.toContain("Safe multiline update pattern:");
       expect(query(invocation)).toContain("Fresh human direction.");
       expect(query(invocation)).toContain(invocation.runId);
-      expect(query(invocation)).toContain("company-synthetic");
+      expect(query(invocation)).toContain("space-synthetic");
       expect(invocation.systemPrompt).toContain("$OUTPOST_API_KEY");
-      expect(invocation.systemPrompt).toContain('-H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID"');
+      expect(invocation.systemPrompt).toContain('-H "X-Outpost-Run-Id: $OUTPOST_RUN_ID"');
       expect(invocation.systemPrompt).toContain("body=$(cat <<'MD'");
       expect(invocation.systemPrompt).toContain("--data-binary @-");
       expect(invocation.systemPrompt).toContain('$api/issues/$OUTPOST_TASK_ID');
@@ -121,14 +121,14 @@ console.log("Fixture completed\\nsession_id: ${SESSION_ID}");
   it("reapplies current instructions after edits and a session reset", async () => {
     const ctx = context();
     await execute(ctx);
-    await fs.writeFile(instructionsFilePath, "Updated governance marker.");
+    await fs.writeFile(instructionsFilePath, "Updated approvals marker.");
     await execute({ ...ctx, runtime: { ...ctx.runtime, sessionParams: { sessionId: SESSION_ID } } });
     await execute({ ...ctx, runId: "run-reset" });
     const [, edited, reset] = await invocations();
     for (const invocation of [edited, reset]) {
-      expect(invocation.systemPrompt).toContain("Updated governance marker.");
+      expect(invocation.systemPrompt).toContain("Updated approvals marker.");
       expect(invocation.systemPrompt).not.toContain(INSTRUCTIONS);
-      expect(query(invocation)).not.toContain("Updated governance marker.");
+      expect(query(invocation)).not.toContain("Updated approvals marker.");
     }
     expect(reset.args).not.toContain("--resume");
   });
@@ -138,8 +138,8 @@ console.log("Fixture completed\\nsession_id: ${SESSION_ID}");
     const result = await execute({ ...ctx, config: { ...ctx.config, persistSession: false }, runtime: { ...ctx.runtime, sessionParams: { sessionId: SESSION_ID } } });
     const [invocation] = await invocations();
     expect(invocation.args).not.toContain("--resume");
-    expect(query(invocation)).toContain("## Paperclip Wake Payload");
-    expect(query(invocation)).not.toContain("## Paperclip Resume Delta");
+    expect(query(invocation)).toContain("## Outpost Wake Payload");
+    expect(query(invocation)).not.toContain("## Outpost Resume Delta");
     expect(invocation.systemPrompt).toContain(INSTRUCTIONS);
     expect(result.sessionParams).toBeUndefined();
   });
@@ -204,7 +204,7 @@ console.log("Fixture completed\\nsession_id: ${SESSION_ID}");
     await execute({ ...ctx, config: { ...ctx.config, instructionsFilePath: undefined }, runtime: { ...ctx.runtime, sessionParams: { sessionId: SESSION_ID } } });
     const [, resumed] = await invocations();
     expect(resumed.systemPrompt).not.toContain(INSTRUCTIONS);
-    expect(resumed.systemPrompt).toContain("Paperclip API guidance:");
+    expect(resumed.systemPrompt).toContain("Outpost API guidance:");
     expect(query(resumed)).toContain("Fresh human direction.");
   });
 });

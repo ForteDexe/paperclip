@@ -228,7 +228,7 @@ export function telegramMarkdownAttachment(text: string): Attachment {
     return {
       data,
       mimeType: "text/markdown; charset=utf-8",
-      name: "paperclip-response.md",
+      name: "outpost-response.md",
       size: data.byteLength,
       type: "file",
     };

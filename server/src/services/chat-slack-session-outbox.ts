@@ -36,7 +36,7 @@ export function slackSessionSyncPayload(
 export async function stageSlackSessionSync(
   database: DbOrTransaction,
   input: {
-    companyId: string;
+    spaceId: string;
     endpointId: string;
     conversationId: string;
     runtimeGeneration: number;
@@ -53,7 +53,7 @@ export async function stageSlackSessionSync(
   await database
     .insert(chatActions)
     .values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       endpointId: input.endpointId,
       conversationId: input.conversationId,
       providerActionId: `slack-session-sync:${input.conversationId}`,

@@ -56,7 +56,7 @@ fn exercise_hosted_loop(blocked_work: Option<bool>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let mut config = config(listener.local_addr().unwrap().port());
     let directory =
-        std::env::temp_dir().join(format!("paperclip-host-loop-{}", uuid::Uuid::new_v4()));
+        std::env::temp_dir().join(format!("outpost-host-loop-{}", uuid::Uuid::new_v4()));
     config.state_dir = directory.clone();
     config.max_runtime = Duration::from_secs(15);
     config.reconnect_grace = Some(Duration::from_millis(20));

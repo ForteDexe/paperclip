@@ -6,7 +6,7 @@ import { DELIVERY_QUEUES, notifyDeliveryWork } from "../../delivery-work-notific
 import { registerScopedDeadlineWork } from "../../scoped-deadline-work.js";
 import { githubReviewCheckState } from "./review-check-state.js";
 
-type Scope = { companyId: string; endpointId?: string; repositoryId?: string; number?: number };
+type Scope = { spaceId: string; endpointId?: string; repositoryId?: string; number?: number };
 type Entry = Scope & { id: string; dueAt: number };
 
 export async function notifyGitHubReviewChecks(tx: object, scope: Scope) {
@@ -22,12 +22,12 @@ export function registerGitHubReviewCheckWork(
   async function page(scope?: Scope, cursor?: string, actionId?: string) {
     return db.select({ action: chatActions,
       leaseExpiresAt: sql<string | null>`(select max(l.expires_at) from ${chatEndpointLeases} l
-        where l.company_id = ${chatActions.companyId} and l.endpoint_id = ${chatActions.endpointId}
+        where l.space_id = ${chatActions.spaceId} and l.endpoint_id = ${chatActions.endpointId}
           and l.lease_key = 'github-publication:' || (${chatActions.payload}->'event'->>'repositoryId')
             || ':' || (${chatActions.payload}->'event'->>'pullNumber'))`,
     }).from(chatActions).where(and(eq(chatActions.kind, "github_review_check"),
       or(eq(chatActions.status, "received"), and(eq(chatActions.status, "failed"), sql`${chatActions.result}->>'retryable' = 'true'`)),
-      scope ? eq(chatActions.companyId, scope.companyId) : undefined,
+      scope ? eq(chatActions.spaceId, scope.spaceId) : undefined,
       scope?.endpointId ? eq(chatActions.endpointId, scope.endpointId) : undefined,
       scope?.repositoryId ? sql`${chatActions.payload}->'event'->>'repositoryId' = ${scope.repositoryId}` : undefined,
       scope?.number ? sql`${chatActions.payload}->'event'->>'pullNumber' = ${String(scope.number)}` : undefined,
@@ -44,13 +44,13 @@ export function registerGitHubReviewCheckWork(
       if (current.disposition !== "publish" || current.state !== action.result?.state) dueAt = 0;
     }
     if (row.leaseExpiresAt) dueAt = Math.max(dueAt, Date.parse(row.leaseExpiresAt));
-    return { id: action.id, companyId: action.companyId, endpointId: action.endpointId,
+    return { id: action.id, spaceId: action.spaceId, endpointId: action.endpointId,
       repositoryId: event.repositoryId, number: event.pullNumber, dueAt };
   }
   return registerScopedDeadlineWork(coordinator, {
     queue: DELIVERY_QUEUES.chatGitHubReviewChecks,
     decodeScope: (hint: string): Scope | undefined => hint === "*" ? undefined : JSON.parse(hint),
-    matches: (value: Entry, scope?: Scope) => !scope || (value.companyId === scope.companyId &&
+    matches: (value: Entry, scope?: Scope) => !scope || (value.spaceId === scope.spaceId &&
       (!scope.endpointId || value.endpointId === scope.endpointId) &&
       (!scope.repositoryId || value.repositoryId === scope.repositoryId) && (!scope.number || value.number === scope.number)),
     load: async (scope?: Scope, signal?: AbortSignal) => {

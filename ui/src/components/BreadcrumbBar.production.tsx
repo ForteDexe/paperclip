@@ -2,7 +2,7 @@ import { Link } from "@/lib/router";
 import { Menu } from "lucide-react";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useSidebar } from "../context/SidebarContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { Button } from "@/components/ui/button";
 import {
   Breadcrumb,
@@ -16,7 +16,7 @@ import { Fragment, useMemo } from "react";
 import { PluginSlotOutlet, usePluginSlots } from "@/plugins/slots";
 import { PluginLauncherOutlet, usePluginLaunchers } from "@/plugins/launchers";
 
-type GlobalToolbarContext = { companyId: string | null; companyPrefix: string | null };
+type GlobalToolbarContext = { spaceId: string | null; spacePrefix: string | null };
 
 /** Task identifier rendered in gray monospace between the glyph and the title. */
 function CrumbIdentifier({ identifier }: { identifier?: string }) {
@@ -25,8 +25,8 @@ function CrumbIdentifier({ identifier }: { identifier?: string }) {
 }
 
 function GlobalToolbar({ context }: { context: GlobalToolbarContext }) {
-  const { slots } = usePluginSlots({ slotTypes: ["globalToolbarButton"], companyId: context.companyId });
-  const { launchers } = usePluginLaunchers({ placementZones: ["globalToolbarButton"], companyId: context.companyId, enabled: !!context.companyId });
+  const { slots } = usePluginSlots({ slotTypes: ["globalToolbarButton"], spaceId: context.spaceId });
+  const { launchers } = usePluginLaunchers({ placementZones: ["globalToolbarButton"], spaceId: context.spaceId, enabled: !!context.spaceId });
   return (
     <div className="ml-auto flex shrink-0 items-center gap-1 pl-2 empty:hidden">
       {slots.length > 0 ? (
@@ -42,14 +42,14 @@ function GlobalToolbar({ context }: { context: GlobalToolbarContext }) {
 export function BreadcrumbBar() {
   const { breadcrumbs, mobileToolbar } = useBreadcrumbs();
   const { toggleSidebar, isMobile } = useSidebar();
-  const { selectedCompanyId, selectedCompany } = useCompany();
+  const { selectedSpaceId, selectedSpace } = useSpace();
 
   const globalToolbarSlotContext = useMemo(
     () => ({
-      companyId: selectedCompanyId ?? null,
-      companyPrefix: selectedCompany?.issuePrefix ?? null,
+      spaceId: selectedSpaceId ?? null,
+      spacePrefix: selectedSpace?.issuePrefix ?? null,
     }),
-    [selectedCompanyId, selectedCompany?.issuePrefix],
+    [selectedSpaceId, selectedSpace?.issuePrefix],
   );
 
   const globalToolbarSlots = <GlobalToolbar context={globalToolbarSlotContext} />;

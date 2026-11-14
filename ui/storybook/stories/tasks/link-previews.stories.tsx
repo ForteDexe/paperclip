@@ -14,7 +14,7 @@ function PreviewExample({ client: restoredClient }: PreviewArgs & { client?: Que
   const [localClient] = useState(() => new QueryClient());
   const client = restoredClient ?? localClient;
   return <QueryClientProvider client={client}>
-    <LinkPreviewProvider companyId="company-storybook" userId="user-board">
+    <LinkPreviewProvider spaceId="space-storybook" userId="user-board">
       <main className="mx-auto flex max-w-3xl flex-col gap-8 p-6">
         <header className="flex flex-col gap-2">
           <h1 className="text-xl font-medium">Pull request links</h1>
@@ -37,7 +37,7 @@ function PersistedPreviewExample(args: PreviewArgs) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     client.setQueryData(queryKeys.auth.session, { user: { id: "user-board" } });
-    client.setQueryData(queryKeys.companies.list("user-board"), { companies: [{ id: "company-storybook" }] });
+    client.setQueryData(queryKeys.spaces.list("user-board"), { spaces: [{ id: "space-storybook" }] });
     const cache = startPersistedQueryCache(client, { buildId: "link-preview-story-v1" });
     setReady(true);
     return () => { cache.dispose(); client.clear(); };
@@ -52,7 +52,7 @@ const meta = {
   args: { state: "open", mode: "ready", longTitle: false },
   beforeEach: ({ args }) => {
     const fixture = prepareFixtureApi([{
-      path: "/api/companies/company-storybook/link-preview",
+      path: "/api/spaces/space-storybook/link-preview",
       state: args.mode === "loading" ? "loading" : args.mode === "failure" ? "failure" : "ready",
       read: () => ({
         preview: args.mode === "unavailable" ? null : {
@@ -66,7 +66,7 @@ const meta = {
     return fixture.cleanup;
   },
   parameters: {
-    paperclip: {
+    outpost: {
       capabilities: ["tasks/discussion"], status: "current", implementation: "production", boundary: "fixtures",
       notes: "Production MarkdownBody, LinkPreviewProvider, query cache, and anchored hover card. HTTP fixtures cover deferred lookup, shared duplicate status, known PR states, loading, unavailable and failed reads. Real pointer and keyboard interactions are checked in tests/storybook-visual/link-previews.spec.ts. No live GitHub authorization, task persistence, or provider mutations.",
     },
@@ -78,7 +78,7 @@ type Story = StoryObj<typeof meta>;
 export const Neutral: Story = {};
 export const ReloadCache: Story = {
   render: args => <PersistedPreviewExample {...args} />,
-  parameters: { paperclip: { notes: "Production browser read-cache persistence with fixture account/company identity. Load a PR, then reload this iframe to retain the learned status. Fresh previews reuse their original read time; stale previews refresh only on hover or focus. No live provider authorization is claimed." } },
+  parameters: { outpost: { notes: "Production browser read-cache persistence with fixture account/space identity. Load a PR, then reload this iframe to retain the learned status. Fresh previews reuse their original read time; stale previews refresh only on hover or focus. No live provider authorization is claimed." } },
 };
 export const Open: Story = {};
 export const Merged: Story = { args: { state: "merged" } };

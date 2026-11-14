@@ -17,7 +17,7 @@ import {
 
 function tool(partial: Partial<ToolCatalogEntry> & { id: string; toolName: string }): ToolCatalogEntry {
   return {
-    companyId: "c1",
+    spaceId: "c1",
     applicationId: "app-gmail",
     connectionId: "conn-1",
     entryKind: "tool",
@@ -48,7 +48,7 @@ function tool(partial: Partial<ToolCatalogEntry> & { id: string; toolName: strin
 function entry(partial: Partial<ToolProfileEntry> & Pick<ToolProfileEntry, "selectorType">): ToolProfileEntry {
   return {
     id: `e-${partial.selectorType}-${partial.catalogEntryId ?? partial.applicationId ?? partial.toolName ?? "x"}`,
-    companyId: "c1",
+    spaceId: "c1",
     profileId: "p1",
     effect: "include",
     applicationId: null,

@@ -3,15 +3,15 @@ import { expect, test } from "@playwright/test";
 // One-off visual capture for PAP-10817. Connection removal now lives on the
 // Connectors page, rather than behind a per-connection setup surface.
 test("captures the current app removal confirmations", async ({ page }) => {
-  const companyRes = await page.request.post("/api/companies", {
+  const spaceRes = await page.request.post("/api/spaces", {
     data: { name: `PAP-10817 remove app ${Date.now()}` },
   });
-  expect(companyRes.ok(), `create company failed ${companyRes.status()}: ${await companyRes.text()}`).toBe(true);
-  const company = await companyRes.json();
-  const companyId: string = company.id;
-  const prefix: string = company.issuePrefix ?? company.prefix ?? company.urlKey ?? "E2E";
+  expect(spaceRes.ok(), `create space failed ${spaceRes.status()}: ${await spaceRes.text()}`).toBe(true);
+  const space = await spaceRes.json();
+  const spaceId: string = space.id;
+  const prefix: string = space.issuePrefix ?? space.prefix ?? space.urlKey ?? "E2E";
 
-  const conn = await page.request.post(`/api/companies/${companyId}/tools/connections`, {
+  const conn = await page.request.post(`/api/spaces/${spaceId}/tools/connections`, {
     data: {
       applicationName: "Guarded MCP",
       name: "Primary connection",
@@ -29,5 +29,5 @@ test("captures the current app removal confirmations", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Remove connection" })).toBeVisible();
   await page.screenshot({ path: "test-results/pap-10817-delete-dialog-guarded.png", fullPage: true });
 
-  await page.request.delete(`/api/companies/${companyId}`).catch(() => undefined);
+  await page.request.delete(`/api/spaces/${spaceId}`).catch(() => undefined);
 });

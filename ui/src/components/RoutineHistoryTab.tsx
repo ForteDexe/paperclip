@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { History as HistoryIcon, RotateCcw, Search } from "lucide-react";
 import type {
-  CompanySecret,
+  SpaceSecret,
   EnvBinding,
   EnvSecretRefBinding,
   Routine,
@@ -41,7 +41,7 @@ import { Badge } from "@/components/ui/badge";
 
 type AgentLookup = Map<string, { id: string; name: string }>;
 type ProjectLookup = Map<string, { id: string; name: string }>;
-type SecretLookup = Map<string, CompanySecret>;
+type SecretLookup = Map<string, SpaceSecret>;
 
 type DirtyFieldDescriptor = {
   key: string;
@@ -56,7 +56,7 @@ type Props = {
   onSaveEdits: () => void;
   agents: AgentLookup;
   projects: ProjectLookup;
-  secrets?: CompanySecret[];
+  secrets?: SpaceSecret[];
   onRestoreSecretMaterials: (response: RestoreRoutineRevisionResponse) => void;
   onRestored?: (response: RestoreRoutineRevisionResponse) => void;
 };
@@ -148,9 +148,9 @@ export function RoutineHistoryTab({
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.detail(routine.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.runs(routine.id) }),
         queryClient.invalidateQueries({
-          queryKey: queryKeys.routines.activity(routine.companyId, routine.id),
+          queryKey: queryKeys.routines.activity(routine.spaceId, routine.id),
         }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(routine.companyId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.routines.list(routine.spaceId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.routines.revisions(routine.id) }),
       ]);
     },
@@ -980,7 +980,7 @@ function DiffTable({ rows }: { rows: DiffRow[] }) {
 }
 
 function getActorLabel(revision: RoutineRevision): string {
-  if (revision.createdByUserId) return "board";
+  if (revision.createdByUserId) return "operator";
   if (revision.createdByAgentId) return "agent";
   return "system";
 }

@@ -5,7 +5,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, companies, createDb, executionWorkspaceSnapshots, executionWorkspaces,
+import { activityLog, spaces, createDb, executionWorkspaceSnapshots, executionWorkspaces,
   issues, projects, workspaceOperations, type Db } from "@outpost/db";
 import { resolveManagedProjectWorkspaceDir } from "../home-paths.js";
 import { onlineWorkspaceMigrationReceipt, runOnlineWorkspaceMigration, type OnlineWorkspaceMigrationRequest } from "../maintenance/online-workspace-migration.js";
@@ -51,25 +51,25 @@ describe.skipIf(!support.supported)("versioned online migration compatibility wi
   afterEach(async () => {
     vi.restoreAllMocks();
     await db.delete(activityLog); await db.delete(workspaceOperations); await db.delete(executionWorkspaceSnapshots);
-    await db.delete(issues); await db.delete(executionWorkspaces); await db.delete(projects); await db.delete(companies);
+    await db.delete(issues); await db.delete(executionWorkspaces); await db.delete(projects); await db.delete(spaces);
     vi.unstubAllEnvs(); await fs.rm(home, { recursive: true, force: true });
   });
-  async function fixture(companyId = randomUUID()) {
-    if (!(await db.select().from(companies).where(eq(companies.id, companyId)))[0])
-      await db.insert(companies).values({ id: companyId, name: "Compatibility", issuePrefix: `C${companyId.slice(0, 6)}` });
-    const [project] = await db.insert(projects).values({ companyId, name: "Managed original source" }).returning();
-    const cwd = resolveManagedProjectWorkspaceDir({ companyId, projectId: project.id });
+  async function fixture(spaceId = randomUUID()) {
+    if (!(await db.select().from(spaces).where(eq(spaces.id, spaceId)))[0])
+      await db.insert(spaces).values({ id: spaceId, name: "Compatibility", issuePrefix: `C${spaceId.slice(0, 6)}` });
+    const [project] = await db.insert(projects).values({ spaceId, name: "Managed original source" }).returning();
+    const cwd = resolveManagedProjectWorkspaceDir({ spaceId, projectId: project.id });
     await fs.mkdir(cwd, { recursive: true }); await fs.writeFile(path.join(cwd, "saved.txt"), "original user edits\n", { mode: 0o640 });
-    const [issue] = await db.insert(issues).values({ companyId, projectId: project.id, title: "Retained task" }).returning();
-    const [workspace] = await db.insert(executionWorkspaces).values({ companyId, projectId: project.id, sourceIssueId: issue.id,
+    const [issue] = await db.insert(issues).values({ spaceId, projectId: project.id, title: "Retained task" }).returning();
+    const [workspace] = await db.insert(executionWorkspaces).values({ spaceId, projectId: project.id, sourceIssueId: issue.id,
       name: "Managed directory", mode: "shared_workspace", strategyType: "project_primary", providerType: "local_fs", cwd, providerRef: cwd,
       metadata: { retainedHistory: "do not rewrite" } }).returning();
     await db.update(issues).set({ executionWorkspaceId: workspace.id }).where(eq(issues.id, issue.id));
-    return { companyId, projectId: project.id, workspaceId: workspace.id, cwd };
+    return { spaceId, projectId: project.id, workspaceId: workspace.id, cwd };
   }
   function request(f: Awaited<ReturnType<typeof fixture>>, extra: Partial<OnlineWorkspaceMigrationRequest> = {}): OnlineWorkspaceMigrationRequest {
     return { schema: "outpost.online-workspace-migration.v1", toolCommit: "1".repeat(40), toolRoot: path.join(home, "versioned-tool"),
-      source: { commit: oldCommit, deploymentId: "11111111-1111-4111-8111-111111111111" }, companyId: f.companyId,
+      source: { commit: oldCommit, deploymentId: "11111111-1111-4111-8111-111111111111" }, spaceId: f.spaceId,
       workspaceIds: [f.workspaceId], mode: "single", deadlineMs: 60_000, concurrency: 1, ...extra };
   }
   const apply = (r: OnlineWorkspaceMigrationRequest) => runOnlineWorkspaceMigration({ db, storage, request: r, signal: AbortSignal.timeout(60_000) });
@@ -88,8 +88,8 @@ describe.skipIf(!support.supported)("versioned online migration compatibility wi
     expect((await workspace(f.workspaceId)).metadata?.retainedHistory).toBe("do not rewrite");
   }
   it("honors the actual old writer lock, admits an unrelated writer, then lets old readers cold-restore new authority", async () => {
-    const f = await fixture(), other = await fixture(f.companyId), held = deferred(), release = deferred();
-    const writer = old.withWorkspaceSourceLocks(db, { companyId: f.companyId, projectIds: [f.projectId] }, async () => {
+    const f = await fixture(), other = await fixture(f.spaceId), held = deferred(), release = deferred();
+    const writer = old.withWorkspaceSourceLocks(db, { spaceId: f.spaceId, projectIds: [f.projectId] }, async () => {
       held.resolve(); await release.promise; await fs.writeFile(path.join(f.cwd, "saved.txt"), "saved by old writer\n");
     });
     await held.promise;
@@ -97,7 +97,7 @@ describe.skipIf(!support.supported)("versioned online migration compatibility wi
       await expect(apply(request(f))).rejects.toThrow("workspace_source_busy");
       expect(await db.select().from(workspaceOperations)).toEqual([]);
       expect(await db.select().from(executionWorkspaceSnapshots)).toEqual([]);
-      await old.withWorkspaceSourceLocks(db, { companyId: other.companyId, projectIds: [other.projectId] }, async () => {
+      await old.withWorkspaceSourceLocks(db, { spaceId: other.spaceId, projectIds: [other.projectId] }, async () => {
         await fs.writeFile(path.join(other.cwd, "unrelated.txt"), "unrelated writer admitted\n");
       }, true);
       expect(await fs.readFile(path.join(other.cwd, "unrelated.txt"), "utf8")).toBe("unrelated writer admitted\n");

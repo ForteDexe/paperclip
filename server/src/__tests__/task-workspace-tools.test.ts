@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { callTaskWorkspaceTool } from "../services/task-workspace-tools.js";
 
 afterEach(() => vi.unstubAllGlobals());
-const base = { apiUrl: "https://outpost.example/api", token: "run-token", companyId: "company", issueId: "task" };
+const base = { apiUrl: "https://outpost.example/api", token: "run-token", spaceId: "space", issueId: "task" };
 describe("task workspace semantic transport", () => {
   it("requests a bounded workspace page instead of returning the entire inventory", async () => {
     const inventory = Array.from({ length: 8_000 }, (_, i) => ({ id: `workspace-${i}`, name: `Workspace ${i}`, cwd: `/tmp/${"repository/".repeat(20)}${i}` }));
@@ -21,7 +21,7 @@ describe("task workspace semantic transport", () => {
     await expect(callTaskWorkspaceTool({ ...base, name: "list_workspaces", arguments: {} })).resolves.toEqual({
       workspaces: [{ id: "shared", mode: "shared_workspace" }], limit: 50, returnedCount: 1, hasMore: false, nextCursor: null,
     });
-    expect(fetcher.mock.calls[0]).toEqual(["https://outpost.example/api/companies/company/execution-workspaces?summary=true&selectableForTask=true&limit=51", expect.objectContaining({ method: "GET" })]);
+    expect(fetcher.mock.calls[0]).toEqual(["https://outpost.example/api/spaces/space/execution-workspaces?summary=true&selectableForTask=true&limit=51", expect.objectContaining({ method: "GET" })]);
   });
   it("fits large summary fields in a byte-bounded page with a usable cursor", async () => {
     const rows = Array.from({ length: 51 }, (_, i) => ({ id: `workspace-${i}`, name: "🦀\\\"".repeat(4_000) }));
@@ -54,8 +54,8 @@ describe("task workspace semantic transport", () => {
     vi.stubGlobal("fetch", fetcher);
     const args = { repository: { kind: "catalog", id: "repo" }, requestKey: "acquire-1" };
     const result = await callTaskWorkspaceTool({ ...base, name: "prepare_repository", arguments: args });
-    expect(result.instruction).toContain('paperclip_finish with reportedWorkDisposition="yielded"');
-    expect(result.instruction).toContain("do not call paperclip_block");
+    expect(result.instruction).toContain('outpost_finish with reportedWorkDisposition="yielded"');
+    expect(result.instruction).toContain("do not call outpost_block");
     expect(fetcher.mock.calls[0]).toEqual(["https://outpost.example/api/issues/task/workspace/repositories", expect.objectContaining({ method: "POST", body: JSON.stringify(args) })]);
     await expect(callTaskWorkspaceTool({ ...base, name: "prepare_repository", arguments: { ...args, cwd: "/home" } })).rejects.toThrow();
     expect(fetcher).toHaveBeenCalledTimes(1);

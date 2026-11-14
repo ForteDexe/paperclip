@@ -13,9 +13,9 @@ const entryFields = {
 };
 
 export function agentCommentaryReader(db: Db) {
-  function visible(companyId: string, readCondition: SQL) {
+  function visible(spaceId: string, readCondition: SQL) {
     return and(
-      eq(agentCommentary.companyId, companyId),
+      eq(agentCommentary.spaceId, spaceId),
       or(
         and(isNull(agentCommentary.issueId), sql`coalesce(
           ${heartbeatRuns.nativeIssueId}::text,
@@ -29,15 +29,15 @@ export function agentCommentaryReader(db: Db) {
 
   function entries() {
     return db.select(entryFields).from(agentCommentary)
-      .innerJoin(agents, and(eq(agents.id, agentCommentary.agentId), eq(agents.companyId, agentCommentary.companyId)))
-      .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, agentCommentary.runId), eq(heartbeatRuns.companyId, agentCommentary.companyId)))
-      .leftJoin(issues, and(eq(issues.id, agentCommentary.issueId), eq(issues.companyId, agentCommentary.companyId)));
+      .innerJoin(agents, and(eq(agents.id, agentCommentary.agentId), eq(agents.spaceId, agentCommentary.spaceId)))
+      .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, agentCommentary.runId), eq(heartbeatRuns.spaceId, agentCommentary.spaceId)))
+      .leftJoin(issues, and(eq(issues.id, agentCommentary.issueId), eq(issues.spaceId, agentCommentary.spaceId)));
   }
 
   return {
-    async list(companyId: string, query: AgentCommentaryQuery, readCondition: SQL): Promise<AgentCommentaryPage> {
+    async list(spaceId: string, query: AgentCommentaryQuery, readCondition: SQL): Promise<AgentCommentaryPage> {
       const where = and(
-        visible(companyId, readCondition),
+        visible(spaceId, readCondition),
         query.agentId ? eq(agentCommentary.agentId, query.agentId) : undefined,
         query.kind ? eq(agentCommentary.kind, query.kind) : undefined,
         query.q ? ilike(agentCommentary.body, `%${query.q.replace(/[\\%_]/g, "\\$&")}%`) : undefined,
@@ -45,9 +45,9 @@ export function agentCommentaryReader(db: Db) {
       const [rows, totals] = await Promise.all([
         entries().where(where).orderBy(desc(agentCommentary.createdAt), desc(agentCommentary.id)).limit(query.limit).offset(query.offset),
         db.select({ total: count() }).from(agentCommentary)
-          .innerJoin(agents, and(eq(agents.id, agentCommentary.agentId), eq(agents.companyId, agentCommentary.companyId)))
-          .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, agentCommentary.runId), eq(heartbeatRuns.companyId, agentCommentary.companyId)))
-          .leftJoin(issues, and(eq(issues.id, agentCommentary.issueId), eq(issues.companyId, agentCommentary.companyId)))
+          .innerJoin(agents, and(eq(agents.id, agentCommentary.agentId), eq(agents.spaceId, agentCommentary.spaceId)))
+          .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, agentCommentary.runId), eq(heartbeatRuns.spaceId, agentCommentary.spaceId)))
+          .leftJoin(issues, and(eq(issues.id, agentCommentary.issueId), eq(issues.spaceId, agentCommentary.spaceId)))
           .where(where),
       ]);
       return {
@@ -58,12 +58,12 @@ export function agentCommentaryReader(db: Db) {
       };
     },
 
-    async get(companyId: string, id: string, readCondition: SQL): Promise<AgentCommentaryDetail | null> {
+    async get(spaceId: string, id: string, readCondition: SQL): Promise<AgentCommentaryDetail | null> {
       const [row] = await db.select({ ...entryFields, body: agentCommentary.body }).from(agentCommentary)
-        .innerJoin(agents, and(eq(agents.id, agentCommentary.agentId), eq(agents.companyId, agentCommentary.companyId)))
-        .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, agentCommentary.runId), eq(heartbeatRuns.companyId, agentCommentary.companyId)))
-        .leftJoin(issues, and(eq(issues.id, agentCommentary.issueId), eq(issues.companyId, agentCommentary.companyId)))
-        .where(and(visible(companyId, readCondition), eq(agentCommentary.id, id))).limit(1);
+        .innerJoin(agents, and(eq(agents.id, agentCommentary.agentId), eq(agents.spaceId, agentCommentary.spaceId)))
+        .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, agentCommentary.runId), eq(heartbeatRuns.spaceId, agentCommentary.spaceId)))
+        .leftJoin(issues, and(eq(issues.id, agentCommentary.issueId), eq(issues.spaceId, agentCommentary.spaceId)))
+        .where(and(visible(spaceId, readCondition), eq(agentCommentary.id, id))).limit(1);
       return row ? { ...row, createdAt: row.createdAt.toISOString() } : null;
     },
   };

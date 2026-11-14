@@ -1,6 +1,6 @@
 import {
-  COMPANY_SEARCH_SORTS,
-  type CompanySearchSort,
+  SPACE_SEARCH_SORTS,
+  type SpaceSearchSort,
 } from "@outpost/shared";
 import type { ParsedSearchQuery } from "./search-query-parser";
 
@@ -13,7 +13,7 @@ import type { ParsedSearchQuery } from "./search-query-parser";
  */
 export type SearchFilters = ParsedSearchQuery["filters"];
 
-export const SORT_LABELS: Record<CompanySearchSort, string> = {
+export const SORT_LABELS: Record<SpaceSearchSort, string> = {
   relevance: "Relevance",
   updated: "Recently updated",
   created: "Newest created",
@@ -31,11 +31,11 @@ export function updatedWithinLabel(value: string): string {
   return UPDATED_WITHIN_LABELS[value] ?? `Updated ≤ ${value}`;
 }
 
-const SORT_SET = new Set<string>(COMPANY_SEARCH_SORTS);
+const SORT_SET = new Set<string>(SPACE_SEARCH_SORTS);
 
-export function parseSearchSort(params: URLSearchParams): CompanySearchSort {
+export function parseSearchSort(params: URLSearchParams): SpaceSearchSort {
   const raw = params.get("sort");
-  return raw && SORT_SET.has(raw) ? (raw as CompanySearchSort) : "relevance";
+  return raw && SORT_SET.has(raw) ? (raw as SpaceSearchSort) : "relevance";
 }
 
 /** Count active filter *dimensions* (assignee counts once regardless of shape). */
@@ -137,7 +137,7 @@ export function buildFilterChips(filters: SearchFilters, lookups: FilterChipLook
     });
   }
   // PAP-411: priority controls are hidden from the UI, but the priority filter
-  // DSL (`priority:high`) stays functional at the data layer per board decision.
+  // DSL (`priority:high`) stays functional at the data layer per operator decision.
   // A priority filter can therefore still enter the query via URL round-trip or
   // typed DSL, so we always render a removable chip for it — otherwise a restored
   // priority filter would silently narrow results with no way to see or clear it.

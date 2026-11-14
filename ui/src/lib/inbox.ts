@@ -16,15 +16,15 @@ import { formatAssigneeUserLabel } from "./assignees";
 
 export const RECENT_ISSUES_LIMIT = 100;
 export const ACTIONABLE_APPROVAL_STATUSES = new Set(["pending", "revision_requested"]);
-export const DISMISSED_KEY = "paperclip:inbox:dismissed";
-export const READ_ITEMS_KEY = "paperclip:inbox:read-items";
-export const INBOX_LAST_TAB_KEY = "paperclip:inbox:last-tab";
-export const INBOX_ISSUE_COLUMNS_KEY = "paperclip:inbox:issue-columns";
-export const INBOX_NESTING_KEY = "paperclip:inbox:nesting";
-export const INBOX_GROUP_BY_KEY = "paperclip:inbox:group-by";
-export const INBOX_FILTER_PREFERENCES_KEY_PREFIX = "paperclip:inbox:filters";
-export const INBOX_COLLAPSED_GROUPS_KEY_PREFIX = "paperclip:inbox:collapsed-groups";
-export const INBOX_COLLAPSED_PARENTS_KEY_PREFIX = "paperclip:inbox:collapsed-parents";
+export const DISMISSED_KEY = "outpost:inbox:dismissed";
+export const READ_ITEMS_KEY = "outpost:inbox:read-items";
+export const INBOX_LAST_TAB_KEY = "outpost:inbox:last-tab";
+export const INBOX_ISSUE_COLUMNS_KEY = "outpost:inbox:issue-columns";
+export const INBOX_NESTING_KEY = "outpost:inbox:nesting";
+export const INBOX_GROUP_BY_KEY = "outpost:inbox:group-by";
+export const INBOX_FILTER_PREFERENCES_KEY_PREFIX = "outpost:inbox:filters";
+export const INBOX_COLLAPSED_GROUPS_KEY_PREFIX = "outpost:inbox:collapsed-groups";
+export const INBOX_COLLAPSED_PARENTS_KEY_PREFIX = "outpost:inbox:collapsed-parents";
 export type InboxTab = "mine" | "recent" | "unread" | "blocked" | "all";
 export type InboxCategoryFilter =
   | "everything"
@@ -172,25 +172,25 @@ function normalizeInboxApprovalFilter(value: unknown): InboxApprovalFilter {
   return value === "actionable" || value === "resolved" ? value : "all";
 }
 
-function getInboxFilterPreferencesStorageKey(companyId: string | null | undefined): string | null {
-  if (!companyId) return null;
-  return `${INBOX_FILTER_PREFERENCES_KEY_PREFIX}:${companyId}`;
+function getInboxFilterPreferencesStorageKey(spaceId: string | null | undefined): string | null {
+  if (!spaceId) return null;
+  return `${INBOX_FILTER_PREFERENCES_KEY_PREFIX}:${spaceId}`;
 }
 
-function getInboxCollapsedGroupsStorageKey(companyId: string | null | undefined): string | null {
-  if (!companyId) return null;
-  return `${INBOX_COLLAPSED_GROUPS_KEY_PREFIX}:${companyId}`;
+function getInboxCollapsedGroupsStorageKey(spaceId: string | null | undefined): string | null {
+  if (!spaceId) return null;
+  return `${INBOX_COLLAPSED_GROUPS_KEY_PREFIX}:${spaceId}`;
 }
 
-function getInboxCollapsedParentsStorageKey(companyId: string | null | undefined): string | null {
-  if (!companyId) return null;
-  return `${INBOX_COLLAPSED_PARENTS_KEY_PREFIX}:${companyId}`;
+function getInboxCollapsedParentsStorageKey(spaceId: string | null | undefined): string | null {
+  if (!spaceId) return null;
+  return `${INBOX_COLLAPSED_PARENTS_KEY_PREFIX}:${spaceId}`;
 }
 
 export function loadInboxFilterPreferences(
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
 ): InboxFilterPreferences {
-  const storageKey = getInboxFilterPreferencesStorageKey(companyId);
+  const storageKey = getInboxFilterPreferencesStorageKey(spaceId);
   if (!storageKey) {
     return {
       ...defaultInboxFilterPreferences,
@@ -224,10 +224,10 @@ export function loadInboxFilterPreferences(
 }
 
 export function saveInboxFilterPreferences(
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   preferences: InboxFilterPreferences,
 ) {
-  const storageKey = getInboxFilterPreferencesStorageKey(companyId);
+  const storageKey = getInboxFilterPreferencesStorageKey(spaceId);
   if (!storageKey) return;
 
   try {
@@ -248,9 +248,9 @@ export function saveInboxFilterPreferences(
 }
 
 export function loadCollapsedInboxGroupKeys(
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
 ): Set<string> {
-  const storageKey = getInboxCollapsedGroupsStorageKey(companyId);
+  const storageKey = getInboxCollapsedGroupsStorageKey(spaceId);
   if (!storageKey) return new Set();
 
   try {
@@ -264,10 +264,10 @@ export function loadCollapsedInboxGroupKeys(
 }
 
 export function saveCollapsedInboxGroupKeys(
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   groupKeys: ReadonlySet<string>,
 ) {
-  const storageKey = getInboxCollapsedGroupsStorageKey(companyId);
+  const storageKey = getInboxCollapsedGroupsStorageKey(spaceId);
   if (!storageKey) return;
 
   try {
@@ -278,9 +278,9 @@ export function saveCollapsedInboxGroupKeys(
 }
 
 export function loadCollapsedInboxParentIds(
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
 ): Set<string> {
-  const storageKey = getInboxCollapsedParentsStorageKey(companyId);
+  const storageKey = getInboxCollapsedParentsStorageKey(spaceId);
   if (!storageKey) return new Set();
 
   try {
@@ -294,10 +294,10 @@ export function loadCollapsedInboxParentIds(
 }
 
 export function saveCollapsedInboxParentIds(
-  companyId: string | null | undefined,
+  spaceId: string | null | undefined,
   parentIds: ReadonlySet<string>,
 ) {
-  const storageKey = getInboxCollapsedParentsStorageKey(companyId);
+  const storageKey = getInboxCollapsedParentsStorageKey(spaceId);
   if (!storageKey) return;
 
   try {
@@ -699,7 +699,7 @@ export function isMineInboxTab(tab: InboxTab): boolean {
   return tab === "mine";
 }
 
-export function shouldShowCompanyAlerts(tab: InboxTab): boolean {
+export function shouldShowSpaceAlerts(tab: InboxTab): boolean {
   return tab === "all";
 }
 

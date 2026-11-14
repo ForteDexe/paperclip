@@ -42,7 +42,7 @@ it.skipIf(process.platform === "win32" || !existsSync(runner))(
         process.stdout.write(proxy.verifiedResult.outputFiles[0].contents);
       `], { maxBuffer: 16 * 1024 * 1024 });
       await writeFile(proxy, proxyBytes, { mode: 0o755 });
-      const operation = "paperclip_search_assigned_tools";
+      const operation = "outpost_search_assigned_tools";
       const seen: string[] = [];
       const { transport } = createRunnerdCodexTransport({
         provider: "opencode", runnerBinary: runner, stateDirectory: join(root, "state"), sourceCodexHome: "",
@@ -54,7 +54,7 @@ it.skipIf(process.platform === "win32" || !existsSync(runner))(
       transport.setServerRequestHandler(async request => {
         expect(request.method).toBe("item/tool/call");
         const tool = request.params.tool;
-        expect([operation, "paperclip_finish"]).toContain(tool);
+        expect([operation, "outpost_finish"]).toContain(tool);
         seen.push(String(tool));
         return dynamicToolResponse(tool === operation ? { tools: [] } : "Accepted completion.");
       });
@@ -77,7 +77,7 @@ it.skipIf(process.platform === "win32" || !existsSync(runner))(
         await Promise.race([completed, new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new Error("Native assigned-tool smoke timed out")), 20_000);
         })]);
-        expect(seen).toEqual([operation, "paperclip_finish"]);
+        expect(seen).toEqual([operation, "outpost_finish"]);
       } catch (error) {
         primaryError = error;
         throw error;

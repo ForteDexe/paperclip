@@ -5,23 +5,23 @@ import { markCachedSession, verifyCachedSession, hasUnverifiedSession } from "./
 import { queryKeys } from "./queryKeys";
 import { createUuid } from "./uuid";
 
-export const QUERY_CACHE_PREFIX = "paperclip:query-cache:v1:";
+export const QUERY_CACHE_PREFIX = "outpost:query-cache:v1:";
 export const QUERY_CACHE_ACTIVE = `${QUERY_CACHE_PREFIX}active`;
-export const QUERY_CACHE_CLEARED = "paperclip:query-cache-cleared";
+export const QUERY_CACHE_CLEARED = "outpost:query-cache-cleared";
 export const QUERY_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
 export const QUERY_CACHE_MAX_ISSUES = 20;
 const MAX_LINK_PREVIEWS = 100;
 const MAX_RECORD_BYTES = 2 * 1024 * 1024;
-const REVISION_PREFIX = "paperclip:query-cache-revision:";
+const REVISION_PREFIX = "outpost:query-cache-revision:";
 const controllers = new WeakMap<QueryClient, { clear: () => void }>();
 type CacheStorage = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key" | "length">;
-type Envelope = { version: 1; userId: string; companyId: string | null; buildId: string; revision: string | null; savedAt: number; state: DehydratedState };
+type Envelope = { version: 1; userId: string; spaceId: string | null; buildId: string; revision: string | null; savedAt: number; state: DehydratedState };
 const object = (value: unknown): Record<string, unknown> | null => value != null && typeof value === "object" ? value as Record<string, unknown> : null;
 const userIdOf = (value: unknown) => {
   const id = object(object(value)?.user)?.id;
   return typeof id === "string" && id ? id : null;
 };
-const recordKey = (userId: string, companyId: string | null) => `${QUERY_CACHE_PREFIX}${encodeURIComponent(userId)}:${companyId === null ? "root" : encodeURIComponent(companyId)}`;
+const recordKey = (userId: string, spaceId: string | null) => `${QUERY_CACHE_PREFIX}${encodeURIComponent(userId)}:${spaceId === null ? "root" : encodeURIComponent(spaceId)}`;
 const issueIdentity = (query: { queryKey: readonly unknown[]; state: { data: unknown } }) => String(object(query.state.data)?.id ?? query.queryKey[2]).toLowerCase();
 const issueRefs = (query: { queryKey: readonly unknown[]; state: { data: unknown } }) => [query.queryKey[2], object(query.state.data)?.id, object(query.state.data)?.identifier]
   .filter((id): id is string => typeof id === "string").map(id => id.toLowerCase());
@@ -83,26 +83,26 @@ export function clearPersistedQueryCache(client: QueryClient) {
   controllers.get(client)?.clear();
 }
 
-function companyIdsFor(client: QueryClient, userId: string): string[] {
-  const result = client.getQueryData<{ companies?: Array<{ id: string }> }>(queryKeys.companies.list(userId));
-  return (result?.companies ?? []).map(company => company.id).filter(id => typeof id === "string" && id.length > 0);
+function spaceIdsFor(client: QueryClient, userId: string): string[] {
+  const result = client.getQueryData<{ spaces?: Array<{ id: string }> }>(queryKeys.spaces.list(userId));
+  return (result?.spaces ?? []).map(space => space.id).filter(id => typeof id === "string" && id.length > 0);
 }
 
-export function persistedQueryScope(key: readonly unknown[], data: unknown, userId: string, companyIds: readonly string[]): string | null | undefined {
+export function persistedQueryScope(key: readonly unknown[], data: unknown, userId: string, spaceIds: readonly string[]): string | null | undefined {
   const [root, second, third] = key;
   if (hashKey(key) === hashKey(queryKeys.auth.session)) return userIdOf(data) === userId ? null : undefined;
   if (key.length === 1 && root === "health") return null;
-  if (root === "companies" && second === "list" && third === userId && key.length === 3) return null;
-  if (root === "access" && second === "current-board-access" && third === userId && key.length === 3 && object(data)?.userId === userId) return null;
+  if (root === "spaces" && second === "list" && third === userId && key.length === 3) return null;
+  if (root === "access" && second === "current-operator-access" && third === userId && key.length === 3 && object(data)?.userId === userId) return null;
   if (root === "instance" && key.length === 2 && ["experimental-settings", "general-settings"].includes(String(second))) return null;
   if (root === "workspace-preferences" && second === userId && key.length === 2 && object(data)?.userId === userId) return null;
   if (root === "sidebar-preferences" && second === "outpost-order" && third === userId && key.length === 3) return null;
   if (root === "plugins" && second === "ui-contributions" && key.length === 2) return null;
   if (root === "issues" && second === "detail" && (key.length === 3 || (key.length === 4 && key[3] === "core"))) {
-    const companyId = object(data)?.companyId;
-    return typeof companyId === "string" && companyIds.includes(companyId) ? companyId : undefined;
+    const spaceId = object(data)?.spaceId;
+    return typeof spaceId === "string" && spaceIds.includes(spaceId) ? spaceId : undefined;
   }
-  if (typeof second !== "string" || !companyIds.includes(second)) return undefined;
+  if (typeof second !== "string" || !spaceIds.includes(second)) return undefined;
   if (root === "link-preview" && typeof key[3] === "string"
     && hashKey(key) === hashKey(queryKeys.linkPreview(second, userId, key[3]))) return second;
   if (isLegacyInboxQuery(key) && Array.isArray(data)) return second;
@@ -230,14 +230,14 @@ export function startPersistedQueryCache(client: QueryClient, options: {
     return false;
   };
 
-  const read = (userId: string, companyId: string | null): Envelope | null => {
+  const read = (userId: string, spaceId: string | null): Envelope | null => {
     if (!storage) return null;
     try {
-      const key = recordKey(userId, companyId);
+      const key = recordKey(userId, spaceId);
       const raw = storage.getItem(key);
       if (!raw) return null;
       const entry = JSON.parse(raw) as Envelope;
-      if (raw.length > MAX_RECORD_BYTES || entry.version !== 1 || entry.userId !== userId || entry.companyId !== companyId
+      if (raw.length > MAX_RECORD_BYTES || entry.version !== 1 || entry.userId !== userId || entry.spaceId !== spaceId
         || entry.buildId !== buildId || (entry.revision ?? null) !== revisionFor(userId) || !Number.isFinite(entry.savedAt) || now() - entry.savedAt < 0
         || now() - entry.savedAt > QUERY_CACHE_MAX_AGE || !Array.isArray(entry.state?.queries)) {
         storage.removeItem(key);
@@ -247,9 +247,9 @@ export function startPersistedQueryCache(client: QueryClient, options: {
     } catch { return null; }
   };
   const fresh = (updatedAt: number) => Number.isFinite(updatedAt) && now() - updatedAt >= 0 && now() - updatedAt <= QUERY_CACHE_MAX_AGE;
-  const savedQueries = (entry: Envelope, companyIds: string[]) => entry.state.queries.filter(query => query?.state?.data !== undefined && query.state.status === "success"
+  const savedQueries = (entry: Envelope, spaceIds: string[]) => entry.state.queries.filter(query => query?.state?.data !== undefined && query.state.status === "success"
     && fresh(query.state.dataUpdatedAt) && Array.isArray(query.queryKey) && !blockedQueries.has(hashKey(query.queryKey))
-    && persistedQueryScope(query.queryKey, query.state.data, entry.userId, companyIds) === entry.companyId);
+    && persistedQueryScope(query.queryKey, query.state.data, entry.userId, spaceIds) === entry.spaceId);
   const readSaved = (userId: string): Envelope[] => {
     if (!storage) return [];
     const prefix = `${QUERY_CACHE_PREFIX}${encodeURIComponent(userId)}:`;
@@ -264,16 +264,16 @@ export function startPersistedQueryCache(client: QueryClient, options: {
       });
     } catch { return []; }
   };
-  const approvedCompanies = (userId: string, entries: Envelope[]) => {
-    const key = queryKeys.companies.list(userId);
+  const approvedSpaces = (userId: string, entries: Envelope[]) => {
+    const key = queryKeys.spaces.list(userId);
     const live = client.getQueryState(key);
     if (blockedQueries.has(hashKey(key)) || (live?.status === "error" && !isTransientError(live.error))) return [];
-    const saved = entries.find(entry => entry.companyId === null);
+    const saved = entries.find(entry => entry.spaceId === null);
     const cached = saved && savedQueries(saved, []).find(query => hashKey(query.queryKey) === hashKey(key));
     const data = live?.data === undefined ? cached?.state.data : live.data;
-    const companies = object(data)?.companies;
-    return Array.isArray(companies) ? companies.flatMap(company => {
-      const id = object(company)?.id;
+    const spaces = object(data)?.spaces;
+    return Array.isArray(spaces) ? spaces.flatMap(space => {
+      const id = object(space)?.id;
       return typeof id === "string" && id ? [id] : [];
     }) : [];
   };
@@ -293,17 +293,17 @@ export function startPersistedQueryCache(client: QueryClient, options: {
     && issueRefs(query).some(id => deniedIssues.has(id)));
   const scrubSaved = (userId: string, entries: Envelope[]) => {
     if (!storage || ownerRevision !== revisionFor(userId)) return;
-    const companies = approvedCompanies(userId, entries);
+    const spaces = approvedSpaces(userId, entries);
     for (const entry of entries) {
       if (ownerRevision !== revisionFor(userId)) return;
-      const key = recordKey(userId, entry.companyId);
-      const queries = savedQueries(entry, companies).filter(allowedIssue).map(query => projectQuery(query, userId)).filter(query => query.state.data !== undefined);
+      const key = recordKey(userId, entry.spaceId);
+      const queries = savedQueries(entry, spaces).filter(allowedIssue).map(query => projectQuery(query, userId)).filter(query => query.state.data !== undefined);
       try { storage.setItem(key, JSON.stringify({ ...entry, state: { mutations: [], queries } })); }
       catch { try { storage.removeItem(key); } catch {} }
     }
   };
-  const restoreState = (entry: Envelope, companyIds: string[]) => {
-    const queries = savedQueries(entry, companyIds)
+  const restoreState = (entry: Envelope, spaceIds: string[]) => {
+    const queries = savedQueries(entry, spaceIds)
       .map(query => ({ queryKey: query.queryKey, queryHash: hashKey(query.queryKey), state: {
         data: queryDisplayData(query.queryKey, query.state.data, deniedIssues), dataUpdatedAt: query.state.dataUpdatedAt, dataUpdateCount: 1,
         error: null, errorUpdateCount: 0, errorUpdatedAt: 0, fetchFailureCount: 0, fetchFailureReason: null,
@@ -324,10 +324,10 @@ export function startPersistedQueryCache(client: QueryClient, options: {
       ownerRevision = entry.revision ?? null;
       if (current?.data === undefined) markCachedSession(client);
       restoreState(entry, []);
-      const companyIds = companyIdsFor(client, owner);
-      for (const companyId of companyIds) {
-        const company = read(owner, companyId);
-        if (company) restoreState(company, companyIds);
+      const spaceIds = spaceIdsFor(client, owner);
+      for (const spaceId of spaceIds) {
+        const space = read(owner, spaceId);
+        if (space) restoreState(space, spaceIds);
       }
     } else if (entry) safeRemove();
   } catch {}
@@ -344,16 +344,16 @@ export function startPersistedQueryCache(client: QueryClient, options: {
     if (owner !== userId) { owner = userId; ownerRevision = revisionFor(userId); }
     if (ownerRevision !== revisionFor(userId)) { suspendAccount(); return; }
     const entries = readSaved(userId);
-    const companies = approvedCompanies(userId, entries);
+    const spaces = approvedSpaces(userId, entries);
     const eligible = (query: Query) => query.state.data !== undefined
       && (query.state.status === "success" || isTransientError(query.state.error))
       && !blockedQueries.has(hashKey(query.queryKey))
       && fresh(query.state.dataUpdatedAt)
-      && persistedQueryScope(query.queryKey, query.state.data, userId, companies) !== undefined;
+      && persistedQueryScope(query.queryKey, query.state.data, userId, spaces) !== undefined;
     // Memory GC is independent of the on-disk lifetime. Retain valid saved
     // reads, prefer newer data, and apply the same limits to the merged set.
     const merged = new Map<string, SavedQuery>();
-    for (const entry of entries) for (const query of savedQueries(entry, companies)) merged.set(hashKey(query.queryKey), query);
+    for (const entry of entries) for (const query of savedQueries(entry, spaces)) merged.set(hashKey(query.queryKey), query);
     for (const query of client.getQueryCache().getAll()) {
       if (query.state.status === "error" && !isTransientError(query.state.error)) merged.delete(hashKey(query.queryKey));
     }
@@ -374,11 +374,11 @@ export function startPersistedQueryCache(client: QueryClient, options: {
       .map(query => projectQuery(query, userId)).filter(query => query.state.data !== undefined);
     try {
       const expected = new Set([QUERY_CACHE_ACTIVE]);
-      for (const companyId of [null, ...companies]) {
-        const key = recordKey(userId, companyId);
+      for (const spaceId of [null, ...spaces]) {
+        const key = recordKey(userId, spaceId);
         expected.add(key);
-        const envelope: Envelope = { version: 1, userId, companyId, buildId, revision: ownerRevision, savedAt: now(),
-          state: { mutations: [], queries: queries.filter(query => persistedQueryScope(query.queryKey, query.state.data, userId, companies) === companyId) } };
+        const envelope: Envelope = { version: 1, userId, spaceId, buildId, revision: ownerRevision, savedAt: now(),
+          state: { mutations: [], queries: queries.filter(query => persistedQueryScope(query.queryKey, query.state.data, userId, spaces) === spaceId) } };
         const serialized = JSON.stringify(envelope);
         if (serialized.length <= MAX_RECORD_BYTES) storage.setItem(key, serialized);
         else storage.removeItem(key);

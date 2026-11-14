@@ -35,7 +35,7 @@ function pathValue(value: unknown) {
 }
 
 /** A provider-focused REST bridge. It never reads host files, calls host shell
- * commands, borrows CLI login state, or looks up Paperclip tasks. */
+ * commands, borrows CLI login state, or looks up Outpost tasks. */
 export function unikraftClient(headers: Record<string, string>, request: NativeRestRequest, defaultMetro: unknown = UNIKRAFT_DEFAULT_METRO,
   signal: AbortSignal = AbortSignal.timeout(30_000), deadlineAt: number = Date.now() + 30_000) {
   const authorization = headers.Authorization;
@@ -88,15 +88,15 @@ export function unikraftClient(headers: Record<string, string>, request: NativeR
   return { probe, execute };
 }
 
-type Binding = { companyId: string; agentId: string | null };
-type Connection = { companyId: string; config: Record<string, unknown> };
+type Binding = { spaceId: string; agentId: string | null };
+type Connection = { spaceId: string; config: Record<string, unknown> };
 export async function executeUnikraftTool(input: {
   binding: Binding; connection: Connection; headers: Record<string, string>;
   request: NativeRestRequest; toolName: string; parameters: unknown;
   signal?: AbortSignal;
   deadlineAt?: number;
 }) {
-  if (!input.binding.agentId || input.connection.companyId !== input.binding.companyId) {
+  if (!input.binding.agentId || input.connection.spaceId !== input.binding.spaceId) {
     throw failure(404, "unikraft_connection_not_found", "Connection not found.");
   }
   const operation = contract.operation(input.toolName);

@@ -25,7 +25,7 @@ export function gradeDiagnoseHealth(value: unknown) {
 }
 const diagnose = privilegedDefinition("instance-operations.diagnose-health", "privileged-diagnose-health", {
   async setup(ctx) {
-    await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/chats/${ctx.input.fixtures.agent.id}`);
+    await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/chats/${ctx.input.fixtures.agent.id}`);
     await ctx.refreshIssue(); const source = ctx.issue(); if (!source) throw new Error("Diagnostic source conversation was not created");
     const fault = await prepareOwnedDatabaseFault(ctx), state: Record<string, unknown> = { ownedProcessVerified: true };
     const pathname = `/api/issues/${source.id}/comments`, pattern = `${ctx.input.api.baseURL}${pathname}`;

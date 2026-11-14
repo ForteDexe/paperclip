@@ -68,7 +68,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           for file in $manifests; do [ ! -e "$file" ] || git add -- "$file"; done
-          git commit -m 'chore(ci): refresh measured test durations' -m 'Co-Authored-By: Paperclip <noreply@outpost.ing>'
+          git commit -m 'chore(ci): refresh measured test durations' -m 'Co-Authored-By: Outpost <noreply@outpost.ing>'
           gh auth setup-git
           git push origin "$branch"
           gh pr create --repo paperclipai/paperclip --base master --head "$branch" \

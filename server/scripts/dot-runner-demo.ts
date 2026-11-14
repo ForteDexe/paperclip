@@ -1,6 +1,6 @@
 /** Synthetic local lab, not production admission or a real OpenAI Dot.
  * Uses real OAuth, MCP HTTP, database-backed events, HMAC verification and the
- * native runner backend. Never reads a user's existing Paperclip database. */
+ * native runner backend. Never reads a user's existing Outpost database. */
 import assert from "node:assert/strict";
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { once } from "node:events";
@@ -9,7 +9,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import express from "express";
-import { activityLog, authUsers, companies, companyMemberships, createDb, issues, startEmbeddedPostgresTestDatabase } from "@outpost/db";
+import { activityLog, authUsers, spaces, spaceMemberships, createDb, issues, startEmbeddedPostgresTestDatabase } from "@outpost/db";
 import { DotHarnessDriver } from "../../packages/outpost-runner/src/drivers/dot/dot-harness-driver.js";
 import { HarnessDriverBackend } from "../../packages/outpost-runner/src/backends/harness-driver-backend.js";
 import { publicMcpIngressRoutes } from "../src/routes/public-mcp.js";
@@ -28,7 +28,7 @@ async function close(server: Server) {
   server.closeAllConnections(); if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
 }
 
-const scratch = await mkdtemp(join(tmpdir(), "paperclip-dot-demo-"));
+const scratch = await mkdtemp(join(tmpdir(), "outpost-dot-demo-"));
 // This process has its own ephemeral encryption key, never the instance key.
 process.env.OUTPOST_SECRETS_MASTER_KEY_FILE = join(scratch, "master.key");
 delete process.env.OUTPOST_SECRETS_MASTER_KEY;
@@ -45,30 +45,30 @@ let service: ReturnType<typeof createPublicMcpEvents> | undefined;
 let unregister: (() => void) | undefined;
 let active = true;
 try {
-  database = await startEmbeddedPostgresTestDatabase("paperclip-dot-demo-");
+  database = await startEmbeddedPostgresTestDatabase("outpost-dot-demo-");
   const db = createDb(database.connectionString);
   const origin = await listen(http);
   const callbackOrigin = await listen(callback);
-  const oauth = createPublicMcpOAuth(db, { origin, resource: origin + "/mcp/paperclip" });
+  const oauth = createPublicMcpOAuth(db, { origin, resource: origin + "/mcp/outpost" });
   await instanceSettingsService(db).updateExperimental({ enablePublicMcp: true });
   const userId = randomUUID();
   await db.insert(authUsers).values({ id: userId, name: "Dot lab operator", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-  const [company] = await db.insert(companies).values({ name: "Dot prototype lab", issuePrefix: "DOT" }).returning();
-  assert(company);
-  await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
-  const [task] = await db.insert(issues).values({ companyId: company.id, title: "Dot runner lab inbox", status: "todo" }).returning();
+  const [space] = await db.insert(spaces).values({ name: "Dot prototype lab", issuePrefix: "DOT" }).returning();
+  assert(space);
+  await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: userId, membershipRole: "owner", status: "active" });
+  const [task] = await db.insert(issues).values({ spaceId: space.id, title: "Dot runner lab inbox", status: "todo" }).returning();
   assert(task);
   const actor = { type: "board" as const, source: "session" as const, userId };
   const client = await oauth.register({ client_name: "Synthetic Dot test peer", redirect_uris: [origin + "/callback"] });
   const verifier = randomBytes(32).toString("base64url");
   const authorization = await oauth.authorize({ client_id: client.client_id, redirect_uri: origin + "/callback", resource: oauth.config.resource,
-    scope: "paperclip:read paperclip:write", response_type: "code", code_challenge_method: "S256", code_challenge: createHash("sha256").update(verifier).digest("base64url") });
-  const consent = await oauth.consent(authorization.split("/").at(-1)!, actor, { decision: "approve", companyId: company.id, allowWrites: true });
+    scope: "outpost:read outpost:write", response_type: "code", code_challenge_method: "S256", code_challenge: createHash("sha256").update(verifier).digest("base64url") });
+  const consent = await oauth.consent(authorization.split("/").at(-1)!, actor, { decision: "approve", spaceId: space.id, allowWrites: true });
   const tokens = await oauth.token({ grant_type: "authorization_code", client_id: client.client_id, redirect_uri: origin + "/callback",
     resource: oauth.config.resource, code: new URL(consent.redirectUrl).searchParams.get("code"), code_verifier: verifier });
   const principal = await oauth.authenticate(tokens.access_token);
   const api: ApiDispatch = async (p, method, path) => {
-    if (p.grant.companyId !== company.id || method !== "GET" || path !== `/issues/${task.id}`) throw new McpApiError(403);
+    if (p.grant.spaceId !== space.id || method !== "GET" || path !== `/issues/${task.id}`) throw new McpApiError(403);
     return task;
   };
   const bridge = createDotRunnerMcpBridge();
@@ -82,7 +82,7 @@ try {
   });
   app.use(publicMcpIngressRoutes(oauth, createPublicMcpExecutor(db, oauth, api), service, bridge));
   const rpc = async (method: string, params: Record<string, unknown> = {}) => {
-    const response = await fetch(origin + "/mcp/paperclip", { method: "POST", signal: AbortSignal.timeout(10_000),
+    const response = await fetch(origin + "/mcp/outpost", { method: "POST", signal: AbortSignal.timeout(10_000),
       headers: { Authorization: `Bearer ${tokens.access_token}`, "Content-Type": "application/json", "MCP-Protocol-Version": "2026-07-28", "Mcp-Method": method, "Mcp-Name": String(params.name ?? "") },
       body: JSON.stringify({ jsonrpc: "2.0", id: randomUUID(), method, params: { ...params, _meta: {
         "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {},
@@ -93,14 +93,14 @@ try {
     return body.result;
   };
   const tool = async (name: string, args: Record<string, unknown>) => (await rpc("tools/call", { name, arguments: args })).structuredContent;
-  const identity = { companyId: company.id, agentId: randomUUID(), issueId: task.id, runId: randomUUID(), sessionId: randomUUID() };
+  const identity = { spaceId: space.id, agentId: randomUUID(), issueId: task.id, runId: randomUUID(), sessionId: randomUUID() };
   const documents: string[] = [];
-  const driver = new DotHarnessDriver({ identity, principal: { companyId: company.id, grantId: principal.grant.id }, expiresAt: Date.now() + 60_000,
+  const driver = new DotHarnessDriver({ identity, principal: { spaceId: space.id, grantId: principal.grant.id }, expiresAt: Date.now() + 60_000,
     assertAuthority: async () => { assert(active, "Lab run has been revoked"); await oauth.authorizeGrant(principal.grant.id); },
     tools: [{ name: "save_report", description: "Save the synthetic lab report", inputSchema: { type: "object", properties: { body: { type: "string" } }, required: ["body"], additionalProperties: false } }],
     executeTool: async ({ name, arguments: args }) => { assert.equal(name, "save_report"); assert.equal(typeof args.body, "string"); documents.push(args.body as string); return { saved: true }; },
     publish: async assignment => {
-      await db.insert(activityLog).values({ companyId: company.id, actorType: "agent", actorId: identity.agentId,
+      await db.insert(activityLog).values({ spaceId: space.id, actorType: "agent", actorId: identity.agentId,
         action: "dot.work_available", entityType: "issue", entityId: task.id, details: { ...assignment } });
     },
   });
@@ -111,16 +111,16 @@ try {
   // Avoid an unhandled rejection if a callback fails before the main await.
   void completed.catch(() => {});
   const peer = async () => {
-    const { assignments } = await tool("paperclip_dot_inbox", { companyId: company.id });
+    const { assignments } = await tool("outpost_dot_inbox", { spaceId: space.id });
     assert.equal(assignments.length, 1);
-    const base = { companyId: company.id, runId: assignments[0].runId, turnId: assignments[0].turnId };
+    const base = { spaceId: space.id, runId: assignments[0].runId, turnId: assignments[0].turnId };
     const call = (name: string, args = {}, requestId = randomUUID()) => tool(name, { ...base, requestId, ...args });
-    const context = await call("paperclip_dot_read"); assert.match(context.result.message.text, /competitor/);
-    await call("paperclip_dot_accept");
+    const context = await call("outpost_dot_read"); assert.match(context.result.message.text, /competitor/);
+    await call("outpost_dot_accept");
     const writeId = randomUUID();
-    await Promise.all([0, 1].map(() => call("paperclip_dot_tool", { name: "save_report", arguments: { body: "Synthetic competitor report" } }, writeId)));
-    await call("paperclip_dot_progress", { text: "The lab report is saved." });
-    await call("paperclip_dot_finish", { result: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Lab report saved.",
+    await Promise.all([0, 1].map(() => call("outpost_dot_tool", { name: "save_report", arguments: { body: "Synthetic competitor report" } }, writeId)));
+    await call("outpost_dot_progress", { text: "The lab report is saved." });
+    await call("outpost_dot_finish", { result: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Lab report saved.",
       completionClaim: { contractRevision: "dot-lab-v1", objectiveSatisfied: true, criteria: [], remainingWork: [] }, evidence: [], verification: [], attentionRequests: [], artifacts: [] } });
     resolveWork();
   };
@@ -139,7 +139,7 @@ try {
     assert(!JSON.stringify(body).includes("competitor"));
     void peer().catch(rejectWork);
   });
-  const subscription = { name: "outpost.dot.work_available", arguments: { companyId: company.id, taskId: task.id },
+  const subscription = { name: "outpost.dot.work_available", arguments: { spaceId: space.id, taskId: task.id },
     delivery: { mode: "webhook", url: "https://dot-demo.invalid/events", secret: webhookSecret } };
   await rpc("events/subscribe", subscription);
   console.log("✓ Real OAuth connection and signed webhook verification");
@@ -153,8 +153,8 @@ try {
   assert.equal(await native.usage?.(), null);
   console.log("✓ MCP Event → Dot test peer → native runner acceptance, tool write, progress, structured completion");
   console.log("✓ Concurrent duplicate write produced one report; usage remains unknown");
-  assert.equal((await tool("paperclip_connection", {})).companyId, company.id);
-  console.log("✓ Personal Paperclip tools remain available when no agent assignment is active");
+  assert.equal((await tool("outpost_connection", {})).spaceId, space.id);
+  console.log("✓ Personal Outpost tools remain available when no agent assignment is active");
   await rpc("events/unsubscribe", { ...subscription, delivery: { mode: "webhook", url: subscription.delivery.url } });
   await oauth.revokeConnection(principal.grant.id, userId);
   await assert.rejects(() => rpc("tools/list"));

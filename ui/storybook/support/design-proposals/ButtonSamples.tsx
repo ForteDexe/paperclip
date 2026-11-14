@@ -18,7 +18,7 @@ import { SidePanelToggleButton, SidePanelWindowControls } from "@/components/sid
 import { SidePanelTabs } from "@/components/side-panel/SidePanelTabs";
 import { defaultIssueFilterState } from "@/lib/issue-filters";
 import type { TaskListView } from "@/lib/task-list-views";
-import { storybookAgents, storybookIssueLabels, storybookProjects } from "../../fixtures/paperclipData";
+import { storybookAgents, storybookIssueLabels, storybookProjects } from "../../fixtures/outpostData";
 import { DesignProposalAccess } from "./DesignProposalAccess";
 import { reviewTaskItems } from "./task-list-data";
 import { ButtonSpecimen as SampleButton } from "./ButtonSpecimen";

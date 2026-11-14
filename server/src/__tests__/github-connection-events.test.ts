@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   applyPendingMigrations,
   activityLog,
-  companies,
+  spaces,
   connectionEventDeliveries,
   connectionGrants,
   createDb,
@@ -19,9 +19,9 @@ import {
 } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { githubConnectionEventService } from "../services/github-connection-events.js";
-import { subscribeCompanyLiveEvents } from "../services/live-events.js";
+import { subscribeSpaceLiveEvents } from "../services/live-events.js";
 import { logger } from "../middleware/logger.js";
-import type { PaperclipCloudConnector } from "../services/paperclip-cloud-connector.js";
+import type { OutpostCloudConnector } from "../services/outpost-cloud-connector.js";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -36,7 +36,7 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    if (!externalTestDatabaseUrl) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-github-events-");
+    if (!externalTestDatabaseUrl) tempDb = await startEmbeddedPostgresTestDatabase("outpost-github-events-");
     if (externalTestDatabaseUrl) await applyPendingMigrations(externalTestDatabaseUrl);
     db = createDb(externalTestDatabaseUrl ?? tempDb!.connectionString, { maxConnections: 1 });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
@@ -50,7 +50,7 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
     await db.delete(connectionGrants);
     await db.delete(toolConnections);
     await db.delete(toolApplications);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -59,15 +59,15 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
   });
 
   it.each([false, true])("applies a normalized merged PR once while retaining undecryptable siblings for retry (active setup=%s)", async activeSetup => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const userId = `github-owner-${randomUUID()}`;
     const applicationId = randomUUID();
     const connectionId = randomUUID();
     const grantId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "GHE" });
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "GHE" });
     await db.insert(toolApplications).values({
       id: applicationId,
-      companyId,
+      spaceId,
       applicationKey: `github-${randomUUID()}`,
       name: "GitHub",
       type: "mcp_http",
@@ -75,7 +75,7 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
     });
     await db.insert(toolConnections).values({
       id: connectionId,
-      companyId,
+      spaceId,
       applicationId,
       name: "GitHub",
       uid: `github-${randomUUID()}`,
@@ -89,14 +89,14 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
     });
     await db.insert(connectionGrants).values({
       id: grantId,
-      companyId,
+      spaceId,
       connectionId,
       kind: "user",
       subjectUserId: userId,
       status: "active",
       isDefault: false,
       providerTenant: {
-        oauth: { strategy: "paperclip_cloud_connector", accessTokenExpiresAt: null },
+        oauth: { strategy: "outpost_cloud_connector", accessTokenExpiresAt: null },
         github: {
           userId: "42",
           login: "octocat",
@@ -104,20 +104,20 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
           repositoryCount: 3,
           repositorySelection: "selected",
           installationIds: ["101"],
-          installationOwnerLogins: ["paperclipai"],
-          repositories: [{ id: "203", fullName: "paperclipai/removed", installationId: "101" }],
+          installationOwnerLogins: ["outpost"],
+          repositories: [{ id: "203", fullName: "outpost/removed", installationId: "101" }],
           webhookHealth: "pending",
         },
       },
     });
-    const [issue] = await db.insert(issues).values({ companyId, title: "Merge release", status: "in_progress" }).returning();
-    const [confirmation] = await db.insert(issueThreadInteractions).values({ companyId, issueId: issue!.id,
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Merge release", status: "in_progress" }).returning();
+    const [confirmation] = await db.insert(issueThreadInteractions).values({ spaceId, issueId: issue!.id,
       kind: "request_confirmation", title: "Confirm pull request merged", continuationPolicy: "none",
       payload: { version: 1, prompt: "Confirm https://github.com/paperclipai/paperclip/pull/123 is merged" } }).returning();
     const externalObjectId = randomUUID();
     await db.insert(externalObjects).values({
       id: externalObjectId,
-      companyId,
+      spaceId,
       providerKey: "github",
       objectType: "pull_request",
       externalId: "paperclipai/paperclip#pull/123",
@@ -163,7 +163,7 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
       setWebhookBinding: vi.fn(async () => undefined),
       leaseEvents: vi.fn(async () => ({ leaseId: `lease-${++poll}`, events: [leasedEvent], failedEventIds: ["undecryptable-delivery"] })),
       acknowledgeEvents: vi.fn(async () => 1),
-    } as unknown as PaperclipCloudConnector;
+    } as unknown as OutpostCloudConnector;
     let currentTime = new Date("2026-09-04T12:00:05.000Z");
     const service = githubConnectionEventService(db, { connector, now: () => currentTime });
 
@@ -190,7 +190,7 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
         return { ok: true, snapshot: { statusKey: "open", statusCategory: "open", statusTone: "info", isTerminal: false } };
       },
     }] });
-    const oldRefresh = resolver.refreshObject(externalObjectId, { companyId, force: true });
+    const oldRefresh = resolver.refreshObject(externalObjectId, { spaceId, force: true });
     await started;
 
     const warning = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
@@ -277,14 +277,14 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
 
   it.each([false, true, "rollback-race"])("applies installation events once without discarding newer verified access (mode: %s)", async (mode) => {
     const refreshed = mode === true;
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const applicationId = randomUUID();
     const connectionId = randomUUID();
     const grantId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "GHI" });
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "GHI" });
     await db.insert(toolApplications).values({
       id: applicationId,
-      companyId,
+      spaceId,
       applicationKey: `github-${randomUUID()}`,
       name: "GitHub",
       type: "mcp_http",
@@ -292,7 +292,7 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
     });
     await db.insert(toolConnections).values({
       id: connectionId,
-      companyId,
+      spaceId,
       applicationId,
       name: "GitHub",
       uid: `github-${randomUUID()}`,
@@ -307,14 +307,14 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
     });
     await db.insert(connectionGrants).values({
       id: grantId,
-      companyId,
+      spaceId,
       connectionId,
       kind: "user",
       subjectUserId: `github-owner-${randomUUID()}`,
       status: "active",
       isDefault: false,
       providerTenant: {
-        oauth: { strategy: "paperclip_cloud_connector", accessTokenExpiresAt: null },
+        oauth: { strategy: "outpost_cloud_connector", accessTokenExpiresAt: null },
         github: {
           userId: "42",
           login: "octocat",
@@ -322,8 +322,8 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
           repositoryCount: 3,
           repositorySelection: "selected",
           installationIds: ["101"],
-          installationOwnerLogins: ["paperclipai"],
-          repositories: [{ id: "203", fullName: "paperclipai/removed", installationId: "101" }],
+          installationOwnerLogins: ["outpost"],
+          repositories: [{ id: "203", fullName: "outpost/removed", installationId: "101" }],
           webhookHealth: "pending",
         },
       },
@@ -363,14 +363,14 @@ describeEmbeddedPostgres("GitHub connection event delivery", () => {
         return ({ leaseId: `lease-${++poll}`, events: [leasedEvent] });
       }),
       acknowledgeEvents: vi.fn(async () => 1),
-    } as unknown as PaperclipCloudConnector;
+    } as unknown as OutpostCloudConnector;
     let currentTime = new Date("2026-09-04T12:00:05.000Z");
     const service = githubConnectionEventService(db, { connector, now: () => currentTime });
 
-    const health = await startToolHealthWorker(db, companyId, currentTime);
+    const health = await startToolHealthWorker(db, spaceId, currentTime);
     try {
       await health.expectDeadline(new Date("2026-09-04T12:14:05.000Z").getTime());
-      const unsubscribe = subscribeCompanyLiveEvents(companyId, () => {
+      const unsubscribe = subscribeSpaceLiveEvents(spaceId, () => {
         throw new Error("fixture live subscriber failed");
       });
       try {

@@ -29,7 +29,7 @@ export async function observeMaintenanceBrowser(origin: string, announcementDesc
     await page.reload({ waitUntil: 'networkidle' });
     if (!requests.slice(beforeActive).some(request => request.path.startsWith('/api/'))) throw new Error('Active browser did not make ordinary app requests');
     const visibilityEvents: Array<{ state: string; rendererAt: number }> = [];
-    const prefix = 'paperclip-sleep-visibility:';
+    const prefix = 'outpost-sleep-visibility:';
     page.on('console', message => { if (message.text().startsWith(prefix)) visibilityEvents.push(JSON.parse(message.text().slice(prefix.length))); });
     // Passive native events only; never replace document visibility properties.
     await page.evaluate(prefix => document.addEventListener('visibilitychange', () => console.log(prefix + JSON.stringify({ state: document.visibilityState, rendererAt: performance.now() }))), prefix);
@@ -77,6 +77,6 @@ export async function observeMaintenanceBrowser(origin: string, announcementDesc
     if (!visibilityEvents.some(event => event.state === 'visible' && event.rendererAt >= finalHidden.rendererAt)) throw new Error('Native visible restoration event was not observed');
     return { activeRequests: requests.slice(beforeActive, hiddenRequests).length, hiddenRealElapsedMs,
       hiddenRequests: hidden, unmatchedOrigins, visibility: 'Native Chromium default context with no Playwright focus override', initialVisibility, initialHidden, finalHidden,
-      intervalVisibilityEvents, visibilityEvents, restoredVisibility, appWindow, foregroundWindow, announcementRendered: Boolean(announcementDescription), authBoundary: tenantHeaders ? 'Owned Cloud front-door headers; actual tenant resolver/membership' : 'Legacy local board', closed: true };
+      intervalVisibilityEvents, visibilityEvents, restoredVisibility, appWindow, foregroundWindow, announcementRendered: Boolean(announcementDescription), authBoundary: tenantHeaders ? 'Owned Cloud front-door headers; actual tenant resolver/membership' : 'Legacy local operator', closed: true };
   });
 }

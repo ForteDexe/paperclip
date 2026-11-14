@@ -7,11 +7,11 @@ const PROVIDER_ONLY_KEYS: ReadonlySet<string> = new Set([
   ...AGENT_OBSERVABILITY_ENV_KEYS,
 ]);
 const IDENTITY_KEYS = ["OUTPOST_AGENT_KEY_ID", "OUTPOST_AGENT_PUBLIC_KEY", "OUTPOST_AGENT_PRIVATE_KEY"];
-// Paperclip's gh and git launchers in the shell fetch the run's GitHub credential with this capability.
+// Outpost's gh and git launchers in the shell fetch the run's GitHub credential with this capability.
 const GITHUB_LAUNCHER_KEYS = ["OUTPOST_GITHUB_BROKER_TOKEN", "OUTPOST_GITHUB_BRIDGE_TOKEN"];
 
 /** Only resolved adapter configuration can opt a service secret into shell access.
- * The launch environment here is Paperclip-built, never ambient process.env.
+ * The launch environment here is Outpost-built, never ambient process.env.
  * Return names only: values must stay out of provider config and argv.
  */
 export function codexShellEnvironmentKeys(

@@ -60,7 +60,7 @@ export function assertSameSlackFormFinalization(actual: SlackFormFinalizedReceip
 
 export function slackFormFinalizedReceiptDigest(receipt: SlackFormFinalizedReceipt): string {
   const b = receipt.binding;
-  return createHash("sha256").update(JSON.stringify(["slack-form-finalized-receipt/v1", b.version, b.instanceId, b.companyId, b.endpointId,
+  return createHash("sha256").update(JSON.stringify(["slack-form-finalized-receipt/v1", b.version, b.instanceId, b.spaceId, b.endpointId,
     b.publicId, b.connectionId, b.runtimeGeneration, b.teamId, b.appId, b.eventBindingId, b.credentialFingerprint,
     receipt.environment, receipt.operationId, receipt.deliveryId, receipt.appReceiptId, receipt.grantId, receipt.publicationId,
     receipt.interactionId, receipt.userId, receipt.viewDigest, receipt.terminalDigest, receipt.outcome, receipt.finalizedAt]), "utf8").digest("hex");

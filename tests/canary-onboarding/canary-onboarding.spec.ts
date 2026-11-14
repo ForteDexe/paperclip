@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
-const expectedVersion = process.env.PAPERCLIPAI_VERSION!;
-const companyName = `Canary Smoke ${Date.now()}`;
+const expectedVersion = process.env.OUTPOST_VERSION!;
+const spaceName = `Canary Smoke ${Date.now()}`;
 const agentName = "Canary Smoke Lead";
 
 async function getJson<T>(request: APIRequestContext, url: string): Promise<T> {
@@ -16,21 +16,21 @@ test("the exact published canary installs and reaches Connect a model", async ({
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
-  // Browser storage is scoped to the Paperclip origin, not to a data directory.
+  // Browser storage is scoped to the Outpost origin, not to a data directory.
   // A customer can therefore start a freshly installed server with an existing
-  // onboarding draft. Creating the organization invalidates the company list;
+  // onboarding draft. Creating the organization invalidates the space list;
   // this release check must prove that a refetch does not remount the wizard
   // from that old draft and leave the customer on the name screen.
   await page.addInitScript(() => {
-    localStorage.setItem("paperclip-onboarding-state", JSON.stringify({
+    localStorage.setItem("outpost-onboarding-state", JSON.stringify({
       step: 1,
-      companyName: "",
-      createdCompanyId: null,
+      spaceName: "",
+      createdSpaceId: null,
     }));
   });
-  let delayCompanyListRefetch = false;
-  await page.route("**/api/companies", async (route) => {
-    if (delayCompanyListRefetch && route.request().method() === "GET") {
+  let delaySpaceListRefetch = false;
+  await page.route("**/api/spaces", async (route) => {
+    if (delaySpaceListRefetch && route.request().method() === "GET") {
       // Make the invalidation window observable. The previous implementation
       // unmounted the live wizard for this entire request.
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -51,30 +51,30 @@ test("the exact published canary installs and reaches Connect a model", async ({
   await expect(
     page.getByRole("heading", { name: "What is the name of your organization?" }),
   ).toBeVisible();
-  await page.getByRole("textbox").fill(companyName);
-  delayCompanyListRefetch = true;
+  await page.getByRole("textbox").fill(spaceName);
+  delaySpaceListRefetch = true;
   await page.getByRole("button", { name: "Continue", exact: true }).click();
 
   const agentNameField = page.locator("#onboarding-agent-name");
   await expect(agentNameField).toBeVisible({ timeout: 30_000 });
 
-  const companies = await getJson<Array<{ id: string; name: string }>>(
+  const spaces = await getJson<Array<{ id: string; name: string }>>(
     page.request,
-    "/api/companies",
+    "/api/spaces",
   );
-  const company = companies.find((candidate) => candidate.name === companyName);
-  expect(company, `organization ${companyName} should exist through the API`).toBeTruthy();
+  const space = spaces.find((candidate) => candidate.name === spaceName);
+  expect(space, `organization ${spaceName} should exist through the API`).toBeTruthy();
 
   expect(
     await getJson<Array<{ id: string }>>(
       page.request,
-      `/api/companies/${company!.id}/agents`,
+      `/api/spaces/${space!.id}/agents`,
     ),
   ).toEqual([]);
   expect(
     await getJson<Array<{ id: string }>>(
       page.request,
-      `/api/companies/${company!.id}/issues`,
+      `/api/spaces/${space!.id}/issues`,
     ),
   ).toEqual([]);
 
@@ -85,7 +85,7 @@ test("the exact published canary installs and reaches Connect a model", async ({
   await expect.poll(
     () => getJson<Array<{ id: string }>>(
       page.request,
-      `/api/companies/${company!.id}/agents`,
+      `/api/spaces/${space!.id}/agents`,
     ),
     { message: "Connect a model must retain one paused setup record" },
   ).toEqual([
@@ -102,13 +102,13 @@ test("the exact published canary installs and reaches Connect a model", async ({
   expect(
     await getJson<Array<{ id: string }>>(
       page.request,
-      `/api/companies/${company!.id}/issues`,
+      `/api/spaces/${space!.id}/issues`,
     ),
   ).toEqual([]);
   expect(
     await getJson<Array<{ id: string }>>(
       page.request,
-      `/api/companies/${company!.id}/heartbeat-runs`,
+      `/api/spaces/${space!.id}/heartbeat-runs`,
     ),
   ).toEqual([]);
   expect(pageErrors, pageErrors.join("\n")).toEqual([]);

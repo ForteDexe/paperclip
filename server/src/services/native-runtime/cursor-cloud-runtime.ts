@@ -72,7 +72,7 @@ export function prepareCursorCloudRuntime(input: {
     finally { rmSync(pending, { force: true }); }
   };
   savePrivate(capabilityPath, capability);
-  const socketRoot = `/tmp/paperclip-cloud-${createHash("sha256").update(input.root).digest("hex").slice(0, 24)}`;
+  const socketRoot = `/tmp/outpost-cloud-${createHash("sha256").update(input.root).digest("hex").slice(0, 24)}`;
   if (!existsSync(socketRoot)) mkdirSync(socketRoot, { mode: 0o700 });
   privateDirectory(socketRoot);
   const socketPath = join(socketRoot, "mcp.sock");
@@ -81,7 +81,7 @@ export function prepareCursorCloudRuntime(input: {
   privateDirectory(artifactRoot);
   const configPath = join(directory, "config.json");
   savePrivate(configPath, { ...execution.provider.cursorCloud, binding: {
-    companyId: execution.binding.companyId, agentId: execution.binding.agentId,
+    spaceId: execution.binding.spaceId, agentId: execution.binding.agentId,
     issueId: execution.binding.issueId, normalizedSessionId: binding.normalizedSessionId,
   } });
   let release: (() => void) | undefined;
@@ -91,17 +91,17 @@ export function prepareCursorCloudRuntime(input: {
     authorized: async () => {
       if (input.authorityCurrent && !input.authorityCurrent()) return false;
       const run = await input.db.select({ status: heartbeatRuns.status, runtimeMode: heartbeatRuns.runtimeMode }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.id, execution.binding.runId), eq(heartbeatRuns.companyId, execution.binding.companyId),
+        eq(heartbeatRuns.id, execution.binding.runId), eq(heartbeatRuns.spaceId, execution.binding.spaceId),
         eq(heartbeatRuns.agentId, execution.binding.agentId), eq(heartbeatRuns.issueId, execution.binding.issueId),
       )).limit(1).then(rows => rows[0]);
       return run?.status === "running" && run.runtimeMode === "native" && (!input.authorityCurrent || input.authorityCurrent());
     } });
   };
   const archiveCheckpoint = async (archiveRoot: string, previous: PersistedNativeSession | undefined) => {
-    if (!previous?.identity || previous.sessionId !== binding.normalizedSessionId || previous.identity.companyId !== execution.binding.companyId
+    if (!previous?.identity || previous.sessionId !== binding.normalizedSessionId || previous.identity.spaceId !== execution.binding.spaceId
       || previous.identity.agentId !== execution.binding.agentId || previous.identity.issueId !== execution.binding.issueId) throw new Error("cursor_cloud_replacement_binding_mismatch");
     await archiveCursorCloudSessionCheckpoint({ runtimeDirectory: directory, driverSessionId: previous.sessionId,
-      ownerRunId: previous.identity.runId, binding: { companyId: execution.binding.companyId, agentId: execution.binding.agentId,
+      ownerRunId: previous.identity.runId, binding: { spaceId: execution.binding.spaceId, agentId: execution.binding.agentId,
         issueId: execution.binding.issueId, normalizedSessionId: binding.normalizedSessionId }, socketPath,
       archiveDirectory: join(archiveRoot, "cursor-cloud") });
   };

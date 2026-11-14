@@ -43,7 +43,7 @@ authenticated discovery on **2026-09-24**, explicitly not execution of every too
 
 These are observed names, not a cross-provider API or a claim that every
 operation works. Capture fresh schemas before writing live fixtures. In particular,
-Supermemory's `add_memory` is classified as destructive in Paperclip because
+Supermemory's `add_memory` is classified as destructive in Outpost because
 its action parameter can delete. Honcho has a richer context model than a simple
 key/value store. Show the real catalog through the existing Permissions screen.
 
@@ -55,7 +55,7 @@ The similarly named gateway-listing-memory and runner shared-memory tests concer
 resource usage, not semantic memory.
 
 Honcho's [official MCP guide](https://honcho.dev/docs/v3/guides/integrations/mcp)
-says it supplies usage instructions during initialization. Paperclip's
+says it supplies usage instructions during initialization. Outpost's
 `server/src/services/mcp-http.ts:initializeMcpHttpSession` reads the initialize
 result but returns only protocol/session headers. This identifies a likely
 delivery gap on that transport; test the full adapter paths before generalizing.
@@ -119,7 +119,7 @@ provides an instruction template. Keep the real identity controls, access picker
 action list on the same page. Do not add a new tab or duplicate page navigation. Display:
 
 - The checkbox and exact paragraph; **Edit instructions** and, after edits,
-  **Reset to default**. No “Suggested by Paperclip” badge.
+  **Reset to default**. No “Suggested by Outpost” badge.
 - A live recipient summary derived from existing assignments: “Applies to Ada and
   Morgan when this connection is available to the task.” Link to Permissions to
   change access. “All agents” explicitly includes future eligible agents.
@@ -161,11 +161,11 @@ Implement only after the UX has been reviewed. Suggested contracts:
    and schema: template ID/version, default text, and required context/capabilities. A nonempty
    template opts the connector into the UI; instructions start enabled. Regenerate
    the catalog from its authoring source; do not hand-edit generated JSON.
-2. Store company-scoped connection guidance with `enabled`, text, reviewed
+2. Store space-scoped connection guidance with `enabled`, text, reviewed
    template version, revision, editor identity, and update time. Store provider
    context in a typed binding separate from prose; validate access on save and
    resolution. Keep public API/shared validators/db/UI contracts synchronized.
-3. Reuse the same effective access resolver as tool delivery: company, agent,
+3. Reuse the same effective access resolver as tool delivery: space, agent,
    task, responsible human, grant, connection health, and action policies all
    matter. Agent assignment alone must not imply access to a personal grant.
 4. Resolve a stable ordered list of instruction blocks per turn. Include source
@@ -177,13 +177,13 @@ Implement only after the UX has been reviewed. Suggested contracts:
    cannot replace old context, start a fresh session or display the limitation;
    never keep supplying conflicting old and new blocks indefinitely. Active
    calls remain governed by current gateway authorization on every invocation.
-6. Log edits and assignment changes as normal company activity. Record revision
+6. Log edits and assignment changes as normal space activity. Record revision
    and binding references in local run evidence. No new first-party Telemetry is
    needed. Preview and run composition must share one resolver so they agree.
 
 An enabled paragraph is user-controlled operating guidance, not authorization to
-bypass budgets, approvals, current user intent, or company boundaries. Templates
-are maintained by Paperclip; provider initialize instructions are external data
+bypass budgets, approvals, current user intent, or space boundaries. Templates
+are maintained by Outpost; provider initialize instructions are external data
 that can inform a reviewed template, not an automatic template update. Pin saved
 versions; show “Suggested instructions updated” with a diff and deliberate apply.
 Never replace custom text during catalog refresh or reconnect.
@@ -191,7 +191,7 @@ Never replace custom text during catalog refresh or reconnect.
 ### Memory context is not an access-control boundary
 
 For the first Honcho slice, bind a dedicated workspace to the connection. Derive
-stable peer IDs from company + agent and session IDs from company + task; retries
+stable peer IDs from space + agent and session IDs from space + task; retries
 must reuse them. Decide these values in server code, not in editable prose. Show
 the workspace openly near the top of configuration; users should not need to
 invent peer IDs. Treat the task's responsible human as a separate subject when needed,
@@ -203,7 +203,7 @@ memory.” If private
 agent memory is promised later, enforce scope arguments server-side, disallow
 unscoped/list/bulk operations that bypass the boundary, and test alternate tool
 paths. Until then, use isolated provider credentials/workspaces for confidential
-scopes. Paperclip company access checks still apply to every connection.
+scopes. Outpost space access checks still apply to every connection.
 
 ## The smallest useful evaluation
 
@@ -220,7 +220,7 @@ in the catalog. Expand to the other three once those fixtures are useful.
 | Save → fresh recall | A: “Remember: release codename is `<random nonce>`.” B: fresh task/session, same memory subject: “What is the release codename?” | Confirmed write receipt; B performs retrieval before answering and includes the nonce from the returned record |
 | Implicit recall | Seed a synthetic formatting preference, then ask “Draft my weekly update” without mentioning memory | Guidance-on run retrieves and follows the seeded preference; record guidance-off control separately |
 | Skip irrelevant work | “What is 19 × 7?” with memory available | Correct answer, no memory calls or unnecessary writes |
-| Failed write / denied access | Return write failure; separately deny the grant | No “saved” claim; useful task continues; no fallback to another user's/company's memory |
+| Failed write / denied access | Return write failure; separately deny the grant | No “saved” claim; useful task continues; no fallback to another user's/space's memory |
 | Updated / disabled guidance (no model) | Change text, resume; turn off; unassign; revoke | Correct revision supplied once or absent as applicable; no agent file changes |
 
 The fresh-recall reader receives neither the writer transcript nor its answer,
@@ -235,10 +235,10 @@ ingestion, poll a documented status/read path with a bounded deadline (proposed
 amount then declare the model wrong. For Honcho, first prove raw message retrieval;
 inferred conclusions are a separate, slower capability.
 
-Use the existing Product E2E runner for through-Paperclip evidence; follow
-`add-product-e2e-eval` and `paperclip-evals` when implementing. Use a fixture MCP
+Use the existing Product E2E runner for through-Outpost evidence; follow
+`add-product-e2e-eval` and `outpost-evals` when implementing. Use a fixture MCP
 server in ordinary CI. Account-bound runs are opt-in; the fixture suite proves
-Paperclip behavior, not provider availability. Existing promptfoo response-text
+Outpost behavior, not provider availability. Existing promptfoo response-text
 tests cannot substitute for the tool loop.
 
 **Model candidates:** start with GPT-5 nano for the baseline, then Gemini 3.1
@@ -308,7 +308,7 @@ new memory service, transcript mirroring, memory browser, or automatic hooks.
 In the initial proposal, no production code was changed. Repo-wide server tests/builds and account-bound
 memory/model evals were not run for this design-only change. Run the full PR
 checks before a PR-ready implementation handoff. This local Codex chat has no
-Paperclip issue/run identity, so issue artifact upload and work-product creation
+Outpost issue/run identity, so issue artifact upload and work-product creation
 could not be associated with a destination. The plan and stories are retained in
 the repository; the built review is available through the local Storybook server.
 

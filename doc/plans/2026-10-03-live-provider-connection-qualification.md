@@ -6,7 +6,7 @@ Code inspected: `527e3bad2` (`codex/provider-routing-connections`).
 
 ## Decision
 
-Extend the existing Playwright Product E2E harness with real connection-creation journeys, an explicit authentication handoff, and support for an existing deployment as the target. Run the subscription journeys in a visible browser on a developer's machine first. The same tests should target local Paperclip and staging.
+Extend the existing Playwright Product E2E harness with real connection-creation journeys, an explicit authentication handoff, and support for an existing deployment as the target. Run the subscription journeys in a visible browser on a developer's machine first. The same tests should target local Outpost and staging.
 
 Playwright owns navigation, assertions, evidence, and the verdict. A person completes login challenges when necessary. A computer-use agent can assist with diagnosis and provider UI changes, but it must not silently change the steps or decide whether the test passed. An assisted success is useful evidence and must be labeled as assisted.
 
@@ -22,7 +22,7 @@ The deliverable is a matrix answering **which configuration worked, against whic
 
 ## Coverage contract
 
-Inventory harnesses separately from providers. Claude is a harness; Bedrock and OpenRouter are connection routes. A Paperclip deployment URL, an authentication host, and an agent execution environment are also separate dimensions.
+Inventory harnesses separately from providers. Claude is a harness; Bedrock and OpenRouter are connection routes. A Outpost deployment URL, an authentication host, and an agent execution environment are also separate dimensions.
 
 The initial inventory below comes from [managed connection capabilities](../../packages/shared/src/ai-connections.ts), [routing compatibility](../../packages/shared/src/ai-provider-routing.ts), and the [UI adapter registry](../../ui/src/adapters/registry.ts). It describes implementation eligibility, not proven live coverage.
 
@@ -36,7 +36,7 @@ The initial inventory below comes from [managed connection capabilities](../../p
 | Hermes local | No managed subscription entry | Inventory harness-specific behavior | OpenRouter, Chat Completions-compatible gateway |
 | Cursor local, Kimi, Pi | Inventory required | Inventory required | Inventory required |
 
-“Not in the table” is a Paperclip managed-connection limitation, not a claim about everything the upstream CLI can do. Inventory native runner providers and installed first-party adapters as well as legacy UI adapters; any additional local provider must receive a manifest entry before the full campaign can qualify.
+“Not in the table” is a Outpost managed-connection limitation, not a claim about everything the upstream CLI can do. Inventory native runner providers and installed first-party adapters as well as legacy UI adapters; any additional local provider must receive a manifest entry before the full campaign can qualify.
 
 Exclude remote OpenClaw and Hermes gateways, Cursor Cloud, managed Claude/AWS AgentCore, process/HTTP adapters, and the generic legacy ACPX integration from this campaign. Their remote systems own provider configuration. **Hermes local remains in scope.** Supported native Claude/Grok runner profiles that internally use ACPX remain in scope; that transport is distinct from the excluded generic legacy integration.
 
@@ -56,26 +56,26 @@ Use three lanes, with separate results:
 
 | Lane | Starting state | What it proves |
 | --- | --- | --- |
-| Fresh connection, existing browser sign-in | Saved provider website/Google browser session; no Paperclip connection or runtime credential for this cell | The current Paperclip subscription flow obtains and saves a fresh usable credential |
-| Fresh connection, signed-out browser | Empty provider browser state; no Paperclip connection or runtime credential | The complete first-time experience, including account selection and login |
+| Fresh connection, existing browser sign-in | Saved provider website/Google browser session; no Outpost connection or runtime credential for this cell | The current Outpost subscription flow obtains and saves a fresh usable credential |
+| Fresh connection, signed-out browser | Empty provider browser state; no Outpost connection or runtime credential | The complete first-time experience, including account selection and login |
 | Existing connection | A connection previously created by the live UI journey | Selection, reuse, continuation, and reconnect behavior |
 
 Most developer campaigns use the first lane. The signed-out lane runs explicitly before releases or login changes. The existing-connection lane cannot substitute for either creation lane.
 
-There are three distinct identities/stores: Paperclip board authentication for the selected target, provider website authentication in the browser, and the resulting managed connection credential. Reusing provider website sign-in reduces friction while still exercising a fresh OAuth/device authorization and production credential persistence. Do not import `~/.codex`, `~/.claude`, or an existing token into a fresh-connection test.
+There are three distinct identities/stores: Outpost board authentication for the selected target, provider website authentication in the browser, and the resulting managed connection credential. Reusing provider website sign-in reduces friction while still exercising a fresh OAuth/device authorization and production credential persistence. Do not import `~/.codex`, `~/.claude`, or an existing token into a fresh-connection test.
 
 Initially, use the developer's existing subscription accounts through a dedicated QA browser profile, separate from their everyday Chrome profile. Keep account aliases and expected identities in private local configuration; do not put personal email addresses into the public catalog. Serialize tests sharing an account or refresh-token chain. Never copy the profile between CI workers.
 
 ### Login checkpoint
 
-The flow starts the real production login session, arms popup/new-tab observation before clicking, and tracks the expected provider origin and Paperclip session. It handles ordinary redirects and device-code/code-entry steps using the actual UI. Provider and Google pages can require a person for account choice, passwords, passkeys, MFA, CAPTCHA, or consent.
+The flow starts the real production login session, arms popup/new-tab observation before clicking, and tracks the expected provider origin and Outpost session. It handles ordinary redirects and device-code/code-entry steps using the actual UI. Provider and Google pages can require a person for account choice, passwords, passkeys, MFA, CAPTCHA, or consent.
 
 At such a boundary:
 
 1. Show the relevant window and mark the cell `awaiting_user`, with the provider, target, and expected account alias.
 2. Pause only the affected account's queue. Keep a bounded deadline tied to the real login session's expiry.
 3. Let the person complete the production browser flow. If the provider rejects the automated browser, support handoff to a normal browser using the product's existing device URL or code-return flow. Do not add authentication bypasses.
-4. Resume from observed Paperclip login status and saved-connection state. Clicking “continue” is never sufficient proof of successful authorization.
+4. Resume from observed Outpost login status and saved-connection state. Clicking “continue” is never sufficient proof of successful authorization.
 5. If the session expires, retain that attempt and use the product's retry action to start a new session. Never replay an old callback code.
 
 Record which step needed assistance and its duration, without recording passwords, codes, callback query strings, or provider session IDs. Check the expected account using available provider/account metadata; where this cannot be machine-verified, explicitly record human identity confirmation rather than claiming an automated identity check.
@@ -86,12 +86,12 @@ There is no promise that Google or provider sign-in will remain unattended indef
 
 Introduce two lifecycle modes while sharing the same journey:
 
-- **Managed local:** create and own an isolated Paperclip home, database, server, company, and runtime. Teardown may stop/delete only these owned resources.
-- **Attach existing:** authenticate to a configured local/staging URL and create a dedicated QA company or use an explicitly designated test company. Never reset the deployment, change instance-wide feature settings, install plugins, or stop its server as fixture setup.
+- **Managed local:** create and own an isolated Outpost home, database, server, space, and runtime. Teardown may stop/delete only these owned resources.
+- **Attach existing:** authenticate to a configured local/staging URL and create a dedicated QA space or use an explicitly designated test space. Never reset the deployment, change instance-wide feature settings, install plugins, or stop its server as fixture setup.
 
-The current local `3109` application can be an attach-existing target. Preserve its BOB company and user data. Full first-company onboarding belongs on a fresh managed target or a dedicated disposable staging tenant/instance; a shared staging deployment cannot prove that path merely by creating another agent.
+The current local `3109` application can be an attach-existing target. Preserve its BOB space and user data. Full first-space onboarding belongs on a fresh managed target or a dedicated disposable staging tenant/instance; a shared staging deployment cannot prove that path merely by creating another agent.
 
-Each private target configuration supplies an exact origin, target mode, expected deployment identity/revision, board-auth account reference, QA company policy, and available execution environment. The staging URL is still to be supplied. Target validation precedes credential resolution. Verify redirects, health, authorization, installed harness versions, required capabilities, and environment availability; do not send credentials to a host introduced by a redirect or unreviewed target configuration.
+Each private target configuration supplies an exact origin, target mode, expected deployment identity/revision, board-auth account reference, QA space policy, and available execution environment. The staging URL is still to be supplied. Target validation precedes credential resolution. Verify redirects, health, authorization, installed harness versions, required capabilities, and environment availability; do not send credentials to a host introduced by a redirect or unreviewed target configuration.
 
 Record the tested server revision separately from the harness revision, plus runner/CLI version, immutable sandbox image when applicable, model ID, protocol, authentication host, and execution environment. Staging with a missing capability is blocked, not silently tested through a different route. Unknown build provenance prevents a release qualification claim.
 
@@ -99,8 +99,8 @@ Record the tested server revision separately from the harness revision, plus run
 
 For each admitted cell:
 
-1. Create/select the isolated fixture company and a synthetic workspace through existing public surfaces. Ordinary bootstrap APIs may prepare the fixture; they must not create the connection or agent that the browser journey is supposed to test.
-2. Enter the production new-agent flow, select the harness and Subscription/API Key/Advanced mode, and create the connection through the UI. Advanced cases supply the configured provider/protocol, endpoint or region, and selected credential reference. Verify that permissions default to everyone/all agents within the isolated test company and that advanced controls retain their values.
+1. Create/select the isolated fixture space and a synthetic workspace through existing public surfaces. Ordinary bootstrap APIs may prepare the fixture; they must not create the connection or agent that the browser journey is supposed to test.
+2. Enter the production new-agent flow, select the harness and Subscription/API Key/Advanced mode, and create the connection through the UI. Advanced cases supply the configured provider/protocol, endpoint or region, and selected credential reference. Verify that permissions default to everyone/all agents within the isolated test space and that advanced controls retain their values.
 3. Verify the saved connection and compatible connection selector after reload. For a fresh-login cell, confirm that a new connection was actually created and that the selected connection is the one bound to the agent.
 4. Choose the model and environment in Configure, run the product's test action, and finish setup. Verify the model list/custom model path and selected values survive reload.
 5. Create a real task through the browser. Ask the agent to read a small synthetic input file, compute a deterministic result, and save a result artifact. Generate the input independently and keep the expected result out of the prompt. Seed the workspace using existing environment fixture facilities, not a private server hook.
@@ -111,7 +111,7 @@ For each admitted cell:
 
 Use a controlled runtime without ambient provider keys or personal CLI homes so a broken selected credential cannot fall back to another account. On staging, explicitly qualify the runtime's credential isolation. Add a negative case with a deliberately invalid selected credential and require an actionable failure with no successful fallback. For a controlled gateway, correlate sanitized request metadata when available; never retain authorization headers.
 
-Also cover the other product entry points: Apps connector row → Connect → connection list → agent selection; existing agent → switch compatible connection; and reconnect after an expired/invalid connection. Apply every supported auth method to both Apps and agent-creation entry points. Fresh company onboarding and destructive recovery cases are separately enumerated; their target requirements must be visible. A representative smoke selection is useful, but is not the full matrix.
+Also cover the other product entry points: Apps connector row → Connect → connection list → agent selection; existing agent → switch compatible connection; and reconnect after an expired/invalid connection. Apply every supported auth method to both Apps and agent-creation entry points. Fresh space onboarding and destructive recovery cases are separately enumerated; their target requirements must be visible. A representative smoke selection is useful, but is not the full matrix.
 
 ## Trustworthy results and safe evidence
 
@@ -144,7 +144,7 @@ After authentication, allow only the existing synthetic-task screenshots and str
 
 The suite, target configuration, and authentication selectors are now implemented; use the commands in [PROVIDER-CONNECTIONS.md](../../tests/runner-e2e/PROVIDER-CONNECTIONS.md). Discovery, verification, and reports reuse `test:e2e:runner`. The authoritative README/FIXTURES/SECURITY docs and `doc/evals.md` link the operating contract.
 
-Each case declares a turn limit covering the setup probe and follow-up, a provider-run timeout, a separate login deadline, company/agent budget limits, and cleanup policy. Run one subscription case per account at a time. Present selected cells and estimated spend before paid execution; record actual usage and unknown cost separately. Do not call subscription usage “free,” and do not run the full matrix as a side effect of normal unit tests or `--all`.
+Each case declares a turn limit covering the setup probe and follow-up, a provider-run timeout, a separate login deadline, space/agent budget limits, and cleanup policy. Run one subscription case per account at a time. Present selected cells and estimated spend before paid execution; record actual usage and unknown cost separately. Do not call subscription usage “free,” and do not run the full matrix as a side effect of normal unit tests or `--all`.
 
 ## Acceptance criteria
 
@@ -161,7 +161,7 @@ Each case declares a turn limit covering the setup probe and follow-up, a provid
 ## External references
 
 - [Playwright pages and popups](https://playwright.dev/docs/pages): popup/new-page events provide deterministic browser coordination.
-- [Playwright authentication](https://playwright.dev/docs/auth): authenticated browser state can be reused, is sensitive, and expires. Reusing website state does not require bypassing Paperclip's connection flow.
+- [Playwright authentication](https://playwright.dev/docs/auth): authenticated browser state can be reused, is sensitive, and expires. Reusing website state does not require bypassing Outpost's connection flow.
 - [Google OAuth policies](https://developers.google.com/identity/protocols/oauth2/policies): account authorization must use an appropriate browser flow. Google login restrictions and challenges are not something this harness should attempt to bypass.
 
 

@@ -7,7 +7,7 @@ import {
   collectReachableInterfaceHosts,
   resolveLocalRuntimeApiUrl,
 } from "../runtime-api.js";
-import { createPaperclipHttpServer } from "../http/server.js";
+import { createOutpostHttpServer } from "../http/server.js";
 import { registerRunnerPrpAuthority, runnerPrpWebSocketInternals } from "../realtime/runner-orp-ws.js";
 import type { DurablePrpControlPlane } from "../vendor/outpost-runner/index.js";
 
@@ -32,7 +32,7 @@ describe("runtime API discovery", () => {
       port: 3218,
     };
     expect(choosePrimaryRuntimeApiUrl(input)).toBe("https://callbacks.example.test");
-    const server = createPaperclipHttpServer((_req, response) => response.end("ready"), {
+    const server = createOutpostHttpServer((_req, response) => response.end("ready"), {
       apiUrl: chooseLocalRuntimeApiUrl(input),
     });
     const runId = "00000000-0000-4000-8000-000000000887";
@@ -40,7 +40,7 @@ describe("runtime API discovery", () => {
       server.listen(0, "127.0.0.1");
       await once(server, "listening");
       const registration = await registerRunnerPrpAuthority({
-        companyId: "company-1", runId,
+        spaceId: "space-1", runId,
         authority: {} as DurablePrpControlPlane,
       });
       try {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { caseReadPageSchema, projectAgentCaseRead } from "./case-agent-read.js";
 
-const detail = { id: "case", companyId: "company", workIssueId: "task", phase: "verification", handoffVersion: 4,
+const detail = { id: "case", spaceId: "space", workIssueId: "task", phase: "verification", handoffVersion: 4,
   updatedAt: "2026-10-20T00:00:00Z", fields: { total: 6 }, workIssue: { id: "task", status: "in_progress", statusVersion: 7 } };
 
 describe("bounded authorized case read projection", () => {

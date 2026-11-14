@@ -26,7 +26,7 @@ describe("personal AI credential preflight recovery", () => {
 
   it.each<[string, unknown]>([
     ["tool credential", [{ ...missingClaudeKey, envKey: "GITHUB_TOKEN", configPath: "env.GITHUB_TOKEN" }]],
-    ["company secret", [{ ...missingClaudeKey, bindingType: "secret_ref" }]],
+    ["space secret", [{ ...missingClaudeKey, bindingType: "secret_ref" }]],
     ["unknown error", [{ ...missingClaudeKey, errorCode: "user_secret_definition_missing" }]],
     ["adapter field", [{ ...missingClaudeKey, configPath: "apiKey" }]],
     ...["project", "environment", "routine", "plugin"].map((consumerType): [string, unknown] => [

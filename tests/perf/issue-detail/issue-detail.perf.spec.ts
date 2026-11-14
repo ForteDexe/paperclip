@@ -53,7 +53,7 @@ type RunMetrics = {
 };
 
 type Seed = {
-  companyId: string;
+  spaceId: string;
   prefix: string;
   issueId: string;
   identifier: string;
@@ -86,14 +86,14 @@ function formatBytes(value: number): string {
 }
 
 async function seed(request: Page["request"]): Promise<Seed> {
-  const companyResponse = await request.post("/api/companies", {
+  const spaceResponse = await request.post("/api/spaces", {
     data: { name: `Issue Perf ${Date.now()}` },
   });
-  expect(companyResponse.ok(), await companyResponse.text()).toBe(true);
-  const company = await companyResponse.json();
+  expect(spaceResponse.ok(), await spaceResponse.text()).toBe(true);
+  const space = await spaceResponse.json();
 
   const title = `Issue detail performance baseline ${Date.now()}`;
-  const issueResponse = await request.post(`/api/companies/${company.id}/issues`, {
+  const issueResponse = await request.post(`/api/spaces/${space.id}/issues`, {
     data: {
       title,
       description: "A seeded issue description used to measure the first meaningful issue-detail content paint.\n\n".repeat(12),
@@ -112,8 +112,8 @@ async function seed(request: Page["request"]): Promise<Seed> {
   }
 
   return {
-    companyId: company.id,
-    prefix: company.issuePrefix ?? company.prefix,
+    spaceId: space.id,
+    prefix: space.issuePrefix ?? space.prefix,
     issueId: issue.id,
     identifier: issue.identifier,
     title,
@@ -358,7 +358,7 @@ test("issue-detail baseline", async ({ request, baseURL }) => {
     const response = await request.get(`/api/issues/${seedData.issueId}`);
     expect(response.ok(), await response.text()).toBe(true);
     expect(await response.json()).toMatchObject({
-      companyId: seedData.companyId,
+      spaceId: seedData.spaceId,
       identifier: seedData.identifier,
       title: seedData.title,
     });

@@ -10,9 +10,9 @@ const mocks = vi.hoisted(() => ({
   listRoutines: vi.fn(),
 }));
 
-vi.mock("../api/companySkills", () => ({ companySkillsApi: { list: mocks.listSkills } }));
+vi.mock("../api/spaceSkills", () => ({ spaceSkillsApi: { list: mocks.listSkills } }));
 vi.mock("../api/routines", () => ({ routinesApi: { list: mocks.listRoutines } }));
-vi.mock("./CompanyContext", () => ({ useCompany: () => ({ selectedCompanyId: "company-1" }) }));
+vi.mock("./SpaceContext", () => ({ useSpace: () => ({ selectedSpaceId: "space-1" }) }));
 
 import { EditorAutocompleteProvider, useEditorAutocomplete } from "./EditorAutocompleteContext";
 
@@ -86,7 +86,7 @@ describe("EditorAutocompleteProvider", () => {
     });
     await vi.waitFor(() => expect(seen.at(-1)).toEqual(["skill:skill-1", "routine:routine-1"]));
     expect(mocks.listSkills).toHaveBeenCalledTimes(1);
-    expect(mocks.listSkills).toHaveBeenCalledWith("company-1");
+    expect(mocks.listSkills).toHaveBeenCalledWith("space-1");
     expect(mocks.listRoutines).toHaveBeenCalledTimes(1);
   });
 });

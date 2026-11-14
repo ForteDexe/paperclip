@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns, issues, nativeRunnerCheckpoints } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRunEvents, heartbeatRuns, issues, nativeRunnerCheckpoints } from "@outpost/db";
 import { appendHeartbeatRunEvent } from "../services/heartbeat-run-events.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
@@ -15,15 +15,15 @@ describeEmbeddedPostgres("atomic ordinary run events", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: ReturnType<typeof createDb>;
   let otherDb: ReturnType<typeof createDb>;
-  const companyId = "30000000-0000-4000-8000-000000000001";
+  const spaceId = "30000000-0000-4000-8000-000000000001";
   const agentId = "30000000-0000-4000-8000-000000000002";
-  const otherCompanyId = "30000000-0000-4000-8000-000000000003";
+  const otherSpaceId = "30000000-0000-4000-8000-000000000003";
   const otherAgentId = "30000000-0000-4000-8000-000000000004";
   let ordinal = 10;
 
   const makeRun = async () => {
     const id = `30000000-0000-4000-8000-${String(ordinal++).padStart(12, "0")}`;
-    await db.insert(heartbeatRuns).values({ id, companyId, agentId, status: "running" });
+    await db.insert(heartbeatRuns).values({ id, spaceId, agentId, status: "running" });
     return id;
   };
   const readRun = async (id: string) => (await db.select().from(heartbeatRuns)
@@ -32,28 +32,28 @@ describeEmbeddedPostgres("atomic ordinary run events", () => {
     .where(eq(heartbeatRunEvents.runId, id)).orderBy(heartbeatRunEvents.seq);
 
   beforeAll(async () => {
-    if (!externalTestDatabaseUrl) temporary = await startEmbeddedPostgresTestDatabase("paperclip-atomic-events-");
+    if (!externalTestDatabaseUrl) temporary = await startEmbeddedPostgresTestDatabase("outpost-atomic-events-");
     const connectionString = externalTestDatabaseUrl ?? temporary!.connectionString;
     db = createDb(connectionString);
     otherDb = createDb(connectionString);
-    await db.insert(companies).values([
-      { id: companyId, name: "Atomic events", issuePrefix: "ATM" },
-      { id: otherCompanyId, name: "Other events", issuePrefix: "OTH" },
+    await db.insert(spaces).values([
+      { id: spaceId, name: "Atomic events", issuePrefix: "ATM" },
+      { id: otherSpaceId, name: "Other events", issuePrefix: "OTH" },
     ]);
     await db.insert(agents).values([
-      { id: agentId, companyId, name: "Event agent" },
-      { id: otherAgentId, companyId: otherCompanyId, name: "Other agent" },
+      { id: agentId, spaceId, name: "Event agent" },
+      { id: otherAgentId, spaceId: otherSpaceId, name: "Other agent" },
     ]);
   }, 60_000);
   afterAll(async () => {
     try {
       if (externalTestDatabaseUrl && db) {
-        const fixtureCompanies = [companyId, otherCompanyId];
-        await db.delete(heartbeatRunEvents).where(inArray(heartbeatRunEvents.companyId, fixtureCompanies));
-        await db.delete(heartbeatRuns).where(inArray(heartbeatRuns.companyId, fixtureCompanies));
-        await db.delete(issues).where(inArray(issues.companyId, fixtureCompanies));
-        await db.delete(agents).where(inArray(agents.companyId, fixtureCompanies));
-        await db.delete(companies).where(inArray(companies.id, fixtureCompanies));
+        const fixtureSpaces = [spaceId, otherSpaceId];
+        await db.delete(heartbeatRunEvents).where(inArray(heartbeatRunEvents.spaceId, fixtureSpaces));
+        await db.delete(heartbeatRuns).where(inArray(heartbeatRuns.spaceId, fixtureSpaces));
+        await db.delete(issues).where(inArray(issues.spaceId, fixtureSpaces));
+        await db.delete(agents).where(inArray(agents.spaceId, fixtureSpaces));
+        await db.delete(spaces).where(inArray(spaces.id, fixtureSpaces));
       }
     } finally {
       await otherDb?.$client.end({ timeout: 1 });
@@ -69,15 +69,15 @@ describeEmbeddedPostgres("atomic ordinary run events", () => {
       schema: db._.fullSchema,
       logger: { logQuery: query => statements.push(query) },
     }) as typeof db;
-    const payload = { nested: ["before\u0000after"], $paperclipRunEventJsonV1: "literal" };
+    const payload = { nested: ["before\u0000after"], $outpostRunEventJsonV1: "literal" };
     const receipt = await appendHeartbeatRunEvent(recorded, {
-      companyId, agentId, runId, eventType: "run.performance.span", stream: "system",
+      spaceId, agentId, runId, eventType: "run.performance.span", stream: "system",
       level: "info", color: "green", message: "runner span", payload,
     });
     expect(receipt.disposition).toBe("committed");
     expect(receipt.highestContiguousSourceSeq).toBe(0);
     expect(receipt.row).toEqual(expect.objectContaining({
-      companyId, agentId, runId, seq: 1, eventType: "run.performance.span", stream: "system",
+      spaceId, agentId, runId, seq: 1, eventType: "run.performance.span", stream: "system",
       level: "info", color: "green", message: "runner span", payload,
       sourceInstanceId: null, sourceEventId: null, sourceSeq: null,
       sourcePayloadSha256: null, protocolSchemaVersion: null,
@@ -92,7 +92,7 @@ describeEmbeddedPostgres("atomic ordinary run events", () => {
     const runId = await makeRun();
     const receipts = await Promise.all(Array.from({ length: 40 }, (_, index) =>
       appendHeartbeatRunEvent(index % 2 ? db : otherDb, {
-        companyId, agentId, runId, eventType: index % 2 ? "run.performance.span" : "item.completed",
+        spaceId, agentId, runId, eventType: index % 2 ? "run.performance.span" : "item.completed",
         message: `event-${index}`,
         ...(index % 2 ? {} : { nativeSource: {
           sourceInstanceId: "native-writer", sourceEventId: `event-${index}`,
@@ -106,7 +106,7 @@ describeEmbeddedPostgres("atomic ordinary run events", () => {
     );
     expect((await readRun(runId)).nextEventSeq).toBe(41);
     const replay = await appendHeartbeatRunEvent(db, {
-      companyId, agentId, runId, eventType: "item.completed", message: "event-0",
+      spaceId, agentId, runId, eventType: "item.completed", message: "event-0",
       nativeSource: { sourceInstanceId: "native-writer", sourceEventId: "event-0",
         sourceSeq: 1, protocolSchemaVersion: 1, canonicalPayload: { ordinal: 0 } },
     });
@@ -129,7 +129,7 @@ describeEmbeddedPostgres("atomic ordinary run events", () => {
     }) as typeof db;
     const exhaustion = { retryReason: "transient_failure", scheduledRetryAttempt: 1, maxAttempts: 1 };
     const input = {
-      companyId, agentId, runId, eventType: "lifecycle",
+      spaceId, agentId, runId, eventType: "lifecycle",
       message: "Bounded retry exhausted after one attempt",
       ...(kind === "native" ? {
         nativeSource: { sourceInstanceId: "native-writer", sourceEventId: "event-one",
@@ -149,18 +149,18 @@ describeEmbeddedPostgres("atomic ordinary run events", () => {
       query.includes('from "heartbeat_runs"') && query.endsWith("for no key update"));
     expect(lockReads).toHaveLength(2);
     for (const query of lockReads) {
-      expect(query).toMatch(/^select "company_id", "agent_id" from "heartbeat_runs" /);
+      expect(query).toMatch(/^select "space_id", "agent_id" from "heartbeat_runs" /);
       expect(query).not.toMatch(/context_snapshot|runner_profile_json|result_json|stdout_excerpt/);
     }
   });
 
   it("serializes appenders without blocking child foreign key checks on the run", async () => {
     const runId = await makeRun();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Checkpointed task" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Checkpointed task" }).returning();
     await db.update(heartbeatRuns).set({ nativeIssueId: issue!.id, runtimeMode: "native" })
       .where(eq(heartbeatRuns.id, runId));
     const native = (ordinal: number) => ({
-      companyId, agentId, runId, eventType: "item.completed",
+      spaceId, agentId, runId, eventType: "item.completed",
       nativeSource: { sourceInstanceId: "native-writer", sourceEventId: `held-${ordinal}`,
         sourceSeq: ordinal, protocolSchemaVersion: 1, canonicalPayload: { ordinal } },
     });
@@ -183,7 +183,7 @@ describeEmbeddedPostgres("atomic ordinary run events", () => {
       // Its insert must not wait for the open append.
       await db.transaction(async tx => {
         await tx.execute(sql`set local lock_timeout = '2s'`);
-        await tx.insert(nativeRunnerCheckpoints).values({ companyId, issueId: issue!.id, runId,
+        await tx.insert(nativeRunnerCheckpoints).values({ spaceId, issueId: issue!.id, runId,
           part: "event:1", material: { fixture: true } });
       });
       // Another appender still waits for the open append.
@@ -204,14 +204,14 @@ describeEmbeddedPostgres("atomic ordinary run events", () => {
   it("rejects mismatched authority without changing either run", async () => {
     const runId = await makeRun();
     const otherRunId = "30000000-0000-4000-8000-000000000099";
-    await db.insert(heartbeatRuns).values({ id: otherRunId, companyId: otherCompanyId,
+    await db.insert(heartbeatRuns).values({ id: otherRunId, spaceId: otherSpaceId,
       agentId: otherAgentId, status: "running" });
     const before = [await readRun(runId), await readRun(otherRunId)];
     for (const authority of [
-      { companyId: otherCompanyId, agentId, runId },
-      { companyId, agentId: otherAgentId, runId },
-      { companyId, agentId, runId: otherRunId },
-      { companyId, agentId, runId: "30000000-0000-4000-8000-000000000098" },
+      { spaceId: otherSpaceId, agentId, runId },
+      { spaceId, agentId: otherAgentId, runId },
+      { spaceId, agentId, runId: otherRunId },
+      { spaceId, agentId, runId: "30000000-0000-4000-8000-000000000098" },
     ]) {
       for (const source of [
         {},
@@ -235,7 +235,7 @@ describeEmbeddedPostgres("atomic ordinary run events", () => {
       check (message is distinct from 'force-event-failure') not valid`);
     try {
       await expect(appendHeartbeatRunEvent(db, {
-        companyId, agentId, runId, eventType: "stdout", message: "force-event-failure",
+        spaceId, agentId, runId, eventType: "stdout", message: "force-event-failure",
       })).rejects.toThrow();
       expect(await readRun(runId)).toEqual(before);
       expect(await readEvents(runId)).toEqual([]);
@@ -244,13 +244,13 @@ describeEmbeddedPostgres("atomic ordinary run events", () => {
     }
     await expect(db.transaction(async tx => {
       await appendHeartbeatRunEvent(tx as unknown as typeof db, {
-        companyId, agentId, runId, eventType: "stdout",
+        spaceId, agentId, runId, eventType: "stdout",
       });
       throw new Error("outer rollback");
     })).rejects.toThrow("outer rollback");
     expect(await readRun(runId)).toEqual(before);
     expect(await readEvents(runId)).toEqual([]);
-    const receipt = await appendHeartbeatRunEvent(db, { companyId, agentId, runId, eventType: "stdout" });
+    const receipt = await appendHeartbeatRunEvent(db, { spaceId, agentId, runId, eventType: "stdout" });
     expect(receipt.row.seq).toBe(1);
     expect(receipt.row.payload).toBeNull();
   });

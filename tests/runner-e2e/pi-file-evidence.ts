@@ -23,8 +23,8 @@ export function piFilePrompt(nonce: string) {
     `The fixture has already created ${c.filename} in your execution workspace with exactly ${JSON.stringify(c.before)}. Read it, then use your native edit tool once to replace those bytes with exactly ${JSON.stringify(c.after)}. Do not substitute write, bash, or an API for the edit.`,
     `Run this exact native bash command exactly once, without an added shell prefix or suffix:\n\`\`\`bash\n${c.validationCommand}\n\`\`\`\nIt independently reads the file, fails on incorrect bytes, and prints the validation marker only after success. This is the only bash call allowed for this task; do not run any other shell commands.`,
     `Deliver the edited text file as a downloadable attachment using the assigned register_deliverable semantic tool, with filename and workspace-relative contentRef ${c.filename}, contentType text/plain, byteSize ${c.byteSize}, sha256 ${c.sha256}, title ${c.filename}, and a fresh idempotencyKey. Use the supplied byteSize and sha256 for the exact validated post-edit bytes; do not run extra commands to obtain metadata. Wait for the real registration receipt. Do not upload a different file or claim publication from a disk path.`,
-    `After successful validation and registration, call paperclip_finish with reportedWorkDisposition done, summary EXTENDED-FILE-${nonce}, the current completion contract revision and satisfied objective criterion, no remaining work, the actual validation command/result, and the registered artifact reference.`,
-    `Wait for paperclip_finish to succeed, then emit exactly EXTENDED-FILE-${nonce} as your final response. Do not create unrelated files or work.`,
+    `After successful validation and registration, call outpost_finish with reportedWorkDisposition done, summary EXTENDED-FILE-${nonce}, the current completion contract revision and satisfied objective criterion, no remaining work, the actual validation command/result, and the registered artifact reference.`,
+    `Wait for outpost_finish to succeed, then emit exactly EXTENDED-FILE-${nonce} as your final response. Do not create unrelated files or work.`,
   ].join("\n");
 }
 export async function seedPiFile(workspace: string, nonce: string) {
@@ -35,11 +35,11 @@ export async function seedPiFile(workspace: string, nonce: string) {
   return { schema: "outpost.e2e.pi-file-seed.v1", filename: c.filename, beforeSha256: sha(bytes), byteSize: bytes.length };
 }
 
-export function gradePiCopyback(run: Row, lease: Row, companyId: string, environmentId: string) {
+export function gradePiCopyback(run: Row, lease: Row, spaceId: string, environmentId: string) {
   const context = rec(run.contextSnapshot), environment = rec(context.outpostEnvironment);
   const reference = rec(rec(run.runnerProfileJson).nativeWorkspaceSync);
   const binding = rec(rec(rec(run.runnerProfileJson).nativeExecutionInput).binding);
-  requireEvidence(run.companyId === companyId && reference.schema === "outpost.native-workspace-sync/v2"
+  requireEvidence(run.spaceId === spaceId && reference.schema === "outpost.native-workspace-sync/v2"
     && reference.state === "finalized" && [reference.baselineSha256, reference.descriptorSha256, reference.finalHostSha256]
       .every(value => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value)), "finalized production copy-back hashes required");
   requireEvidence(typeof reference.workspaceId === "string" && reference.workspaceId.length > 0
@@ -47,12 +47,12 @@ export function gradePiCopyback(run: Row, lease: Row, companyId: string, environ
     && (binding.executionWorkspaceId === undefined || binding.executionWorkspaceId === reference.workspaceId)
     && environment.id === environmentId && environment.driver === "sandbox" && environment.leaseId === reference.leaseId,
   "copy-back workspace and environment must belong to the actual run");
-  requireEvidence(lease.id === reference.leaseId && lease.companyId === companyId && lease.environmentId === environmentId
+  requireEvidence(lease.id === reference.leaseId && lease.spaceId === spaceId && lease.environmentId === environmentId
     && lease.heartbeatRunId === run.id && lease.provider === "daytona" && typeof reference.providerLeaseId === "string"
     && reference.providerLeaseId.length > 0 && lease.providerLeaseId === reference.providerLeaseId
     && typeof reference.remoteCwd === "string" && reference.remoteCwd.startsWith("/")
     && reference.remoteCwd === rec(lease.metadata).remoteCwd, "copy-back must bind the exact run and provider lease");
-  return { kind: "product_copyback", reference, lease: { id: lease.id, companyId, environmentId, heartbeatRunId: run.id,
+  return { kind: "product_copyback", reference, lease: { id: lease.id, spaceId, environmentId, heartbeatRunId: run.id,
     provider: lease.provider, providerLeaseId: lease.providerLeaseId, remoteCwd: reference.remoteCwd },
     guestObservation: false, hostSnapshotRecomputed: false };
 }
@@ -61,16 +61,16 @@ export function gradePiCopyback(run: Row, lease: Row, companyId: string, environ
  * full diff blocks and typed command exit codes are deliberately not invented.
  * The native structured output receipt is distinct from that nullable typed field. */
 export function gradePiFileEvidence(input: {
-  nonce: string; companyId: string; issueId: string; agentId: string; run: Row;
+  nonce: string; spaceId: string; issueId: string; agentId: string; run: Row;
   environment: "local" | "daytona"; environmentId: string; lease?: Row;
   events: unknown[]; seed: unknown; workspaceBytes: Buffer; attachments: unknown[];
   attachmentId: string; downloadedBytes: Buffer; activity: unknown[];
 }) {
   const c = piFileContract(input.nonce), run = input.run, seed = rec(input.seed);
   const workspaceProvenance = input.environment === "daytona"
-    ? gradePiCopyback(run, rec(input.lease), input.companyId, input.environmentId)
+    ? gradePiCopyback(run, rec(input.lease), input.spaceId, input.environmentId)
     : { kind: "independent_local_workspace" };
-  requireEvidence(run.id && run.companyId === input.companyId && run.agentId === input.agentId
+  requireEvidence(run.id && run.spaceId === input.spaceId && run.agentId === input.agentId
     && run.runtimeMode === "native" && run.status === "succeeded", "actual native run identity");
   requireEvidence(seed.schema === "outpost.e2e.pi-file-seed.v1" && seed.filename === c.filename
     && seed.beforeSha256 === sha(c.before) && seed.byteSize === Buffer.byteLength(c.before), "independent pre-edit seed");
@@ -80,7 +80,7 @@ export function gradePiFileEvidence(input: {
   const seen = new Set<string>(), seqs = new Set<number>(), sourceSeqs = new Map<string, number>();
   const canonical = rows.map(row => {
     const e = rec(rec(row.payload).orpEvent);
-    requireEvidence(row.companyId === input.companyId && row.runId === run.id && e.runId === run.id
+    requireEvidence(row.spaceId === input.spaceId && row.runId === run.id && e.runId === run.id
       && isValidNativePrpEnvelope(e, row.protocolSchemaVersion) && row.eventType === e.eventType
       && Number.isSafeInteger(row.seq) && row.seq > 0 && !seqs.has(row.seq)
       && typeof e.sourceInstanceId === "string" && e.sourceInstanceId.length > 0
@@ -159,7 +159,7 @@ export function gradePiFileEvidence(input: {
   const attachments = input.attachments.map(rec).filter(a => a.id === input.attachmentId);
   requireEvidence(attachments.length === 1, "one public attachment");
   const a = attachments[0]!;
-  requireEvidence(a.companyId === input.companyId && a.issueId === input.issueId && a.originatingRunId === run.id
+  requireEvidence(a.spaceId === input.spaceId && a.issueId === input.issueId && a.originatingRunId === run.id
     && a.createdByAgentId === input.agentId && a.originalFilename === c.filename && a.contentType === "text/plain"
     && a.byteSize === c.byteSize && a.sha256 === c.sha256, "attachment bytes and immutable run attribution");
   requireEvidence(input.downloadedBytes.equals(Buffer.from(c.after)), "actual public download bytes");
@@ -172,7 +172,7 @@ export function gradePiFileEvidence(input: {
     && Array.isArray(result.entityRefs) && result.entityRefs[0] === a.id, "registered artifact receipt must match downloaded attachment");
   const publications = input.activity.map(rec).filter(row => row.action === "issue.attachment_added"
     && rec(row.details).attachmentId === a.id);
-  requireEvidence(publications.length === 1 && publications[0]!.companyId === input.companyId
+  requireEvidence(publications.length === 1 && publications[0]!.spaceId === input.spaceId
     && publications[0]!.runId === run.id && publications[0]!.actorId === input.agentId
     && publications[0]!.entityId === input.issueId && rec(publications[0]!.details).source === "outpost_runner_protocol",
   "publication activity must belong to this run and task");
@@ -194,7 +194,7 @@ export function gradePiFileEvidence(input: {
 }
 
 export async function collectPiFileEvidence(input: {
-  page: Page; api: RunnerApi; nonce: string; companyId: string; issueId: string; agentId: string;
+  page: Page; api: RunnerApi; nonce: string; spaceId: string; issueId: string; agentId: string;
   run: Row; events: unknown[]; seed: unknown; workspace: string;
   environment: "local" | "daytona"; environmentId: string;
   evidence(data: unknown): Promise<void>;
@@ -226,7 +226,7 @@ export async function collectPiFileEvidence(input: {
   await input.evidence({ schema: "outpost.e2e.pi-file-observation.v1", attachments, attachmentId, activity,
     workspaceBytes: workspaceBytes.toString("base64"), downloadedBytes: downloadedBytes.toString("base64"),
     encoding: "base64", expectedSha256: c.sha256, copybackReference: rec(run.runnerProfileJson).nativeWorkspaceSync,
-    copybackLease: lease && { id: lease.id, companyId: lease.companyId, environmentId: lease.environmentId,
+    copybackLease: lease && { id: lease.id, spaceId: lease.spaceId, environmentId: lease.environmentId,
       heartbeatRunId: lease.heartbeatRunId, provider: lease.provider, providerLeaseId: lease.providerLeaseId, remoteCwd: rec(lease.metadata).remoteCwd } });
   return gradePiFileEvidence({ ...input, run, lease, attachments, attachmentId, downloadedBytes, workspaceBytes, activity });
 }

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, ne, sql, type SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, closeLivenessDb, companies, createDb, heartbeatRuns, livenessDb, subscribeDatabaseWork } from "@outpost/db";
+import { agents, closeLivenessDb, spaces, createDb, heartbeatRuns, livenessDb, subscribeDatabaseWork } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "../__tests__/helpers/external-test-database.js";
 import { DELIVERY_QUEUES } from "./delivery-work-notifications.js";
@@ -74,10 +74,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   }, 30000);
   afterAll(async () => { await closeLivenessDb(db, 1); await db?.$client.end({ timeout: 1 }); await database?.cleanup(); });
   async function seed() {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Controller test", issuePrefix: `C${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Agent", role: "general", adapterType: "claude_local", status: "idle" });
-    const [queued] = await db.insert(heartbeatRuns).values({ companyId, agentId }).returning();
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Controller test", issuePrefix: `C${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Agent", role: "general", adapterType: "claude_local", status: "idle" });
+    const [queued] = await db.insert(heartbeatRuns).values({ spaceId, agentId }).returning();
     const [run] = await db.update(heartbeatRuns).set({ status: "running", ...legacyControllerClaim("legacy") })
       .where(eq(heartbeatRuns.id, queued.id)).returning();
     return run;
@@ -177,11 +177,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const [saved] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id));
     expect(await revokeExpiredLegacyController(db, saved)).toBe(true);
   });
-  it("rejects foreign company renewal and revocation", async () => {
+  it("rejects foreign space renewal and revocation", async () => {
     const run = await seed();
-    expect(await renewLegacyControllerLease(db, { ...run, companyId: randomUUID() })).toBe(false);
+    expect(await renewLegacyControllerLease(db, { ...run, spaceId: randomUUID() })).toBe(false);
     await expire(run.id);
-    expect(await revokeExpiredLegacyController(db, { ...run, companyId: randomUUID() })).toBe(false);
+    expect(await revokeExpiredLegacyController(db, { ...run, spaceId: randomUUID() })).toBe(false);
   });
   it("never turns a terminal run back into owned execution", async () => {
     const run = await seed();
@@ -231,7 +231,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     try {
       await watch.assertOwned();
       const [{ name }] = await pool.execute<{ name: string }>(sql`select current_setting('application_name') as name`);
-      expect(name).toBe("paperclip-controller-lease");
+      expect(name).toBe("outpost-controller-lease");
     } finally { watch.stop(); }
     await closeLivenessDb(owner, 1);
     await expect(livenessDb(owner).execute(sql`select 1`)).rejects.toThrow();
@@ -265,7 +265,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     try {
       await watch.assertOwned();
       const terminated = await db.execute<{ pid: number }>(sql`select pg_terminate_backend(pid) as pid from pg_stat_activity
-        where application_name = 'paperclip-controller-lease' and pid <> pg_backend_pid()`);
+        where application_name = 'outpost-controller-lease' and pid <> pg_backend_pid()`);
       expect(terminated.length).toBeGreaterThan(0);
       await expect(watch.assertOwned("dispatching")).resolves.toBeUndefined();
       expect(controller.signal.aborted).toBe(false);
@@ -460,7 +460,7 @@ describe("legacy controller lease loss attribution", () => {
     const failingDb = fakeRenewalDb(() => { calls += 1; return Promise.reject(new Error("connection reset")); });
     vi.useFakeTimers();
     const controller = new AbortController();
-    const run = { id: randomUUID(), companyId: randomUUID(), runtimeMode: "legacy", controllerBootId: legacyControllerBootId,
+    const run = { id: randomUUID(), spaceId: randomUUID(), runtimeMode: "legacy", controllerBootId: legacyControllerBootId,
       controllerLeaseExpiresAt: new Date(Date.now() + LEGACY_CONTROLLER_LEASE_MS) } as WatchArgs[1];
     const watch = watchLegacyControllerLease(failingDb, run, controller);
     try {
@@ -525,7 +525,7 @@ describe("legacy controller lease loss attribution", () => {
     } finally { watches.forEach(watch => watch.stop()); vi.useRealTimers(); }
   });
 
-  const watchedRun = (leaseMs: number) => ({ id: randomUUID(), companyId: randomUUID(), runtimeMode: "legacy",
+  const watchedRun = (leaseMs: number) => ({ id: randomUUID(), spaceId: randomUUID(), runtimeMode: "legacy",
     controllerBootId: legacyControllerBootId, controllerLeaseExpiresAt: new Date(Date.now() + leaseMs) }) as WatchArgs[1];
 
   it("records a renewal still in flight when a stalled query reaches the deadline", async () => {

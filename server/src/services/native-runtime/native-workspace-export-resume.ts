@@ -7,7 +7,7 @@ import { remoteTerminationReceipt } from "../remote-execution-termination.js";
 import { readNativeWorkspaceSyncReference } from "./native-workspace-sync.js";
 
 type Lease = {
-  id: string; companyId: string; heartbeatRunId: string | null;
+  id: string; spaceId: string; heartbeatRunId: string | null;
   provider: string | null; providerLeaseId: string | null;
   metadata: Record<string, unknown> | null;
 };
@@ -26,7 +26,7 @@ export function readNativeWorkspaceExportResume(lease: Lease) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const marker = value as Record<string, unknown>;
   if (!["outpost.workspace-export-resume.v1", "outpost.workspace-export-resume.v2"].includes(String(marker.schema))
-    || marker.companyId !== lease.companyId || marker.runId !== lease.heartbeatRunId || !lease.heartbeatRunId
+    || marker.spaceId !== lease.spaceId || marker.runId !== lease.heartbeatRunId || !lease.heartbeatRunId
     || marker.leaseId !== lease.id || marker.provider !== lease.provider || !lease.provider
     || marker.providerLeaseId !== lease.providerLeaseId || !lease.providerLeaseId
     || typeof marker.requestId !== "string" || !marker.requestId
@@ -46,13 +46,13 @@ export async function preserveNativeWorkspaceExportLease(db: Db, run: typeof hea
   const reference = readNativeWorkspaceSyncReference(run.runnerProfileJson?.nativeWorkspaceSync);
   if (!reference || reference.state !== "prepared" || !resultId) return;
   const [accepted] = await db.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-    eq(nativeRunResults.id, resultId), eq(nativeRunResults.companyId, run.companyId),
+    eq(nativeRunResults.id, resultId), eq(nativeRunResults.spaceId, run.spaceId),
     eq(nativeRunResults.runId, run.id), eq(nativeRunResults.completionContractId, run.completionContractId!),
     eq(nativeRunResults.schemaStatus, "accepted"),
   )).limit(1);
   if (!accepted) return;
   const [lease] = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.id, reference.leaseId), eq(environmentLeases.companyId, run.companyId),
+    eq(environmentLeases.id, reference.leaseId), eq(environmentLeases.spaceId, run.spaceId),
     eq(environmentLeases.heartbeatRunId, run.id), eq(environmentLeases.providerLeaseId, reference.providerLeaseId),
   )).for("update").limit(1);
   if (!lease || lease.status !== "active") return;
@@ -61,12 +61,12 @@ export async function preserveNativeWorkspaceExportLease(db: Db, run: typeof hea
     failureReason: "workspace_export_stop_pending", releasedAt: now, updatedAt: now,
     metadata: { ...lease.metadata, remoteExecutionTermination: undefined,
       [NATIVE_WORKSPACE_EXPORT_RESUME_KEY]: { schema: "outpost.workspace-export-resume.v2", requestId,
-        purpose: "terminal_export", companyId: run.companyId, runId: run.id, resultId,
+        purpose: "terminal_export", spaceId: run.spaceId, runId: run.id, resultId,
         leaseId: lease.id, provider: lease.provider, providerLeaseId: lease.providerLeaseId,
         pluginId: lease.metadata?.pluginId },
       pendingCleanupAttemptId: requestId, pendingCleanupInFlight: false, pendingCleanupLeaseExpiresAtMs: 0,
       pendingCleanupRetryAfterMs: 0, pendingCleanupRetryAttempts: 0, pendingCleanupRetryCapWarned: false },
-  }).where(eq(environmentLeases.id, lease.id)), { companyId: run.companyId, runId: run.id });
+  }).where(eq(environmentLeases.id, lease.id)), { spaceId: run.spaceId, runId: run.id });
 }
 
 /** Only verified copyback plus commitment permits the original ephemeral
@@ -75,8 +75,8 @@ export async function releaseCompletedNativeWorkspaceExportRetention(db: Db, lea
   const marker = readNativeWorkspaceExportResume(lease);
   if (!marker) return null;
   const [bound] = await db.select({ run: heartbeatRuns, coordinator: nativeRunFinalizations }).from(heartbeatRuns)
-    .innerJoin(nativeRunFinalizations, and(eq(nativeRunFinalizations.runId, heartbeatRuns.id), eq(nativeRunFinalizations.companyId, heartbeatRuns.companyId)))
-    .where(and(eq(heartbeatRuns.id, lease.heartbeatRunId!), eq(heartbeatRuns.companyId, lease.companyId),
+    .innerJoin(nativeRunFinalizations, and(eq(nativeRunFinalizations.runId, heartbeatRuns.id), eq(nativeRunFinalizations.spaceId, heartbeatRuns.spaceId)))
+    .where(and(eq(heartbeatRuns.id, lease.heartbeatRunId!), eq(heartbeatRuns.spaceId, lease.spaceId),
       inArray(heartbeatRuns.status, ["succeeded", "failed", "cancelled", "timed_out", "interrupted"]),
       eq(heartbeatRuns.nativePhase, "committed"),
       eq(nativeRunFinalizations.phase, "committed"), eq(nativeRunFinalizations.resultId, marker.resultId))).limit(1);
@@ -90,7 +90,7 @@ export async function releaseCompletedNativeWorkspaceExportRetention(db: Db, lea
   if (otherOwner) return null;
   const [released] = await db.update(environmentLeases).set({
     metadata: sql`${environmentLeases.metadata} - 'nativeWorkspaceExportResume'`,
-  }).where(and(eq(environmentLeases.id, lease.id), eq(environmentLeases.companyId, lease.companyId),
+  }).where(and(eq(environmentLeases.id, lease.id), eq(environmentLeases.spaceId, lease.spaceId),
     eq(environmentLeases.heartbeatRunId, lease.heartbeatRunId!), eq(environmentLeases.providerLeaseId, lease.providerLeaseId!),
     eq(environmentLeases.provider, lease.provider!), sql`${environmentLeases.metadata}->>'pluginId' = ${marker.pluginId}`,
     eq(environmentLeases.status, "active"),
@@ -109,7 +109,7 @@ export async function settleNativeWorkspaceExportResume(db: Db, lease: Lease, op
   const stopped = receipt?.state === "stopped";
   const now = new Date();
   const [row] = await writeEnvironmentCleanup(db, async tx => {
-    if (stopped) await notifyRetainedNativeSessionCleanup(tx, { companyId: lease.companyId, runId: lease.heartbeatRunId! });
+    if (stopped) await notifyRetainedNativeSessionCleanup(tx, { spaceId: lease.spaceId, runId: lease.heartbeatRunId! });
     return tx.update(environmentLeases).set({
       status: stopped ? options.status ?? "released" : "pending_cleanup", cleanupStatus: stopped ? "success" : "failed",
       releasedAt: now, lastUsedAt: now, updatedAt: now,
@@ -118,13 +118,13 @@ export async function settleNativeWorkspaceExportResume(db: Db, lease: Lease, op
           ...(stopped ? { remoteExecutionTermination: receipt } : {}),
           pendingCleanupInFlight: false, pendingCleanupLeaseExpiresAtMs: 0,
         })}::jsonb`,
-    }).where(and(eq(environmentLeases.id, lease.id), eq(environmentLeases.companyId, lease.companyId),
+    }).where(and(eq(environmentLeases.id, lease.id), eq(environmentLeases.spaceId, lease.spaceId),
       eq(environmentLeases.heartbeatRunId, lease.heartbeatRunId!), eq(environmentLeases.provider, lease.provider!),
       eq(environmentLeases.providerLeaseId, lease.providerLeaseId!), eq(environmentLeases.status, "pending_cleanup"),
       sql`${environmentLeases.metadata}->>'pendingCleanupAttemptId' = ${options.attemptId}`,
       sql`${environmentLeases.metadata}->'nativeWorkspaceExportResume'->>'requestId' = ${marker.requestId}`,
       sql`${environmentLeases.metadata}->>'pluginId' = ${marker.pluginId}`,
     )).returning();
-  }, { companyId: lease.companyId, runId: lease.heartbeatRunId ?? undefined });
+  }, { spaceId: lease.spaceId, runId: lease.heartbeatRunId ?? undefined });
   return row ?? null;
 }

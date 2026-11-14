@@ -12,7 +12,7 @@ import type { LiveFixtureValues } from "./live-fixtures.js";
 import { runnerE2EPlaywrightCaseTimeoutMs, runnerE2EPlaywrightWatchdogMs } from "./web-server-command.js";
 
 const identity = { executionId: "fixture-execution", attemptId: "fixture-attempt" };
-const ready = { id: "agent", companyId: "company", status: "idle", lifecycleState: "ready", lifecycleError: null };
+const ready = { id: "agent", spaceId: "space", status: "idle", lifecycleState: "ready", lifecycleError: null };
 async function fixture() {
   const directory = await mkdtemp(path.join(tmpdir(), "budgeted-setup-"));
   const file = path.join(directory, "phase.json");
@@ -26,7 +26,7 @@ it("keeps asynchronous hello probes in setup until the same agent is ready", asy
   const get = vi.fn().mockResolvedValueOnce({ ...ready, status: "paused", lifecycleState: "verifying", adapterConfig: { private: true } }).mockResolvedValue(ready);
   let saved: EvalSetupObservation[] = [];
   try {
-    await finishBudgetedEvalSetup({ executionId: identity.executionId, environmentId: "local", agentId: "agent", companyId: "company",
+    await finishBudgetedEvalSetup({ executionId: identity.executionId, environmentId: "local", agentId: "agent", spaceId: "space",
       deadlineAt: Date.now() + 5_000, api: { get } as unknown as RunnerApi,
       observe: async observations => {
         expect((await readEvalAttemptPhase(f.file, identity)).phase).toBe("setup");
@@ -43,12 +43,12 @@ it("keeps asynchronous hello probes in setup until the same agent is ready", asy
 it.each([
   [{ ...ready, lifecycleError: "harness_command_unavailable" }, "setup failed"],
   [{ ...ready, lifecycleHolds: ["approval"] }, "setup is held"],
-  [{ ...ready, companyId: "other" }, "scope changed"],
+  [{ ...ready, spaceId: "other" }, "scope changed"],
   [{ ...ready, lifecycleState: "terminated" }, "setup stopped"],
 ] as const)("preserves setup attribution and the failed state when readiness is rejected: %s", async (state, reason) => {
   const f = await fixture(), observe = vi.fn(async () => {}), get = vi.fn().mockResolvedValue(state);
   try {
-    await expect(finishBudgetedEvalSetup({ executionId: identity.executionId, environmentId: "local", agentId: "agent", companyId: "company",
+    await expect(finishBudgetedEvalSetup({ executionId: identity.executionId, environmentId: "local", agentId: "agent", spaceId: "space",
       deadlineAt: Date.now() + 5_000, api: { get } as unknown as RunnerApi, observe }, f.env)).rejects.toThrow(reason);
     expect(get).toHaveBeenCalledOnce();
     expect(observe).toHaveBeenCalledOnce();
@@ -59,7 +59,7 @@ it.each([
 it("does not start a readiness request after the attempt deadline", async () => {
   const f = await fixture(), get = vi.fn();
   try {
-    await expect(finishBudgetedEvalSetup({ executionId: identity.executionId, environmentId: "local", agentId: "agent", companyId: "company",
+    await expect(finishBudgetedEvalSetup({ executionId: identity.executionId, environmentId: "local", agentId: "agent", spaceId: "space",
       deadlineAt: Date.now() - 1, api: { get } as unknown as RunnerApi, observe: async () => {} }, f.env)).rejects.toThrow("Timed out");
     expect(get).not.toHaveBeenCalled();
     expect((await readEvalAttemptPhase(f.file, identity)).phase).toBe("setup");
@@ -71,7 +71,7 @@ it("does not advance when saving readiness crosses the deadline", async () => {
   const deadlineAt = Date.now() + 5_000;
   const now = vi.spyOn(Date, "now");
   try {
-    await expect(finishBudgetedEvalSetup({ executionId: identity.executionId, environmentId: "local", agentId: "agent", companyId: "company",
+    await expect(finishBudgetedEvalSetup({ executionId: identity.executionId, environmentId: "local", agentId: "agent", spaceId: "space",
       deadlineAt, api: { get } as unknown as RunnerApi,
       observe: async () => { now.mockReturnValue(deadlineAt); } }, f.env)).rejects.toThrow("Timed out saving");
     expect(get).toHaveBeenCalledOnce();
@@ -86,7 +86,7 @@ it.each(["local", "daytona"] as const)("uses the bounded attempt window for remo
   const get = vi.fn().mockResolvedValueOnce({ ...ready, status: "paused", lifecycleState: "verifying" }).mockResolvedValue(ready);
   let observations = 0;
   try {
-    const result = finishBudgetedEvalSetup({ executionId: identity.executionId, environmentId, agentId: "agent", companyId: "company",
+    const result = finishBudgetedEvalSetup({ executionId: identity.executionId, environmentId, agentId: "agent", spaceId: "space",
       deadlineAt: time + 15 * 60_000, api: { get } as unknown as RunnerApi,
       observe: async () => { if (++observations === 1) time += 46_000; } }, f.env);
     if (environmentId === "daytona") {
@@ -107,7 +107,7 @@ it("waits for the same agent to be ready before changing Kimi lifecycle policy w
   const configured = { ...ready, adapterConfig: { model: "kimi-for-coding" } };
   const get = vi.fn(async (url: string) => {
     if (url === "/api/health") return { deploymentMode: "local_trusted" };
-    if (url === "/api/auth/get-session") return { session: { userId: "local-board", id: "paperclip:local_implicit:local-board" } };
+    if (url === "/api/auth/get-session") return { session: { userId: "local-operator", id: "outpost:local_implicit:local-operator" } };
     if (url === "/api/agents/agent") {
       order.push(order.length === 0 ? "verifying" : order.length === 1 ? "ready" : "policy-read");
       return order.length === 1 ? { ...configured, lifecycleState: "verifying" } : configured;
@@ -116,7 +116,7 @@ it("waits for the same agent to be ready before changing Kimi lifecycle policy w
   });
   const patch = vi.fn(async () => { order.push("policy-patch"); throw new Error("stop-after-policy-patch"); });
   await expect(runKimiLifecycleFlow({ page: {} as any, api: { get, patch } as unknown as RunnerApi,
-    fixtures: { company: { id: "company" }, agent: { id: "agent" }, environment: { id: "environment" } } as LiveFixtureValues,
+    fixtures: { space: { id: "space" }, agent: { id: "agent" }, environment: { id: "environment" } } as LiveFixtureValues,
     execution, nonce: "unit", workspacePath: "/unused", deadlineAt: Date.now() + 5_000, remoteBootstrap: {} as any,
     registerCleanupAssertion: () => {}, registerBeforeEnvironmentTeardownAssertion: () => {}, observe: () => {}, capture: async () => {},
     evidence: async (name, value) => { if (name === "kimi-lifecycle-agent-ready.json") observations.push(structuredClone((value as { observations: EvalSetupObservation[] }).observations)); },
@@ -130,11 +130,11 @@ it("waits for the same agent to be ready before changing Kimi lifecycle policy w
 it("does not change Kimi lifecycle policy after readiness fails", async () => {
   const execution = selectRunnerExecutions(parseRunnerSelectors(["--id", "kimi-qualification.runner-acpx-kimi.daytona.native-write-provider-loss"]))[0]!;
   const get = vi.fn(async (url: string) => url === "/api/health" ? { deploymentMode: "local_trusted" }
-    : url === "/api/auth/get-session" ? { session: { userId: "local-board", id: "paperclip:local_implicit:local-board" } }
+    : url === "/api/auth/get-session" ? { session: { userId: "local-operator", id: "outpost:local_implicit:local-operator" } }
       : { ...ready, lifecycleError: "harness_command_unavailable" });
   const patch = vi.fn();
   await expect(runKimiLifecycleFlow({ page: {} as any, api: { get, patch } as unknown as RunnerApi,
-    fixtures: { company: { id: "company" }, agent: { id: "agent" }, environment: { id: "environment" } } as LiveFixtureValues,
+    fixtures: { space: { id: "space" }, agent: { id: "agent" }, environment: { id: "environment" } } as LiveFixtureValues,
     execution, nonce: "unit", workspacePath: "/unused", deadlineAt: Date.now() + 5_000, remoteBootstrap: {} as any,
     registerCleanupAssertion: () => {}, registerBeforeEnvironmentTeardownAssertion: () => {}, observe: () => {}, capture: async () => {}, evidence: async () => {},
   })).rejects.toThrow("setup failed");

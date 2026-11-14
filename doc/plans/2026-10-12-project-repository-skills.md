@@ -56,7 +56,7 @@ checkpoint.
 
 ## Current process/evidence pointers
 
-- Branch: `codex/project-repository-skills`; checkout `/Users/dotta/.codex/worktrees/4631/paperclip`.
+- Branch: `codex/project-repository-skills`; checkout `/Users/dotta/.codex/worktrees/4631/outpost`.
 - Owned Storybook: `http://127.0.0.1:6187`, exec session 14926. Port 6007 belongs to another process and was not changed.
 - IAB tab 1 shows the full Sources journey; browser binding 4. Preserve/reuse the binding when continuing.
 - Runner dependency build completed; exec session 59507 was its build handle.
@@ -100,7 +100,7 @@ build, recursive typecheck, Vitest and production build. Record actual results h
   Agent provisioning was an API fixture. Project/routine creation and execution
   used the real UI. No synthetic model response was used.
 
-Evidence directory: `/private/tmp/paperclip-project-skills-proof-BGunNG`.
+Evidence directory: `/private/tmp/outpost-project-skills-proof-BGunNG`.
 Non-secret records include `fixture.json`, `execution-v1.json`,
 `execution-v2.json`, marker files, `automatic-update.json`,
 `private-agent-access.json`, `private-union-access.json`, `connection-failure.json`
@@ -116,7 +116,7 @@ not be published or attached.
   membership revoked access. Agent responsible-user mismatch failed closed.
   This is API identity proof, not a multi-person browser sign-in test.
 - Linking the repository through an open legacy project made its skills visible.
-  Changing that project to private revoked access for the unrelated company member.
+  Changing that project to private revoked access for the unrelated space member.
 - Real UI connection repair persisted after reload and kept installed selections.
 - Current instance restarted at http://127.0.0.1:3109 (owned PID 73371). Startup
   applied migration 0337. Doctor passed. The unchanged routine produced the exact
@@ -178,7 +178,7 @@ not be published or attached.
   from fixed branches. Fresh unpinned local executions capture changed installed
   files; resumed/pinned executions keep their immutable selections.
 - A local-import path was proved to discard private snapshot provenance. It now
-  rejects known private snapshots/materialized copies as company-wide imports,
+  rejects known private snapshots/materialized copies as space-wide imports,
   with an opaque not-found response for unauthorized readers.
 - All 27 focused source/runtime tests passed after these fixes. Six browser cases
   passed with real emulated touch taps, keyboard controls and repair focus return.

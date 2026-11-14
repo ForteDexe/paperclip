@@ -11,25 +11,25 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { RadioCardGroup } from '@/components/ui/radio-card';
 import { SkillSourceBranchRepair } from './SkillSourceBranchRepair';
 
-export function SkillSourceConnectionRepair({ companyId, source, onClose, onSaved, onReturnFocus }: {
-  companyId: string; source: SkillSource; onClose: () => void; onSaved: () => Promise<void>;
+export function SkillSourceConnectionRepair({ spaceId, source, onClose, onSaved, onReturnFocus }: {
+  spaceId: string; source: SkillSource; onClose: () => void; onSaved: () => Promise<void>;
   onReturnFocus?: () => void;
 }) {
   const [connectionId, setConnectionId] = useState(source.connectionId ?? '');
   const [chooseBranch, setChooseBranch] = useState(false);
   const client = useQueryClient();
-  const query = useQuery({ queryKey: queryKeys.skillSources.repositories(companyId), queryFn: () => skillSourcesApi.repositories(companyId), refetchOnMount: 'always' });
-  const save = useMutation({ mutationFn: () => skillSourcesApi.settings(companyId, source.id, { revision: source.revision, connectionId }),
+  const query = useQuery({ queryKey: queryKeys.skillSources.repositories(spaceId), queryFn: () => skillSourcesApi.repositories(spaceId), refetchOnMount: 'always' });
+  const save = useMutation({ mutationFn: () => skillSourcesApi.settings(spaceId, source.id, { revision: source.revision, connectionId }),
     onError: async error => {
       if (error instanceof ApiError && error.status === 409 && (error.body as { code?: string } | null)?.code === 'skill_source_settings_changed') {
-        await client.invalidateQueries({ queryKey: queryKeys.skillSources.all(companyId) });
+        await client.invalidateQueries({ queryKey: queryKeys.skillSources.all(spaceId) });
       }
     },
     onSuccess: async () => { await onSaved(); onClose(); } });
   const connections = query.data?.connections ?? [];
   const branchMissing = save.error instanceof ApiError && (save.error.body as { code?: string } | null)?.code === 'skill_source_ref_unavailable';
   const canSave = connections.some(connection => connection.id === connectionId);
-  if (chooseBranch) return <SkillSourceBranchRepair companyId={companyId} source={source} connectionId={connectionId}
+  if (chooseBranch) return <SkillSourceBranchRepair spaceId={spaceId} source={source} connectionId={connectionId}
     onClose={() => setChooseBranch(false)} onReturnFocus={onReturnFocus} onSaved={async () => { await onSaved(); onClose(); }} />;
   return <Dialog open onOpenChange={open => { if (!open && !save.isPending) onClose(); }}>
     <DialogContent className="flex max-h-(--sz-calc-18) flex-col overflow-hidden sm:max-w-md"

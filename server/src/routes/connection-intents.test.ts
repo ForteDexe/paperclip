@@ -59,7 +59,7 @@ describe("runtime connection MCP contract", () => {
       ),
     );
     expect(serialized).not.toMatch(
-      /companyId|agentId|runId|issueId|responsibleUserId|credential|token/i,
+      /spaceId|agentId|runId|issueId|responsibleUserId|credential|token/i,
     );
   });
 });

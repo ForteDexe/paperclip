@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   activityLog, agents, assets, caseAccessSources, caseAttachments, caseDocuments, caseEvents,
-  caseHandoffs, caseIssueLinks, caseLabels, cases, companies, createDb,
+  caseHandoffs, caseIssueLinks, caseLabels, cases, spaces, createDb,
   documentAnnotationAnchorSnapshots, documentAnnotationComments, documentAnnotationThreads,
   documentRevisions, documents, heartbeatRuns, issues,
 } from "@outpost/db";
@@ -25,11 +25,11 @@ describePostgres("case REST mutation fencing", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   const oldJwtSecret = process.env.OUTPOST_AGENT_JWT_SECRET;
-  const board = { type: "board" as const, source: "local_implicit" as const };
+  const operator = { type: "operator" as const, source: "local_implicit" as const };
 
   beforeAll(async () => {
     process.env.OUTPOST_AGENT_JWT_SECRET = "case-mutation-fence-test-secret";
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-case-mutation-fence-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-case-mutation-fence-");
     db = createDb(temporary.connectionString);
     await instanceSettingsService(db).updateExperimental({ enableCases: true });
   }, 30_000);
@@ -40,16 +40,16 @@ describePostgres("case REST mutation fencing", () => {
   });
 
   async function fixture(runtimeMode: "native" | "legacy") {
-    const companyId = randomUUID(), agentId = randomUUID(), recipientId = randomUUID(), runId = randomUUID();
-    const prefix = `F${companyId.slice(0, 6).toUpperCase()}`;
-    await db.insert(companies).values({ id: companyId, name: "Case mutation fence", issuePrefix: prefix });
+    const spaceId = randomUUID(), agentId = randomUUID(), recipientId = randomUUID(), runId = randomUUID();
+    const prefix = `F${spaceId.slice(0, 6).toUpperCase()}`;
+    await db.insert(spaces).values({ id: spaceId, name: "Case mutation fence", issuePrefix: prefix });
     await db.insert(agents).values([
-      { id: agentId, companyId, name: "Case author", role: "ceo", status: "active", adapterType: "process" },
-      { id: recipientId, companyId, name: "Successor", role: "engineer", reportsTo: agentId, status: "active", adapterType: "process" },
+      { id: agentId, spaceId, name: "Case author", role: "lead", status: "active", adapterType: "process" },
+      { id: recipientId, spaceId, name: "Successor", role: "engineer", reportsTo: agentId, status: "active", adapterType: "process" },
     ]);
-    const [source] = await db.insert(issues).values({ companyId, title: "Workflow source", assigneeAgentId: agentId, status: "in_progress" }).returning();
-    const [reference] = await db.insert(issues).values({ companyId, title: "Unchanged reference task", status: "todo" }).returning();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId: source!.id,
+    const [source] = await db.insert(issues).values({ spaceId, title: "Workflow source", assigneeAgentId: agentId, status: "in_progress" }).returning();
+    const [reference] = await db.insert(issues).values({ spaceId, title: "Unchanged reference task", status: "todo" }).returning();
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId: source!.id,
       runtimeMode, nativeIssueId: runtimeMode === "native" ? source!.id : null, status: "running",
       contextSnapshot: { issueId: source!.id, executionPolicy: {} } });
     await db.update(issues).set({ executionRunId: runId, checkoutRunId: runId }).where(eq(issues.id, source!.id));
@@ -59,14 +59,14 @@ describePostgres("case REST mutation fencing", () => {
       provider: "local_disk",
       async putFile(input) {
         if (!Buffer.isBuffer(input.body)) throw new Error("Fixture expects a buffered upload");
-        const objectKey = `${input.companyId}/${input.namespace}/${randomUUID()}`;
+        const objectKey = `${input.spaceId}/${input.namespace}/${randomUUID()}`;
         objects.set(objectKey, input.body);
         return { provider: "local_disk", objectKey, contentType: input.contentType, byteSize: input.body.length,
           originalFilename: input.originalFilename, sha256: createHash("sha256").update(input.body).digest("hex") };
       },
       async getObject() { throw new Error("Fixture does not download assets"); },
       async headObject() { return { exists: false }; },
-      deleteObject: vi.fn(async (_companyId: string, key: string) => { objects.delete(key); }),
+      deleteObject: vi.fn(async (_spaceId: string, key: string) => { objects.delete(key); }),
     };
     const app = express();
     app.use(express.json());
@@ -74,16 +74,16 @@ describePostgres("case REST mutation fencing", () => {
     app.use("/api", caseRoutes(db, storage));
     app.use("/api", caseHandoffRoutes(db));
     app.use(errorHandler);
-    const boardApp = express();
-    boardApp.use(express.json());
-    boardApp.use((req, _res, next) => { req.actor = board; next(); });
-    boardApp.use("/api", caseRoutes(db, storage));
-    boardApp.use(errorHandler);
-    const boardHttp = request(boardApp);
-    const target = await boardHttp.post(`/api/companies/${companyId}/cases`)
+    const operatorApp = express();
+    operatorApp.use(express.json());
+    operatorApp.use((req, _res, next) => { req.actor = operator; next(); });
+    operatorApp.use("/api", caseRoutes(db, storage));
+    operatorApp.use(errorHandler);
+    const operatorHttp = request(operatorApp);
+    const target = await operatorHttp.post(`/api/spaces/${spaceId}/cases`)
       .send({ caseType: "fence", key: "target", title: "Keep these findings", fields: { original: true } }).expect(201);
-    const first = await boardHttp.put(`/api/cases/${target.body.id}/documents/body`).send({ body: "Alpha beta gamma" }).expect(200);
-    const second = await boardHttp.put(`/api/cases/${target.body.id}/documents/body`)
+    const first = await operatorHttp.put(`/api/cases/${target.body.id}/documents/body`).send({ body: "Alpha beta gamma" }).expect(200);
+    const second = await operatorHttp.put(`/api/cases/${target.body.id}/documents/body`)
       .send({ body: "Alpha beta gamma delta", baseRevisionId: first.body.revision.id }).expect(200);
     const annotationInput = {
       baseRevisionId: second.body.revision.id, baseRevisionNumber: second.body.revision.revisionNumber,
@@ -91,13 +91,13 @@ describePostgres("case REST mutation fencing", () => {
         position: { normalizedStart: 6, normalizedEnd: 10, markdownStart: 6, markdownEnd: 10 } },
       body: "Existing annotation",
     };
-    const annotation = await boardHttp.post(`/api/cases/${target.body.id}/documents/body/annotations`).send(annotationInput).expect(201);
-    const [workflow] = await db.insert(cases).values({ companyId, caseNumber: 2, identifier: `${prefix}-C2`,
+    const annotation = await operatorHttp.post(`/api/cases/${target.body.id}/documents/body/annotations`).send(annotationInput).expect(201);
+    const [workflow] = await db.insert(cases).values({ spaceId, caseNumber: 2, identifier: `${prefix}-C2`,
       caseType: "workflow", key: "source", title: "Active workflow", workIssueId: source!.id }).returning();
     const http = request(app);
-    const authorization = `Bearer ${createLocalAgentJwt(agentId, companyId, "process", runId)}`;
+    const authorization = `Bearer ${createLocalAgentJwt(agentId, spaceId, "process", runId)}`;
     const acceptHandoff = async () => {
-      const response = await http.post(`/api/companies/${companyId}/case-handoffs`).set("Authorization", authorization)
+      const response = await http.post(`/api/spaces/${spaceId}/case-handoffs`).set("Authorization", authorization)
         .send({ idempotencyKey: randomUUID(), case: { id: workflow!.id }, toAgentId: recipientId,
           phase: "verification", instructions: "Verify the saved findings.", expectedHandoffVersion: 0,
           expectedIssueStatusVersion: source!.statusVersion }).expect(202);
@@ -107,10 +107,10 @@ describePostgres("case REST mutation fencing", () => {
       const tables = [cases, documents, documentRevisions, caseDocuments, caseAttachments, assets, caseEvents,
         caseAccessSources, caseIssueLinks, caseLabels, documentAnnotationThreads, documentAnnotationComments,
         documentAnnotationAnchorSnapshots, caseHandoffs, activityLog] as const;
-      return Promise.all(tables.map(async table => (await db.select().from(table).where(eq(table.companyId, companyId)))
+      return Promise.all(tables.map(async table => (await db.select().from(table).where(eq(table.spaceId, spaceId)))
         .sort((left, right) => left.id.localeCompare(right.id))));
     };
-    return { companyId, runId, http, authorization, target: target.body, first: first.body, second: second.body,
+    return { spaceId, runId, http, authorization, target: target.body, first: first.body, second: second.body,
       annotation: annotation.body, annotationInput, reference: reference!, storage, objects, snapshot, acceptHandoff };
   }
 
@@ -121,8 +121,8 @@ describePostgres("case REST mutation fencing", () => {
     const path = `/api/cases/${f.target.id}`;
     const http = f.http;
     const writes = [
-      () => http.post(`/api/companies/${f.companyId}/cases`).set("Authorization", f.authorization).send({ caseType: "fence", key: "new", title: "Late creation" }),
-      () => http.post(`/api/companies/${f.companyId}/cases`).set("Authorization", f.authorization).send({ caseType: "fence", key: "target", title: "Late upsert" }),
+      () => http.post(`/api/spaces/${f.spaceId}/cases`).set("Authorization", f.authorization).send({ caseType: "fence", key: "new", title: "Late creation" }),
+      () => http.post(`/api/spaces/${f.spaceId}/cases`).set("Authorization", f.authorization).send({ caseType: "fence", key: "target", title: "Late upsert" }),
       () => http.patch(path).set("Authorization", f.authorization).send({ fields: { late: true } }),
       () => http.put(`${path}/documents/new`).set("Authorization", f.authorization).send({ body: "Late document" }),
       () => http.post(`${path}/documents/body/lock`).set("Authorization", f.authorization),

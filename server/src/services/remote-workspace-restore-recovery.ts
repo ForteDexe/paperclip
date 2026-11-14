@@ -11,7 +11,7 @@ const STRANDED_RECOVERY_STATUSES = new Set(["todo", "in_progress", "in_review"])
 const TERMINAL_STATUSES = new Set(["done", "cancelled"]);
 
 /**
- * Leave a named board recovery action for a saved workspace that could not be
+ * Leave a named operator recovery action for a saved workspace that could not be
  * restored and will not be retried automatically. Stranded-work recovery owns
  * the statuses it scans; this covers the rest (for example a `blocked` task
  * woken by a reply), which would otherwise keep no recovery action at all.
@@ -26,15 +26,15 @@ export async function escalateRemoteWorkspaceRestoreFailure(db: Db, run: Run): P
   return db.transaction(async tx => {
     const [issue] = await tx.select({ id: issues.id, status: issues.status, assigneeAgentId: issues.assigneeAgentId,
       assigneeUserId: issues.assigneeUserId })
-      .from(issues).where(and(eq(issues.companyId, run.companyId), eq(issues.id, issueId))).for("update");
+      .from(issues).where(and(eq(issues.spaceId, run.spaceId), eq(issues.id, issueId))).for("update");
     if (!issue || TERMINAL_STATUSES.has(issue.status) || STRANDED_RECOVERY_STATUSES.has(issue.status)
       || issue.assigneeUserId || issue.assigneeAgentId !== run.agentId) return false;
     const workspaceId = run.contextSnapshot?.executionWorkspaceId;
     const action = await issueRecoveryActionService(tx as unknown as Db).upsertSourceScoped({
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       sourceIssueId: issue.id,
       kind: "stranded_assigned_issue",
-      ownerType: "board",
+      ownerType: "operator",
       returnOwnerAgentId: run.agentId,
       cause: REMOTE_WORKSPACE_RESTORE_FAILED_CODE,
       fingerprint: `remote-workspace-restore:${typeof workspaceId === "string" ? workspaceId : issue.id}`,

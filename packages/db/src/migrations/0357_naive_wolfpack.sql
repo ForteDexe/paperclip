@@ -1,5 +1,5 @@
-CREATE TABLE IF NOT EXISTS "company_observability" (
-	"company_id" uuid PRIMARY KEY NOT NULL,
+CREATE TABLE IF NOT EXISTS "space_observability" (
+	"space_id" uuid PRIMARY KEY NOT NULL,
 	"revision" uuid NOT NULL,
 	"enabled" boolean DEFAULT false NOT NULL,
 	"destination" jsonb NOT NULL,
@@ -12,10 +12,10 @@ CREATE TABLE IF NOT EXISTS "company_observability" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "company_observability" ADD CONSTRAINT "company_observability_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+	ALTER TABLE "space_observability" ADD CONSTRAINT "space_observability_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	ALTER TABLE "company_observability" ADD CONSTRAINT "company_observability_credentials_secret_id_company_secrets_id_fk" FOREIGN KEY ("credentials_secret_id") REFERENCES "public"."company_secrets"("id") ON DELETE set null ON UPDATE no action;
+	ALTER TABLE "space_observability" ADD CONSTRAINT "space_observability_credentials_secret_id_space_secrets_id_fk" FOREIGN KEY ("credentials_secret_id") REFERENCES "public"."space_secrets"("id") ON DELETE set null ON UPDATE no action;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;

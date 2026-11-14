@@ -6,7 +6,7 @@ const HEAD = "1".repeat(40);
 const TIP = "2".repeat(40);
 const MERGE = "3".repeat(40);
 const OTHER = "4".repeat(40);
-const input: GitHubWorkspaceDeliveryInput = { companyId: "company-a", repoUrl: "https://github.com/acme/repo.git", headSha: HEAD, destinationRef: "refs/heads/main" };
+const input: GitHubWorkspaceDeliveryInput = { spaceId: "space-a", repoUrl: "https://github.com/acme/repo.git", headSha: HEAD, destinationRef: "refs/heads/main" };
 const ref = (name = "heads/main", tip = TIP) => ({ ref: `refs/${name}`, object: { type: "commit", sha: tip } });
 const comparison = (base: string, included: boolean) => ({ status: included ? "ahead" : "diverged", base_commit: { sha: base }, merge_base_commit: { sha: included ? base : OTHER }, behind_by: included ? 0 : 1, ahead_by: 1 });
 const pull = () => ({ number: 17, merged: true, head: { sha: HEAD, repo: { full_name: "fork/repo" } }, base: { ref: "main", repo: { full_name: "acme/repo" } }, merge_commit_sha: MERGE });
@@ -39,7 +39,7 @@ describe("GitHub workspace delivery proof", () => {
     const f = fixture();
     expect(await f.resolve(input)).toEqual({ status: "delivered", headSha: HEAD, destinationRef: "refs/heads/main", destinationTipSha: TIP, evidence: { kind: "merged_pr", number: 17, mergeCommitSha: MERGE } });
     expect(f.fetch).toHaveBeenCalledTimes(5);
-    expect(f.credentialProvider).toHaveBeenCalledWith("company-a");
+    expect(f.credentialProvider).toHaveBeenCalledWith("space-a");
   });
 
   it("accepts ordinary ancestry without a PR lookup", async () => {

@@ -120,7 +120,7 @@ class FakeCapabilityCodexTransport implements CodexAppServerTransport {
     if (method === "thread/start") {
       expect(Array.isArray(params.dynamicTools)).toBe(true);
       expect(params.completionContract).toEqual({
-        revision: "paperclip-capability-live-v1",
+        revision: "outpost-capability-live-v1",
         criterionIds: ["objective"],
       });
       return {
@@ -225,7 +225,7 @@ class FakeCapabilityCodexTransport implements CodexAppServerTransport {
     let assistantText: string;
     if (message.includes("progress")) {
       const idempotencyKey = message.includes("idempotent")
-        ? "progress-governed-once"
+        ? "progress-controlled-once"
         : `progress-${turnId}`;
       const result = await this.#toolCall({
         id: `request-${turnId}`,
@@ -573,7 +573,7 @@ describe("Capability live runnerd and Codex session", () => {
             snapshot.activeTurnId = "another-turn";
           },
           (snapshot) => {
-            snapshot.mockState = "no governed effect yet";
+            snapshot.mockState = "no controlled effect yet";
           },
           (snapshot) => {
             snapshot.process = { ...snapshot.process!, runnerPid: null };
@@ -768,7 +768,7 @@ describe("Capability live runnerd and Codex session", () => {
   });
 
   it("turns an assistant local-file link into a verified dynamic-chat file card record", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-live-file-reference-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-live-file-reference-"));
     await writeFile(join(root, "guide.md"), "# Dynamic guide\n\nVerified by the runner.\n");
     const state = providerState();
     const service = new CapabilityLiveSessionService({ transportFactory: fakeTransportFactory(state) });
@@ -787,7 +787,7 @@ describe("Capability live runnerd and Codex session", () => {
   });
 
   it("records runner-verified file changes for a dynamic chat turn", async () => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-live-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-live-workspace-"));
     await writeFile(join(root, "existing.txt"), "before\n");
     const state = providerState();
     state.onTurnStart = async () => {
@@ -801,8 +801,8 @@ describe("Capability live runnerd and Codex session", () => {
     // Test the file-change evidence, not whether a loaded CI worker scans the
     // fixture within the production admission deadline. Keep both snapshots
     // real; make only the already-captured baseline immediately available.
-    const baseline = await workspaceDiff.capturePaperclipWorkspace(root);
-    const capture = vi.spyOn(workspaceDiff, "capturePaperclipWorkspace")
+    const baseline = await workspaceDiff.captureOutpostWorkspace(root);
+    const capture = vi.spyOn(workspaceDiff, "captureOutpostWorkspace")
       .mockResolvedValueOnce(baseline);
     try {
       const result = await session.sendMessage("edit the workspace");
@@ -946,18 +946,18 @@ describe("Capability live runnerd and Codex session", () => {
     const first = await firstService.create();
     const opened = state.transports[0]!.requests.find((request) => request.method === "thread/start")!;
     const names = (opened.params.dynamicTools as Array<{ name: string }>).map((tool) => tool.name);
-    expect(names.filter((name) => name === "paperclip_finish")).toHaveLength(1);
-    expect(names.filter((name) => name === "paperclip_block")).toHaveLength(1);
+    expect(names.filter((name) => name === "outpost_finish")).toHaveLength(1);
+    expect(names.filter((name) => name === "outpost_block")).toHaveLength(1);
     expect(names).not.toContain("create_task");
     expect(opened.params).not.toHaveProperty("baseInstructions");
-    expect(opened.params.developerInstructions).toContain('"revision":"paperclip-capability-live-v1"');
+    expect(opened.params.developerInstructions).toContain('"revision":"outpost-capability-live-v1"');
     expect(opened.params.developerInstructions).toContain('"criterionIds":["objective"]');
     await first.suspend();
     const restoredService = new CapabilityLiveSessionService({ store, transportFactory: factory });
     const restored = await restoredService.restore(first.id);
     // The facade appends native completion schemas to this admitted semantic list.
     expect(authority[1]?.resumeDynamicTools?.map((tool) => tool.name)).toEqual(
-      names.filter((name) => name !== "paperclip_finish" && name !== "paperclip_block"),
+      names.filter((name) => name !== "outpost_finish" && name !== "outpost_block"),
     );
     const resumed = state.transports[1]!.requests.find((request) => request.method === "thread/resume")!;
     expect(resumed.params).not.toHaveProperty("baseInstructions");
@@ -973,7 +973,7 @@ describe("Capability live runnerd and Codex session", () => {
     const before = session.mockState();
     const result = {
       schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Orientation complete",
-      completionClaim: { contractRevision: "paperclip-capability-live-v1", objectiveSatisfied: true,
+      completionClaim: { contractRevision: "outpost-capability-live-v1", objectiveSatisfied: true,
         criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: [] }], remainingWork: [] },
       evidence: [], verification: [],
     };
@@ -985,18 +985,18 @@ describe("Capability live runnerd and Codex session", () => {
         id: `call-${outcomes.length}`, method: "item/tool/call",
         params: { threadId: state.threadId, turnId: overrideTurn, callId: `call-${outcomes.length}`, tool, arguments: arguments_ },
       });
-      outcomes.push(await call("paperclip_finish", { ...result, completionClaim: { ...result.completionClaim, contractRevision: "stale" } }));
-      outcomes.push(await call("paperclip_finish", result, "wrong-turn"));
-      outcomes.push(await call("paperclip_block", result));
-      outcomes.push(await call("paperclip_finish", result));
-      outcomes.push(await call("paperclip_finish", { ...result, summary: "Conflicting report" }));
+      outcomes.push(await call("outpost_finish", { ...result, completionClaim: { ...result.completionClaim, contractRevision: "stale" } }));
+      outcomes.push(await call("outpost_finish", result, "wrong-turn"));
+      outcomes.push(await call("outpost_block", result));
+      outcomes.push(await call("outpost_finish", result));
+      outcomes.push(await call("outpost_finish", { ...result, summary: "Conflicting report" }));
       outcomes.push(await call("create_task", { title: "Unauthorized task", idempotencyKey: "unauthorized-task" }));
       expect(session.snapshot().terminalTurns).toHaveLength(0);
     };
     await session.sendMessage("Orient to the assigned task.");
     expect(outcomes.map((outcome) => outcome.success)).toEqual([false, false, false, true, false, false]);
     expect(session.snapshot().semanticResult).toMatchObject(result);
-    const completionEvidence = session.snapshot().evidence.filter((entry) => entry.data.operationId === "paperclip_finish");
+    const completionEvidence = session.snapshot().evidence.filter((entry) => entry.data.operationId === "outpost_finish");
     expect(completionEvidence.map((entry) => entry.kind)).toEqual(["tool_call", "tool_result"]);
     expect(completionEvidence[1]?.data.beforeRevision).toBe(completionEvidence[1]?.data.afterRevision);
     expect(session.mockState().tasks).toEqual(before.tasks);
@@ -1027,7 +1027,7 @@ describe("Capability live runnerd and Codex session", () => {
       "Native instructions\n\nRead-only instruction sibling root: /runtime/instructions",
     );
     expect(state.transports[0]?.requests.find((request) => request.method === "thread/start")?.params.developerInstructions)
-      .toContain('Native completion report contract: {"revision":"paperclip-capability-live-v1","criterionIds":["objective"]}');
+      .toContain('Native completion report contract: {"revision":"outpost-capability-live-v1","criterionIds":["objective"]}');
     await service.shutdown(session.id);
   });
 
@@ -1115,7 +1115,7 @@ describe("Capability live runnerd and Codex session", () => {
           callId: "call-discover",
           tool: "discover_capabilities",
           arguments: {
-            query: "list company agents",
+            query: "list space agents",
             namespace: "discovery",
             limit: 10,
           },
@@ -1156,7 +1156,7 @@ describe("Capability live runnerd and Codex session", () => {
     await service.shutdown(session.id);
   });
 
-  it("returns typed mock results to the same multi-turn Codex thread without Paperclip network calls", async () => {
+  it("returns typed mock results to the same multi-turn Codex thread without Outpost network calls", async () => {
     const state = providerState();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const service = new CapabilityLiveSessionService({ transportFactory: fakeTransportFactory(state) });
@@ -1189,7 +1189,7 @@ describe("Capability live runnerd and Codex session", () => {
     expect(first.snapshot.evidence.some((entry) => entry.kind === "tool_call")).toBe(true);
     expect(first.snapshot.evidence.some((entry) => entry.kind === "tool_result")).toBe(true);
     expect(first.snapshot.networkEvidence).toEqual({
-      realPaperclipRequests: 0,
+      realOutpostRequests: 0,
       childOutpostEnvironmentKeys: [],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -1215,7 +1215,7 @@ describe("Capability live runnerd and Codex session", () => {
       }, "request-1", "cursor", `${turnId}:cursor-native-usage`)!;
       // Rust keeps payload.noticeId but replaces the display wrapper itemId
       // with its durable authority item (durable/state.rs, runnerd transport).
-      return { method: "paperclip/canonicalProviderEvent", params: { threadId, turnId, ...canonical, itemId: "item_lab_fixture" } };
+      return { method: "outpost/canonicalProviderEvent", params: { threadId, turnId, ...canonical, itemId: "item_lab_fixture" } };
     }
     const retained = (snapshot: CapabilityLiveSessionSnapshot) => snapshot.evidence.filter(entry =>
       entry.kind === "provider_event" && entry.data.canonical === true && entry.data.event === "provider.notice.recorded");
@@ -1227,7 +1227,7 @@ describe("Capability live runnerd and Codex session", () => {
         queue.push({ method: "turn/completed", params: { threadId: state.threadId, turn: { id: turnId, status: "completed" } } });
       };
       const directory = await mkdtemp(join(tmpdir(), "cursor-usage-checkpoint-"));
-      const binding = { sessionId: "cursor-usage-session", runId: "cursor-usage-run", companyId: "company-1", actorId: "actor-1", taskId: "task-1" };
+      const binding = { sessionId: "cursor-usage-session", runId: "cursor-usage-run", spaceId: "space-1", actorId: "actor-1", taskId: "task-1" };
       const store = new DurableCapabilityLiveSessionStore({ directory, binding });
       const service = new CapabilityLiveSessionService({ store, transportFactory: fakeTransportFactory(state), transportOptions: { acpxCandidateProfile: "cursor" } });
       const session = await service.create({ ...binding, provider: "acpx", acpxAgent: "cursor", requestedModel: "exact-model" });
@@ -1786,9 +1786,9 @@ describe("Capability live runnerd and Codex session", () => {
     const state = providerState();
     const directory = await mkdtemp(join(tmpdir(), "capability-live-durable-"));
     const binding = {
-      sessionId: "session-governed-resume",
-      runId: "run-governed-resume",
-      companyId: "company-1",
+      sessionId: "session-controlled-resume",
+      runId: "run-controlled-resume",
+      spaceId: "space-1",
       actorId: "actor-1",
       taskId: "task-1",
     };
@@ -1962,7 +1962,7 @@ describe("Capability live runnerd and Codex session", () => {
     state.holdAfterTool = true;
     const killedTurn = captureTurnRejection(first.sendMessage("Apply idempotent progress once."));
     await vi.waitFor(async () => {
-      expect((await store.load(first.id))?.mockState).toContain("progress-governed-once");
+      expect((await store.load(first.id))?.mockState).toContain("progress-controlled-once");
     });
     await state.transports[0]!.close();
     await expect(killedTurn).resolves.toMatchObject({ message: expect.stringContaining("timed out") });
@@ -2043,7 +2043,7 @@ describe("Capability live runnerd and Codex session", () => {
     state.holdAfterTool = true;
     const killedTurn = captureTurnRejection(first.sendMessage("Apply idempotent progress once."));
     await vi.waitFor(async () => {
-      expect((await store.load(first.id))?.mockState).toContain("progress-governed-once");
+      expect((await store.load(first.id))?.mockState).toContain("progress-controlled-once");
     });
     await state.transports[0]!.close();
     await expect(killedTurn).resolves.toMatchObject({ message: expect.stringContaining("timed out") });
@@ -2079,7 +2079,7 @@ describe("Capability live runnerd and Codex session", () => {
         callId: "call-turn-1:deterministic-resume-replay",
         tool: "report_progress",
         arguments: {
-          idempotencyKey: "progress-governed-once",
+          idempotencyKey: "progress-controlled-once",
           body: "Progress persisted through the live Codex tool loop.",
         },
       },
@@ -2146,7 +2146,7 @@ describe("Capability live runnerd and Codex session", () => {
     const binding = {
       sessionId: "session-fail-closed",
       runId: "run-fail-closed",
-      companyId: "company-1",
+      spaceId: "space-1",
       actorId: "actor-1",
       taskId: "task-1",
     };
@@ -2229,7 +2229,7 @@ describe("Capability live runnerd and Codex session", () => {
       const binding = {
         sessionId: "session-real-runnerd-resume",
         runId: "run-real-runnerd-resume",
-        companyId: "company-1",
+        spaceId: "space-1",
         actorId: "actor-1",
         taskId: "task-1",
       };
@@ -2257,10 +2257,10 @@ describe("Capability live runnerd and Codex session", () => {
       const observed = observeSavedEffect(store, {
         ...binding,
         turnId: "turn-1",
-        body: "One durable governed effect.",
+        body: "One durable controlled effect.",
       });
       const killedTurn = captureTurnRejection(
-        first.sendMessage("Apply the governed idempotent effect."),
+        first.sendMessage("Apply the controlled idempotent effect."),
       );
       let turnSettled = false;
       let turnOutcome: unknown;
@@ -2275,7 +2275,7 @@ describe("Capability live runnerd and Codex session", () => {
         // reject the wait if no effect arrives; neither deadline is extended.
         await waitForSavedEffect(observed.saved, killedTurn, signal);
         const checkpoint = await store.load(binding.sessionId);
-        expect(checkpoint?.mockState).toContain("One durable governed effect.");
+        expect(checkpoint?.mockState).toContain("One durable controlled effect.");
         expect(checkpoint?.activeTurnId).toBe("turn-1");
         expect(checkpoint?.process?.runnerPid).not.toBeNull();
         expect(checkpoint?.process?.codexPid).not.toBeNull();
@@ -2318,10 +2318,10 @@ describe("Capability live runnerd and Codex session", () => {
           throw new Error("checkpointed turn was not reconciled");
         // Recovery may observe the provider's authoritative completion before
         // the controller's interrupt wins the race; either terminal settles the
-        // exact checkpointed turn without replaying its governed effect.
+        // exact checkpointed turn without replaying its controlled effect.
         expect(["completed", "interrupted"]).toContain(reconciled.status);
         const duplicate = await resumed.sendMessage(
-          "Apply the governed idempotent effect again.",
+          "Apply the controlled idempotent effect again.",
         );
         expect(duplicate.assistantText).toContain("duplicate");
         expect(resumed.mockState().comments).toHaveLength(1);

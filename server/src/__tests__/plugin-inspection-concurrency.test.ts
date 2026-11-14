@@ -1,16 +1,16 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import { createPluginWorkerManager } from "../services/plugin-worker-manager.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 
 it("bounds actual provider reads across caller timeouts, plugins, retries, and worker exit", async () => {
   const baseline = idleWorkSnapshot().active;
   const manager = createPluginWorkerManager();
-  const manifest: PaperclipPluginManifestV1 = { id: "fixture.inspect", apiVersion: 1, version: "1.0.0",
-    displayName: "Inspection fixture", description: "Inspection fixture", author: "Paperclip", categories: ["automation"], capabilities: [], entrypoints: { worker: "worker.cjs" } };
-  const params = { driverKey: "fixture", companyId: "fixture-company", environmentId: "fixture-environment",
+  const manifest: OutpostPluginManifestV1 = { id: "fixture.inspect", apiVersion: 1, version: "1.0.0",
+    displayName: "Inspection fixture", description: "Inspection fixture", author: "Outpost", categories: ["automation"], capabilities: [], entrypoints: { worker: "worker.cjs" } };
+  const params = { driverKey: "fixture", spaceId: "fixture-space", environmentId: "fixture-environment",
     config: {}, providerLeaseId: "fixture-resource", leaseMetadata: { holdInspection: true } };
   try {
     for (const pluginId of ["fixture.inspect.a", "fixture.inspect.b"]) await manager.startWorker(pluginId, {
@@ -24,7 +24,7 @@ it("bounds actual provider reads across caller timeouts, plugins, retries, and w
     for (const pluginId of ["fixture.inspect.a", "fixture.inspect.b"]) expect(await manager.call(pluginId, "health", {})).toMatchObject({
       details: { inspectionCount: 1, activeInspections: 1 },
     });
-    await manager.call("fixture.inspect.a", "configChanged", { companyId: "fixture-company", config: { releaseInspections: true } });
+    await manager.call("fixture.inspect.a", "configChanged", { spaceId: "fixture-space", config: { releaseInspections: true } });
     expect(idleWorkSnapshot().active).toBe(baseline + 1);
     await expect(manager.call("fixture.inspect.a", "environmentInspectLease", params, 20)).rejects.toThrow("timed out");
     await expect(manager.call("fixture.inspect.b", "environmentInspectLease", params, 20)).rejects.toThrow("concurrency limit");

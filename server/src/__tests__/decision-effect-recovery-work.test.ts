@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, applyPendingMigrations, authUsers, companies, companyMemberships, createDb, decisionEffectExecutions,
+import { activityLog, agents, applyPendingMigrations, authUsers, spaces, spaceMemberships, createDb, decisionEffectExecutions,
   decisions, decisionRetention, decisionTargetIssues, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
@@ -20,7 +20,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 (support.supported ? describe : describe.skip)("decision effect recovery worker", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   let db: ReturnType<typeof createDb>;
-  let companyId: string, agentId: string, originId: string, targetId: string, runId: string, userId: string;
+  let spaceId: string, agentId: string, originId: string, targetId: string, runId: string, userId: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let draining: boolean;
   let recovery: ReturnType<typeof decisionService>;
@@ -35,16 +35,16 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   }, 30_000);
   beforeEach(async () => {
     vi.stubEnv("OUTPOST_DECISION_SIGNING_SECRET", "0123456789abcdef0123456789abcdef");
-    companyId = randomUUID(); agentId = randomUUID(); originId = randomUUID(); targetId = randomUUID(); runId = randomUUID(); userId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Recovery", issuePrefix: `R${companyId.slice(0, 6)}`, requireBoardApprovalForNewAgents: false });
+    spaceId = randomUUID(); agentId = randomUUID(); originId = randomUUID(); targetId = randomUUID(); runId = randomUUID(); userId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Recovery", issuePrefix: `R${spaceId.slice(0, 6)}`, requireOperatorApprovalForNewAgents: false });
     await db.insert(authUsers).values({ id: userId, name: "Decider", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Proposer", role: "engineer", status: "active", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Proposer", role: "engineer", status: "active", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
     await db.insert(issues).values([
-      { id: originId, companyId, title: "Origin", status: "in_progress", priority: "medium", assigneeAgentId: agentId, responsibleUserId: userId },
-      { id: targetId, companyId, title: "Target", status: "todo", priority: "medium", responsibleUserId: userId },
+      { id: originId, spaceId, title: "Origin", status: "in_progress", priority: "medium", assigneeAgentId: agentId, responsibleUserId: userId },
+      { id: targetId, spaceId, title: "Target", status: "todo", priority: "medium", responsibleUserId: userId },
     ]);
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", responsibleUserId: userId, contextSnapshot: { issueId: originId } });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", responsibleUserId: userId, contextSnapshot: { issueId: originId } });
     await Promise.all(Array.from({ length: 6 }, () => db.execute(sql`select pg_sleep(0.01)`)));
     draining = false; errors.length = 0; wake.mockReset();
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"], shouldAdvanceTime: true });
@@ -56,24 +56,24 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     await db.execute(sql`drop function if exists decision_effect_finish_fail()`);
     await db.delete(decisionEffectExecutions); await db.delete(decisionTargetIssues); await db.delete(decisions);
     await db.delete(decisionRetention); await db.delete(activityLog); await db.delete(issueComments); await db.delete(heartbeatRuns);
-    await db.delete(issues); await db.delete(agents); await db.delete(companyMemberships); await db.delete(authUsers); await db.delete(companies);
+    await db.delete(issues); await db.delete(agents); await db.delete(spaceMemberships); await db.delete(authUsers); await db.delete(spaces);
     expect(errors).toEqual([]);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
 
-  const actor = () => ({ type: "agent" as const, companyId, agentId, runId, source: "agent_jwt" as const,
-    onBehalfOfUserId: userId, onBehalfOfMemberships: [{ companyId, membershipRole: "member", status: "active" }] });
-  const board = () => ({ type: "board" as const, userId, companyIds: [companyId], source: "session" as const,
-    memberships: [{ companyId, membershipRole: "member", status: "active" }] });
-  const create = () => service().create({ companyId, agentId, runId, actor: actor(), title: "Comment?", body: "Body",
+  const actor = () => ({ type: "agent" as const, spaceId, agentId, runId, source: "agent_jwt" as const,
+    onBehalfOfUserId: userId, onBehalfOfMemberships: [{ spaceId, membershipRole: "member", status: "active" }] });
+  const operator = () => ({ type: "operator" as const, userId, spaceIds: [spaceId], source: "session" as const,
+    memberships: [{ spaceId, membershipRole: "member", status: "active" }] });
+  const create = () => service().create({ spaceId, agentId, runId, actor: actor(), title: "Comment?", body: "Body",
     continuationPolicy: "wake_origin_agent", options: [{ id: "yes", label: "Yes", effects: [
       { type: "comment_on_issue", targetIssueId: targetId, staleness: "lenient", bodyMarkdown: "hello" },
     ] }] });
-  const decide = (id: string) => service().decide({ id, optionId: "yes", decidedByUserId: userId, userActor: board() });
+  const decide = (id: string) => service().decide({ id, optionId: "yes", decidedByUserId: userId, userActor: operator() });
   const claim = (id: string, updatedAt = new Date(), owner = db) => writeDecisionChange(owner, async tx => tx.update(decisions).set({
     status: "decided", executionStatus: "running", chosenOptionId: "yes", decidedByUserId: userId,
     updatedAt, inputValues: {}, metadata: { continuationPending: true },
-  }).where(eq(decisions.id, id)), { companyId });
+  }).where(eq(decisions.id, id)), { spaceId });
   async function start() {
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => !draining, canReconcile: () => true,
       onError: error => errors.push(error) });
@@ -311,7 +311,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
 
   it("rechecks current membership before executing a recovered effect", async () => {
     const row = await create(); await claim(row.id, new Date(Date.now() - 120_000));
-    await db.update(companyMemberships).set({ status: "inactive" }).where(eq(companyMemberships.principalId, userId));
+    await db.update(spaceMemberships).set({ status: "inactive" }).where(eq(spaceMemberships.principalId, userId));
     await start(); await settled(row.id, "failed"); await quiet(); expect(await comments()).toHaveLength(0);
     const result = await service().outcome(row.id);
     expect(result.executions[0]?.error).toBe("deny_decision_intersection"); expect(wake).toHaveBeenCalledTimes(1);
@@ -347,7 +347,7 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
     expect(await db.select().from(decisionEffectExecutions)).toHaveLength(0);
     const audit = await db.select().from(activityLog).where(eq(activityLog.action, "decision.recovery_failed"));
     expect(audit).toHaveLength(1);
-    expect(audit[0]).toMatchObject({ companyId, actorType: "system", actorId: "decision-executor",
+    expect(audit[0]).toMatchObject({ spaceId, actorType: "system", actorId: "decision-executor",
       entityId: row.id, details: { reason } });
     expect(wake).toHaveBeenCalledTimes(1);
     await start(); await quiet();
@@ -459,23 +459,23 @@ const support = externalUrl ? { supported: true } : await getEmbeddedPostgresTes
   it.each([false, true])("preserves archive recovery semantics with prior committed archive: %s", async committed => {
     await db.update(issues).set({ status: "in_review", assigneeUserId: userId }).where(eq(issues.id, targetId));
     const activityAt = new Date("2026-04-01T00:00:00.000Z");
-    await db.insert(decisionRetention).values({ companyId, sourceKind: "review", sourceId: targetId, sourceActivityAt: activityAt });
-    const manifest: AttentionArchiveManifestEntry[] = [{ companyId, sourceKind: "review", sourceId: targetId,
+    await db.insert(decisionRetention).values({ spaceId, sourceKind: "review", sourceId: targetId, sourceActivityAt: activityAt });
+    const manifest: AttentionArchiveManifestEntry[] = [{ spaceId, sourceKind: "review", sourceId: targetId,
       expectedVersion: 1, activityAt: activityAt.toISOString(), reason: "Archive" }];
-    const row = await service().create({ companyId, actor: actor(), agentId, runId, title: "Archive?", body: "Exact set",
+    const row = await service().create({ spaceId, actor: actor(), agentId, runId, title: "Archive?", body: "Exact set",
       continuationPolicy: "wake_origin_agent", options: [{ id: "archive", label: "Archive", effects: [] }],
       metadata: { kind: "attention_archive_proposal", manifestHash: hashAttentionArchiveManifest(manifest) },
       additionalTargetSnapshots: { [`attention:review:${targetId}`]: { status: "attention", assigneeAgentId: null,
         assigneeUserId: null, updatedAt: activityAt.toISOString(), attentionArchive: manifest[0] } } });
     if (committed) {
       await failSettlement();
-      await expect(service().decide({ id: row.id, optionId: "archive", decidedByUserId: userId, userActor: board() }))
+      await expect(service().decide({ id: row.id, optionId: "archive", decidedByUserId: userId, userActor: operator() }))
         .rejects.toMatchObject({ cause: { message: "settlement unavailable" } });
       await db.execute(sql`drop trigger decision_effect_finish_fail on decisions`);
     } else {
       await writeDecisionChange(db, async tx => tx.update(decisions).set({ status: "decided", executionStatus: "running",
         chosenOptionId: "archive", decidedByUserId: userId, updatedAt: new Date(Date.now() - 120_000),
-        metadata: { ...row.metadata, continuationPending: true } }).where(eq(decisions.id, row.id)), { companyId });
+        metadata: { ...row.metadata, continuationPending: true } }).where(eq(decisions.id, row.id)), { spaceId });
     }
     await start(); await settled(row.id, committed ? "failed" : "succeeded"); await quiet();
     const [retained] = await db.select().from(decisionRetention);

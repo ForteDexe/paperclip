@@ -37,8 +37,8 @@ vi.mock("../api/assets", () => ({
   },
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 
 vi.mock("../context/SidebarContext", () => ({
@@ -141,7 +141,7 @@ function buttonByText(container: HTMLElement, text: string) {
 function makeAgent(overrides: Partial<Agent> = {}): Agent {
   return {
     id: "agent-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Codex Coder",
     urlKey: "codexcoder",
     role: "engineer",
@@ -204,12 +204,12 @@ function makeBundle(
 ): AgentInstructionsBundle {
   return {
     agentId: "agent-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     mode: "managed",
-    rootPath: "/paperclip/agents/agent-1/instructions",
-    managedRootPath: "/paperclip/agents/agent-1/instructions",
+    rootPath: "/outpost/agents/agent-1/instructions",
+    managedRootPath: "/outpost/agents/agent-1/instructions",
     entryFile,
-    resolvedEntryPath: `/paperclip/agents/agent-1/instructions/${entryFile}`,
+    resolvedEntryPath: `/outpost/agents/agent-1/instructions/${entryFile}`,
     editable: true,
     warnings: [],
     legacyPromptTemplateActive: false,
@@ -281,7 +281,7 @@ describe("PromptsTab instruction editor", () => {
         <QueryClientProvider client={queryClient}>
           <PromptsTab
             agent={props.agent ?? makeAgent()}
-            companyId={props.companyId ?? "company-1"}
+            spaceId={props.spaceId ?? "space-1"}
             onDirtyChange={props.onDirtyChange ?? vi.fn()}
             onSaveActionChange={props.onSaveActionChange ?? ((next) => { saveAction = next; })}
             onCancelActionChange={props.onCancelActionChange ?? vi.fn()}
@@ -413,7 +413,7 @@ describe("PromptsTab instruction editor", () => {
           baseRevisionId: null,
           clearLegacyPromptTemplate: false,
         },
-        "company-1",
+        "space-1",
       );
     });
   });
@@ -432,7 +432,7 @@ describe("PromptsTab instruction editor", () => {
     mockAgentsApi.resolveInstructionCandidate.mockRejectedValue(new Error("Instructions changed since the base revision"));
     await waitFor(() => expect(saveAction).toEqual(expect.any(Function)));
     await act(async () => { saveAction?.(); });
-    await waitFor(() => expect(mockAgentsApi.resolveInstructionCandidate).toHaveBeenCalledWith("agent-1", "preserved-run", { content: "preserved edit", baseRevisionId: "head-1" }, "company-1"));
+    await waitFor(() => expect(mockAgentsApi.resolveInstructionCandidate).toHaveBeenCalledWith("agent-1", "preserved-run", { content: "preserved edit", baseRevisionId: "head-1" }, "space-1"));
     expect(mockAgentsApi.saveInstructionsFile).not.toHaveBeenCalled();
     expect(editor.value).toBe("preserved edit");
     await act(async () => { queryClient.setQueryData(["agents", "instructions-bundle", "agent-1", "file", "AGENTS.md"], makeDetail(summary, "newer content", { revision: { ...revision, id: "head-2" } })); });
@@ -528,7 +528,7 @@ describe("PromptsTab instruction editor", () => {
     await act(async () => { editor.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })); setNativeValue(editor, preserved); });
     await waitFor(() => expect(saveAction).toEqual(expect.any(Function)));
     await act(async () => { saveAction?.(); });
-    await waitFor(() => expect(mockAgentsApi.saveInstructionsFile).toHaveBeenCalledWith("agent-1", { path: "CURRENT.md", content: preserved, baseRevisionId: "current-head", clearLegacyPromptTemplate: false }, "company-1"));
+    await waitFor(() => expect(mockAgentsApi.saveInstructionsFile).toHaveBeenCalledWith("agent-1", { path: "CURRENT.md", content: preserved, baseRevisionId: "current-head", clearLegacyPromptTemplate: false }, "space-1"));
     expect(mockAgentsApi.resolveInstructionCandidate).not.toHaveBeenCalled();
   });
 
@@ -544,13 +544,13 @@ describe("PromptsTab instruction editor", () => {
     await act(async () => { saveAction?.(); });
     await waitFor(() => expect(container.querySelector('[role="alert"]')?.textContent).toContain("base revision"));
     expect(editor.value).toBe("my unsaved edit");
-    expect(mockAgentsApi.saveInstructionsFile).toHaveBeenCalledWith("agent-1", expect.objectContaining({ content: "my unsaved edit", baseRevisionId: "base-1" }), "company-1");
+    expect(mockAgentsApi.saveInstructionsFile).toHaveBeenCalledWith("agent-1", expect.objectContaining({ content: "my unsaved edit", baseRevisionId: "base-1" }), "space-1");
   });
 
   it("shows revision content and restores against the displayed current head", async () => {
     const summary = makeSummary("AGENTS.md", "AGENTS.md");
     const revision = { id: "current-1", entryFile: "AGENTS.md" } as NonNullable<AgentInstructionsFileDetail["revision"]>;
-    mockAgentsApi.instructionHistory.mockResolvedValue({ revisions: [{ id: "old-revision", source: "board", createdAt: "2026-01-01T00:00:00Z" }], nextCursor: null });
+    mockAgentsApi.instructionHistory.mockResolvedValue({ revisions: [{ id: "old-revision", source: "operator", createdAt: "2026-01-01T00:00:00Z" }], nextCursor: null });
     mockAgentsApi.instructionDiff.mockResolvedValue({ from: { content: "old text" }, removed: "old", added: "new" });
     mockAgentsApi.restoreInstructions.mockResolvedValue(makeDetail(summary, "old text", { revision: { ...revision, id: "restored-1" } }));
     await renderPromptsTab(makeBundle("AGENTS.md", [summary]), { "AGENTS.md": makeDetail(summary, "new text", { revision }) });
@@ -560,7 +560,7 @@ describe("PromptsTab instruction editor", () => {
     await act(async () => { buttonByText(container, "old-revi").click(); });
     await waitFor(() => expect(container.textContent).toContain("old text"));
     await act(async () => { buttonByText(container, "Restore as new revision").click(); });
-    await waitFor(() => expect(mockAgentsApi.restoreInstructions).toHaveBeenCalledWith("agent-1", { path: "AGENTS.md", revisionId: "old-revision", baseRevisionId: "current-1" }, "company-1"));
+    await waitFor(() => expect(mockAgentsApi.restoreInstructions).toHaveBeenCalledWith("agent-1", { path: "AGENTS.md", revisionId: "old-revision", baseRevisionId: "current-1" }, "space-1"));
   });
 
   it("releases dirty state and save controls when the instructions tab unmounts", async () => {
@@ -675,7 +675,7 @@ describe("PromptsTab instruction editor", () => {
       expect(container.querySelector<HTMLTextAreaElement>('textarea[placeholder="File contents"]')?.value).toBe("");
     });
     expect(markdownEditorRenderMock).not.toHaveBeenCalled();
-    expect(mockAgentsApi.instructionsFile).not.toHaveBeenCalledWith("agent-1", "notes.md", "company-1");
+    expect(mockAgentsApi.instructionsFile).not.toHaveBeenCalledWith("agent-1", "notes.md", "space-1");
   });
 
   it("edits .md files without Markdown metadata as raw text", async () => {

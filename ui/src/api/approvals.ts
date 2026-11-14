@@ -2,13 +2,13 @@ import type { Approval, ApprovalComment, Issue } from "@outpost/shared";
 import { api, type RequestOptions } from "./client";
 
 export const approvalsApi = {
-  list: (companyId: string, status?: string, options?: RequestOptions) =>
+  list: (spaceId: string, status?: string, options?: RequestOptions) =>
     api.get<Approval[]>(
-      `/companies/${companyId}/approvals${status ? `?status=${encodeURIComponent(status)}` : ""}`,
+      `/spaces/${spaceId}/approvals${status ? `?status=${encodeURIComponent(status)}` : ""}`,
       options,
     ),
-  create: (companyId: string, data: Record<string, unknown>) =>
-    api.post<Approval>(`/companies/${companyId}/approvals`, data),
+  create: (spaceId: string, data: Record<string, unknown>) =>
+    api.post<Approval>(`/spaces/${spaceId}/approvals`, data),
   get: (id: string) => api.get<Approval>(`/approvals/${id}`),
   approve: (id: string, decisionNote?: string) =>
     api.post<Approval>(`/approvals/${id}/approve`, { decisionNote }),

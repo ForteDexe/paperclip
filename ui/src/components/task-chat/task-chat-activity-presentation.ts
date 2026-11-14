@@ -33,7 +33,7 @@ import {
   toolActivityPresentation,
   type ToolIcon,
 } from "./tool-taxonomy";
-import { governancePresentation, type GovernanceTone } from "./governance-presentation";
+import { policyPresentation, type PolicyTone } from "./policy-presentation";
 
 export interface TaskChatActivityPresentation {
   icon: ToolIcon;
@@ -42,8 +42,8 @@ export interface TaskChatActivityPresentation {
   failedLabel?: string;
   interruptedLabel?: string;
   detail?: string;
-  /** Governance rows tint a stopped action and carry its reason as a note. */
-  tone?: GovernanceTone;
+  /** Policy rows tint a stopped action and carry its reason as a note. */
+  tone?: PolicyTone;
   note?: string;
 }
 
@@ -176,16 +176,16 @@ export function providerActivityPresentation(item: TaskChatProviderActivityItem)
     }
     case "hook":
     case "safety": {
-      const governance = governancePresentation(item)!;
+      const policy = policyPresentation(item)!;
       return {
-        icon: governance.icon,
-        runningLabel: governance.label,
-        completedLabel: governance.label,
-        failedLabel: governance.label,
-        interruptedLabel: governance.label,
-        detail: governance.detail,
-        tone: governance.tone,
-        note: governance.note,
+        icon: policy.icon,
+        runningLabel: policy.label,
+        completedLabel: policy.label,
+        failedLabel: policy.label,
+        interruptedLabel: policy.label,
+        detail: policy.detail,
+        tone: policy.tone,
+        note: policy.note,
       };
     }
     case "memory":

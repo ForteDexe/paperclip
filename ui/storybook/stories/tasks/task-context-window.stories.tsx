@@ -17,11 +17,11 @@ import type {
 import {
   storybookAgents,
   storybookAuthSession,
-  storybookCompanies,
+  storybookSpaces,
   storybookIssueLabels,
   storybookIssues,
   storybookProjects,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 
 /** Codex gpt-5 class session: 272k window, auto-compacts around 245k. */
 const CODEX_WINDOW = 272_000;
@@ -145,19 +145,19 @@ const THREAD: TaskChatItem[] = [
 ];
 
 
-const companyId = "company-storybook";
+const spaceId = "space-storybook";
 const issue = storybookIssues[0]!;
 
 function StorybookData({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [ready] = useState(() => {
-    queryClient.setQueryData(queryKeys.companies.all, { companies: storybookCompanies, unauthorized: false });
+    queryClient.setQueryData(queryKeys.spaces.all, { spaces: storybookSpaces, unauthorized: false });
     queryClient.setQueryData(queryKeys.auth.session, storybookAuthSession);
-    queryClient.setQueryData(queryKeys.agents.list(companyId), storybookAgents);
-    queryClient.setQueryData(queryKeys.projects.list(companyId), storybookProjects);
-    queryClient.setQueryData(queryKeys.projects.list(companyId, { includeArchived: true }), storybookProjects);
-    queryClient.setQueryData(queryKeys.issues.list(companyId), storybookIssues);
-    queryClient.setQueryData(queryKeys.issues.labels(companyId), storybookIssueLabels);
+    queryClient.setQueryData(queryKeys.agents.list(spaceId), storybookAgents);
+    queryClient.setQueryData(queryKeys.projects.list(spaceId), storybookProjects);
+    queryClient.setQueryData(queryKeys.projects.list(spaceId, { includeArchived: true }), storybookProjects);
+    queryClient.setQueryData(queryKeys.issues.list(spaceId), storybookIssues);
+    queryClient.setQueryData(queryKeys.issues.labels(spaceId), storybookIssueLabels);
     queryClient.setQueryData(queryKeys.issues.liveRuns(issue.id), []);
     queryClient.setQueryData(queryKeys.issues.activeRun(issue.id), null);
     return true;
@@ -353,7 +353,7 @@ const meta = {
           "Context row in the task Properties panel with a hover breakdown and Compact now, plus the transcript divider recorded when the agent's context is compacted.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "tasks/discussion",
         "runs-adapters/runs"

@@ -25,7 +25,7 @@ import { Link } from "@/lib/router";
 import { describeError } from "@/api/errors";
 import { toolsApi } from "@/api/tools";
 import { queryKeys } from "@/lib/queryKeys";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -350,7 +350,7 @@ type RunOutcome = {
 };
 
 function testOutcomeStorageKey(connectionId: string, entry: ToolCatalogEntry, agentId: string): string {
-  return `paperclip:test-call:${connectionId}:${agentId}:${entry.id}:${entry.toolName}`;
+  return `outpost:test-call:${connectionId}:${agentId}:${entry.id}:${entry.toolName}`;
 }
 
 function loadStoredAskFirstOutcome(connectionId: string, entry: ToolCatalogEntry, agent: ToolConnectionTestAgent): RunOutcome | null {
@@ -400,7 +400,7 @@ function splitRequiredOptional(schema: JsonSchemaNode): JsonSchemaNode {
   const next: Record<string, JsonSchemaNode> = {};
   for (const [key, prop] of Object.entries(props)) {
     const presented = key === "code" && prop.type === "string" && !prop.format ? { ...prop, format: "textarea" } : prop;
-    next[key] = required.has(key) ? presented : { ...presented, "x-paperclip-advanced": true };
+    next[key] = required.has(key) ? presented : { ...presented, "x-outpost-advanced": true };
   }
   return { ...schema, properties: next };
 }
@@ -429,7 +429,7 @@ function ActionTester({
   onSelectAgent: (agentId: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const rawSchema = (entry.inputSchema ?? { type: "object", properties: {} }) as JsonSchemaNode;
   const formSchema = useMemo(() => splitRequiredOptional(rawSchema), [rawSchema]);
   const [values, setValues] = useState<Record<string, unknown>>(() => getDefaultValues(rawSchema));
@@ -471,9 +471,9 @@ function ActionTester({
         setOutcome(nextOutcome);
         storeAskFirstOutcome(connectionId, entry, agent.id, nextOutcome);
         queryClient.invalidateQueries({ queryKey: queryKeys.tools.connectionActivity(connectionId) });
-        if (selectedCompanyId) {
-          queryClient.invalidateQueries({ queryKey: queryKeys.tools.actionRequests(selectedCompanyId, "pending") });
-          queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedCompanyId) });
+        if (selectedSpaceId) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.tools.actionRequests(selectedSpaceId, "pending") });
+          queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedSpaceId) });
         }
       };
       const remaining = 200 - durationMs;
@@ -1134,7 +1134,7 @@ function AskFirstResult({
   connectionId: string;
   agent?: TestAgentWithAccess;
 }) {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const queryClient = useQueryClient();
   const actionRequestId = outcome.result.actionRequestId;
   const [cancelled, setCancelled] = useState(false);
@@ -1151,11 +1151,11 @@ function AskFirstResult({
   });
 
   const cancel = useMutation({
-    mutationFn: () => toolsApi.declineActionRequest(selectedCompanyId!, actionRequestId!),
+    mutationFn: () => toolsApi.declineActionRequest(selectedSpaceId!, actionRequestId!),
     onSuccess: () => {
       setCancelled(true);
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.actionRequests(selectedCompanyId!, "pending") });
-      if (selectedCompanyId) queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedCompanyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.actionRequests(selectedSpaceId!, "pending") });
+      if (selectedSpaceId) queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedSpaceId) });
     },
   });
 
@@ -1243,7 +1243,7 @@ function AskFirstResult({
         <Button asChild size="sm" variant="outline">
           <Link to={appTabHref(connectionId, "review")}>Open Review tab</Link>
         </Button>
-        {phase === "waiting" && actionRequestId && selectedCompanyId && (
+        {phase === "waiting" && actionRequestId && selectedSpaceId && (
           <Button size="sm" variant="ghost" onClick={() => cancel.mutate()} disabled={cancel.isPending}>
             {cancel.isPending ? "Cancelling…" : "Cancel this request"}
           </Button>
@@ -1274,7 +1274,7 @@ function OffExplanation({
 
   // Other agents are intentionally not summarized up front. Selecting one
   // fetches and caches only that agent's access, keeping this screen fast even
-  // for large companies.
+  // for large spaces.
   const others = allAgents.filter((a) => a.id !== agent.id);
 
   const whyBody = entry.status === "quarantined"
@@ -1353,7 +1353,7 @@ function safeStringify(value: unknown): string {
 
 /**
  * Tailored next steps keyed on the upstream/gateway error. Mirrors the
- * board-accepted copy-spec error-hint lookup (NOT_FOUND / PERMISSION_DENIED /
+ * operator-accepted copy-spec error-hint lookup (NOT_FOUND / PERMISSION_DENIED /
  * INVALID_ARGUMENT / RATE_LIMIT) with the locked generic fallback otherwise.
  */
 function isReconnectError(reasonCode: string | null | undefined): boolean {

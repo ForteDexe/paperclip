@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { paperclipRunnerSupportsPlatform } from "@outpost/shared";
+import { outpostRunnerSupportsPlatform } from "@outpost/shared";
 
 type LocalRunnerTarget = {
   driver: "local";
@@ -36,7 +36,7 @@ export function localAgentRunnerTarget(): LocalRunnerTarget {
   return { ...localTarget };
 }
 
-export function localPaperclipRunnerSupported(): boolean {
+export function localOutpostRunnerSupported(): boolean {
   const target = localAgentRunnerTarget();
-  return paperclipRunnerSupportsPlatform("codex_local", target.platform, target.architecture, target.libc, target.glibcVersion);
+  return outpostRunnerSupportsPlatform("codex_local", target.platform, target.architecture, target.libc, target.glibcVersion);
 }

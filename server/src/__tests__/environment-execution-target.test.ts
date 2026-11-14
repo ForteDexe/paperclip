@@ -106,13 +106,13 @@ describe("resolveEnvironmentExecutionTarget", () => {
 
   it("forwards the physical task binding through the plugin task target", async () => {
     const task = vi.fn(async () => ({ kind: "accepted" as const, taskId: "physical-task" }));
-    const target = await resolveEnvironmentExecutionTarget({ db: {} as never, companyId: "company", adapterType: "outpost_runner",
+    const target = await resolveEnvironmentExecutionTarget({ db: {} as never, spaceId: "space", adapterType: "outpost_runner",
       environment: { id: "environment", driver: "plugin", config: {} }, leaseMetadata: {},
-      lease: { id: "lease", companyId: "company", environmentId: "environment", providerLeaseId: "physical-task", metadata: {} } as never,
+      lease: { id: "lease", spaceId: "space", environmentId: "environment", providerLeaseId: "physical-task", metadata: {} } as never,
       environmentRuntime: { supportsTasks: async () => true, task } as never });
     if (target?.kind !== "remote" || target.transport !== "sandbox" || !target.runnerTask) throw new Error("Plugin task target unavailable");
     await target.runnerTask({ kind: "stop" }, { expectedTaskId: "physical-task" });
-    expect(task).toHaveBeenCalledWith({ companyId: "company", leaseId: "lease", operation: { kind: "stop" }, expectedTaskId: "physical-task" });
+    expect(task).toHaveBeenCalledWith({ spaceId: "space", leaseId: "lease", operation: { kind: "stop" }, expectedTaskId: "physical-task" });
   });
 
   it("uses a bounded default cwd for sandbox targets when lease metadata omits remoteCwd", async () => {
@@ -127,7 +127,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
 
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       environment: {
         id: "env-1",
@@ -153,7 +153,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
     });
   });
 
-  it("keeps sandbox targets on bridge mode even when lease metadata includes a Paperclip API URL", async () => {
+  it("keeps sandbox targets on bridge mode even when lease metadata includes a Outpost API URL", async () => {
     mockResolveEnvironmentDriverConfigForRuntime.mockResolvedValue({
       driver: "sandbox",
       config: {
@@ -165,7 +165,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
 
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       environment: {
         id: "env-1",
@@ -176,7 +176,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
       },
       leaseId: "lease-1",
       leaseMetadata: {
-        paperclipApiUrl: "https://outpost.example.test",
+        outpostApiUrl: "https://outpost.example.test",
       },
       lease: null,
       environmentRuntime: null,
@@ -188,8 +188,8 @@ describe("resolveEnvironmentExecutionTarget", () => {
       providerKey: "fake-plugin",
       remoteCwd: DEFAULT_SANDBOX_REMOTE_CWD,
     });
-    expect(target).not.toHaveProperty("paperclipApiUrl");
-    expect(target).not.toHaveProperty("paperclipTransport");
+    expect(target).not.toHaveProperty("outpostApiUrl");
+    expect(target).not.toHaveProperty("outpostTransport");
   });
 
   it("passes through a provider-declared sandbox shell command from lease metadata", async () => {
@@ -204,7 +204,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
 
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       environment: {
         id: "env-1",
@@ -240,7 +240,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
 
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "claude_local",
       environment: {
         id: "env-1",
@@ -251,12 +251,12 @@ describe("resolveEnvironmentExecutionTarget", () => {
       },
       leaseId: "lease-1",
       leaseMetadata: {
-        remoteCwd: "/home/sandbox/paperclip-workspace",
+        remoteCwd: "/home/sandbox/outpost-workspace",
         sshAccess: {
           type: "ssh",
           host: "ssh.example.test",
           port: 22,
-          username: "paperclip",
+          username: "outpost",
         },
       },
       lease: null,
@@ -267,7 +267,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
       kind: "remote",
       transport: "sandbox",
       providerKey: "fake-plugin",
-      remoteCwd: "/home/sandbox/paperclip-workspace",
+      remoteCwd: "/home/sandbox/outpost-workspace",
     });
   });
 
@@ -293,7 +293,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
 
       const target = await resolveEnvironmentExecutionTarget({
         db: {} as never,
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType,
         environment: {
           id: "env-1",
@@ -318,7 +318,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
     for (const driver of ["sandbox", "ssh"] as const) {
       const target = await resolveEnvironmentExecutionTarget({
         db: {} as never,
-        companyId: "company-1",
+        spaceId: "space-1",
         adapterType: "process",
         environment: {
           id: "env-1",
@@ -342,8 +342,8 @@ describe("resolveEnvironmentExecutionTarget", () => {
       config: {
         host: "ssh.example.test",
         port: 22,
-        username: "paperclip",
-        remoteWorkspacePath: "/srv/paperclip",
+        username: "outpost",
+        remoteWorkspacePath: "/srv/outpost",
         privateKey: "PRIVATE KEY",
         knownHosts: "[ssh.example.test]:22 ssh-ed25519 AAAA",
         strictHostKeyChecking: true,
@@ -352,7 +352,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
 
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "grok_local",
       environment: {
         id: "env-ssh-1",
@@ -368,7 +368,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
     expect(target).toMatchObject({
       kind: "remote",
       transport: "ssh",
-      remoteCwd: "/srv/paperclip",
+      remoteCwd: "/srv/outpost",
     });
   });
 
@@ -378,8 +378,8 @@ describe("resolveEnvironmentExecutionTarget", () => {
       config: {
         host: "ssh.example.test",
         port: 22,
-        username: "paperclip",
-        remoteWorkspacePath: "/srv/paperclip",
+        username: "outpost",
+        remoteWorkspacePath: "/srv/outpost",
         privateKey: "PRIVATE KEY",
         knownHosts: "[ssh.example.test]:22 ssh-ed25519 AAAA",
         strictHostKeyChecking: true,
@@ -388,7 +388,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
 
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "kimi_local",
       environment: {
         id: "env-ssh-1",
@@ -404,7 +404,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
     expect(target).toMatchObject({
       kind: "remote",
       transport: "ssh",
-      remoteCwd: "/srv/paperclip",
+      remoteCwd: "/srv/outpost",
     });
   });
 
@@ -414,8 +414,8 @@ describe("resolveEnvironmentExecutionTarget", () => {
       config: {
         host: "ssh.example.test",
         port: 22,
-        username: "paperclip",
-        remoteWorkspacePath: "/srv/paperclip",
+        username: "outpost",
+        remoteWorkspacePath: "/srv/outpost",
         privateKey: "PRIVATE KEY",
         knownHosts: "[ssh.example.test]:22 ssh-ed25519 AAAA",
         strictHostKeyChecking: true,
@@ -424,7 +424,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
 
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       environment: {
         id: "env-ssh-1",
@@ -440,18 +440,18 @@ describe("resolveEnvironmentExecutionTarget", () => {
     expect(target).toMatchObject({
       kind: "remote",
       transport: "ssh",
-      remoteCwd: "/srv/paperclip",
+      remoteCwd: "/srv/outpost",
       leaseId: "lease-ssh-1",
       environmentId: "env-ssh-1",
       spec: {
         host: "ssh.example.test",
         port: 22,
-        username: "paperclip",
-        remoteWorkspacePath: "/srv/paperclip",
-        remoteCwd: "/srv/paperclip",
+        username: "outpost",
+        remoteWorkspacePath: "/srv/outpost",
+        remoteCwd: "/srv/outpost",
       },
     });
-    expect(target).not.toHaveProperty("paperclipApiUrl");
+    expect(target).not.toHaveProperty("outpostApiUrl");
   });
 
   it("exposes a sandbox runner with single-stream stdin upload disabled", async () => {
@@ -478,7 +478,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
 
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       environment: { id: "env-1", driver: "sandbox", config: { provider: "fake-plugin" } },
       leaseId: "lease-1",
@@ -527,7 +527,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
 
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       environment: { id: "env-1", driver: "sandbox", config: { provider: "fake-plugin" } },
       leaseId: "lease-1",
@@ -649,7 +649,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
     };
     const target = await resolveEnvironmentExecutionTarget({
       db: {} as never,
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "codex_local",
       environment: { id: "env-1", driver: "sandbox", config: { provider: input.provider } },
       leaseId: "lease-1",
@@ -1327,7 +1327,7 @@ describe("resolveEnvironmentExecutionTarget", () => {
   });
 
   // Fire one run-time exec from a bridge continuation that runs after the step
-  // span ended. Each bridge step (`bridge.paperclip`, `bridge.process-session`)
+  // span ended. Each bridge step (`bridge.outpost`, `bridge.process-session`)
   // starts long-lived work with `criticalPath: false`. The bridge boundary wraps
   // that long-lived work in `runWithoutActiveStep`, exactly as modeled here, so
   // the continuation reads an empty active step. Return the recorded exec span.
@@ -1381,8 +1381,8 @@ describe("resolveEnvironmentExecutionTarget", () => {
     expect(execSpan!.parent).toBeNull();
   });
 
-  it("opens an unparented exec span for a paperclip bridge continuation", async () => {
-    const execSpan = await runContinuationExec("bridge.paperclip", { wrap: true });
+  it("opens an unparented exec span for a outpost bridge continuation", async () => {
+    const execSpan = await runContinuationExec("bridge.outpost", { wrap: true });
     expect(execSpan).toBeTruthy();
     expect(execSpan!.parent).toBeNull();
   });

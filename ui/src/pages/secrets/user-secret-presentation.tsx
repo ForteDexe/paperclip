@@ -4,8 +4,8 @@ import { cn } from "../../lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 /**
- * User secrets are visually distinct from company secrets via a violet accent
- * (company secrets use neutral/emerald tones). This keeps the two Secrets tabs
+ * User secrets are visually distinct from space secrets via a violet accent
+ * (space secrets use neutral/emerald tones). This keeps the two Secrets tabs
  * unmistakable at a glance, per the Phase 2 UX direction.
  */
 export const USER_SECRET_ACCENT_TEXT = "text-violet-700 dark:text-violet-300";

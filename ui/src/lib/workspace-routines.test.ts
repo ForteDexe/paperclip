@@ -9,7 +9,7 @@ import {
 function createRoutine(overrides: Partial<RoutineListItem> = {}): RoutineListItem {
   return {
     id: "routine-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     goalId: null,
     parentIssueId: null,
@@ -22,7 +22,7 @@ function createRoutine(overrides: Partial<RoutineListItem> = {}): RoutineListIte
     concurrencyPolicy: "coalesce_if_active",
     catchUpPolicy: "skip_missed",
     activityGatePolicy: "always",
-    activityGateScope: "company",
+    activityGateScope: "space",
     variables: [],
     latestRevisionId: null,
     latestRevisionNumber: 1,

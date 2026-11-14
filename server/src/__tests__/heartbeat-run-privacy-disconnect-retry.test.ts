@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthorizationActor, AuthorizationDecision } from "../services/authorization.js";
 import { canActorReadHeartbeatRun } from "../services/heartbeat-run-privacy.js";
 
-const companyId = "00000000-0000-4000-8000-000000000001";
+const spaceId = "00000000-0000-4000-8000-000000000001";
 const issueId = "00000000-0000-4000-8000-000000000003";
-const actor = { type: "board", userId: "user-1", source: "session" } as AuthorizationActor;
-const run = { companyId, scopeKind: "issue" as const, issueId };
+const actor = { type: "operator", userId: "user-1", source: "session" } as AuthorizationActor;
+const run = { spaceId, scopeKind: "issue" as const, issueId };
 
 function disconnected(code = "CONNECTION_CLOSED") {
   return new Error("Failed query", {
@@ -57,7 +57,7 @@ describe("heartbeat run read decision connection recovery", () => {
     expect(test.decide).toHaveBeenLastCalledWith(expect.objectContaining({
       actor,
       action: "issue:read",
-      resource: expect.objectContaining({ type: "issue", companyId, issueId }),
+      resource: expect.objectContaining({ type: "issue", spaceId, issueId }),
     }));
   });
 
@@ -78,14 +78,14 @@ describe("heartbeat run read decision connection recovery", () => {
     expect(test.decide).not.toHaveBeenCalled();
   });
 
-  it("keeps missing issues and company-scoped runs unchanged", async () => {
+  it("keeps missing issues and space-scoped runs unchanged", async () => {
     const missing = fixture({ missing: true });
     await expect(canActorReadHeartbeatRun(missing.db, missing.access, actor, run)).resolves.toBe(false);
     expect(missing.decide).not.toHaveBeenCalled();
 
-    const company = fixture();
-    await expect(canActorReadHeartbeatRun(company.db, company.access, actor, { companyId, scopeKind: "company" }))
+    const space = fixture();
+    await expect(canActorReadHeartbeatRun(space.db, space.access, actor, { spaceId, scopeKind: "space" }))
       .resolves.toBe(true);
-    expect(company.select).not.toHaveBeenCalled();
+    expect(space.select).not.toHaveBeenCalled();
   });
 });

@@ -46,7 +46,7 @@ const sha = z.string().regex(/^[a-f0-9]{64}$/);
 const generation = z.number().int().min(0).max(2_147_483_647);
 const authoritySchema = z
   .object({
-    companyId: z.uuid(),
+    spaceId: z.uuid(),
     endpointId: z.uuid(),
     conversationId: z.uuid(),
     issueId: z.uuid(),
@@ -161,7 +161,7 @@ export interface TeamsFileTransferOptions {
 
 export interface TeamsFileTransferSummary {
   id: string;
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   conversationId: string;
   issueId: string;
@@ -185,7 +185,7 @@ function summary(row: Row): TeamsFileTransferSummary {
     resolution.data.resolution.fromPhase === "file_info_unknown";
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     endpointId: row.endpointId,
     conversationId: row.conversationId,
     issueId: row.issueId,
@@ -217,7 +217,7 @@ function authority(row: Row): TeamsFileTransferAuthority {
 const authorityHash = (a: TeamsFileTransferAuthority) =>
   hash(JSON.stringify(authoritySchema.parse(a)));
 const context = (row: Row): TeamsFilePrivateContext => ({
-  companyId: row.companyId,
+  spaceId: row.spaceId,
   endpointId: row.endpointId,
   transferId: row.id,
   authorityDigest: row.authorityDigest,
@@ -236,7 +236,7 @@ export function teamsFileTransferService(
   const now = options.now ?? (() => new Date());
   async function locked(
     tx: Tx,
-    companyId: string,
+    spaceId: string,
     id: string,
     nonblocking = false,
   ) {
@@ -247,7 +247,7 @@ export function teamsFileTransferService(
       .from(chatTeamsFileTransfers)
       .where(
         and(
-          eq(chatTeamsFileTransfers.companyId, companyId),
+          eq(chatTeamsFileTransfers.spaceId, spaceId),
           eq(chatTeamsFileTransfers.id, id),
         ),
       )
@@ -258,7 +258,7 @@ export function teamsFileTransferService(
       .from(chatPublications)
       .where(
         and(
-          eq(chatPublications.companyId, companyId),
+          eq(chatPublications.spaceId, spaceId),
           eq(chatPublications.id, candidate.publicationId),
         ),
       )
@@ -270,7 +270,7 @@ export function teamsFileTransferService(
       .from(chatTeamsFileTransfers)
       .where(
         and(
-          eq(chatTeamsFileTransfers.companyId, companyId),
+          eq(chatTeamsFileTransfers.spaceId, spaceId),
           eq(chatTeamsFileTransfers.id, id),
         ),
       )
@@ -306,7 +306,7 @@ export function teamsFileTransferService(
         issueComments,
         and(
           eq(issueComments.id, chatPublications.commentId),
-          eq(issueComments.companyId, a.companyId),
+          eq(issueComments.spaceId, a.spaceId),
           eq(issueComments.issueId, a.issueId),
         ),
       )
@@ -314,7 +314,7 @@ export function teamsFileTransferService(
         issueAttachments,
         and(
           eq(issueAttachments.id, a.attachmentId),
-          eq(issueAttachments.companyId, a.companyId),
+          eq(issueAttachments.spaceId, a.spaceId),
           eq(issueAttachments.issueId, a.issueId),
           eq(issueAttachments.issueCommentId, a.commentId),
         ),
@@ -323,13 +323,13 @@ export function teamsFileTransferService(
         assets,
         and(
           eq(assets.id, issueAttachments.assetId),
-          eq(assets.companyId, a.companyId),
+          eq(assets.spaceId, a.spaceId),
         ),
       )
       .where(
         and(
           eq(chatPublications.id, a.publicationId),
-          eq(chatPublications.companyId, a.companyId),
+          eq(chatPublications.spaceId, a.spaceId),
           eq(chatPublications.endpointId, a.endpointId),
           eq(chatPublications.conversationId, a.conversationId),
           eq(chatPublications.issueId, a.issueId),
@@ -358,7 +358,7 @@ export function teamsFileTransferService(
     );
     const a = authority(row);
     const expected = {
-      companyId: a.companyId,
+      spaceId: a.spaceId,
       endpointId: a.endpointId,
       issueId: a.issueId,
       publicationId: a.publicationId,
@@ -398,7 +398,7 @@ export function teamsFileTransferService(
       .where(
         and(
           eq(chatTeamsFileTransfers.id, row.id),
-          eq(chatTeamsFileTransfers.companyId, row.companyId),
+          eq(chatTeamsFileTransfers.spaceId, row.spaceId),
           eq(chatTeamsFileTransfers.version, row.version),
         ),
       )
@@ -478,7 +478,7 @@ export function teamsFileTransferService(
         .where(
           and(
             eq(chatPublications.id, a.publicationId),
-            eq(chatPublications.companyId, a.companyId),
+            eq(chatPublications.spaceId, a.spaceId),
           ),
         )
         .for("update");
@@ -488,7 +488,7 @@ export function teamsFileTransferService(
         .from(chatTeamsFileTransfers)
         .where(
           and(
-            eq(chatTeamsFileTransfers.companyId, a.companyId),
+            eq(chatTeamsFileTransfers.spaceId, a.spaceId),
             eq(chatTeamsFileTransfers.publicationId, a.publicationId),
           ),
         )
@@ -508,7 +508,7 @@ export function teamsFileTransferService(
       const id = randomUUID();
       const authorityDigest = authorityHash(a);
       const binding = createTeamsFileConsentBinding({
-        companyId: a.companyId,
+        spaceId: a.spaceId,
         endpointId: a.endpointId,
         issueId: a.issueId,
         publicationId: a.publicationId,
@@ -529,7 +529,7 @@ export function teamsFileTransferService(
         schema: "outpost.teams.transfer-private.v1",
         binding: await sealTeamsFileConsentBinding(
           {
-            companyId: a.companyId,
+            spaceId: a.spaceId,
             endpointId: a.endpointId,
             transferId: id,
             authorityDigest,
@@ -564,14 +564,14 @@ export function teamsFileTransferService(
         .from(chatTeamsFileTransfers)
         .where(
           and(
-            eq(chatTeamsFileTransfers.companyId, event.companyId),
+            eq(chatTeamsFileTransfers.spaceId, event.spaceId),
             eq(chatTeamsFileTransfers.endpointId, event.endpointId),
             eq(chatTeamsFileTransfers.tokenSha256, hash(event.token)),
           ),
         )
         .then((rows) => rows[0]);
       if (!found) return "denied";
-      let row = await locked(tx, event.companyId, found.id);
+      let row = await locked(tx, event.spaceId, found.id);
       await verify(tx, authority(row), "response");
       const { state, binding } = await decoded(row);
       const encrypted = await sealTeamsFileConsentEvent(
@@ -593,7 +593,7 @@ export function teamsFileTransferService(
         .then((rows) => rows[0]);
       if (existing) {
         if (
-          existing.companyId === row.companyId &&
+          existing.spaceId === row.spaceId &&
           existing.payload.transferId === row.id &&
           existing.payload.receiptDigest === receiptDigest
         )
@@ -618,7 +618,7 @@ export function teamsFileTransferService(
         return "denied";
       }
       await tx.insert(chatActions).values({
-        companyId: row.companyId,
+        spaceId: row.spaceId,
         endpointId: row.endpointId,
         conversationId: row.conversationId,
         principalId: row.principalId,
@@ -644,9 +644,9 @@ export function teamsFileTransferService(
       return "recorded";
     });
   }
-  async function claim(companyId: string, id: string) {
+  async function claim(spaceId: string, id: string) {
     return db.transaction(async (tx) => {
-      let row = await locked(tx, companyId, id);
+      let row = await locked(tx, spaceId, id);
       const checked = now();
       if (
         row.attemptId &&
@@ -708,7 +708,7 @@ export function teamsFileTransferService(
   }
   async function checkClaim(row: Row, stage: TeamsFileTransferStage) {
     await db.transaction(async (tx) => {
-      const current = await locked(tx, row.companyId, row.id);
+      const current = await locked(tx, row.spaceId, row.id);
       await verify(tx, authority(current), stage);
       if (
         current.attemptId !== row.attemptId ||
@@ -740,11 +740,11 @@ export function teamsFileTransferService(
     }
   }
   async function process(
-    companyId: string,
+    spaceId: string,
     id: string,
   ): Promise<TeamsFileTransferSummary> {
-    const work = await claim(companyId, id);
-    if (!work) return get(companyId, id);
+    const work = await claim(spaceId, id);
+    if (!work) return get(spaceId, id);
     const { row, state, binding, stage } = work;
     let messageId: string | null = null;
     let upload: TeamsFileUploadCapability | null = null;
@@ -802,7 +802,7 @@ export function teamsFileTransferService(
       /* Only closed phase/reason below; never persist provider error text. */
     }
     return db.transaction(async (tx) => {
-      let current = await locked(tx, companyId, id);
+      let current = await locked(tx, spaceId, id);
       if (current.attemptId !== row.attemptId || current.phase !== row.phase)
         return summary(current);
       // Receipt recording preserves the exact already-admitted side effect even
@@ -851,24 +851,24 @@ export function teamsFileTransferService(
       return summary(current);
     });
   }
-  async function get(companyId: string, id: string) {
+  async function get(spaceId: string, id: string) {
     const [row] = await db
       .select()
       .from(chatTeamsFileTransfers)
       .where(
         and(
-          eq(chatTeamsFileTransfers.companyId, companyId),
+          eq(chatTeamsFileTransfers.spaceId, spaceId),
           eq(chatTeamsFileTransfers.id, id),
         ),
       );
     if (!row) fail();
     return summary(row);
   }
-  async function recoverTransfer(companyId: string, id: string, reason: "all" | "consent" | "attempts") {
+  async function recoverTransfer(spaceId: string, id: string, reason: "all" | "consent" | "attempts") {
     return db.transaction(async (tx) => {
       // Bound maintenance waits, including locks taken by atomic projection.
       await tx.execute(sql`set local lock_timeout = '250ms'`);
-      const row = await locked(tx, companyId, id, true);
+      const row = await locked(tx, spaceId, id, true);
       if (reason !== "consent" && (sending.includes(row.phase) || row.phase === "conflict") &&
           row.attemptExpiresAt && row.attemptExpiresAt <= now()) {
         await update(tx, row, {
@@ -887,11 +887,11 @@ export function teamsFileTransferService(
     });
   }
   async function expireAndRecover(
-    companyId: string,
+    spaceId: string,
     limit = 25,
     reason: "all" | "attempts" = "all",
   ): Promise<TeamsFileRecoverySweepSummary> {
-    if (!z.uuid().safeParse(companyId).success) fail();
+    if (!z.uuid().safeParse(spaceId).success) fail();
     const size = Number.isSafeInteger(limit)
       ? Math.min(100, Math.max(1, limit))
       : 25;
@@ -900,11 +900,11 @@ export function teamsFileTransferService(
       cursors = new Map();
       expiryRecoveryCursors.set(db, cursors);
     }
-    const cursorKey = `${companyId}:${reason}`;
+    const cursorKey = `${spaceId}:${reason}`;
     const cursor = cursors.get(cursorKey);
     const cutoff = now();
     const eligible = and(
-      eq(chatTeamsFileTransfers.companyId, companyId),
+      eq(chatTeamsFileTransfers.spaceId, spaceId),
       or(
         and(
           inArray(chatTeamsFileTransfers.phase, [...sending, "conflict"]),
@@ -956,7 +956,7 @@ export function teamsFileTransferService(
       result.cursor = candidate.id;
       result.scanned++;
       try {
-        const recovered = await recoverTransfer(companyId, candidate.id, reason);
+        const recovered = await recoverTransfer(spaceId, candidate.id, reason);
         if (recovered) result.recovered++;
       } catch {
         // Keep the exact evidence and rollback any paired projection. Only
@@ -966,9 +966,9 @@ export function teamsFileTransferService(
     }
     return result;
   }
-  async function cancel(companyId: string, id: string) {
+  async function cancel(spaceId: string, id: string) {
     return db.transaction(async (tx) => {
-      const row = await locked(tx, companyId, id);
+      const row = await locked(tx, spaceId, id);
       if (closed.includes(row.phase)) return summary(row);
       // Unknown I/O is never relabelled as undelivered by cancellation.
       if (
@@ -995,7 +995,7 @@ export function teamsFileTransferService(
   /** Read-only UI readiness, not resolution authority. The resolver repeats its
    * exact version and ownership checks under lock. Never expose private proof. */
   async function canCancelConflict(input: {
-    companyId: string;
+    spaceId: string;
     endpointId: string;
     conversationId: string;
     publicationId: string;
@@ -1003,7 +1003,7 @@ export function teamsFileTransferService(
   }): Promise<boolean> {
     if (
       ![
-        input.companyId,
+        input.spaceId,
         input.endpointId,
         input.conversationId,
         input.publicationId,
@@ -1020,7 +1020,7 @@ export function teamsFileTransferService(
           chatPublications,
           and(
             eq(chatPublications.id, chatTeamsFileTransfers.publicationId),
-            eq(chatPublications.companyId, chatTeamsFileTransfers.companyId),
+            eq(chatPublications.spaceId, chatTeamsFileTransfers.spaceId),
             eq(chatPublications.endpointId, chatTeamsFileTransfers.endpointId),
             eq(
               chatPublications.conversationId,
@@ -1031,7 +1031,7 @@ export function teamsFileTransferService(
         )
         .where(
           and(
-            eq(chatTeamsFileTransfers.companyId, input.companyId),
+            eq(chatTeamsFileTransfers.spaceId, input.spaceId),
             eq(chatTeamsFileTransfers.endpointId, input.endpointId),
             eq(chatTeamsFileTransfers.conversationId, input.conversationId),
             eq(chatTeamsFileTransfers.publicationId, input.publicationId),
@@ -1081,12 +1081,12 @@ export function teamsFileTransferService(
     }
   }
 
-  /** Caller owns Board authorization, credential lease, audit, and paired public
+  /** Caller owns Operator authorization, credential lease, audit, and paired public
    * publication update in THIS transaction. No nested transaction or effects. */
   async function resolveInTransaction(
     tx: Tx,
     input: {
-      companyId: string;
+      spaceId: string;
       publicationId: string;
       transferId: string;
       expectedVersion: number;
@@ -1095,7 +1095,7 @@ export function teamsFileTransferService(
       action: "mark_delivered" | "retry_anyway" | "cancel";
     },
   ) {
-    const row = await locked(tx, input.companyId, input.transferId);
+    const row = await locked(tx, input.spaceId, input.transferId);
     if (
       row.publicationId !== input.publicationId ||
       row.version !== input.expectedVersion ||
@@ -1159,10 +1159,10 @@ export function teamsFileTransferService(
     recordConsent,
     process,
     get,
-    expireAndRecover: (companyId: string, limit = 25) => expireAndRecover(companyId, limit),
-    recoverAbandonedAttempts: (companyId: string, limit = 25) => expireAndRecover(companyId, limit, "attempts"),
-    recoverAbandonedAttempt: (companyId: string, id: string) => recoverTransfer(companyId, id, "attempts"),
-    expireUnusedConsent: (companyId: string, id: string) => recoverTransfer(companyId, id, "consent"),
+    expireAndRecover: (spaceId: string, limit = 25) => expireAndRecover(spaceId, limit),
+    recoverAbandonedAttempts: (spaceId: string, limit = 25) => expireAndRecover(spaceId, limit, "attempts"),
+    recoverAbandonedAttempt: (spaceId: string, id: string) => recoverTransfer(spaceId, id, "attempts"),
+    expireUnusedConsent: (spaceId: string, id: string) => recoverTransfer(spaceId, id, "consent"),
     cancel,
     canCancelConflict,
     resolveInTransaction,

@@ -9,38 +9,38 @@ import { nativeRunnerOwnershipNotHeldCondition } from "./native-runner-ownership
 import { finalizeNativeRun, NativeFinalizationDeferredError, recordNativeFinalizationFailure } from "./native-run-finalizer.js";
 import { readNativeWorkspaceSyncReference } from "./native-workspace-sync.js";
 
-type Entry = { id: string; companyId: string; issueId: string; dueAt: number };
+type Entry = { id: string; spaceId: string; issueId: string; dueAt: number };
 
 
 
 export function nativeResultCommitWork(db: Db, finalize = finalizeNativeRun) {
   function candidates(scope?: NativeResultCommitScope, after?: string) {
-    return db.select({ id: nativeRunFinalizations.runId, companyId: nativeRunFinalizations.companyId,
+    return db.select({ id: nativeRunFinalizations.runId, spaceId: nativeRunFinalizations.spaceId,
       issueId: nativeRunFinalizations.issueId, nextAttemptAt: nativeRunFinalizations.nextAttemptAt,
       leaseOwner: nativeRunFinalizations.leaseOwner, leaseExpiresAt: nativeRunFinalizations.leaseExpiresAt,
     }).from(nativeRunFinalizations)
       .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, nativeRunFinalizations.runId),
-        eq(heartbeatRuns.companyId, nativeRunFinalizations.companyId), eq(heartbeatRuns.nativeIssueId, nativeRunFinalizations.issueId)))
-      .innerJoin(issues, and(eq(issues.id, nativeRunFinalizations.issueId), eq(issues.companyId, nativeRunFinalizations.companyId)))
+        eq(heartbeatRuns.spaceId, nativeRunFinalizations.spaceId), eq(heartbeatRuns.nativeIssueId, nativeRunFinalizations.issueId)))
+      .innerJoin(issues, and(eq(issues.id, nativeRunFinalizations.issueId), eq(issues.spaceId, nativeRunFinalizations.spaceId)))
       .innerJoin(nativeRunResults, and(eq(nativeRunResults.id, nativeRunFinalizations.resultId),
-        eq(nativeRunResults.runId, nativeRunFinalizations.runId), eq(nativeRunResults.companyId, nativeRunFinalizations.companyId),
+        eq(nativeRunResults.runId, nativeRunFinalizations.runId), eq(nativeRunResults.spaceId, nativeRunFinalizations.spaceId),
         eq(nativeRunResults.issueId, nativeRunFinalizations.issueId), eq(nativeRunResults.schemaStatus, "accepted")))
       .where(and(eq(heartbeatRuns.runtimeMode, "native"), nativeRunnerOwnershipNotHeldCondition(),
         notInArray(nativeRunFinalizations.phase, ["committed", "terminal_failure"]),
         not(pendingNativeStatusEffectsCondition(db)),
         exists(db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-          eq(workspaceOperations.companyId, nativeRunFinalizations.companyId),
+          eq(workspaceOperations.spaceId, nativeRunFinalizations.spaceId),
           eq(workspaceOperations.issueId, nativeRunFinalizations.issueId), eq(workspaceOperations.heartbeatRunId, nativeRunFinalizations.runId),
           eq(workspaceOperations.phase, "workspace_finalize"), eq(workspaceOperations.status, "succeeded"),
         ))),
-        scope ? eq(nativeRunFinalizations.companyId, scope.companyId) : undefined,
+        scope ? eq(nativeRunFinalizations.spaceId, scope.spaceId) : undefined,
         scope?.issueId ? eq(nativeRunFinalizations.issueId, scope.issueId) : undefined,
         scope?.runId ? eq(nativeRunFinalizations.runId, scope.runId) : undefined,
         after ? gt(nativeRunFinalizations.runId, after) : undefined,
       )).orderBy(asc(nativeRunFinalizations.runId)).limit(100);
   }
   function entry(row: Awaited<ReturnType<typeof candidates>>[number]): Entry {
-    return { id: row.id, companyId: row.companyId, issueId: row.issueId,
+    return { id: row.id, spaceId: row.spaceId, issueId: row.issueId,
       dueAt: Math.max(row.nextAttemptAt?.getTime() ?? 0, row.leaseOwner ? row.leaseExpiresAt?.getTime() ?? 0 : 0) };
   }
   async function load(scope?: NativeResultCommitScope, signal?: AbortSignal, canRun = () => true): Promise<Entry[]> {
@@ -56,13 +56,13 @@ export function nativeResultCommitWork(db: Db, finalize = finalizeNativeRun) {
   }
   async function check(current: Entry, signal?: AbortSignal): Promise<Entry | null> {
     if (signal?.aborted) throw new Error("Native result commit stopped");
-    const scope = { companyId: current.companyId, issueId: current.issueId, runId: current.id };
+    const scope = { spaceId: current.spaceId, issueId: current.issueId, runId: current.id };
     const [row] = await candidates(scope);
     if (!row) return null;
     const due = entry(row);
     if (due.dueAt > Date.now()) return due;
     const [run] = await db.select({ profile: heartbeatRuns.runnerProfileJson }).from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, current.companyId), eq(heartbeatRuns.id, current.id)));
+      .where(and(eq(heartbeatRuns.spaceId, current.spaceId), eq(heartbeatRuns.id, current.id)));
     if (!run) return null;
     if (signal?.aborted) throw new Error("Native result commit stopped");
     try {
@@ -88,7 +88,7 @@ export function nativeResultCommitWork(db: Db, finalize = finalizeNativeRun) {
     return registerScopedDeadlineWork(coordinator, {
       queue: DELIVERY_QUEUES.nativeResultCommit, batchSize: 1,
       decodeScope: (hint: string): NativeResultCommitScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
-      matches: (item: Entry, scope?: NativeResultCommitScope) => !scope || item.companyId === scope.companyId
+      matches: (item: Entry, scope?: NativeResultCommitScope) => !scope || item.spaceId === scope.spaceId
         && (!scope.issueId || item.issueId === scope.issueId) && (!scope.runId || item.id === scope.runId),
       load: async (scope, signal) => await canRecover() ? load(scope, signal, canRun) : [],
       check: async (item, signal) => {

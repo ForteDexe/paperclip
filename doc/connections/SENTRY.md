@@ -1,19 +1,19 @@
 # Sentry
 
-Paperclip connects to Sentry's [official MCP server](https://mcp.sentry.dev/)
+Outpost connects to Sentry's [official MCP server](https://mcp.sentry.dev/)
 at `https://mcp.sentry.dev/mcp`. Browser sign-in uses the MCP authorization
 server. A normal connection does not require a customer-created OAuth app.
 
 ## User auth token
 
-Browser sign-in grants expire. A staging company connected on 2026-10-11
+Browser sign-in grants expire. A staging space connected on 2026-10-11
 needed reauthorization at 04:01 UTC on 2026-11-10, and its agents lost Sentry
 access until a person signed in again. For unattended agents such as a triage
 routine, use **Use a user auth token** instead.
 
 Create a [user auth token](https://sentry.io/settings/account/api/auth-tokens/)
 with `org:read`, `project:read`, `project:write`, `team:read`, `team:write` and
-`event:write`. Paperclip sends it to the same hosted server as
+`event:write`. Outpost sends it to the same hosted server as
 `Authorization: Sentry-Bearer <token>`. The hosted server reserves `Bearer` for
 its own OAuth tokens and forwards a `Sentry-Bearer` token to Sentry without
 storing or refreshing it. See the
@@ -29,7 +29,7 @@ The method pins the [MCP protected-resource metadata](https://mcp.sentry.dev/.we
 That document names `https://mcp.sentry.dev` as its authorization server.
 Its [authorization-server metadata](https://mcp.sentry.dev/.well-known/oauth-authorization-server)
 advertises automatic client registration, PKCE S256, refresh tokens, and
-client ID metadata documents. Paperclip retains its normal client selection
+client ID metadata documents. Outpost retains its normal client selection
 and binding checks.
 
 Do not use `https://sentry.io/.well-known/oauth-authorization-server` for this
@@ -56,7 +56,7 @@ previous grant stopped working.
 The service regression uses separate, realistic metadata for both Sentry
 hosts. It checks new registration and reuse of an existing MCP registration,
 the authorization URL, resource, requested scopes, and PKCE. These fixtures
-prove Paperclip's endpoint selection; they do not prove live account consent.
+prove Outpost's endpoint selection; they do not prove live account consent.
 
 Before claiming restoration, verify browser consent, catalog discovery, and a
 real agent read. Record token refresh separately. Do not publish credentials

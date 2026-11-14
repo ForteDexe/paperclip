@@ -7,8 +7,8 @@ import {
   activityLog,
   agents,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   heartbeatRuns,
   issueComments,
@@ -21,7 +21,7 @@ import { LOW_TRUST_REVIEW_PRESET } from "@outpost/shared";
 import { errorHandler } from "../middleware/index.js";
 import { issueRoutes } from "../routes/issues.js";
 import { issueService } from "../services/issues.js";
-import { subscribeCompanyLiveEvents } from "../services/live-events.js";
+import { subscribeSpaceLiveEvents } from "../services/live-events.js";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -35,7 +35,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-inbox-archive-routes-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-inbox-archive-routes-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -47,9 +47,9 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     await db.delete(heartbeatRuns);
     await db.delete(userInboxAgentPolicies);
     await db.delete(principalPermissionGrants);
-    await db.delete(companyMemberships);
+    await db.delete(spaceMemberships);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     await db.delete(authUsers);
   });
 
@@ -70,17 +70,17 @@ describeEmbeddedPostgres("inbox archive routes", () => {
   }
 
   async function seed(input: { lowTrust?: boolean } = {}) {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
     const issueId = randomUUID();
     const responsibleUserId = `user-${randomUUID()}`;
     const targetUserId = `user-${randomUUID()}`;
     const now = new Date();
-    await db.insert(companies).values({
-      id: companyId,
-      name: `Inbox ${companyId}`,
-      issuePrefix: `IA${companyId.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: `Inbox ${spaceId}`,
+      issuePrefix: `IA${spaceId.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
     });
     await db.insert(authUsers).values([
       {
@@ -100,16 +100,16 @@ describeEmbeddedPostgres("inbox archive routes", () => {
         updatedAt: now,
       },
     ]);
-    await db.insert(companyMemberships).values([
+    await db.insert(spaceMemberships).values([
       {
-        companyId,
+        spaceId,
         principalType: "user",
         principalId: responsibleUserId,
         status: "active",
         membershipRole: "operator",
       },
       {
-        companyId,
+        spaceId,
         principalType: "user",
         principalId: targetUserId,
         status: "active",
@@ -118,7 +118,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     ]);
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "InboxAgent",
       role: "engineer",
       status: "active",
@@ -129,14 +129,14 @@ describeEmbeddedPostgres("inbox archive routes", () => {
         ? {
             trustPreset: LOW_TRUST_REVIEW_PRESET,
             authorizationPolicy: {
-              trustBoundary: { mode: LOW_TRUST_REVIEW_PRESET, companyId },
+              trustBoundary: { mode: LOW_TRUST_REVIEW_PRESET, spaceId },
             },
           }
         : {},
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       invocationSource: "assignment",
@@ -145,13 +145,13 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Archive me",
       status: "todo",
       priority: "medium",
       createdByUserId: responsibleUserId,
     });
-    return { companyId, agentId, runId, issueId, responsibleUserId, targetUserId };
+    return { spaceId, agentId, runId, issueId, responsibleUserId, targetUserId };
   }
 
   function agentActor(seeded: Awaited<ReturnType<typeof seed>>): Express.Request["actor"] {
@@ -159,25 +159,25 @@ describeEmbeddedPostgres("inbox archive routes", () => {
       type: "agent",
       source: "agent_jwt",
       agentId: seeded.agentId,
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       runId: seeded.runId,
       onBehalfOfUserId: seeded.responsibleUserId,
       onBehalfOfMemberships: [{
-        companyId: seeded.companyId,
+        spaceId: seeded.spaceId,
         membershipRole: "operator",
         status: "active",
       }],
     };
   }
 
-  it("preserves board idempotency and returns the resolved user", async () => {
+  it("preserves operator idempotency and returns the resolved user", async () => {
     const seeded = await seed();
     const app = appFor({
-      type: "board",
+      type: "operator",
       source: "session",
       userId: seeded.responsibleUserId,
-      companyIds: [seeded.companyId],
-      memberships: [{ companyId: seeded.companyId, membershipRole: "operator", status: "active" }],
+      spaceIds: [seeded.spaceId],
+      memberships: [{ spaceId: seeded.spaceId, membershipRole: "operator", status: "active" }],
       isInstanceAdmin: false,
     });
 
@@ -199,14 +199,14 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     const seeded = await seed();
     const svc = issueService(db);
     if (alreadyArchived) {
-      await svc.archiveInbox(seeded.companyId, seeded.issueId, seeded.responsibleUserId);
+      await svc.archiveInbox(seeded.spaceId, seeded.issueId, seeded.responsibleUserId);
     }
     const app = appFor({
-      type: "board",
+      type: "operator",
       source: "session",
       userId: seeded.responsibleUserId,
-      companyIds: [seeded.companyId],
-      memberships: [{ companyId: seeded.companyId, membershipRole: "operator", status: "active" }],
+      spaceIds: [seeded.spaceId],
+      memberships: [{ spaceId: seeded.spaceId, membershipRole: "operator", status: "active" }],
       isInstanceAdmin: false,
     });
     let manualArchive: Promise<{ status: number }> | undefined;
@@ -232,7 +232,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
         return svc.update(seeded.issueId, {
           status: "done",
           actorUserId: seeded.responsibleUserId,
-          companyGuard: seeded.companyId,
+          spaceGuard: seeded.spaceId,
         }, tx, []);
       });
     } finally {
@@ -244,7 +244,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     const archives = await db.select().from(issueInboxArchives);
     expect(archives).toHaveLength(1);
     expect(archives[0]).toMatchObject({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       issueId: seeded.issueId,
       userId: seeded.responsibleUserId,
       archivedByActorType: "user",
@@ -257,7 +257,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     expect(archives[0].archivedAt.getTime()).toBeGreaterThanOrEqual(completed!.completedAt!.getTime());
     // The status route records this activity after the completion transaction.
     await db.insert(activityLog).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       actorType: "user",
       actorId: seeded.responsibleUserId,
       action: "issue.updated",
@@ -265,7 +265,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
       entityId: seeded.issueId,
       details: { status: "done", _previous: { status: "todo" } },
     });
-    await request(app).get(`/api/companies/${seeded.companyId}/issues`)
+    await request(app).get(`/api/spaces/${seeded.spaceId}/issues`)
       .query({ touchedByUserId: seeded.responsibleUserId, inboxArchivedByUserId: seeded.responsibleUserId, status: "done" })
       .expect(200)
       .expect(({ body }) => expect(body.map((issue: { id: string }) => issue.id)).not.toContain(seeded.issueId));
@@ -276,11 +276,11 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     const svc = issueService(db);
     const rollback = new Error("Roll back the first user's archive");
     await expect(db.transaction(async (tx) => {
-      await svc.archiveInbox(seeded.companyId, seeded.issueId, seeded.responsibleUserId, new Date(), undefined, tx);
+      await svc.archiveInbox(seeded.spaceId, seeded.issueId, seeded.responsibleUserId, new Date(), undefined, tx);
       // An exclusive parent lock would unnecessarily serialize these users.
       await db.transaction(async (otherTx) => {
         await otherTx.execute(sql`set local statement_timeout = '3s'`);
-        await svc.archiveInbox(seeded.companyId, seeded.issueId, seeded.targetUserId, new Date(), undefined, otherTx);
+        await svc.archiveInbox(seeded.spaceId, seeded.issueId, seeded.targetUserId, new Date(), undefined, otherTx);
       });
       throw rollback;
     })).rejects.toBe(rollback);
@@ -294,12 +294,12 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     const svc = issueService(db);
     const firstTime = new Date("2000-01-02T00:00:00.000Z");
     const nextTime = new Date(firstTime.getTime() + offset * 1_000);
-    const first = await svc.archiveInbox(seeded.companyId, seeded.issueId, seeded.responsibleUserId, firstTime, {
+    const first = await svc.archiveInbox(seeded.spaceId, seeded.issueId, seeded.responsibleUserId, firstTime, {
       archivedByActorType: "agent",
       archivedByAgentId: seeded.agentId,
       archivedByRunId: seeded.runId,
     });
-    const next = await svc.archiveInbox(seeded.companyId, seeded.issueId, seeded.responsibleUserId, nextTime);
+    const next = await svc.archiveInbox(seeded.spaceId, seeded.issueId, seeded.responsibleUserId, nextTime);
     expect(next.id).toBe(first.id);
     expect(next).toMatchObject(offset < 0 ? first : {
       archivedAt: nextTime,
@@ -309,22 +309,22 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     });
     expect(await db.select().from(issueInboxArchives)).toEqual([next]);
 
-    await svc.unarchiveInbox(seeded.companyId, seeded.issueId, seeded.responsibleUserId);
-    const afterUndo = await svc.archiveInbox(seeded.companyId, seeded.issueId, seeded.responsibleUserId, nextTime);
+    await svc.unarchiveInbox(seeded.spaceId, seeded.issueId, seeded.responsibleUserId);
+    const afterUndo = await svc.archiveInbox(seeded.spaceId, seeded.issueId, seeded.responsibleUserId, nextTime);
     expect(afterUndo).toMatchObject({ archivedAt: nextTime, archivedByActorType: "user" });
     expect(afterUndo.id).not.toBe(first.id);
   });
 
-  it("holds the issue company stable until its archive transaction ends", async () => {
+  it("holds the issue space stable until its archive transaction ends", async () => {
     const seeded = await seed();
-    const otherCompany = await seed();
+    const otherSpace = await seed();
     const svc = issueService(db);
     let move: Promise<unknown> | undefined;
     try {
       await db.transaction(async (tx) => {
-        await svc.archiveInbox(seeded.companyId, seeded.issueId, seeded.responsibleUserId, new Date(), undefined, tx);
+        await svc.archiveInbox(seeded.spaceId, seeded.issueId, seeded.responsibleUserId, new Date(), undefined, tx);
         const [{ pid }] = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
-        move = db.update(issues).set({ companyId: otherCompany.companyId })
+        move = db.update(issues).set({ spaceId: otherSpace.spaceId })
           .where(eq(issues.id, seeded.issueId)).then((rows) => rows);
         await expect.poll(async () => {
           const blocked = await db.execute(sql`
@@ -334,37 +334,37 @@ describeEmbeddedPostgres("inbox archive routes", () => {
           return blocked.length;
         }, { timeout: 3_000 }).toBeGreaterThan(0);
         const [stillOwned] = await tx.select().from(issues).where(eq(issues.id, seeded.issueId));
-        expect(stillOwned.companyId).toBe(seeded.companyId);
+        expect(stillOwned.spaceId).toBe(seeded.spaceId);
       });
     } finally {
       await move;
     }
     const [moved] = await db.select().from(issues).where(eq(issues.id, seeded.issueId));
-    expect(moved.companyId).toBe(otherCompany.companyId);
+    expect(moved.spaceId).toBe(otherSpace.spaceId);
   });
 
-  it("rejects missing and cross-company issues before archiving", async () => {
+  it("rejects missing and cross-space issues before archiving", async () => {
     const seeded = await seed();
     const svc = issueService(db);
-    const otherCompany = await seed();
-    for (const [companyId, issueId] of [
-      [otherCompany.companyId, seeded.issueId],
-      [seeded.companyId, randomUUID()],
+    const otherSpace = await seed();
+    for (const [spaceId, issueId] of [
+      [otherSpace.spaceId, seeded.issueId],
+      [seeded.spaceId, randomUUID()],
     ]) {
-      await expect(svc.archiveInbox(companyId, issueId, seeded.responsibleUserId))
+      await expect(svc.archiveInbox(spaceId, issueId, seeded.responsibleUserId))
         .rejects.toMatchObject({ status: 404, message: "Issue not found" });
     }
     expect(await db.select().from(issueInboxArchives)).toHaveLength(0);
   });
 
-  it("silently archives an issue for the board user who moves it to done", async () => {
+  it("silently archives an issue for the operator user who moves it to done", async () => {
     const seeded = await seed();
     const app = appFor({
-      type: "board",
+      type: "operator",
       source: "session",
       userId: seeded.responsibleUserId,
-      companyIds: [seeded.companyId],
-      memberships: [{ companyId: seeded.companyId, membershipRole: "operator", status: "active" }],
+      spaceIds: [seeded.spaceId],
+      memberships: [{ spaceId: seeded.spaceId, membershipRole: "operator", status: "active" }],
       isInstanceAdmin: false,
     });
 
@@ -402,7 +402,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     });
 
     await request(app)
-      .get(`/api/companies/${seeded.companyId}/issues`)
+      .get(`/api/spaces/${seeded.spaceId}/issues`)
       .query({
         touchedByUserId: seeded.responsibleUserId,
         inboxArchivedByUserId: seeded.responsibleUserId,
@@ -415,13 +415,13 @@ describeEmbeddedPostgres("inbox archive routes", () => {
   it("rolls back completion when the inbox archive audit cannot be written", async () => {
     const seeded = await seed();
     const liveEvents: Array<{ type: string; payload: Record<string, unknown> }> = [];
-    const unsubscribe = subscribeCompanyLiveEvents(seeded.companyId, (event) => liveEvents.push(event));
+    const unsubscribe = subscribeSpaceLiveEvents(seeded.spaceId, (event) => liveEvents.push(event));
     const app = appFor({
-      type: "board",
+      type: "operator",
       source: "session",
       userId: seeded.responsibleUserId,
-      companyIds: [seeded.companyId],
-      memberships: [{ companyId: seeded.companyId, membershipRole: "operator", status: "active" }],
+      spaceIds: [seeded.spaceId],
+      memberships: [{ spaceId: seeded.spaceId, membershipRole: "operator", status: "active" }],
       isInstanceAdmin: false,
     });
 
@@ -492,7 +492,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     });
 
     const archivedList = await request(app)
-      .get(`/api/companies/${seeded.companyId}/issues`)
+      .get(`/api/spaces/${seeded.spaceId}/issues`)
       .query({ touchedByUserId: seeded.responsibleUserId })
       .expect(200);
     expect(archivedList.body[0]).toMatchObject({
@@ -502,15 +502,15 @@ describeEmbeddedPostgres("inbox archive routes", () => {
       archivedByRunId: seeded.runId,
     });
 
-    const boardApp = appFor({
-      type: "board",
+    const operatorApp = appFor({
+      type: "operator",
       source: "session",
       userId: seeded.responsibleUserId,
-      companyIds: [seeded.companyId],
-      memberships: [{ companyId: seeded.companyId, membershipRole: "operator", status: "active" }],
+      spaceIds: [seeded.spaceId],
+      memberships: [{ spaceId: seeded.spaceId, membershipRole: "operator", status: "active" }],
       isInstanceAdmin: false,
     });
-    await request(boardApp)
+    await request(operatorApp)
       .get(`/api/issues/${seeded.issueId}`)
       .expect(200)
       .expect(({ body }) => expect(body).toMatchObject({
@@ -522,7 +522,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
       }));
 
     await db.insert(issueComments).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       issueId: seeded.issueId,
       authorUserId: seeded.targetUserId,
       body: "New work arrived",
@@ -530,7 +530,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
       updatedAt: new Date(Date.now() + 1000),
     });
     const resurfaced = await request(app)
-      .get(`/api/companies/${seeded.companyId}/issues`)
+      .get(`/api/spaces/${seeded.spaceId}/issues`)
       .query({
         touchedByUserId: seeded.responsibleUserId,
         inboxArchivedByUserId: seeded.responsibleUserId,
@@ -538,7 +538,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
       .expect(200);
     expect(resurfaced.body[0]).toMatchObject({ id: seeded.issueId });
     expect(resurfaced.body[0].archivedByAgentId).toBeUndefined();
-    await request(boardApp)
+    await request(operatorApp)
       .get(`/api/issues/${seeded.issueId}`)
       .expect(200)
       .expect(({ body }) => expect(body.archivedByAgentId).toBeUndefined());
@@ -557,7 +557,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
 
     const disabled = await seed();
     await db.insert(userInboxAgentPolicies).values({
-      companyId: disabled.companyId,
+      spaceId: disabled.spaceId,
       userId: disabled.responsibleUserId,
       mode: "disabled",
     });
@@ -569,7 +569,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
 
     const allowlist = await seed();
     await db.insert(userInboxAgentPolicies).values({
-      companyId: allowlist.companyId,
+      spaceId: allowlist.spaceId,
       userId: allowlist.responsibleUserId,
       mode: "allowlist",
       allowedAgentIds: [],
@@ -582,7 +582,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     await db
       .update(userInboxAgentPolicies)
       .set({ allowedAgentIds: [allowlist.agentId] })
-      .where(eq(userInboxAgentPolicies.companyId, allowlist.companyId));
+      .where(eq(userInboxAgentPolicies.spaceId, allowlist.spaceId));
     await request(appFor(agentActor(allowlist)))
       .post(`/api/issues/${allowlist.issueId}/inbox-archive`)
       .send({})
@@ -606,22 +606,22 @@ describeEmbeddedPostgres("inbox archive routes", () => {
       .expect(403)
       .expect(({ body }) => expect(body.code).toBe("inbox_cross_user_grant_required"));
 
-    await db.insert(companyMemberships).values({
-      companyId: seeded.companyId,
+    await db.insert(spaceMemberships).values({
+      spaceId: seeded.spaceId,
       principalType: "agent",
       principalId: seeded.agentId,
       status: "active",
       membershipRole: "member",
     });
     await db.insert(principalPermissionGrants).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       principalType: "agent",
       principalId: seeded.agentId,
       permissionKey: "inbox:manage",
       scope: { userIds: [seeded.targetUserId] },
     });
     await db.insert(userInboxAgentPolicies).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       userId: seeded.targetUserId,
       mode: "disabled",
     });
@@ -656,7 +656,7 @@ describeEmbeddedPostgres("inbox archive routes", () => {
     const seeded = await seed();
     const app = appFor(agentActor(seeded));
     await db.insert(userInboxAgentPolicies).values({
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       userId: seeded.targetUserId,
       mode: "allowlist",
       allowedAgentIds: [seeded.agentId],

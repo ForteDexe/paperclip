@@ -69,7 +69,7 @@ vi.mock("@/components/SearchableSelect", () => ({
 function storedToken(): ToolMcpGatewayToken {
   return {
     id: "token-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     gatewayId: "gateway-1",
     name: "research-client",
     tokenPrefix: "pcgw_abcd1234",
@@ -95,7 +95,7 @@ function storedToken(): ToolMcpGatewayToken {
 function gateway(token: ToolMcpGatewayToken): ToolMcpGatewayWithTokens {
   return {
     id: "gateway-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     gatewayPublicId: "public-1",
     name: "Research gateway",
     displaySlug: "research",
@@ -127,7 +127,7 @@ function gateway(token: ToolMcpGatewayToken): ToolMcpGatewayWithTokens {
       label: "VS Code",
       config: {
         servers: {
-          Paperclip: {
+          Outpost: {
             url: "/api/tool-gateway/gateways/public-1/mcp",
             headers: { Authorization: "Bearer pcgw_..." },
           },

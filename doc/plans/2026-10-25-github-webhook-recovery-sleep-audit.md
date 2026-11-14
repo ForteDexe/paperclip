@@ -23,7 +23,7 @@ workers remain independently registered with the delivery coordinator.
 
 Durability already exists:
 
-- `chat_sdk_state`, key `paperclip:github-webhook-recovery:v1`, stores the
+- `chat_sdk_state`, key `outpost:github-webhook-recovery:v1`, stores the
   versioned runtime epoch, App identity, callback URL, floor, and `nextScanAt`.
 - `chat_actions` recovery receipts store immutable source fences, attempts,
   cancellation decisions, and unknown transport outcomes.
@@ -57,7 +57,7 @@ Preserved policy:
   envelopes per endpoint, and three maximum redelivery attempts.
 - Successful sibling deliveries suppress replay. Ambiguous redelivery outcomes
   remain durable and are not blindly retried without a distinct failed attempt.
-- Five endpoints per dispatch batch, fairly rotated between companies.
+- Five endpoints per dispatch batch, fairly rotated between spaces.
 
 The shared scoped-deadline helper gains only an optional batch limit. Its default
 remains 25 for every existing caller. It still owns no provider SQL or policy.
@@ -82,7 +82,7 @@ failed reconstruction, and saved deadlines without passive SQL.
 | `github/installation-lifecycle.ts` | New explicit endpoint notification precedes revocation, legacy identity upgrade, runtime generation/availability settlement, and failed-inventory transitions. |
 | `chat-github-wizard.ts` | Setting `cloudRegistrationId` now notifies inside its short owned setup transaction; unrelated wizard metadata does not signal this worker. |
 | `github/webhook-ingress.ts` | Claim and final recovery-window CAS writes notify before writing, including manual recovery. |
-| Tool connection configuration/health and company deletion | Existing connection/company notification fan-out now carries this topic; removal invalidates cached deadlines. |
+| Tool connection configuration/health and space deletion | Existing connection/space notification fan-out now carries this topic; removal invalidates cached deadlines. |
 | `github/app-setup.ts` | Initial identity claim is restricted to incomplete setup; later credential persistence and activation are covered. Stage/management URL metadata alone does not change recovery eligibility. |
 | Webhook authentication, ordinary activity, review settings, endpoint display/task settings | Do not change recovery eligibility, runtime epoch, callback origin, or recovery checkpoint; no added signal. |
 
@@ -121,7 +121,7 @@ process. No permanent URL-discovery poll is introduced.
   states, no SQL before a saved deadline, real callback-only admission, real
   resume/pause, restart/drain/standby, nested rollback/outer commit, credential-only
   epoch change, reconstruction failure across drain, held HTTP with independent
-  queue progress and joined shutdown, 106 deadlines across companies with an
+  queue progress and joined shutdown, 106 deadlines across spaces with an
   initial five-item batch, and the prior review-projection default-batch consumer.
   The backlog fixture then replaced timing-derived App IDs with random identities
   to avoid a possible fixture uniqueness collision; final acceptance follows.
@@ -162,7 +162,7 @@ persist restoration, still requires conservative durable uncertainty handling.
   filename, so it did not run that suite and is not three-suite acceptance.
   The corrected complete command includes `chat-interaction-publications.test.ts`.
 - Final workspace typecheck/build passed. Corrected three-suite acceptance on
-  `paperclip_sleep38_final_20261025_1837_test` passed 1,605 cases and failed one
+  `outpost_sleep38_final_20261025_1837_test` passed 1,605 cases and failed one
   resume timing assertion in 571.32 seconds (`/tmp/sleep38-final-chat.log`).
   The test observed the newly committed checkpoint before `check` reloaded its
   deadline and the coordinator scheduled it. It now waits for idle tracking to
@@ -266,13 +266,13 @@ schema and a freshly migrated PostgreSQL catalog confirm:
 - `chat_endpoints.assigned_agent_id` is NOT NULL.
 - `chat_endpoints_assigned_agent_id_agents_id_fk` references `agents(id)` with
   ON DELETE RESTRICT.
-- `chat_endpoints_company_agent_fk` references `(agents.company_id, agents.id)`.
+- `chat_endpoints_space_agent_fk` references `(agents.space_id, agents.id)`.
 - Both foreign keys are validated and nondeferrable.
 
-Thus a supported writer cannot commit the missing, null, deleted or foreign-company
+Thus a supported writer cannot commit the missing, null, deleted or foreign-space
 agent relationship described in that finding. A concurrent deletion cannot open
 a committed orphan window. The application endpoint resolver joins those same
-ID/company columns. Disabling constraints or corrupting a database would be a
+ID/space columns. Disabling constraints or corrupting a database would be a
 different unsupported state; the tests do not weaken the schema to manufacture it.
 
 Three new real-database cases verify the boundary: NULL assignment fails 23502,
@@ -344,7 +344,7 @@ complete attachment receipt journeys pass**, retries zero, in 38.7 seconds.
 Every journey body, receipt/content assertion, 60-second test budget and
 120-second startup budget is unchanged. The full run uses a fresh database on
 the existing local PostgreSQL 17 test server and the canonical throwaway
-Paperclip home, CLI onboarding, server, UI, storage and HTTP paths. An earlier
+Outpost home, CLI onboarding, server, UI, storage and HTTP paths. An earlier
 full-run attempt failed during embedded PostgreSQL initialization before any
 browser test started; host semaphore usage was near capacity. That startup
 failure is retained and is not counted as a test pass. No shared host resources

@@ -39,12 +39,12 @@ owner keeps the mapping outside the repository.
 
 - Staging API, GET only, with the operator's existing CLI token loaded into a child process:
   - `/api/health`;
-  - `/api/companies/:id/heartbeat-runs` (company and per agent);
+  - `/api/spaces/:id/heartbeat-runs` (space and per agent);
   - `/api/heartbeat-runs/:id`;
   - `/api/heartbeat-runs/:id/events`;
   - `/api/issues/:id`, `/runs`, `/activity` and `/recovery-actions`.
   
-  One company exists. There were 1917 runs in the window.
+  One space exists. There were 1917 runs in the window.
 - Deploy and restart times: every run record carries `controllerProcess`, with `processStartedAt`,
   `bootId` and the Railway `deploymentId`. The timeline below is built from those fields.
   GitHub has no staging deployment records, because staging deploys from Railway.

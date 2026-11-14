@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { agentAppearanceSchema, randomAgentAppearance } from "@outpost/shared";
 
-/** Non-secret visual identity, retained across navigation and company changes. */
+/** Non-secret visual identity, retained across navigation and space changes. */
 export function useAgentAppearanceDraft(draftKey: string) {
   const key = `outpost.agent-appearance.${draftKey}`;
   function readDraft() {

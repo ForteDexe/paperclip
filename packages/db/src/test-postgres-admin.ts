@@ -22,10 +22,10 @@ export async function startTestPostgresDatabase(adminUrl: string): Promise<{
   connectionString: string;
   cleanup(): Promise<void>;
 }> {
-  const name = `paperclip_test_${randomUUID().replaceAll("-", "")}`;
+  const name = `outpost_test_${randomUUID().replaceAll("-", "")}`;
   const setting = process.env.OUTPOST_TEST_POSTGRES_TEMPLATE;
   const template = setting === "0" ? undefined : setting;
-  if (template && !/^paperclip_test_template_[a-f0-9]+$/.test(template)) {
+  if (template && !/^outpost_test_template_[a-f0-9]+$/.test(template)) {
     throw new Error("Invalid disposable test template name");
   }
   const admin = postgres(adminUrl, { max: 1, connect_timeout: 5, onnotice() {} });

@@ -46,8 +46,8 @@ vi.mock("@/api/auth", () => ({ authApi: { getSession: async () => ({ user: { id:
 vi.mock("@/api/health", () => ({ healthApi: { get: async () => ({ deploymentMode: "authenticated" }) } }));
 vi.mock("@/api/agents", () => ({ agentsApi: { list: mocks.listAgents, get: mocks.getAgent } }));
 vi.mock("@/api/instanceSettings", () => ({ instanceSettingsApi: { getExperimental: async () => ({ enableIsolatedWorkspaces: true }) } }));
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-a" }),
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-a" }),
 }));
 vi.mock("@/context/BreadcrumbContext", () => ({
   useBreadcrumbs: () => ({ setBreadcrumbs: mocks.setBreadcrumbs }),
@@ -144,7 +144,7 @@ describe("chat setup and identity-link clipboard actions", () => {
   async function render(provider: ChatProvider, detail = false, publicHttps = true) {
     const endpoint: ChatEndpoint = {
       id: "endpoint-a",
-      companyId: "company-a",
+      spaceId: "space-a",
       provider,
       status: "draft",
       assignedAgentId: "agent-a",
@@ -527,7 +527,7 @@ describe("chat setup and identity-link clipboard actions", () => {
     const saved: ChatEndpoint = { ...endpoint, status: "verifying", providerAccountId: "workspace-a", setup: {
       ...endpoint.setup!, step: "test", slackSetupMethod: "automatic",
       slackRegistration: { status: "configured", appId: "ATEST", managementUrl: "https://api.slack.com/apps/ATEST" },
-      slackAccount: { externalUserId: "UPERSON", paperclipUserId: "owner-user", status: "linked", welcomeStatus: "sent", dmChannelId: "DTEST" },
+      slackAccount: { externalUserId: "UPERSON", outpostUserId: "owner-user", status: "linked", welcomeStatus: "sent", dmChannelId: "DTEST" },
       slackAvatar: status === "uploaded" ? { status, uploadedAt: "2026-10-07T12:00:00Z" } : status === "failed" ? { status, errorCode: "slack_avatar_upload_failed" } : { status },
     } };
     mocks.get.mockResolvedValue(saved);
@@ -562,7 +562,7 @@ describe("chat setup and identity-link clipboard actions", () => {
     const saved: ChatEndpoint = { ...endpoint, status, providerAccountId: "workspace-a", setup: {
       ...endpoint.setup!, step: "complete", slackSetupMethod: method,
       slackRegistration: { status: "configured", appId: "ATEST" },
-      slackAccount: { externalUserId: "UPERSON", paperclipUserId: "owner-user", status: "linked", welcomeStatus: "sent", dmChannelId: "DTEST" },
+      slackAccount: { externalUserId: "UPERSON", outpostUserId: "owner-user", status: "linked", welcomeStatus: "sent", dmChannelId: "DTEST" },
     } };
     mocks.get.mockResolvedValue(saved);
     mocks.finishSlackSetup.mockRejectedValue(new Error("This connection is not waiting for a setup test"));
@@ -582,7 +582,7 @@ describe("chat setup and identity-link clipboard actions", () => {
       ...endpoint.setup!, step: "test", slackSetupMethod: method,
       webhookVerifiedAt: "2026-01-01T00:00:00Z",
       slackRegistration: { status: "configured", appId: "ATEST" },
-      slackAccount: { externalUserId: "UPERSON", paperclipUserId: "owner-user", status: "linked", welcomeStatus: "sent", dmChannelId: "DTEST" },
+      slackAccount: { externalUserId: "UPERSON", outpostUserId: "owner-user", status: "linked", welcomeStatus: "sent", dmChannelId: "DTEST" },
     } };
     mocks.get.mockResolvedValue(saved);
     mocks.finishSlackSetup.mockResolvedValue({ ...saved, status: "active", setup: { ...saved.setup, step: "complete" } });
@@ -603,7 +603,7 @@ describe("chat setup and identity-link clipboard actions", () => {
     expect([...container.querySelectorAll("a")].some(link => link.textContent?.trim() === "Open Slack")).toBe(false);
     flushSync(() => client.setQueryData(queryKeys.chatEndpoints.detail(endpoint.id), {
       ...endpoint, status: "active", providerAccountId: "workspace-a",
-      setup: { ...endpoint.setup, step: "complete", slackAccount: { externalUserId: "UPERSON", paperclipUserId: "owner-user", status: "linked", dmChannelId: "DTEST" } },
+      setup: { ...endpoint.setup, step: "complete", slackAccount: { externalUserId: "UPERSON", outpostUserId: "owner-user", status: "linked", dmChannelId: "DTEST" } },
     }));
     await settle();
     expect([...container.querySelectorAll("a")].find(link => link.textContent?.trim() === "Open Slack")?.getAttribute("href"))
@@ -658,7 +658,7 @@ describe("chat setup and identity-link clipboard actions", () => {
     expect(container.textContent).toContain("Owner");
     expect(mocks.confirmIdentityLink).not.toHaveBeenCalled();
     mocks.confirmIdentityLink.mockImplementationOnce(async () => {
-      mocks.listPrincipals.mockResolvedValue([{ ...identity, status: "linked", paperclipUserId: "owner-user" }]);
+      mocks.listPrincipals.mockResolvedValue([{ ...identity, status: "linked", outpostUserId: "owner-user" }]);
       return { ok: true };
     });
     await click("This is my Slack account");
@@ -699,7 +699,7 @@ describe("chat setup and identity-link clipboard actions", () => {
   });
 
   it("does not offer to claim a Slack identity linked to someone else", async () => {
-    mocks.listPrincipals.mockResolvedValue([{ id: "link-a", principalId: "principal-a", externalLabel: "Someone else", status: "linked", paperclipUserId: "another-user", paperclipUserLabel: "Another Person", lastConnectAt: "2026-09-18T20:01:00Z" }]);
+    mocks.listPrincipals.mockResolvedValue([{ id: "link-a", principalId: "principal-a", externalLabel: "Someone else", status: "linked", outpostUserId: "another-user", outpostUserLabel: "Another Person", lastConnectAt: "2026-09-18T20:01:00Z" }]);
     await renderSlackIdentityStep();
     expect(container.textContent).toContain("Linked to Another Person");
     expect(container.textContent).not.toContain("This is my Slack account");

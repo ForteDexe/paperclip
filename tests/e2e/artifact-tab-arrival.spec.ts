@@ -12,14 +12,14 @@ async function json(response: Awaited<ReturnType<APIRequestContext["get"]>>) {
 for (const mobile of [false, true]) {
   test(`artifact arrival preserves a closed panel and composer focus (mobile=${mobile})`, async ({ page, request }, testInfo) => {
     await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 });
-    const company = await json(await request.post("/api/companies", {
+    const space = await json(await request.post("/api/spaces", {
       data: { name: `Passive artifacts ${randomUUID()}` },
     }));
-    const issue = await json(await request.post(`/api/companies/${company.id}/issues`, {
+    const issue = await json(await request.post(`/api/spaces/${space.id}/issues`, {
       data: { title: "Keep reading while an artifact arrives", status: "backlog" },
     }));
-    await page.addInitScript(() => localStorage.setItem("paperclip:panel-visible", "false"));
-    await page.goto(`/${company.issuePrefix}/issues/${issue.identifier}?from=inbox&fromHref=%2Finbox%2Fmine`);
+    await page.addInitScript(() => localStorage.setItem("outpost:panel-visible", "false"));
+    await page.goto(`/${space.issuePrefix}/issues/${issue.identifier}?from=inbox&fromHref=%2Finbox%2Fmine`);
     await expect(page.getByRole("heading", { name: issue.title, exact: true })).toBeVisible();
     const editor = page.getByTestId("task-chat-composer-input").getByRole("textbox", { name: "editable markdown" });
     await editor.fill("Keep my draft and focus");
@@ -37,7 +37,7 @@ for (const mobile of [false, true]) {
     await expect(editor).toBeFocused();
     await expect(editor).toContainText("Keep my draft and focus");
     await expect(page.getByTestId("mobile-task-side-panel")).toBeHidden();
-    expect(await page.evaluate(() => localStorage.getItem("paperclip:panel-visible"))).toBe("false");
+    expect(await page.evaluate(() => localStorage.getItem("outpost:panel-visible"))).toBe("false");
     await page.screenshot({ path: testInfo.outputPath("artifact-arrived-panel-closed.png"), fullPage: true });
 
     if (mobile) {

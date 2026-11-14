@@ -34,7 +34,7 @@ const tokenSchema = z.string().regex(/^pcfc_[A-Za-z0-9_-]{43}$/);
 const bindingSchema = z
   .object({
     schema: z.literal(SCHEMA),
-    companyId: z.uuid(),
+    spaceId: z.uuid(),
     endpointId: z.uuid(),
     issueId: z.uuid(),
     publicationId: z.uuid(),
@@ -88,7 +88,7 @@ function digest(value: unknown): string {
 
 const privateContextSchema = z
   .object({
-    companyId: z.uuid(),
+    spaceId: z.uuid(),
     endpointId: z.uuid(),
     transferId: z.uuid(),
     authorityDigest: z.string().regex(/^[a-f0-9]{64}$/),
@@ -160,7 +160,7 @@ export async function sealTeamsFileConsentBinding(
   const parsed = parseTeamsFileConsentBinding(binding);
   if (
     !parsed ||
-    parsed.companyId !== context.companyId ||
+    parsed.spaceId !== context.spaceId ||
     parsed.endpointId !== context.endpointId
   )
     throw new Error("Invalid Teams private binding");
@@ -176,7 +176,7 @@ export async function restoreTeamsFileConsentBinding(
   );
   if (
     !binding ||
-    binding.companyId !== context.companyId ||
+    binding.spaceId !== context.spaceId ||
     binding.endpointId !== context.endpointId
   )
     throw new Error("Invalid Teams private binding");
@@ -364,7 +364,7 @@ class UploadCapability {
   ) {
     if (
       !this.matches(binding) ||
-      context.companyId !== binding.companyId ||
+      context.spaceId !== binding.spaceId ||
       context.endpointId !== binding.endpointId
     )
       throw new Error("Invalid Teams upload binding");
@@ -381,7 +381,7 @@ class UploadCapability {
     material: TeamsFileCiphertext,
   ) {
     if (
-      context.companyId !== binding.companyId ||
+      context.spaceId !== binding.spaceId ||
       context.endpointId !== binding.endpointId
     )
       throw new Error("Invalid Teams upload binding");
@@ -546,7 +546,7 @@ class ConsentEvent {
   #upload: UploadInfo | UrlRejection | null;
   readonly uploadStatus: "available" | UrlRejection | "none";
   constructor(
-    readonly companyId: string,
+    readonly spaceId: string,
     readonly endpointId: string,
     readonly tenantId: string,
     readonly botAppId: string,
@@ -580,7 +580,7 @@ class ConsentEvent {
   ) {
     if (
       !consentEventMatches(this, binding) ||
-      context.companyId !== binding.companyId ||
+      context.spaceId !== binding.spaceId ||
       context.endpointId !== binding.endpointId
     )
       throw new Error("Invalid Teams consent scope");
@@ -606,7 +606,7 @@ class ConsentEvent {
     material: TeamsFileCiphertext,
   ) {
     if (
-      context.companyId !== binding.companyId ||
+      context.spaceId !== binding.spaceId ||
       context.endpointId !== binding.endpointId
     )
       throw new Error("Invalid Teams consent scope");
@@ -637,7 +637,7 @@ class ConsentEvent {
     )
       throw new Error("Invalid Teams response state");
     return new ConsentEvent(
-      binding.companyId,
+      binding.spaceId,
       binding.endpointId,
       binding.tenantId,
       binding.botAppId,
@@ -661,7 +661,7 @@ class ConsentEvent {
       this.#upload.name !== binding.filename ||
       (
         [
-          "companyId",
+          "spaceId",
           "endpointId",
           "tenantId",
           "botAppId",
@@ -688,7 +688,7 @@ function consentEventMatches(
       event.isHookEvent() &&
       (
         [
-          "companyId",
+          "spaceId",
           "endpointId",
           "tenantId",
           "botAppId",
@@ -776,7 +776,7 @@ export interface TeamsConsentApp {
   ): unknown;
 }
 export interface TeamsFileConsentHookOptions {
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   tenantId: string;
   botAppId: string;
@@ -798,7 +798,7 @@ export function installTeamsFileConsentHook(
 ): void {
   const scope = z
     .object({
-      companyId: z.uuid(),
+      spaceId: z.uuid(),
       endpointId: z.uuid(),
       tenantId: z.uuid(),
       botAppId: z.uuid(),
@@ -848,7 +848,7 @@ export function installTeamsFileConsentHook(
         }
       } else if (a.value.uploadInfo !== undefined) return { status: 400 };
       const event = new ConsentEvent(
-        scope.data.companyId,
+        scope.data.spaceId,
         scope.data.endpointId,
         tenant,
         scope.data.botAppId,

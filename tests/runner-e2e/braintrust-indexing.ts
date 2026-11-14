@@ -25,7 +25,7 @@ export function braintrustTraceIndexQuery(projectId: string, result: RunnerE2ERe
     : `span_attributes.name = 'claude_code.llm_request' AND span_attributes.type = 'llm'`;
   const tool = (name: string) => result.profileId === "runner-codex"
     ? `metadata."event.name" = 'codex.tool_result' AND metadata.tool_name = '${name}' AND metadata.success = 'true'`
-    : `span_attributes.type = 'tool' AND span_attributes.name = 'mcp__paperclip__${name}'`;
+    : `span_attributes.type = 'tool' AND span_attributes.name = 'mcp__outpost__${name}'`;
   return `SELECT COUNT(*) AS records,
     SUM(CASE WHEN span_id = '${trace.spanId}' AND span_attributes.name = 'outpost.eval.attempt' THEN 1 ELSE 0 END) AS roots,
     SUM(CASE WHEN span_id = '${trace.finalization!.spanId}' AND span_attributes.name = 'outpost.eval.finalization' THEN 1 ELSE 0 END) AS finalizations,

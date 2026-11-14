@@ -8,7 +8,7 @@ scenarios:
     capabilities:
       - budgets-costs/cost-reporting
     context: >-
-      The caller can read company costs; Launch has known API spend and some runs with
+      The caller can read space costs; Launch has known API spend and some runs with
       unresolved accounting in the requested week.
     query: >-
       How much did Launch cost this week, broken down by agent?
@@ -21,7 +21,7 @@ scenarios:
     capabilities:
       - budgets-costs/budgets
     context: >-
-      Changing company, project or agent budget policy requires a board actor; the current chat
+      Changing space, project or agent budget policy requires a board actor; the current chat
       agent can read permitted budget information.
     query: >-
       Cap Morgan's monthly spending at fifty dollars.
@@ -59,7 +59,7 @@ scenarios:
     capabilities:
       - budgets-costs/subscriptions
     context: >-
-      The company has two subscription records for one account; subscription reporting and
+      The space has two subscription records for one account; subscription reporting and
       management are board-only.
     query: >-
       Are we counting the same coding subscription twice?

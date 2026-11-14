@@ -53,15 +53,15 @@ describe("workflow timeout classification", () => {
 describe("review continuation deadline", () => {
   function fixture(now: number) {
     const issues: StoryIssue[] = [
-      { id: "parent", companyId: "company", title: "parent", status: "blocked", blockedTransitionAt: new Date(now - 1000).toISOString() },
-      { id: "child", parentId: "parent", companyId: "company", title: "child", status: "done", interactions: [{
+      { id: "parent", spaceId: "space", title: "parent", status: "blocked", blockedTransitionAt: new Date(now - 1000).toISOString() },
+      { id: "child", parentId: "parent", spaceId: "space", title: "child", status: "done", interactions: [{
         id: "review", issueId: "child", kind: "request_confirmation", status: "accepted",
         addresseeAgentId: "lead", resolvedByAgentId: "lead", resolvedByRunId: "review-run",
         resolvedAt: new Date(now).toISOString(), result: { version: 1, outcome: "accepted" },
         payload: { target: { type: "custom", key: "native_completion_review", revisionId: "decision" } },
       }] },
     ];
-    const runs = [{ id: "review-run", companyId: "company", agentId: "lead", status: "succeeded", finishedAt: new Date(now).toISOString() }];
+    const runs = [{ id: "review-run", spaceId: "space", agentId: "lead", status: "succeeded", finishedAt: new Date(now).toISOString() }];
     return { issues, runs };
   }
 
@@ -151,11 +151,11 @@ describe.each([["accepted", false], ["accepted", true], ["rejected", false], ["r
     vi.useFakeTimers();
     try {
       const start = Date.now();
-      const issues: StoryIssue[] = [{ id: "task", companyId: "company", title: "Briefing", status: "blocked", assigneeAgentId: "agent", interactions: [{
+      const issues: StoryIssue[] = [{ id: "task", spaceId: "space", title: "Briefing", status: "blocked", assigneeAgentId: "agent", interactions: [{
         id: "approval", issueId: "task", sourceRunId: "first", createdByAgentId: "agent", kind: "request_confirmation", status, continuationPolicy: "wake_assignee",
         resolvedAt: new Date(start - 1000).toISOString(), payload: { toolAction: { version: 1, actionRequestId: "action" } }, result: status === "accepted" ? { outcome: "accepted", toolAction: { status: "executed" } } : { outcome: "rejected" },
       }] }];
-      const runs = [{ id: "first", companyId: "company", nativeIssueId: "task", agentId: "agent", status: "succeeded", finishedAt: new Date(start - (decisionAfterRun ? 2000 : 0)).toISOString() }];
+      const runs = [{ id: "first", spaceId: "space", nativeIssueId: "task", agentId: "agent", status: "succeeded", finishedAt: new Date(start - (decisionAfterRun ? 2000 : 0)).toISOString() }];
       const caught = pollUntil({ label: "service continuation", deadlineAt: start + 30_000, intervalMs: 1000,
         load: async () => { if (arrives && Date.now() >= start + 20_000) issues[0]!.status = "done"; return { issues, runs }; },
         accept: state => state.issues[0]!.status === "done",
@@ -169,17 +169,17 @@ describe.each([["accepted", false], ["accepted", true], ["rejected", false], ["r
     } finally { vi.useRealTimers(); }
   });
   it("waits for dispatch only until the same response has been consumed", () => {
-    const issues: StoryIssue[] = [{ id: "task", companyId: "company", title: "Briefing", status: "blocked", assigneeAgentId: "agent", interactions: [{
+    const issues: StoryIssue[] = [{ id: "task", spaceId: "space", title: "Briefing", status: "blocked", assigneeAgentId: "agent", interactions: [{
       id: "approval", issueId: "task", sourceRunId: "first", createdByAgentId: "agent", kind: "request_confirmation", status, continuationPolicy: "wake_assignee",
       resolvedAt: "2026-10-07T05:37:19Z", payload: { toolAction: { version: 1, actionRequestId: "action" } }, result: status === "accepted" ? { outcome: "accepted", toolAction: { status: "executed" } } : { outcome: "rejected" },
     }] }];
-    const runs = [{ id: "first", companyId: "company", nativeIssueId: "task", agentId: "agent", status: "succeeded", finishedAt: decisionAfterRun ? "2026-10-07T05:37:18Z" : "2026-10-07T05:37:28Z" }];
+    const runs = [{ id: "first", spaceId: "space", nativeIssueId: "task", agentId: "agent", status: "succeeded", finishedAt: decisionAfterRun ? "2026-10-07T05:37:18Z" : "2026-10-07T05:37:28Z" }];
     expect(storyHasDurableServiceContinuation(issues, "task", "agent", runs)).toBe(true);
     expect(storyHasDurableServiceContinuation(issues, "task", "other", runs)).toBe(false);
     for (const mutate of [
       (row: StoryIssue) => { row.interactions![0]!.sourceRunId = "other-run"; },
       (row: StoryIssue) => { row.interactions![0]!.issueId = "other-task"; },
-      (row: StoryIssue) => { row.companyId = "other-company"; },
+      (row: StoryIssue) => { row.spaceId = "other-space"; },
       (row: StoryIssue) => { row.interactions![0]!.resolvedAt = "invalid"; },
       (row: StoryIssue) => { row.interactions![0]!.continuationPolicy = "none"; },
       (row: StoryIssue) => { row.interactions![0]!.payload = { toolAction: { version: 1, actionRequestId: "" } }; },
@@ -191,7 +191,7 @@ describe.each([["accepted", false], ["accepted", true], ["rejected", false], ["r
     }
     expect(storyHasDurableServiceContinuation(issues, "task", "agent", [{ ...runs[0]!, nativeIssueId: "other-task" }])).toBe(false);
     expect(storyHasDurableServiceContinuation(issues, "task", "agent", [{ ...runs[0]!, finishedAt: "invalid" }])).toBe(false);
-    const continued = [...runs, { id: "next", companyId: "company", agentId: "agent", status: "succeeded", runnerProfileJson: { nativeExecutionInput: { interactionResponses: [{ interactionId: "approval" }] } } }];
+    const continued = [...runs, { id: "next", spaceId: "space", agentId: "agent", status: "succeeded", runnerProfileJson: { nativeExecutionInput: { interactionResponses: [{ interactionId: "approval" }] } } }];
     expect(storyHasDurableServiceContinuation(issues, "task", "agent", continued)).toBe(false);
     issues[0]!.interactions![0]!.result = { outcome: "accepted", toolAction: { status: "failed" } };
     expect(storyHasDurableServiceContinuation(issues, "task", "agent", runs)).toBe(false);

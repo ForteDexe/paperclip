@@ -11,11 +11,11 @@ import { setTimeout as delay } from "node:timers/promises";
 import { and, eq } from "drizzle-orm";
 
 if (!process.argv.includes("--run")) throw new Error("Pass --run to authorize the live two-turn Codex smoke.");
-const root = await mkdtemp(join(tmpdir(), "paperclip-live-task-monitor-"));
-process.env.OUTPOST_HOME = join(root, "paperclip");
+const root = await mkdtemp(join(tmpdir(), "outpost-live-task-monitor-"));
+process.env.OUTPOST_HOME = join(root, "outpost");
 process.env.OUTPOST_INSTANCE_ID = "monitor-smoke";
 process.env.OUTPOST_TELEMETRY_ENABLED = "false";
-const { createDb, companies, agents, authUsers, companyMemberships, issues, heartbeatRuns, agentWakeupRequests, nativeRunResults, statusDecisions } = await import("@outpost/db");
+const { createDb, spaces, agents, authUsers, spaceMemberships, issues, heartbeatRuns, agentWakeupRequests, nativeRunResults, statusDecisions } = await import("@outpost/db");
 const { startEmbeddedPostgresTestDatabase } = await import("../src/__tests__/helpers/embedded-postgres.js");
 const { createAgentLifecycle, startAgentLifecycle } = await import("../src/services/agent-lifecycle.js");
 const { createLifecycleDriver } = await import("../src/services/agent-lifecycle-driver.js");
@@ -31,31 +31,31 @@ const address = server.address();
 if (!address || typeof address === "string") throw new Error("TCP listener missing");
 process.env.OUTPOST_API_URL = `http://127.0.0.1:${address.port}`;
 setupRunnerPrpWebSocketServer(server, { apiUrl: process.env.OUTPOST_API_URL });
-const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
 const heartbeat = heartbeatService(db);
 const lifecycle = startAgentLifecycle(db, createLifecycleDriver(db, createPluginWorkerManager()), () => true);
-const readRuns = () => db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId)).orderBy(heartbeatRuns.createdAt);
-console.log(JSON.stringify({ root, companyId, agentId, issueId }));
+const readRuns = () => db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId)).orderBy(heartbeatRuns.createdAt);
+console.log(JSON.stringify({ root, spaceId, agentId, issueId }));
 try {
   const cwd = join(root, "workspace");
   await mkdir(cwd);
-  await db.insert(companies).values({ id: companyId, name: "Isolated monitor smoke", issuePrefix: "MON", defaultResponsibleUserId: "monitor-smoke", requireBoardApprovalForNewAgents: false });
+  await db.insert(spaces).values({ id: spaceId, name: "Isolated monitor smoke", issuePrefix: "MON", defaultResponsibleUserId: "monitor-smoke", requireBoardApprovalForNewAgents: false });
   await db.insert(authUsers).values({ id: "monitor-smoke", name: "Monitor smoke", email: "monitor-smoke@example.test", createdAt: new Date(), updatedAt: new Date() });
-  await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "monitor-smoke", status: "active", membershipRole: "owner" });
-  await createAgentLifecycle(db).requestHire(companyId, { id: agentId, name: "Monitor verifier", status: "active", adapterType: "outpost_runner",
+  await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "monitor-smoke", status: "active", membershipRole: "owner" });
+  await createAgentLifecycle(db).requestHire(spaceId, { id: agentId, name: "Monitor verifier", status: "active", adapterType: "outpost_runner",
     adapterConfig: { provider: "codex", cwd, lifecycleMode: "warm", idleTimeoutMs: 300_000, timeoutSeconds: 180 },
     runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } } });
   const setupDeadline = Date.now() + 3 * 60_000;
   while (true) {
     const agent = await createAgentLifecycle(db).get(agentId);
-    assert.ok(agent, "the hired agent must exist");
+    assert.ok(agent, "the created agent must exist");
     assert.equal(agent.lifecycleError, null, "agent setup failed");
     if (agent.lifecycleState === "ready") break;
     assert.ok(Date.now() < setupDeadline, "agent setup timed out");
     await delay(250);
   }
-  await db.insert(issues).values({ id: issueId, companyId, title: "Verify a one-shot native task monitor", identifier: "MON-1", status: "in_progress", assigneeAgentId: agentId,
-    description: "This is an isolated two-run integration test. First run: use set_task_monitor on this task with a fresh nextCheckAt about 45 seconds in the future (compute the current UTC time if needed), notes saying to verify issue_monitor_due, and idempotencyKey monitor-live-first. Confirm the receipt. Then call paperclip_finish with yielded and continuation.kind monitor, accurately retaining the second run as blocking remaining work. End immediately after acceptance. Do not sleep or poll. Second run: if the wake reason is issue_monitor_due, the requested check succeeded. Report that reason and finish done using the current completion contract. Do not schedule another monitor or request human review. No files or other deliverables are required." });
+  await db.insert(issues).values({ id: issueId, spaceId, title: "Verify a one-shot native task monitor", identifier: "MON-1", status: "in_progress", assigneeAgentId: agentId,
+    description: "This is an isolated two-run integration test. First run: use set_task_monitor on this task with a fresh nextCheckAt about 45 seconds in the future (compute the current UTC time if needed), notes saying to verify issue_monitor_due, and idempotencyKey monitor-live-first. Confirm the receipt. Then call outpost_finish with yielded and continuation.kind monitor, accurately retaining the second run as blocking remaining work. End immediately after acceptance. Do not sleep or poll. Second run: if the wake reason is issue_monitor_due, the requested check succeeded. Report that reason and finish done using the current completion contract. Do not schedule another monitor or request human review. No files or other deliverables are required." });
   await heartbeat.wakeup(agentId, { source: "on_demand", triggerDetail: "manual", reason: "monitor_smoke",
     requestedByActorType: "system", requestedByActorId: "monitor-smoke", payload: { issueId }, contextSnapshot: { issueId, wakeReason: "monitor_smoke" } });
   const deadline = Date.now() + 8 * 60_000;
@@ -81,15 +81,15 @@ try {
   assert.equal(runs.length, 2, "exactly two server runs must execute");
   assert.ok(runs.every(run => run.status === "succeeded"));
   const [issue] = await db.select().from(issues).where(eq(issues.id, issueId));
-  const wakes = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.reason, "issue_monitor_due")));
+  const wakes = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.reason, "issue_monitor_due")));
   assert.equal(wakes.length, 1);
   assert.equal(runs[1].contextSnapshot?.wakeReason, "issue_monitor_due");
   assert.equal(issue.status, "done");
   assert.equal(issue.monitorNextCheckAt, null);
   assert.ok(firstReleasedAt && runs[1].createdAt.getTime() - firstReleasedAt < 300_000, "wake must arrive within the configured warm window");
-  const results = await db.select().from(nativeRunResults).where(eq(nativeRunResults.companyId, companyId));
-  const decisions = await db.select().from(statusDecisions).where(eq(statusDecisions.companyId, companyId));
-  const evidence = { companyId, issueId, agentId, configuredIdleTimeoutMs: 300_000, firstReleasedAt, status: issue.status,
+  const results = await db.select().from(nativeRunResults).where(eq(nativeRunResults.spaceId, spaceId));
+  const decisions = await db.select().from(statusDecisions).where(eq(statusDecisions.spaceId, spaceId));
+  const evidence = { spaceId, issueId, agentId, configuredIdleTimeoutMs: 300_000, firstReleasedAt, status: issue.status,
     runs: runs.map(run => ({ id: run.id, status: run.status, createdAt: run.createdAt, finishedAt: run.finishedAt,
       wakeReason: run.contextSnapshot?.wakeReason, nativeSessionId: run.nativeSessionId, runnerInstanceId: run.runnerInstanceId,
       processPid: run.processPid, processStartedAt: run.processStartedAt, providerSessionId: run.sessionIdAfter,

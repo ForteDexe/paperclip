@@ -4,9 +4,9 @@ import * as caseSchemas from "./cases-schemas.js";
 import * as sharedSchemas from "@outpost/shared";
 
 export const experimentalApiPaths: readonly [string, string, z.ZodTypeAny | undefined][] = [
-  ["post", "/api/companies/{companyId}/cases", caseSchemas.createCaseSchema],
-  ["get", "/api/companies/{companyId}/cases", undefined],
-  ["get", "/api/companies/{companyId}/cases/types", undefined],
+  ["post", "/api/spaces/{spaceId}/cases", caseSchemas.createCaseSchema],
+  ["get", "/api/spaces/{spaceId}/cases", undefined],
+  ["get", "/api/spaces/{spaceId}/cases/types", undefined],
   ["get", "/api/cases/{id}/documents/{key}", undefined],
   ["get", "/api/cases/{id}/documents/{key}/annotations", undefined],
   ["get", "/api/cases/{id}/documents/{key}/annotations/{threadId}", undefined],
@@ -25,27 +25,27 @@ export const experimentalApiPaths: readonly [string, string, z.ZodTypeAny | unde
   ["get", "/api/issues/{issueId}/cases", undefined],
   ["get", "/api/cases/{id}", undefined],
   ["patch", "/api/cases/{id}", caseSchemas.patchCaseSchema],
-  ["get", "/api/companies/{companyId}/smoke-lab/oauth/authorize", undefined],
-  ["post", "/api/companies/{companyId}/smoke-lab/oauth/authorize", undefined],
-  ["post", "/api/companies/{companyId}/smoke-lab/oauth/token", undefined],
-  ["get", "/api/companies/{companyId}/smoke-lab/oauth/userinfo", undefined],
-  ["post", "/api/companies/{companyId}/smoke-lab/oauth/revoke", undefined],
-  ["get", "/api/companies/{companyId}/smoke-lab/services", undefined],
-  ["post", "/api/companies/{companyId}/smoke-lab/services/start", undefined],
-  ["post", "/api/companies/{companyId}/smoke-lab/services/stop", undefined],
-  ["post", "/api/companies/{companyId}/smoke-lab/install-fixtures", undefined],
-  ["get", "/api/companies/{companyId}/smoke-lab/runs", undefined],
-  ["post", "/api/companies/{companyId}/smoke-lab/runs", sharedSchemas.createSmokeRunSchema],
-  ["get", "/api/companies/{companyId}/smoke-lab/runs/{runId}", undefined],
-  ["patch", "/api/companies/{companyId}/smoke-lab/runs/{runId}", sharedSchemas.updateSmokeRunSchema],
-  ["post", "/api/companies/{companyId}/smoke-lab/runs/{runId}/steps", sharedSchemas.recordSmokeRunStepSchema],
-  ["post", "/api/companies/{companyId}/smoke-lab/reset", undefined],
+  ["get", "/api/spaces/{spaceId}/smoke-lab/oauth/authorize", undefined],
+  ["post", "/api/spaces/{spaceId}/smoke-lab/oauth/authorize", undefined],
+  ["post", "/api/spaces/{spaceId}/smoke-lab/oauth/token", undefined],
+  ["get", "/api/spaces/{spaceId}/smoke-lab/oauth/userinfo", undefined],
+  ["post", "/api/spaces/{spaceId}/smoke-lab/oauth/revoke", undefined],
+  ["get", "/api/spaces/{spaceId}/smoke-lab/services", undefined],
+  ["post", "/api/spaces/{spaceId}/smoke-lab/services/start", undefined],
+  ["post", "/api/spaces/{spaceId}/smoke-lab/services/stop", undefined],
+  ["post", "/api/spaces/{spaceId}/smoke-lab/install-fixtures", undefined],
+  ["get", "/api/spaces/{spaceId}/smoke-lab/runs", undefined],
+  ["post", "/api/spaces/{spaceId}/smoke-lab/runs", sharedSchemas.createSmokeRunSchema],
+  ["get", "/api/spaces/{spaceId}/smoke-lab/runs/{runId}", undefined],
+  ["patch", "/api/spaces/{spaceId}/smoke-lab/runs/{runId}", sharedSchemas.updateSmokeRunSchema],
+  ["post", "/api/spaces/{spaceId}/smoke-lab/runs/{runId}/steps", sharedSchemas.recordSmokeRunStepSchema],
+  ["post", "/api/spaces/{spaceId}/smoke-lab/reset", undefined],
 ];
 
 // Searchable summaries for experimental reads agents need to find. Routes not
 // listed here keep the generated method-and-path summary.
 export const experimentalApiDocs: Record<string, { summary: string; description: string }> = {
-  "GET /api/companies/{companyId}/cases": { summary: "List company cases",
+  "GET /api/spaces/{spaceId}/cases": { summary: "List space cases",
     description: "Lists the cases the caller can read, with each case's id, identifier, title, status and primary task (workIssueId)." },
   "GET /api/issues/{issueId}/cases": { summary: "Find the cases for a task",
     description: "Accepts a task UUID or identifier and returns each readable case linked to that task, as { id, role, case: { id, identifier, ... } }. The top-level id is the link; pass case.id to read_case or the case audit history." },
@@ -61,7 +61,7 @@ export const experimentalApiDocs: Record<string, { summary: string; description:
 
 // Query contracts shared with the runtime parser where one exists.
 export const experimentalApiQueries: Record<string, z.ZodObject<any>> = {
-  "GET /api/companies/{companyId}/cases": caseSchemas.listCasesQuerySchema,
+  "GET /api/spaces/{spaceId}/cases": caseSchemas.listCasesQuerySchema,
   "GET /api/cases/{id}/events": caseSchemas.listEventsQuerySchema,
   "GET /api/cases/{id}": caseSchemas.caseDetailQuerySchema,
   "PATCH /api/cases/{id}": caseSchemas.caseDetailQuerySchema,

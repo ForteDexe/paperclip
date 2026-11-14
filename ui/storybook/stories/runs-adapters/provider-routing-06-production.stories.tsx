@@ -18,12 +18,12 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ProviderCatalogReview } from "../../prototypes/provider-routing/ConnectionCatalog";
 import { ReviewFrame } from "../../prototypes/provider-routing/shared";
 
-const companyId = "00000000-0000-4000-8000-000000000001";
+const spaceId = "00000000-0000-4000-8000-000000000001";
 const accounts: AiManagedConnectionSummary[] = [
   {
     id: "00000000-0000-4000-8000-000000000002",
     grantId: "00000000-0000-4000-8000-000000000003",
-    companyId,
+    spaceId,
     provider: "openai",
     method: "subscription",
     name: "My ChatGPT subscription",
@@ -35,10 +35,10 @@ const accounts: AiManagedConnectionSummary[] = [
   {
     id: "00000000-0000-4000-8000-000000000004",
     grantId: "00000000-0000-4000-8000-000000000005",
-    companyId,
+    spaceId,
     provider: "openrouter",
     method: "api_key",
-    name: "Company OpenRouter",
+    name: "Space OpenRouter",
     ownership: "shared",
     isDefault: false,
     status: "connected",
@@ -52,7 +52,7 @@ const accounts: AiManagedConnectionSummary[] = [
   {
     id: "00000000-0000-4000-8000-000000000006",
     grantId: "00000000-0000-4000-8000-000000000007",
-    companyId,
+    spaceId,
     provider: "anthropic",
     method: "subscription",
     name: "My Claude subscription",
@@ -64,7 +64,7 @@ const accounts: AiManagedConnectionSummary[] = [
   ...["engineering@example.test", "design@example.test"].map((accountLabel, index) => ({
     id: `00000000-0000-4000-8000-00000000000${index + 8}`,
     grantId: `00000000-0000-4000-8000-00000000001${index}`,
-    companyId, provider: "openai" as const, method: "subscription" as const,
+    spaceId, provider: "openai" as const, method: "subscription" as const,
     name: "OpenAI", ownership: "shared" as const, accountLabel,
     isDefault: false, status: "connected" as const,
   })),
@@ -75,16 +75,16 @@ function Providers({ canManageConnections = true }: { canManageConnections?: boo
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
     });
     query.setQueryData(
-      ["agents", companyId, "provider-access"],
+      ["agents", spaceId, "provider-access"],
       [{ id: "nova", name: "Nova" }],
     );
-    query.setQueryData(["ai-connections", companyId, "nova"], { currentUserId: "you", connections: accounts, canManageConnections });
+    query.setQueryData(["ai-connections", spaceId, "nova"], { currentUserId: "you", connections: accounts, canManageConnections });
     return query;
   });
   return (
     <QueryClientProvider client={client}>
       <AiProviderSetup
-        companyId={companyId}
+        spaceId={spaceId}
         agentId="nova"
         initialProvider="openrouter"
         onCancel={() => {}}
@@ -101,7 +101,7 @@ function Connection() {
   });
   return (
     <AiConnectionSelect
-      requirement={{ companyId, provider: "openai" }}
+      requirement={{ spaceId, provider: "openai" }}
       adapterType="codex_local"
       connections={accounts}
       value={value}
@@ -117,7 +117,7 @@ function OpenRouterModelPicker() {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [effort, setEffort] = useState("");
-  const connection = useConnectionModels(companyId, {
+  const connection = useConnectionModels(spaceId, {
     provider: "openrouter", method: "api_key", mode: "shared",
     connectionId: accounts[1].id, grantId: accounts[1].grantId,
   }, "opencode_local");
@@ -133,11 +133,11 @@ function OpenRouterModelPicker() {
 function OpenRouterModels() {
   const [client] = useState(() => {
     const query = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
-    query.setQueryData(["ai-connections", companyId], {
+    query.setQueryData(["ai-connections", spaceId], {
       currentUserId: "you",
       connections: [{ ...accounts[1], routing: { ...accounts[1].routing!, models: [] } }],
     });
-    query.setQueryData(queryKeys.agents.adapterModels(companyId, "opencode_local", null, "openrouter"), [
+    query.setQueryData(queryKeys.agents.adapterModels(spaceId, "opencode_local", null, "openrouter"), [
       { id: "openrouter/z-ai/glm-5", label: "Z.AI GLM 5" },
       { id: "openrouter/anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
       { id: "openrouter/openai/gpt-5.4", label: "OpenAI GPT-5.4" },
@@ -152,17 +152,17 @@ function AgentConnectionModes() {
   const [client] = useState(() => {
     const query = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
     const connections = { currentUserId: "you", connections: accounts, canManageConnections: true };
-    query.setQueryData(["ai-connections", companyId], connections);
-    query.setQueryData(["ai-connections", companyId, undefined], connections);
-    query.setQueryData(queryKeys.secrets.myUserSecrets(companyId), []);
-    query.setQueryData(queryKeys.secrets.list(companyId), []);
-    query.setQueryData(queryKeys.agents.authSignal(companyId, "codex_local", null), { status: "present" });
+    query.setQueryData(["ai-connections", spaceId], connections);
+    query.setQueryData(["ai-connections", spaceId, undefined], connections);
+    query.setQueryData(queryKeys.secrets.myUserSecrets(spaceId), []);
+    query.setQueryData(queryKeys.secrets.list(spaceId), []);
+    query.setQueryData(queryKeys.agents.authSignal(spaceId, "codex_local", null), { status: "present" });
     return query;
   });
   return <QueryClientProvider client={client}>
-    <AgentProviderConnection companyId={companyId} adapterType="codex_local" environmentId={null}
+    <AgentProviderConnection spaceId={spaceId} adapterType="codex_local" environmentId={null}
       canLogin={false} onBack={() => {}} testConnection={async () => true} onConnected={setConnected}
-      advancedConnection={{ value, content: <AiConnectionField companyId={companyId} agentName="Nova"
+      advancedConnection={{ value, content: <AiConnectionField spaceId={spaceId} agentName="Nova"
         adapterType="codex_local" value={value} onChange={binding => { if (binding.mode !== "router") setValue(binding); }} preferAdvanced /> }} />
     {connected && <p role="status">Continue to Configure with {connected.aiConnection?.provider}.</p>}
   </QueryClientProvider>;
@@ -171,7 +171,7 @@ const meta = {
   id: "ai-connections-provider-routing-06-production-components",
   title: "Agents and reusable capabilities/Runs, harnesses, and model accounts/AI Connections/Provider routing/06 Production components",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "runs-adapters/validation"
       ],
@@ -207,7 +207,7 @@ export const NewAgentConnectionModes: Story = {
     await expect(canvas.getByRole("radio", { name: "Advanced Custom Gateway" })).toBeChecked();
     await expect(canvas.getByRole("button", { name: "Use connection" })).toBeDisabled();
     await userEvent.click(canvas.getByRole("combobox", { name: "Connection" }));
-    await userEvent.click(within(canvasElement.ownerDocument.body).getByRole("option", { name: "Company OpenRouter · API key · Company shared" }));
+    await userEvent.click(within(canvasElement.ownerDocument.body).getByRole("option", { name: "Space OpenRouter · API key · Space shared" }));
     await userEvent.click(canvas.getByRole("button", { name: "Use connection" }));
     await expect(canvas.getByRole("status")).toHaveTextContent("Continue to Configure with openrouter.");
     await userEvent.click(canvas.getByRole("radio", { name: "OpenAI Subscription" }));
@@ -266,19 +266,19 @@ export const CompatibleConnectionDropdown: Story = {
       body.getByRole("option", { name: "Responsible user’s default" }),
     ).toHaveAttribute("data-state", "checked");
     await expect(
-      body.getByRole("option", { name: "Company OpenRouter · API key · Company shared" }),
+      body.getByRole("option", { name: "Space OpenRouter · API key · Space shared" }),
     ).toBeVisible();
-    await expect(body.getByRole("option", { name: "OpenAI · ChatGPT subscription · Company shared · engineering@example.test" })).toBeVisible();
-    await expect(body.getByRole("option", { name: "OpenAI · ChatGPT subscription · Company shared · design@example.test" })).toBeVisible();
+    await expect(body.getByRole("option", { name: "OpenAI · ChatGPT subscription · Space shared · engineering@example.test" })).toBeVisible();
+    await expect(body.getByRole("option", { name: "OpenAI · ChatGPT subscription · Space shared · design@example.test" })).toBeVisible();
     await expect(
       body.queryByRole("option", { name: /My Claude subscription/ }),
     ).not.toBeInTheDocument();
     await userEvent.click(
-      body.getByRole("option", { name: "Company OpenRouter · API key · Company shared" }),
+      body.getByRole("option", { name: "Space OpenRouter · API key · Space shared" }),
     );
     await expect(
       within(canvasElement).getByRole("combobox", { name: "Connection" }),
-    ).toHaveTextContent("Company OpenRouter");
+    ).toHaveTextContent("Space OpenRouter");
   },
 };
 

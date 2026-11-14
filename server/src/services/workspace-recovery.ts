@@ -46,36 +46,36 @@ const terminal = ["failed", "interrupted", "timed_out", "cancelled", "succeeded"
 const sandboxDiskFull = /No space left on device|Disk quota exceeded/i;
 export const SANDBOX_DISK_FULL_RECOVERY_CAUSE = { label: "sandbox_disk_full", code: "ENOSPC", status: null } as const;
 const isSandboxDiskFullSave = (error: unknown) => error instanceof Error && error.message === REMOTE_WORKSPACE_SANDBOX_DISK_FULL;
-type Source = { companyId: string; issueId: string; runId: string; actionId: string };
+type Source = { spaceId: string; issueId: string; runId: string; actionId: string };
 
 type StopEvidenceSource = Omit<Source, "actionId"> & { actionId?: string };
 
 async function recheckStoppedWorkspaceRecovery(db: Db, source: StopEvidenceSource, observe: boolean) {
   return db.transaction(async tx => {
     const [issue] = await tx.select({ id: issues.id }).from(issues).where(and(
-      eq(issues.id, source.issueId), eq(issues.companyId, source.companyId))).for("update");
+      eq(issues.id, source.issueId), eq(issues.spaceId, source.spaceId))).for("update");
     const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, source.runId),
-      eq(heartbeatRuns.companyId, source.companyId))).for("update");
+      eq(heartbeatRuns.spaceId, source.spaceId))).for("update");
     if (!issue || !run || run.runtimeMode !== "native" || run.nativeIssueId !== issue.id ||
         !isAcknowledgedNativeStop(run) || adapterExecutionControls.has(run.id)) return 0;
     const cancellation = run.resultJson?.executionCancellation as { state?: unknown; proof?: unknown; acknowledgedAt?: unknown } | undefined;
     if (cancellation?.state !== "acknowledged" || cancellation.proof !== "provider_termination_receipt") return 0;
     const [coordinator] = await tx.select({ phase: nativeRunFinalizations.phase, leaseOwner: nativeRunFinalizations.leaseOwner })
-      .from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, source.companyId),
+      .from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.spaceId, source.spaceId),
         eq(nativeRunFinalizations.runId, source.runId), eq(nativeRunFinalizations.issueId, source.issueId)));
     if (!coordinator || coordinator.leaseOwner || !["terminal_failure", "applied"].includes(coordinator.phase)) return 0;
-    const leases = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, source.companyId),
+    const leases = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, source.spaceId),
       eq(environmentLeases.heartbeatRunId, source.runId)));
     if (!leases.length || leases.some(lease => !lease.provider || lease.provider === "local" || !hasRemoteTerminationReceipt(lease))) return 0;
     const intent = run.resultJson!.nativeCancellation as Record<string, unknown>;
-    const fingerprint = createHash("sha256").update(JSON.stringify({ companyId: source.companyId, issueId: source.issueId,
+    const fingerprint = createHash("sha256").update(JSON.stringify({ spaceId: source.spaceId, issueId: source.issueId,
       runId: source.runId, intentAuditId: intent.intentAuditId, acknowledgementAuditId: intent.acknowledgementAuditId,
       acknowledgedAt: cancellation.acknowledgedAt, leases: leases.sort((a, b) => a.id.localeCompare(b.id)).map(lease => {
         const receipt = lease.metadata!.remoteExecutionTermination as Record<string, unknown>;
         return { leaseId: lease.id, provider: lease.provider, providerLeaseId: lease.providerLeaseId,
           state: receipt.state, confirmedAt: receipt.confirmedAt };
       }) })).digest("hex");
-    const actions = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, source.companyId),
+    const actions = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, source.spaceId),
       eq(issueRecoveryActions.sourceIssueId, source.issueId), or(inArray(issueRecoveryActions.status, ["active", "escalated"]), and(
         eq(issueRecoveryActions.status, "resolved"), sql`${issueRecoveryActions.evidence}#>>'{automaticRecovery,policy}' = 'preserve_without_replay_v1'`,
         sql`${issueRecoveryActions.evidence}#>>'{automaticRecovery,replay}' = 'blocked'`,
@@ -107,7 +107,7 @@ async function recheckStoppedWorkspaceRecovery(db: Db, source: StopEvidenceSourc
         generationId: current.generationId, fingerprint, consumed };
       const recorded = await tx.update(issueRecoveryActions).set({ evidence: sql`${issueRecoveryActions.evidence} ||
         ${JSON.stringify({ workspaceStopEvidence: marker })}::jsonb`, updatedAt: new Date() }).where(and(
-          eq(issueRecoveryActions.companyId, source.companyId), eq(issueRecoveryActions.id, action.id),
+          eq(issueRecoveryActions.spaceId, source.spaceId), eq(issueRecoveryActions.id, action.id),
           sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,generationId}' = ${current.generationId}`,
           sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,revision}' = ${String(current.revision + (advance ? 1 : 0))}`))
         .returning({ id: issueRecoveryActions.id });
@@ -130,12 +130,12 @@ export function observeStoppedWorkspaceRecovery(db: Db, source: StopEvidenceSour
  * before it takes ownership. Returns whether the recheck was woken.
  */
 export async function wakeCopybackOwnerRecheck(db: Db, input: {
-  companyId: string; actionId: string; now: Date;
+  spaceId: string; actionId: string; now: Date;
   owner: { pid: number | null; processStartedAt: string | null; bootId: string | null; processSpace: string | null };
 }): Promise<boolean> {
   return db.transaction(async tx => {
     const [action] = await tx.select().from(issueRecoveryActions).where(and(
-      eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, input.actionId),
+      eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, input.actionId),
       inArray(issueRecoveryActions.status, ["active", "escalated"]))).for("update");
     const hold = action?.evidence?.workspaceOwnerRecovery as { state?: unknown; owner?: Record<string, unknown> } | undefined;
     const owner = hold?.owner;
@@ -153,7 +153,7 @@ export async function wakeCopybackOwnerRecheck(db: Db, input: {
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.workspaceRecovery);
       return true;
     }
-    return updateSystemRecovery(tx as unknown as Db, { companyId: input.companyId, issueId: action.sourceIssueId,
+    return updateSystemRecovery(tx as unknown as Db, { spaceId: input.spaceId, issueId: action.sourceIssueId,
       runId, actionId: action.id }, current, { ...current, revision: current.revision + 1, nextAttemptAt: due });
   });
 }
@@ -161,10 +161,10 @@ export async function wakeCopybackOwnerRecheck(db: Db, input: {
 /** Admission records intent only. No request handler runs physical recovery. */
 export async function requestWorkspaceRecovery(input: Source & { db: Db; idempotencyKey: string; actorId: string }) {
   return input.db.transaction(async tx => {
-    const [issue] = await tx.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId))).for("update");
-    const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId))).for("update");
+    const [issue] = await tx.select().from(issues).where(and(eq(issues.id, input.issueId), eq(issues.spaceId, input.spaceId))).for("update");
+    const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId))).for("update");
     const [action] = await tx.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.id, input.actionId),
-      eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.sourceIssueId, input.issueId))).for("update");
+      eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.sourceIssueId, input.issueId))).for("update");
     if (!issue || !run || !action || action.evidence.runId !== run.id
       || (run.nativeIssueId ?? run.issueId ?? run.contextSnapshot?.issueId) !== issue.id
       || !terminal.includes(run.status) || (!hasRequiredWorkspaceRecovery(run.resultJson) && !exportCauses.includes(action.cause))) {
@@ -189,7 +189,7 @@ export async function requestWorkspaceRecovery(input: Source & { db: Db; idempot
     await tx.update(issueRecoveryActions).set({ ownerType: "system", ownerAgentId: null, ownerUserId: null,
       evidence: { ...action.evidence, workspaceRecovery: state, systemRecovery: system }, updatedAt: new Date() })
       .where(eq(issueRecoveryActions.id, action.id));
-    await persistActivity(tx as unknown as Db, { companyId: input.companyId, actorType: "user", actorId: input.actorId,
+    await persistActivity(tx as unknown as Db, { spaceId: input.spaceId, actorType: "user", actorId: input.actorId,
       action: "issue.workspace_recovery_requested", entityType: "issue", entityId: issue.id, runId: run.id,
       details: { recoveryActionId: action.id, idempotencyKey: input.idempotencyKey,
         ...(previous && previous.generationId !== system.generationId ? { previousGeneration: previous } : {}) } });
@@ -217,7 +217,7 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
     initial = await loadSystemRecovery(db, input);
   if (initial?.state === "exhausted" && !canAdoptNativeSourceRetention(initial)) {
     // A budget spent before this hold existed still names its receipt, so the
-    // board confirmation in its handoff can release it (RC-50 wave databases).
+    // operator confirmation in its handoff can release it (RC-50 wave databases).
     if (initial.failure?.code === "copyback_stop_unconfirmed") await recordCopybackOwnerHold(db, input, initial.generationId);
     await handOffExhaustedSystemRecovery(db, input, initial);
     return;
@@ -231,7 +231,7 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
       const spent = current;
       current = await retainNativeRecoverySource(db, input, current, ownership);
       if (!current) {
-        // Not adoptable now. The board owns the spent budget until Retry or a
+        // Not adoptable now. The operator owns the spent budget until Retry or a
         // later adoption returns it to the system.
         await handOffExhaustedSystemRecovery(db, input, (await loadSystemRecovery(db, input)) ?? spent);
         return;
@@ -256,7 +256,7 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
       await ownership.assertHeld();
       await db.update(issueRecoveryActions).set({ evidence: sql`jsonb_set(${issueRecoveryActions.evidence},
         '{systemRecoveryActiveAt}', ${JSON.stringify(Date.now())}::jsonb)` }).where(and(
-          eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, input.actionId),
+          eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, input.actionId),
           sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,attemptId}' = ${reserved.attemptId}`));
     };
     let observing = Promise.resolve();
@@ -274,7 +274,7 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
           continue;
         }
         if (lease.provider === "daytona" && lease.providerLeaseId) {
-          const absence = await requestSandboxAbsenceProof({ companyId: input.companyId, issueId: input.issueId, runId: input.runId, leaseId: lease.id,
+          const absence = await requestSandboxAbsenceProof({ spaceId: input.spaceId, issueId: input.issueId, runId: input.runId, leaseId: lease.id,
             provider: "daytona", providerLeaseId: lease.providerLeaseId, ownerToken: ownership.token });
           if (absence) {
             await ownership.assertHeld();
@@ -285,7 +285,7 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
         }
         let reference = source.preservationOnly ? null : source.reference;
         if (reference) {
-          try { await readNativeWorkspaceSyncLocalCwd({ runId: input.runId, companyId: input.companyId,
+          try { await readNativeWorkspaceSyncLocalCwd({ runId: input.runId, spaceId: input.spaceId,
             workspaceId: reference.workspaceId, reference }); }
           catch (error) {
             // Missing local merge metadata permits a separate snapshot of the
@@ -297,7 +297,7 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
         let stoppedLease = lease;
         if (!hasRemoteTerminationReceipt(stoppedLease)) {
           const pending = await db.transaction(async tx => {
-            const [fresh] = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId),
+            const [fresh] = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId),
               eq(environmentLeases.id, lease.id))).for("update");
             if (!fresh || fresh.metadata?.pendingCleanupInFlight === true) return null;
             const prepared = hasStopOnlyCleanup(fresh) ? fresh : fresh.status === "released"
@@ -322,14 +322,14 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
             throw new SystemRecoveryFailure("agent_stop_unconfirmed", "recheck_evidence");
           stoppedLease = settled;
         }
-        const target = await resolveEnvironmentExecutionTarget({ db, companyId: input.companyId, adapterType: "outpost_runner",
+        const target = await resolveEnvironmentExecutionTarget({ db, spaceId: input.spaceId, adapterType: "outpost_runner",
           environment, leaseId: lease.id, leaseMetadata: stoppedLease.metadata,
           lease: stoppedLease as EnvironmentLease, environmentRuntime: input.environmentRuntime });
         if (target?.kind !== "remote" || target.transport !== "sandbox" || !target.runner || target.remoteCwd !== remoteCwd)
           throw workspaceSourceBindingFailure("execution_target_invalid");
         await ownership.assertHeld();
         let cleanupLease = await db.transaction(async tx => {
-          const [fresh] = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, input.companyId),
+          const [fresh] = await tx.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, input.spaceId),
             eq(environmentLeases.id, lease.id))).for("update");
           if (!fresh || !hasRemoteTerminationReceipt(fresh) || fresh.providerLeaseId !== lease.providerLeaseId)
             throw new SystemRecoveryFailure("agent_stop_unconfirmed", "recheck_evidence");
@@ -363,7 +363,7 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
           let operationId: string;
           if (source.remoteReference && source.remoteWorkspace) {
             const [workspace] = await db.select().from(executionWorkspaces).where(and(
-              eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.id, source.remoteWorkspace.id),
+              eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.id, source.remoteWorkspace.id),
             ));
             if (!workspace) throw workspaceSourceBindingFailure("workspace_reference_mismatch");
             const save = () => saveRemoteWorkspace({ db, workspace, runId: input.runId,
@@ -374,7 +374,7 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
               if (!isSandboxDiskFullSave(error)) throw error;
               let reclaimed = false;
               try {
-                const reclaim = await reclaimInactiveNativeProviderCache({ db, companyId: input.companyId,
+                const reclaim = await reclaimInactiveNativeProviderCache({ db, spaceId: input.spaceId,
                   issueId: input.issueId, runId: input.runId, workspaceId: workspace.id, target,
                   assertOwned: ownership.assertHeld });
                 reclaimed = reclaim.changed;
@@ -389,12 +389,12 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
             }
             await ownership.assertHeld();
             const [existing] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-              eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.heartbeatRunId, input.runId),
+              eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.heartbeatRunId, input.runId),
               eq(workspaceOperations.phase, "workspace_recovery"), eq(workspaceOperations.status, "succeeded"),
               sql`${workspaceOperations.metadata}->>'leaseId' = ${lease.id}`,
               sql`${workspaceOperations.metadata}->>'snapshotId' = ${saved.snapshotId}`,
             )).limit(1);
-            const operation = existing ?? (await db.insert(workspaceOperations).values({ companyId: input.companyId,
+            const operation = existing ?? (await db.insert(workspaceOperations).values({ spaceId: input.spaceId,
               issueId: input.issueId, heartbeatRunId: input.runId, executionWorkspaceId: workspace.id,
               phase: "workspace_recovery", status: "succeeded", finishedAt: new Date(), metadata: {
                 recoveryActionId: input.actionId, leaseId: lease.id, providerLeaseId: lease.providerLeaseId,
@@ -411,10 +411,10 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
               throw new SystemRecoveryFailure("snapshot_verification_failed", "service_required");
             await ownership.assertHeld();
             const [existing] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-              eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.heartbeatRunId, input.runId),
+              eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.heartbeatRunId, input.runId),
               eq(workspaceOperations.phase, "workspace_recovery"), eq(workspaceOperations.status, "succeeded"),
               sql`${workspaceOperations.metadata}->>'leaseId' = ${lease.id}`)).limit(1);
-            const copy = existing ?? (await db.insert(workspaceOperations).values({ companyId: input.companyId, issueId: input.issueId,
+            const copy = existing ?? (await db.insert(workspaceOperations).values({ spaceId: input.spaceId, issueId: input.issueId,
               heartbeatRunId: input.runId, executionWorkspaceId: lease.executionWorkspaceId, phase: "workspace_recovery",
               status: "succeeded", finishedAt: new Date(), metadata: { recoveryActionId: input.actionId, leaseId: lease.id,
                 providerLeaseId: lease.providerLeaseId, descriptorSha256: finalized.descriptorSha256,
@@ -456,7 +456,7 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
         await notifyNativeWorkspaceFinalization(tx, input);
         await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionReplacement);
         await notifyNativeStatusReassessment(tx, input);
-        await tx.insert(workspaceOperations).values({ companyId: input.companyId, issueId: input.issueId,
+        await tx.insert(workspaceOperations).values({ spaceId: input.spaceId, issueId: input.issueId,
           heartbeatRunId: input.runId, phase: "workspace_finalize", status: "succeeded", finishedAt: new Date(),
           metadata: { owningService: "workspace_recovery", preservationOperationIds: next.preservationOperationIds } });
         if (!await updateSystemRecovery(tx as unknown as Db, input, current!, next))
@@ -466,7 +466,7 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
         // A settled restore hold returns its warm sandbox to reuse. A hold that
         // fails any guard keeps its protection; the saved files still count.
         await settleRecoveredWorkspaceRestoreHolds(tx as unknown as Db, input);
-        return persistActivity(tx as unknown as Db, { companyId: input.companyId, actorType: "system", actorId: "workspace-recovery",
+        return persistActivity(tx as unknown as Db, { spaceId: input.spaceId, actorType: "system", actorId: "workspace-recovery",
           action: "issue.workspace_recovered", entityType: "issue", entityId: input.issueId, runId: input.runId,
           details: { recoveryActionId: input.actionId, summary: "Saved work recovered." } });
       });
@@ -515,7 +515,7 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
       logger.warn({ err: error, runId: input.runId, failureCode: failure.code, failureCause: cause?.label, phase: current!.phase }, "Workspace preservation deferred; source retained");
     } finally { clearInterval(observer); await observing; }
   };
-  const owned = await withNativeWorkspaceFinalizationOwnership({ db, companyId: input.companyId, runId: input.runId,
+  const owned = await withNativeWorkspaceFinalizationOwnership({ db, spaceId: input.spaceId, runId: input.runId,
     retainedRepairActionId: input.actionId }, runAttempt);
   if (!owned.acquired && owned.reason === "owner_unverified") {
     await holdForUnverifiedCopybackOwner(db, input);
@@ -527,7 +527,7 @@ export async function recoverRetainedWorkspace(input: Source & { db: Db; environ
  * A copyback owner that a restart killed can never confirm its own stop, and
  * Retry cannot release its receipt (RC-50). Rechecking that receipt is not a
  * recovery attempt: the bounded recovery window still applies, but no attempt
- * is spent. Record the exact receipt so the board can confirm the stop through
+ * is spent. Record the exact receipt so the operator can confirm the stop through
  * `resumeNativeWorkspaceAfterOwnerStop`, and so Retry names this wait.
  */
 async function holdForUnverifiedCopybackOwner(db: Db, input: Source) {
@@ -538,13 +538,13 @@ async function holdForUnverifiedCopybackOwner(db: Db, input: Source) {
   await recordCopybackOwnerHold(db, input, next.generationId);
 }
 
-/** Bookkeeping only: names the exact receipt for the board. Grants no attempt. */
+/** Bookkeeping only: names the exact receipt for the operator. Grants no attempt. */
 async function recordCopybackOwnerHold(db: Db, input: Source, generationId: string) {
   const [source] = await db.select({ owner: sql<unknown>`${heartbeatRuns.runnerProfileJson}->'nativeWorkspaceFinalizationOwner'` })
-    .from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId)));
+    .from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId)));
   const owner = source?.owner;
   if (!owner || typeof owner !== "object" || typeof (owner as { token?: unknown }).token !== "string") return;
-  const target = and(eq(issueRecoveryActions.companyId, input.companyId), eq(issueRecoveryActions.id, input.actionId),
+  const target = and(eq(issueRecoveryActions.spaceId, input.spaceId), eq(issueRecoveryActions.id, input.actionId),
     eq(issueRecoveryActions.sourceIssueId, input.issueId),
     sql`${issueRecoveryActions.evidence}#>>'{systemRecovery,generationId}' = ${generationId}`,
     sql`${issueRecoveryActions.evidence}#>'{workspaceOwnerRecovery,owner}' is distinct from ${JSON.stringify(owner)}::jsonb`);
@@ -554,7 +554,7 @@ async function recordCopybackOwnerHold(db: Db, input: Source, generationId: stri
     // Wake the ownership worker (on any server) before the hold it announces,
     // so a quiet worker judges this owner and can wake the recheck.
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.ownershipInvariantReport,
-      JSON.stringify({ companyId: input.companyId, runId: input.runId, actionId: input.actionId }));
+      JSON.stringify({ spaceId: input.spaceId, runId: input.runId, actionId: input.actionId }));
     await tx.update(issueRecoveryActions).set({
       // A confirmation names one receipt; a newer unverified owner needs its own.
       evidence: sql`(${issueRecoveryActions.evidence} - 'workspaceOwnerStop') || jsonb_build_object('workspaceOwnerRecovery',
@@ -578,7 +578,7 @@ export async function scheduleRecoveredWorkspaceCleanup(db: Db, run: typeof hear
   const ref = legacy ?? remote;
   const disposition = legacy?.resourceDisposition ?? (remote ? run.runnerProfileJson?.nativeResourceDisposition : undefined);
   if (!ref || disposition !== "destroy") return;
-  const [lease] = await db.select().from(environmentLeases).where(and(eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.id, ref.leaseId)));
+  const [lease] = await db.select().from(environmentLeases).where(and(eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.id, ref.leaseId)));
   if (!lease || !hasRemoteTerminationReceipt(lease)) return;
   const [other] = await db.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
     ne(environmentLeases.id, lease.id), eq(environmentLeases.provider, lease.provider!), eq(environmentLeases.providerLeaseId, lease.providerLeaseId!),
@@ -591,11 +591,11 @@ export async function scheduleRecoveredWorkspaceCleanup(db: Db, run: typeof hear
         stopReceipt: lease.metadata?.remoteExecutionTermination, ...(legacy ? { descriptorSha256: legacy.descriptorSha256 }
         : { snapshotId: remote!.snapshotId, epoch: remote!.epoch }) },
         pendingCleanupInFlight: false, pendingCleanupRetryAfterMs: 0, pendingCleanupRetryAttempts: 0, pendingCleanupLeaseExpiresAtMs: 0 })}::jsonb`,
-  }).where(and(eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.id, ref.leaseId),
+  }).where(and(eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.id, ref.leaseId),
     eq(environmentLeases.heartbeatRunId, run.id), eq(environmentLeases.providerLeaseId, ref.providerLeaseId),
     eq(environmentLeases.status, "released"), eq(environmentLeases.cleanupStatus, "success"),
     sql`${environmentLeases.metadata} = ${JSON.stringify(lease.metadata)}::jsonb`,
-    sql`${environmentLeases.metadata}->>'workspaceRecoveryCleanup' is null`)), { companyId: run.companyId, runId: run.id });
+    sql`${environmentLeases.metadata}->>'workspaceRecoveryCleanup' is null`)), { spaceId: run.spaceId, runId: run.id });
 }
 /** `dueOnly` narrows the obligations to exhausted holds whose re-arm or
  * fallback is due now. Cleanup, interrupted preparation and saved input that
@@ -607,14 +607,14 @@ export function retainedWorkspaceCandidates(db: Db, cursor?: string, unfinishedO
     or (${heartbeatRuns.runnerProfileJson}->>'nativeResourceDisposition' = 'destroy'
       and ${heartbeatRuns.runnerProfileJson}#>>'{remoteWorkspace,schema}' = 'outpost.remote-workspace-run.v1'
       and ${heartbeatRuns.runnerProfileJson}#>>'{remoteWorkspace,state}' = 'saved')) and exists (
-    select 1 from ${environmentLeases} where ${environmentLeases.companyId} = ${heartbeatRuns.companyId}
+    select 1 from ${environmentLeases} where ${environmentLeases.spaceId} = ${heartbeatRuns.spaceId}
     and ${environmentLeases.heartbeatRunId} = ${heartbeatRuns.id}
     and ${environmentLeases.id}::text = coalesce(${heartbeatRuns.runnerProfileJson}#>>'{nativeWorkspaceSync,leaseId}',
       ${heartbeatRuns.runnerProfileJson}#>>'{remoteWorkspace,leaseId}')
     and ${environmentLeases.status} = 'released' and ${environmentLeases.cleanupStatus} = 'success'
     and ${environmentLeases.metadata}->'workspaceRecoveryCleanup' is null))`;
   const waitingInput = sql`exists (select 1 from ${agentWakeupRequests}
-    where ${agentWakeupRequests.companyId} = ${issueRecoveryActions.companyId}
+    where ${agentWakeupRequests.spaceId} = ${issueRecoveryActions.spaceId}
     and ${agentWakeupRequests.status} = 'deferred_issue_execution' and ${agentWakeupRequests.requestedByActorType} = 'user'
     and ${agentWakeupRequests.payload}->>'issueId' = ${issueRecoveryActions.sourceIssueId}::text)`;
   const interruptedPreparation = sql`(${heartbeatRuns.runtimeMode} = 'legacy'
@@ -628,7 +628,7 @@ export function retainedWorkspaceCandidates(db: Db, cursor?: string, unfinishedO
       or (${issueRecoveryActions.evidence}#>>'{automaticRecovery,replay}' = 'allowed'
         and ${issueRecoveryActions.evidence}->>'bootstrapPreparationSettledAt' is not null
         and coalesce(${issueRecoveryActions.evidence}->>'bootstrapPreparationContinuation', 'pending') in ('pending', 'deferred')))
-    and exists (select 1 from ${issues} where ${issues.companyId} = ${heartbeatRuns.companyId}
+    and exists (select 1 from ${issues} where ${issues.spaceId} = ${heartbeatRuns.spaceId}
       and ${issues.id} = ${issueRecoveryActions.sourceIssueId} and ${issues.assigneeAgentId} = ${heartbeatRuns.agentId}
       and ${issues.status} in ('todo', 'in_progress', 'in_review', 'blocked')
       and ${issues.executionRunId} is null and ${issues.checkoutRunId} is null
@@ -637,7 +637,7 @@ export function retainedWorkspaceCandidates(db: Db, cursor?: string, unfinishedO
   const now = Date.now();
   const dueHold = sql`(${retainedSourceFallbackDueCondition(now)} or ${stopProofRearmDueCondition(now)} or ${capturePolicyRearmDueCondition(now)})`;
   return db.select({ action: issueRecoveryActions, run: heartbeatRuns }).from(issueRecoveryActions)
-    .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.companyId, issueRecoveryActions.companyId), eq(heartbeatRuns.id,
+    .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.spaceId, issueRecoveryActions.spaceId), eq(heartbeatRuns.id,
       sql`case when ${issueRecoveryActions.evidence}->>'runId' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         then (${issueRecoveryActions.evidence}->>'runId')::uuid end`)))
     .where(and(inArray(heartbeatRuns.status, terminal),
@@ -764,7 +764,7 @@ export async function reconcileRetainedWorkspaces(db: Db, runtime: EnvironmentRu
 
   async function recoverRunAction(action: typeof issueRecoveryActions.$inferSelect, run: typeof heartbeatRuns.$inferSelect) {
     try {
-      await recoverRetainedWorkspace({ db, environmentRuntime: runtime, companyId: action.companyId, issueId: action.sourceIssueId, runId: run.id, actionId: action.id });
+      await recoverRetainedWorkspace({ db, environmentRuntime: runtime, spaceId: action.spaceId, issueId: action.sourceIssueId, runId: run.id, actionId: action.id });
       const [updated] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, action.id));
       const recovered = readWorkspaceRecovery(updated?.evidence ?? null)?.status === "recovered";
       const exhausted = readSystemRecovery(updated?.evidence)?.state === "exhausted";
@@ -772,7 +772,7 @@ export async function reconcileRetainedWorkspaces(db: Db, runtime: EnvironmentRu
         const [current] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id));
         if (current) {
           if (recovered) {
-            await resumePreservedResultFinalization(db, current.companyId, current.id);
+            await resumePreservedResultFinalization(db, current.spaceId, current.id);
             await scheduleRecoveredWorkspaceCleanup(db, current);
           }
           // Only normal dispatch can consume existing authorized input. An

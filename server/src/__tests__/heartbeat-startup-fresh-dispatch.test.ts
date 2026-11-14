@@ -7,9 +7,9 @@ import {
   agentWakeupRequests,
   agents,
   authUsers,
-  companies,
-  companyMemberships,
-  companySkills,
+  spaces,
+  spaceMemberships,
+  spaceSkills,
   costEvents,
   createDb,
   heartbeatRunEvents,
@@ -57,34 +57,34 @@ describeEmbeddedPostgres("heartbeat startup dispatch of queued runs without prio
     await db.delete(issues);
     await db.delete(agentRuntimeState);
     await db.delete(agents);
-    await db.delete(companySkills);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceSkills);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompany() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `S${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+  async function seedSpace() {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `S${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user",
       membershipRole: "operator", status: "active" });
-    return companyId;
+    return spaceId;
   }
 
-  async function seedAgentWithIssue(companyId: string, name: string) {
+  async function seedAgentWithIssue(spaceId: string, name: string) {
     const agentId = randomUUID();
     const issueId = randomUUID();
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name,
       role: "engineer",
       status: "idle",
@@ -95,7 +95,7 @@ describeEmbeddedPostgres("heartbeat startup dispatch of queued runs without prio
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: `Work for ${name}`,
       status: "todo",
       priority: "high",
@@ -105,14 +105,14 @@ describeEmbeddedPostgres("heartbeat startup dispatch of queued runs without prio
     return { agentId, issueId };
   }
 
-  async function seedQueuedRun(companyId: string, agentId: string, issueId: string,
+  async function seedQueuedRun(spaceId: string, agentId: string, issueId: string,
     values: Partial<typeof heartbeatRuns.$inferInsert> = {}) {
     const runId = randomUUID();
     const wakeupRequestId = randomUUID();
-    await db.insert(agentWakeupRequests).values({ id: wakeupRequestId, companyId, agentId, source: "assignment", status: "queued" });
+    await db.insert(agentWakeupRequests).values({ id: wakeupRequestId, spaceId, agentId, source: "assignment", status: "queued" });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "assignment",
       triggerDetail: "system",
@@ -131,21 +131,21 @@ describeEmbeddedPostgres("heartbeat startup dispatch of queued runs without prio
   }
 
   it("starts new turns at once and leaves recovery-dependent agents for the full pass", async () => {
-    const companyId = await seedCompany();
-    const fresh = await seedAgentWithIssue(companyId, "Fresh worker");
-    const freshRunId = await seedQueuedRun(companyId, fresh.agentId, fresh.issueId);
+    const spaceId = await seedSpace();
+    const fresh = await seedAgentWithIssue(spaceId, "Fresh worker");
+    const freshRunId = await seedQueuedRun(spaceId, fresh.agentId, fresh.issueId);
 
     // The previous process left this agent's run `running`; restart recovery owns it.
-    const orphaned = await seedAgentWithIssue(companyId, "Orphaned worker");
-    const orphanRunId = await seedQueuedRun(companyId, orphaned.agentId, orphaned.issueId,
+    const orphaned = await seedAgentWithIssue(spaceId, "Orphaned worker");
+    const orphanRunId = await seedQueuedRun(spaceId, orphaned.agentId, orphaned.issueId,
       { status: "running", startedAt: new Date(Date.now() - 60_000) });
-    const behindOrphanRunId = await seedQueuedRun(companyId, orphaned.agentId, orphaned.issueId);
+    const behindOrphanRunId = await seedQueuedRun(spaceId, orphaned.agentId, orphaned.issueId);
 
     // A queued retry has a prior execution and waits for recovery to settle it.
-    const retrying = await seedAgentWithIssue(companyId, "Retrying worker");
-    const failedRunId = await seedQueuedRun(companyId, retrying.agentId, retrying.issueId,
+    const retrying = await seedAgentWithIssue(spaceId, "Retrying worker");
+    const failedRunId = await seedQueuedRun(spaceId, retrying.agentId, retrying.issueId,
       { status: "failed", startedAt: new Date(Date.now() - 120_000), finishedAt: new Date(Date.now() - 90_000) });
-    const retryRunId = await seedQueuedRun(companyId, retrying.agentId, retrying.issueId, { retryOfRunId: failedRunId });
+    const retryRunId = await seedQueuedRun(spaceId, retrying.agentId, retrying.issueId, { retryOfRunId: failedRunId });
 
     const heartbeat = heartbeatService(db);
     const result = await heartbeat.resumeFreshQueuedRunsAtStartup();
@@ -161,9 +161,9 @@ describeEmbeddedPostgres("heartbeat startup dispatch of queued runs without prio
   }, 30_000);
 
   it("keeps the maintenance hold: nothing starts while a task drain is active", async () => {
-    const companyId = await seedCompany();
-    const fresh = await seedAgentWithIssue(companyId, "Held worker");
-    const runId = await seedQueuedRun(companyId, fresh.agentId, fresh.issueId);
+    const spaceId = await seedSpace();
+    const fresh = await seedAgentWithIssue(spaceId, "Held worker");
+    const runId = await seedQueuedRun(spaceId, fresh.agentId, fresh.issueId);
     startTaskDrain({});
 
     const heartbeat = heartbeatService(db);

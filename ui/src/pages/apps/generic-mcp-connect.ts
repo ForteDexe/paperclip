@@ -63,7 +63,7 @@ export function oauthCallbackUrlForBrowser(
  *
  * Keep the port and path: one host commonly serves several MCP endpoints, and
  * collapsing all of them to the hostname makes the second connection fail the
- * company-wide application-name constraint. Query strings are deliberately
+ * space-wide application-name constraint. Query strings are deliberately
  * excluded because remote MCP URLs can carry credentials there.
  */
 export function defaultGenericMcpName(url: string): string | null {

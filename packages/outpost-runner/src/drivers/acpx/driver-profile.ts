@@ -19,7 +19,7 @@ import { ACPX_CAPABILITY_PROFILES } from "./capability-profiles.js";
 const ACPX_AGENTS = ["claude", "codex", "grok", "pi", "cursor", "copilot", "kimi", "antigravity"] as const;
 const ACPX_PERMISSION_MODES = [
   "approve-all",
-  "approve-paperclip",
+  "approve-outpost",
   "approve-reads",
   "deny-all",
 ] as const;
@@ -137,7 +137,7 @@ export function validateAcpxDriverConfig(
     return invalid(
       "permissionMode",
       "invalid_permission_mode",
-      "ACPX permission mode must be approve-all, approve-paperclip, approve-reads, or deny-all.",
+      "ACPX permission mode must be approve-all, approve-outpost, approve-reads, or deny-all.",
     );
   }
 

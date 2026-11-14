@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { adapterAuthSessions, applyPendingMigrations, companies, createDb, environmentLeases, environments, type Db } from "@outpost/db";
+import { adapterAuthSessions, applyPendingMigrations, spaces, createDb, environmentLeases, environments, type Db } from "@outpost/db";
 import { installDatabaseWorkSignals } from "../../../packages/db/src/work-signals.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
@@ -84,7 +84,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 describe.skipIf(!support.supported)("durable login cleanup", () => {
   let db: ReturnType<typeof createDb>, observed: typeof db;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
-  let companyId: string, environmentId: string, calls: number, failedDelete: boolean;
+  let spaceId: string, environmentId: string, calls: number, failedDelete: boolean;
   let store: ReturnType<typeof createDbAdapterAuthSessionStore>;
   let runtime: ReturnType<typeof createProductionLoginSessionReaperRuntime>;
   let driver: { releaseRunLease: ReturnType<typeof vi.fn> };
@@ -97,9 +97,9 @@ describe.skipIf(!support.supported)("durable login cleanup", () => {
   }, 90000);
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   beforeEach(async () => {
-    await db.execute(sql`TRUNCATE TABLE companies, environments CASCADE`);
-    companyId = randomUUID(); environmentId = randomUUID(); calls = 0; failedDelete = false; errors.length = 0;
-    await db.insert(companies).values({ id: companyId, name: "Login cleanup", issuePrefix: "LOG" });
+    await db.execute(sql`TRUNCATE TABLE spaces, environments CASCADE`);
+    spaceId = randomUUID(); environmentId = randomUUID(); calls = 0; failedDelete = false; errors.length = 0;
+    await db.insert(spaces).values({ id: spaceId, name: "Login cleanup", issuePrefix: "LOG" });
     await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "sandbox" });
     observed = new Proxy(db, { get(target, key) {
       if (!["select", "update", "insert", "delete", "execute", "transaction"].includes(String(key))) return Reflect.get(target, key);
@@ -141,17 +141,17 @@ describe.skipIf(!support.supported)("durable login cleanup", () => {
   }
   async function session(at = new Date(Date.now() + 120_000), target = store) {
     const id = randomUUID();
-    await target.insert({ id, publicSessionId: id, companyId, environmentId, adapterType: "codex_local", startedByUserId: id, expiresAt: at, at: new Date() });
+    await target.insert({ id, publicSessionId: id, spaceId, environmentId, adapterType: "codex_local", startedByUserId: id, expiresAt: at, at: new Date() });
     return id;
   }
   async function lease(sessionId: string) {
     const id = randomUUID();
-    await db.insert(environmentLeases).values({ id, companyId, environmentId, providerLeaseId: id, metadata: { [LOGIN_LEASE_SESSION_TAG_KEY]: sessionId } });
+    await db.insert(environmentLeases).values({ id, spaceId, environmentId, providerLeaseId: id, metadata: { [LOGIN_LEASE_SESSION_TAG_KEY]: sessionId } });
     return id;
   }
   it("is quiet with configured environments and completed history, excluding local login attempts", async () => {
     const id = await session(); await store.setStatus({ sessionId: id, status: "authenticated", at: new Date() });
-    await db.insert(adapterAuthSessions).values({ companyId, environmentId, adapterType: "claude_local", startedByUserId: "local", publicSessionId: randomUUID(), connectionMethod: "local_subscription", status: "authenticated", expiresAt: new Date(Date.now() - 1) });
+    await db.insert(adapterAuthSessions).values({ spaceId, environmentId, adapterType: "claude_local", startedByUserId: "local", publicSessionId: randomUUID(), connectionMethod: "local_subscription", status: "authenticated", expiresAt: new Date(Date.now() - 1) });
     const c = await adapterWorker();
     const setup = createSetupTokenReaper({ store: createDbSetupTokenCleanupStore(observed), leases: { releaseById: vi.fn() } });
     await registerLoginCleanupWork(c, [{ queue: DELIVERY_QUEUES.setupTokenCleanup, run: setup.sweep, next: loginCleanupSchedule(observed).setupToken }], () => true).ready;
@@ -214,7 +214,7 @@ describe.skipIf(!support.supported)("durable login cleanup", () => {
     const reaper = createSetupTokenReaper({ store: cleanup, leases: { releaseById } });
     await registerLoginCleanupWork(c, [{ queue: DELIVERY_QUEUES.setupTokenCleanup, run: reaper.sweep, next: loginCleanupSchedule(observed).setupToken }], () => true).ready;
     await quiet(c);
-    const identity = { sessionId: randomUUID(), companyId, ownerUserId: "setup", adapterType: "claude_local" };
+    const identity = { sessionId: randomUUID(), spaceId, ownerUserId: "setup", adapterType: "claude_local" };
     const deadline = Date.now() + 120_000;
     await cleanup.record({ ...identity, environmentId, leaseId: randomUUID(), state: "starting", deadline, boundAt: null });
     await settle(); expect(c.nextWakeAt()).toBe(deadline);

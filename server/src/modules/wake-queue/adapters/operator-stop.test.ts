@@ -4,7 +4,7 @@ import { isOperatorStoppedRunRow } from "./postgres.js";
 describe("isOperatorStoppedRunRow", () => {
   it.each([
     [{ status: "cancelled", errorCode: "cancelled", resultJson: { cancelledByActorType: "user" } }, true],
-    [{ status: "cancelled", errorCode: "cancelled", resultJson: { cancelledByActorType: "board" } }, true],
+    [{ status: "cancelled", errorCode: "cancelled", resultJson: { cancelledByActorType: "operator" } }, true],
     [{ status: "cancelled", errorCode: "agent_paused", resultJson: null }, true],
     [{ status: "cancelled", errorCode: "operator_interrupted", resultJson: {} }, true],
     [{ status: "cancelled", errorCode: "cancelled", resultJson: { stopReason: "cancelled" } }, false],

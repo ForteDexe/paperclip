@@ -1,14 +1,14 @@
 # AI connections through hiring
 
 Paid, opt-in acceptance against a separate loopback `local_trusted` instance. Each
-scenario creates its own company and accounts. It never edits an existing company.
+scenario creates its own space and accounts. It never edits an existing space.
 Do not start the server with provider API keys: ambient credentials could mask
 missing managed-connection bindings.
 
 Start from a fresh worktree with dependencies installed:
 
 ```sh
-pnpm exec tsx cli/src/index.ts test-drive --data-dir /tmp/paperclip-hiring-qa --no-browser
+pnpm exec tsx cli/src/index.ts test-drive --data-dir /tmp/outpost-hiring-qa --no-browser
 ```
 
 Use the URL printed at startup. Test-drive may choose another available port when
@@ -44,7 +44,7 @@ HIRING_AI_LIVE=1 HIRING_AI_RUNNER=native HIRING_AI_TEST_URL=http://127.0.0.1:310
 ```
 
 This uses native Codex and native ACPX/Claude. It verifies native run persistence,
-managed API hiring, native `create_task` delegation, and `paperclip_finish`
+managed API hiring, native `create_task` delegation, and `outpost_finish`
 completion. Set `HIRING_AI_ENVIRONMENT=daytona` to exercise the same native path
 remotely. The default remains legacy CLI adapters; it also asserts that successful
 runs stayed on the legacy path. A single native parent scenario exercises both
@@ -65,7 +65,7 @@ HIRING_AI_LIVE=1 HIRING_AI_ENVIRONMENT=daytona \
 
 The same tests install the plugin only in the disposable instance, create a Daytona
 environment, and assign it to the parent and both hires. Successful runs must report
-that environment. The finalizer cancels remaining active runs in the test company
+that environment. The finalizer cancels remaining active runs in the test space
 and deletes the environment and its leases. Task history and encrypted connections
 remain in the disposable data directory for inspection.
 

@@ -41,7 +41,7 @@ export function createInboundWakeups(db: Db, options: WakeupOptions) {
     await tx
       .insert(chatActions)
       .values({
-        companyId: input.endpoint.companyId,
+        spaceId: input.endpoint.spaceId,
         endpointId: input.endpoint.id,
         deliveryId: input.deliveryId,
         conversationId: input.conversation.id,
@@ -99,7 +99,7 @@ export function createInboundWakeups(db: Db, options: WakeupOptions) {
           assertDurableChatWakeupReceipt(
             createDurableChatWakeupRequest({
               id: action.id,
-              companyId: action.companyId,
+              spaceId: action.spaceId,
               agentId: String(action.payload.agentId),
               issueId: String(action.payload.issueId),
               commentId: String(action.payload.commentId),
@@ -114,9 +114,9 @@ export function createInboundWakeups(db: Db, options: WakeupOptions) {
         }
         await notifyChatDeliveryWork(tx);
         if (action.status === "processed") {
-          await notifyChatRunMilestones(tx, { companyId: action.companyId, issueId: String(action.payload.issueId) });
+          await notifyChatRunMilestones(tx, { spaceId: action.spaceId, issueId: String(action.payload.issueId) });
         } else if (action.status === "failed") {
-          await notifyChatInboundWakeNotices(tx, { companyId: action.companyId, issueId: String(action.payload.issueId) });
+          await notifyChatInboundWakeNotices(tx, { spaceId: action.spaceId, issueId: String(action.payload.issueId) });
         }
         const acceptedAt = new Date();
         const accepted = await tx
@@ -126,7 +126,7 @@ export function createInboundWakeups(db: Db, options: WakeupOptions) {
             processedAt: acceptedAt,
             redactedError: sql<string | null>`nullif(concat_ws(${"\n"}, (
               select replace(replace(${chatActions.result}->>'redactedError', ${"\n"}, ' '), ${"\r"}, ' ') from ${chatActions}
-              where ${chatActions.companyId} = ${delivery.companyId}
+              where ${chatActions.spaceId} = ${delivery.spaceId}
                 and ${chatActions.endpointId} = ${delivery.endpointId}
                 and ${chatActions.deliveryId} = ${deliveryId}
                 and ${chatActions.providerActionId} = ${`receipt_reaction:${deliveryId}`}
@@ -174,7 +174,7 @@ export function createInboundWakeups(db: Db, options: WakeupOptions) {
         const source = delivery.normalizedEvent as { principal?: { isBot?: boolean }; message?: { text?: string } };
         if (!isGitHubAutomaticDelivery(delivery) && !source.principal?.isBot && !/^\s*\//.test(source.message?.text ?? "")) {
           await enqueueFastResponse(tx as unknown as Db, {
-            companyId: action.companyId, issueId: String(action.payload.issueId), agentId: String(action.payload.agentId),
+            spaceId: action.spaceId, issueId: String(action.payload.issueId), agentId: String(action.payload.agentId),
             sourceCommentId: String(action.payload.commentId), sourceKey: `comment:${action.payload.commentId}`, acceptedAt,
             responsibleUserId: action.payload.requestedByActorType === "user" ? String(action.payload.requestedByActorId) : null,
             sponsored: action.payload.requestedByActorType !== "user", endpointId: action.endpointId, conversationId: action.conversationId, deliveryId: action.deliveryId
@@ -201,7 +201,7 @@ export function createInboundWakeups(db: Db, options: WakeupOptions) {
             : undefined,
           sql`exists (select 1 from ${chatDeliveries}
             where ${chatDeliveries.id} = ${chatActions.deliveryId}
-              and ${chatDeliveries.companyId} = ${chatActions.companyId}
+              and ${chatDeliveries.spaceId} = ${chatActions.spaceId}
               and ${chatDeliveries.endpointId} = ${chatActions.endpointId}
               and ${chatDeliveries.state} in ('filtered', 'failed'))`,
         ),
@@ -258,9 +258,9 @@ export function createInboundWakeups(db: Db, options: WakeupOptions) {
       const changed = await db.transaction(async (tx) => {
         await notifyChatDeliveryWork(tx);
         if (status === "processed") {
-          await notifyChatRunMilestones(tx, { companyId: claimed.companyId, issueId: request!.issueId });
+          await notifyChatRunMilestones(tx, { spaceId: claimed.spaceId, issueId: request!.issueId });
         } else if (status === "failed" && request) {
-          await notifyChatInboundWakeNotices(tx, { companyId: claimed.companyId, issueId: request.issueId });
+          await notifyChatInboundWakeNotices(tx, { spaceId: claimed.spaceId, issueId: request.issueId });
         }
         const changed = await tx
           .update(chatActions)
@@ -286,7 +286,7 @@ export function createInboundWakeups(db: Db, options: WakeupOptions) {
             .where(
               and(
                 eq(chatDeliveries.id, deliveryId),
-                eq(chatDeliveries.companyId, claimed.companyId),
+                eq(chatDeliveries.spaceId, claimed.spaceId),
                 eq(chatDeliveries.state, "processed"),
               ),
             );
@@ -298,7 +298,7 @@ export function createInboundWakeups(db: Db, options: WakeupOptions) {
       if (changed && status === "processed") {
         const [endpoint] = await db.select({ provider: chatEndpoints.provider })
           .from(chatEndpoints).where(and(eq(chatEndpoints.id, claimed.endpointId),
-            eq(chatEndpoints.companyId, claimed.companyId)));
+            eq(chatEndpoints.spaceId, claimed.spaceId)));
         if (endpoint?.provider === "github")
           await acknowledgeGitHubWakeup(db, fetchImpl, deliveryId);
       }
@@ -332,7 +332,7 @@ export function createInboundWakeups(db: Db, options: WakeupOptions) {
       }
       request = createDurableChatWakeupRequest({
         id: claimed.id,
-        companyId: claimed.companyId,
+        spaceId: claimed.spaceId,
         agentId: claimed.payload.agentId,
         issueId: claimed.payload.issueId,
         commentId: claimed.payload.commentId,
@@ -440,18 +440,18 @@ export function createInboundWakeups(db: Db, options: WakeupOptions) {
   }
   const unregisterDeferredWakeOwner = registerDeferredChatWakeOwner(db, async (scope) => {
     const action = await db.select().from(chatActions).where(and(
-      eq(chatActions.id, scope.requestId), eq(chatActions.companyId, scope.companyId),
+      eq(chatActions.id, scope.requestId), eq(chatActions.spaceId, scope.spaceId),
       eq(chatActions.kind, "inbound_wakeup"), eq(chatActions.status, "processed"),
     )).then(rows => rows[0] ?? null);
     if (!action || action.payload.agentId !== scope.agentId || action.payload.issueId !== scope.issueId) return;
     const [receipt] = await db.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.id, action.id), eq(agentWakeupRequests.companyId, scope.companyId),
+      eq(agentWakeupRequests.id, action.id), eq(agentWakeupRequests.spaceId, scope.spaceId),
       eq(agentWakeupRequests.agentId, scope.agentId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
     ));
     if (!receipt || receipt.runId) return;
     const authorize = async (tx: Db) => {
       const [source] = await tx.select().from(chatActions).where(and(
-        eq(chatActions.id, action.id), eq(chatActions.companyId, scope.companyId),
+        eq(chatActions.id, action.id), eq(chatActions.spaceId, scope.spaceId),
         eq(chatActions.kind, "inbound_wakeup"), eq(chatActions.status, "processed"),
       ));
       if (!source || inboundWakeScope(source) !== inboundWakeScope(action))
@@ -464,7 +464,7 @@ export function createInboundWakeups(db: Db, options: WakeupOptions) {
     // immutable action source, conversation generation and original comment.
     const context = await db.transaction(tx => authorize(tx as unknown as Db));
     const request = createDurableChatWakeupRequest({
-      id: action.id, companyId: scope.companyId, agentId: scope.agentId, issueId: scope.issueId,
+      id: action.id, spaceId: scope.spaceId, agentId: scope.agentId, issueId: scope.issueId,
       commentId: String(action.payload.commentId),
       requestedByActorType: action.payload.requestedByActorType as "user" | "system",
       requestedByActorId: String(action.payload.requestedByActorId), requestedAt: action.createdAt,

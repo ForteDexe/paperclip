@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import {
-  agents, companies, createDb, heartbeatRuns, issues, nativeRunFinalizations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
+  agents, spaces, createDb, heartbeatRuns, issues, nativeRunFinalizations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
   issueRelations, issueTreeHolds, issueTreeHoldMembers,
 } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -19,22 +19,22 @@ describe("native recovery execution binding", () => {
   afterAll(async () => temporary?.cleanup());
 
   async function fixture() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
     const runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Recovery binding", issuePrefix: "N" + companyId.replaceAll("-", "").slice(0, 6).toUpperCase() });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Recovery owner", status: "idle", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Resume original work", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(spaces).values({ id: spaceId, name: "Recovery binding", issuePrefix: "N" + spaceId.replaceAll("-", "").slice(0, 6).toUpperCase() });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Recovery owner", status: "idle", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Resume original work", status: "in_progress", assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({
-      id: runId, companyId, agentId, issueId, nativeIssueId: issueId, status: "failed", runtimeMode: "native",
+      id: runId, spaceId, agentId, issueId, nativeIssueId: issueId, status: "failed", runtimeMode: "native",
       finishedAt: new Date(), contextSnapshot: { issueId }, runnerProfileJson: {
-        nativeExecutionInput: { schema: "outpost.native-execution-input.v1", binding: { runId, companyId, agentId, issueId, executionWorkspaceId: runId } },
-        sessionCheckpoint: { sessionId: "provider-session", providerSessionId: "provider-session", identity: { runId, companyId, agentId, issueId } },
+        nativeExecutionInput: { schema: "outpost.native-execution-input.v1", binding: { runId, spaceId, agentId, issueId, executionWorkspaceId: runId } },
+        sessionCheckpoint: { sessionId: "provider-session", providerSessionId: "provider-session", identity: { runId, spaceId, agentId, issueId } },
       },
     });
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "retryable_failure", attempt: 1, nextAttemptAt: new Date(0) });
-    return { companyId, agentId, issueId, runId };
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "retryable_failure", attempt: 1, nextAttemptAt: new Date(0) });
+    return { spaceId, agentId, issueId, runId };
   }
 
   it("restores the original execution before the real attachment authorization gate", async () => {
@@ -53,7 +53,7 @@ describe("native recovery execution binding", () => {
   it.each(["execution", "checkout", "queued"] as const)("does not replace another %s owner", async (kind) => {
     const f = await fixture();
     const otherRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: otherRunId, companyId: f.companyId, agentId: f.agentId, issueId: f.issueId,
+    await db.insert(heartbeatRuns).values({ id: otherRunId, spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId,
       status: kind === "queued" ? "queued" : "failed", runtimeMode: "legacy", contextSnapshot: { issueId: f.issueId } });
     if (kind !== "queued") await db.update(issues).set(kind === "execution"
       ? { executionRunId: otherRunId } : { checkoutRunId: otherRunId }).where(eq(issues.id, f.issueId));
@@ -73,7 +73,7 @@ describe("native recovery execution binding", () => {
   it("does not recover work after reassignment", async () => {
     const f = await fixture();
     const nextAgent = randomUUID();
-    await db.insert(agents).values({ id: nextAgent, companyId: f.companyId, name: "New owner", status: "idle" });
+    await db.insert(agents).values({ id: nextAgent, spaceId: f.spaceId, name: "New owner", status: "idle" });
     await db.update(issues).set({ assigneeAgentId: nextAgent }).where(eq(issues.id, f.issueId));
     expect(await claimNativeSessionResumptions({ db, runnerInstanceId: "stale", runIds: [f.runId] })).toEqual([]);
   });
@@ -88,16 +88,16 @@ describe("native recovery execution binding", () => {
   it("waits for a first-class dependency", async () => {
     const f = await fixture();
     const blocker = randomUUID();
-    await db.insert(issues).values({ id: blocker, companyId: f.companyId, title: "Unfinished prerequisite", status: "todo" });
-    await db.insert(issueRelations).values({ companyId: f.companyId, issueId: blocker, relatedIssueId: f.issueId, type: "blocks" });
+    await db.insert(issues).values({ id: blocker, spaceId: f.spaceId, title: "Unfinished prerequisite", status: "todo" });
+    await db.insert(issueRelations).values({ spaceId: f.spaceId, issueId: blocker, relatedIssueId: f.issueId, type: "blocks" });
     expect(await claimNativeSessionResumptions({ db, runnerInstanceId: "stale", runIds: [f.runId] })).toEqual([]);
   });
 
   it("preserves a task-tree pause hold", async () => {
     const f = await fixture();
     const hold = randomUUID();
-    await db.insert(issueTreeHolds).values({ id: hold, companyId: f.companyId, rootIssueId: f.issueId, mode: "pause" });
-    await db.insert(issueTreeHoldMembers).values({ holdId: hold, companyId: f.companyId, issueId: f.issueId,
+    await db.insert(issueTreeHolds).values({ id: hold, spaceId: f.spaceId, rootIssueId: f.issueId, mode: "pause" });
+    await db.insert(issueTreeHoldMembers).values({ holdId: hold, spaceId: f.spaceId, issueId: f.issueId,
       issueTitle: "Paused work", issueStatus: "in_progress" });
     expect(await claimNativeSessionResumptions({ db, runnerInstanceId: "stale", runIds: [f.runId] })).toEqual([]);
     expect((await db.select().from(issueTreeHolds).where(eq(issueTreeHolds.id, hold)))[0].status).toBe("active");
@@ -132,8 +132,8 @@ describe("native recovery execution binding", () => {
       await db.update(agents).set({ status: "paused" }).where(eq(agents.id, held.agentId));
     } else {
       const blocker = randomUUID();
-      await db.insert(issues).values({ id: blocker, companyId: held.companyId, title: "Waiting prerequisite", status: "todo" });
-      await db.insert(issueRelations).values({ companyId: held.companyId, issueId: blocker, relatedIssueId: held.issueId, type: "blocks" });
+      await db.insert(issues).values({ id: blocker, spaceId: held.spaceId, title: "Waiting prerequisite", status: "todo" });
+      await db.insert(issueRelations).values({ spaceId: held.spaceId, issueId: blocker, relatedIssueId: held.issueId, type: "blocks" });
     }
     const now = new Date();
     await db.update(nativeRunFinalizations).set({ nextAttemptAt: new Date(1) })
@@ -180,8 +180,8 @@ describe("native recovery execution binding", () => {
       await db.update(agents).set({ status: "paused" }).where(eq(agents.id, held.agentId));
     } else {
       const blocker = randomUUID();
-      await db.insert(issues).values({ id: blocker, companyId: held.companyId, title: "Waiting prerequisite", status: "todo" });
-      await db.insert(issueRelations).values({ companyId: held.companyId, issueId: blocker, relatedIssueId: held.issueId, type: "blocks" });
+      await db.insert(issues).values({ id: blocker, spaceId: held.spaceId, title: "Waiting prerequisite", status: "todo" });
+      await db.insert(issueRelations).values({ spaceId: held.spaceId, issueId: blocker, relatedIssueId: held.issueId, type: "blocks" });
     }
     await db.update(nativeRunFinalizations).set({ nextAttemptAt: null })
       .where(eq(nativeRunFinalizations.runId, eligible.runId));
@@ -201,7 +201,7 @@ describe("native recovery execution binding", () => {
     await db.insert(heartbeatRuns).values({ ...source, id: second, runnerProfileJson: {
       ...source.runnerProfileJson, nativeExecutionInput: { binding: { runId: second } },
     } });
-    await db.insert(nativeRunFinalizations).values({ runId: second, companyId: f.companyId, issueId: f.issueId, phase: "retryable_failure", attempt: 1 });
+    await db.insert(nativeRunFinalizations).values({ runId: second, spaceId: f.spaceId, issueId: f.issueId, phase: "retryable_failure", attempt: 1 });
     const results = await Promise.all([f.runId, second].map(runId => claimNativeSessionResumptions({ db, runnerInstanceId: "owner", runIds: [runId] })));
     expect(results.flat()).toHaveLength(1);
     expect((await db.select().from(issues).where(eq(issues.id, f.issueId)))[0].executionRunId).toBe(results.flat()[0]!.runId);

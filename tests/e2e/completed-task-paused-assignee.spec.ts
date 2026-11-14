@@ -6,14 +6,14 @@ async function json<T = Record<string, any>>(response: APIResponse): Promise<T> 
   return response.json();
 }
 
-let cleanup: { companyId: string; enableClassicTaskInterface: boolean; coordinatorWorkspaceEnabled: boolean } | undefined;
+let cleanup: { spaceId: string; enableClassicTaskInterface: boolean; coordinatorWorkspaceEnabled: boolean } | undefined;
 
 test.afterEach(async ({ request }, testInfo) => {
   const state = cleanup;
   cleanup = undefined;
   if (!state) return;
   testInfo.setTimeout(15_000);
-  const workspaceResult = await request.put(`/api/companies/${state.companyId}/workspace-preferences/me`, {
+  const workspaceResult = await request.put(`/api/spaces/${state.spaceId}/workspace-preferences/me`, {
     data: { coordinatorWorkspaceEnabled: state.coordinatorWorkspaceEnabled }, timeout: 5_000,
   });
   expect(workspaceResult.ok()).toBe(true);
@@ -21,14 +21,14 @@ test.afterEach(async ({ request }, testInfo) => {
     request.patch("/api/instance/settings/experimental", {
       data: { enableClassicTaskInterface: state.enableClassicTaskInterface }, timeout: 5_000,
     }),
-    request.patch(`/api/companies/${state.companyId}`, { data: { status: "archived" }, timeout: 5_000 }),
+    request.patch(`/api/spaces/${state.spaceId}`, { data: { status: "archived" }, timeout: 5_000 }),
   ]);
   const failures = results.flatMap((result, index) => result.status === "rejected"
     ? [`Cleanup ${index}: ${String(result.reason)}`]
     : result.value.ok() ? [] : [`Cleanup ${index}: HTTP ${result.value.status()}`]);
   if (!failures.length) return;
   await testInfo.attach("cleanup-failure", {
-    body: Buffer.from(JSON.stringify({ companyId: state.companyId, failures })), contentType: "application/json",
+    body: Buffer.from(JSON.stringify({ spaceId: state.spaceId, failures })), contentType: "application/json",
   });
   if (testInfo.status === "passed") throw new Error(failures.join("\n"));
 });
@@ -37,13 +37,13 @@ for (const classic of [false, true]) {
   test(`${classic ? "classic" : "task chat"}: paused assignee warnings follow the task's current status without resuming the agent`, async ({ page, request }, testInfo) => {
     page.setDefaultTimeout(10_000);
     const settings = await json(await request.get("/api/instance/settings/experimental"));
-    const company = await json(await request.post("/api/companies", {
+    const space = await json(await request.post("/api/spaces", {
       data: { name: `Completed task status ${randomUUID()}` },
     }));
     const workspace = await json(await request.get("/api/workspace-preferences/me"));
-    cleanup = { companyId: company.id, enableClassicTaskInterface: settings.enableClassicTaskInterface,
+    cleanup = { spaceId: space.id, enableClassicTaskInterface: settings.enableClassicTaskInterface,
       coordinatorWorkspaceEnabled: workspace.coordinatorWorkspaceEnabled };
-    await json(await request.put(`/api/companies/${company.id}/workspace-preferences/me`, {
+    await json(await request.put(`/api/spaces/${space.id}/workspace-preferences/me`, {
       data: { coordinatorWorkspaceEnabled: !classic },
     }));
     await json(await request.patch("/api/instance/settings/experimental", {
@@ -51,13 +51,13 @@ for (const classic of [false, true]) {
     }));
     // This command is deliberately not a model adapter. Heartbeats are disabled
     // and the agent is paused before assignment, so the journey starts no work.
-    const agent = await json(await request.post(`/api/companies/${company.id}/agents`, { data: {
+    const agent = await json(await request.post(`/api/spaces/${space.id}/agents`, { data: {
       name: "Receipt implementation", role: "engineer", adapterType: "process",
       adapterConfig: { command: "/usr/bin/false" },
       runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } },
     } }));
     await json(await request.post(`/api/agents/${agent.id}/pause`));
-    const task = await json(await request.post(`/api/companies/${company.id}/issues`, { data: {
+    const task = await json(await request.post(`/api/spaces/${space.id}/issues`, { data: {
       title: "Receipt corrected and reviewed", status: "done", assigneeAgentId: agent.id,
       description: "Browser fixture: the saved receipt total is 6 USD. No provider or agent execution is used in this test.",
     } }));
@@ -72,7 +72,7 @@ for (const classic of [false, true]) {
       }
     });
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.goto(`/${company.issuePrefix}/issues/${task.identifier}`);
+    await page.goto(`/${space.issuePrefix}/issues/${task.identifier}`);
     const notice = page.getByTestId("issue-assignee-paused-notice");
     const resume = page.getByRole("button", { name: "Resume agent", exact: true });
     const capture = async (name: string) => {
@@ -129,14 +129,14 @@ for (const classic of [false, true]) {
 
     const finalAgent = await json(await request.get(`/api/agents/${agent.id}`));
     const finalTask = await json(await request.get(`/api/issues/${task.id}`));
-    const runs = await json<unknown[]>(await request.get(`/api/companies/${company.id}/heartbeat-runs?limit=100`));
+    const runs = await json<unknown[]>(await request.get(`/api/spaces/${space.id}/heartbeat-runs?limit=100`));
     expect(finalAgent).toMatchObject({ id: agent.id, status: "paused", pauseReason: "manual" });
     expect(finalTask).toMatchObject({ id: task.id, status: "done", assigneeAgentId: agent.id });
     expect(runs).toEqual([]);
     expect(lifecycleWrites).toEqual([]);
     await testInfo.attach("task-status-persistence-proof", {
       body: Buffer.from(JSON.stringify({
-        companyId: company.id, taskId: task.id, taskIdentifier: task.identifier,
+        spaceId: space.id, taskId: task.id, taskIdentifier: task.identifier,
         classic, states, initialAgent: { id: initialAgent.id, status: initialAgent.status, pauseReason: initialAgent.pauseReason },
         finalAgent: { id: finalAgent.id, status: finalAgent.status, pauseReason: finalAgent.pauseReason },
         finalTask: { id: finalTask.id, status: finalTask.status, assigneeAgentId: finalTask.assigneeAgentId },

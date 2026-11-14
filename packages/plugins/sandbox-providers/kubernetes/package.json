@@ -32,12 +32,12 @@
     "manifests",
     "README.md"
   ],
-  "paperclipPlugin": {
+  "outpostPlugin": {
     "manifest": "./dist/manifest.js",
     "worker": "./dist/worker.js"
   },
   "keywords": [
-    "paperclip",
+    "outpost",
     "plugin",
     "sandbox",
     "kubernetes"

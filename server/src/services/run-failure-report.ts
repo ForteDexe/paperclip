@@ -275,14 +275,14 @@ function isCodexAcpModelCapacityFailure(run: HeartbeatRun, options: RunFailureRe
  * which lacks the finalizer's diagnostic and finalization fields.
  * The retry owns recovery; a later failure reports itself. Held and exhausted
  * capacity failures have no automatic retry and stay reportable. The retry
- * carries the task in its context, so the company/context-issue index bounds
+ * carries the task in its context, so the space/context-issue index bounds
  * the read to that task's runs created since this one.
  */
 async function isScheduledNativeCapacityRetry(db: Db, run: HeartbeatRun, options: RunFailureReportOptions): Promise<boolean> {
   if (run.status !== "failed" || run.runtimeMode !== "native" || run.errorCode !== NATIVE_PROVIDER_OVERLOADED_CODE ||
       run.nativeIssueId == null || options.phase === "setup" || run.signal != null) return false;
   const [retry] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, run.companyId),
+    eq(heartbeatRuns.spaceId, run.spaceId),
     sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' = ${run.nativeIssueId}`, gte(heartbeatRuns.createdAt, run.createdAt),
     eq(heartbeatRuns.agentId, run.agentId),
     eq(heartbeatRuns.retryOfRunId, run.id), eq(heartbeatRuns.scheduledRetryReason, NATIVE_PROVIDER_OVERLOADED_CODE),
@@ -322,13 +322,13 @@ function isAcpProviderAccessFailure(run: HeartbeatRun, options: RunFailureReport
 async function isRejectedExternalBotWake(db: Db, run: HeartbeatRun): Promise<boolean> {
   if (run.status !== "failed" || run.runtimeMode !== "native" || run.errorCode !== "native_provider_terminal_failed") return false;
   const [finalization] = await db.select({ failureDetail: nativeRunFinalizations.failureDetail }).from(nativeRunFinalizations)
-    .where(and(eq(nativeRunFinalizations.runId, run.id), eq(nativeRunFinalizations.companyId, run.companyId)));
+    .where(and(eq(nativeRunFinalizations.runId, run.id), eq(nativeRunFinalizations.spaceId, run.spaceId)));
   if (finalization?.failureDetail?.originalFailureCode !== "dot_assignment_expired") return false;
   const offers = await db.select({ id: dotRunnerAssignments.id, acceptedAt: dotRunnerAssignments.acceptedAt }).from(dotRunnerAssignments)
-    .where(and(eq(dotRunnerAssignments.runId, run.id), eq(dotRunnerAssignments.companyId, run.companyId)));
+    .where(and(eq(dotRunnerAssignments.runId, run.id), eq(dotRunnerAssignments.spaceId, run.spaceId)));
   if (offers.length !== 1 || offers[0]!.acceptedAt) return false;
   const wakes = await db.select({ status: grokBotDispatches.status, httpStatus: grokBotDispatches.httpStatus }).from(grokBotDispatches)
-    .where(and(eq(grokBotDispatches.assignmentId, offers[0]!.id), eq(grokBotDispatches.companyId, run.companyId),
+    .where(and(eq(grokBotDispatches.assignmentId, offers[0]!.id), eq(grokBotDispatches.spaceId, run.spaceId),
       eq(grokBotDispatches.kind, "mailbox_updated")));
   return wakes.length > 0 && wakes.every((wake) =>
     wake.status === "rejected" && wake.httpStatus != null && wake.httpStatus >= 400 && wake.httpStatus < 500);
@@ -399,7 +399,7 @@ async function captureTerminalRunFailure(
     const agent = await db
       .select({ adapterType: agents.adapterType })
       .from(agents)
-      .where(and(eq(agents.id, run.agentId), eq(agents.companyId, run.companyId)))
+      .where(and(eq(agents.id, run.agentId), eq(agents.spaceId, run.spaceId)))
       .then((rows) => rows[0] ?? null);
 
     if (mode === "unexpected") {
@@ -421,12 +421,12 @@ async function captureTerminalRunFailure(
     // Resolve registered values before truncation. A failed resolution must
     // not send an incompletely redacted report.
     let redacted = snapshot;
-    if (Array.isArray(run.contextSnapshot?.paperclipSecretRedactions)) {
+    if (Array.isArray(run.contextSnapshot?.outpostSecretRedactions)) {
       const { createRunSecretRedactionRegistry } = await import("./run-secret-redaction.js");
-      redacted = await createRunSecretRedactionRegistry(db).redactForRun(run.companyId, run.id, snapshot);
+      redacted = await createRunSecretRedactionRegistry(db).redactForRun(run.spaceId, run.id, snapshot);
     }
     captureRunFailure({
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       agentId: run.agentId,
       taskId,
       runId: run.id,

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import express from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { companies, createDb, invites, joinRequests } from "@outpost/db";
+import { spaces, createDb, invites, joinRequests } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { accessRoutes } from "../routes/access.js";
 import { errorHandler } from "../middleware/index.js";
@@ -16,7 +16,7 @@ vi.mock("../services/index.js", () => ({
   agentService: () => ({
     getById: vi.fn(),
   }),
-  boardAuthService: () => ({
+  operatorAuthService: () => ({
     createChallenge: vi.fn(),
     resolveBoardAccess: vi.fn(),
     assertCurrentBoardKey: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock("../services/index.js", () => ({
   }),
   deduplicateAgentName: vi.fn(),
   logActivity: vi.fn(),
-  notifyHireApproved: vi.fn(),
+  notifyCreateApproved: vi.fn(),
 }));
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
@@ -36,45 +36,45 @@ if (!embeddedPostgresSupport.supported) {
   );
 }
 
-describeEmbeddedPostgres("GET /companies/:companyId/invites", () => {
+describeEmbeddedPostgres("GET /spaces/:spaceId/invites", () => {
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId!: string;
+  let spaceId!: string;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-invite-list-route-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-invite-list-route-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
   beforeEach(async () => {
-    companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
   });
 
   afterEach(async () => {
     await db.delete(joinRequests);
     await db.delete(invites);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  function createApp(currentCompanyId: string) {
+  function createApp(currentSpaceId: string) {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
       (req as any).actor = {
-        type: "board",
+        type: "operator",
         source: "local_implicit",
         userId: null,
-        companyIds: [currentCompanyId],
+        spaceIds: [currentSpaceId],
       };
       next();
     });
@@ -99,8 +99,8 @@ describeEmbeddedPostgres("GET /companies/:companyId/invites", () => {
     await db.insert(invites).values([
       {
         id: inviteOneId,
-        companyId,
-        inviteType: "company_join",
+        spaceId,
+        inviteType: "space_join",
         tokenHash: "invite-token-1",
         allowedJoinTypes: "human",
         defaultsPayload: { humanRole: "viewer" },
@@ -110,8 +110,8 @@ describeEmbeddedPostgres("GET /companies/:companyId/invites", () => {
       },
       {
         id: inviteTwoId,
-        companyId,
-        inviteType: "company_join",
+        spaceId,
+        inviteType: "space_join",
         tokenHash: "invite-token-2",
         allowedJoinTypes: "human",
         defaultsPayload: { humanRole: "operator" },
@@ -121,8 +121,8 @@ describeEmbeddedPostgres("GET /companies/:companyId/invites", () => {
       },
       {
         id: inviteThreeId,
-        companyId,
-        inviteType: "company_join",
+        spaceId,
+        inviteType: "space_join",
         tokenHash: "invite-token-3",
         allowedJoinTypes: "human",
         defaultsPayload: { humanRole: "admin" },
@@ -135,7 +135,7 @@ describeEmbeddedPostgres("GET /companies/:companyId/invites", () => {
     await db.insert(joinRequests).values({
       id: randomUUID(),
       inviteId: inviteThreeId,
-      companyId,
+      spaceId,
       requestType: "human",
       status: "pending_approval",
       requestIp: "127.0.0.1",
@@ -144,9 +144,9 @@ describeEmbeddedPostgres("GET /companies/:companyId/invites", () => {
       updatedAt: new Date("2026-04-12T00:05:00.000Z"),
     });
 
-    const app = createApp(companyId);
+    const app = createApp(spaceId);
 
-    const firstPage = await request(app).get(`/api/companies/${companyId}/invites?limit=2`);
+    const firstPage = await request(app).get(`/api/spaces/${spaceId}/invites?limit=2`);
 
     expect(firstPage.status).toBe(200);
     expect(firstPage.body.invites).toHaveLength(2);
@@ -154,7 +154,7 @@ describeEmbeddedPostgres("GET /companies/:companyId/invites", () => {
     expect(firstPage.body.invites[0].relatedJoinRequestId).toBeTruthy();
     expect(firstPage.body.nextOffset).toBe(2);
 
-    const secondPage = await request(app).get(`/api/companies/${companyId}/invites?limit=2&offset=2`);
+    const secondPage = await request(app).get(`/api/spaces/${spaceId}/invites?limit=2&offset=2`);
 
     expect(secondPage.status).toBe(200);
     expect(secondPage.body.invites).toHaveLength(1);

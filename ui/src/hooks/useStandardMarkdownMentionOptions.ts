@@ -2,35 +2,35 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { agentsApi } from "../api/agents";
 import { accessApi } from "../api/access";
-import { useCompany } from "../context/CompanyContext";
-import { buildMarkdownMentionOptions } from "../lib/company-members";
+import { useSpace } from "../context/SpaceContext";
+import { buildMarkdownMentionOptions } from "../lib/space-members";
 import { queryKeys } from "../lib/queryKeys";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 
 type MarkdownMentionInputs = Parameters<typeof buildMarkdownMentionOptions>[0];
 
 type StandardMarkdownMentionOptionsArgs = {
-  companyId?: string | null;
+  spaceId?: string | null;
   enabled?: boolean;
 } & Partial<MarkdownMentionInputs>;
 
 export function useStandardMarkdownMentionOptions(args: StandardMarkdownMentionOptionsArgs = {}) {
-  const { selectedCompanyId } = useCompany();
-  const companyId = args.companyId ?? selectedCompanyId;
-  const enabled = (args.enabled ?? true) && Boolean(companyId);
+  const { selectedSpaceId } = useSpace();
+  const spaceId = args.spaceId ?? selectedSpaceId;
+  const enabled = (args.enabled ?? true) && Boolean(spaceId);
 
   const agentsQuery = useQuery({
-    queryKey: companyId ? queryKeys.agents.list(companyId) : ["agents", "standard-mentions", "none"],
-    queryFn: () => agentsApi.list(companyId!),
+    queryKey: spaceId ? queryKeys.agents.list(spaceId) : ["agents", "standard-mentions", "none"],
+    queryFn: () => agentsApi.list(spaceId!),
     enabled: enabled && args.agents === undefined,
   });
   const projectsQuery = useQuery({
-    ...companyProjectsQuery(companyId ?? ""),
+    ...spaceProjectsQuery(spaceId ?? ""),
     enabled: enabled && args.projects === undefined,
   });
   const usersQuery = useQuery({
-    queryKey: companyId ? queryKeys.access.companyUserDirectory(companyId) : ["access", "standard-mentions", "users", "none"],
-    queryFn: () => accessApi.listUserDirectory(companyId!),
+    queryKey: spaceId ? queryKeys.access.spaceUserDirectory(spaceId) : ["access", "standard-mentions", "users", "none"],
+    queryFn: () => accessApi.listUserDirectory(spaceId!),
     enabled: enabled && args.members === undefined,
   });
 

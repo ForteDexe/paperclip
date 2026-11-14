@@ -8,7 +8,7 @@ import { sameSlackFormBinding, type SlackFormOpenContext } from "./cloud-forms.j
 import { stageSlackFormSession, confirmSlackFormSessionUpdate } from "./form-session.js";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
-type Scope = { companyId: string; endpointId: string; conversationId: string; principalId: string };
+type Scope = { spaceId: string; endpointId: string; conversationId: string; principalId: string };
 export async function stageSlackFormOpenCallback(tx: Tx, input: Scope & {
   context: SlackFormOpenContext; resolved: ResolvedChatQuestionFormOpen; lease?: CredentialMutationLeaseGuard;
   attemptProviderActionId: string; attemptActionId: string | null;
@@ -20,7 +20,7 @@ export async function stageSlackFormOpenCallback(tx: Tx, input: Scope & {
   context.sessionActionId = held.actionId;
   if (held.kind !== "update") return { kind: "duplicate" };
   if (input.attemptActionId) return { kind: "ready", attemptActionId: input.attemptActionId, resolved: input.resolved };
-  const [attempt] = await tx.select().from(chatActions).where(and(eq(chatActions.companyId, input.companyId),
+  const [attempt] = await tx.select().from(chatActions).where(and(eq(chatActions.spaceId, input.spaceId),
     eq(chatActions.endpointId, input.endpointId), eq(chatActions.conversationId, input.conversationId),
     eq(chatActions.principalId, input.principalId), eq(chatActions.kind, "question_form_open_attempt"),
     eq(chatActions.providerActionId, input.attemptProviderActionId))).for("update");
@@ -30,7 +30,7 @@ export async function stageSlackFormOpenCallback(tx: Tx, input: Scope & {
 export async function confirmSlackFormOpenCallback(tx: Tx, input: Omit<Scope, "conversationId"> & { context: SlackFormOpenContext }): Promise<void> {
   const { context } = input;
   if (!context.sessionActionId || !context.updatedView || !context.operation.view) throw new SlackCloudReceiptError("form_update_receipt_unavailable", "retry");
-  const updated = await confirmSlackFormSessionUpdate(tx, { companyId: input.companyId, endpointId: input.endpointId,
+  const updated = await confirmSlackFormSessionUpdate(tx, { spaceId: input.spaceId, endpointId: input.endpointId,
     principalId: input.principalId, operationId: context.operation.id }, context.operation.view, context.updatedView.hash);
   if (!updated) throw new SlackCloudReceiptError("form_update_settlement_changed", "retry");
 }

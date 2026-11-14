@@ -17,7 +17,7 @@ function deferred() {
 }
 
 async function files() {
-  const root = await mkdtemp(path.join(os.tmpdir(), "paperclip-static-ui-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "outpost-static-ui-"));
   const handle = await open(path.join(root, "large.bin"), "w");
   await handle.truncate(32 * 1024 * 1024);
   await handle.close();

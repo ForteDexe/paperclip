@@ -16,7 +16,7 @@ import { kimiFaultRuntimeContract } from "./kimi-provider-fault-contract.js";
 
 const hash = (s: string) => `sha256:${createHash("sha256").update(s).digest("hex")}`;
 const bootId = "12345678-1234-1234-1234-123456789abc";
-const authority = { companyId: "company", environmentId: "environment", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `registry/image@sha256:${"a".repeat(64)}` };
+const authority = { spaceId: "space", environmentId: "environment", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `registry/image@sha256:${"a".repeat(64)}` };
 const binding = { ...authority, remoteCwd: "/workspace" };
 const root = { pid: 21, ppid: 1, startTicks: "100", bootId };
 function kimiWorker(overrides: Record<string, unknown> = {}) {
@@ -27,13 +27,13 @@ function snapshot(): RemoteNativeSnapshot {
   return { binding, observedAtMs: 1000, observedMonotonicNs: "10000", receivedAtMs: 1000, complete: true, workspace: { "existing.txt": hash("original") },
     targets: { "result.txt": { absent: true, sha256: null, parent: { dev: "1", ino: "2" }, mutationCount: 0, complete: true } },
     watcher: { complete: true, targetMutationCount: 0, workspaceMutationCount: 0 },
-    processes: { captured: true, root, journal: [root], live: [21] }, scope: { kind: "user_workspace", excludedRuntime: { relativePath: ".paperclip-runtime/outpost-runner", absolutePath: "/workspace/.paperclip-runtime/outpost-runner", dev: "1", ino: "4", runnerExecutableSha256: hash("runnerd") }, observedPrpEnvironmentLeaseId: "workspace-id", orpEnvironmentLeaseIdVerified: false }, setup: { path: "action.txt", sha256: null, published: false }, attached: null };
+    processes: { captured: true, root, journal: [root], live: [21] }, scope: { kind: "user_workspace", excludedRuntime: { relativePath: ".outpost-runtime/outpost-runner", absolutePath: "/workspace/.outpost-runtime/outpost-runner", dev: "1", ino: "4", runnerExecutableSha256: hash("runnerd") }, observedPrpEnvironmentLeaseId: "workspace-id", orpEnvironmentLeaseIdVerified: false }, setup: { path: "action.txt", sha256: null, published: false }, attached: null };
 }
 function readiness() { return { ready: true, binding, root, runtime: { dev: "1", ino: "4", runnerExecutableSha256: hash("runnerd") } }; }
 function harness() {
-  let lease: Record<string, unknown> = { id: "lease", companyId: "company", environmentId: "environment", heartbeatRunId: "run", provider: "daytona", providerLeaseId: "sandbox", status: "active", releasedAt: null,
-    metadata: { sandboxId: "sandbox", image: authority.image, reuseLease: false, remoteCwd: "/workspace", workspaceSentinel: { path: "/workspace/.paperclip-runtime/reusable-sandbox-lease.json", token: "fixture-sentinel-token", result: "written", runId: "run", providerLeaseId: "sandbox" } } };
-  const labels: Record<string, string> = { "paperclip-provider": "daytona", "paperclip-company-id": "company", "paperclip-environment-id": "environment", "paperclip-run-id": "run", "paperclip-reuse-lease": "false" };
+  let lease: Record<string, unknown> = { id: "lease", spaceId: "space", environmentId: "environment", heartbeatRunId: "run", provider: "daytona", providerLeaseId: "sandbox", status: "active", releasedAt: null,
+    metadata: { sandboxId: "sandbox", image: authority.image, reuseLease: false, remoteCwd: "/workspace", workspaceSentinel: { path: "/workspace/.outpost-runtime/reusable-sandbox-lease.json", token: "fixture-sentinel-token", result: "written", runId: "run", providerLeaseId: "sandbox" } } };
+  const labels: Record<string, string> = { "outpost-provider": "daytona", "outpost-space-id": "space", "outpost-environment-id": "environment", "outpost-run-id": "run", "outpost-reuse-lease": "false" };
   const calls: Array<{ command: string; request: Record<string, any>; timeout: number | undefined }> = [];
   let resolveTerminal!: (v: unknown) => void, rejectTerminal!: (e: unknown) => void;
   const terminal = new Promise((resolve, reject) => { resolveTerminal = resolve; rejectTerminal = reject; });
@@ -77,12 +77,12 @@ describe("remote native lease admission", () => {
     const h = harness(), fixture = await bindRemoteNativeFixture(h.options), install = h.calls.find(call => call.request.op === "install");
     expect(install).toBeDefined(); expect(Buffer.byteLength(install!.command)).toBeLessThan(131072); await fixture.close();
   });
-  it.each(["companyId", "environmentId", "heartbeatRunId", "providerLeaseId", "provider", "status"])("rejects wrong %s before executing any remote command", async key => {
+  it.each(["spaceId", "environmentId", "heartbeatRunId", "providerLeaseId", "provider", "status"])("rejects wrong %s before executing any remote command", async key => {
     const h = harness(); h.setLease({ ...h.lease(), [key]: "foreign" });
     await expect(bindRemoteNativeFixture(h.options)).rejects.toThrow("lease_scope"); expect(h.executeCommand).not.toHaveBeenCalled();
   });
   it("rejects protected runtime targets and insufficient setup budget before SDK access", async () => {
-    for (const patch of [{ targets: [".paperclip-runtime/outpost-runner/bin/forbidden"] }, { actionFile: ".paperclip-runtime/outpost-runner/task.txt" }, { deadlineAt: Date.now() + 1000 }]) {
+    for (const patch of [{ targets: [".outpost-runtime/outpost-runner/bin/forbidden"] }, { actionFile: ".outpost-runtime/outpost-runner/task.txt" }, { deadlineAt: Date.now() + 1000 }]) {
       const h = harness(); await expect(bindRemoteNativeFixture({ ...h.options, ...patch })).rejects.toThrow(); expect(h.get).not.toHaveBeenCalled();
     }
   });
@@ -98,7 +98,7 @@ describe("remote native lease admission", () => {
     }
   });
   it("rejects wrong ownership labels and never discovers a sandbox by name", async () => {
-    const h = harness(); h.labels["paperclip-run-id"] = "other";
+    const h = harness(); h.labels["outpost-run-id"] = "other";
     await expect(bindRemoteNativeFixture(h.options)).rejects.toThrow("sandbox_labels"); expect(h.get).toHaveBeenCalledExactlyOnceWith("sandbox"); expect(h.executeCommand).not.toHaveBeenCalled();
   });
   it("waits beyond the old 20s install subdeadline for staging, then installs exactly once before action", async () => {
@@ -188,9 +188,9 @@ describe("remote native lease admission", () => {
   it("persists safe startup diagnostics through the real bootstrap catch without publishing an action", async () => {
     const h = harness(), evidence = vi.fn(async () => {});
     h.override(r => r.op === "runtime-ready" ? { exitCode: 2, result: JSON.stringify({ ok: false, diagnostic: { phase: "runtime-ready", code: "runtime_binary_identity" } }) } : undefined);
-    const bootstrap = createRemoteNativeBootstrap({ ...h.options, companyId: "company", environmentId: "environment", agentId: "agent", image: authority.image, evidence,
-      api: { get: (async (path: string) => path === "/api/issues/issue" ? { id: "issue", companyId: "company", assigneeAgentId: "agent" }
-        : path === "/api/heartbeat-runs/run" ? { id: "run", companyId: "company", agentId: "agent", status: "running", executionStage: "preparing" }
+    const bootstrap = createRemoteNativeBootstrap({ ...h.options, spaceId: "space", environmentId: "environment", agentId: "agent", image: authority.image, evidence,
+      api: { get: (async (path: string) => path === "/api/issues/issue" ? { id: "issue", spaceId: "space", assigneeAgentId: "agent" }
+        : path === "/api/heartbeat-runs/run" ? { id: "run", spaceId: "space", agentId: "agent", status: "running", executionStage: "preparing" }
           : [{ ...h.lease(), issueId: "issue" }]) as RemoteNativeFixtureOptions["api"]["get"] },
     }, async options => bindRemoteNativeFixture({ ...h.options, actionFile: options.actionFile }));
     bootstrap.prompt("nonce");
@@ -534,15 +534,15 @@ describe("actual generated observer state machine", () => {
     }
     const { source, config } = install.request;
     const intervals: Array<() => void> = [], timers: Array<{ fn: () => void; ms: number }> = [];
-    const proc = new Map<number, { ppid: number; group: number; ticks: string; argv: string[] }>([[21, { ppid: 1, group: 21, ticks: "100", argv: ["/workspace/.paperclip-runtime/outpost-runner/bin/outpost-runnerd", "--run-id", "run", "--environment-lease-id", "workspace-id", "--lifecycle-mode", "per_turn", "--state-dir", "/workspace/.paperclip-runtime/outpost-runner/sessions/" + "a".repeat(64) + "/runner"] }]]);
-    const files = new Map<string, Buffer>([[`${config.root}/observer.cjs`, Buffer.from(source)], [config.sentinel.path, Buffer.from(JSON.stringify({ version: 1, provider: "daytona", token: config.sentinel.token, companyId: "company", environmentId: "environment" }))]]);
+    const proc = new Map<number, { ppid: number; group: number; ticks: string; argv: string[] }>([[21, { ppid: 1, group: 21, ticks: "100", argv: ["/workspace/.outpost-runtime/outpost-runner/bin/outpost-runnerd", "--run-id", "run", "--environment-lease-id", "workspace-id", "--lifecycle-mode", "per_turn", "--state-dir", "/workspace/.outpost-runtime/outpost-runner/sessions/" + "a".repeat(64) + "/runner"] }]]);
+    const files = new Map<string, Buffer>([[`${config.root}/observer.cjs`, Buffer.from(source)], [config.sentinel.path, Buffer.from(JSON.stringify({ version: 1, provider: "daytona", token: config.sentinel.token, spaceId: "space", environmentId: "environment" }))]]);
     const watches: Array<{ path: string; callback: (_kind: string, name: string | null) => void; closed: boolean }> = [];
     const handlers: Array<(socket: any) => void> = [], children: any[] = [];
     const missing = () => { throw Object.assign(new Error("missing"), { code: "ENOENT" }); };
     const fds = new Map<number, string>(); let nextFd = 50, runtimeInode = 4n;
     const symbolicLinks = new Set<string>(), directoryInodes = new Map<string, bigint>();
     const processExecutables = new Map<string, { path: string; dev: bigint; ino: bigint }>();
-    const directories = new Set(["/tmp", "/workspace", "/workspace/.paperclip-runtime", "/workspace/.paperclip-runtime/outpost-runner", "/workspace/.paperclip-runtime/outpost-runner/sessions"]);
+    const directories = new Set(["/tmp", "/workspace", "/workspace/.outpost-runtime", "/workspace/.outpost-runtime/outpost-runner", "/workspace/.outpost-runtime/outpost-runner/sessions"]);
     if (!deferStartup) directories.add(config.root);
     const listeners = new Map<string, (socket: any) => void>();
     const fs = {
@@ -565,11 +565,11 @@ describe("actual generated observer state machine", () => {
       lstatSync(path: string) {
         const directory = directories.has(path);
         if (!directory && !files.has(path) && !symbolicLinks.has(path)) return missing();
-        return { dev: 1n, ino: directoryInodes.get(path) ?? (path === config.root ? 2n : path === "/workspace/.paperclip-runtime/outpost-runner" ? runtimeInode : 3n), mtimeNs: 4n, ctimeNs: 5n, isDirectory: () => directory, isFile: () => !directory, isSymbolicLink: () => symbolicLinks.has(path), size: files.get(path)?.length ?? 0 };
+        return { dev: 1n, ino: directoryInodes.get(path) ?? (path === config.root ? 2n : path === "/workspace/.outpost-runtime/outpost-runner" ? runtimeInode : 3n), mtimeNs: 4n, ctimeNs: 5n, isDirectory: () => directory, isFile: () => !directory, isSymbolicLink: () => symbolicLinks.has(path), size: files.get(path)?.length ?? 0 };
       },
       realpathSync: (path: string) => processExecutables.get(path)?.path ?? (/^\/proc\/\d+\/exe$/u.test(path) ? proc.get(Number(path.split("/")[2]))?.argv[0] : path),
       statSync(path: string) { const identity = processExecutables.get(path); if (!identity) return missing(); return identity; },
-      readdirSync(path: string) { if (path === "/proc") return [...proc.keys()].map(String); if (path.startsWith("/workspace/.paperclip-runtime/outpost-runner")) throw new Error("excluded runtime must not be traversed"); return [...new Set([...files.keys(), ...directories, ...symbolicLinks].filter(p => p.startsWith(path + "/") && !p.slice(path.length + 1).includes("/")).map(p => p.slice(path.length + 1)))]; },
+      readdirSync(path: string) { if (path === "/proc") return [...proc.keys()].map(String); if (path.startsWith("/workspace/.outpost-runtime/outpost-runner")) throw new Error("excluded runtime must not be traversed"); return [...new Set([...files.keys(), ...directories, ...symbolicLinks].filter(p => p.startsWith(path + "/") && !p.slice(path.length + 1).includes("/")).map(p => p.slice(path.length + 1)))]; },
       watch(path: string, options: unknown, callback?: (_kind: string, name: string | null) => void) {
         const entry = { path, callback: (callback ?? options) as (_kind: string, name: string | null) => void, closed: false }; watches.push(entry);
         return Object.assign(new EventEmitter(), { close: () => { entry.closed = true; } });
@@ -755,12 +755,12 @@ describe("actual generated observer state machine", () => {
     const script = `
       import { bindRemoteNativeFixture } from ${JSON.stringify(modulePath)};
       const binding = ${JSON.stringify(binding)}, ready = ${JSON.stringify(readiness())};
-      const lease = { id: binding.leaseId, companyId: binding.companyId, environmentId: binding.environmentId, heartbeatRunId: binding.runId,
+      const lease = { id: binding.leaseId, spaceId: binding.spaceId, environmentId: binding.environmentId, heartbeatRunId: binding.runId,
         provider: 'daytona', providerLeaseId: binding.sandboxId, status: 'active', releasedAt: null,
         metadata: { sandboxId: binding.sandboxId, image: binding.image, reuseLease: false, remoteCwd: binding.remoteCwd,
-          workspaceSentinel: { path: binding.remoteCwd+'/.paperclip-runtime/reusable-sandbox-lease.json', token: 'fixture-sentinel-token', result: 'written', runId: binding.runId, providerLeaseId: binding.sandboxId } } };
+          workspaceSentinel: { path: binding.remoteCwd+'/.outpost-runtime/reusable-sandbox-lease.json', token: 'fixture-sentinel-token', result: 'written', runId: binding.runId, providerLeaseId: binding.sandboxId } } };
       let programs;
-      const sandbox = { id: binding.sandboxId, labels: { 'paperclip-provider':'daytona','paperclip-company-id':binding.companyId,'paperclip-environment-id':binding.environmentId,'paperclip-run-id':binding.runId,'paperclip-reuse-lease':'false' },
+      const sandbox = { id: binding.sandboxId, labels: { 'outpost-provider':'daytona','outpost-space-id':binding.spaceId,'outpost-environment-id':binding.environmentId,'outpost-run-id':binding.runId,'outpost-reuse-lease':'false' },
         process: { async executeCommand(command) {
           const encoded = command.slice(command.lastIndexOf(" '")+2,-1), request = JSON.parse(Buffer.from(encoded,'base64'));
           if(request.op==='runtime-ready') return {exitCode:0,result:JSON.stringify({ok:true,result:ready})};
@@ -796,7 +796,7 @@ describe("actual generated observer state machine", () => {
     expect(changed.spawn).not.toHaveBeenCalled(); expect(o.fs.mkdirSync).not.toHaveBeenCalled();
   });
   it.each(["absent", "foreign-run", "foreign-group", "ambiguous", "wrong-binary", "symlink", "disappeared"])("checks generated runtime readiness: %s", async variant => {
-    const o = await observerHarness(true), runtimePath = "/workspace/.paperclip-runtime/outpost-runner";
+    const o = await observerHarness(true), runtimePath = "/workspace/.outpost-runtime/outpost-runner";
     if (variant === "absent") o.directories.delete(runtimePath);
     if (variant === "foreign-run") o.proc.get(21)!.argv[2] = "foreign";
     if (variant === "foreign-group") o.proc.get(21)!.group = 99;
@@ -889,7 +889,7 @@ describe("actual generated observer state machine", () => {
   it.each(["valid", "wrong-inode", "foreign-executable", "ambiguous", "wrong-arguments"])("dispatches generated provider death only for verified descriptor ownership: %s", async variant => {
     const o = await observerHarness();
     o.request("snapshot"); o.request("publish", { path: "action.txt", text: "do task" });
-    const executable = "/tmp/paperclip-acpx-native-owned/distribution/copilot";
+    const executable = "/tmp/outpost-acpx-native-owned/distribution/copilot";
     o.proc.set(22, { ppid: 21, group: 21, ticks: "200", argv: ["/node"] });
     o.proc.set(23, { ppid: 22, group: 21, ticks: "300", argv: ["/proc/self/fd/7", ...copilotDeathArguments] });
     o.processExecutables.set("/proc/23/exe", { path: executable, dev: 1n, ino: 40n });
@@ -964,18 +964,18 @@ describe("actual generated observer state machine", () => {
   });
   it("scopes actual runtime symlinks/state churn out while retaining sentinel and sibling coverage", async () => {
     const o = await observerHarness();
-    o.symbolicLinks.add("/workspace/.paperclip-runtime/outpost-runner/provider-pack");
-    o.files.set("/workspace/.paperclip-runtime/outpost-runner/bin/outpost-runnerd", Buffer.alloc(100000));
-    o.fs.writeFileSync("/workspace/.paperclip-runtime/outpost-runner/sessions/state.json", "runtime churn", { flag: "wx" });
+    o.symbolicLinks.add("/workspace/.outpost-runtime/outpost-runner/provider-pack");
+    o.files.set("/workspace/.outpost-runtime/outpost-runner/bin/outpost-runnerd", Buffer.alloc(100000));
+    o.fs.writeFileSync("/workspace/.outpost-runtime/outpost-runner/sessions/state.json", "runtime churn", { flag: "wx" });
     const before = o.request("snapshot")[0].result;
     expect(before.complete).toBe(true); expect(before.watcher.workspaceMutationCount).toBe(0);
-    expect(Object.keys(before.workspace)).toContain(".paperclip-runtime/reusable-sandbox-lease.json");
-    expect(Object.keys(before.workspace).some(p => p.startsWith(".paperclip-runtime/outpost-runner"))).toBe(false);
+    expect(Object.keys(before.workspace)).toContain(".outpost-runtime/reusable-sandbox-lease.json");
+    expect(Object.keys(before.workspace).some(p => p.startsWith(".outpost-runtime/outpost-runner"))).toBe(false);
     expect(before.scope.excludedRuntime.ino).toBe("4"); expect(before.scope.observedPrpEnvironmentLeaseId).toBe("workspace-id");
     expect(before.scope.orpEnvironmentLeaseIdVerified).toBe(false);
-    o.fs.writeFileSync("/workspace/.paperclip-runtime/user-file", "not runtime internal", { flag: "wx" });
+    o.fs.writeFileSync("/workspace/.outpost-runtime/user-file", "not runtime internal", { flag: "wx" });
     const after = o.request("snapshot")[0].result;
-    expect(after.watcher.workspaceMutationCount).toBe(1); expect(after.workspace[".paperclip-runtime/user-file"]).toBe(hash("not runtime internal"));
+    expect(after.watcher.workspaceMutationCount).toBe(1); expect(after.workspace[".outpost-runtime/user-file"]).toBe(hash("not runtime internal"));
   });
   it("rejects runtime root replacement, foreign workspace symlinks and sentinel tampering", async () => {
     const replaced = await observerHarness(); replaced.replaceRuntimeRoot(); expect(replaced.request("snapshot")[0].ok).toBe(false);
@@ -1082,7 +1082,7 @@ describe("exact Kimi-child fault capability", () => {
     const calls = h.calls.filter(call => call.request.op === "kimi-provider-death");
     expect(calls).toHaveLength(1);
     expect(calls[0]!.request.contract).toEqual(kimiFaultRuntimeContract("linux-x64"));
-    expect(calls[0]!.request.bootstrapTemplate).toContain("/__paperclip_kimi_fault_snapshot__/distribution");
+    expect(calls[0]!.request.bootstrapTemplate).toContain("/__outpost_kimi_fault_snapshot__/distribution");
     expect(calls[0]!.request.guardTemplate).toContain("const digests={};");
     expect(h.calls.some(call => call.request.op === "inject-loss")).toBe(false);
     await fixture.close();

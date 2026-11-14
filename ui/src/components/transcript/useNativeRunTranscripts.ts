@@ -18,8 +18,8 @@ interface SavedNativeHistory {
   cursor: number;
 }
 
-const historyKey = (companyId: string, run: NativeRunTranscriptSource) =>
-  ["native-run-transcript", companyId, run.id, Boolean(run.conversationOnly), run.status] as const;
+const historyKey = (spaceId: string, run: NativeRunTranscriptSource) =>
+  ["native-run-transcript", spaceId, run.id, Boolean(run.conversationOnly), run.status] as const;
 
 export interface NativeRunTranscriptSource {
   id: string;
@@ -37,7 +37,7 @@ function isLive(status: string): boolean {
   return status === "queued" || status === "running";
 }
 
-export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource[], options: { companyId?: string | null; enabled?: boolean } = {}) {
+export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource[], options: { spaceId?: string | null; enabled?: boolean } = {}) {
   const queryClient = useContext(QueryClientContext);
   const { visible } = usePageVisibility();
   const nativeRunsKey = runs
@@ -53,15 +53,15 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
   );
   const savedHistory = useMemo(() => {
     const saved = new Map<string, SavedNativeHistory>();
-    if (queryClient && options.companyId && options.enabled !== false) {
+    if (queryClient && options.spaceId && options.enabled !== false) {
       for (const run of nativeRuns) {
         if (isLive(run.status)) continue;
-        const history = queryClient.getQueryData<SavedNativeHistory>(historyKey(options.companyId, run));
+        const history = queryClient.getQueryData<SavedNativeHistory>(historyKey(options.spaceId, run));
         if (history) saved.set(run.id, history);
       }
     }
     return saved;
-  }, [queryClient, options.companyId, options.enabled, nativeRuns]);
+  }, [queryClient, options.spaceId, options.enabled, nativeRuns]);
   const [eventsByRun, setEventsByRun] = useState<Map<string, HeartbeatRunEvent[]>>(new Map());
   const persistedEventsByRunRef = useRef(new Map<string, HeartbeatRunEvent[]>());
   const [errorsByRun, setErrorsByRun] = useState<Map<string, NativeRunTranscriptError>>(new Map());
@@ -83,16 +83,16 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
   const historyReadsRef = useRef(new Map<string, AbortSignal>());
   const interruptedReadsRef = useRef(new Set<string>());
   const refreshByRunRef = useRef(new Map<string, (force?: boolean) => void>());
-  const previousCompanyRef = useRef(options.companyId);
+  const previousSpaceRef = useRef(options.spaceId);
   const refreshContextRef = useRef<readonly unknown[]>([]);
   useEffect(() => {
-    if (previousCompanyRef.current === options.companyId) return;
-    previousCompanyRef.current = options.companyId;
+    if (previousSpaceRef.current === options.spaceId) return;
+    previousSpaceRef.current = options.spaceId;
     setEventsByRun(new Map()); setErrorsByRun(new Map()); setHydratedRunIds(new Set()); setHydratedStatusByRun(new Map());
     projectionCacheRef.current.clear(); cursorByRunRef.current.clear(); conversationOnlyByRunRef.current.clear();
     persistedEventsByRunRef.current.clear();
     sequencesRef.current.clear(); gapPendingRef.current.clear(); interruptedReadsRef.current.clear();
-  }, [options.companyId]);
+  }, [options.spaceId]);
   const stream = useTranscriptLiveStream(nativeRuns.filter(run => isLive(run.status)).map(run => run.id), options, event => {
     const runId = typeof event.payload.runId === "string" ? event.payload.runId : null;
     if (!runId || !nativeRuns.some(run => run.id === runId)) return;
@@ -114,7 +114,7 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
 
 
   useEffect(() => {
-    const context = [retryGeneration, visible, options.enabled, options.companyId, stream.healthy, stream.epoch];
+    const context = [retryGeneration, visible, options.enabled, options.spaceId, stream.healthy, stream.epoch];
     const refreshExisting = context.some((value, index) => value !== refreshContextRef.current[index]);
     refreshContextRef.current = context;
     if (!visible || options.enabled === false) return;
@@ -206,8 +206,8 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
         const previousEvents = persistedEventsByRunRef.current.get(run.id) ?? [];
         const persistedEvents = incoming.length ? mergeRunEvents(previousEvents, incoming) : previousEvents;
         persistedEventsByRunRef.current.set(run.id, persistedEvents);
-        if (!failed && !isLive(run.status) && queryClient && options.companyId) {
-          const key = historyKey(options.companyId, run);
+        if (!failed && !isLive(run.status) && queryClient && options.spaceId) {
+          const key = historyKey(options.spaceId, run);
           queryClient.setQueryData<SavedNativeHistory>(key, {
             events: persistedEvents,
             cursor: coveredCursor,
@@ -268,7 +268,7 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
       }
       for (const timer of timers.values()) window.clearTimeout(timer);
     };
-  }, [nativeRuns, retryGeneration, visible, options.enabled, options.companyId, stream.healthy, stream.epoch, queryClient, savedHistory]);
+  }, [nativeRuns, retryGeneration, visible, options.enabled, options.spaceId, stream.healthy, stream.epoch, queryClient, savedHistory]);
 
   const transcriptByRun = useMemo(() => {
     const transcripts = new Map<string, TranscriptEntry[]>();

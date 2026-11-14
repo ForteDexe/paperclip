@@ -67,7 +67,7 @@ export async function runPiNativeFlow(input: {
     return remote ? (await currentRemote!.readFile(path)).toString("utf8") : await readFile(join(input.workspacePath, path), "utf8");
   }
   const checks: Check[] = []; let issue: Row = {}; let runs: Row[] = [];
-  const project = await api.post<Row>(`/api/companies/${fixtures.company.id}/projects`, {
+  const project = await api.post<Row>(`/api/spaces/${fixtures.space.id}/projects`, {
     name: `Pi native workspace ${nonce}`, executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", sharedWorkspaceConcurrency: "serialize", allowIssueOverride: false, environmentId: fixtures.environment.id, workspaceStrategy: { type: "project_primary" } },
     workspace: { name: "Primary", sourceType: "local_path", cwd: input.workspacePath, isPrimary: true },
   });
@@ -76,7 +76,7 @@ export async function runPiNativeFlow(input: {
   const absent = async (path: string) => { try { await lstat(path); return false; } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return true; throw error; } };
   const load = async () => {
     issue = await api.get<Row>(`/api/issues/${issue.id}`);
-    const listed = await api.get<Row[]>(`/api/companies/${fixtures.company.id}/heartbeat-runs?limit=100`);
+    const listed = await api.get<Row[]>(`/api/spaces/${fixtures.space.id}/heartbeat-runs?limit=100`);
     runs = await Promise.all(listed.map(run => api.get<Row>(`/api/heartbeat-runs/${run.id}`)));
     runs.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))); input.observe(issue, runs);
     const interactions = await api.get<Row[]>(`/api/issues/${issue.id}/interactions`);
@@ -86,11 +86,11 @@ export async function runPiNativeFlow(input: {
   async function create(title: string, prompt: string | ((fixture: RemoteNativeFixture) => string), options: { targets?: string[]; crossRoot?: { initialText: string } } = {}) {
     const previous = new Set(runs.map(run => run.id));
     const actualPrompt = remote ? input.remoteBootstrap!.prompt(`${nonce}-${++remoteSequence}`) : typeof prompt === "string" ? prompt : (() => { throw new Error("Local prompt cannot depend on remote fixture"); })();
-    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name, title, prompt: actualPrompt, workMode: "standard", projectName: project.name, requireExplicitTitle: true });
+    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name, title, prompt: actualPrompt, workMode: "standard", projectName: project.name, requireExplicitTitle: true });
     issue = await api.get<Row>(`/api/issues/${createdTask.issueId}`);
-    check("created-task-identity", issue.id === createdTask.issueId && issue.companyId === fixtures.company.id && issue.assigneeAgentId === fixtures.agent.id, "Creation response binds the exact company-scoped assigned task before native action");
+    check("created-task-identity", issue.id === createdTask.issueId && issue.spaceId === fixtures.space.id && issue.assigneeAgentId === fixtures.agent.id, "Creation response binds the exact space-scoped assigned task before native action");
     input.observe(issue, runs);
-    await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
+    await page.goto(`/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
     if (remote) {
       const state = await pollUntil({ label: "Pi remote bootstrap native run", deadlineAt: input.deadlineAt, load, reject: rejectFailure, accept: value => value.runs.filter(run => !previous.has(run.id)).length === 1 });
       const run = state.runs.find(value => !previous.has(value.id))!;
@@ -116,7 +116,7 @@ export async function runPiNativeFlow(input: {
     if (execution.task.id === "native-pending-provider-death") {
       if (!remote) throw new Error("Exact Pi-child fault is available only on owned Daytona Linux");
       await create(execution.task.buildTitle(nonce), execution.task.buildPrompt(nonce), { targets: [PI_DEATH_MARKER] });
-      checks.push(...await runPiPendingProviderDeath({ page, api, companyId: fixtures.company.id, deadlineAt: input.deadlineAt,
+      checks.push(...await runPiPendingProviderDeath({ page, api, spaceId: fixtures.space.id, deadlineAt: input.deadlineAt,
         fixture: currentRemote!, load, events, capture: input.capture, evidence: input.evidence }));
       const originalRunId = runs[0]!.id;
       input.registerCleanupAssertion!(async () => {
@@ -130,7 +130,7 @@ export async function runPiNativeFlow(input: {
     } else if (execution.task.id === "native-pending-controller-restart") {
       await create(execution.task.buildTitle(nonce), execution.task.buildPrompt(nonce), { targets: ["pi-native-restart-answer.json"] });
       checks.push(...await runPiPendingControllerRestart({
-        page, companyId: fixtures.company.id, deadlineAt: input.deadlineAt, load, events,
+        page, spaceId: fixtures.space.id, deadlineAt: input.deadlineAt, load, events,
         preserveLocalRunner: !remote, restart: input.restart, settle: () => settle(1), capture: input.capture, evidence: input.evidence,
         readProof: async () => {
           if (remote) await finishRemote("native-restart-final");
@@ -233,7 +233,7 @@ export async function runPiNativeFlow(input: {
       });
       if (!remote) check("human-target-initially-absent", await absent(path), "Independent target is absent before provider work");
       await create(execution.task.buildTitle(nonce), localTarget ? bindDeniedTargetPrompt(execution.task.buildPrompt(nonce), "pi-human-denied.txt", target) : execution.task.buildPrompt(nonce), { targets: [target] });
-      if (remote) bootstrapApproval = await approvePiBootstrapRead({ api, fixture: currentRemote!, companyId: fixtures.company.id, issueId: issue.id, runId: runs[0]!.id,
+      if (remote) bootstrapApproval = await approvePiBootstrapRead({ api, fixture: currentRemote!, spaceId: fixtures.space.id, issueId: issue.id, runId: runs[0]!.id,
         deadlineAt: input.deadlineAt, load: async () => { await load(); return { run: runs[0]!, issue, events: await events(runs[0]!.id) }; }, evidence: input.evidence });
       if (remote) check("human-target-initially-absent", currentBaseline?.targets[target]?.absent === true && currentBaseline.targets[target]!.complete, "Remote watcher was armed before action publication with an absent target");
       const pending = await pollUntil({ label: "Pi native browser permission", deadlineAt: input.deadlineAt, load: async () => { const state = await load(); processes = observe(); return { ...state, events: state.runs.length === 1 ? await events(state.runs[0]!.id) : [] }; }, reject: rejectFailure,

@@ -4,7 +4,7 @@ import type { StorageService } from "../../storage/types.js";
 
 type AttachmentStorage = {
   id: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   provider: string;
   objectKey: string;
@@ -13,7 +13,7 @@ type AttachmentStorage = {
 export type McpAttachmentCleanup = AttachmentStorage & { verifiedAt: Date };
 
 function uploadIdentity(attachment: AttachmentStorage) {
-  return and(eq(mcpAttachmentUploads.companyId, attachment.companyId),
+  return and(eq(mcpAttachmentUploads.spaceId, attachment.spaceId),
     eq(mcpAttachmentUploads.taskId, attachment.issueId), eq(mcpAttachmentUploads.attachmentId, attachment.id),
     eq(mcpAttachmentUploads.storageProvider, attachment.provider), eq(mcpAttachmentUploads.objectKey, attachment.objectKey));
 }
@@ -23,7 +23,7 @@ function uploadIdentity(attachment: AttachmentStorage) {
 export async function confirmMcpAttachmentCleanup(db: Db, storage: StorageService, attachment: AttachmentStorage): Promise<McpAttachmentCleanup | null> {
   const [upload] = await db.select({ id: mcpAttachmentUploads.id }).from(mcpAttachmentUploads).where(uploadIdentity(attachment)).limit(1);
   if (!upload) return null;
-  if (storage.provider !== attachment.provider || (await storage.headObject(attachment.companyId, attachment.objectKey)).exists !== false) {
+  if (storage.provider !== attachment.provider || (await storage.headObject(attachment.spaceId, attachment.objectKey)).exists !== false) {
     throw new Error("MCP attachment storage cleanup could not be confirmed");
   }
   return { ...attachment, verifiedAt: new Date() };

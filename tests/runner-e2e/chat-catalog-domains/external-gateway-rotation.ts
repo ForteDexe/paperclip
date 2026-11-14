@@ -22,8 +22,8 @@ async function discover(ctx: ChatCatalogContext, gateway: ToolMcpGatewayWithToke
 /** Any full gateway client token value (prefix, token id, secret); saved metadata prefixes are only `pcgw_` plus 8 characters. */
 export const GATEWAY_TOKEN_VALUE = /pcgw_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9_-]{16,}/i;
 type SavedToken = ToolMcpGatewayWithTokens["tokens"][number];
-/** Client tokens the agent created during its turn; Paperclip's own short-lived run tokens are excluded. */
-/** Active client tokens the agent created during its turn; Paperclip's own run tokens and drafts it withdrew are excluded. */
+/** Client tokens the agent created during its turn; Outpost's own short-lived run tokens are excluded. */
+/** Active client tokens the agent created during its turn; Outpost's own run tokens and drafts it withdrew are excluded. */
 export function agentTurnTokens(tokens: SavedToken[], setupIds: string[], agentId: string) {
   return agentClientTokens(tokens, setupIds, agentId).filter(row => !row.revokedAt);
 }
@@ -61,7 +61,7 @@ export const gatewayRotationExternalCases = [definition("gateways-profiles.rotat
     const connection = await connectNotes(ctx, provider, "read-only");
     const profile = await ctx.input.api.post<ToolProfileWithDetails>(`${root(ctx)}/tools/profiles`, { profileKey: "rotation-notes", name: "Rotation notes", defaultAction: "deny", entries: [{ selectorType: "catalog_entry", effect: "include", connectionId: connection.connectionId, catalogEntryId: connection.read[0] }] });
     const gateway = await ctx.input.api.post<ToolMcpGatewayWithTokens>(`${root(ctx)}/tools/gateways`, { name: "Website test client", profileId: profile.id });
-    const issue = async (name: string) => { const token = await ctx.input.api.postSensitive<ToolMcpGatewayTokenCreated>(`/api/tool-gateway/gateways/${gateway.id}/tokens`, { companyId: ctx.input.fixtures.company.id, name, clientLabel: name, ownerNote: "Website staging integration", allowedActions: ["tools/list", "tools/call", "resources/list", "resources/read", "prompts/list", "prompts/get"], expiresAt: new Date(Date.now() + 3_600_000).toISOString() }); ctx.input.privateSecrets?.push(token.token); return token; };
+    const issue = async (name: string) => { const token = await ctx.input.api.postSensitive<ToolMcpGatewayTokenCreated>(`/api/tool-gateway/gateways/${gateway.id}/tokens`, { spaceId: ctx.input.fixtures.space.id, name, clientLabel: name, ownerNote: "Website staging integration", allowedActions: ["tools/list", "tools/call", "resources/list", "resources/read", "prompts/list", "prompts/get"], expiresAt: new Date(Date.now() + 3_600_000).toISOString() }); ctx.input.privateSecrets?.push(token.token); return token; };
     const old = await issue("Old test client"), other = await issue("Unrelated client"); fixture = { provider, old, other }; fixtures.set(ctx, fixture);
     const access = await ctx.input.api.get<{ access: { tools: Array<{ toolName: string; gatewayToolName: string }> } }>(`/api/tool-connections/${connection.connectionId}/test-agents/${ctx.input.fixtures.agent.id}/access`);
     const name = access.access.tools.find(row => row.toolName === "launch_read")?.gatewayToolName; if (!name) throw new Error("Setup blocker: fixture read action has no public gateway identity");
@@ -70,7 +70,7 @@ export const gatewayRotationExternalCases = [definition("gateways-profiles.rotat
     await ctx.input.api.post(`${root(ctx)}/chats/${ctx.input.fixtures.agent.id}`); await ctx.refreshIssue();
     await ctx.input.api.patch(`/api/issues/${ctx.issue()!.id}`, { description: `Replace only Old test client on the Website test client gateway (${gateway.id}). Unrelated client must keep its current access.` });
     const person = await ctx.input.api.get<{ user: { id: string } }>("/api/auth/get-session");
-    return { personId: person.user.id, sourceIssueId: ctx.issue()!.id, gateway, profileId: profile.id, connectionId: connection.connectionId, readName: name, oldId: old.id, otherId: other.id, oldWorkedBefore, otherWorkedBefore, otherMetadataBefore: { revokedAt: other.revokedAt, allowedActions: other.allowedActions, expiresAt: other.expiresAt, subjectId: other.subjectId }, tokensPath: `/${ctx.input.fixtures.company.issuePrefix}/apps/gateways/${gateway.id}/tokens` };
+    return { personId: person.user.id, sourceIssueId: ctx.issue()!.id, gateway, profileId: profile.id, connectionId: connection.connectionId, readName: name, oldId: old.id, otherId: other.id, oldWorkedBefore, otherWorkedBefore, otherMetadataBefore: { revokedAt: other.revokedAt, allowedActions: other.allowedActions, expiresAt: other.expiresAt, subjectId: other.subjectId }, tokensPath: `/${ctx.input.fixtures.space.issuePrefix}/apps/gateways/${gateway.id}/tokens` };
   } catch (error) { fixtures.delete(ctx); await provider.close(); throw error; }
 }, gradeGatewayRotation, {
   authentication: "human-session", oracleVersion: "outpost.chat-catalog.external.v2", sourceFiles: ["chat-catalog-domains/external-gateway-rotation.ts", "../../ui/src/components/IssueThreadInteractionCard.tsx", "../../ui/src/pages/apps/gateways/GatewayDetail.tsx", "../../ui/src/pages/apps/gateways/panels/TokensPanel.tsx", "chat-catalog-domains/external-provider.ts", "chat-catalog-domains/external-secret-scan.ts", "chat-catalog-domains/external-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/external-private-browser.ts", "chat-catalog-domains/external-private-browser-worker.ts", "run-observations.ts", "chat-scenarios/gateways-profiles.yaml"],
@@ -112,7 +112,7 @@ export const gatewayRotationExternalCases = [definition("gateways-profiles.rotat
       && replacement?.createdByAgentId === ctx.input.fixtures.agent.id && replacement.responsibleUserId === state.personId;
     const personCreated = state.agentCreatedReplacement !== true && replacement?.createdByUserId === state.personId && !replacement?.createdByAgentId;
     state.persistedNewAttributed = !!replacement && (agentCreated || personCreated) && replacement.pendingReveal !== true && !replacement.revokedAt
-      && replacement.gatewayId === gateway.id && replacement.companyId === ctx.input.fixtures.company.id;
+      && replacement.gatewayId === gateway.id && replacement.spaceId === ctx.input.fixtures.space.id;
     const o = await observeExternal(ctx, state), events: unknown[] = [];
     for (const run of o.runs) events.push(...await collectRunEvents(after => privateScanJson(ctx, `/api/heartbeat-runs/${run.id}/events?afterSeq=${after}&limit=1000`)));
     const ids = [ctx.issue()!.id]; for (;;) { const size = ids.length; for (const task of o.tasks) if (task.parentId && ids.includes(task.parentId) && !ids.includes(task.id)) ids.push(task.id); if (ids.length === size) break; }
@@ -134,5 +134,5 @@ export const gatewayRotationExternalCases = [definition("gateways-profiles.rotat
     await expect(main).not.toContainText("Waiting for you to reveal");
     await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });
   },
-  async cleanup(ctx, state) { const fixture = fixtures.get(ctx); fixtures.delete(ctx); try { const gateway = state.gateway as ToolMcpGatewayWithTokens | undefined; const agentTokenIds = Array.isArray(state.agentTokenIds) ? state.agentTokenIds as string[] : []; for (const id of [fixture?.old?.id, fixture?.other?.id, fixture?.replacement?.id, ...agentTokenIds]) if (id) await ctx.input.api.post(`/api/tool-gateway/gateway-tokens/${id}/revoke`, { companyId: ctx.input.fixtures.company.id }); if (gateway) await ctx.input.api.patch(`/api/tool-gateway/gateways/${gateway.id}`, { companyId: ctx.input.fixtures.company.id, status: "disabled" }); if (typeof state.connectionId === "string") await ctx.input.api.delete(`/api/tool-connections/${state.connectionId}`, { allowNotFound: true }); } finally { await fixture?.provider.close(); } },
+  async cleanup(ctx, state) { const fixture = fixtures.get(ctx); fixtures.delete(ctx); try { const gateway = state.gateway as ToolMcpGatewayWithTokens | undefined; const agentTokenIds = Array.isArray(state.agentTokenIds) ? state.agentTokenIds as string[] : []; for (const id of [fixture?.old?.id, fixture?.other?.id, fixture?.replacement?.id, ...agentTokenIds]) if (id) await ctx.input.api.post(`/api/tool-gateway/gateway-tokens/${id}/revoke`, { spaceId: ctx.input.fixtures.space.id }); if (gateway) await ctx.input.api.patch(`/api/tool-gateway/gateways/${gateway.id}`, { spaceId: ctx.input.fixtures.space.id, status: "disabled" }); if (typeof state.connectionId === "string") await ctx.input.api.delete(`/api/tool-connections/${state.connectionId}`, { allowNotFound: true }); } finally { await fixture?.provider.close(); } },
 })];

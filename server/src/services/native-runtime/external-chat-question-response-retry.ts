@@ -33,7 +33,7 @@ export async function resolveQuestionResponseRetryAdmission(
         current.scheduledRetryAttempt === null || current.scheduledRetryAttempt < 1 || current.scheduledRetryAttempt > 2) return null;
     seen.add(current.id);
     const query = tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, current.retryOfRunId),
-      eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.agentId, run.agentId)));
+      eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.agentId, run.agentId)));
     const [parent] = await (lockMode === "read" ? query : lockMode === "nonblocking"
       ? query.for("update", { noWait: true }) : query.for("update"));
     if (!parent || seen.has(parent.id)) return null;

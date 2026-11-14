@@ -135,7 +135,7 @@ pub(crate) fn next_authority_config(
     if command.command_type != "run.attach" {
         return Ok(None);
     }
-    let Some(boundary) = command.payload.get("paperclipNextAuthority") else {
+    let Some(boundary) = command.payload.get("outpostNextAuthority") else {
         return Ok(None);
     };
     let identity = boundary
@@ -2772,7 +2772,7 @@ mod tests {
         }
 
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-response-persistence-failure-{}",
+            "outpost-response-persistence-failure-{}",
             uuid::Uuid::new_v4()
         ));
         let config = config(directory.clone());
@@ -2888,7 +2888,7 @@ mod tests {
             "outbox_full",
         ] {
             let directory = std::env::temp_dir().join(format!(
-                "paperclip-startup-facts-{mode}-{}",
+                "outpost-startup-facts-{mode}-{}",
                 uuid::Uuid::new_v4()
             ));
             let mut config = config(directory.clone());
@@ -3127,7 +3127,7 @@ mod tests {
             }
         }
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-host-retirement-{}",
+            "outpost-host-retirement-{}",
             uuid::Uuid::new_v4()
         ));
         let config = config(directory.clone());
@@ -3334,7 +3334,7 @@ mod tests {
             (Some(false), false, "parked", vec!["proof", "prepare"]),
         ] {
             let directory = std::env::temp_dir()
-                .join(format!("paperclip-host-prepare-{}", uuid::Uuid::new_v4()));
+                .join(format!("outpost-host-prepare-{}", uuid::Uuid::new_v4()));
             let config = config(directory.clone());
             let store = DurableStateStore::new(&config.state_dir).unwrap();
             let mut state = DurableState::new(&config);
@@ -3444,7 +3444,7 @@ mod tests {
         }
         for eof in [false, true] {
             let directory = std::env::temp_dir().join(format!(
-                "paperclip-hosted-park-stop-{}-{eof}",
+                "outpost-hosted-park-stop-{}-{eof}",
                 std::process::id()
             ));
             let _ = fs::remove_dir_all(&directory);
@@ -3971,7 +3971,7 @@ mod tests {
         current.runner_digest = format!("sha256:{}", "a".repeat(64));
         let mut attach = command("run.attach");
         attach.payload = json!({
-            "paperclipNextAuthority": {
+            "outpostNextAuthority": {
                 "identity": {
                     "runnerInstanceId": current.runner_instance_id,
                     "environmentLeaseId": current.environment_lease_id,
@@ -4060,7 +4060,7 @@ mod tests {
             }
         }
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-explicit-drain-prefix-{}",
+            "outpost-explicit-drain-prefix-{}",
             uuid::Uuid::new_v4()
         ));
         let mut config = config(directory.clone());
@@ -4185,7 +4185,7 @@ mod tests {
         }
         for mode in ["disk", "ack", "oversized"] {
             let directory = std::env::temp_dir()
-                .join(format!("paperclip-drain-{mode}-{}", uuid::Uuid::new_v4()));
+                .join(format!("outpost-drain-{mode}-{}", uuid::Uuid::new_v4()));
             let mut config = config(directory.clone());
             config.max_frame_bytes = 4096;
             config.max_outbox_bytes = 1_048_576;
@@ -4263,7 +4263,7 @@ mod tests {
         }
         for kind in ["turn.stop", "runner.suspend", "session.snapshot"] {
             let directory = std::env::temp_dir().join(format!(
-                "paperclip-control-first-retained-{}",
+                "outpost-control-first-retained-{}",
                 uuid::Uuid::new_v4()
             ));
             let mut config = config(directory.clone());
@@ -4328,7 +4328,7 @@ mod tests {
             }
         }
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-warm-readiness-prefix-{}",
+            "outpost-warm-readiness-prefix-{}",
             uuid::Uuid::new_v4()
         ));
         let mut config = config(directory.clone());
@@ -4447,7 +4447,7 @@ mod tests {
         }
         for fail_ack in [false, true] {
             let directory = std::env::temp_dir().join(format!(
-                "paperclip-attach-evidence-{}",
+                "outpost-attach-evidence-{}",
                 uuid::Uuid::new_v4()
             ));
             let config = config(directory.clone());
@@ -4525,7 +4525,7 @@ mod tests {
     #[test]
     fn warm_external_attachment_preserves_the_original_ingress() {
         let directory =
-            std::env::temp_dir().join(format!("paperclip-warm-external-{}", std::process::id()));
+            std::env::temp_dir().join(format!("outpost-warm-external-{}", std::process::id()));
         let _ = fs::remove_dir_all(&directory);
         let listener = std::net::TcpListener::bind("0.0.0.0:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -4543,7 +4543,7 @@ mod tests {
         let (mut state, _) = store.load_or_create(&current).unwrap();
         for run in 2..=3 {
             let mut attach = command("run.attach");
-            attach.payload = json!({"paperclipNextAuthority":{
+            attach.payload = json!({"outpostNextAuthority":{
                 "identity":{"runnerInstanceId":current.runner_instance_id,"environmentLeaseId":current.environment_lease_id,
                     "runId":format!("run_{run}"),"normalizedSessionId":current.normalized_session_id,
                     "turnId":format!("turn_{run}"),"itemId":format!("item_{run}")},
@@ -6433,7 +6433,7 @@ mod tests {
         let mut next_grant = grant.clone();
         next_grant.run_id = "run_2".to_owned();
         let mut attach = command("run.attach");
-        attach.payload = json!({"paperclipNextAuthority":{
+        attach.payload = json!({"outpostNextAuthority":{
             "identity":{"runnerInstanceId":current.runner_instance_id,"environmentLeaseId":current.environment_lease_id,
                 "runId":"run_2","normalizedSessionId":current.normalized_session_id,"turnId":"turn_2","itemId":"item_2"},
             "connection":{"mode":"external"}
@@ -6450,13 +6450,13 @@ mod tests {
         assert_eq!(next.turn_id, "turn_2");
         assert_eq!(next.item_id, "item_2");
         let mut injected = attach.clone();
-        injected.payload["paperclipNextAuthority"]["candidateAdmission"] = json!(next_grant);
+        injected.payload["outpostNextAuthority"]["candidateAdmission"] = json!(next_grant);
         assert!(next_authority_config(&injected, &current).is_err());
         assert_eq!(next.runner_instance_id, current.runner_instance_id);
         assert_eq!(next.environment_lease_id, current.environment_lease_id);
         assert_eq!(next.normalized_session_id, current.normalized_session_id);
         for (field, value) in [
-            ("companyId", json!("foreign-company")),
+            ("spaceId", json!("foreign-space")),
             ("agent", json!("antigravity")),
             ("model", json!("different-model")),
             ("profileDigest", json!(format!("sha256:{}", "f".repeat(64)))),
@@ -6469,7 +6469,7 @@ mod tests {
             ("normalizedSessionId", json!("foreign-session")),
         ] {
             let mut changed = injected.clone();
-            changed.payload["paperclipNextAuthority"]["candidateAdmission"][field] = value;
+            changed.payload["outpostNextAuthority"]["candidateAdmission"][field] = value;
             assert!(
                 next_authority_config(&changed, &current).is_err(),
                 "{field}"
@@ -6481,14 +6481,14 @@ mod tests {
             "normalizedSessionId",
         ] {
             let mut changed = attach.clone();
-            changed.payload["paperclipNextAuthority"]["identity"][field] = json!("foreign");
+            changed.payload["outpostNextAuthority"]["identity"][field] = json!("foreign");
             assert!(
                 next_authority_config(&changed, &current).is_err(),
                 "{field}"
             );
         }
         let mut missing = injected.clone();
-        missing.payload["paperclipNextAuthority"]
+        missing.payload["outpostNextAuthority"]
             .as_object_mut()
             .unwrap()
             .remove("candidateAdmission");

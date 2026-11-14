@@ -33,7 +33,7 @@ async function fixture(options: { failComments?: boolean; remote?: boolean; inco
   const workspacePath = join(root, "workspace"); const snapshots = join(privateDir, "snapshots");
   for (const directory of [workspacePath, snapshots, join(privateDir, "html-report"), join(privateDir, "blob-report")]) await mkdir(directory, { recursive: true });
   const execution = { id: "pi-native.runner-acpx-pi.local.native-questions", environment: { id: options.remote ? "daytona" : "local" }, profile: { qualificationCandidate: "pi" }, task: piNativeTasks.find(row => row.id === "native-questions")! } as FlowInput["execution"];
-  const issue = { id: "issue-fixture", identifier: "PI-1", title: "Provider-generated task name", companyId: "company-fixture", assigneeAgentId: "agent-fixture", status: "done" };
+  const issue = { id: "issue-fixture", identifier: "PI-1", title: "Provider-generated task name", spaceId: "space-fixture", assigneeAgentId: "agent-fixture", status: "done" };
   const run = { id: "run-fixture", status: "succeeded", runtimeMode: "native", createdAt: "2026-09-29T00:00:00Z" };
   const headers = ["Pi native color", "Pi native confirmation", "Pi native name", "Pi native draft"];
   let answered = 0; const typed: string[] = []; let answerProof = ""; let remoteFinished = false; const cleanupAssertions: Array<() => Promise<unknown>> = [];
@@ -51,9 +51,9 @@ async function fixture(options: { failComments?: boolean; remote?: boolean; inco
     post: async () => ({ name: "Pi fixture project" }),
     get: async (path: string) => {
       paths.push(path);
-      if (path === "/api/companies/company-fixture/issues?limit=100") return [issue];
+      if (path === "/api/spaces/space-fixture/issues?limit=100") return [issue];
       if (path === `/api/issues/${issue.id}`) return issue;
-      if (path === "/api/companies/company-fixture/heartbeat-runs?limit=100") return [run];
+      if (path === "/api/spaces/space-fixture/heartbeat-runs?limit=100") return [run];
       if (path === `/api/heartbeat-runs/${run.id}`) return run;
       if (path === `/api/issues/${issue.id}/interactions`) return interactions();
       if (path === `/api/issues/${issue.id}/comments`) {
@@ -93,13 +93,13 @@ async function fixture(options: { failComments?: boolean; remote?: boolean; inco
   };
   const input = {
     page: page as unknown as FlowInput["page"], api: api as unknown as FlowInput["api"],
-    fixtures: { company: { id: "company-fixture", issuePrefix: "PI" }, agent: { id: "agent-fixture", name: "Pi fixture" }, environment: { id: "environment-fixture" } } as FlowInput["fixtures"],
+    fixtures: { space: { id: "space-fixture", issuePrefix: "PI" }, agent: { id: "agent-fixture", name: "Pi fixture" }, environment: { id: "environment-fixture" } } as FlowInput["fixtures"],
     execution, nonce: "fixture", workspacePath, deadlineAt: Date.now() + 5000,
     restart: async () => { throw new Error("Unexpected restart"); }, observe: () => {}, capture, evidence,
     ...(options.remote ? { registerCleanupAssertion: (fn: () => Promise<unknown>) => cleanupAssertions.push(fn), remoteBootstrap: {
       prompt: () => "Read the bootstrap file only",
       bindAndRelease: async (value: { targets: string[]; actionPrompt(fixture: any): Promise<string> | string }) => {
-        expect(value.targets).toEqual(["pi-native-answers.json"]); const prompt = await value.actionPrompt(remoteFixture); expect(prompt).toContain("paperclip_native_question"); return remoteFixture;
+        expect(value.targets).toEqual(["pi-native-answers.json"]); const prompt = await value.actionPrompt(remoteFixture); expect(prompt).toContain("outpost_native_question"); return remoteFixture;
       },
     } } : {}),
   };

@@ -33,7 +33,7 @@ async function fixture() {
     signal: new AbortController().signal,
   });
   const binding = {
-    companyId: "company", issueId: "issue", runId: "run", agentId: "agent",
+    spaceId: "space", issueId: "issue", runId: "run", agentId: "agent",
     workspaceRoot: artifactRoot, executionTargetKind: "local" as const,
   };
   return { root, artifactRoot, args, binding, body, stage };

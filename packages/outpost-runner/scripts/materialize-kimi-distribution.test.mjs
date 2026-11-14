@@ -10,7 +10,7 @@ import { KIMI_DISTRIBUTION_LOCK_SHA256, KIMI_NODE_DISTRIBUTIONS } from "../src/d
 import { inventoryKimiRuntimeFiles, kimiRuntimeClosureDigest } from "../src/drivers/acpx/kimi-runtime-files.ts";
 
 async function fixture(t) {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-kimi-distribution-test-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-kimi-distribution-test-")));
   t.after(() => rm(root, { recursive: true, force: true }));
   const write = async (path, content) => { const file = join(root, path); await mkdir(dirname(file), { recursive: true }); await writeFile(file, content); };
   return { root, write };

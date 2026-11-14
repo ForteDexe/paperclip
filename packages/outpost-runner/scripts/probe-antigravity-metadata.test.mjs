@@ -12,12 +12,12 @@ import { antigravityMetadataEnvironment, createAntigravityMetadataRpc } from "./
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 const response = {
   protocolVersion: 1, agentInfo: { name: "antigravity-acp", title: "private-provider-text 🛰", version: "1.4.3" },
-  agentCapabilities: { loadSession: true, promptCapabilities: { image: true }, mcpCapabilities: { http: true }, sessionCapabilities: { list: {} }, auth: { logout: {} }, _meta: { antigravity: { tier: true, systemPrompt: { append: true }, paperclipAdmission: 1 } } },
+  agentCapabilities: { loadSession: true, promptCapabilities: { image: true }, mcpCapabilities: { http: true }, sessionCapabilities: { list: {} }, auth: { logout: {} }, _meta: { antigravity: { tier: true, systemPrompt: { append: true }, outpostAdmission: 1 } } },
   authMethods: [{ id: "oauth-personal", name: "private-provider-text" }, { id: "untrusted-auth-method", name: "private-provider-text" }],
 };
 
 async function fixture(t, behavior = "success") {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-antigravity-probe-test-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-antigravity-probe-test-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const scripts = join(root, "scripts");
   await mkdir(scripts);
@@ -49,7 +49,7 @@ process.stdin.on('data',chunk=>{
  if(behavior==='wrong-identity')result.agentInfo.name='another-harness';
  if(behavior==='wrong-protocol')result.protocolVersion=2;
  if(behavior==='bad-capabilities')result.agentCapabilities=[];
- if(behavior==='missing-patch')delete result.agentCapabilities._meta.antigravity.paperclipAdmission;
+ if(behavior==='missing-patch')delete result.agentCapabilities._meta.antigravity.outpostAdmission;
  if(behavior==='orphan-child') {
   descendant=spawn(process.execPath,['-e',"setInterval(()=>{},1000)"],{stdio:'ignore'});
   writeFileSync(${JSON.stringify(join(root, "descendant.json"))},JSON.stringify({pid:descendant.pid}));
@@ -70,10 +70,10 @@ process.stdin.on('end',()=>{if(behavior!=='ignore-stop')process.exit(0)});
   const item = { url: "https://dl.google.com/agy-extensions/releases/macos/fixture.zip", archiveSha256: "a".repeat(64), closureSha256, vendorClosureSha256: closureSha256, vendorEntries: entries, patchVersion: "1.4.3-outpost.1", admissionSourceSha256, provisioning: "verified-closure", executable: "agy_acp_server.par", args: [], entries };
   await writeFile(join(root, "antigravity-distributions.json"), JSON.stringify({ schema: "outpost.antigravity_distribution.v1", version: "1.4.3", platforms: { "darwin-arm64": item } }));
   const home = join(root, "operator-home");
-  const runtime = join(home, ".paperclip/runtimes/antigravity/darwin-arm64", closureSha256);
+  const runtime = join(home, ".outpost/runtimes/antigravity/darwin-arm64", closureSha256);
   await mkdir(runtime, { recursive: true, mode: 0o700 });
   for (const file of nativeFiles) await writeFile(join(runtime, file.path), file.content, { mode: 0o500 });
-  await writeFile(join(runtime, ".paperclip-antigravity-closure.json"), JSON.stringify({ schema: "outpost.antigravity_closure.v1", version: "1.4.3", patchVersion: item.patchVersion, admissionSourceSha256, archiveSha256: item.archiveSha256, vendorClosureSha256: closureSha256, closureSha256, entries }), { mode: 0o400 });
+  await writeFile(join(runtime, ".outpost-antigravity-closure.json"), JSON.stringify({ schema: "outpost.antigravity_closure.v1", version: "1.4.3", patchVersion: item.patchVersion, admissionSourceSha256, archiveSha256: item.archiveSha256, vendorClosureSha256: closureSha256, closureSha256, entries }), { mode: 0o400 });
   const api = await import(pathToFileURL(join(scripts, "probe-antigravity-metadata.mjs")));
   return {
     root, runtime, auditPath,
@@ -90,7 +90,7 @@ test("probe environment has only explicit sterile settings and cannot inherit cr
   assert.deepEqual(Object.keys(env).sort(), ["AGY_ACP_FORCE_FILE_STORAGE", "ANTIGRAVITY_HARNESS_PATH", "GEMINI_HOME", "HOME", "LANG", "NO_COLOR", "PATH", "TMPDIR", "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME"]);
 });
 
-test("initialize uses Paperclip identity, preserves split UTF-8 and cannot send another method", async () => {
+test("initialize uses Outpost identity, preserves split UTF-8 and cannot send another method", async () => {
   const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough() });
   let request = "";
   child.stdin.on("data", chunk => { request += chunk; });
@@ -133,7 +133,7 @@ test("real stdio probe sends initialize only, sanitizes metadata and removes its
   assert.equal(output.promptRequestsSent, 0);
   assert.equal(output.shutdown.exitCode, 0);
   assert.equal(output.shutdown.method, "eof");
-  assert.doesNotMatch(JSON.stringify(output), /sensitive|private-provider-text|paperclip-antigravity-metadata-/);
+  assert.doesNotMatch(JSON.stringify(output), /sensitive|private-provider-text|outpost-antigravity-metadata-/);
 });
 
 test("identity, version and protocol mismatches are rejected with sanitized diagnostics", async t => {

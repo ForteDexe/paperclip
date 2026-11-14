@@ -11,7 +11,7 @@ import {
 } from "@outpost/shared";
 import { MemoryRouter } from "@/lib/router";
 import { ONBOARDING_STORAGE_KEY } from "@/components/OnboardingWizard";
-import { STORYBOOK_COMPANY_ID } from "../fixtures/onboardingDraft";
+import { STORYBOOK_SPACE_ID } from "../fixtures/onboardingDraft";
 import {
   STORYBOOK_SANDBOX_ENVIRONMENT_ID,
   onboardingFixtureState,
@@ -21,7 +21,7 @@ import {
   storybookEnvironments,
 } from "../fixtures/onboardingEnvironment";
 import { BreadcrumbProvider } from "@/context/BreadcrumbContext";
-import { CompanyProvider } from "@/context/CompanyContext";
+import { SpaceProvider } from "@/context/SpaceContext";
 import { DialogProvider } from "@/context/DialogContext";
 import { EditorAutocompleteProvider } from "@/context/EditorAutocompleteContext";
 import { PanelProvider } from "@/context/PanelContext";
@@ -34,7 +34,7 @@ import {
   storybookAgents,
   storybookApprovals,
   storybookAuthSession,
-  storybookCompanies,
+  storybookSpaces,
   storybookDashboardSummary,
   storybookHiredAgent,
   storybookIssues,
@@ -48,7 +48,7 @@ import {
   storybookSecretProviders,
   storybookSecrets,
   storybookSidebarBadges,
-} from "../fixtures/paperclipData";
+} from "../fixtures/outpostData";
 import timelineSample from "../fixtures/workTimeline.human.sample.json";
 import "@mdxeditor/editor/style.css";
 import "./tailwind-entry.css";
@@ -97,12 +97,12 @@ installStorybookApiFixtures();
 function installStorybookApiFixtures() {
   if (typeof window === "undefined") return;
   const currentWindow = window as typeof window & {
-    __paperclipStorybookFetchInstalled?: boolean;
+    __outpostStorybookFetchInstalled?: boolean;
   };
-  if (currentWindow.__paperclipStorybookFetchInstalled) return;
+  if (currentWindow.__outpostStorybookFetchInstalled) return;
 
   const originalFetch = window.fetch.bind(window);
-  currentWindow.__paperclipStorybookFetchInstalled = true;
+  currentWindow.__outpostStorybookFetchInstalled = true;
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const rawUrl =
@@ -117,19 +117,19 @@ function installStorybookApiFixtures() {
       return Response.json(storybookAuthSession);
     }
 
-    if (url.pathname === "/api/companies") {
-      // The wizard's naming step creates a company here and reads its id back;
+    if (url.pathname === "/api/spaces") {
+      // The wizard's naming step creates a space here and reads its id back;
       // answering the POST with the list instead gave it an array, and the
-      // walk crashed on the step after. Hand back the fixture company as the
+      // walk crashed on the step after. Hand back the fixture space as the
       // one just created, so the arc can be walked from its first screen.
       if ((init?.method ?? "GET").toUpperCase() === "POST") {
         const body = init?.body ? (JSON.parse(String(init.body)) as { name?: string }) : {};
-        return Response.json({ ...storybookCompanies[0], name: body.name ?? storybookCompanies[0]?.name });
+        return Response.json({ ...storybookSpaces[0], name: body.name ?? storybookSpaces[0]?.name });
       }
-      return Response.json(storybookCompanies);
+      return Response.json(storybookSpaces);
     }
 
-    if (url.pathname === "/api/companies/company-storybook/user-directory") {
+    if (url.pathname === "/api/spaces/space-storybook/user-directory") {
       return Response.json({
         users: [
           {
@@ -190,18 +190,18 @@ function installStorybookApiFixtures() {
     // so a story picks them through `onboardingFixtureState` rather than getting
     // one hard-coded shape — an earlier version returned an empty environment
     // list here and made the panel invisible everywhere.
-    if (/^\/api\/companies\/[^/]+\/environments$/.test(url.pathname)) {
+    if (/^\/api\/spaces\/[^/]+\/environments$/.test(url.pathname)) {
       return Response.json(storybookEnvironments());
     }
 
     if (
-      /^\/api\/companies\/[^/]+\/environments\/capabilities$/.test(url.pathname)
+      /^\/api\/spaces\/[^/]+\/environments\/capabilities$/.test(url.pathname)
     ) {
       return Response.json(storybookEnvironmentCapabilities());
     }
 
     if (
-      /^\/api\/companies\/[^/]+\/adapters\/[^/]+\/auth-signal/.test(
+      /^\/api\/spaces\/[^/]+\/adapters\/[^/]+\/auth-signal/.test(
         url.pathname,
       )
     ) {
@@ -209,7 +209,7 @@ function installStorybookApiFixtures() {
     }
 
     if (
-      /^\/api\/companies\/[^/]+\/adapters\/[^/]+\/models$/.test(url.pathname)
+      /^\/api\/spaces\/[^/]+\/adapters\/[^/]+\/models$/.test(url.pathname)
     ) {
       return Response.json([]);
     }
@@ -227,7 +227,7 @@ function installStorybookApiFixtures() {
     // back here. So this is a genuinely different card, and the canvas holding it
     // has to size to it too.
     const adapterLoginMatch = url.pathname.match(
-      /^\/api\/companies\/[^/]+\/adapters\/([^/]+)\/login-sessions(?:\/([^/]+))?(\/cancel)?$/,
+      /^\/api\/spaces\/[^/]+\/adapters\/([^/]+)\/login-sessions(?:\/([^/]+))?(\/cancel)?$/,
     );
     if (adapterLoginMatch) {
       if (adapterLoginMatch[2] === "active") return new Response(null, { status: 404 });
@@ -266,7 +266,7 @@ function installStorybookApiFixtures() {
     // would cut that expansion off, and nothing short of driving the flow would
     // show it.
     if (
-      /^\/api\/companies\/[^/]+\/setup-token-login-sessions$/.test(url.pathname)
+      /^\/api\/spaces\/[^/]+\/setup-token-login-sessions$/.test(url.pathname)
     ) {
       return Response.json({
         sessionId: "setup-token-storybook",
@@ -276,11 +276,11 @@ function installStorybookApiFixtures() {
         failure: null,
       });
     }
-    if (/^\/api\/companies\/[^/]+\/setup-token-login-sessions\/active$/.test(url.pathname)) {
+    if (/^\/api\/spaces\/[^/]+\/setup-token-login-sessions\/active$/.test(url.pathname)) {
       return new Response(null, { status: 404 });
     }
     if (
-      /^\/api\/companies\/[^/]+\/setup-token-login-sessions\/[^/]+$/.test(
+      /^\/api\/spaces\/[^/]+\/setup-token-login-sessions\/[^/]+$/.test(
         url.pathname,
       )
     ) {
@@ -298,7 +298,7 @@ function installStorybookApiFixtures() {
     // login…" until it answers — so a fixture without it looks like a hung login
     // rather than a missing route, which is exactly how it was misread once.
     if (
-      /^\/api\/companies\/[^/]+\/setup-token-login-sessions\/[^/]+\/prompt$/.test(
+      /^\/api\/spaces\/[^/]+\/setup-token-login-sessions\/[^/]+\/prompt$/.test(
         url.pathname,
       )
     ) {
@@ -312,7 +312,7 @@ function installStorybookApiFixtures() {
     // completes; both are stubbed so the last stage of the flow — the one where
     // the card is at its tallest — can actually be reached.
     if (
-      /^\/api\/companies\/[^/]+\/setup-token-login-sessions\/[^/]+\/code$/.test(
+      /^\/api\/spaces\/[^/]+\/setup-token-login-sessions\/[^/]+\/code$/.test(
         url.pathname,
       )
     ) {
@@ -326,42 +326,42 @@ function installStorybookApiFixtures() {
       });
     }
     if (
-      /^\/api\/companies\/[^/]+\/claude-oauth-token-status$/.test(url.pathname)
+      /^\/api\/spaces\/[^/]+\/claude-oauth-token-status$/.test(url.pathname)
     ) {
       return onboardingFixtureState.savedClaudeLogin
         ? Response.json({ secretId: "saved-claude-subscription", latestVersion: 1 })
         : new Response(null, { status: 404 });
     }
-    if (/^\/api\/companies\/[^/]+\/ai-connections\/local\/attempts$/.test(url.pathname)) {
+    if (/^\/api\/spaces\/[^/]+\/ai-connections\/local\/attempts$/.test(url.pathname)) {
       const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
       return Response.json({ sessionId: "local-storybook", expiresAt: new Date(Date.now() + 1_800_000).toISOString(), command: body.provider === "anthropic"
-        ? "CLAUDE_CONFIG_DIR='/paperclip/login' claude auth login"
-        : "CODEX_HOME='/paperclip/login' codex login --device-auth" });
+        ? "CLAUDE_CONFIG_DIR='/outpost/login' claude auth login"
+        : "CODEX_HOME='/outpost/login' codex login --device-auth" });
     }
-    if (/^\/api\/companies\/[^/]+\/ai-connections\/local\/check$/.test(url.pathname)) {
+    if (/^\/api\/spaces\/[^/]+\/ai-connections\/local\/check$/.test(url.pathname)) {
       return Response.json({ status: onboardingFixtureState.localLoginStatus });
     }
-    if (/^\/api\/companies\/[^/]+\/ai-connections\/local$/.test(url.pathname)) {
+    if (/^\/api\/spaces\/[^/]+\/ai-connections\/local$/.test(url.pathname)) {
       const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
       if (onboardingFixtureState.localLoginStatus !== "ready") return Response.json({ error: "Finish signing in, then try Connect again." }, { status: 422 });
       if (onboardingFixtureState.connectPending) await new Promise(() => {});
       onboardingFixtureState.savedManagedSubscription = body.provider;
       return Response.json({ connectionId: "managed-storybook", grantId: "grant-storybook" });
     }
-    if (/^\/api\/companies\/[^/]+\/ai-connections$/.test(url.pathname)) {
+    if (/^\/api\/spaces\/[^/]+\/ai-connections$/.test(url.pathname)) {
       const provider = onboardingFixtureState.savedManagedSubscription;
       return init?.method === "POST"
         ? Response.json({ connectionId: "managed-storybook", grantId: "grant-storybook" })
         : Response.json({ currentUserId: "user-storybook", connections: provider ? [{
-            id: "managed-storybook", grantId: "grant-storybook", companyId: "company-storybook",
+            id: "managed-storybook", grantId: "grant-storybook", spaceId: "space-storybook",
             provider, method: "subscription", name: provider === "anthropic" ? "My Claude subscription" : "My OpenAI subscription",
             ownership: "personal", ownerUserId: "user-storybook", status: "connected", isDefault: true,
           }] : [] });
     }
-    if (/^\/api\/companies\/[^/]+\/me\/user-secrets$/.test(url.pathname)) {
+    if (/^\/api\/spaces\/[^/]+\/me\/user-secrets$/.test(url.pathname)) {
       return Response.json(onboardingFixtureState.savedApiKeys ? ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"].map((key) => ({
-        definition: { id: key, companyId: "company-storybook", key: `${key}.setup.storybook`, name: key === "ANTHROPIC_API_KEY" ? "My Claude key" : "My OpenAI key", status: "active" },
-        secret: { id: `secret-${key}`, companyId: "company-storybook", scope: "user", status: "active" },
+        definition: { id: key, spaceId: "space-storybook", key: `${key}.setup.storybook`, name: key === "ANTHROPIC_API_KEY" ? "My Claude key" : "My OpenAI key", status: "active" },
+        secret: { id: `secret-${key}`, spaceId: "space-storybook", scope: "user", status: "active" },
       })) : []);
     }
 
@@ -376,7 +376,7 @@ function installStorybookApiFixtures() {
     // The environment test, which is the hire's gate. It answers from the story's
     // auth state rather than always passing — see `storybookEnvironmentTest`.
     const testEnvMatch = url.pathname.match(
-      /^\/api\/companies\/[^/]+\/adapters\/([^/]+)\/test-environment$/,
+      /^\/api\/spaces\/[^/]+\/adapters\/([^/]+)\/test-environment$/,
     );
     if (testEnvMatch) {
       if (onboardingFixtureState.testPending) await new Promise(() => {});
@@ -392,7 +392,7 @@ function installStorybookApiFixtures() {
       const usesSavedClaude = onboardingFixtureState.savedClaudeLogin && env.CLAUDE_CODE_OAUTH_TOKEN?.type === "user_secret_ref" && env.CLAUDE_CODE_OAUTH_TOKEN?.key === "CLAUDE_CODE_OAUTH_TOKEN";
       return Response.json((body.aiConnection?.provider === onboardingFixtureState.savedManagedSubscription) || usesSavedCodex || usesSavedKey || usesSavedClaude ? { adapterType: testEnvMatch[1], status: "pass", checks: [], testedAt: new Date(0).toISOString() } : storybookEnvironmentTest(testEnvMatch[1]));
     }
-    if (/^\/api\/companies\/[^/]+\/agent-hires$/.test(url.pathname)) {
+    if (/^\/api\/spaces\/[^/]+\/agent-hires$/.test(url.pathname)) {
       // `approval: null` on purpose. A hire that returns one sends the wizard
       // through the approvals API before it advances, and this story is about
       // the step it lands on rather than the path it took.
@@ -410,7 +410,7 @@ function installStorybookApiFixtures() {
       }
       return Response.json({
         agentId: instructionsBundleMatch[1],
-        companyId: STORYBOOK_COMPANY_ID,
+        spaceId: STORYBOOK_SPACE_ID,
         mode: "managed",
         rootPath: null,
         managedRootPath: `/managed/agents/${instructionsBundleMatch[1]}`,
@@ -443,7 +443,7 @@ function installStorybookApiFixtures() {
         existingConnections: [
           {
             id: "connection-storybook-notion",
-            companyId: "company-storybook",
+            spaceId: "space-storybook",
             applicationId: "application-storybook-notion",
             name: "Board Operator’s Notion",
             uid: "notion/storybook",
@@ -461,23 +461,23 @@ function installStorybookApiFixtures() {
       });
     }
 
-    if (url.pathname === "/api/companies/company-storybook/tools/gallery") {
+    if (url.pathname === "/api/spaces/space-storybook/tools/gallery") {
       return Response.json({
         apps: CONNECTABLE_APP_DEFINITIONS.filter(
           (app) => app.slug === "notion",
         ),
         capabilities: {
-          canSetCompanyInstall: true,
-          companyInstallReason: null,
+          canSetSpaceInstall: true,
+          spaceInstallReason: null,
         },
       });
     }
     if (
-      url.pathname === "/api/companies/company-storybook/tools/applications"
+      url.pathname === "/api/spaces/space-storybook/tools/applications"
     ) {
       return Response.json({ applications: [] });
     }
-    if (url.pathname === "/api/companies/company-storybook/tools/connections") {
+    if (url.pathname === "/api/spaces/space-storybook/tools/connections") {
       return Response.json({ connections: [] });
     }
 
@@ -490,7 +490,7 @@ function installStorybookApiFixtures() {
           modelsCount: 4,
           loaded: true,
           disabled: false,
-          supportedRunners: ["paperclip", "legacy"],
+          supportedRunners: ["outpost", "legacy"],
           defaultRunner: "legacy",
           capabilities: {
             supportsInstructionsBundle: true,
@@ -517,7 +517,7 @@ function installStorybookApiFixtures() {
           modelsCount: 3,
           loaded: true,
           disabled: false,
-          supportedRunners: ["paperclip", "legacy"],
+          supportedRunners: ["outpost", "legacy"],
           defaultRunner: "legacy",
           capabilities: {
             supportsInstructionsBundle: true,
@@ -538,14 +538,14 @@ function installStorybookApiFixtures() {
           modelsCount: 0,
           loaded: true,
           disabled: false,
-          supportedRunners: ["paperclip"],
-          defaultRunner: "paperclip",
+          supportedRunners: ["outpost"],
+          defaultRunner: "outpost",
         },
       ]);
     }
 
     const adapterModelsMatch = url.pathname.match(
-      /^\/api\/companies\/[^/]+\/adapters\/([^/]+)\/(models|model-profiles)$/,
+      /^\/api\/spaces\/[^/]+\/adapters\/([^/]+)\/(models|model-profiles)$/,
     );
     if (adapterModelsMatch) {
       const [, , resource] = adapterModelsMatch;
@@ -578,46 +578,46 @@ function installStorybookApiFixtures() {
       const [, adapterType] = adapterSchemaMatch;
       const schemas = (
         window as typeof window & {
-          __paperclipStorybookAdapterSchemas?: Record<string, unknown>;
+          __outpostStorybookAdapterSchemas?: Record<string, unknown>;
         }
-      ).__paperclipStorybookAdapterSchemas;
+      ).__outpostStorybookAdapterSchemas;
       const schema = schemas?.[adapterType];
       if (schema) return Response.json(schema);
     }
 
     const secretsListMatch = url.pathname.match(
-      /^\/api\/companies\/([^/]+)\/secrets$/,
+      /^\/api\/spaces\/([^/]+)\/secrets$/,
     );
     if (secretsListMatch) {
-      const [, companyId] = secretsListMatch;
+      const [, spaceId] = secretsListMatch;
       return Response.json(
-        companyId === "company-storybook" && onboardingFixtureState.environments !== "local" ? [...storybookSecrets, ...(onboardingFixtureState.savedCodexLogin ? [{ ...storybookSecrets[0], id: "saved-codex-home", key: "codex_home_saved", name: "CODEX_HOME_team-account" }] : [])] : [],
+        spaceId === "space-storybook" && onboardingFixtureState.environments !== "local" ? [...storybookSecrets, ...(onboardingFixtureState.savedCodexLogin ? [{ ...storybookSecrets[0], id: "saved-codex-home", key: "codex_home_saved", name: "CODEX_HOME_team-account" }] : [])] : [],
       );
     }
 
     const secretProvidersMatch = url.pathname.match(
-      /^\/api\/companies\/([^/]+)\/secret-providers$/,
+      /^\/api\/spaces\/([^/]+)\/secret-providers$/,
     );
     if (secretProvidersMatch) {
       return Response.json(storybookSecretProviders);
     }
 
     const secretProviderHealthMatch = url.pathname.match(
-      /^\/api\/companies\/([^/]+)\/secret-providers\/health$/,
+      /^\/api\/spaces\/([^/]+)\/secret-providers\/health$/,
     );
     if (secretProviderHealthMatch) {
       return Response.json(storybookSecretProviderHealth);
     }
 
     const secretProviderConfigsMatch = url.pathname.match(
-      /^\/api\/companies\/([^/]+)\/secret-provider-configs$/,
+      /^\/api\/spaces\/([^/]+)\/secret-provider-configs$/,
     );
     if (secretProviderConfigsMatch) {
       return Response.json(storybookSecretProviderConfigs);
     }
 
     const secretProviderConfigDiscoveryPreviewMatch = url.pathname.match(
-      /^\/api\/companies\/([^/]+)\/secret-provider-configs\/discovery\/preview$/,
+      /^\/api\/spaces\/([^/]+)\/secret-provider-configs\/discovery\/preview$/,
     );
     if (
       secretProviderConfigDiscoveryPreviewMatch &&
@@ -651,35 +651,35 @@ function installStorybookApiFixtures() {
       );
     }
 
-    const companyResourceMatch = url.pathname.match(
-      /^\/api\/companies\/([^/]+)\/([^/]+)$/,
+    const spaceResourceMatch = url.pathname.match(
+      /^\/api\/spaces\/([^/]+)\/([^/]+)$/,
     );
-    if (companyResourceMatch) {
-      const [, companyId, resource] = companyResourceMatch;
+    if (spaceResourceMatch) {
+      const [, spaceId, resource] = spaceResourceMatch;
       if (resource === "agents") {
         return Response.json(
-          companyId === "company-storybook" ? storybookAgents : [],
+          spaceId === "space-storybook" ? storybookAgents : [],
         );
       }
       if (resource === "projects") {
         return Response.json(
-          companyId === "company-storybook" ? storybookProjects : [],
+          spaceId === "space-storybook" ? storybookProjects : [],
         );
       }
       if (resource === "approvals") {
         return Response.json(
-          companyId === "company-storybook" ? storybookApprovals : [],
+          spaceId === "space-storybook" ? storybookApprovals : [],
         );
       }
       if (resource === "dashboard") {
         return Response.json({
           ...storybookDashboardSummary,
-          companyId,
+          spaceId,
         });
       }
       if (resource === "timeline") {
         return Response.json(
-          companyId === "company-storybook"
+          spaceId === "space-storybook"
             ? storybookTimelineSample
             : {
                 actors: [],
@@ -706,7 +706,7 @@ function installStorybookApiFixtures() {
       }
       if (resource === "live-runs") {
         return Response.json(
-          companyId === "company-storybook" ? storybookLiveRuns : [],
+          spaceId === "space-storybook" ? storybookLiveRuns : [],
         );
       }
       if (resource === "inbox-dismissals") {
@@ -714,7 +714,7 @@ function installStorybookApiFixtures() {
       }
       if (resource === "sidebar-badges") {
         return Response.json(
-          companyId === "company-storybook"
+          spaceId === "space-storybook"
             ? storybookSidebarBadges
             : { inbox: 0, approvals: 0, failedRuns: 0, joinRequests: 0 },
         );
@@ -724,7 +724,7 @@ function installStorybookApiFixtures() {
       }
       if (resource === "issues") {
         const query = url.searchParams.get("q")?.trim().toLowerCase();
-        const issues = companyId === "company-storybook" ? storybookIssues : [];
+        const issues = spaceId === "space-storybook" ? storybookIssues : [];
         return Response.json(
           query
             ? issues.filter((issue) =>
@@ -818,7 +818,7 @@ function StorybookProviders({
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <MemoryRouter initialEntries={initialEntries ?? ["/PAP/storybook"]}>
-          <CompanyProvider>
+          <SpaceProvider>
             <EditorAutocompleteProvider>
               <ToastProvider>
                 <TooltipProvider>
@@ -832,7 +832,7 @@ function StorybookProviders({
                 </TooltipProvider>
               </ToastProvider>
             </EditorAutocompleteProvider>
-          </CompanyProvider>
+          </SpaceProvider>
         </MemoryRouter>
       </ThemeProvider>
     </QueryClientProvider>
@@ -850,14 +850,14 @@ const preview: Preview = {
         ? Number.parseInt(width, 10) : undefined;
       return (
         <StorybookProviders key={`${context.id}:${theme}`} theme={theme} initialViewportWidth={initialViewportWidth} initialEntries={context.parameters.initialEntries}>
-          {context.parameters.paperclip?.home === "design-proposals" && context.parameters.designProposalTheme !== false ? <AvatarInitialProvider><div className="design-proposal-theme"><Story /></div></AvatarInitialProvider> : <Story />}
+          {context.parameters.outpost?.home === "design-proposals" && context.parameters.designProposalTheme !== false ? <AvatarInitialProvider><div className="design-proposal-theme"><Story /></div></AvatarInitialProvider> : <Story />}
         </StorybookProviders>
       );
     },
   ],
   globalTypes: {
     theme: {
-      description: "Paperclip color mode",
+      description: "Outpost color mode",
       defaultValue: "dark",
       toolbar: {
         title: "Theme",

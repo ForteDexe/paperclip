@@ -44,7 +44,7 @@ export function parseNovitaDriverConfig(raw: Record<string, unknown>): NovitaDri
     apiKey: parseOptionalString(raw.apiKey),
     domain: parseOptionalString(raw.domain),
     template: parseOptionalString(raw.template),
-    requestedCwd: parseOptionalString(raw.requestedCwd) ?? "/home/user/paperclip-workspace",
+    requestedCwd: parseOptionalString(raw.requestedCwd) ?? "/home/user/outpost-workspace",
     timeoutMs: parsePositiveInteger(raw.timeoutMs, 300_000),
     requestTimeoutMs: parsePositiveInteger(raw.requestTimeoutMs, 30_000),
     secure: typeof raw.secure === "boolean" ? raw.secure : null,
@@ -105,7 +105,7 @@ function isValidShellEnvKey(value: string): boolean {
 }
 
 function buildStdinPath(): string {
-  return `/tmp/.paperclip-stdin-${randomUUID()}`;
+  return `/tmp/.outpost-stdin-${randomUUID()}`;
 }
 
 export function buildShellCommand(input: {
@@ -147,11 +147,11 @@ export function buildShellCommand(input: {
 
 async function createSandbox(params: PluginEnvironmentAcquireLeaseParams | PluginEnvironmentProbeParams, config: NovitaDriverConfig) {
   const metadata = {
-    "paperclip-provider": "novita",
-    "paperclip-company-id": params.companyId,
-    "paperclip-environment-id": params.environmentId,
-    ...(params.issueId ? { "paperclip-issue-id": params.issueId } : {}),
-    ...("runId" in params ? { "paperclip-run-id": params.runId } : {}),
+    "outpost-provider": "novita",
+    "outpost-space-id": params.spaceId,
+    "outpost-environment-id": params.environmentId,
+    ...(params.issueId ? { "outpost-issue-id": params.issueId } : {}),
+    ...("runId" in params ? { "outpost-run-id": params.runId } : {}),
   };
   const opts = {
     ...sandboxOpts(config),

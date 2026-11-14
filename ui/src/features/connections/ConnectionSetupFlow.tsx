@@ -62,7 +62,7 @@ import {
   isGoogleWorkspaceConnectorProfileId,
 } from "@outpost/shared";
 import { useNavigate, useParams, useSearchParams } from "@/lib/router";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useToast } from "@/context/ToastContext";
 import { useChatConnectorsEnabled, chatProviderVisible } from "@/hooks/useChatConnectorsEnabled";
@@ -120,7 +120,7 @@ type Step = "gallery" | "key" | "success";
 export type OAuthConnectPhase = "entry" | "starting" | "redirecting" | "error";
 
 type EnrollmentAccessState = {
-  companyId: string;
+  spaceId: string;
   grantKind: ConnectionGrantKind;
   installChoice: "specific" | "all";
   agentIds: string[];
@@ -133,7 +133,7 @@ function enrollmentAccessStorageKey(appKey: string): string {
 function validEnrollmentAccessState(value: unknown): value is EnrollmentAccessState {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const candidate = value as Record<string, unknown>;
-  if (typeof candidate.companyId !== "string" || !candidate.companyId.trim()) return false;
+  if (typeof candidate.spaceId !== "string" || !candidate.spaceId.trim()) return false;
   if (!(candidate.grantKind === "user" || candidate.grantKind === "agent" || candidate.grantKind === "organization")) {
     return false;
   }
@@ -150,12 +150,12 @@ function validEnrollmentAccessState(value: unknown): value is EnrollmentAccessSt
 }
 
 function saveEnrollmentAccessState(
-  companyId: string,
+  spaceId: string,
   appKey: string,
-  state: Omit<EnrollmentAccessState, "companyId">,
+  state: Omit<EnrollmentAccessState, "spaceId">,
 ): void {
   try {
-    window.sessionStorage.setItem(enrollmentAccessStorageKey(appKey), JSON.stringify({ ...state, companyId }));
+    window.sessionStorage.setItem(enrollmentAccessStorageKey(appKey), JSON.stringify({ ...state, spaceId }));
   } catch {
     // Browser storage can be unavailable under restrictive privacy settings.
     // The callback will safely use the provider's defaults in that case.
@@ -253,7 +253,7 @@ export function retainedResumeMatches(input: {
     )
     && resumeApplication
     && resumeConnection.applicationId === resumeApplication.id
-    && resumeConnection.companyId === resumeApplication.companyId
+    && resumeConnection.spaceId === resumeApplication.spaceId
     && appApplicationSourceSlug(resumeApplication) === requestedAppKey
     && appConnectionSourceSlug(resumeConnection) === requestedAppKey,
   );
@@ -367,7 +367,7 @@ const OAUTH_SIGN_IN_STEP_LABELS = ["Sign in"];
 /**
  * Which identity a fresh connection should default to (PAP-17835).
  *
- * Company identity is the product default whenever the selected method permits
+ * Space identity is the product default whenever the selected method permits
  * it. Personal-only methods still stay personal, and reconnects preserve their
  * original identity through the explicit reconnect hint.
  */
@@ -458,8 +458,8 @@ function recommendedManagedConnectorMethod(
       ? entry.methods.filter(
           (candidate) =>
             (candidate.purpose ?? "tool") === "tool" &&
-            (candidate.oauthStrategy === "paperclip_cloud_connector" ||
-              candidate.oauthStrategy === "paperclip_id_connector"),
+            (candidate.oauthStrategy === "outpost_cloud_connector" ||
+              candidate.oauthStrategy === "outpost_id_connector"),
         )
       : [],
   );
@@ -559,7 +559,7 @@ export interface ConnectionSetupFlowProps {
   additionalSettingsValid?: boolean;
   upstreamServiceName?: string;
   aiConnection?: import("@outpost/shared").AiConnectionBinding | Pick<import("@outpost/shared").AiConnectionBinding, "provider" | "method" | "mode">;
-  /** A company service requires a company-owned credential. Existing grants are never broadened. */
+  /** A space service requires a space-owned credential. Existing grants are never broadened. */
   requiredAiOwnership?: "shared";
   /** Provider-specific authentication inside the existing access/setup shell. Undefined retains the standard credential form. */
   renderCredentialStep?: (context: { app: AppDefinition; name: string; grantKind: ConnectionGrantKind; agentIds: string[]; allAgents: boolean; onBack: () => void }) => ReactNode;
@@ -591,25 +591,25 @@ export interface ConnectionSetupFlowProps {
 export function ConnectionSetupFlow(props: ConnectionSetupFlowProps = {}) {
   const [searchParams] = useSearchParams();
   const params = useParams<{ appKey?: string }>();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const memory = useMemoryConnectorsEnabled();
   const availability = useConnectorAvailability();
   const interactionId = props.interactionId || searchParams.get("intent") || undefined;
   const source = (props.serviceSlug || searchParams.get("source") || params.appKey || searchParams.get("appKey"))?.trim() || undefined;
   const draftId = useMemo(() => {
     if (interactionId && isRemoteMcpConnectorId(source)) {
-      try { return sessionStorage.getItem(`paperclip:mcp-intent-draft:${selectedCompanyId}:${interactionId}`); } catch { /* Storage may be disabled. */ }
+      try { return sessionStorage.getItem(`outpost:mcp-intent-draft:${selectedSpaceId}:${interactionId}`); } catch { /* Storage may be disabled. */ }
     }
     return null;
-  }, [interactionId, selectedCompanyId, source]);
+  }, [interactionId, selectedSpaceId, source]);
   const existingId = props.configuredConnection?.id || searchParams.get("resume") || searchParams.get("reconnect") || draftId;
   const requestedDefinition = getConnectableAppDefinition(source ?? "");
   const lookup = Boolean(existingId && (!source || isRemoteMcpConnectorId(source) || isMemoryConnectorId(source) || requestedDefinition?.experimentalFeatureKey));
   const existing = useQuery({ queryKey: ["tools", "connection", existingId], queryFn: () => toolsApi.getConnection(existingId!), enabled: lookup });
-  const applications = useQuery({ queryKey: queryKeys.tools.applications(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listApplications(selectedCompanyId!), enabled: Boolean(existingId && selectedCompanyId) });
-  const connections = useQuery({ queryKey: queryKeys.tools.connections(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listConnections(selectedCompanyId!), enabled: Boolean(existingId && selectedCompanyId) });
+  const applications = useQuery({ queryKey: queryKeys.tools.applications(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listApplications(selectedSpaceId!), enabled: Boolean(existingId && selectedSpaceId) });
+  const connections = useQuery({ queryKey: queryKeys.tools.connections(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listConnections(selectedSpaceId!), enabled: Boolean(existingId && selectedSpaceId) });
   const retained = existing.data ?? connections.data?.connections.find(item => item.id === existingId);
   const application = applications.data?.applications.find(item => item.id === (retained?.applicationId ?? props.configuredConnection?.applicationId));
   const persistedDefinition = application?.applicationKey != null
@@ -631,7 +631,7 @@ export function ConnectionSetupFlow(props: ConnectionSetupFlowProps = {}) {
     if (!memory.loaded) return <p className="p-6 text-sm text-muted-foreground">Loading connection settings…</p>;
     if (!memory.enabled) return <p role="status" className="p-6 text-sm text-muted-foreground">Enable memory connectors in Settings → Experimental to set up this connection.</p>;
   }
-  if (!props.byoOnly && (props.credentialSource ?? "paperclip_vault") === "paperclip_vault"
+  if (!props.byoOnly && (props.credentialSource ?? "outpost_vault") === "outpost_vault"
     && isRemoteMcpConnectorId(provider) && (!method || isRemoteMcpConnectorMethod(provider, method))) {
     const target = findAggregatorApp(provider, searchParams.get("targetToolkit"));
     return <RemoteMcpProductionSetup key={`${interactionId || "page"}:${provider}`} {...props} upstreamServiceName={props.upstreamServiceName ?? target?.name} interactionId={interactionId} providerId={provider} connection={existing.data} />;
@@ -644,7 +644,7 @@ function StandardConnectionSetupFlow({
   connectionSettings,
   additionalSettingsValid = true,
   byoOnly = false,
-  credentialSource = "paperclip_vault",
+  credentialSource = "outpost_vault",
   host = "page",
   serviceSlug,
   requestedAgentId,
@@ -674,7 +674,7 @@ function StandardConnectionSetupFlow({
     else routeNavigate(to);
   }, [host, routeNavigate]);
   const routeParams = useParams<{ appKey?: string }>();
-  const { selectedCompany, selectedCompanyId } = useCompany();
+  const { selectedSpace, selectedSpaceId } = useSpace();
   const { enabled: chatConnectorsEnabled, githubEnabled } = useChatConnectorsEnabled();
   const { enabled: memoryConnectorsEnabled } = useMemoryConnectorsEnabled();
   const connectorAvailability = useConnectorAvailability();
@@ -702,7 +702,7 @@ function StandardConnectionSetupFlow({
       : null;
   const vercelConnectMode = credentialSource === "vercel_connect";
   const directOAuthCandidate = serviceSlug ?? sourceSlug;
-  const directOAuthSource = credentialSource === "paperclip_vault"
+  const directOAuthSource = credentialSource === "outpost_vault"
     && isMcpDirectOAuthConnectSlug(directOAuthCandidate)
     ? directOAuthCandidate
     : null;
@@ -746,7 +746,7 @@ function StandardConnectionSetupFlow({
   const [linkNeedsKey, setLinkNeedsKey] = useState(false);
   const [linkKey, setLinkKey] = useState("");
   // Generic ("connect your own MCP server") flow state. `authMode: auto` is the
-  // simple path: Paperclip probes the endpoint and branches on what it finds.
+  // simple path: Outpost probes the endpoint and branches on what it finds.
   const [linkAuthMode, setLinkAuthMode] = useState<GenericMcpAuthMode>("auto");
   const [linkHeaders, setLinkHeaders] = useState<CustomHeaderRow[]>(() => [newCustomHeaderRow()]);
   const [linkOAuthClientId, setLinkOAuthClientId] = useState("");
@@ -809,7 +809,7 @@ function StandardConnectionSetupFlow({
   const [dialogOAuthConnectionId, setDialogOAuthConnectionId] = useState<string | null>(null);
   const [authorizationFallbackUrl, setAuthorizationFallbackUrl] = useState<string | null>(null);
   const oauthHandoffAbortRef = useRef<AbortController | null>(null);
-  const oauthLookupScope = JSON.stringify([selectedCompanyId, requestedAppKey, resumeConnectionId, connectionIntentId, credentialSource, host, createNewConnection]);
+  const oauthLookupScope = JSON.stringify([selectedSpaceId, requestedAppKey, resumeConnectionId, connectionIntentId, credentialSource, host, createNewConnection]);
   const oauthLookupScopeRef = useRef(oauthLookupScope);
   oauthLookupScopeRef.current = oauthLookupScope;
   const pendingOAuthLookupRef = useRef<{ scope: string; account: ReturnType<typeof bindAccount> } | null>(null);
@@ -952,7 +952,7 @@ function StandardConnectionSetupFlow({
     };
     window.addEventListener("message", receiveOAuthOutcome);
     return () => { disposed = true; window.removeEventListener("message", receiveOAuthOutcome); };
-  }, [connectionIntentId, host, onComplete, onOAuthDeclined, navigate, queryClient, selectedCompanyId]);
+  }, [connectionIntentId, host, onComplete, onOAuthDeclined, navigate, queryClient, selectedSpaceId]);
 
   // Standalone dialog hosts have no task interaction to receive a callback.
   // Wait for this popup to return to our origin, then verify durable state via
@@ -1016,7 +1016,7 @@ function StandardConnectionSetupFlow({
    * definition — the generic path stays available either way.
    */
   const useMatchedGalleryEntry = (picked: AppDefinition) => {
-    if (host === "page" && !connectionIntentId && credentialSource === "paperclip_vault" && isRemoteMcpConnectorId(picked.slug)) {
+    if (host === "page" && !connectionIntentId && credentialSource === "outpost_vault" && isRemoteMcpConnectorId(picked.slug)) {
       navigate(`/apps/connect?source=${picked.slug}`);
       return;
     }
@@ -1034,7 +1034,7 @@ function StandardConnectionSetupFlow({
       navigate(withConnectionIntent("/apps/connect?source=zapier", connectionIntentId));
       return;
     }
-    if (credentialSource === "paperclip_vault" && canUseAutomaticOAuthFastPath(picked)) {
+    if (credentialSource === "outpost_vault" && canUseAutomaticOAuthFastPath(picked)) {
       navigate(appSourceConnectHref(picked.slug, connectionIntentId));
       return;
     }
@@ -1090,13 +1090,13 @@ function StandardConnectionSetupFlow({
   }, [byoOnly, host, setBreadcrumbs, vercelConnectMode]);
 
   const galleryQuery = useQuery({
-    queryKey: queryKeys.apps.gallery(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listGallery(selectedCompanyId!),
+    queryKey: queryKeys.apps.gallery(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listGallery(selectedSpaceId!),
     select: useCallback((data: Awaited<ReturnType<typeof toolsApi.listGallery>>) => connectionIntentId || aiConnection ? {
       ...data,
       apps: data.apps.map(app => ({ ...app, methods: app.methods.filter(method => aiConnection ? method.ai?.provider === aiConnection.provider && (aiConnection.mode === "responsible_user" || method.ai.method === aiConnection.method) : method.transport !== "runtime_auth") })).filter(app => app.methods.length > 0),
     } : data, [connectionIntentId, aiConnection?.provider, aiConnection?.method, aiConnection?.mode]),
-    enabled: !!selectedCompanyId,
+    enabled: !!selectedSpaceId,
   });
   const galleryView = useQueryView(galleryQuery);
   const callbackUrlForSetup = oauthCallbackUrlForBrowser(
@@ -1128,14 +1128,14 @@ function StandardConnectionSetupFlow({
   ));
   const requestedDefinitionUsesManagedConnector = !selectedCustomOAuth && !selectedRuntimeAuth && Boolean(
     fullRequestedDefinition?.methods.some((candidate) =>
-      candidate.oauthStrategy === "paperclip_cloud_connector"
-      || candidate.oauthStrategy === "paperclip_id_connector"
+      candidate.oauthStrategy === "outpost_cloud_connector"
+      || candidate.oauthStrategy === "outpost_id_connector"
     ),
   );
   const entryAdvertisesManagedConnector = Boolean(
     entry?.methods.some((candidate) =>
-      candidate.oauthStrategy === "paperclip_cloud_connector"
-      || candidate.oauthStrategy === "paperclip_id_connector"
+      candidate.oauthStrategy === "outpost_cloud_connector"
+      || candidate.oauthStrategy === "outpost_id_connector"
     ),
   );
   // Before a self-hosted instance enrolls, the server intentionally withholds
@@ -1154,7 +1154,7 @@ function StandardConnectionSetupFlow({
     queryFn: () => toolsApi.getCloudConnectorEnrollment(),
     refetchInterval: enrollmentAuthorizationUrl ? 2_000 : false,
     enabled: Boolean(
-      selectedCompanyId
+      selectedSpaceId
       && requestedDefinitionUsesManagedConnector
       && !entryAdvertisesManagedConnector
     ),
@@ -1167,13 +1167,13 @@ function StandardConnectionSetupFlow({
     setEnrollmentAuthorizationUrl(null);
   }, []);
   const preserveEnrollmentAccess = useCallback(() => {
-    if (!selectedCompanyId || !requestedAppKey) return;
-    saveEnrollmentAccessState(selectedCompanyId, requestedAppKey, {
+    if (!selectedSpaceId || !requestedAppKey) return;
+    saveEnrollmentAccessState(selectedSpaceId, requestedAppKey, {
       grantKind,
       installChoice,
       agentIds: installChoice === "specific" ? [...installAgentIds] : [],
     });
-  }, [grantKind, installAgentIds, installChoice, requestedAppKey, selectedCompanyId]);
+  }, [grantKind, installAgentIds, installChoice, requestedAppKey, selectedSpaceId]);
   const openConnectorEnrollment = useCallback((verificationUrl: string) => {
     const target = resolveAuthorizationTarget(verificationUrl);
     if (!target.ok) {
@@ -1200,8 +1200,8 @@ function StandardConnectionSetupFlow({
   }, [enrollmentAuthorizationUrl, connectorEnrollmentQuery.data?.status, galleryQuery.refetch, closeEnrollmentPopup]);
   const startConnectorEnrollment = useMutation({
     mutationFn: () => toolsApi.startCloudConnectorEnrollment(
-      selectedCompanyId!,
-      selectedCompany?.name,
+      selectedSpaceId!,
+      selectedSpace?.name,
       requestedAppKey
         ? appConnectHref(requestedAppKey, "key", credentialSource, {
             resumeConnectionId,
@@ -1226,15 +1226,15 @@ function StandardConnectionSetupFlow({
     },
   });
   const applicationsQuery = useQuery({
-    queryKey: queryKeys.tools.applications(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listApplications(selectedCompanyId!),
-    enabled: !!selectedCompanyId && (!!directOAuthSource || !!resumeConnectionId || !!reconnectConnectionId),
+    queryKey: queryKeys.tools.applications(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listApplications(selectedSpaceId!),
+    enabled: !!selectedSpaceId && (!!directOAuthSource || !!resumeConnectionId || !!reconnectConnectionId),
     refetchOnMount: "always",
   });
   const connectionsQuery = useQuery({
-    queryKey: queryKeys.tools.connections(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listConnections(selectedCompanyId!),
-    enabled: !!selectedCompanyId && (!!directOAuthSource || !!resumeConnectionId || !!reconnectConnectionId),
+    queryKey: queryKeys.tools.connections(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listConnections(selectedSpaceId!),
+    enabled: !!selectedSpaceId && (!!directOAuthSource || !!resumeConnectionId || !!reconnectConnectionId),
     refetchOnMount: "always",
   });
   const applicationsView = useQueryView(applicationsQuery);
@@ -1317,7 +1317,7 @@ function StandardConnectionSetupFlow({
     setWorkspaceConsent(null);
     setWorkspaceConnection(undefined);
     setWorkspaceDraft(undefined);
-  }, [selectedCompanyId, requestedAppKey, identityConnection?.id]);
+  }, [selectedSpaceId, requestedAppKey, identityConnection?.id]);
   const reconnectGrantKind: ConnectionGrantKind | null = identityConnection
     ? identityConnection.credentialPolicy === "per_user"
       ? "user"
@@ -1356,8 +1356,8 @@ function StandardConnectionSetupFlow({
   const entryAutomaticOAuthMethod = selectedSetupMethod && connectionMethodSupportsAutomaticOAuth(selectedSetupMethod)
     ? selectedSetupMethod
     : automaticOAuthMethod(entry);
-  const automaticOAuthEntry = credentialSource === "paperclip_vault" && entryAutomaticOAuthMethod ? entry : null;
-  const directOAuthEntry = credentialSource === "paperclip_vault" && canUseAutomaticOAuthFastPath(entry) ? entry : null;
+  const automaticOAuthEntry = credentialSource === "outpost_vault" && entryAutomaticOAuthMethod ? entry : null;
+  const directOAuthEntry = credentialSource === "outpost_vault" && canUseAutomaticOAuthFastPath(entry) ? entry : null;
   const directOAuthLookupPending = Boolean(directOAuthSource) && (
     !applicationsQuery.isFetchedAfterMount || !connectionsQuery.isFetchedAfterMount
   );
@@ -1459,7 +1459,7 @@ function StandardConnectionSetupFlow({
     const installState = !dedicatedIdentity && installChoice === "all"
       ? { onAll: true, agentIds: new Set<string>() }
       : { onAll: false, agentIds: installAgentIds };
-    const desired = installPayload(selectedCompanyId!, installState);
+    const desired = installPayload(selectedSpaceId!, installState);
     await toolsApi.putConnectionInstalls(connectionId, desired);
   };
 
@@ -1486,14 +1486,14 @@ function StandardConnectionSetupFlow({
           trimmedGalleryName || connectEntry.name,
           requestedGrantKind,
         );
-        result = await toolsApi.connectApp(selectedCompanyId!, {
+        result = await toolsApi.connectApp(selectedSpaceId!, {
           ...(connectEntry.slug === "google-workspace" && workspaceSelectionRef.current ? { workspaceServices: workspaceSelectionRef.current } : {}),
           galleryKey: connectEntry.slug,
           ...(instructionValue ? { agentInstructions: instructionValue } : {}),
           ...(connectionMethodKey ? { connectionMethodKey } : {}),
           name: connectionName,
           credentialSource,
-          ...(credentialSource === "paperclip_vault" ? { credentialValues: credentials } : {}),
+          ...(credentialSource === "outpost_vault" ? { credentialValues: credentials } : {}),
           ...(credentialSource === "vercel_connect"
             ? { vercelConnect: { connector: vercelConnector.trim() } }
             : {}),
@@ -1533,7 +1533,7 @@ function StandardConnectionSetupFlow({
           genericPayload.name ?? defaultGenericMcpName(linkUrl) ?? "Custom app",
           effectiveGrantKind,
         );
-        result = await toolsApi.connectApp(selectedCompanyId!, {
+        result = await toolsApi.connectApp(selectedSpaceId!, {
           ...genericPayload,
           ...(reconnectConnectionId ? { reconnectConnectionId } : {}),
           // Zapier issues a credential-bearing URL, so its branded setup keeps
@@ -1691,8 +1691,8 @@ function StandardConnectionSetupFlow({
     });
     const requestedEntryAdvertisesManagedConnector = Boolean(
       requestedEntry?.methods.some((candidate) =>
-        candidate.oauthStrategy === "paperclip_cloud_connector"
-        || candidate.oauthStrategy === "paperclip_id_connector"
+        candidate.oauthStrategy === "outpost_cloud_connector"
+        || candidate.oauthStrategy === "outpost_id_connector"
       ),
     );
     // The enrollment lookup decides whether a hidden managed method means
@@ -1718,7 +1718,7 @@ function StandardConnectionSetupFlow({
         : null
     ) ?? recommendedSetupConnectionMethod(methods);
     const method = methods.length === 1 ? methods[0]! : null;
-    const automaticOAuth = credentialSource === "paperclip_vault" && Boolean(automaticOAuthMethod(requestedEntry));
+    const automaticOAuth = credentialSource === "outpost_vault" && Boolean(automaticOAuthMethod(requestedEntry));
     const vercelUnavailable = isVercelConnectUnavailable({
       credentialSource,
       available: galleryQuery.data.credentialSources?.vercelConnect.available === true,
@@ -1773,7 +1773,7 @@ function StandardConnectionSetupFlow({
       setGoogleSheetsLinks("");
       setGoogleSheetsError(null);
       setConnectResult(null);
-      const matchingEnrollmentAccess = restoredEnrollmentAccess?.companyId === selectedCompanyId
+      const matchingEnrollmentAccess = restoredEnrollmentAccess?.spaceId === selectedSpaceId
         ? restoredEnrollmentAccess
         : null;
       setGrantKind(reconnectGrantKind ?? matchingEnrollmentAccess?.grantKind ?? defaultGrantKindFor(initialMethod, Boolean(requestedAgentId)));
@@ -1947,7 +1947,7 @@ function StandardConnectionSetupFlow({
       const selection: AppAccessSelection = installChoice === "all"
         ? "all_agents"
         : { agentIds: Array.from(installAgentIds) };
-      const finished = await toolsApi.finishApp(selectedCompanyId!, connected.connectionId, {
+      const finished = await toolsApi.finishApp(selectedSpaceId!, connected.connectionId, {
         enabledCatalogEntryIds: enabledIds,
         askFirstCatalogEntryIds: askFirstIds,
         ...(instructionValue ? { agentInstructions: instructionValue } : {}),
@@ -1962,7 +1962,7 @@ function StandardConnectionSetupFlow({
         setCompletedResumeConnectionId(resumeConnectionId);
       }
       await queryClient.invalidateQueries({ queryKey: ["tools"] });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedCompanyId!) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedSpaceId!) });
       setAppStep("success");
       onComplete?.({ connectionId: input.result.connectionId });
     },
@@ -1979,7 +1979,7 @@ function StandardConnectionSetupFlow({
     },
   });
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <div className="p-6 text-sm text-muted-foreground">Select an outpost to connect apps.</div>;
   }
 
@@ -2215,7 +2215,7 @@ function StandardConnectionSetupFlow({
       key="connection-defaults"
       extra={extra}
       forceOpen={forceOpen}
-      companyId={selectedCompanyId}
+      spaceId={selectedSpaceId}
       sentence={connectionDefaultSummarySentence({
         grantKind: effectiveGrantKind,
         authKind: accessStepAuthKind,
@@ -2229,8 +2229,8 @@ function StandardConnectionSetupFlow({
           ? galleryQuery.data.capabilities.organizationGrantReason
             ?? "Only a connection manager can share this credential with the outpost."
           : null,
-        galleryQuery.data?.capabilities?.canSetCompanyInstall === false
-          ? galleryQuery.data.capabilities.companyInstallReason
+        galleryQuery.data?.capabilities?.canSetSpaceInstall === false
+          ? galleryQuery.data.capabilities.spaceInstallReason
             ?? "Only someone who can configure this connection can give every agent access."
           : null,
         requestedAgentId ? "This task grants access only to the agent that asked for it." : null,
@@ -2375,12 +2375,12 @@ function StandardConnectionSetupFlow({
           directOAuthRetryingRef.current = true;
           try {
             const [applications, connections] = await Promise.all([
-              toolsApi.listApplications(selectedCompanyId!, { cache: "no-store", fresh: true }),
-              toolsApi.listConnections(selectedCompanyId!, { cache: "no-store", fresh: true }),
+              toolsApi.listApplications(selectedSpaceId!, { cache: "no-store", fresh: true }),
+              toolsApi.listConnections(selectedSpaceId!, { cache: "no-store", fresh: true }),
             ]);
             if (!isCurrentLookup()) return;
-            queryClient.setQueryData(queryKeys.tools.applications(selectedCompanyId!), applications);
-            queryClient.setQueryData(queryKeys.tools.connections(selectedCompanyId!), connections);
+            queryClient.setQueryData(queryKeys.tools.applications(selectedSpaceId!), applications);
+            queryClient.setQueryData(queryKeys.tools.connections(selectedSpaceId!), connections);
             const refreshedResumeConnection = resumeConnectionId
               ? (connections.connections ?? []).find(
                   (candidate) => candidate.id === resumeConnectionId && candidate.authKind === "oauth",
@@ -2507,9 +2507,9 @@ function StandardConnectionSetupFlow({
     : undefined;
   const aiMethod = reconnectAiMethod ?? entry?.methods.find(method => method.key === connectionMethodKey)?.ai
     ?? (!connectionMethodKey && entry?.methods.every(method => method.ai) ? entry.methods[0]?.ai : undefined);
-  const credentialStep = entry ? renderCredentialStep?.({ app: entry, name: galleryName || entry.name, grantKind: effectiveGrantKind, agentIds: [...installAgentIds], allAgents: installChoice === "all", onBack: () => backToGallery() }) ?? (aiMethod && selectedCompanyId ? <><AiConnectionCredentialStep
+  const credentialStep = entry ? renderCredentialStep?.({ app: entry, name: galleryName || entry.name, grantKind: effectiveGrantKind, agentIds: [...installAgentIds], allAgents: installChoice === "all", onBack: () => backToGallery() }) ?? (aiMethod && selectedSpaceId ? <><AiConnectionCredentialStep
     defaults={reconnectConnection ? undefined : connectionDefaults}
-    companyId={selectedCompanyId} provider={aiMethod.provider} fixedMethod={Boolean(aiConnection && aiConnection.mode !== "responsible_user")} initialMethod={reconnectConnection?.connectionPurpose === "ai" ? (reconnectConnection.config?.ai as { method: "subscription" | "api_key" }).method : aiMethod.method}
+    spaceId={selectedSpaceId} provider={aiMethod.provider} fixedMethod={Boolean(aiConnection && aiConnection.mode !== "responsible_user")} initialMethod={reconnectConnection?.connectionPurpose === "ai" ? (reconnectConnection.config?.ai as { method: "subscription" | "api_key" }).method : aiMethod.method}
     connectionId={reconnectConnection?.connectionPurpose === "ai" ? reconnectConnection.id : undefined}
     name={reconnectConnection?.connectionPurpose === "ai" ? reconnectConnection.name : galleryName || `My ${entry.name} ${aiMethod.method === "subscription" ? "subscription" : "API"}`}
     ownership={(reconnectConnection?.connectionPurpose === "ai" ? reconnectConnection.credentialPolicy === "shared" : effectiveGrantKind === "organization") ? "shared" : "personal"}
@@ -3840,7 +3840,7 @@ function KeyStep({
     </div>
   ) : null;
   const managedOAuthMethod = capabilityMethods.find((candidate) =>
-    candidate.oauthStrategy === "paperclip_cloud_connector",
+    candidate.oauthStrategy === "outpost_cloud_connector",
   );
   const customerOAuthMethod = managedOAuthMethod && capabilityMethods.find((candidate) =>
     connectionMethodAcceptsCustomerOAuthClient(candidate)
@@ -4303,10 +4303,10 @@ function MethodConfigField({
  * so the reader understands the identity and the reach the secret is about to
  * get. Hick's Law: two choices, not a matrix. Both use full-row radio targets.
  */
-export function AccessStep({ companyId, ...props }: Omit<Parameters<typeof AccessStepContent>[0], "agents" | "agentsLoading"> & { companyId: string }) {
+export function AccessStep({ spaceId, ...props }: Omit<Parameters<typeof AccessStepContent>[0], "agents" | "agentsLoading"> & { spaceId: string }) {
   const agentsQuery = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
   });
   const agentsView = useQueryView(agentsQuery);
   return <AccessStepContent {...props} agents={(agentsQuery.data ?? []).filter((agent) => agent.status !== "terminated")} agentsLoading={agentsQuery.isLoading || agentsView.kind === "reconnecting"} />;
@@ -4351,9 +4351,9 @@ export function AccessStepContent({
   setInstallAgentIds: (ids: Set<string>) => void;
   /** Task-hosted intents grant reach only to the agent that requested it. */
   lockedAgentId?: string;
-  capabilities?: Pick<ToolConnectionCreateCapabilities, "canCreateOrganizationGrant" | "canSetCompanyInstall"> & {
+  capabilities?: Pick<ToolConnectionCreateCapabilities, "canCreateOrganizationGrant" | "canSetSpaceInstall"> & {
     organizationGrantReason?: string | null;
-    companyInstallReason?: string | null;
+    spaceInstallReason?: string | null;
     editableAgentIds?: string[];
   } | null;
   githubIdentity?: boolean;
@@ -4377,10 +4377,10 @@ export function AccessStepContent({
   const agents = editableAgentIds
     ? allAgents.filter((agent) => editableAgentIds.includes(agent.id))
     : allAgents;
-  // Company-wide install is the connection creator's to give. When it is not
+  // Space-wide install is the connection creator's to give. When it is not
   // available the option stays visible and disabled with the reason, so the
   // scope stays legible instead of quietly disappearing.
-  const canSetCompanyInstall = capabilities?.canSetCompanyInstall ?? true;
+  const canSetSpaceInstall = capabilities?.canSetSpaceInstall ?? true;
   const canCreateOrganizationGrant = capabilities?.canCreateOrganizationGrant ?? true;
   const needsIdentityChoice = authKind !== "none";
   const allowedGrantKinds = grantKinds ?? (["user", "organization"] satisfies ConnectionGrantKind[]);
@@ -4395,7 +4395,7 @@ export function AccessStepContent({
     : grantKind === "agent"
     ? installChoice === "specific" && installAgentIds.size === 1
     : installChoice === "all"
-    ? canSetCompanyInstall
+    ? canSetSpaceInstall
     : installAgentIds.size > 0);
   const lockedAgentName = lockedAgentId
     ? allAgents.find((agent) => agent.id === lockedAgentId)?.name ?? "the requesting agent"
@@ -4553,15 +4553,15 @@ export function AccessStepContent({
                         : "Every agent may use the shared account."
                       : undefined,
                     icon: <BotGroupIcon />,
-                    accessibleLabel: canSetCompanyInstall
+                    accessibleLabel: canSetSpaceInstall
                       ? "Any agent"
-                      : `Any agent. Unavailable: ${capabilities?.companyInstallReason ??
+                      : `Any agent. Unavailable: ${capabilities?.spaceInstallReason ??
                         "Only someone who can configure this connection can choose this."}`,
-                    tooltip: canSetCompanyInstall
+                    tooltip: canSetSpaceInstall
                       ? undefined
-                      : capabilities?.companyInstallReason ??
+                      : capabilities?.spaceInstallReason ??
                         "Only someone who can configure this connection can choose this.",
-                    disabled: !canSetCompanyInstall,
+                    disabled: !canSetSpaceInstall,
                   },
                 ]}
               />
@@ -4646,7 +4646,7 @@ export function connectionDefaultSummarySentence(input: {
  * also be changed on the Permissions tab after connecting.
  */
 export function ConnectionAccessDefaults({
-  companyId,
+  spaceId,
   agents,
   sentence,
   notice,
@@ -4655,7 +4655,7 @@ export function ConnectionAccessDefaults({
   disabled = false,
   ...accessProps
 }: Omit<Parameters<typeof AccessStepContent>[0], "agents" | "agentsLoading" | "submitLabel" | "onBack" | "onContinue" | "pending" | "continuesToProvider" | "hideFooter" | "bare"> & {
-  companyId: string;
+  spaceId: string;
   /**
    * Supplied by callers that already hold the agent list — design specimens and
    * review stories, which must not reach the network. Omitted in the product,
@@ -4698,7 +4698,7 @@ export function ConnectionAccessDefaults({
           {extra}
           {agents
             ? <AccessStepContent {...accessProps} agents={agents} bare hideFooter submitLabel="" onBack={() => {}} onContinue={() => {}} />
-            : <AccessStep {...accessProps} companyId={companyId} bare hideFooter submitLabel="" onBack={() => {}} onContinue={() => {}} />}
+            : <AccessStep {...accessProps} spaceId={spaceId} bare hideFooter submitLabel="" onBack={() => {}} onContinue={() => {}} />}
         </div>
       </CollapsibleContent>
     </Collapsible>

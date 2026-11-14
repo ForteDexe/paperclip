@@ -49,7 +49,7 @@ describe("secret provider registry", () => {
   });
 
   it.skipIf(process.platform === "win32")("warns when the local encrypted key file is readable by group or others", async () => {
-    const dir = path.join(os.tmpdir(), `paperclip-secret-provider-${randomBytes(6).toString("hex")}`);
+    const dir = path.join(os.tmpdir(), `outpost-secret-provider-${randomBytes(6).toString("hex")}`);
     tmpDirs.push(dir);
     mkdirSync(dir, { recursive: true });
     const keyFile = path.join(dir, "master.key");
@@ -70,7 +70,7 @@ describe("secret provider registry", () => {
   });
 
   it("does not warn about POSIX permission bits on Windows", async () => {
-    const dir = path.join(os.tmpdir(), `paperclip-secret-provider-${randomBytes(6).toString("hex")}`);
+    const dir = path.join(os.tmpdir(), `outpost-secret-provider-${randomBytes(6).toString("hex")}`);
     tmpDirs.push(dir);
     mkdirSync(dir, { recursive: true });
     const keyFile = path.join(dir, "master.key");

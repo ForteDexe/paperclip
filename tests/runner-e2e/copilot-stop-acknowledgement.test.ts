@@ -5,7 +5,7 @@ import { assertCopilotStopAcknowledgement, readCopilotStopAcknowledgement } from
 const fixtureCorrelationId = "db8b16c1-aafa-4662-9cf4-0bb317db7751";
 function fixture() {
   const run = structuredClone(retainedMainlineStop.run);
-  const scope = { companyId: run.companyId, runId: run.id, issueId: run.nativeIssueId, callerUserId: "local-board" };
+  const scope = { spaceId: run.spaceId, runId: run.id, issueId: run.nativeIssueId, callerUserId: "local-operator" };
   const read = () => readCopilotStopAcknowledgement(run, scope, fixtureCorrelationId, "100", "101");
   return { run, scope, read };
 }
@@ -28,7 +28,7 @@ describe("current-mainline Copilot Stop API acknowledgement", () => {
   });
   it.each([
     ["foreign run", (r: any) => { r.id = "foreign"; }],
-    ["foreign company", (r: any) => { r.companyId = "foreign"; }],
+    ["foreign space", (r: any) => { r.spaceId = "foreign"; }],
     ["foreign issue", (r: any) => { r.nativeIssueId = "foreign"; }],
     ["failed run", (r: any) => { r.status = "failed"; }],
     ["non-native run", (r: any) => { r.runtimeMode = "legacy"; }],

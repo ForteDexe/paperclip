@@ -7,7 +7,7 @@ import { mkdtemp, mkdir, writeFile, readFile, realpath, rm } from "node:fs/promi
 import os from "node:os";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
-import { type Db, companySecrets, connectionGrants } from "@outpost/db";
+import { type Db, spaceSecrets, connectionGrants } from "@outpost/db";
 import {
   AI_CONNECTION_CAPABILITIES,
   aiConnectionMetadataSchema, aiRoutingHarness,
@@ -243,7 +243,7 @@ export function managedAiSessionFingerprintConfig(
 export async function prepareManagedAiRuntime(
   db: Db,
   input: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     responsibleUserId: string | null;
     adapterType: string;
@@ -284,7 +284,7 @@ export async function prepareManagedAiRuntime(
     runnerProvider: input.config.provider,
     acpxAgent: input.config.acpxAgent,
   });
-  const retainedCleanupScope = { companyId: input.companyId, accountKey: selection.grant.id };
+  const retainedCleanupScope = { spaceId: input.spaceId, accountKey: selection.grant.id };
   void reconcileRetainedAiCleanup(retainedCleanupScope).catch(() => undefined);
   const subscriptionFile =
     selection.attribution.method === "subscription" &&
@@ -311,11 +311,11 @@ export async function prepareManagedAiRuntime(
     const readFreshness = async () => {
       if (!credentialRef) return undefined;
       const [currentGrant] = await db.select({ refs: connectionGrants.credentialSecretRefs, status: connectionGrants.status })
-        .from(connectionGrants).where(and(eq(connectionGrants.companyId, input.companyId), eq(connectionGrants.id, selection.grant.id)));
+        .from(connectionGrants).where(and(eq(connectionGrants.spaceId, input.spaceId), eq(connectionGrants.id, selection.grant.id)));
       const currentRef = currentGrant?.refs.find(ref => ref.configPath === "ai.credential");
       if (currentGrant?.status !== "active" || currentRef?.secretId !== credentialRef.secretId || currentRef.versionSelector !== credentialRef.versionSelector) return undefined;
-      return (await db.select({ epoch: companySecrets.aiSessionEpoch, version: companySecrets.latestVersion })
-        .from(companySecrets).where(and(eq(companySecrets.companyId, input.companyId), eq(companySecrets.id, credentialRef.secretId))).limit(1))[0];
+      return (await db.select({ epoch: spaceSecrets.aiSessionEpoch, version: spaceSecrets.latestVersion })
+        .from(spaceSecrets).where(and(eq(spaceSecrets.spaceId, input.spaceId), eq(spaceSecrets.id, credentialRef.secretId))).limit(1))[0];
     };
     const { value, freshness } = await (async () => {
       if (noAuth) return { value: "", freshness: undefined };
@@ -338,7 +338,7 @@ export async function prepareManagedAiRuntime(
     home = await mkdtemp(
       path.join(
         os.tmpdir(),
-        `paperclip-ai-${input.companyId}-${selection.grant.id}-`,
+        `outpost-ai-${input.spaceId}-${selection.grant.id}-`,
       ),
     );
     if (harness === "antigravity_runtime") home = await realpath(home);
@@ -419,7 +419,7 @@ export async function prepareManagedAiRuntime(
     const attribution = { ...selection.attribution } as typeof selection.attribution & { subscriptionId?: string };
     if (attribution.method === "subscription") {
       const subscription = {
-        companyId: input.companyId, connectionId: selection.connection.id, grantId: selection.grant.id,
+        spaceId: input.spaceId, connectionId: selection.connection.id, grantId: selection.grant.id,
         provider: selection.attribution.provider, name: selection.connection.name,
         ownerUserId: selection.grant.subjectUserId, credential: value,
         session: credentialRef && freshness ? { secretId: credentialRef.secretId, epoch: freshness.epoch } : null,
@@ -459,7 +459,7 @@ export async function prepareManagedAiRuntime(
             if (antigravitySubscription && incoming !== originalCredential) {
               const accountEmail = selection.grant.providerTenant?.name;
               if (!credentialRef || !freshness || !accountEmail) throw new Error("The selected Google credential recovery authority is unavailable");
-              googleRecovery = quotaCredentialRecovery(input.companyId, selection.grant.id);
+              googleRecovery = quotaCredentialRecovery(input.spaceId, selection.grant.id);
               const prior = await googleRecovery.read();
               if (prior && prior.value !== incoming && !ownsGoogleRecovery) {
                 // A previous retired owner keeps its first recoverable refresh.
@@ -469,7 +469,7 @@ export async function prepareManagedAiRuntime(
               // Physical retirement is the caller's cleanup precondition. Save
               // before network verification or a database write can fail; only
               // this exact grant generation may later consume the encrypted copy.
-              await googleRecovery.write({ companyId: input.companyId, grantId: selection.grant.id,
+              await googleRecovery.write({ spaceId: input.spaceId, grantId: selection.grant.id,
                 connectionId: selection.connection.id, secretId: credentialRef.secretId,
                 baseHash: quotaCredentialHash(value), value: incoming!, provider: "google",
                 google: { sessionEpoch: freshness.epoch, baseVersion: freshness.version,
@@ -492,17 +492,17 @@ export async function prepareManagedAiRuntime(
               durableGoogleRefresh = true;
             }
             if (refreshed !== originalCredential) {
-              // A quota exchange can hold this company lock for 60 seconds.
+              // A quota exchange can hold this space lock for 60 seconds.
               // Retry its 30-second acquisition timeout without discarding the
               // provider's only copy of a rotated, single-use refresh token.
-              const writeBack = () => withAccountHomeSecretMutationLock(undefined, input.companyId, () => db.transaction(async (tx) => {
+              const writeBack = () => withAccountHomeSecretMutationLock(undefined, input.spaceId, () => db.transaction(async (tx) => {
                 const [grant] = await tx
                   .select()
                   .from(connectionGrants)
                   .where(
                     and(
                       eq(connectionGrants.id, selection.grant.id),
-                      eq(connectionGrants.companyId, input.companyId),
+                      eq(connectionGrants.spaceId, input.spaceId),
                     ),
                   )
                   .for("update");
@@ -523,12 +523,12 @@ export async function prepareManagedAiRuntime(
                 // land between the read and the write below and be
                 // overwritten by this stale write-back.
                 const [currentSecret] = await tx
-                  .select({ id: companySecrets.id, epoch: companySecrets.aiSessionEpoch, version: companySecrets.latestVersion })
-                  .from(companySecrets)
+                  .select({ id: spaceSecrets.id, epoch: spaceSecrets.aiSessionEpoch, version: spaceSecrets.latestVersion })
+                  .from(spaceSecrets)
                   .where(
                     and(
-                      eq(companySecrets.id, ref.secretId),
-                      eq(companySecrets.companyId, input.companyId),
+                      eq(spaceSecrets.id, ref.secretId),
+                      eq(spaceSecrets.spaceId, input.spaceId),
                     ),
                   )
                   .for("update");
@@ -597,7 +597,7 @@ export async function prepareManagedAiRuntime(
       // Journal writes and generation checks share the same reconnect fence.
       try {
         return await (antigravitySubscription
-          ? withAccountHomeSecretMutationLock(undefined, input.companyId, cleanup) : cleanup());
+          ? withAccountHomeSecretMutationLock(undefined, input.spaceId, cleanup) : cleanup());
       } catch (error) {
         if (retainedCleanupScope && !homeRemoved) retainAiCredentialCleanup({ scope: retainedCleanupScope, home: providerHome, cleanup: cleanupRuntime });
         throw error;

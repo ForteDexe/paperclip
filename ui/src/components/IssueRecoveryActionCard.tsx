@@ -125,7 +125,7 @@ export interface IssueRecoveryActionCardProps {
   quarantineRestorePending?: boolean;
   /** Whether a reconcile (forward, override, or quarantine-restore) is currently in flight. */
   reconcilePending?: boolean;
-  /** Whether the viewer can run destructive board-only actions (e.g. false-positive dismissal). */
+  /** Whether the viewer can run destructive operator-only actions (e.g. false-positive dismissal). */
   canFalsePositive?: boolean;
   /**
    * Rendering density. `full` (default) shows the complete metadata table; `compact` drops the
@@ -343,7 +343,7 @@ function sanitizeBranchComponent(value: string): string {
 }
 
 function buildRescueBranchPreview(sourceIdentifier: string | null): string {
-  return `paperclip/rescue/${sanitizeBranchComponent(sourceIdentifier ?? "issue")}/`;
+  return `outpost/rescue/${sanitizeBranchComponent(sourceIdentifier ?? "issue")}/`;
 }
 
 function asStringArray(value: unknown): string[] {
@@ -772,7 +772,7 @@ function readWakePolicySummary(action: IssueRecoveryAction): string | null {
     return "Outpost is retrying the original owner";
   }
   if (type === "bounded_recovery_owner") return "A recovery owner is repairing the next step";
-  if (type === "board_escalation") return "Human decision required";
+  if (type === "operator_escalation") return "Human decision required";
   if (type === "manual") return "Manual follow-up needed";
   if (type === "manual_repair_required") return "Repair needed before retry";
   if (type === "monitor") {
@@ -956,7 +956,7 @@ const RESOLVE_OPTIONS: Array<{
   label: string;
   description: string;
   destructive?: boolean;
-  boardOnly?: boolean;
+  operatorOnly?: boolean;
 }> = [
   {
     outcome: "todo",
@@ -978,14 +978,14 @@ const RESOLVE_OPTIONS: Array<{
     label: "False positive, done",
     description: "Dismiss recovery and mark the source task complete.",
     destructive: true,
-    boardOnly: true,
+    operatorOnly: true,
   },
   {
     outcome: "false_positive_in_review",
     label: "False positive, review",
     description: "Dismiss recovery and send the source task for review.",
     destructive: true,
-    boardOnly: true,
+    operatorOnly: true,
   },
 ];
 
@@ -1022,7 +1022,7 @@ export function IssueRecoveryActionCard({
     if (
       (cardState === "needed" || cardState === "escalated") &&
       action.kind === "active_run_watchdog" &&
-      action.ownerType === "board"
+      action.ownerType === "operator"
     ) {
       return "This recovery needs a human decision. Review the recorded failure and choose the next step.";
     }
@@ -1034,7 +1034,7 @@ export function IssueRecoveryActionCard({
   // the budget ran out or the scheduled attempt simply never fired.
   const wakeSummary = lineage?.retryExpired
     ? "The scheduled retry did not run — a retry or a decision is needed"
-    : lineage?.exhausted && !lineage.liveRunId && lineage.lane !== "board"
+    : lineage?.exhausted && !lineage.liveRunId && lineage.lane !== "operator"
     ? "Automatic retries are finished — a decision is needed"
     : readWakePolicySummary(action);
   const evidenceSummary = pickEvidenceSummary(action);
@@ -1076,7 +1076,7 @@ export function IssueRecoveryActionCard({
     if (action.cause === "native_workspace_finalization_owner_unverified") return false;
     if (isNativeWorkspaceExportRepairCause(action.cause) && ["todo", "done", "in_review"].includes(option.outcome)) return false;
     if (option.outcome === "todo" && requiresExecutionReconciliation(action.cause)) return false;
-    if (option.boardOnly && !canFalsePositive) return false;
+    if (option.operatorOnly && !canFalsePositive) return false;
     return true;
   });
   const showResolveActions = onResolve !== undefined && cardState !== "resolved" && visibleResolveOptions.length > 0;
@@ -1192,7 +1192,7 @@ export function IssueRecoveryActionCard({
                 className="inline-flex flex-wrap items-center gap-1.5"
                 data-testid="recovery-recovery-owner"
               >
-                {lineage.lane === "native_run" && (action.ownerType !== "board" || Boolean(lineage.liveRunId)) ? (
+                {lineage.lane === "native_run" && (action.ownerType !== "operator" || Boolean(lineage.liveRunId)) ? (
                   <>
                     <span className="font-medium">Outpost</span>
                     <span className="text-muted-foreground">recovers the existing run</span>
@@ -1204,7 +1204,7 @@ export function IssueRecoveryActionCard({
                     <AgentLink agentId={action.ownerAgentId} agentMap={agentMap} />
                     <span className="text-muted-foreground">repairs the next step only</span>
                   </>
-                ) : action.ownerType === "board" ? (
+                ) : action.ownerType === "operator" ? (
                   <>
                     <span className="font-medium">Human</span>
                     <span className="text-muted-foreground">decides the next step only</span>
@@ -1277,7 +1277,7 @@ export function IssueRecoveryActionCard({
                 <span className="text-muted-foreground">Recovery:</span>
                 <AgentLink agentId={action.ownerAgentId} agentMap={agentMap} />
               </>
-            ) : action.ownerType === "board" ? (
+            ) : action.ownerType === "operator" ? (
               <span className="font-medium">Human</span>
             ) : action.ownerType === "user" && action.ownerUserId ? (
               <span className="font-medium">user {action.ownerUserId.slice(0, 6)}</span>
@@ -1538,7 +1538,7 @@ export function NativeControllerContainmentRecovery({ issue, canManage, onRecord
       executionReconciliation: { runId, controllerStopped: true, providerStopped: true,
         controllerAuthorityDigest: digest, actionOutcome: outcome, outcomeEvidence: evidence.trim() } });
   }, onSuccess: onRecorded });
-  if (!action || action.kind !== "active_run_watchdog" || action.ownerType !== "board"
+  if (!action || action.kind !== "active_run_watchdog" || action.ownerType !== "operator"
     || action.cause !== "native_restart_recovery_blocked" || action.evidence?.reason !== "controller_process_space_unverified"
     || !["active", "escalated"].includes(action.status) || typeof digest !== "string") return null;
   return <section aria-label="Original controller recovery">

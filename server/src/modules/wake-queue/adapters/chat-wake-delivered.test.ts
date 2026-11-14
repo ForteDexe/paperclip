@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, agentWakeupRequests, companies, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
+import { agents, agentWakeupRequests, spaces, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../../__tests__/helpers/embedded-postgres.js";
 import { createReleaseIssueExecution } from "../application/use-cases.js";
 import { createPostgresWakeQueueAdapter } from "./postgres.js";
@@ -19,15 +19,15 @@ const support = await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("release of a saved chat wake whose message was delivered", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  let companyId: string;
+  let spaceId: string;
   let agentId: string;
 
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("wake-chat-delivered-");
     db = createDb(database.connectionString);
-    const [company] = await db.insert(companies).values({ name: "Chat wake fixture", issuePrefix: "CWD" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Reviewer", adapterType: "process" }).returning();
-    companyId = company.id;
+    const [space] = await db.insert(spaces).values({ name: "Chat wake fixture", issuePrefix: "CWD" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Reviewer", adapterType: "process" }).returning();
+    spaceId = space.id;
     agentId = agent.id;
   }, 60_000);
 
@@ -37,12 +37,12 @@ describe.skipIf(!support.supported)("release of a saved chat wake whose message 
   });
 
   async function seed(delivered: boolean) {
-    const [issue] = await db.insert(issues).values({ companyId, title: "Review a pull request", status: "in_review",
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Review a pull request", status: "in_review",
       assigneeAgentId: agentId }).returning();
-    const [message] = await db.insert(issueComments).values({ companyId, issueId: issue.id, authorUserId: "chat-user",
+    const [message] = await db.insert(issueComments).values({ spaceId, issueId: issue.id, authorUserId: "chat-user",
       body: "GitHub review request.", createdAt: new Date(Date.now() - 60_000), updatedAt: new Date(Date.now() - 60_000) }).returning();
     // The finishing run started after the message and received it as wake input.
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "succeeded",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "succeeded",
       invocationSource: "assignment", triggerDetail: "system", startedAt: new Date(Date.now() - 30_000), finishedAt: new Date(),
       contextSnapshot: { issueId: issue.id, source: "chat:github", wakeReason: "External chat message received",
         chatConversationId: randomUUID(), ...(delivered ? { wakeCommentIds: [message.id] } : { wakeCommentIds: [randomUUID()] }) },
@@ -52,13 +52,13 @@ describe.skipIf(!support.supported)("release of a saved chat wake whose message 
       wakeSource: "assignment", chatConversationId: randomUUID(), commentId: message.id, wakeCommentId: message.id,
       wakeCommentIds: [message.id] };
     const wakeId = randomUUID();
-    const { idempotencyKey } = createDurableChatWakeupRequest({ id: wakeId, companyId, agentId, issueId: issue.id,
+    const { idempotencyKey } = createDurableChatWakeupRequest({ id: wakeId, spaceId, agentId, issueId: issue.id,
       commentId: message.id, requestedByActorType: "user", requestedByActorId: "chat-user", requestedAt: new Date(),
       authorize: async () => {} });
-    const [wake] = await db.insert(agentWakeupRequests).values({ id: wakeId, idempotencyKey, companyId, agentId, source: "assignment",
+    const [wake] = await db.insert(agentWakeupRequests).values({ id: wakeId, idempotencyKey, spaceId, agentId, source: "assignment",
       triggerDetail: "system", reason: "External chat message received", status: "deferred_issue_execution",
       requestedByActorType: "user", requestedByActorId: "chat-user",
-      payload: { issueId: issue.id, mutation: "chat_message_received", wakeCommentId: message.id, _paperclipWakeContext: context },
+      payload: { issueId: issue.id, mutation: "chat_message_received", wakeCommentId: message.id, _outpostWakeContext: context },
     }).returning();
     return { issue, run, wake };
   }
@@ -74,18 +74,18 @@ describe.skipIf(!support.supported)("release of a saved chat wake whose message 
   it("consumes the saved chat wake instead of starting a run with no message", async () => {
     const { run, wake } = await seed(true);
     const unexpected = vi.fn((): never => { throw new Error("Unexpected promotion of a consumed chat wake"); });
-    const result = await release(unexpected)({ companyId, runId: run.id, now: new Date() });
+    const result = await release(unexpected)({ spaceId, runId: run.id, now: new Date() });
     expect(result.outcome.kind).toBe("released");
     expect(unexpected).not.toHaveBeenCalled();
     const [saved] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wake.id));
     expect(saved).toMatchObject({ status: "cancelled", runId: null, error: "Queued messages were already delivered to a completed run" });
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId)).then(rows =>
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId)).then(rows =>
       rows.filter(row => row.contextSnapshot?.issueId === saved.payload?.issueId && row.id !== run.id))).toEqual([]);
   });
 
   it("does not report a delivered chat message as not started", async () => {
     const { wake } = await seed(true);
-    const action = { id: wake.id, companyId, kind: "inbound_wakeup", conversationId: randomUUID(), deliveryId: randomUUID(),
+    const action = { id: wake.id, spaceId, kind: "inbound_wakeup", conversationId: randomUUID(), deliveryId: randomUUID(),
       principalId: randomUUID(), createdAt: wake.requestedAt, status: "processed",
       payload: { version: 1, agentId, issueId: wake.payload?.issueId, commentId: wake.payload?.wakeCommentId,
         requestedByActorType: "user", requestedByActorId: "chat-user" } };
@@ -100,7 +100,7 @@ describe.skipIf(!support.supported)("release of a saved chat wake whose message 
     const { run, wake } = await seed(false);
     // Promotion reaches the host; the refusal proves the wake was not consumed.
     const unexpected = vi.fn((): never => { throw new Error("promotion reached the host"); });
-    await expect(release(unexpected)({ companyId, runId: run.id, now: new Date() })).rejects.toThrow("promotion reached the host");
+    await expect(release(unexpected)({ spaceId, runId: run.id, now: new Date() })).rejects.toThrow("promotion reached the host");
     expect(unexpected).toHaveBeenCalled();
     const [saved] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wake.id));
     expect(saved.status).not.toBe("cancelled");

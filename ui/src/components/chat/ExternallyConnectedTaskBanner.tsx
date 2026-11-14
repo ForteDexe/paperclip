@@ -30,15 +30,15 @@ import { useAccountBoundMutation } from "@/hooks/useAccountBoundMutation";
 import { retryTransientOnly } from "@/lib/query-client";
 import { useQueryView } from "@/components/QueryView";
 import {
-  boardSendDraftKey,
+  operatorSendDraftKey,
   clearBoardSendDraft,
   canDismissBoardSendBatch,
   readBoardSendDraft,
   readBoardSendRejection,
   writeBoardSendDraft,
-  type BoardSendRejection,
+  type OperatorSendRejection,
   type RetainedBoardSend,
-} from "./board-send-draft";
+} from "./operator-send-draft";
 
 import { LegacyBoardSendNotice } from "./LegacyBoardSendNotice";
 
@@ -67,7 +67,7 @@ const publicationFeedback: Record<ChatPublicationState, PublicationFeedback> = {
   },
   published: {
     title: "Sent to channel",
-    body: "The board update was published to the connected conversation.",
+    body: "The operator update was published to the connected conversation.",
     tone: "success",
   },
   pending: {
@@ -120,11 +120,11 @@ const filePhaseLabels: Record<ChatFileTransferPhase, string> = {
   conflict: "File delivery needs review",
 };
 
-export function useIssueChatBinding(companyId: string, issueId: string) {
+export function useIssueChatBinding(spaceId: string, issueId: string) {
   const { enabled, githubEnabled } = useChatConnectorsEnabled();
-  const queryEnabled = (enabled || githubEnabled) && Boolean(companyId && issueId) && !issueId.startsWith("chat:");
+  const queryEnabled = (enabled || githubEnabled) && Boolean(spaceId && issueId) && !issueId.startsWith("chat:");
   const query = useQuery({
-    queryKey: ["issue-chat-binding", companyId, issueId],
+    queryKey: ["issue-chat-binding", spaceId, issueId],
     queryFn: () => chatEndpointsApi.getIssueBinding(issueId),
     enabled: queryEnabled,
   });
@@ -137,30 +137,30 @@ export function useIssueChatBinding(companyId: string, issueId: string) {
 type ConnectedTaskProps = {
   className?: string;
   attachments?: IssueAttachment[];
-  companyId: string;
+  spaceId: string;
   issueId: string;
   issueCacheRefs?: string[];
   assigneeAgentId?: string | null;
 };
 
 export function ExternallyConnectedTaskBanner(props: ConnectedTaskProps) {
-  const { binding } = useIssueChatBinding(props.companyId, props.issueId);
+  const { binding } = useIssueChatBinding(props.spaceId, props.issueId);
   const draftOwner = useDraftOwner();
   return <>
     {draftOwner !== undefined && binding && binding.provider !== "speko" && binding.provider !== "agentmail" && <ConnectedTaskComposer
-      key={boardSendDraftKey(props.companyId, props.issueId, binding.endpointId, binding.conversationId, draftOwner)}
+      key={operatorSendDraftKey(props.spaceId, props.issueId, binding.endpointId, binding.conversationId, draftOwner)}
       {...props}
       binding={binding}
       draftOwner={draftOwner}
     />}
-    <TaskVoiceLauncher companyId={props.companyId} issueId={props.issueId} agentId={props.assigneeAgentId} boundEndpointId={binding?.provider === "speko" ? binding.endpointId : undefined} />
+    <TaskVoiceLauncher spaceId={props.spaceId} issueId={props.issueId} agentId={props.assigneeAgentId} boundEndpointId={binding?.provider === "speko" ? binding.endpointId : undefined} />
   </>;
 }
 
 function ConnectedTaskComposer({
   className,
   attachments = [],
-  companyId,
+  spaceId,
   issueId,
   issueCacheRefs,
   binding,
@@ -181,7 +181,7 @@ function ConnectedTaskComposer({
   const retainedSend = useRef<RetainedBoardSend | null>(null);
   const retainedScopeKey = useRef<string | null>(null);
   const [unconfirmedRequest, setUnconfirmedRequest] = useState(false);
-  const [rejection, setRejection] = useState<BoardSendRejection | null>(null);
+  const [rejection, setRejection] = useState<OperatorSendRejection | null>(null);
   const [excludedAttachmentIds, setExcludedAttachmentIds] = useState<string[]>(
     [],
   );
@@ -203,15 +203,15 @@ function ConnectedTaskComposer({
     };
   }, []);
   const storageKey = binding
-    ? boardSendDraftKey(
-        companyId,
+    ? operatorSendDraftKey(
+        spaceId,
         issueId,
         binding.endpointId,
         binding.conversationId,
         draftOwner,
       )
     : null;
-  const legacyStorageKey = boardSendDraftKey(companyId, issueId, binding.endpointId, binding.conversationId);
+  const legacyStorageKey = operatorSendDraftKey(spaceId, issueId, binding.endpointId, binding.conversationId);
   const loadedStorageKey = useRef<string | null>(null);
   useEffect(() => {
     if (!storageKey || loadedStorageKey.current === storageKey) return;
@@ -288,7 +288,7 @@ function ConnectedTaskComposer({
     queryKey: [
       "chat-publication-batch",
       draftOwner,
-      companyId,
+      spaceId,
       binding?.endpointId,
       binding?.conversationId,
       publication?.id,
@@ -420,7 +420,7 @@ function ConnectedTaskComposer({
     classifySendFailure(publish.error) === "pending",
   );
   const autoResend = useAutoResend({
-    sourceId: `board-send:${storageKey ?? issueId}`,
+    sourceId: `operator-send:${storageKey ?? issueId}`,
     active: resendWaiting,
     resend: async (): Promise<SendOutcome> => {
       const input = retainedSend.current;
@@ -457,7 +457,7 @@ function ConnectedTaskComposer({
     setUploadError(null);
     try {
       const attachment = await issuesApi.uploadAttachment(
-        companyId,
+        spaceId,
         issueId,
         file,
       );
@@ -591,12 +591,12 @@ function ConnectedTaskComposer({
         <div className="space-y-2 border-t border-border pt-3">
           <label
             className="text-xs font-medium"
-            htmlFor="external-board-update"
+            htmlFor="external-operator-update"
           >
-            Board update
+            Operator update
           </label>
           <Textarea
-            id="external-board-update"
+            id="external-operator-update"
             value={body}
             disabled={
               Boolean(publication) ||
@@ -676,7 +676,7 @@ function ConnectedTaskComposer({
               </legend>
               <p className="text-xs text-muted-foreground">
                 {binding.provider === "github"
-                  ? "GitHub Apps cannot upload file bytes in comments. Checked files stay on the Outpost task; GitHub receives an authenticated task link when this Board has a public URL, or a private-task notice otherwise."
+                  ? "GitHub Apps cannot upload file bytes in comments. Checked files stay on the Outpost task; GitHub receives an authenticated task link when this Operator has a public URL, or a private-task notice otherwise."
                   : binding.provider === "microsoft-teams" &&
                       !showingRetainedFiles
                     ? "In personal Teams chats, recipients accept each file before upload. Channels and group chats receive supported images directly; other files stay on the task, with a task link or private-task notice."
@@ -913,7 +913,7 @@ function ConnectedTaskComposer({
             <p className="text-xs text-muted-foreground">
               {binding.provider === "slack"
                 ? "Your message is posted to Slack with your name and starts the agent."
-                : "Ordinary board comments remain Outpost-only."}
+                : "Ordinary operator comments remain Outpost-only."}
             </p>
             <Button
               size="sm"

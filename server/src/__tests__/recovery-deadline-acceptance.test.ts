@@ -1,6 +1,6 @@
 import { preparationFailureFixture, drivePreparationFailure } from "./helpers/recovery-preparation-failure.js";
 import { controlledOrdinaryBootstrapProtocol, controlledOrdinaryBootstrapResult, controlledOrdinaryBootstrapScript } from "./helpers/recovery-deadline-ordinary-bootstrap.js";
-import { controlledCompanyBootstrapResult, controlledCompanyBootstrapScript } from "./helpers/recovery-deadline-bootstrap.js";
+import { controlledSpaceBootstrapResult, controlledSpaceBootstrapScript } from "./helpers/recovery-deadline-bootstrap.js";
 import * as legacySettlement from "../services/heartbeat/legacy-process-settlement.js";
 import express, { type Request } from "express";
 import request from "supertest";
@@ -19,7 +19,7 @@ import { issueService } from "../services/issues.js";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, agentWakeupRequests, applyPendingMigrations, authUsers, companies, companyMemberships, createDb, environmentLeases, issueExecutionDecisions, heartbeatRunEvents, heartbeatRuns, issues, type Db } from "@outpost/db";
+import { agents, agentWakeupRequests, applyPendingMigrations, authUsers, spaces, spaceMemberships, createDb, environmentLeases, issueExecutionDecisions, heartbeatRunEvents, heartbeatRuns, issues, type Db } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { heartbeatService } from "../services/heartbeat.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -58,16 +58,16 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     db = createDb(fixtureUrl!, { maxConnections: 4, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
     registerServerAdapter({ ...processAdapter, type: "recovery_deadline_process", execute: async context => {
       const result = controlledOrdinaryBootstrapResult(context.config,
-        controlledCompanyBootstrapResult(context.config, await processAdapter.execute(context)));
+        controlledSpaceBootstrapResult(context.config, await processAdapter.execute(context)));
       if (result.exitCode === 0 && !result.timedOut && !result.errorCode) {
         const [current] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, context.runId));
         if (!current) throw new Error("Controlled agent requires its admitted run");
-        if (current.scopeKind === "company" && current.issueId === null) return result;
+        if (current.scopeKind === "space" && current.issueId === null) return result;
         if (!current.issueId) throw new Error("Controlled agent requires its admitted task");
         const tasks = issueService(db);
         await tasks.addComment(current.issueId, "The controlled local process produced recovery-deadline-result; task completed.",
           { agentId: context.agent.id, runId: context.runId });
-        await tasks.update(current.issueId, { status: "done", companyGuard: current.companyId,
+        await tasks.update(current.issueId, { status: "done", spaceGuard: current.spaceId,
           actorAgentId: context.agent.id, actorRunId: context.runId });
       }
       return result;
@@ -82,7 +82,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
         const current = await run(context.runId);
         if (!current.issueId) throw new Error("Review agent requires its admitted issue");
         const response = await patchIssue(current.issueId, { type: "agent", agentId: context.agent.id,
-          companyId: current.companyId, runId: context.runId },
+          spaceId: current.spaceId, runId: context.runId },
         { status: "done", comment: "Reviewed the controlled local process result; approved." });
         expect(response.status, JSON.stringify(response.body)).toBe(200);
       }
@@ -90,7 +90,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     } });
   });
   beforeEach(async () => {
-    await db.execute(sql`TRUNCATE companies CASCADE`);
+    await db.execute(sql`TRUNCATE spaces CASCADE`);
     heartbeat = heartbeatService(db);
     owners = {}; draining = false; errors.length = 0;
     holdStartedAt = new Date(Date.now() - 1000); holdExpiresAt = new Date(Date.now() + 300_000);
@@ -131,31 +131,31 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
       expect(idleWorkSnapshot().active).toBe(0);
     }, { timeout: 5_000 });
   }
-  async function fixture(options: { retainedSourceLock?: boolean; quotaResetAt?: Date; companyScope?: boolean } = {}) {
-    const companyId = randomUUID();
+  async function fixture(options: { retainedSourceLock?: boolean; quotaResetAt?: Date; spaceScope?: boolean } = {}) {
+    const spaceId = randomUUID();
     await db.insert(authUsers).values({ id: "recovery-test-user", name: "Recovery test owner", email: "recovery-owner@example.test",
       createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companies).values({ id: companyId, name: "Recovery deadline acceptance",
-      issuePrefix: `R${companyId.slice(0, 7)}`, requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({ id: spaceId, name: "Recovery deadline acceptance",
+      issuePrefix: `R${spaceId.slice(0, 7)}`, requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "recovery-test-user" });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Controlled process", role: "engineer", status: "idle",
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Controlled process", role: "engineer", status: "idle",
       adapterType: "recovery_deadline_process", adapterConfig: { command: process.execPath, args: ["-e", "console.log('recovery-deadline-result')"], cwd: process.cwd() },
       runtimeConfig: { heartbeat: { enabled: true, intervalSec: 0, wakeOnDemand: true } },
     }).returning();
-    await db.insert(companyMemberships).values([
-      { companyId, principalId: "recovery-test-user", principalType: "user", status: "active", membershipRole: "owner" },
-      { companyId, principalId: agent.id, principalType: "agent", status: "active", membershipRole: "member" },
+    await db.insert(spaceMemberships).values([
+      { spaceId, principalId: "recovery-test-user", principalType: "user", status: "active", membershipRole: "owner" },
+      { spaceId, principalId: agent.id, principalType: "agent", status: "active", membershipRole: "member" },
     ]);
-    const [issue] = await db.insert(issues).values({ companyId, title: "Retry producer acceptance", status: options.companyScope ? "done" : "in_progress", assigneeAgentId: agent.id }).returning();
-    const [source] = await db.insert(heartbeatRuns).values({ companyId, agentId: agent.id, scopeKind: options.companyScope ? "company" : "issue", issueId: options.companyScope ? null : issue.id,
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Retry producer acceptance", status: options.spaceScope ? "done" : "in_progress", assigneeAgentId: agent.id }).returning();
+    const [source] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agent.id, scopeKind: options.spaceScope ? "space" : "issue", issueId: options.spaceScope ? null : issue.id,
       status: "failed", responsibleUserId: "recovery-test-user", errorCode: options.quotaResetAt ? "provider_quota" : "codex_transient_upstream", finishedAt: new Date(),
       resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false }, ...(options.quotaResetAt ? {
         errorFamily: "provider_quota", retryNotBefore: options.quotaResetAt.toISOString(), providerQuotaRetryNotBefore: options.quotaResetAt.toISOString(),
-      } : {}) }, contextSnapshot: options.companyScope ? {} : { issueId: issue.id },
+      } : {}) }, contextSnapshot: options.spaceScope ? {} : { issueId: issue.id },
     }).returning();
-    if (!options.companyScope && options.retainedSourceLock !== false)
+    if (!options.spaceScope && options.retainedSourceLock !== false)
       await db.update(issues).set({ executionRunId: source.id, checkoutRunId: source.id }).where(eq(issues.id, issue.id));
-    return { companyId, agent, issue, source };
+    return { spaceId, agent, issue, source };
   }
   async function schedule(sourceId: string, delayMs = 600_000) {
     const result = await heartbeat.scheduleBoundedRetry(sourceId, { delayMs, random: () => 0 });
@@ -173,16 +173,16 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     const reset = new Date(Math.ceil((Date.now() + 40_000) / 60_000) * 60_000);
     const resetClock = `${reset.getUTCHours()}:${String(reset.getUTCMinutes()).padStart(2, "0")}`;
     const message = quota ? `You've hit your usage limit. Try again at ${resetClock} (UTC).` : "Controlled review bootstrap unavailable";
-    const [reviewer] = await db.insert(agents).values({ companyId: f.companyId, name: "Controlled reviewer", role: "qa",
+    const [reviewer] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Controlled reviewer", role: "qa",
       status: "paused", adapterType: "recovery_review_process",
       adapterConfig: { command: process.execPath, args: ["-e", `console.error(${JSON.stringify(message)});process.exit(75)`], cwd: process.cwd() },
       runtimeConfig: f.agent.runtimeConfig,
     }).returning();
-    await db.insert(companyMemberships).values({ companyId: f.companyId, principalId: reviewer.id,
+    await db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalId: reviewer.id,
       principalType: "agent", status: "active", membershipRole: "member" });
     const stageId = randomUUID();
-    const response = await patchIssue(f.issue.id, { type: "board", userId: "recovery-test-user",
-      companyIds: [f.companyId], isInstanceAdmin: true, source: "local_implicit" },
+    const response = await patchIssue(f.issue.id, { type: "operator", userId: "recovery-test-user",
+      spaceIds: [f.spaceId], isInstanceAdmin: true, source: "local_implicit" },
     { status: "in_review", comment: "Implementation ready for controlled review.", executionPolicy: {
       stages: [{ id: stageId, type: "review", participants: [{ type: "agent", agentId: reviewer.id }] }],
     } });
@@ -204,21 +204,21 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
       args: ["-e", "console.log('recovery-review-result')"], cwd: process.cwd() } }).where(eq(agents.id, reviewer.id));
     return { ...f, reviewer, stageId, reviewSource: saved, reset };
   }
-  async function actualCompanyFailure(expectReceipt = true, companyScope = true) {
-    const f = await fixture(companyScope ? { companyScope: true } : { companyScope: false, retainedSourceLock: false });
+  async function actualSpaceFailure(expectReceipt = true, spaceScope = true) {
+    const f = await fixture(spaceScope ? { spaceScope: true } : { spaceScope: false, retainedSourceLock: false });
     await db.update(agents).set({ adapterConfig: { command: process.execPath,
-      args: ["-e", companyScope ? controlledCompanyBootstrapScript : controlledOrdinaryBootstrapScript],
+      args: ["-e", spaceScope ? controlledSpaceBootstrapScript : controlledOrdinaryBootstrapScript],
       cwd: process.cwd() } }).where(eq(agents.id, f.agent.id));
     await start(); await settled();
     const admitted = await heartbeat.wakeup(f.agent.id, { source: "on_demand", reason: "manual",
-      requestedByActorType: "system", contextSnapshot: companyScope ? {} : { issueId: f.issue.id, taskId: f.issue.id } });
-    if (!admitted) throw new Error("Company failure source was not admitted");
+      requestedByActorType: "system", contextSnapshot: spaceScope ? {} : { issueId: f.issue.id, taskId: f.issue.id } });
+    if (!admitted) throw new Error("Space failure source was not admitted");
     await vi.waitFor(async () => expect((await run(admitted.id)).status).toBe("failed"), { timeout: 15_000 });
     await heartbeat.drainActiveRunExecutions();
     const failed = await run(admitted.id);
-    expect(failed).toMatchObject({ scopeKind: companyScope ? "company" : "issue", issueId: companyScope ? null : f.issue.id,
-      status: "failed", errorCode: companyScope ? "adapter_failed" : "codex_transient_upstream" });
-    expect(failed.stderrExcerpt).toContain(companyScope ? "Controlled review bootstrap unavailable" : controlledOrdinaryBootstrapProtocol);
+    expect(failed).toMatchObject({ scopeKind: spaceScope ? "space" : "issue", issueId: spaceScope ? null : f.issue.id,
+      status: "failed", errorCode: spaceScope ? "adapter_failed" : "codex_transient_upstream" });
+    expect(failed.stderrExcerpt).toContain(spaceScope ? "Controlled review bootstrap unavailable" : controlledOrdinaryBootstrapProtocol);
     expect(failed.processPid).toBeGreaterThan(1); expect(failed.processGroupId).toBeGreaterThan(1);
     expect(failed.processStartedAt).toBeInstanceOf(Date); expect(failed.controllerBootId).toEqual(expect.any(String));
     expect(failed.controllerLeaseExpiresAt).toBeNull();
@@ -272,7 +272,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     const f = await fixture(); await start(); await settled();
     const scheduled = await schedule(f.source.id, 8_000); await settled();
     const [wake] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, scheduled.run.wakeupRequestId!));
-    expect(wake).toMatchObject({ runId: scheduled.run.id, agentId: f.agent.id, companyId: f.companyId, status: "queued" });
+    expect(wake).toMatchObject({ runId: scheduled.run.id, agentId: f.agent.id, spaceId: f.spaceId, status: "queued" });
     const report = await proof();
     expect(report.backgroundWork, JSON.stringify(report.diagnostics)).toBe("none");
     expect(report.scheduledWake?.nextWakeAt).toBe(scheduled.dueAt.toISOString());
@@ -284,7 +284,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     expect(coordinator!.nextWakeAt()).toBe(scheduled.dueAt.getTime());
     expect(Date.now()).toBeLessThan(scheduled.dueAt.getTime());
     await finish(scheduled.run.id);
-    const successors = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.retryOfRunId, f.source.id)));
+    const successors = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.retryOfRunId, f.source.id)));
     expect(successors).toHaveLength(1);
     const starts = await db.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(
       eq(heartbeatRunEvents.runId, scheduled.run.id), eq(heartbeatRunEvents.message, "run started")));
@@ -296,7 +296,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     await heartbeat.drainActiveRunExecutions();
     const executions = await db.select({ id: heartbeatRuns.id, status: heartbeatRuns.status,
       retryOfRunId: heartbeatRuns.retryOfRunId, wakeupRequestId: heartbeatRuns.wakeupRequestId, context: heartbeatRuns.contextSnapshot }).from(heartbeatRuns)
-      .where(eq(heartbeatRuns.companyId, f.companyId));
+      .where(eq(heartbeatRuns.spaceId, f.spaceId));
     const [completedTask] = await db.select({ status: issues.status }).from(issues).where(eq(issues.id, f.issue.id));
     expect(completedTask.status).toBe("done");
     const additional = executions.filter(row => ![f.source.id, scheduled.run.id].includes(row.id));
@@ -304,7 +304,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
       retryContext: row.context?.retryOfRunId, source: row.context?.source, wakeReason: row.context?.wakeReason }));
     const wakes = await db.select({ id: agentWakeupRequests.id, runId: agentWakeupRequests.runId,
       status: agentWakeupRequests.status, source: agentWakeupRequests.source, reason: agentWakeupRequests.reason })
-      .from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId));
+      .from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId));
     process.stderr.write(`retry execution lineage audit ${JSON.stringify({ sourceRunId: f.source.id, scheduledRunId: scheduled.run.id,
       starts: starts.length, additional: audit, wakes })}\n`);
     expect(additional, JSON.stringify(audit)).toHaveLength(0);
@@ -312,27 +312,27 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     expect(await heartbeat.promoteDueScheduledRetries()).toEqual({ promoted: 0, runIds: [] });
   }, 30_000);
 
-  it.each([false, true])("cold-reconstructs a real company retry with represented coalescence=%s exactly once", async coalesce => {
-    const f = await fixture({ companyScope: true }); await start(); await settled();
+  it.each([false, true])("cold-reconstructs a real space retry with represented coalescence=%s exactly once", async coalesce => {
+    const f = await fixture({ spaceScope: true }); await start(); await settled();
     const scheduled = await schedule(f.source.id, 30_000); await settled();
     expect(scheduled.dueAt.getTime() - scheduled.run.createdAt.getTime()).toBeGreaterThanOrEqual(29_000);
-    expect(scheduled.run).toMatchObject({ scopeKind: "company", issueId: null, retryOfRunId: f.source.id });
+    expect(scheduled.run).toMatchObject({ scopeKind: "space", issueId: null, retryOfRunId: f.source.id });
     if (coalesce) {
-      const accepted = await heartbeat.wakeup(f.agent.id, { source: "on_demand", reason: "company_retry_followup",
-        contextSnapshot: { companyRetryInput: "retained-input" }, requestedByActorType: "system" });
+      const accepted = await heartbeat.wakeup(f.agent.id, { source: "on_demand", reason: "space_retry_followup",
+        contextSnapshot: { spaceRetryInput: "retained-input" }, requestedByActorType: "system" });
       expect(accepted?.id).toBe(scheduled.run.id);
       const receipts = await db.select().from(agentWakeupRequests).where(and(
         eq(agentWakeupRequests.runId, scheduled.run.id), eq(agentWakeupRequests.status, "coalesced")));
       expect(receipts).toHaveLength(1); const coalescedId = receipts[0].id;
       expect(receipts[0].finishedAt).not.toBeNull();
-      expect((await run(scheduled.run.id)).contextSnapshot?.companyRetryInput).toBe("retained-input");
+      expect((await run(scheduled.run.id)).contextSnapshot?.spaceRetryInput).toBe("retained-input");
       const payload = receipts[0].payload;
-      const foreign = await fixture({ companyScope: true });
-      for (const patch of [{ companyId: foreign.companyId }, { agentId: foreign.agent.id }, { runId: null },
+      const foreign = await fixture({ spaceScope: true });
+      for (const patch of [{ spaceId: foreign.spaceId }, { agentId: foreign.agent.id }, { runId: null },
         { finishedAt: null }, { payload: { ...payload, unrepresentedInput: "lost" } }]) {
         await db.update(agentWakeupRequests).set(patch).where(eq(agentWakeupRequests.id, coalescedId));
         expect((await proof()).backgroundWork).not.toBe("none");
-        await db.update(agentWakeupRequests).set({ payload, finishedAt: receipts[0].finishedAt, companyId: f.companyId, agentId: f.agent.id, runId: scheduled.run.id }).where(eq(agentWakeupRequests.id, coalescedId));
+        await db.update(agentWakeupRequests).set({ payload, finishedAt: receipts[0].finishedAt, spaceId: f.spaceId, agentId: f.agent.id, runId: scheduled.run.id }).where(eq(agentWakeupRequests.id, coalescedId));
       }
     }
     const report = await proof();
@@ -346,8 +346,8 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     await heartbeat.drainActiveRunExecutions();
     const saved = await run(scheduled.run.id);
     expect(saved.stdoutExcerpt).toContain("recovery-deadline-result");
-    if (coalesce) expect(saved.contextSnapshot?.companyRetryInput).toBe("retained-input");
-    const all = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId));
+    if (coalesce) expect(saved.contextSnapshot?.spaceRetryInput).toBe("retained-input");
+    const all = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId));
     expect(all.map(row => row.id).sort()).toEqual([f.source.id, scheduled.run.id].sort());
     const starts = await db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.runId, scheduled.run.id),
       eq(heartbeatRunEvents.message, "run started")));
@@ -355,19 +355,19 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     expect(await heartbeat.promoteDueScheduledRetries()).toEqual({ promoted: 0, runIds: [] });
   }, 60_000);
 
-  it("cold-reconstructs an actual failed company process history without erasing its identity", async () => {
-    const f = await actualCompanyFailure();
+  it("cold-reconstructs an actual failed space process history without erasing its identity", async () => {
+    const f = await actualSpaceFailure();
     const scheduled = await schedule(f.actualSource.id, 30_000); await settled();
     const report = await proof(); expect(report.backgroundWork, JSON.stringify(report.diagnostics)).toBe("none");
     expect(report.scheduledWake?.nextWakeAt).toBe(scheduled.dueAt.toISOString());
     const receipt = f.actualSource.legacyProcessSettlement;
     for (const patch of [{ legacyProcessSettlement: null }, { legacyProcessSettlement: {} },
       { legacyProcessSettlement: { ...receipt, processPid: "malformed" } },
-      { legacyProcessSettlement: { ...receipt, companyId: randomUUID() } },
+      { legacyProcessSettlement: { ...receipt, spaceId: randomUUID() } },
       { processPid: f.actualSource.processPid! + 1 }, { controllerBootId: randomUUID() },
       { controllerLeaseExpiresAt: new Date(0) }, { controllerLeaseExpiresAt: new Date(Date.now() + 60_000) }, { processStartedAt: null },
       { resultJson: { ...f.actualSource.resultJson, cancellation: {} } }]) {
-      const rollback = new Error("changed historical company settlement rollback");
+      const rollback = new Error("changed historical space settlement rollback");
       await expect(db.transaction(async tx => {
         await tx.update(heartbeatRuns).set(patch).where(eq(heartbeatRuns.id, f.actualSource.id));
         expect((await readIdleRetrySchedule(tx, Date.now(), worker!.retries.reconciliationSnapshot)).blocked).toBe(true);
@@ -381,7 +381,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     const pendingCleanupRollback = new Error("pending source cleanup rollback");
     await expect(db.transaction(async tx => {
       await tx.update(heartbeatRuns).set({ legacyProcessSettlement: null }).where(eq(heartbeatRuns.id, f.actualSource.id));
-      await tx.insert(environmentLeases).values({ companyId: f.companyId, heartbeatRunId: f.actualSource.id,
+      await tx.insert(environmentLeases).values({ spaceId: f.spaceId, heartbeatRunId: f.actualSource.id,
         provider: "local", status: "pending_cleanup", cleanupStatus: "failed" });
       expect(await legacySettlement.recordLegacyProcessSettlement(tx as unknown as Db, f.actualSource, () => true)).toBe(false);
       const [held] = await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.actualSource.id));
@@ -407,19 +407,19 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
 
   it("cold-reconstructs an actual failed ordinary issue process with exact source settlement", async () => {
     const jitter = vi.spyOn(Math, "random").mockReturnValue(0.5);
-    let f: Awaited<ReturnType<typeof actualCompanyFailure>>;
-    try { f = await actualCompanyFailure(true, false); }
+    let f: Awaited<ReturnType<typeof actualSpaceFailure>>;
+    try { f = await actualSpaceFailure(true, false); }
     finally { jitter.mockRestore(); }
     const produced = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.retryOfRunId, f.actualSource.id));
     expect(produced, JSON.stringify(produced.map(row => ({ id: row.id, status: row.status, dueAt: row.scheduledRetryAt,
       reason: row.scheduledRetryReason })))).toHaveLength(1);
     expect(produced[0]).toMatchObject({ status: "scheduled_retry", scopeKind: "issue", issueId: f.issue.id,
-      agentId: f.agent.id, companyId: f.companyId, scheduledRetryReason: "transient_failure", scheduledRetryAttempt: 1,
+      agentId: f.agent.id, spaceId: f.spaceId, scheduledRetryReason: "transient_failure", scheduledRetryAttempt: 1,
       startedAt: null, finishedAt: null });
     expect(produced[0].scheduledRetryAt).toBeInstanceOf(Date);
     const scheduled = { run: produced[0], dueAt: produced[0].scheduledRetryAt! };
     const [wake] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, scheduled.run.wakeupRequestId!));
-    expect(wake).toMatchObject({ runId: scheduled.run.id, companyId: f.companyId, agentId: f.agent.id, status: "queued" });
+    expect(wake).toMatchObject({ runId: scheduled.run.id, spaceId: f.spaceId, agentId: f.agent.id, status: "queued" });
     const producerEvents = await db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.runId, f.actualSource.id),
       sql`${heartbeatRunEvents.message} LIKE 'Scheduled bounded retry %'`));
     expect(producerEvents).toHaveLength(1);
@@ -467,7 +467,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     const failedWrite = vi.spyOn(legacySettlement, "recordLegacyProcessSettlement")
       .mockRejectedValue(new Error("controlled optional settlement write failure"));
     try {
-      const f = await actualCompanyFailure(false);
+      const f = await actualSpaceFailure(false);
       expect(failedWrite).toHaveBeenCalledTimes(1);
       const scheduled = await schedule(f.actualSource.id, 30_000); await settled();
       expect((await proof()).backgroundWork).not.toBe("none");
@@ -501,7 +501,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     const jitter = vi.spyOn(Math, "random").mockReturnValue(0.5);
     try {
       const failed = await drivePreparationFailure({ db, heartbeat, control: f.control, entered: f.entered, persisted: f.persisted,
-        companyId: f.companyId, agentId: f.agent.id, issueId: f.issue.id, run, owner: worker!.retries.reconciliationSnapshot }); jitter.mockRestore(); await settled();
+        spaceId: f.spaceId, agentId: f.agent.id, issueId: f.issue.id, run, owner: worker!.retries.reconciliationSnapshot }); jitter.mockRestore(); await settled();
       expect(failed.controllerLeaseExpiresAt).toBeNull(); expect(failed.processPid).toBeNull();
       expect(f.persisted).toHaveBeenCalledTimes(1); expect(legacySettlement.legacySourceProcessSettled(failed)).toBe(true);
       expect(failed.legacyProcessSettlement).toMatchObject({ schema: "outpost.legacy-preparation-settlement.v1",
@@ -511,7 +511,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
         startedAt: null, finishedAt: null }); expect(retry.scheduledRetryAt).toBeInstanceOf(Date);
       const dueAt = retry.scheduledRetryAt!;
       const [wake] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, retry.wakeupRequestId!));
-      expect(wake).toMatchObject({ runId: retry.id, status: "queued", companyId: f.companyId, agentId: f.agent.id });
+      expect(wake).toMatchObject({ runId: retry.id, status: "queued", spaceId: f.spaceId, agentId: f.agent.id });
       const scheduled = await db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.runId, failed.id),
         sql`${heartbeatRunEvents.message} LIKE 'Scheduled bounded retry %'`));
       expect(scheduled).toHaveLength(1); expect(scheduled[0].payload).toMatchObject({ delayMs: 30_000, baseDelayMs: 30_000,
@@ -534,7 +534,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
       const cleanupRollback = new Error("preparation pending cleanup SQL rollback");
       await expect(db.transaction(async tx => {
         await tx.update(heartbeatRuns).set({ legacyProcessSettlement: null }).where(eq(heartbeatRuns.id, failed.id));
-        await tx.insert(environmentLeases).values({ companyId: f.companyId, heartbeatRunId: failed.id,
+        await tx.insert(environmentLeases).values({ spaceId: f.spaceId, heartbeatRunId: failed.id,
           provider: "local", status: "pending_cleanup", cleanupStatus: "failed" });
         expect(await legacySettlement.recordLegacyPreparationSettlement(tx as unknown as Db, failed, () => true)).toBe(false);
         const [current] = await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, failed.id));
@@ -561,7 +561,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     const f = await claimedPreparationFailure(true); const jitter = vi.spyOn(Math, "random").mockReturnValue(0.5);
     try {
       const failed = await drivePreparationFailure({ db, heartbeat, control: f.control, entered: f.entered, persisted: f.persisted,
-        companyId: f.companyId, agentId: f.agent.id, issueId: f.issue.id, run, owner: worker!.retries.reconciliationSnapshot }); jitter.mockRestore(); await settled();
+        spaceId: f.spaceId, agentId: f.agent.id, issueId: f.issue.id, run, owner: worker!.retries.reconciliationSnapshot }); jitter.mockRestore(); await settled();
       expect(f.persisted).toHaveBeenCalledTimes(1); expect(failed.legacyProcessSettlement).toBeNull();
       expect(failed.controllerLeaseExpiresAt).toBeNull(); expect(f.entered).not.toHaveBeenCalled();
       const [retry] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.retryOfRunId, failed.id));
@@ -596,8 +596,8 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     } finally { jitter.mockRestore(); execution.mockRestore(); }
   }, 60_000);
 
-  it("keeps company cancellation and first producer during drain fenced", async () => {
-    const f = await fixture({ companyScope: true }); await start(); await settled();
+  it("keeps space cancellation and first producer during drain fenced", async () => {
+    const f = await fixture({ spaceScope: true }); await start(); await settled();
     const old = await owners.retries!(db, Date.now(), () => {});
     draining = true;
     const scheduled = await schedule(f.source.id, 30_000);
@@ -607,13 +607,13 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     draining = false; worker!.wake(); await settled();
     expect((await proof()).backgroundWork).toBe("none");
     for (const principalId of [f.agent.id, "recovery-test-user"]) {
-      await db.update(companyMemberships).set({ status: "inactive" }).where(and(
-        eq(companyMemberships.companyId, f.companyId), eq(companyMemberships.principalId, principalId)));
+      await db.update(spaceMemberships).set({ status: "inactive" }).where(and(
+        eq(spaceMemberships.spaceId, f.spaceId), eq(spaceMemberships.principalId, principalId)));
       expect((await proof()).backgroundWork).not.toBe("none");
-      await db.update(companyMemberships).set({ status: "active" }).where(and(
-        eq(companyMemberships.companyId, f.companyId), eq(companyMemberships.principalId, principalId)));
+      await db.update(spaceMemberships).set({ status: "active" }).where(and(
+        eq(spaceMemberships.spaceId, f.spaceId), eq(spaceMemberships.principalId, principalId)));
     }
-    await heartbeat.cancelRun(scheduled.run.id, "company operator stop", { suppressImmediateRecovery: true });
+    await heartbeat.cancelRun(scheduled.run.id, "space operator stop", { suppressImmediateRecovery: true });
     await worker!.stop(); await coordinator!.stop(); heartbeat = heartbeatService(db);
     await start(); await settled();
     expect(await heartbeat.promoteDueScheduledRetries(new Date(scheduled.dueAt.getTime() + 1))).toEqual({ promoted: 0, runIds: [] });
@@ -688,7 +688,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     monitorWorker = monitor(); await monitorWorker.ready;
     owners.quota = bindIdleDeadlineOwner(monitorWorker.reconciliationSnapshot, readIdleQuotaSchedule,
       snapshot => ({ issueWaits: snapshot.issueWaits }));
-    const recovery = await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId, issueId: f.issue.id });
+    const recovery = await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId, issueId: f.issue.id });
     expect(recovery.providerQuotaMonitored).toBe(1);
     await vi.waitFor(() => expect(monitorWorker!.reconciliationSnapshot().reconciled).toBe(true)); await settled();
     const [saved] = await db.select().from(issues).where(eq(issues.id, f.issue.id));
@@ -754,7 +754,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     owners.quota = bindIdleDeadlineOwner(monitorWorker.reconciliationSnapshot, readIdleQuotaSchedule,
       snapshot => ({ issueWaits: snapshot.issueWaits }));
     await monitorWorker.ready;
-    const result = await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId, issueId: f.issue.id });
+    const result = await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId, issueId: f.issue.id });
     expect(result.providerQuotaMonitored).toBe(1);
     await vi.waitFor(() => expect(monitorWorker!.reconciliationSnapshot().reconciled).toBe(true));
     const [saved] = await db.select({ policy: issues.executionPolicy, at: issues.monitorNextCheckAt }).from(issues).where(eq(issues.id, f.issue.id));
@@ -764,7 +764,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     const report = await proof();
     expect(report.backgroundWork, JSON.stringify(report.diagnostics)).toBe("none");
     expect(report.scheduledWake?.nextWakeAt).toBe(reset.toISOString());
-    await issueService(db).update(f.issue.id, { status: "done", actorUserId: "recovery-test-user", companyGuard: f.companyId });
+    await issueService(db).update(f.issue.id, { status: "done", actorUserId: "recovery-test-user", spaceGuard: f.spaceId });
     await vi.waitFor(() => expect(monitorWorker!.reconciliationSnapshot().reconciled).toBe(true));
     await settled();
     const [completed] = await db.select({ status: issues.status, policy: issues.executionPolicy, at: issues.monitorNextCheckAt,
@@ -781,9 +781,9 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     for (const kind of ["run", "wake"] as const) {
       const rollback = new Error(`terminal quota ${kind} rollback`);
       await expect(db.transaction(async tx => {
-        if (kind === "run") await tx.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+        if (kind === "run") await tx.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
           scopeKind: "issue", issueId: f.issue.id, status: "queued", contextSnapshot: { issueId: f.issue.id } });
-        else await tx.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+        else await tx.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
           source: "automation", status: "queued", payload: { issueId: f.issue.id } });
         expect((await readIdleQuotaSchedule(tx, Date.now(), monitorWorker!.reconciliationSnapshot)).blocked).toBe(true);
         throw rollback;
@@ -803,9 +803,9 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
 
   it("reconciles a configured watchdog through real review completion and retains quiet reviewed history", async () => {
     const f = await fixture({ retainedSourceLock: false });
-    await issueService(db).update(f.issue.id, { status: "done", actorUserId: "recovery-test-user", companyGuard: f.companyId });
+    await issueService(db).update(f.issue.id, { status: "done", actorUserId: "recovery-test-user", spaceGuard: f.spaceId });
     await start(); await settled();
-    const configuration = await taskWatchdogService(db).upsertForIssue(f.companyId, f.issue.id, { agentId: f.agent.id });
+    const configuration = await taskWatchdogService(db).upsertForIssue(f.spaceId, f.issue.id, { agentId: f.agent.id });
     const registeredAt = Date.now();
     recoveryWorker = heartbeat.registerIssueStateRecoveryWork(coordinator!, () => !draining);
     owners.watchdogs = bindIdleDeadlineOwner(recoveryWorker.watchdogs.reconciliationSnapshot, heartbeat.readIdleWatchdogSchedule,
@@ -813,7 +813,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     await recoveryWorker.ready;
     await vi.waitFor(async () => {
       await heartbeat.drainActiveRunExecutions();
-      const current = await taskWatchdogService(db).getActiveForIssue(f.companyId, f.issue.id);
+      const current = await taskWatchdogService(db).getActiveForIssue(f.spaceId, f.issue.id);
       expect(current?.watchdogIssueId).toBeTruthy();
       const [review] = await db.select({ status: issues.status }).from(issues).where(eq(issues.id, current!.watchdogIssueId!));
       expect(review.status).toBe("done");
@@ -828,7 +828,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     }, { timeout: Math.max(0, registeredAt + 35_000 - Date.now()) + 5_000 });
     const report = await proof();
     expect(report.backgroundWork, JSON.stringify(report.diagnostics)).toBe("none");
-    const retained = await taskWatchdogService(db).getActiveForIssue(f.companyId, f.issue.id);
+    const retained = await taskWatchdogService(db).getActiveForIssue(f.spaceId, f.issue.id);
     expect(retained?.id).toBe(configuration.watchdog.id);
     expect(retained?.lastReviewedFingerprint).toBeTruthy();
     expect((await proof()).scheduledWake).toBeUndefined();
@@ -839,8 +839,8 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     const fixtures: Awaited<ReturnType<typeof fixture>>[] = [];
     for (let index = 0; index < 7; index++) {
       const f = await fixture({ retainedSourceLock: false });
-      await issueService(db).update(f.issue.id, { status: "done", actorUserId: "recovery-test-user", companyGuard: f.companyId });
-      await taskWatchdogService(db).upsertForIssue(f.companyId, f.issue.id, { agentId: f.agent.id });
+      await issueService(db).update(f.issue.id, { status: "done", actorUserId: "recovery-test-user", spaceGuard: f.spaceId });
+      await taskWatchdogService(db).upsertForIssue(f.spaceId, f.issue.id, { agentId: f.agent.id });
       fixtures.push(f);
     }
     await start(); await settled();
@@ -852,7 +852,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     await vi.waitFor(async () => {
       await heartbeat.drainActiveRunExecutions();
       for (const f of fixtures) {
-        const current = await taskWatchdogService(db).getActiveForIssue(f.companyId, f.issue.id);
+        const current = await taskWatchdogService(db).getActiveForIssue(f.spaceId, f.issue.id);
         expect(current?.lastReviewedFingerprint).toBeTruthy();
         expect(current?.watchdogIssueId).toBeTruthy();
         const [review] = await db.select({ status: issues.status }).from(issues).where(eq(issues.id, current!.watchdogIssueId!));
@@ -866,7 +866,7 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     expect(report.scheduledWake).toBeUndefined();
     draining = true;
     const f = fixtures[0];
-    const [pending] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+    const [pending] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
       issueId: f.issue.id, status: "queued", contextSnapshot: { issueId: f.issue.id } }).returning();
     expect((await proof()).backgroundWork).not.toBe("none");
     await db.delete(heartbeatRuns).where(eq(heartbeatRuns.id, pending.id));
@@ -883,26 +883,26 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     expect(idleDeadlineRowLimit).toBe(10_000);
     const reset = new Date(Date.now() + 600_000);
     const f = await fixture({ retainedSourceLock: false, quotaResetAt: reset });
-    const produced = await heartbeat.reconcileStrandedAssignedIssues({ companyId: f.companyId, issueId: f.issue.id });
+    const produced = await heartbeat.reconcileStrandedAssignedIssues({ spaceId: f.spaceId, issueId: f.issue.id });
     expect(produced.providerQuotaMonitored).toBe(1);
-    await issueService(db).update(f.issue.id, { status: "done", actorUserId: "recovery-test-user", companyGuard: f.companyId });
+    await issueService(db).update(f.issue.id, { status: "done", actorUserId: "recovery-test-user", spaceGuard: f.spaceId });
     const growHistory = async (count: number) => {
       await db.execute(sql`
         WITH bindings AS MATERIALIZED (
           SELECT gen_random_uuid() AS issue_id, gen_random_uuid() AS source_id FROM generate_series(1, ${count})
         ), written_issues AS (
-          INSERT INTO issues (id, company_id, title, status, assignee_agent_id,
+          INSERT INTO issues (id, space_id, title, status, assignee_agent_id,
             execution_policy, execution_state, monitor_next_check_at, monitor_attempt_count)
-          SELECT b.issue_id, template.company_id, 'Completed quota history', template.status, template.assignee_agent_id,
+          SELECT b.issue_id, template.space_id, 'Completed quota history', template.status, template.assignee_agent_id,
             jsonb_set(template.execution_policy, '{monitor,externalRef}', to_jsonb(b.source_id::text)),
             jsonb_set(template.execution_state, '{monitor,externalRef}', to_jsonb(b.source_id::text)),
             template.monitor_next_check_at, template.monitor_attempt_count
           FROM bindings b CROSS JOIN issues template WHERE template.id = ${f.issue.id}::uuid
-          RETURNING id, company_id, execution_policy
+          RETURNING id, space_id, execution_policy
         )
-        INSERT INTO heartbeat_runs (id, company_id, agent_id, issue_id, status, finished_at,
+        INSERT INTO heartbeat_runs (id, space_id, agent_id, issue_id, status, finished_at,
           runtime_mode, error_code, result_json, context_snapshot, responsible_user_id)
-        SELECT (written.execution_policy#>>'{monitor,externalRef}')::uuid, written.company_id, source.agent_id,
+        SELECT (written.execution_policy#>>'{monitor,externalRef}')::uuid, written.space_id, source.agent_id,
           written.id, source.status, source.finished_at, source.runtime_mode, source.error_code, source.result_json,
           jsonb_build_object('issueId', written.id), source.responsible_user_id
         FROM written_issues written CROSS JOIN heartbeat_runs source WHERE source.id = ${f.source.id}::uuid
@@ -913,9 +913,9 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     expect(template).toMatchObject({ status: "done", at: reset, state: { status: "idle" } });
     expect(template.policy?.monitor).toMatchObject({ serviceName: PROVIDER_QUOTA_MONITOR_SERVICE_NAME, externalRef: f.source.id });
     await growHistory(9_999);
-    const [count] = await db.execute<{ count: number }>(sql`SELECT count(*)::integer AS count FROM issues WHERE company_id = ${f.companyId}::uuid`);
+    const [count] = await db.execute<{ count: number }>(sql`SELECT count(*)::integer AS count FROM issues WHERE space_id = ${f.spaceId}::uuid`);
     expect(count.count).toBe(10_000);
-    const [sources] = await db.execute<{ count: number }>(sql`SELECT count(*)::integer AS count FROM heartbeat_runs WHERE company_id = ${f.companyId}::uuid`);
+    const [sources] = await db.execute<{ count: number }>(sql`SELECT count(*)::integer AS count FROM heartbeat_runs WHERE space_id = ${f.spaceId}::uuid`);
     expect(sources.count).toBe(10_000);
     await start(); await settled();
     monitorWorker = registerDeadlineWork(coordinator!, DELIVERY_QUEUES.issueMonitors, {
@@ -945,9 +945,9 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
     for (const kind of ["run", "wake"] as const) {
       const rollback = new Error(`large terminal quota ${kind} rollback`);
       await expect(db.transaction(async tx => {
-        if (kind === "run") await tx.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agent.id,
+        if (kind === "run") await tx.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agent.id,
           issueId: f.issue.id, status: "queued", contextSnapshot: { issueId: f.issue.id } });
-        else await tx.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agent.id,
+        else await tx.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agent.id,
           source: "automation", status: "queued", payload: { issueId: f.issue.id } });
         expect((await readIdleQuotaSchedule(tx, Date.now(), monitorWorker!.reconciliationSnapshot)).blocked).toBe(true);
         throw rollback;
@@ -966,11 +966,11 @@ describe.skipIf(!fixtureUrl)("recovery deadline producer, proof and resumed exec
 
   it("blocks unconsumed budget inputs without a live owner and permits sleep only after normal settlement", async () => {
     const f = await fixture({ retainedSourceLock: false });
-    await issueService(db).update(f.issue.id, { status: "done", actorUserId: "recovery-test-user", companyGuard: f.companyId });
+    await issueService(db).update(f.issue.id, { status: "done", actorUserId: "recovery-test-user", spaceGuard: f.spaceId });
     await start({ budgets: false }); await settled();
     expect(await hasPendingBudgetEvaluation(db)).toBe(false);
     expect((await proof()).backgroundWork).toBe("none");
-    await db.transaction(tx => queueBudgetEvaluation(tx as unknown as Db, { companyId: f.companyId, agentId: f.agent.id }));
+    await db.transaction(tx => queueBudgetEvaluation(tx as unknown as Db, { spaceId: f.spaceId, agentId: f.agent.id }));
     expect(await hasPendingBudgetEvaluation(db)).toBe(true);
     const pending = await proof();
     expect(pending.backgroundWork).toBe("present");

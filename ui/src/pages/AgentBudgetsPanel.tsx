@@ -8,14 +8,14 @@ import { queryKeys } from "../lib/queryKeys";
 
 type BudgetAgent = Pick<AgentDetailRecord, "id" | "name" | "status" | "pauseReason" | "budgetMonthlyCents" | "spentMonthlyCents">;
 
-export function agentBudgetSummary(overview: BudgetOverview | undefined, agent: BudgetAgent, companyId: string): BudgetPolicySummary {
+export function agentBudgetSummary(overview: BudgetOverview | undefined, agent: BudgetAgent, spaceId: string): BudgetPolicySummary {
   const matched = overview?.policies.find((policy) => policy.scopeType === "agent" && policy.scopeId === agent.id);
   if (matched) return matched;
   const amount = agent.budgetMonthlyCents ?? 0;
   const observed = agent.spentMonthlyCents ?? 0;
   return {
     policyId: "",
-    companyId,
+    spaceId,
     scopeType: "agent",
     scopeId: agent.id,
     scopeName: agent.name,
@@ -40,26 +40,26 @@ export function agentBudgetSummary(overview: BudgetOverview | undefined, agent: 
   };
 }
 
-export function AgentBudgetsPanel({ agent, companyId }: { agent: BudgetAgent; companyId: string }) {
+export function AgentBudgetsPanel({ agent, spaceId }: { agent: BudgetAgent; spaceId: string }) {
   const queryClient = useQueryClient();
   const overview = useQuery({
-    queryKey: queryKeys.budgets.overview(companyId),
-    queryFn: () => budgetsApi.overview(companyId),
+    queryKey: queryKeys.budgets.overview(spaceId),
+    queryFn: () => budgetsApi.overview(spaceId),
     refetchInterval: 30_000,
     staleTime: 5_000,
   });
-  const summary = agentBudgetSummary(overview.data, agent, companyId);
+  const summary = agentBudgetSummary(overview.data, agent, spaceId);
   const incidents = (overview.data?.activeIncidents ?? []).filter(
     (incident) => incident.scopeType === "agent" && incident.scopeId === agent.id,
   );
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.budgets.overview(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.budgets.overview(spaceId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(spaceId) });
   };
   const policy = useMutation({
     mutationFn: (changes: { amount?: number; reservationCents?: string; unpricedUsagePolicy?: "block" | "allow" }) =>
-      budgetsApi.upsertPolicy(companyId, {
+      budgetsApi.upsertPolicy(spaceId, {
         scopeType: "agent",
         scopeId: agent.id,
         metric: summary.metric,
@@ -70,7 +70,7 @@ export function AgentBudgetsPanel({ agent, companyId }: { agent: BudgetAgent; co
   });
   const incident = useMutation({
     mutationFn: (input: { incidentId: string; action: "keep_paused" | "raise_budget_and_resume"; amount?: number }) =>
-      budgetsApi.resolveIncident(companyId, input.incidentId, input),
+      budgetsApi.resolveIncident(spaceId, input.incidentId, input),
     onSuccess: invalidate,
   });
 

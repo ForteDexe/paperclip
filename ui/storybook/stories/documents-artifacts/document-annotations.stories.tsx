@@ -17,7 +17,7 @@ import { IssueDocumentsSection } from "@/components/IssueDocumentsSection";
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { queryKeys } from "@/lib/queryKeys";
-import type { CompanyUserProfile } from "@/lib/company-members";
+import type { SpaceUserProfile } from "@/lib/space-members";
 
 const sampleMarkdown = `# Plan: Document Highlights And Comment Threads
 
@@ -48,7 +48,7 @@ function makeThread(
   const id = overrides.id ?? "thread-1";
   return {
     id,
-    companyId: "co-1",
+    spaceId: "co-1",
     issueId: "issue-1",
     documentId: "doc-1",
     documentKey: "plan",
@@ -84,7 +84,7 @@ function makeThread(
     comments: [
       {
         id: "comment-1",
-        companyId: "co-1",
+        spaceId: "co-1",
         threadId: id,
         issueId: "issue-1",
         documentId: "doc-1",
@@ -98,7 +98,7 @@ function makeThread(
       },
       {
         id: "comment-2",
-        companyId: "co-1",
+        spaceId: "co-1",
         threadId: id,
         issueId: "issue-1",
         documentId: "doc-1",
@@ -127,7 +127,7 @@ const baseThreads: DocumentAnnotationThreadWithComments[] = [
     comments: [
       {
         id: "comment-stale",
-        companyId: "co-1",
+        spaceId: "co-1",
         threadId: "stale-1",
         issueId: "issue-1",
         documentId: "doc-1",
@@ -148,7 +148,7 @@ const baseThreads: DocumentAnnotationThreadWithComments[] = [
     comments: [
       {
         id: "comment-resolved",
-        companyId: "co-1",
+        spaceId: "co-1",
         threadId: "resolved-1",
         issueId: "issue-1",
         documentId: "doc-1",
@@ -169,7 +169,7 @@ const baseThreads: DocumentAnnotationThreadWithComments[] = [
     comments: [
       {
         id: "comment-orphan",
-        companyId: "co-1",
+        spaceId: "co-1",
         threadId: "orphan-1",
         issueId: "issue-1",
         documentId: "doc-1",
@@ -188,7 +188,7 @@ const baseThreads: DocumentAnnotationThreadWithComments[] = [
 const integratedAgentMap: ReadonlyMap<string, Pick<Agent, "id" | "name">> = new Map([
   ["agent-uxdesigner", { id: "agent-uxdesigner", name: "UXDesigner" }],
 ]);
-const integratedUserProfileMap: ReadonlyMap<string, CompanyUserProfile> = new Map([
+const integratedUserProfileMap: ReadonlyMap<string, SpaceUserProfile> = new Map([
   ["user-1", { label: "Dotta", image: null }],
 ]);
 
@@ -204,7 +204,7 @@ function makeClient() {
 const integratedIssueId = "issue-storybook-1";
 const integratedDoc: IssueDocument = {
   id: "doc-storybook-1",
-  companyId: "co-1",
+  spaceId: "co-1",
   issueId: integratedIssueId,
   key: "plan",
   title: "Plan",
@@ -226,7 +226,7 @@ const integratedDoc: IssueDocument = {
 function makeIntegratedIssue(): Issue {
   return {
     id: integratedIssueId,
-    companyId: "co-1",
+    spaceId: "co-1",
     projectId: null,
     projectWorkspaceId: null,
     goalId: null,
@@ -261,7 +261,7 @@ function makeIntegratedIssue(): Issue {
     documentSummaries: [
       {
         id: integratedDoc.id,
-        companyId: integratedDoc.companyId,
+        spaceId: integratedDoc.spaceId,
         issueId: integratedIssueId,
         key: integratedDoc.key,
         title: integratedDoc.title,
@@ -350,7 +350,7 @@ function IntegratedSurface({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="paperclip-doc-annotation-integrated mx-auto max-w-[1320px] p-4">
+      <div className="outpost-doc-annotation-integrated mx-auto max-w-[1320px] p-4">
         <div className="rounded-lg border border-border bg-background p-4">
           <IssueDocumentsSection
             issue={issue}
@@ -385,7 +385,7 @@ function DirtyDraftWithIntegratedHeader() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="paperclip-doc-annotation-integrated mx-auto max-w-[1320px] p-4">
+      <div className="outpost-doc-annotation-integrated mx-auto max-w-[1320px] p-4">
         <div className="rounded-lg border border-border bg-background p-4">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -431,7 +431,7 @@ function DirtyDraftWithIntegratedHeader() {
                     placeholder="Markdown body"
                     bordered={false}
                     className="bg-transparent"
-                    contentClassName="paperclip-edit-in-place-content min-h-[220px] text-[15px] leading-7"
+                    contentClassName="outpost-edit-in-place-content min-h-[220px] text-[15px] leading-7"
                   />
                 </IssueDocumentAnnotations>
                 <div className="flex min-h-4 items-center justify-end px-1">
@@ -514,7 +514,7 @@ const meta = {
           "Document annotation surface for issue documents. Stories under 'Integrated' render the real IssueDocumentsSection chrome (count chip in header, panel + body in their actual layout). Stories under 'States' isolate the panel/layer for unit-level visual debugging.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "documents-artifacts/annotations"
       ],

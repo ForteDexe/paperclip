@@ -1,6 +1,6 @@
 # Connection review verification — 2026-09-08
 
-Implementation workspace: `/Users/dotta/paperclipai/branches/codex/reviews-in-task`.
+Implementation workspace: `/Users/dotta/outpostai/branches/codex/reviews-in-task`.
 Branch: `codex/reviews-in-task`, rebased on `master` at `8f099c3f8`.
 The original verification below predates that rebase; final checks are recorded in the PR.
 
@@ -29,7 +29,7 @@ The fixture queue can be resolved interactively to inspect its empty state.
 
 ## Deterministic browser journeys
 
-Each journey creates a company, agent, and custom MCP connection in an isolated
+Each journey creates a space, agent, and custom MCP connection in an isolated
 embedded database. Ask first is configured through the permissions UI. The provider
 returns fixture page names; **these are not real Notion pages**.
 
@@ -49,11 +49,11 @@ provider calls. Traces and screenshots accompany each case.
 [Playwright report](http://127.0.0.1:6020/report/). The final run passed all five
 journeys in 1.4 minutes and released its port after teardown.
 
-The local evidence directory is `.paperclip-runtime/reviews-evidence/`. It contains
+The local evidence directory is `.outpost-runtime/reviews-evidence/`. It contains
 the Playwright report, traces/screenshots, focused/full-check logs, baseline logs,
 and `final-journey-identifiers.json` with request, invocation, interaction, and run IDs
 from the passing port-3226 run. The report's attachments also contain
-company/task/agent IDs and provider counts for its own run.
+space/task/agent IDs and provider counts for its own run.
 
 ## Automated checks
 
@@ -71,7 +71,7 @@ company/task/agent IDs and provider counts for its own run.
   failures found in the initial run were corrected and their suites rerun above.
   Thirteen unrelated failures were reproduced at the same unchanged master commit:
   two workspace-runtime tests, four workspace-repair/control tests, three runtime
-  exposure tests, two company-skill path tests, one instance-cleanup path test,
+  exposure tests, two space-skill path tests, one instance-cleanup path test,
   and one worktree-seed spawn test.
   The initial general-server lane ended with 5,968 passed, 39 failed, and 31
   skipped tests across 498 files. Twenty failures were feature changes corrected
@@ -101,7 +101,7 @@ or credential store, not in this report or chat.
 
 Before the master rebase, 155 component tests and all five browser journeys passed.
 The final UI checks include the split approval menu, keyboard selection of Always
-allow, and one-click decline. Evidence is in `.paperclip-runtime/reviews-evidence/minimal/`.
+allow, and one-click decline. Evidence is in `.outpost-runtime/reviews-evidence/minimal/`.
 The browser run took 2.7 minutes; its restarted server required explicit process
 cleanup after the tests completed. Live provider and model-runner dependencies
 remain separate from this deterministic evidence.

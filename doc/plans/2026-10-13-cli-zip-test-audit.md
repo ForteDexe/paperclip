@@ -14,7 +14,7 @@ Retire `cli/src/__tests__/zip-codec.test.ts` after moving its unique observation
 
 The valid-UTF8 blob is necessary: arbitrary invalid binary bytes can still become base64 through the decoder fallback if opaque-blob classification breaks. The keeper now demands base64 `aGk=` for the ASCII blob, and `aGn//sA=` for invalid non-blob UTF8. Existing STORE, genuine DEFLATE, shared-root, direct UTF8, truncation, descriptor, central-directory, duplicate-path and decompression-limit assertions remain.
 
-The CLI module is a production re-export of the shared codec. Real consumers remain in `resolveInlineSourceFromPath`, `resolveChunkedImportZip`, folder conversion/filtering (`cli/src/commands/client/company.ts`), and server uploaded-archive parsing (`server/src/routes/companies.ts`). No production exports or code are deleted. CLI file/transport/filtering tests remain in `company-import-zip.test.ts` and `company-import-transfer.test.ts`.
+The CLI module is a production re-export of the shared codec. Real consumers remain in `resolveInlineSourceFromPath`, `resolveChunkedImportZip`, folder conversion/filtering (`cli/src/commands/client/space.ts`), and server uploaded-archive parsing (`server/src/routes/spaces.ts`). No production exports or code are deleted. CLI file/transport/filtering tests remain in `space-import-zip.test.ts` and `space-import-transfer.test.ts`.
 
 History: #10507 (`916c13501f`) introduced CLI codec tests. #10531 (`5ec7ce76e5`) moved the codec into shared, retained CLI re-exports, and introduced the primary shared-owner tests. This candidate removes the replay left behind by that ownership move.
 
@@ -32,8 +32,8 @@ For the candidate/restored owner, omit the deleted CLI file. Run transport proof
 
 ```sh
 node node_modules/vitest/vitest.mjs run --no-file-parallelism --maxWorkers=1 \
-  cli/src/__tests__/company-import-zip.test.ts \
-  cli/src/__tests__/company-import-transfer.test.ts
+  cli/src/__tests__/space-import-zip.test.ts \
+  cli/src/__tests__/space-import-transfer.test.ts
 ```
 
 | Phase | Complete owner | Separate transport |

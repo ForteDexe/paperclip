@@ -86,7 +86,7 @@ export const ISSUE_PROGRESS_ACTIVITY_ACTIONS: string[] = [
 
 /**
  * Activity on the issue that counts as new external input since the last run
- * finished — anything a waiting agent should be woken for, including board
+ * finished — anything a waiting agent should be woken for, including operator
  * responses to interactions.
  */
 export const ISSUE_NEW_INPUT_ACTIVITY_ACTIONS: string[] = [

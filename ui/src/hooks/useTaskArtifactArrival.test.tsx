@@ -13,12 +13,12 @@ const attachment = (id = fileId, userUpload = false) => ({
 } as IssueAttachment);
 const document = (key = "report") => ({ id: `doc-${key}`, key } as IssueDocumentSummary);
 const product = (attachmentId = fileId) => ({
-  id: `product-${attachmentId}`, companyId: "company-1", issueId: "task-1",
+  id: `product-${attachmentId}`, spaceId: "space-1", issueId: "task-1",
   projectId: null, executionWorkspaceId: null, runtimeServiceId: null,
   externalId: null, title: "Image", url: null, status: "active", reviewState: "none",
   isPrimary: false, healthStatus: "unknown", summary: null, createdByRunId: null,
   createdAt: new Date(), updatedAt: new Date(),
-  type: "artifact", provider: "paperclip", metadata: {
+  type: "artifact", provider: "outpost", metadata: {
     attachmentId, contentType: "image/png", byteSize: 123,
     contentPath: `/api/attachments/${attachmentId}/content`,
     openPath: `/api/attachments/${attachmentId}/content`,

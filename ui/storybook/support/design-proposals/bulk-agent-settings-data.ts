@@ -8,7 +8,7 @@ export const harnesses = {
 } as const;
 
 function connection(id: string, name: string, provider: AiConnectionSummary["provider"], status: AiConnectionSummary["status"] = "connected"): AiConnectionSummary {
-  return { id, name, provider, status, companyId: "company-storybook", grantId: `grant-${id}`, method: "api_key", ownership: "shared" };
+  return { id, name, provider, status, spaceId: "space-storybook", grantId: `grant-${id}`, method: "api_key", ownership: "shared" };
 }
 
 // Synthetic accounts and model availability; no provider requests or credentials.

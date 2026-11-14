@@ -9,13 +9,13 @@ type Seen = { id: string; at: number };
 const READ_RETRY_DELAYS = [500, 1_500];
 const ChatReadContext = createContext<((message: Seen) => void) | null>(null);
 
-export function AgentChatReadProvider({ issueId, companyId, userId, children }: {
-  issueId?: string; companyId: string; userId: string | null; children: ReactNode;
+export function AgentChatReadProvider({ issueId, spaceId, userId, children }: {
+  issueId?: string; spaceId: string; userId: string | null; children: ReactNode;
 }) {
   const client = useQueryClient();
   const [error, setError] = useState(false);
   const scope = useMemo(() => ({ active: true, pending: null as Seen | null, seenIds: new Set<string>(), sentAt: -Infinity,
-    busy: false, failures: 0, exhausted: false, retryTimer: null as ReturnType<typeof setTimeout> | null }), [issueId, companyId, userId]);
+    busy: false, failures: 0, exhausted: false, retryTimer: null as ReturnType<typeof setTimeout> | null }), [issueId, spaceId, userId]);
   const flush = useCallback(async function flush(): Promise<void> {
     if (!issueId || !scope.active || scope.busy || scope.retryTimer !== null || scope.exhausted) return;
     scope.busy = true;
@@ -43,11 +43,11 @@ export function AgentChatReadProvider({ issueId, companyId, userId, children }: 
         scope.sentAt = Math.max(scope.sentAt, next.at);
         scope.failures = 0;
         setError(false);
-        void client.invalidateQueries({ queryKey: queryKeys.agentChats.list(companyId, userId) });
-        void client.invalidateQueries({ queryKey: ["agent-chat", companyId, userId] });
+        void client.invalidateQueries({ queryKey: queryKeys.agentChats.list(spaceId, userId) });
+        void client.invalidateQueries({ queryKey: ["agent-chat", spaceId, userId] });
       }
     } finally { scope.busy = false; }
-  }, [issueId, companyId, userId, client, scope]);
+  }, [issueId, spaceId, userId, client, scope]);
   useEffect(() => {
     scope.active = true;
     setError(false);

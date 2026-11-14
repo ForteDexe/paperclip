@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Agent } from "@outpost/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { storybookAgents } from "../../../storybook/fixtures/paperclipData";
+import { storybookAgents } from "../../../storybook/fixtures/outpostData";
 import { TooltipProvider } from "../ui/tooltip";
 import { AgentBulkSettingsSheet } from "./AgentBulkSettingsSheet";
 
@@ -17,7 +17,7 @@ let root: Root;
 let client: QueryClient;
 const onClose = vi.fn();
 const agent = (id: string, adapterType: Agent["adapterType"] = "hermes_local"): Agent => ({
-  ...storybookAgents[0], id, name: id, companyId: "company-1", adapterType,
+  ...storybookAgents[0], id, name: id, spaceId: "space-1", adapterType,
   adapterConfig: { model: "old-model" }, runtimeConfig: {},
 });
 
@@ -27,7 +27,7 @@ async function render(agents: Agent[]) {
   document.body.appendChild(container);
   root = createRoot(container);
   const draw = (selected: Agent[]) => root.render(<QueryClientProvider client={client}><TooltipProvider>
-    <AgentBulkSettingsSheet companyId="company-1" agents={selected} totalSelected={selected.length} onClose={onClose} />
+    <AgentBulkSettingsSheet spaceId="space-1" agents={selected} totalSelected={selected.length} onClose={onClose} />
   </TooltipProvider></QueryClientProvider>);
   await act(async () => draw(agents));
   await vi.waitFor(() => expect(client.isFetching()).toBe(0));
@@ -62,7 +62,7 @@ async function chooseModel(id: string, manual = false) {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  api.accounts.mockResolvedValue({ currentUserId: "board", canManageConnections: true, connections: [], pools: [] });
+  api.accounts.mockResolvedValue({ currentUserId: "operator", canManageConnections: true, connections: [], pools: [] });
   api.models.mockResolvedValue([]);
 });
 afterEach(async () => {
@@ -81,7 +81,7 @@ describe("bulk model editing", () => {
     expect(api.models).toHaveBeenCalledTimes(1);
     await rerender([{ ...google, defaultEnvironmentId: "remote-2", runtimeConfig: { aiConnection: second } }]);
     expect(api.models).toHaveBeenCalledTimes(2);
-    expect(api.models).toHaveBeenLastCalledWith("company-1", "outpost_runner", {
+    expect(api.models).toHaveBeenLastCalledWith("space-1", "outpost_runner", {
       provider: "acpx", acpxAgent: "antigravity", agentId: google.id, aiConnection: second, environmentId: "remote-2",
     });
   });
@@ -97,16 +97,16 @@ describe("bulk model editing", () => {
       : { provider: "google", method, mode: "shared", connectionId, grantId } as const;
     const google = { ...agent("Antigravity", "outpost_runner"), defaultEnvironmentId: "local-1",
       adapterConfig: { provider: "acpx", acpxAgent: "antigravity", model: "old-model" }, runtimeConfig: { aiConnection: binding } } as Agent;
-    api.accounts.mockResolvedValue({ currentUserId: "board", canManageConnections: true, pools: [], connections: [{
-      id: connectionId, grantId, companyId: "company-1", provider: "google", method, name: "Selected Google account", status: "connected",
-      ownership: responsible ? "personal" : "shared", ownerUserId: "board", isDefault: true,
+    api.accounts.mockResolvedValue({ currentUserId: "operator", canManageConnections: true, pools: [], connections: [{
+      id: connectionId, grantId, spaceId: "space-1", provider: "google", method, name: "Selected Google account", status: "connected",
+      ownership: responsible ? "personal" : "shared", ownerUserId: "operator", isDefault: true,
     }] });
     if (method === "api_key") api.models.mockRejectedValue(new Error("Subscription sign-in is required to discover Google models"));
     else api.models.mockResolvedValue([{ id: "gemini-exact", label: "gemini-exact" }]);
     api.update.mockImplementation(async (_id, patch) => ({ ...google, adapterConfig: { ...google.adapterConfig, model: patch.model } }));
     await render([google]);
     if (method === "api_key") expect(api.models).not.toHaveBeenCalled();
-    else expect(api.models).toHaveBeenCalledWith("company-1", "outpost_runner", {
+    else expect(api.models).toHaveBeenCalledWith("space-1", "outpost_runner", {
       provider: "acpx", acpxAgent: "antigravity", agentId: google.id, aiConnection: binding, environmentId: "local-1",
     });
     await chooseModel("gemini-custom", true);
@@ -116,7 +116,7 @@ describe("bulk model editing", () => {
     expect(api.update).toHaveBeenCalledWith("Antigravity", expect.objectContaining({
       harness: "antigravity_runtime", model: "gemini-custom",
       expected: { model: "old-model", aiConnection: binding },
-    }), "company-1");
+    }), "space-1");
   });
 
   it("saves a manual Hermes model when the local adapter has no catalog", async () => {
@@ -127,13 +127,13 @@ describe("bulk model editing", () => {
     await vi.waitFor(() => expect(button("Update 1 agent").disabled).toBe(false));
     await act(async () => button("Update 1 agent").click());
     await vi.waitFor(() => expect(onClose).toHaveBeenCalledWith(["Hermes"], true));
-    expect(api.update).toHaveBeenCalledWith("Hermes", expect.objectContaining({ model: "provider/custom-model", harness: "hermes_local" }), "company-1");
+    expect(api.update).toHaveBeenCalledWith("Hermes", expect.objectContaining({ model: "provider/custom-model", harness: "hermes_local" }), "space-1");
   });
 
   it("does not offer manual entry for a restricted connection catalog", async () => {
     const codex = agent("Codex", "codex_local");
     codex.runtimeConfig = { aiConnection: { provider: "openai", method: "api_key", mode: "shared", connectionId: "10000000-0000-4000-8000-000000000001", grantId: "10000000-0000-4000-8000-000000000002" } };
-    api.accounts.mockResolvedValue({ currentUserId: "board", connections: [{ id: "10000000-0000-4000-8000-000000000001", grantId: "10000000-0000-4000-8000-000000000002", routing: { kind: "gateway", protocol: "responses", models: [{ id: "allowed-model" }] } }] });
+    api.accounts.mockResolvedValue({ currentUserId: "operator", connections: [{ id: "10000000-0000-4000-8000-000000000001", grantId: "10000000-0000-4000-8000-000000000002", routing: { kind: "gateway", protocol: "responses", models: [{ id: "allowed-model" }] } }] });
     await render([codex]);
     await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Change default model"]')!.click());
     await act(async () => button("Model").click());
@@ -146,7 +146,7 @@ describe("bulk model editing", () => {
     const scout = agent("Scout", "outpost_runner");
     atlas.adapterConfig = scout.adapterConfig = { provider: "acpx", acpxAgent: "copilot", model: "old-model" };
     let partialSave = false;
-    api.models.mockImplementation(async (_company, _adapter, options) => {
+    api.models.mockImplementation(async (_space, _adapter, options) => {
       if (partialSave && options.agentId === "Atlas") throw new Error("Environment unavailable");
       return [{ id: "new-model", label: "new-model" }];
     });

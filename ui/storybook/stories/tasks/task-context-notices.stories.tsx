@@ -25,7 +25,7 @@ function TaskContextNotices() {
       <main className="min-h-screen bg-background p-6 text-foreground">
         <div className="w-full space-y-3">
           <h1 className={`${shellSectionClass} text-xl font-semibold`}>Chat connection and recovery</h1>
-          <ExternallyConnectedTaskBanner className={`${shellSectionClass} mt-3`} companyId="demo" issueId="context-notices" />
+          <ExternallyConnectedTaskBanner className={`${shellSectionClass} mt-3`} spaceId="demo" issueId="context-notices" />
           <ExecutionBlockerNotice className={shellSectionClass} canRetry onRetry={() => {}}
             presentation={{ intentId: "intent", responsibility: "system", state: "failed", nextRetryAt: null,
               canRetry: true, userAction: null, sourceRunIds: [], observedRunId: null }} />
@@ -49,7 +49,7 @@ const meta = {
   title: "Tasks and conversations/Task creation and lifecycle/Tasks/Context notices",
   component: TaskContextNotices,
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "tasks/discussion"
       ],

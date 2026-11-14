@@ -3,7 +3,7 @@ import type { RunnerApi } from "../api.js";
 import type { Browser } from "@playwright/test";
 import { it, expect, vi, afterEach } from "vitest";
 import { gradeConferenceRoomOff, probeBoardChatAsPerson, type ConferenceRoomOffObservation } from "./runtime-chat-disabled.js";
-function valid(): ConferenceRoomOffObservation { return { companyId: "company", companyPrefix: "RUN", agentId: "morgan-id", personId: "actual-human",
+function valid(): ConferenceRoomOffObservation { return { spaceId: "space", spacePrefix: "RUN", agentId: "morgan-id", personId: "actual-human",
   canonicalIntent: "Open the conference room so I can talk with Morgan.", conferenceRoomEnabled: false, oldLinkLandedPath: "/RUN/dashboard",
   conferenceComposerVisible: false, conferenceNavOffered: false, chatAlternativePath: "/RUN/chats/morgan", chatAlternativeAgentRefs: ["morgan-id", "morgan"],
   chatComposerVisible: true, boardChatStatus: 403, boardChatErrorCode: "FEATURE_DISABLED", boardChatProbePersonId: "actual-human",
@@ -44,11 +44,11 @@ it("probes with the real person's session cookie and trusted origin, and classif
   const person = await createAuthenticatedPerson({ api: { baseURL: origin, get: async () => ({ deploymentMode: "authenticated" }) } as unknown as RunnerApi,
     browser: { newContext: async () => context } as unknown as Browser, secrets: [], name: "Alex" });
   try {
-    expect(await probeBoardChatAsPerson(person, "owned-company", "Open the conference room so I can talk with Morgan."))
+    expect(await probeBoardChatAsPerson(person, "owned-space", "Open the conference room so I can talk with Morgan."))
       .toEqual({ boardChatStatus: 403, boardChatErrorCode: "FEATURE_DISABLED", boardChatProbePersonId: "actual-human" });
     expect(captured).toHaveLength(1); expect(captured[0]!.url).toBe(`${origin}/api/board/chat/stream`); expect(captured[0]!.method).toBe("POST");
-    expect(JSON.parse(captured[0]!.body)).toEqual({ companyId: "owned-company", message: "Open the conference room so I can talk with Morgan." });
-    const missingOrigin = await probeBoardChatAsPerson({ id: person.id, request: async path => fetch(new URL(path, origin), { method: "POST", headers: { Cookie: "fixture-session=unit-private-session" } }) }, "owned-company", "x");
+    expect(JSON.parse(captured[0]!.body)).toEqual({ spaceId: "owned-space", message: "Open the conference room so I can talk with Morgan." });
+    const missingOrigin = await probeBoardChatAsPerson({ id: person.id, request: async path => fetch(new URL(path, origin), { method: "POST", headers: { Cookie: "fixture-session=unit-private-session" } }) }, "owned-space", "x");
     expect(missingOrigin).toMatchObject({ boardChatStatus: 403, boardChatErrorCode: "trusted-origin-required" });
     expect(gradeConferenceRoomOff({ ...valid(), ...missingOrigin }).passed).toBe(false);
   } finally { await person.dispose(); }

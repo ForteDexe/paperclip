@@ -34,8 +34,8 @@ describe("customer-success read authority", () => {
   let db: schema.Db;
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let directory: string;
-  let companyId: string;
-  let otherCompanyId: string;
+  let spaceId: string;
+  let otherSpaceId: string;
   let agentId: string;
   let runId: string;
   let bearer: string;
@@ -48,7 +48,7 @@ describe("customer-success read authority", () => {
       throw new Error("write forbidden");
     },
     headObject: async () => ({ exists: true }),
-    getObject: async (_companyId, _objectKey, opts) => ({
+    getObject: async (_spaceId, _objectKey, opts) => ({
       stream: Readable.from([
         Buffer.from([0, 1, 2, 3, 4]).subarray(
           opts?.range?.start ?? 0,
@@ -67,26 +67,26 @@ describe("customer-success read authority", () => {
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "");
     database = await startEmbeddedPostgresTestDatabase("inspection-db-");
     db = schema.createDb(database.connectionString);
-    const companies = await db
-      .insert(schema.companies)
+    const spaces = await db
+      .insert(schema.spaces)
       .values([
         { name: "Customer", issuePrefix: "CUS" },
         { name: "Other", issuePrefix: "OTH" },
       ])
       .returning();
-    companyId = companies[0].id;
-    otherCompanyId = companies[1].id;
+    spaceId = spaces[0].id;
+    otherSpaceId = spaces[1].id;
     const [agent] = await db
       .insert(schema.agents)
-      .values({ companyId, name: "Managed inspection fixture", adapterType: "process" })
+      .values({ spaceId, name: "Managed inspection fixture", adapterType: "process" })
       .returning();
     agentId = agent.id;
     const [run] = await db
       .insert(schema.heartbeatRuns)
-      .values({ companyId, agentId, status: "running", startedAt: new Date() })
+      .values({ spaceId, agentId, status: "running", startedAt: new Date() })
       .returning();
     runId = run.id;
-    bearer = createLocalAgentJwt(agentId, companyId, "process", runId)!;
+    bearer = createLocalAgentJwt(agentId, spaceId, "process", runId)!;
   });
   afterAll(async () => {
     await database?.cleanup();
@@ -98,12 +98,12 @@ describe("customer-success read authority", () => {
   it("unprovisioned reads never generate a key, strict authority requires a current managed run", async () => {
     await expect(customerSuccessRunAuthority(db, bearer)).rejects.toThrow("unprovisioned");
     expect(await db.select().from(schema.agentIdentityKeys)).toHaveLength(0);
-    const key = await agentIdentityService(db).ensureAgentIdentity(companyId, agentId);
+    const key = await agentIdentityService(db).ensureAgentIdentity(spaceId, agentId);
     expect(await customerSuccessRunAuthority(db, bearer)).toEqual({
       version: 1,
       active: true,
       instanceId: "inspection-home",
-      companyId,
+      spaceId,
       agentId,
       runId,
       keyId: key.keyId,
@@ -136,11 +136,11 @@ describe("customer-success read authority", () => {
     expect(verifyLocalAgentJwt(legacy)).not.toBeNull();
     expect(verifyLocalAgentJwt(legacy, { strictRunAuthority: true })).toBeNull();
     vi.stubEnv("OUTPOST_INSTANCE_ID", "development-clone");
-    const foreign = createLocalAgentJwt(agentId, companyId, "process", runId)!;
+    const foreign = createLocalAgentJwt(agentId, spaceId, "process", runId)!;
     vi.stubEnv("OUTPOST_INSTANCE_ID", "inspection-home");
     await expect(customerSuccessRunAuthority(db, foreign)).rejects.toThrow("managed-run");
   });
-  it("every catalog reader is company scoped, paginated, and leaves the complete database unchanged", async () => {
+  it("every catalog reader is space scoped, paginated, and leaves the complete database unchanged", async () => {
     const snapshot = async () => {
       const tables = await db.execute(
         sql`select tablename from pg_tables where schemaname = 'public' order by tablename`,
@@ -161,7 +161,7 @@ describe("customer-success read authority", () => {
       const result = (await readCustomerSuccessResource(db, storage, {
         operation: "list",
         resource,
-        companyId,
+        spaceId,
         limit: 1,
       })) as { items: unknown[] };
       expect(result.items.length).toBeLessThanOrEqual(1);
@@ -178,7 +178,7 @@ describe("customer-success read authority", () => {
     const identity = (await readCustomerSuccessResource(db, storage, {
       operation: "get",
       resource: "agentIdentities",
-      companyId,
+      spaceId,
       resourceId: agentId,
     })) as Record<string, unknown>;
     expect(identity).not.toHaveProperty("privateKeyMaterial");
@@ -186,7 +186,7 @@ describe("customer-success read authority", () => {
       readCustomerSuccessResource(db, storage, {
         operation: "get",
         resource: "agentIdentities",
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         resourceId: agentId,
       }),
     ).rejects.toThrow("not found");
@@ -204,7 +204,7 @@ describe("customer-success read authority", () => {
     const agent = (await readCustomerSuccessResource(db, storage, {
       operation: "get",
       resource: "agents",
-      companyId,
+      spaceId,
       resourceId: agentId,
     })) as { adapterConfig: { env: Record<string, unknown>; promptTemplate: string } };
     expect(JSON.stringify(agent)).not.toContain("hidden");
@@ -212,7 +212,7 @@ describe("customer-success read authority", () => {
     const [task] = await db
       .insert(schema.issues)
       .values({
-        companyId,
+        spaceId,
         title: "A pasted instruction",
         description: "Keep prose unchanged: arbitrary pasted material",
       })
@@ -220,7 +220,7 @@ describe("customer-success read authority", () => {
     const taskResult = (await readCustomerSuccessResource(db, storage, {
       operation: "get",
       resource: "tasks",
-      companyId,
+      spaceId,
       resourceId: task.id,
     })) as { description: string };
     expect(taskResult.description).toEqual(task.description);
@@ -228,7 +228,7 @@ describe("customer-success read authority", () => {
       readCustomerSuccessResource(db, storage, {
         operation: "get",
         resource: "tasks",
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         resourceId: task.id,
       }),
     ).rejects.toThrow("not found");
@@ -244,7 +244,7 @@ describe("customer-success read authority", () => {
     const count = (await db.select().from(schema.agentInstructionRevisions)).length;
     const result = (await readCustomerSuccessResource(db, storage, {
       operation: "instructions.file",
-      companyId,
+      spaceId,
       resourceId: agentId,
     })) as { content: string };
     expect(Buffer.from(result.content, "base64").toString()).toEqual("# Investigate carefully\n");
@@ -254,7 +254,7 @@ describe("customer-success read authority", () => {
     await expect(
       readCustomerSuccessResource(db, storage, {
         operation: "instructions.file",
-        companyId,
+        spaceId,
         resourceId: agentId,
         path: ".env",
       }),
@@ -263,7 +263,7 @@ describe("customer-success read authority", () => {
     await expect(
       readCustomerSuccessResource(db, storage, {
         operation: "instructions.file",
-        companyId,
+        spaceId,
         resourceId: agentId,
         path: "linked.md",
       }),
@@ -280,16 +280,16 @@ describe("customer-success read authority", () => {
     };
     const [project] = await db
       .insert(schema.projects)
-      .values({ companyId, name: "Configured project", env })
+      .values({ spaceId, name: "Configured project", env })
       .returning();
     const [routine] = await db
       .insert(schema.routines)
-      .values({ companyId, title: "Configured routine", env })
+      .values({ spaceId, title: "Configured routine", env })
       .returning();
     const [revision] = await db
       .insert(schema.routineRevisions)
       .values({
-        companyId,
+        spaceId,
         routineId: routine.id,
         revisionNumber: 1,
         title: routine.title,
@@ -309,7 +309,7 @@ describe("customer-success read authority", () => {
       const row = (await readCustomerSuccessResource(db, storage, {
         operation: "get",
         resource,
-        companyId,
+        spaceId,
         resourceId,
       })) as { env?: unknown; snapshot?: { routine: { env: unknown } } };
       expect(row.snapshot?.routine.env ?? row.env).toEqual(expected);
@@ -319,16 +319,16 @@ describe("customer-success read authority", () => {
       readCustomerSuccessResource(db, storage, {
         operation: "get",
         resource: "users",
-        companyId,
+        spaceId,
         resourceId: "missing",
       }),
     ).rejects.toThrow("not found");
   });
-  it("asset bytes and bounded byte ranges are company scoped, without bypass URLs", async () => {
+  it("asset bytes and bounded byte ranges are space scoped, without bypass URLs", async () => {
     const [asset] = await db
       .insert(schema.assets)
       .values({
-        companyId,
+        spaceId,
         provider: "local_disk",
         objectKey: "test/object",
         contentType: "application/octet-stream",
@@ -338,7 +338,7 @@ describe("customer-success read authority", () => {
       .returning();
     const result = (await readCustomerSuccessResource(db, storage, {
       operation: "assets.content",
-      companyId,
+      spaceId,
       resourceId: asset.id,
       range: { start: 1, end: 3 },
     })) as { content: string; bytes: number };
@@ -347,7 +347,7 @@ describe("customer-success read authority", () => {
     await expect(
       readCustomerSuccessResource(db, storage, {
         operation: "assets.content",
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         resourceId: asset.id,
       }),
     ).rejects.toThrow("not found");
@@ -362,14 +362,14 @@ describe("customer-success read authority", () => {
     vi.stubEnv("OUTPOST_CUSTOMER_SUCCESS_INSPECTION_JWKS", JSON.stringify(jwks));
     const query: InspectionQuery = {
       operation: "get",
-      resource: "companies",
-      companyId,
-      resourceId: companyId,
+      resource: "spaces",
+      spaceId,
+      resourceId: spaceId,
     };
     const now = Math.floor(Date.now() / 1000);
     const claims: InspectionPermit = {
       v: 1,
-      iss: "paperclip-cloud",
+      iss: "outpost-cloud",
       aud: INSPECTION_AUDIENCE,
       sub: "fixture-stack",
       iat: now,
@@ -468,12 +468,12 @@ describe("customer-success read authority", () => {
     await symlink(join(root, "result.bin"), join(root, "link.bin"));
     const [project] = await db
       .insert(schema.projects)
-      .values({ companyId, name: "Onboarding repo" })
+      .values({ spaceId, name: "Onboarding repo" })
       .returning();
     const [workspace] = await db
       .insert(schema.projectWorkspaces)
       .values({
-        companyId,
+        spaceId,
         projectId: project.id,
         name: "Local checkout",
         cwd: root,
@@ -482,17 +482,17 @@ describe("customer-success read authority", () => {
       .returning();
     const [issue] = await db
       .insert(schema.issues)
-      .values({ companyId, projectId: project.id, title: "Workspace outputs" })
+      .values({ spaceId, projectId: project.id, title: "Workspace outputs" })
       .returning();
     const base = {
-      companyId,
+      spaceId,
       resourceId: issue.id,
       context: { projectId: project.id, workspaceId: workspace.id },
     };
     const repo = (await readCustomerSuccessResource(db, storage, {
       operation: "get",
       resource: "projectWorkspaces",
-      companyId,
+      spaceId,
       resourceId: workspace.id,
     })) as { repoUrl: string };
     expect(repo.repoUrl).toEqual("https://github.com/example/onboarding");
@@ -532,20 +532,20 @@ describe("customer-success read authority", () => {
     ).toMatchObject({ available: true, bytes: 0, content: "" });
     const [unassigned] = await db
       .insert(schema.issues)
-      .values({ companyId, title: "No workspace" })
+      .values({ spaceId, title: "No workspace" })
       .returning();
     expect(
       await readCustomerSuccessResource(db, storage, {
-        companyId,
+        spaceId,
         resourceId: unassigned.id,
         operation: "files.read",
         path: "result.txt",
       }),
     ).toMatchObject({ available: false });
     const [skill] = await db
-      .insert(schema.companySkills)
+      .insert(schema.spaceSkills)
       .values({
-        companyId,
+        spaceId,
         key: "example",
         slug: "example",
         name: "Example",
@@ -554,28 +554,28 @@ describe("customer-success read authority", () => {
       })
       .returning();
     const [version] = await db
-      .insert(schema.companySkillVersions)
+      .insert(schema.spaceSkillVersions)
       .values({
-        companyId,
-        companySkillId: skill.id,
+        spaceId,
+        spaceSkillId: skill.id,
         revisionNumber: 1,
         fileInventory: [{ path: "SKILL.md", kind: "markdown", content: "# Example" }],
       })
       .returning();
     await db
-      .update(schema.companySkills)
+      .update(schema.spaceSkills)
       .set({ currentVersionId: version.id })
-      .where(eq(schema.companySkills.id, skill.id));
+      .where(eq(schema.spaceSkills.id, skill.id));
     const snapshot = (await readCustomerSuccessResource(db, storage, {
       operation: "skills.file",
-      companyId,
+      spaceId,
       resourceId: skill.id,
     })) as { content: string };
     expect(Buffer.from(snapshot.content, "base64").toString()).toEqual("# Example");
     await expect(
       readCustomerSuccessResource(db, storage, {
         operation: "skills.file",
-        companyId,
+        spaceId,
         resourceId: skill.id,
         path: ".env",
       }),
@@ -583,19 +583,19 @@ describe("customer-success read authority", () => {
     const versions = (await readCustomerSuccessResource(db, storage, {
       operation: "list",
       resource: "skillVersions",
-      companyId,
+      spaceId,
       parentId: skill.id,
     })) as { items: unknown[] };
     expect(versions.items).toHaveLength(1);
   });
   it("the operation contract has no writes, credentials or unknown parameters", () => {
     for (const value of [
-      { operation: "write", companyId },
-      { operation: "list", resource: "secrets", companyId },
-      { operation: "get", resource: "agents", companyId, resourceId: agentId, key: "replacement" },
+      { operation: "write", spaceId },
+      { operation: "list", resource: "secrets", spaceId },
+      { operation: "get", resource: "agents", spaceId, resourceId: agentId, key: "replacement" },
       {
         operation: "assets.content",
-        companyId,
+        spaceId,
         resourceId: agentId,
         range: { start: 0, end: 1048576 },
       },

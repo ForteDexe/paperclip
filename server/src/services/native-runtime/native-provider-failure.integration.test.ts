@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, agentWakeupRequests, companies, completionContracts, createDb, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issueThreadInteractions, issues, nativeRunFinalizations, nativeRunResults, statusDecisions, workAssessments } from "@outpost/db";
+import { agents, agentWakeupRequests, spaces, completionContracts, createDb, heartbeatRunEvents, heartbeatRuns, issueRecoveryActions, issueThreadInteractions, issues, nativeRunFinalizations, nativeRunResults, statusDecisions, workAssessments } from "@outpost/db";
 import type { ControlPlanePort, NativeExecutionInputV1, PrpEvent, PrpTerminalState } from "@outpost/outpost-runner";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { CONTROL_PLANE_CONFORMANCE_RESULT } from "../../vendor/outpost-runner/testing.js";
@@ -12,9 +12,9 @@ vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => ({
   executeNativeSession: provider.execute,
 }));
 
-import { executePaperclipNativeSession } from "./native-session-executor.js";
+import { executeOutpostNativeSession } from "./native-session-executor.js";
 import { buildNativeCompletionContract } from "./completion-contracts.js";
-import { PaperclipControlPlanePort } from "./paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "./outpost-control-plane-port.js";
 import { prepareNativeHeartbeatRun } from "./prepare-native-run.js";
 import { NATIVE_MODEL_NOT_FOUND_DIAGNOSTIC, NATIVE_MODEL_REJECTION_DIAGNOSTIC, NATIVE_MODEL_REJECTION_MESSAGE } from "./native-provider-failure.js";
 import { collectRunFailureDiagnostics } from "../run-failure-diagnostics.js";
@@ -36,7 +36,7 @@ const EXITED_PID = 4_194_304;
 describe("native completed failure diagnostics", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   const workerId = randomUUID();
   const model = "test-model";
@@ -44,9 +44,9 @@ describe("native completed failure diagnostics", () => {
   beforeAll(async () => {
     temporary = await startEmbeddedPostgresTestDatabase("native-model-failure-");
     db = createDb(temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Native failure regression", issuePrefix: "NMF" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Native failure agent", status: "active", adapterType: "outpost_runner", adapterConfig: { provider: "codex", model } });
-    await db.insert(agents).values({ id: workerId, companyId, name: "Review source worker", status: "active", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Native failure regression", issuePrefix: "NMF" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Native failure agent", status: "active", adapterType: "outpost_runner", adapterConfig: { provider: "codex", model } });
+    await db.insert(agents).values({ id: workerId, spaceId, name: "Review source worker", status: "active", adapterType: "outpost_runner" });
   });
   afterAll(async () => { await temporary?.cleanup(); });
 
@@ -56,16 +56,16 @@ describe("native completed failure diagnostics", () => {
       const runId = randomUUID();
       const opencode = scenario === "opencode-lost-server";
       const executionProvider = opencode ? { kind: "opencode" as const, model: `openrouter/${model}` } : { kind: "codex" as const, model };
-      const [issue] = await db.insert(issues).values({ id: issueId, companyId, title: "Explain a provider rejection", status: "in_progress", workMode: "standard", assigneeAgentId: agentId }).returning();
-      const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId } }).returning();
+      const [issue] = await db.insert(issues).values({ id: issueId, spaceId, title: "Explain a provider rejection", status: "in_progress", workMode: "standard", assigneeAgentId: agentId }).returning();
+      const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId } }).returning();
       await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
       const native = await prepareNativeHeartbeatRun({ db, run, issue, environmentLeaseId: randomUUID() });
       const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issueId));
       const completionInput = buildNativeCompletionContract(issue, { revision: contract.revision });
-      await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed" });
+      await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed" });
       const execution: NativeExecutionInputV1 = {
         schema: "outpost.native-execution-input.v1",
-        binding: { companyId, runId, issueId, agentId, executionWorkspaceId: runId },
+        binding: { spaceId, runId, issueId, agentId, executionWorkspaceId: runId },
         provider: executionProvider,
         task: { identifier: issueId, title: issue.title, description: null, prompt: "Reply to the current message.", workMode: "standard" },
         workspace: { cwd: "/tmp", repoUrl: null, repoRef: null, branchName: null },
@@ -77,13 +77,13 @@ describe("native completed failure diagnostics", () => {
       if (scenario.endsWith("-review")) {
         const sourceRunId = randomUUID(), sourceResultId = randomUUID(), assessmentId = randomUUID();
         const decisionId = randomUUID(), interactionId = randomUUID();
-        await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId, agentId: workerId, nativeIssueId: issueId, runtimeMode: "native", status: "succeeded", completionContractId: contract.id, completionContractSha256: contract.canonicalSha256 });
-        await db.insert(nativeRunResults).values({ id: sourceResultId, companyId, issueId, runId: sourceRunId, completionContractId: contract.id, serverFingerprint: sourceResultId, schemaStatus: "accepted", resultJson: {}, canonicalSha256: sourceResultId });
-        await db.insert(workAssessments).values({ id: assessmentId, companyId, issueId, runId: sourceRunId, contractId: contract.id, resultId: sourceResultId, triggerKind: "native_result", triggerActorCompanyId: companyId, priorIssueStatus: "in_progress", priorStatusVersion: 0, policyVersion: "fixture", assessmentJson: {}, inputDigest: assessmentId });
+        await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId, agentId: workerId, nativeIssueId: issueId, runtimeMode: "native", status: "succeeded", completionContractId: contract.id, completionContractSha256: contract.canonicalSha256 });
+        await db.insert(nativeRunResults).values({ id: sourceResultId, spaceId, issueId, runId: sourceRunId, completionContractId: contract.id, serverFingerprint: sourceResultId, schemaStatus: "accepted", resultJson: {}, canonicalSha256: sourceResultId });
+        await db.insert(workAssessments).values({ id: assessmentId, spaceId, issueId, runId: sourceRunId, contractId: contract.id, resultId: sourceResultId, triggerKind: "native_result", triggerActorSpaceId: spaceId, priorIssueStatus: "in_progress", priorStatusVersion: 0, policyVersion: "fixture", assessmentJson: {}, inputDigest: assessmentId });
         const [reviewIssue] = await db.update(issues).set({ status: "in_review", assigneeAgentId: workerId }).where(eq(issues.id, issueId)).returning();
-        await db.insert(statusDecisions).values({ id: decisionId, companyId, issueId, runId: sourceRunId, assessmentId, decisionVersion: 1, policyVersion: "fixture", fromStatus: "in_progress", toStatus: "in_review", reasonCode: "explicit_review", decisionJson: { projectedStatusVersion: reviewIssue.statusVersion }, decisionDigest: decisionId, applicationState: "applied" });
+        await db.insert(statusDecisions).values({ id: decisionId, spaceId, issueId, runId: sourceRunId, assessmentId, decisionVersion: 1, policyVersion: "fixture", fromStatus: "in_progress", toStatus: "in_review", reasonCode: "explicit_review", decisionJson: { projectedStatusVersion: reviewIssue.statusVersion }, decisionDigest: decisionId, applicationState: "applied" });
         await db.update(issues).set({ lastStatusDecisionId: decisionId }).where(eq(issues.id, issueId));
-        await db.insert(issueThreadInteractions).values({ id: interactionId, companyId, issueId, kind: "request_confirmation", sourceRunId, addresseeAgentId: agentId, createdByAgentId: workerId,
+        await db.insert(issueThreadInteractions).values({ id: interactionId, spaceId, issueId, kind: "request_confirmation", sourceRunId, addresseeAgentId: agentId, createdByAgentId: workerId,
           continuationPolicy: "wake_assignee",
           status: scenario === "resolved-review" ? "accepted" : "pending",
           ...(scenario === "resolved-review" ? { resolvedByRunId: runId, resolvedByAgentId: agentId } : {}),
@@ -92,7 +92,7 @@ describe("native completed failure diagnostics", () => {
         const contextSnapshot = { issueId, wakeReason: "native_completion_review", nativeReviewInteractionId: interactionId, nativeReviewDecisionId: decisionId };
         await db.update(heartbeatRuns).set({ contextSnapshot }).where(eq(heartbeatRuns.id, runId));
         if (scenario === "superseded-review") await db.update(issues).set({ lastStatusDecisionId: null }).where(eq(issues.id, issueId));
-        const review = await getNativeReviewAssignment(db, { companyId, issueId, agentId, contextSnapshot, allowResolvedByRunId: runId });
+        const review = await getNativeReviewAssignment(db, { spaceId, issueId, agentId, contextSnapshot, allowResolvedByRunId: runId });
         if (scenario === "superseded-review") expect(review).toBeNull();
         else expect(review?.interaction.status).toBe(scenario === "resolved-review" ? "accepted" : "pending");
       }
@@ -111,9 +111,9 @@ describe("native completed failure diagnostics", () => {
           type: "error", status: 400, error: { type: "invalid_request_error", message: scenario === "unknown-error" ? "Private unknown failure" : `The '${model}' model is not supported when using Codex with a ChatGPT account.` },
         }) } },
       };
-      const openInput = { identity: { companyId, issueId, runId, agentId, sessionId: native.normalizedSessionId }, backendKind: "mock" as const, sourceInstanceId: native.runnerInstanceId };
+      const openInput = { identity: { spaceId, issueId, runId, agentId, sessionId: native.normalizedSessionId }, backendKind: "mock" as const, sourceInstanceId: native.runnerInstanceId };
       if (scenario === "duplicate") {
-        const prior = new PaperclipControlPlanePort(db, { companyId, issueId, runId, agentId, sessionId: native.normalizedSessionId, sourceInstanceId: native.runnerInstanceId, controlPlaneSourceInstanceId: "prior-controller", completionContractId: contract.id, completionContractSha256: contract.canonicalSha256 });
+        const prior = new OutpostControlPlanePort(db, { spaceId, issueId, runId, agentId, sessionId: native.normalizedSessionId, sourceInstanceId: native.runnerInstanceId, controlPlaneSourceInstanceId: "prior-controller", completionContractId: contract.id, completionContractSha256: contract.canonicalSha256 });
         await prior.openRun(openInput);
         expect((await prior.appendEvent(event)).disposition).toBe("committed");
       }
@@ -139,7 +139,7 @@ describe("native completed failure diagnostics", () => {
         await options.controlPlane.completeRun({ result, terminal, turnId });
         return { result, terminal, turnId, normalizedSessionId: native.normalizedSessionId, providerSessionId: "fixture-provider-session", driverKind: execution.session.driverKind, driverVersion: "fixture", nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
       });
-      const adapter = await executePaperclipNativeSession({ db, execution, runnerInstanceId: native.runnerInstanceId, backend: {
+      const adapter = await executeOutpostNativeSession({ db, execution, runnerInstanceId: native.runnerInstanceId, backend: {
         descriptor: async () => { throw new Error("Unexpected provider call"); },
         openSession: async () => { throw new Error("Unexpected provider call"); },
       } });
@@ -181,7 +181,7 @@ describe("native completed failure diagnostics", () => {
             { ...persistedRun, runnerProfileJson: null },
             { ...persistedRun, nativeSessionId: "foreign-session" },
             { ...persistedRun, runnerInstanceId: "foreign-source" },
-            { ...persistedRun, companyId: randomUUID() },
+            { ...persistedRun, spaceId: randomUUID() },
             { ...persistedRun, completionContractSha256: "foreign-contract" },
             { ...persistedRun, runnerProfileJson: { nativeExecutionInput: { ...execution, provider: { kind: "codex", model: "different-model" } } } },
             { ...persistedRun, runnerProfileJson: { nativeExecutionInput: { ...execution, binding: { ...execution.binding, runId: randomUUID() } } } },
@@ -199,15 +199,15 @@ describe("native completed failure diagnostics", () => {
         } else if (scenario === "successor-race") {
           const [snapshot] = await db.select().from(issues).where(eq(issues.id, issueId));
           const newerRunId = randomUUID(), raceAssessmentId = randomUUID();
-          await db.insert(heartbeatRuns).values({ id: newerRunId, companyId, agentId, status: "running", nativeIssueId: issueId });
+          await db.insert(heartbeatRuns).values({ id: newerRunId, spaceId, agentId, status: "running", nativeIssueId: issueId });
           await db.update(issues).set({ executionRunId: newerRunId }).where(eq(issues.id, issueId));
           const [changed] = await db.select().from(issues).where(eq(issues.id, issueId));
           expect(changed.statusVersion).toBe(snapshot.statusVersion);
-          await db.insert(workAssessments).values({ id: raceAssessmentId, companyId, issueId, runId, contractId: contract.id, resultId: acceptedBefore[0].id, triggerKind: "native_result", triggerActorCompanyId: companyId, priorIssueStatus: snapshot.status, priorStatusVersion: snapshot.statusVersion, policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, assessmentJson: {}, inputDigest: raceAssessmentId });
-          await expect(commitNativeStatusDecision({ db, companyId, issueId, runId, assessmentId: raceAssessmentId,
+          await db.insert(workAssessments).values({ id: raceAssessmentId, spaceId, issueId, runId, contractId: contract.id, resultId: acceptedBefore[0].id, triggerKind: "native_result", triggerActorSpaceId: spaceId, priorIssueStatus: snapshot.status, priorStatusVersion: snapshot.statusVersion, policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, assessmentJson: {}, inputDigest: raceAssessmentId });
+          await expect(commitNativeStatusDecision({ db, spaceId, issueId, runId, assessmentId: raceAssessmentId,
             priorStatus: snapshot.status, priorStatusVersion: snapshot.statusVersion, priorDecisionId: snapshot.lastStatusDecisionId,
             requireModelRejectionOwner: { agentId, reviewContext: null },
-            decision: { policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, statusAction: "blocked", toStatus: "blocked", reasonCode: "native_provider_model_rejected", unblockDescriptor: { owner: "board", action: NATIVE_MODEL_REJECTION_MESSAGE }, effects: [{ kind: "bind_blocker", owner: "board", action: NATIVE_MODEL_REJECTION_MESSAGE }] },
+            decision: { policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, statusAction: "blocked", toStatus: "blocked", reasonCode: "native_provider_model_rejected", unblockDescriptor: { owner: "operator", action: NATIVE_MODEL_REJECTION_MESSAGE }, effects: [{ kind: "bind_blocker", owner: "operator", action: NATIVE_MODEL_REJECTION_MESSAGE }] },
           })).rejects.toBeInstanceOf(NativeStatusRaceError);
           expect(await db.select().from(statusDecisions).where(eq(statusDecisions.runId, runId))).toHaveLength(0);
         }
@@ -223,14 +223,14 @@ describe("native completed failure diagnostics", () => {
         const decisions = await db.select().from(statusDecisions).where(eq(statusDecisions.runId, runId));
         expect(decisions).toHaveLength(1);
         expect(decisions[0].reasonCode).toBe(reviewAuthorityEnded ? "native_review_action_finished" : ownerChanged ? "run_failed_partial_evidence_preserved" : "native_provider_model_rejected");
-        const wakes = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId));
+        const wakes = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId));
         expect(wakes.filter(wake => wake.payload?.issueId === issueId)).toHaveLength(ownerChanged ? 1 : 0);
-        if (!ownerChanged) expect(await heartbeatService(db).dispatchPendingNativeStatusWakeups({ companyId })).toEqual({ scanned: 0, dispatched: 0, recovered: 0, deferred: 0 });
+        if (!ownerChanged) expect(await heartbeatService(db).dispatchPendingNativeStatusWakeups({ spaceId })).toEqual({ scanned: 0, dispatched: 0, recovered: 0, deferred: 0 });
         expect(provider.execute).toHaveBeenCalledTimes(1);
         if (scenario === "pending-review") {
           const reviewContext = readNativeReviewAssignmentContext(finalRun.contextSnapshot)!;
           expect(finalIssue).toMatchObject({ lastStatusDecisionId: reviewContext.nativeReviewDecisionId, executionRunId: null, checkoutRunId: null });
-          const originalReview = await getNativeReviewAssignment(db, { companyId, issueId, agentId, contextSnapshot: reviewContext });
+          const originalReview = await getNativeReviewAssignment(db, { spaceId, issueId, agentId, contextSnapshot: reviewContext });
           expect(originalReview?.interaction.status).toBe("pending");
           expect(finalIssue.statusVersion).toBe(originalReview!.sourceDecision.decisionJson.projectedStatusVersion);
           expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, issueId))).toHaveLength(0);
@@ -242,11 +242,11 @@ describe("native completed failure diagnostics", () => {
             issueLock: createPostgresWakeQueueAdapter(db, { resolveResponsibleUserId: unexpected, getRoutineEnv: unexpected, resolveSessionBeforeForWakeup: unexpected }),
             recovery: { escalateStrandedAssignedIssue: unexpected, escalateStrandedRecoveryIssueInPlace: unexpected },
           });
-          expect((await release({ companyId, runId, now: new Date() })).outcome.kind).toBe("released");
+          expect((await release({ spaceId, runId, now: new Date() })).outcome.kind).toBe("released");
           await heartbeatService(db).reconcileStrandedAssignedIssues();
           expect(unexpected).not.toHaveBeenCalled();
           expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, issueId))).toHaveLength(0);
-          expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId))).filter(wake => wake.payload?.issueId === issueId)).toHaveLength(0);
+          expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId))).filter(wake => wake.payload?.issueId === issueId)).toHaveLength(0);
           const [afterRecovery] = await db.select().from(issues).where(eq(issues.id, issueId));
           expect(afterRecovery).toMatchObject({ status: "in_review", statusVersion: finalIssue.statusVersion, lastStatusDecisionId: finalIssue.lastStatusDecisionId });
 
@@ -256,7 +256,7 @@ describe("native completed failure diagnostics", () => {
           // Occupy the execution slot to exercise real wake admission without
           // starting a provider. The normal atomic review claim follows below.
           const occupiedRunId = randomUUID();
-          await db.insert(heartbeatRuns).values({ id: occupiedRunId, companyId, agentId, status: "running", startedAt: new Date() });
+          await db.insert(heartbeatRuns).values({ id: occupiedRunId, spaceId, agentId, status: "running", startedAt: new Date() });
           const retryRun = await heartbeatService(db, { runtimeEnv: {} }).wakeup(agentId, {
             failedRunId: runId, source: "on_demand", triggerDetail: "manual", reason: "retry_failed_run",
             requestedByActorType: "user", requestedByActorId: "review-repair-operator",
@@ -267,9 +267,9 @@ describe("native completed failure diagnostics", () => {
           await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date() }).where(eq(heartbeatRuns.id, occupiedRunId));
           expect(await claimQueuedNativeReviewRun(db, { run: retryRun!, agentNameKey: "reviewer", claimedAt: new Date(), claimValues: { nativeIssueId: issueId, runtimeMode: "native" } }))
             .toMatchObject({ id: retryRunId, status: "running" });
-          expect(await getNativeReviewAssignment(db, { companyId, issueId, agentId, contextSnapshot: reviewContext, actingRunId: retryRunId, issueExecutionRunId: retryRunId })).not.toBeNull();
+          expect(await getNativeReviewAssignment(db, { spaceId, issueId, agentId, contextSnapshot: reviewContext, actingRunId: retryRunId, issueExecutionRunId: retryRunId })).not.toBeNull();
           await issueThreadInteractionService(db).acceptInteraction(
-            { id: issueId, companyId, projectId: null, goalId: null, status: "in_review" },
+            { id: issueId, spaceId, projectId: null, goalId: null, status: "in_review" },
             reviewContext.nativeReviewInteractionId, {}, { agentId, runId: retryRunId },
           );
           const [resolved] = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, reviewContext.nativeReviewInteractionId));
@@ -290,7 +290,7 @@ describe("native completed failure diagnostics", () => {
         // turn failure must come from the persisted runner event.
         const [finalRun] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
         expect(finalRun.resultJson?.nativeTurnFailure).toEqual(turnFailure);
-        const wakes = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId));
+        const wakes = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId));
         expect(wakes.filter(wake => wake.payload?.issueId === issueId)).toHaveLength(1);
         if (scenario === "unknown-error") {
           await finalizeNativeRun({ db, runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
@@ -298,11 +298,11 @@ describe("native completed failure diagnostics", () => {
           const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, runId));
           expect(coordinator.phase).toBe("committed");
           expect(settled).toMatchObject({ status: "failed", processPid: EXITED_PID, processGroupId: EXITED_PID });
-          await db.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: 1_000, eventType: "harness.ready" });
+          await db.insert(heartbeatRunEvents).values({ spaceId, runId, agentId, seq: 1_000, eventType: "harness.ready" });
           expect(await releaseSettledNativeRunProcess(db, runId)).toBe("released");
           const [released] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
           expect(released).toMatchObject({ status: "failed", processPid: null, processGroupId: null, processStartedAt: null });
-          expect(await readNativeLocalProcessStop(db, companyId, runId)).toMatchObject({ processPid: EXITED_PID, processGroupId: EXITED_PID });
+          expect(await readNativeLocalProcessStop(db, spaceId, runId)).toMatchObject({ processPid: EXITED_PID, processGroupId: EXITED_PID });
         }
       }
     },

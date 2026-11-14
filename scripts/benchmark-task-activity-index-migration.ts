@@ -13,7 +13,7 @@ assert.match(url.pathname, /^\/task_projection_[a-z0-9_]+$/);
 const db = createDb(connectionString, { maxConnections: 1 });
 const writer = createDb(connectionString, { maxConnections: 1 });
 const reader = createDb(connectionString, { maxConnections: 1 });
-const indexName = "activity_log_company_entity_created_idx";
+const indexName = "activity_log_space_entity_created_idx";
 const pause = () => new Promise(resolve => setTimeout(resolve, 10));
 const indexState = () => db.$client.unsafe("select i.indisvalid,i.indisready,pg_relation_size(c.oid)::text bytes from pg_index i join pg_class c on c.oid=i.indexrelid where c.relname=$1", [indexName]);
 const keepAlive = setInterval(() => {}, 1000);
@@ -48,9 +48,9 @@ try {
     assert.equal(invalidIndex[0]?.indisvalid, false, "Cancelled concurrent build must leave an invalid index for the runner to repair");
     assert.deepEqual((await inspectMigrations(connectionString)).pendingMigrations, before.pendingMigrations, "Cancelled build must not be journaled");
   }
-  const [sample] = await db.$client.unsafe("select company_id,entity_id from activity_log where entity_type='issue' limit 1");
+  const [sample] = await db.$client.unsafe("select space_id,entity_id from activity_log where entity_type='issue' limit 1");
   assert.ok(sample);
-  const insert = () => writer.$client.unsafe("insert into activity_log(company_id,entity_type,entity_id,actor_type,actor_id,action,details) values($1,'issue',$2,'system','migration-probe','benchmark.migration_probe','{}') returning id", [sample.company_id, sample.entity_id]);
+  const insert = () => writer.$client.unsafe("insert into activity_log(space_id,entity_type,entity_id,actor_type,actor_id,action,details) values($1,'issue',$2,'system','migration-probe','benchmark.migration_probe','{}') returning id", [sample.space_id, sample.entity_id]);
   const buildStart = performance.now();
   let finished = false;
   const build = applyPendingMigrations(connectionString).finally(() => { finished = true; });
@@ -67,7 +67,7 @@ try {
       writeStart = performance.now();
       concurrent = insert().then(rows => { writeMs = performance.now() - writeStart; insertedId = rows[0]!.id; });
       const readStart = performance.now();
-      await reader.$client.unsafe("select id from activity_log where company_id=$1 order by created_at desc limit 20", [sample.company_id]);
+      await reader.$client.unsafe("select id from activity_log where space_id=$1 order by created_at desc limit 20", [sample.space_id]);
       readMs = performance.now() - readStart;
       break;
     }

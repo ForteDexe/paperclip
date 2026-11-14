@@ -5,7 +5,7 @@ Date: 2026-04-13
 
 This document maps the current invite creation and acceptance states implemented in:
 
-- `ui/src/pages/CompanyInvites.tsx`
+- `ui/src/pages/SpaceInvites.tsx`
 - `ui/src/components/NewAgentDialog.tsx`
 - `ui/src/pages/InviteLanding.tsx`
 - `server/src/routes/access.ts`
@@ -16,7 +16,7 @@ This document maps the current invite creation and acceptance states implemented
 - Invite state: `active`, `revoked`, `accepted`, `expired`
 - Join request status: `pending_approval`, `approved`, `rejected`
 - Claim secret state for agent joins: `available`, `consumed`, `expired`
-- Invite type: `company_join` or `bootstrap_ceo`
+- Invite type: `space_join` or `bootstrap_ceo`
 - Join type: `human`, `agent`, or `both`
 
 ## Entity Lifecycle
@@ -24,7 +24,7 @@ This document maps the current invite creation and acceptance states implemented
 ```mermaid
 flowchart TD
   Board[Board user on invite or add-agent screen]
-  HumanInvite[Create human company invite]
+  HumanInvite[Create human space invite]
   AgentInvite[Generate agent onboarding prompt]
   Active[Invite state: active]
   Revoked[Invite state: revoked]
@@ -75,10 +75,10 @@ flowchart TD
 
 ```mermaid
 stateDiagram-v2
-  [*] --> CompanySelection
+  [*] --> SpaceSelection
 
-  CompanySelection --> NoCompany: no company selected
-  CompanySelection --> LoadingHistory: selectedCompanyId present
+  SpaceSelection --> NoSpace: no space selected
+  SpaceSelection --> LoadingHistory: selectedSpaceId present
   LoadingHistory --> HistoryError: listInvites failed
   LoadingHistory --> Ready: listInvites succeeded
 
@@ -100,7 +100,7 @@ stateDiagram-v2
     LatestInviteVisible --> Ready: navigate away or refresh
   }
 
-  CompanySelection --> AgentPromptReady: Add-agent modal prompt generator
+  SpaceSelection --> AgentPromptReady: Add-agent modal prompt generator
   AgentPromptReady --> AgentPromptPending: Generate agent onboarding prompt
   AgentPromptPending --> AgentSnippetVisible: prompt generated
   AgentPromptPending --> AgentPromptReady: generation failed
@@ -115,23 +115,23 @@ stateDiagram-v2
   TokenGate --> InvalidToken: token missing
   TokenGate --> Loading: token present
   Loading --> InviteUnavailable: invite fetch failed or invite not returned
-  Loading --> CheckingAccess: signed-in session and invite.companyId
+  Loading --> CheckingAccess: signed-in session and invite.spaceId
   Loading --> InviteResolved: invite loaded without membership check
   Loading --> AcceptedInviteSummary: invite already consumed<br/>but linked join request still exists
 
-  CheckingAccess --> RedirectToBoard: current user already belongs to company
+  CheckingAccess --> RedirectToBoard: current user already belongs to space
   CheckingAccess --> InviteResolved: membership check finished and no join-request summary state is active
   CheckingAccess --> AcceptedInviteSummary: membership check finished and invite has joinRequestStatus
 
   state InviteResolved {
     [*] --> Branch
-    Branch --> AgentForm: company_join + allowedJoinTypes=agent
+    Branch --> AgentForm: space_join + allowedJoinTypes=agent
     Branch --> InlineAuth: authenticated mode + no session + join is not agent-only
     Branch --> AcceptReady: bootstrap invite or human-ready session/local_trusted
 
     InlineAuth --> InlineAuth: toggle sign-up/sign-in
     InlineAuth --> InlineAuth: auth validation or auth error message
-    InlineAuth --> RedirectToBoard: auth succeeded and company membership already exists
+    InlineAuth --> RedirectToBoard: auth succeeded and space membership already exists
     InlineAuth --> AcceptPending: auth succeeded and invite still needs acceptance
 
     AgentForm --> AcceptPending: submit request
@@ -150,15 +150,15 @@ stateDiagram-v2
     [*] --> SummaryBranch
     SummaryBranch --> AcceptPending: human joinRequestStatus=pending_approval/approved<br/>and membership missing
     SummaryBranch --> PendingApprovalReload: agent joinRequestStatus=pending_approval
-    SummaryBranch --> OpeningCompany: joinRequestStatus=approved<br/>and human invite user is now a member
+    SummaryBranch --> OpeningSpace: joinRequestStatus=approved<br/>and human invite user is now a member
     SummaryBranch --> RejectedReload: joinRequestStatus=rejected
     SummaryBranch --> ConsumedReload: approved agent invite or other consumed state
   }
 
   PendingApprovalResult --> PendingApprovalReload: reload after submit
   RejectedResult --> RejectedReload: reload after board rejects
-  RedirectToBoard --> OpeningCompany: brief pre-navigation render when approved membership is detected
-  OpeningCompany --> RedirectToBoard: navigate to board
+  RedirectToBoard --> OpeningSpace: brief pre-navigation render when approved membership is detected
+  OpeningSpace --> RedirectToBoard: navigate to board
 ```
 
 ## Sequence Diagrams
@@ -169,17 +169,17 @@ stateDiagram-v2
 sequenceDiagram
   autonumber
   actor Board as Board user
-  participant Settings as Company Invites UI
+  participant Settings as Space Invites UI
   participant API as Access routes
   participant Invites as invites table
   actor Invitee as Invite recipient
   participant Landing as Invite landing UI
   participant Auth as Auth session
   participant Join as join_requests table
-  participant Membership as company_memberships + grants
+  participant Membership as space_memberships + grants
 
   Board->>Settings: Choose role and click Create invite
-  Settings->>API: POST /api/companies/:companyId/invites
+  Settings->>API: POST /api/spaces/:spaceId/invites
   API->>Invites: Insert active invite
   API-->>Settings: inviteUrl + metadata
 
@@ -218,7 +218,7 @@ sequenceDiagram
   participant Landing as Invite landing UI
   participant API as Access routes
   participant Join as join_requests table
-  participant Membership as company_memberships + grants
+  participant Membership as space_memberships + grants
 
   Invitee->>Landing: Reload consumed invite URL
   Landing->>API: GET /api/invites/:token
@@ -230,7 +230,7 @@ sequenceDiagram
     API->>Membership: Ensure active membership and role grants
     API->>Join: Mark join request approved if needed
     API-->>Landing: approved status
-    Landing-->>Invitee: Opening company and redirect
+    Landing-->>Invitee: Opening space and redirect
   else joinRequestStatus = rejected
     Landing-->>Invitee: Show rejected error panel
   else agent invite or unavailable consumed state
@@ -249,12 +249,12 @@ sequenceDiagram
   participant Invites as invites table
   actor Gateway as External agent
   participant Join as join_requests table
-  actor Approver as Company admin
+  actor Approver as Space admin
   participant Agents as agents table
   participant Keys as agent_api_keys table
 
   Board->>AddAgent: Generate agent onboarding prompt
-  AddAgent->>API: POST /api/companies/:companyId/invites (allowedJoinTypes=agent)
+  AddAgent->>API: POST /api/spaces/:spaceId/invites (allowedJoinTypes=agent)
   API->>Invites: Insert active agent invite
   API-->>AddAgent: Prompt text + invite token
 
@@ -263,14 +263,14 @@ sequenceDiagram
   API->>Join: Insert pending_approval join request + claimSecretHash
   API-->>Gateway: requestId + claimSecret + claimApiKeyPath
 
-  Approver->>API: POST /companies/:companyId/join-requests/:requestId/approve
+  Approver->>API: POST /spaces/:spaceId/join-requests/:requestId/approve
   API->>Agents: Create agent + membership + grants
   API->>Join: Mark request approved and store createdAgentId
 
   Gateway->>API: POST /api/join-requests/:requestId/claim-api-key (claimSecret)
   API->>Keys: Create initial API key
   API->>Join: Mark claim secret consumed
-  API-->>Gateway: Plaintext Paperclip API key
+  API-->>Gateway: Plaintext Outpost API key
 
   opt Replay accepted invite for updated gateway defaults
     Gateway->>API: POST /api/invites/:token/accept again
@@ -283,15 +283,15 @@ sequenceDiagram
 ## Notes
 
 - `GET /api/invites/:token` treats `revoked` and `expired` invites as unavailable. Accepted invites remain resolvable when they already have a linked join request, and the summary now includes `joinRequestStatus` plus `joinRequestType`.
-- Human acceptance consumes the invite, creates or reuses the matching human join request, immediately marks it `approved`, and ensures an active company membership with the invite's selected role/grants.
+- Human acceptance consumes the invite, creates or reuses the matching human join request, immediately marks it `approved`, and ensures an active space membership with the invite's selected role/grants.
 - The landing page has two layers of post-accept UI:
   - immediate mutation-result UI from `POST /api/invites/:token/accept`
   - reload-time summary UI from `GET /api/invites/:token` once the invite has already been consumed
-- Reload behavior for accepted company invites is now status-sensitive:
+- Reload behavior for accepted space invites is now status-sensitive:
   - human `pending_approval` or `approved` states replay acceptance for the same signed-in user/email so legacy consumed invites can repair missing membership
   - agent `pending_approval` re-renders the waiting-for-approval panel
   - `rejected` renders the "This join request was not approved." error panel
   - `approved` becomes a success path for human invites after membership is visible to the current session
-- `GET /api/invites/:token/logo` still rejects accepted invites, so accepted-invite reload states may fall back to the generated company icon even though the summary payload still carries `companyLogoUrl`.
+- `GET /api/invites/:token/logo` still rejects accepted invites, so accepted-invite reload states may fall back to the generated space icon even though the summary payload still carries `spaceLogoUrl`.
 - Accepted-invite replay is supported for matching human invitees to repair/complete membership, and for `agent` requests with `adapterType=openclaw_gateway` when the existing join request is still `pending_approval` or already `approved`.
 - `bootstrap_ceo` invites are one-time and do not create join requests.

@@ -4,18 +4,18 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, authUsers, companies, companyMemberships, principalPermissionGrants, heartbeatRuns, issues, agentInstructionRevisions, createDb } from "@outpost/db";
+import { activityLog, agents, authUsers, spaces, spaceMemberships, principalPermissionGrants, heartbeatRuns, issues, agentInstructionRevisions, createDb } from "@outpost/db";
 import { startRecoveryPostgres } from "../../__tests__/helpers/recovery-postgres.js";
 import { resolveManagedInstructionsRoot } from "../agent-instructions.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 describe("canonical instruction tools through native authority", () => {
   let database: Awaited<ReturnType<typeof startRecoveryPostgres>>;
   let db: ReturnType<typeof createDb>;
   let home: string;
   const previousHome = process.env.OUTPOST_HOME;
-  let companyId: string, agentId: string, targetAgentId: string, userId: string, runId: string, issueId: string, root: string;
-  let authority: PaperclipRunnerToolAuthority;
+  let spaceId: string, agentId: string, targetAgentId: string, userId: string, runId: string, issueId: string, root: string;
+  let authority: OutpostRunnerToolAuthority;
   const entryFile = "policy/ENTRY.md";
   const original = "\uFEFF# Original\r\n\0☃\n";
   beforeAll(async () => {
@@ -30,26 +30,26 @@ describe("canonical instruction tools through native authority", () => {
     if (home) await fs.rm(home, { recursive: true, force: true });
   });
   beforeEach(async () => {
-    [companyId, agentId, targetAgentId, userId, runId, issueId] = Array.from({ length: 6 }, () => randomUUID());
-    await db.insert(companies).values({ id: companyId, name: "Tool scope", issuePrefix: randomUUID().slice(0, 8) });
+    [spaceId, agentId, targetAgentId, userId, runId, issueId] = Array.from({ length: 6 }, () => randomUUID());
+    await db.insert(spaces).values({ id: spaceId, name: "Tool scope", issuePrefix: randomUUID().slice(0, 8) });
     await db.insert(authUsers).values({ id: userId, name: "Editor", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    root = resolveManagedInstructionsRoot({ id: targetAgentId, companyId, name: "Target", adapterConfig: {} });
+    root = resolveManagedInstructionsRoot({ id: targetAgentId, spaceId, name: "Target", adapterConfig: {} });
     await db.insert(agents).values([
-      { id: agentId, companyId, name: "Caller", status: "active" },
-      { id: targetAgentId, companyId, name: "Target", adapterConfig: { instructionsBundleMode: "managed", instructionsRootPath: root, instructionsEntryFile: entryFile } },
+      { id: agentId, spaceId, name: "Caller", status: "active" },
+      { id: targetAgentId, spaceId, name: "Target", adapterConfig: { instructionsBundleMode: "managed", instructionsRootPath: root, instructionsEntryFile: entryFile } },
     ]);
-    await db.insert(companyMemberships).values([
-      { companyId, principalType: "user", principalId: userId, membershipRole: "operator" },
-      { companyId, principalType: "agent", principalId: agentId, membershipRole: "member" },
+    await db.insert(spaceMemberships).values([
+      { spaceId, principalType: "user", principalId: userId, membershipRole: "operator" },
+      { spaceId, principalType: "agent", principalId: agentId, membershipRole: "member" },
     ]);
     await db.insert(principalPermissionGrants).values([
-      { companyId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [targetAgentId] } },
-      { companyId, principalType: "agent", principalId: agentId, permissionKey: "agents:configure", scope: { agentIds: [targetAgentId] } },
+      { spaceId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [targetAgentId] } },
+      { spaceId, principalType: "agent", principalId: agentId, permissionKey: "agents:configure", scope: { agentIds: [targetAgentId] } },
     ]);
-    await db.insert(issues).values({ id: issueId, companyId, title: "Maintain instructions", status: "in_progress", workMode: "standard", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, invocationSource: "on_demand", responsibleUserId: userId });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Maintain instructions", status: "in_progress", workMode: "standard", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId, invocationSource: "on_demand", responsibleUserId: userId });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    authority = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId });
+    authority = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId });
     await fs.mkdir(path.dirname(path.join(root, entryFile)), { recursive: true });
     await fs.writeFile(path.join(root, entryFile), original);
   });
@@ -61,9 +61,9 @@ describe("canonical instruction tools through native authority", () => {
     expect(changed.revision).toMatchObject({ responsibleUserId: userId, actorAgentId: agentId, sourceRunId: runId });
     // The chat reply must not guess routes, so the receipt carries the edited
     // agent's real profile href and when the saved instructions take effect.
-    const [company] = await db.select({ issuePrefix: companies.issuePrefix }).from(companies).where(eq(companies.id, companyId));
+    const [space] = await db.select({ issuePrefix: spaces.issuePrefix }).from(spaces).where(eq(spaces.id, spaceId));
     expect(changed.resourceLinks).toEqual([{ kind: "agent", id: targetAgentId, name: "Target",
-      href: `/${encodeURIComponent(company!.issuePrefix)}/agents/${targetAgentId}` }]);
+      href: `/${encodeURIComponent(space!.issuePrefix)}/agents/${targetAgentId}` }]);
     expect(changed.appliesTo).toMatch(/start after this save/);
     expect((await call("get_agent_instruction_history", { entryFile })).revisions).toHaveLength(0);
     expect(await fs.readFile(path.join(root, entryFile), "utf8")).toBe("changed\r\n");
@@ -92,12 +92,12 @@ describe("canonical instruction tools through native authority", () => {
     try {
       const pending = authority.execute(request);
       await atCommit;
-      const duplicate = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId }).execute(request);
+      const duplicate = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId }).execute(request);
       expect(await fs.readFile(path.join(root, entryFile), "utf8")).toBe(original);
       release();
       const receipt = await pending as any;
       expect(await duplicate).toEqual(receipt);
-      authority = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId });
+      authority = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId });
       expect(await authority.execute(request)).toEqual(receipt);
       const bytes = await fs.readFile(path.join(root, entryFile));
       expect(bytes).toEqual(Buffer.from(content));
@@ -156,7 +156,7 @@ describe("canonical instruction tools through native authority", () => {
       const audit = await db.select().from(activityLog).where(eq(activityLog.runId, runId));
       expect(audit.filter((event) => event.action === "agent.instruction_write_attempted")).toHaveLength(1);
       expect(audit.filter((event) => event.action === "agent.files_updated")).toHaveLength(0);
-      authority = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId });
+      authority = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId });
       expect(await authority.recover(request)).toBeNull();
       await expect(authority.execute(request)).rejects.toMatchObject({ code: "semantic_tool_outcome_unknown" });
       await expect(authority.execute({ ...request, arguments: { ...request.arguments, content: "different" } }))
@@ -180,7 +180,7 @@ describe("canonical instruction tools through native authority", () => {
     if (tool === "restore_agent_instructions") {
       // Legacy revision data remains valid input to the production restore tool.
       await db.insert(agentInstructionRevisions).values({
-        id: revisionId, companyId, agentId: targetAgentId, entryFile, source: "tool",
+        id: revisionId, spaceId, agentId: targetAgentId, entryFile, source: "tool",
         contentBase64: Buffer.from(content).toString("base64"),
         contentHash: createHash("sha256").update(content).digest("hex"), byteLength: Buffer.byteLength(content),
       });
@@ -207,7 +207,7 @@ describe("canonical instruction tools through native authority", () => {
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
       const receipt = (run!.resultJson as any).semanticToolReceipts[`instruction:${request.callId}`].result;
       expect(receipt).toMatchObject({ changed: true, content, resourceLinks: [{ kind: "agent", id: targetAgentId, name: "Target" }] });
-      authority = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId });
+      authority = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId });
       expect(await authority.recover(request)).toEqual({ result: receipt });
       expect(await authority.recover({ ...request, callId: randomUUID() })).toBeNull();
       await expect(authority.recover({ ...request, arguments: { ...request.arguments, baseRevisionId: randomUUID() } }))
@@ -270,7 +270,7 @@ describe("canonical instruction tools through native authority", () => {
       expect(saved).toMatchObject({ status: failure.status, message: failure.message });
       // The stale request would now pass CAS if it were executed again.
       await fs.writeFile(path.join(root, entryFile), original);
-      authority = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId });
+      authority = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId });
       await expect(authority.execute(request)).rejects.toMatchObject(saved);
       await expect(authority.execute(request)).rejects.toMatchObject(saved);
       await expect(authority.execute({ ...request, arguments: { ...request.arguments, content: "different" } }))
@@ -298,7 +298,7 @@ describe("canonical instruction tools through native authority", () => {
       await expect(authority.execute(request)).rejects.toMatchObject({ code: "semantic_tool_outcome_unknown" });
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
       expect((run!.resultJson as any).instructionToolAttempts[`instruction:${request.callId}`].failure).toBeUndefined();
-      authority = new PaperclipRunnerToolAuthority(db, { companyId, agentId, issueId, runId });
+      authority = new OutpostRunnerToolAuthority(db, { spaceId, agentId, issueId, runId });
       await expect(authority.execute(request)).rejects.toMatchObject({ code: "semantic_tool_outcome_unknown" });
       expect(await fs.readFile(path.join(root, entryFile), "utf8")).toBe(original);
     } finally { spy.mockRestore(); }
@@ -306,20 +306,20 @@ describe("canonical instruction tools through native authority", () => {
 
   it("rejects supplied identity and missing CAS bases before changing content", async () => {
     const first = await call("read_agent_instructions");
-    for (const identity of ["companyId", "agentId", "runId", "responsibleUserId", "onBehalfOfUserId", "actor"]) {
+    for (const identity of ["spaceId", "agentId", "runId", "responsibleUserId", "onBehalfOfUserId", "actor"]) {
       await expect(call("update_agent_instructions", { entryFile, content: "forged", baseRevisionId: first.revision.id, [identity]: randomUUID() })).rejects.toMatchObject({ status: 400 });
     }
     await expect(call("update_agent_instructions", { entryFile, content: "missing base" })).rejects.toMatchObject({ status: 400 });
     expect((await call("read_agent_instructions")).content).toBe(original);
     expect(await db.select().from(agentInstructionRevisions).where(eq(agentInstructionRevisions.agentId, targetAgentId))).toHaveLength(0);
   });
-  it("rechecks responsible-user access and rejects a cross-company target", async () => {
+  it("rechecks responsible-user access and rejects a cross-space target", async () => {
     const first = await call("read_agent_instructions");
     await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.principalId, userId));
     await expect(call("update_agent_instructions", { entryFile, content: "revoked", baseRevisionId: first.revision.id })).rejects.toMatchObject({ status: 403 });
-    const foreignCompanyId = randomUUID(), foreignAgentId = randomUUID();
-    await db.insert(companies).values({ id: foreignCompanyId, name: "Foreign", issuePrefix: randomUUID().slice(0, 8) });
-    await db.insert(agents).values({ id: foreignAgentId, companyId: foreignCompanyId, name: "Foreign" });
+    const foreignSpaceId = randomUUID(), foreignAgentId = randomUUID();
+    await db.insert(spaces).values({ id: foreignSpaceId, name: "Foreign", issuePrefix: randomUUID().slice(0, 8) });
+    await db.insert(agents).values({ id: foreignAgentId, spaceId: foreignSpaceId, name: "Foreign" });
     await expect(call("read_agent_instructions", { targetAgentId: foreignAgentId })).rejects.toMatchObject({ status: 404 });
     await expect(call("update_agent_instructions", { targetAgentId: foreignAgentId, entryFile, content: "foreign", baseRevisionId: null })).rejects.toMatchObject({ status: 404 });
     await db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, runId));

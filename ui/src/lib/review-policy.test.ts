@@ -14,7 +14,7 @@ describe("issueReviewPolicyBadge", () => {
     expect(issueReviewPolicyBadge("anyone")).toBeNull();
   });
 
-  it("badges each opt-in constraint in the board's words", () => {
+  it("badges each opt-in constraint in the operator's words", () => {
     expect(issueReviewPolicyBadge("not_creator")?.label).toBe("Anyone else");
     expect(issueReviewPolicyBadge("human_only")?.label).toBe("Human only");
   });
@@ -25,7 +25,7 @@ describe("issueReviewPolicyBadge", () => {
   });
 
   it("shows nothing for a policy this build does not know", () => {
-    expect(issueReviewPolicyBadge("board_only" as never)).toBeNull();
+    expect(issueReviewPolicyBadge("operator_only" as never)).toBeNull();
   });
 });
 
@@ -42,7 +42,7 @@ describe("formatReviewPolicyValue", () => {
   });
 
   it("humanizes an unknown policy rather than hiding it", () => {
-    expect(formatReviewPolicyValue("board_only")).toBe("board only");
+    expect(formatReviewPolicyValue("operator_only")).toBe("operator only");
   });
 });
 
@@ -58,7 +58,7 @@ describe("readIssueReviewPolicyMetadata", () => {
   });
 
   it("rejects a value outside the enum instead of trusting the wire", () => {
-    expect(readIssueReviewPolicyMetadata({ reviewPolicy: "board_only" })).toBeNull();
+    expect(readIssueReviewPolicyMetadata({ reviewPolicy: "operator_only" })).toBeNull();
     expect(readIssueReviewPolicyMetadata({ reviewPolicy: 3 })).toBeNull();
   });
 });

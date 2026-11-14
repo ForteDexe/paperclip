@@ -3,14 +3,14 @@ import {
   databaseBackupConfigSchema,
   llmConfigSchema,
   loggingConfigSchema,
-  paperclipConfigSchema,
+  outpostConfigSchema,
   secretsConfigSchema,
   secretsLocalEncryptedConfigSchema,
   serverConfigSchema,
   storageConfigSchema,
   storageLocalDiskConfigSchema,
   storageS3ConfigSchema,
-  type PaperclipConfig,
+  type OutpostConfig,
 } from "@outpost/shared";
 import { z } from "zod";
 
@@ -50,12 +50,12 @@ export function parseStoredCloudRuntimeConfig(value: unknown): StoredCloudRuntim
   if (!parsed.success || Buffer.byteLength(JSON.stringify(parsed.data), "utf8") > 65_536) {
     throw new Error("Persisted Cloud runtime configuration is invalid");
   }
-  const full = parsed.data.config === null ? { success: true } : paperclipConfigSchema.safeParse(toPaperclipConfig(parsed.data.config));
+  const full = parsed.data.config === null ? { success: true } : outpostConfigSchema.safeParse(toOutpostConfig(parsed.data.config));
   if (!full.success) throw new Error("Persisted Cloud runtime configuration is invalid");
   return parsed.data;
 }
 
-export function toPaperclipConfig(config: CloudRuntimeConfig | null): PaperclipConfig | null {
+export function toOutpostConfig(config: CloudRuntimeConfig | null): OutpostConfig | null {
   if (config === null) return null;
   const { backup, ...settings } = structuredClone(config);
   return {
@@ -70,7 +70,7 @@ export function toPaperclipConfig(config: CloudRuntimeConfig | null): PaperclipC
   };
 }
 
-export function projectCloudRuntimeConfig(source: PaperclipConfig): CloudRuntimeConfig {
+export function projectCloudRuntimeConfig(source: OutpostConfig): CloudRuntimeConfig {
   const raw = {
     server: {
       deploymentMode: source.server.deploymentMode,

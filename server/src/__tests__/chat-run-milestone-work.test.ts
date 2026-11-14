@@ -33,7 +33,7 @@ import { chatActions } from "@outpost/db";
 import { CAPABILITIES } from "../services/chat-channels/provider-catalog.js";
 import { createChatPublicationFailures } from "../services/chat-channels/publications/failures.js";
 import { logger } from "../middleware/logger.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { finalizeNativeRun } from "../services/native-runtime/native-run-finalizer.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 
@@ -55,7 +55,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 4, idleTimeoutSeconds: 0, maxLifetimeSeconds: 0 });
     fixtures = createChatMilestoneFixtures(db);
   }, 60_000);
-  const fixture = (companyId?: string) => fixtures.create(companyId);
+  const fixture = (spaceId?: string) => fixtures.create(spaceId);
   beforeEach(async () => {
     enabled = true; errors.length = 0; f = await fixture();
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
@@ -70,7 +70,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     return { issueId: scope.issueId, source: "chat:slack", endpointId: scope.endpointId, wakeCommentId: scope.commentId };
   }
   function runValues(scope = f, patch: Partial<typeof heartbeatRuns.$inferInsert> = {}) {
-    return { id: randomUUID(), companyId: scope.companyId, agentId: scope.agentId, responsibleUserId: scope.userId, status: "running", updatedAt: new Date(),
+    return { id: randomUUID(), spaceId: scope.spaceId, agentId: scope.agentId, responsibleUserId: scope.userId, status: "running", updatedAt: new Date(),
       contextSnapshot: chatContextSnapshot(scope), ...patch };
   }
   async function run(scope = f, patch: Partial<typeof heartbeatRuns.$inferInsert> = {}) {
@@ -126,14 +126,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     if (action === "suppress") await db.update(issues).set({ status: "cancelled" }).where(eq(issues.id, f.issueId));
     await start(); await flush(); expect(await publications()).toEqual([]); await quiet();
     const dispatch = createRunDispatch(db);
-    const result = await dispatch.promoteScheduledRetry({ companyId: f.companyId, runId: row.id });
+    const result = await dispatch.promoteScheduledRetry({ spaceId: f.spaceId, runId: row.id });
     expect(result.outcome).toBe(action === "promote" ? "promoted" : "gate_suppressed");
     await flush();
     expect((await publications()).map(publication => publication.idempotencyKey)).toContain(
       `run:${row.id}:${action === "promote" ? "queued" : "failed"}:${f.endpointId}`,
     );
     await quiet();
-    expect((await dispatch.promoteScheduledRetry({ companyId: f.companyId, runId: row.id })).outcome).toBe("not_promoted");
+    expect((await dispatch.promoteScheduledRetry({ spaceId: f.spaceId, runId: row.id })).outcome).toBe("not_promoted");
     await quiet();
   });
   it("wakes when the real staleness gate cancels queued work", async () => {
@@ -141,12 +141,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await start(); await flush(); await quiet();
     await db.update(issues).set({ status: "cancelled" }).where(eq(issues.id, f.issueId));
     const dispatch = createRunDispatch(db);
-    await dispatch.cancelStaleQueuedRun({ companyId: f.companyId, runId: row.id, expectedStatus: "queued" });
+    await dispatch.cancelStaleQueuedRun({ spaceId: f.spaceId, runId: row.id, expectedStatus: "queued" });
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, row.id)))[0].status).toBe("cancelled");
     await flush();
     expect((await publications()).map(publication => publication.idempotencyKey)).toContain(`run:${row.id}:failed:${f.endpointId}`);
     await quiet();
-    await dispatch.cancelStaleQueuedRun({ companyId: f.companyId, runId: row.id, expectedStatus: "queued" });
+    await dispatch.cancelStaleQueuedRun({ spaceId: f.spaceId, runId: row.id, expectedStatus: "queued" });
     await quiet();
   });
   it.each(["deferred", "immediate"] as const)("wakes when real %s recovery admits chat work", async kind => {
@@ -154,7 +154,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       contextSnapshot: { issueId: f.issueId, source: "issue_assigned" },
     });
     const wakeId = randomUUID();
-    if (kind === "deferred") await db.insert(agentWakeupRequests).values({ id: wakeId, companyId: f.companyId, agentId: f.agentId,
+    if (kind === "deferred") await db.insert(agentWakeupRequests).values({ id: wakeId, spaceId: f.spaceId, agentId: f.agentId,
       source: "on_demand", status: "deferred_issue_execution", payload: { issueId: f.issueId },
     });
     const adapter = createPostgresWakeQueueAdapter(db, {
@@ -164,13 +164,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     });
     await start(); await flush(); expect(await publications()).toEqual([]); await quiet();
     let admittedId: string | undefined;
-    await adapter.withIssueExecutionLock({ companyId: f.companyId, runId: finishing.id, now: new Date() }, async (locked, ports) => {
-      const input = { companyId: f.companyId, issue: locked.primaryIssue, finishingRun: locked.run,
+    await adapter.withIssueExecutionLock({ spaceId: f.spaceId, runId: finishing.id, now: new Date() }, async (locked, ports) => {
+      const input = { spaceId: f.spaceId, issue: locked.primaryIssue, finishingRun: locked.run,
         contextSnapshot: chatContextSnapshot(), responsibleUserId: f.userId, sessionBefore: null, now: new Date(),
       };
-      const agent = { id: f.agentId, companyId: f.companyId, name: "Maya", invokable: true };
+      const agent = { id: f.agentId, spaceId: f.spaceId, name: "Maya", invokable: true };
       if (kind === "deferred") {
-        expect(await ports.transaction.claimDeferredWakeForPromotion({ companyId: f.companyId, wakeId, now: new Date() })).toBe(true);
+        expect(await ports.transaction.claimDeferredWakeForPromotion({ spaceId: f.spaceId, wakeId, now: new Date() })).toBe(true);
         admittedId = (await ports.transaction.finalizePromotedWake({ ...input, wakeId, deferredAgent: agent,
           reason: "issue_execution_promoted", source: "on_demand", triggerDetail: null, payload: {},
         })).id;
@@ -199,7 +199,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const admitted = await service.enqueueWakeup(f.agentId, { source: "on_demand", reason: "issue_commented",
       contextSnapshot: chatContextSnapshot(), requestedByActorType: "user", requestedByActorId: f.userId,
     });
-    expect(admitted).toMatchObject({ status: "queued", companyId: f.companyId });
+    expect(admitted).toMatchObject({ status: "queued", spaceId: f.spaceId });
     await flush();
     expect((await publications()).map(row => row.idempotencyKey)).toContain(`run:${admitted!.id}:queued:${f.endpointId}`);
     expect(dependencies.executeRun).not.toHaveBeenCalled();
@@ -208,9 +208,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it.each(["ordinary", "legacy_comments", "queued_comments"] as const)("wakes on a real %s queue claim", async kind => {
     const wakeId = randomUUID();
     const context = runValues().contextSnapshot;
-    await db.insert(agentWakeupRequests).values({ id: wakeId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(agentWakeupRequests).values({ id: wakeId, spaceId: f.spaceId, agentId: f.agentId,
       source: "on_demand", status: "queued",
-      payload: kind === "queued_comments" ? { _paperclipWakeContext: { wakeCommentIds: [f.commentId] } } : {},
+      payload: kind === "queued_comments" ? { _outpostWakeContext: { wakeCommentIds: [f.commentId] } } : {},
     });
     const seeded = await run(f, { status: "queued", runtimeMode: "legacy", wakeupRequestId: wakeId,
       contextSnapshot: kind === "ordinary" ? context : { ...context, wakeCommentIds: [f.commentId] },
@@ -229,13 +229,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   it("wakes when claim rejects a superseded case handoff and leaves repeated claims quiet", async () => {
     const wakeId = randomUUID();
-    await db.insert(agentWakeupRequests).values({ id: wakeId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(agentWakeupRequests).values({ id: wakeId, spaceId: f.spaceId, agentId: f.agentId,
       source: "assignment", status: "queued", payload: { issueId: f.issueId },
     });
     const seeded = await run(f, { status: "queued", runtimeMode: "legacy", wakeupRequestId: wakeId });
-    const [record] = await db.insert(cases).values({ companyId: f.companyId, caseNumber: 1, identifier: "M-CASE-1",
+    const [record] = await db.insert(cases).values({ spaceId: f.spaceId, caseNumber: 1, identifier: "M-CASE-1",
       caseType: "work", title: "Chat task", workIssueId: f.issueId, handoffVersion: 2 }).returning();
-    await db.insert(caseHandoffs).values({ companyId: f.companyId, caseId: record.id, issueId: f.issueId,
+    await db.insert(caseHandoffs).values({ spaceId: f.spaceId, caseId: record.id, issueId: f.issueId,
       version: 1, toAgentId: f.agentId, phase: "implementation", instructions: "Build the change", actorType: "system",
       actorId: "test", idempotencyKey: "superseded", inputFingerprint: "fixture", wakeupRequestId: wakeId,
       expectedIssueStatusVersion: 0, appliedIssueStatusVersion: 0, state: "delivered" });
@@ -272,7 +272,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   it.each(["queued", "scheduled_retry"] as const)("publishes cancellation when admission replaces a reassigned %s owner", async status => {
     const old = await run(f, { status, runtimeMode: "legacy", scheduledRetryAt: status === "scheduled_retry" ? new Date(Date.now() + 60_000) : null });
-    const [replacement] = await db.insert(agents).values({ companyId: f.companyId, name: "Replacement", adapterType: "outpost_runner" }).returning();
+    const [replacement] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Replacement", adapterType: "outpost_runner" }).returning();
     await db.update(issues).set({ assigneeAgentId: replacement.id, executionRunId: old.id }).where(eq(issues.id, f.issueId));
     const { service, dependencies } = await queue();
     dependencies.getAgent.mockResolvedValue(replacement);
@@ -291,14 +291,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   async function editableQueue(staleContext = false) {
     const wakeId = randomUUID();
     await db.update(issueComments).set({ authorUserId: f.userId }).where(eq(issueComments.id, f.commentId));
-    await db.insert(agentWakeupRequests).values({ id: wakeId, companyId: f.companyId, agentId: f.agentId,
-      source: "on_demand", status: "queued", payload: { issueId: f.issueId, _paperclipWakeContext: { wakeCommentIds: [f.commentId] } },
+    await db.insert(agentWakeupRequests).values({ id: wakeId, spaceId: f.spaceId, agentId: f.agentId,
+      source: "on_demand", status: "queued", payload: { issueId: f.issueId, _outpostWakeContext: { wakeCommentIds: [f.commentId] } },
     });
     const seeded = await run(f, { status: "queued", runtimeMode: "legacy", wakeupRequestId: wakeId,
       contextSnapshot: { ...runValues().contextSnapshot, wakeCommentId: staleContext ? randomUUID() : f.commentId },
     });
     await db.update(agentWakeupRequests).set({ runId: seeded.id }).where(eq(agentWakeupRequests.id, wakeId));
-    const issue = { id: f.issueId, companyId: f.companyId, assigneeAgentId: f.agentId, executionRunId: seeded.id };
+    const issue = { id: f.issueId, spaceId: f.spaceId, assigneeAgentId: f.agentId, executionRunId: seeded.id };
     const actor = { actorType: "user" as const, actorId: f.userId, agentId: null, runId: null, agentApiKeyId: null };
     const issueLock = createQueuedCommentIssueLockWriter(db, {
       syncCommentReferences: async () => {}, deleteCommentReferenceSource: async () => {}, syncCommentExternalObjectsSafely: async () => {},
@@ -336,8 +336,8 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await start(); await flush(); expect(await publications()).toEqual([]); await quiet();
     await db.transaction(async tx => {
       await createWakeAdmissionWriter().coalesceIntoActiveExecutionRun(
-        createAdmissionTransactionScope(f.companyId, tx as unknown as typeof db), {
-          companyId: f.companyId, activeExecutionRunId: seeded.id, activeExecutionRunStatus: seeded.status, mergedContextSnapshot: chatContextSnapshot(),
+        createAdmissionTransactionScope(f.spaceId, tx as unknown as typeof db), {
+          spaceId: f.spaceId, activeExecutionRunId: seeded.id, activeExecutionRunStatus: seeded.status, mergedContextSnapshot: chatContextSnapshot(),
           agentId: f.agentId, source: "on_demand", triggerDetail: null, payload: { issueId: f.issueId },
           requestedByActorType: "user", requestedByActorId: f.userId, idempotencyKey: null,
         });
@@ -363,7 +363,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.update(issues).set({ executionRunId: source.id }).where(eq(issues.id, f.issueId));
     await start(); await flush(); await quiet();
     const nextCheckAt = new Date(Date.now() + 60_000).toISOString();
-    const authority = new PaperclipRunnerToolAuthority(db, { ...f, runId: source.id });
+    const authority = new OutpostRunnerToolAuthority(db, { ...f, runId: source.id });
     const request = { tool: "set_task_monitor", callId: randomUUID(), arguments: {
       idempotencyKey: "milestone-monitor", monitor: { nextCheckAt, notes: "Check the saved task" },
     } };
@@ -391,7 +391,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   async function nativeFixture(phase = "committed") {
     const contractId = randomUUID(), resultId = randomUUID();
     await db.insert(completionContracts).values({
-      id: contractId, companyId: f.companyId, issueId: f.issueId, revision: 1,
+      id: contractId, spaceId: f.spaceId, issueId: f.issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "phase6-v1", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { objective: "Respond to chat" }, canonicalSha256: "milestone-contract",
@@ -403,11 +403,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       resultJson: { nativeAttentionRouting: [{ decisionId: null, reasonCode: "attention_duplicate_suppressed",
         materializedTargets: [{ kind: "existing_attention" }] }] },
     });
-    await db.insert(nativeRunResults).values({ id: resultId, companyId: f.companyId, issueId: f.issueId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId: f.spaceId, issueId: f.issueId,
       runId: row.id, completionContractId: contractId, serverFingerprint: resultId, schemaStatus: "accepted",
       resultJson: { terminal: { runTerminalState: "cancelled" } }, canonicalSha256: "milestone-result",
     });
-    await db.insert(nativeRunFinalizations).values({ runId: row.id, companyId: f.companyId, issueId: f.issueId,
+    await db.insert(nativeRunFinalizations).values({ runId: row.id, spaceId: f.spaceId, issueId: f.issueId,
       phase, resultId,
     });
     return { row, contractId, resultId };
@@ -415,12 +415,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   async function continuationDecisionFixture() {
     const native = await nativeFixture("assessing");
     const assessmentId = randomUUID();
-    await db.insert(workAssessments).values({ id: assessmentId, companyId: f.companyId, issueId: f.issueId,
+    await db.insert(workAssessments).values({ id: assessmentId, spaceId: f.spaceId, issueId: f.issueId,
       runId: native.row.id, contractId: native.contractId, resultId: native.resultId, triggerKind: "run_result",
-      triggerActorCompanyId: f.companyId, priorIssueStatus: "in_progress", priorStatusVersion: 0,
+      triggerActorSpaceId: f.spaceId, priorIssueStatus: "in_progress", priorStatusVersion: 0,
       policyVersion: "phase6-v1", assessmentJson: {}, inputDigest: assessmentId,
     });
-    return { companyId: f.companyId, issueId: f.issueId, runId: native.row.id, assessmentId,
+    return { spaceId: f.spaceId, issueId: f.issueId, runId: native.row.id, assessmentId,
       priorStatus: "in_progress", priorStatusVersion: 0, priorDecisionId: null,
       decision: { policyVersion: NATIVE_STATUS_ARBITER_POLICY_VERSION, statusAction: "preserve" as const, toStatus: "in_progress" as const,
         reasonCode: "live_continuation_registered", unblockDescriptor: null,
@@ -429,20 +429,20 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       } satisfies NativeStatusDecision,
     };
   }
-  it("wakes from a governed native reviewer claim and leaves repeated claims quiet", async () => {
+  it("wakes from a controlled native reviewer claim and leaves repeated claims quiet", async () => {
     const input = await continuationDecisionFixture();
     const { decision } = await commitNativeStatusDecision({ db, ...input });
-    const [reviewer] = await db.insert(agents).values({ companyId: f.companyId, name: "Reviewer", adapterType: "outpost_runner" }).returning();
+    const [reviewer] = await db.insert(agents).values({ spaceId: f.spaceId, name: "Reviewer", adapterType: "outpost_runner" }).returning();
     await db.update(statusDecisions).set({ decisionJson: { ...decision.decisionJson, projectedStatusVersion: 1 } }).where(eq(statusDecisions.id, decision.id));
     await db.update(issues).set({ status: "in_review", statusVersion: 1, lastStatusDecisionId: decision.id, executionRunId: null }).where(eq(issues.id, f.issueId));
     await db.update(chatEndpoints).set({ assignedAgentId: reviewer.id }).where(eq(chatEndpoints.id, f.endpointId));
-    const [interaction] = await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issueId,
+    const [interaction] = await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issueId,
       kind: "request_confirmation", status: "pending", sourceRunId: input.runId, addresseeAgentId: reviewer.id,
       effectiveResolverPolicy: "anyone", resolverPolicyProvenance: "inherited",
       payload: { version: 1, prompt: "Review the work", target: { type: "custom", key: "native_completion_review", revisionId: decision.id } },
     }).returning();
     const wakeId = randomUUID();
-    await db.insert(agentWakeupRequests).values({ id: wakeId, companyId: f.companyId, agentId: reviewer.id, source: "automation", status: "queued" });
+    await db.insert(agentWakeupRequests).values({ id: wakeId, spaceId: f.spaceId, agentId: reviewer.id, source: "automation", status: "queued" });
     const seeded = await run(f, { agentId: reviewer.id, status: "queued", runtimeMode: "native", nativeIssueId: f.issueId, wakeupRequestId: wakeId,
       contextSnapshot: { ...runValues().contextSnapshot, nativeReviewInteractionId: interaction.id, nativeReviewDecisionId: decision.id },
     });
@@ -491,7 +491,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("wakes a suppressed continuation when its native effect delivery receipt commits", async () => {
     const input = await continuationDecisionFixture();
     const { decision } = await commitNativeStatusDecision({ db, ...input });
-    const [intent] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId));
+    const [intent] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId));
     // Reconstruct an interrupted delivery with its already admitted successor.
     // The target has no direct chat identity: only the delivered ledger can
     // authorize inheriting the source run's conversation.
@@ -501,7 +501,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       issueId: f.issueId, source: "native_status_decision", nativeStatusWakeIntentId: intent.id,
     } });
     await db.update(agentWakeupRequests).set({ status: "coalesced", runId: target.id }).where(eq(agentWakeupRequests.id, intent.id));
-    await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId, source: "automation",
+    await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId, source: "automation",
       reason: "issue_status_changed", requestedByActorType: "system", requestedByActorId: `native-status-wake-dispatch:${intent.id}`,
       runId: target.id, status: "queued", idempotencyKey: intent.idempotencyKey, payload: { issueId: f.issueId },
     });
@@ -518,11 +518,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("wakes an admitted continuation when native wake dispatch repairs its original receipt", async () => {
     const input = await continuationDecisionFixture();
     await commitNativeStatusDecision({ db, ...input });
-    const [intent] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId));
+    const [intent] = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId));
     const target = await run(f, { status: "queued", contextSnapshot: {
       issueId: f.issueId, source: "native_status_decision", nativeStatusWakeIntentId: intent.id,
     } });
-    await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId, source: "automation",
+    await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId, source: "automation",
       reason: "issue_status_changed", requestedByActorType: "system", requestedByActorId: `native-status-wake-dispatch:${intent.id}`,
       runId: target.id, status: "queued", idempotencyKey: intent.idempotencyKey, payload: { issueId: f.issueId },
     });
@@ -530,12 +530,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect((await publications()).some(row => row.idempotencyKey.startsWith(`run:${target.id}:`))).toBe(false);
     await quiet();
     const { service, dependencies } = await queue();
-    await expect(service.dispatchPendingNativeStatusWakeups({ companyId: f.companyId })).resolves.toMatchObject({ recovered: 1, dispatched: 0 });
+    await expect(service.dispatchPendingNativeStatusWakeups({ spaceId: f.spaceId })).resolves.toMatchObject({ recovered: 1, dispatched: 0 });
     await flush();
     expect((await publications()).map(row => row.idempotencyKey)).toContain(`run:${target.id}:queued:${f.endpointId}`);
     expect(dependencies.executeRun).not.toHaveBeenCalled();
     await quiet();
-    await expect(service.dispatchPendingNativeStatusWakeups({ companyId: f.companyId })).resolves.toMatchObject({ scanned: 0 });
+    await expect(service.dispatchPendingNativeStatusWakeups({ spaceId: f.spaceId })).resolves.toMatchObject({ scanned: 0 });
     await quiet();
   });
   it("rechecks a fresh native continuation after admission finishes its wake receipt", async () => {
@@ -546,7 +546,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const { service, dependencies } = await queue();
     let admittedId: string | undefined;
     dependencies.getSchedulingSuppression.mockImplementation(async () => {
-      const rows = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId));
+      const rows = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId));
       const admitted = rows.find(row => row.id !== input.runId);
       if (admitted && !admittedId) {
         admittedId = admitted.id;
@@ -557,7 +557,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       }
       return { suppressed: true, reason: "task_drain" };
     });
-    await expect(service.dispatchPendingNativeStatusWakeups({ companyId: f.companyId })).resolves.toMatchObject({ dispatched: 1 });
+    await expect(service.dispatchPendingNativeStatusWakeups({ spaceId: f.spaceId })).resolves.toMatchObject({ dispatched: 1 });
     expect(admittedId).toBeDefined();
     await flush();
     expect((await publications()).map(row => row.idempotencyKey)).toContain(`run:${admittedId}:queued:${f.endpointId}`);
@@ -567,17 +567,17 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("projects a continuation only after the real question delivery receipt commits", async () => {
     const source = await run(f, { status: "succeeded" });
     const interactions = issueThreadInteractionService(db);
-    const interaction = await interactions.create({ id: f.issueId, companyId: f.companyId }, {
+    const interaction = await interactions.create({ id: f.issueId, spaceId: f.spaceId }, {
       kind: "ask_user_questions", continuationPolicy: "wake_assignee", sourceRunId: source.id,
       title: "Choose", payload: { version: 1, title: "Choose", questions: [{
         id: "choice", prompt: "Continue?", selectionMode: "single", required: true,
         options: [{ id: "yes", label: "Yes" }],
       }] },
     }, { agentId: f.agentId, runId: source.id });
-    await interactions.answerQuestions({ id: f.issueId, companyId: f.companyId, status: "in_progress" }, interaction.id,
+    await interactions.answerQuestions({ id: f.issueId, spaceId: f.spaceId, status: "in_progress" }, interaction.id,
       { answers: [{ questionId: "choice", optionIds: ["yes"] }] }, { userId: f.userId });
     // A provider acknowledgement is durable input to this projection test.
-    await db.insert(chatPublications).values({ companyId: f.companyId, endpointId: f.endpointId, conversationId: f.conversationId,
+    await db.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpointId, conversationId: f.conversationId,
       issueId: f.issueId, idempotencyKey: `interaction:${interaction.id}:${f.endpointId}`,
       payload: { text: "Continue?", interactionId: interaction.id }, state: "published", providerMessageId: "question-1",
     }).onConflictDoNothing();
@@ -612,9 +612,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   ] as const)("rechecks an unsent %s after %s", async (kind, action) => {
     const source = await run(f, { status: "failed", errorCode: "test_run_failed" });
     const interactions = issueThreadInteractionService(db);
-    const issue = { id: f.issueId, companyId: f.companyId, status: "in_progress" };
+    const issue = { id: f.issueId, spaceId: f.spaceId, status: "in_progress" };
     const addressee = action === "addressee deletion"
-      ? (await db.insert(agents).values({ companyId: f.companyId, name: "Reviewer", adapterType: "outpost_runner" }).returning())[0] : null;
+      ? (await db.insert(agents).values({ spaceId: f.spaceId, name: "Reviewer", adapterType: "outpost_runner" }).returning())[0] : null;
     const createInteraction = (sourceRunId: string, supersedePendingSiblingInteractions = true) => interactions.create(issue, kind === "confirmation" ? {
       kind: "request_confirmation", continuationPolicy: "wake_assignee", sourceRunId, addresseeAgentId: addressee?.id,
       title: "Confirm", payload: { version: 1, prompt: "Continue?", supersedeOnUserComment: true },
@@ -639,14 +639,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect((await publications()).some(row => row.idempotencyKey.startsWith(`run:${source.id}:`))).toBe(false);
     await quiet();
     if (action === "addressee deletion") {
-      expect((await interactions.cancelPendingForDeletedAddressee(f.companyId, addressee!.id)).map(row => row.id)).toContain(interaction.id);
+      expect((await interactions.cancelPendingForDeletedAddressee(f.spaceId, addressee!.id)).map(row => row.id)).toContain(interaction.id);
     } else if (action === "startup supersession") {
       expect(await interactions.sweepSupersededPendingRequestConfirmations()).toMatchObject({ expired: 1 });
     } else if (action === "replacement") {
       await createInteraction(replacement!.id);
       expect((await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, interaction.id)))[0].status).toBe("expired");
     } else if (action === "comment" || action === "historical comment") {
-      const [comment] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+      const [comment] = await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
         authorType: "user", authorUserId: f.userId, origin: "comment", body: "Ignore the earlier request" }).returning();
       const expired = action === "comment"
         ? await interactions.expireRequestConfirmationsSupersededByComment(issue, comment, { userId: f.userId })
@@ -679,7 +679,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it.each(["change", "delete", "accept", "reject"] as const)("rechecks a document confirmation after %s detects a stale target", async mode => {
     const source = await run(f, { status: "failed", errorCode: "test_run_failed" });
     const interactions = issueThreadInteractionService(db), docs = documentService(db);
-    const issue = { id: f.issueId, companyId: f.companyId, status: "in_progress", projectId: null, goalId: null };
+    const issue = { id: f.issueId, spaceId: f.spaceId, status: "in_progress", projectId: null, goalId: null };
     const input = { issueId: f.issueId, key: "plan", format: "markdown", body: "First plan", createdByUserId: f.userId };
     const { document } = await docs.upsertIssueDocument(input);
     const interaction = await interactions.create(issue, {
@@ -711,7 +711,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.update(chatEndpoints).set({ provider: "discord" }).where(eq(chatEndpoints.id, f.endpointId));
     const source = await run(f, { status: "failed", contextSnapshot: { ...runValues().contextSnapshot, source: "chat:discord" } });
     const interactions = issueThreadInteractionService(db);
-    const interaction = await interactions.create({ id: f.issueId, companyId: f.companyId }, {
+    const interaction = await interactions.create({ id: f.issueId, spaceId: f.spaceId }, {
       kind: "ask_user_questions", continuationPolicy: "wake_assignee", sourceRunId: source.id,
       title: "Choose", payload: { version: 1, title: "Choose", questions: [{
         id: "choice", prompt: "Continue?", selectionMode: "single", required: true,
@@ -734,7 +734,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       },
     } });
     const post = vi.fn(async () => {
-      await interactions.answerQuestions({ id: f.issueId, companyId: f.companyId, status: "in_progress" }, interaction.id,
+      await interactions.answerQuestions({ id: f.issueId, spaceId: f.spaceId, status: "in_progress" }, interaction.id,
         { answers: [{ questionId: "choice", optionIds: ["yes"] }] }, { userId: f.userId });
       await deliver.deliver(interaction.id);
       await flush();
@@ -774,7 +774,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("parks the first managed form through seven waits and worker restart, then commits one send and its exact grant", async () => {
     const identity = { instanceId: "publication-readiness-instance", environment: "test" as const };
     const [originalEndpoint] = await db.select().from(chatEndpoints).where(eq(chatEndpoints.id, f.endpointId));
-    const binding = parseSlackFormBinding({ version: 1, instanceId: identity.instanceId, companyId: f.companyId,
+    const binding = parseSlackFormBinding({ version: 1, instanceId: identity.instanceId, spaceId: f.spaceId,
       endpointId: f.endpointId, connectionId: originalEndpoint.connectionId, publicId: "p".repeat(43), runtimeGeneration: 1,
       teamId: "TTEST", appId: "ATEST", eventBindingId: "slack-event:" + "a".repeat(64), credentialFingerprint: "b".repeat(64) });
     const { credentialFingerprint: _fingerprint, eventBindingId, ...base } = binding;
@@ -787,7 +787,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await db.update(chatConversations).set({ externalConversationId: "slack:CTEST", externalThreadId: "slack:CTEST:1770000000.000001" }).where(eq(chatConversations.id, f.conversationId));
     const ownerId = await db.transaction(tx => stageSlackFormEnrollment(tx, { enrollment, subject: f.userId, environment: identity.environment }));
     const source = await run(f, { status: "failed", errorCode: "test_run_failed" });
-    const interaction = await issueThreadInteractionService(db).create({ id: f.issueId, companyId: f.companyId }, {
+    const interaction = await issueThreadInteractionService(db).create({ id: f.issueId, spaceId: f.spaceId }, {
       kind: "ask_user_questions", continuationPolicy: "wake_assignee", sourceRunId: source.id,
       title: "Choose", payload: { version: 1, title: "Choose", questions: ["first", "second"].map(id => ({
         id, prompt: `Choose ${id}`, selectionMode: "single" as const, required: true, options: [{ id: "yes", label: "Yes" }],
@@ -864,7 +864,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it("an untyped pre-send error with the same diagnostic still exhausts its ordinary five-attempt budget", async () => {
     const failures = createChatPublicationFailures(db, { FailedChatRetryPublicationReadError: class extends Error {},
       MAX_ERROR_TEXT: 1000, getTaskBaseUrl: () => null, invalidateRuntime: async () => false, runtimeCallbackEndpoint: async () => null });
-    const [row] = await db.insert(chatPublications).values({ companyId: f.companyId, endpointId: f.endpointId,
+    const [row] = await db.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: `untyped-preparation:${randomUUID()}`,
       payload: { text: "Original publication" }, state: "streaming", attempts: 5 }).returning();
     await expect(failures.finalizePublicationFailure({ ...row, attempts: 4 }, new Error("form_publication_enrollment_pending"),
@@ -879,7 +879,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   ] as const)("typed readiness at attempt five respects invocation=%s accepted=%s", async (providerInvocation, providerAccepted, state, attempts) => {
     const failures = createChatPublicationFailures(db, { FailedChatRetryPublicationReadError: class extends Error {},
       MAX_ERROR_TEXT: 1000, getTaskBaseUrl: () => null, invalidateRuntime: async () => false, runtimeCallbackEndpoint: async () => null });
-    const [row] = await db.insert(chatPublications).values({ companyId: f.companyId, endpointId: f.endpointId,
+    const [row] = await db.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: f.endpointId,
       conversationId: f.conversationId, issueId: f.issueId, idempotencyKey: `typed-preparation:${randomUUID()}`,
       payload: { text: "Original publication" }, state: "streaming", attempts: 5 }).returning();
     await expect(failures.finalizePublicationFailure({ ...row, attempts: 4 }, new Error("form_publication_enrollment_pending"),
@@ -896,7 +896,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     ["not_started", true, "delivery_unknown"],
   ] as const)("settles local preparation context %s with accepted=%s as %s", async (providerInvocation, providerAccepted, state) => {
     const [claimed] = await db.insert(chatPublications).values({
-      companyId: f.companyId, endpointId: f.endpointId, conversationId: f.conversationId,
+      spaceId: f.spaceId, endpointId: f.endpointId, conversationId: f.conversationId,
       issueId: f.issueId, idempotencyKey: `preparation:${randomUUID()}`,
       payload: { text: "Original publication" }, state: "streaming", attempts: 1,
     }).returning();
@@ -921,7 +921,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   ] as const)("rechecks resolved prompt ownership after delivery %s (%s)", async (state, resolution) => {
     const source = await run(f, { status: "failed", errorCode: "test_run_failed" });
     const interactions = issueThreadInteractionService(db);
-    const interaction = await interactions.create({ id: f.issueId, companyId: f.companyId }, {
+    const interaction = await interactions.create({ id: f.issueId, spaceId: f.spaceId }, {
       kind: "ask_user_questions", continuationPolicy: "wake_assignee", sourceRunId: source.id,
       title: "Choose", payload: { version: 1, title: "Choose", questions: [{
         id: "choice", prompt: "Continue?", selectionMode: "single", required: true,
@@ -931,7 +931,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     // Model a send already claimed when the user answers through the UI.
     const [prompt] = await db.update(chatPublications).set({ state: "streaming", attempts: 1 })
       .where(eq(chatPublications.idempotencyKey, `interaction:${interaction.id}:${f.endpointId}`)).returning();
-    await interactions.answerQuestions({ id: f.issueId, companyId: f.companyId, status: "in_progress" }, interaction.id,
+    await interactions.answerQuestions({ id: f.issueId, spaceId: f.spaceId, status: "in_progress" }, interaction.id,
       { answers: [{ questionId: "choice", optionIds: ["yes"] }] }, { userId: f.userId });
     expect(prompt).toBeDefined();
     await start(); await flush();
@@ -984,19 +984,19 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   it.each(["retry", "stale claim", "live claim", "rolled-back reset"] as const)("rechecks question prompt binding after %s", async (mode) => {
     const source = await run();
     const interactions = issueThreadInteractionService(db);
-    const interaction = await interactions.create({ id: f.issueId, companyId: f.companyId }, {
+    const interaction = await interactions.create({ id: f.issueId, spaceId: f.spaceId }, {
       kind: "ask_user_questions", continuationPolicy: "wake_assignee", sourceRunId: source.id,
       title: "Choose", payload: { version: 1, title: "Choose", questions: [{
         id: "choice", prompt: "Continue?", selectionMode: "single", required: true,
         options: [{ id: "yes", label: "Yes" }],
       }] },
     }, { agentId: f.agentId, runId: source.id });
-    await interactions.answerQuestions({ id: f.issueId, companyId: f.companyId, status: "in_progress" }, interaction.id,
+    await interactions.answerQuestions({ id: f.issueId, spaceId: f.spaceId, status: "in_progress" }, interaction.id,
       { answers: [{ questionId: "choice", optionIds: ["yes"] }] }, { userId: f.userId });
-    const other = await fixture(f.companyId);
+    const other = await fixture(f.spaceId);
     await db.update(chatEndpoints).set({ assignedAgentId: f.agentId }).where(eq(chatEndpoints.id, other.endpointId));
     await db.update(chatConversations).set({ issueId: f.issueId }).where(eq(chatConversations.id, other.conversationId));
-    await db.insert(chatPublications).values({ companyId: f.companyId, endpointId: other.endpointId, conversationId: other.conversationId,
+    await db.insert(chatPublications).values({ spaceId: f.spaceId, endpointId: other.endpointId, conversationId: other.conversationId,
       issueId: f.issueId, idempotencyKey: `interaction:${interaction.id}:${other.endpointId}`,
       payload: { text: "Continue?", interactionId: interaction.id }, state: "published", providerMessageId: "other-question",
     });
@@ -1075,15 +1075,15 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     enabled = true; await vi.advanceTimersByTimeAsync(30_000); await flush();
     expect(await publications()).toHaveLength(1); await quiet();
   });
-  it("scopes mutation wakes to their issue and company", async () => {
-    const sibling = await fixture(f.companyId), foreign = await fixture();
+  it("scopes mutation wakes to their issue and space", async () => {
+    const sibling = await fixture(f.spaceId), foreign = await fixture();
     await start(); await flush();
     // Unsupported raw writers deliberately do not wake: they provide a sentinel
     // proving a supported issue mutation does not perform a global scan.
     await db.insert(heartbeatRuns).values([runValues(sibling), runValues(foreign)]);
     await run(); await flush();
     expect(await publications()).toHaveLength(1); expect(await publications(sibling)).toEqual([]); expect(await publications(foreign)).toEqual([]);
-    await db.transaction(tx => notifyChatRunMilestones(tx, { companyId: f.companyId }));
+    await db.transaction(tx => notifyChatRunMilestones(tx, { spaceId: f.spaceId }));
     await flush(); expect(await publications(sibling)).toHaveLength(1); expect(await publications(foreign)).toEqual([]);
     await quiet();
   });
@@ -1105,7 +1105,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     });
     await flush(); expect(await publications()).toEqual([expect.objectContaining({ idempotencyKey: `run:${row.id}:completed:${f.endpointId}` })]); await quiet();
   });
-  it("drains more than one batch without duplicate notices or starving another company", async () => {
+  it("drains more than one batch without duplicate notices or starving another space", async () => {
     const other = await fixture();
     await db.insert(heartbeatRuns).values([...Array.from({ length: 205 }, () => runValues()), runValues(other)]);
     await start(); await flush(); expect(await publications()).toHaveLength(205); expect(await publications(other)).toHaveLength(1); await quiet();

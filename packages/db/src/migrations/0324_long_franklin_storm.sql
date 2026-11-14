@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "chat_voice_replies" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"session_id" uuid NOT NULL,
 	"publication_id" uuid NOT NULL,
 	"cursor" integer NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS "chat_voice_replies" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "chat_voice_sessions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"endpoint_id" uuid NOT NULL,
 	"conversation_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS "chat_voice_sessions" (
 	"ended_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "chat_voice_sessions_company_id_uq" UNIQUE("company_id","id"),
+	CONSTRAINT "chat_voice_sessions_space_id_uq" UNIQUE("space_id","id"),
 	CONSTRAINT "chat_voice_sessions_state_check" CHECK ("chat_voice_sessions"."state" in ('reserved', 'creating', 'creation_unknown', 'connecting', 'active', 'awaiting_approval', 'ending', 'ended', 'failed', 'expired')),
 	CONSTRAINT "chat_voice_sessions_mode_check" CHECK ("chat_voice_sessions"."mode" in ('browser', 'inbound_phone', 'outbound_phone')),
 	CONSTRAINT "chat_voice_sessions_authority_check" CHECK ("chat_voice_sessions"."caller_authority" in ('member', 'instance_admin', 'local_board', 'guest_intake', 'pending_approval')),
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS "chat_voice_sessions" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "chat_voice_tool_calls" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"session_id" uuid NOT NULL,
 	"provider_tool_call_id" text NOT NULL,
 	"webhook_id" text NOT NULL,
@@ -63,68 +63,68 @@ ALTER TABLE "chat_external_principals" DROP CONSTRAINT IF EXISTS "chat_external_
 ALTER TABLE "tool_connections" DROP CONSTRAINT IF EXISTS "tool_connections_transport_check";--> statement-breakpoint
 ALTER TABLE "tool_connections" DROP CONSTRAINT IF EXISTS "tool_connections_channel_transport_check";--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_replies_company_id_companies_id_fk' AND conrelid = 'chat_voice_replies'::regclass) THEN
-    ALTER TABLE "chat_voice_replies" ADD CONSTRAINT "chat_voice_replies_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_replies_space_id_spaces_id_fk' AND conrelid = 'chat_voice_replies'::regclass) THEN
+    ALTER TABLE "chat_voice_replies" ADD CONSTRAINT "chat_voice_replies_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_replies_session_fk' AND conrelid = 'chat_voice_replies'::regclass) THEN
-    ALTER TABLE "chat_voice_replies" ADD CONSTRAINT "chat_voice_replies_session_fk" FOREIGN KEY ("company_id","session_id") REFERENCES "public"."chat_voice_sessions"("company_id","id") ON DELETE no action ON UPDATE no action;
+    ALTER TABLE "chat_voice_replies" ADD CONSTRAINT "chat_voice_replies_session_fk" FOREIGN KEY ("space_id","session_id") REFERENCES "public"."chat_voice_sessions"("space_id","id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_replies_publication_fk' AND conrelid = 'chat_voice_replies'::regclass) THEN
-    ALTER TABLE "chat_voice_replies" ADD CONSTRAINT "chat_voice_replies_publication_fk" FOREIGN KEY ("company_id","publication_id") REFERENCES "public"."chat_publications"("company_id","id") ON DELETE no action ON UPDATE no action;
+    ALTER TABLE "chat_voice_replies" ADD CONSTRAINT "chat_voice_replies_publication_fk" FOREIGN KEY ("space_id","publication_id") REFERENCES "public"."chat_publications"("space_id","id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_sessions_company_id_companies_id_fk' AND conrelid = 'chat_voice_sessions'::regclass) THEN
-    ALTER TABLE "chat_voice_sessions" ADD CONSTRAINT "chat_voice_sessions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_sessions_space_id_spaces_id_fk' AND conrelid = 'chat_voice_sessions'::regclass) THEN
+    ALTER TABLE "chat_voice_sessions" ADD CONSTRAINT "chat_voice_sessions_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_sessions_endpoint_fk' AND conrelid = 'chat_voice_sessions'::regclass) THEN
-    ALTER TABLE "chat_voice_sessions" ADD CONSTRAINT "chat_voice_sessions_endpoint_fk" FOREIGN KEY ("company_id","endpoint_id") REFERENCES "public"."chat_endpoints"("company_id","id") ON DELETE no action ON UPDATE no action;
+    ALTER TABLE "chat_voice_sessions" ADD CONSTRAINT "chat_voice_sessions_endpoint_fk" FOREIGN KEY ("space_id","endpoint_id") REFERENCES "public"."chat_endpoints"("space_id","id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_sessions_conversation_fk' AND conrelid = 'chat_voice_sessions'::regclass) THEN
-    ALTER TABLE "chat_voice_sessions" ADD CONSTRAINT "chat_voice_sessions_conversation_fk" FOREIGN KEY ("company_id","conversation_id") REFERENCES "public"."chat_conversations"("company_id","id") ON DELETE no action ON UPDATE no action;
+    ALTER TABLE "chat_voice_sessions" ADD CONSTRAINT "chat_voice_sessions_conversation_fk" FOREIGN KEY ("space_id","conversation_id") REFERENCES "public"."chat_conversations"("space_id","id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_sessions_issue_fk' AND conrelid = 'chat_voice_sessions'::regclass) THEN
-    ALTER TABLE "chat_voice_sessions" ADD CONSTRAINT "chat_voice_sessions_issue_fk" FOREIGN KEY ("company_id","issue_id") REFERENCES "public"."issues"("company_id","id") ON DELETE no action ON UPDATE no action;
+    ALTER TABLE "chat_voice_sessions" ADD CONSTRAINT "chat_voice_sessions_issue_fk" FOREIGN KEY ("space_id","issue_id") REFERENCES "public"."issues"("space_id","id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_sessions_agent_fk' AND conrelid = 'chat_voice_sessions'::regclass) THEN
-    ALTER TABLE "chat_voice_sessions" ADD CONSTRAINT "chat_voice_sessions_agent_fk" FOREIGN KEY ("company_id","assigned_agent_id") REFERENCES "public"."agents"("company_id","id") ON DELETE no action ON UPDATE no action;
+    ALTER TABLE "chat_voice_sessions" ADD CONSTRAINT "chat_voice_sessions_agent_fk" FOREIGN KEY ("space_id","assigned_agent_id") REFERENCES "public"."agents"("space_id","id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_tool_calls_company_id_companies_id_fk' AND conrelid = 'chat_voice_tool_calls'::regclass) THEN
-    ALTER TABLE "chat_voice_tool_calls" ADD CONSTRAINT "chat_voice_tool_calls_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_tool_calls_space_id_spaces_id_fk' AND conrelid = 'chat_voice_tool_calls'::regclass) THEN
+    ALTER TABLE "chat_voice_tool_calls" ADD CONSTRAINT "chat_voice_tool_calls_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_tool_calls_session_fk' AND conrelid = 'chat_voice_tool_calls'::regclass) THEN
-    ALTER TABLE "chat_voice_tool_calls" ADD CONSTRAINT "chat_voice_tool_calls_session_fk" FOREIGN KEY ("company_id","session_id") REFERENCES "public"."chat_voice_sessions"("company_id","id") ON DELETE no action ON UPDATE no action;
+    ALTER TABLE "chat_voice_tool_calls" ADD CONSTRAINT "chat_voice_tool_calls_session_fk" FOREIGN KEY ("space_id","session_id") REFERENCES "public"."chat_voice_sessions"("space_id","id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_voice_tool_calls_delivery_fk' AND conrelid = 'chat_voice_tool_calls'::regclass) THEN
-    ALTER TABLE "chat_voice_tool_calls" ADD CONSTRAINT "chat_voice_tool_calls_delivery_fk" FOREIGN KEY ("company_id","delivery_id") REFERENCES "public"."chat_deliveries"("company_id","id") ON DELETE no action ON UPDATE no action;
+    ALTER TABLE "chat_voice_tool_calls" ADD CONSTRAINT "chat_voice_tool_calls_delivery_fk" FOREIGN KEY ("space_id","delivery_id") REFERENCES "public"."chat_deliveries"("space_id","id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "chat_voice_replies_publication_uq" ON "chat_voice_replies" USING btree ("session_id","publication_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "chat_voice_replies_cursor_uq" ON "chat_voice_replies" USING btree ("session_id","cursor");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "chat_voice_sessions_provider_uq" ON "chat_voice_sessions" USING btree ("provider_session_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "chat_voice_sessions_request_uq" ON "chat_voice_sessions" USING btree ("company_id","caller_id","idempotency_key");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "chat_voice_sessions_live_caller_task_uq" ON "chat_voice_sessions" USING btree ("company_id","caller_id","issue_id") WHERE "chat_voice_sessions"."state" not in ('ended', 'failed', 'expired');--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "chat_voice_sessions_request_uq" ON "chat_voice_sessions" USING btree ("space_id","caller_id","idempotency_key");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "chat_voice_sessions_live_caller_task_uq" ON "chat_voice_sessions" USING btree ("space_id","caller_id","issue_id") WHERE "chat_voice_sessions"."state" not in ('ended', 'failed', 'expired');--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "chat_voice_sessions_expiry_idx" ON "chat_voice_sessions" USING btree ("state","expires_at");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "chat_voice_tool_calls_tool_uq" ON "chat_voice_tool_calls" USING btree ("session_id","provider_tool_call_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "chat_voice_tool_calls_webhook_uq" ON "chat_voice_tool_calls" USING btree ("company_id","webhook_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "chat_voice_tool_calls_webhook_uq" ON "chat_voice_tool_calls" USING btree ("space_id","webhook_id");--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chat_endpoints_provider_check' AND conrelid = 'chat_endpoints'::regclass) THEN
     ALTER TABLE "chat_endpoints" ADD CONSTRAINT "chat_endpoints_provider_check" CHECK ("chat_endpoints"."provider" in ('slack', 'github', 'discord', 'microsoft-teams', 'telegram', 'speko', 'agentmail', 'imessage-photon'));

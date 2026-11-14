@@ -10,7 +10,7 @@ const instances=new WeakMap<Db,ReturnType<typeof createReceiver>>();
 export function museReceiver(db:Db) {let receiver=instances.get(db);if(!receiver){receiver=createReceiver(db);instances.set(db,receiver);}return receiver;}
 function createReceiver(db:Db) {
   const replicaId=randomUUID();
-  const pending=new Map<string,{companyId:string;bindingId:string;bindingGeneration:number;bucketAt:Date;firstAt:Date;lastAt:Date;contacts:number;gapsAtMostSevenSeconds:number;maxGapMs:number;timestamps:string[];incomplete:boolean}>();
+  const pending=new Map<string,{spaceId:string;bindingId:string;bindingGeneration:number;bucketAt:Date;firstAt:Date;lastAt:Date;contacts:number;gapsAtMostSevenSeconds:number;maxGapMs:number;timestamps:string[];incomplete:boolean}>();
   const previous=new Map<string,number>();
   let flushPromise:Promise<void>|undefined;
   async function flush() {
@@ -21,14 +21,14 @@ function createReceiver(db:Db) {
         try {
           const current=await db.transaction(async tx=>{
             const [current]=await tx.select().from(bindings).where(and(eq(bindings.id,bucket.bindingId),eq(bindings.generation,bucket.bindingGeneration),isNull(bindings.revokedAt)));
-            if(current?.pairedAt&&!current.verifiedReplyAt&&!current.challengeHash)await notifyMuseContactVerification(tx,{companyId:current.companyId,bindingId:current.id,generation:current.generation},"contact-persist");
+            if(current?.pairedAt&&!current.verifiedReplyAt&&!current.challengeHash)await notifyMuseContactVerification(tx,{spaceId:current.spaceId,bindingId:current.id,generation:current.generation},"contact-persist");
             await tx.insert(buckets).values({...bucket,replicaId}).onConflictDoUpdate({target:[buckets.bindingId,buckets.bindingGeneration,buckets.replicaId,buckets.bucketAt],set:{lastAt:bucket.lastAt,contacts:sql`${buckets.contacts}+${bucket.contacts}`,gapsAtMostSevenSeconds:sql`${buckets.gapsAtMostSevenSeconds}+${bucket.gapsAtMostSevenSeconds}`,maxGapMs:sql`greatest(${buckets.maxGapMs},${bucket.maxGapMs})`,timestamps:sql`${buckets.timestamps} || ${JSON.stringify(bucket.timestamps)}::jsonb`,incomplete:sql`${buckets.incomplete} or ${bucket.incomplete}`}});
             await tx.update(bindings).set({receiverContactAt:sql`greatest(${bindings.receiverContactAt},${bucket.lastAt.toISOString()}::timestamptz)`}).where(and(eq(bindings.id,bucket.bindingId),eq(bindings.generation,bucket.bindingGeneration)));
             return current;
           });
           if(current?.pairedAt&&!current.verifiedReplyAt&&!current.challengeHash) {
             const {museRunnerBroker}=await import("./muse-runner-broker.js");
-            await museRunnerBroker(db).verify(current.companyId,current.agentId,{bindingId:current.id,generation:current.generation,expectedRevision:current.revision}).catch(()=>{});
+            await museRunnerBroker(db).verify(current.spaceId,current.agentId,{bindingId:current.id,generation:current.generation,expectedRevision:current.revision}).catch(()=>{});
           }
         } catch {
           const newer=pending.get(key);
@@ -44,7 +44,7 @@ function createReceiver(db:Db) {
     previous.set(b.id, now);
     let bucket = pending.get(key);
     if (!bucket) {
-      bucket = { companyId: b.companyId, bindingId: b.id, bindingGeneration: b.generation,
+      bucket = { spaceId: b.spaceId, bindingId: b.id, bindingGeneration: b.generation,
         bucketAt: new Date(Math.floor(now / PERSISTENCE_LAG_MS) * PERSISTENCE_LAG_MS),
         firstAt: new Date(now), lastAt: new Date(now), contacts: 0,
         gapsAtMostSevenSeconds: 0, maxGapMs: 0, timestamps: [], incomplete: false };
@@ -64,7 +64,7 @@ function createReceiver(db:Db) {
     if (!candidate || candidate.revokedAt || !candidate.pairedAt) throw unavailable();
     if (candidate.qualificationExpiresAt && candidate.qualificationExpiresAt <= new Date()) {
       const { museRunnerBroker } = await import("./muse-runner-broker.js");
-      await museRunnerBroker(db).endQualification({ companyId: candidate.companyId, agentId: candidate.agentId,
+      await museRunnerBroker(db).endQualification({ spaceId: candidate.spaceId, agentId: candidate.agentId,
         bindingId: candidate.id, qualificationId: candidate.qualificationId!, operatorId: candidate.operatorId });
       throw unavailable();
     }

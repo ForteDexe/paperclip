@@ -423,10 +423,10 @@ export type NativeControllerTakeoverDecision = {
  * restart recovery, and this record must not change any recovery decision. */
 export const LEGACY_HOST_FALLBACK_EVENT = "legacy_host_unknown_dead_pid_proof";
 
-export async function recordLegacyHostFallbackProof(db: Db, run: { companyId: string; id: string; agentId: string },
+export async function recordLegacyHostFallbackProof(db: Db, run: { spaceId: string; id: string; agentId: string },
   decision: NativeControllerTakeoverDecision, source: string) {
   if (!decision.legacyHostFallback) return;
-  await persistActivity(db, { companyId: run.companyId, actorType: "system", actorId: "native-restart-recovery",
+  await persistActivity(db, { spaceId: run.spaceId, actorType: "system", actorId: "native-restart-recovery",
     action: LEGACY_HOST_FALLBACK_EVENT, entityType: "heartbeat_run", entityId: run.id, runId: run.id, agentId: run.agentId,
     details: { reason: decision.reason, source } });
 }
@@ -494,7 +494,7 @@ export async function evaluateNativeControllerTakeover(input: {
     };
   }
   const recordsHost = Object.prototype.hasOwnProperty.call(owner, "controllerHostHash");
-  // A board operator confirmed this exact controller stopped (see
+  // A operator operator confirmed this exact controller stopped (see
   // confirmNativeControllerStopped); that attestation is the proof.
   if (recordsHost && owner.controllerHostHash === OPERATOR_ATTESTED_CONTROLLER_HOST) {
     return { allowed: true, reason: "operator_attested_controller_stopped" };
@@ -851,10 +851,10 @@ export function classifyNativeRunnerRecoveryEvidence(input: {
  * identity records do not count: a relaunched runner that exited before run.prepare
  * has those, but nothing the runner itself sent. */
 async function hasNativeRunnerOriginatedEvidence(
-  tx: Pick<Db, "select">, run: { companyId: string; id: string },
+  tx: Pick<Db, "select">, run: { spaceId: string; id: string },
 ): Promise<boolean> {
   const [event] = await tx.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents)
-    .where(and(eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    .where(and(eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
       or(isNotNull(heartbeatRunEvents.sourceEventId),
         inArray(heartbeatRunEvents.eventType, ["adapter.invoke", "tool.execution.started"]))))
     .limit(1);
@@ -866,12 +866,12 @@ async function hasNativeRunnerOriginatedEvidence(
  * follow-up's copy of the provider session is carried, not its own work. */
 export async function carriesSettledPredecessorSession(
   tx: Pick<Db, "select">,
-  run: { companyId: string; id: string; nativeSessionId: string | null; createdAt: Date },
+  run: { spaceId: string; id: string; nativeSessionId: string | null; createdAt: Date },
   providerSessionId: unknown,
 ): Promise<boolean> {
   if (typeof providerSessionId !== "string" || !providerSessionId || !run.nativeSessionId) return false;
   const [predecessor] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.nativeSessionId, run.nativeSessionId),
+    eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.nativeSessionId, run.nativeSessionId),
     ne(heartbeatRuns.id, run.id), lt(heartbeatRuns.createdAt, run.createdAt), isNotNull(heartbeatRuns.finishedAt),
     inArray(heartbeatRuns.status, ["succeeded", "failed", "cancelled", "timed_out", "interrupted"]),
     sql`${heartbeatRuns.runnerProfileJson}#>>'{sessionCheckpoint,providerSessionId}' = ${providerSessionId}`,
@@ -880,23 +880,23 @@ export async function carriesSettledPredecessorSession(
 }
 
 async function hasNativeRunEvent(
-  tx: Pick<Db, "select">, run: { companyId: string; id: string }, eventType: string,
+  tx: Pick<Db, "select">, run: { spaceId: string; id: string }, eventType: string,
 ): Promise<boolean> {
   const [event] = await tx.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents)
-    .where(and(eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    .where(and(eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
       eq(heartbeatRunEvents.eventType, eventType)))
     .limit(1);
   return event !== undefined;
 }
 
 export async function hasNativeExecutionStartEvidence(
-  tx: Pick<Db, "select">, run: { companyId: string; id: string },
+  tx: Pick<Db, "select">, run: { spaceId: string; id: string },
 ): Promise<boolean> {
   const [executionEvent] = await tx
     .select({ id: heartbeatRunEvents.id })
     .from(heartbeatRunEvents)
     .where(and(
-      eq(heartbeatRunEvents.companyId, run.companyId),
+      eq(heartbeatRunEvents.spaceId, run.spaceId),
       eq(heartbeatRunEvents.runId, run.id),
       or(
         isNotNull(heartbeatRunEvents.sourceEventId),
@@ -991,7 +991,7 @@ export function appendBoundedRecoveryHistory(entry: Record<string, unknown>) {
 /** Shared by restart inspection and failed-owner cleanup under their existing
  * issue/coordinator/run locks. Publishing attention never grants a new turn. */
 export async function surfaceNativeControllerNamespaceAttention(db: Db, input: {
-  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "agentId">;
+  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId" | "agentId">;
   coordinator: typeof nativeRunFinalizations.$inferSelect;
   expiryEpoch: string | null;
   remoteProcess: boolean;
@@ -1001,7 +1001,7 @@ export async function surfaceNativeControllerNamespaceAttention(db: Db, input: {
   const digest = nativeControllerAuthorityDigest(input.coordinator, input.expiryEpoch);
   const fingerprint = `native-controller-space:${input.run.id}:${digest}`;
   const [existing] = await db.select().from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, input.run.companyId), eq(issueRecoveryActions.sourceIssueId, input.coordinator.issueId),
+    eq(issueRecoveryActions.spaceId, input.run.spaceId), eq(issueRecoveryActions.sourceIssueId, input.coordinator.issueId),
     inArray(issueRecoveryActions.status, ["active", "escalated"]),
   )).for("update").limit(1);
   // One incident per exact authority. A repeat neither spends a retry
@@ -1013,15 +1013,15 @@ export async function surfaceNativeControllerNamespaceAttention(db: Db, input: {
     && ["controller_process_space_unverified", "remote_controller_process_space_unverified"].includes(String(existing.evidence.reason));
   if (!existing || (sameSource && existing.fingerprint !== fingerprint)) {
     await attention.upsertSourceScoped({
-      companyId: input.run.companyId, sourceIssueId: input.coordinator.issueId,
-      kind: "active_run_watchdog", ownerType: "board", returnOwnerAgentId: input.run.agentId,
+      spaceId: input.run.spaceId, sourceIssueId: input.coordinator.issueId,
+      kind: "active_run_watchdog", ownerType: "operator", returnOwnerAgentId: input.run.agentId,
       cause: "native_restart_recovery_blocked", fingerprint,
       evidence: { runId: input.run.id, reason, executorStopEvidence: "unverified",
         ...(!input.remoteProcess ? { controllerAuthority: { schema: "outpost.native-controller-authority.v1",
           digest, leaseExpiresAt: input.coordinator.leaseExpiresAt!.toISOString() } } : {}) },
       nextAction: input.remoteProcess
         ? "Use the task's ordinary Stop action and its environment provider's stop/cleanup recovery. Wait for that exact controller/provider acknowledgement. Local PID checks and local containment confirmation cannot authorize remote recovery."
-        : "Stop the original controller and provider on their original host. After the saved lease expires, a board operator must record both stops and review action outcomes. Recording containment does not retry the task.",
+        : "Stop the original controller and provider on their original host. After the saved lease expires, a operator operator must record both stops and review action outcomes. Recording containment does not retry the task.",
       createOnly: !existing, supersedeOnIdentityChange: true,
       attemptCount: 0, maxAttempts: null, timeoutAt: null, lastAttemptAt: null,
       wakePolicy: null, monitorPolicy: null,
@@ -1042,7 +1042,7 @@ export async function claimNativeRestartRecoveries(input: {
   limit?: number;
   /** Called after each committed claim, before scanning the next candidate. */
   onClaim?: (claim: NativeRestartRecoveryClaim, scope: {
-    companyId: string; issueId: string; controller: NativeControllerIdentity; remote: boolean;
+    spaceId: string; issueId: string; controller: NativeControllerIdentity; remote: boolean;
   }) => void;
   coordinatedPreviousController?: {
     pid: number;
@@ -1057,7 +1057,7 @@ export async function claimNativeRestartRecoveries(input: {
     .select({
       runId: heartbeatRuns.id,
       issueId: nativeRunFinalizations.issueId,
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
     })
     .from(heartbeatRuns)
     .innerJoin(agents, eq(agents.id, heartbeatRuns.agentId))
@@ -1101,7 +1101,7 @@ export async function claimNativeRestartRecoveries(input: {
   const dispositions: NativeRestartRecoveryDisposition[] = [];
   for (const candidate of candidates) {
     const now = input.now ?? new Date();
-    let claimScope: { companyId: string; issueId: string; controller: NativeControllerIdentity; remote: boolean } | undefined;
+    let claimScope: { spaceId: string; issueId: string; controller: NativeControllerIdentity; remote: boolean } | undefined;
     // Set inside the transaction only when the write below genuinely
     // transitions the run into "failed". Read after the transaction
     // commits, so a rolled-back write never reports a false failure.
@@ -1116,11 +1116,11 @@ export async function claimNativeRestartRecoveries(input: {
       // Defer that concrete recovery obligation instead of failing startup
       // or waiting while holding a lock the serving controller needs.
       const [issue] = await tx
-        .select({ id: issues.id, companyId: issues.companyId, status: issues.status,
+        .select({ id: issues.id, spaceId: issues.spaceId, status: issues.status,
           executionRunId: issues.executionRunId, checkoutRunId: issues.checkoutRunId,
           assigneeAgentId: issues.assigneeAgentId, assigneeUserId: issues.assigneeUserId })
         .from(issues)
-        .where(and(eq(issues.id, candidate.issueId), eq(issues.companyId, candidate.companyId)))
+        .where(and(eq(issues.id, candidate.issueId), eq(issues.spaceId, candidate.spaceId)))
         .for("update", { skipLocked: true });
       if (!issue) return busy();
       const row = await tx
@@ -1142,7 +1142,7 @@ export async function claimNativeRestartRecoveries(input: {
           issues,
           and(
             eq(issues.id, nativeRunFinalizations.issueId),
-            eq(issues.companyId, nativeRunFinalizations.companyId),
+            eq(issues.spaceId, nativeRunFinalizations.spaceId),
           ),
         )
         .where(eq(heartbeatRuns.id, candidate.runId))
@@ -1155,7 +1155,7 @@ export async function claimNativeRestartRecoveries(input: {
       if (row.run.runnerProfileJson?.legacyWorkspaceRecoveryMigration != null)
         return { kind: "blocked", runId: row.run.id, reason: "legacy_workspace_recovery_migrated" } as const;
       const stopCleanup = row.coordinator.phase === "observed"
-        && row.coordinator.companyId === row.run.companyId && row.coordinator.issueId === row.run.nativeIssueId
+        && row.coordinator.spaceId === row.run.spaceId && row.coordinator.issueId === row.run.nativeIssueId
         && await readPendingNativeRunStop(tx as unknown as Db, row.run);
       if (!["running", "failed"].includes(row.run.status) && !(row.run.status === "interrupted" && stopCleanup)) {
         return { kind: "blocked", runId: row.run.id, reason: "run_no_longer_recoverable" } as const;
@@ -1219,7 +1219,7 @@ export async function claimNativeRestartRecoveries(input: {
         const retryAt = new Date(failed.nextAttemptAt!);
         const previous = row.coordinator.recoveryHistory.at(-1);
         const transitionUnchanged = previous?.disposition === "blocked" && previous.reason === reason;
-        await notifyLiveRunRecovery(tx, { companyId: row.run.companyId, runId: row.run.id });
+        await notifyLiveRunRecovery(tx, { spaceId: row.run.spaceId, runId: row.run.id });
         const updated = await tx.update(nativeRunFinalizations).set({ nextAttemptAt: retryAt, updatedAt: now,
           failureDetail: { ...row.coordinator.failureDetail, systemRecovery: failed },
           ...(!transitionUnchanged ? { recoveryHistory: appendBoundedRecoveryHistory({
@@ -1228,7 +1228,7 @@ export async function claimNativeRestartRecoveries(input: {
             recoveryRequestId: input.recoveryRequestId ?? null, providerAttempt: row.coordinator.attempt,
             stateRootAction: "preserve_fail_closed", retryAt: retryAt.toISOString(),
           }) } : {}),
-        }).where(and(eq(nativeRunFinalizations.companyId, row.run.companyId),
+        }).where(and(eq(nativeRunFinalizations.spaceId, row.run.spaceId),
           eq(nativeRunFinalizations.issueId, issue.id), eq(nativeRunFinalizations.runId, row.run.id),
           eq(nativeRunFinalizations.phase, "retryable_failure"), eq(nativeRunFinalizations.attempt, row.coordinator.attempt),
           isNull(nativeRunFinalizations.resultId),
@@ -1241,9 +1241,9 @@ export async function claimNativeRestartRecoveries(input: {
       if (failedRemoteRetry || lockLostBootstrapRetry) {
         const source = alias(heartbeatRuns, "native_retry_source");
         const [newer] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
-          .innerJoin(source, and(eq(source.companyId, row.run.companyId), eq(source.id, row.run.id)))
+          .innerJoin(source, and(eq(source.spaceId, row.run.spaceId), eq(source.id, row.run.id)))
           .where(and(
-            eq(heartbeatRuns.companyId, row.run.companyId),
+            eq(heartbeatRuns.spaceId, row.run.spaceId),
             or(gt(heartbeatRuns.createdAt, source.createdAt), and(
               eq(heartbeatRuns.createdAt, source.createdAt), gt(heartbeatRuns.id, source.id),
             )),
@@ -1301,14 +1301,14 @@ export async function claimNativeRestartRecoveries(input: {
       if (startup?.runId === row.run.id && typeof startup.contextId === "string" &&
           Number.isSafeInteger(startup.deadlineAtMs) && Number(startup.deadlineAtMs) <= now.getTime() &&
           !row.run.sessionIdAfter && row.coordinator.leaseOwner && row.coordinator.leaseExpiresAt && row.coordinator.leaseExpiresAt <= now) {
-        await requestNativeStartupCleanup(tx as unknown as Db, { companyId: row.run.companyId, agentId: row.run.agentId,
+        await requestNativeStartupCleanup(tx as unknown as Db, { spaceId: row.run.spaceId, agentId: row.run.agentId,
           runId: row.run.id, contextId: startup.contextId, deadlineAtMs: Number(startup.deadlineAtMs),
           leaseOwner: row.coordinator.leaseOwner, requiresPreparationStop: true, leaseId: pluginTask!.id }, { publish: false });
         return { kind: "blocked", runId: row.run.id, reason: "native_startup_cleanup_pending" } as const;
       }
       const remoteSandbox = profile.nativeWorkspaceSync != null || profile.remoteWorkspace != null;
       const durableAuthority = (remoteWorkspace || pluginTask) && await hasNativeRunnerCheckpoint(tx, {
-        companyId: row.run.companyId, issueId: row.coordinator.issueId, runId: row.run.id,
+        spaceId: row.run.spaceId, issueId: row.coordinator.issueId, runId: row.run.id,
       });
       // Lease expiry alone does not prove a local in-flight owner stopped.
       // Only this boot's own PID or the same known process space can make a
@@ -1388,7 +1388,7 @@ export async function claimNativeRestartRecoveries(input: {
           hasProviderEvidence: false,
           stderrTail: row.run.stderrExcerpt,
         });
-        await notifyLiveRunRecovery(tx, { companyId: row.run.companyId, runId: row.run.id, agentId: row.run.agentId });
+        await notifyLiveRunRecovery(tx, { spaceId: row.run.spaceId, runId: row.run.id, agentId: row.run.agentId });
         await tx
           .update(nativeRunFinalizations)
           .set({
@@ -1426,7 +1426,7 @@ export async function claimNativeRestartRecoveries(input: {
       // already published a runtime snapshot. Never scan command/event payloads.
       const stagedHeader = remoteWorkspace && !pluginTask && durableAuthority
         ? await loadNativeRunnerCheckpointHeader(tx, {
-            companyId: row.run.companyId, issueId: row.coordinator.issueId, runId: row.run.id,
+            spaceId: row.run.spaceId, issueId: row.coordinator.issueId, runId: row.run.id,
           }) : null;
       const stagedAttachment = stagedHeader ? await resolveNativeStagedAttachmentRecovery({
         db: tx, currentRun: row.run, header: stagedHeader,
@@ -1464,7 +1464,7 @@ export async function claimNativeRestartRecoveries(input: {
         typeof row.run.nativeSessionId === "string" &&
         row.run.nativeSessionId.length > 0 &&
         checkpointIdentity.runId === row.run.id &&
-        checkpointIdentity.companyId === row.run.companyId &&
+        checkpointIdentity.spaceId === row.run.spaceId &&
         checkpointIdentity.issueId === row.coordinator.issueId &&
         checkpointIdentity.agentId === row.run.agentId &&
         checkpointIdentity.sessionId === row.run.nativeSessionId;
@@ -1640,7 +1640,7 @@ export async function claimNativeRestartRecoveries(input: {
         && providerEvidenceIsSessionOpenOnly
         && Boolean(row.run.runnerInstanceId && row.run.nativeSessionId)
         ? await nativeRunnerCheckpointRemoteBootstrapProof(tx, {
-          companyId: row.run.companyId, issueId: row.coordinator.issueId, runId: row.run.id,
+          spaceId: row.run.spaceId, issueId: row.coordinator.issueId, runId: row.run.id,
         }, { runnerInstanceId: row.run.runnerInstanceId!, normalizedSessionId: row.run.nativeSessionId! })
         : null;
       // Projected session-open events need the stronger session-opened proof.
@@ -1747,7 +1747,7 @@ export async function claimNativeRestartRecoveries(input: {
           recycledProviderPids: providerProcesses.recycledPids,
           stderrTail: row.run.stderrExcerpt,
         });
-        await notifyExecutionRunWork(tx, { companyId: row.run.companyId });
+        await notifyExecutionRunWork(tx, { spaceId: row.run.spaceId });
         await tx
           .update(nativeRunFinalizations)
           .set({
@@ -1775,10 +1775,10 @@ export async function claimNativeRestartRecoveries(input: {
             ),
           );
         if (!preserveExecutionBinding) {
-          await notifyExternalAgentSettlement(tx, { companyId: row.run.companyId, runId: row.run.id });
-          await notifyNativeEnvironmentSettlement(tx, { companyId: row.run.companyId, runId: row.run.id });
-          await notifyInstructionCollection(tx, { companyId: row.run.companyId, runId: row.run.id });
-          await notifyCancelledWorkspacePreservation(tx, { companyId: row.run.companyId, runId: row.run.id });
+          await notifyExternalAgentSettlement(tx, { spaceId: row.run.spaceId, runId: row.run.id });
+          await notifyNativeEnvironmentSettlement(tx, { spaceId: row.run.spaceId, runId: row.run.id });
+          await notifyInstructionCollection(tx, { spaceId: row.run.spaceId, runId: row.run.id });
+          await notifyCancelledWorkspacePreservation(tx, { spaceId: row.run.spaceId, runId: row.run.id });
           await notifyUnsafeWorkspaceExportRunChange(tx, row.run);
         }
         const [updatedRun] = await tx
@@ -1798,14 +1798,14 @@ export async function claimNativeRestartRecoveries(input: {
         if (updatedRun && isNewTerminalRunFailure(row.run, updatedRun)) {
           terminalRunToReport = updatedRun;
         }
-        await notifyNativeStatusReassessment(tx, { companyId: row.run.companyId, issueId: row.coordinator.issueId });
+        await notifyNativeStatusReassessment(tx, { spaceId: row.run.spaceId, issueId: row.coordinator.issueId });
         if (!preserveExecutionBinding) await tx
           .update(issues)
           .set({ executionRunId: null, updatedAt: now })
           .where(
             and(
               eq(issues.id, row.coordinator.issueId),
-              eq(issues.companyId, row.run.companyId),
+              eq(issues.spaceId, row.run.spaceId),
               eq(issues.executionRunId, row.run.id),
             ),
           );
@@ -1815,7 +1815,7 @@ export async function claimNativeRestartRecoveries(input: {
           .where(
             and(
               eq(issues.id, row.coordinator.issueId),
-              eq(issues.companyId, row.run.companyId),
+              eq(issues.spaceId, row.run.spaceId),
               eq(issues.checkoutRunId, row.run.id),
             ),
           );
@@ -1826,10 +1826,10 @@ export async function claimNativeRestartRecoveries(input: {
           await issueRecoveryActionService(
             tx as unknown as Db,
           ).upsertSourceScoped({
-            companyId: row.run.companyId,
+            spaceId: row.run.spaceId,
             sourceIssueId: row.coordinator.issueId,
             kind: "active_run_watchdog",
-            ownerType: "board",
+            ownerType: "operator",
             returnOwnerAgentId: row.run.agentId,
             cause: "native_restart_recovery_blocked",
             fingerprint: `native-restart:${row.run.id}`,
@@ -1883,7 +1883,7 @@ export async function claimNativeRestartRecoveries(input: {
       const attemptKeptForProgress = resumeKeepsAttempt && !cleanDrainSuspension;
       // The attempt the executor runs this resume as (see its execution claim).
       const progressAttempt = nextNativeProviderAttempt(providerAttempt, claimKind, !resumeKeepsAttempt);
-      await notifyLiveRunRecovery(tx, { companyId: row.run.companyId, runId: row.run.id, agentId: row.run.agentId });
+      await notifyLiveRunRecovery(tx, { spaceId: row.run.spaceId, runId: row.run.id, agentId: row.run.agentId });
       currentControllerProcessStamp();
       const claimed = await tx
         .update(nativeRunFinalizations)
@@ -1942,7 +1942,7 @@ export async function claimNativeRestartRecoveries(input: {
       // authority. Retire only its namespace attention; stale/other incidents
       // remain owned and no operator confirmation is fabricated.
       await issueRecoveryActionService(tx as unknown as Db).resolveActiveForIssue({
-        companyId: row.run.companyId, sourceIssueId: row.coordinator.issueId,
+        spaceId: row.run.spaceId, sourceIssueId: row.coordinator.issueId,
         kind: "active_run_watchdog", cause: "native_restart_recovery_blocked",
         fingerprint: `native-controller-space:${row.run.id}:${nativeControllerAuthorityDigest(row.coordinator, row.controllerLeaseExpiryEpoch)}`,
         status: "resolved", outcome: "restored",
@@ -1981,7 +1981,7 @@ export async function claimNativeRestartRecoveries(input: {
         await restoreNativeSessionExecution(tx as unknown as Db, { issue, run: row.run, agentName: resumptionAgent.name, now });
       }
 
-      claimScope = { companyId: row.run.companyId, issueId: row.coordinator.issueId, controller, remote: Boolean(durableAuthority) };
+      claimScope = { spaceId: row.run.spaceId, issueId: row.coordinator.issueId, controller, remote: Boolean(durableAuthority) };
       const common = {
         runId: row.run.id,
         leaseOwner,

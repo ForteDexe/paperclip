@@ -12,7 +12,7 @@ ALTER TABLE "pipeline_automation_executions" ADD COLUMN IF NOT EXISTS "generatio
 DROP INDEX IF EXISTS "pipeline_cases_parent_request_key_uq";--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "pipeline_cases_parent_request_key_uq" ON "pipeline_cases" USING btree ("parent_case_id","request_key") WHERE "pipeline_cases"."request_key" is not null and "pipeline_cases"."retired_at" is null;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_cases_automation_attempt_idx" ON "pipeline_cases" USING btree ("automation_attempt_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "pipeline_cases_retired_idx" ON "pipeline_cases" USING btree ("company_id","retired_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "pipeline_cases_retired_idx" ON "pipeline_cases" USING btree ("space_id","retired_at");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_case_issue_links_automation_attempt_idx" ON "pipeline_case_issue_links" USING btree ("automation_attempt_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "pipeline_automation_executions_retry_of_execution_idx" ON "pipeline_automation_executions" USING btree ("retry_of_execution_id");--> statement-breakpoint
 ALTER TABLE "pipeline_case_events" DROP CONSTRAINT IF EXISTS "pipeline_case_events_type_check";--> statement-breakpoint

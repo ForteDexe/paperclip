@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { assertAcpxProfileEnvironment, classifyAcpxProfileError, probeAcpxPiInstallation } from "./profile-installation.js";
 
 describe("Cursor actionable admission errors", () => {
-  it("requires an explicit bound credential and supports both company-secret names", () => {
-    expect(() => assertAcpxProfileEnvironment("cursor", {})).toThrow("Bind a company secret");
+  it("requires an explicit bound credential and supports both space-secret names", () => {
+    expect(() => assertAcpxProfileEnvironment("cursor", {})).toThrow("Bind a space secret");
     expect(() => assertAcpxProfileEnvironment("cursor", { CURSOR_AUTH_TOKEN: " " })).toThrow();
     for (const key of ["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN"]) expect(() => assertAcpxProfileEnvironment("cursor", { [key]: "fixture" })).not.toThrow();
     expect(() => assertAcpxProfileEnvironment("claude", {})).not.toThrow();

@@ -1,5 +1,5 @@
 import {
-  COMPANY_SEARCH_UPDATED_WITHIN_OPTIONS,
+  SPACE_SEARCH_UPDATED_WITHIN_OPTIONS,
   ISSUE_PRIORITIES,
   ISSUE_DISPLAY_STATUSES,
   isUuidLike,
@@ -7,7 +7,7 @@ import {
   type IssuePriority,
   type IssueDisplayStatus,
 } from "@outpost/shared";
-import type { CompanySearchParams } from "@/api/search";
+import type { SpaceSearchParams } from "@/api/search";
 
 const SEARCH_FILTER_PARAM_KEYS = [
   "status",
@@ -42,7 +42,7 @@ export const SEARCH_OPERATOR_QUICK_FILTERS = ["assignee:me", "is:open", "updated
 export const SEARCH_OPERATOR_SUGGESTIONS: SearchOperatorSuggestion[] = [
   { token: "status:todo", label: "Open todo tasks", description: "Filter by task status" },
   { token: "status:blocked", label: "Blocked tasks", description: "Find blocked work" },
-  { token: "assignee:me", label: "Assigned to me", description: "Use your current board user" },
+  { token: "assignee:me", label: "Assigned to me", description: "Use your current operator user" },
   { token: "project:\"Outpost App\"", label: "Project name", description: "Quote multi-word project names" },
   { token: "label:bug", label: "Label", description: "Filter by issue label" },
   { token: "priority:high", label: "High priority", description: "Filter by priority" },
@@ -60,7 +60,7 @@ export interface SearchQueryParserContext {
 export interface ParsedSearchQuery {
   query: string;
   filters: Pick<
-    CompanySearchParams,
+    SpaceSearchParams,
     | "status"
     | "priority"
     | "assigneeAgentId"
@@ -356,7 +356,7 @@ export function readSearchFiltersFromParams(search: URLSearchParams): ParsedSear
   if (assigneeUserId) filters.assigneeUserId = assigneeUserId;
   if (projectId && isUuidLike(projectId)) filters.projectId = projectId;
   if (labelId && isUuidLike(labelId)) filters.labelId = labelId;
-  if (updatedWithin && (/^[1-9]\d{0,2}(h|d|w|m)$/.test(updatedWithin) || (COMPANY_SEARCH_UPDATED_WITHIN_OPTIONS as readonly string[]).includes(updatedWithin))) {
+  if (updatedWithin && (/^[1-9]\d{0,2}(h|d|w|m)$/.test(updatedWithin) || (SPACE_SEARCH_UPDATED_WITHIN_OPTIONS as readonly string[]).includes(updatedWithin))) {
     filters.updatedWithin = updatedWithin;
   }
   if (updatedAfter && !Number.isNaN(new Date(updatedAfter).getTime())) filters.updatedAfter = updatedAfter;

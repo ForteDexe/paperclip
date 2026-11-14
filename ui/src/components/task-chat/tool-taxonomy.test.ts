@@ -101,21 +101,21 @@ describe("tool activity vocabulary", () => {
     const outpost = [
       "get_task_context", "get_task_history", "list_documents", "read_document", "list_document_revisions",
       "report_progress", "answer_status_question", "write_document", "request_human_input",
-      "register_deliverable", "finish_task", "paperclip_finish", "block_task", "paperclip_block",
+      "register_deliverable", "finish_task", "outpost_finish", "block_task", "outpost_block",
       "request_review", "list_agents", "get_agent", "search_tasks", "list_approvals", "get_approval",
       "get_approval_context", "get_workspace_runtime", "control_workspace_service", "set_dependencies",
       "create_task", "request_approval", "decide_approval", "comment_on_approval", "schedule_wake",
       "generic_api_request",
     ];
     for (const name of [...anticipated, ...outpost]) {
-      const presentation = toolActivityPresentation({ name, namespace: outpost.includes(name) ? "paperclip" : undefined });
+      const presentation = toolActivityPresentation({ name, namespace: outpost.includes(name) ? "outpost" : undefined });
       expect(presentation.confidence, name).toBe("exact");
       expect(presentation.runningLabel, name).not.toMatch(/running a tool|tool call/i);
       expect(presentation.completedLabel, name).not.toMatch(/ran a tool|tool call/i);
     }
-    expect(toolActivityPresentation({ name: "report_progress", namespace: "paperclip" }).runningLabel).toBe("Reporting progress");
-    expect(toolActivityPresentation({ name: "paperclip_block", namespace: "paperclip" }).completedLabel).toBe("Reported a blocker");
-    expect(toolActivityPresentation({ name: "schedule_wake", namespace: "paperclip" }).runningLabel).toBe("Scheduling a wake-up");
+    expect(toolActivityPresentation({ name: "report_progress", namespace: "outpost" }).runningLabel).toBe("Reporting progress");
+    expect(toolActivityPresentation({ name: "outpost_block", namespace: "outpost" }).completedLabel).toBe("Reported a blocker");
+    expect(toolActivityPresentation({ name: "schedule_wake", namespace: "outpost" }).runningLabel).toBe("Scheduling a wake-up");
   });
 
   it("humanizes unknown named extensions and reserves the unnamed copy for missing identity", () => {

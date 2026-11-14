@@ -87,9 +87,9 @@ it("retains the actual MCP producer's offered schema and rejected shape records"
   const rpc=async(id:number,method:string,params?:unknown)=>(await fetch(bridge.url,{method:"POST",headers:{Authorization:`Bearer ${bridge.secret}`,"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id,method,params})})).json() as Promise<{result:{tools:Array<{name:string;inputSchema:unknown}>;isError?:boolean}}>;
   try {
     expect(frames).toEqual([]);forward.bind("actual-session");expect(frames).toEqual([]);
-    const tools=await rpc(1,"tools/list"),schema=tools.result.tools.find((tool:{name:string})=>tool.name==="paperclip_finish")!.inputSchema;
+    const tools=await rpc(1,"tools/list"),schema=tools.result.tools.find((tool:{name:string})=>tool.name==="outpost_finish")!.inputSchema;
     const report={reportedWorkDisposition:"done",summary:"Synthetic complete response",completionClaim:{contractRevision:"1",objectiveSatisfied:true,criteria:[],remainingWork:[]},evidence:[],verification:[]};
-    const result=await rpc(2,"tools/call",{name:"paperclip_finish",arguments:{...report,continuation:"SYNTHETIC_PRIVATE_INPUT"}});
+    const result=await rpc(2,"tools/call",{name:"outpost_finish",arguments:{...report,continuation:"SYNTHETIC_PRIVATE_INPUT"}});
     expect(result.result.isError).toBe(true);
     const finishFrames=frames.filter(frame=>frame.params.message.includes("finish-input-diagnostic"));
     expect(finishFrames).toHaveLength(2);

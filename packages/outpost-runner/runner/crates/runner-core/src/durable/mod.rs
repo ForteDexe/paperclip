@@ -472,7 +472,7 @@ mod tests {
         config.validate().unwrap();
         config.run_id = "wrong-run".to_owned();
         assert!(config.validate().is_err());
-        profile.candidate_admission.as_mut().unwrap().company_id = "company-2".to_owned();
+        profile.candidate_admission.as_mut().unwrap().space_id = "space-2".to_owned();
         assert_ne!(candidate, profile.canonical_digest().unwrap());
         profile.candidate_admission = None;
         assert_eq!(ordinary, profile.canonical_digest().unwrap());

@@ -41,7 +41,7 @@ const checkpointSchema = z.object({
   providerRequestId: z.string().max(250).nullable().optional(), complete: z.boolean(),
 });
 const envelopeSchema = z.object({
-  schema: z.literal("paperclip/accounting-receipt/v1"), id: z.string().uuid(), companyId: z.string().uuid(),
+  schema: z.literal("outpost/accounting-receipt/v1"), id: z.string().uuid(), spaceId: z.string().uuid(),
   runId: z.string().uuid(), sourceId: z.string().uuid(), sequence: z.number().int().positive(), receivedAt: z.iso.datetime(),
   adapterType: z.string().max(100), receipt: checkpointSchema,
   producerEvent: z.object({ sourceEventId: z.string(), turnId: z.string().optional(), providerTurnId: z.string().optional(),
@@ -97,7 +97,7 @@ function acceptedReceiptSequence(usage: Record<string, unknown>, reconciled?: Us
   return sequence;
 }
 
-/** Caller transaction may already own the run row. No company mutex or
+/** Caller transaction may already own the run row. No space mutex or
  * filesystem work belongs in journal acceptance. */
 export async function persistUsageReceiptInTransaction(tx: Db, raw: UsageReceiptEnvelope) {
   const envelope = envelopeSchema.parse(raw);
@@ -105,12 +105,12 @@ export async function persistUsageReceiptInTransaction(tx: Db, raw: UsageReceipt
   const [run] = await tx.select({
     id: heartbeatRuns.id, agentId: heartbeatRuns.agentId, status: heartbeatRuns.status,
     usageJson: heartbeatRuns.usageJson, costAccountedAt: heartbeatRuns.costAccountedAt,
-  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, envelope.runId), eq(heartbeatRuns.companyId, envelope.companyId))).for("update");
+  }).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, envelope.runId), eq(heartbeatRuns.spaceId, envelope.spaceId))).for("update");
   if (!run) throw notFound("Accounting run not found");
-  const [existing] = await tx.select().from(runUsageReceipts).where(and(eq(runUsageReceipts.companyId, envelope.companyId), eq(runUsageReceipts.runId, envelope.runId), eq(runUsageReceipts.sourceId, envelope.sourceId), eq(runUsageReceipts.sequence, envelope.sequence)));
+  const [existing] = await tx.select().from(runUsageReceipts).where(and(eq(runUsageReceipts.spaceId, envelope.spaceId), eq(runUsageReceipts.runId, envelope.runId), eq(runUsageReceipts.sourceId, envelope.sourceId), eq(runUsageReceipts.sequence, envelope.sequence)));
   if (existing && existing.receiptHash !== hash) throw conflict("Conflicting usage checkpoint replay");
   if (!existing) await tx.insert(runUsageReceipts).values({
-    id: envelope.id, companyId: envelope.companyId, runId: envelope.runId, sourceId: envelope.sourceId,
+    id: envelope.id, spaceId: envelope.spaceId, runId: envelope.runId, sourceId: envelope.sourceId,
     sequence: envelope.sequence, receiptHash: hash, receiptJson: envelope, complete: envelope.receipt.complete, receivedAt: new Date(envelope.receivedAt),
   });
   const previous = run.usageJson ?? {};
@@ -121,7 +121,7 @@ export async function persistUsageReceiptInTransaction(tx: Db, raw: UsageReceipt
       return { reconciliationRequired: false };
     const [reconciled] = typeof previous.accountingReconciledReceiptId === "string"
       ? await tx.select({ receiptJson: runUsageReceipts.receiptJson }).from(runUsageReceipts).where(and(
-        eq(runUsageReceipts.runId, run.id), eq(runUsageReceipts.companyId, envelope.companyId),
+        eq(runUsageReceipts.runId, run.id), eq(runUsageReceipts.spaceId, envelope.spaceId),
         sql`${runUsageReceipts.id}::text = ${previous.accountingReconciledReceiptId}`)) : [];
     const reconciledEnvelope = reconciled ? envelopeSchema.parse(reconciled.receiptJson) : undefined;
     const newer = envelope.sequence > acceptedReceiptSequence(previous, reconciledEnvelope);
@@ -156,8 +156,8 @@ export async function persistUsageReceiptInTransaction(tx: Db, raw: UsageReceipt
     if ((!existing && changed && (!activeSource || newer)) || envelope.id in debts) {
       if (!existing) {
         debts[envelope.id] = false;
-        await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, envelope.companyId);
-        await queueBudgetEvaluation(tx, { companyId: envelope.companyId, agentId: run.agentId,
+        await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, envelope.spaceId);
+        await queueBudgetEvaluation(tx, { spaceId: envelope.spaceId, agentId: run.agentId,
           projectId: typeof (previous.ledgerScope as Record<string, unknown> | undefined)?.projectId === "string"
             ? (previous.ledgerScope as Record<string, string>).projectId : null });
         await tx.update(heartbeatRuns).set({ costAccountingPending: true,
@@ -176,13 +176,13 @@ export async function persistUsageReceiptInTransaction(tx: Db, raw: UsageReceipt
     const fences = previous.accountingReceiptSourceFences as Record<string, number> | undefined;
     const [fenced] = !existing && typeof fences?.[envelope.sourceId] === "number" && envelope.sequence > fences[envelope.sourceId]
       ? await tx.select({ receiptJson: runUsageReceipts.receiptJson }).from(runUsageReceipts).where(and(
-        eq(runUsageReceipts.companyId, envelope.companyId), eq(runUsageReceipts.runId, run.id),
+        eq(runUsageReceipts.spaceId, envelope.spaceId), eq(runUsageReceipts.runId, run.id),
         eq(runUsageReceipts.sourceId, envelope.sourceId), eq(runUsageReceipts.sequence, fences[envelope.sourceId]))) : [];
     const fencedReceipt = fenced ? envelopeSchema.parse(fenced.receiptJson).receipt : undefined;
     const sameFencedEvidence = fencedReceipt && receiptFingerprint({ usage: fencedReceipt.usage, money: liveRunUsageCostCents(fencedReceipt as AdapterUsageCheckpoint) })
       === receiptFingerprint({ usage: envelope.receipt.usage, money: liveRunUsageCostCents(envelope.receipt as AdapterUsageCheckpoint) });
     if (!existing && typeof fences?.[envelope.sourceId] === "number" && envelope.sequence > fences[envelope.sourceId] && !sameFencedEvidence) {
-      await queueBudgetEvaluation(tx, { companyId: envelope.companyId, agentId: run.agentId,
+      await queueBudgetEvaluation(tx, { spaceId: envelope.spaceId, agentId: run.agentId,
         projectId: typeof (previous.ledgerScope as Record<string, unknown> | undefined)?.projectId === "string"
           ? (previous.ledgerScope as Record<string, string>).projectId : null });
       await tx.update(heartbeatRuns).set({ costAccountingPending: true, accountingLastError: "usage_after_source_handoff_requires_reconciliation",
@@ -210,7 +210,7 @@ export async function persistUsageReceiptInTransaction(tx: Db, raw: UsageReceipt
     : !receipt.complete && previousCost !== null && compareCents(previousCost, reportedCost) > 0 ? previousCost : reportedCost;
   // Running checkpoints cannot settle yet. Their terminal transition owns
   // the accounting wake; only a late receipt needs to reactivate that worker.
-  if (!["queued", "running"].includes(run.status)) await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, envelope.companyId);
+  if (!["queued", "running"].includes(run.status)) await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, envelope.spaceId);
   await tx.update(heartbeatRuns).set({
     costAccountingPending: true,
     accountingLastError: previous.accountingCaptureFailed === true ? "usage_capture_failed" : null,
@@ -226,7 +226,7 @@ export async function persistUsageReceiptInTransaction(tx: Db, raw: UsageReceipt
     },
   }).where(and(eq(heartbeatRuns.id, run.id), isNull(heartbeatRuns.costAccountedAt)));
   const scope = previous.ledgerScope && typeof previous.ledgerScope === "object" ? previous.ledgerScope as Record<string, unknown> : {};
-  await queueBudgetEvaluation(tx, { companyId: envelope.companyId, agentId: run.agentId,
+  await queueBudgetEvaluation(tx, { spaceId: envelope.spaceId, agentId: run.agentId,
     projectId: typeof scope.projectId === "string" ? scope.projectId : null });
   return { reconciliationRequired: false };
 }
@@ -299,22 +299,22 @@ export async function reconcileLateRunUsageReceiptInTransaction(tx: Db, run: typ
   // Unchanged attempted debt is excluded from background scans. An explicit
   // operator retry still rechecks it after a reviewed ledger correction.
   const [saved] = await tx.select({ receiptJson: runUsageReceipts.receiptJson }).from(runUsageReceipts).where(and(
-    eq(runUsageReceipts.companyId, run.companyId), eq(runUsageReceipts.runId, run.id),
+    eq(runUsageReceipts.spaceId, run.spaceId), eq(runUsageReceipts.runId, run.id),
     sql`${runUsageReceipts.id}::text = ${previous.accountingLateReceiptId}`));
   const late = saved ? envelopeSchema.parse(saved.receiptJson) : undefined;
   const receipt = late?.receipt;
   const [reconciled] = typeof previous.accountingReconciledReceiptId === "string"
     ? await tx.select({ receiptJson: runUsageReceipts.receiptJson }).from(runUsageReceipts).where(and(
-      eq(runUsageReceipts.runId, run.id), eq(runUsageReceipts.companyId, run.companyId),
+      eq(runUsageReceipts.runId, run.id), eq(runUsageReceipts.spaceId, run.spaceId),
       sql`${runUsageReceipts.id}::text = ${previous.accountingReconciledReceiptId}`)) : [];
   const acceptedSequence = acceptedReceiptSequence(previous, reconciled ? envelopeSchema.parse(reconciled.receiptJson) : undefined);
   const events = await tx.select({ event: costEvents, exact: sql<string>`${costEvents.costCents}::text` }).from(costEvents)
-    .where(and(eq(costEvents.companyId, run.companyId), eq(costEvents.heartbeatRunId, run.id),
+    .where(and(eq(costEvents.spaceId, run.spaceId), eq(costEvents.heartbeatRunId, run.id),
       eq(costEvents.idempotencyKey, `heartbeat:${run.id}:final`))).for("update");
   const rawAmount = receipt?.cacheAdjustedCostUsd ?? receipt?.costUsdExact ?? receipt?.costUsd;
   const automaticCorrectionPrefix = `heartbeat:${run.id}:late:`;
   const [reviewedValuation] = events.length === 1 ? await tx.select({ id: costAdjustments.id }).from(costAdjustments)
-    .where(and(eq(costAdjustments.companyId, run.companyId), eq(costAdjustments.costEventId, events[0].event.id),
+    .where(and(eq(costAdjustments.spaceId, run.spaceId), eq(costAdjustments.costEventId, events[0].event.id),
       sql`not (${costAdjustments.actorId} = 'cost_accounting'
         and left(${costAdjustments.idempotencyKey}, length(${automaticCorrectionPrefix})) = ${automaticCorrectionPrefix})`)).limit(1) : [];
   const lateDeltas = lateDeltaTotals(previous);
@@ -361,7 +361,7 @@ export async function reconcileLateRunUsageReceiptInTransaction(tx: Db, run: typ
   if (growth && late) {
     const { event } = events[0];
     const costStatus = growth.units === null && event.billingType !== "subscription_included" ? "unpriced" : growth.costStatus ?? event.costStatus;
-    await createCostEventInTransaction(tx, run.companyId, {
+    await createCostEventInTransaction(tx, run.spaceId, {
       idempotencyKey: `${automaticCorrectionPrefix}${late.id}`, agentId: run.agentId, heartbeatRunId: run.id,
       issueId: event.issueId, projectId: event.projectId, goalId: event.goalId, billingCode: event.billingCode,
       provider: event.provider, biller: event.biller, providerRequestId: receipt?.providerRequestId ?? null,
@@ -371,15 +371,15 @@ export async function reconcileLateRunUsageReceiptInTransaction(tx: Db, run: typ
       occurredAt: new Date(late.receivedAt),
     }, publications, undefined, { deferBudgetEvaluation: true });
     Object.assign(previous, growth.usage);
-    await logActivity(tx, { companyId: run.companyId, actorType: "system", actorId: "cost_accounting", action: "cost.late_usage_posted",
+    await logActivity(tx, { spaceId: run.spaceId, actorType: "system", actorId: "cost_accounting", action: "cost.late_usage_posted",
       entityType: "heartbeat_run", entityId: run.id, runId: run.id, agentId: run.agentId,
       details: { receiptId: late.id, attribution: late.lateDelta?.attribution ?? "exact", reportedByRunId: late.lateDelta?.reportedByRunId ?? run.id,
         inputTokens: growth.tokens.inputTokens, cachedInputTokens: growth.tokens.cachedInputTokens, outputTokens: growth.tokens.outputTokens,
         costCents: growth.units === null ? null : unitsToCents(growth.units) } }, publications);
-    await queueBudgetEvaluation(tx, { companyId: run.companyId, agentId: run.agentId, projectId: event.projectId });
+    await queueBudgetEvaluation(tx, { spaceId: run.spaceId, agentId: run.agentId, projectId: event.projectId });
     await updateDebtState(true, late.lateDelta === undefined);
     if (Object.keys(debts).length === 0) await notifyDeliveryWork(tx, DELIVERY_QUEUES.strandedAgentStatus,
-      JSON.stringify({ companyId: run.companyId, agentId: run.agentId }));
+      JSON.stringify({ spaceId: run.spaceId, agentId: run.agentId }));
     return true;
   }
   // Totals are cumulative, so an older receipt at or below the accepted totals
@@ -388,17 +388,17 @@ export async function reconcileLateRunUsageReceiptInTransaction(tx: Db, run: typ
     && receipt.usageBasis !== "session_cumulative" && events.length === 1 && receipt.model === events[0].event.model
     && receipt.provider === events[0].event.provider && biller === events[0].event.biller && billingType === events[0].event.billingType
     && receiptTokenKeys.every(key => (receipt.usage?.[key] ?? 0) <= Number(previous[key] ?? 0) - lateDeltas.tokens[key])) {
-    await queueBudgetEvaluation(tx, { companyId: run.companyId, agentId: run.agentId, projectId: events[0].event.projectId });
+    await queueBudgetEvaluation(tx, { spaceId: run.spaceId, agentId: run.agentId, projectId: events[0].event.projectId });
     await updateDebtState(true, false);
     if (Object.keys(debts).length === 0) await notifyDeliveryWork(tx, DELIVERY_QUEUES.strandedAgentStatus,
-      JSON.stringify({ companyId: run.companyId, agentId: run.agentId }));
+      JSON.stringify({ spaceId: run.spaceId, agentId: run.agentId }));
     return true;
   }
   if (!qualified) { await updateDebtState(false); return false; }
   // A receipt's money covers the whole run. Earlier late charges already hold
   // their share, so the original charge may only be corrected to the remainder.
   const lateCharges = await tx.select({ exact: sql<string>`${costEvents.costCents}::text` }).from(costEvents).where(and(
-    eq(costEvents.companyId, run.companyId), eq(costEvents.heartbeatRunId, run.id),
+    eq(costEvents.spaceId, run.spaceId), eq(costEvents.heartbeatRunId, run.id),
     sql`left(${costEvents.idempotencyKey}, length(${automaticCorrectionPrefix})) = ${automaticCorrectionPrefix}`));
   const correctedUnits = usdToUnits(rawAmount) + lateDeltas.units - lateCharges.reduce((sum, charge) => sum + centsToUnits(charge.exact), 0n);
   if (correctedUnits < 0n) { await updateDebtState(false); return false; }
@@ -409,38 +409,38 @@ export async function reconcileLateRunUsageReceiptInTransaction(tx: Db, run: typ
     // The operator has already reconciled this exact billing evidence. Resolve
     // the hold without creating another adjustment or replacing their pricing
     // authority, and never rewind a newer accepted source sequence.
-    await queueBudgetEvaluation(tx, { companyId: run.companyId, agentId: run.agentId,
+    await queueBudgetEvaluation(tx, { spaceId: run.spaceId, agentId: run.agentId,
       projectId: typeof (previous.ledgerScope as Record<string, unknown> | undefined)?.projectId === "string"
         ? (previous.ledgerScope as Record<string, string>).projectId : null });
     await updateDebtState(true, late.sequence > acceptedSequence);
     if (Object.keys(debts).length === 0) await notifyDeliveryWork(tx, DELIVERY_QUEUES.strandedAgentStatus,
-      JSON.stringify({ companyId: run.companyId, agentId: run.agentId }));
+      JSON.stringify({ spaceId: run.spaceId, agentId: run.agentId }));
     return true;
   }
   if (late.sequence <= acceptedSequence) {
     // A higher complete receipt from this same cumulative source already
     // supersedes this money-only debt. Resolve it without repricing or rewinding
     // the reconciled receipt identity; unrelated source/usage debt remains.
-    await queueBudgetEvaluation(tx, { companyId: run.companyId, agentId: run.agentId,
+    await queueBudgetEvaluation(tx, { spaceId: run.spaceId, agentId: run.agentId,
       projectId: typeof (previous.ledgerScope as Record<string, unknown> | undefined)?.projectId === "string"
         ? (previous.ledgerScope as Record<string, string>).projectId : null });
     await updateDebtState(true, false);
     if (Object.keys(debts).length === 0) await notifyDeliveryWork(tx, DELIVERY_QUEUES.strandedAgentStatus,
-      JSON.stringify({ companyId: run.companyId, agentId: run.agentId }));
+      JSON.stringify({ spaceId: run.spaceId, agentId: run.agentId }));
     return true;
   }
   if (compareCents(events[0].exact, corrected) !== 0 || events[0].event.costStatus !== "reported"
     || receiptFingerprint(events[0].event.pricingProvenance) !== receiptFingerprint(receipt.pricingProvenance)) {
-    await applyCostCorrectionInTransaction(tx, publications, { companyId: run.companyId, eventId: events[0].event.id,
+    await applyCostCorrectionInTransaction(tx, publications, { spaceId: run.spaceId, eventId: events[0].event.id,
       idempotencyKey: `heartbeat:${run.id}:late:${late.id}`, expectedCents: events[0].exact, correctedCents: corrected,
       reason: "Authoritative late run usage receipt", pricing: receipt.pricingProvenance!, actorId: "cost_accounting" });
   }
-  await queueBudgetEvaluation(tx, { companyId: run.companyId, agentId: run.agentId,
+  await queueBudgetEvaluation(tx, { spaceId: run.spaceId, agentId: run.agentId,
     projectId: typeof (previous.ledgerScope as Record<string, unknown> | undefined)?.projectId === "string"
       ? (previous.ledgerScope as Record<string, string>).projectId : null });
   await updateDebtState(true);
   if (Object.keys(debts).length === 0) await notifyDeliveryWork(tx, DELIVERY_QUEUES.strandedAgentStatus,
-    JSON.stringify({ companyId: run.companyId, agentId: run.agentId }));
+    JSON.stringify({ spaceId: run.spaceId, agentId: run.agentId }));
   return true;
 }
 
@@ -450,8 +450,8 @@ export async function persistUsageReceipt(db: Db, raw: UsageReceiptEnvelope) {
   // surfaces. It never fails the delivering session or an unrelated later run.
   // The run row lock protects every mutable receipt/accounting read below.
   // READ COMMITTED sees the current row when the lock is acquired, even if a
-  // run-log append changed it after the transaction checked the company.
-  await withOperationAccountingTransaction(db, envelope.companyId,
+  // run-log append changed it after the transaction checked the space.
+  await withOperationAccountingTransaction(db, envelope.spaceId,
     tx => persistUsageReceiptInTransaction(tx, envelope), { isolationLevel: "read committed" });
 }
 
@@ -477,11 +477,11 @@ export async function replayUsageReceipts(db: Db, directory = usageReceiptSpoolP
   return { replayed, failed };
 }
 
-type ReceiptIdentity = { companyId: unknown; runId: unknown } | null;
+type ReceiptIdentity = { spaceId: unknown; runId: unknown } | null;
 export type UsageReceiptIndex = Map<string, ReceiptIdentity>;
 function receiptIdentity(raw: unknown): ReceiptIdentity {
-  return raw && typeof raw === "object" && "companyId" in raw && "runId" in raw
-    ? { companyId: raw.companyId, runId: raw.runId } : null;
+  return raw && typeof raw === "object" && "spaceId" in raw && "runId" in raw
+    ? { spaceId: raw.spaceId, runId: raw.runId } : null;
 }
 
 /** Build once per recovery batch, before acquiring any accounting lock.
@@ -513,7 +513,7 @@ export type PendingRunUsageReceipt = { file: string; envelope: UsageReceiptEnvel
 
 /** Capture immutable spool evidence before a database transaction. Finalizers
  * revalidate their closed producer identity after taking the run-row fence. */
-export async function readPendingRunUsageReceipts(input: { companyId: string; runId: string }, directory = usageReceiptSpoolPath(), index?: UsageReceiptIndex): Promise<PendingRunUsageReceipt[]> {
+export async function readPendingRunUsageReceipts(input: { spaceId: string; runId: string }, directory = usageReceiptSpoolPath(), index?: UsageReceiptIndex): Promise<PendingRunUsageReceipt[]> {
   const pending = new Map<string, PendingRunUsageReceipt>();
   for (let scan = 0; scan < 3; scan++) {
     const names = await fs.readdir(directory).catch(error => {
@@ -525,13 +525,13 @@ export async function readPendingRunUsageReceipts(input: { companyId: string; ru
       const file = path.join(directory, name);
       if (pending.has(file)) continue;
       const indexed = index?.get(file);
-      if (indexed !== undefined && (indexed?.companyId !== input.companyId || indexed?.runId !== input.runId)) continue;
+      if (indexed !== undefined && (indexed?.spaceId !== input.spaceId || indexed?.runId !== input.runId)) continue;
       try {
         const info = await fs.lstat(file);
         if (!info.isFile() || info.size > 1024 * 1024) continue;
         const raw: unknown = JSON.parse(await fs.readFile(file, "utf8"));
         const identity = receiptIdentity(raw);
-        if (identity?.companyId !== input.companyId || identity?.runId !== input.runId) continue;
+        if (identity?.spaceId !== input.spaceId || identity?.runId !== input.runId) continue;
         pending.set(file, { file, envelope: envelopeSchema.parse(raw) });
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") { moved = true; continue; }
@@ -544,7 +544,7 @@ export async function readPendingRunUsageReceipts(input: { companyId: string; ru
   throw new Error("Accounting spool changed during recovery; retry required");
 }
 
-export async function recoverPendingRunUsageReceipts(db: Db, input: { companyId: string; runId: string }, directory = usageReceiptSpoolPath(), options: { retainFiles?: boolean; index?: UsageReceiptIndex } = {}) {
+export async function recoverPendingRunUsageReceipts(db: Db, input: { spaceId: string; runId: string }, directory = usageReceiptSpoolPath(), options: { retainFiles?: boolean; index?: UsageReceiptIndex } = {}) {
   const pending = await readPendingRunUsageReceipts(input, directory, options.index);
   for (const item of pending) {
     await persistUsageReceipt(db, item.envelope);
@@ -553,7 +553,7 @@ export async function recoverPendingRunUsageReceipts(db: Db, input: { companyId:
   return pending.map(item => item.file);
 }
 
-export async function createRunUsageRecorder(db: Db, input: { companyId: string; runId: string; adapterType: string }, directory = usageReceiptSpoolPath()) {
+export async function createRunUsageRecorder(db: Db, input: { spaceId: string; runId: string; adapterType: string }, directory = usageReceiptSpoolPath()) {
   registerIdleSpoolDirectory(directory);
   const sourceId = randomUUID();
   // Verify durable storage before starting paid work, including a directory
@@ -563,24 +563,24 @@ export async function createRunUsageRecorder(db: Db, input: { companyId: string;
   try { await probe.sync(); } finally { await probe.close(); await fs.rm(path.join(directory, `${sourceId}.probe`)); }
   await syncDirectory(directory);
   const [beforeHandoff] = await db.select({ usageJson: heartbeatRuns.usageJson }).from(heartbeatRuns)
-    .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId)));
+    .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId)));
   const receiptIdentity = (state: Record<string, unknown> | null | undefined) => JSON.stringify([
     state?.accountingReceiptSourceId, state?.accountingReceiptSequence, state?.accountingReceiptId,
   ]);
   const pending = await readPendingRunUsageReceipts(input, directory);
   // READ COMMITTED under the run-row lock, like persistUsageReceipt: every
   // mutable read below follows that lock, so a run-log append committed after
-  // the company check cannot make the handoff's snapshot stale.
-  const bound = await withOperationAccountingTransaction(db, input.companyId, async tx => {
+  // the space check cannot make the handoff's snapshot stale.
+  const bound = await withOperationAccountingTransaction(db, input.spaceId, async tx => {
     const [run] = await tx.select({ id: heartbeatRuns.id, agentId: heartbeatRuns.agentId,
       usageJson: heartbeatRuns.usageJson, costAccountedAt: heartbeatRuns.costAccountedAt }).from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId))).for("update");
+      .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId))).for("update");
     if (!run) throw notFound("Accounting run not found");
     if (run.costAccountedAt) throw conflict("Run cannot accept a new usage recorder");
     if (receiptIdentity(run.usageJson) !== receiptIdentity(beforeHandoff?.usageJson))
       throw conflict("Usage source changed during receipt recovery; retry recorder handoff");
     for (const item of pending) await persistUsageReceiptInTransaction(tx, item.envelope);
-    await queueBudgetEvaluation(tx, { companyId: input.companyId, agentId: run.agentId,
+    await queueBudgetEvaluation(tx, { spaceId: input.spaceId, agentId: run.agentId,
       projectId: typeof (run.usageJson?.ledgerScope as Record<string, unknown> | undefined)?.projectId === "string"
         ? (run.usageJson!.ledgerScope as Record<string, string>).projectId : null });
     const [current] = await tx.select({ usageJson: heartbeatRuns.usageJson }).from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id));
@@ -589,7 +589,7 @@ export async function createRunUsageRecorder(db: Db, input: { companyId: string;
     if (typeof old.accountingReceiptSourceId === "string") fences[old.accountingReceiptSourceId] = Number(old.accountingReceiptSequence ?? 0);
     return tx.update(heartbeatRuns).set({ usageJson: { ...old, accountingReceiptSourceFences: fences,
       accountingReceiptSourceId: sourceId, accountingReceiptSequence: 0, accountingReceiptReady: false } })
-      .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId), isNull(heartbeatRuns.costAccountedAt))).returning({ id: heartbeatRuns.id, runtimeMode: heartbeatRuns.runtimeMode, usageJson: heartbeatRuns.usageJson });
+      .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId), isNull(heartbeatRuns.costAccountedAt))).returning({ id: heartbeatRuns.id, runtimeMode: heartbeatRuns.runtimeMode, usageJson: heartbeatRuns.usageJson });
   }, { isolationLevel: "read committed" });
   for (const item of pending) await fs.rm(item.file, { force: true });
   if (bound.length !== 1) throw conflict("Run cannot accept a new usage recorder");
@@ -603,7 +603,7 @@ export async function createRunUsageRecorder(db: Db, input: { companyId: string;
   const priorReceiptId = bound[0].usageJson?.accountingReceiptId;
   if (bound[0].runtimeMode === "native" && typeof priorReceiptId === "string") {
     const [previous] = await db.select().from(runUsageReceipts).where(and(
-      eq(runUsageReceipts.id, priorReceiptId), eq(runUsageReceipts.runId, input.runId), eq(runUsageReceipts.companyId, input.companyId),
+      eq(runUsageReceipts.id, priorReceiptId), eq(runUsageReceipts.runId, input.runId), eq(runUsageReceipts.spaceId, input.spaceId),
     ));
     if (previous) {
       const restored = envelopeSchema.parse(previous.receiptJson);
@@ -618,19 +618,19 @@ export async function createRunUsageRecorder(db: Db, input: { companyId: string;
   let finishFailedCapture: (() => void) | undefined;
   async function persistFailure() {
     if (!captureFailed) return;
-    const persisted = await withOperationAccountingTransaction(db, input.companyId, async tx => {
+    const persisted = await withOperationAccountingTransaction(db, input.spaceId, async tx => {
       const [run] = await tx.select({ agentId: heartbeatRuns.agentId, costAccountedAt: heartbeatRuns.costAccountedAt,
         usageJson: heartbeatRuns.usageJson }).from(heartbeatRuns)
-        .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId))).for("update");
+        .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId))).for("update");
       if (!run || run.costAccountedAt || run.usageJson?.accountingReceiptSourceId !== sourceId) return false;
       if (run.usageJson?.accountingCaptureFailed === true) return true;
-      await queueBudgetEvaluation(tx, { companyId: input.companyId, agentId: run.agentId,
+      await queueBudgetEvaluation(tx, { spaceId: input.spaceId, agentId: run.agentId,
         projectId: typeof (run.usageJson?.ledgerScope as Record<string, unknown> | undefined)?.projectId === "string"
           ? (run.usageJson!.ledgerScope as Record<string, string>).projectId : null });
       const rows = await tx.update(heartbeatRuns).set({
         costAccountingPending: true, accountingLastError: "usage_capture_failed",
         usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb) || '{"accountingCaptureFailed":true,"accountingReceiptReady":false}'::jsonb`,
-      }).where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId),
+      }).where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.spaceId, input.spaceId),
         isNull(heartbeatRuns.costAccountedAt), sql`${heartbeatRuns.usageJson}->>'accountingReceiptSourceId' = ${sourceId}`)).returning({ id: heartbeatRuns.id });
       return rows.length === 1;
     }, { isolationLevel: "read committed" }); // Run-row lock first, as above.
@@ -699,7 +699,7 @@ export async function createRunUsageRecorder(db: Db, input: { companyId: string;
       // can be considered complete, even if a later attempt succeeded.
       receipt.complete = !captureFailed && parts.every(part => part.complete);
     }
-    const envelope: UsageReceiptEnvelope = { schema: "paperclip/accounting-receipt/v1", id: randomUUID(), ...input, sourceId, sequence: ++sequence, receivedAt: new Date().toISOString(), receipt, liveCostCents };
+    const envelope: UsageReceiptEnvelope = { schema: "outpost/accounting-receipt/v1", id: randomUUID(), ...input, sourceId, sequence: ++sequence, receivedAt: new Date().toISOString(), receipt, liveCostCents };
     const file = await spoolUsageReceipt(envelope, directory);
     crashPoint("accounting.usage_receipt.after_spool_before_db");
     try {
@@ -740,13 +740,13 @@ export async function createRunUsageRecorder(db: Db, input: { companyId: string;
   };
 }
 
-export async function readAcceptedRunUsageCheckpoint(db: Db, input: { companyId: string; runId: string }): Promise<AdapterUsageCheckpoint | undefined> {
+export async function readAcceptedRunUsageCheckpoint(db: Db, input: { spaceId: string; runId: string }): Promise<AdapterUsageCheckpoint | undefined> {
   const [run] = await db.select({ usageJson: heartbeatRuns.usageJson }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId)));
+    eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId)));
   const state = run?.usageJson;
   if (typeof state?.accountingReceiptId !== "string") return undefined;
   const [saved] = await db.select({ receiptJson: runUsageReceipts.receiptJson }).from(runUsageReceipts).where(and(
-    eq(runUsageReceipts.companyId, input.companyId), eq(runUsageReceipts.runId, input.runId),
+    eq(runUsageReceipts.spaceId, input.spaceId), eq(runUsageReceipts.runId, input.runId),
     sql`${runUsageReceipts.id}::text = ${state.accountingReceiptId}`));
   if (!saved) return undefined;
   const receipt = envelopeSchema.parse(saved.receiptJson);

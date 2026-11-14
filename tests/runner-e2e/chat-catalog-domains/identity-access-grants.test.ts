@@ -3,20 +3,20 @@ import { accessGrantIdentityCases, memberListReadSucceeded } from "./identity-ac
 import type { IdentityObservation } from "./identity-support.js";
 function intended(id: string): IdentityObservation {
   const invitation = id.endsWith("invite-teammate"); const permissionKey = invitation ? "users:invite" : "users:manage_permissions";
-  const o: IdentityObservation = { scenarioId: id, origin: "http://fixture.invalid", companyId: "acorn", leadId: "ceo", company: { id: "acorn", issuePrefix: "ACORN" } as any, companies: [], agents: [], interactions: [], tasks: [], projects: [], goals: [], documents: [], revisions: [], comments: [], links: ["/invite/real-link"], runs: [], humanQueries: [], reply: "Invitation for alex@example.test is pending; membership follows acceptance.", activity: [],
+  const o: IdentityObservation = { scenarioId: id, origin: "http://fixture.invalid", spaceId: "acorn", leadId: "ceo", space: { id: "acorn", issuePrefix: "ACORN" } as any, spaces: [], agents: [], interactions: [], tasks: [], projects: [], goals: [], documents: [], revisions: [], comments: [], links: ["/invite/real-link"], runs: [], humanQueries: [], reply: "Invitation for alex@example.test is pending; membership follows acceptance.", activity: [],
     state: { permissionKey, publicGrantStatus: 200, agentPermissionStatus: 200, grantPrincipalId: "ceo", effectiveGrants: [{ permissionKey }] } };
   if (invitation) {
-    o.state.invitations = [{ id: "invite", companyId: "acorn", state: "accepted", humanRole: "viewer" }];
-    Object.assign(o.state, { invitationCreated: { id: "invite", companyId: "acorn", state: "active", humanRole: "viewer" }, creationReplyNamesAlex: true, actualJoinLinkBound: true, notMemberBeforeAcceptance: true, realAlexJoinedOnce: true, reusedLinkDifferentIdentityDenied: true });
+    o.state.invitations = [{ id: "invite", spaceId: "acorn", state: "accepted", humanRole: "viewer" }];
+    Object.assign(o.state, { invitationCreated: { id: "invite", spaceId: "acorn", state: "active", humanRole: "viewer" }, creationReplyNamesAlex: true, actualJoinLinkBound: true, notMemberBeforeAcceptance: true, realAlexJoinedOnce: true, reusedLinkDifferentIdentityDenied: true });
     o.activity = [{ id: "created", action: "invite.created", entityId: "invite", actorType: "agent", actorId: "ceo" }];
   } else {
     const alex = () => ({ id: "alex-membership", principalId: "alex", status: "active", membershipRole: "operator", grants: [{ permissionKey: "joins:approve" }] });
     const other = () => ({ id: "other", principalId: "alex", status: "active", membershipRole: "viewer", grants: [] });
-    Object.assign(o.state, { alexBefore: alex(), alexAfter: alex(), otherCompanyMembershipBefore: other(), otherCompanyMembershipAfter: other(),
+    Object.assign(o.state, { alexBefore: alex(), alexAfter: alex(), otherSpaceMembershipBefore: other(), otherSpaceMembershipAfter: other(),
       instanceMembershipBefore: { id: "alex", isInstanceAdmin: false }, instanceMembershipAfter: { id: "alex", isInstanceAdmin: false }, agentMemberReadSucceeded: true });
-    o.links = ["/ACORN/company/settings/members"];
-    o.reply = "Alex is an active operator here with one extra permission: approving join requests. Changing member permissions is a board action, so I can't remove it myself. Open [Members](/ACORN/company/settings/members) and remove it from Alex there.";
-    o.activity = [{ id: "fixture", action: "company_member.permissions_updated", entityId: "alex-membership", actorType: "user", actorId: "board-user" }];
+    o.links = ["/ACORN/space/settings/members"];
+    o.reply = "Alex is an active operator here with one extra permission: approving join requests. Changing member permissions is a board action, so I can't remove it myself. Open [Members](/ACORN/space/settings/members) and remove it from Alex there.";
+    o.activity = [{ id: "fixture", action: "space_member.permissions_updated", entityId: "alex-membership", actorType: "user", actorId: "board-user" }];
   }
   return o;
 }
@@ -44,7 +44,7 @@ describe("separate real invitation checkpoints", () => {
   it("accepts a real consequential role clarification without claiming an invitation", () => {
     const o = intended(invitation.scenarioId); delete o.state.invitationCreated; o.state.invitations = []; o.state.alexMembershipAfter = null;
     o.runs = [{ id: "run", agentId: "ceo" }] as any;
-    o.interactions = [{ id: "role", companyId: "acorn", createdByAgentId: "ceo", sourceRunId: "run", kind: "ask_user_questions", status: "pending", payload: { questionSet: { questions: [{ id: "role", prompt: "What company role should Alex receive?", answerMode: "text" }] } } }];
+    o.interactions = [{ id: "role", spaceId: "acorn", createdByAgentId: "ceo", sourceRunId: "run", kind: "ask_user_questions", status: "pending", payload: { questionSet: { questions: [{ id: "role", prompt: "What space role should Alex receive?", answerMode: "text" }] } } }];
     expect(invitation.grade(o).passed).toBe(true);
     o.interactions[0]!.createdByAgentId = "other"; expect(invitation.grade(o).passed).toBe(false);
   });
@@ -53,18 +53,18 @@ describe("separate real invitation checkpoints", () => {
   });
 });
 describe("membership read-and-route oracle", () => {
-  it.each(["otherCompanyMembershipAfter", "instanceMembershipAfter", "alexAfter"])("rejects changed or absent %s", key => {
+  it.each(["otherSpaceMembershipAfter", "instanceMembershipAfter", "alexAfter"])("rejects changed or absent %s", key => {
     const o = intended(membership.scenarioId); o.state[key] = {}; expect(membership.grade(o).passed).toBe(false);
     delete o.state[key]; expect(membership.grade(o).passed).toBe(false);
   });
   it("accepts a reworded valid answer and a Members link with a tab query", () => {
-    const o = intended(membership.scenarioId); o.links = ["http://fixture.invalid/ACORN/company/settings/members?tab=members"];
-    o.reply = "Here is what Alex has: operator role, active, plus the join-request approval grant. Only the board can edit member grants; use [the Members page](http://fixture.invalid/ACORN/company/settings/members?tab=members).";
+    const o = intended(membership.scenarioId); o.links = ["http://fixture.invalid/ACORN/space/settings/members?tab=members"];
+    o.reply = "Here is what Alex has: operator role, active, plus the join-request approval grant. Only the board can edit member grants; use [the Members page](http://fixture.invalid/ACORN/space/settings/members?tab=members).";
     expect(membership.grade(o).passed).toBe(true);
   });
   it("rejects the agent removing the grant itself", () => {
     const o = intended(membership.scenarioId); (o.state.alexAfter as any).grants = [];
-    o.activity.push({ id: "agent-write", action: "company_member.permissions_updated", entityId: "alex-membership", actorType: "agent", actorId: "ceo" });
+    o.activity.push({ id: "agent-write", action: "space_member.permissions_updated", entityId: "alex-membership", actorType: "agent", actorId: "ceo" });
     expect(membership.grade(o).passed).toBe(false);
   });
   it("accepts the same grants returned in a different order (the member list has no stable grant order)", () => {
@@ -79,17 +79,17 @@ describe("membership read-and-route oracle", () => {
   it("rejects any grant change even without an agent activity row", () => {
     const o = intended(membership.scenarioId); (o.state.alexAfter as any).grants = []; expect(membership.grade(o).passed).toBe(false);
   });
-  it.each([[[]], [["/ACORN/company/settings"]], [["/OTHER/company/settings/members"]], [["https://elsewhere.example/ACORN/company/settings/members"]]])("rejects missing or wrong Members link %j", links => {
+  it.each([[[]], [["/ACORN/space/settings"]], [["/OTHER/space/settings/members"]], [["https://elsewhere.example/ACORN/space/settings/members"]]])("rejects missing or wrong Members link %j", links => {
     const o = intended(membership.scenarioId); o.links = links; expect(membership.grade(o).passed).toBe(false);
   });
   it("rejects an answer without the agent's own member read", () => {
     const o = intended(membership.scenarioId); o.state.agentMemberReadSucceeded = false; expect(membership.grade(o).passed).toBe(false);
   });
   it("reads a successful member list read only from the run's own tool result", () => {
-    const event = (status: number, op = "GET /api/companies/{companyId}/members") => ({ eventType: "item.completed", payload: { orpEvent: { payload: { item: { type: "tool_result", result: { ok: status === 200, status, apiOperationId: op } } } } } });
+    const event = (status: number, op = "GET /api/spaces/{spaceId}/members") => ({ eventType: "item.completed", payload: { orpEvent: { payload: { item: { type: "tool_result", result: { ok: status === 200, status, apiOperationId: op } } } } } });
     expect(memberListReadSucceeded([event(200)])).toBe(true);
     expect(memberListReadSucceeded([event(403)])).toBe(false);
-    expect(memberListReadSucceeded([event(200, "GET /api/companies/{companyId}/user-directory")])).toBe(false);
+    expect(memberListReadSucceeded([event(200, "GET /api/spaces/{spaceId}/user-directory")])).toBe(false);
     expect(memberListReadSucceeded([{ ...event(200), eventType: "item.started" }])).toBe(false);
   });
 });
@@ -97,19 +97,19 @@ describe("membership read-and-route oracle", () => {
 function clarifiedInvite(prompt: string) {
  const o = intended(invitation.scenarioId); delete o.state.invitationCreated; o.state.invitations = []; o.state.alexMembershipAfter = null;
  o.runs = [{ id: "run", agentId: "ceo" }] as any;
- o.interactions = [{ id: "role", companyId: "acorn", createdByAgentId: "ceo", sourceRunId: "run", kind: "ask_user_questions", status: "pending", payload: { questionSet: { questions: [{ id: "role", prompt, answerMode: "text" }] } } }];
+ o.interactions = [{ id: "role", spaceId: "acorn", createdByAgentId: "ceo", sourceRunId: "run", kind: "ask_user_questions", status: "pending", payload: { questionSet: { questions: [{ id: "role", prompt, answerMode: "text" }] } } }];
  return o;
 }
 it.each([
- "What company role should Morgan receive?",
- "What company role should morgan receive?",
+ "What space role should Morgan receive?",
+ "What space role should morgan receive?",
  "Which access level for Riley?",
  "Viewer or operator for Morgan?",
  "Which role should alex@other.test receive?",
 ])("rejects a role question explicitly about a different invitee: %s", prompt => expect(invitation.grade(clarifiedInvite(prompt)).passed).toBe(false));
 it.each([
- "What company role should Alex receive?",
- "What company role should they receive?",
+ "What space role should Alex receive?",
+ "What space role should they receive?",
  "Which access level should the new teammate have?",
  "Viewer or operator for Alex?",
 ])("accepts target-bound or contextual role clarification: %s", prompt => expect(invitation.grade(clarifiedInvite(prompt)).passed).toBe(true));

@@ -17,7 +17,7 @@
  *           speed budgets wrote (TTFT, agent boot, restart recovery; #19863).
  *   I5      not measured: see I5_GAP. R3 (one Retry at most) bounds it.
  *
- * I6 and I8 are company-wide scans keyed by run or event id, so the per-point
+ * I6 and I8 are space-wide scans keyed by run or event id, so the per-point
  * baseline diff in main.ts charges each one to the point that produced it.
  */
 import { createDb, type Db } from "../../packages/db/src/index.js";
@@ -71,10 +71,10 @@ export function summarizeViolations(violations: readonly Pick<EvidencedViolation
  * directories from the environment when listed. Point them at the wave's
  * instance, not the operator's, for the duration of the check.
  */
-async function withWaveInstance<T>(instance: { paperclipHome: string; instanceId: string }, run: () => Promise<T>): Promise<T> {
+async function withWaveInstance<T>(instance: { outpostHome: string; instanceId: string }, run: () => Promise<T>): Promise<T> {
   const keys = ["OUTPOST_HOME", "OUTPOST_INSTANCE_ID", "SANDBOX_ORPHAN_CLEANUP_SPOOL_DIR"] as const;
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
-  process.env.OUTPOST_HOME = instance.paperclipHome;
+  process.env.OUTPOST_HOME = instance.outpostHome;
   process.env.OUTPOST_INSTANCE_ID = instance.instanceId;
   delete process.env.SANDBOX_ORPHAN_CLEANUP_SPOOL_DIR;
   try { return await run(); } finally {
@@ -89,28 +89,28 @@ const clip = (value: unknown) => typeof value === "string" ? value.slice(0, 300)
 type Row = Record<string, unknown>;
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 
-/** I6 and I8 from the run log of `companyId` (all companies when null). */
-export async function runLogViolations(db: Db, companyId: string | null): Promise<EvidencedViolation[]> {
+/** I6 and I8 from the run log of `spaceId` (all spaces when null). */
+export async function runLogViolations(db: Db, spaceId: string | null): Promise<EvidencedViolation[]> {
   const breaches = await db.$client.unsafe(
-    `select e.id::text as id, e.company_id::text as "companyId", e.run_id::text as "runId", r.issue_id::text as "issueId", e.payload
+    `select e.id::text as id, e.space_id::text as "spaceId", e.run_id::text as "runId", r.issue_id::text as "issueId", e.payload
        from heartbeat_run_events e join heartbeat_runs r on r.id = e.run_id
-      where e.event_type = 'run.performance.budget_exceeded' and ($1::text is null or e.company_id::text = $1)`, [companyId]) as Row[];
+      where e.event_type = 'run.performance.budget_exceeded' and ($1::text is null or e.space_id::text = $1)`, [spaceId]) as Row[];
   const stale = await db.$client.unsafe(
-    `select id::text as id, company_id::text as "companyId", issue_id::text as "issueId", status, error_code as "errorCode", error
+    `select id::text as id, space_id::text as "spaceId", issue_id::text as "issueId", status, error_code as "errorCode", error
        from heartbeat_runs
       where status in ('failed', 'timed_out', 'interrupted')
         and (coalesce(error_code, '') ~* 'generation' or coalesce(error, '') ~* 'stale_generation|earlier generation')
-        and ($1::text is null or company_id::text = $1)`, [companyId]) as Row[];
+        and ($1::text is null or space_id::text = $1)`, [spaceId]) as Row[];
   return [
     ...breaches.map(row => {
       const payload = (row.payload ?? {}) as Record<string, unknown>;
-      return { rule: "I8_fast_turns" as const, kind: "speed_budget", recordId: text(row.id), companyId: text(row.companyId) || null,
+      return { rule: "I8_fast_turns" as const, kind: "speed_budget", recordId: text(row.id), spaceId: text(row.spaceId) || null,
         runId: text(row.runId) || null, issueId: text(row.issueId) || null, reason: `${text(payload.metric) || "unknown"}_over_p95`,
         evidence: { budget: { metric: payload.metric, measuredMs: payload.measuredMs, budgetP95Ms: payload.budgetP95Ms,
           adapter: payload.adapter, startKind: payload.startKind } } };
     }),
     ...stale.map(row => ({ rule: "I6_generation_fencing" as const, kind: "run", recordId: text(row.id),
-      companyId: text(row.companyId) || null, runId: text(row.id), issueId: text(row.issueId) || null,
+      spaceId: text(row.spaceId) || null, runId: text(row.id), issueId: text(row.issueId) || null,
       reason: "run_failed_on_earlier_generation_event" })),
   ];
 }
@@ -138,7 +138,7 @@ async function withEvidence(db: Db, violations: EvidencedViolation[]): Promise<E
 }
 
 export async function checkPlanInvariants(input: {
-  connectionString: string; companyId: string | null; paperclipHome: string; instanceId: string; now?: Date;
+  connectionString: string; spaceId: string | null; outpostHome: string; instanceId: string; now?: Date;
 }): Promise<InvariantCheck> {
   const db = createDb(input.connectionString);
   const errors: string[] = [];
@@ -160,15 +160,15 @@ export async function checkPlanInvariants(input: {
     for (const kind of [...second.kinds, ...shifted.kinds]) if (kind.error) errors.push(`${kind.kind}: ${kind.error}`);
     if (second.retryNeeded) errors.push("the I1/I2 pass did not finish (retryNeeded)");
     if (shifted.retryNeeded) errors.push("the I3/I4/I7 pass did not finish after one retry (retryNeeded)");
-    const ownCompany = (violation: InvariantViolation) => input.companyId === null || violation.companyId === null
-      || violation.companyId === input.companyId;
+    const ownSpace = (violation: InvariantViolation) => input.spaceId === null || violation.spaceId === null
+      || violation.spaceId === input.spaceId;
     const fromClock = second.violations.filter(violation => violation.rule === "I1_owned" || violation.rule === "I2_settled");
     const fromShift = shifted.violations.filter(violation => violation.rule !== "I1_owned" && violation.rule !== "I2_settled");
     let runLog: EvidencedViolation[] = [];
-    try { runLog = await runLogViolations(db, input.companyId); } catch (error) {
+    try { runLog = await runLogViolations(db, input.spaceId); } catch (error) {
       errors.push(`I6/I8 run-log check: ${error instanceof Error ? error.message : String(error)}`);
     }
-    const violations = await withEvidence(db, [...fromClock, ...fromShift].filter(ownCompany));
+    const violations = await withEvidence(db, [...fromClock, ...fromShift].filter(ownSpace));
     violations.push(...runLog);
     const inProgress = Object.fromEntries(second.kinds.filter(kind => kind.inProgress > 0)
       .map(kind => [kind.kind, { inProgress: kind.inProgress, ...kind.verdicts }]));
@@ -187,13 +187,13 @@ export async function checkPlanInvariants(input: {
  * message is caught even where the board's run list hides the text. Read once
  * at wave end, before the instance is removed; grouped by issue.
  */
-export async function readUniversalDbEvidence(db: Db, companyId: string): Promise<Map<string, import("./universal.js").UniversalDbEvidence>> {
+export async function readUniversalDbEvidence(db: Db, spaceId: string): Promise<Map<string, import("./universal.js").UniversalDbEvidence>> {
   const runs = await db.$client.unsafe(
     `select id::text as id, coalesce(context_snapshot->>'issueId', '') as "issueId", left(error, 400) as error
-       from heartbeat_runs where company_id::text = $1 and status in ('failed', 'timed_out')`, [companyId]) as Row[];
+       from heartbeat_runs where space_id::text = $1 and status in ('failed', 'timed_out')`, [spaceId]) as Row[];
   const actions = await db.$client.unsafe(
     `select id::text as id, source_issue_id::text as "issueId", kind, left(cause, 400) as cause, left(next_action, 400) as "nextAction"
-       from issue_recovery_actions where company_id::text = $1`, [companyId]) as Row[];
+       from issue_recovery_actions where space_id::text = $1`, [spaceId]) as Row[];
   const byIssue = new Map<string, { runMessages: Map<string, string | null>; recoveryActions: Array<{ id: string; kind: string; cause: string | null; nextAction: string | null }> }>();
   const entry = (issueId: string) => {
     let value = byIssue.get(issueId);

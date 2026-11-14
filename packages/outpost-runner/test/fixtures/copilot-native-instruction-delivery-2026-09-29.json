@@ -21,7 +21,7 @@
       "modelRequestProjection": [
         {
           "request": 1,
-          "paperclipPromptInSystem": false,
+          "outpostPromptInSystem": false,
           "oldRegisteredRootInSystem": false,
           "currentRegisteredRootInSystem": false,
           "originalCustomEntryInSystem": false,
@@ -29,7 +29,7 @@
         },
         {
           "request": 2,
-          "paperclipPromptInSystem": false,
+          "outpostPromptInSystem": false,
           "oldRegisteredRootInSystem": false,
           "currentRegisteredRootInSystem": false,
           "originalCustomEntryInSystem": false,
@@ -51,7 +51,7 @@
       "modelRequestProjection": [
         {
           "request": 1,
-          "paperclipPromptInSystem": true,
+          "outpostPromptInSystem": true,
           "oldRegisteredRootInSystem": true,
           "currentRegisteredRootInSystem": false,
           "originalCustomEntryInSystem": true,
@@ -59,7 +59,7 @@
         },
         {
           "request": 2,
-          "paperclipPromptInSystem": true,
+          "outpostPromptInSystem": true,
           "oldRegisteredRootInSystem": false,
           "currentRegisteredRootInSystem": true,
           "originalCustomEntryInSystem": false,

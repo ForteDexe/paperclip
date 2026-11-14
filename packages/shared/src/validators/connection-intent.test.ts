@@ -65,7 +65,7 @@ describe("connection intent contracts", () => {
   it("bounds the server-authored grant and rejects duplicate or unreviewable tools", () => {
     const tool = { catalogEntryId: agentId, toolName: "search", versionHash: "v1", permission: "allowed" };
     const base = { version: 1, serviceSlug: "composio", serviceName: "Composio", requestingAgentId: agentId,
-      requestingAgentName: "CEO", phase: "requested" };
+      requestingAgentName: "Default agent", phase: "requested" };
     const payload = (tools: unknown[]) => ({ ...base, accessRequest: { connectionId: agentId, connectionName: "Account", tools } });
     expect(connectionIntentPayloadSchema.safeParse(payload([tool])).success).toBe(true);
     const catalog = Array.from({ length: 46 }, (_, i) => ({ ...tool,

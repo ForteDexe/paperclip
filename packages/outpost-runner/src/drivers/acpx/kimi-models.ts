@@ -12,7 +12,7 @@ export type KimiMetadataProbeErrorCode =
   | "KIMI_PROVIDER_ERROR";
 
 const messages: Record<KimiMetadataProbeErrorCode, string> = {
-  KIMI_AUTH_REQUIRED: "Bind a valid company secret to KIMI_API_KEY.",
+  KIMI_AUTH_REQUIRED: "Bind a valid space secret to KIMI_API_KEY.",
   KIMI_AUTH_REJECTED: "Kimi Code rejected the selected credential or account access. Check the credential and Code membership.",
   KIMI_MODEL_UNAVAILABLE: "The exact selected model is unavailable in the authenticated Kimi Code catalog.",
   KIMI_METADATA_TIMEOUT: "Kimi Code model verification timed out.",

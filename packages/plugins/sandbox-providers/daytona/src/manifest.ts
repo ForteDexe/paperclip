@@ -1,4 +1,4 @@
-import type { PaperclipPluginManifestV1 } from "@outpost/plugin-sdk";
+import type { OutpostPluginManifestV1 } from "@outpost/plugin-sdk";
 
 const PLUGIN_ID = "outpost.daytona-sandbox-provider";
 export const DEFAULT_DAYTONA_OPERATION_TIMEOUT_MS = 300_000;
@@ -17,7 +17,7 @@ export const DEFAULT_DAYTONA_OPERATION_TIMEOUT_MS = 300_000;
 // 0.1.8 declares the default provider acquisition budget to the host.
 const PLUGIN_VERSION = "0.1.10";
 
-const manifest: PaperclipPluginManifestV1 = {
+const manifest: OutpostPluginManifestV1 = {
   id: PLUGIN_ID,
   apiVersion: 1,
   version: PLUGIN_VERSION,
@@ -80,7 +80,7 @@ const manifest: PaperclipPluginManifestV1 = {
       // only bundled provider that implements the login pseudo-terminal methods,
       // so it advertises the capability. The session home helpers and the
       // credential reader run on node, and the sandbox already runs node for the
-      // Paperclip bridge. So the login has no extra runtime prerequisite, and the
+      // Outpost bridge. So the login has no extra runtime prerequisite, and the
       // advertised capability matches the runtime contract for every configured
       // image or snapshot.
       supportsLoginPty: true,
@@ -91,7 +91,7 @@ const manifest: PaperclipPluginManifestV1 = {
             type: "string",
             format: "secret-ref",
             description:
-              "Environment-specific Daytona API key. Paste a key or an existing Outpost secret reference; saved environments store pasted values as company secrets. Falls back to DAYTONA_API_KEY if omitted.",
+              "Environment-specific Daytona API key. Paste a key or an existing Outpost secret reference; saved environments store pasted values as space secrets. Falls back to DAYTONA_API_KEY if omitted.",
           },
           apiUrl: {
             type: "string",

@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { agents, agentWakeupRequests, chatConversations, chatEndpoints, chatMessageLinks, companies, heartbeatRuns, issueComments, issues, issueThreadInteractions, toolApplications, toolConnections, toolActionRequests, toolActionDeliveries, toolInvocations, type Db } from "@outpost/db";
+import { agents, agentWakeupRequests, chatConversations, chatEndpoints, chatMessageLinks, spaces, heartbeatRuns, issueComments, issues, issueThreadInteractions, toolApplications, toolConnections, toolActionRequests, toolActionDeliveries, toolInvocations, type Db } from "@outpost/db";
 import { resolveChatOriginPublicationBindings } from "../../services/issues.js";
 
 export const lineageContextKeys = ["issueId", "taskId", "wakeCommentIds", "wakeCommentId", "commentId", "source", "sourceRunId", "interactionId", "endpointId"] as const;
@@ -33,35 +33,35 @@ export function expectedLineageContext(value: unknown): unknown {
 }
 
 export async function chatReplyLineageFixture(db: Db, bytes = 192 * 1024) {
-  const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-  await db.insert(companies).values({ id: companyId, name: "Synthetic reply lineage", issuePrefix: `L${companyId.replaceAll("-", "").slice(0, 7)}` });
-  await db.insert(agents).values({ id: agentId, companyId, name: "Synthetic worker", adapterType: "outpost_runner" });
-  await db.insert(issues).values({ id: issueId, companyId, title: "Synthetic external reply", status: "in_progress", assigneeAgentId: agentId });
-  const [application] = await db.insert(toolApplications).values({ companyId, name: "Synthetic chat", applicationKey: randomUUID(), type: "chat" }).returning();
-  const [connection] = await db.insert(toolConnections).values({ companyId, applicationId: application.id, name: "Synthetic chat", uid: randomUUID(), transport: "chat_sdk", connectionPurpose: "channel" }).returning();
-  const [endpoint] = await db.insert(chatEndpoints).values({ companyId, connectionId: connection.id, assignedAgentId: agentId, provider: "slack", publicId: randomUUID(), status: "active" }).returning();
-  const [conversation] = await db.insert(chatConversations).values({ companyId, endpointId: endpoint.id, issueId, externalConversationId: randomUUID(), externalThreadId: randomUUID(), externalLabel: "Synthetic conversation" }).returning();
-  const [comment] = await db.insert(issueComments).values({ companyId, issueId, authorType: "user", authorUserId: "synthetic-requester", body: "Please continue" }).returning();
-  await db.insert(chatMessageLinks).values({ companyId, endpointId: endpoint.id, conversationId: conversation.id, commentId: comment.id, providerMessageId: randomUUID(), direction: "inbound" });
+  const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+  await db.insert(spaces).values({ id: spaceId, name: "Synthetic reply lineage", issuePrefix: `L${spaceId.replaceAll("-", "").slice(0, 7)}` });
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Synthetic worker", adapterType: "outpost_runner" });
+  await db.insert(issues).values({ id: issueId, spaceId, title: "Synthetic external reply", status: "in_progress", assigneeAgentId: agentId });
+  const [application] = await db.insert(toolApplications).values({ spaceId, name: "Synthetic chat", applicationKey: randomUUID(), type: "chat" }).returning();
+  const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId: application.id, name: "Synthetic chat", uid: randomUUID(), transport: "chat_sdk", connectionPurpose: "channel" }).returning();
+  const [endpoint] = await db.insert(chatEndpoints).values({ spaceId, connectionId: connection.id, assignedAgentId: agentId, provider: "slack", publicId: randomUUID(), status: "active" }).returning();
+  const [conversation] = await db.insert(chatConversations).values({ spaceId, endpointId: endpoint.id, issueId, externalConversationId: randomUUID(), externalThreadId: randomUUID(), externalLabel: "Synthetic conversation" }).returning();
+  const [comment] = await db.insert(issueComments).values({ spaceId, issueId, authorType: "user", authorUserId: "synthetic-requester", body: "Please continue" }).returning();
+  await db.insert(chatMessageLinks).values({ spaceId, endpointId: endpoint.id, conversationId: conversation.id, commentId: comment.id, providerMessageId: randomUUID(), direction: "inbound" });
   const context = { source: "chat:slack", issueId, endpointId: endpoint.id, wakeCommentIds: [comment.id], prompt: randomBytes(bytes).toString("base64") };
   const insertRun = async (snapshot: unknown = context, overrides: Partial<typeof heartbeatRuns.$inferInsert> = {}) => {
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "succeeded", contextSnapshot: snapshot as never, ...overrides }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "succeeded", contextSnapshot: snapshot as never, ...overrides }).returning();
     return run;
   };
   const root = await insertRun();
   async function continueFrom(sourceRunId: string) {
-    const [interaction] = await db.insert(issueThreadInteractions).values({ companyId, issueId, sourceRunId, kind: "request_confirmation", status: "accepted", payload: { version: 1 } as never }).returning();
+    const [interaction] = await db.insert(issueThreadInteractions).values({ spaceId, issueId, sourceRunId, kind: "request_confirmation", status: "accepted", payload: { version: 1 } as never }).returning();
     const run = await insertRun({ issueId, source: "issue.interaction.accept", sourceRunId, interactionId: interaction.id, prompt: context.prompt });
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId, agentId, source: "automation", reason: "issue_commented", status: "claimed", runId: run.id, idempotencyKey: `interaction:${interaction.id}:accepted` }).returning();
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId, agentId, source: "automation", reason: "issue_commented", status: "claimed", runId: run.id, idempotencyKey: `interaction:${interaction.id}:accepted` }).returning();
     return { run, interaction, wake };
   }
-  return { companyId, agentId, issueId, endpoint, conversation, comment, context, root, insertRun, continueFrom,
-    expected: [{ companyId, endpointId: endpoint.id, conversationId: conversation.id }] };
+  return { spaceId, agentId, issueId, endpoint, conversation, comment, context, root, insertRun, continueFrom,
+    expected: [{ spaceId, endpointId: endpoint.id, conversationId: conversation.id }] };
 }
 
-export async function cleanupChatReplyLineageFixture(db: Db, companyId: string) {
+export async function cleanupChatReplyLineageFixture(db: Db, spaceId: string) {
   for (const table of [agentWakeupRequests, toolActionDeliveries, toolActionRequests, toolInvocations, issueThreadInteractions, chatMessageLinks, chatConversations, chatEndpoints, heartbeatRuns, issueComments, issues, toolConnections, toolApplications, agents]) {
-    await db.delete(table).where(eq(table.companyId, companyId));
+    await db.delete(table).where(eq(table.spaceId, spaceId));
   }
-  await db.delete(companies).where(eq(companies.id, companyId));
+  await db.delete(spaces).where(eq(spaces.id, spaceId));
 }

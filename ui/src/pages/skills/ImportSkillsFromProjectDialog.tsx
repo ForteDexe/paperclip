@@ -20,20 +20,20 @@ import {
   X,
 } from "lucide-react";
 import type {
-  CompanySkill,
-  CompanySkillProjectBrowseEntry,
-  CompanySkillProjectScanCandidate,
-  CompanySkillProjectScanResult,
+  SpaceSkill,
+  SpaceSkillProjectBrowseEntry,
+  SpaceSkillProjectScanCandidate,
+  SpaceSkillProjectScanResult,
   Project,
   ProjectWorkspace,
 } from "@outpost/shared";
 import { normalizeAgentUrlKey } from "@outpost/shared";
 import { Link } from "@/lib/router";
 import { ApiError } from "../../api/client";
-import { companySkillsApi } from "../../api/companySkills";
+import { spaceSkillsApi } from "../../api/spaceSkills";
 import { useToastActions } from "../../context/ToastContext";
 import { queryKeys } from "../../lib/queryKeys";
-import { skillStudioRoute } from "../../lib/company-skill-routes";
+import { skillStudioRoute } from "../../lib/space-skill-routes";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -48,7 +48,7 @@ import { QueryErrorState, useQueryView } from "@/components/QueryView";
 import { EmptyState } from "../../components/EmptyState";
 import { cn } from "../../lib/utils";
 import { describeError } from "@/api/errors";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 
 type Step = "pick" | "scanning" | "select" | "result";
 export type SkillSelection = { workspaceId: string; path: string; slug?: string };
@@ -56,7 +56,7 @@ export type SkillSelection = { workspaceId: string; path: string; slug?: string 
 interface ImportSkillsFromProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  companyId: string;
+  spaceId: string;
   /** Opens the legacy "Import from path or URL" dialog (empty-state fallback). */
   onImportFromPath?: () => void;
 }
@@ -113,14 +113,14 @@ function summarizeWorkspaceKinds(workspaces: ProjectWorkspace[]): string {
  * New skills and conflicts can be checked. Conflicts remain unchecked by
  * default and require an alternate slug before import.
  */
-export function isSelectableCandidate(candidate: CompanySkillProjectScanCandidate): boolean {
+export function isSelectableCandidate(candidate: SpaceSkillProjectScanCandidate): boolean {
   return candidate.status === "new" || candidate.status === "conflict";
 }
 
 export function filterCandidates(
-  candidates: CompanySkillProjectScanCandidate[],
+  candidates: SpaceSkillProjectScanCandidate[],
   filter: string,
-): CompanySkillProjectScanCandidate[] {
+): SpaceSkillProjectScanCandidate[] {
   const query = filter.trim().toLowerCase();
   if (!query) return candidates;
   return candidates.filter((candidate) => [
@@ -137,7 +137,7 @@ export function filterCandidates(
 export interface CandidateDirectoryGroup {
   key: string;
   directoryRoot: string;
-  candidates: CompanySkillProjectScanCandidate[];
+  candidates: SpaceSkillProjectScanCandidate[];
 }
 
 export interface CandidateWorkspaceGroup {
@@ -149,7 +149,7 @@ export interface CandidateWorkspaceGroup {
 }
 
 export function groupCandidates(
-  candidates: CompanySkillProjectScanCandidate[],
+  candidates: SpaceSkillProjectScanCandidate[],
   workspaces: ProjectWorkspace[] = [],
 ): CandidateWorkspaceGroup[] {
   const workspaceMetadata = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
@@ -189,13 +189,13 @@ export function groupCandidates(
 }
 
 export function defaultSelection(
-  _candidates: CompanySkillProjectScanCandidate[],
+  _candidates: SpaceSkillProjectScanCandidate[],
 ): Map<string, SkillSelection> {
   return new Map();
 }
 
 export function selectAllSelection(
-  candidates: CompanySkillProjectScanCandidate[],
+  candidates: SpaceSkillProjectScanCandidate[],
 ): Map<string, SkillSelection> {
   const next = new Map<string, SkillSelection>();
   for (const candidate of candidates) {
@@ -208,7 +208,7 @@ export function selectAllSelection(
   return next;
 }
 
-export function suggestedConflictSlug(candidate: CompanySkillProjectScanCandidate): string {
+export function suggestedConflictSlug(candidate: SpaceSkillProjectScanCandidate): string {
   return `${candidate.slug}-copy`;
 }
 
@@ -230,7 +230,7 @@ export function isGrantError(error: unknown): boolean {
 function CandidateStatusBadge({
   status,
 }: {
-  status: CompanySkillProjectScanCandidate["status"];
+  status: SpaceSkillProjectScanCandidate["status"];
 }) {
   switch (status) {
     case "already_imported":
@@ -276,7 +276,7 @@ function CandidateStatusBadge({
 export function ImportSkillsFromProjectDialog({
   open,
   onOpenChange,
-  companyId,
+  spaceId,
   onImportFromPath,
 }: ImportSkillsFromProjectDialogProps) {
   const queryClient = useQueryClient();
@@ -286,16 +286,16 @@ export function ImportSkillsFromProjectDialog({
   const [projectFilter, setProjectFilter] = useState("");
   const [candidateFilter, setCandidateFilter] = useState("");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [scanResult, setScanResult] = useState<CompanySkillProjectScanResult | null>(null);
+  const [scanResult, setScanResult] = useState<SpaceSkillProjectScanResult | null>(null);
   const [scanError, setScanError] = useState<unknown>(null);
   const [selection, setSelection] = useState<Map<string, SkillSelection>>(new Map());
-  const [importResult, setImportResult] = useState<CompanySkillProjectScanResult | null>(null);
+  const [importResult, setImportResult] = useState<SpaceSkillProjectScanResult | null>(null);
   const [browseOpen, setBrowseOpen] = useState(false);
   const [browseAddingKey, setBrowseAddingKey] = useState<string | null>(null);
   const scanTokenRef = useRef(0);
 
   const projectsQuery = useQuery({
-    ...companyProjectsQuery(companyId),
+    ...spaceProjectsQuery(spaceId),
     enabled: open,
   });
   const projectsView = useQueryView(projectsQuery);
@@ -331,8 +331,8 @@ export function ImportSkillsFromProjectDialog({
     setSelection(new Map());
     setStep("scanning");
     const token = ++scanTokenRef.current;
-    companySkillsApi
-      .scanProjects(companyId, { projectIds: [project.id], mode: "preview" })
+    spaceSkillsApi
+      .scanProjects(spaceId, { projectIds: [project.id], mode: "preview" })
       .then((result) => {
         if (token !== scanTokenRef.current) return;
         setScanResult(result);
@@ -350,7 +350,7 @@ export function ImportSkillsFromProjectDialog({
     mutationFn: () => {
       if (!selectedProject) throw new Error("No project selected.");
       const selectionInput = Array.from(selection.values());
-      return companySkillsApi.scanProjects(companyId, {
+      return spaceSkillsApi.scanProjects(spaceId, {
         projectIds: [selectedProject.id],
         mode: "import",
         selection: selectionInput,
@@ -360,7 +360,7 @@ export function ImportSkillsFromProjectDialog({
       setImportResult(result);
       setStep("result");
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.companySkills.list(companyId),
+        queryKey: queryKeys.spaceSkills.list(spaceId),
       });
       const importedCount = result.imported.length;
       toast.pushToast({
@@ -399,7 +399,7 @@ export function ImportSkillsFromProjectDialog({
     (selected) => !isValidSelectionSlug(selected),
   );
 
-  function toggleCandidate(candidate: CompanySkillProjectScanCandidate) {
+  function toggleCandidate(candidate: SpaceSkillProjectScanCandidate) {
     if (!isSelectableCandidate(candidate)) return;
     setSelection((prev) => {
       const next = new Map(prev);
@@ -417,7 +417,7 @@ export function ImportSkillsFromProjectDialog({
     });
   }
 
-  function renameCandidate(candidate: CompanySkillProjectScanCandidate, slug: string) {
+  function renameCandidate(candidate: SpaceSkillProjectScanCandidate, slug: string) {
     setSelection((prev) => {
       const next = new Map(prev);
       const key = selectionKey(candidate.workspaceId, candidate.relativePath);
@@ -438,7 +438,7 @@ export function ImportSkillsFromProjectDialog({
     const key = selectionKey(workspaceId, skillPath);
     setBrowseAddingKey(key);
     try {
-      const result = await companySkillsApi.scanProjects(companyId, {
+      const result = await spaceSkillsApi.scanProjects(spaceId, {
         projectIds: [selectedProject.id],
         mode: "preview",
         selection: [{ workspaceId, path: skillPath }],
@@ -555,7 +555,7 @@ export function ImportSkillsFromProjectDialog({
               toggleCandidate={toggleCandidate}
               renameCandidate={renameCandidate}
               project={selectedProject}
-              companyId={companyId}
+              spaceId={spaceId}
               browseOpen={browseOpen}
               onBrowseOpenChange={setBrowseOpen}
               onAddBrowsedSkill={addBrowsedSkill}
@@ -783,13 +783,13 @@ function ScanningStep({ projectName }: { projectName: string }) {
 
 
 function ProjectSkillBrowser({
-  companyId,
+  spaceId,
   project,
   onBack,
   onAddSkill,
   addingKey,
 }: {
-  companyId: string;
+  spaceId: string;
   project: Project;
   onBack: () => void;
   onAddSkill: (workspaceId: string, path: string) => void;
@@ -800,8 +800,8 @@ function ProjectSkillBrowser({
   const [workspaceId, setWorkspaceId] = useState(initialWorkspace?.id ?? "");
   const [folderPath, setFolderPath] = useState(".");
   const browseQuery = useQuery({
-    queryKey: ["outpost-skills", "browse-project", companyId, project.id, workspaceId, folderPath],
-    queryFn: () => companySkillsApi.browseProject(companyId, {
+    queryKey: ["outpost-skills", "browse-project", spaceId, project.id, workspaceId, folderPath],
+    queryFn: () => spaceSkillsApi.browseProject(spaceId, {
       projectId: project.id,
       workspaceId,
       path: folderPath,
@@ -871,7 +871,7 @@ function ProjectSkillBrowser({
           />
         ) : result?.entries.length ? (
           <ul className="divide-y divide-border/60">
-            {result.entries.map((entry: CompanySkillProjectBrowseEntry) => {
+            {result.entries.map((entry: SpaceSkillProjectBrowseEntry) => {
               const selectablePath = entry.kind === "file"
                 ? entry.path.toLowerCase() === "skill.md" ? "." : entry.path.slice(0, -"/SKILL.md".length)
                 : entry.path;
@@ -922,10 +922,10 @@ interface SelectStepProps {
   filter: string;
   onFilterChange: (value: string) => void;
   selection: Map<string, SkillSelection>;
-  toggleCandidate: (candidate: CompanySkillProjectScanCandidate) => void;
-  renameCandidate: (candidate: CompanySkillProjectScanCandidate, slug: string) => void;
+  toggleCandidate: (candidate: SpaceSkillProjectScanCandidate) => void;
+  renameCandidate: (candidate: SpaceSkillProjectScanCandidate, slug: string) => void;
   project: Project | null;
-  companyId: string;
+  spaceId: string;
   browseOpen: boolean;
   onBrowseOpenChange: (open: boolean) => void;
   onAddBrowsedSkill: (workspaceId: string, path: string) => void;
@@ -944,7 +944,7 @@ function SelectStep({
   toggleCandidate,
   renameCandidate,
   project,
-  companyId,
+  spaceId,
   browseOpen,
   onBrowseOpenChange,
   onAddBrowsedSkill,
@@ -983,7 +983,7 @@ function SelectStep({
   if (browseOpen && project) {
     return (
       <ProjectSkillBrowser
-        companyId={companyId}
+        spaceId={spaceId}
         project={project}
         onBack={() => onBrowseOpenChange(false)}
         onAddSkill={onAddBrowsedSkill}
@@ -1180,11 +1180,11 @@ function SelectStep({
 }
 
 interface ResultStepProps {
-  result: CompanySkillProjectScanResult;
+  result: SpaceSkillProjectScanResult;
 }
 
 function ResultStep({ result }: ResultStepProps) {
-  const importedSkills: CompanySkill[] = useMemo(
+  const importedSkills: SpaceSkill[] = useMemo(
     () => [...result.imported, ...result.updated],
     [result],
   );

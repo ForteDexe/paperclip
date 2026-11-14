@@ -23,7 +23,7 @@ export type NativeControllerHistoryManifestEntry = { path: string; mode: number;
 export type NativeControllerWebEntry = { path: string; mode: number; type: "directory" }
   | { path: string; mode: number; type: "file"; content: Buffer };
 type WebEvidence<T> = { entries: readonly T[]; bindingDigest: string };
-type Source = { companyId: string; issueId: string; runId: string; controller?: string; supervisor?: string;
+type Source = { spaceId: string; issueId: string; runId: string; controller?: string; supervisor?: string;
   history?: readonly NativeControllerHistoryEntry[];
   historyBindingDigest?: string;
   web?: WebEvidence<NativeControllerWebEntry>;
@@ -40,7 +40,7 @@ export function nativeControllerWebManifest(entries: readonly NativeControllerWe
     : { path: entry.path, mode: entry.mode, type: entry.type, size: entry.content.length, sha256: sha256(entry.content) });
 }
 
-export function nativeControllerEvidenceDescriptor(source: { companyId: string; issueId: string; runId: string;
+export function nativeControllerEvidenceDescriptor(source: { spaceId: string; issueId: string; runId: string;
   controllerDigest: string | null; supervisorDigest: string | null; history?: readonly NativeControllerHistoryManifestEntry[];
   historyBindingDigest?: string;
   web?: WebEvidence<NativeControllerHistoryManifestEntry>;
@@ -96,7 +96,7 @@ export function nativeControllerEvidenceDescriptor(source: { companyId: string; 
       throw new Error("native_controller_archive_authority_invalid");
     }
   }
-  const manifest = JSON.stringify({ schema: "outpost.legacy-controller-archive.v1", companyId: source.companyId,
+  const manifest = JSON.stringify({ schema: "outpost.legacy-controller-archive.v1", spaceId: source.spaceId,
     issueId: source.issueId, runId: source.runId, reason: source.purpose === "filesystem_independence"
       ? "original_volume_source_evidence" : "original_runner_artifact_unproven",
     files: { ...(source.controllerDigest === null ? {} : { "control-plane-state.json": source.controllerDigest }),
@@ -119,7 +119,7 @@ export function legacyNativeControllerArchive(source: Source) {
 }
 
 export async function hasArchivedLegacyNativeController(db: Db, input: Source & { storage: StorageService; signal?: AbortSignal }) {
-  return verifyDurableNativeHarnessBackup({ db, storage: input.storage, companyId: input.companyId,
+  return verifyDurableNativeHarnessBackup({ db, storage: input.storage, spaceId: input.spaceId,
     ...legacyNativeControllerArchive(input), signal: input.signal });
 }
 
@@ -149,7 +149,7 @@ async function persistLegacyControllerEvidence(db: Db, input: Source & {
   storage: StorageService; writersStopped?: true; onlineOwner?: SettledControllerArchiveOwner; signal: AbortSignal;
 }) {
   if (input.onlineOwner ? input.writersStopped || input.onlineOwner.kind !== "settled_controller_archive"
-    || input.onlineOwner.companyId !== input.companyId || input.onlineOwner.issueId !== input.issueId
+    || input.onlineOwner.spaceId !== input.spaceId || input.onlineOwner.issueId !== input.issueId
     || input.onlineOwner.runId !== input.runId || input.onlineOwner.controllerDigest !== (input.controller === undefined ? null : sha256(input.controller))
     || input.onlineOwner.supervisorDigest !== (input.supervisor === undefined ? null : sha256(input.supervisor)) : !input.writersStopped) {
     throw new Error("native_controller_archive_authority_invalid");
@@ -173,6 +173,6 @@ async function persistLegacyControllerEvidence(db: Db, input: Source & {
     for (const entry of [...(input.web?.entries ?? [])].reverse()) await chmod(join(root, entry.path), entry.mode);
     await persistNativeHarnessBackup({ db, storage: input.storage, root, scopeDigest: descriptor.scopeDigest, signal: input.signal,
       owner: input.onlineOwner ?? { kind: "offline_migration", writersStopped: true, terminalFailureOnly: true,
-        companyId: input.companyId, issueId: input.issueId, runId: input.runId } });
+        spaceId: input.spaceId, issueId: input.issueId, runId: input.runId } });
   } finally { await removeNativeHarnessBackup(root); }
 }

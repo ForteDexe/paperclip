@@ -39,7 +39,7 @@ Follow that checkout's `AGENTS.md` and scoped rules before editing.
    controller, and UI. Distinguish documented, observed, and qualified support.
 3. **Prove one complete slice.** Use sections 5–7. Establish exact model and
    instruction admission, scoped tools and credentials, then complete one real
-   Paperclip task with independently verified output and physical cleanup.
+   Outpost task with independently verified output and physical cleanup.
    Exercise ordinary connect/save/reopen/Test/reconnect in the selected environment;
    check database constraints and account/model routing as well as driver execution.
 4. **Complete the promised behavior.** Use sections 8–10. Preserve rich events,

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  agents, companies, createDb, dotAgentBindings, dotRunnerAssignments, dotRunnerOperations, heartbeatRuns,
+  agents, spaces, createDb, dotAgentBindings, dotRunnerAssignments, dotRunnerOperations, heartbeatRuns,
   issues, museAgentBindings, museRunnerAssignments, museRunnerOperations, nativeRunFinalizations,
 } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
@@ -21,21 +21,21 @@ const now = new Date("2026-10-13T18:36:00Z");
   afterAll(async () => { await database?.cleanup(); });
 
   async function fixture(provider: "muse" | "openai_dot", options: {
-    companyId?: string; generation?: number; revoked?: boolean;
-    claimed?: boolean; nativeAccepted?: boolean; assignmentCompanyId?: string;
+    spaceId?: string; generation?: number; revoked?: boolean;
+    claimed?: boolean; nativeAccepted?: boolean; assignmentSpaceId?: string;
   } = {}) {
-    const companyId = options.companyId ?? randomUUID(), agentId = randomUUID();
+    const spaceId = options.spaceId ?? randomUUID(), agentId = randomUUID();
     const issueId = randomUUID(), runId = randomUUID(), bindingId = randomUUID(), assignmentId = randomUUID();
-    if (!options.companyId) await db.insert(companies).values({ id: companyId, name: "Projection test", issuePrefix: `W${companyId.slice(0, 8)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "External agent", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Assigned work", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId,
+    if (!options.spaceId) await db.insert(spaces).values({ id: spaceId, name: "Projection test", issuePrefix: `W${spaceId.slice(0, 8)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "External agent", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Assigned work", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId,
       runtimeMode: "native", status: "running", driverKind: provider === "muse" ? "muse_external" : "openai_dot_mcp", startedAt: now });
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed",
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed",
       leaseExpiresAt: new Date(now.getTime() + 60_000), controllerGeneration: 1 });
-    const binding = { id: bindingId, companyId, agentId, operatorId: "projection-operator", generation: 1,
+    const binding = { id: bindingId, spaceId, agentId, operatorId: "projection-operator", generation: 1,
       status: "ready" as const, revokedAt: options.revoked ? now : null };
-    const assignment = { id: assignmentId, companyId: options.assignmentCompanyId ?? companyId, agentId, bindingId,
+    const assignment = { id: assignmentId, spaceId: options.assignmentSpaceId ?? spaceId, agentId, bindingId,
       bindingGeneration: options.generation ?? 1, runId, normalizedSessionId: randomUUID(), turnId: randomUUID(),
       controllerGeneration: 1, catalogDigest: "projection-test", projection: {},
       acceptBy: new Date(now.getTime() + 60_000), expiresAt: new Date(now.getTime() + 120_000) };
@@ -48,21 +48,21 @@ const now = new Date("2026-10-13T18:36:00Z");
       await db.insert(dotAgentBindings).values(binding);
       await db.insert(dotRunnerAssignments).values({ ...assignment, status: "offered", acceptedAt: options.nativeAccepted ? now : null });
     }
-    return { companyId, runId, assignmentId, project: () => executionProjectionsForRuns(db, companyId, [runId], now) };
+    return { spaceId, runId, assignmentId, project: () => executionProjectionsForRuns(db, spaceId, [runId], now) };
   }
 
   it("batches Muse offered/claimed and Dot offered runs without calling them working", async () => {
     const muse = await fixture("muse");
-    const claimed = await fixture("muse", { companyId: muse.companyId, claimed: true });
-    const dot = await fixture("openai_dot", { companyId: muse.companyId });
+    const claimed = await fixture("muse", { spaceId: muse.spaceId, claimed: true });
+    const dot = await fixture("openai_dot", { spaceId: muse.spaceId });
     // Reservation/claim is not the Runner's native acceptance receipt.
     for (const [table, assignmentId] of [[museRunnerOperations, claimed.assignmentId], [dotRunnerOperations, dot.assignmentId]] as const) {
-      await db.insert(table).values({ companyId: muse.companyId, assignmentId, requestId: randomUUID(),
+      await db.insert(table).values({ spaceId: muse.spaceId, assignmentId, requestId: randomUUID(),
         digest: "reserved-accept", command: { action: "accept" }, status: "reserved" });
     }
     const select = vi.spyOn(db, "select");
     try {
-      const projections = await executionProjectionsForRuns(db, muse.companyId, [muse.runId, claimed.runId, dot.runId], now);
+      const projections = await executionProjectionsForRuns(db, muse.spaceId, [muse.runId, claimed.runId, dot.runId], now);
       expect(projections.get(muse.runId)).toMatchObject({ phase: "waiting_for_provider", label: "Waiting for Muse" });
       expect(projections.get(claimed.runId)).toMatchObject({ phase: "waiting_for_provider", label: "Waiting for Muse" });
       expect(projections.get(dot.runId)).toMatchObject({ phase: "waiting_for_provider", label: "Waiting for Dot" });
@@ -87,18 +87,18 @@ const now = new Date("2026-10-13T18:36:00Z");
     expect((await f.project()).get(f.runId)).toMatchObject({ phase: "reconnecting", label: "Confirming execution" });
   });
 
-  it("isolates company, requested run, binding generation and revocation", async () => {
+  it("isolates space, requested run, binding generation and revocation", async () => {
     const own = await fixture("muse"), foreign = await fixture("muse");
-    const stale = await fixture("muse", { companyId: own.companyId, generation: 2 });
-    const revoked = await fixture("openai_dot", { companyId: own.companyId, revoked: true });
-    const wrongCompany = await fixture("muse", { companyId: own.companyId, assignmentCompanyId: foreign.companyId });
-    const omitted = await fixture("openai_dot", { companyId: own.companyId });
-    const projections = await executionProjectionsForRuns(db, own.companyId,
-      [own.runId, foreign.runId, stale.runId, revoked.runId, wrongCompany.runId], now);
+    const stale = await fixture("muse", { spaceId: own.spaceId, generation: 2 });
+    const revoked = await fixture("openai_dot", { spaceId: own.spaceId, revoked: true });
+    const wrongSpace = await fixture("muse", { spaceId: own.spaceId, assignmentSpaceId: foreign.spaceId });
+    const omitted = await fixture("openai_dot", { spaceId: own.spaceId });
+    const projections = await executionProjectionsForRuns(db, own.spaceId,
+      [own.runId, foreign.runId, stale.runId, revoked.runId, wrongSpace.runId], now);
     expect(projections.get(own.runId)?.phase).toBe("waiting_for_provider");
     expect(projections.has(foreign.runId)).toBe(false);
     expect(projections.has(omitted.runId)).toBe(false);
-    for (const runId of [stale.runId, revoked.runId, wrongCompany.runId]) {
+    for (const runId of [stale.runId, revoked.runId, wrongSpace.runId]) {
       expect(projections.get(runId)?.phase).toBe("working");
     }
   });

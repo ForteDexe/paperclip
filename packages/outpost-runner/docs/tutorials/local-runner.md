@@ -74,7 +74,7 @@ Capture the live trace as a validated replay fixture:
 ```
 
 The command writes
-`packages/outpost-runner/.paperclip-local/evidence/local-runner-happy-path.json`.
+`packages/outpost-runner/.outpost-local/evidence/local-runner-happy-path.json`.
 
 ## 3. Run the scripted control flows
 

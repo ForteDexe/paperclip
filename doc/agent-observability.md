@@ -1,14 +1,14 @@
-# Company agent observability
+# Space agent observability
 
-Company Settings → General → Agent observability configures one company-owned
-OTLP destination for Paperclip-managed Codex, Claude Code and native OpenCode executions. Export
+Space Settings → General → Agent observability configures one space-owned
+OTLP destination for Outpost-managed Codex, Claude Code and native OpenCode executions. Export
 is disabled by default. Choose Braintrust (US) or a custom HTTP(S) OTLP base URL;
 use your own collector when you need fan-out. Braintrust EU and self-hosted
 installations can use Custom OTLP with their required routing/authentication
 headers. The receiver must be reachable from every execution environment;
 `localhost` refers to the execution host, including a remote sandbox.
 
-This is separate from Paperclip's first-party Telemetry and its content-free
+This is separate from Outpost's first-party Telemetry and its content-free
 [infrastructure tracing](observability.md). Configuring it does not change either data path.
 
 ## Capture and supported runtimes
@@ -22,15 +22,15 @@ and response caps still apply. Claude Code applies its own native limits.
 Metrics, raw API bodies and Codex Guardian assessments are disabled.
 
 Native OpenCode 1.18.34 uses a runner-owned HTTP/JSON exporter. Each completed,
-failed or cancelled turn produces a trace with Paperclip company, agent, run and
-turn IDs. Authenticated Paperclip tool dispatch outcomes, native tool outcomes and
+failed or cancelled turn produces a trace with Outpost space, agent, run and
+turn IDs. Authenticated Outpost tool dispatch outcomes, native tool outcomes and
 message-level token/cost receipts are child spans;
 repeated usage updates replace the same message receipt. Missing prices remain
 unknown. This projection excludes hidden reasoning, raw provider payloads and
 system instructions. Prompt, response, tool-detail and tool-content switches
 apply before export. Content is bounded to 8 KiB per field and 64 tools plus 64
 usage records per turn; truncation is marked. With both tool-detail and tool-content
-capture enabled, Paperclip tool spans include `braintrust.input` diagnostics
+capture enabled, Outpost tool spans include `braintrust.input` diagnostics
 (`outpost.opencode.tool-diagnostics.v1`): the upstream `tools/call` method,
 argument JSON type and types for a fixed list of envelope fields. These are
 shape diagnostics, not a copy of the arguments. Arbitrary field names, argument
@@ -38,7 +38,7 @@ values, nested payloads and full model request bodies are not captured.
 Authenticated schema rejections also produce failed tool spans without invoking
 the controller handler. Conflicting request IDs produce separate failed items,
 so a rejection cannot overwrite a previous dispatch outcome.
-Paperclip tool spans use authenticated dispatch IDs and the name `tool <name>`.
+Outpost tool spans use authenticated dispatch IDs and the name `tool <name>`.
 Provider SSE records for those declared tools use `opencode tool <name>` and
 remain available when failure occurs before dispatch, such as an oversized
 request. These are separate observations, not correlated calls. The
@@ -65,7 +65,7 @@ configuration and invocation profiles contain empty header maps, so exporting
 does not save the ingestion credential in those files. The bundled Rust OTLP
 exporter percent-decodes environment header values; launch material encodes
 them once to preserve literal percent sequences. Credentials remain literal
-values in the company secret; config-file environment interpolation is not used.
+values in the space secret; config-file environment interpolation is not used.
 A caller-owned/preconfigured Codex home cannot be automatically configured in
 this version: its files remain untouched and execution emits a diagnostic.
 Legacy OpenCode, other harnesses, personal Codex desktop sessions and hosted claude_managed are
@@ -73,7 +73,7 @@ outside this feature.
 
 ## Changes and process lifetime
 
-Paperclip reads settings once when an execution begins preparation. That
+Outpost reads settings once when an execution begins preparation. That
 snapshot governs instruction reservation, compatibility and launch. Already
 preparing or running work retains its configuration. A changed settings
 revision or resolved credential version retires an idle incompatible warm
@@ -81,7 +81,7 @@ process using existing ownership checks. Conversation compatibility is
 separate, so a safe replacement can resume the saved conversation. Recovery
 never replays an uncertain turn merely to apply new export settings.
 
-Missing, disabled, invalid or unavailable configuration runs without company
+Missing, disabled, invalid or unavailable configuration runs without space
 export and reports a sanitized availability diagnostic where relevant. Native
 export rejection/timeouts do not determine task success; exporter deadlines
 are three seconds. OpenCode starts its bounded asynchronous request when the terminal event is
@@ -91,8 +91,8 @@ observed; event delivery and task settlement do not wait for the receiver.
 
 Only board users with Manage connections permission can read or change this
 configuration. Agents cannot retrieve it through the settings API. The destination stores no credential
-values. Authentication headers live in one encrypted Paperclip-managed company
-secret, bound to the system consumer company-observability. Updates rotate that
+values. Authentication headers live in one encrypted Outpost-managed space
+secret, bound to the system consumer space-observability. Updates rotate that
 secret; removal uses the secret service to retire it. Braintrust project
 routing is derived from the current project ID, independently of the API key.
 
@@ -133,7 +133,7 @@ the destination's records before relying on a deployment.
 The focused suites cover schema bounds, concurrent saves, secret/header
 lifecycle, authorization, protobuf transport and rejection, private-network
 policy, timeout, revision fencing, environment projections, private native
-configuration, warm compatibility, and UI conflict/company-switch behavior.
+configuration, warm compatibility, and UI conflict/space-switch behavior.
 Storybook IDs agent-observability-01-settings, agent-observability-02-states and
 agent-observability-03-journey use fake credentials and production components.
 Real local/remote native export evidence must be reported separately from

@@ -9,15 +9,15 @@ const recoveryContextKeys = [
   "dispositionRepairAttempt", "dispositionRepairFingerprint", "legacyDispositionEpisode",
   "reviewPathRecoveryAttempt", "reviewPathConsumedRef", "interactionId", "approvalId",
   "clearReason", "monitorAttemptCount", "wakeCommentIds", "wakeCommentId", "commentId",
-  "externalChatContinuation", "paperclipWake", "paperclipWorkspace",
+  "externalChatContinuation", "outpostWake", "outpostWorkspace",
 ] as const;
 
 export const recoveryRunContextColumn = sql<Record<string, unknown> | null>`
   case when ${heartbeatRuns.contextSnapshot} is null then null else (
     select coalesce(jsonb_object_agg(field.key, case field.key
-      when 'paperclipWake' then jsonb_build_object(
+      when 'outpostWake' then jsonb_build_object(
         'externalInteractionContinuation', field.value->'externalInteractionContinuation')
-      when 'paperclipWorkspace' then jsonb_build_object('mode', field.value->'mode')
+      when 'outpostWorkspace' then jsonb_build_object('mode', field.value->'mode')
       else field.value end), '{}'::jsonb)
     from jsonb_each(case when jsonb_typeof(${heartbeatRuns.contextSnapshot}) = 'object'
       then ${heartbeatRuns.contextSnapshot} else '{}'::jsonb end) as field(key, value)

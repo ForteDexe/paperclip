@@ -8,11 +8,11 @@ import { AgentMultiSelect } from "@/components/AgentMultiSelect";
 import { RadioCardGroup } from "@/components/ui/radio-card";
 
 export function EmailConnectionAccess({
-  companyId,
+  spaceId,
   connectionId,
   agents,
 }: {
-  companyId: string;
+  spaceId: string;
   connectionId: string;
   agents: Agent[];
 }) {
@@ -27,7 +27,7 @@ export function EmailConnectionAccess({
   });
   const save = useMutation({
     mutationFn: (
-      next: Array<{ targetType: "company" | "agent"; targetId: string }>,
+      next: Array<{ targetType: "space" | "agent"; targetId: string }>,
     ) => toolsApi.putConnectionInstalls(connectionId, next),
     onSuccess: () => {
       void cache.invalidateQueries({
@@ -60,7 +60,7 @@ export function EmailConnectionAccess({
         : "Only the credential owner"
       : "Access revoked";
   const allAgents =
-    installs.data?.installs.some((i) => i.targetType === "company") ?? false;
+    installs.data?.installs.some((i) => i.targetType === "space") ?? false;
   const selected = new Set(
     installs.data?.installs
       .filter((i) => i.targetType === "agent")
@@ -91,7 +91,7 @@ export function EmailConnectionAccess({
           onValueChange={(value) =>
             save.mutate(
               value === "all"
-                ? [{ targetType: "company", targetId: companyId }]
+                ? [{ targetType: "space", targetId: spaceId }]
                 : Array.from(selected, (targetId) => ({
                     targetType: "agent",
                     targetId,

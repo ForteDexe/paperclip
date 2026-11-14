@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, gte, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-  agents, chatConversations, chatEndpoints, companies, createDb, heartbeatRuns,
+  agents, chatConversations, chatEndpoints, spaces, createDb, heartbeatRuns,
   issues, toolApplications, toolConnections,
 } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -22,27 +22,27 @@ const support = await getEmbeddedPostgresTestSupport();
     await database?.cleanup();
   });
 
-  it("preserves complete rows, binding precedence, company scope and the recovery window", async () => {
-    const companyId = randomUUID(), foreignCompanyId = randomUUID(), agentId = randomUUID();
+  it("preserves complete rows, binding precedence, space scope and the recovery window", async () => {
+    const spaceId = randomUUID(), foreignSpaceId = randomUUID(), agentId = randomUUID();
     const issueId = randomUUID(), foreignIssueId = randomUUID(), closedIssueId = randomUUID();
     const applicationId = randomUUID(), connectionId = randomUUID(), endpointId = randomUUID();
     const since = new Date("2026-10-20T00:00:00.000Z");
-    await db.insert(companies).values([
-      { id: companyId, name: "Chat candidates", issuePrefix: "CHAT" },
-      { id: foreignCompanyId, name: "Foreign", issuePrefix: "FRGN" },
+    await db.insert(spaces).values([
+      { id: spaceId, name: "Chat candidates", issuePrefix: "CHAT" },
+      { id: foreignSpaceId, name: "Foreign", issuePrefix: "FRGN" },
     ]);
-    await db.insert(agents).values({ id: agentId, companyId, name: "Chat agent" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Chat agent" });
     await db.insert(issues).values([
-      { id: issueId, companyId, title: "Active" },
-      { id: closedIssueId, companyId, title: "Closed" },
-      { id: foreignIssueId, companyId: foreignCompanyId, title: "Foreign" },
+      { id: issueId, spaceId, title: "Active" },
+      { id: closedIssueId, spaceId, title: "Closed" },
+      { id: foreignIssueId, spaceId: foreignSpaceId, title: "Foreign" },
     ]);
-    await db.insert(toolApplications).values({ id: applicationId, companyId, name: "Slack", type: "chat" });
-    await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "Slack", uid: connectionId, transport: "chat_sdk", connectionPurpose: "channel" });
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId, connectionId, provider: "slack", publicId: endpointId, assignedAgentId: agentId });
+    await db.insert(toolApplications).values({ id: applicationId, spaceId, name: "Slack", type: "chat" });
+    await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "Slack", uid: connectionId, transport: "chat_sdk", connectionPurpose: "channel" });
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId, provider: "slack", publicId: endpointId, assignedAgentId: agentId });
     await db.insert(chatConversations).values([
-      { companyId, endpointId, issueId, externalConversationId: "active", externalLabel: "Active", state: "waiting" },
-      { companyId, endpointId, issueId: closedIssueId, externalConversationId: "closed", externalLabel: "Closed", state: "completed" },
+      { spaceId, endpointId, issueId, externalConversationId: "active", externalLabel: "Active", state: "waiting" },
+      { spaceId, endpointId, issueId: closedIssueId, externalConversationId: "closed", externalLabel: "Closed", state: "completed" },
     ]);
     const cases = [
       { context: { issueId }, matches: true },
@@ -71,9 +71,9 @@ const support = await getEmbeddedPostgresTestSupport();
       for (const item of cases) {
         const runId = randomUUID();
         await db.$client.unsafe(`insert into heartbeat_runs
-          (id, company_id, agent_id, status, scope_kind, issue_id, native_issue_id, context_snapshot, updated_at)
+          (id, space_id, agent_id, status, scope_kind, issue_id, native_issue_id, context_snapshot, updated_at)
           values ($1, $2, $3, 'running', $4, $5, $6, $7::jsonb, $8)`,
-        [runId, companyId, agentId, "runIssueId" in item ? "issue" : "company",
+        [runId, spaceId, agentId, "runIssueId" in item ? "issue" : "space",
           "runIssueId" in item ? item.runIssueId ?? null : null, "nativeIssueId" in item ? item.nativeIssueId ?? null : null,
           JSON.stringify(item.context), (item.updatedAt ?? since).toISOString()]);
         if (item.matches) expectedIds.push(runId);
@@ -82,7 +82,7 @@ const support = await getEmbeddedPostgresTestSupport();
       await db.$client.unsafe("alter table heartbeat_runs enable trigger heartbeat_runs_set_scope_kind");
     }
     const fields = {
-      id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+      id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
       status: heartbeatRuns.status, errorCode: heartbeatRuns.errorCode, updatedAt: heartbeatRuns.updatedAt,
       nativeIssueId: heartbeatRuns.nativeIssueId, issueId: heartbeatRuns.issueId,
       contextSnapshot: heartbeatRuns.contextSnapshot, resultJson: heartbeatRuns.resultJson,
@@ -90,7 +90,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const original = await db.select(fields).from(heartbeatRuns).where(and(
       gte(heartbeatRuns.updatedAt, since),
       sql`exists (select 1 from ${chatConversations}
-        where ${chatConversations.companyId} = ${heartbeatRuns.companyId}
+        where ${chatConversations.spaceId} = ${heartbeatRuns.spaceId}
           and ${chatConversations.issueId}::text = ${boundRunIssueIdSql()}
           and ${chatConversations.state} in ('active', 'waiting'))`,
     )).orderBy(asc(heartbeatRuns.id));

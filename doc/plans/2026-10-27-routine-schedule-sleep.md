@@ -19,10 +19,10 @@ other heartbeat duties, and the rest of the inventory remain separate work.
 ## Obligation and owner
 
 - Trigger: startup/resume, an eligible cron deadline, or a committed producer change.
-- Durable truth: the existing routine, trigger, and company rows. No new table.
+- Durable truth: the existing routine, trigger, and space rows. No new table.
 - Eligibility: schedule triggers that are enabled, not archived, have saved cron,
   timezone and next-run values, and belong to an active routine in an active
-  company. Trigger/routine company IDs must agree.
+  space. Trigger/routine space IDs must agree.
 - Next deadline: the earliest eligible saved next-run timestamp, including overdue
   timestamps left by capped catch-up. The owner returns a number or null.
 - Retry: the configured heartbeat interval only after an error or while overdue
@@ -48,17 +48,17 @@ redesigned or replaced with a new queue.
 | Routine create/update, including status | Existing transaction-aware routine signal |
 | Trigger create/update/delete | Existing transaction-aware routine signal |
 | Revision restore and recreated triggers | Existing transaction-aware routine signal |
-| Company import and built-in routines | Use routine-service create/update/trigger APIs; separate direct writes change metadata only |
+| Space import and built-in routines | Use routine-service create/update/trigger APIs; separate direct writes change metadata only |
 | Manual run naming a schedule | New signal before the transaction changes its next-run timestamp |
-| Company pause/reactivation/archive | New signal in the existing company transaction |
-| Budget-induced company pause/resume | New signal in the existing accounting transaction |
-| Company deletion | New signal before deleting routine data in the company transaction |
+| Space pause/reactivation/archive | New signal in the existing space transaction |
+| Budget-induced space pause/resume | New signal in the existing accounting transaction |
+| Space deletion | New signal before deleting routine data in the space transaction |
 | Scheduler's claimed next-run update | Worker reloads after its own pass; no self-notification per catch-up run |
 | Folder moves, revision pointers, webhook secret/delivery metadata | Do not change schedule eligibility or deadlines |
 
 Ordinary API, MCP, plugin and import callers use these owning services. The Grok
-bot uses a different table and has its own migration. Company name/prefix repairs,
-budget projections, issue counters and feedback settings do not change company
+bot uses a different table and has its own migration. Space name/prefix repairs,
+budget projections, issue counters and feedback settings do not change space
 status. Process-local signals do not support an independent SQL writer or another
 replica that bypasses these producers.
 
@@ -67,9 +67,9 @@ replica that bypasses these producers.
 Cron/timezone calculation, sub-hourly coalescing, the 25-run catch-up cap,
 compare-and-set claims, activity gates, concurrency policies and suppressed-run
 records stay with the existing dispatcher. Capped overdue work gets a retained
-retry instead of becoming invisible. A paused company now matches the active
-company eligibility already used by the old deadline query; due triggers remain
-saved until company reactivation. Routine reactivation still uses its existing
+retry instead of becoming invisible. A paused space now matches the active
+space eligibility already used by the old deadline query; due triggers remain
+saved until space reactivation. Routine reactivation still uses its existing
 next-cron reset policy.
 
 Project pause and worktree execution suppression still advance cron ticks and
@@ -90,13 +90,13 @@ Startup reconstructs the actual next deadline from the database.
 ## Verification and observed failures
 
 The initial regression run failed both intended assertions: a 27-tick hourly
-backlog lost its deadline after the first 25 runs, and company pause left the
+backlog lost its deadline after the first 25 runs, and space pause left the
 old deadline armed. Both pass after the migration. Two additional budget tests
 reproduced missing pause/resume notifications before the budget producer fix.
 
 The new integration suite checks no resources, an active routine with no trigger,
 future configured work, retained run history, first producer, earlier replacement,
-disable/archive/delete/restore, outer commit/rollback, manual invocation, company
+disable/archive/delete/restore, outer commit/rollback, manual invocation, space
 lifecycle, budget lifecycle, restart catch-up, drain/resume, failed deadline reads,
 concurrent mutation during a read, and interruption between claimed batches.
 Quiet assertions observe database select/execute/transaction calls over former
@@ -105,14 +105,14 @@ remain in the full owner acceptance set. Startup tests assert that the routine
 worker's wake is not called by the recurring heartbeat.
 
 Harness failures are retained separately from product regressions:
-- The company-deletion fixture initially lacked a running agent lifecycle driver.
+- The space-deletion fixture initially lacked a running agent lifecycle driver.
   Its deletion case now seeds completed termination before exercising the real
-  company deletion transaction; it does not mock deletion or weaken its guard.
+  space deletion transaction; it does not mock deletion or weaken its guard.
 - A drain test incorrectly required all tracked intent work to end before resume.
   It now tests passive SQL quiet during drain and waits for settlement after resume.
 - The SQL-query fixture called a retry-backed worker again before its retained
   backoff elapsed. It now advances the test clock before the second pass.
-- Embedded company-test PostgreSQL startup timed out. The same suite now supports
+- Embedded space-test PostgreSQL startup timed out. The same suite now supports
   the validated external `_test` URL, applies migrations, and closes its client.
 - The previous disposable external cluster subsequently lost `global/pg_filenode.map`.
   That attempted budget regression did not reach assertions. A new loopback-only
@@ -153,7 +153,7 @@ backup parent; local preparation on its accepted source is not a review pass.
 Current source `4659ef76d398193b15e7812d4a97f3da3b743226` has **417 passing
 unique cases across 14 complete files**, without skips: routine deadline work,
 scheduled work and its PostgreSQL queries, routine service, routine HTTP E2E and
-routes, plugin-managed routines, budgets, companies, git workspace expiration,
+routes, plugin-managed routines, budgets, spaces, git workspace expiration,
 agent-device login, startup registration, scoped deadline work and the shared
 delivery coordinator. Database build, production server typechecking and build,
 module boundaries, target migration order and Runner profile identity pass.

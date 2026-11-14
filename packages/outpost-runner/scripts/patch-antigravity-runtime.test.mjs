@@ -34,7 +34,7 @@ function admission(content) {
 // tests native protobuf boundaries without creating a session or using auth.
 const nativeBoundaryTests = `
 
-def _paperclip_native_boundary_regressions():
+def _outpost_native_boundary_regressions():
   import sys
   from types import SimpleNamespace
   from google3.learning.genai.api.localharness import localharness_pb2 as pb
@@ -47,10 +47,10 @@ def _paperclip_native_boundary_regressions():
   for content in ("  exact café 🧷\\n", ""):
     raw = content.encode("utf-8")
     request = {"schema": SCHEMA, "nonce": "native-regression", "model": "literal-model", "digest": "sha256:" + hashlib.sha256(raw).hexdigest(), "byteLength": len(raw)}
-    metadata = {"antigravity": {"paperclipAdmission": request, "systemPrompt": {"append": content}}}
+    metadata = {"antigravity": {"outpostAdmission": request, "systemPrompt": {"append": content}}}
     expected = _read_request(metadata)
     assert expected["content"] == content
-    bad = {"antigravity": {"paperclipAdmission": {**request, "byteLength": len(raw) + 1}, "systemPrompt": {"append": content}}}
+    bad = {"antigravity": {"outpostAdmission": {**request, "byteLength": len(raw) + 1}, "systemPrompt": {"append": content}}}
     rejected(lambda: _read_request(bad))
     config = pb.HarnessConfig(cascade_id="native-session", models=[pb.ModelConfig(name="literal-model", types=[1])])
     if content:
@@ -91,16 +91,16 @@ def _paperclip_native_boundary_regressions():
       rejected(lambda: prepare_native_config(config, strategy))
     finally:
       _CONTEXT.reset(token)
-  sys.stderr.write("paperclip-native-boundary-regressions: passed\\n")
+  sys.stderr.write("outpost-native-boundary-regressions: passed\\n")
 
-_paperclip_native_boundary_regressions()
+_outpost_native_boundary_regressions()
 `;
 
 // Calls the real SDK subprocess/stdio/WebSocket startup. The native helper has
 // not received InitializeConversationEvent, so no auth or inference is used.
 const nativeHelperIsolationTests = `
 
-def _paperclip_native_helper_isolation_regression():
+def _outpost_native_helper_isolation_regression():
   import asyncio
   import subprocess
   import sys
@@ -154,14 +154,14 @@ def _paperclip_native_helper_isolation_regression():
             stream.close()
     assert owned and all(process.poll() is not None for process in owned)
   asyncio.run(run())
-  sys.stderr.write("paperclip-native-helper-isolation-regression: passed\\n")
+  sys.stderr.write("outpost-native-helper-isolation-regression: passed\\n")
 
-_paperclip_native_helper_isolation_regression()
+_outpost_native_helper_isolation_regression()
 `;
 
 const nativeManagedSurfaceTests = `
 
-def _paperclip_managed_surface_regressions():
+def _outpost_managed_surface_regressions():
   import asyncio
   import json
   import sys
@@ -232,7 +232,7 @@ def _paperclip_managed_surface_regressions():
     try:
       managed_manager.get_access_token()
     except ValueError as error:
-      assert "renewed through Paperclip" in str(error)
+      assert "renewed through Outpost" in str(error)
     else:
       raise AssertionError("managed missing/expired credentials launched interactive auth")
     assert managed_manager.interactive_calls == 0, "managed policy must survive outside its request context"
@@ -241,13 +241,13 @@ def _paperclip_managed_surface_regressions():
     standalone._oauth_mgr = interactive_manager
     await standalone.authenticate("oauth-personal")
     assert interactive_manager.interactive_calls == 1, "explicit standalone authenticate must retain its interactive path"
-    assert not getattr(interactive_manager, "_paperclip_noninteractive", False)
+    assert not getattr(interactive_manager, "_outpost_noninteractive", False)
     assert acp_hooks.has_workspace_hooks(workspace)
     assert acp_hooks.load_hooks_config(workspace), "unmanaged hooks policy must be unchanged"
   asyncio.run(run())
-  sys.stderr.write("paperclip-managed-surface-regressions: passed\\n")
+  sys.stderr.write("outpost-managed-surface-regressions: passed\\n")
 
-_paperclip_managed_surface_regressions()
+_outpost_managed_surface_regressions()
 `;
 
 // Exercises the shipped authentication assertion and CCPA model parser. Only
@@ -255,7 +255,7 @@ _paperclip_managed_surface_regressions()
 // native helper, browser, network, and enterprise-poller factories must not run.
 const nativeModelCatalogTests = `
 
-def _paperclip_model_catalog_regressions():
+def _outpost_model_catalog_regressions():
   import asyncio
   import contextlib
   import json
@@ -305,14 +305,14 @@ def _paperclip_model_catalog_regressions():
       raise AssertionError("catalog must never authenticate interactively")
     def _save_credentials(self, credentials): pass
     def _resolve_backend(self, token, interactive_login=False):
-      assert getattr(self, "_paperclip_noninteractive", False), "noninteractive policy must precede native authentication"
+      assert getattr(self, "_outpost_noninteractive", False), "noninteractive policy must precede native authentication"
       assert not interactive_login
       self.resolutions += 1
   def forbidden(*args, **kwargs):
     raise AssertionError("session-free model discovery reached a forbidden factory")
   async def rejected(adapter, params, message=None):
     try:
-      await adapter.ext_method("_paperclip/models", params)
+      await adapter.ext_method("_outpost/models", params)
     except exceptions.RequestError as error:
       text = str(error)
       assert "controlled-secret" not in text
@@ -335,11 +335,11 @@ def _paperclip_model_catalog_regressions():
     settings_writer.save_auth_type("oauth-personal")
     value = adapter()
     assert value._auth_state is None, "saved settings must select the actual native auth method"
-    result = await value.ext_method("_paperclip/models", request)
+    result = await value.ext_method("_outpost/models", request)
     assert result == {"schema": MODELS_SCHEMA, "nonce": request["nonce"], "authMethod": "oauth-personal", "models": [{"id": "gemini-exact-low-effort", "label": "  Exact café Model 🧷  "}, {"id": "gemini-exact-high-effort", "label": "Native Default"}], "defaultModelId": "gemini-exact-high-effort"}
     assert value._auth_state.method_id == "oauth-personal"
     assert len(calls) == 1 and value._oauth_mgr.resolutions == 2
-    assert value._oauth_mgr._paperclip_noninteractive and value._oauth_mgr.interactive_calls == 0
+    assert value._oauth_mgr._outpost_noninteractive and value._oauth_mgr.interactive_calls == 0
     assert value._sessions == {} and value._background_tasks == {}
     assert value._proxy_server is None and value._baic_proxy_server is None and value._admin_controls_mgr is None
     assert "private description" not in json.dumps(result)
@@ -350,12 +350,12 @@ def _paperclip_model_catalog_regressions():
       wrong = adapter()
       wrong._auth_state = AuthState(method_id=method)
       await rejected(wrong, request, "sign-in must be renewed")
-      assert not getattr(wrong._oauth_mgr, "_paperclip_noninteractive", False)
+      assert not getattr(wrong._oauth_mgr, "_outpost_noninteractive", False)
     logged_out = adapter()
     logged_out._auth_state = AuthState(method_id="oauth-personal")
     logged_out._logged_out = True
     await rejected(logged_out, request, "sign-in must be renewed")
-    assert not getattr(logged_out._oauth_mgr, "_paperclip_noninteractive", False)
+    assert not getattr(logged_out._oauth_mgr, "_outpost_noninteractive", False)
     settings_writer.clear_auth_type()
     await rejected(adapter(), request, "sign-in must be renewed")
     settings_writer.save_auth_type("oauth-personal")
@@ -363,7 +363,7 @@ def _paperclip_model_catalog_regressions():
     active._sessions["not-created"] = object()
     await rejected(active, request, "session-free")
     active._sessions.clear()
-    active._paperclip_managed_sessions = {"not-created": {}}
+    active._outpost_managed_sessions = {"not-created": {}}
     await rejected(active, request, "session-free")
     token = _CONTEXT.set({"model": "must-not-resolve"})
     try: await rejected(adapter(), request, "session-free")
@@ -398,9 +398,9 @@ def _paperclip_model_catalog_regressions():
     stack.enter_context(mock.patch.object(ccpa_client, "fetch_available_models", side_effect=fetch))
     stack.enter_context(mock.patch.dict(os.environ, {"AGY_ACP_DEFAULT_MODEL": "unoffered-custom-fallback"}))
     asyncio.run(run())
-  sys.stderr.write("paperclip-model-catalog-regressions: passed\\n")
+  sys.stderr.write("outpost-model-catalog-regressions: passed\\n")
 
-_paperclip_model_catalog_regressions()
+_outpost_model_catalog_regressions()
 `;
 
 // These state tests use the shipped SDK config builder, ACP response classes,
@@ -408,7 +408,7 @@ _paperclip_model_catalog_regressions()
 // and no authentication or network request occurs.
 const nativeStateTests = `
 
-def _paperclip_managed_state_regressions():
+def _outpost_managed_state_regressions():
   import asyncio
   import contextlib
   import sys
@@ -421,7 +421,7 @@ def _paperclip_managed_state_regressions():
   sid = "native-managed-session-12345678901234567890"
   def metadata(content, nonce):
     raw = content.encode("utf-8")
-    return {"antigravity": {"paperclipAdmission": {"schema": SCHEMA, "nonce": nonce, "model": "literal-model", "digest": "sha256:" + hashlib.sha256(raw).hexdigest(), "byteLength": len(raw)}, "systemPrompt": {"append": content}}}
+    return {"antigravity": {"outpostAdmission": {"schema": SCHEMA, "nonce": nonce, "model": "literal-model", "digest": "sha256:" + hashlib.sha256(raw).hexdigest(), "byteLength": len(raw)}, "systemPrompt": {"append": content}}}
   async def rejected(fn):
     try:
       await fn()
@@ -450,7 +450,7 @@ def _paperclip_managed_state_regressions():
       native = strategy._build_harness_config()
       prepared = prepare_native_config(native, strategy)
       ack = pb.OutputEvent(initialize_conversation_response=pb.InitializeConversationResponse(cascade_id=session_id))
-      strategy._paperclip_native_admission = acknowledge_native_config(prepared, ack, native)
+      strategy._outpost_native_admission = acknowledge_native_config(prepared, ack, native)
       agent = SimpleNamespace(_strategy=strategy, conversation=SimpleNamespace(is_idle=True))
       self._sessions[session_id] = SessionInfo(agent=agent, stack=contextlib.AsyncExitStack(), current_model_id=model, system_prompt=expected["content"])
     async def new_session(self, cwd, **kwargs):
@@ -484,10 +484,10 @@ def _paperclip_managed_state_regressions():
     adapter = FixtureAdapter()
     await adapter.initialize()
     first = await adapter.new_session("/fixture", **metadata("  exact café 🧷\\n", "open-nonce"))
-    receipt = first.field_meta["paperclipAntigravityAdmission"]
+    receipt = first.field_meta["outpostAntigravityAdmission"]
     assert receipt["sessionId"] == sid and receipt["nonce"] == "open-nonce"
-    status = await adapter.ext_method("paperclip/admission", {"sessionId": sid, "nonce": "open-nonce"})
-    assert status["paperclipAntigravityAdmission"] == receipt
+    status = await adapter.ext_method("outpost/admission", {"sessionId": sid, "nonce": "open-nonce"})
+    assert status["outpostAntigravityAdmission"] == receipt
     session = adapter._sessions[sid]
     session.mode_id = "yolo"
     await rejected(lambda: adapter.prompt([], sid))
@@ -496,26 +496,26 @@ def _paperclip_managed_state_regressions():
     await adapter._maybe_replace_unavailable_model(sid)
     assert adapter.replacements == 0
     changed = await adapter.set_config_option("model", sid, "literal-model", **metadata("", "setter-nonce"))
-    changed_receipt = changed.field_meta["paperclipAntigravityAdmission"]
+    changed_receipt = changed.field_meta["outpostAntigravityAdmission"]
     assert changed_receipt["nonce"] == "setter-nonce" and changed_receipt["byteLength"] == 0
     assert changed_receipt["connectionId"] != receipt["connectionId"]
-    await rejected(lambda: adapter.ext_method("paperclip/admission", {"sessionId": sid, "nonce": "open-nonce"}))
+    await rejected(lambda: adapter.ext_method("outpost/admission", {"sessionId": sid, "nonce": "open-nonce"}))
     await rejected(lambda: adapter.load_session(sid, "/fixture"))
     loaded = await adapter.load_session(sid, "/fixture", **metadata(" exact reload ", "load-nonce"))
-    assert loaded.field_meta["paperclipAntigravityAdmission"]["nonce"] == "load-nonce"
+    assert loaded.field_meta["outpostAntigravityAdmission"]["nonce"] == "load-nonce"
     resumed = await adapter.resume_session(sid, "/fixture", **metadata(" exact resume ", "resume-nonce"))
-    assert resumed.field_meta["paperclipAntigravityAdmission"]["nonce"] == "resume-nonce"
+    assert resumed.field_meta["outpostAntigravityAdmission"]["nonce"] == "resume-nonce"
     await adapter.cleanup(sid)
-    assert not adapter._paperclip_managed_sessions
+    assert not adapter._outpost_managed_sessions
   original_extract = system_prompt.extract_system_prompt
   try:
     install(FixtureAdapter)
     asyncio.run(run())
   finally:
     system_prompt.extract_system_prompt = original_extract
-  sys.stderr.write("paperclip-managed-state-regressions: passed\\n")
+  sys.stderr.write("outpost-managed-state-regressions: passed\\n")
 
-_paperclip_managed_state_regressions()
+_outpost_managed_state_regressions()
 `;
 
 test("native patch rejects an unpinned executable before decoding", () => {
@@ -546,7 +546,7 @@ test("pinned native closure reproducibly loads exact admission and rejects reque
   skip: !source || process.platform !== "darwin" || process.arch !== "arm64",
   timeout: 180_000,
 }, async t => {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-antigravity-native-patch-test-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-antigravity-native-patch-test-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const originalHash = hash(await readFile(join(source, "agy_acp_server.par")));
   const { patchAntigravityRuntime } = await import("./patch-antigravity-runtime.mjs");
@@ -556,20 +556,20 @@ test("pinned native closure reproducibly loads exact admission and rejects reque
   assert.equal(hash(await readFile(join(source, "agy_acp_server.par"))), originalHash, "vendor source remains immutable");
   const content = "  exact café 🧷\n";
   const valid = admission(content);
-  const create = (id, value) => ({ jsonrpc: "2.0", id, method: "session/new", params: { cwd: root, mcpServers: [], _meta: { antigravity: { paperclipAdmission: value, systemPrompt: { append: content } } } } });
+  const create = (id, value) => ({ jsonrpc: "2.0", id, method: "session/new", params: { cwd: root, mcpServers: [], _meta: { antigravity: { outpostAdmission: value, systemPrompt: { append: content } } } } });
   const models = { schema: "outpost.antigravity.models.v1", nonce: "native-models-nonce", authMethod: "oauth-personal" };
-  const result = await runNative(join(root, "first/agy_acp_server.par"), join(root, "home"), [initialize(), create(2, { ...valid, digest: "sha256:" + "0".repeat(64) }), create(3, valid), { jsonrpc: "2.0", id: 4, method: "_paperclip/admission", params: { sessionId: "missing", nonce: valid.nonce } }, { jsonrpc: "2.0", id: 5, method: "_paperclip/models", params: models }, { jsonrpc: "2.0", id: 6, method: "_paperclip/models", params: { ...models, extra: true } }]);
+  const result = await runNative(join(root, "first/agy_acp_server.par"), join(root, "home"), [initialize(), create(2, { ...valid, digest: "sha256:" + "0".repeat(64) }), create(3, valid), { jsonrpc: "2.0", id: 4, method: "_outpost/admission", params: { sessionId: "missing", nonce: valid.nonce } }, { jsonrpc: "2.0", id: 5, method: "_outpost/models", params: models }, { jsonrpc: "2.0", id: 6, method: "_outpost/models", params: { ...models, extra: true } }]);
   const byId = new Map(result.events.filter(event => event.id !== undefined).map(event => [event.id, event]));
   assert.equal(byId.get(1).result.agentInfo.name, "antigravity-acp");
-  assert.equal(byId.get(1).result.agentCapabilities._meta.antigravity.paperclipAdmission, 1);
-  assert.equal(byId.get(1).result.agentCapabilities._meta.antigravity.paperclipModels, 1);
+  assert.equal(byId.get(1).result.agentCapabilities._meta.antigravity.outpostAdmission, 1);
+  assert.equal(byId.get(1).result.agentCapabilities._meta.antigravity.outpostModels, 1);
   assert.match(byId.get(2).error.message, /digest mismatch/);
   assert.equal(byId.get(3).error.code, -32000, "valid metadata reaches the native authentication gate");
   assert.match(byId.get(4).error.message, /unknown admission session or nonce/, "native status extension fails closed without a session");
   assert.equal(byId.get(5).error.code, -32000, "session-free model discovery requires saved personal sign-in");
-  assert.match(byId.get(5).error.message, /sign-in must be renewed through Paperclip/);
+  assert.match(byId.get(5).error.message, /sign-in must be renewed through Outpost/);
   assert.equal(byId.get(6).error.code, -32602, "the native model request contract rejects extra fields");
-  assert(!result.events.some(event => event.result?._meta?.paperclipAntigravityAdmission), "no native init means no fabricated receipt");
+  assert(!result.events.some(event => event.result?._meta?.outpostAntigravityAdmission), "no native init means no fabricated receipt");
 
   const fixtureScripts = join(root, "fixture-scripts");
   const { mkdir } = await import("node:fs/promises");
@@ -580,13 +580,13 @@ test("pinned native closure reproducibly loads exact admission and rejects reque
   const fixture = await import(pathToFileURL(join(fixtureScripts, "patch-antigravity-runtime.mjs")));
   await fixture.patchAntigravityRuntime({ source, destination: join(root, "boundary-fixture") });
   const tested = await runNative(join(root, "boundary-fixture/agy_acp_server.par"), join(root, "fixture-home"), [initialize()]);
-  assert.match(tested.stderr, /paperclip-native-boundary-regressions: passed/);
-  assert.match(tested.stderr, /paperclip-native-helper-isolation-regression: passed/);
-  assert.match(tested.stderr, /paperclip-managed-surface-regressions: passed/);
-  assert.match(tested.stderr, /paperclip-model-catalog-regressions: passed/);
-  assert.match(tested.stderr, /paperclip-managed-state-regressions: passed/);
-  assert.equal(tested.events[0].result.agentCapabilities._meta.antigravity.paperclipAdmission, 1);
-  assert.equal(tested.events[0].result.agentCapabilities._meta.antigravity.paperclipModels, 1);
+  assert.match(tested.stderr, /outpost-native-boundary-regressions: passed/);
+  assert.match(tested.stderr, /outpost-native-helper-isolation-regression: passed/);
+  assert.match(tested.stderr, /outpost-managed-surface-regressions: passed/);
+  assert.match(tested.stderr, /outpost-model-catalog-regressions: passed/);
+  assert.match(tested.stderr, /outpost-managed-state-regressions: passed/);
+  assert.equal(tested.events[0].result.agentCapabilities._meta.antigravity.outpostAdmission, 1);
+  assert.equal(tested.events[0].result.agentCapabilities._meta.antigravity.outpostModels, 1);
 });
 
 
@@ -594,7 +594,7 @@ test("native client file callbacks settle exact tool identity without broadcasti
   skip: !source || process.platform !== "darwin" || process.arch !== "arm64",
   timeout: 90_000,
 }, async t => {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-antigravity-tool-lifecycle-test-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-antigravity-tool-lifecycle-test-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const fixtureScripts = join(root, "scripts");
   const { mkdir } = await import("node:fs/promises");
@@ -606,6 +606,6 @@ test("native client file callbacks settle exact tool identity without broadcasti
   const fixture = await import(pathToFileURL(join(fixtureScripts, "patch-antigravity-runtime.mjs")));
   await fixture.patchAntigravityRuntime({ source, destination: join(root, "runtime") });
   const tested = await runNative(join(root, "runtime/agy_acp_server.par"), join(root, "home"), [initialize()]);
-  assert.match(tested.stderr, /paperclip-tool-lifecycle-regressions: passed/);
-  assert.equal(tested.events[0].result.agentCapabilities._meta.antigravity.paperclipAdmission, 1);
+  assert.match(tested.stderr, /outpost-tool-lifecycle-regressions: passed/);
+  assert.equal(tested.events[0].result.agentCapabilities._meta.antigravity.outpostAdmission, 1);
 });

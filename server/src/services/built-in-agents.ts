@@ -4,12 +4,12 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readPaperclipSkillSyncPreference, writePaperclipSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
+import { readOutpostSkillSyncPreference, writeOutpostSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
 import { and, desc, eq, ne } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { activityLog, agents, builtInManagedResources, companies, issueThreadInteractions, issues, routines, routineTriggers, fileStorageDb } from "@outpost/db";
-import { agentHarnessType, paperclipRunnerProfileForHarness, agentRunner, syncRoutineVariablesWithTemplate, type AgentRunnerChoice } from "@outpost/shared";
-import type { Agent, Approval, CompanySkill, PermissionKey, Routine, RoutineTrigger, RoutineVariable } from "@outpost/shared";
+import { activityLog, agents, builtInManagedResources, spaces, issueThreadInteractions, issues, routines, routineTriggers, fileStorageDb } from "@outpost/db";
+import { agentHarnessType, outpostRunnerProfileForHarness, agentRunner, syncRoutineVariablesWithTemplate, type AgentRunnerChoice } from "@outpost/shared";
+import type { Agent, Approval, SpaceSkill, PermissionKey, Routine, RoutineTrigger, RoutineVariable } from "@outpost/shared";
 import { conflict, HttpError, notFound, unprocessable } from "../errors.js";
 import { logActivity } from "./activity-log.js";
 import { adoptAgentFiles, agentFilePath, fileHash, readAgentFile, snapshotAgentFiles } from "./agent-file-store.js";
@@ -19,13 +19,13 @@ import { agentInstructionRevisionService } from "./agent-instruction-revisions.j
 import type { AuthorizationActor } from "./authorization.js";
 import { agentInstructionsBundleMode, agentInstructionsService } from "./agent-instructions.js";
 import { agentService } from "./agents.js";
-import { resolveNewAgentRunnerForCompany } from "./agent-runner-selection.js";
+import { resolveNewAgentRunnerForSpace } from "./agent-runner-selection.js";
 import { approvalService } from "./approvals.js";
 import {
   readBuiltInAgentMarker,
   withBuiltInAgentMarker,
 } from "../lib/built-in-agent-metadata.js";
-import { companySkillService } from "./company-skills.js";
+import { spaceSkillService } from "./space-skills.js";
 import { routineService } from "./routines.js";
 import { accessService } from "./access.js";
 import { listAdapterModels } from "../adapters/registry.js";
@@ -178,7 +178,7 @@ const FALLBACK_REFLECTION_COACH_SKILL = [
   "---",
   "name: reflection-coach",
   "description: Reflect on another agent's recent execution record and propose the smallest review-gated improvement.",
-  "key: paperclipai/bundled/paperclip-operations/reflection-coach",
+  "key: outpost/bundled/outpost-operations/reflection-coach",
   "---",
   "",
   "# Reflection Coach",
@@ -192,7 +192,7 @@ const FALLBACK_SUMMARIZER_INSTRUCTIONS = [
   "",
   "Turn the current state of an Outpost scope (project, workspaces overview, project workspace, or execution workspace) into a short, honest, human-readable Markdown summary and write it back to that scope's summary slot as a new revision. Use the `summarize-status` skill as your operating procedure.",
   "",
-  "Read-and-report only: never change issues, workspaces, or code. Cite issue identifiers, never fabricate status, keep every read company-scoped, and run on the low-cost model profile lane by default.",
+  "Read-and-report only: never change issues, workspaces, or code. Cite issue identifiers, never fabricate status, keep every read space-scoped, and run on the low-cost model profile lane by default.",
   "",
 ].join("\n");
 
@@ -207,7 +207,7 @@ const FALLBACK_SUMMARIZER_SKILL = [
   "---",
   "name: summarize-status",
   "description: Write a short, colloquial summary for an Outpost summary slot: open with the 1–3 specific, concrete actions the reader needs to take right now to unblock the work, then a brief plain-language status, streaming progress as it works.",
-  "key: paperclipai/bundled/paperclip-operations/summarize-status",
+  "key: outpost/bundled/outpost-operations/summarize-status",
   "---",
   "",
   "# Summarize status",
@@ -281,10 +281,10 @@ const REFLECTION_COACH_SKILL = readBuiltInTextWithFallback(
   [
     path.resolve(
       moduleDir,
-      "../../../packages/skills-catalog/catalog/bundled/paperclip-operations/reflection-coach/SKILL.md",
+      "../../../packages/skills-catalog/catalog/bundled/outpost-operations/reflection-coach/SKILL.md",
     ),
     ...(skillsCatalogRoot
-      ? [path.join(skillsCatalogRoot, "catalog/bundled/paperclip-operations/reflection-coach/SKILL.md")]
+      ? [path.join(skillsCatalogRoot, "catalog/bundled/outpost-operations/reflection-coach/SKILL.md")]
       : []),
   ],
   FALLBACK_REFLECTION_COACH_SKILL,
@@ -300,10 +300,10 @@ const SUMMARIZER_SKILL = readBuiltInTextWithFallback(
   [
     path.resolve(
       moduleDir,
-      "../../../packages/skills-catalog/catalog/bundled/paperclip-operations/summarize-status/SKILL.md",
+      "../../../packages/skills-catalog/catalog/bundled/outpost-operations/summarize-status/SKILL.md",
     ),
     ...(skillsCatalogRoot
-      ? [path.join(skillsCatalogRoot, "catalog/bundled/paperclip-operations/summarize-status/SKILL.md")]
+      ? [path.join(skillsCatalogRoot, "catalog/bundled/outpost-operations/summarize-status/SKILL.md")]
       : []),
   ],
   FALLBACK_SUMMARIZER_SKILL,
@@ -314,9 +314,9 @@ const DEFINITIONS = validateBuiltInAgentDefinitions([
     key: "briefs",
     displayName: "Briefs Agent",
     featureKeys: ["briefs"],
-    shortPurpose: "Prepares concise operational briefs for the board and agent company.",
+    shortPurpose: "Prepares concise operational briefs for the operator and agent space.",
     defaultInstructions:
-      "You are Outpost's built-in Briefs agent. Produce concise, sourced operational briefs that help the board understand current company work, risks, and next actions.",
+      "You are Outpost's built-in Briefs agent. Produce concise, sourced operational briefs that help the operator understand current space work, risks, and next actions.",
     defaultRole: "general",
     allowedAdapterTypes: ["codex_local", "claude_local", "gemini_local", "opencode_local", "process"],
     defaultBudgetMonthlyCents: 0,
@@ -325,7 +325,7 @@ const DEFINITIONS = validateBuiltInAgentDefinitions([
     key: "learning",
     displayName: "Learning Agent",
     featureKeys: ["learning"],
-    shortPurpose: "Maintains reusable company learning from completed work and recurring patterns.",
+    shortPurpose: "Maintains reusable space learning from completed work and recurring patterns.",
     defaultInstructions:
       "You are Outpost's built-in Learning agent. Extract durable lessons from completed work, preserve useful patterns, and keep learning artifacts grounded in source context.",
     defaultRole: "general",
@@ -367,7 +367,7 @@ const DEFINITIONS = validateBuiltInAgentDefinitions([
         skillKey: "reflection-coach",
         displayName: "Reflection Coach",
         slug: "reflection-coach",
-        canonicalKey: "paperclipai/bundled/paperclip-operations/reflection-coach",
+        canonicalKey: "outpost/bundled/outpost-operations/reflection-coach",
         files: {
           "reflection-coach/SKILL.md": REFLECTION_COACH_SKILL,
         },
@@ -439,7 +439,7 @@ const DEFINITIONS = validateBuiltInAgentDefinitions([
         skillKey: "summarize-status",
         displayName: "Summarize status",
         slug: "summarize-status",
-        canonicalKey: "paperclipai/bundled/paperclip-operations/summarize-status",
+        canonicalKey: "outpost/bundled/outpost-operations/summarize-status",
         files: {
           "summarize-status/SKILL.md": SUMMARIZER_SKILL,
         },
@@ -481,10 +481,10 @@ const DEFINITIONS = validateBuiltInAgentDefinitions([
 const DEFINITIONS_BY_KEY = new Map(DEFINITIONS.map((definition) => [definition.key, definition]));
 
 // Bundled built-in agents that should be provisioned automatically when a
-// company is created (and re-ensured on startup reconcile). Empty by default so
+// space is created (and re-ensured on startup reconcile). Empty by default so
 // a new user starts clean — the Reflection Coach and Summarizer are opt-in, not
 // seeded. Add a definition key here to restore automatic provisioning.
-const AUTO_PROVISION_ON_COMPANY_CREATE_KEYS = new Set<string>([]);
+const AUTO_PROVISION_ON_SPACE_CREATE_KEYS = new Set<string>([]);
 
 const BUILT_IN_AGENT_DEFAULT_GRANTS: Record<string, PermissionKey[]> = {
   "reflection-coach": ["agents:suggest-changes", "skills:suggest-changes"],
@@ -720,7 +720,7 @@ export function deriveBuiltInAgentStatus(agent: Pick<Agent, "adapterType" | "ada
   if (!agent) return "not_provisioned";
   if (agent.status === "pending_approval") return "pending_approval";
   if (agent.status === "paused" || agent.pausedAt) return "paused";
-  return agent.metadata?.paperclipBuiltInSetupRequired !== true && hasCompleteAdapterConfig(agent.adapterType, agent.adapterConfig) ? "ready" : "needs_setup";
+  return agent.metadata?.outpostBuiltInSetupRequired !== true && hasCompleteAdapterConfig(agent.adapterType, agent.adapterConfig) ? "ready" : "needs_setup";
 }
 
 function builtInMetadata(definition: BuiltInAgentDefinition, existing?: Record<string, unknown> | null) {
@@ -788,9 +788,9 @@ function rowIsBuiltInAgent(row: typeof agents.$inferSelect, key: string) {
 }
 
 // Partial unique index (migration 0192) that guarantees one active built-in
-// agent per (company, marker key). A losing provisioning race raises this as a
+// agent per (space, marker key). A losing provisioning race raises this as a
 // 23505; provision()/ensure() catch it and re-resolve to the winning row.
-const BUILT_IN_AGENT_MARKER_UNIQUE_INDEX = "agents_company_built_in_agent_key_unique_idx";
+const BUILT_IN_AGENT_MARKER_UNIQUE_INDEX = "agents_space_built_in_agent_key_unique_idx";
 
 function isBuiltInAgentMarkerConflict(error: unknown): boolean {
   const seen = new Set<unknown>();
@@ -813,24 +813,24 @@ export function builtInAgentService(db: Db) {
   const accessSvc = accessService(db);
   const approvalSvc = approvalService(db);
   const instructionsSvc = agentInstructionsService(db);
-  const skillSvc = companySkillService(db);
+  const skillSvc = spaceSkillService(db);
   const routineSvc = routineService(db);
 
-  async function findSingleRootManager(companyId: string) {
+  async function findSingleRootManager(spaceId: string) {
     const roots = await db
       .select()
       .from(agents)
-      .where(and(eq(agents.companyId, companyId), ne(agents.status, "terminated")));
+      .where(and(eq(agents.spaceId, spaceId), ne(agents.status, "terminated")));
     const nonBuiltInRoots = roots.filter((agent) => !readBuiltInAgentMarker(agent.metadata) && !agent.reportsTo);
     return nonBuiltInRoots.length === 1 ? nonBuiltInRoots[0]!.id : null;
   }
 
-  async function ensureAgentDefaultGrants(companyId: string, agentId: string, grantKeys: PermissionKey[]) {
+  async function ensureAgentDefaultGrants(spaceId: string, agentId: string, grantKeys: PermissionKey[]) {
     if (grantKeys.length === 0) return 0;
-    await accessSvc.ensureMembership(companyId, "agent", agentId, "member", "active");
+    await accessSvc.ensureMembership(spaceId, "agent", agentId, "member", "active");
     let ensured = 0;
     for (const permissionKey of grantKeys) {
-      await accessSvc.setPrincipalPermission(companyId, "agent", agentId, permissionKey, true, null);
+      await accessSvc.setPrincipalPermission(spaceId, "agent", agentId, permissionKey, true, null);
       ensured += 1;
     }
     return ensured;
@@ -839,23 +839,23 @@ export function builtInAgentService(db: Db) {
   async function ensureBuiltInAgentDefaultGrants(agent: Agent, definition: BuiltInAgentDefinition) {
     if (agent.status === "pending_approval" || agent.status === "terminated") return 0;
     return ensureAgentDefaultGrants(
-      agent.companyId,
+      agent.spaceId,
       agent.id,
       BUILT_IN_AGENT_DEFAULT_GRANTS[definition.key] ?? [],
     );
   }
 
-  async function ensureCompanyDefaultAgentGrants(companyId: string) {
+  async function ensureSpaceDefaultAgentGrants(spaceId: string) {
     let ensured = 0;
     for (const definition of DEFINITIONS) {
-      const agent = await findSingleAgent(companyId, definition);
+      const agent = await findSingleAgent(spaceId, definition);
       if (!agent) continue;
       ensured += await ensureBuiltInAgentDefaultGrants(agent as Agent, definition);
     }
     return ensured;
   }
 
-  async function defaultProvisionInput(companyId: string, definition: BuiltInAgentDefinition, input: BuiltInAgentProvisionInput) {
+  async function defaultProvisionInput(spaceId: string, definition: BuiltInAgentDefinition, input: BuiltInAgentProvisionInput) {
     if (input.adapterType || input.adapterConfig) return input;
     if (definition.defaultAdapterType || definition.defaultAdapterConfig) {
       return {
@@ -871,7 +871,7 @@ export function builtInAgentService(db: Db) {
         adapterConfig: agents.adapterConfig,
       })
       .from(agents)
-      .where(and(eq(agents.companyId, companyId), ne(agents.status, "terminated")));
+      .where(and(eq(agents.spaceId, spaceId), ne(agents.status, "terminated")));
     const candidate = rows.find((row) =>
       definition.allowedAdapterTypes?.includes(agentHarnessType(row.adapterType, row.adapterConfig))
       && hasCompleteAdapterConfig(row.adapterType, row.adapterConfig)
@@ -885,7 +885,7 @@ export function builtInAgentService(db: Db) {
   }
 
   async function getManagedResourceBinding(
-    companyId: string,
+    spaceId: string,
     bundleKey: string,
     resourceKind: BuiltInManagedResourceKind,
     resourceKey: string,
@@ -894,7 +894,7 @@ export function builtInAgentService(db: Db) {
       .select()
       .from(builtInManagedResources)
       .where(and(
-        eq(builtInManagedResources.companyId, companyId),
+        eq(builtInManagedResources.spaceId, spaceId),
         eq(builtInManagedResources.bundleKey, bundleKey),
         eq(builtInManagedResources.resourceKind, resourceKind),
         eq(builtInManagedResources.resourceKey, resourceKey),
@@ -903,7 +903,7 @@ export function builtInAgentService(db: Db) {
   }
 
   async function upsertManagedResourceBinding(input: {
-    companyId: string;
+    spaceId: string;
     bundleKey: string;
     resourceKind: BuiltInManagedResourceKind;
     resourceKey: string;
@@ -918,7 +918,7 @@ export function builtInAgentService(db: Db) {
       .values(input)
       .onConflictDoUpdate({
         target: [
-          builtInManagedResources.companyId,
+          builtInManagedResources.spaceId,
           builtInManagedResources.bundleKey,
           builtInManagedResources.resourceKind,
           builtInManagedResources.resourceKey,
@@ -950,10 +950,10 @@ export function builtInAgentService(db: Db) {
   async function materializeInstructions(agent: Agent, definition: BuiltInAgentDefinition, mode: "reconcile" | "reset", actor?: AuthorizationActor) {
     const bundle = definition.bundle!;
     const stock = stockHash(bundle.instructions.files);
-    const binding = await getManagedResourceBinding(agent.companyId, definition.key, "instructions", "AGENTS.md");
+    const binding = await getManagedResourceBinding(agent.spaceId, definition.key, "instructions", "AGENTS.md");
     // Stock operations also read the committed projection after interrupted writes.
     if (agentInstructionsBundleMode(agent) === "managed") {
-      try { await agentInstructionRevisionService(db).materializeCurrent({ companyId: agent.companyId, agentId: agent.id }); }
+      try { await agentInstructionRevisionService(db).materializeCurrent({ spaceId: agent.spaceId, agentId: agent.id }); }
       catch (error) { if (!(error instanceof HttpError && error.status === 404)) throw error; }
     }
     const currentFiles = await currentInstructionFiles(agent, bundle);
@@ -971,7 +971,7 @@ export function builtInAgentService(db: Db) {
 
     if (!actor && mode === "reconcile" && agentInstructionsBundleMode(agent) === "managed"
       && binding && (binding.stockHash !== stock || binding.defaultsJson.pendingInstructionsUpdate)) {
-      const bindingWhere = and(eq(builtInManagedResources.companyId, agent.companyId),
+      const bindingWhere = and(eq(builtInManagedResources.spaceId, agent.spaceId),
         eq(builtInManagedResources.bundleKey, definition.key), eq(builtInManagedResources.resourceKind, "instructions"),
         eq(builtInManagedResources.resourceKey, "AGENTS.md"));
       const incoming = Object.fromEntries(Object.entries(bundle.instructions.files)
@@ -980,7 +980,7 @@ export function builtInAgentService(db: Db) {
       // files. If a write or DB commit fails, the next reconciliation can accept
       // already-applied bytes and retry. This is not instruction revision history.
       const prepared = await fileStorageDb(db).transaction(async (tx) => {
-        const [current] = await tx.select().from(agents).where(and(eq(agents.companyId, agent.companyId), eq(agents.id, agent.id))).for("update");
+        const [current] = await tx.select().from(agents).where(and(eq(agents.spaceId, agent.spaceId), eq(agents.id, agent.id))).for("update");
         if (!current) throw notFound("Built-in agent not found");
         if (agentInstructionsBundleMode(current) !== "managed") return false;
         const root = await adoptAgentFiles(tx, current);
@@ -1030,7 +1030,7 @@ export function builtInAgentService(db: Db) {
       });
       if (!prepared) return currentState;
       return fileStorageDb(db).transaction(async (tx) => {
-        const [current] = await tx.select().from(agents).where(and(eq(agents.companyId, agent.companyId), eq(agents.id, agent.id))).for("update");
+        const [current] = await tx.select().from(agents).where(and(eq(agents.spaceId, agent.spaceId), eq(agents.id, agent.id))).for("update");
         if (!current) throw notFound("Built-in agent not found");
         if (agentInstructionsBundleMode(current) !== "managed") return currentState;
         const root = await adoptAgentFiles(tx, current);
@@ -1052,12 +1052,12 @@ export function builtInAgentService(db: Db) {
           if (!(file in incoming)) await fs.rm(await assertInstructionPathSafe(root, file), { force: true });
         }
         await persistDurableAgentFiles(tx, current, root);
-        await upsertManagedResourceBinding({ companyId: agent.companyId, bundleKey: definition.key,
+        await upsertManagedResourceBinding({ spaceId: agent.spaceId, bundleKey: definition.key,
           resourceKind: "instructions", resourceKey: "AGENTS.md", resourceId: agent.id,
           stockVersion: bundle.stockVersion, stockHash: stock,
           defaultsJson: { entryFile: bundle.instructions.entryFile, files: Object.keys(bundle.instructions.files) },
         }, tx);
-        await tx.insert(activityLog).values({ companyId: agent.companyId, actorType: "system", actorId: "built-in-reconcile",
+        await tx.insert(activityLog).values({ spaceId: agent.spaceId, actorType: "system", actorId: "built-in-reconcile",
           action: "agent.files_updated", entityType: "agent", entityId: agent.id,
           details: { source: "built-in-stock-update", bundleKey: definition.key, stockHash: stock } });
         return stockState({ resourceKind: "instructions", resourceKey: "AGENTS.md", resourceId: agent.id,
@@ -1072,7 +1072,7 @@ export function builtInAgentService(db: Db) {
     if (!shouldWrite) {
       if (!binding && currentHash === stock) {
         await upsertManagedResourceBinding({
-          companyId: agent.companyId,
+          spaceId: agent.spaceId,
           bundleKey: definition.key,
           resourceKind: "instructions",
           resourceKey: "AGENTS.md",
@@ -1093,11 +1093,11 @@ export function builtInAgentService(db: Db) {
       if (!actor && mode === "reconcile") return currentState;
       if (!actor) throw unprocessable("Resetting existing instructions requires an authenticated operator", { code: "INSTRUCTION_IDENTITY_INVALID" });
       const revisions = agentInstructionRevisionService(db);
-      const target = { companyId: agent.companyId, agentId: agent.id };
+      const target = { spaceId: agent.spaceId, agentId: agent.id };
       const baseline = await revisions.readCurrent(target, actor);
       const receipt = await revisions.commit({ ...target, entryFile: bundle.instructions.entryFile,
         baseRevisionId: baseline?.revision.id ?? null, content: bundle.instructions.files[bundle.instructions.entryFile] ?? "",
-        source: actor.type === "board" ? "board" : "api" }, actor);
+        source: actor.type === "operator" ? "operator" : "api" }, actor);
       if (receipt.materialization === "pending") throw conflict("Instruction revision saved; retry reset to repair its disk copy", { revisionId: receipt.revision.id });
       const refreshed = await agentSvc.getById(agent.id);
       if (!refreshed) throw notFound("Built-in agent not found");
@@ -1124,7 +1124,7 @@ export function builtInAgentService(db: Db) {
     });
     if (!updated) throw notFound("Built-in agent not found");
     await upsertManagedResourceBinding({
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       bundleKey: definition.key,
       resourceKind: "instructions",
       resourceKey: "AGENTS.md",
@@ -1147,7 +1147,7 @@ export function builtInAgentService(db: Db) {
     });
   }
 
-  async function getCurrentSkillFiles(companyId: string, skill: CompanySkill | null, bundle: BuiltInAgentBundleDefinition) {
+  async function getCurrentSkillFiles(spaceId: string, skill: SpaceSkill | null, bundle: BuiltInAgentBundleDefinition) {
     const currentFiles: Record<string, string | null> = {};
     const stockFiles = bundle.skill.files;
     for (const packagePath of Object.keys(stockFiles)) {
@@ -1161,7 +1161,7 @@ export function builtInAgentService(db: Db) {
         continue;
       }
       try {
-        currentFiles[packagePath] = (await skillSvc.readFile(companyId, skill.id, relativePath))?.content ?? null;
+        currentFiles[packagePath] = (await skillSvc.readFile(spaceId, skill.id, relativePath))?.content ?? null;
       } catch {
         currentFiles[packagePath] = null;
       }
@@ -1169,22 +1169,22 @@ export function builtInAgentService(db: Db) {
     return currentFiles;
   }
 
-  async function importBundledSkill(companyId: string, definition: BuiltInAgentDefinition) {
-    const results = await skillSvc.importPackageFiles(companyId, definition.bundle!.skill.files, { onConflict: "replace" });
+  async function importBundledSkill(spaceId: string, definition: BuiltInAgentDefinition) {
+    const results = await skillSvc.importPackageFiles(spaceId, definition.bundle!.skill.files, { onConflict: "replace" });
     const imported = results.find((result) => result.skill.key === definition.bundle!.skill.canonicalKey)?.skill
       ?? results[0]?.skill
-      ?? await skillSvc.getByKey(companyId, definition.bundle!.skill.canonicalKey);
+      ?? await skillSvc.getByKey(spaceId, definition.bundle!.skill.canonicalKey);
     if (!imported) throw notFound("Built-in bundled skill was not imported");
     return imported;
   }
 
-  async function syncBundledSkillToAgent(agent: Agent, skill: CompanySkill) {
-    const desired = readPaperclipSkillSyncPreference(agent.adapterConfig as Record<string, unknown>).desiredSkillEntries;
+  async function syncBundledSkillToAgent(agent: Agent, skill: SpaceSkill) {
+    const desired = readOutpostSkillSyncPreference(agent.adapterConfig as Record<string, unknown>).desiredSkillEntries;
     const nextDesired = [
       ...desired.filter((entry) => entry.key !== skill.key),
       { key: skill.key, versionId: skill.currentVersionId ?? null },
     ];
-    const adapterConfig = writePaperclipSkillSyncPreference(agent.adapterConfig as Record<string, unknown>, nextDesired);
+    const adapterConfig = writeOutpostSkillSyncPreference(agent.adapterConfig as Record<string, unknown>, nextDesired);
     const updated = await agentSvc.update(agent.id, { adapterConfig }, {
       allowBuiltInAgentMetadata: true,
       recordRevision: { source: "built-in-bundle:skill-sync" },
@@ -1196,11 +1196,11 @@ export function builtInAgentService(db: Db) {
   async function materializeSkill(agent: Agent, definition: BuiltInAgentDefinition, mode: "reconcile" | "reset") {
     const bundle = definition.bundle!;
     const stock = stockHash(bundle.skill.files);
-    const binding = await getManagedResourceBinding(agent.companyId, definition.key, "skill", bundle.skill.skillKey);
-    const boundSkill = binding ? await skillSvc.getById(agent.companyId, binding.resourceId) : null;
-    const existingByKey = await skillSvc.getByKey(agent.companyId, bundle.skill.canonicalKey);
+    const binding = await getManagedResourceBinding(agent.spaceId, definition.key, "skill", bundle.skill.skillKey);
+    const boundSkill = binding ? await skillSvc.getById(agent.spaceId, binding.resourceId) : null;
+    const existingByKey = await skillSvc.getByKey(agent.spaceId, bundle.skill.canonicalKey);
     const skill = boundSkill ?? existingByKey;
-    const currentFiles = await getCurrentSkillFiles(agent.companyId, skill, bundle);
+    const currentFiles = await getCurrentSkillFiles(agent.spaceId, skill, bundle);
     const currentHash = skill && Object.values(currentFiles).every((value) => value !== null)
       ? stockHash(currentFiles)
       : null;
@@ -1219,9 +1219,9 @@ export function builtInAgentService(db: Db) {
       mode === "reset"
       || currentState.stockStatus === "missing"
       || currentState.stockStatus === "stock_update_available";
-    const nextSkill = shouldWrite ? await importBundledSkill(agent.companyId, definition) : skill!;
+    const nextSkill = shouldWrite ? await importBundledSkill(agent.spaceId, definition) : skill!;
     await upsertManagedResourceBinding({
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       bundleKey: definition.key,
       resourceKind: "skill",
       resourceKey: bundle.skill.skillKey,
@@ -1307,19 +1307,19 @@ export function builtInAgentService(db: Db) {
     });
   }
 
-  async function getRoutineByBinding(companyId: string, definition: BuiltInAgentDefinition) {
-    const binding = await getManagedResourceBinding(companyId, definition.key, "routine", definition.bundle!.routine.routineKey);
+  async function getRoutineByBinding(spaceId: string, definition: BuiltInAgentDefinition) {
+    const binding = await getManagedResourceBinding(spaceId, definition.key, "routine", definition.bundle!.routine.routineKey);
     const routine = binding
       ? await db
         .select()
         .from(routines)
-        .where(and(eq(routines.companyId, companyId), eq(routines.id, binding.resourceId)))
+        .where(and(eq(routines.spaceId, spaceId), eq(routines.id, binding.resourceId)))
         .then((rows) => rows[0] as Routine | undefined ?? null)
       : await db
         .select()
         .from(routines)
         .where(and(
-          eq(routines.companyId, companyId),
+          eq(routines.spaceId, spaceId),
           eq(routines.originKind, "built_in_agent_bundle"),
           eq(routines.originId, `${definition.key}:${definition.bundle!.routine.routineKey}`),
         ))
@@ -1352,7 +1352,7 @@ export function builtInAgentService(db: Db) {
       .from(issueThreadInteractions)
       .innerJoin(issues, eq(issueThreadInteractions.issueId, issues.id))
       .where(and(
-        eq(issueThreadInteractions.companyId, agent.companyId),
+        eq(issueThreadInteractions.spaceId, agent.spaceId),
         eq(issueThreadInteractions.createdByAgentId, agent.id),
         eq(issueThreadInteractions.kind, "request_confirmation"),
         eq(issueThreadInteractions.status, "pending"),
@@ -1380,15 +1380,15 @@ export function builtInAgentService(db: Db) {
     };
   }
 
-  async function requireBundleRoutine(companyId: string, key: string, routineKey: string) {
+  async function requireBundleRoutine(spaceId: string, key: string, routineKey: string) {
     const definition = requireBuiltInAgentDefinition(key);
     if (!definition.bundle || definition.bundle.routine.routineKey !== routineKey) {
       throw notFound("Built-in routine not found");
     }
-    await ensureCompany(companyId);
-    const agent = await findSingleAgent(companyId, definition);
+    await ensureSpace(spaceId);
+    const agent = await findSingleAgent(spaceId, definition);
     if (!agent) throw notFound("Built-in agent is not provisioned");
-    const current = await getRoutineByBinding(companyId, definition);
+    const current = await getRoutineByBinding(spaceId, definition);
     if (!current.routine) throw notFound("Built-in routine not found");
     const schedule = current.triggers.find((trigger) => trigger.kind === "schedule") ?? null;
     return { definition, agent, routine: current.routine, triggers: current.triggers, schedule };
@@ -1415,7 +1415,7 @@ export function builtInAgentService(db: Db) {
         catchUpPolicy: routine.catchUpPolicy,
         variables: routine.variables,
       }, actor)
-      : await routineSvc.create(agent.companyId, {
+      : await routineSvc.create(agent.spaceId, {
         title: routine.title,
         description: routine.description,
         assigneeAgentId: agent.id,
@@ -1459,7 +1459,7 @@ export function builtInAgentService(db: Db) {
       }, actor);
     }
     await logActivity(db, {
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       actorType: "system",
       actorId: "built-in-bundles",
       action: mode === "reset" ? "built_in_agent.routine_reset" : "built_in_agent.routine_reconciled",
@@ -1477,7 +1477,7 @@ export function builtInAgentService(db: Db) {
   async function materializeRoutine(agent: Agent, definition: BuiltInAgentDefinition, mode: "reconcile" | "reset") {
     const bundle = definition.bundle!;
     const stock = routineDefaultsHash(bundle.routine, bundle.routine.triggers);
-    const { binding, routine, triggers } = await getRoutineByBinding(agent.companyId, definition);
+    const { binding, routine, triggers } = await getRoutineByBinding(agent.spaceId, definition);
     const currentHash = routine ? routineDefaultsHash({
       title: routine.title,
       description: routine.description ?? "",
@@ -1503,7 +1503,7 @@ export function builtInAgentService(db: Db) {
       ? await createOrResetRoutine(agent, definition, routine, mode)
       : routine!;
     await upsertManagedResourceBinding({
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       bundleKey: definition.key,
       resourceKind: "routine",
       resourceKey: bundle.routine.routineKey,
@@ -1516,7 +1516,7 @@ export function builtInAgentService(db: Db) {
         triggerCount: bundle.routine.triggers.length,
       },
     });
-    const next = await getRoutineByBinding(agent.companyId, definition);
+    const next = await getRoutineByBinding(agent.spaceId, definition);
     return withRoutineControls(stockState({
       resourceKind: "routine",
       resourceKey: bundle.routine.routineKey,
@@ -1532,20 +1532,20 @@ export function builtInAgentService(db: Db) {
     });
   }
 
-  async function bundleResourceStates(companyId: string, definition: BuiltInAgentDefinition, agent: Agent | null) {
+  async function bundleResourceStates(spaceId: string, definition: BuiltInAgentDefinition, agent: Agent | null) {
     if (!definition.bundle || !agent) return [];
     const bundle = definition.bundle;
     const [instructionBinding, skillBinding, routineBinding] = await Promise.all([
-      getManagedResourceBinding(companyId, definition.key, "instructions", "AGENTS.md"),
-      getManagedResourceBinding(companyId, definition.key, "skill", bundle.skill.skillKey),
-      getManagedResourceBinding(companyId, definition.key, "routine", bundle.routine.routineKey),
+      getManagedResourceBinding(spaceId, definition.key, "instructions", "AGENTS.md"),
+      getManagedResourceBinding(spaceId, definition.key, "skill", bundle.skill.skillKey),
+      getManagedResourceBinding(spaceId, definition.key, "routine", bundle.routine.routineKey),
     ]);
     const instructionFiles = await currentInstructionFiles(agent, bundle);
     const skill = skillBinding
-      ? await skillSvc.getById(companyId, skillBinding.resourceId)
-      : await skillSvc.getByKey(companyId, bundle.skill.canonicalKey);
-    const skillFiles = await getCurrentSkillFiles(companyId, skill, bundle);
-    const { routine, triggers } = await getRoutineByBinding(companyId, definition);
+      ? await skillSvc.getById(spaceId, skillBinding.resourceId)
+      : await skillSvc.getByKey(spaceId, bundle.skill.canonicalKey);
+    const skillFiles = await getCurrentSkillFiles(spaceId, skill, bundle);
+    const { routine, triggers } = await getRoutineByBinding(spaceId, definition);
     const proposal = await pendingUpdateProposal(agent);
     const instructionHash = Object.values(instructionFiles).every((value) => value !== null)
       ? stockHash(instructionFiles)
@@ -1603,7 +1603,7 @@ export function builtInAgentService(db: Db) {
   ) {
     if (!definition.bundle) return [];
     const selected = new Set(resources ?? ["instructions", "skill", "routine"]);
-    const existingStates = await bundleResourceStates(agent.companyId, definition, agent);
+    const existingStates = await bundleResourceStates(agent.spaceId, definition, agent);
     const byKind = new Map(existingStates.map((state) => [state.resourceKind, state]));
     const instruction = selected.has("instructions")
       ? await materializeInstructions(agent, definition, mode, actor)
@@ -1621,24 +1621,24 @@ export function builtInAgentService(db: Db) {
     return [instruction, skill, routine];
   }
 
-  async function ensureCompany(companyId: string) {
-    const company = await db
+  async function ensureSpace(spaceId: string) {
+    const space = await db
       .select({
-        id: companies.id,
-        requireBoardApprovalForNewAgents: companies.requireBoardApprovalForNewAgents,
+        id: spaces.id,
+        requireOperatorApprovalForNewAgents: spaces.requireOperatorApprovalForNewAgents,
       })
-      .from(companies)
-      .where(eq(companies.id, companyId))
+      .from(spaces)
+      .where(eq(spaces.id, spaceId))
       .then((rows) => rows[0] ?? null);
-    if (!company) throw notFound("Outpost not found");
-    return company;
+    if (!space) throw notFound("Outpost not found");
+    return space;
   }
 
-  async function findMarkedRows(companyId: string, key: string) {
+  async function findMarkedRows(spaceId: string, key: string) {
     const rows = await db
       .select()
       .from(agents)
-      .where(and(eq(agents.companyId, companyId), ne(agents.status, "terminated")));
+      .where(and(eq(agents.spaceId, spaceId), ne(agents.status, "terminated")));
     return rows
       .filter((row) => rowIsBuiltInAgent(row, key))
       .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime() || left.id.localeCompare(right.id));
@@ -1646,16 +1646,16 @@ export function builtInAgentService(db: Db) {
 
   // Self-heal duplicate built-in agents. `findMarkedRows` already sorts oldest
   // first, so the first row is authoritative: keep it, terminate the rest, and
-  // cancel each duplicate's orphan pending hire_agent approval. Idempotent, so
+  // cancel each duplicate's orphan pending create_agent approval. Idempotent, so
   // concurrent callers converge on the same surviving row.
   async function resolveDuplicateMarkedRows(
-    companyId: string,
+    spaceId: string,
     definition: BuiltInAgentDefinition,
     markedRows: Array<typeof agents.$inferSelect>,
   ) {
     const [keep, ...duplicates] = markedRows;
     for (const duplicate of duplicates) {
-      const openApproval = await approvalSvc.findOpenHireApprovalForAgent(companyId, duplicate.id);
+      const openApproval = await approvalSvc.findOpenCreationApprovalForAgent(spaceId, duplicate.id);
       await agentSvcLifecycle().terminateAgent(duplicate.id);
       if (openApproval) {
         await approvalSvc.cancel(
@@ -1664,7 +1664,7 @@ export function builtInAgentService(db: Db) {
         );
       }
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "system",
         actorId: "built-in-agents",
         action: "built_in_agent.duplicate_resolved",
@@ -1681,11 +1681,11 @@ export function builtInAgentService(db: Db) {
     return keep!;
   }
 
-  async function findSingleAgent(companyId: string, definition: BuiltInAgentDefinition) {
-    const markedRows = await findMarkedRows(companyId, definition.key);
+  async function findSingleAgent(spaceId: string, definition: BuiltInAgentDefinition) {
+    const markedRows = await findMarkedRows(spaceId, definition.key);
     if (markedRows.length === 0) return null;
     const survivor = markedRows.length > 1
-      ? await resolveDuplicateMarkedRows(companyId, definition, markedRows)
+      ? await resolveDuplicateMarkedRows(spaceId, definition, markedRows)
       : markedRows[0]!;
     const agent = await agentSvc.getById(survivor.id);
     return agent as Agent | null;
@@ -1702,25 +1702,25 @@ export function builtInAgentService(db: Db) {
       agentId: agent?.id ?? null,
       agent,
       pauseReason: agent?.pauseReason ?? null,
-      resources: resources ?? await bundleResourceStates(agent?.companyId ?? "", definition, agent),
+      resources: resources ?? await bundleResourceStates(agent?.spaceId ?? "", definition, agent),
     };
   }
 
-  async function get(companyId: string, key: string) {
+  async function get(spaceId: string, key: string) {
     const definition = requireBuiltInAgentDefinition(key);
-    await ensureCompany(companyId);
-    return state(definition, await findSingleAgent(companyId, definition));
+    await ensureSpace(spaceId);
+    return state(definition, await findSingleAgent(spaceId, definition));
   }
 
   async function ensure(
-    companyId: string,
+    spaceId: string,
     key: string,
     input: BuiltInAgentProvisionInput = {},
     options: { isRaceRetry?: boolean; createdByUserId?: string | null; createdByAgentId?: string | null } = {},
   ) {
     const definition = requireBuiltInAgentDefinition(key);
-    await ensureCompany(companyId);
-    const existing = await findSingleAgent(companyId, definition);
+    await ensureSpace(spaceId);
+    const existing = await findSingleAgent(spaceId, definition);
     const existingPendingApproval = existing?.status === "pending_approval";
     const preserveExistingAdapter = Boolean(
       existing
@@ -1733,7 +1733,7 @@ export function builtInAgentService(db: Db) {
       ? input
       : existing && input.runner !== undefined && input.adapterType === undefined && input.adapterConfig === undefined
         ? { ...input, adapterType: existing.adapterType, adapterConfig: existing.adapterConfig }
-        : await defaultProvisionInput(companyId, definition, input);
+        : await defaultProvisionInput(spaceId, definition, input);
     if (!existingPendingApproval && !preserveExistingAdapter) {
       await assertKnownBuiltInAgentModel(definition, resolvedInput);
     }
@@ -1749,26 +1749,26 @@ export function builtInAgentService(db: Db) {
         const adapterConfig = resolvedInput.adapterConfig ?? existing.adapterConfig;
         assertAdapterAllowed(definition, adapterType, adapterConfig);
         const selectedHarness = agentHarnessType(adapterType, adapterConfig);
-        const sameQualifiedHarness = Boolean(paperclipRunnerProfileForHarness(selectedHarness))
+        const sameQualifiedHarness = Boolean(outpostRunnerProfileForHarness(selectedHarness))
           && agentHarnessType(existing.adapterType, existing.adapterConfig) === selectedHarness;
-        const runner = resolvedInput.runner ?? (sameQualifiedHarness && existing.metadata?.paperclipBuiltInSetupRequired !== true
+        const runner = resolvedInput.runner ?? (sameQualifiedHarness && existing.metadata?.outpostBuiltInSetupRequired !== true
           ? agentRunner(existing.adapterType) : undefined);
-        const retainedNative = sameQualifiedHarness && runner === "paperclip" && existing.adapterType === "outpost_runner";
+        const retainedNative = sameQualifiedHarness && runner === "outpost" && existing.adapterType === "outpost_runner";
         const resolvedAdapterConfig = { ...adapterConfig };
         if (retainedNative) {
           for (const field of ["provider", "acpxAgent", "acpxMode"]) {
             if (existing.adapterConfig[field] !== undefined) resolvedAdapterConfig[field] = existing.adapterConfig[field];
           }
         }
-        Object.assign(patch, runner !== undefined || existing.metadata?.paperclipBuiltInSetupRequired === true
-          ? await resolveNewAgentRunnerForCompany(db, companyId, {
+        Object.assign(patch, runner !== undefined || existing.metadata?.outpostBuiltInSetupRequired === true
+          ? await resolveNewAgentRunnerForSpace(db, spaceId, {
             adapterType: retainedNative ? existing.adapterType : adapterType,
             adapterConfig: resolvedAdapterConfig, runner,
             defaultEnvironmentId: existing.defaultEnvironmentId,
           })
           : { adapterType, adapterConfig });
         if (hasCompleteAdapterConfig(patch.adapterType ?? existing.adapterType, patch.adapterConfig ?? existing.adapterConfig)) {
-          patch.metadata = { ...patch.metadata, paperclipBuiltInSetupRequired: false };
+          patch.metadata = { ...patch.metadata, outpostBuiltInSetupRequired: false };
         }
       }
       if (!existingPendingApproval && resolvedInput.budgetMonthlyCents !== undefined) {
@@ -1779,7 +1779,7 @@ export function builtInAgentService(db: Db) {
         && definition.defaultManager === "single_root_agent"
         && !existing.reportsTo
       ) {
-        const reportsTo = await findSingleRootManager(companyId);
+        const reportsTo = await findSingleRootManager(spaceId);
         if (reportsTo) patch.reportsTo = reportsTo;
       }
       const updated = await agentSvc.update(existing.id, patch, {
@@ -1796,11 +1796,11 @@ export function builtInAgentService(db: Db) {
     }
 
     const reportsTo = definition.defaultManager === "single_root_agent"
-      ? await findSingleRootManager(companyId)
+      ? await findSingleRootManager(spaceId)
       : null;
     let created: Agent;
     try {
-      created = await agentSvcLifecycle().requestHire(companyId, {
+      created = await agentSvcLifecycle().requestCreation(spaceId, {
         ...definitionPatch(definition, resolvedInput),
         status: definition.defaultStatus ?? "idle",
         pauseReason: definition.defaultStatus === "paused"
@@ -1810,7 +1810,7 @@ export function builtInAgentService(db: Db) {
         reportsTo,
         metadata: {
           ...builtInMetadata(definition),
-          paperclipBuiltInSetupRequired: !hasCompleteAdapterConfig(
+          outpostBuiltInSetupRequired: !hasCompleteAdapterConfig(
             definitionPatch(definition, resolvedInput).adapterType,
             definitionPatch(definition, resolvedInput).adapterConfig,
           ),
@@ -1826,13 +1826,13 @@ export function builtInAgentService(db: Db) {
       // and the partial unique index rejected ours. Re-run once; the winning
       // row now exists, so we take the update path instead of inserting again.
       if (!options.isRaceRetry && isBuiltInAgentMarkerConflict(error)) {
-        return ensure(companyId, key, input, { isRaceRetry: true, createdByUserId: options.createdByUserId, createdByAgentId: options.createdByAgentId });
+        return ensure(spaceId, key, input, { isRaceRetry: true, createdByUserId: options.createdByUserId, createdByAgentId: options.createdByAgentId });
       }
       throw error;
     }
 
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "system",
       actorId: "built-in-agents",
       action: "built_in_agent.provisioned",
@@ -1851,29 +1851,29 @@ export function builtInAgentService(db: Db) {
   }
 
   async function provision(
-    companyId: string,
+    spaceId: string,
     key: string,
     input: BuiltInAgentProvisionInput = {},
     actor: BuiltInAgentProvisionActor = {},
   ): Promise<BuiltInAgentProvisionResult> {
     const definition = requireBuiltInAgentDefinition(key);
-    const company = await ensureCompany(companyId);
-    if (!company.requireBoardApprovalForNewAgents) {
-      return { state: await ensure(companyId, key, input, { createdByUserId: actor.requestedByUserId ?? null, createdByAgentId: actor.requestedByAgentId ?? null }), approval: null };
+    const space = await ensureSpace(spaceId);
+    if (!space.requireOperatorApprovalForNewAgents) {
+      return { state: await ensure(spaceId, key, input, { createdByUserId: actor.requestedByUserId ?? null, createdByAgentId: actor.requestedByAgentId ?? null }), approval: null };
     }
     await assertKnownBuiltInAgentModel(definition, input);
 
-    const existing = await findSingleAgent(companyId, definition);
+    const existing = await findSingleAgent(spaceId, definition);
     if (existing) {
       if (existing.status === "pending_approval") {
         if (hasProvisionSetupInput(input)) {
-          throw conflict("Built-in agent setup is already pending board approval.", {
+          throw conflict("Built-in agent setup is already pending operator approval.", {
             code: "built_in_agent_pending_approval",
             key: definition.key,
             agentId: existing.id,
           });
         }
-        const approval = await approvalSvc.findOpenHireApprovalForAgent(companyId, existing.id);
+        const approval = await approvalSvc.findOpenCreationApprovalForAgent(spaceId, existing.id);
         return {
           state: await state(definition, existing),
           approval: approval as Approval | null,
@@ -1886,18 +1886,18 @@ export function builtInAgentService(db: Db) {
       // config, i.e. `needs_setup`) is still first-time configuration, not a
       // reconfiguration of a live agent. Its existence was already sanctioned
       // when the row was created — e.g. the auto-provisioned Reflection Coach
-      // hire approval resolves (`activatePendingApproval`) to an idle row whose
+      // create approval resolves (`activatePendingApproval`) to an idle row whose
       // adapterConfig is still empty. Completing that setup applies directly, as
-      // it does when board approval is not required, instead of dead-ending on a
-      // fresh board-approval requirement the operator can never satisfy.
-      if (providesAdapterSetup && (existing.metadata?.paperclipBuiltInSetupRequired === true || !hasCompleteAdapterConfig(existing.adapterType, existing.adapterConfig))) {
-        return { state: await ensure(companyId, key, input, { createdByUserId: actor.requestedByUserId ?? null, createdByAgentId: actor.requestedByAgentId ?? null }), approval: null };
+      // it does when operator approval is not required, instead of dead-ending on a
+      // fresh operator-approval requirement the operator can never satisfy.
+      if (providesAdapterSetup && (existing.metadata?.outpostBuiltInSetupRequired === true || !hasCompleteAdapterConfig(existing.adapterType, existing.adapterConfig))) {
+        return { state: await ensure(spaceId, key, input, { createdByUserId: actor.requestedByUserId ?? null, createdByAgentId: actor.requestedByAgentId ?? null }), approval: null };
       }
 
       // Changing the adapter of an already-configured (`ready`/`paused`)
       // built-in agent is a genuine reconfiguration and stays gated.
       if (providesAdapterSetup) {
-        throw conflict("Built-in agent adapter changes require board approval before they can be applied.", {
+        throw conflict("Built-in agent adapter changes require operator approval before they can be applied.", {
           code: "built_in_agent_reconfiguration_requires_approval",
           key: definition.key,
           agentId: existing.id,
@@ -1908,17 +1908,17 @@ export function builtInAgentService(db: Db) {
     }
 
     const reportsTo = definition.defaultManager === "single_root_agent"
-      ? await findSingleRootManager(companyId)
+      ? await findSingleRootManager(spaceId)
       : null;
     let pending: Agent;
     try {
-      pending = await agentSvcLifecycle().requestHire(companyId, {
+      pending = await agentSvcLifecycle().requestCreation(spaceId, {
         ...definitionPatch(definition, input),
         status: "pending_approval",
         reportsTo,
         metadata: {
           ...builtInMetadata(definition),
-          paperclipBuiltInSetupRequired: !hasCompleteAdapterConfig(
+          outpostBuiltInSetupRequired: !hasCompleteAdapterConfig(
             definitionPatch(definition, input).adapterType,
             definitionPatch(definition, input).adapterConfig,
           ),
@@ -1930,14 +1930,14 @@ export function builtInAgentService(db: Db) {
       }, { allowBuiltInAgentMetadata: true, createdByUserId: actor.requestedByUserId ?? null }) as Agent;
     } catch (error) {
       // Lost the provisioning race: a concurrent writer inserted the row (and
-      // its own hire approval) first, and the partial unique index rejected
+      // its own create approval) first, and the partial unique index rejected
       // ours before we created a paired approval. Re-resolve to the winner and
       // return its pending state + open approval instead of surfacing the 23505.
       if (isBuiltInAgentMarkerConflict(error)) {
-        const winner = await findSingleAgent(companyId, definition);
+        const winner = await findSingleAgent(spaceId, definition);
         if (winner) {
           const winnerApproval = winner.status === "pending_approval"
-            ? await approvalSvc.findOpenHireApprovalForAgent(companyId, winner.id)
+            ? await approvalSvc.findOpenCreationApprovalForAgent(spaceId, winner.id)
             : null;
           return { state: await state(definition, winner), approval: winnerApproval as Approval | null };
         }
@@ -1945,8 +1945,8 @@ export function builtInAgentService(db: Db) {
       throw error;
     }
 
-    const approval = await approvalSvc.create(companyId, {
-      type: "hire_agent",
+    const approval = await approvalSvc.create(spaceId, {
+      type: "create_agent",
       requestedByAgentId: actor.requestedByAgentId ?? null,
       requestedByUserId: actor.requestedByUserId ?? null,
       status: "pending",
@@ -1976,15 +1976,15 @@ export function builtInAgentService(db: Db) {
     return { state: await state(definition, pending), approval };
   }
 
-  async function list(companyId: string) {
-    await ensureCompany(companyId);
-    return Promise.all(DEFINITIONS.map(async (definition) => state(definition, await findSingleAgent(companyId, definition))));
+  async function list(spaceId: string) {
+    await ensureSpace(spaceId);
+    return Promise.all(DEFINITIONS.map(async (definition) => state(definition, await findSingleAgent(spaceId, definition))));
   }
 
-  async function reconcileDefinitionDefaults(companyId: string, key: string) {
+  async function reconcileDefinitionDefaults(spaceId: string, key: string) {
     const definition = requireBuiltInAgentDefinition(key);
-    await ensureCompany(companyId);
-    const existing = await findSingleAgent(companyId, definition);
+    await ensureSpace(spaceId);
+    const existing = await findSingleAgent(spaceId, definition);
     if (!existing) return state(definition, null);
     const patch = {
       name: definition.displayName,
@@ -2003,12 +2003,12 @@ export function builtInAgentService(db: Db) {
     return state(definition, updated as Agent);
   }
 
-  async function reset(companyId: string, key: string, input: { resources?: Array<"agent" | "instructions" | "skill" | "routine"> } = {}, actor?: AuthorizationActor) {
+  async function reset(spaceId: string, key: string, input: { resources?: Array<"agent" | "instructions" | "skill" | "routine"> } = {}, actor?: AuthorizationActor) {
     const definition = requireBuiltInAgentDefinition(key);
     const resetAgentDefaults = !input.resources || input.resources.includes("agent");
     const current = resetAgentDefaults
-      ? await reconcileDefinitionDefaults(companyId, key)
-      : await get(companyId, key);
+      ? await reconcileDefinitionDefaults(spaceId, key)
+      : await get(spaceId, key);
     if (!current.agent || !definition.bundle) return current;
     const selectedBundleResources = input.resources?.filter(
       (resource): resource is "instructions" | "skill" | "routine" => resource !== "agent",
@@ -2024,13 +2024,13 @@ export function builtInAgentService(db: Db) {
   }
 
   async function setRoutineSchedule(
-    companyId: string,
+    spaceId: string,
     key: string,
     routineKey: string,
     enabled: boolean,
     actor: { agentId?: string | null; userId?: string | null; runId?: string | null } = {},
   ) {
-    const { definition, agent, routine, schedule } = await requireBundleRoutine(companyId, key, routineKey);
+    const { definition, agent, routine, schedule } = await requireBundleRoutine(spaceId, key, routineKey);
     if (!schedule) throw notFound("Built-in routine schedule not found");
     if (enabled) {
       await ensureBuiltInAgentAssignable(agent);
@@ -2044,18 +2044,18 @@ export function builtInAgentService(db: Db) {
   }
 
   async function runRoutine(
-    companyId: string,
+    spaceId: string,
     key: string,
     routineKey: string,
     actor: { agentId?: string | null; userId?: string | null; runId?: string | null } = {},
   ) {
-    const { agent, routine } = await requireBundleRoutine(companyId, key, routineKey);
+    const { agent, routine } = await requireBundleRoutine(spaceId, key, routineKey);
     await ensureBuiltInAgentAssignable(agent);
     return routineSvc.runRoutine(routine.id, { source: "manual" }, actor);
   }
 
-  async function requireBuiltInAgent(companyId: string, key: string): Promise<RequiredBuiltInAgent> {
-    const current = await get(companyId, key);
+  async function requireBuiltInAgent(spaceId: string, key: string): Promise<RequiredBuiltInAgent> {
+    const current = await get(spaceId, key);
     if (!current.agent) throw builtInAgentNotConfiguredError(current);
     if (current.status === "ready") {
       return { definition: current.definition, agent: current.agent, warning: null };
@@ -2076,30 +2076,30 @@ export function builtInAgentService(db: Db) {
     throw builtInAgentNotConfiguredError(current);
   }
 
-  async function autoProvisionBundledAgents(companyId: string) {
-    const company = await ensureCompany(companyId);
+  async function autoProvisionBundledAgents(spaceId: string) {
+    const space = await ensureSpace(spaceId);
     let autoEnsured = 0;
     let pendingApprovals = 0;
-    // A fresh company starts with only its own lead agent — the Reflection
+    // A fresh space starts with only its own lead agent — the Reflection
     // Coach and Summarizer are no longer auto-created for new users. They stay
     // available to enable on demand (via ensure / provision / the built-in
     // bundle panel). We still reconcile any bundled agent that already exists
     // (e.g. one an operator enabled) so its instructions/skill/routine keep
-    // tracking stock. Add a key to AUTO_PROVISION_ON_COMPANY_CREATE_KEYS to
+    // tracking stock. Add a key to AUTO_PROVISION_ON_SPACE_CREATE_KEYS to
     // restore automatic creation for that definition.
     for (const definition of DEFINITIONS.filter((entry) => entry.bundle)) {
-      const existing = await findSingleAgent(companyId, definition);
-      const shouldProvision = existing !== null || AUTO_PROVISION_ON_COMPANY_CREATE_KEYS.has(definition.key);
+      const existing = await findSingleAgent(spaceId, definition);
+      const shouldProvision = existing !== null || AUTO_PROVISION_ON_SPACE_CREATE_KEYS.has(definition.key);
       if (!shouldProvision) continue;
-      if (company.requireBoardApprovalForNewAgents) {
-        const result = await provision(companyId, definition.key);
+      if (space.requireOperatorApprovalForNewAgents) {
+        const result = await provision(spaceId, definition.key);
         if (result.approval) pendingApprovals += 1;
       } else {
-        await ensure(companyId, definition.key);
+        await ensure(spaceId, definition.key);
       }
       autoEnsured += 1;
     }
-    const defaultGrantsEnsured = await ensureCompanyDefaultAgentGrants(companyId);
+    const defaultGrantsEnsured = await ensureSpaceDefaultAgentGrants(spaceId);
     return { autoEnsured, pendingApprovals, defaultGrantsEnsured };
   }
 
@@ -2111,53 +2111,53 @@ export function builtInAgentService(db: Db) {
     list,
     reset,
     enableRoutineSchedule: (
-      companyId: string,
+      spaceId: string,
       key: string,
       routineKey: string,
       actor?: { agentId?: string | null; userId?: string | null; runId?: string | null },
-    ) => setRoutineSchedule(companyId, key, routineKey, true, actor),
+    ) => setRoutineSchedule(spaceId, key, routineKey, true, actor),
     disableRoutineSchedule: (
-      companyId: string,
+      spaceId: string,
       key: string,
       routineKey: string,
       actor?: { agentId?: string | null; userId?: string | null; runId?: string | null },
-    ) => setRoutineSchedule(companyId, key, routineKey, false, actor),
+    ) => setRoutineSchedule(spaceId, key, routineKey, false, actor),
     runRoutine,
     requireBuiltInAgent,
     autoProvisionBundledAgents,
-    ensureCompanyDefaultAgentGrants,
+    ensureSpaceDefaultAgentGrants,
     reconcileDefinitionDefaults,
   };
 }
 
 export async function reconcileBuiltInAgentsOnStartup(db: Db) {
   const svc = builtInAgentService(db);
-  const companyRows = await db
-    .select({ id: companies.id })
-    .from(companies);
+  const spaceRows = await db
+    .select({ id: spaces.id })
+    .from(spaces);
   let autoEnsured = 0;
   let pendingApprovals = 0;
   let defaultGrantsEnsured = 0;
-  // Isolate per-company failures so one bad company (e.g. an unresolvable data
-  // problem) can no longer abort reconciliation for every company after it.
-  let companyFailures = 0;
-  for (const company of companyRows) {
+  // Isolate per-space failures so one bad space (e.g. an unresolvable data
+  // problem) can no longer abort reconciliation for every space after it.
+  let spaceFailures = 0;
+  for (const space of spaceRows) {
     try {
-      const result = await svc.autoProvisionBundledAgents(company.id);
+      const result = await svc.autoProvisionBundledAgents(space.id);
       autoEnsured += result.autoEnsured;
       pendingApprovals += result.pendingApprovals;
       defaultGrantsEnsured += result.defaultGrantsEnsured;
     } catch (err) {
-      companyFailures += 1;
+      spaceFailures += 1;
       console.error(
-        `built-in agent auto-provisioning failed for company ${company.id}; continuing with remaining companies`,
+        `built-in agent auto-provisioning failed for space ${space.id}; continuing with remaining spaces`,
         err,
       );
     }
   }
   const rows = await db
     .select({
-      companyId: agents.companyId,
+      spaceId: agents.spaceId,
       metadata: agents.metadata,
       status: agents.status,
     })
@@ -2177,23 +2177,23 @@ export async function reconcileBuiltInAgentsOnStartup(db: Db) {
       unknown += 1;
       continue;
     }
-    const instanceKey = `${row.companyId}:${marker.key}`;
+    const instanceKey = `${row.spaceId}:${marker.key}`;
     if (seen.has(instanceKey)) {
       duplicates += 1;
       continue;
     }
     seen.add(instanceKey);
     try {
-      await svc.reconcileDefinitionDefaults(row.companyId, marker.key);
+      await svc.reconcileDefinitionDefaults(row.spaceId, marker.key);
       reconciled += 1;
     } catch (err) {
-      companyFailures += 1;
+      spaceFailures += 1;
       console.error(
-        `built-in agent default reconciliation failed for company ${row.companyId} key ${marker.key}; continuing`,
+        `built-in agent default reconciliation failed for space ${row.spaceId} key ${marker.key}; continuing`,
         err,
       );
     }
   }
 
-  return { scanned, reconciled, unknown, duplicates, autoEnsured, pendingApprovals, defaultGrantsEnsured, companyFailures };
+  return { scanned, reconciled, unknown, duplicates, autoEnsured, pendingApprovals, defaultGrantsEnsured, spaceFailures };
 }

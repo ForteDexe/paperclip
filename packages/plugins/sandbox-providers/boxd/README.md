@@ -12,7 +12,7 @@ Once a stable release is available, install the package from the Plugins page
 by name, or use the CLI:
 
 ```sh
-paperclipai plugin install @outpost/plugin-boxd
+outpost plugin install @outpost/plugin-boxd
 ```
 
 Before the first stable release, the `latest` tag can still point to the
@@ -21,7 +21,7 @@ no plugin functionality. Check the published tags and choose a real release:
 
 ```sh
 npm view @outpost/plugin-boxd dist-tags --json
-paperclipai plugin install @outpost/plugin-boxd --version <published-version>
+outpost plugin install @outpost/plugin-boxd --version <published-version>
 ```
 
 Replace `<published-version>` with the version shown for the desired tag, such
@@ -44,7 +44,7 @@ pnpm build
 From the Outpost checkout, with your instance running:
 
 ```sh
-node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin install /absolute/path/to/paperclip/packages/plugins/sandbox-providers/boxd
+node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin install /absolute/path/to/outpost/packages/plugins/sandbox-providers/boxd
 node cli/node_modules/tsx/dist/cli.mjs cli/src/index.ts plugin inspect outpost.boxd-sandbox-provider
 ```
 
@@ -54,9 +54,9 @@ Configure boxd under **Instance Settings -> Environments**, not from the
 plugin page. Select the `boxd` provider.
 
 - `apiKey`: a boxd API key. Create one with
-  `boxd auth keys create paperclip --org <org>`. Each key belongs to one org,
+  `boxd auth keys create outpost --org <org>`. Each key belongs to one org,
   and machines are created in that org. Outpost saves a pasted key as a
-  company secret. `BOXD_API_KEY` on the Outpost host is an optional fallback
+  space secret. `BOXD_API_KEY` on the Outpost host is an optional fallback
   when the environment has no key.
 - `reuseLease`: default `false`. With `false`, the plugin deletes the machine
   when the run ends. With `true`, the plugin suspends the machine when the run
@@ -69,7 +69,7 @@ plugin page. Select the `boxd` provider.
   4/16 GB or 8/32 GB. A blank value uses the org default. A snapshot keeps its
   own size.
 - `org`: optional org name or ID. A blank value uses the API key's org.
-- `namePrefix`: machine name prefix, `paperclip` by default.
+- `namePrefix`: machine name prefix, `outpost` by default.
 - `timeoutMs`: default command timeout, 3600000 ms by default.
 
 The default boxd image is Ubuntu 24.04 with Node 24, `tar`, `git`, Docker,
@@ -87,9 +87,9 @@ timer, and a probe whose machine could not be deleted reports a failure.
   metadata endpoint, no in-VM `boxd` CLI and no boxd integrations, and other
   machines in the org cannot reach it over the private network. The API key
   stays in the plugin worker and never enters the machine.
-- Machines carry the labels `paperclip-provider=boxd`,
-  `paperclip-environment=<id>` and `paperclip-run=<id>`. Use
-  `boxd machine list --label paperclip-provider=boxd` to find them.
+- Machines carry the labels `outpost-provider=boxd`,
+  `outpost-environment=<id>` and `outpost-run=<id>`. Use
+  `boxd machine list --label outpost-provider=boxd` to find them.
 - Commands run through `sh` in the workspace, with quoted arguments,
   per-command environment, staged stdin, and separate stdout and stderr. A
   command timeout ends the remote process group and returns `timedOut: true`.

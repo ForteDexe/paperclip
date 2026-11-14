@@ -12,7 +12,7 @@ import { copilotDeniedIssueOutcome, settleCopilotDeniedRun } from "./copilot-pro
 const date = (ms: number) => new Date(Date.UTC(2026, 8, 30, 15, 13, 7, ms)).toISOString();
 function fixture(eventType = "turn.completed") {
   const frame = (seq: number, type: string, payload: unknown, persisted = 305, emitted = 129): any => ({
-    seq: seq + 40, companyId: "company", runId: "run", eventType: type, createdAt: date(persisted),
+    seq: seq + 40, spaceId: "space", runId: "run", eventType: type, createdAt: date(persisted),
     payload: { orpEvent: { schema: "outpost.orp.event.v1", sourceKind: "runner", runId: "run", turnId: "turn",
       normalizedSessionId: "normalized-session", sourceInstanceId: "runner-instance", sourceSeq: seq,
       sourceEventId: `runner-instance:run:${seq}`, eventType: type, emittedAt: date(emitted), payload } },
@@ -27,32 +27,32 @@ function fixture(eventType = "turn.completed") {
     frame(115, "tool.execution.completed", { schema: "outpost.tool.execution.v1", executionId: "denied-edit", operation: "edit", status: "failed" }, 317),
     frame(121, eventType, { status: eventType.slice(5), error: null }, 900, 887),
     frame(112, "runtime_request.resolved", { requestId: "request", turnId: "turn", requestKind: "permission_approval", action: "decline" })];
-  const run: any = { id: "run", companyId: "company", nativeIssueId: "issue", status: "cancelled", finishedAt: date(910),
+  const run: any = { id: "run", spaceId: "space", nativeIssueId: "issue", status: "cancelled", finishedAt: date(910),
     resultJson: { startupCancellation: { requestedAt: date(892), cancellationRequestId: "11111111-1111-4111-8111-111111111111" }, nativeCancellation: {
-      schema: "outpost.native-cancellation.v1", companyId: "company", runId: "run", issueId: "issue", scope: "run", dispatched: true,
+      schema: "outpost.native-cancellation.v1", spaceId: "space", runId: "run", issueId: "issue", scope: "run", dispatched: true,
       dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentId: "native-cancellation:11111111-1111-4111-8111-111111111111",
       intentAuditId: "intent-audit", acknowledgementAuditId: "ack-audit", recordedAt: date(901), acknowledgedAt: date(909),
     } } };
   applyMainlineStopMetadata(run);
   const request = readCopilotToolEvidence(events, "run")[0]!;
-  const preStop = observeCopilotPreStop({ events, request, companyId: "company", cancellationRequestId: "11111111-1111-4111-8111-111111111111" });
+  const preStop = observeCopilotPreStop({ events, request, spaceId: "space", cancellationRequestId: "11111111-1111-4111-8111-111111111111" });
   const stopDispatchMonotonicNs = process.hrtime.bigint().toString();
   const stopAcknowledgement = stopAcknowledgementForTest(run, preStop.cancellationRequestId, stopDispatchMonotonicNs);
-  return { events, request, run, issue: { id: "issue", companyId: "company", status: "in_progress" }, preStop, stopDispatchMonotonicNs, stopAcknowledgement };
+  return { events, request, run, issue: { id: "issue", spaceId: "space", status: "in_progress" }, preStop, stopDispatchMonotonicNs, stopAcknowledgement };
 
 }
 const terminal = (f: ReturnType<typeof fixture>) => f.events[4]!.payload.orpEvent;
 function blockedNaturalFixture() {
   const f = fixture();
-  f.events.push({ seq: 162, companyId: "company", runId: "run", eventType: "lifecycle", createdAt: date(890), payload: {
+  f.events.push({ seq: 162, spaceId: "space", runId: "run", eventType: "lifecycle", createdAt: date(890), payload: {
     retryReasonCode: "semantic_result_missing", attempt: 1, nextAttemptAt: date(999), fallbackSuppressed: true,
     failureDetail: { originalFailureCode: "native_session_interrupted", recoveryMode: "exact_checkpoint_resume", checkpointExists: true, providerSessionEstablished: true },
   } } as any);
-  Object.assign(f.issue, { status: "blocked", activeRecoveryAction: { id: "recovery", companyId: "company", sourceIssueId: "issue", kind: "active_run_watchdog", cause: "native_session_interrupted", status: "active", wakePolicy: { kind: "resume_native_run", runId: "run", notBefore: date(999) } } });
+  Object.assign(f.issue, { status: "blocked", activeRecoveryAction: { id: "recovery", spaceId: "space", sourceIssueId: "issue", kind: "active_run_watchdog", cause: "native_session_interrupted", status: "active", wakePolicy: { kind: "resume_native_run", runId: "run", notBefore: date(999) } } });
   f.run.resultJson.nativeCancellation.dispatched = false;
-  f.preStop = observeCopilotPreStop({ ...f, companyId: "company", cancellationRequestId: f.preStop.cancellationRequestId });
+  f.preStop = observeCopilotPreStop({ ...f, spaceId: "space", cancellationRequestId: f.preStop.cancellationRequestId });
   f.stopDispatchMonotonicNs = process.hrtime.bigint().toString();
-  f.stopAcknowledgement = readCopilotStopAcknowledgement(f.run, { companyId: "company", issueId: "issue", runId: "run", callerUserId: "local-board" }, f.preStop.cancellationRequestId, f.stopDispatchMonotonicNs, undefined, "provider-completed-before-stop");
+  f.stopAcknowledgement = readCopilotStopAcknowledgement(f.run, { spaceId: "space", issueId: "issue", runId: "run", callerUserId: "local-operator" }, f.preStop.cancellationRequestId, f.stopDispatchMonotonicNs, undefined, "provider-completed-before-stop");
   return f;
 }
 
@@ -69,7 +69,7 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
     const f = fixture();
     f.run.resultJson.nativeCancellation.dispatched = false;
     f.stopAcknowledgement = readCopilotStopAcknowledgement(f.run,
-      { companyId: "company", issueId: "issue", runId: "run", callerUserId: "local-board" },
+      { spaceId: "space", issueId: "issue", runId: "run", callerUserId: "local-operator" },
       f.preStop.cancellationRequestId, f.stopDispatchMonotonicNs, undefined, "provider-completed-before-stop");
     expect(readCopilotDenialSettlement(f)).toMatchObject({ branch: "provider_completed_observed_before_stop", providerCancellationTerminalObserved: false });
     f.preStop.terminal = null;
@@ -78,7 +78,7 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
   it.each(["turn.cancelled", "turn.interrupted"])("does not use an undispatched acknowledgement to qualify %s", type => {
     const f = fixture(type); f.run.resultJson.nativeCancellation.dispatched = false;
     f.stopAcknowledgement = readCopilotStopAcknowledgement(f.run,
-      { companyId: "company", issueId: "issue", runId: "run", callerUserId: "local-board" },
+      { spaceId: "space", issueId: "issue", runId: "run", callerUserId: "local-operator" },
       f.preStop.cancellationRequestId, f.stopDispatchMonotonicNs, undefined, "provider-completed-before-stop");
     expect(() => readCopilotDenialSettlement(f)).toThrow(/settlement/);
   });
@@ -99,7 +99,7 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
       statusControl: { name: blocked ? "Change status (current: Blocked" : "Change status (current: In Progress)", exact: !blocked },
     });
     expect(() => copilotDeniedIssueOutcome(task, { ...f.issue, status: "done" }, settlement)).toThrow(/outcome/);
-    expect(() => copilotDeniedIssueOutcome(task, { ...f.issue, companyId: "foreign" }, settlement)).toThrow(/outcome/);
+    expect(() => copilotDeniedIssueOutcome(task, { ...f.issue, spaceId: "foreign" }, settlement)).toThrow(/outcome/);
     if (blocked) {
       expect(() => copilotDeniedIssueOutcome(task, { ...f.issue, activeRecoveryAction: undefined }, settlement)).toThrow(/outcome/);
       expect(() => copilotDeniedIssueOutcome(task, f.issue, { ...settlement, runStop: { ...settlement.runStop, incompleteRecovery: undefined } })).toThrow(/outcome/);
@@ -109,13 +109,13 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
     const f = blockedNaturalFixture();
     expect(readCopilotDenialSettlement(f)).toMatchObject({ branch: "provider_completed_observed_before_stop", runStop: { issueStatus: "blocked", incompleteRecovery: { actionId: "recovery" } } });
   });
-  it.each(["missing-pre-stop", "row-hash", "row-seq", "late-row", "foreign-company", "foreign-issue", "foreign-run", "wrong-kind", "wrong-cause", "wrong-wake", "wrong-retry", "active-cancel", "missing-action"])("rejects blocked denial with %s recovery", kind => {
+  it.each(["missing-pre-stop", "row-hash", "row-seq", "late-row", "foreign-space", "foreign-issue", "foreign-run", "wrong-kind", "wrong-cause", "wrong-wake", "wrong-retry", "active-cancel", "missing-action"])("rejects blocked denial with %s recovery", kind => {
     const f = blockedNaturalFixture(), a = (f.issue as any).activeRecoveryAction;
     if (kind === "missing-pre-stop") delete (f.preStop as any).incompleteRecovery;
     if (kind === "row-hash") (f.preStop as any).incompleteRecovery.rowSha256 = `sha256:${"a".repeat(64)}`;
     if (kind === "row-seq") (f.preStop as any).incompleteRecovery.rowSeq++;
     if (kind === "late-row") { (f.preStop as any).incompleteRecovery = null; }
-    if (kind === "foreign-company") a.companyId = "other";
+    if (kind === "foreign-space") a.spaceId = "other";
     if (kind === "foreign-issue") a.sourceIssueId = "other";
     if (kind === "foreign-run") a.wakePolicy.runId = "other";
     if (kind === "wrong-kind") a.kind = "other";
@@ -123,7 +123,7 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
     if (kind === "wrong-wake") a.wakePolicy.kind = "other";
     if (kind === "wrong-retry") a.wakePolicy.notBefore = date(950);
     if (kind === "missing-action") delete (f.issue as any).activeRecoveryAction;
-    if (kind === "active-cancel") { f.events[4]!.eventType = terminal(f).eventType = "turn.cancelled"; terminal(f).payload.status = "cancelled"; f.preStop = observeCopilotPreStop({ ...f, companyId: "company", cancellationRequestId: f.preStop.cancellationRequestId }); }
+    if (kind === "active-cancel") { f.events[4]!.eventType = terminal(f).eventType = "turn.cancelled"; terminal(f).payload.status = "cancelled"; f.preStop = observeCopilotPreStop({ ...f, spaceId: "space", cancellationRequestId: f.preStop.cancellationRequestId }); }
     expect(() => readCopilotDenialSettlement(f)).toThrow(/settlement/);
   });
   it("accepts a synthetic pre-Stop API observation without claiming provider cancellation", () => {
@@ -132,7 +132,7 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
       providerTerminal: { sourceSeq: 121, failedToolSourceSeq: 115, rowCreatedAtMs: Date.parse(date(900)) }, runStop: { status: "cancelled" } });
     // Native/provider clock skew is irrelevant to the operator causal boundary.
     terminal(f).emittedAt = date(999);
-    f.preStop = observeCopilotPreStop({ ...f, companyId: "company", cancellationRequestId: "11111111-1111-4111-8111-111111111111" }); f.stopDispatchMonotonicNs = process.hrtime.bigint().toString();
+    f.preStop = observeCopilotPreStop({ ...f, spaceId: "space", cancellationRequestId: "11111111-1111-4111-8111-111111111111" }); f.stopDispatchMonotonicNs = process.hrtime.bigint().toString();
     f.stopAcknowledgement = stopAcknowledgementForTest(f.run, f.preStop.cancellationRequestId, f.stopDispatchMonotonicNs);
     expect(readCopilotDenialSettlement(f).branch).toBe("provider_completed_observed_before_stop");
   });
@@ -145,7 +145,7 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
   });
   it.each(["equal", "later"])("accepts observed pre-Stop completion with %s transaction time, without ordering it against ack", kind => {
     const f = fixture(); f.events[4]!.createdAt = date(kind === "equal" ? 909 : 910);
-    f.preStop = observeCopilotPreStop({ ...f, companyId: "company", cancellationRequestId: "11111111-1111-4111-8111-111111111111" }); f.stopDispatchMonotonicNs = process.hrtime.bigint().toString();
+    f.preStop = observeCopilotPreStop({ ...f, spaceId: "space", cancellationRequestId: "11111111-1111-4111-8111-111111111111" }); f.stopDispatchMonotonicNs = process.hrtime.bigint().toString();
     f.stopAcknowledgement = stopAcknowledgementForTest(f.run, f.preStop.cancellationRequestId, f.stopDispatchMonotonicNs);
     expect(readCopilotDenialSettlement(f).branch).toBe("provider_completed_observed_before_stop");
   });
@@ -178,7 +178,7 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
     if (kind === "error") terminal(f).payload.error = { code: "failed" };
     expect(() => readCopilotDenialSettlement(f)).toThrow(/settlement/);
   });
-  it.each(["scope", "runId", "companyId", "issueId", "intentId", "intentAuditId", "acknowledgementAuditId", "acknowledgedAt", "recordedAt", "schema", "dispatchState", "dispatched", "reasonCode", "effects"])("rejects malformed or unbound Stop %s", field => {
+  it.each(["scope", "runId", "spaceId", "issueId", "intentId", "intentAuditId", "acknowledgementAuditId", "acknowledgedAt", "recordedAt", "schema", "dispatchState", "dispatched", "reasonCode", "effects"])("rejects malformed or unbound Stop %s", field => {
     const f = fixture(); f.run.resultJson.nativeCancellation[field] = null;
     expect(() => readCopilotDenialSettlement(f)).toThrow(/settlement/);
   });

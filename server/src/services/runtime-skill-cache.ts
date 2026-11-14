@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants, promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { CompanySkill } from "@outpost/shared";
+import type { SpaceSkill } from "@outpost/shared";
 import { currentControllerProcessStamp, readControllerProcess } from "./controller-process-identity.js";
 import { proveOwnerGone, type LocalOwnerStamp, type OwnerProof } from "./owner-proof.js";
 
@@ -30,7 +30,7 @@ export function runtimeSkillCacheRoot(managedRoot: string, skillId: string): str
   return path.resolve(managedRoot, `__runtime_cache_v${FORMAT}__`, skillId);
 }
 
-export function runtimeSkillCacheSpec(managedRoot: string, skill: CompanySkill): CacheSpec | null {
+export function runtimeSkillCacheSpec(managedRoot: string, skill: SpaceSkill): CacheSpec | null {
   if ((skill.sourceType === "github" || skill.sourceType === "skills_sh")
     && !/^[a-f0-9]{40}$/i.test(skill.sourceRef ?? "")) return null;
   const metadata = skill.metadata ?? {};
@@ -44,7 +44,7 @@ export function runtimeSkillCacheSpec(managedRoot: string, skill: CompanySkill):
   // must reread its files rather than reuse an immutable revision fingerprint.
   if (skill.sourceType === "local_path") return null;
   const fingerprint = digest(JSON.stringify({
-    format: FORMAT, companyId: skill.companyId, skillId: skill.id,
+    format: FORMAT, spaceId: skill.spaceId, skillId: skill.id,
     sourceType: skill.sourceType, sourceLocator: skill.sourceLocator, sourceRef: skill.sourceRef,
     // These are the only metadata fields used by the source reader. slug is its fallback directory.
     source: { owner: metadata.owner, repo: metadata.repo, hostname: metadata.hostname,

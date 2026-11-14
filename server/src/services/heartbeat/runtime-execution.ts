@@ -20,10 +20,10 @@ import { parseNativeSessionGoalControl } from "./scheduling.js";
 import { isHeartbeatRunTerminalStatus } from "./run-lifecycle.js";
 import {
   OUTPOST_WAKE_PAYLOAD_KEY,
-  configuredPaperclipApiBaseUrl,
-  buildPaperclipRuntimeMcpServers,
+  configuredOutpostApiBaseUrl,
+  buildOutpostRuntimeMcpServers,
   createAdapterRuntimeToolAccess,
-  paperclipApiBaseUrl,
+  outpostApiBaseUrl,
   createAdapterRuntimeMcpAccess,
   createManagedMcpRunConfig,
   revokeHeartbeatRunGatewayTokens,
@@ -32,7 +32,7 @@ import {
   WorkspaceValidationFailure,
   isWorkspaceValidationFailure,
   fingerprintFinalizeWorkspaceBranchValidation,
-  attachPaperclipSessionMetadataToSessionParams,
+  attachOutpostSessionMetadataToSessionParams,
 } from "./workspaces.js";
 import { recordLegacyWorkspaceRestoreFailure } from "../legacy-execution-recovery.js";
 import { configuredEnvironmentProjection } from "../../vendor/outpost-runner/index.js";
@@ -61,7 +61,7 @@ import { getStartupTraceContext } from "../../instrumentation.js";
 import { logger } from "../../middleware/logger.js";
 import {
   buildNativeProviderEnvironment,
-  executePaperclipNativeSession,
+  executeOutpostNativeSession,
   finalizeNativeRun,
   isRunnerIngressAuthorized,
   materializeLegacyQuestionResponseWakeProjection,
@@ -111,7 +111,7 @@ import type { reserveWarmNativeInstructionDirectory } from "../native-runtime/in
 
 type Selection = HeartbeatRuntimeSelectionInput;
 type Selected = Extract<HeartbeatRuntimeSelectionResult, { selected: true }>;
-type NativeSessionInput = Parameters<typeof executePaperclipNativeSession>[0];
+type NativeSessionInput = Parameters<typeof executeOutpostNativeSession>[0];
 type RunState = ReturnType<typeof createHeartbeatRunState>;
 type Lifecycle = ReturnType<typeof createHeartbeatLifecycle>;
 
@@ -272,7 +272,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
     adapter.supportsLocalAgentJwt
       ? createLocalAgentJwt(
           agent.id,
-          agent.companyId,
+          agent.spaceId,
           agent.adapterType,
           run.id,
           run.responsibleUserId,
@@ -286,7 +286,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
   ) {
     logger.warn(
       {
-        companyId: agent.companyId,
+        spaceId: agent.spaceId,
         agentId: agent.id,
         runId: run.id,
         adapterType: agent.adapterType,
@@ -300,7 +300,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
   const inspectFinalizeWorkspaceBranch = async () => {
     const workspaceRecord = persistedExecutionWorkspace?.id
       ? await executionWorkspacesSvc.getStoredById(
-          agent.companyId,
+          agent.spaceId,
           persistedExecutionWorkspace.id,
         )
       : persistedExecutionWorkspace;
@@ -522,7 +522,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
     remote: executionTarget?.kind === "remote", provider: nativeExecution?.provider,
   });
   const usageRecorder = producerOwnsUsage ? undefined : await measureRunPhase("execution.usage_startup", () =>
-    createRunUsageRecorder(db, { companyId: run.companyId, runId: run.id, adapterType: agent.adapterType }));
+    createRunUsageRecorder(db, { spaceId: run.spaceId, runId: run.id, adapterType: agent.adapterType }));
   input.effects.onUsageCaptureReady(usageRecorder?.persistFailure ?? (async () => {}));
   let adapterResult: AdapterExecutionResult;
   const runGoalControlRequestId = readNonEmptyString(
@@ -537,7 +537,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
         nativeExecution.runtimeContext.mcp.bindingId
           ? nativeExecution.runtimeContext.mcp.digest
           : null;
-      const nativeMcpServers = "homeMode" in nativeExecution && nativeExecution.homeMode === "preconfigured" ? [] : await measureRunPhase("execution.mcp_handoff", () => buildPaperclipRuntimeMcpServers({
+      const nativeMcpServers = "homeMode" in nativeExecution && nativeExecution.homeMode === "preconfigured" ? [] : await measureRunPhase("execution.mcp_handoff", () => buildOutpostRuntimeMcpServers({
         db,
         agent,
         runId: run.id,
@@ -572,7 +572,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
         (await isRunnerGoalActionCompleted(
           db,
           {
-            companyId: agent.companyId,
+            spaceId: agent.spaceId,
             agentId: agent.id,
             issueId: taskKey,
           },
@@ -586,7 +586,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
         ? {
             taskKey,
             adapterType: agent.adapterType,
-            sessionParamsJson: attachPaperclipSessionMetadataToSessionParams(
+            sessionParamsJson: attachOutpostSessionMetadataToSessionParams(
               { ...runtimeSessionParamsForAdapter, cwd: executionWorkspace.cwd },
               configuredModel,
               sessionConfigMetadata,
@@ -597,9 +597,9 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
       const runCreatedAtMs = run.createdAt.getTime();
       const runStartedAtMs = (run.startedAt ?? run.createdAt).getTime();
       const wakeComments = Array.isArray(
-        parseObject(context.paperclipWake).comments,
+        parseObject(context.outpostWake).comments,
       )
-        ? (parseObject(context.paperclipWake).comments as unknown[])
+        ? (parseObject(context.outpostWake).comments as unknown[])
         : [];
       const wakeIngressSpan = buildNativeWakeIngressSpan({
         runCreatedAtMs,
@@ -629,8 +629,8 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
       const guardedDispatch =
         await dispatchWithTiming(
           (markDispatchStarted) => {
-            return executePaperclipNativeSession({
-              casesEnabled: context.paperclipCasesEnabled === true,
+            return executeOutpostNativeSession({
+              casesEnabled: context.outpostCasesEnabled === true,
               db,
               execution: nativeExecution,
               observability,
@@ -657,7 +657,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
               onGoalCheckpoint: async (snapshot) => {
                 if (!taskKey) return;
                 const params =
-                  attachPaperclipSessionMetadataToSessionParams(
+                  attachOutpostSessionMetadataToSessionParams(
                     {
                       ...runtimeSessionParamsForAdapter,
                       sessionId: snapshot.identity.sessionId,
@@ -669,7 +669,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
                 const displayId =
                   snapshot.providerSessionId ?? snapshot.sessionId;
                 await upsertTaskSession({
-                  companyId: agent.companyId,
+                  spaceId: agent.spaceId,
                   agentId: agent.id,
                   adapterType: agent.adapterType,
                   taskKey,
@@ -749,7 +749,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
                 await settleLiveRunnerGoalBeforeInterrupt(db, target);
                 if (!target.runId) return;
                 const prior = await getRun(target.runId);
-                if (!prior || prior.companyId !== target.companyId || prior.agentId !== target.agentId) {
+                if (!prior || prior.spaceId !== target.spaceId || prior.agentId !== target.agentId) {
                   throw conflict("Reassignment run binding changed");
                 }
                 const stopped = await cancelRunInternal(target.runId, "Cancelled for task reassignment", {
@@ -785,7 +785,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
         readNonEmptyString(context.interactionStatus) === "answered"
           ? await materializeLegacyQuestionResponseWakeProjection({
               db,
-              companyId: agent.companyId,
+              spaceId: agent.spaceId,
               issueId: issueRef.id,
               runId: run.id,
               agentId: agent.id,
@@ -809,21 +809,21 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
       };
       const runtimeTools = createAdapterRuntimeToolAccess({
         agentId: agent.id,
-        companyId: agent.companyId,
+        spaceId: agent.spaceId,
         runId: run.id,
         responsibleUserId: run.responsibleUserId,
       });
       if (!runtimeTools) {
         logger.warn(
           {
-            companyId: agent.companyId,
+            spaceId: agent.spaceId,
             agentId: agent.id,
             runId: run.id,
           },
           "runtime connection tools could not be delivered",
         );
       }
-      const runtimeMcpServers = await buildPaperclipRuntimeMcpServers({
+      const runtimeMcpServers = await buildOutpostRuntimeMcpServers({
         db,
         agent,
         runId: run.id,
@@ -835,16 +835,16 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
           name: "Outpost connections",
           url: runtimeTools.mcpEndpoint,
           token: runtimeTools.bearerToken,
-          connectionId: "paperclip-runtime-tools",
+          connectionId: "outpost-runtime-tools",
         });
       }
-      if (authToken && configuredPaperclipApiBaseUrl() && issueRef) {
-        runtimeMcpServers.unshift({ name: "Outpost projects", url: `${paperclipApiBaseUrl()}/api/mcp/project-tools`,
-          token: authToken, connectionId: "paperclip-project-tools" });
+      if (authToken && configuredOutpostApiBaseUrl() && issueRef) {
+        runtimeMcpServers.unshift({ name: "Outpost projects", url: `${outpostApiBaseUrl()}/api/mcp/project-tools`,
+          token: authToken, connectionId: "outpost-project-tools" });
       }
       const runtimeMcp = createAdapterRuntimeMcpAccess(runtimeMcpServers);
       if (runtimeTools && runtimeToolDelivery === "invocation_context") {
-        adapterContext.paperclipRuntimeTools = runtimeTools;
+        adapterContext.outpostRuntimeTools = runtimeTools;
       }
       const managedMcpConfig = await measureRunPhase("execution.mcp_handoff", () => createManagedMcpRunConfig({
         db,
@@ -855,7 +855,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
         issueId: issueRef?.id ?? null,
       }));
       if (managedMcpConfig) {
-        adapterContext.paperclipManagedMcp = managedMcpConfig;
+        adapterContext.outpostManagedMcp = managedMcpConfig;
       }
       const guardedDispatch =
         await dispatchWithTiming(
@@ -909,13 +909,13 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
                   }
                   const release = await envOrchestrator.releaseForRun({
                     heartbeatRunId: run.id,
-                    companyId: agent.companyId,
+                    spaceId: agent.spaceId,
                     agentId: agent.id,
                     status: "released",
                     providerResourceDisposition: "stop_and_retain",
                     cancelActiveWork: true,
                   });
-                  if (release.errors.length || !await remoteExecutionHasStopped(db, agent.companyId, run.id)) {
+                  if (release.errors.length || !await remoteExecutionHasStopped(db, agent.spaceId, run.id)) {
                     throw new Error("Could not verify remote startup stopped");
                   }
                 },
@@ -973,7 +973,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
         const captured = await measureRunPhase("execution.usage", () => usageRecorder.complete(adapterResult));
         adapterResult = { ...adapterResult, ...captured, usageComplete: captured.complete };
       } else {
-        const accepted = await measureRunPhase("execution.usage", () => readAcceptedRunUsageCheckpoint(db, { companyId: run.companyId, runId: run.id }));
+        const accepted = await measureRunPhase("execution.usage", () => readAcceptedRunUsageCheckpoint(db, { spaceId: run.spaceId, runId: run.id }));
         adapterResult = { ...adapterResult, ...accepted, usageComplete: accepted?.complete ?? false,
           ...(!accepted ? { costStatus: "unpriced" as const } : {}) };
       }
@@ -994,11 +994,11 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
       try {
         if (remoteWorkspaceAuthority && persistedExecutionWorkspace) {
           if (!ownership || !executionTarget) throw new Error("remote_workspace_ownership_required");
-          const current = await executionWorkspacesSvc.getStoredById(agent.companyId, persistedExecutionWorkspace.id);
+          const current = await executionWorkspacesSvc.getStoredById(agent.spaceId, persistedExecutionWorkspace.id);
           const authority = readRemoteWorkspaceAuthority(current?.metadata);
           const lease = authority?.location
             ? await environmentService(db).getLeaseById(authority.location.leaseId) : null;
-          if (!current || !lease || lease.companyId !== run.companyId || lease.heartbeatRunId !== run.id) {
+          if (!current || !lease || lease.spaceId !== run.spaceId || lease.heartbeatRunId !== run.id) {
             throw new Error("workspace_sync_out_unrecoverable");
           }
           await recordWorkspaceFinalize("succeeded", { owningService: "native_workspace_finalizer", storage: "remote" },
@@ -1007,7 +1007,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
         }
         if (nativeWorkspaceSync) {
           const exported = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-            eq(workspaceOperations.companyId, run.companyId),
+            eq(workspaceOperations.spaceId, run.spaceId),
             eq(workspaceOperations.heartbeatRunId, run.id),
             eq(workspaceOperations.phase, "workspace_finalize"),
             eq(workspaceOperations.status, "succeeded"),
@@ -1028,7 +1028,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
               eq(heartbeatRuns.id, run.id),
               eq(heartbeatRuns.status, "running"),
             ),
-          ), { companyId: run.companyId });
+          ), { spaceId: run.spaceId });
         const workspaceFinalizeStatus = hasWorkspaceRestoreFailure(adapterResult.resultJson) ? "failed" : "succeeded";
         await recordWorkspaceFinalize(workspaceFinalizeStatus);
         if (adapterResult.nativeFinalization) {
@@ -1042,7 +1042,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
               preserveProviderAttempt: Boolean(nativeWorkspaceSync || remoteWorkspaceAuthority),
             }));
             await dispatchPendingNativeStatusWakeups({
-              companyId: run.companyId,
+              spaceId: run.spaceId,
             });
             if (finalized.phase === "committed") {
               await nativeWorkspaceSync?.cleanup();
@@ -1064,7 +1064,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
     };
     if (nativeWorkspaceSync || remoteWorkspaceAuthority) {
       const owned = await measureRunPhase("execution.workspace_ownership", () => withNativeWorkspaceFinalizationOwnership({
-        db, companyId: run.companyId, runId: run.id,
+        db, spaceId: run.spaceId, runId: run.id,
       }, completeWorkspace));
       if (!owned.acquired) throw new NativeWorkspaceFinalizationBusyError();
     } else {
@@ -1109,7 +1109,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
             eq(heartbeatRuns.id, run.id),
             eq(heartbeatRuns.status, "running"),
           ),
-        ), { companyId: run.companyId });
+        ), { spaceId: run.spaceId });
     } catch (writeError) {
       if (adapterErr instanceof NativeStartupCleanupPendingError) throw adapterErr;
       throw writeError;
@@ -1123,7 +1123,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
       await blockRunnerGoalRecovery(
         db,
         {
-          companyId: run.companyId,
+          spaceId: run.spaceId,
           issueId: issueRef.id,
           agentId: agent.id,
           adapterType: agent.adapterType,
@@ -1135,7 +1135,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
       await failRunnerGoalAction(
         db,
         {
-          companyId: run.companyId,
+          spaceId: run.spaceId,
           issueId: issueRef.id,
           agentId: agent.id,
           adapterType: agent.adapterType,
@@ -1189,7 +1189,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
           const resultId = await db.select({ resultId: nativeRunFinalizations.resultId }).from(nativeRunFinalizations)
             .where(eq(nativeRunFinalizations.runId, run.id)).limit(1).then(rows => rows[0]?.resultId ?? null);
           return resultId ? acceptedNativeAdapterResult(db, {
-            runId: run.id, companyId: run.companyId, resultId,
+            runId: run.id, spaceId: run.spaceId, resultId,
             model: nativeExecution?.provider.model ?? null, driverKind: nativeExecution?.session.driverKind ?? "unknown",
             postResultFailure: postResultFailure!,
           }) : null;
@@ -1269,7 +1269,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
           await measureRunPhase("execution.native_finalize", () => finalizeNativeRun({
             db, runId: run.id, workspaceFinalizeStatus: "succeeded",
           }));
-          await dispatchPendingNativeStatusWakeups({ companyId: run.companyId });
+          await dispatchPendingNativeStatusWakeups({ spaceId: run.spaceId });
         } catch (finalizeErr) {
           logger.warn(
             { err: finalizeErr, runId: run.id },
@@ -1285,7 +1285,7 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
           workspaceFinalizeStatus: "failed",
         }));
         await dispatchPendingNativeStatusWakeups({
-          companyId: run.companyId,
+          spaceId: run.spaceId,
         });
       } catch (finalizeErr) {
         logger.warn(
@@ -1299,12 +1299,12 @@ export async function executeHeartbeatRuntime(db: Db, input: HeartbeatRuntimeExe
     try {
       if (!preserveRunGatewayTokens) await revokeHeartbeatRunGatewayTokens({
         db,
-        companyId: agent.companyId,
+        spaceId: agent.spaceId,
         runId: run.id,
       });
     } catch (revokeErr) {
       logger.warn(
-        { err: revokeErr, runId: run.id, companyId: agent.companyId },
+        { err: revokeErr, runId: run.id, spaceId: agent.spaceId },
         "failed to revoke heartbeat-run MCP gateway tokens",
       );
     }

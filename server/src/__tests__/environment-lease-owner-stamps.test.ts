@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, environmentLeases, environments } from "@outpost/db";
+import { agents, spaces, createDb, environmentLeases, environments } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { currentControllerProcessStamp, currentProcessSpaceHash } from "../services/controller-process-identity.js";
 import { ENVIRONMENT_LEASE_CONTROLLER_KEY } from "../services/environment-lease-controller.js";
@@ -28,17 +28,17 @@ async function exitedPid(): Promise<number> {
 suite("environment lease owner stamps (login/probe lease, teardown claim)", () => {
   let db!: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId = "";
+  let spaceId = "";
   let environmentId = "";
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-environment-lease-owner-stamps-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-environment-lease-owner-stamps-");
     db = createDb(temporary.connectionString);
-    companyId = randomUUID();
+    spaceId = randomUUID();
     environmentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "ELS",
-      requireBoardApprovalForNewAgents: false });
-    await db.insert(agents).values({ id: randomUUID(), companyId, name: "Coder", role: "engineer", status: "idle",
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "ELS",
+      requireOperatorApprovalForNewAgents: false });
+    await db.insert(agents).values({ id: randomUUID(), spaceId, name: "Coder", role: "engineer", status: "idle",
       adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
     await db.insert(environments).values({ id: environmentId, name: "Fake Sandbox", driver: "sandbox",
       status: "active", config: { provider: "fake", image: "ubuntu:24.04" } });
@@ -64,14 +64,14 @@ suite("environment lease owner stamps (login/probe lease, teardown claim)", () =
 
   async function claim(metadata: Record<string, unknown>) {
     const id = randomUUID();
-    await db.insert(environmentLeases).values({ id, companyId, environmentId, status: "pending_cleanup",
+    await db.insert(environmentLeases).values({ id, spaceId, environmentId, status: "pending_cleanup",
       provider: "fake", providerLeaseId: `sandbox://fake/${id}`, metadata: { pendingCleanupInFlight: true, ...metadata } });
     return id;
   }
 
   describe("login/probe lease", () => {
     it("is owned by the process whose write made it active", async () => {
-      await environmentService(db).acquireLease({ companyId, environmentId, provider: "fake",
+      await environmentService(db).acquireLease({ spaceId, environmentId, provider: "fake",
         providerLeaseId: "sandbox://fake/login" });
       const { kind, violations } = await report("environment_login_probe_lease");
       expect(kind).toMatchObject({ inProgress: 1, verdicts: { alive: 1 }, reasons: { current_process: 1 } });
@@ -79,7 +79,7 @@ suite("environment lease owner stamps (login/probe lease, teardown claim)", () =
     });
 
     it("is proven gone when that process has exited", async () => {
-      await db.insert(environmentLeases).values({ companyId, environmentId, status: "active", metadata: {
+      await db.insert(environmentLeases).values({ spaceId, environmentId, status: "active", metadata: {
         [ENVIRONMENT_LEASE_CONTROLLER_KEY]: { bootId: "earlier-boot", pid: await exitedPid(),
           hostHash: currentProcessSpaceHash(), processStartedAt: null } } });
       const { kind } = await report("environment_login_probe_lease");
@@ -87,7 +87,7 @@ suite("environment lease owner stamps (login/probe lease, teardown claim)", () =
     });
 
     it("names no owner when the previous release saved it without a stamp", async () => {
-      await db.insert(environmentLeases).values({ companyId, environmentId, status: "active", metadata: {} });
+      await db.insert(environmentLeases).values({ spaceId, environmentId, status: "active", metadata: {} });
       const { kind, violations } = await report("environment_login_probe_lease");
       expect(kind).toMatchObject({ verdicts: { unprovable: 1 }, reasons: { no_owner_stamp: 1 } });
       expect(violations.map(violation => violation.rule)).toEqual(["I1_owned"]);

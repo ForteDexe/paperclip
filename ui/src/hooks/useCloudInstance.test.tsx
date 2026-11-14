@@ -40,7 +40,7 @@ describe("useCloudInstance", () => {
     vi.stubGlobal("fetch", fetch);
     const cloud: CloudInstanceHealthStatus = {
       managed: true,
-      managedBy: "paperclip-cloud",
+      managedBy: "outpost-cloud",
       stackSlug: "acme",
       cloudBaseUrl: "https://app.outpost.app",
     };

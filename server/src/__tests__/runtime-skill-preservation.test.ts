@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, agentInstructionRevisions, agents, companies, heartbeatRuns, issues, companySkillRepositorySnapshots as snapshots,
+import { activityLog, agentInstructionRevisions, agents, spaces, heartbeatRuns, issues, spaceSkillRepositorySnapshots as snapshots,
   nativeRunFinalizations, createDb } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import * as storageModule from "../storage/index.js";
@@ -42,7 +42,7 @@ describe("admitted unversioned runtime skill preservation", () => {
     await db.delete(issues);
     await db.delete(agents);
     await db.delete(snapshots);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
   afterAll(async () => {
     vi.restoreAllMocks();
@@ -52,10 +52,10 @@ describe("admitted unversioned runtime skill preservation", () => {
     if (home) await removeRuntimeAssetTree(home);
   });
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Skill preservation", issuePrefix: `R${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Recovery source" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Preserve admitted skill" });
+    const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Skill preservation", issuePrefix: `R${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Recovery source" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Preserve admitted skill" });
     const bundle = await materializeAsset([
       { path: "SKILL.md", content: Buffer.from("# original admitted skill\n"), mode: 0o400 },
       { path: "scripts/run.sh", content: Buffer.from("#!/bin/sh\necho preserve\n"), mode: 0o500 },
@@ -65,7 +65,7 @@ describe("admitted unversioned runtime skill preservation", () => {
     context.skills = [{ key: "legacy", runtimeName: "legacy", versionId: null, bundle }];
     context.aggregateDigest = canonicalNativeRuntimeContextDigest(context);
     const execution = parseNativeExecutionInput({ schema: "outpost.native-execution-input.v3",
-      binding: { companyId, runId, agentId, issueId, executionWorkspaceId: runId },
+      binding: { spaceId, runId, agentId, issueId, executionWorkspaceId: runId },
       task: { identifier: "PRESERVE-1", title: "Saved selection", description: null, prompt: "Read saved skills", workMode: "standard" },
       workspace: { cwd: "/tmp", repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId: null, driverKind: "codex_app_server", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
@@ -73,15 +73,15 @@ describe("admitted unversioned runtime skill preservation", () => {
       completionContract: { id: "contract", sha256: "saved", schemaVersion: "outpost.completion-contract.v1",
         contract: { revision: "1", objective: "Read saved skills", criteria: [{ id: "read", requirement: "Read skills" }] } },
       interactionResponses: [], credentialBindings: [], executionMode: "default", planningContext: null, runtimeContext: context });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId,
       runtimeMode: "native", status: "failed", finishedAt: new Date(),
       processPid: 1234, processStartedAt: new Date(0), runnerProfileJson: { nativeExecutionInput: execution, retainedWarning: "unresolved recovery" } });
-    await db.insert(nativeRunFinalizations).values({ companyId, runId, issueId, phase: "terminal_failure", recoveryState: "blocked" });
-    return { companyId, agentId, runId, issueId, context, bundle, execution };
+    await db.insert(nativeRunFinalizations).values({ spaceId, runId, issueId, phase: "terminal_failure", recoveryState: "blocked" });
+    return { spaceId, agentId, runId, issueId, context, bundle, execution };
   }
   it("blocks startup on a concrete local asset but ignores an unfinished ordinary admission", async () => {
     const f = await fixture();
-    const [ordinary] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+    const [ordinary] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
       runtimeMode: "native", status: "running", contextSnapshot: {} }).returning();
     expect((await readEphemeralServerDataEligibility(db, { purpose: "startup" })).blockers)
       .toContain("runtime_skill_assets_require_migration");
@@ -149,11 +149,11 @@ describe("admitted unversioned runtime skill preservation", () => {
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, g.runId)))[0]!.runnerProfileJson)
       .not.toHaveProperty("nativeRuntimeSkillPreservation");
   });
-  it("fails closed for missing/corrupt durable receipts and refuses another company's run", async () => {
+  it("fails closed for missing/corrupt durable receipts and refuses another space's run", async () => {
     const f = await fixture();
-    await expect(preserveRuntimeSkillAssets(db, { ...f, companyId: randomUUID() }, storage)).rejects.toThrow("source_unavailable");
+    await expect(preserveRuntimeSkillAssets(db, { ...f, spaceId: randomUUID() }, storage)).rejects.toThrow("source_unavailable");
     await preserveRuntimeSkillAssets(db, f, storage);
-    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.companyId, f.companyId));
+    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.spaceId, f.spaceId));
     await db.update(snapshots).set({ storage: null }).where(eq(snapshots.id, snapshot!.id));
     expect(await hasLocalRuntimeSkillObligations(db)).toBe(true);
     await db.update(snapshots).set({ storage: { ...snapshot!.storage!, durable: false } }).where(eq(snapshots.id, snapshot!.id));
@@ -174,10 +174,10 @@ describe("admitted unversioned runtime skill preservation", () => {
     await db.update(heartbeatRuns).set({ status: "running", finishedAt: null, controllerBootId, controllerLeaseExpiresAt })
       .where(eq(heartbeatRuns.id, f.runId));
     await db.update(nativeRunFinalizations).set({ leaseOwner: "original-live-owner" }).where(eq(nativeRunFinalizations.runId, f.runId));
-    const preview = await migrateRuntimeSkillAssets(db, { companyId: f.companyId });
+    const preview = await migrateRuntimeSkillAssets(db, { spaceId: f.spaceId });
     expect(preview.results).toEqual([{ runId: f.runId, status: "candidate" }]);
     expect(await hasLocalRuntimeSkillObligations(db)).toBe(true);
-    expect((await migrateRuntimeSkillAssets(db, { companyId: f.companyId, apply: true }, storage)).results)
+    expect((await migrateRuntimeSkillAssets(db, { spaceId: f.spaceId, apply: true }, storage)).results)
       .toEqual([{ runId: f.runId, status: "preserved", preserved: 1 }]);
     expect(await hasLocalRuntimeSkillObligations(db)).toBe(false);
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId)))[0])
@@ -215,9 +215,9 @@ describe("admitted unversioned runtime skill preservation", () => {
     await preserveRuntimeSkillAssets(db, f, storage);
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     const receipt = run!.runnerProfileJson!.nativeRuntimeSkillPreservation;
-    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.companyId, f.companyId));
+    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.spaceId, f.spaceId));
     await db.update(snapshots).set({ createdAt: new Date(0) }).where(eq(snapshots.id, snapshot!.id));
-    expect((await skillPackageMaintenance(db, storage).collectOrphans({ companyId: f.companyId, apply: true })).removed).toBe(0);
+    expect((await skillPackageMaintenance(db, storage).collectOrphans({ spaceId: f.spaceId, apply: true })).removed).toBe(0);
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: f.execution } }).where(eq(heartbeatRuns.id, f.runId));
     let unlock!: () => void, locked!: () => void, waiting!: () => void;
     const release = new Promise<void>(resolve => { unlock = resolve; });
@@ -231,25 +231,25 @@ describe("admitted unversioned runtime skill preservation", () => {
     });
     await acquired;
     const debug = db.$client.options.debug;
-    db.$client.options.debug = (_connection, query) => { if (query.includes('from "company_skill_repository_snapshots"') && query.includes("for update")) waiting(); };
+    db.$client.options.debug = (_connection, query) => { if (query.includes('from "space_skill_repository_snapshots"') && query.includes("for update")) waiting(); };
     try {
-      const collection = skillPackageMaintenance(db, storage).collectOrphans({ companyId: f.companyId, apply: true });
+      const collection = skillPackageMaintenance(db, storage).collectOrphans({ spaceId: f.spaceId, apply: true });
       await deleting; unlock(); await publisher;
       expect((await collection).removed).toBe(0);
     } finally { unlock(); db.$client.options.debug = debug; }
     expect(await hasLocalRuntimeSkillObligations(db)).toBe(false);
-    expect(await db.select().from(snapshots).where(and(eq(snapshots.companyId, f.companyId), eq(snapshots.id, snapshot!.id))))
+    expect(await db.select().from(snapshots).where(and(eq(snapshots.spaceId, f.spaceId), eq(snapshots.id, snapshot!.id))))
       .toHaveLength(1);
   });
 
   it("rebuilds an admitted instruction bundle that is missing on a new controller host", async () => {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Instruction rehydration", issuePrefix: `I${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Rehydrated" });
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Instruction rehydration", issuePrefix: `I${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Rehydrated" });
     const admitted = Buffer.from("# Admitted instructions\n");
     for (const content of [admitted, Buffer.from("# Edited after admission\n")]) {
-      await db.insert(agentInstructionRevisions).values({ companyId, agentId, entryFile: "AGENTS.md", contentBase64: content.toString("base64"),
-        contentHash: "unused", byteLength: content.byteLength, source: "board" });
+      await db.insert(agentInstructionRevisions).values({ spaceId, agentId, entryFile: "AGENTS.md", contentBase64: content.toString("base64"),
+        contentHash: "unused", byteLength: content.byteLength, source: "operator" });
     }
     const bundle = await materializeAsset([{ path: "AGENTS.md", content: admitted, mode: 0o444 }]);
     const context = nativeRuntimeContextFixture();
@@ -257,10 +257,10 @@ describe("admitted unversioned runtime skill preservation", () => {
     await removeRuntimeAssetTree(bundle.rootPath);
     await fs.rm(path.join(home, "instances", "default", "runtime-context-assets", "manifests", `${bundle.digest}.json`), { force: true });
     await expect(fs.lstat(bundle.rootPath)).rejects.toMatchObject({ code: "ENOENT" });
-    const rehydrated = await rehydratePinnedInstructionAsset(db, { companyId, agentId }, context);
+    const rehydrated = await rehydratePinnedInstructionAsset(db, { spaceId, agentId }, context);
     expect(rehydrated.instructions.bundle).toEqual(bundle);
     expect(await fs.readFile(path.join(bundle.rootPath, "AGENTS.md"), "utf8")).toBe("# Admitted instructions\n");
     const elsewhere = { ...context, instructions: { ...context.instructions, bundle: { ...bundle, rootPath: "/other-home/runtime-context-assets/bundles/x" } } };
-    expect(await rehydratePinnedInstructionAsset(db, { companyId, agentId }, elsewhere)).toBe(elsewhere);
+    expect(await rehydratePinnedInstructionAsset(db, { spaceId, agentId }, elsewhere)).toBe(elsewhere);
   });
 });

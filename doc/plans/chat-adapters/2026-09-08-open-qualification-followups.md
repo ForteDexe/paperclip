@@ -689,8 +689,8 @@ The previous integration CI completed **982/982** chat integration tests and
 all other jobs except the runner failure and its dependent verify gate. The
 post-foundation composition passes workspace-wide types and **40/40** latest
 master queue/batching tests. Those tests needed exact fixture-only cleanup of
-runtime state and company skills left by a real process; strict cleanup now
-preserves all assertions and the fixed company prefix. Intermediate cleanup
+runtime state and space skills left by a real process; strict cleanup now
+preserves all assertions and the fixed space prefix. Intermediate cleanup
 REDS are retained. The landing owner is composing these verified deltas onto
 the actual merged base, then running full runner checks before a single remote
 update and fresh exact-head review. No second PR merge is claimed.
@@ -765,7 +765,7 @@ notice, started only after that run completed and answered once. The deliberate
 14.775/13.144s once started. GitHub's first final safely deferred once before
 provider I/O when authorization was busy, then succeeded on attempt 2; no blind
 unknown-delivery replay. All scoped publications/actions settled and reactions
-cleared. Live receipts: `.paperclip-runtime/chat-adapters-live/live83-final-receipts.json`.
+cleared. Live receipts: `.outpost-runtime/chat-adapters-live/live83-final-receipts.json`.
 
 The landing agent owns the consolidated current-master candidate (393 files),
 including the separate process-Stop fix qualified by 252 recovery tests and a
@@ -816,7 +816,7 @@ The shared implementation now passes **69/69** on fresh
 and independent source review. The original gap is green; a source actually
 received before confirmation and mixed proven/unproven published controls are
 still denied. An earlier 68/69 run failed solely while constructing an invalid
-null issue ID; the corrected negative uses another real same-company issue.
+null issue ID; the corrected negative uses another real same-space issue.
 A separate Teams native-thread `/close` probe did not reach this authorization
 path because that text is not a supported native-thread control. No production
 route relaxation is justified by that failed premise. The final newline case
@@ -922,7 +922,7 @@ Enabling this option is not evidence that the missing Slack A would be recovered
 
 GitHub D's delay is now explained more precisely by provider records: the first
 attempt was classified `failed to connect to host` (recorded code 502, empty
-response), then Paperclip's existing scheduled recovery requested the successful
+response), then Outpost's existing scheduled recovery requested the successful
 redelivery. The roughly 60-second detection cadence accounts for most of that
 wait, not model execution. Faster failure recovery remains a performance followup
 requiring actual App API-budget/backoff qualification; do not simply multiply
@@ -987,7 +987,7 @@ verified; restore not exercised); no migration, secret rotation, historical
 owner reset, protected binary replacement, or root remote push occurred.
 
 - Discord's refreshed native command menu shows “Close the current chat
-  conversation.” A fresh actual `/paperclip close` produced a private receipt
+  conversation.” A fresh actual `/outpost close` produced a private receipt
   and a public terminal confirmation at 15:29:40.680. CHA-43's conversation
   became completed; no new run appeared before a fresh explicit follow-up.
   The old server-79 failed command remains visible as historical evidence.
@@ -1080,7 +1080,7 @@ has admitted no new runs since the cutover.
 
 - **Discord:** native question → Evening choice → follow-up free-text form →
   `Amber Lighthouse 79` answer all worked in the actual signed-in guild UI.
-  Four runs took 12.7–15.8 seconds each. `/paperclip close` then hung after
+  Four runs took 12.7–15.8 seconds each. `/outpost close` then hung after
   deferral: an older registered command description made the current receipt
   parser reject initialization, leaving the SDK without a callback. The fix
   passes 47 real-PostgreSQL composed tests, 76 focused helper/wire/parser tests
@@ -1091,7 +1091,7 @@ has admitted no new runs since the cutover.
   Short replies took 13–16 seconds; 120–220-word replies took 32–60 seconds.
   Queue correctness is verified; model-response latency still needs work.
 - **GitHub:** fresh issue #5 correctly reported the private TXT unavailable
-  and supplied a working stable Paperclip task link. Uploading the exact
+  and supplied a working stable Outpost task link. Uploading the exact
   152-byte file through the actual Board UI produced the correct fields.
   However, a passive `response_wake` triggered an unwanted continuation that
   marked CHA-45 done despite “keep open.” A durable passive Board-wait fix
@@ -1168,8 +1168,8 @@ text test. Preserve the failed guild form and historical quarantined epochs.
 
 Discord DM CHA-41 passed fresh new/status and true FIFO A/B/C. C began 102ms
 after B finished; all three responses updated their own single bot message.
-However, `/paperclip close` only completed the external conversation. It
-confirmed “This task is closed” while the Paperclip task remained in progress.
+However, `/outpost close` only completed the external conversation. It
+confirmed “This task is closed” while the Outpost task remained in progress.
 Generic productive-run recovery immediately restarted that task, lost its
 external-chat wait context, and began a roughly 30-second response-wake loop.
 The pause contains the loop, not fixes it. Epicurus is taking the source-bound
@@ -1248,7 +1248,7 @@ Do not ask for Discord login again unless the actual provider page requires it.
   contradicted its own appended task link. Minimal native guidance repair
   `d399d7a41` is committed/pushed, with 58/58 focused tests and plain server
   types; it is **not yet deployed or live-retested**. Root clicked the actual
-  task link, reached the correct company/task, and uploaded the fresh 152-byte
+  task link, reached the correct space/task, and uploaded the fresh 152-byte
   TXT through its chooser. Scoped stored bytes match the original SHA256.
   However, the subsequent internal Board run could not read the attachment;
   an unnecessary continuation then repeated the old root marker and marked
@@ -1271,10 +1271,10 @@ recovery records; fresh successful tasks do not establish their recovery.
 Finish production-quality Slack, GitHub, Microsoft Teams and Telegram chat,
 plus the user's explicitly added Discord connector. Test real conversations,
 files/images, interactions, races, queues, reactions, retries and the quality
-of the experience. External chat is transport; Paperclip owns tasks, runs,
+of the experience. External chat is transport; Outpost owns tasks, runs,
 permissions and audit. Do not narrow completion to whichever tests pass.
 
-- Live stress work stays in `/Users/dotta/paperclipai/branches/chat-adapters`,
+- Live stress work stays in `/Users/dotta/outpostai/branches/chat-adapters`,
   branch `codex/chat-adapters`. Preserve user changes and protected runtime.
   The user explicitly authorized a separate landing worktree on September 9;
   this supersedes the earlier no-new-worktree/no-PR-tending restrictions for
@@ -1320,7 +1320,7 @@ failures were diagnosed and repaired.
 | Loaded server version | `2026.831.0+623.git.ea528f44c`                                          |
 | Process start / ready | `09:18:24` / `09:18:30.541 UTC`, September 9                            |
 | Native runner SHA256  | `6279d39ac731e4565a638b64c93673b8ca23e6dfbc0870e24d48422497f1826d`      |
-| Live DB               | `chat_adapters_live_3103` on local PostgreSQL `55439`, role `paperclip` |
+| Live DB               | `chat_adapters_live_3103` on local PostgreSQL `55439`, role `outpost` |
 | Last checked runs     | 290 terminal: 262 succeeded, 26 failed, 2 cancelled; zero active        |
 | Last new run          | September 9, `02:15:47.812 UTC`                                         |
 
@@ -1340,7 +1340,7 @@ backup is `pre-78-backup.3Vhbek/pre-server-78-20260909-041811.sql.gz`
 zero pruned). No migration was pending or applied; journal 258 remains current.
 At `09:18:33.627`, all four original endpoints remained active and the run
 inventory remained 290 terminal/zero active. The Telegram worker's successful
-receipt was checked against current company, bot, generation, credential
+receipt was checked against current space, bot, generation, credential
 fingerprint and managed callback URL hash, without printing secret values.
 The actual browser controller still reports the Mac locked after deployment.
 
@@ -1371,7 +1371,7 @@ deployment/rejection visibility, not provider message delivery. Server 69 was
 not restarted during this proxy-only change.
 
 All local runtime material is under ignored
-`.paperclip-runtime/chat-adapters-live/`, including:
+`.outpost-runtime/chat-adapters-live/`, including:
 
 - `start-server.sh`: configured isolated startup, no embedded credentials.
 - `server-experimental-landing-78.log`: current server log.
@@ -1400,7 +1400,7 @@ describe the normal binary as continuously unchanged across that earlier check.
    on this deployment. Check transitions, failure copy, final placement,
    reaction cleanup, duplicates and usable returned files, not just final text.
 3. On GitHub, exercise the deployed unavailable-file fallback, click its task
-   link, and upload the file on that task. Check the correct company, immediate
+   link, and upload the file on that task. Check the correct space, immediate
    chooser readiness and actual usable upload. This complete live journey is
    still unverified; deterministic cases already pass.
 4. Continue the remaining browser-runbook permutations. Do not merge or edit
@@ -1459,14 +1459,14 @@ npm consumers. Packaging contracts pass 22/22. The earlier isolated helper
 stage at patch snapshot `1a0a77025` was not a full server install. A new stage
 at source `d5b154e1c7` freshly compiled all 17 runtime packages, applied the real
 production bundle helper, packed and installed local tarballs with npm 10.9.7,
-and verified all 21 patched files. All Paperclip sibling registry probes were
+and verified all 21 patched files. All Outpost sibling registry probes were
 rejected; installed siblings resolve to the exact local tarballs and module
 imports remain inside the consumer. Compiled-server imports and synthetic
 Slack stream/Telegram Stop transport pass. The retained qualified runner was
 copied, not rebuilt. Root's separate **31/31** packaged static-UI checks pass
 in **2.0 minutes** on a fresh isolated database, with served HTML, service
 worker and main JS byte hashes matching the artifact. These tests mock the
-chat-control-plane API routes; they exercise real unmocked bootstrap/company/
+chat-control-plane API routes; they exercise real unmocked bootstrap/space/
 agent/catalog paths and current packaged UI, not a chat-backend/provider
 round trip. This is a local macOS consumer
 check, not published-CLI, native cross-platform or CI-owned frozen-lockfile
@@ -1522,7 +1522,7 @@ those as missing. Actual pinned-parser probes found three separate gaps:
 - On server 76, native generation-stop updates are neither subscribed nor
   dispatched and draft IDs are process-local. The frozen successor now binds
   exact presentation authority durably and uses a noncycling sequence that
-  survives rollback and endpoint/company deletion. The new TG4a runbook still
+  survives rollback and endpoint/space deletion. The new TG4a runbook still
   requires live native-button qualification; deterministic Stop races pass.
 
 Rich input and private callback fixes are committed/pushed as `b9802d9e4` and
@@ -1719,7 +1719,7 @@ locked. Preserve all parallel edits; no lockfile or PR work is part of this pass
   integration. An accepted consent card or PUT is never a published file.
 
 Generated migration `0257_brave_living_mummy.sql` includes the new table,
-publication company/ID unique index and `awaiting_consent` CHECK. Root moved
+publication space/ID unique index and `awaiting_consent` CHECK. Root moved
 the generated parent unique-index creation before its dependent foreign key.
 DB safety/types/build and a complete fresh migration chain passed on
 `chat_teams_transfers_schema_20260909_root01`; table and CHECK were inspected.
@@ -1774,7 +1774,7 @@ redacts it, and a proofless legacy receipt cannot acquire new authority.
 Two further genuine worker regressions were reproduced and fixed in the
 in-flight service integration: generic publication processing sent a pending
 Teams transfer as ordinary text, and its 60-second stale sweep quarantined a
-live 90-second Teams intent. Exact company/publication exclusions and a
+live 90-second Teams intent. Exact space/publication exclusions and a
 publication-lock-before-lane-check fix both. The combined API/worker block now
 passes **21/21** on fresh `chat_teams_worker_exclusion_20260909_green01`.
 The full service run now passes **665/665**, zero skips, on fresh
@@ -1874,7 +1874,7 @@ has been sent during this code-only audit.
 
 ## Latest provider evidence — scope matters
 
-Maya E2E `31f56712-3944-423e-b7c7-404bb8fbb993`, company
+Maya E2E `31f56712-3944-423e-b7c7-404bb8fbb993`, space
 `7ffa9799-0b1b-4a26-9b44-8e897f832f89`, uses native
 `outpost_runner` / `codex_app_server` / `gpt-5.6-luna`. Terra was not
 substituted. Effective reasoning effort is not yet proved; the old configured
@@ -1897,7 +1897,7 @@ to avoid same-agent queue contention. See permanent log for source/message IDs.
 
 GitHub generic private attachment URLs can be unavailable to the App even when
 the signed-in human can read them. Never forward browser cookies or guess file
-contents. The new deterministic fallback appends an authorized Paperclip task
+contents. The new deterministic fallback appends an authorized Outpost task
 link; it does not make those provider files generically downloadable.
 
 Slack once took about 61.5 seconds and Telegram once 234.435 seconds before
@@ -1963,7 +1963,7 @@ recovery. Its retired conversation generation must not regain external access.
   media batching guidance, whole-message sizing and truthful status repairs
   have focused and scenario-specific live evidence in the permanent log.
 - GitHub unavailable-file task links are durably prepared and reauthorized.
-  Task navigation/uploads bind the loaded task's company; outgoing route and
+  Task navigation/uploads bind the loaded task's space; outgoing route and
   file-chooser readiness are fenced. Narrow connected-task banners are fixed.
 - Warm run handoff has immutable receipt/result/ACK boundaries and final
   activation acknowledgment. Old authority is replay-only. Fresh recovery
@@ -2047,9 +2047,9 @@ Provider I/O is simulated. Prior log: `slack-signed-modal-full-root-0909.log`
 in ignored runtime.
 
 Full deterministic chat browser **29/29**, zero retries (2.8 minutes), includes
-six task-company/upload routes and readiness behavior. It is not live provider
+six task-space/upload routes and readiness behavior. It is not live provider
 qualification. The real-Codex staged startup canary
-`paperclip-real-startup-phHTMj` used actual Codex 0.153.4, one provider process
+`outpost-real-startup-phHTMj` used actual Codex 0.153.4, one provider process
 and no model turn; reopen made no new provider RPC. Direct-child exit was
 observed, not whole-tree retirement.
 

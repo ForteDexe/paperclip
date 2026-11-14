@@ -24,20 +24,20 @@ describe("local disk storage provider", () => {
   });
 
   it("round-trips bytes through storage service", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-storage-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-storage-"));
     tempRoots.push(root);
 
     const service = createStorageService(createLocalDiskStorageProvider(root));
     const content = Buffer.from("hello image bytes", "utf8");
     const stored = await service.putFile({
-      companyId: "company-1",
+      spaceId: "space-1",
       namespace: "issues/issue-1",
       originalFilename: "demo.png",
       contentType: "image/png",
       body: content,
     });
 
-    const fetched = await service.getObject("company-1", stored.objectKey);
+    const fetched = await service.getObject("space-1", stored.objectKey);
     const fetchedBody = await readStreamToBuffer(fetched.stream);
 
     expect(fetchedBody.toString("utf8")).toBe("hello image bytes");
@@ -45,104 +45,104 @@ describe("local disk storage provider", () => {
   });
 
   it("writes streamed files with exact metadata", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-storage-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-storage-"));
     tempRoots.push(root);
     const service = createStorageService(createLocalDiskStorageProvider(root));
     const bytes = Buffer.from("streamed response");
     const sha256 = createHash("sha256").update(bytes).digest("hex");
-    const stored = await service.putFile({ companyId: "company-1", namespace: "runner-api", originalFilename: "response.txt",
+    const stored = await service.putFile({ spaceId: "space-1", namespace: "runner-api", originalFilename: "response.txt",
       contentType: "text/plain", body: Readable.from([bytes.subarray(0, 4), bytes.subarray(4)]), byteSize: bytes.length, sha256 });
     expect(stored).toMatchObject({ byteSize: bytes.length, sha256 });
-    expect(await readStreamToBuffer((await service.getObject("company-1", stored.objectKey)).stream)).toEqual(bytes);
+    expect(await readStreamToBuffer((await service.getObject("space-1", stored.objectKey)).stream)).toEqual(bytes);
   });
 
   it("removes partial local uploads when their source fails", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-storage-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-storage-"));
     tempRoots.push(root);
     const provider = createLocalDiskStorageProvider(root);
     const body = Readable.from((async function* () { yield Buffer.from("partial"); throw new Error("source failed"); })());
-    await expect(provider.putObject({ objectKey: "company-1/failed", contentType: "text/plain", contentLength: 20, body })).rejects.toThrow("source failed");
-    expect(await fs.readdir(path.join(root, "company-1"))).toEqual([]);
+    await expect(provider.putObject({ objectKey: "space-1/failed", contentType: "text/plain", contentLength: 20, body })).rejects.toThrow("source failed");
+    expect(await fs.readdir(path.join(root, "space-1"))).toEqual([]);
   });
 
   it("streams only requested byte ranges", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-storage-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-storage-"));
     tempRoots.push(root);
 
     const service = createStorageService(createLocalDiskStorageProvider(root));
     const stored = await service.putFile({
-      companyId: "company-1",
+      spaceId: "space-1",
       namespace: "issues/issue-1",
       originalFilename: "demo.mp4",
       contentType: "video/mp4",
       body: Buffer.from("0123456789", "utf8"),
     });
 
-    const fetched = await service.getObject("company-1", stored.objectKey, { range: { start: 2, end: 5 } });
+    const fetched = await service.getObject("space-1", stored.objectKey, { range: { start: 2, end: 5 } });
     const fetchedBody = await readStreamToBuffer(fetched.stream);
 
     expect(fetchedBody.toString("utf8")).toBe("2345");
     expect(fetched.contentLength).toBe(4);
   });
 
-  it("blocks cross-company object access", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-storage-"));
+  it("blocks cross-space object access", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-storage-"));
     tempRoots.push(root);
 
     const service = createStorageService(createLocalDiskStorageProvider(root));
     const stored = await service.putFile({
-      companyId: "company-a",
+      spaceId: "space-a",
       namespace: "issues/issue-1",
       originalFilename: "demo.png",
       contentType: "image/png",
       body: Buffer.from("hello", "utf8"),
     });
 
-    await expect(service.getObject("company-b", stored.objectKey)).rejects.toMatchObject({ status: 403 });
+    await expect(service.getObject("space-b", stored.objectKey)).rejects.toMatchObject({ status: 403 });
   });
 
   it("delete is idempotent", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-storage-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-storage-"));
     tempRoots.push(root);
 
     const service = createStorageService(createLocalDiskStorageProvider(root));
     const stored = await service.putFile({
-      companyId: "company-1",
+      spaceId: "space-1",
       namespace: "issues/issue-1",
       originalFilename: "demo.png",
       contentType: "image/png",
       body: Buffer.from("hello", "utf8"),
     });
 
-    await service.deleteObject("company-1", stored.objectKey);
-    await service.deleteObject("company-1", stored.objectKey);
-    await expect(service.getObject("company-1", stored.objectKey)).rejects.toMatchObject({ status: 404 });
+    await service.deleteObject("space-1", stored.objectKey);
+    await service.deleteObject("space-1", stored.objectKey);
+    await expect(service.getObject("space-1", stored.objectKey)).rejects.toMatchObject({ status: 404 });
   });
 
   it.each(["EACCES", "EIO"])("retains storage uncertainty for %s instead of reporting absence", async code => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-storage-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-storage-"));
     tempRoots.push(root);
     const service = createStorageService(createLocalDiskStorageProvider(root));
-    const stored = await service.putFile({ companyId: "company-1", namespace: "issues/issue-1", originalFilename: "retained.txt",
+    const stored = await service.putFile({ spaceId: "space-1", namespace: "issues/issue-1", originalFilename: "retained.txt",
       contentType: "text/plain", body: Buffer.from("must not disappear") });
     const failure = Object.assign(new Error("controlled filesystem failure"), { code });
     const unlink = vi.spyOn(fs, "unlink").mockRejectedValueOnce(failure);
-    try { await expect(service.deleteObject("company-1", stored.objectKey)).rejects.toBe(failure); }
+    try { await expect(service.deleteObject("space-1", stored.objectKey)).rejects.toBe(failure); }
     finally { unlink.mockRestore(); }
-    expect(await service.headObject("company-1", stored.objectKey)).toMatchObject({ exists: true });
+    expect(await service.headObject("space-1", stored.objectKey)).toMatchObject({ exists: true });
     const stat = vi.spyOn(fs, "stat").mockRejectedValueOnce(failure);
-    try { await expect(service.headObject("company-1", stored.objectKey)).rejects.toBe(failure); }
+    try { await expect(service.headObject("space-1", stored.objectKey)).rejects.toBe(failure); }
     finally { stat.mockRestore(); }
-    expect(await readStreamToBuffer((await service.getObject("company-1", stored.objectKey)).stream)).toEqual(Buffer.from("must not disappear"));
+    expect(await readStreamToBuffer((await service.getObject("space-1", stored.objectKey)).stream)).toEqual(Buffer.from("must not disappear"));
   });
 
   it("treats a non-directory object path as absent", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-storage-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-storage-"));
     tempRoots.push(root);
-    await fs.writeFile(path.join(root, "company-1"), "not a directory");
+    await fs.writeFile(path.join(root, "space-1"), "not a directory");
     const service = createStorageService(createLocalDiskStorageProvider(root));
-    expect(await service.headObject("company-1", "company-1/object")).toEqual({ exists: false });
-    await expect(service.deleteObject("company-1", "company-1/object")).resolves.toBeUndefined();
+    expect(await service.headObject("space-1", "space-1/object")).toEqual({ exists: false });
+    await expect(service.deleteObject("space-1", "space-1/object")).resolves.toBeUndefined();
   });
 
   it.each(["headObject", "deleteObject"] as const)("cancels %s even if a provider stops responding", async method => {
@@ -150,11 +150,11 @@ describe("local disk storage provider", () => {
     const request = vi.spyOn(provider, method).mockImplementation(async () => new Promise<never>(() => {}));
     const service = createStorageService(provider);
     const controller = new AbortController();
-    const pending = service[method]("company-1", "company-1/expired", { signal: controller.signal });
-    expect(request).toHaveBeenCalledWith({ objectKey: "company-1/expired", signal: controller.signal });
+    const pending = service[method]("space-1", "space-1/expired", { signal: controller.signal });
+    expect(request).toHaveBeenCalledWith({ objectKey: "space-1/expired", signal: controller.signal });
     controller.abort(new Error("maintenance stopped"));
     await expect(pending).rejects.toThrow("maintenance stopped");
-    await expect(service[method]("company-1", "company-1/expired", { signal: controller.signal })).rejects.toThrow("maintenance stopped");
+    await expect(service[method]("space-1", "space-1/expired", { signal: controller.signal })).rejects.toThrow("maintenance stopped");
     expect(request).toHaveBeenCalledOnce();
   });
 });

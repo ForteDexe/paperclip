@@ -120,7 +120,7 @@ if os.environ.get("AUDIT_RECONSTRUCT_ONLY") == "1":
     raise SystemExit(0)
 
 archive = subprocess.check_output(["git", "archive", spec["base"]])
-with tempfile.TemporaryDirectory(prefix="paperclip-audit-") as directory:
+with tempfile.TemporaryDirectory(prefix="outpost-audit-") as directory:
     root = Path(directory)
     with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
         tar.extractall(root, filter="data")
@@ -137,7 +137,7 @@ with tempfile.TemporaryDirectory(prefix="paperclip-audit-") as directory:
             command = ["node", "--test", "--test-reporter=tap", owner]
         elif spec["kind"] == "ui":
             command = ["pnpm", "--filter", "@outpost/ui",
-                       "exec", "vitest", "run", "src/pages/CompanyExport.test.tsx",
+                       "exec", "vitest", "run", "src/pages/SpaceExport.test.tsx",
                        "--maxWorkers=1", "--reporter=default", "--reporter=json",
                        "--outputFile.json=" + str(report)]
         else:
@@ -170,7 +170,7 @@ with tempfile.TemporaryDirectory(prefix="paperclip-audit-") as directory:
                 assert any(mutation["message"] in msg for a in hits
                            for msg in a["failureMessages"]), label
                 if mutation.get("line"):
-                    assert any(f'CompanyExport.test.tsx:{mutation["line"]}:' in msg
+                    assert any(f'SpaceExport.test.tsx:{mutation["line"]}:' in msg
                                for a in hits for msg in a["failureMessages"]), label
         assert actual == expected, (label, actual, expected)
         assert result.returncode == (1 if mutation else 0), label

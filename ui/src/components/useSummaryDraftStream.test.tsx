@@ -3,7 +3,7 @@
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { CompanyLiveEventHandler } from "@/context/LiveUpdatesProvider";
+import type { SpaceLiveEventHandler } from "@/context/LiveUpdatesProvider";
 import type { LiveEvent, SummarySlotIssueRef } from "@outpost/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __liveUpdatesTestUtils } from "@/context/LiveUpdatesProvider";
@@ -39,7 +39,7 @@ function issue(id: string): SummarySlotIssueRef {
 function progressEvent(issueId: string, runId: string): LiveEvent {
   return {
     id: 1,
-    companyId: "company-1",
+    spaceId: "space-1",
     type: "heartbeat.run.progress",
     createdAt: "2026-07-15T00:00:00.000Z",
     payload: { issueId, runId },
@@ -49,7 +49,7 @@ function progressEvent(issueId: string, runId: string): LiveEvent {
 function logEvent(runId: string, seq: number, text: string): LiveEvent {
   return {
     id: seq,
-    companyId: "company-1",
+    spaceId: "space-1",
     type: "heartbeat.run.log",
     createdAt: `2026-07-15T00:00:0${seq}.000Z`,
     payload: {
@@ -73,20 +73,20 @@ interface Captured {
 const captured: { current: Captured | null } = { current: null };
 
 function Harness({ generatingIssue }: { generatingIssue: SummarySlotIssueRef | null }) {
-  const stream = useSummaryDraftStream("company-1", generatingIssue);
+  const stream = useSummaryDraftStream("space-1", generatingIssue);
   captured.current = stream;
   return null;
 }
 
 function renderHarness(
   generatingIssue: SummarySlotIssueRef | null,
-  subscribers: Set<CompanyLiveEventHandler>,
+  subscribers: Set<SpaceLiveEventHandler>,
 ): { root: Root; rerender: (next: SummarySlotIssueRef | null) => void } {
   const container = document.createElement("div");
   const root = createRoot(container);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const subscription = {
-    subscribe: (fn: CompanyLiveEventHandler) => {
+    subscribe: (fn: SpaceLiveEventHandler) => {
       subscribers.add(fn);
       return () => {
         subscribers.delete(fn);
@@ -145,13 +145,13 @@ describe("useSummaryDraftStream", () => {
   });
 
   it("streams status line and draft from markers split across delta boundaries", async () => {
-    const subscribers = new Set<CompanyLiveEventHandler>();
+    const subscribers = new Set<SpaceLiveEventHandler>();
     ({ root } = renderHarness(issue("1"), subscribers));
     await flushQueries();
 
     // Learn the run id from a progress event.
     await act(async () => {
-      dispatchLiveEventToSubscribers(subscribers, "company-1", progressEvent("1", "run-1"));
+      dispatchLiveEventToSubscribers(subscribers, "space-1", progressEvent("1", "run-1"));
     });
     await flushQueries();
     expect(captured.current?.runId).toBe("run-1");
@@ -159,7 +159,7 @@ describe("useSummaryDraftStream", () => {
     // Stream the whole protocol in 4-char slices.
     await act(async () => {
       for (const event of sliceEvents("run-1", PROTOCOL, 4)) {
-        dispatchLiveEventToSubscribers(subscribers, "company-1", event);
+        dispatchLiveEventToSubscribers(subscribers, "space-1", event);
       }
     });
     await flushQueries();
@@ -171,16 +171,16 @@ describe("useSummaryDraftStream", () => {
   });
 
   it("shows a partial draft and typing state before the closing sentinel", async () => {
-    const subscribers = new Set<CompanyLiveEventHandler>();
+    const subscribers = new Set<SpaceLiveEventHandler>();
     ({ root } = renderHarness(issue("1"), subscribers));
     await flushQueries();
     await act(async () => {
-      dispatchLiveEventToSubscribers(subscribers, "company-1", progressEvent("1", "run-1"));
+      dispatchLiveEventToSubscribers(subscribers, "space-1", progressEvent("1", "run-1"));
     });
 
     const partial = "<<<SUMMARY-DRAFT>>>\n## Needs you\n- Approve";
     await act(async () => {
-      dispatchLiveEventToSubscribers(subscribers, "company-1", logEvent("run-1", 1, partial));
+      dispatchLiveEventToSubscribers(subscribers, "space-1", logEvent("run-1", 1, partial));
     });
     await flushQueries();
 
@@ -189,15 +189,15 @@ describe("useSummaryDraftStream", () => {
   });
 
   it("falls back to spinner state when the model skips the markers", async () => {
-    const subscribers = new Set<CompanyLiveEventHandler>();
+    const subscribers = new Set<SpaceLiveEventHandler>();
     ({ root } = renderHarness(issue("1"), subscribers));
     await flushQueries();
     await act(async () => {
-      dispatchLiveEventToSubscribers(subscribers, "company-1", progressEvent("1", "run-1"));
+      dispatchLiveEventToSubscribers(subscribers, "space-1", progressEvent("1", "run-1"));
     });
 
     await act(async () => {
-      dispatchLiveEventToSubscribers(subscribers, "company-1", logEvent("run-1", 1, "just prose, no markers here"));
+      dispatchLiveEventToSubscribers(subscribers, "space-1", logEvent("run-1", 1, "just prose, no markers here"));
     });
     await flushQueries();
 
@@ -207,15 +207,15 @@ describe("useSummaryDraftStream", () => {
   });
 
   it("ignores log events for a different run", async () => {
-    const subscribers = new Set<CompanyLiveEventHandler>();
+    const subscribers = new Set<SpaceLiveEventHandler>();
     ({ root } = renderHarness(issue("1"), subscribers));
     await flushQueries();
     await act(async () => {
-      dispatchLiveEventToSubscribers(subscribers, "company-1", progressEvent("1", "run-1"));
+      dispatchLiveEventToSubscribers(subscribers, "space-1", progressEvent("1", "run-1"));
     });
 
     await act(async () => {
-      dispatchLiveEventToSubscribers(subscribers, "company-1", logEvent("run-999", 1, "<<<SUMMARY-DRAFT>>>\nleak"));
+      dispatchLiveEventToSubscribers(subscribers, "space-1", logEvent("run-999", 1, "<<<SUMMARY-DRAFT>>>\nleak"));
     });
     await flushQueries();
 
@@ -223,18 +223,18 @@ describe("useSummaryDraftStream", () => {
   });
 
   it("resets state when the tracked generation is superseded", async () => {
-    const subscribers = new Set<CompanyLiveEventHandler>();
+    const subscribers = new Set<SpaceLiveEventHandler>();
     let rerender: (next: SummarySlotIssueRef | null) => void;
     ({ root, rerender } = renderHarness(issue("1"), subscribers));
     await flushQueries();
     await act(async () => {
-      dispatchLiveEventToSubscribers(subscribers, "company-1", progressEvent("1", "run-1"));
+      dispatchLiveEventToSubscribers(subscribers, "space-1", progressEvent("1", "run-1"));
     });
     await flushQueries();
     await act(async () => {
       dispatchLiveEventToSubscribers(
         subscribers,
-        "company-1",
+        "space-1",
         logEvent("run-1", 1, "<<<SUMMARY-DRAFT>>>\nold draft\n<<<END-SUMMARY-DRAFT>>>"),
       );
     });
@@ -280,7 +280,7 @@ describe("useSummaryDraftStream", () => {
       nextOffset: persistedRows.length,
     });
 
-    const subscribers = new Set<CompanyLiveEventHandler>();
+    const subscribers = new Set<SpaceLiveEventHandler>();
     ({ root } = renderHarness(issue("1"), subscribers));
     await flushQueries();
 

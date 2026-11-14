@@ -71,9 +71,9 @@ const DISCOVERY_CLAIMS = [
   "discovery:goals:read",
 ];
 const DELEGATION_CLAIMS = ["delegation:tasks:create", "dependencies:write"];
-const GOVERNANCE_READ_CLAIMS = ["governance:approvals:read", "governance:approvals:comment"];
-const GOVERNANCE_REQUEST_CLAIMS = [...GOVERNANCE_READ_CLAIMS, "governance:approvals:request"];
-const GOVERNANCE_DECIDE_CLAIMS = [...GOVERNANCE_REQUEST_CLAIMS, "governance:approvals:decide"];
+const APPROVALS_READ_CLAIMS = ["approvals:approvals:read", "approvals:approvals:comment"];
+const APPROVALS_REQUEST_CLAIMS = [...APPROVALS_READ_CLAIMS, "approvals:approvals:request"];
+const APPROVALS_DECIDE_CLAIMS = [...APPROVALS_REQUEST_CLAIMS, "approvals:approvals:decide"];
 
 /**
  * Fixture-level defaults. Every fixture named by the manifest has an entry;
@@ -81,8 +81,8 @@ const GOVERNANCE_DECIDE_CLAIMS = [...GOVERNANCE_REQUEST_CLAIMS, "governance:appr
  */
 const FIXTURE_PROFILES: Record<string, Partial<CapabilityScenarioProfile>> = {
   "baseline": {},
-  "approval-approved": { seed: "approval_decided", claims: GOVERNANCE_DECIDE_CLAIMS, actorRole: "board" },
-  "approval-denied": { seed: "approval_decided", claims: GOVERNANCE_READ_CLAIMS },
+  "approval-approved": { seed: "approval_decided", claims: APPROVALS_DECIDE_CLAIMS, actorRole: "operator" },
+  "approval-denied": { seed: "approval_decided", claims: APPROVALS_READ_CLAIMS },
   "blocked-dedup": { seed: "blocker_graph" },
   "blocker-graph": { seed: "blocker_graph", claims: DELEGATION_CLAIMS },
   "budget-critical": { seed: "budget_tight" },
@@ -100,8 +100,8 @@ const FIXTURE_PROFILES: Record<string, Partial<CapabilityScenarioProfile>> = {
   "exec-participant": { seed: "second_actor", actorRole: "reviewer", claims: DISCOVERY_CLAIMS },
   "handback-comment": { seed: "comment_wake", wakeReason: "issue_commented" },
   "issue-detail": {},
-  "mcp-approval-gate": { seed: "approval_pending", claims: GOVERNANCE_REQUEST_CLAIMS },
-  "mcp-approval-path-missing": { seed: "baseline", claims: GOVERNANCE_READ_CLAIMS },
+  "mcp-approval-gate": { seed: "approval_pending", claims: APPROVALS_REQUEST_CLAIMS },
+  "mcp-approval-path-missing": { seed: "baseline", claims: APPROVALS_READ_CLAIMS },
   "mention-directive": { seed: "comment_wake", wakeReason: "issue_commented" },
   "mention-fyi": { seed: "comment_wake", wakeReason: "issue_commented" },
   "patch-fault-close": { seed: "baseline", wakeReason: "scheduled_retry" },
@@ -127,7 +127,7 @@ const FIXTURE_PROFILES: Record<string, Partial<CapabilityScenarioProfile>> = {
 const GROUP_CLAIMS: Record<string, string[]> = {
   se: DISCOVERY_CLAIMS,
   su: DELEGATION_CLAIMS,
-  ap: GOVERNANCE_REQUEST_CLAIMS,
+  ap: APPROVALS_REQUEST_CLAIMS,
   mh: DELEGATION_CLAIMS,
   rf: DISCOVERY_CLAIMS,
 };
@@ -140,10 +140,10 @@ const RF_FAMILY_CLAIMS: Array<[string, string[]]> = [
   ["rf-api-", DISCOVERY_CLAIMS],
   ["rf-art-", []],
   ["rf-case-", ["cases:read", "cases:write"]],
-  ["rf-cskill-", ["company_skills:read", "company_skills:write"]],
+  ["rf-cskill-", ["space_skills:read", "space_skills:write"]],
   ["rf-iws-", ["workspace:read", "workspace:control"]],
   ["rf-routine-", ["routines:read", "routines:write"]],
-  ["rf-wf-", ["portability:export", "company:admin"]],
+  ["rf-wf-", ["portability:export", "space:admin"]],
 ];
 
 /** Case-level overrides where the case, not the fixture, sets the posture. */
@@ -166,19 +166,19 @@ const CASE_PROFILES: Record<string, Partial<CapabilityScenarioProfile>> = {
   "rs-dependency-blocked-wake-01": { taskMode: "ask", wakeReason: "issue_commented" },
   "mh-plan-confirm-01": { taskMode: "planning", claims: DELEGATION_CLAIMS },
   "ap-approval-wake-01": {
-    actorRole: "board",
-    claims: GOVERNANCE_DECIDE_CLAIMS,
+    actorRole: "operator",
+    claims: APPROVALS_DECIDE_CLAIMS,
     wakeReason: "approval_resolved",
   },
-  "ap-board-approval-01": { claims: GOVERNANCE_REQUEST_CLAIMS },
-  "ap-mcp-gate-01": { claims: GOVERNANCE_READ_CLAIMS },
-  "ap-mcp-expiry-01": { claims: GOVERNANCE_REQUEST_CLAIMS },
-  "ap-mcp-pathmissing-01": { claims: GOVERNANCE_READ_CLAIMS },
+  "ap-board-approval-01": { claims: APPROVALS_REQUEST_CLAIMS },
+  "ap-mcp-gate-01": { claims: APPROVALS_READ_CLAIMS },
+  "ap-mcp-expiry-01": { claims: APPROVALS_REQUEST_CLAIMS },
+  "ap-mcp-pathmissing-01": { claims: APPROVALS_READ_CLAIMS },
   "rf-api-mgr-heartbeat-01": { actorRole: "manager", claims: DISCOVERY_CLAIMS },
   "rf-api-review-changes-01": { actorRole: "reviewer" },
-  "rf-wf-export-preview-01": { actorRole: "board" },
-  "rf-wf-invite-01": { actorRole: "board" },
-  "rf-wf-project-setup-01": { actorRole: "board" },
+  "rf-wf-export-preview-01": { actorRole: "operator" },
+  "rf-wf-invite-01": { actorRole: "operator" },
+  "rf-wf-project-setup-01": { actorRole: "operator" },
 };
 
 const DEFAULT_PROFILE: CapabilityScenarioProfile = {

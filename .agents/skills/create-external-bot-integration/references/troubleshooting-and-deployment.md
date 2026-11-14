@@ -19,8 +19,8 @@ Do not use “OAuth is broken” for every setup failure. Trace these independen
 A. Provider backend -> public origin -> discovery, MCP, token exchange
 B. Provider browser -> authorization page -> preview/consent -> provider callback
 C. Agent runtime -> loaded plugin actions -> authenticated read/tool calls
-D. Paperclip event worker -> verified callback -> bot wake -> mailbox/challenge
-E. Paperclip scheduler -> managed lease -> Runner -> tools -> finalizer -> cleanup
+D. Outpost event worker -> verified callback -> bot wake -> mailbox/challenge
+E. Outpost scheduler -> managed lease -> Runner -> tools -> finalizer -> cleanup
 ```
 
 For each, collect a timestamp, exact failing operation, status/visible error,
@@ -82,7 +82,7 @@ and tokens out of pasted logs; use the existing authenticated test client when a
 protected operation must be inspected.
 
 ChatGPT's historical client metadata preferred `private_key_jwt` while also
-advertising `none`. Paperclip originally rejected it instead of negotiating its
+advertising `none`. Outpost originally rejected it instead of negotiating its
 supported public-client method with PKCE. Inspect the complete advertised methods;
 do not disable authentication or exact redirect/resource validation to work around
 a preference mismatch. Keep S256 PKCE and current registration checks.
@@ -130,7 +130,7 @@ Ingress repository / SHA / relevant routing version:
 App image / immutable digest:
 Local host / port / data directory / process ownership:
 Public origin / authorization origin / forwarding target:
-Tenant / company / agent identifiers (private evidence only):
+Tenant / space / agent identifiers (private evidence only):
 Sign-in entry and credential reference (no secret values):
 Grant/binding status / subscription / pending code expiry (no code value):
 Current case / run / assignment / lease:
@@ -138,7 +138,7 @@ Owner of each server, proxy, build, sandbox, and cleanup:
 Environment retention agreement / next gate:
 ```
 
-Use synthetic fixtures, not a production database clone containing private company
+Use synthetic fixtures, not a production database clone containing private space
 data or signing keys. Verify launcher arguments, selected instance, port mapping,
 and data persistence after restart. A label such as `default` is not proof of
 process ownership. Never kill unrelated databases or clear shared IPC globally.
@@ -171,7 +171,7 @@ Match platform and provider capability; a Mac controller's current binary cannot
 stand in for a Linux sandbox artifact. Digest/capability checks should fail clearly
 before an assignment is offered.
 
-For the historical private `paperclip-cloud` repository, the supported targeted
+For the historical private `outpost-cloud` repository, the supported targeted
 deployment CLI was `scripts/deploy-stack.mjs <workspace-url> <ref> --plain`, with
 `--resume <request-id>` for the same operation. Inspect current help/runbook before
 using it. Do not invent or replay old tenant IDs, deployment requests, or secrets.
@@ -207,7 +207,7 @@ After the final task, inspect leases and actual provider resources. Expired leas
 status alone is weaker than a successful sandbox deletion receipt. Preserve a
 requested review instance with access and resumption information; release owned
 disposable compute. For an authorized reset, account for provider account link,
-Paperclip binding/grant, event subscription/automation, and cached configuration.
+Outpost binding/grant, event subscription/automation, and cached configuration.
 Disconnecting one layer can leave an enabled provider automation behind.
 
 Report qualified, review-ready, merged, deployed, and canary-verified separately.

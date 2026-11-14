@@ -6,11 +6,11 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WikiPage, WikiRouteSidebar } from "../src/ui/index.js";
 
-const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
-const EXPANDED_STORAGE_KEY = `paperclipai.plugin-llm-wiki:route-sidebar-expanded:v2:${COMPANY_ID}`;
+const SPACE_ID = "11111111-1111-4111-8111-111111111111";
+const EXPANDED_STORAGE_KEY = `outpost.plugin-llm-wiki:route-sidebar-expanded:v2:${SPACE_ID}`;
 
 type BridgeGlobal = typeof globalThis & {
-  __paperclipPluginBridge__?: {
+  __outpostPluginBridge__?: {
     sdkUi?: Record<string, unknown>;
   };
 };
@@ -109,7 +109,7 @@ describe("WikiRouteSidebar", () => {
     pluginDataCalls = [];
     pluginActionCalls = [];
     spacesRefreshCount = 0;
-    (globalThis as BridgeGlobal).__paperclipPluginBridge__ = {
+    (globalThis as BridgeGlobal).__outpostPluginBridge__ = {
       sdkUi: {
         usePluginData: (key: string, params?: Record<string, unknown>) => {
           pluginDataCalls.push({ key, params });
@@ -119,7 +119,7 @@ describe("WikiRouteSidebar", () => {
                 spaces: [
                   {
                     id: "space-default",
-                    companyId: COMPANY_ID,
+                    spaceId: SPACE_ID,
                     wikiId: "default",
                     slug: "default",
                     displayName: "default",
@@ -139,7 +139,7 @@ describe("WikiRouteSidebar", () => {
                   },
                   {
                     id: "space-engineering",
-                    companyId: COMPANY_ID,
+                    spaceId: SPACE_ID,
                     wikiId: "default",
                     slug: "engineering",
                     displayName: "Engineering",
@@ -159,7 +159,7 @@ describe("WikiRouteSidebar", () => {
                   },
                   {
                     id: "space-archived",
-                    companyId: COMPANY_ID,
+                    spaceId: SPACE_ID,
                     wikiId: "default",
                     slug: "qa-team-lock",
                     displayName: "QA Team Lock",
@@ -242,13 +242,13 @@ describe("WikiRouteSidebar", () => {
     });
     container.remove();
     window.localStorage.clear();
-    delete (globalThis as BridgeGlobal).__paperclipPluginBridge__;
+    delete (globalThis as BridgeGlobal).__outpostPluginBridge__;
   });
 
   it("defaults wiki categories open so local files are visible", () => {
     act(() => {
       root.render(createElement(WikiRouteSidebar, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -266,7 +266,7 @@ describe("WikiRouteSidebar", () => {
   it("renders Ask before Add Content in the primary sidebar tools", () => {
     act(() => {
       root.render(createElement(WikiRouteSidebar, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -277,7 +277,7 @@ describe("WikiRouteSidebar", () => {
   it("collapses and expands the active space tree from the space row", () => {
     act(() => {
       root.render(createElement(WikiRouteSidebar, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -299,7 +299,7 @@ describe("WikiRouteSidebar", () => {
   it("omits redundant shared badges beside space names", () => {
     act(() => {
       root.render(createElement(WikiRouteSidebar, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -309,7 +309,7 @@ describe("WikiRouteSidebar", () => {
   it("hides archived spaces from the sidebar", () => {
     act(() => {
       root.render(createElement(WikiRouteSidebar, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -317,7 +317,7 @@ describe("WikiRouteSidebar", () => {
     expect(container.textContent).not.toContain("QA Team Lock");
     expect(pluginDataCalls).not.toContainEqual({
       key: "pages",
-      params: { companyId: COMPANY_ID, includeRaw: true, spaceSlug: "qa-team-lock" },
+      params: { spaceId: SPACE_ID, includeRaw: true, spaceSlug: "qa-team-lock" },
     });
   });
 
@@ -330,7 +330,7 @@ describe("WikiRouteSidebar", () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     act(() => {
       root.render(createElement(WikiRouteSidebar, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -347,7 +347,7 @@ describe("WikiRouteSidebar", () => {
 
     expect(pluginActionCalls).toContainEqual({
       key: "archive-space",
-      params: { companyId: COMPANY_ID, spaceSlug: "engineering" },
+      params: { spaceId: SPACE_ID, spaceSlug: "engineering" },
     });
     expect(spacesRefreshCount).toBe(1);
     expect(navigatedTo).toEqual({ to: "/wiki", options: undefined });
@@ -357,7 +357,7 @@ describe("WikiRouteSidebar", () => {
   it("persists folder expansion client-side", () => {
     act(() => {
       root.render(createElement(WikiRouteSidebar, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -385,7 +385,7 @@ describe("WikiRouteSidebar", () => {
 
     act(() => {
       root.render(createElement(WikiRouteSidebar, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -396,7 +396,7 @@ describe("WikiRouteSidebar", () => {
   it("does not select a wiki-link destination from the route", () => {
     act(() => {
       root.render(createElement(WikiRouteSidebar, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -407,7 +407,7 @@ describe("WikiRouteSidebar", () => {
   it("keeps sidebar tree selection scoped to sidebar navigation", () => {
     act(() => {
       root.render(createElement(WikiRouteSidebar, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -419,7 +419,7 @@ describe("WikiRouteSidebar", () => {
 
     expect(navigatedTo).toEqual({
       to: "/wiki/page/wiki/concepts/sidebar-navigation.md",
-      options: { state: { paperclipWikiSidebarTreePath: "wiki/concepts/sidebar-navigation.md" } },
+      options: { state: { outpostWikiSidebarTreePath: "wiki/concepts/sidebar-navigation.md" } },
     });
     // The default space stays the active space, so its tree is rendered in the
     // sidebar; non-default spaces only render their tree once activated.
@@ -432,7 +432,7 @@ describe("WikiRouteSidebar", () => {
     };
     act(() => {
       root.render(createElement(WikiRouteSidebar, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -449,17 +449,17 @@ describe("WikiRouteSidebar", () => {
   it("warms inactive space pages so sidebar space switches have data ready", () => {
     act(() => {
       root.render(createElement(WikiRouteSidebar, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
     expect(pluginDataCalls).toContainEqual({
       key: "pages",
-      params: { companyId: COMPANY_ID, includeRaw: true, spaceSlug: "engineering" },
+      params: { spaceId: SPACE_ID, includeRaw: true, spaceSlug: "engineering" },
     });
     expect(pluginDataCalls).toContainEqual({
       key: "page-content",
-      params: { companyId: COMPANY_ID, path: "wiki/concepts/sidebar-navigation.md", spaceSlug: "engineering" },
+      params: { spaceId: SPACE_ID, path: "wiki/concepts/sidebar-navigation.md", spaceSlug: "engineering" },
     });
   });
 });
@@ -482,7 +482,7 @@ describe("WikiPage", () => {
       hash: "",
     };
     navigatedTo = null;
-    (globalThis as BridgeGlobal).__paperclipPluginBridge__ = {
+    (globalThis as BridgeGlobal).__outpostPluginBridge__ = {
       sdkUi: {
         usePluginData: (key: string) => {
           if (key === "overview") {
@@ -499,7 +499,7 @@ describe("WikiPage", () => {
                 spaces: [
                   {
                     id: "space-default",
-                    companyId: COMPANY_ID,
+                    spaceId: SPACE_ID,
                     wikiId: "default",
                     slug: "default",
                     displayName: "default",
@@ -529,8 +529,8 @@ describe("WikiPage", () => {
               data: {
                 folder: {
                   configured: true,
-                  path: "/tmp/company-wiki",
-                  realPath: "/tmp/company-wiki",
+                  path: "/tmp/space-wiki",
+                  realPath: "/tmp/space-wiki",
                   access: "readWrite",
                   readable: true,
                   writable: true,
@@ -653,13 +653,13 @@ describe("WikiPage", () => {
     });
     container.remove();
     consoleError.mockRestore();
-    delete (globalThis as BridgeGlobal).__paperclipPluginBridge__;
+    delete (globalThis as BridgeGlobal).__outpostPluginBridge__;
   });
 
-  it("renders structured Paperclip source refs as text", () => {
+  it("renders structured Outpost source refs as text", () => {
     act(() => {
       root.render(createElement(WikiPage, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -678,7 +678,7 @@ describe("WikiPage", () => {
 
     act(() => {
       root.render(createElement(WikiPage, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -698,7 +698,7 @@ describe("WikiPage", () => {
   it("closes the page drop overlay when a file drag leaves without dropping files", () => {
     act(() => {
       root.render(createElement(WikiPage, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -720,7 +720,7 @@ describe("WikiPage", () => {
   it("keeps staged dropped files in the ingest modal after the drop overlay clears", () => {
     act(() => {
       root.render(createElement(WikiPage, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -740,7 +740,7 @@ describe("WikiPage", () => {
   it("lets users close the page drop overlay directly", () => {
     act(() => {
       root.render(createElement(WikiPage, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 
@@ -768,7 +768,7 @@ describe("WikiPage", () => {
 
     act(() => {
       root.render(createElement(WikiPage, {
-        context: { companyId: COMPANY_ID, companyPrefix: "PAP" },
+        context: { spaceId: SPACE_ID, spacePrefix: "PAP" },
       } as never));
     });
 

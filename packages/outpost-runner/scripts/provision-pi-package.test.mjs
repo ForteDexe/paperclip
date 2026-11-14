@@ -9,7 +9,7 @@ import { build } from "esbuild";
 import { bundlePiProvisioner } from "./build-verified-provider-entrypoints.mjs";
 
 test("public server tar layout carries a self-contained host provisioner and exact small inputs", async t => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-public-layout-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "outpost-pi-public-layout-")));
   t.after(() => rm(root, { recursive: true, force: true }));
   const pkg = join(root, "package"); const cli = join(pkg, "dist/vendor/outpost-runner/cli");
   await mkdir(cli, { recursive: true });
@@ -26,7 +26,7 @@ test("public server tar layout carries a self-contained host provisioner and exa
     ["src/drivers/acpx/pi-runtime-extension.ts", "pi-runtime-extension.ts"],
   ]) assert.deepEqual(await readFile(resolve(packageRoot, source)), await readFile(join(inputs, destination)));
   // Exercise npm's actual package/ prefix after archive extraction, without
-  // pretending this small fixture is a complete published Paperclip release.
+  // pretending this small fixture is a complete published Outpost release.
   const archive = join(root, "server.tgz");
   execFileSync("tar", ["-czf", archive, "-C", root, "package"], { env: { PATH: "/usr/bin:/bin" }, timeout: 10_000 });
   const installed = join(root, "installed"); await mkdir(installed);
@@ -51,7 +51,7 @@ test("public server tar layout carries a self-contained host provisioner and exa
 });
 
 for (const provider of ["pi", "antigravity"]) test(`${provider} CLI setup passes only network settings to its real child and enables Node proxy handling`, async t => {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-pi-setup-environment-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-pi-setup-environment-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const server = join(root, "node_modules/@outpost/server");
   const cli = join(server, "dist/vendor/outpost-runner/cli");

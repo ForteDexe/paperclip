@@ -16,12 +16,12 @@ export const setDependenciesAction = {
       "standard",
       "skill_test"
     ],
-    "sideEffectClass": "company_write",
+    "sideEffectClass": "space_write",
     "idempotency": "required",
     "disabledByDefault": false,
     "realBindingStatus": "live_codex",
     "realServiceBinding": "issues.update.blockedByIssueIds",
-    "orpEvidence": "semantic-operation item event plus company-entity state diff and audit record",
+    "orpEvidence": "semantic-operation item event plus space-entity state diff and audit record",
     "orpBindingStatus": "bound",
     "legacyAliases": []
   },
@@ -224,7 +224,7 @@ export const setDependenciesAction = {
         "standard",
         "skill_test"
       ],
-      "sideEffectClass": "company_write",
+      "sideEffectClass": "space_write",
       "idempotency": "required",
       "redaction": [],
       "mockCommandMapping": {

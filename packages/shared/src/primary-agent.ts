@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export interface PrimaryAgentPreference {
-  companyId: string;
+  spaceId: string;
   userId: string;
   primaryAgentId: string | null;
   initialized: boolean;

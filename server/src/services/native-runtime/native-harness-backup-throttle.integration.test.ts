@@ -25,10 +25,10 @@ describeEmbeddedPostgres("durable native provider backups under an object-storag
   async function fixture(provider = "codex") {
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "51".repeat(32));
     const f = await environment.seedRun(randomUUID());
-    const { companyId, runtimeRoot, successor } = environment.current;
+    const { spaceId, runtimeRoot, successor } = environment.current;
     await f.db.update(nativeRunFinalizations).set({ controllerBootId: successor.bootId, controllerGeneration: 1,
       leaseOwner: "backup-writer", leaseExpiresAt: new Date(Date.now() + 120_000) }).where(eq(nativeRunFinalizations.runId, f.runId));
-    const owner = await nativeHarnessBackupOwner(f.db, { companyId, issueId: f.issueId, runId: f.runId, bootId: successor.bootId });
+    const owner = await nativeHarnessBackupOwner(f.db, { spaceId, issueId: f.issueId, runId: f.runId, bootId: successor.bootId });
     const home = join(runtimeRoot, randomUUID()), root = join(home, "failover-backups", "current");
     ownedHomes.push(home);
     await mkdir(join(root, provider, "sessions"), { recursive: true });
@@ -41,7 +41,7 @@ describeEmbeddedPostgres("durable native provider backups under an object-storag
     await chmod(join(root, provider, "sessions"), 0o500);
     const sessionScopeId = randomUUID(), scopeDigest = createHash("sha256").update(sessionScopeId).digest("hex");
     const storage = createStorageService(createLocalDiskStorageProvider(join(runtimeRoot, "durable-objects")));
-    return { ...f, home, root, companyId, owner, scopeDigest, sessionScopeId, storage, identity,
+    return { ...f, home, root, spaceId, owner, scopeDigest, sessionScopeId, storage, identity,
       manifestSha256: `sha256:${createHash("sha256").update(manifest).digest("hex")}` };
   }
   async function artifactFixture(artifactVersion = randomUUID()) {
@@ -58,12 +58,12 @@ describeEmbeddedPostgres("durable native provider backups under an object-storag
       pins: { opencode: "1.18.34" }, artifacts: { ...artifacts, opencodeCommand: artifacts.opencodeExecutable } };
     const manifest = { schema: "outpost-runner/remote-provider-pack/v1", payload,
       digest: `sha256:${createHash("sha256").update(canonicalProviderPackJson(payload)).digest("hex")}` };
-    const launchRoot = `/home/daytona/.paperclip-runtime/outpost-runner/provider-artifacts/${manifest.digest.slice(7)}`;
+    const launchRoot = `/home/daytona/.outpost-runtime/outpost-runner/provider-artifacts/${manifest.digest.slice(7)}`;
     await f.db.update(heartbeatRuns).set({ nativeSessionId: f.identity.normalizedSessionId, driverKind: "opencode_server",
       runnerProfileJson: { ...f.preparedProfile, nativeProviderPackAdmissionState: {
         schema: "outpost.native-provider-pack-admission-state.v1", state: "verified", admissionEpoch: randomUUID() },
       nativeProviderPackAdmission: { schema: "outpost.native-provider-pack-admission.v1", stage: "session_admitted",
-        authority: "core_verified_selection", companyId: f.companyId, agentId: environment.current.agentId,
+        authority: "core_verified_selection", spaceId: f.spaceId, agentId: environment.current.agentId,
         runId: f.runId, sessionId: f.identity.normalizedSessionId, runnerInstanceId: "artifact-fixture-runner",
         runnerEnvironmentLeaseId: "artifact-fixture-lease", providerPackDigest: manifest.digest,
         opencodeProxySha256: artifacts.opencodeProxy.sha256, sourceRevision: payload.runnerSourceRevision } },

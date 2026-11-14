@@ -7,7 +7,7 @@
   "required": ["schema", "id", "title", "version", "tags", "providers", "steps", "assertions"],
   "properties": {
     "schema": { "const": "outpost.runner.workflow-eval-case.v1" },
-    "id": { "enum": ["final-response", "rich-activity", "verification-policy", "governed-interaction", "steering-causality", "planning-lifecycle", "review-lifecycle", "delegation-return", "completion-robustness", "restart-recovery", "cancellation-permissions", "trace-lineage"] },
+    "id": { "enum": ["final-response", "rich-activity", "verification-policy", "controlled-interaction", "steering-causality", "planning-lifecycle", "review-lifecycle", "delegation-return", "completion-robustness", "restart-recovery", "cancellation-permissions", "trace-lineage"] },
     "title": { "type": "string", "minLength": 1 },
     "version": { "const": 1 },
     "tags": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },

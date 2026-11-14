@@ -90,9 +90,9 @@ export async function runContextIntegrityFlow(input: {
   const scenario = contextIntegrityScenario(execution.task.id, nonce) as ReturnType<typeof contextIntegrityScenario> & {
     assignedSkill?: { key: string; runtimeName: string; markdown: string };
   };
-  const companyPath = `/api/companies/${fixtures.company.id}`;
+  const spacePath = `/api/spaces/${fixtures.space.id}`;
   const budgetGuard = {
-    companyMonthlyCents: 1_000,
+    spaceMonthlyCents: 1_000,
     agentMonthlyCents: 1_000,
     currency: "USD",
     hardStop: true,
@@ -109,18 +109,18 @@ export async function runContextIntegrityFlow(input: {
     if (!markdown.startsWith(`---\nname: ${scenario.skillKey}\ndescription:`) || markdown.includes("\\n")) {
       throw new Error("Context-integrity skill payload must contain real frontmatter newlines");
     }
-    const skill = await api.post<Row>(`${companyPath}/skills`, {
+    const skill = await api.post<Row>(`${spacePath}/skills`, {
       name: scenario.skillName,
       slug: scenario.skillKey,
       description: "A bounded context-integrity output procedure.",
       markdown,
       idempotencyKey: `context-integrity-${nonce}`,
     });
-    await api.post(`/api/agents/${fixtures.agent.id}/skills/sync?companyId=${fixtures.company.id}`, {
+    await api.post(`/api/agents/${fixtures.agent.id}/skills/sync?spaceId=${fixtures.space.id}`, {
       desiredSkills: [{ key: skill.key ?? skill.slug ?? scenario.skillKey, versionId: skill.currentVersionId ?? skill.versionId ?? null }],
       mode: "add",
     });
-    const assigned = await api.get<Row>(`/api/agents/${fixtures.agent.id}/skills?companyId=${fixtures.company.id}`);
+    const assigned = await api.get<Row>(`/api/agents/${fixtures.agent.id}/skills?spaceId=${fixtures.space.id}`);
     const desired = (assigned.desiredSkillEntries as Array<Row> | undefined)?.find((entry) => entry.key === (skill.key ?? skill.slug ?? scenario.skillKey));
     if (!desired?.versionId) throw new Error("Context-integrity skill was not assigned with a pinned version");
     if (String(desired.versionId) !== String(skill.currentVersionId ?? skill.versionId ?? "")) throw new Error("Context-integrity skill assignment does not match the created current version");
@@ -131,7 +131,7 @@ export async function runContextIntegrityFlow(input: {
   async function refresh() {
     if (!issue) return;
     issue = await api.get<Row>(`/api/issues/${issue.id}`);
-    const listed = await api.get<Row[]>(`${companyPath}/heartbeat-runs?limit=100`);
+    const listed = await api.get<Row[]>(`${spacePath}/heartbeat-runs?limit=100`);
     const detailed = await Promise.all(listed.map((run) => api.get<Row>(`/api/heartbeat-runs/${run.id}`)));
     runs = detailed.filter((run) => run.issueId === issue!.id || run.nativeIssueId === issue!.id || run.contextSnapshot?.issueId === issue!.id || run.contextSnapshot?.taskId === issue!.id);
   }
@@ -140,9 +140,9 @@ export async function runContextIntegrityFlow(input: {
     const [comments, documents, skillRows, queuedComments, assignedState] = await Promise.all([
       api.get<Row[]>(`/api/issues/${issue!.id}/comments?order=asc`),
       api.get<Row[]>(`/api/issues/${issue!.id}/documents`),
-      api.get<Row[]>(`${companyPath}/skills`),
+      api.get<Row[]>(`${spacePath}/skills`),
       api.get<Row>(`/api/issues/${issue!.id}/queued-comments`),
-      isAssignedSkillContext(scenario.id) ? api.get<Row>(`/api/agents/${fixtures.agent.id}/skills?companyId=${fixtures.company.id}`) : Promise.resolve({} as Row),
+      isAssignedSkillContext(scenario.id) ? api.get<Row>(`/api/agents/${fixtures.agent.id}/skills?spaceId=${fixtures.space.id}`) : Promise.resolve({} as Row),
     ]);
     const detailedDocuments = await Promise.all(documents.map((document) => api.get<Row>(`/api/issues/${issue!.id}/documents/${encodeURIComponent(String(document.key))}`)));
     const assignedSkill = isAssignedSkillContext(scenario.id)
@@ -153,7 +153,7 @@ export async function runContextIntegrityFlow(input: {
     const runLogs = await Promise.all(runs.map((run) => readContextIntegrityRunLog(api, run.id)));
     const skillInvocationEvidence = isAssignedSkillContext(scenario.id) && runEvents.some((events) => events.some((event) => containsExplicitSkillInput(event, String(assignedSkill?.slug ?? scenario.skillKey))));
     skillRequestText = isAssignedSkillContext(scenario.id) ? String(issue?.description ?? "") : "";
-    checkpoints.push({ phase, issue: { id: issue!.id, status: String(issue!.status), identifier: String(issue!.identifier ?? ""), issuePrefix: String(fixtures.company.issuePrefix ?? ""), appOrigin: new URL(page.url()).origin }, comments, queuedComments, documents: detailedDocuments as Array<{ key: string; body?: string | null }>, runs, runEvents: runEvents.flat(), runLogs, assignedSkill: assignedSkill ? { key: String(desiredSkill?.key ?? assignedSkill.key ?? assignedSkill.slug), runtimeName: String(assignedSkill.slug ?? ""), versionId: desiredSkill?.versionId === assignedVersionId ? assignedVersionId : null, markdown: String(assignedSkill.markdown ?? scenario.assignedSkill?.markdown ?? "") } : undefined, skillRequestText: isAssignedSkillContext(scenario.id) ? skillRequestText : undefined, skillInvocationEvidence });
+    checkpoints.push({ phase, issue: { id: issue!.id, status: String(issue!.status), identifier: String(issue!.identifier ?? ""), issuePrefix: String(fixtures.space.issuePrefix ?? ""), appOrigin: new URL(page.url()).origin }, comments, queuedComments, documents: detailedDocuments as Array<{ key: string; body?: string | null }>, runs, runEvents: runEvents.flat(), runLogs, assignedSkill: assignedSkill ? { key: String(desiredSkill?.key ?? assignedSkill.key ?? assignedSkill.slug), runtimeName: String(assignedSkill.slug ?? ""), versionId: desiredSkill?.versionId === assignedVersionId ? assignedVersionId : null, markdown: String(assignedSkill.markdown ?? scenario.assignedSkill?.markdown ?? "") } : undefined, skillRequestText: isAssignedSkillContext(scenario.id) ? skillRequestText : undefined, skillInvocationEvidence });
     const checks = gradeContextIntegrity({ id: scenario.id, marker: scenario.marker, comments: scenario.comments, checkpoints });
     input.observe(issue!, runs, checks);
     await input.evidence("context-integrity.json", { schema: "outpost.context-integrity.v1", scenario, budgetGuard, checkpoints, checks });
@@ -170,8 +170,8 @@ export async function runContextIntegrityFlow(input: {
   }
   try {
     await api.patch("/api/instance/settings/experimental", { enableClassicTaskInterface: false });
-    await api.patch(`/api/companies/${fixtures.company.id}/budgets`, {
-      budgetMonthlyCents: budgetGuard.companyMonthlyCents,
+    await api.patch(`/api/spaces/${fixtures.space.id}/budgets`, {
+      budgetMonthlyCents: budgetGuard.spaceMonthlyCents,
     });
     await api.patch(`/api/agents/${fixtures.agent.id}/budgets`, {
       budgetMonthlyCents: budgetGuard.agentMonthlyCents,
@@ -180,8 +180,8 @@ export async function runContextIntegrityFlow(input: {
       ? `${scenario.prompt}\n\nUse /${scenario.skillKey} for this request.`
       : scenario.prompt;
     skillRequestText = taskPrompt;
-    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt: taskPrompt, workMode: "standard" });
-    issue = await pollUntil({ label: "context-integrity task created", deadlineAt: input.deadlineAt, load: async () => (await api.get<Row[]>(`${companyPath}/issues?limit=100`)).find((row) => row.id === createdTask.issueId), accept: Boolean });
+    const createdTask = await createTaskThroughUi({ page, issuePrefix: fixtures.space.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt: taskPrompt, workMode: "standard" });
+    issue = await pollUntil({ label: "context-integrity task created", deadlineAt: input.deadlineAt, load: async () => (await api.get<Row[]>(`${spacePath}/issues?limit=100`)).find((row) => row.id === createdTask.issueId), accept: Boolean });
     if (!issue) throw new Error("Missing context-integrity task");
     if (scenario.id === "ordered-comment-continuation") {
       await pollUntil({
@@ -229,7 +229,7 @@ export async function runContextIntegrityFlow(input: {
       let checkoutActivity: unknown;
       try {
         checkoutActivity = observeCheckoutActivity({
-          companyId: fixtures.company.id, issueId: issue.id, agentId: fixtures.agent.id,
+          spaceId: fixtures.space.id, issueId: issue.id, agentId: fixtures.agent.id,
           runs, activity: await api.get<Row[]>(`/api/issues/${issue.id}/activity`),
         });
       } catch {
@@ -240,7 +240,7 @@ export async function runContextIntegrityFlow(input: {
     const checks = gradeContextIntegrity({ id: scenario.id, marker: scenario.marker, comments: scenario.comments, checkpoints });
     const failures = checks.filter((check) => !check.passed);
     if (failures.length) throw new Error(`Context-integrity matcher failures: ${failures.map((failure) => `${failure.id}: ${failure.detail}`).join("; ")}`);
-    await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.goto(`/${fixtures.space.issuePrefix}/issues/${issue.identifier ?? issue.id}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await captureLoadedContinuation(page, String(issue.title), () => emitContextIntegrityFinalEvidence({ evidence: input.evidence, capture: input.capture, issue, runs, checkpoints, checks, runEvents: checkpoints.at(-1)?.runEvents, runLogs: checkpoints.at(-1)?.runLogs }));
     return { issue, runs, checks };
   } finally {

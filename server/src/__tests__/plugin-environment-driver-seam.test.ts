@@ -12,20 +12,20 @@ import {
 import type { PluginEnvironmentTaskParams } from "../../../packages/plugins/sdk/src/environment-tasks.js";
 import { definePlugin } from "../../../packages/plugins/sdk/src/define-plugin.js";
 import { startWorkerRpcHost } from "../../../packages/plugins/sdk/src/worker-rpc-host.js";
-import { pluginManifestV1Schema, type PaperclipPluginManifestV1 } from "@outpost/shared";
+import { pluginManifestV1Schema, type OutpostPluginManifestV1 } from "@outpost/shared";
 import { pluginCapabilityValidator } from "../services/plugin-capability-validator.js";
 
 // The worker host writes only responses in these tests, and each test reads
 // the result fields of the method it called.
 type WorkerResponse = JsonRpcResponse<{ supportedMethods: string[]; detections: unknown[] }>;
 
-const baseManifest: PaperclipPluginManifestV1 = {
+const baseManifest: OutpostPluginManifestV1 = {
   id: "test.environment-driver",
   apiVersion: 1,
   version: "1.0.0",
   displayName: "Environment Driver",
   description: "Test environment driver plugin",
-  author: "Paperclip",
+  author: "Outpost",
   categories: ["automation"],
   capabilities: ["environment.drivers.register"],
   entrypoints: { worker: "dist/worker.js" },
@@ -88,7 +88,7 @@ describe("plugin environment driver seam", () => {
     const withoutCapability = {
       ...baseManifest,
       capabilities: ["http.outbound"],
-    } satisfies PaperclipPluginManifestV1;
+    } satisfies OutpostPluginManifestV1;
 
     expect(validator.checkOperation(withoutCapability, "environment.execute")).toMatchObject({
       allowed: false,
@@ -128,7 +128,7 @@ describe("plugin environment driver seam", () => {
       if (!isJsonRpcSuccessResponse(initialized)) return;
       expect(initialized.result.supportedMethods).toContain("environmentTask");
       const projectIds = ["10000000-0000-4000-8000-000000000001", "10000000-0000-4000-8000-000000000002"];
-      const params: PluginEnvironmentTaskParams = { driverKey: "fake-plugin", companyId: "company", environmentId: "environment", config: {},
+      const params: PluginEnvironmentTaskParams = { driverKey: "fake-plugin", spaceId: "space", environmentId: "environment", config: {},
         taskId: "attempt", runId: "run", agentId: "agent", projectIds, lease: { providerLeaseId: "attempt" },
         operation: { kind: "submit", projectIds, bootstrapTicket: "transient-test-ticket", runner: {
           protocolMin: 1, protocolMax: 2, harness: "codex", runnerId: "runner", leaseId: "lease", runId: "run", sessionId: "session:part.1", turnId: "turn", itemId: "item",
@@ -201,7 +201,7 @@ describe("plugin environment driver seam", () => {
 
     stdin.write(serializeMessage(createRequest("environmentProbe", {
       driverKey: "fake-plugin",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "environment-1",
       config: { template: "base" },
     }, 2)));
@@ -218,7 +218,7 @@ describe("plugin environment driver seam", () => {
 
     stdin.write(serializeMessage(createRequest("environmentStartInteractiveSetup", {
       driverKey: "fake-plugin",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "environment-1",
       sessionId: "session-1",
       config: { template: "base" },
@@ -240,7 +240,7 @@ describe("plugin environment driver seam", () => {
 
     stdin.write(serializeMessage(createRequest("environmentExecute", {
       driverKey: "fake-plugin",
-      companyId: "company-1",
+      spaceId: "space-1",
       environmentId: "environment-1",
       config: { template: "base" },
       lease: { providerLeaseId: "lease-1" },
@@ -258,13 +258,13 @@ describe("plugin environment driver seam", () => {
   });
 });
 
-const objectReferenceManifest: PaperclipPluginManifestV1 = {
+const objectReferenceManifest: OutpostPluginManifestV1 = {
   id: "test.external-object-provider",
   apiVersion: 1,
   version: "1.0.0",
   displayName: "External Object Provider",
   description: "Test external object provider plugin",
-  author: "Paperclip",
+  author: "Outpost",
   categories: ["connector"],
   capabilities: ["external.objects.detect", "external.objects.read"],
   entrypoints: { worker: "dist/worker.js" },
@@ -316,7 +316,7 @@ describe("plugin external object provider seam", () => {
     const withoutCapability = {
       ...objectReferenceManifest,
       capabilities: ["external.objects.detect"],
-    } satisfies PaperclipPluginManifestV1;
+    } satisfies OutpostPluginManifestV1;
 
     expect(validator.checkOperation(withoutCapability, "external.objects.read")).toMatchObject({
       allowed: false,
@@ -385,7 +385,7 @@ describe("plugin external object provider seam", () => {
     expect(initializeResponse.result.supportedMethods).toContain("resolveExternalObject");
 
     stdin.write(serializeMessage(createRequest("detectExternalObjects", {
-      companyId: "company-1",
+      spaceId: "space-1",
       urls: [{
         sanitizedCanonicalUrl: "https://mock.example/tickets/123",
         sanitizedDisplayUrl: "https://mock.example/tickets/123",
@@ -394,7 +394,7 @@ describe("plugin external object provider seam", () => {
         redactedMatchedText: "https://mock.example/tickets/123",
       }],
       sourceContext: {
-        companyId: "company-1",
+        spaceId: "space-1",
         sourceIssueId: "issue-1",
         sourceKind: "description",
         sourceRecordId: null,
@@ -414,13 +414,13 @@ describe("plugin external object provider seam", () => {
     });
 
     stdin.write(serializeMessage(createRequest("resolveExternalObject", {
-      companyId: "company-1",
+      spaceId: "space-1",
       providerKey: "mocktracker",
       objectType: "ticket",
       externalId: "MOCK-123",
       object: {
         id: "object-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         providerKey: "mocktracker",
         objectType: "ticket",
         externalId: "MOCK-123",

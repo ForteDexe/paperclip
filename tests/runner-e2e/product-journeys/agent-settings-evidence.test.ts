@@ -45,7 +45,7 @@ describe("saved agent settings independent evidence", () => {
     expect(gradeAgentSettings(f.scope, f.evidence).every(row => row.passed)).toBe(false);
   });
   const changes: Array<[string, (f: ReturnType<typeof settingsEvidenceFixture>) => void]> = [
-    ["foreign company", f => { f.evidence.original!.agent.companyId = "foreign"; }],
+    ["foreign space", f => { f.evidence.original!.agent.spaceId = "foreign"; }],
     ["missing campaign-bearing target name", f => { f.scope.agentName = "Agent without campaign name"; f.evidence.original!.agent.name = f.scope.agentName; }],
     ["past work", f => { f.evidence.original!.runs.push(f.run); }],
     ["wrong instruction entry", f => { f.evidence.saved!.bundle.entryFile = "OTHER.md"; }],
@@ -60,7 +60,7 @@ describe("saved agent settings independent evidence", () => {
     ["rendered draft only", f => { f.evidence.reloaded!.file.content = f.original; }],
     ["missing rendered content", f => { delete f.evidence.reloaded!.renderedContent; }],
     ["prompt leaks reference", f => { f.evidence.task!.issue.description += f.scope.reference; }],
-    ["foreign task", f => { f.evidence.task!.issue.companyId = "other"; }],
+    ["foreign task", f => { f.evidence.task!.issue.spaceId = "other"; }],
     ["wrong assignee", f => { f.evidence.task!.issue.assigneeAgentId = "other"; }],
     ["incomplete task", f => { f.evidence.task!.issue.status = "in_progress"; }],
     ["active checkout", f => { f.evidence.task!.issue.executionRunId = "active"; }],

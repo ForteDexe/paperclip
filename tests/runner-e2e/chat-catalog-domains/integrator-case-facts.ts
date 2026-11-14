@@ -82,7 +82,7 @@ export function gradeIntegratorCaseFacts(value: unknown) {
     && o.briefRevisions.some(revision => revision.id === before.latestRevisionId && revision.issueId === original.workIssueId && revision.body === before.body), "The original ordinary-task document and its actual saved revision remain owned and accessible on the same primary task.");
   const reviewerId = (o.state.reviewer as Entity).id;
   const run = o.runs.find(row => row.agentId === reviewerId && row.contextSnapshot?.issueId === original.workIssueId);
-  const context = run?.contextSnapshot?.paperclipCase as { id?: string; taskId?: string; data?: string } | undefined;
+  const context = run?.contextSnapshot?.outpostCase as { id?: string; taskId?: string; data?: string } | undefined;
   let projected: { fields?: unknown } | undefined; try { projected = JSON.parse(context?.data ?? "null") ?? undefined; } catch { /* malformed public projection fails below */ }
   const projectedFields = projected?.fields as Record<string, unknown> | undefined;
   const roles = caseFactsRoles({ ...o, sourceId: o.state.sourceId as string | undefined });
@@ -99,11 +99,11 @@ export const integratorCaseFactsCases = [integratorDefinition("cases", "cases.up
   try {
     await ctx.input.api.patch("/api/instance/settings/experimental", { enableCases: true }); const p = await project(ctx, "Launch");
     const worker = await fixtureWorker(ctx); const reviewer = await fixtureWorker(ctx); await ctx.input.api.patch(`/api/agents/${reviewer.id}`, { name: "Riley" });
-    for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, ...[worker.id, reviewer.id].map(scopeId => ({ scopeType: "agent", scopeId }))])
-      await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+    for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, ...[worker.id, reviewer.id].map(scopeId => ({ scopeType: "agent", scopeId }))])
+      await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
     const gate = await startRunBriefGate(ctx, worker.id, "Customer evidence for Acorn Test Shop: no further reproduction evidence has been received yet. The affected device is still unconfirmed.");
     settings.get(ctx)!.gate = gate;
-    const kickoff = await ctx.input.api.post<HandoffCaseResult>(`/api/companies/${ctx.input.fixtures.company.id}/case-handoffs`, {
+    const kickoff = await ctx.input.api.post<HandoffCaseResult>(`/api/spaces/${ctx.input.fixtures.space.id}/case-handoffs`, {
       idempotencyKey: `facts-${ctx.input.nonce}`, case: { create: { caseType: "customer", title: "Checkout reproduction case", projectId: p.id,
         fields: { browser: SETUP_BROWSER, customer: "Acorn Test Shop", severity: "normal", expected: "Pay should submit a single order" } } }, toAgentId: worker.id, phase: "investigation",
       instructions: "Read the saved customer brief. The affected device is not yet confirmed: record the missing reproduction detail in a task comment, then call the connected Website Brief read_website_brief tool to wait for the remaining customer evidence. Keep this ordinary investigation active; do not complete it, invent the affected device, or alter case facts.",
@@ -117,14 +117,14 @@ export const integratorCaseFactsCases = [integratorDefinition("cases", "cases.up
       load: async () => ({ task: await ctx.input.api.get<Issue>(`/api/issues/${kickoff.taskId}`), runs: await ctx.allRuns() }),
       accept: v => v.runs.length === 1 && v.runs[0]?.status === "cancelled" && v.task.status === "in_progress" && !v.task.executionRunId && !v.task.checkoutRunId });
     gate.release();
-    await waitCaseCancellationAccounting(ctx, { companyId: ctx.input.fixtures.company.id, agentId: worker.id, issueId: kickoff.taskId, runId: initial.runs[0]!.id });
+    await waitCaseCancellationAccounting(ctx, { spaceId: ctx.input.fixtures.space.id, agentId: worker.id, issueId: kickoff.taskId, runId: initial.runs[0]!.id });
     return { initialRunId: initial.runs[0]!.id, project: p, worker: { id: worker.id }, reviewer: { id: reviewer.id }, case: await ctx.input.api.get<CaseRecord>(`/api/cases/${kickoff.caseId}`),
       brief: await ctx.input.api.get<IssueDocument>(`/api/issues/${kickoff.taskId}/documents/brief`), collaboratorValue: `support-${ctx.input.nonce}` };
   } catch (error) { await cleanup(ctx); throw error; }
 }, observeFacts, gradeIntegratorCaseFacts, async (ctx, state) => {
-  const row = state.case as CaseRecord; await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/cases/${row.identifier}`, row.title);
+  const row = state.case as CaseRecord; await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/cases/${row.identifier}`, row.title);
   const task = await ctx.input.api.get<Issue>(`/api/issues/${row.workIssueId}`);
-  await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier}`, task.title);
+  await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier}`, task.title);
 }, { oracleVersion: "outpost.chat-catalog.integrator.case-facts.v8", expectedRunCount: 6, minimumRunCount: 4, expectedHumanMessageCount: 2, attemptTimeoutMs: 900_000,
   runPolicy: { kind: "terminal-counts", terminalStatusCounts: { cancelled: 1, succeeded: 3 }, maximumTerminalStatusCounts: { succeeded: 5 } },
   sourceFiles: ["chat-catalog-domains/integrator-case-facts.ts", "chat-catalog-domains/run-roles.ts", "chat-catalog-domains/internal-run-brief.ts", "chat-catalog-domains/integrator-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/internal-definition.ts", "chat-scenarios/cases.yaml"], cleanup,
@@ -147,7 +147,7 @@ export const integratorCaseFactsCases = [integratorDefinition("cases", "cases.up
     const fresh = await settle(2); state.collaborationCheckpoint = { ...fresh, state: structuredClone(state) }; await ctx.input.evidence("chat-case-concurrent-change.json", state.collaborationCheckpoint);
     if (!retained(fresh, true)) throw new Error("Chat overwrote or lost the separately saved collaboration change");
     const task = await ctx.input.api.get<Issue>(`/api/issues/${row.workIssueId}`);
-    await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/case-handoffs`, { case: { id: row.id }, expectedHandoffVersion: fresh.caseRecord.handoffVersion,
+    await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/case-handoffs`, { case: { id: row.id }, expectedHandoffVersion: fresh.caseRecord.handoffVersion,
       expectedIssueStatusVersion: task.statusVersion, idempotencyKey: `facts-review-${ctx.input.nonce}`, toAgentId: (state.reviewer as Entity).id, phase: "review",
       instructions: "Review the current saved case facts and task-owned brief, record your assessment in a task comment, and complete this ordinary review task. Keep the case open; no terminal handoff is requested." });
   },

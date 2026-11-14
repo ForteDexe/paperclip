@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
-  companies,
+  spaces,
   createDb,
   pluginJobRuns,
   pluginJobs,
@@ -23,8 +23,8 @@ import {
  * Regression coverage for tenant scoping on plugin operational reads.
  *
  * `plugin_logs`, `plugin_job_runs` and `plugin_webhook_deliveries` all carry a
- * `company_id` attribution (NULL for instance-scope rows). A board member of
- * one company must not be able to read rows attributed to another company
+ * `space_id` attribution (NULL for instance-scope rows). A operator member of
+ * one space must not be able to read rows attributed to another space
  * through the plugin diagnostics routes; instance administrators keep the
  * instance-wide view.
  */
@@ -43,11 +43,11 @@ function issuePrefix(id: string) {
 }
 
 type Actor = {
-  type: "board";
+  type: "operator";
   source: string;
   userId: string;
-  companyIds: string[];
-  memberships: Array<{ companyId: string; membershipRole: string; status: string }>;
+  spaceIds: string[];
+  memberships: Array<{ spaceId: string; membershipRole: string; status: string }>;
   isInstanceAdmin: boolean;
 };
 
@@ -73,12 +73,12 @@ function buildApp(actor: Actor, db: ReturnType<typeof createDb>) {
   return app;
 }
 
-describeEmbeddedPostgres("plugin operational reads are company-scoped", () => {
+describeEmbeddedPostgres("plugin operational reads are space-scoped", () => {
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
-  const companyA = randomUUID();
-  const companyB = randomUUID();
+  const spaceA = randomUUID();
+  const spaceB = randomUUID();
   const pluginId = randomUUID();
   const jobId = randomUUID();
 
@@ -94,31 +94,31 @@ describeEmbeddedPostgres("plugin operational reads are company-scoped", () => {
   const deliveryB = randomUUID();
   const deliveryInstance = randomUUID();
 
-  const boardA: Actor = {
-    type: "board",
+  const operatorA: Actor = {
+    type: "operator",
     source: "session",
     userId: `user-${randomUUID()}`,
-    companyIds: [companyA],
-    memberships: [{ companyId: companyA, membershipRole: "owner", status: "active" }],
+    spaceIds: [spaceA],
+    memberships: [{ spaceId: spaceA, membershipRole: "owner", status: "active" }],
     isInstanceAdmin: false,
   };
 
   const instanceAdmin: Actor = {
-    type: "board",
+    type: "operator",
     source: "session",
     userId: `admin-${randomUUID()}`,
-    companyIds: [],
+    spaceIds: [],
     memberships: [],
     isInstanceAdmin: true,
   };
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-plugin-operational-reads-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-plugin-operational-reads-");
     db = createDb(tempDb.connectionString);
 
-    await db.insert(companies).values([
-      { id: companyA, name: `Company A ${companyA}`, issuePrefix: issuePrefix(companyA) },
-      { id: companyB, name: `Company B ${companyB}`, issuePrefix: issuePrefix(companyB) },
+    await db.insert(spaces).values([
+      { id: spaceA, name: `Space A ${spaceA}`, issuePrefix: issuePrefix(spaceA) },
+      { id: spaceB, name: `Space B ${spaceB}`, issuePrefix: issuePrefix(spaceB) },
     ]);
 
     await db.insert(plugins).values({
@@ -148,21 +148,21 @@ describeEmbeddedPostgres("plugin operational reads are company-scoped", () => {
 
     const base = Date.now();
     await db.insert(pluginLogs).values([
-      { id: logA, pluginId, companyId: companyA, level: "info", message: "company A log", createdAt: new Date(base) },
-      { id: logB, pluginId, companyId: companyB, level: "warn", message: "company B secret log", createdAt: new Date(base + 1_000) },
-      { id: logInstance, pluginId, companyId: null, level: "debug", message: "instance log", createdAt: new Date(base + 2_000) },
+      { id: logA, pluginId, spaceId: spaceA, level: "info", message: "space A log", createdAt: new Date(base) },
+      { id: logB, pluginId, spaceId: spaceB, level: "warn", message: "space B secret log", createdAt: new Date(base + 1_000) },
+      { id: logInstance, pluginId, spaceId: null, level: "debug", message: "instance log", createdAt: new Date(base + 2_000) },
     ]);
 
     await db.insert(pluginJobRuns).values([
-      { id: runA, jobId, pluginId, companyId: companyA, trigger: "manual", status: "succeeded", createdAt: new Date(base) },
-      { id: runB, jobId, pluginId, companyId: companyB, trigger: "manual", status: "failed", error: "company B failure", logs: ["company B run log"], createdAt: new Date(base + 1_000) },
-      { id: runInstance, jobId, pluginId, companyId: null, trigger: "schedule", status: "succeeded", createdAt: new Date(base + 2_000) },
+      { id: runA, jobId, pluginId, spaceId: spaceA, trigger: "manual", status: "succeeded", createdAt: new Date(base) },
+      { id: runB, jobId, pluginId, spaceId: spaceB, trigger: "manual", status: "failed", error: "space B failure", logs: ["space B run log"], createdAt: new Date(base + 1_000) },
+      { id: runInstance, jobId, pluginId, spaceId: null, trigger: "schedule", status: "succeeded", createdAt: new Date(base + 2_000) },
     ]);
 
     await db.insert(pluginWebhookDeliveries).values([
-      { id: deliveryA, pluginId, companyId: companyA, webhookKey: "hook", status: "success", payload: { who: "A" }, createdAt: new Date(base) },
-      { id: deliveryB, pluginId, companyId: companyB, webhookKey: "hook", status: "failed", error: "company B delivery error", payload: { who: "B" }, createdAt: new Date(base + 1_000) },
-      { id: deliveryInstance, pluginId, companyId: null, webhookKey: "hook", status: "success", payload: { who: "instance" }, createdAt: new Date(base + 2_000) },
+      { id: deliveryA, pluginId, spaceId: spaceA, webhookKey: "hook", status: "success", payload: { who: "A" }, createdAt: new Date(base) },
+      { id: deliveryB, pluginId, spaceId: spaceB, webhookKey: "hook", status: "failed", error: "space B delivery error", payload: { who: "B" }, createdAt: new Date(base + 1_000) },
+      { id: deliveryInstance, pluginId, spaceId: null, webhookKey: "hook", status: "success", payload: { who: "instance" }, createdAt: new Date(base + 2_000) },
     ]);
   }, 20_000);
 
@@ -176,35 +176,35 @@ describeEmbeddedPostgres("plugin operational reads are company-scoped", () => {
     await db.delete(pluginJobs);
     await db.delete(pluginLogs);
     await db.delete(plugins);
-    await db.delete(companies);
+    await db.delete(spaces);
     await db.$client.end({ timeout: 1 }).catch(() => {});
     await tempDb?.cleanup();
     tempDb = null;
   });
 
-  it("returns only the caller's company logs to a single-company board member", async () => {
-    const app = buildApp(boardA, db);
+  it("returns only the caller's space logs to a single-space operator member", async () => {
+    const app = buildApp(operatorA, db);
 
     const res = await request(app).get(`/api/plugins/${pluginId}/logs`);
 
     expect(res.status).toBe(200);
     expect(res.body.map((row: { id: string }) => row.id)).toEqual([logA]);
-    expect(res.body[0].companyId).toBe(companyA);
-    expect(JSON.stringify(res.body)).not.toContain("company B secret log");
+    expect(res.body[0].spaceId).toBe(spaceA);
+    expect(JSON.stringify(res.body)).not.toContain("space B secret log");
   });
 
-  it("returns only the caller's company job runs to a single-company board member", async () => {
-    const app = buildApp(boardA, db);
+  it("returns only the caller's space job runs to a single-space operator member", async () => {
+    const app = buildApp(operatorA, db);
 
     const res = await request(app).get(`/api/plugins/${pluginId}/jobs/${jobId}/runs`);
 
     expect(res.status).toBe(200);
     expect(res.body.map((row: { id: string }) => row.id)).toEqual([runA]);
-    expect(JSON.stringify(res.body)).not.toContain("company B failure");
+    expect(JSON.stringify(res.body)).not.toContain("space B failure");
   });
 
-  it("scopes dashboard job runs and webhook deliveries to the caller's company", async () => {
-    const app = buildApp(boardA, db);
+  it("scopes dashboard job runs and webhook deliveries to the caller's space", async () => {
+    const app = buildApp(operatorA, db);
 
     const res = await request(app).get(`/api/plugins/${pluginId}/dashboard`);
 
@@ -213,7 +213,7 @@ describeEmbeddedPostgres("plugin operational reads are company-scoped", () => {
     expect(res.body.recentWebhookDeliveries.map((row: { id: string }) => row.id)).toEqual([
       deliveryA,
     ]);
-    expect(JSON.stringify(res.body)).not.toContain("company B");
+    expect(JSON.stringify(res.body)).not.toContain("space B");
   });
 
   it("keeps the instance-wide view for instance administrators", async () => {

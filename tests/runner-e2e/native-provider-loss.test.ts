@@ -13,9 +13,9 @@ it("runs qualified Cursor loss cells without qualification overrides", () => {
 });
 
 function fixture() {
-  const pending = { scope: { runId: "run", companyId: "company", issueId: "issue" }, requestId: "permission", turnId: "turn", toolCallId: "mutation" } as ActiveStopPending;
-  const run = { id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "failed", error: "provider_transport_failed", resultJson: {} };
-  const issue = { id: "issue", companyId: "company", status: "blocked" };
+  const pending = { scope: { runId: "run", spaceId: "space", issueId: "issue" }, requestId: "permission", turnId: "turn", toolCallId: "mutation" } as ActiveStopPending;
+  const run = { id: "run", spaceId: "space", nativeIssueId: "issue", runtimeMode: "native", status: "failed", error: "provider_transport_failed", resultJson: {} };
+  const issue = { id: "issue", spaceId: "space", status: "blocked" };
   const events = [{ payload: { orpEvent: { eventType: "runtime_request.expired", payload: { requestId: "permission", turnId: "turn", requestKind: "permission_approval" } } } }];
   return { pending, run, issue, events };
 }

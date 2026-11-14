@@ -8,7 +8,7 @@ import { prepareHistoryNotes, cleanupHistoryNotes, historyNotesPhase, historyNot
 export { routineHistoryAccountingReady } from "./routine-history-work-failure.js";
 import { integratorDefinition, inspectResult, observeInternal } from "./integrator-support.js";
 interface HistoryObservation extends InternalObservation { expectedProvider: string; routine: RoutineDetail; executions: RoutineRunSummary[] }
-const root = (ctx: ChatCatalogContext) => `/api/companies/${ctx.input.fixtures.company.id}`;
+const root = (ctx: ChatCatalogContext) => `/api/spaces/${ctx.input.fixtures.space.id}`;
 async function observeHistory(ctx: ChatCatalogContext, state: Record<string, unknown>): Promise<HistoryObservation> {
   state.failedWork = await readHistoryWork(ctx, state.failedIdentity as HistoryWorkIdentity);
   state.completedWork = await readHistoryWork(ctx, state.completedIdentity as HistoryWorkIdentity);
@@ -30,13 +30,13 @@ export function gradeIntegratorRoutineHistory(value: unknown) {
   const failedIdentity = o.state.failedIdentity as HistoryWorkIdentity;
   const completedIdentity = o.state.completedIdentity as HistoryWorkIdentity;
   c.add("genuine-task-bound-failed-work", !!failedTask && genuineHistoryWork(failedIdentity, failure, o.state.failedCalls as WorkCall[] ?? [], true)
-    && failedIdentity.companyId === o.companyId && failedIdentity.agentId === (o.state.worker as Entity | undefined)?.id
+    && failedIdentity.spaceId === o.spaceId && failedIdentity.agentId === (o.state.worker as Entity | undefined)?.id
     && failedIdentity.issueId === failedTask.id && failedIdentity.invocationId === failedInvocation?.id
     && failedTask.status === "blocked" && failedInvocation?.status === "failed" && completeHistoryUsage(failure?.run)
-    && o.runs.some(run => run.id === failedIdentity.runId && run.status === "succeeded" && run.companyId === o.companyId && run.agentId === failedIdentity.agentId && run.contextSnapshot?.issueId === failedTask.id)
-    && o.state.failedWritten === null, "Actual authorized synthetic MCP work returned HTTP 200/tool_error, with company/worker/task/native-run audit, a worker-blocked task, failed public invocation and complete normal usage. Narration or patched state alone is insufficient.");
+    && o.runs.some(run => run.id === failedIdentity.runId && run.status === "succeeded" && run.spaceId === o.spaceId && run.agentId === failedIdentity.agentId && run.contextSnapshot?.issueId === failedTask.id)
+    && o.state.failedWritten === null, "Actual authorized synthetic MCP work returned HTTP 200/tool_error, with space/worker/task/native-run audit, a worker-blocked task, failed public invocation and complete normal usage. Narration or patched state alone is insufficient.");
   c.add("genuine-recovered-work-and-accounting", genuineHistoryWork(completedIdentity, success, o.state.completedCalls as WorkCall[] ?? [], false)
-    && completedIdentity.companyId === o.companyId && completedIdentity.agentId === (o.state.worker as Entity | undefined)?.id
+    && completedIdentity.spaceId === o.spaceId && completedIdentity.agentId === (o.state.worker as Entity | undefined)?.id
     && completedIdentity.issueId === completedTask?.id && completedIdentity.invocationId === completedInvocation?.id
     && completeHistoryUsage(success?.run) && typeof o.state.completedWritten === "string" && !!o.state.completedWritten,
     "The restored synthetic provider received a separate authorized successful write under the second task/native run, with completed public history and normal usage.");
@@ -55,14 +55,14 @@ export function gradeIntegratorRoutineHistory(value: unknown) {
 }
 export const integratorRoutineHistoryCases = [integratorDefinition("routines", "routines.read-history", async ctx => {
   const p = await project(ctx, "Launch", { description: "Synthetic Launch project: payment approval remains pending; no other active work." }); const worker = await fixtureWorker(ctx);
-  for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: worker.id }]) await ctx.input.api.post(`${root(ctx)}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+  for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: worker.id }]) await ctx.input.api.post(`${root(ctx)}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
   const connection = await prepareHistoryNotes(ctx, worker.id);
   const routine = await ctx.input.api.post<RoutineDetail>(`${root(ctx)}/routines`, { title: "Morning Launch summary", projectId: p.id, assigneeAgentId: worker.id, concurrencyPolicy: "always_enqueue",
     description: "Summarize the actual Launch project in a short saved task comment, link the project, and publish that summary once using the connected Synthetic Launch Notes launch_update action. This is a controlled synthetic dependency, not an official vendor service. If the actual publish returns an error, report the actual failure in this task's comment and block the task truthfully; do not mark failed work done. If the publish succeeds, save the result and mark this summary task done. Do not retry, repair the provider, edit project work or create follow-up tasks." });
   const invoke = async (kind: string) => {
     const invocation = await ctx.input.api.post<RoutineRunSummary>(`/api/routines/${routine.id}/run`, { source: "manual", idempotencyKey: `${kind}-history-${ctx.input.nonce}` });
     if (!invocation.linkedIssueId) throw new Error("Routine prerequisite did not admit an actual execution task");
-    return { companyId: ctx.input.fixtures.company.id, agentId: worker.id, issueId: invocation.linkedIssueId, routineId: routine.id, invocationId: invocation.id, ...connection };
+    return { spaceId: ctx.input.fixtures.space.id, agentId: worker.id, issueId: invocation.linkedIssueId, routineId: routine.id, invocationId: invocation.id, ...connection };
   };
   const failedBase = await invoke("failed");
   const failure = await waitHistoryWork(ctx, failedBase, true, -1, 150_000);
@@ -86,7 +86,7 @@ export const integratorRoutineHistoryCases = [integratorDefinition("routines", "
 
 }, observeHistory, gradeIntegratorRoutineHistory, async (ctx, state) => {
   const routine = state.routine as RoutineDetail;
-  await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/routines/${routine.id}/history`, routine.title);
+  await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/routines/${routine.id}/history`, routine.title);
 }, { sourceFiles: ["chat-catalog-domains/integrator-routine-history.ts", "chat-catalog-domains/routine-history-work-failure.ts", "chat-catalog-domains/external-provider.ts", "chat-catalog-domains/external-support.ts", "chat-catalog-domains/internal-definition.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/integrator-support.ts", "chat-scenarios/routines.yaml"],
   oracleVersion: "outpost.chat-catalog.integrator.routine-work-failure.v5", authentication: "human-session", cleanup: cleanupHistoryNotes, expectedRunCount: 3, runPolicy: { kind: "terminal-counts", terminalStatusCounts: { succeeded: 3 } }, attemptTimeoutMs: 720_000,
 })];

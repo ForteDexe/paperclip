@@ -4,7 +4,7 @@ import {
   getCloudRuntimeIdentity,
   verifyCloudControlAssertion,
 } from "../../services/cloud-runtime-identity.js";
-import { outpostCloudConnectorConfigFromEnv } from "../../services/paperclip-cloud-connector.js";
+import { outpostCloudConnectorConfigFromEnv } from "../../services/outpost-cloud-connector.js";
 
 export const dotPrincipalControlPath = "/mcp/runner/oauth/cloud-principal";
 export const dotPrincipalControlBodySchema = z
@@ -14,7 +14,7 @@ export const dotPrincipalControlBodySchema = z
     selectingUserId: z.string().min(1).max(200),
     canonicalVerifiedResource: z.string().url().max(2048),
     expectedInstanceId: z.string().min(1).max(200),
-    requestedCompanyId: z.uuid().optional(),
+    requestedSpaceId: z.uuid().optional(),
   })
   .strict();
 export type DotPrincipalControlBody = z.infer<
@@ -24,13 +24,13 @@ export function dotPrincipalControlDigest(body: DotPrincipalControlBody) {
   return createHash("sha256")
     .update(
       JSON.stringify([
-        "paperclip-dot-original-principal-v1",
+        "outpost-dot-original-principal-v1",
         "mcp-dot:principal",
         body.expectedInstanceId,
         body.canonicalVerifiedResource,
         body.upstreamClientId,
         body.selectingUserId,
-        body.requestedCompanyId ?? null,
+        body.requestedSpaceId ?? null,
         body.accessToken,
       ]),
     )

@@ -17,7 +17,7 @@ export async function resolveSlackFileReceipt(tx: DbTransaction, publication: ty
       })
       .where(
         and(
-          eq(chatActions.companyId, publication.companyId),
+          eq(chatActions.spaceId, publication.spaceId),
           eq(chatActions.endpointId, publication.endpointId),
           eq(chatActions.conversationId, publication.conversationId),
           eq(chatActions.kind, "slack_file_upload_receipt"),
@@ -46,7 +46,7 @@ export async function resolveSlackFileReceipt(tx: DbTransaction, publication: ty
       })
       .where(
         and(
-          eq(chatActions.companyId, publication.companyId),
+          eq(chatActions.spaceId, publication.spaceId),
           eq(chatActions.endpointId, publication.endpointId),
           eq(chatActions.conversationId, publication.conversationId),
           eq(chatActions.kind, "slack_file_upload_receipt"),

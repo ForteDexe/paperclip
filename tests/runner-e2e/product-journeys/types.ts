@@ -26,7 +26,7 @@ export type JourneyId =
   | "inbox-triage"
   | "routine-scheduled-run"
   | "repository-continuation"
-  | "company-access-isolation"
+  | "space-access-isolation"
   | "saved-skill-use";
 export type TargetMode = "managed-self-hosted" | "existing-cloud" | "new-cloud";
 export interface DeploymentIdentity {
@@ -99,7 +99,7 @@ export interface TargetConfig {
 export interface JourneyContext {
   page: Page;
   api: ConnectionApi;
-  company: { id: string; issuePrefix: string };
+  space: { id: string; issuePrefix: string };
   user: { id: string; name: string };
   environmentId?: string;
   identity: DeploymentIdentity;
@@ -108,7 +108,7 @@ export interface JourneyContext {
   agent?: { id: string; name: string; provider: string; model: string; runtimeMode: "native" | "legacy" };
   fixtures?: {
     backlogTask?: PreparedBacklogTask;
-    companyAccess?: import("./company-access-contract.js").CompanyAccessFixture;
+    spaceAccess?: import("./space-access-contract.js").SpaceAccessFixture;
     inboxAuthor?: import("./inbox-author-contract.js").InboxAuthorFixture;
     reviewService?: { connectionId: string; name: string; marker: string; invocationCount(): number };
   };
@@ -139,7 +139,7 @@ export interface TargetSession {
   /** Durable intent before creation; receipt immediately after creation. */
   own(resource: { kind: "issue" | "project" | "agent" | "connection" | "tool-connection" | "skill" | "routine" | "label"; name: string; id?: string; journeyId?: JourneyId;
     taskEdit?: { revisedTitle: string };
-    freshChat?: { companyId: string; userId: string; leadAgentId: string; absent: true } }): Promise<void>;
+    freshChat?: { spaceId: string; userId: string; leadAgentId: string; absent: true } }): Promise<void>;
 }
 export interface TargetProvider {
   version: 1;

@@ -24,7 +24,7 @@ vi.mock("@/lib/router", () => ({
 function child(overrides: Partial<CaseSummary>): CaseSummary {
   return {
     id: Math.random().toString(36).slice(2),
-    companyId: "c1",
+    spaceId: "c1",
     projectId: null,
     caseNumber: 1,
     identifier: "PAP-C1",

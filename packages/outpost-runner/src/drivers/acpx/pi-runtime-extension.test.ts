@@ -13,13 +13,13 @@ import {
 const directories: string[] = [];
 afterEach(async () => { for (const path of directories.splice(0)) await rm(path, { recursive: true, force: true }); });
 async function workspace(): Promise<{ root: string; config: PiRuntimeConfiguration }> {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-pi-extension-")); directories.push(root);
+  const root = await mkdtemp(join(tmpdir(), "outpost-pi-extension-")); directories.push(root);
   await mkdir(join(root, "workspace")); await mkdir(join(root, "skills")); await mkdir(join(root, "private"));
   return { root, config: {
     invocationNamespace: "00000000-0000-4000-8000-000000000000",
     workspace: join(root, "workspace"), readOnly: false,
     readRoots: [join(root, "skills")], protectedRoots: [join(root, "private")],
-    instructions: "Use the assigned Paperclip tools", servers: [],
+    instructions: "Use the assigned Outpost tools", servers: [],
   } };
 }
 function harness() {
@@ -156,7 +156,7 @@ describe("owned Pi runtime extension", () => {
     const request = vi.fn(async (_server, method) => method === "tools/list"
       ? { tools: names.map(name => ({ name, inputSchema: { type: "object", properties: {} } })) }
       : { content: [{ type: "text", text: "recorded" }] });
-    const assigned = { ...config, servers: [{ type: "http" as const, name: "paperclip", url: "http://127.0.0.1:1234", headers: [] }] };
+    const assigned = { ...config, servers: [{ type: "http" as const, name: "outpost", url: "http://127.0.0.1:1234", headers: [] }] };
     await installPiRuntimeExtension(h.api, assigned, request); h.handlers.get("turn_start")!();
     expect(h.tools.map(tool => tool.name).every(name => /^[A-Za-z0-9_-]{1,64}$/.test(name))).toBe(true);
     expect(new Set(h.tools.map(tool => tool.name)).size).toBe(names.length);
@@ -182,7 +182,7 @@ describe("owned Pi runtime extension", () => {
 
   it("requires explicit assigned configuration, authenticated HTTPS or numeric loopback HTTP", () => {
     expect(() => readPiRuntimeConfiguration({})).toThrow("missing");
-    const value = { invocationNamespace: "00000000-0000-4000-8000-000000000000", workspace: "/work/project", readOnly: false, readRoots: [], protectedRoots: [], instructions: "", servers: [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1234/mcp", headers: [{ name: "Authorization", value: "Bearer 1234567890123456" }] }] };
+    const value = { invocationNamespace: "00000000-0000-4000-8000-000000000000", workspace: "/work/project", readOnly: false, readRoots: [], protectedRoots: [], instructions: "", servers: [{ type: "http", name: "outpost", url: "http://127.0.0.1:1234/mcp", headers: [{ name: "Authorization", value: "Bearer 1234567890123456" }] }] };
     const parse = () => readPiRuntimeConfiguration({ OUTPOST_PI_RUNTIME_CONFIGURATION: JSON.stringify(value) });
     expect(parse().servers).toHaveLength(1);
     for (const url of ["http://127.0.0.1.evil.test/mcp", "http://outpost.example/mcp", "http://localhost/mcp", "http://user:password@127.0.0.1/mcp", "https://user:password@outpost.example/mcp", "https://outpost.example/mcp#unbound", "file:///tmp/mcp"]) {
@@ -199,7 +199,7 @@ describe("owned Pi runtime extension", () => {
     const endpoint = "https://outpost.example/api/mcp/gateway/assigned";
     const authorization = "Bearer 1234567890123456";
     const assigned = readPiRuntimeConfiguration({ OUTPOST_PI_RUNTIME_CONFIGURATION: JSON.stringify({
-      ...config, servers: [{ type: "http", name: "paperclip-assigned", url: endpoint, headers: [{ name: "Authorization", value: authorization }] }],
+      ...config, servers: [{ type: "http", name: "outpost-assigned", url: endpoint, headers: [{ name: "Authorization", value: authorization }] }],
     }) });
     const fetch_ = vi.fn<typeof fetch>(async (_url, init) => {
       const body = JSON.parse(String(init!.body));
@@ -210,7 +210,7 @@ describe("owned Pi runtime extension", () => {
     });
     await installPiRuntimeExtension(h.api, assigned, (server, method, params, id, signal) => piMcpRequest(server, method, params, id, signal, fetch_)); h.handlers.get("turn_start")!();
     expect(h.tools).toHaveLength(1);
-    expect(h.tools[0]!.name).toBe("mcp__paperclip-assigned__report_progress");
+    expect(h.tools[0]!.name).toBe("mcp__outpost-assigned__report_progress");
     const signal = new AbortController().signal;
     await expect(h.tools[0]!.execute("assigned-call-1", { text: "done" }, signal)).resolves.toMatchObject({ content: [{ text: "recorded" }] });
     expect(fetch_.mock.calls.map(([, init]) => JSON.parse(String(init!.body)).method)).toEqual(["initialize", "tools/list", "tools/call"]);
@@ -333,27 +333,27 @@ describe("owned Pi runtime extension", () => {
 
   it("registers exact authenticated MCP tools with stable idempotency and abort signal", async () => {
     const { config } = await workspace(); const h = harness();
-    config.servers = [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1234", headers: [] }];
+    config.servers = [{ type: "http", name: "outpost", url: "http://127.0.0.1:1234", headers: [] }];
     const request = vi.fn(async (_server, method) => method === "tools/list"
       ? { tools: [{ name: "report_progress", description: "Report progress", inputSchema: { type: "object", properties: {} } }] }
       : method === "tools/call" ? { content: [{ type: "text", text: "recorded" }] } : {});
     await installPiRuntimeExtension(h.api, config, request); h.handlers.get("turn_start")!();
-    const tool = h.tools[0]!; expect(tool.name).toBe("mcp__paperclip__report_progress");
+    const tool = h.tools[0]!; expect(tool.name).toBe("mcp__outpost__report_progress");
     const signal = new AbortController().signal;
     await expect(tool.execute("call-1", { text: "done" }, signal)).resolves.toMatchObject({ content: [{ text: "recorded" }] });
     expect(request).toHaveBeenLastCalledWith(config.servers[0], "tools/call", { name: "report_progress", arguments: { text: "done" } }, expect.stringMatching(/^pi-[a-f0-9]{64}$/), signal);
     const select = vi.fn(); const context = { cwd: config.workspace, ui: { select } };
     expect(await h.handlers.get("tool_call")!({ toolName: tool.name, toolCallId: "m", input: {} }, context)).toBeUndefined();
-    expect(await h.handlers.get("tool_call")!({ toolName: "mcp__paperclip__invented", toolCallId: "i", input: {} }, context)).toMatchObject({ block: true });
+    expect(await h.handlers.get("tool_call")!({ toolName: "mcp__outpost__invented", toolCallId: "i", input: {} }, context)).toMatchObject({ block: true });
     expect(select).not.toHaveBeenCalled();
   });
 
   it("separates repeated provider call IDs across native iterations and warm prompts, but preserves exact retries", async () => {
     const { config } = await workspace(); const h = harness();
-    config.servers = [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1234", headers: [] }];
+    config.servers = [{ type: "http", name: "outpost", url: "http://127.0.0.1:1234", headers: [] }];
     const calls = new Map<string, { fingerprint: string; result: Record<string, unknown> }>();
     const request = vi.fn(async (_server, method, params, id) => {
-      if (method === "tools/list") return { tools: ["paperclip_finish", "get_task_context"].map(name => ({ name, inputSchema: { type: "object" } })) };
+      if (method === "tools/list") return { tools: ["outpost_finish", "get_task_context"].map(name => ({ name, inputSchema: { type: "object" } })) };
       if (method !== "tools/call") return {};
       const fingerprint = JSON.stringify(params);
       const previous = calls.get(id);
@@ -390,11 +390,11 @@ describe("owned Pi runtime extension", () => {
   it("keeps real authenticated bridge replay authority across corrected calls and warm iterations", async () => {
     const { config } = await workspace(); const h = harness();
     const handler = vi.fn(async ({ tool, arguments: args }: { tool: string; arguments: unknown }) => {
-      if (tool === "paperclip_finish" && (args as any).completionClaim.contractRevision === "1") throw new Error("Use contractRevision2 and human_response.");
+      if (tool === "outpost_finish" && (args as any).completionClaim.contractRevision === "1") throw new Error("Use contractRevision2 and human_response.");
       return { accepted: tool };
     });
     const bridge = await startRunnerToolBridge({ tools: [{ name: "get_task_context", inputSchema: { type: "object" } }], handler });
-    const server = { type: "http" as const, name: "paperclip", url: bridge.url, headers: [{ name: "Authorization", value: `Bearer ${bridge.secret}` }] };
+    const server = { type: "http" as const, name: "outpost", url: bridge.url, headers: [{ name: "Authorization", value: `Bearer ${bridge.secret}` }] };
     config.servers = [server];
     const deliveries: Array<{ id: string; params: Record<string, unknown> }> = [];
     try {
@@ -402,7 +402,7 @@ describe("owned Pi runtime extension", () => {
         if (method === "tools/call") deliveries.push({ id, params });
         return piMcpRequest(assigned, method, params, id, signal);
       });
-      const finish = h.tools.find(tool => tool.name.endsWith("__paperclip_finish"))!;
+      const finish = h.tools.find(tool => tool.name.endsWith("__outpost_finish"))!;
       const contextTool = h.tools.find(tool => tool.name.endsWith("__get_task_context"))!;
       const result = (revision: string) => ({ reportedWorkDisposition: "done", summary: "Complete", completionClaim: { contractRevision: revision, objectiveSatisfied: true, criteria: [{ criterionId: "human_response", status: "satisfied", evidenceRefs: [] }], remainingWork: [] }, evidence: [], verification: [], attentionRequests: [], artifacts: [] });
       h.handlers.get("turn_start")!();
@@ -411,7 +411,7 @@ describe("owned Pi runtime extension", () => {
       await expect(finish.execute("call_0", result("1"))).rejects.toThrow("human_response");
       expect(handler).toHaveBeenCalledTimes(1); // Cached semantic failure, not another mutation.
       expect(deliveries.at(-1)!.id).toBe(stale.id);
-      expect(await piMcpRequest(server, "tools/call", { name: "paperclip_finish", arguments: result("2") }, stale.id)).toMatchObject({ isError: true, content: [{ text: "Duplicate call identity conflict." }] });
+      expect(await piMcpRequest(server, "tools/call", { name: "outpost_finish", arguments: result("2") }, stale.id)).toMatchObject({ isError: true, content: [{ text: "Duplicate call identity conflict." }] });
       expect(handler).toHaveBeenCalledTimes(1);
       h.handlers.get("turn_end")!(); h.handlers.get("turn_start")!();
       await Promise.all([finish.execute("call_0", result("2")), finish.execute("call_0", result("2"))]);
@@ -442,9 +442,9 @@ describe("owned Pi runtime extension", () => {
   it("preserves bounded MCP validation errors as failures and removes bound authentication", async () => {
     const { config } = await workspace(); const h = harness();
     const authorization = "Bearer assigned-mcp-token-123456789";
-    config.servers = [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1234", headers: [{ name: "Authorization", value: authorization }] }];
+    config.servers = [{ type: "http", name: "outpost", url: "http://127.0.0.1:1234", headers: [{ name: "Authorization", value: authorization }] }];
     const request = vi.fn(async (_server, method) => method === "tools/list"
-      ? { tools: [{ name: "paperclip_finish", inputSchema: { type: "object" } }] }
+      ? { tools: [{ name: "outpost_finish", inputSchema: { type: "object" } }] }
       : method === "tools/call" ? { isError: true, content: [{ type: "text", text: `completionClaim.contractRevision must equal 1; verification.items[0].status is invalid; Authorization: ${authorization}; token=other-private-value; \"password\":\"another-secret\"` }], structuredContent: { code: "INVALID_VERIFICATION", field: "verification.items[0].status" } } : {});
     await installPiRuntimeExtension(h.api, config, request); h.handlers.get("turn_start")!();
     const error = await h.tools[0]!.execute("original-call", {}).catch(value => value);
@@ -466,9 +466,9 @@ describe("owned Pi runtime extension", () => {
     { isError: "true", content: [{ type: "text", text: "malformed error flag" }] },
   ])("fails closed for oversized or malformed MCP error content %#", async result => {
     const { config } = await workspace(); const h = harness();
-    config.servers = [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1234", headers: [] }];
+    config.servers = [{ type: "http", name: "outpost", url: "http://127.0.0.1:1234", headers: [] }];
     const request = vi.fn(async (_server, method) => method === "tools/list"
-      ? { tools: [{ name: "paperclip_finish", inputSchema: { type: "object" } }] }
+      ? { tools: [{ name: "outpost_finish", inputSchema: { type: "object" } }] }
       : method === "tools/call" ? result : {});
     await installPiRuntimeExtension(h.api, config, request); h.handlers.get("turn_start")!();
     const error = await h.tools[0]!.execute("call", {}).catch(value => value);
@@ -479,7 +479,7 @@ describe("owned Pi runtime extension", () => {
 
   it("rejects incomplete catalogs and tool-result errors without exposing auth", async () => {
     const { config } = await workspace(); const h = harness();
-    config.servers = [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1234", headers: [] }];
+    config.servers = [{ type: "http", name: "outpost", url: "http://127.0.0.1:1234", headers: [] }];
     const request = vi.fn(async (_server, method) => method === "tools/list" ? { tools: [], nextCursor: "more" } : {});
     await expect(installPiRuntimeExtension(h.api, config, request)).rejects.toThrow("incomplete");
   });
@@ -489,12 +489,12 @@ describe("owned Pi runtime extension", () => {
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address() as { port: number };
     try {
-      await expect(piMcpRequest({ type: "http", name: "paperclip", url: `http://127.0.0.1:${address.port}`, headers: [{ name: "Authorization", value: "Bearer secret" }] }, "tools/list", {}, "1")).rejects.toThrow();
+      await expect(piMcpRequest({ type: "http", name: "outpost", url: `http://127.0.0.1:${address.port}`, headers: [{ name: "Authorization", value: "Bearer secret" }] }, "tools/list", {}, "1")).rejects.toThrow();
     } finally { server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); }
   });
 
   it("validates response IDs and bounds tool output", async () => {
-    const server = { type: "http" as const, name: "paperclip", url: "http://127.0.0.1:1", headers: [] };
+    const server = { type: "http" as const, name: "outpost", url: "http://127.0.0.1:1", headers: [] };
     const fetch_ = vi.fn(async () => new Response(JSON.stringify({ jsonrpc: "2.0", id: "other", result: {} })));
     await expect(piMcpRequest(server, "tools/list", {}, "1", undefined, fetch_)).rejects.toThrow("identity");
     fetch_.mockImplementation(async () => new Response("x".repeat(4 * 1024 * 1024 + 1)));

@@ -56,7 +56,7 @@ grant/revocation proof.
 ## Reuse Classification
 
 Use **direct MCP** when the provider exposes an official or stable MCP server
-whose tool/resource semantics match Paperclip grants: Linear, Notion, Sentry,
+whose tool/resource semantics match Outpost grants: Linear, Notion, Sentry,
 Vercel, PostHog, Exa, Apify, Canva where available, Fireflies, and most Google
 Workspace reads.
 
@@ -95,12 +95,12 @@ PagerDuty.
 | 18 | Canva | C | Direct app/MCP where available; Connect API wrapper | Canva OAuth | Team, folder, brand/template filters | Search/read designs, create design from template | Asset sync optional | S2 |
 | 19 | Exa | A | Direct MCP/API-key provider | API key secret ref | Domain allow/deny list, content category, rate limits | Web/neural search, fetch result content | No webhook; usage/activity only | S1 |
 | 20 | Apify | C | Direct MCP/API-token provider | API token secret ref | Actor allowlist, dataset/run filters | Run actor, read dataset, fetch status | Actor run completion webhook optional | S2 |
-| 21 | HubSpot | B | Direct MCP/REST wrapper | HubSpot OAuth | Portal, pipeline, object type, owner/team filters | Search contacts/companies/deals, create note/task/deal gated | CRM webhooks | S3 |
+| 21 | HubSpot | B | Direct MCP/REST wrapper | HubSpot OAuth | Portal, pipeline, object type, owner/team filters | Search contacts/spaces/deals, create note/task/deal gated | CRM webhooks | S3 |
 | 22 | Salesforce | D | Vendor-deep wrapper; OpenAPI/GraphQL where useful | Salesforce OAuth | Org, object, record type, field-level filters | Search/read records, create task/note/opportunity draft | Platform events/webhooks | S4 |
 | 23 | Attio | D | Direct MCP/REST wrapper | Attio OAuth | Workspace, list, object, attribute filters | Search records, create note/task/update stage gated | Workspace webhook optional | S3 |
 | 24 | Apollo.io | D | OpenAPI-to-MCP shim | API key secret ref | Workspace, list, persona, sequence filters | Search prospects/accounts, add to list gated | No first webhook; usage/activity only | S3 |
 | 25 | Stripe | D | Vendor-deep wrapper using Stripe agent toolkit | OAuth or restricted key secret ref | Account, mode, object type, refund/payment capability filters | Search customers/subs/invoices, create invoice/refund draft | Stripe webhooks mandatory for state sync | S4 |
-| 26 | QuickBooks | D | OpenAPI-to-MCP shim, Intuit wrapper later | Intuit OAuth | Realm/company, entity/report filters | Read reports/invoices/vendors, create invoice draft | Intuit webhooks optional | S4 |
+| 26 | QuickBooks | D | OpenAPI-to-MCP shim, Intuit wrapper later | Intuit OAuth | Realm/space, entity/report filters | Read reports/invoices/vendors, create invoice draft | Intuit webhooks optional | S4 |
 | 27 | Ramp/Brex | D | OpenAPI-to-MCP shim | OAuth/API token depending provider | Entity, department, cardholder, merchant/category filters | Read transactions/cards/reimbursements, draft memo/category update | Transaction webhooks optional | S4 |
 | 28 | Intercom | B | Direct MCP/REST wrapper | Intercom OAuth | Workspace, inbox/team, tag, conversation view filters | Search conversations/users, draft/reply/assign gated | Conversation/contact webhooks | S3 |
 | 29 | Zendesk | E | OpenAPI-to-MCP shim first, app wrapper later | Zendesk OAuth | Subdomain, brand, group, view, ticket tag filters | Search/read tickets/users, comment/assign/status gated | Ticket webhooks | S3 |
@@ -110,7 +110,7 @@ PagerDuty.
 
 Every provider ticket in Batch A must cover:
 
-- **Connect:** OAuth/API-key/app-install flow creates a company-scoped
+- **Connect:** OAuth/API-key/app-install flow creates a space-scoped
   connection and stores credential material only as secret refs.
 - **Configure:** operator can set provider-specific resource filters, health
   checks, read/write mode, and risk defaults.

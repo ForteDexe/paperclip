@@ -30,7 +30,7 @@ at `858cfd1fdf621c56a8ce7615bdf5aecc9cf1bb61`.
 | Runner contract | Optional opaque checkpoints, authenticated cursors, durability barriers, retention and deadlines; one-process scripted executor fixture | Outage progress, waiting, replay, persistence failures and backpressure; consumer compatibility and protocol/dependency checks |
 | Server adoption | Postgres migration/encryption, transactional fencing, startup/expired-owner recovery, tool authority, detach/Stop/finalization and bounded retention | Real Postgres races, empty disk, uncertain mutations with independent effect ledger, admission and SQL gates |
 | Upgrade qualification | Existing supervisor and installed-artifact verification; immutable A/B upgrade and compatible rollback, phase receipts and hosted paths | Natural lease acquisition, original execution identity, exact artifacts, short/full outages, cleanup and admission within 420 seconds |
-| Transcript delivery | Additive WebSocket negotiation and run interests; shared visible browser subscriptions, catch-up and bounded delivery | Native/legacy journeys, subscription races, reconnect, congestion, company/access changes and measured viewer costs |
+| Transcript delivery | Additive WebSocket negotiation and run interests; shared visible browser subscriptions, catch-up and bounded delivery | Native/legacy journeys, subscription races, reconnect, congestion, space/access changes and measured viewer costs |
 
 Tests and documentation ship with their owning behavior. Qualification defects
 are fixed in the owning earlier slice. Transcript delivery is functionally
@@ -112,7 +112,7 @@ cannot extend the original five-second backlog deadline. Existing protocol,
 checkpoint and canonical-log ownership is unchanged. Updated CI, review and
 browser evidence remain attributed to their candidate revisions on the PRs.
 
-The separate Paperclip review found premature local expiry after a delayed
+The separate Outpost review found premature local expiry after a delayed
 successful renewal and unlimited retries in opportunistic startup retention.
 The renewal owner now samples a monotonic deadline immediately before UPDATE,
 after acquiring the connection and row lock, while still deducting UPDATE/commit
@@ -192,7 +192,7 @@ The short smoke held the server down for 1,000 ms per replacement. Readiness
 arrived after 25,305.985 and 33,658.933 ms. The full smoke held it down for 300,000 ms
 per replacement; readiness arrived after 327,622.436 and 327,668.142 ms, within
 420 seconds. Both preserved the database, read existing data, accepted a fresh
-company mutation after each replacement, and cleaned up successfully. Receipts
+space mutation after each replacement, and cleaned up successfully. Receipts
 explicitly record `providerTurns: 0` and `activeAgentContinuityQualified: false`.
 A/B have identical migration journals: this establishes compatible startup and
 rollback, not a nontrivial forward migration. These builds predate the final
@@ -208,7 +208,7 @@ Real Postgres cost comparison: 8 and 512 text chunks each produced 8 checkpoint
 writes, 7 transactions and 14 changed rows for the same control operations.
 Both measured zero streaming checkpoint SQL/transactions/rows and zero idle SQL.
 WAL was 37,408 and 37,528 bytes; this diagnostic is not a production capacity
-estimate. Receipt: `/tmp/paperclip-hot-upgrade-pr2-sql-cost-20261024-2.json`.
+estimate. Receipt: `/tmp/outpost-hot-upgrade-pr2-sql-cost-20261024-2.json`.
 Independent mutation tests covered a lost HTTP response after the business row
 committed and a lost runner response after its API receipt was saved. Both
 checked the business table independently and counted one dispatch.
@@ -253,7 +253,7 @@ and production capacity. Heap deltas depend on garbage collection.
 The zero-interest case coalesced one lightweight activity notification. The
 normal one-view peak retained queue was 16 items / 35,344 bytes. The congested
 case requested resynchronization while staying inside the delivery bound.
-Private receipt: `/tmp/paperclip-live-delivery-cost-20261024.json`.
+Private receipt: `/tmp/outpost-live-delivery-cost-20261024.json`.
 
 The native Playwright journey passed in 39.5 seconds (50.8 including setup) on
 `267d221f4659ff17d95c99ad5fac5e77f37c8538` plus its test-only transport fault
@@ -485,9 +485,9 @@ response. Recovery now consumes the Runner's existing canonical side-effect
 classification, plus read/mutation metadata on server bridge definitions. The
 server shim exposes that existing Runner metadata; it adds no alternate authority.
 Read replay calls the normal executor and therefore rechecks advertisement,
-company/run scope, current grants and file confinement. External tool annotations
+space/run scope, current grants and file confinement. External tool annotations
 never authorize uncertain-effect replay. Four focused Postgres regressions passed,
-including actual file reads, company isolation, missing-file settlement, revoked
+including actual file reads, space isolation, missing-file settlement, revoked
 workspace grants, stale leases and cancellation. Initial attempts used the wrong
 catalog projection and lacked the shim export; existing read tests and typecheck
 caught both before the corrected run passed.
@@ -548,7 +548,7 @@ Functional outcome: passed. The observed desktop experience was usable, with no
 error banner, duplicate result or lost output. A normal loading skeleton appeared
 on navigation; an unrelated announcement overlay was dismissed. The screenshots
 do not establish smoothness between every sampled frame. No mobile or live-model
-claim is made. Final screenshot: `/tmp/paperclip-transcript-manual-completed-20261024.jpg`.
+claim is made. Final screenshot: `/tmp/outpost-transcript-manual-completed-20261024.jpg`.
 
 ### Native notification catch-up correction (2026-10-24)
 
@@ -564,7 +564,7 @@ from the zero recurring reads during settled negotiated streaming.
 UI typecheck and the native two-view browser journey also pass after this fix
 (39.1-second journey, 53.4 seconds total). That journey rebuilds the shipped UI,
 uses the real runner with the deterministic Codex app-server, and verifies socket
-reconnect, company changes, terminal catch-up, reload and one final business
+reconnect, space changes, terminal catch-up, reload and one final business
 comment. It does not qualify a live provider or hosted upgrade.
 
 ### Linux ownership proof and retained CI failure (2026-10-24)
@@ -600,7 +600,7 @@ pass after the correction. One holds two historical pages while a sibling receiv
 repeated commit and terminal notifications; the other verifies terminal catch-up
 does not abort or overlap a request. All 75 focused tests, UI typecheck and token
 gates pass. The native browser journey passes again (39.6 seconds, 51.9 seconds
-including setup), including two views, company changes, socket recovery, terminal
+including setup), including two views, space changes, socket recovery, terminal
 catch-up, reload and exactly one business comment.
 
 ### Agent Detail event preservation (2026-10-24)
@@ -707,7 +707,7 @@ The final native browser journey passes on source commit `a1f75df8a5` in 59.2
 seconds (1.2 minutes including setup), rebuilding the shipped UI and using the
 real runner, deterministic Codex app-server and owned disposable Postgres. Run
 `766f50cd-e0a1-48ff-afed-b779c6abd29a` completes once with one business comment;
-two views, company switching, socket recovery, terminal catch-up, reload and Agent
+two views, space switching, socket recovery, terminal catch-up, reload and Agent
 Detail events pass. A preceding browser run also passed in 58.5 seconds before
 the extra overflow-race correction. These are browser/presentation results, not
 live-provider or hosted-upgrade evidence.
@@ -791,7 +791,7 @@ the injector before the actual short and long faults. Setup also preserved
 hosted-tool rejection, a credential-directory lock timeout and intermittent
 Railway SSH timeouts. Normal finalization released ephemeral sandboxes; final
 proof files were read from their successfully committed workspace exports with
-exact company/run/workspace binding and path containment.
+exact space/run/workspace binding and path containment.
 
 Three samples during the freeze show unchanged write counters in
 `heartbeat_run_events`, `heartbeat_runs`, `native_run_finalizations` and
@@ -1055,7 +1055,7 @@ after burst control p99 is 379–475 ms. No production spend saving is inferred.
 
 Complete phase JSON, SQL shapes, source/image hashes, sampler output and both
 failed and passing attempts are retained under
-`/tmp/paperclip-controller-persistence-20261027/`. The real-runner 8/512-chunk
+`/tmp/outpost-controller-persistence-20261027/`. The real-runner 8/512-chunk
 checks still observe zero streaming and idle checkpoint SQL. These component
 measurements do not qualify a new hosted artifact, a different harness, actual
 A→B/B→A replacement, or the ordinary Cloud rollout policy. Those gates remain
@@ -1068,7 +1068,7 @@ The stack incorporates master `663fe667d6`. Its runner controller suite passes
 164 tests and the rebuilt transport/one-process fixture lane passes 303. The
 transcript window merge regression fails before correction `bccff8f35d` and
 passes afterward with all 327 affected UI tests. The production-runner browser
-journey passes at `ca600c76e3`, including two views, company switching, reconnect,
+journey passes at `ca600c76e3`, including two views, space switching, reconnect,
 terminal catch-up, reload and zero recurring healthy transcript reads. It uses a
 deterministic harness fixture, not a model service or hosted harness.
 
@@ -1105,7 +1105,7 @@ presentation recovery only; it has no checkpoint, execution or accounting effect
 
 ### Completion-only recovery review (2026-10-27)
 
-A later Paperclip review identifies completion inputs that would remain pending
+A later Outpost review identifies completion inputs that would remain pending
 when a standalone caller omits its ordinary-tool outcome lookup. Runner
 correction `bcc0785946` wires completion recovery independently in both the
 Codex transport and shared external driver. The three restart regressions fail
@@ -1210,8 +1210,8 @@ available; transaction counts are not statement counts.
 One native Codex/Daytona pilot per arm completes 20 steps, with independent
 hash-chain and exclusive-effect file checks. The candidate retains 80 encrypted
 checkpoint parts totaling 466,260 bytes. This is not a growth-rate measurement.
-Both test companies subsequently pause because gateway model usage is unpriced
-to Paperclip. The scaled native comparison remains unexecuted; budget enforcement
+Both test spaces subsequently pause because gateway model usage is unpriced
+to Outpost. The scaled native comparison remains unexecuted; budget enforcement
 is not qualified by these pilots. The immutable report SHA-256 is
 `8ccde5cd71fd1076c9046135fdb9a46d7256c863672f63dee3b614b123615bc6`;
 the metrics-only evidence archive SHA-256 is
@@ -1295,7 +1295,7 @@ The full executor file additionally reports 921 passes and 16 failures: all
 database limitation remains a failure, not a full executor pass. Source CI is
 required. No paid harness test or deployed artifact is involved in these checks.
 
-Transcript correction `84e9bc45c8` adds the current HTTP company-scope permission
+Transcript correction `84e9bc45c8` adds the current HTTP space-scope permission
 to full WebSocket event/log delivery alongside existing task access. New real-key
 Postgres/WebSocket cases cover both negotiation modes, allowed task access under
 low-trust policy, blocked native and legacy content, and policy grant/restriction
@@ -1484,7 +1484,7 @@ that separate recipient. Browser and plugin delivery now share the canonical
 structural, current-user and per-run registered-secret read pipeline. Plugin
 subscriptions use the existing bounded delivery queue, including its stalled
 read deadline and disposal rules. No redaction lookup is added to the producer
-or an uninterested native stream. Existing plugin company/run/session checks
+or an uninterested native stream. Existing plugin space/run/session checks
 remain in their owner. Legacy chunks and final text are also redacted.
 
 The regression registers a synthetic run secret through the production registry
@@ -1514,7 +1514,7 @@ refresh after a matching recovery ACK. If a read was already in flight, one
 follow-up waits for it to settle; stale scopes and inactive queries cannot
 refresh. Initial and ordinary interest acknowledgements add no refresh. All
 174 live-provider/recovery/interest cases and UI typecheck pass, including
-stale/duplicate acknowledgements and disconnect, hidden, company, session and
+stale/duplicate acknowledgements and disconnect, hidden, space, session and
 unmount races. Token gates pass. This introduces no recurring healthy polling.
 
 ### Current Linux receipts and one expiry-worker diagnostic retry
@@ -1541,7 +1541,7 @@ not mark that gate green before the retry finishes.
 The last qualification review reproduces two gaps. An intermediate rollback
 step could cite another runner or native session for the same run ID; only the
 final step checked the full recovery identity. Every step now compares run,
-company, issue, runner and native session against its own pre-fault boundary.
+space, issue, runner and native session against its own pre-fault boundary.
 Negative cases change an intermediate receipt while retaining a valid final
 step, so final success cannot hide the mismatch.
 
@@ -1659,7 +1659,7 @@ returns no result before any mutation. Normal execution adds no persistence work
 The transport regression first has two failures and five passes. After correction
 and fixing the test's incorrect expectation about schema defaults, all seven
 transport cases pass and server typecheck passes. The new real-Postgres/API lost
-response, concurrent replay, input conflict, company isolation, cancellation and
+response, concurrent replay, input conflict, space isolation, cancellation and
 no-effect cases belong to the existing chat-project-tools suite. All 20 cases in
 that file skip on this Mac. Their Linux CI result is required; a local transport
 pass does not prove the database or route behavior.
@@ -1678,7 +1678,7 @@ comparison, or A/B upgrade qualification was run.
 PR #17439 source `5de803c2cdbdd24d88e411add590edc21954516a` merged into
 master as `09ad9adce2cf4742944353a3707a2f908e9bb35e` after all 60 current-head
 checks completed cleanly, legacy status passed, Greptile completed at 5/5, the
-formal Paperclip review completed at 5/5, and actionable feedback was resolved.
+formal Outpost review completed at 5/5, and actionable feedback was resolved.
 Qualification now targets master. Its diff contains only qualification code and
 this evidence document; the server implementation is not repeated in its scope.
 

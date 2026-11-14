@@ -32,7 +32,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   afterEach(async () => {
     await coordinator?.stop(); coordinator = undefined; vi.useRealTimers(); vi.restoreAllMocks();
-    await db.delete(chatDeliveries).where(eq(chatDeliveries.companyId, f.companyId));
+    await db.delete(chatDeliveries).where(eq(chatDeliveries.spaceId, f.spaceId));
     await fixtures.cleanup(); expect(errors).toEqual([]);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
@@ -55,22 +55,22 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const providerResourceId = provider === "github" ? "owner/repo" : provider === "telegram" ? "-100222" : "recovered-channel";
     await db.update(chatEndpoints).set({ provider }).where(eq(chatEndpoints.id, f.endpointId));
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId,
       responsibleUserId: f.userId, status: "failed", errorCode: "test_run_failed", updatedAt: new Date(),
       contextSnapshot: { issueId: f.issueId, source: `chat:${provider}`, endpointId: f.endpointId, wakeCommentId: f.commentId },
     });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, f.issueId));
     const [endpoint] = await db.select().from(chatEndpoints).where(eq(chatEndpoints.id, f.endpointId));
-    const [resource] = await db.insert(chatEndpointResources).values({ companyId: f.companyId, endpointId: f.endpointId,
+    const [resource] = await db.insert(chatEndpointResources).values({ spaceId: f.spaceId, endpointId: f.endpointId,
       type: resourceType, providerResourceId: provider === "telegram" ? "-111" : providerResourceId, label: "Recovered", availability: "unavailable", enabled: true,
     }).returning();
     await db.update(chatConversations).set({ resourceId: resource.id, state: "unavailable", ...(provider === "telegram" ? { externalConversationId: "telegram:-111", externalThreadId: "telegram:-111:42" } : {}) }).where(eq(chatConversations.id, f.conversationId));
     const completedId = randomUUID();
-    await db.insert(chatConversations).values({ id: completedId, companyId: f.companyId, endpointId: f.endpointId,
+    await db.insert(chatConversations).values({ id: completedId, spaceId: f.spaceId, endpointId: f.endpointId,
       // Telegram migration intentionally rebinds all conversations on the old resource.
       // Unrelated completed history must remain passive.
       resourceId: provider === "telegram" ? null : resource.id, issueId: f.issueId, state: "completed", externalConversationId: completedId, externalThreadId: completedId, externalLabel: "History" });
-    const [delivery] = await db.insert(chatDeliveries).values({ companyId: f.companyId, endpointId: f.endpointId,
+    const [delivery] = await db.insert(chatDeliveries).values({ spaceId: f.spaceId, endpointId: f.endpointId,
       providerEventId: randomUUID(), deduplicationKey: randomUUID(), eventKind: "installation", normalizedEvent: {}, state: "processing", attempts: 1,
     }).returning();
     coordinator = createDeliveryWorkCoordinator({ owner: db, canRun: () => true, canReconcile: () => true, onError: error => errors.push(error) });

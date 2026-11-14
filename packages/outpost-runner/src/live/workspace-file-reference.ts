@@ -4,7 +4,7 @@ import { basename, extname, isAbsolute, relative, resolve, sep } from "node:path
 
 export const OUTPOST_WORKSPACE_FILE_REFERENCE_SCHEMA = "outpost.workspace.file_reference.v1" as const;
 
-export interface PaperclipWorkspaceFileReference {
+export interface OutpostWorkspaceFileReference {
   schema: typeof OUTPOST_WORKSPACE_FILE_REFERENCE_SCHEMA;
   referenceId: string;
   source: "harness_reported" | "runner_verified";
@@ -21,7 +21,7 @@ export interface PaperclipWorkspaceFileReference {
 const MAX_REFERENCES = 32;
 const MAX_LINE_NUMBER = 1_000_000;
 
-function media(path: string): Pick<PaperclipWorkspaceFileReference, "mediaType" | "presentation"> {
+function media(path: string): Pick<OutpostWorkspaceFileReference, "mediaType" | "presentation"> {
   const extension = extname(path).toLowerCase();
   if ([".md", ".mdx", ".txt", ".rst"].includes(extension)) {
     return { mediaType: extension === ".md" || extension === ".mdx" ? "text/markdown" : "text/plain", presentation: "document" };
@@ -78,14 +78,14 @@ function workspaceRelativePath(root: string, target: string): string | null {
   return candidate.split(sep).join("/");
 }
 
-export function paperclipWorkspaceFileReferencesFromText(
+export function outpostWorkspaceFileReferencesFromText(
   workspace: string,
   assistantText: string,
   turnId: string,
-  source: PaperclipWorkspaceFileReference["source"] = "harness_reported",
-): PaperclipWorkspaceFileReference[] {
+  source: OutpostWorkspaceFileReference["source"] = "harness_reported",
+): OutpostWorkspaceFileReference[] {
   const root = resolve(workspace);
-  const references: PaperclipWorkspaceFileReference[] = [];
+  const references: OutpostWorkspaceFileReference[] = [];
   const seen = new Set<string>();
   const links = assistantText.matchAll(/\[([^\]]+)]\((<[^>]+>|[^)\s]+)(?:\s+["'][^"']*["'])?\)/g);
   for (const match of links) {
@@ -114,18 +114,18 @@ export function paperclipWorkspaceFileReferencesFromText(
   return references;
 }
 
-export async function discoverPaperclipWorkspaceFileReferences(
+export async function discoverOutpostWorkspaceFileReferences(
   workspace: string,
   assistantText: string,
   turnId: string,
-): Promise<PaperclipWorkspaceFileReference[]> {
+): Promise<OutpostWorkspaceFileReference[]> {
   let canonicalRoot: string;
   try { canonicalRoot = await realpath(workspace); } catch { return []; }
   // Resolve references from the same canonical root used for the containment
   // check. Do not consult a caller-controlled workspace symlink again after
   // canonicalizing it above.
-  const references = paperclipWorkspaceFileReferencesFromText(canonicalRoot, assistantText, turnId, "runner_verified");
-  const verified: PaperclipWorkspaceFileReference[] = [];
+  const references = outpostWorkspaceFileReferencesFromText(canonicalRoot, assistantText, turnId, "runner_verified");
+  const verified: OutpostWorkspaceFileReference[] = [];
   for (const reference of references) {
     let canonicalPath: string;
     try { canonicalPath = await realpath(resolve(canonicalRoot, reference.path)); } catch { continue; }

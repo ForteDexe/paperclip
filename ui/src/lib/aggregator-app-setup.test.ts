@@ -9,8 +9,8 @@ function agent(id: string, overrides: Partial<Agent> = {}): Agent {
 describe("aggregator setup task assignee", () => {
   it("prefers a named Default agent over other agents", () => {
     expect(aggregatorSetupAgent([
-      agent("ceo", { role: "ceo", createdAt: new Date(0) }),
-      agent("default", { name: " Default Agent ", reportsTo: "ceo" }),
+      agent("lead", { role: "lead", createdAt: new Date(0) }),
+      agent("default", { name: " Default agent ", reportsTo: "lead" }),
     ])?.id).toBe("default");
   });
 
@@ -25,7 +25,7 @@ describe("aggregator setup task assignee", () => {
   });
 
   it("falls back to leadership, then age and a stable ID when no default exists", () => {
-    expect(aggregatorSetupAgent([agent("engineer", { createdAt: new Date(0) }), agent("ceo", { role: "ceo" })])?.id).toBe("ceo");
+    expect(aggregatorSetupAgent([agent("engineer", { createdAt: new Date(0) }), agent("lead", { role: "lead" })])?.id).toBe("lead");
     expect(aggregatorSetupAgent([agent("new", { createdAt: new Date("2026-09-01") }), agent("old")])?.id).toBe("old");
     expect(aggregatorSetupAgent([agent("b"), agent("a")])?.id).toBe("a");
   });

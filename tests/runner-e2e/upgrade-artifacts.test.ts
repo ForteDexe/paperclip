@@ -11,10 +11,10 @@ afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, {
 const cell = runnerMatrix.find(e => e.id === "everyday-workflows.runner-codex.daytona.recover-controller")!;
 async function fixture(revision = "a".repeat(40)): Promise<UpgradeArtifact> {
   const root = await realpath(await mkdtemp(join(tmpdir(), "upgrade-artifact-"))); roots.push(root);
-  const cli = join(root, "node_modules/paperclipai");
+  const cli = join(root, "node_modules/@outpost/cli");
   const server = join(root, "node_modules/@outpost/server");
   for (const directory of [cli, server]) await mkdir(join(directory, "dist"), { recursive: true });
-  await writeFile(join(cli, "package.json"), JSON.stringify({ name: "paperclipai", version: "1.2.3", type: "module", bin: { paperclipai: "./dist/index.js" } }));
+  await writeFile(join(cli, "package.json"), JSON.stringify({ name: "@outpost/cli", version: "1.2.3", type: "module", bin: { outpost: "./dist/index.js" } }));
   await writeFile(join(server, "package.json"), JSON.stringify({ name: "@outpost/server", version: "1.2.3", type: "module", exports: { ".": { import: "./dist/index.js" } } }));
   await writeFile(join(cli, "dist/index.js"), "// public cli");
   await writeFile(join(server, "dist/index.js"), `// public server ${revision}`);

@@ -7,13 +7,13 @@ export interface ConnectionRoute {
   model: string; credentialEnv?: string; baseURL?: string; region?: string; auth: "bearer" | "api_key" | "none";
 }
 export interface ConnectionConfig {
-  target: { mode: "managed-local" } | { mode: "attach"; baseURL: string; expectedCommit: string; deploymentMode: "local_trusted" | "authenticated"; companyId?: string; environmentId?: string };
+  target: { mode: "managed-local" } | { mode: "attach"; baseURL: string; expectedCommit: string; deploymentMode: "local_trusted" | "authenticated"; spaceId?: string; environmentId?: string };
   browser: { headed: boolean; channel: "chrome" | "chromium"; profileDir?: string; accountAlias: string; freshness: "signed-in" | "signed-out"; loginTimeoutMs: number };
   secretFile?: string;
   models: Record<string, string>;
   routes: Record<string, ConnectionRoute>;
   credentials: Record<string, string>;
-  budgetCents: number; maxRuns: number; turnTimeoutMs: number; retainCompany: boolean;
+  budgetCents: number; maxRuns: number; turnTimeoutMs: number; retainSpace: boolean;
 }
 
 /** Strict, dependency-free private configuration parser. Never echo bad input. */
@@ -34,16 +34,16 @@ export function parseConnectionConfig(input: unknown): ConnectionConfig {
   const number = (value: unknown, fallback: number, min: number, max: number): number => value === undefined ? fallback : typeof value === "number" && Number.isSafeInteger(value) && value >= min && value <= max ? value : invalid();
   const name = (value: unknown) => { const result = text(value); if (!/^[A-Z][A-Z0-9_]+$/.test(result)) return invalid(); return result; };
   const uuid = (value: unknown) => { const result = text(value); if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(result)) return invalid(); return result; };
-  const root = object(input, ["target", "browser", "secretFile", "models", "routes", "credentials", "budgetCents", "maxRuns", "turnTimeoutMs", "retainCompany"]);
+  const root = object(input, ["target", "browser", "secretFile", "models", "routes", "credentials", "budgetCents", "maxRuns", "turnTimeoutMs", "retainSpace"]);
   const t = object(root.target ?? { mode: "managed-local" });
   let target: ConnectionConfig["target"];
   if (t.mode === "managed-local") { object(t, ["mode"]); target = { mode: "managed-local" }; }
   else if (t.mode === "attach") {
-    object(t, ["mode", "baseURL", "expectedCommit", "deploymentMode", "companyId", "environmentId"]);
+    object(t, ["mode", "baseURL", "expectedCommit", "deploymentMode", "spaceId", "environmentId"]);
     const expectedCommit = text(t.expectedCommit);
     if (!/^[a-f0-9]{40}$/.test(expectedCommit)) return invalid();
     target = { mode: "attach", baseURL: targetOrigin(text(t.baseURL)), expectedCommit, deploymentMode: choice(t.deploymentMode, ["local_trusted", "authenticated"], "authenticated"),
-      ...(t.companyId === undefined ? {} : { companyId: uuid(t.companyId) }), ...(t.environmentId === undefined ? {} : { environmentId: uuid(t.environmentId) }) };
+      ...(t.spaceId === undefined ? {} : { spaceId: uuid(t.spaceId) }), ...(t.environmentId === undefined ? {} : { environmentId: uuid(t.environmentId) }) };
   } else return invalid();
   const b = object(root.browser ?? {}, ["headed", "channel", "profileDir", "accountAlias", "freshness", "loginTimeoutMs"]);
   const accountAlias = text(b.accountAlias, "local-qa");
@@ -57,7 +57,7 @@ export function parseConnectionConfig(input: unknown): ConnectionConfig {
     ...(root.secretFile === undefined ? {} : { secretFile: text(root.secretFile) }),
     models: Object.fromEntries(Object.entries(object(root.models ?? {})).map(([key, value]) => [key, text(value)])), routes,
     credentials: Object.fromEntries(Object.entries(object(root.credentials ?? {})).map(([key, value]) => [key, name(value)])),
-    budgetCents: number(root.budgetCents, 200, 1, 10_000), maxRuns: number(root.maxRuns, 3, 2, 5), turnTimeoutMs: number(root.turnTimeoutMs, 300_000, 10_000, 600_000), retainCompany: flag(root.retainCompany, false) };
+    budgetCents: number(root.budgetCents, 200, 1, 10_000), maxRuns: number(root.maxRuns, 3, 2, 5), turnTimeoutMs: number(root.turnTimeoutMs, 300_000, 10_000, 600_000), retainSpace: flag(root.retainSpace, false) };
 }
 
 /** Only harness-owned error codes may enter a retained report. */

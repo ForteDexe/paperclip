@@ -2,7 +2,7 @@ type Connection = { config: Record<string, unknown>; transportConfig?: Record<st
 
 /** GitHub tools that target the authenticated user's personal account when
  * `organization` is omitted. A managed connection can only write there when
- * the Paperclip GitHub App is installed on that personal account. */
+ * the Outpost GitHub App is installed on that personal account. */
 const OWNER_DESCRIPTIONS: Record<string, string> = {
   create_repository: "Organization to create the repository in. When omitted, the repository goes to your personal account, unless the Outpost GitHub App is installed only on one organization; then Outpost uses that organization.",
   fork_repository: "Organization to fork to. When omitted, the fork goes to your personal account, unless the Outpost GitHub App is installed only on one organization; then Outpost uses that organization.",
@@ -35,7 +35,7 @@ function ownerOwnedTool(connection: Connection, toolName: string, inputSchema: u
     && "organization" in record(record(inputSchema).properties);
 }
 
-/** The only account the Paperclip GitHub App is installed on, when that
+/** The only account the Outpost GitHub App is installed on, when that
  * account is an organization rather than the user's own. Repository creation
  * without an organization fails for such a grant, so this is the one owner
  * where it can succeed. Suspended installations are already excluded from

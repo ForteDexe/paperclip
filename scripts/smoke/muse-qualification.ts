@@ -2,7 +2,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { getStoredBoardCredential } from "../../cli/src/client/board-auth.js";
+import { getStoredBoardCredential } from "../../cli/src/client/operator-auth.js";
 import type { MuseConnection, MuseQualificationEvidence } from "@outpost/shared";
 import { qualificationReport, qualificationCadence } from "./muse-qualification-report.mjs";
 
@@ -13,13 +13,13 @@ interface Sample {
   runId?: string; verdict?: "pending" | "succeeded" | "terminal_failure"; terminalFailureAt?: string; nativeSucceeded?: boolean; documentSha256?: string; unattended: true; attempts: number;
 }
 interface State {
-  version: 3; apiBase: string; companyId: string; agentId: string; bindingId: string; generation: number;
+  version: 3; apiBase: string; spaceId: string; agentId: string; bindingId: string; generation: number;
   expectedRevision: number; qualificationId: string; evidenceMode: "live" | "synthetic"; startedAt?: string; expiresAt?: string;
   coreRevision: string; runnerRevision: string; environment: "local" | "cloud" | "self-hosted";
   samples: Sample[]; stopped: boolean; interventions: Array<{ kind: string; at: string }>;
 }
 if (process.argv.includes("--help")) {
-  console.log("Muse qualification: start|check|stop|report --state <private-file>\nStart additionally requires --api-base <origin> --company-id <uuid> --agent-id <uuid> --core-revision <sha> --runner-revision <sha> --environment local|cloud|self-hosted --evidence-mode live|synthetic. Authenticate with paperclipai auth login first. The server enforces the 24-hour deadline; schedule check externally. No Muse cookie or API key is accepted.");
+  console.log("Muse qualification: start|check|stop|report --state <private-file>\nStart additionally requires --api-base <origin> --space-id <uuid> --agent-id <uuid> --core-revision <sha> --runner-revision <sha> --environment local|cloud|self-hosted --evidence-mode live|synthetic. Authenticate with outpost auth login first. The server enforces the 24-hour deadline; schedule check externally. No Muse cookie or API key is accepted.");
   process.exit(0);
 }
 const args = process.argv.slice(2);
@@ -39,14 +39,14 @@ function origin(input: string) {
 }
 async function request<T>(state: Pick<State, "apiBase">, method: string, path: string, body?: unknown): Promise<T> {
   const credential = getStoredBoardCredential(state.apiBase);
-  if (!credential) throw new Error("Run paperclipai auth login for the selected API origin first");
+  if (!credential) throw new Error("Run outpost auth login for the selected API origin first");
   const response = await fetch(state.apiBase + "/api" + path, { method,
     headers: { Authorization: `Bearer ${credential.token}`, "Content-Type": "application/json", Accept: "application/json", Origin: state.apiBase },
     body: body === undefined ? undefined : JSON.stringify(body), redirect: "error", signal: AbortSignal.timeout(25_000) });
-  if (!response.ok) throw new Error(`Paperclip returned HTTP ${response.status}; the sample remains recorded`);
+  if (!response.ok) throw new Error(`Outpost returned HTTP ${response.status}; the sample remains recorded`);
   if (response.status === 204) return undefined as T;
-  if (!response.headers.get("content-type")?.includes("application/json")) throw new Error("Paperclip did not return protocol JSON");
-  const reader = response.body?.getReader(); if (!reader) throw new Error("Empty Paperclip response");
+  if (!response.headers.get("content-type")?.includes("application/json")) throw new Error("Outpost did not return protocol JSON");
+  const reader = response.body?.getReader(); if (!reader) throw new Error("Empty Outpost response");
   const chunks: Uint8Array[] = []; let bytes = 0;
   for (;;) {
     const { value, done } = await reader.read(); if (done) break;
@@ -61,7 +61,7 @@ async function save(state: State) {
   try { await handle.writeFile(JSON.stringify(state) + "\n"); await handle.sync(); } finally { await handle.close(); }
   await rename(temporary, statePath);
 }
-const base = (state: State) => `/companies/${state.companyId}/agents/${state.agentId}/muse-binding`;
+const base = (state: State) => `/spaces/${state.spaceId}/agents/${state.agentId}/muse-binding`;
 const qualificationPath = (state: State) => base(state) + "/qualification";
 async function status(state: State) { return request<MuseConnection>(state, "GET", base(state)); }
 async function begin(state: State) {
@@ -102,9 +102,9 @@ async function collect(state: State, evidence: MuseQualificationEvidence) {
     const finalized = assignment.status === "settled" && !!sample.finalizedAt;
     if (!unclaimedFailure && !finalized) continue;
     if (finalized && sample.nativeSucceeded && sample.documentSha256) { resolved.add(sample); continue; }
-    const run = await request<{ id: string; companyId: string; agentId: string; nativeIssueId: string | null;
+    const run = await request<{ id: string; spaceId: string; agentId: string; nativeIssueId: string | null;
       status: string; runtimeMode: string; finishedAt: string | null }>(state, "GET", `/heartbeat-runs/${sample.runId}`);
-    if (run.id !== sample.runId || run.companyId !== state.companyId || run.agentId !== state.agentId || run.nativeIssueId !== sample.issueId) {
+    if (run.id !== sample.runId || run.spaceId !== state.spaceId || run.agentId !== state.agentId || run.nativeIssueId !== sample.issueId) {
       throw new Error("Sample run identity changed; preserve the original campaign");
     }
     const finishedAt = run.finishedAt ? Date.parse(run.finishedAt) : NaN;
@@ -153,8 +153,8 @@ async function tick(state: State, stop = false) {
   const creating = state.samples.find(sample => !sample.issueId);
   if (creating && !state.stopped && !expired && scheduledHour && creating.slot === hour && healthy) {
     const title = `Muse qualification sample ${creating.slot}`;
-    const issue = await request<{ id: string; createdAt: string }>(state, "POST", `/companies/${state.companyId}/issues`, {
-      title, description: `Unattended personal Muse receiver qualification, sample ${creating.slot}. Save a short Markdown task document with key report explaining which sample arrived and that it was received through the installed Paperclip receiver. Use only Paperclip task tools; no external service or unrelated changes. Complete this task through the native runner after saving the document.`,
+    const issue = await request<{ id: string; createdAt: string }>(state, "POST", `/spaces/${state.spaceId}/issues`, {
+      title, description: `Unattended personal Muse receiver qualification, sample ${creating.slot}. Save a short Markdown task document with key report explaining which sample arrived and that it was received through the installed Outpost receiver. Use only Outpost task tools; no external service or unrelated changes. Complete this task through the native runner after saving the document.`,
       status: "todo", assigneeAgentId: state.agentId, idempotencyKey: `muse-qualification:${state.qualificationId}:${creating.slot}`,
     });
     creating.issueId = issue.id; creating.queuedAt = issue.createdAt; await save(state);
@@ -169,7 +169,7 @@ async function main() {
     const evidenceMode = required("--evidence-mode");
     if (evidenceMode !== "live" && evidenceMode !== "synthetic") throw new Error("Declare live personal Muse or synthetic fixture evidence");
     if (!["local", "cloud", "self-hosted"].includes(environment)) throw new Error("Unknown environment");
-    const state: State = { version: 3, apiBase: origin(required("--api-base")), companyId: uuid(required("--company-id")), agentId: uuid(required("--agent-id")),
+    const state: State = { version: 3, apiBase: origin(required("--api-base")), spaceId: uuid(required("--space-id")), agentId: uuid(required("--agent-id")),
       bindingId: "", generation: 0, expectedRevision: 0, qualificationId: randomUUID(), evidenceMode,
       coreRevision: revision(required("--core-revision")), runnerRevision: revision(required("--runner-revision")),
       environment: environment as State["environment"], samples: [], interventions: [], stopped: false };

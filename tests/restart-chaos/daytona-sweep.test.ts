@@ -13,15 +13,15 @@ describe("R6 settle window", () => {
   });
 });
 
-describe("cleanup through Paperclip", () => {
-  const COMPANY = "11111111-1111-4111-8111-111111111111";
+describe("cleanup through Outpost", () => {
+  const SPACE = "11111111-1111-4111-8111-111111111111";
   const ENVIRONMENT = "22222222-2222-4222-8222-222222222222";
   const listing = { list: () => (async function* () {})() };
 
   it("treats a 409 pending-cleanup environment delete as blocked, not a harness error, and retries it", async () => {
     let calls = 0;
     const api = { delete: async () => { calls += 1; throw new Error(`DELETE /api/environments/${ENVIRONMENT} returned 409: {"error":"Cannot delete this environment while a sandbox cleanup is pending."}`); } };
-    const sweeper = new DaytonaWaveSweeper({ apiKey: "unused", companyId: COMPANY, environmentId: ENVIRONMENT, api: api as never });
+    const sweeper = new DaytonaWaveSweeper({ apiKey: "unused", spaceId: SPACE, environmentId: ENVIRONMENT, api: api as never });
     (sweeper as unknown as { client: unknown }).client = readOnlyDaytona(listing);
     const result = await sweeper.cleanUp(0, 4_000);
     expect(result).toMatchObject({ environmentDeleted: false, errors: [], remainingSandboxes: [] });
@@ -31,7 +31,7 @@ describe("cleanup through Paperclip", () => {
 
   it("reports other environment delete failures as errors", async () => {
     const api = { delete: async () => { throw new Error("DELETE returned 500: boom"); } };
-    const sweeper = new DaytonaWaveSweeper({ apiKey: "unused", companyId: COMPANY, environmentId: ENVIRONMENT, api: api as never });
+    const sweeper = new DaytonaWaveSweeper({ apiKey: "unused", spaceId: SPACE, environmentId: ENVIRONMENT, api: api as never });
     (sweeper as unknown as { client: unknown }).client = readOnlyDaytona(listing);
     const result = await sweeper.cleanUp(0, 1_000);
     expect(result.environmentDeleteBlocked).toBeNull();
@@ -39,26 +39,26 @@ describe("cleanup through Paperclip", () => {
   });
 });
 
-const COMPANY = "11111111-1111-4111-8111-111111111111";
+const SPACE = "11111111-1111-4111-8111-111111111111";
 const ENVIRONMENT = "22222222-2222-4222-8222-222222222222";
 const OTHER = "33333333-3333-4333-8333-333333333333";
-const wave = { companyId: COMPANY, environmentId: ENVIRONMENT };
+const wave = { spaceId: SPACE, environmentId: ENVIRONMENT };
 const labelled = (id: string, labels: Record<string, string> = {}, extra: Partial<DaytonaSandboxRow> = {}): DaytonaSandboxRow =>
   ({ id, state: "started", labels, ...extra });
 
 describe("wave sandbox selection is read-only and exact", () => {
   const rows = [
-    labelled("mine", { "paperclip-company-id": COMPANY, "paperclip-environment-id": ENVIRONMENT }),
+    labelled("mine", { "outpost-space-id": SPACE, "outpost-environment-id": ENVIRONMENT }),
     labelled("unlabelled"),
-    labelled("other-environment", { "paperclip-company-id": COMPANY, "paperclip-environment-id": OTHER }),
-    labelled("other-company", { "paperclip-company-id": OTHER, "paperclip-environment-id": ENVIRONMENT }),
-    labelled("company-only", { "paperclip-company-id": COMPANY }),
-    labelled("fleet", { "paperclip-company-id": OTHER }, { name: "paperclip-create-abc", snapshot: "fleet-sbx-1" }),
+    labelled("other-environment", { "outpost-space-id": SPACE, "outpost-environment-id": OTHER }),
+    labelled("other-space", { "outpost-space-id": OTHER, "outpost-environment-id": ENVIRONMENT }),
+    labelled("space-only", { "outpost-space-id": SPACE }),
+    labelled("fleet", { "outpost-space-id": OTHER }, { name: "outpost-create-abc", snapshot: "fleet-sbx-1" }),
   ];
 
   it("selects only sandboxes carrying both of the wave's UUID labels", () => {
     expect(selectWaveSandboxes(rows, wave).map(row => row.id)).toEqual(["mine"]);
-    expect(() => selectWaveSandboxes(rows, { companyId: "", environmentId: "" })).toThrow(/UUIDs/);
+    expect(() => selectWaveSandboxes(rows, { spaceId: "", environmentId: "" })).toThrow(/UUIDs/);
   });
 
   it("re-checks rows even when the provider ignores the label filter", async () => {
@@ -69,7 +69,7 @@ describe("wave sandbox selection is read-only and exact", () => {
       return (async function* () { yield* rows; })();
     } });
     expect((await sweeper.listWaveSandboxes()).map(row => row.id)).toEqual(["mine"]);
-    expect(queries).toEqual([{ labels: { "paperclip-company-id": COMPANY, "paperclip-environment-id": ENVIRONMENT } }]);
+    expect(queries).toEqual([{ labels: { "outpost-space-id": SPACE, "outpost-environment-id": ENVIRONMENT } }]);
   });
 
   it("exposes no mutating Daytona operation", () => {
@@ -80,10 +80,10 @@ describe("wave sandbox selection is read-only and exact", () => {
   });
 
   it("hard-refuses fleet sandboxes and anything not labelled for the wave, even with matching labels", () => {
-    const waveLabels = { "paperclip-company-id": COMPANY, "paperclip-environment-id": ENVIRONMENT };
-    expect(isProtectedSandbox({ name: "paperclip-create-1" })).toBe(true);
+    const waveLabels = { "outpost-space-id": SPACE, "outpost-environment-id": ENVIRONMENT };
+    expect(isProtectedSandbox({ name: "outpost-create-1" })).toBe(true);
     expect(isProtectedSandbox({ name: "x", snapshot: "fleet-sbx-2" })).toBe(true);
-    expect(() => assertHarnessMayMutate(labelled("a", waveLabels, { name: "paperclip-create-1" }), wave)).toThrow(/protected/);
+    expect(() => assertHarnessMayMutate(labelled("a", waveLabels, { name: "outpost-create-1" }), wave)).toThrow(/protected/);
     expect(() => assertHarnessMayMutate(labelled("b", waveLabels, { name: "probe", snapshot: "fleet-sbx-2" }), wave)).toThrow(/protected/);
     expect(() => assertHarnessMayMutate(labelled("c", {}, { name: "probe" }), wave)).toThrow(/not labelled for this wave/);
     expect(() => assertHarnessMayMutate(labelled("d", waveLabels, { name: "probe" }), wave)).not.toThrow();
@@ -91,7 +91,7 @@ describe("wave sandbox selection is read-only and exact", () => {
 });
 
 describe("Daytona R6 reconciliation", () => {
-  const base = { companyId: "c", environmentId: "e", checkedAt: "now", error: null };
+  const base = { spaceId: "c", environmentId: "e", checkedAt: "now", error: null };
 
   it("accepts live sandboxes backed by held leases and ignores destroyed ones", () => {
     const result = reconcileSandboxes(
@@ -149,7 +149,7 @@ describe("Daytona R6 reconciliation", () => {
 
   it("reports sandboxes with no lease and leases still active at rest", () => {
     const result = reconcileSandboxes(
-      [{ id: "s9", state: "started", labels: { "paperclip-run-id": "r9" } }, { id: "s1", state: "started" }],
+      [{ id: "s9", state: "started", labels: { "outpost-run-id": "r9" } }, { id: "s1", state: "started" }],
       [{ id: "l1", status: "active", providerLeaseId: "s1", heartbeatRunId: "r1", issueId: "i1" }],
     );
     expect(result.orphanSandboxes).toEqual([expect.objectContaining({ sandboxId: "s9", runId: "r9", reason: "no lease references this sandbox" })]);

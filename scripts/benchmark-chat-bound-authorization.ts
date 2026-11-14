@@ -65,75 +65,75 @@ try {
   const f = await seedBoundChatAuthorization(db);
   const loadStart = performance.now();
   // People who write in the waiting conversations, each linked and a member.
-  await sql.unsafe(`insert into chat_external_principals (id, company_id, provider, provider_account_id, external_id, kind)
+  await sql.unsafe(`insert into chat_external_principals (id, space_id, provider, provider_account_id, external_id, kind)
     select gen_random_uuid(), $1::uuid, 'slack', 'guild-1', 'person-' || g, 'user' from generate_series(1, $2::int) g`,
-  [f.companyId, PEOPLE]);
-  await sql.unsafe(`insert into chat_identity_links (company_id, endpoint_id, principal_id, paperclip_user_id, status)
+  [f.spaceId, PEOPLE]);
+  await sql.unsafe(`insert into chat_identity_links (space_id, endpoint_id, principal_id, outpost_user_id, status)
     select $1::uuid, $2::uuid, id, 'user-' || external_id, 'linked' from chat_external_principals
-    where company_id = $1::uuid and external_id like 'person-%'`, [f.companyId, f.endpointId]);
-  await sql.unsafe(`insert into company_memberships (company_id, principal_type, principal_id, status, membership_role)
+    where space_id = $1::uuid and external_id like 'person-%'`, [f.spaceId, f.endpointId]);
+  await sql.unsafe(`insert into space_memberships (space_id, principal_type, principal_id, status, membership_role)
     select $1::uuid, 'user', 'user-' || external_id, 'active', 'member' from chat_external_principals
-    where company_id = $1::uuid and external_id like 'person-%'`, [f.companyId]);
+    where space_id = $1::uuid and external_id like 'person-%'`, [f.spaceId]);
   // WAITS tasks in review, each waiting for an external chat response.
   // Skip the work-assessment owner chain of the status decisions.
   await sql.begin(tx => tx.unsafe("set local session_replication_role = replica").then(() => tx.unsafe(`with w as (
       select g, gen_random_uuid() issue_id, gen_random_uuid() run_id, gen_random_uuid() decision_id,
         gen_random_uuid() conversation_id, gen_random_uuid() comment_id, gen_random_uuid() delivery_id,
-        (select id from chat_external_principals where company_id = $1::uuid and external_id = 'person-' || (1 + g % $5::int)) principal_id
+        (select id from chat_external_principals where space_id = $1::uuid and external_id = 'person-' || (1 + g % $5::int)) principal_id
       from generate_series(1, $4::int) g),
-    i as (insert into issues (id, company_id, title, status, assignee_agent_id, issue_number, identifier, last_status_decision_id)
+    i as (insert into issues (id, space_id, title, status, assignee_agent_id, issue_number, identifier, last_status_decision_id)
       select issue_id, $1::uuid, 'wait ' || g, 'in_review', $2::uuid, 100 + g, 'RCB-' || (100 + g), decision_id from w),
-    r as (insert into heartbeat_runs (id, company_id, agent_id, status, native_issue_id, context_snapshot)
+    r as (insert into heartbeat_runs (id, space_id, agent_id, status, native_issue_id, context_snapshot)
       select run_id, $1::uuid, $2::uuid, 'succeeded', issue_id, jsonb_build_object('source', 'chat:slack',
-        'paperclipHarnessCheckedOut', true, 'wakeCommentIds', jsonb_build_array(comment_id),
+        'outpostHarnessCheckedOut', true, 'wakeCommentIds', jsonb_build_array(comment_id),
         'prompt', repeat('x', 4096)) from w),
-    d as (insert into status_decisions (id, company_id, issue_id, run_id, assessment_id, decision_version, policy_version,
+    d as (insert into status_decisions (id, space_id, issue_id, run_id, assessment_id, decision_version, policy_version,
         from_status, to_status, reason_code, decision_json, decision_digest, application_state, applied_at)
       select decision_id, $1::uuid, issue_id, run_id, gen_random_uuid(), 1, 'v1', 'in_progress', 'in_review',
         'external_chat_response_waiting', '{}'::jsonb, md5(g::text), 'applied', now() from w),
-    c as (insert into chat_conversations (id, company_id, endpoint_id, resource_id, issue_id, external_conversation_id,
+    c as (insert into chat_conversations (id, space_id, endpoint_id, resource_id, issue_id, external_conversation_id,
         external_thread_id, external_label, state)
       select conversation_id, $1::uuid, $3::uuid, $6::uuid, issue_id, 'channel-1', 'wait-' || g, 'wait', 'waiting' from w),
-    m as (insert into issue_comments (id, company_id, issue_id, author_type, author_user_id, body)
+    m as (insert into issue_comments (id, space_id, issue_id, author_type, author_user_id, body)
       select comment_id, $1::uuid, issue_id, 'user', 'u', 'Please check' from w),
-    l as (insert into chat_deliveries (id, company_id, endpoint_id, conversation_id, principal_id, provider_event_id,
+    l as (insert into chat_deliveries (id, space_id, endpoint_id, conversation_id, principal_id, provider_event_id,
         deduplication_key, event_kind, state, normalized_event, processed_at)
       select delivery_id, $1::uuid, $3::uuid, conversation_id, principal_id, 'wait-' || g, 'wait-' || g, 'message',
         'processed', jsonb_build_object('message', jsonb_build_object('text', repeat('y', $7::int * 1024))), now() from w)
-    insert into chat_message_links (company_id, endpoint_id, conversation_id, delivery_id, comment_id, provider_message_id, direction)
+    insert into chat_message_links (space_id, endpoint_id, conversation_id, delivery_id, comment_id, provider_message_id, direction)
     select $1::uuid, $3::uuid, conversation_id, delivery_id, comment_id, 'wait-' || g, 'inbound' from w`,
-  [f.companyId, f.agentId, f.endpointId, WAITS, PEOPLE, f.resourceId, EVENT_KIB])));
+  [f.spaceId, f.agentId, f.endpointId, WAITS, PEOPLE, f.resourceId, EVENT_KIB])));
   // Chat history of the same endpoint on other tasks.
-  await sql.unsafe(`insert into issues (company_id, title, status, assignee_agent_id, issue_number, identifier)
+  await sql.unsafe(`insert into issues (space_id, title, status, assignee_agent_id, issue_number, identifier)
     select $1::uuid, 'history ' || g, 'done', $2::uuid, 10000 + g, 'RCB-' || (10000 + g) from generate_series(1, 2000) g`,
-  [f.companyId, f.agentId]);
-  await sql.unsafe(`insert into chat_conversations (company_id, endpoint_id, resource_id, issue_id, external_conversation_id,
+  [f.spaceId, f.agentId]);
+  await sql.unsafe(`insert into chat_conversations (space_id, endpoint_id, resource_id, issue_id, external_conversation_id,
       external_thread_id, external_label, state)
     select $1::uuid, $2::uuid, $3::uuid, i.id, 'channel-1', 'history-' || i.id, 'history', 'completed'
-    from issues i where i.company_id = $1::uuid and i.title like 'history %'`, [f.companyId, f.endpointId, f.resourceId]);
+    from issues i where i.space_id = $1::uuid and i.title like 'history %'`, [f.spaceId, f.endpointId, f.resourceId]);
   await sql.unsafe(`with c as (select id, issue_id, row_number() over (order by id) rn, count(*) over () n
-      from chat_conversations where company_id = $1::uuid and external_label = 'history')
-    insert into chat_deliveries (company_id, endpoint_id, conversation_id, principal_id, provider_event_id,
+      from chat_conversations where space_id = $1::uuid and external_label = 'history')
+    insert into chat_deliveries (space_id, endpoint_id, conversation_id, principal_id, provider_event_id,
       deduplication_key, event_kind, state, normalized_event, processed_at)
     select $1::uuid, $2::uuid, c.id, $3::uuid, 'history-' || g, 'history-' || g, 'message', 'processed',
       jsonb_build_object('message', jsonb_build_object('text', (select string_agg(md5(random()::text || s.i || g), ' ')
         from generate_series(1, $4::int) s(i)))), now()
     from generate_series(1, $5::int) g join c on c.rn = 1 + (g % c.n)`,
-  [f.companyId, f.endpointId, f.principalId, EVENT_KIB * 31, NOISE_DELIVERIES]);
-  await sql.unsafe(`insert into issue_comments (id, company_id, issue_id, author_type, author_user_id, body)
+  [f.spaceId, f.endpointId, f.principalId, EVENT_KIB * 31, NOISE_DELIVERIES]);
+  await sql.unsafe(`insert into issue_comments (id, space_id, issue_id, author_type, author_user_id, body)
     select d.id, $1::uuid, c.issue_id, 'user', 'u', 'history' from chat_deliveries d
-    join chat_conversations c on c.id = d.conversation_id where d.provider_event_id like 'history-%'`, [f.companyId]);
-  await sql.unsafe(`insert into chat_message_links (company_id, endpoint_id, conversation_id, delivery_id, comment_id,
+    join chat_conversations c on c.id = d.conversation_id where d.provider_event_id like 'history-%'`, [f.spaceId]);
+  await sql.unsafe(`insert into chat_message_links (space_id, endpoint_id, conversation_id, delivery_id, comment_id,
       provider_message_id, direction)
     select $1::uuid, endpoint_id, conversation_id, id, id, provider_event_id, 'inbound'
-    from chat_deliveries where provider_event_id like 'history-%'`, [f.companyId]);
+    from chat_deliveries where provider_event_id like 'history-%'`, [f.spaceId]);
   await sql.unsafe("vacuum analyze");
   const loadMs = performance.now() - loadStart;
-  const issueIds = (await sql.unsafe(`select id from issues where company_id = $1::uuid and title like 'wait %' order by title`,
-    [f.companyId])).map(row => row.id as string);
+  const issueIds = (await sql.unsafe(`select id from issues where space_id = $1::uuid and title like 'wait %' order by title`,
+    [f.spaceId])).map(row => row.id as string);
   // One waiting task that is no longer authorized: its person lost membership.
-  await sql.unsafe(`update company_memberships set status = 'suspended' where company_id = $1::uuid and principal_id = 'user-person-1'`,
-    [f.companyId]);
+  await sql.unsafe(`update space_memberships set status = 'suspended' where space_id = $1::uuid and principal_id = 'user-person-1'`,
+    [f.spaceId]);
 
   const round = (value: number) => Number(value.toFixed(2));
   // Statements that one page sends, counted at the driver (prepared
@@ -151,7 +151,7 @@ try {
       total += 1;
       return original.call(this, query, ...rest);
     };
-    try { await list(db!, f.companyId, issueIds); } finally { client.unsafe = original; }
+    try { await list(db!, f.spaceId, issueIds); } finally { client.unsafe = original; }
     // Server execution of the message-link statements of one page.
     let linkExecutionMs = 0;
     const nodes = new Set<string>();
@@ -180,16 +180,16 @@ try {
     return performance.now() - start;
   };
   const versions: Record<string, List> = { baseline, treatment: listExternalReviewWaits };
-  const page = (list: List) => () => list(db!, f.companyId, issueIds);
+  const page = (list: List) => () => list(db!, f.spaceId, issueIds);
   const pages = (list: List) => () => Promise.all(Array.from({ length: CONCURRENT_PAGES }, page(list)));
 
   const results = Object.fromEntries(await Promise.all(Object.entries(versions).map(async ([name, list]) =>
-    [name, (await list(db!, f.companyId, issueIds)).map(wait => wait.issueId).sort()])));
+    [name, (await list(db!, f.spaceId, issueIds)).map(wait => wait.issueId).sort()])));
   assert.deepEqual(results.treatment, results.baseline, "Both versions must return the same waits");
   // Every size works: count the waits of the suspended person from the data.
   const [{ denied }] = await sql.unsafe(`select count(*)::int denied from chat_deliveries d
     join chat_external_principals p on p.id = d.principal_id
-    where d.company_id = $1::uuid and d.provider_event_id like 'wait-%' and p.external_id = 'person-1'`, [f.companyId]);
+    where d.space_id = $1::uuid and d.provider_event_id like 'wait-%' and p.external_id = 'person-1'`, [f.spaceId]);
   assert.equal((results.baseline as string[]).length, WAITS - (denied as number),
     "Waits of the suspended person must be excluded");
 

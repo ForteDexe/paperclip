@@ -25,15 +25,15 @@ export function createSlackFormDeliveryOwner(db: Db, options: {
     if (!packet || typeof packet !== "object" || Array.isArray(packet)) throw new SlackCloudReceiptError("form_receipt_invalid", "invalid");
     const original = parseSlackFormOperation(Reflect.get(packet, "operation")), binding = original.binding;
     if (binding.instanceId !== identity.instanceId || Reflect.get(packet, "environment") !== identity.environment) throw new SlackCloudReceiptError("form_instance_changed", "attention");
-    const [endpoint] = await db.select().from(chatEndpoints).where(and(eq(chatEndpoints.id, binding.endpointId), eq(chatEndpoints.companyId, binding.companyId))).limit(1);
+    const [endpoint] = await db.select().from(chatEndpoints).where(and(eq(chatEndpoints.id, binding.endpointId), eq(chatEndpoints.spaceId, binding.spaceId))).limit(1);
     if (!endpoint || endpoint.provider !== "slack") throw new SlackCloudReceiptError("form_endpoint_custody_missing", "attention");
     let authority: SlackFormDeliveryAuthority;
     const local = currentSlackFormOwnerBinding(slackFormSetupRecord(endpoint.setup));
     if (local && sameSlackFormBinding(local, binding) && ["active", "verifying", "attention"].includes(endpoint.status)) {
       const signingSecret = await options.withCredentialMutationLease(endpoint, async lease => {
         const [current] = await db.select({ endpoint: chatEndpoints, connection: toolConnections }).from(chatEndpoints)
-          .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, chatEndpoints.companyId)))
-          .where(and(eq(chatEndpoints.id, binding.endpointId), eq(chatEndpoints.companyId, binding.companyId))).limit(1);
+          .innerJoin(toolConnections, and(eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, chatEndpoints.spaceId)))
+          .where(and(eq(chatEndpoints.id, binding.endpointId), eq(chatEndpoints.spaceId, binding.spaceId))).limit(1);
         const owner = current && currentSlackFormOwnerBinding(slackFormSetupRecord(current.endpoint.setup));
         if (!current || !owner || !sameSlackFormBinding(owner, binding) || !["active", "verifying", "attention"].includes(current.endpoint.status)
           || current.connection.status !== "active" || !current.connection.enabled) throw new SlackCloudReceiptError("form_current_authority_changed", "attention");
@@ -42,13 +42,13 @@ export function createSlackFormDeliveryOwner(db: Db, options: {
       });
       authority = { kind: "current", binding, ...identity, signingSecret };
     } else {
-      const [owner] = await db.select().from(chatActions).where(and(eq(chatActions.companyId, binding.companyId), eq(chatActions.endpointId, binding.endpointId),
+      const [owner] = await db.select().from(chatActions).where(and(eq(chatActions.spaceId, binding.spaceId), eq(chatActions.endpointId, binding.endpointId),
         sql`${chatActions.kind} in ('slack_form_owner','slack_form_session')`, sql`${chatActions.payload}->'binding' = ${JSON.stringify(binding)}::jsonb`,
         sql`${chatActions.payload}->>'environment' = ${identity.environment}`)).limit(1);
       if (!owner) throw new SlackCloudReceiptError("form_retained_owner_missing", "attention");
       authority = { kind: "retained", binding, ...identity };
     }
-    const lookup = await lookupSlackFormDelivery(event, authority, values => options.protocol({ subject: "github-bot-events", companyId: binding.companyId,
+    const lookup = await lookupSlackFormDelivery(event, authority, values => options.protocol({ subject: "github-bot-events", spaceId: binding.spaceId,
       operation: { kind: "receipt", ...values } }));
     const op = lookup.operation;
     let terminal = await readSlackFormTerminalRequest(db, binding, op.id);
@@ -72,13 +72,13 @@ export function createSlackFormDeliveryOwner(db: Db, options: {
     if (!terminal) throw new SlackCloudReceiptError(op.phase === "confirmed" ? "form_view_active" : "form_resource_unresolved", op.phase === "confirmed" ? "retry" : "attention");
     const intent = await readSlackFormTerminalIntent(db, op);
     if (!intent || intent.deliveryId !== event.id) throw new SlackCloudReceiptError("form_terminal_intent_missing", "attention");
-    const proof = await options.protocol({ subject: "github-bot-events", companyId: binding.companyId, operation: terminal });
+    const proof = await options.protocol({ subject: "github-bot-events", spaceId: binding.spaceId, operation: terminal });
     if (!proof || typeof proof !== "object" || Reflect.get(proof, "instanceId") !== identity.instanceId || Reflect.get(proof, "environment") !== identity.environment)
       throw new SlackCloudReceiptError("form_terminal_proof_invalid", "attention");
     const proven = parseSlackFormOperation(Reflect.get(proof, "operation"));
     await db.transaction(async tx => {
       await acceptSlackFormTerminalProof(tx, { intent, operation: Reflect.get(proof, "operation"), currentInstanceId: identity.instanceId });
-      await retainSlackFormOpeningProof(tx, { companyId: binding.companyId, appReceiptId: intent.appReceiptId, operation: proven,
+      await retainSlackFormOpeningProof(tx, { spaceId: binding.spaceId, appReceiptId: intent.appReceiptId, operation: proven,
         original: { rawBody: Reflect.get(packet, "rawBody"), timestamp: Reflect.get(packet, "timestamp"), signature: Reflect.get(packet, "signature") } });
     });
   };

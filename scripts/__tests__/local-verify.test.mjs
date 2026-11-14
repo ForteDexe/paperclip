@@ -37,7 +37,7 @@ function fixture(t) {
   write("package.json", JSON.stringify({ name: "local-verification-fixture", private: true, type: "module", packageManager: "pnpm@9.15.4",
     scripts: { verify: "node scripts/local-verify.mjs", "test:run": "vitest run" } }));
   write("vitest.config.mjs", 'export default {test:{projects:["ui","cli"]}};');
-  for (const [directory, name] of [["ui", "@outpost/ui"], ["cli", "paperclipai"]]) {
+  for (const [directory, name] of [["ui", "@outpost/ui"], ["cli", "@outpost/cli"]]) {
     write(`${directory}/vitest.config.mjs`, `export default {test:{name:${JSON.stringify(name)},include:["src/**/*.test.ts"]}};`);
   }
   write("ui/src/leaf.ts", "export const value = 1;\n");

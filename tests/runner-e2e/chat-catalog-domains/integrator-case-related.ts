@@ -10,10 +10,10 @@ import { integratorDefinition, inspectResult, resultHref, observeInternal } from
 type CaseRecord = typeof cases.$inferSelect;
 interface CaseDetail extends CaseRecord { issueLinks: Array<{ issueId: string; role: string; issue: Entity }> }
 interface RelatedObservation extends InternalObservation { caseDetail: CaseDetail; reverseLinks: Record<string, Array<{ role: string; case: Pick<CaseRecord, "id" | "identifier" | "workIssueId"> }>>; deniedStatus: number }
-const resources = new WeakMap<ChatCatalogContext, { experimental: boolean; foreignCompanyId?: string }>();
+const resources = new WeakMap<ChatCatalogContext, { experimental: boolean; foreignSpaceId?: string }>();
 async function cleanup(ctx: ChatCatalogContext) {
   const saved = resources.get(ctx); if (!saved) return;
-  if (saved.foreignCompanyId) await ctx.input.api.delete(`/api/companies/${saved.foreignCompanyId}`, { allowNotFound: true });
+  if (saved.foreignSpaceId) await ctx.input.api.delete(`/api/spaces/${saved.foreignSpaceId}`, { allowNotFound: true });
   await ctx.input.api.patch("/api/instance/settings/experimental", { enableCases: saved.experimental }); resources.delete(ctx);
 }
 async function observeRelated(ctx: ChatCatalogContext, state: Record<string, unknown>): Promise<RelatedObservation> {
@@ -60,9 +60,9 @@ export const integratorRelatedWorkCases = [integratorDefinition("cases", "cases.
   try {
     await ctx.input.api.patch("/api/instance/settings/experimental", { enableCases: true });
     const p = await project(ctx, "Launch"); const worker = await fixtureWorker(ctx);
-    for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: worker.id }])
-      await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
-    const kickoff = await ctx.input.api.post<HandoffCaseResult>(`/api/companies/${ctx.input.fixtures.company.id}/case-handoffs`, {
+    for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: worker.id }])
+      await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+    const kickoff = await ctx.input.api.post<HandoffCaseResult>(`/api/spaces/${ctx.input.fixtures.space.id}/case-handoffs`, {
       idempotencyKey: `related-work-${ctx.input.nonce}`, case: { create: { caseType: "customer", title: "Mobile checkout customer case", projectId: p.id, fields: { symptom: "Synthetic mobile checkout fails" } } },
       toAgentId: worker.id, phase: "investigation", instructions: "Read the saved brief, record that the synthetic mobile checkout diagnosis needs a later follow-up, and mark this initial investigation task done. Do not close the case, hand it off, create tasks or change other records.",
       workflow_document_text: "# Investigation\nMorgan completes the initial investigation task. The case remains open while a separate linked follow-up is pending. Task completion alone is not a terminal case handoff.",
@@ -77,9 +77,9 @@ export const integratorRelatedWorkCases = [integratorDefinition("cases", "cases.
     await ctx.input.api.post(`/api/cases/${row.id}/links`, { issueId: followup.id, role: "reference" });
     const unrelated = await task(ctx, "Mobile checkout follow-up investigation", p.id, { description: "Similar title, but explicitly unrelated and not linked to any case." });
     if (unrelated.id === followup.id) throw new Error("Similar-title distractor must remain a distinct unlinked task");
-    const foreign = await ctx.input.api.post<Entity>("/api/companies", { name: `Private unrelated ${ctx.input.nonce}` }); resources.get(ctx)!.foreignCompanyId = foreign.id;
+    const foreign = await ctx.input.api.post<Entity>("/api/spaces", { name: `Private unrelated ${ctx.input.nonce}` }); resources.get(ctx)!.foreignSpaceId = foreign.id;
     const privateMarker = `PRIVATE-CUSTOMER-${ctx.input.nonce}`;
-    const privateTask = await ctx.input.api.post<Entity>(`/api/companies/${foreign.id}/issues`, { title: `Confidential customer ${ctx.input.nonce}`, description: privateMarker, status: "backlog" });
+    const privateTask = await ctx.input.api.post<Entity>(`/api/spaces/${foreign.id}/issues`, { title: `Confidential customer ${ctx.input.nonce}`, description: privateMarker, status: "backlog" });
     if (!ctx.input.privateSecrets) throw new Error("Principal access probe requires private redaction");
     const key = await ctx.input.api.postSensitive<{ id: string; token: string }>(`/api/agents/${ctx.input.fixtures.agent.id}/keys`, { name: "case-read-boundary" });
     ctx.input.privateSecrets.push(key.token);
@@ -87,7 +87,7 @@ export const integratorRelatedWorkCases = [integratorDefinition("cases", "cases.
     try { const response = await fetch(new URL(`/api/issues/${privateTask.id}`, ctx.input.api.baseURL), { headers: { Authorization: `Bearer ${key.token}` }, redirect: "error", signal: AbortSignal.timeout(20_000) }); deniedStatus = response.status; await response.body?.cancel(); }
     finally { await ctx.input.api.delete(`/api/agents/${ctx.input.fixtures.agent.id}/keys/${key.id}`, { allowNotFound: true }); }
     if (![403, 404].includes(deniedStatus)) throw new Error("Actual responding principal can read supposedly inaccessible task");
-    await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/chats/${ctx.input.fixtures.agent.id}`);
+    await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/chats/${ctx.input.fixtures.agent.id}`);
     await ctx.refreshIssue(); if (!ctx.issue()) throw new Error("Selected case context requires its actual standing conversation");
     await ctx.input.api.patch(`/api/issues/${ctx.issue()!.id}`, { projectId: p.id, description: `Current customer case: ${row.title} (${row.identifier}; case ID ${row.id}).` });
     return { project: p, worker: { id: worker.id }, case: await ctx.input.api.get<CaseRecord>(`/api/cases/${row.id}`), followup, unrelated, privateTask, privateMarker, deniedStatus };
@@ -117,7 +117,7 @@ export const integratorRelatedWorkCases = [integratorDefinition("cases", "cases.
     await ctx.input.evidence(`chat-case-reverse-link-${id}.json`, { caseId: o.caseDetail.id, issueId: id, url: ctx.input.page.url() });
   }
   await ctx.input.page.goto(source); await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible();
-  await inspectResult(ctx, `/${ctx.input.fixtures.company.issuePrefix}/cases/${o.caseDetail.identifier}`, o.caseDetail.title);
+  await inspectResult(ctx, `/${ctx.input.fixtures.space.issuePrefix}/cases/${o.caseDetail.identifier}`, o.caseDetail.title);
 }, { sourceFiles: ["chat-catalog-domains/integrator-case-related.ts", "chat-catalog-domains/recorded-work-claims.ts", "chat-catalog-domains/integrator-support.ts", "chat-catalog-domains/internal-support.ts", "chat-catalog-domains/internal-definition.ts", "chat-scenarios/cases.yaml"],
   oracleVersion: "outpost.chat-catalog.case-related.grounded.v7", expectedRunCount: 2, attemptTimeoutMs: 540_000, cleanup,
 })];

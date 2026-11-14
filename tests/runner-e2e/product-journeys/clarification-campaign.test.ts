@@ -26,8 +26,8 @@ async function campaign(count: number, omitReceipt = false) {
     usage: { runs: runIds.map(runId => ({ runId, usage: { costUsd: 0.01 } })) } }];
   await writeFile(module, `
 const identity = { kind: 'cloud', targetId: 'qa', origin: 'https://qa.example.test', commit: '${"a".repeat(40)}', cloudRelease: 'v1', runtimeImage: 'image', configurationHash: 'config' };
-const context = { identity, company: { id: 'company', issuePrefix: 'QA' }, user: { id: 'board', name: 'QA' },
-  api: { origin: identity.origin }, startingState: 'recipe', capabilities: ['company', 'board-user', 'task-write', 'agent'],
+const context = { identity, space: { id: 'space', issuePrefix: 'QA' }, user: { id: 'board', name: 'QA' },
+  api: { origin: identity.origin }, startingState: 'recipe', capabilities: ['space', 'board-user', 'task-write', 'agent'],
   agent: { id: 'agent', name: 'QA', provider: 'opencode', model: 'model', runtimeMode: 'native' }, environmentId: 'daytona',
   page: { url: () => identity.origin + '/QA/issues/QA-1', locator: () => ({ waitFor: async () => {}, isVisible: async () => true, screenshot: async () => {} }) } };
 export const provider = { version: 1, async acquire() { return {

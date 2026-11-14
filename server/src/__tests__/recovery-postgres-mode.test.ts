@@ -16,7 +16,7 @@ vi.mock("./helpers/embedded-postgres.js", () => ({
   getEmbeddedPostgresTestSupport: mocks.support, startEmbeddedPostgresTestDatabase: mocks.embedded,
 }));
 
-const recoveryUrl = "postgresql://paperclip@127.0.0.1:55448/recovery_modes_test";
+const recoveryUrl = "postgresql://outpost@127.0.0.1:55448/recovery_modes_test";
 beforeEach(() => {
   vi.resetAllMocks();
   vi.resetModules();
@@ -29,8 +29,8 @@ afterEach(() => { vi.unstubAllEnvs(); });
 it("keeps separate fixture allocations when a recovery URL belongs to another explicitly opted-in caller", async () => {
   const firstCleanup = vi.fn(async () => {}), secondCleanup = vi.fn(async () => {});
   mocks.embedded
-    .mockResolvedValueOnce({ connectionString: "postgresql://paperclip@127.0.0.1:55448/first_owned_test", cleanup: firstCleanup })
-    .mockResolvedValueOnce({ connectionString: "postgresql://paperclip@127.0.0.1:55448/second_owned_test", cleanup: secondCleanup });
+    .mockResolvedValueOnce({ connectionString: "postgresql://outpost@127.0.0.1:55448/first_owned_test", cleanup: firstCleanup })
+    .mockResolvedValueOnce({ connectionString: "postgresql://outpost@127.0.0.1:55448/second_owned_test", cleanup: secondCleanup });
   const { startRecoveryPostgres } = await import("./helpers/recovery-postgres.js");
   const supportChecks = mocks.support.mock.calls.length;
   const first = await startRecoveryPostgres("first-fixture-");
@@ -48,7 +48,7 @@ it("keeps separate fixture allocations when a recovery URL belongs to another ex
 });
 
 it("uses the exact dedicated database only when the owning caller passes its explicit option", async () => {
-  vi.stubEnv("OUTPOST_TEST_DATABASE_URL", "postgresql://paperclip@127.0.0.1:55448/postgres");
+  vi.stubEnv("OUTPOST_TEST_DATABASE_URL", "postgresql://outpost@127.0.0.1:55448/postgres");
   const { startRecoveryPostgres } = await import("./helpers/recovery-postgres.js");
   const fixture = await startRecoveryPostgres("owned-fixture-", { dedicatedDatabaseUrl: recoveryUrl });
   expect(fixture.connectionString).toBe(recoveryUrl);
@@ -60,7 +60,7 @@ it("uses the exact dedicated database only when the owning caller passes its exp
 });
 
 it("retains fresh external database allocation and matching cleanup for existing non-dedicated callers", async () => {
-  const admin = "postgresql://paperclip@127.0.0.1:55448/postgres";
+  const admin = "postgresql://outpost@127.0.0.1:55448/postgres";
   vi.stubEnv("OUTPOST_TEST_DATABASE_URL", admin);
   const { startRecoveryPostgres } = await import("./helpers/recovery-postgres.js");
   const first = await startRecoveryPostgres("first-fixture-");
@@ -99,7 +99,7 @@ it("keeps default recovery support unavailable on an unsupported platform despit
 it("supports the exact explicit dedicated mode without probing unsupported embedded PostgreSQL", async () => {
   mocks.support.mockResolvedValue({ supported: false, reason: "Unsupported synthetic platform" });
   const { getRecoveryPostgresSupport, startRecoveryPostgres } = await import("./helpers/recovery-postgres-fixture.js");
-  const selectedUrl = "postgresql://paperclip@127.0.0.1:55448/explicit_recovery_modes_test";
+  const selectedUrl = "postgresql://outpost@127.0.0.1:55448/explicit_recovery_modes_test";
   const options = { dedicatedDatabaseUrl: selectedUrl };
   expect(await getRecoveryPostgresSupport(options)).toEqual({ supported: true });
   const fixture = await startRecoveryPostgres("explicit-dedicated-", options);

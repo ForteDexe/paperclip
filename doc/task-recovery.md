@@ -8,7 +8,7 @@ assignment, budget and deliberate pause remain separate user decisions.
 
 `POST /api/issues/:id/retry` accepts `{ idempotencyKey, observedRunId }`.
 It requires authenticated board task-mutation authority. It records an
-`agent_wakeup_requests` receipt before physical work. Company/key uniqueness
+`agent_wakeup_requests` receipt before physical work. Space/key uniqueness
 covers completed and failed receipts as well as pending ones. Concurrent clicks
 attach to accepted work. A new deliberate click after exhaustion can create a
 new generation; a repeated HTTP request cannot. A click does not renew an
@@ -63,7 +63,7 @@ access. The retry records the current runtime generation and credential-referenc
 fingerprint. Another reconnect invalidates that admission. Historical deliveries,
 stale webhook callbacks and the exact-run retry contract retain their fences.
 Legacy input that predates saved App IDs can also use an earlier processed
-response ledger from the same company, endpoint, conversation and agent. Its
+response ledger from the same space, endpoint, conversation and agent. Its
 server-owned App binding must predate that input and retain a processed delivery
 and inbound source link. The endpoint's non-null App claim cannot be replaced;
 this proves historical identity without replaying the earlier response. Missing
@@ -99,7 +99,7 @@ skip any hold's independent containment and effect checks. Attaching a Retry to
 active automatic recovery preserves its generation, attempt count and deadline.
 
 A deliberate Retry can bind that intent to failed historical predecessors within
-a 32-run chain of persisted retry edges. Every run must retain the same company, task and
+a 32-run chain of persisted retry edges. Every run must retain the same space, task and
 agent, a terminal state and an ordered creation time. Missing, cyclic, contradictory
 or overlong lineage stays held; transcript hints confer no authority. Completed
 ancestors retain their existing recovery generation. A failed historical native
@@ -127,7 +127,7 @@ the request held. Preservation alone does not authorize automatic replay.
 
 Preparation can initialize an object run log before provider dispatch. A finalized
 log with zero bytes and the SHA-256 digest of empty content is compatible with
-the no-output proof when its reference binds the exact company, agent and run.
+the no-output proof when its reference binds the exact space, agent and run.
 Output progress and nonempty excerpts still block admission. Unknown size or
 digest, another log backend, and incomplete preparation settlement remain held.
 
@@ -174,7 +174,7 @@ Execution containment and file preservation are independent facts:
 A missing managed sandbox cannot answer another stop request. Core can request
 a signed absence observation from Cloud under a host-bound server capability.
 Cloud reads the exact allocation in the historical credential's organization.
-Only a fresh signature for the exact stack, company, issue, run, lease,
+Only a fresh signature for the exact stack, space, issue, run, lease,
 allocation and physical recovery owner can settle execution absence. Permission
 failures, a changed organization, unsigned answers and provider timeouts remain
 inconclusive. This protocol requires Cloud support before the Core consumer.
@@ -199,7 +199,7 @@ When that owned files-only export reports a full sandbox disk, recovery can
 reclaim a verified inactive native provider installation and retry the same save
 once. The failed source must have a terminal coordinator with no controller
 owner or resumable failure, and its Core-verified provider-pack admission must
-match the exact run, company, agent, workspace and lease. Unverified historical
+match the exact run, space, agent, workspace and lease. Unverified historical
 installations remain held for operator repair.
 
 Only the reserved provider-pack `node_modules` and `provider-assets` directories

@@ -27,20 +27,20 @@ it("binds closed rejection shapes to the actual offered finish schema without re
   const bridge = await startOpenCodeMcpBridge({ handler, onDiagnostic: message => messages.push(message) });
   bridges.push(bridge);
   const listed = await rpc(bridge, 1, "tools/list");
-  const schema = listed.result.tools.find((tool: { name: string }) => tool.name === "paperclip_finish")!.inputSchema;
+  const schema = listed.result.tools.find((tool: { name: string }) => tool.name === "outpost_finish")!.inputSchema;
   const digest = createHash("sha256").update(JSON.stringify(schema)).digest("hex");
   for (const [index, input] of [report, { ...report, continuation: null }].entries()) {
-    const result = await rpc(bridge, index + 2, "tools/call", { name: "paperclip_finish", arguments: input });
+    const result = await rpc(bridge, index + 2, "tools/call", { name: "outpost_finish", arguments: input });
     expect(result.result.isError).not.toBe(true);
   }
   for (const [index, continuation] of ["PRIVATE_INPUT_VALUE", [], 42, false].entries()) {
     const rejected = await rpc(bridge, index + 4, "tools/call", {
-      name: "paperclip_finish", arguments: { ...report, continuation },
+      name: "outpost_finish", arguments: { ...report, continuation },
     });
     expect(rejected.result.isError).toBe(true);
   }
   const unrelated = await rpc(bridge, 8, "tools/call", {
-    name: "paperclip_finish", arguments: { ...report, summary: 42, continuation: null, PRIVATE_FIELD: "PRIVATE_INPUT_VALUE" },
+    name: "outpost_finish", arguments: { ...report, summary: 42, continuation: null, PRIVATE_FIELD: "PRIVATE_INPUT_VALUE" },
   });
   expect(unrelated.result.isError).toBe(true);
   expect(handler).toHaveBeenCalledTimes(2);
@@ -62,13 +62,13 @@ it("reports the effective supplied schema and bounds diagnostics without admitti
   const messages: string[] = [], handler = vi.fn();
   const inputSchema = { type: "object", required: ["continuation"], properties: { continuation: { type: "object" } } };
   const bridge = await startOpenCodeMcpBridge({
-    tools: [{ name: "paperclip_finish", inputSchema }], handler,
+    tools: [{ name: "outpost_finish", inputSchema }], handler,
     onDiagnostic: message => { if (message.includes("finish-input-diagnostic")) messages.push(message); },
   });
   bridges.push(bridge);
   for (let index = 0; index < 12; index++) {
     const rejected = await rpc(bridge, index, "tools/call", {
-      name: "paperclip_finish", arguments: index === 0 ? [] : { continuation: null },
+      name: "outpost_finish", arguments: index === 0 ? [] : { continuation: null },
     });
     expect(rejected.result.isError).toBe(true);
   }
@@ -92,7 +92,7 @@ it("keeps diagnostics optional and nonfatal while preserving cancellation", asyn
     }),
   });
   bridges.push(bridge);
-  const pending = rpc(bridge, 1, "tools/call", { name: "paperclip_finish", arguments: report });
+  const pending = rpc(bridge, 1, "tools/call", { name: "outpost_finish", arguments: report });
   await begun;
   await fetch(bridge.url, { method: "POST", headers: { Authorization: `Bearer ${bridge.secret}`, "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 1 } }) });

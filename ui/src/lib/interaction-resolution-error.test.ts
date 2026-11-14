@@ -7,8 +7,8 @@ import {
   isInteractionAudienceDenial,
 } from "./interaction-resolution-error";
 
-const addressedAudience = { shortSummary: "Only CodexCoder or the board can respond", isOpen: false };
-const humanOnlyAudience = { shortSummary: "Only the board can respond", isOpen: false };
+const addressedAudience = { shortSummary: "Only CodexCoder or the operator can respond", isOpen: false };
+const humanOnlyAudience = { shortSummary: "Only the operator can respond", isOpen: false };
 const openAudience = { shortSummary: "Anyone can respond", isOpen: true };
 
 /** Shapes an `ApiError` the way `errorHandler` serializes an `HttpError`. */
@@ -39,7 +39,7 @@ describe("isInteractionAudienceDenial", () => {
       "interaction_human_only",
       "interaction_creator_excluded",
       "interaction_addressee_mismatch",
-      "interaction_governed_action_denied",
+      "interaction_controlled_action_denied",
       "interaction_run_attribution_required",
       "interaction_scope_denied",
     ]) {
@@ -72,7 +72,7 @@ describe("describeInteractionResolutionFailure", () => {
     expect(failure.kind).toBe("audience_denied");
     expect(failure.code).toBe("interaction_human_only");
     expect(failure.message).toBe(
-      "This issue-thread interaction is human-only. Only the board can respond.",
+      "This issue-thread interaction is human-only. Only the operator can respond.",
     );
     // A policy denial is permanent: never invite a retry that will fail again.
     expect(failure.message).not.toMatch(/try again/i);
@@ -88,7 +88,7 @@ describe("describeInteractionResolutionFailure", () => {
         ),
         addressedAudience,
       ),
-    ).toContain("Only CodexCoder or the board can respond.");
+    ).toContain("Only CodexCoder or the operator can respond.");
   });
 
   it("still explains a denial when no audience is known", () => {

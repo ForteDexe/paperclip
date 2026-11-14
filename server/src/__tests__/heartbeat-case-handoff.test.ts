@@ -5,7 +5,7 @@ import { rm } from "node:fs/promises";
 import { hostname } from "node:os";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { agents, agentWakeupRequests, authSessions, authUsers, caseEvents, caseHandoffs, cases, companies, companyMemberships,
+import { agents, agentWakeupRequests, authSessions, authUsers, caseEvents, caseHandoffs, cases, spaces, spaceMemberships,
   createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import { issueRecoveryActions, issueRelations } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -29,31 +29,31 @@ describe("durable case handoff queue admission", () => {
     await instanceSettingsService(db).updateExperimental({ enableCases: true }); });
   afterAll(async () => { for (const id of heldRuns) runningProcesses.delete(id); await temporary?.cleanup(); });
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), caseId = randomUUID(), handoffId = randomUUID(),
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), caseId = randomUUID(), handoffId = randomUUID(),
       userId = randomUUID(), sessionId = randomUUID(), wakeupRequestId = randomUUID(), occupyingRunId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Factory", issuePrefix: `Q${companyId.slice(0, 6)}`, defaultResponsibleUserId: userId });
+    await db.insert(spaces).values({ id: spaceId, name: "Factory", issuePrefix: `Q${spaceId.slice(0, 6)}`, defaultResponsibleUserId: userId });
     await db.insert(authUsers).values({ id: userId, name: "Owner", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalId: userId, principalType: "user", status: "active", membershipRole: "owner" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: userId, principalType: "user", status: "active", membershipRole: "owner" });
     await db.insert(authSessions).values({ id: sessionId, userId, token: randomUUID(), createdAt: new Date(), updatedAt: new Date(),
       expiresAt: new Date(Date.now() + 60 * 60_000) });
-    const actorContext = caseHandoffActorContext({ type: "board", userId, source: "session", sessionId, companyIds: [companyId] }, companyId);
-    await db.insert(agents).values({ id: agentId, companyId, name: "Builder", role: "ceo", status: "running", adapterType: "process",
+    const actorContext = caseHandoffActorContext({ type: "operator", userId, source: "session", sessionId, spaceIds: [spaceId] }, spaceId);
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Builder", role: "lead", status: "running", adapterType: "process",
       runtimeConfig: { heartbeat: { maxConcurrentRuns: 1, wakeOnDemand: true } } });
     // Hold the recipient's ordinary concurrency slot so admission remains
     // observable without a provider mock or racing background execution.
-    await db.insert(heartbeatRuns).values({ id: occupyingRunId, companyId, agentId, status: "running", responsibleUserId: userId,
+    await db.insert(heartbeatRuns).values({ id: occupyingRunId, spaceId, agentId, status: "running", responsibleUserId: userId,
       contextSnapshot: { issueId: randomUUID() }, resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } });
     runningProcesses.set(occupyingRunId, { child: {} as never, graceSec: 0, processGroupId: null }); heldRuns.add(occupyingRunId);
-    await db.insert(issues).values({ id: issueId, companyId, title: "Build", status: "todo", assigneeAgentId: agentId, responsibleUserId: userId });
-    await db.insert(cases).values({ id: caseId, companyId, caseNumber: 1, identifier: `CASE-${caseId}`, caseType: "work", title: "Build",
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Build", status: "todo", assigneeAgentId: agentId, responsibleUserId: userId });
+    await db.insert(cases).values({ id: caseId, spaceId, caseNumber: 1, identifier: `CASE-${caseId}`, caseType: "work", title: "Build",
       workIssueId: issueId, handoffVersion: 1, phase: "implementation" });
-    await db.insert(caseHandoffs).values({ id: handoffId, companyId, caseId, issueId, version: 1, toAgentId: agentId, phase: "implementation",
+    await db.insert(caseHandoffs).values({ id: handoffId, spaceId, caseId, issueId, version: 1, toAgentId: agentId, phase: "implementation",
       instructions: "Build the requested change", actorType: "user", actorId: userId, actorContext, responsibleUserId: userId,
       expectedIssueStatusVersion: 0, appliedIssueStatusVersion: 0, wakeupRequestId, idempotencyKey: "start", inputFingerprint: "fixture", state: "pending_dispatch" });
     const options = { source: "assignment" as const, triggerDetail: "system" as const, reason: "case_handoff", requestedByActorType: "user" as const,
       requestedByActorId: userId, payload: { issueId, handoffId }, contextSnapshot: { issueId, taskKey: issueId, responsibleUserId: userId },
       durableCaseHandoffRequest: { handoffId, wakeupRequestId, issueId, expectedIssueStatusVersion: 0 } };
-    return { companyId, agentId, issueId, caseId, handoffId, userId, sessionId, wakeupRequestId, occupyingRunId, options };
+    return { spaceId, agentId, issueId, caseId, handoffId, userId, sessionId, wakeupRequestId, occupyingRunId, options };
   }
   it("blocks generic wakes and admits one exact receipt across separate scheduler instances", async () => {
     const f = await fixture();
@@ -63,7 +63,7 @@ describe("durable case handoff queue admission", () => {
     const second = await heartbeatService(db).wakeup(f.agentId, f.options);
     expect(second?.id).toBe(first?.id);
     expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, f.wakeupRequestId))).toHaveLength(1);
-    expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.wakeupRequestId, f.wakeupRequestId)))).toHaveLength(1);
+    expect(await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.wakeupRequestId, f.wakeupRequestId)))).toHaveLength(1);
   });
   it("does not spend the durable receipt on a paused recipient and retries the same identity", async () => {
     const f = await fixture();
@@ -84,8 +84,8 @@ describe("durable case handoff queue admission", () => {
       const f = await fixture();
       let clear!: () => Promise<void>;
       if (hold === "dependencies") {
-        const [blocker] = await db.insert(issues).values({ companyId: f.companyId, title: "Late blocker", status: "todo" }).returning();
-        await db.insert(issueRelations).values({ companyId: f.companyId, issueId: blocker.id, relatedIssueId: f.issueId, type: "blocks" });
+        const [blocker] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Late blocker", status: "todo" }).returning();
+        await db.insert(issueRelations).values({ spaceId: f.spaceId, issueId: blocker.id, relatedIssueId: f.issueId, type: "blocks" });
         clear = async () => { await db.update(issues).set({ status: "done" }).where(eq(issues.id, blocker.id)); };
       } else if (hold === "workspace") {
         await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });
@@ -93,7 +93,7 @@ describe("durable case handoff queue admission", () => {
           .where(eq(issues.id, f.issueId));
         clear = async () => { await db.update(issues).set({ executionWorkspaceSettings: null }).where(eq(issues.id, f.issueId)); };
       } else if (hold === "recovery") {
-        const [action] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
+        const [action] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
           kind: "execution_reconciliation", cause: "uncertain_provider_action", fingerprint: randomUUID(), nextAction: "Confirm provider settlement", status: "active" }).returning();
         clear = async () => { await db.update(issueRecoveryActions).set({ status: "resolved", resolvedAt: new Date() }).where(eq(issueRecoveryActions.id, action.id)); };
       } else {
@@ -122,7 +122,7 @@ describe("durable case handoff queue admission", () => {
   );
   it("retains a handoff and its mutation fence after an unconfirmed Stop, then delivers after settlement", async () => {
     const f = await fixture(), sourceRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId: f.spaceId, agentId: f.agentId,
       status: "running", runtimeMode: "legacy", contextSnapshot: { issueId: f.issueId }, responsibleUserId: f.userId });
     await db.update(issues).set({ executionRunId: sourceRunId }).where(eq(issues.id, f.issueId));
     await db.update(caseHandoffs).set({ state: "awaiting_release", sourceRunId, fromAgentId: f.agentId,
@@ -146,7 +146,7 @@ describe("durable case handoff queue admission", () => {
     } }).sweepPending();
     const [afterSettlement] = await db.select().from(caseHandoffs).where(eq(caseHandoffs.id, f.handoffId));
     expect(afterSettlement).toMatchObject({ actorType: "user", actorId: f.userId,
-      actorContext: { source: "session", actorId: f.userId, companyId: f.companyId, sessionId: f.sessionId } });
+      actorContext: { source: "session", actorId: f.userId, spaceId: f.spaceId, sessionId: f.sessionId } });
     expect(afterSettlement?.state, afterSettlement?.lastError ?? undefined).toBe("pending_dispatch");
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.wakeupRequestId, f.wakeupRequestId))).toHaveLength(1);
     await caseHandoffDeliveryService(db, { heartbeat: heartbeatService(db), now: () => new Date(at.getTime() + 122_000) }).sweepPending();
@@ -155,7 +155,7 @@ describe("durable case handoff queue admission", () => {
   });
   it("retains a settled legacy transfer without authenticated original actor provenance", async () => {
     const f = await fixture(), sourceRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId: f.spaceId, agentId: f.agentId,
       status: "succeeded", runtimeMode: "legacy", contextSnapshot: { issueId: f.issueId }, responsibleUserId: f.userId });
     await db.update(issues).set({ executionRunId: sourceRunId }).where(eq(issues.id, f.issueId));
     await db.update(caseHandoffs).set({ state: "awaiting_release", sourceRunId, fromAgentId: f.agentId,
@@ -180,13 +180,13 @@ describe("durable case handoff queue admission", () => {
     const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { detached: true, stdio: "ignore" });
     await once(child, "spawn");
     const processId = child.pid!, processStartedAt = new Date();
-    const scratch = await prepareHeartbeatRunScratch({ companyId: f.companyId, agentId: f.agentId, runId: sourceRunId, issueId: f.issueId });
+    const scratch = await prepareHeartbeatRunScratch({ spaceId: f.spaceId, agentId: f.agentId, runId: sourceRunId, issueId: f.issueId });
     let restartedDb: ReturnType<typeof createDb> | undefined;
     try {
       const exited = once(child, "exit");
       child.kill("SIGTERM");
       await exited;
-      await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId: f.companyId, agentId: f.agentId,
+      await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId: f.spaceId, agentId: f.agentId,
         status: "succeeded", runtimeMode: "legacy", startedAt: processStartedAt, finishedAt: new Date(), controllerBootId,
         processPid: processId, processGroupId: processId, processStartedAt, contextSnapshot: { issueId: f.issueId }, responsibleUserId: f.userId });
       await db.update(issues).set({ executionRunId: sourceRunId }).where(eq(issues.id, f.issueId));
@@ -195,7 +195,7 @@ describe("durable case handoff queue admission", () => {
       const output = createHeartbeatRunOutput(db, { run: source, runId: sourceRunId, issueId: f.issueId,
         runLogStore: { begin: async () => ({ store: "local_file", logRef: "synthetic-legacy-log" }), append: async () => 0 },
         identityRedactor: createAgentIdentityRedactor(), secretKeys: new Set(), getCurrentUserRedactionOptions: async () => ({ enabled: false }),
-        appendRunEvent: async (run, event) => { await appendHeartbeatRunEvent(db, { companyId: run.companyId, agentId: run.agentId, runId: run.id, ...event }); },
+        appendRunEvent: async (run, event) => { await appendHeartbeatRunEvent(db, { spaceId: run.spaceId, agentId: run.agentId, runId: run.id, ...event }); },
       });
       const handlers = await output.begin(source);
       await handlers.onAdapterEvent({ eventType: "legacy.case_handoff_cleanup_verified", stream: "system", payload: {
@@ -249,11 +249,11 @@ describe("durable case handoff queue admission", () => {
     const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { detached: true, stdio: "ignore" });
     await once(child, "spawn");
     const processId = child.pid!;
-    const scratch = withScratch ? await prepareHeartbeatRunScratch({ companyId: f.companyId, agentId: f.agentId,
+    const scratch = withScratch ? await prepareHeartbeatRunScratch({ spaceId: f.spaceId, agentId: f.agentId,
       runId: sourceRunId, issueId: f.issueId }) : null;
     let restartedDb: ReturnType<typeof createDb> | undefined;
     try {
-      await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId: f.companyId, agentId: f.agentId,
+      await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId: f.spaceId, agentId: f.agentId,
         status: "running", runtimeMode: "legacy", startedAt, controllerBootId, processPid: processId,
         processGroupId: processId, processStartedAt: startedAt, contextSnapshot: { issueId: f.issueId }, responsibleUserId: f.userId });
       // Preparation records intent even before a handoff references this run.
@@ -268,7 +268,7 @@ describe("durable case handoff queue admission", () => {
       expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, f.wakeupRequestId))).toHaveLength(0);
       const exited = once(child, "exit"); child.kill("SIGTERM"); await exited;
 
-      const [hold] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
+      const [hold] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
         kind: "execution_reconciliation", cause: "uncertain_provider_action", fingerprint: randomUUID(),
         nextAction: "Confirm workspace settlement", status: "active" }).returning();
       expect(await isCaseHandoffSourceReleased(restartedDb, { runId: sourceRunId, issueId: f.issueId })).toBe(false);
@@ -294,10 +294,10 @@ describe("durable case handoff queue admission", () => {
   });
   it("admits an authenticated new phase after two case-only runs without treating its agent comment as an idle re-wake", async () => {
     const f = await fixture();
-    for (const age of [20_000, 10_000]) await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+    for (const age of [20_000, 10_000]) await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
       status: "succeeded", startedAt: new Date(Date.now() - age - 5_000), finishedAt: new Date(Date.now() - age),
       responsibleUserId: f.userId, contextSnapshot: { issueId: f.issueId } });
-    const [comment] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId,
+    const [comment] = await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId,
       authorAgentId: f.agentId, body: "Proceed to the next explicitly requested case phase" }).returning();
     await db.update(caseHandoffs).set({ actorType: "agent", actorId: f.agentId, fromAgentId: f.agentId, commentId: comment.id })
       .where(eq(caseHandoffs.id, f.handoffId));
@@ -325,17 +325,17 @@ describe("durable case handoff queue admission", () => {
   });
   it("an explicit Stop after source termination cancels the pending successor and records history", async () => {
     const f = await fixture(), sourceRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId: f.companyId, agentId: f.agentId, status: "succeeded", finishedAt: new Date(),
+    await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId: f.spaceId, agentId: f.agentId, status: "succeeded", finishedAt: new Date(),
       contextSnapshot: { issueId: f.issueId } });
     await db.update(caseHandoffs).set({ sourceRunId, state: "awaiting_release" }).where(eq(caseHandoffs.id, f.handoffId));
-    await heartbeatService(db).cancelRun(sourceRunId, "Cancelled by a board operator", { resultJson: { cancelledByActorType: "user", cancelledByUserId: f.userId } });
+    await heartbeatService(db).cancelRun(sourceRunId, "Cancelled by a operator operator", { resultJson: { cancelledByActorType: "user", cancelledByUserId: f.userId } });
     expect((await db.select().from(caseHandoffs).where(eq(caseHandoffs.id, f.handoffId)))[0]?.state).toBe("cancelled");
     expect(await db.select().from(caseEvents).where(and(eq(caseEvents.caseId, f.caseId), eq(caseEvents.kind, "handoff_cancelled")))).toHaveLength(1);
   });
   it("releases a paused source that was queued but never acquired execution", async () => {
     const f = await fixture(), sourceRunId = randomUUID();
     await db.update(agents).set({ status: "paused" }).where(eq(agents.id, f.agentId));
-    await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId: f.spaceId, agentId: f.agentId,
       status: "queued", contextSnapshot: { issueId: f.issueId }, responsibleUserId: f.userId });
     await db.update(issues).set({ executionRunId: sourceRunId }).where(eq(issues.id, f.issueId));
     await db.update(caseHandoffs).set({ sourceRunId, state: "awaiting_release", createdAt: new Date(Date.now() - 31_000),
@@ -355,7 +355,7 @@ describe("durable case handoff queue admission", () => {
     const queued = await heartbeat.wakeup(f.agentId, f.options);
     await db.update(caseHandoffs).set({ state: "delivered" }).where(eq(caseHandoffs.id, f.handoffId));
     await db.update(cases).set({ handoffVersion: 2, phase: "verification" }).where(eq(cases.id, f.caseId));
-    await db.insert(caseHandoffs).values({ companyId: f.companyId, caseId: f.caseId, issueId: f.issueId,
+    await db.insert(caseHandoffs).values({ spaceId: f.spaceId, caseId: f.caseId, issueId: f.issueId,
       version: 2, toAgentId: f.agentId, phase: "verification", instructions: "Verify the change", actorType: "user", actorId: f.userId,
       wakeupRequestId: randomUUID(), idempotencyKey: "second-phase", inputFingerprint: "second", state: "delivered",
       expectedIssueStatusVersion: 0, appliedIssueStatusVersion: 0 });

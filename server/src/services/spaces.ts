@@ -22,10 +22,10 @@ export async function resolveSpaceWorkingDirectory(value: string): Promise<Space
 /** Keep one hidden compatibility project/workspace to supply the Space cwd. */
 export async function provisionSpaceWorkspace(
   db: Db,
-  input: { companyId: string; name: string; root: string },
+  input: { spaceId: string; name: string; root: string },
 ) {
   const projects = projectService(db);
-  const project = await projects.create(input.companyId, {
+  const project = await projects.create(input.spaceId, {
     name: input.name,
     description: "Internal workspace for this Space",
     status: "in_progress",
@@ -42,7 +42,7 @@ export async function provisionSpaceWorkspace(
 
 export async function writePortableSpaceManifest(input: {
   root: string;
-  companyId: string;
+  spaceId: string;
   name: string;
 }) {
   const directory = path.join(input.root, ".outpost");
@@ -51,7 +51,7 @@ export async function writePortableSpaceManifest(input: {
   await fs.mkdir(directory, { recursive: true });
   await fs.writeFile(temporary, `${JSON.stringify({
     schemaVersion: 1,
-    spaceId: input.companyId,
+    spaceId: input.spaceId,
     name: input.name,
   }, null, 2)}\n`, "utf8");
   await fs.rename(temporary, target);

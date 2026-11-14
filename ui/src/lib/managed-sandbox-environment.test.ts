@@ -7,8 +7,8 @@ import {
 
 describe("managed sandbox environment helpers", () => {
   it("identifies platform-managed rows by the provisioner marker", () => {
-    expect(isPlatformManagedEnvironment({ metadata: { managedByPaperclip: true } })).toBe(true);
-    expect(isPlatformManagedEnvironment({ metadata: { managedByPaperclip: false } })).toBe(false);
+    expect(isPlatformManagedEnvironment({ metadata: { managedByOutpost: true } })).toBe(true);
+    expect(isPlatformManagedEnvironment({ metadata: { managedByOutpost: false } })).toBe(false);
     expect(isPlatformManagedEnvironment({ metadata: { source: "manual" } })).toBe(false);
     expect(isPlatformManagedEnvironment({ metadata: null })).toBe(false);
     expect(isPlatformManagedEnvironment(null)).toBe(false);
@@ -19,7 +19,7 @@ describe("managed sandbox environment helpers", () => {
       environmentDisplayLabel({
         name: "Outpost Sandbox",
         driver: "sandbox",
-        metadata: { managedByPaperclip: true },
+        metadata: { managedByOutpost: true },
       }),
     ).toBe("Outpost Sandbox");
     expect(

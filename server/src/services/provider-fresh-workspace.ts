@@ -11,7 +11,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { executionWorkspaces, heartbeatRuns, issues, projectWorkspaces, workspaceOperations, type Db } from "@outpost/db";
 import { freshWorkspaceSchema, type PluginFreshWorkspace } from "@outpost/plugin-sdk";
 import type { ExecutionWorkspace } from "@outpost/shared";
-import { resolvePaperclipInstanceRoot } from "../home-paths.js";
+import { resolveOutpostInstanceRoot } from "../home-paths.js";
 import { getStorageService } from "../storage/index.js";
 import { recoveryRunAncestry } from "./recovery-run-ancestry.js";
 import { readSnapshot } from "./workspace-recovery-snapshot.js";
@@ -20,12 +20,12 @@ import { notifyTerminalWorkspaceWork } from "./terminal-workspace-work.js";
 import { SystemRecoveryFailure } from "./system-recovery-state.js";
 
 export function isBoundFreshPluginTaskDirectory(input: {
-  companyId: string; issueId: string; workspaceId: string | null;
+  spaceId: string; issueId: string; workspaceId: string | null;
   workspace: ExecutionWorkspace | null;
   owner: { agentId: string; environmentId: string; pluginKey: unknown; driverKey: unknown };
 }): boolean {
   const workspace = input.workspace;
-  if (!workspace || workspace.id !== input.workspaceId || workspace.companyId !== input.companyId ||
+  if (!workspace || workspace.id !== input.workspaceId || workspace.spaceId !== input.spaceId ||
       workspace.sourceIssueId !== input.issueId || workspace.status !== "active" ||
       workspace.mode !== "isolated_workspace" || workspace.strategyType !== "project_primary" ||
       workspace.providerType !== "adapter_managed" || workspace.repoUrl || workspace.branchName ||
@@ -36,7 +36,7 @@ export function isBoundFreshPluginTaskDirectory(input: {
 }
 
 export async function stageProviderFreshWorkspace(input: {
-  db: Db; companyId: string; issueId: string; attemptId: string; sourceRunId: string;
+  db: Db; spaceId: string; issueId: string; attemptId: string; sourceRunId: string;
   previousWorkspaceId: string | null; existing?: PluginFreshWorkspace;
 }): Promise<PluginFreshWorkspace> {
   const fresh: PluginFreshWorkspace = freshWorkspaceSchema.parse({ attemptId: input.attemptId,
@@ -44,17 +44,17 @@ export async function stageProviderFreshWorkspace(input: {
   if (input.existing?.recoverySnapshots.length === 0) return freshWorkspaceSchema.parse(input.existing);
   const storage = getStorageService();
   const sources = await recoveryRunAncestry({ ...input, sourceRunIds: [input.sourceRunId] });
-  const stagingRoot = path.join(resolvePaperclipInstanceRoot(), "runtime", "provider-recovery", input.companyId, fresh.attemptId);
+  const stagingRoot = path.join(resolveOutpostInstanceRoot(), "runtime", "provider-recovery", input.spaceId, fresh.attemptId);
   await mkdir(stagingRoot, { recursive: true, mode: 0o700 });
   const root = await realpath(stagingRoot);
   for (const { id: sourceRunId } of sources) {
     const operations = await input.db.select().from(workspaceOperations).where(and(
-      eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.issueId, input.issueId),
+      eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.issueId, input.issueId),
       eq(workspaceOperations.heartbeatRunId, sourceRunId), eq(workspaceOperations.phase, "workspace_recovery_snapshot"),
       eq(workspaceOperations.status, "succeeded")));
     for (const operation of operations) {
       if (input.existing && !input.existing.recoverySnapshots.some(snapshot => snapshot.operationId === operation.id)) continue;
-      const saved = readSnapshot(operation.metadata, input.companyId, sourceRunId);
+      const saved = readSnapshot(operation.metadata, input.spaceId, sourceRunId);
       const directory = path.join(root, operation.id);
       await mkdir(directory, { recursive: true, mode: 0o700 });
       if (await realpath(directory) !== directory) throw new SystemRecoveryFailure("snapshot_verification_failed", "service_required");
@@ -70,7 +70,7 @@ export async function stageProviderFreshWorkspace(input: {
           throw new SystemRecoveryFailure("snapshot_verification_failed", "service_required");
         if (!existing) {
           const temporary = `${destination}.${process.pid}.${randomUUID()}.tmp`;
-          const object = await storage.getObject(input.companyId, expected.objectKey);
+          const object = await storage.getObject(input.spaceId, expected.objectKey);
           try {
             let received = 0;
             const bounded = new Transform({ transform(bytes, _encoding, callback) {
@@ -107,7 +107,7 @@ async function verify(file: string, expected: { sha256: string; byteSize: number
 }
 
 export async function reserveFreshPluginTaskWorkspace(input: {
-  db: Db; companyId: string; issueId: string; runId: string; agentId: string; responsibleUserId: string | null;
+  db: Db; spaceId: string; issueId: string; runId: string; agentId: string; responsibleUserId: string | null;
   fresh: PluginFreshWorkspace; expectedBindingRevision: number;
   owner: Record<string, unknown>;
   source?: { projectId: string | null; projectWorkspaceId: string | null; repoUrl: string | null; baseRef: string | null };
@@ -115,26 +115,26 @@ export async function reserveFreshPluginTaskWorkspace(input: {
   const source = input.source ?? { projectId: null, projectWorkspaceId: null, repoUrl: null, baseRef: null };
   return input.db.transaction(async tx => {
     const [task] = await tx.select().from(issues).where(and(eq(issues.id, input.issueId),
-      eq(issues.companyId, input.companyId))).for("update");
+      eq(issues.spaceId, input.spaceId))).for("update");
     const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, input.runId),
-      eq(heartbeatRuns.companyId, input.companyId)));
+      eq(heartbeatRuns.spaceId, input.spaceId)));
     if (!task || !run || run.agentId !== input.agentId || run.status !== "running" ||
         ![run.issueId, run.nativeIssueId].includes(input.issueId)) throw forbidden("Workspace preparation no longer has an active run");
     const actor = { type: "agent" as const, source: "agent_jwt" as const,
-      companyId: input.companyId, agentId: input.agentId, runId: input.runId,
-      onBehalfOfUserId: input.responsibleUserId === "local-board" ? null : input.responsibleUserId };
+      spaceId: input.spaceId, agentId: input.agentId, runId: input.runId,
+      onBehalfOfUserId: input.responsibleUserId === "local-operator" ? null : input.responsibleUserId };
     if (!task.projectWorkspaceId && task.projectId && task.projectId === source.projectId && source.projectWorkspaceId) {
-      await assertTaskWorkspaceExecutionAccess(tx, actor, input.companyId, { issueId: input.issueId });
+      await assertTaskWorkspaceExecutionAccess(tx, actor, input.spaceId, { issueId: input.issueId });
       const [defaultSource] = await tx.select({ id: projectWorkspaces.id }).from(projectWorkspaces).where(and(
-        eq(projectWorkspaces.companyId, input.companyId), eq(projectWorkspaces.projectId, task.projectId)))
+        eq(projectWorkspaces.spaceId, input.spaceId), eq(projectWorkspaces.projectId, task.projectId)))
         .orderBy(asc(projectWorkspaces.createdAt), asc(projectWorkspaces.id)).limit(1);
       if (defaultSource?.id === source.projectWorkspaceId) await tx.update(issues).set({ projectWorkspaceId: defaultSource.id })
         .where(eq(issues.id, task.id));
     }
-    await assertTaskWorkspaceExecutionAccess(tx, actor, input.companyId, {
+    await assertTaskWorkspaceExecutionAccess(tx, actor, input.spaceId, {
       issueId: input.issueId, projectWorkspaceId: source.projectWorkspaceId });
     const [reserved] = await tx.select().from(executionWorkspaces).where(and(
-      eq(executionWorkspaces.companyId, input.companyId), eq(executionWorkspaces.sourceIssueId, input.issueId),
+      eq(executionWorkspaces.spaceId, input.spaceId), eq(executionWorkspaces.sourceIssueId, input.issueId),
       eq(executionWorkspaces.id, input.fresh.attemptId)));
     if (reserved) {
       if (task.executionWorkspaceId !== reserved.id || reserved.providerType !== "adapter_managed" ||
@@ -148,12 +148,12 @@ export async function reserveFreshPluginTaskWorkspace(input: {
       throw conflict("Task workspace binding changed; retry preparation");
     await notifyTerminalWorkspaceWork(tx, `workspace:${input.fresh.attemptId}`);
     await tx.insert(executionWorkspaces).values({ id: input.fresh.attemptId,
-      companyId: input.companyId, sourceIssueId: input.issueId, ...source,
+      spaceId: input.spaceId, sourceIssueId: input.issueId, ...source,
       mode: "isolated_workspace", strategyType: "project_primary", name: "Fresh task workspace", status: "active",
       providerType: "adapter_managed", cwd: `/workspaces/${input.fresh.attemptId}`,
       metadata: { runnerTaskFreshWorkspace: input.fresh, runnerTaskWorkspaceOwner: input.owner },
     });
-    await notifyStatusCardIssueChange(tx, input.companyId);
+    await notifyStatusCardIssueChange(tx, input.spaceId);
     await tx.update(issues).set({ executionWorkspaceId: input.fresh.attemptId, executionWorkspacePreference: "reuse_existing",
       workspaceBindingRevision: task.workspaceBindingRevision + 1,
       workspacePendingSelection: task.workspacePendingSelection?.expectedBindingRevision === task.workspaceBindingRevision
@@ -162,8 +162,8 @@ export async function reserveFreshPluginTaskWorkspace(input: {
   });
 }
 
-export async function releaseProviderRecoveryTransfers(companyId: string, input: PluginFreshWorkspace) {
+export async function releaseProviderRecoveryTransfers(spaceId: string, input: PluginFreshWorkspace) {
   const fresh = freshWorkspaceSchema.parse(input);
-  await rm(path.join(resolvePaperclipInstanceRoot(), "runtime", "provider-recovery", companyId, fresh.attemptId),
+  await rm(path.join(resolveOutpostInstanceRoot(), "runtime", "provider-recovery", spaceId, fresh.attemptId),
     { recursive: true, force: true });
 }

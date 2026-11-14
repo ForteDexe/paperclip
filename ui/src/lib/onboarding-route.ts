@@ -1,4 +1,4 @@
-type OnboardingRouteCompany = {
+type OnboardingRouteSpace = {
   id: string;
   issuePrefix: string;
 };
@@ -18,118 +18,118 @@ export function isOnboardingPath(pathname: string): boolean {
 }
 
 /**
- * The company prefix in an onboarding pathname, or undefined when there is
+ * The space prefix in an onboarding pathname, or undefined when there is
  * none.
  *
  * `OnboardingWizard` renders as a full-screen overlay beside `<Routes>` rather
  * than inside it (`App.tsx`), so it has no route match and `useParams()`
- * returns nothing there — `companyPrefix` was always undefined and the wizard
- * always opened at step 1, even when the URL named a company. `useLocation()`
+ * returns nothing there — `spacePrefix` was always undefined and the wizard
+ * always opened at step 1, even when the URL named a space. `useLocation()`
  * needs only the router, not a match, so the pathname is the signal that
  * survives where params do not.
  *
  * Deliberately parses the same shape as {@link isOnboardingPath}: the prefix is
  * the first of exactly two segments. Anything else has no prefix to read.
  */
-export function companyPrefixFromOnboardingPath(pathname: string): string | undefined {
+export function spacePrefixFromOnboardingPath(pathname: string): string | undefined {
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length !== 2) return undefined;
   if (segments[1]?.toLowerCase() !== "onboarding") return undefined;
   return segments[0];
 }
 
-/** The wizard step that asks for the company's mission. */
+/** The wizard step that asks for the space's mission. */
 export const ONBOARDING_MISSION_STEP = 2;
 
 /**
  * The wizard step that asks for the first agent.
  *
- * A company that already has its mission has answered steps 1 and 2 — Cloud
- * collects both at signup and the seed writes the mission as a company-level
- * goal. Opening such a company on "what is the mission?" asks the customer
+ * A space that already has its mission has answered steps 1 and 2 — Cloud
+ * collects both at signup and the seed writes the mission as a space-level
+ * goal. Opening such a space on "what is the mission?" asks the customer
  * something they answered minutes earlier on another origin, which is the
  * seam the seeded arc exists to remove.
  */
 export const ONBOARDING_AGENT_STEP = 3;
 
-export type ExistingCompanyOnboardingStep =
+export type ExistingSpaceOnboardingStep =
   | typeof ONBOARDING_MISSION_STEP
   | typeof ONBOARDING_AGENT_STEP;
 
 /**
- * The step a company that already exists belongs on: always the agent.
+ * The step a space that already exists belongs on: always the agent.
  *
- * This used to branch on whether the company had a mission, sending a company
+ * This used to branch on whether the space had a mission, sending a space
  * without one to `ONBOARDING_MISSION_STEP` first. Onboarding no longer asks —
  * the mission is collected later, in the tenant app — so the branch had become
  * a way to reach a question the arc had stopped asking. It survived because
  * Cloud's naming screen dropped its own mission field, which left every
- * Cloud-created company looking mission-less on arrival, and so every walk
+ * Cloud-created space looking mission-less on arrival, and so every walk
  * detoured through a step the design had removed.
  *
  * The parameter is gone rather than ignored: callers were running a goal lookup
  * to compute it, and an argument that cannot change the answer is an invitation
  * to keep computing it.
  */
-export function onboardingStepForCompany(): ExistingCompanyOnboardingStep {
+export function onboardingStepForSpace(): ExistingSpaceOnboardingStep {
   return ONBOARDING_AGENT_STEP;
 }
 
 export function resolveRouteOnboardingOptions(params: {
   pathname: string;
-  companyPrefix?: string;
-  companies: OnboardingRouteCompany[];
+  spacePrefix?: string;
+  spaces: OnboardingRouteSpace[];
   /**
-   * Whether this instance is a Cloud-managed stack. Company creation lives on
-   * Cloud there — POST /companies is a 403 floor — so a route that cannot name
-   * an existing company must never open the create wizard: it would be a dead
-   * end wearing a form. A managed stack holds exactly one company, so the
-   * useful reading of a bare `/onboarding` is that company's agent arc.
+   * Whether this instance is a Cloud-managed stack. Space creation lives on
+   * Cloud there — POST /spaces is a 403 floor — so a route that cannot name
+   * an existing space must never open the create wizard: it would be a dead
+   * end wearing a form. A managed stack holds exactly one space, so the
+   * useful reading of a bare `/onboarding` is that space's agent arc.
    */
   cloudManaged?: boolean;
-}): { initialStep: 1 | ExistingCompanyOnboardingStep; companyId?: string } | null {
-  const { pathname, companyPrefix, companies, cloudManaged } = params;
+}): { initialStep: 1 | ExistingSpaceOnboardingStep; spaceId?: string } | null {
+  const { pathname, spacePrefix, spaces, cloudManaged } = params;
 
   if (!isOnboardingPath(pathname)) return null;
 
-  const managedFallback = (): { initialStep: ExistingCompanyOnboardingStep; companyId?: string } | null =>
-    companies.length === 1
-      ? { initialStep: onboardingStepForCompany(), companyId: companies[0]!.id }
+  const managedFallback = (): { initialStep: ExistingSpaceOnboardingStep; spaceId?: string } | null =>
+    spaces.length === 1
+      ? { initialStep: onboardingStepForSpace(), spaceId: spaces[0]!.id }
       : null;
 
-  if (!companyPrefix) {
+  if (!spacePrefix) {
     if (cloudManaged) return managedFallback();
     return { initialStep: 1 };
   }
 
-  const matchedCompany =
-    companies.find(
-      (company) =>
-        company.issuePrefix.toUpperCase() === companyPrefix.toUpperCase(),
+  const matchedSpace =
+    spaces.find(
+      (space) =>
+        space.issuePrefix.toUpperCase() === spacePrefix.toUpperCase(),
     ) ?? null;
 
-  if (!matchedCompany) {
+  if (!matchedSpace) {
     if (cloudManaged) return managedFallback();
     return { initialStep: 1 };
   }
 
   return {
-    initialStep: onboardingStepForCompany(),
-    companyId: matchedCompany.id,
+    initialStep: onboardingStepForSpace(),
+    spaceId: matchedSpace.id,
   };
 }
 
 /**
- * Whether a company with no agents should be sent to onboarding rather than
+ * Whether a space with no agents should be sent to onboarding rather than
  * left on the dashboard.
  *
- * A company with no agent cannot do anything: no runs, no tasks, nothing to
+ * A space with no agent cannot do anything: no runs, no tasks, nothing to
  * show. The dashboard already says so in a banner with a "Create one here"
  * link, which asks the customer to notice a problem the product could simply
  * fix for them.
  *
  * It also closes the gap a Cloud-provisioned stack falls into. Cloud creates
- * the company before the tenant boots, so `shouldRedirectCompanylessRouteToOnboarding`
+ * the space before the tenant boots, so `shouldRedirectSpacelessRouteToOnboarding`
  * never fires — a seeded customer arrives at an empty dashboard having just
  * answered a signup flow, and nothing routes them onward.
  *
@@ -139,13 +139,13 @@ export function resolveRouteOnboardingOptions(params: {
  * every user through onboarding on each cold load.
  *
  * `agentsRefreshing` covers the other way a count of zero lies: a cached list
- * that is being refetched. The wizard hires the first agent and then lands on
+ * that is being refetched. The wizard creations the first agent and then lands on
  * the first task; a dashboard reached from there can hold the empty list it
- * cached before the hire, with the refetch still in flight. Offering on that
- * list reopens "Create your first agent" for a company that just got one,
+ * cached before the create, with the refetch still in flight. Offering on that
+ * list reopens "Create your first agent" for a space that just got one,
  * and the customer walks the agent and model steps a second time.
  */
-export function shouldRouteAgentlessCompanyToOnboarding(params: {
+export function shouldRouteAgentlessSpaceToOnboarding(params: {
   pathname: string;
   agentsLoaded: boolean;
   agentsRefreshing?: boolean;
@@ -163,10 +163,10 @@ export function shouldRouteAgentlessCompanyToOnboarding(params: {
  * Whether the wizard's Back button is offered on the current step.
  *
  * A run never walks back behind the step it entered on: those steps either do
- * not apply to it (an existing company is already named, and its mission is
+ * not apply to it (an existing space is already named, and its mission is
  * hydrated rather than asked for) or were completed elsewhere. Walking back
- * into step 1 while holding a company is the sharpest case — that step creates
- * a company, so it would make a second one.
+ * into step 1 while holding a space is the sharpest case — that step creates
+ * a space, so it would make a second one.
  */
 export function canGoBackFromOnboardingStep(params: {
   currentStep: number;
@@ -180,7 +180,7 @@ export function canGoBackFromOnboardingStep(params: {
  *
  * Same bound as {@link canGoBackFromOnboardingStep}. The progress bar applies
  * only the "already completed" half of the rule, which lets a run entered on
- * an existing company jump to the name and mission steps the Back button
+ * an existing space jump to the name and mission steps the Back button
  * deliberately withholds.
  */
 export function canJumpToOnboardingStep(params: {
@@ -193,11 +193,11 @@ export function canJumpToOnboardingStep(params: {
   );
 }
 
-export function shouldRedirectCompanylessRouteToOnboarding(params: {
+export function shouldRedirectSpacelessRouteToOnboarding(params: {
   pathname: string;
-  hasCompanies: boolean;
+  hasSpaces: boolean;
 }): boolean {
-  return !params.hasCompanies && !isOnboardingPath(params.pathname);
+  return !params.hasSpaces && !isOnboardingPath(params.pathname);
 }
 
 /**

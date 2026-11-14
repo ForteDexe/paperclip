@@ -4,7 +4,7 @@ import type { ToolProfile, ToolProfileBinding, ToolProfileEntry, ToolProfileNewT
 export function toProfile(row: typeof toolProfiles.$inferSelect): ToolProfile {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     profileKey: row.profileKey,
     name: row.name,
     description: row.description,
@@ -22,7 +22,7 @@ export function toProfileEntry(
 ): ToolProfileEntry {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     profileId: row.profileId,
     selectorType: row.selectorType,
     effect: row.effect,
@@ -42,7 +42,7 @@ export function toProfileBinding(
 ): ToolProfileBinding {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     profileId: row.profileId,
     targetType: row.targetType,
     targetId: row.targetId,
@@ -146,20 +146,20 @@ export function summarizeProfile(input: {
     }
   }
 
-  const isCompanyDefault = input.bindings.some(
+  const isSpaceDefault = input.bindings.some(
     (binding) =>
-      binding.targetType === "company" &&
-      binding.targetId === input.profile.companyId,
+      binding.targetType === "space" &&
+      binding.targetId === input.profile.spaceId,
   );
   const appliesToAgents = new Set<string>();
-  if (isCompanyDefault) {
+  if (isSpaceDefault) {
     for (const agentId of input.agentIds) appliesToAgents.add(agentId);
   } else {
-    const companyAgentIds = new Set(input.agentIds);
+    const spaceAgentIds = new Set(input.agentIds);
     for (const binding of input.bindings) {
       if (
         binding.targetType === "agent" &&
-        companyAgentIds.has(binding.targetId)
+        spaceAgentIds.has(binding.targetId)
       ) {
         appliesToAgents.add(binding.targetId);
       }
@@ -175,7 +175,7 @@ export function summarizeProfile(input: {
     totalToolCount: input.catalog.length,
     assignmentCount: input.bindings.length,
     appliesToAgentCount: appliesToAgents.size,
-    isCompanyDefault,
+    isSpaceDefault,
   };
 }
 

@@ -15,7 +15,7 @@ const MODEL = "openrouter/deepseek/deepseek-v4-flash-0731";
 type RpcFrame = { id?: string | number; method?: string; result?: unknown; error?: unknown };
 
 async function startProxy(root: string, proxy: string, executable: string, runtime: string) {
-  const launchRoot = join(root, `.paperclip-verified-executable-${randomUUID().replaceAll("-", "")}`);
+  const launchRoot = join(root, `.outpost-verified-executable-${randomUUID().replaceAll("-", "")}`);
   await mkdir(launchRoot, { mode: 0o700 });
   await chmod(launchRoot, 0o700);
   const snapshot = join(launchRoot, "launch");
@@ -23,8 +23,8 @@ async function startProxy(root: string, proxy: string, executable: string, runti
   await chmod(snapshot, 0o500);
   expect(await readFile(snapshot)).toEqual(await readFile(executable));
   const fd = process.platform === "linux" ? openSync(snapshot, "r") : undefined;
-  const child = spawn(process.execPath, [proxy, "--paperclip-trusted-opencode-executable", fd === undefined ? snapshot : "/proc/self/fd/3"], {
-    // Keep an enclosing Paperclip run's launch bindings out of this fixture.
+  const child = spawn(process.execPath, [proxy, "--outpost-trusted-opencode-executable", fd === undefined ? snapshot : "/proc/self/fd/3"], {
+    // Keep an enclosing Outpost run's launch bindings out of this fixture.
     env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("OUTPOST_"))),
       OUTPOST_OPENCODE_RUNTIME_DIR: runtime, OPENROUTER_API_KEY: "fixture-key",
       OUTPOST_RUN_ID: "resume-frame-run", OUTPOST_NORMALIZED_SESSION_ID: "resume-frame-session" },

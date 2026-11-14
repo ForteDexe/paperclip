@@ -44,7 +44,7 @@ export interface HeartbeatEnvironmentSelectionInput {
   run: Pick<typeof heartbeatRuns.$inferSelect,
     "id" | "runtimeMode" | "runnerProfileJson" | "scheduledRetryReason" | "scheduledRetryAttempt"> & { contextSnapshot?: Record<string, unknown> | null };
   agent: Pick<typeof agents.$inferSelect,
-    "id" | "companyId" | "adapterType" | "adapterConfig" | "defaultEnvironmentId">;
+    "id" | "spaceId" | "adapterType" | "adapterConfig" | "defaultEnvironmentId">;
   task: {
     freshWorkspace?: import("../fresh-workspace-continuation.js").ContinuationReadiness | null;
     issueRef: Pick<Issue, "id" | "projectWorkspaceId" | "executionWorkspaceId" | "executionWorkspacePreference"> | null;
@@ -117,7 +117,7 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
     persistedNativeExecutionWorkspaceId ??
     readNonEmptyString(issueRef?.executionWorkspaceId);
   let existingExecutionWorkspace = requestedExecutionWorkspaceId
-    ? await executionWorkspacesSvc.getStoredById(agent.companyId, requestedExecutionWorkspaceId)
+    ? await executionWorkspacesSvc.getStoredById(agent.spaceId, requestedExecutionWorkspaceId)
     : null;
   if (existingExecutionWorkspace && issueId && !controllerOnly && !fresh
     && existingExecutionWorkspace.id === readNonEmptyString(issueRef?.executionWorkspaceId)
@@ -126,16 +126,16 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
       || readTaskDirectoryRetention(existingExecutionWorkspace) !== null
       || (existingExecutionWorkspace.sourceIssueId === issueId
         && existingExecutionWorkspace.cleanupReason?.startsWith("issue_terminal") === true))) {
-    const [boundIssue] = await db.select({ id: issues.id, companyId: issues.companyId, projectId: issues.projectId })
-      .from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, agent.companyId)));
+    const [boundIssue] = await db.select({ id: issues.id, spaceId: issues.spaceId, projectId: issues.projectId })
+      .from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, agent.spaceId)));
     if (!boundIssue) throw new Error("Execution workspace issue is unavailable");
     const actor = { agentId: agent.id, actorType: "agent" };
     const reopened = await executionWorkspacesSvc.reopenClosedIsolatedExecutionWorkspaceForIssue({
       workspaceId: existingExecutionWorkspace.id,
       issue: boundIssue,
       actor,
-      authorizationActor: { type: "agent", agentId: agent.id, companyId: agent.companyId, source: "agent_jwt", runId: run.id,
-        onBehalfOfUserId: responsibleUserId === "local-board" ? null : responsibleUserId },
+      authorizationActor: { type: "agent", agentId: agent.id, spaceId: agent.spaceId, source: "agent_jwt", runId: run.id,
+        onBehalfOfUserId: responsibleUserId === "local-operator" ? null : responsibleUserId },
     });
     if (!reopened.ok) throw new Error(reopened.message);
     if (reopened.reopened) {
@@ -143,7 +143,7 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
         workspaceId: existingExecutionWorkspace.id, issue: boundIssue, actor, expectedGeneration: reopened.generation,
       });
     }
-    existingExecutionWorkspace = await executionWorkspacesSvc.getStoredById(agent.companyId, existingExecutionWorkspace.id);
+    existingExecutionWorkspace = await executionWorkspacesSvc.getStoredById(agent.spaceId, existingExecutionWorkspace.id);
   }
   const retainedDirectory = input.task.freshWorkspace?.mode === "reuse_current_workspace" ? input.task.freshWorkspace : null;
   const retainedWorkspace = input.task.freshWorkspace?.mode === "resume_stopped_native_workspace"
@@ -175,20 +175,20 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
     workspaceReuseRequest.existingExecutionWorkspaceAvailable
       ? existingExecutionWorkspace
       : null;
-  const workspaceAuthorizationActor = { type: "agent" as const, agentId: agent.id, companyId: agent.companyId,
-    source: "agent_jwt" as const, runId: run.id, onBehalfOfUserId: responsibleUserId === "local-board" ? null : responsibleUserId };
+  const workspaceAuthorizationActor = { type: "agent" as const, agentId: agent.id, spaceId: agent.spaceId,
+    source: "agent_jwt" as const, runId: run.id, onBehalfOfUserId: responsibleUserId === "local-operator" ? null : responsibleUserId };
   if (!controllerOnly && !persistedNativeExecutionInput && !nativeRecoveryExecutionWorkspaceId) {
     const workspaceRequiringAccess = reusableExistingExecutionWorkspace ?? boundSourceWorkspace;
     if (workspaceRequiringAccess && issueId) {
-      await assertTaskWorkspaceExecutionAccess(db, workspaceAuthorizationActor, agent.companyId, { issueId, workspaceId: workspaceRequiringAccess.id });
+      await assertTaskWorkspaceExecutionAccess(db, workspaceAuthorizationActor, agent.spaceId, { issueId, workspaceId: workspaceRequiringAccess.id });
     } else if (!controllerOnly && executionProjectId && (hasSelectedWorkspaceSource || workspaceProjectContext?.hasWorkspace)) {
-      await assertTaskWorkspaceSourceProjectAccess(db, workspaceAuthorizationActor, agent.companyId, executionProjectId);
+      await assertTaskWorkspaceSourceProjectAccess(db, workspaceAuthorizationActor, agent.spaceId, executionProjectId);
     }
   }
   const requestedReusableExecutionWorkspaceConfig =
     reusableExistingExecutionWorkspace?.config ?? null;
   const localEnvironment = await environmentsSvc.ensureLocalEnvironment(
-    agent.companyId,
+    agent.spaceId,
   );
   const resolvedInstanceSettings = await instanceSettings.get();
   // Managed-sandbox-only policy: a run that would land on the local
@@ -201,14 +201,14 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
     (await instanceSettings.getExperimental()).enableManagedSandboxOnly ===
     true;
   const managedSandboxEnvironment = managedSandboxOnly && !providerApiPlacement
-    ? await environmentsSvc.findManagedSandboxEnvironment(agent.companyId)
+    ? await environmentsSvc.findManagedSandboxEnvironment(agent.spaceId)
     : null;
   const savedEnvironment = parseObject(parseObject(run.contextSnapshot).outpostEnvironment);
   const admittedLeaseId = persistedNativeExecutionInput && !controllerOnly
     ? readNonEmptyString(savedEnvironment.leaseId) ?? readNativeWorkspaceSyncReference(persistedRunnerProfile.nativeWorkspaceSync)?.leaseId
     : null;
   const admittedLease = admittedLeaseId ? await environmentsSvc.getLeaseById(admittedLeaseId) : null;
-  if (admittedLeaseId && (!admittedLease?.environmentId || admittedLease.companyId !== agent.companyId
+  if (admittedLeaseId && (!admittedLease?.environmentId || admittedLease.spaceId !== agent.spaceId
     || admittedLease.heartbeatRunId !== run.id || admittedLease.issueId !== issueId || admittedLease.metadata?.agentId !== agent.id
     || (typeof savedEnvironment.id === "string" && savedEnvironment.id !== admittedLease.environmentId))) {
     throw new ConfigurationIncompleteFailure("Cannot restore the admitted execution environment.", {
@@ -246,10 +246,10 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
   let selectedEnvironmentId = environmentResolution.environmentId;
   if (executionForcedToKubernetes && !providerApiPlacement) {
     let kubernetesEnvironment =
-      await environmentsSvc.findKubernetesEnvironment(agent.companyId);
+      await environmentsSvc.findKubernetesEnvironment(agent.spaceId);
     if (!kubernetesEnvironment) {
-      // Lazy recovery for companies created after the startup bootstrap ran
-      // (the boot hook only provisions environments for companies that exist
+      // Lazy recovery for spaces created after the startup bootstrap ran
+      // (the boot hook only provisions environments for spaces that exist
       // at boot). Re-derive the managed-env config from the bootstrap env.
       // If the process env no longer forces Kubernetes (rollback / config
       // drift relative to the persisted executionMode setting), skip the
@@ -272,20 +272,20 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
       }
       if (bootstrap) {
         await environmentsSvc.ensureKubernetesEnvironment(
-          agent.companyId,
+          agent.spaceId,
           bootstrap.kubernetesConfig,
         );
         kubernetesEnvironment =
-          await environmentsSvc.findKubernetesEnvironment(agent.companyId);
+          await environmentsSvc.findKubernetesEnvironment(agent.spaceId);
       } else {
         logger.warn(
           {
             runId: run.id,
             agentId: agent.id,
-            companyId: agent.companyId,
+            spaceId: agent.spaceId,
             reason: bootstrapSkipReason,
           },
-          "executionMode=kubernetes is persisted but the bootstrap env cannot provision a managed Kubernetes environment; skipping lazy provisioning for this company (the run will fail with the explicit no-managed-environment error)",
+          "executionMode=kubernetes is persisted but the bootstrap env cannot provision a managed Kubernetes environment; skipping lazy provisioning for this space (the run will fail with the explicit no-managed-environment error)",
         );
       }
     }
@@ -293,7 +293,7 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
       throw new Error(
         "Instance execution policy requires the Kubernetes sandbox provider " +
           "(executionMode=kubernetes) but no managed Kubernetes environment is " +
-          "configured for this company. Configure one (OUTPOST_K8S_* env on the " +
+          "configured for this space. Configure one (OUTPOST_K8S_* env on the " +
           "cloud instance) before running agents; refusing to fall back to local execution.",
       );
     }
@@ -320,7 +320,7 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
   const nativeChatWorkspaceScope = controllerOnly ? null : await findNativeChatWorkspaceScope(db, {
     adapterType: agent.adapterType,
     environmentDriver: selectedEnvironmentForConfig?.driver ?? null,
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     agentId: agent.id,
     issueId,
     ...(fresh ? { freshAttemptId: run.id } : {}),
@@ -384,7 +384,7 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
       effectiveExecutionWorkspaceMode === "shared_workspace" &&
       selectedEnvironmentForConfig?.driver !== "local" && selectedEnvironmentForConfig?.driver !== "ssh") {
     const executionWorkspaceHolder = await findExecutionWorkspaceHolder({
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       executionWorkspaceId: reusableExistingExecutionWorkspace.id,
       excludeRunId: run.id,
     });
@@ -420,7 +420,7 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
     effectiveExecutionWorkspaceMode === "shared_workspace"
   ) {
     const workspaceHolder = await findSharedWorkspaceHolder({
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       projectWorkspaceId: issueRef.projectWorkspaceId,
       excludeIssueId: issueRef.id,
       excludeRunId: run.id,
@@ -463,22 +463,22 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
           ? `${existing}\n${concurrentWorkspaceNote}`
           : concurrentWorkspaceNote;
       };
-      context.paperclipTaskMarkdown = appendConcurrentWorkspaceNote(
-        context.paperclipTaskMarkdown,
+      context.outpostTaskMarkdown = appendConcurrentWorkspaceNote(
+        context.outpostTaskMarkdown,
       );
-      context.paperclipTaskMarkdownAssignment = appendConcurrentWorkspaceNote(
-        context.paperclipTaskMarkdownAssignment,
+      context.outpostTaskMarkdownAssignment = appendConcurrentWorkspaceNote(
+        context.outpostTaskMarkdownAssignment,
       );
-      if (typeof context.paperclipTaskMarkdownCompact === "string") {
-        context.paperclipTaskMarkdownCompact =
+      if (typeof context.outpostTaskMarkdownCompact === "string") {
+        context.outpostTaskMarkdownCompact =
           appendConcurrentWorkspaceNote(
-            context.paperclipTaskMarkdownCompact,
+            context.outpostTaskMarkdownCompact,
           );
       }
-      if (typeof context.paperclipTaskMarkdownAssignmentCompact === "string") {
-        context.paperclipTaskMarkdownAssignmentCompact =
+      if (typeof context.outpostTaskMarkdownAssignmentCompact === "string") {
+        context.outpostTaskMarkdownAssignmentCompact =
           appendConcurrentWorkspaceNote(
-            context.paperclipTaskMarkdownAssignmentCompact,
+            context.outpostTaskMarkdownAssignmentCompact,
           );
       }
       logger.info(
@@ -498,8 +498,8 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
     }
   }
   if (!controllerOnly && taskWorkspaceIntent && !boundSourceWorkspace && !nativeRecoveryExecutionWorkspaceId) {
-    await executionWorkspacesSvc.validateStoredSelectionForRun({ companyId: agent.companyId,
-      actor: { type: "agent", agentId: agent.id, companyId: agent.companyId, runId: run.id, source: "agent_jwt", onBehalfOfUserId: responsibleUserId === "local-board" ? null : responsibleUserId },
+    await executionWorkspacesSvc.validateStoredSelectionForRun({ spaceId: agent.spaceId,
+      actor: { type: "agent", agentId: agent.id, spaceId: agent.spaceId, runId: run.id, source: "agent_jwt", onBehalfOfUserId: responsibleUserId === "local-operator" ? null : responsibleUserId },
       selection: taskWorkspaceIntent.selection, issueId,
       preserveImplicitDefaultSettings: ["project", "task_default"].includes(taskWorkspaceIntent.source) });
   }
@@ -517,10 +517,10 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
     !workspaceProjectContext?.hasWorkspace && !issueRef.projectWorkspaceId &&
     taskWorkspaceIntent?.selection.kind !== "configured_source" &&
     (taskWorkspaceIntent?.selection.kind !== "existing" || taskWorkspaceIntent.selection.workspaceId === issueRef.executionWorkspaceId) &&
-    (await isBoundIsolatedTaskDirectory({ companyId: agent.companyId, issueId,
+    (await isBoundIsolatedTaskDirectory({ spaceId: agent.spaceId, issueId,
       workspaceId: issueRef.executionWorkspaceId, workspace: reusableExistingExecutionWorkspace }) ||
       (selectedEnvironmentForConfig?.driver === "plugin" && agent.adapterType === "outpost_runner" &&
-        isBoundFreshPluginTaskDirectory({ companyId: agent.companyId, issueId,
+        isBoundFreshPluginTaskDirectory({ spaceId: agent.spaceId, issueId,
           workspaceId: issueRef.executionWorkspaceId, workspace: reusableExistingExecutionWorkspace,
           owner: { agentId: agent.id, environmentId: selectedEnvironmentForConfig.id,
             pluginKey: parseObject(selectedEnvironmentForConfig.config).pluginKey ?? null,

@@ -39,7 +39,7 @@ describe("plugin slot export registration", () => {
       {
         Page: () => null,
         RouteSidebar: () => null,
-        webComponentTag: "paperclip-widget",
+        webComponentTag: "outpost-widget",
         metadata: { ignored: true },
         count: 1,
         default: () => null,
@@ -70,7 +70,7 @@ describe("plugin slot export registration", () => {
     flushSync(() => {
       root.render(createElement(PluginSlotMount, {
         slot,
-        context: { companyId: "company-1", companyPrefix: "PAP" },
+        context: { spaceId: "space-1", spacePrefix: "PAP" },
         missingBehavior: "placeholder",
       }));
     });
@@ -78,10 +78,10 @@ describe("plugin slot export registration", () => {
     expect(container.textContent).toContain("Content Machine: Content");
 
     flushSync(() => {
-      registerPluginWebComponent("content-machine", "ContentMachineRouteSidebar", "paperclip-test-sidebar");
+      registerPluginWebComponent("content-machine", "ContentMachineRouteSidebar", "outpost-test-sidebar");
     });
 
     expect(container.textContent).not.toContain("Content Machine: Content");
-    expect(container.querySelector("paperclip-test-sidebar")).not.toBeNull();
+    expect(container.querySelector("outpost-test-sidebar")).not.toBeNull();
   });
 });

@@ -4,7 +4,7 @@ import { logger } from "../middleware/logger.js";
 import { registerIdleLocalWorkProbe } from "./idle-local-work.js";
 import { RetiredCredentialRecoveryError } from "./quota-credential-recovery.js";
 
-export type RetainedAiCleanupScope = { companyId: string; accountKey: string };
+export type RetainedAiCleanupScope = { spaceId: string; accountKey: string };
 type Cleanup = {
   scope: RetainedAiCleanupScope;
   home?: string;
@@ -18,7 +18,7 @@ type Cleanup = {
 const retained = new Map<string, Set<Cleanup>>();
 const homes = new Map<string, RetainedAiCleanupScope>();
 const active = new AsyncLocalStorage<ReadonlySet<Cleanup>>();
-const key = (scope: RetainedAiCleanupScope) => JSON.stringify([scope.companyId, scope.accountKey]);
+const key = (scope: RetainedAiCleanupScope) => JSON.stringify([scope.spaceId, scope.accountKey]);
 registerIdleLocalWorkProbe(() => retained.size ? "present" : "none");
 
 function pending() {
@@ -32,7 +32,7 @@ function remove(entry: Cleanup) {
 function warn(entry: Cleanup) {
   if (entry.warned) return;
   entry.warned = true;
-  logger.warn({ companyId: entry.scope.companyId, code: "AI_CREDENTIAL_CLEANUP_PENDING" }, "Selected AI credential cleanup remains pending");
+  logger.warn({ spaceId: entry.scope.spaceId, code: "AI_CREDENTIAL_CLEANUP_PENDING" }, "Selected AI credential cleanup remains pending");
 }
 function cleaningScope(scope: RetainedAiCleanupScope) {
   return [...(active.getStore() ?? [])].some(entry => entry.executing && key(entry.scope) === key(scope));

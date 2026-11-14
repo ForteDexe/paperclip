@@ -14,7 +14,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { Link, useLocation } from "@/lib/router";
 import { agentRouteRef, cn, projectRouteRef, SIDEBAR_RAIL_HIDDEN_LABEL } from "@/lib/utils";
-import { SidebarCompanyMenu } from "./SidebarCompanyMenu";
+import { SidebarSpaceMenu } from "./SidebarSpaceMenu";
 import { SidebarNavItem } from "./SidebarNavItem";
 import { RecentTaskNavItem } from "./RecentTaskNavItem";
 import { SidebarSection } from "./SidebarSection";
@@ -28,7 +28,7 @@ import { taskStatusIconProps } from "@/lib/task-status-presentation";
 import { AgentAvatar } from "./AgentAvatar";
 import { agentChatPinKey } from "./AgentChatPin";
 import { PinnedNavigationList, type PinnedNavigationItem } from "./PinnedNavigationList";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 
 const NO_RECENT_TASKS: never[] = [];
 
@@ -48,7 +48,7 @@ export function buildPinnedNavigationItems(pins: readonly string[], agents: read
   const keys = new Set(pins);
   const items = new Map<string, PinnedNavigationItem>(destinations.map(item => [item.to, { key: item.to, to: item.to, label: item.label, icon: <item.icon className="size-4" /> }]));
   for (const agent of agents) {
-    const key = agentChatPinKey(agent.companyId, agent.id);
+    const key = agentChatPinKey(agent.spaceId, agent.id);
     if (keys.has(key)) items.set(key, { key, to: `/chats/${encodeURIComponent(agentRouteRef(agent))}`, label: agent.name, icon: <AgentAvatar agent={agent} size={16} /> });
   }
   return pins.flatMap(key => {
@@ -60,8 +60,8 @@ export function buildPinnedNavigationItems(pins: readonly string[], agents: read
 function ProjectRecent({ project }: { project: Project }) {
   const [expanded, setExpanded] = useState(false);
   const { data: tasks, isPending, error } = useQuery({
-    queryKey: [...queryKeys.issues.listByProject(project.companyId, project.id), "coordinator-recents"],
-    queryFn: () => issuesApi.listCompact(project.companyId, { projection: "rows", projectId: project.id, limit: 12, sortField: "updated", sortDir: "desc" }),
+    queryKey: [...queryKeys.issues.listByProject(project.spaceId, project.id), "coordinator-recents"],
+    queryFn: () => issuesApi.listCompact(project.spaceId, { projection: "rows", projectId: project.id, limit: 12, sortField: "updated", sortDir: "desc" }),
     enabled: expanded,
   });
   return <div>
@@ -106,7 +106,7 @@ function RecentNavigationList({ children }: { children: ReactNode }) {
 /** The navigation is a view of the existing records; it never creates a chat
  * or task just because someone visits or switches agents. */
 export function CoordinatorSidebar({ children }: { children?: ReactNode }) {
-  const { companyId, userId, agents, chats, session } = useAgentChatNavigation();
+  const { spaceId, userId, agents, chats, session } = useAgentChatNavigation();
   const unreadChatCount = chats.data?.filter(chat => chat.isUnreadForMe).length ?? 0;
   const pinnedNavigation = usePinnedNavigation(userId);
   const { data: experimental } = useQuery({
@@ -119,18 +119,18 @@ export function CoordinatorSidebar({ children }: { children?: ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreContentRef = useRef<HTMLDivElement>(null);
   const orderedPins = useMemo(() => buildPinnedNavigationItems(pinnedNavigation.pins, agents.data ?? [], destinations), [pinnedNavigation.pins, agents.data, destinations]);
-  const { entries: recentTasks } = useRecentTasks({ companyId, userId });
+  const { entries: recentTasks } = useRecentTasks({ spaceId, userId });
   const { collapsed, peeking, isMobile, setSidebarOpen } = useSidebar();
   const rail = collapsed && !peeking;
   // Warm opens only while the Recents list is on screen.
-  useRecentTaskOpenWarmup({ companyId, userId, tasks: !rail && session.isSuccess ? recentTasks : NO_RECENT_TASKS });
+  useRecentTaskOpenWarmup({ spaceId, userId, tasks: !rail && session.isSuccess ? recentTasks : NO_RECENT_TASKS });
   const { openNewIssue } = useDialogActions();
   const location = useLocation();
-  const attentionCount = useCoordinatorAttentionCount(companyId);
-  const { data: projects } = useQuery({ ...companyProjectsQuery(companyId!), enabled: !!companyId });
+  const attentionCount = useCoordinatorAttentionCount(spaceId);
+  const { data: projects } = useQuery({ ...spaceProjectsQuery(spaceId!), enabled: !!spaceId });
   // Only project IDs and visit times are kept in memory. Labels and task lists
-  // always come from the authorized API, scoped to the current person/company.
-  const scope = `${companyId}:${userId}`;
+  // always come from the authorized API, scoped to the current person/space.
+  const scope = `${spaceId}:${userId}`;
   const [projectVisits, setProjectVisits] = useState<{ scope: string; entries: Record<string, number> }>({ scope, entries: {} });
   useEffect(() => {
     const ref = location.pathname.match(/\/projects\/([^/]+)/)?.[1];
@@ -155,7 +155,7 @@ export function CoordinatorSidebar({ children }: { children?: ReactNode }) {
   </Button>;
   return <FlyoutAppearanceProvider><TruncatedTextMarqueeProvider><aside className="coordinator-sidebar design-sidebar w-full">
     <div className="design-sidebar-brand" data-collapsed={rail || undefined}>
-      <SidebarCompanyMenu showChevron={false} />
+      <SidebarSpaceMenu showChevron={false} />
       <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" className="design-sidebar-search" aria-label="Global search" onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true }))}><Search aria-hidden /></Button></TooltipTrigger><TooltipContent side="right">Search tasks, agents, projects</TooltipContent></Tooltip>
     </div>
     <nav className="design-sidebar-navigation" aria-label="Workspace navigation">
@@ -169,7 +169,7 @@ export function CoordinatorSidebar({ children }: { children?: ReactNode }) {
               className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity group-hover/coordinator-new:opacity-100 group-focus-within/coordinator-new:opacity-100 pointer-coarse:opacity-100 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring"><Plus className="size-4" /></button>}
           </div>
           <SidebarNavItem className="design-sidebar-item" to="/decisions" label="Inbox" icon={Inbox} badge={attentionCount} badgeLabel="decisions" />
-          {orderedPins.length > 0 && <PinnedNavigationList key={`${companyId}:${userId}`} items={orderedPins} rail={rail} onReorder={pinnedNavigation.reorder} onUnpin={pinnedNavigation.toggle} />}
+          {orderedPins.length > 0 && <PinnedNavigationList key={`${spaceId}:${userId}`} items={orderedPins} rail={rail} onReorder={pinnedNavigation.reorder} onUnpin={pinnedNavigation.toggle} />}
         </div>
         <Flyout open={moreOpen} onOpenChange={setMoreOpen}>
           <FlyoutTrigger asChild><button type="button" aria-label="More workspace pages" className="design-sidebar-item flex w-auto items-center gap-2.5 rounded-lg py-1.5 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring"><MoreHorizontal className="size-4 shrink-0" /><span className={rail ? SIDEBAR_RAIL_HIDDEN_LABEL : undefined}>More</span></button></FlyoutTrigger>

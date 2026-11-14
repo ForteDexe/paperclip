@@ -9,12 +9,12 @@ import { BrowserUseSettingsPanel } from "@/pages/apps/app-detail/BrowserUseSetti
 import { BrowserStoryProviders, mockBrowserUse } from "../../fixtures/browser-use";
 const connection = {
   id: "browser-use-cloud-connection",
-  companyId: "storybook-company",
+  spaceId: "storybook-space",
 } as ToolConnection;
 const grant = (id: string, kind: "organization" | "user"): ConnectionGrant =>
   ({
     id,
-    companyId: connection.companyId,
+    spaceId: connection.spaceId,
     connectionId: connection.id,
     kind,
     status: "active",
@@ -38,7 +38,7 @@ const meta = {
           "Production credential settings: per-run spending cap, saved-profile access, multiple credentials, and loading/error/permission states. Saves and provider profiles are simulated; no credentials are present.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "connection-setup/credentials"
       ],

@@ -1,5 +1,5 @@
 export interface NativeRemoteBinding {
-  companyId: string; environmentId: string; runId: string; leaseId: string; sandboxId: string; image: string; remoteCwd: string;
+  spaceId: string; environmentId: string; runId: string; leaseId: string; sandboxId: string; image: string; remoteCwd: string;
 }
 export interface NativeRemoteSnapshot {
   binding: NativeRemoteBinding; observedAtMs: number; receivedAtMs: number; observedMonotonicNs: string; complete: boolean;
@@ -24,7 +24,7 @@ export interface NativeRemoteBootstrap {
     actionPrompt(fixture: NativeRemoteFixture): Promise<string> | string }): Promise<NativeRemoteFixture>;
 }
 export function assertNativeRemoteSnapshot(s: NativeRemoteSnapshot, binding: NativeRemoteBinding): void {
-  const keys: Array<keyof NativeRemoteBinding> = ["companyId", "environmentId", "runId", "leaseId", "sandboxId", "image", "remoteCwd"];
+  const keys: Array<keyof NativeRemoteBinding> = ["spaceId", "environmentId", "runId", "leaseId", "sandboxId", "image", "remoteCwd"];
   if (!s.complete || !s.watcher.complete || !keys.every(k => typeof binding[k] === "string" && binding[k].length > 0 && s.binding[k] === binding[k])
     || !/^.+@sha256:[a-f0-9]{64}$/u.test(binding.image) || !binding.remoteCwd.startsWith("/") || binding.remoteCwd.split("/").some(p => p === ".." || p === ".")
     || !Number.isSafeInteger(s.observedAtMs) || s.observedAtMs < 0 || !Number.isSafeInteger(s.receivedAtMs) || !/^\d+$/u.test(s.observedMonotonicNs)
@@ -52,11 +52,11 @@ export function nativeRemoteDeniedSample(s: NativeRemoteSnapshot, baseline: Nati
 }
 /** Await baseline and exact command construction before the bootstrap can publish. */
 export async function prepareNativeRemoteAction(input: {
-  fixture: NativeRemoteFixture; companyId: string; environmentId: string; runId: string;
+  fixture: NativeRemoteFixture; spaceId: string; environmentId: string; runId: string;
   target: string; prompt: string; markerText?: string;
 }) {
   const f = input.fixture;
-  if (f.binding.companyId !== input.companyId || f.binding.environmentId !== input.environmentId || f.binding.runId !== input.runId || f.remoteCwd !== f.binding.remoteCwd) throw new Error("Foreign Native remote bootstrap binding");
+  if (f.binding.spaceId !== input.spaceId || f.binding.environmentId !== input.environmentId || f.binding.runId !== input.runId || f.remoteCwd !== f.binding.remoteCwd) throw new Error("Foreign Native remote bootstrap binding");
   const command = input.markerText === undefined ? undefined : await f.setupAttachedCommand({ marker: input.target, markerText: input.markerText, delayMs: 4000 });
   const baseline = await f.snapshot("before-action-publication"); assertNativeRemoteSnapshot(baseline, f.binding);
   if (baseline.setup.published || baseline.setup.path !== f.actionFile || !baseline.processes.captured || baseline.processes.live.length === 0) throw new Error("Native action was not held behind the remote observer");

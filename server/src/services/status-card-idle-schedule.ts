@@ -1,11 +1,11 @@
-import { companies, statusCards, statusCardUpdates, type Db } from "@outpost/db";
+import { spaces, statusCards, statusCardUpdates, type Db } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { statusCardRefreshPolicySchema } from "@outpost/shared";
 import type { DeadlineReconciliationSnapshot } from "./deadline-reconciliation.js";
 import { idleDeadlineRowLimit, isFutureIdleDeadline, type IdleDeadlineSnapshot } from "./idle-deadline-types.js";
 
 export type IdleStatusCardRow = {
-  id: string; companyId: string; companyStatus: string; revision: string;
+  id: string; spaceId: string; spaceStatus: string; revision: string;
   archivedAt: Date | null; generatingIssueId: string | null; unfinishedUpdate: boolean;
   state: string; refreshPolicy: unknown; nextEvalAt: Date | null; nextEvalReason: string | null;
   pendingChangeCount: number; compiled: boolean;
@@ -18,8 +18,8 @@ export function projectIdleStatusCardSchedule(rows: IdleStatusCardRow[], now: nu
   if (enabled === null || !Number.isFinite(now) || rows.length > idleDeadlineRowLimit) return blocked();
   for (const card of rows) {
     if (card.generatingIssueId || card.unfinishedUpdate !== false) return blocked();
-    if (enabled && !["active", "paused", "archived"].includes(card.companyStatus)) return blocked();
-    if (!enabled || card.archivedAt || card.companyStatus !== "active") continue;
+    if (enabled && !["active", "paused", "archived"].includes(card.spaceStatus)) return blocked();
+    if (!enabled || card.archivedAt || card.spaceStatus !== "active") continue;
     const policy = statusCardRefreshPolicySchema.safeParse(card.refreshPolicy);
     if (!policy.success || !["compiling", "active", "error", "paused_budget", "paused_hours"].includes(card.state)) return blocked();
     if (card.nextEvalAt) {
@@ -40,7 +40,7 @@ export async function readIdleStatusCardSchedule(tx: Pick<Db, "select">, now: nu
   const before = owner();
   if (!before.reconciled) return { blocked: true, state: before, deadlines: [] };
   const rows = await tx.select({
-    id: statusCards.id, companyId: statusCards.companyId, companyStatus: companies.status,
+    id: statusCards.id, spaceId: statusCards.spaceId, spaceStatus: spaces.status,
     revision: sql<string>`${statusCards}.xmin::text`, archivedAt: statusCards.archivedAt,
     generatingIssueId: statusCards.generatingIssueId, state: statusCards.state,
     refreshPolicy: statusCards.refreshPolicy, nextEvalAt: statusCards.nextEvalAt,
@@ -49,7 +49,7 @@ export async function readIdleStatusCardSchedule(tx: Pick<Db, "select">, now: nu
     unfinishedUpdate: sql<boolean>`EXISTS (SELECT 1 FROM ${statusCardUpdates}
       WHERE ${statusCardUpdates.cardId} = ${statusCards.id}
       AND (${statusCardUpdates.status} = 'running' OR ${statusCardUpdates.finishedAt} IS NULL))`,
-  }).from(statusCards).innerJoin(companies, eq(companies.id, statusCards.companyId))
+  }).from(statusCards).innerJoin(spaces, eq(spaces.id, statusCards.spaceId))
     .orderBy(statusCards.id).limit(idleDeadlineRowLimit + 1);
   const snapshot = projectIdleStatusCardSchedule(rows, now, enabled);
   const after = owner();

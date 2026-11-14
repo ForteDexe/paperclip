@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
 } from "@outpost/db";
@@ -25,7 +25,7 @@ describeEmbeddedPostgres("cross-issue influence limit PostgreSQL serialization",
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-cross-issue-cap-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-cross-issue-cap-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -33,7 +33,7 @@ describeEmbeddedPostgres("cross-issue influence limit PostgreSQL serialization",
     await db.delete(activityLog);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -41,21 +41,21 @@ describeEmbeddedPostgres("cross-issue influence limit PostgreSQL serialization",
   });
 
   it("allows exactly one of concurrent attempts 20 and 21", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
     const sourceIssueId = randomUUID();
     const targetIssueId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `C${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      defaultResponsibleUserId: "board-user",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `C${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      defaultResponsibleUserId: "operator-user",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Concurrent Coder",
       role: "engineer",
       adapterType: "codex_local",
@@ -65,15 +65,15 @@ describeEmbeddedPostgres("cross-issue influence limit PostgreSQL serialization",
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
-      responsibleUserId: "board-user",
+      responsibleUserId: "operator-user",
       contextSnapshot: { issueId: sourceIssueId },
     });
     await db.insert(activityLog).values(
       Array.from({ length: 18 }, () => ({
-        companyId,
+        spaceId,
         actorType: "agent" as const,
         actorId: agentId,
         agentId,
@@ -85,7 +85,7 @@ describeEmbeddedPostgres("cross-issue influence limit PostgreSQL serialization",
     );
 
     const input = {
-      companyId,
+      spaceId,
       runId,
       agentId,
       targetIssueId,
@@ -109,7 +109,7 @@ describeEmbeddedPostgres("cross-issue influence limit PostgreSQL serialization",
     const recorded = await db
       .select({ action: activityLog.action })
       .from(activityLog)
-      .where(and(eq(activityLog.companyId, companyId), eq(activityLog.runId, runId)));
+      .where(and(eq(activityLog.spaceId, spaceId), eq(activityLog.runId, runId)));
     expect(recorded.filter((row) => row.action === "issue.cross_issue_influence_observed")).toHaveLength(20);
     expect(recorded.filter((row) => row.action === "issue.cross_issue_influence_cap_rejected")).toHaveLength(1);
   });

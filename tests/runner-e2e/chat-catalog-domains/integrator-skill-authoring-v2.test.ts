@@ -9,9 +9,9 @@ import { gradeIntegratorSkills, authoredChecklistTextBlocks, preservesVisibleWeb
 afterEach(()=>vi.restoreAllMocks());
 function fixture(){
  const markdown=websiteChecklist.join("\n"),source="https://fixture.test/ACORN/chats/ceo";let current=source,reloads=0,editorReads=0;
- const version={id:"revision",companyId:"company",companySkillId:"skill",revisionNumber:1,authorAgentId:"ceo",authorUserId:null,fileInventory:[{path:"SKILL.md",kind:"skill",content:markdown}]};
- const skill={id:"skill",companyId:"company",name:"Website review checklist",slug:"website-review-checklist",editable:true,currentVersionId:"revision",markdown,usedByAgents:[]};
- const state:Record<string,unknown>={},o={scenarioId:"skills.author-skill",origin:"https://fixture.test",companyId:"company",leadId:"ceo",state,skills:[skill],versions:{skill:[version]},policy:{},editDecision:{allowed:true},tasks:[],projects:[],goals:[],comments:[],documents:[],revisions:[],humanQueries:["Turn our website review checklist into a reusable skill."],runs:[{id:"native",status:"succeeded",agentId:"ceo",companyId:"company"}],activity:[{action:"company.skill_created",entityId:"skill",agentId:"ceo"}],links:["/skills/studio/skill"],renderedLinkEvidence:[{threadTestId:"task-chat-thread",href:"/skills/studio/skill",source:"reply",conversationId:"conversation",anchorCommentId:"query",commentId:"reply"}],reply:"Created the reusable company skill, saved in the library and not assigned to any agent."} as unknown as InternalObservation;
+ const version={id:"revision",spaceId:"space",spaceSkillId:"skill",revisionNumber:1,authorAgentId:"ceo",authorUserId:null,fileInventory:[{path:"SKILL.md",kind:"skill",content:markdown}]};
+ const skill={id:"skill",spaceId:"space",name:"Website review checklist",slug:"website-review-checklist",editable:true,currentVersionId:"revision",markdown,usedByAgents:[]};
+ const state:Record<string,unknown>={},o={scenarioId:"skills.author-skill",origin:"https://fixture.test",spaceId:"space",leadId:"ceo",state,skills:[skill],versions:{skill:[version]},policy:{},editDecision:{allowed:true},tasks:[],projects:[],goals:[],comments:[],documents:[],revisions:[],humanQueries:["Turn our website review checklist into a reusable skill."],runs:[{id:"native",status:"succeeded",agentId:"ceo",spaceId:"space"}],activity:[{action:"space.skill_created",entityId:"skill",agentId:"ceo"}],links:["/skills/studio/skill"],renderedLinkEvidence:[{threadTestId:"task-chat-thread",href:"/skills/studio/skill",source:"reply",conversationId:"conversation",anchorCommentId:"query",commentId:"reply"}],reply:"Created the reusable space skill, saved in the library and not assigned to any agent."} as unknown as InternalObservation;
  observed.base=o;
  const ui={card:true,library:true,studio:true,editable:true,body:markdown,changedAfterReload:false,wrongRoute:false,foreignRoute:false,directStudio:false,delayedHydration:false,inEdit:false,filesSelected:false,ignoredCardClicks:0};const events:string[]=[];
  const editor={get visible(){return ui.studio && (ui.inEdit || ui.directStudio);},get editable(){return ui.editable;},locator:()=>({evaluateAll:async()=>ui.delayedHydration&&editorReads++===0?[]:(ui.changedAfterReload&&reloads?"Lost checklist":ui.body).split("\n")})};
@@ -32,7 +32,7 @@ function fixture(){
   if(route.endsWith("/skill-policy"))return{};
   throw Error("Unexpected public inspection read");
  });const post=vi.fn(async()=>({allowed:true})),evidence=vi.fn();
- const ctx={scenario:{id:"skills.author-skill"},observationDeadlineAt:Date.now()+270000,input:{fixtures:{company:{id:"company",issuePrefix:"ACORN"},agent:{id:"ceo"}},api:{baseURL:o.origin,get,post},page,evidence},refreshIssue:async()=>{},issue:()=>({conversationState:"waiting"}),allRuns:async()=>o.runs} as unknown as ChatCatalogContext;
+ const ctx={scenario:{id:"skills.author-skill"},observationDeadlineAt:Date.now()+270000,input:{fixtures:{space:{id:"space",issuePrefix:"ACORN"},agent:{id:"ceo"}},api:{baseURL:o.origin,get,post},page,evidence},refreshIssue:async()=>{},issue:()=>({conversationState:"waiting"}),allRuns:async()=>o.runs} as unknown as ChatCatalogContext;
  return{ctx,state,o,skill,version,ui,events,after,get,post,evidence};
 }
 it("the actual authoring act performs nonmutating canonical-library/Edit inspection and keeps a single native/human turn",async()=>{
@@ -42,9 +42,9 @@ it("the actual authoring act performs nonmutating canonical-library/Edit inspect
  expect(f.state.authoredSkillInspection).toMatchObject({skillId:"skill",versionId:"revision",editorSurface:"detail",editorVisible:true,readbackMatched:true});
  expect(gradeIntegratorSkills({...f.o,state:f.state}).passed).toBe(true);
  expect(d.expectedRunCount).toBe(1);expect(d.expectedHumanMessageCount).toBe(1);
- expect(f.post).toHaveBeenCalledExactlyOnceWith("/api/companies/company/skill-policy/evaluate",expect.anything());
+ expect(f.post).toHaveBeenCalledExactlyOnceWith("/api/spaces/space/skill-policy/evaluate",expect.anything());
 });
-it.each(["missing library","missing Studio","readonly","wrong UI route","foreign UI route","wrong UI content","lost after reload","wrong saved version","wrong author","foreign company","no saved version"])("rejects %s before recording inspection success",async invalid=>{
+it.each(["missing library","missing Studio","readonly","wrong UI route","foreign UI route","wrong UI content","lost after reload","wrong saved version","wrong author","foreign space","no saved version"])("rejects %s before recording inspection success",async invalid=>{
  const f=fixture();
  if(invalid==="missing library")f.ui.library=false;
  if(invalid==="missing Studio")f.ui.studio=false;
@@ -55,13 +55,13 @@ it.each(["missing library","missing Studio","readonly","wrong UI route","foreign
  if(invalid==="lost after reload")f.ui.changedAfterReload=true;
  if(invalid==="wrong saved version")f.after.currentVersionId="other";
  if(invalid==="wrong author")f.version.authorAgentId="other";
- if(invalid==="foreign company")f.skill.companyId="foreign";
+ if(invalid==="foreign space")f.skill.spaceId="foreign";
  if(invalid==="no saved version")f.skill.currentVersionId="missing";
  await expect(inspectAuthoredSkill(f.ctx,f.state,f.o)).rejects.toThrow();expect(f.state.authoredSkillInspection).toBeUndefined();
 });
 it("rejects invented inspection receipts and keeps other skill cases on their original contract",()=>{
  const f=fixture();expect(gradeIntegratorSkills(f.o).passed).toBe(false);
- f.state.authoredSkillInspection={companyId:"company",skillId:"other",versionId:"revision",libraryVisible:true,studioVisible:true,editable:true,checklistVisible:true,reloaded:true,readbackMatched:true};
+ f.state.authoredSkillInspection={spaceId:"space",skillId:"other",versionId:"revision",libraryVisible:true,studioVisible:true,editable:true,checklistVisible:true,reloaded:true,readbackMatched:true};
  expect(gradeIntegratorSkills(f.o).passed).toBe(false);
  expect(integratorSkillsCases.find(x=>x.scenarioId==="skills.explicit-restriction")!.oracleVersion).toBe("outpost.chat-catalog.skill-restriction.structural.v2");
  expect(integratorSkillsCases.find(x=>x.scenarioId==="skills.author-skill")!.oracleVersion).toBe("outpost.chat-catalog.skill-authoring.v9");
@@ -99,9 +99,9 @@ it("inspects real rich-text blocks without applying Markdown marker assumptions 
 
 it("retains exact direct Studio card navigation when the UI uses it", async()=>{ const f=fixture();f.ui.directStudio=true;await inspectAuthoredSkill(f.ctx,f.state,f.o);expect(f.events).toEqual(["reply-link","My Skills","open-skill","reload","return-chat"]);expect(f.state.authoredSkillInspection).toMatchObject({readbackMatched:true,editorSurface:"studio"}); });
 
-it.each([undefined, null, ""])("rejects missing company prefix %s before any UI navigation", async prefix => {
- const f=fixture();Object.assign(f.ctx.input.fixtures.company,{issuePrefix:prefix});
- await expect(inspectAuthoredSkill(f.ctx,f.state,f.o)).rejects.toThrow("company prefix");
+it.each([undefined, null, ""])("rejects missing space prefix %s before any UI navigation", async prefix => {
+ const f=fixture();Object.assign(f.ctx.input.fixtures.space,{issuePrefix:prefix});
+ await expect(inspectAuthoredSkill(f.ctx,f.state,f.o)).rejects.toThrow("space prefix");
  expect(f.events).toEqual([]);expect(f.state.authoredSkillInspection).toBeUndefined();
 });
 

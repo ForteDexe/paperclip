@@ -13,24 +13,24 @@ import { chatEndpointsApi } from "./chatEndpoints";
 describe("chatEndpointsApi", () => {
   beforeEach(() => Object.values(mockApi).forEach((mock) => mock.mockReset()));
 
-  it("uses company-scoped creation and list routes", async () => {
+  it("uses space-scoped creation and list routes", async () => {
     mockApi.get.mockResolvedValue({ endpoints: [] });
     mockApi.post.mockResolvedValue({ id: "endpoint-1" });
-    await expect(chatEndpointsApi.list("company-1")).resolves.toEqual([]);
-    await chatEndpointsApi.create("company-1", {
+    await expect(chatEndpointsApi.list("space-1")).resolves.toEqual([]);
+    await chatEndpointsApi.create("space-1", {
       provider: "slack",
       assignedAgentId: "agent-1",
     });
     expect(mockApi.get).toHaveBeenCalledWith(
-      "/companies/company-1/chat-endpoints",
+      "/spaces/space-1/chat-endpoints",
     );
     expect(mockApi.post).toHaveBeenCalledWith(
-      "/companies/company-1/chat-endpoints",
+      "/spaces/space-1/chat-endpoints",
       { provider: "slack", assignedAgentId: "agent-1" },
     );
   });
 
-  it("publishes a board message with a stable idempotency key", async () => {
+  it("publishes a operator message with a stable idempotency key", async () => {
     mockApi.post.mockResolvedValue({
       id: "publication-1",
       state: "retry",
@@ -81,7 +81,7 @@ describe("chatEndpointsApi", () => {
     expect(mockApi.post).not.toHaveBeenCalled();
   });
 
-  it("sends only explicitly selected attachment ids with a board message", async () => {
+  it("sends only explicitly selected attachment ids with a operator message", async () => {
     mockApi.post.mockResolvedValue({
       id: "publication-file",
       state: "published",

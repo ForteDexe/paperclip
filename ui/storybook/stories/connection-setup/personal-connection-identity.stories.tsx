@@ -13,7 +13,7 @@ import { IdentitiesSection } from "@/pages/apps/app-detail/IdentitiesSection";
 //
 // One story per item in the design's "Test and screenshot gate", so the whole
 // gate can be rendered and inspected at 1440x900 and 390x844 without seeding a
-// live company. Fixtures are self-contained.
+// live space. Fixtures are self-contained.
 // ---------------------------------------------------------------------------
 
 const CURRENT_USER = "user-carol";
@@ -28,7 +28,7 @@ const MEMBERS = [
 const MEMBER_CAPABILITIES: ToolConnectionCapabilities = {
   canConfigure: true,
   canCreateOrganizationGrant: true,
-  canSetCompanyInstall: true,
+  canSetSpaceInstall: true,
   canConnectAsCurrentUser: true,
   canManageAgentInstalls: true,
   canViewOtherPersonalIdentities: false,
@@ -44,7 +44,7 @@ const MANAGER_CAPABILITIES: ToolConnectionCapabilities = {
 const VIEWER_CAPABILITIES: ToolConnectionCapabilities = {
   canConfigure: false,
   canCreateOrganizationGrant: false,
-  canSetCompanyInstall: false,
+  canSetSpaceInstall: false,
   canConnectAsCurrentUser: false,
   canManageAgentInstalls: false,
   canViewOtherPersonalIdentities: false,
@@ -54,7 +54,7 @@ const VIEWER_CAPABILITIES: ToolConnectionCapabilities = {
 function grant(overrides: Partial<ConnectionGrant> = {}): ConnectionGrant {
   return {
     id: "grant-org",
-    companyId: "company-1",
+    spaceId: "space-1",
     connectionId: "conn-1",
     kind: "organization",
     subjectUserId: null,
@@ -79,7 +79,7 @@ function grant(overrides: Partial<ConnectionGrant> = {}): ConnectionGrant {
 function audienceMembers(userIds: string[]) {
   return userIds.map((userId, index) => ({
     id: `member-${index}`,
-    companyId: "company-1",
+    spaceId: "space-1",
     grantId: "grant-org",
     subjectType: "user" as const,
     subjectId: userId,
@@ -155,7 +155,7 @@ const meta: Meta = {
   id: "reviews-pap-17835-personal-connection-identity",
   title: "Apps, channels, and extensions/Connection setup/Reviews/PAP-17835 Personal connection identity",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "connection-setup/identity-and-access"
       ],
@@ -304,7 +304,7 @@ export const AudienceEditorServerDenial: Story = {
         }),
       ]}
       audienceGrantId="grant-org"
-      audienceError="Every audience member must be an active company member."
+      audienceError="Every audience member must be an active space member."
     />
   ),
 };

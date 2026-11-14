@@ -21,7 +21,7 @@ type WakeAuthorityOptions = {
 };
 export function inboundWakeScope(action: typeof chatActions.$inferSelect) {
   return JSON.stringify([
-    action.companyId,
+    action.spaceId,
     action.endpointId,
     action.conversationId,
     action.deliveryId,
@@ -65,7 +65,7 @@ export function createInboundWakeAuthority(db: Db, options: WakeAuthorityOptions
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, action.companyId),
+          eq(issues.spaceId, action.spaceId),
           eq(issues.id, payload.issueId),
         ),
       )
@@ -86,7 +86,7 @@ export function createInboundWakeAuthority(db: Db, options: WakeAuthorityOptions
       .from(chatEndpoints)
       .where(
         and(
-          eq(chatEndpoints.companyId, action.companyId),
+          eq(chatEndpoints.spaceId, action.spaceId),
           eq(chatEndpoints.id, action.endpointId),
         ),
       )
@@ -108,7 +108,7 @@ export function createInboundWakeAuthority(db: Db, options: WakeAuthorityOptions
       .from(chatDeliveries)
       .where(
         and(
-          eq(chatDeliveries.companyId, action.companyId),
+          eq(chatDeliveries.spaceId, action.spaceId),
           eq(chatDeliveries.id, action.deliveryId),
         ),
       )
@@ -135,7 +135,7 @@ export function createInboundWakeAuthority(db: Db, options: WakeAuthorityOptions
       .from(chatConversations)
       .where(
         and(
-          eq(chatConversations.companyId, action.companyId),
+          eq(chatConversations.spaceId, action.spaceId),
           eq(chatConversations.id, action.conversationId),
         ),
       )
@@ -176,7 +176,7 @@ export function createInboundWakeAuthority(db: Db, options: WakeAuthorityOptions
       if (automatic.kind === "allowed") authorization.userId = automatic.userId;
     }
     if (!(await canActorReadIssuePrivacy(tx, authorization.userId
-      ? { type: "board", userId: authorization.userId }
+      ? { type: "operator", userId: authorization.userId }
       : { type: "none" }, issue))) throw deny("task_privacy");
     const expectedUserId =
       payload.requestedByActorType === "user"
@@ -202,13 +202,13 @@ export function createInboundWakeAuthority(db: Db, options: WakeAuthorityOptions
         issueComments,
         and(
           eq(issueComments.id, chatMessageLinks.commentId),
-          eq(issueComments.companyId, action.companyId),
+          eq(issueComments.spaceId, action.spaceId),
           eq(issueComments.issueId, issue.id),
         ),
       )
       .where(
         and(
-          eq(chatMessageLinks.companyId, action.companyId),
+          eq(chatMessageLinks.spaceId, action.spaceId),
           eq(chatMessageLinks.endpointId, endpoint.id),
           eq(chatMessageLinks.conversationId, conversation.id),
           eq(chatMessageLinks.deliveryId, delivery.id),
@@ -240,13 +240,13 @@ export function createInboundWakeAuthority(db: Db, options: WakeAuthorityOptions
   }
 
   async function authorizeFastResponse(tx: Db, request: typeof fastResponseRequests.$inferSelect) {
-    const [action] = await tx.select().from(chatActions).where(and(eq(chatActions.companyId, request.companyId), eq(chatActions.deliveryId, request.deliveryId!), eq(chatActions.kind, "inbound_wakeup")));
+    const [action] = await tx.select().from(chatActions).where(and(eq(chatActions.spaceId, request.spaceId), eq(chatActions.deliveryId, request.deliveryId!), eq(chatActions.kind, "inbound_wakeup")));
     if (!action || action.endpointId !== request.endpointId || action.conversationId !== request.conversationId || action.payload.commentId !== request.sourceCommentId || action.payload.agentId !== request.agentId || action.payload.issueId !== request.issueId) throw forbidden();
     const current = await authorizeInboundWorkStart(tx, action);
     const normalized = current.delivery.normalizedEvent as { message?: { text?: string; attachments?: Array<{ name?: string; mimeType?: string }> }; principal?: { isBot?: boolean } };
     if (normalized.principal?.isBot || isGitHubAutomaticDelivery(current.delivery) || current.delivery.state !== "processed") throw forbidden();
     if ((action.payload.requestedByActorType === "user" ? action.payload.requestedByActorId : null) !== request.responsibleUserId) throw forbidden();
-    const [agent] = await tx.select({ name: agents.name }).from(agents).where(and(eq(agents.id, request.agentId!), eq(agents.companyId, request.companyId)));
+    const [agent] = await tx.select({ name: agents.name }).from(agents).where(and(eq(agents.id, request.agentId!), eq(agents.spaceId, request.spaceId)));
     const [receipt] = await tx.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, action.id));
     if (receipt && ["skipped", "cancelled", "failed"].includes(receipt.status)) throw forbidden();
     return {

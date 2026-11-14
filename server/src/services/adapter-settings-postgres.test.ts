@@ -1,7 +1,7 @@
 import express from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { activityLog, applyPendingMigrations, companies, createDb, instanceSettings, type Db } from "@outpost/db";
+import { activityLog, applyPendingMigrations, spaces, createDb, instanceSettings, type Db } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -27,7 +27,7 @@ vi.mock("../adapters/plugin-loader.js", () => ({}));
 import { adapterSettingsService, initializeAdapterSettings } from "./adapter-settings.js";
 import { adapterRoutes } from "../routes/adapters.js";
 import { errorHandler } from "../middleware/error-handler.js";
-import { resolveNewAgentRunnerForCompany } from "./agent-runner-selection.js";
+import { resolveNewAgentRunnerForSpace } from "./agent-runner-selection.js";
 import * as activities from "./activity-log.js";
 
 const externalDatabaseUrl = process.env.OUTPOST_ADAPTER_SETTINGS_TEST_DATABASE_URL;
@@ -47,7 +47,7 @@ const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPos
     if (externalDatabaseUrl) await applyPendingMigrations(externalDatabaseUrl);
     db = createDb(database.connectionString);
     peer = createDb(database.connectionString);
-    await db.insert(companies).values({ name: "Adapter settings test", issuePrefix: "AST" });
+    await db.insert(spaces).values({ name: "Adapter settings test", issuePrefix: "AST" });
   }, 90_000);
   afterAll(async () => {
     await Promise.all([db?.$client.end({ timeout: 0 }), peer?.$client.end({ timeout: 0 })]);
@@ -71,7 +71,7 @@ const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPos
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "local_implicit", userId: "local-board", isInstanceAdmin: true };
+      req.actor = { type: "operator", source: "local_implicit", userId: "local-operator", isInstanceAdmin: true };
       next();
     });
     app.use(adapterRoutes({ db }));
@@ -182,11 +182,11 @@ const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPos
   it("refreshes the disabled harness at each new-agent admission", async () => {
     await service().seedIfAbsent({ disabledTypes: [] });
     const input = { adapterType: "codex_local", runner: "legacy" as const };
-    expect((await resolveNewAgentRunnerForCompany(db, "company", input)).adapterType).toBe("codex_local");
+    expect((await resolveNewAgentRunnerForSpace(db, "space", input)).adapterType).toBe("codex_local");
     await adapterSettingsService(peer, managed).setDisabled("codex_local", true);
-    await expect(resolveNewAgentRunnerForCompany(db, "company", input)).rejects.toMatchObject({ status: 422, details: { code: "agent_runner_unavailable" } });
+    await expect(resolveNewAgentRunnerForSpace(db, "space", input)).rejects.toMatchObject({ status: 422, details: { code: "agent_runner_unavailable" } });
     await adapterSettingsService(peer, managed).setDisabled("codex_local", false);
-    expect((await resolveNewAgentRunnerForCompany(db, "company", input)).adapterType).toBe("codex_local");
+    expect((await resolveNewAgentRunnerForSpace(db, "space", input)).adapterType).toBe("codex_local");
   });
 
   it("refreshes API-only Cursor policy from PostgreSQL and authoritative operator declarations", async () => {
@@ -199,11 +199,11 @@ const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPos
     const draft = { adapterType: "cursor_cloud", runner: "auto" as const, setupOnly: true, adapterConfig: {}, disabledTypes: [] };
     const saved = { adapterType: "outpost_runner", adapterConfig: { provider: "cursor_cloud", model: "caller-model", repoUrl: "https://github.com/acme/repo", lifecycleMode: "per_turn" } };
     const admitted = async (input = draft as typeof draft | typeof saved) => {
-      expect(await resolveNewAgentRunnerForCompany(db, "company", input))
+      expect(await resolveNewAgentRunnerForSpace(db, "space", input))
         .toMatchObject({ adapterType: "outpost_runner", defaultEnvironmentId: null, adapterConfig: { provider: "cursor_cloud" } });
     };
     const denied = async (input = draft as typeof draft | typeof saved) => {
-      await expect(resolveNewAgentRunnerForCompany(db, "company", input))
+      await expect(resolveNewAgentRunnerForSpace(db, "space", input))
         .rejects.toMatchObject({ status: 422, details: { code: "agent_runner_unavailable" } });
     };
     await admitted(); // The default managed tenant has no Computer or CLI probe.
@@ -233,7 +233,7 @@ const support = externalDatabaseUrl ? { supported: true } : await getEmbeddedPos
       await denied(saved);
     }
     vi.stubEnv("OUTPOST_ADAPTERS", "invalid operator declaration");
-    await expect(resolveNewAgentRunnerForCompany(db, "company", draft)).rejects.toThrow();
+    await expect(resolveNewAgentRunnerForSpace(db, "space", draft)).rejects.toThrow();
     vi.stubEnv("OUTPOST_ADAPTERS", undefined);
     await denied(); // Removing the overlay restores the saved choice.
     expect(await service().inspectStored()).toEqual(stored);

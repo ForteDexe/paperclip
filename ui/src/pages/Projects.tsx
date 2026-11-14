@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Project } from "@outpost/shared";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { EntityRow } from "../components/EntityRow";
 import { ProjectTile } from "../components/ProjectTile";
@@ -23,7 +23,7 @@ import { ProjectsToolbar, type ProjectSortField, type ProjectSortDir } from "@/c
 import { Hexagon } from "lucide-react";
 import { Lock } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 
 function compareProjectNames(left: Project, right: Project) {
   const nameDiff = left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
@@ -67,7 +67,7 @@ function sortProjects(projects: Project[], sortField: ProjectSortField, sortDir:
 }
 
 export function Projects() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [query, setQuery] = useState("");
   const [sortField, setSortField] = useState<ProjectSortField>("name");
@@ -78,13 +78,13 @@ export function Projects() {
   }, [setBreadcrumbs]);
 
   const projectsQuery = useQuery({
-    ...companyProjectsQuery(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    ...spaceProjectsQuery(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const { data: allProjects, isLoading } = projectsQuery;
   const projectsView = useQueryView(projectsQuery);
-  const membershipsQuery = useResourceMemberships(selectedCompanyId);
-  const membershipMutation = useResourceMembershipMutation(selectedCompanyId);
+  const membershipsQuery = useResourceMemberships(selectedSpaceId);
+  const membershipMutation = useResourceMembershipMutation(selectedSpaceId);
   const projects = useMemo(
     () => allProjects ?? [],
     [allProjects],
@@ -115,7 +115,7 @@ export function Projects() {
     return groups;
   }, [membershipsQuery.data, sortedProjects]);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <EmptyState icon={Hexagon} message="Select an outpost to view projects." />;
   }
 

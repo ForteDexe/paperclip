@@ -1,10 +1,10 @@
 # Interested transcript delivery
 
-The company WebSocket is a presentation channel. Its subscriptions cannot change
+The space WebSocket is a presentation channel. Its subscriptions cannot change
 runner execution, ORP acknowledgements, recovery checkpoints, accounting, or
 canonical run logs. Authorization and redaction still run at delivery, including
 after access is revoked. A subscription is never an authorization grant. Full event
-rows and log chunks require the current `company_scope:read` permission used by
+rows and log chunks require the current `space_scope:read` permission used by
 HTTP transcript reads, as well as access to the run's task. A restricted agent
 can still receive authorized lifecycle and lightweight activity notifications.
 The check runs at delivery on both negotiated and older connections; changing a
@@ -47,9 +47,9 @@ aborting existing readers when another view starts or stops watching a run.
 Views exceeding the 1,000-interest protocol limit retain HTTP fallback for
 interests that cannot be advertised.
 
-All mounted consumers share the existing company connection. Interests are
+All mounted consumers share the existing space connection. Interests are
 reference counted: removing one of two views of the same run does not unsubscribe
-the other. Disabled views and hidden tabs withdraw their interests. Company and
+the other. Disabled views and hidden tabs withdraw their interests. Space and
 account changes dispose the old connection. Progress, lifecycle, attention, and
 activity notifications continue independently of transcript interests.
 
@@ -137,14 +137,14 @@ many viewers.
 The delivery tests cover legacy compatibility, authorization/redaction, revoked
 access, interest changes during authorization, item and byte bounds, and the
 congestion deadline. Browser-hook tests cover reference counting, acknowledgement
-races, history/live ordering, failed reads, hide/show, company changes, terminal
+races, history/live ordering, failed reads, hide/show, space changes, terminal
 catch-up, and zero recurring reads after negotiation.
 
 Run the native browser journey with
 `pnpm exec playwright test --config tests/e2e/playwright-transcript-delivery.config.ts`.
 It uses the production runner and the existing deterministic Codex app-server
 fixture. It creates a task through the current composer, opens two views, verifies
-zero recurring transcript reads during settled streaming, changes companies,
+zero recurring transcript reads during settled streaming, changes spaces,
 disconnects the presentation socket, and checks terminal output after reload.
 The fixture pins provider selection through the existing acceptance-only loader;
 it does not contact a real model or add a production admission option.
@@ -181,7 +181,7 @@ Resynchronization can also discard lifecycle events used by application lists.
 Those views refresh after the replacement interest acknowledgement, when the
 server has resumed delivery. An older in-flight query cannot satisfy that
 boundary. One follow-up waits for it without cancelling the useful older read.
-The follow-up checks the current company, connection, visibility and query cache
+The follow-up checks the current space, connection, visibility and query cache
 identity. Ordinary interest acknowledgements add no application refresh.
 
 The five-second delivery deadline also covers an authorization, redaction or

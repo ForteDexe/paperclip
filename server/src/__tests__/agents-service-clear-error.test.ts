@@ -5,7 +5,7 @@ import {
   agents,
   agentRuntimeState,
   agentTaskSessions,
-  companies,
+  spaces,
   createDb,
   heartbeatRunEvents,
   heartbeatRuns,
@@ -30,7 +30,7 @@ describeEmbeddedPostgres("agent service clearError", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-agent-clear-error-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-agent-clear-error-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -40,7 +40,7 @@ describeEmbeddedPostgres("agent service clearError", () => {
     await db.delete(agentRuntimeState);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -48,19 +48,19 @@ describeEmbeddedPostgres("agent service clearError", () => {
   });
 
   it.each(["claude_local", "codex_local"])("resets converted %s sessions while preserving identity, configuration and run history", async adapterType => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
     const model = adapterType === "claude_local" ? "claude-sonnet-4-6" : "gpt-5.4";
     const config = { model, cwd: "/tmp/runner-conversion", instructionsFilePath: "/tmp/runner-conversion/AGENTS.md", env: { TEST_KEY: { type: "plain", value: "kept" } } };
-    await db.insert(companies).values({ id: companyId, name: "Conversion", issuePrefix: `T${companyId.slice(0, 6).toUpperCase()}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Migration QA", role: "engineer", adapterType, adapterConfig: config });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", status: "succeeded", resultJson: { summary: "history stays" } });
-    await db.insert(agentTaskSessions).values({ companyId, agentId, adapterType, taskKey: "issue:test", sessionDisplayId: "old-session", lastRunId: runId });
-    await db.insert(agentRuntimeState).values({ companyId, agentId, adapterType, sessionId: "old-session", stateJson: { old: true }, lastRunId: runId });
+    await db.insert(spaces).values({ id: spaceId, name: "Conversion", issuePrefix: `T${spaceId.slice(0, 6).toUpperCase()}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Migration QA", role: "engineer", adapterType, adapterConfig: config });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "on_demand", status: "succeeded", resultJson: { summary: "history stays" } });
+    await db.insert(agentTaskSessions).values({ spaceId, agentId, adapterType, taskKey: "issue:test", sessionDisplayId: "old-session", lastRunId: runId });
+    await db.insert(agentRuntimeState).values({ spaceId, agentId, adapterType, sessionId: "old-session", stateJson: { old: true }, lastRunId: runId });
     const profile = adapterType === "claude_local" ? { provider: "acpx", acpxAgent: "claude" } : { provider: "codex" };
     const updated = await agentService(db).update(agentId, { adapterType: "outpost_runner", adapterConfig: { ...config, ...profile } });
-    expect(updated).toMatchObject({ id: agentId, companyId, name: "Migration QA", role: "engineer", adapterConfig: config });
+    expect(updated).toMatchObject({ id: agentId, spaceId, name: "Migration QA", role: "engineer", adapterConfig: config });
     expect(await db.select().from(agentTaskSessions).where(eq(agentTaskSessions.agentId, agentId))).toEqual([]);
     const [runtime] = await db.select().from(agentRuntimeState).where(eq(agentRuntimeState.agentId, agentId));
     expect(runtime).toMatchObject({ adapterType: "outpost_runner", sessionId: null, stateJson: {}, lastRunId: runId });
@@ -69,21 +69,21 @@ describeEmbeddedPostgres("agent service clearError", () => {
   });
 
   it("moves an error agent to idle without deleting run history or runtime diagnostics", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "error",
@@ -98,7 +98,7 @@ describeEmbeddedPostgres("agent service clearError", () => {
 
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "on_demand",
       status: "failed",
@@ -112,7 +112,7 @@ describeEmbeddedPostgres("agent service clearError", () => {
     });
 
     await db.insert(heartbeatRunEvents).values({
-      companyId,
+      spaceId,
       runId,
       agentId,
       seq: 1,
@@ -124,7 +124,7 @@ describeEmbeddedPostgres("agent service clearError", () => {
 
     await db.insert(agentRuntimeState).values({
       agentId,
-      companyId,
+      spaceId,
       adapterType: "codex_local",
       sessionId: "codex-session-1",
       stateJson: { taskKey: "issue:test" },
@@ -182,20 +182,20 @@ describeEmbeddedPostgres("agent service clearError", () => {
   });
 
   it("rejects non-error agents with a 409 conflict", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -212,22 +212,22 @@ describeEmbeddedPostgres("agent service clearError", () => {
   });
 
   it("keeps resume-style terminal and pending-approval protections", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const terminatedAgentId = randomUUID();
     const pendingAgentId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values([
       {
         id: terminatedAgentId,
-        companyId,
+        spaceId,
         name: "Terminated",
         role: "engineer",
         status: "terminated",
@@ -238,7 +238,7 @@ describeEmbeddedPostgres("agent service clearError", () => {
       },
       {
         id: pendingAgentId,
-        companyId,
+        spaceId,
         name: "Pending",
         role: "engineer",
         status: "pending_approval",

@@ -96,7 +96,7 @@ describe("decideScheduledRetryGate", () => {
     {
       name: "budget_blocked",
       overrides: {
-        budgetBlock: { reason: "over budget", scopeType: "company", scopeId: "co-1" },
+        budgetBlock: { reason: "over budget", scopeType: "space", scopeId: "co-1" },
       } satisfies Partial<ScheduledRetryFacts>,
       errorCode: "budget_blocked",
     },

@@ -26,12 +26,12 @@ export const searchTasksAction = {
     "orpEvidence": "read projection surfaced via a tool-result item event; no control-plane state diff",
     "orpBindingStatus": "audit_pending",
     "legacyAliases": [
-      "mcp:paperclipListIssues"
+      "mcp:outpostListIssues"
     ]
   },
   "documentation": {
-    "title": "Search company tasks",
-    "description": "Search tasks by text and status within the run company in ascending task-ID order. Returns tasks, effective limit, returnedCount, hasMore and nextCursor. Follow nextCursor with the same query and statuses until null before treating an inventory as complete. Each page checks current access; concurrent task changes require a fresh scan.",
+    "title": "Search space tasks",
+    "description": "Search tasks by text and status within the run space in ascending task-ID order. Returns tasks, effective limit, returnedCount, hasMore and nextCursor. Follow nextCursor with the same query and statuses until null before treating an inventory as complete. Each page checks current access; concurrent task changes require a fresh scan.",
     "note": null
   },
   "examples": {
@@ -51,8 +51,8 @@ export const searchTasksAction = {
       "schema": "outpost.semantic-tool.v1",
       "operationId": "search_tasks",
       "version": 1,
-      "title": "Search company tasks",
-      "description": "Search tasks by text and status within the run company in ascending task-ID order. Returns tasks, effective limit, returnedCount, hasMore and nextCursor. Follow nextCursor with the same query and statuses until null before treating an inventory as complete. Each page checks current access; concurrent task changes require a fresh scan.",
+      "title": "Search space tasks",
+      "description": "Search tasks by text and status within the run space in ascending task-ID order. Returns tasks, effective limit, returnedCount, hasMore and nextCursor. Follow nextCursor with the same query and statuses until null before treating an inventory as complete. Each page checks current access; concurrent task changes require a fresh scan.",
       "exposure": "optional",
       "requiredClaims": [
         "discovery:tasks:read"
@@ -185,7 +185,7 @@ export const searchTasksAction = {
       "redaction": [],
       "mockCommandMapping": {
         "kind": "snapshot_read",
-        "projection": "company_tasks"
+        "projection": "space_tasks"
       }
     }
   }

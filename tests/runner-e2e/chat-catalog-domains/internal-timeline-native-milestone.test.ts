@@ -16,18 +16,18 @@ function producer(status: "blocked" | "done", runId: string, decisionId: string)
   expect(end).toBeGreaterThan(start);
   // Execute only the actual committed event-object projection, no server/DB import.
   return runInNewContext("(" + source.slice(start, end) + "\n})", {
-    input: { companyId: "company", issueId: "task", runId, assessmentId: "assessment-" + runId, decision: { statusAction: "transition", toStatus: status } },
+    input: { spaceId: "space", issueId: "task", runId, assessmentId: "assessment-" + runId, decision: { statusAction: "transition", toStatus: status } },
     issue: { status: "in_progress" }, decisionRow: { id: decisionId }, reasonCode: "work_report", materialized: [],
   }, { timeout: 100 }) as Record<string, unknown>;
 }
 function fixture() {
-  const first = { id: "first", companyId: "company", agentId: "morgan", status: "succeeded", contextSnapshot: { issueId: "task" }, resultJson: { decisionId: "block-decision", assessmentId: "assessment-first", issueStatusBefore: "in_progress", issueStatusAfter: "blocked" } };
+  const first = { id: "first", spaceId: "space", agentId: "morgan", status: "succeeded", contextSnapshot: { issueId: "task" }, resultJson: { decisionId: "block-decision", assessmentId: "assessment-first", issueStatusBefore: "in_progress", issueStatusAfter: "blocked" } };
   const second = { ...first, id: "second", agentId: "riley", resultJson: { decisionId: "done-decision", assessmentId: "assessment-second", issueStatusBefore: "in_progress", issueStatusAfter: "done" } };
-  const blocked = { id: "task", companyId: "company", status: "blocked", assigneeAgentId: "morgan", lastStatusDecisionId: "block-decision" };
+  const blocked = { id: "task", spaceId: "space", status: "blocked", assigneeAgentId: "morgan", lastStatusDecisionId: "block-decision" };
   const done = { ...blocked, identifier: "RUN-3", status: "done", assigneeAgentId: "riley", lastStatusDecisionId: "done-decision" };
   const blockedEvent = { ...producer("blocked", "first", "block-decision"), id: "blocked", createdAt: "2026-10-26T01:00:00Z" };
   const doneEvent = { ...producer("done", "second", "done-decision"), id: "done", createdAt: "2026-10-26T03:00:00Z" };
-  return { scenarioId: "activity.work-timeline", origin: "https://fixture.test", companyId: "company", leadId: "ceo",
+  return { scenarioId: "activity.work-timeline", origin: "https://fixture.test", spaceId: "space", leadId: "ceo",
     state: { worker: { id: "morgan", name: "Morgan" }, repairWorker: { id: "riley", name: "Riley" }, task: done, prepTask: { id: "prep" }, hiddenTask: { id: "hidden", title: "Protected acquisition" }, firstRun: first, secondRun: second, blockedTask: blocked,
       blockedEventId: "blocked", handoffEventId: "handoff", doneEventId: "done", today: "2026-10-26", timezone: "UTC", zoneLabel: "UTC", personId: "person", personName: "Avery" },
     tasks: [done, { id: "prep" }], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [], humanQueries: [],
@@ -43,7 +43,7 @@ it("grades the actual producer's native status events through the real owning ti
   expect(o.timelineEvents[0]).toMatchObject({ actorType: "system", actorId: "native-status-committer", runId: "first", details: { source: "native_status_decision", toStatus: "blocked" } });
   expect(gradeWorkTimeline(o).passed).toBe(true);
 });
-it.each(["companyId", "entityId", "runId", "actorId", "actorType", "source", "toStatus", "decisionId", "assessmentId"] as const)("rejects a wrong native event %s rather than accepting any system status event", field => {
+it.each(["spaceId", "entityId", "runId", "actorId", "actorType", "source", "toStatus", "decisionId", "assessmentId"] as const)("rejects a wrong native event %s rather than accepting any system status event", field => {
   const o = fixture(), event = o.timelineEvents[0] as Record<string, unknown>;
   if (["source", "toStatus", "decisionId", "assessmentId"].includes(field)) (event.details as Record<string, unknown>)[field] = "foreign";
   else event[field] = "foreign";

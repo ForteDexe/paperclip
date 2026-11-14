@@ -96,12 +96,12 @@ export function toolRequestIdentityHash(value: unknown, explicitSigningSecret?: 
   // cannot be used to guess low-entropy passwords or configuration secrets.
   return containsSensitiveToolArguments(canonical)
     ? createHmac("sha256", signingSecret(explicitSigningSecret))
-      .update("paperclip:tool-request-identity:v1\0").update(canonical).digest("hex")
+      .update("outpost:tool-request-identity:v1\0").update(canonical).digest("hex")
     : createHash("sha256").update(canonical).digest("hex");
 }
 
 type SignedToolArgumentsEnvelope = { payload: string; signature: string };
-const TOOL_ARGUMENTS_ENCRYPTION_CONTEXT = "paperclip:tool-action-arguments:v2:A256GCM";
+const TOOL_ARGUMENTS_ENCRYPTION_CONTEXT = "outpost:tool-action-arguments:v2:A256GCM";
 
 function toolArgumentsEncryptionKey(secret: string) {
   // Separate the encryption key from the existing HS256 signing key. The

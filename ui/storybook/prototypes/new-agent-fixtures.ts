@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
 import type { AdapterEnvironmentTestResult, Agent } from "@outpost/shared";
-import { storybookAgents, storybookIssues } from "../fixtures/paperclipData";
+import { storybookAgents, storybookIssues } from "../fixtures/outpostData";
 
 export type TestOutcome = "pass" | "fail";
 export type TestState = "idle" | "running" | TestOutcome;
 export const PREVIEW_AGENT_ID = "agent-new-agent-preview";
-export const PREVIEW_COMPANY_ID = "company-storybook";
+export const PREVIEW_SPACE_ID = "space-storybook";
 
 export function runtimeTestResult(adapterType: string, outcome: TestOutcome, model: string, environment: string): AdapterEnvironmentTestResult {
   return {
@@ -31,7 +31,7 @@ export function useNewAgentFixtures(agent: Agent, outcome: TestOutcome, delayMs:
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.origin);
       const method = init?.method ?? (input instanceof Request ? input.method : "GET");
       const body = async () => JSON.parse(typeof init?.body === "string" ? init.body : input instanceof Request ? await input.clone().text() : "{}");
-      const test = url.pathname.match(/^\/api\/companies\/company-storybook\/adapters\/([^/]+)\/test-environment$/);
+      const test = url.pathname.match(/^\/api\/spaces\/space-storybook\/adapters\/([^/]+)\/test-environment$/);
       if (test && method === "POST") {
         const request = await body();
         const { outcome: result, delayMs: delay } = current.current;
@@ -39,18 +39,18 @@ export function useNewAgentFixtures(agent: Agent, outcome: TestOutcome, delayMs:
           const timer = window.setTimeout(() => { timers.delete(timer); resolve(); }, delay);
           timers.set(timer, resolve);
         });
-        const environment = request.environmentId === "environment-storybook-sandbox" ? "Paperclip Sandbox"
+        const environment = request.environmentId === "environment-storybook-sandbox" ? "Outpost Sandbox"
           : request.environmentId === "environment-storybook-local" ? "Local machine" : "Organization default";
         return Response.json(runtimeTestResult(test[1], result, request.adapterConfig?.model ?? "", environment));
       }
-      if (url.pathname === `/api/companies/${PREVIEW_COMPANY_ID}/agents` && method === "GET") {
+      if (url.pathname === `/api/spaces/${PREVIEW_SPACE_ID}/agents` && method === "GET") {
         return Response.json([...storybookAgents, current.current.agent]);
       }
       if (url.pathname === `/api/agents/${PREVIEW_AGENT_ID}` && method === "GET") return Response.json(current.current.agent);
-      if (url.pathname === `/api/companies/${PREVIEW_COMPANY_ID}/issues` && method === "POST") {
+      if (url.pathname === `/api/spaces/${PREVIEW_SPACE_ID}/issues` && method === "POST") {
         const request = await body();
         current.current.onTaskCreated(request.title);
-        return Response.json({ ...storybookIssues[0], ...request, id: "issue-new-agent-preview", identifier: "PAP-PREVIEW", companyId: PREVIEW_COMPANY_ID });
+        return Response.json({ ...storybookIssues[0], ...request, id: "issue-new-agent-preview", identifier: "PAP-PREVIEW", spaceId: PREVIEW_SPACE_ID });
       }
       return original(input, init);
     };

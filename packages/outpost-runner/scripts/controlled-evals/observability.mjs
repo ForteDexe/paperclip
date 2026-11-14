@@ -7,7 +7,7 @@ import { canonical, costRuntime, ROOT_OTLP_LIMITS, sha256 } from './manifest.mjs
 function launchFor(manifest, request, identity, baseUrl) {
   const state = new costRuntime.CapabilityMockControlPlaneAdapter(request.session.seed).snapshot();
   return costRuntime.buildProviderObservabilityLaunch({ kind: request.provider === 'codex' ? 'codex' : 'claude',
-    companyId: request.session.companyId ?? state.company.id, agentId: request.session.actorId ?? state.actors[0].id,
+    spaceId: request.session.spaceId ?? state.space.id, agentId: request.session.actorId ?? state.actors[0].id,
     compatibilityKey: identity.traceId, revision: identity.traceId, enabled: true, capture: manifest.observability.capture,
     logsEndpoint: `${baseUrl}/v1/logs`, tracesEndpoint: `${baseUrl}/v1/traces`,
     headers: { 'x-bt-parent': costRuntime.exportBraintrustAttemptParent(identity) } });

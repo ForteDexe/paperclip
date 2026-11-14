@@ -29,7 +29,7 @@ const MAX_RECOVERY_SEMANTIC_RESULT_DEPTH = 128;
 
 /**
  * Package-owned adapter from the concrete harness driver contract to the
- * normalized session boundary consumed by Paperclip. Provider mechanics stay
+ * normalized session boundary consumed by Outpost. Provider mechanics stay
  * behind HarnessDriver; the control plane sees only ORP events and results.
  */
 export class HarnessDriverBackend implements NativeSessionBackend {
@@ -489,7 +489,7 @@ class HarnessNativeSession implements NativeSession {
   beginRunAttachment(input: { identity: OpenNativeSessionInput["identity"] }): boolean {
     const currentIdentity = this.#input.identity;
     if (this.#protocolIntegrityFailure !== null || this.#session.beginRunAttachment === undefined
-      || input.identity.sessionId !== currentIdentity.sessionId || input.identity.companyId !== currentIdentity.companyId
+      || input.identity.sessionId !== currentIdentity.sessionId || input.identity.spaceId !== currentIdentity.spaceId
       || input.identity.issueId !== currentIdentity.issueId || input.identity.agentId !== currentIdentity.agentId) return false;
     return this.#session.beginRunAttachment({ runId: input.identity.runId });
   }
@@ -503,7 +503,7 @@ class HarnessNativeSession implements NativeSession {
     const currentIdentity = this.#input.identity;
     if (
       input.identity.sessionId !== currentIdentity.sessionId ||
-      input.identity.companyId !== currentIdentity.companyId ||
+      input.identity.spaceId !== currentIdentity.spaceId ||
       input.identity.issueId !== currentIdentity.issueId ||
       input.identity.agentId !== currentIdentity.agentId
     ) {
@@ -658,7 +658,7 @@ class HarnessNativeSession implements NativeSession {
 
     // The provider can disappear while its native RPC is awaiting the user.
     // Emit one canonical terminal fact and replace the stream failure with a
-    // governed wait; the control plane can materialize the continuation without
+    // controlled wait; the control plane can materialize the continuation without
     // ever trying to replay the dead provider request.
     if (!sawTerminal && !this.#explicitlyCancelled && sourceInstanceId) {
       const snapshot = await this.#harnessSnapshot().catch((error) => {

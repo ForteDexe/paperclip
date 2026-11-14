@@ -8,26 +8,26 @@ import { checks } from "./internal-support.js";
 import { createAuthenticatedPerson } from "./identity-auth.js";
 
 type Person = Awaited<ReturnType<typeof createAuthenticatedPerson>>;
-interface Owned { person: Person; api: RunnerApi; other?: Person; companyId?: string; fixtures?: LiveFixtureValues }
+interface Owned { person: Person; api: RunnerApi; other?: Person; spaceId?: string; fixtures?: LiveFixtureValues }
 const owned = new WeakMap<IdentityBoundaryContext, Owned>();
 interface SignInEvidence {
-  personId: string; returnedPersonId: string; companyId: string; conversationId: string; returnedConversationId: string;
+  personId: string; returnedPersonId: string; spaceId: string; conversationId: string; returnedConversationId: string;
   beforeComposerVisible: boolean; expiredReadStatus: number; expiredComposerAbsent: boolean;
   configuredSignInVisible: boolean; safeReturnPath: string; intendedReturnPath: string; restoredComposerVisible: boolean;
-  nonmemberCompanyStatus: number; nonmemberConversationStatus: number; nonmemberBrowserBlocked: boolean;
+  nonmemberSpaceStatus: number; nonmemberConversationStatus: number; nonmemberBrowserBlocked: boolean;
   beforeCommentIds: string[]; afterCommentIds: string[]; runIds: string[];
 }
 export function gradeSignInBoundary(value: unknown) {
   const c = checks(); const o = value as SignInEvidence | undefined;
-  c.add("real-invalidated-human-session", !!o && !!o.personId && o.personId !== "local-board" && o.beforeComposerVisible
+  c.add("real-invalidated-human-session", !!o && !!o.personId && o.personId !== "local-operator" && o.beforeComposerVisible
     && [401, 404].includes(o.expiredReadStatus) && o.expiredComposerAbsent, "A previously usable real human session is revoked by the server; the expired browser cannot read or compose in its conversation.");
   c.add("configured-safe-sign-in-return", !!o && o.configuredSignInVisible && typeof o.safeReturnPath === "string" && o.safeReturnPath === o.intendedReturnPath
     && o.safeReturnPath.startsWith("/") && !o.safeReturnPath.startsWith("//") && o.returnedPersonId === o.personId
     && o.returnedConversationId === o.conversationId && o.restoredComposerVisible,
-    "The ordinary configured sign-in form authenticates the same person and returns to the same real company conversation.");
-  c.add("authentication-retains-resource-checks", !!o && [403, 404].includes(o.nonmemberCompanyStatus)
+    "The ordinary configured sign-in form authenticates the same person and returns to the same real space conversation.");
+  c.add("authentication-retains-resource-checks", !!o && [403, 404].includes(o.nonmemberSpaceStatus)
     && [403, 404].includes(o.nonmemberConversationStatus) && o.nonmemberBrowserBlocked,
-    "A different genuinely signed-in nonmember remains unable to access either the company or the original conversation.");
+    "A different genuinely signed-in nonmember remains unable to access either the space or the original conversation.");
   c.add("no-expired-query-or-dispatch", !!o && Array.isArray(o.runIds) && o.runIds.length === 0
     && Array.isArray(o.beforeCommentIds) && Array.isArray(o.afterCommentIds)
     && JSON.stringify(o.beforeCommentIds) === JSON.stringify(o.afterCommentIds),
@@ -50,12 +50,12 @@ export const signInIdentityBoundaryCases: readonly IdentityBoundaryCase[] = [{
     await api.patch("/api/instance/settings/experimental", { enableAgentChat: true });
     const workspacePath = path.join(ctx.privateDir, "sign-in-workspace"); await mkdir(workspacePath, { recursive: true, mode: 0o700 });
     const fixtures = await setupLiveFixtures({ api, execution: ctx.execution, executionNonce: ctx.nonce, workspacePath, credentials: ctx.credentials,
-      async onCompanyCreated(id) { resources.companyId = id; ctx.observeResources({ companyId: id, runIds: [] }); } });
+      async onSpaceCreated(id) { resources.spaceId = id; ctx.observeResources({ spaceId: id, runIds: [] }); } });
     resources.fixtures = fixtures;
-    const root = `/api/companies/${fixtures.company.id}`;
+    const root = `/api/spaces/${fixtures.space.id}`;
     const conversation = await api.post<{ id: string }>(`${root}/chats/${fixtures.agent.id}`);
-    ctx.observeResources({ companyId: fixtures.company.id, agentId: fixtures.agent.id, runIds: [] });
-    const intendedReturnPath = `/${fixtures.company.issuePrefix}/chats/${fixtures.agent.id}`;
+    ctx.observeResources({ spaceId: fixtures.space.id, agentId: fixtures.agent.id, runIds: [] });
+    const intendedReturnPath = `/${fixtures.space.issuePrefix}/chats/${fixtures.agent.id}`;
     const page = await person.context.newPage();
     await page.goto(intendedReturnPath, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("task-chat-composer-input")).toBeVisible();
@@ -63,7 +63,7 @@ export const signInIdentityBoundaryCases: readonly IdentityBoundaryCase[] = [{
     await person.expireSession();
     const expired = await person.context.request.get(`${api.baseURL}/api/issues/${conversation.id}`); const expiredReadStatus = expired.status(); await expired.dispose();
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Sign in to Paperclip", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Outpost", exact: true })).toBeVisible();
     const safeReturnPath = new URL(page.url()).searchParams.get("next") ?? "";
     const expiredComposerAbsent = await page.getByTestId("task-chat-composer-input").count() === 0;
     await person.signInThroughBrowser(page, intendedReturnPath); person.bindApiSession(api);
@@ -72,15 +72,15 @@ export const signInIdentityBoundaryCases: readonly IdentityBoundaryCase[] = [{
     const returned = await api.get<{ user: { id: string } }>("/api/auth/get-session");
     const same = await api.get<{ id: string }>(`${root}/chats/${fixtures.agent.id}`);
     const other = await createAuthenticatedPerson({ api, browser, secrets: ctx.privateSecrets, name: "Unenrolled Riley" }); resources.other = other;
-    const deniedCompany = await other.request(root); const nonmemberCompanyStatus = deniedCompany.status; await deniedCompany.body?.cancel();
+    const deniedSpace = await other.request(root); const nonmemberSpaceStatus = deniedSpace.status; await deniedSpace.body?.cancel();
     const deniedConversation = await other.request(`/api/issues/${conversation.id}`); const nonmemberConversationStatus = deniedConversation.status; await deniedConversation.body?.cancel();
     const otherPage = await other.context.newPage(); await otherPage.goto(intendedReturnPath, { waitUntil: "domcontentloaded" });
     await expect(otherPage.getByRole("heading", { name: "No organization access", exact: true })).toBeVisible();
     const runIds = (await api.get<Array<{ id: string }>>(`${root}/heartbeat-runs?limit=100`)).map(row => row.id);
-    ctx.observeResources({ companyId: fixtures.company.id, agentId: fixtures.agent.id, runIds });
-    const observation: SignInEvidence = { personId: person.id, returnedPersonId: returned.user.id, companyId: fixtures.company.id, conversationId: conversation.id,
+    ctx.observeResources({ spaceId: fixtures.space.id, agentId: fixtures.agent.id, runIds });
+    const observation: SignInEvidence = { personId: person.id, returnedPersonId: returned.user.id, spaceId: fixtures.space.id, conversationId: conversation.id,
       returnedConversationId: same.id, beforeComposerVisible: true, expiredReadStatus, expiredComposerAbsent, configuredSignInVisible: true,
-      safeReturnPath, intendedReturnPath, restoredComposerVisible: true, nonmemberCompanyStatus, nonmemberConversationStatus, nonmemberBrowserBlocked: true,
+      safeReturnPath, intendedReturnPath, restoredComposerVisible: true, nonmemberSpaceStatus, nonmemberConversationStatus, nonmemberBrowserBlocked: true,
       beforeCommentIds, afterCommentIds: (await api.get<Array<{ id: string }>>(`/api/issues/${conversation.id}/comments`)).map(row => row.id).sort(), runIds };
     await ctx.evidence("identity-real-sign-in.json", observation); return observation;
   },
@@ -91,7 +91,7 @@ export const signInIdentityBoundaryCases: readonly IdentityBoundaryCase[] = [{
       // expired; cleanup must not rely on the positive sign-in assertion.
       await resources.person.signIn(); resources.person.bindApiSession(resources.api);
       await resources.fixtures?.teardown();
-      if (resources.companyId) await resources.api.delete(`/api/companies/${resources.companyId}`, { allowNotFound: true });
+      if (resources.spaceId) await resources.api.delete(`/api/spaces/${resources.spaceId}`, { allowNotFound: true });
     } finally { try { await resources.other?.dispose(); } finally { await resources.person.dispose(); owned.delete(ctx); } }
   },
 }];

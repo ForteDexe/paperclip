@@ -73,7 +73,7 @@ describe("S3 transient failures on saved files", () => {
       res.end();
     };
 
-    await expect(provider().putObject({ objectKey: "company/workspace.pcws", body: Buffer.alloc(0),
+    await expect(provider().putObject({ objectKey: "space/workspace.pcws", body: Buffer.alloc(0),
       contentType: "application/octet-stream", contentLength: content.length, sourceFile: await sourceFile(content) }))
       .resolves.toEqual({ integrity: "server_verified_md5" });
 
@@ -87,7 +87,7 @@ describe("S3 transient failures on saved files", () => {
       res.end(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>AccessDenied</Code><Message>denied</Message></Error>`);
     };
 
-    await expect(provider().putObject({ objectKey: "company/workspace.pcws", body: Buffer.alloc(0),
+    await expect(provider().putObject({ objectKey: "space/workspace.pcws", body: Buffer.alloc(0),
       contentType: "application/octet-stream", contentLength: 5, sourceFile: await sourceFile("bytes") }))
       .rejects.toMatchObject({ name: "AccessDenied" });
     expect(seen.map(entry => entry.method)).toEqual(["PUT"]);
@@ -101,7 +101,7 @@ describe("S3 transient failures on saved files", () => {
       setTimeout(() => res.socket?.destroy(), 20);
     };
 
-    const object = await provider().getObject({ objectKey: "company/restore.pcws", range: { start: 0, end: content.length - 1 } });
+    const object = await provider().getObject({ objectKey: "space/restore.pcws", range: { start: 0, end: content.length - 1 } });
 
     expect(await readAll(object.stream)).toBe(content);
     expect(seen.map(entry => entry.method)).toEqual(["GET"]);
@@ -123,7 +123,7 @@ describe("S3 transient failures on saved files", () => {
       res.end(content.slice(Number(from), end + 1));
     };
 
-    const object = await provider().getObject({ objectKey: "company/restore.pcws" });
+    const object = await provider().getObject({ objectKey: "space/restore.pcws" });
 
     expect(await readAll(object.stream)).toBe(content);
     expect(seen.map(entry => [entry.method, entry.range, entry.ifMatch])).toEqual([
@@ -139,7 +139,7 @@ describe("S3 transient failures on saved files", () => {
       res.on("close", () => closed());
     };
 
-    const object = await provider().getObject({ objectKey: "company/restore.pcws" });
+    const object = await provider().getObject({ objectKey: "space/restore.pcws" });
     const reader = object.stream[Symbol.asyncIterator]();
     expect(String((await reader.next()).value)).toBe("01234567");
     object.stream.destroy();
@@ -161,7 +161,7 @@ describe("S3 transient failures on saved files", () => {
       res.on("close", () => closed());
     };
 
-    const object = await provider().getObject({ objectKey: "company/restore.pcws" });
+    const object = await provider().getObject({ objectKey: "space/restore.pcws" });
     const reader = object.stream[Symbol.asyncIterator]();
     expect(String((await reader.next()).value)).toBe("01234567");
     void reader.next().catch(() => undefined);
@@ -185,7 +185,7 @@ describe("S3 transient failures on saved files", () => {
       res.end(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>PreconditionFailed</Code><Message>changed</Message></Error>`);
     };
 
-    const object = await provider().getObject({ objectKey: "company/restore.pcws" });
+    const object = await provider().getObject({ objectKey: "space/restore.pcws" });
 
     await expect(readAll(object.stream)).rejects.toMatchObject({ name: "PreconditionFailed" });
     expect(seen.map(entry => entry.ifMatch)).toEqual([null, '"v1"']);

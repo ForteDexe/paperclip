@@ -68,7 +68,7 @@ export async function sharedNotionAuthority(
     rows.map((row) => JSON.stringify(row)).sort();
   return {
     id: connection.id,
-    companyId: connection.companyId,
+    spaceId: connection.spaceId,
     enabled: connection.enabled,
     credentialPolicy: connection.credentialPolicy,
     ownership: connection.ownership,
@@ -283,7 +283,7 @@ export const notionSetupExternalCases = [
       ).connections;
       if (connections.length)
         throw new Error(
-          "No-connection Notion setup requires a fresh disposable company",
+          "No-connection Notion setup requires a fresh disposable space",
         );
       const pages = await readNotionFixturePages(ctx);
       const humanId = (
@@ -359,7 +359,7 @@ export const notionSetupExternalCases = [
           });
           state.savedBeforeCanonical = true;
         } catch (error) {
-          // Every connection in this newly owned disposable company was created by
+          // Every connection in this newly owned disposable space was created by
           // this one finite UI operation. Do not leave an unreturned private draft.
           for (const row of (
             await ctx.input.api.get<{ connections: ToolConnection[] }>(
@@ -495,7 +495,7 @@ export const notionSetupExternalCases = [
             `/api/tool-connections/${receipt.connectionId}/grants`,
           );
           state.samePersonalActive =
-            connection.companyId === ctx.input.fixtures.company.id &&
+            connection.spaceId === ctx.input.fixtures.space.id &&
             connection.status === "active" &&
             connection.healthStatus === "ok" &&
             connection.credentialPolicy === "per_user" &&

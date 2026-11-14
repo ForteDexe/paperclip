@@ -12,7 +12,7 @@ import {
 function fixture() {
   const action = {
     id: randomUUID(),
-    companyId: randomUUID(),
+    spaceId: randomUUID(),
     endpointId: randomUUID(),
     conversationId: randomUUID(),
     deliveryId: randomUUID(),
@@ -35,7 +35,7 @@ function fixture() {
   } satisfies typeof chatActions.$inferSelect;
   const trusted = createDurableChatWakeupRequest({
     id: action.id,
-    companyId: action.companyId,
+    spaceId: action.spaceId,
     agentId: action.payload.agentId,
     issueId: action.payload.issueId,
     commentId: action.payload.commentId,
@@ -46,7 +46,7 @@ function fixture() {
   });
   const receipt = {
     id: action.id,
-    companyId: action.companyId,
+    spaceId: action.spaceId,
     agentId: action.payload.agentId,
     source: "assignment",
     triggerDetail: "system",
@@ -84,7 +84,7 @@ describe("durable inbound queue notice", () => {
       "Your follow-up is queued.",
     );
     expect(inboundWakePublicationText("not_started")).toBe(
-      "This follow-up was not started. Open the task in Paperclip for details.",
+      "This follow-up was not started. Open the task in Outpost for details.",
     );
     expect(inboundWakePublicationText("removed")).toBe(
       "This queued message was removed.",
@@ -96,7 +96,7 @@ describe("durable inbound queue notice", () => {
     { status: "processing" },
     { idempotencyKey: "caller marker" },
     { requestedByActorId: "someone-else" },
-    { companyId: randomUUID() },
+    { spaceId: randomUUID() },
     { agentId: randomUUID() },
     { payload: { issueId: randomUUID() } },
   ])("rejects absent admission or mismatched receipt %j", (patch) => {

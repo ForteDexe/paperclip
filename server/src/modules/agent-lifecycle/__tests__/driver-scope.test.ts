@@ -7,12 +7,12 @@ vi.mock("../../../services/agent-harness-verification.js", () => ({ agentHarness
 import { createLifecycleDriver } from "../../../services/agent-lifecycle-driver.js";
 
 describe("lifecycle host stop scope", () => {
-  it("pauses only the requested agent without loading its company peers", async () => {
+  it("pauses only the requested agent without loading its space peers", async () => {
     // The pause stamps its cause on the agent's own runs (one update), never a peer lookup.
     const update = vi.fn(() => ({ set: () => ({ where: async () => [] }) }));
     const db = { select: vi.fn(() => { throw new Error("No peer lookup expected"); }), update } as unknown as Db;
     const driver = createLifecycleDriver(db, {} as never);
-    expect(await driver.runHost({ id: "target", companyId: "company", lifecycleState: "pausing", lifecycleHolds: ["manual"],
+    expect(await driver.runHost({ id: "target", spaceId: "space", lifecycleState: "pausing", lifecycleHolds: ["manual"],
       lifecycleVersion: 2, lifecycleRequiredPluginIds: [], lifecycleError: null, lifecycleOperation: null } as never)).toBe("complete");
     expect(update).toHaveBeenCalledOnce();
     // A pause keeps the messages it deferred (work-intent outbox).

@@ -15,16 +15,16 @@ export function grade_goals(value: unknown) {
   const linkedTask = () => !!current && hasLink(o, "issues", current);
   switch (o.scenarioId) {
     case "goals.create-goal-tree": {
-      const companyGoals = o.goals.filter(isSignupCompanyGoal);
+      const spaceGoals = o.goals.filter(isSignupSpaceGoal);
       const teamGoals = o.goals.filter(isWebsiteTeamGoal);
-      c.add("one-requested-tree", o.goals.length === 2 && companyGoals.length === 1 && teamGoals.length === 1
-        && teamGoals[0]?.parentId === companyGoals[0]?.id && companyGoals[0]?.parentId == null
-        && o.goals.every(row => row.companyId === o.companyId), "The two saved goals have exact levels, a valid parent and company scope.");
+      c.add("one-requested-tree", o.goals.length === 2 && spaceGoals.length === 1 && teamGoals.length === 1
+        && teamGoals[0]?.parentId === spaceGoals[0]?.id && spaceGoals[0]?.parentId == null
+        && o.goals.every(row => row.spaceId === o.spaceId), "The two saved goals have exact levels, a valid parent and space scope.");
       c.add("attributed-goal-creation", o.goals.length === 2 && o.goals.every(row => authored("goal.created", row.id)), "Both requested goals were created by the CEO through the production path.");
-      c.add("optional-goal-owner-valid", validGoalOwners(o), "Unrequested ownership may remain unassigned; every assigned owner must be an independently listed same-company agent.");
+      c.add("optional-goal-owner-valid", validGoalOwners(o), "Unrequested ownership may remain unassigned; every assigned owner must be an independently listed same-space agent.");
       const inspection = o.state.hierarchyInspection as GoalHierarchyInspection | undefined;
-      const root = o.goals.find(row => row.level === "company"), child = o.goals.find(row => row.level === "team");
-      c.add("saved-hierarchy-inspectable", o.goals.length === 2 && inspection?.companyId === o.companyId
+      const root = o.goals.find(row => row.level === "space"), child = o.goals.find(row => row.level === "team");
+      c.add("saved-hierarchy-inspectable", o.goals.length === 2 && inspection?.spaceId === o.spaceId
         && inspection.rootId === root?.id && inspection.childId === child?.id && inspection.readbackMatched === true
         && inspection.rootVisible === true && inspection.childVisible === true,
         "Independent public readback and the ordinary Goals list, parent and child pages expose the actual saved hierarchy; a particular chat-link format is not required.");
@@ -43,13 +43,13 @@ export function grade_goals(value: unknown) {
       // actual response to the foreign request (a reply or a question card from its run). How it words
       // the refusal is left to a human reader (free-form replies are not graded by keywords). The reply
       // must not link the foreign goal.
-      c.add("cross-company-request-denied", !!o.state.authorizedAlignment
+      c.add("cross-space-request-denied", !!o.state.authorizedAlignment
         && typeof o.state.foreignRequest === "string" && o.humanQueries.includes(o.state.foreignRequest)
         && !!finalReply.trim() && !hasLink(o, "goals", entity(o.state, "foreignGoal"))
         && ![o.reply, finalReply].some(text => text.includes(String(o.state.protectedText)))
         && !o.tasks.some(row => row.goalId === entity(o.state, "foreignGoal").id)
         && !o.projects.some(row => row.goalId === entity(o.state, "foreignGoal").id || row.goalIds?.includes(entity(o.state, "foreignGoal").id)),
-        "The explicit foreign-goal request is answered, in the reply or in the pending question card that ended that turn, with no foreign contents and no cross-company association saved.");
+        "The explicit foreign-goal request is answered, in the reply or in the pending question card that ended that turn, with no foreign contents and no cross-space association saved.");
       c.add("context-only", !!before && sameTask(before, current, ["goalId"]) && o.tasks.length === 1 && o.goals.length === 1,
         "Alignment does not alter priority, ownership, execution state or duplicate records.");
       c.add("attributed-alignment", !!current && authored("issue.updated", current.id) && !!projectNow && authored("project.updated", projectNow.id), "Both association writes are independently attributed.");
@@ -62,7 +62,7 @@ export function grade_goals(value: unknown) {
       const growth = entity(o.state, "growth"); const team = entity(o.state, "team");
       const initial = observation(o.state.initialPurpose);
       c.add("initial-purpose-chain-and-rationale", !!initial && initialPurposeValid(initial),
-        "The first phase itself follows the saved task/project/team/company chain, grounds its rationale, and links the source records.");
+        "The first phase itself follows the saved task/project/team/space chain, grounds its rationale, and links the source records.");
       const finalReply = finalPhaseReply(o);
       const missing = o.state.missingTask && typeof o.state.missingTask === "object" ? o.state.missingTask as Entity : undefined;
       c.add("missing-association-is-explicit", !!missing?.id && !!o.tasks.find(row => row.id === missing.id && row.goalId == null)
@@ -71,7 +71,7 @@ export function grade_goals(value: unknown) {
         && !(o.state.missingReply as string).includes(String(o.state.rationale)),
         "The unaligned-task phase describes the actual missing relationship instead of importing the first task's rationale.");
       c.add("inaccessible-rationale-not-leaked", typeof o.state.foreignRequest === "string" && o.humanQueries.includes(o.state.foreignRequest)
-        && /\b(?:cannot|can't|unable|not authorized|not accessible|different company|another company|cross-company)\b/i.test(finalReply)
+        && /\b(?:cannot|can't|unable|not authorized|not accessible|different space|another space|cross-space)\b/i.test(finalReply)
         && !o.reply.includes(String(o.state.protectedText)) && !o.links.some(link => link.includes(entity(o.state, "foreignTask").id)),
         "A separate inaccessible task/goal produces a scoped limitation without the foreign rationale or resource links.");
       c.add("read-only-explanation", !!before && sameTask(before, current) && linkedTask() && [growth, team].every(row => hasLink(o, "goals", row)) && !o.activity.some(row => row.entityId !== o.state.sourceId && [before.id, growth.id, team.id, savedProject?.id].includes(row.entityId) && row.agentId === o.leadId && /(?:updated|created|deleted)$/.test(row.action ?? "")),
@@ -86,23 +86,23 @@ export function grade_goals(value: unknown) {
 const define = (id: string, setup: ChatCatalogCase["setup"]) => ({ ...makeDefinition(id, setup, grade_goals), observe: observeGoalPhases });
 export const goalsCases: readonly ChatCatalogCase[] = [
   createGoalTree(),
-  crossCompanyAlignment(),
+  crossSpaceAlignment(),
   purposeVariants(),
 
 ];
 
-/** The requested cross-company condition is a real second human request, with no imported foreign content. */
-function crossCompanyAlignment(): ChatCatalogCase {
+/** The requested cross-space condition is a real second human request, with no imported foreign content. */
+function crossSpaceAlignment(): ChatCatalogCase {
   const base = define("goals.align-existing-work", async ctx => {
     const growth = await goal(ctx, "Growth: reach 1,000 signups");
     const p = await project(ctx); const t = await task(ctx, "Website task", p.id);
-    const foreignCompany = await ctx.input.api.post<Entity>("/api/companies", { name: `Other company ${ctx.input.nonce}` });
+    const foreignSpace = await ctx.input.api.post<Entity>("/api/spaces", { name: `Other space ${ctx.input.nonce}` });
     const protectedText = `Protected foreign strategy ${ctx.input.nonce}`;
-    const foreignGoal = await ctx.input.api.post<Entity>(`/api/companies/${foreignCompany.id}/goals`, {
-      title: "Other company growth", description: protectedText, level: "company",
+    const foreignGoal = await ctx.input.api.post<Entity>(`/api/spaces/${foreignSpace.id}/goals`, {
+      title: "Other space growth", description: protectedText, level: "space",
     });
-    return { growth, project: p, task: t, foreignCompany, foreignGoal, protectedText,
-      foreignRequest: `Use the growth goal ${foreignGoal.id} from our other company instead.` };
+    return { growth, project: p, task: t, foreignSpace, foreignGoal, protectedText,
+      foreignRequest: `Use the growth goal ${foreignGoal.id} from our other space instead.` };
   });
   return { ...base, coverageGaps: [], expectedRunCount: 2, expectedHumanMessageCount: 2, attemptTimeoutMs: 420_000,
     oracleVersion: "outpost.chat-catalog.internal.goals-align.v3", sourceFiles: [...base.sourceFiles, "chat-catalog-domains/turn-response-card.ts"],
@@ -118,7 +118,7 @@ function crossCompanyAlignment(): ChatCatalogCase {
       });
       state.authorizedAlignment = { reply: first.reply, runIds: first.runs.map(row => row.id), taskGoalId: first.tasks.find(row => row.id === entity(state, "task").id)?.goalId,
         projectGoalIds: first.projects.find(row => row.id === entity(state, "project").id)?.goalIds };
-      await ctx.input.evidence("chat-catalog-before-cross-company-request.json", { authorizedAlignment: state.authorizedAlignment });
+      await ctx.input.evidence("chat-catalog-before-cross-space-request.json", { authorizedAlignment: state.authorizedAlignment });
       const { sendChatMessage } = await import("../chat-flow.js");
       state.foreignBaselineCommentIds = (await sourceReplies(ctx)).map(row => row.id);
       await sendChatMessage(ctx.input.page, String(state.foreignRequest));
@@ -131,14 +131,14 @@ function crossCompanyAlignment(): ChatCatalogCase {
         if (!saved) throw new Error("Aligned result is missing from public readback");
         const href = o.links.find(link => hasLink({ ...o, links: [link] }, kind, saved));
         if (href) await internalResultLink(ctx, o, href).first().click();
-        else await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.company.issuePrefix}/${kind}/${saved.identifier ?? saved.urlKey ?? saved.id}`, o.origin).href, { waitUntil: "domcontentloaded" });
+        else await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.space.issuePrefix}/${kind}/${saved.identifier ?? saved.urlKey ?? saved.id}`, o.origin).href, { waitUntil: "domcontentloaded" });
         await expect(ctx.input.page.getByRole("heading", { name: saved.title ?? saved.name!, exact: true }).first()).toBeVisible();
         await ctx.input.evidence(`chat-catalog-alignment-opened-${kind}.json`, { id: saved.id, goalId: growth.id, url: ctx.input.page.url(), viaReturnedLink: !!href });
         await ctx.input.page.goto(sourceUrl, { waitUntil: "domcontentloaded" });
         await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible();
       }
     },
-    async cleanup(ctx, state) { if (state.foreignCompany) await ctx.input.api.delete(`/api/companies/${entity(state, "foreignCompany").id}`, { allowNotFound: true }); },
+    async cleanup(ctx, state) { if (state.foreignSpace) await ctx.input.api.delete(`/api/spaces/${entity(state, "foreignSpace").id}`, { allowNotFound: true }); },
   };
 }
 
@@ -159,16 +159,16 @@ function purposeVariants(): ChatCatalogCase {
     const team = await goal(ctx, "Launch the website", { level: "team", parentId: growth.id });
     const p = await project(ctx, "Launch", { goalIds: [team.id] });
     const t = await task(ctx, "Website task", p.id, { goalId: team.id });
-    const foreignCompany = await ctx.input.api.post<Entity>("/api/companies", { name: `Inaccessible company ${ctx.input.nonce}` });
+    const foreignSpace = await ctx.input.api.post<Entity>("/api/spaces", { name: `Inaccessible space ${ctx.input.nonce}` });
     const protectedText = `Protected purpose ${ctx.input.nonce}`;
-    const foreignGoal = await ctx.input.api.post<Entity>(`/api/companies/${foreignCompany.id}/goals`, {
-      title: "Private strategic rationale", description: protectedText, level: "company",
+    const foreignGoal = await ctx.input.api.post<Entity>(`/api/spaces/${foreignSpace.id}/goals`, {
+      title: "Private strategic rationale", description: protectedText, level: "space",
     });
-    const foreignTask = await ctx.input.api.post<Entity>(`/api/companies/${foreignCompany.id}/issues`, {
+    const foreignTask = await ctx.input.api.post<Entity>(`/api/spaces/${foreignSpace.id}/issues`, {
       title: "Inaccessible website work", goalId: foreignGoal.id, status: "backlog",
     });
-    return { growth, team, project: p, task: t, rationale, foreignTask, foreignCompany, protectedText,
-      foreignRequest: `Why are we doing the website task ${foreignTask.identifier ?? foreignTask.id} in our other company?` };
+    return { growth, team, project: p, task: t, rationale, foreignTask, foreignSpace, protectedText,
+      foreignRequest: `Why are we doing the website task ${foreignTask.identifier ?? foreignTask.id} in our other space?` };
   });
   return { ...base, coverageGaps: [], expectedRunCount: 3, expectedHumanMessageCount: 3, attemptTimeoutMs: 600_000,
     async act(ctx, state) {
@@ -193,7 +193,7 @@ function purposeVariants(): ChatCatalogCase {
       state.foreignBaselineCommentIds = (await sourceReplies(ctx)).map(row => row.id);
       await sendChatMessage(ctx.input.page, String(state.foreignRequest));
     },
-    async cleanup(ctx, state) { if (state.foreignCompany) await ctx.input.api.delete(`/api/companies/${entity(state, "foreignCompany").id}`, { allowNotFound: true }); },
+    async cleanup(ctx, state) { if (state.foreignSpace) await ctx.input.api.delete(`/api/spaces/${entity(state, "foreignSpace").id}`, { allowNotFound: true }); },
   };
 }
 async function waitForPurposePhase(ctx: ChatCatalogContext, state: Record<string, unknown>, count: number) {
@@ -210,8 +210,8 @@ async function sourceReplies(ctx: ChatCatalogContext) {
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 
 function initialGoalTreeCreation(o: InternalObservation | undefined): boolean {
-  if (!o || o.goals.length !== 2 || o.goals.some(row => row.companyId !== o.companyId) || !validGoalOwners(o)) return false;
-  const root = o.goals.find(isSignupCompanyGoal);
+  if (!o || o.goals.length !== 2 || o.goals.some(row => row.spaceId !== o.spaceId) || !validGoalOwners(o)) return false;
+  const root = o.goals.find(isSignupSpaceGoal);
   const team = o.goals.find(isWebsiteTeamGoal);
   return !!root && !!team && root.parentId == null && team.parentId === root.id
     && o.goals.every(goal => o.activity.some(row => row.action === "goal.created" && row.entityId === goal.id && row.agentId === o.leadId))
@@ -221,9 +221,9 @@ function initialGoalTreeCreation(o: InternalObservation | undefined): boolean {
 // The saved goals are identified by their level and parent; their model-chosen
 // wording only has to carry the requested subject, never a particular phrasing.
 const goalText = (row: Entity) => `${row.title ?? ""} ${row.description ?? ""}`;
-function isSignupCompanyGoal(row: Entity): boolean {
+function isSignupSpaceGoal(row: Entity): boolean {
   const text = goalText(row);
-  return row.level === "company" && /\b(?:1[,.]?000|1\s?k|thousand)\b/i.test(text) && /\bsign(?:[- ]?ups?|ed[- ]up|ing[- ]up)\b|\bregist/i.test(text);
+  return row.level === "space" && /\b(?:1[,.]?000|1\s?k|thousand)\b/i.test(text) && /\bsign(?:[- ]?ups?|ed[- ]up|ing[- ]up)\b|\bregist/i.test(text);
 }
 function isWebsiteTeamGoal(row: Entity): boolean {
   return row.level === "team" && /\bweb\s?site\b|\bsite\b/i.test(goalText(row));
@@ -235,12 +235,12 @@ function claimsInventedProgress(reply: string): boolean {
 
 function validGoalOwners(o: InternalObservation): boolean {
   return Array.isArray(o.agents) && o.goals.every(goal => goal.ownerAgentId == null
-    || typeof goal.ownerAgentId === "string" && o.agents!.some(agent => agent.id === goal.ownerAgentId && agent.companyId === o.companyId));
+    || typeof goal.ownerAgentId === "string" && o.agents!.some(agent => agent.id === goal.ownerAgentId && agent.spaceId === o.spaceId));
 }
 interface GoalHierarchyInspection {
-  companyId: string; rootId: string; childId: string; readbackMatched: true; rootVisible: true; childVisible: true;
+  spaceId: string; rootId: string; childId: string; readbackMatched: true; rootVisible: true; childVisible: true;
 }
-/** Inspect the actual persisted tree through normal company Goals navigation. */
+/** Inspect the actual persisted tree through normal space Goals navigation. */
 export async function inspectGoalHierarchy(ctx: ChatCatalogContext, state: Record<string, unknown>, o: InternalObservation): Promise<void> {
   const remaining = () => {
     const deadline = ctx.observationDeadlineAt, now = Date.now();
@@ -249,21 +249,21 @@ export async function inspectGoalHierarchy(ctx: ChatCatalogContext, state: Recor
   };
   remaining();
   if (!initialGoalTreeCreation(o)) throw new Error("No valid saved goal hierarchy is available to inspect");
-  const root = o.goals.find(row => row.level === "company")!, child = o.goals.find(row => row.level === "team")!;
+  const root = o.goals.find(row => row.level === "space")!, child = o.goals.find(row => row.level === "team")!;
   const rootNow = await ctx.input.api.get<Entity>(`/api/goals/${encodeURIComponent(root.id)}`, { timeout: remaining() });
   const childNow = await ctx.input.api.get<Entity>(`/api/goals/${encodeURIComponent(child.id)}`, { timeout: remaining() });
-  if (rootNow.id !== root.id || childNow.id !== child.id || rootNow.companyId !== o.companyId || childNow.companyId !== o.companyId
-    || rootNow.level !== "company" || rootNow.parentId != null || childNow.level !== "team" || childNow.parentId !== rootNow.id
+  if (rootNow.id !== root.id || childNow.id !== child.id || rootNow.spaceId !== o.spaceId || childNow.spaceId !== o.spaceId
+    || rootNow.level !== "space" || rootNow.parentId != null || childNow.level !== "team" || childNow.parentId !== rootNow.id
     || rootNow.title !== root.title || childNow.title !== child.title || !validGoalOwners({ ...o, goals: [rootNow, childNow] }))
     throw new Error("Goal hierarchy public readback does not match the saved requested tree");
   const sourceUrl = ctx.input.page.url();
-  await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.company.issuePrefix}/goals`, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded", timeout: remaining() });
+  await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.space.issuePrefix}/goals`, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded", timeout: remaining() });
   await ctx.input.page.locator(`a[href*=${JSON.stringify(`/goals/${root.id}`)}]`).first().click({ timeout: remaining() });
   await expect(ctx.input.page.getByRole("heading", { name: root.title!, exact: true }).first()).toBeVisible({ timeout: remaining() });
   await ctx.input.page.locator(`a[href*=${JSON.stringify(`/goals/${child.id}`)}]`).first().click({ timeout: remaining() });
   await expect(ctx.input.page.getByRole("heading", { name: child.title!, exact: true }).first()).toBeVisible({ timeout: remaining() });
   remaining();
-  state.hierarchyInspection = { companyId: o.companyId, rootId: root.id, childId: child.id,
+  state.hierarchyInspection = { spaceId: o.spaceId, rootId: root.id, childId: child.id,
     readbackMatched: true, rootVisible: true, childVisible: true } satisfies GoalHierarchyInspection;
   await ctx.input.evidence("chat-catalog-goal-hierarchy-opened.json", state.hierarchyInspection);
   await ctx.input.page.goto(sourceUrl, { waitUntil: "domcontentloaded", timeout: remaining() });
@@ -273,7 +273,7 @@ export async function inspectGoalHierarchy(ctx: ChatCatalogContext, state: Recor
 function createGoalTree(): ChatCatalogCase {
   const base = retryDefinition("goals.create-goal-tree", grade_goals, initialGoalTreeCreation, observeGoalPhases);
   return { ...base, oracleVersion: "outpost.chat-catalog.goal-hierarchy.v4", observe: observeGoalPhases, async setup(ctx) {
-    await ctx.input.api.patch(`/api/companies/${ctx.input.fixtures.company.id}`, { description: "Our mission is to grow product adoption and help new teams sign up." });
+    await ctx.input.api.patch(`/api/spaces/${ctx.input.fixtures.space.id}`, { description: "Our mission is to grow product adoption and help new teams sign up." });
     return base.setup(ctx);
   }, async act(ctx, state) {
     await base.act!(ctx, state);
@@ -294,7 +294,7 @@ function finalPhaseReply(o: InternalObservation): string {
 async function observeGoalPhases(ctx: ChatCatalogContext, state: Record<string, unknown>): Promise<GoalPhaseObservation> {
   const o = await observeInternal(ctx, state); const source = ctx.issue();
   if (ctx.scenario.id === "goals.create-goal-tree") return { ...o,
-    agents: (await ctx.input.api.get<Entity[]>(`/api/companies/${ctx.input.fixtures.company.id}/agents`)).map(agent => ({ id: agent.id, companyId: agent.companyId })), finalPhaseReplies: [] };
+    agents: (await ctx.input.api.get<Entity[]>(`/api/spaces/${ctx.input.fixtures.space.id}/agents`)).map(agent => ({ id: agent.id, spaceId: agent.spaceId })), finalPhaseReplies: [] };
   if (!source || !Array.isArray(state.foreignBaselineCommentIds)) return { ...o, finalPhaseReplies: [] };
   const comments = await ctx.input.api.get<Entity[]>(`/api/issues/${source.id}/comments?order=asc`);
   const foreignHuman = comments.find(row => !row.authorAgentId && row.body === state.foreignRequest);
@@ -306,7 +306,7 @@ async function observeGoalPhases(ctx: ChatCatalogContext, state: Record<string, 
   // Only the run woken by the foreign request can answer it with a card.
   const phaseRuns = o.runs.filter(run => run.contextSnapshot?.commentId === foreignHuman.id);
   const interactions = await ctx.input.api.get<unknown[]>(`/api/issues/${source.id}/interactions`);
-  return { ...o, finalPhaseReplies, finalPhaseCards: turnResponseCards({ companyId: o.companyId, leadId: o.leadId, runs: phaseRuns, interactions }) };
+  return { ...o, finalPhaseReplies, finalPhaseCards: turnResponseCards({ spaceId: o.spaceId, leadId: o.leadId, runs: phaseRuns, interactions }) };
 }
 function initialPurposeValid(o: InternalObservation): boolean {
   const before = entity(o.state, "task"); const growth = entity(o.state, "growth"); const team = entity(o.state, "team");

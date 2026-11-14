@@ -26,8 +26,8 @@ vi.mock("../api/secrets", () => ({ secretsApi: { list: vi.fn().mockResolvedValue
 vi.mock("../api/environments", () => ({ environmentsApi: { list: vi.fn().mockResolvedValue([]) } }));
 vi.mock("../api/instanceSettings", () => ({ instanceSettingsApi: { getExperimental: vi.fn().mockResolvedValue({ enableIsolatedWorkspaces: true }) } }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({ companies: [{ id: "company-1", issuePrefix: "PAP" }], selectedCompanyId: "company-1", setSelectedCompanyId: vi.fn() }),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({ spaces: [{ id: "space-1", issuePrefix: "PAP" }], selectedSpaceId: "space-1", setSelectedSpaceId: vi.fn() }),
 }));
 
 // Heavy children that are unrelated to the save indicator.

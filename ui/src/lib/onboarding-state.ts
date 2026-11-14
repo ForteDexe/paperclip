@@ -1,38 +1,38 @@
 /**
  * localStorage is scoped per ORIGIN, not per account, so a browser that already
- * ran onboarding will happily hand a previous company's id to a brand new
- * session. Every downstream call then targets the wrong company: goals,
+ * ran onboarding will happily hand a previous space's id to a brand new
+ * session. Every downstream call then targets the wrong space: goals,
  * agents, and issues get created there, and requests targeting the actual
- * company fail with authorization errors.
+ * space fail with authorization errors.
  *
  * So restoring is an authorization decision, not a convenience. If the saved
- * company is not one the signed-in user owns, the whole blob is discarded.
+ * space is not one the signed-in user owns, the whole blob is discarded.
  *
- * CONTRACT: `companies` must be the caller's SETTLED companies list (its
- * loading query/context has finished, e.g. `companiesLoading === false`).
+ * CONTRACT: `spaces` must be the caller's SETTLED spaces list (its
+ * loading query/context has finished, e.g. `spacesLoading === false`).
  * This function has no way to tell an empty-because-still-loading list apart
  * from an empty-because-the-account-owns-nothing list, so it always treats
- * an empty `companies` as "owns nothing" and discards a saved company id.
- * Callers must not invoke this while companies are still loading, wait for
+ * an empty `spaces` as "owns nothing" and discards a saved space id.
+ * Callers must not invoke this while spaces are still loading, wait for
  * the settled list first, or a legitimate draft gets discarded by mistake.
  */
 export function restoreOnboardingState(
   raw: unknown,
-  companies: Array<{ id: string }>,
+  spaces: Array<{ id: string }>,
 ): Record<string, unknown> | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
 
   const saved = { ...(raw as Record<string, unknown>) };
 
-  const companyId = saved.createdCompanyId;
-  if (typeof companyId !== "string" || companyId === "") return saved;
+  const spaceId = saved.createdSpaceId;
+  if (typeof spaceId !== "string" || spaceId === "") return saved;
 
-  return companies.some((c) => c.id === companyId) ? saved : null;
+  return spaces.some((c) => c.id === spaceId) ? saved : null;
 }
 
 // Exported so tests write/read the exact key the component uses, instead of
 // duplicating the literal and silently drifting from it if it's ever renamed.
-export const ONBOARDING_STORAGE_KEY = "paperclip-onboarding-state";
+export const ONBOARDING_STORAGE_KEY = "outpost-onboarding-state";
 /**
  * The onboarding draft in `localStorage`, via a browser that is allowed to say
  * no.

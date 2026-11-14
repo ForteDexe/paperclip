@@ -8,7 +8,7 @@ chat, private task, evidence archive, or separate private repository.
 Copy only the sections needed for the current integration. Replace placeholders;
 these are documentation templates, not executable schemas or proof of completion.
 Repository plans belong in dated `doc/plans/YYYY-MM-DD-<harness>-integration.md`
-files. A Paperclip issue's requested plan belongs in its plan document.
+files. A Outpost issue's requested plan belongs in its plan document.
 
 ## 1. Release contract
 
@@ -211,7 +211,7 @@ Next action:
 Do not write “production ready” when only the source patch or protocol probe is
 ready. Do not write “all tests pass” when required cells were unattempted or the
 full command was interrupted. Link the concrete evidence instead of a local
-scratch directory. For Paperclip issue work, register the artifact/work product
+scratch directory. For Outpost issue work, register the artifact/work product
 and link it before setting the final issue status.
 
 Before sharing, make every principle and conclusion understandable from the

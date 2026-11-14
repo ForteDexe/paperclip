@@ -2,7 +2,7 @@ import { notifyStatusCardIssueChange } from "./status-card-notifications.js";
 import { and, eq, sql } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import type { Db } from "@outpost/db";
-import { cases, companies, issues } from "@outpost/db";
+import { cases, spaces, issues } from "@outpost/db";
 
 type DbTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -11,7 +11,7 @@ export type IssuePrefixReadDb = Pick<Db | DbTransaction, "select">;
 /** Write surface shared by the root client and a transaction handle. */
 export type IssuePrefixWriteDb = Pick<Db | DbTransaction, "update">;
 
-/** Prefix used when a company name has no letters to derive from. */
+/** Prefix used when a space name has no letters to derive from. */
 export const ISSUE_PREFIX_FALLBACK = "CMP";
 
 /**
@@ -21,7 +21,7 @@ export const ISSUE_PREFIX_FALLBACK = "CMP";
 export const MAX_ISSUE_PREFIX_ATTEMPTS = 10_000;
 
 /**
- * The letters a company name contributes to its issue prefix.
+ * The letters a space name contributes to its issue prefix.
  *
  * The result is always `[A-Z]{1,3}`, which matters for
  * {@link pickAvailableIssuePrefix}: the base is interpolated into a LIKE
@@ -52,7 +52,7 @@ export function isIssuePrefixConflict(error: unknown) {
     seen.add(current);
     const maybe = current as { code?: string; constraint?: string; constraint_name?: string; cause?: unknown };
     const constraint = maybe.constraint ?? maybe.constraint_name;
-    if (maybe.code === "23505" && constraint === "companies_issue_prefix_idx") {
+    if (maybe.code === "23505" && constraint === "spaces_issue_prefix_idx") {
       return true;
     }
     current = maybe.cause;
@@ -69,13 +69,13 @@ export function isIssuePrefixConflict(error: unknown) {
  * transaction it cannot: a unique violation aborts the whole transaction, so
  * every later statement fails with "current transaction is aborted". Callers
  * that already hold a transaction must therefore pick first and then write.
- * That leaves a small race — another company can claim the same prefix between
+ * That leaves a small race — another space can claim the same prefix between
  * this read and the caller's UPDATE — and the loser sees the unique violation
  * surface from its own statement. The write is client-retryable, and the
- * collision only happens when two companies are renamed onto the same base at
+ * collision only happens when two spaces are renamed onto the same base at
  * the same moment.
  *
- * Prefixes are read from the companies table alone. An orphan identifier left
+ * Prefixes are read from the spaces table alone. An orphan identifier left
  * behind by a partially applied re-key would not be visible here, and the
  * caller would see the identifier unique index reject the write instead.
  */
@@ -85,12 +85,12 @@ export async function pickAvailableIssuePrefix(
 ): Promise<string | null> {
   const taken = new Set(
     await database
-      .select({ issuePrefix: companies.issuePrefix })
-      .from(companies)
+      .select({ issuePrefix: spaces.issuePrefix })
+      .from(spaces)
       // An exact head comparison rather than LIKE, so a base is never read as a
       // pattern. `deriveIssuePrefixBase` cannot produce a LIKE metacharacter,
       // but this helper does not get to assume its caller used it.
-      .where(sql`left(${companies.issuePrefix}, ${base.length}::int) = ${base}`)
+      .where(sql`left(${spaces.issuePrefix}, ${base.length}::int) = ${base}`)
       .then((rows) => rows.map((row) => row.issuePrefix)),
   );
   for (let attempt = 1; attempt <= MAX_ISSUE_PREFIX_ATTEMPTS; attempt += 1) {
@@ -101,20 +101,20 @@ export async function pickAvailableIssuePrefix(
 }
 
 /**
- * Rewrites the stored issue and case identifiers of one company onto a new
+ * Rewrites the stored issue and case identifiers of one space onto a new
  * prefix.
  *
  * Issue identifiers mint as `${prefix}-${issueNumber}` and case identifiers as
  * `${prefix}-C${caseNumber}`, so both start with `${prefix}-` and one head
  * comparison covers both tables. Only the prefix is replaced; the separator and
  * the number after it are preserved. The statements run in the caller's
- * transaction so the company row and its identifiers move together.
+ * transaction so the space row and its identifiers move together.
  */
-export async function rekeyCompanyIssueIdentifiers(
+export async function rekeySpaceIssueIdentifiers(
   tx: IssuePrefixWriteDb,
-  input: { companyId: string; fromPrefix: string; toPrefix: string },
+  input: { spaceId: string; fromPrefix: string; toPrefix: string },
 ): Promise<{ issues: number; cases: number }> {
-  const { companyId, fromPrefix, toPrefix } = input;
+  const { spaceId, fromPrefix, toPrefix } = input;
   if (fromPrefix === toPrefix) return { issues: 0, cases: 0 };
 
   const legacyHead = `${fromPrefix}-`;
@@ -128,17 +128,17 @@ export async function rekeyCompanyIssueIdentifiers(
   // overload, which returns NULL for a non-pattern argument.
   const tailStart = sql`${fromPrefix.length + 1}::int`;
 
-  await notifyStatusCardIssueChange(tx, companyId);
+  await notifyStatusCardIssueChange(tx, spaceId);
   const rekeyedIssues = await tx
     .update(issues)
     .set({ identifier: sql`${toPrefix} || substring(${issues.identifier} from ${tailStart})` })
-    .where(and(eq(issues.companyId, companyId), matchesLegacyHead(issues.identifier)))
+    .where(and(eq(issues.spaceId, spaceId), matchesLegacyHead(issues.identifier)))
     .returning({ id: issues.id });
 
   const rekeyedCases = await tx
     .update(cases)
     .set({ identifier: sql`${toPrefix} || substring(${cases.identifier} from ${tailStart})` })
-    .where(and(eq(cases.companyId, companyId), matchesLegacyHead(cases.identifier)))
+    .where(and(eq(cases.spaceId, spaceId), matchesLegacyHead(cases.identifier)))
     .returning({ id: cases.id });
 
   return { issues: rekeyedIssues.length, cases: rekeyedCases.length };

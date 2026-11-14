@@ -12,11 +12,11 @@ export type CapabilityToolDisposition = "always_agent_tool" | "optional_agent_to
 export type CapabilityOptionalCatalogGroup =
   | "discovery"
   | "delegation_dependencies"
-  | "governance"
+  | "approvals"
   | "cases"
   | "workspace_runtime"
   | "routines"
-  | "company_skills"
+  | "space_skills"
   | "secrets"
   | "portability_admin"
   | "test_escape_hatch";
@@ -24,8 +24,8 @@ export type CapabilityOptionalCatalogGroup =
 export type CapabilitySideEffectClass =
   | "read"
   | "task_write"
-  | "company_write"
-  | "governance"
+  | "space_write"
+  | "approvals"
   | "workspace_control"
   | "secret_read"
   | "admin"

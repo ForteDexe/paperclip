@@ -1,57 +1,57 @@
-export type CompanyArtifactSource = "document" | "attachment" | "work_product";
+export type SpaceArtifactSource = "document" | "attachment" | "work_product";
 
-export type CompanyArtifactMediaKind = "image" | "video" | "text" | "document" | "file" | "empty";
+export type SpaceArtifactMediaKind = "image" | "video" | "text" | "document" | "file" | "empty";
 
-export type CompanyArtifactGroupBy = "none" | "task" | "parent_task";
+export type SpaceArtifactGroupBy = "none" | "task" | "parent_task";
 
-export interface CompanyArtifactIssueSummary {
+export interface SpaceArtifactIssueSummary {
   id: string;
   identifier: string;
   title: string;
 }
 
-export interface CompanyArtifactProjectSummary {
+export interface SpaceArtifactProjectSummary {
   id: string;
   name: string;
 }
 
-export interface CompanyArtifactAgentSummary {
+export interface SpaceArtifactAgentSummary {
   id: string;
   name: string;
 }
 
-export interface CompanyArtifact {
+export interface SpaceArtifact {
   id: string;
-  source: CompanyArtifactSource;
-  mediaKind: CompanyArtifactMediaKind;
+  source: SpaceArtifactSource;
+  mediaKind: SpaceArtifactMediaKind;
   title: string;
   previewText: string | null;
   contentType: string | null;
   contentPath: string | null;
   openPath: string | null;
   downloadPath: string | null;
-  issue: CompanyArtifactIssueSummary;
-  project: CompanyArtifactProjectSummary | null;
-  createdByAgent: CompanyArtifactAgentSummary | null;
+  issue: SpaceArtifactIssueSummary;
+  project: SpaceArtifactProjectSummary | null;
+  createdByAgent: SpaceArtifactAgentSummary | null;
   updatedAt: string;
   href: string;
 }
 
-export interface CompanyArtifactGroup {
+export interface SpaceArtifactGroup {
   id: string;
-  groupBy: Exclude<CompanyArtifactGroupBy, "none">;
-  issue: CompanyArtifactIssueSummary;
+  groupBy: Exclude<SpaceArtifactGroupBy, "none">;
+  issue: SpaceArtifactIssueSummary;
   title: string;
   count: number;
-  mediaKinds: CompanyArtifactMediaKind[];
-  previewArtifacts: CompanyArtifact[];
+  mediaKinds: SpaceArtifactMediaKind[];
+  previewArtifacts: SpaceArtifact[];
   updatedAt: string;
   href: string;
 }
 
-export interface CompanyArtifactsResponse {
-  artifacts: CompanyArtifact[];
-  groups?: CompanyArtifactGroup[];
-  selectedGroup?: CompanyArtifactGroup | null;
+export interface SpaceArtifactsResponse {
+  artifacts: SpaceArtifact[];
+  groups?: SpaceArtifactGroup[];
+  selectedGroup?: SpaceArtifactGroup | null;
   nextCursor: string | null;
 }

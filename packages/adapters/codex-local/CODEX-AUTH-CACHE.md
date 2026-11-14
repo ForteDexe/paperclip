@@ -7,11 +7,11 @@ path, the fail-closed decision predicate, or the host default store overwrite.
 
 ## Where the cache lives
 
-The cache root is company-scoped, under the same isolation boundary as the
+The cache root is space-scoped, under the same isolation boundary as the
 managed Codex home:
 
 ```
-<instanceRoot>/companies/<companyId>/codex-auth-cache/<account_id>/auth.json
+<instanceRoot>/spaces/<spaceId>/codex-auth-cache/<account_id>/auth.json
 ```
 
 The root sits outside the shared Codex home (`resolveSharedCodexHomeDir`) and
@@ -85,9 +85,9 @@ default overwrite is unchanged in both states.
 
 Two operator actions remove cached credentials:
 
-- `clearCodexAuthCacheEntry(env, accountId, companyId)` removes exactly one
+- `clearCodexAuthCacheEntry(env, accountId, spaceId)` removes exactly one
   identity slot.
-- `clearCodexAuthCache(env, companyId)` removes every slot in the company-scoped
+- `clearCodexAuthCache(env, spaceId)` removes every slot in the space-scoped
   cache root.
 
 To disable the cache without a code revert, use the off-switch. To remove a

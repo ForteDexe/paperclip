@@ -250,7 +250,7 @@ describe("Codex protocol integrity propagation", () => {
             threadId: "thread-1",
             turnId: binding === "matching" ? "turn-1" : "foreign-turn",
             callId: "early-finish",
-            tool: "paperclip_finish",
+            tool: "outpost_finish",
             arguments: result,
           },
         });
@@ -374,7 +374,7 @@ describe("Codex protocol integrity propagation", () => {
               threadId: "thread-1",
               turnId: "turn-1",
               callId: "early-rejected-finish",
-              tool: "paperclip_finish",
+              tool: "outpost_finish",
               arguments: result,
             },
           })
@@ -426,7 +426,7 @@ describe("Codex protocol integrity propagation", () => {
     "composes authenticated controller, transport, driver, backend, and runtime for %s",
     async (scenario) => {
       const directory = mkdtempSync(
-        join(tmpdir(), "paperclip-composed-integrity-"),
+        join(tmpdir(), "outpost-composed-integrity-"),
       );
       // Only the process launcher is synthetic; hash a small fixture instead
       // of cold-reading the host Node executable during the protocol deadline.
@@ -453,7 +453,7 @@ describe("Codex protocol integrity propagation", () => {
       const input: NativeExecutionInputV1 = {
         schema: "outpost.native-execution-input.v1",
         binding: {
-          companyId: `composed-company-${scenario}`,
+          spaceId: `composed-space-${scenario}`,
           issueId: `composed-issue-${scenario}`,
           agentId: `composed-agent-${scenario}`,
           runId: identity.runId,
@@ -693,7 +693,7 @@ describe("Codex protocol integrity propagation", () => {
                 schemaVersion: 1,
                 phase: "input",
                 callId: "early-composed-finish",
-                operationId: "paperclip_finish",
+                operationId: "outpost_finish",
                 correlation: {
                   runId: identity.runId,
                   normalizedSessionId: identity.normalizedSessionId,
@@ -736,7 +736,7 @@ describe("Codex protocol integrity propagation", () => {
                   schemaVersion: 1,
                   phase: "input",
                   callId: "corrupt-while-admission-pending",
-                  operationId: "paperclip_finish",
+                  operationId: "outpost_finish",
                   correlation: {
                     runId: identity.runId,
                     normalizedSessionId: identity.normalizedSessionId,
@@ -991,7 +991,7 @@ describe("Codex protocol integrity propagation", () => {
         identity: {
           runId: "run-integrity",
           sessionId: "session-integrity",
-          companyId: "company",
+          spaceId: "space",
           issueId: "issue",
           agentId: "agent",
         },

@@ -11,7 +11,7 @@ import type { ClaudeLoginContext, RevisionMetadata } from "../lib/agent-records.
 export function agentCredentialService(db: Db) {
   const secretsSvc = secretService(db);
   async function syncAgentSecretBindings(
-    agent: { id: string; companyId: string; adapterConfig: unknown },
+    agent: { id: string; spaceId: string; adapterConfig: unknown },
     dbClient: Db = db,
     previousAdapterConfig: unknown = null,
     actor: RevisionMetadata = {},
@@ -19,7 +19,7 @@ export function agentCredentialService(db: Db) {
     const scopedSecretsSvc = dbClient === db ? secretsSvc : secretService(dbClient);
     await syncAgentAdapterEnvBindings({
       secretsSvc: scopedSecretsSvc,
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       agentId: agent.id,
       adapterConfig: agent.adapterConfig,
     });
@@ -47,7 +47,7 @@ export function agentCredentialService(db: Db) {
     const actorId = actor.createdByUserId ?? actor.createdByAgentId ?? "system";
     for (const ref of createdRefs) {
       await logActivity(dbClient, {
-        companyId: agent.companyId,
+        spaceId: agent.spaceId,
         actorType,
         actorId,
         agentId: actor.createdByAgentId ?? null,
@@ -72,8 +72,8 @@ export function agentCredentialService(db: Db) {
    * introduces or keeps the fixed binding.
    *
    * When the write introduces the fixed binding:
-   *   * A create or hire path (`consume: true`) consumes a stored-session claim
-   *     with one conditional write. It builds the claim scope from the company,
+   *   * A create or create path (`consume: true`) consumes a stored-session claim
+   *     with one conditional write. It builds the claim scope from the space,
    *     the owner user, the fixed adapter, the environment, and the
    *     `storedSessionId`. It inserts the binding only when the write returns one
    *     row; otherwise it raises the fixed claim error, which rolls back the
@@ -85,18 +85,18 @@ export function agentCredentialService(db: Db) {
    * fixed reference with no login round trip. The route sets the flag only for
    * an authenticated user actor and derives the owner from that actor. The gate
    * permits the no-claim bind only when the owner already has a stored value for
-   * the company. It reads the owner value status; it reads no token. A missing
+   * the space. It reads the owner value status; it reads no token. A missing
    * owner or a missing stored value raises the same fixed claim error, so the
    * caller cannot tell the reasons apart.
    *
-   * The hire-inheritance path (`inheritedFromAgentId`) binds the fixed
+   * The create-inheritance path (`inheritedFromAgentId`) binds the fixed
    * reference with no login round trip and no stored owner value, because the
    * owning user resolves per run, not from a value stored against this agent.
    * The route copies the parent's reference onto the child before this
    * transaction starts, so a concurrent version change on the parent can
    * leave the child holding a stale version. The gate re-reads the named
    * parent agent inside this transaction and permits the bind only when the
-   * parent exists, is in the same company, is a `claude_local` agent, and its
+   * parent exists, is in the same space, is a `claude_local` agent, and its
    * current reference matches the child's copied reference exactly, including
    * the version selector. The gate locks the parent row with `SELECT ...
    * FOR UPDATE` before it reads the reference. The lock blocks a concurrent
@@ -114,7 +114,7 @@ export function agentCredentialService(db: Db) {
   async function enforceClaudeOAuthBindingClaim(
     txDb: Db,
     input: {
-      companyId: string;
+      spaceId: string;
       decision: ClaudeOAuthBindingInvariantDecision;
       consume: boolean;
       environmentId: string | null;
@@ -138,14 +138,14 @@ export function agentCredentialService(db: Db) {
           throw claudeOAuthClaimRejectedError();
         }
         const stored = await secretService(txDb).readClaudeOAuthUserSecretStatus(
-          input.companyId,
+          input.spaceId,
           ownerUserId,
         );
         if (!stored) {
           throw claudeOAuthClaimRejectedError();
         }
       } else if (input.claudeLogin?.inheritedFromAgentId) {
-        // The hire-inheritance path. Re-read the named parent inside this
+        // The create-inheritance path. Re-read the named parent inside this
         // transaction; a caller-supplied identifier never binds on its own.
         // Compare the parent's current reference against the reference
         // already copied onto the child, including the version selector, so
@@ -154,7 +154,7 @@ export function agentCredentialService(db: Db) {
         const parentId = input.claudeLogin.inheritedFromAgentId;
         const parent = await txDb
           .select({
-            companyId: agents.companyId,
+            spaceId: agents.spaceId,
             adapterType: agents.adapterType,
             adapterConfig: agents.adapterConfig,
           })
@@ -166,7 +166,7 @@ export function agentCredentialService(db: Db) {
         const childBinding = readClaudeOAuthBinding(input.childAdapterConfig ?? null);
         if (
           !parent ||
-          parent.companyId !== input.companyId ||
+          parent.spaceId !== input.spaceId ||
           agentHarnessType(parent.adapterType, parent.adapterConfig as Record<string, unknown>) !== CLAUDE_LOCAL_ADAPTER_TYPE ||
           !claudeOAuthBindingsMatchExactly(parentBinding, childBinding)
         ) {
@@ -177,7 +177,7 @@ export function agentCredentialService(db: Db) {
       } else {
         const consumed = await createDbSetupTokenCleanupStore(txDb).consumeStoredClaim({
           sessionId: input.claudeLogin?.storedSessionId ?? "",
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           ownerUserId: ownerUserId ?? "",
           adapterType: CLAUDE_LOCAL_ADAPTER_TYPE,
         });
@@ -188,7 +188,7 @@ export function agentCredentialService(db: Db) {
     }
     if (input.decision.introducesBinding || input.decision.keepsBinding) {
       // Create the fixed definition before declaration synchronization.
-      await secretService(txDb).ensureClaudeOAuthUserSecretDefinition(input.companyId, {
+      await secretService(txDb).ensureClaudeOAuthUserSecretDefinition(input.spaceId, {
         userId: ownerUserId,
       });
     }

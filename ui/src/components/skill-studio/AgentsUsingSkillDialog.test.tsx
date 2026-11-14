@@ -6,9 +6,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type {
   AgentDesiredSkillEntry,
-  CompanySkillDetail,
-  CompanySkillUsageAgent,
-  CompanySkillVersion,
+  SpaceSkillDetail,
+  SpaceSkillUsageAgent,
+  SpaceSkillVersion,
 } from "@outpost/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -21,7 +21,7 @@ const mockAgentsApi = vi.hoisted(() => ({
   skills: vi.fn(),
   syncSkills: vi.fn(),
 }));
-const mockCompanySkillsApi = vi.hoisted(() => ({
+const mockSpaceSkillsApi = vi.hoisted(() => ({
   versions: vi.fn(),
 }));
 const mockPushToast = vi.hoisted(() => vi.fn());
@@ -30,7 +30,7 @@ vi.mock("@/lib/router", () => ({
   Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
 }));
 vi.mock("@/api/agents", () => ({ agentsApi: mockAgentsApi }));
-vi.mock("@/api/companySkills", () => ({ companySkillsApi: mockCompanySkillsApi }));
+vi.mock("@/api/spaceSkills", () => ({ spaceSkillsApi: mockSpaceSkillsApi }));
 vi.mock("@/adapters/use-adapter-capabilities", () => ({
   useAdapterCapabilities: () => () => ({
     supportsInstructionsBundle: true,
@@ -101,7 +101,7 @@ function findButton(name: string): HTMLButtonElement {
   return match;
 }
 
-function makeAgent(overrides: Partial<CompanySkillUsageAgent> = {}): CompanySkillUsageAgent {
+function makeAgent(overrides: Partial<SpaceSkillUsageAgent> = {}): SpaceSkillUsageAgent {
   return {
     id: "agent-1",
     name: "Reviewer",
@@ -114,11 +114,11 @@ function makeAgent(overrides: Partial<CompanySkillUsageAgent> = {}): CompanySkil
   };
 }
 
-function makeVersion(overrides: Partial<CompanySkillVersion> = {}): CompanySkillVersion {
+function makeVersion(overrides: Partial<SpaceSkillVersion> = {}): SpaceSkillVersion {
   return {
     id: "ver-1",
-    companyId: "company-1",
-    companySkillId: "skill-1",
+    spaceId: "space-1",
+    spaceSkillId: "skill-1",
     revisionNumber: 1,
     label: null,
     releaseId: null,
@@ -132,11 +132,11 @@ function makeVersion(overrides: Partial<CompanySkillVersion> = {}): CompanySkill
   };
 }
 
-function makeSkill(overrides: Partial<CompanySkillDetail> = {}): CompanySkillDetail {
+function makeSkill(overrides: Partial<SpaceSkillDetail> = {}): SpaceSkillDetail {
   return {
     id: "skill-1",
-    companyId: "company-1",
-    key: "paperclip/demo",
+    spaceId: "space-1",
+    key: "outpost/demo",
     slug: "demo",
     name: "Demo Skill",
     description: null,
@@ -153,10 +153,10 @@ function makeSkill(overrides: Partial<CompanySkillDetail> = {}): CompanySkillDet
     authorName: null,
     homepageUrl: null,
     categories: [],
-    sharingScope: "company",
+    sharingScope: "space",
     publicShareToken: null,
     forkedFromSkillId: null,
-    forkedFromCompanyId: null,
+    forkedFromSpaceId: null,
     starCount: 0,
     installCount: 0,
     forkCount: 0,
@@ -190,7 +190,7 @@ beforeEach(() => {
     warnings: [],
   });
   mockAgentsApi.syncSkills.mockResolvedValue({});
-  mockCompanySkillsApi.versions.mockResolvedValue([]);
+  mockSpaceSkillsApi.versions.mockResolvedValue([]);
   mockPushToast.mockReset();
 });
 
@@ -201,7 +201,7 @@ afterEach(() => {
 
 describe("AgentsUsingSkillBadge", () => {
   it("renders a muted '0 agents' button with an a11y label when unused", async () => {
-    await renderNode(<AgentsUsingSkillBadge companyId="company-1" skill={makeSkill()} />);
+    await renderNode(<AgentsUsingSkillBadge spaceId="space-1" skill={makeSkill()} />);
     const badge = findButton("0 agents");
     expect(badge).toBeDefined();
     expect(badge?.getAttribute("aria-label")).toBe("0 agents use this skill");
@@ -212,7 +212,7 @@ describe("AgentsUsingSkillBadge", () => {
     const skill = makeSkill({
       usedByAgents: [makeAgent(), makeAgent({ id: "agent-2", name: "Coder", urlKey: "coder" })],
     });
-    await renderNode(<AgentsUsingSkillBadge companyId="company-1" skill={skill} />);
+    await renderNode(<AgentsUsingSkillBadge spaceId="space-1" skill={skill} />);
     const badge = findButton("2 agents");
     expect(badge?.getAttribute("aria-label")).toBe("2 agents use this skill");
     await click(badge!);
@@ -224,13 +224,13 @@ describe("AgentsUsingSkillBadge", () => {
 
 describe("AgentsUsingSkillDialog", () => {
   it("shows a version select with Latest (vN) and a static '—' when no version history", async () => {
-    mockCompanySkillsApi.versions.mockResolvedValue([
+    mockSpaceSkillsApi.versions.mockResolvedValue([
       makeVersion({ id: "ver-3", revisionNumber: 3 }),
       makeVersion({ id: "ver-2", revisionNumber: 2 }),
     ]);
     const skill = makeSkill({ usedByAgents: [makeAgent()] });
     await renderNode(
-      <AgentsUsingSkillDialog open onOpenChange={() => {}} companyId="company-1" skill={skill} />,
+      <AgentsUsingSkillDialog open onOpenChange={() => {}} spaceId="space-1" skill={skill} />,
     );
     const select = document.body.querySelector("select");
     expect(select).not.toBeNull();
@@ -242,7 +242,7 @@ describe("AgentsUsingSkillDialog", () => {
       <AgentsUsingSkillDialog
         open
         onOpenChange={() => {}}
-        companyId="company-1"
+        spaceId="space-1"
         skill={makeSkill({ currentVersion: null, currentVersionId: null, usedByAgents: [makeAgent()] })}
       />,
     );
@@ -251,13 +251,13 @@ describe("AgentsUsingSkillDialog", () => {
   });
 
   it("shows a 'behind latest' hint for a stale pin", async () => {
-    mockCompanySkillsApi.versions.mockResolvedValue([
+    mockSpaceSkillsApi.versions.mockResolvedValue([
       makeVersion({ id: "ver-3", revisionNumber: 3 }),
       makeVersion({ id: "ver-1", revisionNumber: 1 }),
     ]);
     const skill = makeSkill({ usedByAgents: [makeAgent({ versionId: "ver-1" })] });
     await renderNode(
-      <AgentsUsingSkillDialog open onOpenChange={() => {}} companyId="company-1" skill={skill} />,
+      <AgentsUsingSkillDialog open onOpenChange={() => {}} spaceId="space-1" skill={skill} />,
     );
     expect(document.body.textContent).toContain("2 versions behind latest");
   });
@@ -267,17 +267,17 @@ describe("AgentsUsingSkillDialog", () => {
       adapterType: "claude_local",
       supported: true,
       mode: "managed",
-      desiredSkills: ["paperclip/demo", "paperclip/other"],
+      desiredSkills: ["outpost/demo", "outpost/other"],
       desiredSkillEntries: [
-        { key: "paperclip/demo", versionId: null },
-        { key: "paperclip/other", versionId: null },
+        { key: "outpost/demo", versionId: null },
+        { key: "outpost/other", versionId: null },
       ] satisfies AgentDesiredSkillEntry[],
       entries: [],
       warnings: [],
     });
     const skill = makeSkill({ usedByAgents: [makeAgent()] });
     await renderNode(
-      <AgentsUsingSkillDialog open onOpenChange={() => {}} companyId="company-1" skill={skill} />,
+      <AgentsUsingSkillDialog open onOpenChange={() => {}} spaceId="space-1" skill={skill} />,
     );
 
     // The trash button has no text; grab it by aria-label.
@@ -290,14 +290,14 @@ describe("AgentsUsingSkillDialog", () => {
     );
     await click(confirm!);
 
-    expect(mockAgentsApi.skills).toHaveBeenCalledWith("agent-1", "company-1");
+    expect(mockAgentsApi.skills).toHaveBeenCalledWith("agent-1", "space-1");
     expect(mockAgentsApi.syncSkills).toHaveBeenCalledTimes(1);
     const [, sentEntries] = mockAgentsApi.syncSkills.mock.calls[0];
-    expect(sentEntries).toEqual([{ key: "paperclip/other", versionId: null }]);
+    expect(sentEntries).toEqual([{ key: "outpost/other", versionId: null }]);
   });
 
   it("pins a version by sending the full set with the target repinned", async () => {
-    mockCompanySkillsApi.versions.mockResolvedValue([
+    mockSpaceSkillsApi.versions.mockResolvedValue([
       makeVersion({ id: "ver-3", revisionNumber: 3 }),
       makeVersion({ id: "ver-2", revisionNumber: 2 }),
     ]);
@@ -305,17 +305,17 @@ describe("AgentsUsingSkillDialog", () => {
       adapterType: "claude_local",
       supported: true,
       mode: "managed",
-      desiredSkills: ["paperclip/demo", "paperclip/other"],
+      desiredSkills: ["outpost/demo", "outpost/other"],
       desiredSkillEntries: [
-        { key: "paperclip/demo", versionId: null },
-        { key: "paperclip/other", versionId: null },
+        { key: "outpost/demo", versionId: null },
+        { key: "outpost/other", versionId: null },
       ] satisfies AgentDesiredSkillEntry[],
       entries: [],
       warnings: [],
     });
     const skill = makeSkill({ usedByAgents: [makeAgent()] });
     await renderNode(
-      <AgentsUsingSkillDialog open onOpenChange={() => {}} companyId="company-1" skill={skill} />,
+      <AgentsUsingSkillDialog open onOpenChange={() => {}} spaceId="space-1" skill={skill} />,
     );
     const select = document.body.querySelector<HTMLSelectElement>("select");
     await act(async () => {
@@ -327,8 +327,8 @@ describe("AgentsUsingSkillDialog", () => {
 
     expect(mockAgentsApi.syncSkills).toHaveBeenCalledTimes(1);
     const [, sentEntries] = mockAgentsApi.syncSkills.mock.calls[0];
-    expect(sentEntries).toContainEqual({ key: "paperclip/other", versionId: null });
-    expect(sentEntries).toContainEqual({ key: "paperclip/demo", versionId: "ver-2" });
+    expect(sentEntries).toContainEqual({ key: "outpost/other", versionId: null });
+    expect(sentEntries).toContainEqual({ key: "outpost/demo", versionId: "ver-2" });
   });
 
   it("hides mutating controls in read-only mode but keeps the roster", async () => {
@@ -337,7 +337,7 @@ describe("AgentsUsingSkillDialog", () => {
       <AgentsUsingSkillDialog
         open
         onOpenChange={() => {}}
-        companyId="company-1"
+        spaceId="space-1"
         skill={skill}
         canManage={false}
       />,

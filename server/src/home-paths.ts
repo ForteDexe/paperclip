@@ -9,22 +9,22 @@ import {
   resolveDefaultSecretsKeyFilePath as resolveSharedDefaultSecretsKeyFilePath,
   resolveDefaultStorageDir as resolveSharedDefaultStorageDir,
   resolveHomeAwarePath,
-  resolvePaperclipConfigPathForInstance,
-  resolvePaperclipHomeDir,
-  resolvePaperclipInstanceId,
-  resolvePaperclipInstanceRoot,
+  resolveOutpostConfigPathForInstance,
+  resolveOutpostHomeDir,
+  resolveOutpostInstanceId,
+  resolveOutpostInstanceRoot,
 } from "@outpost/shared/home-paths";
 
 export {
   expandHomePrefix,
   resolveHomeAwarePath,
-  resolvePaperclipHomeDir,
-  resolvePaperclipInstanceId,
-  resolvePaperclipInstanceRoot,
+  resolveOutpostHomeDir,
+  resolveOutpostInstanceId,
+  resolveOutpostInstanceRoot,
 };
 
 export function resolveDefaultConfigPath(): string {
-  return resolvePaperclipConfigPathForInstance();
+  return resolveOutpostConfigPathForInstance();
 }
 
 export function resolveDefaultEmbeddedPostgresDir(): string {
@@ -52,7 +52,7 @@ export function resolveDefaultAgentWorkspaceDir(agentId: string): string {
   if (!PATH_SEGMENT_RE.test(trimmed)) {
     throw new Error(`Invalid agent id for workspace path '${agentId}'.`);
   }
-  return path.resolve(resolvePaperclipInstanceRoot(), "workspaces", trimmed);
+  return path.resolve(resolveOutpostInstanceRoot(), "workspaces", trimmed);
 }
 
 function sanitizeFriendlyPathSegment(value: string | null | undefined, fallback = "_default"): string {
@@ -66,28 +66,28 @@ function sanitizeFriendlyPathSegment(value: string | null | undefined, fallback 
 
 /**
  * Resolve the managed checkout directory for one project:
- * `<instanceRoot>/projects/<companyId>/<projectId>/<repoName|_default>`.
+ * `<instanceRoot>/projects/<spaceId>/<projectId>/<repoName|_default>`.
  *
  * Per-project directory isolation invariant: the `projectId` is a distinct path segment, so two
- * different projects always resolve to sibling directories under `<companyId>/`. One project's
+ * different projects always resolve to sibling directories under `<spaceId>/`. One project's
  * directory can never nest inside, or be a path prefix of, another project's directory. A run that
  * materializes several referenced projects can therefore place each in its own directory without
  * collision. See the "distinct, non-nested managed dirs" test in `heartbeat-project-env.test.ts`.
  */
 export function resolveManagedProjectWorkspaceDir(input: {
-  companyId: string;
+  spaceId: string;
   projectId: string;
   repoName?: string | null;
 }): string {
-  const companyId = input.companyId.trim();
+  const spaceId = input.spaceId.trim();
   const projectId = input.projectId.trim();
-  if (!companyId || !projectId) {
-    throw new Error("Managed project workspace path requires companyId and projectId.");
+  if (!spaceId || !projectId) {
+    throw new Error("Managed project workspace path requires spaceId and projectId.");
   }
   return path.resolve(
-    resolvePaperclipInstanceRoot(),
+    resolveOutpostInstanceRoot(),
     "projects",
-    sanitizeFriendlyPathSegment(companyId, "company"),
+    sanitizeFriendlyPathSegment(spaceId, "space"),
     sanitizeFriendlyPathSegment(projectId, "project"),
     sanitizeFriendlyPathSegment(input.repoName, "_default"),
   );

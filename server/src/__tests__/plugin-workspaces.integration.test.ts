@@ -11,7 +11,7 @@ import {
   issues,
   issueWorkProducts,
   plugins,
-  pluginCompanySettings,
+  pluginSpaceSettings,
 } from "@outpost/db";
 import {
   preparePluginWorkspace,
@@ -47,8 +47,8 @@ const support = await getEmbeddedPostgresTestSupport();
       await db?.$client.end();
       await stopDb?.();
     });
-    const fixture = (companyId?: string) =>
-      createPluginWorkspaceFixture(db, companyId);
+    const fixture = (spaceId?: string) =>
+      createPluginWorkspaceFixture(db, spaceId);
     it.each(["ready", "lost_reply", "unconfirmed", "live_writer", "unsupported"] as const)(
       "verifies the same checkout before choosing a fresh retry (%s)", async (state) => {
         const f = await fixture();
@@ -66,13 +66,13 @@ const support = await getEmbeddedPostgresTestSupport();
         const workspaceId = task.executionWorkspaceId!;
         await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.runId));
         if (state !== "lost_reply") await db.insert(environmentLeases).values({
-          companyId: f.companyId, issueId: f.issueId, heartbeatRunId: f.runId,
+          spaceId: f.spaceId, issueId: f.issueId, heartbeatRunId: f.runId,
           provider: "plugin:test:tasks", executionWorkspaceId: workspaceId, leasePolicy: "ephemeral",
           status: state === "live_writer" ? "active" : "released",
           releasedAt: state === "live_writer" ? null : new Date(),
         });
         const retryIntentId = randomUUID();
-        const [retry] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.input.agentId,
+        const [retry] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.input.agentId,
           issueId: f.issueId, status: "running", contextSnapshot: { taskRetryRequestId: retryIntentId },
         }).returning();
         const fresh = { mode: "fresh_isolated_workspace", retryIntentId, sourceRunId: f.runId, retainedSourceIds: [] } as const;
@@ -307,11 +307,11 @@ const support = await getEmbeddedPostgresTestSupport();
         await registry.updateStatus(f.pluginId, { status: "ready" });
         expect(events.splice(0)).toEqual(["intent", "settled"]);
         await registry.updateStatus(f.pluginId, { status: "ready" });
-        await registry.upsertCompanySettings(f.pluginId, f.companyId, { enabled: false, settingsJson: {} });
+        await registry.upsertSpaceSettings(f.pluginId, f.spaceId, { enabled: false, settingsJson: {} });
         expect(events).toEqual([]);
-        await registry.upsertCompanySettings(f.pluginId, f.companyId, { enabled: true, settingsJson: {} });
+        await registry.upsertSpaceSettings(f.pluginId, f.spaceId, { enabled: true, settingsJson: {} });
         expect(events.splice(0)).toEqual(["intent", "settled"]);
-        await registry.upsertCompanySettings(f.pluginId, f.companyId, { enabled: true, settingsJson: {} });
+        await registry.upsertSpaceSettings(f.pluginId, f.spaceId, { enabled: true, settingsJson: {} });
         expect(events).toEqual([]);
         await db.transaction(async tx => {
           await pluginRegistryService(tx as unknown as typeof db).update(f.pluginId, {
@@ -334,7 +334,7 @@ const support = await getEmbeddedPostgresTestSupport();
         workspaceProvider: { ...plugin.manifestJson.workspaceProvider!, supportsMergeAncestry: false } } }).where(eq(plugins.id, f.pluginId));
       await db.update(issues).set({ status: "done", completedAt: new Date() }).where(eq(issues.id, f.issueId));
       await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.runId));
-      await db.insert(issueWorkProducts).values({ companyId: f.companyId, issueId: f.issueId,
+      await db.insert(issueWorkProducts).values({ spaceId: f.spaceId, issueId: f.issueId,
         type: "pull_request", provider: "github", title: "Work", status: "active",
         url: "https://github.com/example/repo/pull/1" });
       const options = { pluginWorkerManager: f.workers, workspaceReaperCooldownDays: 0,
@@ -421,12 +421,12 @@ const support = await getEmbeddedPostgresTestSupport();
         pluginWorkerManager: f.workers,
       });
       const actor = {
-        type: "board" as const,
+        type: "operator" as const,
         source: "local_implicit" as const,
         isInstanceAdmin: true,
       };
       const request = {
-        companyId: f.companyId,
+        spaceId: f.spaceId,
         issueId: f.issueId,
         actor,
         selection: { kind: "task_directory" as const },
@@ -436,7 +436,7 @@ const support = await getEmbeddedPostgresTestSupport();
       await svc.selectTaskWorkspace(request);
       await preparePluginWorkspace(db, f.workers, f.input);
       expect(
-        await svc.inspectTaskWorkspace(f.companyId, f.issueId, actor),
+        await svc.inspectTaskWorkspace(f.spaceId, f.issueId, actor),
       ).toMatchObject({
         bindingRevision: 2,
         pendingSelection: {
@@ -450,7 +450,7 @@ const support = await getEmbeddedPostgresTestSupport();
         .where(eq(heartbeatRuns.id, f.runId));
       expect(
         await svc.applyPendingTaskWorkspaceSelection({
-          companyId: f.companyId,
+          spaceId: f.spaceId,
           issueId: f.issueId,
           runId: randomUUID(),
           actor,
@@ -494,12 +494,12 @@ const support = await getEmbeddedPostgresTestSupport();
           workspaceId: workspace!.id,
           issue: {
             id: f.issueId,
-            companyId: f.companyId,
+            spaceId: f.spaceId,
             projectId: f.input.projectId,
           },
           actor: { actorType: "user", agentId: null },
           authorizationActor: {
-            type: "board",
+            type: "operator",
             source: "local_implicit",
             isInstanceAdmin: true,
           },
@@ -669,20 +669,20 @@ const support = await getEmbeddedPostgresTestSupport();
       const [workspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, task.executionWorkspaceId!));
       expect(workspace.providerRef).not.toBeNull();
     });
-    it("fails closed for a disabled plugin, stopped run, and cross-company source", async () => {
+    it("fails closed for a disabled plugin, stopped run, and cross-space source", async () => {
       const f = await fixture();
-      await db.insert(pluginCompanySettings).values({
+      await db.insert(pluginSpaceSettings).values({
         pluginId: f.pluginId,
-        companyId: f.companyId,
+        spaceId: f.spaceId,
         enabled: false,
       });
       await expect(
         preparePluginWorkspace(db, f.workers, f.input),
       ).rejects.toThrow("unavailable");
       await db
-        .update(pluginCompanySettings)
+        .update(pluginSpaceSettings)
         .set({ enabled: true })
-        .where(eq(pluginCompanySettings.pluginId, f.pluginId));
+        .where(eq(pluginSpaceSettings.pluginId, f.pluginId));
       await db
         .update(heartbeatRuns)
         .set({ status: "cancelled" })
@@ -694,7 +694,7 @@ const support = await getEmbeddedPostgresTestSupport();
       await expect(
         preparePluginWorkspace(db, f.workers, {
           ...f.input,
-          companyId: randomUUID(),
+          spaceId: randomUUID(),
         }),
       ).resolves.toBeNull();
     });
@@ -768,12 +768,12 @@ const support = await getEmbeddedPostgresTestSupport();
         workspaceId: workspace!.id,
         issue: {
           id: f.issueId,
-          companyId: f.companyId,
+          spaceId: f.spaceId,
           projectId: f.input.projectId,
         },
         actor: { actorType: "user", agentId: null },
         authorizationActor: {
-          type: "board",
+          type: "operator",
           source: "local_implicit",
           isInstanceAdmin: true,
         },
@@ -813,12 +813,12 @@ const support = await getEmbeddedPostgresTestSupport();
         workspaceId: workspace!.id,
         issue: {
           id: f.issueId,
-          companyId: f.companyId,
+          spaceId: f.spaceId,
           projectId: f.input.projectId,
         },
         actor: { actorType: "user", agentId: null },
         authorizationActor: {
-          type: "board",
+          type: "operator",
           source: "local_implicit",
           isInstanceAdmin: true,
         },
@@ -912,12 +912,12 @@ const support = await getEmbeddedPostgresTestSupport();
         workspaceId: workspace!.id,
         issue: {
           id: f.issueId,
-          companyId: f.companyId,
+          spaceId: f.spaceId,
           projectId: f.input.projectId,
         },
         actor: { actorType: "user", agentId: null },
         authorizationActor: {
-          type: "board",
+          type: "operator",
           source: "local_implicit",
           isInstanceAdmin: true,
         },
@@ -941,9 +941,9 @@ const support = await getEmbeddedPostgresTestSupport();
         second = await fixture();
       await preparePluginWorkspace(db, first.workers, first.input);
       await preparePluginWorkspace(db, second.workers, second.input);
-      await db.insert(pluginCompanySettings).values({
+      await db.insert(pluginSpaceSettings).values({
         pluginId: first.pluginId,
-        companyId: first.companyId,
+        spaceId: first.spaceId,
         enabled: false,
       });
       for (const f of [first, second])
@@ -1033,12 +1033,12 @@ const support = await getEmbeddedPostgresTestSupport();
         workspaceId: workspace!.id,
         issue: {
           id: f.issueId,
-          companyId: f.companyId,
+          spaceId: f.spaceId,
           projectId: f.input.projectId,
         },
         actor: { actorType: "user", agentId: null },
         authorizationActor: {
-          type: "board" as const,
+          type: "operator" as const,
           source: "local_implicit" as const,
           isInstanceAdmin: true,
         },
@@ -1134,12 +1134,12 @@ const support = await getEmbeddedPostgresTestSupport();
             workspaceId: workspace!.id,
             issue: {
               id: f.issueId,
-              companyId: f.companyId,
+              spaceId: f.spaceId,
               projectId: f.input.projectId,
             },
             actor: { actorType: "user", agentId: null },
             authorizationActor: {
-              type: "board",
+              type: "operator",
               source: "local_implicit",
               isInstanceAdmin: true,
             },
@@ -1271,7 +1271,7 @@ const support = await getEmbeddedPostgresTestSupport();
     });
     it("does not share inspection results across opaque references owned by different providers", async () => {
       const first = await fixture(),
-        second = await fixture(first.companyId);
+        second = await fixture(first.spaceId);
       for (const f of [first, second]) {
         const workers = {
           getWorker: f.workers.getWorker.bind(f.workers),

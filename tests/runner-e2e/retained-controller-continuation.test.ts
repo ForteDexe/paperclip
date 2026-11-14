@@ -4,7 +4,7 @@ import { gradeRetainedControllerContinuation, retainedControllerRun, retainedCon
 import { runnerMatrix } from "./catalog.js";
 
 function fixture() {
-  const before = retainedControllerRun({ id: "a", companyId: "company", agentId: "agent", nativeIssueId: "task",
+  const before = retainedControllerRun({ id: "a", spaceId: "space", agentId: "agent", nativeIssueId: "task",
     runtimeMode: "native", status: "succeeded", nativeSessionId: "private-native-session", sessionIdAfter: "private-provider-session",
     finishedAt: "2026-10-30T00:00:00Z" });
   return { before, after: { ...before, runId: "b", finishedAt: "2026-10-30T00:01:00Z" },

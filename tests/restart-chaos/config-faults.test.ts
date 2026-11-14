@@ -127,7 +127,7 @@ describe("gradeConfigTask", () => {
     const stuck = snapshot(400_000, { issueStatus: "todo", runs: [{ id: "r1", status: "queued", createdAt: 5_000, startedAt: null, errorCode: null, error: null }],
       execution: { label: "Queued", cause: null, nextAction: null },
       agent: { lifecycleState: "verifying", retryRequired: false,
-        lifecycleError: "Execution configuration check failed. Paperclip could not complete this step. It will retry automatically." } });
+        lifecycleError: "Execution configuration check failed. Outpost could not complete this step. It will retry automatically." } });
     const grade = gradeConfigTask(record({ fault: "CF2", reference: "ai_default", adapter: "opencode" }, { brokenSnapshots: [stuck],
       restart: { kind: "K1", faultId: "f00", firedAt: 420_000, readyAt: 450_000, error: null }, afterRestartSnapshots: [stuck], afterRestartParked: false,
       repair: { at: 600_000, action: "agent setup Retry", detail: "", error: null }, finalStatus: "done", doneAt: 700_000 }), options);

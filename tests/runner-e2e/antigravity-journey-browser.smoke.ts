@@ -58,7 +58,7 @@ export async function runAntigravityBrowserCalibration(page: Page) {
       payload: { name, operation, target, status, executionId, transport: 'builtin' },
     });
     const entries = [event('edit', 'completed', 'edit'), event('read', 'completed', 'read'),
-      event('execute', 'failed', 'finish', 'paperclip_paperclip_finish')];
+      event('execute', 'failed', 'finish', 'outpost_outpost_finish')];
     if (scenario === 'failed-read-activity') entries.unshift(event('read', 'failed', 'failed-read'));
     if (scenario === 'interrupted-edit-activity') entries.unshift(event('edit', 'interrupted', 'interrupted-edit'));
     if (scenario === 'running-read-activity') entries.unshift(event('read', 'running', 'running-read'));
@@ -70,7 +70,7 @@ export async function runAntigravityBrowserCalibration(page: Page) {
     const transcriptOf = values => legacy ? values.flatMap(entry => {
       const { operation, target, executionId } = entry.payload;
       const call = { kind: 'tool_call', ts: entry.ts, toolUseId: executionId,
-        name: operation === 'read' ? 'Running client_view_file' : operation === 'edit' ? 'exec_command' : operation === 'write' ? 'write' : 'paperclip_paperclip_finish',
+        name: operation === 'read' ? 'Running client_view_file' : operation === 'edit' ? 'exec_command' : operation === 'write' ? 'write' : 'outpost_outpost_finish',
         input: { operation, target } };
       if (['interrupted', 'pending'].includes(entry.status)) return [call];
       return [call, { kind: 'tool_result', ts: entry.ts, toolUseId: executionId, isError: entry.status === 'failed',
@@ -100,8 +100,8 @@ export async function runAntigravityBrowserCalibration(page: Page) {
     const wrongId = '33333333-3333-4333-8333-333333333333';
     const first = ${JSON.stringify(artifactBytes.toString('utf8'))}, second = ${JSON.stringify(followupBytes.toString('utf8'))};
     const bytes = id => id === secondId ? second : first;
-    const product = (id, size = bytes(id).length) => ({ id: 'product-' + id, companyId: 'synthetic-company', issueId: 'synthetic-issue',
-      type: 'artifact', provider: 'paperclip', externalId: id, title: 'Prepared proof file', status: 'active', reviewState: 'none',
+    const product = (id, size = bytes(id).length) => ({ id: 'product-' + id, spaceId: 'synthetic-space', issueId: 'synthetic-issue',
+      type: 'artifact', provider: 'outpost', externalId: id, title: 'Prepared proof file', status: 'active', reviewState: 'none',
       healthStatus: 'unknown', createdAt: '2026-10-29T00:00:00Z', updatedAt: '2026-10-29T00:00:00Z',
       metadata: { attachmentId: id, originalFilename: 'antigravity-proof.txt', contentType: 'text/plain', byteSize: size,
         contentPath: '/api/attachments/' + id + '/content', openPath: '/api/attachments/' + id + '/content', downloadPath: '/api/attachments/' + id + '/content?download=1' } });
@@ -124,9 +124,9 @@ export async function runAntigravityBrowserCalibration(page: Page) {
     createRoot(document.getElementById('artifact-root')).render(<ArtifactCalibration />);
   ` }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic", tsconfig: path.resolve(import.meta.dirname, "../../ui/tsconfig.json"),
     loader: { ".svg": "dataurl" }, define: { "process.env.NODE_ENV": '"production"', "import.meta.env": "{}" }, logLevel: "silent" });
-  // Render the shipped wizard and actual agentsApi: only the selected-company
+  // Render the shipped wizard and actual agentsApi: only the selected-space
   // context is fixed. All draft creation crosses the real browser POST boundary.
-  const creationCompanyId = "33333333-3333-4333-8333-333333333333", creatorUserId = "synthetic-user";
+  const creationSpaceId = "33333333-3333-4333-8333-333333333333", creatorUserId = "synthetic-user";
   const creationName = "Antigravity QA 0123456789ab";
   const creationBundle = await build({ stdin: { loader: "tsx", resolveDir: path.resolve(import.meta.dirname, "../../ui"), contents: `
     import React from 'react';
@@ -139,9 +139,9 @@ export async function runAntigravityBrowserCalibration(page: Page) {
     </QueryClientProvider>);
   ` }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic", tsconfig: path.resolve(import.meta.dirname, "../../ui/tsconfig.json"),
     loader: { ".svg": "dataurl" }, define: { "process.env.NODE_ENV": '"production"', "import.meta.env": "{}" }, logLevel: "silent",
-    plugins: [{ name: "selected-company-calibration", setup(build) {
-      build.onResolve({ filter: /CompanyContext$/ }, () => ({ path: "selected-company", namespace: "calibration" }));
-      build.onLoad({ filter: /.*/, namespace: "calibration" }, () => ({ contents: `export const useCompany = () => ({ selectedCompanyId: '${creationCompanyId}' });`, loader: "js" }));
+    plugins: [{ name: "selected-space-calibration", setup(build) {
+      build.onResolve({ filter: /SpaceContext$/ }, () => ({ path: "selected-space", namespace: "calibration" }));
+      build.onLoad({ filter: /.*/, namespace: "calibration" }, () => ({ contents: `export const useSpace = () => ({ selectedSpaceId: '${creationSpaceId}' });`, loader: "js" }));
     } }] });
   let persistedCreation: Record<string, unknown> | undefined;
   let creationMode: "normal" | "lost-response" | "wrong-response-id" | "foreign-response-creator" | "malformed-response" = "normal";
@@ -149,16 +149,16 @@ export async function runAntigravityBrowserCalibration(page: Page) {
   const creationRequests: Array<{ body: Record<string, any>; raw: string; durableBeforeForward: boolean }> = [];
   const server = createServer(async (request, response) => {
     const name = new URL(request.url ?? "/", "http://localhost").pathname.slice(1);
-    if (request.method === "POST" && /^api\/companies\/[^/]+\/agents$/u.test(name)) receivedCreatePaths.push(name);
+    if (request.method === "POST" && /^api\/spaces\/[^/]+\/agents$/u.test(name)) receivedCreatePaths.push(name);
     if (name === "creation-client.js") { response.writeHead(200, { "Content-Type": "text/javascript" }).end(creationBundle.outputFiles[0]!.text); return; }
     if (name === "creation") { response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end('<!doctype html><html><body><div id="creation-root"></div><script src="/creation-client.js"></script></body></html>'); return; }
     if (name === "api/instance/settings/experimental") { response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ enableNativeRunner: true })); return; }
     if (name === "api/adapters") { response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify([{ type: "outpost_runner", loaded: true, candidateHarnesses: [{ agent: "antigravity", model }] }])); return; }
-    if (name === `api/companies/${creationCompanyId}/agents`) {
+    if (name === `api/spaces/${creationSpaceId}/agents`) {
       if (request.method === "POST") {
         let raw = ""; for await (const chunk of request) raw += chunk;
         const body = JSON.parse(raw);
-        const expected = { setupId: body.setupId, companyId: creationCompanyId, agentName: body.name, provider: "antigravity", creatorUserId, origin: `http://${request.headers.host}` };
+        const expected = { setupId: body.setupId, spaceId: creationSpaceId, agentName: body.name, provider: "antigravity", creatorUserId, origin: `http://${request.headers.host}` };
         creationRequests.push({ body, raw, durableBeforeForward: persistedCreation != null && Object.keys(persistedCreation).length === 6 && Object.entries(expected).every(([key, value]) => persistedCreation![key] === value) });
         // Simulate a committed row whose response is lost, without re-sending
         // the POST or invoking any agent/provider work.
@@ -169,9 +169,9 @@ export async function runAntigravityBrowserCalibration(page: Page) {
         }
         if (creationMode === "malformed-response") { response.writeHead(201, { "Content-Type": "application/json" }).end("{"); return; }
         response.writeHead(201, { "Content-Type": "application/json" }).end(JSON.stringify({ ...body, id: creationMode === "wrong-response-id" ? artifactId : body.setupId,
-          companyId: creationCompanyId, createdByUserId: creationMode === "foreign-response-creator" ? "another-user" : creatorUserId, lifecycleState: "draft" })); return;
+          spaceId: creationSpaceId, createdByUserId: creationMode === "foreign-response-creator" ? "another-user" : creatorUserId, lifecycleState: "draft" })); return;
       }
-      response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify([{ id: followupId, companyId: creationCompanyId, role: "ceo", status: "idle" }])); return;
+      response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify([{ id: followupId, spaceId: creationSpaceId, role: "ceo", status: "idle" }])); return;
     }
     if (/^api\/attachments\/[^/]+\/content$/u.test(name)) {
       const referer = String(request.headers.referer ?? "");
@@ -193,7 +193,7 @@ export async function runAntigravityBrowserCalibration(page: Page) {
   let removeCreationObserver: (() => void) | undefined;
   try {
     const visit = async (fixture: string) => page.goto(`${origin}/${fixture}`);
-    const creationResources = (): AntigravityJourneyResources => ({ version: 1, executionId: ANTIGRAVITY_JOURNEY_EXECUTION, origin, companyId: creationCompanyId,
+    const creationResources = (): AntigravityJourneyResources => ({ version: 1, executionId: ANTIGRAVITY_JOURNEY_EXECUTION, origin, spaceId: creationSpaceId,
       environmentId: artifactId, connectionId: followupId, agentName: creationName, runIds: [], processes: {}, retained: false, setupProbe: "not_started" });
     const beginCreation = async () => {
       await visit("creation");
@@ -203,7 +203,7 @@ export async function runAntigravityBrowserCalibration(page: Page) {
     };
     const originalPostBodies: string[] = [];
     const observeCreation = (request: import("@playwright/test").Request) => {
-      if (request.method() === "POST" && new URL(request.url()).pathname === `/api/companies/${creationCompanyId}/agents`) originalPostBodies.push(request.postData()!);
+      if (request.method() === "POST" && new URL(request.url()).pathname === `/api/spaces/${creationSpaceId}/agents`) originalPostBodies.push(request.postData()!);
     };
     page.on("request", observeCreation); removeCreationObserver = () => page.off("request", observeCreation);
     const owned = creationResources(), submit = await beginCreation();
@@ -212,7 +212,7 @@ export async function runAntigravityBrowserCalibration(page: Page) {
     assert.equal(writes, 1, "persist the safe creation identity once before network forwarding");
     assert.equal(creationRequests.length, 1);
     assert.equal(creationRequests[0]!.durableBeforeForward, true, "creation witness must be durable before the server receives the unchanged POST");
-    assert.deepEqual((owned as any).agentCreationRequest, { setupId: draft.id, companyId: creationCompanyId, agentName: creationName, provider: "antigravity", creatorUserId, origin });
+    assert.deepEqual((owned as any).agentCreationRequest, { setupId: draft.id, spaceId: creationSpaceId, agentName: creationName, provider: "antigravity", creatorUserId, origin });
     assert.equal(creationRequests[0]!.raw, originalPostBodies[0], "forward the original UI POST body without mutation");
     assert.equal(creationRequests[0]!.body.setupId, draft.id);
     assert.equal(creationRequests[0]!.body.metadata.setupAdapterPending, true);
@@ -256,12 +256,12 @@ export async function runAntigravityBrowserCalibration(page: Page) {
       assert.equal(lost.agentId, undefined);
     } finally { page.setDefaultTimeout(10000); }
     creationMode = "normal";
-    for (const patch of [{ setupId: "not-a-uuid" }, { name: "Existing user agent" }, { setupId: undefined }, { company: artifactId }]) {
+    for (const patch of [{ setupId: "not-a-uuid" }, { name: "Existing user agent" }, { setupId: undefined }, { space: artifactId }]) {
       const malformed = creationResources(); const before: number = receivedCreatePaths.length;
       let malformedWrites = 0;
       await assert.rejects(captureAntigravityAgentDraft(page, malformed, async () => { malformedWrites++; }, async () => {
         await page.evaluate(({ route, body }) => { void fetch(route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => {}); },
-          { route: `/api/companies/${"company" in patch ? patch.company : creationCompanyId}/agents`, body: { setupId: artifactId, name: creationName, ...patch } });
+          { route: `/api/spaces/${"space" in patch ? patch.space : creationSpaceId}/agents`, body: { setupId: artifactId, name: creationName, ...patch } });
       }, creatorUserId));
       assert.equal(malformedWrites, 0); assert.equal(receivedCreatePaths.length, before, "reject an invalid create identity before forwarding");
       assert.equal((malformed as any).agentCreationRequest, undefined);
@@ -272,7 +272,7 @@ export async function runAntigravityBrowserCalibration(page: Page) {
       persistedCreation = structuredClone((privateBodyOwned as any).agentCreationRequest); privateWrite = JSON.stringify(privateBodyOwned);
     }, async () => {
       await page.evaluate(({ route, body }) => { void fetch(route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => {}); },
-        { route: `/api/companies/${creationCompanyId}/agents`, body: { setupId: artifactId, name: creationName, runtimeConfig: { env: { SYNTHETIC_PRIVATE_VALUE: "must-never-be-persisted" } } } });
+        { route: `/api/spaces/${creationSpaceId}/agents`, body: { setupId: artifactId, name: creationName, runtimeConfig: { env: { SYNTHETIC_PRIVATE_VALUE: "must-never-be-persisted" } } } });
     }, creatorUserId);
     assert.equal(privateWrite!.includes("must-never-be-persisted"), false);
     assert.equal(creationRequests.at(-1)!.body.runtimeConfig.env.SYNTHETIC_PRIVATE_VALUE, "must-never-be-persisted", "the original request still forwards unchanged");

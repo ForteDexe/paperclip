@@ -8,13 +8,13 @@ Evidence: [Accounting contention investigation](2026-11-03-accounting-contention
 ## Decision
 
 Make the frequent accounting write path append-only. A receipt writes its own
-immutable fact and commits. It does not lock or update the company, agent, run,
+immutable fact and commits. It does not lock or update the space, agent, run,
 budget, aggregate counter, or worker checkpoint. Independent runs use independent
-keys, including when they belong to the same company or agent.
+keys, including when they belong to the same space or agent.
 
 Asynchronous workers derive operation state, ledger entries and partitioned spend
 totals. Budget admission reads a recent view without making a synchronized debit
-against a company balance. Threshold detection and cancellation may lag; durable
+against a space balance. Threshold detection and cancellation may lag; durable
 evidence, deterministic accounting and execution authorization remain required.
 
 "Lock-free" here means no application mutex, advisory lock, or `SELECT FOR
@@ -26,7 +26,7 @@ wait for each other. See [PostgreSQL INSERT](https://www.postgresql.org/docs/cur
 
 Background batches and infrequent policy changes use optimistic conditional
 writes. Those also take database row locks internally. Moving a compare-and-swap
-onto the same company counter for every receipt would fail this design.
+onto the same space counter for every receipt would fail this design.
 
 Existing issue ownership, provider-dispatch fencing, manual Stop and resource
 ownership are outside this lock-removal scope. Accounting cannot replace those
@@ -34,7 +34,7 @@ contracts with an eventually consistent spend view.
 
 ## Problem fit and first milestone
 
-This design removes the identified company-wide accounting serialization point
+This design removes the identified space-wide accounting serialization point
 if receipt ingestion, admission, settlement and shared counters all migrate.
 It does not establish that accounting is the current main-loop CPU culprit or
 that the resulting system supports 10,000 active agents. Those remain separate
@@ -48,14 +48,14 @@ most directly supported first change. It does not show that large exposure
 scans or a high receipt rate caused the sampled delays.
 
 The 9,421 accounting transactions in that hour average about 2.6 per second
-across the observed host. Burst rate, company distribution and actual lock hold
+across the observed host. Burst rate, space distribution and actual lock hold
 time are missing. The acquisition spans include database/network time and Node
 scheduling, so their long tails alone do not prove PostgreSQL row-lock saturation.
 
 | Problem | What this design changes | Remaining condition |
 | --- | --- | --- |
-| Eligibility checks enter a mutating company transaction | Read-only admission, separate reconciliation | Classify callers and preserve manual holds, resume behavior and execution fencing |
-| Independent receipts serialize by company | Independent immutable inserts | Qualify actual receipt rate, index/FK waits and durable ingestion capacity |
+| Eligibility checks enter a mutating space transaction | Read-only admission, separate reconciliation | Classify callers and preserve manual holds, resume behavior and execution fencing |
+| Independent receipts serialize by space | Independent immutable inserts | Qualify actual receipt rate, index/FK waits and durable ingestion capacity |
 | Repeated exposure work and shared counters limit growth | Coalesced evaluation and partitioned projections | Show less work per receipt and sufficient projection throughput |
 | Main-loop CPU/event-loop contention | Some synchronous work leaves the request path | Same-process reducers still consume CPU; batching must reduce work or processing must move to another runtime |
 
@@ -69,12 +69,12 @@ Start with an independently shippable milestone: attribute admission calls and
 transaction work, provide a pure eligibility read (including a no-policy fast
 path), and move required reconciliation to its explicit owner. Retain the current
 final admission/reservation authority during this initial behavior-preserving
-step. Having no configured policy must not bypass manual company/project pauses,
+step. Having no configured policy must not bypass manual space/project pauses,
 existing holds, unknown-accounting restrictions or duplicate-dispatch protection.
 
 Compare end-to-end dispatch latency, accounting transactions and queries per
 dispatch, database waits, CPU and event-loop delay under the same workload.
-Then qualify receipt coalescing and the remaining single-company bottleneck.
+Then qualify receipt coalescing and the remaining single-space bottleneck.
 Use the full migration below when that evidence or the agreed capacity target
 justifies it. The accounting rewrite does not cover the other independently
 identified work in run-event persistence, recovery, snapshots or fanout.
@@ -104,7 +104,7 @@ requirement for Kafka, Redis, another service, or a separate database today.
 
 Use one accounting operation for each heartbeat run, browser invocation,
 decision-model invocation, fast response, classifier invocation, or separately
-reported charge. Record its company and attribution before paid dispatch.
+reported charge. Record its space and attribution before paid dispatch.
 Retries of the same external operation reuse its identity; a genuinely new paid
 attempt has a distinct attempt identity beneath that operation.
 
@@ -112,8 +112,8 @@ An accounting operation's immutable identity is separate from mutable run state.
 Receipts reference this identity, rather than acquiring foreign-key protection
 on a busy mutable `heartbeat_runs` row. The existing journal directly references
 that row, so removing the explicit lock alone does not eliminate this possible
-wait. Use a company-scoped composite reference to the immutable identity; keep
-company-boundary validation and the existing deletion/retention obligations.
+wait. Use a space-scoped composite reference to the immutable identity; keep
+space-boundary validation and the existing deletion/retention obligations.
 Separate any nullable live-run pointer from retained original attribution.
 
 Admitted accounting sources have durable identities and provenance. Controller
@@ -124,7 +124,7 @@ over earlier billing evidence.
 
 Source handoff remains an infrequent execution-authority operation. Ordinary
 checkpoints do not mutate its ownership record. Existing authentication and
-company access checks still apply. Authority to report a closing receipt after
+space access checks still apply. Authority to report a closing receipt after
 Stop is accounting-only; it never grants authority to continue execution.
 
 ## 2. Receipt ingestion only appends evidence
@@ -134,7 +134,7 @@ receipt contains:
 
 | Field | Purpose |
 | --- | --- |
-| Company and operation IDs | Tenant boundary and accounting unit |
+| Space and operation IDs | Tenant boundary and accounting unit |
 | Attempt and admitted source identity | Separate paid attempts from reconnect/replay |
 | Stable source event ID and source sequence | Replay identity and ordering within that source |
 | Receipt kind and normalization version | Partial usage, final usage, source handoff, closure, correction |
@@ -160,7 +160,7 @@ has already incorporated it. Preserve legacy durable spooling and native
 redelivery when the database write or its acknowledgement is uncertain.
 
 There is no read-modify-write of `usageJson`, `spentMonthlyCents`, reservation
-capacity, or a company-wide dirty flag here. The new receipt is itself durable
+capacity, or a space-wide dirty flag here. The new receipt is itself durable
 pending work. Mutable delivery metadata may be attached to it by the consumer;
 its evidence fields are immutable.
 
@@ -170,9 +170,9 @@ amount matches the previous one: it may change completeness or provenance.
 
 ## 3. Reduce independent partitions, then publish batches atomically
 
-Route by a stable hash of **operation ID**, not company ID. For example, a
-starting benchmark can use 64 virtual partitions per company. That number is a
-test parameter, not a capacity claim. One company with 10,000 active runs spreads
+Route by a stable hash of **operation ID**, not space ID. For example, a
+starting benchmark can use 64 virtual partitions per space. That number is a
+test parameter, not a capacity claim. One space with 10,000 active runs spreads
 over all partitions; one agent with many runs spreads too.
 
 Persist the layout version and partition with the operation's admission. All its
@@ -219,7 +219,7 @@ later must still be discoverable. Retain an indexed pending predicate.
 
 This has bounded coordination per partition **per batch**. It cannot stall
 receipt ACKs behind the calculation, and different partitions do not write the
-same aggregate rows. Shared company/agent/project totals are sums of these
+same aggregate rows. Shared space/agent/project totals are sums of these
 partition contributions, not counters incremented by every producer.
 
 ## 4. Define canonical money without depending on arrival order
@@ -248,7 +248,7 @@ and apply their configured restrictions. Hosted browser work remains a separate
 paid operation from its parent run.
 
 Settlement and that operation's replacement contribution publish atomically.
-Company/agent/project views sum one contribution per operation. A reader sees
+Space/agent/project views sum one contribution per operation. A reader sees
 the old or new contribution, never both the live estimate and its final charge.
 UTC-month and lifetime attribution, unsettled carryover, credits, backdated
 charges and corrections need explicit reducer rules matching the selected
@@ -268,7 +268,7 @@ dedicated accounting sequence if the producer contract is extended. Do not
 invent a contiguous usage sequence from today's sparse source sequence.
 
 Publish a settlement certificate and its ledger components in one transaction,
-with one base settlement per `(company_id, operation_id)` and a verified content
+with one base settlement per `(space_id, operation_id)` and a verified content
 fingerprint. A different closure for an already-settled operation is a conflict
 or an explicit correction, not a second base settlement.
 Only the transaction that inserts that certificate inserts its components; a
@@ -283,7 +283,7 @@ Existing mutable correction/reporting APIs need an adapter to this ledger model.
 
 ## 5. Budget checks read; they do not reserve a shared balance
 
-For dispatch, read current company/agent/project controls and applicable budget
+For dispatch, read current space/agent/project controls and applicable budget
 decisions in one bounded read from the authoritative database, rather than an
 unbounded-lag replica or cache. A policy without a current decision must
 be evaluated or treated as pending; it is not implicitly unlimited. The decision
@@ -295,7 +295,7 @@ the decision versions and estimated cost. Preserve duplicate-dispatch fencing
 in the execution subsystem. An admission receipt is not proof that an external
 provider call occurred exactly once; existing unknown-outcome recovery remains.
 
-There is no atomic decrement of company remaining budget. Estimate-fit checks
+There is no atomic decrement of space remaining budget. Estimate-fit checks
 can use the same snapshot, and admitted estimates can enter the asynchronous
 exposure view. Two dispatches can see the same remaining money and both start.
 That race is accepted by this best-effort contract. Reservations become recorded
@@ -348,7 +348,7 @@ Policy edits and UTC-window changes are explicit new evaluation obligations.
 
 Durable pending rows are truth; notifications are hints. Reuse the existing
 delivery coordinator for local coalescing, finite retries, actual deadlines,
-drain and restart. No unconditional per-company timer scans empty queues.
+drain and restart. No unconditional per-space timer scans empty queues.
 
 The current DB work signals are process-local by default, with optional
 commit-bound PostgreSQL notifications. Separate reducers therefore require
@@ -412,9 +412,9 @@ with adapters. Update DB/shared/API/UI contracts and the budget guarantees in
 the change. The earlier per-run-lock design is not this target's hot path.
 
 Qualification uses real PostgreSQL and multiple independent processes, both one
-large company and many companies, overlapping scope budgets, ledger-history
+large space and many spaces, overlapping scope budgets, ledger-history
 growth, duplicate/reconnect bursts and the races above. Verify producer SQL has
-no shared counter/head/policy writes and no company/run `FOR UPDATE`. Audit
+no shared counter/head/policy writes and no space/run `FOR UPDATE`. Audit
 foreign-key, trigger and uniqueness behavior too; string searches cannot prove
 absence of contention.
 

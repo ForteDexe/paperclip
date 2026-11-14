@@ -39,10 +39,10 @@ export function pauseResumeWakeKey(runId: string) {
 
 const SYSTEM_ACTOR: ResumeActor = { actorType: "system", actorId: "system" };
 
-function activity(db: Db, companyId: string, actor: ResumeActor, action: string, issueId: string,
+function activity(db: Db, spaceId: string, actor: ResumeActor, action: string, issueId: string,
   details: Record<string, unknown>) {
   return logActivity(db, {
-    companyId, actorType: actor.actorType, actorId: actor.actorId, agentId: actor.agentId ?? null,
+    spaceId, actorType: actor.actorType, actorId: actor.actorId, agentId: actor.agentId ?? null,
     runId: actor.runId ?? null, agentApiKeyId: actor.agentApiKeyId ?? null, action,
     entityType: "issue", entityId: issueId, details,
   });
@@ -50,7 +50,7 @@ function activity(db: Db, companyId: string, actor: ResumeActor, action: string,
 
 /** Compare-and-set the run's resume record. Only the writer that wins dispatches. */
 async function setResumeState(db: Db, input: {
-  companyId: string; runId: string; next: Record<string, unknown>; expectedClaimedAt?: string | null;
+  spaceId: string; runId: string; next: Record<string, unknown>; expectedClaimedAt?: string | null;
 }) {
   const guard = input.expectedClaimedAt === undefined
     ? sql`not (coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) ? 'treeHoldResume')`
@@ -61,23 +61,23 @@ async function setResumeState(db: Db, input: {
     if (input.next.state === "pending") await notifyDeliveryWork(tx, DELIVERY_QUEUES.executionContinuation);
     const [row] = await tx.update(heartbeatRuns).set({
       resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) || ${JSON.stringify({ treeHoldResume: input.next })}::jsonb`,
-    }).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.runId),
+    }).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.runId),
       eq(heartbeatRuns.status, "cancelled"), guard)).returning({ id: heartbeatRuns.id });
     return Boolean(row);
   });
 }
 
 /** A saved, admitted resume wake (queued, deferred, coalesced, or run) for the interrupted run. */
-async function findPauseResumeReceipt(db: Db, companyId: string, agentId: string, runId: string) {
+async function findPauseResumeReceipt(db: Db, spaceId: string, agentId: string, runId: string) {
   const [receipt] = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.companyId, companyId), eq(agentWakeupRequests.agentId, agentId),
+    eq(agentWakeupRequests.spaceId, spaceId), eq(agentWakeupRequests.agentId, agentId),
     eq(agentWakeupRequests.idempotencyKey, pauseResumeWakeKey(runId)),
     ne(agentWakeupRequests.status, "skipped"))).limit(1);
   return Boolean(receipt);
 }
 
 async function dispatch(db: Db, input: {
-  companyId: string; issueId: string; agentId: string; runId: string; holdId: string;
+  spaceId: string; issueId: string; agentId: string; runId: string; holdId: string;
   claimedAt: string; rootIssueId: string | null; actor: ResumeActor; wakeup: Wakeup;
 }) {
   const saved = await input.wakeup(input.agentId, {
@@ -107,8 +107,8 @@ async function dispatch(db: Db, input: {
   // Admission can skip the wake, for example when a new pause landed after the
   // eligibility check. A skipped request is no receipt, so the claim stays
   // pending and the sweep retries once the task is runnable again.
-  if (saved === "not_admitted" && !await findPauseResumeReceipt(db, input.companyId, input.agentId, input.runId)) return;
-  await setResumeState(db, { companyId: input.companyId, runId: input.runId, expectedClaimedAt: input.claimedAt,
+  if (saved === "not_admitted" && !await findPauseResumeReceipt(db, input.spaceId, input.agentId, input.runId)) return;
+  await setResumeState(db, { spaceId: input.spaceId, runId: input.runId, expectedClaimedAt: input.claimedAt,
     next: { holdId: input.holdId, state: "delivered", claimedAt: input.claimedAt, deliveredAt: new Date().toISOString() } });
 }
 
@@ -124,7 +124,7 @@ async function dispatch(db: Db, input: {
 export async function resumePauseInterruptedWork(
   db: Db,
   input: {
-    companyId: string; issueIds: string[]; actor: ResumeActor; wakeup: Wakeup; rootIssueId?: string | null;
+    spaceId: string; issueIds: string[]; actor: ResumeActor; wakeup: Wakeup; rootIssueId?: string | null;
     /** Also revisit tasks whose work a gate refused for this hold, wherever they are now. */
     suppressedByHoldId?: string; excludeIssueIds?: string[];
   },
@@ -132,30 +132,30 @@ export async function resumePauseInterruptedWork(
   const treeControl = issueTreeControlService(db);
   const failures: Array<{ issueId: string; message: string }> = [];
   const suppressedIssueIds = input.suppressedByHoldId
-    ? await listPauseSuppressedIssueIds(db, input.companyId, input.suppressedByHoldId) : [];
+    ? await listPauseSuppressedIssueIds(db, input.spaceId, input.suppressedByHoldId) : [];
   const excluded = new Set(input.excludeIssueIds ?? []);
   for (const issueId of new Set([...input.issueIds, ...suppressedIssueIds])) {
     if (excluded.has(issueId)) continue;
     try {
-      const target = await treeControl.findOwedPauseResume(input.companyId, issueId);
+      const target = await treeControl.findOwedPauseResume(input.spaceId, issueId);
       if (!target) continue;
-      const blocker = await getExecutionBlocker(db, input.companyId, issueId);
+      const blocker = await getExecutionBlocker(db, input.spaceId, issueId);
       if (blocker) {
-        await activity(db, input.companyId, input.actor, "issue.tree_resume_wake_skipped", issueId, {
+        await activity(db, input.spaceId, input.actor, "issue.tree_resume_wake_skipped", issueId, {
           holdId: target.holdId, interruptedRunId: target.interruptedRunId, cause: blocker.cause,
         });
         continue;
       }
       const claimedAt = new Date().toISOString();
-      if (!await setResumeState(db, { companyId: input.companyId, runId: target.interruptedRunId,
+      if (!await setResumeState(db, { spaceId: input.spaceId, runId: target.interruptedRunId,
         next: { holdId: target.holdId, state: "pending", claimedAt } })) continue;
-      await dispatch(db, { companyId: input.companyId, issueId, agentId: target.agentId, runId: target.interruptedRunId,
+      await dispatch(db, { spaceId: input.spaceId, issueId, agentId: target.agentId, runId: target.interruptedRunId,
         holdId: target.holdId, claimedAt, rootIssueId: input.rootIssueId ?? null, actor: input.actor, wakeup: input.wakeup });
     } catch (error) {
       // A pending claim stays recoverable; the sweep retries it after it goes stale.
       const message = error instanceof Error ? error.message : String(error);
       failures.push({ issueId, message });
-      await Promise.resolve(activity(db, input.companyId, input.actor, "issue.tree_resume_wake_failed", issueId,
+      await Promise.resolve(activity(db, input.spaceId, input.actor, "issue.tree_resume_wake_failed", issueId,
         { error: message })).catch(() => null);
     }
   }
@@ -167,11 +167,11 @@ export async function resumePauseInterruptedWork(
  * tasks created under the tree after the hold's snapshot, and a task can move
  * out of the tree before release, so the refused runs name them.
  */
-async function listPauseSuppressedIssueIds(db: Db, companyId: string, holdId: string) {
+async function listPauseSuppressedIssueIds(db: Db, spaceId: string, holdId: string) {
   const rows = await db.selectDistinct({
     issueId: sql<string | null>`coalesce(${heartbeatRuns.issueId}::text, ${heartbeatRuns.contextSnapshot}->>'issueId')`,
   }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.status, "cancelled"),
+    eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.status, "cancelled"),
     // Matches the partial index heartbeat_runs_tree_hold_suppression_idx.
     sql`${heartbeatRuns.resultJson} ? 'treeHoldSuppression'`,
     sql`${heartbeatRuns.resultJson}->'treeHoldSuppression'->>'holdId' = ${holdId}`,
@@ -185,13 +185,13 @@ async function listPauseSuppressedIssueIds(db: Db, companyId: string, holdId: st
  * gate resumes that task itself; the resume claim keeps it to one dispatch.
  */
 export async function resumeIfPauseAlreadyReleased(db: Db, input: {
-  companyId: string; issueId: string; holdId: string; wakeup: Wakeup;
+  spaceId: string; issueId: string; holdId: string; wakeup: Wakeup;
 }) {
   const [hold] = await db.select({ status: issueTreeHolds.status }).from(issueTreeHolds)
-    .where(and(eq(issueTreeHolds.companyId, input.companyId), eq(issueTreeHolds.id, input.holdId)));
+    .where(and(eq(issueTreeHolds.spaceId, input.spaceId), eq(issueTreeHolds.id, input.holdId)));
   if (hold?.status === "active") return [];
   return resumePauseInterruptedWork(db, {
-    companyId: input.companyId, issueIds: [input.issueId], actor: SYSTEM_ACTOR, wakeup: input.wakeup,
+    spaceId: input.spaceId, issueIds: [input.issueId], actor: SYSTEM_ACTOR, wakeup: input.wakeup,
   });
 }
 
@@ -222,7 +222,7 @@ export async function deliverPendingPauseResumes(db: Db, wakeup: Wakeup, now = n
   let after: string | null = null;
   for (;;) {
     const rows: PendingResumeRow[] = await db.select({
-      id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+      id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
       createdAt: heartbeatRuns.createdAt, resultJson: heartbeatRuns.resultJson,
       issueId: sql<string | null>`coalesce(${heartbeatRuns.issueId}::text, ${heartbeatRuns.contextSnapshot}->>'issueId')`,
     }).from(heartbeatRuns)
@@ -236,7 +236,7 @@ export async function deliverPendingPauseResumes(db: Db, wakeup: Wakeup, now = n
 }
 
 type PendingResumeRow = {
-  id: string; companyId: string; agentId: string; createdAt: Date;
+  id: string; spaceId: string; agentId: string; createdAt: Date;
   resultJson: Record<string, unknown> | null; issueId: string | null;
 };
 
@@ -245,16 +245,16 @@ async function deliverPendingPage(db: Db, wakeup: Wakeup, now: Date, rows: Pendi
     const claim = run.resultJson?.treeHoldResume as { holdId?: unknown; claimedAt?: unknown } | undefined;
     if (typeof claim?.claimedAt !== "string" || typeof claim.holdId !== "string" || !run.issueId) continue;
     const finish = (state: "delivered" | "abandoned", reason?: string) => setResumeState(db, {
-      companyId: run.companyId, runId: run.id, expectedClaimedAt: claim.claimedAt as string,
+      spaceId: run.spaceId, runId: run.id, expectedClaimedAt: claim.claimedAt as string,
       next: { holdId: claim.holdId, state, claimedAt: claim.claimedAt, settledAt: now.toISOString(), ...(reason ? { reason } : {}) },
     });
     try {
-      if (await findPauseResumeReceipt(db, run.companyId, run.agentId, run.id)) { await finish("delivered"); continue; }
+      if (await findPauseResumeReceipt(db, run.spaceId, run.agentId, run.id)) { await finish("delivered"); continue; }
       const [issue] = await db.select({ status: issues.status, assigneeAgentId: issues.assigneeAgentId,
         assigneeUserId: issues.assigneeUserId }).from(issues)
-        .where(and(eq(issues.companyId, run.companyId), eq(issues.id, run.issueId)));
+        .where(and(eq(issues.spaceId, run.spaceId), eq(issues.id, run.issueId)));
       const [newer] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, run.companyId),
+        eq(heartbeatRuns.spaceId, run.spaceId),
         sql`coalesce(${heartbeatRuns.issueId}::text, ${heartbeatRuns.contextSnapshot}->>'issueId') = ${run.issueId}`,
         // JavaScript dates drop microseconds, so exclude the run itself by id.
         sql`${heartbeatRuns.id} <> ${run.id}`,
@@ -265,15 +265,15 @@ async function deliverPendingPage(db: Db, wakeup: Wakeup, now: Date, rows: Pendi
         continue;
       }
       // A paused or blocked task keeps its claim; release or settlement revisits it.
-      if (await issueTreeControlService(db).getActivePauseHoldGate(run.companyId, run.issueId)
-        || await getExecutionBlocker(db, run.companyId, run.issueId)) continue;
+      if (await issueTreeControlService(db).getActivePauseHoldGate(run.spaceId, run.issueId)
+        || await getExecutionBlocker(db, run.spaceId, run.issueId)) continue;
       const claimedAt = now.toISOString();
-      if (!await setResumeState(db, { companyId: run.companyId, runId: run.id, expectedClaimedAt: claim.claimedAt,
+      if (!await setResumeState(db, { spaceId: run.spaceId, runId: run.id, expectedClaimedAt: claim.claimedAt,
         next: { holdId: claim.holdId, state: "pending", claimedAt } })) continue;
-      await dispatch(db, { companyId: run.companyId, issueId: run.issueId, agentId: run.agentId, runId: run.id,
+      await dispatch(db, { spaceId: run.spaceId, issueId: run.issueId, agentId: run.agentId, runId: run.id,
         holdId: claim.holdId, claimedAt, rootIssueId: null, actor: SYSTEM_ACTOR, wakeup });
     } catch (error) {
-      await Promise.resolve(activity(db, run.companyId, SYSTEM_ACTOR, "issue.tree_resume_wake_failed", run.issueId,
+      await Promise.resolve(activity(db, run.spaceId, SYSTEM_ACTOR, "issue.tree_resume_wake_failed", run.issueId,
         { error: error instanceof Error ? error.message : String(error), interruptedRunId: run.id })).catch(() => null);
     }
   }

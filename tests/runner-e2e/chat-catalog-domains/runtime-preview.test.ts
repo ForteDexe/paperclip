@@ -1,10 +1,10 @@
 import { it, expect } from "vitest";
 import { gradePreview } from "./runtime-preview.js";
 function valid() { const url = "http://127.0.0.1:43210/";
-  return { scenarioId: "workspaces.preview-service", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  return { scenarioId: "workspaces.preview-service", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { workspace: { id: "actual" }, task: { id: "website" }, marker: "Acorn marker", websiteBytes: "<html><h1>Acorn marker</h1></html>",
       initialHttpBody: "<html><h1>Acorn marker</h1></html>", initialHttpStatus: 200, browserPreviewVisible: true,
-      healthyService: { id: "service", executionWorkspaceId: "actual", companyId: "company", status: "running", healthStatus: "healthy", serviceName: "Website preview", url },
+      healthyService: { id: "service", executionWorkspaceId: "actual", spaceId: "space", status: "running", healthStatus: "healthy", serviceName: "Website preview", url },
       queryLinks: [url], previewProducts: [{ id: "preview", executionWorkspaceId: "actual", runtimeServiceId: "service", url, type: "preview_url", createdByRunId: "canonical" }],
       failureOperation: { id: "startup-failure", status: "failed", executionWorkspaceId: "actual", heartbeatRunId: "restart" },
       failureRunIds: ["restart"], failedHttpReachable: false, failureReply: "The preview restart failed because its server process exited. Inspect the startup error and repair it before starting again." },

@@ -3,7 +3,7 @@
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CompanySecret, EnvSecretRefBinding } from "@outpost/shared";
+import type { SpaceSecret, EnvSecretRefBinding } from "@outpost/shared";
 
 const mockSecretPickerRender = vi.hoisted(() => vi.fn());
 
@@ -12,7 +12,7 @@ const mockSecretPickerRender = vi.hoisted(() => vi.fn());
 vi.mock("./environment-variables-editor/SecretPicker", () => ({
   SecretPicker: (props: {
     secretId: string;
-    secrets: readonly CompanySecret[];
+    secrets: readonly SpaceSecret[];
     onSelect: (secretId: string) => void;
     onCreateNew?: (query: string) => void;
   }) => {
@@ -38,18 +38,18 @@ import {
   summarizeAgentBindings,
 } from "./AgentSecretAccessEditor";
 
-function makeSecret(id: string, name: string): CompanySecret {
+function makeSecret(id: string, name: string): SpaceSecret {
   return {
     id,
-    companyId: "co",
-    scope: "company",
+    spaceId: "co",
+    scope: "space",
     ownerUserId: null,
     userSecretDefinitionId: null,
     key: id,
     name,
     provider: "local_encrypted",
     status: "active",
-    managedMode: "paperclip_managed",
+    managedMode: "outpost_managed",
     externalRef: null,
     providerConfigId: null,
     providerMetadata: null,
@@ -208,7 +208,7 @@ describe("AgentSecretAccessEditor component", () => {
     const rejected: string[] = [];
     const proposal = {
       id: "prop-1",
-      companyId: "co",
+      spaceId: "co",
       kind: "binding" as const,
       status: "pending" as const,
       justification: "Bind Stripe for the billing agent.",

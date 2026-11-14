@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { HeartbeatRunEvent } from "@outpost/shared";
 import { nativeRunEventsToTranscript } from "../transcript/native-run-events";
 import type { TranscriptEntry } from "@/adapters";
-import { buildTurnTimelineRows, paperclipRunnerTimelineItems, transcriptToTaskChatItems } from "./transcript-adapter";
+import { buildTurnTimelineRows, outpostRunnerTimelineItems, transcriptToTaskChatItems } from "./transcript-adapter";
 import type { TaskChatSubagentGroupItem } from "./task-chat-model";
 
 const RUN_ID = "10000000-0000-4000-8000-000000000001";
@@ -10,7 +10,7 @@ const RUN_ID = "10000000-0000-4000-8000-000000000001";
 function event(seq: number, eventType: string, payload: Record<string, unknown>): HeartbeatRunEvent {
   return {
     id: seq,
-    companyId: "10000000-0000-4000-8000-000000000002",
+    spaceId: "10000000-0000-4000-8000-000000000002",
     runId: RUN_ID,
     agentId: "10000000-0000-4000-8000-000000000003",
     seq,
@@ -68,7 +68,7 @@ function tool(seq: number, id: string, done: boolean, parentItemId?: string) {
 
 function rows(events: HeartbeatRunEvent[], running: boolean) {
   const items = transcriptToTaskChatItems(nativeRunEventsToTranscript(events), { runId: RUN_ID, running });
-  return buildTurnTimelineRows(paperclipRunnerTimelineItems(items), running);
+  return buildTurnTimelineRows(outpostRunnerTimelineItems(items), running);
 }
 
 describe("subagent timeline rows", () => {
@@ -134,7 +134,7 @@ describe("subagent timeline rows", () => {
       activity("tool.execution.started", { schema: "outpost.tool.execution.v1", executionId: "toolu_a1", name: "Read", status: "running", parentItemId: "toolu_a" }),
     ];
     const items = transcriptToTaskChatItems(entries, { runId: RUN_ID, running: true });
-    const timeline = buildTurnTimelineRows(paperclipRunnerTimelineItems(items), true);
+    const timeline = buildTurnTimelineRows(outpostRunnerTimelineItems(items), true);
     expect(timeline.map((row) => row.kind)).toEqual(["subagent_group"]);
     const group = timeline[0] as TaskChatSubagentGroupItem;
     expect(group.subagents.map((subagent) => subagent.activity.length)).toEqual([1, 0]);

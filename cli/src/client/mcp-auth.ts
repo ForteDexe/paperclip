@@ -5,12 +5,12 @@ import { DatabaseSync } from "node:sqlite";
 import { createHash, randomUUID } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { PUBLIC_MCP_PATH, PUBLIC_MCP_SCOPES } from "@outpost/shared";
-import { resolvePaperclipHomeDir } from "../config/home.js";
+import { resolveOutpostHomeDir } from "../config/home.js";
 
 const deviceGrant = "urn:ietf:params:oauth:grant-type:device_code";
 type Json = Record<string, unknown>;
 export interface McpCredential {
-  resource: string; issuer: string; clientId: string; companyId: string;
+  resource: string; issuer: string; clientId: string; spaceId: string;
   accessToken: string; refreshToken?: string; expiresAt: number;
 }
 export function mcpResource(raw: string) {
@@ -20,7 +20,7 @@ export function mcpResource(raw: string) {
   return url.toString();
 }
 export function credentialPath(resource: string) {
-  return path.join(resolvePaperclipHomeDir(), "mcp", createHash("sha256").update(resource).digest("hex") + ".json");
+  return path.join(resolveOutpostHomeDir(), "mcp", createHash("sha256").update(resource).digest("hex") + ".json");
 }
 async function readCredential(file: string): Promise<McpCredential | null> {
   let handle;
@@ -32,7 +32,7 @@ async function readCredential(file: string): Promise<McpCredential | null> {
     let value: McpCredential;
     try { value = JSON.parse(await handle.readFile("utf8")); }
     catch { throw new Error("Invalid MCP credential file. Sign in again."); }
-    if (!value || typeof value !== "object" || ![value.resource, value.issuer, value.clientId, value.companyId, value.accessToken].every(v => typeof v === "string" && v.length > 0)
+    if (!value || typeof value !== "object" || ![value.resource, value.issuer, value.clientId, value.spaceId, value.accessToken].every(v => typeof v === "string" && v.length > 0)
       || !Number.isFinite(value.expiresAt) || (value.refreshToken !== undefined && typeof value.refreshToken !== "string")) throw new Error("Invalid MCP credential file. Sign in again.");
     return value;
   } finally { await handle.close(); }
@@ -145,13 +145,13 @@ export async function mcpRpc(resource: string, token: string, method: string, pa
   return data.result as Json;
 }
 
-export async function loginMcpDevice(raw: string, companyId?: string, notify: (message: string) => void = console.error) {
+export async function loginMcpDevice(raw: string, spaceId?: string, notify: (message: string) => void = console.error) {
   const resource = mcpResource(raw);
   const issuer = await discovery(resource);
   const registration = await jsonRequest(issuer + "/mcp/oauth/register", { client_name: "Outpost CLI (device)", redirect_uris: [], grant_types: [deviceGrant, "refresh_token"], response_types: [], token_endpoint_auth_method: "none" });
   if (!registration.ok || typeof registration.data.client_id !== "string") throw new Error("Could not register the Outpost device client.");
   const clientId = registration.data.client_id;
-  const authorization = await jsonRequest(issuer + "/mcp/oauth/device_authorization", { client_id: clientId, resource, scope: PUBLIC_MCP_SCOPES.join(" "), ...(companyId ? { company_id: companyId } : {}) });
+  const authorization = await jsonRequest(issuer + "/mcp/oauth/device_authorization", { client_id: clientId, resource, scope: PUBLIC_MCP_SCOPES.join(" "), ...(spaceId ? { space_id: spaceId } : {}) });
   const device = authorization.data;
   if (!authorization.ok || typeof device.device_code !== "string" || typeof device.user_code !== "string"
     || device.verification_uri !== issuer + "/mcp-device" || typeof device.expires_in !== "number") throw new Error("Could not start device authorization.");
@@ -167,14 +167,14 @@ export async function loginMcpDevice(raw: string, companyId?: string, notify: (m
       if (result.data.error === "slow_down") { interval += 5; continue; }
       throw new Error(result.data.error === "access_denied" ? "Connection declined. No access was granted." : "Device authorization expired or failed. Start login again.");
     }
-    const credential = tokens(result.data, { resource, issuer, clientId, companyId: companyId ?? "" });
-    const identity = await mcpRpc(resource, credential.accessToken, "tools/call", { name: "paperclip_connection", arguments: {} });
+    const credential = tokens(result.data, { resource, issuer, clientId, spaceId: spaceId ?? "" });
+    const identity = await mcpRpc(resource, credential.accessToken, "tools/call", { name: "outpost_connection", arguments: {} });
     const connected = identity.structuredContent as Json | undefined;
-    if (identity.isError || typeof connected?.companyId !== "string" || (companyId && connected.companyId !== companyId)) throw new Error("The approved organization did not match. Reconnect before doing work.");
-    credential.companyId = connected.companyId;
+    if (identity.isError || typeof connected?.spaceId !== "string" || (spaceId && connected.spaceId !== spaceId)) throw new Error("The approved organization did not match. Reconnect before doing work.");
+    credential.spaceId = connected.spaceId;
     const file = credentialPath(resource);
     await replaceMcpCredential(file, credential, notify);
-    return { resource, companyId: credential.companyId };
+    return { resource, spaceId: credential.spaceId };
   }
   throw new Error("Device authorization expired. Start login again.");
 }
@@ -196,7 +196,7 @@ export async function mcpAccessToken(raw: string) {
   const file = credentialPath(resource);
   return withMcpCredentialLock(file, async () => {
     const credential = await readCredential(file);
-    if (!credential || credential.resource !== resource || credential.issuer !== new URL(resource).origin) throw new Error("Connect first with paperclipai mcp login --device --url <MCP URL>.");
+    if (!credential || credential.resource !== resource || credential.issuer !== new URL(resource).origin) throw new Error("Connect first with outpost mcp login --device --url <MCP URL>.");
     if (credential.expiresAt > Date.now() + 30_000) return credential.accessToken;
     if (!credential.refreshToken) throw new Error("Outpost access expired. Sign in again.");
     // Validate issuer discovery again before sending a stored credential.

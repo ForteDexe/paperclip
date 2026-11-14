@@ -25,10 +25,10 @@ export const followupStopTask: RunnerTaskFixture = {
     ].join("\n");
   }, buildMatchers: () => [],
 };
-export function stopRunBelongsToTask(run: { companyId?: unknown; agentId?: unknown; issueId?: unknown; nativeIssueId?: unknown;
-  contextSnapshot?: { issueId?: unknown } | null }, binding: { companyId: string; agentId: string; issueId: string }) {
+export function stopRunBelongsToTask(run: { spaceId?: unknown; agentId?: unknown; issueId?: unknown; nativeIssueId?: unknown;
+  contextSnapshot?: { issueId?: unknown } | null }, binding: { spaceId: string; agentId: string; issueId: string }) {
   const ids = [run.issueId, run.nativeIssueId, run.contextSnapshot?.issueId].filter(id => id !== null && id !== undefined);
-  return run.companyId === binding.companyId && run.agentId === binding.agentId && ids.length > 0 && ids.every(id => id === binding.issueId);
+  return run.spaceId === binding.spaceId && run.agentId === binding.agentId && ids.length > 0 && ids.every(id => id === binding.issueId);
 }
 export function isActiveStopCheckpointRun(run: { id?: string; status?: string } | undefined,
   events: readonly { runId?: string; eventType?: string; sourceKind?: string }[]) {
@@ -46,7 +46,7 @@ export function exactSyntheticJson(content: string, expected: Record<string, str
     Object.entries(expected).every(([key, expectedValue]) => value[key] === expectedValue);
 }
 export interface FollowupStopObservation {
-  binding: { companyId: string; issueId: string; agentId: string };
+  binding: { spaceId: string; issueId: string; agentId: string };
   initial: { runId: string; workspaceId: string; instructionsDigest: string; toolFingerprint: string; checkpointVerified: boolean } | null;
   followup: { commentIds: string[]; runId: string; runStatus: string; acceptedResults: number; providerStarted: boolean; observedAt: string } | null;
   stop: { runId: string; status: string; acknowledgementMatches: boolean;

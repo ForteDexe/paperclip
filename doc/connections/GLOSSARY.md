@@ -12,16 +12,16 @@ v1, plugin, skill, MCP, and gateway language onto Apps v2.
 | Term | Definition | It is NOT |
 | --- | --- | --- |
 | App | Catalog entry for an external or first-party system: metadata, supported transports, auth modes, and action catalog. The unit of the store. | A running thing; a plugin. |
-| AppDefinition | Versioned, data-only authoring record for an App: identity, copy, supported methods, ownership options, fields, and setup guidance. | A company connection or executable plugin. |
-| Connection | A configured, credentialed instance of an app for this company, possibly per-user account. Carries status and health. | A plugin install; an MCP server config file. |
-| uid | Stable company-scoped connection address in `{namespace}/{slug}` form. | A database UUID or display name. |
+| AppDefinition | Versioned, data-only authoring record for an App: identity, copy, supported methods, ownership options, fields, and setup guidance. | A space connection or executable plugin. |
+| Connection | A configured, credentialed instance of an app for this space, possibly per-user account. Carries status and health. | A plugin install; an MCP server config file. |
+| uid | Stable space-scoped connection address in `{namespace}/{slug}` form. | A database UUID or display name. |
 | Ownership | Who supplies and controls the OAuth client: platform-shared, platform-provisioned, customer, or DCR. | Connection kind or credential ownership. |
-| Subject | The app/workspace or Paperclip user on whose behalf a credential is requested. | The calling agent. |
+| Subject | The app/workspace or Outpost user on whose behalf a credential is requested. | The calling agent. |
 | Grant | Credential-bearing authorization for one connection subject and provider tenant. | A profile, rule, or permission bypass. |
-| Trigger | Provider-origin event definition that starts governed Paperclip work. | An unauthenticated webhook handler. |
-| Connector service | Paperclip-operated relay for managed OAuth callbacks, credential custody, and webhook intake at `connect.outpost.ing`. | Paperclip ID or the per-company broker. |
+| Trigger | Provider-origin event definition that starts governed Outpost work. | An unauthenticated webhook handler. |
+| Connector service | Outpost-operated relay for managed OAuth callbacks, credential custody, and webhook intake at `connect.outpost.ing`. | Outpost ID or the per-space broker. |
 | Action / Tool | One invokable capability of a connection, risk-classified and quarantined when new or changed. | A free-form shell command or permission grant. |
-| Profile | Curated allowlist of actions bound to a scope such as company, project, agent, routine, or issue. | A permission system of its own. |
+| Profile | Curated allowlist of actions bound to a scope such as space, project, agent, routine, or issue. | A permission system of its own. |
 | Rule | Allow, ask-first, or block per action. Ask-first lands in the Review queue. | A profile or catalog entry. |
 | Gateway | Named inbound MCP endpoint exposing curated connections/tools to external clients under a scoped bearer token. Reuses profiles and rules. | A new permission model. |
 | Plugin | Code extension package: workers, UI, migrations. May declare apps/providers and provision skills. Packaging, not governance. | An integration per se. |
@@ -66,9 +66,9 @@ Keep protocol and implementation terms behind Developer or Advanced surfaces:
 | Rule | Policy rules such as allow, ask-first, block, rate limit, and trust rules. |
 | Gateway | Inbound MCP gateway sessions and scoped client tokens. |
 | Plugin | Extension packaging that may declare apps but does not bypass governance. |
-| Skill | Agent instruction package that calls governed connections through Paperclip. |
+| Skill | Agent instruction package that calls governed connections through Outpost. |
 | MCP | Transport option for apps and gateways. |
-| Broker | Credential resolver/token broker path over `company_secrets`. |
+| Broker | Credential resolver/token broker path over `space_secrets`. |
 
 ## Translation Rules
 
@@ -76,6 +76,6 @@ Keep protocol and implementation terms behind Developer or Advanced surfaces:
 - A plugin may bundle an app, but governance always flows through the connection,
   profile, rule, broker, and audit model.
 - A skill may use Slack, Google Drive, Ramp, or another vendor, but the durable
-  credential belongs in `company_secrets` and is reached through a connection.
-- Inbound clients use scoped Paperclip auth; outbound vendor calls use the Apps
+  credential belongs in `space_secrets` and is reached through a connection.
+- Inbound clients use scoped Outpost auth; outbound vendor calls use the Apps
   v2 connection governance stack.

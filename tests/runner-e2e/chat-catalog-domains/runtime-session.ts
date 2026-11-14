@@ -63,7 +63,7 @@ export const runtimeSessionCases = [runtimeDefinition("runs-adapters.reset-sessi
       load: () => ctx.input.api.get<unknown[]>(`/api/agents/${worker.id}/task-sessions`), accept: rows => rows.length === 0 });
     state.humanReset = true; state.sessionsEmptyAfterHuman = true;
     const beforeRuns = await ctx.allRuns();
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     const followup = "Please continue this same task using your fresh runtime session. Read the existing website-fixture.txt without changing its bytes, inspect our saved task history, and add a brief task comment confirming it is still readable. Keep existing documents and attachments unchanged, then finish this task. Do not create another task.";
     await submitTaskReply(ctx.input.page, followup, chatCatalogNativePhaseRemainingBudget(ctx));
     const future = await pollUntil({ label: "Actual fresh-session continuation", deadlineAt: chatCatalogNativePhaseDeadline(ctx, Date.now() + 180_000),

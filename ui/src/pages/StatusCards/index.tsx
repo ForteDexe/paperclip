@@ -5,7 +5,7 @@ import { FlaskConical, Loader2, Plus } from "lucide-react";
 import { statusCardsApi } from "@/api/statusCards";
 import { describeError } from "@/api/errors";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useNavigate, useParams } from "@/lib/router";
 import { queryKeys } from "@/lib/queryKeys";
@@ -21,7 +21,7 @@ import { StatusCardDetailDrawer } from "./StatusCardDetailDrawer";
 import type { StatusCardView } from "./types";
 
 export function StatusCards() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -39,15 +39,15 @@ export function StatusCards() {
   }, [setBreadcrumbs]);
 
   const activeQuery = useQuery({
-    queryKey: selectedCompanyId ? queryKeys.statusCards.list(selectedCompanyId, false) : ["status-cards", "none", "active"],
-    queryFn: () => statusCardsApi.list(selectedCompanyId!, false),
-    enabled: Boolean(selectedCompanyId),
+    queryKey: selectedSpaceId ? queryKeys.statusCards.list(selectedSpaceId, false) : ["status-cards", "none", "active"],
+    queryFn: () => statusCardsApi.list(selectedSpaceId!, false),
+    enabled: Boolean(selectedSpaceId),
   });
   const activeView = useQueryView(activeQuery);
   const archivedQuery = useQuery({
-    queryKey: selectedCompanyId ? queryKeys.statusCards.list(selectedCompanyId, true) : ["status-cards", "none", "archived"],
-    queryFn: () => statusCardsApi.list(selectedCompanyId!, true),
-    enabled: Boolean(selectedCompanyId),
+    queryKey: selectedSpaceId ? queryKeys.statusCards.list(selectedSpaceId, true) : ["status-cards", "none", "archived"],
+    queryFn: () => statusCardsApi.list(selectedSpaceId!, true),
+    enabled: Boolean(selectedSpaceId),
   });
 
   const activeCards = (activeQuery.data ?? []) as StatusCardView[];
@@ -67,10 +67,10 @@ export function StatusCards() {
   const detailCard = (cardInLists ?? detailFallbackQuery.data ?? null) as StatusCardView | null;
 
   const invalidateLists = () =>
-    selectedCompanyId
+    selectedSpaceId
       ? Promise.all([
-          queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.list(selectedCompanyId, false) }),
-          queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.list(selectedCompanyId, true) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.list(selectedSpaceId, false) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.statusCards.list(selectedSpaceId, true) }),
         ])
       : Promise.resolve();
 
@@ -130,7 +130,7 @@ export function StatusCards() {
               Today: {formatTokens(todayTotals.tokens)}
             </span>
           ) : null}
-          <Button onClick={() => setCreateOpen(true)} disabled={!selectedCompanyId}>
+          <Button onClick={() => setCreateOpen(true)} disabled={!selectedSpaceId}>
             <Plus className="h-4 w-4" />
             New card
           </Button>
@@ -155,7 +155,7 @@ export function StatusCards() {
           icon={FlaskConical}
           title="No status cards yet"
           message="Create a card to keep a living summary of the issues you care about."
-          action={selectedCompanyId ? "New card" : undefined}
+          action={selectedSpaceId ? "New card" : undefined}
           onAction={() => setCreateOpen(true)}
         />
       ) : (
@@ -164,7 +164,7 @@ export function StatusCards() {
             <StatusCardTile
               key={card.id}
               card={card}
-              companyId={selectedCompanyId}
+              spaceId={selectedSpaceId}
               onOpen={() => openDetail(card.id)}
               onRefresh={() => refreshMutation.mutate(card.id)}
               onRecompile={() => recompileMutation.mutate(card.id)}
@@ -201,13 +201,13 @@ export function StatusCards() {
         </div>
       ) : null}
 
-      {selectedCompanyId ? (
-        <CreateStatusCardDialog companyId={selectedCompanyId} open={createOpen} onOpenChange={setCreateOpen} />
+      {selectedSpaceId ? (
+        <CreateStatusCardDialog spaceId={selectedSpaceId} open={createOpen} onOpenChange={setCreateOpen} />
       ) : null}
 
       <StatusCardDetailDrawer
         card={detailCard}
-        companyId={selectedCompanyId}
+        spaceId={selectedSpaceId}
         open={Boolean(cardId)}
         onOpenChange={(open) => (open ? undefined : closeDetail())}
         initialTab={detailTab}

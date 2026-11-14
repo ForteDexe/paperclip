@@ -41,8 +41,8 @@ export function buildOpenClawGatewayConfig(v: CreateConfigValues): Record<string
     if (parsed.length > 0) ac.scopes = parsed;
   }
 
-  // Paperclip API override
-  if (v.paperclipApiUrl) ac.paperclipApiUrl = v.paperclipApiUrl;
+  // Outpost API override
+  if (v.outpostApiUrl) ac.outpostApiUrl = v.outpostApiUrl;
 
   // Headers — parse headersJson first, then inject authToken on top
   const headers = parseJsonObject(v.headersJson ?? "");

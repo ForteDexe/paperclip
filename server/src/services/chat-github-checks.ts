@@ -22,7 +22,7 @@ import {
 } from "./chat-github-client.js";
 
 /** Check status follows the ordinary chat delivery/task/run. This outbox never
- * schedules an agent. Assessments are published by the governed review tool. */
+ * schedules an agent. Assessments are published by the controlled review tool. */
 export function githubReviewCheckService(db: Db, fetchImpl = fetch) {
   async function enqueue(
     endpoint: typeof chatEndpoints.$inferSelect,
@@ -41,12 +41,12 @@ export function githubReviewCheckService(db: Db, fetchImpl = fetch) {
     };
     if (policy.ratingThreshold === null && !admitted) return;
     await db.transaction(async tx => {
-      await notifyGitHubReviewChecks(tx, { companyId: endpoint.companyId, endpointId: endpoint.id,
+      await notifyGitHubReviewChecks(tx, { spaceId: endpoint.spaceId, endpointId: endpoint.id,
         repositoryId: event.repositoryId, number: event.pullNumber });
       await tx
         .insert(chatActions)
         .values({
-          companyId: endpoint.companyId,
+          spaceId: endpoint.spaceId,
           endpointId: endpoint.id,
           kind: "github_review_check",
           providerActionId: `github-check:${event.deliveryId}`,
@@ -86,7 +86,7 @@ export function githubReviewCheckService(db: Db, fetchImpl = fetch) {
     await withGitHubPublicationLease(
       db,
       {
-        companyId: action.companyId,
+        spaceId: action.spaceId,
         endpointId: action.endpointId,
         repositoryId: event.repositoryId,
         number: event.pullNumber,
@@ -130,7 +130,7 @@ export function githubReviewCheckService(db: Db, fetchImpl = fetch) {
                     : "Waiting for the assigned agent";
           const token = await githubBotRepositoryToken(
             db,
-            action.companyId,
+            action.spaceId,
             action.endpointId,
             event.repositoryId,
             lease.fetch,
@@ -163,7 +163,7 @@ export function githubReviewCheckService(db: Db, fetchImpl = fetch) {
                   );
               });
             await lease.commit(async (tx) => {
-              await notifyGitHubReviewProjection(tx, { companyId: action.companyId, endpointId: action.endpointId });
+              await notifyGitHubReviewProjection(tx, { spaceId: action.spaceId, endpointId: action.endpointId });
               await tx
                 .update(chatActions)
                 .set({
@@ -181,7 +181,7 @@ export function githubReviewCheckService(db: Db, fetchImpl = fetch) {
               ? `issues/${review.issueId}`
               : `apps/chat/${source.endpoint.id}/reviews`;
             const detailsUrl = origin
-              ? `${origin}/${encodeURIComponent(source.companyPrefix)}/${detailsPath}`
+              ? `${origin}/${encodeURIComponent(source.spacePrefix)}/${detailsPath}`
               : null;
             const externalId = `${action.endpointId}:${event.pullNumber}:${event.headSha}`;
             const checks = await request<{
@@ -227,7 +227,7 @@ export function githubReviewCheckService(db: Db, fetchImpl = fetch) {
             );
             if (review)
               await lease.commit(async (tx) => {
-                await notifyGitHubReviewProjection(tx, { companyId: action.companyId, endpointId: action.endpointId });
+                await notifyGitHubReviewProjection(tx, { spaceId: action.spaceId, endpointId: action.endpointId });
                 await tx
                   .update(chatGitHubReviews)
                   .set({

@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
   realtime.set(page, control);
   // Intercept before navigation, including the first connection while its
   // server handshake is still pending. Reloads use the same outage deadline.
-  await page.routeWebSocket("**/api/companies/*/events/ws", async client => {
+  await page.routeWebSocket("**/api/spaces/*/events/ws", async client => {
     if (Date.now() < control.until) { await client.close(outageClose); return; }
     const server = client.connectToServer();
     const pair = { client, server };
@@ -44,11 +44,11 @@ async function json(response: APIResponse) {
 }
 
 async function fixture(request: APIRequestContext) {
-  const company = await json(await request.post("/api/companies", { data: { name: `Disconnect recovery ${Date.now()}` } }));
-  const issue = await json(await request.post(`/api/companies/${company.id}/issues`, {
+  const space = await json(await request.post("/api/spaces", { data: { name: `Disconnect recovery ${Date.now()}` } }));
+  const issue = await json(await request.post(`/api/spaces/${space.id}/issues`, {
     data: { title: "Keep this task visible", description: "Saved task context stays visible.", status: "backlog", assigneeAgentId: null, assigneeUserId: null },
   }));
-  return { company, issue, route: `/${company.issuePrefix}/issues/${issue.identifier}` };
+  return { space, issue, route: `/${space.issuePrefix}/issues/${issue.identifier}` };
 }
 
 async function outage(page: Page) {
@@ -96,7 +96,7 @@ test("an outage closes the first realtime socket before it can report a late rec
     await expectReconnecting(page);
     expect(Date.now()).toBeLessThan(interruption.until);
   } finally {
-    await request.patch(`/api/companies/${data.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${data.space.id}`, { data: { status: "archived" } });
   }
 });
 
@@ -109,7 +109,7 @@ async function expectReconnecting(page: Page) {
 
 async function expectCachedTask(page: Page, issue: { id: string; title: string }) {
   await expect.poll(() => page.evaluate(task => Object.entries(localStorage).some(([key, value]) => {
-    if (!key.startsWith("paperclip:query-cache:v1:")) return false;
+    if (!key.startsWith("outpost:query-cache:v1:")) return false;
     try {
       const record = JSON.parse(value) as { state?: { queries?: Array<{ state?: { data?: { id?: string; title?: string } } }> } };
       return record.state?.queries?.some(query => query.state?.data?.id === task.id && query.state.data.title === task.title) ?? false;
@@ -148,7 +148,7 @@ test("a comment typed during a 20-second outage posts once and loaded task conte
     await expect(page.getByText(body, { exact: true })).toBeVisible();
     expect((await json(await request.get(`/api/issues/${data.issue.id}`))).assigneeAgentId).toBeNull();
   } finally {
-    await request.patch(`/api/companies/${data.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${data.space.id}`, { data: { status: "archived" } });
   }
 });
 
@@ -192,7 +192,7 @@ test("a queued comment survives an outage reload and sends once after session ve
     await expect(page.getByText(body, { exact: true })).toBeVisible();
   } finally {
     releaseSession();
-    await request.patch(`/api/companies/${data.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${data.space.id}`, { data: { status: "archived" } });
   }
 });
 
@@ -205,7 +205,7 @@ test("a document edit stays visible and saves after a 20-second outage", async (
       data: { title: "Recovery handoff", format: "markdown", body: original, baseRevisionId: null },
     }));
     await page.setViewportSize({ width: 1440, height: 960 });
-    await page.addInitScript(() => localStorage.setItem("paperclip:panel-visible", "true"));
+    await page.addInitScript(() => localStorage.setItem("outpost:panel-visible", "true"));
     await page.goto(data.route);
     await expect(page.getByTestId("task-chat-history-content")).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: "Show properties", exact: true }).click();
@@ -225,7 +225,7 @@ test("a document edit stays visible and saves after a 20-second outage", async (
     await page.reload();
     await expect(page.getByText(edited, { exact: true }).first()).toBeVisible();
   } finally {
-    await request.patch(`/api/companies/${data.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${data.space.id}`, { data: { status: "archived" } });
   }
 });
 
@@ -239,12 +239,12 @@ test("a reload during a 20-second outage restores settings, sidebar and a recent
     await page.getByRole("button", { name: "Open account menu", exact: true }).click();
     await page.getByRole("link", { name: "Settings", exact: true }).click();
     await expect(page.getByRole("heading", { name: "General", exact: true })).toBeVisible();
-    await expect(page.locator('input[type="text"]').first()).toHaveValue(data.company.name);
-    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith("paperclip:query-cache:v1:") && key.endsWith(":root")))).toBe(true);
+    await expect(page.locator('input[type="text"]').first()).toHaveValue(data.space.name);
+    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith("outpost:query-cache:v1:") && key.endsWith(":root")))).toBe(true);
     await outage(page);
     await page.reload();
     await expect(page.getByRole("heading", { name: "General", exact: true })).toBeVisible();
-    await expect(page.locator('input[type="text"]').first()).toHaveValue(data.company.name);
+    await expect(page.locator('input[type="text"]').first()).toHaveValue(data.space.name);
     await expectReconnecting(page);
     await page.goBack();
     await expect(page.getByRole("link").filter({ hasText: data.issue.title }).first()).toBeVisible();
@@ -253,7 +253,7 @@ test("a reload during a 20-second outage restores settings, sidebar and a recent
     await expect(page.getByText(data.issue.description, { exact: true }).first()).toBeVisible();
     await expect(page.locator('[data-connection-status="back_online"]')).toBeVisible({ timeout: 35_000 });
   } finally {
-    await request.patch(`/api/companies/${data.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${data.space.id}`, { data: { status: "archived" } });
   }
 });
 
@@ -274,11 +274,11 @@ test("a legacy Inbox reload retains its saved task rows during a 20-second outag
     await page.route("**/api/workspace-preferences/me", route => route.fulfill({
       json: { ...preferences, coordinatorWorkspaceEnabled: false },
     }));
-    await page.goto(`/${data.company.issuePrefix}/inbox/all`);
+    await page.goto(`/${data.space.issuePrefix}/inbox/all`);
     const row = page.locator("[data-inbox-item]").filter({ hasText: data.issue.title });
     await expect(row).toBeVisible({ timeout: 30_000 });
     await expect.poll(() => page.evaluate(id => Object.entries(localStorage).some(([key, value]) => {
-      if (!key.startsWith("paperclip:query-cache:v1:")) return false;
+      if (!key.startsWith("outpost:query-cache:v1:")) return false;
       try {
         return JSON.parse(value).state?.queries?.some((query: { queryKey: unknown[]; state: { data?: Array<{ id: string }> } }) =>
           query.queryKey.includes("compact") && Array.isArray(query.state.data) && query.state.data.some(task => task.id === id)) ?? false;
@@ -292,7 +292,7 @@ test("a legacy Inbox reload retains its saved task rows during a 20-second outag
     await expect(page.locator('[data-connection-status="back_online"]')).toBeVisible({ timeout: 35_000 });
     await expect(row).toBeVisible();
   } finally {
-    await request.patch(`/api/companies/${data.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${data.space.id}`, { data: { status: "archived" } });
   }
 });
 
@@ -308,23 +308,23 @@ for (const status of [403, 404]) test(`a genuine ${status} replaces cached task 
     await expect(page.getByTestId("issue-detail-header")).toHaveCount(0);
     await expect(page.locator("[data-connection-status]")).toHaveCount(0);
   } finally {
-    await request.patch(`/api/companies/${data.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${data.space.id}`, { data: { status: "archived" } });
   }
 });
 
 test("signing out clears saved query data before a later outage reload", async ({ page, request }) => {
   const data = await fixture(request);
   let signedOut = false;
-  const additionalCompanies: Array<{ id: string }> = [];
+  const additionalSpaces: Array<{ id: string }> = [];
   try {
-    // Exercise native Storage deletion with multiple company records; a
-    // single-company run can conceal key reordering during removal.
-    for (let i = 0; i < 6; i += 1) additionalCompanies.push(await json(await request.post("/api/companies", { data: { name: `Sign-out cache scope ${i}` } })));
+    // Exercise native Storage deletion with multiple space records; a
+    // single-space run can conceal key reordering during removal.
+    for (let i = 0; i < 6; i += 1) additionalSpaces.push(await json(await request.post("/api/spaces", { data: { name: `Sign-out cache scope ${i}` } })));
     await page.goto(data.route);
     await expect(page.getByTestId("task-chat-history-content")).toBeVisible({ timeout: 30_000 });
     await expectCachedTask(page, data.issue);
     await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter(key =>
-      key.startsWith("paperclip:query-cache:v1:") && !key.endsWith(":active")).length)).toBeGreaterThanOrEqual(8);
+      key.startsWith("outpost:query-cache:v1:") && !key.endsWith(":active")).length)).toBeGreaterThanOrEqual(8);
     await page.getByRole("button", { name: "Open account menu", exact: true }).click();
     await page.getByRole("link", { name: "Settings", exact: true }).click();
     await expect(page.getByRole("heading", { name: "General", exact: true })).toBeVisible();
@@ -337,13 +337,13 @@ test("signing out clears saved query data before a later outage reload", async (
     page.once("dialog", dialog => dialog.accept());
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect.poll(() => signedOut).toBe(true);
-    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("paperclip:query-cache:v1:")))).toEqual([]);
+    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("outpost:query-cache:v1:")))).toEqual([]);
     await page.goto(data.route);
     await expect(page.getByTestId("issue-detail-header")).toHaveCount(0);
-    expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("paperclip:query-cache:v1:")))).toEqual([]);
+    expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("outpost:query-cache:v1:")))).toEqual([]);
   } finally {
-    for (const company of additionalCompanies) await request.patch(`/api/companies/${company.id}`, { data: { status: "archived" } });
-    await request.patch(`/api/companies/${data.company.id}`, { data: { status: "archived" } });
+    for (const space of additionalSpaces) await request.patch(`/api/spaces/${space.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${data.space.id}`, { data: { status: "archived" } });
   }
 });
 
@@ -364,7 +364,7 @@ test("a restored title draft cannot overwrite an edit made after its cached base
     await expectCachedTask(page, data.issue);
     const session = await json(await request.get("/api/auth/get-session"));
     const owner = session.user.id as string;
-    const key = `paperclip:inline-draft:v2:${owner}:issue:${data.issue.id}:title`;
+    const key = `outpost:inline-draft:v2:${owner}:issue:${data.issue.id}:title`;
     await page.evaluate(({ key, draft, base }) => localStorage.setItem(key, JSON.stringify({ version: 1, draft, base })), { key, draft, base: data.issue.title });
     const paths = new Set([data.issue.id, data.issue.identifier].map(ref => `/api/issues/${ref}`.toLowerCase()));
     await page.route("**/api/issues/**", async route => {
@@ -387,6 +387,6 @@ test("a restored title draft cannot overwrite an edit made after its cached base
   } finally {
     releaseReads();
     await page.unroute("**/api/issues/**");
-    await request.patch(`/api/companies/${data.company.id}`, { data: { status: "archived" } });
+    await request.patch(`/api/spaces/${data.space.id}`, { data: { status: "archived" } });
   }
 });

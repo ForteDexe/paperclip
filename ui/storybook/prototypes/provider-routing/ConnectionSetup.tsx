@@ -95,7 +95,7 @@ export function ConnectionSetup({
     const template = connections.find((entry) => entry.provider === provider);
     const next: Connection = {
       id: "created-connection",
-      name: `${ownership === "personal" ? "My" : "Company"} ${provider === "custom" ? new URL(endpoint).hostname : providerLabel}`,
+      name: `${ownership === "personal" ? "My" : "Space"} ${provider === "custom" ? new URL(endpoint).hostname : providerLabel}`,
       provider,
       endpoint: isAws
         ? region
@@ -310,8 +310,8 @@ export function ConnectionSetup({
                   {
                     value: "cloud",
                     label: isAws
-                      ? "Company AWS workspace"
-                      : "Company Google Cloud workspace",
+                      ? "Space AWS workspace"
+                      : "Space Google Cloud workspace",
                   },
                 ]}
               />
@@ -401,7 +401,7 @@ export function ConnectionSetup({
             </Notice>
           )}
           <ConnectionAccessDefaults
-            companyId="company-storybook"
+            spaceId="space-storybook"
             agents={[{ id: "nova", name: "Nova" }, { id: "atlas", name: "Atlas" }]}
             sentence={connectionDefaultSummarySentence({ grantKind: ownership === "shared" ? "organization" : "user", authKind: method === "none" ? "none" : "api_key", installChoice: allAgents ? "all" : "specific", installCount: agentIds.size })}
             authKind={method === "none" ? "none" : "api_key"}

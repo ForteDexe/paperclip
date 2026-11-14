@@ -6,21 +6,21 @@ declare global {
   namespace Express {
     interface Request {
       actor: {
-        type: "board" | "agent" | "none";
+        type: "operator" | "agent" | "none";
         userId?: string;
         userName?: string | null;
         userEmail?: string | null;
         agentId?: string;
-        companyId?: string;
-        companyIds?: string[];
+        spaceId?: string;
+        spaceIds?: string[];
         sessionId?: string | null;
         memberships?: Array<{
-          companyId: string;
+          spaceId: string;
           membershipRole?: string | null;
           status?: string;
         }>;
         onBehalfOfMemberships?: Array<{
-          companyId: string;
+          spaceId: string;
           membershipRole?: string | null;
           status?: string;
         }>;
@@ -32,7 +32,7 @@ declare global {
         onBehalfOfUserId?: string | null;
         authorizingUserId?: string;
         identityContextId?: string | null;
-        source?: "local_implicit" | "session" | "board_key" | "agent_key" | "agent_jwt" | "mcp_oauth" | "cloud_tenant" | "cloud_control" | "none";
+        source?: "local_implicit" | "session" | "operator_key" | "agent_key" | "agent_jwt" | "mcp_oauth" | "cloud_tenant" | "cloud_control" | "none";
       };
     }
   }

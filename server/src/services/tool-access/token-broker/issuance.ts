@@ -8,7 +8,7 @@ import type { ToolAccessAudit } from "../audit.js";
 export function createTokenIssuanceRecorder(db: Db, audit: ToolAccessAudit) {
   async function recordConnectionTokenIssuance(
     input: {
-      companyId: string;
+      spaceId: string;
       applicationId: string | null;
       connectionId: string;
       agentId: string;
@@ -29,7 +29,7 @@ export function createTokenIssuanceRecorder(db: Db, audit: ToolAccessAudit) {
     dbClient: ToolAccessMutationDb = db,
   ) {
     await dbClient.insert(connectionTokenIssuances).values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       applicationId: input.applicationId,
       connectionId: input.connectionId,
       agentId: input.agentId,
@@ -50,7 +50,7 @@ export function createTokenIssuanceRecorder(db: Db, audit: ToolAccessAudit) {
   }
 
   async function auditConnectionTokenIssuance(input: {
-    companyId: string;
+    spaceId: string;
     connectionId: string;
     agentId: string;
     runId: string;
@@ -61,7 +61,7 @@ export function createTokenIssuanceRecorder(db: Db, audit: ToolAccessAudit) {
   }) {
     const success = input.outcome === "success";
     await audit({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       connectionId: input.connectionId,
       action: success ? "connection_token.minted" : "connection_token.denied",
       outcome: success ? "success" : "failure",
@@ -75,7 +75,7 @@ export function createTokenIssuanceRecorder(db: Db, audit: ToolAccessAudit) {
       },
     });
     await logActivity(db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: "agent",
       actorId: input.agentId,
       agentId: input.agentId,

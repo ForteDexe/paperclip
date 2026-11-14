@@ -22,7 +22,7 @@ import {
 } from "@/pages/apps/app-detail/AdvancedPanel";
 import { IdentitiesSection } from "@/pages/apps/app-detail/IdentitiesSection";
 
-const COMPANY_ID = "company-storybook";
+const SPACE_ID = "space-storybook";
 const NOTION = CONNECTABLE_APP_DEFINITIONS.find(
   (app) => app.slug === "notion",
 ) as AppDefinition;
@@ -44,7 +44,7 @@ function seededClient() {
       },
     },
   });
-  client.setQueryData(queryKeys.apps.gallery(COMPANY_ID), {
+  client.setQueryData(queryKeys.apps.gallery(SPACE_ID), {
     apps: [NOTION, ZAPIER, GITHUB],
     credentialSources: {
       vercelConnect: {
@@ -56,11 +56,11 @@ function seededClient() {
       },
     },
   });
-  client.setQueryData(queryKeys.tools.applications(COMPANY_ID), {
+  client.setQueryData(queryKeys.tools.applications(SPACE_ID), {
     applications: [
       {
         id: "application-notion",
-        companyId: COMPANY_ID,
+        spaceId: SPACE_ID,
         name: "Notion",
         applicationKey: "notion",
         status: "active",
@@ -68,10 +68,10 @@ function seededClient() {
       },
     ],
   });
-  client.setQueryData(queryKeys.tools.connections(COMPANY_ID), {
+  client.setQueryData(queryKeys.tools.connections(SPACE_ID), {
     connections: [notionConnection()],
   });
-  client.setQueryData(queryKeys.access.companyUserDirectory(COMPANY_ID), {
+  client.setQueryData(queryKeys.access.spaceUserDirectory(SPACE_ID), {
     users: [
       {
         principalId: "board-user",
@@ -125,7 +125,7 @@ function notionConnection(
 ): ToolConnection {
   return {
     id: "connection-notion",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     applicationId: "application-notion",
     name: "Notion",
     uid: "notion-storybook",
@@ -134,7 +134,7 @@ function notionConnection(
     ownership: "dcr",
     transport: "mcp_remote",
     authKind: "oauth",
-    credentialSource: "paperclip_vault",
+    credentialSource: "outpost_vault",
     credentialPolicy: "per_user",
     status: "active",
     transportConfig: { url: "https://mcp.notion.com/mcp" },
@@ -161,7 +161,7 @@ function notionConnection(
 function personalGrant(): ConnectionGrant {
   return {
     id: "grant-notion-personal",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     connectionId: "connection-notion",
     kind: "user",
     subjectUserId: "board-user",
@@ -180,7 +180,7 @@ function personalGrant(): ConnectionGrant {
     delegations: [
       {
         id: "delegation-1",
-        companyId: COMPANY_ID,
+        spaceId: SPACE_ID,
         grantId: "grant-notion-personal",
         agentId: "agent-1",
         createdByUserId: "board-user",
@@ -200,7 +200,7 @@ function personalGrantsResponse(
     capabilities: {
       canConfigure: true,
       canCreateOrganizationGrant: false,
-      canSetCompanyInstall: true,
+      canSetSpaceInstall: true,
       canConnectAsCurrentUser: true,
       canManageAgentInstalls: true,
       canViewOtherPersonalIdentities: false,
@@ -320,7 +320,7 @@ function VercelConnectProvenanceHost() {
           externalCredential: {
             provider: "vercel_connect",
             connectorId: "scl_storybook",
-            connectorUid: "notion-paperclip",
+            connectorUid: "notion-outpost",
             service: "notion",
             connectorType: "oauth",
             principalMode: "user",
@@ -342,7 +342,7 @@ const meta: Meta = {
   id: "apps-notion-mcp-connect-flow-pap-16650",
   title: "Apps, channels, and extensions/Connection setup/Apps/Notion MCP connect flow (PAP-16650)",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "connection-setup/credentials",
         "connection-setup/failure"
@@ -381,7 +381,7 @@ export const ConnectError: Story = {
   render: () => (
     <OAuthStateHost
       phase="error"
-      error="Paperclip couldn’t reach Notion’s authorization service. Check the connection and try again."
+      error="Outpost couldn’t reach Notion’s authorization service. Check the connection and try again."
     />
   ),
 };

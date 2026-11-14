@@ -29,7 +29,7 @@ import type {
   IssueSurfaceVisibility,
 } from "../constants.js";
 import type { Agent } from "./agent.js";
-import type { CompanySkill } from "./company-skill.js";
+import type { SpaceSkill } from "./space-skill.js";
 import type { Project } from "./project.js";
 import type { Routine, RoutineTrigger, RoutineVariable } from "./routine.js";
 
@@ -41,21 +41,21 @@ import type { Routine, RoutineTrigger, RoutineVariable } from "./routine.js";
  * A JSON Schema object used for plugin config schemas and tool parameter schemas.
  * Plugins provide these as plain JSON Schema compatible objects.
  *
- * The Paperclip extension keywords below are recognised by the Paperclip UI
+ * The Outpost extension keywords below are recognised by the Outpost UI
  * but are otherwise ignored by standard JSON Schema validators.
  */
 export type JsonSchema = {
   /**
-   * When true, the Paperclip config UI hides this property behind an
+   * When true, the Outpost config UI hides this property behind an
    * "Advanced options" disclosure. Defaults to false (always visible).
    */
-  "x-paperclip-advanced"?: boolean;
+  "x-outpost-advanced"?: boolean;
   /**
    * Optional sub-section heading used to group advanced properties inside
    * the disclosure (e.g. "SSH access", "VM resources"). Ignored when
-   * `x-paperclip-advanced` is not true.
+   * `x-outpost-advanced` is not true.
    */
-  "x-paperclip-group"?: string;
+  "x-outpost-group"?: string;
   [key: string]: unknown;
 };
 
@@ -67,7 +67,7 @@ export type {
 } from "../constants.js";
 
 // ---------------------------------------------------------------------------
-// Manifest sub-types — nested declarations within PaperclipPluginManifestV1
+// Manifest sub-types — nested declarations within OutpostPluginManifestV1
 // ---------------------------------------------------------------------------
 
 /**
@@ -244,7 +244,7 @@ export interface PluginEnvironmentDriverDeclaration {
   /** Kind of template reference returned by the provider's capture hook. */
   templateRefKind?: "snapshot" | "image" | "provider_template" | "unknown" | (string & {});
   /**
-   * How Paperclip should apply a captured template ref back into this provider's
+   * How Outpost should apply a captured template ref back into this provider's
    * runtime config. Omit to use the standard key for `templateRefKind`.
    */
   templateConfigBinding?: PluginEnvironmentTemplateConfigBinding;
@@ -278,8 +278,8 @@ export interface PluginEnvironmentDriverDeclaration {
 }
 
 /**
- * Declares a normal Paperclip agent that a plugin can provision and later
- * resolve by stable key within each company.
+ * Declares a normal Outpost agent that a plugin can provision and later
+ * resolve by stable key within each space.
  */
 export interface PluginManagedAgentDeclaration {
   /** Stable identifier for this managed agent, unique within the plugin. */
@@ -298,17 +298,17 @@ export interface PluginManagedAgentDeclaration {
   adapterType?: AgentAdapterType | string;
   /**
    * Optional ordered list of compatible adapter types. When present, the host
-   * prefers the most-used compatible adapter already configured in the company,
+   * prefers the most-used compatible adapter already configured in the space,
    * falling back to `adapterType`.
    */
   adapterPreference?: Array<AgentAdapterType | string>;
   /** Suggested adapter configuration. */
   adapterConfig?: Record<string, unknown>;
-  /** Suggested Paperclip runtime configuration. */
+  /** Suggested Outpost runtime configuration. */
   runtimeConfig?: Record<string, unknown>;
   /** Suggested permissions object. Normalized by the host on create/reset. */
   permissions?: Record<string, unknown>;
-  /** Suggested starting status when no board approval is required. */
+  /** Suggested starting status when no operator approval is required. */
   status?: Extract<AgentStatus, "idle" | "paused">;
   /** Suggested monthly budget in cents. */
   budgetMonthlyCents?: number;
@@ -322,7 +322,7 @@ export interface PluginManagedAgentDeclaration {
 }
 
 /**
- * Declares a company-scoped local folder a trusted plugin wants the operator
+ * Declares a space-scoped local folder a trusted plugin wants the operator
  * to configure. The host treats this as a generic filesystem root: plugin
  * code may request required relative folders/files, then use SDK helpers for
  * path-safe reads and atomic writes under that root.
@@ -343,8 +343,8 @@ export interface PluginLocalFolderDeclaration {
 }
 
 /**
- * Declares a normal Paperclip project that a plugin can provision and later
- * resolve by stable key within each company.
+ * Declares a normal Outpost project that a plugin can provision and later
+ * resolve by stable key within each space.
  */
 export interface PluginManagedProjectDeclaration {
   /** Stable identifier for this managed project, unique within the plugin. */
@@ -369,7 +369,7 @@ export interface PluginManagedSkillFileDeclaration {
 }
 
 /**
- * Declares a company skill that a plugin can install into each company's
+ * Declares a space skill that a plugin can install into each space's
  * skills library and later resolve by stable key.
  */
 export interface PluginManagedSkillDeclaration {
@@ -406,7 +406,7 @@ export interface PluginManagedRoutineDeclaration {
   assigneeRef?: PluginManagedResourceRef | null;
   /** Stable managed project reference for routine-created issues. */
   projectRef?: PluginManagedResourceRef | null;
-  /** Optional goal id to set on the routine in this company. */
+  /** Optional goal id to set on the routine in this space. */
   goalId?: string | null;
   /** Suggested starting status. Defaults to `paused` when no assignee is resolved, otherwise `active`. */
   status?: RoutineStatus;
@@ -418,7 +418,7 @@ export interface PluginManagedRoutineDeclaration {
   catchUpPolicy?: RoutineCatchUpPolicy;
   /** Suggested external-activity gate behavior. Defaults to `always`. */
   activityGatePolicy?: RoutineActivityGatePolicy;
-  /** Suggested external-activity gate scope. Defaults to `company`. */
+  /** Suggested external-activity gate scope. Defaults to `space`. */
   activityGateScope?: RoutineActivityGateScope;
   /** Suggested routine variables. */
   variables?: RoutineVariable[];
@@ -436,7 +436,7 @@ export interface PluginManagedAgentResolution {
   pluginKey: string;
   resourceKind: "agent";
   resourceKey: string;
-  companyId: string;
+  spaceId: string;
   agentId: string | null;
   agent: Agent | null;
   status: "missing" | "resolved" | "created" | "relinked" | "reset";
@@ -451,7 +451,7 @@ export interface PluginManagedProjectResolution {
   pluginKey: string;
   resourceKind: "project";
   resourceKey: string;
-  companyId: string;
+  spaceId: string;
   projectId: string | null;
   project: Project | null;
   status: "missing" | "resolved" | "created" | "relinked" | "reset";
@@ -461,7 +461,7 @@ export interface PluginManagedRoutineResolution {
   pluginKey: string;
   resourceKind: "routine";
   resourceKey: string;
-  companyId: string;
+  spaceId: string;
   routineId: string | null;
   routine: Routine | null;
   status: "missing" | "missing_refs" | "resolved" | "created" | "relinked" | "reset";
@@ -472,9 +472,9 @@ export interface PluginManagedSkillResolution {
   pluginKey: string;
   resourceKind: "skill";
   resourceKey: string;
-  companyId: string;
+  spaceId: string;
   skillId: string | null;
-  skill: CompanySkill | null;
+  skill: SpaceSkill | null;
   status: "missing" | "resolved" | "created" | "relinked" | "reset";
   defaultDrift?: {
     changedFiles: string[];
@@ -507,7 +507,7 @@ export interface PluginUiSlotDeclaration {
    * Matching run activity and readiness also open the panel automatically.
    * GET this plugin-relative path with :entityId replaced by the agent ID,
    * and runId/issueId query parameters for the active task.
-   * The board-only, agent-scoped route returns { available: boolean }.
+   * The operator-only, agent-scoped route returns { available: boolean }.
    */
   taskSidePanel?: {
     availabilityPath: string;
@@ -516,11 +516,11 @@ export interface PluginUiSlotDeclaration {
   };
 
   /**
-   * Optional company-scoped route segment for page, routeSidebar, and
-   * companySettingsPage slots.
-   * Example: `kitchensink` becomes `/:companyPrefix/kitchensink`.
-   * For companySettingsPage, `permissions` becomes
-   * `/:companyPrefix/company/settings/permissions`.
+   * Optional space-scoped route segment for page, routeSidebar, and
+   * spaceSettingsPage slots.
+   * Example: `kitchensink` becomes `/:spacePrefix/kitchensink`.
+   * For spaceSettingsPage, `permissions` becomes
+   * `/:spacePrefix/space/settings/permissions`.
    */
   routePath?: string;
   /**
@@ -596,7 +596,7 @@ export interface PluginLauncherDeclaration {
 }
 
 /**
- * Lower-bound semver requirement for the Paperclip host.
+ * Lower-bound semver requirement for the Outpost host.
  *
  * The host should reject installation when its running version is lower than
  * the declared minimum.
@@ -630,7 +630,7 @@ export interface PluginDatabaseDeclaration {
   coreReadTables?: PluginDatabaseCoreReadTable[];
 }
 
-export type PluginApiRouteCompanyResolution =
+export type PluginApiRouteSpaceResolution =
   | { from: "body"; key: string }
   | { from: "query"; key: string }
   | { from: "issue"; param: string }
@@ -651,8 +651,8 @@ export interface PluginApiRouteDeclaration {
   capability: "api.routes.register";
   /** Optional checkout policy enforced by the host before worker dispatch. */
   checkoutPolicy?: PluginApiRouteCheckoutPolicy;
-  /** How the host resolves company access for this route. */
-  companyResolution?: PluginApiRouteCompanyResolution;
+  /** How the host resolves space access for this route. */
+  spaceResolution?: PluginApiRouteSpaceResolution;
 }
 
 export interface PluginObjectReferenceRefreshPolicy {
@@ -688,7 +688,7 @@ export interface PluginObjectReferenceProviderDeclaration {
  * The manifest shape every plugin package must export.
  * See PLUGIN_SPEC.md §10.1 for the normative definition.
  */
-export interface PaperclipPluginManifestV1 {
+export interface OutpostPluginManifestV1 {
   /** Globally unique plugin identifier (e.g. `"acme.linear-sync"`). Must be lowercase alphanumeric with dots, hyphens, or underscores. */
   id: string;
   /** Plugin API version. Must be `1` for the current spec. */
@@ -712,7 +712,7 @@ export interface PaperclipPluginManifestV1 {
    * Legacy alias for `minimumHostVersion`.
    * Kept for backwards compatibility with existing manifests and docs.
    */
-  minimumPaperclipVersion?: PluginMinimumHostVersion;
+  minimumOutpostVersion?: PluginMinimumHostVersion;
   /** Capabilities this plugin requires from the host. Enforced at runtime. */
   capabilities: PluginCapability[];
   /** Required participant in agent preparation, stop, resume, and cleanup. */
@@ -757,13 +757,13 @@ export interface PaperclipPluginManifestV1 {
   apiRoutes?: PluginApiRouteDeclaration[];
   /** Environment drivers this plugin contributes. Requires `environment.drivers.register` capability. */
   environmentDrivers?: PluginEnvironmentDriverDeclaration[];
-  /** Suggested company-scoped agents this plugin can provision and resolve by stable key. */
+  /** Suggested space-scoped agents this plugin can provision and resolve by stable key. */
   agents?: PluginManagedAgentDeclaration[];
-  /** Suggested company-scoped projects this plugin can provision and resolve by stable key. */
+  /** Suggested space-scoped projects this plugin can provision and resolve by stable key. */
   projects?: PluginManagedProjectDeclaration[];
-  /** Suggested company-scoped routines this plugin can provision and resolve by stable key. */
+  /** Suggested space-scoped routines this plugin can provision and resolve by stable key. */
   routines?: PluginManagedRoutineDeclaration[];
-  /** Suggested company skills this plugin can install and resolve by stable key. */
+  /** Suggested space skills this plugin can install and resolve by stable key. */
   skills?: PluginManagedSkillDeclaration[];
   /** Trusted local folders this plugin can configure and access by stable key. */
   localFolders?: PluginLocalFolderDeclaration[];
@@ -800,7 +800,7 @@ export interface PluginRecord {
   /** Plugin categories from the manifest. */
   categories: PluginCategory[];
   /** Full manifest snapshot persisted at install/upgrade time. */
-  manifestJson: PaperclipPluginManifestV1;
+  manifestJson: OutpostPluginManifestV1;
   /** Current lifecycle status. */
   status: PluginStatus;
   /** Deterministic load order (null if not yet assigned). */
@@ -883,17 +883,17 @@ export interface PluginStateRecord {
 // ---------------------------------------------------------------------------
 
 /**
- * Domain type for a plugin's company-scoped configuration as persisted in the
+ * Domain type for a plugin's space-scoped configuration as persisted in the
  * `plugin_config` table.
  * See PLUGIN_SPEC.md §21.3 for the schema definition.
  */
 export interface PluginConfig {
   /** UUID primary key. */
   id: string;
-  /** FK to `plugins.id`. Unique together with `companyId`. */
+  /** FK to `plugins.id`. Unique together with `spaceId`. */
   pluginId: string;
-  /** FK to `companies.id`. */
-  companyId: string;
+  /** FK to `spaces.id`. */
+  spaceId: string;
   /** Operator-provided configuration values (validated against `instanceConfigSchema`). */
   configJson: Record<string, unknown>;
   /** Most recent config validation error, if any. */
@@ -905,13 +905,13 @@ export interface PluginConfig {
 }
 
 /**
- * Company-scoped plugin settings row. This is intentionally generic; plugin
+ * Space-scoped plugin settings row. This is intentionally generic; plugin
  * features such as local folders live inside `settingsJson` under namespaced
  * keys instead of requiring feature-specific database columns.
  */
-export interface PluginCompanySettings {
+export interface PluginSpaceSettings {
   id: string;
-  companyId: string;
+  spaceId: string;
   pluginId: string;
   enabled: boolean;
   settingsJson: Record<string, unknown>;

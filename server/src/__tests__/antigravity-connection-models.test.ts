@@ -14,11 +14,11 @@ import { antigravityConnectionModels } from "../services/antigravity-connection-
 import { RetiredCredentialRecoveryError } from "../services/quota-credential-recovery.js";
 import { reconcileRetainedGoogleCleanup } from "../services/retained-google-credential-cleanup.js";
 
-const input = { companyId: "company", userId: "alice", binding: { provider: "google", method: "subscription", mode: "responsible_user" } as const,
+const input = { spaceId: "space", userId: "alice", binding: { provider: "google", method: "subscription", mode: "responsible_user" } as const,
   allowUninstalledShared: false };
 let sequence = 0;
-let scope = { companyId: "company", accountKey: "" };
-beforeEach(() => { vi.clearAllMocks(); scope = { companyId: "company", accountKey: `catalog-${++sequence}` }; mocks.cleanup.mockResolvedValue(undefined); mocks.managed.mockImplementation(async () => {
+let scope = { spaceId: "space", accountKey: "" };
+beforeEach(() => { vi.clearAllMocks(); scope = { spaceId: "space", accountKey: `catalog-${++sequence}` }; mocks.cleanup.mockResolvedValue(undefined); mocks.managed.mockImplementation(async () => {
   void reconcileRetainedGoogleCleanup(scope).catch(() => undefined);
   return {
   attribution: { method: "subscription" }, config: { env: { GEMINI_HOME: "/private/selected-google-home" } },
@@ -31,7 +31,7 @@ it("uses the selected account lifecycle and returns only its model catalog", asy
   mocks.discover.mockResolvedValue({ models, defaultModelId: "exact-google-model" });
   expect(await antigravityConnectionModels({} as never, input)).toEqual(models);
   expect(mocks.managed).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-    companyId: "company", responsibleUserId: "alice", adapterType: "outpost_runner", binding: input.binding,
+    spaceId: "space", responsibleUserId: "alice", adapterType: "outpost_runner", binding: input.binding,
     allowUninstalledPersonal: true, allowUninstalledShared: false, config: { provider: "acpx", acpxAgent: "antigravity" },
   }));
   expect(mocks.discover).toHaveBeenCalledWith("/private/selected-google-home");
@@ -77,7 +77,7 @@ it.each(["success", "failure"])("retains storage failure after native discovery 
   expect(mocks.cleanup).toHaveBeenCalledTimes(1);
   expect(mocks.managed).toHaveBeenCalledTimes(1);
   expect(mocks.discover).toHaveBeenCalledTimes(1);
-  expect(mocks.warn).toHaveBeenCalledExactlyOnceWith({ companyId: "company", code: "ANTIGRAVITY_CATALOG_CREDENTIAL_CLEANUP_PENDING" },
+  expect(mocks.warn).toHaveBeenCalledExactlyOnceWith({ spaceId: "space", code: "ANTIGRAVITY_CATALOG_CREDENTIAL_CLEANUP_PENDING" },
     "Antigravity model-discovery credential cleanup is retained for recovery");
   await vi.advanceTimersByTimeAsync(90_000);
   expect(mocks.cleanup).toHaveBeenCalledTimes(1);

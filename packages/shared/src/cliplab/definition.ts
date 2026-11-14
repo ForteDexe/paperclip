@@ -11,7 +11,7 @@ import { OUTPOST_CHARACTER } from "./character.js";
  */
 export function characterDefinition(appearance: AgentAppearance, muted = false): Definition {
   const colors = CAP_V1_COLORS[(muted ? "muted-dream" : appearance.paletteId) as CharacterPaletteId];
-  const character = { ...OUTPOST_CHARACTER.character, id: "paperclip-cap-v1", name: "Agent", color: colors.a, color2: colors.b, followCursor: true, followRotation: true };
+  const character = { ...OUTPOST_CHARACTER.character, id: "outpost-cap-v1", name: "Agent", color: colors.a, color2: colors.b, followCursor: true, followRotation: true };
   const definition = definitionOf({ version: 1, name: "Outpost", characters: [character], expressions: OUTPOST_CHARACTER.expressions, animations: OUTPOST_CHARACTER.animations }, character);
   for (const animation of definition.animations) if (animation.id === "happy") animation.loop = false;
   return definition;

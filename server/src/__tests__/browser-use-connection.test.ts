@@ -1,6 +1,6 @@
 import { budgetService, computeObservedSpend, flushBudgetEvaluationWork } from "../services/budgets.js";
 import * as costAccounting from "../services/costs.js";
-import { buildPaperclipRuntimeMcpServers } from "../services/heartbeat.js";
+import { buildOutpostRuntimeMcpServers } from "../services/heartbeat.js";
 import { resolveNativeRuntimeMcpSnapshot } from "../services/native-runtime/runtime-context.js";
 import express from "express";
 import http from "supertest";
@@ -16,8 +16,8 @@ import {
   toolActionRequests,
   toolInvocations,
   toolPolicies,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   connectionGrants,
   createDb,
   heartbeatRuns,
@@ -46,7 +46,7 @@ import { registerBrowserUseCleanup } from "../services/browser-use-work.js";
 import { browserUseService } from "../services/browser-use.js";
 import { applyConnectorSkills, prepareConnectorSkillDelivery, resolveConnectorAssignments } from "../services/connector-runtime.js";
 import { registerAssignedMcpGateway } from "../services/native-runtime/assigned-mcp-tools.js";
-import { listPaperclipSkillEntries } from "@outpost/adapter-utils/server-utils";
+import { listOutpostSkillEntries } from "@outpost/adapter-utils/server-utils";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
@@ -63,7 +63,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
     const originalApiUrl = process.env.OUTPOST_API_URL;
     beforeAll(async () => {
       process.env.OUTPOST_API_URL = "http://127.0.0.1:3100";
-      temp = await startEmbeddedPostgresTestDatabase("paperclip-browser-use-");
+      temp = await startEmbeddedPostgresTestDatabase("outpost-browser-use-");
       db = createDb(temp.connectionString);
     }, 30000);
     afterAll(async () => {
@@ -72,15 +72,15 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       else process.env.OUTPOST_API_URL = originalApiUrl;
     });
     async function fixture(personal = false) {
-      const [company] = await db
-        .insert(companies)
+      const [space] = await db
+        .insert(spaces)
         .values({
           name: "Browser fixture",
           issuePrefix: `BU${randomUUID().slice(0, 6)}`,
         })
         .returning();
-      await db.insert(companyMemberships).values({
-        companyId: company.id,
+      await db.insert(spaceMemberships).values({
+        spaceId: space.id,
         principalType: "user",
         principalId: actor.actorId,
         membershipRole: "admin",
@@ -200,7 +200,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         ],
       });
       const connection = await access.connectGalleryApp(
-        company.id,
+        space.id,
         {
           galleryKey: "browser-use-cloud",
           ...(personal ? { grantKind: "user" as const } : {}),
@@ -216,7 +216,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       const [agent] = await db
         .insert(agents)
         .values({
-          companyId: company.id,
+          spaceId: space.id,
           name: "Browser agent",
           role: "engineer",
           adapterType: "process",
@@ -224,7 +224,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         })
         .returning();
       await access.finishGalleryAppConnection(
-        company.id,
+        space.id,
         connection.connectionId,
         {
           enabledCatalogEntryIds: connection.catalog.map((t) => t.id),
@@ -236,7 +236,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       const [issue] = await db
         .insert(issues)
         .values({
-          companyId: company.id,
+          spaceId: space.id,
           title: "Browser task",
           assigneeAgentId: agent.id,
         })
@@ -244,7 +244,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       const [run] = await db
         .insert(heartbeatRuns)
         .values({
-          companyId: company.id,
+          spaceId: space.id,
           agentId: agent.id,
           invocationSource: "on_demand",
           status: "running",
@@ -255,14 +255,14 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       const [profile] = await db
         .insert(toolProfiles)
         .values({
-          companyId: company.id,
+          spaceId: space.id,
           name: "Browser tools",
           profileKey: randomUUID(),
           defaultAction: "allow",
         })
         .returning();
       await db.insert(toolProfileBindings).values({
-        companyId: company.id,
+        spaceId: space.id,
         profileId: profile.id,
         targetType: "agent",
         targetId: agent.id,
@@ -273,13 +273,13 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       });
       registerAssignedMcpGateway(db, gateway);
       const gatewaySession = await gateway.createSession({
-        companyId: company.id,
+        spaceId: space.id,
         agentId: agent.id,
         runId: run.id,
       });
       const service = browserUseService(db, request);
       const binding = {
-        companyId: company.id,
+        spaceId: space.id,
         agentId: agent.id,
         issueId: issue.id,
         runId: run.id,
@@ -288,12 +288,12 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         await db
           .update(browserUseSessions)
           .set({ nextPollAt: new Date(0) })
-          .where(eq(browserUseSessions.companyId, company.id));
+          .where(eq(browserUseSessions.spaceId, space.id));
         await service.sweep(connection.connectionId);
-        await flushBudgetEvaluationWork(db, { companyId: company.id });
+        await flushBudgetEvaluationWork(db, { spaceId: space.id });
       };
       return {
-        company,
+        space,
         connection,
         access,
         grant,
@@ -366,39 +366,39 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         expect(await background.nextSweepAt()).toBeNull();
       } finally {
         await coordinator.stop();
-        await db.update(browserUseSessions).set({ status: "closed" }).where(eq(browserUseSessions.companyId, f.company.id));
+        await db.update(browserUseSessions).set({ status: "closed" }).where(eq(browserUseSessions.spaceId, f.space.id));
       }
     });
     it("keeps Cloud instructions out of universal skills and unassigned runtime overlays", async () => {
-      const skills = await listPaperclipSkillEntries(fileURLToPath(new URL("../", import.meta.url)), [fileURLToPath(new URL("../../../skills", import.meta.url))]);
-      expect(skills.some(skill => skill.runtimeName === "paperclip")).toBe(true);
+      const skills = await listOutpostSkillEntries(fileURLToPath(new URL("../", import.meta.url)), [fileURLToPath(new URL("../../../skills", import.meta.url))]);
+      expect(skills.some(skill => skill.runtimeName === "outpost")).toBe(true);
       expect(skills.some(skill => ["browser-use", "browser-use-cloud"].includes(skill.runtimeName))).toBe(false);
-      const base = { paperclipSkillSync: { desiredSkills: ["paperclipai/paperclip/browser-use", "paperclipai/paperclip/browser-use-cloud"] } };
+      const base = { outpostSkillSync: { desiredSkills: ["outpost/outpost/browser-use", "outpost/outpost/browser-use-cloud"] } };
       const unassigned = await applyConnectorSkills(base, [
-        { key: "paperclipai/paperclip/browser-use", runtimeName: "browser-use", source: "/retired-browser-skill" },
-        { key: "paperclipai/paperclip/browser-use-cloud", runtimeName: "browser-use-cloud", source: "/unassigned-cloud-skill" },
+        { key: "outpost/outpost/browser-use", runtimeName: "browser-use", source: "/retired-browser-skill" },
+        { key: "outpost/outpost/browser-use-cloud", runtimeName: "browser-use-cloud", source: "/unassigned-cloud-skill" },
         { key: "custom/browser-use", runtimeName: "browser-use", source: "/another-browser-skill" },
       ], []);
-      expect(unassigned.paperclipRuntimeSkills).toEqual([{ key: "custom/browser-use", runtimeName: "browser-use", source: "/another-browser-skill" }]);
-      expect(unassigned.paperclipConnectorSkillDigest).toBeNull();
-      expect(base.paperclipSkillSync.desiredSkills).toHaveLength(2);
+      expect(unassigned.outpostRuntimeSkills).toEqual([{ key: "custom/browser-use", runtimeName: "browser-use", source: "/another-browser-skill" }]);
+      expect(unassigned.outpostConnectorSkillDigest).toBeNull();
+      expect(base.outpostSkillSync.desiredSkills).toHaveLength(2);
     });
     it("delivers the Cloud skill only with authorized connection tools in a task run", async () => {
       const f = await fixture();
       const [unassignedAgent] = await db.insert(agents).values({
-        companyId: f.company.id,
+        spaceId: f.space.id,
         name: "Agent without the Cloud connection",
         role: "engineer",
         adapterType: "process",
         adapterConfig: {},
       }).returning();
-      expect(await f.gateway.browserUseResources({ companyId: f.company.id, agentId: f.agent.id })).toEqual([]);
+      expect(await f.gateway.browserUseResources({ spaceId: f.space.id, agentId: f.agent.id })).toEqual([]);
       expect(await resolveConnectorAssignments(db, { ...f.binding, agentId: unassignedAgent.id })).toEqual([]);
-      expect(await resolveConnectorAssignments(db, { ...f.binding, companyId: randomUUID() })).toEqual([]);
+      expect(await resolveConnectorAssignments(db, { ...f.binding, spaceId: randomUUID() })).toEqual([]);
       const assignments = await resolveConnectorAssignments(db, f.binding);
-      expect(assignments).toMatchObject([{ key: "browser-use-cloud", skillKey: "paperclipai/paperclip/browser-use-cloud", resources: [{ connectionId: f.connection.connectionId }] }]);
+      expect(assignments).toMatchObject([{ key: "browser-use-cloud", skillKey: "outpost/outpost/browser-use-cloud", resources: [{ connectionId: f.connection.connectionId }] }]);
       const config = await applyConnectorSkills({}, [], assignments);
-      const skill = config.paperclipRuntimeSkills[0];
+      const skill = config.outpostRuntimeSkills[0];
       expect(skill.runtimeName).toBe("browser-use-cloud");
       const markdown = await readFile(path.join(skill.source, "SKILL.md"), "utf8");
       expect(markdown).toContain("name: browser-use-cloud");
@@ -407,20 +407,20 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       expect(markdown).not.toContain("bu_fixture_secret");
       for (const adapterType of ["outpost_runner", "codex_local", "claude_local", "kimi_local"]) {
         const delivery = await prepareConnectorSkillDelivery({ ...config, engine: "cli" }, adapterType);
-        expect(delivery.config.paperclipRuntimeSkills).toEqual([skill]);
+        expect(delivery.config.outpostRuntimeSkills).toEqual([skill]);
       }
       const sharedHome = await prepareConnectorSkillDelivery(config, "cursor_local");
-      expect(sharedHome.config.paperclipRuntimeSkills).toEqual([]);
+      expect(sharedHome.config.outpostRuntimeSkills).toEqual([]);
       expect(sharedHome.instructions).toContain("name: browser-use-cloud");
-      expect(sharedHome.config.paperclipConnectorSkillDigest).toBe(config.paperclipConnectorSkillDigest);
+      expect(sharedHome.config.outpostConnectorSkillDigest).toBe(config.outpostConnectorSkillDigest);
       await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, f.grant.id));
       expect(await resolveConnectorAssignments(db, f.binding)).toEqual([]);
-      const revoked = await applyConnectorSkills(config, config.paperclipRuntimeSkills, []);
-      expect(revoked.paperclipRuntimeSkills).toEqual([]);
-      expect(revoked.paperclipConnectorSkillDigest).toBeNull();
+      const revoked = await applyConnectorSkills(config, config.outpostRuntimeSkills, []);
+      expect(revoked.outpostRuntimeSkills).toEqual([]);
+      expect(revoked.outpostConnectorSkillDigest).toBeNull();
       expect((await prepareConnectorSkillDelivery(revoked, "cursor_local")).instructions).toBe("");
     });
-    it.each([false, true])("skips tool discovery without an active company Browser Use connection (foreign: %s)", async foreign => {
+    it.each([false, true])("skips tool discovery without an active space Browser Use connection (foreign: %s)", async foreign => {
       const f = await fixture();
       await db.update(toolConnections).set({ enabled: false }).where(eq(toolConnections.id, f.connection.connectionId));
       if (foreign) await fixture();
@@ -435,14 +435,14 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
     it("resolves only the Browser Use catalog even while full discovery is saturated", async () => {
       const f = await fixture();
       const [application] = await db.insert(toolApplications).values({
-        companyId: f.company.id, name: "Unrelated MCP", type: "mcp_http", status: "active",
+        spaceId: f.space.id, name: "Unrelated MCP", type: "mcp_http", status: "active",
       }).returning();
       const [connection] = await db.insert(toolConnections).values({
-        companyId: f.company.id, applicationId: application.id, name: "Unrelated MCP",
+        spaceId: f.space.id, applicationId: application.id, name: "Unrelated MCP",
         uid: randomUUID(), transport: "mcp_remote", status: "active", enabled: true, healthStatus: "ok",
       }).returning();
       await db.insert(toolCatalogEntries).values(Array.from({ length: 500 }, (_, i) => ({
-        companyId: f.company.id, applicationId: application.id, connectionId: connection.id,
+        spaceId: f.space.id, applicationId: application.id, connectionId: connection.id,
         entryKind: "tool" as const, name: `unrelated_${i}`, toolName: `unrelated_${i}`,
         inputSchema: { type: "object" }, riskLevel: "read" as const, status: "active" as const,
         versionHash: "fixture", schemaHash: "fixture",
@@ -478,7 +478,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       const f = await fixture();
       expect(await f.gateway.browserUseResources(f.binding)).toHaveLength(1);
       if (kind === "policy") await db.insert(toolPolicies).values({
-        companyId: f.company.id, name: "Revoke Browser Use", policyType: "block",
+        spaceId: f.space.id, name: "Revoke Browser Use", policyType: "block",
         selectors: { connectionId: f.connection.connectionId }, priority: 100,
       });
       if (kind === "catalog") await db.update(toolCatalogEntries).set({ quarantinedAt: new Date() }).where(eq(toolCatalogEntries.connectionId, f.connection.connectionId));
@@ -498,7 +498,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       });
       f.ready(); f.complete(); await f.tick();
       const previous = await db.select().from(browserUseRuns)
-        .where(eq(browserUseRuns.companyId, f.company.id));
+        .where(eq(browserUseRuns.spaceId, f.space.id));
       expect(previous).toHaveLength(1);
       const [original] = await db.select().from(toolConnections).where(eq(toolConnections.id, f.connection.connectionId));
       await db.update(toolConnections).set({
@@ -510,8 +510,8 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         metadata: { sourceTemplateKey: "browser-use", galleryKey: "browser-use" },
       }).where(eq(toolApplications.id, original.applicationId));
       const legacyCost = { provider: "browser-use", biller: "browser-use", billingCode: `browser-use:${previous[0].id}` };
-      await db.update(costEvents).set(legacyCost).where(eq(costEvents.companyId, f.company.id));
-      await db.update(financeEvents).set(legacyCost).where(eq(financeEvents.companyId, f.company.id));
+      await db.update(costEvents).set(legacyCost).where(eq(costEvents.spaceId, f.space.id));
+      await db.update(financeEvents).set(legacyCost).where(eq(financeEvents.spaceId, f.space.id));
       const migration = await readFile(new URL(
         "../../../packages/db/src/migrations/0290_browser_use_cloud.sql", import.meta.url,
       ), "utf8");
@@ -521,14 +521,14 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         }
       }
       expect(await db.select().from(browserUseRuns)
-        .where(eq(browserUseRuns.companyId, f.company.id))).toEqual(previous);
+        .where(eq(browserUseRuns.spaceId, f.space.id))).toEqual(previous);
       const [migrated] = await db.select().from(toolConnections).where(eq(toolConnections.id, original.id));
       expect(migrated).toMatchObject({ config: { sourceTemplateKey: "browser-use-cloud" }, transportConfig: { sourceTemplateKey: "browser-use-cloud" }, credentialSecretRefs: original.credentialSecretRefs });
       expect(await db.select().from(toolApplications).where(eq(toolApplications.id, original.applicationId))).toMatchObject([{ applicationKey: `app-gallery:browser-use-cloud:${original.id}`, metadata: { sourceTemplateKey: "browser-use-cloud", galleryKey: "browser-use-cloud" } }]);
       expect(await resolveConnectorAssignments(db, f.binding)).toMatchObject([{ key: "browser-use-cloud" }]);
       await f.tick();
-      expect(await db.select().from(costEvents).where(eq(costEvents.companyId, f.company.id))).toMatchObject([{ provider: "browser-use-cloud", biller: "browser-use-cloud", billingCode: `browser-use-cloud:${previous[0].id}`, costCents: 15 }]);
-      expect(await db.select().from(financeEvents).where(eq(financeEvents.companyId, f.company.id))).toMatchObject([{ provider: "browser-use-cloud", amountCents: 15 }]);
+      expect(await db.select().from(costEvents).where(eq(costEvents.spaceId, f.space.id))).toMatchObject([{ provider: "browser-use-cloud", biller: "browser-use-cloud", billingCode: `browser-use-cloud:${previous[0].id}`, costCents: 15 }]);
+      expect(await db.select().from(financeEvents).where(eq(financeEvents.spaceId, f.space.id))).toMatchObject([{ provider: "browser-use-cloud", amountCents: 15 }]);
     });
     it("delivers Browser Use through the pinned native and CLI runtime gateway", async () => {
       const f = await fixture();
@@ -537,7 +537,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       const installs = await db.select().from(toolConnectionInstalls)
         .where(eq(toolConnectionInstalls.connectionId, f.connection.connectionId));
       expect(installs).toEqual([expect.objectContaining({
-        companyId: f.company.id,
+        spaceId: f.space.id,
         connectionId: f.connection.connectionId,
         targetType: "agent",
         targetId: f.agent.id,
@@ -548,7 +548,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         runId: f.run.id,
       });
       expect(snapshot.bindingId).not.toBeNull();
-      const servers = await buildPaperclipRuntimeMcpServers({
+      const servers = await buildOutpostRuntimeMcpServers({
         db,
         agent: f.agent,
         runId: f.run.id,
@@ -627,12 +627,12 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         await db
           .select()
           .from(browserUseBrowsers)
-          .where(eq(browserUseBrowsers.companyId, f.company.id)),
+          .where(eq(browserUseBrowsers.spaceId, f.space.id)),
       ).toHaveLength(0);
       f.ready();
       await f.tick();
       const list = await f.service.list(
-        f.company.id,
+        f.space.id,
         f.issue.id,
         actor.actorId,
       );
@@ -640,7 +640,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       expect(JSON.stringify(list)).not.toContain("canary");
       expect(
         await f.service.viewer(
-          f.company.id,
+          f.space.id,
           f.issue.id,
           list[0].id,
           actor.actorId,
@@ -651,7 +651,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         viewportState: { preset: "fit" },
       });
       await expect(
-        f.service.viewer(f.company.id, randomUUID(), list[0].id, actor.actorId),
+        f.service.viewer(f.space.id, randomUUID(), list[0].id, actor.actorId),
       ).rejects.toThrow("not found");
       f.complete();
       await f.tick();
@@ -666,16 +666,16 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         await db
           .select()
           .from(costEvents)
-          .where(eq(costEvents.companyId, f.company.id)),
+          .where(eq(costEvents.spaceId, f.space.id)),
       ).toHaveLength(1);
       const ledger = await db
         .select()
         .from(financeEvents)
-        .where(eq(financeEvents.companyId, f.company.id));
+        .where(eq(financeEvents.spaceId, f.space.id));
       const [cost] = await db
         .select()
         .from(costEvents)
-        .where(eq(costEvents.companyId, f.company.id));
+        .where(eq(costEvents.spaceId, f.space.id));
       expect(ledger).toHaveLength(1);
       expect(ledger[0]).toMatchObject({
         issueId: f.issue.id,
@@ -729,7 +729,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       f.complete();
       await f.tick();
       const [browser] = await f.service.list(
-        f.company.id,
+        f.space.id,
         f.issue.id,
         actor.actorId,
       );
@@ -747,7 +747,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         .where(eq(browserUseSessions.id, started.sessionId));
       await expect(
         f.service.presence(
-          f.company.id,
+          f.space.id,
           randomUUID(),
           browser.id,
           actor.actorId,
@@ -756,7 +756,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       expect((await read()).idleDeadline?.getTime()).toBe(original.getTime());
       expect(
         await f.service.presence(
-          f.company.id,
+          f.space.id,
           f.issue.id,
           browser.id,
           actor.actorId,
@@ -778,7 +778,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         .set({ idleDeadline: original })
         .where(eq(browserUseSessions.id, started.sessionId));
       await f.service.presence(
-        f.company.id,
+        f.space.id,
         f.issue.id,
         browser.id,
         actor.actorId,
@@ -786,7 +786,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       expect((await read()).idleDeadline?.getTime()).toBe(expiry.getTime());
       await f.service.control(await read(), "end");
       await expect(
-        f.service.presence(f.company.id, f.issue.id, browser.id, actor.actorId),
+        f.service.presence(f.space.id, f.issue.id, browser.id, actor.actorId),
       ).rejects.toThrow();
       await f.tick();
       expect((await read()).status).toBe("closed");
@@ -794,7 +794,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
     it("executes an approved start once after the original turn ends and attaches the resumed run", async () => {
       const f = await fixture();
       await db.insert(toolPolicies).values({
-        companyId: f.company.id,
+        spaceId: f.space.id,
         name: "Review browser writes",
         policyType: "require_approval",
         selectors: { connectionId: f.connection.connectionId },
@@ -814,7 +814,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       const [pending] = await db
         .select()
         .from(toolActionRequests)
-        .where(eq(toolActionRequests.companyId, f.company.id));
+        .where(eq(toolActionRequests.spaceId, f.space.id));
       await db
         .update(heartbeatRuns)
         .set({ status: "succeeded" })
@@ -829,14 +829,14 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
           })
           .where(eq(approvals.id, pending.approvalId));
       await f.gateway.approveActionRequest({
-        companyId: f.company.id,
+        spaceId: f.space.id,
         actionRequestId: pending.id,
         actor: { userId: actor.actorId },
       });
       const [record] = await db
         .select()
         .from(browserUseRuns)
-        .where(eq(browserUseRuns.companyId, f.company.id));
+        .where(eq(browserUseRuns.spaceId, f.space.id));
       expect(record?.providerRunId).toBeTruthy();
       expect(record.detachedUntil).toBeTruthy();
       f.ready();
@@ -852,7 +852,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       const [resumed] = await db
         .insert(heartbeatRuns)
         .values({
-          companyId: f.company.id,
+          spaceId: f.space.id,
           agentId: f.agent.id,
           invocationSource: "on_demand",
           status: "running",
@@ -874,7 +874,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       expect(attached.detachedUntil).toBeNull();
       expect(attached.heartbeatRunId).toBe(resumed.id);
       await f.gateway.approveActionRequest({
-        companyId: f.company.id,
+        spaceId: f.space.id,
         actionRequestId: pending.id,
         actor: { userId: actor.actorId },
       });
@@ -943,7 +943,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         .set({ status: "revoked" })
         .where(eq(connectionGrants.id, f.grant.id));
       expect(
-        await f.service.list(f.company.id, f.issue.id, actor.actorId),
+        await f.service.list(f.space.id, f.issue.id, actor.actorId),
       ).toEqual([]);
       await f.tick();
       expect(
@@ -984,13 +984,13 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       f.ready(); f.complete(); await f.tick();
       f.reject(code);
       await expect(f.service.execute(f.binding, f.grant, randomUUID(), "browser_continue", { task: "Read again", sessionId: start.sessionId })).rejects.toThrow();
-      expect(await f.service.list(f.company.id, f.issue.id, actor.actorId)).toMatchObject([{ status: "idle" }]);
+      expect(await f.service.list(f.space.id, f.issue.id, actor.actorId)).toMatchObject([{ status: "idle" }]);
       const [session] = await db.select().from(browserUseSessions).where(eq(browserUseSessions.id, start.sessionId));
       await f.service.control(session, "end", actor.actorId);
       // The 429 response delays the whole credential's provider requests.
       if (code === 429) await new Promise(resolve => setTimeout(resolve, 1050));
       await f.tick();
-      expect(await f.service.list(f.company.id, f.issue.id, actor.actorId)).toMatchObject([{ status: "closed" }]);
+      expect(await f.service.list(f.space.id, f.issue.id, actor.actorId)).toMatchObject([{ status: "closed" }]);
     });
     it("rolls back an interrupted rejection and closes the existing browser after restart", async () => {
       const f = await fixture();
@@ -1024,12 +1024,12 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       f.loseReply(); f.recoveryPages(6);
       await expect(f.service.execute(f.binding, f.grant, randomUUID(), "browser_start", { task: "Read" })).rejects.toThrow("could not be confirmed");
       await f.tick();
-      const [pending] = await db.select().from(browserUseRuns).where(eq(browserUseRuns.companyId, f.company.id));
+      const [pending] = await db.select().from(browserUseRuns).where(eq(browserUseRuns.spaceId, f.space.id));
       expect(pending.recoveryCursor).toBe("5");
-      await db.update(browserUseSessions).set({ nextPollAt: new Date(0) }).where(eq(browserUseSessions.companyId, f.company.id));
+      await db.update(browserUseSessions).set({ nextPollAt: new Date(0) }).where(eq(browserUseSessions.spaceId, f.space.id));
       await browserUseService(db, f.request).sweep();
-      expect(await f.service.list(f.company.id, f.issue.id, actor.actorId)).toMatchObject([{ status: "closed" }]);
-      expect(await db.select().from(financeEvents).where(eq(financeEvents.companyId, f.company.id))).toMatchObject([{ amountCents: 15 }]);
+      expect(await f.service.list(f.space.id, f.issue.id, actor.actorId)).toMatchObject([{ status: "closed" }]);
+      expect(await db.select().from(financeEvents).where(eq(financeEvents.spaceId, f.space.id))).toMatchObject([{ amountCents: 15 }]);
       expect(f.request.mock.calls.filter(([url, init]) => url.endsWith("/runs") && init.method === "POST")).toHaveLength(1);
     });
     it("recovers a continuation's lost reply within its existing provider session", async () => {
@@ -1039,7 +1039,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       f.loseReply();
       await expect(f.service.execute(f.binding, f.grant, randomUUID(), "browser_continue", { task: "Read again", sessionId: start.sessionId })).rejects.toThrow("could not be confirmed");
       await f.tick();
-      expect(await f.service.list(f.company.id, f.issue.id, actor.actorId)).toMatchObject([{ status: "closed" }]);
+      expect(await f.service.list(f.space.id, f.issue.id, actor.actorId)).toMatchObject([{ status: "closed" }]);
       expect(f.request.mock.calls.some(([url]) => new URL(url).searchParams.has("sessionId"))).toBe(true);
       expect(f.request.mock.calls.filter(([url, init]) => url.endsWith("/runs") && init.method === "POST")).toHaveLength(2);
     });
@@ -1050,7 +1050,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       await db.update(browserUseRuns).set({ providerRunId: null, status: "creating", createdAt: new Date(Date.now() - 61_000) }).where(eq(browserUseRuns.sessionId, start.sessionId));
       await db.update(browserUseSessions).set({ providerSessionId: null, status: "starting" }).where(eq(browserUseSessions.id, start.sessionId));
       await f.tick();
-      expect(await f.service.list(f.company.id, f.issue.id, actor.actorId)).toMatchObject([{ status: "closed" }]);
+      expect(await f.service.list(f.space.id, f.issue.id, actor.actorId)).toMatchObject([{ status: "closed" }]);
       expect(f.request.mock.calls.filter(([url, init]) => url.endsWith("/runs") && init.method === "POST")).toHaveLength(1);
     });
     it("drains bounded event pages after restart before closing and accounting", async () => {
@@ -1084,7 +1084,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         await db
           .select()
           .from(costEvents)
-          .where(eq(costEvents.companyId, f.company.id)),
+          .where(eq(costEvents.spaceId, f.space.id)),
       ).toHaveLength(0);
       await db
         .update(browserUseSessions)
@@ -1108,7 +1108,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         )[0],
       ).toMatchObject({ eventCursor: 9, eventsDrained: 1, accountedCents: 15 });
     });
-    it.each(["task", "saved chat"])("protects %s browser routes from agent, other-company and read-only access", async (kind) => {
+    it.each(["task", "saved chat"])("protects %s browser routes from agent, other-space and read-only access", async (kind) => {
       const f = await fixture();
       if (kind === "saved chat") {
         await db.update(issues).set({
@@ -1127,11 +1127,11 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       f.ready();
       await f.tick();
       const [browser] = await f.service.list(
-        f.company.id,
+        f.space.id,
         f.issue.id,
         actor.actorId,
       );
-      let mode = "board";
+      let mode = "operator";
       const app = express();
       app.use(express.json());
       app.use((req, _res, next) => {
@@ -1139,15 +1139,15 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
           mode === "agent"
             ? {
                 type: "agent",
-                companyId: f.company.id,
+                spaceId: f.space.id,
                 agentId: f.agent.id,
                 source: "agent_key",
               }
             : {
-                type: "board",
+                type: "operator",
                 userId: actor.actorId,
                 source: "session",
-                companyIds: mode === "other-company" ? [] : [f.company.id],
+                spaceIds: mode === "other-space" ? [] : [f.space.id],
               };
         next();
       });
@@ -1218,7 +1218,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         (await http(app).post(resizePath).send({ preset: "phone" })).status,
       ).toBe(403);
       expect((await http(app).get(path)).status).toBe(403);
-      mode = "other-company";
+      mode = "other-space";
       const inaccessible = await http(app).get(listPath);
       expect(inaccessible.status).toBe(missing.status);
       expect(inaccessible.body).toEqual(missing.body);
@@ -1232,11 +1232,11 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         (await http(app).post(resizePath).send({ preset: "phone" })).status,
       ).toBe(404);
       expect((await http(app).get(path)).status).toBe(404);
-      mode = "board";
+      mode = "operator";
       await db
-        .update(companyMemberships)
+        .update(spaceMemberships)
         .set({ membershipRole: "viewer" })
-        .where(eq(companyMemberships.companyId, f.company.id));
+        .where(eq(spaceMemberships.spaceId, f.space.id));
       expect((await http(app).get(path)).status).toBe(403);
       expect((await http(app).get(listPath)).body).toEqual([]);
       expect((await http(app).post(controlPath).send({ action: "keep_open" })).status).toBe(403);
@@ -1263,7 +1263,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       const [run] = await db
         .select()
         .from(browserUseRuns)
-        .where(eq(browserUseRuns.companyId, f.company.id));
+        .where(eq(browserUseRuns.spaceId, f.space.id));
       const scope = {
         ...f.binding,
         runId: run.heartbeatRunId,
@@ -1273,7 +1273,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       };
       expect(await f.gateway.browserUseSessionAuthorized(scope)).toBe(true);
       await db.insert(toolPolicies).values({
-        companyId: f.company.id,
+        spaceId: f.space.id,
         name: "Disable browser access",
         policyType: "block",
         selectors: { connectionId: f.connection.connectionId },
@@ -1283,7 +1283,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       await db
         .update(browserUseSessions)
         .set({ nextPollAt: new Date(0) })
-        .where(eq(browserUseSessions.companyId, f.company.id));
+        .where(eq(browserUseSessions.spaceId, f.space.id));
       await browserUseService(db, f.request, {}, () =>
         f.gateway.browserUseSessionAuthorized(scope),
       ).sweep();
@@ -1312,20 +1312,20 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       f.ready();
       await f.tick();
       const [browser] = await f.service.list(
-        f.company.id,
+        f.space.id,
         f.issue.id,
         actor.actorId,
       );
       expect(
         await f.service.viewer(
-          f.company.id,
+          f.space.id,
           f.issue.id,
           browser.id,
           actor.actorId,
         ),
       ).toHaveProperty("url");
-      await db.insert(companyMemberships).values({
-        companyId: f.company.id,
+      await db.insert(spaceMemberships).values({
+        spaceId: f.space.id,
         principalType: "user",
         principalId: "other-reviewer",
         membershipRole: "admin",
@@ -1333,7 +1333,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       });
       await expect(
         f.service.viewer(
-          f.company.id,
+          f.space.id,
           f.issue.id,
           browser.id,
           "other-reviewer",
@@ -1341,7 +1341,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       ).rejects.toThrow("another credential");
       await f.access.archiveConnection(
         f.connection.connectionId,
-        f.company.id,
+        f.space.id,
         actor,
       );
       expect(
@@ -1349,7 +1349,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
           await db
             .select()
             .from(browserUseSessions)
-            .where(eq(browserUseSessions.companyId, f.company.id))
+            .where(eq(browserUseSessions.spaceId, f.space.id))
         )[0].status,
       ).toBe("closed");
     });
@@ -1407,9 +1407,9 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
     });
     it("counts browser holds with parent reservations while provider work is delayed", async () => {
       const f = await fixture();
-      const policy = await budgetService(db).upsertPolicy(f.company.id,
-        { scopeType: "company", scopeId: f.company.id, amount: 100, hardStopEnabled: true }, actor.actorId);
-      await db.insert(budgetReservations).values({ companyId: f.company.id, runId: f.run.id, agentId: f.agent.id, amountCents: "40" });
+      const policy = await budgetService(db).upsertPolicy(f.space.id,
+        { scopeType: "space", scopeId: f.space.id, amount: 100, hardStopEnabled: true }, actor.actorId);
+      await db.insert(budgetReservations).values({ spaceId: f.space.id, runId: f.run.id, agentId: f.agent.id, amountCents: "40" });
       let release!: () => void, started!: () => void;
       const providerEntered = new Promise<void>(resolve => { started = resolve; });
       const providerRelease = new Promise<void>(resolve => { release = resolve; });
@@ -1425,7 +1425,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         const call = f.request.mock.calls.find(([url, init]) => url.endsWith("/runs") && init.method === "POST")!;
         expect(JSON.parse(String(call[1].body)).maxCostUsd).toBe(0.6);
         // Accounting lock is not held while the hosted browser is waiting.
-        expect(await db.select({ id: companies.id }).from(companies).where(eq(companies.id, f.company.id))).toHaveLength(1);
+        expect(await db.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, f.space.id))).toHaveLength(1);
       } finally { release(); await first; }
     });
     it("keeps manual Stop authoritative when a paid create response arrives later", async () => {
@@ -1437,14 +1437,14 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       const starting = f.service.execute(f.binding, f.grant, randomUUID(), "browser_start", { task: "Stop during dispatch" });
       await accepted;
       try {
-        const [session] = await db.select().from(browserUseSessions).where(eq(browserUseSessions.companyId, f.company.id));
+        const [session] = await db.select().from(browserUseSessions).where(eq(browserUseSessions.spaceId, f.space.id));
         await f.service.control(session, "end");
       } finally { release(); }
       await expect(starting).resolves.toMatchObject({ status: "stopping" });
       await f.tick();
-      expect((await db.select().from(browserUseSessions).where(eq(browserUseSessions.companyId, f.company.id)))[0].status).toBe("closed");
+      expect((await db.select().from(browserUseSessions).where(eq(browserUseSessions.spaceId, f.space.id)))[0].status).toBe("closed");
       expect(f.request.mock.calls.filter(([url]) => url.endsWith("/cancel"))).toHaveLength(1);
-      expect(await db.select().from(costEvents).where(eq(costEvents.companyId, f.company.id))).toHaveLength(1);
+      expect(await db.select().from(costEvents).where(eq(costEvents.spaceId, f.space.id))).toHaveLength(1);
     });
     it("replays simultaneous invocation retries without submitting another paid create", async () => {
       const f = await fixture();
@@ -1454,15 +1454,15 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         service.execute(f.binding, f.grant, invocation, "browser_start", { task: "One invocation" })));
       expect((results[0] as { sessionId: string }).sessionId).toBe((results[1] as { sessionId: string }).sessionId);
       expect(await db.select().from(browserUseRuns).where(eq(browserUseRuns.invocationId, invocation))).toHaveLength(1);
-      expect(await db.select().from(browserUseSessions).where(eq(browserUseSessions.companyId, f.company.id))).toHaveLength(1);
+      expect(await db.select().from(browserUseSessions).where(eq(browserUseSessions.spaceId, f.space.id))).toHaveLength(1);
       expect(f.request.mock.calls.filter(([url, init]) => url.endsWith("/runs") && init.method === "POST")).toHaveLength(1);
     });
     it.each([
-      { scope: "company", phase: "initial" }, { scope: "project", phase: "initial" },
-      { scope: "company", phase: "handoff" }, { scope: "project", phase: "handoff" },
+      { scope: "space", phase: "initial" }, { scope: "project", phase: "initial" },
+      { scope: "space", phase: "handoff" }, { scope: "project", phase: "handoff" },
     ])("honors a $scope pause committed after the $phase admission snapshot", async ({ scope, phase }) => {
       const f = await fixture();
-      const [project] = await db.insert(projects).values({ companyId: f.company.id, name: "Browser authority" }).returning();
+      const [project] = await db.insert(projects).values({ spaceId: f.space.id, name: "Browser authority" }).returning();
       await db.update(issues).set({ projectId: project.id }).where(eq(issues.id, f.issue.id));
       const invocation = randomUUID();
       const transaction = db.transaction.bind(db);
@@ -1476,9 +1476,9 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
             injected = true;
             // Establish the real RR snapshot before the independent operator
             // transaction commits. An unfenced read would keep seeing active.
-            await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, f.company.id));
-            if (scope === "company") await db.update(companies).set({ status: "paused", pauseReason: "manual", pausedAt: new Date() })
-              .where(eq(companies.id, f.company.id));
+            await tx.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, f.space.id));
+            if (scope === "space") await db.update(spaces).set({ status: "paused", pauseReason: "manual", pausedAt: new Date() })
+              .where(eq(spaces.id, f.space.id));
             else await db.update(projects).set({ pauseReason: "manual", pausedAt: new Date() }).where(eq(projects.id, project.id));
           }
           return callback(tx);
@@ -1491,27 +1491,27 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       expect(f.request.mock.calls.filter(([url, init]) => url.endsWith("/runs") && init.method === "POST")).toHaveLength(0);
       const rows = await db.select().from(browserUseRuns).where(eq(browserUseRuns.invocationId, invocation));
       if (phase === "initial") expect(rows).toHaveLength(0);
-      else expect(rows[0]).toMatchObject({ status: "failed", eventsDrained: 1, result: { paperclipBudgetHold: { state: "released" } } });
+      else expect(rows[0]).toMatchObject({ status: "failed", eventsDrained: 1, result: { outpostBudgetHold: { state: "released" } } });
     });
     it.each(["reduction", "new_policy", "config", "charge", "cancel", "session_end", "policy_deny"])("rechecks %s at the actual provider handoff", async race => {
       const f = await fixture();
-      if (race === "reduction" || race === "charge") await budgetService(db).upsertPolicy(f.company.id,
-        { scopeType: "company", scopeId: f.company.id, amount: 100, hardStopEnabled: true }, actor.actorId);
+      if (race === "reduction" || race === "charge") await budgetService(db).upsertPolicy(f.space.id,
+        { scopeType: "space", scopeId: f.space.id, amount: 100, hardStopEnabled: true }, actor.actorId);
       const invocationId = randomUUID();
       const transaction = db.transaction.bind(db);
       let injected = false;
       const barrier = vi.spyOn(db, "transaction").mockImplementation(async (callback, config) => {
         const result = await transaction(callback, config);
         const [run] = await db.select().from(browserUseRuns).where(eq(browserUseRuns.invocationId, invocationId));
-        if (!injected && run?.status === "creating" && !(run.result as { paperclipBudgetHold?: { dispatchCommittedAt?: string } })?.paperclipBudgetHold?.dispatchCommittedAt) {
+        if (!injected && run?.status === "creating" && !(run.result as { outpostBudgetHold?: { dispatchCommittedAt?: string } })?.outpostBudgetHold?.dispatchCommittedAt) {
           injected = true;
-          if (race === "reduction" || race === "new_policy") await budgetService(db).upsertPolicy(f.company.id,
-            { scopeType: "company", scopeId: f.company.id, amount: race === "new_policy" ? 100 : 10, hardStopEnabled: true }, actor.actorId);
-          else if (race === "config") await f.service.saveSettings(f.company.id, f.grant.id, actor.actorId, { allowedProfileIds: [], maxCostUsd: 0.1 });
+          if (race === "reduction" || race === "new_policy") await budgetService(db).upsertPolicy(f.space.id,
+            { scopeType: "space", scopeId: f.space.id, amount: race === "new_policy" ? 100 : 10, hardStopEnabled: true }, actor.actorId);
+          else if (race === "config") await f.service.saveSettings(f.space.id, f.grant.id, actor.actorId, { allowedProfileIds: [], maxCostUsd: 0.1 });
           else if (race === "charge") {
             const { costService } = await import("../services/costs.js");
-            await costService(db).createEvent(f.company.id, { agentId: f.agent.id, provider: "fixture", model: "fixture", costCents: 20, occurredAt: new Date() });
-          } else if (race === "policy_deny") await db.insert(toolPolicies).values({ companyId: f.company.id,
+            await costService(db).createEvent(f.space.id, { agentId: f.agent.id, provider: "fixture", model: "fixture", costCents: 20, occurredAt: new Date() });
+          } else if (race === "policy_deny") await db.insert(toolPolicies).values({ spaceId: f.space.id,
             name: "Deny before browser handoff", policyType: "block", selectors: { connectionId: f.connection.connectionId }, priority: 0 });
           else if (race === "session_end") await db.update(browserUseSessions).set({ status: "stopping", stopRequested: "end" }).where(eq(browserUseSessions.id, run.sessionId));
           else await db.update(heartbeatRuns).set({ resultJson: { startupCancellation: { requestedAt: new Date().toISOString() } } }).where(eq(heartbeatRuns.id, f.run.id));
@@ -1524,15 +1524,15 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       expect(injected).toBe(true);
       expect(f.request.mock.calls.filter(([url, init]) => url.endsWith("/runs") && init.method === "POST")).toHaveLength(0);
       const [run] = await db.select().from(browserUseRuns).where(eq(browserUseRuns.invocationId, invocationId));
-      expect(run).toMatchObject({ status: "failed", eventsDrained: 1, result: { paperclipBudgetHold: { state: "released" } } });
+      expect(run).toMatchObject({ status: "failed", eventsDrained: 1, result: { outpostBudgetHold: { state: "released" } } });
     });
     it.each(["default_allow", "tool_name"])("retains valid %s profile authorization at browser admission", async selector => {
       const f = await fixture();
-      await db.update(toolProfiles).set({ status: "disabled" }).where(eq(toolProfiles.companyId, f.company.id));
-      const [profile] = await db.insert(toolProfiles).values({ companyId: f.company.id, name: "Scoped browser access",
+      await db.update(toolProfiles).set({ status: "disabled" }).where(eq(toolProfiles.spaceId, f.space.id));
+      const [profile] = await db.insert(toolProfiles).values({ spaceId: f.space.id, name: "Scoped browser access",
         profileKey: randomUUID(), defaultAction: selector === "default_allow" ? "allow" : "deny" }).returning();
-      await db.insert(toolProfileBindings).values({ companyId: f.company.id, profileId: profile.id, targetType: "agent", targetId: f.agent.id });
-      if (selector === "tool_name") await db.insert(toolProfileEntries).values({ companyId: f.company.id, profileId: profile.id,
+      await db.insert(toolProfileBindings).values({ spaceId: f.space.id, profileId: profile.id, targetType: "agent", targetId: f.agent.id });
+      if (selector === "tool_name") await db.insert(toolProfileEntries).values({ spaceId: f.space.id, profileId: profile.id,
         selectorType: "tool_name", toolName: "browser_start", effect: "include" });
       await expect(f.service.execute(f.binding, f.grant, randomUUID(), "browser_start", { task: "Allowed by profile" })).resolves.toMatchObject({ status: "running" });
       expect(f.request.mock.calls.filter(([url, init]) => url.endsWith("/runs") && init.method === "POST")).toHaveLength(1);
@@ -1541,70 +1541,70 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       const f = await fixture();
       const invocationId = randomUUID(), toolName = "app.browser-fixture:browser-start";
       const [entry] = await db.select().from(toolCatalogEntries).where(and(eq(toolCatalogEntries.connectionId, f.connection.connectionId), eq(toolCatalogEntries.toolName, "browser_start")));
-      await db.insert(toolInvocations).values({ id: invocationId, companyId: f.company.id, agentId: f.agent.id,
+      await db.insert(toolInvocations).values({ id: invocationId, spaceId: f.space.id, agentId: f.agent.id,
         runId: f.run.id, issueId: f.issue.id, actorType: "agent", actorId: f.agent.id,
         connectionId: f.connection.connectionId, applicationId: entry.applicationId, catalogEntryId: entry.id,
         toolName, upstreamToolName: "browser_start", policyDecision: "allow", status: "executing" });
-      await db.insert(toolPolicies).values({ companyId: f.company.id, name: "Block namespaced invocation",
+      await db.insert(toolPolicies).values({ spaceId: f.space.id, name: "Block namespaced invocation",
         policyType: "block", selectors: { toolName }, priority: 0 });
       await expect(f.service.execute(f.binding, f.grant, invocationId, "browser_start", { task: "Denied" })).rejects.toThrow("blocked");
       expect(f.request.mock.calls.filter(([url, init]) => url.endsWith("/runs") && init.method === "POST")).toHaveLength(0);
     });
     it("releases a crashed reservation that never reached provider dispatch authority", async () => {
       const f = await fixture();
-      const policy = await budgetService(db).upsertPolicy(f.company.id,
+      const policy = await budgetService(db).upsertPolicy(f.space.id,
         { scopeType: "agent", scopeId: f.agent.id, amount: 100, hardStopEnabled: true }, actor.actorId);
-      const [session] = await db.insert(browserUseSessions).values({ companyId: f.company.id, issueId: f.issue.id,
+      const [session] = await db.insert(browserUseSessions).values({ spaceId: f.space.id, issueId: f.issue.id,
         agentId: f.agent.id, connectionId: f.connection.connectionId, grantId: f.grant.id, status: "starting" }).returning();
       const invocationId = randomUUID();
-      const [run] = await db.insert(browserUseRuns).values({ companyId: f.company.id, sessionId: session.id,
+      const [run] = await db.insert(browserUseRuns).values({ spaceId: f.space.id, sessionId: session.id,
         heartbeatRunId: f.run.id, invocationId, createdAt: new Date(Date.now() - 61_000),
-        result: { paperclipBudgetHold: { invocationId, amountCents: "50.0000000", state: "held", projectId: null } } }).returning();
+        result: { outpostBudgetHold: { invocationId, amountCents: "50.0000000", state: "held", projectId: null } } }).returning();
       f.request.mockClear();
       await f.tick();
       const [policyRow] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.id, policy.policyId));
       expect((await computeObservedSpend(db, policyRow)).effectiveHeldCents).toBe("0.0000000");
-      expect((await db.select().from(browserUseRuns).where(eq(browserUseRuns.id, run.id)))[0]).toMatchObject({ status: "failed", eventsDrained: 1, result: { paperclipBudgetHold: { state: "released" } } });
+      expect((await db.select().from(browserUseRuns).where(eq(browserUseRuns.id, run.id)))[0]).toMatchObject({ status: "failed", eventsDrained: 1, result: { outpostBudgetHold: { state: "released" } } });
       expect((await db.select().from(browserUseSessions).where(eq(browserUseSessions.id, session.id)))[0].status).toBe("failed");
       expect(f.request.mock.calls.some(([url]) => new URL(url).pathname === "/api/v4/runs")).toBe(false);
     });
     it("releases a definitively rejected browser hold without inventing a charge", async () => {
       const f = await fixture();
-      const policy = await budgetService(db).upsertPolicy(f.company.id,
+      const policy = await budgetService(db).upsertPolicy(f.space.id,
         { scopeType: "agent", scopeId: f.agent.id, amount: 100, hardStopEnabled: true }, actor.actorId);
       f.reject(409);
       await expect(f.service.execute(f.binding, f.grant, randomUUID(), "browser_start", { task: "Rejected", maxCostUsd: 0.5 })).rejects.toThrow("busy");
       const [row] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.id, policy.policyId));
       expect(await computeObservedSpend(db, row)).toMatchObject({ ledgerCents: "0.0000000", effectiveHeldCents: "0.0000000" });
-      expect(await db.select().from(costEvents).where(eq(costEvents.companyId, f.company.id))).toHaveLength(0);
-      await db.update(browserUseRuns).set({ result: null }).where(eq(browserUseRuns.companyId, f.company.id));
+      expect(await db.select().from(costEvents).where(eq(costEvents.spaceId, f.space.id))).toHaveLength(0);
+      await db.update(browserUseRuns).set({ result: null }).where(eq(browserUseRuns.spaceId, f.space.id));
       expect((await computeObservedSpend(db, row)).unknownBrowserRunCount).toBe(0);
     });
-    it.each(["company", "agent", "project"] as const)("treats a running uncapped browser as unknown when a %s budget is introduced", async scopeType => {
+    it.each(["space", "agent", "project"] as const)("treats a running uncapped browser as unknown when a %s budget is introduced", async scopeType => {
       for (const legacy of [false, true]) {
         const f = await fixture();
-        const [project] = await db.insert(projects).values({ companyId: f.company.id, name: "Browser project" }).returning();
-        const [otherProject] = await db.insert(projects).values({ companyId: f.company.id, name: "Unrelated project" }).returning();
+        const [project] = await db.insert(projects).values({ spaceId: f.space.id, name: "Browser project" }).returning();
+        const [otherProject] = await db.insert(projects).values({ spaceId: f.space.id, name: "Unrelated project" }).returning();
         await db.update(issues).set({ projectId: project.id }).where(eq(issues.id, f.issue.id));
         const invocation = randomUUID();
         await expect(f.service.execute(f.binding, f.grant, invocation, "browser_start", { task: "Uncapped running work" })).resolves.toMatchObject({ status: "running" });
         const [run] = await db.select().from(browserUseRuns).where(eq(browserUseRuns.invocationId, invocation));
-        expect(run.result).toMatchObject({ paperclipBudgetHold: { amountCents: "0.0000000", uncapped: true } });
+        expect(run.result).toMatchObject({ outpostBudgetHold: { amountCents: "0.0000000", uncapped: true } });
         expect(JSON.parse(String(f.request.mock.calls.find(([url, init]) => url.endsWith("/runs") && init.method === "POST")![1].body))).not.toHaveProperty("maxCostUsd");
         if (legacy) await db.update(browserUseRuns).set({ result: null }).where(eq(browserUseRuns.id, run.id));
-        const scopeId = scopeType === "company" ? f.company.id : scopeType === "agent" ? f.agent.id : project.id;
-        const policy = await budgetService(db).upsertPolicy(f.company.id,
+        const scopeId = scopeType === "space" ? f.space.id : scopeType === "agent" ? f.agent.id : project.id;
+        const policy = await budgetService(db).upsertPolicy(f.space.id,
           { scopeType, scopeId, amount: 100, hardStopEnabled: true }, actor.actorId);
         const [row] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.id, policy.policyId));
         expect(await computeObservedSpend(db, row)).toMatchObject({ ledgerCents: "0.0000000", effectiveHeldCents: "0.0000000", unknownBrowserRunCount: 1 });
         expect((await computeObservedSpend(db, { ...row, scopeType: "project", scopeId: otherProject.id })).unknownBrowserRunCount).toBe(0);
-        expect(await budgetService(db).getInvocationBlock(f.company.id, f.agent.id, { projectId: project.id })).not.toBeNull();
+        expect(await budgetService(db).getInvocationBlock(f.space.id, f.agent.id, { projectId: project.id })).not.toBeNull();
         f.request.mockClear();
         await expect(f.service.execute(f.binding, f.grant, randomUUID(), "browser_start", { task: "Must wait for priced work" })).rejects.toThrow();
         expect(f.request.mock.calls.filter(([url, init]) => url.endsWith("/runs") && init.method === "POST")).toHaveLength(0);
-        await budgetService(db).upsertPolicy(f.company.id,
+        await budgetService(db).upsertPolicy(f.space.id,
           { scopeType, scopeId, amount: 100, hardStopEnabled: true, unpricedUsagePolicy: "allow" }, actor.actorId);
-        expect(await budgetService(db).getInvocationBlock(f.company.id, f.agent.id, { projectId: project.id })).toBeNull();
+        expect(await budgetService(db).getInvocationBlock(f.space.id, f.agent.id, { projectId: project.id })).toBeNull();
         f.complete(); await f.tick();
         expect(await computeObservedSpend(db, row)).toMatchObject({ ledgerCents: "15.0000000", effectiveHeldCents: "0.0000000", unknownBrowserRunCount: 0 });
       }
@@ -1616,19 +1616,19 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       { label: "failed before dispatch", uncapped: true, state: "released", dispatched: false, status: "failed", expected: 0 },
     ])("distinguishes $label from unfinished uncapped spending", async item => {
       const f = await fixture();
-      const [session] = await db.insert(browserUseSessions).values({ companyId: f.company.id, issueId: f.issue.id,
+      const [session] = await db.insert(browserUseSessions).values({ spaceId: f.space.id, issueId: f.issue.id,
         agentId: f.agent.id, connectionId: f.connection.connectionId, grantId: f.grant.id, status: "running" }).returning();
       const invocationId = randomUUID();
-      await db.insert(browserUseRuns).values({ companyId: f.company.id, sessionId: session.id, heartbeatRunId: f.run.id,
+      await db.insert(browserUseRuns).values({ spaceId: f.space.id, sessionId: session.id, heartbeatRunId: f.run.id,
         invocationId, status: item.status, providerRunId: item.dispatched ? randomUUID() : null, eventsDrained: item.status === "failed" ? 1 : 0,
-        result: { paperclipBudgetHold: { invocationId, amountCents: "0.0000000", projectId: null, state: item.state,
+        result: { outpostBudgetHold: { invocationId, amountCents: "0.0000000", projectId: null, state: item.state,
           ...(item.uncapped === undefined ? {} : { uncapped: item.uncapped }),
           ...(item.dispatched ? { dispatchCommittedAt: new Date().toISOString() } : {}) } } });
-      const policy = await budgetService(db).upsertPolicy(f.company.id,
-        { scopeType: "company", scopeId: f.company.id, amount: 100, hardStopEnabled: true }, actor.actorId);
+      const policy = await budgetService(db).upsertPolicy(f.space.id,
+        { scopeType: "space", scopeId: f.space.id, amount: 100, hardStopEnabled: true }, actor.actorId);
       const [row] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.id, policy.policyId));
       expect(await computeObservedSpend(db, row)).toMatchObject({ ledgerCents: "0.0000000", effectiveHeldCents: "0.0000000", unknownBrowserRunCount: item.expected });
-      const block = await budgetService(db).getInvocationBlock(f.company.id, f.agent.id);
+      const block = await budgetService(db).getInvocationBlock(f.space.id, f.agent.id);
       expect(Boolean(block)).toBe(item.expected > 0);
     });
     it("blocks new budgeted work after an uncapped browser POST becomes uncertain", async () => {
@@ -1636,25 +1636,25 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       f.loseReply();
       const uncertain = randomUUID();
       await expect(f.service.execute(f.binding, f.grant, uncertain, "browser_start", { task: "Uncapped" })).rejects.toThrow("could not be confirmed");
-      const policy = await budgetService(db).upsertPolicy(f.company.id,
-        { scopeType: "company", scopeId: f.company.id, amount: 100, hardStopEnabled: true }, actor.actorId);
+      const policy = await budgetService(db).upsertPolicy(f.space.id,
+        { scopeType: "space", scopeId: f.space.id, amount: 100, hardStopEnabled: true }, actor.actorId);
       const [row] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.id, policy.policyId));
       expect(await computeObservedSpend(db, row)).toMatchObject({ ledgerCents: "0.0000000", effectiveHeldCents: "0.0000000", unknownBrowserRunCount: 1 });
       f.request.mockClear();
       await expect(f.service.execute(f.binding, f.grant, randomUUID(), "browser_start", { task: "Must wait" })).rejects.toThrow();
       expect(f.request.mock.calls.filter(([url, init]) => url.endsWith("/runs") && init.method === "POST")).toHaveLength(0);
       // The existing unpriced-usage policy remains the explicit operator override.
-      await budgetService(db).upsertPolicy(f.company.id,
-        { scopeType: "company", scopeId: f.company.id, amount: 100, hardStopEnabled: true, unpricedUsagePolicy: "allow" }, actor.actorId);
-      expect(await budgetService(db).getInvocationBlock(f.company.id, f.agent.id)).toBeNull();
+      await budgetService(db).upsertPolicy(f.space.id,
+        { scopeType: "space", scopeId: f.space.id, amount: 100, hardStopEnabled: true, unpricedUsagePolicy: "allow" }, actor.actorId);
+      expect(await budgetService(db).getInvocationBlock(f.space.id, f.agent.id)).toBeNull();
       f.usage("0.15");
       await f.tick();
       expect(await computeObservedSpend(db, row)).toMatchObject({ ledgerCents: "15.0000000", unknownBrowserRunCount: 0 });
     });
     it("retains unknown browser holds and settles exact terminal usage without exposing internal metadata", async () => {
       const f = await fixture();
-      const policy = await budgetService(db).upsertPolicy(f.company.id,
-        { scopeType: "company", scopeId: f.company.id, amount: 100, hardStopEnabled: true }, actor.actorId);
+      const policy = await budgetService(db).upsertPolicy(f.space.id,
+        { scopeType: "space", scopeId: f.space.id, amount: 100, hardStopEnabled: true }, actor.actorId);
       f.loseReply();
       const invocation = randomUUID();
       await expect(f.service.execute(f.binding, f.grant, invocation, "browser_start", { task: "Read", maxCostUsd: 0.5 })).rejects.toThrow("could not be confirmed");
@@ -1664,23 +1664,23 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       await f.tick();
       expect(await computeObservedSpend(db, row)).toMatchObject({ ledgerCents: "15.0000001", effectiveHeldCents: "0.0000000" });
       const [run] = await db.select().from(browserUseRuns).where(eq(browserUseRuns.invocationId, invocation));
-      expect(run.result).toMatchObject({ paperclipBudgetHold: { state: "settled", accountedCentsExact: "15.0000001" } });
+      expect(run.result).toMatchObject({ outpostBudgetHold: { state: "settled", accountedCentsExact: "15.0000001" } });
       const replay = await f.service.execute(f.binding, f.grant, invocation, "browser_start", { task: "Read" });
-      expect(JSON.stringify(replay)).not.toContain("paperclipBudgetHold");
-      expect(await db.select().from(costEvents).where(eq(costEvents.companyId, f.company.id))).toHaveLength(1);
+      expect(JSON.stringify(replay)).not.toContain("outpostBudgetHold");
+      expect(await db.select().from(costEvents).where(eq(costEvents.spaceId, f.space.id))).toHaveLength(1);
     });
-    it("settles while company, agent and policy rows are held by unrelated writers", async () => {
+    it("settles while space, agent and policy rows are held by unrelated writers", async () => {
       const f = await fixture();
-      const policy = await budgetService(db).upsertPolicy(f.company.id,
-        { scopeType: "company", scopeId: f.company.id, amount: 100, hardStopEnabled: true }, actor.actorId);
+      const policy = await budgetService(db).upsertPolicy(f.space.id,
+        { scopeType: "space", scopeId: f.space.id, amount: 100, hardStopEnabled: true }, actor.actorId);
       await f.service.execute(f.binding, f.grant, randomUUID(), "browser_start", { task: "Independent settlement" });
       f.complete();
-      await db.update(browserUseSessions).set({ nextPollAt: new Date(0) }).where(eq(browserUseSessions.companyId, f.company.id));
+      await db.update(browserUseSessions).set({ nextPollAt: new Date(0) }).where(eq(browserUseSessions.spaceId, f.space.id));
       let release!: () => void, locked!: () => void;
       const held = new Promise<void>(resolve => { locked = resolve; });
       const barrier = new Promise<void>(resolve => { release = resolve; });
       const blocker = db.transaction(async tx => {
-        await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, f.company.id)).for("no key update");
+        await tx.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, f.space.id)).for("no key update");
         await tx.select({ id: agents.id }).from(agents).where(eq(agents.id, f.agent.id)).for("no key update");
         await tx.select({ id: budgetPolicies.id }).from(budgetPolicies).where(eq(budgetPolicies.id, policy.policyId)).for("no key update");
         locked();
@@ -1693,10 +1693,10 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         await Promise.race([settlement, new Promise<never>((_resolve, reject) => {
           timeout = setTimeout(() => reject(new Error("Browser settlement waited for a shared accounting row")), 3000);
         })]);
-        const [event] = await db.select().from(costEvents).where(eq(costEvents.companyId, f.company.id));
+        const [event] = await db.select().from(costEvents).where(eq(costEvents.spaceId, f.space.id));
         expect(event).toMatchObject({ provider: "browser-use-cloud", costCents: 15 });
-        const [run] = await db.select().from(browserUseRuns).where(eq(browserUseRuns.companyId, f.company.id));
-        expect(run).toMatchObject({ eventsDrained: 1, result: { paperclipBudgetHold: { state: "settled" } } });
+        const [run] = await db.select().from(browserUseRuns).where(eq(browserUseRuns.spaceId, f.space.id));
+        expect(run).toMatchObject({ eventsDrained: 1, result: { outpostBudgetHold: { state: "settled" } } });
       } finally {
         if (timeout) clearTimeout(timeout);
         release();
@@ -1706,8 +1706,8 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
     });
     it("replays a captured terminal receipt after ledger failure without refetching or moving its attribution", async () => {
       const f = await fixture();
-      const [project] = await db.insert(projects).values({ companyId: f.company.id, name: "Original browser project" }).returning();
-      const [laterProject] = await db.insert(projects).values({ companyId: f.company.id, name: "Later task project" }).returning();
+      const [project] = await db.insert(projects).values({ spaceId: f.space.id, name: "Original browser project" }).returning();
+      const [laterProject] = await db.insert(projects).values({ spaceId: f.space.id, name: "Later task project" }).returning();
       await db.update(issues).set({ projectId: project.id }).where(eq(issues.id, f.issue.id));
       const invocation = randomUUID();
       await f.service.execute(f.binding, f.grant, invocation, "browser_start", { task: "Capture once" });
@@ -1715,18 +1715,18 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       const failedLedger = vi.spyOn(costAccounting, "createCostEventInTransaction").mockRejectedValueOnce(new Error("Accounting unavailable"));
       try { await f.tick(); } finally { failedLedger.mockRestore(); }
       const [pending] = await db.select().from(browserUseRuns).where(eq(browserUseRuns.invocationId, invocation));
-      const receipt = (pending.result as { paperclipBudgetHold: { receipt: { occurredAt: string } } }).paperclipBudgetHold.receipt;
+      const receipt = (pending.result as { outpostBudgetHold: { receipt: { occurredAt: string } } }).outpostBudgetHold.receipt;
       expect(pending.eventsDrained).toBe(0);
-      expect(await db.select().from(costEvents).where(eq(costEvents.companyId, f.company.id))).toHaveLength(0);
+      expect(await db.select().from(costEvents).where(eq(costEvents.spaceId, f.space.id))).toHaveLength(0);
       await db.update(issues).set({ projectId: laterProject.id }).where(eq(issues.id, f.issue.id));
       f.usage("0.99"); f.request.mockClear();
       await f.tick();
       const [event] = await db.select({ projectId: costEvents.projectId, occurredAt: costEvents.occurredAt,
-        cents: sql<string>`${costEvents.costCents}::text` }).from(costEvents).where(eq(costEvents.companyId, f.company.id));
+        cents: sql<string>`${costEvents.costCents}::text` }).from(costEvents).where(eq(costEvents.spaceId, f.space.id));
       expect(event).toMatchObject({ projectId: project.id, cents: "15.0000001" });
       expect(event.occurredAt.toISOString()).toBe(receipt.occurredAt);
       expect(f.request.mock.calls.some(([url]) => /\/runs\/[^/]+$/.test(new URL(url).pathname))).toBe(false);
-      expect(await db.select().from(financeEvents).where(eq(financeEvents.companyId, f.company.id))).toHaveLength(1);
+      expect(await db.select().from(financeEvents).where(eq(financeEvents.spaceId, f.space.id))).toHaveLength(1);
     });
     it("retains exact cumulative accounting when an older browser row has no hold projection", async () => {
       const f = await fixture();
@@ -1737,15 +1737,15 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       f.usage("0.150000001"); f.complete(); await f.tick();
       await db.update(browserUseRuns).set({ eventsDrained: 0 }).where(eq(browserUseRuns.id, run.id));
       f.usage("0.150000002"); await f.tick();
-      const [total] = await db.select({ cents: sql<string>`sum(${costEvents.costCents})::text` }).from(costEvents).where(eq(costEvents.companyId, f.company.id));
+      const [total] = await db.select({ cents: sql<string>`sum(${costEvents.costCents})::text` }).from(costEvents).where(eq(costEvents.spaceId, f.space.id));
       expect(total.cents).toBe("15.0000002");
       expect((await db.select().from(browserUseRuns).where(eq(browserUseRuns.id, run.id)))[0].result)
-        .toMatchObject({ paperclipBudgetHold: { state: "settled", accountedCentsExact: "15.0000002" } });
+        .toMatchObject({ outpostBudgetHold: { state: "settled", accountedCentsExact: "15.0000002" } });
       await db.update(browserUseRuns).set({ eventsDrained: 0 }).where(eq(browserUseRuns.id, run.id));
       f.usage("0.10"); await f.tick();
-      expect(await db.select().from(costEvents).where(eq(costEvents.companyId, f.company.id))).toHaveLength(2);
+      expect(await db.select().from(costEvents).where(eq(costEvents.spaceId, f.space.id))).toHaveLength(2);
       expect((await db.select().from(browserUseRuns).where(eq(browserUseRuns.id, run.id)))[0].result)
-        .toMatchObject({ paperclipBudgetHold: { state: "settled", accountedCentsExact: "15.0000002" } });
+        .toMatchObject({ outpostBudgetHold: { state: "settled", accountedCentsExact: "15.0000002" } });
     });
     it("dates a new cumulative delta in its capture month and keeps that receipt's retry time stable", async () => {
       const f = await fixture();
@@ -1763,22 +1763,22 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         const failed = vi.spyOn(costAccounting, "createCostEventInTransaction").mockRejectedValueOnce(new Error("Retry this receipt"));
         try { await f.tick(); } finally { failed.mockRestore(); }
         const [captured] = await db.select().from(browserUseRuns).where(eq(browserUseRuns.id, run.id));
-        expect(captured).toMatchObject({ eventsDrained: 0, result: { paperclipBudgetHold: {
+        expect(captured).toMatchObject({ eventsDrained: 0, result: { outpostBudgetHold: {
           accountedCentsExact: "15.0000000", receipt: { totalCentsExact: "20.0000000", occurredAt: after.toISOString() },
         } } });
         vi.setSystemTime(new Date("2026-12-01T00:00:05.100Z"));
         f.usage("0.99");
         await f.tick(); await f.tick();
         const events = await db.select({ cents: sql<string>`${costEvents.costCents}::text`, occurredAt: costEvents.occurredAt })
-          .from(costEvents).where(eq(costEvents.companyId, f.company.id)).orderBy(costEvents.occurredAt);
+          .from(costEvents).where(eq(costEvents.spaceId, f.space.id)).orderBy(costEvents.occurredAt);
         expect(events).toEqual([{ cents: "15.0000000", occurredAt: before }, { cents: "5.0000000", occurredAt: after }]);
-        expect(await db.select().from(financeEvents).where(eq(financeEvents.companyId, f.company.id))).toHaveLength(2);
+        expect(await db.select().from(financeEvents).where(eq(financeEvents.spaceId, f.space.id))).toHaveLength(2);
       } finally { vi.useRealTimers(); }
     });
     it("caps paid work at the remaining hard budget and enforces reported spend", async () => {
       const f = await fixture();
       await budgetService(db).upsertPolicy(
-        f.company.id,
+        f.space.id,
         {
           scopeType: "agent",
           scopeId: f.agent.id,
@@ -1787,7 +1787,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         },
         actor.actorId,
       );
-      await f.service.saveSettings(f.company.id, f.grant.id, actor.actorId, {
+      await f.service.saveSettings(f.space.id, f.grant.id, actor.actorId, {
         allowedProfileIds: [],
         maxCostUsd: 0.5,
       });
@@ -1813,14 +1813,14 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
         (await db.select().from(agents).where(eq(agents.id, f.agent.id)))[0],
       ).toMatchObject({ status: "paused" });
       const [charged] = await db.select({ cents: sql<string>`sum(${costEvents.costCents})::text` }).from(costEvents)
-        .where(eq(costEvents.companyId, f.company.id));
+        .where(eq(costEvents.spaceId, f.space.id));
       expect(charged.cents).toBe("15.0000000");
       expect(
         (
           await db
             .select()
             .from(browserUseSessions)
-            .where(eq(browserUseSessions.companyId, f.company.id))
+            .where(eq(browserUseSessions.spaceId, f.space.id))
         )[0].status,
       ).toBe("closed");
       await expect(
@@ -1854,7 +1854,7 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
           await db
             .select()
             .from(browserUseSessions)
-            .where(eq(browserUseSessions.companyId, f.company.id))
+            .where(eq(browserUseSessions.spaceId, f.space.id))
         )[0].status,
       ).toBe("idle");
       expect(
@@ -1874,13 +1874,13 @@ const actor = { actorType: "user" as const, actorId: "browser-reviewer" };
       await f.tick();
       await f.access.archiveConnection(
         f.connection.connectionId,
-        f.company.id,
+        f.space.id,
         actor,
       );
       const [session] = await db
         .select()
         .from(browserUseSessions)
-        .where(eq(browserUseSessions.companyId, f.company.id));
+        .where(eq(browserUseSessions.spaceId, f.space.id));
       expect(session.status).toBe("closed");
       const [grant] = await db
         .select()

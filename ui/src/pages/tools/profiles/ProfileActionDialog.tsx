@@ -31,7 +31,7 @@ export function ProfileActionDialog({
 }) {
   if (!kind || !profile) return null;
 
-  const defaultDeleteBlocked = kind === "delete" && profile.summary.isCompanyDefault;
+  const defaultDeleteBlocked = kind === "delete" && profile.summary.isSpaceDefault;
   const copy = {
     archive: {
       title: "Archive profile",

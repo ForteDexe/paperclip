@@ -11,7 +11,7 @@ type ResolvableSecretProposal = {
 export async function assertCanResolveProposal(input: {
   db: Db;
   actor: AuthorizationActor;
-  companyId: string;
+  spaceId: string;
   proposal: ResolvableSecretProposal;
   assertSecretDefinitionAdmin?: () => void;
 }) {
@@ -30,7 +30,7 @@ export async function assertCanResolveProposal(input: {
     action: "agent_config:update",
     resource: {
       type: "agent",
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       agentId: input.proposal.targetId,
     },
     scope: { requiresChangeGrant: true },

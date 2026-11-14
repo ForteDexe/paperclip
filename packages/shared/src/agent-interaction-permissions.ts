@@ -35,7 +35,7 @@ export function resolveAgentInteractionPermissions(value: unknown): Record<Agent
 
 export interface AgentInteractionPermissionsState {
   agentId: string;
-  companyId: string;
+  spaceId: string;
   overrides: AgentInteractionPermissions;
   effective: Record<AgentInteractionPermissionKey, boolean>;
 }

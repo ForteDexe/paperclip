@@ -6,7 +6,7 @@ Status: Inventory with first delivery-coordinator implementation; full idle slee
 
 Code baseline: `0ac194450`
 
-Paperclip should release idle database connections and allow inactive customer
+Outpost should release idle database connections and allow inactive customer
 instances to sleep without losing scheduled work, incoming events, accounting,
 or recovery. Thousands of individually hosted instances make empty polling a
 material cost even when each query is cheap.
@@ -251,14 +251,14 @@ settings and the applicable plan. See [Neon usage calculations](https://neon.com
 - [ ] **SCH-01 — Establish the instance-wide scheduler boundary.** Route
   application-owned delayed jobs, recurring jobs, retry deadlines, and required
   expiry/cleanup/maintenance deadlines through one scheduler shared across all
-  companies. Immediate event/queue dispatch remains in its owning service;
+  spaces. Immediate event/queue dispatch remains in its owning service;
   running-work tracking is shared with sleep admission. Keep domain handlers and
   their authorization/atomic claims in their existing services. **Complete
-  when:** one scheduling interface supports true temporal obligations, company
+  when:** one scheduling interface supports true temporal obligations, space
   scope remains explicit, and self-hosted operation requires no external service.
 
 - [ ] **SCH-02 — Model work and deadlines explicitly.** Track a stable job/lane
-  identity, company scope where applicable, due time, pending/running state,
+  identity, space scope where applicable, due time, pending/running state,
   retry policy, and whether running work blocks sleep. Accept running-work
   information from event-driven handlers without forcing their dispatch through
   the scheduler. Distinguish scheduled
@@ -570,10 +570,10 @@ Longer polling intervals alone do not complete an item.
   Source: [routines.ts](../../server/src/services/routines.ts), `tickScheduledTriggers`.
 
 - [ ] **JOB-10 — Decision retention and notifications.** Current: every **30s**,
-  builds the complete attention feed for each active company before archiving
+  builds the complete attention feed for each active space before archiving
   and delivering notifications. Change: relevant mutation signals, actual
   retention deadlines, and batched maintenance. **Complete when:** unchanged
-  idle companies do not rebuild feeds and required archive/notification behavior
+  idle spaces do not rebuild feeds and required archive/notification behavior
   remains timely. Source: [index.ts](../../server/src/index.ts), `runRetentionSweep`.
 
 - [ ] **JOB-11 — Decision expiry and recovery.** Current: **30s** scans for stuck
@@ -757,7 +757,7 @@ Longer polling intervals alone do not complete an item.
   mode. Change: qualify it through wake-aware ingress rather than introducing
   a persistent receiver. **Complete when:** cold start meets provider timing
   through durable acknowledgement/retry where necessary, with signature
-  verification, deduplication, and company scope preserved. Source:
+  verification, deduplication, and space scope preserved. Source:
   [chat-sdk-runtime.ts](../../server/src/services/chat-sdk-runtime.ts).
 
 - [ ] **NET-06 — HTTP idle connections.** Current server keepalive is **185s**
@@ -862,7 +862,7 @@ demand. Preserve real-time behavior while a person is actively using the app.
   cleanup where timing is not contractual. **Complete when:** neither causes an
   unnecessary external wake, while retained files and required cleanup remain
   tracked. Sources:
-  [company-import-transfers.ts](../../server/src/services/company-import-transfers.ts),
+  [space-import-transfers.ts](../../server/src/services/space-import-transfers.ts),
   [index.ts](../../server/src/index.ts).
 
 - [ ] **AUX-05 — Plugin worker lifecycle.** Enabled plugins can execute arbitrary
@@ -946,7 +946,7 @@ demand. Preserve real-time behavior while a person is actively using the app.
 
 - [ ] **TEST-04 — Prove event ingress.** Deliver a verified webhook while asleep
   and while entering sleep. Exercise a connector with its supported receiver
-  strategy. Verify acknowledgements, replay, company scope, and persistence.
+  strategy. Verify acknowledgements, replay, space scope, and persistence.
 
 - [ ] **TEST-05 — Prove active-work protection.** Attempt sleep during a run,
   transaction, backup, finalization, cleanup attempt, and pending accounting

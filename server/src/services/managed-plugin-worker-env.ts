@@ -6,13 +6,13 @@ let cache: { config: ManagedInstanceConfig; catalogRoot: string; installs: reado
 function managedInstalls(config: ManagedInstanceConfig, env: ManagedConfigEnv) {
   const catalogRoot = resolveBundledCatalogRoot(env);
   if (cache?.config === config && cache.catalogRoot === catalogRoot) return cache.installs;
-  const keys = new Set([...Object.keys(config.plugins.workerEnv ?? {}), ...Object.keys(config.plugins.enabledCompanies ?? {})]);
+  const keys = new Set([...Object.keys(config.plugins.workerEnv ?? {}), ...Object.keys(config.plugins.enabledSpaces ?? {})]);
   const installs = resolveBundledPluginInstalls([...keys], { catalogRoot, env, enforceCatalogRoot: true });
   cache = { config, catalogRoot, installs };
   return installs;
 }
 
-function managedEntry(section: "workerEnv" | "enabledCompanies", pluginKey: string, env: ManagedConfigEnv): readonly string[] {
+function managedEntry(section: "workerEnv" | "enabledSpaces", pluginKey: string, env: ManagedConfigEnv): readonly string[] {
   const config = getManagedInstanceConfig(env);
   const entries = config?.plugins[section];
   if (!config || !entries) return [];
@@ -24,6 +24,6 @@ export function managedPluginWorkerEnvGrant(pluginKey: string, env: ManagedConfi
   return managedEntry("workerEnv", pluginKey, env);
 }
 
-export function managedPluginEnabledCompanies(pluginKey: string, env: ManagedConfigEnv = process.env): readonly string[] {
-  return managedEntry("enabledCompanies", pluginKey, env);
+export function managedPluginEnabledSpaces(pluginKey: string, env: ManagedConfigEnv = process.env): readonly string[] {
+  return managedEntry("enabledSpaces", pluginKey, env);
 }

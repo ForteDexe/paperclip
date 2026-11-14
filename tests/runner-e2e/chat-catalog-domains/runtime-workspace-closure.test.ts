@@ -1,10 +1,10 @@
 import { it, expect } from "vitest";
 import { gradeWorkspaceClosure } from "./runtime-workspace-closure.js";
 function valid() {
-  const closingWorkspace = { id: "target", companyId: "company", status: "active", sourceIssueId: "website", rootIssueId: "website", repoUrl: null, branchName: null };
+  const closingWorkspace = { id: "target", spaceId: "space", status: "active", sourceIssueId: "website", rootIssueId: "website", repoUrl: null, branchName: null };
   const task = { id: "website", title: "Website task", status: "done", assigneeAgentId: "morgan" };
   const artifact = { contentVerified: true, content: "Actual saved marker", sha256: "bytes", attachmentId: "attachment", workProductId: "product" };
-  return { scenarioId: "workspaces.close-and-reopen", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  return { scenarioId: "workspaces.close-and-reopen", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { closingWorkspace, closedWorkspace: { ...closingWorkspace, status: "archived", closedAt: "2026-10-26T12:00:00Z" },
       closeReadyBeforeQuery: true, artifact, retainedArtifact: { ...artifact }, fileBefore: artifact.content, marker: artifact.content,
       task, otherWorkspacesUnchanged: true, otherFileRetained: true },

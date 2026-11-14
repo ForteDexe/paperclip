@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, companies, createDb, environmentLeases, environments, heartbeatRuns, plugins, sandboxCreationOperations } from "@outpost/db";
+import { agents, spaces, createDb, environmentLeases, environments, heartbeatRuns, plugins, sandboxCreationOperations } from "@outpost/db";
 import { resolvePluginTaskResume } from "../services/environment-task-runtime.js";
 import { remoteTerminationReceipt } from "../services/remote-execution-termination.js";
 import { environmentRuntimeService } from "../services/environment-runtime.js";
@@ -23,15 +23,15 @@ databaseSuite("environment task lease authority", () => {
   afterAll(async () => { await stopDb?.(); });
 
   it.each(["dispatch", "writeback"])("fences stale owner %s through maintained physical task replacement", async mode => {
-    const companyId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID(), pluginId = randomUUID(), runId = randomUUID(), leaseId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Warm candidate", issuePrefix: `T${companyId.slice(0, 7).replace(/-/g, "").toUpperCase()}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "outpost_runner" });
+    const spaceId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID(), pluginId = randomUUID(), runId = randomUUID(), leaseId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Warm candidate", issuePrefix: `T${spaceId.slice(0, 7).replace(/-/g, "").toUpperCase()}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "outpost_runner" });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "fixture-warm-replacement", version: "1", status: "ready",
       manifestJson: { capabilities: ["environment.drivers.register"], environmentDrivers: [{ driverKey: "tasks", supportsTasks: true }] } as never });
     await db.insert(environments).values({ id: environmentId, name: `Fixture ${environmentId}`, driver: "plugin",
       config: { pluginKey: pluginId, driverKey: "tasks", driverConfig: {} } });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "manual", status: "running" });
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId, heartbeatRunId: runId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "manual", status: "running" });
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId, heartbeatRunId: runId,
       provider: "plugin:fixture:tasks", providerLeaseId: "stopped-task", status: "active", leasePolicy: "reuse_by_environment",
       metadata: { driver: "plugin", pluginId, pluginKey: pluginId, driverKey: "tasks", runnerTaskLease: true, runnerTaskReused: true } });
     const calls: string[] = [], stoppedTasks: string[] = [];
@@ -54,9 +54,9 @@ databaseSuite("environment task lease authority", () => {
         } finally { settled?.(); }
       },
     } as unknown as PluginWorkerManager;
-    const context = new NativeExecutionContext({ binding: { companyId, agentId, runId } } as never, 1_000);
+    const context = new NativeExecutionContext({ binding: { spaceId, agentId, runId } } as never, 1_000);
     const runtime = environmentRuntimeService(db, { pluginWorkerManager: workers });
-    const task = (operation: unknown, options?: { expectedTaskId?: string }) => runtime.task({ companyId, leaseId,
+    const task = (operation: unknown, options?: { expectedTaskId?: string }) => runtime.task({ spaceId, leaseId,
       operation: operation as never, ...options });
     const identity = { runnerInstanceId: "runner", environmentLeaseId: leaseId, runId, normalizedSessionId: "session", turnId: "turn", itemId: "item" };
     const oldOwner = createPluginRunnerTaskOwner({ taskId: "stopped-task", task, projectIds: [], harness: "codex", adoptIdentity: identity });
@@ -65,7 +65,7 @@ databaseSuite("environment task lease authority", () => {
     const lateStatus = holdStatus ? task({ kind: "status" }, { expectedTaskId: "stopped-task" }) : Promise.resolve();
     if (holdStatus) await statusEntered;
     try {
-      await expect(environmentRuntimeService(db, { pluginWorkerManager: workers }).task({ companyId, leaseId,
+      await expect(environmentRuntimeService(db, { pluginWorkerManager: workers }).task({ spaceId, leaseId,
         operation: { kind: "describe" }, executionContext: context })).resolves.toMatchObject({ kind: "description", taskId: "replacement-task" });
       expect(calls).toEqual([...(mode === "writeback" ? ["status"] : []), "status", "status", "complete", "environmentAcquireLease", "describe"]);
       expect(context.pending).toBe(false);
@@ -88,15 +88,15 @@ databaseSuite("environment task lease authority", () => {
   });
 
   it.each(["late", "post-result", "retiring"])("queues a replacement instead of attaching after %s startup cancellation", async mode => {
-    const companyId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID(), pluginId = randomUUID(), runId = randomUUID(), leaseId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Warm candidate", issuePrefix: `T${companyId.slice(0, 7).replace(/-/g, "").toUpperCase()}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "outpost_runner" });
+    const spaceId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID(), pluginId = randomUUID(), runId = randomUUID(), leaseId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Warm candidate", issuePrefix: `T${spaceId.slice(0, 7).replace(/-/g, "").toUpperCase()}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "outpost_runner" });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "fixture-warm-replacement", version: "1", status: "ready",
       manifestJson: { capabilities: ["environment.drivers.register"], environmentDrivers: [{ driverKey: "tasks", supportsTasks: true }] } as never });
     await db.insert(environments).values({ id: environmentId, name: `Fixture ${environmentId}`, driver: "plugin",
       config: { pluginKey: pluginId, driverKey: "tasks", driverConfig: {} } });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "manual", status: "running" });
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId, heartbeatRunId: runId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "manual", status: "running" });
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId, heartbeatRunId: runId,
       provider: "plugin:fixture:tasks", providerLeaseId: "stopped-task", status: "active", leasePolicy: "reuse_by_environment",
       metadata: { driver: "plugin", pluginId, pluginKey: pluginId, driverKey: "tasks", runnerTaskLease: true, runnerTaskReused: true } });
     const calls: string[] = [];
@@ -120,7 +120,7 @@ databaseSuite("environment task lease authority", () => {
         } finally { settled?.(); }
       },
     } as unknown as PluginWorkerManager;
-    const context = new NativeExecutionContext({ binding: { companyId, agentId, runId } } as never, 1_000);
+    const context = new NativeExecutionContext({ binding: { spaceId, agentId, runId } } as never, 1_000);
     if (mode === "post-result") {
       const wait = context.wait.bind(context);
       vi.spyOn(context, "wait").mockImplementation(operation => wait(async () => {
@@ -128,7 +128,7 @@ databaseSuite("environment task lease authority", () => {
       }));
     }
     try {
-      const request = environmentRuntimeService(db, { pluginWorkerManager: workers }).task({ companyId, leaseId,
+      const request = environmentRuntimeService(db, { pluginWorkerManager: workers }).task({ spaceId, leaseId,
         operation: { kind: "describe" }, executionContext: context });
       const rejected = expect(request).rejects.toThrow("operation unavailable");
       await entered;
@@ -155,15 +155,15 @@ databaseSuite("environment task lease authority", () => {
     { retained: false, replaced: true },
     { retained: true, replaced: false },
   ])("replaces a stopped physical task for a later same-run attempt unless it retains a session (retained=$retained)", async ({ retained, replaced }) => {
-    const companyId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID(), pluginId = randomUUID(), runId = randomUUID(), leaseId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Retry candidate", issuePrefix: `T${companyId.slice(0, 7).replace(/-/g, "").toUpperCase()}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", adapterType: "outpost_runner" });
+    const spaceId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID(), pluginId = randomUUID(), runId = randomUUID(), leaseId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Retry candidate", issuePrefix: `T${spaceId.slice(0, 7).replace(/-/g, "").toUpperCase()}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", adapterType: "outpost_runner" });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "fixture-stopped-replacement", version: "1", status: "ready",
       manifestJson: { capabilities: ["environment.drivers.register"], environmentDrivers: [{ driverKey: "tasks", supportsTasks: true }] } as never });
     await db.insert(environments).values({ id: environmentId, name: `Fixture ${environmentId}`, driver: "plugin",
       config: { pluginKey: pluginId, driverKey: "tasks", driverConfig: {} } });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "manual", status: "running" });
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId, heartbeatRunId: runId,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "manual", status: "running" });
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId, heartbeatRunId: runId,
       provider: "plugin:fixture:tasks", providerLeaseId: "tombstoned-task", status: "active", leasePolicy: "reuse_by_environment",
       metadata: { driver: "plugin", pluginId, pluginKey: pluginId, driverKey: "tasks", runnerTaskLease: true, runnerTaskReused: false,
         runnerTaskDispatched: false, runnerTaskExecutionStopped: true, runnerTaskSessionRetained: retained,
@@ -182,9 +182,9 @@ databaseSuite("environment task lease authority", () => {
         } finally { settled?.(); }
       },
     } as unknown as PluginWorkerManager;
-    const context = new NativeExecutionContext({ binding: { companyId, agentId, runId } } as never, 1_000);
+    const context = new NativeExecutionContext({ binding: { spaceId, agentId, runId } } as never, 1_000);
     try {
-      await expect(environmentRuntimeService(db, { pluginWorkerManager: workers }).task({ companyId, leaseId,
+      await expect(environmentRuntimeService(db, { pluginWorkerManager: workers }).task({ spaceId, leaseId,
         operation: { kind: "describe" }, executionContext: context })).resolves.toMatchObject({ kind: "description",
         taskId: replaced ? "replacement-task" : "tombstoned-task" });
       const [lease] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, leaseId));
@@ -201,38 +201,38 @@ databaseSuite("environment task lease authority", () => {
   });
 
   it("authorizes a new task lease only after scoped prior execution has stopped", async () => {
-    const companyId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID(), pluginId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), environmentId = randomUUID(), pluginId = randomUUID();
     const oldRunId = randomUUID(), nextRunId = randomUUID(), oldLeaseId = randomUUID(), nextLeaseId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Lease transition", issuePrefix: `T${companyId.slice(0, 7).replace(/-/g, "").toUpperCase()}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Fixture", role: "engineer", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Lease transition", issuePrefix: `T${spaceId.slice(0, 7).replace(/-/g, "").toUpperCase()}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Fixture", role: "engineer", adapterType: "outpost_runner" });
     await db.insert(environments).values({ id: environmentId, name: `Fixture ${environmentId}`, driver: "plugin", config: {} });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "fixture-continuation", version: "1.0.0", status: "ready", manifestJson: {
       capabilities: ["environment.drivers.register"], environmentDrivers: [{ driverKey: "tasks", supportsTasks: true }],
     } as never });
     await db.insert(heartbeatRuns).values([
-      { id: oldRunId, companyId, agentId, invocationSource: "manual", status: "succeeded" },
-      { id: nextRunId, companyId, agentId, invocationSource: "manual", status: "running" },
+      { id: oldRunId, spaceId, agentId, invocationSource: "manual", status: "succeeded" },
+      { id: nextRunId, spaceId, agentId, invocationSource: "manual", status: "running" },
     ]);
     const pin = { driver: "plugin", pluginId, driverKey: "tasks", environmentId, runnerTaskLease: true,
       runnerTaskProjectAuthValidation: { configurationId: "fixture", provider: "openai", projectIds: [] } };
-    const prior = { id: oldLeaseId, companyId, environmentId, heartbeatRunId: oldRunId, provider: "plugin:fixture:tasks", providerLeaseId: "old-task" };
+    const prior = { id: oldLeaseId, spaceId, environmentId, heartbeatRunId: oldRunId, provider: "plugin:fixture:tasks", providerLeaseId: "old-task" };
     await db.insert(environmentLeases).values([
       { ...prior, status: "released", leasePolicy: "ephemeral", cleanupStatus: "success", releasedAt: new Date(),
         metadata: { ...pin, runnerTaskSessionRetained: true, runnerTaskIdentity: { runnerId: "runner", leaseId: oldLeaseId, runId: oldRunId, sessionId: "session", turnId: "prior-turn", itemId: "prior-item" }, remoteExecutionTermination: remoteTerminationReceipt(prior, { providerLeaseId: "old-task", state: "stopped" }) } },
-      { id: nextLeaseId, companyId, environmentId, heartbeatRunId: nextRunId, provider: prior.provider, providerLeaseId: "new-task",
+      { id: nextLeaseId, spaceId, environmentId, heartbeatRunId: nextRunId, provider: prior.provider, providerLeaseId: "new-task",
         status: "active", leasePolicy: "ephemeral", metadata: pin },
     ]);
     const priorIdentity = { runnerInstanceId: "runner", normalizedSessionId: "session", environmentLeaseId: oldLeaseId, runId: oldRunId };
-    const authorize = () => resolvePluginTaskResume(db, { companyId, leaseId: nextLeaseId, priorIdentity });
+    const authorize = () => resolvePluginTaskResume(db, { spaceId, leaseId: nextLeaseId, priorIdentity });
     await expect(authorize()).resolves.toBe("old-task");
     for (const field of ["runnerInstanceId", "environmentLeaseId", "normalizedSessionId", "runId"]) {
-      await expect(resolvePluginTaskResume(db, { companyId, leaseId: nextLeaseId,
+      await expect(resolvePluginTaskResume(db, { spaceId, leaseId: nextLeaseId,
         priorIdentity: { ...priorIdentity, [field]: randomUUID() } })).rejects.toThrow("not authorized");
     }
     await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, oldRunId));
     await expect(authorize()).rejects.toThrow("not authorized");
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, oldRunId));
-    await expect(resolvePluginTaskResume(db, { companyId: randomUUID(), leaseId: nextLeaseId, priorIdentity })).rejects.toThrow("not authorized");
+    await expect(resolvePluginTaskResume(db, { spaceId: randomUUID(), leaseId: nextLeaseId, priorIdentity })).rejects.toThrow("not authorized");
     await db.update(environmentLeases).set({ metadata: { ...pin, pluginId: randomUUID() } }).where(eq(environmentLeases.id, nextLeaseId));
     await expect(authorize()).rejects.toThrow("not authorized");
     await db.update(environmentLeases).set({ metadata: pin }).where(eq(environmentLeases.id, nextLeaseId));
@@ -256,14 +256,14 @@ databaseSuite("environment task lease authority", () => {
     const [source] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, oldLeaseId));
     await db.update(environmentLeases).set({ metadata: { ...source.metadata, runnerTaskSessionRetained: false } }).where(eq(environmentLeases.id, oldLeaseId));
     await expect(authorize()).rejects.toThrow("not authorized");
-    await expect(resolvePluginTaskResume(db, { companyId, leaseId: nextLeaseId, priorIdentity, inspectCheckpoint: true })).resolves.toBe("old-task");
-    const inspect = () => runtime.task({ companyId, leaseId: nextLeaseId, operation: {
+    await expect(resolvePluginTaskResume(db, { spaceId, leaseId: nextLeaseId, priorIdentity, inspectCheckpoint: true })).resolves.toBe("old-task");
+    const inspect = () => runtime.task({ spaceId, leaseId: nextLeaseId, operation: {
       kind: "read_state", identity: checkpointIdentity, resumeFrom: "old-task",
     } });
     await expect(inspect()).rejects.toThrow("not authorized");
     await expect(authorize()).rejects.toThrow("not authorized");
     // Discovery cannot launch, and cannot bypass the original termination receipt.
-    await expect(runtime.task({ companyId, leaseId: nextLeaseId, operation: {
+    await expect(runtime.task({ spaceId, leaseId: nextLeaseId, operation: {
       kind: "submit", preparedLaunchId: "fixture", projectIds: [], bootstrapTicket: "fixture", runner, resumeFrom: "old-task",
     } })).rejects.toThrow("resume identity mismatch");
     await db.update(environmentLeases).set({ cleanupStatus: "failed" }).where(eq(environmentLeases.id, oldLeaseId));
@@ -278,18 +278,18 @@ databaseSuite("environment task lease authority", () => {
       { kind: "read_state" as const, identity: checkpointIdentity, resumeFrom: "old-task" },
       { kind: "archive_state" as const, priorIdentity: checkpointIdentity, archiveKey: "a".repeat(24), resumeFrom: "old-task" },
     ]) {
-      await expect(runtime.task({ companyId, leaseId: nextLeaseId, operation })).resolves.toMatchObject({ kind: "state" });
-      await expect(runtime.task({ companyId, leaseId: nextLeaseId, operation: { ...operation, resumeFrom: "other-task" } })).rejects.toThrow("resume identity mismatch");
+      await expect(runtime.task({ spaceId, leaseId: nextLeaseId, operation })).resolves.toMatchObject({ kind: "state" });
+      await expect(runtime.task({ spaceId, leaseId: nextLeaseId, operation: { ...operation, resumeFrom: "other-task" } })).rejects.toThrow("resume identity mismatch");
     }
     for (const key of ["turnId", "itemId"]) {
-      await expect(runtime.task({ companyId, leaseId: nextLeaseId, operation: {
+      await expect(runtime.task({ spaceId, leaseId: nextLeaseId, operation: {
         kind: "read_state", identity: { ...checkpointIdentity, [key]: "foreign" }, resumeFrom: "old-task",
       } })).rejects.toThrow("resume identity mismatch");
     }
-    await expect(runtime.task({ companyId, leaseId: nextLeaseId, operation: {
+    await expect(runtime.task({ spaceId, leaseId: nextLeaseId, operation: {
       kind: "read_state", identity: { ...checkpointIdentity, runId: nextRunId }, resumeFrom: "old-task",
     } })).rejects.toThrow("resume identity mismatch");
-    await expect(runtime.task({ companyId, leaseId: nextLeaseId, operation: {
+    await expect(runtime.task({ spaceId, leaseId: nextLeaseId, operation: {
       kind: "submit", preparedLaunchId: "fixture", projectIds: [], bootstrapTicket: "fixture", runner, resumeFrom: "old-task",
     } })).resolves.toMatchObject({ kind: "accepted" });
     const [second] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, nextLeaseId));
@@ -299,14 +299,14 @@ databaseSuite("environment task lease authority", () => {
     }).where(eq(environmentLeases.id, nextLeaseId));
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, nextRunId));
     const thirdRunId = randomUUID(), thirdLeaseId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: thirdRunId, companyId, agentId, invocationSource: "manual", status: "running" });
-    await db.insert(environmentLeases).values({ id: thirdLeaseId, companyId, environmentId, heartbeatRunId: thirdRunId,
+    await db.insert(heartbeatRuns).values({ id: thirdRunId, spaceId, agentId, invocationSource: "manual", status: "running" });
+    await db.insert(environmentLeases).values({ id: thirdLeaseId, spaceId, environmentId, heartbeatRunId: thirdRunId,
       status: "active", provider: prior.provider, providerLeaseId: "third-task", metadata: pin });
-    await expect(resolvePluginTaskResume(db, { companyId, leaseId: thirdLeaseId,
+    await expect(resolvePluginTaskResume(db, { spaceId, leaseId: thirdLeaseId,
       priorIdentity: { ...priorIdentity, runId: nextRunId } })).resolves.toBe("new-task");
     const submit = { kind: "submit", preparedLaunchId: "fixture", projectIds: [], bootstrapTicket: "fixture", runner: { ...runner, runId: thirdRunId }, resumeFrom: "new-task" } as const;
-    await expect(runtime.task({ companyId, leaseId: thirdLeaseId, operation: { ...submit, projectIds: [] } })).resolves.toMatchObject({ kind: "accepted" });
-    await expect(runtime.task({ companyId, leaseId: thirdLeaseId, operation: { ...submit, projectIds: [], runner } })).rejects.toThrow("identity mismatch");
+    await expect(runtime.task({ spaceId, leaseId: thirdLeaseId, operation: { ...submit, projectIds: [] } })).resolves.toMatchObject({ kind: "accepted" });
+    await expect(runtime.task({ spaceId, leaseId: thirdLeaseId, operation: { ...submit, projectIds: [], runner } })).rejects.toThrow("identity mismatch");
     // Same-run recovery must choose the latest task in the saved lineage, not an earlier physical lease.
     const [third] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, thirdLeaseId));
     await db.update(environmentLeases).set({ status: "released", cleanupStatus: "success", releasedAt: new Date(),
@@ -314,24 +314,24 @@ databaseSuite("environment task lease authority", () => {
         remoteExecutionTermination: remoteTerminationReceipt(third, { providerLeaseId: "third-task", state: "stopped" }) },
     }).where(eq(environmentLeases.id, thirdLeaseId));
     const retryLeaseId = randomUUID();
-    await db.insert(environmentLeases).values({ id: retryLeaseId, companyId, environmentId, heartbeatRunId: thirdRunId,
+    await db.insert(environmentLeases).values({ id: retryLeaseId, spaceId, environmentId, heartbeatRunId: thirdRunId,
       status: "active", provider: prior.provider, providerLeaseId: "retry-task", metadata: pin });
     const retryIdentity = { ...checkpointIdentity, runId: thirdRunId, turnId: "turn", itemId: "item" };
-    await expect(resolvePluginTaskResume(db, { companyId, leaseId: retryLeaseId,
+    await expect(resolvePluginTaskResume(db, { spaceId, leaseId: retryLeaseId,
       priorIdentity: retryIdentity })).resolves.toBe("third-task");
-    await expect(runtime.task({ companyId, leaseId: retryLeaseId, operation: {
+    await expect(runtime.task({ spaceId, leaseId: retryLeaseId, operation: {
       kind: "read_state", identity: retryIdentity, resumeFrom: "third-task",
     } })).resolves.toMatchObject({ kind: "state", state: { ...retryIdentity, lifecycle: "suspended" } });
-    await expect(runtime.task({ companyId, leaseId: retryLeaseId, operation: { ...submit, projectIds: [], resumeFrom: "third-task" } })).resolves.toMatchObject({ kind: "accepted" });
+    await expect(runtime.task({ spaceId, leaseId: retryLeaseId, operation: { ...submit, projectIds: [], resumeFrom: "third-task" } })).resolves.toMatchObject({ kind: "accepted" });
     const [retry] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, retryLeaseId));
     await db.update(environmentLeases).set({ status: "released", cleanupStatus: "success", releasedAt: new Date(),
       metadata: { ...retry.metadata, runnerTaskSessionRetained: true,
         remoteExecutionTermination: remoteTerminationReceipt(retry, { providerLeaseId: "retry-task", state: "stopped" }) },
     }).where(eq(environmentLeases.id, retryLeaseId));
     const finalLeaseId = randomUUID();
-    await db.insert(environmentLeases).values({ id: finalLeaseId, companyId, environmentId, heartbeatRunId: thirdRunId,
+    await db.insert(environmentLeases).values({ id: finalLeaseId, spaceId, environmentId, heartbeatRunId: thirdRunId,
       status: "active", provider: prior.provider, providerLeaseId: "final-task", metadata: pin });
-    await expect(resolvePluginTaskResume(db, { companyId, leaseId: finalLeaseId,
+    await expect(resolvePluginTaskResume(db, { spaceId, leaseId: finalLeaseId,
       priorIdentity: { ...priorIdentity, runId: thirdRunId } })).resolves.toBe("retry-task");
 
   });

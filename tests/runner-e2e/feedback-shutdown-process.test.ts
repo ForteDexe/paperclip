@@ -14,7 +14,7 @@ it.skipIf(process.platform === "win32")("retains feedback before shutdown throug
   const repository = path.resolve(import.meta.dirname, "../..");
   const caseDirectory = path.join(root, "case");
   const identity = { campaignId: "campaign", attemptId: "attempt", executionId: "execution" };
-  const companyId = "88c1939b-2d9f-4bb3-8ebc-8a7a85efeeac";
+  const spaceId = "88c1939b-2d9f-4bb3-8ebc-8a7a85efeeac";
   let child: ReturnType<typeof spawn> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let supervisorPid: number | undefined;
@@ -24,7 +24,7 @@ it.skipIf(process.platform === "win32")("retains feedback before shutdown throug
     await mkdir(path.join(caseDirectory, "snapshots"), { recursive: true });
     await symlink(path.join(repository, "cli"), path.join(root, "cli"));
     await writeFile(path.join(root, "package.json"), JSON.stringify({ type: "module" }));
-    await writeFile(path.join(caseDirectory, "snapshots/fixtures.json"), JSON.stringify({ executionId: identity.executionId, companyId }));
+    await writeFile(path.join(caseDirectory, "snapshots/fixtures.json"), JSON.stringify({ executionId: identity.executionId, spaceId }));
     await writeFile(path.join(root, "tests/runner-e2e/server.ts"), `
       import { createServer } from 'node:http';
       import { writeFile } from 'node:fs/promises';

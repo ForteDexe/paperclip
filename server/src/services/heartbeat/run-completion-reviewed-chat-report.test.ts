@@ -1,4 +1,4 @@
-import { agents, agentWakeupRequests, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, type Db } from "@outpost/db";
+import { agents, agentWakeupRequests, spaces, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, type Db } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -24,7 +24,7 @@ function callbacks(db: Db) {
     ...state, ...createHeartbeatRunPreparation(db),
     issuesSvc: { addComment: vi.fn(), listReviewAttention: vi.fn() },
     recovery: { escalateStrandedAssignedIssue: vi.fn() },
-    companySkills: { completeTestRunForIssue: vi.fn() },
+    spaceSkills: { completeTestRunForIssue: vi.fn() },
     budgets: { getInvocationBlock: vi.fn(async () => null) },
     treeControlSvc: { getActivePauseHoldGate: vi.fn(async () => null) },
     enqueueWakeup: vi.fn(),
@@ -74,22 +74,22 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("r
     const external = process.env.OUTPOST_TEST_DATABASE_URL;
     if (external) db = createDb(external);
     else {
-      database = await startEmbeddedPostgresTestDatabase("paperclip-reviewed-chat-report");
+      database = await startEmbeddedPostgresTestDatabase("outpost-reviewed-chat-report");
       db = createDb(database.connectionString);
     }
     await db.execute(sql`set client_min_messages = warning`);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); vi.restoreAllMocks(); });
   beforeEach(async () => {
-    await db.execute(sql`truncate table companies restart identity cascade`);
+    await db.execute(sql`truncate table spaces restart identity cascade`);
     vi.mocked(reportRunFailure).mockClear();
   });
 
   async function fixture(patch: Partial<typeof heartbeatRuns.$inferInsert> = {}) {
-    const [company] = await db.insert(companies).values({ name: "Completion", issuePrefix: "CMP" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Chat agent", adapterType: "process" }).returning();
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: company.id, agentId: agent.id, source: "on_demand", status: "claimed" }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, wakeupRequestId: wake.id, status: "running", runtimeMode: "legacy", ...patch }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Completion", issuePrefix: "CMP" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Chat agent", adapterType: "process" }).returning();
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: space.id, agentId: agent.id, source: "on_demand", status: "claimed" }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, wakeupRequestId: wake.id, status: "running", runtimeMode: "legacy", ...patch }).returning();
     const deps = callbacks(db);
     const completion = createHeartbeatRunCompletion(db, deps);
     const setup = (outerErr: unknown) => ({ run, runId: run.id, outerErr, signal: new AbortController().signal, providerDispatchStarted: false,

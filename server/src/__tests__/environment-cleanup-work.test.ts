@@ -10,7 +10,7 @@ import { idleWorkSnapshot } from "../services/task-admission.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { companies, createDb, sandboxCreationOperations, environmentLeases, environments, type Db } from "@outpost/db";
+import { spaces, createDb, sandboxCreationOperations, environmentLeases, environments, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
@@ -27,7 +27,7 @@ const external = resolveExternalTestDatabaseUrl("OUTPOST_ENVIRONMENT_CLEANUP_TES
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("environment cleanup scheduling", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined, db: ReturnType<typeof createDb>;
-  let companyId: string, environmentId: string, draining: boolean, failing: boolean;
+  let spaceId: string, environmentId: string, draining: boolean, failing: boolean;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let worker: ReturnType<typeof registerEnvironmentCleanupWork> | undefined;
   let releases: ReturnType<typeof vi.fn<() => Promise<void>>>;
@@ -41,9 +41,9 @@ describe.skipIf(!support.supported)("environment cleanup scheduling", () => {
     await Promise.all(Array.from({ length: 4 }, () => db.execute(sql`select pg_sleep(0.01)`)));
   }, 90_000);
   beforeEach(async () => {
-    await db.execute(sql`TRUNCATE sandbox_creation_operations, companies, environments CASCADE`);
-    companyId = randomUUID(); environmentId = randomUUID(); draining = false; failing = false; errors.length = 0;
-    await db.insert(companies).values({ id: companyId, name: "Cleanup worker", issuePrefix: "CLN" });
+    await db.execute(sql`TRUNCATE sandbox_creation_operations, spaces, environments CASCADE`);
+    spaceId = randomUUID(); environmentId = randomUUID(); draining = false; failing = false; errors.length = 0;
+    await db.insert(spaces).values({ id: spaceId, name: "Cleanup worker", issuePrefix: "CLN" });
     await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "sandbox" });
     releases = vi.fn(async () => { if (failing) throw new Error("provider unavailable"); return undefined; });
     inspections = vi.fn(async (row: { providerLeaseId: string | null }) => ({ providerLeaseId: row.providerLeaseId, state: "destroyed" }));
@@ -53,9 +53,9 @@ describe.skipIf(!support.supported)("environment cleanup scheduling", () => {
   afterEach(async () => {
     worker?.stop(); await coordinator?.stop(); coordinator = undefined; worker = undefined;
     for (const stop of disposers.splice(0)) stop();
-    // Creation ownership intentionally survives company deletion; company
+    // Creation ownership intentionally survives space deletion; space
     // cascades therefore cannot isolate this case from the next test suite.
-    await db.delete(sandboxCreationOperations).where(eq(sandboxCreationOperations.companyId, companyId));
+    await db.delete(sandboxCreationOperations).where(eq(sandboxCreationOperations.spaceId, spaceId));
     vi.useRealTimers(); vi.restoreAllMocks();
     expect(errors).toEqual([]);
   });
@@ -97,7 +97,7 @@ describe.skipIf(!support.supported)("environment cleanup scheduling", () => {
       await vi.waitFor(() => expect(idleWorkSnapshot().active === 0 || coordinator!.nextWakeAt() !== null).toBe(true), { timeout: 5000 });
     }
   }
-  const pending = (executor: Db = db) => environmentService(executor).insertPendingCleanupLease({ companyId, environmentId,
+  const pending = (executor: Db = db) => environmentService(executor).insertPendingCleanupLease({ spaceId, environmentId,
     provider: "fixture", providerLeaseId: randomUUID(), metadata: { driver: "sandbox" }, failureReason: "fixture" });
   async function quiet() {
     for (let pass = 0; pass < 4; pass++) {
@@ -124,7 +124,7 @@ describe.skipIf(!support.supported)("environment cleanup scheduling", () => {
   });
   it("reconstructs a creation deadline after restart and leaves manual reconciliation quiet", async () => {
     await start(); await quiet();
-    await createOwnedSandbox(db, { companyId, environmentId, provider: "fixture", driverKey: "fixture", config: {}, metadata: {} },
+    await createOwnedSandbox(db, { spaceId, environmentId, provider: "fixture", driverKey: "fixture", config: {}, metadata: {} },
       async () => ({ providerLeaseId: "fixture-unattached" }));
     await settle();
     expect(coordinator!.nextWakeAt()).toBeGreaterThan(Date.now());
@@ -137,19 +137,19 @@ describe.skipIf(!support.supported)("environment cleanup scheduling", () => {
     ]));
     await quiet();
   });
-  it.each([false, true])("retains deleted-company creation uncertainty across a quiet worker restart (contextual=%s)", async contextual => {
+  it.each([false, true])("retains deleted-space creation uncertainty across a quiet worker restart (contextual=%s)", async contextual => {
     await start(); await quiet();
-    const created = await createOwnedSandbox(db, { companyId, environmentId, provider: "fixture", driverKey: "fixture", config: {},
+    const created = await createOwnedSandbox(db, { spaceId, environmentId, provider: "fixture", driverKey: "fixture", config: {},
       metadata: contextual ? { runnerTaskLease: true, runnerTaskCreationContextId: randomUUID() } : {} },
-      async () => ({ providerLeaseId: "fixture-deleted-company" }));
-    await db.delete(companies).where(eq(companies.id, companyId));
+      async () => ({ providerLeaseId: "fixture-deleted-space" }));
+    await db.delete(spaces).where(eq(spaces.id, spaceId));
     await settle(31 * 60_000);
     await vi.waitFor(async () => expect(await db.select().from(sandboxCreationOperations)).toEqual([
-      expect.objectContaining({ state: "needs_reconciliation", metadata: expect.objectContaining({ creationReconciliationReason: "company_deleted" }) }),
+      expect.objectContaining({ state: "needs_reconciliation", metadata: expect.objectContaining({ creationReconciliationReason: "space_deleted" }) }),
     ]));
     if (contextual) {
       if (!created.providerLeaseId) throw new Error("Fixture creation returned no provider lease identity");
-      await recordSandboxCreationResource(db, { id: String(created.metadata!.creationOperationId), companyId, environmentId,
+      await recordSandboxCreationResource(db, { id: String(created.metadata!.creationOperationId), spaceId, environmentId,
         providerLeaseId: created.providerLeaseId });
     }
     await quiet();
@@ -343,12 +343,12 @@ describe.skipIf(!support.supported)("environment cleanup scheduling", () => {
   });
   it("preserves a first creation signal during drain and disarms after atomic attachment", async () => {
     await start(); await quiet(); draining = true;
-    const created = await createOwnedSandbox(db, { companyId, environmentId, provider: "fixture", driverKey: "fixture", config: {}, metadata: {} },
+    const created = await createOwnedSandbox(db, { spaceId, environmentId, provider: "fixture", driverKey: "fixture", config: {}, metadata: {} },
       async () => ({ providerLeaseId: "fixture-attached" }));
     const count = reads.mock.calls.length;
     await settle(60_000, false); expect(reads).toHaveBeenCalledTimes(count);
     draining = false;
-    await environmentService(db).acquireLease({ companyId, environmentId, provider: "fixture", providerLeaseId: created.providerLeaseId,
+    await environmentService(db).acquireLease({ spaceId, environmentId, provider: "fixture", providerLeaseId: created.providerLeaseId,
       creationOperationId: String(created.metadata!.creationOperationId), metadata: created.metadata });
     await settle();
     expect(await db.select().from(sandboxCreationOperations)).toEqual([expect.objectContaining({ state: "attached" })]);
@@ -488,7 +488,7 @@ describe.skipIf(!support.supported)("environment cleanup scheduling", () => {
       expect(coordinator!.nextWakeAt()).not.toBeNull();
       expect(Date.now() - failedAt).toBeLessThan(30_000);
       expect(pendingSweeps).toHaveBeenCalledTimes(sweeps);
-      expect(await spool.append({ companyId, environmentId, executionWorkspaceId: null, issueId: null,
+      expect(await spool.append({ spaceId, environmentId, executionWorkspaceId: null, issueId: null,
         heartbeatRunId: null, provider: "fixture", providerLeaseId, metadata: { driver: "sandbox" } })).toBe(true);
       await rm(unread);
       await settle(30_000);

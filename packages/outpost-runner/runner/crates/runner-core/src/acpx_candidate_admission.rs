@@ -12,13 +12,13 @@ const MAX_LIFETIME_MS: u64 = 24 * 60 * 60 * 1_000;
 const MAX_JSON_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 const DISTRIBUTIONS: &str = include_str!("../../../../antigravity-distributions.json");
 
-/// Operator authority supplied only through trusted process startup. Company
+/// Operator authority supplied only through trusted process startup. Space
 /// membership is authorized by the server; an agent descriptor cannot mint it.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AcpxCandidateAdmission {
     pub schema: String,
-    pub company_id: String,
+    pub space_id: String,
     pub agent: String,
     pub model: String,
     pub profile_digest: String,
@@ -97,7 +97,7 @@ impl AcpxCandidateAdmission {
             _ => return Err(invalid()),
         };
         if self.schema != SCHEMA
-            || !is_stable_id(&self.company_id, DURABLE_STABLE_ID_CHARS)
+            || !is_stable_id(&self.space_id, DURABLE_STABLE_ID_CHARS)
             || self.model.trim().is_empty()
             || self.model != self.model.trim()
             || self.model.len() > 512
@@ -162,7 +162,7 @@ pub(crate) fn test_admission(run_id: &str, session_id: &str) -> AcpxCandidateAdm
     let manifest: Value = serde_json::from_str(DISTRIBUTIONS).unwrap();
     AcpxCandidateAdmission {
         schema: SCHEMA.to_owned(),
-        company_id: "company-1".to_owned(),
+        space_id: "space-1".to_owned(),
         agent: "antigravity".to_owned(),
         model: "explicit-model".to_owned(),
         profile_digest: acpx_release_profile("antigravity")
@@ -208,7 +208,7 @@ mod tests {
             .is_err());
         for (field, value) in [
             ("schema", json!("unknown")),
-            ("companyId", json!("bad company")),
+            ("spaceId", json!("bad space")),
             ("agent", json!("copilot")),
             ("model", json!("auto")),
             ("profileDigest", json!("sha256:wrong")),
@@ -301,7 +301,7 @@ mod tests {
                 .validate_at(candidate.expires_at - MAX_LIFETIME_MS - 1, os, host_arch)
                 .is_err());
             for (field, value) in [
-                ("companyId", json!("bad company")),
+                ("spaceId", json!("bad space")),
                 ("agent", json!("copilot")),
                 ("model", json!("default")),
                 ("profileDigest", json!("sha256:wrong")),
@@ -357,7 +357,7 @@ mod tests {
             )
             .is_err());
         for (field, change) in [
-            ("companyId", json!("another-company")),
+            ("spaceId", json!("another-space")),
             ("model", json!("another-model")),
             ("profileDigest", json!("sha256:wrong")),
             ("nativeClosureDigest", json!("sha256:wrong")),

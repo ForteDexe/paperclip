@@ -129,7 +129,7 @@ export function RoutineTriggers() {
         <TriggerSetup
           key={routine.id}
           routineId={routine.id}
-          companyId={routine.companyId}
+          spaceId={routine.spaceId}
           routineTitle={routine.title}
           trigger={trigger}
           onExit={closeSetup}
@@ -313,21 +313,21 @@ export function RoutineTriggers() {
 
 function TriggerSetup({
   routineId,
-  companyId,
+  spaceId,
   routineTitle,
   trigger,
   onExit,
   onRefresh,
 }: {
   routineId: string;
-  companyId: string;
+  spaceId: string;
   routineTitle: string;
   trigger?: RoutineTrigger;
   onExit: () => void;
   onRefresh: () => Promise<void>;
 }) {
   const [, setParams] = useSearchParams();
-  const storagePrefix = `routine-trigger-draft:${companyId}:${routineId}:`;
+  const storagePrefix = `routine-trigger-draft:${spaceId}:${routineId}:`;
   const createdRef = useRef<RoutineTrigger | undefined>(trigger);
   const [created, setCreated] = useState(trigger);
   const [secret, setSecret] = useState("");
@@ -573,7 +573,7 @@ function WebhookSettings({
       {trigger.signingMode === "hmac_sha256" && (
         <p className="text-sm text-muted-foreground">
           Sign the timestamp, a period, and the exact JSON body with
-          HMAC-SHA256. Send X-Paperclip-Timestamp and X-Paperclip-Signature:
+          HMAC-SHA256. Send X-Outpost-Timestamp and X-Outpost-Signature:
           sha256=&lt;signature&gt;.
         </p>
       )}

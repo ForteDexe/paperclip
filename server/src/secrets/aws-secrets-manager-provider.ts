@@ -16,8 +16,8 @@ import type {
 import { SecretProviderClientError } from "./types.js";
 
 const AWS_SECRETS_MANAGER_SCHEME = "aws_secrets_manager_v1";
-const DEFAULT_PREFIX = "paperclip";
-const DEFAULT_OWNER_TAG = "paperclip";
+const DEFAULT_PREFIX = "outpost";
+const DEFAULT_OWNER_TAG = "outpost";
 const DEFAULT_VERSION_STAGE = "AWSCURRENT";
 const OUTPOST_PENDING_VERSION_STAGE = "OUTPOST_PENDING";
 const DEFAULT_DELETE_RECOVERY_WINDOW_DAYS = 30;
@@ -29,7 +29,7 @@ const PROVIDER_CONFIG_DISCOVERY_CANDIDATE_LIMIT = 6;
 const AWS_RUNTIME_CREDENTIAL_WARNING =
   "AWS bootstrap credentials must be available to the Outpost server runtime through the AWS SDK default credential provider chain: IAM role/workload identity, AWS_PROFILE/SSO/shared credentials, web identity, container/instance metadata, or short-lived shell credentials.";
 const AWS_CREDENTIAL_CUSTODY_WARNING =
-  "Do not store AWS root credentials or long-lived IAM user access keys in Outpost company_secrets; the AWS provider bootstrap belongs in deployment infrastructure, the process environment, an AWS profile, or the orchestrator secret store.";
+  "Do not store AWS root credentials or long-lived IAM user access keys in Outpost space_secrets; the AWS provider bootstrap belongs in deployment infrastructure, the process environment, an AWS profile, or the orchestrator secret store.";
 
 interface AwsSecretsManagerMaterial extends StoredSecretVersionMaterial {
   scheme: typeof AWS_SECRETS_MANAGER_SCHEME;
@@ -81,7 +81,7 @@ interface CachedAwsCredentialProvider {
   pending: Promise<AwsCredentialIdentity> | null;
 }
 
-type ManagedSecretNamespaceContext = Pick<SecretProviderWriteContext, "companyId" | "secretKey">;
+type ManagedSecretNamespaceContext = Pick<SecretProviderWriteContext, "spaceId" | "secretKey">;
 
 const awsCredentialProviders = new Map<string, CachedAwsCredentialProvider>();
 
@@ -447,7 +447,7 @@ function buildManagedSecretName(
   return [
     sanitizePathSegment(config.prefix),
     sanitizePathSegment(config.deploymentId),
-    sanitizePathSegment(context.companyId),
+    sanitizePathSegment(context.spaceId),
     sanitizePathSegment(context.secretKey),
   ]
     .filter(Boolean)
@@ -524,7 +524,7 @@ function resolveManagedSecretRef(input: {
   }
   if (sawNonEmptyExternalRef) {
     throw unprocessable(
-      "AWS Secrets Manager managed secret ref drifted outside the derived deployment/company scope",
+      "AWS Secrets Manager managed secret ref drifted outside the derived deployment/space scope",
     );
   }
   return buildManagedSecretId(input.config, input.context);
@@ -536,12 +536,12 @@ function buildManagedSecretTags(
 ): AwsSecretsManagerTag[] {
   if (!context) return [];
   return [
-    { Key: "paperclip:managed-by", Value: "paperclip" },
-    { Key: "paperclip:provider-owner", Value: config.providerOwnerTag },
-    { Key: "paperclip:deployment-id", Value: config.deploymentId },
-    { Key: "paperclip:company-id", Value: context.companyId },
-    { Key: "paperclip:secret-key", Value: context.secretKey },
-    { Key: "paperclip:environment", Value: config.environmentTag },
+    { Key: "outpost:managed-by", Value: "outpost" },
+    { Key: "outpost:provider-owner", Value: config.providerOwnerTag },
+    { Key: "outpost:deployment-id", Value: config.deploymentId },
+    { Key: "outpost:space-id", Value: context.spaceId },
+    { Key: "outpost:secret-key", Value: context.secretKey },
+    { Key: "outpost:environment", Value: config.environmentTag },
   ];
 }
 
@@ -631,13 +631,13 @@ function pathSegments(name: string) {
 function inferPathSignals(entry: AwsSecretsManagerListSecretEntry, tags: Map<string, string>) {
   const name = entry.Name?.trim() || entry.ARN?.trim() || "";
   const segments = pathSegments(name);
-  const paperclipDeploymentId = tagValue(tags, ["paperclip:deployment-id"]);
-  const paperclipManaged = tagValue(tags, ["paperclip:managed-by"])?.toLowerCase() === "paperclip";
+  const outpostDeploymentId = tagValue(tags, ["outpost:deployment-id"]);
+  const outpostManaged = tagValue(tags, ["outpost:managed-by"])?.toLowerCase() === "outpost";
 
-  if (paperclipDeploymentId || paperclipManaged) {
+  if (outpostDeploymentId || outpostManaged) {
     return {
       prefix: segments[0] ?? DEFAULT_PREFIX,
-      namespace: paperclipDeploymentId ?? segments[1] ?? null,
+      namespace: outpostDeploymentId ?? segments[1] ?? null,
     };
   }
 
@@ -670,7 +670,7 @@ function discoveryDisplayName(input: {
 }
 
 function discoverAwsProviderConfigCandidates(input: {
-  companyId: string;
+  spaceId: string;
   config: AwsSecretsManagerConfig;
   draftConfig: Record<string, unknown>;
   entries: AwsSecretsManagerListSecretEntry[];
@@ -685,22 +685,22 @@ function discoverAwsProviderConfigCandidates(input: {
     environmentTag: string | null;
     ownerTag: string | null;
     kmsKeyId: string | null;
-    paperclipManaged: boolean;
-    paperclipCompanyId: string | null;
+    outpostManaged: boolean;
+    outpostSpaceId: string | null;
   };
 
   const skippedWarnings: string[] = [];
-  let skippedForeignPaperclipSampleCount = 0;
+  let skippedForeignOutpostSampleCount = 0;
   const samples: DiscoverySample[] = [];
 
   for (const entry of input.entries) {
     const name = entry.Name?.trim() || entry.ARN?.trim();
     if (!name) continue;
     const tags = normalizeAwsTags(entry.Tags);
-    const paperclipManaged = tagValue(tags, ["paperclip:managed-by"])?.toLowerCase() === "paperclip";
-    const paperclipCompanyId = tagValue(tags, ["paperclip:company-id"]);
-    if (paperclipManaged && paperclipCompanyId !== input.companyId) {
-      skippedForeignPaperclipSampleCount += 1;
+    const outpostManaged = tagValue(tags, ["outpost:managed-by"])?.toLowerCase() === "outpost";
+    const outpostSpaceId = tagValue(tags, ["outpost:space-id"]);
+    if (outpostManaged && outpostSpaceId !== input.spaceId) {
+      skippedForeignOutpostSampleCount += 1;
       continue;
     }
     const path = inferPathSignals(entry, tags);
@@ -710,17 +710,17 @@ function discoverAwsProviderConfigCandidates(input: {
       tags,
       prefix: path.prefix,
       namespace: path.namespace,
-      environmentTag: tagValue(tags, ["paperclip:environment", "environment", "env", "stage"]),
-      ownerTag: tagValue(tags, ["paperclip:provider-owner", "owner", "team", "service", "application"]),
+      environmentTag: tagValue(tags, ["outpost:environment", "environment", "env", "stage"]),
+      ownerTag: tagValue(tags, ["outpost:provider-owner", "owner", "team", "service", "application"]),
       kmsKeyId: asOptionalNonEmptyString(entry.KmsKeyId),
-      paperclipManaged,
-      paperclipCompanyId,
+      outpostManaged,
+      outpostSpaceId,
     });
   }
 
-  if (skippedForeignPaperclipSampleCount > 0) {
+  if (skippedForeignOutpostSampleCount > 0) {
     skippedWarnings.push(
-      `Skipped ${skippedForeignPaperclipSampleCount} Outpost-managed AWS secret sample(s) that were not tagged for this company.`,
+      `Skipped ${skippedForeignOutpostSampleCount} Outpost-managed AWS secret sample(s) that were not tagged for this space.`,
     );
   }
 
@@ -764,8 +764,8 @@ function discoverAwsProviderConfigCandidates(input: {
       if (kmsKeys.length > 1 && !draftKmsKeyId) {
         candidateWarnings.push("Sampled AWS secrets use multiple KMS keys; choose the intended KMS key before saving.");
       }
-      if (group.some((sample) => sample.paperclipManaged && sample.paperclipCompanyId === input.companyId)) {
-        candidateWarnings.push("Sample includes Outpost-managed secrets for this company; do not import them as external references.");
+      if (group.some((sample) => sample.outpostManaged && sample.outpostSpaceId === input.spaceId)) {
+        candidateWarnings.push("Sample includes Outpost-managed secrets for this space; do not import them as external references.");
       }
 
       return {
@@ -798,8 +798,8 @@ function discoverAwsProviderConfigCandidates(input: {
           kmsKeyId: kmsKeyId ?? null,
           hasKmsKey: kmsKeys.length > 0,
           sampleCount: group.length,
-          paperclipManagedSampleCount: group.filter((sample) => sample.paperclipManaged).length,
-          skippedForeignPaperclipSampleCount,
+          outpostManagedSampleCount: group.filter((sample) => sample.outpostManaged).length,
+          skippedForeignOutpostSampleCount,
         },
         warnings: candidateWarnings,
       };
@@ -817,7 +817,7 @@ function discoverAwsProviderConfigCandidates(input: {
     provider: "aws_secrets_manager",
     nextToken: input.nextToken,
     sampledSecretCount: samples.length,
-    skippedForeignPaperclipSampleCount,
+    skippedForeignOutpostSampleCount,
     candidates,
     warnings,
   };
@@ -1201,7 +1201,7 @@ export function createAwsSecretsManagerProvider(
           VersionStage: DEFAULT_VERSION_STAGE,
         });
         // No VersionStages: the new version becomes AWSCURRENT so every consumer of the
-        // referenced secret (not just Paperclip) picks up the new value.
+        // referenced secret (not just Outpost) picks up the new value.
         const created = await gateway.putSecretValue({
           SecretId: secretId,
           SecretString: input.value,
@@ -1279,7 +1279,7 @@ export function createAwsSecretsManagerProvider(
           Filters: query ? [{ Key: "all", Values: [query] }] : undefined,
         });
         return discoverAwsProviderConfigCandidates({
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           config,
           draftConfig: input.providerConfig.config,
           entries: listed.SecretList ?? [],

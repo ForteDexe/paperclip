@@ -76,23 +76,23 @@ export async function isPreDispatchReviewWaitVerified(db: Db, run: Run): Promise
         run.controllerLeaseExpiresAt, run.executionStage].every(value => value === null) &&
       run.resultJson?.workspaceRestoreFailure !== "restore_unsafe_archive" && !hasRequiredWorkspaceRecovery(run.resultJson)) {
     const [unstarted] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.id, run.id), neverStartedDispatchCancellationPredicate(),
+      eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.id, run.id), neverStartedDispatchCancellationPredicate(),
     )).limit(1);
     if (unstarted) return true;
   }
   if (!isPreDispatchReviewWait(run)) return false;
   const [coordinator] = await db.select({ id: nativeRunFinalizations.runId }).from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.companyId, run.companyId), eq(nativeRunFinalizations.runId, run.id),
+    eq(nativeRunFinalizations.spaceId, run.spaceId), eq(nativeRunFinalizations.runId, run.id),
   )).limit(1);
   if (coordinator) return false;
   const leases = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+    eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
   ));
   if (leases.some(lease => lease.provider === "local"
     ? !lease.releasedAt || lease.status === "pending_cleanup" || lease.cleanupStatus === "failed"
     : !hasRemoteTerminationReceipt(lease))) return false;
   const [execution] = await db.select({ id: heartbeatRunEvents.id }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, run.companyId), eq(heartbeatRunEvents.runId, run.id),
+    eq(heartbeatRunEvents.spaceId, run.spaceId), eq(heartbeatRunEvents.runId, run.id),
     executionStartedEventPredicate(),
   )).limit(1);
   return !execution;

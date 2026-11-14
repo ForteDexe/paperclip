@@ -8,7 +8,7 @@ if (!process.env.DATABASE_URL)
   throw new Error("Set DATABASE_URL to the intended instance; run with legacy writers drained");
 const args = process.argv.slice(2);
 const booleans = new Set(["--apply", "--preserve-settled-native-files"]);
-const flags = new Set([...booleans, "--company", "--after-run", "--after-trace", "--limit"]);
+const flags = new Set([...booleans, "--space", "--after-run", "--after-trace", "--limit"]);
 for (let index = 0; index < args.length; index++) {
   const flag = args[index]!;
   if (!flags.has(flag)) throw new Error(`Unknown migration option: ${flag}`);
@@ -29,7 +29,7 @@ try {
   }
   const result = await migrateRunEvidence(db, {
     apply: args.includes("--apply"),
-    companyId: value("--company"),
+    spaceId: value("--space"),
     afterRunId: value("--after-run"),
     afterTraceId: value("--after-trace"),
     limit: Number(value("--limit") || 50),

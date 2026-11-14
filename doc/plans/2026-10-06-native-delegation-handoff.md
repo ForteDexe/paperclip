@@ -15,7 +15,7 @@ The native status committer currently deduplicates parent notifications by the
 parent/child pair. A consumed notification can therefore suppress a later
 completion of the same child. Scope the key to the durable completion decision
 in both parent-notification branches, including a child that is also a blocker.
-Keep existing readiness, company, ownership, workspace finalization and governance
+Keep existing readiness, space, ownership, workspace finalization and governance
 gates. Do not change model prompts, tools, dependency replacement semantics or
 the outcome oracle. General dependency-only wake reconciliation is separate. Exact `task_watchdog`
 children keep their existing stable wake key to avoid repeated watchdog loops;
@@ -43,14 +43,14 @@ shipped the smaller planning skills; its report publication is separate.
    `everyday-workflows.runner-codex.local.delegate-feedback` and
    `everyday-workflows.runner-acpx-claude.local.delegate-feedback` in each
    variant: one attempt each, 12-minute per-cell deadline, at most 12 story
-   run records, 1,000-cent company and lead-agent hard stops, concurrency 2.
+   run records, 1,000-cent space and lead-agent hard stops, concurrency 2.
    No reroll of a completed behavior failure. All provider continuations and
    automatic recovery count in the actual run inventory.
 4. Inspect original grades and retained chronology, including revised child
    delivery, worker ownership, parent review and parent completion ordering.
    A green workflow is not itself a behavioral pass. A single pair does not
    establish general equivalence, causation or cost/speed trends.
-5. Retain dated measurement/results in the private `paperclip-evals` archive
+5. Retain dated measurement/results in the private `outpost-evals` archive
    and existing campaign artifact storage. Keep a compact index here. Verify
    current-head CI and review before a readiness claim.
 

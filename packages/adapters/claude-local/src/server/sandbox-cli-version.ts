@@ -26,7 +26,7 @@ export async function prepareCompatibleClaudeCommand(
     input.command !== "claude" || !/^\d+\.\d+\.\d+$/.test(input.minimumVersion)
   ) return original;
 
-  const prefix = path.posix.join(input.target.remoteCwd, ".paperclip-runtime", "claude-cli", input.minimumVersion);
+  const prefix = path.posix.join(input.target.remoteCwd, ".outpost-runtime", "claude-cli", input.minimumVersion);
   const command = path.posix.join(prefix, "bin", "claude");
   const existing = await readClaudeCommandVersion({ ...input, command });
   if (existing && claudeCliVersionAtLeast(existing, input.minimumVersion)) return { command, version: existing };

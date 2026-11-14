@@ -136,7 +136,7 @@ const PROVIDER_EVENT_TYPES = new Set(["turn.submitted", "turn.started", "turn.ac
   "item.completed", "tool.execution.started", "tool.execution.progressed", "tool.execution.completed", "session.resumed"]);
 
 export interface RecoverySample { runId: string; adapter: string; kind: string; disposition: string; readyAt: number; latencyMs: number | null;
-  /** Paperclip's share: ready to the start of the provider's session load (`provider.session.load`), or the whole
+  /** Outpost's share: ready to the start of the provider's session load (`provider.session.load`), or the whole
    * latency when nothing reloads. The judged row. */
   controlPlaneMs: number | null;
   /** The provider's share: session load start to the next provider event. Reported. */

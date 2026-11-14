@@ -9,7 +9,7 @@ import { parseRunnerSelectors, selectRunnerExecutions } from "./selectors.js";
 import { CHAT_OPENCODE_MODEL } from "./chat-runtime-profile.js";
 import { CHAT_SETUP_HEALTH_ID, CHAT_SETUP_HEALTH_SUITE, gradeSetupHealth, runChatSetupHealth, requestSetupHealthStop, stopSetupHealthIfRequested, SetupHealthAbort, captureSetupHealthProfile } from "./chat-setup-health.js";
 const valid = (): Parameters<typeof gradeSetupHealth>[0] => ({ ready: true, agentCount: 1, configMatches: true, issues: 0, conversations: 0, comments: 0, humanComments: 0, runs: 0,
-  probes: [{ schema: "outpost.chat-readiness-probe/v1", companyId: "company", sequence: 1, status: "pass", thrown: false,
+  probes: [{ schema: "outpost.chat-readiness-probe/v1", spaceId: "space", sequence: 1, status: "pass", thrown: false,
     checks: [{ code: "opencode_hello_probe_passed", level: "info", category: "unknown" as const }], errorCategory: "unknown" as const }] });
 describe("explicit setup-only diagnostic cell", () => {
   it("selects one exact-profile retry-zero cell outside the catalog and --all", () => {
@@ -42,10 +42,10 @@ afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, {
 it.each([[false, false], [true, false], [false, true]])("uses only readiness GET plus cleanup; failure=%s lateProbe=%s", async (failed, lateProbe) => {
   const temporaryRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "setup-health-offline-"))); roots.push(temporaryRoot);
   await mkdir(path.join(temporaryRoot, "artifacts-private"));
-  const companyId = "11111111-1111-4111-8111-111111111111";
-  const probe = { ...valid().probes[0]!, companyId, status: failed ? "fail" : "pass" };
+  const spaceId = "11111111-1111-4111-8111-111111111111";
+  const probe = { ...valid().probes[0]!, spaceId, status: failed ? "fail" : "pass" };
   await writeFile(path.join(temporaryRoot, "artifacts-private", "chat-readiness-probes.jsonl"), JSON.stringify(probe));
-  const agent = { id: "agent", companyId, defaultEnvironmentId: "environment", adapterType: "outpost_runner",
+  const agent = { id: "agent", spaceId, defaultEnvironmentId: "environment", adapterType: "outpost_runner",
     adapterConfig: { provider: "opencode", model: CHAT_OPENCODE_MODEL }, status: "idle", lifecycleState: failed ? "verifying" : "ready",
     lifecycleError: failed ? "Execution configuration check failed" : null };
   const get = vi.fn(async (route: string) => {
@@ -61,7 +61,7 @@ it.each([[false, false], [true, false], [false, true]])("uses only readiness GET
   });
   const evidence = vi.fn(async (_name: string, _value: unknown) => {});
   const operation = runChatSetupHealth({ api: { get, post } as unknown as RunnerApi,
-    fixtures: { company: { id: companyId }, agent: { id: "agent" }, environment: { id: "environment" } } as LiveFixtureValues,
+    fixtures: { space: { id: spaceId }, agent: { id: "agent" }, environment: { id: "environment" } } as LiveFixtureValues,
     temporaryRoot, evidence });
   if (failed || lateProbe) await expect(operation).rejects.toThrow("Setup health failed"); else await operation;
   expect(post).toHaveBeenCalledTimes(1);
@@ -95,7 +95,7 @@ it("pause failure requests owned stop before extra oracle reads, even if initial
   const post = vi.fn(async () => { throw new Error("private-api-error"); });
   const evidence = vi.fn(async () => { throw new Error("private-storage-error"); });
   await expect(runChatSetupHealth({ api: { get, post } as unknown as RunnerApi,
-    fixtures: { company: { id: "11111111-1111-4111-8111-111111111111" }, agent: { id: "agent" } } as LiveFixtureValues,
+    fixtures: { space: { id: "11111111-1111-4111-8111-111111111111" }, agent: { id: "agent" } } as LiveFixtureValues,
     temporaryRoot, evidence })).rejects.toBeInstanceOf(SetupHealthAbort);
   expect(get).toHaveBeenCalledTimes(1); expect(post).toHaveBeenCalledTimes(1);
   const stop = vi.fn(async () => {});
@@ -109,10 +109,10 @@ it("captures the actual scoped readonly profile only after its visible identity 
   const heading = vi.fn(() => ({ waitFor }));
   const page = { goto: vi.fn(async (url: string) => { current = url; }), url: () => current,
     getByRole: vi.fn(() => ({ getByRole: heading })) };
-  const get = vi.fn(async (route: string) => route.includes("/companies/") ? { id: "company", issuePrefix: "RUN" } : { id: "agent", companyId: "company", name: "CEO", urlKey: "ceo" });
+  const get = vi.fn(async (route: string) => route.includes("/spaces/") ? { id: "space", issuePrefix: "RUN" } : { id: "agent", spaceId: "space", name: "CEO", urlKey: "ceo" });
   const capturePrivate = vi.fn(async () => { expect(visible).toBe(true); });
   const input = { executionId: CHAT_SETUP_HEALTH_ID, api: { baseURL: "http://127.0.0.1:3100", get } as unknown as RunnerApi,
-    page: page as unknown as import("@playwright/test").Page, companyId: "company", agentId: "agent", capturePrivate };
+    page: page as unknown as import("@playwright/test").Page, spaceId: "space", agentId: "agent", capturePrivate };
   await captureSetupHealthProfile(input);
   expect(page.goto).toHaveBeenCalledWith("http://127.0.0.1:3100/RUN/agents/ceo/overview", { waitUntil: "domcontentloaded" });
   expect(heading).toHaveBeenCalledWith("heading", { name: "CEO", exact: true });

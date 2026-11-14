@@ -1,9 +1,9 @@
 import type { AttentionItem, DecisionHistoryItem } from "@outpost/shared";
 import { queryKeys } from "./queryKeys";
 
-export const coordinatorAttentionQueryKey = (companyId: string) => [...queryKeys.attention(companyId), "coordinator", "pending"] as const;
-export const coordinatorAttentionSummaryQueryKey = (companyId: string) => [...queryKeys.attention(companyId), "coordinator", "summary"] as const;
-export const coordinatorAttentionTasksQueryKey = (companyId: string) => [...queryKeys.attention(companyId), "coordinator", "tasks"] as const;
+export const coordinatorAttentionQueryKey = (spaceId: string) => [...queryKeys.attention(spaceId), "coordinator", "pending"] as const;
+export const coordinatorAttentionSummaryQueryKey = (spaceId: string) => [...queryKeys.attention(spaceId), "coordinator", "summary"] as const;
+export const coordinatorAttentionTasksQueryKey = (spaceId: string) => [...queryKeys.attention(spaceId), "coordinator", "tasks"] as const;
 
 /** Presentation-only assumption from the prototype, never a retention policy. */
 export const COORDINATOR_RECENT_DECISION_MS = 24 * 60 * 60 * 1_000;

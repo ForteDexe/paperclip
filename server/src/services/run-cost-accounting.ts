@@ -43,7 +43,7 @@ async function readAccountingClosure(db: Db, runId: string) {
     providerWorkNeverStarted: sql<boolean>`(${nativeProviderWorkNeverStarted}) is true`,
     processPid: heartbeatRuns.processPid, processGroupId: heartbeatRuns.processGroupId,
   }).from(heartbeatRuns).leftJoin(nativeRunFinalizations, and(
-    eq(nativeRunFinalizations.runId, heartbeatRuns.id), eq(nativeRunFinalizations.companyId, heartbeatRuns.companyId),
+    eq(nativeRunFinalizations.runId, heartbeatRuns.id), eq(nativeRunFinalizations.spaceId, heartbeatRuns.spaceId),
   )).where(eq(heartbeatRuns.id, runId));
   return closure;
 }
@@ -54,14 +54,14 @@ async function readAccountingClosure(db: Db, runId: string) {
  * per-lease check uses "is not true": a missing receipt makes it NULL, which
  * must never count as proof. */
 const remoteExecutionTerminated = sql`exists (select 1 from ${environmentLeases} remote_lease
-    where remote_lease.company_id = ${heartbeatRuns.companyId} and remote_lease.heartbeat_run_id = ${heartbeatRuns.id})
+    where remote_lease.space_id = ${heartbeatRuns.spaceId} and remote_lease.heartbeat_run_id = ${heartbeatRuns.id})
   and not exists (select 1 from ${environmentLeases} remote_lease
-    where remote_lease.company_id = ${heartbeatRuns.companyId} and remote_lease.heartbeat_run_id = ${heartbeatRuns.id}
+    where remote_lease.space_id = ${heartbeatRuns.spaceId} and remote_lease.heartbeat_run_id = ${heartbeatRuns.id}
       and (remote_lease.provider is not null and remote_lease.provider <> 'local'
         and remote_lease.provider_lease_id is not null and remote_lease.released_at is not null
         and remote_lease.cleanup_status = 'success' and remote_lease.status in ('released', 'expired', 'failed')
         and remote_lease.metadata->'remoteExecutionTermination'->>'schema' = 'outpost.remote-termination.v1'
-        and remote_lease.metadata->'remoteExecutionTermination'->>'companyId' = remote_lease.company_id::text
+        and remote_lease.metadata->'remoteExecutionTermination'->>'spaceId' = remote_lease.space_id::text
         and remote_lease.metadata->'remoteExecutionTermination'->>'runId' = remote_lease.heartbeat_run_id::text
         and remote_lease.metadata->'remoteExecutionTermination'->>'leaseId' = remote_lease.id::text
         and remote_lease.metadata->'remoteExecutionTermination'->>'provider' = remote_lease.provider
@@ -84,7 +84,7 @@ const remoteExecutionTerminated = sql`exists (select 1 from ${environmentLeases}
 /** Native recovery will not run this provider again: it ended in terminal
  * failure, or the run's result was already accepted. */
 const settledNativeCoordinator = sql`exists (select 1 from ${nativeRunFinalizations} where ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
-    and ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId}
+    and ${nativeRunFinalizations.spaceId} = ${heartbeatRuns.spaceId}
     and ((${nativeRunFinalizations.resultId} is null and ${nativeRunFinalizations.phase} = 'terminal_failure')
       or ${nativeRunFinalizations.resultId} is not null))`;
 
@@ -95,7 +95,7 @@ const closedNativeReceiptSource = sql`${heartbeatRuns.runtimeMode} = 'native'
   and ((${heartbeatRuns.status} in ('failed', 'cancelled', 'timed_out', 'interrupted')
     and ${heartbeatRuns.processPid} is null and ${heartbeatRuns.processGroupId} is null
     and (select process_event.event_type from ${heartbeatRunEvents} process_event
-      where process_event.company_id = ${heartbeatRuns.companyId} and process_event.run_id = ${heartbeatRuns.id}
+      where process_event.space_id = ${heartbeatRuns.spaceId} and process_event.run_id = ${heartbeatRuns.id}
         and process_event.source_event_id is null
         and process_event.event_type in ('native.process_start_requested', 'native.process_identity_recorded', 'native.local_process_stopped')
       order by process_event.seq desc limit 1) = 'native.local_process_stopped')
@@ -105,12 +105,12 @@ const closedNativeReceiptSource = sql`${heartbeatRuns.runtimeMode} = 'native'
  * settled, not one usage receipt was ever journaled for the run (a provider
  * turn journals one as soon as it starts), and its local process either never
  * launched or was verified stopped. Settle it at once, like a pre-provider
- * failure, instead of holding company work. A usage recorder binds every run
+ * failure, instead of holding space work. A usage recorder binds every run
  * with an empty fence map; only a replaced receipt source (a non-empty map)
  * shows that provider work began. */
 const inheritedProcessIdentityOnly = sql`${heartbeatRuns.runnerProfileJson}->>'inheritedProcessIdentityRunId' is not null
   and not exists (select 1 from ${heartbeatRunEvents} own_process
-    where own_process.company_id = ${heartbeatRuns.companyId} and own_process.run_id = ${heartbeatRuns.id}
+    where own_process.space_id = ${heartbeatRuns.spaceId} and own_process.run_id = ${heartbeatRuns.id}
       and own_process.source_event_id is null
       and own_process.event_type in ('native.process_start_requested', 'native.process_identity_recorded'))`;
 
@@ -120,25 +120,25 @@ const nativeProviderWorkNeverStarted = sql`${heartbeatRuns.runtimeMode} = 'nativ
   and coalesce((${heartbeatRuns.usageJson}->>'accountingReceiptSequence')::int, 0) = 0
   and coalesce(${heartbeatRuns.usageJson}->'accountingReceiptSourceFences', '{}'::jsonb) = '{}'::jsonb
   and not exists (select 1 from ${runUsageReceipts} journaled_receipt
-    where journaled_receipt.company_id = ${heartbeatRuns.companyId} and journaled_receipt.run_id = ${heartbeatRuns.id})
+    where journaled_receipt.space_id = ${heartbeatRuns.spaceId} and journaled_receipt.run_id = ${heartbeatRuns.id})
   and ((${heartbeatRuns.processPid} is null and ${heartbeatRuns.processGroupId} is null) or (${inheritedProcessIdentityOnly}))
   and coalesce((select process_event.event_type from ${heartbeatRunEvents} process_event
-      where process_event.company_id = ${heartbeatRuns.companyId} and process_event.run_id = ${heartbeatRuns.id}
+      where process_event.space_id = ${heartbeatRuns.spaceId} and process_event.run_id = ${heartbeatRuns.id}
         and process_event.source_event_id is null
         and process_event.event_type in ('native.process_start_requested', 'native.process_identity_recorded', 'native.local_process_stopped')
       order by process_event.seq desc limit 1), 'native.local_process_stopped') = 'native.local_process_stopped'`;
 
 /** Waiting for closure evidence is bounded. Past the remote runner reconnect
  * grace plus a margin, a terminal run whose recovery has settled no longer
- * holds new company work: its debt settles as unpriced and is flagged so the
- * board sees which run it was. The flag also exempts the charge from the
+ * holds new space work: its debt settles as unpriced and is flagged so the
+ * operator sees which run it was. The flag also exempts the charge from the
  * blocking unpriced-usage policy (budget-exposure.ts): accounting is never a
- * company gate. */
+ * space gate. */
 /** A run's accounting settled: an admission hold may have cleared. Held work
  * (queued runs, saved messages and Retries, and tasks whose start or
  * continuation was refused) waits passively, so wake its owners. */
-async function notifyAccountingHoldRelease(tx: object, companyId: string) {
-  await promoteDeferredWorkIntents(tx, { companyId, trigger: "accounting_settled" });
+async function notifyAccountingHoldRelease(tx: object, spaceId: string) {
+  await promoteDeferredWorkIntents(tx, { spaceId, trigger: "accounting_settled" });
 }
 
 export const ACCOUNTING_CLOSURE_TIMEOUT_MS = REMOTE_RUNNER_RECONNECT_GRACE_MS + 3 * 60_000;
@@ -157,7 +157,7 @@ function closureEvidenceTimedOut(at: Date = new Date()) {
  * the same bound, once native recovery will not run the provider again, its
  * known usage settles as unpriced (or as a lower-bound estimate) and is
  * flagged, which exempts it from the blocking unpriced-usage policy
- * (budget-exposure.ts). Without the bound such a run held company admission
+ * (budget-exposure.ts). Without the bound such a run held space admission
  * until its UTC budget window rolled over. */
 function captureFailureBoundPassed(at: Date = new Date()) {
   return sql`${heartbeatRuns.usageJson}->>'accountingCaptureFailed' = 'true'
@@ -224,7 +224,7 @@ function estimateLostReceipt(usage: Record<string, unknown>) {
 /** The run's persisted usage is a durable receipt. Ledger, reservation handoff
  * and acknowledgement commit together, including after a restart or failed run. */
 export async function accountRunCost(db: Db, runId: string, hooks: BudgetServiceHooks = {}, receiptIndex?: UsageReceiptIndex) {
-  const [identity] = await db.select({ companyId: heartbeatRuns.companyId, status: heartbeatRuns.status,
+  const [identity] = await db.select({ spaceId: heartbeatRuns.spaceId, status: heartbeatRuns.status,
     pending: heartbeatRuns.costAccountingPending, accountedAt: heartbeatRuns.costAccountedAt,
     issueId: sql<string | null>`${heartbeatRuns.usageJson}->'ledgerScope'->>'issueId'`,
   }).from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
@@ -238,9 +238,9 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
   if (!identity.accountedAt && closure.runtimeMode === "native" && !closure.preProviderFailure && !closure.providerWorkNeverStarted
     && closure.coordinatorId && !closure.resultId && closure.phase !== "terminal_failure") return false;
   const pendingReceipts = !identity.accountedAt
-    ? await readPendingRunUsageReceipts({ companyId: identity.companyId, runId }, undefined, index) : [];
+    ? await readPendingRunUsageReceipts({ spaceId: identity.spaceId, runId }, undefined, index) : [];
   let recoveredFiles: string[] = [];
-  const accounted = await withBudgetSpan("budget.accounting.settlement", () => withOperationAccountingTransaction(db, identity.companyId, async (tx, publications) => {
+  const accounted = await withBudgetSpan("budget.accounting.settlement", () => withOperationAccountingTransaction(db, identity.spaceId, async (tx, publications) => {
     // The operation wrapper can retry a transaction PostgreSQL rolled back.
     // Never delete files imported only by an earlier, unsuccessful attempt.
     recoveredFiles = [];
@@ -248,25 +248,25 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
     // charge's issue FK lock first so inserting it cannot reverse that order.
     const issueId = text(identity.issueId);
     if (issueId) await tx.select({ id: issues.id }).from(issues).where(and(
-      eq(issues.companyId, identity.companyId), eq(issues.id, issueId),
+      eq(issues.spaceId, identity.spaceId), eq(issues.id, issueId),
     )).for("key share");
     let [run] = await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)).for("update");
     if (!run?.costAccountingPending || !terminalStatuses.includes(run.status)) return false;
     // Tool-side image spend is separate from the provider receipt; settle any
     // paid image whose own accounting write did not complete.
     for (const projectId of new Set(await settleChargedImageReceiptsInTransaction(tx, run, publications))) {
-      await queueBudgetEvaluation(tx, { companyId: run.companyId, agentId: run.agentId, projectId });
+      await queueBudgetEvaluation(tx, { spaceId: run.spaceId, agentId: run.agentId, projectId });
     }
     if (run.costAccountedAt) {
       if (object(run.usageJson).accountingLateReceiptPending === true) {
         // Clearing late debt can release an admission hold too.
-        await notifyAccountingHoldRelease(tx, run.companyId);
+        await notifyAccountingHoldRelease(tx, run.spaceId);
         return reconcileLateRunUsageReceiptInTransaction(tx, run, publications);
       }
-      await notifyStrandedAgentStatus(tx, { companyId: run.companyId, agentId: run.agentId });
-      await notifyAccountingHoldRelease(tx, run.companyId);
+      await notifyStrandedAgentStatus(tx, { spaceId: run.spaceId, agentId: run.agentId });
+      await notifyAccountingHoldRelease(tx, run.spaceId);
       await tx.update(heartbeatRuns).set({ costAccountingPending: false }).where(eq(heartbeatRuns.id, run.id));
-      await queueBudgetEvaluation(tx, { companyId: run.companyId, agentId: run.agentId,
+      await queueBudgetEvaluation(tx, { spaceId: run.spaceId, agentId: run.agentId,
         projectId: text(object(object(run.usageJson).ledgerScope).projectId) });
       return false;
     }
@@ -306,23 +306,23 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
       : receiptUnavailable ? await readNativeReceiptClosure(tx, run.id) : null;
     if (receiptUnavailable && !receiptClosure) return false;
     const closureTimedOut = receiptClosure === "timed_out";
-    if (!preProviderFailure) await ensureRuntimeAccountingBaseline(tx, run.companyId, run.agentId);
+    if (!preProviderFailure) await ensureRuntimeAccountingBaseline(tx, run.spaceId, run.agentId);
     // Acknowledgement is part of the same transaction. Budget checks inside
     // this transaction must not mistake this receipt for missing accounting.
-    await notifyStrandedAgentStatus(tx, { companyId: run.companyId, agentId: run.agentId });
-    await notifyAccountingHoldRelease(tx, run.companyId);
+    await notifyStrandedAgentStatus(tx, { spaceId: run.spaceId, agentId: run.agentId });
+    await notifyAccountingHoldRelease(tx, run.spaceId);
     await tx.update(heartbeatRuns).set({ costAccountingPending: false, costAccountedAt: new Date() }).where(eq(heartbeatRuns.id, run.id));
     await tx.update(budgetReservations).set({ state: preProviderFailure ? "released" : "settled", settledAt: new Date() })
-      .where(and(eq(budgetReservations.companyId, run.companyId), eq(budgetReservations.runId, run.id), eq(budgetReservations.state, "held")));
+      .where(and(eq(budgetReservations.spaceId, run.spaceId), eq(budgetReservations.runId, run.id), eq(budgetReservations.state, "held")));
     if (preProviderFailure) {
-      await queueBudgetEvaluation(tx, { companyId: run.companyId, agentId: run.agentId,
+      await queueBudgetEvaluation(tx, { spaceId: run.spaceId, agentId: run.agentId,
         projectId: text(object(object(run.usageJson).ledgerScope).projectId) });
       return true;
     }
     const usage = object(run.usageJson);
     const scope = object(usage.ledgerScope);
     // Deleted attribution targets become unallocated; a deletion must never
-    // prevent recording provider spend. Foreign-company references still fail.
+    // prevent recording provider spend. Foreign-space references still fail.
     for (const [table, key] of [[issues, "issueId"], [projects, "projectId"]] as const) {
       const id = text(scope[key]);
       if (id) {
@@ -391,19 +391,19 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
         const partUnits = billingType === "subscription_included" ? 0n : index === parts.length - 1 ? remainder : reported < remainder ? reported : remainder;
         allocated += partUnits;
         const partCents = unitsToCents(partUnits);
-        await createCostEventInTransaction(tx, run.companyId, {
+        await createCostEventInTransaction(tx, run.spaceId, {
           ...receipt, idempotencyKey: `heartbeat:${run.id}:model:${index}`, model: text(part.model)!,
           inputTokens: amount(partUsage.inputTokens) ?? 0, cachedInputTokens: amount(partUsage.cachedInputTokens) ?? 0,
           outputTokens: amount(partUsage.outputTokens) ?? 0, costCents: partCents,
         }, publications, undefined, { deferBudgetEvaluation: true });
       }
     } else {
-      await createCostEventInTransaction(tx, run.companyId, receipt, publications, undefined, { deferBudgetEvaluation: true });
+      await createCostEventInTransaction(tx, run.spaceId, receipt, publications, undefined, { deferBudgetEvaluation: true });
     }
-    await queueBudgetEvaluation(tx, { companyId: run.companyId, agentId: run.agentId, projectId: text(scope.projectId) });
+    await queueBudgetEvaluation(tx, { spaceId: run.spaceId, agentId: run.agentId, projectId: text(scope.projectId) });
     // Late usage reported by a later run can arrive before this charge posts.
     const lateDebt = usage.accountingLateReceiptPending === true;
-    if (!lateDebt) await notifyAccountingHoldRelease(tx, run.companyId);
+    if (!lateDebt) await notifyAccountingHoldRelease(tx, run.spaceId);
     await tx.update(heartbeatRuns).set({ costAccountingPending: lateDebt, costAccountedAt: new Date(), accountingProjectionVersion: "v2",
       accountingLastError: lateDebt ? "late_usage_requires_reconciliation" : null, accountingLastAttemptAt: new Date(),
       // A complete receipt arriving later may price this charge (see usage-receipts).
@@ -412,7 +412,7 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
         // Unlike a verified stop, the run may still have spent. The flag names
         // the run in Costs; like any charge accounting settled without its
         // receipt, it is exempt from the blocking unpriced-usage policy
-        // (budget-exposure.ts), because accounting is never a company gate.
+        // (budget-exposure.ts), because accounting is never a space gate.
         ...(closureTimedOut ? { accountingClosureTimedOut: true } : {}),
         // Late reconciliation measures a later receipt from the accepted money.
         ...(lostReceiptEstimate ? { costUsdExact: lostReceiptEstimate.costUsdExact, costStatus: "estimated",
@@ -425,7 +425,7 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
         ...(observedCostUsd ? { costUsdExact: observedCostUsd, cacheAdjustedCostUsd: null } : {}),
       })}::jsonb` } : {}),
     }).where(eq(heartbeatRuns.id, run.id));
-    if (closureTimedOut) await logActivity(tx, { companyId: run.companyId, actorType: "system", actorId: "cost_accounting",
+    if (closureTimedOut) await logActivity(tx, { spaceId: run.spaceId, actorType: "system", actorId: "cost_accounting",
       action: "cost.accounting_closure_timed_out", entityType: "heartbeat_run", entityId: run.id, runId: run.id, agentId: run.agentId,
       details: { reason: captureFailed
         ? "Usage capture failed, so the final usage can never be confirmed; the run's known usage was recorded as a lower bound, or as unpriced when it had no price."

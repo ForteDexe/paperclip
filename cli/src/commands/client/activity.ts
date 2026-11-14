@@ -11,7 +11,7 @@ import {
 } from "./common.js";
 
 interface ActivityListOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   agentId?: string;
   entityType?: string;
   entityId?: string;
@@ -24,21 +24,21 @@ export function registerActivityCommands(program: Command): void {
   addCommonClientOptions(
     activity
       .command("list")
-      .description("List company activity log entries")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .description("List space activity log entries")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .option("--agent-id <id>", "Filter by agent ID")
       .option("--entity-type <type>", "Filter by entity type")
       .option("--entity-id <id>", "Filter by entity ID")
       .action(async (opts: ActivityListOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const params = new URLSearchParams();
           if (opts.agentId) params.set("agentId", opts.agentId);
           if (opts.entityType) params.set("entityType", opts.entityType);
           if (opts.entityId) params.set("entityId", opts.entityId);
 
           const query = params.toString();
-          const path = `${apiPath`/api/companies/${ctx.companyId}/activity`}${query ? `?${query}` : ""}`;
+          const path = `${apiPath`/api/spaces/${ctx.spaceId}/activity`}${query ? `?${query}` : ""}`;
           const rows = (await ctx.api.get<ActivityEvent[]>(path)) ?? [];
 
           if (ctx.json) {
@@ -68,25 +68,25 @@ export function registerActivityCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
     activity
       .command("create")
-      .description("Create a company activity log entry")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .description("Create a space activity log entry")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "CreateActivity JSON payload")
       .action(async (opts: ActivityListOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const result = await ctx.api.post(apiPath`/api/companies/${ctx.companyId}/activity`, parseJson(opts.payloadJson ?? "{}"));
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const result = await ctx.api.post(apiPath`/api/spaces/${ctx.spaceId}/activity`, parseJson(opts.payloadJson ?? "{}"));
           printOutput(result, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(

@@ -39,8 +39,8 @@ export function approvalResolutionRecords(db: Db) {
     }
 
     const now = new Date();
-    const updated = await writeApprovalChange(database, existing.companyId, async tx => {
-      await notifyToolReviewChange(tx, existing.companyId);
+    const updated = await writeApprovalChange(database, existing.spaceId, async tx => {
+      await notifyToolReviewChange(tx, existing.spaceId);
       return tx.update(approvals)
       .set({
         status: targetStatus,

@@ -1,12 +1,12 @@
-/** Personal inbox routing; company-wide run visibility is unchanged. */
+/** Personal inbox routing; space-wide run visibility is unchanged. */
 export function isHeartbeatRunVisibleInMine(
   run: { responsibleUserId?: string | null },
   currentUserId: string | null | undefined,
 ): boolean {
   if (!currentUserId) return false;
   if (run.responsibleUserId) return run.responsibleUserId === currentUserId;
-  // Preserve unattributed historical runs for the single-user local board.
-  return currentUserId === "local-board";
+  // Preserve unattributed historical runs for the single-user local operator.
+  return currentUserId === "local-operator";
 }
 
 /** The inbox lists failures only when the agent's latest observed run failed. */

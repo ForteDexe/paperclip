@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { gradeDesignSearch } from "./internal-design-search.js";
 function valid() {
-  const task = { id: "website", identifier: "RUN-2", companyId: "company", title: "Launch website design", status: "backlog" };
+  const task = { id: "website", identifier: "RUN-2", spaceId: "space", title: "Launch website design", status: "backlog" };
   const hidden = { id: "hidden", title: "Private design NIGHTJAR", status: "backlog" };
   const approval = { id: "approval", authorUserId: "owner", createdAt: "2026-10-26T12:00:00Z", body: "I approve revision 1 (r1): amber navigation." };
-  return { scenarioId: "inbox-search.find-design", origin: "https://fixture.test", companyId: "company", leadId: "ceo",
+  return { scenarioId: "inbox-search.find-design", origin: "https://fixture.test", spaceId: "space", leadId: "ceo",
     state: { task, privateTask: hidden, privateMarker: "NIGHTJAR", ownerId: "owner", originalTasks: structuredClone([task, hidden]), approvedRevision: { id: "r1", body: "Amber navigation" }, olderApprovalComment: { ...approval, id: "older", createdAt: "2026-10-26T11:00:00Z" }, approvalComment: approval, draftRevisionId: "r2", draftBody: "Violet navigation draft" },
     tasks: [task, hidden], projects: [], goals: [], comments: [], activity: [], documents: [{ id: "doc", key: "plan", latestRevisionId: "r2", body: "Violet navigation draft" }], revisions: [],
     reply: "The approved design is revision 1 with amber navigation. The newer revision is an unapproved draft.", links: ["/RUN/issues/website"], humanQueries: [], runs: [],

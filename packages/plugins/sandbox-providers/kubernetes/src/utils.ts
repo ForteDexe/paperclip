@@ -2,17 +2,17 @@ import { createHash, randomInt } from "node:crypto";
 
 const ULID_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
 
-// Namespace names are capped at 63 chars (RFC 1123). The default "paperclip-"
+// Namespace names are capped at 63 chars (RFC 1123). The default "outpost-"
 // prefix leaves 53 for the slug, which fits a full 36-char UUID untruncated.
 const MAX_SLUG_LENGTH = 53;
 
-export function deriveCompanySlug(input: string): string {
+export function deriveSpaceSlug(input: string): string {
   const slug = input
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .replace(/-+$/, "");
-  if (slug.length === 0) return "company";
+  if (slug.length === 0) return "space";
   if (slug.length <= MAX_SLUG_LENGTH) return slug;
   // Never drop entropy by plain truncation: two long inputs sharing a prefix
   // (e.g. UUIDs differing only in their tail) must not map to the same slug,
@@ -46,16 +46,16 @@ export function newRunUlidDns(now: () => number = Date.now): string {
 export interface LabelsInput {
   runId: string;
   agentId: string;
-  companyId: string;
+  spaceId: string;
   adapterType: string;
 }
 
-export function paperclipLabels(input: LabelsInput): Record<string, string> {
+export function outpostLabels(input: LabelsInput): Record<string, string> {
   return {
     "outpost.io/run-id": input.runId,
     "outpost.io/agent-id": input.agentId,
-    "outpost.io/company-id": input.companyId,
+    "outpost.io/space-id": input.spaceId,
     "outpost.io/adapter": input.adapterType,
-    "outpost.io/managed-by": "paperclip-k8s-plugin",
+    "outpost.io/managed-by": "outpost-k8s-plugin",
   };
 }

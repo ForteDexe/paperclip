@@ -32,24 +32,24 @@ export async function runSavedSkillUse(context: JourneyContext, session: TargetS
   let checkpoint: Row = { fixture };
   let primaryFailure: unknown;
   try {
-    const companyRoute = `/api/companies/${context.company.id}`;
+    const spaceRoute = `/api/spaces/${context.space.id}`;
     await session.own({ kind: "skill", name: fixture.name, journeyId: id });
-    const createdSkill = await context.api.post<Row>(`${companyRoute}/skills`, {
+    const createdSkill = await context.api.post<Row>(`${spaceRoute}/skills`, {
       name: fixture.name, slug: fixture.slug, description: "Make a receipt using this saved procedure.",
       markdown: fixture.markdown, idempotencyKey: `saved-skill-${campaignId}`,
     });
     if (!createdSkill?.id) throw new JourneyError("failed", "saved_skill_creation_receipt_missing");
     await session.own({ kind: "skill", name: fixture.name, id: createdSkill.id, journeyId: id });
     checkpoint = { ...checkpoint, createdSkill };
-    const skillRoute = `${companyRoute}/skills/${createdSkill.id}`;
+    const skillRoute = `${spaceRoute}/skills/${createdSkill.id}`;
     const skill = await read.get<Row>(skillRoute);
     if (!skill?.key || !skill.currentVersionId) throw new JourneyError("failed", "saved_skill_version_missing");
     if (skill.id !== createdSkill.id || !createdSkill.currentVersionId || skill.currentVersionId !== createdSkill.currentVersionId)
       throw new JourneyError("failed", "saved_skill_created_version_mismatch");
-    await context.api.post(`/api/agents/${agent.id}/skills/sync?companyId=${context.company.id}`, {
+    await context.api.post(`/api/agents/${agent.id}/skills/sync?spaceId=${context.space.id}`, {
       desiredSkills: [skill.key], mode: "add",
     });
-    const assignmentRoute = `/api/agents/${agent.id}/skills?companyId=${context.company.id}`;
+    const assignmentRoute = `/api/agents/${agent.id}/skills?spaceId=${context.space.id}`;
     const versionRoute = `${skillRoute}/versions/${skill.currentVersionId}`;
     const [version, assignments, beforeDispatchSkill] = await Promise.all([
       read.get<Row>(versionRoute), read.get<Row>(assignmentRoute), read.get<Row>(skillRoute),
@@ -57,10 +57,10 @@ export async function runSavedSkillUse(context: JourneyContext, session: TargetS
     checkpoint = { ...checkpoint, skill, version, assignments, beforeDispatchSkill };
     check("saved-skill-assignment-bound", beforeDispatchSkill.id === createdSkill.id
       && beforeDispatchSkill.currentVersionId === createdSkill.currentVersionId
-      && savedSkillSourceMatches(beforeDispatchSkill, version, assignments, fixture, context.company.id));
+      && savedSkillSourceMatches(beforeDispatchSkill, version, assignments, fixture, context.space.id));
 
     const created = await createTaskThroughUi({ page: context.page, origin: context.api.origin,
-      issuePrefix: context.company.issuePrefix, agentName: agent.name, title, prompt, workMode: "standard", requireExplicitTitle: true,
+      issuePrefix: context.space.issuePrefix, agentName: agent.name, title, prompt, workMode: "standard", requireExplicitTitle: true,
       beforeDispatch: () => session.own({ kind: "issue", name: title, journeyId: id }) });
     await session.own({ kind: "issue", name: title, id: created.issueId, journeyId: id });
     const route = `/api/issues/${created.issueId}`;
@@ -83,7 +83,7 @@ export async function runSavedSkillUse(context: JourneyContext, session: TargetS
       || typeof admittedVersions !== "object" || Array.isArray(admittedVersions)
       || !Object.hasOwn(admittedVersions, skill.key) || admittedVersions[skill.key] !== version.id)
       throw new JourneyError("failed", "saved_skill_run_version_mismatch");
-    const binding = { companyId: context.company.id, agentId: agent.id, runId: state.taskRuns[0]!.id, issueId: created.issueId };
+    const binding = { spaceId: context.space.id, agentId: agent.id, runId: state.taskRuns[0]!.id, issueId: created.issueId };
     const request = String(state.currentIssue.description ?? "");
     check("saved-skill-input-only-in-source", request.includes(`/${fixture.slug}`) && !request.includes(fixture.expected.reference)
       && !state.comments.some(row => row.authorUserId && String(row.body ?? "").includes(fixture.expected.reference)));
@@ -101,7 +101,7 @@ export async function runSavedSkillUse(context: JourneyContext, session: TargetS
     const revision = await read.get<Row>(`${documentRoute}/revisions/${document.latestRevisionId}`);
     checkpoint = { ...checkpoint, document, revision };
     check("saved-skill-result-authored-by-run", savedSkillDocumentAttributed(document, revision, fixture, binding));
-    const url = `${context.api.origin}/${context.company.issuePrefix}/issues/${state.currentIssue.identifier ?? created.issueId}`;
+    const url = `${context.api.origin}/${context.space.issuePrefix}/issues/${state.currentIssue.identifier ?? created.issueId}`;
     await context.page.goto(url, { waitUntil: "domcontentloaded" });
     await context.page.reload();
     await openDocumentAuthoring(context);
@@ -112,7 +112,7 @@ export async function runSavedSkillUse(context: JourneyContext, session: TargetS
     checkpoint = { ...checkpoint, reopened, retainedSkill, retainedVersion, retainedAssignments };
     check("saved-skill-result-reopened", reopened.latestRevisionId === document.latestRevisionId
       && savedSkillDocumentAttributed(reopened, revision, fixture, binding));
-    check("saved-skill-source-preserved", savedSkillSourceMatches(retainedSkill, retainedVersion, retainedAssignments, fixture, context.company.id)
+    check("saved-skill-source-preserved", savedSkillSourceMatches(retainedSkill, retainedVersion, retainedAssignments, fixture, context.space.id)
       && retainedSkill.id === skill.id && retainedSkill.currentVersionId === skill.currentVersionId);
     check("configured-model-and-environment", true); // All observed runs were independently validated above.
   } catch (error) {

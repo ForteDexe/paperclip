@@ -1,6 +1,6 @@
 {
   "as_of": "2026-10-08",
-  "scope": "Eleven providers with successful bounded Paperclip browser action tests; seven new catalog definitions and four existing providers.",
+  "scope": "Eleven providers with successful bounded Outpost browser action tests; seven new catalog definitions and four existing providers.",
   "live_read_passes": 11,
   "provider_write_calls": 0,
   "actual_agent_runs": 0,
@@ -25,7 +25,7 @@
         }
       ],
       "proof": {
-        "surface": "Paperclip browser action Test dialog",
+        "surface": "Outpost browser action Test dialog",
         "grant": "the selected test base only (one base/one workspace); records including delete, comments, fields/tables read/write.",
         "tool": "Search for an Airtable base",
         "result": "Bounded query the selected test base returned that base in 0.6s; ID omitted, no record data read.",
@@ -34,7 +34,7 @@
         "write_actions": 22,
         "write_policy": "All 22 write actions Off; persisted after reload",
         "human_audience": "Just me",
-        "agent_installation_audience": "Any agent company installation; UI did not allow narrowing.",
+        "agent_installation_audience": "Any agent space installation; UI did not allow narrowing.",
         "actual_adapter_run": false
       }
     },
@@ -58,14 +58,14 @@
         }
       ],
       "proof": {
-        "surface": "Paperclip browser action Test dialog",
+        "surface": "Outpost browser action Test dialog",
         "tool": "List teams",
         "result": "One workspace team returned in 0.3s; IDs omitted.",
         "catalog_actions": 68,
         "read_actions": 38,
         "write_actions": 30,
         "grant": "User-approved read/write; selected workspace selected.",
-        "agent_installation_audience": "Any agent company installation; UI did not allow narrowing. No actual agent ran.",
+        "agent_installation_audience": "Any agent space installation; UI did not allow narrowing. No actual agent ran.",
         "human_audience": "Just me",
         "write_policy": "All write actions Off; persisted after reload",
         "reload": "persisted",
@@ -93,7 +93,7 @@
         }
       ],
       "proof": {
-        "surface": "Paperclip browser action Test dialog",
+        "surface": "Outpost browser action Test dialog",
         "actor_label": "Connector Tester",
         "tool": "environment_get",
         "result": "Organization/team context returned; account values omitted.",
@@ -102,7 +102,7 @@
         "catalog_actions": 133,
         "write_actions": 59,
         "write_policy": "Off; retained after reload",
-        "agent_installation_audience": "Company-wide in isolated test company; UI does not permit narrowing while globally installed.",
+        "agent_installation_audience": "Space-wide in isolated test space; UI does not permit narrowing while globally installed.",
         "actual_adapter_run": false
       }
     },
@@ -120,9 +120,9 @@
         }
       ],
       "proof": {
-        "surface": "Paperclip browser action Test dialog",
+        "surface": "Outpost browser action Test dialog",
         "actor_label": "Connector Tester",
-        "query": "Official Paperclip public project repository",
+        "query": "Official Outpost public project repository",
         "expected_url": "https://github.com/paperclipai/paperclip",
         "reload": "persisted",
         "actions_refresh": "passed",
@@ -156,11 +156,11 @@
         }
       ],
       "proof": {
-        "surface": "Paperclip browser action Test dialog",
+        "surface": "Outpost browser action Test dialog",
         "actor_label": "Connector Tester",
         "tool": "firecrawl_scrape",
         "url": "https://outpost.ing",
-        "expected": "Paperclip public site markdown; title and sourceURL; HTTP 200",
+        "expected": "Outpost public site markdown; title and sourceURL; HTTP 200",
         "latency_seconds": 0.6,
         "reload": "persisted",
         "actions_refresh": "passed"
@@ -186,14 +186,14 @@
         }
       ],
       "proof": {
-        "surface": "Paperclip browser action Test dialog",
+        "surface": "Outpost browser action Test dialog",
         "tool": "Get user (@me)",
         "result": "Authenticated profile returned in 0.7s; identity values omitted.",
         "catalog_actions": 380,
         "read_actions": 373,
         "write_actions": 7,
-        "grant": "Provider read-only preset; active Paperclip project only.",
-        "agent_installation_audience": "Any agent company installation; UI did not allow narrowing. No actual agent ran.",
+        "grant": "Provider read-only preset; active Outpost project only.",
+        "agent_installation_audience": "Any agent space installation; UI did not allow narrowing. No actual agent ran.",
         "human_audience": "Just me",
         "write_policy": "All write actions Off; persisted after reload",
         "reload": "persisted",
@@ -215,7 +215,7 @@
         }
       ],
       "proof": {
-        "surface": "Paperclip browser action Test dialog",
+        "surface": "Outpost browser action Test dialog",
         "account_identity": "the verified user verified on provider Settings",
         "catalog_actions": 5,
         "read_actions": 5,
@@ -228,7 +228,7 @@
         "tool": "Search",
         "result": "Query-only public web search returned five rows in 1.7s, including official paperclipai/paperclip GitHub result after proactive MCP initialization.",
         "human_audience": "Just me",
-        "agent_installation_audience": "Any agent company installation; UI did not allow narrowing. No actual agent ran.",
+        "agent_installation_audience": "Any agent space installation; UI did not allow narrowing. No actual agent ran.",
         "session_initialization": "Curated true default; refreshed actions before one new call.",
         "diagnostic_limit": "Earlier two calls returned HTTP 400; later pass supports but does not prove the missing-session hypothesis."
       }
@@ -247,9 +247,9 @@
         }
       ],
       "proof": {
-        "surface": "Paperclip browser action Test dialog",
+        "surface": "Outpost browser action Test dialog",
         "actor_label": "Connector Tester",
-        "query": "Official Paperclip public project repository",
+        "query": "Official Outpost public project repository",
         "expected_url": "https://github.com/paperclipai/paperclip",
         "reload": "persisted",
         "actions_refresh": "passed",
@@ -271,8 +271,8 @@
         }
       ],
       "proof": {
-        "surface": "Paperclip browser action Test dialog",
-        "grant": "Same HTTPS Paperclip client, Calendly MCP resource, mcp:scheduling:read and mcp:scheduling:write",
+        "surface": "Outpost browser action Test dialog",
+        "grant": "Same HTTPS Outpost client, Calendly MCP resource, mcp:scheduling:read and mcp:scheduling:write",
         "tool": "lookup_current_user",
         "result": "Succeeded in 2.5s; profile details omitted",
         "catalog_actions": 36,
@@ -305,7 +305,7 @@
         }
       ],
       "proof": {
-        "surface": "Paperclip browser action Test dialog",
+        "surface": "Outpost browser action Test dialog",
         "tool": "Get Fields (searchconsole), Get Data",
         "result": "54 field definitions; bounded last_7d request returned 5 daily rows dated 2026-10-01 through 2026-10-05 in 1.5s; metric values omitted.",
         "catalog_actions": 19,
@@ -340,7 +340,7 @@
         }
       ],
       "proof": {
-        "surface": "Paperclip browser action Test dialog",
+        "surface": "Outpost browser action Test dialog",
         "mcp_scopes": [
           "mcp:read",
           "mcp:write"

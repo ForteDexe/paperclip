@@ -44,7 +44,7 @@ export function verifyInspectionPermit(
     const seconds = Math.floor(now / 1000);
     if (
       claims.v !== 1 ||
-      claims.iss !== "paperclip-cloud" ||
+      claims.iss !== "outpost-cloud" ||
       claims.aud !== INSPECTION_AUDIENCE ||
       claims.sub !== stackId ||
       !Number.isInteger(claims.iat) ||

@@ -122,7 +122,7 @@ const CURSOR_CLOUD_PROVIDER_ENVIRONMENT_KEYS: &[&str] = &[
     "OUTPOST_NORMALIZED_SESSION_ID",
     "OUTPOST_NATIVE_RUNTIME_CONTEXT_PATH",
 ];
-const TRUSTED_OPENCODE_EXECUTABLE_ARG: &str = "--paperclip-trusted-opencode-executable";
+const TRUSTED_OPENCODE_EXECUTABLE_ARG: &str = "--outpost-trusted-opencode-executable";
 const MAX_PROVIDER_STDERR_LINES: usize = 32;
 const MAX_PROVIDER_STDERR_BYTES: usize = 8 * 1024;
 const MAX_INSTRUCTIONS_BYTES: usize = 1024 * 1024;
@@ -131,7 +131,7 @@ const MAX_PENDING_TOOL_REQUEST_BYTES: usize = 16 * 1024 * 1024;
 const MAX_COMPLETED_TOOL_CALL_IDS: usize = 4_096;
 const MAX_PENDING_RUNTIME_REQUESTS: usize = 128;
 const MAX_PENDING_RUNTIME_REQUEST_BYTES: usize = 4 * 1024 * 1024;
-const OPENCODE_RUNTIME_REQUEST_METHOD: &str = "paperclip/runtimeRequest";
+const OPENCODE_RUNTIME_REQUEST_METHOD: &str = "outpost/runtimeRequest";
 pub(crate) const MAX_SETTLED_PROVIDER_TURN_IDS: usize = 4_096;
 pub(crate) const MAX_DESCENDANT_THREAD_IDS: usize = 4_096;
 
@@ -242,11 +242,11 @@ fn opencode_turn_identity_params(
 ) -> Vec<(&'static str, Value)> {
     let mut params = Vec::new();
     if let Some(run_id) = run_id {
-        params.push(("paperclipRunId", json!(run_id)));
+        params.push(("outpostRunId", json!(run_id)));
     }
     if let Some(contract) = contract {
         params.push((
-            "paperclipCompletionContract",
+            "outpostCompletionContract",
             json!({"revision": contract.revision, "criterionIds": contract.criterion_ids}),
         ));
     }
@@ -674,7 +674,7 @@ impl CodexProviderConfig {
         }
         if self.approval_policy != "never" {
             return Err(LocalRunnerError::invalid(
-                "the initial Codex runner requires approvalPolicy=never; governed actions use ORP",
+                "the initial Codex runner requires approvalPolicy=never; controlled actions use ORP",
             ));
         }
         Ok(())
@@ -1645,7 +1645,7 @@ impl CodexProvider {
                         if matches!(
                             method.as_str(),
                             "thread/tokenUsage/updated"
-                                | "paperclip/resumeUsageSnapshot"
+                                | "outpost/resumeUsageSnapshot"
                                 | "thread/goal/updated"
                                 | "thread/goal/cleared"
                         ) {
@@ -1754,7 +1754,7 @@ impl CodexProvider {
                 if self.pending_messages.iter().any(|message| {
                     matches!(
                         message.value.get("method").and_then(Value::as_str),
-                        Some("paperclip/resumeUsageSnapshot" | "thread/tokenUsage/updated")
+                        Some("outpost/resumeUsageSnapshot" | "thread/tokenUsage/updated")
                     )
                 }) {
                     "pending_accounting_reconciliation"
@@ -1913,7 +1913,7 @@ impl CodexProvider {
         replacement.durable_tool_call_replays = durable_tool_call_replays;
         if replacement.active_provider_turn_id.is_some() {
             // A terminal can race the provider's own durable idle-state write.
-            // This process has work Paperclip never dispatched in the new
+            // This process has work Outpost never dispatched in the new
             // epoch, so revoke its request authority and reap it. Retain the
             // exact ledger for diagnostics, but never expose the unexpected
             // turn as ordinary active work or admit a replacement.
@@ -2193,7 +2193,7 @@ impl CodexProvider {
         }
         // A read-only (Planning) Codex run uses Codex's native plan
         // collaboration mode, so a finished proposal arrives as Codex's own
-        // `plan` item for Paperclip's Plan document and approval gate.
+        // `plan` item for Outpost's Plan document and approval gate.
         if let Some(collaboration_mode) = collaboration_mode {
             turn_params_object.insert("collaborationMode".to_owned(), collaboration_mode);
         }
@@ -2519,7 +2519,7 @@ impl CodexProvider {
             ));
         }
         let response = self.request(
-            "paperclip/ackTerminal",
+            "outpost/ackTerminal",
             json!({"turnId":delivery.turn_id,"receiptId":delivery.receipt_id}),
         )?;
         if response.get("acknowledged") != Some(&Value::Bool(true))
@@ -2536,7 +2536,7 @@ impl CodexProvider {
 
     /// Provider evidence for a `turn/start` whose outcome a process loss hid.
     /// Returns `true` only when this resumed Codex thread has no active turn
-    /// and its newest recorded turn is absent or one Paperclip already settled:
+    /// and its newest recorded turn is absent or one Outpost already settled:
     /// Codex records a turn in the thread before it runs anything, so the
     /// ambiguous start never created one. Any other history, an incomplete
     /// page, or another provider returns `false` and keeps the start ambiguous.
@@ -2727,9 +2727,9 @@ impl CodexProvider {
         method: &str,
     ) -> Result<Option<CodexProviderEvent>, LocalRunnerError> {
         // A recognized helper is part of the provider conversation, but has no
-        // Paperclip task binding. Reject its RPC without borrowing root authority
+        // Outpost task binding. Reject its RPC without borrowing root authority
         // or quarantining the root run. Unknown foreign threads still fail closed.
-        let message = "Paperclip tools are authorized only for the parent task. Return your findings to the parent agent; it must perform Paperclip coordination and ask the user questions.";
+        let message = "Outpost tools are authorized only for the parent task. Return your findings to the parent agent; it must perform Outpost coordination and ask the user questions.";
         let response = if method == "item/tool/call" {
             json!({"id": rpc_id, "result": codex_tool_failure(message)})
         } else {
@@ -3153,7 +3153,7 @@ impl CodexProvider {
                 if !self.authorized_tool_ids.contains(&operation_id) {
                     self.send_courtesy_response(&json!({
                         "id": rpc_id,
-                        "result": codex_tool_failure("Paperclip did not authorize this tool for the run"),
+                        "result": codex_tool_failure("Outpost did not authorize this tool for the run"),
                     }))?;
                     return Err(LocalRunnerError::invalid(format!(
                         "Codex requested unauthorized tool {}",
@@ -3342,7 +3342,7 @@ impl CodexProvider {
                         "id": rpc_id,
                         "error": {
                             "code": -32000,
-                            "message": "Paperclip rejected this runtime request because the pending input capacity was reached",
+                            "message": "Outpost rejected this runtime request because the pending input capacity was reached",
                         },
                     }))?;
                     return Ok(Some(CodexProviderEvent::Notification {
@@ -3519,7 +3519,7 @@ impl CodexProvider {
                     && notification_thread_id(&params) == Some(self.thread_id.as_str())
                 {
                     return Ok(Some(CodexProviderEvent::Notification {
-                        method: "paperclip/resumeUsageSnapshot".to_owned(),
+                        method: "outpost/resumeUsageSnapshot".to_owned(),
                         params: json!({
                             "threadId": self.thread_id,
                             "turnId": notification_turn_id,
@@ -3802,7 +3802,7 @@ impl CodexProvider {
                     .map(|authority| authority.provider_turn_id.clone())
             });
             self.request_classified_until(
-                "paperclip/shutdown",
+                "outpost/shutdown",
                 json!({ "threadId": self.thread_id, "turnId": expected_turn }),
                 Some(std::time::Instant::now() + crate::cursor_cloud_proxy::SHUTDOWN_TIMEOUT),
             )
@@ -3877,7 +3877,7 @@ impl CodexProvider {
         for request in pending.into_values() {
             if let Err(error) = self.send_courtesy_response(&json!({
                 "id": request.rpc_id,
-                "result": codex_tool_failure("Paperclip stopped the active provider turn"),
+                "result": codex_tool_failure("Outpost stopped the active provider turn"),
             })) {
                 first_error.get_or_insert(error);
             }
@@ -4542,7 +4542,7 @@ fn classify_notification_thread(
             || (method == "thread/started"
                 && parent.is_some_and(|id| id == root || descendants.contains(id))))
     {
-        if method.starts_with("paperclip/") {
+        if method.starts_with("outpost/") {
             return Err(LocalRunnerError::invalid(
                 "Codex descendant cannot supply root execution authority",
             ));
@@ -4750,7 +4750,7 @@ fn validate_opencode_question_set(question_set: &Value) -> Result<(), LocalRunne
         .map_err(|_| LocalRunnerError::invalid("embedded question-set schema cannot compile"))?;
     if !validator.is_valid(question_set) {
         return Err(LocalRunnerError::invalid(
-            "OpenCode runtime request input failed the Paperclip question-set schema",
+            "OpenCode runtime request input failed the Outpost question-set schema",
         ));
     }
     let questions = question_set
@@ -5086,7 +5086,7 @@ fn codex_question_response(
 const ENDED_TURN_STATUSES: [&str; 4] = ["completed", "failed", "interrupted", "cancelled"];
 
 /// Whether the newest page of a thread's turn history proves that no turn
-/// exists beyond the ones Paperclip settled: the page is empty and complete,
+/// exists beyond the ones Outpost settled: the page is empty and complete,
 /// or its newest turn is a settled one with an explicit ended status. Any
 /// missing, malformed or unknown field proves nothing.
 fn newest_turn_page_proves_no_new_turn(
@@ -5578,7 +5578,7 @@ done
                 }),
                 trace_frame_id: None,
             });
-        // poll() normalizes settled-turn usage to paperclip/resumeUsageSnapshot.
+        // poll() normalizes settled-turn usage to outpost/resumeUsageSnapshot.
         // That accounting fact is not new work and must not force replacement.
         let (accounting, result) = provider.drain_completed_turn_tail_for_warm_attachment();
         provider.shutdown().unwrap();
@@ -6042,7 +6042,7 @@ done
             .unwrap()
             .as_nanos();
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-opencode-launch-{}-{nonce}",
+            "outpost-opencode-launch-{}-{nonce}",
             std::process::id()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -6078,7 +6078,7 @@ done
     #[test]
     fn cursor_cloud_proxy_launch_verifies_node_and_script_without_a_native_executable() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-cursor-cloud-launch-{}",
+            "outpost-cursor-cloud-launch-{}",
             uuid::Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -6305,9 +6305,9 @@ done
         assert_eq!(
             params,
             vec![
-                ("paperclipRunId", json!("run-2")),
+                ("outpostRunId", json!("run-2")),
                 (
-                    "paperclipCompletionContract",
+                    "outpostCompletionContract",
                     json!({"revision": "2", "criterionIds": ["objective"]})
                 ),
             ]
@@ -6849,7 +6849,7 @@ mod notification_identity_tests {
     #[test]
     fn child_mcp_startup_before_lineage_has_no_execution_authority() {
         let params =
-            json!({"threadId": "not-yet-known-child", "name": "paperclip", "status": "starting"});
+            json!({"threadId": "not-yet-known-child", "name": "outpost", "status": "starting"});
         assert_eq!(
             classify_notification_thread(
                 "mcpServer/startupStatus/updated",
@@ -6865,7 +6865,7 @@ mod notification_identity_tests {
                 .is_err()
         );
         assert!(classify_notification_thread(
-            "paperclip/runResult",
+            "outpost/runResult",
             "root",
             &BTreeSet::new(),
             &params
@@ -7029,7 +7029,7 @@ mod notification_identity_tests {
         );
         assert_eq!(classify_notification_thread("thread/started", "root", &children, &json!({"thread":{"id":"grandchild","source":{"subAgent":{"thread_spawn":{"parent_thread_id":"child"}}}}})).unwrap(), NotificationThread::Descendant);
         for (method, params) in [
-            ("paperclip/runResult", json!({"threadId":"child"})),
+            ("outpost/runResult", json!({"threadId":"child"})),
             ("turn/completed", json!({"threadId":"unrelated"})),
             ("item/started", json!({"threadId":42})),
             (

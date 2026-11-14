@@ -4,9 +4,9 @@ import {
   type NativeStatusDecision,
 } from "./status-arbiter.js";
 import {
-  PaperclipRunnerProviderProfileError,
-  resolvePaperclipRunnerProviderProfile,
-  type PaperclipRunnerProviderProfile,
+  OutpostRunnerProviderProfileError,
+  resolveOutpostRunnerProviderProfile,
+  type OutpostRunnerProviderProfile,
 } from "./provider-profile.js";
 
 /**
@@ -29,7 +29,7 @@ export type HeartbeatRuntimeResolution =
       kind: "native";
       resolverVersion: typeof NATIVE_RUNTIME_RESOLVER_VERSION;
       reason: "explicit_outpost_runner" | "persisted_native_selection";
-      provider: PaperclipRunnerProviderProfile["provider"];
+      provider: OutpostRunnerProviderProfile["provider"];
     };
 
 export type NativeRuntimeResolution =
@@ -105,7 +105,7 @@ export function resolveNativeRuntimeMode(input: {
   grokEnabled?: boolean;
   runtimeConfig: unknown;
   adapterConfig?: unknown;
-  agent: { id?: string; companyId?: string; status: string; adapterType: string | null };
+  agent: { id?: string; spaceId?: string; status: string; adapterType: string | null };
   issue: { id: string; workMode: string; executionWorkspaceId?: string | null } | null;
   target: { kind?: string } | null | undefined;
   workspaceId: string | null;
@@ -122,11 +122,11 @@ export function resolveNativeRuntimeMode(input: {
       reason: "direct_adapter",
     };
   }
-  let runnerProfile: PaperclipRunnerProviderProfile;
+  let runnerProfile: OutpostRunnerProviderProfile;
   try {
-    runnerProfile = resolvePaperclipRunnerProviderProfile(input.adapterConfig, { companyId: input.agent.companyId });
+    runnerProfile = resolveOutpostRunnerProviderProfile(input.adapterConfig, { spaceId: input.agent.spaceId });
   } catch (error) {
-    if (error instanceof PaperclipRunnerProviderProfileError) {
+    if (error instanceof OutpostRunnerProviderProfileError) {
       throw ineligible(error.code, error.message);
     }
     throw error;
@@ -297,7 +297,7 @@ export function resolveHeartbeatNativeRuntimeMode(input: {
   grokEnabled?: boolean;
   runtimeConfig: unknown;
   adapterConfig?: unknown;
-  agent: { id?: string; companyId?: string; status: string; adapterType: string | null };
+  agent: { id?: string; spaceId?: string; status: string; adapterType: string | null };
   issue: { id: string; workMode: string; executionWorkspaceId?: string | null } | null;
   target: { kind?: string } | null | undefined;
   workspaceId: string | null;

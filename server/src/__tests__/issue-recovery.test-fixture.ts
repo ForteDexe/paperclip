@@ -3,7 +3,7 @@ import { idleWorkSnapshot } from "../services/task-admission.js";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, vi } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, heartbeatRuns } from "@outpost/db";
+import { agents, authUsers, spaces, spaceMemberships, createDb, heartbeatRuns } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { heartbeatService } from "../services/heartbeat.js";
@@ -38,7 +38,7 @@ export function issueRecoveryFixture() {
     await Promise.all(Array.from({ length: 6 }, () => db.execute(sql`select pg_sleep(0.01)`)));
   }, 90_000);
   beforeEach(async () => {
-    await db.execute(sql`TRUNCATE companies CASCADE`);
+    await db.execute(sql`TRUNCATE spaces CASCADE`);
     heartbeat = heartbeatService(db); draining = false; errors.length = 0;
   });
   afterEach(async () => {
@@ -81,18 +81,18 @@ export function issueRecoveryFixture() {
     extraStops.push(() => competing.stop()); extraDeadlines.push(competing.nextWakeAt); await work.ready;
   }
   async function fixture() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     await db.insert(authUsers).values({ id: "recovery-user", name: "Recovery operator", email: "recovery-user@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companies).values({ id: companyId, name: "Recovery", issuePrefix: `R${companyId.slice(0, 7)}`,
-      requireBoardApprovalForNewAgents: false, defaultResponsibleUserId: "recovery-user" });
-    await db.insert(companyMemberships).values({ companyId, principalId: "recovery-user", principalType: "user", status: "active", membershipRole: "owner" });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Recovery process", role: "engineer", status: "idle",
+    await db.insert(spaces).values({ id: spaceId, name: "Recovery", issuePrefix: `R${spaceId.slice(0, 7)}`,
+      requireOperatorApprovalForNewAgents: false, defaultResponsibleUserId: "recovery-user" });
+    await db.insert(spaceMemberships).values({ spaceId, principalId: "recovery-user", principalType: "user", status: "active", membershipRole: "owner" });
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Recovery process", role: "engineer", status: "idle",
       adapterType: "process", adapterConfig: { command: process.execPath, args: ["-e", "console.log('recovery-proof')"], cwd: process.cwd() },
       runtimeConfig: { heartbeat: { enabled: true, intervalSec: 0, wakeOnDemand: true } },
     }).returning();
-    return { companyId, agentId: agent.id };
+    return { spaceId, agentId: agent.id };
   }
-  async function completingProvider(f: { companyId: string; agentId: string }, beforeComplete?: () => Promise<unknown>) {
+  async function completingProvider(f: { spaceId: string; agentId: string }, beforeComplete?: () => Promise<unknown>) {
     const failures: unknown[] = [];
     const listener = createServer(async (request, response) => {
       try {
@@ -100,7 +100,7 @@ export function issueRecoveryFixture() {
         for await (const chunk of request) body += chunk;
         const { runId } = JSON.parse(body) as { runId: string };
         const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId),
-          eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.agentId, f.agentId)));
+          eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.agentId, f.agentId)));
         if (!run?.contextSnapshot?.issueId) throw new Error("Unknown controlled task run");
         await beforeComplete?.();
         await issueService(db).update(String(run.contextSnapshot.issueId), { status: "done" });
@@ -200,7 +200,7 @@ export function issueRecoveryFixture() {
         for await (const chunk of request) body += chunk;
         const { runId } = JSON.parse(body) as { runId: string };
         const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId),
-          eq(heartbeatRuns.companyId, f.companyId), eq(heartbeatRuns.agentId, f.agentId)));
+          eq(heartbeatRuns.spaceId, f.spaceId), eq(heartbeatRuns.agentId, f.agentId)));
         if (!run) throw new Error("Unknown controlled conversation run");
         await issueService(db).addComment(String(run.contextSnapshot?.issueId), "Saved chat delivered", {
           agentId: f.agentId, runId: run.id,
@@ -214,7 +214,7 @@ export function issueRecoveryFixture() {
     const script = `fetch("http://127.0.0.1:${port}/reply", {method:"POST", body:JSON.stringify({runId:process.env.OUTPOST_RUN_ID})}).then(async response=>{if(!response.ok)throw new Error(await response.text());console.log("recovery-proof")}).catch(error=>{console.error(error);process.exitCode=1})`;
     await db.update(agents).set({ adapterConfig: { command: process.execPath, args: ["-e", script], cwd: process.cwd() } })
       .where(eq(agents.id, f.agentId));
-    const chat = await issueService(db).create(f.companyId, { title: "Saved conversation", status: "in_review",
+    const chat = await issueService(db).create(f.spaceId, { title: "Saved conversation", status: "in_review",
       conversationAgentId: f.agentId, conversationUserId: "recovery-user", assigneeAgentId: f.agentId,
       conversationState: "waiting" });
     const message = withMessage ? await issueService(db).addComment(chat.id, "Keep this message", { userId: "recovery-user" }, { clientRequestId: randomUUID() }) : null;
@@ -223,7 +223,7 @@ export function issueRecoveryFixture() {
     await start(); await quiet();
     expect(replies).toEqual([]);
     const resume = async (owner = db) => owner.transaction(async tx => {
-      await notifyIssueRecovery(tx, { companyId: f.companyId });
+      await notifyIssueRecovery(tx, { spaceId: f.spaceId });
       await tx.update(agents).set({ status: "idle" }).where(eq(agents.id, f.agentId));
     });
     return { ...f, settings, chat, message, replies, failures, resume };

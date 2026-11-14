@@ -1,13 +1,13 @@
 # Google Workspace connections
 
 New Google Workspace setup uses one `google-workspace` connection and the
-`workspace.all` OAuth profile. Paperclip first offers Gmail, Drive (including
+`workspace.all` OAuth profile. Outpost first offers Gmail, Drive (including
 Docs, Sheets, and Slides), and Calendar. All three start enabled with read and
 write access. Users can disable a group or choose read-only access. New setup
 does not offer Chat, Contacts/directory, or cross-service Search.
 
 The built-in connector is behind the default-off `enableGoogleWorkspaceConnector`
-experimental setting while Paperclip's Google app verification is pending. When
+experimental setting while Outpost's Google app verification is pending. When
 the setting is off, the Apps page hides the built-in connector, and the server
 blocks its setup, discovery, and execution. Google apps from MCP aggregators
 (for example Composio Gmail, Google Calendar, and Google Drive) then appear in
@@ -22,9 +22,9 @@ permissions; discovery skips services without grants and excludes unsupported
 actions. The gateway checks actual grant scopes again before each call, including
 after refresh. Requested scopes alone never authorize an action.
 
-Before managed or customer-owned OAuth opens, Paperclip saves the validated
+Before managed or customer-owned OAuth opens, Outpost saves the validated
 service choice as non-secret setup intent on the draft. It is bound to the
-company, connection, initiating actor, grant kind, and credential subject.
+space, connection, initiating actor, grant kind, and credential subject.
 Declined or expired authorization and a cold **Finish setup** return restore
 that choice, not the new-account write defaults. Historical drafts without a
 matching saved intent require an explicit choice. Reconnecting an established
@@ -59,9 +59,9 @@ robot-account method remains separate because it uses explicitly shared files,
 not the user's Google OAuth identity.
 
 Google's hosted Workspace MCP servers are Developer Preview services. The app
-endpoints remain separate. Paperclip namespaces actions by service and routes them
+endpoints remain separate. Outpost namespaces actions by service and routes them
 to a closed endpoint registry using the combined grant. It does not create child
-connections or send provider tokens through Paperclip ID.
+connections or send provider tokens through Outpost ID.
 
 The catalog reuses the existing reviewed Google mark (`google-people.svg`),
 registered under its own `google-workspace` brand identity. No new artwork is
@@ -133,9 +133,9 @@ is not the approval signal:
 Enrollment does not authorize every user of an OAuth client. Additional tester
 emails and Cloud projects must be added through Google's member request forms.
 Google's preview terms also prohibit making a pre-GA integration available to
-end users outside the enrolled company or domain unless Google grants explicit
-permission. Consequently, Paperclip-managed Google OAuth is limited to
-registered internal testers during preview. Other companies must enroll their
+end users outside the enrolled space or domain unless Google grants explicit
+permission. Consequently, Outpost-managed Google OAuth is limited to
+registered internal testers during preview. Other spaces must enroll their
 own Workspace testers and Cloud project and use a customer-owned OAuth app until
 Google makes Workspace MCP generally available.
 
@@ -158,23 +158,23 @@ Workspace setup has one capability and asks for service groups before Google
 consent. The endpoint table also documents legacy connections; it is not the
 new-account service list.
 When the managed method is
-available, it uses Paperclip by default. A small **Use your own Google OAuth app**
-link reveals the custom client fields; **Use Paperclip instead** returns to the
+available, it uses Outpost by default. A small **Use your own Google OAuth app**
+link reveals the custom client fields; **Use Outpost instead** returns to the
 managed method. The available authentication methods are:
 
-- **Connect with Paperclip** uses the Paperclip Cloud broker when that exact
+- **Connect with Outpost** uses the Outpost Cloud broker when that exact
   profile is returned for this enrolled instance by the signed
   `POST https://my.outpost.app/v1/connector/instance-status` request. The
   anonymous capabilities document is global discovery only and never enables
   an internal-pilot method locally.
 - **Use your own Google OAuth app** uses customer-supplied OAuth credentials and
   the app definition's exact reviewed scopes.
-- **Use the Paperclip robot account** remains an additional Google Sheets-only
+- **Use the Outpost robot account** remains an additional Google Sheets-only
   option for explicitly shared spreadsheets.
 
 Before Google consent, the setup flow shows the credential's human and agent
 access and lets the user change it. A personal choice stores
-the tokens only on that user's grant. A company choice stores them on the
+the tokens only on that user's grant. A space choice stores them on the
 default organization grant, while still recording which signed-in Google
 principal completed consent so refresh and reconnect stay bound to that
 principal.
@@ -189,11 +189,11 @@ owner when the new method supports that owner.
 
 ## Legacy product-specific broker profiles
 
-The Paperclip-managed method signs every broker request with one explicit
+The Outpost-managed method signs every broker request with one explicit
 profile. The broker binds that profile into sessions, one-time claims, sealed
 token envelopes, and refresh. Per-profile removal is local-only for managed
 Google grants. Google's revocation endpoint can invalidate all grants for the
-same user and managed client, so Paperclip does not call it while removing one
+same user and managed client, so Outpost does not call it while removing one
 Workspace profile.
 
 | App | Read profile | Write profile |
@@ -213,7 +213,7 @@ whose provider, profile, or exact scope set does not match its closed registry.
 
 ## Instance configuration
 
-All Paperclip-managed Google methods use the existing enrolled-instance keys:
+All Outpost-managed Google methods use the existing enrolled-instance keys:
 
 ```dotenv
 OUTPOST_CLOUD_CONNECTOR_BASE_URL=https://my.outpost.app
@@ -223,7 +223,7 @@ OUTPOST_CLOUD_CONNECTOR_SIGN_PRIVATE_KEY=...
 OUTPOST_CLOUD_CONNECTOR_SEAL_PRIVATE_KEY=...
 ```
 
-No per-app client secret is stored on the Paperclip instance for the managed
+No per-app client secret is stored on the Outpost instance for the managed
 path. For customer-owned OAuth, the setup flow collects that customer's Google
 OAuth client ID and secret and stores them through the normal instance-vault
 path.
@@ -235,11 +235,11 @@ directory. The setup page supplies its authenticated same-origin HTTPS address
 to enrollment, so a normal Tailscale-hosted self-hoster does not need to edit
 `config.json` or set `OUTPOST_PUBLIC_URL`; the enrolled origin becomes the
 durable callback binding. The former `OUTPOST_ID_CONNECTOR_*` values use an incompatible
-Paperclip ID protocol and are not read aliases. Enroll with Paperclip Cloud and
+Outpost ID protocol and are not read aliases. Enroll with Outpost Cloud and
 reconnect legacy grants before their old access tokens expire.
 
 The gallery requests the broker capability document with a short cache. A
-Paperclip-managed method is omitted unless its exact profile is enabled at the
+Outpost-managed method is omitted unless its exact profile is enabled at the
 broker; the independent app card and customer-owned OAuth method remain
 available. This supports profile-by-profile rollout and rollback without
 collapsing the nine cards into one app.

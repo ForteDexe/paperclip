@@ -24,7 +24,7 @@ describeEmbeddedPostgres("online preservation of settled legacy harness backups"
   async function fixture(options: { base?: string; scopeId?: string; unsafeLink?: boolean } = {}) {
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "51".repeat(32));
     const f = await environment.seedRun(randomUUID());
-    const { companyId, agentId, runtimeRoot } = environment.current;
+    const { spaceId, agentId, runtimeRoot } = environment.current;
     const base = options.base ?? join(runtimeRoot, randomUUID());
     if (!options.base) { homes.push(base); await mkdir(base); }
     vi.stubEnv("OUTPOST_RUNNER_STATE_DIR", base);
@@ -36,7 +36,7 @@ describeEmbeddedPostgres("online preservation of settled legacy harness backups"
     if (options.unsafeLink) await symlink("/outside-owned-backup", join(root, "codex-home", "outside-link"));
     await writeFile(join(root, "runner", "runner-state.json"), JSON.stringify({ runId: f.runId, lifecycle: "suspended" }));
     const normalizedSessionId = randomUUID(), runnerInstanceId = randomUUID(), providerLeaseId = randomUUID();
-    const execution = { provider: { kind: "codex" }, binding: { companyId, issueId: f.issueId, runId: f.runId,
+    const execution = { provider: { kind: "codex" }, binding: { spaceId, issueId: f.issueId, runId: f.runId,
       agentId, executionWorkspaceId: randomUUID() }, workspace: { cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
       session: { normalizedSessionId, driverKind: "codex_app_server", protocolVersion: 1,
         lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } } } as never;
@@ -50,11 +50,11 @@ describeEmbeddedPostgres("online preservation of settled legacy harness backups"
     await f.db.update(nativeRunFinalizations).set({ phase: "terminal_failure", leaseOwner: null, leaseExpiresAt: null,
       recoveryState: "original_failure_retained" }).where(eq(nativeRunFinalizations.runId, f.runId));
     await f.db.update(issues).set({ status: "done", executionRunId: null, checkoutRunId: null }).where(eq(issues.id, f.issueId));
-    await f.db.insert(agentTaskSessions).values({ companyId, agentId, adapterType: "outpost_runner", taskKey: f.issueId, lastRunId: f.runId });
-    await f.db.insert(environmentLeases).values({ companyId, issueId: f.issueId, heartbeatRunId: f.runId, providerLeaseId,
+    await f.db.insert(agentTaskSessions).values({ spaceId, agentId, adapterType: "outpost_runner", taskKey: f.issueId, lastRunId: f.runId });
+    await f.db.insert(environmentLeases).values({ spaceId, issueId: f.issueId, heartbeatRunId: f.runId, providerLeaseId,
       status: "expired", metadata: { nativeHarnessBackup: stamp } });
     const storage = createStorageService(createLocalDiskStorageProvider(join(runtimeRoot, "durable-objects")));
-    return { ...f, companyId, base, root, scopeDigest, storage, saved, stamp, normalizedSessionId, runnerInstanceId, providerLeaseId };
+    return { ...f, spaceId, base, root, scopeDigest, storage, saved, stamp, normalizedSessionId, runnerInstanceId, providerLeaseId };
   }
   it("preserves failed backup bytes online while retaining failure and unrelated active work", async () => {
     const f = await fixture(), active = await environment.seedRun(randomUUID());
@@ -76,7 +76,7 @@ describeEmbeddedPostgres("online preservation of settled legacy harness backups"
     await f.db.update(heartbeatRuns).set({ status }).where(eq(heartbeatRuns.id, f.runId));
     if (phase === "committed") {
       const [run] = await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-      const [result] = await f.db.insert(nativeRunResults).values({ companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+      const [result] = await f.db.insert(nativeRunResults).values({ spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
         completionContractId: run.completionContractId!, serverFingerprint: "settled-historical-result", schemaStatus: "accepted",
         resultJson: { summary: "Original settled result" }, canonicalSha256: "settled-historical-result" }).returning();
       await f.db.update(nativeRunFinalizations).set({ phase, resultId: result.id }).where(eq(nativeRunFinalizations.runId, f.runId));

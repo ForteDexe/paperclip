@@ -17,7 +17,7 @@ export interface CollectionToolbarProps {
 }
 
 /**
- * Presentation-only shell for list and board controls.
+ * Presentation-only shell for list and operator controls.
  *
  * State, queries, and control behavior stay with the consuming surface. Keeping
  * this component slot-based lets Inbox, Tasks, routine runs, and scoped task

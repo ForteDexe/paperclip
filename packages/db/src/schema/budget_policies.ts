@@ -1,12 +1,12 @@
 import { sql } from "drizzle-orm";
 import { check, boolean, index, integer, pgTable, text, timestamp, uuid, uniqueIndex, numeric } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 
 export const budgetPolicies = pgTable(
   "budget_policies",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     scopeType: text("scope_type").notNull(),
     scopeId: uuid("scope_id").notNull(),
     metric: text("metric").notNull().default("billed_cents"),
@@ -28,19 +28,19 @@ export const budgetPolicies = pgTable(
   },
   (table) => ({
     reservationNonnegative: check("budget_policies_reservation_nonnegative", sql`${table.reservationCents} >= 0`),
-    companyScopeActiveIdx: index("budget_policies_company_scope_active_idx").on(
-      table.companyId,
+    spaceScopeActiveIdx: index("budget_policies_space_scope_active_idx").on(
+      table.spaceId,
       table.scopeType,
       table.scopeId,
       table.isActive,
     ),
-    companyWindowIdx: index("budget_policies_company_window_idx").on(
-      table.companyId,
+    spaceWindowIdx: index("budget_policies_space_window_idx").on(
+      table.spaceId,
       table.windowKind,
       table.metric,
     ),
-    companyScopeMetricUniqueIdx: uniqueIndex("budget_policies_company_scope_metric_unique_idx").on(
-      table.companyId,
+    spaceScopeMetricUniqueIdx: uniqueIndex("budget_policies_space_scope_metric_unique_idx").on(
+      table.spaceId,
       table.scopeType,
       table.scopeId,
       table.metric,

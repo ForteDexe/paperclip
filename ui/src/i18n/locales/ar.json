@@ -1,9 +1,9 @@
 {
   "app": {
-    "noCompanies": {
+    "noSpaces": {
       "title": "أنشئ شركتك الأولى",
       "description": "ابدأ بإنشاء شركة.",
-      "newCompany": "شركة جديدة"
+      "newSpace": "شركة جديدة"
     }
   }
 }

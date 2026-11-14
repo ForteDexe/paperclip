@@ -6,13 +6,13 @@ import {
 } from "./tool-access.js";
 
 describe("Cloud connector enrollment return path", () => {
-  it("returns to the company-prefixed Connections page", () => {
+  it("returns to the space-prefixed Connections page", () => {
     expect(cloudConnectorEnrollmentReturnPath("APP")).toBe(
       "/APP/apps/connections?cloud_connector=enrolled",
     );
   });
 
-  it("encodes the company prefix as one path segment", () => {
+  it("encodes the space prefix as one path segment", () => {
     expect(cloudConnectorEnrollmentReturnPath("QA / Apps")).toBe(
       "/QA%20%2F%20Apps/apps/connections?cloud_connector=enrolled",
     );
@@ -36,7 +36,7 @@ describe("Cloud connector enrollment return path", () => {
     );
   });
 
-  it("resumes the same GitHub draft after enrollment without a second company prefix", () => {
+  it("resumes the same GitHub draft after enrollment without a second space prefix", () => {
     expect(cloudConnectorEnrollmentReturnPath("GIT", "/apps/chat/connect?provider=github&purpose=chat&resume=draft-1"))
       .toBe("/GIT/apps/chat/connect?provider=github&purpose=chat&resume=draft-1&cloud_connector=enrolled");
     expect(cloudConnectorEnrollmentReturnPath("GIT", "https://evil.example/apps/chat/connect?resume=draft-1"))

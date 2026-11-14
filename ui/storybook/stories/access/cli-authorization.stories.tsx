@@ -21,7 +21,7 @@ const meta = {
   parameters: {
     initialEntries: ["/cli-auth/challenge-gap?token=fixture-code"],
     layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "access/cli-auth"
       ],
@@ -40,11 +40,11 @@ const meta = {
           read: () => ({
             id: "challenge-gap",
             status,
-            command: "paperclipai auth login",
+            command: "outpost auth login",
             clientName: "Review workstation",
             requestedAccess: "board",
-            requestedCompanyId: "company-storybook",
-            requestedCompanyName: "Acme Research",
+            requestedSpaceId: "space-storybook",
+            requestedSpaceName: "Acme Research",
             approvedAt: null,
             expiresAt: "2099-01-01T00:00:00Z",
             requiresSignIn: false,

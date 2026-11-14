@@ -14,7 +14,7 @@ const actor = "migration:native-warm-follow-up-default";
     const database = await startEmbeddedPostgresTestDatabase("native-warm-follow-up-default-");
     const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
     try {
-      const [company] = await sql`INSERT INTO companies (name, issue_prefix) VALUES ('Warm default', 'WD1') RETURNING id`;
+      const [space] = await sql`INSERT INTO spaces (name, issue_prefix) VALUES ('Warm default', 'WD1') RETURNING id`;
       const candidates: Array<{ name: string; adapterType?: string; config: Record<string, string | number>; explicit?: boolean; migrates: boolean }> = [
         { name: "Codex default", config: { provider: "codex", model: "m", lifecycleMode: "per_turn", codexPermissionMode: "never" }, migrates: true },
         { name: "OpenCode default", config: { provider: "opencode", model: "m", lifecycleMode: "per_turn" }, migrates: true },
@@ -33,18 +33,18 @@ const actor = "migration:native-warm-follow-up-default";
       for (const candidate of candidates) {
         const id = randomUUID();
         ids.set(candidate.name, id);
-        await sql`INSERT INTO agents (id, company_id, name, adapter_type, adapter_config)
-          VALUES (${id}, ${company!.id}, ${candidate.name}, ${candidate.adapterType ?? "outpost_runner"}, ${sql.json(candidate.config)})`;
+        await sql`INSERT INTO agents (id, space_id, name, adapter_type, adapter_config)
+          VALUES (${id}, ${space!.id}, ${candidate.name}, ${candidate.adapterType ?? "outpost_runner"}, ${sql.json(candidate.config)})`;
         if (candidate.explicit) {
-          await sql`INSERT INTO agent_config_revisions (company_id, agent_id, changed_keys, before_config, after_config)
-            VALUES (${company!.id}, ${id}, ${sql.json(["adapterConfig"])},
+          await sql`INSERT INTO agent_config_revisions (space_id, agent_id, changed_keys, before_config, after_config)
+            VALUES (${space!.id}, ${id}, ${sql.json(["adapterConfig"])},
               ${sql.json({ adapterConfig: { ...candidate.config, lifecycleMode: "warm" } })},
               ${sql.json({ adapterConfig: candidate.config })})`;
         }
       }
       // A later unrelated edit that kept per_turn is not an explicit choice of it.
-      await sql`INSERT INTO agent_config_revisions (company_id, agent_id, changed_keys, before_config, after_config)
-        VALUES (${company!.id}, ${ids.get("Codex default")!}, ${sql.json(["adapterConfig"])},
+      await sql`INSERT INTO agent_config_revisions (space_id, agent_id, changed_keys, before_config, after_config)
+        VALUES (${space!.id}, ${ids.get("Codex default")!}, ${sql.json(["adapterConfig"])},
           ${sql.json({ adapterConfig: { provider: "codex", model: "old", lifecycleMode: "per_turn" } })},
           ${sql.json({ adapterConfig: { provider: "codex", model: "m", lifecycleMode: "per_turn" } })})`;
 
@@ -53,7 +53,7 @@ const actor = "migration:native-warm-follow-up-default";
       await sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash = ${hash}`;
       await applyPendingMigrations(database.connectionString);
 
-      const rows = await sql`SELECT id, adapter_config FROM agents WHERE company_id = ${company!.id}`;
+      const rows = await sql`SELECT id, adapter_config FROM agents WHERE space_id = ${space!.id}`;
       const configOf = (name: string) => rows.find(row => row.id === ids.get(name))!.adapter_config as Record<string, string | number>;
       for (const candidate of candidates) {
         if (candidate.migrates) {

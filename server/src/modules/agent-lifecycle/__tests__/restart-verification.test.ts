@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { agents, companies, createDb, type Db } from "@outpost/db";
+import { agents, spaces, createDb, type Db } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../../__tests__/helpers/embedded-postgres.js";
@@ -18,20 +18,20 @@ const support = await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("harness verification across a control-plane restart", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
-  let companyId: string;
+  let spaceId: string;
   const workers: Array<{ stop(): Promise<void> }> = [];
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-restart-verification-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-restart-verification-");
     db = createDb(database.connectionString, { maxConnections: 4 });
   }, 90_000);
   afterAll(async () => { await database?.cleanup(); });
   beforeEach(async () => {
-    companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Restart verification", issuePrefix: `R${companyId.slice(0, 7)}` });
+    spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Restart verification", issuePrefix: `R${spaceId.slice(0, 7)}` });
   });
   afterEach(async () => {
     for (const worker of workers.splice(0)) await worker.stop();
-    await db.update(agents).set({ lifecycleState: "terminated", status: "terminated" }).where(eq(agents.companyId, companyId));
+    await db.update(agents).set({ lifecycleState: "terminated", status: "terminated" }).where(eq(agents.spaceId, spaceId));
   });
   const current = async (id: string) => (await db.select().from(agents).where(eq(agents.id, id)))[0]!;
 
@@ -39,7 +39,7 @@ const support = await getEmbeddedPostgresTestSupport();
   async function verifyingHeldBy(holder: Record<string, unknown>) {
     const runHost = vi.fn(async (agent: LifecycleAgent) => agent.lifecycleState === "verifying" ? "pending" as const : "complete" as const);
     const before = configureAgentLifecycle(db, { requiredPluginIds: async () => [], runHost, runPlugin: async () => "complete" as const });
-    const agent = await createAgentLifecycle(db).requestHire(companyId, { name: "Verifier", adapterType: "process", adapterConfig: { command: "true" } });
+    const agent = await createAgentLifecycle(db).requestCreation(spaceId, { name: "Verifier", adapterType: "process", adapterConfig: { command: "true" } });
     await before.process(agent.id);
     await before.stop();
     expect((await current(agent.id)).lifecycleState).toBe("verifying");

@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { agents, agentWakeupRequests, companies, createDb, heartbeatRuns, issueRecoveryActions, issues } from "@outpost/db";
+import { agents, agentWakeupRequests, spaces, createDb, heartbeatRuns, issueRecoveryActions, issues } from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -10,16 +10,16 @@ const support = await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("reconciliation source PostgreSQL reads", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  let companyId: string, agentId: string;
-  const launchKeys = ["executionContinuation", "paperclipWake", "paperclipWakeComment", "paperclipTaskMarkdown",
-    "paperclipTaskMarkdownCompact", "paperclipTaskAssignment", "paperclipTaskAssignmentCompact", "paperclipWorkspace",
-    "outpostEnvironment", "paperclipContinuationSummary"];
+  let spaceId: string, agentId: string;
+  const launchKeys = ["executionContinuation", "outpostWake", "outpostWakeComment", "outpostTaskMarkdown",
+    "outpostTaskMarkdownCompact", "outpostTaskAssignment", "outpostTaskAssignmentCompact", "outpostWorkspace",
+    "outpostEnvironment", "outpostContinuationSummary"];
   beforeAll(async () => {
     temporary = await startEmbeddedPostgresTestDatabase("reconciliation-source-");
     db = createDb(temporary.connectionString);
-    companyId = randomUUID(); agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Recovery reads", issuePrefix: "RCR" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Recovery worker", adapterType: "process", status: "active" });
+    spaceId = randomUUID(); agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Recovery reads", issuePrefix: "RCR" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Recovery worker", adapterType: "process", status: "active" });
   });
   afterAll(async () => { await db?.$client.end(); await temporary?.cleanup(); });
 
@@ -33,13 +33,13 @@ describe.skipIf(!support.supported)("reconciliation source PostgreSQL reads", ()
       interactionKind: "connection_intent", interactionStatus: "expired", mutation: "interaction", interactionId: randomUUID(),
       futureControl: { nonce: "retained", nested: null }, cancellation: { state: "pending" },
     };
-    const [full] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "failed", runtimeMode: "legacy",
+    const [full] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "failed", runtimeMode: "legacy",
       errorCode: "process_lost", contextSnapshot, resultJson: { futureOutput: { retained: true } },
       runnerProfileJson: { adapterDispatch: { adapterType: "process" }, futureControl: { retained: true } },
       ...patch,
     }).returning();
     const [selected] = await db.select(legacyReconciliationRunFields).from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, full!.id)));
+      .where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.id, full!.id)));
     return { full: full!, selected: selected! };
   }
 
@@ -89,10 +89,10 @@ describe.skipIf(!support.supported)("reconciliation source PostgreSQL reads", ()
 
   it("keeps full stored input and newer ownership when the projected source is terminalized", async () => {
     const issueId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Recover the stopped source", status: "in_progress", assigneeAgentId: agentId });
-    const f = await fixture({ issueId, contextSnapshot: { issueId, paperclipTaskMarkdown: randomBytes(128 * 1024).toString("base64"),
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Recover the stopped source", status: "in_progress", assigneeAgentId: agentId });
+    const f = await fixture({ issueId, contextSnapshot: { issueId, outpostTaskMarkdown: randomBytes(128 * 1024).toString("base64"),
       executionRetryAccounting: { version: 1, failureRetries: 2, maxTurnContinuations: 0 } } });
-    const [successor] = await db.insert(heartbeatRuns).values({ companyId, agentId, issueId, status: "running" }).returning();
+    const [successor] = await db.insert(heartbeatRuns).values({ spaceId, agentId, issueId, status: "running" }).returning();
     await db.update(issues).set({ executionRunId: successor!.id, checkoutRunId: successor!.id }).where(eq(issues.id, issueId));
     await terminalizeLegacyExecution({ db, run: f.selected, status: "failed", fromStatuses: ["failed"] });
     const [stored] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.full.id));
@@ -100,8 +100,8 @@ describe.skipIf(!support.supported)("reconciliation source PostgreSQL reads", ()
     expect((await db.select().from(issues).where(eq(issues.id, issueId)))[0])
       .toMatchObject({ executionRunId: successor!.id, checkoutRunId: successor!.id });
     expect(await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, issueId)))
-      .toEqual([expect.objectContaining({ cause: "legacy_execution_requires_reconciliation", ownerType: "board",
+      .toEqual([expect.objectContaining({ cause: "legacy_execution_requires_reconciliation", ownerType: "operator",
         evidence: expect.objectContaining({ runId: f.full.id, attempt: 3 }) })]);
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, companyId))).toEqual([]);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, spaceId))).toEqual([]);
   });
 });

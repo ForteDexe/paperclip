@@ -14,7 +14,7 @@ vi.mock("@/hooks/useArtifactsV1Enabled", () => ({ useArtifactsV1Enabled: () => (
 const attachment = (overrides: Partial<IssueAttachment>): IssueAttachment =>
   ({
     id: "a",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     issueCommentId: null,
     assetId: "asset",

@@ -8,20 +8,20 @@ const createdAt = new Date("2026-08-11T00:00:00.000Z");
 
 describe("tool profile binding precedence", () => {
   it("adds an agent connection grant without dropping broader access to other apps", () => {
-    const company = { profileId: "company", targetType: "company" as const, targetId: "company-1", priority: 100, createdAt };
+    const space = { profileId: "space", targetType: "space" as const, targetId: "space-1", priority: 100, createdAt };
     const grant = { profileId: "grant", targetType: "agent" as const, targetId: "agent-1", priority: 100, createdAt };
     const profiles = [
-      { id: "company", profileKey: "default", metadata: {} },
+      { id: "space", profileKey: "default", metadata: {} },
       { id: "grant", profileKey: "connection-intent:connection-1:agent-1", metadata: { source: "connection_intent", connectionId: "connection-1", agentId: "agent-1" } },
     ];
-    expect(effectiveToolProfileBindings([company, grant], profiles, "connection-1")).toEqual([company, grant]);
-    expect(effectiveToolProfileBindings([company, grant], profiles, "connection-2")).toEqual([company]);
+    expect(effectiveToolProfileBindings([space, grant], profiles, "connection-1")).toEqual([space, grant]);
+    expect(effectiveToolProfileBindings([space, grant], profiles, "connection-2")).toEqual([space]);
   });
   it("keeps ordinary profiles at the narrowest matching scope", () => {
-    const companyBinding = {
-      profileId: "company-profile",
-      targetType: "company" as const,
-      targetId: "company-1",
+    const spaceBinding = {
+      profileId: "space-profile",
+      targetType: "space" as const,
+      targetId: "space-1",
       priority: 100,
       createdAt,
     };
@@ -33,11 +33,11 @@ describe("tool profile binding precedence", () => {
       createdAt,
     };
 
-    expect(narrowestScopeBindings([companyBinding, agentBinding])).toEqual([agentBinding]);
+    expect(narrowestScopeBindings([spaceBinding, agentBinding])).toEqual([agentBinding]);
     expect(effectiveToolProfileBindings(
-      [companyBinding, agentBinding],
+      [spaceBinding, agentBinding],
       [
-        { id: "company-profile", profileKey: "company-default", metadata: {} },
+        { id: "space-profile", profileKey: "space-default", metadata: {} },
         { id: "agent-profile", profileKey: "agent-default", metadata: {} },
       ],
       "connection-1",
@@ -47,8 +47,8 @@ describe("tool profile binding precedence", () => {
   it("carries the wizard-managed app assignment alongside a narrower profile", () => {
     const appBinding = {
       profileId: "app-profile",
-      targetType: "company" as const,
-      targetId: "company-1",
+      targetType: "space" as const,
+      targetId: "space-1",
       priority: 100,
       createdAt,
     };
@@ -77,8 +77,8 @@ describe("tool profile binding precedence", () => {
   it("does not carry wizard-managed app assignments into a gateway-only profile", () => {
     const appBinding = {
       profileId: "app-profile",
-      targetType: "company" as const,
-      targetId: "company-1",
+      targetType: "space" as const,
+      targetId: "space-1",
       priority: 100,
       createdAt,
     };
@@ -108,8 +108,8 @@ describe("tool profile binding precedence", () => {
   it("does not overlay a wizard profile onto another connection", () => {
     const appBinding = {
       profileId: "app-profile",
-      targetType: "company" as const,
-      targetId: "company-1",
+      targetType: "space" as const,
+      targetId: "space-1",
       priority: 100,
       createdAt,
     };

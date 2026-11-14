@@ -36,7 +36,7 @@ it("passes the canonical pending status back after a partial item review", async
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
   try {
     await act(async () => root.render(<QueryClientProvider client={client}><TooltipProvider><ThemeProvider>
-      <AttentionInteractionResolver companyId={interaction.companyId} issueId={interaction.issueId} interactionId={interaction.id} onResolved={onResolved} />
+      <AttentionInteractionResolver spaceId={interaction.spaceId} issueId={interaction.issueId} interactionId={interaction.id} onResolved={onResolved} />
     </ThemeProvider></TooltipProvider></QueryClientProvider>));
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
     await act(async () => host.querySelector<HTMLButtonElement>('button[data-verdict="approve"]')!.click());
@@ -62,7 +62,7 @@ it("refreshes a preparing approval automatically, then stops polling without acc
       <QueryClientProvider client={client}>
         <TooltipProvider><ThemeProvider>
           <AttentionInteractionResolver
-            companyId={interaction.companyId}
+            spaceId={interaction.spaceId}
             issueId={interaction.issueId}
             interactionId={interaction.id}
           />

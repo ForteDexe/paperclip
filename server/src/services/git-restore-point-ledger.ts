@@ -46,10 +46,10 @@ export function gitRestorePointRetentionService(db: Db, options: GitRestorePoint
     const result = await db.execute<{ total: number; open: number; closed_at: string | null }>(sql`
       WITH RECURSIVE tree AS (
         SELECT id, status, completed_at, cancelled_at, updated_at FROM issues
-        WHERE company_id = ${row.companyId} AND id = ${row.sourceIssueId}
+        WHERE space_id = ${row.spaceId} AND id = ${row.sourceIssueId}
         UNION
         SELECT c.id, c.status, c.completed_at, c.cancelled_at, c.updated_at FROM issues c
-        JOIN tree p ON c.parent_id = p.id WHERE c.company_id = ${row.companyId}
+        JOIN tree p ON c.parent_id = p.id WHERE c.space_id = ${row.spaceId}
       )
       SELECT count(*)::int AS total,
         count(*) FILTER (WHERE status NOT IN ('done', 'cancelled'))::int AS open,
@@ -155,8 +155,8 @@ export function gitRestorePointRetentionService(db: Db, options: GitRestorePoint
       .orderBy(asc(executionWorkspaceRestorePoints.updatedAt), asc(executionWorkspaceRestorePoints.id)).limit(batchSize);
     for (const row of doomed) {
       try {
-        await options.storage.deleteObject(row.companyId, row.objectKey);
-        if ((await options.storage.headObject(row.companyId, row.objectKey)).exists) throw new Error("restore_point_object_still_present");
+        await options.storage.deleteObject(row.spaceId, row.objectKey);
+        if ((await options.storage.headObject(row.spaceId, row.objectKey)).exists) throw new Error("restore_point_object_still_present");
         await db.update(executionWorkspaceRestorePoints)
           .set({ status: "deleted", deletedAt: at, lastError: null, updatedAt: at })
           .where(eq(executionWorkspaceRestorePoints.id, row.id));
@@ -204,15 +204,15 @@ export function notifyGitRestorePointWork(transaction: object, hint?: string) {
 
 export async function requestRestorePointDeletion(
   tx: Pick<Db, "update">,
-  scope: { sourceIssueId: string } | { companyId: string },
+  scope: { sourceIssueId: string } | { spaceId: string },
 ) {
-  await notifyGitRestorePointWork(tx, "sourceIssueId" in scope ? `issue:${scope.sourceIssueId}` : `company:${scope.companyId}`);
+  await notifyGitRestorePointWork(tx, "sourceIssueId" in scope ? `issue:${scope.sourceIssueId}` : `space:${scope.spaceId}`);
   await tx.update(executionWorkspaceRestorePoints)
     .set({ status: "delete_requested", updatedAt: new Date() })
     .where(and(
       "sourceIssueId" in scope
         ? eq(executionWorkspaceRestorePoints.sourceIssueId, scope.sourceIssueId)
-        : eq(executionWorkspaceRestorePoints.companyId, scope.companyId),
+        : eq(executionWorkspaceRestorePoints.spaceId, scope.spaceId),
       inArray(executionWorkspaceRestorePoints.status, ["pending", "active", "expiring"]),
     ));
 }

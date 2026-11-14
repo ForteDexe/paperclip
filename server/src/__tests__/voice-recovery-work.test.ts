@@ -3,7 +3,7 @@ import { toolAccessService } from "../services/tool-access.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, agents, chatConversations, chatEndpoints, chatVoiceSessions, companies, createDb, issues, subscribeDatabaseWork, toolApplications, toolConnections } from "@outpost/db";
+import { applyPendingMigrations, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, agents, chatConversations, chatEndpoints, chatVoiceSessions, spaces, createDb, issues, subscribeDatabaseWork, toolApplications, toolConnections } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -19,11 +19,11 @@ const external = resolveExternalTestDatabaseUrl("OUTPOST_VOICE_TEST_DATABASE_URL
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("voice session recovery lifecycle", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
-  let db: ReturnType<typeof createDb>, companyId: string, endpointId: string, agentId: string, issueId: string, conversationId: string;
+  let db: ReturnType<typeof createDb>, spaceId: string, endpointId: string, agentId: string, issueId: string, conversationId: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let enabled = true;
   const errors: unknown[] = [];
-  const fixtureCompanies: string[] = [];
+  const fixtureSpaces: string[] = [];
   const authorize = vi.fn(async (_session: typeof chatVoiceSessions.$inferSelect) => {}), inspect = vi.fn(async (_session: typeof chatVoiceSessions.$inferSelect): Promise<{ endedAt?: unknown }> => ({ endedAt: true }));
   const close = vi.fn(async (session: typeof chatVoiceSessions.$inferSelect) => {
     await withVoiceSessionChange(db, session.id, tx => tx.update(chatVoiceSessions).set({ state: "ended", endedAt: new Date(), updatedAt: new Date() }).where(eq(chatVoiceSessions.id, session.id)));
@@ -35,39 +35,39 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await instanceSettingsService(db).updateExperimental({ enableChatConnectors: true });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   async function fixture() {
-    const companyId = randomUUID(), endpointId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), conversationId = randomUUID();
-    fixtureCompanies.push(companyId);
+    const spaceId = randomUUID(), endpointId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), conversationId = randomUUID();
+    fixtureSpaces.push(spaceId);
     const applicationId = randomUUID(), connectionId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Voice recovery", issuePrefix: `V${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Voice", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Voice", assigneeAgentId: agentId, status: "in_progress" });
-    await db.insert(toolApplications).values({ id: applicationId, companyId, name: "Voice", type: "chat" });
-    await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "Voice", uid: connectionId, transport: "voice", connectionPurpose: "channel", config: { provider: "speko" }, enabled: true, status: "active" });
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId, connectionId, assignedAgentId: agentId, publicId: endpointId, provider: "speko", status: "active", setup: { step: "complete", runtimeGeneration: 1 } as InternalSetupState });
-    await db.insert(chatConversations).values({ id: conversationId, companyId, endpointId, issueId, externalConversationId: conversationId, externalThreadId: conversationId, externalLabel: "Voice", isDirectMessage: true });
-    return { companyId, endpointId, assignedAgentId: agentId, issueId, conversationId };
+    await db.insert(spaces).values({ id: spaceId, name: "Voice recovery", issuePrefix: `V${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Voice", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Voice", assigneeAgentId: agentId, status: "in_progress" });
+    await db.insert(toolApplications).values({ id: applicationId, spaceId, name: "Voice", type: "chat" });
+    await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "Voice", uid: connectionId, transport: "voice", connectionPurpose: "channel", config: { provider: "speko" }, enabled: true, status: "active" });
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId, assignedAgentId: agentId, publicId: endpointId, provider: "speko", status: "active", setup: { step: "complete", runtimeGeneration: 1 } as InternalSetupState });
+    await db.insert(chatConversations).values({ id: conversationId, spaceId, endpointId, issueId, externalConversationId: conversationId, externalThreadId: conversationId, externalLabel: "Voice", isDirectMessage: true });
+    return { spaceId, endpointId, assignedAgentId: agentId, issueId, conversationId };
   }
   beforeEach(async () => {
     enabled = true; errors.length = 0; authorize.mockClear(); inspect.mockReset().mockResolvedValue({ endedAt: true }); close.mockClear();
-    ({ companyId, endpointId, assignedAgentId: agentId, issueId, conversationId } = await fixture());
+    ({ spaceId, endpointId, assignedAgentId: agentId, issueId, conversationId } = await fixture());
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
   });
   afterEach(async () => {
     await coordinator?.stop(); coordinator = undefined; vi.useRealTimers(); vi.restoreAllMocks();
-    for (const companyId of fixtureCompanies.splice(0)) {
-    await db.delete(chatVoiceSessions).where(eq(chatVoiceSessions.companyId, companyId));
-    await db.delete(chatConversations).where(eq(chatConversations.companyId, companyId));
-    await db.delete(chatEndpoints).where(eq(chatEndpoints.companyId, companyId));
-    await db.delete(issues).where(eq(issues.companyId, companyId));
-    await db.delete(agents).where(eq(agents.companyId, companyId));
-    await db.delete(companies).where(eq(companies.id, companyId));
+    for (const spaceId of fixtureSpaces.splice(0)) {
+    await db.delete(chatVoiceSessions).where(eq(chatVoiceSessions.spaceId, spaceId));
+    await db.delete(chatConversations).where(eq(chatConversations.spaceId, spaceId));
+    await db.delete(chatEndpoints).where(eq(chatEndpoints.spaceId, spaceId));
+    await db.delete(issues).where(eq(issues.spaceId, spaceId));
+    await db.delete(agents).where(eq(agents.spaceId, spaceId));
+    await db.delete(spaces).where(eq(spaces.id, spaceId));
     }
     expect(errors).toEqual([]);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   async function session(patch: Partial<typeof chatVoiceSessions.$inferInsert> = {}, writer = db) {
     const id = patch.id ?? randomUUID();
-    return withVoiceSessionChange(writer, id, tx => tx.insert(chatVoiceSessions).values({ id, companyId, endpointId, conversationId, issueId, assignedAgentId: agentId,
+    return withVoiceSessionChange(writer, id, tx => tx.insert(chatVoiceSessions).values({ id, spaceId, endpointId, conversationId, issueId, assignedAgentId: agentId,
       callerId: randomUUID(), callerAuthority: "member", mode: "browser", state: "active", generation: 1, credentialFingerprint: "test", providerSessionId: randomUUID(),
       toolTokenHash: "a".repeat(64), idempotencyKey: id, requestFingerprint: id, createdAt: new Date(Date.now() - 60_000), updatedAt: new Date(Date.now() - 60_000), expiresAt: new Date(Date.now() + 600_000), ...patch }).returning()).then(rows => rows[0]);
   }
@@ -212,7 +212,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
   it("preserves receiver and command wakes for SDK health observations", async () => {
     const id = randomUUID();
-    await db.insert(toolConnections).values({ id, companyId, applicationId: (await db.select().from(toolApplications).where(eq(toolApplications.companyId, companyId)))[0].id,
+    await db.insert(toolConnections).values({ id, spaceId, applicationId: (await db.select().from(toolApplications).where(eq(toolApplications.spaceId, spaceId)))[0].id,
       name: "SDK observation", uid: id, transport: "chat_sdk", connectionPurpose: "channel", config: { provider: "discord" }, enabled: true, status: "active" });
     const seen = new Set<string>();
     const topics = [DELIVERY_QUEUES.chatReceivers, DELIVERY_QUEUES.chatCommandRegistration, DELIVERY_QUEUES.voiceSessionRecovery];
@@ -280,14 +280,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await start();
     await vi.waitFor(async () => {
       await vi.advanceTimersByTimeAsync(1000);
-      const rows = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.companyId, companyId));
+      const rows = await db.select().from(chatVoiceSessions).where(eq(chatVoiceSessions.spaceId, spaceId));
       expect(rows.filter(row => row.state === "ended")).toHaveLength(104);
     }, { timeout: 5000 });
     expect(inspect.mock.calls.filter(([row]) => row.id === failed.id)).toHaveLength(1);
     expect(errors).toHaveLength(1);
     broken = false; await settled(); errors.length = 0; await quiet();
   });
-  it("includes another company in the first batch despite a large older backlog", async () => {
+  it("includes another space in the first batch despite a large older backlog", async () => {
     for (let index = 0; index < 30; index++) await session({ updatedAt: new Date(Date.now() - 120_000) });
     const other = await fixture();
     const row = await session(other);

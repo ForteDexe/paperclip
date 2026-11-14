@@ -25,7 +25,7 @@ import {
   isToolConnectionAttentionHealth as isAttentionHealthStatus,
 } from "@outpost/shared";
 import { Navigate, useParams, useNavigate, useSearchParams } from "@/lib/router";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useToast } from "@/context/ToastContext";
 import { queryKeys } from "@/lib/queryKeys";
@@ -34,7 +34,7 @@ import { consumeSkillSourceReturn } from "@/lib/skill-source-connect-return";
 import { toolsApi } from "@/api/tools";
 import { agentsApi } from "@/api/agents";
 import { accessApi } from "@/api/access";
-import { buildCompanyUserProfileMap } from "@/lib/company-members";
+import { buildSpaceUserProfileMap } from "@/lib/space-members";
 import { installStateFrom, type InstallState } from "@/lib/tool-installs";
 import { useAuthorizationWindow } from "@/hooks/useAuthorizationWindow";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
@@ -107,7 +107,7 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
 
   const activeTab: AppTabKey | null = isAppTabKey(tab) ? tab : null;
@@ -119,9 +119,9 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
     enabled: !!connectionId && !!activeTab,
   });
   const applicationsQuery = useQuery({
-    queryKey: queryKeys.tools.applications(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listApplications(selectedCompanyId!),
-    enabled: !!selectedCompanyId && !!activeTab,
+    queryKey: queryKeys.tools.applications(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listApplications(selectedSpaceId!),
+    enabled: !!selectedSpaceId && !!activeTab,
   });
   const installsQuery = useQuery({
     queryKey: queryKeys.tools.connectionInstalls(connectionId),
@@ -129,9 +129,9 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
     enabled: !!connectionId && activeTab === "permissions",
   });
   const galleryQuery = useQuery({
-    queryKey: queryKeys.apps.gallery(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listGallery(selectedCompanyId!),
-    enabled: !!selectedCompanyId && !!activeTab,
+    queryKey: queryKeys.apps.gallery(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listGallery(selectedSpaceId!),
+    enabled: !!selectedSpaceId && !!activeTab,
   });
   const catalogQuery = useQuery({
     queryKey: queryKeys.tools.catalog(connectionId),
@@ -139,24 +139,24 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
     enabled: !!connectionId && needsCatalog,
   });
   const profilesQuery = useQuery({
-    queryKey: queryKeys.tools.connectionProfileConfiguration(selectedCompanyId ?? "__none__", connectionId),
+    queryKey: queryKeys.tools.connectionProfileConfiguration(selectedSpaceId ?? "__none__", connectionId),
     queryFn: () => toolsApi.listConnectionProfileConfiguration(connectionId),
-    enabled: !!selectedCompanyId && !!connectionId && (activeTab === "review" || activeTab === "permissions"),
+    enabled: !!selectedSpaceId && !!connectionId && (activeTab === "review" || activeTab === "permissions"),
   });
   const policiesQuery = useQuery({
-    queryKey: queryKeys.tools.policies(selectedCompanyId ?? "__none__"),
-    queryFn: () => toolsApi.listPolicies(selectedCompanyId!),
-    enabled: !!selectedCompanyId && (activeTab === "review" || activeTab === "permissions"),
+    queryKey: queryKeys.tools.policies(selectedSpaceId ?? "__none__"),
+    queryFn: () => toolsApi.listPolicies(selectedSpaceId!),
+    enabled: !!selectedSpaceId && (activeTab === "review" || activeTab === "permissions"),
   });
   const agentsQuery = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId ?? "__none__"),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId && activeTab === "permissions",
+    queryKey: queryKeys.agents.list(selectedSpaceId ?? "__none__"),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId && activeTab === "permissions",
   });
   const userDirectoryQuery = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(selectedCompanyId ?? "__none__"),
-    queryFn: () => accessApi.listUserDirectory(selectedCompanyId!),
-    enabled: !!selectedCompanyId && !!activeTab,
+    queryKey: queryKeys.access.spaceUserDirectory(selectedSpaceId ?? "__none__"),
+    queryFn: () => accessApi.listUserDirectory(selectedSpaceId!),
+    enabled: !!selectedSpaceId && !!activeTab,
   });
   // Identity grants drive reconnect authorization on every tab as well as the
   // Permissions controls. A personal reconnect belongs to one fixed user, so
@@ -233,7 +233,7 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
     ?? appConnectionSourceSlug(connection)
     ?? (logoEntry ? appDefinitionSlug(logoEntry) : null);
   const userProfileById = useMemo(
-    () => buildCompanyUserProfileMap(userDirectoryQuery.data?.users),
+    () => buildSpaceUserProfileMap(userDirectoryQuery.data?.users),
     [userDirectoryQuery.data],
   );
   const owner = connection ? connectionOwnerProfile(connection, userProfileById) : null;
@@ -253,10 +253,10 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
       || successNoticeShownFor.current === connection.id
     ) return;
     successNoticeShownFor.current = connection.id;
-    const skillSourcePath = selectedCompanyId === connection.companyId
+    const skillSourcePath = selectedSpaceId === connection.spaceId
       && connection.status === "active"
       && appConnectionSourceSlug(connection) === "github"
-      ? consumeSkillSourceReturn(connection.companyId)
+      ? consumeSkillSourceReturn(connection.spaceId)
       : null;
     pushToast({
       title: `${appName} connected`,
@@ -264,7 +264,7 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
       tone: "success",
     });
     navigate(skillSourcePath ?? appTabHref(connection.id, "permissions"), { replace: true });
-  }, [activeTab, appName, connection, navigate, pushToast, searchParams, selectedCompanyId]);
+  }, [activeTab, appName, connection, navigate, pushToast, searchParams, selectedSpaceId]);
 
   useEffect(() => {
     if (!activeTab) return;
@@ -296,10 +296,10 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
   const disconnectRemote = useMutation({
     mutationFn: () => toolsApi.archiveConnection(connectionId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(selectedSpaceId!) });
       queryClient.invalidateQueries({ queryKey: queryKeys.tools.connection(connectionId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.applications(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.applications(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedSpaceId!) });
       navigate("/apps");
     },
     onError: (error) => pushToast({ title: "Couldn't disconnect", body: describeError(error).body, tone: "error" }),
@@ -313,8 +313,8 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
       reviewed?: Set<string>;
     }) => {
       return connection?.connectionPurpose === "ai"
-      ? toolsApi.putConnectionInstalls(connectionId, next.access.mode === "all" ? [{ targetType: "company", targetId: selectedCompanyId! }] : [...next.access.agentIds].map(targetId => ({ targetType: "agent" as const, targetId })))
-      : toolsApi.finishApp(selectedCompanyId!, connectionId, {
+      ? toolsApi.putConnectionInstalls(connectionId, next.access.mode === "all" ? [{ targetType: "space", targetId: selectedSpaceId! }] : [...next.access.agentIds].map(targetId => ({ targetType: "agent" as const, targetId })))
+      : toolsApi.finishApp(selectedSpaceId!, connectionId, {
         enabledCatalogEntryIds: [...next.enabled],
         askFirstCatalogEntryIds: [...next.askFirst].filter((id) => next.enabled.has(id)),
         ...(next.reviewed ? { reviewedCatalogEntryIds: [...next.reviewed] } : {}),
@@ -327,10 +327,10 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
       queryClient.invalidateQueries({ queryKey: queryKeys.tools.testAgentAccessesForConnection(connectionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.tools.connection(connectionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.tools.catalog(connectionId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.profiles(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.policies(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.profiles(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.policies(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedSpaceId!) });
     },
     onError: (error) =>
       pushToast({
@@ -348,8 +348,8 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
     onSuccess: () => {
       setRenaming(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.tools.connection(connectionId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedSpaceId!) });
     },
     onError: (error) =>
       pushToast({
@@ -397,7 +397,7 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
     mutationFn: () => {
       const subjectUserId = grantsQuery.data?.currentUserId;
       if (!subjectUserId) throw new Error("Sign in again to connect your own account.");
-      return toolsApi.startPersonalAuthorization(selectedCompanyId!, connectionId, {
+      return toolsApi.startPersonalAuthorization(selectedSpaceId!, connectionId, {
         subjectUserId,
         returnTo: appTabHref(connectionId, "permissions"),
       });
@@ -450,13 +450,13 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
     mutationFn: () => toolsApi.refreshCatalog(connectionId),
     onSuccess: (result) => {
       // Discovery extends the app profile for new actions as well as the catalog.
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.profiles(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.policies(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.profiles(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.policies(selectedSpaceId!) });
       queryClient.invalidateQueries({ queryKey: queryKeys.tools.testAgentAccessesForConnection(connectionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.tools.connection(connectionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.tools.catalog(connectionId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(selectedCompanyId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(selectedSpaceId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedSpaceId!) });
       pushToast({
         title: `Found ${result.discoveredCount} ${result.discoveredCount === 1 ? "action" : "actions"}`,
         body: result.quarantinedCount > 0
@@ -477,7 +477,7 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tools.connection(connectionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.tools.connectionGrants(connectionId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedSpaceId!) });
       pushToast({
         title: "GitHub access refreshed",
         body: "Account, installation, and repository access are current.",
@@ -488,7 +488,7 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
       // The failed check is saved on the connection; refetch so the banner
       // shows it next to any GitHub recovery link.
       queryClient.invalidateQueries({ queryKey: queryKeys.tools.connection(connectionId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedCompanyId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedSpaceId!) });
       pushToast({
         title: "Couldn't refresh GitHub access",
         body: describeError(error).body,
@@ -518,7 +518,7 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
   };
 
   // Keep old bookmarks and OAuth return URLs working after Setup and Test were
-  // consolidated into Permissions, and Activity moved to the company feed.
+  // consolidated into Permissions, and Activity moved to the space feed.
   if (connectionId && (tab === "setup" || tab === "test")) {
     const query = searchParams.toString();
     return <Navigate replace to={`${appTabHref(connectionId, "permissions")}${query ? `?${query}` : ""}`} />;
@@ -531,7 +531,7 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
     return <Navigate replace to={connectionId ? appTabHref(connectionId, "permissions") : "/apps"} />;
   }
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <div className="p-6 text-sm text-muted-foreground">Select an outpost to manage apps.</div>;
   }
   if (connectionQuery.isLoading || connectionView.kind === "reconnecting") {
@@ -630,8 +630,8 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
           onReconnect={onReconnect ? () => onReconnect(connection) : (connection.connectionPurpose === "ai" || isRemoteMcpConnectorMethod(connection.config?.sourceTemplateKey, connection.config?.connectionMethodKey)) ? () => navigate(`/apps/connect?source=${connection.config?.sourceTemplateKey}&reconnect=${connection.id}`) : undefined}
           onReconnected={() => {
             queryClient.invalidateQueries({ queryKey: queryKeys.tools.connection(connectionId) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(selectedCompanyId) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedCompanyId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.tools.connections(selectedSpaceId) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.apps.attention(selectedSpaceId) });
           }}
         />
       )}
@@ -670,8 +670,8 @@ function StandardAppDetail({ renderActions, renderAgentSettings, renderConnectio
               {renderConnectionSettings?.(connection)}
               {connection.config?.sourceTemplateKey === "browser-use-cloud" && <BrowserUseSettingsPanel connection={connection} grants={grantsQuery.data} />}
               {connection.config?.sourceTemplateKey === "railway" && <RailwayAccessPanel connection={connection} grants={grantsQuery.data} />}
-              {connection.config?.provider === "agentmail" && <EmailConnectionInboxes companyId={connection.companyId} connectionId={connection.id} canConfigure={grantsQuery.data?.capabilities?.canConfigure ?? false} />}
-              {connection.config?.provider === "agentmail" ? <EmailConnectionAccess companyId={connection.companyId} connectionId={connection.id} agents={agents} /> : <>
+              {connection.config?.provider === "agentmail" && <EmailConnectionInboxes spaceId={connection.spaceId} connectionId={connection.id} canConfigure={grantsQuery.data?.capabilities?.canConfigure ?? false} />}
+              {connection.config?.provider === "agentmail" ? <EmailConnectionAccess spaceId={connection.spaceId} connectionId={connection.id} agents={agents} /> : <>
               <IdentitiesSection
                 appName={appName}
                 credentialPolicy={connection.credentialPolicy}
@@ -957,7 +957,7 @@ function askFirstCatalogIds(policies: ToolPolicy[], connectionId: string): Set<s
  * install state remains the safest legacy fallback.
  *
  * That fallback is the important part. It used to return "all agents" for an
- * unbound profile, which turned any unrelated save into a silent company-wide
+ * unbound profile, which turned any unrelated save into a silent space-wide
  * grant from a control the reader could not see. Installs authorize their
  * targets, so mirroring the install state is both the truthful reading and the
  * one that agrees with what the tab displays.
@@ -967,7 +967,7 @@ function accessFrom(
   install: InstallState,
 ): AccessDraft {
   const bindings = profile?.bindings ?? [];
-  if (bindings.some((b) => b.targetType === "company")) {
+  if (bindings.some((b) => b.targetType === "space")) {
     return { mode: "all", agentIds: new Set() };
   }
   const agentIds = new Set(bindings.filter((b) => b.targetType === "agent").map((b) => b.targetId));

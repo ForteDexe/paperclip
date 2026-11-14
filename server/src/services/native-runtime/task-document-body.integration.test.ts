@@ -28,7 +28,7 @@ it.each(["write_document", "write_task_document", "rest"] as const)(
     const fixture = await server.fixture({ disableWakeOnDemand: true });
     const issueId = surface === "write_task_document" ? fixture.blockerId : fixture.issueId;
     const service = documentService(server.db);
-    const token = createLocalAgentJwt(fixture.agentId, fixture.companyId, "outpost_runner", fixture.runId);
+    const token = createLocalAgentJwt(fixture.agentId, fixture.spaceId, "outpost_runner", fixture.runId);
     const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
     for (const [index, body] of bodies.entries()) {
       const key = `exact-body-${index}`;

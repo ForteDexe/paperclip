@@ -1,6 +1,6 @@
 # @outpost/ui
 
-Published static assets for the Paperclip board UI.
+Published static assets for the Outpost board UI.
 
 ## What gets published
 

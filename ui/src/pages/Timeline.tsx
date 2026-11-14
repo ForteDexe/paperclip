@@ -1,8 +1,8 @@
 /**
  * Work Timeline page (PAP-12424 / Phase C of PAP-12405).
  *
- * A Gantt-style view of company actor activity built on the Phase B endpoint
- * (`GET /companies/:companyId/timeline`). Rendering is the board-locked
+ * A Gantt-style view of space actor activity built on the Phase B endpoint
+ * (`GET /spaces/:spaceId/timeline`). Rendering is the operator-locked
  * Direction C (PAP-12422): dense rows, mini-map brush, custom inline SVG.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -11,7 +11,7 @@ import { Bot, Clock3, Coins, GanttChartSquare, Minus, Plus, RotateCcw, type Luci
 import type { WorkTimelineResult } from "@outpost/shared";
 import { workTimelineApi, type WorkTimelineParams } from "@/api/workTimeline";
 import { queryKeys } from "@/lib/queryKeys";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { EmptyState } from "@/components/EmptyState";
 import { PageSkeleton } from "@/components/PageSkeleton";
@@ -50,7 +50,7 @@ function timelineEdgeKey(edge: WorkTimelineResult["edges"][number]) {
 }
 
 export async function loadTimelineWindow(
-  companyId: string,
+  spaceId: string,
   params: WorkTimelineParams,
   signal?: AbortSignal,
 ): Promise<WorkTimelineResult> {
@@ -64,7 +64,7 @@ export async function loadTimelineWindow(
   let capped = false;
 
   while (true) {
-    const page = await workTimelineApi.get(companyId, {
+    const page = await workTimelineApi.get(spaceId, {
       ...params,
       limit: TIMELINE_PAGE_LIMIT,
       offset,
@@ -305,7 +305,7 @@ function TimelineSummaryStats({
 }
 
 export function Timeline({ embedded = false }: { embedded?: boolean } = {}) {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const location = useLocation();
   const { enabled: streamlinedUiEnabled } = useStreamlinedUiEnabled();
@@ -334,9 +334,9 @@ export function Timeline({ embedded = false }: { embedded?: boolean } = {}) {
   }, [dateRange, scopedProjectId]);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: [...queryKeys.workTimeline(selectedCompanyId ?? ""), dateRange.fromDate, dateRange.toDate, scopedProjectId ?? null],
-    queryFn: ({ signal }) => loadTimelineWindow(selectedCompanyId!, params!, signal),
-    enabled: !!selectedCompanyId && !!params,
+    queryKey: [...queryKeys.workTimeline(selectedSpaceId ?? ""), dateRange.fromDate, dateRange.toDate, scopedProjectId ?? null],
+    queryFn: ({ signal }) => loadTimelineWindow(selectedSpaceId!, params!, signal),
+    enabled: !!selectedSpaceId && !!params,
   });
 
   useEffect(() => {
@@ -358,7 +358,7 @@ export function Timeline({ embedded = false }: { embedded?: boolean } = {}) {
     ));
   }, []);
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return (
       <>
         {!embedded && <RequestCollapsedSidebar />}

@@ -4,9 +4,9 @@ Proof base: #16106 exact head 397459400c6e7b18b462dcac3d8886b390ca8e8c. Supplied
 
 Result: PROVEN. Owner packages/adapters/grok-local/src/server/adapter-auth-promotion.test.ts shrinks 658 -> 633 lines (25 net); cases 30 -> 29; one fixture/two promotion calls retired. The production call chain also removes one real local Node predicate child: the empty-home first promotion seeds in-process, while the second same-identity promotion calls writeSameIdentityCredentialIfFresher → decideGrokAuthMerge → execFile("node", [grok-auth-merge-decision.cjs,...]). This is a source-proven call delta, not a measured child counter or provider run. Supplied static map's zero-subprocess statement overlooked that local predicate. No wall-time claim.
 
-Keeper `keeps the home when the login is older than the existing same-identity credential` gains the retired case's actual company-home readdir equality. Retire `leaves no staged temporary file in the company home after a kept (not-fresher) outcome`.
+Keeper `keeps the home when the login is older than the existing same-identity credential` gains the retired case's actual space-home readdir equality. Retire `leaves no staged temporary file in the space home after a kept (not-fresher) outcome`.
 
-Both original cases allocate the same root/env, promote UUID_A marker fresher expiry June2026 into companyA, then promote marker staler expiry January2026, user initiated=true, readiness=ready, soleOwner and noopLog. Keeper retains exact kept outcome and persisted fresher-token receipt, then checks actual entries===auth.json. Static Babel proof reports identical fixture/action prefixes after location/comment removal; runtime uses real scoped persistence, canonical directory lock and real decision predicate. Tied-expiry, success cleanup, redaction, user/sole-owner gates and cross-company cases remain untouched. No ownership or expected value changes.
+Both original cases allocate the same root/env, promote UUID_A marker fresher expiry June2026 into spaceA, then promote marker staler expiry January2026, user initiated=true, readiness=ready, soleOwner and noopLog. Keeper retains exact kept outcome and persisted fresher-token receipt, then checks actual entries===auth.json. Static Babel proof reports identical fixture/action prefixes after location/comment removal; runtime uses real scoped persistence, canonical directory lock and real decision predicate. Tied-expiry, success cleanup, redaction, user/sole-owner gates and cross-space cases remain untouched. No ownership or expected value changes.
 
 | Complete-owner phase | Cases | Pass | Fail | Exit |
 |---|---:|---:|---:|---:|
@@ -26,7 +26,7 @@ Remove only `await rm(stagedTempPath, { force: true }).catch(() => undefined);` 
 
 Verbose original/keeper logs show the actual randomly generated temp filename as a received directory entry; no synthetic filename or expected list is produced by the mutation. Initial JSON-only original-control output abbreviated the received array, so its evidence harness declined to qualify the filename check. Source was restored and the sequence repeated with verbose+JSON reporters; accepted controls show actual leaked entries. The initial positive/control report copies remain in initial-json-reporter-attempt/; no production/assertion modification was used to expose a different outcome.
 
-Production/test restore occurs in finally and is byte/hash-verified. Restored full candidate passes 29/29; all source finally returns to exact #16106 originals. Test afterEach removes its fake credential fixture roots, including leaked files; async predicate execFile awaits/reaps its child. No real provider, credentials, global instance home or other company was touched.
+Production/test restore occurs in finally and is byte/hash-verified. Restored full candidate passes 29/29; all source finally returns to exact #16106 originals. Test afterEach removes its fake credential fixture roots, including leaked files; async predicate execFile awaits/reaps its child. No real provider, credentials, global instance home or other space was touched.
 
 ## Hashes and integrated stack
 
@@ -63,7 +63,7 @@ assert section.count(cleanup) == 1
 owner.write_text(source[:start] + section.replace(cleanup, "") + source[end:])
 ```
 
-Run the same full-owner test command. Expected original control: 29 passing and one failure at `leaves no staged temporary file in the company home after a kept (not-fresher) outcome`; verbose diff shows actual `.auth-<pid>-<uuid>.tmp` and `auth.json` versus the fixed expected `["auth.json"]`.
+Run the same full-owner test command. Expected original control: 29 passing and one failure at `leaves no staged temporary file in the space home after a kept (not-fresher) outcome`; verbose diff shows actual `.auth-<pid>-<uuid>.tmp` and `auth.json` versus the fixed expected `["auth.json"]`.
 
 Apply `/tmp/grok-candidate.patch` and run the same command under unchanged mutated production. Expected keeper control: 28 passing and one failure at `keeps the home when the login is older than the existing same-identity credential`, with the same actual-directory mismatch.
 

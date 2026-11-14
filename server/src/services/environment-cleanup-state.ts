@@ -46,7 +46,7 @@ export function pendingCleanupMetadataObjectSql() {
 export function recoverableSandboxCreationCondition() {
   return or(eq(sandboxCreationOperations.state, "pending"), and(
     eq(sandboxCreationOperations.state, "needs_reconciliation"),
-    sql`coalesce(${sandboxCreationOperations.metadata}->>'creationReconciliationReason', '') <> 'company_deleted'`,
+    sql`coalesce(${sandboxCreationOperations.metadata}->>'creationReconciliationReason', '') <> 'space_deleted'`,
     sql`${sandboxCreationOperations.metadata}->>'runnerTaskLease' = 'true'`,
     sql`jsonb_typeof(${sandboxCreationOperations.metadata}->'runnerTaskCreationContextId') = 'string' and ${sandboxCreationOperations.metadata}->>'runnerTaskCreationContextId' <> ''`,
     or(sql`jsonb_typeof(${sandboxCreationOperations.metadata}->'creationProviderLeaseId') = 'string' and ${sandboxCreationOperations.metadata}->>'creationProviderLeaseId' <> ''`,

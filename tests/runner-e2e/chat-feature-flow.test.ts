@@ -29,17 +29,17 @@ function fixture(boundary?: string) {
   vi.spyOn(chatFlow, "sendChatMessage").mockResolvedValue();
   const caseId = boundary ? "delegate-announcement" : "create-backlog";
   const query = chatFeatureScenarios.find(scenario => scenario.id === `tasks.${caseId}`)!.query;
-  const source: ChatIssue = { id: "chat", companyId: "company", title: "CEO", status: "in_review",
+  const source: ChatIssue = { id: "chat", spaceId: "space", title: "CEO", status: "in_review",
     assigneeAgentId: "ceo", conversationState: "waiting" };
-  const task = { id: "task", identifier: "EVA-2", companyId: "company", title: "Launch announcement",
+  const task = { id: "task", identifier: "EVA-2", spaceId: "space", title: "Launch announcement",
     assigneeAgentId: "morgan", projectId: "launch", status: boundary ? "todo" : "backlog", parentId: null };
-  const runs = [{ id: "handoff", companyId: "company", agentId: "ceo", status: "succeeded",
+  const runs = [{ id: "handoff", spaceId: "space", agentId: "ceo", status: "succeeded",
     runtimeMode: "native", contextSnapshot: { issueId: "chat" } }];
   const comments = [
     { id: "human", issueId: "chat", body: query, authorUserId: "person", createdAt: "2026-10-30T10:00:00Z" },
     { id: "reply", issueId: "chat", body: "Assigned Morgan: EVA-2, saved in backlog.", authorAgentId: "ceo", createdByRunId: "handoff", createdAt: "2026-10-30T10:00:10Z" },
   ];
-  const scopes = [{ scopeType: "company", scopeId: "company" }, ...["ceo", "morgan"].map(scopeId => ({ scopeType: "agent", scopeId }))];
+  const scopes = [{ scopeType: "space", scopeId: "space" }, ...["ceo", "morgan"].map(scopeId => ({ scopeType: "agent", scopeId }))];
   const api = {
     baseURL: "http://fixture.invalid", getRunObservation: vi.fn(async () => []),
     get: vi.fn(async (path: string) => {
@@ -69,7 +69,7 @@ function fixture(boundary?: string) {
   const input = {
     api, nonce: "fixture", workspacePath: "/fixture",
     page: { locator: () => locator, getByTestId: () => locator, reload: vi.fn(), goto: vi.fn(), url: () => "http://fixture.invalid/chat" },
-    fixtures: { company: { id: "company" }, agent: { id: "ceo" }, environment: { id: "local" }, secretRefs: {} },
+    fixtures: { space: { id: "space" }, agent: { id: "ceo" }, environment: { id: "local" }, secretRefs: {} },
     execution: { id: "chat-features.runner-opencode.local." + caseId, suite: { id: "chat-features" }, environment: { id: "local" }, task: { id: caseId, flow: "agent_chat", expectedRunCount: boundary ? 3 : 1,
       buildVisibleMarker: () => "ACORN123", turnTimeoutMs: 120_000, attemptTimeoutMs: { local: 420_000 } },
       profile: { id: "runner-opencode", provider: "opencode", model: "fixture", credential: "OPENROUTER_API_KEY", buildAgent: () => ({ adapterConfig: {} }) } },
@@ -85,7 +85,7 @@ function fixture(boundary?: string) {
 }
 
 function oldAssignment(startedAt: string | null = null): ChatRun {
-  return { id: "old-assignment", companyId: "company", agentId: "ceo", status: "cancelled", runtimeMode: "legacy",
+  return { id: "old-assignment", spaceId: "space", agentId: "ceo", status: "cancelled", runtimeMode: "legacy",
     startedAt, nativeIssueId: null, errorCode: "issue_assignee_changed", contextSnapshot: { issueId: "task" },
     resultJson: { stopReason: "issue_assignee_changed", timeoutSource: "stale_queued_run_gate", timeoutFired: false } };
 }
@@ -106,8 +106,8 @@ it.each([1, 3])("continues observation past a superseded wake with %s actual wor
   const { context, evidence } = fixture("superseded");
   const runs: ChatRun[] = await context.allRuns();
   if (count === 3) runs.push(
-    { id: "writing", companyId: "company", agentId: "morgan", status: "queued", runtimeMode: "native", contextSnapshot: { issueId: "task" } },
-    { id: "delivery", companyId: "company", agentId: "ceo", status: "queued", runtimeMode: "native", contextSnapshot: { issueId: "chat" } },
+    { id: "writing", spaceId: "space", agentId: "morgan", status: "queued", runtimeMode: "native", contextSnapshot: { issueId: "task" } },
+    { id: "delivery", spaceId: "space", agentId: "ceo", status: "queued", runtimeMode: "native", contextSnapshot: { issueId: "chat" } },
   );
   runs.push(oldAssignment());
   context.allRuns = async () => runs;

@@ -40,40 +40,40 @@ const indexName = "chat_voice_inbound_cleanup_idx";
       const hash = createHash("sha256").update(content).digest("hex");
       await client`DELETE FROM drizzle.__drizzle_migrations WHERE hash = ${hash}`;
       await client.unsafe(`DROP INDEX ${indexName}`);
-      const [company, otherCompany] = await client`INSERT INTO companies (name, issue_prefix)
+      const [space, otherSpace] = await client`INSERT INTO spaces (name, issue_prefix)
         VALUES ('First', 'VM1'), ('Second', 'VM2') RETURNING id`;
       const agentId = randomUUID(), applicationId = randomUUID(), connectionId = randomUUID(), endpointId = randomUUID();
-      await client`INSERT INTO agents (id, company_id, name, adapter_type) VALUES (${agentId}, ${company.id}, 'Migration voice', 'outpost_runner')`;
-      await client`INSERT INTO tool_applications (id, company_id, name, type) VALUES (${applicationId}, ${company.id}, 'Voice', 'chat')`;
-      await client`INSERT INTO tool_connections (id, company_id, application_id, name, uid, transport, connection_purpose)
-        VALUES (${connectionId}, ${company.id}, ${applicationId}, 'Voice', ${connectionId}, 'voice', 'channel')`;
-      await client`INSERT INTO chat_endpoints (id, company_id, connection_id, assigned_agent_id, provider, public_id, status)
-        VALUES (${endpointId}, ${company.id}, ${connectionId}, ${agentId}, 'speko', ${endpointId}, 'active')`;
+      await client`INSERT INTO agents (id, space_id, name, adapter_type) VALUES (${agentId}, ${space.id}, 'Migration voice', 'outpost_runner')`;
+      await client`INSERT INTO tool_applications (id, space_id, name, type) VALUES (${applicationId}, ${space.id}, 'Voice', 'chat')`;
+      await client`INSERT INTO tool_connections (id, space_id, application_id, name, uid, transport, connection_purpose)
+        VALUES (${connectionId}, ${space.id}, ${applicationId}, 'Voice', ${connectionId}, 'voice', 'channel')`;
+      await client`INSERT INTO chat_endpoints (id, space_id, connection_id, assigned_agent_id, provider, public_id, status)
+        VALUES (${endpointId}, ${space.id}, ${connectionId}, ${agentId}, 'speko', ${endpointId}, 'active')`;
       await client`WITH candidates AS (SELECT gen_random_uuid() AS id FROM generate_series(1, 1005))
-        INSERT INTO chat_voice_inbound_calls (id, company_id, endpoint_id, provider_session_id, state,
+        INSERT INTO chat_voice_inbound_calls (id, space_id, endpoint_id, provider_session_id, state,
           approval_code, generation, credential_fingerprint, tool_token_hash, request_fingerprint, expires_at)
-        SELECT id, ${company.id}, ${endpointId}, 'migration:' || id::text, 'ended', '123456', 1,
+        SELECT id, ${space.id}, ${endpointId}, 'migration:' || id::text, 'ended', '123456', 1,
           'migration', repeat('a', 64), id::text, now() FROM candidates`;
       const nilId = '00000000-0000-0000-0000-000000000000', signed = randomUUID();
-      const denied = randomUUID(), wrongCompany = randomUUID(), wrongAction = randomUUID();
+      const denied = randomUUID(), wrongSpace = randomUUID(), wrongAction = randomUUID();
       const pending = randomUUID(), expired = randomUUID(), confirmed = randomUUID();
       const confirmedAt = new Date('2020-01-01T00:00:00Z');
       const rows = [
         { id: nilId, state: 'ended', actor: null }, { id: signed, state: 'ended', actor: 'approver' },
-        { id: denied, state: 'ended', actor: 'denier' }, { id: wrongCompany, state: 'ended', actor: 'approver' },
+        { id: denied, state: 'ended', actor: 'denier' }, { id: wrongSpace, state: 'ended', actor: 'approver' },
         { id: wrongAction, state: 'ended', actor: 'approver' }, { id: pending, state: 'awaiting_approval', actor: null },
         { id: expired, state: 'expired', actor: null }, { id: confirmed, state: 'ended', actor: null },
-      ].map(row => ({ id: row.id, company_id: company.id, endpoint_id: endpointId,
+      ].map(row => ({ id: row.id, space_id: space.id, endpoint_id: endpointId,
         provider_session_id: `migration:${row.id}`, state: row.state, approved_by_user_id: row.actor,
         approval_code: '123456', generation: 1, credential_fingerprint: 'migration', tool_token_hash: 'a'.repeat(64),
         request_fingerprint: row.id, expires_at: new Date(), cleanup_confirmed_at: row.id === confirmed ? confirmedAt : null }));
-      await client`INSERT INTO chat_voice_inbound_calls ${client(rows, 'id', 'company_id', 'endpoint_id',
+      await client`INSERT INTO chat_voice_inbound_calls ${client(rows, 'id', 'space_id', 'endpoint_id',
         'provider_session_id', 'state', 'approved_by_user_id', 'approval_code', 'generation',
         'credential_fingerprint', 'tool_token_hash', 'request_fingerprint', 'expires_at', 'cleanup_confirmed_at')}`;
-      await client`INSERT INTO activity_log (company_id, actor_id, action, entity_type, entity_id)
-        VALUES (${company.id}, 'migration', 'voice.call.ended', 'voice_inbound_call', ${signed}),
-          (${otherCompany.id}, 'migration', 'voice.call.ended', 'voice_inbound_call', ${wrongCompany}),
-          (${company.id}, 'migration', 'voice.call.requested', 'voice_inbound_call', ${wrongAction})`;
+      await client`INSERT INTO activity_log (space_id, actor_id, action, entity_type, entity_id)
+        VALUES (${space.id}, 'migration', 'voice.call.ended', 'voice_inbound_call', ${signed}),
+          (${otherSpace.id}, 'migration', 'voice.call.ended', 'voice_inbound_call', ${wrongSpace}),
+          (${space.id}, 'migration', 'voice.call.requested', 'voice_inbound_call', ${wrongAction})`;
       await client.unsafe(`CREATE TABLE voice_cleanup_backfill_probe (call_id uuid NOT NULL, transaction_id bigint NOT NULL);
         CREATE FUNCTION record_voice_cleanup_backfill() RETURNS trigger LANGUAGE plpgsql AS $$
         BEGIN INSERT INTO voice_cleanup_backfill_probe VALUES (NEW.id, txid_current()); RETURN NEW; END $$;
@@ -83,7 +83,7 @@ const indexName = "chat_voice_inbound_cleanup_idx";
 
       // A failed unique build deterministically leaves an invalid index under
       // the migration's name, as cancellation does, without timing a cancel.
-      await expect(client.unsafe(`CREATE UNIQUE INDEX CONCURRENTLY ${indexName} ON companies ((true))`)).rejects.toThrow();
+      await expect(client.unsafe(`CREATE UNIQUE INDEX CONCURRENTLY ${indexName} ON spaces ((true))`)).rejects.toThrow();
       const [invalid] = await client`SELECT indisvalid FROM pg_index WHERE indexrelid = ${indexName}::regclass`;
       expect(invalid.indisvalid).toBe(false);
       await Promise.all([applyPendingMigrations(connectionString), applyPendingMigrations(connectionString)]);
@@ -102,9 +102,9 @@ const indexName = "chat_voice_inbound_cleanup_idx";
       ) groups`;
       expect(batch.size).toBeLessThanOrEqual(1000);
       const proof = await client`SELECT id, cleanup_confirmed_at FROM chat_voice_inbound_calls
-        WHERE id = ANY(${[nilId, signed, denied, wrongCompany, wrongAction, pending, expired, confirmed]})`;
+        WHERE id = ANY(${[nilId, signed, denied, wrongSpace, wrongAction, pending, expired, confirmed]})`;
       for (const id of [nilId, signed]) expect(proof.find(row => row.id === id)?.cleanup_confirmed_at).toBeInstanceOf(Date);
-      for (const id of [denied, wrongCompany, wrongAction, pending, expired])
+      for (const id of [denied, wrongSpace, wrongAction, pending, expired])
         expect(proof.find(row => row.id === id)?.cleanup_confirmed_at).toBeNull();
       expect(proof.find(row => row.id === confirmed)?.cleanup_confirmed_at.getTime()).toBe(confirmedAt.getTime());
       await applyPendingMigrations(connectionString);

@@ -4,7 +4,7 @@ import type { ChatEndpointSetupState, ToolCredentialSecretRef } from "@outpost/s
 import { GITHUB_RECOVERY_STATE_KEY, githubRecoveryWindow } from "./webhook-recovery-state.js";
 import type { GitHubWebhookRecoveryScope } from "./webhook-recovery-notifications.js";
 
-export type GitHubWebhookRecoveryDeadline = { id: string; companyId: string; connectionId: string; dueAt: number };
+export type GitHubWebhookRecoveryDeadline = { id: string; spaceId: string; connectionId: string; dueAt: number };
 
 export function githubWebhookRecoverySchedule(db: Db, options: {
   runtimeGeneration(setup: ChatEndpointSetupState): number;
@@ -20,7 +20,7 @@ export function githubWebhookRecoverySchedule(db: Db, options: {
     while (canRun() && !signal?.aborted) {
       const rows = await db.select({ endpoint: chatEndpoints, refs: toolConnections.credentialSecretRefs,
         window: chatSdkState.value }).from(chatEndpoints).innerJoin(toolConnections, and(
-        eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.companyId, chatEndpoints.companyId),
+        eq(toolConnections.id, chatEndpoints.connectionId), eq(toolConnections.spaceId, chatEndpoints.spaceId),
       )).leftJoin(chatSdkState, and(eq(chatSdkState.endpointId, chatEndpoints.id),
         eq(chatSdkState.stateKey, GITHUB_RECOVERY_STATE_KEY))).where(and(
         eq(chatEndpoints.provider, "github"), eq(chatEndpoints.status, "active"),
@@ -29,7 +29,7 @@ export function githubWebhookRecoverySchedule(db: Db, options: {
         eq(toolConnections.enabled, true), eq(toolConnections.status, "active"),
         scope?.kind === "endpoint" ? eq(chatEndpoints.id, scope.id) : undefined,
         scope?.kind === "connection" ? eq(chatEndpoints.connectionId, scope.id) : undefined,
-        scope?.kind === "company" ? eq(chatEndpoints.companyId, scope.id) : undefined,
+        scope?.kind === "space" ? eq(chatEndpoints.spaceId, scope.id) : undefined,
         cursor ? gt(chatEndpoints.id, cursor) : undefined,
       )).orderBy(asc(chatEndpoints.id)).limit(100);
       for (const { endpoint, refs, window } of rows) {
@@ -38,7 +38,7 @@ export function githubWebhookRecoverySchedule(db: Db, options: {
           previous.credentialFingerprint === options.credentialFingerprint(refs) &&
           previous.appId === endpoint.botExternalId &&
           previous.webhookUrl === `${baseUrl}/api/chat-webhooks/${endpoint.publicId}/github`;
-        entries.push({ id: endpoint.id, companyId: endpoint.companyId, connectionId: endpoint.connectionId,
+        entries.push({ id: endpoint.id, spaceId: endpoint.spaceId, connectionId: endpoint.connectionId,
           dueAt: matches ? Date.parse(previous.nextScanAt) : 0 });
       }
       if (rows.length < 100) return entries;

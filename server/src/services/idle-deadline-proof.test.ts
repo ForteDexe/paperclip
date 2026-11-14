@@ -81,26 +81,26 @@ it("plugin jobs require exact quiet catalog/declaration and retain unsettled/mis
   row.job.status = "paused";
   expect(projectIdlePluginJobSchedule([row], [], now)).toMatchObject({ blocked: false, deadlines: [] });
 });
-const trace = (): IdleProviderTraceRow => ({ finishedRun: true, trace: { id: "trace", companyId: "company", runId: "run", status: "complete", traceRef: "s3-segments-v1:company/run/11111111-1111-4111-8111-111111111111.ndjson", expiresAt: new Date(now + 86_400_000), deletedAt: null } as IdleProviderTraceRow["trace"] });
-it("trace expiry transfers actual retained data; capture/import/deletion/cross-company work stays blocked", () => {
+const trace = (): IdleProviderTraceRow => ({ finishedRun: true, trace: { id: "trace", spaceId: "space", runId: "run", status: "complete", traceRef: "s3-segments-v1:space/run/11111111-1111-4111-8111-111111111111.ndjson", expiresAt: new Date(now + 86_400_000), deletedAt: null } as IdleProviderTraceRow["trace"] });
+it("trace expiry transfers actual retained data; capture/import/deletion/cross-space work stays blocked", () => {
   const row = trace(), original = JSON.stringify(row);
   expect(projectIdleProviderTraceSchedule([row], now)).toMatchObject({ blocked: false, deadlines: [now + 86_400_000] });
   expect(JSON.stringify(row)).toBe(original);
-  for (const patch of [{ status: "capturing" }, { traceRef: row.trace.traceRef.replace("s3-segments-v1:", "s3-import-v1:") }, { companyId: "foreign" }, { expiresAt: new Date(now) }, { status: "deleted", deletedAt: new Date(now) }])
+  for (const patch of [{ status: "capturing" }, { traceRef: row.trace.traceRef.replace("s3-segments-v1:", "s3-import-v1:") }, { spaceId: "foreign" }, { expiresAt: new Date(now) }, { status: "deleted", deletedAt: new Date(now) }])
     expect(projectIdleProviderTraceSchedule([{ ...trace(), trace: { ...trace().trace, ...patch } }], now).blocked).toBe(true);
   expect(projectIdleProviderTraceSchedule([{ ...trace(), finishedRun: false }], now).blocked).toBe(true);
   const expired = trace(); expired.trace.status = "expired"; expired.trace.deletedAt = new Date(now); expired.trace.traceRef = "00000000-0000-0000-0000-000000000000.ndjson";
   expect(projectIdleProviderTraceSchedule([expired], now)).toMatchObject({ blocked: false, deadlines: [] });
 });
 type ContinuityRow = Parameters<typeof projectIdleGitHubGrantContinuity>[0][number];
-const github = (): ContinuityRow => ({ companyStatus: "active", connection: { id: "connection", companyId: "company", status: "active", enabled: true, authKind: "oauth", credentialSource: "paperclip_vault", config: { sourceTemplateKey: "github", oauth: { strategy: "paperclip_cloud_connector", connectorProfile: "github.code" } } } as unknown as ContinuityRow["connection"], grant: { id: "grant", companyId: "company", connectionId: "connection", kind: "user", subjectUserId: "user", credentialSecretRefs: [{ configPath: "oauth.access_token", secretId: "secret" }], providerTenant: { oauth: { accessTokenExpiresAt: new Date(now + 8 * 3_600_000).toISOString(), refreshedAt: new Date(now).toISOString() }, github: { userId: "user", installationIds: ["101"], lastAccessRefreshAt: new Date(now).toISOString() } } } as ContinuityRow["grant"] });
+const github = (): ContinuityRow => ({ spaceStatus: "active", connection: { id: "connection", spaceId: "space", status: "active", enabled: true, authKind: "oauth", credentialSource: "outpost_vault", config: { sourceTemplateKey: "github", oauth: { strategy: "outpost_cloud_connector", connectorProfile: "github.code" } } } as unknown as ContinuityRow["connection"], grant: { id: "grant", spaceId: "space", connectionId: "connection", kind: "user", subjectUserId: "user", credentialSecretRefs: [{ configPath: "oauth.access_token", secretId: "secret" }], providerTenant: { oauth: { accessTokenExpiresAt: new Date(now + 8 * 3_600_000).toISOString(), refreshedAt: new Date(now).toISOString() }, github: { userId: "user", installationIds: ["101"], lastAccessRefreshAt: new Date(now).toISOString() } } } as ContinuityRow["grant"] });
 it("GitHub enrollment alone never bypasses its credential continuity deadline or unresolved authority", () => {
   expect(projectIdleGitHubGrantContinuity([github()], now)).toMatchObject({ blocked: false, deadlines: [now + 7 * 3_600_000], connectionIds: ["connection"] });
   const nonexpiring = github(); delete nonexpiring.grant.providerTenant!.oauth;
   expect(projectIdleGitHubGrantContinuity([nonexpiring], now).deadlines).toEqual([now + 30 * 86_400_000]);
   const missing = github(); missing.grant.credentialSecretRefs = [];
   expect(projectIdleGitHubGrantContinuity([missing], now).blocked).toBe(true);
-  const foreign = github(); foreign.grant.companyId = "foreign";
+  const foreign = github(); foreign.grant.spaceId = "foreign";
   expect(projectIdleGitHubGrantContinuity([foreign], now).blocked).toBe(true);
   const expired = github(); expired.grant.providerTenant!.oauth!.accessTokenExpiresAt = new Date(now).toISOString();
   expect(projectIdleGitHubGrantContinuity([expired], now).blocked).toBe(true);
@@ -108,7 +108,7 @@ it("GitHub enrollment alone never bypasses its credential continuity deadline or
 
 
 function timerAgent(index: number): typeof agents.$inferSelect {
-  return { id: `agent-${index}`, companyId: "company", name: "Timer", status: "idle", reportsTo: null,
+  return { id: `agent-${index}`, spaceId: "space", name: "Timer", status: "idle", reportsTo: null,
     adapterType: "codex_local", adapterConfig: {}, runtimeConfig: { heartbeat: { enabled: true, intervalSec: 3600, maxDailyRuns: 1 } },
     createdAt: new Date(now), lastHeartbeatAt: new Date(now) } as unknown as typeof agents.$inferSelect;
 }
@@ -124,9 +124,9 @@ function fixtureDb(tables: Record<string, unknown[]>, onRead: () => void = () =>
   } } as unknown as Pick<Db, "select">;
 }
 it("batches more than128 eligible timers and the old80 run-cap shape within a fixed query budget", async () => {
-  const rows = Array.from({ length: 160 }, (_, i) => ({ agent: timerAgent(i), companyStatus: "active", companyUpdatedAt: new Date(now) }));
+  const rows = Array.from({ length: 160 }, (_, i) => ({ agent: timerAgent(i), spaceStatus: "active", spaceUpdatedAt: new Date(now) }));
   rows.push(...["paused", "terminated", "idle"].map((status, i) => ({ agent: { ...timerAgent(200 + i), status,
-    runtimeConfig: { heartbeat: { enabled: false } } }, companyStatus: "active", companyUpdatedAt: new Date(now) })));
+    runtimeConfig: { heartbeat: { enabled: false } } }, spaceStatus: "active", spaceUpdatedAt: new Date(now) })));
   let reads = 0;
   const tables: Record<string, unknown[]> = { agents: rows };
   const tx = fixtureDb(tables, () => { reads++; });
@@ -146,10 +146,10 @@ it("batches more than128 eligible timers and the old80 run-cap shape within a fi
   expect(reads).toBe(1);
   tables.agents = rows;
   for (const total of [null, "", true, false, "0", NaN, Infinity, -1, 1.5]) {
-    tables.heartbeat_runs = [{ companyId: rows[0].agent.companyId, agentId: rows[0].agent.id, total }];
+    tables.heartbeat_runs = [{ spaceId: rows[0].agent.spaceId, agentId: rows[0].agent.id, total }];
     expect((await readIdleDeadlineProof(tx, hold, options)).blocked).toBe(true);
   }
-  tables.heartbeat_runs = [{ companyId: "foreign", agentId: rows[0].agent.id, total: 0 }];
+  tables.heartbeat_runs = [{ spaceId: "foreign", agentId: rows[0].agent.id, total: 0 }];
   expect((await readIdleDeadlineProof(tx, hold, options)).blocked).toBe(true);
 });
 it("single and batch owner schedules share cap, actionable, UTC and decimal semantics", async () => {
@@ -161,9 +161,9 @@ it("single and batch owner schedules share cap, actionable, UTC and decimal sema
   ]) for (const actionable of [false, true]) for (const runTotal of [0, 2]) for (const cost of ["0.999999", "1.000001"]) {
     const agent = { ...timerAgent(0), runtimeConfig: { heartbeat } };
     const owner = createHeartbeatTimerPolicy(fixtureDb({
-      [getTableName(heartbeatRuns)]: [{ companyId: agent.companyId, agentId: agent.id, total: runTotal }],
-      [getTableName(costEvents)]: [{ companyId: agent.companyId, agentId: agent.id, total: cost }],
-      [getTableName(issues)]: actionable ? [{ companyId: agent.companyId, agentId: agent.id, id: "issue" }] : [],
+      [getTableName(heartbeatRuns)]: [{ spaceId: agent.spaceId, agentId: agent.id, total: runTotal }],
+      [getTableName(costEvents)]: [{ spaceId: agent.spaceId, agentId: agent.id, total: cost }],
+      [getTableName(issues)]: actionable ? [{ spaceId: agent.spaceId, agentId: agent.id, id: "issue" }] : [],
     }));
     const single = await owner.readTimerHeartbeatSchedule(agent, new Date(now));
     const batch = await owner.readTimerHeartbeatSchedules([agent], new Date(now));
@@ -181,7 +181,7 @@ it("checks global suppression even without eligible timers and retains owner org
     }
   }
   const parent = timerAgent(1), child = { ...timerAgent(2), reportsTo: parent.id };
-  const rows = [parent, child].map(agent => ({ agent, companyStatus: "active", companyUpdatedAt: new Date(now) }));
+  const rows = [parent, child].map(agent => ({ agent, spaceStatus: "active", spaceUpdatedAt: new Date(now) }));
   const tx = fixtureDb({ agents: rows });
   expect((await readIdleAgentTimerSchedule(tx, now, {})).blocked).toBe(false);
   parent.status = "paused";
@@ -209,7 +209,7 @@ it("does not turn unrelated GitHub grant shapes into continuity authority", () =
     const malformed = github(); Object.assign(malformed.connection!, patch);
     expect(projectIdleGitHubGrantContinuity([malformed], now).blocked).toBe(true);
   }
-  const persisted = github(); persisted.connection!.config.oauth = { connectorProfile: "github.code", strategy: "paperclip_id_connector" };
+  const persisted = github(); persisted.connection!.config.oauth = { connectorProfile: "github.code", strategy: "outpost_id_connector" };
   expect(projectIdleGitHubGrantContinuity([persisted], now).blocked).toBe(false);
   const agent = github(); agent.grant.kind = "agent"; agent.grant.subjectUserId = null; agent.grant.subjectAgentId = "dedicated-agent";
   expect(projectIdleGitHubGrantContinuity([agent], now).connectionIds).toEqual(["connection"]);

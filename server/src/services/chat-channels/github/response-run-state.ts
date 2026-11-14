@@ -4,7 +4,7 @@ import { chatRunSourceMessageId } from "../run-origin.js";
 
 export const responseRunColumns = {
   id: heartbeatRuns.id,
-  companyId: heartbeatRuns.companyId,
+  spaceId: heartbeatRuns.spaceId,
   agentId: heartbeatRuns.agentId,
   responsibleUserId: heartbeatRuns.responsibleUserId,
   activeIdentityContextId: heartbeatRuns.activeIdentityContextId,
@@ -49,19 +49,19 @@ export const responseRunColumns = {
 };
 /** Shared request ownership and presentation state for delivery and recovery. */
 export async function readGitHubResponseRun(db: Db, input: {
-  companyId: string; endpointId: string; agentId: string; issueId: string | null;
+  spaceId: string; endpointId: string; agentId: string; issueId: string | null;
   deliveryId: string; sourceMessageId: string | null;
 }) {
   const [requestRun] = await db.select({ runId: heartbeatRuns.id }).from(heartbeatRuns).innerJoin(chatMessageLinks, and(
-    eq(chatMessageLinks.companyId, input.companyId), eq(chatMessageLinks.endpointId, input.endpointId),
+    eq(chatMessageLinks.spaceId, input.spaceId), eq(chatMessageLinks.endpointId, input.endpointId),
     eq(chatMessageLinks.deliveryId, input.deliveryId), eq(chatMessageLinks.direction, "inbound"),
     or(sql`${chatMessageLinks.commentId}::text = ${heartbeatRuns.contextSnapshot}->>'wakeCommentId'`,
       sql`coalesce(${heartbeatRuns.contextSnapshot}->'wakeCommentIds', '[]'::jsonb) ? ${chatMessageLinks.commentId}::text`),
-  )).where(and(eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.agentId, input.agentId),
+  )).where(and(eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.agentId, input.agentId),
     sql`coalesce(${heartbeatRuns.nativeIssueId}::text, ${heartbeatRuns.contextSnapshot}->>'issueId') = ${input.issueId}`))
     .orderBy(desc(heartbeatRuns.createdAt)).limit(1);
   const [latestRun] = await db.select(responseRunColumns).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.agentId, input.agentId),
+    eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.agentId, input.agentId),
     sql`coalesce(${heartbeatRuns.nativeIssueId}::text, ${heartbeatRuns.contextSnapshot}->>'issueId') = ${input.issueId}`,
   )).orderBy(desc(heartbeatRuns.createdAt), desc(heartbeatRuns.id)).limit(1);
   const originMessageId = latestRun?.activeIdentityContextId ? await chatRunSourceMessageId(db, latestRun,

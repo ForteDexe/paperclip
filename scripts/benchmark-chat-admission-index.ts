@@ -47,63 +47,63 @@ try {
 
   const loadStart = performance.now();
   // Conversations the inbound actions belong to.
-  await sql.unsafe(`insert into chat_conversations (company_id, endpoint_id, resource_id, issue_id,
+  await sql.unsafe(`insert into chat_conversations (space_id, endpoint_id, resource_id, issue_id,
       external_conversation_id, external_thread_id, external_label)
     select $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'load', 'load-' || g, 'Load' from generate_series(1, 200) g`,
-  [f.companyId, f.endpointId, f.resourceId, f.issueId]);
-  await sql.unsafe(`insert into issues (company_id, title, assignee_agent_id, status)
+  [f.spaceId, f.endpointId, f.resourceId, f.issueId]);
+  await sql.unsafe(`insert into issues (space_id, title, assignee_agent_id, status)
     select $1::uuid, 'Load ' || g, $2::uuid, 'in_progress' from generate_series(1, $3::int) g`,
-  [f.companyId, f.agentId, ISSUES]);
+  [f.spaceId, f.agentId, ISSUES]);
   // Unrelated chat history with wide incompressible payloads (GitHub checks and replies).
-  await sql.unsafe(`insert into chat_actions (company_id, endpoint_id, kind, provider_action_id, status, payload)
+  await sql.unsafe(`insert into chat_actions (space_id, endpoint_id, kind, provider_action_id, status, payload)
     select $1::uuid, $2::uuid, case when g % 2 = 0 then 'github_review_check' else 'github_response_comment' end,
       'other-' || g, 'processed', jsonb_build_object('event', jsonb_build_object('body', ${blob("$3::int")}))
-    from generate_series(1, $4::int) g`, [f.companyId, f.endpointId, OTHER_PAYLOAD_KIB, OTHER_ACTIONS]);
+    from generate_series(1, $4::int) g`, [f.spaceId, f.endpointId, OTHER_PAYLOAD_KIB, OTHER_ACTIONS]);
   // Inbound wakeups: every issue has a history of admitted messages.
   await sql.unsafe(`with i as (select id, row_number() over (order by id) rn from issues
-        where company_id = $1::uuid and title like 'Load %'),
+        where space_id = $1::uuid and title like 'Load %'),
       c as (select id, row_number() over (order by id) - 1 rn from chat_conversations
-        where company_id = $1::uuid and external_conversation_id = 'load')
-    insert into chat_actions (company_id, endpoint_id, conversation_id, kind, provider_action_id, status, payload, created_at)
+        where space_id = $1::uuid and external_conversation_id = 'load')
+    insert into chat_actions (space_id, endpoint_id, conversation_id, kind, provider_action_id, status, payload, created_at)
     select $1::uuid, $2::uuid, c.id, 'inbound_wakeup', 'wake-' || i.rn || '-' || g, 'processed',
       jsonb_build_object('issueId', i.id::text, 'agentId', $3::text, 'sessionGeneration', 1,
         'text', ${blob("$4::int")}), now() - make_interval(secs => g)
     from i join c on c.rn = i.rn % 200, generate_series(1, $5::int) g`,
-  [f.companyId, f.endpointId, f.agentId, WAKEUP_PAYLOAD_KIB, WAKEUPS_PER_ISSUE]);
-  await sql.unsafe(`insert into agent_wakeup_requests (id, company_id, agent_id, source, status)
-    select id, company_id, $2::uuid, 'automation', 'finished' from chat_actions
-    where company_id = $1::uuid and kind = 'inbound_wakeup'`, [f.companyId, f.agentId]);
+  [f.spaceId, f.endpointId, f.agentId, WAKEUP_PAYLOAD_KIB, WAKEUPS_PER_ISSUE]);
+  await sql.unsafe(`insert into agent_wakeup_requests (id, space_id, agent_id, source, status)
+    select id, space_id, $2::uuid, 'automation', 'finished' from chat_actions
+    where space_id = $1::uuid and kind = 'inbound_wakeup'`, [f.spaceId, f.agentId]);
   // Failed-run retries that skipped some older input.
   await sql.unsafe(`with w as (select id, conversation_id, payload->>'issueId' issue_id,
-        row_number() over (order by id) rn from chat_actions where company_id = $1::uuid and kind = 'inbound_wakeup')
-    insert into chat_actions (company_id, endpoint_id, conversation_id, kind, provider_action_id, status, payload)
+        row_number() over (order by id) rn from chat_actions where space_id = $1::uuid and kind = 'inbound_wakeup')
+    insert into chat_actions (space_id, endpoint_id, conversation_id, kind, provider_action_id, status, payload)
     select $1::uuid, $2::uuid, w.conversation_id, 'failed_run_retry', 'retry-' || w.rn, 'processed',
       jsonb_build_object('issueId', w.issue_id, 'agentId', $3::text,
         'taskRetryInput', jsonb_build_object('skippedActionIds', jsonb_build_array(w.id::text)))
-    from w where w.rn <= $4::int`, [f.companyId, f.endpointId, f.agentId, RETRIES]);
-  await sql.unsafe(`insert into agent_wakeup_requests (id, company_id, agent_id, source, status)
-    select id, company_id, $2::uuid, 'automation', 'finished' from chat_actions
-    where company_id = $1::uuid and kind = 'failed_run_retry'`, [f.companyId, f.agentId]);
+    from w where w.rn <= $4::int`, [f.spaceId, f.endpointId, f.agentId, RETRIES]);
+  await sql.unsafe(`insert into agent_wakeup_requests (id, space_id, agent_id, source, status)
+    select id, space_id, $2::uuid, 'automation', 'finished' from chat_actions
+    where space_id = $1::uuid and kind = 'failed_run_retry'`, [f.spaceId, f.agentId]);
 
   // Cases on fresh issues. Each issue has its own conversation slice.
-  const issueRows = await sql.unsafe(`select id from issues where company_id = $1::uuid and title like 'Load %'
-    order by id limit 6`, [f.companyId]);
+  const issueRows = await sql.unsafe(`select id from issues where space_id = $1::uuid and title like 'Load %'
+    order by id limit 6`, [f.spaceId]);
   const [quiet, admitted, unadmitted, supersededFailure, retried, decoyOnly] = issueRows.map(row => row.id as string);
   // Remove the shared history from the quiet issue so it has no chat input.
   await sql.unsafe(`delete from agent_wakeup_requests where id in (select id from chat_actions
     where payload->>'issueId' = $1)`, [quiet]);
   await sql.unsafe(`delete from chat_actions where payload->>'issueId' = $1`, [quiet]);
-  const [conversation] = await sql.unsafe(`select id from chat_conversations where company_id = $1::uuid
-    and external_conversation_id = 'load' order by id limit 1`, [f.companyId]);
+  const [conversation] = await sql.unsafe(`select id from chat_conversations where space_id = $1::uuid
+    and external_conversation_id = 'load' order by id limit 1`, [f.spaceId]);
   const addAction = async (issueId: string, status: string, kind = "inbound_wakeup", extra = {}, at = "now()") =>
-    (await sql.unsafe(`insert into chat_actions (company_id, endpoint_id, conversation_id, kind, provider_action_id,
+    (await sql.unsafe(`insert into chat_actions (space_id, endpoint_id, conversation_id, kind, provider_action_id,
         status, payload, created_at)
       values ($1::uuid, $2::uuid, $3::uuid, $4, gen_random_uuid()::text, $5, $6::jsonb, ${at}) returning id`,
-    [f.companyId, f.endpointId, conversation!.id, kind, status,
+    [f.spaceId, f.endpointId, conversation!.id, kind, status,
       JSON.stringify({ issueId, agentId: f.agentId, sessionGeneration: 1, ...extra })]))[0]!.id as string;
   const admit = (id: string, status = "queued") => sql.unsafe(`insert into agent_wakeup_requests
-    (id, company_id, agent_id, source, status) values ($1::uuid, $2::uuid, $3::uuid, 'automation', $4)`,
-  [id, f.companyId, f.agentId, status]);
+    (id, space_id, agent_id, source, status) values ($1::uuid, $2::uuid, $3::uuid, 'automation', $4)`,
+  [id, f.spaceId, f.agentId, status]);
   await admit(await addAction(admitted, "processing"));
   await addAction(unadmitted, "preparing");
   await addAction(supersededFailure, "failed", "inbound_wakeup", {}, "now() - interval '1 minute'");
@@ -111,31 +111,31 @@ try {
   const skipped = await addAction(retried, "issued");
   await admit(await addAction(retried, "processed", "failed_run_retry",
     { taskRetryInput: { skippedActionIds: [skipped] } }));
-  // Same issue id under another company does not hold this issue.
-  await sql.unsafe(`insert into chat_actions (company_id, endpoint_id, kind, provider_action_id, status, payload)
+  // Same issue id under another space does not hold this issue.
+  await sql.unsafe(`insert into chat_actions (space_id, endpoint_id, kind, provider_action_id, status, payload)
     values ($1::uuid, $2::uuid, 'inbound_wakeup', 'decoy', 'preparing', $3::jsonb)`,
-  [decoy.companyId, decoy.endpointId, JSON.stringify({ issueId: decoyOnly, agentId: decoy.agentId })]);
+  [decoy.spaceId, decoy.endpointId, JSON.stringify({ issueId: decoyOnly, agentId: decoy.agentId })]);
   await sql.unsafe("vacuum analyze");
   const loadMs = performance.now() - loadStart;
   const tableSizes = await sql.unsafe(`select relname as table, n_live_tup::int as rows,
       pg_size_pretty(pg_total_relation_size(relid)) as total_size from pg_stat_user_tables
     where relname in ('chat_actions', 'agent_wakeup_requests', 'issues') order by relname`);
 
-  // Recovery: reconcileStrandedAssignedIssues({ companyId, issueId }) candidate read (where clause as in
+  // Recovery: reconcileStrandedAssignedIssues({ spaceId, issueId }) candidate read (where clause as in
   // server/src/services/recovery/service.ts). Manual start: the held-input check in heartbeat/queue.ts.
-  const recoveryQuery = (issueId: string) => db!.select({ id: issues.id, companyId: issues.companyId,
+  const recoveryQuery = (issueId: string) => db!.select({ id: issues.id, spaceId: issues.spaceId,
     status: issues.status, assigneeAgentId: issues.assigneeAgentId }).from(issues).where(and(
-    eq(issues.companyId, f.companyId), eq(issues.id, issueId), isNull(issues.assigneeUserId),
+    eq(issues.spaceId, f.spaceId), eq(issues.id, issueId), isNull(issues.assigneeUserId),
     inArray(issues.status, ["todo", "in_progress", "in_review"]),
     or(dsql`${issues.assigneeAgentId} is not null`, eq(issues.status, "in_review")),
-    isNull(issues.hiddenAt), not(unadmittedChatWakeupCondition(issues.id, issues.companyId)),
+    isNull(issues.hiddenAt), not(unadmittedChatWakeupCondition(issues.id, issues.spaceId)),
     notExists(db!.select({ id: caseHandoffs.id }).from(caseHandoffs).where(and(
-      eq(caseHandoffs.companyId, issues.companyId), eq(caseHandoffs.issueId, issues.id),
+      eq(caseHandoffs.spaceId, issues.spaceId), eq(caseHandoffs.issueId, issues.id),
       eq(caseHandoffs.destinationKind, "agent"), inArray(caseHandoffs.state, ["awaiting_release", "pending_dispatch"]),
     ))))).toSQL();
   const heldQuery = (issueId: string) => db!.select({ id: issues.id }).from(issues).where(and(
-    eq(issues.id, issueId), eq(issues.companyId, f.companyId),
-    unadmittedChatWakeupCondition(issues.id, issues.companyId))).limit(1).toSQL();
+    eq(issues.id, issueId), eq(issues.spaceId, f.spaceId),
+    unadmittedChatWakeupCondition(issues.id, issues.spaceId))).limit(1).toSQL();
   const cases = { quiet, admitted, unadmitted, supersededFailure, retried, decoyOnly } as Record<string, string>;
   const expectedHeld: Record<string, boolean> = { quiet: false, admitted: false, unadmitted: true,
     supersededFailure: false, retried: false, decoyOnly: false };

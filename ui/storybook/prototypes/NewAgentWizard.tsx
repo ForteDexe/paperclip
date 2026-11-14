@@ -19,13 +19,13 @@ import { OnboardingCard, OnboardingHeading } from "@/components/onboarding/Onboa
 import { Field } from "@/components/agent-config-primitives";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
 import { useDialog } from "@/context/DialogContext";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { agentsApi } from "@/api/agents";
 import type { AdapterEnvironmentTestResult, Agent } from "@outpost/shared";
-import { storybookAgents, storybookHiredAgent } from "../fixtures/paperclipData";
-import { PREVIEW_AGENT_ID, PREVIEW_COMPANY_ID, runtimeTestResult, useNewAgentFixtures, type TestOutcome, type TestState } from "./new-agent-fixtures";
+import { storybookAgents, storybookHiredAgent } from "../fixtures/outpostData";
+import { PREVIEW_AGENT_ID, PREVIEW_SPACE_ID, runtimeTestResult, useNewAgentFixtures, type TestOutcome, type TestState } from "./new-agent-fixtures";
 import { stepMotion } from "@/components/onboarding/onboarding-motion";
 import { models as claudeModels } from "@outpost/adapter-claude-local";
 import { models as codexModels } from "@outpost/adapter-codex-local";
@@ -103,7 +103,7 @@ export function NewAgentWizard({ initialScreen = "name", initialAdapter = null, 
   initialTestState?: TestState; testOutcome?: TestOutcome; testDelayMs?: number;
 }) {
   const { openNewIssue, closeNewIssue } = useDialog();
-  const { setSelectedCompanyId } = useCompany();
+  const { setSelectedSpaceId } = useSpace();
   const queryClient = useQueryClient();
   const [taskCreated, setTaskCreated] = useState<string | null>(null);
   const [testState, setTestState] = useState<TestState>(initialTestState);
@@ -172,16 +172,16 @@ export function NewAgentWizard({ initialScreen = "name", initialAdapter = null, 
   useNewAgentFixtures(previewAgent, testOutcome, testDelayMs, setTaskCreated);
   useEffect(() => () => {
     testRun.current++; closeNewIssue();
-    queryClient.setQueryData<Agent[]>(queryKeys.agents.list(PREVIEW_COMPANY_ID), previous => previous?.filter(agent => agent.id !== PREVIEW_AGENT_ID));
+    queryClient.setQueryData<Agent[]>(queryKeys.agents.list(PREVIEW_SPACE_ID), previous => previous?.filter(agent => agent.id !== PREVIEW_AGENT_ID));
   }, [closeNewIssue, queryClient]);
   async function runTest() {
     if (!validateRuntime()) return;
     const run = ++testRun.current;
     setTestState("running"); setTestResult(null); setError(null);
     try {
-      const result = await agentsApi.testEnvironment(PREVIEW_COMPANY_ID, selected, {
+      const result = await agentsApi.testEnvironment(PREVIEW_SPACE_ID, selected, {
         adapterConfig,
-        environmentId: environment === "Paperclip Sandbox" ? "environment-storybook-sandbox"
+        environmentId: environment === "Outpost Sandbox" ? "environment-storybook-sandbox"
           : environment === "Local machine" ? "environment-storybook-local" : null,
       });
       if (testRun.current !== run) return;
@@ -193,8 +193,8 @@ export function NewAgentWizard({ initialScreen = "name", initialAdapter = null, 
   }
   useEffect(() => { if (initialTestState === "running") void runTest(); }, []);
   function assignTask() {
-    setSelectedCompanyId(PREVIEW_COMPANY_ID);
-    queryClient.setQueryData(queryKeys.agents.list(PREVIEW_COMPANY_ID), [...storybookAgents, previewAgent]);
+    setSelectedSpaceId(PREVIEW_SPACE_ID);
+    queryClient.setQueryData(queryKeys.agents.list(PREVIEW_SPACE_ID), [...storybookAgents, previewAgent]);
     openNewIssue({ assigneeAgentId: PREVIEW_AGENT_ID, status: "todo" });
   }
   const steps: { screen: NewAgentScreen; label: string }[] = [
@@ -215,7 +215,7 @@ export function NewAgentWizard({ initialScreen = "name", initialAdapter = null, 
       {modal ? <>
         <div className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-10">
           <div className="flex items-center justify-between"><div className="flex flex-col gap-1">
-            <h1 className="text-xl font-bold">Agents</h1><p className="text-sm text-muted-foreground">The people behind your company.</p>
+            <h1 className="text-xl font-bold">Agents</h1><p className="text-sm text-muted-foreground">The people behind your space.</p>
           </div>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild><Button><Plus className="size-4" />New agent</Button></DialogTrigger>
@@ -350,7 +350,7 @@ export function NewAgentWizard({ initialScreen = "name", initialAdapter = null, 
             {selected === "kimi_local" && draft.apiKey && <TextField label="Kimi API model name" value={draft.kimiModel} onChange={kimiModel => setDraft({ kimiModel })} placeholder="kimi-for-coding" required />}
           </Section>
           {selected !== "cursor_cloud" && <Section title="Environment">
-            <SelectField label="Environment" hideLabel value={environment} onChange={value => { setEnvironments(previous => ({ ...previous, [selected]: value })); resetTest(); }} options={["Organization default", "Paperclip Sandbox", "Local machine"]} />
+            <SelectField label="Environment" hideLabel value={environment} onChange={value => { setEnvironments(previous => ({ ...previous, [selected]: value })); resetTest(); }} options={["Organization default", "Outpost Sandbox", "Local machine"]} />
           </Section>}
           </fieldset>
           <RuntimeTestCard state={testState} result={testResult} error={error} onTest={() => void runTest()} />

@@ -4,7 +4,7 @@ import { once } from "node:events";
 import { hostname } from "node:os";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, completionContracts, createDb, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
+import { agents, spaces, completionContracts, createDb, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
 import type { NativeExecutionInputV1 } from "@outpost/outpost-runner";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 
@@ -14,7 +14,7 @@ vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => ({
   executeNativeSession: provider.execute,
 }));
 
-import { executePaperclipNativeSession } from "./native-session-executor.js";
+import { executeOutpostNativeSession } from "./native-session-executor.js";
 import { buildNativeCompletionContract } from "./completion-contracts.js";
 import { prepareNativeHeartbeatRun } from "./prepare-native-run.js";
 import { claimNativeSessionResumptions } from "./native-finalization-reconciler.js";
@@ -24,14 +24,14 @@ const EXITED_PID = 4_194_304;
 describe("a scheduled same-run resume reaching the provider runtime", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
 
   beforeAll(async () => {
     temporary = await startEmbeddedPostgresTestDatabase("native-scheduled-resume-continuation-");
     db = createDb(temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Scheduled resume", issuePrefix: "NSR" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Native agent", status: "active",
+    await db.insert(spaces).values({ id: spaceId, name: "Scheduled resume", issuePrefix: "NSR" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Native agent", status: "active",
       adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "test-model" } });
   });
   afterAll(async () => { await temporary?.cleanup(); });
@@ -43,9 +43,9 @@ describe("a scheduled same-run resume reaching the provider runtime", () => {
     failedRelaunch?: boolean; unidentifiedStopRecorded?: boolean; liveRunnerForRun?: boolean }) {
     const issueId = randomUUID();
     const runId = randomUUID();
-    const [issue] = await db.insert(issues).values({ id: issueId, companyId, title: "Resume the lost turn",
+    const [issue] = await db.insert(issues).values({ id: issueId, spaceId, title: "Resume the lost turn",
       status: "in_progress", workMode: "standard", assigneeAgentId: agentId }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running",
+    const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running",
       runtimeMode: "native", nativeIssueId: issueId, invocationSource: "assignment", triggerDetail: "system",
       contextSnapshot: { issueId } }).returning();
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
@@ -53,7 +53,7 @@ describe("a scheduled same-run resume reaching the provider runtime", () => {
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issueId));
     const execution: NativeExecutionInputV1 = {
       schema: "outpost.native-execution-input.v1",
-      binding: { companyId, runId, issueId, agentId, executionWorkspaceId: runId },
+      binding: { spaceId, runId, issueId, agentId, executionWorkspaceId: runId },
       provider: { kind: "codex", model: "test-model" },
       task: { identifier: issueId, title: issue!.title, description: null, prompt: "Continue the work.", workMode: "standard" },
       workspace: { cwd: "/tmp", repoUrl: null, repoRef: null, branchName: null },
@@ -65,11 +65,11 @@ describe("a scheduled same-run resume reaching the provider runtime", () => {
     };
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: execution,
       sessionCheckpoint: { backendKind: "runner", driverKind: "codex_app_server", sessionId: native.normalizedSessionId,
-        identity: { companyId, issueId, runId, agentId, sessionId: native.normalizedSessionId },
+        identity: { spaceId, issueId, runId, agentId, sessionId: native.normalizedSessionId },
         providerSessionId: "provider-thread", cursor: "1", activeTurnId: "lost-turn", pendingRuntimeRequests: [], lineage: [] } },
       ...(options.viaReconciler ? { status: "failed" as const, nativePhase: "retryable_failure" } : {}) })
       .where(eq(heartbeatRuns.id, runId));
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "retryable_failure", attempt: 1,
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "retryable_failure", attempt: 1,
       failureCode: "native_session_interrupted", failureDetail: options.failureDetail });
     const identity = { processPid: EXITED_PID, processGroupId: EXITED_PID, processStartedAt: new Date().toISOString() };
     const events = [
@@ -86,7 +86,7 @@ describe("a scheduled same-run resume reaching the provider runtime", () => {
     let seq = last?.seq ?? 0;
     for (const event of events) {
       seq += 1;
-      await db.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq, eventType: event.eventType,
+      await db.insert(heartbeatRunEvents).values({ spaceId, runId, agentId, seq, eventType: event.eventType,
         stream: "system", level: "info", payload: event.payload });
     }
     await db.update(heartbeatRuns).set({ nextEventSeq: seq + 1 }).where(eq(heartbeatRuns.id, runId));
@@ -104,7 +104,7 @@ describe("a scheduled same-run resume reaching the provider runtime", () => {
       expect(claims).toEqual([expect.objectContaining({ runId })]);
       leaseOwner = claims[0]!.leaseOwner;
     }
-    await executePaperclipNativeSession({ db, execution, runnerInstanceId: native.runnerInstanceId, leaseOwner, backend: {
+    await executeOutpostNativeSession({ db, execution, runnerInstanceId: native.runnerInstanceId, leaseOwner, backend: {
       descriptor: async () => { throw new Error("Unexpected provider call"); },
       openSession: async () => { throw new Error("Unexpected provider call"); },
     } }).catch(() => undefined).finally(() => { liveRunner?.kill("SIGKILL"); });

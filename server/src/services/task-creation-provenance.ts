@@ -21,26 +21,26 @@ const MAX_QUERIES = 32;
 const taskReference = (run: { nativeIssueId?: string | null; issueId?: string | null; contextSnapshot?: Record<string, unknown> | null }) =>
   run.nativeIssueId ?? run.issueId ?? run.contextSnapshot?.issueId ?? run.contextSnapshot?.taskId ?? run.contextSnapshot?.taskKey;
 
-export async function authenticateWebhookCreationRun(db: Db, companyId: string, token?: string | null) {
+export async function authenticateWebhookCreationRun(db: Db, spaceId: string, token?: string | null) {
   if (token == null) return null;
   const claims = verifyLocalAgentJwt(token.trim(), { strictRunAuthority: true });
-  if (!claims || claims.company_id !== companyId || !isUuidLike(claims.run_id) || !isUuidLike(claims.sub)) throw unauthorized();
-  return validateCreationRun(db, companyId, claims.sub, claims.run_id);
+  if (!claims || claims.space_id !== spaceId || !isUuidLike(claims.run_id) || !isUuidLike(claims.sub)) throw unauthorized();
+  return validateCreationRun(db, spaceId, claims.sub, claims.run_id);
 }
 
-export async function validateCreationRun(db: Db, companyId: string, agentId: string, runId: string) {
+export async function validateCreationRun(db: Db, spaceId: string, agentId: string, runId: string) {
   if (!isUuidLike(runId)) throw unauthorized();
   const [run] = await db.select({ id: heartbeatRuns.id, status: heartbeatRuns.status,
     resultJson: sql<Record<string, unknown>>`jsonb_build_object('executionCancellation', ${heartbeatRuns.resultJson}->'executionCancellation')`,
     agentStatus: agents.status,
-  }).from(heartbeatRuns).innerJoin(agents, and(eq(agents.id, heartbeatRuns.agentId), eq(agents.companyId, companyId)))
-    .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, agentId)));
+  }).from(heartbeatRuns).innerJoin(agents, and(eq(agents.id, heartbeatRuns.agentId), eq(agents.spaceId, spaceId)))
+    .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.agentId, agentId)));
   if (!run || run.status !== "running" || agentRunWritesRevoked(run)
     || run.agentStatus === "terminated" || run.agentStatus === "pending_approval") throw unauthorized();
   return run.id;
 }
 
-export async function readTaskCreationProvenance(db: Db, companyId: string, taskId: string | null, deadlineAt = Infinity): Promise<TaskCreationProvenance> {
+export async function readTaskCreationProvenance(db: Db, spaceId: string, taskId: string | null, deadlineAt = Infinity): Promise<TaskCreationProvenance> {
   if (!taskId || !isUuidLike(taskId)) return unknownTaskCreationProvenance();
   let queries = 0;
   const read = async <T>(query: () => PromiseLike<T>): Promise<T | null> => {
@@ -65,12 +65,12 @@ export async function readTaskCreationProvenance(db: Db, companyId: string, task
     const tasks = await read(() => db.select({ id: issues.id, parentId: issues.parentId, originIssueId: issues.originIssueId,
       originKind: issues.originKind, originRunId: issues.originRunId, createdByAgentId: issues.createdByAgentId,
       visibility: issues.visibility, privacyRootIssueId: issues.privacyRootIssueId, projectId: issues.projectId,
-    }).from(issues).where(and(eq(issues.companyId, companyId), inArray(issues.id, batch))));
+    }).from(issues).where(and(eq(issues.spaceId, spaceId), inArray(issues.id, batch))));
     if (!tasks) { complete = false; break; }
     if (tasks.length !== batch.length) complete = false;
     const projectIds = [...new Set(tasks.flatMap(task => task.projectId ? [task.projectId] : []))];
     const publicProjects = projectIds.length ? await read(() => db.select({ id: projects.id }).from(projects)
-      .where(and(eq(projects.companyId, companyId), inArray(projects.id, projectIds), eq(projects.visibility, "open")))) : [];
+      .where(and(eq(projects.spaceId, spaceId), inArray(projects.id, projectIds), eq(projects.visibility, "open")))) : [];
     if (!publicProjects) { complete = false; break; }
     const publicProjectIds = new Set(publicProjects.map(project => project.id));
     for (const task of tasks) {
@@ -85,13 +85,13 @@ export async function readTaskCreationProvenance(db: Db, companyId: string, task
     const originIds = [...new Set(tasks.flatMap(task => task.originRunId && isUuidLike(task.originRunId) ? [task.originRunId] : []))];
     const receipts = originIds.length ? await read(() => db.select({ id: routineRuns.id, routineId: routineRuns.routineId,
       linkedIssueId: routineRuns.linkedIssueId, createdByRunId: routineRuns.createdByRunId, source: routineRuns.source,
-    }).from(routineRuns).where(and(eq(routineRuns.companyId, companyId), inArray(routineRuns.id, originIds)))) : [];
+    }).from(routineRuns).where(and(eq(routineRuns.spaceId, spaceId), inArray(routineRuns.id, originIds)))) : [];
     if (!receipts) { complete = false; break; }
     const receiptMap = new Map(receipts.map(receipt => [receipt.id, receipt]));
     const creators: Array<{ taskId: string; runId: string; agentId: string | null }> = [];
     const legacyTasks = tasks.filter(task => !task.originRunId && task.createdByAgentId);
     const events = legacyTasks.length ? await read(() => db.select({ taskId: activityLog.entityId, runId: activityLog.runId }).from(activityLog)
-      .where(and(eq(activityLog.companyId, companyId), eq(activityLog.entityType, "issue"),
+      .where(and(eq(activityLog.spaceId, spaceId), eq(activityLog.entityType, "issue"),
         inArray(activityLog.entityId, legacyTasks.map(task => task.id)), inArray(activityLog.action, ["issue.created", "issue.child_created"])))) : [];
     if (!events) { complete = false; break; }
     for (const task of tasks) {
@@ -116,12 +116,12 @@ export async function readTaskCreationProvenance(db: Db, companyId: string, task
       nativeIssueId: heartbeatRuns.nativeIssueId, issueId: heartbeatRuns.issueId,
       contextSnapshot: sql<Record<string, unknown>>`jsonb_build_object('issueId', ${heartbeatRuns.contextSnapshot}->'issueId',
         'taskId', ${heartbeatRuns.contextSnapshot}->'taskId', 'taskKey', ${heartbeatRuns.contextSnapshot}->'taskKey')`,
-    }).from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), inArray(heartbeatRuns.id, creatorIds)))) : [];
+    }).from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), inArray(heartbeatRuns.id, creatorIds)))) : [];
     if (!runs) { complete = false; break; }
     const runMap = new Map(runs.map(run => [run.id, run]));
     const identifiers = [...new Set(runs.map(taskReference).filter((ref): ref is string => typeof ref === "string" && !isUuidLike(ref)))];
     const identified = identifiers.length ? await read(() => db.select({ id: issues.id, identifier: issues.identifier }).from(issues)
-      .where(and(eq(issues.companyId, companyId), inArray(issues.identifier, identifiers)))) : [];
+      .where(and(eq(issues.spaceId, spaceId), inArray(issues.identifier, identifiers)))) : [];
     if (!identified) { complete = false; break; }
     const taskIds = new Map(identified.map(task => [task.identifier, task.id]));
     for (const creator of creators) {

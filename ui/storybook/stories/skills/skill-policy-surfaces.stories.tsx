@@ -9,7 +9,7 @@ function policyDenial() {
     new ApiError("denied", 403, {
       code: "skill_policy_denied",
       reason: "explicit_rule",
-      remediation: "A company administrator can change the skill policy to allow this.",
+      remediation: "A space administrator can change the skill policy to allow this.",
     }),
     "Installing external skills",
   )!;
@@ -45,7 +45,7 @@ const meta = {
           "Core Skill Studio permission surfaces. No permission chrome under the open default; an actionable denial banner appears only for explicit policy or platform-safety failures.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "skills/policy"
       ],

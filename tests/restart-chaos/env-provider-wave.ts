@@ -123,7 +123,7 @@ async function runWave(options: WaveOptions, waveDir: string, timeline: Timeline
         runs: [], activeRecoveryActions: [], recoveryReads: 0, recoveryReadFailures: 0, rested: null, retryClicked: false, finalStatus: null, briefOk: null };
       records.push(record);
       try {
-        const issue = await api.post<Json>(`/api/companies/${lab.companyId}/issues`, { title: `Chaos ${options.fault} ${nonce}`,
+        const issue = await api.post<Json>(`/api/spaces/${lab.spaceId}/issues`, { title: `Chaos ${options.fault} ${nonce}`,
           description: a1.description(nonce), status: "todo", priority: "medium", assigneeAgentId: lab.agents[adapter].id, projectId: lab.projectId });
         record.issueId = String(issue.id);
         timeline.add("ep_launched", { taskId: record.taskId, issueId: record.issueId, adapter });

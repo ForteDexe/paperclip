@@ -15,7 +15,7 @@ import {
   chatIdentityLinks,
   chatMessageLinks,
   chatPublications,
-  companyMemberships,
+  spaceMemberships,
   heartbeatRuns,
   issueAttachments,
   issueComments,
@@ -45,22 +45,22 @@ import { readPreservedNativeResultFinalization } from "./preserved-native-result
 // saved provider profiles, or run output. Keep the nested wake proof narrow too.
 const responseWaitContextKeys = ["source", "issueId", "wakeReason", "wakeCommentId", "wakeCommentIds",
   "interactionId", "interactionKind", "interactionStatus", "sourceRunId", "sourceCommentId",
-  "externalChatContinuation", "paperclipExternalChatQuestionResponse", "paperclipHarnessCheckedOut",
-  "paperclipExternalChatExecutionBound"] as const;
+  "externalChatContinuation", "outpostExternalChatQuestionResponse", "outpostHarnessCheckedOut",
+  "outpostExternalChatExecutionBound"] as const;
 const responseWaitRun = {
-  id: heartbeatRuns.id, companyId: heartbeatRuns.companyId, agentId: heartbeatRuns.agentId,
+  id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId, agentId: heartbeatRuns.agentId,
   nativeIssueId: heartbeatRuns.nativeIssueId, issueId: heartbeatRuns.issueId, status: heartbeatRuns.status,
   responsibleUserId: heartbeatRuns.responsibleUserId, activeIdentityContextId: heartbeatRuns.activeIdentityContextId,
   contextSnapshot: sql<Record<string, unknown> | null>`case when jsonb_typeof(${heartbeatRuns.contextSnapshot}) = 'object'
     then (select coalesce(jsonb_object_agg(field.key, field.value), '{}'::jsonb)
       from jsonb_each(${heartbeatRuns.contextSnapshot}) as field(key, value)
       where field.key in (${sql.join(responseWaitContextKeys.map(key => sql`${key}`), sql`, `)}))
-      || jsonb_build_object('paperclipWake', jsonb_build_object(
-        'checkedOutByHarness', ${heartbeatRuns.contextSnapshot}#>'{paperclipWake,checkedOutByHarness}',
-        'externalChatExecutionBound', ${heartbeatRuns.contextSnapshot}#>'{paperclipWake,externalChatExecutionBound}',
-        'externalChatProvider', ${heartbeatRuns.contextSnapshot}#>'{paperclipWake,externalChatProvider}',
-        'issue', jsonb_build_object('id', ${heartbeatRuns.contextSnapshot}#>'{paperclipWake,issue,id}'),
-        'commentIds', ${heartbeatRuns.contextSnapshot}#>'{paperclipWake,commentIds}'))
+      || jsonb_build_object('outpostWake', jsonb_build_object(
+        'checkedOutByHarness', ${heartbeatRuns.contextSnapshot}#>'{outpostWake,checkedOutByHarness}',
+        'externalChatExecutionBound', ${heartbeatRuns.contextSnapshot}#>'{outpostWake,externalChatExecutionBound}',
+        'externalChatProvider', ${heartbeatRuns.contextSnapshot}#>'{outpostWake,externalChatProvider}',
+        'issue', jsonb_build_object('id', ${heartbeatRuns.contextSnapshot}#>'{outpostWake,issue,id}'),
+        'commentIds', ${heartbeatRuns.contextSnapshot}#>'{outpostWake,commentIds}'))
     else null end`,
 };
 
@@ -123,7 +123,7 @@ export const REUSE_CHAT_ATTACHMENT_TOOL_DEFINITION = Object.freeze({
 });
 
 export type ChatReuseBinding = {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId: string;
   agentId: string;
@@ -142,7 +142,7 @@ export type ExternalChatResponseWaitAuthorization =
 type AuthorizationLockMode = "blocking" | "nonblocking" | "read";
 
 type AuthorizationEndpoint = Pick<typeof chatEndpoints.$inferSelect,
-  "id" | "companyId" | "provider" | "providerAccountId" | "status" | "setup"
+  "id" | "spaceId" | "provider" | "providerAccountId" | "status" | "setup"
   | "allowDirectMessages" | "allowGroupChats" | "allowUnlinkedPeople" | "sponsorUserId"
 >;
 type AuthorizationConversation = Pick<typeof chatConversations.$inferSelect,
@@ -154,7 +154,7 @@ type AuthorizationResource = Pick<typeof chatEndpointResources.$inferSelect,
 
 class ExternalChatWaitAuthorizationContentionError extends Error {
   constructor() {
-    super("paperclip_external_chat_wait_authorization_contended");
+    super("outpost_external_chat_wait_authorization_contended");
     this.name = "ExternalChatWaitAuthorizationContentionError";
   }
 }
@@ -372,11 +372,11 @@ async function principalAuthorized(
 ): Promise<boolean> {
   if (lockMode === "blocking") {
     await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`chat-identity:${endpoint.companyId}:${principalId}`}, 0))`,
+      sql`select pg_advisory_xact_lock(hashtextextended(${`chat-identity:${endpoint.spaceId}:${principalId}`}, 0))`,
     );
   } else if (lockMode === "nonblocking") {
     const [lock] = (await tx.execute(
-      sql`select pg_try_advisory_xact_lock(hashtextextended(${`chat-identity:${endpoint.companyId}:${principalId}`}, 0)) as acquired`,
+      sql`select pg_try_advisory_xact_lock(hashtextextended(${`chat-identity:${endpoint.spaceId}:${principalId}`}, 0)) as acquired`,
     )) as unknown as Array<{ acquired: boolean }>;
     if (!lock?.acquired) {
       throw new ExternalChatWaitAuthorizationContentionError();
@@ -388,7 +388,7 @@ async function principalAuthorized(
     .where(
       and(
         eq(chatExternalPrincipals.id, principalId),
-        eq(chatExternalPrincipals.companyId, endpoint.companyId),
+        eq(chatExternalPrincipals.spaceId, endpoint.spaceId),
         eq(chatExternalPrincipals.provider, endpoint.provider),
         eq(
           chatExternalPrincipals.providerAccountId,
@@ -405,7 +405,7 @@ async function principalAuthorized(
   if (endpoint.provider === "speko") {
     try {
       await voiceSessionStore(tx, { allowLocalBoard: loadConfig().deploymentMode === "local_trusted", nonblockingAuthority: lockMode === "nonblocking" })
-        .authorizePrincipal(tx as unknown as VoiceTransaction, endpoint.companyId, endpoint.id, principal.externalId);
+        .authorizePrincipal(tx as unknown as VoiceTransaction, endpoint.spaceId, endpoint.id, principal.externalId);
       return true;
     } catch (error) {
       if (error instanceof HttpError && [403, 404].includes(error.status)) return false;
@@ -415,12 +415,12 @@ async function principalAuthorized(
   const linkQuery = tx
     .select({
       status: chatIdentityLinks.status,
-      userId: chatIdentityLinks.paperclipUserId,
+      userId: chatIdentityLinks.outpostUserId,
     })
     .from(chatIdentityLinks)
     .where(
       and(
-        eq(chatIdentityLinks.companyId, endpoint.companyId),
+        eq(chatIdentityLinks.spaceId, endpoint.spaceId),
         eq(chatIdentityLinks.endpointId, endpoint.id),
         eq(chatIdentityLinks.principalId, principalId),
       ),
@@ -433,15 +433,15 @@ async function principalAuthorized(
   const activeMember = async (userId: string) => {
     const membershipQuery = tx
       .select({
-        status: companyMemberships.status,
-        role: companyMemberships.membershipRole,
+        status: spaceMemberships.status,
+        role: spaceMemberships.membershipRole,
       })
-      .from(companyMemberships)
+      .from(spaceMemberships)
       .where(
         and(
-          eq(companyMemberships.companyId, endpoint.companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, userId),
+          eq(spaceMemberships.spaceId, endpoint.spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, userId),
         ),
       );
     const [membership] = await (lockMode === "read"
@@ -467,7 +467,7 @@ const boundRunLinkFields = {
   },
   endpoint: {
     id: chatEndpoints.id,
-    companyId: chatEndpoints.companyId,
+    spaceId: chatEndpoints.spaceId,
     provider: chatEndpoints.provider,
     providerAccountId: chatEndpoints.providerAccountId,
     status: chatEndpoints.status,
@@ -491,7 +491,7 @@ const boundRunLinkFields = {
 };
 
 /** The one join and policy filter for the inbound messages of a bound run.
- * The caller adds the run's company, comments, issue, provider and agent. */
+ * The caller adds the run's space, comments, issue, provider and agent. */
 function boundRunLinksQuery<T extends SelectedFields>(
   tx: Db,
   extraFields: T,
@@ -504,7 +504,7 @@ function boundRunLinksQuery<T extends SelectedFields>(
       chatDeliveries,
       and(
         eq(chatDeliveries.id, chatMessageLinks.deliveryId),
-        eq(chatDeliveries.companyId, chatMessageLinks.companyId),
+        eq(chatDeliveries.spaceId, chatMessageLinks.spaceId),
         eq(chatDeliveries.endpointId, chatMessageLinks.endpointId),
         eq(chatDeliveries.conversationId, chatMessageLinks.conversationId),
       ),
@@ -513,7 +513,7 @@ function boundRunLinksQuery<T extends SelectedFields>(
       chatConversations,
       and(
         eq(chatConversations.id, chatMessageLinks.conversationId),
-        eq(chatConversations.companyId, chatMessageLinks.companyId),
+        eq(chatConversations.spaceId, chatMessageLinks.spaceId),
         eq(chatConversations.endpointId, chatMessageLinks.endpointId),
       ),
     )
@@ -521,7 +521,7 @@ function boundRunLinksQuery<T extends SelectedFields>(
       chatEndpoints,
       and(
         eq(chatEndpoints.id, chatConversations.endpointId),
-        eq(chatEndpoints.companyId, chatConversations.companyId),
+        eq(chatEndpoints.spaceId, chatConversations.spaceId),
       ),
     )
     .where(
@@ -537,7 +537,7 @@ function boundRunLinksQuery<T extends SelectedFields>(
 
 function prepareBoundRunLinks(tx: Db, lockMode: AuthorizationLockMode) {
   const linksQuery = boundRunLinksQuery(tx, {}, and(
-    eq(chatMessageLinks.companyId, sql.placeholder("companyId")),
+    eq(chatMessageLinks.spaceId, sql.placeholder("spaceId")),
     sql`${chatMessageLinks.commentId} = any(${sql.placeholder("commentIds")}::uuid[])`,
     eq(chatConversations.issueId, sql.placeholder("issueId")),
     eq(chatEndpoints.provider, sql.placeholder("provider")),
@@ -596,8 +596,8 @@ async function boundRunAuthorizationRequest(
   const commentIds = wakeCommentIds(context);
   if (
     !provider ||
-    (context.paperclipHarnessCheckedOut !== true &&
-      context.paperclipExternalChatExecutionBound !== true) ||
+    (context.outpostHarnessCheckedOut !== true &&
+      context.outpostExternalChatExecutionBound !== true) ||
     commentIds.length === 0
   ) {
     throw new Error("outpost_runner_chat_attachment_binding_denied");
@@ -612,7 +612,7 @@ type BoundRunPolicyReads = {
 
 function boundRunPolicyReads(
   tx: Db,
-  companyId: string,
+  spaceId: string,
   lockMode: AuthorizationLockMode,
 ): BoundRunPolicyReads {
   return {
@@ -627,7 +627,7 @@ function boundRunPolicyReads(
         .where(
           and(
             eq(chatEndpointResources.id, resourceId),
-            eq(chatEndpointResources.companyId, companyId),
+            eq(chatEndpointResources.spaceId, spaceId),
             eq(chatEndpointResources.endpointId, endpoint.id),
           ),
         );
@@ -713,31 +713,31 @@ export async function authorizeChatConversationForBoundRun(
     tx, binding, contextSnapshot, lockMode,
   );
   const links = await boundRunLinksTemplate(tx, lockMode).execute({
-    companyId: binding.companyId,
+    spaceId: binding.spaceId,
     issueId: binding.issueId,
     agentId: binding.agentId,
     provider,
     commentIds,
   });
   return authorizeBoundRunLinks(
-    links, commentIds, boundRunPolicyReads(tx, binding.companyId, lockMode),
+    links, commentIds, boundRunPolicyReads(tx, binding.spaceId, lockMode),
   );
 }
 
 /**
  * The read mode of `authorizeChatConversationForBoundRun` for several runs of
- * one company. One statement reads the inbound messages of all the runs, and
+ * one space. One statement reads the inbound messages of all the runs, and
  * the runs share their resource and principal reads. Each run gets the same
  * outcome as a separate read-mode call: its conversation, or null for a
  * policy denial. Other errors are thrown. This takes no locks.
  */
 export async function authorizeChatConversationsForBoundRuns(
   db: Db,
-  companyId: string,
+  spaceId: string,
   runs: Array<{ binding: ChatReuseBinding; contextSnapshot: unknown }>,
 ): Promise<Array<AuthorizedConversation | null>> {
-  if (runs.some((run) => run.binding.companyId !== companyId)) {
-    throw new Error("outpost_runner_chat_authorization_batch_company_mismatch");
+  if (runs.some((run) => run.binding.spaceId !== spaceId)) {
+    throw new Error("outpost_runner_chat_authorization_batch_space_mismatch");
   }
   const deniedAsNull = (error: unknown) => {
     if (isBoundChatAuthorizationDenial(error)) return null;
@@ -755,13 +755,13 @@ export async function authorizeChatConversationsForBoundRuns(
     issueId: chatConversations.issueId,
     assignedAgentId: chatEndpoints.assignedAgentId,
   }, and(
-    eq(chatMessageLinks.companyId, companyId),
+    eq(chatMessageLinks.spaceId, spaceId),
     sql`${chatMessageLinks.commentId} = any(${sql.param(unique(pending.flatMap((run) => run.commentIds)))}::uuid[])`,
     sql`${chatConversations.issueId} = any(${sql.param(unique(pending.map((run) => run.binding.issueId)))}::uuid[])`,
     sql`${chatEndpoints.provider} = any(${sql.param(unique(pending.map((run) => run.provider)))}::text[])`,
     sql`${chatEndpoints.assignedAgentId} = any(${sql.param(unique(pending.map((run) => run.binding.agentId)))}::uuid[])`,
   )!);
-  const reads = sharedBoundRunPolicyReads(boundRunPolicyReads(db, companyId, "read"));
+  const reads = sharedBoundRunPolicyReads(boundRunPolicyReads(db, spaceId, "read"));
   return Promise.all(requests.map(async (request, index) => {
     if (!request) return null;
     const { binding } = runs[index]!;
@@ -784,7 +784,7 @@ function externalChatWaitCandidate(
   const source = typeof context.source === "string" ? context.source : "";
   const provider = boundExternalChatProvider(source);
   const commentIds = wakeCommentIds(context);
-  const wake = record(context.paperclipWake);
+  const wake = record(context.outpostWake);
   const wakeIssue = record(wake.issue);
   const payloadCommentIds = Array.isArray(wake.commentIds)
     ? wake.commentIds.filter(
@@ -795,9 +795,9 @@ function externalChatWaitCandidate(
   if (
     !provider ||
     !(
-      (context.paperclipHarnessCheckedOut === true &&
+      (context.outpostHarnessCheckedOut === true &&
         wake.checkedOutByHarness === true) ||
-      (context.paperclipExternalChatExecutionBound === true &&
+      (context.outpostExternalChatExecutionBound === true &&
         wake.externalChatExecutionBound === true)
     ) ||
     commentIds.length === 0 ||
@@ -834,7 +834,7 @@ export async function resolveExternalChatResponseWaitAuthorizationInTransaction(
     .where(
       and(
         eq(issues.id, binding.issueId),
-        eq(issues.companyId, binding.companyId),
+        eq(issues.spaceId, binding.spaceId),
       ),
     );
   const [issue] = await (lockMode === "read"
@@ -849,7 +849,7 @@ export async function resolveExternalChatResponseWaitAuthorizationInTransaction(
     .where(
       and(
         eq(heartbeatRuns.id, binding.runId),
-        eq(heartbeatRuns.companyId, binding.companyId),
+        eq(heartbeatRuns.spaceId, binding.spaceId),
         eq(heartbeatRuns.agentId, binding.agentId),
         eq(heartbeatRuns.nativeIssueId, binding.issueId),
         eq(heartbeatRuns.runtimeMode, "native"),
@@ -872,7 +872,7 @@ export async function resolveExternalChatResponseWaitAuthorizationInTransaction(
   if (
     run &&
     record(run.contextSnapshot).source === "issue.interaction.respond" &&
-    record(run.contextSnapshot).paperclipExternalChatQuestionResponse &&
+    record(run.contextSnapshot).outpostExternalChatQuestionResponse &&
     !answerContext
   )
     return "revoked";
@@ -890,7 +890,7 @@ export async function resolveExternalChatResponseWaitAuthorizationInTransaction(
     .where(
       and(
         eq(agents.id, binding.agentId),
-        eq(agents.companyId, binding.companyId),
+        eq(agents.spaceId, binding.spaceId),
       ),
     );
   const [actor] = await (lockMode === "read"
@@ -925,7 +925,7 @@ export async function resolveExternalChatResponseWaitAuthorizationInTransaction(
       chatDeliveries,
       and(
         eq(chatDeliveries.id, chatMessageLinks.deliveryId),
-        eq(chatDeliveries.companyId, chatMessageLinks.companyId),
+        eq(chatDeliveries.spaceId, chatMessageLinks.spaceId),
         eq(chatDeliveries.endpointId, chatMessageLinks.endpointId),
         eq(chatDeliveries.conversationId, chatMessageLinks.conversationId),
       ),
@@ -934,7 +934,7 @@ export async function resolveExternalChatResponseWaitAuthorizationInTransaction(
       chatConversations,
       and(
         eq(chatConversations.id, chatMessageLinks.conversationId),
-        eq(chatConversations.companyId, chatMessageLinks.companyId),
+        eq(chatConversations.spaceId, chatMessageLinks.spaceId),
         eq(chatConversations.endpointId, chatMessageLinks.endpointId),
       ),
     )
@@ -942,12 +942,12 @@ export async function resolveExternalChatResponseWaitAuthorizationInTransaction(
       chatEndpoints,
       and(
         eq(chatEndpoints.id, chatConversations.endpointId),
-        eq(chatEndpoints.companyId, chatConversations.companyId),
+        eq(chatEndpoints.spaceId, chatConversations.spaceId),
       ),
     )
     .where(
       and(
-        eq(chatMessageLinks.companyId, binding.companyId),
+        eq(chatMessageLinks.spaceId, binding.spaceId),
         eq(chatMessageLinks.direction, "inbound"),
         inArray(chatMessageLinks.commentId, candidate.commentIds),
         eq(chatDeliveries.state, "processed"),
@@ -1021,7 +1021,7 @@ export async function readPublishedGitHubReviewCompletionContinuationInTransacti
   tx: Db, binding: ChatReuseBinding, lockMode: AuthorizationLockMode = "read",
 ) {
   const [run] = await tx.select(responseWaitRun).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.companyId, binding.companyId),
+    eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.spaceId, binding.spaceId),
     eq(heartbeatRuns.agentId, binding.agentId), eq(heartbeatRuns.nativeIssueId, binding.issueId),
     eq(heartbeatRuns.runtimeMode, "native"),
   )).limit(1);
@@ -1031,7 +1031,7 @@ export async function readPublishedGitHubReviewCompletionContinuationInTransacti
   if (wait.reviewRunId !== run.id) {
     const [identity] = await tx.select({ cause: runIdentityContexts.cause, parentContextId: runIdentityContexts.parentContextId })
       .from(runIdentityContexts).where(and(eq(runIdentityContexts.id, run.activeIdentityContextId!),
-        eq(runIdentityContexts.companyId, run.companyId), eq(runIdentityContexts.runId, run.id),
+        eq(runIdentityContexts.spaceId, run.spaceId), eq(runIdentityContexts.runId, run.id),
         eq(runIdentityContexts.status, "accepted"))).limit(1);
     const resumed = run.contextSnapshot?.source === "issue.tree_resume" && identity?.cause === "issue_tree_resumed" &&
       Boolean(identity.parentContextId);
@@ -1066,14 +1066,14 @@ async function sourceLineageExists(
       chatDeliveries,
       and(
         eq(chatDeliveries.id, chatMessageLinks.deliveryId),
-        eq(chatDeliveries.companyId, chatMessageLinks.companyId),
+        eq(chatDeliveries.spaceId, chatMessageLinks.spaceId),
         eq(chatDeliveries.endpointId, chatMessageLinks.endpointId),
         eq(chatDeliveries.conversationId, chatMessageLinks.conversationId),
       ),
     )
     .where(
       and(
-        eq(chatMessageLinks.companyId, binding.companyId),
+        eq(chatMessageLinks.spaceId, binding.spaceId),
         eq(chatMessageLinks.endpointId, conversation.endpointId),
         eq(chatMessageLinks.conversationId, conversation.conversationId),
         eq(chatMessageLinks.direction, "inbound"),
@@ -1088,7 +1088,7 @@ async function sourceLineageExists(
       .from(chatDeliveries)
       .where(
         and(
-          eq(chatDeliveries.companyId, binding.companyId),
+          eq(chatDeliveries.spaceId, binding.spaceId),
           eq(chatDeliveries.endpointId, conversation.endpointId),
           eq(chatDeliveries.conversationId, conversation.conversationId),
           inArray(chatDeliveries.eventKind, [
@@ -1112,7 +1112,7 @@ async function sourceLineageExists(
     .from(chatPublications)
     .where(
       and(
-        eq(chatPublications.companyId, binding.companyId),
+        eq(chatPublications.spaceId, binding.spaceId),
         eq(chatPublications.endpointId, conversation.endpointId),
         eq(chatPublications.conversationId, conversation.conversationId),
         eq(chatPublications.issueId, binding.issueId),
@@ -1133,7 +1133,7 @@ async function sourceLineageExists(
       .from(chatDeliveries)
       .where(
         and(
-          eq(chatDeliveries.companyId, binding.companyId),
+          eq(chatDeliveries.spaceId, binding.spaceId),
           eq(chatDeliveries.endpointId, conversation.endpointId),
           eq(chatDeliveries.conversationId, conversation.conversationId),
           inArray(chatDeliveries.eventKind, [
@@ -1193,7 +1193,7 @@ async function loadSource(
     .where(
       and(
         eq(issueComments.id, sourceCommentId),
-        eq(issueComments.companyId, binding.companyId),
+        eq(issueComments.spaceId, binding.spaceId),
         eq(issueComments.issueId, binding.issueId),
         isNull(issueComments.deletedAt),
       ),
@@ -1219,14 +1219,14 @@ async function loadSource(
       assets,
       and(
         eq(assets.id, issueAttachments.assetId),
-        eq(assets.companyId, binding.companyId),
+        eq(assets.spaceId, binding.spaceId),
       ),
     )
     .innerJoin(
       issueComments,
       and(
         eq(issueComments.id, issueAttachments.issueCommentId),
-        eq(issueComments.companyId, binding.companyId),
+        eq(issueComments.spaceId, binding.spaceId),
         eq(issueComments.issueId, binding.issueId),
         isNull(issueComments.deletedAt),
       ),
@@ -1234,7 +1234,7 @@ async function loadSource(
     .where(
       and(
         eq(issueAttachments.id, attachmentId),
-        eq(issueAttachments.companyId, binding.companyId),
+        eq(issueAttachments.spaceId, binding.spaceId),
         eq(issueAttachments.issueId, binding.issueId),
       ),
     )
@@ -1289,20 +1289,20 @@ export async function listAuthorizedChatAttachments(input: {
         issues,
         and(
           eq(issues.id, input.binding.issueId),
-          eq(issues.companyId, heartbeatRuns.companyId),
+          eq(issues.spaceId, heartbeatRuns.spaceId),
         ),
       )
       .innerJoin(
         agents,
         and(
           eq(agents.id, input.binding.agentId),
-          eq(agents.companyId, heartbeatRuns.companyId),
+          eq(agents.spaceId, heartbeatRuns.spaceId),
         ),
       )
       .where(
         and(
           eq(heartbeatRuns.id, input.binding.runId),
-          eq(heartbeatRuns.companyId, input.binding.companyId),
+          eq(heartbeatRuns.spaceId, input.binding.spaceId),
           eq(heartbeatRuns.agentId, input.binding.agentId),
           eq(heartbeatRuns.nativeIssueId, input.binding.issueId),
           eq(heartbeatRuns.runtimeMode, "native"),
@@ -1345,28 +1345,28 @@ export async function listAuthorizedChatAttachments(input: {
         from issue_attachments attachment
         join issue_comments parent_comment
           on parent_comment.id = attachment.issue_comment_id
-          and parent_comment.company_id = ${input.binding.companyId}::uuid
+          and parent_comment.space_id = ${input.binding.spaceId}::uuid
           and parent_comment.issue_id = ${input.binding.issueId}::uuid
           and parent_comment.deleted_at is null
         join chat_message_links link
-          on link.company_id = ${input.binding.companyId}::uuid
+          on link.space_id = ${input.binding.spaceId}::uuid
           and link.endpoint_id = ${conversation.endpointId}::uuid
           and link.conversation_id = ${conversation.conversationId}::uuid
           and link.direction = 'inbound'
           and link.comment_id = attachment.issue_comment_id
         join chat_deliveries delivery
           on delivery.id = link.delivery_id
-          and delivery.company_id = link.company_id
+          and delivery.space_id = link.space_id
           and delivery.endpoint_id = link.endpoint_id
           and delivery.conversation_id = link.conversation_id
           and delivery.state = 'processed'
-        where attachment.company_id = ${input.binding.companyId}::uuid
+        where attachment.space_id = ${input.binding.spaceId}::uuid
           and attachment.issue_id = ${input.binding.issueId}::uuid
           and (${sourceFilter}::uuid is null or link.comment_id = ${sourceFilter}::uuid)
           and not exists (
             select 1
             from chat_deliveries lifecycle
-            where lifecycle.company_id = ${input.binding.companyId}::uuid
+            where lifecycle.space_id = ${input.binding.spaceId}::uuid
               and lifecycle.endpoint_id = ${conversation.endpointId}::uuid
               and lifecycle.conversation_id = ${conversation.conversationId}::uuid
               and lifecycle.state = 'processed'
@@ -1383,11 +1383,11 @@ export async function listAuthorizedChatAttachments(input: {
         from issue_attachments attachment
         join issue_comments parent_comment
           on parent_comment.id = attachment.issue_comment_id
-          and parent_comment.company_id = ${input.binding.companyId}::uuid
+          and parent_comment.space_id = ${input.binding.spaceId}::uuid
           and parent_comment.issue_id = ${input.binding.issueId}::uuid
           and parent_comment.deleted_at is null
         join chat_publications publication
-          on publication.company_id = ${input.binding.companyId}::uuid
+          on publication.space_id = ${input.binding.spaceId}::uuid
           and publication.endpoint_id = ${conversation.endpointId}::uuid
           and publication.conversation_id = ${conversation.conversationId}::uuid
           and publication.issue_id = ${input.binding.issueId}::uuid
@@ -1398,16 +1398,16 @@ export async function listAuthorizedChatAttachments(input: {
           and publication.payload->'attachmentIds' ? attachment.id::text
         join issue_comments source_comment
           on source_comment.id = publication.comment_id
-          and source_comment.company_id = publication.company_id
+          and source_comment.space_id = publication.space_id
           and source_comment.issue_id = publication.issue_id
           and source_comment.deleted_at is null
-        where attachment.company_id = ${input.binding.companyId}::uuid
+        where attachment.space_id = ${input.binding.spaceId}::uuid
           and attachment.issue_id = ${input.binding.issueId}::uuid
           and (${sourceFilter}::uuid is null or publication.comment_id = ${sourceFilter}::uuid)
           and not exists (
             select 1
             from chat_deliveries lifecycle
-            where lifecycle.company_id = ${input.binding.companyId}::uuid
+            where lifecycle.space_id = ${input.binding.spaceId}::uuid
               and lifecycle.endpoint_id = ${conversation.endpointId}::uuid
               and lifecycle.conversation_id = ${conversation.conversationId}::uuid
               and lifecycle.state = 'processed'
@@ -1525,7 +1525,7 @@ export async function authorizeChatAttachmentReuse(input: {
 
 async function readSourceBytes(
   storage: StorageService,
-  companyId: string,
+  spaceId: string,
   source: ChatAttachmentReuseSource,
   timeoutMs: number,
 ): Promise<Buffer> {
@@ -1542,7 +1542,7 @@ async function readSourceBytes(
   }, timeoutMs);
   acquisitionTimer.unref?.();
   const objectPromise = storage
-    .getObject(companyId, source.objectKey)
+    .getObject(spaceId, source.objectKey)
     .then((object) => {
       if (acquisitionTimedOut) object.stream.destroy();
       return object;
@@ -1596,12 +1596,12 @@ const DEFAULT_STORAGE_TIMEOUT_MS = 10_000;
 
 async function deleteStorageObjectWithin(
   storage: StorageService,
-  companyId: string,
+  spaceId: string,
   objectKey: string,
   timeoutMs: number,
 ): Promise<void> {
   const deletion = storage
-    .deleteObject(companyId, objectKey)
+    .deleteObject(spaceId, objectKey)
     .catch(() => undefined);
   let timer: ReturnType<typeof setTimeout> | null = null;
   try {
@@ -1638,7 +1638,7 @@ async function putStorageObjectWithin(
     if (timedOut) {
       void deleteStorageObjectWithin(
         storage,
-        input.companyId,
+        input.spaceId,
         stored.objectKey,
         timeoutMs,
       );
@@ -1667,14 +1667,14 @@ export async function prepareReusedChatAttachment(input: {
       heartbeatRuns,
       and(
         eq(heartbeatRuns.id, input.binding.runId),
-        eq(heartbeatRuns.companyId, issues.companyId),
+        eq(heartbeatRuns.spaceId, issues.spaceId),
         eq(heartbeatRuns.nativeIssueId, issues.id),
       ),
     )
     .where(
       and(
         eq(issues.id, input.binding.issueId),
-        eq(issues.companyId, input.binding.companyId),
+        eq(issues.spaceId, input.binding.spaceId),
         eq(issues.assigneeAgentId, input.binding.agentId),
         eq(issues.executionRunId, input.binding.runId),
         eq(heartbeatRuns.agentId, input.binding.agentId),
@@ -1694,14 +1694,14 @@ export async function prepareReusedChatAttachment(input: {
       : DEFAULT_STORAGE_TIMEOUT_MS;
   const body = await readSourceBytes(
     storage,
-    input.binding.companyId,
+    input.binding.spaceId,
     input.source,
     storageTimeoutMs,
   );
   const stored = await putStorageObjectWithin(
     storage,
     {
-      companyId: input.binding.companyId,
+      spaceId: input.binding.spaceId,
       namespace: `issues/${input.binding.issueId}`,
       originalFilename: input.source.filename,
       contentType: input.source.contentType,
@@ -1740,7 +1740,7 @@ export async function prepareReusedChatAttachment(input: {
       .where(
         and(
           eq(issueWorkProducts.id, attachment.artifactWorkProductId),
-          eq(issueWorkProducts.companyId, input.binding.companyId),
+          eq(issueWorkProducts.spaceId, input.binding.spaceId),
           eq(issueWorkProducts.issueId, input.binding.issueId),
           eq(issueWorkProducts.createdByRunId, input.binding.runId),
         ),
@@ -1751,7 +1751,7 @@ export async function prepareReusedChatAttachment(input: {
       throw new Error("outpost_runner_chat_attachment_origin_not_persisted");
     }
     await input.db.transaction(async tx => {
-      await notifyIssueRecovery(tx, { companyId: input.binding.companyId });
+      await notifyIssueRecovery(tx, { spaceId: input.binding.spaceId });
       await tx
       .update(issueWorkProducts)
       .set({
@@ -1767,7 +1767,7 @@ export async function prepareReusedChatAttachment(input: {
       .where(
         and(
           eq(issueWorkProducts.id, attachment.artifactWorkProductId),
-          eq(issueWorkProducts.companyId, input.binding.companyId),
+          eq(issueWorkProducts.spaceId, input.binding.spaceId),
           eq(issueWorkProducts.issueId, input.binding.issueId),
           eq(issueWorkProducts.createdByRunId, input.binding.runId),
         ),
@@ -1812,7 +1812,7 @@ export async function prepareReusedChatAttachment(input: {
       rollbackDefinitePreCommitFailure: async () => {
         await deleteStorageObjectWithin(
           storage,
-          input.binding.companyId,
+          input.binding.spaceId,
           stored.objectKey,
           storageTimeoutMs,
         );
@@ -1821,7 +1821,7 @@ export async function prepareReusedChatAttachment(input: {
   } catch (error) {
     await deleteStorageObjectWithin(
       storage,
-      input.binding.companyId,
+      input.binding.spaceId,
       stored.objectKey,
       storageTimeoutMs,
     );

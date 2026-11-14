@@ -7,8 +7,8 @@ import {
   Search,
 } from "lucide-react";
 import type {
-  PaperclipQuestionResponse,
-  PaperclipQuestionSet,
+  OutpostQuestionResponse,
+  OutpostQuestionSet,
 } from "@outpost/adapter-utils";
 import type { MentionOption } from "@/components/MarkdownEditor";
 import { DecisionCardFooter } from "@/components/DecisionCardFooter";
@@ -28,8 +28,8 @@ import {
 import { TaskChatRichInput } from "./TaskChatRichInput";
 import { matchSafeQuestionValidationPattern } from "./question-validation-pattern";
 
-type Question = PaperclipQuestionSet["questions"][number];
-type Answer = PaperclipQuestionResponse["answers"][string];
+type Question = OutpostQuestionSet["questions"][number];
+type Answer = OutpostQuestionResponse["answers"][string];
 
 /**
  * A form-level message, tagged with whether answering a question resolves it.
@@ -46,14 +46,14 @@ export interface QuestionFormProps {
   footerSlot?: ReactNode;
   id: string;
   presentation?: "default" | "decision";
-  questionSet: PaperclipQuestionSet;
-  initialResponse?: PaperclipQuestionResponse | null;
+  questionSet: OutpostQuestionSet;
+  initialResponse?: OutpostQuestionResponse | null;
   implicitCustomAnswer?: boolean;
   draftKey?: string;
   disabled?: boolean;
   imageUploadHandler?: (file: File) => Promise<string>;
   mentions?: MentionOption[];
-  onSubmit: (response: PaperclipQuestionResponse) => void | Promise<void>;
+  onSubmit: (response: OutpostQuestionResponse) => void | Promise<void>;
   /**
    * Resolves the request itself (a timeline card cancelling the interaction).
    * Inside the composer takeover the form falls back to dismissing the
@@ -195,8 +195,8 @@ export function QuestionResponseSummary({
   questionSet,
   response,
 }: {
-  questionSet: PaperclipQuestionSet;
-  response: PaperclipQuestionResponse;
+  questionSet: OutpostQuestionSet;
+  response: OutpostQuestionResponse;
 }) {
   return (
     <dl className="grid gap-2 text-sm">

@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import { boolean, index, integer, numeric, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import type { CompanySearchQuery, StatusCardRefreshPolicy } from "@outpost/shared";
+import type { SpaceSearchQuery, StatusCardRefreshPolicy } from "@outpost/shared";
 import { agents } from "./agents.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { documents } from "./documents.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
 import { issues } from "./issues.js";
@@ -28,17 +28,17 @@ export const statusCards = pgTable(
   "status_cards",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     createdByUserId: text("created_by_user_id"),
     createdByAgentId: uuid("created_by_agent_id").references(() => agents.id, { onDelete: "set null" }),
     title: text("title"),
     titlePinned: boolean("title_pinned").notNull().default(false),
     interestPrompt: text("interest_prompt").notNull(),
-    queries: jsonb("queries").$type<CompanySearchQuery[]>().notNull().default(sql`'[]'::jsonb`),
+    queries: jsonb("queries").$type<SpaceSearchQuery[]>().notNull().default(sql`'[]'::jsonb`),
     queryVersion: integer("query_version").notNull().default(0),
     queryCompiledAt: timestamp("query_compiled_at", { withTimezone: true }),
     queryCompiledByAgentId: uuid("query_compiled_by_agent_id").references(() => agents.id, { onDelete: "set null" }),
-    // Per-card summarizer override; null means the company's built-in Summarizer.
+    // Per-card summarizer override; null means the space's built-in Summarizer.
     agentId: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
     refreshPolicy: jsonb("refresh_policy").$type<StatusCardRefreshPolicy>().notNull(),
     state: text("state").$type<"compiling" | "active" | "error" | "paused_budget" | "paused_hours">().notNull().default("compiling"),
@@ -67,8 +67,8 @@ export const statusCards = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyArchivedIdx: index("status_cards_company_archived_idx").on(table.companyId, table.archivedAt),
-    companyNextEvalIdx: index("status_cards_company_next_eval_idx").on(table.companyId, table.nextEvalAt),
+    spaceArchivedIdx: index("status_cards_space_archived_idx").on(table.spaceId, table.archivedAt),
+    spaceNextEvalIdx: index("status_cards_space_next_eval_idx").on(table.spaceId, table.nextEvalAt),
   }),
 );
 

@@ -27,7 +27,7 @@ export async function settlePrivilegedChat(ctx: ChatCatalogContext, observationD
     load: async () => {
       const o = await observeInternal(ctx, {}), source = ctx.issue();
       const interactions = source && !o.reply ? await ctx.input.api.get<unknown[]>(`/api/issues/${source.id}/interactions`) : [];
-      return { o, cards: turnResponseCards({ companyId: o.companyId, leadId: o.leadId, runs: o.runs, interactions }) };
+      return { o, cards: turnResponseCards({ spaceId: o.spaceId, leadId: o.leadId, runs: o.runs, interactions }) };
     },
     accept: ({ o, cards }) => chatCatalogNativePhaseIsTimely(ctx) && ((observationDeadlineAt === undefined || Date.now() < observationDeadlineAt) && o.runs.length === 1 && o.runs[0]?.status === "succeeded" && (!!o.reply || cards.length > 0) && ctx.issue()?.conversationState === "waiting"),
     reject: ({ o }) => o.runs.some(run => ["failed", "timed_out", "cancelled"].includes(run.status)) ? "Canonical guidance run failed" : undefined });

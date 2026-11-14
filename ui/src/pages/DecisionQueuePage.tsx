@@ -7,7 +7,7 @@ import { attentionApi } from "../api/attention";
 import { agentsApi } from "../api/agents";
 import { authApi } from "../api/auth";
 import { decisionQueuesApi } from "../api/decisionQueues";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useToastActions } from "../context/ToastContext";
 import { useInboxDismissals } from "../hooks/useInboxBadge";
@@ -61,14 +61,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popove
  * is surfaced.
  */
 export function DecisionQueuePage() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const { pushToast } = useToastActions();
   const queryClient = useQueryClient();
   const params = useParams<{ key: string }>();
   const queueKey = params.key ?? "";
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const { dismiss, snooze } = useInboxDismissals(selectedCompanyId);
+  const { dismiss, snooze } = useInboxDismissals(selectedSpaceId);
 
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -89,31 +89,31 @@ export function DecisionQueuePage() {
   );
 
   const { data: queues } = useQuery({
-    queryKey: queryKeys.decisionQueues.list(selectedCompanyId!),
-    queryFn: () => decisionQueuesApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.decisionQueues.list(selectedSpaceId!),
+    queryFn: () => decisionQueuesApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const queue = useMemo(() => queues?.find((q) => q.key === queueKey) ?? null, [queues, queueKey]);
 
   const feedQuery = useQuery({
     queryKey: [
-      ...queryKeys.attention(selectedCompanyId!),
+      ...queryKeys.attention(selectedSpaceId!),
       "queue",
       queueKey,
       activityBounds.activitySince ?? null,
       activityBounds.activityUntil ?? null,
     ],
-    queryFn: () => attentionApi.list(selectedCompanyId!, { queue: queueKey, all: true, ...activityBounds }),
-    enabled: !!selectedCompanyId && !!queueKey,
+    queryFn: () => attentionApi.list(selectedSpaceId!, { queue: queueKey, all: true, ...activityBounds }),
+    enabled: !!selectedSpaceId && !!queueKey,
     refetchOnWindowFocus: true,
   });
   const { data: feed, isLoading } = feedQuery;
   const feedView = useQueryView(feedQuery);
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(selectedSpaceId!),
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId,
   });
   const { data: session } = useQuery({
     queryKey: queryKeys.auth.session,
@@ -131,11 +131,11 @@ export function DecisionQueuePage() {
     setBreadcrumbs([{ label: "Decisions", href: "/decisions" }, { label: queue?.title ?? queueKey }]);
   }, [setBreadcrumbs, queue?.title, queueKey]);
 
-  // Re-hydrate per-company preferences when the company changes.
+  // Re-hydrate per-space preferences when the space changes.
   useEffect(() => {
-    setFilters(loadAttentionFilters(selectedCompanyId));
-    setCollapsedGroupKeys(loadCollapsedAttentionGroupKeys(selectedCompanyId));
-  }, [selectedCompanyId]);
+    setFilters(loadAttentionFilters(selectedSpaceId));
+    setCollapsedGroupKeys(loadCollapsedAttentionGroupKeys(selectedSpaceId));
+  }, [selectedSpaceId]);
 
   // The server's clock at feed time — used for the arrival/decide-by shelves and
   // the aging idle labels so they match the desk exactly.
@@ -181,14 +181,14 @@ export function DecisionQueuePage() {
   };
   const updateFilters = (next: AttentionFilterState) => {
     setFilters(next);
-    saveAttentionFilters(selectedCompanyId, next);
+    saveAttentionFilters(selectedSpaceId, next);
   };
   const toggleGroupCollapse = (key: string) => {
     setCollapsedGroupKeys((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
-      saveCollapsedAttentionGroupKeys(selectedCompanyId, next);
+      saveCollapsedAttentionGroupKeys(selectedSpaceId, next);
       return next;
     });
   };
@@ -197,14 +197,14 @@ export function DecisionQueuePage() {
     setExpandedId((prev) => (prev === item.id ? null : item.id));
   }, []);
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.attention(selectedCompanyId!) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.decisionQueues.list(selectedCompanyId!) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.attention(selectedSpaceId!) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.decisionQueues.list(selectedSpaceId!) });
   };
 
   const toggleSeedRules = useMutation({
     mutationFn: (enabled: boolean) =>
-      decisionQueuesApi.update(selectedCompanyId!, queueKey, { seedRulesEnabled: enabled }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.decisionQueues.list(selectedCompanyId!) }),
+      decisionQueuesApi.update(selectedSpaceId!, queueKey, { seedRulesEnabled: enabled }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.decisionQueues.list(selectedSpaceId!) }),
     onError: (err) =>
       pushToast({
         title: "Could not update seeding",
@@ -213,7 +213,7 @@ export function DecisionQueuePage() {
       }),
   });
 
-  if (!selectedCompanyId) {
+  if (!selectedSpaceId) {
     return <p className="text-sm text-muted-foreground">Select an outpost first.</p>;
   }
   // Keep a loaded queue on screen through a failed refetch; only a real
@@ -257,7 +257,7 @@ export function DecisionQueuePage() {
       </div>
 
       <div className="space-y-2">
-        <DecisionQueueRail companyId={selectedCompanyId} activeQueueKey={queueKey} />
+        <DecisionQueueRail spaceId={selectedSpaceId} activeQueueKey={queueKey} />
         <DecisionDateChips
           value={dateRange}
           custom={customRange}
@@ -314,7 +314,7 @@ export function DecisionQueuePage() {
                         <QueueItemRow
                           key={item.id}
                           item={item}
-                          companyId={selectedCompanyId}
+                          spaceId={selectedSpaceId}
                           queueKey={queueKey}
                           agentMap={agentMap}
                           agents={agents}
@@ -347,7 +347,7 @@ export function DecisionQueuePage() {
                 <AgingItemRow
                   key={item.id}
                   item={item}
-                  companyId={selectedCompanyId}
+                  spaceId={selectedSpaceId}
                   now={now}
                   agentMap={agentMap}
                   agents={agents}
@@ -421,7 +421,7 @@ function SeedRulesCard({
 
 function QueueItemRow({
   item,
-  companyId,
+  spaceId,
   queueKey,
   agentMap,
   agents,
@@ -433,7 +433,7 @@ function QueueItemRow({
   onExcluded,
 }: {
   item: AttentionItem;
-  companyId: string;
+  spaceId: string;
   queueKey: string;
   agentMap: Map<string, Agent>;
   agents: Agent[] | undefined;
@@ -450,7 +450,7 @@ function QueueItemRow({
   const exclude = useMutation({
     mutationFn: async () => {
       await decisionQueuesApi.removeItem(
-        companyId,
+        spaceId,
         queueKey,
         item.sourceKind,
         item.subject.id,
@@ -509,7 +509,7 @@ function QueueItemRow({
       </div>
       <AttentionQueueRow
         item={item}
-        companyId={companyId}
+        spaceId={spaceId}
         expanded={expanded}
         onToggleExpand={onToggleExpand}
         onDismiss={onDismiss}

@@ -28,7 +28,7 @@ import type {
   Agent,
   EnvBinding,
 } from "@outpost/shared";
-import { ADAPTER_AUTH_MISSING_CHECK_CODE, isAgentStatusInvokable, paperclipRunnerCreationLifecycle, paperclipRunnerProfileForHarness } from "@outpost/shared";
+import { ADAPTER_AUTH_MISSING_CHECK_CODE, isAgentStatusInvokable, outpostRunnerCreationLifecycle, outpostRunnerProfileForHarness } from "@outpost/shared";
 import { useNavigate, useSearchParams } from "@/lib/router";
 import { agentsApi } from "@/api/agents";
 import { ApiError } from "@/api/client";
@@ -38,7 +38,7 @@ import { instanceSettingsApi } from "@/api/instanceSettings";
 import { secretsApi } from "@/api/secrets";
 import { describeError } from "@/api/errors";
 import { QueryErrorState } from "../QueryView";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useDialogActions } from "@/context/DialogContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn, agentUrl } from "@/lib/utils";
@@ -87,10 +87,10 @@ const blocking = (result: AdapterEnvironmentTestResult) =>
   result.checks.some((check) => check.code === ADAPTER_AUTH_MISSING_CHECK_CODE);
 
 export function NewAgentSetup() {
-  const { selectedCompanyId, selectedCompany } = useCompany();
+  const { selectedSpaceId, selectedSpace } = useSpace();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  if (!selectedCompanyId)
+  if (!selectedSpaceId)
     return (
       <p className="text-sm text-muted-foreground">
         Select an outpost to create an agent.
@@ -98,22 +98,22 @@ export function NewAgentSetup() {
     );
   return (
     <Setup
-      key={`${selectedCompanyId}:${params.get("name")}:${params.get("adapterType")}:${params.get("runnerProvider") ?? "codex"}:${params.get("runner") ?? "auto"}`}
-      companyId={selectedCompanyId}
+      key={`${selectedSpaceId}:${params.get("name")}:${params.get("adapterType")}:${params.get("runnerProvider") ?? "codex"}:${params.get("runner") ?? "auto"}`}
+      spaceId={selectedSpaceId}
       name={params.get("name") ?? ""}
       adapterType={params.get("adapterType") === "outpost_runner" && Object.hasOwn(nativeSetupHarnesses, params.get("runnerProvider") ?? "codex") ? nativeSetupHarnesses[params.get("runnerProvider") ?? "codex"] : params.get("adapterType") ?? ""}
-      initialRunner={params.get("runner") ?? (params.get("adapterType") === "outpost_runner" && Object.hasOwn(nativeSetupHarnesses, params.get("runnerProvider") ?? "codex") ? "paperclip" : params.has("setupAgentId") && ["codex_local", "claude_local", "opencode_local", "pi_local", "cursor_cloud"].includes(params.get("adapterType") ?? "") ? "legacy" : "auto")}
+      initialRunner={params.get("runner") ?? (params.get("adapterType") === "outpost_runner" && Object.hasOwn(nativeSetupHarnesses, params.get("runnerProvider") ?? "codex") ? "outpost" : params.has("setupAgentId") && ["codex_local", "claude_local", "opencode_local", "pi_local", "cursor_cloud"].includes(params.get("adapterType") ?? "") ? "legacy" : "auto")}
       preserveNativeHarness={params.get("adapterType") === "outpost_runner" && Object.hasOwn(nativeSetupHarnesses, params.get("runnerProvider") ?? "codex")}
       runnerProvider={params.get("runnerProvider") ?? "codex"}
       createdAgentId={params.get("createdAgentId")}
       setupAgentId={params.get("setupAgentId")}
-      spaceBound={Boolean(selectedCompany?.workspaceRoot)}
+      spaceBound={Boolean(selectedSpace?.workspaceRoot)}
     />
   );
 }
 
 function Setup({
-  companyId,
+  spaceId,
   name,
   adapterType,
   runnerProvider,
@@ -123,7 +123,7 @@ function Setup({
   setupAgentId,
   spaceBound,
 }: {
-  companyId: string;
+  spaceId: string;
   name: string;
   adapterType: string;
   runnerProvider: string;
@@ -136,8 +136,8 @@ function Setup({
   const navigate = useNavigate();
   const cache = useQueryClient();
   const { openNewIssue } = useDialogActions();
-  const appearanceDraft = useAgentAppearanceDraft(`${companyId}:new-agent`);
-  const [runner, setRunner] = useState<AgentRunnerChoice>(initialRunner === "legacy" || initialRunner === "paperclip" ? initialRunner : "auto");
+  const appearanceDraft = useAgentAppearanceDraft(`${spaceId}:new-agent`);
+  const [runner, setRunner] = useState<AgentRunnerChoice>(initialRunner === "legacy" || initialRunner === "outpost" ? initialRunner : "auto");
   const isRunner = adapterType === "outpost_runner";
   const isDot = isRunner && runnerProvider === "openai_dot";
   const isKimi = isRunner && runnerProvider === "kimi";
@@ -172,7 +172,7 @@ function Setup({
   const chooseProvider = multiProvider || brandType === "hermes_local";
   const hasCredentialField =
     !usesHostLogin && (isKimi || chooseProvider || Boolean(SETUP_CREDENTIAL_KEYS[adapterType]));
-  const nativeCursorCloud = adapterType === "cursor_cloud" && runner === "paperclip";
+  const nativeCursorCloud = adapterType === "cursor_cloud" && runner === "outpost";
   const showModel = !isDot && adapterType !== "hermes_gateway" && (adapterType !== "cursor_cloud" || nativeCursorCloud);
   const [allowUnmeteredProvider, setAllowUnmeteredProvider] = useState(false);
   const [gatewayUrl, setGatewayUrl] = useState("");
@@ -201,7 +201,7 @@ function Setup({
   const [connection, setConnection] = useState<ProviderConnection | null>(null);
   const [choosingAdapter, setChoosingAdapter] = useState(false);
   const aiBinding = runtimeAiBinding ?? connection?.aiConnection;
-  const connectionModels = useConnectionModels(companyId, aiBinding, brandType);
+  const connectionModels = useConnectionModels(spaceId, aiBinding, brandType);
   const [repository, setRepository] = useState("");
   const [branch, setBranch] = useState("");
   const [createdInSession, setCreated] = useState<Agent | null>(null);
@@ -214,7 +214,7 @@ function Setup({
   const currentCreated = !recordId || createdInSession?.id === recordId ? createdInSession : null;
   const savedAgent = useQuery({
     queryKey: queryKeys.agents.detail(recordId ?? "new"),
-    queryFn: () => agentsApi.get(recordId!, companyId),
+    queryFn: () => agentsApi.get(recordId!, spaceId),
     enabled: Boolean(recordId) && !creating.current,
     refetchInterval: query => {
       const agent = query.state.data;
@@ -224,7 +224,7 @@ function Setup({
     },
   });
   const created =
-    (savedAgent.data?.companyId === companyId ? savedAgent.data : null) ?? currentCreated;
+    (savedAgent.data?.spaceId === spaceId ? savedAgent.data : null) ?? currentCreated;
   const savedSetupChoice = pendingAgentSetupChoice(created);
   const resumeSavedChoice = savedSetupChoice && (adapterType !== savedSetupChoice.adapterType || runnerProvider !== savedSetupChoice.runnerProvider);
   useEffect(() => {
@@ -244,7 +244,7 @@ function Setup({
   }, [brandType, created?.id, created?.adapterType]);
   const savedNativeMultiProvider = multiProvider && (Boolean(setupAgentId) || runner === "legacy")
     && created?.adapterType === "outpost_runner";
-  const requestAdapterType = savedNativeMultiProvider || (preserveNativeHarness && runner === "paperclip")
+  const requestAdapterType = savedNativeMultiProvider || (preserveNativeHarness && runner === "outpost")
     ? "outpost_runner" : adapterType;
   const [saving, setSaving] = useState(false);
   const [testState, setTestState] = useState<TestState | "warn">("idle");
@@ -255,7 +255,7 @@ function Setup({
   const [environmentSaving, setEnvironmentSaving] = useState(false);
   const [environmentSaveError, setEnvironmentSaveError] = useState<string | null>(null);
   const generation = useRef(0);
-  const qualificationTransition = useRef<{ run: number; companyId: string; environmentId: string | null; runner: AgentRunner } | null>(null);
+  const qualificationTransition = useRef<{ run: number; spaceId: string; environmentId: string | null; runner: AgentRunner } | null>(null);
   const savingRef = useRef(false);
   useEffect(
     () => () => {
@@ -281,12 +281,12 @@ function Setup({
     queryFn: () => adaptersApi.list(),
   });
   const agents = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
   });
   const envs = useQuery({
-    queryKey: queryKeys.environments.list(companyId),
-    queryFn: () => environmentsApi.list(companyId),
+    queryKey: queryKeys.environments.list(spaceId),
+    queryFn: () => environmentsApi.list(spaceId),
   });
   const localEnvironmentId = resolveLocalDefaultEnvironmentId(envs.data ?? []);
   const settings = useQuery({
@@ -302,17 +302,17 @@ function Setup({
     queryFn: instanceSettingsApi.getGeneral,
   });
   const caps = useQuery({
-    queryKey: queryKeys.environments.capabilities(companyId),
-    queryFn: () => environmentsApi.capabilities(companyId),
+    queryKey: queryKeys.environments.capabilities(spaceId),
+    queryFn: () => environmentsApi.capabilities(spaceId),
   });
-  const companySecrets = useQuery({
-    queryKey: queryKeys.secrets.list(companyId),
-    queryFn: () => secretsApi.list(companyId),
+  const spaceSecrets = useQuery({
+    queryKey: queryKeys.secrets.list(spaceId),
+    queryFn: () => secretsApi.list(spaceId),
     enabled: hasCredentialField && (adapterType !== "cursor_cloud" || nativeCursorCloud),
   });
   const userSecrets = useQuery({
-    queryKey: queryKeys.secrets.myUserSecrets(companyId),
-    queryFn: () => secretsApi.listMyUserSecrets(companyId),
+    queryKey: queryKeys.secrets.myUserSecrets(spaceId),
+    queryFn: () => secretsApi.listMyUserSecrets(spaceId),
     enabled: hasCredentialField && (adapterType !== "cursor_cloud" || nativeCursorCloud),
   });
   const forced = resolveForcedKubernetesEnvironment(
@@ -354,10 +354,10 @@ function Setup({
   const accountCatalogAvailable = brandType === "copilot_runtime" || (brandType === "antigravity_runtime" && aiBinding?.method === "subscription");
   const requestAccountModels = accountCatalogAvailable && showModel && !connectionModels && Boolean(aiBinding)
     && envs.isSuccess && settings.isSuccess && experimental.isSuccess && general.isSuccess && !environmentError;
-  const accountModelScope = JSON.stringify([companyId, environmentId, aiBinding]);
+  const accountModelScope = JSON.stringify([spaceId, environmentId, aiBinding]);
   const models = useQuery({
-    queryKey: queryKeys.agents.adapterModels(companyId, brandType, environmentId, accountBoundCatalog ? JSON.stringify(aiBinding ?? null) : aiBinding?.provider),
-    queryFn: () => agentsApi.adapterModels(companyId, isKimi || accountBoundCatalog ? "outpost_runner" : brandType, isKimi
+    queryKey: queryKeys.agents.adapterModels(spaceId, brandType, environmentId, accountBoundCatalog ? JSON.stringify(aiBinding ?? null) : aiBinding?.provider),
+    queryFn: () => agentsApi.adapterModels(spaceId, isKimi || accountBoundCatalog ? "outpost_runner" : brandType, isKimi
       ? { provider: "acpx", acpxAgent: "kimi", environmentId } : accountBoundCatalog
       ? { provider: "acpx", acpxAgent: runnerProvider, aiConnection: aiBinding, environmentId }
       : { provider: aiBinding?.provider, environmentId }),
@@ -369,27 +369,27 @@ function Setup({
     if (requestAccountModels) void refreshAccountModels();
   }, [requestAccountModels, accountModelScope, refreshAccountModels]);
   const environment = envs.data?.find((env) => env.id === environmentId);
-  const setupEnvironmentKey = JSON.stringify([companyId, environmentId, environment?.config]);
+  const setupEnvironmentKey = JSON.stringify([spaceId, environmentId, environment?.config]);
   const setupEnvironmentRef = useRef("");
   setupEnvironmentRef.current = setupEnvironmentKey;
   useEffect(() => { resetTest(); }, [setupEnvironmentKey]);
   const adapters = useQuery({
-    queryKey: queryKeys.adapters.availability(companyId, environmentId),
-    queryFn: () => adaptersApi.list({ companyId, environmentId }),
+    queryKey: queryKeys.adapters.availability(spaceId, environmentId),
+    queryFn: () => adaptersApi.list({ spaceId, environmentId }),
   });
   const candidateHarnesses = adapters.data?.find(adapter => adapter.type === "outpost_runner" && adapter.loaded && !adapter.disabled)?.candidateHarnesses;
   const antigravityCandidate = brandType === "antigravity_runtime" ? candidateHarnesses?.find(candidate => candidate.agent === "antigravity") : undefined;
   const pendingAntigravity = unreleasedAntigravity && !antigravityCandidate;
   useEffect(() => { if (antigravityCandidate) setModel(current => current || antigravityCandidate.model); }, [antigravityCandidate?.model]);
   const defaultRunner = adapters.data?.find(adapter => adapter.type === adapterType)?.defaultRunner;
-  const efforts = brandType === "pi_local" && (runner === "paperclip" || (runner === "auto" && defaultRunner === "paperclip"))
+  const efforts = brandType === "pi_local" && (runner === "outpost" || (runner === "auto" && defaultRunner === "outpost"))
     ? ["off", "low", "high", "max"] : isRunner ? [] : setupEfforts(adapterType, model);
   useEffect(() => {
     const transition = qualificationTransition.current;
-    if (transition?.run === generation.current && transition.companyId === companyId
+    if (transition?.run === generation.current && transition.spaceId === spaceId
       && transition.environmentId === environmentId && transition.runner === defaultRunner) return;
     resetTest();
-  }, [companyId, environmentId, runner === "auto" ? defaultRunner : undefined]);
+  }, [spaceId, environmentId, runner === "auto" ? defaultRunner : undefined]);
   const sandboxProvider =
     typeof environment?.config?.provider === "string"
       ? environment.config.provider
@@ -402,7 +402,7 @@ function Setup({
   const savedKey = userSecrets.data?.find(
     (entry) => entry.definition.key === envKey && entry.secret,
   );
-  const savedOrganizationKey = companySecrets.data?.find(
+  const savedOrganizationKey = spaceSecrets.data?.find(
     (entry) => entry.key === envKey && entry.status === "active",
   );
   const selectedBinding =
@@ -503,16 +503,16 @@ function Setup({
           }
         : {}),
     };
-    const profile = paperclipRunnerProfileForHarness(brandType);
+    const profile = outpostRunnerProfileForHarness(brandType);
     const nativeSchema = profile ? {
       ...profile,
       ...(profile.provider === "acpx" ? { acpxPermissionMode: "approve-all" } : {}),
       ...(brandType === "pi_local" && effort ? { piThinkingLevel: effort } : {}),
     } : {};
-    const config = getUIAdapter(preserveNativeHarness && runner === "paperclip" && brandType !== "pi_local" ? "outpost_runner" : adapterType).buildAdapterConfig(preserveNativeHarness && runner === "paperclip" ? { ...values, adapterSchemaValues: nativeSchema } : values,
+    const config = getUIAdapter(preserveNativeHarness && runner === "outpost" && brandType !== "pi_local" ? "outpost_runner" : adapterType).buildAdapterConfig(preserveNativeHarness && runner === "outpost" ? { ...values, adapterSchemaValues: nativeSchema } : values,
       antigravityCandidate ? { candidateHarnesses: [antigravityCandidate] } : undefined);
-    if (preserveNativeHarness && runner === "paperclip" && profile) {
-      Object.assign(config, nativeSchema, profile.provider === "opencode" ? { opencodePermissionMode: "allow" } : profile.provider === "codex" ? { codexPermissionMode: "never" } : {}, paperclipRunnerCreationLifecycle(profile));
+    if (preserveNativeHarness && runner === "outpost" && profile) {
+      Object.assign(config, nativeSchema, profile.provider === "opencode" ? { opencodePermissionMode: "allow" } : profile.provider === "codex" ? { codexPermissionMode: "never" } : {}, outpostRunnerCreationLifecycle(profile));
     }
     if (isRunner)
       Object.assign(config, {
@@ -620,7 +620,7 @@ function Setup({
     setError(null);
     navigate(`/agents/new?${new URLSearchParams({ name, adapterType, runnerProvider,
       runner, setupAgentId: setupId.current })}`, { replace: true });
-    void agentsApi.create(companyId, {
+    void agentsApi.create(spaceId, {
       setupId: setupId.current, name, appearance: appearanceDraft.appearance,
       role: "general",
       adapterType: requestAdapterType, runner,
@@ -634,18 +634,18 @@ function Setup({
       await cache.cancelQueries({ queryKey: queryKeys.agents.detail(agent.id) });
       setCreated(agent);
       cache.setQueryData(queryKeys.agents.detail(agent.id), agent);
-      void cache.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
+      void cache.invalidateQueries({ queryKey: queryKeys.agents.list(spaceId) });
     }).catch(cause => setError(cause instanceof Error ? cause.message : "Could not create the agent."))
       .finally(() => { creating.current = false; });
-  }, [name, adapterType, companyId, connectionSettingsReady, creationAttempt, createdAgentId, setupAgentId, savedAgent.isError, created, pendingAntigravity]);
+  }, [name, adapterType, spaceId, connectionSettingsReady, creationAttempt, createdAgentId, setupAgentId, savedAgent.isError, created, pendingAntigravity]);
 
   useEffect(() => {
-    if (!savedAgent.data || restored.current === savedAgent.data.id || savedAgent.data.companyId !== companyId) return;
+    if (!savedAgent.data || restored.current === savedAgent.data.id || savedAgent.data.spaceId !== spaceId) return;
     restored.current = savedAgent.data.id;
     const agent = savedAgent.data;
     if (agent.pauseReason !== "setup") { setScreen("saved"); return; }
     const config = agent.adapterConfig;
-    if (multiProvider || adapterType === "cursor_cloud") setRunner(agent.adapterType === "outpost_runner" ? "paperclip" : "legacy");
+    if (multiProvider || adapterType === "cursor_cloud") setRunner(agent.adapterType === "outpost_runner" ? "outpost" : "legacy");
     setModel(typeof config.model === "string" && config.model ? config.model : antigravityCandidate?.model ?? "");
     setEffort(String(config.modelReasoningEffort ?? config.reasoningEffort ?? config.effort ?? config.thinkingEffort ?? config.piThinkingLevel ?? config.thinking ?? ""));
     setEnvironmentOverride(agent.defaultEnvironmentId ?? "");
@@ -667,7 +667,7 @@ function Setup({
     if (binding && connectionAdapter) setConnection({ env: {}, aiConnection: binding });
     else if (binding) setRuntimeAiBinding(binding);
     setScreen(binding || !connectionAdapter ? "runtime" : "connect");
-  }, [savedAgent.data, companyId, connectionAdapter, brandType]);
+  }, [savedAgent.data, spaceId, connectionAdapter, brandType]);
 
   async function saveDraft(nextConnection = connection, exit = false, testedConfig?: Record<string, unknown>, selectedEnvironment = environmentOverride) {
     if (pendingAntigravity) return;
@@ -683,7 +683,7 @@ function Setup({
     };
     try {
       for (const [key, value] of Object.entries(pendingCredentials(nextConnection))) {
-        const secret = await (connectionAdapter ? storeProviderApiKey : storeOrganizationApiKey)(companyId, key, value);
+        const secret = await (connectionAdapter ? storeProviderApiKey : storeOrganizationApiKey)(spaceId, key, value);
         staged.push(secret);
         if (adapterType === "hermes_gateway" && key === "API_SERVER_KEY") config.apiKey = secret.binding;
         else config.env = { ...((config.env as object) ?? {}), [key]: secret.binding };
@@ -695,7 +695,7 @@ function Setup({
         runtimeConfig: { ...created.runtimeConfig, ...(binding ? { aiConnection: binding } : {}) },
         ...(antigravityCandidate ? { metadata: { ...created.metadata, setupAdapterPending: false, setupAdapterChoice: undefined } } : {}),
         ...(nextConnection?.applyStoredClaudeLogin ? { applyStoredClaudeLogin: true } : {}),
-      }, companyId);
+      }, spaceId);
       rememberCredentials();
       await cache.cancelQueries({ queryKey: queryKeys.agents.detail(agent.id) });
       setCreated(agent);
@@ -744,19 +744,19 @@ function Setup({
       preparedConfig(nextConnection);
       const selection = { adapterType, runner, savedAgentId: completed ? createdAgentId : null, environment };
       const qualified = await qualifyClaudeSetup({ ...selection,
-        readAdapters: () => adaptersApi.list({ companyId, environmentId }),
-        probeEnvironment: () => environmentsApi.probe(environmentId!, companyId),
+        readAdapters: () => adaptersApi.list({ spaceId, environmentId }),
+        probeEnvironment: () => environmentsApi.probe(environmentId!, spaceId),
         isCurrent: () => run === generation.current && setupEnvironmentRef.current === setupEnvironment,
       });
       if (run !== generation.current || setupEnvironmentRef.current !== setupEnvironment
         || (needsClaudeSetupQualification(selection) && !qualified)) return null;
       if (qualified) {
-        qualificationTransition.current = { run, companyId, environmentId, runner: qualified.runner };
-        cache.setQueryData(queryKeys.adapters.availability(companyId, environmentId), qualified.adapters);
+        qualificationTransition.current = { run, spaceId, environmentId, runner: qualified.runner };
+        cache.setQueryData(queryKeys.adapters.availability(spaceId, environmentId), qualified.adapters);
       }
       const config = preparedConfig(nextConnection, qualified?.runner);
       const tested = await testAgentSetup({
-        companyId,
+        spaceId,
         agentId: created?.id,
         adapterType: requestAdapterType,
         providerAdapter: brandType,
@@ -810,7 +810,7 @@ function Setup({
         : preparedConfig();
       if (!config) return;
       if (Object.keys(credentials).length) await saveDraft(connection, false, config);
-      const response = await agentsApi.hire(companyId, {
+      const response = await agentsApi.requestCreation(spaceId, {
         setupAgentId: created.id,
         name: created.name,
         appearance: created.appearance ?? appearanceDraft.appearance,
@@ -844,9 +844,9 @@ function Setup({
         response.agent,
       );
       await Promise.all([
-        cache.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) }),
+        cache.invalidateQueries({ queryKey: queryKeys.agents.list(spaceId) }),
         cache.invalidateQueries({
-          queryKey: queryKeys.approvals.list(companyId),
+          queryKey: queryKeys.approvals.list(spaceId),
         }),
       ]);
     } catch (cause) {
@@ -855,10 +855,10 @@ function Setup({
       );
     } finally {
       void cache.invalidateQueries({
-        queryKey: queryKeys.secrets.myUserSecrets(companyId),
+        queryKey: queryKeys.secrets.myUserSecrets(spaceId),
       });
       void cache.invalidateQueries({
-        queryKey: queryKeys.secrets.list(companyId),
+        queryKey: queryKeys.secrets.list(spaceId),
       });
       savingRef.current = false;
       setSaving(false);
@@ -869,8 +869,8 @@ function Setup({
     if (!created || !runtimeReady) return;
     const current = cache.getQueryData<Agent>(queryKeys.agents.detail(created.id)) ?? created;
     if (!isAgentStatusInvokable(current.status) || (current.lifecycleState && current.lifecycleState !== "ready")) return;
-    await cache.cancelQueries({ queryKey: queryKeys.agents.list(companyId) });
-    cache.setQueryData<Agent[]>(queryKeys.agents.list(companyId), agents => agents?.map(agent =>
+    await cache.cancelQueries({ queryKey: queryKeys.agents.list(spaceId) });
+    cache.setQueryData<Agent[]>(queryKeys.agents.list(spaceId), agents => agents?.map(agent =>
       agent.id === current.id && (agent.lifecycleVersion ?? 0) <= (current.lifecycleVersion ?? 0) ? { ...agent, ...current } : agent));
     openNewIssue({ assigneeAgentId: current.id, status: "todo" });
   }
@@ -985,7 +985,7 @@ function Setup({
           <p role="alert" className="text-sm text-destructive">{created.lifecycleError}</p>
           <Button disabled={busy} onClick={() => {
             setEnvironmentSaving(true);
-            void agentsApi.retryLifecycle(created.id, companyId).then(async agent => {
+            void agentsApi.retryLifecycle(created.id, spaceId).then(async agent => {
               await cache.cancelQueries({ queryKey: queryKeys.agents.detail(agent.id) });
               setCreated(agent);
               cache.setQueryData(queryKeys.agents.detail(agent.id), agent);
@@ -1071,7 +1071,7 @@ function Setup({
                     </div>
                     {connectionSettingsReady ? <fieldset disabled={!ready} className="contents"><AgentProviderConnection
                       key={environmentId ?? "local"}
-                      companyId={companyId}
+                      spaceId={spaceId}
                       adapterType={connectionAdapter}
                       environmentId={environmentId}
                       canLogin={canLogin}
@@ -1080,7 +1080,7 @@ function Setup({
                         value: aiBinding,
                         content: (
                           <AiConnectionField
-                            companyId={companyId}
+                            spaceId={spaceId}
                             agentName={name}
                             adapterType={brandType}
                             model={model}
@@ -1104,7 +1104,7 @@ function Setup({
                       }}
                       testConnection={async next => {
                         if (brandType !== "antigravity_runtime") return (await runTest(next)) !== null;
-                        if (next.aiConnection?.method === "subscription") await agentsApi.adapterModels(companyId, "outpost_runner", {
+                        if (next.aiConnection?.method === "subscription") await agentsApi.adapterModels(spaceId, "outpost_runner", {
                           provider: "acpx", acpxAgent: "antigravity", aiConnection: next.aiConnection, environmentId,
                           agentId: !created || created.pauseReason === "setup" ? undefined : created.id,
                         });
@@ -1206,7 +1206,7 @@ function Setup({
                             checked={allowUnmeteredProvider} onChange={value => { setAllowUnmeteredProvider(value); resetTest(); }} />
                         </>}
                         {!connectionAdapter && !usesHostLogin && aiProviderForAdapter(brandType) && (
-                          <AiConnectionField companyId={companyId} agentName={name} adapterType={brandType} model={model} environmentId={environmentId ?? undefined} value={aiBinding}
+                          <AiConnectionField spaceId={spaceId} agentName={name} adapterType={brandType} model={model} environmentId={environmentId ?? undefined} value={aiBinding}
                             onChange={binding => { binding.mode !== "router" && setRuntimeAiBinding(binding); resetTest();
                               if (accountCatalogAvailable && hashKey([aiBinding ?? null]) === hashKey([binding ?? null])) void refreshAccountModels();
                             }} />
@@ -1374,7 +1374,7 @@ function Setup({
                                         ? selectedBinding.secretId
                                         : ""
                                     }
-                                    secrets={companySecrets.data ?? []}
+                                    secrets={spaceSecrets.data ?? []}
                                     disabled={busy}
                                     onSelect={(secretId) => {
                                       setProviderBinding({

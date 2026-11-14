@@ -67,7 +67,7 @@ it.each(["model", "provider", "work", "clock", "retry", "budget"])("rejects chan
   if (field === "work") selected.task.expectedRunCount = 2;
   if (field === "clock") selected.task.turnTimeoutMs = 121000;
   if (field === "retry") selected.task.automaticRetryPolicy = undefined;
-  if (field === "budget") selected.suite.definitionMetadata.companyAndAgentBudgetCents = 1000;
+  if (field === "budget") selected.suite.definitionMetadata.spaceAndAgentBudgetCents = 1000;
   expect(() => authorizeShippedChat(f.env, f.event, selected, "b".repeat(64))).toThrow();
 });
 

@@ -8,7 +8,7 @@ import { prepareMcpClientMirrorPolicy } from "./client-mirror-mutations.js";
 import { and, eq, gt, lte, sql } from "drizzle-orm";
 import { mcpOauthClients as clients,mcpOauthDeviceRequests as devices, mcpOauthClientMirrorState as state, mcpOauthClientChanges as changes, type Db } from "@outpost/db";
 import { instanceSettingsService } from "../instance-settings.js";
-import { createPaperclipCloudConnector, outpostCloudConnectorConfigFromEnv } from "../paperclip-cloud-connector.js";
+import { createOutpostCloudConnector, outpostCloudConnectorConfigFromEnv } from "../outpost-cloud-connector.js";
 import { DELIVERY_QUEUES } from "../delivery-work-notifications.js";
 import type { createDeliveryWorkCoordinator } from "../delivery-work-coordinator.js";
 import { mcpClientMirrorGeneration, mcpClientMirrorReceiptSchema, mcpClientMirrorResponseSchema, mcpMirroredClientSchema,
@@ -25,7 +25,7 @@ export function sameMcpClientMirrorReceipt(left:McpClientMirrorReceipt,right:Mcp
 export function startMcpClientMirrorSync(db: Db, coordinator: Pick<ReturnType<typeof createDeliveryWorkCoordinator>,"register">,
   origin: string | undefined, input: {authorizationOrigin?:string;instanceId?:string;publish?:(request:McpClientMirrorRequest)=>Promise<unknown>} = {}) {
   const config = outpostCloudConnectorConfigFromEnv();
-  const connector = config ? createPaperclipCloudConnector({config}) : undefined;
+  const connector = config ? createOutpostCloudConnector({config}) : undefined;
   const instanceId = input.instanceId ?? config?.instanceId;
   const publish = input.publish ?? (connector ? (request:McpClientMirrorRequest) => connector.syncMcpClientMirror(JSON.stringify(request)) : undefined);
   let pending = true,refreshPublished=true,fullRecovery=false,reserveFullRevision=false;
@@ -81,7 +81,7 @@ export function startMcpClientMirrorSync(db: Db, coordinator: Pick<ReturnType<ty
           return;
         }
         const deviceKey=deriveLocalEncryptedInstanceSecret(`mcp-device-status:v1:${instanceId}`),keyId=mcpDeviceStatusKeyId(deviceKey);
-        const deviceRows=await db.select({requestId:devices.id,deviceCodeHash:devices.deviceCodeHash,clientId:devices.clientId,resource:devices.resource,ingressOwner:devices.ingressOwner,status:devices.status,expiresAt:devices.expiresAt}).from(devices).where(eq(devices.resource,origin+"/mcp/paperclip")).orderBy(devices.id).limit(1001);
+        const deviceRows=await db.select({requestId:devices.id,deviceCodeHash:devices.deviceCodeHash,clientId:devices.clientId,resource:devices.resource,ingressOwner:devices.ingressOwner,status:devices.status,expiresAt:devices.expiresAt}).from(devices).where(eq(devices.resource,origin+"/mcp/outpost")).orderBy(devices.id).limit(1001);
         if(deviceRows.length>1000)throw new Error("MCP retained device set exceeds canonical1000 admission bound");
         const entries=deviceRows.map(row=>mcpDeviceStatusEntrySchema.parse({requestId:row.requestId,clientId:row.clientId,resource:row.resource,ingressOwner:row.ingressOwner,status:row.status,expiresAt:row.expiresAt.getTime(),fingerprint:mcpDeviceStatusFingerprint(deviceKey,row.deviceCodeHash,row.clientId,row.resource)}));
         const deviceStatus={keyId,generation:mcpDeviceStatusGeneration({instanceId,origin,revision:captured.revision,keyId},entries),count:entries.length};

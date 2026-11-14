@@ -20,7 +20,7 @@ try {
     pluginWorkerManager: workers, orphanCleanupSpoolDir: process.env.CREATION_FIXTURE_EMPTY_DISK,
   });
   if (process.env.CREATION_FIXTURE_ACTION === "acquire") {
-    await runtime.acquireRunLease({ companyId: process.env.CREATION_FIXTURE_COMPANY_ID!,
+    await runtime.acquireRunLease({ spaceId: process.env.CREATION_FIXTURE_SPACE_ID!,
       environment: (await environmentService(db).getById(process.env.CREATION_FIXTURE_ENVIRONMENT_ID!))!,
       heartbeatRunId: process.env.CREATION_FIXTURE_RUN_ID!, issueId: null, persistedExecutionWorkspace: null });
   } else {

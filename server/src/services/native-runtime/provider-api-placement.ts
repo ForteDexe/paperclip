@@ -2,12 +2,12 @@ import { parseObject } from "../../adapters/utils.js";
 import { unprocessable } from "../../errors.js";
 import { isExecutionForcedToKubernetes, type ExecutionPolicy } from "../execution-allowlist.js";
 import { parseNativeExecutionInput } from "../../vendor/outpost-runner/index.js";
-import { resolvePaperclipRunnerNativeProviderInput } from "./provider-profile.js";
+import { resolveOutpostRunnerNativeProviderInput } from "./provider-profile.js";
 
 export interface ProviderApiPlacement {
   kind: "provider_api";
   provider: "cursor_cloud";
-  controller: "paperclip";
+  controller: "outpost";
 }
 
 export function managedCursorApiDefaultEnabled(experimental: {
@@ -25,7 +25,7 @@ export function assertProviderApiPlacementPolicy(policy: ExecutionPolicy): void 
 }
 
 /** Held setup may be incomplete. This only skips unused Computer preparation;
- * active hire and verification must still derive a fully validated placement. */
+ * active create and verification must still derive a fully validated placement. */
 export function isProviderApiSetupDraft(agent: { adapterType?: string; adapterConfig?: unknown }): boolean {
   return agent.adapterType === "outpost_runner" && parseObject(agent.adapterConfig).provider === "cursor_cloud";
 }
@@ -46,15 +46,15 @@ export function resolveProviderApiPlacement(input: {
   const saved = profile.executionPlacement;
   const savedRecord = parseObject(saved);
   if (saved !== undefined && (Object.keys(savedRecord).sort().join(",") !== "controller,kind,provider"
-      || savedRecord.kind !== "provider_api" || savedRecord.provider !== "cursor_cloud" || savedRecord.controller !== "paperclip"
+      || savedRecord.kind !== "provider_api" || savedRecord.provider !== "cursor_cloud" || savedRecord.controller !== "outpost"
       || persisted?.provider.kind !== "cursor_cloud" || profile.backend !== "cursor_cloud_api")) {
     throw new Error("provider_api_placement_binding_mismatch");
   }
   if (persisted) return persisted.provider.kind === "cursor_cloud"
-    ? { kind: "provider_api", provider: "cursor_cloud", controller: "paperclip" } : null;
+    ? { kind: "provider_api", provider: "cursor_cloud", controller: "outpost" } : null;
   const config = parseObject(input.agent.adapterConfig);
   if (input.agent.adapterType !== "outpost_runner" || config.provider !== "cursor_cloud") return null;
   // Validate the provider's complete launch contract before granting placement.
-  resolvePaperclipRunnerNativeProviderInput({ backend: "cursor_cloud_api", adapterConfig: config });
-  return { kind: "provider_api", provider: "cursor_cloud", controller: "paperclip" };
+  resolveOutpostRunnerNativeProviderInput({ backend: "cursor_cloud_api", adapterConfig: config });
+  return { kind: "provider_api", provider: "cursor_cloud", controller: "outpost" };
 }

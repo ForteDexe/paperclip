@@ -70,9 +70,9 @@ describe("grantIsRevocable", () => {
 });
 
 describe("canManageIssuePrivacy", () => {
-  const issue = { companyId: "c1", responsibleUserId: "responsible", createdByUserId: "creator", assigneeUserId: "assignee" };
-  const access = (role: string) => ({ source: "session", isInstanceAdmin: false, companyIds: ["c1"],
-    memberships: [{ companyId: "c1", status: "active", membershipRole: role }] }) as Parameters<typeof canManageIssuePrivacy>[2];
+  const issue = { spaceId: "c1", responsibleUserId: "responsible", createdByUserId: "creator", assigneeUserId: "assignee" };
+  const access = (role: string) => ({ source: "session", isInstanceAdmin: false, spaceIds: ["c1"],
+    memberships: [{ spaceId: "c1", status: "active", membershipRole: role }] }) as Parameters<typeof canManageIssuePrivacy>[2];
   it("allows task principals even with viewer membership", () => {
     for (const user of ["responsible", "creator", "assignee"]) expect(canManageIssuePrivacy(issue, user, access("viewer"))).toBe(true);
   });
@@ -85,8 +85,8 @@ describe("canManageIssuePrivacy", () => {
 
 describe("canManageProjectPrivacy", () => {
   it("keeps project read membership separate from privacy management", () => {
-    const access = { source: "session", isInstanceAdmin: false, memberships: [{ companyId: "c1", status: "active", membershipRole: "member" }] } as Parameters<typeof canManageProjectPrivacy>[2];
-    const project = { companyId: "c1", privacyOwnerUserId: "owner" };
+    const access = { source: "session", isInstanceAdmin: false, memberships: [{ spaceId: "c1", status: "active", membershipRole: "member" }] } as Parameters<typeof canManageProjectPrivacy>[2];
+    const project = { spaceId: "c1", privacyOwnerUserId: "owner" };
     expect(canManageProjectPrivacy(project, "reader", access)).toBe(false);
     expect(canManageProjectPrivacy(project, "owner", access)).toBe(true);
   });

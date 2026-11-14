@@ -57,7 +57,7 @@ describe("admission CLI startup", () => {
     }
   }
   test("rejects a noncanonical CLI context before discovering consumers", () => {
-    const result = runAdmissionCli({ repositoryName: "fork/paperclip" });
+    const result = runAdmissionCli({ repositoryName: "fork/outpost" });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /Canonical master admission context required/);
     assert.equal(result.output, "");
@@ -143,7 +143,7 @@ test("source proof passes while image work is still running, or has failed", asy
 test("only the expected workflow, repository, master push, and full SHA can supply proof", async () => {
   for (const overrides of [
     { workflow_id: 999 }, { path: ".github/workflows/pr.yml" },
-    { repository: { full_name: "other/paperclip" } }, { head_repository: { full_name: "fork/paperclip" } },
+    { repository: { full_name: "other/outpost" } }, { head_repository: { full_name: "fork/outpost" } },
     { head_sha: "b".repeat(40) }, { head_branch: "feature" }, { event: "workflow_dispatch" },
     { run_attempt: undefined }, { run_attempt: 0 },
   ]) {
@@ -515,7 +515,7 @@ describe("release candidate admission", () => {
 
   test("forks, stale identities, tags, and non-push consumers do not admit work", async () => {
     for (const change of [{ repository: { ...repository, id: 2 } }, { head_repository: { ...repository, id: 2 } },
-      { repository: { ...repository, full_name: "fork/paperclip" } }, { path: ".github/workflows/pr.yml" },
+      { repository: { ...repository, full_name: "fork/outpost" } }, { path: ".github/workflows/pr.yml" },
       { workflow_id: 999 }, { head_sha: "b".repeat(40) }, { head_branch: "v1" }, { event: "workflow_dispatch" },
       { id: 0 }, { run_attempt: 0 }]) {
       const f = fixture();
@@ -713,7 +713,7 @@ describe("release candidate admission", () => {
   test("the retry transport is a bounded POST to a canonical run", async () => {
     const calls = [];
     const rerun = createReleaseRerunner("fixture", async (url, options) => { calls.push({ url, options }); return { ok: true }; });
-    await assert.rejects(rerun("/repos/fork/paperclip/actions/runs/1/rerun"), /Invalid release retry/);
+    await assert.rejects(rerun("/repos/fork/outpost/actions/runs/1/rerun"), /Invalid release retry/);
     await rerun("/repos/paperclipai/paperclip/actions/runs/1/rerun");
     assert.equal(calls.length, 1);
     assert.equal(calls[0].options.method, "POST");

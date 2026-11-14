@@ -43,9 +43,9 @@ export function createGitHubSetup(db: Db, options: GitHubSetupOptions) {
           await db.transaction(async (tx) => {
             await credentialLease.assertOwned(tx);
             await logActivity(tx as unknown as Db, {
-              companyId: endpoint.companyId,
+              spaceId: endpoint.spaceId,
               actorType: "user",
-              actorId: actorUserId ?? "board",
+              actorId: actorUserId ?? "operator",
               action,
               entityType: "tool_connection",
               entityId: endpoint.connectionId,

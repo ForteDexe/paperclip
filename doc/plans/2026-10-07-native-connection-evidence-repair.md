@@ -29,7 +29,7 @@ inputs in both variants. The candidate alone adds the compact per-turn reminder.
 Select the fifteen explicit `native-connection-guidance` local cells: five
 connection stories across native Codex `gpt-5.6-sol`, ACPX Claude `claude-sonnet-5`,
 and OpenCode `openrouter/deepseek/deepseek-v4-flash-0731`. One attempt per variant
-and cell, no automatic retries, 720000 ms cell deadlines, 1000-cent company and
+and cell, no automatic retries, 720000 ms cell deadlines, 1000-cent space and
 agent hard stops, and three concurrent cells per campaign. Count every actual
 run, including failures; preserve source and grader hashes and incomplete billing.
 

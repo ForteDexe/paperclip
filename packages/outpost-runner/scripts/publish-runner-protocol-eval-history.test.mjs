@@ -48,7 +48,7 @@ function campaign(overrides = {}) {
     campaignId: "gha-42-1",
     generatedAt: "2026-09-05T00:00:00.000Z",
     source: {
-      paperclip: { sha: "a".repeat(40), ref: "refs/heads/master" },
+      outpost: { sha: "a".repeat(40), ref: "refs/heads/master" },
       evals: { repository: "paperclipai/paperclip-evals", sha: "b".repeat(40) },
     },
     complete: true,
@@ -102,12 +102,12 @@ async function reportFixture() {
 test("accepts only credential-free HTTPS destinations and the dedicated prefix", () => {
   assert.deepEqual(
     validateProtocolEvalHistoryDestination({
-      bucket: "paperclip-public-reports",
+      bucket: "outpost-public-reports",
       prefix: "/runner-protocol-evals/",
       publicBaseUrl: "https://reports.outpost.ing/",
     }),
     {
-      bucket: "paperclip-public-reports",
+      bucket: "outpost-public-reports",
       prefix: "runner-protocol-evals",
       publicBaseUrl: "https://reports.outpost.ing",
     },

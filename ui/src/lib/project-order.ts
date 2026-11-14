@@ -1,7 +1,7 @@
 import type { Project } from "@outpost/shared";
 
-export const PROJECT_ORDER_UPDATED_EVENT = "paperclip:project-order-updated";
-export const PROJECT_SORT_MODE_UPDATED_EVENT = "paperclip:project-sort-mode-updated";
+export const PROJECT_ORDER_UPDATED_EVENT = "outpost:project-order-updated";
+export const PROJECT_SORT_MODE_UPDATED_EVENT = "outpost:project-sort-mode-updated";
 const PROJECT_ORDER_STORAGE_PREFIX = "outpost.projectOrder";
 const PROJECT_SORT_MODE_STORAGE_PREFIX = "outpost.projectSortMode";
 const ANONYMOUS_USER_ID = "anonymous";
@@ -33,12 +33,12 @@ function resolveUserId(userId: string | null | undefined): string {
   return trimmed.length > 0 ? trimmed : ANONYMOUS_USER_ID;
 }
 
-export function getProjectOrderStorageKey(companyId: string, userId: string | null | undefined): string {
-  return `${PROJECT_ORDER_STORAGE_PREFIX}:${companyId}:${resolveUserId(userId)}`;
+export function getProjectOrderStorageKey(spaceId: string, userId: string | null | undefined): string {
+  return `${PROJECT_ORDER_STORAGE_PREFIX}:${spaceId}:${resolveUserId(userId)}`;
 }
 
-export function getProjectSortModeStorageKey(companyId: string, userId: string | null | undefined): string {
-  return `${PROJECT_SORT_MODE_STORAGE_PREFIX}:${companyId}:${resolveUserId(userId)}`;
+export function getProjectSortModeStorageKey(spaceId: string, userId: string | null | undefined): string {
+  return `${PROJECT_SORT_MODE_STORAGE_PREFIX}:${spaceId}:${resolveUserId(userId)}`;
 }
 
 export function readProjectOrder(storageKey: string): string[] {

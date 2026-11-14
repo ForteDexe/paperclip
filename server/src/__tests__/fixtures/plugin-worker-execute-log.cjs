@@ -9,7 +9,7 @@
 //   - "forge-previous" → the id of the PREVIOUS execute call the same worker
 //                        process handled. One worker process sees every active
 //                        invocation id, so this reproduces a worker that runs
-//                        company A and forges company B's active id.
+//                        space A and forges space B's active id.
 // The default tag is "echo". The entry `stream` and `chunk` pass through
 // verbatim, so a test can send an invalid stream name or an empty chunk to
 // prove the host drops invalid input.
@@ -25,7 +25,7 @@ function send(message) {
 }
 
 // The id of the previous execute call this worker process handled. A single
-// worker process serves every company, so it can name another company's active
+// worker process serves every space, so it can name another space's active
 // invocation. The fixture uses this to forge a peer id.
 let previousInvocationId = null;
 
@@ -49,7 +49,7 @@ rl.on("line", (line) => {
   }
 
   if (method === "environmentExecute") {
-    const invocationId = message.paperclipInvocation && message.paperclipInvocation.id;
+    const invocationId = message.outpostInvocation && message.outpostInvocation.id;
     const forgeableId = previousInvocationId;
     previousInvocationId = invocationId;
     const params = message.params ?? {};
@@ -58,7 +58,7 @@ rl.on("line", (line) => {
       send({
         jsonrpc: "2.0",
         method: "execute.log",
-        paperclipInvocationId: invocationId,
+        outpostInvocationId: invocationId,
         params: { stream: "stdout", chunk: "d".repeat(oversizedChars) },
       });
     }
@@ -71,11 +71,11 @@ rl.on("line", (line) => {
       };
       const tag = entry.tag ?? "echo";
       if (tag === "echo") {
-        note.paperclipInvocationId = invocationId;
+        note.outpostInvocationId = invocationId;
       } else if (tag === "unknown") {
-        note.paperclipInvocationId = "unknown-invocation";
+        note.outpostInvocationId = "unknown-invocation";
       } else if (tag === "forge-previous") {
-        note.paperclipInvocationId = forgeableId;
+        note.outpostInvocationId = forgeableId;
       }
       // tag === "none" → omit the invocation id entirely.
       send(note);

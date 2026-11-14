@@ -5,9 +5,9 @@ import { validatePrpEvent } from "../../../packages/outpost-runner/src/protocol/
 import { savedSkillFixture, savedSkillReadAssignment, savedSkillReadReceipts, savedSkillReadRuntimeName } from "./saved-skill-use-evidence.js";
 
 type Row = Record<string, any>;
-const binding = { companyId: "company", agentId: "agent", runId: "run" };
+const binding = { spaceId: "space", agentId: "agent", runId: "run" };
 const fixture = savedSkillFixture("native-loader", "62ff548dfec748da8fef6d5fbf6cc23d");
-const key = `company/${binding.companyId}/${fixture.slug}`, runtimeName = `${fixture.slug}--0123456789`;
+const key = `space/${binding.spaceId}/${fixture.slug}`, runtimeName = `${fixture.slug}--0123456789`;
 const body = `<skill_content name="${fixture.slug}">\n# Skill: ${fixture.slug}\n\n${fixture.procedure.trim()}\n\n`
   + `Base directory for this skill: /workspace/.claude/skills/${runtimeName}\n`
   + "Relative paths are relative to this base directory.\n\n<skill_files>\n</skill_files>\n</skill_content>";
@@ -15,7 +15,7 @@ const body = `<skill_content name="${fixture.slug}">\n# Skill: ${fixture.slug}\n
 function observations() {
   const skill = { key, currentVersionId: "version" };
   const assignments = { entries: [{ key, versionId: "version", runtimeName }] };
-  const run: Row = { id: "run", companyId: "company", agentId: "agent", runtimeMode: "native",
+  const run: Row = { id: "run", spaceId: "space", agentId: "agent", runtimeMode: "native",
     runnerInstanceId: "runner", nativeSessionId: "session",
     contextSnapshot: { skillSelectionSnapshot: true, skillVersions: { [key]: "version" } },
     runnerProfileJson: { nativeExecutionInput: { provider: { kind: "opencode" },
@@ -70,7 +70,7 @@ describe("saved-skill native OpenCode builtin loader", () => {
     ["duplicate completion", (v: Observations) => { v.events.push(structuredClone(v.events[1]!)); }],
     ["foreign call", (v: Observations) => { v.events[0]!.payload.orpEvent.payload.executionId = "foreign"; }],
     ["foreign run", (v: Observations) => { v.events[1]!.runId = v.events[1]!.payload.orpEvent.runId = "foreign"; }],
-    ["foreign company", (v: Observations) => { v.events[1]!.companyId = "foreign"; }],
+    ["foreign space", (v: Observations) => { v.events[1]!.spaceId = "foreign"; }],
     ["foreign agent", (v: Observations) => { v.events[1]!.agentId = "foreign"; }],
     ["foreign runner", (v: Observations) => { v.events[1]!.sourceInstanceId = v.events[1]!.payload.orpEvent.sourceInstanceId = "foreign"; }],
     ["foreign turn", (v: Observations) => { v.events[0]!.payload.orpEvent.turnId = "foreign"; }],
@@ -79,7 +79,7 @@ describe("saved-skill native OpenCode builtin loader", () => {
     ["missing session", (v: Observations) => { delete v.run.nativeSessionId; }],
     ["missing runner", (v: Observations) => { delete v.run.runnerInstanceId; }],
     ["wrong native provider", (v: Observations) => { v.run.runnerProfileJson.nativeExecutionInput.provider.kind = "codex"; }],
-    ["wrong run owner", (v: Observations) => { v.run.companyId = "foreign"; }],
+    ["wrong run owner", (v: Observations) => { v.run.spaceId = "foreign"; }],
     ["unselected skill", (v: Observations) => { v.run.contextSnapshot.skillSelectionSnapshot = false; }],
     ["foreign admitted version", (v: Observations) => { v.run.contextSnapshot.skillVersions[key] = "foreign"; }],
     ["foreign API version", (v: Observations) => { v.assignments.entries[0]!.versionId = "foreign"; }],

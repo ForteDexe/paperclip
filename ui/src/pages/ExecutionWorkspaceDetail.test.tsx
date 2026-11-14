@@ -19,7 +19,7 @@ const mockExecutionWorkspacesApi = vi.hoisted(() => ({
 const mockProjectsApi = vi.hoisted(() => ({ get: vi.fn() }));
 const mockIssuesApi = vi.hoisted(() => ({ get: vi.fn(), list: vi.fn() }));
 const mockAgentsApi = vi.hoisted(() => ({ list: vi.fn() }));
-const mockHeartbeatsApi = vi.hoisted(() => ({ liveRunsForCompany: vi.fn() }));
+const mockHeartbeatsApi = vi.hoisted(() => ({ liveRunsForSpace: vi.fn() }));
 const mockRoutinesApi = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn(), run: vi.fn() }));
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockSetBreadcrumbs = vi.hoisted(() => vi.fn());
@@ -54,11 +54,11 @@ vi.mock("@/lib/router", () => ({
   useParams: () => ({ workspaceId: "workspace-1" }),
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({
-    companies: [{ id: "company-1", issuePrefix: "PAP" }],
-    selectedCompanyId: "company-1",
-    setSelectedCompanyId: vi.fn(),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({
+    spaces: [{ id: "space-1", issuePrefix: "PAP" }],
+    selectedSpaceId: "space-1",
+    setSelectedSpaceId: vi.fn(),
   }),
 }));
 vi.mock("../context/BreadcrumbContext", () => ({ useBreadcrumbs: () => ({ setBreadcrumbs: mockSetBreadcrumbs }) }));
@@ -123,7 +123,7 @@ function workspace(overrides: Partial<ExecutionWorkspace> = {}): ExecutionWorksp
   const now = new Date("2026-05-01T00:00:00Z");
   return {
     id: "workspace-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     projectWorkspaceId: null,
     sourceIssueId: null,
@@ -156,7 +156,7 @@ function project(overrides: Partial<Project> = {}): Project {
   const now = new Date("2026-05-01T00:00:00Z");
   return {
     id: "project-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     urlKey: "project-1",
     goalId: null,
     goalIds: [],
@@ -226,7 +226,7 @@ describe("ExecutionWorkspaceDetail plugin slots", () => {
     mockIssuesApi.list.mockResolvedValue([]);
     mockAgentsApi.list.mockResolvedValue([]);
     mockRoutinesApi.list.mockResolvedValue([]);
-    mockHeartbeatsApi.liveRunsForCompany.mockResolvedValue([]);
+    mockHeartbeatsApi.liveRunsForSpace.mockResolvedValue([]);
     mockPluginSlotState.slots = [];
     mockPluginSlotState.isLoading = false;
     mockPluginSlotState.errorMessage = null;
@@ -270,17 +270,17 @@ describe("ExecutionWorkspaceDetail plugin slots", () => {
     expect(container.textContent).toContain("Services");
   });
 
-  it("scopes the plugin detail-tab discovery to execution_workspace and the workspace's company", async () => {
+  it("scopes the plugin detail-tab discovery to execution_workspace and the workspace's space", async () => {
     await render();
 
     const enabledDetailTabFilters = mockUsePluginSlots.mock.calls
-      .map(([filters]) => filters as { slotTypes: string[]; entityType: string; companyId: string | null; enabled?: boolean })
+      .map(([filters]) => filters as { slotTypes: string[]; entityType: string; spaceId: string | null; enabled?: boolean })
       .filter((filters) => filters.slotTypes.includes("detailTab") && filters.enabled !== false);
 
     expect(enabledDetailTabFilters.length).toBeGreaterThan(0);
     for (const filters of enabledDetailTabFilters) {
       expect(filters.entityType).toBe("execution_workspace");
-      expect(filters.companyId).toBe("company-1");
+      expect(filters.spaceId).toBe("space-1");
     }
   });
 
@@ -290,7 +290,7 @@ describe("ExecutionWorkspaceDetail plugin slots", () => {
     const outletCalls = mockPluginSlotOutlet.mock.calls.map(([props]) => props as {
       slotTypes: string[];
       entityType: string;
-      context: { entityId: string; entityType: string; companyId: string; projectId: string };
+      context: { entityId: string; entityType: string; spaceId: string; projectId: string };
     });
     const toolbarOutlet = outletCalls.find((props) => props.slotTypes.includes("toolbarButton"));
     expect(toolbarOutlet).toBeDefined();
@@ -298,7 +298,7 @@ describe("ExecutionWorkspaceDetail plugin slots", () => {
     expect(toolbarOutlet?.context).toMatchObject({
       entityId: "workspace-1",
       entityType: "execution_workspace",
-      companyId: "company-1",
+      spaceId: "space-1",
       projectId: "project-1",
     });
   });
@@ -309,7 +309,7 @@ describe("ExecutionWorkspaceDetail plugin slots", () => {
     await render();
 
     expect(mockSummarySlotCard).toHaveBeenCalledWith(expect.objectContaining({
-      companyId: "company-1",
+      spaceId: "space-1",
       scopeKind: "execution_workspace",
       scopeId: "workspace-1",
       title: "Workspace summary",
@@ -326,7 +326,7 @@ describe("ExecutionWorkspaceDetail plugin slots", () => {
     await render();
 
     expect(mockSummarySlotCard).toHaveBeenCalledWith(expect.objectContaining({
-      companyId: "company-1",
+      spaceId: "space-1",
       scopeKind: "execution_workspace",
       scopeId: "workspace-1",
     }));

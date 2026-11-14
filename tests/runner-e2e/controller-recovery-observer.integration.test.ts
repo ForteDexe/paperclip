@@ -5,7 +5,7 @@ import { writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 import { afterEach, expect, it, vi } from "vitest";
-import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations,
+import { agents, spaces, createDb, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations,
   nativeRunnerCheckpoints, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS } from "../../packages/db/src/index.js";
 import { DurablePrpControlPlane } from "../../server/src/vendor/outpost-runner/index.js";
 import { registerNativeRunnerCheckpoint } from "../../server/src/services/native-runtime/native-runner-checkpoint.js";
@@ -24,24 +24,24 @@ afterEach(() => vi.unstubAllEnvs());
   vi.stubEnv("OUTPOST_INSTANCE_ID", "observer-fixture");
   vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", undefined);
   vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY_FILE", undefined);
-  const binding = { companyId: randomUUID(), issueId: randomUUID(), runId: randomUUID() };
+  const binding = { spaceId: randomUUID(), issueId: randomUUID(), runId: randomUUID() };
   const agentId = randomUUID(), runnerInstanceId = randomUUID(), normalizedSessionId = randomUUID();
   const authority = new DurablePrpControlPlane({ stateDirectory: path.join(home.home, "authority"),
     identity: { runnerInstanceId, normalizedSessionId, runId: binding.runId,
       environmentLeaseId: randomUUID(), turnId: randomUUID(), itemId: randomUUID() },
     expectedRunnerVersion: "observer-fixture", expectedRunnerDigest: `sha256:${"a".repeat(64)}` });
   try {
-    await db.insert(companies).values({ id: binding.companyId, name: "Qualification observer" });
-    await db.insert(agents).values({ id: agentId, companyId: binding.companyId, name: "Observer fixture", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: binding.issueId, companyId: binding.companyId, title: "Observe original execution" });
-    await db.insert(heartbeatRuns).values({ id: binding.runId, companyId: binding.companyId, agentId,
+    await db.insert(spaces).values({ id: binding.spaceId, name: "Qualification observer" });
+    await db.insert(agents).values({ id: agentId, spaceId: binding.spaceId, name: "Observer fixture", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: binding.issueId, spaceId: binding.spaceId, title: "Observe original execution" });
+    await db.insert(heartbeatRuns).values({ id: binding.runId, spaceId: binding.spaceId, agentId,
       invocationSource: "manual", status: "running", runtimeMode: "native", nativeIssueId: binding.issueId,
       runnerInstanceId, nativeSessionId: normalizedSessionId });
     await db.insert(nativeRunFinalizations).values({ ...binding, phase: "observed", controllerBootId: "observer-controller",
       controllerGeneration: 1, leaseOwner: "observer-owner", leaseExpiresAt: new Date(Date.now() + 60_000) });
     await registerNativeRunnerCheckpoint({ db, binding, authority, bootId: "observer-controller" });
     await db.insert(heartbeatRunEvents).values([runnerInstanceId, randomUUID()].map((sourceInstanceId, index) => ({
-      companyId: binding.companyId, runId: binding.runId, agentId, seq: index + 1,
+      spaceId: binding.spaceId, runId: binding.runId, agentId, seq: index + 1,
       eventType: "fixture", sourceSeq: index === 0 ? 7 : 99, sourceInstanceId,
     })));
     const checkpointBefore = await db.select().from(nativeRunnerCheckpoints);
@@ -74,7 +74,7 @@ afterEach(() => vi.unstubAllEnvs());
         runnerInstanceId, authenticatedConnectionCount: 0 });
     }
     expect(await db.select().from(nativeRunnerCheckpoints)).toEqual(checkpointBefore);
-    await expect(readControllerRecoverySnapshot(db, { ...binding, companyId: randomUUID() }))
+    await expect(readControllerRecoverySnapshot(db, { ...binding, spaceId: randomUUID() }))
       .rejects.toThrow("no admitted native owner");
   } finally {
     await authority.stop();

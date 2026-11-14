@@ -3,8 +3,8 @@ import type { AuthorizationActor } from "../authorization.js";
 import { eq, sql } from "drizzle-orm";
 import { heartbeatRuns, type Db, type agents, type projects } from "@outpost/db";
 import type { AiConnectionBinding } from "@outpost/shared";
-import { readPaperclipSkillSyncPreference, resolveNativeOutpostDesiredSkillNames, resolveLegacyPaperclipDesiredSkillNames,
-  writePaperclipSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
+import { readOutpostSkillSyncPreference, resolveNativeOutpostDesiredSkillNames, resolveLegacyOutpostDesiredSkillNames,
+  writeOutpostSkillSyncPreference } from "@outpost/adapter-utils/server-utils";
 import { parseObject } from "../../adapters/utils.js";
 import { logger } from "../../middleware/logger.js";
 import { AI_CONNECTION_BUSY_RETRY_REASON, extractWakeCommentIds, isNonAssigneeWorkspaceBusyRetry } from "../../modules/run-dispatch/index.js";
@@ -13,7 +13,7 @@ import { agentIdentityService, supportsManagedAgentIdentity } from "../agent-ide
 import { readAiConnectionConfigurationFailure, readAiCredentialAccessFailure } from "../ai-connection-configuration-failure.js";
 import { AI_AUTH_ENV_KEYS, isAiConnectionBusy, prepareManagedAiRuntime, stripAiAuthBindings } from "../ai-connection-runtime.js";
 import { managedAiSessionIdentityCompatible } from "../ai-connection-session.js";
-import type { companySkillService } from "../company-skills.js";
+import type { spaceSkillService } from "../space-skills.js";
 import { connectionIntentService } from "../connection-intents.js";
 import { PLUGIN_RUNNER_AI_CONNECTION_REQUIRED, pluginEnvironmentRunnerTaskDriver, pluginRunnerAiConnectionRequiredMessage } from "../plugin-runner-ai-connection.js";
 import { prepareConnectionInstructionDelivery } from "../connection-instructions.js";
@@ -74,7 +74,7 @@ export interface HeartbeatExecutionConfigurationInput {
     "selectedEnvironmentId" | "selectedEnvironmentForConfig" | "resolvedInstanceSettings" | "persistedNativeExecutionInput">;
   services: {
     secretsSvc: Parameters<typeof resolveExecutionRunAdapterConfig>[0]["secretsSvc"];
-    companySkills: Pick<ReturnType<typeof companySkillService>, "withRuntimeSkillEntries">;
+    spaceSkills: Pick<ReturnType<typeof spaceSkillService>, "withRuntimeSkillEntries">;
     appendRunEvent: ReturnType<typeof createHeartbeatLifecycle>["appendRunEvent"];
     finalizeAiConnectionBusyDeferral: ReturnType<typeof createHeartbeatRetries>["finalizeAiConnectionBusyDeferral"];
   };
@@ -117,7 +117,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
   onFailureSecretsResolved(() => []);
   const aiBinding = preconfiguredHome ? undefined : input.config.aiBinding;
   const { trustPreset, useIsolatedTaskDirectory, explicitTaskDirectory, requestedExecutionWorkspaceMode } = input.policy;
-  const { secretsSvc, companySkills, appendRunEvent, finalizeAiConnectionBusyDeferral } = input.services;
+  const { secretsSvc, spaceSkills, appendRunEvent, finalizeAiConnectionBusyDeferral } = input.services;
   let managedAiRuntime: ManagedAiRuntime | undefined;
   const forceDirectoryStrategy = useIsolatedTaskDirectory || (explicitTaskDirectory && (
     requestedExecutionWorkspaceMode === "agent_default" || Object.keys(parseObject(sourceWorkspaceConfig.workspaceStrategy)).length > 0
@@ -134,17 +134,17 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
   );
   const executionRunConfig =
     stripWorkspaceRuntimeFromExecutionRunConfig(mergedConfig);
-  const skillActor: AuthorizationActor = { type: "agent", agentId: agent.id, companyId: agent.companyId,
-    runId: run.id, source: "agent_jwt", onBehalfOfUserId: responsibleUserId === "local-board" ? null : responsibleUserId };
+  const skillActor: AuthorizationActor = { type: "agent", agentId: agent.id, spaceId: agent.spaceId,
+    runId: run.id, source: "agent_jwt", onBehalfOfUserId: responsibleUserId === "local-operator" ? null : responsibleUserId };
   const [mentionedSkills, githubIdentity] = await Promise.allSettled([
     preconfiguredHome || pinnedSkillTest ? Promise.resolve([]) : time("configuration_mentions", () => resolveRunScopedMentionedSkillKeys({
       db,
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       issueId,
       commentIds: extractWakeCommentIds(context),
       actor: skillActor,
     })),
-    time("configuration_github_identity", () => resolveManagedGitHubIdentitySelection(db, agent.companyId, {
+    time("configuration_github_identity", () => resolveManagedGitHubIdentitySelection(db, agent.spaceId, {
       agentId: agent.id, responsibleUserId, allowStandingDelegation: false,
     })),
   ]);
@@ -164,7 +164,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
     await time("configuration_secrets", () => resolveExecutionRunAdapterConfig({
       managedAiCredentials: Boolean(aiBinding),
       managedGitHubCredentials: !useHostGitHub,
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       agentId: agent.id,
       adapterType: agent.adapterType,
       issueId,
@@ -184,7 +184,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
   onFailureSecretsResolved(() => collectRunFailureSecretValues(resolvedConfig.env, secretKeys));
   if (aiBinding) {
     try {
-      managedAiRuntime = await time("configuration_ai_runtime", () => prepareManagedAiRuntime(db, { companyId: agent.companyId, agentId: agent.id, responsibleUserId, adapterType: agent.adapterType, binding: aiBinding, config: resolvedConfig }));
+      managedAiRuntime = await time("configuration_ai_runtime", () => prepareManagedAiRuntime(db, { spaceId: agent.spaceId, agentId: agent.id, responsibleUserId, adapterType: agent.adapterType, binding: aiBinding, config: resolvedConfig }));
       onManagedAiRuntimeAcquired(managedAiRuntime);
     } catch (error) {
       // Only fresh executions can receive a pre-provider wait receipt. A
@@ -200,12 +200,12 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
         return { prepared: false as const };
       }
       if (responsibleUserId && issueId) {
-        await connectionIntentService(db).request({ sub: agent.id, company_id: agent.companyId, run_id: run.id, responsible_user_id: responsibleUserId }, aiBinding.provider, { purpose: "ai" }).catch(() => {
+        await connectionIntentService(db).request({ sub: agent.id, space_id: agent.spaceId, run_id: run.id, responsible_user_id: responsibleUserId }, aiBinding.provider, { purpose: "ai" }).catch(() => {
           logger.warn({ runId: run.id, agentId: agent.id }, "Could not attach AI connection request; runtime configuration action remains available");
         });
       }
       throw new ConfigurationIncompleteFailure(error instanceof Error ? error.message : "Configure this agent’s AI connection", {
-        configurationIncomplete: { reason: "ai_connection_unavailable", companyId: agent.companyId, agentId: agent.id, responsibleUserId,
+        configurationIncomplete: { reason: "ai_connection_unavailable", spaceId: agent.spaceId, agentId: agent.id, responsibleUserId,
           ...(!persistedNativeExecutionInput && readAiConnectionConfigurationFailure(error)
             ? { selectionFailure: readAiConnectionConfigurationFailure(error) } : {}),
           ...(readAiCredentialAccessFailure(error)
@@ -228,11 +228,11 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
     await db.update(heartbeatRuns).set({ contextSnapshot: sql`coalesce(${heartbeatRuns.contextSnapshot}, '{}'::jsonb) || ${JSON.stringify({ aiConnection: context.aiConnection, ...(context.aiRouterTaskKey ? { aiRouterTaskKey: context.aiRouterTaskKey } : {}), ...(context.aiRouterSelection ? { aiRouterSelection: context.aiRouterSelection } : {}) })}::jsonb` }).where(eq(heartbeatRuns.id, run.id));
   }
   if (secretManifest.length > 0) {
-    context.paperclipSecrets = {
+    context.outpostSecrets = {
       manifest: secretManifest,
     };
   } else {
-    delete context.paperclipSecrets;
+    delete context.outpostSecrets;
   }
   const storedVersions = parseObject(run.contextSnapshot?.skillVersions);
   const hasStoredVersions = Object.prototype.hasOwnProperty.call(run.contextSnapshot ?? {}, "skillVersions");
@@ -250,18 +250,18 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
         ? [{ key: saved.key, shadowedBy: saved.shadowedBy }] : [];
     }) : [];
   const selectedConfig = pinnedSkillTest
-    ? writePaperclipSkillSyncPreference(resolvedConfig, [pinnedSkillTest])
+    ? writeOutpostSkillSyncPreference(resolvedConfig, [pinnedSkillTest])
     : applyRunScopedMentionedSkillKeys(resolvedConfig, runScopedSkillKeys);
   const { config: effectiveResolvedConfig, skillKeys: environmentSkills, shadowedSkills } = hasStoredVersions
     ? { config: selectedConfig, skillKeys: [], shadowedSkills: savedShadowedSkills }
-    : await environmentSkillConfig(db, agent.companyId, selectedEnvironmentForConfig, selectedConfig);
+    : await environmentSkillConfig(db, agent.spaceId, selectedEnvironmentForConfig, selectedConfig);
   if (shadowedSkills?.length) {
     context.shadowedSkills = shadowedSkills;
     if (!hasStoredVersions) await appendRunEvent(run, { eventType: "skills.shadowed", stream: "system", level: "warn",
       message: shadowedSkills.map(({ key, shadowedBy }) => `Skill "${key}" was skipped because required plugin skill "${shadowedBy}" uses the same name.`).join("\n"),
       payload: { shadowedSkills } });
   }
-  const runtimeSkillPreference = readPaperclipSkillSyncPreference(
+  const runtimeSkillPreference = readOutpostSkillSyncPreference(
     effectiveResolvedConfig,
   );
   const nativeRunnerPreparationSpans: NativeRunHistoricalSpan[] = [];
@@ -279,7 +279,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
       // Studio always executes its saved revision, independently of assignment
       // pins and the Beta skills preference. Recovery keeps the admitted map.
       if (!hasStoredVersions && pinnedSkillTest) versionSelections.set(pinnedSkillTest.key, pinnedSkillTest.versionId);
-      return await withSkillActor(skillActor, () => companySkills.withRuntimeSkillEntries(agent.companyId, {
+      return await withSkillActor(skillActor, () => spaceSkills.withRuntimeSkillEntries(agent.spaceId, {
         versionSelections, snapshotLatest: true,
         ...(hasStoredVersions
           ? { onlyKeys: new Set(Object.keys(storedVersions)) }
@@ -302,10 +302,10 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
             ? Object.keys(storedVersions)
             : agent.adapterType === "outpost_runner"
               ? resolveNativeOutpostDesiredSkillNames(effectiveResolvedConfig, available)
-              : resolveLegacyPaperclipDesiredSkillNames(effectiveResolvedConfig, available);
+              : resolveLegacyOutpostDesiredSkillNames(effectiveResolvedConfig, available);
           const selectedKeys = new Set(desiredKeys.filter(key => availableKeys.has(key)));
           const resolved = available.filter(entry => selectedKeys.has(entry.key));
-          skillDeliveryConfig = writePaperclipSkillSyncPreference(effectiveResolvedConfig,
+          skillDeliveryConfig = writeOutpostSkillSyncPreference(effectiveResolvedConfig,
             resolved.map(entry => ({ key: entry.key, versionId: entry.versionId ?? null })));
           if (!hasStoredVersions) {
             const skillVersions = Object.fromEntries(resolved.map(entry => [entry.key, entry.versionId ?? entry.currentVersionId ?? null]));
@@ -341,11 +341,11 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
   };
   const skillsPreparation = (preconfiguredHome ? Promise.resolve([]) : time("configuration_skills", prepareSkills))
     .finally(() => { skillsPrepareEndedAtMs = Date.now(); });
-  const assignmentsPreparation = preconfiguredHome ? Promise.resolve([]) : time("configuration_connector_assignments", () => resolveConnectorAssignments(db, { companyId: agent.companyId, agentId: agent.id, runId: run.id, issueId: typeof context.issueId === "string" ? context.issueId : undefined }));
+  const assignmentsPreparation = preconfiguredHome ? Promise.resolve([]) : time("configuration_connector_assignments", () => resolveConnectorAssignments(db, { spaceId: agent.spaceId, agentId: agent.id, runId: run.id, issueId: typeof context.issueId === "string" ? context.issueId : undefined }));
   const [preparedSkills, preparedAssignments, preparedInstructions] = await Promise.allSettled([
     skillsPreparation,
     assignmentsPreparation,
-    assignmentsPreparation.then(() => time("configuration_connection_instructions", () => resolveAssignedConnectionInstructionsForRun(db, { companyId: agent.companyId, agentId: agent.id, runId: run.id }))),
+    assignmentsPreparation.then(() => time("configuration_connection_instructions", () => resolveAssignedConnectionInstructionsForRun(db, { spaceId: agent.spaceId, agentId: agent.id, runId: run.id }))),
   ]);
   if (preparedSkills.status === "rejected") throw preparedSkills.reason;
   if (preparedAssignments.status === "rejected") throw preparedAssignments.reason;
@@ -360,16 +360,16 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
   const connectorAssignments = preparedAssignments.value;
   const connectorSkillConfig = await time("configuration_connector_skills", () => applyConnectorSkills(skillDeliveryConfig, runtimeSkillEntries, connectorAssignments));
   // Both CLI adapters and native context materialization use the same resolved set.
-  runtimeSkillEntries.splice(0, runtimeSkillEntries.length, ...connectorSkillConfig.paperclipRuntimeSkills);
+  runtimeSkillEntries.splice(0, runtimeSkillEntries.length, ...connectorSkillConfig.outpostRuntimeSkills);
   const connectorDelivery = await time("configuration_connector_delivery", () => prepareConnectorSkillDelivery(connectorSkillConfig, agent.adapterType));
   // Always replace this runtime-only field; caller wake data cannot supply skills.
-  context.paperclipWake = { ...parseObject(context.paperclipWake), connectorSkillInstructions: connectorDelivery.instructions };
+  context.outpostWake = { ...parseObject(context.outpostWake), connectorSkillInstructions: connectorDelivery.instructions };
   let runtimeConfig = await prepareConnectionInstructionDelivery({
     resolve: async () => preparedInstructions.value,
     context, config: connectorDelivery.config, native: agent.adapterType === "outpost_runner",
   });
   const agentIdentity = supportsManagedAgentIdentity(agent.adapterType, agent.adapterConfig, run.runtimeMode === "native" ? run.driverKind : undefined)
-    ? await time("configuration_agent_identity", () => agentIdentityService(db).ensureAgentIdentity(agent.companyId, agent.id))
+    ? await time("configuration_agent_identity", () => agentIdentityService(db).ensureAgentIdentity(agent.spaceId, agent.id))
     : undefined;
   identityRedactor.values.push(...createAgentIdentityRedactor(agentIdentity?.privateKeyPem).values);
   identityRedactor.values.sort((a, b) => b.length - a.length);

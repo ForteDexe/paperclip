@@ -63,7 +63,7 @@ export function chatFeatureProfile(profile: RunnerProfileFixture): RunnerProfile
     const throughputRouting = profile.id === "runner-opencode" && profile.provider === "opencode"
       && profile.model === CHAT_FEATURE_OPENCODE_MODEL && profile.adapterType === "outpost_runner" && profile.credential === "OPENROUTER_API_KEY";
     return { ...payload, name: "CEO", title: "CEO", role: "ceo",
-      capabilities: "Coordinates company work and delegates tasks to the team.",
+      capabilities: "Coordinates space work and delegates tasks to the team.",
       budgetMonthlyCents: CHAT_FEATURE_BUDGET_CENTS,
       adapterConfig: { ...adapterConfig, ...(throughputRouting ? { env: { ...(adapterConfig.env as Record<string, unknown>),
         OPENCODE_CONFIG_CONTENT: JSON.stringify({ provider: { openrouter: { models: {
@@ -96,7 +96,7 @@ export const chatCatalogTasks: readonly RunnerTaskFixture[] = chatCatalogCases.m
     requiredCredentials: implementation.requiredCredentials,
     id: scenario.id, label: scenario.id, groups: ["chat"], flow: "agent_chat", workMode: "standard",
     expectedRunCount: implementation.expectedRunCount, minimumExpectedRunCount: implementation.minimumRunCount,
-    ...(implementation.optionalCompanySecretBindingApproval===true?{expectedHumanMessageCount:implementation.expectedHumanMessageCount,optionalCompanySecretBindingApproval:true as const}:{}),
+    ...(implementation.optionalSpaceSecretBindingApproval===true?{expectedHumanMessageCount:implementation.expectedHumanMessageCount,optionalSpaceSecretBindingApproval:true as const}:{}),
     automaticRetryPolicy: "single_attempt", turnTimeoutMs: CHAT_NATIVE_TIMEOUT_POLICY.effectiveNativeTurnTimeoutMs,
     attemptTimeoutMs: { local: implementation.attemptTimeoutMs, daytona: implementation.attemptTimeoutMs },
     expectedTerminalState: { issue: "in_review", run: "succeeded" },

@@ -3,12 +3,12 @@ import type { IssueDocument } from "@outpost/shared";
 
 export function isOutdatedPlanConfirmation(
   interaction: IssueThreadInteraction,
-  plan: Pick<IssueDocument, "id" | "companyId" | "issueId" | "latestRevisionId" | "latestRevisionNumber" | "updatedAt"> | null | undefined,
+  plan: Pick<IssueDocument, "id" | "spaceId" | "issueId" | "latestRevisionId" | "latestRevisionNumber" | "updatedAt"> | null | undefined,
 ): boolean {
   if (!plan || interaction.status !== "pending" || interaction.kind !== "request_confirmation") return false;
   const target = interaction.payload.target;
   if (target?.type !== "issue_document" || target.key !== "plan") return false;
-  if (interaction.companyId !== plan.companyId || (target.issueId ?? interaction.issueId) !== plan.issueId) return false;
+  if (interaction.spaceId !== plan.spaceId || (target.issueId ?? interaction.issueId) !== plan.issueId) return false;
   if (target.revisionId && target.revisionId === plan.latestRevisionId) return false;
   if ((!target.documentId || target.documentId === plan.id) && target.revisionNumber != null) {
     return target.revisionNumber < plan.latestRevisionNumber;
@@ -45,7 +45,7 @@ const CONFIRMATION_KINDS = new Set([
 
 // Terminal outcomes that mean "this confirmation was retracted or replaced": it
 // never got an accept/reject decision the reader needs to see. `withdrawn` is an
-// agent/board retraction; the two `superseded_by_*` outcomes fire when a later
+// agent/operator retraction; the two `superseded_by_*` outcomes fire when a later
 // comment or a fresh request took its place.
 const SUPPRESSED_CONFIRMATION_OUTCOMES = new Set([
   "withdrawn",

@@ -11,8 +11,8 @@ import type {
   BuiltInManagedResourceStockStatus,
 } from "@/api/builtInAgents";
 
-// The panel links to agent tabs via `@/lib/router` (company-prefixed Link).
-// Stub it to a plain anchor so the panel test doesn't need CompanyContext.
+// The panel links to agent tabs via `@/lib/router` (space-prefixed Link).
+// Stub it to a plain anchor so the panel test doesn't need SpaceContext.
 vi.mock("@/lib/router", () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
 }));
@@ -57,7 +57,7 @@ function makeState(
           skillKey: "reflection-coach",
           displayName: "reflection-coach",
           slug: "reflection-coach",
-          canonicalKey: "paperclipai/bundled/paperclip-operations/reflection-coach",
+          canonicalKey: "outpost/bundled/outpost-operations/reflection-coach",
           files: ["reflection-coach/SKILL.md"],
         },
         routine: {

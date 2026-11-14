@@ -12,13 +12,13 @@ fi
 
 OUTPOST_API_URL="${OUTPOST_API_URL:-http://localhost:3100}"
 API_BASE="${OUTPOST_API_URL%/}/api"
-COMPANY_ID="${COMPANY_ID:-${OUTPOST_COMPANY_ID:-}}"
+SPACE_ID="${SPACE_ID:-${OUTPOST_SPACE_ID:-}}"
 OPENCLAW_AGENT_NAME="${OPENCLAW_AGENT_NAME:-OpenClaw Smoke Agent}"
 OPENCLAW_WEBHOOK_URL="${OPENCLAW_WEBHOOK_URL:-}"
 OPENCLAW_WEBHOOK_AUTH="${OPENCLAW_WEBHOOK_AUTH:-Bearer openclaw-smoke-secret}"
 USE_DOCKER_RECEIVER="${USE_DOCKER_RECEIVER:-1}"
-SMOKE_IMAGE="${SMOKE_IMAGE:-paperclip-openclaw-smoke:local}"
-SMOKE_CONTAINER_NAME="${SMOKE_CONTAINER_NAME:-paperclip-openclaw-smoke}"
+SMOKE_IMAGE="${SMOKE_IMAGE:-outpost-openclaw-smoke:local}"
+SMOKE_CONTAINER_NAME="${SMOKE_CONTAINER_NAME:-outpost-openclaw-smoke}"
 SMOKE_PORT="${SMOKE_PORT:-19091}"
 SMOKE_TIMEOUT_SEC="${SMOKE_TIMEOUT_SEC:-45}"
 
@@ -47,11 +47,11 @@ fail_board_auth_required() {
   local operation="$1"
   echo "$RESPONSE_BODY" >&2
   cat >&2 <<EOF
-[openclaw-smoke] ERROR: ${operation} requires board/operator auth.
+[openclaw-smoke] ERROR: ${operation} requires operator/operator auth.
 
 Provide one of:
-  OUTPOST_AUTH_HEADER=\"Bearer <board-token>\"
-  OUTPOST_COOKIE=\"<board-session-cookie>\"
+  OUTPOST_AUTH_HEADER=\"Bearer <operator-token>\"
+  OUTPOST_COOKIE=\"<operator-session-cookie>\"
 
 Current auth context appears insufficient (HTTP ${RESPONSE_CODE}).
 EOF
@@ -142,26 +142,26 @@ if [[ -z "$OPENCLAW_WEBHOOK_URL" ]]; then
   fail "OPENCLAW_WEBHOOK_URL must be set when USE_DOCKER_RECEIVER=0"
 fi
 
-log "checking Paperclip health"
+log "checking Outpost health"
 api_request "GET" "/health"
 assert_status "200"
 DEPLOYMENT_MODE="$(jq -r '.deploymentMode // "unknown"' <<<"$RESPONSE_BODY")"
 DEPLOYMENT_EXPOSURE="$(jq -r '.deploymentExposure // "unknown"' <<<"$RESPONSE_BODY")"
 log "deployment mode=${DEPLOYMENT_MODE} exposure=${DEPLOYMENT_EXPOSURE}"
 
-if [[ -z "$COMPANY_ID" ]]; then
-  log "resolving company id"
-  api_request "GET" "/companies"
+if [[ -z "$SPACE_ID" ]]; then
+  log "resolving space id"
+  api_request "GET" "/spaces"
   assert_status "200"
-  COMPANY_ID="$(jq -r '.[0].id // empty' <<<"$RESPONSE_BODY")"
-  if [[ -z "$COMPANY_ID" ]]; then
-    fail "no companies found; create one before running smoke test"
+  SPACE_ID="$(jq -r '.[0].id // empty' <<<"$RESPONSE_BODY")"
+  if [[ -z "$SPACE_ID" ]]; then
+    fail "no spaces found; create one before running smoke test"
   fi
 fi
 
-log "creating agent-only invite for company ${COMPANY_ID}"
+log "creating agent-only invite for space ${SPACE_ID}"
 INVITE_PAYLOAD="$(jq -nc '{allowedJoinTypes:"agent"}')"
-api_request "POST" "/companies/${COMPANY_ID}/invites" "$INVITE_PAYLOAD"
+api_request "POST" "/spaces/${SPACE_ID}/invites" "$INVITE_PAYLOAD"
 if [[ "$RESPONSE_CODE" == "401" || "$RESPONSE_CODE" == "403" ]]; then
   fail_board_auth_required "Invite creation"
 fi
@@ -179,7 +179,7 @@ if [[ -z "$ONBOARDING_TEXT_PATH" ]]; then
 fi
 api_request "GET" "/invites/${INVITE_TOKEN}/onboarding.txt"
 assert_status "200"
-if ! grep -q "Paperclip OpenClaw Gateway Onboarding" <<<"$RESPONSE_BODY"; then
+if ! grep -q "Outpost OpenClaw Gateway Onboarding" <<<"$RESPONSE_BODY"; then
   fail "onboarding.txt response missing expected header"
 fi
 
@@ -217,7 +217,7 @@ if [[ "$DIAGNOSTICS_JSON" != "[]" ]]; then
 fi
 
 log "approving join request ${JOIN_REQUEST_ID}"
-api_request "POST" "/companies/${COMPANY_ID}/join-requests/${JOIN_REQUEST_ID}/approve" "{}"
+api_request "POST" "/spaces/${SPACE_ID}/join-requests/${JOIN_REQUEST_ID}/approve" "{}"
 if [[ "$RESPONSE_CODE" == "401" || "$RESPONSE_CODE" == "403" ]]; then
   fail_board_auth_required "Join approval"
 fi
@@ -282,7 +282,7 @@ if [[ "$USE_DOCKER_RECEIVER" == "1" && "$STARTED_CONTAINER" == "1" && "$FOUND_EV
 fi
 
 log "success"
-log "companyId=${COMPANY_ID}"
+log "spaceId=${SPACE_ID}"
 log "inviteId=${INVITE_ID}"
 log "joinRequestId=${JOIN_REQUEST_ID}"
 log "agentId=${CREATED_AGENT_ID}"

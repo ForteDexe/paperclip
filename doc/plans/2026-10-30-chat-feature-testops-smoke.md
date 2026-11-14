@@ -19,7 +19,7 @@ Delegation and the other catalog scenarios are deferred.
 - Existing YAML query, fixture and independent backlog oracle stay unchanged.
 - One human query and one accounted controller work run; 120-second turns,
   420-second attempt, 300-second settled-state observation, zero retries.
-- Existing 500-cent company/agent policies and unknown setup usage remain
+- Existing 500-cent space/agent policies and unknown setup usage remain
   explicit. Morgan is fixture context and must not execute this backlog task.
 - Only the existing protected `OPENROUTER_API_KEY` is required. Agent
   configuration uses the normal encrypted secret-reference path.

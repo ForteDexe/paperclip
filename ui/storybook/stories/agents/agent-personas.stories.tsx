@@ -16,7 +16,7 @@ const meta = {
   component: AgentCharacter,
   args: { appearance, size: 256, state: "listening", label: "Chief of Staff" },
   parameters: { docs: { description: { component: "Persistent cap-v1 identities. The hero alone loads ClipLab. Development Storybook renders capsule PNGs locally on demand; published Storybook packages the same PNGs during its build, including every preset and both densities. Neither needs a running API." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "agents/organization",
         "navigation-preferences/profile"
@@ -99,7 +99,7 @@ export const ImageFailure: Story = {
   },
 };
 export const CacheMissLoading: Story = {
-  render: () => <div className="flex items-center gap-4"><AgentAvatar agent={agent} size={64} /><span className="text-sm">The image slot keeps its dimensions while Paperclip renders a cold cache entry.</span></div>,
+  render: () => <div className="flex items-center gap-4"><AgentAvatar agent={agent} size={64} /><span className="text-sm">The image slot keeps its dimensions while Outpost renders a cold cache entry.</span></div>,
 };
 function WebGLFailure() {
   const region = useRef<HTMLDivElement>(null);

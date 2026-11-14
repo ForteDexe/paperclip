@@ -18,7 +18,7 @@ test("the pinned OpenCode executable serves health, sessions, SSE, and a local-p
   skip: !enabled,
   timeout: 60_000,
 }, async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-qualification-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-opencode-qualification-"));
   let provider;
   let child;
   let exited;
@@ -51,7 +51,7 @@ test("the pinned OpenCode executable serves health, sessions, SSE, and a local-p
     }
     response.writeHead(200, { "Content-Type": "text/event-stream" });
     for (const [delta, finish_reason] of [
-      [{ role: "assistant", content: "paperclip-opencode-qualified" }, null],
+      [{ role: "assistant", content: "outpost-opencode-qualified" }, null],
       [{}, "stop"],
     ]) {
       response.write(`data: ${JSON.stringify({ id: "chatcmpl-qualification", object: "chat.completion.chunk", created: 1, model: "qualification", choices: [{ index: 0, delta, finish_reason }] })}\n\n`);
@@ -79,7 +79,7 @@ test("the pinned OpenCode executable serves health, sessions, SSE, and a local-p
       HOME: root, XDG_CONFIG_HOME: join(root, "config"), XDG_DATA_HOME: join(root, "data"), XDG_CACHE_HOME: join(root, "cache"),
       OPENCODE_CONFIG: config,
       OPENCODE_DISABLE_PROJECT_CONFIG: "true", OPENCODE_DISABLE_MODELS_FETCH: "true", OPENCODE_DISABLE_DEFAULT_PLUGINS: "true",
-      OPENCODE_SERVER_USERNAME: "paperclip", OPENCODE_SERVER_PASSWORD: "local-fixture-only",
+      OPENCODE_SERVER_USERNAME: "outpost", OPENCODE_SERVER_PASSWORD: "local-fixture-only",
     },
     stdio: ["ignore", "pipe", "pipe"],
     detached: true,
@@ -95,7 +95,7 @@ test("the pinned OpenCode executable serves health, sessions, SSE, and a local-p
     await delay(100);
   }
   assert.ok(baseUrl, `OpenCode did not start: ${output}`);
-  const headers = { Authorization: `Basic ${Buffer.from("paperclip:local-fixture-only").toString("base64")}`, "Content-Type": "application/json" };
+  const headers = { Authorization: `Basic ${Buffer.from("outpost:local-fixture-only").toString("base64")}`, "Content-Type": "application/json" };
   const api = async (path, options = {}) => {
     const response = await fetch(`${baseUrl}${path}`, { headers, signal: AbortSignal.timeout(15_000), ...options });
     assert.ok(response.ok, `${path}: ${response.status} ${await response.clone().text()}`);
@@ -134,10 +134,10 @@ test("the pinned OpenCode executable serves health, sessions, SSE, and a local-p
   let messages;
   for (let attempt = 0; attempt < 150; attempt++) {
     messages = await (await api(`/session/${session.id}/message`)).json();
-    if (messages.some((message) => message.info.role === "assistant" && message.parts.some((part) => part.type === "text" && part.text === "paperclip-opencode-qualified"))) break;
+    if (messages.some((message) => message.info.role === "assistant" && message.parts.some((part) => part.type === "text" && part.text === "outpost-opencode-qualified"))) break;
     await delay(100);
   }
-  assert.ok(messages.some((message) => message.info.role === "assistant" && message.parts.some((part) => part.type === "text" && part.text === "paperclip-opencode-qualified")), JSON.stringify(messages));
+  assert.ok(messages.some((message) => message.info.role === "assistant" && message.parts.some((part) => part.type === "text" && part.text === "outpost-opencode-qualified")), JSON.stringify(messages));
   assert.ok(requests.some((request) => request.path === "/v1/chat/completions" && request.body.model === "qualification"));
   assert.ok(events.some((event) => event.type === "message.part.updated" || event.type === "message.part.delta"));
   streamAbort.abort();

@@ -28,7 +28,7 @@ import {
   type AiConnectionList,
   aiConnectionPoolConfigSchema,
 } from "@outpost/shared";
-import { assertBoard, assertBoardOrAgent, assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertOperator, assertOperatorOrAgent, assertSpaceAccess, getActorInfo } from "./authz.js";
 import { forbidden, notFound, unprocessable } from "../errors.js";
 import { accessService } from "../services/access.js";
 import { logActivity } from "../services/activity-log.js";
@@ -45,25 +45,25 @@ export function responsibleUserForAiRequest(req: Request): string | null {
     : getActorInfo(req).actorId;
 }
 
-export async function canManageAiConnections(db: Db, req: Request, companyId: string): Promise<boolean> {
+export async function canManageAiConnections(db: Db, req: Request, spaceId: string): Promise<boolean> {
   const memberships = req.actor.type === "agent" ? req.actor.onBehalfOfMemberships : req.actor.memberships;
-  if (memberships?.some(m => m.companyId === companyId && m.status === "active" && m.membershipRole === "viewer")) return false;
+  if (memberships?.some(m => m.spaceId === spaceId && m.status === "active" && m.membershipRole === "viewer")) return false;
   return (await connectionManagementService(db).capability(req.actor, "connections:configure", {
-    type: "connection_management", companyId, purpose: "ai", operation: "manage",
+    type: "connection_management", spaceId, purpose: "ai", operation: "manage",
   }, { mutation: false })).allowed;
 }
 
 export async function assertAiConnectionCreateAccess(
   db: Db,
   req: Request,
-  companyId: string,
+  spaceId: string,
   input: Pick<
     AiConnectionLoginIntent,
     "ownership" | "allAgents" | "agentIds" | "connectionId"
   >,
 ) {
-  assertBoardOrAgent(req);
-  assertCompanyAccess(req, companyId);
+  assertOperatorOrAgent(req);
+  assertSpaceAccess(req, spaceId);
   const actor = getActorInfo(req);
   const userId = responsibleUserForAiRequest(req);
   if (!userId) throw forbidden("A responsible user is required");
@@ -81,7 +81,7 @@ export async function assertAiConnectionCreateAccess(
       .where(
         and(
           eq(toolConnections.id, input.connectionId),
-          eq(toolConnections.companyId, companyId),
+          eq(toolConnections.spaceId, spaceId),
           eq(toolConnections.connectionPurpose, "ai"),
         ),
       )
@@ -92,16 +92,16 @@ export async function assertAiConnectionCreateAccess(
       );
   }
   const membership = (req.actor.type === "agent" ? req.actor.onBehalfOfMemberships : req.actor.memberships)?.find(
-    (m) => m.companyId === companyId && m.status === "active",
+    (m) => m.spaceId === spaceId && m.status === "active",
   );
-  const manager = await canManageAiConnections(db, req, companyId);
+  const manager = await canManageAiConnections(db, req, spaceId);
   if (
     !input.connectionId &&
     !manager &&
     (input.ownership === "shared" || input.allAgents)
   )
     throw forbidden(
-      "A connection manager must authorize company-shared access",
+      "A connection manager must authorize space-shared access",
     );
   if (!input.connectionId && !manager && input.agentIds.length) {
     for (const id of input.agentIds) {
@@ -110,7 +110,7 @@ export async function assertAiConnectionCreateAccess(
           await accessService(db).decide({
             actor: req.actor,
             action: "agent_config:update",
-            resource: { type: "agent", companyId, agentId: id },
+            resource: { type: "agent", spaceId, agentId: id },
           })
         ).allowed
       )
@@ -124,21 +124,21 @@ export async function assertAiConnectionCreateAccess(
 
 /** Installation is a connection/profile change, bounded by the creator's existing authority. */
 export async function canInstallSharedAiConnectionForNewAgent(
-  db: Db, req: Request, companyId: string, binding: AiConnectionBinding,
+  db: Db, req: Request, spaceId: string, binding: AiConnectionBinding,
 ): Promise<boolean> {
-  if (binding.mode !== "shared" || (req.actor.type === "agent" && (!req.actor.agentId || !req.actor.companyId))) return false;
-  assertCompanyAccess(req, companyId);
-  if (req.actor.type === "board") {
-    const member = req.actor.memberships?.find(m => m.companyId === companyId && m.status === "active");
+  if (binding.mode !== "shared" || (req.actor.type === "agent" && (!req.actor.agentId || !req.actor.spaceId))) return false;
+  assertSpaceAccess(req, spaceId);
+  if (req.actor.type === "operator") {
+    const member = req.actor.memberships?.find(m => m.spaceId === spaceId && m.status === "active");
     if (member?.membershipRole === "viewer") return false;
     const userId = getActorInfo(req).actorId;
     const [connection] = await db.select({ creator: toolConnections.createdByUserId }).from(toolConnections).where(and(
-      eq(toolConnections.companyId, companyId), eq(toolConnections.id, binding.connectionId), eq(toolConnections.connectionPurpose, "ai"),
+      eq(toolConnections.spaceId, spaceId), eq(toolConnections.id, binding.connectionId), eq(toolConnections.connectionPurpose, "ai"),
     ));
     return Boolean(connection && (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin || connection.creator === userId ||
-      await accessService(db).hasPermission(companyId, "user", userId, "tools:manage_connections")));
+      await accessService(db).hasPermission(spaceId, "user", userId, "tools:manage_connections")));
   }
-  const resource = { type: "connection_management" as const, companyId, connectionId: binding.connectionId,
+  const resource = { type: "connection_management" as const, spaceId, connectionId: binding.connectionId,
     purpose: "ai" as const, operation: "ai_binding.install" };
   const management = connectionManagementService(db);
   return (await management.capability(req.actor, "connections:configure", resource)).allowed &&
@@ -155,88 +155,88 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
   const service = aiConnectionService(db);
   const localLogin = localAiLoginService(db);
   const pools = aiConnectionRouterService(db);
-  router.get("/companies/:companyId/ai-connection-pools", managementGuard("connections:read", "GET /companies/:companyId/ai-connection-pools", { personal: true }), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertBoardOrAgent(req); assertCompanyAccess(req, companyId);
-    if (!(await canManageAiConnections(db, req, companyId))) throw forbidden("Manage connections permission is required");
+  router.get("/spaces/:spaceId/ai-connection-pools", managementGuard("connections:read", "GET /spaces/:spaceId/ai-connection-pools", { personal: true }), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertOperatorOrAgent(req); assertSpaceAccess(req, spaceId);
+    if (!(await canManageAiConnections(db, req, spaceId))) throw forbidden("Manage connections permission is required");
     res.setHeader("Cache-Control", "no-store");
-    res.json(await filterConnectionManagementRows(db, req, "connections:read", await pools.list(companyId), pool => ({ connectionId: pool.id })));
+    res.json(await filterConnectionManagementRows(db, req, "connections:read", await pools.list(spaceId), pool => ({ connectionId: pool.id })));
   });
-  router.get("/companies/:companyId/ai-connection-pools/:poolId/inspection", managementGuard("connections:read", "GET /companies/:companyId/ai-connection-pools/:poolId/inspection", { personal: true }), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertBoardOrAgent(req); assertCompanyAccess(req, companyId);
-    if (!(await canManageAiConnections(db, req, companyId))) throw forbidden("Manage connections permission is required");
+  router.get("/spaces/:spaceId/ai-connection-pools/:poolId/inspection", managementGuard("connections:read", "GET /spaces/:spaceId/ai-connection-pools/:poolId/inspection", { personal: true }), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertOperatorOrAgent(req); assertSpaceAccess(req, spaceId);
+    if (!(await canManageAiConnections(db, req, spaceId))) throw forbidden("Manage connections permission is required");
     res.setHeader("Cache-Control", "no-store");
-    res.json(await pools.inspect(companyId, z.string().uuid().parse(req.params.poolId), responsibleUserForAiRequest(req)!));
+    res.json(await pools.inspect(spaceId, z.string().uuid().parse(req.params.poolId), responsibleUserForAiRequest(req)!));
   });
-  router.post("/companies/:companyId/ai-connection-pools", managementGuard("connections:configure", "POST /companies/:companyId/ai-connection-pools", { personal: true }), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertBoardOrAgent(req); assertCompanyAccess(req, companyId);
-    if (!(await canManageAiConnections(db, req, companyId))) throw forbidden("Manage connections permission is required");
+  router.post("/spaces/:spaceId/ai-connection-pools", managementGuard("connections:configure", "POST /spaces/:spaceId/ai-connection-pools", { personal: true }), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertOperatorOrAgent(req); assertSpaceAccess(req, spaceId);
+    if (!(await canManageAiConnections(db, req, spaceId))) throw forbidden("Manage connections permission is required");
     const body = z.object({ pluginKey: z.string().min(1).max(160), id: z.string().uuid().optional(), expectedRevision: z.number().int().positive().optional(), config: aiConnectionPoolConfigSchema }).strict().parse(req.body);
-    res.json(await pools.save(body.pluginKey, { ...body, companyId }, responsibleUserForAiRequest(req)!, connectionRequestContext(req)));
+    res.json(await pools.save(body.pluginKey, { ...body, spaceId }, responsibleUserForAiRequest(req)!, connectionRequestContext(req)));
   });
-  router.delete("/companies/:companyId/ai-connection-pools/:poolId", managementGuard("connections:configure", "DELETE /companies/:companyId/ai-connection-pools/:poolId", { personal: true }), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertBoardOrAgent(req); assertCompanyAccess(req, companyId);
-    if (!(await canManageAiConnections(db, req, companyId))) throw forbidden("Manage connections permission is required");
+  router.delete("/spaces/:spaceId/ai-connection-pools/:poolId", managementGuard("connections:configure", "DELETE /spaces/:spaceId/ai-connection-pools/:poolId", { personal: true }), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertOperatorOrAgent(req); assertSpaceAccess(req, spaceId);
+    if (!(await canManageAiConnections(db, req, spaceId))) throw forbidden("Manage connections permission is required");
     const poolId = z.string().uuid().parse(req.params.poolId);
     const { expectedRevision } = z.object({ expectedRevision: z.number().int().positive() }).strict().parse(req.body);
-    res.json(await pools.remove(companyId, poolId, expectedRevision, responsibleUserForAiRequest(req)!, connectionRequestContext(req)));
+    res.json(await pools.remove(spaceId, poolId, expectedRevision, responsibleUserForAiRequest(req)!, connectionRequestContext(req)));
   });
-  router.post("/companies/:companyId/ai-connections/local/attempts", managementGuard("connections:configure", "POST /companies/:companyId/ai-connections/local/attempts", { personal: true }), validate(localAiLoginStartSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
+  router.post("/spaces/:spaceId/ai-connections/local/attempts", managementGuard("connections:configure", "POST /spaces/:spaceId/ai-connections/local/attempts", { personal: true }), validate(localAiLoginStartSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
     const { restart, ...intent } = localAiLoginStartSchema.parse(req.body);
     assertLocalLoginAvailable();
-    const userId = await assertAiConnectionCreateAccess(db, req, companyId, intent);
+    const userId = await assertAiConnectionCreateAccess(db, req, spaceId, intent);
     res.setHeader("Cache-Control", "no-store");
-    const attempt = await localLogin.start(companyId, userId, intent, restart, connectionRequestContext(req));
-    res.status(201).json({ ...attempt, ...await aiLoginUserAction(db, req, companyId, attempt.sessionId) });
+    const attempt = await localLogin.start(spaceId, userId, intent, restart, connectionRequestContext(req));
+    res.status(201).json({ ...attempt, ...await aiLoginUserAction(db, req, spaceId, attempt.sessionId) });
   });
-  router.post("/companies/:companyId/ai-connections/local/check", managementGuard("connections:configure", "POST /companies/:companyId/ai-connections/local/check", { personal: true }), validate(localAiConnectionSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
+  router.post("/spaces/:spaceId/ai-connections/local/check", managementGuard("connections:configure", "POST /spaces/:spaceId/ai-connections/local/check", { personal: true }), validate(localAiConnectionSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
     const { localSessionId, ...intent } = localAiConnectionSchema.parse(req.body);
     assertLocalLoginAvailable();
-    const userId = await assertAiConnectionCreateAccess(db, req, companyId, intent);
+    const userId = await assertAiConnectionCreateAccess(db, req, spaceId, intent);
     res.setHeader("Cache-Control", "no-store");
-    res.json(await localLogin.check(companyId, userId, intent, localSessionId));
+    res.json(await localLogin.check(spaceId, userId, intent, localSessionId));
   });
-  router.delete("/companies/:companyId/ai-connections/local/attempts/:sessionId", managementGuard("connections:configure", "DELETE /companies/:companyId/ai-connections/local/attempts/:sessionId", { personal: true }), async (req, res) => {
-    assertBoardOrAgent(req);
-    assertCompanyAccess(req, req.params.companyId as string);
+  router.delete("/spaces/:spaceId/ai-connections/local/attempts/:sessionId", managementGuard("connections:configure", "DELETE /spaces/:spaceId/ai-connections/local/attempts/:sessionId", { personal: true }), async (req, res) => {
+    assertOperatorOrAgent(req);
+    assertSpaceAccess(req, req.params.spaceId as string);
     const id = z.string().uuid().parse(req.params.sessionId);
-    await localLogin.cancel(req.params.companyId as string, responsibleUserForAiRequest(req)!, id, connectionRequestContext(req));
+    await localLogin.cancel(req.params.spaceId as string, responsibleUserForAiRequest(req)!, id, connectionRequestContext(req));
     res.json({ ok: true });
   });
-  router.post("/companies/:companyId/ai-connections/local/attempts/:sessionId/code", validate(z.object({ browserCode: browserCodeSchema })), async (req, res) => {
-    const companyId = req.params.companyId as string;
+  router.post("/spaces/:spaceId/ai-connections/local/attempts/:sessionId/code", validate(z.object({ browserCode: browserCodeSchema })), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
     assertLocalLoginAvailable();
-    assertBoard(req);
-    assertCompanyAccess(req, companyId);
+    assertOperator(req);
+    assertSpaceAccess(req, spaceId);
     const id = z.string().uuid().parse(req.params.sessionId);
-    await localLogin.submitCode(companyId, getActorInfo(req).actorId, id, browserCodeSchema.parse(req.body.browserCode));
+    await localLogin.submitCode(spaceId, getActorInfo(req).actorId, id, browserCodeSchema.parse(req.body.browserCode));
     res.setHeader("Cache-Control", "no-store");
     res.json({ ok: true });
   });
-  router.get("/companies/:companyId/ai-connections", managementGuard("connections:read", "GET /companies/:companyId/ai-connections", { personal: true }), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertBoardOrAgent(req);
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/ai-connections", managementGuard("connections:read", "GET /spaces/:spaceId/ai-connections", { personal: true }), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertOperatorOrAgent(req);
+    assertSpaceAccess(req, spaceId);
     const currentUserId = responsibleUserForAiRequest(req)!;
     res.setHeader("Cache-Control", "no-store");
     const agentId = req.query.agentId;
     if (agentId !== undefined && !z.string().uuid().safeParse(agentId).success)
       throw unprocessable("Invalid agent ID");
     const accounts = await filterConnectionManagementRows(db, req, "connections:read", await service.list(
-      companyId, currentUserId, agentId as string | undefined,
+      spaceId, currentUserId, agentId as string | undefined,
     ), account => ({ connectionId: account.id }));
     const viewer = (req.actor.type === "agent" ? req.actor.onBehalfOfMemberships : req.actor.memberships)
-      ?.some(m => m.companyId === companyId && m.membershipRole === "viewer");
+      ?.some(m => m.spaceId === spaceId && m.membershipRole === "viewer");
     const management = connectionManagementService(db);
     const context = connectionRequestContext(req);
-    const personalDefaultCapability = req.actor.type === "board" ? !viewer && (await management.capability(req.actor, "connections:configure", {
-      type: "connection_management", companyId, purpose: "ai", selfServiceUserId: currentUserId,
-      operation: "PUT /companies/:companyId/ai-connections/default", readOnly: false,
+    const personalDefaultCapability = req.actor.type === "operator" ? !viewer && (await management.capability(req.actor, "connections:configure", {
+      type: "connection_management", spaceId, purpose: "ai", selfServiceUserId: currentUserId,
+      operation: "PUT /spaces/:spaceId/ai-connections/default", readOnly: false,
     }, { mutation: false, readContext: context })).allowed : undefined;
     const connections = accounts.map(account => ({
       ...account,
@@ -246,46 +246,46 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
     }));
     res.json({
       currentUserId,
-      pools: await filterConnectionManagementRows(db, req, "connections:read", await pools.selectable(companyId, currentUserId), pool => ({ connectionId: pool.id })),
-      canManageConnections: await canManageAiConnections(db, req, companyId),
+      pools: await filterConnectionManagementRows(db, req, "connections:read", await pools.selectable(spaceId, currentUserId), pool => ({ connectionId: pool.id })),
+      canManageConnections: await canManageAiConnections(db, req, spaceId),
       connections,
     } satisfies AiConnectionList);
   });
   router.get(
-    "/companies/:companyId/ai-connections/:connectionId/usage", managementGuard("connections:read", "GET /companies/:companyId/ai-connections/:connectionId/usage", { personal: true }),
+    "/spaces/:spaceId/ai-connections/:connectionId/usage", managementGuard("connections:read", "GET /spaces/:spaceId/ai-connections/:connectionId/usage", { personal: true }),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertBoardOrAgent(req);
-      assertCompanyAccess(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      assertOperatorOrAgent(req);
+      assertSpaceAccess(req, spaceId);
       const connectionId = z.string().uuid().safeParse(req.params.connectionId);
       const grantId = z.string().uuid().optional().safeParse(req.query.grantId);
       if (!connectionId.success || !grantId.success) throw unprocessable("Invalid connection or grant ID");
       res.setHeader("Cache-Control", "no-store");
-      res.json(await service.probeUsage(companyId, responsibleUserForAiRequest(req)!, connectionId.data, grantId.data));
+      res.json(await service.probeUsage(spaceId, responsibleUserForAiRequest(req)!, connectionId.data, grantId.data));
     },
   );
   router.get(
-    "/companies/:companyId/ai-connections/:connectionId/identity", managementGuard("connections:read", "GET /companies/:companyId/ai-connections/:connectionId/identity", { personal: true }),
+    "/spaces/:spaceId/ai-connections/:connectionId/identity", managementGuard("connections:read", "GET /spaces/:spaceId/ai-connections/:connectionId/identity", { personal: true }),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertBoardOrAgent(req);
-      assertCompanyAccess(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      assertOperatorOrAgent(req);
+      assertSpaceAccess(req, spaceId);
       const connectionId = z.string().uuid().safeParse(req.params.connectionId);
       const grantId = z.string().uuid().optional().safeParse(req.query.grantId);
       if (!connectionId.success || !grantId.success) throw unprocessable("Invalid connection or grant ID");
       res.setHeader("Cache-Control", "no-store");
       const actor = getActorInfo(req);
-      res.json(await service.accountIdentity(companyId, responsibleUserForAiRequest(req)!, connectionId.data, grantId.data, {
+      res.json(await service.accountIdentity(spaceId, responsibleUserForAiRequest(req)!, connectionId.data, grantId.data, {
         actorType: actor.actorType, actorId: actor.actorId, heartbeatRunId: actor.runId,
       }));
     },
   );
   router.get(
-    "/companies/:companyId/ai-connections/:connectionId/active-runs", managementGuard("connections:read", "GET /companies/:companyId/ai-connections/:connectionId/active-runs", { personal: true }),
+    "/spaces/:spaceId/ai-connections/:connectionId/active-runs", managementGuard("connections:read", "GET /spaces/:spaceId/ai-connections/:connectionId/active-runs", { personal: true }),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertBoardOrAgent(req);
-      assertCompanyAccess(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      assertOperatorOrAgent(req);
+      assertSpaceAccess(req, spaceId);
       if (!z.string().uuid().safeParse(req.params.connectionId).success)
         throw unprocessable("Invalid connection ID");
       const [connection] = await db
@@ -293,12 +293,12 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
         .from(toolConnections)
         .where(
           and(
-            eq(toolConnections.companyId, companyId),
+            eq(toolConnections.spaceId, spaceId),
             eq(toolConnections.id, req.params.connectionId as string),
             eq(toolConnections.connectionPurpose, "ai"),
           ),
         );
-      if (!connection || !(await service.list(companyId, responsibleUserForAiRequest(req)!)).some(account => account.id === connection.id))
+      if (!connection || !(await service.list(spaceId, responsibleUserForAiRequest(req)!)).some(account => account.id === connection.id))
         throw notFound("AI connection not found");
       res.setHeader("Cache-Control", "no-store");
       res.json(
@@ -313,7 +313,7 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
           .innerJoin(agents, eq(agents.id, heartbeatRuns.agentId))
           .where(
             and(
-              eq(heartbeatRuns.companyId, companyId),
+              eq(heartbeatRuns.spaceId, spaceId),
               inArray(heartbeatRuns.status, ["queued", "running"]),
               sql`${heartbeatRuns.contextSnapshot}->'aiConnection'->>'connectionId' = ${connection.id}`,
             ),
@@ -322,15 +322,15 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
     },
   );
   router.post(
-    "/companies/:companyId/ai-connections", managementGuard("connections:configure", "POST /companies/:companyId/ai-connections", { personal: true }),
+    "/spaces/:spaceId/ai-connections", managementGuard("connections:configure", "POST /spaces/:spaceId/ai-connections", { personal: true }),
     validate(createAiConnectionSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const input = createAiConnectionSchema.parse(req.body);
       const userId = await assertAiConnectionCreateAccess(
         db,
         req,
-        companyId,
+        spaceId,
         input,
       );
       if (input.method !== "api_key")
@@ -340,10 +340,10 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
       const attemptStartedAt = new Date();
       if (input.provider === "github") {
         if (!input.apiKey?.startsWith("github_pat_")) throw unprocessable("Use a personal fine-grained token with Copilot Requests permission.", { code: "COPILOT_AUTH_REQUIRED" });
-        await probeCopilotConnection(db, companyId, input.apiKey, input.environmentId, undefined, { pluginWorkerManager: options.pluginWorkerManager });
+        await probeCopilotConnection(db, spaceId, input.apiKey, input.environmentId, undefined, { pluginWorkerManager: options.pluginWorkerManager });
       } else if (!input.routing || input.routing.kind === "openrouter") await validateAiApiKey(input.provider, input.apiKey!);
       const result = await service.save(
-        companyId,
+        spaceId,
         userId,
         input,
         input.apiKey ?? "",
@@ -355,37 +355,37 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
     },
   );
   router.post(
-    "/companies/:companyId/ai-connections/local", managementGuard("connections:configure", "POST /companies/:companyId/ai-connections/local", { personal: true }),
+    "/spaces/:spaceId/ai-connections/local", managementGuard("connections:configure", "POST /spaces/:spaceId/ai-connections/local", { personal: true }),
     validate(localAiConnectionSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const { localSessionId, ...input } = localAiConnectionSchema.parse(req.body);
       assertLocalLoginAvailable();
-      const userId = await assertAiConnectionCreateAccess(db, req, companyId, input);
+      const userId = await assertAiConnectionCreateAccess(db, req, spaceId, input);
       if (!localSessionId) throw unprocessable(input.provider === "xai"
         ? "Start local sign-in for this connection before connecting."
         : "Start browser sign-in for this connection before connecting.");
-      res.status(201).json(await localLogin.complete(companyId, userId, localSessionId, input, connectionRequestContext(req)));
+      res.status(201).json(await localLogin.complete(spaceId, userId, localSessionId, input, connectionRequestContext(req)));
     },
   );
   router.put(
-    "/companies/:companyId/ai-connections/default", managementGuard("connections:configure", "PUT /companies/:companyId/ai-connections/default", { personal: true }),
+    "/spaces/:spaceId/ai-connections/default", managementGuard("connections:configure", "PUT /spaces/:spaceId/ai-connections/default", { personal: true }),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertBoardOrAgent(req);
-      assertCompanyAccess(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      assertOperatorOrAgent(req);
+      assertSpaceAccess(req, spaceId);
       const userId = responsibleUserForAiRequest(req)!;
       if (
         (req.actor.type === "agent" ? req.actor.onBehalfOfMemberships : req.actor.memberships)?.some(
-          (m) => m.companyId === companyId && m.membershipRole === "viewer",
+          (m) => m.spaceId === spaceId && m.membershipRole === "viewer",
         )
       )
         throw forbidden("Viewers cannot change defaults");
       if (!z.string().uuid().safeParse(req.body.grantId).success)
         throw unprocessable("Choose a personal connection");
-      await service.setDefault(companyId, userId, req.body.grantId);
+      await service.setDefault(spaceId, userId, req.body.grantId);
       await logActivity(db, {
-        companyId,
+        spaceId,
         ...connectionRequestActor(req),
         action: "ai_connection.default_changed",
         entityType: "connection_grant",
@@ -394,9 +394,9 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
       res.json({ ok: true });
     },
   );
-  router.get("/companies/:companyId/ai-connections/login/:sessionId/setup", managementGuard("connections:read", "GET /companies/:companyId/ai-connections/login/:sessionId/setup", { personal: true }), async (req, res) => {
+  router.get("/spaces/:spaceId/ai-connections/login/:sessionId/setup", managementGuard("connections:read", "GET /spaces/:spaceId/ai-connections/login/:sessionId/setup", { personal: true }), async (req, res) => {
     const [session] = await db.select().from(adapterAuthSessions).where(and(
-      eq(adapterAuthSessions.companyId, req.params.companyId as string),
+      eq(adapterAuthSessions.spaceId, req.params.spaceId as string),
       eq(adapterAuthSessions.publicSessionId, req.params.sessionId as string),
       eq(adapterAuthSessions.startedByUserId, responsibleUserForAiRequest(req)!),
     ));
@@ -407,11 +407,11 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
       status: session.status, connectionId: session.connectionId, grantId: session.connectionGrantId });
   });
   router.get(
-    "/companies/:companyId/ai-connections/login/:sessionId", managementGuard("connections:read", "GET /companies/:companyId/ai-connections/login/:sessionId", { personal: true }),
+    "/spaces/:spaceId/ai-connections/login/:sessionId", managementGuard("connections:read", "GET /spaces/:spaceId/ai-connections/login/:sessionId", { personal: true }),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertBoardOrAgent(req);
-      assertCompanyAccess(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      assertOperatorOrAgent(req);
+      assertSpaceAccess(req, spaceId);
       const [session] = await db
         .select({
           connectionId: adapterAuthSessions.connectionId,
@@ -420,7 +420,7 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
         .from(adapterAuthSessions)
         .where(
           and(
-            eq(adapterAuthSessions.companyId, companyId),
+            eq(adapterAuthSessions.spaceId, spaceId),
             eq(adapterAuthSessions.startedByUserId, responsibleUserForAiRequest(req)!),
             eq(
               adapterAuthSessions.publicSessionId,

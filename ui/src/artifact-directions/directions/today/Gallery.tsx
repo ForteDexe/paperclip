@@ -1,7 +1,7 @@
 import { ArtifactCard } from "@/components/artifacts/ArtifactCard";
 import { ArtifactGroupCard } from "@/components/artifacts/ArtifactGroupCard";
 import type { LabGroup } from "../../kit";
-import { issueIdFor, toCompanyArtifact, toCompanyArtifactGroup } from "./adapters";
+import { issueIdFor, toSpaceArtifact, toSpaceArtifactGroup } from "./adapters";
 
 // pages/Artifacts.tsx:354 — the one grid both views share.
 const GRID = "grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3";
@@ -13,7 +13,7 @@ export function GalleryStacks({ groups }: { groups: LabGroup[] }) {
       {groups.map((group) => (
         <ArtifactGroupCard
           key={group.id}
-          group={toCompanyArtifactGroup(group)}
+          group={toSpaceArtifactGroup(group)}
           to={{ search: `?groupIssueId=${issueIdFor(group.taskIdentifier)}` }}
         />
       ))}
@@ -26,8 +26,8 @@ export function GalleryStack({ group }: { group: LabGroup }) {
   return (
     <div className={GRID}>
       {group.artifacts.map((artifact) => {
-        const companyArtifact = toCompanyArtifact(artifact);
-        return <ArtifactCard key={`${companyArtifact.source}:${companyArtifact.id}`} artifact={companyArtifact} />;
+        const spaceArtifact = toSpaceArtifact(artifact);
+        return <ArtifactCard key={`${spaceArtifact.source}:${spaceArtifact.id}`} artifact={spaceArtifact} />;
       })}
     </div>
   );

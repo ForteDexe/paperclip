@@ -18,13 +18,13 @@ export const COPILOT_CONTEXT_DISCOVERY_LIMIT = 4;
  * identifier; arbitrary API searches, pagination loops and mutations are not
  * bootstrap actions for these authored permission/settlement cases. */
 export function isCopilotContextDiscoveryProgress(value: unknown): boolean {
-  const prefix = "paperclip-search_api (pending): ";
+  const prefix = "outpost-search_api (pending): ";
   if (typeof value !== "string" || !value.startsWith(prefix) || value.length > 120) return false;
   // Retained v17 native discovery used this exact context-only natural spelling.
   if (value === `${prefix}get task context`) return true;
   const terms = value.slice(prefix.length).split(/\s+/u);
   return terms.length > 0 && terms.length <= 4 && terms.includes("get_task_context")
-    && new Set(terms).size === terms.length && terms.every(t => ["get_task_context", "paperclip_finish", "dedicated", "tool"].includes(t));
+    && new Set(terms).size === terms.length && terms.every(t => ["get_task_context", "outpost_finish", "dedicated", "tool"].includes(t));
 }
 
 /** Attest context and any exact read-only tool discovery before the native action. */
@@ -34,7 +34,7 @@ export function readCopilotContextRead(rows: readonly unknown[], origin: Copilot
   const pending = readCopilotToolEvidence(rows, origin.runId).find(n => n.seq === context.pendingSeq)!;
   const searchReceipts = rows.map(rec).filter(r => {
     const p = rec(rec(rec(r.payload).orpEvent).payload);
-    return p.category === "paperclip_semantic_tool_receipt_v2" && Array.isArray(p.details)
+    return p.category === "outpost_semantic_tool_receipt_v2" && Array.isArray(p.details)
       && p.details.some((d: Row) => d.name === "operationId" && d.value === "search_api");
   });
   const nativeSearches = readCopilotToolEvidence(rows, origin.runId).filter(n => n.semanticOperationId === "search_api");
@@ -55,7 +55,7 @@ function readSemanticBootstrap(rows: readonly unknown[], origin: CopilotToolNoti
   const all = rows.map(rec), notices = readCopilotToolEvidence(rows, origin.runId);
   const matches = all.filter(r => {
     const p = rec(rec(rec(r.payload).orpEvent).payload);
-    return p.category === "paperclip_semantic_tool_receipt_v2" && Array.isArray(p.details)
+    return p.category === "outpost_semantic_tool_receipt_v2" && Array.isArray(p.details)
       && p.details.some((d: any) => d?.name === "operationId" && d.value === operationId)
       && (!selectedIdentity || p.details.some((d: any) => d?.name === "callIdentitySha256" && d.value === selectedIdentity));
   });
@@ -67,7 +67,7 @@ function readSemanticBootstrap(rows: readonly unknown[], origin: CopilotToolNoti
   const root = roots[0]!, base = rec(rec(root.payload).orpEvent);
   const frame = (r: Row) => {
     const e = rec(rec(r.payload).orpEvent);
-    if (r.companyId !== root.companyId || r.runId !== origin.runId || !Number.isSafeInteger(r.seq) || r.seq < 1
+    if (r.spaceId !== root.spaceId || r.runId !== origin.runId || !Number.isSafeInteger(r.seq) || r.seq < 1
       || e.schema !== "outpost.orp.event.v1" || e.sourceKind !== "runner" || e.eventType !== r.eventType
       || e.runId !== origin.runId || e.turnId !== origin.turnId || e.normalizedSessionId !== base.normalizedSessionId
       || typeof base.normalizedSessionId !== "string" || !base.normalizedSessionId || e.sourceInstanceId !== base.sourceInstanceId
@@ -78,7 +78,7 @@ function readSemanticBootstrap(rows: readonly unknown[], origin: CopilotToolNoti
   frame(root);
   const authority = matches[0]!, receipt = rec(frame(authority).payload), provenance = rec(receipt.provenance);
   if (authority.eventType !== "provider.notice.recorded" || receipt.schema !== "outpost.provider.notice.v1" || receipt.scope !== "turn"
-    || provenance.method !== "paperclip/semantic_tool_result" || provenance.eventType !== "semantic_result"
+    || provenance.method !== "outpost/semantic_tool_result" || provenance.eventType !== "semantic_result"
     || provenance.sessionId !== origin.sessionId || provenance.turnId !== origin.turnId || receipt.details.length !== 8) fail();
   const fields: Record<string, string> = {};
   for (const d of receipt.details) {
@@ -132,7 +132,7 @@ function readSemanticBootstrap(rows: readonly unknown[], origin: CopilotToolNoti
   for (let i = 0; i < canonical.length; i++) {
     const r = canonical[i]!, p = rec(frame(r).payload), last = i === canonical.length - 1;
     if (r.seq >= origin.seq || p.schema !== "outpost.tool.execution.v1" || p.transport !== "builtin" || p.target !== null
-      || p.name !== `paperclip-${operationId}` || p.operation !== (discovery ? "search" : "read") || p.readOnly !== true
+      || p.name !== `outpost-${operationId}` || p.operation !== (discovery ? "search" : "read") || p.readOnly !== true
       || (last ? r.eventType !== "tool.execution.completed" || p.status !== "completed"
         : p.status !== "running" || r.eventType !== (i === 0 ? "tool.execution.started" : "tool.execution.progressed"))) fail();
   }

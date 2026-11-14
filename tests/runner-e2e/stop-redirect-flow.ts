@@ -46,13 +46,13 @@ export async function stopAndRedirectThroughUi(input: {
 }
 
 /** The native control plane must acknowledge this run's Stop, including resource release. */
-export function nativeStopAcknowledged(run: Row, companyId: string, issueId: string, userId: string) {
+export function nativeStopAcknowledged(run: Row, spaceId: string, issueId: string, userId: string) {
   const stop = run.resultJson?.nativeCancellation;
   const result = run.resultJson ?? {};
   const startup = result.startupCancellation;
   const cancellation = result.cancellation;
-  return run.runtimeMode === "native" && run.status === "cancelled" && run.companyId === companyId && (run.nativeIssueId ?? run.issueId) === issueId
-    && stop?.schema === "outpost.native-cancellation.v1" && stop.companyId === companyId
+  return run.runtimeMode === "native" && run.status === "cancelled" && run.spaceId === spaceId && (run.nativeIssueId ?? run.issueId) === issueId
+    && stop?.schema === "outpost.native-cancellation.v1" && stop.spaceId === spaceId
     && stop.runId === run.id && stop.issueId === issueId && stop.scope === "run" && stop.dispatched === true
     && stop.dispatchState === "acknowledged" && stop.reasonCode === "cancellation_run_only"
     && stop.effects?.length === 1 && stop.effects[0] === "release_run_resources"

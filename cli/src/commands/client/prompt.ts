@@ -16,15 +16,15 @@ interface PromptOptions extends BaseClientOptions {
   issue?: string;
   title?: string;
   wake?: boolean;
-  companyId?: string;
+  spaceId?: string;
 }
 
 interface PromptResult {
   ok: true;
   mode: "issue" | "comment";
-  actor: "agent" | "board";
+  actor: "agent" | "operator";
   apiBase: string;
-  companyId: string;
+  spaceId: string;
   agent: {
     id: string;
     name: string;
@@ -86,13 +86,13 @@ export function registerPromptCommands(program: Command): void {
       }),
   );
 
-  const board = program.command("board").description("Board operator operations");
+  const operator = program.command("operator").description("Operator operator operations");
   addCommonClientOptions(
-    board
+    operator
       .command("prompt")
-      .description("Create/update Outpost work for an agent using board auth")
+      .description("Create/update Outpost work for an agent using operator auth")
       .requiredOption("--agent <agent>", "Target agent ID, shortname, or name")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .option("--issue <issueId>", "Append as a comment to an existing issue")
       .option("--title <title>", "Issue title when creating a new issue")
       .option("--no-wake", "Do not wake the agent after creating/updating work")
@@ -105,7 +105,7 @@ export function registerPromptCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 
@@ -116,7 +116,7 @@ export async function runAgentPrompt(
 ): Promise<PromptResult> {
   const ctx = resolveCommandContext(opts);
   if (ctx.profile.persona && ctx.profile.persona !== "agent") {
-    throw new Error(`Profile '${ctx.profileName}' is persona=${ctx.profile.persona}; use an agent profile or board prompt.`);
+    throw new Error(`Profile '${ctx.profileName}' is persona=${ctx.profile.persona}; use an agent profile or operator prompt.`);
   }
   const body = normalizePrompt(prompt);
   const me = await ctx.api.get<Agent>("/api/agents/me");
@@ -128,7 +128,7 @@ export async function runAgentPrompt(
     api: ctx.api,
     actor: "agent",
     agent: me,
-    companyId: me.companyId,
+    spaceId: me.spaceId,
     prompt: body,
     issueId: opts.issue,
     title: opts.title,
@@ -142,20 +142,20 @@ export async function runBoardPrompt(
   prompt: string,
   opts: PromptOptions,
 ): Promise<PromptResult> {
-  const ctx = resolveCommandContext(opts, { requireCompany: true });
-  if (ctx.profile.persona && ctx.profile.persona !== "board") {
-    throw new Error(`Profile '${ctx.profileName}' is persona=${ctx.profile.persona}; use an agent prompt command or a board profile.`);
+  const ctx = resolveCommandContext(opts, { requireSpace: true });
+  if (ctx.profile.persona && ctx.profile.persona !== "operator") {
+    throw new Error(`Profile '${ctx.profileName}' is persona=${ctx.profile.persona}; use an agent prompt command or a operator profile.`);
   }
   const body = normalizePrompt(prompt);
-  const query = new URLSearchParams({ companyId: ctx.companyId ?? "" });
+  const query = new URLSearchParams({ spaceId: ctx.spaceId ?? "" });
   const agent = await ctx.api.get<Agent>(`${apiPath`/api/agents/${agentRef}`}?${query.toString()}`);
   if (!agent) throw new Error(`Agent not found: ${agentRef}`);
 
   return createOrCommentForAgent({
     api: ctx.api,
-    actor: "board",
+    actor: "operator",
     agent,
-    companyId: ctx.companyId ?? agent.companyId,
+    spaceId: ctx.spaceId ?? agent.spaceId,
     prompt: body,
     issueId: opts.issue,
     title: opts.title,
@@ -168,9 +168,9 @@ async function createOrCommentForAgent(input: {
     apiBase: string;
     post<T>(path: string, body?: unknown): Promise<T | null>;
   };
-  actor: "agent" | "board";
+  actor: "agent" | "operator";
   agent: Agent;
-  companyId: string;
+  spaceId: string;
   prompt: string;
   issueId?: string;
   title?: string;
@@ -190,7 +190,7 @@ async function createOrCommentForAgent(input: {
       mode: "comment",
       actor: input.actor,
       apiBase: input.api.apiBase,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       agent: agentSummary(input.agent),
       comment,
       wakeup,
@@ -204,7 +204,7 @@ async function createOrCommentForAgent(input: {
     priority: "medium",
     assigneeAgentId: input.agent.id,
   });
-  const issue = await input.api.post<Issue>(apiPath`/api/companies/${input.companyId}/issues`, payload);
+  const issue = await input.api.post<Issue>(apiPath`/api/spaces/${input.spaceId}/issues`, payload);
   const wakeup = input.wake && issue?.id
     ? await wakeAgent(input.api, input.agent.id, issue.id, "Prompt issue handoff")
     : null;
@@ -213,7 +213,7 @@ async function createOrCommentForAgent(input: {
     mode: "issue",
     actor: input.actor,
     apiBase: input.api.apiBase,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     agent: agentSummary(input.agent),
     issue,
     wakeup,
@@ -255,7 +255,7 @@ function assertAgentMatchesReference(agent: Agent, reference: string): void {
   ].some((value) => value?.toLowerCase() === normalized);
   if (!matches) {
     throw new Error(
-      `Agent key belongs to ${agent.name} (${agent.id}), not '${reference}'. Use the matching agent or a board prompt.`,
+      `Agent key belongs to ${agent.name} (${agent.id}), not '${reference}'. Use the matching agent or a operator prompt.`,
     );
   }
 }

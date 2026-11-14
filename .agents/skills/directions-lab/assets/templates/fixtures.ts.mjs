@@ -7,7 +7,7 @@ const PLACEHOLDERS = [
 export default (ctx) => `import type { LabRecord } from "./kit";
 import { registry } from "./registry";
 
-export const COMPANY = registry.shell.company;
+export const SPACE = registry.shell.space;
 export const TASKS = registry.shell.tasks;
 export const LAB_NOW = new Date("2026-09-28T18:00:00");
 

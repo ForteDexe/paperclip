@@ -16,7 +16,7 @@ afterEach(async () => {
 });
 
 async function makeCodexHome(configToml?: string): Promise<string> {
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-home-"));
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-home-"));
   cleanupPaths.add(home);
   if (configToml !== undefined) {
     await fs.writeFile(path.join(home, "config.toml"), configToml, "utf8");
@@ -346,7 +346,7 @@ describe("prepareCodexRuntimeConfig", () => {
     const prepared = await prepareCodexRuntimeConfig({ env: {}, codexHome: home });
     expect(prepared.notes.some((n) => n.includes("backup"))).toBe(true);
     expect(await readConfigToml(home)).toBe(userConfig);
-    await expect(fs.access(path.join(home, "config.toml.paperclip-backup"))).rejects.toThrow();
+    await expect(fs.access(path.join(home, "config.toml.outpost-backup"))).rejects.toThrow();
     await prepared.cleanup();
   });
 
@@ -356,7 +356,7 @@ describe("prepareCodexRuntimeConfig", () => {
       env: { OUTPOST_CODEX_PROVIDERS: JSON.stringify(BIFROST_PROVIDERS) },
       codexHome: home,
     });
-    const backupPath = path.join(home, "config.toml.paperclip-backup");
+    const backupPath = path.join(home, "config.toml.outpost-backup");
     expect(await fs.readFile(backupPath, "utf8")).toBe('approval_policy = "never"\n');
 
     await prepared.cleanup();

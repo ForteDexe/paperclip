@@ -10,7 +10,7 @@ import { and, eq } from "drizzle-orm";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   executionWorkspaces,
   heartbeatRuns,
@@ -57,14 +57,14 @@ async function writeFile(filePath: string, contents: string) {
 }
 
 async function createRepo() {
-  const repoRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-compaction-")));
+  const repoRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "outpost-compaction-")));
   await git(repoRoot, ["init"]);
-  await git(repoRoot, ["config", "user.name", "Paperclip Test"]);
+  await git(repoRoot, ["config", "user.name", "Outpost Test"]);
   await git(repoRoot, ["config", "user.email", "test@outpost.local"]);
   await writeFile(path.join(repoRoot, "README.md"), "# Test repo\n");
   await writeFile(
     path.join(repoRoot, ".gitignore"),
-    ["node_modules/", "dist/", ".env", ".paperclip/", "local-data/", ""].join("\n"),
+    ["node_modules/", "dist/", ".env", ".outpost/", "local-data/", ""].join("\n"),
   );
   await git(repoRoot, ["add", "README.md", ".gitignore"]);
   await git(repoRoot, ["commit", "-m", "Initial commit"]);
@@ -79,7 +79,7 @@ const PRESERVED_PATHS = [
   "notes/findings.md",
   ".env",
   "local-data/state.json",
-  ".paperclip/instances/default/db.txt",
+  ".outpost/instances/default/db.txt",
 ];
 
 async function populateWorktree(worktreePath: string) {
@@ -89,7 +89,7 @@ async function populateWorktree(worktreePath: string) {
   await writeFile(path.join(worktreePath, "notes/findings.md"), "untracked agent notes\n");
   await writeFile(path.join(worktreePath, ".env"), "TOKEN=local\n");
   await writeFile(path.join(worktreePath, "local-data/state.json"), "{}\n");
-  await writeFile(path.join(worktreePath, ".paperclip/instances/default/db.txt"), "instance data\n");
+  await writeFile(path.join(worktreePath, ".outpost/instances/default/db.txt"), "instance data\n");
   await fs.appendFile(path.join(worktreePath, "README.md"), "uncommitted edit\n");
 }
 
@@ -99,7 +99,7 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
   const tempDirs = new Set<string>();
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-workspace-compaction-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-workspace-compaction-");
     db = createDb(tempDb.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
@@ -113,7 +113,7 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
     await db.delete(projects);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     for (const dir of tempDirs) await fs.rm(dir, { recursive: true, force: true });
     tempDirs.clear();
   });
@@ -131,21 +131,21 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
     });
   }
 
-  async function seedCompany() {
-    const companyId = randomUUID();
+  async function seedSpace() {
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const agentId = randomUUID();
-    const issuePrefix = `C${companyId.slice(0, 7).toUpperCase()}`;
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    const issuePrefix = `C${spaceId.slice(0, 7).toUpperCase()}`;
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Compaction", status: "in_progress" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Compaction", status: "in_progress" });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Coder",
       role: "engineer",
       status: "active",
@@ -154,7 +154,7 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
       runtimeConfig: {},
       permissions: {},
     });
-    return { companyId, projectId, agentId, issuePrefix };
+    return { spaceId, projectId, agentId, issuePrefix };
   }
 
   async function seedWorkspace(options: {
@@ -170,7 +170,7 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
     const branchName = `PAP-${Math.floor(Math.random() * 100000)}-finished-task`;
     let worktreePath = options.worktreePath;
     if (!worktreePath) {
-      worktreePath = path.join(repoRoot, ".paperclip", "worktrees", branchName);
+      worktreePath = path.join(repoRoot, ".outpost", "worktrees", branchName);
       await git(repoRoot, ["worktree", "add", "-b", branchName, worktreePath, "main"]);
     }
     if (options.commitOnBranch) {
@@ -180,14 +180,14 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
     }
     if (options.populate !== false) await populateWorktree(worktreePath);
 
-    const company = await seedCompany();
+    const space = await seedSpace();
     const projectWorkspaceId = randomUUID();
     const executionWorkspaceId = randomUUID();
     const sourceIssueId = randomUUID();
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId: company.companyId,
-      projectId: company.projectId,
+      spaceId: space.spaceId,
+      projectId: space.projectId,
       name: "Primary",
       sourceType: "local_path",
       isPrimary: true,
@@ -195,8 +195,8 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId: company.companyId,
-      projectId: company.projectId,
+      spaceId: space.spaceId,
+      projectId: space.projectId,
       projectWorkspaceId,
       mode: options.mode ?? "isolated_workspace",
       strategyType: "git_worktree",
@@ -210,9 +210,9 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
     });
     await db.insert(issues).values({
       id: sourceIssueId,
-      companyId: company.companyId,
-      projectId: company.projectId,
-      identifier: `${company.issuePrefix}-1`,
+      spaceId: space.spaceId,
+      projectId: space.projectId,
+      identifier: `${space.issuePrefix}-1`,
       title: "Finished task",
       status: "done",
       priority: "medium",
@@ -223,7 +223,7 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
       .update(executionWorkspaces)
       .set({ sourceIssueId })
       .where(eq(executionWorkspaces.id, executionWorkspaceId));
-    return { ...company, repoRoot, worktreePath, branchName, executionWorkspaceId, sourceIssueId };
+    return { ...space, repoRoot, worktreePath, branchName, executionWorkspaceId, sourceIssueId };
   }
 
   async function workspaceStatus(executionWorkspaceId: string) {
@@ -380,7 +380,7 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
   it("leaves files alone while a run is active on the task", async () => {
     const seeded = await seedWorkspace();
     const runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: seeded.companyId, agentId: seeded.agentId, status: "running" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: seeded.spaceId, agentId: seeded.agentId, status: "running" });
     await db.update(issues).set({ checkoutRunId: runId }).where(eq(issues.id, seeded.sourceIssueId));
 
     const sweep = await service().sweepTerminalWorkspaces();
@@ -393,7 +393,7 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
     const seeded = await seedWorkspace();
     await db.insert(heartbeatRuns).values({
       id: randomUUID(),
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       agentId: seeded.agentId,
       status: "queued",
       contextSnapshot: { issueId: seeded.sourceIssueId },
@@ -407,7 +407,7 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
     const seeded = await seedWorkspace();
     await db.insert(issues).values({
       id: randomUUID(),
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       projectId: seeded.projectId,
       parentId: seeded.sourceIssueId,
       identifier: `${seeded.issuePrefix}-2`,
@@ -424,7 +424,7 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
     const seeded = await seedWorkspace();
     await db.insert(workspaceRuntimeServices).values({
       id: randomUUID(),
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       projectId: seeded.projectId,
       executionWorkspaceId: seeded.executionWorkspaceId,
       issueId: seeded.sourceIssueId,
@@ -464,7 +464,7 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
       afterWorkspaceCompactionMove: async () => {
         await db.insert(heartbeatRuns).values({
           id: randomUUID(),
-          companyId: seeded.companyId,
+          spaceId: seeded.spaceId,
           agentId: seeded.agentId,
           status: "queued",
           contextSnapshot: { issueId: seeded.sourceIssueId },
@@ -523,7 +523,7 @@ describeEmbeddedPostgres("terminal workspace compaction", () => {
       },
       config: { workspaceStrategy: { type: "git_worktree", baseRef: "main", provisionCommand } },
       issue: { id: "issue-1", identifier: "PAP-9", title: "Resume after compaction" },
-      agent: { id: "agent-1", name: "Coder", companyId: "company-1" },
+      agent: { id: "agent-1", name: "Coder", spaceId: "space-1" },
     } satisfies Parameters<typeof realizeExecutionWorkspace>[0];
     const first = await realizeExecutionWorkspace(realizationInput);
     expect(first.created).toBe(true);

@@ -4,17 +4,17 @@ import { join, relative, sep } from "node:path";
 
 export const OUTPOST_WORKSPACE_DIFF_SCHEMA = "outpost.workspace.diff.v1" as const;
 
-export type PaperclipWorkspaceChangeSource = "harness_reported" | "runner_verified";
-export type PaperclipWorkspaceFileOperation =
+export type OutpostWorkspaceChangeSource = "harness_reported" | "runner_verified";
+export type OutpostWorkspaceFileOperation =
   | "create"
   | "modify"
   | "delete"
   | "rename"
   | "mode_change";
 
-export interface PaperclipWorkspaceFileChange {
+export interface OutpostWorkspaceFileChange {
   path: string;
-  operation: PaperclipWorkspaceFileOperation;
+  operation: OutpostWorkspaceFileOperation;
   previousPath: string | null;
   additions: number | null;
   deletions: number | null;
@@ -22,13 +22,13 @@ export interface PaperclipWorkspaceFileChange {
   diff: string | null;
 }
 
-export interface PaperclipWorkspaceDiff {
+export interface OutpostWorkspaceDiff {
   schema: typeof OUTPOST_WORKSPACE_DIFF_SCHEMA;
   changeSetId: string;
   revision: number;
-  source: PaperclipWorkspaceChangeSource;
+  source: OutpostWorkspaceChangeSource;
   complete: boolean;
-  files: PaperclipWorkspaceFileChange[];
+  files: OutpostWorkspaceFileChange[];
   totals: { files: number; additions: number | null; deletions: number | null };
   patchArtifactRef: string | null;
 }
@@ -39,7 +39,7 @@ interface WorkspaceFileSnapshot {
   binary: boolean;
 }
 
-export type PaperclipWorkspaceSnapshot = Map<string, WorkspaceFileSnapshot>;
+export type OutpostWorkspaceSnapshot = Map<string, WorkspaceFileSnapshot>;
 
 const IGNORED_DIRECTORY_NAMES = new Set([
   ".git",
@@ -72,11 +72,11 @@ function appearsBinary(content: Buffer): boolean {
  * dependency/VCS directories are excluded, symlinks are never followed, and
  * hard limits make this safe to run around an interactive turn.
  */
-export async function capturePaperclipWorkspace(
+export async function captureOutpostWorkspace(
   root: string,
   options: { signal?: AbortSignal } = {},
-): Promise<PaperclipWorkspaceSnapshot> {
-  const result: PaperclipWorkspaceSnapshot = new Map();
+): Promise<OutpostWorkspaceSnapshot> {
+  const result: OutpostWorkspaceSnapshot = new Map();
   let retainedBytes = 0;
   let visitedDirectories = 0;
   const throwIfAborted = () => options.signal?.throwIfAborted();
@@ -170,12 +170,12 @@ function unifiedDiff(path: string, before: Buffer | null, after: Buffer | null):
   };
 }
 
-export function diffPaperclipWorkspace(
-  before: PaperclipWorkspaceSnapshot,
-  after: PaperclipWorkspaceSnapshot,
+export function diffOutpostWorkspace(
+  before: OutpostWorkspaceSnapshot,
+  after: OutpostWorkspaceSnapshot,
   changeSetId: string,
-): PaperclipWorkspaceDiff | null {
-  const files: PaperclipWorkspaceFileChange[] = [];
+): OutpostWorkspaceDiff | null {
+  const files: OutpostWorkspaceFileChange[] = [];
   const paths = [...new Set([...before.keys(), ...after.keys()])].sort();
   for (const path of paths) {
     const prior = before.get(path);
@@ -192,7 +192,7 @@ export function diffPaperclipWorkspace(
 
   // Exact-content delete/create pairs are represented as a rename. This keeps
   // the protocol semantic even when the harness only used shell commands.
-  const deletedByHash = new Map<string, PaperclipWorkspaceFileChange>();
+  const deletedByHash = new Map<string, OutpostWorkspaceFileChange>();
   for (const file of files) {
     if (file.operation === "delete") deletedByHash.set(before.get(file.path)!.hash, file);
   }

@@ -22,7 +22,7 @@ if (!endpoint || !["127.0.0.1", "localhost"].includes(new URL(endpoint).hostname
   );
 }
 const childMode = process.argv[2] === "--child-writer";
-const bucket = childMode ? process.argv[3]! : `paperclip-logs-test-${randomUUID()}`;
+const bucket = childMode ? process.argv[3]! : `outpost-logs-test-${randomUUID()}`;
 const raw = createS3StorageProvider({
   endpoint,
   bucket,
@@ -48,7 +48,7 @@ const provider = {
     }
   },
 };
-const input = { companyId: "company", agentId: "agent", runId: "crash" };
+const input = { spaceId: "space", agentId: "agent", runId: "crash" };
 const options = {
   provider,
   keyPrefix: "qualification",

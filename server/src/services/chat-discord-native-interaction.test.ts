@@ -49,7 +49,7 @@ function component(customId: string, overrides: Record<string, unknown> = {}) {
 }
 
 // Exercise the installed, compatibility-checked adapter and Chat SDK. Only the
-// Discord socket/API and final Paperclip service/DB callback are test doubles;
+// Discord socket/API and final Outpost service/DB callback are test doubles;
 // this suite does not claim a provider login or a native model continuation.
 interface DiscordAdapterSeam {
   handleGatewayInteraction(event: ReturnType<typeof component>): Promise<void>;
@@ -64,7 +64,7 @@ interface DiscordAdapterSeam {
 function memoryPersistence(): ChatSdkStatePersistence {
   const rows = new Map<string, ChatSdkStateRecord>();
   const keyFor = (scope: ChatSdkStateScope, key: string) =>
-    JSON.stringify([scope.companyId, scope.endpointId, key]);
+    JSON.stringify([scope.spaceId, scope.endpointId, key]);
   return {
     async read(scope, key) {
       return rows.get(keyFor(scope, key)) ?? null;
@@ -122,7 +122,7 @@ describe("Discord native question adapter-to-runtime boundary", () => {
 
   async function harness(
     onAction: ActionCallback,
-    scope = { companyId: "company-discord", endpointId: "endpoint-discord" },
+    scope = { spaceId: "space-discord", endpointId: "endpoint-discord" },
     persistence = memoryPersistence(),
   ) {
     const runtime = createChatSdkEndpointRuntime({
@@ -295,7 +295,7 @@ describe("Discord native question adapter-to-runtime boundary", () => {
     expect(click.deferUpdate).not.toHaveBeenCalled();
     expect(click.reply).toHaveBeenCalledWith({
       content:
-        "This action is no longer available. Open the linked Paperclip task or ask an operator to link this account.",
+        "This action is no longer available. Open the linked Outpost task or ask an operator to link this account.",
       flags: 64,
     });
   });
@@ -311,7 +311,7 @@ describe("Discord native question adapter-to-runtime boundary", () => {
     expect(click.deferUpdate).not.toHaveBeenCalled();
     expect(click.reply).toHaveBeenCalledWith({
       content:
-        "This action is no longer available. Open the linked Paperclip task or ask an operator to link this account.",
+        "This action is no longer available. Open the linked Outpost task or ask an operator to link this account.",
       flags: 64,
     });
   });
@@ -339,7 +339,7 @@ describe("Discord native question adapter-to-runtime boundary", () => {
     const first = await harness(
       onFirst,
       {
-        companyId: "company-first",
+        spaceId: "space-first",
         endpointId: "endpoint-first",
       },
       persistence,
@@ -347,20 +347,20 @@ describe("Discord native question adapter-to-runtime boundary", () => {
     const second = await harness(
       onSecond,
       {
-        companyId: "company-second",
+        spaceId: "space-second",
         endpointId: "endpoint-second",
       },
       persistence,
     );
     const click = component("opaque-action", {
       endpointId: "endpoint-second",
-      companyId: "company-second",
+      spaceId: "space-second",
     });
     await first.adapter.handleGatewayInteraction(click);
     expect(onFirst).toHaveBeenCalledOnce();
     expect(onFirst.mock.calls[0]![0].endpointId).toBe("endpoint-first");
     expect(onSecond).not.toHaveBeenCalled();
-    expect(onFirst.mock.calls[0]![0].event.raw).not.toHaveProperty("companyId");
+    expect(onFirst.mock.calls[0]![0].event.raw).not.toHaveProperty("spaceId");
     expect(onFirst.mock.calls[0]![0].event.raw).not.toHaveProperty(
       "endpointId",
     );

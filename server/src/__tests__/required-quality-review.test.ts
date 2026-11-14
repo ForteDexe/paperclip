@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, assets, companies, createDb, documents, heartbeatRuns, issueAttachments, issueThreadInteractionIdempotencyKeys, issueThreadInteractions, issues } from "@outpost/db";
+import { agents, assets, spaces, createDb, documents, heartbeatRuns, issueAttachments, issueThreadInteractionIdempotencyKeys, issueThreadInteractions, issues } from "@outpost/db";
 import { requiredQualityReviewSchema } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { issueThreadInteractionService } from "../services/issue-thread-interactions.js";
@@ -13,7 +13,7 @@ import { instanceSettingsService } from "../services/instance-settings.js";
 import { normalizeIssueExecutionPolicy } from "../services/issue-execution-policy.js";
 import { readRequiredQualityReview } from "../services/required-quality-review.js";
 import { nativeCompletionFeedback } from "../services/native-runtime/native-completion-feedback.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import type { PrpStructuredRunResult } from "../vendor/outpost-runner/index.js";
 
 // Issue writes and the `issues` row type take the policy as a plain JSON record.
@@ -30,24 +30,24 @@ const support = await getEmbeddedPostgresTestSupport();
     await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: false, enableAgentChat: true }); }, 30_000);
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
   async function fixture(required = true) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = "local-board";
-    await db.insert(companies).values({ id: companyId, name: "Quality", issuePrefix: `Q${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Writer", status: "idle", adapterType: "outpost_runner" });
-    const [task] = await db.insert(issues).values({ id: issueId, companyId, title: "Review outputs", status: "in_progress", assigneeAgentId: agentId,
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), userId = "local-operator";
+    await db.insert(spaces).values({ id: spaceId, name: "Quality", issuePrefix: `Q${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Writer", status: "idle", adapterType: "outpost_runner" });
+    const [task] = await db.insert(issues).values({ id: issueId, spaceId, title: "Review outputs", status: "in_progress", assigneeAgentId: agentId,
       createdByUserId: userId, reviewPolicy: null,
       executionPolicy: required ? executionPolicyRecord({ requiredQualityReview: requirement }) : null }).returning();
     const saved = await documentService(db).upsertIssueDocument({ issueId, key: "copy", title: "Blog copy", body: "Draft one", format: "markdown", baseRevisionId: null, createdByUserId: userId });
     const copy = { type: "issue_document" as const, key: "copy", revisionId: saved.document.latestRevisionId! };
     const assetId = randomUUID(), attachmentId = randomUUID(), sha256 = "a".repeat(64);
-    await db.insert(assets).values({ id: assetId, companyId, provider: "local_disk", objectKey: assetId, contentType: "image/png", byteSize: 100, sha256, originalFilename: "visual.png", createdByUserId: userId });
-    await db.insert(issueAttachments).values({ id: attachmentId, companyId, issueId, assetId });
+    await db.insert(assets).values({ id: assetId, spaceId, provider: "local_disk", objectKey: assetId, contentType: "image/png", byteSize: 100, sha256, originalFilename: "visual.png", createdByUserId: userId });
+    await db.insert(issueAttachments).values({ id: attachmentId, spaceId, issueId, assetId });
     const visual = { type: "issue_attachment" as const, attachmentId, assetId, sha256 };
     const service = issueThreadInteractionService(db);
     const approve = async (key: "copy" | "visual", target = key === "copy" ? copy : visual) => {
       const card = await service.create(task, { kind: "request_confirmation", idempotencyKey: randomUUID(), payload: { version: 1, prompt: "Approve this output?", target, qualityReview: { key } } }, { userId });
       await service.acceptInteraction(task, card.id, {}, { userId }); return card;
     };
-    return { task, companyId, agentId, issueId, userId, saved, copy, visual, service, approve };
+    return { task, spaceId, agentId, issueId, userId, saved, copy, visual, service, approve };
   }
   it("retains the optional policy and validates unique required output keys", () => {
     expect(normalizeIssueExecutionPolicy({ requiredQualityReview: requirement })?.requiredQualityReview).toEqual(requirement);
@@ -64,7 +64,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const unrelated = await f.service.create(f.task, { kind: "request_confirmation", payload: { version: 1, prompt: "Accept plan?", target: f.copy } }, { userId: f.userId });
     await f.service.acceptInteraction(f.task, unrelated.id, {}, { userId: f.userId });
     expect(await readRequiredQualityReview(db, f.task)).toMatchObject({ satisfied: false, missing: [{ key: "copy", reason: "missing" }, { key: "visual", reason: "missing" }] });
-    await expect(issueService(db).create(f.companyId, { title: "Bypass review at creation", status: "done", executionPolicy: f.task.executionPolicy })).rejects.toThrow("cannot start completed");
+    await expect(issueService(db).create(f.spaceId, { title: "Bypass review at creation", status: "done", executionPolicy: f.task.executionPolicy })).rejects.toThrow("cannot start completed");
     await expect(issueService(db).update(f.issueId, { status: "done", actorAgentId: f.agentId })).rejects.toMatchObject({ details: { code: "required_quality_review_incomplete" } });
     await expect(f.service.create(f.task, { kind: "request_confirmation", payload: { version: 1, prompt: "Approve plan?", qualityReview: { key: "copy" }, target: { ...f.copy, key: "plan" } } }, { userId: f.userId })).rejects.toThrow("not a plan");
   });
@@ -90,7 +90,7 @@ const support = await getEmbeddedPostgresTestSupport();
   });
   it("does not silently drop a required review when reusing an open task by title or idempotency key", async () => {
     const f = await fixture(false), service = issueService(db);
-    await expect(service.create(f.companyId, { title: f.task.title, allowDuplicate: false, executionPolicy: executionPolicyRecord({ requiredQualityReview: requirement }) })).rejects.toMatchObject({ details: { code: "required_quality_review_mismatch" } });
+    await expect(service.create(f.spaceId, { title: f.task.title, allowDuplicate: false, executionPolicy: executionPolicyRecord({ requiredQualityReview: requirement }) })).rejects.toMatchObject({ details: { code: "required_quality_review_mismatch" } });
     const child = await service.createChild(f.issueId, { title: "Existing child", idempotencyKey: "same-child" });
     await expect(service.createChild(f.issueId, { title: "Existing child", idempotencyKey: "same-child", executionPolicy: executionPolicyRecord({ requiredQualityReview: requirement }) })).rejects.toMatchObject({ details: { code: "required_quality_review_mismatch" } });
     expect(child.issue.executionPolicy).toBeNull();
@@ -197,7 +197,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const request = { kind: "request_confirmation" as const, idempotencyKey: "original", payload: { version: 1 as const, prompt: "Approve copy?", target: f.copy, qualityReview: { key: "copy" } } };
     const actor = { agentId: f.agentId };
     const first = await f.service.create(f.task, request, actor);
-    await db.insert(issueThreadInteractionIdempotencyKeys).values(Array.from({ length: 100 }, (_, index) => ({ companyId: f.companyId, issueId: f.issueId, interactionId: first.id, idempotencyKey: `retry-${index}` })));
+    await db.insert(issueThreadInteractionIdempotencyKeys).values(Array.from({ length: 100 }, (_, index) => ({ spaceId: f.spaceId, issueId: f.issueId, interactionId: first.id, idempotencyKey: `retry-${index}` })));
     await expect(f.service.create(f.task, { ...request, idempotencyKey: "one-too-many" }, actor)).rejects.toMatchObject({ details: { code: "quality_review_retry_key_limit", interactionId: first.id } });
     await f.service.acceptInteraction(f.task, first.id, {}, { userId: f.userId });
     expect(await f.service.create(f.task, { ...request, idempotencyKey: "retry-99" }, actor)).toMatchObject({ id: first.id, status: "accepted" });
@@ -217,7 +217,7 @@ const support = await getEmbeddedPostgresTestSupport();
   it("caps pending quality cards task-wide even when previous requirement keys or reviewers differ", async () => {
     const f = await fixture();
     await db.insert(issueThreadInteractions).values(Array.from({ length: 10 }, (_, i) => ({
-      companyId: f.companyId, issueId: f.issueId, kind: "request_confirmation" as const, status: "pending" as const, continuationPolicy: "wake_assignee" as const,
+      spaceId: f.spaceId, issueId: f.issueId, kind: "request_confirmation" as const, status: "pending" as const, continuationPolicy: "wake_assignee" as const,
       payload: { version: 1 as const, prompt: "Prior required output", target: f.copy, qualityReview: { key: `prior-${i}`, requirementHash: "a".repeat(64) } },
     })));
     await expect(f.service.create(f.task, { kind: "request_confirmation", addresseeUserId: f.userId, payload: { version: 1, prompt: "Approve copy?", target: f.copy, qualityReview: { key: "copy" } } }, { agentId: f.agentId })).rejects.toMatchObject({ details: { code: "quality_review_pending_limit" } });
@@ -267,18 +267,18 @@ const support = await getEmbeddedPostgresTestSupport();
   });
   it("carries the same contract through native explicit task creation without waking a provider", async () => {
     const f = await fixture(false), runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, nativeIssueId: f.issueId, status: "running", runtimeMode: "native", contextSnapshot: { issueId: f.issueId } });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId, nativeIssueId: f.issueId, status: "running", runtimeMode: "native", contextSnapshot: { issueId: f.issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, f.issueId));
-    const authority = new PaperclipRunnerToolAuthority(db, { companyId: f.companyId, agentId: f.agentId, issueId: f.issueId, runId, workMode: "standard", enqueueWakeup: async () => null });
+    const authority = new OutpostRunnerToolAuthority(db, { spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId, runId, workMode: "standard", enqueueWakeup: async () => null });
     const result = await authority.execute({ tool: "create_task", callId: "create", arguments: { idempotencyKey: "create", title: "Write approved blog", requiredQualityReview: requirement } }) as { task: { id: string } };
     const [child] = await db.select().from(issues).where(eq(issues.id, result.task.id));
     expect(child).toMatchObject({ reviewPolicy: null, executionPolicy: { requiredQualityReview: requirement } });
   });
   it.each(["confirmation", "item_verdicts"] as const)("preserves exact quality binding through the advertised native %s tool", async interactionKind => {
     const f = await fixture(), runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, nativeIssueId: f.issueId, status: "running", runtimeMode: "native", contextSnapshot: { issueId: f.issueId } });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId, nativeIssueId: f.issueId, status: "running", runtimeMode: "native", contextSnapshot: { issueId: f.issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, f.issueId));
-    const authority = new PaperclipRunnerToolAuthority(db, { companyId: f.companyId, agentId: f.agentId, issueId: f.issueId, runId, workMode: "standard", enqueueWakeup: async () => null });
+    const authority = new OutpostRunnerToolAuthority(db, { spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId, runId, workMode: "standard", enqueueWakeup: async () => null });
     const definition = authority.definitions().find(tool => tool.name === "request_human_input")!;
     const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true, strict: false });
     const validate = ajv.compile(definition.inputSchema as object);
@@ -302,7 +302,7 @@ const support = await getEmbeddedPostgresTestSupport();
   });
   it("rejects a native done claim until required output approvals exist", async () => {
     const f = await fixture(), runId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId, nativeIssueId: f.issueId, status: "running", runtimeMode: "native", contextSnapshot: { issueId: f.issueId } });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId, nativeIssueId: f.issueId, status: "running", runtimeMode: "native", contextSnapshot: { issueId: f.issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, f.issueId));
     const done: PrpStructuredRunResult = { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "Outputs ready", completionClaim: { contractRevision: "test", objectiveSatisfied: true, criteria: [], remainingWork: [] }, evidence: [], verification: [], attentionRequests: [], artifacts: [] };
     await expect(nativeCompletionFeedback(db, runId, done)).rejects.toThrow("Required human quality review is incomplete");

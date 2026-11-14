@@ -44,7 +44,7 @@ export const chatSetupHealthTask: RunnerTaskFixture = {
 export const chatSetupHealthDigest = createHash("sha256").update([
   "chat-setup-health.ts", "chat-setup-credential.ts", "chat-readiness-observer.ts", "server-entry.ts", "runner.spec.ts", "live-fixtures.ts", "chat-remote-host.ts", "server.ts",
 ].map(file => readFileSync(new URL(`./${file}`, import.meta.url), "utf8")).join("\n")).digest("hex");
-interface HealthAgent { id: string; companyId: string; lifecycleState?: string; lifecycleError?: string | null; status: string;
+interface HealthAgent { id: string; spaceId: string; lifecycleState?: string; lifecycleError?: string | null; status: string;
   defaultEnvironmentId?: string | null; adapterType: string; adapterConfig?: Record<string, unknown> }
 export function gradeSetupHealth(state: {
   ready: boolean; agentCount: number; configMatches: boolean; issues: number; conversations: number; comments: number; humanComments: number; runs: number;
@@ -69,12 +69,12 @@ export async function runChatSetupHealth(input: { api: RunnerApi; fixtures: Live
     ready = true;
   } finally {
     // GET only: no chat resolution/creation, task dispatch or explicit second probe.
-    const company = `/api/companies/${f.company.id}`;
+    const space = `/api/spaces/${f.space.id}`;
     let diagnosticFailure = false;
     try {
-      const probes = await readChatReadinessReceipts(input.temporaryRoot, f.company.id);
+      const probes = await readChatReadinessReceipts(input.temporaryRoot, f.space.id);
       await input.evidence("chat-setup-health.json", { schema: "outpost.chat-setup-health/v1", scope: "diagnostic-outside-244",
-        companyId: f.company.id, agentId: f.agent.id, probes, publicState: "not-yet-verified",
+        spaceId: f.space.id, agentId: f.agent.id, probes, publicState: "not-yet-verified",
         setupProbeUsage: "unavailable outside heartbeat accounting; never zero" });
     } catch { diagnosticFailure = true; }
     // Always fence future automatic verification, even when diagnostic I/O fails.
@@ -87,46 +87,46 @@ export async function runChatSetupHealth(input: { api: RunnerApi; fixtures: Live
     }
     if (diagnosticFailure) throw new Error("Setup health diagnostics unavailable after normal public pause");
     // Read after the pause fence too: a late second completion must fail the count.
-    const probes = await readChatReadinessReceipts(input.temporaryRoot, f.company.id);
+    const probes = await readChatReadinessReceipts(input.temporaryRoot, f.space.id);
     const settings = await api.get<{ enableAgentChat: boolean }>("/api/instance/settings/experimental", { timeout: 5_000 });
     if (!settings.enableAgentChat) await api.patch("/api/instance/settings/experimental", { enableAgentChat: true });
     const [agents, issues, conversations, runs] = await Promise.all([
-      api.get<HealthAgent[]>(`${company}/agents`, { timeout: 5_000 }), api.get<Array<{ id: string }>>(`${company}/issues?includeAgentCreatedTasks=true&limit=100`, { timeout: 5_000 }),
-      api.get<Array<{ id: string }>>(`${company}/chats`, { timeout: 5_000 }), api.get<unknown[]>(`${company}/heartbeat-runs?limit=100`, { timeout: 5_000 }),
+      api.get<HealthAgent[]>(`${space}/agents`, { timeout: 5_000 }), api.get<Array<{ id: string }>>(`${space}/issues?includeAgentCreatedTasks=true&limit=100`, { timeout: 5_000 }),
+      api.get<Array<{ id: string }>>(`${space}/chats`, { timeout: 5_000 }), api.get<unknown[]>(`${space}/heartbeat-runs?limit=100`, { timeout: 5_000 }),
     ]);
     const sourceIds = [...new Set([...issues, ...conversations].map(row => row.id))];
     const comments = (await Promise.all(sourceIds.map(id => api.get<Array<{ authorUserId?: string | null }>>(`/api/issues/${id}/comments?order=asc`, { timeout: 5_000 })))).flat();
     const agent = agents.find(row => row.id === f.agent.id);
-    const state = { ready, agentCount: agents.length, configMatches: agent?.companyId === f.company.id && agent.defaultEnvironmentId === f.environment.id
+    const state = { ready, agentCount: agents.length, configMatches: agent?.spaceId === f.space.id && agent.defaultEnvironmentId === f.environment.id
       && agent.adapterType === "outpost_runner" && agent.adapterConfig?.provider === "opencode" && agent.adapterConfig?.model === CHAT_OPENCODE_MODEL,
       issues: issues.length, conversations: conversations.length, comments: comments.length, humanComments: comments.filter(row => row.authorUserId).length,
       runs: runs.length, probes };
     const checks = gradeSetupHealth(state);
-    await input.evidence("chat-setup-health.json", { schema: "outpost.chat-setup-health/v1", scope: "diagnostic-outside-244", companyId: f.company.id,
+    await input.evidence("chat-setup-health.json", { schema: "outpost.chat-setup-health/v1", scope: "diagnostic-outside-244", spaceId: f.space.id,
       agentId: f.agent.id, state, checks, canonicalQueries: state.humanComments,
       setupProbeUsage: "One ordinary automatic lifecycle hello is expected. Provider tokens and cost are unavailable outside heartbeat accounting; never reported as zero." });
     await input.evidence("api-state.json", { scope: "diagnostic-outside-244", capturePhase: "after-public-pause",
-      companyId: f.company.id, agentId: f.agent.id, observed: state, checks });
+      spaceId: f.space.id, agentId: f.agent.id, observed: state, checks });
     if (checks.some(check => !check.passed)) throw new Error("Setup health failed; inspect retained closed readiness diagnostics");
   }
 }
 
 /** Genuine readonly diagnostic UI evidence, never published as a task screenshot. */
 export async function captureSetupHealthProfile(input: {
-  executionId: string; api: RunnerApi; page: Page; companyId: string; agentId: string;
+  executionId: string; api: RunnerApi; page: Page; spaceId: string; agentId: string;
   capturePrivate(id: string, filename: string): Promise<void>;
 }) {
   if (input.executionId !== CHAT_SETUP_HEALTH_ID) throw new Error("Setup health evidence requires its exact diagnostic cell");
-  const [company, agent] = await Promise.all([
-    input.api.get<{ id: string; issuePrefix: string }>(`/api/companies/${input.companyId}`),
-    input.api.get<{ id: string; companyId: string; name: string; urlKey: string }>(`/api/agents/${input.agentId}`),
+  const [space, agent] = await Promise.all([
+    input.api.get<{ id: string; issuePrefix: string }>(`/api/spaces/${input.spaceId}`),
+    input.api.get<{ id: string; spaceId: string; name: string; urlKey: string }>(`/api/agents/${input.agentId}`),
   ]);
-  if (company.id !== input.companyId || agent.id !== input.agentId || agent.companyId !== company.id
-    || !company.issuePrefix || !agent.name || !agent.urlKey) throw new Error("Setup health evidence resource mismatch");
+  if (space.id !== input.spaceId || agent.id !== input.agentId || agent.spaceId !== space.id
+    || !space.issuePrefix || !agent.name || !agent.urlKey) throw new Error("Setup health evidence resource mismatch");
   const origin = new URL(input.api.baseURL);
   if (origin.protocol !== "http:" || origin.hostname !== "127.0.0.1" || origin.username || origin.password)
     throw new Error("Setup health evidence requires the owned loopback app");
-  const url = new URL(`/${encodeURIComponent(company.issuePrefix)}/agents/${encodeURIComponent(agent.urlKey)}/overview`, origin).href;
+  const url = new URL(`/${encodeURIComponent(space.issuePrefix)}/agents/${encodeURIComponent(agent.urlKey)}/overview`, origin).href;
   await input.page.goto(url, { waitUntil: "domcontentloaded" });
   await input.page.getByRole("main").getByRole("heading", { name: agent.name, exact: true }).waitFor({ state: "visible" });
   if (input.page.url() !== url) throw new Error("Setup health evidence route mismatch");

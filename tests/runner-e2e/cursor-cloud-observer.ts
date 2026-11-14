@@ -35,15 +35,15 @@ export const cursorCloudIdentityProof = (identity: CursorCloudRemoteIdentity) =>
 export class CursorCloudOwnedObserver {
   readonly identities = new Map<string, CursorCloudRemoteIdentity>();
   readonly client: CursorCloudClient;
-  constructor(readonly api: RunnerApi, readonly companyId: string, readonly agentId: string, apiKey: string) {
+  constructor(readonly api: RunnerApi, readonly spaceId: string, readonly agentId: string, apiKey: string) {
     this.client = new CursorCloudClient({ apiKey, requestTimeoutMs: 10_000 });
   }
   async refresh() {
-    const list = await this.api.get<Row[]>(`/api/companies/${this.companyId}/heartbeat-runs?limit=100`);
+    const list = await this.api.get<Row[]>(`/api/spaces/${this.spaceId}/heartbeat-runs?limit=100`);
     if (list.length > 8) throw new Error("Cloud observer run bound exceeded");
     const rows = await Promise.all(list.map(row => this.api.get<Row>(`/api/heartbeat-runs/${row.id}`)));
     for (const run of rows) {
-      if (run.companyId !== this.companyId || run.agentId !== this.agentId) throw new Error("Cloud observer refuses an unrelated run");
+      if (run.spaceId !== this.spaceId || run.agentId !== this.agentId) throw new Error("Cloud observer refuses an unrelated run");
       const events = await collectRunEvents<Row>((afterSeq, limit) => this.api.get(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
       const identity = readCursorCloudRemoteIdentity(events, run.id);
       if (identity) this.identities.set(run.id, identity);

@@ -9,10 +9,10 @@ import {
 } from "../../support/capability-gaps/api";
 const incident: BudgetIncident = {
   id: "budget-gap",
-  companyId: "company-storybook",
+  spaceId: "space-storybook",
   policyId: "policy-gap",
-  scopeType: "company",
-  scopeId: "company-storybook",
+  scopeType: "space",
+  scopeId: "space-storybook",
   scopeName: "Acme Research",
   metric: "billed_cents",
   windowKind: "calendar_month_utc",
@@ -39,7 +39,7 @@ const meta = {
   component: BudgetHost,
   args: { embedded: true, initialTab: "budgets", lockTab: true },
   parameters: { layout: "padded",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "budgets-costs/resolution"
       ],
@@ -54,9 +54,9 @@ const meta = {
     return prepareFixtureApi(
       [
         {
-          path: "/api/companies/company-storybook/budgets/overview",
+          path: "/api/spaces/space-storybook/budgets/overview",
           read: () => ({
-            companyId: "company-storybook",
+            spaceId: "space-storybook",
             policies: [],
             activeIncidents:
               parameters.fixtureState === "empty" ||
@@ -69,7 +69,7 @@ const meta = {
           }),
         },
         {
-          path: "/api/companies/company-storybook/budget-incidents/budget-gap/resolve",
+          path: "/api/spaces/space-storybook/budget-incidents/budget-gap/resolve",
           method: "POST",
           read: ({ body }) => {
             currentIncident = {

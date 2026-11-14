@@ -6,13 +6,13 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: /^@paperclipai\/outpost-runner\/live$/,
+        find: /^@outpost\/outpost-runner\/live$/,
         replacement: fileURLToPath(
           new URL("../packages/outpost-runner/src/live/index.ts", import.meta.url),
         ),
       },
       {
-        find: /^@paperclipai\/outpost-runner$/,
+        find: /^@outpost\/outpost-runner$/,
         replacement: fileURLToPath(
           new URL("../packages/outpost-runner/src/index.ts", import.meta.url),
         ),

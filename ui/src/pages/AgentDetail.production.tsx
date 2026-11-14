@@ -1,4 +1,4 @@
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 import { describeError } from "../api/errors";
 import { useSelectedHeartbeatRun } from "../hooks/useSelectedHeartbeatRun";
 import { AgentCharacter } from "../components/AgentCharacter";
@@ -26,7 +26,7 @@ import { accessApi } from "../api/access";
 import { issuesApi } from "../api/issues";
 import { usePanel } from "../context/PanelContext";
 import { useSidebar } from "../context/SidebarContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useToastActions } from "../context/ToastContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
@@ -276,13 +276,13 @@ export function runDetailRefetchIntervalMs(status: HeartbeatRun["status"]): 5000
 }
 
 export function AgentDetail() {
-  const { companyPrefix, agentId, tab: urlTab, runId: urlRunId } = useParams<{
-    companyPrefix?: string;
+  const { spacePrefix, agentId, tab: urlTab, runId: urlRunId } = useParams<{
+    spacePrefix?: string;
     agentId: string;
     tab?: string;
     runId?: string;
   }>();
-  const { companies, selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { spaces, selectedSpaceId, setSelectedSpaceId } = useSpace();
   const { closePanel } = usePanel();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
@@ -303,13 +303,13 @@ export function AgentDetail() {
   const cancelConfigActionRef = useRef<(() => void) | null>(null);
   const { isMobile } = useSidebar();
   const routeAgentRef = agentId ?? "";
-  const routeCompanyId = useMemo(() => {
-    if (!companyPrefix) return null;
-    const requestedPrefix = companyPrefix.toUpperCase();
-    return companies.find((company) => company.issuePrefix.toUpperCase() === requestedPrefix)?.id ?? null;
-  }, [companies, companyPrefix]);
-  const lookupCompanyId = routeCompanyId ?? selectedCompanyId ?? undefined;
-  const canFetchAgent = routeAgentRef.length > 0 && (isUuidLike(routeAgentRef) || Boolean(lookupCompanyId));
+  const routeSpaceId = useMemo(() => {
+    if (!spacePrefix) return null;
+    const requestedPrefix = spacePrefix.toUpperCase();
+    return spaces.find((space) => space.issuePrefix.toUpperCase() === requestedPrefix)?.id ?? null;
+  }, [spaces, spacePrefix]);
+  const lookupSpaceId = routeSpaceId ?? selectedSpaceId ?? undefined;
+  const canFetchAgent = routeAgentRef.length > 0 && (isUuidLike(routeAgentRef) || Boolean(lookupSpaceId));
   const setSaveConfigAction = useCallback((fn: (() => void) | null) => { saveConfigActionRef.current = fn; }, []);
   const setCancelConfigAction = useCallback((fn: (() => void) | null) => { cancelConfigActionRef.current = fn; }, []);
   const prepareAgentNavigation = useCallback(() => {
@@ -317,18 +317,18 @@ export function AgentDetail() {
   }, [configDirty]);
 
   const agentQuery = useQuery<AgentDetailRecord>({
-    queryKey: [...queryKeys.agents.detail(routeAgentRef), lookupCompanyId ?? null],
-    queryFn: () => agentsApi.get(routeAgentRef, lookupCompanyId),
+    queryKey: [...queryKeys.agents.detail(routeAgentRef), lookupSpaceId ?? null],
+    queryFn: () => agentsApi.get(routeAgentRef, lookupSpaceId),
     enabled: canFetchAgent,
   });
   const { data: agent, isLoading, error } = agentQuery;
   const agentView = useQueryView(agentQuery);
-  const resolvedCompanyId = agent?.companyId ?? selectedCompanyId;
+  const resolvedSpaceId = agent?.spaceId ?? selectedSpaceId;
   const canonicalAgentRef = agent ? agentRouteRef(agent) : routeAgentRef;
   const agentLookupRef = agent?.id ?? routeAgentRef;
   const resolvedAgentId = agent?.id ?? null;
-  const membershipsQuery = useResourceMemberships(resolvedCompanyId);
-  const membershipMutation = useResourceMembershipMutation(resolvedCompanyId);
+  const membershipsQuery = useResourceMemberships(resolvedSpaceId);
+  const membershipMutation = useResourceMembershipMutation(resolvedSpaceId);
   const agentMembershipState = resolvedAgentId
     ? resourceMembershipState(membershipsQuery.data, "agent", resolvedAgentId)
     : "joined";
@@ -336,13 +336,13 @@ export function AgentDetail() {
   const { data: experimentalSettings } = useQuery({
     queryKey: queryKeys.instance.experimentalSettings,
     queryFn: () => instanceSettingsApi.getExperimental(),
-    enabled: !!resolvedCompanyId,
+    enabled: !!resolvedSpaceId,
   });
   const builtInAgentsEnabled = experimentalSettings?.enableBuiltInAgents === true;
   const { data: builtInStates } = useQuery({
-    queryKey: queryKeys.builtInAgents.list(resolvedCompanyId!),
-    queryFn: () => builtInAgentsApi.list(resolvedCompanyId!),
-    enabled: !!resolvedCompanyId && builtInAgentsEnabled,
+    queryKey: queryKeys.builtInAgents.list(resolvedSpaceId!),
+    queryFn: () => builtInAgentsApi.list(resolvedSpaceId!),
+    enabled: !!resolvedSpaceId && builtInAgentsEnabled,
   });
   const builtInState = builtInAgentsEnabled
     ? builtInStates?.find((entry) => entry.agentId === resolvedAgentId) ?? null
@@ -353,22 +353,22 @@ export function AgentDetail() {
         .join(", ")
     : "";
   const invalidateBuiltIn = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.builtInAgents.list(resolvedCompanyId!) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.builtInAgents.list(resolvedSpaceId!) });
     if (resolvedAgentId) {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(resolvedAgentId) });
     }
     queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(routeAgentRef) });
-  }, [queryClient, resolvedCompanyId, resolvedAgentId, routeAgentRef]);
+  }, [queryClient, resolvedSpaceId, resolvedAgentId, routeAgentRef]);
 
   const resetBuiltIn = useMutation({
-    mutationFn: () => builtInAgentsApi.reset(resolvedCompanyId!, builtInState!.definition.key),
+    mutationFn: () => builtInAgentsApi.reset(resolvedSpaceId!, builtInState!.definition.key),
     onSuccess: invalidateBuiltIn,
   });
 
   const [showBuiltInConfigure, setShowBuiltInConfigure] = useState(false);
   const resetBuiltInResource = useMutation({
     mutationFn: (kind: BuiltInManagedResourceKind) =>
-      builtInAgentsApi.reset(resolvedCompanyId!, builtInState!.definition.key, [kind]),
+      builtInAgentsApi.reset(resolvedSpaceId!, builtInState!.definition.key, [kind]),
     onSuccess: invalidateBuiltIn,
     onError: (error) => {
       setActionError(error instanceof Error ? error.message : "Failed to update bundle resource");
@@ -376,7 +376,7 @@ export function AgentDetail() {
   });
   const runBuiltInRoutine = useMutation({
     mutationFn: (routineKey: string) =>
-      builtInAgentsApi.runRoutine(resolvedCompanyId!, builtInState!.definition.key, routineKey),
+      builtInAgentsApi.runRoutine(resolvedSpaceId!, builtInState!.definition.key, routineKey),
     onSuccess: invalidateBuiltIn,
     onError: (error) => {
       setActionError(error instanceof Error ? error.message : "Failed to run built-in routine");
@@ -384,7 +384,7 @@ export function AgentDetail() {
   });
   const enableBuiltInSchedule = useMutation({
     mutationFn: (routineKey: string) =>
-      builtInAgentsApi.enableRoutineSchedule(resolvedCompanyId!, builtInState!.definition.key, routineKey),
+      builtInAgentsApi.enableRoutineSchedule(resolvedSpaceId!, builtInState!.definition.key, routineKey),
     onSuccess: invalidateBuiltIn,
     onError: (error) => {
       setActionError(error instanceof Error ? error.message : "Failed to enable routine schedule");
@@ -392,7 +392,7 @@ export function AgentDetail() {
   });
   const disableBuiltInSchedule = useMutation({
     mutationFn: (routineKey: string) =>
-      builtInAgentsApi.disableRoutineSchedule(resolvedCompanyId!, builtInState!.definition.key, routineKey),
+      builtInAgentsApi.disableRoutineSchedule(resolvedSpaceId!, builtInState!.definition.key, routineKey),
     onSuccess: invalidateBuiltIn,
     onError: (error) => {
       setActionError(error instanceof Error ? error.message : "Failed to disable routine schedule");
@@ -409,32 +409,32 @@ export function AgentDetail() {
 
   const { data: runtimeState } = useQuery({
     queryKey: queryKeys.agents.runtimeState(resolvedAgentId ?? routeAgentRef),
-    queryFn: () => agentsApi.runtimeState(resolvedAgentId!, resolvedCompanyId ?? undefined),
+    queryFn: () => agentsApi.runtimeState(resolvedAgentId!, resolvedSpaceId ?? undefined),
     enabled: Boolean(resolvedAgentId) && needsDashboardData,
   });
 
   const { data: heartbeats } = useQuery({
-    queryKey: queryKeys.heartbeats(resolvedCompanyId!, agent?.id ?? undefined),
-    queryFn: () => heartbeatsApi.list(resolvedCompanyId!, agent?.id ?? undefined),
-    enabled: !!resolvedCompanyId && !!agent?.id && shouldLoadHeartbeats,
+    queryKey: queryKeys.heartbeats(resolvedSpaceId!, agent?.id ?? undefined),
+    queryFn: () => heartbeatsApi.list(resolvedSpaceId!, agent?.id ?? undefined),
+    enabled: !!resolvedSpaceId && !!agent?.id && shouldLoadHeartbeats,
   });
 
   const { data: allIssues } = useQuery({
-    queryKey: [...queryKeys.issues.list(resolvedCompanyId!), "participant-agent", resolvedAgentId ?? "__none__"],
-    queryFn: () => issuesApi.list(resolvedCompanyId!, { participantAgentId: resolvedAgentId! }),
-    enabled: !!resolvedCompanyId && !!resolvedAgentId && needsDashboardData,
+    queryKey: [...queryKeys.issues.list(resolvedSpaceId!), "participant-agent", resolvedAgentId ?? "__none__"],
+    queryFn: () => issuesApi.list(resolvedSpaceId!, { participantAgentId: resolvedAgentId! }),
+    enabled: !!resolvedSpaceId && !!resolvedAgentId && needsDashboardData,
   });
 
   const { data: allAgents } = useQuery({
-    queryKey: queryKeys.agents.list(resolvedCompanyId!),
-    queryFn: () => agentsApi.list(resolvedCompanyId!),
-    enabled: !!resolvedCompanyId && needsDashboardData,
+    queryKey: queryKeys.agents.list(resolvedSpaceId!),
+    queryFn: () => agentsApi.list(resolvedSpaceId!),
+    enabled: !!resolvedSpaceId && needsDashboardData,
   });
 
   const { data: budgetOverview } = useQuery({
-    queryKey: queryKeys.budgets.overview(resolvedCompanyId ?? "__none__"),
-    queryFn: () => budgetsApi.overview(resolvedCompanyId!),
-    enabled: !!resolvedCompanyId,
+    queryKey: queryKeys.budgets.overview(resolvedSpaceId ?? "__none__"),
+    queryFn: () => budgetsApi.overview(resolvedSpaceId!),
+    enabled: !!resolvedSpaceId,
     refetchInterval: 30_000,
     staleTime: 5_000,
   });
@@ -452,7 +452,7 @@ export function AgentDetail() {
     const spentMonthlyCents = agent?.spentMonthlyCents ?? 0;
     return {
       policyId: "",
-      companyId: resolvedCompanyId ?? "",
+      spaceId: resolvedSpaceId ?? "",
       scopeType: "agent",
       scopeId: agent?.id ?? routeAgentRef,
       scopeName: agent?.name ?? "Agent",
@@ -475,7 +475,7 @@ export function AgentDetail() {
       windowStart: new Date(),
       windowEnd: new Date(),
     } satisfies BudgetPolicySummary;
-  }, [agent, budgetOverview?.policies, resolvedCompanyId, routeAgentRef]);
+  }, [agent, budgetOverview?.policies, resolvedSpaceId, routeAgentRef]);
   const mobileLiveRun = useMemo(
     () => (heartbeats ?? []).find((r) => r.status === "running" || r.status === "queued") ?? null,
     [heartbeats],
@@ -511,9 +511,9 @@ export function AgentDetail() {
   }, [agent, routeAgentRef, canonicalAgentRef, urlRunId, urlTab, activeView, navigate, chatConnectorsLoaded, location.search]);
 
   useEffect(() => {
-    if (!agent?.companyId || agent.companyId === selectedCompanyId) return;
-    setSelectedCompanyId(agent.companyId, { source: "route_sync" });
-  }, [agent?.companyId, selectedCompanyId, setSelectedCompanyId]);
+    if (!agent?.spaceId || agent.spaceId === selectedSpaceId) return;
+    setSelectedSpaceId(agent.spaceId, { source: "route_sync" });
+  }, [agent?.spaceId, selectedSpaceId, setSelectedSpaceId]);
 
   // Invoke / pause / resume / terminate / duplicate / reset live in the shared
   // AgentActionButtons component. The detail header keeps only "approve" here,
@@ -522,7 +522,7 @@ export function AgentDetail() {
     mutationFn: async (action: "approve") => {
       if (!agentLookupRef) return Promise.reject(new Error("No agent reference"));
       if (action === "approve") {
-        return agentsApi.approve(agentLookupRef, resolvedCompanyId ?? undefined);
+        return agentsApi.approve(agentLookupRef, resolvedSpaceId ?? undefined);
       }
     },
     onSuccess: () => {
@@ -531,10 +531,10 @@ export function AgentDetail() {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agentLookupRef) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.runtimeState(agentLookupRef) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.taskSessions(agentLookupRef) });
-      if (resolvedCompanyId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedCompanyId) });
+      if (resolvedSpaceId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedSpaceId) });
         if (agent?.id) {
-          queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(resolvedCompanyId, agent.id) });
+          queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(resolvedSpaceId, agent.id) });
         }
       }
     },
@@ -545,42 +545,42 @@ export function AgentDetail() {
 
   const budgetMutation = useMutation({
     mutationFn: (amount: number) =>
-      budgetsApi.upsertPolicy(resolvedCompanyId!, {
+      budgetsApi.upsertPolicy(resolvedSpaceId!, {
         scopeType: "agent",
         scopeId: agent?.id ?? routeAgentRef,
         amount,
         windowKind: "calendar_month_utc",
       }),
     onSuccess: () => {
-      if (!resolvedCompanyId) return;
-      queryClient.invalidateQueries({ queryKey: queryKeys.budgets.overview(resolvedCompanyId) });
+      if (!resolvedSpaceId) return;
+      queryClient.invalidateQueries({ queryKey: queryKeys.budgets.overview(resolvedSpaceId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(routeAgentRef) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agentLookupRef) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedCompanyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(resolvedCompanyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedSpaceId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(resolvedSpaceId) });
     },
   });
 
   const updateIcon = useMutation({
-    mutationFn: (icon: string) => agentsApi.update(agentLookupRef, { icon }, resolvedCompanyId ?? undefined),
+    mutationFn: (icon: string) => agentsApi.update(agentLookupRef, { icon }, resolvedSpaceId ?? undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(routeAgentRef) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agentLookupRef) });
-      if (resolvedCompanyId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedCompanyId) });
+      if (resolvedSpaceId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedSpaceId) });
       }
     },
   });
 
   const updatePermissions = useMutation({
     mutationFn: (permissions: AgentPermissionUpdate) =>
-      agentsApi.updatePermissions(agentLookupRef, permissions, resolvedCompanyId ?? undefined),
+      agentsApi.updatePermissions(agentLookupRef, permissions, resolvedSpaceId ?? undefined),
     onSuccess: () => {
       setActionError(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(routeAgentRef) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agentLookupRef) });
-      if (resolvedCompanyId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedCompanyId) });
+      if (resolvedSpaceId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(resolvedSpaceId) });
       }
     },
     onError: (err) => {
@@ -830,7 +830,7 @@ export function AgentDetail() {
           />
           <AgentActionButtons
             agent={agent}
-            companyId={resolvedCompanyId}
+            spaceId={resolvedSpaceId}
             assignLabel="Assign Task"
             runLabel="Run Heartbeat"
             actionsDisabled={agentAction.isPending}
@@ -907,9 +907,9 @@ export function AgentDetail() {
         />
       )}
 
-      {builtInState && resolvedCompanyId && (
+      {builtInState && resolvedSpaceId && (
         <ConfigureBuiltInAgentModal
-          companyId={resolvedCompanyId}
+          spaceId={resolvedSpaceId}
           state={builtInState}
           open={showBuiltInConfigure}
           onOpenChange={setShowBuiltInConfigure}
@@ -936,7 +936,7 @@ export function AgentDetail() {
       {actionError && <p className="text-sm text-destructive">{actionError}</p>}
       {isPendingApproval && (
         <div className="flex flex-wrap items-center gap-3 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-400/40 dark:bg-amber-950/30 dark:text-amber-200">
-          <span>This agent is pending board approval and cannot be invoked yet.</span>
+          <span>This agent is pending operator approval and cannot be invoked yet.</span>
           <Button
             variant="outline"
             size="sm"
@@ -1013,7 +1013,7 @@ export function AgentDetail() {
       {activeView === "instructions" && (
         <PromptsTab
           agent={agent}
-          companyId={resolvedCompanyId ?? undefined}
+          spaceId={resolvedSpaceId ?? undefined}
           onDirtyChange={setConfigDirty}
           onSaveActionChange={setSaveConfigAction}
           onCancelActionChange={setCancelConfigAction}
@@ -1025,7 +1025,7 @@ export function AgentDetail() {
         <AgentConfigurePage
           agent={agent}
           agentId={agent.id}
-          companyId={resolvedCompanyId ?? undefined}
+          spaceId={resolvedSpaceId ?? undefined}
           onDirtyChange={setConfigDirty}
           onSaveActionChange={setSaveConfigAction}
           onCancelActionChange={setCancelConfigAction}
@@ -1034,18 +1034,18 @@ export function AgentDetail() {
         />
       )}
 
-      {activeView === "tools" && resolvedCompanyId && (
-        <AgentToolsTab agent={agent} companyId={resolvedCompanyId} />
+      {activeView === "tools" && resolvedSpaceId && (
+        <AgentToolsTab agent={agent} spaceId={resolvedSpaceId} />
       )}
 
-      {activeView === "channels" && resolvedCompanyId && (
-        <AgentChannelsPanel agentId={agent.id} companyId={resolvedCompanyId} />
+      {activeView === "channels" && resolvedSpaceId && (
+        <AgentChannelsPanel agentId={agent.id} spaceId={resolvedSpaceId} />
       )}
 
       {activeView === "runs" && (
         <RunsTab
           runs={heartbeats ?? []}
-          companyId={resolvedCompanyId!}
+          spaceId={resolvedSpaceId!}
           agentId={agent.id}
           agentRouteId={canonicalAgentRef}
           selectedRunId={urlRunId ?? null}
@@ -1054,11 +1054,11 @@ export function AgentDetail() {
         />
       )}
 
-      {activeView === "audit" && resolvedCompanyId ? (
-        <AuditFeed companyId={resolvedCompanyId} lockedAgentId={agent.id} hideHeader />
+      {activeView === "audit" && resolvedSpaceId ? (
+        <AuditFeed spaceId={resolvedSpaceId} lockedAgentId={agent.id} hideHeader />
       ) : null}
 
-      {activeView === "budget" && resolvedCompanyId ? (
+      {activeView === "budget" && resolvedSpaceId ? (
         <div className="max-w-3xl">
           <BudgetPolicyCard
             summary={agentBudgetSummary}
@@ -1457,7 +1457,7 @@ export function syncAgentRouteAfterRename(
 function AgentConfigurePage({
   agent,
   agentId,
-  companyId,
+  spaceId,
   onDirtyChange,
   onSaveActionChange,
   onCancelActionChange,
@@ -1466,7 +1466,7 @@ function AgentConfigurePage({
 }: {
   agent: AgentDetailRecord;
   agentId: string;
-  companyId?: string;
+  spaceId?: string;
   onDirtyChange: (dirty: boolean) => void;
   onSaveActionChange: (save: (() => void) | null) => void;
   onCancelActionChange: (cancel: (() => void) | null) => void;
@@ -1480,11 +1480,11 @@ function AgentConfigurePage({
 
   const { data: configRevisions } = useQuery({
     queryKey: queryKeys.agents.configRevisions(agent.id),
-    queryFn: () => agentsApi.listConfigRevisions(agent.id, companyId),
+    queryFn: () => agentsApi.listConfigRevisions(agent.id, spaceId),
   });
 
   const rollbackConfig = useMutation({
-    mutationFn: (revisionId: string) => agentsApi.rollbackConfigRevision(agent.id, revisionId, companyId),
+    mutationFn: (revisionId: string) => agentsApi.rollbackConfigRevision(agent.id, revisionId, spaceId),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.configRevisions(agent.id) });
@@ -1503,13 +1503,13 @@ function AgentConfigurePage({
         onCancelActionChange={onCancelActionChange}
         onSavingChange={onSavingChange}
         updatePermissions={updatePermissions}
-        companyId={companyId}
+        spaceId={spaceId}
         hidePromptTemplate
         hideInstructionsFile
       />
       <div>
         <h3 className="text-sm font-medium mb-3">API Keys</h3>
-        <KeysTab agentId={agentId} companyId={companyId} />
+        <KeysTab agentId={agentId} spaceId={spaceId} />
       </div>
 
       {/* Configuration Revisions — collapsible at the bottom */}
@@ -1570,7 +1570,7 @@ function AgentConfigurePage({
 
 export function ConfigurationTab({
   agent,
-  companyId,
+  spaceId,
   onDirtyChange,
   onSaveActionChange,
   onCancelActionChange,
@@ -1581,7 +1581,7 @@ export function ConfigurationTab({
   content = "configuration",
 }: {
   agent: AgentDetailRecord;
-  companyId?: string;
+  spaceId?: string;
   onDirtyChange: (dirty: boolean) => void;
   onSaveActionChange: (save: (() => void) | null) => void;
   onCancelActionChange: (cancel: (() => void) | null) => void;
@@ -1601,37 +1601,37 @@ export function ConfigurationTab({
   const catalogProvider = agent.adapterType === "outpost_runner" ? String(agent.adapterConfig.provider ?? "codex") : undefined;
   const { data: adapterModels } = useQuery({
     queryKey:
-      companyId
-        ? queryKeys.agents.adapterModels(companyId, agent.adapterType, null, catalogProvider)
+      spaceId
+        ? queryKeys.agents.adapterModels(spaceId, agent.adapterType, null, catalogProvider)
         : ["agents", "none", "adapter-models", agent.adapterType],
-    queryFn: () => agentsApi.adapterModels(companyId!, agent.adapterType, { provider: catalogProvider }),
-    enabled: Boolean(companyId) && content === "configuration",
+    queryFn: () => agentsApi.adapterModels(spaceId!, agent.adapterType, { provider: catalogProvider }),
+    enabled: Boolean(spaceId) && content === "configuration",
   });
 
   const lowTrustSelected = getTrustPreset(agent.permissions) === "low_trust_review";
 
   const { data: boundaryProjects, isLoading: boundaryProjectsLoading } = useQuery({
-    ...companyProjectsQuery(companyId ?? ""),
-    enabled: Boolean(companyId && lowTrustSelected) && content === "configuration",
+    ...spaceProjectsQuery(spaceId ?? ""),
+    enabled: Boolean(spaceId && lowTrustSelected) && content === "configuration",
   });
 
   const { data: boundaryIssues, isLoading: boundaryIssuesLoading } = useQuery({
-    queryKey: companyId
-      ? [...queryKeys.issues.list(companyId), "low-trust-boundary-candidates"]
+    queryKey: spaceId
+      ? [...queryKeys.issues.list(spaceId), "low-trust-boundary-candidates"]
       : ["issues", "__low-trust-disabled"],
-    queryFn: () => issuesApi.list(companyId!, { limit: 100, sortField: "updated", sortDir: "desc" }),
-    enabled: Boolean(companyId && lowTrustSelected) && content === "configuration",
+    queryFn: () => issuesApi.list(spaceId!, { limit: 100, sortField: "updated", sortDir: "desc" }),
+    enabled: Boolean(spaceId && lowTrustSelected) && content === "configuration",
   });
 
   const updateAgent = useMutation({
-    mutationFn: (data: Record<string, unknown>) => agentsApi.update(agent.id, data, companyId),
+    mutationFn: (data: Record<string, unknown>) => agentsApi.update(agent.id, data, spaceId),
     onMutate: () => {
       setAwaitingRefreshAfterSave(true);
     },
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.configRevisions(agent.id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(agent.companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(agent.spaceId) });
       if (!syncAgentRouteAfterRename(queryClient, navigate, agent, updated, urlTab ?? content)) {
         queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.urlKey) });
       }
@@ -1670,9 +1670,9 @@ export function ConfigurationTab({
   const taskAssignSource = agent.access?.taskAssignSource ?? "none";
   const taskAssignHint =
     taskAssignSource === "explicit_grant"
-          ? "Enabled via explicit company permission grant."
+          ? "Enabled via explicit space permission grant."
           : taskAssignSource === "simple_default"
-            ? "Enabled by simple company-wide task assignment defaults."
+            ? "Enabled by simple space-wide task assignment defaults."
             : "Disabled unless explicitly granted.";
 
   return (
@@ -1703,7 +1703,7 @@ export function ConfigurationTab({
         projectAccessEditor={<AgentProjectAccessSettings agent={agent} />}
         permissions={agent.permissions}
         disabled={updatePermissions.isPending}
-        companyId={companyId}
+        spaceId={spaceId}
         projectCandidates={(boundaryProjects ?? []).map((project) => ({
           id: project.id,
           label: project.name,
@@ -1730,7 +1730,7 @@ export function ConfigurationTab({
             <div className="space-y-1">
               <div>Can create new agents</div>
               <p className="text-xs text-muted-foreground">
-                Lets this agent create or hire agents. Task assignment is controlled separately.
+                Lets this agent create or create agents. Task assignment is controlled separately.
               </p>
             </div>
             <ToggleSwitch
@@ -1774,21 +1774,21 @@ export function ConfigurationTab({
 
 export function PromptsTab({
   agent,
-  companyId,
+  spaceId,
   onDirtyChange,
   onSaveActionChange,
   onCancelActionChange,
   onSavingChange,
 }: {
   agent: Agent;
-  companyId?: string;
+  spaceId?: string;
   onDirtyChange: (dirty: boolean) => void;
   onSaveActionChange: (save: (() => void) | null) => void;
   onCancelActionChange: (cancel: (() => void) | null) => void;
   onSavingChange: (saving: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { isMobile } = useSidebar();
   const [selectedFile, setSelectedFile] = useState<string>("AGENTS.md");
   const [showFilePanel, setShowFilePanel] = useState(false);
@@ -1832,8 +1832,8 @@ export function PromptsTab({
 
   const { data: bundle, isLoading: bundleLoading } = useQuery({
     queryKey: queryKeys.agents.instructionsBundle(agent.id),
-    queryFn: () => agentsApi.instructionsBundle(agent.id, companyId),
-    enabled: Boolean(companyId && isLocal),
+    queryFn: () => agentsApi.instructionsBundle(agent.id, spaceId),
+    enabled: Boolean(spaceId && isLocal),
   });
 
   const persistedMode = bundle?.mode ?? "managed";
@@ -1869,8 +1869,8 @@ export function PromptsTab({
 
   const { data: selectedFileDetail, isLoading: fileLoading } = useQuery({
     queryKey: queryKeys.agents.instructionsFile(agent.id, selectedOrEntryFile),
-    queryFn: () => agentsApi.instructionsFile(agent.id, selectedOrEntryFile, companyId),
-    enabled: Boolean(companyId && isLocal && selectedFileExists),
+    queryFn: () => agentsApi.instructionsFile(agent.id, selectedOrEntryFile, spaceId),
+    enabled: Boolean(spaceId && isLocal && selectedFileExists),
   });
 
   const updateBundle = useMutation({
@@ -1879,7 +1879,7 @@ export function PromptsTab({
       rootPath?: string | null;
       entryFile?: string;
       clearLegacyPromptTemplate?: boolean;
-    }) => agentsApi.updateInstructionsBundle(agent.id, data, companyId),
+    }) => agentsApi.updateInstructionsBundle(agent.id, data, spaceId),
     onMutate: () => setAwaitingRefresh(true),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.instructionsBundle(agent.id) });
@@ -1891,7 +1891,7 @@ export function PromptsTab({
 
   const saveFile = useMutation({
     mutationFn: (data: { path: string; content: string; clearLegacyPromptTemplate?: boolean }) =>
-      agentsApi.saveInstructionsFile(agent.id, data, companyId),
+      agentsApi.saveInstructionsFile(agent.id, data, spaceId),
     onMutate: () => setAwaitingRefresh(true),
     onSuccess: (_, variables) => {
       setPendingFiles((prev) => prev.filter((f) => f !== variables.path));
@@ -1904,7 +1904,7 @@ export function PromptsTab({
   });
 
   const deleteFile = useMutation({
-    mutationFn: (relativePath: string) => agentsApi.deleteInstructionsFile(agent.id, relativePath, companyId),
+    mutationFn: (relativePath: string) => agentsApi.deleteInstructionsFile(agent.id, relativePath, spaceId),
     onMutate: () => setAwaitingRefresh(true),
     onSuccess: (_, relativePath) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.instructionsBundle(agent.id) });
@@ -1917,8 +1917,8 @@ export function PromptsTab({
 
   const uploadMarkdownImage = useMutation({
     mutationFn: async ({ file, namespace }: { file: File; namespace: string }) => {
-      if (!selectedCompanyId) throw new Error("Select a company to upload images");
-      return assetsApi.uploadImage(selectedCompanyId, file, namespace);
+      if (!selectedSpaceId) throw new Error("Select a space to upload images");
+      return assetsApi.uploadImage(selectedSpaceId, file, namespace);
     },
   });
 
@@ -2629,7 +2629,7 @@ function RunListItem({ run, isSelected, agentId }: { run: HeartbeatRun; isSelect
 
 export function RunsTab({
   runs,
-  companyId,
+  spaceId,
   agentId,
   agentRouteId,
   selectedRunId,
@@ -2637,7 +2637,7 @@ export function RunsTab({
   adapterConfig,
 }: {
   runs: HeartbeatRun[];
-  companyId: string;
+  spaceId: string;
   agentId: string;
   agentRouteId: string;
   selectedRunId: string | null;
@@ -2653,7 +2653,7 @@ export function RunsTab({
 
   // On mobile, don't auto-select so the list shows first; on desktop, auto-select latest
   const effectiveRunId = isMobile ? selectedRunId : (selectedRunId ?? sorted[0]?.id ?? null);
-  const selection = useSelectedHeartbeatRun(sorted, effectiveRunId, companyId, agentId);
+  const selection = useSelectedHeartbeatRun(sorted, effectiveRunId, spaceId, agentId);
   const selectedRun = selection.run;
   if (selectedRunId && !selectedRun) {
     if (selection.loading) return <p className="text-sm text-muted-foreground">Loading run…</p>;
@@ -2730,9 +2730,9 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
   const run = hydratedRun ?? initialRun;
   const metrics = runMetrics(run);
   const { data: userDirectory } = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(run.companyId),
-    queryFn: () => accessApi.listUserDirectory(run.companyId),
-    enabled: Boolean(run.companyId && run.responsibleUserId),
+    queryKey: queryKeys.access.spaceUserDirectory(run.spaceId),
+    queryFn: () => accessApi.listUserDirectory(run.spaceId),
+    enabled: Boolean(run.spaceId && run.responsibleUserId),
   });
   const responsibleUserName = useMemo(() => {
     if (!run.responsibleUserId) return null;
@@ -2752,11 +2752,11 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
   const cancelRun = useMutation({
     mutationFn: () => {
       if (run.status !== "failed") return heartbeatsApi.cancel(run.id);
-      return stopFailedNativeRun(initialRun.id, initialRun.companyId);
+      return stopFailedNativeRun(initialRun.id, initialRun.spaceId);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.runDetail(run.id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.companyId, run.agentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.spaceId, run.agentId) });
     },
   });
   const canResumeLostRun = run.errorCode === "process_lost" && run.status === "failed";
@@ -2783,14 +2783,14 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
         triggerDetail: "manual",
         reason: "resume_process_lost_run",
         payload: resumePayload,
-      }, run.companyId);
+      }, run.spaceId);
       if (!("id" in result)) {
         throw new Error(result.message ?? "Resume request was skipped.");
       }
       return result;
     },
     onSuccess: (resumedRun) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.companyId, run.agentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.spaceId, run.agentId) });
       navigate(`/agents/${agentRouteId}/runs/${resumedRun.id}`);
     },
   });
@@ -2798,10 +2798,10 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
   const canRetryRun = run.status === "failed" || run.status === "timed_out";
   const retryRun = useMutation({
     mutationFn: async () => {
-      return agentsApi.retryFailedRun(run.agentId, run.id, run.companyId);
+      return agentsApi.retryFailedRun(run.agentId, run.id, run.spaceId);
     },
     onSuccess: (newRun) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.companyId, run.agentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(run.spaceId, run.agentId) });
       if (newRun.runId)
         navigate(`/agents/${agentRouteId}/runs/${newRun.runId}`);
       else if (newRun.issueId) navigate(`/issues/${newRun.issueId}`);
@@ -2820,7 +2820,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
   const clearSessionsForTouchedIssues = useMutation({
     mutationFn: async () => {
       if (touchedIssueIds.length === 0) return 0;
-      await Promise.all(touchedIssueIds.map((issueId) => agentsApi.resetSession(run.agentId, issueId, run.companyId)));
+      await Promise.all(touchedIssueIds.map((issueId) => agentsApi.resetSession(run.agentId, issueId, run.spaceId)));
       return touchedIssueIds.length;
     },
     onSuccess: () => {
@@ -2831,7 +2831,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
   });
 
   const runClaudeLogin = useMutation({
-    mutationFn: () => agentsApi.loginWithClaude(run.agentId, run.companyId),
+    mutationFn: () => agentsApi.loginWithClaude(run.agentId, run.spaceId),
     onSuccess: (data) => {
       setClaudeLoginResult(data);
     },
@@ -3208,7 +3208,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
 
 /* ---- Keys Tab ---- */
 
-function KeysTab({ agentId, companyId }: { agentId: string; companyId?: string }) {
+function KeysTab({ agentId, spaceId }: { agentId: string; spaceId?: string }) {
   const queryClient = useQueryClient();
   const { pushToast } = useToastActions();
   const [newKeyName, setNewKeyName] = useState("");
@@ -3218,11 +3218,11 @@ function KeysTab({ agentId, companyId }: { agentId: string; companyId?: string }
 
   const { data: keys, isLoading } = useQuery({
     queryKey: queryKeys.agents.keys(agentId),
-    queryFn: () => agentsApi.listKeys(agentId, companyId),
+    queryFn: () => agentsApi.listKeys(agentId, spaceId),
   });
 
   const createKey = useMutation({
-    mutationFn: () => agentsApi.createKey(agentId, newKeyName.trim() || "Default", companyId),
+    mutationFn: () => agentsApi.createKey(agentId, newKeyName.trim() || "Default", spaceId),
     onSuccess: (data) => {
       setNewToken(data.token);
       setTokenVisible(true);
@@ -3232,7 +3232,7 @@ function KeysTab({ agentId, companyId }: { agentId: string; companyId?: string }
   });
 
   const revokeKey = useMutation({
-    mutationFn: (keyId: string) => agentsApi.revokeKey(agentId, keyId, companyId),
+    mutationFn: (keyId: string) => agentsApi.revokeKey(agentId, keyId, spaceId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.keys(agentId) });
     },

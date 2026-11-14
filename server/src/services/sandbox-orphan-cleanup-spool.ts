@@ -14,7 +14,7 @@ import { idleOrphanSpoolPath, registerIdleSpoolDirectory } from "./idle-local-wo
  * recorded config the teardown needs.
  */
 export interface DeferredOrphanCleanupRecord {
-  companyId: string;
+  spaceId: string;
   environmentId: string;
   executionWorkspaceId: string | null;
   issueId: string | null;
@@ -93,7 +93,7 @@ function isDeferredOrphanCleanupRecord(value: unknown): value is DeferredOrphanC
   const candidate = value as Record<string, unknown>;
   const stringOrNull = (field: unknown) => field === null || typeof field === "string";
   return (
-    typeof candidate.companyId === "string" &&
+    typeof candidate.spaceId === "string" &&
     typeof candidate.environmentId === "string" &&
     stringOrNull(candidate.executionWorkspaceId) &&
     stringOrNull(candidate.issueId) &&

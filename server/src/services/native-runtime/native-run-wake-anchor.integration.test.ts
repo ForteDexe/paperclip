@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agentWakeupRequests, agents, companies, createDb, heartbeatRuns } from "@outpost/db";
+import { agentWakeupRequests, agents, spaces, createDb, heartbeatRuns } from "@outpost/db";
 import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
@@ -15,21 +15,21 @@ describeEmbeddedPostgres("native run wake anchor against PostgreSQL", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
   let db!: ReturnType<typeof createDb>;
   let locker!: ReturnType<typeof createDb>;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   const wakeupRequestId = randomUUID();
   const runId = randomUUID();
   const requestedAt = new Date("2026-11-07T10:00:00.000Z");
 
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-wake-anchor-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-wake-anchor-");
     // One connection: a read left running after the timeout would starve the next query.
     db = createDb(database.connectionString, { maxConnections: 1 });
     locker = createDb(database.connectionString, { maxConnections: 2 });
-    await db.insert(companies).values({ id: companyId, name: "Anchor", issuePrefix: `A${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Anchor agent", role: "engineer", status: "idle", adapterType: "codex_local" });
-    await db.insert(agentWakeupRequests).values({ id: wakeupRequestId, companyId, agentId, source: "assignment", status: "claimed", requestedAt });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, wakeupRequestId, status: "running" });
+    await db.insert(spaces).values({ id: spaceId, name: "Anchor", issuePrefix: `A${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Anchor agent", role: "engineer", status: "idle", adapterType: "codex_local" });
+    await db.insert(agentWakeupRequests).values({ id: wakeupRequestId, spaceId, agentId, source: "assignment", status: "claimed", requestedAt });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, wakeupRequestId, status: "running" });
   }, 60_000);
 
   afterAll(async () => {

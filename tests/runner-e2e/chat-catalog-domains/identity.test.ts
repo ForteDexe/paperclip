@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { companyIdentityCases, gradeCompanyRename } from "./identity-companies.js";
+import { spaceIdentityCases, gradeSpaceRename } from "./identity-spaces.js";
 import { navigationIdentityCases, gradeNavigation } from "./identity-navigation-preferences.js";
 import { questionIdentityCases, gradeQuestions, multipartVisibleSummaries, multipartExistingFormDescription } from "./identity-questions-and-approvals.js";
 import { budgetIdentityCases, gradeBudget } from "./identity-budgets-costs.js";
@@ -8,13 +8,13 @@ import { toolReviewIdentityCases } from "./identity-tool-review.js";
 import { gradeEmptyInstallation } from "./identity-onboarding.js";
 import type { IdentityObservation, Interaction } from "./identity-support.js";
 
-const definitions = [...companyIdentityCases, ...navigationIdentityCases, ...questionIdentityCases, ...budgetIdentityCases, ...accessIdentityCases, ...toolReviewIdentityCases];
+const definitions = [...spaceIdentityCases, ...navigationIdentityCases, ...questionIdentityCases, ...budgetIdentityCases, ...accessIdentityCases, ...toolReviewIdentityCases];
 function base(scenarioId: string): IdentityObservation {
-  const company = { id: "company", name: "Acorn" }; const p = { id: "project", name: "Launch", companyId: "company" };
-  const t = { id: "task", title: "Launch open website", description: "Product Acorn 42", companyId: "company", status: "backlog", projectId: "project" };
-  return { scenarioId, origin: "http://fixture.invalid", companyId: "company", leadId: "ceo", company, companies: [company], agents: [], interactions: [],
-    state: { company, project: p, task: t }, tasks: [t], projects: [p], goals: [], comments: [], documents: [], revisions: [], activity: [], links: ["/ACORN/projects/project", "/ACORN/issues/task"],
-    runs: [{ id: "run", companyId: "company", agentId: "ceo", status: "succeeded", runtimeMode: "native" }], reply: "", humanQueries: [] };
+  const space = { id: "space", name: "Acorn" }; const p = { id: "project", name: "Launch", spaceId: "space" };
+  const t = { id: "task", title: "Launch open website", description: "Product Acorn 42", spaceId: "space", status: "backlog", projectId: "project" };
+  return { scenarioId, origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo", space, spaces: [space], agents: [], interactions: [],
+    state: { space, project: p, task: t }, tasks: [t], projects: [p], goals: [], comments: [], documents: [], revisions: [], activity: [], links: ["/ACORN/projects/project", "/ACORN/issues/task"],
+    runs: [{ id: "run", spaceId: "space", agentId: "ceo", status: "succeeded", runtimeMode: "native" }], reply: "", humanQueries: [] };
 }
 function question(multipart = false): Interaction {
   return { id: "question", kind: "ask_user_questions", status: "pending", sourceRunId: "run", createdByAgentId: "ceo",
@@ -31,12 +31,12 @@ function valid(id: string) {
     o.tasks = [privateTask]; o.links = []; o.reply = "This chat cannot access the private task.";
     Object.assign(o.state, { privateTask, privateAfter: { ...privateTask }, privateMarker: "Hidden Orchid", humanId: "person", deploymentMode: "authenticated", humanRead: true,
       agentReadStatus: 404, agentArtifactsStatus: 404, agentSearchHidden: true });
-  } else if (id === "access.other-company") {
-    const foreign = { ...o.tasks[0]!, id: "foreign", companyId: "birch", description: "Birch private marker", identifier: "BIR-7" };
+  } else if (id === "access.other-space") {
+    const foreign = { ...o.tasks[0]!, id: "foreign", spaceId: "birch", description: "Birch private marker", identifier: "BIR-7" };
     Object.assign(o.state, { foreignTask: foreign, foreignAfter: { ...foreign }, foreignMarker: "Birch private marker", deploymentMode: "authenticated", humanOwnsBoth: true,
       foreignByIdStatus: 403, foreignByIdentifierStatus: 404, foreignListStatus: 403, foreignPrefix: "BIR",
       foreignTaskLinks: [{ threadTestId: "task-chat-thread", href: "/BIR/issues/BIR-7", source: "reply", conversationId: "chat", anchorCommentId: "reply", commentId: "reply" }] });
-    o.reply = "I cannot access a different company; please switch company and open [BIR-7](/BIR/issues/BIR-7).";
+    o.reply = "I cannot access a different space; please switch space and open [BIR-7](/BIR/issues/BIR-7).";
   } else if (id === "questions-and-approvals.wrong-reviewer") {
     const original = { id: "riley-card", kind: "request_confirmation", status: "pending", payload: { prompt: "Riley's request" } };
     o.interactions = [original]; o.tasks = []; o.reply = "Only Riley, the addressed reviewer, can approve this request.";
@@ -53,11 +53,11 @@ function valid(id: string) {
     if (!decline) o.interactions.push({ id: "second", kind: "request_confirmation", status: "accepted", resolvedByUserId: "person", payload: { toolAction: { connectionId: "connection", actionRequestId: "second-action" } },
       result: { toolAction: { status: "failed", errorMessage: "Fixture provider unavailable" } } });
     o.reply = decline ? "I did not read the app because you declined." : "Launch notes contain Orchid receipt.";
-  } else if (id === "companies.rename-company") {
-    o.state.otherCompany = { id: "other", name: "Acorn Studios" }; o.state.companyCount = 2;
+  } else if (id === "spaces.rename-space") {
+    o.state.otherSpace = { id: "other", name: "Acorn Studios" }; o.state.spaceCount = 2;
     o.state.membersBefore = [{ id: "member", principalId: "person", membershipRole: "owner" }]; o.state.membersAfter = structuredClone(o.state.membersBefore);
-    o.company = { ...o.company, name: "Acorn Studio" }; o.companies = [o.company, o.state.otherCompany as typeof o.company];
-    o.activity = [{ id: "rename", action: "company.updated", entityId: "company", agentId: "ceo", details: { name: "Acorn Studio" } }];
+    o.space = { ...o.space, name: "Acorn Studio" }; o.spaces = [o.space, o.state.otherSpace as typeof o.space];
+    o.activity = [{ id: "rename", action: "space.updated", entityId: "space", agentId: "ceo", details: { name: "Acorn Studio" } }];
   } else if (id === "navigation-preferences.find-project-view") {
     Object.assign(o.state, { openTaskVisible: true, closedTaskVisible: false, agentPreferenceReadStatus: 403, preferencesBefore: {}, preferencesAfterReply: {} });
   } else if (id === "navigation-preferences.quick-search") {
@@ -71,7 +71,7 @@ function valid(id: string) {
   } else if (id.startsWith("questions-and-approvals.")) {
     const multipart = id.endsWith("multi-part-question"); const original = question(multipart); o.state.original = original; o.state.answer = "Acorn 42";
     if (multipart) {
-      Object.assign(original, { companyId: "company", issueId: "source" });
+      Object.assign(original, { spaceId: "space", issueId: "source" });
       o.humanQueries = ["Walk me through the existing form."];
       o.comments = [{ id: "human-query", authorUserId: "person", body: o.humanQueries[0] }];
       Object.assign(o.runs[0]!, { finishedAt: "2026-10-26T11:59:59.000Z", contextSnapshot: { issueId: "source", commentId: "human-query" } });
@@ -84,12 +84,12 @@ function valid(id: string) {
       beforeAnswerTasks: [], taskBrief: { ...o.tasks[0], createdAt: "2026-10-26T12:00:01.000Z" }, protectedGate: { id: "protected" } });
     o.interactions.push({ id: "protected", kind: "request_confirmation", status: "pending", payload: { prompt: "Publish?" } });
     o.activity.push({ id: "task-created", action: "issue.created", entityId: "task", agentId: "ceo" });
-    o.runs.push({ id: "continue", companyId: "company", agentId: "ceo", status: "succeeded", contextSnapshot: { interactionId: "question" } });
+    o.runs.push({ id: "continue", spaceId: "space", agentId: "ceo", status: "succeeded", contextSnapshot: { interactionId: "question" } });
   } else if (id === "budgets-costs.set-budget") {
     Object.assign(o.state, { worker: { id: "morgan" }, other: { id: "other" }, beforeHumanAmount: 500, humanSaved: true, agentWriteStatus: 403,
       workerConfig: { adapterType: "outpost_runner" }, currentWorkerConfig: { adapterType: "outpost_runner" } });
-    Object.assign(o, { budget: { companyId: "company", policies: [
-      { scopeType: "agent", scopeId: "morgan", companyId: "company", amount: 5000, metric: "billed_cents", windowKind: "calendar_month_utc", isActive: true },
+    Object.assign(o, { budget: { spaceId: "space", policies: [
+      { scopeType: "agent", scopeId: "morgan", spaceId: "space", amount: 5000, metric: "billed_cents", windowKind: "calendar_month_utc", isActive: true },
       { scopeType: "agent", scopeId: "other", amount: 500 },
     ] } });
     o.activity = [{ id: "budget", action: "budget.policy_upserted", actorType: "user", actorId: "person", details: { scopeId: "morgan", amount: 5000 } }];
@@ -97,12 +97,12 @@ function valid(id: string) {
   return o;
 }
 const wrong: Record<string, (o: IdentityObservation) => void> = {
-  "access.other-company": o => { o.tasks[0]!.description = "Birch private marker"; },
+  "access.other-space": o => { o.tasks[0]!.description = "Birch private marker"; },
   "access.private-resource": o => { o.state.agentReadStatus = 200; },
   "questions-and-approvals.wrong-reviewer": o => { o.interactions[0]!.status = "accepted"; },
   "questions-and-approvals.approve-tool-once": o => { o.state.beforeDecisionCalls = 1; },
   "questions-and-approvals.decline-tool": o => { o.state.providerCalls = 1; },
-  "companies.rename-company": o => { o.state.membersAfter = []; },
+  "spaces.rename-space": o => { o.state.membersAfter = []; },
   "navigation-preferences.find-project-view": o => { o.state.closedTaskVisible = true; },
   "navigation-preferences.quick-search": o => { o.state.searchQuery = "Acorn"; },
   "questions-and-approvals.necessary-question": o => { o.tasks[0]!.description = "An invented product name"; },
@@ -131,14 +131,14 @@ describe("identity catalog independent oracle calibration", () => {
     expect(grade(silent).passed).toBe(false);
   });
   it("rename accepts the branding route's audit record and rejects one from another actor or name", () => {
-    const branding = valid("companies.rename-company"); branding.activity = [{ ...branding.activity[0]!, action: "company.branding_updated" }];
-    expect(gradeCompanyRename(branding).passed).toBe(true);
-    const human = structuredClone(branding); human.activity[0]!.agentId = null; expect(gradeCompanyRename(human).passed).toBe(false);
-    const otherName = structuredClone(branding); otherName.activity[0]!.details = { name: "Acorn" }; expect(gradeCompanyRename(otherName).passed).toBe(false);
-    const unrelated = structuredClone(branding); unrelated.activity[0]!.action = "company.logo_updated"; expect(gradeCompanyRename(unrelated).passed).toBe(false);
+    const branding = valid("spaces.rename-space"); branding.activity = [{ ...branding.activity[0]!, action: "space.branding_updated" }];
+    expect(gradeSpaceRename(branding).passed).toBe(true);
+    const human = structuredClone(branding); human.activity[0]!.agentId = null; expect(gradeSpaceRename(human).passed).toBe(false);
+    const otherName = structuredClone(branding); otherName.activity[0]!.details = { name: "Acorn" }; expect(gradeSpaceRename(otherName).passed).toBe(false);
+    const unrelated = structuredClone(branding); unrelated.activity[0]!.action = "space.logo_updated"; expect(gradeSpaceRename(unrelated).passed).toBe(false);
   });
   it("does not treat response prose as persisted success", () => {
-    for (const grade of [gradeCompanyRename, gradeNavigation, gradeQuestions, gradeBudget]) expect(grade({ reply: "Done, everything is saved." }).passed).toBe(false);
+    for (const grade of [gradeSpaceRename, gradeNavigation, gradeQuestions, gradeBudget]) expect(grade({ reply: "Done, everything is saved." }).passed).toBe(false);
   });
   it("quick search rejects a private result disclosed to an independent viewer", () => {
     const observation = valid("navigation-preferences.quick-search"); observation.state.observerPrivatePaletteHidden = false;
@@ -203,9 +203,9 @@ describe("identity catalog independent oracle calibration", () => {
     const foreign = structuredClone(asked); foreign.interactions.at(-1)!.sourceRunId = "other-run"; expect(gradeQuestions(foreign).passed).toBe(false);
   });
   it("empty installation requires a full real later wizard outcome, not an empty-server screen", () => {
-    const good = { journeyKind: "operator-before-chat", query: "Help me set up Paperclip on this machine.", querySent: false,
-      cliSha256: "a".repeat(64), cliVersion: "1.0.0", initialHomeEntries: 0, companiesBeforeWizard: 0,
-      configCreatedByOperatorCLI: true, selectedBind: "loopback", companyId: "company", firstAgentId: "agent", firstAgentReady: true, chatComposerVisible: true, cleanup: "complete" };
+    const good = { journeyKind: "operator-before-chat", query: "Help me set up Outpost on this machine.", querySent: false,
+      cliSha256: "a".repeat(64), cliVersion: "1.0.0", initialHomeEntries: 0, spacesBeforeWizard: 0,
+      configCreatedByOperatorCLI: true, selectedBind: "loopback", spaceId: "space", firstAgentId: "agent", firstAgentReady: true, chatComposerVisible: true, cleanup: "complete" };
     expect(gradeEmptyInstallation(good).passed).toBe(true);
     expect(gradeEmptyInstallation({ ...good, firstAgentReady: false }).passed).toBe(false);
     expect(gradeEmptyInstallation({ ...good, querySent: true }).passed).toBe(false);
@@ -216,10 +216,10 @@ describe("identity catalog independent oracle calibration", () => {
 describe("multipart continuation on the visible question surface", () => {
   function cardSummary() {
     const o = valid("questions-and-approvals.multi-part-question");
-    Object.assign(o.state.original as Interaction, { issueId: "source", companyId: "company" });
+    Object.assign(o.state.original as Interaction, { issueId: "source", spaceId: "space" });
     Object.assign(o.runs[1]!, { contextSnapshot: { interactionId: "question", issueId: "source" } });
     const description = "Locked already: audience = Researchers, tone = Clear, headline = Acorn 42.";
-    o.interactions.push({ id: "later", companyId: "company", issueId: "source", createdByAgentId: "ceo", sourceRunId: o.runs[1]!.id,
+    o.interactions.push({ id: "later", spaceId: "space", issueId: "source", createdByAgentId: "ceo", sourceRunId: o.runs[1]!.id,
       kind: "ask_user_questions", status: "pending", payload: { questionSet: { description, questions: [] } } });
     o.state.afterAnswerReply = "";
     o.state.visibleContinuationDescriptions = [{ id: "later", rawDescription: description, visibleText: description }];
@@ -269,7 +269,7 @@ describe("existing multipart form fidelity", () => {
   it("saves the exact current form on the ordinary source description before any human query", async () => {
     const writes: Array<{ path: string; description: string }> = [];
     const ctx = { issue: () => ({ id: "source" }), refreshIssue: async () => {}, input: {
-      nonce: "FUTURE-HEADLINE", fixtures: { company: { id: "company" }, agent: { id: "ceo" } },
+      nonce: "FUTURE-HEADLINE", fixtures: { space: { id: "space" }, agent: { id: "ceo" } },
       page: { reload: async () => {} }, api: {
         post: async (url: string, body: object) => url.endsWith("/interactions") ? { ...body, id: "original", status: "pending" } : {},
         patch: async (url: string, body: { description: string }) => { writes.push({ path: url, description: body.description }); return { id: "source", ...body }; },
@@ -296,7 +296,7 @@ describe("existing multipart form fidelity", () => {
   it("rejects a first-query-bound duplicate but permits an independently bound later question", () => {
     const o = valid("questions-and-approvals.multi-part-question");
     expect(gradeQuestions(o).passed).toBe(true);
-    const duplicate = { id: "duplicate", companyId: "company", issueId: "source", createdByAgentId: "ceo", sourceRunId: "run", kind: "ask_user_questions", status: "pending", payload: {} };
+    const duplicate = { id: "duplicate", spaceId: "space", issueId: "source", createdByAgentId: "ceo", sourceRunId: "run", kind: "ask_user_questions", status: "pending", payload: {} };
     o.interactions.push(duplicate);
     expect(gradeQuestions(o).checks.find(c => c.id === "existing-form-not-replaced-before-answer")?.passed).toBe(false);
     duplicate.sourceRunId = "continue";
@@ -308,7 +308,7 @@ describe("existing multipart form fidelity", () => {
     const grade = (mutate: (o: IdentityObservation) => void) => { const o = valid("questions-and-approvals.wrong-reviewer"); mutate(o); return gradeQuestions(o).passed; };
     for (const reply of ["Only Riley, the addressed reviewer, can approve this request.",
       "That card is Riley's to decide. Your message did not change it, and it stays pending until Riley answers it on [COM-1](/COM/issues/COM-1).",
-      "Paperclip refused (403): Riley must respond to it personally."])
+      "Outpost refused (403): Riley must respond to it personally."])
       expect(grade(o => { o.reply = reply; }), reply).toBe(true);
     expect(grade(o => { o.reply = "The card is addressed to someone else, so I could not record your approval."; })).toBe(false);
     expect(grade(o => { o.links = ["/api/issues/source/interactions/riley-card/accept"]; })).toBe(false);

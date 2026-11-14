@@ -128,7 +128,7 @@ export function checkLab(root, slug, { strict = false, run = false, skipVerify =
     if (!parameters) errors.push(`${relative(paths.story)}: cannot find the meta parameters block`);
     else {
       const keys = [...parameters[1].matchAll(/^    ([a-zA-Z]+): /gm)].map((match) => match[1]);
-      if (keys[keys.length - 1] !== "paperclip") errors.push(`${relative(paths.story)}: paperclip must be the last parameter (found ${keys.join(", ")})`);
+      if (keys[keys.length - 1] !== "outpost") errors.push(`${relative(paths.story)}: outpost must be the last parameter (found ${keys.join(", ")})`);
       const mode = detectMode(root);
       const stage = labStage(registry.directions);
       const expected = expectedStoryStatus(mode, stage);

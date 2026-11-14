@@ -317,7 +317,7 @@
     "savedConnectionProvider": "github",
     "savedConnectionMethod": "api_key",
     "ownership": "personal",
-    "companyWideGrant": false,
+    "spaceWideGrant": false,
     "acceptedCompletionEvidence": true,
     "finalResponseCount": 1,
     "artifactBytes": 30,

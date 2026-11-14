@@ -5,7 +5,7 @@ import { agents, agentWakeupRequests, caseAccessSources, caseDocuments, caseEven
 import { SYSTEM_ISSUE_DOCUMENT_KEYS } from "@outpost/shared";
 import { startRunnerApiTestServer } from "../../__tests__/helpers/runner-api-server.js";
 import { instanceSettingsService } from "../instance-settings.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { createLocalAgentJwt } from "../../agent-auth-jwt.js";
 import { documentService } from "../documents.js";
 
@@ -25,10 +25,10 @@ describe("native case tools through authenticated production routes", () => {
   async function fixture(mode: "standard" | "planning" | "ask" = "standard") {
     const f = await server.fixture({ apiToolsEnabled: false, disableWakeOnDemand: true, mode });
     await server.db.update(heartbeatRuns).set({ issueId: f.issueId }).where(eq(heartbeatRuns.id, f.runId));
-    const [record] = await server.db.insert(cases).values({ companyId: f.companyId, caseNumber: 1,
+    const [record] = await server.db.insert(cases).values({ spaceId: f.spaceId, caseNumber: 1,
       identifier: `C-${randomUUID()}`, caseType: "receipt", title: "Receipt case", summary: "Two items at $3",
       fields: { total: 6, obsolete: true }, workIssueId: f.issueId }).returning();
-    const authority = new PaperclipRunnerToolAuthority(server.db, { ...f, casesEnabled: true, workMode: mode });
+    const authority = new OutpostRunnerToolAuthority(server.db, { ...f, casesEnabled: true, workMode: mode });
     const call = (tool: string, input: Record<string, unknown> = {}, callId = randomUUID()) => authority.execute({ tool, callId, arguments: input });
     return { ...f, record: record!, authority, call };
   }
@@ -41,7 +41,7 @@ describe("native case tools through authenticated production routes", () => {
 
   async function saveCaseDocument(f: CaseFixture, key: string, body: string, baseRevisionId?: string) {
     const response = await fetch(`${server.apiUrl}/api/cases/${f.record.id}/documents/${key}`, {
-      method: "PUT", headers: { Authorization: `Bearer ${createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId)}`,
+      method: "PUT", headers: { Authorization: `Bearer ${createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId)}`,
         "Content-Type": "application/json" }, body: JSON.stringify({ title: `Case ${key}`, format: "markdown", body, baseRevisionId }),
     });
     expect(response.status).toBe(200);
@@ -50,7 +50,7 @@ describe("native case tools through authenticated production routes", () => {
 
   async function documentFixture(kind: "case" | "primary" | "linked", body: string) {
     const f = await fixture(), key = "reference-notes";
-    if (kind === "linked") await server.db.insert(caseIssueLinks).values({ companyId: f.companyId, caseId: f.record.id,
+    if (kind === "linked") await server.db.insert(caseIssueLinks).values({ spaceId: f.spaceId, caseId: f.record.id,
       issueId: f.blockerId, role: "reference" });
     const issueId = kind === "primary" ? f.issueId : kind === "linked" ? f.blockerId : undefined;
     const saved = kind === "case" ? await saveCaseDocument(f, key, body) : await documentService(server.db).upsertIssueDocument({
@@ -98,10 +98,10 @@ describe("native case tools through authenticated production routes", () => {
     const snapshot = async () => ({
       cases: await server.db.select().from(cases).where(eq(cases.id, f.record.id)),
       events: await server.db.select().from(caseEvents).where(eq(caseEvents.caseId, f.record.id)),
-      workflows: await server.db.select().from(workflows).where(eq(workflows.companyId, f.companyId)),
+      workflows: await server.db.select().from(workflows).where(eq(workflows.spaceId, f.spaceId)),
     });
     const before = await snapshot();
-    const replacement = new PaperclipRunnerToolAuthority(server.db, { ...f, casesEnabled: true, workMode: "standard" });
+    const replacement = new OutpostRunnerToolAuthority(server.db, { ...f, casesEnabled: true, workMode: "standard" });
     const recover = (arguments_: unknown = input) => replacement.recover({ tool, callId: "lost-provider-response", arguments: arguments_ });
     const fetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Recovery must not dispatch HTTP"));
     try {
@@ -115,7 +115,7 @@ describe("native case tools through authenticated production routes", () => {
         Object.fromEntries(Object.entries(receipts).map(([id, receipt]) => [id, { ...receipt, state: "pending" }])) } }).where(eq(heartbeatRuns.id, f.runId));
       expect(await recover()).toBeNull();
       await server.db.update(heartbeatRuns).set({ resultJson: completed }).where(eq(heartbeatRuns.id, f.runId));
-      const disabled = new PaperclipRunnerToolAuthority(server.db, { ...f, casesEnabled: false, workMode: "standard" });
+      const disabled = new OutpostRunnerToolAuthority(server.db, { ...f, casesEnabled: false, workMode: "standard" });
       await expect(disabled.recover({ tool, callId: "lost-provider-response", arguments: input })).rejects.toThrow("Cases are disabled");
       await server.db.update(heartbeatRuns).set({ status: "cancelled" }).where(eq(heartbeatRuns.id, f.runId));
       await expect(recover()).rejects.toThrow("outpost_runner_tool_binding_not_authorized");
@@ -195,10 +195,10 @@ describe("native case tools through authenticated production routes", () => {
   it("requires kickoff before any case, task, comment, document or wake side effect", async () => {
     const f = await fixture();
     const snapshot = async () => ({ ...await f.snapshot(),
-      cases: await server.db.select().from(cases).where(eq(cases.companyId, f.companyId)),
-      handoffs: await server.db.select().from(caseHandoffs).where(eq(caseHandoffs.companyId, f.companyId)),
-      wakes: await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId)),
-      runs: await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId)),
+      cases: await server.db.select().from(cases).where(eq(cases.spaceId, f.spaceId)),
+      handoffs: await server.db.select().from(caseHandoffs).where(eq(caseHandoffs.spaceId, f.spaceId)),
+      wakes: await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId)),
+      runs: await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId)),
     });
     const before = await snapshot();
     const input = { idempotencyKey: "missing-kickoff", caseType: "receipt", title: "Receipt facts", fields: { note: "private-data" },
@@ -214,7 +214,7 @@ describe("native case tools through authenticated production routes", () => {
     }
     expect(await snapshot()).toEqual(before);
   });
-  it("does not publish contained run instructions into company workflows", async () => {
+  it("does not publish contained run instructions into space workflows", async () => {
     const f = await fixture();
     await server.db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.issueId, executionPolicy: {
       trustPreset: "low_trust_review", authorizationPolicy: { trustBoundary: { mode: "low_trust_review", rootIssueId: f.issueId } },
@@ -225,10 +225,10 @@ describe("native case tools through authenticated production routes", () => {
   it("requires explicit nonblank workflow text before native creation has any side effects", async () => {
     const f = await fixture();
     const snapshot = async () => ({ ...await f.snapshot(),
-      cases: await server.db.select().from(cases).where(eq(cases.companyId, f.companyId)),
-      handoffs: await server.db.select().from(caseHandoffs).where(eq(caseHandoffs.companyId, f.companyId)),
-      wakes: await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId)),
-      runs: await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId)),
+      cases: await server.db.select().from(cases).where(eq(cases.spaceId, f.spaceId)),
+      handoffs: await server.db.select().from(caseHandoffs).where(eq(caseHandoffs.spaceId, f.spaceId)),
+      wakes: await server.db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId)),
+      runs: await server.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId)),
     });
     const before = await snapshot();
     const input = { idempotencyKey: "missing-workflow", caseType: "receipt", title: "Check receipt",
@@ -270,11 +270,11 @@ describe("native case tools through authenticated production routes", () => {
     expect(await server.db.select().from(caseAccessSources).where(eq(caseAccessSources.caseId, receipt.caseId)))
       .toEqual(expect.arrayContaining([expect.objectContaining({ sourceKind: "issue", sourceId: receipt.taskId })]));
     const laterRunId = randomUUID();
-    await server.db.insert(heartbeatRuns).values({ id: laterRunId, companyId: f.companyId, agentId: f.agentId,
+    await server.db.insert(heartbeatRuns).values({ id: laterRunId, spaceId: f.spaceId, agentId: f.agentId,
       issueId: f.issueId, nativeIssueId: f.issueId, status: "running", runtimeMode: "native", contextSnapshot: { issueId: f.issueId } });
     await server.db.update(issues).set({ executionRunId: laterRunId }).where(eq(issues.id, f.issueId));
     await server.db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.runId));
-    const later = new PaperclipRunnerToolAuthority(server.db, { ...f, runId: laterRunId, casesEnabled: true, workMode: "standard" });
+    const later = new OutpostRunnerToolAuthority(server.db, { ...f, runId: laterRunId, casesEnabled: true, workMode: "standard" });
     expect(await later.execute({ tool: "create_case", callId: randomUUID(), arguments: input })).toMatchObject({ ...receipt, replayed: true });
     await expect(later.execute({ tool: "create_case", callId: randomUUID(), arguments: { ...input, workflow_document_text: "Changed routing" } }))
       .rejects.toThrow("Idempotency key was used for a different handoff");
@@ -284,32 +284,32 @@ describe("native case tools through authenticated production routes", () => {
     expect(afterReplay.documents).toHaveLength(saved.documents.length);
     expect(afterReplay.documentRevisions).toHaveLength(saved.documentRevisions.length);
     expect(afterReplay.comments).toHaveLength(saved.comments.length);
-    await server.db.insert(caseAccessSources).values({ companyId: f.companyId, caseId: receipt.caseId, sourceKind: "issue", sourceId: f.blockerId });
+    await server.db.insert(caseAccessSources).values({ spaceId: f.spaceId, caseId: receipt.caseId, sourceKind: "issue", sourceId: f.blockerId });
     await server.db.update(issues).set({ visibility: "private", assigneeAgentId: null }).where(eq(issues.id, f.blockerId));
     await expect(later.execute({ tool: "create_case", callId: randomUUID(), arguments: input })).rejects.toThrow("Case not found");
   });
-  it("rejects unsupported fields and reads only explicit standalone cases in the authorized company", async () => {
+  it("rejects unsupported fields and reads only explicit standalone cases in the authorized space", async () => {
     const f = await fixture();
     for (const extra of [{ status: "done" }, { phase: "done" }, { workIssueId: f.blockerId }, { responsibleUserId: randomUUID() }]) {
       await expect(f.call("update_case", { idempotencyKey: randomUUID(), title: "No", ...extra })).rejects.toThrow("Invalid case tool arguments");
     }
     await expect(f.call("update_case", { idempotencyKey: "empty" })).rejects.toThrow("Invalid case tool arguments");
     await expect(f.call("write_case_document", { key: "receipt", body: "No" })).rejects.toThrow();
-    const [foreign] = await server.db.insert(cases).values({ companyId: f.foreignCompanyId, caseNumber: 1,
+    const [foreign] = await server.db.insert(cases).values({ spaceId: f.foreignSpaceId, caseNumber: 1,
       identifier: `C-${randomUUID()}`, caseType: "private", title: "foreign-data-must-not-leak" }).returning();
     await expect(f.call("read_case", { caseId: foreign!.id })).rejects.toThrow("Case not found");
     await expect(f.call("read_case", { caseId: randomUUID() })).rejects.toThrow("Case not found");
-    const [pipeline] = await server.db.insert(pipelines).values({ companyId: f.companyId, key: "separate", name: "Separate experimental model" }).returning();
+    const [pipeline] = await server.db.insert(pipelines).values({ spaceId: f.spaceId, key: "separate", name: "Separate experimental model" }).returning();
     const [stage] = await server.db.insert(pipelineStages).values({ pipelineId: pipeline!.id, key: "triage", name: "Triage", kind: "working", position: 0 }).returning();
-    const [pipelineCase] = await server.db.insert(pipelineCases).values({ companyId: f.companyId, pipelineId: pipeline!.id,
+    const [pipelineCase] = await server.db.insert(pipelineCases).values({ spaceId: f.spaceId, pipelineId: pipeline!.id,
       stageId: stage!.id, caseKey: "pipeline-only", title: "pipeline-data-must-not-leak" }).returning();
     await expect(f.call("read_case", { caseId: pipelineCase!.id })).rejects.toThrow("Case not found");
     const other = await fixture();
     await server.db.update(issues).set({ visibility: "private" }).where(eq(issues.id, f.blockerId));
     await server.db.update(issues).set({ assigneeAgentId: null }).where(eq(issues.id, f.blockerId));
-    const [hidden] = await server.db.insert(cases).values({ companyId: f.companyId, caseNumber: 2,
+    const [hidden] = await server.db.insert(cases).values({ spaceId: f.spaceId, caseNumber: 2,
       identifier: `C-${randomUUID()}`, caseType: "private", title: "hidden-case-canary" }).returning();
-    await server.db.insert(caseAccessSources).values({ companyId: f.companyId, caseId: hidden!.id, sourceKind: "issue", sourceId: f.blockerId });
+    await server.db.insert(caseAccessSources).values({ spaceId: f.spaceId, caseId: hidden!.id, sourceKind: "issue", sourceId: f.blockerId });
     await expect(f.call("read_case", { caseId: hidden!.id })).rejects.toThrow("Case not found");
     expect(await other.call("read_case")).toMatchObject({ status: 200, data: { id: other.record.id } });
   });
@@ -322,7 +322,7 @@ describe("native case tools through authenticated production routes", () => {
     expect(f.authority.definitions().map(tool => tool.name)).not.toContain("call_api");
     // Reproduce the existing generic transport's >24KiB asset-only response.
     // The dedicated reader below must remain usable with generic API disabled.
-    const generic = new PaperclipRunnerToolAuthority(server.db, { ...f, casesEnabled: true, apiToolsEnabled: true });
+    const generic = new OutpostRunnerToolAuthority(server.db, { ...f, casesEnabled: true, apiToolsEnabled: true });
     const baseline = await generic.execute({ tool: "call_api", callId: randomUUID(), arguments: {
       operationId: "GET /api/cases/{id}", pathParams: { id: f.record.id }, query: { includeDocumentBodies: false },
     } });
@@ -360,7 +360,7 @@ describe("native case tools through authenticated production routes", () => {
     // dedicated reads recover current facts without replaying that mutation.
     await f.call("update_case", { idempotencyKey: "large-new-value", fields });
     expect(await f.call("read_case", { section: "fields" })).toMatchObject({ ok: true, data: { readPage: { mode: "json_text" } } });
-    await server.db.insert(caseAccessSources).values({ companyId: f.companyId, caseId: f.record.id, sourceKind: "issue", sourceId: f.blockerId });
+    await server.db.insert(caseAccessSources).values({ spaceId: f.spaceId, caseId: f.record.id, sourceKind: "issue", sourceId: f.blockerId });
     await server.db.update(issues).set({ visibility: "private", assigneeAgentId: null }).where(eq(issues.id, f.blockerId));
     await expect(f.call("read_case", { section: "case", offsetBytes: first.data.readPage.nextOffsetBytes, snapshot })).rejects.toThrow("Case not found");
   });
@@ -396,9 +396,9 @@ describe("native case tools through authenticated production routes", () => {
     expect((await readCompleteDocument(f, f.selector)).document).toMatchObject({ id: f.saved.document.id, body: "Legacy case notes" });
     expect((await readCompleteDocument(f, { ...f.selector, documentIssueId: f.issueId })).document)
       .toMatchObject({ id: primary.document.id, body: "Current task notes" });
-    const [unlinked] = await server.db.insert(issues).values({ companyId: f.companyId, title: "Unlinked source" }).returning();
-    const [foreign] = await server.db.insert(issues).values({ companyId: f.foreignCompanyId, title: "Foreign source" }).returning();
-    await server.db.insert(caseIssueLinks).values({ companyId: f.companyId, caseId: f.record.id, issueId: f.blockerId, role: "reference" });
+    const [unlinked] = await server.db.insert(issues).values({ spaceId: f.spaceId, title: "Unlinked source" }).returning();
+    const [foreign] = await server.db.insert(issues).values({ spaceId: f.foreignSpaceId, title: "Foreign source" }).returning();
+    await server.db.insert(caseIssueLinks).values({ spaceId: f.spaceId, caseId: f.record.id, issueId: f.blockerId, role: "reference" });
     await server.db.update(issues).set({ visibility: "private", assigneeAgentId: null }).where(eq(issues.id, f.blockerId));
     for (const issueId of [unlinked!.id, foreign!.id, f.blockerId]) {
       await documentService(server.db).upsertIssueDocument({ issueId, key: f.key, format: "markdown", body: "HIDDEN_DOCUMENT_BODY_CANARY" });
@@ -442,7 +442,7 @@ describe("native case tools through authenticated production routes", () => {
 
   it("reauthorizes the case itself on a document continuation", async () => {
     const f = await documentFixture("primary", documentBody);
-    await server.db.insert(caseAccessSources).values({ companyId: f.companyId, caseId: f.record.id, sourceKind: "issue", sourceId: f.blockerId });
+    await server.db.insert(caseAccessSources).values({ spaceId: f.spaceId, caseId: f.record.id, sourceKind: "issue", sourceId: f.blockerId });
     const first = await f.call("read_case", f.selector) as DocumentPage;
     expect(first).toMatchObject({ ok: true, status: 200 });
     await server.db.update(issues).set({ visibility: "private", assigneeAgentId: null }).where(eq(issues.id, f.blockerId));
@@ -467,28 +467,28 @@ describe("native case tools through authenticated production routes", () => {
 
   it("retains case privacy on spilled response assets after source access is revoked", async () => {
     const f = await fixture();
-    await server.db.insert(caseAccessSources).values({ companyId: f.companyId, caseId: f.record.id, sourceKind: "issue", sourceId: f.blockerId });
+    await server.db.insert(caseAccessSources).values({ spaceId: f.spaceId, caseId: f.record.id, sourceKind: "issue", sourceId: f.blockerId });
     const saved = await f.call("update_case", { idempotencyKey: "large-fields", fields: { canary: "private-case-canary ".repeat(2_000) } }) as { artifact: { artifactId: string; url: string } };
     expect(saved).toMatchObject({ ok: true, status: 200, artifact: { artifactId: expect.any(String) } });
     const asset = (await f.snapshot()).assets.find(asset => asset.id === saved.artifact.artifactId)!;
     expect(asset.objectKey).toContain(`/cases/${f.record.id}/runner-api/`);
-    const headers = { Authorization: `Bearer ${createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId)}` };
+    const headers = { Authorization: `Bearer ${createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId)}` };
     const readable = await fetch(`${server.apiUrl}${saved.artifact.url}`, { headers });
     expect(readable.status).toBe(200); await readable.body?.cancel();
     const readerId = randomUUID(), readerRunId = randomUUID();
-    await server.db.insert(agents).values({ id: readerId, companyId: f.companyId, name: "Another case reader", status: "active",
+    await server.db.insert(agents).values({ id: readerId, spaceId: f.spaceId, name: "Another case reader", status: "active",
       adapterType: "outpost_runner", adapterConfig: { provider: "codex" }, runtimeConfig: { heartbeat: { enabled: false } } });
-    const [readerTask] = await server.db.insert(issues).values({ companyId: f.companyId, title: "Another task",
+    const [readerTask] = await server.db.insert(issues).values({ spaceId: f.spaceId, title: "Another task",
       status: "in_progress", assigneeAgentId: readerId }).returning();
-    await server.db.insert(heartbeatRuns).values({ id: readerRunId, companyId: f.companyId, agentId: readerId,
+    await server.db.insert(heartbeatRuns).values({ id: readerRunId, spaceId: f.spaceId, agentId: readerId,
       nativeIssueId: readerTask!.id, status: "running", runtimeMode: "native", contextSnapshot: { issueId: readerTask!.id } });
     await server.db.update(issues).set({ executionRunId: readerRunId }).where(eq(issues.id, readerTask!.id));
-    const readerHeaders = { Authorization: `Bearer ${createLocalAgentJwt(readerId, f.companyId, "outpost_runner", readerRunId)}` };
+    const readerHeaders = { Authorization: `Bearer ${createLocalAgentJwt(readerId, f.spaceId, "outpost_runner", readerRunId)}` };
     const sameCase = await fetch(`${server.apiUrl}/api/cases/${f.record.id}`, { headers: readerHeaders });
     expect(sameCase.status).toBe(200); await sameCase.body?.cancel();
     const otherRunCapture = await fetch(`${server.apiUrl}${saved.artifact.url}`, { headers: readerHeaders });
     expect(otherRunCapture.status).toBe(404); await otherRunCapture.body?.cancel();
-    const generic = new PaperclipRunnerToolAuthority(server.db, { ...f, casesEnabled: true, apiToolsEnabled: true });
+    const generic = new OutpostRunnerToolAuthority(server.db, { ...f, casesEnabled: true, apiToolsEnabled: true });
     const genericRead = await generic.execute({ tool: "call_api", callId: randomUUID(), arguments: {
       operationId: "GET /api/cases/{id}", pathParams: { id: f.record.id },
     } }) as { artifact: { artifactId: string; url: string } };
@@ -508,13 +508,13 @@ describe("native case tools through authenticated production routes", () => {
       expect(other.authority.definitions().map(tool => tool.name)).not.toContain("read_case");
       await expect(other.call("read_case")).rejects.toThrow("mode_denied");
     }
-    const disabled = new PaperclipRunnerToolAuthority(server.db, { ...f, casesEnabled: false });
+    const disabled = new OutpostRunnerToolAuthority(server.db, { ...f, casesEnabled: false });
     expect(disabled.definitions().map(tool => tool.name)).not.toContain("read_case");
     await expect(disabled.execute({ tool: "read_case", callId: randomUUID(), arguments: {} })).rejects.toThrow("Cases are disabled");
     // Native tool results carry only the message, so it must hold the final, actionable remediation.
     await expect(disabled.execute({ tool: "list_workflows", callId: randomUUID(), arguments: {} })).rejects.toThrow(
-      /^Cases are disabled\. .*this denial is final.*\[Experimental settings\]\(\/<prefix>\/company\/settings\/instance\/experimental\).*offer to track the request as an ordinary task instead\.$/);
-    const review = new PaperclipRunnerToolAuthority(server.db, { ...f, casesEnabled: true,
+      /^Cases are disabled\. .*this denial is final.*\[Experimental settings\]\(\/<prefix>\/space\/settings\/instance\/experimental\).*offer to track the request as an ordinary task instead\.$/);
+    const review = new OutpostRunnerToolAuthority(server.db, { ...f, casesEnabled: true,
       nativeReview: { nativeReviewInteractionId: randomUUID(), nativeReviewDecisionId: randomUUID() } });
     expect(review.definitions().map(tool => tool.name)).not.toContain("read_case");
     await expect(review.execute({ tool: "update_case", callId: randomUUID(), arguments: { idempotencyKey: "review", title: "No" } })).rejects.toThrow("may only inspect");
@@ -527,7 +527,7 @@ describe("native case tools through authenticated production routes", () => {
   });
   it("fences committed outgoing handoffs before a case write reaches the route", async () => {
     const f = await fixture();
-    await server.db.insert(caseHandoffs).values({ companyId: f.companyId, caseId: f.record.id, issueId: f.issueId,
+    await server.db.insert(caseHandoffs).values({ spaceId: f.spaceId, caseId: f.record.id, issueId: f.issueId,
       version: 1, fromAgentId: f.agentId, toAgentId: f.agentId, phase: "verification", instructions: "Verify",
       actorType: "agent", actorId: f.agentId, sourceRunId: f.runId, wakeupRequestId: randomUUID(),
       idempotencyKey: "outgoing", inputFingerprint: "fixture", state: "awaiting_release" });
@@ -545,11 +545,11 @@ describe("native case tools through authenticated production routes", () => {
     await expect(f.call("create_case", { idempotencyKey: "stopped-create", caseType: "test", title: "No",
       workflow_document_text: "Triage then done.",
       kickoff: { toAgentId: f.agentId, phase: "triage", instructions: "No" } })).rejects.toThrow("cancelled");
-    expect((await server.db.select().from(cases).where(and(eq(cases.id, f.record.id), eq(cases.companyId, f.companyId))))[0]?.title).toBe("Receipt case");
+    expect((await server.db.select().from(cases).where(and(eq(cases.id, f.record.id), eq(cases.spaceId, f.spaceId))))[0]?.title).toBe("Receipt case");
   });
   it("rechecks the handoff fence inside the route after HTTP dispatch was prepared", async () => {
     const f = await fixture();
-    const [target] = await server.db.insert(cases).values({ companyId: f.companyId, caseNumber: 2,
+    const [target] = await server.db.insert(cases).values({ spaceId: f.spaceId, caseNumber: 2,
       identifier: `C-${randomUUID()}`, caseType: "passive", title: "Untouched passive case" }).returning();
     const realFetch = globalThis.fetch;
     let arrived!: () => void, release!: () => void;
@@ -561,7 +561,7 @@ describe("native case tools through authenticated production routes", () => {
     try {
       const pending = f.call("update_case", { caseId: target!.id, idempotencyKey: "race", title: "No" });
       await preparing;
-      await server.db.insert(caseHandoffs).values({ companyId: f.companyId, caseId: f.record.id, issueId: f.issueId,
+      await server.db.insert(caseHandoffs).values({ spaceId: f.spaceId, caseId: f.record.id, issueId: f.issueId,
         version: 1, fromAgentId: f.agentId, toAgentId: f.agentId, phase: "verification", instructions: "Verify",
         actorType: "agent", actorId: f.agentId, sourceRunId: f.runId, wakeupRequestId: randomUUID(),
         idempotencyKey: "outgoing-race", inputFingerprint: "fixture", state: "awaiting_release" });

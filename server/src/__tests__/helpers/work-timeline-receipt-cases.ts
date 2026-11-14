@@ -3,17 +3,17 @@ import type { Express } from "express";
 import { eq } from "drizzle-orm";
 import request from "supertest";
 import { expect, it } from "vitest";
-import { activityLog, agents, authUsers, companies, companyMemberships, createDb, documents, documentRevisions, heartbeatRuns, issueComments, issueDocuments, issueThreadInteractions, issues } from "@outpost/db";
+import { activityLog, agents, authUsers, spaces, spaceMemberships, createDb, documents, documentRevisions, heartbeatRuns, issueComments, issueDocuments, issueThreadInteractions, issues } from "@outpost/db";
 
 import { childCreatedByRequest } from "../../services/issue-creation-source.js";
 import { issueService } from "../../services/issues.js";
 import { createAcceptedPlanDecompositionSchema, createChildIssueSchema } from "@outpost/shared";
 
-type Seed = { companyId: string; userId: string; agentAId: string; agentBId: string };
+type Seed = { spaceId: string; userId: string; agentAId: string; agentBId: string };
 type Fixture = {
   getDb: () => ReturnType<typeof createDb>;
   seedBase: () => Promise<Seed>;
-  createApp: (userId?: string, includeIssues?: boolean, actor?: { companyId: string; agentId: string }) => Express;
+  createApp: (userId?: string, includeIssues?: boolean, actor?: { spaceId: string; agentId: string }) => Express;
 };
 
 /** Shares the owning suite's real PostgreSQL lifecycle and route actors. */
@@ -21,14 +21,14 @@ export function registerTimelineReceiptBoundaryCases(f: Fixture) {
   async function acceptedPlanContext(watchdog = false) {
     const db = f.getDb(); const base = await f.seedBase();
     const sourceId = randomUUID(), documentId = randomUUID(), revisionId = randomUUID();
-    await db.update(agents).set({ status: "paused" }).where(eq(agents.companyId, base.companyId));
-    await db.insert(issues).values({ id: sourceId, companyId: base.companyId, title: "Approved plan", workMode: "planning",
+    await db.update(agents).set({ status: "paused" }).where(eq(agents.spaceId, base.spaceId));
+    await db.insert(issues).values({ id: sourceId, spaceId: base.spaceId, title: "Approved plan", workMode: "planning",
       status: "in_progress", assigneeAgentId: base.agentAId, createdByUserId: base.userId,
       ...(watchdog ? { originKind: "task_watchdog" } : {}) });
-    await db.insert(documents).values({ id: documentId, companyId: base.companyId, title: "Plan", format: "markdown", latestBody: "Plan body", latestRevisionId: revisionId, latestRevisionNumber: 1 });
-    await db.insert(documentRevisions).values({ id: revisionId, companyId: base.companyId, documentId, revisionNumber: 1, title: "Plan", format: "markdown", body: "Plan body" });
-    await db.insert(issueDocuments).values({ companyId: base.companyId, issueId: sourceId, documentId, key: "plan" });
-    await db.insert(issueThreadInteractions).values({ companyId: base.companyId, issueId: sourceId, kind: "request_confirmation", status: "accepted", continuationPolicy: "wake_assignee",
+    await db.insert(documents).values({ id: documentId, spaceId: base.spaceId, title: "Plan", format: "markdown", latestBody: "Plan body", latestRevisionId: revisionId, latestRevisionNumber: 1 });
+    await db.insert(documentRevisions).values({ id: revisionId, spaceId: base.spaceId, documentId, revisionNumber: 1, title: "Plan", format: "markdown", body: "Plan body" });
+    await db.insert(issueDocuments).values({ spaceId: base.spaceId, issueId: sourceId, documentId, key: "plan" });
+    await db.insert(issueThreadInteractions).values({ spaceId: base.spaceId, issueId: sourceId, kind: "request_confirmation", status: "accepted", continuationPolicy: "wake_assignee",
       payload: { version: 1, prompt: "Approve plan?", target: { type: "issue_document", issueId: sourceId, documentId, key: "plan", revisionId, revisionNumber: 1 } },
       result: { version: 1, outcome: "accepted" }, resolvedAt: new Date(), createdByUserId: base.userId, resolvedByUserId: base.userId });
     return { ...base, sourceId, revisionId };
@@ -75,18 +75,18 @@ export function registerTimelineReceiptBoundaryCases(f: Fixture) {
   });
 
   it("projects actual public child creation receipts without admitting unsupported replay keys", async () => {
-    const db = f.getDb(); const { companyId, userId, agentAId, agentBId } = await f.seedBase();
+    const db = f.getDb(); const { spaceId, userId, agentAId, agentBId } = await f.seedBase();
     const parentId = randomUUID(), from = new Date(Date.now() - 1000);
-    await db.update(agents).set({ status: "idle" }).where(eq(agents.companyId, companyId));
-    await db.insert(issues).values({ id: parentId, companyId, title: "Parent", status: "backlog", assigneeAgentId: agentAId, createdByUserId: userId, createdAt: from });
+    await db.update(agents).set({ status: "idle" }).where(eq(agents.spaceId, spaceId));
+    await db.insert(issues).values({ id: parentId, spaceId, title: "Parent", status: "backlog", assigneeAgentId: agentAId, createdByUserId: userId, createdAt: from });
     const body = { title: "Canonical child", status: "backlog", assigneeAgentId: agentBId, idempotencyKey: randomUUID() };
     expect(createChildIssueSchema.parse(body)).not.toHaveProperty("idempotencyKey");
-    const created = await request(f.createApp(userId, true, { companyId, agentId: agentAId })).post(`/api/issues/${parentId}/children`).send(body);
+    const created = await request(f.createApp(userId, true, { spaceId, agentId: agentAId })).post(`/api/issues/${parentId}/children`).send(body);
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     const id = created.body.id;
     const receipt = (await db.select().from(activityLog).where(eq(activityLog.entityId, id))).find(row => row.action === "issue.child_created")!;
     expect(receipt).toMatchObject({ actorType: "agent", actorId: agentAId, details: { parentId, assigneeAgentId: agentBId, assigneeUserId: null, createdByRequest: true } });
-    const response = await request(f.createApp(userId)).get(`/api/companies/${companyId}/timeline`).query({ from: from.toISOString(), to: new Date().toISOString() });
+    const response = await request(f.createApp(userId)).get(`/api/spaces/${spaceId}/timeline`).query({ from: from.toISOString(), to: new Date().toISOString() });
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     expect(response.body.edges.filter((edge: any) => edge.issueId === id)).toEqual([
       { fromActorId: `agent:${agentAId}`, toActorId: `agent:${agentBId}`, issueId: id, at: receipt.createdAt.toISOString(), kind: "assignment" },
@@ -96,28 +96,28 @@ export function registerTimelineReceiptBoundaryCases(f: Fixture) {
   });
 
   it("keeps private-service replay facts separate from original child ownership, including missing originals", async () => {
-    const db = f.getDb(); const { companyId, userId, agentAId, agentBId } = await f.seedBase(); const svc = issueService(db);
+    const db = f.getDb(); const { spaceId, userId, agentAId, agentBId } = await f.seedBase(); const svc = issueService(db);
     const parentId = randomUUID(), laterAgentId = randomUUID(), from = new Date(Date.now() - 1000);
-    await db.update(agents).set({ status: "paused" }).where(eq(agents.companyId, companyId));
-    await db.insert(agents).values({ id: laterAgentId, companyId, name: "Later worker", adapterType: "codex_local", status: "paused" });
-    await db.insert(issues).values({ id: parentId, companyId, title: "Private service parent", status: "backlog", createdByUserId: userId, createdAt: from });
+    await db.update(agents).set({ status: "paused" }).where(eq(agents.spaceId, spaceId));
+    await db.insert(agents).values({ id: laterAgentId, spaceId, name: "Later worker", adapterType: "codex_local", status: "paused" });
+    await db.insert(issues).values({ id: parentId, spaceId, title: "Private service parent", status: "backlog", createdByUserId: userId, createdAt: from });
     const body = { title: "Keyed private child", status: "backlog" as const, assigneeAgentId: agentBId, createdByAgentId: agentAId, idempotencyKey: randomUUID() };
     const proposed = randomUUID(); const created = await svc.createChild(parentId, { ...body, id: proposed });
     expect(created.issue.id).toBe(proposed);
     const firstAt = new Date();
-    const [first] = await db.insert(activityLog).values({ companyId, actorType: "agent", actorId: agentAId, action: "issue.child_created", entityType: "issue", entityId: created.issue.id, createdAt: firstAt,
+    const [first] = await db.insert(activityLog).values({ spaceId, actorType: "agent", actorId: agentAId, action: "issue.child_created", entityType: "issue", entityId: created.issue.id, createdAt: firstAt,
       details: { parentId, assigneeAgentId: created.issue.assigneeAgentId, assigneeUserId: created.issue.assigneeUserId, createdByRequest: childCreatedByRequest(proposed, created.issue.id) } }).returning();
-    const boardApp = f.createApp(userId, true);
-    const changed = await request(boardApp).patch(`/api/issues/${created.issue.id}`).send({ assigneeAgentId: laterAgentId });
+    const operatorApp = f.createApp(userId, true);
+    const changed = await request(operatorApp).patch(`/api/issues/${created.issue.id}`).send({ assigneeAgentId: laterAgentId });
     expect(changed.status, JSON.stringify(changed.body)).toBe(200);
     const replayProposal = randomUUID(); const replayed = await svc.createChild(parentId, { ...body, id: replayProposal });
     expect(replayed.issue.id).toBe(created.issue.id); expect(replayed.issue.id).not.toBe(replayProposal);
     expect(replayed.issue.assigneeAgentId).toBe(laterAgentId);
     const replayAt = new Date();
-    await db.insert(activityLog).values({ companyId, actorType: "agent", actorId: agentAId, action: "issue.child_created", entityType: "issue", entityId: replayed.issue.id, createdAt: replayAt,
+    await db.insert(activityLog).values({ spaceId, actorType: "agent", actorId: agentAId, action: "issue.child_created", entityType: "issue", entityId: replayed.issue.id, createdAt: replayAt,
       details: { parentId, assigneeAgentId: replayed.issue.assigneeAgentId, assigneeUserId: replayed.issue.assigneeUserId, createdByRequest: childCreatedByRequest(replayProposal, replayed.issue.id) } });
     const timeline = async (start: Date) => {
-      const response = await request(boardApp).get(`/api/companies/${companyId}/timeline`).query({ from: start.toISOString(), to: new Date().toISOString() });
+      const response = await request(operatorApp).get(`/api/spaces/${spaceId}/timeline`).query({ from: start.toISOString(), to: new Date().toISOString() });
       expect(response.status, JSON.stringify(response.body)).toBe(200); return response.body;
     };
     const full = await timeline(from);
@@ -137,63 +137,63 @@ export function registerTimelineReceiptBoundaryCases(f: Fixture) {
   });
 
   it.each(["missing", "malformed"])("does not rescue an unknown earliest bounded child receipt (%s) with a later receipt", async kind => {
-    const db = f.getDb(); const { companyId, userId, agentAId, agentBId } = await f.seedBase();
+    const db = f.getDb(); const { spaceId, userId, agentAId, agentBId } = await f.seedBase();
     const parentId = randomUUID(), childId = randomUUID();
     await db.insert(issues).values([
-      { id: parentId, companyId, title: "Parent", status: "done", createdByUserId: userId, createdAt: new Date("2026-03-01T10:00:00Z") },
-      { id: childId, companyId, parentId, title: "Child", status: "done", createdAt: new Date("2026-03-01T11:00:00Z") },
+      { id: parentId, spaceId, title: "Parent", status: "done", createdByUserId: userId, createdAt: new Date("2026-03-01T10:00:00Z") },
+      { id: childId, spaceId, parentId, title: "Child", status: "done", createdAt: new Date("2026-03-01T11:00:00Z") },
     ]);
     const details = { parentId, createdByRequest: true, assigneeAgentId: agentBId, assigneeUserId: null };
     await db.insert(activityLog).values([
-      { companyId, actorType: "agent", actorId: agentAId, action: "issue.child_created", entityType: "issue", entityId: childId, createdAt: new Date("2026-03-01T11:00:00Z"), details: kind === "missing" ? { parentId, createdByRequest: true } : { ...details, assigneeAgentId: 42 } },
-      { companyId, actorType: "agent", actorId: agentAId, action: "issue.child_created", entityType: "issue", entityId: childId, createdAt: new Date("2026-03-01T12:00:00Z"), details },
+      { spaceId, actorType: "agent", actorId: agentAId, action: "issue.child_created", entityType: "issue", entityId: childId, createdAt: new Date("2026-03-01T11:00:00Z"), details: kind === "missing" ? { parentId, createdByRequest: true } : { ...details, assigneeAgentId: 42 } },
+      { spaceId, actorType: "agent", actorId: agentAId, action: "issue.child_created", entityType: "issue", entityId: childId, createdAt: new Date("2026-03-01T12:00:00Z"), details },
     ]);
-    const response = await request(f.createApp()).get(`/api/companies/${companyId}/timeline`).query({ from: "2026-03-01T00:00:00Z", to: "2026-03-02T00:00:00Z" });
+    const response = await request(f.createApp()).get(`/api/spaces/${spaceId}/timeline`).query({ from: "2026-03-01T00:00:00Z", to: "2026-03-02T00:00:00Z" });
     expect(response.status).toBe(200); expect(response.body.edges).toEqual([]);
   });
 
   it.each([undefined, false, "true"])("does not treat an unproven child receipt as creation: %j", async flag => {
-    const db = f.getDb(); const { companyId, userId, agentAId, agentBId } = await f.seedBase();
+    const db = f.getDb(); const { spaceId, userId, agentAId, agentBId } = await f.seedBase();
     const parentId = randomUUID(), childId = randomUUID(), at = new Date("2026-03-01T11:00:00Z");
     await db.insert(issues).values([
-      { id: parentId, companyId, title: "Parent", status: "done", createdByUserId: userId, createdAt: new Date("2026-03-01T10:00:00Z") },
-      { id: childId, parentId, companyId, title: "Child", status: "done", createdByAgentId: agentAId, createdAt: at },
+      { id: parentId, spaceId, title: "Parent", status: "done", createdByUserId: userId, createdAt: new Date("2026-03-01T10:00:00Z") },
+      { id: childId, parentId, spaceId, title: "Child", status: "done", createdByAgentId: agentAId, createdAt: at },
     ]);
-    await db.insert(activityLog).values({ companyId, actorType: "agent", actorId: agentAId, action: "issue.child_created", entityType: "issue", entityId: childId, createdAt: at,
+    await db.insert(activityLog).values({ spaceId, actorType: "agent", actorId: agentAId, action: "issue.child_created", entityType: "issue", entityId: childId, createdAt: at,
       details: { parentId, assigneeAgentId: agentBId, assigneeUserId: null, ...(flag === undefined ? {} : { createdByRequest: flag }) } });
-    const response = await request(f.createApp()).get(`/api/companies/${companyId}/timeline`).query({ from: "2026-03-01T00:00:00Z", to: "2026-03-02T00:00:00Z" });
+    const response = await request(f.createApp()).get(`/api/spaces/${spaceId}/timeline`).query({ from: "2026-03-01T00:00:00Z", to: "2026-03-02T00:00:00Z" });
     expect(response.status).toBe(200); expect(response.body.edges).toEqual([]);
   });
 
-  it.each(["actor", "target"] as const)("keeps valid active same-company user %s facts", async role => {
-    const db = f.getDb(); const { companyId, userId, agentAId, agentBId } = await f.seedBase();
+  it.each(["actor", "target"] as const)("keeps valid active same-space user %s facts", async role => {
+    const db = f.getDb(); const { spaceId, userId, agentAId, agentBId } = await f.seedBase();
     const id = randomUUID(), at = new Date("2026-03-01T11:00:00Z");
-    await db.insert(issues).values({ id, companyId, title: "Valid user facts", status: "done", createdByUserId: userId, createdAt: at });
-    await db.insert(activityLog).values({ companyId, actorType: role === "actor" ? "user" : "agent", actorId: role === "actor" ? userId : agentAId,
+    await db.insert(issues).values({ id, spaceId, title: "Valid user facts", status: "done", createdByUserId: userId, createdAt: at });
+    await db.insert(activityLog).values({ spaceId, actorType: role === "actor" ? "user" : "agent", actorId: role === "actor" ? userId : agentAId,
       action: "issue.created", entityType: "issue", entityId: id, createdAt: at, details: { parentId: null,
         assigneeAgentId: role === "target" ? null : agentBId, assigneeUserId: role === "target" ? userId : null } });
-    const response = await request(f.createApp()).get(`/api/companies/${companyId}/timeline`).query({ from: "2026-03-01T00:00:00Z", to: "2026-03-02T00:00:00Z" });
+    const response = await request(f.createApp()).get(`/api/spaces/${spaceId}/timeline`).query({ from: "2026-03-01T00:00:00Z", to: "2026-03-02T00:00:00Z" });
     expect(response.status).toBe(200); expect(response.body.edges).toHaveLength(1);
     expect(response.body.actors).toContainEqual(expect.objectContaining({ id: `user:${userId}`, name: "User One" }));
   });
 
   it.each(["foreign-actor", "foreign-target", "inactive-actor", "inactive-target", "resolver"] as const)("does not expose out-of-bound user identity through %s", async kind => {
-    const db = f.getDb(); const { companyId, userId, agentAId, agentBId } = await f.seedBase();
-    const foreignCompanyId = randomUUID(), privateUserId = randomUUID(), id = randomUUID(), at = new Date("2026-03-01T11:00:00Z");
-    await db.insert(companies).values({ id: foreignCompanyId, name: "Foreign user company", issuePrefix: "FU" });
+    const db = f.getDb(); const { spaceId, userId, agentAId, agentBId } = await f.seedBase();
+    const foreignSpaceId = randomUUID(), privateUserId = randomUUID(), id = randomUUID(), at = new Date("2026-03-01T11:00:00Z");
+    await db.insert(spaces).values({ id: foreignSpaceId, name: "Foreign user space", issuePrefix: "FU" });
     await db.insert(authUsers).values({ id: privateUserId, name: "Foreign private name", image: "https://private.example/avatar", email: `${privateUserId}@example.test`, emailVerified: true, createdAt: at, updatedAt: at });
-    await db.insert(companyMemberships).values({ companyId: kind.startsWith("inactive") ? companyId : foreignCompanyId,
+    await db.insert(spaceMemberships).values({ spaceId: kind.startsWith("inactive") ? spaceId : foreignSpaceId,
       principalType: "user", principalId: privateUserId, status: kind.startsWith("inactive") ? "inactive" : "active", membershipRole: "operator" });
-    await db.insert(issues).values({ id, companyId, title: "Scoped user facts", status: "done", createdByUserId: kind === "resolver" ? privateUserId : userId, createdAt: at });
+    await db.insert(issues).values({ id, spaceId, title: "Scoped user facts", status: "done", createdByUserId: kind === "resolver" ? privateUserId : userId, createdAt: at });
     const actor = kind.endsWith("actor"); const target = kind.endsWith("target");
     if (kind === "resolver") {
-      await db.insert(issueComments).values({ companyId, issueId: id, authorUserId: privateUserId, body: "Recorded comment", createdAt: at });
+      await db.insert(issueComments).values({ spaceId, issueId: id, authorUserId: privateUserId, body: "Recorded comment", createdAt: at });
     } else {
-      await db.insert(activityLog).values({ companyId, actorType: actor ? "user" : "agent", actorId: actor ? privateUserId : agentAId,
+      await db.insert(activityLog).values({ spaceId, actorType: actor ? "user" : "agent", actorId: actor ? privateUserId : agentAId,
         action: "issue.created", entityType: "issue", entityId: id, createdAt: at,
         details: { parentId: null, assigneeAgentId: target ? null : agentBId, assigneeUserId: target ? privateUserId : null } });
     }
-    const response = await request(f.createApp()).get(`/api/companies/${companyId}/timeline`).query({ from: "2026-03-01T00:00:00Z", to: "2026-03-02T00:00:00Z" });
+    const response = await request(f.createApp()).get(`/api/spaces/${spaceId}/timeline`).query({ from: "2026-03-01T00:00:00Z", to: "2026-03-02T00:00:00Z" });
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     const json = JSON.stringify(response.body);
     for (const secret of [privateUserId, "Foreign private name", "https://private.example/avatar"]) expect(json).not.toContain(secret);
@@ -203,23 +203,23 @@ export function registerTimelineReceiptBoundaryCases(f: Fixture) {
   });
 
   it.each(["foreign-actor", "missing-actor", "foreign-target", "missing-target", "resolver"] as const)("does not expose out-of-bound agent identity through %s", async kind => {
-    const db = f.getDb(); const { companyId, userId, agentAId, agentBId } = await f.seedBase();
-    const foreignCompanyId = randomUUID(), privateAgentId = randomUUID(), id = randomUUID(), at = new Date("2026-03-01T11:00:00Z");
-    await db.insert(companies).values({ id: foreignCompanyId, name: "Foreign agent company", issuePrefix: "FA" });
-    if (!kind.startsWith("missing")) await db.insert(agents).values({ id: privateAgentId, companyId: foreignCompanyId, name: "Foreign private agent", adapterType: "codex_local", status: "paused" });
-    await db.insert(issues).values({ id, companyId, title: "Scoped agent facts", status: "done", createdByAgentId: kind === "resolver" ? privateAgentId : agentAId, createdAt: at });
+    const db = f.getDb(); const { spaceId, userId, agentAId, agentBId } = await f.seedBase();
+    const foreignSpaceId = randomUUID(), privateAgentId = randomUUID(), id = randomUUID(), at = new Date("2026-03-01T11:00:00Z");
+    await db.insert(spaces).values({ id: foreignSpaceId, name: "Foreign agent space", issuePrefix: "FA" });
+    if (!kind.startsWith("missing")) await db.insert(agents).values({ id: privateAgentId, spaceId: foreignSpaceId, name: "Foreign private agent", adapterType: "codex_local", status: "paused" });
+    await db.insert(issues).values({ id, spaceId, title: "Scoped agent facts", status: "done", createdByAgentId: kind === "resolver" ? privateAgentId : agentAId, createdAt: at });
     if (kind === "resolver") {
-      await db.insert(issueComments).values({ companyId, issueId: id, authorAgentId: privateAgentId, body: "Recorded comment", createdAt: at });
-      await db.insert(heartbeatRuns).values({ companyId, agentId: privateAgentId, status: "succeeded", invocationSource: "assignment", contextSnapshot: { issueId: id }, createdAt: at, startedAt: at, finishedAt: at });
+      await db.insert(issueComments).values({ spaceId, issueId: id, authorAgentId: privateAgentId, body: "Recorded comment", createdAt: at });
+      await db.insert(heartbeatRuns).values({ spaceId, agentId: privateAgentId, status: "succeeded", invocationSource: "assignment", contextSnapshot: { issueId: id }, createdAt: at, startedAt: at, finishedAt: at });
     } else {
-      await db.insert(activityLog).values({ companyId, actorType: "agent", actorId: kind.endsWith("actor") ? privateAgentId : agentAId,
+      await db.insert(activityLog).values({ spaceId, actorType: "agent", actorId: kind.endsWith("actor") ? privateAgentId : agentAId,
         action: "issue.updated", entityType: "issue", entityId: id, createdAt: at,
         details: { assigneeAgentId: kind.endsWith("target") ? privateAgentId : agentBId } });
     }
-    // Valid company-local assignment/run remains visible beside rejected facts.
-    await db.insert(activityLog).values({ companyId, actorType: "agent", actorId: agentAId, action: "issue.updated", entityType: "issue", entityId: id, createdAt: at, details: { assigneeAgentId: agentBId } });
-    const [validRun] = await db.insert(heartbeatRuns).values({ companyId, agentId: agentBId, status: "succeeded", invocationSource: "assignment", contextSnapshot: { issueId: id }, createdAt: at, startedAt: at, finishedAt: at }).returning();
-    const response = await request(f.createApp(userId)).get(`/api/companies/${companyId}/timeline`).query({ from: "2026-03-01T00:00:00Z", to: "2026-03-02T00:00:00Z" });
+    // Valid space-local assignment/run remains visible beside rejected facts.
+    await db.insert(activityLog).values({ spaceId, actorType: "agent", actorId: agentAId, action: "issue.updated", entityType: "issue", entityId: id, createdAt: at, details: { assigneeAgentId: agentBId } });
+    const [validRun] = await db.insert(heartbeatRuns).values({ spaceId, agentId: agentBId, status: "succeeded", invocationSource: "assignment", contextSnapshot: { issueId: id }, createdAt: at, startedAt: at, finishedAt: at }).returning();
+    const response = await request(f.createApp(userId)).get(`/api/spaces/${spaceId}/timeline`).query({ from: "2026-03-01T00:00:00Z", to: "2026-03-02T00:00:00Z" });
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     const json = JSON.stringify(response.body);
     for (const secret of [privateAgentId, "Foreign private agent"]) expect(json).not.toContain(secret);

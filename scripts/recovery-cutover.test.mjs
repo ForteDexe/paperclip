@@ -10,7 +10,7 @@ import { classifyRecoveryEntry, cutoverStatus } from "./lib/recovery-cutover-pol
 
 const cli = fileURLToPath(new URL("./recovery-cutover.mjs", import.meta.url));
 const roots = [];
-const company = "00000000-0000-4000-8000-000000000001";
+const space = "00000000-0000-4000-8000-000000000001";
 const grant = "00000000-0000-4000-8000-000000000002";
 async function fixture() {
   // Canonicalize macOS /var -> /private/var, since the check rejects links.
@@ -39,8 +39,8 @@ afterEach(async () => { await Promise.all(roots.splice(0).map(root => fs.rm(root
 
 test("pure policy never clears files or unknown entries", () => {
   assert.equal(classifyRecoveryEntry("accounting-receipts", 0, "file"), "unverifiedFiles");
-  assert.equal(classifyRecoveryEntry("quota-credential-recovery", 0, "company-directory"), "descend");
-  assert.equal(classifyRecoveryEntry("quota-credential-recovery", 1, "company-directory"), "unknownEntries");
+  assert.equal(classifyRecoveryEntry("quota-credential-recovery", 0, "space-directory"), "descend");
+  assert.equal(classifyRecoveryEntry("quota-credential-recovery", 1, "space-directory"), "unknownEntries");
   assert.equal(cutoverStatus({ complete: false, unknownEntries: 0, readFailures: 0, unverifiedFiles: 0 }), "unknown");
 });
 
@@ -49,7 +49,7 @@ test("CLI: absent and empty legacy layouts clear without migration", async () =>
   let result = cleanRun(root, ["--check"]);
   assert.equal(result.status, 0);
   assert.equal(JSON.parse(result.stdout).status, "clear");
-  for (const directory of ["accounting-receipts", `quota-credential-recovery/${company}`, "data/sandbox-orphan-cleanup"]) {
+  for (const directory of ["accounting-receipts", `quota-credential-recovery/${space}`, "data/sandbox-orphan-cleanup"]) {
     await fs.mkdir(path.join(root, directory), { recursive: true });
   }
   result = cleanRun(root, ["--check"]);
@@ -59,14 +59,14 @@ test("CLI: absent and empty legacy layouts clear without migration", async () =>
 
 test("CLI: real pending legacy files block, preserve bytes and reveal no secrets or names", async () => {
   const root = await fixture();
-  const receipt = JSON.stringify({ schema: "paperclip/accounting-receipt/v1", id: grant, companyId: company,
-    runId: company, sourceId: company, sequence: 1, receivedAt: "2026-10-30T00:00:00.000Z", adapterType: "codex_local",
+  const receipt = JSON.stringify({ schema: "outpost/accounting-receipt/v1", id: grant, spaceId: space,
+    runId: space, sourceId: space, sequence: 1, receivedAt: "2026-10-30T00:00:00.000Z", adapterType: "codex_local",
     receipt: { complete: true, usage: { inputTokens: 1, outputTokens: 1 } } });
   const files = await Promise.all([
     write(root, `accounting-receipts/${grant}.json`, receipt),
-    write(root, `quota-credential-recovery/${company}/${grant}.json`, '{"ciphertext":"secret-token-must-never-appear"}'),
-    write(root, "data/sandbox-orphan-cleanup/secret-filename.json", JSON.stringify({ companyId: company,
-      environmentId: company, executionWorkspaceId: null, issueId: null, heartbeatRunId: null, provider: "daytona",
+    write(root, `quota-credential-recovery/${space}/${grant}.json`, '{"ciphertext":"secret-token-must-never-appear"}'),
+    write(root, "data/sandbox-orphan-cleanup/secret-filename.json", JSON.stringify({ spaceId: space,
+      environmentId: space, executionWorkspaceId: null, issueId: null, heartbeatRunId: null, provider: "daytona",
       providerLeaseId: "private-resource", metadata: {} })),
   ]);
   const before = await Promise.all(files.map(file => fs.readFile(file)));
@@ -83,7 +83,7 @@ test("CLI: real pending legacy files block, preserve bytes and reveal no secrets
 test("truncated, temporary, and unreadable files are unverified, never clear", async () => {
   const root = await fixture();
   await write(root, "accounting-receipts/truncated.json", '{"schema":');
-  const file = await write(root, `quota-credential-recovery/${company}/${grant}.json.probe`);
+  const file = await write(root, `quota-credential-recovery/${space}/${grant}.json.probe`);
   await fs.chmod(file, 0);
   const report = await inventoryRecoveryFiles({ instanceRoot: root });
   assert.equal(report.status, "blocked");
@@ -96,7 +96,7 @@ test("unknown nesting and symlinks block without traversing outside the chosen r
   await write(outside, "do-not-read.json");
   await fs.mkdir(path.join(root, "accounting-receipts"));
   await fs.symlink(outside, path.join(root, "accounting-receipts", "link"));
-  await fs.mkdir(path.join(root, "quota-credential-recovery", company, "unexpected"), { recursive: true });
+  await fs.mkdir(path.join(root, "quota-credential-recovery", space, "unexpected"), { recursive: true });
   const report = await inventoryRecoveryFiles({ instanceRoot: root });
   assert.equal(report.status, "unknown");
   assert.deepEqual(report.directories.map(s => s.unknownEntries), [1, 1, 0]);

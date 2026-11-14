@@ -77,7 +77,7 @@ export function isSuccessfulRunHandoffComment(text: string) {
 export function isSuccessfulRunHandoffEscalationComment(text: string) {
   const trimmed = text.trim();
   return trimmed === SUCCESSFUL_RUN_HANDOFF_EXHAUSTED_NOTICE_BODY
-    || /^(?:Outpost|Paperclip) exhausted the bounded successful-run handoff correction\b/i.test(trimmed);
+    || /^(?:Outpost|Outpost) exhausted the bounded successful-run handoff correction\b/i.test(trimmed);
 }
 
 export function successfulRunHandoffActivityTone(action: string) {

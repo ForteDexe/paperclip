@@ -4,14 +4,14 @@ import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
 import type {
-  PaperclipPluginManifestV1,
+  OutpostPluginManifestV1,
   PluginRecord,
 } from "../../../packages/shared/src/types/plugin.js";
 import { pollUntil } from "../api.js";
 import { createPreviewFixture } from "./external-plugin-fixture.js";
 import { identityWorker } from "./identity-support.js";
 export interface CustodyReceipt {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   operationId: string;
   version: number;
@@ -23,14 +23,14 @@ export interface CustodyState {
   ownerAgentId: string;
   receipts: CustodyReceipt[];
 }
-export function custodyManifest(key: string): PaperclipPluginManifestV1 {
+export function custodyManifest(key: string): OutpostPluginManifestV1 {
   return {
     id: key,
     apiVersion: 1,
     version: "0.1.0",
     displayName: "Owned instance custody fixture",
     description: "Disposable agent lifecycle custody boundary",
-    author: "Paperclip evaluation fixture",
+    author: "Outpost evaluation fixture",
     categories: ["automation"],
     capabilities: ["agents.lifecycle.manage", "api.routes.register"],
     agentLifecycle: true,
@@ -40,24 +40,24 @@ export function custodyManifest(key: string): PaperclipPluginManifestV1 {
         routeKey: "custody",
         method: "GET",
         path: "/custody",
-        auth: "board",
+        auth: "operator",
         capability: "api.routes.register",
-        companyResolution: { from: "query", key: "companyId" },
+        spaceResolution: { from: "query", key: "spaceId" },
       },
       {
         routeKey: "release",
         method: "POST",
         path: "/release",
-        auth: "board",
+        auth: "operator",
         capability: "api.routes.register",
-        companyResolution: { from: "query", key: "companyId" },
+        spaceResolution: { from: "query", key: "spaceId" },
       },
     ],
   };
 }
 export function custodyRoundtrip(
   input: unknown,
-  companyId: string,
+  spaceId: string,
   agentId: string,
   resumeOperationId: string,
   version: number,
@@ -69,7 +69,7 @@ export function custodyRoundtrip(
     Array.isArray(value.receipts) &&
     value.receipts.some(
       (row) =>
-        row?.companyId === companyId &&
+        row?.spaceId === spaceId &&
         row.agentId === agentId &&
         row.phase === "preparing" &&
         row.hadOwnedSecret === false &&
@@ -77,7 +77,7 @@ export function custodyRoundtrip(
     ) &&
     value.receipts.some(
       (row) =>
-        row?.companyId === companyId &&
+        row?.spaceId === spaceId &&
         row.agentId === agentId &&
         row.phase === "resuming" &&
         row.operationId === resumeOperationId &&
@@ -89,18 +89,18 @@ export function custodyRoundtrip(
 }
 export interface PublicCustodyAgent {
   id: string;
-  companyId: string;
+  spaceId: string;
   lifecycleState: string;
   lifecycleVersion?: number;
   lifecycleError?: string | null;
 }
 export function publicResumeCustodyReceipt(input: {
-  companyId: string; agentId: string; paused: PublicCustodyAgent;
+  spaceId: string; agentId: string; paused: PublicCustodyAgent;
   resumed: PublicCustodyAgent; ready: PublicCustodyAgent;
   before: CustodyState; after: CustodyState;
 }): CustodyReceipt | undefined {
-  const { companyId, agentId, paused, resumed, ready, before, after } = input;
-  const sameAgent = (agent: PublicCustodyAgent) => agent?.id === agentId && agent.companyId === companyId && !agent.lifecycleError;
+  const { spaceId, agentId, paused, resumed, ready, before, after } = input;
+  const sameAgent = (agent: PublicCustodyAgent) => agent?.id === agentId && agent.spaceId === spaceId && !agent.lifecycleError;
   if (!sameAgent(paused) || !sameAgent(resumed) || !sameAgent(ready)
     || paused.lifecycleState !== "paused" || !Number.isSafeInteger(paused.lifecycleVersion) || paused.lifecycleVersion! < 1 || !Number.isSafeInteger(paused.lifecycleVersion! + 2)) return;
   const version = paused.lifecycleVersion! + 1;
@@ -110,14 +110,14 @@ export function publicResumeCustodyReceipt(input: {
     || before?.ownerAgentId !== agentId || after?.ownerAgentId !== agentId
     || !Array.isArray(before.receipts) || !Array.isArray(after.receipts)
     || !isDeepStrictEqual(after.receipts.slice(0, before.receipts.length), before.receipts)
-    || after.receipts.some(row => !row || row.companyId !== companyId)) return;
+    || after.receipts.some(row => !row || row.spaceId !== spaceId)) return;
   const priorOperations = new Set(before.receipts.map(row => row.operationId));
   const receipts = after.receipts.filter(row => row.agentId === agentId && row.phase === "resuming" && !priorOperations.has(row.operationId));
   if (!receipts.length || receipts.some(row => typeof row.operationId !== "string" || !row.operationId
     || row.version !== version || row.hadOwnedSecret !== true || row.returnedOwnedSecret !== false)
     || new Set(receipts.map(row => row.operationId)).size !== 1) return;
   const receipt = receipts[0]!;
-  if (!custodyRoundtrip(after, companyId, agentId, receipt.operationId, receipt.version)) return;
+  if (!custodyRoundtrip(after, spaceId, agentId, receipt.operationId, receipt.version)) return;
   return receipt;
 }
 /** Vetted synthetic plugin uses the supported lifecycle result, not a private
@@ -130,7 +130,7 @@ export async function createInstanceCustody(
     seed = path.join(scaffold.packageRoot, "custody-input.private");
   let installedId: string | undefined, ownerAgentId: string | undefined;
   const apiPath = (route: string) =>
-    `/api/plugins/${installedId}/api/${route}?companyId=${ctx.input.fixtures.company.id}`;
+    `/api/plugins/${installedId}/api/${route}?spaceId=${ctx.input.fixtures.space.id}`;
   async function read() {
     return ctx.input.api.get<CustodyState>(apiPath("custody"));
   }
@@ -170,7 +170,7 @@ export async function createInstanceCustody(
         "../../../packages/plugins/sdk/dist/index.js",
         import.meta.url,
       ).href;
-    const worker = `import {definePlugin,runWorker} from ${JSON.stringify(sdk)};import {readFile} from 'node:fs/promises';const expected=await readFile(${JSON.stringify(seed)},'utf8');const company=${JSON.stringify(ctx.input.fixtures.company.id)},receipts=[];let ownerAgentId='',release=false;const plugin=definePlugin({async setup(){},async onHealth(){return {status:'ok'}},async onAgentLifecycle(input){if(input.companyId!==company)return {operationId:input.operationId,version:input.version,status:'complete'};if(!ownerAgentId&&input.phase==='preparing')ownerAgentId=input.agentId;const owned=input.agentId===ownerAgentId,hadOwnedSecret=input.instanceSecrets?.custody_probe===expected,returnedOwnedSecret=owned&&input.phase==='preparing';if(receipts.length>=64)throw new Error('Owned lifecycle receipt bound exceeded');receipts.push({companyId:input.companyId,agentId:input.agentId,operationId:input.operationId,version:input.version,phase:input.phase,hadOwnedSecret,returnedOwnedSecret});return {operationId:input.operationId,version:input.version,status:'complete',...(owned&&release?{instanceSecrets:{custody_probe:null}}:returnedOwnedSecret?{instanceSecrets:{custody_probe:expected}}:{})};},async onApiRequest(input){if(input.companyId!==company||input.actor.actorType!=='user')throw new Error('Owned custody board scope required');if(input.routeKey==='release'&&input.method==='POST')release=true;return {body:{ownerAgentId,receipts}}}});export default plugin;runWorker(plugin,import.meta.url);\n`;
+    const worker = `import {definePlugin,runWorker} from ${JSON.stringify(sdk)};import {readFile} from 'node:fs/promises';const expected=await readFile(${JSON.stringify(seed)},'utf8');const space=${JSON.stringify(ctx.input.fixtures.space.id)},receipts=[];let ownerAgentId='',release=false;const plugin=definePlugin({async setup(){},async onHealth(){return {status:'ok'}},async onAgentLifecycle(input){if(input.spaceId!==space)return {operationId:input.operationId,version:input.version,status:'complete'};if(!ownerAgentId&&input.phase==='preparing')ownerAgentId=input.agentId;const owned=input.agentId===ownerAgentId,hadOwnedSecret=input.instanceSecrets?.custody_probe===expected,returnedOwnedSecret=owned&&input.phase==='preparing';if(receipts.length>=64)throw new Error('Owned lifecycle receipt bound exceeded');receipts.push({spaceId:input.spaceId,agentId:input.agentId,operationId:input.operationId,version:input.version,phase:input.phase,hadOwnedSecret,returnedOwnedSecret});return {operationId:input.operationId,version:input.version,status:'complete',...(owned&&release?{instanceSecrets:{custody_probe:null}}:returnedOwnedSecret?{instanceSecrets:{custody_probe:expected}}:{})};},async onApiRequest(input){if(input.spaceId!==space||input.actor.actorType!=='user')throw new Error('Owned custody board scope required');if(input.routeKey==='release'&&input.method==='POST')release=true;return {body:{ownerAgentId,receipts}}}});export default plugin;runWorker(plugin,import.meta.url);\n`;
     await writeFile(
       path.join(scaffold.packageRoot, "dist/manifest.js"),
       `export default ${JSON.stringify(manifest)};\n`,
@@ -219,10 +219,10 @@ export async function createInstanceCustody(
         ]);
         return { ready, after };
       },
-      accept: ({ ready, after }) => Date.now() < resumeDeadlineAt && !!publicResumeCustodyReceipt({ companyId: ctx.input.fixtures.company.id, agentId: riley.id, paused, resumed, ready, before, after }),
+      accept: ({ ready, after }) => Date.now() < resumeDeadlineAt && !!publicResumeCustodyReceipt({ spaceId: ctx.input.fixtures.space.id, agentId: riley.id, paused, resumed, ready, before, after }),
       reject: ({ ready }) => ready.lifecycleError ? "Owned custody resume failed; diagnostic withheld" : undefined,
     });
-    const receipt = publicResumeCustodyReceipt({ companyId: ctx.input.fixtures.company.id, agentId: riley.id, paused, resumed, ...observed, before });
+    const receipt = publicResumeCustodyReceipt({ spaceId: ctx.input.fixtures.space.id, agentId: riley.id, paused, resumed, ...observed, before });
     if (Date.now() >= resumeDeadlineAt || !receipt) throw new Error("Actual public resume custody receipt is missing, late or unqualified");
     await rm(seed, { force: true });
     return {

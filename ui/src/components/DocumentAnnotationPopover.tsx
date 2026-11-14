@@ -3,7 +3,7 @@ import type { Agent, DocumentAnnotationThreadWithComments } from "@outpost/share
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { DocumentAnnotationTarget } from "@/api/document-annotations";
-import type { CompanyUserProfile } from "@/lib/company-members";
+import type { SpaceUserProfile } from "@/lib/space-members";
 import { useDocumentAnnotationMutations } from "@/hooks/useDocumentAnnotationMutations";
 import type { AnnotationAnchorRect, PendingAnchor } from "./DocumentAnnotationLayer";
 import { useCopyAnnotationLink, ThreadCard, truncate } from "./DocumentAnnotationPanel";
@@ -23,7 +23,7 @@ export interface DocumentAnnotationPopoverProps {
   onThreadCreated: (thread: DocumentAnnotationThreadWithComments) => void;
   newCommentDisabled?: boolean;
   agentMap?: ReadonlyMap<string, Pick<Agent, "id" | "name"> & Partial<Pick<Agent, "icon">>>;
-  userProfileMap?: ReadonlyMap<string, CompanyUserProfile>;
+  userProfileMap?: ReadonlyMap<string, SpaceUserProfile>;
 }
 
 export function DocumentAnnotationPopover(props: DocumentAnnotationPopoverProps) {

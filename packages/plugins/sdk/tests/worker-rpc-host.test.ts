@@ -35,7 +35,7 @@ describe("isWorkerEntrypoint", () => {
   });
 
   function createTempRoot(): string {
-    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-sdk-worker-"));
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-sdk-worker-"));
     tempRoots.push(tempRoot);
     return tempRoot;
   }
@@ -100,14 +100,14 @@ describe("worker resource lifecycle delivery", () => {
         config: {}, databaseNamespace: null,
       });
       expect(initialized).toMatchObject({ result: { supportedMethods: expect.arrayContaining(["resourceLifecycle"]) } });
-      expect(await call("resourceLifecycle", { id: "17", companyId: "company", resourceType: "project", resourceId: "project", action: "delete", createdAt: "2020-01-01T00:00:00Z" }))
+      expect(await call("resourceLifecycle", { id: "17", spaceId: "space", resourceType: "project", resourceId: "project", action: "delete", createdAt: "2020-01-01T00:00:00Z" }))
         .toMatchObject({ result: { eventId: "17", status: "retry" } });
     } finally { worker.stop(); lines.close(); stdin.destroy(); stdout.destroy(); }
   });
 });
 
 describe("worker performAction context", () => {
-  it("does not derive context companyId from caller params without host actor context", async () => {
+  it("does not derive context spaceId from caller params without host actor context", async () => {
     const hostToWorker = new PassThrough();
     const workerToHost = new PassThrough();
     const hostReadline = createInterface({ input: workerToHost });
@@ -116,9 +116,9 @@ describe("worker performAction context", () => {
     const plugin = definePlugin({
       async setup(ctx) {
         ctx.actions.register("inspect", async (params, context) => ({
-          paramsCompanyId: params.companyId,
+          paramsSpaceId: params.spaceId,
           actor: context.actor,
-          companyId: context.companyId,
+          spaceId: context.spaceId,
         }));
       },
     });
@@ -158,7 +158,7 @@ describe("worker performAction context", () => {
           version: "1.0.0",
           displayName: "Worker Context Test",
           description: "Test plugin",
-          author: "Paperclip",
+          author: "Outpost",
           categories: ["automation"],
           capabilities: [],
           entrypoints: {},
@@ -169,17 +169,17 @@ describe("worker performAction context", () => {
 
       await expect(callWorker("performAction", {
         key: "inspect",
-        params: { companyId: "spoofed-company" },
+        params: { spaceId: "spoofed-space" },
       })).resolves.toEqual({
-        paramsCompanyId: "spoofed-company",
+        paramsSpaceId: "spoofed-space",
         actor: {
           type: "system",
           userId: null,
           agentId: null,
           runId: null,
-          companyId: null,
+          spaceId: null,
         },
-        companyId: null,
+        spaceId: null,
       });
     } finally {
       worker.stop();
@@ -191,17 +191,17 @@ describe("worker performAction context", () => {
 });
 
 describe("worker invocation scope propagation", () => {
-  it("keeps overlapping company scopes local to each getData invocation", async () => {
+  it("keeps overlapping space scopes local to each getData invocation", async () => {
     const hostToWorker = new PassThrough();
     const workerToHost = new PassThrough();
     const hostReadline = createInterface({ input: workerToHost });
     const pending = new Map<string, (response: JsonRpcResponse) => void>();
     const nestedInvocationIds: string[] = [];
-    const invocationCompanies = new Map([
-      ["invocation-a", "company-a"],
-      ["invocation-b", "company-b"],
+    const invocationSpaces = new Map([
+      ["invocation-a", "space-a"],
+      ["invocation-b", "space-b"],
     ]);
-    let releaseCompanyA: (() => void) | null = null;
+    let releaseSpaceA: (() => void) | null = null;
     let nextRequestId = 1;
 
     const plugin = definePlugin({
@@ -209,11 +209,11 @@ describe("worker invocation scope propagation", () => {
         ctx.data.register("probe", async (params) => {
           if (params.label === "a") {
             await new Promise<void>((resolve) => {
-              releaseCompanyA = resolve;
+              releaseSpaceA = resolve;
             });
           }
-          const company = await ctx.companies.get(String(params.requestedCompanyId));
-          return { label: params.label, company };
+          const space = await ctx.spaces.get(String(params.requestedSpaceId));
+          return { label: params.label, space };
         });
       },
     });
@@ -228,7 +228,7 @@ describe("worker invocation scope propagation", () => {
       const id = `host-${nextRequestId++}`;
       const request = {
         ...createRequest(method, params, id),
-        ...(invocation ? { paperclipInvocation: invocation } : {}),
+        ...(invocation ? { outpostInvocation: invocation } : {}),
       };
       const result = new Promise<unknown>((resolve, reject) => {
         pending.set(id, (response) => {
@@ -252,27 +252,27 @@ describe("worker invocation scope propagation", () => {
       }
 
       if (!isJsonRpcRequest(message)) return;
-      if (message.method !== "companies.get") return;
+      if (message.method !== "spaces.get") return;
 
-      const invocationId = (message as { paperclipInvocationId?: string }).paperclipInvocationId ?? "";
-      const requestedCompanyId = (message.params as { companyId?: string }).companyId;
-      const allowedCompanyId = invocationCompanies.get(invocationId);
+      const invocationId = (message as { outpostInvocationId?: string }).outpostInvocationId ?? "";
+      const requestedSpaceId = (message.params as { spaceId?: string }).spaceId;
+      const allowedSpaceId = invocationSpaces.get(invocationId);
       nestedInvocationIds.push(invocationId);
-      if (requestedCompanyId !== allowedCompanyId) {
+      if (requestedSpaceId !== allowedSpaceId) {
         hostToWorker.write(serializeMessage(createErrorResponse(
           message.id,
           PLUGIN_RPC_ERROR_CODES.CAPABILITY_DENIED,
-          `requested company "${requestedCompanyId}" but invocation "${invocationId}" is scoped to "${allowedCompanyId}"`,
+          `requested space "${requestedSpaceId}" but invocation "${invocationId}" is scoped to "${allowedSpaceId}"`,
         )));
         return;
       }
 
       hostToWorker.write(serializeMessage(createSuccessResponse(message.id, {
-        id: requestedCompanyId,
+        id: requestedSpaceId,
       })));
 
       if (invocationId === "invocation-b") {
-        releaseCompanyA?.();
+        releaseSpaceA?.();
       }
     });
 
@@ -284,9 +284,9 @@ describe("worker invocation scope propagation", () => {
           version: "1.0.0",
           displayName: "Scope test",
           description: "Scope test",
-          author: "Paperclip",
+          author: "Outpost",
           categories: ["automation"],
-          capabilities: ["companies.read"],
+          capabilities: ["spaces.read"],
           entrypoints: { worker: "dist/worker.js" },
         },
         config: {},
@@ -294,33 +294,33 @@ describe("worker invocation scope propagation", () => {
         apiVersion: 1,
       });
 
-      const companyARequest = callWorker(
+      const spaceARequest = callWorker(
         "getData",
         {
           key: "probe",
-          companyId: "company-a",
-          params: { label: "a", requestedCompanyId: "company-b" },
+          spaceId: "space-a",
+          params: { label: "a", requestedSpaceId: "space-b" },
         },
-        { id: "invocation-a", scope: { companyId: "company-a" } },
+        { id: "invocation-a", scope: { spaceId: "space-a" } },
       );
-      const companyAExpectation = expect(companyARequest).rejects.toThrow(
-        /requested company "company-b"/,
+      const spaceAExpectation = expect(spaceARequest).rejects.toThrow(
+        /requested space "space-b"/,
       );
-      const companyBRequest = callWorker(
+      const spaceBRequest = callWorker(
         "getData",
         {
           key: "probe",
-          companyId: "company-b",
-          params: { label: "b", requestedCompanyId: "company-b" },
+          spaceId: "space-b",
+          params: { label: "b", requestedSpaceId: "space-b" },
         },
-        { id: "invocation-b", scope: { companyId: "company-b" } },
+        { id: "invocation-b", scope: { spaceId: "space-b" } },
       );
 
-      await expect(companyBRequest).resolves.toEqual({
+      await expect(spaceBRequest).resolves.toEqual({
         label: "b",
-        company: { id: "company-b" },
+        space: { id: "space-b" },
       });
-      await companyAExpectation;
+      await spaceAExpectation;
 
       expect(nestedInvocationIds).toEqual(["invocation-b", "invocation-a"]);
     } finally {
@@ -383,7 +383,7 @@ describe("worker configChanged cross-tenant guard", () => {
           version: "1.0.0",
           displayName: "Config Guard Test",
           description: "Test plugin",
-          author: "Paperclip",
+          author: "Outpost",
           categories: ["automation"],
           capabilities: [],
           entrypoints: {},
@@ -404,7 +404,7 @@ describe("worker configChanged cross-tenant guard", () => {
   }
 
   it.each([false, true])("advertises a fixed login credential read only with an explicit hook: %s", async supported => {
-    const params = { driverKey: "computer", companyId: "company", environmentId: "environment", providerLeaseId: "login", loginCommandKey: "codex" as const };
+    const params = { driverKey: "computer", spaceId: "space", environmentId: "environment", providerLeaseId: "login", loginCommandKey: "codex" as const };
     const worker = makeWorker(definePlugin({
       async setup() {},
       ...(supported ? { async onLoginPtyReadCredential(input: typeof params) {
@@ -429,7 +429,7 @@ describe("worker configChanged cross-tenant guard", () => {
     try {
       const initialized = await worker.initialize() as { supportedMethods: string[] };
       expect(initialized.supportedMethods.includes("environmentStopLease")).toBe(supported);
-      const stopped = worker.callWorker("environmentStopLease", { driverKey: "fixture", companyId: "company", environmentId: "environment", providerLeaseId: "allocation", config: {} });
+      const stopped = worker.callWorker("environmentStopLease", { driverKey: "fixture", spaceId: "space", environmentId: "environment", providerLeaseId: "allocation", config: {} });
       if (supported) await expect(stopped).resolves.toEqual({ providerLeaseId: "allocation", state: "stopped" });
       else await expect(stopped).rejects.toThrow();
       expect(stops).toBe(supported ? 1 : 0);
@@ -445,7 +445,7 @@ describe("worker configChanged cross-tenant guard", () => {
     }));
     try {
       await worker.initialize();
-      const error = await worker.callWorker("environmentStopLease", { driverKey: "fixture", companyId: "company",
+      const error = await worker.callWorker("environmentStopLease", { driverKey: "fixture", spaceId: "space",
         environmentId: "environment", providerLeaseId: "allocation", config: {} }).catch((caught: unknown) => caught);
       expect(readEnvironmentStopFailure(error)).toEqual(typed ? { reason: "resource_unrecoverable", terminal: true } : null);
       expect(JSON.stringify((error as { data?: unknown }).data ?? null)).not.toContain("private");
@@ -462,7 +462,7 @@ describe("worker configChanged cross-tenant guard", () => {
     try {
       const initialized = await worker.initialize() as { supportedMethods: string[] };
       expect(initialized.supportedMethods.includes("environmentInspectLease")).toBe(supported);
-      const result = worker.callWorker("environmentInspectLease", { driverKey: "fixture", companyId: "company", environmentId: "environment", providerLeaseId: "allocation", config: {} });
+      const result = worker.callWorker("environmentInspectLease", { driverKey: "fixture", spaceId: "space", environmentId: "environment", providerLeaseId: "allocation", config: {} });
       if (supported) await expect(result).resolves.toEqual({ providerLeaseId: "allocation", state: "destroyed" });
       else await expect(result).rejects.toThrow();
       expect(inspections).toBe(supported ? 1 : 0);
@@ -470,13 +470,13 @@ describe("worker configChanged cross-tenant guard", () => {
     } finally { worker.stop(); }
   });
 
-  it("fails closed when a second, distinct company's config would overwrite a single-tenant worker", async () => {
-    const applied: Array<{ companyId: string | null; token: unknown }> = [];
+  it("fails closed when a second, distinct space's config would overwrite a single-tenant worker", async () => {
+    const applied: Array<{ spaceId: string | null; token: unknown }> = [];
     const plugin = definePlugin({
       async setup() {},
       async onConfigChanged(newConfig, context) {
         applied.push({
-          companyId: context?.companyId ?? null,
+          spaceId: context?.spaceId ?? null,
           token: newConfig.slackBotToken,
         });
       },
@@ -486,30 +486,30 @@ describe("worker configChanged cross-tenant guard", () => {
     try {
       await initialize();
 
-      // Company A's config is delivered first (deterministic ORDER BY companyId
+      // Space A's config is delivered first (deterministic ORDER BY spaceId
       // in the loader) and applied.
       await expect(
         callWorker("configChanged", {
-          config: { companyId: "company-a", slackBotToken: "xoxb-A" },
-          companyId: "company-a",
+          config: { spaceId: "space-a", slackBotToken: "xoxb-A" },
+          spaceId: "space-a",
         }),
       ).resolves.toBeNull();
 
-      // Company B's *distinct* config must be rejected rather than silently
+      // Space B's *distinct* config must be rejected rather than silently
       // collapsing the single worker onto B's bot token (the vulnerability).
       await expect(
         callWorker("configChanged", {
-          config: { companyId: "company-b", slackBotToken: "xoxb-B" },
-          companyId: "company-b",
+          config: { spaceId: "space-b", slackBotToken: "xoxb-B" },
+          spaceId: "space-b",
         }),
       ).rejects.toMatchObject({
         code: PLUGIN_RPC_ERROR_CODES.CROSS_TENANT_CONFIG,
       });
 
-      // The worker stayed bound to company A; company B never reached the
+      // The worker stayed bound to space A; space B never reached the
       // plugin. Against the pre-fix code this array would be
-      // [company-a, company-b] (last-write-wins collapse).
-      expect(applied).toEqual([{ companyId: "company-a", token: "xoxb-A" }]);
+      // [space-a, space-b] (last-write-wins collapse).
+      expect(applied).toEqual([{ spaceId: "space-a", token: "xoxb-A" }]);
     } finally {
       stop();
     }
@@ -517,29 +517,29 @@ describe("worker configChanged cross-tenant guard", () => {
 
   it("allows an idempotent replay of the same config under a different scope row", async () => {
     // Mirrors the live single-tenant gateway: several plugin_config rows keyed
-    // by distinct row companyIds but all embedding the same config. Replaying
+    // by distinct row spaceIds but all embedding the same config. Replaying
     // them must be a no-op, not a fail-closed rejection.
     const appliedScopes: Array<string | null> = [];
     const plugin = definePlugin({
       async setup() {},
       async onConfigChanged(_newConfig, context) {
-        appliedScopes.push(context?.companyId ?? null);
+        appliedScopes.push(context?.spaceId ?? null);
       },
     });
     const { callWorker, initialize, stop } = makeWorker(plugin);
 
     try {
       await initialize();
-      const embedded = { companyId: "company-a", slackBotToken: "xoxb-A" };
+      const embedded = { spaceId: "space-a", slackBotToken: "xoxb-A" };
 
       await callWorker("configChanged", {
         config: { ...embedded },
-        companyId: "row-scope-1",
+        spaceId: "row-scope-1",
       });
       await expect(
         callWorker("configChanged", {
           config: { ...embedded },
-          companyId: "row-scope-2",
+          spaceId: "row-scope-2",
         }),
       ).resolves.toBeNull();
 
@@ -549,14 +549,14 @@ describe("worker configChanged cross-tenant guard", () => {
     }
   });
 
-  it("threads per-company config to a plugin that opts into multiCompanyConfig", async () => {
-    const applied: Array<{ companyId: string | null; token: unknown }> = [];
+  it("threads per-space config to a plugin that opts into multiSpaceConfig", async () => {
+    const applied: Array<{ spaceId: string | null; token: unknown }> = [];
     const plugin = definePlugin({
-      multiCompanyConfig: true,
+      multiSpaceConfig: true,
       async setup() {},
       async onConfigChanged(newConfig, context) {
         applied.push({
-          companyId: context?.companyId ?? null,
+          spaceId: context?.spaceId ?? null,
           token: newConfig.slackBotToken,
         });
       },
@@ -567,20 +567,20 @@ describe("worker configChanged cross-tenant guard", () => {
       await initialize();
 
       await callWorker("configChanged", {
-        config: { companyId: "company-a", slackBotToken: "xoxb-A" },
-        companyId: "company-a",
+        config: { spaceId: "space-a", slackBotToken: "xoxb-A" },
+        spaceId: "space-a",
       });
       await expect(
         callWorker("configChanged", {
-          config: { companyId: "company-b", slackBotToken: "xoxb-B" },
-          companyId: "company-b",
+          config: { spaceId: "space-b", slackBotToken: "xoxb-B" },
+          spaceId: "space-b",
         }),
       ).resolves.toBeNull();
 
-      // Both companies' configs delivered, each tagged with its own scope.
+      // Both spaces' configs delivered, each tagged with its own scope.
       expect(applied).toEqual([
-        { companyId: "company-a", token: "xoxb-A" },
-        { companyId: "company-b", token: "xoxb-B" },
+        { spaceId: "space-a", token: "xoxb-A" },
+        { spaceId: "space-b", token: "xoxb-B" },
       ]);
     } finally {
       stop();
@@ -632,7 +632,7 @@ describe("worker provider tracer", () => {
       const id = `host-${nextRequestId++}`;
       const request = {
         ...createRequest(method, params, id),
-        ...(inv ? { paperclipInvocation: inv } : {}),
+        ...(inv ? { outpostInvocation: inv } : {}),
       };
       const result = new Promise<unknown>((resolve, reject) => {
         pending.set(id, (response) => {
@@ -658,7 +658,7 @@ describe("worker provider tracer", () => {
       if (message.method === "span.record") {
         spanRecords.push({
           params: message.params,
-          invocationId: (message as { paperclipInvocationId?: string }).paperclipInvocationId,
+          invocationId: (message as { outpostInvocationId?: string }).outpostInvocationId,
         });
         hostToWorker.write(serializeMessage(createSuccessResponse(message.id, null)));
       }
@@ -672,7 +672,7 @@ describe("worker provider tracer", () => {
           version: "1.0.0",
           displayName: "Tracer test",
           description: "Tracer test",
-          author: "Paperclip",
+          author: "Outpost",
           categories: ["automation"],
           capabilities,
           entrypoints: { worker: "dist/worker.js" },
@@ -681,7 +681,7 @@ describe("worker provider tracer", () => {
         instanceInfo: { instanceId: "test", hostVersion: "0.0.0" },
         apiVersion: 1,
       });
-      await callWorker("getData", { key: "probe", companyId: "company-a", params: {} }, invocation);
+      await callWorker("getData", { key: "probe", spaceId: "space-a", params: {} }, invocation);
       // Let the fire-and-forget span.record flush.
       await new Promise((resolve) => setTimeout(resolve, 20));
       return spanRecords;
@@ -696,7 +696,7 @@ describe("worker provider tracer", () => {
   it("emits one span.record with the name and attributes when a host trace context is active", async () => {
     const spanRecords = await runSpanProbe({
       id: "invocation-a",
-      scope: { companyId: "company-a" },
+      scope: { spaceId: "space-a" },
       traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
     });
     expect(spanRecords).toHaveLength(1);
@@ -715,7 +715,7 @@ describe("worker provider tracer", () => {
   it("sends a finite startTimeMs and endTimeMs with endTimeMs >= startTimeMs", async () => {
     const spanRecords = await runSpanProbe({
       id: "invocation-a",
-      scope: { companyId: "company-a" },
+      scope: { spaceId: "space-a" },
       traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
     });
     expect(spanRecords).toHaveLength(1);
@@ -729,19 +729,19 @@ describe("worker provider tracer", () => {
   });
 
   it("never falls back to per-span IPC after the legacy span budget is exhausted",async()=>{
-    const records=await runSpanProbe({id:"bounded",scope:{companyId:"company-a"},traceparent:"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"},300);
+    const records=await runSpanProbe({id:"bounded",scope:{spaceId:"space-a"},traceparent:"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"},300);
     expect(records).toHaveLength(1);
     expect((records[0].params as {children:unknown[]}).children).toHaveLength(255);
   });
 
-  it.each([{ capabilities: [] }, { capabilities: ["companies.read"] }])("does not collect automatic or legacy receipts without a permitted capability: $capabilities", async ({ capabilities }) => {
-    const records = await runSpanProbe({ id: "not-permitted", scope: { companyId: "company-a" },
+  it.each([{ capabilities: [] }, { capabilities: ["spaces.read"] }])("does not collect automatic or legacy receipts without a permitted capability: $capabilities", async ({ capabilities }) => {
+    const records = await runSpanProbe({ id: "not-permitted", scope: { spaceId: "space-a" },
       traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01" }, 1, capabilities);
     expect(records).toEqual([]);
   });
 
   it("collects receipts for workspace providers without environment-driver permission", async () => {
-    const records = await runSpanProbe({ id: "workspace", scope: { companyId: "company-a" },
+    const records = await runSpanProbe({ id: "workspace", scope: { spaceId: "space-a" },
       traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01" }, 1, ["workspaces.manage"]);
     expect(records).toHaveLength(1);
     expect(records[0].params).toMatchObject({ name: "plugin.worker", children: [{ name: "pack" }] });
@@ -750,7 +750,7 @@ describe("worker provider tracer", () => {
   it("emits no span.record when the invocation carries no traceparent (tracing off)", async () => {
     const spanRecords = await runSpanProbe({
       id: "invocation-a",
-      scope: { companyId: "company-a" },
+      scope: { spaceId: "space-a" },
     });
     expect(spanRecords).toHaveLength(0);
   });
@@ -787,7 +787,7 @@ describe("worker execute.log emitter", () => {
       const id = `host-${nextRequestId++}`;
       const request = {
         ...createRequest(method, params, id),
-        ...(inv ? { paperclipInvocation: inv } : {}),
+        ...(inv ? { outpostInvocation: inv } : {}),
       };
       const result = new Promise<unknown>((resolve, reject) => {
         pending.set(id, (response) => {
@@ -814,7 +814,7 @@ describe("worker execute.log emitter", () => {
       if ((message as { method?: string }).method === "execute.log") {
         logRecords.push({
           params: (message as { params?: unknown }).params,
-          invocationId: (message as { paperclipInvocationId?: string }).paperclipInvocationId,
+          invocationId: (message as { outpostInvocationId?: string }).outpostInvocationId,
         });
       }
     });
@@ -827,7 +827,7 @@ describe("worker execute.log emitter", () => {
           version: "1.0.0",
           displayName: "Execute log test",
           description: "Execute log test",
-          author: "Paperclip",
+          author: "Outpost",
           categories: ["automation"],
           capabilities: ["environment.drivers.register"],
           entrypoints: { worker: "dist/worker.js" },
@@ -836,7 +836,7 @@ describe("worker execute.log emitter", () => {
         instanceInfo: { instanceId: "test", hostVersion: "0.0.0" },
         apiVersion: 1,
       });
-      await callWorker("getData", { key: "emit-logs", companyId: "company-a", params: {} }, invocation);
+      await callWorker("getData", { key: "emit-logs", spaceId: "space-a", params: {} }, invocation);
       // Let the fire-and-forget execute.log notifications flush.
       await new Promise((resolve) => setTimeout(resolve, 20));
       return logRecords;
@@ -850,7 +850,7 @@ describe("worker execute.log emitter", () => {
 
   it("stamps the active invocation id on each execute.log notification", async () => {
     const records = await runExecuteLogProbe(
-      { id: "invocation-a", scope: { companyId: "company-a" } },
+      { id: "invocation-a", scope: { spaceId: "space-a" } },
       [
         { stream: "stdout", chunk: "one" },
         { stream: "stderr", chunk: "two" },
@@ -869,7 +869,7 @@ describe("worker execute.log emitter", () => {
 
   it("drops an empty chunk before it reaches the host", async () => {
     const records = await runExecuteLogProbe(
-      { id: "invocation-a", scope: { companyId: "company-a" } },
+      { id: "invocation-a", scope: { spaceId: "space-a" } },
       [
         { stream: "stdout", chunk: "" },
         { stream: "stdout", chunk: "kept" },
@@ -911,7 +911,7 @@ describe("worker setup-token pseudo-terminal dispatch", () => {
         expect(params.hostRouteId).toBe("route-1");
         expect(params.loginCommandKey).toBe("claude");
         expect(params.sessionHome).toBe(
-          "/tmp/paperclip-adapter-login/11111111-2222-4333-8444-555555555555",
+          "/tmp/outpost-adapter-login/11111111-2222-4333-8444-555555555555",
         );
         expect(params.providerLeaseId).toBe("lease-1");
         return { workerSessionId: "ws-1" };
@@ -972,7 +972,7 @@ describe("worker setup-token pseudo-terminal dispatch", () => {
             version: "1.0.0",
             displayName: "Login PTY Test",
             description: "Test plugin",
-            author: "Paperclip",
+            author: "Outpost",
             categories: ["automation"],
             capabilities: [],
             entrypoints: {},
@@ -994,11 +994,11 @@ describe("worker setup-token pseudo-terminal dispatch", () => {
         callWorker("loginPtyOpen", {
           hostRouteId: "route-1",
           driverKey: "daytona",
-          companyId: "company-1",
+          spaceId: "space-1",
           environmentId: "env-1",
           providerLeaseId: "lease-1",
           loginCommandKey: "claude",
-          sessionHome: "/tmp/paperclip-adapter-login/11111111-2222-4333-8444-555555555555",
+          sessionHome: "/tmp/outpost-adapter-login/11111111-2222-4333-8444-555555555555",
         }),
       ).resolves.toEqual({ workerSessionId: "ws-1" });
 
@@ -1054,7 +1054,7 @@ describe("worker duplex channel dispatch", () => {
       async setup() {},
       async onDuplexChannelOpen(params) {
         expect(params.hostRouteId).toBe("route-1");
-        expect(params.command).toEqual(["paperclip-bridge"]);
+        expect(params.command).toEqual(["outpost-bridge"]);
         expect(params.providerLeaseId).toBe("lease-1");
         return { hostRouteId: params.hostRouteId, workerSessionId: "ws-1" };
       },
@@ -1108,7 +1108,7 @@ describe("worker duplex channel dispatch", () => {
             version: "1.0.0",
             displayName: "Duplex Channel Test",
             description: "Test plugin",
-            author: "Paperclip",
+            author: "Outpost",
             categories: ["automation"],
             capabilities: [],
             entrypoints: {},
@@ -1130,10 +1130,10 @@ describe("worker duplex channel dispatch", () => {
         callWorker("duplexChannelOpen", {
           hostRouteId: "route-1",
           driverKey: "daytona",
-          companyId: "company-1",
+          spaceId: "space-1",
           environmentId: "env-1",
           providerLeaseId: "lease-1",
-          command: ["paperclip-bridge"],
+          command: ["outpost-bridge"],
         }),
       ).resolves.toEqual({ hostRouteId: "route-1", workerSessionId: "ws-1" });
 
@@ -1203,7 +1203,7 @@ describe("worker duplex channel dispatch", () => {
           version: "1.0.0",
           displayName: "Bare Test",
           description: "Test plugin",
-          author: "Paperclip",
+          author: "Outpost",
           categories: ["automation"],
           capabilities: [],
           entrypoints: {},
@@ -1228,7 +1228,7 @@ describe("AI connection router RPC", () => {
   it("advertises and calls only an implemented routing hook", async () => {
     const input = new PassThrough(), output = new PassThrough();
     const reader = createInterface({ input: output });
-    const request = { companyId: "company", taskKey: "task", candidates: [], memberOrder: [] };
+    const request = { spaceId: "space", taskKey: "task", candidates: [], memberOrder: [] };
     let received: unknown;
     const plugin = definePlugin({ async setup() {}, async onRouteAiConnection(params) { received = params; return { kind: "selected", memberId: "authorized-member" }; } });
     const worker = startWorkerRpcHost({ plugin, stdin: input, stdout: output });
@@ -1246,17 +1246,17 @@ describe("AI connection router RPC", () => {
 });
 
 describe("Durable lifecycle inbox RPC", () => {
-  it("sends company-scoped reads and acknowledgments through the worker SDK", async () => {
+  it("sends space-scoped reads and acknowledgments through the worker SDK", async () => {
     const input = new PassThrough(), output = new PassThrough();
     const reader = createInterface({ input: output });
     const calls: Array<{ method: string; params: unknown }> = [];
-    const event = { id: "7", companyId: "company-a", resourceType: "agent", resourceId: "agent-a", action: "pause", createdAt: new Date(0).toISOString() };
+    const event = { id: "7", spaceId: "space-a", resourceType: "agent", resourceId: "agent-a", action: "pause", createdAt: new Date(0).toISOString() };
     const plugin = definePlugin({ async setup(ctx) {
-      ctx.data.register("drain", async ({ companyId }) => {
-        if (typeof companyId !== "string") throw new Error("companyId is required");
-        const events = await ctx.events.listLifecycle(companyId, 10, "6");
-        await ctx.events.acknowledgeLifecycle(companyId, events[0].id);
-        await ctx.agents.getRuntime("agent-a", companyId, "environment-a", true);
+      ctx.data.register("drain", async ({ spaceId }) => {
+        if (typeof spaceId !== "string") throw new Error("spaceId is required");
+        const events = await ctx.events.listLifecycle(spaceId, 10, "6");
+        await ctx.events.acknowledgeLifecycle(spaceId, events[0].id);
+        await ctx.agents.getRuntime("agent-a", spaceId, "environment-a", true);
         return events;
       });
     } });
@@ -1280,11 +1280,11 @@ describe("Durable lifecycle inbox RPC", () => {
     });
     try {
       await call("initialize", { manifest: { id: "fixture.lifecycle", apiVersion: 1, version: "1.0.0", displayName: "Lifecycle", description: "Fixture", author: "Tests", categories: ["automation"], capabilities: ["events.subscribe", "agents.lifecycle.manage"], entrypoints: {} }, config: {}, databaseNamespace: null });
-      expect((await call("getData", { key: "drain", companyId: "company-a", params: {} }) as { result: unknown }).result).toEqual([event]);
+      expect((await call("getData", { key: "drain", spaceId: "space-a", params: {} }) as { result: unknown }).result).toEqual([event]);
       expect(calls).toEqual([
-        { method: "events.listLifecycle", params: { companyId: "company-a", limit: 10, afterId: "6" } },
-        { method: "events.acknowledgeLifecycle", params: { companyId: "company-a", eventId: "7" } },
-        { method: "agents.getRuntime", params: { companyId: "company-a", agentId: "agent-a", environmentId: "environment-a", installEnvironmentSkills: true } },
+        { method: "events.listLifecycle", params: { spaceId: "space-a", limit: 10, afterId: "6" } },
+        { method: "events.acknowledgeLifecycle", params: { spaceId: "space-a", eventId: "7" } },
+        { method: "agents.getRuntime", params: { spaceId: "space-a", agentId: "agent-a", environmentId: "environment-a", installEnvironmentSkills: true } },
       ]);
     } finally { worker.stop(); reader.close(); input.destroy(); output.destroy(); }
   });

@@ -22,7 +22,7 @@ export interface AntigravityJourneyFlowInput {
 
 export async function captureAntigravityAgentDraft(page: Page, resources: AntigravityJourneyResources,
   persistResources: () => Promise<void>, submit: () => Promise<void>, expectedCreatorUserId: string): Promise<Row> {
-  const matches = (url: URL) => /^\/api\/companies\/[^/]+\/agents$/u.test(url.pathname);
+  const matches = (url: URL) => /^\/api\/spaces\/[^/]+\/agents$/u.test(url.pathname);
   let captured: Request | undefined;
   let rejectRoute!: (error: unknown) => void;
   const routeFailure = new Promise<never>((_resolve, reject) => { rejectRoute = reject; });
@@ -33,12 +33,12 @@ export async function captureAntigravityAgentDraft(page: Page, resources: Antigr
       const url = new URL(request.url());
       let body: Row;
       try { body = request.postDataJSON(); } catch { throw new ConnectionFailure("agent_creation_request_mismatch"); }
-      if (captured || url.origin !== resources.origin || url.pathname !== `/api/companies/${resources.companyId}/agents`
+      if (captured || url.origin !== resources.origin || url.pathname !== `/api/spaces/${resources.spaceId}/agents`
         || !body || typeof body !== "object" || Array.isArray(body) || body.name !== resources.agentName
         || typeof body.setupId !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(body.setupId)
         || typeof expectedCreatorUserId !== "string" || !expectedCreatorUserId)
         throw new ConnectionFailure("agent_creation_request_mismatch");
-      const witness = { setupId: body.setupId, companyId: resources.companyId, agentName: resources.agentName,
+      const witness = { setupId: body.setupId, spaceId: resources.spaceId, agentName: resources.agentName,
         provider: "antigravity" as const, creatorUserId: expectedCreatorUserId, origin: resources.origin };
       if ((resources.agentId && resources.agentId !== witness.setupId) || (resources.agentCreationRequest
         && Object.entries(witness).some(([key, value]) => resources.agentCreationRequest![key as keyof typeof witness] !== value)))
@@ -66,7 +66,7 @@ export async function captureAntigravityAgentDraft(page: Page, resources: Antigr
     if (!created.ok()) throw new ConnectionFailure("agent_draft_creation_failed");
     const draft = await created.json();
     if (!draft || typeof draft !== "object" || Array.isArray(draft) || !resources.agentCreationRequest || draft.id !== resources.agentCreationRequest.setupId
-      || draft.companyId !== resources.companyId || draft.name !== resources.agentName || draft.createdByUserId !== expectedCreatorUserId)
+      || draft.spaceId !== resources.spaceId || draft.name !== resources.agentName || draft.createdByUserId !== expectedCreatorUserId)
       throw new ConnectionFailure("agent_creation_receipt_mismatch");
     return draft;
   } catch (error) { primary = error; throw error; }
@@ -81,13 +81,13 @@ export async function captureAntigravityAgentDraft(page: Page, resources: Antigr
 
 export async function runAntigravityJourneyFlow(input: AntigravityJourneyFlowInput) {
   const { page, api, config, prepared, resources, evidence } = input;
-  const { company, connection, environment } = prepared;
+  const { space, connection, environment } = prepared;
   const marker = `ANTIGRAVITY-INSTRUCTION-${randomUUID()}`;
   const followupMarker = `ANTIGRAVITY-FOLLOWUP-${randomUUID()}`;
   const firstBytes = Buffer.from(`${marker}\n`), followupBytes = Buffer.from(`${marker}\n${followupMarker}\n`);
   const checkpoint = async (id: keyof AntigravityJourneyEvidence["checkpoints"]) => { input.assertActive(); await input.checkpoint(id, page); };
-  if (!/^[A-Za-z0-9]+$/.test(company.issuePrefix)) throw new ConnectionFailure("invalid_journey_company_prefix");
-  const dashboard = `/${company.issuePrefix}/dashboard`;
+  if (!/^[A-Za-z0-9]+$/.test(space.issuePrefix)) throw new ConnectionFailure("invalid_journey_space_prefix");
+  const dashboard = `/${space.issuePrefix}/dashboard`;
   await input.phase("agent_navigation");
   await page.goto(`${api.origin}${dashboard}`);
   await page.waitForURL(url => url.origin === api.origin && url.pathname === dashboard);
@@ -129,16 +129,16 @@ export async function runAntigravityJourneyFlow(input: AntigravityJourneyFlowInp
   if (selectedEnvironment && selectedEnvironment !== environment.id) throw new ConnectionFailure("ui_environment_mismatch");
   await checkpoint("exact_model");
   await input.phase("setup_probe");
-  const beforeProbe = await api.get<Row[]>(`/api/companies/${company.id}/heartbeat-runs?agentId=${draft.id}&limit=100`);
+  const beforeProbe = await api.get<Row[]>(`/api/spaces/${space.id}/heartbeat-runs?agentId=${draft.id}&limit=100`);
   if (beforeProbe.length) throw new ConnectionFailure("new_agent_already_has_runs");
   const probeResponse = page.waitForResponse(response => response.request().method() === "POST"
-    && new URL(response.url()).pathname === `/api/companies/${company.id}/adapters/outpost_runner/test-environment`, { timeout: 120_000 });
+    && new URL(response.url()).pathname === `/api/spaces/${space.id}/adapters/outpost_runner/test-environment`, { timeout: 120_000 });
   resources.setupProbe = "pending";
   await input.persistResources();
   await page.getByRole("button", { name: "Run test", exact: true }).click();
   const probe = await probeResponse, result = await probe.json();
   if (!probe.ok() || result.status !== "pass" || !result.checks?.some((check: Row) => check.code === "antigravity_metadata_verified" && check.level === "info")
-    || (await api.get<Row[]>(`/api/companies/${company.id}/heartbeat-runs?agentId=${draft.id}&limit=100`)).length)
+    || (await api.get<Row[]>(`/api/spaces/${space.id}/heartbeat-runs?agentId=${draft.id}&limit=100`)).length)
     throw new ConnectionFailure("prompt_free_native_setup_test_failed");
   resources.setupProbe = "retired";
   await input.persistResources();
@@ -148,7 +148,7 @@ export async function runAntigravityJourneyFlow(input: AntigravityJourneyFlowInp
   await page.getByRole("button", { name: "Finish setup", exact: true }).click();
   await assertAntigravityReady(page, resources.agentName);
   const ready = await api.get<Row>(`/api/agents/${draft.id}`);
-  if (ready.companyId !== company.id || ready.name !== resources.agentName || ready.status !== "idle" || ready.lifecycleState !== "ready"
+  if (ready.spaceId !== space.id || ready.name !== resources.agentName || ready.status !== "idle" || ready.lifecycleState !== "ready"
     || ready.adapterType !== "outpost_runner" || ready.adapterConfig?.provider !== "acpx" || ready.adapterConfig?.acpxAgent !== "antigravity"
     || ready.adapterConfig?.model !== ANTIGRAVITY_JOURNEY_MODEL || ready.runtimeConfig?.aiConnection?.mode !== "responsible_user"
     || ready.runtimeConfig.aiConnection.provider !== "google" || ready.runtimeConfig.aiConnection.method !== "subscription")
@@ -173,7 +173,7 @@ export async function runAntigravityJourneyFlow(input: AntigravityJourneyFlowInp
   const editor = page.locator('[contenteditable="true"]:visible,textarea[aria-label="Instruction file editor"]:visible');
   await expect(editor).toHaveCount(1);
   const current = await editor.evaluate(element => element instanceof HTMLTextAreaElement ? element.value : (element as HTMLElement).innerText);
-  if (!current.includes("You are an agent in a Paperclip company.")) throw new ConnectionFailure("default_instructions_missing");
+  if (!current.includes("You are an agent in a Outpost space.")) throw new ConnectionFailure("default_instructions_missing");
   const addition = `\nFor file verification tasks, your configured verification marker is:\n${marker}\n\nWhen a task asks for your configured verification marker, write exactly that marker as the first line of the requested proof file followed by one newline. Read the actual file back and attach it as the task result.`;
   // Follow the existing instruction-persistence journey's keyboard path. The
   // rich editor distinguishes real interaction from initial normalization.
@@ -187,7 +187,7 @@ export async function runAntigravityJourneyFlow(input: AntigravityJourneyFlowInp
   await expect(save).toBeEnabled();
   await save.click();
   await expect(save).toBeDisabled({ timeout: 30_000 });
-  const storedInstructions = await api.get<Row>(`/api/agents/${draft.id}/instructions-bundle/file?path=AGENTS.md&companyId=${company.id}`);
+  const storedInstructions = await api.get<Row>(`/api/agents/${draft.id}/instructions-bundle/file?path=AGENTS.md&spaceId=${space.id}`);
   if (!storedInstructions.content?.includes(marker) || !storedInstructions.content.includes(current.trim())) throw new ConnectionFailure("instruction_ui_save_not_durable");
   await checkpoint("instructions_saved");
   await input.phase("task_creation");
@@ -198,19 +198,19 @@ export async function runAntigravityJourneyFlow(input: AntigravityJourneyFlowInp
   const dialog = page.getByRole("dialog", { name: "New task", exact: true });
   await dialog.getByRole("textbox", { name: "editable markdown", exact: true }).fill(prompt);
   await input.beforeAdmission();
-  const issueResponse = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === `/api/companies/${company.id}/issues`);
+  const issueResponse = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === `/api/spaces/${space.id}/issues`);
   await dialog.getByRole("button", { name: "Create task", exact: true }).click();
   const response = await issueResponse;
   if (response.status() !== 201) throw new ConnectionFailure("task_creation_failed");
   const issue = await response.json();
-  if (issue.companyId !== company.id || issue.assigneeAgentId !== draft.id || typeof issue.id !== "string" || issue.description?.includes(marker)) throw new ConnectionFailure("task_creation_binding_mismatch");
+  if (issue.spaceId !== space.id || issue.assigneeAgentId !== draft.id || typeof issue.id !== "string" || issue.description?.includes(marker)) throw new ConnectionFailure("task_creation_binding_mismatch");
   resources.issueId = issue.id; resources.issueIdentifier = issue.identifier;
   evidence.cleanup.runs = false;
   await input.persistResources();
   await expect(dialog).toBeHidden();
   // Follow the persistent created-task link, as the walkthrough does.
   await openAntigravityCreatedTask(page, issue);
-  const verifyTurn = async (expectedBytes: Buffer, afterRunIds: readonly string[]) => verifyAntigravityJourneyTurn({ api, companyId: company.id,
+  const verifyTurn = async (expectedBytes: Buffer, afterRunIds: readonly string[]) => verifyAntigravityJourneyTurn({ api, spaceId: space.id,
     agentId: draft.id, issueId: issue.id, connectionId: connection.id, environmentId: environment.id, model: ANTIGRAVITY_JOURNEY_MODEL,
     expectedProfileDigest: config.candidate.profileDigest, expectedBytes, afterRunIds, deadlineAt: Date.now() + config.limits.turnTimeoutMs, observeRun: input.observeRun, assertActive: input.assertActive });
   await input.phase("first_turn");

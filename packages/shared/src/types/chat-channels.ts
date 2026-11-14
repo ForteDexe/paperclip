@@ -5,7 +5,7 @@ export interface ChatExecutionDefaults {
   workspace?: TaskWorkspaceSelection | null;
 }
 
-/** Provider-neutral contracts for Paperclip's native external chat subsystem. */
+/** Provider-neutral contracts for Outpost's native external chat subsystem. */
 export const CHAT_PROVIDERS = [
   "slack",
   "github",
@@ -258,7 +258,7 @@ export interface ChatEndpoint {
   /** Additional presentation instructions captured only for newly created tasks. */
   communicationInstructions?: string;
   id: string;
-  companyId: string;
+  spaceId: string;
   connectionId: string;
   /** Older clients omit these fields; defaults are automatic/restricted. */
   publicationMode?: ChannelPublicationMode;
@@ -296,7 +296,7 @@ export interface ChatEndpoint {
 export interface ChatEndpointResource {
   executionDefaults?: ChatExecutionDefaults | null;
   id: string;
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   type: string;
   providerResourceId: string;
@@ -321,7 +321,7 @@ export interface GitHubRepositoryPage {
 
 export interface ChatExternalPrincipal {
   id: string;
-  companyId: string;
+  spaceId: string;
   provider: ChatProvider;
   providerAccountId: string;
   externalId: string;
@@ -335,16 +335,16 @@ export interface ChatExternalPrincipal {
 
 export interface ChatIdentityLink {
   id: string;
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   principalId: string;
   /** Latest discovery-only connect command received by this endpoint. */
   lastConnectAt?: string | null;
   externalLabel: string;
   externalDetail?: string | null;
-  paperclipUserId?: string | null;
-  paperclipUserLabel?: string | null;
-  paperclipUserImage?: string | null;
+  outpostUserId?: string | null;
+  outpostUserLabel?: string | null;
+  outpostUserImage?: string | null;
   status: ChatIdentityLinkStatus;
   expiresAt?: string | null;
   confirmedAt?: string | null;
@@ -353,7 +353,7 @@ export interface ChatIdentityLink {
 
 export interface ChatConversation {
   id: string;
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   resourceId?: string | null;
   issueId: string;
@@ -374,7 +374,7 @@ export interface ChatConversation {
 
 export interface ChatDelivery {
   id: string;
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   conversationId?: string | null;
   principalId?: string | null;
@@ -451,7 +451,7 @@ export interface SafeChatPublicationPayload {
 
 export interface ChatPublication {
   id: string;
-  companyId: string;
+  spaceId: string;
   endpointId: string;
   conversationId: string;
   issueId: string;

@@ -20,7 +20,7 @@ const sourceHash = () => createHash("sha256").update(readFileSync(path.join(repo
 const treatmentSourceSha256 = sourceHash();
 const keepAlive = setInterval(() => {}, 1000);
 let db: Db | undefined, temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined, baselineDirectory: string | undefined;
-const companyIds: string[] = [];
+const spaceIds: string[] = [];
 let benchmarkFailure: { error: unknown } | undefined;
 try {
   const externalUrl = resolveExternalTestDatabaseUrl("OUTPOST_CHAT_LINEAGE_BENCHMARK_DATABASE_URL");
@@ -35,13 +35,13 @@ try {
   const baseline = (await import(pathToFileURL(path.join(baselineDirectory, "issues.ts")).href)).resolveChatOriginPublicationBindings as LineageResolver;
   const measurements = [];
   for (const scenario of [{ name: "small", bytes: 16, hops: 0 }, { name: "wide", bytes: 192 * 1024, hops: 0 }, { name: "wide-24-continuations", bytes: 192 * 1024, hops: 24 }]) {
-    const f = await chatReplyLineageFixture(db, scenario.bytes); companyIds.push(f.companyId);
+    const f = await chatReplyLineageFixture(db, scenario.bytes); spaceIds.push(f.spaceId);
     let runId = f.root.id;
     for (let hop = 0; hop < scenario.hops; hop++) runId = (await f.continueFrom(runId)).run.id;
     await db.$client.unsafe("ANALYZE");
     async function capture(resolver: LineageResolver) {
       const reads: LineageQuery[] = [];
-      const result = await resolver(captureLineageReads(db!, reads), f.companyId, f.issueId, runId);
+      const result = await resolver(captureLineageReads(db!, reads), f.spaceId, f.issueId, runId);
       assert.deepEqual(result, f.expected);
       assert.equal(reads.length, scenario.hops + 1);
       return { result, reads };
@@ -89,7 +89,7 @@ try {
 } finally {
   try {
     try {
-      if (db) for (const companyId of companyIds) await cleanupChatReplyLineageFixture(db, companyId);
+      if (db) for (const spaceId of spaceIds) await cleanupChatReplyLineageFixture(db, spaceId);
     } finally {
       try {
         await db?.$client.end({ timeout: 0 });

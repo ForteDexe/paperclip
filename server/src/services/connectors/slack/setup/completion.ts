@@ -14,7 +14,7 @@ export function createSlackCompletion(store: SlackRegistrationStore) {
     await endpoint(row.endpointId, actor);
     await db.transaction(async tx => {
       await lease.assertOwned(tx);
-      const saved = (await tx.select().from(chatEndpoints).where(and(eq(chatEndpoints.id, row.endpointId), eq(chatEndpoints.companyId, row.companyId))).for("update"))[0];
+      const saved = (await tx.select().from(chatEndpoints).where(and(eq(chatEndpoints.id, row.endpointId), eq(chatEndpoints.spaceId, row.spaceId))).for("update"))[0];
       const registrationNow = (await tx.select().from(chatSlackRegistrations).where(eq(chatSlackRegistrations.endpointId, row.endpointId)))[0];
       if (!saved || saved.status === "archived" || registrationNow?.status === "removed" || registrationNow?.requestId !== row.requestId) throw conflict("Slack setup changed");
       await notifyChatVerificationWork(tx);
@@ -31,7 +31,7 @@ export function createSlackCompletion(store: SlackRegistrationStore) {
     const user = object((await api("users.info", { user: account.externalUserId }, token)).user);
     if (user.id !== account.externalUserId || user.team_id !== row.workspaceId || user.is_bot !== false || user.is_app_user === true || user.deleted !== false) throw providerFailure("slack_install_account_missing");
     await endpoint(row.endpointId, actor);
-    await options.linkInstaller(row.endpointId, user, { ...actor, userId: account.paperclipUserId }, lease);
+    await options.linkInstaller(row.endpointId, user, { ...actor, userId: account.outpostUserId }, lease);
     await saveAccount(row, { ...account, status: "linked" }, actor, lease);
     try { await audit(row, actor, "account_linked"); }
     catch { logger.warn({ endpointId: row.endpointId, appId: row.appId }, "Slack account activity could not be recorded"); }
@@ -78,12 +78,12 @@ export function createSlackCompletion(store: SlackRegistrationStore) {
       const [saved] = await db.select({ setup: chatEndpoints.setup, status: chatEndpoints.status }).from(chatEndpoints).where(eq(chatEndpoints.id, endpointId));
       const account = saved?.setup.slackAccount;
       if (!account || !["verifying", "active"].includes(saved.status)) return;
-      await sendSetupMessage(row, { userId: account.paperclipUserId, sessionId: null, bypassPermissionCheck: false }, lease, "verification");
+      await sendSetupMessage(row, { userId: account.outpostUserId, sessionId: null, bypassPermissionCheck: false }, lease, "verification");
     });
   }
   function pendingVerificationMessages(limit: number) {
     return db.select({ endpointId: chatEndpoints.id }).from(chatEndpoints)
-      .innerJoin(chatSlackRegistrations, and(eq(chatSlackRegistrations.endpointId, chatEndpoints.id), eq(chatSlackRegistrations.companyId, chatEndpoints.companyId)))
+      .innerJoin(chatSlackRegistrations, and(eq(chatSlackRegistrations.endpointId, chatEndpoints.id), eq(chatSlackRegistrations.spaceId, chatEndpoints.spaceId)))
       .where(and(eq(chatSlackRegistrations.status, "configured"), inArray(chatEndpoints.status, ["verifying", "active"]),
         sql`${chatEndpoints.setup}->'slackAccount'->>'status' = 'linked'`,
         sql`${chatEndpoints.setup}->>'webhookVerifiedAt' is not null`,

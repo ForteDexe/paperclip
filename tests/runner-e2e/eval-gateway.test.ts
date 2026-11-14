@@ -62,8 +62,8 @@ it.each(["openai", "anthropic"] as const)("correlates %s gateway logs before res
     const bytes = Buffer.from(encoded, "base64");
     expect([...bytes.subarray(0, 3)]).toEqual([4, 2, 0]);
     expect(JSON.parse(bytes.subarray(3).toString())).toEqual({ object_id: route.projectId, propagated_event: { metadata: {
-      paperclip_eval_request_id: initialReceipts[index]!.requestId, paperclip_eval_campaign_id: "campaign",
-      paperclip_eval_execution_id: identity.executionId, paperclip_eval_attempt_id: identity.attemptId, paperclip_eval_phase: "agent",
+      outpost_eval_request_id: initialReceipts[index]!.requestId, outpost_eval_campaign_id: "campaign",
+      outpost_eval_execution_id: identity.executionId, outpost_eval_attempt_id: identity.attemptId, outpost_eval_phase: "agent",
     } } });
     expect(initialReceipts[index]).toMatchObject({ braintrustParent: encoded, final: false, costUsd: null });
   }
@@ -248,7 +248,7 @@ it("uses the loopback gateway through real HTTP while withholding upstream crede
   const accepted = await fetch(`${gateway.baseUrl}/v1/responses`, { method: "POST", headers: { authorization: `Bearer ${gateway.token}`, "content-type": "application/json" }, body: JSON.stringify(f.payload) });
   expect(accepted.status).toBe(200); expect(await accepted.json()).toEqual(usage);
   expect(gateway.token).not.toBe(route.apiKey);
-  expect(accepted.headers.get("x-paperclip-eval-request-id")).toBeTruthy();
+  expect(accepted.headers.get("x-outpost-eval-request-id")).toBeTruthy();
   expect([...accepted.headers.values()].join(" ")).not.toContain(route.apiKey);
 });
 it.each([

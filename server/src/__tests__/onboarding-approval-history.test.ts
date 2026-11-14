@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { activityLog, agents, companyMemberships, heartbeatRuns, issues, issueThreadInteractions } from "@outpost/db";
+import { activityLog, agents, spaceMemberships, heartbeatRuns, issues, issueThreadInteractions } from "@outpost/db";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { documentService } from "../services/documents.js";
 import { initializeRunIdentity } from "../services/run-identity.js";
-import { PaperclipRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../services/native-runtime/outpost-runner-tool-authority.js";
 import { recoveryPostgresSupport as support } from "./helpers/recovery-postgres.js";
 import { startRunnerApiTestServer } from "./helpers/runner-api-server.js";
 
@@ -18,8 +18,8 @@ describe.skipIf(!support.supported)("onboarding approval producer/consumer contr
   beforeAll(async () => {
     process.env.OUTPOST_AGENT_JWT_SECRET = randomUUID();
     server = await startRunnerApiTestServer({ humanSessions: true });
-    const board = await server.fixture({ connectionScenario: "fresh", disableWakeOnDemand: true });
-    decisionUserId = board.responsibleUserId!;
+    const operator = await server.fixture({ connectionScenario: "fresh", disableWakeOnDemand: true });
+    decisionUserId = operator.responsibleUserId!;
     cookie = await server.humanSession(decisionUserId);
   }, 60_000);
   afterAll(async () => {
@@ -47,7 +47,7 @@ describe.skipIf(!support.supported)("onboarding approval producer/consumer contr
   };
   const approvedHistory = async (kind: "confirmation" | "checkbox") => {
     const f = await server.fixture({ disableWakeOnDemand: true, connectionScenario: "fresh" });
-    await server.db.insert(companyMemberships).values({ companyId: f.companyId, principalType: "user",
+    await server.db.insert(spaceMemberships).values({ spaceId: f.spaceId, principalType: "user",
       principalId: decisionUserId, status: "active", membershipRole: "member" });
     await server.db.update(issues).set({ originKind: "onboarding_first_task" }).where(eq(issues.id, f.issueId));
     const plan = (await documentService(server.db).upsertIssueDocument({ issueId: f.issueId, key: "plan", format: "markdown",
@@ -59,33 +59,33 @@ describe.skipIf(!support.supported)("onboarding approval producer/consumer contr
         defaultSelectedOptionIds: [selected.id, "implementation"], minSelected: 1 } : {}),
     });
     await accept(f, planId, kind === "checkbox" ? [selected.id] : undefined);
-    const hiringId = await request(f, "checkbox", "Hire a platform engineer", {
-      options: [{ id: "engineer", label: "Hire one Platform Engineer" }], minSelected: 1, defaultSelectedOptionIds: ["engineer"],
+    const creationId = await request(f, "checkbox", "Create a platform engineer", {
+      options: [{ id: "engineer", label: "Create one Platform Engineer" }], minSelected: 1, defaultSelectedOptionIds: ["engineer"],
     });
-    await accept(f, hiringId, ["engineer"]);
-    // Agent creation is fixture setup here; the live journey exercises hiring.
+    await accept(f, creationId, ["engineer"]);
+    // Agent creation is fixture setup here; the live journey exercises creation.
     const workerId = randomUUID();
-    await server.db.insert(agents).values({ id: workerId, companyId: f.companyId, name: "Platform Engineer",
+    await server.db.insert(agents).values({ id: workerId, spaceId: f.spaceId, name: "Platform Engineer",
       status: "active", adapterType: "outpost_runner", runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false } } });
     const executionId = await request(f, "confirmation", "Start Step 1: Discovery");
-    return { f, plan, planId, hiringId, executionId, workerId };
+    return { f, plan, planId, creationId, executionId, workerId };
   };
 
   const resume = async (f: Fixture) => {
     const runId = randomUUID();
     await server.db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.runId));
-    await server.db.insert(heartbeatRuns).values({ id: runId, companyId: f.companyId, agentId: f.agentId,
+    await server.db.insert(heartbeatRuns).values({ id: runId, spaceId: f.spaceId, agentId: f.agentId,
       responsibleUserId: f.responsibleUserId, status: "running", runtimeMode: "native", nativeIssueId: f.issueId,
       invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId: f.issueId } });
     await server.db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, f.issueId));
-    await initializeRunIdentity(server.db, { companyId: f.companyId, runId, issueId: f.issueId,
+    await initializeRunIdentity(server.db, { spaceId: f.spaceId, runId, issueId: f.issueId,
       responsibleUserId: f.responsibleUserId!, cause: "instruction" });
-    return { ...f, runId, authority: new PaperclipRunnerToolAuthority(server.db, { ...f, runId }) };
+    return { ...f, runId, authority: new OutpostRunnerToolAuthority(server.db, { ...f, runId }) };
   };
 
   for (const kind of ["confirmation", "checkbox"] as const) {
     it.each(["native", "REST issue", "REST child", "decomposition"] as const)(
-      `${kind} plan → hiring → separate execution approval → %s, including later-run context`, async path => {
+      `${kind} plan → creation → separate execution approval → %s, including later-run context`, async path => {
         const history = await approvedHistory(kind);
         const { plan, workerId } = history;
         let f = history.f;
@@ -93,7 +93,7 @@ describe.skipIf(!support.supported)("onboarding approval producer/consumer contr
           title: "Step 1: Discovery and architecture", assigneeActorId: workerId, status: "todo", idempotencyKey: "step-1",
         } };
         const before = await f.snapshot();
-        // Plan and hiring acceptance alone cannot answer a separate pending execution request.
+        // Plan and creation acceptance alone cannot answer a separate pending execution request.
         await expect(f.authority.execute(nativeInput)).rejects.toMatchObject({ status: 403 });
         expect((await f.snapshot()).issues).toEqual(before.issues);
         await accept(f, history.executionId);
@@ -105,10 +105,10 @@ describe.skipIf(!support.supported)("onboarding approval producer/consumer contr
         if (kind === "checkbox") expect(context.acceptedPlan.approvedOptions).toEqual([selected]);
         else expect(context.acceptedPlan).not.toHaveProperty("approvedOptions");
 
-        const token = createLocalAgentJwt(f.agentId, f.companyId, "outpost_runner", f.runId, f.responsibleUserId)!;
+        const token = createLocalAgentJwt(f.agentId, f.spaceId, "outpost_runner", f.runId, f.responsibleUserId)!;
         const post = async () => {
           const route = path === "decomposition" ? `/api/issues/${f.issueId}/accepted-plan-decompositions`
-            : path === "REST child" ? `/api/issues/${f.issueId}/children` : `/api/companies/${f.companyId}/issues`;
+            : path === "REST child" ? `/api/issues/${f.issueId}/children` : `/api/spaces/${f.spaceId}/issues`;
           const child = { title: "Step 1: Discovery and architecture", status: "backlog", workMode: "standard", priority: "medium", assigneeAgentId: workerId };
           const body = path === "decomposition" ? { acceptedPlanRevisionId: plan.latestRevisionId, children: [child] }
             : path === "REST child" ? child : { ...child, parentId: f.issueId, idempotencyKey: "step-1" };
@@ -123,16 +123,16 @@ describe.skipIf(!support.supported)("onboarding approval producer/consumer contr
           const created = await f.authority.execute(nativeInput) as { task: { id: string }; scheduledWakeIds: string[] };
           childId = created.task.id;
           expect(created.scheduledWakeIds).toEqual([`created-child:${childId}`]);
-          const reconnected = new PaperclipRunnerToolAuthority(server.db, f);
+          const reconnected = new OutpostRunnerToolAuthority(server.db, f);
           expect(await reconnected.execute({ ...nativeInput, callId: randomUUID() })).toEqual(created);
         } else {
           childId = await post();
           // The child REST schema has no idempotency key; replay belongs to the other entry points.
           if (path !== "REST child") expect(await post()).toBe(childId);
         }
-        const children = await server.db.select().from(issues).where(and(eq(issues.companyId, f.companyId), eq(issues.parentId, f.issueId)));
+        const children = await server.db.select().from(issues).where(and(eq(issues.spaceId, f.spaceId), eq(issues.parentId, f.issueId)));
         expect(children).toMatchObject([{ id: childId, assigneeAgentId: workerId, title: "Step 1: Discovery and architecture" }]);
-        const creationEvents = await server.db.select().from(activityLog).where(and(eq(activityLog.companyId, f.companyId), eq(activityLog.entityId, childId)));
+        const creationEvents = await server.db.select().from(activityLog).where(and(eq(activityLog.spaceId, f.spaceId), eq(activityLog.entityId, childId)));
         expect(creationEvents.filter(event => ["issue.created", "issue.child_created"].includes(event.action))).toHaveLength(1);
         const [saved] = await server.db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, history.planId));
         expect(saved.status).toBe("accepted");

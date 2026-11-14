@@ -4,7 +4,7 @@ import {
   chatExternalPrincipals,
   chatGitHubConfigurations,
   chatIdentityLinks,
-  companyMemberships,
+  spaceMemberships,
   type Db,
 } from "@outpost/db";
 
@@ -13,7 +13,7 @@ type Database = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 /** Current authority shared by task admission and every later publication. */
 export async function githubChatPrincipalAccess(
   db: Database,
-  endpoint: Pick<typeof chatEndpoints.$inferSelect, "id" | "companyId" | "provider" | "allowUnlinkedPeople">,
+  endpoint: Pick<typeof chatEndpoints.$inferSelect, "id" | "spaceId" | "provider" | "allowUnlinkedPeople">,
   principalId: string,
 ) {
   if (endpoint.provider !== "github") return null;
@@ -25,7 +25,7 @@ export async function githubChatPrincipalAccess(
     .from(chatGitHubConfigurations)
     .where(
       and(
-        eq(chatGitHubConfigurations.companyId, endpoint.companyId),
+        eq(chatGitHubConfigurations.spaceId, endpoint.spaceId),
         eq(chatGitHubConfigurations.endpointId, endpoint.id),
       ),
     )
@@ -36,7 +36,7 @@ export async function githubChatPrincipalAccess(
     .from(chatExternalPrincipals)
     .where(
       and(
-        eq(chatExternalPrincipals.companyId, endpoint.companyId),
+        eq(chatExternalPrincipals.spaceId, endpoint.spaceId),
         eq(chatExternalPrincipals.id, principalId),
       ),
     )
@@ -53,11 +53,11 @@ export async function githubChatPrincipalAccess(
     (p) => p.githubUserId === principal.externalId,
   );
   const [link] = await db
-    .select({ status: chatIdentityLinks.status, paperclipUserId: chatIdentityLinks.paperclipUserId })
+    .select({ status: chatIdentityLinks.status, outpostUserId: chatIdentityLinks.outpostUserId })
     .from(chatIdentityLinks)
     .where(
       and(
-        eq(chatIdentityLinks.companyId, endpoint.companyId),
+        eq(chatIdentityLinks.spaceId, endpoint.spaceId),
         eq(chatIdentityLinks.endpointId, endpoint.id),
         eq(chatIdentityLinks.principalId, principalId),
       ),
@@ -65,29 +65,29 @@ export async function githubChatPrincipalAccess(
     .for("share");
   const activeMember = async (userId: string) => {
     const [membership] = await db
-      .select({ membershipRole: companyMemberships.membershipRole })
-      .from(companyMemberships)
+      .select({ membershipRole: spaceMemberships.membershipRole })
+      .from(spaceMemberships)
       .where(
         and(
-          eq(companyMemberships.companyId, endpoint.companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, userId),
-          eq(companyMemberships.status, "active"),
+          eq(spaceMemberships.spaceId, endpoint.spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, userId),
+          eq(spaceMemberships.status, "active"),
         ),
       )
       .for("share");
     return !!membership && membership.membershipRole !== "viewer";
   };
-  if (link?.status === "linked" && link.paperclipUserId) {
+  if (link?.status === "linked" && link.outpostUserId) {
     const allowed =
-      (await activeMember(link.paperclipUserId)) &&
+      (await activeMember(link.outpostUserId)) &&
       (config.memberAccess === "all_linked" ||
-        (person?.kind === "member" && person.userId === link.paperclipUserId));
+        (person?.kind === "member" && person.userId === link.outpostUserId));
     return {
       ...denied,
       allowed,
       linkedDenied: !allowed,
-      userId: allowed ? link.paperclipUserId : null,
+      userId: allowed ? link.outpostUserId : null,
     };
   }
   // Revocation is not an invitation to fall back to a guest identity.

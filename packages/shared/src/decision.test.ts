@@ -63,7 +63,7 @@ describe("decision validators", () => {
       staleness: "strict",
     })).toThrow();
     expect(() => decisionEffectSchema.parse({
-      type: "delete_company",
+      type: "delete_space",
       targetIssueId,
       staleness: "strict",
     })).toThrow();

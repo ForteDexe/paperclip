@@ -24,7 +24,7 @@ vi.mock("@playwright/test", () => ({
 const local = { version: 1, id: "local-qa", mode: "managed-self-hosted", journeys: ["task-properties"], executionEnvironment: "local", baseline: { features: {}, connections: [] }, limits: { durationMs: 10000, modelBudgetCents: 0, maxRuns: 0 } };
 function preparedContext(startingState: JourneyContext["startingState"] = "recipe") {
   const api = { origin: "https://qa.example.test", post: vi.fn(async () => ({ id: "task-1", identifier: "QA-1" })) };
-  const context = { capabilities: ["company", "board-user", "task-write"], company: { id: "company-1", issuePrefix: "QA" }, user: { id: "user-1", name: "QA" }, api, startingState } as unknown as JourneyContext;
+  const context = { capabilities: ["space", "board-user", "task-write"], space: { id: "space-1", issuePrefix: "QA" }, user: { id: "user-1", name: "QA" }, api, startingState } as unknown as JourneyContext;
   return { context, api };
 }
 function result(): RunnerE2EResult {
@@ -135,11 +135,11 @@ describe("deployment journey contracts", () => {
     expect(calls).toEqual(["a","b","-a"]);
   });
   it("reuses verified onboarding without claiming recipe setup is onboarding coverage", async () => {
-    const ready = { capabilities:["company","board-user","task-write"], startingState:"onboarding" } as JourneyContext;
+    const ready = { capabilities:["space","board-user","task-write"], startingState:"onboarding" } as JourneyContext;
     const prepare = vi.fn(async () => ({...ready, startingState:"recipe"}));
     const fixtures = journeyFixtures({prepare} as unknown as TargetSession);
     fixtures.provide(ready);
-    expect(await fixtures.resolve(["company","board-user"])).toBe(ready);
+    expect(await fixtures.resolve(["space","board-user"])).toBe(ready);
     expect(prepare).not.toHaveBeenCalled();
     const independent = journeyFixtures({prepare} as unknown as TargetSession);
     expect((await independent.resolve(["task-write"])).startingState).toBe("recipe");
@@ -156,7 +156,7 @@ describe("deployment journey contracts", () => {
     const required = productJourneys.find(journey => journey.id === "task-properties")!.requires;
     for (const resolved of await Promise.all([fixtures.resolve(required), fixtures.resolve(required)])) expect(resolved).toBe(context);
     expect(calls).toEqual([...(startingState === "recipe" ? ["prepare"] : []), "intent", "create", "receipt"]);
-    expect(api.post).toHaveBeenCalledExactlyOnceWith("/api/companies/company-1/issues", { title: "Journey QA campaign-1", description: "Disposable task-property verification", status: "backlog" });
+    expect(api.post).toHaveBeenCalledExactlyOnceWith("/api/spaces/space-1/issues", { title: "Journey QA campaign-1", description: "Disposable task-property verification", status: "backlog" });
     expect(own.mock.calls).toEqual([[{ kind: "issue", name: "Journey QA campaign-1" }], [{ kind: "issue", name: "Journey QA campaign-1", id: "task-1" }]]);
     expect(context.fixtures?.backlogTask).toEqual({ id: "task-1", identifier: "QA-1", title: "Journey QA campaign-1" });
     expect(context.startingState).toBe(startingState);
@@ -171,7 +171,7 @@ describe("deployment journey contracts", () => {
     expect(prepare).not.toHaveBeenCalled();
     expect(api.post).not.toHaveBeenCalled();
     expect(own).not.toHaveBeenCalled();
-    expect(await fixtures.resolve(["company"])).toBe(context);
+    expect(await fixtures.resolve(["space"])).toBe(context);
   });
   it.each(["intent", "receipt"])("does not redispatch task creation after an uncertain %s failure", async failure => {
     const { context, api } = preparedContext();
@@ -260,11 +260,11 @@ describe("deployment journey contracts", () => {
     for (const work of forbidden) expect(()=>validateRetainedRunnerResult({ ...browser, ...work })).toThrow("result.browserOnly");
   });
   it("rejects collected runs and nonempty usage on a saved passing access result", () => {
-    const browser = result(); browser.caseId = "company-access-isolation";
-    browser.executionId = "product-journeys.local-qa.local.company-access-isolation";
+    const browser = result(); browser.caseId = "space-access-isolation";
+    browser.executionId = "product-journeys.local-qa.local.space-access-isolation";
     browser.productJourney!.checks = journeyRequiredChecks[browser.caseId]!.map(id => ({ id, passed: true }));
     expect(() => validateRetainedRunnerResult(browser)).not.toThrow();
-    const collected = validateJourneyCollection({ journeyId: "company-access-isolation", runIds: ["collected-run"], usage: { runs: [{ runId: "collected-run", usage: { inputTokens: 1 } }] } });
+    const collected = validateJourneyCollection({ journeyId: "space-access-isolation", runIds: ["collected-run"], usage: { runs: [{ runId: "collected-run", usage: { inputTokens: 1 } }] } });
     expect(() => validateRetainedRunnerResult({ ...browser, runIds: collected.runIds, usage: collected.usage })).toThrow("result.browserOnly");
     expect(() => validateRetainedRunnerResult({ ...browser, runIds: [], usage: collected.usage })).toThrow("result.browserOnly");
     expect(() => validateRetainedRunnerResult({ ...browser, usage: { inputTokens: 1 } })).toThrow("result.browserOnly");

@@ -1,1 +1,1 @@
-export { assertEnvironmentSelectionForCompany } from "../services/environment-selection.js";
+export { assertEnvironmentSelectionForSpace } from "../services/environment-selection.js";

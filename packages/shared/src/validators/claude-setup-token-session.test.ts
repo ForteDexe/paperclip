@@ -8,12 +8,12 @@ import {
   startClaudeSetupTokenSessionRequestSchema,
   submitBrowserCodeRequestSchema,
 } from "./claude-setup-token-session.js";
-import { createAgentSchema, createAgentHireSchema } from "./agent.js";
+import { createAgentSchema, createAgentCreationSchema } from "./agent.js";
 
 const ENVIRONMENT_ID = "11111111-1111-4111-8111-111111111111";
 
 describe("claude setup-token session start request", () => {
-  it("accepts a company-and-environment request with no agent id", () => {
+  it("accepts a space-and-environment request with no agent id", () => {
     const parsed = startClaudeSetupTokenSessionRequestSchema.parse({
       environmentId: ENVIRONMENT_ID,
       adapterType: "claude_local",
@@ -123,7 +123,7 @@ describe("claude setup-token owner response and completion response", () => {
   });
 });
 
-describe("agent create and hire carry an optional stored-session claim", () => {
+describe("agent create and create carry an optional stored-session claim", () => {
   const base = { name: "Claude Agent", adapterType: "claude_local" as const };
 
   it("accepts a create request without a stored-session claim", () => {
@@ -136,9 +136,9 @@ describe("agent create and hire carry an optional stored-session claim", () => {
     ).toBe("session-claim");
   });
 
-  it("accepts a hire request with a stored-session claim", () => {
+  it("accepts a create request with a stored-session claim", () => {
     expect(
-      createAgentHireSchema.parse({ ...base, storedSessionId: "session-claim" }).storedSessionId,
+      createAgentCreationSchema.parse({ ...base, storedSessionId: "session-claim" }).storedSessionId,
     ).toBe("session-claim");
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Host-tool callbacks orphaned by a server restart.
  *
- * A provider tool call reaches Paperclip as a durable semantic input. The
+ * A provider tool call reaches Outpost as a durable semantic input. The
  * server process that hosts the run's controller executes it and journals the
  * result. When that server restarts mid-call, the replacement controller
  * restores the journal: the input is there, its result is not, and the old

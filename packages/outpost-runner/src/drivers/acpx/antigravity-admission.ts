@@ -69,7 +69,7 @@ export function createAntigravityAdmission(content: string, model: string) {
               const meta = record(params._meta);
               params._meta = { ...meta, antigravity: {
                 ...record(meta.antigravity), systemPrompt: { append: content },
-                paperclipAdmission: { schema: ANTIGRAVITY_ADMISSION_SCHEMA, nonce, model, ...binding },
+                outpostAdmission: { schema: ANTIGRAVITY_ADMISSION_SCHEMA, nonce, model, ...binding },
               } };
               message.params = params;
               state.sessionId = null;
@@ -103,10 +103,10 @@ export function createAntigravityAdmission(content: string, model: string) {
               if (request.method === "initialize") {
                 const info = record(result.agentInfo);
                 const native = record(record(record(result.agentCapabilities)._meta).antigravity);
-                if (info.name !== "antigravity-acp" || info.version !== "1.4.3" || native.paperclipAdmission !== 1) fail("runtime identity or native admission patch is unavailable");
+                if (info.name !== "antigravity-acp" || info.version !== "1.4.3" || native.outpostAdmission !== 1) fail("runtime identity or native admission patch is unavailable");
                 initialized = true;
               } else if (request.nonce) {
-                const ack = record(record(result._meta).paperclipAntigravityAdmission);
+                const ack = record(record(result._meta).outpostAntigravityAdmission);
                 const sessionId = request.sessionId ?? result.sessionId;
                 if (typeof sessionId !== "string" || !sessionId || ack.schema !== ANTIGRAVITY_ADMISSION_SCHEMA
                   || ack.nonce !== request.nonce || ack.sessionId !== sessionId || ack.model !== model

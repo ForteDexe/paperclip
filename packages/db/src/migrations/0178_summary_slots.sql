@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "summary_slots" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"scope_kind" text NOT NULL,
 	"scope_id" uuid,
 	"slot_key" text NOT NULL,
@@ -12,11 +12,11 @@ CREATE TABLE IF NOT EXISTS "summary_slots" (
 	"last_model" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "summary_slots_company_scope_slot_uq" UNIQUE NULLS NOT DISTINCT("company_id","scope_kind","scope_id","slot_key")
+	CONSTRAINT "summary_slots_space_scope_slot_uq" UNIQUE NULLS NOT DISTINCT("space_id","scope_kind","scope_id","slot_key")
 );
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "summary_slots" ADD CONSTRAINT "summary_slots_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ ALTER TABLE "summary_slots" ADD CONSTRAINT "summary_slots_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -32,6 +32,6 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "summary_slots_document_uq" ON "summary_slots" USING btree ("document_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "summary_slots_company_scope_idx" ON "summary_slots" USING btree ("company_id","scope_kind","scope_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "summary_slots_company_generating_issue_idx" ON "summary_slots" USING btree ("company_id","generating_issue_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "summary_slots_company_updated_idx" ON "summary_slots" USING btree ("company_id","updated_at");
+CREATE INDEX IF NOT EXISTS "summary_slots_space_scope_idx" ON "summary_slots" USING btree ("space_id","scope_kind","scope_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "summary_slots_space_generating_issue_idx" ON "summary_slots" USING btree ("space_id","generating_issue_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "summary_slots_space_updated_idx" ON "summary_slots" USING btree ("space_id","updated_at");

@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   prepareAdapterExecutionTargetRuntime,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
   startAdapterExecutionTargetProcessSessionBridge,
 } from "@outpost/adapter-utils/execution-target";
 import { runChildProcess } from "../server-utils.js";
@@ -32,7 +32,7 @@ vi.mock("@outpost/adapter-utils/execution-target", async (importActual) => {
   return {
     ...actual,
     prepareAdapterExecutionTargetRuntime: vi.fn(actual.prepareAdapterExecutionTargetRuntime),
-    startAdapterExecutionTargetPaperclipBridge: vi.fn(actual.startAdapterExecutionTargetPaperclipBridge),
+    startAdapterExecutionTargetOutpostBridge: vi.fn(actual.startAdapterExecutionTargetOutpostBridge),
     startAdapterExecutionTargetProcessSessionBridge: vi.fn(actual.startAdapterExecutionTargetProcessSessionBridge),
   };
 });
@@ -57,7 +57,7 @@ function makeStagingLocks() {
 }
 
 async function makeTempRoot() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-acpx-fault-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-acpx-fault-"));
   tempRoots.push(root);
   return root;
 }
@@ -146,7 +146,7 @@ function completedRuntime() {
 // fails after the session handshake and before the turn starts.
 function throwingHandoffContext(): Record<string, unknown> {
   const context: Record<string, unknown> = {};
-  Object.defineProperty(context, "paperclipSessionHandoffMarkdown", {
+  Object.defineProperty(context, "outpostSessionHandoffMarkdown", {
     enumerable: false,
     get() {
       throw new Error("prompt build boom");
@@ -165,7 +165,7 @@ function stubBridges(options: { stopRejects?: boolean } = {}) {
   const controlStop = makeStop();
   const agentStop = makeStop();
   bridgeStops.push(controlStop, agentStop);
-  vi.mocked(startAdapterExecutionTargetPaperclipBridge).mockImplementation(async () => {
+  vi.mocked(startAdapterExecutionTargetOutpostBridge).mockImplementation(async () => {
     return { env: {}, stop: controlStop } as never;
   });
   vi.mocked(startAdapterExecutionTargetProcessSessionBridge).mockImplementation(async () => {
@@ -198,7 +198,7 @@ function remoteArgs(
   overrides: Record<string, unknown> = {},
 ) {
   return {
-    agent: { id: "agent-1", companyId: "company-1" },
+    agent: { id: "agent-1", spaceId: "space-1" },
     runtime: {},
     config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir, cwd: localCwd },
     context: {},
@@ -335,8 +335,8 @@ describe("composed ACPX run fault matrix", () => {
     const { stateDir, localCwd, executionTarget } = await setupRemoteSandbox();
     const capture = captureDisposition();
     const stop = vi.fn(async () => {});
-    vi.mocked(startAdapterExecutionTargetPaperclipBridge).mockImplementationOnce(async () => {
-      throw new Error("paperclip bridge boom");
+    vi.mocked(startAdapterExecutionTargetOutpostBridge).mockImplementationOnce(async () => {
+      throw new Error("outpost bridge boom");
     });
     vi.mocked(startAdapterExecutionTargetProcessSessionBridge).mockImplementationOnce(
       async () => ({ agentCommand: null, stop }) as never,
@@ -351,7 +351,7 @@ describe("composed ACPX run fault matrix", () => {
 
     await expect(
       execute({ runId: "fault-bridge", ...remoteArgs(stateDir, localCwd, executionTarget) } as never),
-    ).rejects.toThrow("paperclip bridge boom");
+    ).rejects.toThrow("outpost bridge boom");
 
     assertDispositionReport(capture.last(), { acquired: ["staged_runtime", "staging_lease"] });
   });
@@ -529,7 +529,7 @@ describe("composed ACPX run fault matrix", () => {
     const firstExecute = createAcpxEngineExecutor({ createRuntime: () => completedRuntime() });
     const first = await firstExecute({
       runId: "fault-resume-a",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config,
       context: {},
@@ -563,7 +563,7 @@ describe("composed ACPX run fault matrix", () => {
     });
     const second = await secondExecute({
       runId: "fault-resume-b",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: { sessionParams: (first as { sessionParams?: unknown }).sessionParams },
       config,
       context: {},
@@ -808,7 +808,7 @@ describe("composed ACPX run fault matrix", () => {
     const { stateDir, localCwd, executionTarget } = await setupRemoteSandbox();
     stubBridges();
     const eaccesError: NodeJS.ErrnoException = new Error(
-      `EACCES: permission denied, mkdir '/srv/telemetry-backend.paperclip-restore.lock' (pid ${process.pid})`,
+      `EACCES: permission denied, mkdir '/srv/telemetry-backend.outpost-restore.lock' (pid ${process.pid})`,
     );
     eaccesError.code = "EACCES";
     const execute = createAcpxEngineExecutor({
@@ -899,7 +899,7 @@ describe("composed ACPX run fault matrix", () => {
     });
     const result = await execute({
       runId: "fault-host-gate",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: {
         agent: "custom",
@@ -936,7 +936,7 @@ describe("composed ACPX run fault matrix", () => {
 
     const result = await execute({
       runId: "fault-host-turn-fail",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: {
         agent: "custom",
@@ -973,7 +973,7 @@ describe("composed ACPX run per-phase telemetry", () => {
 
     const result = await execute({
       runId: "phase-telemetry",
-      agent: { id: "agent-1", companyId: "company-1" },
+      agent: { id: "agent-1", spaceId: "space-1" },
       runtime: {},
       config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir: path.join(root, "state") },
       context: {},

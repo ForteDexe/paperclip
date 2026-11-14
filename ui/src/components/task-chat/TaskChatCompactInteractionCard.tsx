@@ -25,8 +25,8 @@ import {
 } from "lucide-react";
 import type { IssueDocument } from "@outpost/shared";
 import type {
-  PaperclipQuestionResponse,
-  PaperclipQuestionSet,
+  OutpostQuestionResponse,
+  OutpostQuestionSet,
 } from "@outpost/adapter-utils";
 import { InteractionPreparationNotice } from "@/components/InteractionPreparationNotice";
 import { IssueThreadInteractionCard } from "@/components/IssueThreadInteractionCard";
@@ -684,7 +684,7 @@ function ReceiptDisclosure({
 
 function questionSetForInteraction(
   interaction: AskUserQuestionsInteraction,
-): PaperclipQuestionSet {
+): OutpostQuestionSet {
   if (interaction.payload.questionSet) return interaction.payload.questionSet;
   return {
     schema: "outpost.question_set.v1",
@@ -730,8 +730,8 @@ function questionSetForInteraction(
 
 function questionResponseForInteraction(
   interaction: AskUserQuestionsInteraction,
-  questionSet: PaperclipQuestionSet,
-): PaperclipQuestionResponse | null {
+  questionSet: OutpostQuestionSet,
+): OutpostQuestionResponse | null {
   if (!interaction.result?.answers) return null;
   return {
     schema: "outpost.question_response.v1",

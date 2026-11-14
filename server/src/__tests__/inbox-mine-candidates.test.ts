@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import {
-  activityLog, agents, companies, heartbeatRuns, issueComments, issueInboxArchives, issueReadStates, issues, issueThreadInteractions,
+  activityLog, agents, spaces, heartbeatRuns, issueComments, issueInboxArchives, issueReadStates, issues, issueThreadInteractions,
 } from "@outpost/db";
 import { INBOX_MINE_ISSUE_STATUS_FILTER } from "@outpost/shared";
 import { expect, it } from "vitest";
@@ -18,7 +18,7 @@ describeEmbeddedPostgres("Mine inbox participation candidates", () => {
 
   async function mineFilters(userId: string, overrides: Partial<IssueFilters> = {}): Promise<IssueFilters> {
     return {
-      readCondition: await issueReadSqlCondition(ctx.db, { type: "board", source: "session", userId, authorizingUserId: userId } as never),
+      readCondition: await issueReadSqlCondition(ctx.db, { type: "operator", source: "session", userId, authorizingUserId: userId } as never),
       touchedByUserId: userId, inboxArchivedByUserId: userId,
       status: INBOX_MINE_ISSUE_STATUS_FILTER, listProjection: "index",
       sortField: "updated", sortDir: "desc", limit: 100,
@@ -27,37 +27,37 @@ describeEmbeddedPostgres("Mine inbox participation candidates", () => {
     };
   }
 
-  async function compare(companyId: string, filters: IssueFilters) {
+  async function compare(spaceId: string, filters: IssueFilters) {
     const svc = issueService(ctx.db);
-    const scan = await svc.list(companyId, filters);
-    const ranked = await svc.list(companyId, { ...filters, touchedCandidates: "participation" });
+    const scan = await svc.list(spaceId, filters);
+    const ranked = await svc.list(spaceId, { ...filters, touchedCandidates: "participation" });
     expect(ranked.map((row) => row.id)).toEqual(scan.map((row) => row.id));
     expect(JSON.parse(JSON.stringify(ranked))).toEqual(JSON.parse(JSON.stringify(scan)));
     return scan.map((row) => row.id);
   }
 
   it("selects the same ordered rows and payloads as the touched scan across participation edge cases", async () => {
-    const companyId = randomUUID(), foreignCompanyId = randomUUID();
+    const spaceId = randomUUID(), foreignSpaceId = randomUUID();
     const userId = `mine-${randomUUID()}`, otherUserId = `other-${randomUUID()}`;
-    await ctx.db.insert(companies).values([
-      { id: companyId, name: "Mine candidates", issuePrefix: `M${companyId.slice(0, 6).toUpperCase()}` },
-      { id: foreignCompanyId, name: "Foreign", issuePrefix: `F${foreignCompanyId.slice(0, 6).toUpperCase()}` },
+    await ctx.db.insert(spaces).values([
+      { id: spaceId, name: "Mine candidates", issuePrefix: `M${spaceId.slice(0, 6).toUpperCase()}` },
+      { id: foreignSpaceId, name: "Foreign", issuePrefix: `F${foreignSpaceId.slice(0, 6).toUpperCase()}` },
     ]);
-    const [agent] = await ctx.db.insert(agents).values({ companyId, name: "Worker", adapterType: "process", status: "active" }).returning();
+    const [agent] = await ctx.db.insert(agents).values({ spaceId, name: "Worker", adapterType: "process", status: "active" }).returning();
     const named = new Map<string, string>();
     const add = async (name: string, values: Partial<typeof issues.$inferInsert> = {}, minute = named.size) => {
       const [row] = await ctx.db.insert(issues).values({
-        companyId, title: name, status: "todo", createdByUserId: otherUserId,
+        spaceId, title: name, status: "todo", createdByUserId: otherUserId,
         createdAt: at(0), updatedAt: at(minute), ...values,
       }).returning();
       named.set(name, row!.id);
       return row!.id;
     };
     const activity = (issueId: string, values: Partial<typeof activityLog.$inferInsert>) => ctx.db.insert(activityLog).values({
-      companyId, entityType: "issue", entityId: issueId, actorType: "user", actorId: userId, action: "issue.updated", createdAt: at(500), ...values,
+      spaceId, entityType: "issue", entityId: issueId, actorType: "user", actorId: userId, action: "issue.updated", createdAt: at(500), ...values,
     });
     const comment = (issueId: string, values: Partial<typeof issueComments.$inferInsert>) => ctx.db.insert(issueComments).values({
-      companyId, issueId, body: "note", authorUserId: userId, createdAt: at(400), ...values,
+      spaceId, issueId, body: "note", authorUserId: userId, createdAt: at(400), ...values,
     });
 
     // Included: every participation source, done work, and re-activated archives.
@@ -68,22 +68,22 @@ describeEmbeddedPostgres("Mine inbox participation candidates", () => {
     await add("done by me", { createdByUserId: userId, status: "done", completedAt: at(30) });
     const pending = await add("pending request", { createdByUserId: null, createdByAgentId: agent!.id });
     await ctx.db.insert(issueThreadInteractions).values({
-      companyId, issueId: pending, kind: "request_confirmation", status: "pending", addresseeUserId: userId,
+      spaceId, issueId: pending, kind: "request_confirmation", status: "pending", addresseeUserId: userId,
       payload: { version: 1, prompt: "Confirm?" } as never, createdAt: at(600),
     });
     const reactivated = await add("archived then re-activated", { createdByUserId: userId });
-    await ctx.db.insert(issueInboxArchives).values({ companyId, issueId: reactivated, userId, archivedAt: at(700) });
+    await ctx.db.insert(issueInboxArchives).values({ spaceId, issueId: reactivated, userId, archivedAt: at(700) });
     await comment(reactivated, { authorUserId: otherUserId, createdAt: at(800) });
     const readIssue = await add("read with later agent comment", { createdByUserId: userId });
-    await ctx.db.insert(issueReadStates).values({ companyId, issueId: readIssue, userId, lastReadAt: at(900) });
+    await ctx.db.insert(issueReadStates).values({ spaceId, issueId: readIssue, userId, lastReadAt: at(900) });
     await comment(readIssue, { authorUserId: null, authorAgentId: agent!.id, createdAt: at(950) });
     const liveChild = await add("live child of mine", { createdByUserId: userId, parentId: named.get("created by me")! });
-    const [run] = await ctx.db.insert(heartbeatRuns).values({ companyId, agentId: agent!.id, status: "running", contextSnapshot: { issueId: liveChild } }).returning();
+    const [run] = await ctx.db.insert(heartbeatRuns).values({ spaceId, agentId: agent!.id, status: "running", contextSnapshot: { issueId: liveChild } }).returning();
     await ctx.db.update(issues).set({ executionRunId: run!.id }).where(sql`${issues.id} = ${liveChild}`);
 
     // Excluded by both selections.
     const archived = await add("archived without new activity", { createdByUserId: userId });
-    await ctx.db.insert(issueInboxArchives).values({ companyId, issueId: archived, userId, archivedAt: at(990) });
+    await ctx.db.insert(issueInboxArchives).values({ spaceId, issueId: archived, userId, archivedAt: at(990) });
     await comment(await add("mention only"), { authorUserId: otherUserId, body: `@${userId} please look` });
     await activity(await add("read audit only"), { action: "issue.read_marked" });
     const upper = await add("uppercase entity id");
@@ -101,10 +101,10 @@ describeEmbeddedPostgres("Mine inbox participation candidates", () => {
     await activity(privateId, {});
     const answered = await add("answered request", { createdByUserId: null, createdByAgentId: agent!.id });
     await ctx.db.insert(issueThreadInteractions).values({
-      companyId, issueId: answered, kind: "request_confirmation", status: "answered", addresseeUserId: userId,
+      spaceId, issueId: answered, kind: "request_confirmation", status: "answered", addresseeUserId: userId,
       payload: { version: 1, prompt: "Confirm?" } as never,
     });
-    await ctx.db.insert(issues).values({ companyId: foreignCompanyId, title: "foreign", createdByUserId: userId });
+    await ctx.db.insert(issues).values({ spaceId: foreignSpaceId, title: "foreign", createdByUserId: userId });
 
     // Page pressure: more than 100 touched issues, many with tied activity times.
     for (let index = 0; index < 130; index++) {
@@ -112,9 +112,9 @@ describeEmbeddedPostgres("Mine inbox participation candidates", () => {
     }
     for (let index = 0; index < 40; index++) await add(`untouched ${index}`, {}, 1000 + index);
 
-    const ids = await compare(companyId, await mineFilters(userId));
+    const ids = await compare(spaceId, await mineFilters(userId));
     expect(ids).toHaveLength(100);
-    const all = await compare(companyId, await mineFilters(userId, { limit: 1000 }));
+    const all = await compare(spaceId, await mineFilters(userId, { limit: 1000 }));
     for (const name of [
       "created by me", "assigned to me", "updated by me", "commented by me", "done by me", "pending request",
       "archived then re-activated", "read with later agent comment", "live child of mine",
@@ -128,12 +128,12 @@ describeEmbeddedPostgres("Mine inbox participation candidates", () => {
 
     // Other selection shapes stay equivalent: no archive filter, other statuses,
     // offsets, ascending order, unrestricted read access, and another user.
-    await compare(companyId, await mineFilters(userId, { inboxArchivedByUserId: undefined }));
-    await compare(companyId, await mineFilters(userId, { status: "done", listProjection: undefined, includeLiveDescendantSummary: false }));
-    await compare(companyId, await mineFilters(userId, { offset: 50, limit: 30 }));
-    await compare(companyId, await mineFilters(userId, { sortDir: "asc" }));
-    await compare(companyId, { ...await mineFilters(userId), readCondition: sql<boolean>`true` });
-    expect(await compare(companyId, await mineFilters(otherUserId, { limit: 1000 }))).toContain(named.get("archived then re-activated"));
-    expect(await compare(companyId, await mineFilters(`nobody-${randomUUID()}`))).toEqual([]);
+    await compare(spaceId, await mineFilters(userId, { inboxArchivedByUserId: undefined }));
+    await compare(spaceId, await mineFilters(userId, { status: "done", listProjection: undefined, includeLiveDescendantSummary: false }));
+    await compare(spaceId, await mineFilters(userId, { offset: 50, limit: 30 }));
+    await compare(spaceId, await mineFilters(userId, { sortDir: "asc" }));
+    await compare(spaceId, { ...await mineFilters(userId), readCondition: sql<boolean>`true` });
+    expect(await compare(spaceId, await mineFilters(otherUserId, { limit: 1000 }))).toContain(named.get("archived then re-activated"));
+    expect(await compare(spaceId, await mineFilters(`nobody-${randomUUID()}`))).toEqual([]);
   });
 });

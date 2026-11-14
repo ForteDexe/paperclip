@@ -33,7 +33,7 @@ import { heartbeatsApi, type ProviderTraceInspection } from "@/api/heartbeats";
 import { accessApi } from "@/api/access";
 import { QueryErrorState } from "@/components/QueryView";
 import { useResilientFetch } from "@/hooks/useResilientFetch";
-import { parsePaperclipRunnerStdoutLine } from "@/adapters/outpost-runner";
+import { parseOutpostRunnerStdoutLine } from "@/adapters/outpost-runner";
 import { TaskChatProtocolCard } from "@/components/task-chat/TaskChatProtocolCard";
 import type { TaskChatProtocolItem } from "@/components/task-chat/task-chat-model";
 import { transcriptToTaskChatItems } from "@/components/task-chat/transcript-adapter";
@@ -606,7 +606,7 @@ function typedPrpFields(event: HeartbeatRunEvent) {
 function ProductionSurfacePreview({ event, runId }: { event: HeartbeatRunEvent; runId: string }) {
   const orp = eventPrp(event);
   const ts = new Date(event.createdAt).toISOString();
-  const entries = parsePaperclipRunnerStdoutLine(
+  const entries = parseOutpostRunnerStdoutLine(
     JSON.stringify({ type: "outpost.orp.event", event: orp }),
     ts,
   );
@@ -720,7 +720,7 @@ export function RunnerInspector({
     if (requestedOperation) setSelectedKey(requestedOperation);
   }, [open]);
 
-  // The initial load: the board's current access, every canonical event, and
+  // The initial load: the operator's current access, every canonical event, and
   // (only for an administrator) the redacted provider trace. The permission
   // epoch fences it: a denial or deletion while it is in flight makes its
   // result stale, and a stale result never reveals or restores raw access.
@@ -731,13 +731,13 @@ export function RunnerInspector({
     enabled: open,
     fetcher: async () => {
       const loadEpoch = rawTraceAccessEpochRef.current;
-      const [boardAccess, nextEvents] = await Promise.all([
+      const [operatorAccess, nextEvents] = await Promise.all([
         accessApi.getCurrentBoardAccess(),
         loadAllRunEvents(runId),
       ]);
       // Superseded by a newer denial or deletion: do not read the raw trace.
       if (rawTraceAccessEpochRef.current !== loadEpoch || rawTraceAccessRef.current?.phase === "deleting") return null;
-      const canRaw = boardAccess.source === "local_implicit" || boardAccess.isInstanceAdmin;
+      const canRaw = operatorAccess.source === "local_implicit" || operatorAccess.isInstanceAdmin;
       const trace = canRaw
         ? await heartbeatsApi.providerTrace(runId)
         : ({ trace: null, entries: [] } satisfies ProviderTraceInspection);
@@ -771,11 +771,11 @@ export function RunnerInspector({
     let active = true;
     const revalidate = async () => {
       try {
-        const boardAccess = await accessApi.getCurrentBoardAccess();
+        const operatorAccess = await accessApi.getCurrentBoardAccess();
         if (!active) return;
         const canRaw =
-          boardAccess.source === "local_implicit" ||
-          boardAccess.isInstanceAdmin;
+          operatorAccess.source === "local_implicit" ||
+          operatorAccess.isInstanceAdmin;
         if (!canRaw) denyRawTraceAccess();
       } catch {
         if (active) denyRawTraceAccess();
@@ -958,9 +958,9 @@ export function RunnerInspector({
       return;
     }
     if (rawTraceAccessRef.current?.epoch !== deletionAccess.epoch) return;
-    let boardAccess;
+    let operatorAccess;
     try {
-      boardAccess = await accessApi.getCurrentBoardAccess();
+      operatorAccess = await accessApi.getCurrentBoardAccess();
     } catch {
       if (rawTraceAccessRef.current?.epoch === deletionAccess.epoch) {
         denyRawTraceAccess();
@@ -969,7 +969,7 @@ export function RunnerInspector({
     }
     if (rawTraceAccessRef.current?.epoch !== deletionAccess.epoch) return;
     const canRaw =
-      boardAccess.source === "local_implicit" || boardAccess.isInstanceAdmin;
+      operatorAccess.source === "local_implicit" || operatorAccess.isInstanceAdmin;
     if (!canRaw) {
       denyRawTraceAccess();
       return;

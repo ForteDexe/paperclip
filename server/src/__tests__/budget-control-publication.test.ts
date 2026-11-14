@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, budgetEvaluationWork, budgetIncidents, budgetPolicies, companies, createDb } from "@outpost/db";
+import { agents, budgetEvaluationWork, budgetIncidents, budgetPolicies, spaces, createDb } from "@outpost/db";
 import { budgetService, budgetServiceInTransaction, flushBudgetEvaluationWork } from "../services/budgets.js";
 import { costService } from "../services/costs.js";
 import { EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -11,7 +11,7 @@ const support = await getEmbeddedPostgresTestSupport();
   let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   beforeAll(async () => {
-    temp = await startEmbeddedPostgresTestDatabase("paperclip-budget-controls-");
+    temp = await startEmbeddedPostgresTestDatabase("outpost-budget-controls-");
     db = createDb(temp.connectionString);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
@@ -20,18 +20,18 @@ const support = await getEmbeddedPostgresTestSupport();
     await temp?.cleanup();
   });
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Budget controls", issuePrefix: `C${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", role: "engineer", status: "active", adapterType: "process" });
-    const policy = await budgetService(db).upsertPolicy(companyId, { scopeType: "company", scopeId: companyId, amount: 100 }, null);
-    await flushBudgetEvaluationWork(db, { companyId });
-    return { companyId, agentId, policyId: policy.policyId };
+    const spaceId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Budget controls", issuePrefix: `C${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", role: "engineer", status: "active", adapterType: "process" });
+    const policy = await budgetService(db).upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId, amount: 100 }, null);
+    await flushBudgetEvaluationWork(db, { spaceId });
+    return { spaceId, agentId, policyId: policy.policyId };
   }
-  async function charge(f: { companyId: string; agentId: string }, costCents: number, occurredAt = new Date()) {
-    return costService(db).createEvent(f.companyId, { agentId: f.agentId, provider: "openai", model: "fixture", costCents,
+  async function charge(f: { spaceId: string; agentId: string }, costCents: number, occurredAt = new Date()) {
+    return costService(db).createEvent(f.spaceId, { agentId: f.agentId, provider: "openai", model: "fixture", costCents,
       occurredAt, idempotencyKey: randomUUID() });
   }
-  const pending = (companyId: string) => db.select().from(budgetEvaluationWork).where(eq(budgetEvaluationWork.companyId, companyId));
+  const pending = (spaceId: string) => db.select().from(budgetEvaluationWork).where(eq(budgetEvaluationWork.spaceId, spaceId));
   async function bounded<T>(promise: Promise<T>): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -41,33 +41,33 @@ const support = await getEmbeddedPostgresTestSupport();
     } finally { clearTimeout(timer); }
   }
 
-  it("relinquishes its policy fence so a company-first control edit cannot deadlock or lose", async () => {
+  it("relinquishes its policy fence so a space-first control edit cannot deadlock or lose", async () => {
     const f = await fixture();
     await charge(f, 120);
     let release!: () => void, locked!: () => void;
     const ready = new Promise<void>(resolve => { locked = resolve; });
     const gate = new Promise<void>(resolve => { release = resolve; });
-    // Retain the existing company/configuration writer's company -> policy
+    // Retain the existing space/configuration writer's space -> policy
     // order, while the evaluator starts from the opposite end of the race.
     const control = db.transaction(async tx => {
-      await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, f.companyId)).for("no key update");
+      await tx.select({ id: spaces.id }).from(spaces).where(eq(spaces.id, f.spaceId)).for("no key update");
       locked(); await gate;
-      await budgetServiceInTransaction(tx as unknown as Parameters<typeof budgetServiceInTransaction>[0]).upsertPolicy(f.companyId,
-        { scopeType: "company", scopeId: f.companyId, amount: 1000 }, "operator");
-      await tx.update(companies).set({ status: "paused", pauseReason: "manual", pausedAt: new Date() }).where(eq(companies.id, f.companyId));
+      await budgetServiceInTransaction(tx as unknown as Parameters<typeof budgetServiceInTransaction>[0]).upsertPolicy(f.spaceId,
+        { scopeType: "space", scopeId: f.spaceId, amount: 1000 }, "operator");
+      await tx.update(spaces).set({ status: "paused", pauseReason: "manual", pausedAt: new Date() }).where(eq(spaces.id, f.spaceId));
     });
     await ready;
     const evaluation = flushBudgetEvaluationWork(db, f).then(value => ({ value }), error => ({ error }));
     try {
       expect(await bounded(evaluation)).toMatchObject({ value: 0 });
-      expect((await pending(f.companyId)).length).toBeGreaterThan(0);
+      expect((await pending(f.spaceId)).length).toBeGreaterThan(0);
     } finally { release(); await control; await evaluation; }
     await flushBudgetEvaluationWork(db, f);
     expect((await db.select().from(budgetPolicies).where(eq(budgetPolicies.id, f.policyId)))[0].amount).toBe(1000);
-    expect((await db.select().from(companies).where(eq(companies.id, f.companyId)))[0])
+    expect((await db.select().from(spaces).where(eq(spaces.id, f.spaceId)))[0])
       .toMatchObject({ status: "paused", pauseReason: "manual" });
-    expect(await db.select().from(budgetIncidents).where(eq(budgetIncidents.companyId, f.companyId))).toHaveLength(0);
-    expect(await pending(f.companyId)).toHaveLength(0);
+    expect(await db.select().from(budgetIncidents).where(eq(budgetIncidents.spaceId, f.spaceId))).toHaveLength(0);
+    expect(await pending(f.spaceId)).toHaveLength(0);
   });
 
   it("rolls back old-window publication and retains its inputs when UTC rollover interrupts every attempt", async () => {
@@ -76,7 +76,7 @@ const support = await getEmbeddedPostgresTestSupport();
     vi.setSystemTime(before);
     const f = await fixture();
     await charge(f, 120);
-    const inputIds = (await pending(f.companyId)).map(row => row.id);
+    const inputIds = (await pending(f.spaceId)).map(row => row.id);
     const [original] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.id, f.policyId));
     const transaction = db.transaction.bind(db);
     let crossed = 0;
@@ -98,14 +98,14 @@ const support = await getEmbeddedPostgresTestSupport();
       expect(await flushBudgetEvaluationWork(db, f)).toBe(0);
     } finally { boundary.mockRestore(); }
     expect(crossed).toBeGreaterThan(0);
-    expect((await pending(f.companyId)).map(row => row.id)).toEqual(inputIds);
+    expect((await pending(f.spaceId)).map(row => row.id)).toEqual(inputIds);
     expect((await db.select().from(budgetPolicies).where(eq(budgetPolicies.id, f.policyId)))[0].evaluationVersion).toBe(original.evaluationVersion);
-    expect((await db.select().from(companies).where(eq(companies.id, f.companyId)))[0].pauseReason).toBeNull();
-    expect(await db.select().from(budgetIncidents).where(eq(budgetIncidents.companyId, f.companyId))).toHaveLength(0);
+    expect((await db.select().from(spaces).where(eq(spaces.id, f.spaceId)))[0].pauseReason).toBeNull();
+    expect(await db.select().from(budgetIncidents).where(eq(budgetIncidents.spaceId, f.spaceId))).toHaveLength(0);
     vi.setSystemTime(after);
     await flushBudgetEvaluationWork(db, f);
-    expect(await pending(f.companyId)).toHaveLength(0);
-    expect((await db.select().from(companies).where(eq(companies.id, f.companyId)))[0].pauseReason).toBeNull();
+    expect(await pending(f.spaceId)).toHaveLength(0);
+    expect((await db.select().from(spaces).where(eq(spaces.id, f.spaceId)))[0].pauseReason).toBeNull();
   });
 
   it("reads the new UTC month through a budget service retained across rollover", async () => {
@@ -115,11 +115,11 @@ const support = await getEmbeddedPostgresTestSupport();
     const service = budgetService(db);
     await charge(f, 20, new Date("2026-11-15T12:00:00Z"));
     await charge(f, 30, new Date("2026-12-15T12:00:00Z"));
-    const november = (await service.overview(f.companyId)).policies[0];
+    const november = (await service.overview(f.spaceId)).policies[0];
     expect(november).toMatchObject({ observedAmountExact: "20.0000000" });
     expect(november.windowStart.toISOString()).toBe("2026-11-01T00:00:00.000Z");
     vi.setSystemTime(new Date("2026-12-20T12:00:00Z"));
-    const december = (await service.overview(f.companyId)).policies[0];
+    const december = (await service.overview(f.spaceId)).policies[0];
     expect(december).toMatchObject({ observedAmountExact: "30.0000000" });
     expect(december.windowStart.toISOString()).toBe("2026-12-01T00:00:00.000Z");
   });

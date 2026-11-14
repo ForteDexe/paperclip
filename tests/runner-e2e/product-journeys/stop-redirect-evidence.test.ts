@@ -4,10 +4,10 @@ import { activeStopWorkBoundary, stoppedRunAccountingFinalized, STOP_REVISION_WA
 import { agentJourneyRunCountValid } from "./success-contract.js";
 
 type Row = Record<string, any>;
-const run = { id: "run", companyId: "company", agentId: "agent", nativeIssueId: "issue", runtimeMode: "native", status: "running",
+const run = { id: "run", spaceId: "space", agentId: "agent", nativeIssueId: "issue", runtimeMode: "native", status: "running",
   usageJson: { accountingReceiptSourceId: "receipt-source", accountingReceiptSequence: 5, accountingReceiptReady: false } };
 function event(seq: number, eventType: string, payload = {}, turnId = "turn"): Row {
-  return { seq, eventType, runId: run.id, companyId: run.companyId, agentId: run.agentId,
+  return { seq, eventType, runId: run.id, spaceId: run.spaceId, agentId: run.agentId,
     protocolSchemaVersion: 1, sourceEventId: `event-${seq}`, sourceInstanceId: "runner", sourceSeq: seq,
     payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, eventType, runId: run.id, turnId,
       sourceKind: "runner", sourceEventId: `event-${seq}`, sourceInstanceId: "runner", sourceSeq: seq, payload: structuredClone(payload) } } };
@@ -59,10 +59,10 @@ describe("Stop work and redirect admission evidence", () => {
     expect(activeStopWorkBoundary(run, rows)).toMatchObject({ executionId: "sleep", startedSeq: 6, usageSeq: 5, turnId: "turn" });
     expect(activeStopWorkBoundary(run, [...rows, event(7, "tool.execution.completed", { ...command, status: "completed" })])).toBeNull();
   });
-  it.each(["foreign-company", "foreign-agent", "foreign-run", "foreign-turn", "foreign-runner", "bad-source", "bad-envelope",
+  it.each(["foreign-space", "foreign-agent", "foreign-run", "foreign-turn", "foreign-runner", "bad-source", "bad-envelope",
     "partial", "missing-count", "negative-count", "fractional-count", "placeholder-zero", "session-total", "semantic-tool", "read-only"])("rejects %s proof", kind => {
     const rows = events(), row = rows[1]!, envelope = row.payload.orpEvent;
-    if (kind === "foreign-company") row.companyId = "foreign";
+    if (kind === "foreign-space") row.spaceId = "foreign";
     if (kind === "foreign-agent") row.agentId = "foreign";
     if (kind === "foreign-run") { row.runId = "foreign"; envelope.runId = "foreign"; }
     if (kind === "foreign-turn") envelope.turnId = "old-turn";
@@ -75,7 +75,7 @@ describe("Stop work and redirect admission evidence", () => {
     if (kind === "fractional-count") envelope.payload.usage.runDelta.outputTokens = 1.5;
     if (kind === "placeholder-zero") envelope.payload.usage.runDelta = { inputTokens: 0, outputTokens: 0 };
     if (kind === "session-total") envelope.payload.usage.usageBasis = "session_cumulative";
-    if (kind === "semantic-tool") rows[2]!.payload.orpEvent.payload = { ...command, name: "paperclip_finish" };
+    if (kind === "semantic-tool") rows[2]!.payload.orpEvent.payload = { ...command, name: "outpost_finish" };
     if (kind === "read-only") rows[2]!.payload.orpEvent.payload = { ...command, readOnly: true };
     expect(activeStopWorkBoundary(run, rows)).toBeNull();
   });
@@ -94,7 +94,7 @@ describe("Stop work and redirect admission evidence", () => {
     Object.assign(reconciled.usageJson, { accountingReceiptSourceId: "reconciled-source", accountingReceiptSequence: 5 });
     reconciled.costAccountedAt = "2026-01-01T00:00:00Z";
     expect(stoppedRunAccountingFinalized(reconciled, before())).toBe(true);
-    const changes: Array<(r: Row) => void> = [r => { r.id = "foreign"; }, r => { r.companyId = "foreign"; },
+    const changes: Array<(r: Row) => void> = [r => { r.id = "foreign"; }, r => { r.spaceId = "foreign"; },
       r => { r.agentId = "foreign"; }, r => { r.nativeIssueId = "foreign"; }, r => { r.runtimeMode = "legacy"; },
       r => { r.status = "succeeded"; }, r => { r.costAccountingPending = true; }, r => { delete r.costAccountingPending; },
       r => { r.costAccountedAt = null; }, r => { r.costAccountedAt = "invalid"; },
@@ -141,10 +141,10 @@ describe("Stop work and redirect admission evidence", () => {
     expect(nativeCancellationHasNoLaterWork([...stopped, row], before())).toBe(true);
     expect(nativeWorkEvents([...stopped, row], before())).toEqual(nativeWorkEvents(stopped, before()));
   });
-  it.each(["row-company", "row-agent", "row-run", "envelope-run", "row-instance", "envelope-instance", "missing-instance", "empty-instance",
+  it.each(["row-space", "row-agent", "row-run", "envelope-run", "row-instance", "envelope-instance", "missing-instance", "empty-instance",
     "source-event", "missing-source-event", "row-source-event", "source-sequence", "missing-sequence", "zero-sequence", "fractional-sequence", "source-kind"])("does not discard usage with an unbound %s", kind => {
     const stopped = [...events(), event(4, "turn.cancelled")], row = event(5, "item.completed", usage), envelope = row.payload.orpEvent;
-    if (kind === "row-company") row.companyId = "foreign";
+    if (kind === "row-space") row.spaceId = "foreign";
     if (kind === "row-agent") row.agentId = "foreign";
     if (kind === "row-run") row.runId = "foreign";
     if (kind === "envelope-run") envelope.runId = "foreign";

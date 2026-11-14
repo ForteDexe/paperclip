@@ -4,8 +4,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
   agents,
-  companies,
-  companySecrets,
+  spaces,
+  spaceSecrets,
   createDb,
   heartbeatRuns,
   issues,
@@ -40,7 +40,7 @@ const embeddedPostgresSupport = externalDatabaseUrl ? { supported: true } : awai
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
 
 function legacySideEffectKey(invocation: typeof toolInvocations.$inferSelect, argumentsHash: string) {
-  const scope = { companyId: invocation.companyId, runId: invocation.runId, issueId: invocation.issueId,
+  const scope = { spaceId: invocation.spaceId, runId: invocation.runId, issueId: invocation.issueId,
     applicationId: invocation.applicationId, connectionId: invocation.connectionId,
     catalogEntryId: invocation.catalogEntryId, toolName: invocation.toolName, argumentsHash };
   return `side_effect:${createHash("sha256").update(JSON.stringify(Object.fromEntries(
@@ -48,8 +48,8 @@ function legacySideEffectKey(invocation: typeof toolInvocations.$inferSelect, ar
   ))).digest("hex")}`;
 }
 
-async function createCompany(db: ReturnType<typeof createDb>) {
-  return db.insert(companies).values({
+async function createSpace(db: ReturnType<typeof createDb>) {
+  return db.insert(spaces).values({
     name: `Tool Access ${randomUUID()}`,
     issuePrefix: `TA${randomUUID().slice(0, 6).toUpperCase()}`,
   }).returning().then((rows) => rows[0]!);
@@ -57,11 +57,11 @@ async function createCompany(db: ReturnType<typeof createDb>) {
 
 async function createAgent(
   db: ReturnType<typeof createDb>,
-  companyId: string,
+  spaceId: string,
   permissions: Record<string, unknown> = {},
 ) {
   return db.insert(agents).values({
-    companyId,
+    spaceId,
     name: `Agent ${randomUUID()}`,
     role: "engineer",
     adapterType: "process",
@@ -73,12 +73,12 @@ async function createAgent(
 
 async function createRun(
   db: ReturnType<typeof createDb>,
-  companyId: string,
+  spaceId: string,
   agentId: string,
   contextSnapshot: Record<string, unknown> = {},
 ) {
   return db.insert(heartbeatRuns).values({
-    companyId,
+    spaceId,
     agentId,
     invocationSource: "assignment",
     status: "running",
@@ -86,24 +86,24 @@ async function createRun(
   }).returning().then((rows) => rows[0]!);
 }
 
-async function createIssue(db: ReturnType<typeof createDb>, companyId: string, title = "Tool issue") {
+async function createIssue(db: ReturnType<typeof createDb>, spaceId: string, title = "Tool issue") {
   return db.insert(issues).values({
-    companyId,
+    spaceId,
     title: `${title} ${randomUUID()}`,
     status: "in_progress",
   }).returning().then((rows) => rows[0]!);
 }
 
-async function createTool(db: ReturnType<typeof createDb>, companyId: string) {
+async function createTool(db: ReturnType<typeof createDb>, spaceId: string) {
   const application = await db.insert(toolApplications).values({
-    companyId,
+    spaceId,
     applicationKey: `fixture-${randomUUID()}`,
     name: `Fixture ${randomUUID()}`,
     type: "mcp_http",
     status: "active",
   }).returning().then((rows) => rows[0]!);
   const connection = await db.insert(toolConnections).values({
-    companyId,
+    spaceId,
     applicationId: application.id,
     name: `Connection ${randomUUID()}`,
     uid: `test/${randomUUID()}`,
@@ -113,7 +113,7 @@ async function createTool(db: ReturnType<typeof createDb>, companyId: string) {
     config: { url: "https://example.invalid/mcp" },
   }).returning().then((rows) => rows[0]!);
   const catalogEntry = await db.insert(toolCatalogEntries).values({
-    companyId,
+    spaceId,
     applicationId: application.id,
     connectionId: connection.id,
     name: "send_email",
@@ -127,7 +127,7 @@ async function createTool(db: ReturnType<typeof createDb>, companyId: string) {
 
 async function createApprovedToolAction(input: {
   db: ReturnType<typeof createDb>;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   connectionId: string;
   catalogEntryId: string;
@@ -137,7 +137,7 @@ async function createApprovedToolAction(input: {
 }) {
   const svc = toolAccessPolicyService(input.db);
   const decisionInput = {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     actor: { actorType: "agent" as const, actorId: input.agentId, agentId: input.agentId },
     runContext: { issueId: input.issueId ?? null },
     request: {
@@ -164,9 +164,9 @@ async function createApprovedToolAction(input: {
 
 type IdRef = { id: string };
 
-function sendEmailGrantRow(company: IdRef, agent: IdRef): typeof principalPermissionGrants.$inferInsert {
+function sendEmailGrantRow(space: IdRef, agent: IdRef): typeof principalPermissionGrants.$inferInsert {
   return {
-    companyId: company.id,
+    spaceId: space.id,
     principalType: "agent",
     principalId: agent.id,
     permissionKey: "tools:use",
@@ -174,36 +174,36 @@ function sendEmailGrantRow(company: IdRef, agent: IdRef): typeof principalPermis
   };
 }
 
-function agentProfileBindingRow(company: IdRef, profile: IdRef, agent: IdRef): typeof toolProfileBindings.$inferInsert {
+function agentProfileBindingRow(space: IdRef, profile: IdRef, agent: IdRef): typeof toolProfileBindings.$inferInsert {
   return {
-    companyId: company.id,
+    spaceId: space.id,
     profileId: profile.id,
     targetType: "agent",
     targetId: agent.id,
   };
 }
 
-function sendEmailDecisionInput(company: IdRef, agent: IdRef, connection: IdRef, catalogEntry: IdRef): Parameters<ReturnType<typeof toolAccessPolicyService>["decide"]>[0] {
+function sendEmailDecisionInput(space: IdRef, agent: IdRef, connection: IdRef, catalogEntry: IdRef): Parameters<ReturnType<typeof toolAccessPolicyService>["decide"]>[0] {
   return {
-    companyId: company.id,
+    spaceId: space.id,
     actor: { actorType: "agent", actorId: agent.id, agentId: agent.id },
     request: { connectionId: connection.id, catalogEntryId: catalogEntry.id, toolName: "send_email" },
   };
 }
 
-function reviewSendPolicyRow(company: IdRef, name: string): typeof toolPolicies.$inferInsert {
+function reviewSendPolicyRow(space: IdRef, name: string): typeof toolPolicies.$inferInsert {
   return {
-    companyId: company.id,
+    spaceId: space.id,
     name: name,
     policyType: "require_approval",
     selectors: { toolName: "send_email" },
   };
 }
 
-function executedActionInput(db: ReturnType<typeof createDb>, company: IdRef, agent: IdRef, connection: IdRef, catalogEntry: IdRef, args: Record<string, unknown>): Parameters<typeof createApprovedToolAction>[0] {
+function executedActionInput(db: ReturnType<typeof createDb>, space: IdRef, agent: IdRef, connection: IdRef, catalogEntry: IdRef, args: Record<string, unknown>): Parameters<typeof createApprovedToolAction>[0] {
   return {
     db,
-    companyId: company.id,
+    spaceId: space.id,
     agentId: agent.id,
     connectionId: connection.id,
     catalogEntryId: catalogEntry.id,
@@ -219,7 +219,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
   beforeAll(async () => {
     if (externalDatabaseUrl) db = createDb(externalDatabaseUrl);
     else {
-      tempDb = await startEmbeddedPostgresTestDatabase("paperclip-tool-access-policy-");
+      tempDb = await startEmbeddedPostgresTestDatabase("outpost-tool-access-policy-");
       db = createDb(tempDb.connectionString);
     }
   }, 20_000);
@@ -238,14 +238,14 @@ describeEmbeddedPostgres("tool access policy service", () => {
     await db.delete(toolCatalogEntries);
     await db.delete(toolConnections);
     await db.delete(toolApplications);
-    await db.delete(companySecrets);
+    await db.delete(spaceSecrets);
     await db.delete(principalPermissionGrants);
     await db.delete(issues);
     await db.delete(projects);
     await db.delete(activityLog);
     await db.delete(heartbeatRuns);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -254,11 +254,11 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("denies direct execution without an effective profile or grant", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
 
-    const result = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(company, agent, connection, catalogEntry));
+    const result = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(space, agent, connection, catalogEntry));
 
     expect(result).toMatchObject({
       allowed: false,
@@ -268,25 +268,25 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("allows calls through an effective agent profile", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
     const profile = await db.insert(toolProfiles).values({
-      companyId: company.id,
+      spaceId: space.id,
       profileKey: `profile-${randomUUID()}`,
       name: "Write tools",
       defaultAction: "deny",
     }).returning().then((rows) => rows[0]!);
-    await db.insert(toolProfileBindings).values(agentProfileBindingRow(company, profile, agent));
+    await db.insert(toolProfileBindings).values(agentProfileBindingRow(space, profile, agent));
     await db.insert(toolProfileEntries).values({
-      companyId: company.id,
+      spaceId: space.id,
       profileId: profile.id,
       selectorType: "tool_name",
       effect: "include",
       toolName: "send_email",
     });
 
-    const result = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(company, agent, connection, catalogEntry));
+    const result = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(space, agent, connection, catalogEntry));
 
     expect(result).toMatchObject({
       allowed: true,
@@ -296,21 +296,21 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
   });
 
-  it("uses issue-scoped profiles ahead of company defaults", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
-    const issue = await createIssue(db, company.id, "Scoped deny");
+  it("uses issue-scoped profiles ahead of space defaults", async () => {
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
+    const issue = await createIssue(db, space.id, "Scoped deny");
 
-    const [companyProfile, issueProfile] = await db.insert(toolProfiles).values([
+    const [spaceProfile, issueProfile] = await db.insert(toolProfiles).values([
       {
-        companyId: company.id,
-        profileKey: `company-allow-${randomUUID()}`,
-        name: "Company allow",
+        spaceId: space.id,
+        profileKey: `space-allow-${randomUUID()}`,
+        name: "Space allow",
         defaultAction: "deny",
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileKey: `issue-deny-${randomUUID()}`,
         name: "Issue deny",
         defaultAction: "deny",
@@ -318,28 +318,28 @@ describeEmbeddedPostgres("tool access policy service", () => {
     ]).returning();
     await db.insert(toolProfileBindings).values([
       {
-        companyId: company.id,
-        profileId: companyProfile!.id,
-        targetType: "company",
-        targetId: company.id,
+        spaceId: space.id,
+        profileId: spaceProfile!.id,
+        targetType: "space",
+        targetId: space.id,
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileId: issueProfile!.id,
         targetType: "issue",
         targetId: issue.id,
       },
     ]);
     await db.insert(toolProfileEntries).values({
-      companyId: company.id,
-      profileId: companyProfile!.id,
+      spaceId: space.id,
+      profileId: spaceProfile!.id,
       selectorType: "tool_name",
       effect: "include",
       toolName: "send_email",
     });
 
     const result = await toolAccessPolicyService(db).decide({
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent", actorId: agent.id, agentId: agent.id },
       runContext: { issueId: issue.id },
       request: { connectionId: connection.id, catalogEntryId: catalogEntry.id, toolName: "send_email" },
@@ -354,23 +354,23 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("uses agent-scoped profiles ahead of project defaults", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
     const project = await db.insert(projects).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: `Project ${randomUUID()}`,
     }).returning().then((rows) => rows[0]!);
 
     const [projectProfile, agentProfile] = await db.insert(toolProfiles).values([
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileKey: `project-allow-${randomUUID()}`,
         name: "Project allow",
         defaultAction: "deny",
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileKey: `agent-deny-${randomUUID()}`,
         name: "Agent deny",
         defaultAction: "deny",
@@ -378,20 +378,20 @@ describeEmbeddedPostgres("tool access policy service", () => {
     ]).returning();
     await db.insert(toolProfileBindings).values([
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileId: projectProfile!.id,
         targetType: "project",
         targetId: project.id,
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileId: agentProfile!.id,
         targetType: "agent",
         targetId: agent.id,
       },
     ]);
     await db.insert(toolProfileEntries).values({
-      companyId: company.id,
+      spaceId: space.id,
       profileId: projectProfile!.id,
       selectorType: "tool_name",
       effect: "include",
@@ -399,7 +399,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
 
     const result = await toolAccessPolicyService(db).decide({
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent", actorId: agent.id, agentId: agent.id },
       runContext: { projectId: project.id },
       request: { connectionId: connection.id, catalogEntryId: catalogEntry.id, toolName: "send_email" },
@@ -413,21 +413,21 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
   });
 
-  it("uses issue-scoped allows ahead of broader company denies", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
-    const issue = await createIssue(db, company.id, "Scoped allow");
+  it("uses issue-scoped allows ahead of broader space denies", async () => {
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
+    const issue = await createIssue(db, space.id, "Scoped allow");
 
-    const [companyProfile, issueProfile] = await db.insert(toolProfiles).values([
+    const [spaceProfile, issueProfile] = await db.insert(toolProfiles).values([
       {
-        companyId: company.id,
-        profileKey: `company-deny-${randomUUID()}`,
-        name: "Company deny",
+        spaceId: space.id,
+        profileKey: `space-deny-${randomUUID()}`,
+        name: "Space deny",
         defaultAction: "deny",
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileKey: `issue-allow-${randomUUID()}`,
         name: "Issue allow",
         defaultAction: "deny",
@@ -435,20 +435,20 @@ describeEmbeddedPostgres("tool access policy service", () => {
     ]).returning();
     await db.insert(toolProfileBindings).values([
       {
-        companyId: company.id,
-        profileId: companyProfile!.id,
-        targetType: "company",
-        targetId: company.id,
+        spaceId: space.id,
+        profileId: spaceProfile!.id,
+        targetType: "space",
+        targetId: space.id,
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileId: issueProfile!.id,
         targetType: "issue",
         targetId: issue.id,
       },
     ]);
     await db.insert(toolProfileEntries).values({
-      companyId: company.id,
+      spaceId: space.id,
       profileId: issueProfile!.id,
       selectorType: "tool_name",
       effect: "include",
@@ -456,7 +456,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
 
     const result = await toolAccessPolicyService(db).decide({
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent", actorId: agent.id, agentId: agent.id },
       runContext: { issueId: issue.id },
       request: { connectionId: connection.id, catalogEntryId: catalogEntry.id, toolName: "send_email" },
@@ -471,20 +471,20 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("denies calls through draft and archived profiles", async () => {
-    const company = await createCompany(db);
-    const draftAgent = await createAgent(db, company.id);
-    const archivedAgent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const draftAgent = await createAgent(db, space.id);
+    const archivedAgent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
     const [draftProfile, archivedProfile] = await db.insert(toolProfiles).values([
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileKey: `draft-profile-${randomUUID()}`,
         name: "Draft write tools",
         status: "draft",
         defaultAction: "allow",
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileKey: `archived-profile-${randomUUID()}`,
         name: "Archived write tools",
         status: "archived",
@@ -493,13 +493,13 @@ describeEmbeddedPostgres("tool access policy service", () => {
     ]).returning();
     await db.insert(toolProfileBindings).values([
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileId: draftProfile!.id,
         targetType: "agent",
         targetId: draftAgent.id,
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileId: archivedProfile!.id,
         targetType: "agent",
         targetId: archivedAgent.id,
@@ -507,14 +507,14 @@ describeEmbeddedPostgres("tool access policy service", () => {
     ]);
     await db.insert(toolProfileEntries).values([
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileId: draftProfile!.id,
         selectorType: "tool_name",
         effect: "include",
         toolName: "send_email",
       },
       {
-        companyId: company.id,
+        spaceId: space.id,
         profileId: archivedProfile!.id,
         selectorType: "tool_name",
         effect: "include",
@@ -523,7 +523,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     ]);
 
     for (const agent of [draftAgent, archivedAgent]) {
-      const result = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(company, agent, connection, catalogEntry));
+      const result = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(space, agent, connection, catalogEntry));
       expect(result).toMatchObject({
         allowed: false,
         decision: "deny",
@@ -534,12 +534,12 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("denies calls through disabled applications before explicit grants and allows them after reactivation", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { application, connection, catalogEntry } = await createTool(db, company.id);
-    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(company, agent));
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { application, connection, catalogEntry } = await createTool(db, space.id);
+    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(space, agent));
     const input = {
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
       request: { connectionId: connection.id, catalogEntryId: catalogEntry.id, toolName: "send_email" },
     };
@@ -573,18 +573,18 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("manages generic tool policies without exposing trust rules", async () => {
-    const company = await createCompany(db);
-    const otherCompany = await createCompany(db);
+    const space = await createSpace(db);
+    const otherSpace = await createSpace(db);
     const svc = toolAccessPolicyService(db);
     const [trustRule] = await db.insert(toolPolicies).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Promoted trust rule",
       policyType: "trust_rule",
       selectors: { toolName: "send_email" },
       config: { trustRule: { hitCount: 0 } },
     }).returning();
 
-    const created = await svc.createPolicy(company.id, {
+    const created = await svc.createPolicy(space.id, {
       name: "Block destructive senders",
       description: "Block a dangerous tool family.",
       policyType: "block",
@@ -593,17 +593,17 @@ describeEmbeddedPostgres("tool access policy service", () => {
       selectors: { toolNames: ["send_email", "delete_email"] },
       conditions: null,
       config: null,
-    }, { userId: "board-user" });
+    }, { userId: "operator-user" });
 
     expect(created).toMatchObject({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Block destructive senders",
       policyType: "block",
       priority: 10,
-      createdByUserId: "board-user",
+      createdByUserId: "operator-user",
     });
 
-    await expect(svc.createPolicy(company.id, {
+    await expect(svc.createPolicy(space.id, {
       name: "Generic trust rule",
       description: null,
       policyType: "trust_rule",
@@ -615,16 +615,16 @@ describeEmbeddedPostgres("tool access policy service", () => {
     })).rejects.toMatchObject({ status: 422 });
 
     await expect(svc.updatePolicy({
-      companyId: otherCompany.id,
+      spaceId: otherSpace.id,
       policyId: created.id,
       body: { enabled: false },
     })).rejects.toMatchObject({ status: 404 });
 
-    const listed = await svc.listPolicies(company.id);
+    const listed = await svc.listPolicies(space.id);
     expect(listed.map((policy) => policy.id)).toEqual([created.id]);
 
     const updated = await svc.updatePolicy({
-      companyId: company.id,
+      spaceId: space.id,
       policyId: created.id,
       body: {
         name: "Require review for destructive senders",
@@ -641,28 +641,28 @@ describeEmbeddedPostgres("tool access policy service", () => {
       selectors: { toolName: "delete_email" },
     });
 
-    const deleted = await svc.deletePolicy({ companyId: company.id, policyId: created.id });
+    const deleted = await svc.deletePolicy({ spaceId: space.id, policyId: created.id });
     expect(deleted.id).toBe(created.id);
-    await expect(svc.deletePolicy({ companyId: company.id, policyId: trustRule.id }))
+    await expect(svc.deletePolicy({ spaceId: space.id, policyId: trustRule.id }))
       .rejects.toMatchObject({ status: 404 });
-    expect(await svc.listPolicies(company.id)).toEqual([]);
-    const remainingTrustRules = await svc.listTrustRules(company.id);
+    expect(await svc.listPolicies(space.id)).toEqual([]);
+    const remainingTrustRules = await svc.listTrustRules(space.id);
     expect(remainingTrustRules.map((policy) => policy.id)).toEqual([trustRule.id]);
   });
 
   it("treats glob-looking action-name selectors as exact names", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
     const profile = await db.insert(toolProfiles).values({
-      companyId: company.id,
+      spaceId: space.id,
       profileKey: `profile-${randomUUID()}`,
       name: "Write tools",
       defaultAction: "allow",
     }).returning().then((rows) => rows[0]!);
-    await db.insert(toolProfileBindings).values(agentProfileBindingRow(company, profile, agent));
+    await db.insert(toolProfileBindings).values(agentProfileBindingRow(space, profile, agent));
     const wildcardPolicy = await db.insert(toolPolicies).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Review wildcard-looking sends",
       policyType: "require_approval",
       priority: 10,
@@ -670,7 +670,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     }).returning().then((rows) => rows[0]!);
 
     const input = {
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
       request: { connectionId: connection.id, catalogEntryId: catalogEntry.id, toolName: "send_email" },
     };
@@ -684,7 +684,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
 
     const exactPolicy = await db.insert(toolPolicies).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Review exact sends",
       policyType: "require_approval",
       priority: 5,
@@ -702,11 +702,11 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("matches tool name selectors against connected MCP upstream tool names", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
     const policy = await db.insert(toolPolicies).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Review upstream todo writes",
       policyType: "require_approval",
       priority: 10,
@@ -714,7 +714,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     }).returning().then((rows) => rows[0]!);
 
     await expect(toolAccessPolicyService(db).decide({
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent", actorId: agent.id, agentId: agent.id },
       request: {
         connectionId: connection.id,
@@ -731,19 +731,19 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("rejects agent-supplied run context that belongs to another agent", async () => {
-    const company = await createCompany(db);
-    const actorAgent = await createAgent(db, company.id);
-    const otherAgent = await createAgent(db, company.id);
-    const { connection } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const actorAgent = await createAgent(db, space.id);
+    const otherAgent = await createAgent(db, space.id);
+    const { connection } = await createTool(db, space.id);
     const run = await db.insert(heartbeatRuns).values({
-      companyId: company.id,
+      spaceId: space.id,
       agentId: otherAgent.id,
       invocationSource: "assignment",
       status: "running",
     }).returning().then((rows) => rows[0]!);
 
     const result = await toolAccessPolicyService(db).decide({
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent", actorId: actorAgent.id, agentId: actorAgent.id },
       runContext: { heartbeatRunId: run.id },
       request: { connectionId: connection.id, toolName: "send_email" },
@@ -756,15 +756,15 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("rejects agent-supplied issue context that differs from the stored heartbeat context", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const canonicalIssue = await createIssue(db, company.id, "Canonical");
-    const escalatedIssue = await createIssue(db, company.id, "Escalated");
-    const { connection } = await createTool(db, company.id);
-    const run = await createRun(db, company.id, agent.id, { issueId: canonicalIssue.id });
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const canonicalIssue = await createIssue(db, space.id, "Canonical");
+    const escalatedIssue = await createIssue(db, space.id, "Escalated");
+    const { connection } = await createTool(db, space.id);
+    const run = await createRun(db, space.id, agent.id, { issueId: canonicalIssue.id });
 
     const result = await toolAccessPolicyService(db).decide({
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent", actorId: agent.id, agentId: agent.id },
       runContext: { heartbeatRunId: run.id, issueId: escalatedIssue.id },
       request: { connectionId: connection.id, toolName: "send_email" },
@@ -777,11 +777,11 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("audits denied calls without storing secret argument values", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection } = await createTool(db, space.id);
     const input = {
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
       request: {
         connectionId: connection.id,
@@ -810,18 +810,18 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("records approval-required invocations and action requests with matched policy IDs", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection } = await createTool(db, space.id);
     const policy = await db.insert(toolPolicies).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Review writes",
       policyType: "require_approval",
       selectors: { toolName: "send_email" },
-      description: "Writes require board review.",
+      description: "Writes require operator review.",
     }).returning().then((rows) => rows[0]!);
     const input = {
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
       request: {
         connectionId: connection.id,
@@ -862,12 +862,12 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("replays side-effecting calls with the same idempotency key instead of creating a new invocation", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection } = await createTool(db, company.id);
-    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(company, agent));
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection } = await createTool(db, space.id);
+    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(space, agent));
     const input = {
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
       request: {
         connectionId: connection.id,
@@ -888,12 +888,12 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("derives a canonical idempotency key for side-effecting calls without caller-supplied keys", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection } = await createTool(db, company.id);
-    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(company, agent));
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection } = await createTool(db, space.id);
+    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(space, agent));
     const input = {
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
       request: {
         connectionId: connection.id,
@@ -918,12 +918,12 @@ describeEmbeddedPostgres("tool access policy service", () => {
     [{ body: `${"x".repeat(500)}old` }, { body: `${"x".repeat(500)}new` }],
     [{ items: [...Array.from({ length: 50 }, (_, index) => index), "old"] }, { items: [...Array.from({ length: 50 }, (_, index) => index), "new"] }],
   ])("blocks unverifiable legacy default-key writes until an explicit new operation is requested (%#)", async (original, replacement) => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection } = await createTool(db, company.id);
-    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(company, agent));
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection } = await createTool(db, space.id);
+    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(space, agent));
     const svc = toolAccessPolicyService(db, { toolActionSigningSecret: "legacy-identity-fixture-key" });
-    const input = { companyId: company.id, actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
+    const input = { spaceId: space.id, actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
       request: { connectionId: connection.id, toolName: "send_email", arguments: original, sideEffecting: true } };
     const decision = await svc.decide(input);
     const first = await svc.recordInvocation(input, decision);
@@ -948,13 +948,13 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it.each(["preview", "complete"])("replays a legacy default-key result when its %s identity proves an exact match", async (identityKind) => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection } = await createTool(db, company.id);
-    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(company, agent));
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection } = await createTool(db, space.id);
+    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(space, agent));
     const svc = toolAccessPolicyService(db, { toolActionSigningSecret: "legacy-identity-fixture-key" });
     // Historical sorting was ordinal; the new canonical serializer uses locale order.
-    const input = { companyId: company.id, actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
+    const input = { spaceId: space.id, actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
       request: { connectionId: connection.id, toolName: "send_email", arguments: identityKind === "preview"
         ? { Z: "last", a: "first" } : { password: "saved-secret" }, sideEffecting: true } };
     const decision = await svc.decide(input);
@@ -971,13 +971,13 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("uses authenticated legacy arguments to distinguish an exact retry from a new secret operation", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection } = await createTool(db, company.id);
-    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(company, agent));
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection } = await createTool(db, space.id);
+    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(space, agent));
     const signingSecret = "legacy-identity-fixture-key";
     const svc = toolAccessPolicyService(db, { toolActionSigningSecret: signingSecret });
-    const input = { companyId: company.id, actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
+    const input = { spaceId: space.id, actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
       request: { connectionId: connection.id, toolName: "send_email", arguments: { password: "old-value" }, sideEffecting: true } };
     const decision = await svc.decide(input);
     const first = await svc.recordInvocation(input, decision);
@@ -985,7 +985,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     await db.update(toolInvocations).set({ argumentsHash: oldHash,
       idempotencyKey: legacySideEffectKey(first.invocation, oldHash), status: "succeeded" })
       .where(eq(toolInvocations.id, first.invocation.id));
-    await db.insert(toolActionRequests).values({ companyId: company.id, invocationId: first.invocation.id,
+    await db.insert(toolActionRequests).values({ spaceId: space.id, invocationId: first.invocation.id,
       status: "executed", canonicalArgumentsHash: oldHash, canonicalArgumentsSummary: first.invocation.argumentsSummary!, signedArguments: signToolArguments({
         invocationId: first.invocation.id, toolName: "send_email", canonicalArguments: canonicalToolArguments(input.request.arguments), signingSecret,
       }) });
@@ -996,13 +996,13 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("separates no-run default keys by actor and never exposes another actor's legacy result", async () => {
-    const company = await createCompany(db);
-    const firstAgent = await createAgent(db, company.id);
-    const secondAgent = await createAgent(db, company.id);
-    const { connection } = await createTool(db, company.id);
-    await db.insert(principalPermissionGrants).values([sendEmailGrantRow(company, firstAgent), sendEmailGrantRow(company, secondAgent)]);
+    const space = await createSpace(db);
+    const firstAgent = await createAgent(db, space.id);
+    const secondAgent = await createAgent(db, space.id);
+    const { connection } = await createTool(db, space.id);
+    await db.insert(principalPermissionGrants).values([sendEmailGrantRow(space, firstAgent), sendEmailGrantRow(space, secondAgent)]);
     const svc = toolAccessPolicyService(db);
-    const input = { companyId: company.id, actor: { actorType: "agent" as const, actorId: firstAgent.id, agentId: firstAgent.id },
+    const input = { spaceId: space.id, actor: { actorType: "agent" as const, actorId: firstAgent.id, agentId: firstAgent.id },
       request: { connectionId: connection.id, toolName: "send_email", arguments: { body: "same request" }, sideEffecting: true } };
     const secondInput = { ...input, actor: { actorType: "agent" as const, actorId: secondAgent.id, agentId: secondAgent.id } };
     const first = await svc.recordInvocation(input, await svc.decide(input));
@@ -1022,19 +1022,19 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("enforces rate-limit policies before explicit grants", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection } = await createTool(db, company.id);
-    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(company, agent));
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection } = await createTool(db, space.id);
+    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(space, agent));
     await db.insert(toolPolicies).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "One send per minute",
       policyType: "rate_limit",
       selectors: { toolName: "send_email" },
       config: { limit: 1, windowSeconds: 60, keyBy: ["agent", "tool"] },
     });
     const input = {
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
       request: { connectionId: connection.id, toolName: "send_email" },
       consumeRateLimit: true,
@@ -1052,19 +1052,19 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("atomically consumes the final rate-limit slot", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection } = await createTool(db, company.id);
-    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(company, agent));
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection } = await createTool(db, space.id);
+    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(space, agent));
     await db.insert(toolPolicies).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "One concurrent send per minute",
       policyType: "rate_limit",
       selectors: { toolName: "send_email" },
       config: { limit: 1, windowSeconds: 60, keyBy: ["agent", "tool"] },
     });
     const input = {
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent" as const, actorId: agent.id, agentId: agent.id },
       request: { connectionId: connection.id, toolName: "send_email" },
       consumeRateLimit: true,
@@ -1080,20 +1080,20 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   async function admittedRateLimitedInvocation(limit = 1) {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const issue = await createIssue(db, company.id);
-    const run = await createRun(db, company.id, agent.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
-    const [profile] = await db.insert(toolProfiles).values({ companyId: company.id,
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const issue = await createIssue(db, space.id);
+    const run = await createRun(db, space.id, agent.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
+    const [profile] = await db.insert(toolProfiles).values({ spaceId: space.id,
       profileKey: "admitted-gateway", name: "Admitted gateway", defaultAction: "deny" }).returning();
-    const [gateway] = await db.insert(toolMcpGateways).values({ companyId: company.id,
+    const [gateway] = await db.insert(toolMcpGateways).values({ spaceId: space.id,
       name: "Admitted gateway", slug: "admitted-gateway", profileId: profile.id }).returning();
-    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(company, agent));
-    const [ratePolicy] = await db.insert(toolPolicies).values({ companyId: company.id, name: "One admitted send",
+    await db.insert(principalPermissionGrants).values(sendEmailGrantRow(space, agent));
+    const [ratePolicy] = await db.insert(toolPolicies).values({ spaceId: space.id, name: "One admitted send",
       policyType: "rate_limit", selectors: { toolName: "send_email" }, priority: 1,
       config: { limit, windowSeconds: 3600, keyBy: ["agent", "tool"] } }).returning();
-    const input = { ...sendEmailDecisionInput(company, agent, connection, catalogEntry),
+    const input = { ...sendEmailDecisionInput(space, agent, connection, catalogEntry),
       runContext: { heartbeatRunId: run.id, issueId: issue.id, gatewayId: gateway.id }, consumeRateLimit: true,
       request: { connectionId: connection.id, catalogEntryId: catalogEntry.id, toolName: "send_email", arguments: { to: "recipient@example.test" } } };
     const svc = toolAccessPolicyService(db);
@@ -1102,7 +1102,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     const { invocation } = await svc.recordInvocation(input, initial);
     expect(invocation.gatewayId).toBe(gateway.id);
     await db.update(toolInvocations).set({ status: "executing" }).where(eq(toolInvocations.id, invocation.id));
-    return { company, agent, input: { ...input, consumeRateLimit: false }, invocation, ratePolicy, svc };
+    return { space, agent, input: { ...input, consumeRateLimit: false }, invocation, ratePolicy, svc };
   }
 
   it.each(["allow", "approved"] as const)("retains the consumed final rate-limit slot for the same executing %s invocation", async authorization => {
@@ -1127,8 +1127,8 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("atomically charges a new rule once across concurrent retries of the same invocation", async () => {
-    const { company, input, invocation, svc } = await admittedRateLimitedInvocation();
-    const added = await svc.createPolicy(company.id, { name: "New admission", policyType: "rate_limit", enabled: true, priority: 0,
+    const { space, input, invocation, svc } = await admittedRateLimitedInvocation();
+    const added = await svc.createPolicy(space.id, { name: "New admission", policyType: "rate_limit", enabled: true, priority: 0,
       selectors: { toolName: "send_email" }, config: { limit: 1, windowSeconds: 3600, keyBy: ["agent", "tool"] } });
     const oldCounters = await db.select().from(toolRateLimitCounters);
     expect(await svc.decide(input, { admittedInvocationId: invocation.id })).toMatchObject({ allowed: true });
@@ -1145,12 +1145,12 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("allows only one of two admitted invocations to spend a newly added final slot", async () => {
-    const { company, input, invocation, svc } = await admittedRateLimitedInvocation(2);
+    const { space, input, invocation, svc } = await admittedRateLimitedInvocation(2);
     const initial = await svc.decide({ ...input, consumeRateLimit: true });
     expect(initial.allowed).toBe(true);
     const { invocation: second } = await svc.recordInvocation(input, initial);
     await db.update(toolInvocations).set({ status: "executing" }).where(eq(toolInvocations.id, second.id));
-    const added = await svc.createPolicy(company.id, { name: "One competing slot", policyType: "rate_limit", enabled: true, priority: 0,
+    const added = await svc.createPolicy(space.id, { name: "One competing slot", policyType: "rate_limit", enabled: true, priority: 0,
       selectors: { toolName: "send_email" }, config: { limit: 1, windowSeconds: 3600, keyBy: ["agent", "tool"] } });
     const results = await Promise.all([invocation.id, second.id].map(id => svc.admitInvocation(input, id)));
     expect(results.filter(result => result.allowed)).toHaveLength(1);
@@ -1160,10 +1160,10 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("rolls back new rate charges when a later policy rejects the invocation", async () => {
-    const { company, input, invocation, svc } = await admittedRateLimitedInvocation();
-    await svc.createPolicy(company.id, { name: "Before rejection", policyType: "rate_limit", enabled: true, priority: 0,
+    const { space, input, invocation, svc } = await admittedRateLimitedInvocation();
+    await svc.createPolicy(space.id, { name: "Before rejection", policyType: "rate_limit", enabled: true, priority: 0,
       selectors: { toolName: "send_email" }, config: { limit: 1, windowSeconds: 3600, keyBy: ["agent", "tool"] } });
-    await svc.createPolicy(company.id, { name: "Later rejection", policyType: "block", enabled: true, priority: 10,
+    await svc.createPolicy(space.id, { name: "Later rejection", policyType: "block", enabled: true, priority: 10,
       selectors: { toolName: "send_email" } });
     const counters = await db.select().from(toolRateLimitCounters);
     expect(await svc.admitInvocation(input, invocation.id)).toMatchObject({ decision: "deny" });
@@ -1173,8 +1173,8 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("rolls back rate charges when saving the admission receipt fails and admits a retry once", async () => {
-    const { company, input, invocation, svc } = await admittedRateLimitedInvocation();
-    const added = await svc.createPolicy(company.id, { name: "Receipt failure", policyType: "rate_limit", enabled: true, priority: 0,
+    const { space, input, invocation, svc } = await admittedRateLimitedInvocation();
+    const added = await svc.createPolicy(space.id, { name: "Receipt failure", policyType: "rate_limit", enabled: true, priority: 0,
       selectors: { toolName: "send_email" }, config: { limit: 1, windowSeconds: 3600, keyBy: ["agent", "tool"] } });
     await db.execute(sql`create function sleep_admission_fail() returns trigger language plpgsql as $$ begin
       raise exception 'receipt write unavailable'; end $$`);
@@ -1196,8 +1196,8 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it.each([2, 4])("preserves spent slots when a rate limit changes from three to %s", async limit => {
-    const { company, input, ratePolicy, svc } = await admittedRateLimitedInvocation(3);
-    await svc.updatePolicy({ companyId: company.id, policyId: ratePolicy.id,
+    const { space, input, ratePolicy, svc } = await admittedRateLimitedInvocation(3);
+    await svc.updatePolicy({ spaceId: space.id, policyId: ratePolicy.id,
       body: { config: { limit, windowSeconds: 3600, keyBy: ["agent", "tool"] } } });
     const results = await Promise.all(Array.from({ length: limit }, () => svc.decide({ ...input, consumeRateLimit: true })));
     expect(results.filter(result => result.allowed)).toHaveLength(limit - 1);
@@ -1206,10 +1206,10 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it.each(["pending", "approved"] as const)("retains a waiting invocation's consumed slot without bypassing %s approval policy", async approvalState => {
-    const { company, input, invocation, svc } = await admittedRateLimitedInvocation();
+    const { space, input, invocation, svc } = await admittedRateLimitedInvocation();
     await db.update(toolInvocations).set({ status: "awaiting_approval", policyDecision: "require_approval", approvalState })
       .where(eq(toolInvocations.id, invocation.id));
-    await db.insert(toolPolicies).values({ companyId: company.id, name: "Review admitted sends",
+    await db.insert(toolPolicies).values({ spaceId: space.id, name: "Review admitted sends",
       policyType: "require_approval", priority: 2, selectors: { toolName: "send_email" } });
     const counters = await db.select().from(toolRateLimitCounters);
     expect(await svc.decide(input, { admittedInvocationId: invocation.id }))
@@ -1219,8 +1219,8 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("rechecks a newly added rate policy rather than borrowing an older policy's consumed slot", async () => {
-    const { company, input, invocation, svc } = await admittedRateLimitedInvocation();
-    await svc.createPolicy(company.id, { name: "New send limit", policyType: "rate_limit", enabled: true, priority: 0,
+    const { space, input, invocation, svc } = await admittedRateLimitedInvocation();
+    await svc.createPolicy(space.id, { name: "New send limit", policyType: "rate_limit", enabled: true, priority: 0,
       selectors: { toolName: "send_email" }, config: { limit: 1, windowSeconds: 3600, keyBy: ["agent", "tool"] } });
     // Consume the new rule through normal admission; the exhausted original
     // rule then denies this separate request before any provider dispatch.
@@ -1232,9 +1232,9 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("rechecks an edited rate-policy generation without consuming another slot", async () => {
-    const { company, input, invocation, ratePolicy, svc } = await admittedRateLimitedInvocation(2);
+    const { space, input, invocation, ratePolicy, svc } = await admittedRateLimitedInvocation(2);
     expect(await svc.decide({ ...input, consumeRateLimit: true })).toMatchObject({ allowed: true });
-    await svc.updatePolicy({ companyId: company.id, policyId: ratePolicy.id,
+    await svc.updatePolicy({ spaceId: space.id, policyId: ratePolicy.id,
       body: { config: { limit: 1, windowSeconds: 3600, keyBy: ["agent", "tool"] } } });
     const counters = await db.select().from(toolRateLimitCounters);
     expect(await svc.decide(input, { admittedInvocationId: invocation.id })).toMatchObject({ decision: "rate_limited" });
@@ -1248,15 +1248,15 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("reevaluates current blocks, grants, and approval policies for admitted work", async () => {
-    const { company, input, invocation, svc } = await admittedRateLimitedInvocation();
+    const { space, input, invocation, svc } = await admittedRateLimitedInvocation();
     const options = { admittedInvocationId: invocation.id };
-    const [block] = await db.insert(toolPolicies).values({ companyId: company.id, name: "Block admitted sends",
+    const [block] = await db.insert(toolPolicies).values({ spaceId: space.id, name: "Block admitted sends",
       policyType: "block", priority: 0, selectors: { toolName: "send_email" } }).returning();
     expect(await svc.decide(input, options)).toMatchObject({ decision: "deny", reasonCode: "deny_policy_block" });
     await db.delete(toolPolicies).where(eq(toolPolicies.id, block.id));
-    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.companyId, company.id));
+    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.spaceId, space.id));
     expect(await svc.decide(input, options)).toMatchObject({ decision: "deny", reasonCode: "deny_default" });
-    await db.insert(toolPolicies).values({ companyId: company.id, name: "Require new review",
+    await db.insert(toolPolicies).values({ spaceId: space.id, name: "Require new review",
       policyType: "require_approval", priority: 2, selectors: { toolName: "send_email" } });
     expect(await svc.decide(input, options)).toMatchObject({ decision: "require_approval" });
   });
@@ -1284,9 +1284,9 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("rejects unsupported policy semantics at create and update time", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const svc = toolAccessPolicyService(db);
-    const policy = await svc.createPolicy(company.id, {
+    const policy = await svc.createPolicy(space.id, {
       name: "Require review",
       policyType: "require_approval",
       priority: 100,
@@ -1294,7 +1294,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
       selectors: { toolName: "send_email" },
     });
 
-    await expect(svc.createPolicy(company.id, {
+    await expect(svc.createPolicy(space.id, {
       name: "Dead redact policy",
       policyType: "redact" as never,
       priority: 100,
@@ -1302,7 +1302,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
       selectors: { toolName: "send_email" },
       config: { redact: { fields: ["to", "body"] } },
     })).rejects.toThrow("Tool policy type 'redact' is not supported at runtime");
-    await expect(svc.createPolicy(company.id, {
+    await expect(svc.createPolicy(space.id, {
       name: "Dead custom check",
       policyType: "validate" as never,
       priority: 100,
@@ -1310,7 +1310,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
       selectors: { toolName: "send_email" },
       config: { schema: { required: ["body"] } },
     })).rejects.toThrow("Tool policy type 'validate' is not supported at runtime");
-    await expect(svc.createPolicy(company.id, {
+    await expect(svc.createPolicy(space.id, {
       name: "Malformed conditional policy",
       policyType: "allow",
       priority: 100,
@@ -1318,7 +1318,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
       selectors: { toolName: "send_email" },
       conditions: { args: { body: "safe" } } as never,
     })).rejects.toThrow("Tool policy conditions include unsupported runtime semantics");
-    await expect(svc.createPolicy(company.id, {
+    await expect(svc.createPolicy(space.id, {
       name: "Ignored approval config",
       policyType: "require_approval",
       priority: 100,
@@ -1326,7 +1326,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
       selectors: { toolName: "send_email" },
       config: { validate: { required: ["body"] } },
     })).rejects.toThrow("Tool policy type 'require_approval' does not support config");
-    await expect(svc.createPolicy(company.id, {
+    await expect(svc.createPolicy(space.id, {
       name: "Invalid rate limit",
       policyType: "rate_limit",
       priority: 100,
@@ -1335,17 +1335,17 @@ describeEmbeddedPostgres("tool access policy service", () => {
       config: { rateLimit: { limit: 0, windowSeconds: 60 } },
     })).rejects.toThrow("Rate-limit policy config requires positive numeric limit and windowSeconds");
     await expect(svc.updatePolicy({
-      companyId: company.id,
+      spaceId: space.id,
       policyId: policy.id,
       body: { conditions: { args: { body: "safe" } } as never },
     })).rejects.toThrow("Tool policy conditions include unsupported runtime semantics");
   });
 
   it("rejects fieldMatches patterns with nested quantifiers", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const svc = toolAccessPolicyService(db);
 
-    await expect(svc.createPolicy(company.id, {
+    await expect(svc.createPolicy(space.id, {
       name: "Unsafe regex",
       policyType: "allow",
       enabled: true,
@@ -1358,10 +1358,10 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("rejects fieldMatches patterns with ambiguous alternation", async () => {
-    const company = await createCompany(db);
+    const space = await createSpace(db);
     const svc = toolAccessPolicyService(db);
 
-    await expect(svc.createPolicy(company.id, {
+    await expect(svc.createPolicy(space.id, {
       name: "Unsafe alternation",
       policyType: "allow",
       priority: 100,
@@ -1374,11 +1374,11 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("allows a write policy only for a safe argument subset and blocks unsafe arguments", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
     const svc = toolAccessPolicyService(db);
-    const allowPolicy = await svc.createPolicy(company.id, {
+    const allowPolicy = await svc.createPolicy(space.id, {
       name: "Allow safe destination",
       policyType: "allow",
       enabled: true,
@@ -1392,7 +1392,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
         risk: { isWrite: true },
       },
     });
-    const blockPolicy = await svc.createPolicy(company.id, {
+    const blockPolicy = await svc.createPolicy(space.id, {
       name: "Block external destination",
       policyType: "block",
       enabled: true,
@@ -1406,7 +1406,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
 
     await expect(svc.decide({
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent", actorId: agent.id, agentId: agent.id },
       request: {
         connectionId: connection.id,
@@ -1425,7 +1425,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
 
     await expect(svc.decide({
-      companyId: company.id,
+      spaceId: space.id,
       actor: { actorType: "agent", actorId: agent.id, agentId: agent.id },
       request: {
         connectionId: connection.id,
@@ -1442,18 +1442,18 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("fails closed for legacy unsupported redact and validate policies", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
     const profile = await db.insert(toolProfiles).values({
-      companyId: company.id,
+      spaceId: space.id,
       profileKey: `profile-${randomUUID()}`,
       name: "Fallback allow",
       defaultAction: "allow",
     }).returning().then((rows) => rows[0]!);
-    await db.insert(toolProfileBindings).values(agentProfileBindingRow(company, profile, agent));
+    await db.insert(toolProfileBindings).values(agentProfileBindingRow(space, profile, agent));
     const [redactPolicy] = await db.insert(toolPolicies).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Legacy redact",
       policyType: "redact" as never,
       selectors: { toolName: "send_email" },
@@ -1461,7 +1461,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
       priority: 1,
     }).returning();
     const [validatePolicy] = await db.insert(toolPolicies).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Legacy validate",
       policyType: "validate" as never,
       selectors: { toolName: "send_email" },
@@ -1469,9 +1469,9 @@ describeEmbeddedPostgres("tool access policy service", () => {
       priority: 2,
     }).returning();
 
-    const redactDecision = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(company, agent, connection, catalogEntry));
+    const redactDecision = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(space, agent, connection, catalogEntry));
     await db.update(toolPolicies).set({ enabled: false }).where(eq(toolPolicies.id, redactPolicy!.id));
-    const validateDecision = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(company, agent, connection, catalogEntry));
+    const validateDecision = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(space, agent, connection, catalogEntry));
 
     expect(redactDecision).toMatchObject({
       allowed: false,
@@ -1488,18 +1488,18 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("fails closed for legacy condition-bearing policies", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
     const profile = await db.insert(toolProfiles).values({
-      companyId: company.id,
+      spaceId: space.id,
       profileKey: `profile-${randomUUID()}`,
       name: "Fallback allow",
       defaultAction: "allow",
     }).returning().then((rows) => rows[0]!);
-    await db.insert(toolProfileBindings).values(agentProfileBindingRow(company, profile, agent));
+    await db.insert(toolProfileBindings).values(agentProfileBindingRow(space, profile, agent));
     const [policy] = await db.insert(toolPolicies).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Legacy conditional allow",
       policyType: "allow",
       selectors: { toolName: "send_email" },
@@ -1507,7 +1507,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
       priority: 1,
     }).returning();
 
-    const result = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(company, agent, connection, catalogEntry));
+    const result = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(space, agent, connection, catalogEntry));
 
     expect(result).toMatchObject({
       allowed: false,
@@ -1518,18 +1518,18 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("fails closed for legacy rate-limit policies with invalid config", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
     const profile = await db.insert(toolProfiles).values({
-      companyId: company.id,
+      spaceId: space.id,
       profileKey: `profile-${randomUUID()}`,
       name: "Fallback allow",
       defaultAction: "allow",
     }).returning().then((rows) => rows[0]!);
-    await db.insert(toolProfileBindings).values(agentProfileBindingRow(company, profile, agent));
+    await db.insert(toolProfileBindings).values(agentProfileBindingRow(space, profile, agent));
     const [policy] = await db.insert(toolPolicies).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Broken rate limit",
       policyType: "rate_limit",
       selectors: { toolName: "send_email" },
@@ -1537,7 +1537,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
       priority: 1,
     }).returning();
 
-    const result = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(company, agent, connection, catalogEntry));
+    const result = await toolAccessPolicyService(db).decide(sendEmailDecisionInput(space, agent, connection, catalogEntry));
 
     expect(result).toMatchObject({
       allowed: false,
@@ -1548,12 +1548,12 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("promotes repeated approved actions into a scoped trust rule with audited hits", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const issue = await createIssue(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const issue = await createIssue(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
     await db.insert(toolPolicies).values({
-      companyId: company.id,
+      spaceId: space.id,
       name: "Review send_email",
       policyType: "require_approval",
       selectors: { toolName: "send_email" },
@@ -1562,7 +1562,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     const args = { to: "ops@example.com", body: "ship it" };
     const first = await createApprovedToolAction({
       db,
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       connectionId: connection.id,
       catalogEntryId: catalogEntry.id,
@@ -1572,7 +1572,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
     await createApprovedToolAction({
       db,
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       connectionId: connection.id,
       catalogEntryId: catalogEntry.id,
@@ -1581,7 +1581,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
 
     const trustRule = await toolAccessPolicyService(db).createTrustRuleFromActionRequest({
-      companyId: company.id,
+      spaceId: space.id,
       actionRequestId: first.actionRequest.id,
       body: {
         approvalThreshold: 2,
@@ -1622,15 +1622,15 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("does not count approved actions outside the final trust-rule agent scope", async () => {
-    const company = await createCompany(db);
-    const agentA = await createAgent(db, company.id);
-    const agentB = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
-    await db.insert(toolPolicies).values(reviewSendPolicyRow(company, "Review scoped sends"));
+    const space = await createSpace(db);
+    const agentA = await createAgent(db, space.id);
+    const agentB = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
+    await db.insert(toolPolicies).values(reviewSendPolicyRow(space, "Review scoped sends"));
     const args = { to: "ops@example.com", body: "same reviewed payload" };
     await createApprovedToolAction({
       db,
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agentA.id,
       connectionId: connection.id,
       catalogEntryId: catalogEntry.id,
@@ -1639,7 +1639,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
     const agentBAction = await createApprovedToolAction({
       db,
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agentB.id,
       connectionId: connection.id,
       catalogEntryId: catalogEntry.id,
@@ -1648,43 +1648,43 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
 
     await expect(toolAccessPolicyService(db).createTrustRuleFromActionRequest({
-      companyId: company.id,
+      spaceId: space.id,
       actionRequestId: agentBAction.actionRequest.id,
       body: { approvalThreshold: 2 },
     })).rejects.toThrow(/final rule scope; found 1/);
   });
 
   it("does not count approvals from stale catalog versions toward trust-rule promotion", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
-    await db.insert(toolPolicies).values(reviewSendPolicyRow(company, "Review versioned sends"));
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
+    await db.insert(toolPolicies).values(reviewSendPolicyRow(space, "Review versioned sends"));
     const args = { to: "ops@example.com", body: "same payload after tool change" };
-    await createApprovedToolAction(executedActionInput(db, company, agent, connection, catalogEntry, args));
+    await createApprovedToolAction(executedActionInput(db, space, agent, connection, catalogEntry, args));
     await db
       .update(toolCatalogEntries)
       .set({ versionHash: randomUUID(), schemaHash: randomUUID(), updatedAt: new Date() })
       .where(eq(toolCatalogEntries.id, catalogEntry.id));
-    const currentVersionAction = await createApprovedToolAction(executedActionInput(db, company, agent, connection, catalogEntry, args));
+    const currentVersionAction = await createApprovedToolAction(executedActionInput(db, space, agent, connection, catalogEntry, args));
 
     await expect(toolAccessPolicyService(db).createTrustRuleFromActionRequest({
-      companyId: company.id,
+      spaceId: space.id,
       actionRequestId: currentVersionAction.actionRequest.id,
       body: { approvalThreshold: 2, scope: { includeCatalogEntry: true } },
     })).rejects.toThrow(/final rule scope; found 1/);
   });
 
-  it("rejects company-wide trust-rule promotion bodies that drop the reviewed scope", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
-    await db.insert(toolPolicies).values(reviewSendPolicyRow(company, "Review scoped sends"));
+  it("rejects space-wide trust-rule promotion bodies that drop the reviewed scope", async () => {
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
+    await db.insert(toolPolicies).values(reviewSendPolicyRow(space, "Review scoped sends"));
     const args = { to: "ops@example.com", body: "same reviewed payload" };
-    const first = await createApprovedToolAction(executedActionInput(db, company, agent, connection, catalogEntry, args));
-    await createApprovedToolAction(executedActionInput(db, company, agent, connection, catalogEntry, args));
+    const first = await createApprovedToolAction(executedActionInput(db, space, agent, connection, catalogEntry, args));
+    await createApprovedToolAction(executedActionInput(db, space, agent, connection, catalogEntry, args));
 
     await expect(toolAccessPolicyService(db).createTrustRuleFromActionRequest({
-      companyId: company.id,
+      spaceId: space.id,
       actionRequestId: first.actionRequest.id,
       body: {
         approvalThreshold: 2,
@@ -1700,16 +1700,16 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("rejects argument-broadening trust-rule promotion bodies", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
-    await db.insert(toolPolicies).values(reviewSendPolicyRow(company, "Review exact payload sends"));
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
+    await db.insert(toolPolicies).values(reviewSendPolicyRow(space, "Review exact payload sends"));
     const args = { to: "ops@example.com", body: "same reviewed payload" };
-    const first = await createApprovedToolAction(executedActionInput(db, company, agent, connection, catalogEntry, args));
-    await createApprovedToolAction(executedActionInput(db, company, agent, connection, catalogEntry, args));
+    const first = await createApprovedToolAction(executedActionInput(db, space, agent, connection, catalogEntry, args));
+    await createApprovedToolAction(executedActionInput(db, space, agent, connection, catalogEntry, args));
 
     await expect(toolAccessPolicyService(db).createTrustRuleFromActionRequest({
-      companyId: company.id,
+      spaceId: space.id,
       actionRequestId: first.actionRequest.id,
       body: {
         approvalThreshold: 2,
@@ -1719,22 +1719,22 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("falls back to review when a trusted catalog tool changes", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
-    await db.insert(toolPolicies).values(reviewSendPolicyRow(company, "Review changed sends"));
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
+    await db.insert(toolPolicies).values(reviewSendPolicyRow(space, "Review changed sends"));
     const args = { to: "ops@example.com", body: "repeatable" };
-    const first = await createApprovedToolAction(executedActionInput(db, company, agent, connection, catalogEntry, args));
+    const first = await createApprovedToolAction(executedActionInput(db, space, agent, connection, catalogEntry, args));
     await createApprovedToolAction({
       db,
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       connectionId: connection.id,
       catalogEntryId: catalogEntry.id,
       argumentsValue: args,
     });
     const trustRule = await toolAccessPolicyService(db).createTrustRuleFromActionRequest({
-      companyId: company.id,
+      spaceId: space.id,
       actionRequestId: first.actionRequest.id,
       body: { approvalThreshold: 2, scope: { includeCatalogEntry: true } },
     });
@@ -1754,27 +1754,27 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("revokes trust rules so matching actions return to per-call approval", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { connection, catalogEntry } = await createTool(db, company.id);
-    await db.insert(toolPolicies).values(reviewSendPolicyRow(company, "Review revocable sends"));
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { connection, catalogEntry } = await createTool(db, space.id);
+    await db.insert(toolPolicies).values(reviewSendPolicyRow(space, "Review revocable sends"));
     const args = { to: "ops@example.com", body: "revocable" };
-    const first = await createApprovedToolAction(executedActionInput(db, company, agent, connection, catalogEntry, args));
+    const first = await createApprovedToolAction(executedActionInput(db, space, agent, connection, catalogEntry, args));
     await createApprovedToolAction({
       db,
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       connectionId: connection.id,
       catalogEntryId: catalogEntry.id,
       argumentsValue: args,
     });
     const trustRule = await toolAccessPolicyService(db).createTrustRuleFromActionRequest({
-      companyId: company.id,
+      spaceId: space.id,
       actionRequestId: first.actionRequest.id,
       body: { approvalThreshold: 2 },
     });
     const revoked = await toolAccessPolicyService(db).revokeTrustRule({
-      companyId: company.id,
+      spaceId: space.id,
       policyId: trustRule.id,
       body: { reason: "Tool scope changed" },
     });
@@ -1792,12 +1792,12 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("routes gateway execution through policy decisions instead of legacy gateway permissions", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id, { toolGateway: { allowAll: true } });
-    const run = await createRun(db, company.id, agent.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id, { toolGateway: { allowAll: true } });
+    const run = await createRun(db, space.id, agent.id);
     const gateway = createToolGatewayService(db);
     const session = await gateway.createSession({
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       runId: run.id,
     });
@@ -1820,11 +1820,11 @@ describeEmbeddedPostgres("tool access policy service", () => {
   });
 
   it("replays idempotent side-effecting gateway calls without creating a second invocation", async () => {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const run = await createRun(db, company.id, agent.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const run = await createRun(db, space.id, agent.id);
     await db.insert(principalPermissionGrants).values({
-      companyId: company.id,
+      spaceId: space.id,
       principalType: "agent",
       principalId: agent.id,
       permissionKey: "tools:use",
@@ -1832,7 +1832,7 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
     const gateway = createToolGatewayService(db);
     const session = await gateway.createSession({
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       runId: run.id,
     });
@@ -1861,24 +1861,24 @@ describeEmbeddedPostgres("tool access policy service", () => {
     });
   });
 
-  it("rejects cross-company owner agents and credential secret refs before persisting tool access records", async () => {
-    const company = await createCompany(db);
-    const otherCompany = await createCompany(db);
-    const otherAgent = await createAgent(db, otherCompany.id);
-    const [otherSecret] = await db.insert(companySecrets).values({
-      companyId: otherCompany.id,
+  it("rejects cross-space owner agents and credential secret refs before persisting tool access records", async () => {
+    const space = await createSpace(db);
+    const otherSpace = await createSpace(db);
+    const otherAgent = await createAgent(db, otherSpace.id);
+    const [otherSecret] = await db.insert(spaceSecrets).values({
+      spaceId: otherSpace.id,
       key: `secret-${randomUUID()}`,
       name: `Secret ${randomUUID()}`,
     }).returning();
     const svc = toolAccessService(db);
 
-    await expect(svc.createApplication(company.id, {
+    await expect(svc.createApplication(space.id, {
       name: "Wrong owner",
       type: "mcp_http",
       ownerAgentId: otherAgent.id,
-    })).rejects.toThrow(/same company/);
+    })).rejects.toThrow(/same space/);
 
-    await expect(svc.createConnection(company.id, {
+    await expect(svc.createConnection(space.id, {
       name: "Wrong secret",
       transport: "mcp_remote",
       connectionPurpose: "tool",
@@ -1890,6 +1890,6 @@ describeEmbeddedPostgres("tool access policy service", () => {
         secretId: otherSecret.id,
         configPath: "headers.Authorization",
       }],
-    })).rejects.toThrow(/same company/);
+    })).rejects.toThrow(/same space/);
   });
 });

@@ -42,7 +42,7 @@ A dedicated test organization served exact candidate `49f99e130aff317cb270c36752
 
 The strict user-only journey started at the supplied management entry, entered the fresh organization, created Claude Staging Writer, connected the authorized API key through the normal masked field, and completed onboarding without any runner/model override. The saved runtime form displayed `Default (claude-opus-5-5)` but **`Legacy runner (default)`** in Advanced. Acceptance failed at that point. No task or follow-up was submitted, so native execution, downloaded artifacts and session continuity remain unverified on this hosted deployment. The failure is preserved in 33 chronological screenshots and the structured journal; later engineering diagnosis is separate.
 
-The managed test fleet uses a named sandbox snapshot. Candidate `needsClaudeSetupQualification` only probes explicit immutable OCI image digests, and `readSandboxPlatformQualification` rejects named snapshots. The same target gate therefore keeps this Cloud path Legacy. A correct follow-up must establish an immutable provider snapshot identity, bind measured OS/architecture/libc facts to the selected environment and company, and invalidate stale/replaced bindings. It must then repeat fresh ordinary onboarding and the useful-task/revision acceptance. Forcing the agent to native, changing the fleet default image, or treating a CLI version probe as native task proof would not resolve this failure.
+The managed test fleet uses a named sandbox snapshot. Candidate `needsClaudeSetupQualification` only probes explicit immutable OCI image digests, and `readSandboxPlatformQualification` rejects named snapshots. The same target gate therefore keeps this Cloud path Legacy. A correct follow-up must establish an immutable provider snapshot identity, bind measured OS/architecture/libc facts to the selected environment and space, and invalidate stale/replaced bindings. It must then repeat fresh ordinary onboarding and the useful-task/revision acceptance. Forcing the agent to native, changing the fleet default image, or treating a CLI version probe as native task proof would not resolve this failure.
 
 The QA agent was paused with no runs or sessions. An unused $2 allowance was reserved within the existing $50 ceiling by lowering an inactive local fixture cap; its unknown-charge hold and blocking policy remain intact. Report: `/private/tmp/claude-test-user-20261015/report.html`; structured log: `/private/tmp/claude-test-user-20261015/journey.json`; deployment and diagnosis receipt: `/private/tmp/claude-test-deployment-20261015/deployment.json`. The offline renderer validated all 33 screenshots. Host file preview was queued; report-gallery rendering was not visually verified. Individual product screenshots were inspected during the journey.
 
@@ -78,7 +78,7 @@ Clean baseline checkout: `/private/tmp/claude-default-master-plan`, branch `code
 - Existing native Claude ACPX profile: Claude ACP 0.73.0, SDK 0.3.286. Native Claude is not a new adapter implementation.
 - Pinned Claude Linux ARM64 executable admission, including actual digest `0292fa22ac2fd43e16be9d0e511ddd8347280d6e0ebaca744ef5b27e05d8d0f8`, landed in #16372 (`854ab294cc`). Reuse this implementation.
 - Network-safe libc detection and asynchronous startup probing (#16333/#16335), plus newer task recovery, repository admission, workspace retention, and snapshot isolation. These must survive integration.
-- Claude still has no automatic runner mapping: `paperclipRunnerProfileForHarness` and `agentRunnerAvailability` select Codex only. Legacy Claude defaults to Opus 5; generic ACPX defaults to Sonnet 5. Native Claude remains subject to the experimental gate.
+- Claude still has no automatic runner mapping: `outpostRunnerProfileForHarness` and `agentRunnerAvailability` select Codex only. Legacy Claude defaults to Opus 5; generic ACPX defaults to Sonnet 5. Native Claude remains subject to the experimental gate.
 - Native setup's SSH architecture whitelist still excludes Linux ARM64. Executable admission alone does not prove onboarding/remote selection works.
 
 ## Existing work and evidence at the planning checkpoint
@@ -119,7 +119,7 @@ Exit: focused selection/UI/protocol/resume checks pass with current Codex behavi
 First implementation delivery enables Apple Silicon only. Other Claude targets retain their current default until their package/execution gates pass.
 
 - Extend existing centralized resolution to `claude_local` -> `outpost_runner`, `provider: acpx`, `acpxAgent: claude`. Graduate this profile only from the experimental gate.
-- Preserve request-level `runner: auto | paperclip | legacy`, discovery fields, and resolved stored configuration. No migration or bulk rewrite of saved agents.
+- Preserve request-level `runner: auto | outpost | legacy`, discovery fields, and resolved stored configuration. No migration or bulk rewrite of saved agents.
 - Reuse Claude connections, secret storage, selected account, subscription actions, and built-in setup probes. Use the API key from ~/.secrets through the existing connection flow without exposing it.
 - Reuse the shared Advanced runner selector with Claude branding. Omit legacy-only defaults from native forms; incompatible custom execution settings require explicit Legacy with a useful error.
 - Apply ordinary Opus 5.5 defaults consistently while preserving explicit models, ANTHROPIC_MODEL, and provider routing.
@@ -140,7 +140,7 @@ Use focused controls for:
 | All creation boundaries | UI, API/CLI, onboarding, hires/approval snapshots, built-ins, plugins and imports call the resolver. |
 | Saved configuration | Ordinary edits, restart, activation, export/import preserve saved Legacy/native and explicit model/provider values. Explicit changes invalidate sessions through existing revisions. |
 | Target/adapters | Disabled adapters, external overrides, unsupported OS/libc, qualified sandbox target, remote ARM setup, and unchanged Codex defaults. |
-| Auth and isolation | Selected account, company boundaries, secret forwarding, API billing attribution; existing subscription actions still route to Claude. |
+| Auth and isolation | Selected account, space boundaries, secret forwarding, API billing attribution; existing subscription actions still route to Claude. |
 | Settings and failures | Effort before prompt/resume; permissions, instructions/skills, timeout, cancellation/cleanup; clear model/auth/package/incompatible-setting errors with no runner fallback. |
 | Protocol compatibility | Historical input readers and existing provider controls; no silent effort loss on resume. |
 | UI | Shared components, light/dark, narrow viewport and keyboard operation. |
@@ -200,7 +200,7 @@ Budget remains $50 total with historical holds intact. The fresh fixture cap is 
 
 Cloud producer [38738177651](https://github.com/paperclipai/paperclip/actions/runs/38738177651) passed all four native daemon builds and clean package consumers on source `bd74bf50596d099e138bc6824cf0230f1026bfe1`. Public package artifact 11976635617 has ZIP SHA256 `079a0e5277ce978ccbe8464e4413ddb7f9a537a76fd71da931e3ee355bbe4198`; all 18 package archives were independently verified and installed into `/private/tmp/claude-installed-bd74bf50-preview/consumer`. The [cloud image consumer](https://github.com/paperclipai/paperclip/actions/runs/38744991246) also passed. Image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:41cde6894c649ff76a06ddb925f1be1945d5efc901b13a7e43d371427a205235` contains the exact producer's Linux x64 daemon and provider pack. No Docker or Rust build ran locally.
 
-The installed Mac task/revision passed in ordinary New Agent UI with saved API key, Default model, high effort, and no runner override. Agent `766dddf5-1178-4cdf-81ee-ec542cfe0673` saved native ACPX Claude/Opus 5.5 with the experimental gate disabled. Preview http://127.0.0.1:3105/CLA/issues/CLA-3. Runs `ae8386b6-6a41-493c-a35c-a34bcd5feb7c` and `f79a151e-2267-4acd-ad81-6a34be25e1ff` succeeded across a controller restart with the same task/provider/backend session and high-effort acknowledgment. Independently downloaded v1 (114 bytes) SHA256 `f1da81caf11f90e80c3fe008adf3c1d6e180d38188f929dc8244edd64e4ff41a`; v2 (157 bytes) SHA256 `cae638f5f239806842b9ef1fa9694097e142035f803a89ff743696e558f5b3b2`. V1 remained unchanged. Settled API estimate $0.347345000. Report `/private/tmp/claude-v7-installed-mac-proof-20261015/acceptance.json` retains the state at acceptance; later company holds do not invalidate those settled runs.
+The installed Mac task/revision passed in ordinary New Agent UI with saved API key, Default model, high effort, and no runner override. Agent `766dddf5-1178-4cdf-81ee-ec542cfe0673` saved native ACPX Claude/Opus 5.5 with the experimental gate disabled. Preview http://127.0.0.1:3105/CLA/issues/CLA-3. Runs `ae8386b6-6a41-493c-a35c-a34bcd5feb7c` and `f79a151e-2267-4acd-ad81-6a34be25e1ff` succeeded across a controller restart with the same task/provider/backend session and high-effort acknowledgment. Independently downloaded v1 (114 bytes) SHA256 `f1da81caf11f90e80c3fe008adf3c1d6e180d38188f929dc8244edd64e4ff41a`; v2 (157 bytes) SHA256 `cae638f5f239806842b9ef1fa9694097e142035f803a89ff743696e558f5b3b2`. V1 remained unchanged. Settled API estimate $0.347345000. Report `/private/tmp/claude-v7-installed-mac-proof-20261015/acceptance.json` retains the state at acceptance; later space holds do not invalidate those settled runs.
 
 The two subsequent ARM attempts failed before provider startup and remain pending accounting: `c2d8f460-381c-4764-ae04-4974b30739eb` (test-drive stripped inherited callback configuration) and `a6979058-b3d0-49ed-8c6d-159f507e3443` (read-only directory staging). Each retains a $0.50 hold. Callback configuration is now persisted through the instance's normal environment file. ARM uses a dedicated unprivileged account and private SSH listener, with the verified standard provider-pack installation; the system CLI and existing root listener are untouched. Root execution was rejected by Claude's ordinary permission check, reproduced without credentials or prompts.
 
@@ -222,7 +222,7 @@ The isolated database is backed up before package replacement at `/private/tmp/c
 
 The replacement campaign's public package assembly passed. Artifact `11985673906` is 109691616 bytes, ZIP SHA256 `de6810dca086f2320a52bc4dc3d06e6e07374a0e9246add568f017b56b1bef89`. All 18 archive digests were verified before installing into `/private/tmp/claude-installed-0670b853-preview/consumer`. The controller preview now reports frozen source `0670b85392a0be51745f1ba7ca84f998bf122c07`, with the native experiment disabled. All four installed daemon hashes match the release manifest and are unchanged from the prior packaged Mac proof. The installed ARM provider-pack authority exactly matches the dedicated host's standard installation. All four native builds and all clean consumers have now passed in [campaign 38756070238](https://github.com/paperclipai/paperclip/actions/runs/38756070238). The matching x64 image is building in cloud via [38764436597](https://github.com/paperclipai/paperclip/actions/runs/38764436597); no local Docker build runs.
 
-The ARM task and revision both succeeded on the final installed source: `47cf1e62-2023-4198-ba04-65564b56ecf8` and `3f07e836-acc0-4141-9daa-bd74013317ac`. Preview http://127.0.0.1:3105/CLAAA/issues/CLAAA-1. Independent downloads match the 114/157-byte oracles and SHA256 values recorded for the packaged Mac pair; the original remains unchanged. Task/provider/backend session identity is the same across turns, and high effort is requested and acknowledged on both. API accounting settled at $0.216398000 and $0.163966600 ($0.380364600 combined), with no pending or unpriced usage in this fresh company. Report `/private/tmp/claude-staging-installed-arm-proof-20261015/acceptance.json`; runtime identities `/private/tmp/claude-0670b853-installed-runtime-identity.json`. The earlier read-only staging failure is preserved and is not counted as passing evidence. The report and reloaded completed-task screenshot were attached and independently downloaded again (`13602319-1f90-4176-94c6-4789df9c630a`, `10c4c7fe-d745-4034-b356-b15565304a8e`). Reloading the agent also retained Claude/Opus 5.5/High settings; UI journal step 51. No runner or provider processes remained in the dedicated ARM account after both turns.
+The ARM task and revision both succeeded on the final installed source: `47cf1e62-2023-4198-ba04-65564b56ecf8` and `3f07e836-acc0-4141-9daa-bd74013317ac`. Preview http://127.0.0.1:3105/CLAAA/issues/CLAAA-1. Independent downloads match the 114/157-byte oracles and SHA256 values recorded for the packaged Mac pair; the original remains unchanged. Task/provider/backend session identity is the same across turns, and high effort is requested and acknowledged on both. API accounting settled at $0.216398000 and $0.163966600 ($0.380364600 combined), with no pending or unpriced usage in this fresh space. Report `/private/tmp/claude-staging-installed-arm-proof-20261015/acceptance.json`; runtime identities `/private/tmp/claude-0670b853-installed-runtime-identity.json`. The earlier read-only staging failure is preserved and is not counted as passing evidence. The report and reloaded completed-task screenshot were attached and independently downloaded again (`13602319-1f90-4176-94c6-4789df9c630a`, `10c4c7fe-d745-4034-b356-b15565304a8e`). Reloading the agent also retained Claude/Opus 5.5/High settings; UI journal step 51. No runner or provider processes remained in the dedicated ARM account after both turns.
 
 
 The [cloud image consumer](https://github.com/paperclipai/paperclip/actions/runs/38764436597) passed. Immutable image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:d241ab13d48297a0fe85b04acf70980a427a5fbcd4a95ca2284c7022cd29d03c` contains the exact installed Linux x64 pack `sha256:6adcfdf1a90d922fb65d647e13936eafff7d9cc5f0142ebdfbc11d9470b00c55` and daemon SHA256 `cd46aa8e809f4f3a4f705bfdc93b17b1466c010235f37b0b2f71572f927b5f8f`. Evidence artifact `11989266220` ZIP SHA256 `f6878e2c8e97d0f9d0dc8bfc8af9ea4b255d1f5b92ea6323cd5a983c6e003f34` was independently verified, as were source and inner-image identities. The dedicated x64 environment now uses this image with its saved credential reference preserved. No local Docker or Rust build ran.
@@ -234,7 +234,7 @@ The final x64 pair succeeded: `65f04a06-c2a4-4c3c-af4a-2f6026563623` and `9c22a2
 
 Report `/private/tmp/claude-staging-installed-x64-proof-20261015/acceptance.json` includes actual environment leases, immutable image identity, and cleanup evidence. The report and reloaded completed-task screenshot are attached as `7276f35e-aad9-4be0-8e51-330cd9ad0904` and `20b33105-1229-47ec-b50f-ce88745b3fcf`; both passed independent download comparison. Reloading agent settings retains Claude/Opus 5.5/High; UI journal step 61. The ARM transport addendum `/private/tmp/claude-staging-installed-arm-proof-20261015/execution-targets.json` verifies both actual SSH leases, selected account, standard pack reuse, and permissions from retained runtime records; both leases are released and no provider/runner processes remain in that account.
 
-Final read-only accounting receipt `/private/tmp/claude-staging-accounting-current-20261015.json` records $4.810616600 known rate-card estimates, $50 aggregate caps, zero active runs, retained unknown charges and setup reserve, and no released holds. The fresh remote company has $0.720451800 observed usage, no pending/unpriced usage, and a $1.40 cap. One older retired fixture retains its prior policy evidence because its current instance is unavailable; its entire $9 allowance remains reserved. The original failed records, unknown-charge holds, previous package attempts and source identities remain intact. No additional paid turns are required for this handoff.
+Final read-only accounting receipt `/private/tmp/claude-staging-accounting-current-20261015.json` records $4.810616600 known rate-card estimates, $50 aggregate caps, zero active runs, retained unknown charges and setup reserve, and no released holds. The fresh remote space has $0.720451800 observed usage, no pending/unpriced usage, and a $1.40 cap. One older retired fixture retains its prior policy evidence because its current instance is unavailable; its entire $9 allowance remains reserved. The original failed records, unknown-charge holds, previous package attempts and source identities remain intact. No additional paid turns are required for this handoff.
 
 ---
 
@@ -246,7 +246,7 @@ Updated 2026-10-12.
 
 ## Outcome and constraints
 
-Start from `058af8f1b69c5fa3d9bc974b9eab73c141b52823`; branch `codex/claude-runner-default`, checkout `/Users/dotta/.codex/worktrees/670b/paperclip`. New Claude agents eventually default to native ACPX Claude on Apple Silicon, Intel Mac, Linux x64 and Linux ARM64. Codex selection remains owned by the dependency branch. On 2026-10-12 the user explicitly approved preserving its latest Linux ARM64 default from `dcdf09a0f33536fa2b6daaf6e731d921d5711282` during reconciliation. Ordinary Claude defaults become Opus 5.5; explicit models and existing runner selections remain intact.
+Start from `058af8f1b69c5fa3d9bc974b9eab73c141b52823`; branch `codex/claude-runner-default`, checkout `/Users/dotta/.codex/worktrees/670b/outpost`. New Claude agents eventually default to native ACPX Claude on Apple Silicon, Intel Mac, Linux x64 and Linux ARM64. Codex selection remains owned by the dependency branch. On 2026-10-12 the user explicitly approved preserving its latest Linux ARM64 default from `dcdf09a0f33536fa2b6daaf6e731d921d5711282` during reconciliation. Ordinary Claude defaults become Opus 5.5; explicit models and existing runner selections remain intact.
 
 Local Apple Silicon API-key task and follow-up are the first gate. Keep existing connection/login tools. Complete core settings and local subscription next, then package/qualify other targets. Two behavior/platform delivery boundaries plus the user-approved protocol prerequisite PR; no merge or deployment. Linux ARM64 covers installed hosts and SSH, not ARM cloud images. Separate $50 Claude ceiling including setup probes, unknown-charge holds and task turns. No automatic paid retry loops. Docker and expensive Rust builds run in cloud infrastructure; never build Docker images on this Mac.
 
@@ -304,7 +304,7 @@ Reconcile the latest Codex dependency (`dcdf09a0f3`, direct descendant of the re
 
 Frozen runtime candidate: `5f0b898e9ecef77afefe309a230e04d7fef66cde`. [Cloud daemon and clean-install qualification](https://github.com/paperclipai/paperclip/actions/runs/38273229107) uses the reconciled source's four-target release matrix. [Cloud required-source verification](https://github.com/paperclipai/paperclip/actions/runs/38273238920) resolves the branch to an immutable target under the trusted master workflow. Both are in progress; no passing claim yet. Image publication is disabled. All Docker/Rust compilation is remote.
 
-Subscription setup is prepared through the ordinary Claude Code wizard. The existing host CLI account is Paperclip Team (`claude.ai`, Team subscription), but the provider browser requires fresh reauthentication after selecting that organization. The user has been asked to complete that sign-in; no credential was extracted from the host or pasted into chat. The API-key preview/artifacts remain available while the subscription draft is pending.
+Subscription setup is prepared through the ordinary Claude Code wizard. The existing host CLI account is Outpost Team (`claude.ai`, Team subscription), but the provider browser requires fresh reauthentication after selecting that organization. The user has been asked to complete that sign-in; no credential was extracted from the host or pasted into chat. The API-key preview/artifacts remain available while the subscription draft is pending.
 
 ## Cold-resume diagnosis and corrective candidate
 
@@ -314,7 +314,7 @@ Actual high-effort first tasks succeeded for API-key and subscription agents. Th
 
 Failed qualification records remain intact, including their pending-accounting/recovery fences. No historical receipt was overwritten or invented. Automatic approval review rejected a budget-resume action as potentially restarting paid work; the user then explicitly approved bounded resume plus one manual retry. The product refused resume while accounting remained pending, and no provider retry occurred. New disposable fixtures preserve those failures while proving the corrected execution path. This recovery/accounting condition remains a recorded acceptance limitation until resolved.
 
-Current aggregate company policy caps: original QA $17 (including an $8 unknown-charge reservation), old candidate $9 (retaining its failed-start reservation and known spend), API-effort acceptance $16, fresh subscription acceptance $8; total $50. Agent policies share their company allocations. Timer heartbeats are disabled, no automatic paid retry campaign is enabled, and only the explicit small acceptance turns are authorized. Reservations and estimates are not invoices. Known API estimates before the final pair: original follow-up $0.269886 and candidate first task $0.1906868; the original first receipt remains unpriced.
+Current aggregate space policy caps: original QA $17 (including an $8 unknown-charge reservation), old candidate $9 (retaining its failed-start reservation and known spend), API-effort acceptance $16, fresh subscription acceptance $8; total $50. Agent policies share their space allocations. Timer heartbeats are disabled, no automatic paid retry campaign is enabled, and only the explicit small acceptance turns are authorized. Reservations and estimates are not invoices. Known API estimates before the final pair: original follow-up $0.269886 and candidate first task $0.1906868; the original first receipt remains unpriced.
 
 The first subscription artifact was independently downloaded and matched the exact 153-byte oracle, sha256 `ef76358a83a31dcb5759ee4384b92fa7a0ce1801b093352e5e6a548e0fbb7512`. Its run used `acpx_runtime`, observed Opus 5.5, and recorded `subscription_included`. The new API wizard saved native Claude, Opus 5.5, and high effort without a runner override; its 137-byte first artifact matched sha256 `fe24122962056946d5d01f693342c86fd83e22dbb21d6d0bc20d35f220f7952c`. Updated-runtime follow-up acceptance is still in progress.
 
@@ -322,7 +322,7 @@ Cloud source verification retained failures rather than claiming a pass: the pro
 
 ## API-key acceptance after the resume correction
 
-The user redirected remaining live execution checks to the API key in `~/.secrets`; the fresh subscription sign-in was closed and its unused company archived. Do not require more attended subscription sign-in for this delivery. Preserve existing connection tools and the prior successful subscription first-task evidence; subscription follow-up qualification is not claimed.
+The user redirected remaining live execution checks to the API key in `~/.secrets`; the fresh subscription sign-in was closed and its unused space archived. Do not require more attended subscription sign-in for this delivery. Preserve existing connection tools and the prior successful subscription first-task evidence; subscription follow-up qualification is not claimed.
 
 Ordinary API-key wizard agent `688ff15d-eb48-4cb5-9f31-2d394ab3fbbb` saved `outpost_runner` / `acpx` / `claude`, model `claude-opus-5-5`, effort `high`, and the existing responsible-user API-key connection. Preview: [successful API task and revision](http://127.0.0.1:3105/CLAA/issues/CLAA-1). Runs `271e0877-c60c-4ac7-aa1a-7b075481872b` and `eb95ed4d-c219-463e-b04a-1bc4ac83c012` both succeeded with `acpx_runtime`, acknowledged high effort, and metered Anthropic API attribution. Estimated costs: $0.194798400 and $0.342168800. The task, provider, and backend session identities all matched across the controller restart; private provider IDs are omitted from the report. Both runs finished accounting. Saved settings and `enableNativeRunner=false` persisted after reload.
 
@@ -330,7 +330,7 @@ Independent downloads matched both byte oracles, and the original remained uncha
 
 Executable identities: daemon source `5f0b898e9ecef77afefe309a230e04d7fef66cde`, sha256 `228c7814c4786614c8358b205da01cf43df822ca5e6f6b74d5a1e8304d03a6de`; sidecar sha256 `daabddfc1373e6b6d2a754cb60bc4c33d7a8b6d6d5c3564ce511ebfaeb8a463d`; Claude SDK 0.3.286 executable sha256 `75e3016e9d2570767b08e43a7467d4817a4f149232c169ca295f2c95fef21433`. Behavior source is `9788c05d0a9825d825c0461eab3191da6a6dcad7`. Reconciled source `966b3d5bc294442f71c1def9406ed2027f41d191` merges Codex dependency `123a18837478d8cd0e2aff23f7e7aa86c9107de3`, retaining its GNU libc 2.39 gate and Linux ARM64 selection. Claude admission/sandbox/input and daemon Rust sources did not change during that reconciliation; the rebuilt sidecar digest is identical. Updated runner TypeScript build, server TypeScript, 95 selection controls and 15 installed-startup controls passed after reconciliation.
 
-[Corrected cloud source checks](https://github.com/paperclipai/paperclip/actions/runs/38279356267) and [corrected four-target packaging](https://github.com/paperclipai/paperclip/actions/runs/38279359427) run on frozen behavior source 9788c05. Carry forward only unchanged evidence; final source and package consumers still require passing checks. Active company caps after archiving the unused subscription-only fixture total $42: original $17, failed candidate $9, API acceptance $16. Agent limits share these allocations, and unknown-charge holds remain in place. Known API estimates now total $0.9975406; this excludes the original unpriced receipt and is not a provider invoice.
+[Corrected cloud source checks](https://github.com/paperclipai/paperclip/actions/runs/38279356267) and [corrected four-target packaging](https://github.com/paperclipai/paperclip/actions/runs/38279359427) run on frozen behavior source 9788c05. Carry forward only unchanged evidence; final source and package consumers still require passing checks. Active space caps after archiving the unused subscription-only fixture total $42: original $17, failed candidate $9, API acceptance $16. Agent limits share these allocations, and unknown-charge holds remain in place. Known API estimates now total $0.9975406; this excludes the original unpriced receipt and is not a provider invoice.
 
 
 ## Approved prerequisite split and current CI
@@ -414,7 +414,7 @@ scripts into `/private/tmp/claude-installed-8d07-preview/consumer` for an actual
 installed preview. This is preparation, not a passing installed task claim.
 The existing successful preview/data and all unknown-charge holds remain.
 No additional paid turns occurred during this review/packaging work; aggregate
-active company caps remain $42 of the $50 Claude ceiling. Remaining live checks
+active space caps remain $42 of the $50 Claude ceiling. Remaining live checks
 use API keys per the user's steering. No Docker or Rust build ran locally.
 
 ## Installed API-key acceptance and latest review corrections
@@ -486,7 +486,7 @@ automatic Linux selection. Final broad source checks run in the cloud on
 reconciled `06c4f5e5a0`: [campaign 38296110502](https://github.com/paperclipai/paperclip/actions/runs/38296110502).
 The behavior head `2874232d25` received 5/5 after its three settings fixes.
 
-Installed Mac proof is available as a Paperclip
+Installed Mac proof is available as a Outpost
 [acceptance report](http://127.0.0.1:3105/api/attachments/61653e0a-3ae0-459c-b1d1-20b5d1db73d6/content?download=1)
 and [screenshot](http://127.0.0.1:3105/api/attachments/bce37c56-3984-45b9-a995-b6a23cc9a85d/content?download=1),
 with artifact work products on CLAA-2. The actual native SDK is the server's
@@ -635,13 +635,13 @@ The first existing installer request used its shared package directory and
 failed to resolve a version-suffixed package name; no global plugin record was
 adopted for this fixture. Shared package files were left intact. Subsequent
 installation disabled lifecycle scripts and uses the private directory.
-Company-scoped Daytona and Anthropic secrets remain separate, with Anthropic
+Space-scoped Daytona and Anthropic secrets remain separate, with Anthropic
 connection installation restricted to the qualification agent.
 
 This proof uses the exact 557 installed controller plus its recorded overlays
 and image/pack identities; it does not qualify an unmodified final release.
 Known Claude API estimates now total $2.2465808, excluding earlier unknown
-charges. Aggregate allocated company caps remain $50; holds/reservations and
+charges. Aggregate allocated space caps remain $50; holds/reservations and
 failed records are preserved. No automatic paid retries or local Docker/Rust
 builds occurred.
 
@@ -668,7 +668,7 @@ saved native configuration by applying actual form changes. Explicit empty
 model/effort and account-binding removal remain removals. Mounted Codex and
 Claude import cases cover ordinary edits, model/effort clears, connection-binding
 removal, Legacy selection and harness changes. Switching a Legacy Claude import
-to Paperclip preserves deny-all/approve-reads through the native builder.
+to Outpost preserves deny-all/approve-reads through the native builder.
 Current import/builder controls: 123 passed; mounted existing-agent form controls:
 121 passed, including hydration and explicit Auto clearing for both harnesses
 and all three effort aliases. Server/UI noemit, token gates and capability-map
@@ -1134,7 +1134,7 @@ The retained preview stopped listening during the integration hold. Restarting
 the same installed launcher restored health without changing its source/runtime
 or isolated data. Read-only checks confirmed native Claude / Opus 5.5, the completed
 x64 acceptance task, `enableNativeRunner=false`, and zero live runs in all six
-checked QA companies. No task prompt was submitted. Receipt:
+checked QA spaces. No task prompt was submitted. Receipt:
 `/private/tmp/claude-retained-preview-restart-receipt.json`; launcher log:
 `/private/tmp/claude-retained-preview-restart.log`. These checks confirm persistence
 and preview availability, not qualification of the current source composition.
@@ -1212,7 +1212,7 @@ for that composition. The ongoing package result retains literal source ad5875fa
 
 The source owner separately found that fresh managed onboarding does not probe
 its saved environment before Auto resolution; an immutable but unprobed new
-company therefore stays on Legacy. Existing managed E2E fixtures preprobe that
+space therefore stays on Legacy. Existing managed E2E fixtures preprobe that
 environment and do not establish the ordinary first-use path. Claude's local
 Mac proof and prior qualified selected-environment proofs retain their stated
 scope. The source owner is repairing the shared/Codex setup flow and cloud seed
@@ -1235,7 +1235,7 @@ The same archives were installed in a fresh private Apple Silicon consumer.
 Normal daemon resolution verifies source ad5875fa and daemon hash bd55bd6f;
 sidecar SHA-256 is
 `0ef83c19d993e8a4b3cf43c5418aa7b8f7b4ec82afa325d8c53781d145e9e2a0`.
-After all six QA companies were confirmed idle, the old preview was stopped
+After all six QA spaces were confirmed idle, the old preview was stopped
 gracefully and its 120 MB data copied to
 `/private/tmp/claude-qa-before-ad5875-snapshot`. PostgreSQL's standard
 `hydrate-symlinks.js` hook restored links omitted by the lifecycle-disabled
@@ -1296,7 +1296,7 @@ Upload receipt: `/private/tmp/claude-checkpoint-20261013-upload.json`.
 The root private patch 665a4bda8dd09ef82911e8b384004c29cbe72da9d534781c548a1bc223f159ef
 is Codex-only. Claude now has a separate narrow counterpart in the shipped
 onboarding wizard and agent setup. New Claude Code with Auto and an explicit
-immutable sandbox image uses fresh company/environment discovery; an unqualified
+immutable sandbox image uses fresh space/environment discovery; an unqualified
 eligible environment is probed once through the existing permission-gated API
 at Connect. Discovery is refreshed afterward, and the measured runner controls
 both the environment test and saved configuration. Native forms omit the Legacy
@@ -1313,7 +1313,7 @@ Named Cloud snapshot identity remains a separate unresolved acceptance boundary.
 The helper validates the existing probe's recorded qualification and lease ID.
 Permission, connection, cleanup or missing-identity failures stop setup without
 an automatic retry. Generation and selection checks discard held results after
-company/environment/configuration changes. The wizard caches measured discovery
+space/environment/configuration changes. The wizard caches measured discovery
 after its operation so its own new default does not invalidate the setup; agent
 creation recognizes that same measured transition while retaining stale guards.
 
@@ -1357,7 +1357,7 @@ consumer is retained. The supplied daemon and sidecar are unchanged; the normal
 Claude SDK probe passes without credentials or explicit package authority. No
 Docker or Rust build ran locally. Treatment identity is recorded in
 /private/tmp/claude-installed-9b068c-js-treatment-identity.json. After all six QA
-companies were confirmed idle, the owned preview was stopped gracefully, its
+spaces were confirmed idle, the owned preview was stopped gracefully, its
 complete data backed up to /private/tmp/claude-qa-before-js-treatment-snapshot,
 and the private treatment started at 3105 with scheduling and ambient Claude
 credentials disabled. This is explicitly a treatment, not a final package.
@@ -1382,8 +1382,8 @@ finds unrelated node processes already listening on the first two ports: PID
 not yet confirmed. The two-of-three guard refused admission. No guard was
 weakened and neither foreign process was stopped. The failed run is preserved
 and no retry was submitted. The post-failure budget read is pending, so no
-accounting completeness or zero-charge claim is made. Existing company cap $4
-and new agent cap $2 remain inside the aggregate $50 company ceiling; retain
+accounting completeness or zero-charge claim is made. Existing space cap $4
+and new agent cap $2 remain inside the aggregate $50 space ceiling; retain
 $1 run reservation and a conservative $1 reserve for unknown setup charges.
 
 Local checkpoint: /private/tmp/claude-local-startup-checkpoint-20261013.json.
@@ -1444,7 +1444,7 @@ Receipt: /private/tmp/claude-d67-reconciliation-checkpoint-upload.json.
 
 At attachment time the earlier preview process had expired and 3105 was free.
 Restored the same recorded JavaScript treatment without rebuilding or changing
-its runtime. Health at 2026-10-13T11:44:32.104Z confirms all six QA companies
+its runtime. Health at 2026-10-13T11:44:32.104Z confirms all six QA spaces
 have zero live runs, the experimental flag is false and the original completed
 x64 task persists. Its agent is paused; no resume or budget read was performed.
 The served controller is ad5875fa with the recorded 52486d6b lookup repair and
@@ -1490,7 +1490,7 @@ production defaults.
 
 Codex #15683 merged as `adb69e8f09852c772d9901ae270e5b2d66e39c77`.
 Fetched that exact object using the existing repository authentication. The
-original /Users/dotta/.codex/worktrees/670b/paperclip checkout no longer exists,
+original /Users/dotta/.codex/worktrees/670b/outpost checkout no longer exists,
 but its committed behavior branch is intact at f4b24bf695. App-managed recovery
 reported Not a git repository, so the same branch was recovered into the isolated
 /private/tmp/claude-runner-default-recovery worktree. No source-owner branch,
@@ -1658,7 +1658,7 @@ Tailscale login; the isolated fixture uses the authorized key on port 22222.
 Report: `/private/tmp/claude-2646-arm-api-acceptance.json`.
 Preview: http://127.0.0.1:3115/CLAAAAAA/issues/CLAAAAAA-3.
 
-These four turns used the existing healthy $2 company cap, serialized with timer
+These four turns used the existing healthy $2 space cap, serialized with timer
 heartbeats disabled. After both Mac turns settled below 30 cents each, its
 per-turn reservation changed from $1 to $0.50 while the $2 hard cap and unknown-
 usage blocking remained intact. Historical failed records/holds and the separate
@@ -1682,7 +1682,7 @@ source Release Smoke artifact set. It validates repository/workflow/source,
 artifact archive digests, canonical paths, package authority, daemon architecture
 and daemon bytes before constructing the image. The release pack must equal the
 manifest inside the public server tarball. This mode copies the producer's pack
-and daemon over an immutable Paperclip base image without rebuilding either or
+and daemon over an immutable Outpost base image without rebuilding either or
 resolving dependencies. The resulting image is read back to compare pack and
 daemon identities. Existing source-build mode remains available. Fifteen focused
 negative/positive controls and 71 existing release workflow controls pass; full
@@ -1705,9 +1705,9 @@ and its automatically discovered pack is
 
 The four current successful turns add $0.808057800 of settled rate-card estimates.
 Read-only reconciliation gives $3.054638600 known estimated ledger usage, excluding
-unknown charges; the separate $1 setup reservation remains. Aggregate company
+unknown charges; the separate $1 setup reservation remains. Aggregate space
 caps remain $50. All old holds and the new pre-start x64 pending hold remain
-intact. The current company's agents are paused by its budget hold, timers are
+intact. The current space's agents are paused by its budget hold, timers are
 disabled, and there are zero live runs. The owned x64 leases report cleanup
 success. The unused 3116 Vite process was stopped; installed preview 3115 remains
 available for reviewing/downloading the finished tasks.
@@ -1725,7 +1725,7 @@ Human intervention requested: approve GitHub SSH access or refresh the GitHub CL
 with workflow scope. Once available, push the platform branch, dispatch the exact
 artifact consumer against producer 38610086180/runtime 2646b94533 and immutable
 base b774f547…, verify the resulting image, then run the x64 API pair. Keep the
-failed current company held. An existing $1 company allowance has zero pending or
+failed current space held. An existing $1 space allowance has zero pending or
 unpriced usage and $0.804805400 remaining; its old agent stays paused. A fresh
 x64 fixture there can retain the original aggregate $50 cap without releasing any
 hold. Do not create a new allocation or silently retry the held task.
@@ -1750,7 +1750,7 @@ qualify or publish the still-local platform image consumer.
 The failed UI journey is retained unchanged. The correction extends explicit
 Claude Connect qualification to Daytona snapshots: the plugin resolves a stable
 provider ID and creates by that ID, the server measures the actual sandbox and
-records v2 company/config/account/template-bound proof after owned cleanup, and
+records v2 space/config/account/template-bound proof after owned cleanup, and
 native acquisition pins that same ID. Existing image v1 readers remain intact;
 ordinary Legacy acquisition and Codex setup eligibility are unchanged. Discovery
 performs no new provider calls. Lookup timeout cannot continue into allocation.
@@ -1796,7 +1796,7 @@ A fresh strict browser journey started at `https://test.outpost.app`, selected
 the test organization, created Claude Hosted Writer through New Agent, reused
 the saved personal Claude API connection, and submitted default model/runner
 settings. The saved Runtime form showed Outpost Runner (default), Claude
-Opus 5.5, effort Auto, and Paperclip Computer. No runner or model override was
+Opus 5.5, effort Auto, and Outpost Computer. No runner or model override was
 submitted. The native experimental flag remained at its disabled app default.
 Prior interface familiarity and the preconfigured $2 project are disclosed.
 
@@ -1879,7 +1879,7 @@ permissions at daemon startup. Both downstream constructors now include v9.
 The isolated/preconfigured transport regression cases passed 2/2. Native input
 v9 preserves master's explicit homeMode and historical v1–v8 readers.
 
-The first task attempt (`075e4543-e04f-4af2-bad3-c0d6c4987947`, original company
+The first task attempt (`075e4543-e04f-4af2-bad3-c0d6c4987947`, original space
 `1de13e1c-5957-4920-9332-f77396c976ec`) failed before provider launch because
 the test-drive CLI intentionally removes inherited OUTPOST_* overrides.
 The verified daemon was then staged in the package-owned target location.
@@ -1889,7 +1889,7 @@ A fresh $2-bounded fixture (`5423fac4-72c4-4f31-a933-db368682b4a8`) uses the
 existing AI-connections API to validate and securely store the authorized key.
 Its API-created `Claude Acceptance` agent also used ordinary runner/model
 defaults, High effort, disabled timer heartbeats, and one concurrent run.
-The fresh company's onboarding did not expose the original company's saved key;
+The fresh space's onboarding did not expose the original space's saved key;
 engineering setup used the existing API rather than putting secrets in the
 browser transcript. This is general product acceptance, not a blind user-only
 journey. Task creation and the follow-up used ordinary browser controls.
@@ -1960,7 +1960,7 @@ preview/runtime/check identities recorded in the PR bodies and dated handoff.
 
 The final platform review found that revoking a successful snapshot proof could
 fall back to its mutable name. Failed probes and target edits now preserve a
-company-scoped invalidation marker. Native lease acquisition requires renewed
+space-scoped invalidation marker. Native lease acquisition requires renewed
 proof before contacting the provider; explicit Legacy and never-qualified
 Codex environments retain their previous behavior. DB-backed snapshot/environment
 verification passed all 232 cases, including the final metadata-preservation
@@ -1996,5 +1996,5 @@ here; shared tool metadata requires separate source-profile qualification.
 The canonical local evidence record is
 `/private/tmp/claude-refresh-evidence-20261019/2026-10-19-claude-default-refresh.md`.
 Three paid profiling turns add $0.415121200 estimated, leaving $0.380149800
-under this local company's unchanged $2 cap, with zero pending/unpriced runs.
+under this local space's unchanged $2 cap, with zero pending/unpriced runs.
 All prior aggregate qualification holds and the $50 ceiling remain in force.

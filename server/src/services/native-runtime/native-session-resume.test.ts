@@ -15,7 +15,7 @@ import { join, resolve } from "node:path";
 import { eq, sql } from "drizzle-orm";
 import {
   agents,
-  companies,
+  spaces,
   completionContracts,
   createDb,
   heartbeatRunEvents,
@@ -55,7 +55,7 @@ import {
   retainedNativeCleanupJournalMatches,
 } from "./native-session-executor.js";
 import * as publicationSignals from "../chat-publication-reconciliation.js";
-import { PaperclipControlPlanePort } from "./paperclip-control-plane-port.js";
+import { OutpostControlPlanePort } from "./outpost-control-plane-port.js";
 import {
   LIST_CHAT_ATTACHMENTS_TOOL_DEFINITION,
   REUSE_CHAT_ATTACHMENT_TOOL_DEFINITION,
@@ -88,12 +88,12 @@ async function startEmbeddedPostgresTestDatabase(prefix: string) {
   const { closeRegisteredClients } = await import("@outpost/db");
   return { connectionString: externalUrl, cleanup: async () => {
     const db = createDb(externalUrl);
-    try { await db.execute(sql`TRUNCATE TABLE companies CASCADE`); }
+    try { await db.execute(sql`TRUNCATE TABLE spaces CASCADE`); }
     finally { await closeRegisteredClients(externalUrl); }
   } };
 }
 
-const companyId = "10000000-0000-4000-8000-000000000001";
+const spaceId = "10000000-0000-4000-8000-000000000001";
 const issueId = "20000000-0000-4000-8000-000000000002";
 const agentId = "30000000-0000-4000-8000-000000000003";
 const previousRunId = "40000000-0000-4000-8000-000000000004";
@@ -120,7 +120,7 @@ function execution(
   } = {},
 ) {
   return buildNativeExecutionInput({
-    companyId,
+    spaceId,
     runId,
     issue: {
       id: issueId,
@@ -156,7 +156,7 @@ function execution(
 
 function planningExecution(runId: string, revisionId: string) {
   return buildNativeExecutionInput({
-    companyId,
+    spaceId,
     runId,
     issue: {
       id: issueId,
@@ -193,7 +193,7 @@ function planningExecution(runId: string, revisionId: string) {
 function previousRun(overrides: Record<string, unknown> = {}) {
   return {
     id: previousRunId,
-    companyId,
+    spaceId,
     agentId,
     nativeSessionId: normalizedSessionId,
     runnerProfileJson: {
@@ -208,7 +208,7 @@ function previousRun(overrides: Record<string, unknown> = {}) {
         identity: {
           runId: previousRunId,
           sessionId: normalizedSessionId,
-          companyId,
+          spaceId,
           issueId,
           agentId,
         },
@@ -317,16 +317,16 @@ describe("a source whose saved provider session the runner proved incompatible",
 describe("a source whose provider state was not saved after its result was accepted", () => {
   const unsaved = { [NATIVE_PROVIDER_STATE_UNSAVED_KEY]: { code: NATIVE_PROVIDER_STATE_INCOMPATIBLE,
     reason: "harness_backup_not_saved", recordedAt: "2026-11-11T00:00:00.000Z" } };
-  const withPolicy = (policy: "resume_failure" | "governed_wait" | "same_session", overrides: Record<string, unknown> = {}) => {
+  const withPolicy = (policy: "resume_failure" | "controlled_wait" | "same_session", overrides: Record<string, unknown> = {}) => {
     const source = previousRun(overrides);
     const checkpoint = (source.runnerProfileJson as Record<string, unknown>).sessionCheckpoint as Record<string, unknown>;
-    if (policy === "governed_wait") checkpoint.semanticResult = { schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded",
+    if (policy === "controlled_wait") checkpoint.semanticResult = { schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded",
       summary: "Waiting for a response.", continuation: { kind: "response_wake", idempotencyKey: "interaction-response:one" } };
     if (policy === "same_session") checkpoint.goal = { status: "paused", objective: "Keep working" };
     return source;
   };
 
-  it.each(["resume_failure", "governed_wait", "same_session"] as const)(
+  it.each(["resume_failure", "controlled_wait", "same_session"] as const)(
     "starts the next run in a fresh provider session directly (%s policy)", (policy) => {
       const current = execution(currentRunId);
       expect(rebindNativeSessionCheckpoint({ previousRun: withPolicy(policy, unsaved), currentExecution: current })).toBeNull();
@@ -343,10 +343,10 @@ describe("a source whose provider state was not saved after its result was accep
       expect(result.execution.workspace).toEqual(current.workspace);
     });
 
-  it.each(["resume_failure", "governed_wait", "same_session"] as const)(
+  it.each(["resume_failure", "controlled_wait", "same_session"] as const)(
     "keeps the resume path for a record without the mark (%s policy)", (policy) => {
       const expected = { resume_failure: "allow_replacement_after_resume_failure",
-        governed_wait: "allow_replacement_after_governed_wait", same_session: "same_session_only" }[policy];
+        controlled_wait: "allow_replacement_after_controlled_wait", same_session: "same_session_only" }[policy];
       // Records written before the mark existed, and runs whose backup saved.
       for (const overrides of [{}, { [NATIVE_PROVIDER_STATE_UNSAVED_KEY]: null },
         { [NATIVE_PROVIDER_STATE_UNSAVED_KEY]: { code: "some_other_code" } }]) {
@@ -394,7 +394,7 @@ const recoveryFakeCodex = resolve(
     const root = join(scratch, "state");
     const home = join(scratch, "home");
     const workspace = join(scratch, "workspace");
-    const companyId = randomUUID(),
+    const spaceId = randomUUID(),
       agentId = randomUUID(),
       issueId = randomUUID(),
       runId = randomUUID();
@@ -411,9 +411,9 @@ const recoveryFakeCodex = resolve(
       await mkdir(home);
       await mkdir(workspace);
       await db
-        .insert(companies)
+        .insert(spaces)
         .values({
-          id: companyId,
+          id: spaceId,
           name: "Cleanup topology",
           issuePrefix: "NCT",
         });
@@ -421,7 +421,7 @@ const recoveryFakeCodex = resolve(
         .insert(agents)
         .values({
           id: agentId,
-          companyId,
+          spaceId,
           name: "Fixture",
           status: "active",
           adapterType: "outpost_runner",
@@ -430,7 +430,7 @@ const recoveryFakeCodex = resolve(
         .insert(issues)
         .values({
           id: issueId,
-          companyId,
+          spaceId,
           title: "Exact topology",
           assigneeAgentId: agentId,
           status: "in_progress",
@@ -439,7 +439,7 @@ const recoveryFakeCodex = resolve(
         .insert(heartbeatRuns)
         .values({
           id: runId,
-          companyId,
+          spaceId,
           agentId,
           status: "running",
           runtimeMode: "native",
@@ -477,7 +477,7 @@ const recoveryFakeCodex = resolve(
       );
       session = await backend.openSession({
         identity: {
-          companyId,
+          spaceId,
           issueId,
           agentId,
           runId,
@@ -493,8 +493,8 @@ const recoveryFakeCodex = resolve(
       });
       expect(normalized.sourceEventId).toBe(`${runnerInstanceId}:${runId}:1`);
       expect(normalized.payload).not.toHaveProperty("processId");
-      const port = new PaperclipControlPlanePort(db, {
-        companyId,
+      const port = new OutpostControlPlanePort(db, {
+        spaceId,
         issueId,
         agentId,
         runId,
@@ -543,7 +543,7 @@ const recoveryFakeCodex = resolve(
       });
       signal.mockClear();
       const input = {
-        companyId,
+        spaceId,
         agentId,
         runId,
         nativeSessionId: normalizedSessionId,
@@ -701,28 +701,28 @@ const recoveryFakeCodex = resolve(
         HOME: sourceHome,
         CODEX_HOME: sourceHome,
       };
-      await db.insert(companies).values({
-        id: companyId,
+      await db.insert(spaces).values({
+        id: spaceId,
         name: "Damaged recovery",
         issuePrefix: "DNR",
       });
       await db.insert(agents).values({
         id: agentId,
-        companyId,
+        spaceId,
         name: "Recovery runner",
         status: "active",
         adapterType: "outpost_runner",
       });
       await db.insert(issues).values({
         id: issueId,
-        companyId,
+        spaceId,
         title: "Preserve the same task",
         assigneeAgentId: agentId,
         status: "in_progress",
       });
       await db.insert(completionContracts).values({
         id: currentExecution.completionContract.id,
-        companyId,
+        spaceId,
         issueId,
         revision: 1,
         schemaVersion: "outpost.completion-contract.v1",
@@ -738,7 +738,7 @@ const recoveryFakeCodex = resolve(
       await db.insert(heartbeatRuns).values([
         {
           id: previousRunId,
-          companyId,
+          spaceId,
           agentId,
           status: "running",
           runtimeMode: "native",
@@ -751,7 +751,7 @@ const recoveryFakeCodex = resolve(
         },
         {
           id: currentRunId,
-          companyId,
+          spaceId,
           agentId,
           status: "running",
           runtimeMode: "native",
@@ -773,7 +773,7 @@ const recoveryFakeCodex = resolve(
       });
       firstSession = await firstBackend.openSession({
         identity: {
-          companyId,
+          spaceId,
           issueId,
           agentId,
           runId: previousRunId,
@@ -784,7 +784,7 @@ const recoveryFakeCodex = resolve(
       ownedSessions.add(firstSession);
       const checkpoint = await firstSession.snapshot();
       expect(checkpoint.identity).toEqual({
-        companyId,
+        spaceId,
         issueId,
         agentId,
         runId: previousRunId,
@@ -888,7 +888,7 @@ const recoveryFakeCodex = resolve(
         .set({ status: "failed", runnerProfileJson: source.runnerProfileJson })
         .where(eq(heartbeatRuns.id, previousRunId));
       const selected = await findNativeSessionResumeRun(db, {
-        companyId,
+        spaceId,
         agentId,
         issueId,
         normalizedSessionId,
@@ -907,7 +907,7 @@ const recoveryFakeCodex = resolve(
         providerRecoveryPolicy: "allow_replacement_after_resume_failure",
       });
       expect(rebound?.identity).toEqual({
-        companyId,
+        spaceId,
         issueId,
         agentId,
         runId: currentRunId,
@@ -924,8 +924,8 @@ const recoveryFakeCodex = resolve(
       });
       let continuity: Record<string, unknown> | undefined;
       const controlPlaneInstanceId = randomUUID();
-      const port = new PaperclipControlPlanePort(db, {
-        companyId,
+      const port = new OutpostControlPlanePort(db, {
+        spaceId,
         issueId,
         runId: currentRunId,
         agentId,
@@ -1102,7 +1102,7 @@ const recoveryFakeCodex = resolve(
         }),
       ).toBe(true);
       expect(results[0]).toMatchObject({
-        companyId,
+        spaceId,
         issueId,
         runId: currentRunId,
         schemaStatus: "accepted",
@@ -1160,36 +1160,36 @@ const recoveryFakeCodex = resolve(
   () => {
     it.each(["accepted", "no_result", "rejected", "backup_current"] as const)(
       "marks the checkpoint not resumable only after an accepted result (%s)", async (outcome) => {
-        const database = await startEmbeddedPostgresTestDatabase("paperclip-native-unsaved-state-");
+        const database = await startEmbeddedPostgresTestDatabase("outpost-native-unsaved-state-");
         const db = createDb(database.connectionString);
         try {
-          await db.insert(companies).values({ id: companyId, name: "Unsaved provider state", issuePrefix: "NPS" });
-          await db.insert(agents).values({ id: agentId, companyId, name: "Native runner" });
-          await db.insert(issues).values({ id: issueId, companyId, title: "Keep the task" });
+          await db.insert(spaces).values({ id: spaceId, name: "Unsaved provider state", issuePrefix: "NPS" });
+          await db.insert(agents).values({ id: agentId, spaceId, name: "Native runner" });
+          await db.insert(issues).values({ id: issueId, spaceId, title: "Keep the task" });
           const source = previousRun();
           const sourceExecution = source.runnerProfileJson.nativeExecutionInput;
-          await db.insert(completionContracts).values({ id: sourceExecution.completionContract.id, companyId, issueId,
+          await db.insert(completionContracts).values({ id: sourceExecution.completionContract.id, spaceId, issueId,
             revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "unsaved-state-v1", risk: "standard",
             completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
             contractJson: { ...sourceExecution.completionContract.contract }, canonicalSha256: sourceExecution.completionContract.sha256,
             createdByActorType: "system", createdByActorId: "test" });
           const resultJson = { result: { summary: "Done." }, terminal: { runTerminalState: "succeeded" } };
-          await db.insert(heartbeatRuns).values({ id: previousRunId, companyId, agentId, status: "succeeded",
+          await db.insert(heartbeatRuns).values({ id: previousRunId, spaceId, agentId, status: "succeeded",
             runtimeMode: "native", nativeIssueId: issueId, nativeSessionId: normalizedSessionId, runnerInstanceId: randomUUID(),
             completionContractId: sourceExecution.completionContract.id, completionContractSha256: sourceExecution.completionContract.sha256,
             createdAt: new Date(Date.UTC(2026, 10, 11, 0, 0, 0)), resultJson, runnerProfileJson: source.runnerProfileJson });
           const resultId = randomUUID();
-          if (outcome !== "no_result") await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId, runId: previousRunId,
+          if (outcome !== "no_result") await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId, runId: previousRunId,
             completionContractId: sourceExecution.completionContract.id, serverFingerprint: "test",
             schemaStatus: outcome === "rejected" ? "rejected" : "accepted", resultJson, canonicalSha256: "a".repeat(64) });
-          await db.insert(nativeRunFinalizations).values({ runId: previousRunId, companyId, issueId,
+          await db.insert(nativeRunFinalizations).values({ runId: previousRunId, spaceId, issueId,
             phase: outcome === "accepted" || outcome === "backup_current" ? "committed" : "observed",
             resultId: outcome === "no_result" ? null : resultId });
           // The durable backup became current before a later step failed.
-          if (outcome === "backup_current") await db.insert(nativeHarnessBackups).values({ companyId, issueId, runId: previousRunId,
+          if (outcome === "backup_current") await db.insert(nativeHarnessBackups).values({ spaceId, issueId, runId: previousRunId,
             scopeDigest: "b".repeat(64), manifestSha256: `sha256:${"c".repeat(64)}`, status: "current", reference: {} });
-          const binding = { companyId, issueId, runId: previousRunId };
-          const selection = { companyId, agentId, issueId, normalizedSessionId, currentRunId,
+          const binding = { spaceId, issueId, runId: previousRunId };
+          const selection = { spaceId, agentId, issueId, normalizedSessionId, currentRunId,
             beforeCreatedAt: new Date(Date.UTC(2026, 10, 11, 0, 1, 0)) };
           const [before] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, previousRunId));
 
@@ -1221,24 +1221,24 @@ const recoveryFakeCodex = resolve(
 
     it("uses scoped latest checkpoints, preserves progress barriers, and guards bootstrap persistence after the row lock", async () => {
       const database = await startEmbeddedPostgresTestDatabase(
-        "paperclip-native-resume-selection-",
+        "outpost-native-resume-selection-",
       );
       const db = createDb(database.connectionString);
       try {
-        const otherCompany = randomUUID(),
+        const otherSpace = randomUUID(),
           otherAgent = randomUUID(),
           otherIssue = randomUUID();
-        await db.insert(companies).values([
-          { id: companyId, name: "Session recovery", issuePrefix: "NRS" },
-          { id: otherCompany, name: "Other company", issuePrefix: "OTHER" },
+        await db.insert(spaces).values([
+          { id: spaceId, name: "Session recovery", issuePrefix: "NRS" },
+          { id: otherSpace, name: "Other space", issuePrefix: "OTHER" },
         ]);
         await db.insert(agents).values([
-          { id: agentId, companyId, name: "Native runner" },
-          { id: otherAgent, companyId: otherCompany, name: "Other agent" },
+          { id: agentId, spaceId, name: "Native runner" },
+          { id: otherAgent, spaceId: otherSpace, name: "Other agent" },
         ]);
         await db.insert(issues).values([
-          { id: issueId, companyId, title: "Retain this task" },
-          { id: otherIssue, companyId, title: "Other task" },
+          { id: issueId, spaceId, title: "Retain this task" },
+          { id: otherIssue, spaceId, title: "Other task" },
         ]);
         const at = (second: number) =>
           new Date(Date.UTC(2026, 8, 8, 0, 0, second));
@@ -1251,7 +1251,7 @@ const recoveryFakeCodex = resolve(
           runnerInstanceId: randomUUID(),
         };
         const unused = {
-          companyId,
+          spaceId,
           agentId,
           runtimeMode: "native",
           nativeIssueId: issueId,
@@ -1273,7 +1273,7 @@ const recoveryFakeCodex = resolve(
           {
             ...unused,
             id: randomUUID(),
-            companyId: otherCompany,
+            spaceId: otherSpace,
             createdAt: at(3),
             status: "running",
           },
@@ -1305,7 +1305,7 @@ const recoveryFakeCodex = resolve(
           },
         ]);
         const selection = {
-          companyId,
+          spaceId,
           agentId,
           issueId,
           normalizedSessionId,
@@ -1333,7 +1333,7 @@ const recoveryFakeCodex = resolve(
           previousRunId,
         );
         await db.insert(heartbeatRunEvents).values({
-          companyId,
+          spaceId,
           agentId,
           runId: bootstrapId,
           seq: 1,
@@ -1493,7 +1493,7 @@ const recoveryFakeCodex = resolve(
           locked();
           await release;
           await tx.insert(heartbeatRunEvents).values({
-            companyId,
+            spaceId,
             agentId,
             runId: lateId,
             seq: 1,
@@ -1671,7 +1671,7 @@ describe("rebindNativeSessionCheckpoint", () => {
     const original = structuredClone(source);
     const selected = selectNativeSessionResumeRun({
       runs: [unusedFailure, source],
-      companyId,
+      spaceId,
       agentId,
       issueId,
       normalizedSessionId,
@@ -1710,7 +1710,7 @@ describe("rebindNativeSessionCheckpoint", () => {
     ) =>
       selectNativeSessionResumeRun({
         runs: [candidate, source],
-        companyId,
+        spaceId,
         agentId,
         issueId,
         normalizedSessionId,
@@ -1738,7 +1738,7 @@ describe("rebindNativeSessionCheckpoint", () => {
     ).toBeNull();
   });
 
-  it("does not borrow checkpoints across company, agent, issue, or normalized session", () => {
+  it("does not borrow checkpoints across space, agent, issue, or normalized session", () => {
     const source = {
       ...previousRun(),
       nativeIssueId: issueId,
@@ -1750,7 +1750,7 @@ describe("rebindNativeSessionCheckpoint", () => {
       processStartedAt: null,
     };
     for (const changed of [
-      { companyId: currentRunId },
+      { spaceId: currentRunId },
       { agentId: currentRunId },
       { nativeIssueId: currentRunId },
       { nativeSessionId: currentRunId },
@@ -1759,7 +1759,7 @@ describe("rebindNativeSessionCheckpoint", () => {
       expect(
         selectNativeSessionResumeRun({
           runs: [{ ...source, ...changed }],
-          companyId,
+          spaceId,
           agentId,
           issueId,
           normalizedSessionId,
@@ -1789,7 +1789,7 @@ describe("rebindNativeSessionCheckpoint", () => {
         buildExecution: (options) => {
           calls.push(options.resumedSession);
           return buildNativeExecutionInput({
-            companyId,
+            spaceId,
             runId: currentRunId,
             issue: {
               id: issueId,
@@ -1832,7 +1832,7 @@ describe("rebindNativeSessionCheckpoint", () => {
       );
       expect(result.execution.task.prompt).toContain("Full task instructions");
       expect(result.execution.task.prompt).not.toContain(
-        "Paperclip Resume Delta",
+        "Outpost Resume Delta",
       );
       expect(result.execution.task.prompt).not.toContain("Compact context");
     },
@@ -1903,7 +1903,7 @@ describe("rebindNativeSessionCheckpoint", () => {
           task: {
             ...current.task,
             prompt: options.resumedSession
-              ? "Paperclip Resume Delta"
+              ? "Outpost Resume Delta"
               : "Full task instructions",
           },
         };
@@ -1961,7 +1961,7 @@ describe("rebindNativeSessionCheckpoint", () => {
         "sha256:b64efcd063a575925aa95dbd2a20953386eaa760f05b0e0e73b4ae04a97679b0",
     },
   ])(
-    "refreshes retained $contract without changing the Paperclip task or prior history",
+    "refreshes retained $contract without changing the Outpost task or prior history",
     ({ contract, retainedFingerprint }) => {
       if (contract === "explicit chat-attachment invocation guidance") {
         expect(LIST_CHAT_ATTACHMENTS_TOOL_DEFINITION.description).toContain("Call with {}");
@@ -1990,8 +1990,8 @@ describe("rebindNativeSessionCheckpoint", () => {
             task: {
               ...current.task,
               prompt: options.resumedSession
-                ? "Paperclip Resume Delta"
-                : "Full context for the same Paperclip task",
+                ? "Outpost Resume Delta"
+                : "Full context for the same Outpost task",
             },
           };
         },
@@ -2000,7 +2000,7 @@ describe("rebindNativeSessionCheckpoint", () => {
       expect(result.checkpoint).toBeNull();
       expect(result.normalizedSessionId).not.toBe(normalizedSessionId);
       expect(result.execution.binding).toMatchObject({
-        companyId,
+        spaceId,
         issueId,
         agentId,
         runId: currentRunId,
@@ -2009,9 +2009,9 @@ describe("rebindNativeSessionCheckpoint", () => {
         execution(currentRunId).workspace,
       );
       expect(result.execution.task.prompt).toBe(
-        "Full context for the same Paperclip task",
+        "Full context for the same Outpost task",
       );
-      // No deletion/reset of the existing provider checkpoint or Paperclip history.
+      // No deletion/reset of the existing provider checkpoint or Outpost history.
       expect(prior).toEqual(priorSnapshot);
       expect(prior.runnerProfileJson.sessionCheckpoint.sessionId).toBe(
         "provider-thread-123",
@@ -2126,7 +2126,7 @@ describe("rebindNativeSessionCheckpoint", () => {
     const prior = previousRun();
     const profile = prior.runnerProfileJson as Record<string, unknown>;
     const checkpoint = profile.sessionCheckpoint as Record<string, unknown>;
-    checkpoint.governedWait = { sourceEvent: { runId: previousRunId, turnId: "old-turn" }, result: { reportedWorkDisposition: "yielded" } };
+    checkpoint.controlledWait = { sourceEvent: { runId: previousRunId, turnId: "old-turn" }, result: { reportedWorkDisposition: "yielded" } };
     checkpoint.dispositionOnlyRecoveryConsumed = true;
     checkpoint.dispositionOnlyRecoveryTurnId = "old-restart-continuation";
     const before = structuredClone(prior);
@@ -2134,7 +2134,7 @@ describe("rebindNativeSessionCheckpoint", () => {
       previousRun: prior,
       currentExecution: execution(currentRunId),
     });
-    expect(rebound?.governedWait).toBeUndefined();
+    expect(rebound?.controlledWait).toBeUndefined();
     expect(prior).toEqual(before);
     expect(rebound).toMatchObject({
       sessionId: "provider-thread-123",
@@ -2152,7 +2152,7 @@ describe("rebindNativeSessionCheckpoint", () => {
       identity: {
         runId: currentRunId,
         sessionId: normalizedSessionId,
-        companyId,
+        spaceId,
         issueId,
         agentId,
       },
@@ -2179,7 +2179,7 @@ describe("rebindNativeSessionCheckpoint", () => {
         currentExecution: execution(currentRunId),
       }),
     ).toMatchObject({
-      providerRecoveryPolicy: "allow_replacement_after_governed_wait",
+      providerRecoveryPolicy: "allow_replacement_after_controlled_wait",
       semanticResult: null,
       activeTurnId: null,
     });
@@ -2384,16 +2384,16 @@ describe("buildNativeExecutionInput wake projection", () => {
   it.each(["slack", "github"])("uses compact %s input only after provider resume, preserving fresh bootstrap fallback", (externalChatProvider) => {
     const base = execution(currentRunId);
     const issue = { id: issueId, identifier: "DOT-2", title: "Old greeting", description: null, workMode: "standard" };
-    const message = { id: "wake", body: "NEW_SLACK_MESSAGE", authorType: "user", authorId: "board", sourceTrust: "user", createdByRunId: null };
+    const message = { id: "wake", body: "NEW_SLACK_MESSAGE", authorType: "user", authorId: "operator", sourceTrust: "user", createdByRunId: null };
     const input = buildNativeExecutionInput({
-      companyId, runId: currentRunId, agentId, issue,
+      spaceId, runId: currentRunId, agentId, issue,
       taskPrompt: "FULL_BOOTSTRAP_WITH_FILE_AND_AUTHORIZATION_INSTRUCTIONS",
       resumedSession: true,
       previousTurn: { runId: previousRunId, task: issue },
       wakePayload: {
         reason: "External chat message received", issue,
         externalChatProvider, checkedOutByHarness: true,
-        comments: [{ ...message, author: { type: "user", id: "board" } }], commentIds: [message.id], latestCommentId: message.id,
+        comments: [{ ...message, author: { type: "user", id: "operator" } }], commentIds: [message.id], latestCommentId: message.id,
         commentWindow: { requestedCount: 1, includedCount: 1, missingCount: 0 },
         executionContinuation: { version: 1, objective: message.body, messages: [message], resumeDelta: { baseRunId: previousRunId, messages: [message] } },
       },
@@ -2411,13 +2411,13 @@ describe("buildNativeExecutionInput wake projection", () => {
     const base = execution(currentRunId);
     const issue = { id: issueId, identifier: "REVIEW-1", title: "PR #1", description: null, workMode: "standard" };
     const config = { key: "a".repeat(64), instructions: "STABLE_REVIEW_POLICY" };
-    const message = { id: "new-push", body: "Review new head abc123", authorType: "user", authorId: "board", createdByRunId: null };
+    const message = { id: "new-push", body: "Review new head abc123", authorType: "user", authorId: "operator", createdByRunId: null };
     const args = {
-      companyId, runId: currentRunId, agentId, issue, taskPrompt: "Canonical task",
+      spaceId, runId: currentRunId, agentId, issue, taskPrompt: "Canonical task",
       resumedSession: true, previousTurn: { runId: previousRunId, task: issue, githubReviewConfigurationKeys: [config.key] },
       wakePayload: { reason: externalChatProvider ? "External chat message received" : "issue_commented", issue, externalChatProvider, checkedOutByHarness: true,
         githubReviewConfigurations: [config],
-        comments: [{ ...message, author: { type: "user", id: "board" } }], commentIds: [message.id], latestCommentId: message.id,
+        comments: [{ ...message, author: { type: "user", id: "operator" } }], commentIds: [message.id], latestCommentId: message.id,
         commentWindow: { requestedCount: 1, includedCount: 1, missingCount: 0 },
         executionContinuation: { version: 1, objective: message.body, messages: [{ ...message, id: "old", body: "OLD_REQUEST" }, message],
           resumeDelta: { baseRunId: previousRunId, messages: [message] } },
@@ -2444,7 +2444,7 @@ describe("buildNativeExecutionInput wake projection", () => {
   it("uses a neutral turn title for authenticated external-chat follow-ups", () => {
     const staleRootTitle = "Reply with exactly STALE-ROOT-MARKER";
     const input = buildNativeExecutionInput({
-      companyId,
+      spaceId,
       runId: currentRunId,
       issue: {
         id: issueId,
@@ -2454,7 +2454,7 @@ describe("buildNativeExecutionInput wake projection", () => {
         workMode: "standard",
       },
       taskPrompt: [
-        "Paperclip task context:",
+        "Outpost task context:",
         `- Title: ${JSON.stringify(staleRootTitle)}`,
         "Latest wake comment:",
         "```text",
@@ -2543,7 +2543,7 @@ describe("buildNativeExecutionInput wake projection", () => {
 
   it("writes native v4 and pins every provider's complete effective configuration", () => {
     const common = {
-      companyId,
+      spaceId,
       runId: currentRunId,
       issue: {
         id: issueId,
@@ -2616,7 +2616,7 @@ describe("buildNativeExecutionInput wake projection", () => {
           "arn:aws:bedrock-agentcore:us-east-1:123456789012:memory/m-1",
         memoryId: "m-1",
         invocationRoleArn: "arn:aws:iam::123456789012:role/invoke",
-        contextBucket: "paperclip-context",
+        contextBucket: "outpost-context",
         contextPrefix: "runner/",
         contextKmsKeyArn: "arn:aws:kms:us-east-1:123456789012:key/key-1",
         qualificationRevision: "aws-agentcore-harness-context-v2",
@@ -2690,7 +2690,7 @@ describe("buildNativeExecutionInput wake projection", () => {
 
   it.each([false, true])("projects wake context with the appropriate execution contract (conversation=%s)", (conversationMode) => {
     const input = buildNativeExecutionInput({
-      companyId,
+      spaceId,
       runId: currentRunId,
       issue: {
         id: issueId,
@@ -2699,7 +2699,7 @@ describe("buildNativeExecutionInput wake projection", () => {
         description: "Use the child result.",
         workMode: "standard",
       },
-      taskPrompt: "Paperclip task context:\n- Issue: DOT-146",
+      taskPrompt: "Outpost task context:\n- Issue: DOT-146",
       wakePayload: {
         reason: "issue_children_completed",
         issue: {
@@ -2754,14 +2754,14 @@ describe("buildNativeExecutionInput wake projection", () => {
     expect(input.task.prompt).not.toContain("Execution contract:");
     expect(input.task.prompt).not.toContain("Use child issues");
     // Full bootstrap stays available if provider recovery fails after admission.
-    expect(input.task.prompt).toContain("## Paperclip Wake Payload");
+    expect(input.task.prompt).toContain("## Outpost Wake Payload");
     expect(input.task.prompt).toContain("reason: issue_children_completed");
     expect(input.task.prompt).toContain("DOT-147 Build utility (done)");
     expect(input.task.prompt).toContain(
       "Created three files and passed 7/7 tests.",
     );
     expect(input.task.prompt).toContain(
-      "Paperclip task context:\n- Issue: DOT-146",
+      "Outpost task context:\n- Issue: DOT-146",
     );
     expect(input.task.prompt).not.toContain("Use the child result.");
   });

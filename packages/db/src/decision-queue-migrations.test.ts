@@ -43,27 +43,27 @@ describeEmbeddedPostgres("decision queue migrations", () => {
   it(
     "can be reapplied without changing schema or existing data",
     async () => {
-      const database = await startEmbeddedPostgresTestDatabase("paperclip-decision-queue-migrations-");
+      const database = await startEmbeddedPostgresTestDatabase("outpost-decision-queue-migrations-");
       cleanups.push(database.cleanup);
       const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const queueId = randomUUID();
       const itemId = randomUUID();
 
       try {
         await sql`
-          INSERT INTO "companies" ("id", "name", "issue_prefix")
-          VALUES (${companyId}, 'Migration Test', 'DQM')
+          INSERT INTO "spaces" ("id", "name", "issue_prefix")
+          VALUES (${spaceId}, 'Migration Test', 'DQM')
         `;
         await sql`
           INSERT INTO "decision_queues" (
-            "id", "company_id", "key", "title", "created_by_type", "created_by_user_id"
-          ) VALUES (${queueId}, ${companyId}, 'migration-test', 'Migration Test', 'user', 'test-user')
+            "id", "space_id", "key", "title", "created_by_type", "created_by_user_id"
+          ) VALUES (${queueId}, ${spaceId}, 'migration-test', 'Migration Test', 'user', 'test-user')
         `;
         await sql`
           INSERT INTO "decision_queue_items" (
-            "id", "company_id", "queue_id", "source_kind", "source_id", "added_by_type", "added_by_user_id"
-          ) VALUES (${itemId}, ${companyId}, ${queueId}, 'issue', 'DQM-1', 'user', 'test-user')
+            "id", "space_id", "queue_id", "source_kind", "source_id", "added_by_type", "added_by_user_id"
+          ) VALUES (${itemId}, ${spaceId}, ${queueId}, 'issue', 'DQM-1', 'user', 'test-user')
         `;
 
         await reapplyDecisionQueueMigrations(sql);
@@ -78,14 +78,14 @@ describeEmbeddedPostgres("decision queue migrations", () => {
           SELECT "conname"
           FROM "pg_constraint"
           WHERE "conname" IN (
-            'decision_queues_id_company_uq',
-            'decision_queue_items_queue_company_fk'
+            'decision_queues_id_space_uq',
+            'decision_queue_items_queue_space_fk'
           )
           ORDER BY "conname"
         `;
         expect(constraints).toEqual([
-          { conname: "decision_queue_items_queue_company_fk" },
-          { conname: "decision_queues_id_company_uq" },
+          { conname: "decision_queue_items_queue_space_fk" },
+          { conname: "decision_queues_id_space_uq" },
         ]);
       } finally {
         await sql.end();

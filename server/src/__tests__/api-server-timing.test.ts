@@ -28,7 +28,7 @@ describe("apiServerTiming", () => {
     const response = await fetch(`${await serve(app)}/api/thing`);
 
     expect(response.status).toBe(200);
-    const match = /^paperclip_api;dur=(\d+(?:\.\d+)?)$/.exec(response.headers.get("server-timing") ?? "");
+    const match = /^outpost_api;dur=(\d+(?:\.\d+)?)$/.exec(response.headers.get("server-timing") ?? "");
     expect(match).not.toBeNull();
     expect(Number(match![1])).toBeGreaterThanOrEqual(20);
   });
@@ -37,13 +37,13 @@ describe("apiServerTiming", () => {
     const app = express();
     app.use("/api", apiServerTiming());
     app.get("/api/issue", (_req, res) => {
-      res.setHeader("Server-Timing", "paperclip_issue;dur=3.0, issue_lookup;dur=1.0");
+      res.setHeader("Server-Timing", "outpost_issue;dur=3.0, issue_lookup;dur=1.0");
       res.status(204).end();
     });
     const response = await fetch(`${await serve(app)}/api/issue`);
 
     expect(response.headers.get("server-timing")).toMatch(
-      /^paperclip_issue;dur=3\.0, issue_lookup;dur=1\.0, paperclip_api;dur=\d+(\.\d+)?$/,
+      /^outpost_issue;dur=3\.0, issue_lookup;dur=1\.0, outpost_api;dur=\d+(\.\d+)?$/,
     );
   });
 
@@ -57,6 +57,6 @@ describe("apiServerTiming", () => {
     const response = await fetch(`${await serve(app)}/api/raw`);
 
     expect(response.status).toBe(404);
-    expect(response.headers.get("server-timing")?.match(/paperclip_api/g)).toHaveLength(1);
+    expect(response.headers.get("server-timing")?.match(/outpost_api/g)).toHaveLength(1);
   });
 });

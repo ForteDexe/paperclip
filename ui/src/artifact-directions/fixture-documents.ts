@@ -47,7 +47,7 @@ Review the interface the way a senior designer would: start from what the screen
 
 export const DOC_REVISION_BRIEF = `# Approved consolidated deck revision brief
 
-Approved by the Outpost Lead on 26 September 2026. One consolidated revision is authorized before founder review.
+Approved by the Default agent on 26 September 2026. One consolidated revision is authorized before founder review.
 
 ## Scope
 
@@ -128,7 +128,7 @@ Consolidated revision • 26 September 2026 • 12 slides • 16:9
 The recommendation is unchanged. Review the merged audience slide and the appendix of sources first.
 `;
 
-export const DOC_CEO_REVIEW = `# Interface Craft pass — Outpost Lead review
+export const DOC_DEFAULT_AGENT_REVIEW = `# Interface Craft pass — Default agent review
 
 28 September 2026. Ready for founder review; acceptance remains pending.
 
@@ -143,7 +143,7 @@ A 12-slide strategy and direction deck for an early-stage custom cap business. T
 Accept the Interface Craft revision as the first brand deck and authorize Direction A for production samples.
 `;
 
-export const DOC_FIRST_DRAFT_REVIEW = `# First draft — Outpost Lead review
+export const DOC_FIRST_DRAFT_REVIEW = `# First draft — Default agent review
 
 25 September 2026. The first draft is coherent and its claims are labelled. One consolidated revision is authorized before founder review.
 `;

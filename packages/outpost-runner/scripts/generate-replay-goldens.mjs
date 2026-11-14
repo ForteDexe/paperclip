@@ -21,7 +21,7 @@ const fixtureNames = [
   "semantic-tool-artifact-happy-path",
   "semantic-tool-denial-redaction",
   "semantic-tool-conflict-duplicate-retry",
-  "semantic-tool-governance-wake-monitor",
+  "semantic-tool-approvals-wake-monitor",
   "semantic-tool-unknown-optional-envelope",
 ];
 const check = process.argv.includes("--check");

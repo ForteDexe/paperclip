@@ -41,7 +41,7 @@ const round = (value: number) => Math.round(value * 1_000) / 1_000;
 it.skipIf(!enabled).each(["file", "external"] as const)(
   "measures idle pump cost and delivery wait with %s persistence",
   async (persistence) => {
-    const root = await mkdtemp(join(tmpdir(), "paperclip-transport-pump-benchmark-"));
+    const root = await mkdtemp(join(tmpdir(), "outpost-transport-pump-benchmark-"));
     const open: Array<{
       bundle: ReturnType<typeof createCapabilityRunnerdCodexTransport>;
       probe: () => TransportPumpProbe;

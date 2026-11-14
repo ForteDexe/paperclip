@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, agentWakeupRequests, companies, createDb, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueComments, issueRecoveryActions, issueThreadInteractions, issues } from "@outpost/db";
+import { agents, agentWakeupRequests, spaces, createDb, environmentLeases, heartbeatRunEvents, heartbeatRuns, issueComments, issueRecoveryActions, issueThreadInteractions, issues } from "@outpost/db";
 import { heartbeatService } from "../services/heartbeat.js";
 import { recoveryService } from "../services/recovery/service.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -15,49 +15,49 @@ describe("legacy continuation persisted authority", () => {
   beforeAll(async () => { temporary = await startEmbeddedPostgresTestDatabase("legacy-authority-"); db = createDb(temporary.connectionString); }, 20_000);
   afterAll(async () => { await db?.$client.end({ timeout: 0 }); await temporary?.cleanup(); });
   async function fixture(context: Record<string, unknown> = {}, continuationAttempt = 0) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Authority fixture", issuePrefix: `A${companyId.slice(0, 6)}`, defaultResponsibleUserId: "fixture-owner" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", role: "engineer", status: "idle", adapterType: "codex_local", runtimeConfig: { heartbeat: { wakeOnDemand: true } } });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Implement export", status: "in_progress", assigneeAgentId: agentId, responsibleUserId: "fixture-owner" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", status: "succeeded", runtimeMode: "legacy", continuationAttempt, contextSnapshot: { issueId, ...context }, livenessState: "blocked", resultJson: { summary: "All done. Need approval. I will continue." } });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Authority fixture", issuePrefix: `A${spaceId.slice(0, 6)}`, defaultResponsibleUserId: "fixture-owner" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", role: "engineer", status: "idle", adapterType: "codex_local", runtimeConfig: { heartbeat: { wakeOnDemand: true } } });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Implement export", status: "in_progress", assigneeAgentId: agentId, responsibleUserId: "fixture-owner" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "on_demand", status: "succeeded", runtimeMode: "legacy", continuationAttempt, contextSnapshot: { issueId, ...context }, livenessState: "blocked", resultJson: { summary: "All done. Need approval. I will continue." } });
     const createRecovery = (afterEnqueue?: (run: typeof heartbeatRuns.$inferSelect) => Promise<void>) => recoveryService(db, {
       enqueueWakeup: async (targetAgentId, opts) => db.transaction(async tx => {
-        const [wake] = await tx.insert(agentWakeupRequests).values({ companyId, agentId: targetAgentId, source: "automation", reason: opts?.reason, payload: opts?.payload, idempotencyKey: opts?.idempotencyKey, status: "queued" }).returning();
-        const [run] = await tx.insert(heartbeatRuns).values({ companyId, agentId: targetAgentId, invocationSource: "automation", status: "queued", runtimeMode: "legacy", wakeupRequestId: wake.id, contextSnapshot: opts?.contextSnapshot }).returning();
+        const [wake] = await tx.insert(agentWakeupRequests).values({ spaceId, agentId: targetAgentId, source: "automation", reason: opts?.reason, payload: opts?.payload, idempotencyKey: opts?.idempotencyKey, status: "queued" }).returning();
+        const [run] = await tx.insert(heartbeatRuns).values({ spaceId, agentId: targetAgentId, invocationSource: "automation", status: "queued", runtimeMode: "legacy", wakeupRequestId: wake.id, contextSnapshot: opts?.contextSnapshot }).returning();
         await tx.update(agentWakeupRequests).set({ runId: run.id }).where(eq(agentWakeupRequests.id, wake.id));
         return run;
       }).then(async run => { await afterEnqueue?.(run); return run; }),
     });
-    const runs = () => db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, companyId));
-    const actions = () => db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, companyId));
+    const runs = () => db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, spaceId));
+    const actions = () => db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, spaceId));
     async function finish(run: typeof heartbeatRuns.$inferSelect) {
       await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, run.id));
       if (run.wakeupRequestId) await db.update(agentWakeupRequests).set({ status: "completed" }).where(eq(agentWakeupRequests.id, run.wakeupRequestId));
     }
-    return { companyId, agentId, issueId, runId, createRecovery, runs, actions, finish };
+    return { spaceId, agentId, issueId, runId, createRecovery, runs, actions, finish };
   }
   it("does not freeze a never-started dispatch cancellation or retain its historical hold", async () => {
     const f = await fixture();
     await db.update(heartbeatRuns).set({ status: "queued", resultJson: null }).where(eq(heartbeatRuns.id, f.runId));
     await db.update(issues).set({ assigneeAgentId: null }).where(eq(issues.id, f.issueId));
-    expect(await createPostgresRunDispatchAdapter(db).cancelStaleQueuedRun({ companyId: f.companyId,
+    expect(await createPostgresRunDispatchAdapter(db).cancelStaleQueuedRun({ spaceId: f.spaceId,
       runId: f.runId, expectedStatus: "queued", now: new Date() })).toMatchObject({ outcome: "cancelled", errorCode: "issue_assignee_changed" });
     const run = (await f.runs())[0];
     expect(await legacyExecutionNeedsReconciliationWithEvidence(db, run)).toBe(false);
     await terminalizeLegacyExecution({ db, run, status: "cancelled", fromStatuses: ["cancelled"], reconcileIfNeeded: true });
     expect(await f.actions()).toHaveLength(0);
-    await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
-      kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", ownerType: "board",
+    await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
+      kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", ownerType: "operator",
       fingerprint: `legacy-execution:${run.id}`, status: "resolved", outcome: "blocked", nextAction: "Reconcile",
       evidence: { runId: run.id, automaticRecovery: { replay: "blocked" } } });
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
     for (const errorCode of ["issue_not_found", "issue_not_in_progress", "issue_waiting_for_response",
       "issue_dependencies_blocked", "issue_blocked",
       "issue_execution_lock_changed", "issue_terminal_status", "issue_review_participant_changed"]) {
       const changed = { ...run, errorCode };
       await db.update(heartbeatRuns).set(changed).where(eq(heartbeatRuns.id, run.id));
       expect(await legacyExecutionNeedsReconciliationWithEvidence(db, changed)).toBe(false);
-      expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+      expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
     }
     const reviewWait = { ...run, errorCode: "issue_continuation_waiting_on_review", resultJson: {
       stopReason: "issue_continuation_waiting_on_review", timeoutSource: "stale_queued_run_gate",
@@ -65,7 +65,7 @@ describe("legacy continuation persisted authority", () => {
     await db.update(issues).set({ assigneeAgentId: f.agentId }).where(eq(issues.id, f.issueId));
     await db.update(heartbeatRuns).set(reviewWait).where(eq(heartbeatRuns.id, run.id));
     expect(await legacyExecutionNeedsReconciliationWithEvidence(db, reviewWait)).toBe(false);
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toMatchObject({ canRetry: true });
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toMatchObject({ canRetry: true });
     for (const patch of [{ finishedAt: null }, { startedAt: new Date() }, { runtimeModeResolvedAt: new Date() },
       { processPid: 123456789 }, { processGroupId: 123456789 }, { processStartedAt: new Date() },
       { sessionIdAfter: "provider-session" }, { controllerBootId: randomUUID() },
@@ -77,14 +77,14 @@ describe("legacy continuation persisted authority", () => {
       const changed = { ...run, ...patch };
       await db.update(heartbeatRuns).set(changed).where(eq(heartbeatRuns.id, run.id));
       expect(await legacyExecutionNeedsReconciliationWithEvidence(db, changed)).toBe(true);
-      expect(await getExecutionBlocker(db, f.companyId, f.issueId)).not.toBeNull();
+      expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).not.toBeNull();
     }
     await db.update(heartbeatRuns).set(run).where(eq(heartbeatRuns.id, run.id));
-    await db.insert(heartbeatRunEvents).values({ companyId: f.companyId, runId: run.id, agentId: f.agentId,
+    await db.insert(heartbeatRunEvents).values({ spaceId: f.spaceId, runId: run.id, agentId: f.agentId,
       seq: 2, eventType: "adapter.invoke" });
     await db.update(heartbeatRuns).set({ nextEventSeq: 3 }).where(eq(heartbeatRuns.id, run.id));
     expect(await legacyExecutionNeedsReconciliationWithEvidence(db, run)).toBe(true);
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).not.toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).not.toBeNull();
   });
   it("keeps historical holds for missing, foreign, or conflicting sources and workspace recovery", async () => {
     const f = await fixture(), foreign = await fixture();
@@ -92,46 +92,46 @@ describe("legacy continuation persisted authority", () => {
     await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date(),
       errorCode: "issue_dependencies_blocked", resultJson: null }).where(eq(heartbeatRuns.id, f.runId));
     const evidence = { runId: f.runId, automaticRecovery: { replay: "blocked" } };
-    const [hold] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
-      kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", ownerType: "board",
+    const [hold] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
+      kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", ownerType: "operator",
       fingerprint: `legacy-execution:${f.runId}`, status: "resolved", outcome: "blocked", nextAction: "Reconcile", evidence }).returning();
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
     for (const changed of [{ ...evidence, runId: "malformed" }, { ...evidence, runId: randomUUID() },
       { ...evidence, runId: foreign.runId }, { automaticRecovery: evidence.automaticRecovery },
       { ...evidence, workspaceRestoreFailure: "restore_unsafe_archive" },
       { ...evidence, workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1" } }]) {
       await db.update(issueRecoveryActions).set({ evidence: changed }).where(eq(issueRecoveryActions.id, hold.id));
-      expect(await getExecutionBlocker(db, f.companyId, f.issueId)).not.toBeNull();
+      expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).not.toBeNull();
     }
     await db.update(issueRecoveryActions).set({ evidence: { sourceRunId: f.runId,
       automaticRecovery: evidence.automaticRecovery } }).where(eq(issueRecoveryActions.id, hold.id));
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
-    const [other] = await db.insert(issues).values({ companyId: f.companyId, title: "Another task" }).returning();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
+    const [other] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Another task" }).returning();
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: other.id } }).where(eq(heartbeatRuns.id, f.runId));
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).not.toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).not.toBeNull();
     await db.update(heartbeatRuns).set({ issueId: f.issueId,
       contextSnapshot: { issueId: f.issueId } }).where(eq(heartbeatRuns.id, f.runId));
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
     expect(await f.actions()).toHaveLength(1);
   });
   it.each(["released environment", "provider event"])("retains a hold with a recorded %s", async retained => {
     const f = await fixture();
     const [run] = await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date(),
       errorCode: "issue_dependencies_blocked", resultJson: null }).where(eq(heartbeatRuns.id, f.runId)).returning();
-    await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
-      kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", ownerType: "board",
+    await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
+      kind: "active_run_watchdog", cause: "legacy_execution_requires_reconciliation", ownerType: "operator",
       fingerprint: `legacy-execution:${f.runId}`, status: "active", nextAction: "Reconcile", evidence: { runId: f.runId } });
     expect(await legacyExecutionNeedsReconciliationWithEvidence(db, run)).toBe(false);
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
-    if (retained === "released environment") await db.insert(environmentLeases).values({ companyId: f.companyId,
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
+    if (retained === "released environment") await db.insert(environmentLeases).values({ spaceId: f.spaceId,
       heartbeatRunId: f.runId, issueId: f.issueId, provider: "local", status: "released", releasedAt: new Date(), cleanupStatus: "success" });
     else {
-      await db.insert(heartbeatRunEvents).values({ companyId: f.companyId, runId: f.runId, agentId: f.agentId,
+      await db.insert(heartbeatRunEvents).values({ spaceId: f.spaceId, runId: f.runId, agentId: f.agentId,
         seq: 1, eventType: "provider.diagnostic", sourceEventId: "provider-event-1" });
       await db.update(heartbeatRuns).set({ nextEventSeq: 2 }).where(eq(heartbeatRuns.id, f.runId));
     }
     expect(await legacyExecutionNeedsReconciliationWithEvidence(db, run)).toBe(true);
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).not.toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).not.toBeNull();
   });
   it.each([1, 2, 3, 4, 5])("deduplicates concurrent replay with stale prose-derived liveness (%s)", async () => {
     const f = await fixture();
@@ -160,14 +160,14 @@ describe("legacy continuation persisted authority", () => {
     await f.createRecovery().reconcileLegacyContinuation(f.runId);
     const first = (await f.runs()).find(r => r.id !== f.runId)!;
     await f.finish(first);
-    await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId, authorAgentId: f.agentId, body: "I will continue; all done; no approval required." });
+    await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issueId, authorAgentId: f.agentId, body: "I will continue; all done; no approval required." });
     await f.createRecovery().reconcileLegacyContinuation(first.id);
     const second = (await f.runs()).find(r => r.status === "scheduled_retry")!;
     expect(second.contextSnapshot).toMatchObject({ legacyDispositionEpisode: { id: f.runId, attempt: 2, maxAttempts: 2 } });
     await f.finish(second);
     expect(await f.createRecovery().reconcileLegacyContinuation(second.id)).toBe("escalated");
     expect(await f.runs()).toHaveLength(3);
-    expect((await f.actions()).find(a => a.status === "active")).toMatchObject({ ownerType: "board", attemptCount: 2 });
+    expect((await f.actions()).find(a => a.status === "active")).toMatchObject({ ownerType: "operator", attemptCount: 2 });
     await f.createRecovery().reconcileLegacyContinuation(second.id);
     expect(await f.runs()).toHaveLength(3);
   });
@@ -179,13 +179,13 @@ describe("legacy continuation persisted authority", () => {
     await f.createRecovery().reconcileLegacyContinuation(first.id);
     const second = (await f.runs()).find(r => r.status === "scheduled_retry")!;
     await f.finish(second);
-    if (noise === "comments") await db.insert(issueComments).values(Array.from({ length: 20 }, () => ({ companyId: f.companyId, issueId: f.issueId, authorAgentId: f.agentId, createdByRunId: second.id, body: "All done. No approval needed. Real progress! Continue." })));
+    if (noise === "comments") await db.insert(issueComments).values(Array.from({ length: 20 }, () => ({ spaceId: f.spaceId, issueId: f.issueId, authorAgentId: f.agentId, createdByRunId: second.id, body: "All done. No approval needed. Real progress! Continue." })));
     await db.update(heartbeatRuns).set({ livenessState: "advanced", resultJson: { summary: "Continuing", toolCallCount: noise === "tool-calls" ? 1000 : 0 } }).where(eq(heartbeatRuns.id, second.id));
     // Enter through the sweep while the task is still in_progress, so the
     // old comment/attachment progress exemption cannot bypass exhaustion.
     await f.createRecovery().reconcileStrandedAssignedIssues();
     expect(await f.runs()).toHaveLength(3);
-    expect((await f.actions()).find(a => a.status === "active")).toMatchObject({ ownerType: "board", attemptCount: 2 });
+    expect((await f.actions()).find(a => a.status === "active")).toMatchObject({ ownerType: "operator", attemptCount: 2 });
   });
 
   it.each(["approval", "budget", "pause", "reassigned"])("ACCT-03 %s introduced during second repair delay survives restart without another debit", async gate => {
@@ -196,8 +196,8 @@ describe("legacy continuation persisted authority", () => {
     await f.createRecovery().reconcileLegacyContinuation(first.id);
     const second = (await f.runs()).find(r => r.status === "scheduled_retry")!;
     expect(await f.createRecovery().legacyRepairDispatchBlock(second.id)).toBeNull();
-    if (gate === "approval") await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issueId, kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Continue?" } });
-    if (gate === "budget") await db.update(companies).set({ status: "paused", pauseReason: "budget" }).where(eq(companies.id, f.companyId));
+    if (gate === "approval") await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issueId, kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Continue?" } });
+    if (gate === "budget") await db.update(spaces).set({ status: "paused", pauseReason: "budget" }).where(eq(spaces.id, f.spaceId));
     if (gate === "pause") await db.update(agents).set({ status: "paused" }).where(eq(agents.id, f.agentId));
     if (gate === "reassigned") await db.update(issues).set({ assigneeAgentId: null }).where(eq(issues.id, f.issueId));
     expect(await f.createRecovery().legacyRepairDispatchBlock(second.id)).not.toBeNull();
@@ -283,7 +283,7 @@ describe("legacy continuation persisted authority", () => {
   });
   it("respects a pending approval while the issue still says in progress", async () => {
     const f = await fixture();
-    await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issueId, kind: "request_confirmation", status: "pending", requestedResolverPolicy: "anyone", effectiveResolverPolicy: "anyone", payload: { version: 1, prompt: "Approve?" } });
+    await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issueId, kind: "request_confirmation", status: "pending", requestedResolverPolicy: "anyone", effectiveResolverPolicy: "anyone", payload: { version: 1, prompt: "Approve?" } });
     expect(await f.createRecovery().reconcileLegacyContinuation(f.runId)).toBe("skipped");
     expect(await f.runs()).toHaveLength(1);
   });
@@ -292,7 +292,7 @@ describe("legacy continuation persisted authority", () => {
     await f.createRecovery().reconcileLegacyContinuation(f.runId);
     const repair = (await f.runs()).find(r => r.id !== f.runId)!;
     expect(await f.createRecovery().legacyRepairDispatchBlock(repair.id)).toBeNull();
-    await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issueId, kind: "request_confirmation", status: "pending", requestedResolverPolicy: "anyone", effectiveResolverPolicy: "anyone", payload: { version: 1, prompt: "Approve?" } });
+    await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issueId, kind: "request_confirmation", status: "pending", requestedResolverPolicy: "anyone", effectiveResolverPolicy: "anyone", payload: { version: 1, prompt: "Approve?" } });
     expect(await f.createRecovery().legacyRepairDispatchBlock(repair.id)).toBe("durable_wait");
     expect((await f.actions())[0].attemptCount).toBe(1);
   });
@@ -302,13 +302,13 @@ describe("legacy continuation persisted authority", () => {
     const repair = (await f.runs()).find(r => r.id !== f.runId)!;
     await db.update(heartbeatRuns).set({ status: "failed", errorCode: "transient_failure" }).where(eq(heartbeatRuns.id, repair.id));
     await db.update(agentWakeupRequests).set({ status: "completed" }).where(eq(agentWakeupRequests.id, repair.wakeupRequestId!));
-    const [retry] = await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+    const [retry] = await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
       status: "queued", runtimeMode: "legacy", retryOfRunId: repair.id,
       contextSnapshot: { ...repair.contextSnapshot, retryOfRunId: repair.id, retryReason: "transient_failure", wakeReason: "transient_failure_retry" },
     }).returning();
     expect(await f.createRecovery().legacyRepairDispatchBlock(retry.id)).toBeNull();
     expect((await f.actions())[0].attemptCount).toBe(1);
-    await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issueId, kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Approve?" } });
+    await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issueId, kind: "request_confirmation", status: "pending", payload: { version: 1, prompt: "Approve?" } });
     expect(await f.createRecovery().legacyRepairDispatchBlock(retry.id)).toBe("durable_wait");
   });
   it.each(["done", "paused", "reassigned", "stopped"])("suppresses a queued repair after %s", async gate => {
@@ -346,7 +346,7 @@ describe("legacy continuation persisted authority", () => {
   });
   it("the delayed sweep ignores old diagnostic labels and uses the same repair path", async () => {
     const f = await fixture();
-    await f.createRecovery().reconcileStrandedAssignedIssues({ companyId: f.companyId });
+    await f.createRecovery().reconcileStrandedAssignedIssues({ spaceId: f.spaceId });
     expect(await f.runs()).toHaveLength(2);
     const repair = (await f.runs()).find(r => r.id !== f.runId)!;
     expect(repair.contextSnapshot).toMatchObject({ legacyDispositionEpisode: { id: f.runId, attempt: 1 } });

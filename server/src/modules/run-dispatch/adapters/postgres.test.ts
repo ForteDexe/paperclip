@@ -11,7 +11,7 @@ import {
   budgetPolicies,
   budgetReservations,
   budgetEvaluationWork,
-  companies,
+  spaces,
   costEvents,
   createDb,
   applyPendingMigrations,
@@ -65,7 +65,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
 
   beforeAll(async () => {
     if (external) await applyPendingMigrations(external);
-    else tempDb = await startEmbeddedPostgresTestDatabase("paperclip-run-dispatch-postgres-adapter-");
+    else tempDb = await startEmbeddedPostgresTestDatabase("outpost-run-dispatch-postgres-adapter-");
     db = createDb(external ?? tempDb!.connectionString);
   }, 20_000);
 
@@ -87,7 +87,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     await db.delete(heartbeatRuns);
     await db.delete(projects);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -95,19 +95,19 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompanyAndAgent(): Promise<{ companyId: string; agentId: string }> {
-    const companyId = randomUUID();
+  async function seedSpaceAndAgent(): Promise<{ spaceId: string; agentId: string }> {
+    const spaceId = randomUUID();
     const agentId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "responsible-user",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "active",
@@ -116,18 +116,18 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } },
       permissions: {},
     });
-    return { companyId, agentId };
+    return { spaceId, agentId };
   }
 
   async function seedAgent(input: {
     id: string;
-    companyId: string;
+    spaceId: string;
     name: string;
     role?: string;
   }) {
     await db.insert(agents).values({
       id: input.id,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       name: input.name,
       role: input.role ?? "engineer",
       status: "active",
@@ -139,7 +139,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   }
 
   async function seedIssue(input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     status: string;
     assigneeAgentId?: string | null;
@@ -147,7 +147,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   }) {
     await db.insert(issues).values({
       id: input.issueId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       title: "Run-dispatch adapter fixture issue",
       status: input.status,
       priority: "medium",
@@ -157,7 +157,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   }
 
   async function seedRun(input: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     contextSnapshot?: Record<string, unknown>;
     status?: "queued" | "running" | "scheduled_retry";
@@ -168,7 +168,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     const now = input.now ?? new Date();
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       agentId: input.agentId,
       invocationSource: "retry",
       status: input.status ?? "queued",
@@ -182,18 +182,18 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   }
 
   async function seedCleanupRetry(status: "scheduled_retry" | "queued" = "scheduled_retry") {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID();
     const now = new Date();
-    await seedIssue({ companyId, issueId, assigneeAgentId: agentId, status: "in_progress" });
-    const sourceId = await seedRun({ companyId, agentId, contextSnapshot: { issueId } });
+    await seedIssue({ spaceId, issueId, assigneeAgentId: agentId, status: "in_progress" });
+    const sourceId = await seedRun({ spaceId, agentId, contextSnapshot: { issueId } });
     await db.update(heartbeatRuns).set({ status: "failed", finishedAt: now,
       resultJson: { conversationContinuation: "continue_conversation_v1", workspaceRestoreFailure: "restore_failed" },
     }).where(eq(heartbeatRuns.id, sourceId));
-    const [lease] = await db.insert(environmentLeases).values({ companyId, issueId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId,
       heartbeatRunId: sourceId, status: "pending_cleanup", cleanupStatus: "failed",
     }).returning();
-    const runId = await seedRun({ companyId, agentId, status, now,
+    const runId = await seedRun({ spaceId, agentId, status, now,
       contextSnapshot: { issueId, retryOfRunId: sourceId, executionRetryAccounting: { version: 1, failureRetries: 1, maxTurnContinuations: 0 } },
       scheduledRetryReason: "transient_failure",
     });
@@ -201,7 +201,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       resultJson: { conversationContinuation: "continue_conversation_v1" },
     }).where(eq(heartbeatRuns.id, runId));
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    return { companyId, agentId, issueId, sourceId, leaseId: lease!.id, runId, now };
+    return { spaceId, agentId, issueId, sourceId, leaseId: lease!.id, runId, now };
   }
 
   it("keeps one scheduled retry through cleanup and promotes it once after release", async () => {
@@ -218,7 +218,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       retryOfRunId: f.sourceId, scheduledRetryAttempt: 1,
       contextSnapshot: { executionRetryAccounting: { failureRetries: 1 } },
     });
-    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId))).toHaveLength(2);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId))).toHaveLength(2);
     expect(await db.select().from(issueRecoveryActions)).toHaveLength(0);
     const events = await db.select().from(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, f.runId));
     expect(events.filter(e => e.message?.includes("waiting for execution cleanup"))).toHaveLength(1);
@@ -256,7 +256,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   it("still suppresses a cleanup-waiting retry after reassignment", async () => {
     const f = await seedCleanupRetry();
     const newOwnerId = randomUUID();
-    await seedAgent({ id: newOwnerId, companyId: f.companyId, name: "New owner" });
+    await seedAgent({ id: newOwnerId, spaceId: f.spaceId, name: "New owner" });
     await db.update(issues).set({ assigneeAgentId: newOwnerId }).where(eq(issues.id, f.issueId));
     expect(await createPostgresRunDispatchAdapter(db).promoteOrCancelDueRetry(f))
       .toMatchObject({ outcome: "gate_suppressed", errorCode: "issue_reassigned" });
@@ -266,8 +266,8 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     const f = await seedCleanupRetry();
     const adapter = createPostgresRunDispatchAdapter(db);
     await db.insert(issueRecoveryActions).values({
-      companyId: f.companyId, sourceIssueId: f.issueId, kind: "active_run_watchdog",
-      ownerType: "board", cause: "uncertain_external_action", status: "resolved",
+      spaceId: f.spaceId, sourceIssueId: f.issueId, kind: "active_run_watchdog",
+      ownerType: "operator", cause: "uncertain_external_action", status: "resolved",
       evidence: { automaticRecovery: { replay: "blocked" } }, fingerprint: f.sourceId,
       nextAction: "Verify the external action before continuing.",
     });
@@ -278,7 +278,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     expect(await adapter.promoteOrCancelDueRetry({ ...f, now })).toMatchObject({ outcome: "promoted" });
     expect(await adapter.cancelStaleQueuedRun({ ...f, now, expectedStatus: "queued" }))
       .toMatchObject({ outcome: "cancelled", errorCode: "execution_reconciliation_required" });
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toMatchObject({ cause: "uncertain_external_action" });
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toMatchObject({ cause: "uncertain_external_action" });
   });
 
   it.each(["native", "started", "non-conversation"])("does not park a %s run behind cleanup", async (mode) => {
@@ -291,7 +291,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   async function seedContinuationSummary(input: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     agentId: string;
     body: string;
@@ -300,7 +300,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     const revisionId = randomUUID();
     await db.insert(documents).values({
       id: documentId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       title: "Continuation Summary",
       format: "markdown",
       latestBody: input.body,
@@ -311,7 +311,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     });
     await db.insert(documentRevisions).values({
       id: revisionId,
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       documentId,
       revisionNumber: 1,
       title: "Continuation Summary",
@@ -320,7 +320,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       createdByAgentId: input.agentId,
     });
     await db.insert(issueDocuments).values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       issueId: input.issueId,
       documentId,
       key: ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY,
@@ -331,26 +331,26 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     ["executionRunId", "native_safe_replacement"], ["checkoutRunId", "native_safe_replacement"],
     ["executionRunId", "native_provider_overloaded"], ["checkoutRunId", "native_provider_overloaded"],
   ] as const)("suppresses delayed retry after another run acquires %s (%s)", async (lock, retryReason) => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID();
-    await seedIssue({ companyId, issueId, assigneeAgentId: agentId, status: "in_progress" });
+    await seedIssue({ spaceId, issueId, assigneeAgentId: agentId, status: "in_progress" });
     const contextSnapshot = { issueId, wakeReason: retryReason, retryReason, forceFreshSession: true };
-    const replacementId = await seedRun({ companyId, agentId, status: "scheduled_retry", contextSnapshot });
-    const competingId = await seedRun({ companyId, agentId, status: "running", contextSnapshot: { issueId } });
+    const replacementId = await seedRun({ spaceId, agentId, status: "scheduled_retry", contextSnapshot });
+    const competingId = await seedRun({ spaceId, agentId, status: "running", contextSnapshot: { issueId } });
     await db.update(issues).set({ [lock]: competingId }).where(eq(issues.id, issueId));
     const adapter = createPostgresRunDispatchAdapter(db);
-    expect(await adapter.evaluateScheduledRetryGate({ companyId, runId: replacementId, retryReasonOverride: retryReason, now: new Date() }))
+    expect(await adapter.evaluateScheduledRetryGate({ spaceId, runId: replacementId, retryReasonOverride: retryReason, now: new Date() }))
       .toMatchObject({ allowed: false, errorCode: "issue_execution_lock_changed" });
     await db.update(heartbeatRuns).set({ status: "queued" }).where(eq(heartbeatRuns.id, replacementId));
-    const reservation = await reserveRunBudget(db, companyId, replacementId, null);
-    expect(await adapter.cancelStaleQueuedRun({ companyId, runId: replacementId, expectedStatus: "queued", now: new Date() }))
+    const reservation = await reserveRunBudget(db, spaceId, replacementId, null);
+    expect(await adapter.cancelStaleQueuedRun({ spaceId, runId: replacementId, expectedStatus: "queued", now: new Date() }))
       .toMatchObject({ outcome: "cancelled", errorCode: "issue_execution_lock_changed" });
 
     // A competing owner can also appear after queue validation. The final
     // dispatch gate must prevent any provider call, even from a running row.
     await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, replacementId));
     let dispatched = false;
-    const outcome = await adapter.dispatchResolvedInteractionIfCurrent({ companyId, runId: replacementId,
+    const outcome = await adapter.dispatchResolvedInteractionIfCurrent({ spaceId, runId: replacementId,
       reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch: async () => { dispatched = true; } });
     expect(outcome).toMatchObject({ dispatched: false, cancellation: { outcome: "cancelled" } });
     expect(dispatched).toBe(false);
@@ -359,77 +359,77 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it.each(["native_safe_replacement", "native_provider_overloaded", "interrupted_preparation"])("does not dispatch %s when the task becomes blocked after scheduling", async retryReason => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID();
-    await seedIssue({ companyId, issueId, assigneeAgentId: agentId, status: "in_progress" });
+    await seedIssue({ spaceId, issueId, assigneeAgentId: agentId, status: "in_progress" });
     const contextSnapshot = { issueId, wakeReason: retryReason, retryReason: retryReason, forceFreshSession: true };
-    const replacementId = await seedRun({ companyId, agentId, status: "scheduled_retry", contextSnapshot });
+    const replacementId = await seedRun({ spaceId, agentId, status: "scheduled_retry", contextSnapshot });
     await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, issueId));
     const adapter = createPostgresRunDispatchAdapter(db);
-    expect(await adapter.evaluateScheduledRetryGate({ companyId, runId: replacementId, retryReasonOverride: retryReason, now: new Date() }))
+    expect(await adapter.evaluateScheduledRetryGate({ spaceId, runId: replacementId, retryReasonOverride: retryReason, now: new Date() }))
       .toMatchObject({ allowed: false, errorCode: "issue_blocked" });
     await db.update(heartbeatRuns).set({ status: "queued" }).where(eq(heartbeatRuns.id, replacementId));
-    const reservation = await reserveRunBudget(db, companyId, replacementId, null);
-    expect(await adapter.cancelStaleQueuedRun({ companyId, runId: replacementId, expectedStatus: "queued", now: new Date() }))
+    const reservation = await reserveRunBudget(db, spaceId, replacementId, null);
+    expect(await adapter.cancelStaleQueuedRun({ spaceId, runId: replacementId, expectedStatus: "queued", now: new Date() }))
       .toMatchObject({ outcome: "cancelled", errorCode: "issue_blocked" });
     await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, replacementId));
     const dispatch = vi.fn(async () => undefined);
-    expect(await adapter.dispatchResolvedInteractionIfCurrent({ companyId, runId: replacementId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch }))
+    expect(await adapter.dispatchResolvedInteractionIfCurrent({ spaceId, runId: replacementId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch }))
       .toMatchObject({ dispatched: false, cancellation: { outcome: "cancelled" } });
     expect(dispatch).not.toHaveBeenCalled();
     expect((await db.select().from(issues).where(eq(issues.id, issueId)))[0]!.status).toBe("blocked");
   });
 
   it("keeps recovered preparation behind approvals added after scheduling", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID();
-    await seedIssue({ companyId, issueId, assigneeAgentId: agentId, status: "in_progress" });
+    await seedIssue({ spaceId, issueId, assigneeAgentId: agentId, status: "in_progress" });
     const retryReason = "interrupted_preparation";
-    const replacementId = await seedRun({ companyId, agentId, status: "scheduled_retry",
+    const replacementId = await seedRun({ spaceId, agentId, status: "scheduled_retry",
       contextSnapshot: { issueId, wakeReason: retryReason, retryReason, forceFreshSession: true } });
     const adapter = createPostgresRunDispatchAdapter(db);
-    expect(await adapter.evaluateScheduledRetryGate({ companyId, runId: replacementId, retryReasonOverride: retryReason, now: new Date() }))
+    expect(await adapter.evaluateScheduledRetryGate({ spaceId, runId: replacementId, retryReasonOverride: retryReason, now: new Date() }))
       .toMatchObject({ allowed: true });
     const approvalId = randomUUID();
-    await db.insert(approvals).values({ id: approvalId, companyId, type: "hire_agent", status: "pending", payload: {} });
-    await db.insert(issueApprovals).values({ companyId, issueId, approvalId });
-    expect(await adapter.evaluateScheduledRetryGate({ companyId, runId: replacementId, retryReasonOverride: retryReason, now: new Date() }))
+    await db.insert(approvals).values({ id: approvalId, spaceId, type: "create_agent", status: "pending", payload: {} });
+    await db.insert(issueApprovals).values({ spaceId, issueId, approvalId });
+    expect(await adapter.evaluateScheduledRetryGate({ spaceId, runId: replacementId, retryReasonOverride: retryReason, now: new Date() }))
       .toMatchObject({ allowed: false, errorCode: "issue_waiting_for_response" });
     await db.update(heartbeatRuns).set({ status: "queued" }).where(eq(heartbeatRuns.id, replacementId));
-    const reservation = await reserveRunBudget(db, companyId, replacementId, null);
-    expect(await adapter.cancelStaleQueuedRun({ companyId, runId: replacementId, expectedStatus: "queued", now: new Date() }))
+    const reservation = await reserveRunBudget(db, spaceId, replacementId, null);
+    expect(await adapter.cancelStaleQueuedRun({ spaceId, runId: replacementId, expectedStatus: "queued", now: new Date() }))
       .toMatchObject({ outcome: "cancelled", errorCode: "issue_waiting_for_response" });
     await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, replacementId));
     const dispatch = vi.fn(async () => undefined);
-    expect(await adapter.dispatchResolvedInteractionIfCurrent({ companyId, runId: replacementId,
+    expect(await adapter.dispatchResolvedInteractionIfCurrent({ spaceId, runId: replacementId,
       reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch }))
       .toMatchObject({ dispatched: false, cancellation: { outcome: "cancelled" } });
     expect(dispatch).not.toHaveBeenCalled();
   });
 
   it.each(["queued", "final", "resolved"] as const)("rechecks late native replacement dependencies at %s dispatch", async mode => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID(), blockerId = randomUUID();
-    await seedIssue({ companyId, issueId, assigneeAgentId: agentId, status: "in_progress" });
-    await seedIssue({ companyId, issueId: blockerId, status: "todo" });
+    await seedIssue({ spaceId, issueId, assigneeAgentId: agentId, status: "in_progress" });
+    await seedIssue({ spaceId, issueId: blockerId, status: "todo" });
     const contextSnapshot = { issueId, wakeReason: "native_safe_replacement", retryReason: "native_safe_replacement", forceFreshSession: true };
-    const replacementId = await seedRun({ companyId, agentId, status: "scheduled_retry", contextSnapshot });
+    const replacementId = await seedRun({ spaceId, agentId, status: "scheduled_retry", contextSnapshot });
     const adapter = createPostgresRunDispatchAdapter(db);
-    expect(await adapter.evaluateScheduledRetryGate({ companyId, runId: replacementId, retryReasonOverride: "native_safe_replacement", now: new Date() }))
+    expect(await adapter.evaluateScheduledRetryGate({ spaceId, runId: replacementId, retryReasonOverride: "native_safe_replacement", now: new Date() }))
       .toMatchObject({ allowed: true });
     await db.update(heartbeatRuns).set({ runtimeMode: "native" }).where(eq(heartbeatRuns.id, replacementId));
-    await db.insert(issueRelations).values({ companyId, issueId: blockerId, relatedIssueId: issueId, type: "blocks" });
+    await db.insert(issueRelations).values({ spaceId, issueId: blockerId, relatedIssueId: issueId, type: "blocks" });
     const dispatch = vi.fn(async () => undefined);
     if (mode === "queued") {
       await db.update(heartbeatRuns).set({ status: "queued" }).where(eq(heartbeatRuns.id, replacementId));
-      expect(await adapter.cancelStaleQueuedRun({ companyId, runId: replacementId, expectedStatus: "queued", now: new Date() }))
+      expect(await adapter.cancelStaleQueuedRun({ spaceId, runId: replacementId, expectedStatus: "queued", now: new Date() }))
         .toMatchObject({ outcome: "cancelled", errorCode: "issue_dependencies_blocked" });
     } else {
       if (mode === "resolved") await db.update(issues).set({ status: "done" }).where(eq(issues.id, blockerId));
       await db.update(issues).set({ executionRunId: replacementId }).where(eq(issues.id, issueId));
       await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, replacementId));
-      const reservation = await reserveRunBudget(db, companyId, replacementId, null);
-      const result = await adapter.dispatchResolvedInteractionIfCurrent({ companyId, runId: replacementId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch });
+      const reservation = await reserveRunBudget(db, spaceId, replacementId, null);
+      const result = await adapter.dispatchResolvedInteractionIfCurrent({ spaceId, runId: replacementId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch });
       expect(result).toMatchObject(mode === "resolved" ? { dispatched: true } : {
         dispatched: false, cancellation: { outcome: "cancelled", errorCode: "issue_dependencies_blocked" },
       });
@@ -439,7 +439,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       const [cancelled] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, replacementId));
       expect(cancelled).toMatchObject({ status: "cancelled", runtimeMode: "native", startedAt: null,
         resultJson: { stopReason: "issue_dependencies_blocked", timeoutSource: "stale_queued_run_gate" } });
-      expect(projectTaskInterruption({ id: issueId, companyId, status: "in_progress", assigneeAgentId: agentId, projectId: null }, {
+      expect(projectTaskInterruption({ id: issueId, spaceId, status: "in_progress", assigneeAgentId: agentId, projectId: null }, {
         run: cancelled!, agent: { status: "idle", pauseReason: null }, paused: false, approval: false,
       })).toMatchObject({ state: "resolved", canRetry: false });
     }
@@ -447,15 +447,15 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it("commits the handoff without awaiting a recovered provider that fails before spawning", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID();
-    await seedIssue({ companyId, issueId, assigneeAgentId: agentId, status: "in_progress" });
-    const runId = await seedRun({ companyId, agentId, status: "running", contextSnapshot: { issueId } });
+    await seedIssue({ spaceId, issueId, assigneeAgentId: agentId, status: "in_progress" });
+    const runId = await seedRun({ spaceId, agentId, status: "running", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     const adapter = createPostgresRunDispatchAdapter(db);
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     const gate = await adapter.dispatchResolvedInteractionIfCurrent({
-      companyId, runId, reservationId: reservation.id, expectedStatus: "running", now: new Date(),
+      spaceId, runId, reservationId: reservation.id, expectedStatus: "running", now: new Date(),
       dispatch: async () => {
         // The incident's third attempt failed here before onSpawn. A held
         // admission lock makes this finalization fail with lock_timeout.
@@ -473,11 +473,11 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it("commits dispatch authority before provider HTTP and permits accounting while that provider waits", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
-    const runId = await seedRun({ companyId, agentId, status: "running" });
-    await budgetService(db).upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+    const { spaceId, agentId } = await seedSpaceAndAgent();
+    const runId = await seedRun({ spaceId, agentId, status: "running" });
+    await budgetService(db).upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
       metric: "billed_cents", windowKind: "lifetime", amount: 100, notifyEnabled: false }, null);
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     let readyToCommit!: () => void, commit!: () => void, providerArrived!: () => void, finishProvider!: () => void;
     let readyToHandoff!: () => void, commitHandoff!: () => void;
     const ready = new Promise<void>(resolve => { readyToCommit = resolve; });
@@ -510,7 +510,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       }, config);
     });
     const admission = createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({
-      companyId, runId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch,
+      spaceId, runId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch,
     });
     let result: Promise<string> | undefined;
     let charge: Promise<unknown> | undefined;
@@ -525,16 +525,16 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       // This charge commits after dispatch admission. It durably queues budget
       // evaluation without waiting for the provider's response or ownership tx.
       const beforeInputs = await db.select({ id: budgetEvaluationWork.id }).from(budgetEvaluationWork)
-        .where(eq(budgetEvaluationWork.companyId, companyId));
+        .where(eq(budgetEvaluationWork.spaceId, spaceId));
       let charged = false;
-      charge = costService(db).createEvent(companyId, { agentId, provider: "fixture", model: "post-admission-charge",
+      charge = costService(db).createEvent(spaceId, { agentId, provider: "fixture", model: "post-admission-charge",
         costCents: 100, inputTokens: 1, outputTokens: 1, occurredAt: new Date() }).then(() => { charged = true; });
       void charge.catch(() => {});
       // Phase two still owns issue/run locks and the provider is waiting.
-      // Holding company accounting here would stall this independent charge.
+      // Holding space accounting here would stall this independent charge.
       await vi.waitFor(() => expect(charged).toBe(true), { timeout: 2_000 });
       const inputs = await db.select({ id: budgetEvaluationWork.id }).from(budgetEvaluationWork)
-        .where(eq(budgetEvaluationWork.companyId, companyId));
+        .where(eq(budgetEvaluationWork.spaceId, spaceId));
       expect(inputs.length).toBeGreaterThan(beforeInputs.length);
       expect(requests).toBe(1);
       commitHandoff();
@@ -543,8 +543,8 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       expect(gate.dispatched).toBe(true);
       if (!gate.dispatched) throw new Error("Expected committed provider admission");
       result = gate.resultPromise;
-      await flushBudgetEvaluationWork(db, { companyId });
-      const [policy] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.companyId, companyId));
+      await flushBudgetEvaluationWork(db, { spaceId });
+      const [policy] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.spaceId, spaceId));
       expect(policy.enforcementVersion).toBeGreaterThan(policy.enforcementDeliveredVersion);
       finishProvider();
       expect(await result).toBe("provider result");
@@ -562,13 +562,13 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it("does not hand off when another run takes issue ownership after accounting admission commits", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID();
-    await seedIssue({ companyId, issueId, status: "in_progress", assigneeAgentId: agentId });
-    const runId = await seedRun({ companyId, agentId, status: "running", contextSnapshot: { issueId } });
-    const competingId = await seedRun({ companyId, agentId, status: "running", contextSnapshot: { issueId } });
+    await seedIssue({ spaceId, issueId, status: "in_progress", assigneeAgentId: agentId });
+    const runId = await seedRun({ spaceId, agentId, status: "running", contextSnapshot: { issueId } });
+    const competingId = await seedRun({ spaceId, agentId, status: "running", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     const transaction = db.transaction.bind(db);
     let admitted = false;
     const race = vi.spyOn(db, "transaction").mockImplementation(async (callback, config) => {
@@ -578,7 +578,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     });
     const dispatch = vi.fn(async () => "must not run");
     try {
-      expect(await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ companyId, runId,
+      expect(await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ spaceId, runId,
         reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch })).toMatchObject({ dispatched: false,
           cancellation: { outcome: "cancelled", errorCode: "issue_execution_lock_changed" } });
       expect(dispatch).not.toHaveBeenCalled();
@@ -587,56 +587,56 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it.each(["charge", "budget reduction"] as const)("rejects a committed %s between accounting admission and final ownership handoff", async change => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
-    const runId = await seedRun({ companyId, agentId, status: "running" });
+    const { spaceId, agentId } = await seedSpaceAndAgent();
+    const runId = await seedRun({ spaceId, agentId, status: "running" });
     const budgets = budgetService(db);
-    await budgets.upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+    await budgets.upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
       metric: "billed_cents", windowKind: "lifetime", amount: 100, reservationCents: "60", notifyEnabled: false }, null);
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     const transaction = db.transaction.bind(db);
     let admitted = false;
     const race = vi.spyOn(db, "transaction").mockImplementation(async (callback, config) => {
       const value = await transaction(callback, config);
       if (!admitted) {
         admitted = true;
-        if (change === "charge") await costService(db).createEvent(companyId, { agentId, provider: "fixture",
+        if (change === "charge") await costService(db).createEvent(spaceId, { agentId, provider: "fixture",
           model: "between-phase-charge", inputTokens: 1, outputTokens: 1, costCents: 50, occurredAt: new Date() });
-        else await budgets.upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+        else await budgets.upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
           metric: "billed_cents", windowKind: "lifetime", amount: 50 }, null);
       }
       return value;
     });
     const dispatch = vi.fn(async () => "must not run");
     try {
-      expect(await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ companyId, runId,
+      expect(await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ spaceId, runId,
         reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch })).toMatchObject({ dispatched: false,
           admissionBlockReason: "Available budget is reserved by unfinished runs" });
       expect(dispatch).not.toHaveBeenCalled();
       // Neither case has actually spent its hard-stop limit. The denial must
       // observe capacity, rather than relying only on a projected pause flag.
-      expect((await db.select().from(companies).where(eq(companies.id, companyId)))[0].status).toBe("active");
+      expect((await db.select().from(spaces).where(eq(spaces.id, spaceId)))[0].status).toBe("active");
     } finally { race.mockRestore(); }
   });
 
   it("performs the post-admission capacity check in a PostgreSQL read-only transaction", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
-    const runId = await seedRun({ companyId, agentId, status: "running" });
-    await budgetService(db).upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+    const { spaceId, agentId } = await seedSpaceAndAgent();
+    const runId = await seedRun({ spaceId, agentId, status: "running" });
+    await budgetService(db).upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
       metric: "billed_cents", windowKind: "lifetime", amount: 100, reservationCents: "60", notifyEnabled: false }, null);
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     await db.transaction(async tx => {
       await tx.execute(sql`set transaction read only`);
       // PostgreSQL rejects both writes and SELECT FOR UPDATE in this mode.
       expect(await recheckAdmittedRunBudgetReadOnly(tx as unknown as typeof db,
-        { companyId, agentId, runId, projectId: null, reservationId: reservation.id })).toBeNull();
+        { spaceId, agentId, runId, projectId: null, reservationId: reservation.id })).toBeNull();
     });
   });
 
   it("does not dispatch into an archival project deleted after accounting admission", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
-    const runId = await seedRun({ companyId, agentId, status: "running" });
-    const [project] = await db.insert(projects).values({ companyId, name: "Dispatch project" }).returning();
-    const reservation = await reserveRunBudget(db, companyId, runId, project.id);
+    const { spaceId, agentId } = await seedSpaceAndAgent();
+    const runId = await seedRun({ spaceId, agentId, status: "running" });
+    const [project] = await db.insert(projects).values({ spaceId, name: "Dispatch project" }).returning();
+    const reservation = await reserveRunBudget(db, spaceId, runId, project.id);
     const transaction = db.transaction.bind(db);
     let admitted = false;
     const race = vi.spyOn(db, "transaction").mockImplementation(async (callback, config) => {
@@ -646,7 +646,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     });
     const dispatch = vi.fn(async () => "must not run");
     try {
-      expect(await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ companyId, runId,
+      expect(await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ spaceId, runId,
         reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch })).toMatchObject({ dispatched: false,
           admissionBlockReason: "Reserved project no longer exists" });
       expect(dispatch).not.toHaveBeenCalled();
@@ -656,13 +656,13 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it("initiates the provider callback while the final issue ownership lock is held without awaiting its response", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID();
-    await seedIssue({ companyId, issueId, status: "in_progress", assigneeAgentId: agentId });
-    const runId = await seedRun({ companyId, agentId, status: "running", contextSnapshot: { issueId } });
-    const competingId = await seedRun({ companyId, agentId, status: "running", contextSnapshot: { issueId } });
+    await seedIssue({ spaceId, issueId, status: "in_progress", assigneeAgentId: agentId });
+    const runId = await seedRun({ spaceId, agentId, status: "running", contextSnapshot: { issueId } });
+    const competingId = await seedRun({ spaceId, agentId, status: "running", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     const transaction = db.transaction.bind(db);
     let phase = 0, finishProvider!: () => void;
     const response = new Promise<void>(resolve => { finishProvider = resolve; });
@@ -677,7 +677,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       return value;
     });
     try {
-      const gate = await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ companyId, runId,
+      const gate = await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ spaceId, runId,
         reservationId: reservation.id, expectedStatus: "running", now: new Date(),
         dispatch: () => { ordering.push("handoff"); return response; } });
       expect(gate.dispatched).toBe(true);
@@ -688,13 +688,13 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it.each(["0", "25"])("fences duplicate handoff of a %s-cent reservation generation", async reservationCents => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
-    const runId = await seedRun({ companyId, agentId, status: "running" });
-    await budgetService(db).upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+    const { spaceId, agentId } = await seedSpaceAndAgent();
+    const runId = await seedRun({ spaceId, agentId, status: "running" });
+    await budgetService(db).upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
       metric: "billed_cents", windowKind: "lifetime", amount: 100, reservationCents, notifyEnabled: false }, null);
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     const dispatch = vi.fn(async () => "one handoff");
-    const input = { companyId, runId, reservationId: reservation.id, expectedStatus: "running" as const, now: new Date(), dispatch };
+    const input = { spaceId, runId, reservationId: reservation.id, expectedStatus: "running" as const, now: new Date(), dispatch };
     const adapter = createPostgresRunDispatchAdapter(db);
     const first = await adapter.dispatchResolvedInteractionIfCurrent(input);
     expect(first.dispatched).toBe(true);
@@ -705,9 +705,9 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it("does not enter a provider when its dispatch claim rolls back", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
-    const runId = await seedRun({ companyId, agentId, status: "running" });
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const { spaceId, agentId } = await seedSpaceAndAgent();
+    const runId = await seedRun({ spaceId, agentId, status: "running" });
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     const transaction = db.transaction.bind(db);
     const rollback = vi.spyOn(db, "transaction").mockImplementation(async (callback, config) => transaction(async tx => {
       await callback(tx);
@@ -715,7 +715,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     }, config));
     const dispatch = vi.fn(async () => "must not run");
     try {
-      await expect(createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ companyId, runId,
+      await expect(createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ spaceId, runId,
         reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch })).rejects.toThrow("fixture commit rejected");
       expect(dispatch).not.toHaveBeenCalled();
     } finally { rollback.mockRestore(); }
@@ -723,9 +723,9 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it("retains uncertain dispatch authority when the ownership commit fails after callback entry", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
-    const runId = await seedRun({ companyId, agentId, status: "running" });
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const { spaceId, agentId } = await seedSpaceAndAgent();
+    const runId = await seedRun({ spaceId, agentId, status: "running" });
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     const transaction = db.transaction.bind(db);
     let phase = 0;
     const rollback = vi.spyOn(db, "transaction").mockImplementation(async (callback, config) => {
@@ -737,7 +737,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       }, config);
     });
     const dispatch = vi.fn(async () => "provider already entered");
-    const input = { companyId, runId, reservationId: reservation.id, expectedStatus: "running" as const, now: new Date(), dispatch };
+    const input = { spaceId, runId, reservationId: reservation.id, expectedStatus: "running" as const, now: new Date(), dispatch };
     try {
       await expect(createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent(input)).rejects.toThrow("fixture ownership commit rejected");
       expect(dispatch).toHaveBeenCalledOnce();
@@ -753,12 +753,12 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it("commits the ownership handoff when a provider callback throws synchronously", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
-    const runId = await seedRun({ companyId, agentId, status: "running" });
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const { spaceId, agentId } = await seedSpaceAndAgent();
+    const runId = await seedRun({ spaceId, agentId, status: "running" });
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     const failure = new Error("synchronous provider bootstrap failure");
     const dispatch = vi.fn(() => { throw failure; });
-    const input = { companyId, runId, reservationId: reservation.id, expectedStatus: "running" as const, now: new Date(), dispatch };
+    const input = { spaceId, runId, reservationId: reservation.id, expectedStatus: "running" as const, now: new Date(), dispatch };
     const gate = await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent(input);
     expect(gate.dispatched).toBe(true);
     if (gate.dispatched) await expect(gate.resultPromise).rejects.toBe(failure);
@@ -770,24 +770,24 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it.each(["charge", "budget reduction"] as const)("rechecks a late %s after ordinary run preparation before any provider handoff", async change => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
-    const runId = await seedRun({ companyId, agentId, status: "running" });
+    const { spaceId, agentId } = await seedSpaceAndAgent();
+    const runId = await seedRun({ spaceId, agentId, status: "running" });
     const budgets = budgetService(db);
-    await budgets.upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+    await budgets.upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
       metric: "billed_cents", windowKind: "lifetime", amount: 100, reservationCents: "60", notifyEnabled: false }, null);
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     let finishPreparation!: () => void;
     const preparation = new Promise<void>(resolve => { finishPreparation = resolve; });
     const dispatch = vi.fn(async () => "provider started");
     const preparedDispatch = preparation.then(() => createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({
-      companyId, runId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch,
+      spaceId, runId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch,
     }));
     try {
-      if (change === "charge") await costService(db).createEvent(companyId, {
+      if (change === "charge") await costService(db).createEvent(spaceId, {
         agentId, provider: "test", model: "dispatch-race", costCents: 50,
         inputTokens: 1, outputTokens: 1, occurredAt: new Date(),
       });
-      else await budgets.upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+      else await budgets.upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
         metric: "billed_cents", windowKind: "lifetime", amount: 50 }, null);
       finishPreparation();
       expect(await preparedDispatch).toMatchObject({ dispatched: false,
@@ -797,14 +797,14 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it("does not count its own existing reservation twice at final handoff", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
-    const runId = await seedRun({ companyId, agentId, status: "running" });
-    await budgetService(db).upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+    const { spaceId, agentId } = await seedSpaceAndAgent();
+    const runId = await seedRun({ spaceId, agentId, status: "running" });
+    await budgetService(db).upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
       metric: "billed_cents", windowKind: "lifetime", amount: 100, reservationCents: "100", notifyEnabled: false }, null);
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     const dispatch = vi.fn(async () => "started");
     const gate = await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({
-      companyId, runId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch,
+      spaceId, runId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch,
     });
     expect(gate.dispatched).toBe(true);
     expect(dispatch).toHaveBeenCalledTimes(1);
@@ -812,62 +812,62 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   it("does not dispatch a zero reservation once other work has fully reserved capacity", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
-    const runId = await seedRun({ companyId, agentId, status: "running" });
+    const { spaceId, agentId } = await seedSpaceAndAgent();
+    const runId = await seedRun({ spaceId, agentId, status: "running" });
     const budgets = budgetService(db);
-    await budgets.upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+    await budgets.upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
       metric: "billed_cents", windowKind: "lifetime", amount: 100, reservationCents: "0", notifyEnabled: false }, null);
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
-    await budgets.upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
+    await budgets.upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
       metric: "billed_cents", windowKind: "lifetime", reservationCents: "100" }, null);
-    const otherRunId = await seedRun({ companyId, agentId, status: "running" });
-    await reserveRunBudget(db, companyId, otherRunId, null);
+    const otherRunId = await seedRun({ spaceId, agentId, status: "running" });
+    await reserveRunBudget(db, spaceId, otherRunId, null);
     const dispatch = vi.fn(async () => undefined);
     expect(await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({
-      companyId, runId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch,
+      spaceId, runId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch,
     })).toMatchObject({ dispatched: false, admissionBlockReason: "Available budget is reserved by unfinished runs" });
     expect(dispatch).not.toHaveBeenCalled();
   });
 
   it("denies an overrun at final handoff and leaves its budget stop to the worker", async () => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
-    const runId = await seedRun({ companyId, agentId, status: "running" });
-    await budgetService(db).upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+    const { spaceId, agentId } = await seedSpaceAndAgent();
+    const runId = await seedRun({ spaceId, agentId, status: "running" });
+    await budgetService(db).upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
       metric: "billed_cents", windowKind: "lifetime", amount: 100, notifyEnabled: false }, null);
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
     // The committed charge queues enforcement. Admission reads the overrun
     // immediately, while lifecycle transitions remain owned by the worker.
-    await costService(db).createEvent(companyId, { agentId, provider: "test", model: "unprojected-charge",
+    await costService(db).createEvent(spaceId, { agentId, provider: "test", model: "unprojected-charge",
       inputTokens: 1, outputTokens: 1, costCents: 110, occurredAt: new Date() });
     const dispatch = vi.fn(async () => undefined);
     expect(await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({
-      companyId, runId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch,
+      spaceId, runId, reservationId: reservation.id, expectedStatus: "running", now: new Date(), dispatch,
     })).toMatchObject({ dispatched: false, admissionBlockReason: expect.any(String) });
     expect(dispatch).not.toHaveBeenCalled();
-    expect((await db.select().from(companies).where(eq(companies.id, companyId)))[0])
+    expect((await db.select().from(spaces).where(eq(spaces.id, spaceId)))[0])
       .toMatchObject({ status: "active", pauseReason: null });
-    await flushBudgetEvaluationWork(db, { companyId });
-    expect((await db.select().from(companies).where(eq(companies.id, companyId)))[0])
+    await flushBudgetEvaluationWork(db, { spaceId });
+    expect((await db.select().from(spaces).where(eq(spaces.id, spaceId)))[0])
       .toMatchObject({ status: "paused", pauseReason: "budget" });
-    const [policy] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.companyId, companyId));
+    const [policy] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.spaceId, spaceId));
     expect(policy.enforcementVersion).toBeGreaterThan(policy.enforcementDeliveredVersion);
   });
 
   it.each([false, true])("preserves accepted non-assignee work while retaining its final budget gate (late reduction: %s)", async reduceBudget => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const assigneeId = randomUUID(), issueId = randomUUID();
-    await seedAgent({ id: assigneeId, companyId, name: "Assigned owner" });
-    await seedIssue({ companyId, issueId, assigneeAgentId: assigneeId, status: "in_progress" });
-    const runId = await seedRun({ companyId, agentId, status: "running",
+    await seedAgent({ id: assigneeId, spaceId, name: "Assigned owner" });
+    await seedIssue({ spaceId, issueId, assigneeAgentId: assigneeId, status: "in_progress" });
+    const runId = await seedRun({ spaceId, agentId, status: "running",
       contextSnapshot: { issueId, wakeReason: "issue_comment_mentioned", commentId: randomUUID() } });
     const budgets = budgetService(db);
-    await budgets.upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+    await budgets.upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
       metric: "billed_cents", windowKind: "lifetime", amount: 100, reservationCents: "60", notifyEnabled: false }, null);
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
-    if (reduceBudget) await budgets.upsertPolicy(companyId, { scopeType: "company", scopeId: companyId,
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
+    if (reduceBudget) await budgets.upsertPolicy(spaceId, { scopeType: "space", scopeId: spaceId,
       metric: "billed_cents", windowKind: "lifetime", amount: 50 }, null);
     const dispatch = vi.fn(async () => "accepted mention delivered");
-    const gate = await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ companyId, runId,
+    const gate = await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ spaceId, runId,
       reservationId: reservation.id, expectedStatus: "running", enforceContinuationOwnership: false, now: new Date(), dispatch });
     expect(gate.dispatched).toBe(!reduceBudget);
     expect(dispatch).toHaveBeenCalledTimes(reduceBudget ? 0 : 1);
@@ -877,23 +877,23 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   });
 
   async function seedRecoveryAdmission() {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID(), owner = `recovery:${randomUUID()}`;
-    await seedIssue({ companyId, issueId, assigneeAgentId: agentId, status: "in_progress" });
-    const runId = await seedRun({ companyId, agentId, status: "running", contextSnapshot: { issueId } });
+    await seedIssue({ spaceId, issueId, assigneeAgentId: agentId, status: "in_progress" });
+    const runId = await seedRun({ spaceId, agentId, status: "running", contextSnapshot: { issueId } });
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issueId }).where(eq(heartbeatRuns.id, runId));
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    const reservation = await reserveRunBudget(db, companyId, runId, null);
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId, runId, phase: "observed",
+    const reservation = await reserveRunBudget(db, spaceId, runId, null);
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId, runId, phase: "observed",
       leaseOwner: owner, leaseExpiresAt: new Date(Date.now() + 60_000) });
-    return { companyId, agentId, issueId, runId, owner, reservation };
+    return { spaceId, agentId, issueId, runId, owner, reservation };
   }
 
   it.each(["fresh", "bootstrap", "dead-runner", "expired", "foreign-owner", "foreign-intent", "missing-audit", "foreign-audit", "stale-generation", "terminal", "no-hold", "settled-hold"] as const)(
-    "keeps %s work fenced while a company is paused for budget", async mode => {
+    "keeps %s work fenced while a space is paused for budget", async mode => {
       const f = await seedRecoveryAdmission();
       const intentAuditId = randomUUID();
-      await db.insert(activityLog).values({ id: intentAuditId, companyId: f.companyId, actorType: "system", actorId: "native-session-cancellation",
+      await db.insert(activityLog).values({ id: intentAuditId, spaceId: f.spaceId, actorType: "system", actorId: "native-session-cancellation",
         action: "native.cancellation_intent_recorded", entityType: "heartbeat_run", entityId: f.runId, runId: f.runId, agentId: f.agentId });
       await db.update(nativeRunFinalizations).set({ controllerGeneration: 2, attempt: 1, recoveryState: "awaiting_runner_reattach",
         recoveryHistory: [{ disposition: "reattach_remote_runner", controllerGeneration: 2, providerAttempt: 1 }],
@@ -906,7 +906,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       }).where(eq(nativeRunFinalizations.runId, f.runId));
       await db.update(heartbeatRuns).set({ resultJson: mode === "fresh" ? {} : {
         startupCancellation: { beforeNativeSelection: false, errorCode: "cancelled", requestedAt: new Date().toISOString() },
-        nativeCancellation: { schema: "outpost.native-cancellation.v1", companyId: f.companyId, runId: f.runId,
+        nativeCancellation: { schema: "outpost.native-cancellation.v1", spaceId: f.spaceId, runId: f.runId,
           issueId: mode === "foreign-intent" ? randomUUID() : f.issueId, scope: "run", reasonCode: "cancellation_run_only",
           intentId: `native-cancellation:${randomUUID()}`, intentAuditId: mode === "missing-audit" ? randomUUID() : intentAuditId,
           dispatchState: "pending", dispatched: false, effects: ["release_run_resources"] },
@@ -914,10 +914,10 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       if (mode === "foreign-audit") await db.update(activityLog).set({ entityId: randomUUID() }).where(eq(activityLog.id, intentAuditId));
       if (mode === "no-hold") await db.delete(budgetReservations).where(eq(budgetReservations.id, f.reservation.id));
       if (mode === "settled-hold") await db.update(budgetReservations).set({ state: "settled" }).where(eq(budgetReservations.id, f.reservation.id));
-      await db.update(companies).set({ status: "paused", pauseReason: "budget" }).where(eq(companies.id, f.companyId));
-      await expect(reserveRunBudget(db, f.companyId, f.runId, null, {}, f.owner)).rejects.toThrow();
+      await db.update(spaces).set({ status: "paused", pauseReason: "budget" }).where(eq(spaces.id, f.spaceId));
+      await expect(reserveRunBudget(db, f.spaceId, f.runId, null, {}, f.owner)).rejects.toThrow();
       const dispatch = vi.fn(async () => undefined);
-      const gate = await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ companyId: f.companyId, runId: f.runId,
+      const gate = await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ spaceId: f.spaceId, runId: f.runId,
         reservationId: f.reservation.id, recoveryLeaseOwner: f.owner, expectedStatus: "running", now: new Date(), dispatch })
         .catch(error => ({ dispatched: false, error }));
       expect(gate.dispatched).toBe(false);
@@ -943,11 +943,11 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     });
     await Promise.race([locked, finalization]);
     const dispatch = vi.fn(async () => "one provider handoff");
-    const gateInput = { companyId: f.companyId, runId: f.runId, reservationId: f.reservation.id,
+    const gateInput = { spaceId: f.spaceId, runId: f.runId, reservationId: f.reservation.id,
       expectedStatus: "running" as const, recoveryLeaseOwner: f.owner, now: new Date(), dispatch };
     const recovery = boundary === "dispatch"
       ? createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent(gateInput)
-      : reserveRunBudget(db, f.companyId, f.runId, null, {}, f.owner).then(reservation => {
+      : reserveRunBudget(db, f.spaceId, f.runId, null, {}, f.owner).then(reservation => {
           expect(reservation.reused).toBe(true);
           return createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ ...gateInput, reservationId: reservation.id });
         });
@@ -971,44 +971,44 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     const f = await seedRecoveryAdmission();
     await db.update(nativeRunFinalizations).set(ownership === "expired"
       ? { leaseExpiresAt: new Date(Date.now() - 1) } : { leaseOwner: "another-owner" }).where(eq(nativeRunFinalizations.runId, f.runId));
-    await expect(reserveRunBudget(db, f.companyId, f.runId, null, {}, f.owner)).rejects.toThrow("Native recovery no longer owns provider dispatch");
+    await expect(reserveRunBudget(db, f.spaceId, f.runId, null, {}, f.owner)).rejects.toThrow("Native recovery no longer owns provider dispatch");
     const dispatch = vi.fn(async () => undefined);
-    await expect(createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ companyId: f.companyId, runId: f.runId,
+    await expect(createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ spaceId: f.spaceId, runId: f.runId,
       reservationId: f.reservation.id, recoveryLeaseOwner: f.owner, expectedStatus: "running", now: new Date(), dispatch }))
       .rejects.toThrow("Native recovery no longer owns provider dispatch");
     expect(dispatch).not.toHaveBeenCalled();
   });
 
-  // Staging run e892cf75: a governed wait was saved, shutdown confirmation of the
+  // Staging run e892cf75: a controlled wait was saved, shutdown confirmation of the
   // retained execution was still pending, and the coordinator scheduled the
   // same run to settle it. Its own recovery action then cancelled that resume.
   it.each(["own-resume", "other-run", "no-resume-policy"] as const)(
-    "lets a saved governed wait settle on its own same-run resume (%s)", async mode => {
+    "lets a saved controlled wait settle on its own same-run resume (%s)", async mode => {
       const f = await seedRecoveryAdmission();
       const context = { issueId: f.issueId, mutation: "interaction", wakeReason: "issue_commented",
         interactionId: randomUUID(), interactionKind: "ask_user_questions", interactionStatus: "answered" };
       await db.update(heartbeatRuns).set({ contextSnapshot: context }).where(eq(heartbeatRuns.id, f.runId));
       await db.update(nativeRunFinalizations).set({ phase: "retryable_failure", attempt: 1,
-        failureCode: "native_governed_wait_settlement_pending" }).where(eq(nativeRunFinalizations.runId, f.runId));
+        failureCode: "native_controlled_wait_settlement_pending" }).where(eq(nativeRunFinalizations.runId, f.runId));
       const resumedRunId = mode === "other-run" ? randomUUID() : f.runId;
-      await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
+      await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
         kind: "active_run_watchdog", ownerType: "agent", ownerAgentId: f.agentId, returnOwnerAgentId: f.agentId,
-        cause: "native_governed_wait_settlement_pending", fingerprint: `governed-wait:${f.runId}`,
-        evidence: { runId: resumedRunId, sourceFailureCode: "native_governed_wait_settlement_pending",
+        cause: "native_controlled_wait_settlement_pending", fingerprint: `controlled-wait:${f.runId}`,
+        evidence: { runId: resumedRunId, sourceFailureCode: "native_controlled_wait_settlement_pending",
           recoveryMode: "exact_checkpoint_resume", coordinatorAttempt: 1, providerSessionEstablished: true },
         nextAction: "Resume the exact persisted native session on the same heartbeat run.",
         wakePolicy: mode === "no-resume-policy" ? null
           : { kind: "resume_native_run", runId: resumedRunId, notBefore: new Date().toISOString() },
         maxAttempts: 3, attemptCount: 1 });
-      const dispatch = vi.fn(async () => "settled the saved governed wait");
-      const gate = await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ companyId: f.companyId,
+      const dispatch = vi.fn(async () => "settled the saved controlled wait");
+      const gate = await createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ spaceId: f.spaceId,
         runId: f.runId, reservationId: f.reservation.id, recoveryLeaseOwner: f.owner, expectedStatus: "running",
         enforceContinuationOwnership: true, now: new Date(), dispatch });
       const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
       if (mode === "own-resume") {
         expect({ dispatched: gate.dispatched, status: run!.status, errorCode: run!.errorCode })
           .toEqual({ dispatched: true, status: "running", errorCode: null });
-        if (gate.dispatched) expect(await gate.resultPromise).toBe("settled the saved governed wait");
+        if (gate.dispatched) expect(await gate.resultPromise).toBe("settled the saved controlled wait");
       } else {
         // Any other reconciliation hold on the task still stops this run.
         expect(gate).toMatchObject({ dispatched: false, cancellation: { outcome: "cancelled", errorCode: "execution_reconciliation_required" } });
@@ -1030,7 +1030,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     });
     await Promise.race([locked, holder]);
     const dispatch = vi.fn(async () => undefined);
-    const recovery = createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ companyId: f.companyId,
+    const recovery = createPostgresRunDispatchAdapter(db).dispatchResolvedInteractionIfCurrent({ spaceId: f.spaceId,
       runId: f.runId, reservationId: f.reservation.id, recoveryLeaseOwner: f.owner, expectedStatus: "running", now: new Date(), dispatch });
     try {
       expect(await waitForBlockedForUpdate("issues")).toBe(true);
@@ -1098,7 +1098,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
 
   describe("evaluateScheduledRetryGate", () => {
     it("maps a disabled on-demand wake into a blocked scheduled-retry gate decision", async () => {
-      const { companyId, agentId } = await seedCompanyAndAgent();
+      const { spaceId, agentId } = await seedSpaceAndAgent();
       await db
         .update(agents)
         .set({ runtimeConfig: { heartbeat: { wakeOnDemand: false } } })
@@ -1106,10 +1106,10 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
 
       const adapter = createPostgresRunDispatchAdapter(db);
       const now = new Date();
-      const runId = await seedRun({ companyId, agentId });
+      const runId = await seedRun({ spaceId, agentId });
       const result = await adapter.evaluateScheduledRetryGate({
         runId,
-        companyId,
+        spaceId,
         retryReasonOverride: "other",
         now,
       });
@@ -1121,11 +1121,11 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     });
 
     it("maps an active subtree pause hold into a blocked scheduled-retry gate decision", async () => {
-      const { companyId, agentId } = await seedCompanyAndAgent();
+      const { spaceId, agentId } = await seedSpaceAndAgent();
       const issueId = randomUUID();
-      await seedIssue({ companyId, issueId, status: "in_progress", assigneeAgentId: agentId });
+      await seedIssue({ spaceId, issueId, status: "in_progress", assigneeAgentId: agentId });
       await db.insert(issueTreeHolds).values({
-        companyId,
+        spaceId,
         rootIssueId: issueId,
         mode: "pause",
         status: "active",
@@ -1135,10 +1135,10 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
 
       const adapter = createPostgresRunDispatchAdapter(db);
       const now = new Date();
-      const runId = await seedRun({ companyId, agentId, contextSnapshot: { issueId } });
+      const runId = await seedRun({ spaceId, agentId, contextSnapshot: { issueId } });
       const result = await adapter.evaluateScheduledRetryGate({
         runId,
-        companyId,
+        spaceId,
         retryReasonOverride: "other",
         now,
       });
@@ -1150,13 +1150,13 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     });
 
     it("maps an unresolved dependency blocker into a blocked scheduled-retry gate decision", async () => {
-      const { companyId, agentId } = await seedCompanyAndAgent();
+      const { spaceId, agentId } = await seedSpaceAndAgent();
       const issueId = randomUUID();
       const blockerId = randomUUID();
-      await seedIssue({ companyId, issueId, status: "blocked", assigneeAgentId: agentId });
-      await seedIssue({ companyId, issueId: blockerId, status: "todo" });
+      await seedIssue({ spaceId, issueId, status: "blocked", assigneeAgentId: agentId });
+      await seedIssue({ spaceId, issueId: blockerId, status: "todo" });
       await db.insert(issueRelations).values({
-        companyId,
+        spaceId,
         issueId: blockerId,
         relatedIssueId: issueId,
         type: "blocks",
@@ -1164,10 +1164,10 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
 
       const adapter = createPostgresRunDispatchAdapter(db);
       const now = new Date();
-      const runId = await seedRun({ companyId, agentId, contextSnapshot: { issueId } });
+      const runId = await seedRun({ spaceId, agentId, contextSnapshot: { issueId } });
       const result = await adapter.evaluateScheduledRetryGate({
         runId,
-        companyId,
+        spaceId,
         retryReasonOverride: "other",
         now,
       });
@@ -1180,12 +1180,12 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     });
 
     it("maps a changed review participant into a blocked scheduled-retry gate decision", async () => {
-      const { companyId, agentId } = await seedCompanyAndAgent();
+      const { spaceId, agentId } = await seedSpaceAndAgent();
       const reviewerAgentId = randomUUID();
-      await seedAgent({ id: reviewerAgentId, companyId, name: "ReviewerAgent", role: "qa" });
+      await seedAgent({ id: reviewerAgentId, spaceId, name: "ReviewerAgent", role: "qa" });
       const issueId = randomUUID();
       await seedIssue({
-        companyId,
+        spaceId,
         issueId,
         status: "in_review",
         assigneeAgentId: agentId,
@@ -1205,10 +1205,10 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
 
       const adapter = createPostgresRunDispatchAdapter(db);
       const now = new Date();
-      const runId = await seedRun({ companyId, agentId, contextSnapshot: { issueId } });
+      const runId = await seedRun({ spaceId, agentId, contextSnapshot: { issueId } });
       const result = await adapter.evaluateScheduledRetryGate({
         runId,
-        companyId,
+        spaceId,
         retryReasonOverride: "other",
         now,
       });
@@ -1220,16 +1220,16 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     });
 
     it("maps a terminal issue status into a blocked scheduled-retry gate decision", async () => {
-      const { companyId, agentId } = await seedCompanyAndAgent();
+      const { spaceId, agentId } = await seedSpaceAndAgent();
       const issueId = randomUUID();
-      await seedIssue({ companyId, issueId, status: "done", assigneeAgentId: agentId });
+      await seedIssue({ spaceId, issueId, status: "done", assigneeAgentId: agentId });
 
       const adapter = createPostgresRunDispatchAdapter(db);
       const now = new Date();
-      const runId = await seedRun({ companyId, agentId, contextSnapshot: { issueId } });
+      const runId = await seedRun({ spaceId, agentId, contextSnapshot: { issueId } });
       const result = await adapter.evaluateScheduledRetryGate({
         runId,
-        companyId,
+        spaceId,
         retryReasonOverride: "other",
         now,
       });
@@ -1256,22 +1256,22 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       { label: "object source", source: { type: "chat:slack" }, expected: null },
       { label: "array source", source: ["chat:slack"], expected: null },
     ])("projects only the committed $label into a cancellation effect", async ({ source, expected }) => {
-      const { companyId, agentId } = await seedCompanyAndAgent();
+      const { spaceId, agentId } = await seedSpaceAndAgent();
       const issueId = randomUUID();
-      await seedIssue({ companyId, issueId, status: "done", assigneeAgentId: agentId });
+      await seedIssue({ spaceId, issueId, status: "done", assigneeAgentId: agentId });
       const runId = await seedRun({
-        companyId,
+        spaceId,
         agentId,
         contextSnapshot: {
           issueId,
           wakeReason: "issue_assigned",
           ...(source === undefined ? {} : { source }),
-          paperclipWake: { privateTestMarker: "not-for-the-status-effect" },
+          outpostWake: { privateTestMarker: "not-for-the-status-effect" },
         },
       });
       const outcome = await createPostgresRunDispatchAdapter(db).cancelStaleQueuedRun({
         runId,
-        companyId,
+        spaceId,
         expectedStatus: "queued",
         now: new Date(),
       });
@@ -1282,7 +1282,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       const effect = outcome.postCommitEffects[0];
       expect(effect).toMatchObject({
         kind: "run_status_published",
-        companyId,
+        spaceId,
         runId,
         agentId,
         issueId,
@@ -1300,27 +1300,27 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
         .then((rows) => rows[0]);
       expect(persisted?.status).toBe("cancelled");
       expect(persisted?.contextSnapshot).toMatchObject({
-        paperclipWake: { privateTestMarker: "not-for-the-status-effect" },
+        outpostWake: { privateTestMarker: "not-for-the-status-effect" },
       });
     });
 
     it("maps a reassigned issue into a stale queued-run decision", async () => {
-      const { companyId, agentId } = await seedCompanyAndAgent();
+      const { spaceId, agentId } = await seedSpaceAndAgent();
       const replacementAgentId = randomUUID();
-      await seedAgent({ id: replacementAgentId, companyId, name: "ReplacementCoder" });
+      await seedAgent({ id: replacementAgentId, spaceId, name: "ReplacementCoder" });
       const issueId = randomUUID();
-      await seedIssue({ companyId, issueId, status: "in_progress", assigneeAgentId: replacementAgentId });
+      await seedIssue({ spaceId, issueId, status: "in_progress", assigneeAgentId: replacementAgentId });
 
       const adapter = createPostgresRunDispatchAdapter(db);
       const now = new Date();
       const runId = await seedRun({
-        companyId,
+        spaceId,
         agentId,
         contextSnapshot: { issueId, wakeReason: "issue_assigned" },
       });
       const result = await adapter.cancelStaleQueuedRun({
         runId,
-        companyId,
+        spaceId,
         expectedStatus: "queued",
         now,
       });
@@ -1334,13 +1334,13 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     it(
       "reads the locked issue state and cancels in the same semantic transaction",
       async () => {
-        const { companyId, agentId } = await seedCompanyAndAgent();
+        const { spaceId, agentId } = await seedSpaceAndAgent();
         const replacementAgentId = randomUUID();
-        await seedAgent({ id: replacementAgentId, companyId, name: "ReplacementCoder" });
+        await seedAgent({ id: replacementAgentId, spaceId, name: "ReplacementCoder" });
         const issueId = randomUUID();
-        await seedIssue({ companyId, issueId, status: "in_progress", assigneeAgentId: agentId });
+        await seedIssue({ spaceId, issueId, status: "in_progress", assigneeAgentId: agentId });
         const runId = await seedRun({
-          companyId,
+          spaceId,
           agentId,
           contextSnapshot: { issueId, wakeReason: "issue_assigned" },
         });
@@ -1352,7 +1352,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
         );
         const outcome = await createPostgresRunDispatchAdapter(db).cancelStaleQueuedRun({
           runId,
-          companyId,
+          spaceId,
           expectedStatus: "queued",
           now: new Date(),
         });
@@ -1373,11 +1373,11 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     );
 
     it("maps a review-parking continuation summary into a stale queued-run decision", async () => {
-      const { companyId, agentId } = await seedCompanyAndAgent();
+      const { spaceId, agentId } = await seedSpaceAndAgent();
       const issueId = randomUUID();
-      await seedIssue({ companyId, issueId, status: "in_progress", assigneeAgentId: agentId });
+      await seedIssue({ spaceId, issueId, status: "in_progress", assigneeAgentId: agentId });
       await seedContinuationSummary({
-        companyId,
+        spaceId,
         issueId,
         agentId,
         body: [
@@ -1392,7 +1392,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       const adapter = createPostgresRunDispatchAdapter(db);
       const now = new Date();
       const runId = await seedRun({
-        companyId,
+        spaceId,
         agentId,
         contextSnapshot: {
           issueId,
@@ -1402,7 +1402,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
       });
       const result = await adapter.cancelStaleQueuedRun({
         runId,
-        companyId,
+        spaceId,
         expectedStatus: "queued",
         now,
       });
@@ -1417,14 +1417,14 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
   describe("promoteOrCancelDueRetry", () => {
     async function seedScheduledRetryRun(input: {
       runId: string;
-      companyId: string;
+      spaceId: string;
       agentId: string;
       issueId: string;
       now: Date;
     }) {
       await db.insert(heartbeatRuns).values({
         id: input.runId,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         agentId: input.agentId,
         invocationSource: "retry",
         status: "scheduled_retry",
@@ -1438,18 +1438,18 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     }
 
     it("promotes an allowed due retry", async () => {
-      const { companyId, agentId } = await seedCompanyAndAgent();
+      const { spaceId, agentId } = await seedSpaceAndAgent();
       const issueId = randomUUID();
       const runId = randomUUID();
       const now = new Date();
-      await seedIssue({ companyId, issueId, status: "in_progress", assigneeAgentId: agentId });
-      await seedScheduledRetryRun({ runId, companyId, agentId, issueId, now });
+      await seedIssue({ spaceId, issueId, status: "in_progress", assigneeAgentId: agentId });
+      await seedScheduledRetryRun({ runId, spaceId, agentId, issueId, now });
       await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
 
       const adapter = createPostgresRunDispatchAdapter(db);
       const outcome = await adapter.promoteOrCancelDueRetry({
         runId,
-        companyId,
+        spaceId,
         now,
       });
 
@@ -1459,26 +1459,26 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     });
 
     it("cancels a due retry a pause hold blocks", async () => {
-      const { companyId, agentId } = await seedCompanyAndAgent();
+      const { spaceId, agentId } = await seedSpaceAndAgent();
       const issueId = randomUUID();
       const runId = randomUUID();
       const now = new Date();
-      await seedIssue({ companyId, issueId, status: "in_progress", assigneeAgentId: agentId });
+      await seedIssue({ spaceId, issueId, status: "in_progress", assigneeAgentId: agentId });
       await db.insert(issueTreeHolds).values({
-        companyId,
+        spaceId,
         rootIssueId: issueId,
         mode: "pause",
         status: "active",
         reason: "manual pause for review",
         releasePolicy: { strategy: "manual" },
       });
-      await seedScheduledRetryRun({ runId, companyId, agentId, issueId, now });
+      await seedScheduledRetryRun({ runId, spaceId, agentId, issueId, now });
       await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
 
       const adapter = createPostgresRunDispatchAdapter(db);
       const outcome = await adapter.promoteOrCancelDueRetry({
         runId,
-        companyId,
+        spaceId,
         now,
       });
 
@@ -1493,14 +1493,14 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     it(
       "locks the issue row for the whole decision, so a reassignment committed while it waits is not missed",
       async () => {
-        const { companyId, agentId: originalAgentId } = await seedCompanyAndAgent();
+        const { spaceId, agentId: originalAgentId } = await seedSpaceAndAgent();
         const newAgentId = randomUUID();
-        await seedAgent({ id: newAgentId, companyId, name: "ReplacementCoder" });
+        await seedAgent({ id: newAgentId, spaceId, name: "ReplacementCoder" });
         const issueId = randomUUID();
         const runId = randomUUID();
         const now = new Date();
-        await seedIssue({ companyId, issueId, status: "in_progress", assigneeAgentId: originalAgentId });
-        await seedScheduledRetryRun({ runId, companyId, agentId: originalAgentId, issueId, now });
+        await seedIssue({ spaceId, issueId, status: "in_progress", assigneeAgentId: originalAgentId });
+        await seedScheduledRetryRun({ runId, spaceId, agentId: originalAgentId, issueId, now });
         await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
 
         // Acquire the issue row lock first and hold it until it observes a
@@ -1515,7 +1515,7 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
         const adapter = createPostgresRunDispatchAdapter(db);
         const outcome = await adapter.promoteOrCancelDueRetry({
           runId,
-          companyId,
+          spaceId,
           now,
         });
         await holderDone;
@@ -1535,36 +1535,36 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     );
   });
   it.each(["active", "resolved"])("blocks a generic retry after %s no-replay disposition", async status => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     const issueId = randomUUID(), runId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Uncertain email", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "queued", contextSnapshot: { issueId, wakeReason: "retry_failed_run" } });
-    await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId, kind: "active_run_watchdog", ownerType: "board", cause: "uncertain_external_action", status, evidence: status === "resolved" ? { automaticRecovery: { replay: "blocked" } } : {}, fingerprint: runId, nextAction: "Verify whether email-1 was sent before continuing." });
-    expect(await getExecutionBlocker(db, companyId, issueId)).toMatchObject({ cause: "uncertain_external_action", nextAction: "Verify whether email-1 was sent before continuing." });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Uncertain email", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "queued", contextSnapshot: { issueId, wakeReason: "retry_failed_run" } });
+    await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId, kind: "active_run_watchdog", ownerType: "operator", cause: "uncertain_external_action", status, evidence: status === "resolved" ? { automaticRecovery: { replay: "blocked" } } : {}, fingerprint: runId, nextAction: "Verify whether email-1 was sent before continuing." });
+    expect(await getExecutionBlocker(db, spaceId, issueId)).toMatchObject({ cause: "uncertain_external_action", nextAction: "Verify whether email-1 was sent before continuing." });
     expect(await getExecutionBlocker(db, randomUUID(), issueId)).toBeNull();
     const adapter = createPostgresRunDispatchAdapter(db);
-    await expect(adapter.cancelStaleQueuedRun({ companyId, runId, expectedStatus: "queued", now: new Date() })).resolves.toMatchObject({ outcome: "cancelled", errorCode: "execution_reconciliation_required" });
+    await expect(adapter.cancelStaleQueuedRun({ spaceId, runId, expectedStatus: "queued", now: new Date() })).resolves.toMatchObject({ outcome: "cancelled", errorCode: "execution_reconciliation_required" });
   });
 
   it.each(["active", "resolved"])("allows a new message through a historical %s interruption hold", async status => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     await db.update(agents).set({ adapterType: "process" }).where(eq(agents.id, agentId));
     const issueId = randomUUID(), previousRunId = randomUUID(), runId = randomUUID();
-    await seedIssue({ companyId, issueId, status: "blocked", assigneeAgentId: agentId });
+    await seedIssue({ spaceId, issueId, status: "blocked", assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values([
-      { id: previousRunId, companyId, agentId, status: "interrupted", errorCode: "server_shutdown_interrupted", contextSnapshot: { issueId } },
-      { id: runId, companyId, agentId, status: "queued", contextSnapshot: { issueId, wakeReason: "issue_commented" } },
+      { id: previousRunId, spaceId, agentId, status: "interrupted", errorCode: "server_shutdown_interrupted", contextSnapshot: { issueId } },
+      { id: runId, spaceId, agentId, status: "queued", contextSnapshot: { issueId, wakeReason: "issue_commented" } },
     ]);
-    await db.insert(heartbeatRunEvents).values({ companyId, agentId, runId: previousRunId,
+    await db.insert(heartbeatRunEvents).values({ spaceId, agentId, runId: previousRunId,
       seq: 1, eventType: "adapter.invoke", payload: { adapterType: "codex_local" } });
-    const [action] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId,
-      kind: "active_run_watchdog", ownerType: "board", cause: "legacy_execution_requires_reconciliation", status,
+    const [action] = await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId,
+      kind: "active_run_watchdog", ownerType: "operator", cause: "legacy_execution_requires_reconciliation", status,
       evidence: { runId: previousRunId, automaticRecovery: { replay: "blocked", actionOutcome: "unknown" } },
       fingerprint: previousRunId, nextAction: "Automatic recovery stopped.",
     }).returning();
-    expect(await getExecutionBlocker(db, companyId, issueId)).toBeNull();
+    expect(await getExecutionBlocker(db, spaceId, issueId)).toBeNull();
     const adapter = createPostgresRunDispatchAdapter(db);
-    expect(await adapter.cancelStaleQueuedRun({ companyId, runId, expectedStatus: "queued", now: new Date() })).toMatchObject({ outcome: "not_stale" });
+    expect(await adapter.cancelStaleQueuedRun({ spaceId, runId, expectedStatus: "queued", now: new Date() })).toMatchObject({ outcome: "not_stale" });
     await settleUnrecoverableExecutions(db);
     const [resolved] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, action!.id));
     expect(resolved).toMatchObject({ status: "resolved", outcome: "cancelled", evidence: { runId: previousRunId } });
@@ -1572,52 +1572,52 @@ describeEmbeddedPostgres("run-dispatch postgres adapter", () => {
     await settleUnrecoverableExecutions(db);
     const audit = await db.select().from(activityLog).where(eq(activityLog.entityId, issueId));
     expect(audit).toHaveLength(1);
-    expect(audit[0]).toMatchObject({ companyId, action: "issue.execution_recovery_settled" });
+    expect(audit[0]).toMatchObject({ spaceId, action: "issue.execution_recovery_settled" });
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.retryOfRunId, previousRunId))).toHaveLength(0);
     // The upgrade does not silently resume historical blocked work.
     expect((await db.select().from(issues).where(eq(issues.id, issueId)))[0].status).toBe("blocked");
   });
 
   it.each(["process", "http", null])("keeps a historical %s hold after switching to a conversation adapter", async historicalAdapter => {
-    const { companyId, agentId } = await seedCompanyAndAgent();
+    const { spaceId, agentId } = await seedSpaceAndAgent();
     await db.update(agents).set({ adapterType: "codex_local" }).where(eq(agents.id, agentId));
     const issueId = randomUUID(), previousRunId = randomUUID();
-    await seedIssue({ companyId, issueId, status: "blocked", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: previousRunId, companyId, agentId,
+    await seedIssue({ spaceId, issueId, status: "blocked", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: previousRunId, spaceId, agentId,
       status: "interrupted", errorCode: "server_shutdown_interrupted", contextSnapshot: { issueId } });
-    if (historicalAdapter) await db.insert(heartbeatRunEvents).values({ companyId, agentId, runId: previousRunId,
+    if (historicalAdapter) await db.insert(heartbeatRunEvents).values({ spaceId, agentId, runId: previousRunId,
       seq: 1, eventType: "adapter.invoke", payload: { adapterType: historicalAdapter } });
-    const [action] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId,
-      kind: "active_run_watchdog", ownerType: "board", cause: "legacy_execution_requires_reconciliation", status: "active",
+    const [action] = await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId,
+      kind: "active_run_watchdog", ownerType: "operator", cause: "legacy_execution_requires_reconciliation", status: "active",
       evidence: { runId: previousRunId, automaticRecovery: { replay: "blocked", actionOutcome: "unknown" } },
       fingerprint: previousRunId, nextAction: "Inspect previous execution.",
     }).returning();
-    expect(await getExecutionBlocker(db, companyId, issueId)).toMatchObject({ recoveryActionId: action!.id });
+    expect(await getExecutionBlocker(db, spaceId, issueId)).toMatchObject({ recoveryActionId: action!.id });
     await settleUnrecoverableExecutions(db);
-    expect(await getExecutionBlocker(db, companyId, issueId)).toMatchObject({ recoveryActionId: action!.id });
+    expect(await getExecutionBlocker(db, spaceId, issueId)).toMatchObject({ recoveryActionId: action!.id });
     const [retained] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, action!.id));
     expect(retained.evidence.automaticRecovery).toMatchObject({ replay: "blocked", actionOutcome: "unknown" });
   });
 
-  it("links the stopped run's agent instead of its return owner, within the same company", async () => {
-    const { companyId, agentId: ownerId } = await seedCompanyAndAgent();
+  it("links the stopped run's agent instead of its return owner, within the same space", async () => {
+    const { spaceId, agentId: ownerId } = await seedSpaceAndAgent();
     const reviewerId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await seedAgent({ id: reviewerId, companyId, name: "Reviewer" });
-    await seedIssue({ companyId, issueId, status: "in_review", assigneeAgentId: ownerId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId: reviewerId, status: "cancelled" });
+    await seedAgent({ id: reviewerId, spaceId, name: "Reviewer" });
+    await seedIssue({ spaceId, issueId, status: "in_review", assigneeAgentId: ownerId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId: reviewerId, status: "cancelled" });
     const [action] = await db.insert(issueRecoveryActions).values({
-      companyId, sourceIssueId: issueId, kind: "active_run_watchdog", ownerType: "board",
+      spaceId, sourceIssueId: issueId, kind: "active_run_watchdog", ownerType: "operator",
       returnOwnerAgentId: ownerId, cause: "legacy_execution_requires_reconciliation", status: "active",
       evidence: { runId }, fingerprint: runId, nextAction: "Inspect the stopped reviewer.",
     }).returning();
-    expect(await getExecutionBlocker(db, companyId, issueId)).toMatchObject({ runId, agentId: reviewerId });
-    const other = await seedCompanyAndAgent();
+    expect(await getExecutionBlocker(db, spaceId, issueId)).toMatchObject({ runId, agentId: reviewerId });
+    const other = await seedSpaceAndAgent();
     const otherRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: otherRunId, companyId: other.companyId, agentId: other.agentId, status: "cancelled" });
+    await db.insert(heartbeatRuns).values({ id: otherRunId, spaceId: other.spaceId, agentId: other.agentId, status: "cancelled" });
     await db.update(issueRecoveryActions).set({ evidence: { runId: otherRunId } }).where(eq(issueRecoveryActions.id, action!.id));
-    expect(await getExecutionBlocker(db, companyId, issueId)).toMatchObject({ agentId: null });
+    expect(await getExecutionBlocker(db, spaceId, issueId)).toMatchObject({ agentId: null });
     await db.update(issueRecoveryActions).set({ evidence: { runId: "invalid" } }).where(eq(issueRecoveryActions.id, action!.id));
-    expect(await getExecutionBlocker(db, companyId, issueId)).toMatchObject({ runId: null, agentId: null });
+    expect(await getExecutionBlocker(db, spaceId, issueId)).toMatchObject({ runId: null, agentId: null });
   });
 
 });

@@ -26,20 +26,20 @@ parents. Node and OpenCode must be qualified native ELF executables. A script
 wrapper or a changed account fails closed. The selected runtime must still
 supply the qualified native executables' platform and system dependencies.
 
-The artifact object uses authenticated encryption and a company-bound key
-wrapper. A company can reuse a ready object with the same file descriptor.
+The artifact object uses authenticated encryption and a space-bound key
+wrapper. A space can reuse a ready object with the same file descriptor.
 Canonical run and harness-backup references keep the object alive. Large launch
 files are excluded from each later harness archive. A pending upload records its
 exact encrypted object reference before upload, so an interrupted reply can be
 retired without guessing an object key.
 
-A ready company closure is reused. Concurrent first admissions may independently
+A ready space closure is reused. Concurrent first admissions may independently
 upload that closure: each admission retains its own cancellation, ownership fence,
 and pending receipt rather than depending on another controller's live transfer.
 Each capture has the 512 MiB limit and five-minute deadline; a run can retain at
 most three pending uploads. Publication selects one verified ready object under
 the closure lock. A loser pins that winner before deleting only its own object.
-This bounds each admitted run, not total simultaneous company egress. A burst can
+This bounds each admitted run, not total simultaneous space egress. A burst can
 therefore transfer duplicate bytes; distributed upload election is not included.
 
 On cold recovery, Core restores the canonical Runner checkpoint, workspace
@@ -132,7 +132,7 @@ expiration attempt. There is no new idle scan or timer.
 
 Checkpoint expiration checks current resume handles under its existing locks.
 It then fences old generations and atomically replaces the expired header with
-a versioned, company/run-scoped retirement marker. An earlier handle keeps the
+a versioned, space/run-scoped retirement marker. An earlier handle keeps the
 original checkpoint and files. After retirement, readers and header writers
 refuse the old checkpoint. Source consumers also check retirement in their
 existing ownership query, so a cached old snapshot cannot bypass the barrier.
@@ -167,7 +167,7 @@ pnpm --filter @outpost/server exec vitest run --config vitest.config.ts \
   src/__tests__/native-harness-backup-expiration-config.test.ts
 ```
 
-The opt-in Linux qualification requires two locally cached Paperclip images with
+The opt-in Linux qualification requires two locally cached Outpost images with
 full immutable image IDs and different OpenCode proxy hashes. Both images must
 have the same Linux architecture and the standard qualified provider pack. The
 new image must include the packaged Runner binary at

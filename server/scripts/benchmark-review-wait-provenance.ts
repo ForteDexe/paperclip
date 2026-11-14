@@ -28,7 +28,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { chatActions, chatConversations, chatDeliveries, chatEndpointResources, chatEndpoints,
-  chatExternalPrincipals, chatGitHubReviews, chatIdentityLinks, chatMessageLinks, companies, companyMemberships,
+  chatExternalPrincipals, chatGitHubReviews, chatIdentityLinks, chatMessageLinks, spaces, spaceMemberships,
   createDb, heartbeatRuns, issueComments, runIdentityContexts, toolApplications, toolConnections,
   type Db } from "@outpost/db";
 import { defaultGitHubReviewPolicy } from "@outpost/shared";
@@ -80,28 +80,28 @@ try {
   const sql = db.$client;
   const loadStart = performance.now();
 
-  // One company, one agent and one GitHub repository with WAITS reviewed pull
+  // One space, one agent and one GitHub repository with WAITS reviewed pull
   // requests. Each pull request has a task in review that waits for the next
   // GitHub reply.
-  const companyId = randomUUID(), agentId = randomUUID(), applicationId = randomUUID(), connectionId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID(), applicationId = randomUUID(), connectionId = randomUUID();
   const endpointId = randomUUID(), resourceId = randomUUID(), principalId = randomUUID();
   const repository = "synthetic/repository", repositoryId = "42", headSha = "1".repeat(40), user = "operator";
-  await db.insert(companies).values({ id: companyId, name: "Synthetic review", issuePrefix: "SYN" });
+  await db.insert(spaces).values({ id: spaceId, name: "Synthetic review", issuePrefix: "SYN" });
   // A fixture agent that never runs. It is not created through the agent lifecycle module.
-  await sql.unsafe("insert into agents (id, company_id, name, adapter_type) values ($1::uuid, $2::uuid, 'Reviewer', 'process')",
-    [agentId, companyId]);
-  await db.insert(toolApplications).values({ id: applicationId, companyId, name: "GitHub", type: "chat" });
-  await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "GitHub",
+  await sql.unsafe("insert into agents (id, space_id, name, adapter_type) values ($1::uuid, $2::uuid, 'Reviewer', 'process')",
+    [agentId, spaceId]);
+  await db.insert(toolApplications).values({ id: applicationId, spaceId, name: "GitHub", type: "chat" });
+  await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "GitHub",
     uid: connectionId, transport: "chat_sdk", connectionPurpose: "channel", enabled: true, status: "active" });
-  await db.insert(chatEndpoints).values({ id: endpointId, companyId, connectionId, provider: "github",
+  await db.insert(chatEndpoints).values({ id: endpointId, spaceId, connectionId, provider: "github",
     publicId: endpointId, assignedAgentId: agentId, status: "active", providerAccountId: "synthetic" });
-  await db.insert(chatEndpointResources).values({ id: resourceId, companyId, endpointId, type: "repository",
+  await db.insert(chatEndpointResources).values({ id: resourceId, spaceId, endpointId, type: "repository",
     providerResourceId: repository, label: repository, metadata: { providerRepositoryId: repositoryId },
     availability: "available", enabled: true });
-  await db.insert(chatExternalPrincipals).values({ id: principalId, companyId, provider: "github",
+  await db.insert(chatExternalPrincipals).values({ id: principalId, spaceId, provider: "github",
     providerAccountId: "synthetic", externalId: "1", kind: "user" });
-  await db.insert(chatIdentityLinks).values({ companyId, endpointId, principalId, paperclipUserId: user, status: "linked" });
-  await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: user,
+  await db.insert(chatIdentityLinks).values({ spaceId, endpointId, principalId, outpostUserId: user, status: "linked" });
+  await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: user,
     status: "active", membershipRole: "member" });
 
   const waits = Array.from({ length: WAITS }, (_unused, index) => ({
@@ -119,44 +119,44 @@ try {
   await sql.begin(async tx => {
     // Skip the work-assessment owner chain of the status decisions.
     await tx.unsafe("set local session_replication_role = replica");
-    await tx.unsafe(`insert into issues (id, company_id, title, status, assignee_agent_id, issue_number, identifier, last_status_decision_id)
+    await tx.unsafe(`insert into issues (id, space_id, title, status, assignee_agent_id, issue_number, identifier, last_status_decision_id)
       select w.issue_id, $1::uuid, 'wait ' || w.n, 'in_review', $2::uuid, w.n, 'SYN-' || w.n, w.decision_id
       from unnest($3::uuid[], $4::uuid[]) with ordinality as w(issue_id, decision_id, n)`,
-    [companyId, agentId, waits.map(wait => wait.issueId), waits.map(wait => wait.decisionId)]);
-    await tx.unsafe(`insert into status_decisions (id, company_id, issue_id, run_id, assessment_id, decision_version, policy_version,
+    [spaceId, agentId, waits.map(wait => wait.issueId), waits.map(wait => wait.decisionId)]);
+    await tx.unsafe(`insert into status_decisions (id, space_id, issue_id, run_id, assessment_id, decision_version, policy_version,
         from_status, to_status, reason_code, decision_json, decision_digest, application_state, applied_at)
       select w.decision_id, $1::uuid, w.issue_id, w.run_id, gen_random_uuid(), 1, 'v1', 'in_progress', 'in_review',
         'external_chat_response_waiting', '{}'::jsonb, w.decision_id::text, 'applied', now()
       from unnest($2::uuid[], $3::uuid[], $4::uuid[]) as w(decision_id, issue_id, run_id)`,
-    [companyId, waits.map(wait => wait.decisionId), waits.map(wait => wait.issueId), waits.map(wait => wait.runId)]);
+    [spaceId, waits.map(wait => wait.decisionId), waits.map(wait => wait.issueId), waits.map(wait => wait.runId)]);
   });
   await insert(waits, chunk => db!.insert(heartbeatRuns).values(chunk.flatMap(wait => [
-    { id: wait.runId, companyId, agentId, status: "succeeded", runtimeMode: "native", nativeIssueId: wait.issueId,
+    { id: wait.runId, spaceId, agentId, status: "succeeded", runtimeMode: "native", nativeIssueId: wait.issueId,
       responsibleUserId: user, activeIdentityContextId: wait.contextId, contextSnapshot: { prompt: "x".repeat(4096) } },
-    { id: wait.reviewRunId, companyId, agentId, status: "succeeded", nativeIssueId: wait.issueId },
-    ...wait.lineage.map(earlier => ({ id: earlier.runId, companyId, agentId, status: "succeeded",
+    { id: wait.reviewRunId, spaceId, agentId, status: "succeeded", nativeIssueId: wait.issueId },
+    ...wait.lineage.map(earlier => ({ id: earlier.runId, spaceId, agentId, status: "succeeded",
       nativeIssueId: wait.issueId, responsibleUserId: user })),
   ])));
-  await insert(waits, chunk => db!.insert(issueComments).values(chunk.map(wait => ({ id: wait.commentId, companyId,
+  await insert(waits, chunk => db!.insert(issueComments).values(chunk.map(wait => ({ id: wait.commentId, spaceId,
     issueId: wait.issueId, authorType: "user" as const, authorUserId: user, body: "Review" }))));
   await insert(waits, chunk => db!.insert(runIdentityContexts).values(chunk.flatMap(wait => {
     // The lineage from the first run (which accepted the comment) to the waiting run.
     const contexts = [...wait.lineage, { runId: wait.runId, contextId: wait.contextId }];
-    return contexts.map((context, index) => ({ id: context.contextId, companyId, runId: context.runId, revision: 1,
+    return contexts.map((context, index) => ({ id: context.contextId, spaceId, runId: context.runId, revision: 1,
       responsibleUserId: user, messageId: index === 0 ? wait.commentId : null,
       parentContextId: index === 0 ? null : contexts[index - 1]!.contextId,
       cause: index === 0 ? "instruction" : "monitor", correlationId: "benchmark", status: "accepted" }));
   })));
-  await insert(waits, chunk => db!.insert(chatConversations).values(chunk.map(wait => ({ id: wait.conversationId, companyId,
+  await insert(waits, chunk => db!.insert(chatConversations).values(chunk.map(wait => ({ id: wait.conversationId, spaceId,
     endpointId, resourceId, issueId: wait.issueId, externalConversationId: repository,
     externalThreadId: `github:${repository}:${wait.pullNumber}`, externalLabel: "Review", state: "waiting" }))));
-  await insert(waits, chunk => db!.insert(chatDeliveries).values(chunk.map(wait => ({ id: wait.deliveryId, companyId,
+  await insert(waits, chunk => db!.insert(chatDeliveries).values(chunk.map(wait => ({ id: wait.deliveryId, spaceId,
     endpointId, conversationId: wait.conversationId, principalId, providerEventId: wait.deliveryId,
     deduplicationKey: wait.deliveryId, eventKind: "message" as const, state: "processed" as const, normalizedEvent: {}, processedAt: new Date() }))));
-  await insert(waits, chunk => db!.insert(chatMessageLinks).values(chunk.map(wait => ({ companyId, endpointId,
+  await insert(waits, chunk => db!.insert(chatMessageLinks).values(chunk.map(wait => ({ spaceId, endpointId,
     conversationId: wait.conversationId, deliveryId: wait.deliveryId, commentId: wait.commentId,
     providerMessageId: wait.commentId, direction: "inbound" }))));
-  await insert(waits, chunk => db!.insert(chatGitHubReviews).values(chunk.map(wait => ({ id: wait.reviewId, companyId,
+  await insert(waits, chunk => db!.insert(chatGitHubReviews).values(chunk.map(wait => ({ id: wait.reviewId, spaceId,
     endpointId, issueId: wait.issueId, runId: wait.reviewRunId, repositoryId, repository, pullNumber: wait.pullNumber,
     headSha, deliveryId: wait.reviewId, configurationRevision: 1, state: "completed" as const,
     policySnapshot: defaultGitHubReviewPolicy(),
@@ -165,7 +165,7 @@ try {
       author: { id: "1", login: "author", isBot: false }, sender: { id: "1", login: "author" }, draft: false, labels: [] },
     assessment: { reviewedCommit: headSha, score: 5 as const, complete: true, summary: "Reviewed", rationale: "Reviewed",
       coverage: { reviewedPaths: [], omittedPaths: [], limitations: [] }, findings: [] } }))));
-  await insert(waits, chunk => db!.insert(chatActions).values(chunk.map(wait => ({ companyId, endpointId,
+  await insert(waits, chunk => db!.insert(chatActions).values(chunk.map(wait => ({ spaceId, endpointId,
     kind: "github_review_publication", status: "processed",
     providerActionId: `github_publication:${wait.issueId}:assessment:${createHash("sha256").update(JSON.stringify(wait.reviewId)).digest("hex")}` }))));
   await sql.unsafe("vacuum analyze");
@@ -177,7 +177,7 @@ try {
   // Both versions return the same waits, and the same inherited wait for each run.
   const listed: Record<string, string[]> = {}, inherited: Record<string, unknown> = {};
   for (const [name, version] of Object.entries(versions)) {
-    listed[name] = (await version.list(db, companyId, issueIds)).map(wait => wait.issueId).sort();
+    listed[name] = (await version.list(db, spaceId, issueIds)).map(wait => wait.issueId).sort();
     inherited[name] = await version.inherited(db, waitRuns);
   }
   assert.deepEqual(listed.treatment, listed.baseline, "Both versions must return the same waits");
@@ -205,7 +205,7 @@ try {
       sqlBytes += Buffer.byteLength(query);
       return original.call(this, query, ...rest);
     };
-    try { await list(db!, companyId, issueIds); } finally { client.unsafe = original; }
+    try { await list(db!, spaceId, issueIds); } finally { client.unsafe = original; }
     // Server execution and scans of the batch provenance reads of one request.
     let executionMs = 0;
     const scans = new Set<string>();
@@ -231,7 +231,7 @@ try {
   // Wall time and process CPU time (user and system) of one request.
   const measure = async (list: Versions["list"]) => {
     const cpu = process.cpuUsage(), start = performance.now();
-    await list(db!, companyId, issueIds);
+    await list(db!, spaceId, issueIds);
     const used = process.cpuUsage(cpu);
     return { wallMs: performance.now() - start, cpuMs: (used.user + used.system) / 1_000 };
   };

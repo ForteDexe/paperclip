@@ -1,13 +1,13 @@
 import { projectInstanceSecretService } from "./project-instance-secrets.js";
 import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import { createOwnedDatabaseListener, type OwnedDatabaseListener, agents, companies, pluginCompanySettings, pluginConfig, plugins, projects, type Db } from "@outpost/db";
+import { createOwnedDatabaseListener, type OwnedDatabaseListener, agents, spaces, pluginSpaceSettings, pluginConfig, plugins, projects, type Db } from "@outpost/db";
 import { logger } from "../middleware/logger.js";
 import { pluginLifecycleInbox } from "./plugin-lifecycle-inbox.js";
 import { DELIVERY_QUEUES } from "./delivery-work-notifications.js";
 import type { createDeliveryWorkCoordinator } from "./delivery-work-coordinator.js";
 import { parseProjectExecutionWorkspacePolicy } from "./execution-workspace-policy.js";
 import { isWorkspaceProvider } from "./project-workspace-provider.js";
-import { managedPluginEnabledCompanies } from "./managed-plugin-worker-env.js";
+import { managedPluginEnabledSpaces } from "./managed-plugin-worker-env.js";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
 import type { PluginLifecycleManager } from "./plugin-lifecycle.js";
 import { registerIdleLocalWorkProbe, type IdleLocalWork } from "./idle-local-work.js";
@@ -37,41 +37,41 @@ export function registerPluginLifecycleDelivery(
   const retryAt = new Map<string, number>();
   const unregisterIdle = registerIdleLocalWorkProbe(() => listenerFailure || inspectionFailure ? "unknown"
     : listenerUpdates || delivering || listenerClient || pending ? "present" : "none");
-  const refreshedRuntimeCompanies = new Set<string>();
+  const refreshedRuntimeSpaces = new Set<string>();
   const retryMs = 30_000;
   async function managedTargets() {
     const ready = await db.select().from(plugins).where(eq(plugins.status, "ready"));
-    const targets = ready.flatMap(plugin => managedPluginEnabledCompanies(plugin.pluginKey).map(companyId => ({ plugin, companyId })));
+    const targets = ready.flatMap(plugin => managedPluginEnabledSpaces(plugin.pluginKey).map(spaceId => ({ plugin, spaceId })));
     if (!targets.length) return targets;
-    const existing = await db.select({ id: companies.id }).from(companies)
-      .where(inArray(companies.id, targets.map(target => target.companyId)));
-    const existingIds = new Set(existing.map(company => company.id));
-    return targets.filter(target => existingIds.has(target.companyId));
+    const existing = await db.select({ id: spaces.id }).from(spaces)
+      .where(inArray(spaces.id, targets.map(target => target.spaceId)));
+    const existingIds = new Set(existing.map(space => space.id));
+    return targets.filter(target => existingIds.has(target.spaceId));
   }
   async function enabledManagedPlugins() {
     const targets = await managedTargets();
     if (!targets.length) return [];
-    const disabled = await db.select({ pluginId: pluginCompanySettings.pluginId, companyId: pluginCompanySettings.companyId }).from(pluginCompanySettings)
-      .where(and(inArray(pluginCompanySettings.pluginId, targets.map(target => target.plugin.id)), eq(pluginCompanySettings.enabled, false)));
-    const disabledKeys = new Set(disabled.map(row => `${row.pluginId}:${row.companyId}`));
-    return targets.filter(target => !disabledKeys.has(`${target.plugin.id}:${target.companyId}`)).map(target => target.plugin);
+    const disabled = await db.select({ pluginId: pluginSpaceSettings.pluginId, spaceId: pluginSpaceSettings.spaceId }).from(pluginSpaceSettings)
+      .where(and(inArray(pluginSpaceSettings.pluginId, targets.map(target => target.plugin.id)), eq(pluginSpaceSettings.enabled, false)));
+    const disabledKeys = new Set(disabled.map(row => `${row.pluginId}:${row.spaceId}`));
+    return targets.filter(target => !disabledKeys.has(`${target.plugin.id}:${target.spaceId}`)).map(target => target.plugin);
   }
   async function deliveryTargets() {
-    const configured = await db.select({ plugin: plugins, companyId: pluginConfig.companyId })
+    const configured = await db.select({ plugin: plugins, spaceId: pluginConfig.spaceId })
       .from(plugins).innerJoin(pluginConfig, eq(pluginConfig.pluginId, plugins.id))
       .where(eq(plugins.status, "ready"))
-      .orderBy(asc(plugins.installOrder), asc(pluginConfig.companyId));
+      .orderBy(asc(plugins.installOrder), asc(pluginConfig.spaceId));
     const managed = await managedTargets();
     if (!managed.length) return configured;
-    const seen = new Set(configured.map(target => `${target.plugin.id}:${target.companyId}`));
-    return [...configured, ...managed.filter(target => !seen.has(`${target.plugin.id}:${target.companyId}`))].sort((a, b) =>
-      (a.plugin.installOrder ?? Infinity) - (b.plugin.installOrder ?? Infinity) || a.companyId.localeCompare(b.companyId));
+    const seen = new Set(configured.map(target => `${target.plugin.id}:${target.spaceId}`));
+    return [...configured, ...managed.filter(target => !seen.has(`${target.plugin.id}:${target.spaceId}`))].sort((a, b) =>
+      (a.plugin.installOrder ?? Infinity) - (b.plugin.installOrder ?? Infinity) || a.spaceId.localeCompare(b.spaceId));
   }
-  async function deliverableLifecycleTypes({ plugin, companyId }: Awaited<ReturnType<typeof deliveryTargets>>[number]) {
+  async function deliverableLifecycleTypes({ plugin, spaceId }: Awaited<ReturnType<typeof deliveryTargets>>[number]) {
     const types = plugin.manifestJson.resourceLifecycle;
     if (!types?.length || !plugin.manifestJson.capabilities.includes("events.subscribe")) return;
-    const [disabled] = await db.select({ id: pluginCompanySettings.id }).from(pluginCompanySettings)
-      .where(and(eq(pluginCompanySettings.pluginId, plugin.id), eq(pluginCompanySettings.companyId, companyId), eq(pluginCompanySettings.enabled, false)));
+    const [disabled] = await db.select({ id: pluginSpaceSettings.id }).from(pluginSpaceSettings)
+      .where(and(eq(pluginSpaceSettings.pluginId, plugin.id), eq(pluginSpaceSettings.spaceId, spaceId), eq(pluginSpaceSettings.enabled, false)));
     return disabled ? undefined : types;
   }
   const delivery = coordinator.register(DELIVERY_QUEUES.pluginLifecycle, {
@@ -96,17 +96,17 @@ export function registerPluginLifecycleDelivery(
         for (const target of await deliveryTargets()) {
           const types = await deliverableLifecycleTypes(target);
           if (!types) continue;
-          const { plugin, companyId } = target;
-          if (types.includes("agent_runtime") && !refreshedRuntimeCompanies.has(companyId)) {
-            await db.execute(sql`SELECT paperclip_invalidate_company_agent_runtimes(${companyId}::uuid)`);
-            refreshedRuntimeCompanies.add(companyId);
+          const { plugin, spaceId } = target;
+          if (types.includes("agent_runtime") && !refreshedRuntimeSpaces.has(spaceId)) {
+            await db.execute(sql`SELECT outpost_invalidate_space_agent_runtimes(${spaceId}::uuid)`);
+            refreshedRuntimeSpaces.add(spaceId);
           }
           const inbox = pluginLifecycleInbox(db, plugin.id);
           let afterId: string | undefined;
           // Visit independent resources past a failed or deferred head.
           for (;;) {
             if (signal.aborted) return;
-            const events = await inbox.list(companyId, 100, afterId, types);
+            const events = await inbox.list(spaceId, 100, afterId, types);
             for (const event of events) {
               if (signal.aborted) return;
               const retryKey = `${plugin.id}:${event.id}`;
@@ -116,16 +116,16 @@ export function registerPluginLifecycleDelivery(
               try {
                 // Recheck enablement for each invocation; a disable during a batch must stop delivery.
                 const [enabled] = await db.select({ manifest: plugins.manifestJson }).from(plugins)
-                  .leftJoin(pluginCompanySettings, and(eq(pluginCompanySettings.pluginId, plugins.id), eq(pluginCompanySettings.companyId, companyId)))
+                  .leftJoin(pluginSpaceSettings, and(eq(pluginSpaceSettings.pluginId, plugins.id), eq(pluginSpaceSettings.spaceId, spaceId)))
                   .where(and(eq(plugins.id, plugin.id), eq(plugins.status, "ready"),
-                    or(isNull(pluginCompanySettings.enabled), eq(pluginCompanySettings.enabled, true))));
+                    or(isNull(pluginSpaceSettings.enabled), eq(pluginSpaceSettings.enabled, true))));
                 if (!enabled?.manifest.resourceLifecycle?.includes(event.resourceType) || !enabled.manifest.capabilities.includes("events.subscribe")) break;
                 if (event.resourceType === "project" && isWorkspaceProvider(enabled.manifest)) {
                   stage = "ownership";
                   const [project] = await db.select({ policy: projects.executionWorkspacePolicy }).from(projects)
-                    .where(and(eq(projects.id, event.resourceId), eq(projects.companyId, companyId)));
+                    .where(and(eq(projects.id, event.resourceId), eq(projects.spaceId, spaceId)));
                   if (project && parseProjectExecutionWorkspacePolicy(project.policy)?.storageProviderPluginId !== plugin.id) {
-                    await inbox.acknowledge(companyId, event.id);
+                    await inbox.acknowledge(spaceId, event.id);
                     wake();
                     continue;
                   }
@@ -133,9 +133,9 @@ export function registerPluginLifecycleDelivery(
                 if (event.resourceType === "agent_runtime" && enabled.manifest.capabilities.includes("agents.lifecycle.manage")) {
                   stage = "ownership";
                   const [agent] = await db.select({ requiredPluginIds: agents.lifecycleRequiredPluginIds }).from(agents)
-                    .where(and(eq(agents.id, event.resourceId), eq(agents.companyId, companyId)));
+                    .where(and(eq(agents.id, event.resourceId), eq(agents.spaceId, spaceId)));
                   if (agent && !agent.requiredPluginIds?.includes(plugin.id)) {
-                    await inbox.acknowledge(companyId, event.id);
+                    await inbox.acknowledge(spaceId, event.id);
                     wake();
                     continue;
                   }
@@ -153,7 +153,7 @@ export function registerPluginLifecycleDelivery(
                 if (result.status === "acknowledged") {
                   stage = "acknowledgment";
                   if (result.instanceSecrets !== undefined && !credentials) throw new Error("Project instance secrets outside callback scope");
-                  await inbox.acknowledge(companyId, event.id, credentials ? { snapshot: credentials.snapshot, changes: result.instanceSecrets ?? {} } : undefined);
+                  await inbox.acknowledge(spaceId, event.id, credentials ? { snapshot: credentials.snapshot, changes: result.instanceSecrets ?? {} } : undefined);
                   // An acknowledgment exposes the next event for this resource. Drain immediately.
                   wake();
                 } else if (result.status === "retry") {
@@ -165,7 +165,7 @@ export function registerPluginLifecycleDelivery(
                 // Provider error messages/data may contain secrets; retain only routing
                 // identifiers, the failed stage, and the protocol's numeric error code.
                 const code = (error as { code?: unknown } | null)?.code;
-                logger.warn({ pluginId: plugin.id, companyId, eventId: event.id, stage,
+                logger.warn({ pluginId: plugin.id, spaceId, eventId: event.id, stage,
                   ...(typeof code === "number" ? { rpcCode: code } : {}) }, "Resource lifecycle delivery failed; retry scheduled");
                 // Failed RPCs and uncertain acknowledgments leave durable work for replay.
                 pending = true;
@@ -209,8 +209,8 @@ export function registerPluginLifecycleDelivery(
       try {
         const configured = await db.select({ manifest: plugins.manifestJson }).from(plugins)
           .innerJoin(pluginConfig, eq(pluginConfig.pluginId, plugins.id))
-          .leftJoin(pluginCompanySettings, and(eq(pluginCompanySettings.pluginId, plugins.id), eq(pluginCompanySettings.companyId, pluginConfig.companyId)))
-          .where(and(eq(plugins.status, "ready"), or(isNull(pluginCompanySettings.enabled), eq(pluginCompanySettings.enabled, true))));
+          .leftJoin(pluginSpaceSettings, and(eq(pluginSpaceSettings.pluginId, plugins.id), eq(pluginSpaceSettings.spaceId, pluginConfig.spaceId)))
+          .where(and(eq(plugins.status, "ready"), or(isNull(pluginSpaceSettings.enabled), eq(pluginSpaceSettings.enabled, true))));
         installed = [...configured, ...(await enabledManagedPlugins()).map(plugin => ({ manifest: plugin.manifestJson }))];
         inspectionFailure = false;
       } catch (error) { inspectionFailure = true; throw error; }
@@ -221,7 +221,7 @@ export function registerPluginLifecycleDelivery(
       if (disposed || held || isIdleTaskDrainActive()) return;
       try {
         listenerClient ??= createOwnedDatabaseListener(db);
-        listening ??= await listenerClient.listen("paperclip_plugin_lifecycle", wake, wake);
+        listening ??= await listenerClient.listen("outpost_plugin_lifecycle", wake, wake);
         listenerFailure = false;
       } catch (error) { listenerFailure = true; throw error; }
     });
@@ -235,8 +235,8 @@ export function registerPluginLifecycleDelivery(
       const types = await deliverableLifecycleTypes(target);
       if (!current()) return "unknown";
       if (!types) continue;
-      const { plugin, companyId } = target;
-      const hasEvents = await pluginLifecycleInbox(db, plugin.id).hasPending(companyId, types);
+      const { plugin, spaceId } = target;
+      const hasEvents = await pluginLifecycleInbox(db, plugin.id).hasPending(spaceId, types);
       if (!current()) return "unknown";
       if (hasEvents) { wake(); inspectionFailure = false; return "present"; }
     }

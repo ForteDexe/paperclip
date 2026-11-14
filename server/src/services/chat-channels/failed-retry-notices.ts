@@ -7,7 +7,7 @@ import { inboundWakePublicationKey } from "../chat-inbound-wakeup-publications.j
 import { NativeChatReviewPresentationContentionError } from "../native-runtime/native-chat-review-presentation.js";
 import { isExternalChatWaitAuthorizationContention } from "../native-runtime/chat-attachment-reuse.js";
 
-export type FailedRetryNoticeScope = { companyId: string; issueId?: string };
+export type FailedRetryNoticeScope = { spaceId: string; issueId?: string };
 export type FailedRetryNoticeCursor = { createdAt: string; id: string };
 type Options = {
   authorize: (tx: DbOrTransaction, action: typeof chatActions.$inferSelect) => Promise<{
@@ -22,18 +22,18 @@ export function createFailedRetryNotices(db: Db, options: Options) {
   function candidateQuery(cursor: FailedRetryNoticeCursor | null, scope?: FailedRetryNoticeScope) {
     return db.select({ action: chatActions, receipt: agentWakeupRequests,
       cursorCreatedAt: sql<string>`${chatActions.createdAt}::text`,
-      companyId: sql<string>`${chatActions.companyId}`.as("retry_notice_company_id"),
+      spaceId: sql<string>`${chatActions.spaceId}`.as("retry_notice_space_id"),
       issueId: sql<string>`${chatActions.payload}->>'issueId'`.as("retry_notice_issue_id"),
     }).from(chatActions).innerJoin(agentWakeupRequests, and(
-      eq(agentWakeupRequests.id, chatActions.id), eq(agentWakeupRequests.companyId, chatActions.companyId),
+      eq(agentWakeupRequests.id, chatActions.id), eq(agentWakeupRequests.spaceId, chatActions.spaceId),
     )).where(and(
       eq(chatActions.kind, "failed_run_retry"), isNull(agentWakeupRequests.runId),
-      scope ? eq(chatActions.companyId, scope.companyId) : undefined,
+      scope ? eq(chatActions.spaceId, scope.spaceId) : undefined,
       scope?.issueId ? sql`${chatActions.payload}->>'issueId' = ${scope.issueId}` : undefined,
       sql`${chatActions.payload}->>'issueId' ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'`,
       cursor ? sql`(${chatActions.createdAt}, ${chatActions.id}) > (${cursor.createdAt}::timestamptz, ${cursor.id}::uuid)` : undefined,
       inArray(agentWakeupRequests.status, ["deferred_issue_execution", "cancelled", "failed", "skipped"]),
-      sql`not exists (select 1 from chat_publications retry_notice where retry_notice.company_id = ${chatActions.companyId}
+      sql`not exists (select 1 from chat_publications retry_notice where retry_notice.space_id = ${chatActions.spaceId}
         and retry_notice.idempotency_key = 'wake:' || ${chatActions.id}::text || ':' ||
         case when ${agentWakeupRequests.status} = 'deferred_issue_execution' then 'queued' else 'not_started' end || ':' ||
         ${chatActions.endpointId}::text || ':' || ${chatActions.conversationId}::text)`,
@@ -61,7 +61,7 @@ export function createFailedRetryNotices(db: Db, options: Options) {
           const state = current.status === "deferred_issue_execution" ? "queued" : "not_started";
           await notifyChatPublicationWork(tx);
           return (await tx.insert(chatPublications).values({
-            companyId: action.companyId, endpointId: source.endpointId, conversationId: source.conversationId,
+            spaceId: action.spaceId, endpointId: source.endpointId, conversationId: source.conversationId,
             issueId: source.issueId, commentId: source.commentIds.at(-1)!,
             idempotencyKey: inboundWakePublicationKey(action.id, state, source.endpointId, source.conversationId),
             payload: projectSafeChatPublication({ classification: "external", source: "safe_milestone",
@@ -90,9 +90,9 @@ export function createFailedRetryNotices(db: Db, options: Options) {
   }
   async function loadFailedRetryNoticeScopes(scope?: FailedRetryNoticeScope, signal?: AbortSignal) {
     signal?.throwIfAborted();
-    if (scope?.issueId) return [{ companyId: scope.companyId, issueId: scope.issueId }];
+    if (scope?.issueId) return [{ spaceId: scope.spaceId, issueId: scope.issueId }];
     const candidates = candidateQuery(null, scope).as("failed_retry_notice_candidates");
-    return db.selectDistinct({ companyId: candidates.companyId, issueId: candidates.issueId })
+    return db.selectDistinct({ spaceId: candidates.spaceId, issueId: candidates.issueId })
       .from(candidates);
   }
   async function reconcileFailedRetryNotices(input: {

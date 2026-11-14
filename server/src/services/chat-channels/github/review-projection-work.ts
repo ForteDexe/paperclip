@@ -4,7 +4,7 @@ import type { createDeliveryWorkCoordinator } from "../../delivery-work-coordina
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "../../delivery-work-notifications.js";
 import { registerScopedDeadlineWork } from "../../scoped-deadline-work.js";
 
-type Scope = { companyId: string; endpointId: string };
+type Scope = { spaceId: string; endpointId: string };
 type Entry = Scope & { id: string; dueAt: number };
 
 export async function notifyGitHubReviewProjection(tx: object, scope: Scope) {
@@ -18,7 +18,7 @@ function pendingProjection() {
     sql`${chatGitHubReviews.deliveryId} ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'`,
     sql`(
       select action.id from ${chatActions} action
-      where action.company_id = ${chatGitHubReviews.companyId}
+      where action.space_id = ${chatGitHubReviews.spaceId}
         and action.endpoint_id = ${chatGitHubReviews.endpointId}
         and action.kind = 'github_review_check' and action.status = 'cancelled'
         and action.result->>'code' = 'stale_head'
@@ -49,14 +49,14 @@ export function registerGitHubReviewProjectionWork(
     queue: DELIVERY_QUEUES.chatGitHubReviewProjection,
     decodeScope: (hint: string): Scope | undefined => hint === "*" ? undefined : JSON.parse(hint),
     matches: (entry: Entry, scope?: Scope) => !scope ||
-      (entry.companyId === scope.companyId && entry.endpointId === scope.endpointId),
+      (entry.spaceId === scope.spaceId && entry.endpointId === scope.endpointId),
     load: async (scope?: Scope, signal?: AbortSignal) => {
       const entries: Entry[] = [];
       let cursor: string | undefined;
       while (canRun() && !signal?.aborted) {
-        const rows = await db.select({ id: chatGitHubReviews.id, companyId: chatGitHubReviews.companyId,
+        const rows = await db.select({ id: chatGitHubReviews.id, spaceId: chatGitHubReviews.spaceId,
           endpointId: chatGitHubReviews.endpointId }).from(chatGitHubReviews).where(and(pendingProjection(),
-          scope ? eq(chatGitHubReviews.companyId, scope.companyId) : undefined,
+          scope ? eq(chatGitHubReviews.spaceId, scope.spaceId) : undefined,
           scope ? eq(chatGitHubReviews.endpointId, scope.endpointId) : undefined,
           cursor ? gt(chatGitHubReviews.id, cursor) : undefined,
         )).orderBy(asc(chatGitHubReviews.id)).limit(100);

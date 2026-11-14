@@ -10,7 +10,7 @@ import { pathToFileURL } from "node:url";
 import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import {
-  companies,
+  spaces,
   createDb,
   executionWorkspaceRepositoryAccess,
   executionWorkspaces,
@@ -62,7 +62,7 @@ if (workspaceCount < 1 || rootWorkspaceCount < 1 || rootWorkspaceCount > workspa
   throw new Error("Need at least one workspace; root workspaces must be between one and the workspace total");
 }
 if (readerEntryCount < rootReaderCount) {
-  throw new Error("Root reader count cannot exceed the company-wide reader total");
+  throw new Error("Root reader count cannot exceed the space-wide reader total");
 }
 
 const configuredService = option("--service", "");
@@ -93,9 +93,9 @@ fs.realpath = (async (...args: Parameters<typeof fs.realpath>) => {
 
 const { executionWorkspaceRepositoryService } = await import(serviceUrl.href);
 
-const temp = await startEmbeddedPostgresTestDatabase("paperclip-workspace-admission-bench-");
+const temp = await startEmbeddedPostgresTestDatabase("outpost-workspace-admission-bench-");
 const db = createDb(temp.connectionString);
-const scratchRoot = await fs.realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-workspace-admission-")));
+const scratchRoot = await fs.realpath(await mkdtemp(path.join(os.tmpdir(), "outpost-workspace-admission-")));
 const repoRoot = path.join(scratchRoot, "shared-repository");
 const unrelatedRoot = path.join(scratchRoot, "unrelated-workspaces");
 
@@ -104,7 +104,7 @@ try {
   await mkdir(unrelatedRoot, { recursive: true });
   await execFile("git", ["init", "--quiet", "--initial-branch=main", repoRoot]);
 
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
   const issueId = randomUUID();
   const workspaceIds = Array.from({ length: workspaceCount }, () => randomUUID());
@@ -120,8 +120,8 @@ try {
   const rootKey = createHash("sha256").update(repoRoot).digest("hex");
   const unrelatedKey = createHash("sha256").update(unrelatedRoot).digest("hex");
 
-  await db.insert(companies).values({ id: companyId, name: "Synthetic workspace-admission benchmark", issuePrefix: "WAB" });
-  await createAgentLifecycle(db).requestHire(companyId, {
+  await db.insert(spaces).values({ id: spaceId, name: "Synthetic workspace-admission benchmark", issuePrefix: "WAB" });
+  await createAgentLifecycle(db).requestHire(spaceId, {
     id: agentId,
     name: "Synthetic Codie",
     role: "engineer",
@@ -134,7 +134,7 @@ try {
 
   await insertBatches((rows) => db.insert(executionWorkspaces).values(rows as never), workspaceIds.map((id, index) => ({
     id,
-    companyId,
+    spaceId,
     name: `Synthetic workspace ${index}`,
     mode: "shared_workspace",
     strategyType: "project_primary",
@@ -145,29 +145,29 @@ try {
 
   await db.insert(issues).values({
     id: issueId,
-    companyId,
+    spaceId,
     title: "Synthetic assigned task",
     status: "in_progress",
     assigneeAgentId: agentId,
     executionWorkspaceId: workspaceIds[0],
-    responsibleUserId: "local-board",
+    responsibleUserId: "local-operator",
   });
   for (let offset = 0; offset < rootWorkspaceCount; offset += 500) {
     await db.update(executionWorkspaces).set({ sourceIssueId: issueId })
-      .where(and(eq(executionWorkspaces.companyId, companyId), inArray(executionWorkspaces.id, workspaceIds.slice(offset, offset + 500))));
+      .where(and(eq(executionWorkspaces.spaceId, spaceId), inArray(executionWorkspaces.id, workspaceIds.slice(offset, offset + 500))));
   }
 
   if (runIds.length) {
     await db.insert(heartbeatRuns).values(runIds.map((id) => ({
       id,
-      companyId,
+      spaceId,
       agentId,
       scopeKind: "issue" as const,
       issueId,
       nativeIssueId: issueId,
       invocationSource: "on_demand",
       status: "completed",
-      responsibleUserId: "local-board",
+      responsibleUserId: "local-operator",
       runtimeMode: "legacy",
       contextSnapshot: { issueId },
       startedAt: now,
@@ -179,7 +179,7 @@ try {
   for (let index = 0; index < sourceEntryCount; index++) {
     const isRootSource = index < rootWorkspaceCount;
     accessRows.push({
-      companyId,
+      spaceId,
       rootKey: isRootSource ? rootKey : unrelatedKey,
       canonicalCwd: isRootSource ? repoRoot : unrelatedRoot,
       kind: "source",
@@ -187,23 +187,23 @@ try {
     });
   }
   for (let index = 0; index < isolatedSourceEntryCount; index++) {
-    accessRows.push({ companyId, rootKey: unrelatedKey, canonicalCwd: unrelatedRoot, kind: "isolated_source", scopeId: randomUUID() });
+    accessRows.push({ spaceId, rootKey: unrelatedKey, canonicalCwd: unrelatedRoot, kind: "isolated_source", scopeId: randomUUID() });
   }
   for (let index = 0; index < readerEntryCount; index++) {
     const rootReader = index < rootReaderCount;
     accessRows.push({
-      companyId,
+      spaceId,
       rootKey: rootReader ? rootKey : unrelatedKey,
       canonicalCwd: rootReader ? repoRoot : unrelatedRoot,
       kind: "reader",
       scopeId: rootReader ? runIds[index] : randomUUID(),
       issueId: rootReader ? issueId : randomUUID(),
       agentId: rootReader ? agentId : randomUUID(),
-      responsibleUserId: "local-board",
+      responsibleUserId: "local-operator",
     });
   }
   for (let index = 0; index < otherAccessEntryCount; index++) {
-    accessRows.push({ companyId, rootKey: unrelatedKey, canonicalCwd: unrelatedRoot, kind: "repository", scopeId: randomUUID() });
+    accessRows.push({ spaceId, rootKey: unrelatedKey, canonicalCwd: unrelatedRoot, kind: "repository", scopeId: randomUUID() });
   }
   await insertBatches((rows) => db.insert(executionWorkspaceRepositoryAccess).values(rows as never), accessRows);
 
@@ -224,7 +224,7 @@ try {
   measuring = true;
   const startedAt = performance.now();
   await service.prepareConfiguredRepositorySource({
-    companyId,
+    spaceId,
     issueId,
     workspaceId: workspaceIds[0],
     cwd: repoRoot,
@@ -237,14 +237,14 @@ try {
   process.stderr.write(`Admission service call completed in ${elapsedMs} ms.\n`);
 
   const retained = await db.select({ kind: executionWorkspaceRepositoryAccess.kind, scopeId: executionWorkspaceRepositoryAccess.scopeId })
-    .from(executionWorkspaceRepositoryAccess).where(and(eq(executionWorkspaceRepositoryAccess.companyId, companyId),
+    .from(executionWorkspaceRepositoryAccess).where(and(eq(executionWorkspaceRepositoryAccess.spaceId, spaceId),
       eq(executionWorkspaceRepositoryAccess.rootKey, rootKey), eq(executionWorkspaceRepositoryAccess.kind, "isolated_source")));
   const retainedIds = new Set(retained.map(row => row.scopeId));
   assert.equal(retainedIds.size, rootWorkspaceCount, "Every source must retain isolated-copy provenance");
   assert.ok(workspaceIds.slice(0, rootWorkspaceCount).every(id => retainedIds.has(id)), "Source provenance identities must match");
   const metadataRoot = await fs.realpath(path.join(repoRoot, ".git"));
   const metadataOwners = await db.select({ scopeId: executionWorkspaceRepositoryAccess.scopeId })
-    .from(executionWorkspaceRepositoryAccess).where(and(eq(executionWorkspaceRepositoryAccess.companyId, companyId),
+    .from(executionWorkspaceRepositoryAccess).where(and(eq(executionWorkspaceRepositoryAccess.spaceId, spaceId),
       eq(executionWorkspaceRepositoryAccess.rootKey, createHash("sha256").update(metadataRoot).digest("hex")),
       eq(executionWorkspaceRepositoryAccess.kind, "source")));
   const metadataOwnerIds = new Set(metadataOwners.map(row => row.scopeId));
@@ -267,7 +267,7 @@ try {
       sourceRows: sourceEntryCount,
       isolatedSourceRows: isolatedSourceEntryCount,
       retainedReaders: rootReaderCount,
-      allCompanyReaders: readerEntryCount,
+      allSpaceReaders: readerEntryCount,
       otherAccessRows: otherAccessEntryCount,
     },
     service: serviceUrl.pathname,

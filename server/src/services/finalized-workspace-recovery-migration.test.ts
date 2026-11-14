@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, closeRegisteredClients, companies, completionContracts, createDb, environmentLeases, environments,
+import { agents, closeRegisteredClients, spaces, completionContracts, createDb, environmentLeases, environments,
   executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, workspaceOperations } from "@outpost/db";
 import { readRemoteWorkspaceAuthority } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
@@ -33,27 +33,27 @@ describe.skipIf(!support.supported)("finalized workspace recovery preservation",
     await database?.cleanup(); if (root) await fs.rm(root, { recursive: true, force: true }); vi.unstubAllEnvs();
   });
   async function fixture(files = false) {
-    const companyId = randomUUID(), workspaceId = randomUUID(), runId = randomUUID(), cwd = path.join(root, workspaceId);
+    const spaceId = randomUUID(), workspaceId = randomUUID(), runId = randomUUID(), cwd = path.join(root, workspaceId);
     await fs.mkdir(cwd); await fs.writeFile(path.join(cwd, "saved.txt"), "original held files\n");
-    await db.insert(companies).values({ id: companyId, name: "Finalized recovery", issuePrefix: `F${companyId.slice(0, 6)}` });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Historical worker", adapterType: "outpost_runner" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Held task", status: "blocked" }).returning();
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issue.id,
+    await db.insert(spaces).values({ id: spaceId, name: "Finalized recovery", issuePrefix: `F${spaceId.slice(0, 6)}` });
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Historical worker", adapterType: "outpost_runner" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Held task", status: "blocked" }).returning();
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issue.id,
       mode: "isolated_workspace", strategyType: "project_primary", providerType: "local_fs", cwd, name: "Held files" });
     await db.update(issues).set({ executionWorkspaceId: workspaceId }).where(eq(issues.id, issue.id));
     const reference = { schema: "outpost.native-workspace-sync/v3" as const, state: "finalized" as const, workspaceId,
       leaseId: randomUUID(), providerLeaseId: randomUUID(), remoteCwd: "/workspaces/task", descriptorSha256: "12".repeat(32),
       baselineSha256: "34".repeat(32), finalHostSha256: "56".repeat(32), resourceDisposition: "destroy" as const };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId: agent.id, nativeIssueId: issue.id,
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId: agent.id, nativeIssueId: issue.id,
       status: "failed", runtimeMode: "native", runnerProfileJson: { nativeWorkspaceSync: reference }, resultJson: { retained: "result" } });
-    await db.insert(nativeRunFinalizations).values({ companyId, issueId: issue.id, runId, phase: "terminal_failure" });
+    await db.insert(nativeRunFinalizations).values({ spaceId, issueId: issue.id, runId, phase: "terminal_failure" });
     if (files) {
       const [environment] = await db.insert(environments).values({ name: `Historical environment ${workspaceId}`, driver: "daytona" }).returning();
-      await db.insert(environmentLeases).values({ id: reference.leaseId, companyId, environmentId: environment.id,
+      await db.insert(environmentLeases).values({ id: reference.leaseId, spaceId, environmentId: environment.id,
         issueId: issue.id, heartbeatRunId: runId, executionWorkspaceId: workspaceId, provider: "daytona",
         providerLeaseId: reference.providerLeaseId, leasePolicy: "ephemeral", status: "expired", metadata: { remoteCwd: reference.remoteCwd } });
     }
-    const [action] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issue.id,
+    const [action] = await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issue.id,
       kind: "active_run_watchdog", cause: "native_continuation_requires_reconciliation", fingerprint: randomUUID(),
       nextAction: "Preserve task hold", evidence: { runId, nativeFailureBlock: { retained: "hold" }, ...(files ? {
         systemRecovery: { ...createSystemRecovery(runId), state: "exhausted" },
@@ -61,7 +61,7 @@ describe.skipIf(!support.supported)("finalized workspace recovery preservation",
         historicalWorkspaceSource: { schema: "outpost.historical-workspace-source.v1", runId, leaseIds: [reference.leaseId] },
       } : {}) } }).returning();
     const storage = createStorageService(createLocalDiskStorageProvider(path.join(root, `${workspaceId}-objects`)));
-    return { companyId, workspaceId, runId, issueId: issue.id, cwd, reference, action, storage };
+    return { spaceId, workspaceId, runId, issueId: issue.id, cwd, reference, action, storage };
   }
   async function preserved(f: Awaited<ReturnType<typeof fixture>>) {
     const [issue] = await db.select().from(issues).where(eq(issues.id, f.issueId));
@@ -94,14 +94,14 @@ describe.skipIf(!support.supported)("finalized workspace recovery preservation",
   });
   it.each([true, false])("requires a successful receipt for accepted-result retries (receipt: %s)", async saved => {
     const f = await fixture(), contractId = randomUUID(), resultId = randomUUID(), operationId = randomUUID();
-    await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId, revision: 1,
+    await db.insert(completionContracts).values({ id: contractId, spaceId: f.spaceId, issueId: f.issueId, revision: 1,
       schemaVersion: "v1", policyVersion: "v1", risk: "low", completionAuthority: "agent", incompleteCriteriaPolicy: "block",
       contractJson: {}, canonicalSha256: "12".repeat(32), createdByActorType: "system", createdByActorId: "test" });
     await db.update(heartbeatRuns).set({ status: "succeeded", completionContractId: contractId }).where(eq(heartbeatRuns.id, f.runId));
-    await db.insert(nativeRunResults).values({ id: resultId, companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
       completionContractId: contractId, serverFingerprint: "saved-result", schemaStatus: "accepted", resultJson: { saved: true }, canonicalSha256: "34".repeat(32) });
     await db.update(nativeRunFinalizations).set({ phase: "retryable_failure", resultId }).where(eq(nativeRunFinalizations.runId, f.runId));
-    if (saved) await db.insert(workspaceOperations).values({ id: operationId, companyId: f.companyId, executionWorkspaceId: null,
+    if (saved) await db.insert(workspaceOperations).values({ id: operationId, spaceId: f.spaceId, executionWorkspaceId: null,
       issueId: f.issueId, heartbeatRunId: f.runId, phase: "workspace_finalize", status: "succeeded" });
     const before = await preserved(f);
     if (!saved) {
@@ -142,7 +142,7 @@ describe.skipIf(!support.supported)("finalized workspace recovery preservation",
   it("keeps a historical folder separate from its real recovery source", async () => {
     const f = await fixture(true), workspaceId = randomUUID(), cwd = path.join(root, workspaceId); await fs.mkdir(cwd);
     await fs.writeFile(path.join(cwd, "history.txt"), "historical files\n");
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId: f.companyId, sourceIssueId: f.issueId,
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId: f.spaceId, sourceIssueId: f.issueId,
       mode: "isolated_workspace", strategyType: "project_primary", providerType: "local_fs", cwd, name: "Other historical folder" });
     await migrateRemoteWorkspace({ db, ...f, workspaceId, apply: true, writersStopped: true });
     const [historical] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, workspaceId));
@@ -153,7 +153,7 @@ describe.skipIf(!support.supported)("finalized workspace recovery preservation",
   });
   it("discovers a finalized child task's held source when importing its ancestor workspace", async () => {
     const f = await fixture(true);
-    const [parent] = await db.insert(issues).values({ companyId: f.companyId, title: "Workspace owner" }).returning();
+    const [parent] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Workspace owner" }).returning();
     await db.update(issues).set({ parentId: parent.id }).where(eq(issues.id, f.issueId));
     await db.update(executionWorkspaces).set({ sourceIssueId: parent.id }).where(eq(executionWorkspaces.id, f.workspaceId));
     const before = await preserved(f);
@@ -170,9 +170,9 @@ describe.skipIf(!support.supported)("finalized workspace recovery preservation",
       systemRecovery: { ...createSystemRecovery(f.runId), state: "complete" },
       workspaceRecovery: { ...(f.action.evidence.workspaceRecovery as object), status: "recovered" },
     } }).where(eq(issueRecoveryActions.id, f.action.id));
-    const file = (suffix: string) => ({ objectKey: `${f.companyId}/workspace-recovery/${f.runId}/${f.reference.leaseId}/${"78".repeat(32)}.${suffix}`,
+    const file = (suffix: string) => ({ objectKey: `${f.spaceId}/workspace-recovery/${f.runId}/${f.reference.leaseId}/${"78".repeat(32)}.${suffix}`,
       sha256: "78".repeat(32), byteSize: 1 });
-    await db.insert(workspaceOperations).values({ id: operationId, companyId: f.companyId, issueId: f.issueId,
+    await db.insert(workspaceOperations).values({ id: operationId, spaceId: f.spaceId, issueId: f.issueId,
       heartbeatRunId: f.runId, phase: mode === "old-copyback" ? "workspace_recovery" : "workspace_recovery_snapshot", status: "succeeded",
       metadata: { schema: "outpost.workspace-recovery-snapshot.v1", recoveryActionId: f.action.id,
         leaseId: f.reference.leaseId, providerLeaseId: f.reference.providerLeaseId,
@@ -180,7 +180,7 @@ describe.skipIf(!support.supported)("finalized workspace recovery preservation",
         archive: file("tar"), manifest: file("jsonl") } });
     await migrateRemoteWorkspace({ db, ...f, apply: true, writersStopped: true });
     expect(await verifiedWorkspaceRepairReceipt(db, (await preserved(f)).run)).toBe(operationId);
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toMatchObject({
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toMatchObject({
       recoveryActionId: f.action.id, workspaceRepairRequired: false,
     });
   });
@@ -194,15 +194,15 @@ describe.skipIf(!support.supported)("finalized workspace recovery preservation",
       historicalWorkspaceSource: { schema: "outpost.historical-workspace-source.v1", runId: f.runId,
         leaseIds: [f.reference.leaseId, otherLeaseId] },
     } }).where(eq(issueRecoveryActions.id, f.action.id));
-    await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId,
+    await db.insert(workspaceOperations).values({ spaceId: f.spaceId, issueId: f.issueId,
       heartbeatRunId: f.runId, phase: "workspace_recovery", status: "succeeded", metadata: {
         recoveryActionId: f.action.id, leaseId: f.reference.leaseId, providerLeaseId: f.reference.providerLeaseId,
         descriptorSha256: f.reference.descriptorSha256, finalHostSha256: f.reference.finalHostSha256 } });
     await migrateRemoteWorkspace({ db, ...f, apply: true, writersStopped: true });
     expect(await verifiedWorkspaceRepairReceipt(db, (await preserved(f)).run)).toBeNull();
-    const file = (suffix: string) => ({ objectKey: `${f.companyId}/workspace-recovery/${f.runId}/${otherLeaseId}/${"78".repeat(32)}.${suffix}`,
+    const file = (suffix: string) => ({ objectKey: `${f.spaceId}/workspace-recovery/${f.runId}/${otherLeaseId}/${"78".repeat(32)}.${suffix}`,
       sha256: "78".repeat(32), byteSize: 1 });
-    await db.insert(workspaceOperations).values({ companyId: f.companyId, issueId: f.issueId,
+    await db.insert(workspaceOperations).values({ spaceId: f.spaceId, issueId: f.issueId,
       heartbeatRunId: f.runId, phase: "workspace_recovery_snapshot", status: "succeeded", metadata: {
         schema: "outpost.workspace-recovery-snapshot.v1", recoveryActionId: f.action.id,
         leaseId: otherLeaseId, providerLeaseId: otherProviderLeaseId,

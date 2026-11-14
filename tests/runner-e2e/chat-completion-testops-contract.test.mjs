@@ -58,7 +58,7 @@ for (const kind of ['foreign-workflow', 'candidate-ref', 'replay', 'unlisted-tri
     if (kind === 'candidate-ref') f.env.GITHUB_REF = 'refs/heads/codex/candidate';
     if (kind === 'replay') f.env.GITHUB_RUN_ATTEMPT = '2';
     if (kind === 'unlisted-trigger') trigger = 99;
-    if (kind === 'foreign-repo') f.event.repository.full_name = 'foreign/paperclip';
+    if (kind === 'foreign-repo') f.event.repository.full_name = 'foreign/outpost';
     if (kind === 'extra-source-input') f.event.inputs.targetSha = 'b'.repeat(40);
     if (kind === 'missing-jobrun') delete f.event.inputs.ALLURE_JOB_RUN_ID;
     assert.throws(() => admitDispatch(f.env, f.event, trigger));

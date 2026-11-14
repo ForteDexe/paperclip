@@ -4,9 +4,9 @@ import { definition, externalObservation, observeExternal, root, checks } from "
 import { pollUntil } from "../api.js";
 
 export function addressedNotionRequest(card: ConnectionIntentInteraction, target: {
-  companyId: string; issueId: string; agentId: string; personId: string;
+  spaceId: string; issueId: string; agentId: string; personId: string;
 }) {
-  return card.kind === "connection_intent" && card.companyId === target.companyId
+  return card.kind === "connection_intent" && card.spaceId === target.spaceId
     && card.issueId === target.issueId && card.payload.serviceSlug === "notion"
     && card.payload.serviceName === "Notion" && card.payload.requestingAgentId === target.agentId
     && card.createdByAgentId === target.agentId && card.addresseeUserId === target.personId
@@ -21,7 +21,7 @@ export function gradeConnectionDecline(value: unknown) {
   c.add("single-addressed-human-decline", cards.length === 1 && !!card && card.id === o.state.intentId && card.status !== "pending"
     && card.result?.outcome === "declined" && !!card.resolvedByUserId && card.resolvedByUserId === card.addresseeUserId && !card.resolvedByAgentId
     && o.state.cardVisibleBeforeDecline === true && o.state.declineRequestMatched === true
-    && addressedNotionRequest(card, { companyId: o.companyId, issueId: String(o.state.sourceIssueId), agentId: o.leadId, personId: String(o.state.personId) }), "The intended person visibly declines one Notion request; no replacement request is created.");
+    && addressedNotionRequest(card, { spaceId: o.spaceId, issueId: String(o.state.sourceIssueId), agentId: o.leadId, personId: String(o.state.personId) }), "The intended person visibly declines one Notion request; no replacement request is created.");
   c.add("no-connected-account-or-provider-read", o.connections.length === 0 && o.state.connectedBeforeDecline === 0
     && o.state.providerInvocations === 0, "There is no credential-bearing connection and no provider invocation after a decline.");
   c.add("post-decline-response-bound", typeof o.state.initialRunId === "string" && o.phaseReplies.some(row => row.runId !== o.state.initialRunId && o.runs.some(run => run.id === row.runId && run.status === "succeeded")), "The incomplete research explanation belongs to the actual decline continuation run.");
@@ -33,7 +33,7 @@ export function gradeConnectionDecline(value: unknown) {
 }
 export const connectionSetupExternalCases = [definition("connection-setup.notion-declined", async ctx => {
   const current = await ctx.input.api.get<{ connections: unknown[] }>(`${root(ctx)}/tools/connections`);
-  if (current.connections.length) throw new Error("No-connection prerequisite violated in disposable company");
+  if (current.connections.length) throw new Error("No-connection prerequisite violated in disposable space");
   const session = await ctx.input.api.get<{ user: { id: string } }>("/api/auth/get-session");
   if (!session.user?.id) throw new Error("Notion decline requires the actual signed-in person");
   return { connectedBeforeDecline: current.connections.length, personId: session.user.id };
@@ -47,7 +47,7 @@ export const connectionSetupExternalCases = [definition("connection-setup.notion
     const pending = cards.filter(row => row.kind === "connection_intent" && row.payload.serviceSlug === "notion" && row.status === "pending");
     if (pending.length !== 1) throw new Error("Expected exactly one Notion connection request");
     const card = pending[0]!;
-    if (!ctx.issue() || !addressedNotionRequest(card, { companyId: ctx.input.fixtures.company.id, issueId: ctx.issue()!.id, agentId: ctx.input.fixtures.agent.id, personId: String(state.personId) })
+    if (!ctx.issue() || !addressedNotionRequest(card, { spaceId: ctx.input.fixtures.space.id, issueId: ctx.issue()!.id, agentId: ctx.input.fixtures.agent.id, personId: String(state.personId) })
       || !(await ctx.allRuns()).some(run => run.id === card.sourceRunId)) throw new Error("Notion card does not belong to this person's actual canonical run");
     state.intentId = card.id; state.initialRunId = card.sourceRunId; state.sourceIssueId = card.issueId;
     const view = ctx.input.page.locator(`[id=${JSON.stringify(`connection-intent-focus-target-${card.id}`)}]`);

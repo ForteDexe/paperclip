@@ -28,7 +28,7 @@ import { ReconnectCard } from "@/pages/apps/app-detail/AdvancedPanel";
  * No real sign-in, no real token, no provider call. Every value here is fake.
  */
 
-const COMPANY_ID = "company-storybook";
+const SPACE_ID = "space-storybook";
 const retryOAuth = fn();
 
 const ENTERPRET = CONNECTABLE_APP_DEFINITIONS.find(
@@ -55,11 +55,11 @@ function seededClient(entry: AppDefinition) {
       },
     },
   });
-  client.setQueryData(queryKeys.apps.gallery(COMPANY_ID), { apps: [entry] });
-  client.setQueryData(queryKeys.tools.applications(COMPANY_ID), {
+  client.setQueryData(queryKeys.apps.gallery(SPACE_ID), { apps: [entry] });
+  client.setQueryData(queryKeys.tools.applications(SPACE_ID), {
     applications: [],
   });
-  client.setQueryData(queryKeys.tools.connections(COMPANY_ID), {
+  client.setQueryData(queryKeys.tools.connections(SPACE_ID), {
     connections: [],
   });
   return client;
@@ -103,7 +103,7 @@ function enterpretConnection(
 ): ToolConnection {
   return {
     id: "connection-enterpret",
-    companyId: COMPANY_ID,
+    spaceId: SPACE_ID,
     applicationId: "application-enterpret",
     name: "Enterpret",
     uid: "enterpret-storybook",
@@ -112,7 +112,7 @@ function enterpretConnection(
     ownership: "dcr",
     transport: "mcp_remote",
     authKind: "oauth",
-    credentialSource: "paperclip_vault",
+    credentialSource: "outpost_vault",
     credentialPolicy: "per_user",
     status: "active",
     transportConfig: { url: "https://wisdom-api.enterpret.com/server/mcp" },
@@ -235,7 +235,7 @@ const meta: Meta = {
           "Design review for the Enterpret catalog connector using production components and the real generated definition. Organization auth token is primary; its account-bound QA is required before release. Browser OAuth targets the same official read-only MCP; fresh live OAuth validation remains required. No real sign-in, token, or provider call.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "connection-setup/credentials",
         "connection-setup/failure"
@@ -279,7 +279,7 @@ export const OAuthError: Story = {
   render: () => (
     <OAuthStateHost
       phase="error"
-      error="Paperclip could not reach Enterpret's authorization service. Check the connection and try again."
+      error="Outpost could not reach Enterpret's authorization service. Check the connection and try again."
     />
   ),
   play: async ({ canvasElement }) => {

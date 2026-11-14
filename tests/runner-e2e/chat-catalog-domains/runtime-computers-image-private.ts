@@ -9,7 +9,7 @@ export const websiteImageTools = ["node", "npm", "git"] as const;
 export function validWebsiteToolsManifest(raw: string) {
   try { const v = JSON.parse(raw); return Array.isArray(v) && v.length === websiteImageTools.length && websiteImageTools.every(x => v.includes(x)) && new Set(v).size === v.length; } catch { return false; }
 }
-export interface ImagePreparationRequest { baseURL: string; companyId: string; environmentId: string; cookies: Cookie[] }
+export interface ImagePreparationRequest { baseURL: string; spaceId: string; environmentId: string; cookies: Cookie[] }
 export interface ImagePreparationReceipt { processIsolation: true; testRunnerAttached: false; sessionId: string; templateId: string; templateRefSha256: string; actualToolsVerified: true; promoted: true; sourceEnvironmentId: string }
 export function validateImagePreparationReceipt(value: unknown, environmentId: string): ImagePreparationReceipt {
   const r = value as ImagePreparationReceipt;
@@ -19,7 +19,7 @@ export function validateImagePreparationReceipt(value: unknown, environmentId: s
   return r;
 }
 export async function privateImagePreparation(request: ImagePreparationRequest) {
-  const dir = await mkdtemp(path.join(tmpdir(), "paperclip-image-private-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "outpost-image-private-"));
   try {
     const filename = path.join(dir, "request.json"); await writeFile(filename, JSON.stringify({ ...request, executablePath: process.env.OUTPOST_RUNNER_E2E_CHROMIUM_EXECUTABLE ?? chromium.executablePath() }), { mode: 0o600 });
     let output: string; try { output = (await promisify(execFile)(process.execPath, ["--import", fileURLToPath(new URL("../../../server/node_modules/tsx/dist/loader.mjs", import.meta.url)), fileURLToPath(new URL("./runtime-computers-image-worker.ts", import.meta.url)), filename], { timeout: 540000, maxBuffer: 16384, env: { PATH: process.env.PATH ?? "", HOME: dir, TMPDIR: dir, NODE_ENV: "test", DO_NOT_TRACK: "1" } })).stdout; }

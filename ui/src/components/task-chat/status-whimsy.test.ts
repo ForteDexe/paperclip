@@ -20,7 +20,7 @@ describe("whimsy word pools", () => {
     expect(ANALOG_OFFICE_WORDS.length).toBeGreaterThan(CLAUDE_CODE_WORDS.length);
   });
 
-  it("holds only the four board-kept Claude-Code words", () => {
+  it("holds only the four operator-kept Claude-Code words", () => {
     expect([...CLAUDE_CODE_WORDS]).toEqual(["Brewing", "Tinkering", "Distilling", "Deliberating"]);
   });
 

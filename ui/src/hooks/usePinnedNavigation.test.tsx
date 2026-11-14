@@ -4,10 +4,10 @@ import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import { usePinnedNavigation } from "./usePinnedNavigation";
 
-it("reorders hundreds of pins without nested scans and preserves hidden-company slots", async () => {
+it("reorders hundreds of pins without nested scans and preserves hidden-space slots", async () => {
   const key = "outpost.coordinator.pinned-nav.v1:pin-review";
-  const visible = Array.from({ length: 500 }, (_, index) => `agent-chat:company:agent-${index}`);
-  const hidden = "agent-chat:other-company:hidden";
+  const visible = Array.from({ length: 500 }, (_, index) => `agent-chat:space:agent-${index}`);
+  const hidden = "agent-chat:other-space:hidden";
   localStorage.setItem(key, JSON.stringify([...visible.slice(0, 250), hidden, ...visible.slice(250)]));
   const host = document.createElement("div"); document.body.append(host);
   const root = createRoot(host);

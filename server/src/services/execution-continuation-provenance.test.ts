@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, createDb, heartbeatRuns, issueComments, issueThreadInteractions, issues } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, issueComments, issueThreadInteractions, issues } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { buildExecutionContinuation, currentContinuationOrigins } from "./execution-continuation.js";
 
@@ -10,53 +10,53 @@ const support = await getEmbeddedPostgresTestSupport();
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-continuation-provenance-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-continuation-provenance-");
     db = createDb(database.connectionString);
   }, 30_000);
   afterAll(async () => { await database?.cleanup(); });
 
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), producerIssueId = randomUUID();
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), producerIssueId = randomUUID();
     const producerRunId = randomUUID(), interactionId = randomUUID(), targetCommentId = randomUUID(), producerCommentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Provenance fixture", issuePrefix: `PRV${companyId.slice(0, 8)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Executor", role: "engineer", adapterType: "outpost_runner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Provenance fixture", issuePrefix: `PRV${spaceId.slice(0, 8)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Executor", role: "engineer", adapterType: "outpost_runner" });
     await db.insert(issues).values([
-      { id: issueId, companyId, title: "Target task", status: "in_progress", assigneeAgentId: agentId },
-      { id: producerIssueId, companyId, title: "Producer task", status: "in_progress", assigneeAgentId: agentId },
+      { id: issueId, spaceId, title: "Target task", status: "in_progress", assigneeAgentId: agentId },
+      { id: producerIssueId, spaceId, title: "Producer task", status: "in_progress", assigneeAgentId: agentId },
     ]);
     await db.insert(issueComments).values([
-      { id: targetCommentId, companyId, issueId, authorType: "user", authorUserId: "local-board", body: "Keep the target direction." },
-      { id: producerCommentId, companyId, issueId: producerIssueId, authorType: "user", authorUserId: "local-board", body: "Unrelated producer direction." },
+      { id: targetCommentId, spaceId, issueId, authorType: "user", authorUserId: "local-operator", body: "Keep the target direction." },
+      { id: producerCommentId, spaceId, issueId: producerIssueId, authorType: "user", authorUserId: "local-operator", body: "Unrelated producer direction." },
     ]);
     const producerContext = { issueId: producerIssueId, commentId: producerCommentId };
-    await db.insert(heartbeatRuns).values({ id: producerRunId, companyId, agentId, status: "succeeded",
+    await db.insert(heartbeatRuns).values({ id: producerRunId, spaceId, agentId, status: "succeeded",
       contextSnapshot: producerContext,
       resultJson: { summary: "Unrelated producer work.", apiToolReceipts: { saved: { state: "completed", operationId: "producer_operation", result: "Unrelated result." } } },
     });
-    await db.insert(issueThreadInteractions).values({ id: interactionId, companyId, issueId,
+    await db.insert(issueThreadInteractions).values({ id: interactionId, spaceId, issueId,
       kind: "ask_user_questions", status: "answered", sourceRunId: producerRunId,
       originCommentIds: [producerCommentId, targetCommentId],
-      resolvedByUserId: "local-board", resolvedAt: new Date(),
+      resolvedByUserId: "local-operator", resolvedAt: new Date(),
       payload: { version: 1, questions: [{ id: "scope", prompt: "Which scope?", selectionMode: "single", options: [{ id: "target", label: "Target" }] }] },
       result: { version: 1, answers: [{ questionId: "scope", optionIds: ["target"] }] },
     });
     const build = (context: Record<string, unknown> = {}) => buildExecutionContinuation({
-      db, companyId, issueId, agentId, context: { interactionId, wakeReason: "ask_user_questions.answered", ...context },
+      db, spaceId, issueId, agentId, context: { interactionId, wakeReason: "ask_user_questions.answered", ...context },
       summary: null, exposeLowTrustRaw: false,
     });
-    return { companyId, agentId, issueId, producerIssueId, producerRunId, interactionId, targetCommentId, producerCommentId, producerContext, build };
+    return { spaceId, agentId, issueId, producerIssueId, producerRunId, interactionId, targetCommentId, producerCommentId, producerContext, build };
   }
 
   it("does not copy another task's comments into newly captured interaction origins", async () => {
     const f = await fixture();
-    expect(await currentContinuationOrigins(db, f.companyId, f.issueId, f.producerContext)).toEqual([f.targetCommentId]);
-    expect(await currentContinuationOrigins(db, f.companyId, f.issueId, { commentId: f.targetCommentId })).toEqual([f.targetCommentId]);
+    expect(await currentContinuationOrigins(db, f.spaceId, f.issueId, f.producerContext)).toEqual([f.targetCommentId]);
+    expect(await currentContinuationOrigins(db, f.spaceId, f.issueId, { commentId: f.targetCommentId })).toEqual([f.targetCommentId]);
   });
 
-  it("retains unknown and cross-company origins so dispatch can reject them", async () => {
+  it("retains unknown and cross-space origins so dispatch can reject them", async () => {
     const f = await fixture(), other = await fixture(), missing = randomUUID();
     const ids = [missing, "not-a-uuid", other.targetCommentId, f.producerCommentId];
-    expect(await currentContinuationOrigins(db, f.companyId, f.issueId, { commentIds: ids }))
+    expect(await currentContinuationOrigins(db, f.spaceId, f.issueId, { commentIds: ids }))
       .toEqual([missing, "not-a-uuid", other.targetCommentId, f.targetCommentId]);
   });
 
@@ -86,7 +86,7 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it.each(["retryOfRunId", "previousRunId", "interruptedRunId"])("prefers explicit %s history to the producer", async (key) => {
     const f = await fixture(), resumeRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: resumeRunId, companyId: f.companyId, agentId: f.agentId,
+    await db.insert(heartbeatRuns).values({ id: resumeRunId, spaceId: f.spaceId, agentId: f.agentId,
       status: "interrupted", contextSnapshot: { issueId: f.issueId, commentId: f.targetCommentId },
       resultJson: { summary: "Target work.", apiToolReceipts: { saved: { state: "completed", operationId: "target_operation", result: "Target result." } } },
     });
@@ -128,18 +128,18 @@ const support = await getEmbeddedPostgresTestSupport();
       .rejects.toThrow("continuation_source_context_missing");
   });
 
-  it.each(["missing", "cross-company", "unrecorded", "other-task"])("rejects %s origins instead of silently discarding them", async (kind) => {
+  it.each(["missing", "cross-space", "unrecorded", "other-task"])("rejects %s origins instead of silently discarding them", async (kind) => {
     const f = await fixture();
     let invalidId = randomUUID();
-    if (kind === "cross-company") invalidId = (await fixture()).targetCommentId;
+    if (kind === "cross-space") invalidId = (await fixture()).targetCommentId;
     if (kind === "unrecorded") {
       invalidId = f.producerCommentId;
       await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: f.producerIssueId } }).where(eq(heartbeatRuns.id, f.producerRunId));
     } else {
       if (kind === "other-task") {
         const thirdIssueId = randomUUID();
-        await db.insert(issues).values({ id: thirdIssueId, companyId: f.companyId, title: "Unrelated third task" });
-        await db.insert(issueComments).values({ id: invalidId, companyId: f.companyId, issueId: thirdIssueId, body: "Third task." });
+        await db.insert(issues).values({ id: thirdIssueId, spaceId: f.spaceId, title: "Unrelated third task" });
+        await db.insert(issueComments).values({ id: invalidId, spaceId: f.spaceId, issueId: thirdIssueId, body: "Third task." });
       }
       await db.update(heartbeatRuns).set({ contextSnapshot: { ...f.producerContext, commentIds: [invalidId] } }).where(eq(heartbeatRuns.id, f.producerRunId));
     }
@@ -147,7 +147,7 @@ const support = await getEmbeddedPostgresTestSupport();
     await expect(f.build()).rejects.toThrow("continuation_source_context_missing");
   });
 
-  it("rejects a producer outside the company", async () => {
+  it("rejects a producer outside the space", async () => {
     const f = await fixture(), other = await fixture();
     await db.update(issueThreadInteractions).set({ sourceRunId: other.producerRunId }).where(eq(issueThreadInteractions.id, f.interactionId));
     await expect(f.build()).rejects.toThrow("continuation_source_context_missing");

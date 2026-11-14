@@ -17,7 +17,7 @@
     {
       "scenarioId": "agents.hire-needs-approval",
       "readinessClass": "implemented",
-      "needs": "Actual company approval policy; real pending Morgan proposal rejected by human; explicit changed Jules request accepted against same proposed identity; counted exact decision notifications and no premature worker runs."
+      "needs": "Actual space approval policy; real pending Morgan proposal rejected by human; explicit changed Jules request accepted against same proposed identity; counted exact decision notifications and no premature worker runs."
     },
     {
       "scenarioId": "agents.hire-denied",
@@ -42,12 +42,12 @@
     {
       "scenarioId": "agents.change-manager",
       "readinessClass": "implemented",
-      "needs": "Real same-company Morgan/Riley; tree validity, unchanged account/config/task ownership; saved attribution and profile reload."
+      "needs": "Real same-space Morgan/Riley; tree validity, unchanged account/config/task ownership; saved attribution and profile reload."
     },
     {
       "scenarioId": "agents.choose-primary",
       "readinessClass": "implemented",
-      "needs": "Real authenticated primary replacement, visible confirmation, independently unchanged secondary person/company and recent-chat precedence without new runs."
+      "needs": "Real authenticated primary replacement, visible confirmation, independently unchanged secondary person/space and recent-chat precedence without new runs."
     },
     {
       "scenarioId": "agents.pause-agent",
@@ -107,7 +107,7 @@
     {
       "scenarioId": "agent-chat.conference-room",
       "readinessClass": "implemented",
-      "needs": "Enable supported local-trusted board surface; exact company route/browser scope and differing protocol honestly described."
+      "needs": "Enable supported local-trusted board surface; exact space route/browser scope and differing protocol honestly described."
     },
     {
       "scenarioId": "agent-chat.chat-disabled",
@@ -157,7 +157,7 @@
     {
       "scenarioId": "execution-environments.assign-computer",
       "readinessClass": "provider",
-      "needs": "Same-company qualified cloud target; public saved agent binding and protected/unsupported branch."
+      "needs": "Same-space qualified cloud target; public saved agent binding and protected/unsupported branch."
     },
     {
       "scenarioId": "execution-environments.prepare-image",
@@ -167,7 +167,7 @@
     {
       "scenarioId": "recovery.explain-stall",
       "readinessClass": "implemented",
-      "needs": "Actual local native process-fault fixture verifies public PID/company/task/actor, OS UID/group/start/executable and attempt-owned realpath runtime root twice before signalling only the exact owned Runner PID. Requires three distinct actual coordinator process attempts on the same heartbeat and genuine terminal native_session_retry_exhausted source-scoped board recovery action with retained run/cause/maxAttempts/nextAction. Unexpected quarantine, permanent/model failure or replacement heartbeat blocks setup concretely, never relabelled. Canonical reply must preserve original task/action/owner and failure, no duplicate repair; diagnosis additionally binds actual three-attempt infrastructure facts. All paths authored; no process signals or live qualification performed."
+      "needs": "Actual local native process-fault fixture verifies public PID/space/task/actor, OS UID/group/start/executable and attempt-owned realpath runtime root twice before signalling only the exact owned Runner PID. Requires three distinct actual coordinator process attempts on the same heartbeat and genuine terminal native_session_retry_exhausted source-scoped board recovery action with retained run/cause/maxAttempts/nextAction. Unexpected quarantine, permanent/model failure or replacement heartbeat blocks setup concretely, never relabelled. Canonical reply must preserve original task/action/owner and failure, no duplicate repair; diagnosis additionally binds actual three-attempt infrastructure facts. All paths authored; no process signals or live qualification performed."
     },
     {
       "scenarioId": "recovery.controller-restart",
@@ -177,7 +177,7 @@
     {
       "scenarioId": "recovery.source-action",
       "readinessClass": "implemented",
-      "needs": "Actual local native process-fault fixture verifies public PID/company/task/actor, OS UID/group/start/executable and attempt-owned realpath runtime root twice before signalling only the exact owned Runner PID. Requires three distinct actual coordinator process attempts on the same heartbeat and genuine terminal native_session_retry_exhausted source-scoped board recovery action with retained run/cause/maxAttempts/nextAction. Unexpected quarantine, permanent/model failure or replacement heartbeat blocks setup concretely, never relabelled. Canonical reply must preserve original task/action/owner and failure, no duplicate repair; diagnosis additionally binds actual three-attempt infrastructure facts. All paths authored; no process signals or live qualification performed."
+      "needs": "Actual local native process-fault fixture verifies public PID/space/task/actor, OS UID/group/start/executable and attempt-owned realpath runtime root twice before signalling only the exact owned Runner PID. Requires three distinct actual coordinator process attempts on the same heartbeat and genuine terminal native_session_retry_exhausted source-scoped board recovery action with retained run/cause/maxAttempts/nextAction. Unexpected quarantine, permanent/model failure or replacement heartbeat blocks setup concretely, never relabelled. Canonical reply must preserve original task/action/owner and failure, no duplicate repair; diagnosis additionally binds actual three-attempt infrastructure facts. All paths authored; no process signals or live qualification performed."
     },
     {
       "scenarioId": "recovery.retry-exhausted",

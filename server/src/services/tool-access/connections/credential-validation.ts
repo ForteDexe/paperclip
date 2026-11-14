@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import type { Db } from "@outpost/db";
-import { companySecrets } from "@outpost/db";
+import { spaceSecrets } from "@outpost/db";
 import { CLASS3_STATIC_LEASE_ALLOWLIST } from "@outpost/shared";
 import { unprocessable } from "../../../errors.js";
 
@@ -42,7 +42,7 @@ function assertClass3ToolCredentialRefAllowed(ref: {
 
 export function createConnectionCredentialValidation(db: Db) {
   async function assertSecretRefs(
-    companyId: string,
+    spaceId: string,
     refs: Array<{
       secretId: string;
       configPath?: string | null;
@@ -57,17 +57,17 @@ export function createConnectionCredentialValidation(db: Db) {
     const secretIds = [...new Set(refs.map((ref) => ref.secretId))];
     for (const secretId of secretIds) {
       const [secret] = await db
-        .select({ id: companySecrets.id })
-        .from(companySecrets)
+        .select({ id: spaceSecrets.id })
+        .from(spaceSecrets)
         .where(
           and(
-            eq(companySecrets.id, secretId),
-            eq(companySecrets.companyId, companyId),
+            eq(spaceSecrets.id, secretId),
+            eq(spaceSecrets.spaceId, spaceId),
           ),
         );
       if (!secret)
         throw unprocessable(
-          "Tool connection credential secrets must belong to the same company",
+          "Tool connection credential secrets must belong to the same space",
         );
     }
   }

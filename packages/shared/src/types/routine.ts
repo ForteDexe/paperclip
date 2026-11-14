@@ -15,7 +15,7 @@ import type { ExecutionWorkspaceMode, IssueExecutionWorkspaceSettings } from "./
 
 export interface RoutineDescriptionDocument {
   id: string;
-  companyId: string;
+  spaceId: string;
   routineId: string;
   key: "description";
   title: string | null;
@@ -71,7 +71,7 @@ export type RoutineEnvConfig = Record<string, EnvBinding>;
 
 export interface Routine {
   id: string;
-  companyId: string;
+  spaceId: string;
   projectId: string | null;
   folderId?: string | null;
   goalId: string | null;
@@ -117,7 +117,7 @@ export interface RoutineManagedByPlugin {
 
 export interface RoutineRevisionSnapshotRoutineV1 {
   id: string;
-  companyId: string;
+  spaceId: string;
   projectId: string | null;
   goalId: string | null;
   parentIssueId: string | null;
@@ -160,7 +160,7 @@ export type RoutineRevisionSnapshot = RoutineRevisionSnapshotV1;
 
 export interface RoutineRevision {
   id: string;
-  companyId: string;
+  spaceId: string;
   routineId: string;
   revisionNumber: number;
   title: string;
@@ -182,7 +182,7 @@ export interface RoutineWebhookDelivery {
 
 export interface RoutineTrigger {
   id: string;
-  companyId: string;
+  spaceId: string;
   routineId: string;
   kind: string;
   label: string | null;
@@ -211,7 +211,7 @@ export interface RoutineTrigger {
 
 export interface RoutineRun {
   id: string;
-  companyId: string;
+  spaceId: string;
   routineId: string;
   triggerId: string | null;
   source: string;

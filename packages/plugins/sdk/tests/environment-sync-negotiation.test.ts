@@ -23,7 +23,7 @@ const MANIFEST = {
   version: "1.0.0",
   displayName: "Sync Negotiation Test",
   description: "Test plugin",
-  author: "Paperclip",
+  author: "Outpost",
   categories: ["automation"],
   capabilities: [],
   entrypoints: {},
@@ -141,7 +141,7 @@ describe("environment sync verb negotiation", () => {
       await worker.callWorker("initialize", { manifest: MANIFEST, config: {}, databaseNamespace: null });
       const baseParams = {
         driverKey: "sandbox",
-        companyId: "company",
+        spaceId: "space",
         environmentId: "env",
         config: {},
         minimumTimeoutMs: 900_000,
@@ -196,7 +196,7 @@ describe("environment sync verb negotiation", () => {
       await worker.callWorker("initialize", { manifest: MANIFEST, config: {}, databaseNamespace: null });
       const inParams: PluginEnvironmentSyncInParams = {
         driverKey: "sandbox",
-        companyId: "company",
+        spaceId: "space",
         environmentId: "env",
         config: {},
         lease: { providerLeaseId: "lease-1" },
@@ -237,7 +237,7 @@ describe("environment sync verb negotiation", () => {
       await worker.callWorker("initialize", { manifest: MANIFEST, config: {}, databaseNamespace: null });
       const params = {
         driverKey: "sandbox",
-        companyId: "company",
+        spaceId: "space",
         environmentId: "env",
         config: {},
         lease: { providerLeaseId: "lease-1" },
@@ -272,7 +272,7 @@ describe("environment stop-and-retain negotiation", () => {
       });
       expect(result.supportedMethods.includes("environmentStopLease")).toBe(supported);
       const call = worker.callWorker("environmentStopLease", {
-        driverKey: "daytona", companyId: "company", environmentId: "env", config: {}, providerLeaseId: "lease-1",
+        driverKey: "daytona", spaceId: "space", environmentId: "env", config: {}, providerLeaseId: "lease-1",
       });
       if (supported) await expect(call).resolves.toEqual({ providerLeaseId: "lease-1", state: "stopped" });
       else await expect(call).rejects.toMatchObject({ code: PLUGIN_RPC_ERROR_CODES.METHOD_NOT_IMPLEMENTED });

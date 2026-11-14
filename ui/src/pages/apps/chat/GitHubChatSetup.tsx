@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useNavigate, useSearchParams, Link } from "@/lib/router";
 import { buildPermissionsForTrustPreset } from "@/lib/trust-policy-ui";
@@ -78,7 +78,7 @@ function GitHubAppManifestForm({
 export function GitHubChatSetup() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
   const resume = params.get("resume");
@@ -106,9 +106,9 @@ export function GitHubChatSetup() {
     ReturnType<typeof githubChatApi.identity>
   > | null>(null);
   const agents = useQuery({
-    queryKey: ["github-setup-agents", selectedCompanyId],
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId && !identityOnly,
+    queryKey: ["github-setup-agents", selectedSpaceId],
+    queryFn: () => agentsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId && !identityOnly,
   });
   const current = useQuery({
     queryKey: ["github-setup", resume],
@@ -142,16 +142,16 @@ export function GitHubChatSetup() {
   const state = identityOnly ? undefined : progress.data;
   const choosingAccount = !!bot && !identityOnly && !existing && state?.state === "create";
   const repositories = useQuery({
-    queryKey: ["project-repositories", selectedCompanyId],
-    queryFn: () => projectsApi.repositoryOptions(selectedCompanyId!),
-    enabled: !!selectedCompanyId && choosingAccount,
+    queryKey: ["project-repositories", selectedSpaceId],
+    queryFn: () => projectsApi.repositoryOptions(selectedSpaceId!),
+    enabled: !!selectedSpaceId && choosingAccount,
     staleTime: 30_000,
   });
   const repositoriesView = useQueryView(repositories);
   const connectedBots = useQuery({
-    queryKey: queryKeys.chatEndpoints.list(selectedCompanyId!),
-    queryFn: () => chatEndpointsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId && choosingAccount,
+    queryKey: queryKeys.chatEndpoints.list(selectedSpaceId!),
+    queryFn: () => chatEndpointsApi.list(selectedSpaceId!),
+    enabled: !!selectedSpaceId && choosingAccount,
     staleTime: 30_000,
   });
   const connectedBotsView = useQueryView(connectedBots);
@@ -357,10 +357,10 @@ export function GitHubChatSetup() {
                           ? selectedAgent.permissions.canAssignTasks
                           : true,
                     },
-                    selectedCompanyId!,
+                    selectedSpaceId!,
                   );
                   await queryClient.invalidateQueries({
-                    queryKey: ["github-setup-agents", selectedCompanyId],
+                    queryKey: ["github-setup-agents", selectedSpaceId],
                   });
                 })
               }
@@ -370,7 +370,7 @@ export function GitHubChatSetup() {
             "Continue",
             async () => {
               const created = await chatEndpointsApi.create(
-                selectedCompanyId!,
+                selectedSpaceId!,
                 { provider: "github", assignedAgentId: agentId },
               );
               setName((selectedAgent?.name ?? "GitHub Reviewer").slice(0, 34));
@@ -379,7 +379,7 @@ export function GitHubChatSetup() {
               setParams(next, { replace: true });
               queryClient.setQueryData(["github-setup", created.id], created);
             },
-            !agentId || !selectedCompanyId,
+            !agentId || !selectedSpaceId,
           )}
         </>
       ) : !identityOnly && !existing && (progress.isPending || progressView.kind === "reconnecting") ? (
@@ -412,7 +412,7 @@ export function GitHubChatSetup() {
             }
             queryClient.removeQueries({ queryKey: ["github-wizard", bot.id] });
             await queryClient.invalidateQueries({ queryKey: queryKeys.chatEndpoints.detail(bot.id) });
-            await queryClient.invalidateQueries({ queryKey: queryKeys.chatEndpoints.list(bot.companyId) });
+            await queryClient.invalidateQueries({ queryKey: queryKeys.chatEndpoints.list(bot.spaceId) });
             await refresh();
             setExisting(false);
           }}
@@ -546,7 +546,7 @@ export function GitHubChatSetup() {
           {footer("Connect Outpost Cloud", async () => {
             authorization.reserve();
             const result = await toolsApi.startCloudConnectorEnrollment(
-              selectedCompanyId!,
+              selectedSpaceId!,
               undefined,
               `/apps/chat/connect${window.location.search}`,
             );

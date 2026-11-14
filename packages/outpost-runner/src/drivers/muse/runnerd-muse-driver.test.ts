@@ -17,9 +17,9 @@ import { executeNativeSession } from "../../native-session-runtime.js";
 import type { NativeSession } from "../../contracts/native-session-backend.js";
 import type { ControlPlanePort } from "../../contracts/control-plane-port.js";
 import type { PrpEvent } from "../../protocol/replay-contract.js";
-import { digestPaperclipSemanticContent } from "../../semantic-tools/receipts.js";
+import { digestOutpostSemanticContent } from "../../semantic-tools/receipts.js";
 function execution(root: string): NativeExecutionInputV8 {
-  const companyId = randomUUID(), agentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID();
   const digest = "0".repeat(64);
   const context = {
     prompt: { revision: OUTPOST_EXECUTION_PROMPT_REVISION, text: OUTPOST_EXECUTION_PROMPT, digest: nativeRuntimePromptDigest() },
@@ -28,9 +28,9 @@ function execution(root: string): NativeExecutionInputV8 {
   };
   return parseNativeExecutionInput({
     schema: "outpost.native-execution-input.v8",
-    binding: { companyId, agentId, runId: randomUUID(), issueId: randomUUID(), executionWorkspaceId: randomUUID() },
+    binding: { spaceId, agentId, runId: randomUUID(), issueId: randomUUID(), executionWorkspaceId: randomUUID() },
     task: { identifier: "DOT-1", title: "Synthetic bridge recovery", description: null, prompt: "Read the synthetic counter.", workMode: "standard" },
-    provider: { kind: "muse", model: null, bridgeRevision: "muse-v1", binding: { companyId, agentId, bindingId: randomUUID(), bindingGeneration: 1,
+    provider: { kind: "muse", model: null, bridgeRevision: "muse-v1", binding: { spaceId, agentId, bindingId: randomUUID(), bindingGeneration: 1,
       acceptByUnixMs: Date.now() + 600_000, expiresAtUnixMs: Date.now() + 7_200_000 } },
     workspace: { access: "none", cwd: null, repoUrl: null, repoRef: null, branchName: null },
     session: { normalizedSessionId: randomUUID(), driverKind: "muse_external", protocolVersion: 1, lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null } },
@@ -127,7 +127,7 @@ it("uses the native request, exact question command ID and durable answer receip
     await session.resolveRuntimeRequest!({ commandId, requestId, turnId: options.identity.turnId, resolution: { action: "submit", response } });
     expect(commandSpy).toHaveBeenCalledWith("request.resolve", { requestId, response }, commandId, true);
     await vi.waitFor(() => expect(deliveries).toHaveLength(1), { timeout: 10000 });
-    const inputDigest = digestPaperclipSemanticContent({ requestId, turnId: options.identity.turnId, response });
+    const inputDigest = digestOutpostSemanticContent({ requestId, turnId: options.identity.turnId, response });
     expect(deliveries[0]!.payload).toMatchObject({ requestId, turnId: options.identity.turnId, response, inputDigest });
     expect(session.pendingRuntimeRequests!()).toEqual([]);
     expect(session.handoffRuntimeRequest!(handoff).result).toBe("already_settled");
@@ -212,7 +212,7 @@ it("bounds default Muse question answer command IDs at the native queue boundary
       else { expect(commandId).toMatch(/^muse_resolve_\.[a-f0-9]{64}$/); expect(commandId).toHaveLength(78); }
       commandIds.push(commandId);
       await vi.waitFor(() => expect(deliveries).toHaveLength(index + 1), { timeout: 10000 });
-      const inputDigest = digestPaperclipSemanticContent({ requestId, turnId: options.identity.turnId, response });
+      const inputDigest = digestOutpostSemanticContent({ requestId, turnId: options.identity.turnId, response });
       expect(deliveries[index]!.payload).toMatchObject({ requestId, turnId: options.identity.turnId, response, inputDigest });
       expect(session.pendingRuntimeRequests!()).toEqual([]);
       const snapshot = await session.snapshot();
@@ -381,7 +381,7 @@ it("keeps the exact Muse question and assignment alive past the native live wind
     const resolved = events.find(event => event.eventType === "runtime_request.resolved")!;
     expect(resolved.payload).toMatchObject({ requestId, turnId: identity.turnId, action: "submit", response });
     await vi.waitFor(() => expect(deliveries).toHaveLength(1), { timeout: 10000 });
-    const inputDigest = digestPaperclipSemanticContent({ requestId, turnId: identity.turnId, response });
+    const inputDigest = digestOutpostSemanticContent({ requestId, turnId: identity.turnId, response });
     const consume = operation("consume_input", { requestId, inputDigest });
     stage = "answer-ingestion";
     await send!(consume);
@@ -390,7 +390,7 @@ it("keeps the exact Muse question and assignment alive past the native live wind
       completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: [] }], remainingWork: [] },
       evidence: [], verification: [], attentionRequests: [], artifacts: [] };
     stage = "canonical-completion";
-    const completion = operation("tool", { name: "paperclip_finish", arguments: result });
+    const completion = operation("tool", { name: "outpost_finish", arguments: result });
     await send!(completion);
     await vi.waitFor(() => expect(settlements.get(completion.requestId)).toMatchObject({ status: "completed", isError: false }), { timeout: 10000 });
     await send!(operation("finish", { result }));

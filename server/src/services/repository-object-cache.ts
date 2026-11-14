@@ -11,8 +11,8 @@ import { recordRepositoryObjectCacheDetail, type RepositoryObjectCacheOutcome } 
 
 const execFile = promisify(execute);
 const REPOSITORY_BYTES = 2 * 1024 ** 3;
-const COMPANY_BYTES = 4 * 1024 ** 3;
-const COMPANY_REPOSITORIES = 64;
+const SPACE_BYTES = 4 * 1024 ** 3;
+const SPACE_REPOSITORIES = 64;
 const CACHE_VERSION = 2;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -23,43 +23,43 @@ class RepositoryObjectCacheSkip extends Error {
 }
 
 export interface RepositoryObjectCache {
-  companyDirectory: string;
+  spaceDirectory: string;
   directory: string;
   key: string;
   repoUrl: string;
 }
 
-export async function resolveRepositoryObjectCache(companyDirectory: string, repoUrl: string, auth: GitAuthInvocation | null): Promise<RepositoryObjectCache | null> {
+export async function resolveRepositoryObjectCache(spaceDirectory: string, repoUrl: string, auth: GitAuthInvocation | null): Promise<RepositoryObjectCache | null> {
   try {
     const remote = new URL(repoUrl);
     if (remote.username || remote.password || remote.search || remote.hash) return null;
-    const parent = path.dirname(companyDirectory);
+    const parent = path.dirname(spaceDirectory);
     await fs.mkdir(parent, { recursive: true, mode: 0o700 });
-    for (const directory of [parent, companyDirectory]) {
-      if (directory === companyDirectory) await fs.mkdir(directory, { mode: 0o700 }).catch((error: NodeJS.ErrnoException) => {
+    for (const directory of [parent, spaceDirectory]) {
+      if (directory === spaceDirectory) await fs.mkdir(directory, { mode: 0o700 }).catch((error: NodeJS.ErrnoException) => {
         if (error.code !== "EEXIST") throw error;
       });
       const stat = await fs.lstat(directory);
       if (!stat.isDirectory() || stat.isSymbolicLink()) return null;
     }
-    companyDirectory = await fs.realpath(companyDirectory);
+    spaceDirectory = await fs.realpath(spaceDirectory);
     const scope = auth ? [auth.source, auth.secretName, auth.configArgs, Object.entries(auth.env).sort(([a], [b]) => a.localeCompare(b))] : null;
     const key = hash(JSON.stringify([CACHE_VERSION, repoUrl, scope]));
-    return { companyDirectory, directory: path.join(companyDirectory, key), key, repoUrl };
+    return { spaceDirectory, directory: path.join(spaceDirectory, key), key, repoUrl };
   } catch { return null; }
 }
 
 export async function readRepositoryObjectCache(cache: RepositoryObjectCache): Promise<string | null> {
   try {
-    for (const directory of [cache.companyDirectory, cache.directory]) {
+    for (const directory of [cache.spaceDirectory, cache.directory]) {
       const stat = await fs.lstat(directory);
       if (!stat.isDirectory() || stat.isSymbolicLink()) return null;
     }
-    if (await fs.realpath(cache.companyDirectory) !== cache.companyDirectory) return null;
+    if (await fs.realpath(cache.spaceDirectory) !== cache.spaceDirectory) return null;
     const objects = await fs.lstat(path.join(cache.directory, "objects"));
     if (!objects.isDirectory() || objects.isSymbolicLink()) return null;
     if (await fs.lstat(path.join(cache.directory, "objects/info/alternates")).then(() => true, () => false)) return null;
-    const receiptPath = path.join(cache.directory, "paperclip-object-cache.json");
+    const receiptPath = path.join(cache.directory, "outpost-object-cache.json");
     const stat = await fs.lstat(receiptPath);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) return null;
     const receipt = JSON.parse(await fs.readFile(receiptPath, "utf8"));
@@ -91,30 +91,30 @@ export async function publishRepositoryObjectCache(cache: RepositoryObjectCache,
       recordRepositoryObjectCacheDetail({ outcome: "already_present" });
       return;
     }
-    const outcome = await tryWithDirectoryMergeLock(cache.companyDirectory, async (): Promise<RepositoryObjectCacheOutcome> => {
-      const company = await fs.lstat(cache.companyDirectory);
-      if (!company.isDirectory() || company.isSymbolicLink() || await fs.realpath(cache.companyDirectory) !== cache.companyDirectory) return "invalid";
+    const outcome = await tryWithDirectoryMergeLock(cache.spaceDirectory, async (): Promise<RepositoryObjectCacheOutcome> => {
+      const space = await fs.lstat(cache.spaceDirectory);
+      if (!space.isDirectory() || space.isSymbolicLink() || await fs.realpath(cache.spaceDirectory) !== cache.spaceDirectory) return "invalid";
       const budget = { entries: 4096, deadline: performance.now() + 5000 };
       let repositories = 0, bytes = 0;
-      for await (const entry of await fs.opendir(cache.companyDirectory)) {
-        if (++repositories >= COMPANY_REPOSITORIES) return "capacity";
-        const directory = path.join(cache.companyDirectory, entry.name);
+      for await (const entry of await fs.opendir(cache.spaceDirectory)) {
+        if (++repositories >= SPACE_REPOSITORIES) return "capacity";
+        const directory = path.join(cache.spaceDirectory, entry.name);
         const stat = await fs.lstat(directory);
         if (!stat.isDirectory() || stat.isSymbolicLink()) return "invalid";
-        bytes += await storageBytes(directory, COMPANY_BYTES - bytes, budget);
+        bytes += await storageBytes(directory, SPACE_BYTES - bytes, budget);
       }
       if (await fs.lstat(cache.directory).then(() => true, () => false)) return "invalid";
       const incoming = await storageBytes(path.join(checkout, ".git"), REPOSITORY_BYTES, budget) + 65536;
-      if (bytes + incoming > COMPANY_BYTES) return "capacity";
-      assertWorkspaceManifestDiskSpace(cache.companyDirectory, incoming);
-      const temporary = path.join(cache.companyDirectory, `.pending-${randomUUID()}`);
+      if (bytes + incoming > SPACE_BYTES) return "capacity";
+      assertWorkspaceManifestDiskSpace(cache.spaceDirectory, incoming);
+      const temporary = path.join(cache.spaceDirectory, `.pending-${randomUUID()}`);
       try {
         const options = () => ({ timeout: Math.max(1, Math.ceil(budget.deadline - performance.now())), maxBuffer: 16384, env: sanitizeRuntimeServiceBaseEnv(process.env) });
         await execFile("git", ["clone", "--mirror", "--no-hardlinks", "--", checkout, temporary], options());
         await execFile("git", ["-C", temporary, "remote", "set-url", "origin", cache.repoUrl], options());
-        await fs.writeFile(path.join(temporary, "paperclip-object-cache.json"), JSON.stringify({ version: CACHE_VERSION, key: cache.key }));
+        await fs.writeFile(path.join(temporary, "outpost-object-cache.json"), JSON.stringify({ version: CACHE_VERSION, key: cache.key }));
         const actual = await storageBytes(temporary, REPOSITORY_BYTES, budget);
-        if (bytes + actual > COMPANY_BYTES) return "capacity";
+        if (bytes + actual > SPACE_BYTES) return "capacity";
         await fs.rename(temporary, cache.directory);
         return "published";
       } finally { await fs.rm(temporary, { recursive: true, force: true }); }

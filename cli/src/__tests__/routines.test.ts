@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   projects,
   routines,
@@ -67,7 +67,7 @@ function writeTestConfig(configPath: string, tempRoot: string, connectionString:
         baseDir: path.join(tempRoot, "storage"),
       },
       s3: {
-        bucket: "paperclip",
+        bucket: "outpost",
         region: "us-east-1",
         prefix: "",
         forcePathStyle: false,
@@ -93,9 +93,9 @@ describeEmbeddedPostgres("disableAllRoutinesInConfig", () => {
   let configPath = "";
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-routines-cli-db-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-routines-cli-db-");
     db = createDb(tempDb.connectionString);
-    tempRoot = mkdtempSync(path.join(os.tmpdir(), "paperclip-routines-cli-config-"));
+    tempRoot = mkdtempSync(path.join(os.tmpdir(), "outpost-routines-cli-config-"));
     configPath = path.join(tempRoot, "config.json");
     writeTestConfig(configPath, tempRoot, tempDb.connectionString);
   }, 20_000);
@@ -104,7 +104,7 @@ describeEmbeddedPostgres("disableAllRoutinesInConfig", () => {
     await db.delete(routines);
     await db.delete(projects);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -114,9 +114,9 @@ describeEmbeddedPostgres("disableAllRoutinesInConfig", () => {
     }
   });
 
-  it("pauses only non-archived routines for the selected company", async () => {
-    const companyId = randomUUID();
-    const otherCompanyId = randomUUID();
+  it("pauses only non-archived routines for the selected space", async () => {
+    const spaceId = randomUUID();
+    const otherSpaceId = randomUUID();
     const projectId = randomUUID();
     const otherProjectId = randomUUID();
     const agentId = randomUUID();
@@ -124,27 +124,27 @@ describeEmbeddedPostgres("disableAllRoutinesInConfig", () => {
     const activeRoutineId = randomUUID();
     const pausedRoutineId = randomUUID();
     const archivedRoutineId = randomUUID();
-    const otherCompanyRoutineId = randomUUID();
+    const otherSpaceRoutineId = randomUUID();
 
-    await db.insert(companies).values([
+    await db.insert(spaces).values([
       {
-        id: companyId,
-        name: "Paperclip",
-        issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-        requireBoardApprovalForNewAgents: false,
+        id: spaceId,
+        name: "Outpost",
+        issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+        requireOperatorApprovalForNewAgents: false,
       },
       {
-        id: otherCompanyId,
-        name: "Other company",
-        issuePrefix: `T${otherCompanyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-        requireBoardApprovalForNewAgents: false,
+        id: otherSpaceId,
+        name: "Other space",
+        issuePrefix: `T${otherSpaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+        requireOperatorApprovalForNewAgents: false,
       },
     ]);
 
     await db.insert(agents).values([
       {
         id: agentId,
-        companyId,
+        spaceId,
         name: "Coder",
         adapterType: "process",
         adapterConfig: {},
@@ -153,7 +153,7 @@ describeEmbeddedPostgres("disableAllRoutinesInConfig", () => {
       },
       {
         id: otherAgentId,
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         name: "Other coder",
         adapterType: "process",
         adapterConfig: {},
@@ -165,13 +165,13 @@ describeEmbeddedPostgres("disableAllRoutinesInConfig", () => {
     await db.insert(projects).values([
       {
         id: projectId,
-        companyId,
+        spaceId,
         name: "Project",
         status: "in_progress",
       },
       {
         id: otherProjectId,
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         name: "Other project",
         status: "in_progress",
       },
@@ -180,7 +180,7 @@ describeEmbeddedPostgres("disableAllRoutinesInConfig", () => {
     await db.insert(routines).values([
       {
         id: activeRoutineId,
-        companyId,
+        spaceId,
         projectId,
         assigneeAgentId: agentId,
         title: "Active routine",
@@ -188,7 +188,7 @@ describeEmbeddedPostgres("disableAllRoutinesInConfig", () => {
       },
       {
         id: pausedRoutineId,
-        companyId,
+        spaceId,
         projectId,
         assigneeAgentId: agentId,
         title: "Paused routine",
@@ -196,54 +196,54 @@ describeEmbeddedPostgres("disableAllRoutinesInConfig", () => {
       },
       {
         id: archivedRoutineId,
-        companyId,
+        spaceId,
         projectId,
         assigneeAgentId: agentId,
         title: "Archived routine",
         status: "archived",
       },
       {
-        id: otherCompanyRoutineId,
-        companyId: otherCompanyId,
+        id: otherSpaceRoutineId,
+        spaceId: otherSpaceId,
         projectId: otherProjectId,
         assigneeAgentId: otherAgentId,
-        title: "Other company routine",
+        title: "Other space routine",
         status: "active",
       },
     ]);
 
     const result = await disableAllRoutinesInConfig({
       config: configPath,
-      companyId,
+      spaceId,
     });
 
     expect(result).toMatchObject({
-      companyId,
+      spaceId,
       totalRoutines: 3,
       pausedCount: 1,
       alreadyPausedCount: 1,
       archivedCount: 1,
     });
 
-    const companyRoutines = await db
+    const spaceRoutines = await db
       .select({
         id: routines.id,
         status: routines.status,
       })
       .from(routines)
-      .where(eq(routines.companyId, companyId));
-    const statusById = new Map(companyRoutines.map((routine) => [routine.id, routine.status]));
+      .where(eq(routines.spaceId, spaceId));
+    const statusById = new Map(spaceRoutines.map((routine) => [routine.id, routine.status]));
 
     expect(statusById.get(activeRoutineId)).toBe("paused");
     expect(statusById.get(pausedRoutineId)).toBe("paused");
     expect(statusById.get(archivedRoutineId)).toBe("archived");
 
-    const otherCompanyRoutine = await db
+    const otherSpaceRoutine = await db
       .select({
         status: routines.status,
       })
       .from(routines)
-      .where(eq(routines.id, otherCompanyRoutineId));
-    expect(otherCompanyRoutine[0]?.status).toBe("active");
+      .where(eq(routines.id, otherSpaceRoutineId));
+    expect(otherSpaceRoutine[0]?.status).toBe("active");
   });
 });

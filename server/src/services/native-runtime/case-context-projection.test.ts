@@ -5,7 +5,7 @@ import { buildNativeExecutionInput, type BuildNativeExecutionInput } from "./nat
 import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
 
 const task = { id: "task", identifier: "CASE-1", title: "Correct a receipt", description: "Produce the receipt.", workMode: "standard" };
-const message = { id: "comment", body: "Please continue.", authorType: "user", authorId: "board", sourceTrust: "user", createdByRunId: null };
+const message = { id: "comment", body: "Please continue.", authorType: "user", authorId: "operator", sourceTrust: "user", createdByRunId: null };
 
 function context(options: { total?: number; revision?: string; phase?: string; incomingId?: string; instructions?: string; id?: string } = {}): CaseExecutionContext {
   const facts = {
@@ -25,7 +25,7 @@ function context(options: { total?: number; revision?: string; phase?: string; i
 
 function args(caseContext = context()): BuildNativeExecutionInput {
   return {
-    companyId: "company", runId: "first", agentId: "agent", issue: task,
+    spaceId: "space", runId: "first", agentId: "agent", issue: task,
     taskPrompt: caseExecutionMarkdown(caseContext) + "TASK_BOOTSTRAP", caseContext,
     workspace: { id: "workspace", cwd: "/workspace", repoUrl: null, repoRef: null, branchName: null },
     normalizedSessionId: "session", provider: "codex", runtimeContext: nativeRuntimeContextFixture(),
@@ -94,13 +94,13 @@ describe("native workflow case projection", () => {
     const incoming = { ...message, id: current.incomingHandoff!.commentId, body: current.incomingHandoff!.instructions };
     const input = buildNativeExecutionInput({ ...args(current), wakePayload: {
       reason: "case_handoff", issue: task, comments: [incoming], commentIds: [incoming.id], latestCommentId: incoming.id,
-      executionContinuation: { version: 1, companyId: "company", issueId: task.id,
+      executionContinuation: { version: 1, spaceId: "space", issueId: task.id,
         objective: incoming.body, objectiveSource: { kind: "comment", id: incoming.id, revision: "now" },
         messages: [incoming], originCommentIds: [incoming.id] },
     } });
     expect(input.task.prompt.split(incoming.body)).toHaveLength(2);
     expect(input.task.prompt).toContain("/api/issues/task/comments");
-    expect(input.task.prompt).toContain("board");
+    expect(input.task.prompt).toContain("operator");
   });
 
   it.each([

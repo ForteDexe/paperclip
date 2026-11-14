@@ -2,7 +2,7 @@ import type { ReleaseRecoveryBlockedNoticeKind } from "../domain/policy.js";
 
 export type RunSummary = {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   invocationSource: string;
   triggerDetail: string | null;
@@ -11,7 +11,7 @@ export type RunSummary = {
 
 export type RunSnapshot = {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   status: string;
   runtimeMode: string | null;
@@ -24,8 +24,8 @@ export type RunSnapshot = {
   /** The host schedules failed conversation turns with its durable retry budget. */
   conversationContinuation?: boolean;
   /**
-   * True when a person deliberately stopped this run: the board cancel route
-   * (`resultJson.cancelledByActorType` of `user`/`board`), an operator interrupt,
+   * True when a person deliberately stopped this run: the operator cancel route
+   * (`resultJson.cancelledByActorType` of `user`/`operator`), an operator interrupt,
    * or an agent pause. Release must not immediately re-queue such a run.
    */
   operatorStopped?: boolean;
@@ -38,7 +38,7 @@ export type IssueSnapshot = {
   conversationUserId?: string | null;
   conversationState?: string | null;
   id: string;
-  companyId: string;
+  spaceId: string;
   identifier: string;
   status: string;
   assigneeAgentId: string | null;
@@ -57,7 +57,7 @@ export type IssueSnapshot = {
 
 export type InvokableAgentSnapshot = {
   id: string;
-  companyId: string;
+  spaceId: string;
   name: string | null;
   invokable: boolean;
   paused?: boolean;
@@ -72,7 +72,7 @@ export type RunQueuedEffect = {
 /** An issue reopened from done/cancelled because a live deferred comment wake promoted on it. */
 export type IssueReopenedEffect = {
   kind: "issue_reopened";
-  companyId: string;
+  spaceId: string;
   agentId: string;
   runId: string;
   issueId: string;
@@ -83,7 +83,7 @@ export type IssueReopenedEffect = {
 /** Explicit post-commit work a caller applies only after the release transaction commits. */
 export type PostCommitEffect = RunQueuedEffect | IssueReopenedEffect | {
   kind: "conversation_retry_requested";
-  companyId: string;
+  spaceId: string;
   runId: string;
   reviewParticipant: boolean;
 };

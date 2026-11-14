@@ -51,7 +51,7 @@ const inputSchema = { type: "object", oneOf: [agentInputSchema, doneInputSchema]
 export const handoffCaseAction = {
   id: "handoff_case",
   canonical: { operationId: "handoff_case", surfaces: ["live"], placement: "optional_agent_tool", optionalGroup: "cases",
-    requiredClaims: [], taskModes: ["standard"], sideEffectClass: "company_write", idempotency: "required", disabledByDefault: false,
+    requiredClaims: [], taskModes: ["standard"], sideEffectClass: "space_write", idempotency: "required", disabledByDefault: false,
     realBindingStatus: "live_codex", realServiceBinding: "caseHandoffService.handoff", orpEvidence: "Durable case handoff, same-task assignment, wake receipt, and completion intent",
     orpBindingStatus: "bound", legacyAliases: [] },
   documentation: { title: "Handoff case", description, note: null },

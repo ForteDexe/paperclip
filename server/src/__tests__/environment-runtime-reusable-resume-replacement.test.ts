@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { eq } from "drizzle-orm";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   environmentLeases,
   environments,
@@ -60,7 +60,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
     await db.delete(executionWorkspaces);
     await db.delete(plugins);
     await db.delete(projects);
-    await db.delete(companies);
+    await db.delete(spaces);
     await db.$client.end({ timeout: 1 });
   });
   afterAll(async () => { await stopDb?.(); });
@@ -74,7 +74,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
   };
 
   async function seed(shape: Shape = {}) {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const environmentId = randomUUID();
     const pluginId = randomUUID();
@@ -85,32 +85,32 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
     const providerLeaseId = "0f6c1e52-3d1a-4b7e-9c2a-5e8f7a1b2c3d";
     // The staging environment's provider settings, including its 300s start deadline.
     const providerConfig = { provider: "fake-plugin", image: "fake:test", timeoutMs: 300_000, reuseLease: true };
-    await db.insert(companies).values({ id: companyId, name: "Acme", status: "active" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Coder", role: "engineer", status: "active",
+    await db.insert(spaces).values({ id: spaceId, name: "Acme", status: "active" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Coder", role: "engineer", status: "active",
       adapterType: "outpost_runner", adapterConfig: {}, runtimeConfig: {}, permissions: {} });
-    await db.insert(environments).values({ id: environmentId, name: "Paperclip Sandbox", driver: "sandbox", status: "active",
+    await db.insert(environments).values({ id: environmentId, name: "Outpost Sandbox", driver: "sandbox", status: "active",
       config: providerConfig });
     await db.insert(plugins).values({
       id: pluginId, pluginKey: "acme.reusable-sandbox-provider", packageName: "@acme/reusable-sandbox-provider",
       version: "1.0.0", apiVersion: 1, categories: ["automation"], status: "ready", installOrder: 1, updatedAt: new Date(),
       manifestJson: {
         id: "acme.reusable-sandbox-provider", apiVersion: 1, version: "1.0.0", displayName: "Reusable Sandbox Provider",
-        description: "Test provider", author: "Paperclip", categories: ["automation"],
+        description: "Test provider", author: "Outpost", categories: ["automation"],
         capabilities: ["environment.drivers.register"], entrypoints: { worker: "dist/worker.js" },
         environmentDrivers: [{ driverKey: "fake-plugin", kind: "sandbox_provider", displayName: "Fake Plugin",
           supportsReusableLeases: true,
           configSchema: { type: "object", properties: { image: { type: "string" }, timeoutMs: { type: "number" }, reuseLease: { type: "boolean" } } } }],
       },
     } as never);
-    await db.insert(projects).values({ id: projectId, companyId, name: "Project", status: "active" });
-    await db.insert(executionWorkspaces).values({ id: executionWorkspaceId, companyId, projectId, mode: "isolated_workspace",
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Project", status: "active" });
+    await db.insert(executionWorkspaces).values({ id: executionWorkspaceId, spaceId, projectId, mode: "isolated_workspace",
       strategyType: "project_primary", name: "Task workspace", status: "active", providerType: "cloud_sandbox",
       cwd: `/workspaces/${executionWorkspaceId}` });
     await db.insert(heartbeatRuns).values([
-      { id: previousRunId, companyId, agentId, invocationSource: "assignment", status: "running" },
-      { id: runId, companyId, agentId, invocationSource: "assignment", status: "running" },
+      { id: previousRunId, spaceId, agentId, invocationSource: "assignment", status: "running" },
+      { id: runId, spaceId, agentId, invocationSource: "assignment", status: "running" },
     ]);
-    const environment: Environment = { id: environmentId, name: "Paperclip Sandbox", description: null, driver: "sandbox",
+    const environment: Environment = { id: environmentId, name: "Outpost Sandbox", description: null, driver: "sandbox",
       status: "active", config: providerConfig, envVars: {}, metadata: null, createdAt: new Date(), updatedAt: new Date() };
     // The previous run creates the sandbox through the real acquisition path,
     // so the preserved lease carries exactly the identity production records.
@@ -118,11 +118,11 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
       isRunning: () => true,
       call: async (_pluginId: string, method: string) => {
         if (method !== "environmentAcquireLease") throw new Error(`Unexpected plugin method: ${method}`);
-        return { providerLeaseId, metadata: { ...providerConfig, sandboxId: providerLeaseId, remoteCwd: "/home/daytona/paperclip-workspace" } };
+        return { providerLeaseId, metadata: { ...providerConfig, sandboxId: providerLeaseId, remoteCwd: "/home/daytona/outpost-workspace" } };
       },
       getWorker: () => ({ supportedMethods: ["environmentResumeLease", "environmentReleaseLease", "environmentDestroyLease"] }),
     } as unknown as PluginWorkerManager });
-    const created = await priming.acquireRunLease({ companyId, environment, issueId: null, agentId, adapterType: "outpost_runner",
+    const created = await priming.acquireRunLease({ spaceId, environment, issueId: null, agentId, adapterType: "outpost_runner",
       heartbeatRunId: previousRunId, persistedExecutionWorkspace: { id: executionWorkspaceId, mode: "isolated_workspace" } });
     // The run then ended after a clean final save and left its lease-bound
     // harness backup stamp. A lease saved by an older release has no
@@ -140,7 +140,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
     await db.update(heartbeatRuns).set({ status: shape.previousRunStatus ?? "succeeded" }).where(eq(heartbeatRuns.id, previousRunId));
     const snapshotId = randomUUID();
     if (shape.snapshot !== null) {
-      await db.insert(executionWorkspaceSnapshots).values({ id: snapshotId, companyId, executionWorkspaceId,
+      await db.insert(executionWorkspaceSnapshots).values({ id: snapshotId, spaceId, executionWorkspaceId,
         sourceOperationId: randomUUID(), sourceRunId: previousRunId, generation: 1, epoch: 1, status: shape.snapshot ?? "committed" });
     }
     // This run already holds the workspace writer slot (reserved before the
@@ -148,9 +148,9 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
     await db.update(executionWorkspaces).set({ metadata: { remoteWorkspace: {
       schema: "outpost.remote-workspace.v1", epoch: 2, snapshotId: shape.snapshot === null ? null : snapshotId,
       source: { kind: "empty" }, writerRunId: runId, dirty: shape.dirty ?? false,
-      location: { environmentId, leaseId: lease.id, providerLeaseId, remoteCwd: "/home/daytona/paperclip-workspace/.paperclip-workspaces/w" },
+      location: { environmentId, leaseId: lease.id, providerLeaseId, remoteCwd: "/home/daytona/outpost-workspace/.outpost-workspaces/w" },
     } } }).where(eq(executionWorkspaces.id, executionWorkspaceId));
-    return { companyId, agentId, environment, pluginId, runId, executionWorkspaceId, lease, providerLeaseId };
+    return { spaceId, agentId, environment, pluginId, runId, executionWorkspaceId, lease, providerLeaseId };
   }
 
   function worker(seeded: Awaited<ReturnType<typeof seed>>, resume: (attempt: number) => Promise<unknown>,
@@ -161,7 +161,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
       if (method === "environmentAcquireLease") {
         if (options.acquireFails) throw new JsonRpcCallError({ code: -32000, message: "create refused" });
         return { providerLeaseId: "replacement-sandbox", metadata: { provider: "fake-plugin", image: "fake:test",
-          timeoutMs: 300_000, reuseLease: true, remoteCwd: "/home/daytona/paperclip-workspace" } };
+          timeoutMs: 300_000, reuseLease: true, remoteCwd: "/home/daytona/outpost-workspace" } };
       }
       throw new Error(`Unexpected plugin method: ${method}`);
     });
@@ -173,7 +173,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
 
   function acquire(seeded: Awaited<ReturnType<typeof seed>>, runtime: ReturnType<typeof environmentRuntimeService>,
     runId = seeded.runId) {
-    return runtime.acquireRunLease({ companyId: seeded.companyId, environment: seeded.environment, issueId: null,
+    return runtime.acquireRunLease({ spaceId: seeded.spaceId, environment: seeded.environment, issueId: null,
       agentId: seeded.agentId, adapterType: "outpost_runner", heartbeatRunId: runId,
       persistedExecutionWorkspace: { id: seeded.executionWorkspaceId, mode: "isolated_workspace" } });
   }
@@ -222,7 +222,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
 
     // The bounded retry runs as a new run that reserves the same clean workspace.
     const retryRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: retryRunId, companyId: seeded.companyId, agentId: seeded.agentId,
+    await db.insert(heartbeatRuns).values({ id: retryRunId, spaceId: seeded.spaceId, agentId: seeded.agentId,
       invocationSource: "assignment", status: "running" });
     await db.update(heartbeatRuns).set({ status: "failed" }).where(eq(heartbeatRuns.id, seeded.runId));
     const [workspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, seeded.executionWorkspaceId));
@@ -262,7 +262,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
     const seeded = await seed();
     await markReplaceBeforeReuse(seeded);
     const { call, runtime } = worker(seeded, async () => ({ providerLeaseId: seeded.providerLeaseId,
-      metadata: { remoteCwd: "/home/daytona/paperclip-workspace" } }));
+      metadata: { remoteCwd: "/home/daytona/outpost-workspace" } }));
     const acquired = await acquire(seeded, runtime);
     expect(acquired.lease.providerLeaseId).toBe("replacement-sandbox");
     expect(acquired.lease.metadata?.sandboxLeaseAcquisition).toEqual({ outcome: "replacement", reason: "resume_failed",
@@ -281,7 +281,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
     const seeded = await seed(shape);
     await markReplaceBeforeReuse(seeded);
     const { runtime } = worker(seeded, async () => ({ providerLeaseId: seeded.providerLeaseId,
-      metadata: { remoteCwd: "/home/daytona/paperclip-workspace" } }));
+      metadata: { remoteCwd: "/home/daytona/outpost-workspace" } }));
     const acquired = await acquire(seeded, runtime);
     expect(acquired.lease.providerLeaseId).toBe(seeded.providerLeaseId);
     expect(acquired.lease.metadata?.sandboxLeaseAcquisition).toEqual({ outcome: "resumed" });
@@ -291,7 +291,7 @@ describeEmbeddedPostgres("reusable sandbox resume failure replacement", () => {
     const seeded = await seed();
     const { call, runtime } = worker(seeded, async (attempt) => {
       if (attempt === 1) throw new JsonRpcCallError({ code: -32000, message: "Sandbox state change in progress" });
-      return { providerLeaseId: seeded.providerLeaseId, metadata: { remoteCwd: "/home/daytona/paperclip-workspace" } };
+      return { providerLeaseId: seeded.providerLeaseId, metadata: { remoteCwd: "/home/daytona/outpost-workspace" } };
     });
     const acquired = await acquire(seeded, runtime);
     expect(acquired.lease.providerLeaseId).toBe(seeded.providerLeaseId);

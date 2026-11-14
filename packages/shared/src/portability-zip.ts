@@ -1,8 +1,8 @@
 import { inflateRawSync } from "node:zlib";
 import path from "node:path";
-import type { CompanyPortabilityFileEntry } from "./types/company-portability.js";
+import type { SpacePortabilityFileEntry } from "./types/space-portability.js";
 
-// Node-side reader for the company portability zip package. It produces the
+// Node-side reader for the space portability zip package. It produces the
 // exact `{ rootPath, files }` shape the inline import source carries, so the
 // server can accept a raw uploaded zip and feed the importer the same bundle
 // the browser used to expand and post as inline JSON. The browser has its own
@@ -20,7 +20,7 @@ const strictTextDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: tru
 // malicious highly-compressible package cannot exhaust server memory: a
 // per-entry ceiling (passed to zlib as maxOutputLength, so it fails before
 // over-allocating) plus an aggregate ceiling across all entries. Both sit far
-// above any real company package yet far below what a bomb would need. These
+// above any real space package yet far below what a bomb would need. These
 // are only fallback defaults: the server import route passes explicit limits
 // scaled from its configured upload cap. The per-entry ceiling stays at 512 MB
 // even for large caps because a text or base64 entry beyond that cannot
@@ -78,7 +78,7 @@ function findEndOfCentralDirectoryOffset(bytes: Uint8Array): number {
 // entries actually read from the archive body. Trusting only the EOCD's entry
 // count is not enough: a truncated archive with a forged 22-byte EOCD whose
 // count matches the surviving local entries would otherwise be accepted, and the
-// importer would silently process a partial company package (dropping agents,
+// importer would silently process a partial space package (dropping agents,
 // issues, and so on). This walks the real central directory and requires that:
 //   • it is fully present and sits immediately before the EOCD (no gap, no
 //     pointer past the buffer — a truncated tail fails here);
@@ -150,7 +150,7 @@ function decodeStrictUtf8(bytes: Uint8Array): string | null {
   return Buffer.from(text, "utf8").equals(Buffer.from(bytes)) ? text : null;
 }
 
-export function bytesToPortableFileEntry(pathValue: string, bytes: Uint8Array): CompanyPortabilityFileEntry {
+export function bytesToPortableFileEntry(pathValue: string, bytes: Uint8Array): SpacePortabilityFileEntry {
   // Content-addressed blob entries are opaque bytes regardless of extension.
   if (isBlobStorePath(pathValue)) {
     return { encoding: "base64", data: Buffer.from(bytes).toString("base64"), contentType: "application/octet-stream" };
@@ -210,11 +210,11 @@ export async function readZipArchive(
   limits: ReadZipArchiveLimits = DEFAULT_ZIP_LIMITS,
 ): Promise<{
   rootPath: string | null;
-  files: Record<string, CompanyPortabilityFileEntry>;
+  files: Record<string, SpacePortabilityFileEntry>;
 }> {
   const { maxEntryDecompressedBytes, maxTotalDecompressedBytes } = limits;
   const bytes = source instanceof Uint8Array ? source : new Uint8Array(source);
-  const entries: Array<{ path: string; body: CompanyPortabilityFileEntry }> = [];
+  const entries: Array<{ path: string; body: SpacePortabilityFileEntry }> = [];
   let offset = 0;
   // Count every local file header (including directory entries) so the tally can
   // be reconciled against the central directory below; guard total expansion so
@@ -291,7 +291,7 @@ export async function readZipArchive(
   validateCentralDirectory(bytes, eocdOffset, localHeaderCount);
 
   const rootPath = sharedArchiveRoot(entries.map((entry) => entry.path));
-  const files: Record<string, CompanyPortabilityFileEntry> = {};
+  const files: Record<string, SpacePortabilityFileEntry> = {};
   for (const entry of entries) {
     const normalizedPath =
       rootPath && entry.path.startsWith(`${rootPath}/`)

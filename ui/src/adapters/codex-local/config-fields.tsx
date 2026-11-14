@@ -28,11 +28,11 @@ import {
   OUTPOST_RUNNER_IDLE_TIMEOUT_MAX_MS,
   OUTPOST_RUNNER_PERMISSION_CAPABILITIES,
   OUTPOST_RUNNER_ACPX_PROFILES,
-  isPaperclipRunnerProvider,
-  resolvePaperclipRunnerIdleTimeoutMs,
-  resolvePaperclipRunnerPermissionMode,
-  type PaperclipRunnerPermissionMode,
-  type PaperclipRunnerPermissionCapability,
+  isOutpostRunnerProvider,
+  resolveOutpostRunnerIdleTimeoutMs,
+  resolveOutpostRunnerPermissionMode,
+  type OutpostRunnerPermissionMode,
+  type OutpostRunnerPermissionCapability,
 } from "@outpost/adapter-utils";
 
 const inputClass =
@@ -63,14 +63,14 @@ export function buildCodexRunnerConfig(values: CreateConfigValues): Record<strin
   return {
     ...config,
     ...(values.codexPermissionMode !== undefined ? { codexPermissionMode: values.codexPermissionMode } : {}),
-    ...(values.paperclipRunnerLifecycleMode !== undefined ? { lifecycleMode: values.paperclipRunnerLifecycleMode } : {}),
-    ...(values.paperclipRunnerIdleTimeoutMs !== undefined ? { idleTimeoutMs: values.paperclipRunnerIdleTimeoutMs } : {}),
+    ...(values.outpostRunnerLifecycleMode !== undefined ? { lifecycleMode: values.outpostRunnerLifecycleMode } : {}),
+    ...(values.outpostRunnerIdleTimeoutMs !== undefined ? { idleTimeoutMs: values.outpostRunnerIdleTimeoutMs } : {}),
   };
 }
 
 export function CodexLocalConfigFields({
   section,
-  companyId,
+  spaceId,
   agentId,
   mode,
   isCreate,
@@ -97,8 +97,8 @@ export function CodexLocalConfigFields({
       : eff("adapterConfig", "provider", config.provider === "acpx" && config.acpxAgent === "codex" ? "codex" : config.provider ?? "codex")
     : "codex";
   const runnerProvider = String(configuredRunnerProvider ?? "codex");
-  const runnerPermissionCapability: PaperclipRunnerPermissionCapability =
-    isPaperclipRunnerProvider(runnerProvider)
+  const runnerPermissionCapability: OutpostRunnerPermissionCapability =
+    isOutpostRunnerProvider(runnerProvider)
       ? OUTPOST_RUNNER_PERMISSION_CAPABILITIES[runnerProvider]
       : { configurable: false, defaultMode: "provider-managed", options: [], description: "Unknown provider configuration is preserved." };
   const isMuse = runnerProvider === "muse";
@@ -128,8 +128,8 @@ export function CodexLocalConfigFields({
     );
   const runnerPermissionMode =
     runnerManaged && runnerPermissionCapability.configurable
-      ? resolvePaperclipRunnerPermissionMode(
-          isPaperclipRunnerProvider(runnerProvider) ? runnerProvider : "codex",
+      ? resolveOutpostRunnerPermissionMode(
+          isOutpostRunnerProvider(runnerProvider) ? runnerProvider : "codex",
           configuredRunnerPermissionMode,
         )
       : runnerPermissionCapability.defaultMode;
@@ -153,7 +153,7 @@ export function CodexLocalConfigFields({
   // harnesses warm for the default idle window and runs others turn by turn.
   const runnerLifecycleMode: "automatic" | "per_turn" | "warm" = runnerManaged
     ? isCreate
-      ? (values!.paperclipRunnerLifecycleMode ?? "automatic")
+      ? (values!.outpostRunnerLifecycleMode ?? "automatic")
       : eff(
           "adapterConfig",
           "lifecycleMode",
@@ -161,9 +161,9 @@ export function CodexLocalConfigFields({
         ) ?? "automatic"
     : "per_turn";
   const runnerIdleTimeoutMs = runnerManaged
-    ? resolvePaperclipRunnerIdleTimeoutMs(
+    ? resolveOutpostRunnerIdleTimeoutMs(
         isCreate
-          ? values!.paperclipRunnerIdleTimeoutMs
+          ? values!.outpostRunnerIdleTimeoutMs
           : eff("adapterConfig", "idleTimeoutMs", config.idleTimeoutMs),
       )
     : OUTPOST_RUNNER_IDLE_TIMEOUT_DEFAULT_MS;
@@ -240,7 +240,7 @@ export function CodexLocalConfigFields({
             value={runnerProvider === "acpx" && runnerSchemaValue("acpxAgent", "claude") === "grok" ? "grok" : runnerProvider}
             onValueChange={(value) => {
               const grok = value === "grok";
-              const provider = grok ? "acpx" : isPaperclipRunnerProvider(value)
+              const provider = grok ? "acpx" : isOutpostRunnerProvider(value)
                 ? value
                 : "codex";
               const cloudResetKeys = ["codexPermissionMode", "opencodePermissionMode", "acpxPermissionMode", "acpxAgent", "command", "extraArgs", "idleTimeoutMs", "modelReasoningEffort", "reasoningEffort", "effort", "modelParams", "homeMode"];
@@ -291,7 +291,7 @@ export function CodexLocalConfigFields({
           >
             <SelectTrigger className="w-full" aria-label="Harness"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {!isPaperclipRunnerProvider(runnerProvider) && <SelectItem value={runnerProvider} disabled>{runnerProvider} (unknown provider)</SelectItem>}
+              {!isOutpostRunnerProvider(runnerProvider) && <SelectItem value={runnerProvider} disabled>{runnerProvider} (unknown provider)</SelectItem>}
               {runnerHarnessOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   <AdapterMark type={option.adapter} className="size-4" />
@@ -302,7 +302,7 @@ export function CodexLocalConfigFields({
           </Select>
         </Field>
       )}
-      {runnerManaged && runnerProvider === "grok_bot" && <GrokBotConnection companyId={companyId} agentId={agentId} />}
+      {runnerManaged && runnerProvider === "grok_bot" && <GrokBotConnection spaceId={spaceId} agentId={agentId} />}
       {runnerManaged && isCursorCloud && <>
         <p className="text-sm text-muted-foreground">Experimental. Cursor hosts this agent’s execution environment. An Outpost computer is not required. Cursor manages command permissions; effective model identity is unavailable. Agent environment settings support only CURSOR_API_KEY. Configure hosted secrets in your Cursor Cloud environment.</p>
         {[
@@ -326,7 +326,7 @@ export function CodexLocalConfigFields({
       </>}
       {runnerManaged && runnerProvider === "openai_dot" && <>
         <Field configSection="adapter" label="Dot connection" hint="A verified event round trip is required before assigning work.">
-          <DotRunnerConnection companyId={companyId} agentId={agentId} bindingId={String(runnerSchemaValue("dotBindingId", ""))} onBinding={id => updateRunnerSchemaValue("dotBindingId", id)} />
+          <DotRunnerConnection spaceId={spaceId} agentId={agentId} bindingId={String(runnerSchemaValue("dotBindingId", ""))} onBinding={id => updateRunnerSchemaValue("dotBindingId", id)} />
         </Field>
         <ToggleField label="Read task attachments" hint="Let Dot read files attached to its current assigned task. File contents are sent to OpenAI. Does not require workspace command access; off by default."
           checked={runnerSchemaValue("dotAttachmentAccess", false) === true} onChange={value => updateRunnerSchemaValue("dotAttachmentAccess", value)} />
@@ -335,7 +335,7 @@ export function CodexLocalConfigFields({
       </>}
       {runnerManaged && isMuse && <>
         <Field configSection="adapter" label="Muse connection" hint="Pairing, receiver contact, background reply, and agent setup are verified separately.">
-          <MuseRunnerConnection companyId={companyId} agentId={agentId} />
+          <MuseRunnerConnection spaceId={spaceId} agentId={agentId} />
         </Field>
       </>}
       {runnerManaged && !hideRunnerHarness && runnerProvider === "acpx" && runnerSchemaValue("acpxAgent", "claude") !== "grok" && (
@@ -504,10 +504,10 @@ export function CodexLocalConfigFields({
                 : runnerPermissionMode
             }
             onValueChange={(selectedMode) => {
-              const value = resolvePaperclipRunnerPermissionMode(
-                isPaperclipRunnerProvider(runnerProvider) ? runnerProvider : "codex",
+              const value = resolveOutpostRunnerPermissionMode(
+                isOutpostRunnerProvider(runnerProvider) ? runnerProvider : "codex",
                 selectedMode,
-              ) as PaperclipRunnerPermissionMode;
+              ) as OutpostRunnerPermissionMode;
               if (isCreate) {
                 set!({
                   adapterSchemaValues: {
@@ -555,7 +555,7 @@ export function CodexLocalConfigFields({
       {runnerManaged && !isExternal && !isCursorCloud && (
         <Field configSection="runPolicy"
           label="Runner lifecycle"
-          hint="Automatic keeps Codex and OpenCode warm on this computer for 5 minutes after a run, so a follow-up starts faster, and runs other harnesses turn by turn. Turn by turn suspends after each run. Warm keeps the same provider process available between governed runs."
+          hint="Automatic keeps Codex and OpenCode warm on this computer for 5 minutes after a run, so a follow-up starts faster, and runs other harnesses turn by turn. Turn by turn suspends after each run. Warm keeps the same provider process available between controlled runs."
         >
           <SelectPopover
             aria-label="Runner lifecycle"
@@ -563,7 +563,7 @@ export function CodexLocalConfigFields({
             onValueChange={(next) => {
               const value = next === "warm" || next === "per_turn" ? next : undefined;
               isCreate
-                ? set!({ paperclipRunnerLifecycleMode: value })
+                ? set!({ outpostRunnerLifecycleMode: value })
                 : mark("adapterConfig", "lifecycleMode", value);
             }}
             options={[
@@ -588,8 +588,8 @@ export function CodexLocalConfigFields({
               value={runnerIdleTimeoutMs}
               onChange={(event) =>
                 set!({
-                  paperclipRunnerIdleTimeoutMs:
-                    resolvePaperclipRunnerIdleTimeoutMs(
+                  outpostRunnerIdleTimeoutMs:
+                    resolveOutpostRunnerIdleTimeoutMs(
                       Number(event.target.value),
                     ),
                 })
@@ -604,7 +604,7 @@ export function CodexLocalConfigFields({
                 mark(
                   "adapterConfig",
                   "idleTimeoutMs",
-                  resolvePaperclipRunnerIdleTimeoutMs(value),
+                  resolveOutpostRunnerIdleTimeoutMs(value),
                 )
               }
               immediate

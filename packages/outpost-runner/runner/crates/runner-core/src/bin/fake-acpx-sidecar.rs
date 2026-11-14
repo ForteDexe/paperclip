@@ -350,7 +350,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                         "runtime.tool_called",
                         &source_run,
                         turn,
-                        json!({"callId":call_id,"operationId":"paperclip_finish","input":report}),
+                        json!({"callId":call_id,"operationId":"outpost_finish","input":report}),
                     )?;
                     next_sequence += 1;
                     source_pending_completion = Some(turn.to_owned());
@@ -543,7 +543,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     turn_id,
                     json!({
                         "callId":"call-finish-2",
-                        "operationId":"paperclip_finish",
+                        "operationId":"outpost_finish",
                         "input":valid_reserved_completion_result(),
                     }),
                 )?;
@@ -976,7 +976,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 {
                     let (operation_id, result) = if mode == "turns-reserved-feedback-roundtrip" {
                         (
-                            "paperclip_finish",
+                            "outpost_finish",
                             json!({
                                 "schema":"outpost.run_result.v1",
                                 "reportedWorkDisposition":"needs_review",
@@ -990,7 +990,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                         "turns-reserved-block-terminal" | "turns-invalid-reserved-block-terminal"
                     ) {
                         (
-                            "paperclip_block",
+                            "outpost_block",
                             json!({
                                 "schema":"outpost.run_result.v1",
                                 "reportedWorkDisposition":"blocked",
@@ -1022,7 +1022,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                         )
                     } else if mode == "turns-reserved-yielded-terminal" {
                         (
-                            "paperclip_finish",
+                            "outpost_finish",
                             json!({
                                 "schema":"outpost.run_result.v1",
                                 "reportedWorkDisposition":"yielded",
@@ -1046,7 +1046,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                         )
                     } else {
                         (
-                            "paperclip_finish",
+                            "outpost_finish",
                             json!({
                                 "schema":"outpost.run_result.v1",
                                 "reportedWorkDisposition":"done",
@@ -1332,7 +1332,7 @@ fn bootstrap_success(
                     && params.get("turnId").and_then(Value::as_str) == Some("turn-1")
                     && params.get("result").is_none()
                     && params.pointer("/error/message").and_then(Value::as_str)
-                        == Some("Paperclip semantic operation failed")
+                        == Some("Outpost semantic operation failed")
                     && !params.to_string().contains("violet-internal-diagnostic-4821")
             } else {
                 mode != "resolutions-wrong-ack"

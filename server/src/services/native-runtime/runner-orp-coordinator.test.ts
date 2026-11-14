@@ -9,7 +9,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import {
   agents,
-  companies,
+  spaces,
   completionContracts,
   createDb,
   heartbeatRunEvents,
@@ -35,7 +35,7 @@ import {
 } from "../../realtime/runner-orp-ws.js";
 import { NativeRunCoordinatorStore } from "./native-run-coordinator-store.js";
 import { runnerPrpCoordinator } from "./runner-orp-coordinator.js";
-import { PaperclipRunnerSemanticAuthority } from "./runner-semantic-authority.js";
+import { OutpostRunnerSemanticAuthority } from "./runner-semantic-authority.js";
 import { nativeSha256 } from "./canonical.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
@@ -50,7 +50,7 @@ if (!embeddedPostgresSupport.supported) {
 }
 
 interface SeededNativeRun {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   agentId: string;
   runId: string;
@@ -126,7 +126,7 @@ describeEmbeddedPostgres("hidden runner ORP coordinator", () => {
     await db.delete(completionContracts);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     for (const directory of scratchDirectories.splice(0)) {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -137,7 +137,7 @@ describeEmbeddedPostgres("hidden runner ORP coordinator", () => {
   });
 
   async function seedNativeRun(): Promise<SeededNativeRun> {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const issueId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
@@ -145,15 +145,15 @@ describeEmbeddedPostgres("hidden runner ORP coordinator", () => {
     const sessionId = randomUUID();
     const completionContractId = randomUUID();
     const completionContractSha256 = `sha256:${"c".repeat(64)}`;
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Runner Test Company",
-      issuePrefix: `R${companyId.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Runner Test Space",
+      issuePrefix: `R${spaceId.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "Codex runner",
       role: "engineer",
       status: "running",
@@ -163,7 +163,7 @@ describeEmbeddedPostgres("hidden runner ORP coordinator", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       identifier: `RUN-${runId.slice(0, 8)}`,
       title: "Exercise the hidden native coordinator",
       description: "Verify transport and durable server boundaries.",
@@ -174,7 +174,7 @@ describeEmbeddedPostgres("hidden runner ORP coordinator", () => {
     });
     await db.insert(completionContracts).values({
       id: completionContractId,
-      companyId,
+      spaceId,
       issueId,
       revision: 1,
       schemaVersion: "outpost.completion-contract.v1",
@@ -189,7 +189,7 @@ describeEmbeddedPostgres("hidden runner ORP coordinator", () => {
     });
     await db.insert(heartbeatRuns).values({
       id: runId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       runtimeMode: "native",
@@ -207,7 +207,7 @@ describeEmbeddedPostgres("hidden runner ORP coordinator", () => {
       .set({ executionRunId: runId })
       .where(eq(issues.id, issueId));
     return {
-      companyId,
+      spaceId,
       issueId,
       agentId,
       runId,
@@ -220,7 +220,7 @@ describeEmbeddedPostgres("hidden runner ORP coordinator", () => {
 
   function store(seed: SeededNativeRun): NativeRunCoordinatorStore {
     return new NativeRunCoordinatorStore(db, {
-      companyId: seed.companyId,
+      spaceId: seed.spaceId,
       issueId: seed.issueId,
       runId: seed.runId,
       agentId: seed.agentId,
@@ -246,7 +246,7 @@ describeEmbeddedPostgres("hidden runner ORP coordinator", () => {
     await expect(
       coordinator.prepare({
         ...seed,
-        companyId: randomUUID(),
+        spaceId: randomUUID(),
         normalizedSessionId: seed.sessionId,
         environmentLeaseId: "environment-lease-1",
         turnId: "turn-1",
@@ -278,7 +278,7 @@ describeEmbeddedPostgres("hidden runner ORP coordinator", () => {
     ]);
     expect(
       runnerPrpWebSocketInternals.activeRegistration({
-        companyId: seed.companyId,
+        spaceId: seed.spaceId,
         runId: seed.runId,
       }),
     ).toBe(true);
@@ -296,7 +296,7 @@ describeEmbeddedPostgres("hidden runner ORP coordinator", () => {
     await prepared.release();
     expect(
       runnerPrpWebSocketInternals.activeRegistration({
-        companyId: seed.companyId,
+        spaceId: seed.spaceId,
         runId: seed.runId,
       }),
     ).toBe(false);
@@ -305,8 +305,8 @@ describeEmbeddedPostgres("hidden runner ORP coordinator", () => {
 
   it("rechecks task ownership and returns semantic receipts", async () => {
     const seed = await seedNativeRun();
-    const authority = new PaperclipRunnerSemanticAuthority(db, {
-      companyId: seed.companyId,
+    const authority = new OutpostRunnerSemanticAuthority(db, {
+      spaceId: seed.spaceId,
       issueId: seed.issueId,
       runId: seed.runId,
       agentId: seed.agentId,

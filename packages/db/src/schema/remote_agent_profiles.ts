@@ -11,10 +11,10 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 
 /**
- * Company-scoped, non-secret snapshots of qualified remote runner resources.
+ * Space-scoped, non-secret snapshots of qualified remote runner resources.
  * AWS AgentCore authentication uses the runner environment's workload identity;
  * the profile stores no credential reference or credential material.
  */
@@ -22,9 +22,9 @@ export const remoteAgentProfiles = pgTable(
   "remote_agent_profiles",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     profileKey: text("profile_key").notNull(),
     displayName: text("display_name").notNull(),
     service: text("service").notNull(),
@@ -38,9 +38,9 @@ export const remoteAgentProfiles = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyIdx: index("remote_agent_profiles_company_idx").on(table.companyId),
-    companyKeyUq: uniqueIndex("remote_agent_profiles_company_key_uq").on(
-      table.companyId,
+    spaceIdx: index("remote_agent_profiles_space_idx").on(table.spaceId),
+    spaceKeyUq: uniqueIndex("remote_agent_profiles_space_key_uq").on(
+      table.spaceId,
       table.profileKey,
     ),
     serviceCheck: check(

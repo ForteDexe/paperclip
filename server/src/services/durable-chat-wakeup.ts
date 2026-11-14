@@ -5,7 +5,7 @@ import { and, eq, exists, inArray, or, sql, type SQLWrapper } from "drizzle-orm"
 import { HttpError } from "../errors.js";
 
 export interface CommittedChatResponseAuthorizationInput {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   agentId: string;
   runId: string;
@@ -78,7 +78,7 @@ export async function authorizeCommittedChatResponse(
 export interface FailedChatRunRetryAuthorizationInput {
   phase: "admission" | "promotion" | "execution";
   wakeupRequestId: string | null;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   issueId: string | null;
   runId?: string;
@@ -133,7 +133,7 @@ export async function authorizeFailedChatRunRetryWake(
 ): Promise<boolean> {
   const action = input.wakeupRequestId
     ? await tx
-        .select({ companyId: chatActions.companyId, kind: chatActions.kind, payload: chatActions.payload })
+        .select({ spaceId: chatActions.spaceId, kind: chatActions.kind, payload: chatActions.payload })
         .from(chatActions)
         .where(eq(chatActions.id, input.wakeupRequestId))
         .limit(1)
@@ -149,7 +149,7 @@ export async function authorizeFailedChatRunRetryWake(
   const selector = input.contextSnapshot.chatFailedRunRetry;
   if (
     !authority ||
-    action.companyId !== input.companyId ||
+    action.spaceId !== input.spaceId ||
     !input.issueId ||
     !input.wakeupRequestId ||
     !selector ||
@@ -183,45 +183,45 @@ export async function authorizeFailedChatRunRetryWake(
  * if its run subsequently fails or is cancelled; skipped was never admitted. */
 export function unadmittedChatWakeupCondition(
   issueId: SQLWrapper,
-  companyId: SQLWrapper,
+  spaceId: SQLWrapper,
 ) {
   return sql`exists (
     select 1 from chat_actions chat_unadmitted
-    where chat_unadmitted.company_id = ${companyId}
+    where chat_unadmitted.space_id = ${spaceId}
       and chat_unadmitted.payload->>'issueId' = ${issueId}::text
       and chat_unadmitted.kind = 'inbound_wakeup'
       and chat_unadmitted.status in ('preparing', 'issued', 'processing', 'failed')
       and not exists (
         select 1 from agent_wakeup_requests chat_admission
         where chat_admission.id = chat_unadmitted.id
-          and chat_admission.company_id = chat_unadmitted.company_id
+          and chat_admission.space_id = chat_unadmitted.space_id
           and chat_admission.agent_id::text = chat_unadmitted.payload->>'agentId'
           and chat_admission.status <> 'skipped'
       )
       and not exists (
         select 1 from chat_actions chat_retry
         join agent_wakeup_requests chat_retry_admission on chat_retry_admission.id = chat_retry.id
-        where chat_retry.company_id = chat_unadmitted.company_id
+        where chat_retry.space_id = chat_unadmitted.space_id
           and chat_retry.endpoint_id = chat_unadmitted.endpoint_id
           and chat_retry.conversation_id = chat_unadmitted.conversation_id
           and chat_retry.kind = 'failed_run_retry'
           and chat_retry.payload->'taskRetryInput'->'skippedActionIds' ? chat_unadmitted.id::text
           and chat_retry.payload->>'issueId' = chat_unadmitted.payload->>'issueId'
-          and chat_retry_admission.company_id = chat_retry.company_id
+          and chat_retry_admission.space_id = chat_retry.space_id
           and chat_retry_admission.agent_id::text = chat_retry.payload->>'agentId'
           and chat_retry_admission.status <> 'skipped'
       )
       and (chat_unadmitted.status <> 'failed' or not exists (
         select 1 from chat_actions chat_later
         join agent_wakeup_requests chat_later_admission on chat_later_admission.id = chat_later.id
-        where chat_later.company_id = chat_unadmitted.company_id
+        where chat_later.space_id = chat_unadmitted.space_id
           and chat_later.endpoint_id = chat_unadmitted.endpoint_id
           and chat_later.conversation_id = chat_unadmitted.conversation_id
           and chat_later.payload->>'sessionGeneration' = chat_unadmitted.payload->>'sessionGeneration'
           and chat_later.payload->>'issueId' = chat_unadmitted.payload->>'issueId'
           and chat_later.kind = 'inbound_wakeup'
           and (chat_later.created_at, chat_later.id) > (chat_unadmitted.created_at, chat_unadmitted.id)
-          and chat_later_admission.company_id = chat_later.company_id
+          and chat_later_admission.space_id = chat_later.space_id
           and chat_later_admission.agent_id::text = chat_later.payload->>'agentId'
           and chat_later_admission.status <> 'skipped'
       ))
@@ -229,7 +229,7 @@ export function unadmittedChatWakeupCondition(
 }
 
 export interface DeferredChatWakeScope {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   issueId: string;
   requestId: string;
@@ -239,11 +239,11 @@ export interface DeferredChatWakeScope {
  * label. This is selection only; the inbound owner rechecks live authority. */
 export function deferredChatInputPredicate(db: Db) {
   return exists(db.select({ id: chatActions.id }).from(chatActions)
-    .innerJoin(chatConversations, and(eq(chatConversations.companyId, chatActions.companyId),
+    .innerJoin(chatConversations, and(eq(chatConversations.spaceId, chatActions.spaceId),
       eq(chatConversations.id, chatActions.conversationId)))
-    .innerJoin(chatEndpoints, and(eq(chatEndpoints.companyId, chatActions.companyId),
+    .innerJoin(chatEndpoints, and(eq(chatEndpoints.spaceId, chatActions.spaceId),
       eq(chatEndpoints.id, chatActions.endpointId), eq(chatEndpoints.id, chatConversations.endpointId)))
-    .where(and(eq(chatActions.companyId, agentWakeupRequests.companyId), eq(chatActions.id, agentWakeupRequests.id),
+    .where(and(eq(chatActions.spaceId, agentWakeupRequests.spaceId), eq(chatActions.id, agentWakeupRequests.id),
       eq(chatActions.kind, "inbound_wakeup"), eq(chatActions.status, "processed"),
       eq(chatEndpoints.assignedAgentId, agentWakeupRequests.agentId), eq(chatEndpoints.externalExecutionPolicy, "restricted"),
       sql`${chatConversations.issueId}::text = ${agentWakeupRequests.payload}->>'issueId'`,
@@ -264,7 +264,7 @@ export async function resumeDeferredChatWake(db: Db, input: DeferredChatWakeScop
 /** Internal authority: this object cannot be supplied through a JSON API. */
 export interface DurableChatWakeupRequest {
   readonly id: string;
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly agentId: string;
   readonly issueId: string;
   readonly commentId: string;
@@ -288,7 +288,7 @@ export function createDurableChatWakeupRequest(
     .update(
       JSON.stringify([
         input.id,
-        input.companyId,
+        input.spaceId,
         input.agentId,
         input.issueId,
         input.commentId,
@@ -312,7 +312,7 @@ export function assertDurableChatWakeupRequest(
   request: DurableChatWakeupRequest,
   scope: {
     agentId: string;
-    companyId: string;
+    spaceId: string;
     issueId: string | null;
     commentId: string | null;
     requestedByActorType?: string;
@@ -323,7 +323,7 @@ export function assertDurableChatWakeupRequest(
     !trustedRequests.has(request) ||
     !scope.issueId ||
     request.agentId !== scope.agentId ||
-    request.companyId !== scope.companyId ||
+    request.spaceId !== scope.spaceId ||
     request.issueId !== scope.issueId ||
     request.commentId !== scope.commentId ||
     request.requestedByActorType !== scope.requestedByActorType ||
@@ -337,7 +337,7 @@ export function assertDurableChatWakeupReceipt(
   request: DurableChatWakeupRequest,
   receipt: {
     id: string;
-    companyId: string;
+    spaceId: string;
     agentId: string;
     idempotencyKey: string | null;
     requestedByActorType: string | null;
@@ -346,7 +346,7 @@ export function assertDurableChatWakeupReceipt(
 ) {
   if (
     receipt.id !== request.id ||
-    receipt.companyId !== request.companyId ||
+    receipt.spaceId !== request.spaceId ||
     receipt.agentId !== request.agentId ||
     receipt.idempotencyKey !== request.idempotencyKey ||
     receipt.requestedByActorType !== request.requestedByActorType ||
@@ -364,7 +364,7 @@ export function withDurableChatAdmission<T extends { kind: string; admitted?: bo
     // gates. Only dispatch or an explicitly persisted wait admits the input.
     if (request?.onAdmitted && (outcome.admitted === true || ["queued", "durable", "coalesced"].includes(outcome.kind))) {
       const [receipt] = await tx.select().from(agentWakeupRequests).where(and(
-        eq(agentWakeupRequests.companyId, request.companyId), eq(agentWakeupRequests.id, request.id),
+        eq(agentWakeupRequests.spaceId, request.spaceId), eq(agentWakeupRequests.id, request.id),
         inArray(agentWakeupRequests.status, ["queued", "claimed", "deferred_issue_execution", "coalesced"]),
       ));
       if (receipt) {
@@ -380,29 +380,29 @@ export function withDurableChatAdmission<T extends { kind: string; admitted?: bo
  * revoke an already-started run when the operator enables mention gating. */
 export async function slackMentionAllowsRunStart(
   db: Db,
-  run: { id: string; companyId: string; agentId: string; wakeupRequestId: string | null },
+  run: { id: string; spaceId: string; agentId: string; wakeupRequestId: string | null },
 ): Promise<boolean> {
   if (!run.wakeupRequestId) return true;
   const inputs = await db.select({ event: chatDeliveries.normalizedEvent })
     .from(agentWakeupRequests)
     .innerJoin(chatActions, and(
       eq(chatActions.id, agentWakeupRequests.id),
-      eq(chatActions.companyId, run.companyId),
+      eq(chatActions.spaceId, run.spaceId),
       eq(chatActions.kind, "inbound_wakeup"),
     ))
     .innerJoin(chatEndpoints, and(
       eq(chatEndpoints.id, chatActions.endpointId),
-      eq(chatEndpoints.companyId, run.companyId),
+      eq(chatEndpoints.spaceId, run.spaceId),
       eq(chatEndpoints.provider, "slack"),
       eq(chatEndpoints.requireAtMention, true),
     ))
     .innerJoin(chatDeliveries, and(
       eq(chatDeliveries.id, chatActions.deliveryId),
       eq(chatDeliveries.endpointId, chatEndpoints.id),
-      eq(chatDeliveries.companyId, run.companyId),
+      eq(chatDeliveries.spaceId, run.spaceId),
     ))
     .where(and(
-      eq(agentWakeupRequests.companyId, run.companyId),
+      eq(agentWakeupRequests.spaceId, run.spaceId),
       eq(agentWakeupRequests.agentId, run.agentId),
       or(
         eq(agentWakeupRequests.runId, run.id),

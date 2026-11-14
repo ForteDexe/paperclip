@@ -57,7 +57,7 @@ removed. No other chat duty, schema or external wake policy is changed.
   authority cases. The other 1,411 cases are skipped, not passed.
 - These are 235 unique selected passing cases. The production claim test measures
   120 seconds with no select/transaction calls after the receipt settles. The
-  102-entry recovery case drains healthy work from two companies while corrupt
+  102-entry recovery case drains healthy work from two spaces while corrupt
   evidence retains recovery. No recovery test causes another provider request.
 - Server typecheck passes; workspace typecheck passes. Workspace build passes. Typecheck excludes test files.
 - Full local test:run remains unclaimed due to the earlier embedded-PostgreSQL
@@ -86,7 +86,7 @@ Logs: /tmp/sleep27-teams-tests.log (initial failures),
 ## Stack gates
 
 Consent parent #17590 at 5ddb4543ed has Greptile 5/5 with no inline findings;
-CI is still running. Voice-report #17586 now has two new Paperclip findings:
+CI is still running. Voice-report #17586 now has two new Outpost findings:
 explicit single-active-process writer support and indexed report reconstruction.
 They require owning-parent review/repair and propagation before stack acceptance.
 Older #17490 E2E and #17580 deletion-policy findings and final master reconciliation

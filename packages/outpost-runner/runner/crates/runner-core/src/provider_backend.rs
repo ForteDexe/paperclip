@@ -56,7 +56,7 @@ const MAX_QUEUED_PROVIDER_EVENTS: usize =
 const MAX_RECEIPT_LIMIT_INTERRUPT_ATTEMPTS: u8 = 3;
 const RECEIPT_LIMIT_INTERRUPT_TERMINAL_DEADLINE_MS: u64 = 2_000;
 const RECEIPT_LIMIT_ACCEPTED_TERMINAL_DEADLINE_MS: u64 = 30_000;
-const GENERIC_INVALID_TOOL_CALL_MESSAGE: &str = "Paperclip rejected this semantic tool call";
+const GENERIC_INVALID_TOOL_CALL_MESSAGE: &str = "Outpost rejected this semantic tool call";
 
 fn invalid_tool_call_result(
     call_id: String,
@@ -508,12 +508,12 @@ fn validate_proxy_run_result(
 ) -> Result<(Value, String, String), DurableRunnerError> {
     if !matches!(state.config.provider.as_str(), "opencode" | "cursor_cloud") {
         return Err(DurableRunnerError::invalid(
-            "paperclip/runResult is reserved for verified provider proxies",
+            "outpost/runResult is reserved for verified provider proxies",
         ));
     }
     if state.lifecycle != "turn_active" || state.active_provider_turn_id.is_none() {
         return Err(DurableRunnerError::invalid(format!(
-            "{} emitted paperclip/runResult without an active provider turn",
+            "{} emitted outpost/runResult without an active provider turn",
             facade_provider_name(&state.config.provider)
         )));
     }
@@ -521,13 +521,13 @@ fn validate_proxy_run_result(
         || params.get("turnId").and_then(Value::as_str) != state.active_provider_turn_id.as_deref()
     {
         return Err(DurableRunnerError::invalid(format!(
-            "{} paperclip/runResult is not bound to the active provider turn",
+            "{} outpost/runResult is not bound to the active provider turn",
             facade_provider_name(&state.config.provider)
         )));
     }
     let result = params.get("result").cloned().ok_or_else(|| {
         DurableRunnerError::invalid(format!(
-            "{} paperclip/runResult omitted its result",
+            "{} outpost/runResult omitted its result",
             facade_provider_name(&state.config.provider)
         ))
     })?;
@@ -542,30 +542,30 @@ fn validate_run_result(
     let schema: Value = serde_json::from_str(include_str!(
         "../../../../protocol/schemas/result.schema.json"
     ))
-    .map_err(|_| DurableRunnerError::invalid("embedded Paperclip result schema is invalid"))?;
+    .map_err(|_| DurableRunnerError::invalid("embedded Outpost result schema is invalid"))?;
     let validator = jsonschema::validator_for(&schema).map_err(|_| {
-        DurableRunnerError::invalid("embedded Paperclip result schema cannot compile")
+        DurableRunnerError::invalid("embedded Outpost result schema cannot compile")
     })?;
     if !validator.is_valid(result) {
         return Err(DurableRunnerError::invalid(
-            "provider semantic result failed the Paperclip result schema",
+            "provider semantic result failed the Outpost result schema",
         ));
     }
     let contract = state.completion_contract.as_ref().ok_or_else(|| {
         DurableRunnerError::invalid(format!(
-            "{} paperclip/runResult has no bound completion contract",
+            "{} outpost/runResult has no bound completion contract",
             facade_provider_name(&state.config.provider)
         ))
     })?;
     let claim = result.get("completionClaim").ok_or_else(|| {
         DurableRunnerError::invalid(format!(
-            "{} paperclip/runResult omitted its completion claim",
+            "{} outpost/runResult omitted its completion claim",
             facade_provider_name(&state.config.provider)
         ))
     })?;
     if claim.get("contractRevision").and_then(Value::as_str) != Some(contract.revision.as_str()) {
         return Err(DurableRunnerError::invalid(format!(
-            "{} paperclip/runResult changed its completion contract revision",
+            "{} outpost/runResult changed its completion contract revision",
             facade_provider_name(&state.config.provider)
         )));
     }
@@ -574,7 +574,7 @@ fn validate_run_result(
         .and_then(Value::as_array)
         .ok_or_else(|| {
             DurableRunnerError::invalid(format!(
-                "{} paperclip/runResult omitted its completion criteria",
+                "{} outpost/runResult omitted its completion criteria",
                 facade_provider_name(&state.config.provider)
             ))
         })?;
@@ -585,13 +585,13 @@ fn validate_run_result(
             .and_then(Value::as_str)
             .ok_or_else(|| {
                 DurableRunnerError::invalid(format!(
-                    "{} paperclip/runResult has an invalid completion criterion",
+                    "{} outpost/runResult has an invalid completion criterion",
                     facade_provider_name(&state.config.provider)
                 ))
             })?;
         if !reported_criterion_ids.insert(criterion_id) {
             return Err(DurableRunnerError::invalid(format!(
-                "{} paperclip/runResult repeated a completion criterion",
+                "{} outpost/runResult repeated a completion criterion",
                 facade_provider_name(&state.config.provider)
             )));
         }
@@ -603,7 +603,7 @@ fn validate_run_result(
             .all(|criterion_id| reported_criterion_ids.contains(criterion_id.as_str()))
     {
         return Err(DurableRunnerError::invalid(format!(
-            "{} paperclip/runResult changed its bound completion criteria",
+            "{} outpost/runResult changed its bound completion criteria",
             facade_provider_name(&state.config.provider)
         )));
     }
@@ -626,7 +626,7 @@ fn admit_terminal_tool_authority(
         state.record_terminal_tool_rejection(operation_id);
         return Ok(());
     }
-    if !matches!(operation_id, "paperclip_finish" | "paperclip_block") {
+    if !matches!(operation_id, "outpost_finish" | "outpost_block") {
         return Ok(());
     }
     // The correlated TypeScript semantic-tool handler validates the provider
@@ -649,7 +649,7 @@ fn admit_terminal_tool_authority(
     .to_owned();
     let fingerprint = semantic_value_digest(input);
     let disposition_matches_operation = match operation_id {
-        "paperclip_finish" => {
+        "outpost_finish" => {
             matches!(disposition.as_str(), "done" | "needs_review")
                 || (disposition == "yielded"
                     && (input.get("continuation").map_or(true, Value::is_null)
@@ -661,7 +661,7 @@ fn admit_terminal_tool_authority(
                             Some("response_wake" | "monitor" | "case_handoff" | "same_agent")
                         )))
         }
-        "paperclip_block" => disposition == "blocked",
+        "outpost_block" => disposition == "blocked",
         _ => false,
     };
     if !disposition_matches_operation {
@@ -724,9 +724,9 @@ fn normalize_provider_notification(
         )]);
     }
     if state.config.provider == "codex"
-        && ["thread/tokenUsage/updated", "paperclip/resumeUsageSnapshot"].contains(&method)
+        && ["thread/tokenUsage/updated", "outpost/resumeUsageSnapshot"].contains(&method)
     {
-        let historical = method == "paperclip/resumeUsageSnapshot";
+        let historical = method == "outpost/resumeUsageSnapshot";
         let total = if historical {
             params.get("total")
         } else {
@@ -766,7 +766,7 @@ fn normalize_provider_notification(
                 {
                     // Usage at or below the known total was already counted.
                     return Ok(normalize_codex_notification(
-                        "paperclip/resumeUsageSnapshot",
+                        "outpost/resumeUsageSnapshot",
                         params,
                     ));
                 }
@@ -828,7 +828,7 @@ fn normalize_provider_notification(
         }
         return Ok(events);
     }
-    if method != "paperclip/runResult" {
+    if method != "outpost/runResult" {
         return Ok(
             normalize_codex_notification_in(method, params, Some(&state.config.cwd))
                 .into_iter()
@@ -857,7 +857,7 @@ fn normalize_provider_notification(
             Ok(Vec::new())
         }
         _ => Err(DurableRunnerError::invalid(format!(
-            "{} emitted conflicting paperclip/runResult notifications for one turn",
+            "{} emitted conflicting outpost/runResult notifications for one turn",
             facade_provider_name(&state.config.provider)
         ))),
     }
@@ -948,7 +948,7 @@ fn terminal_events(
             },
         ];
     }
-    // Once the correlated semantic-tool result has been accepted, Paperclip's
+    // Once the correlated semantic-tool result has been accepted, Outpost's
     // bounded controller finalizer may interrupt the provider after the result
     // proposal. That provider terminal closes the exact turn; it does not
     // revoke the already-authoritative semantic outcome.
@@ -1798,7 +1798,7 @@ impl CodexProviderState {
                 "operationId": operation_id,
                 "callId": call_id,
                 "message": "The active provider turn reached its durable semantic-tool receipt limit and was interrupted",
-                "paperclipExecuted": false,
+                "outpostExecuted": false,
             }),
         })?;
         self.receipt_limit_diagnostic_emitted = true;
@@ -1927,7 +1927,7 @@ impl CodexProviderState {
     }
 
     fn record_terminal_tool_rejection(&mut self, operation_id: &str) {
-        if matches!(operation_id, "paperclip_finish" | "paperclip_block")
+        if matches!(operation_id, "outpost_finish" | "outpost_block")
             && self.active_provider_result_fingerprint.is_none()
             && self
                 .tool_bridge
@@ -2751,8 +2751,8 @@ impl CodexCommandExecutor {
                 payload: json!({
                     "provider": provider_label,
                     "code": "legacy_provider_turn_epoch_ambiguous",
-                    "message": format!("{provider_name} recovery could not safely identify and settle active work from a saturated legacy replay epoch; Paperclip terminated the provider and closed the durable run"),
-                    "paperclipAccepted": false,
+                    "message": format!("{provider_name} recovery could not safely identify and settle active work from a saturated legacy replay epoch; Outpost terminated the provider and closed the durable run"),
+                    "outpostAccepted": false,
                     "providerReportedActive": provider_reported_active,
                     "ambiguousStartPending": ambiguous_turn_start_pending,
                     "providerShutdownFailed": provider_shutdown_failed,
@@ -2810,8 +2810,8 @@ impl CodexCommandExecutor {
                     "provider": provider_label,
                     "code": "provider_turn_identity_reused",
                     "providerTurnId": reused_provider_turn_id,
-                    "message": format!("{provider_name} recovery reported a previously settled turn identity as active; Paperclip terminated the provider and closed the durable run"),
-                    "paperclipAccepted": false,
+                    "message": format!("{provider_name} recovery reported a previously settled turn identity as active; Outpost terminated the provider and closed the durable run"),
+                    "outpostAccepted": false,
                     "providerReportedActive": true,
                     "providerShutdownFailed": provider_shutdown_failed,
                 }),
@@ -2821,7 +2821,7 @@ impl CodexCommandExecutor {
             }
             // A process loss can hide whether an in-flight turn/start reached
             // Codex. When the resumed thread has no active turn and its history
-            // ends at a turn Paperclip already settled, Codex never created the
+            // ends at a turn Outpost already settled, Codex never created the
             // turn: the start is settled as not started, and the controller
             // may start it once. Any other evidence keeps it ambiguous.
             let ambiguous_start_never_created = ambiguous_turn_start_pending
@@ -2921,7 +2921,7 @@ impl CodexCommandExecutor {
                             "provider": provider_label,
                             "code": "ambiguous_turn_start_not_created",
                             "message": format!("{provider_name} recovery proved from the resumed thread's history that the turn start a process loss interrupted never created a turn"),
-                            "paperclipAccepted": false,
+                            "outpostAccepted": false,
                         }),
                     })?;
                 }
@@ -2994,7 +2994,7 @@ impl CodexCommandExecutor {
                 if recovered_turn_ended {
                     state.push_terminal_event(reconciled)?;
                     if recovered_turn_ended_with_result {
-                        // The durable correlated tool receipt proves Paperclip
+                        // The durable correlated tool receipt proves Outpost
                         // accepted this exact turn's semantic result before the
                         // runner stopped observing provider output. Resume
                         // finalization without inventing another provider turn.
@@ -3317,7 +3317,7 @@ impl CodexCommandExecutor {
                         priority: EventPriority::P0,
                         payload: json!({
                             "code": "prepared_provider_checkpoint_has_active_work",
-                            "paperclipAccepted": false,
+                            "outpostAccepted": false,
                             "providerReportedActive": true,
                             "providerShutdownFailed": provider_shutdown_failed,
                         }),
@@ -3367,7 +3367,7 @@ impl CodexCommandExecutor {
     // Only the authenticated controller can rebind these run-scoped launch
     // settings: per-run filesystem and shell-environment entries, and Codex
     // feature toggles (`--enable`/`--disable`). The controller recomputes the
-    // toggles from Paperclip policy for every launch, so a saved thread must
+    // toggles from Outpost policy for every launch, so a saved thread must
     // follow a release that turns a feature on or off rather than become
     // impossible to resume. Executable, model, instructions, approval mode,
     // sandbox, permission profile, subcommand, and all other flags remain part
@@ -3830,7 +3830,7 @@ impl CodexCommandExecutor {
             .map(CodexProvider::process_generation);
         // The provider has already been terminated. Drop its quarantined
         // handle before persisting the closure so recovery can never resume
-        // work that Codex accepted without Paperclip accepting its identity.
+        // work that Codex accepted without Outpost accepting its identity.
         self.provider = None;
         let state = self
             .state
@@ -3872,10 +3872,10 @@ impl CodexCommandExecutor {
                     RejectedAcceptedTurn::InvalidIdentity => Value::Null,
                 },
                 "message": match rejected_accepted_turn {
-                    RejectedAcceptedTurn::ReusedIdentity(_) => format!("{provider_name} accepted work with a previously settled turn identity; Paperclip terminated the provider and closed the durable run"),
-                    RejectedAcceptedTurn::InvalidIdentity => format!("{provider_name} accepted work without a valid bounded turn identity; Paperclip terminated the provider and closed the durable run"),
+                    RejectedAcceptedTurn::ReusedIdentity(_) => format!("{provider_name} accepted work with a previously settled turn identity; Outpost terminated the provider and closed the durable run"),
+                    RejectedAcceptedTurn::InvalidIdentity => format!("{provider_name} accepted work without a valid bounded turn identity; Outpost terminated the provider and closed the durable run"),
                 },
-                "paperclipAccepted": false,
+                "outpostAccepted": false,
                 "providerAccepted": true,
             }),
         });
@@ -4645,7 +4645,7 @@ impl CodexCommandExecutor {
             "operationId": operation_id,
             "callId": call_id,
             "message": reason,
-            "paperclipExecuted": false,
+            "outpostExecuted": false,
         });
         if let Some(guidance) = error.safe_provider_message() {
             payload["inputSchemaGuidance"] = json!(guidance);
@@ -4706,7 +4706,7 @@ impl CodexCommandExecutor {
             result: json!({
                 "error": {
                     "code": "semantic_tool_turn_receipt_limit",
-                    "message": "Paperclip stopped this turn at its durable semantic-tool receipt limit",
+                    "message": "Outpost stopped this turn at its durable semantic-tool receipt limit",
                     "retryable": false,
                 },
             }),
@@ -5032,7 +5032,7 @@ impl CodexCommandExecutor {
                     !result.is_error
                         && matches!(
                             operation_id.as_str(),
-                            "paperclip_finish" | "paperclip_block"
+                            "outpost_finish" | "outpost_block"
                         )
                 });
         if let Some((operation_id, input)) = terminal_tool_input {
@@ -5644,7 +5644,7 @@ impl CodexCommandExecutor {
                                         "scope": "session",
                                         "recoverable": true,
                                         "userActionable": false,
-                                        "summary": "Codex goal state could not be reconciled after the turn; Paperclip retained the last durable snapshot.",
+                                        "summary": "Codex goal state could not be reconciled after the turn; Outpost retained the last durable snapshot.",
                                     }),
                                 });
                             }
@@ -6153,7 +6153,7 @@ mod tests {
     #[test]
     fn startup_evidence_save_failure_cannot_become_an_empty_drain_or_admission() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-startup-write-failure-{}",
+            "outpost-startup-write-failure-{}",
             uuid::Uuid::new_v4()
         ));
         let mut executor = CodexCommandExecutor::new(&directory);
@@ -6190,7 +6190,7 @@ mod tests {
     fn goal_command_can_persist_provider_restart_ownership() {
         for command_type in ["session.goal.get", "session.goal.set", "session.goal.clear"] {
             let directory = std::env::temp_dir()
-                .join(format!("paperclip-goal-startup-{}", uuid::Uuid::new_v4()));
+                .join(format!("outpost-goal-startup-{}", uuid::Uuid::new_v4()));
             let mut executor = CodexCommandExecutor::new(&directory);
             executor.state = Some(opencode_result_state());
             executor.startup_command = Some(ProviderStartupCommand {
@@ -6293,7 +6293,7 @@ mod tests {
     #[test]
     fn failed_authenticated_identity_commit_keeps_the_durable_startup_fence() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-startup-identity-commit-{}",
+            "outpost-startup-identity-commit-{}",
             uuid::Uuid::new_v4()
         ));
         let mut executor = CodexCommandExecutor::new(&directory);
@@ -6389,7 +6389,7 @@ mod tests {
             observe: impl FnOnce(&mut CodexCommandExecutor),
         ) -> PathBuf {
             let directory =
-                std::env::temp_dir().join(format!("paperclip-{prefix}-{}", uuid::Uuid::new_v4()));
+                std::env::temp_dir().join(format!("outpost-{prefix}-{}", uuid::Uuid::new_v4()));
             let mut executor = CodexCommandExecutor::new(&directory);
             let mut state = opencode_result_state();
             state.config.provider = "codex".to_owned();
@@ -6830,7 +6830,7 @@ mod tests {
     #[test]
     fn invalid_tool_results_expose_authorized_schema_guidance() {
         let finish_result = schema_rejection(
-            "paperclip_finish",
+            "outpost_finish",
             json!({"secretSubmittedValue": "must-not-appear"}),
         );
         assert_eq!(finish_result.result["error"]["code"], "invalid_tool_call");
@@ -6846,7 +6846,7 @@ mod tests {
         assert!(!finish_message.chars().any(char::is_control));
         assert!(!finish_result.result.to_string().contains("must-not-appear"));
 
-        let block_result = schema_rejection("paperclip_block", json!({}));
+        let block_result = schema_rejection("outpost_block", json!({}));
         let block_message = block_result.result["error"]["message"].as_str().unwrap();
         assert!(block_message
             .contains("blocker must include reasonCode, owner, unblockAction, and scope"));
@@ -6902,13 +6902,13 @@ mod tests {
         let unauthorized_error = ProviderToolBridge::default()
             .begin_call(
                 "unauthorized-call".to_owned(),
-                "paperclip_finish".to_owned(),
+                "outpost_finish".to_owned(),
                 json!({}),
             )
             .unwrap_err();
         let unauthorized_result = invalid_tool_call_result(
             "unauthorized-call".to_owned(),
-            "paperclip_finish".to_owned(),
+            "outpost_finish".to_owned(),
             &unauthorized_error,
         );
         assert_eq!(
@@ -6921,7 +6921,7 @@ mod tests {
     #[test]
     fn disconnected_poll_never_restores_an_unopened_facade() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-offline-no-restore-{}",
+            "outpost-offline-no-restore-{}",
             uuid::Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -6945,7 +6945,7 @@ mod tests {
     #[test]
     fn disconnected_codex_output_is_durable_and_terminal_control_waits_for_reconnect() {
         let directory =
-            std::env::temp_dir().join(format!("paperclip-offline-codex-{}", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("outpost-offline-codex-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&directory).unwrap();
         let goal_called = directory.join("goal-called");
         let script = format!(
@@ -7135,9 +7135,9 @@ done
         });
 
         let result_events =
-            normalize_provider_notification(&mut state, "paperclip/runResult", &params).unwrap();
+            normalize_provider_notification(&mut state, "outpost/runResult", &params).unwrap();
         let replay_events =
-            normalize_provider_notification(&mut state, "paperclip/runResult", &params).unwrap();
+            normalize_provider_notification(&mut state, "outpost/runResult", &params).unwrap();
         let terminal = terminal_events(&state, "turn.completed", None);
 
         assert_eq!(result_events.len(), 1);
@@ -7221,11 +7221,11 @@ done
         let mut state = cursor_cloud_result_state();
         let params = json!({ "threadId": "thread-1", "turnId": "turn-1", "result": valid_opencode_result() });
         let events =
-            normalize_provider_notification(&mut state, "paperclip/runResult", &params).unwrap();
+            normalize_provider_notification(&mut state, "outpost/runResult", &params).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_type, "run.result.proposed");
         assert!(
-            normalize_provider_notification(&mut state, "paperclip/runResult", &params)
+            normalize_provider_notification(&mut state, "outpost/runResult", &params)
                 .unwrap()
                 .is_empty()
         );
@@ -7236,13 +7236,13 @@ done
         let mut wrong_turn = params.clone();
         wrong_turn["turnId"] = json!("stale-turn");
         assert!(
-            normalize_provider_notification(&mut state, "paperclip/runResult", &wrong_turn)
+            normalize_provider_notification(&mut state, "outpost/runResult", &wrong_turn)
                 .is_err()
         );
         let mut changed = params;
         changed["result"]["summary"] = json!("different completion");
         assert!(
-            normalize_provider_notification(&mut state, "paperclip/runResult", &changed).is_err()
+            normalize_provider_notification(&mut state, "outpost/runResult", &changed).is_err()
         );
     }
 
@@ -7251,7 +7251,7 @@ done
         let mut state = cursor_cloud_result_state();
         admit_terminal_tool_authority(
             &mut state,
-            "paperclip_finish",
+            "outpost_finish",
             &valid_opencode_result(),
             false,
         )
@@ -7268,7 +7268,7 @@ done
     #[test]
     fn stopped_prepared_checkpoint_rebinds_without_restarting_its_old_provider() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-provider-stopped-checkpoint-rebind-{}",
+            "outpost-provider-stopped-checkpoint-rebind-{}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&directory);
@@ -7301,7 +7301,7 @@ done
 
     #[test]
     fn saved_thread_adopts_the_controllers_current_codex_feature_policy() {
-        // A thread saved before a Paperclip upgrade carries that release's
+        // A thread saved before a Outpost upgrade carries that release's
         // feature toggles. The controller recomputes them for every launch, so a
         // changed toggle must not strand the saved thread. Sandbox, permission
         // profile, and command changes stay protected.
@@ -7338,7 +7338,7 @@ done
         settled.lifecycle = "prepared".to_owned();
 
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-provider-feature-policy-{}",
+            "outpost-provider-feature-policy-{}",
             uuid::Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -7363,7 +7363,7 @@ done
         let mut disabled = current_args.clone();
         disabled.splice(4..4, ["--disable".to_owned(), "memories".to_owned()]);
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-provider-feature-tightening-{}",
+            "outpost-provider-feature-tightening-{}",
             uuid::Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -7386,7 +7386,7 @@ done
             let mut enabled = current_args.clone();
             enabled.splice(4..4, enabled_form);
             let directory = std::env::temp_dir().join(format!(
-                "paperclip-provider-feature-enable-{}",
+                "outpost-provider-feature-enable-{}",
                 uuid::Uuid::new_v4()
             ));
             fs::create_dir_all(&directory).unwrap();
@@ -7435,7 +7435,7 @@ done
     #[test]
     fn stopped_checkpoint_rebinding_retains_undelivered_facts_for_the_prior_authority() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-provider-retained-facts-{}",
+            "outpost-provider-retained-facts-{}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&directory);
@@ -7543,7 +7543,7 @@ done
     #[test]
     fn cursor_cloud_cold_attachment_refreshes_only_instructions() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-cloud-cold-instructions-{}",
+            "outpost-cloud-cold-instructions-{}",
             uuid::Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -7684,7 +7684,7 @@ done
         result.as_object_mut().unwrap().remove("attentionRequests");
         result.as_object_mut().unwrap().remove("artifacts");
 
-        admit_terminal_tool_authority(&mut state, "paperclip_finish", &result, false).unwrap();
+        admit_terminal_tool_authority(&mut state, "outpost_finish", &result, false).unwrap();
         let terminal = terminal_events(&state, "turn.completed", None);
 
         assert_eq!(terminal.len(), 1);
@@ -7706,7 +7706,7 @@ done
         )
         .unwrap();
         let operation = crate::provider_bridge::AuthorizedTool {
-            operation_id: "paperclip_finish".to_owned(),
+            operation_id: "outpost_finish".to_owned(),
             version: 1,
             description: "Report the completed turn.".to_owned(),
             input_schema,
@@ -7735,7 +7735,7 @@ done
         let input = valid_opencode_result();
         assert!(matches!(
             state
-                .admit_tool_call("rejected-finish", "paperclip_finish", &input)
+                .admit_tool_call("rejected-finish", "outpost_finish", &input)
                 .unwrap(),
             ToolCallAdmission::Pending(_)
         ));
@@ -7743,12 +7743,12 @@ done
             .tool_bridge
             .apply_result(ToolResult {
                 call_id: "rejected-finish".to_owned(),
-                operation_id: "paperclip_finish".to_owned(),
+                operation_id: "outpost_finish".to_owned(),
                 result: json!({"error": {"code": "deliverable_missing"}}),
                 is_error: true,
             })
             .unwrap();
-        admit_terminal_tool_authority(&mut state, "paperclip_finish", &input, true).unwrap();
+        admit_terminal_tool_authority(&mut state, "outpost_finish", &input, true).unwrap();
         state.last_agent_message =
             Some("The required deliverable could not be published.".to_owned());
 
@@ -7760,7 +7760,7 @@ done
     fn schema_rejected_finish_cannot_become_a_successful_terminal_fallback() {
         let mut state = declared_finish_state();
         assert!(state
-            .admit_tool_call("invalid-finish", "paperclip_finish", &json!({}))
+            .admit_tool_call("invalid-finish", "outpost_finish", &json!({}))
             .unwrap_err()
             .to_string()
             .contains("JSON Schema validation"));
@@ -7803,7 +7803,7 @@ done
     fn rejected_finish_survives_snapshot_restore_and_only_a_new_turn_clears_it() {
         let mut state = declared_finish_state();
         state
-            .admit_tool_call("invalid-finish", "paperclip_finish", &json!({}))
+            .admit_tool_call("invalid-finish", "outpost_finish", &json!({}))
             .unwrap_err();
         let mut restored: CodexProviderState =
             serde_json::from_value(serde_json::to_value(&state).unwrap()).unwrap();
@@ -7844,7 +7844,7 @@ done
         let mut state = opencode_result_state();
         state.last_agent_message = Some("The requested answer is ready.".to_owned());
         state
-            .admit_tool_call("undeclared-finish", "paperclip_finish", &json!({}))
+            .admit_tool_call("undeclared-finish", "outpost_finish", &json!({}))
             .unwrap_err();
 
         assert_eq!(
@@ -7858,8 +7858,8 @@ done
     fn rejected_finish_allows_a_later_accepted_finish_in_the_same_turn() {
         let mut state = declared_finish_state();
         let input = valid_opencode_result();
-        admit_terminal_tool_authority(&mut state, "paperclip_finish", &input, true).unwrap();
-        admit_terminal_tool_authority(&mut state, "paperclip_finish", &input, false).unwrap();
+        admit_terminal_tool_authority(&mut state, "outpost_finish", &input, true).unwrap();
+        admit_terminal_tool_authority(&mut state, "outpost_finish", &input, false).unwrap();
 
         let events = terminal_events(&state, "turn.completed", None);
 
@@ -7902,7 +7902,7 @@ done
             "idempotencyKey": "response-wake-1"
         });
 
-        admit_terminal_tool_authority(&mut state, "paperclip_finish", &result, false).unwrap();
+        admit_terminal_tool_authority(&mut state, "outpost_finish", &result, false).unwrap();
         let terminal = terminal_events(&state, "turn.completed", None);
 
         assert_eq!(terminal.len(), 1);
@@ -7921,7 +7921,7 @@ done
             "idempotencyKey": "monitor-1"
         });
 
-        admit_terminal_tool_authority(&mut state, "paperclip_finish", &result, false).unwrap();
+        admit_terminal_tool_authority(&mut state, "outpost_finish", &result, false).unwrap();
         let terminal = terminal_events(&state, "turn.completed", None);
 
         assert_eq!(terminal.len(), 1);
@@ -7946,7 +7946,7 @@ done
             if let Some(value) = continuation {
                 result["continuation"] = value;
             }
-            admit_terminal_tool_authority(&mut state, "paperclip_finish", &result, false).unwrap();
+            admit_terminal_tool_authority(&mut state, "outpost_finish", &result, false).unwrap();
             assert_eq!(
                 state.active_provider_result_disposition.as_deref(),
                 Some("yielded")
@@ -7970,7 +7970,7 @@ done
             "idempotencyKey": "same-agent-1"
         });
 
-        admit_terminal_tool_authority(&mut state, "paperclip_finish", &result, true).unwrap();
+        admit_terminal_tool_authority(&mut state, "outpost_finish", &result, true).unwrap();
         assert!(state.active_provider_result_fingerprint.is_none());
         assert!(state.active_provider_result_disposition.is_none());
         assert!(state.validate().is_ok());
@@ -7981,7 +7981,7 @@ done
         let mut state = opencode_result_state();
         let result = valid_opencode_result();
 
-        admit_terminal_tool_authority(&mut state, "paperclip_finish", &result, false).unwrap();
+        admit_terminal_tool_authority(&mut state, "outpost_finish", &result, false).unwrap();
         let terminal = terminal_events(&state, "turn.interrupted", None);
 
         assert_eq!(terminal.len(), 1);
@@ -8001,7 +8001,7 @@ done
 
         admit_terminal_tool_authority(
             &mut state,
-            "paperclip_finish",
+            "outpost_finish",
             &valid_opencode_result(),
             false,
         )
@@ -8020,7 +8020,7 @@ done
 
         assert!(admit_terminal_tool_authority(
             &mut state,
-            "paperclip_block",
+            "outpost_block",
             &valid_opencode_result(),
             false,
         )
@@ -8046,7 +8046,7 @@ done
         result["completionClaim"]["contractRevision"] = json!("revision-2");
         assert!(normalize_provider_notification(
             &mut wrong_revision,
-            "paperclip/runResult",
+            "outpost/runResult",
             &params(result),
         )
         .unwrap_err()
@@ -8056,19 +8056,19 @@ done
         let mut malformed = opencode_result_state();
         assert!(normalize_provider_notification(
             &mut malformed,
-            "paperclip/runResult",
+            "outpost/runResult",
             &params(json!({"schema": "outpost.run_result.v1"})),
         )
         .unwrap_err()
         .to_string()
-        .contains("failed the Paperclip result schema"));
+        .contains("failed the Outpost result schema"));
 
         let mut wrong_criteria = opencode_result_state();
         let mut result = valid_opencode_result();
         result["completionClaim"]["criteria"][0]["criterionId"] = json!("criterion-2");
         assert!(normalize_provider_notification(
             &mut wrong_criteria,
-            "paperclip/runResult",
+            "outpost/runResult",
             &params(result),
         )
         .unwrap_err()
@@ -8078,7 +8078,7 @@ done
         let mut conflicting = opencode_result_state();
         normalize_provider_notification(
             &mut conflicting,
-            "paperclip/runResult",
+            "outpost/runResult",
             &params(valid_opencode_result()),
         )
         .unwrap();
@@ -8086,7 +8086,7 @@ done
         result["summary"] = json!("A conflicting second result.");
         assert!(normalize_provider_notification(
             &mut conflicting,
-            "paperclip/runResult",
+            "outpost/runResult",
             &params(result),
         )
         .unwrap_err()
@@ -8097,7 +8097,7 @@ done
         spoofed.config.provider = "codex".to_owned();
         assert!(normalize_provider_notification(
             &mut spoofed,
-            "paperclip/runResult",
+            "outpost/runResult",
             &params(valid_opencode_result()),
         )
         .unwrap_err()
@@ -8390,7 +8390,7 @@ done
         assert!(summary.len() > 4_096);
         let call = PendingToolCall {
             call_id: "call-1".to_owned(),
-            operation_id: "paperclip_finish".to_owned(),
+            operation_id: "outpost_finish".to_owned(),
             input: json!({"summary": summary}),
         };
 
@@ -8929,7 +8929,7 @@ done
     #[test]
     fn restore_reattaches_the_durable_tool_result_byte_counter() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-provider-tool-byte-restore-{}",
+            "outpost-provider-tool-byte-restore-{}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&directory);
@@ -9139,7 +9139,7 @@ done
         #[cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))]
         let orphans = ();
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-offline-receipt-limit-{}",
+            "outpost-offline-receipt-limit-{}",
             uuid::Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).unwrap();
@@ -9568,7 +9568,7 @@ done
     #[test]
     fn receipt_limit_deadline_settlement_preserves_unacknowledged_events() {
         let directory = std::env::temp_dir().join(format!(
-            "paperclip-provider-receipt-deadline-{}",
+            "outpost-provider-receipt-deadline-{}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&directory);

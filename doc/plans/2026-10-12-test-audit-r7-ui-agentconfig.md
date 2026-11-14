@@ -7,8 +7,8 @@ This separate packet removes **4 registered executions, 4 root renders and 44 ne
 | Retired registration | Keeper | Observations retained |
 |---|---|---|
 | `keeps secret access out of the main Configuration content` | `hides the environment override when Local is the only configured environment` | expect(result.container.textContent).not.toContain("Secret access"); |
-| `starts a login session for the effective sandbox and shows the code and the authentication URL` | `shows a Cancel affordance while a login is active and cancels the session` | expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith("company-1", "codex_local", {       environmentId: "sandbox-1",     });; expect(result.container.textContent).toContain("WXYZ-1234");; expect(result.container.textContent).toContain("https://auth.example.test/device"); |
-| `shows the authorization URL and a browser-code input for a Claude sandbox` | `cancels an active Claude login and returns to its start state` | expect(mockAgentsApi.startClaudeSetupTokenLogin).toHaveBeenCalledWith("company-1", {       environmentId: "sandbox-1",     });; expect(result.container.textContent).toContain("https://claude.example.test/authorize");; expect(       result.container.querySelector('input[aria-label="Browser code"]'),     ).toBeTruthy();; expect(result.container.textContent).not.toContain("not encrypted"); |
+| `starts a login session for the effective sandbox and shows the code and the authentication URL` | `shows a Cancel affordance while a login is active and cancels the session` | expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith("space-1", "codex_local", {       environmentId: "sandbox-1",     });; expect(result.container.textContent).toContain("WXYZ-1234");; expect(result.container.textContent).toContain("https://auth.example.test/device"); |
+| `shows the authorization URL and a browser-code input for a Claude sandbox` | `cancels an active Claude login and returns to its start state` | expect(mockAgentsApi.startClaudeSetupTokenLogin).toHaveBeenCalledWith("space-1", {       environmentId: "sandbox-1",     });; expect(result.container.textContent).toContain("https://claude.example.test/authorize");; expect(       result.container.querySelector('input[aria-label="Browser code"]'),     ).toBeTruthy();; expect(result.container.textContent).not.toContain("not encrypted"); |
 | `keeps the non-path ACP controls visible when the policy hides the engine choice` | `hides the host path and execution-engine fields for claude_local when the policy is on` | expect(labels).toContain("ACP session mode");; expect(labels).toContain("ACP non-interactive permissions"); |
 
 Each of four pairs uses identical beforeEach/afterEach hooks and render/helper input expressions. The Local-only configuration keeper absorbs the Secret access exclusion. The Codex and Claude cancellation keepers retain their respective original provider-specific start API and displayed-code/submitted-browser-code observations before any Cancel click; their providers and lifecycle remain separate. Real runTest/startLogin helpers click Test/Sign in under the original QueryClient/Toast/Tooltip tree with fresh clients and roots. The managed-sandbox-only keeper absorbs both visible non-path ACP labels after the same Advanced/Advanced Run Policy toggles. AgentConfigForm.tsx passes the policy into real ClaudeLocalAdvancedFields from adapters/claude-local/config-fields.tsx, which retains non-path mode/permission fields while host paths are hidden. Existing enabled/disabled/loading, stored-token, terminal-state, submit, cancel-error and timeout cases remain unchanged. Two retired login cases avoid repeated environment-test/start-login API paths; polling request counts and time savings are not claimed.
@@ -29,12 +29,12 @@ All 13 isolated positive controls passed. All 13 deliberate behavior regressions
 | Regression | Intended guard |
 |---|---|
 | secrets | `expect(result.container.textContent).not.toContain("Secret access")` |
-| codex-company | `expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith(` |
+| codex-space | `expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith(` |
 | codex-adapter | `expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith(` |
 | codex-environment | `expect(mockAgentsApi.startAdapterAuthLogin).toHaveBeenCalledWith(` |
 | codex-code | `expect(result.container.textContent).toContain("WXYZ-1234")` |
 | codex-url | `expect(result.container.textContent).toContain("https://auth.example.test/device")` |
-| claude-company | `expect(mockAgentsApi.startClaudeSetupTokenLogin).toHaveBeenCalledWith(` |
+| claude-space | `expect(mockAgentsApi.startClaudeSetupTokenLogin).toHaveBeenCalledWith(` |
 | claude-environment | `expect(mockAgentsApi.startClaudeSetupTokenLogin).toHaveBeenCalledWith(` |
 | claude-url | `expect(result.container.textContent).toContain("https://claude.example.test/authorize")` |
 | claude-input | `result.container.querySelector('input[aria-label="Browser code"]')` |

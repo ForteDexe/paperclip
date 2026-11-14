@@ -3,7 +3,7 @@ import { classifyCopilotFailure, composeCopilotSystemInstructions, COPILOT_TASK_
 
 describe("Copilot admission policy", () => {
   it("bounds the complete native instruction file without retaining prior instructions", () => {
-    const suffix = `\n\n# Paperclip task orientation\n${COPILOT_TASK_ORIENTATION_INSTRUCTIONS}`;
+    const suffix = `\n\n# Outpost task orientation\n${COPILOT_TASK_ORIENTATION_INSTRUCTIONS}`;
     expect(composeCopilotSystemInstructions("Current instructions.")).toBe(`Current instructions.${suffix}`);
     expect(composeCopilotSystemInstructions("")).toBe(suffix);
     const remaining = 32 * 1024 - Buffer.byteLength(`${suffix}\n`);

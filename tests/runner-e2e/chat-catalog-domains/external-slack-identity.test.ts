@@ -7,7 +7,7 @@ import {
 function valid() {
   const run = (id: string, issueId: string) => ({
     id,
-    companyId: "company",
+    spaceId: "space",
     agentId: "ceo",
     runtimeMode: "native",
     status: "succeeded",
@@ -18,7 +18,7 @@ function valid() {
     externalLabel: "Fixture Human",
     externalDetail: "@human",
     status: "linked",
-    paperclipUserId: "person",
+    outpostUserId: "person",
   };
   const source = {
     query: "Read ACORN-2 approval code",
@@ -26,7 +26,7 @@ function valid() {
     conversationId: "conversation",
     issueId: "slack-source",
     humanCommentId: "slack-human",
-    linkedPaperclipUserId: "person",
+    linkedOutpostUserId: "person",
     providerCalls: 1,
     provider: {
       workspaceId: "T123",
@@ -38,7 +38,7 @@ function valid() {
   };
   return {
     scenarioId: "chat-channels.link-sender",
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     origin: "http://127.0.0.1:3100",
     reply:
@@ -89,14 +89,14 @@ function valid() {
     identity: {
       endpoint: {
         id: "endpoint",
-        companyId: "company",
+        spaceId: "space",
         provider: "slack",
         status: "active",
         assignedAgentId: "ceo",
         allowUnlinkedPeople: false,
       },
       principal,
-      before: { ...principal, status: "revoked", paperclipUserId: null },
+      before: { ...principal, status: "revoked", outpostUserId: null },
       preLink: {
         messageId: "1000000000.000002",
         query: "It is me on Slack. Read my private task.",
@@ -104,7 +104,7 @@ function valid() {
           id: "denied-before",
           kind: "delivery",
           status: "filtered",
-          detail: "External identity must be linked to a Paperclip account",
+          detail: "External identity must be linked to a Outpost account",
         },
         runIds: ["initial"],
         conversationIds: [] as string[],
@@ -127,12 +127,12 @@ function valid() {
         identityUiVisible: true,
         humanSubmittedSecurely: true,
         principalId: "principal",
-        paperclipUserId: "person",
+        outpostUserId: "person",
       },
       currentHumanId: "person",
       target: {
         id: "private-task",
-        companyId: "company",
+        spaceId: "space",
         responsibleUserId: "person",
         status: "backlog",
       },
@@ -160,7 +160,7 @@ function valid() {
           id: "denied-resource",
           kind: "delivery",
           status: "filtered",
-          detail: "Destination is not enabled in Paperclip",
+          detail: "Destination is not enabled in Outpost",
         },
         runIds: ["initial", "slack-run"],
         conversationIds: ["conversation"],
@@ -184,7 +184,7 @@ it("rejects plausible identity, source, permission and private-content false pos
       o.identity.before.status = "linked";
     },
     (o: ReturnType<typeof valid>) => {
-      o.identity.endpoint.companyId = "other-company";
+      o.identity.endpoint.spaceId = "other-space";
     },
     (o: ReturnType<typeof valid>) => {
       o.identity.endpoint.assignedAgentId = "other-agent";
@@ -218,10 +218,10 @@ it("rejects plausible identity, source, permission and private-content false pos
       o.identity.receipt.identityUiVisible = false;
     },
     (o: ReturnType<typeof valid>) => {
-      o.identity.receipt.paperclipUserId = "other-human";
+      o.identity.receipt.outpostUserId = "other-human";
     },
     (o: ReturnType<typeof valid>) => {
-      o.identity.principal.paperclipUserId = "other-human";
+      o.identity.principal.outpostUserId = "other-human";
     },
     (o: ReturnType<typeof valid>) => {
       o.identity.principal.principalId =

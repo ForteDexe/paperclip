@@ -6,7 +6,7 @@ import { createDb } from '@outpost/db';
 import { startEmbeddedPostgresTestDatabase } from '../../dist/__tests__/helpers/embedded-postgres.js';
 import { createProfileProjectionFixture } from '../../dist/__tests__/helpers/tool-profile-projection-fixture.js';
 const option = (name, fallback) => { const index = process.argv.indexOf(name); return index < 0 ? fallback : process.argv[index + 1] ?? fallback; };
-const output = path.resolve(option('--output-dir', '/tmp/paperclip-tool-projection'));
+const output = path.resolve(option('--output-dir', '/tmp/outpost-tool-projection'));
 const repeats = Number(option('--repeat', '5'));
 assert.ok(Number.isInteger(repeats) && repeats > 0, '--repeat must be a positive integer');
 assert.equal(typeof global.gc, 'function', 'Run Node with --expose-gc');
@@ -21,7 +21,7 @@ for (const label of ['baseline', 'pending', 'combined']) {
     attentionFactory: (await import(new URL(`../../dist/services/tool-access/catalog/${a}`, import.meta.url))).createToolAppAttention,
   };
 }
-const database = await startEmbeddedPostgresTestDatabase('paperclip-hotpaths-owned-');
+const database = await startEmbeddedPostgresTestDatabase('outpost-hotpaths-owned-');
 const db = createDb(database.connectionString, { maxConnections: 1 });
 let queries = 0, rows = 0;
 const measuredDb = new Proxy(db, { get(target, key) {
@@ -44,8 +44,8 @@ try {
   for (const variant of Object.values(variants)) {
     const profiles = variant.profileFactory(measuredDb, now);
     const attention = variant.attentionFactory(measuredDb, now);
-    variant.profiles = () => profiles.listProfiles(fixture.company.id);
-    variant.attention = () => attention(fixture.company.id);
+    variant.profiles = () => profiles.listProfiles(fixture.space.id);
+    variant.attention = () => attention(fixture.space.id);
   }
   emit({ kind: 'environment', node: process.version, platform: process.platform, arch: process.arch,
     build: 'esbuild transpiled ES modules, node24 target; no runtime TypeScript loader',

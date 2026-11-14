@@ -16,7 +16,7 @@ import { setSessionCookie } from "better-auth/cookies";
 import { createAuthEndpoint } from "better-auth/api";
 import type { Session, User } from "better-auth/types";
 import type { Db } from "@outpost/db";
-import { companyMemberships } from "@outpost/db";
+import { spaceMemberships } from "@outpost/db";
 import { logger } from "../middleware/logger.js";
 import {
   exchangeWorkspaceHandoffTicket,
@@ -40,7 +40,7 @@ export type WorkspaceHandoffExpectedIdentity = {
   key: string | null;
   instanceId: string | null;
   executionWorkspaceId: string | null;
-  companyId: string | null;
+  spaceId: string | null;
   origin: string | null;
 };
 
@@ -88,7 +88,7 @@ export function workspaceLoginHandoffPlugin(deps: {
   resolveExpectedIdentity: () => WorkspaceHandoffExpectedIdentity;
 }) {
   return {
-    id: "paperclip-workspace-login-handoff",
+    id: "outpost-workspace-login-handoff",
     endpoints: {
       exchangeWorkspaceLoginHandoff: createAuthEndpoint(
         WORKSPACE_HANDOFF_EXCHANGE_PATH,
@@ -110,28 +110,28 @@ export function workspaceLoginHandoffPlugin(deps: {
             expected: {
               instanceId: expected.instanceId,
               executionWorkspaceId: expected.executionWorkspaceId,
-              companyId: expected.companyId,
+              spaceId: expected.spaceId,
               origin: expected.origin,
             },
             deps: {
-              findClonedIdentity: async ({ userId, companyId }) => {
+              findClonedIdentity: async ({ userId, spaceId }) => {
                 const user = await ctx.context.internalAdapter.findUserById(userId);
                 if (!user) return null;
-                // Membership lives in Paperclip's own schema, so it is read
+                // Membership lives in Outpost's own schema, so it is read
                 // through the app's `db` handle rather than the Better Auth
-                // adapter. Scoped to the ticket's company: an unscoped check
+                // adapter. Scoped to the ticket's space: an unscoped check
                 // would accept a clone where this user belongs to some *other*
-                // company and hand them a session with no access to the board
+                // space and hand them a session with no access to the operator
                 // they opened. Existence, not a count.
                 const activeMemberships = await deps.db
-                  .select({ id: companyMemberships.id })
-                  .from(companyMemberships)
+                  .select({ id: spaceMemberships.id })
+                  .from(spaceMemberships)
                   .where(
                     and(
-                      eq(companyMemberships.companyId, companyId),
-                      eq(companyMemberships.principalType, "user"),
-                      eq(companyMemberships.principalId, userId),
-                      eq(companyMemberships.status, "active"),
+                      eq(spaceMemberships.spaceId, spaceId),
+                      eq(spaceMemberships.principalType, "user"),
+                      eq(spaceMemberships.principalId, userId),
+                      eq(spaceMemberships.status, "active"),
                     ),
                   )
                   .limit(1)

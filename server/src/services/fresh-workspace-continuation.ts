@@ -49,18 +49,18 @@ const processStartedAt = new Date(Date.now() - process.uptime() * 1_000);
  * it started before this server process, so this process cannot be running it.
  * Operations with no run, of another run, or from this process still block. */
 export async function workspaceHasOtherWriter(db: Db, input: {
-  companyId: string; workspaceId: string; successorRunId: string;
+  spaceId: string; workspaceId: string; successorRunId: string;
   stoppedSource?: { id: string; finishedAt: Date | null } | null;
 }) {
   const [lease] = await db.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, input.companyId), eq(environmentLeases.executionWorkspaceId, input.workspaceId),
+    eq(environmentLeases.spaceId, input.spaceId), eq(environmentLeases.executionWorkspaceId, input.workspaceId),
     or(isNull(environmentLeases.heartbeatRunId), ne(environmentLeases.heartbeatRunId, input.successorRunId)),
     or(isNull(environmentLeases.releasedAt), inArray(environmentLeases.status, ["active", "pending_cleanup"]),
       eq(environmentLeases.cleanupStatus, "failed")),
   )).limit(1);
   const source = input.stoppedSource?.finishedAt ? input.stoppedSource : null;
   const [operation] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, input.companyId), eq(workspaceOperations.executionWorkspaceId, input.workspaceId),
+    eq(workspaceOperations.spaceId, input.spaceId), eq(workspaceOperations.executionWorkspaceId, input.workspaceId),
     eq(workspaceOperations.status, "running"),
     or(isNull(workspaceOperations.heartbeatRunId), ne(workspaceOperations.heartbeatRunId, input.successorRunId)),
     // coalesce keeps an operation with no run: NULL = id must not hide it.
@@ -79,7 +79,7 @@ export async function readableOwnGitRoot(workspace: typeof executionWorkspaces.$
   const signal = AbortSignal.timeout(RETAINED_WORKSPACE_GIT_BUDGET_MS);
   const scan = (args: string[], operation: string) => workspaceGitOperationScheduler.run({
     workspacePath: real, args, operation, cacheTtlMs: 0, bypassSingleFlight: true, signal,
-    timeoutMs: RETAINED_WORKSPACE_GIT_BUDGET_MS, fairnessKeys: [`company:${workspace.companyId}`, `workspace:${workspace.id}`],
+    timeoutMs: RETAINED_WORKSPACE_GIT_BUDGET_MS, fairnessKeys: [`space:${workspace.spaceId}`, `workspace:${workspace.id}`],
   });
   try {
     const root = (await scan(["rev-parse", "--show-toplevel"], "retry.retained_workspace_root")).stdout.trim();
@@ -124,14 +124,14 @@ export function recoveryGenerationSettled(evidence: Record<string, unknown> | nu
  * the caller keeps the fresh isolated attempt and the directory stays untouched.
  * Pass one `gitProbes` map when checking several holds for the same run. */
 export async function retainedIssueWorkspaceForRetry(db: Db, input: {
-  companyId: string; issueId: string; agentId: string; successorRunId: string; cause: string | null;
+  spaceId: string; issueId: string; agentId: string; successorRunId: string; cause: string | null;
   source: Pick<typeof heartbeatRuns.$inferSelect, "id" | "resultJson" | "status" | "finishedAt" | "controllerLeaseExpiresAt">;
   evidence: Record<string, unknown> | null; gitProbes?: Map<string, Promise<boolean>>;
   verifyProviderWorkspace?: (workspace: typeof executionWorkspaces.$inferSelect) => Promise<boolean>;
   sourceRetryIntentId?: unknown;
 }): Promise<{ id: string; cwd: string | null } | null> {
   const keepFresh = (reason: string) => {
-    logger.info({ companyId: input.companyId, issueId: input.issueId, sourceRunId: input.source.id,
+    logger.info({ spaceId: input.spaceId, issueId: input.issueId, sourceRunId: input.source.id,
       successorRunId: input.successorRunId, reason }, "Retry keeps a fresh attempt; the task workspace is not reusable");
     return null;
   };
@@ -141,14 +141,14 @@ export async function retainedIssueWorkspaceForRetry(db: Db, input: {
       (input.source.controllerLeaseExpiresAt && input.source.controllerLeaseExpiresAt > new Date())) return keepFresh("source_not_settled");
   if (sourceNeedsWorkspaceRepair(input.cause, input.source.resultJson)) return keepFresh("workspace_repair_required");
   const leases = await db.select().from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, input.companyId), eq(environmentLeases.heartbeatRunId, input.source.id),
+    eq(environmentLeases.spaceId, input.spaceId), eq(environmentLeases.heartbeatRunId, input.source.id),
   ));
   if (leases.some(lease => !lease.releasedAt || lease.cleanupStatus === "failed" || !lease.executionWorkspaceId))
     return keepFresh("source_lease_not_released");
   const sourceWorkspaceIds = new Set(leases.map(lease => lease.executionWorkspaceId));
   const [bound] = await db.select({ workspace: executionWorkspaces }).from(issues).innerJoin(executionWorkspaces, and(
-    eq(executionWorkspaces.companyId, issues.companyId), eq(executionWorkspaces.id, issues.executionWorkspaceId),
-  )).where(and(eq(issues.companyId, input.companyId), eq(issues.id, input.issueId),
+    eq(executionWorkspaces.spaceId, issues.spaceId), eq(executionWorkspaces.id, issues.executionWorkspaceId),
+  )).where(and(eq(issues.spaceId, input.spaceId), eq(issues.id, input.issueId),
     eq(issues.assigneeAgentId, input.agentId))).limit(1);
   const workspace = bound?.workspace;
   if (!workspace || workspace.sourceIssueId !== input.issueId || workspace.mode === "shared_workspace" ||
@@ -163,7 +163,7 @@ export async function retainedIssueWorkspaceForRetry(db: Db, input: {
   if (!verifyProvider && (leases.some(lease => lease.provider !== "local") ||
       !isTaskOwnedLocalWorkspace(workspace, input.issueId) || !workspace.cwd))
     return keepFresh("workspace_not_task_owned_local");
-  const writer = await workspaceHasOtherWriter(db, { companyId: input.companyId, workspaceId: workspace.id,
+  const writer = await workspaceHasOtherWriter(db, { spaceId: input.spaceId, workspaceId: workspace.id,
     successorRunId: input.successorRunId, stoppedSource: input.source });
   if (writer) return keepFresh(writer);
   if (verifyProvider) {
@@ -188,7 +188,7 @@ export async function retainedIssueWorkspaceForRetry(db: Db, input: {
 /** This chooses a strategy, never establishes termination or effect safety.
  * Admission verifies those independently before it can persist this receipt. */
 export async function canSelectFreshWorkspace(input: {
-  db: Db; companyId: string; issueId: string; agentId: string; actorId: string;
+  db: Db; spaceId: string; issueId: string; agentId: string; actorId: string;
   sourceRunId: string; evidence: Record<string, unknown>; taskRetryRequestId?: string;
   queuedRequestId?: string;
 }): Promise<string | null> {
@@ -197,7 +197,7 @@ export async function canSelectFreshWorkspace(input: {
   if (!requestId || !system || system.sourceRunId !== input.sourceRunId || system.freshAttemptRunId) return null;
   if (system.providerCooldownAt !== null && system.providerCooldownAt > Date.now()) return null;
   const [wake] = await input.db.select().from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.companyId, input.companyId), eq(agentWakeupRequests.id, requestId),
+    eq(agentWakeupRequests.spaceId, input.spaceId), eq(agentWakeupRequests.id, requestId),
     eq(agentWakeupRequests.agentId, input.agentId), eq(agentWakeupRequests.status, "deferred_issue_execution"),
     sql`${agentWakeupRequests.payload}->>'issueId' = ${input.issueId}`,
   ));
@@ -207,12 +207,12 @@ export async function canSelectFreshWorkspace(input: {
     if (retry?.generationId !== wake.id ||
         retry.actorId !== input.actorId || wake.requestedByActorId !== input.actorId) return null;
     if (retry.sourceRunId !== input.sourceRunId && (system.intentId !== wake.id ||
-      !(await taskRetryRunAncestry({ db: input.db, companyId: input.companyId, issueId: input.issueId,
+      !(await taskRetryRunAncestry({ db: input.db, spaceId: input.spaceId, issueId: input.issueId,
         agentId: input.agentId, sourceRunId: retry.sourceRunId }))?.includes(input.sourceRunId))) return null;
     return wake.id;
   }
   const [source] = await input.db.select({ context: heartbeatRuns.contextSnapshot }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId), eq(heartbeatRuns.id, input.sourceRunId),
+    eq(heartbeatRuns.spaceId, input.spaceId), eq(heartbeatRuns.id, input.sourceRunId),
   ));
   const recoveryPolicy = source?.context?.automaticRecovery as Record<string, unknown> | undefined;
   if (recoveryPolicy?.allowFreshWorkspace === false) return null;
@@ -247,25 +247,25 @@ async function reusableDirectoryAfterPreparationFailure(db: Db, source: typeof h
   if (!settlement || warning && (warning.message !== "Outpost observability was not applied: this harness is not supported."
     || !z.string().uuid().safeParse(warning.revision).success)) return null;
   const [executionEvidence] = await db.execute<{ present: boolean }>(sql`select
-    exists(select 1 from ${environmentLeases} where ${environmentLeases.companyId} = ${source.companyId} and ${environmentLeases.heartbeatRunId} = ${source.id})
-    or exists(select 1 from ${nativeRunResults} where ${nativeRunResults.companyId} = ${source.companyId} and ${nativeRunResults.runId} = ${source.id})
-    or exists(select 1 from ${nativeRunFinalizations} where ${nativeRunFinalizations.companyId} = ${source.companyId} and ${nativeRunFinalizations.runId} = ${source.id}) as present`);
+    exists(select 1 from ${environmentLeases} where ${environmentLeases.spaceId} = ${source.spaceId} and ${environmentLeases.heartbeatRunId} = ${source.id})
+    or exists(select 1 from ${nativeRunResults} where ${nativeRunResults.spaceId} = ${source.spaceId} and ${nativeRunResults.runId} = ${source.id})
+    or exists(select 1 from ${nativeRunFinalizations} where ${nativeRunFinalizations.spaceId} = ${source.spaceId} and ${nativeRunFinalizations.runId} = ${source.id}) as present`);
   if (executionEvidence?.present !== false) return null;
-  const [task] = await db.select().from(issues).where(and(eq(issues.companyId, source.companyId), eq(issues.id, issueId)));
+  const [task] = await db.select().from(issues).where(and(eq(issues.spaceId, source.spaceId), eq(issues.id, issueId)));
   if (!task || task.assigneeAgentId !== source.agentId || task.executionWorkspacePreference !== "reuse_existing" ||
       task.executionWorkspaceId !== validation.issueExecutionWorkspaceId || task.projectId !== validation.issueProjectId ||
       task.projectWorkspaceId !== validation.issueProjectWorkspaceId) return null;
   const [workspace] = await db.select().from(executionWorkspaces).where(and(
-    eq(executionWorkspaces.companyId, source.companyId), eq(executionWorkspaces.id, task.executionWorkspaceId!),
+    eq(executionWorkspaces.spaceId, source.spaceId), eq(executionWorkspaces.id, task.executionWorkspaceId!),
   ));
   if (!workspace || workspace.cwd !== validation.resolvedWorkspaceCwd || !await isBoundIsolatedTaskDirectory({
-    companyId: source.companyId, issueId, workspaceId: task.executionWorkspaceId, workspace: toExecutionWorkspace(workspace) })) return null;
+    spaceId: source.spaceId, issueId, workspaceId: task.executionWorkspaceId, workspace: toExecutionWorkspace(workspace) })) return null;
   const prior = await db.select({ runId: environmentLeases.heartbeatRunId }).from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, source.companyId), eq(environmentLeases.executionWorkspaceId, workspace.id),
+    eq(environmentLeases.spaceId, source.spaceId), eq(environmentLeases.executionWorkspaceId, workspace.id),
   ));
-  for (const { runId } of prior) if (runId && await hasPendingRunCleanup(db, source.companyId, runId)) return null;
+  for (const { runId } of prior) if (runId && await hasPendingRunCleanup(db, source.spaceId, runId)) return null;
   const [operation] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, source.companyId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
+    eq(workspaceOperations.spaceId, source.spaceId), eq(workspaceOperations.executionWorkspaceId, workspace.id),
     eq(workspaceOperations.status, "running"),
   )).limit(1);
   return operation ? null : workspace;
@@ -276,7 +276,7 @@ async function stoppedNativeContinuationWorkspace(db: Db, source: typeof heartbe
   if (source.runtimeMode !== "native" || source.status !== "failed" ||
       source.errorCode !== "native_session_cleanup_quarantined" || !source.nativeSessionId || !source.runnerInstanceId) return null;
   const [proof] = await db.select({ payload: heartbeatRunEvents.payload }).from(heartbeatRunEvents).where(and(
-    eq(heartbeatRunEvents.companyId, source.companyId), eq(heartbeatRunEvents.runId, source.id),
+    eq(heartbeatRunEvents.spaceId, source.spaceId), eq(heartbeatRunEvents.runId, source.id),
     eq(heartbeatRunEvents.agentId, source.agentId), eq(heartbeatRunEvents.eventType, "native.stopped_conversation_verified"),
     isNull(heartbeatRunEvents.sourceEventId),
     sql`${heartbeatRunEvents.payload}->>'successorRunId' = ${input.runId}`,
@@ -290,8 +290,8 @@ async function stoppedNativeContinuationWorkspace(db: Db, source: typeof heartbe
   if (!parsed.success) throw new Error("Verified native continuation workspace is unavailable");
   if (parsed.data.executionWorkspaceId === source.id) return null;
   const [bound] = await db.select({ id: executionWorkspaces.id, cwd: executionWorkspaces.cwd }).from(issues).innerJoin(executionWorkspaces, and(
-    eq(executionWorkspaces.companyId, issues.companyId), eq(executionWorkspaces.id, issues.executionWorkspaceId),
-  )).where(and(eq(issues.companyId, source.companyId), eq(issues.id, input.issueId),
+    eq(executionWorkspaces.spaceId, issues.spaceId), eq(executionWorkspaces.id, issues.executionWorkspaceId),
+  )).where(and(eq(issues.spaceId, source.spaceId), eq(issues.id, input.issueId),
     eq(issues.assigneeAgentId, source.agentId), eq(executionWorkspaces.id, parsed.data.executionWorkspaceId),
     eq(executionWorkspaces.cwd, parsed.data.workspaceCwd), eq(executionWorkspaces.status, "active"),
     eq(executionWorkspaces.providerType, "local_fs"),
@@ -299,11 +299,11 @@ async function stoppedNativeContinuationWorkspace(db: Db, source: typeof heartbe
   )).limit(1);
   if (!bound) throw new Error("Verified native continuation workspace binding changed");
   const [operation] = await db.select({ id: workspaceOperations.id }).from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, source.companyId), eq(workspaceOperations.executionWorkspaceId, bound.id),
+    eq(workspaceOperations.spaceId, source.spaceId), eq(workspaceOperations.executionWorkspaceId, bound.id),
     eq(workspaceOperations.status, "running"), or(isNull(workspaceOperations.heartbeatRunId), ne(workspaceOperations.heartbeatRunId, input.runId)),
   )).limit(1);
   const [lease] = await db.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, source.companyId), eq(environmentLeases.executionWorkspaceId, bound.id),
+    eq(environmentLeases.spaceId, source.spaceId), eq(environmentLeases.executionWorkspaceId, bound.id),
     or(isNull(environmentLeases.heartbeatRunId), ne(environmentLeases.heartbeatRunId, input.runId)),
     or(isNull(environmentLeases.releasedAt), inArray(environmentLeases.status, ["active", "pending_cleanup"])),
   )).limit(1);
@@ -314,13 +314,13 @@ async function stoppedNativeContinuationWorkspace(db: Db, source: typeof heartbe
 
 /** Preparation trusts the committed admission receipt, not a raw wake payload. */
 export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "issueId" | "nativeIssueId" | "contextSnapshot" | "runtimeMode" | "runnerProfileJson">): Promise<ContinuationReadiness | null> {
+  "id" | "spaceId" | "agentId" | "issueId" | "nativeIssueId" | "contextSnapshot" | "runtimeMode" | "runnerProfileJson">): Promise<ContinuationReadiness | null> {
   const issueId = run.nativeIssueId ?? run.issueId ?? run.contextSnapshot?.issueId;
   if (typeof issueId !== "string") return null;
   const admittedInput = run.runnerProfileJson?.nativeExecutionInput;
   if (run.runtimeMode === "native" && admittedInput !== undefined) {
     const admitted = parseNativeExecutionInput(admittedInput);
-    if (admitted.binding.companyId !== run.companyId || admitted.binding.runId !== run.id
+    if (admitted.binding.spaceId !== run.spaceId || admitted.binding.runId !== run.id
       || admitted.binding.agentId !== run.agentId || admitted.binding.issueId !== issueId) {
       throw new Error("native_execution_workspace_admission_binding_mismatch");
     }
@@ -329,13 +329,13 @@ export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heart
       throw new Error("native_execution_workspace_admission_missing");
     }
     const [workspace] = await db.select({ id: executionWorkspaces.id }).from(executionWorkspaces).where(and(
-      eq(executionWorkspaces.companyId, run.companyId), eq(executionWorkspaces.id, admitted.binding.executionWorkspaceId),
+      eq(executionWorkspaces.spaceId, run.spaceId), eq(executionWorkspaces.id, admitted.binding.executionWorkspaceId),
     )).limit(1);
     if (workspace) return null;
     if (admitted.binding.executionWorkspaceId !== run.id) throw new Error("native_execution_workspace_admission_missing");
   }
   const [action] = await db.select({ evidence: issueRecoveryActions.evidence }).from(issueRecoveryActions).where(and(
-    eq(issueRecoveryActions.companyId, run.companyId), eq(issueRecoveryActions.sourceIssueId, issueId),
+    eq(issueRecoveryActions.spaceId, run.spaceId), eq(issueRecoveryActions.sourceIssueId, issueId),
     sql`${issueRecoveryActions.evidence}#>>'{explicitUserContinuation,runId}' = ${run.id}`,
     sql`${issueRecoveryActions.evidence}#>>'{explicitUserContinuation,readiness,mode}' in ('fresh_isolated_workspace', 'reuse_issue_workspace')`,
     // Historical sibling holds also record the continuation, but only the
@@ -346,7 +346,7 @@ export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heart
   )).limit(1);
   if (!action) {
     const [wake] = await db.select().from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+      eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
       eq(agentWakeupRequests.runId, run.id), eq(agentWakeupRequests.reason, "task_retry"),
       eq(agentWakeupRequests.status, "coalesced"), eq(agentWakeupRequests.requestedByActorType, "user"),
       sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
@@ -358,7 +358,7 @@ export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heart
         !["evaluate", "continue", "fresh_isolated_workspace"].includes(intent.strategy)) return null;
     if (intent.chatActionId) {
       const [chatWake] = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(and(
-        eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.agentId, run.agentId),
+        eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.agentId, run.agentId),
         eq(agentWakeupRequests.id, intent.chatActionId), eq(agentWakeupRequests.runId, run.id),
         sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
       ));
@@ -366,7 +366,7 @@ export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heart
         return null;
     }
     const [source] = await db.select().from(heartbeatRuns).where(and(
-      eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.agentId, run.agentId),
+      eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.agentId, run.agentId),
       eq(heartbeatRuns.id, intent.sourceRunId), sql`coalesce(${heartbeatRuns.nativeIssueId}::text,
         ${heartbeatRuns.issueId}::text, ${heartbeatRuns.contextSnapshot}->>'issueId') = ${issueId}`,
     )).limit(1);
@@ -377,20 +377,20 @@ export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heart
       const preservationReceiptId = await verifiedWorkspaceRepairReceipt(db, source);
       if (preservationReceiptId) return { mode: "resume_preserved_workspace", preservationReceiptId };
       const [bound] = await db.select({ id: executionWorkspaces.id, metadata: executionWorkspaces.metadata }).from(issues)
-        .innerJoin(executionWorkspaces, and(eq(executionWorkspaces.companyId, issues.companyId),
+        .innerJoin(executionWorkspaces, and(eq(executionWorkspaces.spaceId, issues.spaceId),
           eq(executionWorkspaces.id, issues.executionWorkspaceId)))
-        .where(and(eq(issues.companyId, run.companyId), eq(issues.id, issueId)));
+        .where(and(eq(issues.spaceId, run.spaceId), eq(issues.id, issueId)));
       const authority = readRemoteWorkspaceAuthority(bound?.metadata);
       if (bound && authority && !authority.dirty && !authority.writerRunId && authority.snapshotId) {
-        const recovered = await db.select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId,
+        const recovered = await db.select({ id: heartbeatRuns.id, spaceId: heartbeatRuns.spaceId,
           nativeIssueId: heartbeatRuns.nativeIssueId, issueId: heartbeatRuns.issueId,
           contextSnapshot: sql<Record<string, unknown>>`jsonb_build_object('issueId', ${heartbeatRuns.contextSnapshot}->'issueId')`,
           runnerProfileJson: sql<Record<string, unknown>>`jsonb_build_object('remoteWorkspace', ${heartbeatRuns.runnerProfileJson}->'remoteWorkspace',
             'nativeWorkspaceSync', ${heartbeatRuns.runnerProfileJson}->'nativeWorkspaceSync')`,
         }).from(issueRecoveryActions)
-          .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.companyId, issueRecoveryActions.companyId),
+          .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.spaceId, issueRecoveryActions.spaceId),
             sql`${heartbeatRuns.id}::text = ${issueRecoveryActions.evidence}->>'runId'`))
-          .where(and(eq(issueRecoveryActions.companyId, run.companyId), eq(issueRecoveryActions.sourceIssueId, issueId),
+          .where(and(eq(issueRecoveryActions.spaceId, run.spaceId), eq(issueRecoveryActions.sourceIssueId, issueId),
             eq(heartbeatRuns.agentId, run.agentId),
             sql`${issueRecoveryActions.evidence}#>>'{explicitUserContinuation,runId}' = ${run.id}`,
             sql`${heartbeatRuns.runnerProfileJson}#>>'{remoteWorkspace,workspaceId}' = ${bound.id}`,
@@ -413,7 +413,7 @@ export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heart
             payload: sql`jsonb_set(${agentWakeupRequests.payload}, '{taskRetry,strategy}', '"continue"'::jsonb)`,
           }).where(and(eq(agentWakeupRequests.id, wake.id), eq(agentWakeupRequests.runId, run.id),
             sql`${agentWakeupRequests.payload}#>>'{taskRetry,strategy}' = 'evaluate'`)).returning({ id: agentWakeupRequests.id });
-          if (changed.length) await persistActivity(tx as unknown as Db, { companyId: run.companyId,
+          if (changed.length) await persistActivity(tx as unknown as Db, { spaceId: run.spaceId,
             actorType: "system", actorId: "task-recovery", action: "issue.retry_workspace_reused",
             entityType: "issue", entityId: issueId, runId: run.id, details: readiness });
         });
@@ -423,12 +423,12 @@ export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heart
       // blocked recovery without a generation) also keeps a safe task workspace.
       // Every hold recorded for the source must permit the reuse.
       const holds = await db.select({ cause: issueRecoveryActions.cause, evidence: issueRecoveryActions.evidence })
-        .from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, run.companyId),
+        .from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, run.spaceId),
           eq(issueRecoveryActions.sourceIssueId, issueId), sql`${issueRecoveryActions.evidence}->>'runId' = ${source.id}`));
       let retained: { id: string; cwd: string | null } | null = null;
       const gitProbes = new Map<string, Promise<boolean>>();
       for (const hold of holds.length ? holds : [{ cause: null, evidence: null }]) {
-        const checked = await retainedIssueWorkspaceForRetry(db, { companyId: run.companyId, issueId,
+        const checked = await retainedIssueWorkspaceForRetry(db, { spaceId: run.spaceId, issueId,
           agentId: run.agentId, successorRunId: run.id, cause: hold.cause, source, evidence: hold.evidence, gitProbes });
         if (!checked || (retained && retained.id !== checked.id)) { retained = null; break; }
         retained = checked;
@@ -441,7 +441,7 @@ export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heart
             payload: sql`jsonb_set(${agentWakeupRequests.payload}, '{taskRetry,strategy}', '"continue"'::jsonb)`,
           }).where(and(eq(agentWakeupRequests.id, wake.id), eq(agentWakeupRequests.runId, run.id),
             sql`${agentWakeupRequests.payload}#>>'{taskRetry,strategy}' = 'evaluate'`)).returning({ id: agentWakeupRequests.id });
-          if (changed.length) await persistActivity(tx as unknown as Db, { companyId: run.companyId,
+          if (changed.length) await persistActivity(tx as unknown as Db, { spaceId: run.spaceId,
             actorType: "system", actorId: "task-recovery", action: "issue.retry_workspace_reused",
             entityType: "issue", entityId: issueId, runId: run.id, details: readiness });
         });
@@ -449,7 +449,7 @@ export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heart
       }
     }
     const leases = await db.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, source.id),
+      eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, source.id),
     ));
     const readiness: ContinuationReadiness = { mode: "fresh_isolated_workspace",
       retryIntentId: wake.id, sourceRunId: source.id, retainedSourceIds: leases.map(lease => lease.id) };
@@ -458,7 +458,7 @@ export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heart
         payload: sql`jsonb_set(${agentWakeupRequests.payload}, '{taskRetry,strategy}', '"fresh_isolated_workspace"'::jsonb)`,
       }).where(and(eq(agentWakeupRequests.id, wake.id), eq(agentWakeupRequests.runId, run.id),
         sql`${agentWakeupRequests.payload}#>>'{taskRetry,strategy}' in ('evaluate', 'continue')`)).returning({ id: agentWakeupRequests.id });
-      if (changed.length) await persistActivity(tx as unknown as Db, { companyId: run.companyId,
+      if (changed.length) await persistActivity(tx as unknown as Db, { spaceId: run.spaceId,
         actorType: "system", actorId: "task-recovery", action: "issue.fresh_workspace_selected",
         entityType: "issue", entityId: issueId, runId: run.id, details: { ...readiness } });
     });
@@ -472,7 +472,7 @@ export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heart
   if (action.evidence.runId !== readiness.sourceRunId || recovery?.sourceRunId !== readiness.sourceRunId ||
       recovery.freshAttemptRunId !== run.id) return null;
   const [wake] = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(and(
-    eq(agentWakeupRequests.companyId, run.companyId), eq(agentWakeupRequests.id, readiness.retryIntentId),
+    eq(agentWakeupRequests.spaceId, run.spaceId), eq(agentWakeupRequests.id, readiness.retryIntentId),
     eq(agentWakeupRequests.agentId, run.agentId), eq(agentWakeupRequests.runId, run.id),
     sql`${agentWakeupRequests.payload}->>'issueId' = ${issueId}`,
   )).limit(1);
@@ -484,7 +484,7 @@ export async function readFreshWorkspaceReadiness(db: Db, run: Pick<typeof heart
 export async function verifyRetryWorkspace(
   db: Db,
   workers: WorkspaceWorkers | undefined,
-  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "agentId" | "contextSnapshot">,
+  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId" | "agentId" | "contextSnapshot">,
   issueId: string,
   responsibleUserId: string | null,
   readiness: ContinuationReadiness,
@@ -492,25 +492,25 @@ export async function verifyRetryWorkspace(
   if (readiness.mode !== "fresh_isolated_workspace" ||
       run.contextSnapshot?.taskRetryRequestId !== readiness.retryIntentId) return readiness;
   const [source] = await db.select().from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, run.companyId), eq(heartbeatRuns.agentId, run.agentId),
+    eq(heartbeatRuns.spaceId, run.spaceId), eq(heartbeatRuns.agentId, run.agentId),
     eq(heartbeatRuns.id, readiness.sourceRunId),
     sql`coalesce(${heartbeatRuns.nativeIssueId}::text, ${heartbeatRuns.issueId}::text, ${heartbeatRuns.contextSnapshot}->>'issueId') = ${issueId}`,
   ));
   if (!source) return readiness;
   const holds = await db.select({ cause: issueRecoveryActions.cause, evidence: issueRecoveryActions.evidence })
-    .from(issueRecoveryActions).where(and(eq(issueRecoveryActions.companyId, run.companyId),
+    .from(issueRecoveryActions).where(and(eq(issueRecoveryActions.spaceId, run.spaceId),
       eq(issueRecoveryActions.sourceIssueId, issueId),
       sql`${issueRecoveryActions.evidence}->>'runId' = ${source.id}`));
   if (holds.some(hold => !recoveryGenerationSettled(hold.evidence, source.id) ||
       sourceNeedsWorkspaceRepair(hold.cause, source.resultJson))) return readiness;
   const retained = await retainedIssueWorkspaceForRetry(db, {
-    companyId: run.companyId, issueId, agentId: run.agentId, successorRunId: run.id,
+    spaceId: run.spaceId, issueId, agentId: run.agentId, successorRunId: run.id,
     source, cause: null, evidence: null,
     sourceRetryIntentId: source.contextSnapshot?.taskRetryRequestId,
     verifyProviderWorkspace: workers ? async workspace => {
       try {
         return Boolean(await preparePluginWorkspace(db, workers, {
-          companyId: run.companyId, issueId, agentId: run.agentId, runId: run.id, responsibleUserId,
+          spaceId: run.spaceId, issueId, agentId: run.agentId, runId: run.id, responsibleUserId,
           projectId: workspace.projectId, projectWorkspaceId: workspace.projectWorkspaceId,
           existingWorkspaceId: workspace.id, mode: workspace.mode, strategy: workspace.strategyType,
           verifyExisting: true,
@@ -523,7 +523,7 @@ export async function verifyRetryWorkspace(
   if (!retained) return readiness;
   const reuse: ContinuationReadiness = { mode: "reuse_issue_workspace", retryIntentId: readiness.retryIntentId,
     sourceRunId: source.id, workspaceId: retained.id, cwd: retained.cwd };
-  await persistActivity(db, { companyId: run.companyId, actorType: "system", actorId: "task-recovery",
+  await persistActivity(db, { spaceId: run.spaceId, actorType: "system", actorId: "task-recovery",
     action: "issue.retry_workspace_reused", entityType: "issue", entityId: issueId, runId: run.id, details: reuse });
   return reuse;
 }

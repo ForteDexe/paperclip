@@ -3,7 +3,7 @@
 import { act, type ReactNode } from "react";
 import { createRoot as createReactRoot } from "react-dom/client";
 import type { LiveEvent } from "@outpost/shared";
-import { __liveUpdatesTestUtils, type CompanyLiveEventHandler } from "../../context/LiveUpdatesProvider";
+import { __liveUpdatesTestUtils, type SpaceLiveEventHandler } from "../../context/LiveUpdatesProvider";
 import { LiveTranscriptInterests } from "../../lib/live-transcript-interests";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useLiveRunTranscripts } from "./useLiveRunTranscripts";
@@ -38,15 +38,15 @@ vi.mock("../../adapters", () => ({
 }));
 
 const { LiveEventSubscriptionContext } = __liveUpdatesTestUtils;
-let listeners: Set<CompanyLiveEventHandler>;
+let listeners: Set<SpaceLiveEventHandler>;
 let interests: LiveTranscriptInterests;
 let sent: Array<{ type: string; revision?: number; runIds?: string[] }>;
 let socketConstructed: ReturnType<typeof vi.fn<() => void>>;
 function createRoot(container: HTMLDivElement) {
   const root = createReactRoot(container);
   const subscription = {
-    companyId: "company-1", transcripts: interests,
-    subscribe(handler: CompanyLiveEventHandler) {
+    spaceId: "space-1", transcripts: interests,
+    subscribe(handler: SpaceLiveEventHandler) {
       listeners.add(handler);
       return () => { listeners.delete(handler); };
     },
@@ -97,7 +97,7 @@ describe("useLiveRunTranscripts shared-stream recovery", () => {
     vi.useFakeTimers();
     let value: ReturnType<typeof useLiveRunTranscripts>;
     function Harness() {
-      value = useLiveRunTranscripts({ companyId: "company-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local" }] });
+      value = useLiveRunTranscripts({ spaceId: "space-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local" }] });
       return null;
     }
     const root = createRoot(document.createElement("div"));
@@ -110,9 +110,9 @@ describe("useLiveRunTranscripts shared-stream recovery", () => {
       logMock.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
       await act(async () => negotiate());
       await act(async () => {
-        sendEvent({ companyId: "company-1", type: "heartbeat.run.log", createdAt: "2026-10-24T00:00:00Z",
+        sendEvent({ spaceId: "space-1", type: "heartbeat.run.log", createdAt: "2026-10-24T00:00:00Z",
           payload: { runId: "run-1", seq: 1, chunk: "first", stream: "stdout" } });
-        sendEvent({ companyId: "company-1", type: "heartbeat.run.log", createdAt: "2026-10-24T00:00:00Z",
+        sendEvent({ spaceId: "space-1", type: "heartbeat.run.log", createdAt: "2026-10-24T00:00:00Z",
           payload: { runId: "run-1", seq: 2, chunk: "short", truncated: true, stream: "stdout" } });
       });
       await act(async () => finish({ runId: "run-1", store: "memory", logRef: "log-1", content: first, nextOffset: first.length }));
@@ -131,7 +131,7 @@ describe("useLiveRunTranscripts shared-stream recovery", () => {
     vi.useFakeTimers();
     let value: ReturnType<typeof useLiveRunTranscripts>;
     function Harness() {
-      value = useLiveRunTranscripts({ companyId: "company-1", runs: [
+      value = useLiveRunTranscripts({ spaceId: "space-1", runs: [
         { id: "run-1", status: "running", adapterType: "codex_local" },
         { id: "slow", status: "succeeded", adapterType: "codex_local" },
       ] });
@@ -150,7 +150,7 @@ describe("useLiveRunTranscripts shared-stream recovery", () => {
       });
       await act(async () => negotiate());
       for (seq = 1; seq <= 3; seq++) {
-        await act(async () => sendEvent({ companyId: "company-1", type: "heartbeat.run.log", createdAt: "2026-10-24T00:00:00Z",
+        await act(async () => sendEvent({ spaceId: "space-1", type: "heartbeat.run.log", createdAt: "2026-10-24T00:00:00Z",
           payload: { runId: "run-1", seq, truncated: true } }));
       }
       expect(slow).toHaveLength(1);
@@ -170,7 +170,7 @@ describe("useLiveRunTranscripts shared-stream recovery", () => {
   it("coalesces legacy terminal catch-up behind an in-flight read without aborting it", async () => {
     let value: ReturnType<typeof useLiveRunTranscripts>;
     function Harness() {
-      value = useLiveRunTranscripts({ companyId: "company-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local" }] });
+      value = useLiveRunTranscripts({ spaceId: "space-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local" }] });
       return null;
     }
     const root = createRoot(document.createElement("div"));
@@ -182,7 +182,7 @@ describe("useLiveRunTranscripts shared-stream recovery", () => {
       const reads = logMock.mock.calls.length;
       const signal = logMock.mock.calls.at(-1)![3].signal;
       await act(async () => {
-        for (let i = 0; i < 3; i++) sendEvent({ companyId: "company-1", type: "heartbeat.run.status", createdAt: "2026-10-24T00:00:00Z",
+        for (let i = 0; i < 3; i++) sendEvent({ spaceId: "space-1", type: "heartbeat.run.status", createdAt: "2026-10-24T00:00:00Z",
           payload: { runId: "run-1", status: "succeeded" } });
       });
       expect(signal.aborted).toBe(false);
@@ -199,7 +199,7 @@ describe("useLiveRunTranscripts shared-stream recovery", () => {
     vi.useFakeTimers();
     let value: ReturnType<typeof useLiveRunTranscripts>;
     function Harness() {
-      value = useLiveRunTranscripts({ companyId: "company-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local" }] });
+      value = useLiveRunTranscripts({ spaceId: "space-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local" }] });
       return null;
     }
     const root = createRoot(document.createElement("div"));
@@ -232,7 +232,7 @@ describe("useLiveRunTranscripts shared-stream recovery", () => {
   it("keeps HTTP polling until interest acknowledgement, then stops recurring reads", async () => {
     vi.useFakeTimers();
     function Harness({ bytes = 0 }: { bytes?: number }) {
-      useLiveRunTranscripts({ companyId: "company-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local", lastOutputBytes: bytes }] });
+      useLiveRunTranscripts({ spaceId: "space-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local", lastOutputBytes: bytes }] });
       return null;
     }
     const root = createRoot(document.createElement("div"));
@@ -268,7 +268,7 @@ describe("useLiveRunTranscripts shared-stream recovery", () => {
       return { runId: "run-1", store: "memory", logRef: "log-1", content: "", nextOffset: offset };
     });
     function Harness() {
-      useLiveRunTranscripts({ companyId: "company-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local", logBytes: originalBytes }] });
+      useLiveRunTranscripts({ spaceId: "space-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local", logBytes: originalBytes }] });
       return null;
     }
     const root = createRoot(document.createElement("div"));
@@ -294,7 +294,7 @@ describe("useLiveRunTranscripts shared-stream recovery", () => {
   it("catches up after resynchronization, hide/show, and terminal status", async () => {
     const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     function Harness() {
-      useLiveRunTranscripts({ companyId: "company-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local" }] });
+      useLiveRunTranscripts({ spaceId: "space-1", runs: [{ id: "run-1", status: "running", adapterType: "codex_local" }] });
       return null;
     }
     const root = createRoot(document.createElement("div"));
@@ -314,7 +314,7 @@ describe("useLiveRunTranscripts shared-stream recovery", () => {
       expect(sent.at(-1)?.runIds).toEqual(["run-1"]);
       expect(logMock.mock.calls.length).toBeGreaterThan(hiddenReads);
       const beforeTerminal = logMock.mock.calls.length;
-      await act(async () => sendEvent({ companyId: "company-1", type: "heartbeat.run.status", createdAt: new Date().toISOString(), payload: { runId: "run-1", status: "succeeded" } }));
+      await act(async () => sendEvent({ spaceId: "space-1", type: "heartbeat.run.status", createdAt: new Date().toISOString(), payload: { runId: "run-1", status: "succeeded" } }));
       expect(logMock.mock.calls.length).toBeGreaterThan(beforeTerminal);
     } finally { await act(async () => root.unmount()); }
   });

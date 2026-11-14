@@ -76,7 +76,7 @@
     "exportName": "accessGrantIdentityCases"
   },
   {
-    "scenarioId": "access.other-company",
+    "scenarioId": "access.other-space",
     "sourceFiles": [
       "chat-catalog-domains/identity-support.ts",
       "chat-catalog-domains/internal-support.ts",
@@ -84,7 +84,7 @@
       "chat-rendered-links.ts",
       "chat-scenarios/access.yaml"
     ],
-    "oracleVersion": "outpost.chat-catalog.identity.other-company.v2",
+    "oracleVersion": "outpost.chat-catalog.identity.other-space.v2",
     "expectedRunCount": 1,
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 300000,
@@ -180,7 +180,7 @@
     "exportName": "activityCases"
   },
   {
-    "scenarioId": "activity.company-overview",
+    "scenarioId": "activity.space-overview",
     "sourceFiles": [
       "chat-catalog-domains/internal-definition.ts",
       "chat-catalog-domains/internal-support.ts",
@@ -1855,7 +1855,7 @@
       "chat-catalog-domains/privileged-cli-support.ts",
       "../../cli/src/index.ts",
       "../../cli/src/commands/client/context.ts",
-      "../../cli/src/commands/client/company.ts",
+      "../../cli/src/commands/client/space.ts",
       "../../cli/src/commands/client/auth.ts",
       "../../cli/src/client/context.ts"
     ],
@@ -1996,16 +1996,16 @@
     "exportName": "privilegedOwnedDevCases"
   },
   {
-    "scenarioId": "companies.agent-observability",
+    "scenarioId": "spaces.agent-observability",
     "sourceFiles": [
       "chat-catalog-domains/identity-observability.ts",
-      "chat-catalog-domains/identity-company-observer.ts",
+      "chat-catalog-domains/identity-space-observer.ts",
       "chat-catalog-domains/identity-private-browser.ts",
       "chat-catalog-domains/identity-private-browser-worker.ts",
       "chat-catalog-domains/identity-wizard.ts",
       "chat-catalog-domains/identity-support.ts",
       "chat-catalog-domains/internal-support.ts",
-      "chat-scenarios/companies.yaml"
+      "chat-scenarios/spaces.yaml"
     ],
     "oracleVersion": "outpost.chat-catalog.agent-observability.structural.v3",
     "expectedRunCount": 3,
@@ -2017,50 +2017,50 @@
     "exportName": "observabilityIdentityCases"
   },
   {
-    "scenarioId": "companies.archive-company",
+    "scenarioId": "spaces.archive-space",
     "sourceFiles": [
-      "chat-catalog-domains/identity-company-lifecycle.ts",
+      "chat-catalog-domains/identity-space-lifecycle.ts",
       "chat-catalog-domains/identity-support.ts",
       "chat-catalog-domains/internal-support.ts",
-      "chat-scenarios/companies.yaml"
+      "chat-scenarios/spaces.yaml"
     ],
     "oracleVersion": "outpost.chat-catalog.identity.v1",
     "expectedRunCount": 1,
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 300000,
     "authentication": "human-session",
-    "modulePath": "./chat-catalog-domains/identity-company-lifecycle.js",
-    "exportName": "companyLifecycleIdentityCases"
+    "modulePath": "./chat-catalog-domains/identity-space-lifecycle.js",
+    "exportName": "spaceLifecycleIdentityCases"
   },
   {
     "requiredCredentials": [
       "OPENROUTER_API_KEY"
     ],
-    "scenarioId": "companies.configure-decision-model",
+    "scenarioId": "spaces.configure-decision-model",
     "sourceFiles": [
-      "chat-catalog-domains/identity-company-models.ts",
-      "chat-catalog-domains/identity-company-observer.ts",
+      "chat-catalog-domains/identity-space-models.ts",
+      "chat-catalog-domains/identity-space-observer.ts",
       "chat-catalog-domains/identity-support.ts",
       "chat-catalog-domains/internal-support.ts",
-      "chat-scenarios/companies.yaml"
+      "chat-scenarios/spaces.yaml"
     ],
     "oracleVersion": "outpost.chat-catalog.identity.v1",
     "expectedRunCount": 1,
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 420000,
     "authentication": "human-session",
-    "modulePath": "./chat-catalog-domains/identity-company-models.js",
-    "exportName": "companyModelIdentityCases"
+    "modulePath": "./chat-catalog-domains/identity-space-models.js",
+    "exportName": "spaceModelIdentityCases"
   },
   {
-    "scenarioId": "companies.export-company",
+    "scenarioId": "spaces.export-space",
     "sourceFiles": [
       "chat-catalog-domains/identity-portability.ts",
       "chat-catalog-domains/identity-support.ts",
       "chat-catalog-domains/internal-support.ts",
-      "chat-scenarios/companies.yaml"
+      "chat-scenarios/spaces.yaml"
     ],
-    "oracleVersion": "outpost.chat-catalog.identity.export-company.v2",
+    "oracleVersion": "outpost.chat-catalog.identity.export-space.v2",
     "expectedRunCount": 1,
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 300000,
@@ -2072,29 +2072,29 @@
     "requiredCredentials": [
       "OPENROUTER_API_KEY"
     ],
-    "scenarioId": "companies.fast-responses",
+    "scenarioId": "spaces.fast-responses",
     "sourceFiles": [
-      "chat-catalog-domains/identity-company-models.ts",
-      "chat-catalog-domains/identity-company-observer.ts",
+      "chat-catalog-domains/identity-space-models.ts",
+      "chat-catalog-domains/identity-space-observer.ts",
       "chat-catalog-domains/identity-support.ts",
       "chat-catalog-domains/internal-support.ts",
-      "chat-scenarios/companies.yaml"
+      "chat-scenarios/spaces.yaml"
     ],
     "oracleVersion": "outpost.chat-catalog.identity.fast-responses.v2",
     "expectedRunCount": 1,
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 420000,
     "authentication": "human-session",
-    "modulePath": "./chat-catalog-domains/identity-company-models.js",
-    "exportName": "companyModelIdentityCases"
+    "modulePath": "./chat-catalog-domains/identity-space-models.js",
+    "exportName": "spaceModelIdentityCases"
   },
   {
-    "scenarioId": "companies.import-preview",
+    "scenarioId": "spaces.import-preview",
     "sourceFiles": [
       "chat-catalog-domains/identity-portability.ts",
       "chat-catalog-domains/identity-support.ts",
       "chat-catalog-domains/internal-support.ts",
-      "chat-scenarios/companies.yaml"
+      "chat-scenarios/spaces.yaml"
     ],
     "oracleVersion": "outpost.chat-catalog.identity.import-preview.v2",
     "expectedRunCount": 2,
@@ -2105,7 +2105,7 @@
     "queryAttachments": [
       {
         "stateKey": "packageAttachment",
-        "filename": "company-package.json"
+        "filename": "space-package.json"
       }
     ],
     "modulePath": "./chat-catalog-domains/identity-portability.js",
@@ -2115,52 +2115,52 @@
     "requiredCredentials": [
       "OPENROUTER_API_KEY"
     ],
-    "scenarioId": "companies.prompt-injection-guard",
+    "scenarioId": "spaces.prompt-injection-guard",
     "sourceFiles": [
-      "chat-catalog-domains/identity-company-models.ts",
-      "chat-catalog-domains/identity-company-observer.ts",
+      "chat-catalog-domains/identity-space-models.ts",
+      "chat-catalog-domains/identity-space-observer.ts",
       "chat-catalog-domains/identity-support.ts",
       "chat-catalog-domains/internal-support.ts",
-      "chat-scenarios/companies.yaml"
+      "chat-scenarios/spaces.yaml"
     ],
     "oracleVersion": "outpost.chat-catalog.identity.v1",
     "expectedRunCount": 1,
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 420000,
     "authentication": "human-session",
-    "modulePath": "./chat-catalog-domains/identity-company-models.js",
-    "exportName": "companyModelIdentityCases"
+    "modulePath": "./chat-catalog-domains/identity-space-models.js",
+    "exportName": "spaceModelIdentityCases"
   },
   {
-    "scenarioId": "companies.rename-company",
+    "scenarioId": "spaces.rename-space",
     "sourceFiles": [
       "chat-catalog-domains/identity-support.ts",
       "chat-catalog-domains/internal-support.ts",
-      "chat-catalog-domains/identity-companies.ts",
-      "chat-scenarios/companies.yaml"
+      "chat-catalog-domains/identity-spaces.ts",
+      "chat-scenarios/spaces.yaml"
     ],
-    "oracleVersion": "outpost.chat-catalog.company-rename.routes.v2",
+    "oracleVersion": "outpost.chat-catalog.space-rename.routes.v2",
     "expectedRunCount": 1,
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 300000,
-    "modulePath": "./chat-catalog-domains/identity-companies.js",
-    "exportName": "companyIdentityCases"
+    "modulePath": "./chat-catalog-domains/identity-spaces.js",
+    "exportName": "spaceIdentityCases"
   },
   {
-    "scenarioId": "companies.switch-company",
+    "scenarioId": "spaces.switch-space",
     "sourceFiles": [
-      "chat-catalog-domains/identity-company-lifecycle.ts",
+      "chat-catalog-domains/identity-space-lifecycle.ts",
       "chat-catalog-domains/identity-support.ts",
       "chat-catalog-domains/internal-support.ts",
-      "chat-scenarios/companies.yaml"
+      "chat-scenarios/spaces.yaml"
     ],
-    "oracleVersion": "outpost.chat-catalog.identity.switch-company.v2",
+    "oracleVersion": "outpost.chat-catalog.identity.switch-space.v2",
     "expectedRunCount": 1,
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 300000,
     "authentication": "human-session",
-    "modulePath": "./chat-catalog-domains/identity-company-lifecycle.js",
-    "exportName": "companyLifecycleIdentityCases"
+    "modulePath": "./chat-catalog-domains/identity-space-lifecycle.js",
+    "exportName": "spaceLifecycleIdentityCases"
   },
   {
     "externalInput": {
@@ -2962,7 +2962,7 @@
       "../../server/src/routes/environments.ts",
       "../../server/src/routes/agents.ts",
       "../../packages/shared/src/environment-support.ts",
-      "../../ui/src/pages/CompanyEnvironments.tsx",
+      "../../ui/src/pages/SpaceEnvironments.tsx",
       "../../ui/src/components/agent-config-primitives.tsx",
       "chat-catalog-domains/external-secret-scan.ts",
       "run-observations.ts"
@@ -3003,7 +3003,7 @@
       "../../server/src/routes/agents.ts",
       "../../server/src/services/environment-probe.ts",
       "../../server/src/services/environment-custom-images.ts",
-      "../../ui/src/pages/CompanyEnvironments.tsx",
+      "../../ui/src/pages/SpaceEnvironments.tsx",
       "chat-catalog-domains/external-secret-scan.ts",
       "run-observations.ts"
     ],
@@ -3029,7 +3029,7 @@
       "../../server/src/routes/environments.ts",
       "../../server/src/routes/authz.ts",
       "../../server/src/services/environment-config.ts",
-      "../../ui/src/pages/CompanyEnvironments.tsx"
+      "../../ui/src/pages/SpaceEnvironments.tsx"
     ],
     "oracleVersion": "outpost.chat-catalog.runtime-capability-choice.v2",
     "coverageGaps": [],
@@ -3066,7 +3066,7 @@
       "../../server/src/routes/agents.ts",
       "../../server/src/services/environment-probe.ts",
       "../../server/src/services/environment-custom-images.ts",
-      "../../ui/src/pages/CompanyEnvironments.tsx",
+      "../../ui/src/pages/SpaceEnvironments.tsx",
       "chat-catalog-domains/external-secret-scan.ts",
       "run-observations.ts",
       "chat-catalog-domains/runtime-computers-image-private.ts",
@@ -3111,7 +3111,7 @@
       "../../server/src/routes/environments.ts",
       "../../server/src/routes/agents.ts",
       "../../packages/shared/src/environment-support.ts",
-      "../../ui/src/pages/CompanyEnvironments.tsx",
+      "../../ui/src/pages/SpaceEnvironments.tsx",
       "../../ui/src/components/agent-config-primitives.tsx",
       "chat-catalog-domains/external-secret-scan.ts",
       "run-observations.ts"
@@ -3764,11 +3764,11 @@
     "requiredCredentials": [
       "OPENROUTER_API_KEY"
     ],
-    "scenarioId": "onboarding.new-company",
+    "scenarioId": "onboarding.new-space",
     "sourceFiles": [
-      "chat-catalog-domains/identity-new-company.ts",
-      "chat-catalog-domains/identity-new-company-native.ts",
-      "chat-catalog-domains/identity-new-company-native-proof.ts",
+      "chat-catalog-domains/identity-new-space.ts",
+      "chat-catalog-domains/identity-new-space-native.ts",
+      "chat-catalog-domains/identity-new-space-native-proof.ts",
       "chat-catalog-domains/identity-wizard.ts",
       "chat-catalog-domains/identity-private-browser.ts",
       "chat-catalog-domains/identity-private-browser-worker.ts",
@@ -3781,8 +3781,8 @@
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 600000,
     "authentication": "human-session",
-    "modulePath": "./chat-catalog-domains/identity-new-company.js",
-    "exportName": "newCompanyIdentityCases"
+    "modulePath": "./chat-catalog-domains/identity-new-space.js",
+    "exportName": "newSpaceIdentityCases"
   },
   {
     "requiredCredentials": [
@@ -4951,18 +4951,18 @@
     "exportName": "secretExternalCases"
   },
   {
-    "scenarioId": "secrets.configure-company-secret",
+    "scenarioId": "secrets.configure-space-secret",
     "sourceFiles": [
       "../../server/src/routes/secrets.ts",
       "../../packages/outpost-runner/src/cli/opencode-app-server-proxy.ts",
       "../../packages/outpost-runner/src/cli/opencode-proxy-finish-diagnostics.ts",
       "../../packages/outpost-runner/src/protocol-actions/request-human-input.ts",
-      "chat-catalog-domains/external-company-secret.ts",
-      "chat-catalog-domains/external-company-secret-confirmation.ts",
+      "chat-catalog-domains/external-space-secret.ts",
+      "chat-catalog-domains/external-space-secret-confirmation.ts",
       "chat-catalog-domains/external-secret-proposal.ts",
       "chat-catalog-domains/external-secret-question.ts",
       "chat-catalog-domains/external-secret-route.ts",
-      "chat-catalog-domains/external-company-secret-menu.ts",
+      "chat-catalog-domains/external-space-secret-menu.ts",
       "chat-catalog-contract.ts",
       "chat-catalog-flow.ts",
       "chat-catalog-domains/external-private-browser.ts",
@@ -4980,16 +4980,16 @@
       "chat-flow.ts",
       "chat-scenarios/secrets.yaml"
     ],
-    "oracleVersion": "outpost.chat-catalog.company-secret-controller-baseline.v19",
+    "oracleVersion": "outpost.chat-catalog.space-secret-controller-baseline.v19",
     "expectedRunCount": 3,
     "minimumRunCount": 2,
     "expectedHumanMessageCount": 2,
-    "optionalCompanySecretBindingApproval": true,
+    "optionalSpaceSecretBindingApproval": true,
     "turnTimeoutMs": 120000,
     "attemptTimeoutMs": 480000,
     "authentication": "human-session",
-    "modulePath": "./chat-catalog-domains/external-company-secret.js",
-    "exportName": "companySecretExternalCases"
+    "modulePath": "./chat-catalog-domains/external-space-secret.js",
+    "exportName": "spaceSecretExternalCases"
   },
   {
     "scenarioId": "secrets.least-scope-delivery",
@@ -5167,8 +5167,8 @@
       "chat-catalog-domains/identity-support.ts",
       "../../ui/src/components/MarkdownEditor.tsx",
       "../../ui/src/pages/SkillStudio.tsx",
-      "../../ui/src/pages/CompanySkills.tsx",
-      "../../ui/src/lib/company-skill-routes.ts"
+      "../../ui/src/pages/SpaceSkills.tsx",
+      "../../ui/src/lib/space-skill-routes.ts"
     ],
     "oracleVersion": "outpost.chat-catalog.skill-authoring.v9",
     "expectedRunCount": 1,
@@ -5196,8 +5196,8 @@
       "chat-catalog-domains/integrator-support.ts",
       "chat-scenarios/skills.yaml",
       "../../server/src/routes/agents.ts",
-      "../../server/src/routes/company-skill-policy.ts",
-      "../../server/src/services/company-skills.ts",
+      "../../server/src/routes/space-skill-policy.ts",
+      "../../server/src/services/space-skills.ts",
       "../../packages/shared/src/validators/skill-policy.ts"
     ],
     "oracleVersion": "outpost.chat-catalog.skill-enable.standard-config.v3",
@@ -6110,8 +6110,8 @@
       "server.ts",
       "../../packages/teams-catalog/src/catalog-builder.ts",
       "../../server/src/services/teams-catalog.ts",
-      "../../server/src/services/company-skills.ts",
-      "../../server/src/services/company-portability.ts",
+      "../../server/src/services/space-skills.ts",
+      "../../server/src/services/space-portability.ts",
       "../../packages/teams-catalog/generated/catalog.json",
       "chat-catalog-domains/external-support.ts",
       "chat-catalog-domains/internal-support.ts",

@@ -20,7 +20,7 @@ const meta = {
     "Automation and structured work/Status cards/Authoring, updates and archive",
   component: StatusCardHost,
   parameters: { layout: "padded", initialEntries: ["/status"],
-    paperclip: {
+    outpost: {
       "capabilities": [
         "status-cards/authoring",
         "status-cards/generation",
@@ -56,7 +56,7 @@ const meta = {
     return prepareFixtureApi(
       [
         {
-          path: "/api/companies/company-storybook/status-cards",
+          path: "/api/spaces/space-storybook/status-cards",
           read: ({ method, url, body }) => {
             if (method === "POST") {
               card = makeStatusCard({

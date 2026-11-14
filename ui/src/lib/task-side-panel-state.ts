@@ -69,8 +69,8 @@ interface TaskSidePanelStore {
   tasks: Record<string, StoredTaskSidePanelState>;
 }
 
-function storageKey(accountScope: string, companyId: string) {
-  return `paperclip:task-side-panel:v${STORAGE_VERSION}:${accountScope}:${companyId}`;
+function storageKey(accountScope: string, spaceId: string) {
+  return `outpost:task-side-panel:v${STORAGE_VERSION}:${accountScope}:${spaceId}`;
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -180,10 +180,10 @@ function parseEntry(value: unknown, fileTabsEnabled: boolean): StoredTaskSidePan
   };
 }
 
-function readStore(accountScope: string, companyId: string): TaskSidePanelStore {
+function readStore(accountScope: string, spaceId: string): TaskSidePanelStore {
   if (typeof window === "undefined") return { version: STORAGE_VERSION, tasks: {} };
   try {
-    const parsed = record(JSON.parse(window.localStorage.getItem(storageKey(accountScope, companyId)) ?? "null"));
+    const parsed = record(JSON.parse(window.localStorage.getItem(storageKey(accountScope, spaceId)) ?? "null"));
     if (parsed?.version !== STORAGE_VERSION || !record(parsed.tasks)) return { version: STORAGE_VERSION, tasks: {} };
     return { version: STORAGE_VERSION, tasks: parsed.tasks as Record<string, StoredTaskSidePanelState> };
   } catch {
@@ -193,27 +193,27 @@ function readStore(accountScope: string, companyId: string): TaskSidePanelStore 
 
 export function readTaskSidePanelState(
   accountScope: string,
-  companyId: string,
+  spaceId: string,
   taskId: string,
   fileTabsEnabled: boolean,
 ): StoredTaskSidePanelState | null {
-  return parseEntry(readStore(accountScope, companyId).tasks[taskId], fileTabsEnabled);
+  return parseEntry(readStore(accountScope, spaceId).tasks[taskId], fileTabsEnabled);
 }
 
 export function writeTaskSidePanelState(
   accountScope: string,
-  companyId: string,
+  spaceId: string,
   taskId: string,
   entry: StoredTaskSidePanelState,
 ) {
   if (typeof window === "undefined") return;
   try {
-    const store = readStore(accountScope, companyId);
+    const store = readStore(accountScope, spaceId);
     const tasks = { ...store.tasks, [taskId]: entry };
     const retained = Object.entries(tasks)
       .sort((left, right) => (right[1].updatedAt ?? 0) - (left[1].updatedAt ?? 0))
       .slice(0, MAX_TASK_STATES);
-    window.localStorage.setItem(storageKey(accountScope, companyId), JSON.stringify({
+    window.localStorage.setItem(storageKey(accountScope, spaceId), JSON.stringify({
       version: STORAGE_VERSION,
       tasks: Object.fromEntries(retained),
     } satisfies TaskSidePanelStore));

@@ -4,17 +4,17 @@ import { parseHumanGitHubAuth, qualifiesReadOnlyApp, qualifiesReadOnlyGrant, typ
 import { changedHeaderMarkup, protectedWorkload, workloadBoundaryCode, workloadBoundaryReceipts } from "./runtime-workspace-repositories-support.js";
 const readonlyGrant = { connectionId: "human-connection", grantId: "actual-grant", readonlyAppVerified: true, selectedRepositoryVerified: true } as ReadOnlyGitHubGrant;
 function valid(privateCase = false) {
-  const row = { id: "repository", companyId: "company", executionWorkspaceId: "workspace", requestedByIssueId: "task", repoUrl: "https://github.com/owned/site", catalogRepositoryId: "42", state: "ready", pinnedCommit: "a".repeat(40) };
-  const result = { scenarioId: privateCase ? "workspaces.private-repository-no-access" : "workspaces.prepare-repository", companyId: "company", leadId: "ceo", origin: "https://fixture.test", agents: [], projects: [], goals: [], tasks: [], comments: [], documents: [], revisions: [], humanQueries: [], links: [],
-    state: { task: { id: "task", companyId: "company" }, worker: { id: "morgan" }, siteRepository: { id: 42 }, requestedUrl: row.repoUrl, workspaceBefore: { workspace: { id: "workspace" } }, initialReply: "Repository preparation is pending.", accessGranted: privateCase, humanGrantId: privateCase ? "actual-grant" : undefined, beforeAccessRunIds: ["denied-worker"] },
-    activeTask: { id: "task", companyId: "company", status: "done", assigneeAgentId: "morgan" }, workspace: { issueId: "task", workspace: { id: "workspace", companyId: "company" }, repositories: [row] },
+  const row = { id: "repository", spaceId: "space", executionWorkspaceId: "workspace", requestedByIssueId: "task", repoUrl: "https://github.com/owned/site", catalogRepositoryId: "42", state: "ready", pinnedCommit: "a".repeat(40) };
+  const result = { scenarioId: privateCase ? "workspaces.private-repository-no-access" : "workspaces.prepare-repository", spaceId: "space", leadId: "ceo", origin: "https://fixture.test", agents: [], projects: [], goals: [], tasks: [], comments: [], documents: [], revisions: [], humanQueries: [], links: [],
+    state: { task: { id: "task", spaceId: "space" }, worker: { id: "morgan" }, siteRepository: { id: 42 }, requestedUrl: row.repoUrl, workspaceBefore: { workspace: { id: "workspace" } }, initialReply: "Repository preparation is pending.", accessGranted: privateCase, humanGrantId: privateCase ? "actual-grant" : undefined, beforeAccessRunIds: ["denied-worker"] },
+    activeTask: { id: "task", spaceId: "space", status: "done", assigneeAgentId: "morgan" }, workspace: { issueId: "task", workspace: { id: "workspace", spaceId: "space" }, repositories: [row] },
     checkout: { origin: row.repoUrl, head: row.pinnedCommit, ownership: { repositoryId: row.id, pinnedCommit: row.pinnedCommit }, trackedBytes: 128, trackedSha256: "b".repeat(64), credentialConfigClean: true, headerChanged: privateCase },
     interactions: [] as Array<{ kind: string; status: string; sourceRunId: string; payload: { serviceSlug: string } }>,
     runs: [{ id: "worker-run", agentId: "morgan", runtimeMode: "native", status: "succeeded", contextSnapshot: { issueId: "task" } }],
     activity: [{ action: "workspace.repository.requested", entityId: "workspace", runId: "worker-run", details: { issueId: "task", repositoryId: row.id } }],
     boundary: [{ identityMatched: true, runId: "worker-run", identityContextId: "context", runSecretListAvailable: true, githubSecretNotBound: true, secretStatus: 403, brokerStatus: 200, brokerAbsent: true, brokerEnvEmpty: true, rawGitCredentialPresent: false }], leaked: false,
     reply: "Repository preparation is pending.\nThe repository is ready; its actual files are available in the existing task." };
-  const first = { ...structuredClone(result), checkout: undefined, reply: result.state.initialReply, workspace: { issueId: "task", workspace: { id: "workspace", companyId: "company" }, repositories: [{ ...row, state: "pending", pinnedCommit: null }] } };
+  const first = { ...structuredClone(result), checkout: undefined, reply: result.state.initialReply, workspace: { issueId: "task", workspace: { id: "workspace", spaceId: "space" }, repositories: [{ ...row, state: "pending", pinnedCommit: null }] } };
   Object.assign(result.state, { firstPhase: first });
   if (privateCase) {
     const denied = { ...first, runs: [{ ...first.runs[0]!, id: "denied-worker" }], reply: "GitHub repository access is missing; connect the intended account. I haven't cloned the private source.", interactions: [{ kind: "connection_intent", status: "pending", sourceRunId: "denied-worker", payload: { serviceSlug: "github" } }] };
@@ -92,9 +92,9 @@ describe("genuine selected human account and read-only exact-repository consent"
   function grantInput() {
     // Relevant projections are actual public DTO fields, rather than an invented
     // permissions flag. Independent App API metadata supplies contents authority.
-    return { companyId: "company", personId: "person", workerId: "morgan", repositoryId: "42", repositoryFullName: "owned/site", auth, app,
-      connection: { id: "connection", companyId: "company", enabled: true, status: "active", credentialPolicy: "per_user", config: { sourceTemplateKey: "github", oauth: { clientId: auth.clientId } } },
-      grant: { id: "grant", companyId: "company", connectionId: "connection", status: "active", kind: "user", subjectUserId: "person", providerTenant: { github: { appSlug: auth.appSlug, userId: "8", login: "owner", installationCount: 1, repositoryCount: 1, repositorySelection: "selected", installationIds: ["71"], repositories: [{ id: "42", fullName: "owned/site", private: true, installationId: "71" }] } } },
+    return { spaceId: "space", personId: "person", workerId: "morgan", repositoryId: "42", repositoryFullName: "owned/site", auth, app,
+      connection: { id: "connection", spaceId: "space", enabled: true, status: "active", credentialPolicy: "per_user", config: { sourceTemplateKey: "github", oauth: { clientId: auth.clientId } } },
+      grant: { id: "grant", spaceId: "space", connectionId: "connection", status: "active", kind: "user", subjectUserId: "person", providerTenant: { github: { appSlug: auth.appSlug, userId: "8", login: "owner", installationCount: 1, repositoryCount: 1, repositorySelection: "selected", installationIds: ["71"], repositories: [{ id: "42", fullName: "owned/site", private: true, installationId: "71" }] } } },
       installs: [{ connectionId: "connection", targetType: "agent", targetId: "morgan" }],
       interaction: { kind: "connection_intent", status: "accepted", addresseeUserId: "person", resolvedByUserId: "person", resolvedByAgentId: null, payload: { serviceSlug: "github" }, result: { outcome: "connected", connectionId: "connection" } },
     } as unknown as Parameters<typeof qualifiesReadOnlyGrant>[0];
@@ -127,8 +127,8 @@ describe("genuine selected human account and read-only exact-repository consent"
     expect(qualifiesReadOnlyGrant(publicSource)).toBe(false);
     const wrongInstall = grantInput(); wrongInstall.grant.providerTenant!.github!.repositories![0]!.installationId = "72";
     expect(qualifiesReadOnlyGrant(wrongInstall)).toBe(false);
-    const companyWide = grantInput(); companyWide.installs[0]!.targetType = "company";
-    expect(qualifiesReadOnlyGrant(companyWide)).toBe(false);
+    const spaceWide = grantInput(); spaceWide.installs[0]!.targetType = "space";
+    expect(qualifiesReadOnlyGrant(spaceWide)).toBe(false);
     const agentConsent = grantInput(); agentConsent.interaction.resolvedByAgentId = "morgan";
     expect(qualifiesReadOnlyGrant(agentConsent)).toBe(false);
   });

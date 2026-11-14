@@ -1,19 +1,19 @@
 ---
 title: External Adapters
-summary: Build, package, and distribute adapters as plugins without modifying Paperclip source
+summary: Build, package, and distribute adapters as plugins without modifying Outpost source
 ---
 
-Paperclip supports external adapter plugins that can be installed from npm packages or local directories. External adapters work exactly like built-in adapters — they execute agents, parse output, and render transcripts — but they live in their own package and don't require changes to Paperclip's source code.
+Outpost supports external adapter plugins that can be installed from npm packages or local directories. External adapters work exactly like built-in adapters — they execute agents, parse output, and render transcripts — but they live in their own package and don't require changes to Outpost's source code.
 
 ## Built-in vs External
 
 | | Built-in | External |
 |---|---|---|
-| Source location | Inside `paperclip-fork/packages/adapters/` | Separate npm package or local directory |
+| Source location | Inside `outpost-fork/packages/adapters/` | Separate npm package or local directory |
 | Registration | Hardcoded in three registries | Loaded at startup via plugin system |
 | UI parser | Static import at build time | Dynamically loaded from API (see [UI Parser](/adapters/adapter-ui-parser)) |
-| Distribution | Ships with Paperclip | Published to npm or linked via `file:` |
-| Updates | Requires Paperclip release | Independent versioning |
+| Distribution | Ships with Outpost | Published to npm or linked via `file:` |
+| Updates | Requires Outpost release | Independent versioning |
 
 ### Built-in Hermes compatibility note
 
@@ -53,11 +53,11 @@ my-adapter/
 
 ```json
 {
-  "name": "my-paperclip-adapter",
+  "name": "my-outpost-adapter",
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
-  "paperclip": {
+  "outpost": {
     "adapterUiParser": "1.0.0"
   },
   "exports": {
@@ -176,7 +176,7 @@ export async function execute(
   const command = String(config.command ?? "my-agent");
   const timeoutSec = Number(config.timeoutSec ?? 300);
 
-  // 2. Build environment with Paperclip vars injected
+  // 2. Build environment with Outpost vars injected
   const env = buildOutpostEnv(agent);
 
   // 3. Render prompt template
@@ -184,7 +184,7 @@ export async function execute(
     ? renderTemplate(String(config.promptTemplate), {
         agentId: agent.id,
         agentName: agent.name,
-        companyId: agent.companyId,
+        spaceId: agent.spaceId,
         runId: ctx.runId,
         taskId: context.taskId ?? "",
         taskTitle: context.taskTitle ?? "",
@@ -276,14 +276,14 @@ Check levels:
 ### From npm
 
 ```sh
-# Via the Paperclip UI
-# Settings → Adapters → Install from npm → "my-paperclip-adapter"
+# Via the Outpost UI
+# Settings → Adapters → Install from npm → "my-outpost-adapter"
 
 # Or via API
 curl -X POST http://localhost:3102/api/adapters \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"packageName": "my-paperclip-adapter"}'
+  -d '{"packageName": "my-outpost-adapter"}'
 ```
 
 ### From local directory
@@ -295,16 +295,16 @@ curl -X POST http://localhost:3102/api/adapters \
   -d '{"localPath": "/home/user/my-adapter"}'
 ```
 
-Local adapters are symlinked into Paperclip's adapter directory. Changes to the source are picked up on server restart.
+Local adapters are symlinked into Outpost's adapter directory. Changes to the source are picked up on server restart.
 
 ### Via adapter-plugins.json
 
-For development, you can also edit `~/.paperclip/adapter-plugins.json` directly:
+For development, you can also edit `~/.outpost/adapter-plugins.json` directly:
 
 ```json
 [
   {
-    "packageName": "my-paperclip-adapter",
+    "packageName": "my-outpost-adapter",
     "localPath": "/home/user/my-adapter",
     "type": "my_adapter",
     "installedAt": "2026-03-30T12:00:00.000Z"
@@ -391,7 +391,7 @@ npm run build
 npm publish
 ```
 
-Other Paperclip users can then install your adapter by package name from the UI or API.
+Other Outpost users can then install your adapter by package name from the UI or API.
 
 ## Security
 

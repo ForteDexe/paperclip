@@ -4,14 +4,14 @@ import {
   type TaskExecutionPolicy,
 } from "../domain/policy.js";
 
-export type ProjectScope = { companyId: string; projectId: string };
+export type ProjectScope = { spaceId: string; projectId: string };
 
 export interface TaskExecutionPolicyStore {
-  /** Null when the project is not in the company. */
+  /** Null when the project is not in the space. */
   read(scope: ProjectScope): Promise<TaskExecutionPolicy | null>;
   /**
    * Locks the project in admission lock order and stores `change(current)`.
-   * Returning `current` itself writes nothing. Null when the project is not in the company.
+   * Returning `current` itself writes nothing. Null when the project is not in the space.
    */
   update(scope: ProjectScope, change: (current: TaskExecutionPolicy) => TaskExecutionPolicy): Promise<TaskExecutionPolicy | null>;
 }

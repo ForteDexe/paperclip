@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { classifyTaskWatchdogSubtree, type TaskWatchdogClassifierIssue } from "../services/task-watchdogs.ts";
 
-const companyId = "company-1";
+const spaceId = "space-1";
 const sourceId = "source-1";
 const childId = "child-1";
 const watchdogId = "watchdog-1";
@@ -9,7 +9,7 @@ const watchdogId = "watchdog-1";
 function issue(overrides: Partial<TaskWatchdogClassifierIssue> = {}): TaskWatchdogClassifierIssue {
   return {
     id: sourceId,
-    companyId,
+    spaceId,
     identifier: "PAP-1",
     title: "Source",
     status: "todo",
@@ -25,7 +25,7 @@ function issue(overrides: Partial<TaskWatchdogClassifierIssue> = {}): TaskWatchd
 function classify(overrides: Partial<Parameters<typeof classifyTaskWatchdogSubtree>[0]> = {}) {
   return classifyTaskWatchdogSubtree({
     watchdog: {
-      companyId,
+      spaceId,
       issueId: sourceId,
       lastReviewedFingerprint: null,
     },
@@ -47,7 +47,7 @@ describe("task watchdog subtree classifier", () => {
         issue(),
         issue({ id: childId, identifier: "PAP-2", parentId: sourceId, status: "in_progress" }),
       ],
-      activeRuns: [{ companyId, issueId: childId, agentId: "agent-1", status: "running" }],
+      activeRuns: [{ spaceId, issueId: childId, agentId: "agent-1", status: "running" }],
     });
 
     expect(result).toMatchObject({
@@ -63,7 +63,7 @@ describe("task watchdog subtree classifier", () => {
         issue({ id: childId, identifier: "PAP-2", parentId: sourceId, status: "in_review" }),
       ],
       pendingInteractions: [{
-        companyId,
+        spaceId,
         issueId: childId,
         id: "interaction-1",
         kind: "request_confirmation",
@@ -126,14 +126,14 @@ describe("task watchdog subtree classifier", () => {
         issue({ id: childId, parentId: sourceId, status: "in_review" }),
         issue({ id: siblingId, parentId: sourceId, status: "blocked" }),
       ],
-      pendingInteractions: [{ companyId, issueId: childId, id: "interaction-1", status: "pending" }],
+      pendingInteractions: [{ spaceId, issueId: childId, id: "interaction-1", status: "pending" }],
     });
     expect(initial.state).toBe("stopped");
     if (initial.state !== "stopped") return;
 
     const shrunk = classify({
       watchdog: {
-        companyId,
+        spaceId,
         issueId: sourceId,
         lastReviewedFingerprint: initial.stopFingerprint,
         lastReviewedStopSnapshot: initial.stopSnapshot,
@@ -143,7 +143,7 @@ describe("task watchdog subtree classifier", () => {
         issue({ id: childId, parentId: sourceId, status: "in_review" }),
         issue({ id: siblingId, parentId: sourceId, status: "done" }),
       ],
-      pendingInteractions: [{ companyId, issueId: childId, id: "interaction-1", status: "pending" }],
+      pendingInteractions: [{ spaceId, issueId: childId, id: "interaction-1", status: "pending" }],
     });
 
     expect(shrunk.state).toBe("already_reviewed");
@@ -165,7 +165,7 @@ describe("task watchdog subtree classifier", () => {
 
     const changed = classify({
       watchdog: {
-        companyId,
+        spaceId,
         issueId: sourceId,
         lastReviewedFingerprint: initial.stopFingerprint,
         lastReviewedStopSnapshot: null,
@@ -186,7 +186,7 @@ describe("task watchdog subtree classifier", () => {
         issue({ status: "in_review" }),
         issue({ id: childId, parentId: sourceId, status: "blocked" }),
       ],
-      pendingApprovals: [{ companyId, issueId: sourceId, id: "approval-1", status: "pending" }],
+      pendingApprovals: [{ spaceId, issueId: sourceId, id: "approval-1", status: "pending" }],
     });
 
     expect(initial.state).toBe("stopped");
@@ -200,7 +200,7 @@ describe("task watchdog subtree classifier", () => {
 
     const changed = classify({
       watchdog: {
-        companyId,
+        spaceId,
         issueId: sourceId,
         lastReviewedFingerprint: initial.stopFingerprint,
         lastReviewedStopSnapshot: initial.stopSnapshot,
@@ -209,7 +209,7 @@ describe("task watchdog subtree classifier", () => {
         issue({ status: "in_review" }),
         issue({ id: childId, parentId: sourceId, status: "blocked" }),
       ],
-      pendingApprovals: [{ companyId, issueId: sourceId, id: "approval-2", status: "pending" }],
+      pendingApprovals: [{ spaceId, issueId: sourceId, id: "approval-2", status: "pending" }],
     });
 
     expect(changed.state).toBe("stopped");
@@ -217,7 +217,7 @@ describe("task watchdog subtree classifier", () => {
 
   it.each([
     ["wait set", {
-      pendingInteractions: [{ companyId, issueId: childId, id: "interaction-2", status: "pending" }],
+      pendingInteractions: [{ spaceId, issueId: childId, id: "interaction-2", status: "pending" }],
     }],
     ["leaf status", {
       issues: [issue({ status: "in_progress" }), issue({ id: childId, parentId: sourceId, status: "todo" })],
@@ -229,7 +229,7 @@ describe("task watchdog subtree classifier", () => {
       ],
     }],
     ["leaf blocker", {
-      blockers: [{ companyId, blockedIssueId: childId, blockerIssueId: "blocker-2" }],
+      blockers: [{ spaceId, blockedIssueId: childId, blockerIssueId: "blocker-2" }],
     }],
     ["new stopped leaf", {
       issues: [
@@ -241,8 +241,8 @@ describe("task watchdog subtree classifier", () => {
   ])("triggers a fresh stop when the %s changes", (_label, overrides) => {
     const baseInput = {
       issues: [issue({ status: "in_progress" }), issue({ id: childId, parentId: sourceId, status: "blocked" })],
-      pendingInteractions: [{ companyId, issueId: childId, id: "interaction-1", status: "pending" }],
-      blockers: [{ companyId, blockedIssueId: childId, blockerIssueId: "blocker-1" }],
+      pendingInteractions: [{ spaceId, issueId: childId, id: "interaction-1", status: "pending" }],
+      blockers: [{ spaceId, blockedIssueId: childId, blockerIssueId: "blocker-1" }],
     };
     const initial = classify(baseInput);
     expect(initial.state).toBe("stopped");
@@ -252,7 +252,7 @@ describe("task watchdog subtree classifier", () => {
       ...baseInput,
       ...overrides,
       watchdog: {
-        companyId,
+        spaceId,
         issueId: sourceId,
         lastReviewedFingerprint: initial.stopFingerprint,
         lastReviewedStopSnapshot: initial.stopSnapshot,
@@ -271,7 +271,7 @@ describe("task watchdog subtree classifier", () => {
 
     const reviewed = classify({
       watchdog: {
-        companyId,
+        spaceId,
         issueId: sourceId,
         lastReviewedFingerprint: stopped.stopFingerprint,
       },
@@ -305,7 +305,7 @@ describe("task watchdog subtree classifier", () => {
           status: "in_progress",
         }),
       ],
-      activeRuns: [{ companyId, issueId: "watchdog-child-1", agentId: "agent-1", status: "running" }],
+      activeRuns: [{ spaceId, issueId: "watchdog-child-1", agentId: "agent-1", status: "running" }],
     });
 
     expect(result.state).toBe("stopped");
@@ -342,7 +342,7 @@ describe("task watchdog subtree classifier", () => {
     const createdAt = new Date("2026-06-18T16:32:45.731Z");
     const result = classify({
       issues: [issue({ status: "todo", createdAt })],
-      activeRuns: [{ companyId, issueId: sourceId, agentId: "agent-1", status: "queued" }],
+      activeRuns: [{ spaceId, issueId: sourceId, agentId: "agent-1", status: "queued" }],
       evaluatedAt: new Date("2026-06-18T16:32:45.835Z"),
       firstRunGraceMs: 15_000,
     });
@@ -354,7 +354,7 @@ describe("task watchdog subtree classifier", () => {
     const createdAt = new Date("2026-06-18T16:32:45.731Z");
     const result = classify({
       issues: [issue({ status: "todo", createdAt })],
-      queuedWakeRequests: [{ companyId, issueId: sourceId, agentId: "agent-1", status: "queued" }],
+      queuedWakeRequests: [{ spaceId, issueId: sourceId, agentId: "agent-1", status: "queued" }],
       evaluatedAt: new Date("2026-06-18T16:32:45.835Z"),
       firstRunGraceMs: 15_000,
     });
@@ -377,7 +377,7 @@ describe("task watchdog subtree classifier", () => {
   it("does not evaluate a task-watchdog issue as a watched source", () => {
     const result = classify({
       watchdog: {
-        companyId,
+        spaceId,
         issueId: watchdogId,
         lastReviewedFingerprint: null,
       },

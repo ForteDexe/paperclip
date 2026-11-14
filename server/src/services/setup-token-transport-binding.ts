@@ -115,7 +115,7 @@ export interface SetupTokenLoginTransportBinding {
  */
 export interface SetupTokenSecretCompletion {
   completeClaudeOAuthUserSecret(
-    companyId: string,
+    spaceId: string,
     ownerUserId: string,
     input: {
       sessionId: string;
@@ -180,7 +180,7 @@ export function buildClaudeOAuthWriteInput(
  * fails the compare-and-set with the fixed stale conflict, so the write leaves no
  * partial state.
  *
- * It reads the company and the owner only from the immutable session scope, so a
+ * It reads the space and the owner only from the immutable session scope, so a
  * request cannot redirect the write to another owner. It never logs
  * the token and never puts the token in an error; it lets the secrets service
  * error propagate unchanged, and the session maps a rejection to the fixed,
@@ -206,7 +206,7 @@ export function createSetupTokenSecretWriter(deps: {
       // one returned row.
       const transitioned = await transitionSetupTokenSessionToStored(txDb, {
         sessionId,
-        companyId: scope.companyId,
+        spaceId: scope.spaceId,
         ownerUserId: scope.ownerUserId,
         adapterType: scope.adapterType,
       });
@@ -218,7 +218,7 @@ export function createSetupTokenSecretWriter(deps: {
       // Step 2: write or rotate the secret on the same transaction handle. A
       // failure here rolls back the transition too, so the commit is all-or-none.
       await completionForTx(txDb).completeClaudeOAuthUserSecret(
-        scope.companyId,
+        scope.spaceId,
         scope.ownerUserId,
         input,
         { userId: scope.ownerUserId },
@@ -228,10 +228,10 @@ export function createSetupTokenSecretWriter(deps: {
 }
 
 /** The immutable scope key that correlates one acquire with one factory call. It
- *  is the company, the owner, and the adapter, so it matches the active-slot
+ *  is the space, the owner, and the adapter, so it matches the active-slot
  *  scope. The per-slot session cap is one, so one scope holds one live acquire. */
 function scopeKey(scope: SetupTokenSessionScope): string {
-  return [scope.companyId, scope.ownerUserId, scope.adapterType].join("\u0000");
+  return [scope.spaceId, scope.ownerUserId, scope.adapterType].join("\u0000");
 }
 
 /**
@@ -424,20 +424,20 @@ export function createProductionSetupTokenSandboxProvider(
         buildLoginLeaseAcquireArgs({
           browserLogin: true,
           metadata: {
-            companyId: scope.companyId,
+            spaceId: scope.spaceId,
             environment,
             adapterType: scope.adapterType,
           },
           // The optional agent selects an existing computer; credential ownership
-          // remains with the company and user.
+          // remains with the space and user.
           targetAgentId: scope.agentId,
-          // Re-check the environment company binding inside the lease insert
+          // Re-check the environment space binding inside the lease insert
           // transaction. The route guard ran earlier, so a managed
-          // reconciliation can bind this sandbox to another company between the
+          // reconciliation can bind this sandbox to another space between the
           // guard and this acquire. The lease insert then rejects a
-          // foreign-company environment with the 403
-          // `environment_company_mismatch` and holds no lease.
-          assertCompanyBinding: true,
+          // foreign-space environment with the 403
+          // `environment_space_mismatch` and holds no lease.
+          assertSpaceBinding: true,
           // Bound the lease expiry to the session deadline. The runtime records
           // the earlier of this deadline and the provider expiry on the lease
           // row.
@@ -550,7 +550,7 @@ export interface LoginPtyWorkerManagerLike {
     pluginId: string,
     input: {
       driverKey: string;
-      companyId: string;
+      spaceId: string;
       environmentId: string;
       providerLeaseId: string;
       loginCommandKey: LoginCommandKey;
@@ -638,7 +638,7 @@ export function createWorkerBoundLoginPtyOpener(
       validateLoginSessionHome(sessionHome);
       return deps.workerManager.openLoginPtySession(pluginId, {
         driverKey,
-        companyId: scope.companyId,
+        spaceId: scope.spaceId,
         environmentId,
         providerLeaseId,
         loginCommandKey,

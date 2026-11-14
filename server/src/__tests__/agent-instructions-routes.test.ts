@@ -12,7 +12,7 @@ const mockAgentService = vi.hoisted(() => ({
 }));
 
 const mockBuiltInAgentService = vi.hoisted(() => ({
-  ensureCompanyDefaultAgentGrants: vi.fn(),
+  ensureSpaceDefaultAgentGrants: vi.fn(),
 }));
 
 const mockAgentInstructionsService = vi.hoisted(() => ({
@@ -50,7 +50,7 @@ const mockAccessService = vi.hoisted(() => ({
 
 const mockSecretService = vi.hoisted(() => ({
   resolveAdapterConfigForRuntime: vi.fn(),
-  normalizeAdapterConfigForPersistence: vi.fn(async (_companyId: string, config: Record<string, unknown>) => config),
+  normalizeAdapterConfigForPersistence: vi.fn(async (_spaceId: string, config: Record<string, unknown>) => config),
 }));
 const mockEnvironmentService = vi.hoisted(() => ({
   getById: vi.fn(),
@@ -66,7 +66,7 @@ vi.mock("../services/index.js", () => ({
   accessService: () => mockAccessService,
   approvalService: () => ({}),
   builtInAgentService: () => mockBuiltInAgentService,
-  companySkillService: () => ({ listRuntimeSkillEntries: vi.fn() }),
+  spaceSkillService: () => ({ listRuntimeSkillEntries: vi.fn() }),
   budgetService: () => ({}),
   environmentService: () => mockEnvironmentService,
   heartbeatService: () => ({}),
@@ -92,11 +92,11 @@ vi.mock("../adapters/index.js", () => ({
   listAdapterModels: vi.fn(),
 }));
 
-function boardActor() {
+function operatorActor() {
   return {
-    type: "board",
-    userId: "local-board",
-    companyIds: ["company-1"],
+    type: "operator",
+    userId: "local-operator",
+    spaceIds: ["space-1"],
     source: "local_implicit",
     isInstanceAdmin: false,
   };
@@ -114,7 +114,7 @@ const routeModules = hoistModuleGraph(() => {
   return { agentRoutes, errorHandler };
 });
 
-async function createApp(actor: Record<string, unknown> = boardActor(), db: Record<string, unknown> = {}) {
+async function createApp(actor: Record<string, unknown> = operatorActor(), db: Record<string, unknown> = {}) {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
@@ -156,7 +156,7 @@ async function requestApp(
 function makeAgent() {
   return {
     id: "11111111-1111-4111-8111-111111111111",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Agent",
     role: "engineer",
     title: "Engineer",
@@ -178,7 +178,7 @@ function makeReflectionCoachAgent(overrides: Record<string, unknown> = {}) {
     id: "22222222-2222-4222-8222-222222222222",
     name: "Reflection Coach",
     metadata: {
-      paperclipBuiltInAgent: {
+      outpostBuiltInAgent: {
         key: "reflection-coach",
         featureKeys: ["reflection-coach"],
       },
@@ -190,11 +190,11 @@ function makeReflectionCoachAgent(overrides: Record<string, unknown> = {}) {
 describe("agent instructions bundle routes", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mockSecretService.normalizeAdapterConfigForPersistence.mockImplementation(async (_companyId: string, config: Record<string, unknown>) => config);
+    mockSecretService.normalizeAdapterConfigForPersistence.mockImplementation(async (_spaceId: string, config: Record<string, unknown>) => config);
     mockAuthorizeInstructionRead.mockImplementation(async (_db, actor) => actor);
     mockInstructionRevisions.readCurrent.mockResolvedValue(null);
     mockInstructionRevisions.commit.mockResolvedValue({ revision: { id: "33333333-3333-4333-8333-333333333333", entryFile: "AGENTS.md", byteLength: 18 }, content: "# Updated Agent\n", changed: true, materialization: "current" });
-    mockBuiltInAgentService.ensureCompanyDefaultAgentGrants.mockResolvedValue(0);
+    mockBuiltInAgentService.ensureSpaceDefaultAgentGrants.mockResolvedValue(0);
     mockSyncInstructionsBundleConfigFromFilePath.mockImplementation((_agent, config) => config);
     mockFindServerAdapter.mockImplementation((_type: string) => ({ type: _type }));
     mockAccessService.decide.mockResolvedValue({
@@ -210,7 +210,7 @@ describe("agent instructions bundle routes", () => {
     mockAgentInstructionsService.getFileDates.mockResolvedValue({ updatedAt: "2026-11-05T12:00:00.000Z" });
     mockAgentInstructionsService.getBundle.mockResolvedValue({
       agentId: "11111111-1111-4111-8111-111111111111",
-      companyId: "company-1",
+      spaceId: "space-1",
       mode: "managed",
       rootPath: "/tmp/agent-1",
       managedRootPath: "/tmp/agent-1",
@@ -268,7 +268,7 @@ describe("agent instructions bundle routes", () => {
     const res = await requestApp(
       await createApp(),
       (baseUrl) => request(baseUrl)
-        .get("/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle?companyId=company-1"),
+        .get("/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle?spaceId=space-1"),
     );
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
@@ -279,8 +279,8 @@ describe("agent instructions bundle routes", () => {
       entryFile: "AGENTS.md",
     });
     expect(mockAgentInstructionsService.getBundle).toHaveBeenCalled();
-    expect(mockAuthorizeInstructionRead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: "board" }),
-      expect.objectContaining({ companyId: "company-1", id: "11111111-1111-4111-8111-111111111111" }));
+    expect(mockAuthorizeInstructionRead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: "operator" }),
+      expect.objectContaining({ spaceId: "space-1", id: "11111111-1111-4111-8111-111111111111" }));
   });
 
   it("requires instance-admin access for every external instruction entry point", async () => {
@@ -288,15 +288,15 @@ describe("agent instructions bundle routes", () => {
       ...makeAgent(),
       adapterConfig: {
         instructionsBundleMode: "external",
-        instructionsRootPath: "/srv/paperclip/external-agent",
+        instructionsRootPath: "/srv/outpost/external-agent",
         instructionsEntryFile: "AGENTS.md",
       },
     });
     const app = await createApp({
-      type: "board",
-      userId: "company-admin",
-      companyIds: ["company-1"],
-      memberships: [{ companyId: "company-1", status: "active", membershipRole: "admin" }],
+      type: "operator",
+      userId: "space-admin",
+      spaceIds: ["space-1"],
+      memberships: [{ spaceId: "space-1", status: "active", membershipRole: "admin" }],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -339,10 +339,10 @@ describe("agent instructions bundle routes", () => {
       },
     });
     const app = await createApp({
-      type: "board",
-      userId: "company-admin",
-      companyIds: ["company-1"],
-      memberships: [{ companyId: "company-1", status: "active", membershipRole: "admin" }],
+      type: "operator",
+      userId: "space-admin",
+      spaceIds: ["space-1"],
+      memberships: [{ spaceId: "space-1", status: "active", membershipRole: "admin" }],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -359,17 +359,17 @@ describe("agent instructions bundle routes", () => {
       ...makeAgent(),
       adapterConfig: {
         instructionsBundleMode: "external",
-        instructionsRootPath: "/srv/paperclip/external-agent",
+        instructionsRootPath: "/srv/outpost/external-agent",
         instructionsEntryFile: "AGENTS.md",
       },
     });
 
     const res = await requestApp(
       await createApp({
-        type: "board",
+        type: "operator",
         userId: "instance-admin",
-        companyIds: ["company-1"],
-        memberships: [{ companyId: "company-1", status: "active", membershipRole: "admin" }],
+        spaceIds: ["space-1"],
+        memberships: [{ spaceId: "space-1", status: "active", membershipRole: "admin" }],
         source: "session",
         isInstanceAdmin: true,
       }),
@@ -382,30 +382,30 @@ describe("agent instructions bundle routes", () => {
     expect(mockAuthorizeInstructionRead).not.toHaveBeenCalled();
   });
 
-  it("rejects a company admin that requests a new external instruction root", async () => {
+  it("rejects a space admin that requests a new external instruction root", async () => {
     mockSyncInstructionsBundleConfigFromFilePath.mockImplementation((_agent, config) => ({
       ...config,
       instructionsBundleMode: "external",
-      instructionsRootPath: "/srv/paperclip/external-agent",
+      instructionsRootPath: "/srv/outpost/external-agent",
       instructionsEntryFile: "AGENTS.md",
     }));
     const app = await createApp({
-      type: "board",
-      userId: "company-admin",
-      companyIds: ["company-1"],
-      memberships: [{ companyId: "company-1", status: "active", membershipRole: "admin" }],
+      type: "operator",
+      userId: "space-admin",
+      spaceIds: ["space-1"],
+      memberships: [{ spaceId: "space-1", status: "active", membershipRole: "admin" }],
       source: "session",
       isInstanceAdmin: false,
     });
 
     const compatibilityRes = await request(app)
       .patch("/api/agents/11111111-1111-4111-8111-111111111111/instructions-path")
-      .send({ path: "/srv/paperclip/external-agent/AGENTS.md" });
+      .send({ path: "/srv/outpost/external-agent/AGENTS.md" });
     expect(compatibilityRes.status, JSON.stringify(compatibilityRes.body)).toBe(403);
 
     const bundleRes = await request(app)
       .patch("/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle")
-      .send({ mode: "external", rootPath: "/srv/paperclip/external-agent" });
+      .send({ mode: "external", rootPath: "/srv/outpost/external-agent" });
     expect(bundleRes.status, JSON.stringify(bundleRes.body)).toBe(403);
     expect(mockAgentService.update).not.toHaveBeenCalled();
     expect(mockAgentInstructionsService.updateBundle).not.toHaveBeenCalled();
@@ -414,10 +414,10 @@ describe("agent instructions bundle routes", () => {
   it("rejects external instruction roots through the generic agent patch", async () => {
     mockSyncInstructionsBundleConfigFromFilePath.mockImplementation((_agent, config) => config);
     const app = await createApp({
-      type: "board",
-      userId: "company-admin",
-      companyIds: ["company-1"],
-      memberships: [{ companyId: "company-1", status: "active", membershipRole: "admin" }],
+      type: "operator",
+      userId: "space-admin",
+      spaceIds: ["space-1"],
+      memberships: [{ spaceId: "space-1", status: "active", membershipRole: "admin" }],
       source: "session",
       isInstanceAdmin: false,
     });
@@ -427,7 +427,7 @@ describe("agent instructions bundle routes", () => {
       .send({
         adapterConfig: {
           instructionsBundleMode: "external",
-          instructionsRootPath: "/srv/paperclip/external-agent",
+          instructionsRootPath: "/srv/outpost/external-agent",
           instructionsEntryFile: "AGENTS.md",
         },
       });
@@ -437,12 +437,12 @@ describe("agent instructions bundle routes", () => {
     expect(mockAgentService.update).not.toHaveBeenCalled();
   });
 
-  it("rejects external instruction roots during both hire and direct creation", async () => {
+  it("rejects external instruction roots during both create and direct creation", async () => {
     const actor = {
-      type: "board",
-      userId: "company-admin",
-      companyIds: ["company-1"],
-      memberships: [{ companyId: "company-1", status: "active", membershipRole: "admin" }],
+      type: "operator",
+      userId: "space-admin",
+      spaceIds: ["space-1"],
+      memberships: [{ spaceId: "space-1", status: "active", membershipRole: "admin" }],
       source: "session",
       isInstanceAdmin: false,
     };
@@ -450,8 +450,8 @@ describe("agent instructions bundle routes", () => {
       select: vi.fn(() => ({
         from: vi.fn(() => ({
           where: vi.fn(async () => [{
-            id: "company-1",
-            requireBoardApprovalForNewAgents: false,
+            id: "space-1",
+            requireOperatorApprovalForNewAgents: false,
           }]),
         })),
       })),
@@ -462,22 +462,22 @@ describe("agent instructions bundle routes", () => {
       adapterType: "codex_local",
       adapterConfig: {
         instructionsBundleMode: "external",
-        instructionsRootPath: "/srv/paperclip/external-agent",
+        instructionsRootPath: "/srv/outpost/external-agent",
         instructionsEntryFile: "AGENTS.md",
       },
     };
 
-    const hireRes = await request(app)
-      .post("/api/companies/company-1/agent-hires")
+    const creationRes = await request(app)
+      .post("/api/spaces/space-1/agent-creations")
       .send(body);
-    expect(hireRes.status, JSON.stringify(hireRes.body)).toBe(403);
-    expect(hireRes.body.error).toContain("Instance admin");
+    expect(creationRes.status, JSON.stringify(creationRes.body)).toBe(403);
+    expect(creationRes.body.error).toContain("Instance admin");
 
-    const createRes = await request(app)
-      .post("/api/companies/company-1/agents")
+    const directRes = await request(app)
+      .post("/api/spaces/space-1/agents")
       .send(body);
-    expect(createRes.status, JSON.stringify(createRes.body)).toBe(403);
-    expect(createRes.body.error).toContain("Instance admin");
+    expect(directRes.status, JSON.stringify(directRes.body)).toBe(403);
+    expect(directRes.body.error).toContain("Instance admin");
     expect(mockAgentService.create).not.toHaveBeenCalled();
   });
 
@@ -503,7 +503,7 @@ describe("agent instructions bundle routes", () => {
       await createApp({
         type: "agent",
         agentId: "agent-reader",
-        companyId: "company-1",
+        spaceId: "space-1",
         source: "agent_key",
       }),
       (baseUrl) => request(baseUrl)
@@ -514,7 +514,7 @@ describe("agent instructions bundle routes", () => {
     expect(res.body.error).toContain("Missing permission");
     expect(mockAuthorizeInstructionRead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       type: "agent", agentId: "agent-reader",
-    }), { companyId: "company-1", id: "11111111-1111-4111-8111-111111111111" });
+    }), { spaceId: "space-1", id: "11111111-1111-4111-8111-111111111111" });
     expect(mockAgentInstructionsService.getBundle).not.toHaveBeenCalled();
     expect(mockAgentInstructionsService.readFile).not.toHaveBeenCalled();
     expect(mockInstructionRevisions.readCurrent).not.toHaveBeenCalled();
@@ -526,7 +526,7 @@ describe("agent instructions bundle routes", () => {
       await createApp({
         type: "agent",
         agentId: "11111111-1111-4111-8111-111111111111",
-        companyId: "company-1",
+        spaceId: "space-1",
         source: "agent_key",
       }),
       (baseUrl) => request(baseUrl)
@@ -537,7 +537,7 @@ describe("agent instructions bundle routes", () => {
     expect(mockAgentInstructionsService.getBundle).toHaveBeenCalled();
     expect(mockAuthorizeInstructionRead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       type: "agent", agentId: "11111111-1111-4111-8111-111111111111",
-    }), { companyId: "company-1", id: "11111111-1111-4111-8111-111111111111" });
+    }), { spaceId: "space-1", id: "11111111-1111-4111-8111-111111111111" });
   });
 
   it.each(["AGENTS.md", "private-support.md"])("allows an authorized peer to read instruction file %s", async (filePath) => {
@@ -563,7 +563,7 @@ describe("agent instructions bundle routes", () => {
       await createApp({
         type: "agent",
         agentId: "coach-agent",
-        companyId: "company-1",
+        spaceId: "space-1",
         source: "agent_key",
       }),
       (baseUrl) => request(baseUrl)
@@ -574,7 +574,7 @@ describe("agent instructions bundle routes", () => {
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockAuthorizeInstructionRead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       type: "agent", agentId: "coach-agent",
-    }), { companyId: "company-1", id: "11111111-1111-4111-8111-111111111111" });
+    }), { spaceId: "space-1", id: "11111111-1111-4111-8111-111111111111" });
     expect(mockAgentInstructionsService.readFile).toHaveBeenCalledWith(
       expect.objectContaining({ id: "11111111-1111-4111-8111-111111111111" }),
       filePath,
@@ -583,12 +583,12 @@ describe("agent instructions bundle routes", () => {
 
   it("commits entry bytes through the canonical service with the authenticated actor", async () => {
     const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
-      .put("/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle/file?companyId=company-1")
+      .put("/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle/file?spaceId=space-1")
       .send({ path: "AGENTS.md", content: "# Updated Agent\n", baseRevisionId: null }));
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockInstructionRevisions.commit).toHaveBeenCalledWith(expect.objectContaining({
-      agentId: "11111111-1111-4111-8111-111111111111", entryFile: "AGENTS.md", content: "# Updated Agent\n", baseRevisionId: null, source: "board",
-    }), expect.objectContaining({ type: "board" }));
+      agentId: "11111111-1111-4111-8111-111111111111", entryFile: "AGENTS.md", content: "# Updated Agent\n", baseRevisionId: null, source: "operator",
+    }), expect.objectContaining({ type: "operator" }));
     expect(mockAgentInstructionsService.writeFile).not.toHaveBeenCalled();
     expect(res.body.receipt.revision.id).toBe("33333333-3333-4333-8333-333333333333");
   });
@@ -614,7 +614,7 @@ describe("agent instructions bundle routes", () => {
     expect(res.body).toEqual(bytes);
     expect(res.headers["content-length"]).toBe(String(bytes.length));
     expect(res.headers["content-disposition"]).toContain('filename="data.bin"');
-    expect(mockDownloadAgentFile).toHaveBeenCalledWith("company-1", "11111111-1111-4111-8111-111111111111", "notes/data.bin", expect.objectContaining({ type: "board" }));
+    expect(mockDownloadAgentFile).toHaveBeenCalledWith("space-1", "11111111-1111-4111-8111-111111111111", "notes/data.bin", expect.objectContaining({ type: "operator" }));
     expect(mockAgentInstructionsService.readFile).not.toHaveBeenCalled();
   });
 
@@ -628,11 +628,11 @@ describe("agent instructions bundle routes", () => {
     const listed = await requestApp(app, (url) => request(url).get(prefix));
     expect(listed.status).toBe(200);
     expect(listed.body).toEqual([{ runId, entryFile: "AGENTS.md", state: "conflict", content: "preserved" }]);
-    expect(mockInstructionWorkingCopies.list).toHaveBeenCalledWith("company-1", "11111111-1111-4111-8111-111111111111", expect.objectContaining({ type: "board", userId: "local-board" }));
+    expect(mockInstructionWorkingCopies.list).toHaveBeenCalledWith("space-1", "11111111-1111-4111-8111-111111111111", expect.objectContaining({ type: "operator", userId: "local-operator" }));
     const resolved = await requestApp(app, (url) => request(url).post(`${prefix}/${runId}/resolve`).send({ baseRevisionId, content: "resolved" }));
     expect(resolved.status).toBe(200);
     expect(resolved.body).toMatchObject({ content: "resolved", receipt: { changed: true } });
-    expect(mockInstructionWorkingCopies.resolve).toHaveBeenCalledWith({ companyId: "company-1", agentId: "11111111-1111-4111-8111-111111111111", runId, baseRevisionId, content: "resolved" }, expect.objectContaining({ type: "board", userId: "local-board" }));
+    expect(mockInstructionWorkingCopies.resolve).toHaveBeenCalledWith({ spaceId: "space-1", agentId: "11111111-1111-4111-8111-111111111111", runId, baseRevisionId, content: "resolved" }, expect.objectContaining({ type: "operator", userId: "local-operator" }));
     for (const body of [{ content: "missing base" }, { baseRevisionId, content: "forged", responsibleUserId: "other" }, { baseRevisionId, content: "forged", entryFile: "other.md" }]) {
       expect((await requestApp(app, (url) => request(url).post(`${prefix}/${runId}/resolve`).send(body))).status).toBe(400);
     }
@@ -652,7 +652,7 @@ describe("agent instructions bundle routes", () => {
     const restored = await requestApp(app, (url) => request(url).post(`${prefix}/restore`).send({ path: "AGENTS.md", revisionId, baseRevisionId }));
     expect(restored.status).toBe(200);
     expect(restored.body.receipt.changed).toBe(true);
-    expect(mockInstructionRevisions.restore).toHaveBeenCalledWith({ companyId: "company-1", agentId: "11111111-1111-4111-8111-111111111111", entryFile: "AGENTS.md", revisionId, baseRevisionId }, expect.objectContaining({ type: "board", userId: "local-board" }));
+    expect(mockInstructionRevisions.restore).toHaveBeenCalledWith({ spaceId: "space-1", agentId: "11111111-1111-4111-8111-111111111111", entryFile: "AGENTS.md", revisionId, baseRevisionId }, expect.objectContaining({ type: "operator", userId: "local-operator" }));
   });
 
   it("requires a base revision and rejects client-supplied responsible identity", async () => {
@@ -679,7 +679,7 @@ describe("agent instructions bundle routes", () => {
     });
 
     const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
-      .patch("/api/agents/11111111-1111-4111-8111-111111111111?companyId=company-1")
+      .patch("/api/agents/11111111-1111-4111-8111-111111111111?spaceId=space-1")
       .send({
         adapterType: "claude_local",
         adapterConfig: {
@@ -704,9 +704,9 @@ describe("agent instructions bundle routes", () => {
     );
   });
 
-  it("preserves paperclip skill-sync selections when switching adapters", async () => {
+  it("preserves outpost skill-sync selections when switching adapters", async () => {
     // Desired skills live inside the per-adapter config under
-    // `paperclipSkillSync`, yet they are adapter-agnostic company-level
+    // `outpostSkillSync`, yet they are adapter-agnostic space-level
     // selections. Switching adapter type must not silently wipe them — the
     // server carries them over from the existing config the same way it
     // preserves env/cwd and the instructions bundle.
@@ -715,12 +715,12 @@ describe("agent instructions bundle routes", () => {
       adapterType: "claude_local",
       adapterConfig: {
         model: "claude-sonnet-4",
-        paperclipSkillSync: { desiredSkills: ["research", "code-review"] },
+        outpostSkillSync: { desiredSkills: ["research", "code-review"] },
       },
     });
 
     const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
-      .patch("/api/agents/11111111-1111-4111-8111-111111111111?companyId=company-1")
+      .patch("/api/agents/11111111-1111-4111-8111-111111111111?spaceId=space-1")
       .send({
         adapterType: "codex_local",
         replaceAdapterConfig: true,
@@ -736,7 +736,7 @@ describe("agent instructions bundle routes", () => {
         adapterType: "codex_local",
         adapterConfig: expect.objectContaining({
           model: "gpt-5.4",
-          paperclipSkillSync: { desiredSkills: ["research", "code-review"] },
+          outpostSkillSync: { desiredSkills: ["research", "code-review"] },
         }),
       }),
       expect.any(Object),
@@ -757,7 +757,7 @@ describe("agent instructions bundle routes", () => {
     });
 
     const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
-      .patch("/api/agents/11111111-1111-4111-8111-111111111111?companyId=company-1")
+      .patch("/api/agents/11111111-1111-4111-8111-111111111111?spaceId=space-1")
       .send({
         adapterConfig: {
           command: "codex --profile engineer",
@@ -795,7 +795,7 @@ describe("agent instructions bundle routes", () => {
     });
 
     const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
-      .patch("/api/agents/11111111-1111-4111-8111-111111111111?companyId=company-1")
+      .patch("/api/agents/11111111-1111-4111-8111-111111111111?spaceId=space-1")
       .send({
         replaceAdapterConfig: true,
         adapterConfig: {
@@ -817,6 +817,6 @@ describe("agent instructions bundle routes", () => {
 vi.mock("../services/agent-lifecycle.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/agent-lifecycle.js")>();
   return { ...actual, createAgentLifecycle: () => ({
-    requestHire: (...args: unknown[]) => mockAgentService.create(...args),
+    requestCreation: (...args: unknown[]) => mockAgentService.create(...args),
   }) };
 });

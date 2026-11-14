@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  agents, companies, companyMemberships, createDb, principalPermissionGrants,
+  agents, spaces, spaceMemberships, createDb, principalPermissionGrants,
   startEmbeddedPostgresTestDatabase, toolApplications, toolConnections, toolConnectionInstalls, type Db,
 } from "../packages/db/src/index.js";
 import { connectionManagementService } from "../server/src/services/connection-management.js";
@@ -93,23 +93,23 @@ try {
   assert.equal(typeof treatment.describeAgentInstallCapabilities, "function", "Implement the production batch first");
   const results = [];
   for (const n of [1, 8, 32, 100]) {
-    for (const installs of ["company", "partial"] as const) {
-      const companyId = randomUUID(), connectionId = randomUUID(), applicationId = randomUUID(), userId = randomUUID();
+    for (const installs of ["space", "partial"] as const) {
+      const spaceId = randomUUID(), connectionId = randomUUID(), applicationId = randomUUID(), userId = randomUUID();
       const candidateIds = Array.from({ length: n }, () => randomUUID());
-      await db.insert(companies).values({ id: companyId, name: `Capability benchmark ${n} ${installs}`, issuePrefix: `B${results.length}` });
-      await db.insert(agents).values(candidateIds.map((id, index) => ({ id, companyId, name: `Agent ${index}`, adapterType: "process" })));
-      await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
-      await db.insert(principalPermissionGrants).values({ companyId, principalType: "user", principalId: userId,
+      await db.insert(spaces).values({ id: spaceId, name: `Capability benchmark ${n} ${installs}`, issuePrefix: `B${results.length}` });
+      await db.insert(agents).values(candidateIds.map((id, index) => ({ id, spaceId, name: `Agent ${index}`, adapterType: "process" })));
+      await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
+      await db.insert(principalPermissionGrants).values({ spaceId, principalType: "user", principalId: userId,
         permissionKey: "tools:manage_profiles", scope: { targetAgentIds: candidateIds } });
-      await db.insert(toolApplications).values({ id: applicationId, companyId, name: "Synthetic benchmark", type: "mcp_http" });
-      await db.insert(toolConnections).values({ id: connectionId, applicationId, companyId, uid: connectionId,
+      await db.insert(toolApplications).values({ id: applicationId, spaceId, name: "Synthetic benchmark", type: "mcp_http" });
+      await db.insert(toolConnections).values({ id: connectionId, applicationId, spaceId, uid: connectionId,
         name: "Synthetic benchmark", connectionPurpose, transport: connectionPurpose === "ai" ? "runtime_auth" : "mcp_remote", authKind: "none", config: { provider: "fixture" } });
-      await db.insert(toolConnectionInstalls).values(installs === "company"
-        ? [{ companyId, connectionId, targetType: "company", targetId: companyId }]
-        : candidateIds.slice(0, Math.max(1, Math.floor(n / 4))).map(targetId => ({ companyId, connectionId, targetType: "agent" as const, targetId })));
+      await db.insert(toolConnectionInstalls).values(installs === "space"
+        ? [{ spaceId, connectionId, targetType: "space", targetId: spaceId }]
+        : candidateIds.slice(0, Math.max(1, Math.floor(n / 4))).map(targetId => ({ spaceId, connectionId, targetType: "agent" as const, targetId })));
       await db.$client.unsafe("ANALYZE");
-      const actor: AuthorizationActor = { type: "board", source: "cloud_tenant", userId };
-      const resource = { type: "connection_management" as const, companyId, connectionId, operation: "configure", readOnly: false };
+      const actor: AuthorizationActor = { type: "operator", source: "cloud_tenant", userId };
+      const resource = { type: "connection_management" as const, spaceId, connectionId, operation: "configure", readOnly: false };
       const baseline = async () => {
         const capabilities = [];
         for (const targetAgentId of candidateIds) capabilities.push(await old.capability(actor, "connections:profiles", { ...resource, targetAgentId }));
@@ -150,7 +150,7 @@ try {
       }
       const before = summary(samples.baseline), after = summary(samples.treatment);
       const targetLookups = (statements: Statement[]) => statements.filter(statement => statement.sql.includes('"agents"."id" =')).reduce((sum, statement) => sum + statement.calls, 0);
-      const expectedRetained = installs === "company" ? n : Math.max(1, Math.floor(n / 4));
+      const expectedRetained = installs === "space" ? n : Math.max(1, Math.floor(n / 4));
       assert.equal(targetLookups(captured.baseline), n * expectedRetained + n - expectedRetained);
       assert.equal(targetLookups(captured.treatment), n);
       const result = { n, installs, connectionPurpose, principal: "cloud noncreator member with target-scoped grant", completePositionalEquality: true,

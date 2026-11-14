@@ -40,7 +40,7 @@ also run unrelated response, workspace and retention work.
 
 The coordinator binds run, task, selected result, assessment and decision. The
 assessment retains prior task status/version/decision and its input digest. The
-result and contract are selected by matching company/task/run identities. The
+result and contract are selected by matching space/task/run identities. The
 committer appends the new decision and guards concurrent task changes. A
 NativeStatusRaceError currently defers to later reconciliation; the new worker
 must retain or receive the corresponding wake instead of silently losing it.
@@ -75,7 +75,7 @@ review retirement; latest-contract changes; workspace barrier settlement; child
 completion; dependency/blocker changes; agent/task authority and process claims.
 Use the existing mutation/transaction owners. Reuse task/run-scoped notification
 boundaries where their semantics match. Broad configuration changes may justify
-broader scopes; ordinary writes must not reload every company run.
+broader scopes; ordinary writes must not reload every space run.
 
 ## Acceptance before periodic removal
 
@@ -117,7 +117,7 @@ remains deferred. All 94 status-authority cases and 187 governed-response cases
 pass after extraction, as does server typecheck. Evidence: /tmp/sleep50-baseline.log,
 /tmp/sleep50-extract-corpus.log, /tmp/sleep50-extract-responses.log and
 /tmp/sleep50-extract-types.log. Each corpus run uses a fresh database because its
-company prefixes persist beyond the suite.
+space prefixes persist beyond the suite.
 
 The scheduler entry point is not ready yet. The status committer locks the
 coordinator before the task and publishes activity after its own transaction.
@@ -157,7 +157,7 @@ No slice 50 PR has been published and no additional polling has been removed.
 ## Scoped worker and first producer
 
 A local, not-yet-registered worker now discovers the three existing activation
-conditions with company/task/run/agent scopes and 100-row keyset pages. Candidate
+conditions with space/task/run/agent scopes and 100-row keyset pages. Candidate
 SQL excludes superseded decisions, held native ownership, unknown finalization
 leases and old pending effects. It is discovery, not mutation authority: check
 reloads the source and the committer still applies the locked guard. Future retry
@@ -194,8 +194,8 @@ Those copies share a task and their decisions are superseded for reassessment;
 this is not proof of 10,000 independently selected current assessments or an
 outstanding reassessment backlog. Startup returned 62 candidates from other
 retained history in one query (305 ms cold wall time; warm EXPLAIN execution about
-47 ms). Company/task scopes returned none in 34/20 ms, exact run in 2.6 ms.
-Plans and logs: /tmp/sleep50-query-{startup,company,issue,run}.plan and
+47 ms). Space/task scopes returned none in 34/20 ms, exact run in 2.6 ms.
+Plans and logs: /tmp/sleep50-query-{startup,space,issue,run}.plan and
 /tmp/sleep50-query-plan.log. Selected-current history, backlog cost and cancellation
 between pages still need measurement before enabling the worker.
 
@@ -267,7 +267,7 @@ lifecycle/failure evidence, startup/periodic wiring and full PR acceptance.
 ## Approval evidence producer checkpoint
 
 Approval references are classified from the current approval status and its
-company/task link. A product can have changed after the selected assessment
+space/task link. A product can have changed after the selected assessment
 while that approval is still pending or unlinked. The worker correctly goes
 quiet with insufficient evidence, but must inspect that same candidate when
 an approval is resolved or linked later. This does not add a new reassessment
@@ -277,10 +277,10 @@ The existing `notifyApprovalWork` boundary now sends the same task scopes to
 native reassessment as to governed review responses, before the approval/link
 write. It already resolves linked task IDs for status changes and accepts
 explicit task scopes for link/unlink and bulk link. No new transaction wrapper,
-company scan, table, or provider policy was introduced. Unlinked approval creation
+space scan, table, or provider policy was introduced. Unlinked approval creation
 has no task to reassess; the subsequent link owns activation. The production
 writer audit also found budget approval resolution and gateway formal-approval
-linking use this boundary with the appropriate scope. Company deletion removes
+linking use this boundary with the appropriate scope. Space deletion removes
 the records rather than creating a surviving reassessment obligation.
 
 Four real PostgreSQL regressions failed before the notification: approval
@@ -318,7 +318,7 @@ case also reproduced the missed wake before production changes.
 
 `notifyNativeReviewState` is a small fan-out boundary for the two consumers of
 changed review facts: governed response recovery and status reassessment. It
-preserves their existing task/run/company scopes and delegates all discovery,
+preserves their existing task/run/space scopes and delegates all discovery,
 classification and authority to the owning workers. Approval, interaction,
 chat-milestone, satisfied-connection and OAuth completion/rejection producers
 reuse that boundary in their existing transactions. It does not add database
@@ -434,7 +434,7 @@ only `sourceKind: runner` and rejects control-plane events, so its append path
 cannot produce an authoritative verdict and needs no added signal. Scheduled
 retry cancellation inserts ordinary lifecycle diagnostics without ORP evidence.
 The shared append path owns the supported control-plane verdict writes. Event
-rows are otherwise immutable in production; agent/company deletion owns removal
+rows are otherwise immutable in production; agent/space deletion owns removal
 of their run history rather than producing new evidence for surviving runs.
 
 Four real-append regressions failed before the fix: ordinary append, native-source
@@ -447,7 +447,7 @@ path and preserve binding/concurrency behavior.
 
 The initial combined run failed three sequencing cases during embedded PostgreSQL
 bootstrap, before assertions. They now accept a validated dedicated external test
-database URL, clean only their own company fixture between cases, and close both
+database URL, clean only their own space fixture between cases, and close both
 clients. All three then pass, including concurrent retry receipt deduplication,
 concurrent event allocation, and conflicting replay without cursor drift. Final
 server typecheck passes. This is 37 distinct passing cases across the runs, not
@@ -506,7 +506,7 @@ Producer audit notes for the next checkpoint:
   confirmation; its interaction writes remain to be audited.
 - The evidence classifier checks target-agent existence, not invokable status.
   Do not add status-change fanout based only on the name of that check.
-- Completion-contract creation is serialized with the per-company/task advisory
+- Completion-contract creation is serialized with the per-space/task advisory
   lock in `ensureNativeCompletionContract`. Checking the latest revision before
   the commit transaction is still insufficient. Audit its callers' lock order
   before extending the scheduled commit guard.
@@ -521,7 +521,7 @@ stack scope, older unresolved gates and master reconciliation remain outstanding
 The completion-contract writer is `ensureNativeCompletionContract`. Production
 callers are native run preparation and heartbeat runtime selection; both select
 or ensure the contract before their later run-state mutation. The writer owns a
-per-company/task advisory transaction lock, and revisions are append-only. The
+per-space/task advisory transaction lock, and revisions are append-only. The
 scheduled retired-review commit now calls the owner's
 `lockCurrentNativeCompletionContract` before taking coordinator/task/run row
 locks. The helper tries that same advisory lock without waiting and verifies the
@@ -797,7 +797,7 @@ service's native-review notifications. Three real tool-access service regression
 
 The existing card lookup/mutation and OAuth-state interaction link now share a
 short database transaction. It awaits notifyNativeReviewState before writing,
-with company/task scope. The shared hook wakes both governed review response and
+with space/task scope. The shared hook wakes both governed review response and
 status reassessment; consumers still select only actionable durable state.
 Provider discovery, client setup and authorization remain outside the new short
 transaction. Browser/user flows that do not create an agent authorization card
@@ -841,14 +841,14 @@ cost for selected current history. A dedicated PostgreSQL 17 database now holds
 Every task initially selects its own completed decision; accepted products predate
 the assessment. This is distinct from 10,000 obsolete decisions on one task.
 Fixture: /tmp/sleep50-scale-fixture.sql and .log/.status; database
-paperclip_sleep50_scale_20261026_test (snapshot of the completed corpus database,
-plus a separate synthetic company). All fixture inserts and measurements are
+outpost_sleep50_scale_20261026_test (snapshot of the completed corpus database,
+plus a separate synthetic space). All fixture inserts and measurements are
 local disposable test data, never deployed/customer data.
 
 At source 51f305f1d1 with the new backlog regression pending:
 - Startup discovery: 98.7 ms, three queries, 246 candidates from the original
   corpus fixtures. None of the 10,000 completed synthetic tasks was a candidate.
-- Synthetic company: zero candidates, one query, 34.8 ms (warm EXPLAIN execution
+- Synthetic space: zero candidates, one query, 34.8 ms (warm EXPLAIN execution
   33.5 ms); exact task/run scopes: one query each, about 1.8/2.1 ms.
 - Changing all synthetic tasks' authoritative status creates 10,000 actual
   reassessment candidates. Reconstruction: 101 keyset queries, 1.56 seconds,
@@ -860,7 +860,7 @@ At source 51f305f1d1 with the new backlog regression pending:
   scoped discovery, and do not replay: 37/36 SQL statements, about 32/15 ms.
 
 Evidence: /tmp/sleep50-scale-measure.mts, .log/.status (exit 0), and
-/tmp/sleep50-scale-{startup,company,issue,run}.plan. No new index was justified by
+/tmp/sleep50-scale-{startup,space,issue,run}.plan. No new index was justified by
 this selected-history measurement. It is local PostgreSQL evidence, not a remote
 network latency or fleet savings claim.
 
@@ -878,7 +878,7 @@ Two failed benchmark attempts are retained. The first manually assigned version
 2 while a status-update trigger advanced the actual version to 4, so it measured
 the stale-status path and failed the intended completion assertion. A repair that
 rewound that already-processed fixture then reused its existing append-only
-assessment and hit status_decisions_company_assessment_uq. Neither failure was
+assessment and hit status_decisions_space_assessment_uq. Neither failure was
 waived or changed in production code. A fresh untouched task with the actual
 trigger-generated version exercised the intended retired-review path. Evidence:
 /tmp/sleep50-task-history-measure.log/.status and
@@ -986,7 +986,7 @@ writes. The audit also covers queued-comment release, watchdog settlement, legac
 and native recovery, safe replacement, tree restoration and stale-lock cleanup.
 Existing run-dispatch and queue branches that already notify task-wide milestones
 retain that common hook. Case-handoff release already delegates to issueService
-update. Rare member-archive bulk reassignment signals its company. No database
+update. Rare member-archive bulk reassignment signals its space. No database
 transaction wrappers, recurring retries or provider logic are added.
 
 The first repaired run passed 36/37 cases. Ordinary release deliberately clears
@@ -1032,15 +1032,15 @@ intended in-progress decision and become SQL quiet; neither bypasses the review.
 The same assertions and time limits are retained.
 
 Two more real SQL regressions cover dormant reassessment after three coarse
-company-only milestone/finalization hints. A controlled negative baseline removes
+space-only milestone/finalization hints. A controlled negative baseline removes
 only the ordinary issue/run guards; it reproduces nonzero response-history
 reconstruction. Restoring the guards byte for byte passes the same cases with
 zero reconstruction queries. Routine wake paths now remain scoped across all
-three workers; the explicit company authority boundary still wakes genuine global
+three workers; the explicit space authority boundary still wakes genuine global
 changes. Actual coalesced input and concurrent Photon recovery exercise all three
 queues. Ten active Photon assertions produce zero hints/SELECTs per worker;
 three concurrent attention assertions produce one wake/SELECT, then return quiet.
-Paperclip callbacks and PostgreSQL are real; external Photon transport is mocked.
+Outpost callbacks and PostgreSQL are real; external Photon transport is mocked.
 
 Broad source `9fddb3f0b1157df32b64fb1f22e9d6e9624470e8` passes **2731
 distinct cases across 28 complete files**, with no skipped cases: 2458 across

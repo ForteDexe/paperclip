@@ -4,7 +4,7 @@ import type { Agent, Issue } from "@outpost/shared";
 import { useQuery } from "@tanstack/react-query";
 import { accessApi } from "../api/access";
 import { formatAssigneeUserLabel } from "../lib/assignees";
-import { buildCompanyUserInlineOptions, buildCompanyUserLabelMap } from "../lib/company-members";
+import { buildSpaceUserInlineOptions, buildSpaceUserLabelMap } from "../lib/space-members";
 import { queryKeys } from "../lib/queryKeys";
 import { sortAgentsByRecency, getRecentAssigneeIds } from "../lib/recent-assignees";
 import {
@@ -40,10 +40,10 @@ export function ExecutionParticipantPicker({
   const reviewerValues = stageParticipantValues(issue.executionPolicy, "review");
   const approverValues = stageParticipantValues(issue.executionPolicy, "approval");
   const values = stageType === "review" ? reviewerValues : approverValues;
-  const { data: companyMembers } = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(issue.companyId),
-    queryFn: () => accessApi.listUserDirectory(issue.companyId),
-    enabled: !!issue.companyId,
+  const { data: spaceMembers } = useQuery({
+    queryKey: queryKeys.access.spaceUserDirectory(issue.spaceId),
+    queryFn: () => accessApi.listUserDirectory(issue.spaceId),
+    enabled: !!issue.spaceId,
   });
 
   const sortedAgents = sortAgentsByRecency(
@@ -51,12 +51,12 @@ export function ExecutionParticipantPicker({
     getRecentAssigneeIds(),
   );
   const userLabelMap = useMemo(
-    () => buildCompanyUserLabelMap(companyMembers?.users),
-    [companyMembers?.users],
+    () => buildSpaceUserLabelMap(spaceMembers?.users),
+    [spaceMembers?.users],
   );
   const otherUserOptions = useMemo(
-    () => buildCompanyUserInlineOptions(companyMembers?.users, { excludeUserIds: [currentUserId, issue.createdByUserId] }),
-    [companyMembers?.users, currentUserId, issue.createdByUserId],
+    () => buildSpaceUserInlineOptions(spaceMembers?.users, { excludeUserIds: [currentUserId, issue.createdByUserId] }),
+    [spaceMembers?.users, currentUserId, issue.createdByUserId],
   );
 
   const userLabel = (userId: string | null | undefined) =>

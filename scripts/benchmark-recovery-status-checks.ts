@@ -100,12 +100,12 @@ const { nextWorkspaceRecoveryAt: baselineNext } = await load<typeof import("../s
 
 type Fixture = { name: string; check: "workspace-recovery" | "dropped-comments"; [key: string]: number | string };
 const fixtures: Fixture[] = [
-  // Workspace recovery: actions per company (most complete), runs per company, finalizers and leases.
+  // Workspace recovery: actions per space (most complete), runs per space, finalizers and leases.
   { name: "recovery-small", check: "workspace-recovery", actions: 200, runs: 5_000, contextBytes: 1_024, evidenceBytes: 512 },
   // A busy instance after restart waves: a few thousand recovery actions, most
   // complete, a few hundred exhausted holds that stay active, deep run history.
   { name: "recovery-representative", check: "workspace-recovery", actions: 3_000, runs: 60_000, contextBytes: 2_048, evidenceBytes: 1_024 },
-  // The same actions over a deeper run history. The baseline grows with holds times runs per company.
+  // The same actions over a deeper run history. The baseline grows with holds times runs per space.
   { name: "recovery-deep-history", check: "workspace-recovery", actions: 3_000, runs: 150_000, contextBytes: 2_048, evidenceBytes: 1_024 },
   // Dropped comments: recent user comments on done tasks over a deep run history.
   { name: "dropped-small", check: "dropped-comments", issues: 300, runs: 3_000, hotIssues: 30, commentsPerHotIssue: 2, contextBytes: 1_024 },
@@ -124,26 +124,26 @@ let captureClient: import("postgres").Sql | undefined;
 const filler = (bytes: number, seed: string) =>
   `(select string_agg(md5(${seed}::text || ':' || g::text), '') from generate_series(1, ${Math.max(1, Math.ceil(bytes / 32))}) g)`;
 
-async function seedCompany(db: Db, scale: number, prefixSeed: string, issueCount: number) {
+async function seedSpace(db: Db, scale: number, prefixSeed: string, issueCount: number) {
   const run = (text: string, params: unknown[] = []) => db.$client.unsafe(text, params as never[]);
-  const company = randomUUID();
-  const prefix = `B${prefixSeed}${company.slice(0, 5).toUpperCase()}`;
-  await run(`insert into companies (id, name, issue_prefix) values ($1::uuid, 'Synthetic', $2)`, [company, prefix]);
-  await run(`insert into agents (company_id, name, adapter_type) select $1::uuid, 'agent-' || n, 'codex_local' from generate_series(1, 20) n`, [company]);
-  await run(`create temp table if not exists bench_agents (company_id uuid, n int, id uuid)`);
-  await run(`insert into bench_agents select company_id, row_number() over (order by id), id from agents where company_id = $1::uuid`, [company]);
-  await run(`insert into issues (company_id, title, status, assignee_agent_id, identifier, issue_number)
+  const space = randomUUID();
+  const prefix = `B${prefixSeed}${space.slice(0, 5).toUpperCase()}`;
+  await run(`insert into spaces (id, name, issue_prefix) values ($1::uuid, 'Synthetic', $2)`, [space, prefix]);
+  await run(`insert into agents (space_id, name, adapter_type) select $1::uuid, 'agent-' || n, 'codex_local' from generate_series(1, 20) n`, [space]);
+  await run(`create temp table if not exists bench_agents (space_id uuid, n int, id uuid)`);
+  await run(`insert into bench_agents select space_id, row_number() over (order by id), id from agents where space_id = $1::uuid`, [space]);
+  await run(`insert into issues (space_id, title, status, assignee_agent_id, identifier, issue_number)
     select $1::uuid, 'I-' || s.num, (array['done','done','todo','in_progress','done','cancelled','todo','in_progress','done','todo'])[1 + s.num % 10],
-      (select a.id from bench_agents a where a.company_id = $1::uuid and a.n = 1 + s.num % 20), $2 || '-' || s.num, s.num
-    from generate_series(1, $3::int) s(num)`, [company, prefix, Math.ceil(issueCount * scale)]);
-  await run(`create temp table if not exists bench_issues (company_id uuid, n int, id uuid, agent_id uuid)`);
-  await run(`insert into bench_issues select company_id, issue_number, id, assignee_agent_id from issues where company_id = $1::uuid`, [company]);
-  return company;
+      (select a.id from bench_agents a where a.space_id = $1::uuid and a.n = 1 + s.num % 20), $2 || '-' || s.num, s.num
+    from generate_series(1, $3::int) s(num)`, [space, prefix, Math.ceil(issueCount * scale)]);
+  await run(`create temp table if not exists bench_issues (space_id uuid, n int, id uuid, agent_id uuid)`);
+  await run(`insert into bench_issues select space_id, issue_number, id, assignee_agent_id from issues where space_id = $1::uuid`, [space]);
+  return space;
 }
 
 /** Run history over 14 days: legacy runs bind by context, native runs by column, some by both. */
-async function seedRunHistory(db: Db, company: string, now: Date, runCount: number, issueCount: number, contextBytes: number) {
-  await db.$client.unsafe(`insert into heartbeat_runs (company_id, agent_id, status, invocation_source, native_issue_id, context_snapshot,
+async function seedRunHistory(db: Db, space: string, now: Date, runCount: number, issueCount: number, contextBytes: number) {
+  await db.$client.unsafe(`insert into heartbeat_runs (space_id, agent_id, status, invocation_source, native_issue_id, context_snapshot,
       runner_profile_json, created_at, started_at, finished_at)
     select $1::uuid, i.agent_id, (array['succeeded','failed','cancelled','succeeded','timed_out'])[1 + r % 5], 'assignment',
       case when r % 3 <> 0 then i.id end,
@@ -151,8 +151,8 @@ async function seedRunHistory(db: Db, company: string, now: Date, runCount: numb
       jsonb_build_object('remoteWorkspace', jsonb_build_object('state', case when r % 4 = 0 then 'prepared' else 'released' end)),
       $2::timestamptz - interval '2 hours' - (r * interval '14 days' / $3::int), $2::timestamptz - interval '2 hours' - (r * interval '14 days' / $3::int),
       $2::timestamptz - interval '2 hours' - (r * interval '14 days' / $3::int) + interval '20 minutes'
-    from generate_series(1, $3::int) r join bench_issues i on i.company_id = $1::uuid and i.n = 1 + (r * 7919) % $4::int`,
-    [company, now.toISOString(), runCount, issueCount] as never[]);
+    from generate_series(1, $3::int) r join bench_issues i on i.space_id = $1::uuid and i.n = 1 + (r * 7919) % $4::int`,
+    [space, now.toISOString(), runCount, issueCount] as never[]);
 }
 
 async function seedWorkspaceRecovery(db: Db, fixture: Fixture, now: Date) {
@@ -162,48 +162,48 @@ async function seedWorkspaceRecovery(db: Db, fixture: Fixture, now: Date) {
     const actionCount = Math.ceil(actionsTotal * scale), runCount = Math.ceil(runsTotal * scale);
     // Each recovery action has its own task; ordinary tasks carry the run history.
     const issueCount = actionCount + Math.ceil(runCount / 15);
-    const company = await seedCompany(db, 1, tag, issueCount);
-    await seedRunHistory(db, company, now, runCount, issueCount, Number(fixture.contextBytes));
+    const space = await seedSpace(db, 1, tag, issueCount);
+    await seedRunHistory(db, space, now, runCount, issueCount, Number(fixture.contextBytes));
     // Finalizers for a third of the history, some still leased.
-    await run(`insert into native_run_finalizations (run_id, company_id, issue_id, phase, lease_owner, lease_expires_at)
-      select r.id, r.company_id, coalesce(r.native_issue_id, (r.context_snapshot->>'issueId')::uuid), 'completed',
+    await run(`insert into native_run_finalizations (run_id, space_id, issue_id, phase, lease_owner, lease_expires_at)
+      select r.id, r.space_id, coalesce(r.native_issue_id, (r.context_snapshot->>'issueId')::uuid), 'completed',
         case when row_number() over () % 7 = 0 then 'owner' end, $2::timestamptz + interval '10 minutes'
-      from heartbeat_runs r where r.company_id = $1::uuid and r.native_issue_id is not null and r.created_at::text like '%3%'`,
-      [company, now.toISOString()]);
-    await run(`insert into environment_leases (company_id, heartbeat_run_id, issue_id, lease_policy, updated_at)
-      select r.company_id, r.id, r.native_issue_id, 'retain_on_failure',
-        r.finished_at from heartbeat_runs r where r.company_id = $1::uuid and r.native_issue_id is not null and r.created_at::text like '%7%'`,
-      [company]);
+      from heartbeat_runs r where r.space_id = $1::uuid and r.native_issue_id is not null and r.created_at::text like '%3%'`,
+      [space, now.toISOString()]);
+    await run(`insert into environment_leases (space_id, heartbeat_run_id, issue_id, lease_policy, updated_at)
+      select r.space_id, r.id, r.native_issue_id, 'retain_on_failure',
+        r.finished_at from heartbeat_runs r where r.space_id = $1::uuid and r.native_issue_id is not null and r.created_at::text like '%7%'`,
+      [space]);
     // Source runs of the recovery actions: one failed native run per action task.
-    await run(`insert into heartbeat_runs (company_id, agent_id, status, invocation_source, native_issue_id, context_snapshot,
+    await run(`insert into heartbeat_runs (space_id, agent_id, status, invocation_source, native_issue_id, context_snapshot,
         runner_profile_json, created_at, started_at, finished_at)
-      select i.company_id, i.agent_id, 'failed', 'assignment', i.id, jsonb_build_object('issueId', i.id::text),
+      select i.space_id, i.agent_id, 'failed', 'assignment', i.id, jsonb_build_object('issueId', i.id::text),
         jsonb_build_object('remoteWorkspace', jsonb_build_object('state', case when i.n % 3 = 0 then 'released' else 'prepared' end)),
         $2::timestamptz - (i.n * interval '1 minute'), $2::timestamptz - (i.n * interval '1 minute'), $2::timestamptz - (i.n * interval '1 minute') + interval '5 minutes'
-      from bench_issues i where i.company_id = $1::uuid and i.n <= $3::int`, [company, now.toISOString(), actionCount]);
+      from bench_issues i where i.space_id = $1::uuid and i.n <= $3::int`, [space, now.toISOString(), actionCount]);
     // Stop-proof holds whose source finalizer is still leased (n % 40 = 15) or has an expired lease (n % 40 = 35).
-    await run(`insert into native_run_finalizations (run_id, company_id, issue_id, phase, lease_owner, lease_expires_at)
-      select r.id, r.company_id, r.native_issue_id, 'finalizing', 'owner',
+    await run(`insert into native_run_finalizations (run_id, space_id, issue_id, phase, lease_owner, lease_expires_at)
+      select r.id, r.space_id, r.native_issue_id, 'finalizing', 'owner',
         case when i.n % 40 = 15 then $2::timestamptz + interval '20 minutes' else $2::timestamptz - interval '20 minutes' end
       from heartbeat_runs r join bench_issues i on i.id = r.native_issue_id
-      where r.company_id = $1::uuid and r.status = 'failed' and i.n <= $3::int and i.n % 40 in (15, 35)
-        and r.created_at = $2::timestamptz - (i.n * interval '1 minute')`, [company, now.toISOString(), actionCount]);
+      where r.space_id = $1::uuid and r.status = 'failed' and i.n <= $3::int and i.n % 40 in (15, 35)
+        and r.created_at = $2::timestamptz - (i.n * interval '1 minute')`, [space, now.toISOString(), actionCount]);
     // A late provider stop receipt after a deferred check (n % 20 = 16 with n % 40 = 36).
-    await run(`insert into environment_leases (company_id, heartbeat_run_id, issue_id, lease_policy, updated_at)
-      select r.company_id, r.id, r.native_issue_id, 'retain_on_failure',
+    await run(`insert into environment_leases (space_id, heartbeat_run_id, issue_id, lease_policy, updated_at)
+      select r.space_id, r.id, r.native_issue_id, 'retain_on_failure',
         $2::timestamptz - interval '1 minute'
       from heartbeat_runs r join bench_issues i on i.id = r.native_issue_id
-      where r.company_id = $1::uuid and r.status = 'failed' and i.n <= $3::int and i.n % 40 = 36
-        and r.created_at = $2::timestamptz - (i.n * interval '1 minute')`, [company, now.toISOString(), actionCount]);
+      where r.space_id = $1::uuid and r.status = 'failed' and i.n <= $3::int and i.n % 40 = 36
+        and r.created_at = $2::timestamptz - (i.n * interval '1 minute')`, [space, now.toISOString(), actionCount]);
     // Recovery actions by n % 20:
     //   0-11 complete and resolved (most history); 12-13 exhausted with a permanently refused source;
     //   14-15 exhausted unproven-stop holds with re-arms left; 16 the same with every re-arm spent;
     //   17 scheduled; 18 cancelled with export requests; 19 complete with a pending bootstrap continuation.
     // Exhausted holds alternate between a spent deferred check of this generation, a deferred check
     // with a future time, an older generation's check, and no check. Every due time is in the future.
-    await run(`insert into issue_recovery_actions (company_id, source_issue_id, kind, status, owner_type, cause, fingerprint, next_action, evidence,
+    await run(`insert into issue_recovery_actions (space_id, source_issue_id, kind, status, owner_type, cause, fingerprint, next_action, evidence,
         created_at, updated_at)
-      select i.company_id, i.id, 'workspace_recovery',
+      select i.space_id, i.id, 'workspace_recovery',
         case when k < 12 or k = 19 then 'resolved' when k = 18 then 'cancelled' when k in (13, 15) then 'escalated' else 'active' end,
         'system', case when i.n % 50 = 7 then 'workspace_restore_failed' else (array['native_workspace_sync_out_unrecoverable','native_workspace_sync_out_retry_exhausted'])[1 + i.n % 2] end,
         'fp-' || i.n, 'next',
@@ -231,17 +231,17 @@ async function seedWorkspaceRecovery(db: Db, fixture: Fixture, now: Date) {
               jsonb_build_object('generationId', 'gen-old', 'checkedAt', $3::bigint - 600000, 'nextCheckAt', $3::bigint + 60000 * (3 + i.n % 40)),
               jsonb_build_object('generationId', 'gen-' || i.n, 'nextCheckAt', $3::bigint + 60000 * (7 + i.n % 40))])[1 + (i.n / 20) % 4] end)),
         $2::timestamptz, $2::timestamptz
-      from (select i.*, i.n % 20 as k from bench_issues i where i.company_id = $1::uuid and i.n <= $4::int) i
-      join heartbeat_runs r on r.company_id = i.company_id and r.native_issue_id = i.id and r.status = 'failed'
+      from (select i.*, i.n % 20 as k from bench_issues i where i.space_id = $1::uuid and i.n <= $4::int) i
+      join heartbeat_runs r on r.space_id = i.space_id and r.native_issue_id = i.id and r.status = 'failed'
         and r.created_at = $2::timestamptz - (i.n * interval '1 minute')`,
-      [company, now.toISOString(), now.getTime(), actionCount]);
+      [space, now.toISOString(), now.getTime(), actionCount]);
     // Siblings: a completed recovery of the same run saved the files (n % 60 = 12).
-    await run(`insert into issue_recovery_actions (company_id, source_issue_id, kind, status, owner_type, cause, fingerprint, next_action, evidence)
-      select a.company_id, a.source_issue_id, 'workspace_recovery', 'resolved', 'system', a.cause, a.fingerprint || '-sibling', 'next',
+    await run(`insert into issue_recovery_actions (space_id, source_issue_id, kind, status, owner_type, cause, fingerprint, next_action, evidence)
+      select a.space_id, a.source_issue_id, 'workspace_recovery', 'resolved', 'system', a.cause, a.fingerprint || '-sibling', 'next',
         jsonb_build_object('runId', a.evidence->>'runId', 'systemRecovery', jsonb_build_object('state', 'complete'),
           'workspaceRecovery', jsonb_build_object('status', 'recovered'))
       from issue_recovery_actions a join bench_issues i on i.id = a.source_issue_id
-      where a.company_id = $1::uuid and i.n % 60 = 12`, [company]);
+      where a.space_id = $1::uuid and i.n % 60 = 12`, [space]);
   }
   await run("analyze");
 }
@@ -251,49 +251,49 @@ async function seedDroppedComments(db: Db, fixture: Fixture, now: Date) {
   for (const [scale, tag] of [[1, "A"], [0.25, "B"]] as const) {
     const issueCount = Math.ceil(Number(fixture.issues) * scale), runCount = Math.ceil(Number(fixture.runs) * scale);
     const hot = Math.ceil(Number(fixture.hotIssues) * scale), perIssue = Number(fixture.commentsPerHotIssue);
-    const company = await seedCompany(db, scale, tag, Number(fixture.issues));
-    await seedRunHistory(db, company, now, runCount, issueCount, Number(fixture.contextBytes));
+    const space = await seedSpace(db, scale, tag, Number(fixture.issues));
+    await seedRunHistory(db, space, now, runCount, issueCount, Number(fixture.contextBytes));
     // Hot tasks are done; the agent closed even n, a person odd n (n % 12 = 9).
-    await run(`update issues set status = 'done' where company_id = $1::uuid and issue_number <= $2::int`, [company, hot]);
-    await run(`insert into activity_log (company_id, actor_type, actor_id, action, entity_type, entity_id, details, created_at)
-      select i.company_id, case when i.n % 12 = 9 then 'user' else 'agent' end, 'actor', 'issue.updated', 'issue', i.id::text,
+    await run(`update issues set status = 'done' where space_id = $1::uuid and issue_number <= $2::int`, [space, hot]);
+    await run(`insert into activity_log (space_id, actor_type, actor_id, action, entity_type, entity_id, details, created_at)
+      select i.space_id, case when i.n % 12 = 9 then 'user' else 'agent' end, 'actor', 'issue.updated', 'issue', i.id::text,
         jsonb_build_object('toStatus', 'done'), $2::timestamptz - interval '50 minutes'
-      from bench_issues i where i.company_id = $1::uuid and i.n <= $3::int`, [company, now.toISOString(), hot]);
+      from bench_issues i where i.space_id = $1::uuid and i.n <= $3::int`, [space, now.toISOString(), hot]);
     // The closing run: started before the comments and finished after them; bound by context (odd n) or column (even n).
-    await run(`insert into heartbeat_runs (company_id, agent_id, status, invocation_source, native_issue_id, context_snapshot, created_at, started_at, finished_at)
-      select i.company_id, case when i.n % 12 = 11 then (select a.id from bench_agents a where a.company_id = i.company_id and a.id <> i.agent_id limit 1) else i.agent_id end,
+    await run(`insert into heartbeat_runs (space_id, agent_id, status, invocation_source, native_issue_id, context_snapshot, created_at, started_at, finished_at)
+      select i.space_id, case when i.n % 12 = 11 then (select a.id from bench_agents a where a.space_id = i.space_id and a.id <> i.agent_id limit 1) else i.agent_id end,
         case when i.n % 12 = 10 then 'failed' else 'succeeded' end, 'assignment',
         case when i.n % 2 = 0 then i.id end, case when i.n % 2 = 1 then jsonb_build_object('issueId', i.id::text, 'prompt', ${filler(Number(fixture.contextBytes), "i.n")}) else '{}'::jsonb end,
         $2::timestamptz - interval '58 minutes', $2::timestamptz - interval '58 minutes',
         case when i.n % 12 = 8 then $2::timestamptz - interval '56 minutes' else $2::timestamptz - interval '1 minute' end
-      from bench_issues i where i.company_id = $1::uuid and i.n <= $3::int`, [company, now.toISOString(), hot]);
+      from bench_issues i where i.space_id = $1::uuid and i.n <= $3::int`, [space, now.toISOString(), hot]);
     // A live run on the task (n % 12 = 6), bound by the other binding.
-    await run(`insert into heartbeat_runs (company_id, agent_id, status, invocation_source, native_issue_id, context_snapshot, created_at, started_at)
-      select i.company_id, i.agent_id, (array['queued','running','scheduled_retry'])[1 + i.n % 3], 'assignment',
+    await run(`insert into heartbeat_runs (space_id, agent_id, status, invocation_source, native_issue_id, context_snapshot, created_at, started_at)
+      select i.space_id, i.agent_id, (array['queued','running','scheduled_retry'])[1 + i.n % 3], 'assignment',
         case when i.n % 2 = 1 then i.id end, case when i.n % 2 = 0 then jsonb_build_object('issueId', i.id::text) else '{}'::jsonb end,
         $2::timestamptz - interval '2 minutes', $2::timestamptz - interval '2 minutes'
-      from bench_issues i where i.company_id = $1::uuid and i.n <= $3::int and i.n % 12 = 6`, [company, now.toISOString(), hot]);
-    await run(`insert into issue_comments (company_id, issue_id, author_user_id, body, created_at)
-      select i.company_id, i.id, 'user-1', 'comment ' || k,
+      from bench_issues i where i.space_id = $1::uuid and i.n <= $3::int and i.n % 12 = 6`, [space, now.toISOString(), hot]);
+    await run(`insert into issue_comments (space_id, issue_id, author_user_id, body, created_at)
+      select i.space_id, i.id, 'user-1', 'comment ' || k,
         $2::timestamptz - interval '55 minutes' + ((k - 1) * $3::int + i.n) * (interval '50 minutes' / ($3::int * $4::int)) + $5::int * interval '1 millisecond'
-      from bench_issues i cross join generate_series(1, $4::int) k where i.company_id = $1::uuid and i.n <= $3::int`,
-      [company, now.toISOString(), hot, perIssue, scale === 1 ? 0 : 500]);
-    await run(`insert into issue_comments (company_id, issue_id, author_user_id, body, created_at)
-      select i.company_id, i.id, 'user-1', 'old', $2::timestamptz - interval '2 hours' - (k * interval '3 hours')
-      from bench_issues i cross join generate_series(1, 8) k where i.company_id = $1::uuid`, [company, now.toISOString()]);
+      from bench_issues i cross join generate_series(1, $4::int) k where i.space_id = $1::uuid and i.n <= $3::int`,
+      [space, now.toISOString(), hot, perIssue, scale === 1 ? 0 : 500]);
+    await run(`insert into issue_comments (space_id, issue_id, author_user_id, body, created_at)
+      select i.space_id, i.id, 'user-1', 'old', $2::timestamptz - interval '2 hours' - (k * interval '3 hours')
+      from bench_issues i cross join generate_series(1, 8) k where i.space_id = $1::uuid`, [space, now.toISOString()]);
     // Wakes by n % 12: 0-2 completed (normal delivery); 3-11 cancelled as stale continuations
     // (commentId, or a goal wake context list for n % 4 = 3); n % 12 = 7 also has an open wake.
-    await run(`insert into agent_wakeup_requests (company_id, agent_id, source, status, error, payload, created_at, updated_at)
-      select c.company_id, i.agent_id, 'automation', case when i.n % 12 < 3 then 'completed' else 'cancelled' end,
+    await run(`insert into agent_wakeup_requests (space_id, agent_id, source, status, error, payload, created_at, updated_at)
+      select c.space_id, i.agent_id, 'automation', case when i.n % 12 < 3 then 'completed' else 'cancelled' end,
         case when i.n % 12 >= 3 then 'continuation_task_ownership_changed' end,
-        case when i.n % 4 = 3 then jsonb_build_object('issueId', c.issue_id::text, '_paperclipWakeContext', jsonb_build_object('wakeCommentIds', jsonb_build_array(c.id::text)))
+        case when i.n % 4 = 3 then jsonb_build_object('issueId', c.issue_id::text, '_outpostWakeContext', jsonb_build_object('wakeCommentIds', jsonb_build_array(c.id::text)))
           else jsonb_build_object('issueId', c.issue_id::text, 'commentId', c.id::text) end, c.created_at, c.created_at
-      from issue_comments c join bench_issues i on i.id = c.issue_id where c.company_id = $1::uuid`, [company]);
-    await run(`insert into agent_wakeup_requests (company_id, agent_id, source, status, payload, created_at, updated_at)
-      select c.company_id, i.agent_id, 'automation', 'deferred_issue_execution',
+      from issue_comments c join bench_issues i on i.id = c.issue_id where c.space_id = $1::uuid`, [space]);
+    await run(`insert into agent_wakeup_requests (space_id, agent_id, source, status, payload, created_at, updated_at)
+      select c.space_id, i.agent_id, 'automation', 'deferred_issue_execution',
         jsonb_build_object('issueId', c.issue_id::text, 'commentId', c.id::text), c.created_at, c.created_at
       from issue_comments c join bench_issues i on i.id = c.issue_id
-      where c.company_id = $1::uuid and i.n % 12 = 7 and c.created_at >= $2::timestamptz - interval '1 hour'`, [company, now.toISOString()]);
+      where c.space_id = $1::uuid and i.n % 12 = 7 and c.created_at >= $2::timestamptz - interval '1 hour'`, [space, now.toISOString()]);
   }
   await run("analyze");
 }
@@ -333,7 +333,7 @@ try {
   const selectors = process.argv.filter(value => value.startsWith("--fixture=")).map(value => value.slice(10));
   const results = [];
   for (const fixture of fixtures.filter(value => !selectors.length || selectors.includes(value.name))) {
-    await db.$client.unsafe("TRUNCATE companies CASCADE");
+    await db.$client.unsafe("TRUNCATE spaces CASCADE");
     await db.$client.unsafe("drop table if exists bench_agents, bench_issues");
     const now = new Date(), limit = 200;
     const seedStart = performance.now();
@@ -391,7 +391,7 @@ try {
     }
     const medians = { before: median(samples.before), after: median(samples.after) };
     // Hash-join plan: without nested loops, PostgreSQL can join an OR-bound or
-    // text-cast run lookup only by company. One sample each, untimed loop, same result check.
+    // text-cast run lookup only by space. One sample each, untimed loop, same result check.
     const hashPlan: Record<string, number | string> = {};
     if (!process.argv.includes("--skip-hash-plan")) {
       await db.$client.unsafe("set enable_nestloop = off");

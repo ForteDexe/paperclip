@@ -4,11 +4,11 @@ function replyLink(commentId: string, href: string) {
   return { threadTestId: "task-chat-thread" as const, href, source: "reply" as const, conversationId: "source", anchorCommentId: commentId, commentId };
 }
 function valid() {
-  const proposal = (id: string, name: string) => ({ id, companyId: "company", type: "hire_agent", status: "pending", requestedByAgentId: "ceo", decidedByUserId: null as string | null,
+  const proposal = (id: string, name: string) => ({ id, spaceId: "space", type: "hire_agent", status: "pending", requestedByAgentId: "ceo", decidedByUserId: null as string | null,
     payload: { agentId: name.toLowerCase(), name, role: "qa", adapterType: "runner", adapterConfig: { model: "admitted" } } });
   const firstProposal = proposal("first", "Morgan"), secondProposal = proposal("second", "Jules");
-  const acceptedBefore = { id: "jules", companyId: "company", name: "Jules", role: "qa", adapterType: "runner", adapterConfig: { model: "admitted" } };
-  return { scenarioId: "agents.hire-needs-approval", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  const acceptedBefore = { id: "jules", spaceId: "space", name: "Jules", role: "qa", adapterType: "runner", adapterConfig: { model: "admitted" } };
+  return { scenarioId: "agents.hire-needs-approval", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { firstProposal, secondProposal, approvalsAfter: [{ ...firstProposal, status: "rejected", decidedByUserId: "human" }, { ...secondProposal, status: "approved", decidedByUserId: "human" }],
       secondRequestAttributed: true, rejectedBeforeChangedRequest: true, noRepeatedProposalBeforeChangedRequest: true, acceptedBefore,
       noWorkerBeforeFirstDecision: true, noWorkerBeforeSecondDecision: true, requestRunIds: ["canonical", "changed"],

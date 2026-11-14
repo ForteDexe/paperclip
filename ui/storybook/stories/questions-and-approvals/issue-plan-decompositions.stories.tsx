@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { AcceptedPlanDecompositionSummary } from "@outpost/shared";
 import { IssuePlanDecompositionsSection } from "@/components/IssuePlanDecompositionsSection";
 import { queryKeys } from "@/lib/queryKeys";
-import { storybookAgentMap } from "../../fixtures/paperclipData";
+import { storybookAgentMap } from "../../fixtures/outpostData";
 
 const issueId = "issue-plan-decomposition-story";
 const issueIdentifier = "PAP-6831";
@@ -14,7 +14,7 @@ function buildDecomposition(
 ): AcceptedPlanDecompositionSummary {
   return {
     id: "decomposition-story-1",
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     sourceIssueId: issueId,
     acceptedPlanRevisionId: "revision-story-1",
     acceptedInteractionId: "interaction-story-1",
@@ -67,8 +67,8 @@ function HydratedSection({
   if (!ready) return null;
 
   return (
-    <div className="paperclip-story">
-      <main className="paperclip-story__inner">
+    <div className="outpost-story">
+      <main className="outpost-story__inner">
         <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-background/95 p-6 shadow-sm">
           <IssuePlanDecompositionsSection
             issueId={issueId}
@@ -90,7 +90,7 @@ const meta = {
   },
   parameters: {
     layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "questions-and-approvals/plan-review",
         "task-coordination/delegation"

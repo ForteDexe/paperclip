@@ -29,7 +29,7 @@ import {
   NativeProviderSideEffectPendingError,
   NativeProviderStateIncompatibleError,
   NativeProviderTerminalFailure,
-  NativeGovernedWaitSettlementPendingError,
+  NativeControlledWaitSettlementPendingError,
   NativeSessionCloseUnrecoverableError,
   NativeSessionCleanupQuarantinedError,
   NativeSessionProtocolIntegrityError,
@@ -43,7 +43,7 @@ import {
   type PrpStructuredRunResult,
   type PrpTerminalState,
 } from "./protocol/replay-contract.js";
-import { parsePaperclipQuestionSet } from "./contracts/question-set.js";
+import { parseOutpostQuestionSet } from "./contracts/question-set.js";
 import {
   retainedRunnerdCleanupProofIsCurrent,
   type RetainedRunnerdCleanupProof,
@@ -58,20 +58,20 @@ const FAILED_OPERATION_SETTLEMENT_GRACE_MS = 100;
 // bounded by the transport. Other iterator and handoff cleanup keeps the short
 // fail-closed quarantine boundary below.
 const REUSABLE_SESSION_CANCELLATION_SETTLEMENT_GRACE_MS = 10_000;
-// Governed cancellation can traverse the ACPX turn cancellation (2s), host
+// Controlled cancellation can traverse the ACPX turn cancellation (2s), host
 // cancellation (2s), protocol/TERM/KILL shutdown (7s), and final status read
 // (1s). Allow that bounded settlement plus transport scheduling; never treat
 // elapsed time or a cancellation acknowledgement as usage/terminal evidence.
-const GOVERNED_ACCOUNTING_DRAIN_MS = 15_000;
-const MAX_GOVERNED_ACCOUNTING_DRAIN_MS = 30_000;
+const CONTROLLED_ACCOUNTING_DRAIN_MS = 15_000;
+const MAX_CONTROLLED_ACCOUNTING_DRAIN_MS = 30_000;
 const DEFAULT_NATIVE_CHECKPOINT_TIMEOUT_MS = 30_000;
 /**
  * A retained cleanup owner can only still hold resources it was bound to.
- * `key` names the backend (company, backend kind/name, optional remote
+ * `key` names the backend (space, backend kind/name, optional remote
  * resource). `resources` names the task and provider conversation the owner
  * may still be writing: its issue and normalized session. Admission is gated
  * only when both the backend and one of those resources match, so one
- * session's unrecoverable close cannot block unrelated tasks in the company.
+ * session's unrecoverable close cannot block unrelated tasks in the space.
  */
 interface NativeSessionCleanupDomain {
   key: string;
@@ -95,21 +95,21 @@ const failedSessionCleanupOwners = new Map<
 >();
 
 type NativeSessionCleanupSettledListener = (scope: {
-  companyId: string;
+  spaceId: string;
   issueIds: string[];
 }) => void;
 const cleanupSettledListeners = new Set<NativeSessionCleanupSettledListener>();
 
 function cleanupDomainScope(domain: NativeSessionCleanupDomain): {
-  companyId: string;
+  spaceId: string;
   issueIds: string[];
 } {
-  const [companyId] = JSON.parse(domain.key) as string[];
+  const [spaceId] = JSON.parse(domain.key) as string[];
   const issueIds = domain.resources.flatMap((resource) => {
     const [kind, id] = JSON.parse(resource) as string[];
     return kind === "issue" && typeof id === "string" ? [id] : [];
   });
-  return { companyId: companyId ?? "", issueIds };
+  return { spaceId: spaceId ?? "", issueIds };
 }
 
 /** A retained cleanup owner or quarantine entry was released. Observers can
@@ -140,13 +140,13 @@ export function onNativeSessionCleanupSettled(
  * the close cannot settle automatically. Never grants or retires authority.
  */
 export function nativeSessionCleanupBlock(input: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
 }): "operator_required" | "pending" | null {
   const issueResource = JSON.stringify(["issue", input.issueId]);
   const matches = (domain: NativeSessionCleanupDomain) =>
     domain.resources.includes(issueResource) &&
-    cleanupDomainScope(domain).companyId === input.companyId;
+    cleanupDomainScope(domain).spaceId === input.spaceId;
   let block: "operator_required" | "pending" | null = null;
   for (const entry of quarantinedSessionCleanups) {
     if (!matches(entry.domain)) continue;
@@ -207,7 +207,7 @@ export function completeRetainedNativeSessionCleanup(
   if (!retainedRunnerdCleanupProofIsCurrent(proof))
     throw new NativeSessionCleanupQuarantinedError();
   const domain = JSON.stringify([
-    proof.binding.companyId,
+    proof.binding.spaceId,
     proof.backend.kind,
     proof.backend.name,
   ]);
@@ -247,17 +247,17 @@ export function completeRetainedNativeSessionCleanup(
  * An in-flight close must settle first: it must never reach a reused sandbox.
  */
 export function completeTerminatedRemoteNativeSessionCleanup(binding: {
-  companyId: string;
+  spaceId: string;
   runId: string;
   remoteCleanupScope: string;
 }): boolean {
   if (!binding.remoteCleanupScope) return false;
   const matches = [...quarantinedSessionCleanups].filter(({ session, domain }) => {
     const identity = session.identity();
-    // Domains are created internally from company, backend kind/name, and the
+    // Domains are created internally from space, backend kind/name, and the
     // optional remote resource. Local domains have no fourth element.
     const [, , , remoteCleanupScope] = JSON.parse(domain.key) as string[];
-    return identity.companyId === binding.companyId && identity.runId === binding.runId &&
+    return identity.spaceId === binding.spaceId && identity.runId === binding.runId &&
       remoteCleanupScope === binding.remoteCleanupScope;
   });
   if (matches.some(entry => entry.attempt || entry.recovery)) return false;
@@ -275,14 +275,14 @@ export function completeTerminatedRemoteNativeSessionCleanup(binding: {
  * only cleanup ownership; the retained checkpoint is never made resumable.
  */
 export function completeTerminatedLocalNativeSessionCleanup(binding: {
-  companyId: string;
+  spaceId: string;
   runId: string;
   runnerInstanceId: string;
 }): boolean {
   const matches = [...quarantinedSessionCleanups].filter(({ session, domain }) => {
     const identity = session.identity();
     const parts = JSON.parse(domain.key) as string[];
-    return parts.length === 3 && identity.companyId === binding.companyId && identity.runId === binding.runId;
+    return parts.length === 3 && identity.spaceId === binding.spaceId && identity.runId === binding.runId;
   });
   if (matches.some(entry => entry.attempt || entry.recovery ||
       sessionOriginRunnerInstances.get(entry.session) !== binding.runnerInstanceId)) return false;
@@ -387,7 +387,7 @@ export interface ExecuteNativeSessionOptions {
   }) => Promise<void> | void;
   /**
    * Control-plane policy seam for a provider turn that completed after
-   * durably creating a governed wait, but did not emit a semantic finish
+   * durably creating a controlled wait, but did not emit a semantic finish
    * result. The runner package cannot inspect server-owned interactions, so
    * it asks the embedding control plane whether that missing result is an
    * intentional yield before treating it as provider failure.
@@ -403,7 +403,7 @@ export interface ExecuteNativeSessionOptions {
    * This boundary is deliberately synchronous and observational: asynchronous
    * mutation authority cannot be revoked safely after a failed execution.
    */
-  resolveGovernedWait?: (input: {
+  resolveControlledWait?: (input: {
     turnId: string | null;
     event: PrpEvent;
   }) => PrpStructuredRunResult | null;
@@ -419,7 +419,7 @@ function isTurnTerminal(event: PrpEvent): boolean {
 }
 
 /**
- * The only provider facts a governed-wait accounting drain persists after its
+ * The only provider facts a controlled-wait accounting drain persists after its
  * trigger: usage, the turn terminal and cancellation acknowledgements of the
  * parked turn. The drain discards every other numbered event, so the saved
  * replay has sequence gaps exactly where those discarded events were.
@@ -433,12 +433,12 @@ function isTurnTerminal(event: PrpEvent): boolean {
  * interrupted). That event carries `providerTerminalObserved: false`, because
  * the provider itself sent no terminal; the restart proof stands in for it.
  */
-function governedWaitTerminalProven(event: PrpEvent): boolean {
+function controlledWaitTerminalProven(event: PrpEvent): boolean {
   if (event.eventType === "turn.failed") return isNativeRestartInterruption(event.payload.error);
   return event.payload.providerTerminalObserved !== false;
 }
 
-function isGovernedDrainRetainedEvent(event: PrpEvent, turnId: string | undefined): boolean {
+function isControlledDrainRetainedEvent(event: PrpEvent, turnId: string | undefined): boolean {
   if (event.turnId !== turnId) return false;
   return isTurnTerminal(event)
     || (event.eventType === "item.completed"
@@ -814,7 +814,7 @@ function retainFailedSessionCleanupOwner(
 }
 
 export interface NativeSessionCleanupQuarantine {
-  companyId: string;
+  spaceId: string;
   runId: string;
   issueId: string;
   sessionId: string;
@@ -863,7 +863,7 @@ function announceCleanupQuarantine(
   const error = cause instanceof Error ? cause : null;
   const code = error && "code" in error && typeof error.code === "string" ? error.code : null;
   const quarantine: NativeSessionCleanupQuarantine = {
-    companyId: identity?.companyId ?? "",
+    spaceId: identity?.spaceId ?? "",
     runId: identity?.runId ?? "",
     issueId: identity?.issueId ?? "",
     sessionId: identity?.sessionId ?? "",
@@ -1130,7 +1130,7 @@ async function consumeTurn(
   reusableSessionCancellationGraceMs: number,
   closeFailedSession: () => Promise<void>,
   quarantineSession: (reason: string) => void,
-  resolveGovernedWait?: ExecuteNativeSessionOptions["resolveGovernedWait"],
+  resolveControlledWait?: ExecuteNativeSessionOptions["resolveControlledWait"],
   externalSignal?: AbortSignal,
   sessionGoal?: {
     input: NativeExecutionInput;
@@ -1138,19 +1138,19 @@ async function consumeTurn(
   },
   initialGoal?: HarnessThreadGoal | null,
   resumeInterruptedTurn?: (event: PrpEvent, signal: AbortSignal) => Promise<boolean>,
-  checkpointGovernedWait?: (wait: NonNullable<PersistedNativeSession["governedWait"]>, signal: AbortSignal) => Promise<void>,
-  initialGovernedWait?: PersistedNativeSession["governedWait"],
+  checkpointControlledWait?: (wait: NonNullable<PersistedNativeSession["controlledWait"]>, signal: AbortSignal) => Promise<void>,
+  initialControlledWait?: PersistedNativeSession["controlledWait"],
   /** Settles a compaction-only turn, which reports no semantic result. */
   compactionResult?: PrpStructuredRunResult,
   supersededTerminal?: (event: PrpEvent, signal: AbortSignal) => Promise<boolean>,
 ) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const appendAbort = new AbortController();
-  const governedCleanupOperations = new Set<Promise<unknown>>();
-  let governedCancellationCommitted = false;
+  const controlledCleanupOperations = new Set<Promise<unknown>>();
+  let controlledCancellationCommitted = false;
   let semanticResultObserved = false;
-  let governedProviderTerminalObserved = false;
-  let deferredGovernedCleanupSettlement: Promise<unknown> | null = null;
+  let controlledProviderTerminalObserved = false;
+  let deferredControlledCleanupSettlement: Promise<unknown> | null = null;
   let deferredSessionCancellationSettlement: Promise<unknown> | null = null;
   const inputTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const handoffCleanupOperations = new Set<Promise<unknown>>();
@@ -1188,13 +1188,13 @@ async function consumeTurn(
   const consumer = (async () => {
     let eventCount = 0;
     let highestContiguousSourceSeq = 0;
-    let governedResult: PrpStructuredRunResult | null = null;
+    let controlledResult: PrpStructuredRunResult | null = null;
     let semanticResultProposal: PrpStructuredRunResult | null = null;
     let sessionGoalObserved = sessionGoal !== undefined;
     let previousGoal = initialGoal ?? null;
     let goalControlObserved = false;
     let latestSessionGoal: HarnessThreadGoal | null = null;
-    let resultSource: "semantic_result" | "governed_wait" | null = null;
+    let resultSource: "semantic_result" | "controlled_wait" | null = null;
     let providerFailure: NativeProviderTerminalFailure | null = null;
     const settleDurableResult = async (
       event: PrpEvent,
@@ -1202,32 +1202,32 @@ async function consumeTurn(
       reason: string,
     ) => {
       if (session.cancel === undefined) {
-        throw new Error("native_governed_wait_cancellation_unavailable");
+        throw new Error("native_controlled_wait_cancellation_unavailable");
       }
       // Revoke new publication before any asynchronous journal write. Persist
       // the disposition before provider interruption, retaining usage and terminal
       // evidence even when the interaction is answered during the restart.
       session.revokeTurnPublication?.();
-      await checkpointGovernedWait?.({ sourceEvent: event, result }, appendAbort.signal);
+      await checkpointControlledWait?.({ sourceEvent: event, result }, appendAbort.signal);
       appendAbort.signal.throwIfAborted();
       const cancellation = session.cancel({ reason, signal: appendAbort.signal });
-      governedCancellationCommitted = true;
+      controlledCancellationCommitted = true;
       const cleanup = cancellation.cleanup;
-      governedCleanupOperations.add(cleanup);
+      controlledCleanupOperations.add(cleanup);
       void cleanup
-        .catch(() => quarantineSession("governed_cleanup_failed"))
-        .finally(() => governedCleanupOperations.delete(cleanup));
+        .catch(() => quarantineSession("controlled_cleanup_failed"))
+        .finally(() => controlledCleanupOperations.delete(cleanup));
       // Cancellation revokes provider work immediately, but shutdown can still
       // supply its final usage. Keep a bounded accounting-only drain before
       // acknowledging the run; otherwise the next wake sees permanent debt.
-      // Never let a stuck stream or cleanup revoke the durable governed wait.
+      // Never let a stuck stream or cleanup revoke the durable controlled wait.
       const drainAbort = new AbortController();
       const stopDrain = () => drainAbort.abort(appendAbort.signal.reason);
       appendAbort.signal.addEventListener("abort", stopDrain, { once: true });
       const requestedDrainMs = cancellation.terminalDrainTimeoutMs;
       const terminalDrainMs = typeof requestedDrainMs === "number" && Number.isSafeInteger(requestedDrainMs)
-        && requestedDrainMs > 0 && requestedDrainMs <= MAX_GOVERNED_ACCOUNTING_DRAIN_MS
-        ? requestedDrainMs : GOVERNED_ACCOUNTING_DRAIN_MS;
+        && requestedDrainMs > 0 && requestedDrainMs <= MAX_CONTROLLED_ACCOUNTING_DRAIN_MS
+        ? requestedDrainMs : CONTROLLED_ACCOUNTING_DRAIN_MS;
       const drainMs = Math.min(terminalDrainMs, timeoutMs > 0 ? Math.max(1, Math.floor(timeoutMs / 4)) : terminalDrainMs);
       let drainTimer: ReturnType<typeof setTimeout> | undefined;
       const drained = (async () => {
@@ -1238,8 +1238,8 @@ async function consumeTurn(
           const terminal = isTurnTerminal(trailing);
           // Usage, the terminal and already-numbered cancellation facts carry
           // no new work authority. Everything else is discarded, leaving gaps
-          // that governed-wait recovery replay accepts only for these facts.
-          if (isGovernedDrainRetainedEvent(trailing, event.turnId)) {
+          // that controlled-wait recovery replay accepts only for these facts.
+          if (isControlledDrainRetainedEvent(trailing, event.turnId)) {
             const receipt = await controlPlane.appendEvent(trailing, {
               signal: drainAbort.signal,
               ...(terminal && trailing.turnId && trailing.eventType !== "turn.failed" && trailing.payload.providerTerminalObserved !== false
@@ -1249,34 +1249,34 @@ async function consumeTurn(
             eventCount += receipt.disposition === "committed" ? 1 : 0;
             highestContiguousSourceSeq = Math.max(highestContiguousSourceSeq, receipt.highestContiguousSourceSeq);
             if (terminal) {
-              if (!governedWaitTerminalProven(trailing)) {
-                throw new NativeProviderTerminalFailure("governed_wait_provider_terminal_unproven", false);
+              if (!controlledWaitTerminalProven(trailing)) {
+                throw new NativeProviderTerminalFailure("controlled_wait_provider_terminal_unproven", false);
               }
-              governedProviderTerminalObserved = true;
+              controlledProviderTerminalObserved = true;
               return;
             }
           }
         }
       })();
       const observedDrain = drained.catch(error => {
-        quarantineSession("governed_accounting_drain_failed");
+        quarantineSession("controlled_accounting_drain_failed");
         if (error instanceof NativeProviderTerminalFailure || error instanceof NativeSessionProtocolIntegrityError) throw error;
-        throw new NativeGovernedWaitSettlementPendingError({ cause: error });
+        throw new NativeControlledWaitSettlementPendingError({ cause: error });
       });
       try {
         await Promise.race([
           observedDrain,
           new Promise<void>(resolve => { drainTimer = setTimeout(() => {
-            quarantineSession("governed_accounting_drain_timed_out");
+            quarantineSession("controlled_accounting_drain_timed_out");
             resolve();
           }, drainMs); }),
         ]);
         clearTimeout(drainTimer);
-        if (!governedProviderTerminalObserved) {
+        if (!controlledProviderTerminalObserved) {
           const settlement = await runAbortableOperationWithin({
-            timeoutMs: MAX_GOVERNED_ACCOUNTING_DRAIN_MS,
-            timeoutMessage: "governed wait shutdown settlement timed out",
-            timeoutError: () => new NativeGovernedWaitSettlementPendingError(),
+            timeoutMs: MAX_CONTROLLED_ACCOUNTING_DRAIN_MS,
+            timeoutMessage: "controlled wait shutdown settlement timed out",
+            timeoutError: () => new NativeControlledWaitSettlementPendingError(),
             signal: appendAbort.signal,
             operation: async signal => {
               let receipt;
@@ -1284,10 +1284,10 @@ async function consumeTurn(
                 receipt = await session.settleCancelledTurn?.({ turnId: event.turnId!, reason });
               } catch (error) {
                 if (error instanceof NativeSessionProtocolIntegrityError) throw error;
-                throw new NativeGovernedWaitSettlementPendingError({ cause: error });
+                throw new NativeControlledWaitSettlementPendingError({ cause: error });
               }
               signal.throwIfAborted();
-              if (!receipt) throw new NativeGovernedWaitSettlementPendingError();
+              if (!receipt) throw new NativeControlledWaitSettlementPendingError();
               if (receipt.runId !== event.runId || receipt.normalizedSessionId !== event.normalizedSessionId
                 || receipt.turnId !== event.turnId) throw new NativeSessionProtocolIntegrityError("source_event_replay_conflict");
               await observedDrain;
@@ -1295,9 +1295,9 @@ async function consumeTurn(
               return receipt;
             },
           });
-          await checkpointGovernedWait?.({ sourceEvent: event, result, settlement }, appendAbort.signal);
+          await checkpointControlledWait?.({ sourceEvent: event, result, settlement }, appendAbort.signal);
           appendAbort.signal.throwIfAborted();
-          quarantineSession("governed_wait_session_retired");
+          quarantineSession("controlled_wait_session_retired");
         }
       } finally {
         clearTimeout(drainTimer);
@@ -1308,12 +1308,12 @@ async function consumeTurn(
         event,
         eventCount,
         highestContiguousSourceSeq,
-        governedResult: result,
+        controlledResult: result,
       };
     };
-    if (initialGovernedWait) {
-      return settleDurableResult(initialGovernedWait.sourceEvent, initialGovernedWait.result,
-        "Outpost resumed settlement of this durable governed interaction.");
+    if (initialControlledWait) {
+      return settleDurableResult(initialControlledWait.sourceEvent, initialControlledWait.result,
+        "Outpost resumed settlement of this durable controlled interaction.");
     }
     while (true) {
       const next = await eventIterator.next().catch((error) => {
@@ -1369,7 +1369,7 @@ async function consumeTurn(
         // A harness-created goal may arrive after a semantic result proposal.
         // The goal owns the durable lifetime instead of the completion proposal.
         if (resultSource === "semantic_result") {
-          governedResult = null;
+          controlledResult = null;
           resultSource = null;
         }
         if (sessionGoal === undefined) goalControlObserved = true;
@@ -1409,7 +1409,7 @@ async function consumeTurn(
         typeof request.turnId === "string"
       ) {
         try {
-          parsePaperclipQuestionSet(request.input);
+          parseOutpostQuestionSet(request.input);
           const requestId = request.requestId;
           const turnId = request.turnId;
           clearInputTimer(requestId);
@@ -1461,7 +1461,7 @@ async function consumeTurn(
         }
       }
       if (
-        governedResult === null &&
+        controlledResult === null &&
         !sessionGoalObserved &&
         event.eventType === "run.result.proposed"
       ) {
@@ -1469,24 +1469,24 @@ async function consumeTurn(
         if (!validation.ok) {
           throw new Error("native_semantic_result_invalid");
         }
-        governedResult = validation.result;
+        controlledResult = validation.result;
         resultSource = "semantic_result";
         semanticResultObserved = true;
       }
-      if (governedResult === null && resolveGovernedWait) {
+      if (controlledResult === null && resolveControlledWait) {
         if (appendAbort.signal.aborted) {
           throw (
             appendAbort.signal.reason ??
             new Error("native event consumption aborted")
           );
         }
-        governedResult = resolveGovernedWait({
+        controlledResult = resolveControlledWait({
           turnId: event.turnId ?? null,
           event,
         });
-        if (governedResult !== null) resultSource = "governed_wait";
+        if (controlledResult !== null) resultSource = "controlled_wait";
       }
-      if (governedResult !== null && !isTurnTerminal(event) && !sessionGoalObserved) {
+      if (controlledResult !== null && !isTurnTerminal(event) && !sessionGoalObserved) {
         if (resultSource === "semantic_result") {
           // A completion tool reports task disposition, not provider termination.
           // Persist the final answer and authoritative terminal before finalizing.
@@ -1494,8 +1494,8 @@ async function consumeTurn(
         }
         return settleDurableResult(
           event,
-          governedResult,
-          "Outpost parked this turn on a durable governed interaction.",
+          controlledResult,
+          "Outpost parked this turn on a durable controlled interaction.",
         );
       }
       if (sessionGoalObserved) {
@@ -1516,8 +1516,8 @@ async function consumeTurn(
             event,
             eventCount,
             highestContiguousSourceSeq,
-            governedResult:
-              governedResult ??
+            controlledResult:
+              controlledResult ??
               (goalStatus(eventGoal) === "complete" ? semanticResultProposal : null) ??
               sessionGoalResult(
                 input,
@@ -1535,8 +1535,8 @@ async function consumeTurn(
               event,
               eventCount,
               highestContiguousSourceSeq,
-              governedResult:
-                governedResult ??
+              controlledResult:
+                controlledResult ??
                 (goalStatus(latestSessionGoal) === "complete" ? semanticResultProposal : null) ??
                 sessionGoalResult(
                   input,
@@ -1564,16 +1564,16 @@ async function consumeTurn(
             event,
             eventCount,
             highestContiguousSourceSeq,
-            governedResult: compactionResult,
+            controlledResult: compactionResult,
           };
         }
-        if (semanticResultProposal === null && governedResult === null &&
+        if (semanticResultProposal === null && controlledResult === null &&
             inputTimers.size === 0 && await resumeInterruptedTurn?.(event, appendAbort.signal)) continue;
         return {
           event,
           eventCount,
           highestContiguousSourceSeq,
-          governedResult,
+          controlledResult,
         };
       }
     }
@@ -1609,23 +1609,23 @@ async function consumeTurn(
     appendAbort.abort(error);
     for (const inputTimer of inputTimers.values()) clearTimeout(inputTimer);
     inputTimers.clear();
-    // Governed-wait discovery is synchronous and observational, and provider
+    // Controlled-wait discovery is synchronous and observational, and provider
     // cancellation has already committed synchronously. Bound only the
     // authority-free provider cleanup while keeping its outcome observed.
-    if (governedCleanupOperations.size > 0) {
-      const governedCleanupSettlement = Promise.allSettled([
-        ...governedCleanupOperations,
+    if (controlledCleanupOperations.size > 0) {
+      const controlledCleanupSettlement = Promise.allSettled([
+        ...controlledCleanupOperations,
       ]);
       if (
         !(await settlesWithin(
-          governedCleanupSettlement,
+          controlledCleanupSettlement,
           FAILED_OPERATION_SETTLEMENT_GRACE_MS,
         ))
       ) {
-        deferredGovernedCleanupSettlement = governedCleanupSettlement;
+        deferredControlledCleanupSettlement = controlledCleanupSettlement;
       }
     }
-    if (!governedCancellationCommitted) {
+    if (!controlledCancellationCommitted) {
       const deferredCancellation = await attemptOptionalSessionCancellation(
         session,
         "Native session event consumption failed.",
@@ -1642,13 +1642,13 @@ async function consumeTurn(
       handoffCleanupOperations.size > 0
         ? Promise.allSettled([...handoffCleanupOperations])
         : null;
-    const activeGovernedCleanupSettlement =
-      deferredGovernedCleanupSettlement === null &&
-      governedCleanupOperations.size > 0
-        ? Promise.allSettled([...governedCleanupOperations])
+    const activeControlledCleanupSettlement =
+      deferredControlledCleanupSettlement === null &&
+      controlledCleanupOperations.size > 0
+        ? Promise.allSettled([...controlledCleanupOperations])
         : null;
     if (!consumptionFailed && !appendAbort.signal.aborted) {
-      // A provider terminal or synchronous governed cancellation revokes
+      // A provider terminal or synchronous controlled cancellation revokes
       // live-turn authority. Handoff state was already committed; abort only
       // tells provider cleanup that it must not begin any new work.
       appendAbort.abort(new Error("native turn reached a terminal state"));
@@ -1669,11 +1669,11 @@ async function consumeTurn(
       ...(activeHandoffCleanupSettlement
         ? [activeHandoffCleanupSettlement]
         : []),
-      ...(activeGovernedCleanupSettlement
-        ? [activeGovernedCleanupSettlement]
+      ...(activeControlledCleanupSettlement
+        ? [activeControlledCleanupSettlement]
         : []),
-      ...(deferredGovernedCleanupSettlement
-        ? [deferredGovernedCleanupSettlement]
+      ...(deferredControlledCleanupSettlement
+        ? [deferredControlledCleanupSettlement]
         : []),
       ...(deferredSessionCancellationSettlement
         ? [deferredSessionCancellationSettlement]
@@ -1698,13 +1698,13 @@ async function consumeTurn(
     } else {
       // Iterator and provider cleanup own no control-plane mutation authority.
       // A reusable session needs a bounded window for its remote terminal
-      // subscription to release. A governed wait qualifies only after its
+      // subscription to release. A controlled wait qualifies only after its
       // actual provider terminal was retained during the accounting drain.
       // Missing terminal evidence and unrelated stalled cleanup retain the
       // short fail-closed boundary.
       const teardownSettled = await settlesWithin(
         passiveTeardownSettlement,
-        semanticResultObserved || governedProviderTerminalObserved
+        semanticResultObserved || controlledProviderTerminalObserved
           ? reusableSessionCancellationGraceMs
           : FAILED_OPERATION_SETTLEMENT_GRACE_MS,
       );
@@ -1918,20 +1918,20 @@ function checkpointCursor(cursor: string | null | undefined): number {
 }
 
 /**
- * A follow-up after a governed wait normally requires the same provider
+ * A follow-up after a controlled wait normally requires the same provider
  * session. When the Runner proved the saved session state is gone, and nothing
  * proves this run started provider work of its own, a fresh session cannot
  * repeat a turn or a tool side effect: only the earlier conversation context is
  * lost. Every other case keeps the named refusal. The reconciled checkpoint must
  * be the untouched rebind of the previous run (no cursor progress, turn,
- * runtime request, result, terminal or governed wait of this run), and the
+ * runtime request, result, terminal or controlled wait of this run), and the
  * control plane must prove durably, across runner instances, that the run has
  * no provider event, tool invocation or accepted result. A control plane
  * without that proof, or a checkpoint missing those fields, keeps the refusal.
  */
-const GOVERNED_WAIT_PROVIDER_WORK_PROOF_TIMEOUT_MS = 30_000;
+const CONTROLLED_WAIT_PROVIDER_WORK_PROOF_TIMEOUT_MS = 30_000;
 
-async function governedWaitFollowUpMayStartFresh(input: {
+async function controlledWaitFollowUpMayStartFresh(input: {
   input: NativeExecutionInput;
   checkpoint: PersistedNativeSession;
   recovery: NativeSessionRecoveryResult;
@@ -1941,7 +1941,7 @@ async function governedWaitFollowUpMayStartFresh(input: {
 }): Promise<boolean> {
   const { checkpoint, recovery } = input;
   if (
-    checkpoint.providerRecoveryPolicy !== "allow_replacement_after_governed_wait" ||
+    checkpoint.providerRecoveryPolicy !== "allow_replacement_after_controlled_wait" ||
     ("homeMode" in input.input && input.input.homeMode === "preconfigured") ||
     recovery.failureClass !== PROVIDER_STATE_INCOMPATIBLE ||
     recovery.resumeStateUnavailable !== true ||
@@ -1953,14 +1953,14 @@ async function governedWaitFollowUpMayStartFresh(input: {
     !Array.isArray(checkpoint.pendingRuntimeRequests) || checkpoint.pendingRuntimeRequests.length > 0 ||
     checkpoint.semanticResult !== null ||
     checkpoint.terminal !== null ||
-    checkpoint.governedWait !== undefined ||
+    checkpoint.controlledWait !== undefined ||
     checkpoint.dispositionOnlyRecoveryConsumed !== false ||
     !input.controlPlane.provesNoRunProviderWork
   ) return false;
   const controlPlane = input.controlPlane;
   // A proof that fails or expires is no proof: keep the named refusal and its
   // Retry rather than surfacing a generic interruption.
-  const timeoutMs = Math.min(input.timeoutMs, GOVERNED_WAIT_PROVIDER_WORK_PROOF_TIMEOUT_MS);
+  const timeoutMs = Math.min(input.timeoutMs, CONTROLLED_WAIT_PROVIDER_WORK_PROOF_TIMEOUT_MS);
   try {
     return await runAbortableOperationWithin({
       timeoutMs,
@@ -2323,7 +2323,7 @@ function checkpointedResultlessDispositionFallback(input: {
 }
 
 /**
- * Package-owned normalized session loop. Paperclip supplies persistence and
+ * Package-owned normalized session loop. Outpost supplies persistence and
  * authority through ControlPlanePort; provider/session behavior stays here.
  */
 export async function executeNativeSession(
@@ -2333,7 +2333,7 @@ export async function executeNativeSession(
   const descriptor = await options.backend.descriptor();
   const cleanupDomain: NativeSessionCleanupDomain = {
     key: JSON.stringify([
-      input.binding.companyId,
+      input.binding.spaceId,
       descriptor.kind,
       descriptor.name,
       ...(options.remoteCleanupScope ? [options.remoteCleanupScope] : []),
@@ -2369,7 +2369,7 @@ export async function executeNativeSession(
   if (
     persistedSession &&
     (persistedSession.identity.runId !== input.binding.runId ||
-      persistedSession.identity.companyId !== input.binding.companyId ||
+      persistedSession.identity.spaceId !== input.binding.spaceId ||
       persistedSession.identity.issueId !== input.binding.issueId ||
       persistedSession.identity.agentId !== input.binding.agentId ||
       input.session.normalizedSessionId === null ||
@@ -2379,7 +2379,7 @@ export async function executeNativeSession(
   const existingIdentity = options.existingSession?.identity() ?? null;
   if (
     existingIdentity &&
-    (existingIdentity.companyId !== input.binding.companyId ||
+    (existingIdentity.spaceId !== input.binding.spaceId ||
       existingIdentity.issueId !== input.binding.issueId ||
       existingIdentity.agentId !== input.binding.agentId ||
       input.session.normalizedSessionId === null ||
@@ -2394,24 +2394,24 @@ export async function executeNativeSession(
   const identity = {
     runId: input.binding.runId,
     sessionId: normalizedSessionId,
-    companyId: input.binding.companyId,
+    spaceId: input.binding.spaceId,
     issueId: input.binding.issueId,
     agentId: input.binding.agentId,
   };
-  let governedWait = persistedSession?.governedWait;
-  const governedReplay: PrpEvent[] = [];
-  if (governedWait) {
-    const event = governedWait.sourceEvent;
-    const validation = validatePrpStructuredRunResult(governedWait.result);
+  let controlledWait = persistedSession?.controlledWait;
+  const controlledReplay: PrpEvent[] = [];
+  if (controlledWait) {
+    const event = controlledWait.sourceEvent;
+    const validation = validatePrpStructuredRunResult(controlledWait.result);
     if (!event?.turnId || event.runId !== identity.runId || event.normalizedSessionId !== identity.sessionId
       || event.sourceInstanceId !== options.runnerInstanceId || !Number.isSafeInteger(event.sourceSeq) || event.sourceSeq < 1
       || !validation.ok || validation.result.reportedWorkDisposition !== "yielded"
       || validation.result.completionClaim?.contractRevision !== input.completionContract.contract.revision) {
-      throw new Error("native_governed_wait_checkpoint_mismatch");
+      throw new Error("native_controlled_wait_checkpoint_mismatch");
     }
     await runAbortableOperationWithin({
       timeoutMs: options.timeoutMs ?? 900_000,
-      timeoutMessage: "native governed-wait recovery replay timed out",
+      timeoutMessage: "native controlled-wait recovery replay timed out",
       operation: async signal => {
         let afterSourceSeq = event.sourceSeq - 1;
         let gapObserved = false;
@@ -2428,20 +2428,20 @@ export async function executeNativeSession(
             if (entry.sourceSeq !== afterSourceSeq + 1) gapObserved = true;
             if (entry.runId !== identity.runId || entry.normalizedSessionId !== identity.sessionId
               || entry.sourceInstanceId !== event.sourceInstanceId || !Number.isSafeInteger(entry.sourceSeq)
-              || entry.sourceSeq <= afterSourceSeq || (gapObserved && (governedReplay.length === 0 || !event.turnId
-                || !isGovernedDrainRetainedEvent(entry, event.turnId)))
-              || governedReplay.length >= 10_000) throw new Error("native_governed_wait_replay_mismatch");
-            governedReplay.push(entry);
+              || entry.sourceSeq <= afterSourceSeq || (gapObserved && (controlledReplay.length === 0 || !event.turnId
+                || !isControlledDrainRetainedEvent(entry, event.turnId)))
+              || controlledReplay.length >= 10_000) throw new Error("native_controlled_wait_replay_mismatch");
+            controlledReplay.push(entry);
             afterSourceSeq = entry.sourceSeq;
           }
         }
       },
     });
-    if (canonicalJson(governedReplay[0]) !== canonicalJson(event)) throw new Error("native_governed_wait_trigger_unproven");
-    if (governedReplay.some(entry => entry.eventType === "turn.started" && entry.turnId !== event.turnId)) {
-      throw new Error("native_governed_wait_turn_mismatch");
+    if (canonicalJson(controlledReplay[0]) !== canonicalJson(event)) throw new Error("native_controlled_wait_trigger_unproven");
+    if (controlledReplay.some(entry => entry.eventType === "turn.started" && entry.turnId !== event.turnId)) {
+      throw new Error("native_controlled_wait_turn_mismatch");
     }
-    const settlement = governedWait.settlement;
+    const settlement = controlledWait.settlement;
     if (settlement && (settlement.runId !== event.runId || settlement.normalizedSessionId !== event.normalizedSessionId
       || settlement.turnId !== event.turnId)) throw new NativeSessionProtocolIntegrityError("source_event_replay_conflict");
   }
@@ -2575,7 +2575,7 @@ export async function executeNativeSession(
       if (recovery.failureClass === PROVIDER_ATTACH_REFUSED) {
         throw new NativeProviderStateIncompatibleError(recovery.reason ?? "unknown");
       }
-      const governedWaitFollowUpLostState = !replacementAllowed && await governedWaitFollowUpMayStartFresh({
+      const controlledWaitFollowUpLostState = !replacementAllowed && await controlledWaitFollowUpMayStartFresh({
         input,
         checkpoint: providerRecoveryCheckpoint,
         recovery,
@@ -2583,7 +2583,7 @@ export async function executeNativeSession(
         controlPlane: options.controlPlane,
         timeoutMs: recoveryTimeoutMs,
       });
-      if (!replacementAllowed && !governedWaitFollowUpLostState) {
+      if (!replacementAllowed && !controlledWaitFollowUpLostState) {
         if (recovery.failureClass === PROVIDER_STATE_INCOMPATIBLE) {
           throw new NativeProviderStateIncompatibleError(recovery.reason ?? "unknown");
         }
@@ -2596,7 +2596,7 @@ export async function executeNativeSession(
         throw failure;
       }
       continuityBreak = {
-        reason: governedWaitFollowUpLostState
+        reason: controlledWaitFollowUpLostState
           ? `saved provider state is unavailable, so the follow-up continues in a fresh provider session without the earlier conversation context (${recovery.reason ?? "unknown"})`
           : recovery.reason ?? "provider session is no longer recoverable",
         previousDriverSessionId: providerRecoveryCheckpoint.sessionId,
@@ -2776,7 +2776,7 @@ export async function executeNativeSession(
       externalSignal?: AbortSignal,
     ) =>
       persistCheckpointWithin({
-        snapshot: governedWait ? { ...snapshot, governedWait } : snapshot,
+        snapshot: controlledWait ? { ...snapshot, controlledWait } : snapshot,
         controlPlane: options.controlPlane,
         onCheckpoint: options.onCheckpoint,
         timeoutMs: checkpointTimeoutMs,
@@ -2809,7 +2809,7 @@ export async function executeNativeSession(
           "Reconcile any unfinished tool or command before proceeding: check the workspace for the outputs or artifacts it should have produced. If the expected output is present, use it. If the expected output is missing, re-run the command.",
           "Do not repeat completed work. Before you repeat an action with external effects, such as a push, a message or a deployment, check whether it already took effect. If you cannot determine that, report the specific blocker.",
           "Finish in this turn. Nothing resumes this conversation after the turn ends, so do not end it to wait for a background command or a notification; wait for or check that work first.",
-          "Then invoke exactly one paperclip_finish or paperclip_block with the accurate disposition.",
+          "Then invoke exactly one outpost_finish or outpost_block with the accurate disposition.",
           ...(attachmentPrompt ? ["", attachmentPrompt] : []),
         ].join("\n"),
         ...(steeredMessages.length > 0 ? { steeredMessages: steeredMessages.map(message => message.text) } : {}),
@@ -2832,9 +2832,9 @@ export async function executeNativeSession(
       if ("requestedSkills" in envelope) envelope.requestedSkills = [];
       envelope.task.prompt = [
         "Outpost semantic-result recovery after a restart continuation.",
-        "The previous turn ended without paperclip_finish or paperclip_block, so Outpost cannot settle this task.",
+        "The previous turn ended without outpost_finish or outpost_block, so Outpost cannot settle this task.",
         "Do not repeat completed work. If a command you started is still running, wait for or check it in this turn; nothing resumes this conversation after the turn ends.",
-        "Then invoke exactly one paperclip_finish or paperclip_block with the accurate current disposition, and stop.",
+        "Then invoke exactly one outpost_finish or outpost_block with the accurate current disposition, and stop.",
       ].join("\n");
       if ("workspace" in envelope && envelope.workspace && recoveredSnapshot.workingDirectory) {
         envelope.workspace.cwd = recoveredSnapshot.workingDirectory;
@@ -2954,20 +2954,20 @@ export async function executeNativeSession(
       await persistCheckpoint(recoveredSnapshot);
     }
 
-    const governedTerminal = governedWait ? governedReplay.find(event =>
-      event.turnId === governedWait!.sourceEvent.turnId && isTurnTerminal(event)) : undefined;
-    if (governedTerminal && !governedWaitTerminalProven(governedTerminal)) {
-      throw new NativeProviderTerminalFailure("governed_wait_provider_terminal_unproven", false);
+    const controlledTerminal = controlledWait ? controlledReplay.find(event =>
+      event.turnId === controlledWait!.sourceEvent.turnId && isTurnTerminal(event)) : undefined;
+    if (controlledTerminal && !controlledWaitTerminalProven(controlledTerminal)) {
+      throw new NativeProviderTerminalFailure("controlled_wait_provider_terminal_unproven", false);
     }
-    if (governedWait && recoveredActiveTurnId && recoveredActiveTurnId !== governedWait.sourceEvent.turnId) {
-      throw new Error("native_governed_wait_turn_mismatch");
+    if (controlledWait && recoveredActiveTurnId && recoveredActiveTurnId !== controlledWait.sourceEvent.turnId) {
+      throw new Error("native_controlled_wait_turn_mismatch");
     }
-    if (governedWait?.settlement && recoveredActiveTurnId) {
+    if (controlledWait?.settlement && recoveredActiveTurnId) {
       throw new NativeSessionProtocolIntegrityError("source_event_replay_conflict");
     }
-    if (governedWait) {
-      for (const event of governedReplay) {
-        if (event.turnId === governedWait.sourceEvent.turnId && (event.payload.kind === "usage" || isTurnTerminal(event))) {
+    if (controlledWait) {
+      for (const event of controlledReplay) {
+        if (event.turnId === controlledWait.sourceEvent.turnId && (event.payload.kind === "usage" || isTurnTerminal(event))) {
           await options.controlPlane.appendEvent(event);
         }
       }
@@ -2976,7 +2976,7 @@ export async function executeNativeSession(
       event: null as PrpEvent | null,
       eventCount: 0,
       highestContiguousSourceSeq: 0,
-      governedResult: null as PrpStructuredRunResult | null,
+      controlledResult: null as PrpStructuredRunResult | null,
     };
     const completionSnapshot =
       recoveredSnapshot.semanticResult && recoveredSnapshot.terminal
@@ -3054,9 +3054,9 @@ export async function executeNativeSession(
         replayedDisposition?.terminal ?? dispositionFallback;
       const consumptionAbort = new AbortController();
       const consuming =
-        (governedTerminal || governedWait?.settlement) && governedWait
-          ? Promise.resolve({ event: governedWait.sourceEvent, governedResult: governedWait.result,
-              eventCount: 0, highestContiguousSourceSeq: governedReplay.at(-1)?.sourceSeq ?? governedWait.sourceEvent.sourceSeq })
+        (controlledTerminal || controlledWait?.settlement) && controlledWait
+          ? Promise.resolve({ event: controlledWait.sourceEvent, controlledResult: controlledWait.result,
+              eventCount: 0, highestContiguousSourceSeq: controlledReplay.at(-1)?.sourceSeq ?? controlledWait.sourceEvent.sourceSeq })
           : recoveryTerminal === null
           ? consumeTurn(
               session,
@@ -3070,7 +3070,7 @@ export async function executeNativeSession(
                 : FAILED_OPERATION_SETTLEMENT_GRACE_MS,
               closeSession,
               quarantineSession,
-              options.resolveGovernedWait,
+              options.resolveControlledWait,
               consumptionAbort.signal,
               options.sessionGoalControl || options.resumeSessionGoalHeartbeat
                 ? {
@@ -3081,10 +3081,10 @@ export async function executeNativeSession(
               recoveredSnapshot.goal,
               resumeInterruptedTurn,
               async (wait, signal) => {
-                governedWait = structuredClone(wait);
+                controlledWait = structuredClone(wait);
                 await checkpoint(signal);
               },
-              governedWait,
+              controlledWait,
               options.sessionCompaction
                 ? sessionCompactionResult(input, options.sessionCompaction.requestId)
                 : undefined,
@@ -3096,7 +3096,7 @@ export async function executeNativeSession(
               highestContiguousSourceSeq:
                 replayedDisposition === null ? 0 : recoveryTerminal.sourceSeq,
               // A restarted compaction run adopts its completed compaction turn.
-              governedResult: options.sessionCompaction && recoveryTerminal.eventType === "turn.completed"
+              controlledResult: options.sessionCompaction && recoveryTerminal.eventType === "turn.completed"
                 ? sessionCompactionResult(input, options.sessionCompaction.requestId)
                 : null,
             });
@@ -3107,7 +3107,7 @@ export async function executeNativeSession(
       // that later rejection becomes process-fatal under Node's strict policy.
       void consuming.catch(() => undefined);
       try {
-        const shouldStartFreshTurn = !governedWait && (
+        const shouldStartFreshTurn = !controlledWait && (
           !recovered ||
           (!recoveredActiveTurnId &&
             !adoptedProviderTerminal &&
@@ -3186,7 +3186,7 @@ export async function executeNativeSession(
               "Outpost semantic-result recovery for a prior completed provider turn.",
               "The prior turn already performed the work and its user-facing final answer is recorded.",
               "Do not repeat implementation, tests, research, or the final answer.",
-              "Use the existing session context to invoke exactly one paperclip_finish or paperclip_block with the accurate current disposition, then stop without additional user-facing prose.",
+              "Use the existing session context to invoke exactly one outpost_finish or outpost_block with the accurate current disposition, then stop without additional user-facing prose.",
             ].join("\n");
           }
           if (!(dispositionOnlyRecovery && !effectFreeInitialAcpxTurn) && "requestedSkills" in modelEnvelope && options.backend.preparedTaskConstraints) {
@@ -3210,7 +3210,7 @@ export async function executeNativeSession(
             ...(recovered && modelEnvelope.schema === "outpost.native-continuation.v1"
               ? { continuation: true as const } : {}),
             requestedCollaborationMode:
-              // Paperclip planning remains in the envelope and tool authority.
+              // Outpost planning remains in the envelope and tool authority.
               // Cloud's qualified harness exposes only default collaboration.
               input.provider.kind === "cursor_cloud"
                 ? "default"
@@ -3253,20 +3253,20 @@ export async function executeNativeSession(
             );
           }
           settledCompletion =
-            consumed.governedResult === null
+            consumed.controlledResult === null
               ? await session.result()
               : {
-                  result: consumed.governedResult,
+                  result: consumed.controlledResult,
                   terminal: isTurnTerminal(terminalEvent)
                     ? terminalFromEvent(
                         terminalEvent,
-                        consumed.governedResult.reportedWorkDisposition,
+                        consumed.controlledResult.reportedWorkDisposition,
                       )
                     : {
                         schema: "outpost.orp.terminal.v1",
                         turnTerminalState: "completed",
                         runTerminalState: "succeeded",
-                        reportedWorkDisposition: consumed.governedResult.reportedWorkDisposition,
+                        reportedWorkDisposition: consumed.controlledResult.reportedWorkDisposition,
                       },
                   turnId: terminalEvent.turnId ?? null,
                 };
@@ -3340,7 +3340,7 @@ export async function executeNativeSession(
           );
         }
         let terminal: PrpTerminalState;
-        if (consumed.governedResult !== null) {
+        if (consumed.controlledResult !== null) {
           terminal = settledCompletion.terminal;
         } else if (
           completionSnapshot?.semanticResult &&

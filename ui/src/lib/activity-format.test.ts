@@ -48,7 +48,7 @@ describe("activity formatting", () => {
     const details = {
       addedParticipants: [],
       removedParticipants: [
-        { type: "user", agentId: null, userId: "local-board" },
+        { type: "user", agentId: null, userId: "local-operator" },
       ],
     };
 

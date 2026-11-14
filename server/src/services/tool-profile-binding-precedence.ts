@@ -16,13 +16,13 @@ type ProfileLike = {
 
 const TOOL_PROFILE_SCOPE_PRECEDENCE: Record<ToolProfileBindingTargetType, number> = {
   // Named gateways bind one concrete MCP endpoint instance, so they should
-  // override broader run, agent, and company defaults when both match.
+  // override broader run, agent, and space defaults when both match.
   gateway: 0,
   issue: 1,
   routine: 2,
   agent: 3,
   project: 4,
-  company: 5,
+  space: 5,
 };
 
 function createdAtMillis(value: Date | string): number {

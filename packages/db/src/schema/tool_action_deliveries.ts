@@ -1,5 +1,5 @@
 import { index, pgTable, timestamp, uuid } from "drizzle-orm/pg-core";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { issues } from "./issues.js";
 import { issueThreadInteractions } from "./issue_thread_interactions.js";
 import { toolActionRequests } from "./tool_access.js";
@@ -11,9 +11,9 @@ export const toolActionDeliveries = pgTable(
     actionRequestId: uuid("action_request_id")
       .primaryKey()
       .references(() => toolActionRequests.id, { onDelete: "cascade" }),
-    companyId: uuid("company_id")
+    spaceId: uuid("space_id")
       .notNull()
-      .references(() => companies.id, { onDelete: "cascade" }),
+      .references(() => spaces.id, { onDelete: "cascade" }),
     issueId: uuid("issue_id")
       .notNull()
       .references(() => issues.id, { onDelete: "cascade" }),

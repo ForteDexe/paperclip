@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { Link, Navigate, useParams } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { pluginsApi } from "@/api/plugins";
 import { queryKeys } from "@/lib/queryKeys";
@@ -15,46 +15,46 @@ import { ArrowLeft } from "lucide-react";
 import { NotFoundPage } from "./NotFound";
 
 /**
- * Company-context plugin page. Renders a plugin's `page` slot at
- * `/:companyPrefix/plugins/:pluginId` when the plugin declares a page slot
- * and is enabled for that company.
+ * Space-context plugin page. Renders a plugin's `page` slot at
+ * `/:spacePrefix/plugins/:pluginId` when the plugin declares a page slot
+ * and is enabled for that space.
  *
- * @see doc/plugins/PLUGIN_SPEC.md §19.2 — Company-Context Routes
- * @see doc/plugins/PLUGIN_SPEC.md §24.4 — Company-Context Plugin Page
+ * @see doc/plugins/PLUGIN_SPEC.md §19.2 — Space-Context Routes
+ * @see doc/plugins/PLUGIN_SPEC.md §24.4 — Space-Context Plugin Page
  */
 export function PluginPage() {
   const params = useParams<{
-    companyPrefix?: string;
+    spacePrefix?: string;
     pluginId?: string;
     pluginRoutePath?: string;
     "*": string | undefined;
   }>();
-  const { companyPrefix: routeCompanyPrefix, pluginId, pluginRoutePath } = params;
+  const { spacePrefix: routeSpacePrefix, pluginId, pluginRoutePath } = params;
   const pluginRouteSplat = params["*"];
-  const { companies, selectedCompanyId } = useCompany();
+  const { spaces, selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
-  const routeCompany = useMemo(() => {
-    if (!routeCompanyPrefix) return null;
-    const requested = routeCompanyPrefix.toUpperCase();
-    return companies.find((c) => c.issuePrefix.toUpperCase() === requested) ?? null;
-  }, [companies, routeCompanyPrefix]);
-  const hasInvalidCompanyPrefix = Boolean(routeCompanyPrefix) && !routeCompany;
+  const routeSpace = useMemo(() => {
+    if (!routeSpacePrefix) return null;
+    const requested = routeSpacePrefix.toUpperCase();
+    return spaces.find((c) => c.issuePrefix.toUpperCase() === requested) ?? null;
+  }, [spaces, routeSpacePrefix]);
+  const hasInvalidSpacePrefix = Boolean(routeSpacePrefix) && !routeSpace;
 
-  const resolvedCompanyId = useMemo(() => {
-    if (routeCompany) return routeCompany.id;
-    if (routeCompanyPrefix) return null;
-    return selectedCompanyId ?? null;
-  }, [routeCompany, routeCompanyPrefix, selectedCompanyId]);
+  const resolvedSpaceId = useMemo(() => {
+    if (routeSpace) return routeSpace.id;
+    if (routeSpacePrefix) return null;
+    return selectedSpaceId ?? null;
+  }, [routeSpace, routeSpacePrefix, selectedSpaceId]);
 
-  const companyPrefix = useMemo(
-    () => (resolvedCompanyId ? companies.find((c) => c.id === resolvedCompanyId)?.issuePrefix ?? null : null),
-    [companies, resolvedCompanyId],
+  const spacePrefix = useMemo(
+    () => (resolvedSpaceId ? spaces.find((c) => c.id === resolvedSpaceId)?.issuePrefix ?? null : null),
+    [spaces, resolvedSpaceId],
   );
 
   const { data: contributions } = useQuery({
     queryKey: queryKeys.plugins.uiContributions,
     queryFn: () => pluginsApi.listUiContributions(),
-    enabled: !!resolvedCompanyId && (!!pluginId || !!pluginRoutePath),
+    enabled: !!resolvedSpaceId && (!!pluginId || !!pluginRoutePath),
   });
 
   const pageSlot = useMemo(() => {
@@ -90,10 +90,10 @@ export function PluginPage() {
 
   const context = useMemo(
     () => ({
-      companyId: resolvedCompanyId ?? null,
-      companyPrefix,
+      spaceId: resolvedSpaceId ?? null,
+      spacePrefix,
     }),
-    [resolvedCompanyId, companyPrefix],
+    [resolvedSpaceId, spacePrefix],
   );
 
   // When the active route has a routeSidebar slot, the sidebar provides the
@@ -119,14 +119,14 @@ export function PluginPage() {
       return;
     }
     setBreadcrumbs([
-      { label: "Plugins", href: "/company/settings/instance/plugins" },
+      { label: "Plugins", href: "/space/settings/instance/plugins" },
       { label: pageSlot.pluginDisplayName },
     ]);
   }, [pageSlot, pluginRouteSplat, setBreadcrumbs, routeSidebarActive]);
 
-  if (!resolvedCompanyId) {
-    if (hasInvalidCompanyPrefix) {
-      return <NotFoundPage scope="invalid_company_prefix" requestedPrefix={routeCompanyPrefix} />;
+  if (!resolvedSpaceId) {
+    if (hasInvalidSpacePrefix) {
+      return <NotFoundPage scope="invalid_space_prefix" requestedPrefix={routeSpacePrefix} />;
     }
     return (
       <div className="space-y-4">
@@ -154,12 +154,12 @@ export function PluginPage() {
 
   if (!pageSlot) {
     if (pluginRoutePath) {
-      return <NotFoundPage scope="board" />;
+      return <NotFoundPage scope="operator" />;
     }
     // No page slot: redirect to plugin settings where plugin info is always shown
     const settingsPath = pluginId
-      ? `/company/settings/instance/plugins/${pluginId}`
-      : "/company/settings/instance/plugins";
+      ? `/space/settings/instance/plugins/${pluginId}`
+      : "/space/settings/instance/plugins";
     return <Navigate to={settingsPath} replace />;
   }
 
@@ -168,7 +168,7 @@ export function PluginPage() {
       {!routeSidebarActive && (
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" asChild>
-            <Link to={companyPrefix ? `/${companyPrefix}/dashboard` : "/dashboard"}>
+            <Link to={spacePrefix ? `/${spacePrefix}/dashboard` : "/dashboard"}>
               <ArrowLeft className="h-4 w-4 mr-1" />
               Back
             </Link>

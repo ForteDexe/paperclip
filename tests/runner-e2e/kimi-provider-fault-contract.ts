@@ -5,7 +5,7 @@ import { KIMI_DISTRIBUTION_CLOSURE_SHA256, KIMI_NODE_DISTRIBUTIONS } from "../..
 import type { RemoteNativeBinding, RemoteProcessIdentity } from "./remote-native-fixtures.js";
 
 export const KIMI_FAULT_ENTRY = "node_modules/@moonshot-ai/kimi-code/dist/main.mjs";
-export const KIMI_FAULT_SNAPSHOT = "/__paperclip_kimi_fault_snapshot__/distribution";
+export const KIMI_FAULT_SNAPSHOT = "/__outpost_kimi_fault_snapshot__/distribution";
 const sha = (bytes: string | Buffer) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 const requireValue = (value: unknown, code: string): void => { if (!value) throw new Error(`kimi_provider_fault:${code}`); };
 
@@ -49,7 +49,7 @@ export function expectedNativeBootstrap(distribution: string, nodeSha256: string
   const digest = nodeSha256.replace(/^sha256:/u, "");
   requireValue(/^[a-f0-9]{64}$/u.test(digest), "node_digest");
   return compiledBuilders().nativeBootstrap(`${distribution}/node/bin/node`, digest,
-    ["--require", `${distribution}/.paperclip-native-module-guard.cjs`, `${distribution}/${KIMI_FAULT_ENTRY}`, "acp"]);
+    ["--require", `${distribution}/.outpost-native-module-guard.cjs`, `${distribution}/${KIMI_FAULT_ENTRY}`, "acp"]);
 }
 
 export function expectedNativeModuleGuard(distribution: string, entries: readonly { path: string; sha256: string }[]): string {

@@ -7,7 +7,7 @@ import {
   chatEndpoints,
   chatExternalPrincipals,
   chatIdentityLinks,
-  companyMemberships,
+  spaceMemberships,
   connectionGrants,
   toolConnections,
   toolOauthStates,
@@ -44,17 +44,17 @@ export function slackSearchOAuthService(
 ) {
   const secrets = secretService(db);
   const vault = toolAccessService(db);
-  async function searchConnectionTransaction<T>(companyId: string, connectionId: string, userId: string,
+  async function searchConnectionTransaction<T>(spaceId: string, connectionId: string, userId: string,
     operation: (tx: Parameters<Parameters<Db["transaction"]>[0]>[0]) => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       let guarded = false;
       try {
         return await db.transaction(async tx => {
-          const grantScope = and(eq(connectionGrants.companyId, companyId), eq(connectionGrants.connectionId, connectionId),
+          const grantScope = and(eq(connectionGrants.spaceId, spaceId), eq(connectionGrants.connectionId, connectionId),
             eq(connectionGrants.kind, "user"), eq(connectionGrants.subjectUserId, userId));
           await tx.select({ id: connectionGrants.id }).from(connectionGrants).where(grantScope).orderBy(connectionGrants.id).for("update");
           await tx.select({ id: toolConnections.id }).from(toolConnections)
-            .where(and(eq(toolConnections.id, connectionId), eq(toolConnections.companyId, companyId))).for("update");
+            .where(and(eq(toolConnections.id, connectionId), eq(toolConnections.spaceId, spaceId))).for("update");
           await tx.select({ id: connectionGrants.id }).from(connectionGrants).where(grantScope).orderBy(connectionGrants.id).for("update", { noWait: true });
           guarded = true;
           return operation(tx);
@@ -76,7 +76,7 @@ export function slackSearchOAuthService(
       throw badRequest("Slack search requires a public HTTPS URL");
     return new URL("/api/slack/search/callback", url.origin).toString();
   };
-  async function endpoint(companyId: string, endpointId: string) {
+  async function endpoint(spaceId: string, endpointId: string) {
     const [row] = await db
       .select({ endpoint: chatEndpoints, connection: toolConnections })
       .from(chatEndpoints)
@@ -84,12 +84,12 @@ export function slackSearchOAuthService(
         toolConnections,
         and(
           eq(toolConnections.id, chatEndpoints.connectionId),
-          eq(toolConnections.companyId, companyId),
+          eq(toolConnections.spaceId, spaceId),
         ),
       )
       .where(
         and(
-          eq(chatEndpoints.companyId, companyId),
+          eq(chatEndpoints.spaceId, spaceId),
           eq(chatEndpoints.id, endpointId),
           eq(chatEndpoints.provider, "slack"),
         ),
@@ -102,8 +102,8 @@ export function slackSearchOAuthService(
       throw notFound("Active Slack connection not found");
     return row;
   }
-  async function linked(companyId: string, endpointId: string, userId: string) {
-    const row = await endpoint(companyId, endpointId);
+  async function linked(spaceId: string, endpointId: string, userId: string) {
+    const row = await endpoint(spaceId, endpointId);
     const [identity] = await db
       .select({ principal: chatExternalPrincipals })
       .from(chatIdentityLinks)
@@ -111,23 +111,23 @@ export function slackSearchOAuthService(
         chatExternalPrincipals,
         and(
           eq(chatExternalPrincipals.id, chatIdentityLinks.principalId),
-          eq(chatExternalPrincipals.companyId, companyId),
+          eq(chatExternalPrincipals.spaceId, spaceId),
         ),
       )
       .innerJoin(
-        companyMemberships,
+        spaceMemberships,
         and(
-          eq(companyMemberships.companyId, companyId),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, userId),
-          eq(companyMemberships.status, "active"),
+          eq(spaceMemberships.spaceId, spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          eq(spaceMemberships.principalId, userId),
+          eq(spaceMemberships.status, "active"),
         ),
       )
       .where(
         and(
-          eq(chatIdentityLinks.companyId, companyId),
+          eq(chatIdentityLinks.spaceId, spaceId),
           eq(chatIdentityLinks.endpointId, endpointId),
-          eq(chatIdentityLinks.paperclipUserId, userId),
+          eq(chatIdentityLinks.outpostUserId, userId),
           eq(chatIdentityLinks.status, "linked"),
           eq(
             chatExternalPrincipals.providerAccountId,
@@ -141,11 +141,11 @@ export function slackSearchOAuthService(
     return { ...row, slackUserId: identity.principal.externalId };
   }
   async function credential(
-    companyId: string,
+    spaceId: string,
     connectionId: string,
     id: string,
   ) {
-    return secrets.resolveSecretValue(companyId, id, "latest", {
+    return secrets.resolveSecretValue(spaceId, id, "latest", {
       consumerType: "tool_connection",
       consumerId: connectionId,
       configPath: "oauth.client_secret",
@@ -179,8 +179,8 @@ export function slackSearchOAuthService(
       );
     return value;
   }
-  async function status(companyId: string, endpointId: string, userId: string) {
-    const row = await endpoint(companyId, endpointId);
+  async function status(spaceId: string, endpointId: string, userId: string) {
+    const row = await endpoint(spaceId, endpointId);
     const config = configSchema.safeParse(
       object(row.connection.config).slackSearch,
     );
@@ -189,7 +189,7 @@ export function slackSearchOAuthService(
       .from(connectionGrants)
       .where(
         and(
-          eq(connectionGrants.companyId, companyId),
+          eq(connectionGrants.spaceId, spaceId),
           eq(connectionGrants.connectionId, row.connection.id),
           eq(connectionGrants.kind, "user"),
           eq(connectionGrants.subjectUserId, userId),
@@ -220,9 +220,9 @@ export function slackSearchOAuthService(
   return {
     status,
     /** Search-only credential acquisition; no caller may use this token for writes. */
-    async accessToken(companyId: string, endpointId: string, userId: string) {
-      const initial = await linked(companyId, endpointId, userId);
-      return searchConnectionTransaction(companyId, initial.connection.id, userId, async (tx) => {
+    async accessToken(spaceId: string, endpointId: string, userId: string) {
+      const initial = await linked(spaceId, endpointId, userId);
+      return searchConnectionTransaction(spaceId, initial.connection.id, userId, async (tx) => {
         const [connection] = await tx
           .select()
           .from(toolConnections)
@@ -235,7 +235,7 @@ export function slackSearchOAuthService(
           .from(connectionGrants)
           .where(
             and(
-              eq(connectionGrants.companyId, companyId),
+              eq(connectionGrants.spaceId, spaceId),
               eq(connectionGrants.connectionId, connection.id),
               eq(connectionGrants.subjectUserId, userId),
               eq(connectionGrants.kind, "user"),
@@ -256,7 +256,7 @@ export function slackSearchOAuthService(
           tx as unknown as Db,
           publicBaseUrl,
           fetchImpl,
-        ).assertLinked(companyId, endpointId, userId, bound.slackUserId);
+        ).assertLinked(spaceId, endpointId, userId, bound.slackUserId);
         const txSecrets = secretService(tx as unknown as Db);
         const read = async (path: string) => {
           const ref = grant.credentialSecretRefs.find(
@@ -289,7 +289,7 @@ export function slackSearchOAuthService(
           grant_type: "refresh_token",
           client_id: config.clientId,
           client_secret: await txSecrets.resolveSecretValue(
-            companyId,
+            spaceId,
             config.clientSecretId,
             "latest",
             {
@@ -339,7 +339,7 @@ export function slackSearchOAuthService(
           if (typeof user[name] === "string") {
             const ref = await vault.storeConnectorOAuthSecret(
               {
-                companyId,
+                spaceId,
                 connection,
                 configPath: `oauth.${name}`,
                 label: `Slack search ${name}`,
@@ -376,30 +376,30 @@ export function slackSearchOAuthService(
       });
     },
     async assertLinked(
-      companyId: string,
+      spaceId: string,
       endpointId: string,
       userId: string,
       slackUserId: string,
     ) {
-      const current = await linked(companyId, endpointId, userId);
+      const current = await linked(spaceId, endpointId, userId);
       if (current.slackUserId !== slackUserId)
         throw forbidden("Slack linked identity changed");
     },
     async configure(
-      companyId: string,
+      spaceId: string,
       endpointId: string,
       userId: string,
       input: unknown,
     ) {
       const values = slackSearchConfigSchema.parse(input);
-      const row = await endpoint(companyId, endpointId);
+      const row = await endpoint(spaceId, endpointId);
       await db.transaction(async (tx) => {
         const [connection] = await tx
           .select()
           .from(toolConnections)
           .where(
             and(
-              eq(toolConnections.companyId, companyId),
+              eq(toolConnections.spaceId, spaceId),
               eq(toolConnections.id, row.connection.id),
             ),
           )
@@ -411,7 +411,7 @@ export function slackSearchOAuthService(
         );
         const ref = await vault.storeConnectorOAuthSecret(
           {
-            companyId,
+            spaceId,
             connection,
             configPath: "oauth.client_secret",
             label: "Slack search client secret",
@@ -448,14 +448,14 @@ export function slackSearchOAuthService(
           })
           .where(
             and(
-              eq(toolConnections.companyId, companyId),
+              eq(toolConnections.spaceId, spaceId),
               eq(toolConnections.id, row.connection.id),
             ),
           )
           .returning();
         await syncConnectionCredentialBindings(tx, updated);
         await logActivity(tx as unknown as Db, {
-          companyId,
+          spaceId,
           actorType: "user",
           actorId: userId,
           action: "chat.slack_search.configured",
@@ -463,10 +463,10 @@ export function slackSearchOAuthService(
           entityId: endpointId,
         });
       });
-      return status(companyId, endpointId, userId);
+      return status(spaceId, endpointId, userId);
     },
-    async start(companyId: string, endpointId: string, userId: string) {
-      const row = await linked(companyId, endpointId, userId);
+    async start(spaceId: string, endpointId: string, userId: string) {
+      const row = await linked(spaceId, endpointId, userId);
       const config = configSchema.parse(
         object(row.connection.config).slackSearch,
       );
@@ -474,7 +474,7 @@ export function slackSearchOAuthService(
       const redirect = redirectUri();
       await db.insert(toolOauthStates).values({
         state,
-        companyId,
+        spaceId,
         connectionId: row.connection.id,
         codeVerifier: JSON.stringify({
           endpointId,
@@ -521,7 +521,7 @@ export function slackSearchOAuthService(
         );
       const binding = object(JSON.parse(pending.codeVerifier));
       const row = await linked(
-        pending.companyId,
+        pending.spaceId,
         String(binding.endpointId),
         userId,
       );
@@ -539,7 +539,7 @@ export function slackSearchOAuthService(
       const tokens = await exchange({
         client_id: config.clientId,
         client_secret: await credential(
-          pending.companyId,
+          pending.spaceId,
           row.connection.id,
           config.clientSecretId,
         ),
@@ -572,7 +572,7 @@ export function slackSearchOAuthService(
         throw forbidden(
           "Slack token identity does not match the linked account",
         );
-      return searchConnectionTransaction(pending.companyId, row.connection.id, userId, async (tx) => {
+      return searchConnectionTransaction(pending.spaceId, row.connection.id, userId, async (tx) => {
         // Disconnect deletes pending and in-flight states. Consume under the same
         // connection lock as configuration/refresh so a late callback cannot revive access.
         const [liveConnection] = await tx
@@ -605,7 +605,7 @@ export function slackSearchOAuthService(
           publicBaseUrl,
           fetchImpl,
         ).assertLinked(
-          pending.companyId,
+          pending.spaceId,
           row.endpoint.id,
           userId,
           row.slackUserId,
@@ -619,7 +619,7 @@ export function slackSearchOAuthService(
           .from(connectionGrants)
           .where(
             and(
-              eq(connectionGrants.companyId, pending.companyId),
+              eq(connectionGrants.spaceId, pending.spaceId),
               eq(connectionGrants.connectionId, row.connection.id),
               eq(connectionGrants.subjectUserId, userId),
             ),
@@ -634,7 +634,7 @@ export function slackSearchOAuthService(
             refs.push(
               await vault.storeConnectorOAuthSecret(
                 {
-                  companyId: pending.companyId,
+                  spaceId: pending.spaceId,
                   connection: row.connection,
                   configPath: `oauth.${name}`,
                   label: `Slack search ${name}`,
@@ -674,7 +674,7 @@ export function slackSearchOAuthService(
         await tx
           .insert(connectionGrants)
           .values({
-            companyId: pending.companyId,
+            spaceId: pending.spaceId,
             connectionId: row.connection.id,
             kind: "user",
             subjectUserId: userId,
@@ -690,19 +690,19 @@ export function slackSearchOAuthService(
           });
         await syncConnectionCredentialBindings(tx, liveConnection);
         await logActivity(tx as unknown as Db, {
-          companyId: pending.companyId,
+          spaceId: pending.spaceId,
           actorType: "user",
           actorId: userId,
           action: "chat.slack_search.connected",
           entityType: "chat_endpoint",
           entityId: row.endpoint.id,
         });
-        return { endpointId: row.endpoint.id, companyId: pending.companyId };
+        return { endpointId: row.endpoint.id, spaceId: pending.spaceId };
       });
     },
-    async disconnect(companyId: string, endpointId: string, userId: string) {
-      const row = await endpoint(companyId, endpointId);
-      await searchConnectionTransaction(companyId, row.connection.id, userId, async (tx) => {
+    async disconnect(spaceId: string, endpointId: string, userId: string) {
+      const row = await endpoint(spaceId, endpointId);
+      await searchConnectionTransaction(spaceId, row.connection.id, userId, async (tx) => {
         await tx
           .update(connectionGrants)
           .set({
@@ -713,7 +713,7 @@ export function slackSearchOAuthService(
           })
           .where(
             and(
-              eq(connectionGrants.companyId, companyId),
+              eq(connectionGrants.spaceId, spaceId),
               eq(connectionGrants.connectionId, row.connection.id),
               eq(connectionGrants.kind, "user"),
               eq(connectionGrants.subjectUserId, userId),
@@ -723,7 +723,7 @@ export function slackSearchOAuthService(
           .delete(toolOauthStates)
           .where(
             and(
-              eq(toolOauthStates.companyId, companyId),
+              eq(toolOauthStates.spaceId, spaceId),
               eq(toolOauthStates.connectionId, row.connection.id),
               eq(toolOauthStates.subjectUserId, userId),
             ),
@@ -731,14 +731,14 @@ export function slackSearchOAuthService(
         await syncConnectionCredentialBindings(tx, row.connection);
       });
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
         actorId: userId,
         action: "chat.slack_search.disconnected",
         entityType: "chat_endpoint",
         entityId: endpointId,
       });
-      return status(companyId, endpointId, userId);
+      return status(spaceId, endpointId, userId);
     },
   };
 }

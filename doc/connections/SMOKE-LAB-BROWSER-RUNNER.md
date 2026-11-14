@@ -30,9 +30,9 @@ the Smoke Lab — a private box is a private box. Every smoke-lab service method
 `403 {"error":"Smoke lab is only available on private (non-public) deployments"}`
 (or `404 Smoke lab is disabled` when the flag is off).
 
-**The shared dev worktree service works as-is now.** The Paperclip-managed dev
+**The shared dev worktree service works as-is now.** The Outpost-managed dev
 service (`pnpm dev`, `OUTPOST_DEPLOYMENT_MODE=authenticated` + `NODE_ENV=production`,
-e.g. `http://paperclip-dev:45439`) is private, so it can run the Smoke Lab directly —
+e.g. `http://outpost-dev:45439`) is private, so it can run the Smoke Lab directly —
 just turn the flag on. (Historically it was blocked because the gate required
 `local_trusted` + non-`production`; that restriction was removed in PAP-13351.) The
 installed package on `:3100` still may not ship the smoke-lab routes (404).
@@ -48,7 +48,7 @@ export NODE_ENV=test PORT=3211 \
   OUTPOST_BIND=loopback \
   OUTPOST_DEPLOYMENT_MODE=local_trusted \
   OUTPOST_DEPLOYMENT_EXPOSURE=private
-pnpm paperclipai onboard --yes --run    # serves http://127.0.0.1:3211, own embedded PG
+pnpm outpost onboard --yes --run    # serves http://127.0.0.1:3211, own embedded PG
 # wait for: GET /api/health -> 200
 ```
 
@@ -73,7 +73,7 @@ JWT is NOT accepted by a separate worktree instance's DB** — cross-instance to
 So the hybrid the ticket asks for: **start services / install fixtures through
 the board UI**, **post step results with the run JWT** (or the board session on
 this instance). Screenshots become viewable in the UI by uploading each PNG as a
-company asset and putting its served URL in the step's `screenshotArtifactRef`.
+space asset and putting its served URL in the step's `screenshotArtifactRef`.
 
 ---
 
@@ -81,7 +81,7 @@ company asset and putting its served URL in the step's `screenshotArtifactRef`.
 
 - **Demo OAuth creds:** `smoke@outpost.test` / `smoke-password` (`SMOKE_LAB_DEMO_*`). Email is pre-filled on the consent page; you type the password.
 - **Fake OAuth scopes:** only `smoke:openid smoke:profile smoke:email` are accepted — any other `scope` → `400`.
-- **Consent page:** `GET /api/companies/:cid/smoke-lab/oauth/authorize?client_id=…&redirect_uri=…&scope=…&state=…&response_type=code` renders the "SMOKE TEST — not a real provider" login+consent form. Submitting valid creds → `302` to `redirect_uri?code=…` (wrong creds → `403`). The redirect target is a dead loopback callback — don't wait for it to load; assert on the **302 + `code=` in the Location header**, then let the failed navigation commit before driving the Paperclip UI.
+- **Consent page:** `GET /api/spaces/:cid/smoke-lab/oauth/authorize?client_id=…&redirect_uri=…&scope=…&state=…&response_type=code` renders the "SMOKE TEST — not a real provider" login+consent form. Submitting valid creds → `302` to `redirect_uri?code=…` (wrong creds → `403`). The redirect target is a dead loopback callback — don't wait for it to load; assert on the **302 + `code=` in the Location header**, then let the failed navigation commit before driving the Outpost UI.
 - **Two connections per install:** `remote_http` (HTTP MCP fixture, used for P1/P2/P5/P6/P7) and `local_stdio` (used for P3/P4). `install-fixtures` is idempotent.
 - **Lifecycle tools** (from the catalog): HTTP → read `todo.list`, write `todo.add`, deny `email.send`, quarantine `fixture.schemaFlip`; stdio → read `time.now`, write `slow.ping`, deny `crash.now`.
 
@@ -100,9 +100,9 @@ For each `ciSmokeLabScenarios` entry, drive the browser + board API through:
 3. **allowed-read** — `POST /api/tool-connections/:id/test-calls` with the read
    tool; expect `decision:"allowed"`, no error; confirm an audit row; screenshot Activity.
 4. **ask-first-write-approved** — create a `require_approval` policy
-   (`POST /api/companies/:cid/tools/policies`), issue the write test-call
+   (`POST /api/spaces/:cid/tools/policies`), issue the write test-call
    (`decision:"ask_first"` + `actionRequestId`), open **Review**, approve
-   (`POST /api/tool-gateway/action-requests/:id/approve` `{companyId}`), poll to `done`.
+   (`POST /api/tool-gateway/action-requests/:id/approve` `{spaceId}`), poll to `done`.
 5. **denied-blocked-call** — create a `block` policy, issue the denied tool;
    expect `decision:"off"` + `error.reasonCode`; screenshot Review.
 6. **schema-change-quarantine** — HTTP only: set `config.quarantineNewEntries`,
@@ -114,9 +114,9 @@ For each `ciSmokeLabScenarios` entry, drive the browser + board API through:
    {enabled:false}` then re-enable. Screenshot the connection.
 8. **audit-evidence** — re-assert the audit row; screenshot Activity.
 
-Record each step: `POST /api/companies/:cid/smoke-lab/runs/:runId/steps` with
+Record each step: `POST /api/spaces/:cid/smoke-lab/runs/:runId/steps` with
 `{ path, scenarioStep, status, detail, screenshotArtifactRef:{kind,url}, durationMs }`.
-For a viewable screenshot: `POST /api/companies/:cid/assets/images` (multipart
+For a viewable screenshot: `POST /api/spaces/:cid/assets/images` (multipart
 field `file`, PNG) → use `<base>${contentPath}` as the ref `url`.
 
 **Run lifecycle:** `POST …/smoke-lab/runs {trigger:"manual"|"ci"|"routine", summary}`
@@ -132,12 +132,12 @@ screenshotting `/{PREFIX}/apps/advanced/smoke-lab` (matrix + run history) and
 # with the local_trusted instance from §0 already serving on :3211
 node --experimental-strip-types tests/e2e/smoke-lab-browser-runner.mts
 #   SMOKE_BASE=http://127.0.0.1:3211  (default)
-#   SMOKE_COMPANY_ID=<uuid>           (optional; else a fresh company is created)
+#   SMOKE_SPACE_ID=<uuid>           (optional; else a fresh space is created)
 #   SMOKE_SHOT_DIR=/tmp/pap13350-shots
 ```
 
 The runner launches real Chromium via the ARM64 wrapper
-(`.paperclip/browser-runtime/chromium-arm64/bin/chromium-agent-browser`) — see
+(`.outpost/browser-runtime/chromium-arm64/bin/chromium-agent-browser`) — see
 `memory/agent-browser-arm64-chromium`; on this aarch64 host the default puppeteer
 Chrome is x86-64 and won't launch. It prints the `runId` and a per-path step
 count and writes `${SHOT_DIR}/result.json`.

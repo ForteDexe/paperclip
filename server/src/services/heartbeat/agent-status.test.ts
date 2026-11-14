@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
-  activityLog, agentInstructionWorkingCopies, agents, agentWakeupRequests, companies,
+  activityLog, agentInstructionWorkingCopies, agents, agentWakeupRequests, spaces,
   createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, environmentLeases, environments, heartbeatRuns,
   issues, nativeRunFinalizations, type Db,
 } from "@outpost/db";
@@ -23,11 +23,11 @@ describePostgres("heartbeat agent status", () => {
   const old = () => new Date(Date.now() - 60 * 60_000);
 
   beforeAll(async () => {
-    if (!external) database = await startEmbeddedPostgresTestDatabase("paperclip-agent-status-");
+    if (!external) database = await startEmbeddedPostgresTestDatabase("outpost-agent-status-");
     db = createDb(external ?? database!.connectionString, { maxConnections: 6 });
     if (external) {
       db.$client.options.onnotice = () => {};
-      await db.execute(sql`truncate companies cascade`);
+      await db.execute(sql`truncate spaces cascade`);
     }
     service = createHeartbeatAgentStatus(db);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
@@ -42,23 +42,23 @@ describePostgres("heartbeat agent status", () => {
     await db.delete(agentWakeupRequests);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await database?.cleanup(); });
 
   async function seed(status = "interrupted") {
-    const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Status recovery", issuePrefix: `T${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", role: "engineer",
+    const spaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID(), issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Status recovery", issuePrefix: `T${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", role: "engineer",
       status: "running", adapterType: "process", runtimeConfig: { heartbeat: { enabled: false } },
       lastHeartbeatAt: null, updatedAt: old(), createdAt: old() });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Finished work", status: "done" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId,
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Finished work", status: "done" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId,
       invocationSource: "automation", status, runtimeMode: "legacy", startedAt: old(),
       finishedAt: ["running", "queued"].includes(status) ? null : old(),
       updatedAt: old(), createdAt: old(),
       errorCode: status === "interrupted" ? "server_shutdown_interrupted" : null });
-    return { companyId, agentId, runId, issueId };
+    return { spaceId, agentId, runId, issueId };
   }
 
   const reconcile = () => service.reconcileStrandedAgentStatuses(() => live);
@@ -125,14 +125,14 @@ describePostgres("heartbeat agent status", () => {
   });
 
   it("retains an admitted wake even without a run", async () => {
-    const { companyId, agentId } = await seed();
-    await db.insert(agentWakeupRequests).values({ companyId, agentId, source: "on_demand", status: "queued" });
+    const { spaceId, agentId } = await seed();
+    await db.insert(agentWakeupRequests).values({ spaceId, agentId, source: "on_demand", status: "queued" });
     expect(await reconcile()).toEqual([]);
   });
 
   it("retains resource cleanup and succeeds after cleanup is recorded", async () => {
-    const { companyId, agentId, runId } = await seed();
-    const [lease] = await db.insert(environmentLeases).values({ companyId, heartbeatRunId: runId,
+    const { spaceId, agentId, runId } = await seed();
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, heartbeatRunId: runId,
       status: "pending_cleanup", provider: "daytona", providerLeaseId: "synthetic-allocation" }).returning();
     expect(await reconcile()).toEqual([]);
     await db.update(environmentLeases).set({ status: "released", releasedAt: old() }).where(eq(environmentLeases.id, lease!.id));
@@ -140,29 +140,29 @@ describePostgres("heartbeat agent status", () => {
   });
 
   it.each(["pendingCleanupInFlight", "nativeWorkspaceExportResume", "sandboxStopAndRetain"])("keeps a released lease's %s obligation", async key => {
-    const { companyId, runId } = await seed();
-    await db.insert(environmentLeases).values({ companyId, heartbeatRunId: runId,
+    const { spaceId, runId } = await seed();
+    await db.insert(environmentLeases).values({ spaceId, heartbeatRunId: runId,
       status: "released", releasedAt: old(), metadata: { [key]: true } });
     expect(await reconcile()).toEqual([]);
   });
 
   it("accepts proved-settled failed local lease history before a later shutdown", async () => {
-    const { companyId, agentId, runId } = await seed("failed");
+    const { spaceId, agentId, runId } = await seed("failed");
     const [environment] = await db.insert(environments).values({ name: "Local", driver: "local" }).returning();
-    await db.insert(environmentLeases).values({ companyId, heartbeatRunId: runId, environmentId: environment!.id,
+    await db.insert(environmentLeases).values({ spaceId, heartbeatRunId: runId, environmentId: environment!.id,
       status: "failed", leasePolicy: "ephemeral", provider: "local", releasedAt: old(), metadata: { driver: "local" } });
-    await db.insert(heartbeatRuns).values({ companyId, agentId, invocationSource: "automation", status: "interrupted",
+    await db.insert(heartbeatRuns).values({ spaceId, agentId, invocationSource: "automation", status: "interrupted",
       runtimeMode: "legacy", startedAt: old(), finishedAt: new Date(Date.now() - 30 * 60_000) });
     expect(await reconcile()).toEqual([agentId]);
     expect((await agent(agentId)).status).toBe("idle");
   });
 
   it.each(["valid", "wrong_run", "missing_receipt", "pending_cleanup"])("requires exact failed remote cleanup proof: %s", async kind => {
-    const { companyId, agentId, runId } = await seed();
+    const { spaceId, agentId, runId } = await seed();
     const leaseId = randomUUID();
-    const receipt = { schema: "outpost.remote-termination.v1", companyId, runId: kind === "wrong_run" ? randomUUID() : runId,
+    const receipt = { schema: "outpost.remote-termination.v1", spaceId, runId: kind === "wrong_run" ? randomUUID() : runId,
       leaseId, provider: "daytona", providerLeaseId: "synthetic-allocation", state: "destroyed" };
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, heartbeatRunId: runId,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, heartbeatRunId: runId,
       status: "failed", leasePolicy: "ephemeral", provider: "daytona", providerLeaseId: "synthetic-allocation",
       releasedAt: old(), cleanupStatus: "success", metadata: {
         ...(kind === "missing_receipt" ? {} : { remoteExecutionTermination: receipt }),
@@ -172,10 +172,10 @@ describePostgres("heartbeat agent status", () => {
   });
 
   it("does not probe cleanup once per retained finished run", async () => {
-    const { companyId, agentId } = await seed();
-    await db.execute(sql`INSERT INTO heartbeat_runs (company_id, agent_id, invocation_source, status,
+    const { spaceId, agentId } = await seed();
+    await db.execute(sql`INSERT INTO heartbeat_runs (space_id, agent_id, invocation_source, status,
       started_at, finished_at, created_at, updated_at)
-      SELECT ${companyId}::uuid, ${agentId}::uuid, 'automation', 'succeeded',
+      SELECT ${spaceId}::uuid, ${agentId}::uuid, 'automation', 'succeeded',
         ${old().toISOString()}::timestamptz, ${old().toISOString()}::timestamptz,
         ${old().toISOString()}::timestamptz, ${old().toISOString()}::timestamptz
       FROM generate_series(1, 10000)`);
@@ -199,8 +199,8 @@ describePostgres("heartbeat agent status", () => {
   });
 
   it("retains unfinished instruction copyback", async () => {
-    const { companyId, agentId, runId } = await seed();
-    await db.insert(agentInstructionWorkingCopies).values({ companyId, agentId, runId,
+    const { spaceId, agentId, runId } = await seed();
+    await db.insert(agentInstructionWorkingCopies).values({ spaceId, agentId, runId,
       responsibleUserId: "test-user", entryFile: "AGENTS.md", baseHash: "test-hash",
       localRoot: "/tmp/test-root", executionRoot: "/tmp/test-root", location: "local",
       state: "captured", receipt: {}, processStoppedAt: old() });
@@ -211,13 +211,13 @@ describePostgres("heartbeat agent status", () => {
   });
 
   it("retains native finalization ownership", async () => {
-    const { companyId, runId, issueId } = await seed();
+    const { spaceId, runId, issueId } = await seed();
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issueId }).where(eq(heartbeatRuns.id, runId));
-    await db.insert(nativeRunFinalizations).values({ companyId, runId, issueId, phase: "workspace_finalizing" });
+    await db.insert(nativeRunFinalizations).values({ spaceId, runId, issueId, phase: "workspace_finalizing" });
     expect(await reconcile()).toEqual([]);
   });
 
-  it("does not read another company's run as the agent's outcome", async () => {
+  it("does not read another space's run as the agent's outcome", async () => {
     const own = await seed();
     const other = await seed("failed");
     await db.update(heartbeatRuns).set({ agentId: own.agentId }).where(eq(heartbeatRuns.id, other.runId));
@@ -244,13 +244,13 @@ describePostgres("heartbeat agent status", () => {
   });
 
   it("rechecks admission that commits after candidate selection", async () => {
-    const { companyId, agentId } = await seed();
+    const { spaceId, agentId } = await seed();
     let transactions = 0;
     const raced = new Proxy(db, {
       get(target, property, receiver) {
         if (property !== "transaction") return Reflect.get(target, property, receiver);
         return async (callback: Parameters<Db["transaction"]>[0]) => {
-          if (++transactions === 2) await db.insert(heartbeatRuns).values({ companyId, agentId, invocationSource: "on_demand", status: "queued" });
+          if (++transactions === 2) await db.insert(heartbeatRuns).values({ spaceId, agentId, invocationSource: "on_demand", status: "queued" });
           return db.transaction(callback);
         };
       },
@@ -276,7 +276,7 @@ describePostgres("heartbeat agent status", () => {
   });
 
   it("does not overwrite a new run while finalization waits for the agent row", async () => {
-    const { companyId, agentId } = await seed();
+    const { spaceId, agentId } = await seed();
     let locked!: () => void, release!: () => void;
     const acquired = new Promise<void>(resolve => { locked = resolve; });
     const gate = new Promise<void>(resolve => { release = resolve; });
@@ -284,7 +284,7 @@ describePostgres("heartbeat agent status", () => {
       await tx.update(agents).set({ status: "running" }).where(eq(agents.id, agentId));
       locked();
       await gate;
-      await tx.insert(heartbeatRuns).values({ companyId, agentId,
+      await tx.insert(heartbeatRuns).values({ spaceId, agentId,
         invocationSource: "on_demand", status: "running" });
     });
     await acquired;

@@ -4,7 +4,7 @@ import {
   loginBoardCli,
   removeStoredBoardCredential,
   revokeStoredBoardCredential,
-} from "../../client/board-auth.js";
+} from "../../client/operator-auth.js";
 import {
   addCommonClientOptions,
   apiPath,
@@ -31,17 +31,17 @@ export function registerClientAuthCommands(auth: Command): void {
   addCommonClientOptions(
     auth
       .command("login")
-      .description("Authenticate the CLI for board-user access")
-      .option("--instance-admin", "Request instance-admin approval instead of plain board access", false)
+      .description("Authenticate the CLI for operator-user access")
+      .option("--instance-admin", "Request instance-admin approval instead of plain operator access", false)
       .option("--no-browser", "Don't try to open a browser; just print the approval URL")
       .action(async (opts: AuthLoginOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
           const login = await loginBoardCli({
             apiBase: ctx.api.apiBase,
-            requestedAccess: opts.instanceAdmin ? "instance_admin_required" : "board",
-            requestedCompanyId: ctx.companyId ?? null,
-            command: "paperclipai auth login",
+            requestedAccess: opts.instanceAdmin ? "instance_admin_required" : "operator",
+            requestedSpaceId: ctx.spaceId ?? null,
+            command: "outpost auth login",
             openBrowser: opts.browser,
           });
           printOutput(
@@ -57,13 +57,13 @@ export function registerClientAuthCommands(auth: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: true },
+    { includeSpace: true },
   );
 
   addCommonClientOptions(
     auth
       .command("logout")
-      .description("Remove the stored board-user credential for this API base")
+      .description("Remove the stored operator-user credential for this API base")
       .action(async (opts: AuthLogoutOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
@@ -101,7 +101,7 @@ export function registerClientAuthCommands(auth: Command): void {
   addCommonClientOptions(
     auth
       .command("revoke-current")
-      .description("Revoke the current board API token")
+      .description("Revoke the current operator API token")
       .action(async (opts: BaseClientOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
@@ -115,7 +115,7 @@ export function registerClientAuthCommands(auth: Command): void {
   addCommonClientOptions(
     auth
       .command("whoami")
-      .description("Show the current board-user identity for this API base")
+      .description("Show the current operator-user identity for this API base")
       .action(async (opts: AuthWhoamiOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
@@ -123,7 +123,7 @@ export function registerClientAuthCommands(auth: Command): void {
             user: { id: string; name: string; email: string } | null;
             userId: string;
             isInstanceAdmin: boolean;
-            companyIds: string[];
+            spaceIds: string[];
             source: string;
             keyId: string | null;
           }>("/api/cli-auth/me");

@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { authUsers } from "./auth.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { agents } from "./agents.js";
 
 // OAuth client/request metadata is instance-level authentication infrastructure.
-// Authority and mutation receipts are always scoped to a company and a user.
+// Authority and mutation receipts are always scoped to a space and a user.
 export const mcpOauthClients = pgTable("mcp_oauth_clients", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -25,7 +25,7 @@ export const mcpOauthMetadataAdmissions = pgTable("mcp_oauth_metadata_admissions
 
 export const mcpOauthGrants = pgTable("mcp_oauth_grants", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => authUsers.id, { onDelete: "cascade" }),
   clientId: text("client_id").notNull().references(() => mcpOauthClients.id, { onDelete: "cascade" }),
   resource: text("resource").notNull(),
@@ -41,7 +41,7 @@ export const mcpOauthGrants = pgTable("mcp_oauth_grants", {
   }>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  index("mcp_oauth_grants_user_company_idx").on(t.userId, t.companyId),
+  index("mcp_oauth_grants_user_space_idx").on(t.userId, t.spaceId),
 ]);
 
 export const mcpOauthRequests = pgTable("mcp_oauth_requests", {
@@ -52,8 +52,8 @@ export const mcpOauthRequests = pgTable("mcp_oauth_requests", {
   scopes: jsonb("scopes").$type<string[]>().notNull(),
   state: text("state"),
   challenge: text("challenge").notNull(),
-  // A scope restriction, never authority. Retain it if the company is deleted.
-  requestedCompanyId: uuid("requested_company_id"),
+  // A scope restriction, never authority. Retain it if the space is deleted.
+  requestedSpaceId: uuid("requested_space_id"),
   grantId: uuid("grant_id").references(() => mcpOauthGrants.id, { onDelete: "cascade" }),
   codeHash: text("code_hash"),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
@@ -90,7 +90,7 @@ export const mcpOauthDeviceRequests = pgTable("mcp_oauth_device_requests", {
   userCodeHash: text("user_code_hash").notNull(),
   resource: text("resource").notNull(),
   scopes: jsonb("scopes").$type<string[]>().notNull(),
-  requestedCompanyId: uuid("requested_company_id"),
+  requestedSpaceId: uuid("requested_space_id"),
   sourceHash: text("source_hash").notNull(),
   status: text("status").$type<"pending" | "approved" | "denied" | "consumed">().notNull().default("pending"),
   grantId: uuid("grant_id").references(() => mcpOauthGrants.id, { onDelete: "cascade" }),
@@ -107,7 +107,7 @@ export const mcpOauthDeviceRequests = pgTable("mcp_oauth_device_requests", {
 
 export const mcpMutationReceipts = pgTable("mcp_mutation_receipts", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => authUsers.id, { onDelete: "cascade" }),
   grantId: uuid("grant_id").notNull().references(() => mcpOauthGrants.id, { onDelete: "cascade" }),
   operation: text("operation").notNull(),
@@ -117,14 +117,14 @@ export const mcpMutationReceipts = pgTable("mcp_mutation_receipts", {
   result: jsonb("result").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  uniqueIndex("mcp_mutation_receipts_request_uq").on(t.companyId, t.userId, t.operation, t.requestId),
-  index("mcp_mutation_receipts_company_idx").on(t.companyId),
+  uniqueIndex("mcp_mutation_receipts_request_uq").on(t.spaceId, t.userId, t.operation, t.requestId),
+  index("mcp_mutation_receipts_space_idx").on(t.spaceId),
 ]);
 
 
 export const mcpEventSubscriptions = pgTable("mcp_event_subscriptions", {
   id: text("id").primaryKey(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   grantId: uuid("grant_id").notNull().references(() => mcpOauthGrants.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   taskId: uuid("task_id"),
@@ -140,7 +140,7 @@ export const mcpEventSubscriptions = pgTable("mcp_event_subscriptions", {
 }, (t) => [
   check("mcp_subscription_resource_check", sql`(${t.taskId} IS NOT NULL AND ${t.bindingId} IS NULL) OR (${t.taskId} IS NULL AND ${t.bindingId} IS NOT NULL)`),
   index("mcp_event_subscriptions_expiry_idx").on(t.expiresAt),
-  index("mcp_event_subscriptions_company_idx").on(t.companyId),
+  index("mcp_event_subscriptions_space_idx").on(t.spaceId),
 ]);
 
 // Short-lived admission leases bound remote verification across replicas. Finished
@@ -148,7 +148,7 @@ export const mcpEventSubscriptions = pgTable("mcp_event_subscriptions", {
 export const mcpEventAdmissions = pgTable("mcp_event_admissions", {
   id: uuid("id").primaryKey().defaultRandom(),
   subscriptionId: text("subscription_id").notNull(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   grantId: uuid("grant_id").notNull().references(() => mcpOauthGrants.id, { onDelete: "cascade" }),
   reservesSubscription: boolean("reserves_subscription").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -157,7 +157,7 @@ export const mcpEventAdmissions = pgTable("mcp_event_admissions", {
 }, (t) => [
   index("mcp_event_admissions_expiry_idx").on(t.expiresAt),
   index("mcp_event_admissions_grant_idx").on(t.grantId),
-  index("mcp_event_admissions_company_idx").on(t.companyId),
+  index("mcp_event_admissions_space_idx").on(t.spaceId),
 ]);
 
 export const mcpEventDeliveries = pgTable("mcp_event_deliveries", {
@@ -183,7 +183,7 @@ export const mcpAttachmentUploads = pgTable("mcp_attachment_uploads", {
   grantId: uuid("grant_id").references(() => mcpOauthGrants.id, { onDelete: "cascade" }),
   workSessionId: uuid("work_session_id"),
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => authUsers.id, { onDelete: "cascade" }),
   requestId: uuid("request_id").notNull(),
   taskId: uuid("task_id").notNull(),
@@ -203,14 +203,14 @@ export const mcpAttachmentUploads = pgTable("mcp_attachment_uploads", {
   cleanupVerifiedAt: timestamp("cleanup_verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  uniqueIndex("mcp_attachment_upload_request_uq").on(t.companyId, t.userId, t.requestId),
+  uniqueIndex("mcp_attachment_upload_request_uq").on(t.spaceId, t.userId, t.requestId),
   index("mcp_attachment_upload_expiry_idx").on(t.expiresAt),
 ]);
 
 export const mcpFileTickets = pgTable("mcp_file_tickets", {
   workSessionId: uuid("work_session_id"),
   tokenHash: text("token_hash").primaryKey(),
-  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
   grantId: uuid("grant_id").notNull().references(() => mcpOauthGrants.id, { onDelete: "cascade" }),
   uploadId: uuid("upload_id").references(() => mcpAttachmentUploads.id, { onDelete: "cascade" }),
   attachmentId: uuid("attachment_id"),

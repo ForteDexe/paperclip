@@ -14,9 +14,9 @@ afterEach(async () => {
 
 describe.skipIf(process.platform === "win32")("durable directory creation", () => {
   async function fixture() {
-    const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-durable-directory-")));
+    const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "outpost-durable-directory-")));
     roots.push(root);
-    return { root, directory: path.join(root, "instance", "recovery", "company") };
+    return { root, directory: path.join(root, "instance", "recovery", "space") };
   }
 
   function observeSyncs(failOn?: string) {
@@ -162,7 +162,7 @@ describe.skipIf(process.platform === "win32")("durable directory creation", () =
       parent = path.join(root, "storage");
       await fs.mkdir(path.join(parent, "home"), { recursive: true });
       await fs.symlink(path.join(parent, "home"), path.join(root, "alias"));
-      directory = path.join(root, "alias", "recovery", "company");
+      directory = path.join(root, "alias", "recovery", "space");
     }
     const source = new URL("../lib/durable-directory.ts", import.meta.url).href;
     const child = (target: string, fail: boolean) => spawnSync(process.execPath, ["--import", createRequire(import.meta.url).resolve("tsx"), "--input-type=module", "-e", `
@@ -181,7 +181,7 @@ describe.skipIf(process.platform === "win32")("durable directory creation", () =
     expect(first.stderr).toContain("EACCES");
     expect(first.status).toBe(23);
     expect((await fs.stat(directory)).isDirectory()).toBe(true);
-    const retryTarget = sibling ? path.join(path.dirname(directory), "other-company") : directory;
+    const retryTarget = sibling ? path.join(path.dirname(directory), "other-space") : directory;
     const retry = child(retryTarget, true);
     expect(retry.status, retry.stderr).toBe(23);
     expect(retry.stderr).toContain("EACCES");
@@ -203,7 +203,7 @@ describe.skipIf(process.platform === "win32")("durable directory creation", () =
 
   it.each([false, true])("keeps a shared parent flush required for sibling writes (first call pending: %s)", async (concurrent) => {
     const { root, directory } = await fixture();
-    const sibling = path.join(path.dirname(directory), "other-company");
+    const sibling = path.join(path.dirname(directory), "other-space");
     const open = fs.open.bind(fs);
     let releaseFirst!: () => void;
     let reachedParent!: () => void;

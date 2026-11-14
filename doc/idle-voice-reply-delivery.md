@@ -31,7 +31,7 @@ outcomes never authorize resending the answer or appending its remaining parts.
   uncertainty deadline. These actions are tracked independently of live sessions,
   so ending a call cannot strand its abandoned dispatch intent.
 - Database or provider-path failures retain per-entry backoff. Scoped inventory
-  failures retry their scope; healthy companies retain fair processing access.
+  failures retry their scope; healthy spaces retain fair processing access.
 - No ready reply, a presented question awaiting retrieval, accepted history, or an
   unknown/failed outcome leaves no recurring reply scan.
 

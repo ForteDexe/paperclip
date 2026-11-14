@@ -3,8 +3,8 @@ name: Release Smoke
 on:
   workflow_dispatch:
     inputs:
-      paperclip_version:
-        description: Published Paperclip dist-tag to test
+      outpost_version:
+        description: Published Outpost dist-tag to test
         required: true
         default: canary
         type: choice
@@ -30,7 +30,7 @@ on:
         type: string
   workflow_call:
     inputs:
-      paperclip_version:
+      outpost_version:
         required: true
         type: string
       host_port:
@@ -89,7 +89,7 @@ jobs:
 
       - name: Onboard with the background service
         env:
-          PAPERCLIPAI_VERSION: ${{ inputs.paperclip_version }}
+          OUTPOST_VERSION: ${{ inputs.outpost_version }}
           DATA_DIR: ${{ runner.temp }}/service-smoke-data
           SMOKE_CLEANUP: "false"
         run: ./scripts/service-onboard-smoke.sh
@@ -98,16 +98,16 @@ jobs:
         if: always()
         run: |
           {
-            systemctl --user --no-pager status paperclipai.service || true
-            journalctl --user -u paperclipai.service --no-pager || true
-          } > "$RUNNER_TEMP/paperclipai-service.log" 2>&1
+            systemctl --user --no-pager status outpost.service || true
+            journalctl --user -u outpost.service --no-pager || true
+          } > "$RUNNER_TEMP/outpost-service.log" 2>&1
 
       - name: Upload service diagnostics
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact_name }}-service
-          path: ${{ runner.temp }}/paperclipai-service.log
+          path: ${{ runner.temp }}/outpost-service.log
           retention-days: 14
 
   smoke:
@@ -149,7 +149,7 @@ jobs:
         run: |
           HOST_PORT="${{ inputs.host_port }}" \
           DATA_DIR="$RUNNER_TEMP/release-smoke-data" \
-          PAPERCLIPAI_VERSION="${{ inputs.paperclip_version }}" \
+          OUTPOST_VERSION="${{ inputs.outpost_version }}" \
           SMOKE_READY_TIMEOUT_SECONDS=420 \
           SMOKE_DETACH=true \
           SMOKE_METADATA_FILE="${{ runner.temp }}/release-smoke.env" \
@@ -164,7 +164,7 @@ jobs:
             echo "SMOKE_ADMIN_PASSWORD=$SMOKE_ADMIN_PASSWORD"
             echo "SMOKE_DATA_DIR=$SMOKE_DATA_DIR"
             echo "SMOKE_IMAGE_NAME=$SMOKE_IMAGE_NAME"
-            echo "SMOKE_PAPERCLIPAI_VERSION=$SMOKE_PAPERCLIPAI_VERSION"
+            echo "SMOKE_OUTPOST_VERSION=$SMOKE_OUTPOST_VERSION"
           } >> "$GITHUB_ENV"
 
       - name: Run release smoke Playwright suite
@@ -349,7 +349,7 @@ jobs:
           import { createHash } from 'node:crypto';
           import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
           import { join } from 'node:path';
-          const directory = join(process.env.RUNNER_TEMP, 'paperclip-arm-bwrap-prerequisite');
+          const directory = join(process.env.RUNNER_TEMP, 'outpost-arm-bwrap-prerequisite');
           mkdirSync(directory, { recursive: true });
           const helper = '.qualification-tooling/scripts/prepare-linux-arm64-qualification.sh';
           writeFileSync(join(directory, 'qualification-identity.json'), JSON.stringify({
@@ -380,6 +380,6 @@ jobs:
           name: ${{ inputs.artifact_name }}-${{ matrix.target }}
           path: |
             ${{ runner.temp }}/native-public-install.json
-            ${{ runner.temp }}/paperclip-arm-bwrap-prerequisite/
+            ${{ runner.temp }}/outpost-arm-bwrap-prerequisite/
           if-no-files-found: warn
           retention-days: 14

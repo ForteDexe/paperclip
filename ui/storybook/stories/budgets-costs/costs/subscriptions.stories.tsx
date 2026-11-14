@@ -53,7 +53,7 @@ function SubscriptionCostsStory({ unknownPrice = false, stale = false, costGaps 
     if (stale) report.accounts.forEach(account => { account.refreshStatus = "unavailable"; account.observedAt = "2026-10-06T10:00:00Z"; });
     window.fetch = async (input, init) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.origin);
-      const base = "/api/companies/company-storybook/";
+      const base = "/api/spaces/space-storybook/";
       const path = url.pathname.startsWith(base) ? url.pathname.slice(base.length) : "";
       if (path === "costs/subscriptions/refresh") return Response.json({ status: "accepted" }, { status: 202 });
       if (path === "costs/subscriptions") return Response.json(report);
@@ -103,7 +103,7 @@ function SubscriptionCostsStory({ unknownPrice = false, stale = false, costGaps 
 const meta = { id: "costs-subscriptions",
   title: "Oversight and operation/Costs and budgets/Costs/Subscriptions", component: SubscriptionCostsStory, parameters: {
   layout: "padded", docs: { description: { component: "Production Costs page with API spend, monthly subscription estimates, user and project costs. View details to edit monthly or annual prices. Provider calls are fixtures." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "budgets-costs/cost-reporting",
         "budgets-costs/budgets"

@@ -8,7 +8,7 @@ const bootId = "12345678-1234-1234-1234-123456789abc";
 const root = { pid: 21, ppid: 1, startTicks: "100", bootId };
 const parent = { pid: 22, ppid: 21, startTicks: "101", bootId };
 const target = { pid: 23, ppid: 22, startTicks: "102", bootId };
-const binding = { companyId: "company", environmentId: "environment", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `registry/image@sha256:${"a".repeat(64)}`, remoteCwd: "/workspace" };
+const binding = { spaceId: "space", environmentId: "environment", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `registry/image@sha256:${"a".repeat(64)}`, remoteCwd: "/workspace" };
 const hash = `sha256:${"a".repeat(64)}`;
 function receipt() {
   const contract = kimiFaultRuntimeContract("linux-x64");
@@ -20,7 +20,7 @@ function receipt() {
 
 describe("Kimi native child fault contract", () => {
   it("uses compiled production loader, module guard and native bootstrap bytes", () => {
-    const contract = kimiFaultRuntimeContract("linux-x64"), distribution = "/tmp/paperclip-acpx-native-test/distribution";
+    const contract = kimiFaultRuntimeContract("linux-x64"), distribution = "/tmp/outpost-acpx-native-test/distribution";
     expect(contract.guardLoaderSha256).toMatch(/^sha256:[a-f0-9]{64}$/u);
     expect(contract.closureSha256).toMatch(/^[a-f0-9]{64}$/u);
     const bootstrap = expectedNativeBootstrap(distribution, contract.nodeSha256);

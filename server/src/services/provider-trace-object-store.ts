@@ -278,8 +278,8 @@ export function createProviderTraceObjectStore(
     captures.delete(ref);
     capture.finishIdle();
   }
-  async function stopRun(companyId: string, runId: string) {
-    const scope = `s3-segments-v1:${companyId}/${runId}/`;
+  async function stopRun(spaceId: string, runId: string) {
+    const scope = `s3-segments-v1:${spaceId}/${runId}/`;
     await Promise.all([...captures.keys()].filter((ref) => ref.startsWith(scope)).map(stop));
   }
   async function remove(ref: string, signal?: AbortSignal) {

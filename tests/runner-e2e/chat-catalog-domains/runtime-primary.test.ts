@@ -1,12 +1,12 @@
 import { it, expect } from "vitest";
 import { gradePrimary } from "./runtime-primary.js";
 function valid() {
-  const primaryBefore = { companyId: "company", userId: "person", primaryAgentId: "ceo" };
-  const other = { companyId: "company", userId: "other-person", primaryAgentId: null as string | null };
-  return { scenarioId: "agents.choose-primary", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  const primaryBefore = { spaceId: "space", userId: "person", primaryAgentId: "ceo" };
+  const other = { spaceId: "space", userId: "other-person", primaryAgentId: null as string | null };
+  return { scenarioId: "agents.choose-primary", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { worker: { id: "morgan", urlKey: "morgan" }, profileLinkFollowed: "/RUN/agents/morgan" as unknown, primaryBefore, primaryAfter: { ...primaryBefore, primaryAgentId: "morgan" }, beforeHumanPrimary: "ceo",
       replacementConfirmed: true, agentWriteStatus: 403, otherPersonBefore: other, otherPersonAfter: { ...other },
-      otherCompanyBefore: { companyId: "other-company", primaryAgentId: null }, otherCompanyAfter: { companyId: "other-company", primaryAgentId: null },
+      otherSpaceBefore: { spaceId: "other-space", primaryAgentId: null }, otherSpaceAfter: { spaceId: "other-space", primaryAgentId: null },
       reopenedRecentAgent: "ceo", runsAfterNavigation: 1, chatCountBeforeNavigation: 1, chatCountAfterNavigation: 1 },
     agents: [], tasks: [], links: ["/RUN/agents/morgan"], activity: [], runs: [], humanQueries: [],
     reply: "Open Morgan's profile and choose Set as my primary; confirm replacing your personal primary." };

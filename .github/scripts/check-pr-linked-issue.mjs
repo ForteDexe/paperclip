@@ -33,7 +33,7 @@ const TEMPLATE_FIELDS = {
     ['What happened', 'What happened?'],
     ['Expected behavior', 'Expected behaviour'],
     ['Steps to reproduce', 'Reproduction steps', 'Repro steps'],
-    ['Paperclip version', 'Paperclip version or commit', 'Version or commit', 'Version/commit'],
+    ['Outpost version', 'Outpost version or commit', 'Version or commit', 'Version/commit'],
     ['Deployment mode'],
   ],
   feature: [

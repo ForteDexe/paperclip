@@ -5,7 +5,7 @@ function overview() {
   const active = { id: "active", identifier: "ACN-1", title: "Website draft", status: "in_progress" };
   const blocked = { id: "blocked", identifier: "ACN-2", title: "Accessibility review", status: "blocked", description: "Waiting for approved launch colors nonce-1." };
   const done = { id: "done", identifier: "ACN-3", title: "Launch brief delivered", status: "done" };
-  return { scenarioId: "activity.company-overview", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { task: active, blockedTask: blocked, doneTask: done, worker: { id: "morgan" }, blocker: "approved launch colors nonce-1", hiddenMarker: "HIDDEN-SENTINEL" },
+  return { scenarioId: "activity.space-overview", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { task: active, blockedTask: blocked, doneTask: done, worker: { id: "morgan" }, blocker: "approved launch colors nonce-1", hiddenMarker: "HIDDEN-SENTINEL" },
     tasks: [active, blocked, done], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [], humanQueries: [], runs: [{ id: "run", startedAt: "2026-11-09T15:25:52Z", finishedAt: "2026-11-09T15:26:20Z" }], agents: [{ id: "morgan", status: "idle" }], links: ["/ACN/issues/ACN-1", "/ACN/issues/ACN-2", "/ACN/issues/ACN-3"],
     reply: "Here's the picture as of 15:26 UTC:\n\n- **ACN-1 Website draft** — in progress, assigned to the board.\n- **ACN-2 Accessibility review** — blocked, unassigned. Waiting on approved launch colors, but there are zero approvals on record.\n- **ACN-3 Launch brief delivered** — done, unassigned.\n\nMorgan is idle.\n\nNeeds a decision: ACN-2 can't move until the launch color palette is approved, and no approval card exists." };
 }
@@ -14,7 +14,7 @@ function related() {
   const followup = { id: "followup", identifier: "ACN-2", title: "Mobile follow-up", status: "backlog" };
   const unrelated = { id: "unrelated", identifier: "ACN-3", title: "Mobile follow-up investigation", status: "backlog" };
   const row = { id: "case", identifier: "ACN-C1", workIssueId: "primary", status: "draft", handoffVersion: 1 };
-  return { scenarioId: "cases.related-work", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { case: structuredClone(row), followup, unrelated, privateTask: { id: "private", identifier: "PRV-1", title: "Private customer" }, privateMarker: "PRIVATE-SENTINEL" },
+  return { scenarioId: "cases.related-work", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { case: structuredClone(row), followup, unrelated, privateTask: { id: "private", identifier: "PRV-1", title: "Private customer" }, privateMarker: "PRIVATE-SENTINEL" },
     tasks: [primary, followup, unrelated], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [], humanQueries: [], runs: [], links: ["/ACN/issues/ACN-1", "/ACN/issues/ACN-2", "/ACN/issues/ACN-3"],
     caseDetail: { ...row, issueLinks: [{ issueId: "primary", role: "work" }, { issueId: "followup", role: "reference" }] }, reverseLinks: { primary: [{ role: "work", case: structuredClone(row) }], followup: [{ role: "reference", case: structuredClone(row) }] }, deniedStatus: 404,
     reply: "| Task | Role | Owner | Status |\n|---|---|---|---|\n| ACN-1 Investigation | work | Morgan | done |\n| ACN-2 Mobile follow-up | reference | unassigned | backlog |\n\nNot tied: ACN-3 Mobile follow-up investigation has a similar title but is explicitly unrelated and has no case link.\n\nThe case remains open." };

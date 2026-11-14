@@ -15,7 +15,7 @@ vi.mock("../../realtime/runner-orp-ws.js", () => ({ registerRunnerPrpAuthority: 
 vi.mock("../../realtime/runner-orp-outbound.js", () => ({ connectRunnerPrpIngress: transport.connect }));
 vi.mock("./native-runner-checkpoint.js", () => ({ nativeRunnerCheckpointRegistration: transport.checkpointRegistration }));
 
-const binding = { companyId: "company", issueId: "issue", agentId: "agent", runId: "run-a" };
+const binding = { spaceId: "space", issueId: "issue", agentId: "agent", runId: "run-a" };
 const authority = {} as Parameters<NonNullable<ReturnType<typeof createNativeRunnerExecutionDriver>["controlPlaneRegistration"]>>[0];
 const ssh = { kind: "remote", transport: "ssh", remoteCwd: "/workspace", spec: {} } as AdapterExecutionTarget;
 const sandbox = (ingress = true): AdapterExecutionTarget => ({
@@ -68,7 +68,7 @@ describe("shared Runner execution driver", () => {
     const targetIdentity = { ...sourceIdentity, runId: "run-c", turnId: "turn-c", itemId: "item-c" };
     await driver.onStagedRunAttachment!(authority, { sourceIdentity, targetIdentity, templateDigest: `sha256:${"a".repeat(64)}` });
     expect(transport.checkpointRegistration).toHaveBeenCalledExactlyOnceWith({ ...persistence,
-      binding: { companyId: binding.companyId, issueId: binding.issueId, runId: "run-c" } });
+      binding: { spaceId: binding.spaceId, issueId: binding.issueId, runId: "run-c" } });
     expect(transport.checkpoint.mock.calls).toEqual([[authority, sourceIdentity], [authority, targetIdentity]]);
     expect(prepare).not.toHaveBeenCalled();
     expect(transport.register).not.toHaveBeenCalled();

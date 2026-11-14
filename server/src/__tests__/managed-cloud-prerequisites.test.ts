@@ -18,14 +18,14 @@ let configDir: string;
 
 beforeEach(() => {
   setCloudRuntimeConfigSnapshot({ version: 1, revision: 0, config: null });
-  configDir = mkdtempSync(path.join(tmpdir(), "paperclip-cloud-config-"));
+  configDir = mkdtempSync(path.join(tmpdir(), "outpost-cloud-config-"));
   vi.stubEnv("OUTPOST_CONFIG", path.join(configDir, "config.json"));
   vi.stubEnv("OUTPOST_MANAGED_CONFIG", managed);
   vi.stubEnv("OUTPOST_STORAGE_PROVIDER", "s3");
   vi.stubEnv("OUTPOST_STORAGE_S3_BUCKET", "test-bucket");
   vi.stubEnv("OUTPOST_STORAGE_S3_REGION", undefined);
   vi.stubEnv("OUTPOST_STORAGE_S3_ENDPOINT", undefined);
-  vi.stubEnv("DATABASE_URL", "postgresql://user:private@db.example.test/paperclip");
+  vi.stubEnv("DATABASE_URL", "postgresql://user:private@db.example.test/outpost");
   vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "12345678901234567890123456789012");
 });
 afterEach(() => {
@@ -40,7 +40,7 @@ function writeConfig(storage: Record<string, unknown>) {
     logging: { mode: "file" },
     server: {},
     storage,
-    database: { mode: "postgres", connectionString: "postgres://db.example.test/paperclip" },
+    database: { mode: "postgres", connectionString: "postgres://db.example.test/outpost" },
   }));
 }
 
@@ -112,7 +112,7 @@ describe("managed cloud configuration boundary", () => {
     writeConfig(storage);
     // Self-hosted readers still expose their default and raw-file provenance.
     vi.stubEnv("OUTPOST_MANAGED_CONFIG", undefined);
-    expect(readConfigFile({ includeProvenance: true })).toMatchObject({ config: { storage: { s3: { bucket: "paperclip" } } }, explicitStorageS3Bucket: false });
+    expect(readConfigFile({ includeProvenance: true })).toMatchObject({ config: { storage: { s3: { bucket: "outpost" } } }, explicitStorageS3Bucket: false });
     vi.stubEnv("OUTPOST_MANAGED_CONFIG", managed);
     await expect(readLegacyCloudRuntimeConfig()).rejects.toThrow(/storage.s3.bucket/);
   });
@@ -131,9 +131,9 @@ describe("managed cloud configuration boundary", () => {
 
   it("accepts an explicitly supplied default bucket name in a real file", async () => {
     vi.stubEnv("OUTPOST_STORAGE_S3_BUCKET", undefined);
-    writeConfig({ provider: "s3", s3: { bucket: "paperclip" } });
+    writeConfig({ provider: "s3", s3: { bucket: "outpost" } });
     setCloudRuntimeConfigSnapshot({ version: 1, revision: 0, config: await readLegacyCloudRuntimeConfig() });
-    expect(loadConfig().storageS3Bucket).toBe("paperclip");
+    expect(loadConfig().storageS3Bucket).toBe("outpost");
   });
 
   it("accepts an environment bucket with an authoritative absent-file snapshot", () => {
@@ -143,7 +143,7 @@ describe("managed cloud configuration boundary", () => {
 
   it("preserves ordinary self-hosted defaults, including key-file use", () => {
     for (const name of ["OUTPOST_MANAGED_CONFIG", "OUTPOST_STORAGE_PROVIDER", "OUTPOST_STORAGE_S3_BUCKET", "DATABASE_URL", "OUTPOST_SECRETS_MASTER_KEY"]) vi.stubEnv(name, undefined);
-    expect(loadConfig()).toMatchObject({ storageProvider: "local_disk", storageS3Bucket: "paperclip", databaseUrl: undefined, databaseMode: "embedded-postgres" });
+    expect(loadConfig()).toMatchObject({ storageProvider: "local_disk", storageS3Bucket: "outpost", databaseUrl: undefined, databaseMode: "embedded-postgres" });
     vi.stubEnv("OUTPOST_STORAGE_PROVIDER", "typo");
     expect(loadConfig().storageProvider).toBe("local_disk");
   });
@@ -183,15 +183,15 @@ it("uses the validated config for normal S3 put/read/delete and stable env-key e
   try {
     const config = loadConfig();
     const first = createStorageProviderFromConfig(config);
-    await first.putObject({ objectKey: "company/object.txt", body: Buffer.from("retained"), contentType: "text/plain", contentLength: 8 });
+    await first.putObject({ objectKey: "space/object.txt", body: Buffer.from("retained"), contentType: "text/plain", contentLength: 8 });
     const replacement = createStorageProviderFromConfig(loadConfig());
-    const result = await replacement.getObject({ objectKey: "company/object.txt" });
+    const result = await replacement.getObject({ objectKey: "space/object.txt" });
     const chunks: Buffer[] = [];
     for await (const chunk of result.stream) chunks.push(Buffer.from(chunk));
     expect(Buffer.concat(chunks).toString()).toBe("retained");
-    await replacement.deleteObject({ objectKey: "company/object.txt" });
+    await replacement.deleteObject({ objectKey: "space/object.txt" });
     expect(objects.size).toBe(0);
-    expect(operations).toEqual(["PUT", "GET", "DELETE"].map(method => `${method} /test-bucket/disposable-qualification/company/object.txt`));
+    expect(operations).toEqual(["PUT", "GET", "DELETE"].map(method => `${method} /test-bucket/disposable-qualification/space/object.txt`));
     const encrypted = createLocalEncryptedCipher("write").encrypt("saved credential");
     expect(createLocalEncryptedCipher("read").decrypt(encrypted)).toBe("saved credential");
   } finally {

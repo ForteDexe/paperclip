@@ -23,7 +23,7 @@ At the deadline, retention locks the admission and rechecks current eligibility
 and both timestamps before deleting. PostgreSQL submillisecond timestamps round
 up for scheduling. Cached candidates cannot authorize deleting a new binding or
 history whose retention deadline moved. Batches page through history and use the
-shared worker's company fairness, coalescing, bounded backoff and drain behavior.
+shared worker's space fairness, coalescing, bounded backoff and drain behavior.
 Deletion failure retains a retry; a paused first write remains pending for resume.
 Shutdown cancels or joins work, and restart reloads remaining durable deadlines.
 

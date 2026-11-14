@@ -9,7 +9,7 @@ import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-ta
 vi.mock("@outpost/adapter-utils/execution-target", async importOriginal => ({
   ...await importOriginal<typeof import("@outpost/adapter-utils/execution-target")>(),
   prepareAdapterExecutionTargetRuntime: async () => ({
-    workspaceRemoteDir: "/workspace", runtimeRootDir: "/workspace/.paperclip-runtime",
+    workspaceRemoteDir: "/workspace", runtimeRootDir: "/workspace/.outpost-runtime",
     assetDirs: {}, restoreWorkspace: async () => {},
   }),
 }));
@@ -20,7 +20,7 @@ import { lifecycleFailureMessage, lifecycleVerificationNeedsRetry } from "../mod
 
 describe("remote harness verification recovery", () => {
   let configHome: string;
-  beforeAll(async () => { configHome = await mkdtemp(path.join(os.tmpdir(), "paperclip-remote-verification-")); });
+  beforeAll(async () => { configHome = await mkdtemp(path.join(os.tmpdir(), "outpost-remote-verification-")); });
   afterAll(async () => { if (configHome) await rm(configHome, { recursive: true, force: true }); });
   const context = { stage: "host" as const, phase: "verifying" as const, verificationFailures: 100 };
 
@@ -47,7 +47,7 @@ describe("remote harness verification recovery", () => {
         },
       },
     };
-    const run = () => testEnvironment({ companyId: "company", adapterType: "opencode_local", executionTarget: target,
+    const run = () => testEnvironment({ spaceId: "space", adapterType: "opencode_local", executionTarget: target,
       config: { command: "opencode", model: "provider/model", env: { XDG_CONFIG_HOME: configHome } } });
     const result = await run();
     const failed = result.checks.find(entry => entry.code === (check === "directory" ? "opencode_cwd_invalid" : "opencode_command_unresolvable"));

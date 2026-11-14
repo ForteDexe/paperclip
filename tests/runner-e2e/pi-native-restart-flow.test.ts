@@ -13,13 +13,13 @@ function fixture(adapter = "acpx-runtime-sidecar") {
   const request = { schema: "outpost.runtime_request.v2", requestKind: "runtime", type: "input", status: "pending", requestId: "request", turnId: "turn", itemId: "request",
     input: questionSet, origin: { adapter, provider: "pi", method: "elicitation/create" } };
   const wrap = (eventType: string, sourceSeq: number, payload: Row): Row => ({
-    companyId: "company", runId: "run", seq: sourceSeq, protocolSchemaVersion: 1, eventType,
+    spaceId: "space", runId: "run", seq: sourceSeq, protocolSchemaVersion: 1, eventType,
     payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, sourceKind: "runner", eventType, runId: "run", turnId: "turn", itemId: "request",
       normalizedSessionId: "session", sourceInstanceId: "runner", sourceSeq, sourceEventId: `runner:run:${sourceSeq}`, payload } },
   });
-  const state = { issue: { id: "issue", companyId: "company", status: "in_progress" },
-    runs: [{ id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "running", nativeSessionId: "session", runnerInstanceId: "runner", processPid: 200, processGroupId: 200, processStartedAt: "2026-10-02T13:55:27.000Z" } as Row],
-    interactions: [{ id: "interaction", companyId: "company", issueId: "issue", kind: "ask_user_questions", status: "pending", result: null,
+  const state = { issue: { id: "issue", spaceId: "space", status: "in_progress" },
+    runs: [{ id: "run", spaceId: "space", nativeIssueId: "issue", runtimeMode: "native", status: "running", nativeSessionId: "session", runnerInstanceId: "runner", processPid: 200, processGroupId: 200, processStartedAt: "2026-10-02T13:55:27.000Z" } as Row],
+    interactions: [{ id: "interaction", spaceId: "space", issueId: "issue", kind: "ask_user_questions", status: "pending", result: null,
       sourceRunId: "run", continuationPolicy: "none", resolverPolicy: "human_only", idempotencyKey: "outpost-runner-question:run:request",
       payload: { runtimeRequestId: "request", questionSet } } as Row] };
   const events = [wrap("runtime_request.created", 1, { request })];
@@ -47,7 +47,7 @@ function fixture(adapter = "acpx-runtime-sidecar") {
 }
 
 it.each(["acpx-runtime", "acpx-runtime-sidecar"])("accepts mixed runner/control-plane production completion via %s", adapter => {
-  const f = fixture(adapter), pending = observePiRestartPending(f.state, f.events, "company"), proof = f.finish();
+  const f = fixture(adapter), pending = observePiRestartPending(f.state, f.events, "space"), proof = f.finish();
   expect(gradePiRestartCompletion(f.state, f.events, pending, "hidden", proof)).toBe(true);
 });
 
@@ -60,7 +60,7 @@ function actualPendingPrefix() {
 it.each(["omitted", "null"])("accepts the actual pre-start submission with %s turn ID", representation => {
   const f = actualPendingPrefix();
   if (representation === "null") f.events[0]!.payload.orpEvent.turnId = null;
-  expect(observePiRestartPending(f.state, f.events, "company")).toMatchObject({
+  expect(observePiRestartPending(f.state, f.events, "space")).toMatchObject({
     runId: "run", turnId: "turn", nativeSessionId: "session", sourceInstanceId: "runner", createdSourceSeq: 195,
   });
 });
@@ -98,7 +98,7 @@ it.each([
   }],
 ] as const)("rejects %s around an unbound submission", (_label, mutate) => {
   const f = actualPendingPrefix(); mutate(f);
-  expect(() => observePiRestartPending(f.state, f.events, "company")).toThrow("Pi native restart");
+  expect(() => observePiRestartPending(f.state, f.events, "space")).toThrow("Pi native restart");
 });
 
 it.each([
@@ -108,14 +108,14 @@ it.each([
   ["internal kind instead of public schema", (f: ReturnType<typeof fixture>) => { f.request.requestKind = "elicitation"; }],
   ["missing native session", (f: ReturnType<typeof fixture>) => { delete f.state.runs[0]!.nativeSessionId; }],
   ["foreign request turn", (f: ReturnType<typeof fixture>) => { f.request.turnId = "other"; }],
-  ["foreign company", (f: ReturnType<typeof fixture>) => { f.state.interactions[0]!.companyId = "other"; }],
+  ["foreign space", (f: ReturnType<typeof fixture>) => { f.state.interactions[0]!.spaceId = "other"; }],
   ["durable fallback", (f: ReturnType<typeof fixture>) => { f.state.interactions[0]!.continuationPolicy = "wake_assignee"; }],
   ["wrong idempotency identity", (f: ReturnType<typeof fixture>) => { f.state.interactions[0]!.idempotencyKey = "other"; }],
   ["duplicate interaction", (f: ReturnType<typeof fixture>) => { f.state.interactions.push(structuredClone(f.state.interactions[0]!)); }],
   ["duplicate source receipt", (f: ReturnType<typeof fixture>) => { f.events.push(structuredClone(f.events[0]!)); }],
   ["already answered", (f: ReturnType<typeof fixture>) => { f.finish(); }],
 ] as const)("rejects %s before restart", (_label, mutate) => {
-  const f = fixture(); mutate(f); expect(() => observePiRestartPending(f.state, f.events, "company")).toThrow("Pi native restart");
+  const f = fixture(); mutate(f); expect(() => observePiRestartPending(f.state, f.events, "space")).toThrow("Pi native restart");
 });
 
 it.each([
@@ -153,13 +153,13 @@ it.each([
   ["malformed accepted result", (f: ReturnType<typeof fixture>) => { delete f.events[4]!.payload.orpEvent.payload.result.schema; }],
   ["runner impersonates acceptance", (f: ReturnType<typeof fixture>) => { f.events[4]!.payload.orpEvent.sourceKind = "runner"; }],
 ] as const)("rejects %s despite a correct workspace answer", (_label, mutate) => {
-  const f = fixture(), pending = observePiRestartPending(f.state, f.events, "company"), proof = f.finish();
+  const f = fixture(), pending = observePiRestartPending(f.state, f.events, "space"), proof = f.finish();
   mutate(f); expect(() => gradePiRestartCompletion(f.state, f.events, pending, "hidden", proof)).toThrow();
 });
 
 it.each([null, {}, { status: "answered", value: "guess" }, { status: "cancelled", value: "hidden" }, { status: "answered", value: "hidden", invented: true }])(
   "rejects missing or wrong independent file proof %j", proof => {
-    const f = fixture(), pending = observePiRestartPending(f.state, f.events, "company"); f.finish();
+    const f = fixture(), pending = observePiRestartPending(f.state, f.events, "space"); f.finish();
     expect(() => gradePiRestartCompletion(f.state, f.events, pending, "hidden", proof)).toThrow();
   },
 );
@@ -183,7 +183,7 @@ async function flow(failure?: "replaced" | "wrong-file" | "missing-resolution" |
   } };
   const page: any = { getByTestId: () => composer, getByRole: () => button, reload: async () => { checkpoints.push("reload"); },
     waitForRequest: (predicate: (value: any) => boolean) => { postPredicate = predicate; return new Promise(resolve => { resolvePost = resolve; }); } };
-  const result = runPiPendingControllerRestart({ page, companyId: "company", deadlineAt: Date.now() + 1000,
+  const result = runPiPendingControllerRestart({ page, spaceId: "space", deadlineAt: Date.now() + 1000,
     load: async () => structuredClone(f.state), events: async () => structuredClone(f.events),
     restart: async identity => {
       expect(identity).toEqual({ processPid: 200, processGroupId: 200, processStartedAt: "2026-10-02T13:55:27.000Z" });

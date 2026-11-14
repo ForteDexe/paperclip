@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, companyMemberships, companySecrets, connectionGrants, createDb,
+import { agents, spaces, spaceMemberships, spaceSecrets, connectionGrants, createDb,
   ensurePostgresDatabase, applyPendingMigrations, heartbeatRuns, issues, toolCatalogEntries, toolConnections } from "@outpost/db";
 import { toolAccessService } from "../services/tool-access.js";
 import { createToolGatewayService } from "../services/tool-gateway.js";
@@ -12,7 +12,7 @@ const external = process.env.OUTPOST_TEST_DATABASE_URL;
 const support = external ? { supported: true } : await getEmbeddedPostgresTestSupport();
 const actor = { actorType: "user" as const, actorId: "daytona-reviewer" };
 const credential = "daytona-fixture-secret";
-(support.supported ? describe : describe.skip)("Daytona governed provider actions", () => {
+(support.supported ? describe : describe.skip)("Daytona controlled provider actions", () => {
   let db: ReturnType<typeof createDb>;
   let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
   beforeAll(async () => {
@@ -25,8 +25,8 @@ const credential = "daytona-fixture-secret";
   afterAll(async () => { await db?.$client.end(); await temp?.cleanup(); });
 
   async function fixture(personal = false) {
-    const [company] = await db.insert(companies).values({ name: "Daytona fixture", issuePrefix: `D${randomUUID().slice(0, 6)}` }).returning();
-    await db.insert(companyMemberships).values({ companyId: company.id, principalType: "user", principalId: actor.actorId, membershipRole: "admin", status: "active" });
+    const [space] = await db.insert(spaces).values({ name: "Daytona fixture", issuePrefix: `D${randomUUID().slice(0, 6)}` }).returning();
+    await db.insert(spaceMemberships).values({ spaceId: space.id, principalType: "user", principalId: actor.actorId, membershipRole: "admin", status: "active" });
     const organizationId = randomUUID(), sandboxId = randomUUID();
     let sandboxOrganization = organizationId, proxy = "https://proxy.app.daytona.io/toolbox";
     const request = vi.fn(async (url: string, init: RequestInit) => {
@@ -49,32 +49,32 @@ const credential = "daytona-fixture-secret";
       throw new Error("Unexpected provider request");
     });
     const service = toolAccessService(db, { remoteHttpRequest: request, remoteHttpEndpointLookup: async () => [{ address: "8.8.8.8", family: 4 }] });
-    const connected = await service.connectGalleryApp(company.id, { galleryKey: "daytona", connectionMethodKey: "workspace-diagnostics",
+    const connected = await service.connectGalleryApp(space.id, { galleryKey: "daytona", connectionMethodKey: "workspace-diagnostics",
       ...(personal ? { grantKind: "user" as const } : {}), credentialValues: { "credentials.authorization": credential } }, actor);
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Maintainer", role: "engineer", adapterType: "process" }).returning();
-    await service.finishGalleryAppConnection(company.id, connected.connectionId, { enabledCatalogEntryIds: connected.catalog.map(c => c.id),
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Maintainer", role: "engineer", adapterType: "process" }).returning();
+    await service.finishGalleryAppConnection(space.id, connected.connectionId, { enabledCatalogEntryIds: connected.catalog.map(c => c.id),
       askFirstCatalogEntryIds: [], access: { agentIds: [agent.id] } }, actor);
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Provider work", assigneeAgentId: agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, issueId: issue.id,
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Provider work", assigneeAgentId: agent.id }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, issueId: issue.id,
       scopeKind: "issue", invocationSource: "on_demand", status: "running", responsibleUserId: actor.actorId, contextSnapshot: { issueId: issue.id } }).returning();
     const gateway = createToolGatewayService(db, { remoteHttpRequest: request });
-    const session = await gateway.createSession({ companyId: company.id, agentId: agent.id, runId: run.id, issueId: issue.id });
+    const session = await gateway.createSession({ spaceId: space.id, agentId: agent.id, runId: run.id, issueId: issue.id });
     const tools = await gateway.listToolsForSession(session.token);
     const call = (name: string, parameters: unknown, timeoutMs?: number) => {
       const tool = tools.find(t => t.upstreamToolName === name);
       expect(tool, name).toBeTruthy();
       return gateway.executeTool({ sessionToken: session.token, tool: tool!.name, parameters, timeoutMs, idempotencyKey: randomUUID() });
     };
-    return { company, service, connected, agent, request, call, gateway, session, organizationId, sandboxId,
+    return { space, service, connected, agent, request, call, gateway, session, organizationId, sandboxId,
       foreignOrganization: () => { sandboxOrganization = randomUUID(); }, foreignProxy: () => { proxy = "https://attacker.example/toolbox"; } };
   }
 
   it.each([false, true])("uses the selected vault identity for real gateway reads and writes (personal=%s)", async personal => {
     const f = await fixture(personal);
     const [grant] = await db.select().from(connectionGrants).where(eq(connectionGrants.connectionId, f.connected.connectionId));
-    const [secret] = await db.select().from(companySecrets).where(eq(companySecrets.id, grant.credentialSecretRefs[0].secretId));
+    const [secret] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, grant.credentialSecretRefs[0].secretId));
     expect(grant.kind).toBe(personal ? "user" : "organization");
-    expect(secret.scope).toBe(personal ? "user" : "company");
+    expect(secret.scope).toBe(personal ? "user" : "space");
     expect(secret.ownerUserId).toBe(personal ? actor.actorId : null);
     expect(f.connected.catalog).toHaveLength(DAYTONA_TOOLS.length);
     expect(f.connected.catalog.find(c => c.toolName === "daytona_api_list_sandboxes")).toMatchObject({ isReadOnly: true });
@@ -112,8 +112,8 @@ const credential = "daytona-fixture-secret";
 
   it("rejects foreign connection bindings, unknown arguments and path traversal", async () => {
     const f = await fixture(); f.request.mockClear();
-    await expect(executeDaytonaTool({ binding: { companyId: randomUUID(), agentId: f.agent.id },
-      connection: { companyId: f.company.id, config: {} }, headers: { Authorization: `Bearer ${credential}` }, request: f.request,
+    await expect(executeDaytonaTool({ binding: { spaceId: randomUUID(), agentId: f.agent.id },
+      connection: { spaceId: f.space.id, config: {} }, headers: { Authorization: `Bearer ${credential}` }, request: f.request,
       toolName: "daytona_api_list_sandboxes", parameters: {} })).rejects.toThrow("Connection not found");
     await expect(f.call("daytona_api_list_sandboxes", { command: "printenv" })).rejects.toThrow();
     await expect(f.call("daytona_api_get_sandbox", { path: { sandboxIdOrName: "../api-keys" } })).rejects.toThrow("Invalid Daytona path");
@@ -121,14 +121,14 @@ const credential = "daytona-fixture-secret";
 
   it("rechecks revocation for a previously created gateway session", async () => {
     const f = await fixture();
-    await db.update(toolConnections).set({ enabled: false }).where(and(eq(toolConnections.id, f.connected.connectionId), eq(toolConnections.companyId, f.company.id)));
+    await db.update(toolConnections).set({ enabled: false }).where(and(eq(toolConnections.id, f.connected.connectionId), eq(toolConnections.spaceId, f.space.id)));
     f.request.mockClear();
     await expect(f.call("daytona_api_list_sandboxes", {})).rejects.toThrow();
     expect(f.request).not.toHaveBeenCalled();
   });
   it("applies an Off action policy to writes through an existing session", async () => {
     const f = await fixture();
-    await f.service.finishGalleryAppConnection(f.company.id, f.connected.connectionId, {
+    await f.service.finishGalleryAppConnection(f.space.id, f.connected.connectionId, {
       enabledCatalogEntryIds: f.connected.catalog.filter(c => c.toolName !== "daytona_toolbox_execute_command").map(c => c.id),
       askFirstCatalogEntryIds: [], access: { agentIds: [f.agent.id] },
     }, actor);
@@ -154,12 +154,12 @@ const credential = "daytona-fixture-secret";
     await db.delete(toolCatalogEntries).where(eq(toolCatalogEntries.connectionId, f.connected.connectionId));
     const legacyNames = ["daytona_get_account", "daytona_list_workspaces", "daytona_get_workspace", "daytona_get_workspace_recovery"];
     const legacy = await db.insert(toolCatalogEntries).values(legacyNames.map(toolName => ({
-      companyId: f.company.id, applicationId: f.connected.connection.applicationId, connectionId: f.connected.connectionId,
+      spaceId: f.space.id, applicationId: f.connected.connection.applicationId, connectionId: f.connected.connectionId,
       name: toolName, toolName, title: toolName === "daytona_get_workspace_recovery" ? "Get workspace recovery" : toolName,
       entryKind: "tool" as const, status: "active" as const, riskLevel: "read" as const, isReadOnly: true,
       inputSchema: { type: "object" }, versionHash: "legacy", schemaHash: "legacy",
     }))).returning();
-    await f.service.finishGalleryAppConnection(f.company.id, f.connected.connectionId, {
+    await f.service.finishGalleryAppConnection(f.space.id, f.connected.connectionId, {
       enabledCatalogEntryIds: legacy.map(entry => entry.id), askFirstCatalogEntryIds: [], access: { agentIds: [f.agent.id] },
     }, actor);
     // Earlier read-only defaults must not authorize the expanded native catalog.
@@ -173,7 +173,7 @@ const credential = "daytona-fixture-secret";
     const legacyNames = await installLegacyCatalog(f);
     expect((await f.gateway.listToolsForSession(f.session.token)).some(tool => legacyNames.includes(tool.upstreamToolName ?? ""))).toBe(false);
     f.request.mockClear();
-    const catalog = await f.service.listCatalog(f.connected.connectionId, f.company.id, actor);
+    const catalog = await f.service.listCatalog(f.connected.connectionId, f.space.id, actor);
     expect(catalog).toHaveLength(274);
     expect(catalog.every(entry => entry.status === "quarantined")).toBe(true);
     expect(catalog.some(entry => legacyNames.includes(entry.toolName))).toBe(false);
@@ -182,7 +182,7 @@ const credential = "daytona-fixture-secret";
     expect(stored.filter(entry => legacyNames.includes(entry.toolName)).every(entry => entry.status === "removed")).toBe(true);
     expect(f.request).toHaveBeenCalledTimes(1);
     f.request.mockClear();
-    expect(await f.service.listCatalog(f.connected.connectionId, f.company.id, actor)).toHaveLength(274);
+    expect(await f.service.listCatalog(f.connected.connectionId, f.space.id, actor)).toHaveLength(274);
     expect(f.request).not.toHaveBeenCalled();
     expect((await f.gateway.listToolsForSession(f.session.token)).some(tool => tool.upstreamToolName?.startsWith("daytona_"))).toBe(false);
   }, 30000);
@@ -191,30 +191,30 @@ const credential = "daytona-fixture-secret";
     const f = await fixture();
     await installLegacyCatalog(f);
     f.request.mockRejectedValue(new Error("Provider unavailable"));
-    expect(await f.service.listCatalog(f.connected.connectionId, f.company.id, actor)).toEqual([]);
+    expect(await f.service.listCatalog(f.connected.connectionId, f.space.id, actor)).toEqual([]);
     expect((await f.gateway.listToolsForSession(f.session.token)).some(tool => tool.upstreamToolName?.startsWith("daytona_get_"))).toBe(false);
   });
 
   it("preserves existing Off and Allowed choices while retiring leftover actions", async () => {
     const f = await fixture();
-    await f.service.finishGalleryAppConnection(f.company.id, f.connected.connectionId, {
+    await f.service.finishGalleryAppConnection(f.space.id, f.connected.connectionId, {
       enabledCatalogEntryIds: f.connected.catalog.filter(entry => entry.toolName !== "daytona_toolbox_execute_command").map(entry => entry.id),
       askFirstCatalogEntryIds: [], access: { agentIds: [f.agent.id] },
     }, actor);
     await db.insert(toolCatalogEntries).values({
-      companyId: f.company.id, applicationId: f.connected.connection.applicationId, connectionId: f.connected.connectionId,
+      spaceId: f.space.id, applicationId: f.connected.connection.applicationId, connectionId: f.connected.connectionId,
       name: "daytona_get_workspace_recovery", toolName: "daytona_get_workspace_recovery", title: "Get workspace recovery",
       entryKind: "tool", status: "active", riskLevel: "read", isReadOnly: true,
       inputSchema: { type: "object" }, versionHash: "legacy", schemaHash: "legacy",
     });
-    expect(await f.service.listCatalog(f.connected.connectionId, f.company.id, actor)).toHaveLength(274);
+    expect(await f.service.listCatalog(f.connected.connectionId, f.space.id, actor)).toHaveLength(274);
     f.request.mockClear();
     await expect(f.call("daytona_toolbox_execute_command", { sandboxId: f.sandboxId, body: { command: "true" } })).rejects.toThrow();
     expect(f.request).not.toHaveBeenCalled();
     expect(JSON.stringify(await f.call("daytona_api_list_sandboxes", {}))).toContain(f.sandboxId);
   });
 
-  it("blocks a stale same-name contract before board refresh, including an existing session", async () => {
+  it("blocks a stale same-name contract before operator refresh, including an existing session", async () => {
     const f = await fixture();
     const changed = f.connected.catalog.find(entry => entry.toolName === "daytona_toolbox_execute_command")!;
     await db.update(toolCatalogEntries).set({ versionHash: "earlier-provider-contract", schemaHash: "earlier-schema", riskLevel: "read" })
@@ -246,8 +246,8 @@ describe("Daytona provider client", () => {
     const request = vi.fn(async () => { throw new Error("Unexpected provider request"); });
     expect(DAYTONA_TOOLS).toHaveLength(274);
     for (const tool of DAYTONA_TOOLS) {
-      await expect(executeDaytonaTool({ binding: { companyId: "company", agentId: "agent" },
-        connection: { companyId: "company", config: {} }, headers: { Authorization: `Bearer ${credential}` },
+      await expect(executeDaytonaTool({ binding: { spaceId: "space", agentId: "agent" },
+        connection: { spaceId: "space", config: {} }, headers: { Authorization: `Bearer ${credential}` },
         request, toolName: tool.name, parameters: null }), tool.name).rejects.toThrow("Invalid Daytona action arguments");
     }
     expect(request).not.toHaveBeenCalled();

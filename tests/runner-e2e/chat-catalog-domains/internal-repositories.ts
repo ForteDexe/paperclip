@@ -29,7 +29,7 @@ export async function connectRepositoryFixture(ctx: ChatCatalogContext) {
   if (requested.some(row => !/^[1-9]\d*$/.test(row.id) || !Number.isSafeInteger(Number(row.id)) || !binding.resourceIds.includes(row.id)
     || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(row.fullName)) || new Set(requested.map(row => row.id)).size !== requested.length)
     throw new Error("Setup blocker: each GitHub repository requires its distinct safe numeric disposable allowlist ID and explicit provider owner/repository identity");
-  const root = `/api/companies/${ctx.input.fixtures.company.id}`;
+  const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
   const secret = await ctx.input.api.postSensitive<{ id: string }>(`${root}/secrets`, { name: "Disposable repository GitHub token",
     key: `CATALOG_GITHUB_${ctx.input.nonce.replaceAll("-", "_").toUpperCase()}`, provider: "local_encrypted", value: token });
   let connectionId: string | undefined;
@@ -44,7 +44,7 @@ export async function connectRepositoryFixture(ctx: ChatCatalogContext) {
     if (options.failedConnectionCount || !requested.every(expected => options.repositories.some(row => row.id === expected.id
       && row.fullName === expected.fullName && row.url === `https://github.com/${expected.fullName}` && row.connectionIds?.includes(connection.id))))
       throw new Error("Setup blocker: the current authorized GitHub connection must independently expose each explicit disposable repository name and ID");
-    const receipt = (row: typeof requested[number]) => ({ id: Number(row.id), fullName: row.fullName, connectionId: connection.id, companyId: ctx.input.fixtures.company.id });
+    const receipt = (row: typeof requested[number]) => ({ id: Number(row.id), fullName: row.fullName, connectionId: connection.id, spaceId: ctx.input.fixtures.space.id });
     return { connectionId: connection.id, secretId: secret.id, requested,
       ...(siteOnly ? { siteRepository: receipt(requested[0]!) }
         : { oldRepository: receipt(requested[0]!), newRepository: receipt(requested[1]!) }) };
@@ -92,7 +92,7 @@ export function gradeRepositories(value: unknown) {
       && row.connectionIds?.includes(o.connection.id))), "The actual active fixture connection still authorizes each intended repository.");
   const p = o.repositoryProject; const selected = repositoriesOf(p);
   const desired = requested?.[o.scenarioId === "projects.add-repository" ? 0 : 1];
-  c.add("exact-supported-repository-selection", !!p && p.companyId === o.companyId && p.name === "Launch" && selected.length === 1 && !!desired
+  c.add("exact-supported-repository-selection", !!p && p.spaceId === o.spaceId && p.name === "Launch" && selected.length === 1 && !!desired
     && selected[0]?.repoUrl === `https://github.com/${desired.fullName}`
     && (!selected[0]?.metadata?.githubRepositoryId || selected[0].metadata.githubRepositoryId === desired.id)
     && p.workspaces.every(row => !row.cwd && !/\b(?:token|password)\b|https:\/\/[^/]*@/i.test(row.repoUrl ?? "")),
@@ -124,7 +124,7 @@ async function openProject(ctx: ChatCatalogContext, o: RepositoryObservation) {
   const p = o.repositoryProject; if (!p) throw new Error("No saved repository project");
   const href = o.links.find(link => hasLink({ ...o, links: [link] }, "projects", p));
   if (href) await internalResultLink(ctx, o, href).first().click();
-  else await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.company.issuePrefix}/projects/${p.urlKey ?? p.id}`, o.origin).href, { waitUntil: "domcontentloaded" });
+  else await ctx.input.page.goto(new URL(`/${ctx.input.fixtures.space.issuePrefix}/projects/${p.urlKey ?? p.id}`, o.origin).href, { waitUntil: "domcontentloaded" });
   await expect(ctx.input.page.getByRole("heading", { name: p.name!, exact: true }).first()).toBeVisible();
   await ctx.input.page.getByText("Configuration", { exact: true }).last().click();
   const section = ctx.input.page.getByRole("region", { name: "Repositories", exact: true }); await expect(section).toBeVisible();
@@ -154,7 +154,7 @@ function repositoryCase(scenarioId: string): ChatCatalogCase {
       const o = await observeInternal(ctx, state); const p = o.projects.find(row => row.id === (state.project as Entity | undefined)?.id)
         ?? o.projects.find(row => row.name === "Launch");
       const [options, connection] = await Promise.all([
-        ctx.input.api.get<{ repositories: Repository[] }>(`/api/companies/${o.companyId}/project-repositories`),
+        ctx.input.api.get<{ repositories: Repository[] }>(`/api/spaces/${o.spaceId}/project-repositories`),
         ctx.input.api.get<RepositoryObservation["connection"]>(`/api/tool-connections/${state.connectionId}`),
       ]);
       return { ...o, repositoryProject: p ? await ctx.input.api.get<RepositoryProject>(`/api/projects/${p.id}`) : undefined,

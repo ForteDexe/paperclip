@@ -6,7 +6,7 @@ import { AGENT_ROLE_LABELS, type AgentRole } from "@outpost/shared";
  * first screen where the agent appears.
  */
 /**
- * The role every onboarding hire is filed under.
+ * The role every onboarding create is filed under.
  *
  * The arc asks for a name, not a role: someone naming their first agent is
  * describing what it should do, and the placeholder carries the range of

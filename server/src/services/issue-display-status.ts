@@ -10,22 +10,22 @@ import { activeIssueInteractionCondition } from "./issue-question-context.js";
 export function issueDisplayStatusSql(): SQL<IssueDisplayStatus> {
   // Drizzle removes column qualifiers in a single-table SELECT. Keep these
   // outer references explicitly qualified so correlated reads cannot bind to
-  // the run/recovery table's own id or company_id instead.
+  // the run/recovery table's own id or space_id instead.
   const issueId = sql`"issues"."id"`;
-  const companyId = sql`"issues"."company_id"`;
+  const spaceId = sql`"issues"."space_id"`;
   return sql<IssueDisplayStatus>`CASE
     WHEN ${issues.status} <> 'in_progress'
       OR ${issues.assigneeAgentId} IS NULL OR ${issues.assigneeUserId} IS NOT NULL
       THEN ${issues.status}
     WHEN EXISTS (
       SELECT 1 FROM heartbeat_runs display_run
-      WHERE display_run.company_id = ${companyId}
+      WHERE display_run.space_id = ${spaceId}
         AND display_run.issue_id = ${issueId}
         AND display_run.status IN ('queued', 'running')
     ) THEN 'in_progress'
     WHEN EXISTS (
       SELECT 1 FROM issue_recovery_actions display_recovery
-      WHERE display_recovery.company_id = ${companyId}
+      WHERE display_recovery.space_id = ${spaceId}
         AND display_recovery.source_issue_id = ${issueId}
         AND display_recovery.status IN ('active', 'escalated')
     ) THEN 'blocked'
@@ -33,7 +33,7 @@ export function issueDisplayStatusSql(): SQL<IssueDisplayStatus> {
       AND ${issues.executionState}->>'currentParticipant' IS NOT NULL)
       OR EXISTS (
         SELECT 1 FROM ${issueThreadInteractions}
-        WHERE ${issueThreadInteractions.companyId} = ${companyId}
+        WHERE ${issueThreadInteractions.spaceId} = ${spaceId}
           AND ${issueThreadInteractions.issueId} = ${issueId}
           AND ${issueThreadInteractions.status} = 'pending'
           AND ${activeIssueInteractionCondition()}

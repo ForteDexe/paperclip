@@ -8,11 +8,11 @@ import { PUBLIC_INSTALL_ROOTS, publicInstallClosure, publicRegistryDependencies 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 
 test('the closure starts at the server and the CLI and follows only workspace specs', () => {
-  assert.deepEqual(PUBLIC_INSTALL_ROOTS, ['@outpost/server', 'paperclipai']);
+  assert.deepEqual(PUBLIC_INSTALL_ROOTS, ['@outpost/server', '@outpost/cli']);
   const { packages, needed } = publicInstallClosure(repo);
   const order = [...needed];
   assert.equal(order[0], '@outpost/server');
-  assert.ok(needed.has('paperclipai'));
+  assert.ok(needed.has('@outpost/cli'));
   for (const name of needed) {
     const { manifest } = packages.get(name);
     for (const [dep, spec] of Object.entries({ ...manifest.dependencies, ...manifest.optionalDependencies })) {

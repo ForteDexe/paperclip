@@ -14,7 +14,7 @@ import type { CreateCapabilityLiveSessionInput } from "./live-session.js";
  * The scenario explorer seeds a recorded eval case: a transcript, scripted tool
  * calls, parity verdicts, and fixture evidence. The clean room deliberately
  * seeds none of that. It creates the smallest mock tenant that can scope a
- * runner session — one company, one agent, one blank work issue — and hands it
+ * runner session — one space, one agent, one blank work issue — and hands it
  * to the same real runnerd + real Codex loop the scenario path uses. What the
  * model then does is driven only by the free-form conversation.
  *
@@ -31,7 +31,7 @@ export const CAPABILITY_CLEAN_ROOM_SCENARIO_ID = "capability-clean-room" as cons
  * clean room: the exposure profile is fixed, the calls are not.
  *
  * The three omissions are load-bearing rather than accidental:
- * `governance:approvals:decide` (the agent proposes, the board decides),
+ * `approvals:approvals:decide` (the agent proposes, the board decides),
  * `workspace:control` (no service lifecycle from a chat), and
  * `test:generic_api_request` (the escape hatch stays off). Each produces a
  * typed denial with a named code if the model reaches for it, which is what
@@ -44,15 +44,15 @@ export const CAPABILITY_CLEAN_ROOM_CLAIMS: readonly string[] = Object.freeze([
   "dependencies:write",
   "discovery:agents:read",
   "discovery:tasks:read",
-  "governance:approvals:comment",
-  "governance:approvals:read",
-  "governance:approvals:request",
+  "approvals:approvals:comment",
+  "approvals:approvals:read",
+  "approvals:approvals:request",
   "workspace:read",
 ]);
 
 /** Grants that stay withheld so a denial is always reachable. */
 export const CAPABILITY_CLEAN_ROOM_WITHHELD_CLAIMS: readonly string[] = Object.freeze([
-  "governance:approvals:decide",
+  "approvals:approvals:decide",
   "test:generic_api_request",
   "workspace:control",
 ]);
@@ -75,7 +75,7 @@ export interface CapabilityCleanRoomIdentity {
   token: string;
   /** Mock issue number. Rendered as `MCK-<sequence>` in the header. */
   sequence: number;
-  companyId: string;
+  spaceId: string;
   actorId: string;
   taskId: string;
   identifier: string;
@@ -94,7 +94,7 @@ export function createCapabilityCleanRoomIdentity(
   return {
     token,
     sequence,
-    companyId: `company-cleanroom-${token}`,
+    spaceId: `space-cleanroom-${token}`,
     actorId: `actor-cleanroom-${token}`,
     taskId: `task-cleanroom-${token}`,
     identifier: `MCK-${sequence}`,
@@ -106,7 +106,7 @@ export interface CapabilityCleanRoomSeedOptions {
 }
 
 /**
- * The minimum records a runner session needs to be scoped at all: a company to
+ * The minimum records a runner session needs to be scoped at all: a space to
  * own it, an agent to act as, and one blank issue to act on.
  */
 export function createCapabilityCleanRoomSeed(
@@ -115,17 +115,17 @@ export function createCapabilityCleanRoomSeed(
 ): CapabilityFixtureState {
   return createCapabilityFixtureState({
     ...(options.epochMs === undefined ? {} : { epochMs: options.epochMs }),
-    company: {
-      id: identity.companyId,
+    space: {
+      id: identity.spaceId,
       name: "Mock Outpost (clean room)",
       issuePrefix: "MCK",
       status: "active",
-      budgetId: `budget-${identity.companyId}`,
+      budgetId: `budget-${identity.spaceId}`,
     },
     actors: [
       {
         id: identity.actorId,
-        companyId: identity.companyId,
+        spaceId: identity.spaceId,
         name: "Mock Agent",
         role: "engineer",
         status: "active",
@@ -136,7 +136,7 @@ export function createCapabilityCleanRoomSeed(
     tasks: [
       {
         id: identity.taskId,
-        companyId: identity.companyId,
+        spaceId: identity.spaceId,
         identifier: identity.identifier,
         title: "Clean-room chat",
         description: null,
@@ -217,7 +217,7 @@ export function createCapabilityCleanRoomSessionInput(
       scenario: CAPABILITY_CLEAN_ROOM_SCENARIO,
       capabilities: capabilityFixtureRunCapabilities(CAPABILITY_CLEAN_ROOM_CLAIMS),
       explicitClaims: [...CAPABILITY_CLEAN_ROOM_CLAIMS],
-      companyId: identity.companyId,
+      spaceId: identity.spaceId,
       actorId: identity.actorId,
       taskId: identity.taskId,
       ...(options.turnTimeoutMs === undefined ? {} : { turnTimeoutMs: options.turnTimeoutMs }),

@@ -4,8 +4,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   activityLog,
   agents,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   connectionGrants,
   createDb,
   heartbeatRuns,
@@ -90,9 +90,9 @@ function mcpSuccessResponse(init: RequestInit): Response {
   );
 }
 
-async function createCompany(db: Db) {
+async function createSpace(db: Db) {
   return db
-    .insert(companies)
+    .insert(spaces)
     .values({
       name: `Connector telemetry ${randomUUID()}`,
       issuePrefix: `CT${randomUUID().slice(0, 6).toUpperCase()}`,
@@ -101,11 +101,11 @@ async function createCompany(db: Db) {
     .then((rows) => rows[0]!);
 }
 
-async function createAgent(db: Db, companyId: string) {
+async function createAgent(db: Db, spaceId: string) {
   return db
     .insert(agents)
     .values({
-      companyId,
+      spaceId,
       name: `Agent ${randomUUID()}`,
       role: "engineer",
       adapterType: "process",
@@ -117,16 +117,16 @@ async function createAgent(db: Db, companyId: string) {
     .then((rows) => rows[0]!);
 }
 
-async function createIssueAndRun(db: Db, companyId: string, agentId: string) {
+async function createIssueAndRun(db: Db, spaceId: string, agentId: string) {
   const project = await db
     .insert(projects)
-    .values({ companyId, name: `Project ${randomUUID()}` })
+    .values({ spaceId, name: `Project ${randomUUID()}` })
     .returning()
     .then((rows) => rows[0]!);
   const issue = await db
     .insert(issues)
     .values({
-      companyId,
+      spaceId,
       projectId: project.id,
       title: `Telemetry issue ${randomUUID()}`,
       status: "in_progress",
@@ -137,7 +137,7 @@ async function createIssueAndRun(db: Db, companyId: string, agentId: string) {
   const run = await db
     .insert(heartbeatRuns)
     .values({
-      companyId,
+      spaceId,
       agentId,
       invocationSource: "assignment",
       status: "running",
@@ -148,11 +148,11 @@ async function createIssueAndRun(db: Db, companyId: string, agentId: string) {
   return { issue, run };
 }
 
-async function allowAllToolsForAgent(db: Db, companyId: string, agentId: string) {
+async function allowAllToolsForAgent(db: Db, spaceId: string, agentId: string) {
   const profile = await db
     .insert(toolProfiles)
     .values({
-      companyId,
+      spaceId,
       profileKey: `telemetry-all-${randomUUID()}`,
       name: `Telemetry profile ${randomUUID()}`,
       defaultAction: "allow",
@@ -160,18 +160,18 @@ async function allowAllToolsForAgent(db: Db, companyId: string, agentId: string)
     .returning()
     .then((rows) => rows[0]!);
   await db.insert(toolProfileBindings).values({
-    companyId,
+    spaceId,
     profileId: profile.id,
     targetType: "agent",
     targetId: agentId,
   });
 }
 
-async function createRemoteMcpTool(db: Db, companyId: string) {
+async function createRemoteMcpTool(db: Db, spaceId: string) {
   const [application] = await db
     .insert(toolApplications)
     .values({
-      companyId,
+      spaceId,
       applicationKey: `telemetry-app-${randomUUID().slice(0, 8)}`,
       name: `Remote app ${randomUUID()}`,
       type: "mcp_http",
@@ -185,7 +185,7 @@ async function createRemoteMcpTool(db: Db, companyId: string) {
   const [connection] = await db
     .insert(toolConnections)
     .values({
-      companyId,
+      spaceId,
       applicationId: application!.id,
       name: `Remote connection ${randomUUID()}`,
       uid: `test/${randomUUID()}`,
@@ -200,7 +200,7 @@ async function createRemoteMcpTool(db: Db, companyId: string) {
     })
     .returning();
   await db.insert(connectionGrants).values({
-    companyId,
+    spaceId,
     connectionId: connection!.id,
     kind: "organization",
     credentialSecretRefs: [],
@@ -210,7 +210,7 @@ async function createRemoteMcpTool(db: Db, companyId: string) {
   const [catalogEntry] = await db
     .insert(toolCatalogEntries)
     .values({
-      companyId,
+      spaceId,
       applicationId: application!.id,
       connectionId: connection!.id,
       entryKind: "tool",
@@ -259,7 +259,7 @@ describeEmbeddedPostgres("gateway connector invocation telemetry", () => {
 
   beforeAll(async () => {
     tempDb = await startEmbeddedPostgresTestDatabase(
-      "paperclip-connector-telemetry-",
+      "outpost-connector-telemetry-",
     );
     db = createDb(tempDb.connectionString);
   }, 30_000);
@@ -287,8 +287,8 @@ describeEmbeddedPostgres("gateway connector invocation telemetry", () => {
     await db.delete(issues);
     await db.delete(projects);
     await db.delete(agents);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -296,18 +296,18 @@ describeEmbeddedPostgres("gateway connector invocation telemetry", () => {
   });
 
   async function fixture(options: Parameters<typeof createToolGatewayService>[1] = {}) {
-    const company = await createCompany(db);
-    const agent = await createAgent(db, company.id);
-    const { run } = await createIssueAndRun(db, company.id, agent.id);
-    const remoteTool = await createRemoteMcpTool(db, company.id);
-    await allowAllToolsForAgent(db, company.id, agent.id);
+    const space = await createSpace(db);
+    const agent = await createAgent(db, space.id);
+    const { run } = await createIssueAndRun(db, space.id, agent.id);
+    const remoteTool = await createRemoteMcpTool(db, space.id);
+    await allowAllToolsForAgent(db, space.id, agent.id);
     const gateway = createToolGatewayService(db, {
       toolActionSigningSecret: SIGNING_SECRET,
       remoteHttpRequest: async (_url, init) => mcpSuccessResponse(init),
       ...options,
     });
     const session = await gateway.createSession({
-      companyId: company.id,
+      spaceId: space.id,
       agentId: agent.id,
       runId: run.id,
     });
@@ -315,7 +315,7 @@ describeEmbeddedPostgres("gateway connector invocation telemetry", () => {
       (candidate) => candidate.connectionId === remoteTool.connection.id,
     );
     expect(tool).toBeDefined();
-    return { company, agent, run, remoteTool, gateway, session, tool: tool! };
+    return { space, agent, run, remoteTool, gateway, session, tool: tool! };
   }
 
   it("emits exactly one succeeded event for a successful agent execution", async () => {
@@ -385,7 +385,7 @@ describeEmbeddedPostgres("gateway connector invocation telemetry", () => {
     vi.setSystemTime(new Date("2026-10-06T12:00:30Z"));
     const f = await fixture();
     await db.insert(toolPolicies).values({
-      companyId: f.company.id,
+      spaceId: f.space.id,
       name: "Block telemetry tool",
       policyType: "block",
       selectors: { connectionId: f.remoteTool.connection.id },
@@ -406,7 +406,7 @@ describeEmbeddedPostgres("gateway connector invocation telemetry", () => {
     track.mockClear();
     await db.delete(toolPolicies);
     await db.insert(toolPolicies).values({
-      companyId: f.company.id,
+      spaceId: f.space.id,
       name: "One call only",
       policyType: "rate_limit",
       selectors: { connectionId: f.remoteTool.connection.id },
@@ -438,7 +438,7 @@ describeEmbeddedPostgres("gateway connector invocation telemetry", () => {
   it("approval flow: pending emits nothing, decline emits denied, approve emits succeeded", async () => {
     const f = await fixture();
     await db.insert(toolPolicies).values({
-      companyId: f.company.id,
+      spaceId: f.space.id,
       name: "Review telemetry tool",
       policyType: "require_approval",
       selectors: { connectionId: f.remoteTool.connection.id },
@@ -467,9 +467,9 @@ describeEmbeddedPostgres("gateway connector invocation telemetry", () => {
 
     const [pendingRequest] = await db.select().from(toolActionRequests);
     await f.gateway.declineActionRequest({
-      companyId: f.company.id,
+      spaceId: f.space.id,
       actionRequestId: pendingRequest!.id,
-      actor: { userId: "board" },
+      actor: { userId: "operator" },
     });
     let events = await settledEvents(1);
     expect(events).toHaveLength(1);
@@ -494,9 +494,9 @@ describeEmbeddedPostgres("gateway connector invocation telemetry", () => {
       .where(eq(toolActionRequests.status, "pending"))
       .then((rows) => rows[0]!);
     await f.gateway.approveActionRequest({
-      companyId: f.company.id,
+      spaceId: f.space.id,
       actionRequestId: approvable.id,
-      actor: { userId: "board" },
+      actor: { userId: "operator" },
     });
     events = await settledEvents(1);
     expect(events).toHaveLength(1);
@@ -505,18 +505,18 @@ describeEmbeddedPostgres("gateway connector invocation telemetry", () => {
 
   it("labels connection-test executions as setup_test", async () => {
     const f = await fixture();
-    await db.insert(companyMemberships).values({
-      companyId: f.company.id,
+    await db.insert(spaceMemberships).values({
+      spaceId: f.space.id,
       principalType: "user",
-      principalId: "board-user",
+      principalId: "operator-user",
       status: "active",
       membershipRole: "member",
     });
     const testCall = await f.gateway.executeTestCall({
-      companyId: f.company.id,
+      spaceId: f.space.id,
       connectionId: f.remoteTool.connection.id,
       agentId: f.agent.id,
-      userId: "board-user",
+      userId: "operator-user",
       toolName: f.tool.name,
       parameters: { key: "t", value: "1" },
     });

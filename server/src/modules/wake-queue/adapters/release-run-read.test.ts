@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { agents, companies, createDb, heartbeatRuns } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns } from "@outpost/db";
 import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } from "../../../__tests__/helpers/full-database-response-capture.js";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -11,15 +11,15 @@ const support = await getEmbeddedPostgresTestSupport();
 describe.skipIf(!support.supported)("wake release run reads", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  let companyId: string;
+  let spaceId: string;
   let agentId: string;
 
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase("wake-release-read-");
     db = createDb(database.connectionString);
-    const [company] = await db.insert(companies).values({ name: "Wake release fixture", issuePrefix: "WRR" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Release agent", adapterType: "process" }).returning();
-    companyId = company.id;
+    const [space] = await db.insert(spaces).values({ name: "Wake release fixture", issuePrefix: "WRR" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Release agent", adapterType: "process" }).returning();
+    spaceId = space.id;
     agentId = agent.id;
   }, 60_000);
 
@@ -33,11 +33,11 @@ describe.skipIf(!support.supported)("wake release run reads", () => {
     const context = { issueId: randomUUID(), opaqueFutureContext: { savedInput: "keep this input" }, explicitUserContinuation: true };
     const evidence = { nativeCancellation: { schema: "outpost.native-cancellation.v1", acknowledged: true }, unknownFutureReceipt: [true, null, 42] };
     const [before] = await db.insert(heartbeatRuns).values({
-      companyId, agentId, runtimeMode: "native", status: "running", contextSnapshot: context,
+      spaceId, agentId, runtimeMode: "native", status: "running", contextSnapshot: context,
       runnerProfileJson: { nativeExecutionInput: { savedInput: bulk } }, stdoutExcerpt: bulk, stderrExcerpt: bulk,
       resultJson: { ...evidence, stdout: bulk, stderr: bulk },
     }).returning();
-    const scope = { companyId, runId: before.id };
+    const scope = { spaceId, runId: before.id };
     const events: Array<Record<string, unknown>> = [];
     const now = Date.now();
     const capture = createFullDatabaseResponseCapture({ start: now - 100, end: now + 59_000 }, event => events.push(event));
@@ -60,15 +60,15 @@ describe.skipIf(!support.supported)("wake release run reads", () => {
     const legacy = await readReleaseRun(db, scope);
     expect(legacy.kind).toBe("complete");
     expect(legacy.run).toEqual({ ...before, runtimeMode: "legacy", resultJson: evidence });
-    expect((await readReleaseRun(db, { ...scope, companyId: randomUUID() })).run).toBeUndefined();
-    expect((await readReleaseRun(db, { companyId, runId: randomUUID() })).run).toBeUndefined();
+    expect((await readReleaseRun(db, { ...scope, spaceId: randomUUID() })).run).toBeUndefined();
+    expect((await readReleaseRun(db, { spaceId, runId: randomUUID() })).run).toBeUndefined();
   });
 
   it.each([null, ["stdout", { stderr: "evidence" }], "scalar", 42].map(result => ({ result })))(
     "preserves non-object native result evidence $result", async ({ result }) => {
-      const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, runtimeMode: "native",
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, runtimeMode: "native",
         resultJson: result as Record<string, unknown> | null }).returning();
-      expect((await readReleaseRun(db, { companyId, runId: run.id })).run?.resultJson).toEqual(result);
+      expect((await readReleaseRun(db, { spaceId, runId: run.id })).run?.resultJson).toEqual(result);
     },
   );
 
@@ -85,22 +85,22 @@ describe.skipIf(!support.supported)("wake release run reads", () => {
     };
     const launch = {
       executionContinuation: { instruction: bulk, state: "saved" },
-      paperclipWake: { savedTask: bulk }, paperclipWakeComment: bulk, paperclipTaskMarkdown: bulk,
-      paperclipTaskMarkdownCompact: bulk, paperclipTaskMarkdownAssignment: bulk,
-      paperclipTaskMarkdownAssignmentCompact: bulk, paperclipWorkspace: { files: bulk },
-      outpostEnvironment: { input: bulk }, paperclipContinuationSummary: bulk,
+      outpostWake: { savedTask: bulk }, outpostWakeComment: bulk, outpostTaskMarkdown: bulk,
+      outpostTaskMarkdownCompact: bulk, outpostTaskMarkdownAssignment: bulk,
+      outpostTaskMarkdownAssignmentCompact: bulk, outpostWorkspace: { files: bulk },
+      outpostEnvironment: { input: bulk }, outpostContinuationSummary: bulk,
     };
     const evidence = { nativeCancellation: { schema: "outpost.native-cancellation.v1", dispatched: true },
       executionCancellation: { state: "acknowledged" }, workspaceRestoreRecovery: { leaseIds: [randomUUID()] },
       configurationIncomplete: { reason: "secret_binding_missing" }, unknownFutureReceipt: { retained: true } };
-    const [before] = await db.insert(heartbeatRuns).values({ companyId, agentId, runtimeMode: "native",
+    const [before] = await db.insert(heartbeatRuns).values({ spaceId, agentId, runtimeMode: "native",
       contextSnapshot: { ...context, ...launch }, resultJson: evidence }).returning();
     const events: Array<Record<string, unknown>> = [];
     const now = Date.now();
     const capture = createFullDatabaseResponseCapture({ start: now - 100, end: now + 59_000 }, event => events.push(event));
     installDatabaseResponseCapture(db, { heartbeatRuns }, capture);
     let selected: Awaited<ReturnType<typeof readReleaseRun>>;
-    try { selected = await db.transaction(tx => readReleaseRun(tx as unknown as typeof db, { companyId, runId: before.id })); }
+    try { selected = await db.transaction(tx => readReleaseRun(tx as unknown as typeof db, { spaceId, runId: before.id })); }
     finally { capture.flush(); }
     const summary = events.find(event => event.event === "outpost.test_db_response_capture.summary.v1")!;
     expect(summary.completedQueries).toBe(1);
@@ -110,14 +110,14 @@ describe.skipIf(!support.supported)("wake release run reads", () => {
     expect(JSON.stringify(events)).not.toContain(bulk.slice(0, 64));
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, before.id)))[0]).toEqual(before);
     await db.update(heartbeatRuns).set({ runtimeMode: "legacy" }).where(eq(heartbeatRuns.id, before.id));
-    expect((await readReleaseRun(db, { companyId, runId: before.id })).run?.contextSnapshot).toEqual(before.contextSnapshot);
+    expect((await readReleaseRun(db, { spaceId, runId: before.id })).run?.contextSnapshot).toEqual(before.contextSnapshot);
   });
 
-  it.each([null, ["paperclipWake", { savedInput: "keep" }], "scalar", 42].map(context => ({ context })))(
+  it.each([null, ["outpostWake", { savedInput: "keep" }], "scalar", 42].map(context => ({ context })))(
     "preserves non-object native context $context", async ({ context }) => {
-      const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, runtimeMode: "native",
+      const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, runtimeMode: "native",
         contextSnapshot: context as Record<string, unknown> | null }).returning();
-      expect((await readReleaseRun(db, { companyId, runId: run.id })).run?.contextSnapshot).toEqual(context);
+      expect((await readReleaseRun(db, { spaceId, runId: run.id })).run?.contextSnapshot).toEqual(context);
     },
   );
 });

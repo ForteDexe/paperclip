@@ -3,7 +3,7 @@ import { probePluginRunnerEnvironment } from "./native-runtime/plugin-runner-pro
 import { pluginRunnerAiConnectionRequiredTestResult } from "./plugin-runner-ai-connection.js";
 import { registerPluginTaskCredentialHandoff } from "./plugin-task-credential-writeback.js";
 import { randomUUID } from "node:crypto";
-import { agents, companies, type Db } from "@outpost/db";
+import { agents, spaces, type Db } from "@outpost/db";
 import { and, eq } from "drizzle-orm";
 import type { AdapterExecutionTarget } from "@outpost/adapter-utils/execution-target";
 import type { AdapterEnvironmentCheck, AdapterEnvironmentTestContext, AdapterEnvironmentTestResult } from "@outpost/adapter-utils";
@@ -22,7 +22,7 @@ import { aiConnectionService } from "./ai-connections.js";
 import { validateAiApiKey } from "./ai-api-key-test.js";
 import { probeCopilotExecutionTarget } from "./copilot-connection-probe.js";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
-import { assertEnvironmentSelectionForCompany } from "./environment-selection.js";
+import { assertEnvironmentSelectionForSpace } from "./environment-selection.js";
 import { pluginEnvironmentRequiresAgent } from "./plugin-environment-driver.js";
 const asRecord = (value: unknown): Record<string, unknown> | null => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 function finishManagedConnectionTest(adapterType: string, context: AdapterEnvironmentTestContext, result: AdapterEnvironmentTestResult): AdapterEnvironmentTestResult {
@@ -45,9 +45,9 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
   // A null agent override inherits the instance default, just like dispatch.
   // Resolve this before secrets or probes so a default remote environment can
   // never accidentally validate the account on the control-plane host.
-  async function resolveAdapterTestEnvironmentId(companyId: string, environmentId: string | null | undefined, copilot = false) {
+  async function resolveAdapterTestEnvironmentId(spaceId: string, environmentId: string | null | undefined, copilot = false) {
     if (copilot && (await instanceSettings.getGeneral()).executionMode === "kubernetes") {
-      const kubernetes = await environmentsSvc.findKubernetesEnvironment(companyId);
+      const kubernetes = await environmentsSvc.findKubernetesEnvironment(spaceId);
       if (!kubernetes) throw unprocessable("The Kubernetes execution environment is unavailable.", { code: "copilot_environment_unavailable" });
       return kubernetes.id;
     }
@@ -55,7 +55,7 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
     const settings = await instanceSettings.get();
     if (settings.defaultEnvironmentId) return settings.defaultEnvironmentId;
     if ((await instanceSettings.getExperimental()).enableManagedSandboxOnly === true) {
-      const managed = await environmentsSvc.findManagedSandboxEnvironment(companyId);
+      const managed = await environmentsSvc.findManagedSandboxEnvironment(spaceId);
       if (!managed) {
         throw unprocessable("The managed sandbox is unavailable. Restore Outpost Sandbox and retry.", {
           code: "managed_sandbox_unavailable",
@@ -70,7 +70,7 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
    * Resolve the execution target the adapter should run its test probes against.
    *
    * - No environmentId / local environment → returns a local target so the
-   *   adapter probes the Paperclip host (legacy behavior).
+   *   adapter probes the Outpost host (legacy behavior).
    * - SSH environment → builds an SSH execution target from the environment
    *   config so the adapter probes the remote box. No lease is required:
    *   the SSH spec is fully derived from the saved environment config.
@@ -84,7 +84,7 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
    */
   async function resolveAdapterTestExecutionContext(input: {
     agentId?: string;
-    companyId: string;
+    spaceId: string;
     adapterType: string;
     environmentId: string | null;
   }): Promise<{
@@ -133,7 +133,7 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
         (await instanceSettings.getExperimental()).enableManagedSandboxOnly === true;
       if (managedSandboxOnly) {
         const managedSandboxEnvironment = await environmentsSvc.findManagedSandboxEnvironment(
-          input.companyId,
+          input.spaceId,
         );
         if (!managedSandboxEnvironment) {
           return {
@@ -168,7 +168,7 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
       try {
         const target = await resolveEnvironmentExecutionTarget({
           db,
-          companyId: input.companyId,
+          spaceId: input.spaceId,
           adapterType: input.adapterType,
           environment: {
             id: environment.id,
@@ -232,13 +232,13 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
     // provider-side expiry reaps it later.
     if (environment.driver === "plugin" && await pluginEnvironmentRequiresAgent(db, environment)) {
       const [agent] = input.agentId ? await db.select({ state: agents.lifecycleState, pauseReason: agents.pauseReason,
-        requiresApproval: companies.requireBoardApprovalForNewAgents }).from(agents)
-        .innerJoin(companies, eq(companies.id, agents.companyId))
-        .where(and(eq(agents.id, input.agentId), eq(agents.companyId, input.companyId))) : [];
+        requiresApproval: spaces.requireOperatorApprovalForNewAgents }).from(agents)
+        .innerJoin(spaces, eq(spaces.id, agents.spaceId))
+        .where(and(eq(agents.id, input.agentId), eq(agents.spaceId, input.spaceId))) : [];
       if (agent?.state === "paused" && agent.pauseReason === "setup" && agent.requiresApproval) return {
         executionTarget: null, environmentName: environment.name, fallbackChecks: [{
           code: "environment_agent_approval_required", level: "warn",
-          message: "The selected account will be verified on the agent computer after hire approval.",
+          message: "The selected account will be verified on the agent computer after create approval.",
         }], release: noopRelease,
       };
       if (!agent || ["paused", "preparing"].includes(agent.state)) return {
@@ -262,7 +262,7 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
     let leaseRecord: Awaited<ReturnType<typeof environmentRuntime.acquireRunLease>>;
     try {
       leaseRecord = await environmentRuntime.acquireRunLease({
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         agentId: input.agentId,
         adapterType: input.adapterType,
         ...(environment.driver === "plugin" && input.adapterType === "outpost_runner"
@@ -272,11 +272,11 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
         issueId: null,
         heartbeatRunId: null,
         persistedExecutionWorkspace: null,
-        // Re-check the company binding atomically at lease time. The route
+        // Re-check the space binding atomically at lease time. The route
         // guard already rejected a foreign environment, but the binding could
         // change between the guard check and the lease acquire. This closes
         // that check-to-lease race so a foreign sandbox never gets a lease.
-        assertCompanyBinding: true,
+        assertSpaceBinding: true,
         // Apply the active custom-image template so the Test boots with the
         // operator's captured sandbox customizations and prepared image state,
         // matching what real agent runs use. Without this the test would
@@ -373,7 +373,7 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
 
       target = await resolveEnvironmentExecutionTarget({
         db,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         adapterType: input.adapterType,
         environment: {
           id: testEnvironment.id,
@@ -475,7 +475,7 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
       "template_ref_kind",
     ]);
     const detailParts = [
-      `paperclipLeaseId=${input.lease.id}`,
+      `outpostLeaseId=${input.lease.id}`,
       input.lease.providerLeaseId ? `providerLeaseId=${input.lease.providerLeaseId}` : null,
       provider ? `provider=${provider}` : null,
       sandboxId ? `sandboxId=${sandboxId}` : null,
@@ -499,35 +499,35 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
 
   // The fail-closed tenant-binding guard for the adapter Test route. A caller
   // may name any instance environment by id, so the route must reject an
-  // environment that binds to another company before it resolves secrets,
+  // environment that binds to another space before it resolves secrets,
   // merges env, resolves the target, leases a sandbox, or runs the adapter
-  // test. The guard checks the company binding BEFORE it validates the status
+  // test. The guard checks the space binding BEFORE it validates the status
   // or the driver, so it never reveals the status or the driver of a foreign
-  // environment. A same-company or an instance-global environment then gets the
+  // environment. A same-space or an instance-global environment then gets the
   // shared driver and status validation.
-  async function assertAdapterTestEnvironmentForCompany(
-    companyId: string,
+  async function assertAdapterTestEnvironmentForSpace(
+    spaceId: string,
     environmentId: string,
     adapterType?: string,
   ): Promise<void> {
-    if (!await assertAdapterTestEnvironmentBinding(companyId, environmentId)) return;
-    await assertEnvironmentSelectionForCompany(environmentsSvc, companyId, environmentId, {
+    if (!await assertAdapterTestEnvironmentBinding(spaceId, environmentId)) return;
+    await assertEnvironmentSelectionForSpace(environmentsSvc, spaceId, environmentId, {
       allowedDrivers: adapterType === "outpost_runner" ? [...ADAPTER_TEST_ALLOWED_ENVIRONMENT_DRIVERS, "plugin"] : ADAPTER_TEST_ALLOWED_ENVIRONMENT_DRIVERS,
     });
   }
 
-  // The company-binding half of the guard. A route that must resolve the
+  // The space-binding half of the guard. A route that must resolve the
   // runner before it knows the adapter type runs this first, then runs the
   // full guard with the resolved adapter type. Returns the environment, or
   // null for a missing one, which leaks no tenant state; the execution-context
   // resolver surfaces the existing environment_not_found check.
-  async function assertAdapterTestEnvironmentBinding(companyId: string, environmentId: string) {
+  async function assertAdapterTestEnvironmentBinding(spaceId: string, environmentId: string) {
     const environment = await environmentsSvc.getById(environmentId);
     if (!environment) return null;
-    const boundCompanyIds = await environmentsSvc.listBoundCompanyIds(environmentId);
-    if (boundCompanyIds.length > 0 && !boundCompanyIds.includes(companyId)) {
-      throw forbidden("The selected environment belongs to another company.", {
-        code: "environment_company_mismatch",
+    const boundSpaceIds = await environmentsSvc.listBoundSpaceIds(environmentId);
+    if (boundSpaceIds.length > 0 && !boundSpaceIds.includes(spaceId)) {
+      throw forbidden("The selected environment belongs to another space.", {
+        code: "environment_space_mismatch",
       });
     }
     return environment;
@@ -545,7 +545,7 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
     }
     const target = context.executionTarget;
     if (managed.credentialWriteback && target?.kind === "remote" && target.transport === "sandbox" && target.runnerTask && target.leaseId) {
-      await registerPluginTaskCredentialHandoff(db, { companyId: context.companyId, leaseId: target.leaseId }, managed.sessionIdentity, managed.credentialWriteback);
+      await registerPluginTaskCredentialHandoff(db, { spaceId: context.spaceId, leaseId: target.leaseId }, managed.sessionIdentity, managed.credentialWriteback);
     }
     const result = await probeManagedEnvironment(adapterType, context, binding, managed);
     // A provider rejection invalidates the tested credential generation. A
@@ -555,7 +555,7 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
         || check.code === "ai_connection_api_key_rejected" || check.code === "COPILOT_AUTH_REQUIRED",
     )) {
       await aiConnectionService(db).markAuthenticationFailed({
-        companyId: context.companyId, agentId, runStartedAt: startedAt,
+        spaceId: context.spaceId, agentId, runStartedAt: startedAt,
         attribution: { ...managed.attribution, identity: managed.identity },
       });
     }
@@ -651,5 +651,5 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
   }
 
 
-  return { resolveAdapterTestEnvironmentId, resolveAdapterTestExecutionContext, assertAdapterTestEnvironmentForCompany, assertAdapterTestEnvironmentBinding, testManagedEnvironment };
+  return { resolveAdapterTestEnvironmentId, resolveAdapterTestExecutionContext, assertAdapterTestEnvironmentForSpace, assertAdapterTestEnvironmentBinding, testManagedEnvironment };
 }

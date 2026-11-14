@@ -3,7 +3,7 @@ import { SemanticToolOutcomeUnknownError } from "../../vendor/outpost-runner/ind
 import { captureRunnerToolResult, fitRunnerToolResultPage, RUNNER_TOOL_RESULT_MAX_BYTES } from "./runner-tool-results.js";
 
 describe("assigned tool result capture", () => {
-  it("leaves small governed results inline without storage admission", async () => {
+  it("leaves small controlled results inline without storage admission", async () => {
     const result = { data: { untrusted: true, content: "small result" } };
     const io = { reserveResponseCapture: vi.fn(), saveResponse: vi.fn() };
     expect(await captureRunnerToolResult(result, io)).toBe(result);

@@ -108,9 +108,9 @@ test("ORP v3 external operations are closed and external providers have no nativ
   const schemas = await loadSchemaCatalog(resolve(protocolRoot, "schemas"));
   const validators = compileProtocolValidators(schemas);
   const happy = await fixture("replay/happy-path.json");
-  const binding = { companyId: "company", agentId: "agent", bindingId: "binding", bindingGeneration: 1,
+  const binding = { spaceId: "space", agentId: "agent", bindingId: "binding", bindingGeneration: 1,
     runId: happy.identity.runId, normalizedSessionId: happy.identity.normalizedSessionId, turnId: "turn", assignmentRevision: 1 };
-  const { companyId, agentId, ...commandBinding } = binding;
+  const { spaceId, agentId, ...commandBinding } = binding;
   const command = { ...happy.commands[0], schema: "outpost.orp.command.v3", type: "external_provider.operation",
     payload: { ...commandBinding, requestId: "request", digest: "sha256:" + "a".repeat(64), action: "tool", input: { name: "write_document", arguments: {} } } };
   assert.equal(validators.commandV3(command), true);

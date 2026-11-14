@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, ilike, inArray, isNotNull, notInArray, or, sql, type SQL } from "drizzle-orm";
-import { agents, companies, decisions, decisionTargetIssues, issues, issueThreadInteractions, projects, type Db } from "@outpost/db";
+import { agents, spaces, decisions, decisionTargetIssues, issues, issueThreadInteractions, projects, type Db } from "@outpost/db";
 import type { DecisionHistoryItem, DecisionHistoryPage, DecisionHistoryQuery } from "@outpost/shared";
 import { issueReadSqlCondition, type AuthorizationActor } from "./authorization.js";
 import { badRequest } from "../errors.js";
@@ -63,7 +63,7 @@ export function pageDecisionHistory(items: DecisionHistoryItem[], limit: number,
 }
 
 export function decisionHistoryService(db: Db) {
-  return { async list(companyId: string, options: HistoryOptions): Promise<DecisionHistoryPage> {
+  return { async list(spaceId: string, options: HistoryOptions): Promise<DecisionHistoryPage> {
     if (options.issueIds?.length === 0) return { items: [], nextCursor: null };
     const limit = Math.max(1, Math.min(options.limit ?? 40, 100));
     const sort = options.sort ?? "newest";
@@ -71,9 +71,9 @@ export function decisionHistoryService(db: Db) {
     const since = options.since ? new Date(options.since) : null;
     if (since && !Number.isFinite(since.getTime())) throw badRequest("Invalid decision history date");
     const readable = await issueReadSqlCondition(db, options.actor);
-    const readableIssues = db.select({ id: issues.id }).from(issues).where(and(eq(issues.companyId, companyId), readable));
-    const [company] = await db.select({ prefix: companies.issuePrefix }).from(companies).where(eq(companies.id, companyId));
-    if (!company) return { items: [], nextCursor: null };
+    const readableIssues = db.select({ id: issues.id }).from(issues).where(and(eq(issues.spaceId, spaceId), readable));
+    const [space] = await db.select({ prefix: spaces.issuePrefix }).from(spaces).where(eq(spaces.id, spaceId));
+    if (!space) return { items: [], nextCursor: null };
     // Cursor timestamps use the JSON/Date millisecond precision. Normalize SQL
     // ordering to that same precision; the canonical source key breaks ties.
     const interactionTime = sql<Date>`date_trunc('milliseconds', ${issueThreadInteractions.resolvedAt})`;
@@ -106,10 +106,10 @@ export function decisionHistoryService(db: Db) {
         title: issueThreadInteractions.title, outcome: issueThreadInteractions.status, resolvedAt: issueThreadInteractions.resolvedAt,
         resolvedByUserId: issueThreadInteractions.resolvedByUserId, resolvedByAgentId: issueThreadInteractions.resolvedByAgentId,
         kind: issueThreadInteractions.kind, payload: issueThreadInteractions.payload, result: issueThreadInteractions.result })
-        .from(issueThreadInteractions).innerJoin(issues, and(eq(issues.id, issueThreadInteractions.issueId), eq(issues.companyId, companyId)))
-        .leftJoin(agents, and(eq(agents.id, issueThreadInteractions.createdByAgentId), eq(agents.companyId, companyId)))
-        .leftJoin(projects, and(eq(projects.id, issues.projectId), eq(projects.companyId, companyId)))
-        .where(and(eq(issueThreadInteractions.companyId, companyId), readable, isNotNull(issueThreadInteractions.resolvedAt),
+        .from(issueThreadInteractions).innerJoin(issues, and(eq(issues.id, issueThreadInteractions.issueId), eq(issues.spaceId, spaceId)))
+        .leftJoin(agents, and(eq(agents.id, issueThreadInteractions.createdByAgentId), eq(agents.spaceId, spaceId)))
+        .leftJoin(projects, and(eq(projects.id, issues.projectId), eq(projects.spaceId, spaceId)))
+        .where(and(eq(issueThreadInteractions.spaceId, spaceId), readable, isNotNull(issueThreadInteractions.resolvedAt),
           notInArray(issueThreadInteractions.status, ["pending"]),
           interactionOutcome,
           options.agentId ? eq(issueThreadInteractions.createdByAgentId, options.agentId) : undefined,
@@ -119,11 +119,11 @@ export function decisionHistoryService(db: Db) {
         agentId: agents.id, agentName: agents.name, projectId: projects.id, projectName: projects.name,
         title: decisions.title, outcome: decisions.status, resolvedAt: decisionTime,
         resolvedByUserId: decisions.decidedByUserId, chosenOptionId: decisions.chosenOptionId, options: decisions.options })
-        .from(decisions).innerJoin(issues, and(eq(issues.id, decisions.originIssueId), eq(issues.companyId, companyId)))
-        .leftJoin(agents, and(eq(agents.id, decisions.originAgentId), eq(agents.companyId, companyId)))
-        .leftJoin(projects, and(eq(projects.id, issues.projectId), eq(projects.companyId, companyId)))
-        .where(and(eq(decisions.companyId, companyId), readable, notInArray(decisions.status, ["open"]),
-          sql`not exists (select 1 from ${decisionTargetIssues} where ${decisionTargetIssues.decisionId} = ${decisions.id} and (${decisionTargetIssues.companyId} <> ${companyId} or ${decisionTargetIssues.issueId} not in (${readableIssues})))`,
+        .from(decisions).innerJoin(issues, and(eq(issues.id, decisions.originIssueId), eq(issues.spaceId, spaceId)))
+        .leftJoin(agents, and(eq(agents.id, decisions.originAgentId), eq(agents.spaceId, spaceId)))
+        .leftJoin(projects, and(eq(projects.id, issues.projectId), eq(projects.spaceId, spaceId)))
+        .where(and(eq(decisions.spaceId, spaceId), readable, notInArray(decisions.status, ["open"]),
+          sql`not exists (select 1 from ${decisionTargetIssues} where ${decisionTargetIssues.decisionId} = ${decisions.id} and (${decisionTargetIssues.spaceId} <> ${spaceId} or ${decisionTargetIssues.issueId} not in (${readableIssues})))`,
           options.outcome ? eq(decisions.status, options.outcome) : undefined,
           options.agentId ? eq(decisions.originAgentId, options.agentId) : undefined,
           ...conditions(decisionTime, decisionKey, decisions.title)))
@@ -135,13 +135,13 @@ export function decisionHistoryService(db: Db) {
       const labels: Record<string, string> = { accepted: "Approved", rejected: "Changes requested", answered: "Answers recorded", cancelled: "Cancelled", expired: "Expired", failed: "Failed", stale_target: "Superseded", superseded_by_newer_request: "Superseded", superseded_by_comment: "Answered in task" };
       return { ...row, title: row.title ?? row.issueTitle, resolvedAt: new Date(row.resolvedAt!).toISOString(),
         id: `issue_thread_interaction:${row.sourceId}`, sourceKind: "issue_thread_interaction", label: (kind === "request_item_verdicts" ? itemVerdictsHistoryLabel(result) : null) ?? labels[resultOutcome] ?? labels[row.outcome] ?? "Decision recorded", target,
-        href: decisionHistoryHref(company.prefix, row.issueIdentifier ?? row.issueId, "issue_thread_interaction", row.sourceId, target) };
+        href: decisionHistoryHref(space.prefix, row.issueIdentifier ?? row.issueId, "issue_thread_interaction", row.sourceId, target) };
     });
     const decisionItems: DecisionHistoryItem[] = decisionRows.map(({ chosenOptionId, options: choices, ...row }) => ({
       ...row, id: `decision:${row.sourceId}`, sourceKind: "decision", resolvedByAgentId: null,
       resolvedAt: new Date(row.resolvedAt).toISOString(), target: null,
       label: choices.find((choice) => choice.id === chosenOptionId)?.label ?? (row.outcome === "expired" ? "Expired" : row.outcome === "cancelled" ? "Cancelled" : "Decision recorded"),
-      href: decisionHistoryHref(company.prefix, row.issueIdentifier ?? row.issueId, "decision", row.sourceId, null),
+      href: decisionHistoryHref(space.prefix, row.issueIdentifier ?? row.issueId, "decision", row.sourceId, null),
     }));
     return pageDecisionHistory([...interactionItems, ...decisionItems], limit, sort);
   } };

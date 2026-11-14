@@ -5,7 +5,7 @@ import {
   activityLog,
   agentApiKeys,
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issues,
@@ -24,7 +24,7 @@ import {
 
 type TableRows = Map<unknown, Array<Record<string, unknown>>>;
 
-const companyId = "00000000-0000-4000-8000-000000000001";
+const spaceId = "00000000-0000-4000-8000-000000000001";
 const agentId = "00000000-0000-4000-8000-000000000002";
 const issueId = "00000000-0000-4000-8000-000000000003";
 const runId = "00000000-0000-4000-8000-000000000004";
@@ -47,7 +47,7 @@ function createReader(rowsByTable: TableRows) {
 
 function activityInput(overrides: Partial<LogActivityInput> = {}): LogActivityInput {
   return {
-    companyId,
+    spaceId,
     actorType: "agent",
     actorId: agentId,
     action: "issue.updated",
@@ -69,8 +69,8 @@ describe("resolveResponsibleUserIdForActivity", () => {
     await expect(resolveResponsibleUserIdForActivity(db, activityInput({
       actorType: "user",
       actorId: "user-1",
-      entityType: "company",
-      entityId: companyId,
+      entityType: "space",
+      entityId: spaceId,
     }))).resolves.toBe("user-1");
   });
 
@@ -79,7 +79,7 @@ describe("resolveResponsibleUserIdForActivity", () => {
       [heartbeatRuns, [{ responsibleUserId: "run-user" }]],
       [issues, [{ responsibleUserId: "issue-user", createdByUserId: null }]],
       [agentApiKeys, [{ responsibleUserId: "key-user" }]],
-      [companies, [{ defaultResponsibleUserId: "default-user" }]],
+      [spaces, [{ defaultResponsibleUserId: "default-user" }]],
     ]));
 
     await expect(resolveResponsibleUserIdForActivity(db, activityInput({
@@ -93,7 +93,7 @@ describe("resolveResponsibleUserIdForActivity", () => {
       [heartbeatRuns, []],
       [issues, [{ responsibleUserId: "issue-user", createdByUserId: "creator-user" }]],
       [agentApiKeys, [{ responsibleUserId: "key-user" }]],
-      [companies, [{ defaultResponsibleUserId: "default-user" }]],
+      [spaces, [{ defaultResponsibleUserId: "default-user" }]],
     ]));
 
     await expect(resolveResponsibleUserIdForActivity(db, activityInput({
@@ -105,7 +105,7 @@ describe("resolveResponsibleUserIdForActivity", () => {
   it("uses explicit issue context for non-issue activity", async () => {
     const db = createReader(new Map<unknown, Array<Record<string, unknown>>>([
       [issues, [{ responsibleUserId: "issue-user", createdByUserId: null }]],
-      [companies, [{ defaultResponsibleUserId: "default-user" }]],
+      [spaces, [{ defaultResponsibleUserId: "default-user" }]],
     ]));
 
     await expect(resolveResponsibleUserIdForActivity(db, activityInput({
@@ -118,7 +118,7 @@ describe("resolveResponsibleUserIdForActivity", () => {
   it("uses the active agent API key responsible user for no-run actions", async () => {
     const db = createReader(new Map<unknown, Array<Record<string, unknown>>>([
       [agentApiKeys, [{ responsibleUserId: "key-user" }]],
-      [companies, [{ defaultResponsibleUserId: "default-user" }]],
+      [spaces, [{ defaultResponsibleUserId: "default-user" }]],
     ]));
 
     await expect(resolveResponsibleUserIdForActivity(db, activityInput({
@@ -128,15 +128,15 @@ describe("resolveResponsibleUserIdForActivity", () => {
     }))).resolves.toBe("key-user");
   });
 
-  it("falls back to the company default responsible user", async () => {
+  it("falls back to the space default responsible user", async () => {
     const db = createReader(new Map<unknown, Array<Record<string, unknown>>>([
       [agentApiKeys, []],
-      [companies, [{ defaultResponsibleUserId: "default-user" }]],
+      [spaces, [{ defaultResponsibleUserId: "default-user" }]],
     ]));
 
     await expect(resolveResponsibleUserIdForActivity(db, activityInput({
-      entityType: "company",
-      entityId: companyId,
+      entityType: "space",
+      entityId: spaceId,
       agentApiKeyId: missingAgentApiKeyId,
     }))).resolves.toBe("default-user");
   });
@@ -144,7 +144,7 @@ describe("resolveResponsibleUserIdForActivity", () => {
   it("uses issue creator attribution when responsibleUserId is absent", async () => {
     const db = createReader(new Map<unknown, Array<Record<string, unknown>>>([
       [issues, [{ responsibleUserId: null, createdByUserId: "creator-user" }]],
-      [companies, [{ defaultResponsibleUserId: "default-user" }]],
+      [spaces, [{ defaultResponsibleUserId: "default-user" }]],
     ]));
 
     await expect(resolveResponsibleUserIdForActivity(db, activityInput())).resolves.toBe("creator-user");
@@ -155,7 +155,7 @@ describe("resolveResponsibleUserIdForActivity", () => {
       [heartbeatRuns, [{ responsibleUserId: "run-user" }]],
       [issues, [{ responsibleUserId: "issue-user", createdByUserId: null }]],
       [agentApiKeys, [{ responsibleUserId: "key-user" }]],
-      [companies, [{ defaultResponsibleUserId: "default-user" }]],
+      [spaces, [{ defaultResponsibleUserId: "default-user" }]],
     ]));
 
     await expect(resolveResponsibleUserIdForActivity(db, activityInput({
@@ -175,7 +175,7 @@ describeEmbeddedPostgres("logActivity responsible-user stamping", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-activity-responsible-user-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-activity-responsible-user-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -184,20 +184,20 @@ describeEmbeddedPostgres("logActivity responsible-user stamping", () => {
   });
 
   it("persists API-key attribution for an out-of-run action", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const agentApiKeyId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
       defaultResponsibleUserId: "default-user",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "running",
@@ -208,7 +208,7 @@ describeEmbeddedPostgres("logActivity responsible-user stamping", () => {
     });
     await db.insert(agentApiKeys).values({
       id: agentApiKeyId,
-      companyId,
+      spaceId,
       agentId,
       name: "test",
       keyHash: `hash-${agentApiKeyId}`,
@@ -217,7 +217,7 @@ describeEmbeddedPostgres("logActivity responsible-user stamping", () => {
 
     const postCommitPublications: ActivityPublication[] = [];
     await logActivity(db, activityInput({
-      companyId,
+      spaceId,
       actorId: agentId,
       agentId,
       entityType: "agent",
@@ -227,7 +227,7 @@ describeEmbeddedPostgres("logActivity responsible-user stamping", () => {
 
     expect(postCommitPublications).toHaveLength(1);
     expect(postCommitPublications[0]).toMatchObject({
-      companyId,
+      spaceId,
       payload: {
         action: "issue.updated",
         entityType: "agent",
@@ -238,7 +238,7 @@ describeEmbeddedPostgres("logActivity responsible-user stamping", () => {
     const row = await db
       .select({ responsibleUserId: activityLog.responsibleUserId })
       .from(activityLog)
-      .where(eq(activityLog.companyId, companyId))
+      .where(eq(activityLog.spaceId, spaceId))
       .then((rows) => rows[0]);
 
     expect(row?.responsibleUserId).toBe("key-user");

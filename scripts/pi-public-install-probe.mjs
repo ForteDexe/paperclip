@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Run in a credential-free public npm consumer after `paperclipai runtime setup pi`.
+// Run in a credential-free public npm consumer after `outpost runtime setup pi`.
 // Use the server's normal packaged daemon resolver; never submit a prompt.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -49,14 +49,14 @@ assert.equal(process.env.NODE_OPTIONS, undefined);
 assert.equal(process.env.NODE_PATH, undefined);
 const server = await realpath(serverDirectory);
 assert.equal(JSON.parse(await readFile(join(server, 'package.json'), 'utf8')).name, '@outpost/server');
-const { resolvePaperclipRunnerBinary } = await import(pathToFileURL(join(server, 'dist/services/native-runtime/native-codex-runner.js')));
+const { resolveOutpostRunnerBinary } = await import(pathToFileURL(join(server, 'dist/services/native-runtime/native-codex-runner.js')));
 const { createCapabilityRunnerdCodexTransport } = await import(pathToFileURL(join(server, 'dist/vendor/outpost-runner/live/runnerd-codex-transport.js')));
 const { QUALIFIED_ACPX_PROFILES } = await import(pathToFileURL(join(server, 'dist/vendor/outpost-runner/drivers/acpx/qualified-profiles.js')));
 assert.equal(QUALIFIED_ACPX_PROFILES.pi.agentProfileVersion, 37);
 assert.equal(QUALIFIED_ACPX_PROFILES.pi.commandDigest, 'sha256:42e186b921f36accf3087cf64986a88346dcdb0bdf78c2ef44a2c4f8abd3453a');
 assert.equal(Object.hasOwn(QUALIFIED_ACPX_PROFILES.pi, 'qualificationModel'), false);
 assert.equal(Object.hasOwn(QUALIFIED_ACPX_PROFILES.pi, 'reportedModelId'), false);
-const daemon = resolvePaperclipRunnerBinary();
+const daemon = resolveOutpostRunnerBinary();
 const { runnerBinaryTarget } = await import(pathToFileURL(join(server, 'dist/vendor/outpost-runner/live/runner-binary.js')));
 await verifyPiPackagedDaemon(server, daemon, `${process.platform}-${process.arch}`, runnerBinaryTarget);
 const root = await mkdtemp(join(tmpdir(), 'pi-public-install-probe-'));

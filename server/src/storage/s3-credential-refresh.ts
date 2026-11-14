@@ -36,6 +36,6 @@ export function refreshS3CredentialsOnRejection(client: S3Client): void {
         throw error;
       }
     },
-    { step: "initialize", priority: "low", name: "paperclipS3CredentialRefresh" },
+    { step: "initialize", priority: "low", name: "outpostS3CredentialRefresh" },
   );
 }

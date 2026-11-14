@@ -3,7 +3,7 @@ import { gradeIntegratorCaseClose } from "./integrator-case-close.js";
 function valid() {
   const original = { id: "case", workIssueId: "primary", status: "draft", completedAt: null };
   const review = { id: "review", issueId: "primary", latestRevisionId: "reviewed", body: "Accepted: correction permits activation once and retains the Pay name." };
-  const base = { scenarioId: "cases.close-case", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { case: original, task: { id: "primary", status: "done" }, worker: { id: "morgan" }, review, reviewRunId: "review-native", firstReplyTime: "2026-10-26T10:00:00Z" },
+  const base = { scenarioId: "cases.close-case", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { case: original, task: { id: "primary", status: "done" }, worker: { id: "morgan" }, review, reviewRunId: "review-native", firstReplyTime: "2026-10-26T10:00:00Z" },
     tasks: [{ id: "primary", status: "done" }], projects: [], goals: [], documents: [], revisions: [], comments: [], links: [], activity: [], humanQueries: [],
     caseRecord: { ...original, status: "done", completedAt: "2026-10-26T10:02:00Z" }, handoffs: [{ destinationKind: "done", state: "completed", issueId: "primary", actorType: "agent", actorId: "morgan", completedAt: "2026-10-26T10:02:00Z", sourceRunId: "terminal-native" }],
     runs: [{ id: "terminal-native", agentId: "morgan", status: "succeeded", runtimeMode: "native", contextSnapshot: { issueId: "primary" } }],

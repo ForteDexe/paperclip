@@ -18,14 +18,14 @@ async function fixture(run: { status: string; resultJson: unknown } = { status: 
   const cwd = path.join(root, "actual-isolated-task"); await mkdir(cwd);
   const gate = taskBoundRuntimeGate("approval-owned");
   await writeFile(path.join(cwd, `${gate.gateName}.waiting`), "waiting");
-  const task = { id: "task", companyId: "company", assigneeAgentId: "morgan", executionWorkspaceId: "workspace" };
-  const workspace = { id: "workspace", companyId: "company", cwd };
+  const task = { id: "task", spaceId: "space", assigneeAgentId: "morgan", executionWorkspaceId: "workspace" };
+  const workspace = { id: "workspace", spaceId: "space", cwd };
   const post = vi.fn(async (_url: string, _body: unknown) => task);
   prepare.mockImplementation(async (_ctx, options) => { expect(options).toEqual({ taskBound: true }); return { gate, worker: { id: "morgan" } }; });
   const get = async (url: string) => url.endsWith("/workspace") ? { workspace }
     : url.endsWith("/interactions") ? [{ id: "question", kind: "ask_user_questions", status: "pending", issueId: "task", createdByAgentId: "morgan", sourceRunId: "run" }]
       : url === "/api/heartbeat-runs/run" ? { id: "run", ...run } : task;
-  const ctx = { input: { nonce: "approval-owned", fixtures: { company: { id: "company" } }, api: { post, get } }, allRuns: async () => [{ id: "run", agentId: "morgan", status: run.status }] } as unknown as ChatCatalogContext;
+  const ctx = { input: { nonce: "approval-owned", fixtures: { space: { id: "space" } }, api: { post, get } }, allRuns: async () => [{ id: "run", agentId: "morgan", status: run.status }] } as unknown as ChatCatalogContext;
   return { ctx, root, cwd, task, workspace, gate, post };
 }
 it("approval setup gates the question on the product's parked pending-input turn and scripts a cwd-local bounded wait", async () => {
@@ -51,10 +51,10 @@ it("the active-turn gate binds the actual assigned task workspace", async () => 
   expect(f.gate.boundTaskId).toBe("task"); expect(f.gate.boundWorkspaceId).toBe("workspace");
   expect(f.gate.ready).toBe(path.join(await realpath(f.cwd), `${f.gate.gateName}.waiting`));
 });
-it.each(["company", "assignee", "workspace"])("the active-turn gate rejects foreign %s readiness", async invalid => {
+it.each(["space", "assignee", "workspace"])("the active-turn gate rejects foreign %s readiness", async invalid => {
   const f = await fixture();
-  if (invalid === "company") f.workspace.companyId = "foreign";
+  if (invalid === "space") f.workspace.spaceId = "foreign";
   if (invalid === "assignee") f.task.assigneeAgentId = "other";
   if (invalid === "workspace") f.task.executionWorkspaceId = "other";
-  await expect(readRuntimeTaskGate(f.ctx, f.gate, "task", "morgan")).rejects.toThrow(/actual company, assignee and workspace/);
+  await expect(readRuntimeTaskGate(f.ctx, f.gate, "task", "morgan")).rejects.toThrow(/actual space, assignee and workspace/);
 });

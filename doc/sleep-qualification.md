@@ -29,7 +29,7 @@ replacing an installed package. An opt-in CI job must run the same setup command
 setting an OTLP endpoint alone does not qualify an exporter.
 
 The helper records its exact symlink targets in
-`server/node_modules/.paperclip-sleep-otel-links.json`. If an owned temporary prefix
+`server/node_modules/.outpost-sleep-otel-links.json`. If an owned temporary prefix
 disappears, rerunning repairs only those matching recorded symlinks. Existing
 matching packages are left alone. An unrecorded dangling link or other entry is
 preserved with a recovery error; its pathname is not evidence of ownership.
@@ -204,8 +204,8 @@ removes its temporary profile. It never attaches to a user's existing browser.
 Configured qualification uses the supported managed authenticated profile. The
 actual app runs on loopback, with a lifetime-stable fixture vault key and the
 normal managed configuration. A fixture Cloud front door supplies trusted tenant
-headers to invoke the real primary-company/user/membership provisioning path;
-ordinary company creation remains forbidden. Bearer-key and signed-control
+headers to invoke the real primary-space/user/membership provisioning path;
+ordinary space creation remains forbidden. Bearer-key and signed-control
 requests omit tenant headers. Native browser headers can reach only the owned
 app origin; foreign HTTP/WebSocket transports are blocked and fail qualification.
 

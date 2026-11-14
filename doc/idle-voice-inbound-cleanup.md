@@ -86,7 +86,7 @@ Notifications are process-local hints. Existing database rows remain truth. The
 shared transaction layer delays hints until outer commit and retains uncertainty.
 Other replicas and independent SQL writers require an explicit integration.
 
-History retention cannot delete unconfirmed cleanup. Company deletion locks its
+History retention cannot delete unconfirmed cleanup. Space deletion locks its
 endpoints, matching ingress, then asks the voice owner to prove inbound cleanup is
 settled. It rejects deletion while a provider obligation remains. This prevents
 cascade deletion from erasing the evidence needed to finish cleanup. Existing

@@ -57,10 +57,10 @@ function splitFilename(filename: string | null): { stem: string; ext: string } {
   };
 }
 
-function ensureCompanyPrefix(companyId: string, objectKey: string): void {
-  const expectedPrefix = `${companyId}/`;
+function ensureSpacePrefix(spaceId: string, objectKey: string): void {
+  const expectedPrefix = `${spaceId}/`;
   if (!objectKey.startsWith(expectedPrefix)) {
-    throw forbidden("Object does not belong to company");
+    throw forbidden("Object does not belong to space");
   }
   if (objectKey.includes("..")) {
     throw badRequest("Invalid object key");
@@ -71,7 +71,7 @@ function hashBuffer(input: Buffer): string {
   return createHash("sha256").update(input).digest("hex");
 }
 
-function buildObjectKey(companyId: string, namespace: string, originalFilename: string | null): string {
+function buildObjectKey(spaceId: string, namespace: string, originalFilename: string | null): string {
   const ns = normalizeNamespace(namespace);
   const now = new Date();
   const year = String(now.getUTCFullYear());
@@ -80,12 +80,12 @@ function buildObjectKey(companyId: string, namespace: string, originalFilename: 
   const { stem, ext } = splitFilename(originalFilename);
   const suffix = randomUUID();
   const filename = `${suffix}-${stem}${ext}`;
-  return `${companyId}/${ns}/${year}/${month}/${day}/${filename}`;
+  return `${spaceId}/${ns}/${year}/${month}/${day}/${filename}`;
 }
 
 function assertPutFileInput(input: PutFileInput): void {
-  if (!input.companyId || input.companyId.trim().length === 0) {
-    throw unprocessable("companyId is required");
+  if (!input.spaceId || input.spaceId.trim().length === 0) {
+    throw unprocessable("spaceId is required");
   }
   if (!input.namespace || input.namespace.trim().length === 0) {
     throw unprocessable("namespace is required");
@@ -111,8 +111,8 @@ export function createStorageService(provider: StorageProvider): StorageService 
 
     async putFile(input: PutFileInput): Promise<PutFileResult> {
       assertPutFileInput(input);
-      const objectKey = input.objectKey ?? buildObjectKey(input.companyId, input.namespace, input.originalFilename);
-      ensureCompanyPrefix(input.companyId, objectKey);
+      const objectKey = input.objectKey ?? buildObjectKey(input.spaceId, input.namespace, input.originalFilename);
+      ensureSpacePrefix(input.spaceId, objectKey);
       const byteSize = "byteSize" in input ? input.byteSize : input.body.length;
       const contentType = input.contentType.trim().toLowerCase();
       let receipt: void | PutObjectReceipt;
@@ -143,24 +143,24 @@ export function createStorageService(provider: StorageProvider): StorageService 
       };
     },
 
-    async getObject(companyId: string, objectKey: string, options) {
-      ensureCompanyPrefix(companyId, objectKey);
+    async getObject(spaceId: string, objectKey: string, options) {
+      ensureSpacePrefix(spaceId, objectKey);
       return provider.getObject({ objectKey, range: options?.range, signal: options?.signal });
     },
 
-    async headObject(companyId: string, objectKey: string, options) {
-      ensureCompanyPrefix(companyId, objectKey);
+    async headObject(spaceId: string, objectKey: string, options) {
+      ensureSpacePrefix(spaceId, objectKey);
       return cancellable(options?.signal, () => provider.headObject({ objectKey, signal: options?.signal }));
     },
 
-    async deleteObject(companyId: string, objectKey: string, options) {
-      ensureCompanyPrefix(companyId, objectKey);
+    async deleteObject(spaceId: string, objectKey: string, options) {
+      ensureSpacePrefix(spaceId, objectKey);
       await cancellable(options?.signal, () => provider.deleteObject({ objectKey, signal: options?.signal,
         ...(options?.allVersions ? { allVersions: true } : {}) }));
     },
 
-    async abortIncompleteUploads(companyId: string, objectKey: string, options) {
-      ensureCompanyPrefix(companyId, objectKey);
+    async abortIncompleteUploads(spaceId: string, objectKey: string, options) {
+      ensureSpacePrefix(spaceId, objectKey);
       if (!provider.abortIncompleteUploads) return 0;
       return cancellable(options?.signal, () => provider.abortIncompleteUploads!({ objectKey, signal: options?.signal }));
     },

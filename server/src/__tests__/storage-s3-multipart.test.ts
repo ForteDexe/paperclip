@@ -368,7 +368,7 @@ describe("streamed S3 multipart uploads", () => {
     const storage = createStorageService(createS3StorageProvider({ bucket: "test", region: "us-east-1" }));
     const body = Readable.from([Buffer.alloc(17 * 1024 * 1024)]);
     try {
-      const saving = storage.putFile({ companyId: "company", namespace: "skill-packages", objectKey: "company/package/archive",
+      const saving = storage.putFile({ spaceId: "space", namespace: "skill-packages", objectKey: "space/package/archive",
         originalFilename: "archive", contentType: "application/gzip", body, byteSize: 17 * 1024 * 1024, sha256: "a".repeat(64), signal: cancellation.signal }).catch(error => error);
       await vi.advanceTimersByTimeAsync(0);
       cancellation.abort(new Error("cancelled upload"));
@@ -377,7 +377,7 @@ describe("streamed S3 multipart uploads", () => {
       expect(cleanupSignals).toHaveLength(2);
       expect(cleanupSignals.every(signal => signal.aborted)).toBe(true);
       expect(body.destroyed).toBe(true);
-      await expect(storage.putFile({ companyId: "company", namespace: "skill-packages", originalFilename: "next", contentType: "text/plain", body: Buffer.from("next") })).resolves.toMatchObject({ byteSize: 4 });
+      await expect(storage.putFile({ spaceId: "space", namespace: "skill-packages", originalFilename: "next", contentType: "text/plain", body: Buffer.from("next") })).resolves.toMatchObject({ byteSize: 4 });
     } finally { send.mockRestore(); vi.useRealTimers(); }
   });
 
@@ -561,7 +561,7 @@ describe("file-backed S3 multipart uploads", () => {
     const service = createStorageService(createS3StorageProvider({ bucket: "bucket", region: "us-east-1", forcePathStyle: true,
       endpoint: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
     try {
-      const result = await service.putFile({ companyId: "company", objectKey: "company/workspace-snapshots/small.pcws", namespace: "workspace-snapshots",
+      const result = await service.putFile({ spaceId: "space", objectKey: "space/workspace-snapshots/small.pcws", namespace: "workspace-snapshots",
         originalFilename: null, contentType: "application/octet-stream", body: Readable.from([bytes]), byteSize: bytes.length,
         sha256: createHash("sha256").update(bytes).digest("hex"), sourceFile: file });
       expect(result.integrity).toBe("server_verified_md5");

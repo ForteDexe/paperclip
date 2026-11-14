@@ -35,7 +35,7 @@ function createMemoryProvider() {
         throw err;
       }
       // Real S3 answers 416 when the range starts at or past EOF — the mock
-      // must too, or caught-up-reader regressions (PAPERCLIP-BACKEND-9) pass
+      // must too, or caught-up-reader regressions (OUTPOST-BACKEND-9) pass
       // silently with an empty slice.
       if (input.range && (input.range.start >= buf.length || input.range.start > input.range.end)) {
         const err = new Error("Invalid range") as Error & { name: string };
@@ -65,7 +65,7 @@ afterEach(async () => {
   await fs.rm(baseDir, { recursive: true, force: true });
 });
 
-const begin = { companyId: "co1", agentId: "ag1", runId: "run1" };
+const begin = { spaceId: "co1", agentId: "ag1", runId: "run1" };
 
 describe("createDurableRunLogStore", () => {
   it.each([false, true])("reads a complete long final record from a compact tail (S3 fallback: %s)", async (remote) => {
@@ -356,7 +356,7 @@ describe("createDurableRunLogStore", () => {
   });
 
   it("S3 fallback returns an empty read (no InvalidRange) when the reader is fully caught up", async () => {
-    // Regression test for PAPERCLIP-BACKEND-9: a poller that had consumed the
+    // Regression test for OUTPOST-BACKEND-9: a poller that had consumed the
     // whole log kept polling at offset === total after the pod rolled; the S3
     // path clamped end up to start and requested `bytes=total-total`, which
     // S3 rejects with 416 InvalidRange -> 500.

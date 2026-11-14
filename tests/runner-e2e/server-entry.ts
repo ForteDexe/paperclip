@@ -5,7 +5,7 @@ import { installChatReadinessObserver } from "./chat-readiness-observer.js";
 import { ServerResponse } from "node:http";
 import path from "node:path";
 import { installAgentFilesystemSandbox } from "./agent-filesystem-sandbox.js";
-import { PaperclipRunnerToolAuthority } from "../../server/src/services/native-runtime/outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "../../server/src/services/native-runtime/outpost-runner-tool-authority.js";
 import { canonicalDocumentIssueId, contextCommentGateSelected, holdCommittedDocumentResponse, isArmed } from "./context-comment-gate.js";
 import { holdInteractionResponse } from "./interaction-response-gate.js";
 import { installOwnedEmailResponseLoss } from "./chat-catalog-domains/runtime-email-fault.js";
@@ -40,8 +40,8 @@ if (ids.some((id) => id.endsWith(".accept-while-running"))) {
       },
     });
   };
-  const execute = PaperclipRunnerToolAuthority.prototype.execute;
-  PaperclipRunnerToolAuthority.prototype.execute = async function (...args) {
+  const execute = OutpostRunnerToolAuthority.prototype.execute;
+  OutpostRunnerToolAuthority.prototype.execute = async function (...args) {
     const result = await execute.apply(this, args);
     if (args[0].tool === "request_human_input") await hold(result);
     return result;
@@ -68,8 +68,8 @@ if (contextCommentGate || completionBusyGate) {
     heldIssues.add(issueId);
     await holdCommittedDocumentResponse(issueId, Date.now() + (completionBusyGate ? 300_000 : 90_000));
   };
-  const execute = PaperclipRunnerToolAuthority.prototype.execute;
-  PaperclipRunnerToolAuthority.prototype.execute = async function (...args) {
+  const execute = OutpostRunnerToolAuthority.prototype.execute;
+  OutpostRunnerToolAuthority.prototype.execute = async function (...args) {
     const result = await execute.apply(this, args);
     if (args[0].tool === "write_document") {
       const issueId = this.binding?.issueId;

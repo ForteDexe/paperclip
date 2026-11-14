@@ -3,7 +3,7 @@ import { expect } from "@playwright/test";
 import { checks, type Entity } from "./internal-support.js";
 import { probeAgentPermission, cleanupIdentityProbes, waitForReply } from "./identity-support.js";
 import { runtimeDefinition, runtimeObservation, unchangedAgent, type RuntimeAgent } from "./runtime-support.js";
-/** Where the person acts, by product literal: the catalog names the board CLI command `paperclipai managed-agent setup`
+/** Where the person acts, by product literal: the catalog names the board CLI command `outpost managed-agent setup`
  * and the board-only route. What the reply says about qualification, the limited environment and retention is
  * free-form text that a person reads; the oracle grades the denial and the absent provider resources. */
 export function referencesActionPlace(reply: string) {
@@ -27,7 +27,7 @@ export function gradeManagedProfile(value: unknown) {
   return c.result();
 }
 export const runtimeManagedProfileCases = [runtimeDefinition("agents.managed-profile", async ctx => {
-  const root = `/api/companies/${ctx.input.fixtures.company.id}`;
+  const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
   const profilesBefore = await ctx.input.api.get<Entity[]>(`${root}/managed-agent-profiles`);
   if (profilesBefore.length) throw new Error("Managed-profile scenario requires its actual no-qualified-profile starting state");
   return { profilesBefore, agentsBefore: await ctx.input.api.get<RuntimeAgent[]>(`${root}/agents`) };
@@ -35,7 +35,7 @@ export const runtimeManagedProfileCases = [runtimeDefinition("agents.managed-pro
   oracleVersion: "outpost.chat-catalog.runtime.managed-profile.v5",
   sourceFiles: ["chat-catalog-domains/runtime-managed-profile.ts", "chat-catalog-domains/runtime-support.ts", "chat-catalog-domains/identity-support.ts", "chat-scenarios/agents.yaml"],
   async act(ctx, state) {
-    await waitForReply(ctx); const endpoint = `/api/companies/${ctx.input.fixtures.company.id}/managed-agent-profiles`;
+    await waitForReply(ctx); const endpoint = `/api/spaces/${ctx.input.fixtures.space.id}/managed-agent-profiles`;
     state.agentReadStatus = await probeAgentPermission(ctx, endpoint, "GET");
     const draft = { profileKey: `unqualified-${ctx.input.nonce}`, displayName: "Unqualified control only", anthropicAgentId: "not-provisioned",
       agentVersion: "1", environmentId: "not-provisioned-locked-environment", defaultModel: "claude-sonnet-5", defaultMaxListCostUsd: 1,
@@ -46,7 +46,7 @@ export const runtimeManagedProfileCases = [runtimeDefinition("agents.managed-pro
     const qualification = await ctx.input.page.request.post(endpoint, { data: { ...draft, retentionAcknowledged: true } }); state.qualificationProbeStatus = qualification.status();
     state.qualificationProbeError = (await qualification.json() as { error?: string }).error; await qualification.dispose();
     const schema = await ctx.input.api.get<{ paths?: Record<string, { get?: unknown; post?: { requestBody?: unknown } }> }>("/api/openapi.json");
-    const contract = schema.paths?.["/api/companies/{companyId}/managed-agent-profiles"];
+    const contract = schema.paths?.["/api/spaces/{spaceId}/managed-agent-profiles"];
     state.operatorContractAvailable = !!contract?.get && !!contract.post;
     const source = ctx.input.page.url(), resource = await ctx.input.page.goto(new URL(endpoint, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded" });
     state.operatorInventoryStatus = resource?.status();

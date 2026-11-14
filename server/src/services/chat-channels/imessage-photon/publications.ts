@@ -73,7 +73,7 @@ export function createPhotonPublicationDelivery(db: Db, options: PhotonPublicati
           .from(chatEndpointResources)
           .where(
             and(
-              eq(chatEndpointResources.companyId, current.endpoint.companyId),
+              eq(chatEndpointResources.spaceId, current.endpoint.spaceId),
               eq(chatEndpointResources.endpointId, current.endpoint.id),
               eq(chatEndpointResources.id, input.conversation.resourceId!),
             ),
@@ -121,7 +121,7 @@ export function createPhotonPublicationDelivery(db: Db, options: PhotonPublicati
           .from(chatActions)
           .where(
             and(
-              eq(chatActions.companyId, input.endpoint.companyId),
+              eq(chatActions.spaceId, input.endpoint.spaceId),
               eq(chatActions.endpointId, input.endpoint.id),
               eq(chatActions.kind, "photon_interaction"),
               nextQuestion
@@ -152,8 +152,8 @@ export function createPhotonPublicationDelivery(db: Db, options: PhotonPublicati
               .where(
                 and(
                   eq(
-                    issueThreadInteractions.companyId,
-                    input.endpoint.companyId,
+                    issueThreadInteractions.spaceId,
+                    input.endpoint.spaceId,
                   ),
                   eq(issueThreadInteractions.id, interaction.id),
                 ),
@@ -203,7 +203,7 @@ export function createPhotonPublicationDelivery(db: Db, options: PhotonPublicati
             .innerJoin(
               chatMessageLinks,
               and(
-                eq(chatMessageLinks.companyId, input.endpoint.companyId),
+                eq(chatMessageLinks.spaceId, input.endpoint.spaceId),
                 eq(chatMessageLinks.endpointId, input.endpoint.id),
                 eq(chatMessageLinks.conversationId, input.conversation.id),
                 eq(chatMessageLinks.direction, "inbound"),
@@ -216,7 +216,7 @@ export function createPhotonPublicationDelivery(db: Db, options: PhotonPublicati
             .where(
               and(
                 eq(heartbeatRuns.id, sourceRunId),
-                eq(heartbeatRuns.companyId, input.endpoint.companyId),
+                eq(heartbeatRuns.spaceId, input.endpoint.spaceId),
               ),
             )
             .orderBy(desc(chatMessageLinks.createdAt))
@@ -243,7 +243,7 @@ export function createPhotonPublicationDelivery(db: Db, options: PhotonPublicati
           .from(chatActions)
           .where(
             and(
-              eq(chatActions.companyId, input.endpoint.companyId),
+              eq(chatActions.spaceId, input.endpoint.spaceId),
               eq(chatActions.endpointId, input.endpoint.id),
               eq(chatActions.kind, "photon_response_notice"),
               eq(

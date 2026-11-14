@@ -26,7 +26,7 @@ import type {
   WorkspaceFileListMode,
   WorkspaceFileSelector,
 } from "@outpost/shared";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 
 type BrowserSource = "current" | "other";
 
@@ -72,7 +72,7 @@ function selectedAncestorFolders(selectedPath: string | null | undefined, rootPa
 }
 
 /**
- * Maps a server `unavailableReason` to a calm, board-readable explanation.
+ * Maps a server `unavailableReason` to a calm, operator-readable explanation.
  * Copy is kept in sync with `describeDenial` in FileViewerSheet so the browse
  * states and the viewer's error panels read in one voice. Substring matching
  * keeps it resilient to small reason-string changes on the server.
@@ -463,7 +463,7 @@ function WorkspaceFileTree({
 
 export interface WorkspaceFileBrowserProps {
   issueId: string;
-  companyId?: string | null;
+  spaceId?: string | null;
   onOpen: (ref: {
     path: string;
     workspace: WorkspaceFileSelector;
@@ -497,7 +497,7 @@ export interface WorkspaceFileBrowserProps {
 
 export function WorkspaceFileBrowser({
   issueId,
-  companyId,
+  spaceId,
   onOpen,
   onBrowseStateChange,
   initialQuery,
@@ -539,8 +539,8 @@ export function WorkspaceFileBrowser({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const projectsQuery = useQuery({
-    ...companyProjectsQuery(companyId ?? ""),
-    enabled: source === "other" && !!companyId,
+    ...spaceProjectsQuery(spaceId ?? ""),
+    enabled: source === "other" && !!spaceId,
     staleTime: 30_000,
   });
 
@@ -1004,7 +1004,7 @@ export function WorkspaceFileBrowser({
   );
 
   let body: ReactNode;
-  if (source === "other" && !companyId) {
+  if (source === "other" && !spaceId) {
     body = (
       <StateMessage
         icon={<FolderOpen aria-hidden="true" className="h-5 w-5 text-muted-foreground" />}

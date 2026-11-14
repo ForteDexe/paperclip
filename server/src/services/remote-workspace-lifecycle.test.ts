@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, environmentLeases, environments,
+import { agents, applyPendingMigrations, closeRegisteredClients, spaces, createDb, environmentLeases, environments,
   executionWorkspaces, executionWorkspaceSnapshots, heartbeatRuns, issues, projects, workspaceOperations, workspaceRuntimeServices, type Db } from "@outpost/db";
 import { readRemoteWorkspaceAuthority, type RemoteWorkspaceAuthority } from "@outpost/shared";
 import { resolveExternalTestDatabaseUrl } from "../__tests__/helpers/external-test-database.js";
@@ -27,33 +27,33 @@ describe.skipIf(!url)("remote workspace close and allocation cleanup", () => {
   beforeAll(async () => { await applyPendingMigrations(url!); db = createDb(url!); }, 120_000);
   beforeEach(async () => {
     await db.execute(sql`set client_min_messages = warning`);
-    await db.execute(sql`truncate table companies, execution_workspace_snapshots, environments restart identity cascade`);
+    await db.execute(sql`truncate table spaces, execution_workspace_snapshots, environments restart identity cascade`);
   });
   afterEach(async () => { vi.restoreAllMocks(); await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
   afterAll(async () => { await closeRegisteredClients(url!, { scope: "database" }); });
 
   async function fixture(receiptState: "destroyed" | "stopped" | "invalid" = "destroyed") {
-    const [company] = await db.insert(companies).values({ name: "Remote close", issuePrefix: "RC" }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Native worker", adapterType: "outpost_runner" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: company.id, title: "Saved work", status: "done",
+    const [space] = await db.insert(spaces).values({ name: "Remote close", issuePrefix: "RC" }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Native worker", adapterType: "outpost_runner" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: space.id, title: "Saved work", status: "done",
       completedAt: new Date(0), assigneeAgentId: agent.id }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, issueId: issue.id,
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, issueId: issue.id,
       nativeIssueId: issue.id, runtimeMode: "native", status: "succeeded", finishedAt: new Date() }).returning();
     const [environment] = await db.insert(environments).values({ name: `Remote close ${randomUUID()}`, driver: "sandbox", config: { provider: "daytona" } }).returning();
-    const cwd = await mkdtemp(join(tmpdir(), "paperclip-remote-close-")); directories.push(cwd);
+    const cwd = await mkdtemp(join(tmpdir(), "outpost-remote-close-")); directories.push(cwd);
     await writeFile(join(cwd, "host-sentinel.txt"), "Host files must never be cleaned as remote files.");
     const workspaceId = randomUUID(), leaseId = randomUUID(), snapshotId = randomUUID(), providerLeaseId = `allocation-${randomUUID()}`;
     const authority: RemoteWorkspaceAuthority = { schema: "outpost.remote-workspace.v1", epoch: 1,
       snapshotId, source: { kind: "empty" }, writerRunId: null, dirty: false,
       location: { environmentId: environment.id, leaseId, providerLeaseId, remoteCwd: cwd } };
-    const [workspace] = await db.insert(executionWorkspaces).values({ id: workspaceId, companyId: company.id, sourceIssueId: issue.id,
+    const [workspace] = await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId: space.id, sourceIssueId: issue.id,
       name: "Remote files", cwd, providerRef: cwd, providerType: "cloud_sandbox", mode: "isolated_workspace",
       strategyType: "git_worktree", status: "active", metadata: { remoteWorkspace: authority } }).returning();
     await db.update(issues).set({ executionWorkspaceId: workspace.id }).where(eq(issues.id, issue.id));
-    await db.insert(executionWorkspaceSnapshots).values({ id: snapshotId, companyId: company.id,
+    await db.insert(executionWorkspaceSnapshots).values({ id: snapshotId, spaceId: space.id,
       executionWorkspaceId: workspace.id, sourceOperationId: randomUUID(), sourceRunId: run.id,
       generation: 1, epoch: 1, status: "committed", objectKey: "saved-workspace-object", sha256: "a".repeat(64), byteSize: 1 });
-    await db.insert(environmentLeases).values({ id: leaseId, companyId: company.id, environmentId: environment.id,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId: space.id, environmentId: environment.id,
       heartbeatRunId: run.id, issueId: issue.id, executionWorkspaceId: workspace.id, provider: "daytona", providerLeaseId,
       leasePolicy: "ephemeral", status: "active", metadata: { driver: "sandbox", remoteCwd: cwd } });
     const environmentsSvc = environmentService(db);
@@ -69,7 +69,7 @@ describe.skipIf(!url)("remote workspace close and allocation cleanup", () => {
     const service = executionWorkspaceService(db, { destroyRemoteWorkspaceLease: input => runtime.destroyRemoteWorkspaceLease(input),
       inspectGitCloseReadiness: inspectLocal, workspaceReaperCooldownDays: 0, gitCacheExpirationEnabled: true,
       gitRestorePoints: undefined });
-    return { company, issue, run, workspace, snapshotId, authority, service, destroyProvider, inspectLocal, cwd, environmentsSvc, leaseId };
+    return { space, issue, run, workspace, snapshotId, authority, service, destroyProvider, inspectLocal, cwd, environmentsSvc, leaseId };
   }
   const current = async (id: string) => (await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, id)))[0]!;
 
@@ -78,11 +78,11 @@ describe.skipIf(!url)("remote workspace close and allocation cleanup", () => {
     const inspect = vi.spyOn(fs, "lstat");
     const log = vi.fn();
     await expect(ensureRuntimeServicesForRun({ db, runId: f.run.id,
-      agent: { id: f.run.agentId, companyId: f.company.id, name: "Native worker" }, issue: null,
+      agent: { id: f.run.agentId, spaceId: f.space.id, name: "Native worker" }, issue: null,
       workspace: { cwd: f.cwd, baseCwd: f.cwd, source: "task_session", projectId: null, workspaceId: null,
         repoUrl: null, repoRef: null, strategy: "git_worktree", branchName: null, worktreePath: f.cwd,
         warnings: [], created: false, branchCreatedByRuntime: false }, executionWorkspaceId: f.workspace.id,
-      config: { workspaceRuntime: { services: [{ name: "web", command: "/__paperclip_missing_remote_service__", cwd: "." }] } },
+      config: { workspaceRuntime: { services: [{ name: "web", command: "/__outpost_missing_remote_service__", cwd: "." }] } },
       adapterEnv: {}, skipHostProvision, onLog: log,
     })).rejects.toMatchObject({ code: "workspace_validation_failed", resultJson: { reason: "remote_workspace_runtime_services_unsupported" } });
     expect(inspect).not.toHaveBeenCalled();
@@ -92,7 +92,7 @@ describe.skipIf(!url)("remote workspace close and allocation cleanup", () => {
 
   it.each(["remote", "import"])("does not inspect or recover nested controller clones under a %s storage fence", async mode => {
     const f = await fixture();
-    const [project] = await db.insert(projects).values({ companyId: f.company.id, name: "Remote project" }).returning();
+    const [project] = await db.insert(projects).values({ spaceId: f.space.id, name: "Remote project" }).returning();
     await db.update(executionWorkspaces).set({ projectId: project.id,
       ...(mode === "import" ? { providerType: "local_fs" } : {}),
       metadata: { ...(mode === "remote" ? { remoteWorkspace: f.authority } : {
@@ -164,8 +164,8 @@ describe.skipIf(!url)("remote workspace close and allocation cleanup", () => {
     await db.update(executionWorkspaces).set({ status: "archived", closedAt: new Date(),
       metadata: { remoteWorkspace: { ...f.authority, location: null } } }).where(eq(executionWorkspaces.id, f.workspace.id));
     const reopened = await f.service.reopenClosedIsolatedExecutionWorkspaceForIssue({ workspaceId: f.workspace.id,
-      issue: { id: f.issue.id, companyId: f.company.id, projectId: null }, actor: { actorType: "user", agentId: null },
-      authorizationActor: { type: "board", source: "local_implicit", isInstanceAdmin: true } });
+      issue: { id: f.issue.id, spaceId: f.space.id, projectId: null }, actor: { actorType: "user", agentId: null },
+      authorizationActor: { type: "operator", source: "local_implicit", isInstanceAdmin: true } });
     expect(reopened).toMatchObject({ ok: true, reopened: true, workspace: { status: "active", closedAt: null } });
     expect(readRemoteWorkspaceAuthority((await current(f.workspace.id)).metadata)).toMatchObject({ snapshotId: f.snapshotId, location: null });
     expect(f.destroyProvider).not.toHaveBeenCalled();
@@ -199,7 +199,7 @@ describe.skipIf(!url)("remote workspace close and allocation cleanup", () => {
     });
     const blocker = await locked;
     const starting = caller === "startup" ? restartDesiredRuntimeServicesOnStartup(db) : startRuntimeServicesForWorkspaceControl({
-      db, actor: { id: null, companyId: f.company.id, name: "Board" }, issue: null, executionWorkspaceId: f.workspace.id,
+      db, actor: { id: null, spaceId: f.space.id, name: "Operator" }, issue: null, executionWorkspaceId: f.workspace.id,
       workspace: { cwd: f.cwd, baseCwd: f.cwd, source: "task_session", projectId: null, workspaceId: null,
         repoUrl: null, repoRef: null, strategy: "project_primary", branchName: null, worktreePath: null,
         warnings: [], created: false, branchCreatedByRuntime: false }, config, adapterEnv: {},
@@ -233,7 +233,7 @@ describe.skipIf(!url)("remote workspace close and allocation cleanup", () => {
     const finished = new Promise<void>(resolve => { finish = resolve; });
     let admitted!: () => void;
     const admission = new Promise<void>(resolve => { admitted = resolve; });
-    const running = operations.createRecorder({ companyId: f.company.id, executionWorkspaceId: f.workspace.id }).recordOperation({
+    const running = operations.createRecorder({ spaceId: f.space.id, executionWorkspaceId: f.workspace.id }).recordOperation({
       phase: "workspace_provision", metadata: { action: "run" },
       admit: publish => withExecutionWorkspaceLifecycleLock(db, f.workspace.id, async () => { await publish(); }),
       run: async () => { admitted(); await finished; return {}; },
@@ -241,11 +241,11 @@ describe.skipIf(!url)("remote workspace close and allocation cleanup", () => {
     try {
       await admission;
       const inventory = await withExecutionWorkspaceLifecycleLock(db, f.workspace.id,
-        () => inventoryRemoteWorkspaceMigration(db, { companyId: f.company.id, workspaceId: f.workspace.id }));
+        () => inventoryRemoteWorkspaceMigration(db, { spaceId: f.space.id, workspaceId: f.workspace.id }));
       expect(inventory.reasons).toContain("workspace_operation_unresolved");
     } finally { finish(); }
     await running;
-    const [migration] = await db.insert(workspaceOperations).values({ companyId: f.company.id, executionWorkspaceId: f.workspace.id,
+    const [migration] = await db.insert(workspaceOperations).values({ spaceId: f.space.id, executionWorkspaceId: f.workspace.id,
       phase: "remote_workspace_migration", status: "running", metadata: {}, startedAt: new Date(0), updatedAt: new Date(0) }).returning();
     await expect(operations.assertRuntimeControlAvailable({ executionWorkspaceId: f.workspace.id, action: "start" }))
       .rejects.toMatchObject({ status: 409, details: { activeOperationId: migration.id } });
@@ -255,7 +255,7 @@ describe.skipIf(!url)("remote workspace close and allocation cleanup", () => {
   it("does not resolve a controller folder when a remote control has no selected services", async () => {
     const f = await fixture();
     await expect(startRuntimeServicesForWorkspaceControl({ db,
-      actor: { id: null, companyId: f.company.id, name: "Board" }, issue: null, executionWorkspaceId: f.workspace.id,
+      actor: { id: null, spaceId: f.space.id, name: "Operator" }, issue: null, executionWorkspaceId: f.workspace.id,
       workspace: { get cwd(): string { throw new Error("Empty control read a controller folder"); },
         baseCwd: f.cwd, source: "task_session", projectId: null, workspaceId: null, repoUrl: null, repoRef: null,
         strategy: "git_worktree", branchName: null, worktreePath: null, warnings: [], created: false, branchCreatedByRuntime: false },

@@ -4,7 +4,7 @@ import { buildWorktreeMergePlan, parseWorktreeMergeScopes } from "../commands/wo
 function makeIssue(overrides: Record<string, unknown> = {}) {
   return {
     id: "issue-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     projectWorkspaceId: null,
     goalId: "goal-1",
@@ -20,7 +20,7 @@ function makeIssue(overrides: Record<string, unknown> = {}) {
     executionAgentNameKey: null,
     executionLockedAt: null,
     createdByAgentId: null,
-    createdByUserId: "local-board",
+    createdByUserId: "local-operator",
     issueNumber: 1,
     identifier: "PAP-1",
     requestDepth: 0,
@@ -42,10 +42,10 @@ function makeIssue(overrides: Record<string, unknown> = {}) {
 function makeComment(overrides: Record<string, unknown> = {}) {
   return {
     id: "comment-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     authorAgentId: null,
-    authorUserId: "local-board",
+    authorUserId: "local-operator",
     body: "hello",
     createdAt: new Date("2026-03-20T00:00:00.000Z"),
     updatedAt: new Date("2026-03-20T00:00:00.000Z"),
@@ -56,7 +56,7 @@ function makeComment(overrides: Record<string, unknown> = {}) {
 function makeIssueDocument(overrides: Record<string, unknown> = {}) {
   return {
     id: "issue-document-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     documentId: "document-1",
     key: "plan",
@@ -68,9 +68,9 @@ function makeIssueDocument(overrides: Record<string, unknown> = {}) {
     latestRevisionId: "revision-1",
     latestRevisionNumber: 1,
     createdByAgentId: null,
-    createdByUserId: "local-board",
+    createdByUserId: "local-operator",
     updatedByAgentId: null,
-    updatedByUserId: "local-board",
+    updatedByUserId: "local-operator",
     documentCreatedAt: new Date("2026-03-20T00:00:00.000Z"),
     documentUpdatedAt: new Date("2026-03-20T00:00:00.000Z"),
     ...overrides,
@@ -80,13 +80,13 @@ function makeIssueDocument(overrides: Record<string, unknown> = {}) {
 function makeDocumentRevision(overrides: Record<string, unknown> = {}) {
   return {
     id: "revision-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     documentId: "document-1",
     revisionNumber: 1,
     body: "# Plan",
     changeSummary: null,
     createdByAgentId: null,
-    createdByUserId: "local-board",
+    createdByUserId: "local-operator",
     createdAt: new Date("2026-03-20T00:00:00.000Z"),
     ...overrides,
   } as any;
@@ -95,18 +95,18 @@ function makeDocumentRevision(overrides: Record<string, unknown> = {}) {
 function makeAttachment(overrides: Record<string, unknown> = {}) {
   return {
     id: "attachment-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     issueCommentId: null,
     assetId: "asset-1",
     provider: "local_disk",
-    objectKey: "company-1/issues/issue-1/2026/03/20/asset.png",
+    objectKey: "space-1/issues/issue-1/2026/03/20/asset.png",
     contentType: "image/png",
     byteSize: 12,
     sha256: "deadbeef",
     originalFilename: "asset.png",
     createdByAgentId: null,
-    createdByUserId: "local-board",
+    createdByUserId: "local-operator",
     assetCreatedAt: new Date("2026-03-20T00:00:00.000Z"),
     assetUpdatedAt: new Date("2026-03-20T00:00:00.000Z"),
     attachmentCreatedAt: new Date("2026-03-20T00:00:00.000Z"),
@@ -118,7 +118,7 @@ function makeAttachment(overrides: Record<string, unknown> = {}) {
 function makeProject(overrides: Record<string, unknown> = {}) {
   return {
     id: "project-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     goalId: null,
     name: "Project",
     description: null,
@@ -139,7 +139,7 @@ function makeProject(overrides: Record<string, unknown> = {}) {
 function makeProjectWorkspace(overrides: Record<string, unknown> = {}) {
   return {
     id: "workspace-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     name: "Workspace",
     sourceType: "local_path",
@@ -183,8 +183,8 @@ describe("worktree merge history planner", () => {
     });
 
     const plan = buildWorktreeMergePlan({
-      companyId: "company-1",
-      companyName: "Paperclip",
+      spaceId: "space-1",
+      spaceName: "Outpost",
       issuePrefix: "PAP",
       previewIssueCounterStart: 500,
       scopes: ["issues", "comments"],
@@ -207,8 +207,8 @@ describe("worktree merge history planner", () => {
 
   it("clears missing references and coerces in_progress without an assignee", () => {
     const plan = buildWorktreeMergePlan({
-      companyId: "company-1",
-      companyName: "Paperclip",
+      spaceId: "space-1",
+      spaceName: "Outpost",
       issuePrefix: "PAP",
       previewIssueCounterStart: 10,
       scopes: ["issues"],
@@ -249,8 +249,8 @@ describe("worktree merge history planner", () => {
 
   it("applies an explicit project mapping override instead of clearing the project", () => {
     const plan = buildWorktreeMergePlan({
-      companyId: "company-1",
-      companyName: "Paperclip",
+      spaceId: "space-1",
+      spaceName: "Outpost",
       issuePrefix: "PAP",
       previewIssueCounterStart: 10,
       scopes: ["issues"],
@@ -285,19 +285,19 @@ describe("worktree merge history planner", () => {
   it("plans selected project imports and preserves project workspace links", () => {
     const sourceProject = makeProject({
       id: "source-project-1",
-      name: "Paperclip Evals",
+      name: "Outpost Evals",
       goalId: "goal-1",
     });
     const sourceWorkspace = makeProjectWorkspace({
       id: "source-workspace-1",
       projectId: "source-project-1",
-      cwd: "/Users/dotta/paperclip-evals",
+      cwd: "/Users/dotta/outpost-evals",
       repoUrl: "https://github.com/paperclipai/paperclip-evals.git",
     });
 
     const plan = buildWorktreeMergePlan({
-      companyId: "company-1",
-      companyName: "Paperclip",
+      spaceId: "space-1",
+      spaceName: "Outpost",
       issuePrefix: "PAP",
       previewIssueCounterStart: 10,
       scopes: ["issues"],
@@ -323,7 +323,7 @@ describe("worktree merge history planner", () => {
 
     expect(plan.counts.projectsToImport).toBe(1);
     expect(plan.projectImports[0]).toMatchObject({
-      source: { id: "source-project-1", name: "Paperclip Evals" },
+      source: { id: "source-project-1", name: "Outpost Evals" },
       targetGoalId: "goal-1",
       workspaces: [{ id: "source-workspace-1" }],
     });
@@ -332,7 +332,7 @@ describe("worktree merge history planner", () => {
     expect(insert.targetProjectId).toBe("source-project-1");
     expect(insert.targetProjectWorkspaceId).toBe("source-workspace-1");
     expect(insert.projectResolution).toBe("imported");
-    expect(insert.mappedProjectName).toBe("Paperclip Evals");
+    expect(insert.mappedProjectName).toBe("Outpost Evals");
     expect(insert.adjustments).toEqual([]);
   });
 
@@ -353,8 +353,8 @@ describe("worktree merge history planner", () => {
     });
 
     const plan = buildWorktreeMergePlan({
-      companyId: "company-1",
-      companyName: "Paperclip",
+      spaceId: "space-1",
+      spaceName: "Outpost",
       issuePrefix: "PAP",
       previewIssueCounterStart: 10,
       scopes: ["issues", "comments"],
@@ -415,8 +415,8 @@ describe("worktree merge history planner", () => {
     });
 
     const plan = buildWorktreeMergePlan({
-      companyId: "company-1",
-      companyName: "Paperclip",
+      spaceId: "space-1",
+      spaceName: "Outpost",
       issuePrefix: "PAP",
       previewIssueCounterStart: 10,
       scopes: ["issues", "comments"],
@@ -460,8 +460,8 @@ describe("worktree merge history planner", () => {
     });
 
     const plan = buildWorktreeMergePlan({
-      companyId: "company-1",
-      companyName: "Paperclip",
+      spaceId: "space-1",
+      spaceName: "Outpost",
       issuePrefix: "PAP",
       previewIssueCounterStart: 10,
       scopes: ["issues"],

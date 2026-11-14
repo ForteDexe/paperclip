@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 /** Durable object ledger deliberately survives deletion of its source records. */
 export const executionWorkspaceSnapshots = pgTable("execution_workspace_snapshots", {
   id: uuid("id").primaryKey().defaultRandom(),
-  companyId: uuid("company_id").notNull(),
+  spaceId: uuid("space_id").notNull(),
   executionWorkspaceId: uuid("execution_workspace_id").notNull(),
   sourceOperationId: uuid("source_operation_id").notNull(),
   sourceRunId: uuid("source_run_id"),
@@ -24,9 +24,9 @@ export const executionWorkspaceSnapshots = pgTable("execution_workspace_snapshot
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => ({
-  operationUniqueIdx: uniqueIndex("execution_workspace_snapshots_operation_uniq").on(table.companyId, table.executionWorkspaceId, table.sourceOperationId),
-  generationUniqueIdx: uniqueIndex("execution_workspace_snapshots_generation_uniq").on(table.companyId, table.executionWorkspaceId, table.generation),
-  workspaceIdx: index("execution_workspace_snapshots_workspace_idx").on(table.companyId, table.executionWorkspaceId),
+  operationUniqueIdx: uniqueIndex("execution_workspace_snapshots_operation_uniq").on(table.spaceId, table.executionWorkspaceId, table.sourceOperationId),
+  generationUniqueIdx: uniqueIndex("execution_workspace_snapshots_generation_uniq").on(table.spaceId, table.executionWorkspaceId, table.generation),
+  workspaceIdx: index("execution_workspace_snapshots_workspace_idx").on(table.spaceId, table.executionWorkspaceId),
   cleanupIdx: index("execution_workspace_snapshots_cleanup_idx").on(table.status, table.deleteAfter),
   importedChildrenIdx: index("execution_workspace_snapshots_imported_children_idx")
     .using("gin", sql`(${table.metadata}->'importedWorkspaceChildren') jsonb_path_ops`)

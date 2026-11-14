@@ -18,7 +18,7 @@ import type {
   VerifiedIdleCapabilities,
 } from "./idle-incoming-wake-capability.js";
 import { githubConnectionEventBindings } from "./github-connection-events.js";
-import { outpostCloudConnectorConfigFromEnv } from "./paperclip-cloud-connector.js";
+import { outpostCloudConnectorConfigFromEnv } from "./outpost-cloud-connector.js";
 import { hasConnectionEventWakeReceiver } from "./connection-event-wake.js";
 
 export interface IdleIncomingWakeProof {
@@ -94,7 +94,7 @@ export async function readIdleIncomingWakeProof(
     await beforeRead();
     const rows = await tx.execute<{ keyHash: string; expiresAt: Date | null }>(sql`
       SELECT key_hash AS "keyHash", NULL::timestamptz AS "expiresAt" FROM agent_api_keys WHERE revoked_at IS NULL
-      UNION ALL SELECT key_hash AS "keyHash", expires_at AS "expiresAt" FROM board_api_keys
+      UNION ALL SELECT key_hash AS "keyHash", expires_at AS "expiresAt" FROM operator_api_keys
         WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now()) LIMIT 1001`);
     remaining();
     if (rows.length > 1000) throw new Error("Too many API keys to certify wake admission");
@@ -145,7 +145,7 @@ export async function readIdleIncomingWakeProof(
       toolConnections,
       and(
         eq(toolConnections.id, connectionGrants.connectionId),
-        eq(toolConnections.companyId, connectionGrants.companyId),
+        eq(toolConnections.spaceId, connectionGrants.spaceId),
       ),
     )
     .where(
@@ -155,7 +155,7 @@ export async function readIdleIncomingWakeProof(
         eq(toolConnections.enabled, true),
         sql`${toolConnections.config}->>'sourceTemplateKey' = 'github'`,
         sql`${toolConnections.config}->'oauth'->>'connectorProfile' = 'github.code'`,
-        sql`exists (select 1 from companies where id=${connectionGrants.companyId} and status <> 'archived')`,
+        sql`exists (select 1 from spaces where id=${connectionGrants.spaceId} and status <> 'archived')`,
       ),
     )
     .limit(1001);
@@ -193,7 +193,7 @@ export async function readIdleIncomingWakeProof(
     throw new Error("Incomplete GitHub binding");
   const tuples = bindings.map((b) => [
     b.id,
-    b.companyId,
+    b.spaceId,
     b.subject,
     "github.code",
     b.installationId,
@@ -208,7 +208,7 @@ export async function readIdleIncomingWakeProof(
       toolConnections,
       and(
         eq(toolConnections.id, chatEndpoints.connectionId),
-        eq(toolConnections.companyId, chatEndpoints.companyId),
+        eq(toolConnections.spaceId, chatEndpoints.spaceId),
       ),
     )
     .where(
@@ -219,7 +219,7 @@ export async function readIdleIncomingWakeProof(
         eq(toolConnections.enabled, true),
         eq(toolConnections.transport, "chat_sdk"),
         eq(toolConnections.connectionPurpose, "channel"),
-        sql`exists (select 1 from companies where id=${chatEndpoints.companyId} and status <> 'archived')`,
+        sql`exists (select 1 from spaces where id=${chatEndpoints.spaceId} and status <> 'archived')`,
       ),
     )
     .limit(1001);
@@ -238,7 +238,7 @@ export async function readIdleIncomingWakeProof(
     const registrations = await tx
       .select({
         endpointId: chatGitHubRegistrations.endpointId,
-        companyId: chatGitHubRegistrations.companyId,
+        spaceId: chatGitHubRegistrations.spaceId,
         userId: chatGitHubRegistrations.userId,
         cloudId: sql<string>`${chatGitHubRegistrations.handoff}->>'cloudId'`,
       })
@@ -256,7 +256,7 @@ export async function readIdleIncomingWakeProof(
     for (const registration of registrations) {
       const key = JSON.stringify([
         registration.endpointId,
-        registration.companyId,
+        registration.spaceId,
         registration.cloudId,
       ]);
       const users = registrationUsers.get(key) ?? [];
@@ -278,13 +278,13 @@ export async function readIdleIncomingWakeProof(
     )
       throw new Error("GitHub bot setup has unfinished work");
     const users = registrationUsers.get(
-      JSON.stringify([endpoint.id, endpoint.companyId, registration]),
+      JSON.stringify([endpoint.id, endpoint.spaceId, registration]),
     );
     if (users?.length !== 1 || !users[0])
       throw new Error("GitHub registration authority changed");
     tuples.push([
       `github-app:${registration}`,
-      endpoint.companyId,
+      endpoint.spaceId,
       users[0],
       "github.bot",
       `gateway:${registration}`,
@@ -330,10 +330,10 @@ export function incomingWakeWorkQuery(
     return proof?.apiWakeAdmission !== undefined
       ? sql`SELECT 1 WHERE false`
       : sql`SELECT 1 FROM agent_api_keys WHERE revoked_at IS NULL`;
-  if (reason === "board_api_keys")
+  if (reason === "operator_api_keys")
     return proof?.apiWakeAdmission !== undefined
       ? sql`SELECT 1 WHERE false`
-      : sql`SELECT 1 FROM board_api_keys WHERE revoked_at IS NULL
+      : sql`SELECT 1 FROM operator_api_keys WHERE revoked_at IS NULL
     AND (expires_at IS NULL OR expires_at > now())`;
   if (reason === "chat_endpoints") {
     const ids = proof?.endpointIds ?? [];
@@ -347,14 +347,14 @@ export function incomingWakeWorkQuery(
         AND trunc((endpoint.setup->>'runtimeGeneration')::numeric) = (endpoint.setup->>'runtimeGeneration')::numeric
       ELSE false END
     AND EXISTS (SELECT 1 FROM tool_connections removed_connection
-      WHERE removed_connection.id = endpoint.connection_id AND removed_connection.company_id = endpoint.company_id
+      WHERE removed_connection.id = endpoint.connection_id AND removed_connection.space_id = endpoint.space_id
         AND removed_connection.connection_purpose = 'channel' AND removed_connection.transport = 'chat_sdk'
         AND removed_connection.status = 'archived' AND removed_connection.enabled = false
         AND removed_connection.credential_secret_refs = '[]'::jsonb)
     AND NOT EXISTS (SELECT 1 FROM chat_endpoint_leases lease WHERE lease.endpoint_id = endpoint.id)
     AND NOT EXISTS (SELECT 1 FROM chat_slack_registrations registration WHERE registration.endpoint_id = endpoint.id)
     AND NOT EXISTS (SELECT 1 FROM chat_github_registrations registration WHERE registration.endpoint_id = endpoint.id
-      AND (registration.company_id = endpoint.company_id AND registration.status = 'completed'
+      AND (registration.space_id = endpoint.space_id AND registration.status = 'completed'
         AND registration.consumed_at IS NOT NULL) IS NOT TRUE))
     OR (endpoint.provider = 'slack'
     AND endpoint.status = 'draft' AND endpoint.setup->>'step' = 'provider_setup'
@@ -367,7 +367,7 @@ export function incomingWakeWorkQuery(
     AND endpoint.health_message IS NULL AND endpoint.last_error IS NULL
     AND NOT EXISTS (SELECT 1 FROM chat_slack_registrations registration WHERE registration.endpoint_id = endpoint.id)
     AND EXISTS (SELECT 1 FROM tool_connections draft_connection
-      WHERE draft_connection.id = endpoint.connection_id AND draft_connection.company_id = endpoint.company_id
+      WHERE draft_connection.id = endpoint.connection_id AND draft_connection.space_id = endpoint.space_id
         AND draft_connection.connection_purpose = 'channel' AND draft_connection.transport = 'chat_sdk'
         AND draft_connection.status = 'draft' AND draft_connection.enabled = false))) IS NOT TRUE) AND ${
           ids.length
@@ -385,7 +385,7 @@ export function incomingWakeWorkQuery(
     OR (c.status = 'active' AND c.connection_purpose = 'ai' AND c.transport = 'runtime_auth')
     OR (c.status = 'active' AND c.connection_purpose = 'tool' AND c.transport = 'mcp_remote'
       AND NOT EXISTS (SELECT 1 FROM connection_grants g WHERE g.connection_id = c.id
-        AND (g.company_id <> c.company_id OR g.provider_tenant->'github' IS NOT NULL)))
+        AND (g.space_id <> c.space_id OR g.provider_tenant->'github' IS NOT NULL)))
     ) IS NOT TRUE) AND ${
       ids.length
         ? sql`c.id NOT IN (${sql.join(

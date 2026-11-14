@@ -49,7 +49,7 @@ export function isContextCompactionRun(context: unknown): boolean {
 }
 
 /**
- * Harnesses that can compact on request. Compaction needs the Paperclip
+ * Harnesses that can compact on request. Compaction needs the Outpost
  * runner, which resumes the provider session: Codex through its app-server,
  * Claude through ACP.
  */
@@ -90,12 +90,12 @@ type WakeupFn = (
 
 export function contextCompactionService(db: Db, deps: { wakeup?: WakeupFn } = {}) {
   /** The assignee's newest unfinished run for this task, if any. */
-  async function activeRun(companyId: string, issueId: string, agentId: string) {
+  async function activeRun(spaceId: string, issueId: string, agentId: string) {
     return db
       .select({ id: heartbeatRuns.id, contextSnapshot: heartbeatRuns.contextSnapshot })
       .from(heartbeatRuns)
       .where(and(
-        eq(heartbeatRuns.companyId, companyId),
+        eq(heartbeatRuns.spaceId, spaceId),
         eq(heartbeatRuns.agentId, agentId),
         inArray(heartbeatRuns.status, [...ACTIVE_RUN_STATUSES]),
         or(
@@ -110,7 +110,7 @@ export function contextCompactionService(db: Db, deps: { wakeup?: WakeupFn } = {
   }
 
   async function availability(
-    companyId: string,
+    spaceId: string,
     issue: { id: string; assigneeAgentId: string | null; status: string },
   ): Promise<IssueContextCompaction> {
     if (issue.status === "done" || issue.status === "cancelled") {
@@ -122,14 +122,14 @@ export function contextCompactionService(db: Db, deps: { wakeup?: WakeupFn } = {
     const agent = await db
       .select({ adapterType: agents.adapterType, adapterConfig: agents.adapterConfig })
       .from(agents)
-      .where(and(eq(agents.id, issue.assigneeAgentId), eq(agents.companyId, companyId)))
+      .where(and(eq(agents.id, issue.assigneeAgentId), eq(agents.spaceId, spaceId)))
       .then((rows) => rows[0] ?? null);
     if (!agent) {
       return { status: "unavailable", reasonCode: "no_assignee", reason: "Assign an agent to compact its context." };
     }
     const support = contextCompactionSupport(agent);
     if (!support.supported) return { status: "unavailable", reasonCode: "unsupported", reason: support.reason };
-    const run = await activeRun(companyId, issue.id, issue.assigneeAgentId);
+    const run = await activeRun(spaceId, issue.id, issue.assigneeAgentId);
     if (run && isContextCompactionRun(run.contextSnapshot)) {
       return { status: "pending", reasonCode: null, reason: null, runId: run.id };
     }
@@ -146,13 +146,13 @@ export function contextCompactionService(db: Db, deps: { wakeup?: WakeupFn } = {
 
   /** Queues a compaction run for the task's assignee. */
   async function request(input: {
-    companyId: string;
+    spaceId: string;
     issue: { id: string; assigneeAgentId: string | null; status: string };
     userId: string;
     /** The session's last context reading, shown as the divider's "before" size. */
     contextTokensBefore?: number | null;
   }): Promise<{ requestId: string; runId: string }> {
-    const current = await availability(input.companyId, input.issue);
+    const current = await availability(input.spaceId, input.issue);
     if (current.status === "pending") {
       throw new ContextCompactionError("already_pending", "The agent is already compacting its context.");
     }
@@ -175,7 +175,7 @@ export function contextCompactionService(db: Db, deps: { wakeup?: WakeupFn } = {
       requestedByActorId: input.userId,
       // A compaction never joins, or absorbs, another run's work.
       allowRunCoalescing: false,
-      // An explicit board click; admission and dispatch recheck its owner.
+      // An explicit operator click; admission and dispatch recheck its owner.
       manualUserWake: true,
       contextSnapshot: {
         issueId: input.issue.id,

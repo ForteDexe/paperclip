@@ -7,16 +7,16 @@ import type { ToolConnectionActivityResponse, ToolRunDecision, ToolRunDecisionLo
 import { notFound } from "../../../errors.js";
 import { listConnectionLifecycleEvents } from "../../tool-connection-activity.js";
 import { toToolInvocation, toToolActionRequest, toToolCallEvent, userFallbackName, denialReasonForDecision } from "./projection.js";
-type ConnectionLookup = (idOrUid: string, companyId?: string) => Promise<typeof toolConnections.$inferSelect>;
+type ConnectionLookup = (idOrUid: string, spaceId?: string) => Promise<typeof toolConnections.$inferSelect>;
 
 export function createToolActivityService(db: Db, getConnectionRow: ConnectionLookup) {
   return {
     getConnectionUsage: async (
       idOrUid: string,
       range: "7d" | "30d",
-      companyId?: string,
+      spaceId?: string,
     ) => {
-      const connection = await getConnectionRow(idOrUid, companyId);
+      const connection = await getConnectionRow(idOrUid, spaceId);
       const days = range === "30d" ? 30 : 7;
       const start = new Date();
       start.setUTCHours(0, 0, 0, 0);
@@ -31,7 +31,7 @@ export function createToolActivityService(db: Db, getConnectionRow: ConnectionLo
           .from(connectionTokenIssuances)
           .where(
             and(
-              eq(connectionTokenIssuances.companyId, connection.companyId),
+              eq(connectionTokenIssuances.spaceId, connection.spaceId),
               eq(connectionTokenIssuances.connectionId, connection.id),
               gte(connectionTokenIssuances.createdAt, start),
             ),
@@ -44,7 +44,7 @@ export function createToolActivityService(db: Db, getConnectionRow: ConnectionLo
           .from(toolInvocations)
           .where(
             and(
-              eq(toolInvocations.companyId, connection.companyId),
+              eq(toolInvocations.spaceId, connection.spaceId),
               eq(toolInvocations.connectionId, connection.id),
               gte(toolInvocations.createdAt, start),
             ),
@@ -92,18 +92,18 @@ export function createToolActivityService(db: Db, getConnectionRow: ConnectionLo
     /** Recent tool-call events for one connection — drives App detail · Recent activity. */
 listConnectionActivity: async (
       connectionId: string,
-      companyId?: string,
+      spaceId?: string,
       limit = 20,
       managementContext?: ConnectionManagementContext,
     ): Promise<ToolConnectionActivityResponse> => {
-      const connection = await getConnectionRow(connectionId, companyId);
+      const connection = await getConnectionRow(connectionId, spaceId);
       const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)));
       let rows = await db
         .select()
         .from(toolCallEvents)
         .where(
           and(
-            eq(toolCallEvents.companyId, connection.companyId),
+            eq(toolCallEvents.spaceId, connection.spaceId),
             eq(toolCallEvents.connectionId, connection.id),
           ),
         )
@@ -140,7 +140,7 @@ listConnectionActivity: async (
             .from(issues)
             .where(
               and(
-                eq(issues.companyId, connection.companyId),
+                eq(issues.spaceId, connection.spaceId),
                 inArray(issues.id, issueIds),
               ),
             )
@@ -169,7 +169,7 @@ listConnectionActivity: async (
             .from(toolActionRequests)
             .where(
               and(
-                eq(toolActionRequests.companyId, connection.companyId),
+                eq(toolActionRequests.spaceId, connection.spaceId),
                 inArray(toolActionRequests.id, actionRequestIds),
               ),
             )
@@ -191,7 +191,7 @@ listConnectionActivity: async (
             .from(agents)
             .where(
               and(
-                eq(agents.companyId, connection.companyId),
+                eq(agents.spaceId, connection.spaceId),
                 inArray(agents.id, resolverAgentIds),
               ),
             )
@@ -234,7 +234,7 @@ listConnectionActivity: async (
       );
 
       const lifecycleEvents = await listConnectionLifecycleEvents(db, {
-        companyId: connection.companyId,
+        spaceId: connection.spaceId,
         connectionIds: [connection.id],
         limit: safeLimit,
       });
@@ -249,7 +249,7 @@ listConnectionActivity: async (
     },
 
     getRunDecisionLookup: async (
-      companyId: string,
+      spaceId: string,
       runId: string,
     ): Promise<ToolRunDecisionLookup> => {
       const [run] = await db
@@ -258,7 +258,7 @@ listConnectionActivity: async (
         .where(
           and(
             eq(heartbeatRuns.id, runId),
-            eq(heartbeatRuns.companyId, companyId),
+            eq(heartbeatRuns.spaceId, spaceId),
           ),
         )
         .limit(1);
@@ -269,7 +269,7 @@ listConnectionActivity: async (
         .from(toolInvocations)
         .where(
           and(
-            eq(toolInvocations.companyId, companyId),
+            eq(toolInvocations.spaceId, spaceId),
             eq(toolInvocations.runId, runId),
           ),
         )
@@ -283,7 +283,7 @@ listConnectionActivity: async (
                 .from(toolActionRequests)
                 .where(
                   and(
-                    eq(toolActionRequests.companyId, companyId),
+                    eq(toolActionRequests.spaceId, spaceId),
                     inArray(toolActionRequests.invocationId, invocationIds),
                   ),
                 ),
@@ -292,7 +292,7 @@ listConnectionActivity: async (
                 .from(toolCallEvents)
                 .where(
                   and(
-                    eq(toolCallEvents.companyId, companyId),
+                    eq(toolCallEvents.spaceId, spaceId),
                     eq(toolCallEvents.runId, runId),
                     inArray(toolCallEvents.invocationId, invocationIds),
                   ),

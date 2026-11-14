@@ -16,7 +16,7 @@ import {
   updateUserSecretValueSchema,
 } from "@outpost/shared";
 import { validate } from "../middleware/validate.js";
-import { assertBoard, assertBoardOrAgent, assertCompanyAccess, getAccessibleResource } from "./authz.js";
+import { assertOperator, assertOperatorOrAgent, assertSpaceAccess, getAccessibleResource } from "./authz.js";
 import { logActivity, secretService } from "../services/index.js";
 import { createSecretProposalsService } from "../services/secret-proposals.js";
 import { getConfiguredSecretProvider } from "../secrets/configured-provider.js";
@@ -65,45 +65,45 @@ function setProposalPaginationHeaders(
   if (hasMore) res.setHeader("X-Next-Offset", String(page.offset + page.limit));
 }
 
-function hasSecretDefinitionAdminAccess(req: Parameters<typeof assertBoard>[0], companyId: string) {
-  assertBoard(req);
-  assertCompanyAccess(req, companyId);
+function hasSecretDefinitionAdminAccess(req: Parameters<typeof assertOperator>[0], spaceId: string) {
+  assertOperator(req);
+  assertSpaceAccess(req, spaceId);
   if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return true;
-  const membership = req.actor.memberships?.find((item) => item.companyId === companyId);
+  const membership = req.actor.memberships?.find((item) => item.spaceId === spaceId);
   return membership?.status === "active" && ["owner", "admin"].includes(String(membership.membershipRole));
 }
 
-function assertSecretDefinitionAdmin(req: Parameters<typeof assertBoard>[0], companyId: string) {
-  if (hasSecretDefinitionAdminAccess(req, companyId)) return;
+function assertSecretDefinitionAdmin(req: Parameters<typeof assertOperator>[0], spaceId: string) {
+  if (hasSecretDefinitionAdminAccess(req, spaceId)) return;
   throw forbidden("Outpost admin access required");
 }
 
-function assertCompanySecretWrite(req: Parameters<typeof assertBoard>[0], companyId: string) {
-  assertBoard(req);
-  assertCompanyAccess(req, companyId);
+function assertSpaceSecretWrite(req: Parameters<typeof assertOperator>[0], spaceId: string) {
+  assertOperator(req);
+  assertSpaceAccess(req, spaceId);
 }
 
-function currentUserId(req: Parameters<typeof assertBoard>[0]) {
-  assertBoard(req);
+function currentUserId(req: Parameters<typeof assertOperator>[0]) {
+  assertOperator(req);
   if (req.actor.userId) return req.actor.userId;
   throw unauthorized("User identity required for user-specific secrets");
 }
 
-function boardActorUser(req: Parameters<typeof assertBoard>[0]) {
-  assertBoard(req);
+function operatorActorUser(req: Parameters<typeof assertOperator>[0]) {
+  assertOperator(req);
   return { userId: req.actor.userId ?? null, agentId: null };
 }
 
-function userSecretDefinitionActivityActor(req: Parameters<typeof assertBoard>[0]) {
-  assertBoard(req);
+function userSecretDefinitionActivityActor(req: Parameters<typeof assertOperator>[0]) {
+  assertOperator(req);
   if (req.actor.userId) {
     return { actorType: "user" as const, actorId: req.actor.userId };
   }
-  return { actorType: "system" as const, actorId: req.actor.source ?? "board" };
+  return { actorType: "system" as const, actorId: req.actor.source ?? "operator" };
 }
 
-function isCompanyScopedSecret(secret: { scope?: string | null }) {
-  return (secret.scope ?? "company") === "company";
+function isSpaceScopedSecret(secret: { scope?: string | null }) {
+  return (secret.scope ?? "space") === "space";
 }
 
 export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
@@ -116,22 +116,22 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   const runRedactions = createRunSecretRedactionRegistry(db);
   const defaultProvider = getConfiguredSecretProvider();
 
-  async function assertSecretCatalogReadAllowed(req: Parameters<typeof assertBoard>[0], companyId: string) {
+  async function assertSecretCatalogReadAllowed(req: Parameters<typeof assertOperator>[0], spaceId: string) {
     const decision = await access.decide({
       actor: req.actor,
       action: "secrets:read",
-      resource: { type: "company", companyId },
+      resource: { type: "space", spaceId },
     });
     if (decision.allowed) return;
     throw forbidden(decision.explanation, authorizationDeniedDetails(decision));
   }
 
-  function agentSecretContext(req: Parameters<typeof assertBoard>[0]) {
-    if (req.actor.type !== "agent" || !req.actor.agentId || !req.actor.companyId || !req.actor.runId) {
+  function agentSecretContext(req: Parameters<typeof assertOperator>[0]) {
+    if (req.actor.type !== "agent" || !req.actor.agentId || !req.actor.spaceId || !req.actor.runId) {
       throw forbidden("Run-bound agent authentication required");
     }
     return {
-      companyId: req.actor.companyId,
+      spaceId: req.actor.spaceId,
       agentId: req.actor.agentId,
       actorSource: req.actor.source === "agent_jwt" ? "agent_jwt" as const : "agent_key" as const,
       keyId: req.actor.keyId ?? null,
@@ -141,7 +141,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     };
   }
 
-  async function proposalAgentContext(req: Parameters<typeof assertBoard>[0]) {
+  async function proposalAgentContext(req: Parameters<typeof assertOperator>[0]) {
     const context = agentSecretContext(req);
     if (req.actor.source !== "agent_jwt" || req.actor.keyScope?.kind === "task_bridge" || req.actor.keyScope?.kind === "skill_test") {
       throw forbidden("Secret proposals require a verified run-bound agent token");
@@ -149,7 +149,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     const decision = await access.decide({
       actor: req.actor,
       action: "secrets:propose",
-      resource: { type: "company", companyId: context.companyId },
+      resource: { type: "space", spaceId: context.spaceId },
     });
     if (!decision.allowed) {
       throw forbidden(decision.explanation, authorizationDeniedDetails(decision));
@@ -162,7 +162,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     return safe;
   }
 
-  async function bindingApprovalDecision(req: Parameters<typeof assertBoard>[0], proposal: {
+  async function bindingApprovalDecision(req: Parameters<typeof assertOperator>[0], proposal: {
     kind: string;
     targetId: string | null;
   }) {
@@ -171,16 +171,16 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     return access.decide({
       actor: req.actor,
       action: "agent_config:update",
-      resource: { type: "agent", companyId: req.params.companyId as string, agentId: proposal.targetId },
+      resource: { type: "agent", spaceId: req.params.spaceId as string, agentId: proposal.targetId },
       scope: { requiresChangeGrant: true },
     });
   }
 
-  async function boardProposalView(req: Parameters<typeof assertBoard>[0], proposal: Awaited<ReturnType<typeof proposals.listForBoard>>[number]) {
+  async function operatorProposalView(req: Parameters<typeof assertOperator>[0], proposal: Awaited<ReturnType<typeof proposals.listForOperator>>[number]) {
     if (proposal.status !== "pending") {
       return { ...proposal, viewerCanApprove: false, approveBlockReason: "Proposal is no longer pending" };
     }
-    if (proposal.kind === "secret" && !hasSecretDefinitionAdminAccess(req, req.params.companyId as string)) {
+    if (proposal.kind === "secret" && !hasSecretDefinitionAdminAccess(req, req.params.spaceId as string)) {
       return { ...proposal, viewerCanApprove: false, approveBlockReason: "Outpost admin access required" };
     }
     const decision = await bindingApprovalDecision(req, proposal);
@@ -196,9 +196,9 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     const body = req.body ?? {};
     const proposal = body.kind === "secret"
       ? await proposals.createSecret({
-          companyId: context.companyId,
+          spaceId: context.spaceId,
           heartbeatRunId: context.heartbeatRunId,
-          registerForRedaction: (value) => runRedactions.register(context.companyId, context.heartbeatRunId, value),
+          registerForRedaction: (value) => runRedactions.register(context.spaceId, context.heartbeatRunId, value),
         }, {
           name: body.name,
           key: body.key,
@@ -207,7 +207,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
           justification: body.justification,
         })
       : body.kind === "binding"
-        ? await proposals.createBinding({ companyId: context.companyId, heartbeatRunId: context.heartbeatRunId }, {
+        ? await proposals.createBinding({ spaceId: context.spaceId, heartbeatRunId: context.heartbeatRunId }, {
             secretId: body.secretId, sourceConfigPath: body.sourceConfigPath,
             secretProposalId: body.secretProposalId, targetAgentId: body.targetAgentId,
             configPath: body.configPath, justification: body.justification, bindingTargetPolicy: "self_and_reports",
@@ -219,7 +219,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   router.get("/agents/me/secret-proposals", async (req, res) => {
     const context = await proposalAgentContext(req);
     const page = proposalListPage(req.query);
-    const rows = await proposals.listForAgent(context.companyId, context.agentId, {
+    const rows = await proposals.listForAgent(context.spaceId, context.agentId, {
       limit: page.limit + 1,
       offset: page.offset,
     });
@@ -233,71 +233,71 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
 
   router.delete("/agents/me/secret-proposals/:id", async (req, res) => {
     const context = await proposalAgentContext(req);
-    const proposal = await proposals.transition(context.companyId, req.params.id as string, "withdrawn", { proposerAgentId: context.agentId });
+    const proposal = await proposals.transition(context.spaceId, req.params.id as string, "withdrawn", { proposerAgentId: context.agentId });
     res.json(agentProposalView(await proposals.view(proposal)));
   });
 
-  router.get("/companies/:companyId/secret-proposals", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/secret-proposals", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const status = typeof req.query.status === "string" ? req.query.status : null;
     const page = proposalListPage(req.query);
-    const rows = await proposals.listForBoard(companyId, status, {
+    const rows = await proposals.listForOperator(spaceId, status, {
       limit: page.limit + 1,
       offset: page.offset,
     });
     const hasMore = rows.length > page.limit;
     setProposalPaginationHeaders(res, page, hasMore);
-    res.json(await Promise.all(rows.slice(0, page.limit).map((proposal) => boardProposalView(req, proposal))));
+    res.json(await Promise.all(rows.slice(0, page.limit).map((proposal) => operatorProposalView(req, proposal))));
   });
 
-  router.post("/companies/:companyId/secret-proposals/:id/approve", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanySecretWrite(req, companyId);
-    const proposal = await proposals.getById(companyId, req.params.id as string);
+  router.post("/spaces/:spaceId/secret-proposals/:id/approve", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceSecretWrite(req, spaceId);
+    const proposal = await proposals.getById(spaceId, req.params.id as string);
     if (!proposal) throw notFound("Secret proposal not found");
     await assertCanResolveProposal({
       db,
       actor: req.actor,
-      companyId,
+      spaceId,
       proposal,
-      assertSecretDefinitionAdmin: () => assertSecretDefinitionAdmin(req, companyId),
+      assertSecretDefinitionAdmin: () => assertSecretDefinitionAdmin(req, spaceId),
     });
-    const resolvedByUserId = req.actor.userId ?? "board";
-    const approved = await proposals.approve(companyId, proposal.id, {
+    const resolvedByUserId = req.actor.userId ?? "operator";
+    const approved = await proposals.approve(spaceId, proposal.id, {
       resolvedByUserId,
       cascade: req.body?.cascade === true,
       overrides: req.body?.overrides,
       assertCanResolve: (lockedProposal, txDb) => assertCanResolveProposal({
         db: txDb,
         actor: req.actor,
-        companyId,
+        spaceId,
         proposal: lockedProposal,
-        assertSecretDefinitionAdmin: () => assertSecretDefinitionAdmin(req, companyId),
+        assertSecretDefinitionAdmin: () => assertSecretDefinitionAdmin(req, spaceId),
       }),
     });
     await notifySecretProposalResolution({ proposal, status: "approved", userId: resolvedByUserId, issues, heartbeat });
-    res.json(await boardProposalView(req, await proposals.view(approved)));
+    res.json(await operatorProposalView(req, await proposals.view(approved)));
   });
 
-  router.post("/companies/:companyId/secret-proposals/:id/reject", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.post("/spaces/:spaceId/secret-proposals/:id/reject", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
     if (!reason) throw unprocessable("Rejection reason is required");
-    const existing = await proposals.getById(companyId, req.params.id as string);
+    const existing = await proposals.getById(spaceId, req.params.id as string);
     if (!existing) throw notFound("Secret proposal not found");
     await assertCanResolveProposal({
       db,
       actor: req.actor,
-      companyId,
+      spaceId,
       proposal: existing,
-      assertSecretDefinitionAdmin: () => assertSecretDefinitionAdmin(req, companyId),
+      assertSecretDefinitionAdmin: () => assertSecretDefinitionAdmin(req, spaceId),
     });
-    const resolvedByUserId = req.actor.userId ?? "board";
-    const proposal = await proposals.transition(companyId, req.params.id as string, "rejected", {
+    const resolvedByUserId = req.actor.userId ?? "operator";
+    const proposal = await proposals.transition(spaceId, req.params.id as string, "rejected", {
       resolvedByUserId, reason,
     });
     await notifySecretProposalResolution({
@@ -308,14 +308,14 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
       issues,
       heartbeat,
     });
-    res.json(await boardProposalView(req, await proposals.view(proposal)));
+    res.json(await operatorProposalView(req, await proposals.view(proposal)));
   });
 
   router.get("/agents/me/secrets", async (req, res) => {
     const context = agentSecretContext(req);
-    const secrets = await svc.listAgentSecretAccess(context.companyId, context);
+    const secrets = await svc.listAgentSecretAccess(context.spaceId, context);
     await logActivity(db, {
-      companyId: context.companyId,
+      spaceId: context.spaceId,
       actorType: "agent",
       actorId: context.agentId,
       action: "secret.access.listed",
@@ -335,11 +335,11 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
 
   router.post("/agents/me/secrets/:key/value", async (req, res) => {
     const context = agentSecretContext(req);
-    const available = await svc.listAgentSecretAccess(context.companyId, context);
+    const available = await svc.listAgentSecretAccess(context.spaceId, context);
     const secret = available.find((entry) => entry.key === req.params.key);
     if (!secret) throw forbidden("Secret access is not granted for this agent");
     const resolution = await svc.resolveSecretValueForAgentAccess(
-      context.companyId,
+      context.spaceId,
       secret.secretId,
       secret.versionSelector,
       {
@@ -347,7 +347,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
         configPath: secret.configPath,
         bindingId: secret.bindingId,
         issueId: null,
-        registerForRedaction: (value) => runRedactions.register(context.companyId, context.heartbeatRunId, value),
+        registerForRedaction: (value) => runRedactions.register(context.spaceId, context.heartbeatRunId, value),
       },
     );
     res.set("Cache-Control", "no-store");
@@ -358,37 +358,37 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     });
   });
 
-  router.get("/companies/:companyId/secret-providers", (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/secret-providers", (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     res.json(svc.listProviders());
   });
 
-  router.get("/companies/:companyId/secret-providers/health", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/secret-providers/health", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     const checks = await svc.checkProviders();
     res.json({ providers: checks });
   });
 
-  router.get("/companies/:companyId/secret-provider-configs", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    res.json(await svc.listProviderConfigs(companyId));
+  router.get("/spaces/:spaceId/secret-provider-configs", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    res.json(await svc.listProviderConfigs(spaceId));
   });
 
   router.post(
-    "/companies/:companyId/secret-provider-configs/discovery/preview",
+    "/spaces/:spaceId/secret-provider-configs/discovery/preview",
     validate(secretProviderConfigDiscoveryPreviewSchema),
     async (req, res) => {
-      assertBoard(req);
-      const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
+      assertOperator(req);
+      const spaceId = req.params.spaceId as string;
+      assertSpaceAccess(req, spaceId);
 
-      const preview = await svc.previewProviderConfigDiscovery(companyId, {
+      const preview = await svc.previewProviderConfigDiscovery(spaceId, {
         provider: req.body.provider,
         config: req.body.config,
         query: req.body.query,
@@ -397,12 +397,12 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
       });
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
-        actorId: req.actor.userId ?? "board",
+        actorId: req.actor.userId ?? "operator",
         action: "secret_provider_config.discovery_previewed",
         entityType: "secret_provider_config_discovery",
-        entityId: companyId,
+        entityId: spaceId,
         details: {
           provider: preview.provider,
           candidateCount: preview.candidates.length,
@@ -415,13 +415,13 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     },
   );
 
-  router.post("/companies/:companyId/secret-provider-configs", validate(createSecretProviderConfigSchema), async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.post("/spaces/:spaceId/secret-provider-configs", validate(createSecretProviderConfigSchema), async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
 
     const created = await svc.createProviderConfig(
-      companyId,
+      spaceId,
       {
         provider: req.body.provider,
         displayName: req.body.displayName,
@@ -429,13 +429,13 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
         isDefault: req.body.isDefault,
         config: req.body.config,
       },
-      { userId: req.actor.userId ?? "board", agentId: null },
+      { userId: req.actor.userId ?? "operator", agentId: null },
     );
 
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "user",
-      actorId: req.actor.userId ?? "board",
+      actorId: req.actor.userId ?? "operator",
       action: "secret_provider_config.created",
       entityType: "secret_provider_config",
       entityId: created.id,
@@ -451,14 +451,14 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   });
 
   router.get("/secret-provider-configs/:id", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const existing = await getAccessibleResource(req, res, svc.getProviderConfigById(req.params.id as string), "Provider vault not found");
     if (!existing) return;
     res.json(existing);
   });
 
   router.patch("/secret-provider-configs/:id", validate(updateSecretProviderConfigSchema), async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const id = req.params.id as string;
     const existing = await getAccessibleResource(req, res, svc.getProviderConfigById(id), "Provider vault not found");
     if (!existing) return;
@@ -475,9 +475,9 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     }
 
     await logActivity(db, {
-      companyId: updated.companyId,
+      spaceId: updated.spaceId,
       actorType: "user",
-      actorId: req.actor.userId ?? "board",
+      actorId: req.actor.userId ?? "operator",
       action: "secret_provider_config.updated",
       entityType: "secret_provider_config",
       entityId: updated.id,
@@ -493,7 +493,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   });
 
   router.delete("/secret-provider-configs/:id", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const id = req.params.id as string;
     const existing = await getAccessibleResource(req, res, svc.getProviderConfigById(id), "Provider vault not found");
     if (!existing) return;
@@ -505,9 +505,9 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     }
 
     await logActivity(db, {
-      companyId: removed.companyId,
+      spaceId: removed.spaceId,
       actorType: "user",
-      actorId: req.actor.userId ?? "board",
+      actorId: req.actor.userId ?? "operator",
       action: "secret_provider_config.removed",
       entityType: "secret_provider_config",
       entityId: removed.id,
@@ -522,7 +522,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   });
 
   router.post("/secret-provider-configs/:id/default", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const id = req.params.id as string;
     const existing = await getAccessibleResource(req, res, svc.getProviderConfigById(id), "Provider vault not found");
     if (!existing) return;
@@ -534,9 +534,9 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     }
 
     await logActivity(db, {
-      companyId: updated.companyId,
+      spaceId: updated.spaceId,
       actorType: "user",
-      actorId: req.actor.userId ?? "board",
+      actorId: req.actor.userId ?? "operator",
       action: "secret_provider_config.default_set",
       entityType: "secret_provider_config",
       entityId: updated.id,
@@ -551,7 +551,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   });
 
   router.post("/secret-provider-configs/:id/health", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const id = req.params.id as string;
     const existing = await getAccessibleResource(req, res, svc.getProviderConfigById(id), "Provider vault not found");
     if (!existing) return;
@@ -563,9 +563,9 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     }
 
     await logActivity(db, {
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       actorType: "user",
-      actorId: req.actor.userId ?? "board",
+      actorId: req.actor.userId ?? "operator",
       action: "secret_provider_config.health_checked",
       entityType: "secret_provider_config",
       entityId: existing.id,
@@ -581,39 +581,39 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
 
   // Agent-readable catalog: returns only non-sensitive metadata (id, name, key, status).
   // Agents need this to resolve a secret name to its UUID when wiring env bindings,
-  // without requiring board access or exposing any secret values.
-  router.get("/companies/:companyId/secrets/catalog", async (req, res) => {
-    assertBoardOrAgent(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    await assertSecretCatalogReadAllowed(req, companyId);
-    const secrets = await svc.list(companyId);
+  // without requiring operator access or exposing any secret values.
+  router.get("/spaces/:spaceId/secrets/catalog", async (req, res) => {
+    assertOperatorOrAgent(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    await assertSecretCatalogReadAllowed(req, spaceId);
+    const secrets = await svc.list(spaceId);
     res.json(secrets.map(({ id, name, key, status }) => ({ id, name, key, status })));
   });
 
-  router.get("/companies/:companyId/secrets", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    const secrets = await svc.list(companyId);
+  router.get("/spaces/:spaceId/secrets", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    const secrets = await svc.list(spaceId);
     res.json(secrets);
   });
 
-  router.get("/companies/:companyId/user-secret-definitions", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertSecretDefinitionAdmin(req, companyId);
-    res.json(await svc.listUserSecretDefinitions(companyId));
+  router.get("/spaces/:spaceId/user-secret-definitions", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSecretDefinitionAdmin(req, spaceId);
+    res.json(await svc.listUserSecretDefinitions(spaceId));
   });
 
   router.post(
-    "/companies/:companyId/user-secret-definitions",
+    "/spaces/:spaceId/user-secret-definitions",
     validate(createUserSecretDefinitionSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertSecretDefinitionAdmin(req, companyId);
+      const spaceId = req.params.spaceId as string;
+      assertSecretDefinitionAdmin(req, spaceId);
 
       const created = await svc.createUserSecretDefinition(
-        companyId,
+        spaceId,
         {
           key: req.body.key,
           name: req.body.name,
@@ -625,12 +625,12 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
           providerMetadata: req.body.providerMetadata,
           usageGuidance: req.body.usageGuidance,
         },
-        boardActorUser(req),
+        operatorActorUser(req),
       );
       const activityActor = userSecretDefinitionActivityActor(req);
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: activityActor.actorType,
         actorId: activityActor.actorId,
         action: "user_secret_definition.created",
@@ -644,15 +644,15 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   );
 
   router.patch(
-    "/companies/:companyId/user-secret-definitions/:definitionId",
+    "/spaces/:spaceId/user-secret-definitions/:definitionId",
     validate(updateUserSecretDefinitionSchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const definitionId = req.params.definitionId as string;
-      assertSecretDefinitionAdmin(req, companyId);
+      assertSecretDefinitionAdmin(req, spaceId);
 
       const updated = await svc.updateUserSecretDefinition(
-        companyId,
+        spaceId,
         definitionId,
         {
           key: req.body.key,
@@ -663,7 +663,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
           providerMetadata: req.body.providerMetadata,
           usageGuidance: req.body.usageGuidance,
         },
-        boardActorUser(req),
+        operatorActorUser(req),
       );
       if (!updated) {
         res.status(404).json({ error: "User secret definition not found" });
@@ -675,7 +675,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
         : "user_secret_definition.updated";
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: activityActor.actorType,
         actorId: activityActor.actorId,
         action: activityAction,
@@ -688,15 +688,15 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     },
   );
 
-  router.delete("/companies/:companyId/user-secret-definitions/:definitionId", async (req, res) => {
-    const companyId = req.params.companyId as string;
+  router.delete("/spaces/:spaceId/user-secret-definitions/:definitionId", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
     const definitionId = req.params.definitionId as string;
-    assertSecretDefinitionAdmin(req, companyId);
+    assertSecretDefinitionAdmin(req, spaceId);
 
     const removed = await svc.removeUserSecretDefinition(
-      companyId,
+      spaceId,
       definitionId,
-      boardActorUser(req),
+      operatorActorUser(req),
     );
     if (!removed) {
       res.status(404).json({ error: "User secret definition not found" });
@@ -705,7 +705,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     const activityActor = userSecretDefinitionActivityActor(req);
 
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: activityActor.actorType,
       actorId: activityActor.actorId,
       action: "user_secret_definition.deleted",
@@ -717,30 +717,30 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     res.json({ ok: true });
   });
 
-  router.get("/companies/:companyId/user-secret-definitions/:definitionId/coverage", async (req, res) => {
-    const companyId = req.params.companyId as string;
+  router.get("/spaces/:spaceId/user-secret-definitions/:definitionId/coverage", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
     const definitionId = req.params.definitionId as string;
-    assertSecretDefinitionAdmin(req, companyId);
-    res.json(await svc.getUserSecretDefinitionCoverage(companyId, definitionId));
+    assertSecretDefinitionAdmin(req, spaceId);
+    res.json(await svc.getUserSecretDefinitionCoverage(spaceId, definitionId));
   });
 
-  router.get("/companies/:companyId/me/user-secrets", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    res.json(await svc.listCurrentUserSecretValues(companyId, currentUserId(req)));
+  router.get("/spaces/:spaceId/me/user-secrets", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    res.json(await svc.listCurrentUserSecretValues(spaceId, currentUserId(req)));
   });
 
   router.post(
-    "/companies/:companyId/me/user-secrets",
+    "/spaces/:spaceId/me/user-secrets",
     validate(createUserSecretValueSchema),
     async (req, res) => {
-      assertBoard(req);
-      const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
+      assertOperator(req);
+      const spaceId = req.params.spaceId as string;
+      assertSpaceAccess(req, spaceId);
       const ownerUserId = currentUserId(req);
       const created = await svc.createCurrentUserSecretValue(
-        companyId,
+        spaceId,
         ownerUserId,
         {
           definitionKey: req.body.definitionKey,
@@ -754,7 +754,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
       );
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
         actorId: ownerUserId,
         action: "user_secret_value.created",
@@ -772,16 +772,16 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   );
 
   router.patch(
-    "/companies/:companyId/me/user-secrets/:secretId",
+    "/spaces/:spaceId/me/user-secrets/:secretId",
     validate(updateUserSecretValueSchema),
     async (req, res) => {
-      assertBoard(req);
-      const companyId = req.params.companyId as string;
+      assertOperator(req);
+      const spaceId = req.params.spaceId as string;
       const secretId = req.params.secretId as string;
-      assertCompanyAccess(req, companyId);
+      assertSpaceAccess(req, spaceId);
       const ownerUserId = currentUserId(req);
       const updated = await svc.updateCurrentUserSecretValue(
-        companyId,
+        spaceId,
         ownerUserId,
         secretId,
         {
@@ -799,7 +799,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
       }
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
         actorId: ownerUserId,
         action: "user_secret_value.updated",
@@ -817,16 +817,16 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   );
 
   router.post(
-    "/companies/:companyId/me/user-secrets/:secretId/rotate",
+    "/spaces/:spaceId/me/user-secrets/:secretId/rotate",
     validate(rotateUserSecretValueSchema),
     async (req, res) => {
-      assertBoard(req);
-      const companyId = req.params.companyId as string;
+      assertOperator(req);
+      const spaceId = req.params.spaceId as string;
       const secretId = req.params.secretId as string;
-      assertCompanyAccess(req, companyId);
+      assertSpaceAccess(req, spaceId);
       const ownerUserId = currentUserId(req);
       const rotated = await svc.rotateCurrentUserSecretValue(
-        companyId,
+        spaceId,
         ownerUserId,
         secretId,
         {
@@ -839,7 +839,7 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
       );
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
         actorId: ownerUserId,
         action: "user_secret_value.rotated",
@@ -856,20 +856,20 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     },
   );
 
-  router.delete("/companies/:companyId/me/user-secrets/:secretId", async (req, res) => {
-    assertBoard(req);
-    const companyId = req.params.companyId as string;
+  router.delete("/spaces/:spaceId/me/user-secrets/:secretId", async (req, res) => {
+    assertOperator(req);
+    const spaceId = req.params.spaceId as string;
     const secretId = req.params.secretId as string;
-    assertCompanyAccess(req, companyId);
+    assertSpaceAccess(req, spaceId);
     const ownerUserId = currentUserId(req);
-    const removed = await svc.removeCurrentUserSecretValue(companyId, ownerUserId, secretId);
+    const removed = await svc.removeCurrentUserSecretValue(spaceId, ownerUserId, secretId);
     if (!removed) {
       res.status(404).json({ error: "User secret value not found" });
       return;
     }
 
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "user",
       actorId: ownerUserId,
       action: "user_secret_value.deleted",
@@ -884,19 +884,19 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     res.json({ ok: true });
   });
 
-  router.post("/companies/:companyId/secrets", (req, _res, next) => {
-    const companyId = req.params.companyId as string;
+  router.post("/spaces/:spaceId/secrets", (req, _res, next) => {
+    const spaceId = req.params.spaceId as string;
     if (req.actor.type === "agent") {
-      assertCompanyAccess(req, companyId);
-      throw forbidden("Outpost secret creation requires a human board operator. Ask the human to enter the value in Settings → Secrets for this company. Do not send secret values in chat or tool calls. You can finish the current conversation response with these secure-entry instructions without claiming that credential setup is complete. If you need a resumable wait, first create a non-governing secure-save acknowledgment with request_human_input with interactionKind=\"confirmation\"; ask only whether secure entry is complete, never ask for the secret value in that card. Wait only on the actual saved request.");
+      assertSpaceAccess(req, spaceId);
+      throw forbidden("Outpost secret creation requires a human operator operator. Ask the human to enter the value in Settings → Secrets for this space. Do not send secret values in chat or tool calls. You can finish the current conversation response with these secure-entry instructions without claiming that credential setup is complete. If you need a resumable wait, first create a non-controlling secure-save acknowledgment with request_human_input with interactionKind=\"confirmation\"; ask only whether secure entry is complete, never ask for the secret value in that card. Wait only on the actual saved request.");
     }
-    assertCompanySecretWrite(req, companyId);
+    assertSpaceSecretWrite(req, spaceId);
     next();
   }, validate(createSecretSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
+    const spaceId = req.params.spaceId as string;
 
     const created = await svc.create(
-      companyId,
+      spaceId,
       {
         name: req.body.name,
         key: req.body.key,
@@ -909,13 +909,13 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
         providerVersionRef: req.body.providerVersionRef,
         providerMetadata: req.body.providerMetadata,
       },
-      { userId: req.actor.userId ?? "board", agentId: null },
+      { userId: req.actor.userId ?? "operator", agentId: null },
     );
 
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "user",
-      actorId: req.actor.userId ?? "board",
+      actorId: req.actor.userId ?? "operator",
       action: "secret.created",
       entityType: "secret",
       entityId: created.id,
@@ -926,14 +926,14 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   });
 
   router.post(
-    "/companies/:companyId/secrets/remote-import/preview",
+    "/spaces/:spaceId/secrets/remote-import/preview",
     validate(remoteSecretImportPreviewSchema),
     async (req, res) => {
-      assertBoard(req);
-      const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
+      assertOperator(req);
+      const spaceId = req.params.spaceId as string;
+      assertSpaceAccess(req, spaceId);
 
-      const preview = await svc.previewRemoteImport(companyId, {
+      const preview = await svc.previewRemoteImport(spaceId, {
         providerConfigId: req.body.providerConfigId,
         query: req.body.query,
         nextToken: req.body.nextToken,
@@ -941,9 +941,9 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
       });
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
-        actorId: req.actor.userId ?? "board",
+        actorId: req.actor.userId ?? "operator",
         action: "secret.remote_import.previewed",
         entityType: "secret_provider_config",
         entityId: preview.providerConfigId,
@@ -961,26 +961,26 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   );
 
   router.post(
-    "/companies/:companyId/secrets/remote-import",
+    "/spaces/:spaceId/secrets/remote-import",
     validate(remoteSecretImportSchema),
     async (req, res) => {
-      assertBoard(req);
-      const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
+      assertOperator(req);
+      const spaceId = req.params.spaceId as string;
+      assertSpaceAccess(req, spaceId);
 
       const result = await svc.importRemoteSecrets(
-        companyId,
+        spaceId,
         {
           providerConfigId: req.body.providerConfigId,
           secrets: req.body.secrets,
         },
-        { userId: req.actor.userId ?? "board", agentId: null },
+        { userId: req.actor.userId ?? "operator", agentId: null },
       );
 
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "user",
-        actorId: req.actor.userId ?? "board",
+        actorId: req.actor.userId ?? "operator",
         action: "secret.remote_import.completed",
         entityType: "secret_provider_config",
         entityId: result.providerConfigId,
@@ -997,13 +997,13 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   );
 
   router.post("/secrets/:id/rotate", validate(rotateSecretSchema), async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const id = req.params.id as string;
     const fetched = await svc.getById(id);
     const existing = await getAccessibleResource(
       req,
       res,
-      fetched && isCompanyScopedSecret(fetched) ? fetched : null,
+      fetched && isSpaceScopedSecret(fetched) ? fetched : null,
       "Secret not found",
     );
     if (!existing) return;
@@ -1020,13 +1020,13 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
         providerVersionRef: req.body.providerVersionRef,
         providerConfigId: req.body.providerConfigId,
       },
-      { userId: req.actor.userId ?? "board", agentId: null },
+      { userId: req.actor.userId ?? "operator", agentId: null },
     );
 
     await logActivity(db, {
-      companyId: rotated.companyId,
+      spaceId: rotated.spaceId,
       actorType: "user",
-      actorId: req.actor.userId ?? "board",
+      actorId: req.actor.userId ?? "operator",
       action: "secret.rotated",
       entityType: "secret",
       entityId: rotated.id,
@@ -1037,13 +1037,13 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   });
 
   router.patch("/secrets/:id", validate(updateSecretSchema), async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const id = req.params.id as string;
     const fetched = await svc.getById(id);
     const existing = await getAccessibleResource(
       req,
       res,
-      fetched && isCompanyScopedSecret(fetched) ? fetched : null,
+      fetched && isSpaceScopedSecret(fetched) ? fetched : null,
       "Secret not found",
     );
     if (!existing) return;
@@ -1068,9 +1068,9 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     }
 
     await logActivity(db, {
-      companyId: updated.companyId,
+      spaceId: updated.spaceId,
       actorType: "user",
-      actorId: req.actor.userId ?? "board",
+      actorId: req.actor.userId ?? "operator",
       action: "secret.updated",
       entityType: "secret",
       entityId: updated.id,
@@ -1081,52 +1081,52 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
   });
 
   router.get("/secrets/:id/usage", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const id = req.params.id as string;
     const fetched = await svc.getById(id);
     const existing = await getAccessibleResource(
       req,
       res,
-      fetched && isCompanyScopedSecret(fetched) ? fetched : null,
+      fetched && isSpaceScopedSecret(fetched) ? fetched : null,
       "Secret not found",
     );
     if (!existing) return;
-    const bindings = await svc.listBindingReferences(existing.companyId, existing.id);
+    const bindings = await svc.listBindingReferences(existing.spaceId, existing.id);
     res.json({ secretId: existing.id, bindings });
   });
 
   router.get("/secrets/:id/access-events", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const id = req.params.id as string;
     const fetched = await svc.getById(id);
     const existing = await getAccessibleResource(
       req,
       res,
-      fetched && isCompanyScopedSecret(fetched) ? fetched : null,
+      fetched && isSpaceScopedSecret(fetched) ? fetched : null,
       "Secret not found",
     );
     if (!existing) return;
-    const events = await svc.listAccessEvents(existing.companyId, existing.id);
+    const events = await svc.listAccessEvents(existing.spaceId, existing.id);
     res.json(events);
   });
 
   router.delete("/secrets/:id", async (req, res) => {
-    assertBoard(req);
+    assertOperator(req);
     const id = req.params.id as string;
     const fetched = await svc.getById(id);
     const existing = await getAccessibleResource(
       req,
       res,
-      fetched && isCompanyScopedSecret(fetched) ? fetched : null,
+      fetched && isSpaceScopedSecret(fetched) ? fetched : null,
       "Secret not found",
     );
     if (!existing) return;
 
-    const resolvedByUserId = req.actor.userId ?? "board";
+    const resolvedByUserId = req.actor.userId ?? "operator";
     const reason = "The referenced secret was deleted.";
     const removed = await svc.remove(id, {
       beforeDelete: async (secret) => {
-        const rejected = await proposals.rejectPendingBindingsForSecret(secret.companyId, secret.id, { resolvedByUserId, reason });
+        const rejected = await proposals.rejectPendingBindingsForSecret(secret.spaceId, secret.id, { resolvedByUserId, reason });
         // Same signal as an ordinary rejection, so the proposing agent continues.
         for (const proposal of rejected) {
           await notifySecretProposalResolution({ proposal, status: "rejected", userId: resolvedByUserId, reason, issues, heartbeat });
@@ -1139,9 +1139,9 @@ export function secretRoutes(db: Db, deps: SecretRoutesDeps = {}) {
     }
 
     await logActivity(db, {
-      companyId: removed.companyId,
+      spaceId: removed.spaceId,
       actorType: "user",
-      actorId: req.actor.userId ?? "board",
+      actorId: req.actor.userId ?? "operator",
       action: "secret.deleted",
       entityType: "secret",
       entityId: removed.id,

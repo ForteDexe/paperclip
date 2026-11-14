@@ -7,7 +7,7 @@ import { buildAgentUpdatePatch, type AgentConfigOverlay } from "./agent-config-p
 function makeAgent(): Agent {
   return {
     id: "agent-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Agent",
     role: "engineer",
     title: "Engineer",
@@ -150,15 +150,15 @@ describe("buildAgentUpdatePatch", () => {
     });
   });
 
-  it("preserves paperclip skill-sync selections when changing adapter types", () => {
-    // Desired skills are adapter-agnostic (company-level selections) but are
-    // persisted inside the per-adapter config under `paperclipSkillSync`. A
+  it("preserves outpost skill-sync selections when changing adapter types", () => {
+    // Desired skills are adapter-agnostic (space-level selections) but are
+    // persisted inside the per-adapter config under `outpostSkillSync`. A
     // patch that switches adapters must carry them over instead of wiping the
     // agent's skills.
     const agent = makeAgent();
     agent.adapterConfig = {
       ...agent.adapterConfig,
-      paperclipSkillSync: { desiredSkills: ["research", "code-review"] },
+      outpostSkillSync: { desiredSkills: ["research", "code-review"] },
     };
 
     const patch = buildAgentUpdatePatch(
@@ -169,7 +169,7 @@ describe("buildAgentUpdatePatch", () => {
       }),
     );
 
-    expect((patch.adapterConfig as Record<string, unknown>).paperclipSkillSync).toEqual({
+    expect((patch.adapterConfig as Record<string, unknown>).outpostSkillSync).toEqual({
       desiredSkills: ["research", "code-review"],
     });
   });

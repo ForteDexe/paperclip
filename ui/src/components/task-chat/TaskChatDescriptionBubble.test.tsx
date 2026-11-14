@@ -103,12 +103,12 @@ describe("TaskChatDescriptionBubble (PAP-375)", () => {
   });
 
   it("renders an agent-created task as the agent-side bubble with the avatar author header", () => {
-    render(makeBrief({ author: "agent", authorName: "CEO" }));
+    render(makeBrief({ author: "agent", authorName: "Default agent" }));
     const bubble = container.querySelector('[data-testid="task-chat-description-bubble"]');
     expect(bubble?.getAttribute("data-author")).toBe("agent");
     expect(bubble?.className).toContain("items-start");
     expect(bubble?.querySelector('[data-slot="agent-avatar"]')).not.toBeNull();
-    expect(bubble?.textContent).toContain("CEO");
+    expect(bubble?.textContent).toContain("Default agent");
     expect(bubble?.querySelector(".bg-\\(--bubble-agent\\)")).not.toBeNull();
     expect(bubble?.querySelector(".bg-\\(--liveness-blue\\)")).toBeNull();
   });
@@ -121,7 +121,7 @@ describe("TaskChatDescriptionBubble (PAP-375)", () => {
   });
 
   it("keeps the agent-side pencil editor and returns to the bubble on Escape", () => {
-    render(makeBrief({ author: "agent", authorName: "CEO" }));
+    render(makeBrief({ author: "agent", authorName: "Default agent" }));
     click(container.querySelector('[data-testid="task-chat-description-edit"]'));
 
     const editorWrap = container.querySelector('[data-testid="task-chat-description-editor"]');

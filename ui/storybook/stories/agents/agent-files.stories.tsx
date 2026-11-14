@@ -6,7 +6,7 @@ import type { AgentInstructionsFileDetail } from "@outpost/shared";
 import { AgentFileRunNotice, PromptsTab } from "@/pages/AgentDetail";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/lib/queryKeys";
-import { storybookAgents } from "../../fixtures/paperclipData";
+import { storybookAgents } from "../../fixtures/outpostData";
 
 const agent = { ...storybookAgents[0]!, id: "agent-files-story", adapterType: "codex_local" as const };
 const root = "/instance/agents/agent-files-story/instructions";
@@ -42,7 +42,7 @@ function AgentFilesStory({ failedSync = false, fullStorageRun = false, historica
       ["notes/context.txt", file("notes/context.txt", "Use short, concrete updates.\n")],
       ["cache.bin", file("cache.bin", "", true)],
     ]);
-    const bundle = () => ({ agentId: agent.id, companyId: agent.companyId, persistence: "agent_files", mode: "managed",
+    const bundle = () => ({ agentId: agent.id, spaceId: agent.spaceId, persistence: "agent_files", mode: "managed",
       rootPath: root, managedRootPath: root, entryFile: "AGENTS.md", resolvedEntryPath: `${root}/AGENTS.md`, editable: true,
       warnings: [], legacyPromptTemplateActive: false, legacyBootstrapPromptTemplateActive: false,
       files: [...files.values()].map(({ content: _content, ...summary }) => summary),
@@ -97,7 +97,7 @@ function AgentFilesStory({ failedSync = false, fullStorageRun = false, historica
           errorCode: failedSync ? "AGENT_FILES_LIMIT_EXCEEDED" : null,
           errorMessage: failedSync ? syncFailure : null, storageWarning: fullStorageRun ? storageWarning : null } }} />
       </section>}
-      {ready && <PromptsTab agent={agent} companyId={agent.companyId} onDirtyChange={setDirty} onSavingChange={setSaving}
+      {ready && <PromptsTab agent={agent} spaceId={agent.spaceId} onDirtyChange={setDirty} onSavingChange={setSaving}
         onSaveActionChange={onSave} onCancelActionChange={onCancel} />}
       <div className="flex items-center justify-between border-t border-border pt-4">
         <Button variant="outline" disabled={!dirty || saving} onClick={() => cancel.current?.()}>Cancel changes</Button>
@@ -108,7 +108,7 @@ function AgentFilesStory({ failedSync = false, fullStorageRun = false, historica
 }
 const meta = { id: "agents-persistent-files",
   title: "Agents and reusable capabilities/Hiring, configuration, and organization/Agents/Persistent files", component: AgentFilesStory, parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "agents/instructions"
       ],

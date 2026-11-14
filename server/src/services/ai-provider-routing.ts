@@ -26,7 +26,7 @@ export function managedProviderRouting(
     env.AWS_BEARER_TOKEN_BEDROCK = credential;
   } else if (harness === "codex_local") {
     env.OUTPOST_AI_PROVIDER_KEY = credential;
-    codexConfig = `model_provider = "paperclip"\n[model_providers.paperclip]\nname = "Outpost connection"\nbase_url = ${JSON.stringify(baseUrl)}\nwire_api = "responses"\nrequires_openai_auth = false\n${route.auth === "none" ? "" : 'env_key = "OUTPOST_AI_PROVIDER_KEY"\n'}`;
+    codexConfig = `model_provider = "outpost"\n[model_providers.outpost]\nname = "Outpost connection"\nbase_url = ${JSON.stringify(baseUrl)}\nwire_api = "responses"\nrequires_openai_auth = false\n${route.auth === "none" ? "" : 'env_key = "OUTPOST_AI_PROVIDER_KEY"\n'}`;
     if (openrouter) codexConfig += openRouterCodexHeaders();
   } else if (harness === "claude_local") {
     env.ANTHROPIC_BASE_URL = baseUrl;
@@ -46,7 +46,7 @@ export function managedProviderRouting(
     env.OPENROUTER_API_KEY = credential;
     config.model = aiRoutingModel(route, harness, model);
   } else if (harness === "opencode_local") {
-    const provider = route.kind === "openrouter" ? "openrouter" : "paperclip";
+    const provider = route.kind === "openrouter" ? "openrouter" : "outpost";
     if (route.kind === "openrouter") env.OPENROUTER_API_KEY = credential;
     else {
       env.OUTPOST_AI_PROVIDER_KEY = credential;
@@ -58,7 +58,7 @@ export function managedProviderRouting(
     env.OPENCODE_CONFIG_CONTENT = JSON.stringify({
       provider: {
         [provider]: {
-          ...(provider === "paperclip"
+          ...(provider === "outpost"
             ? { npm: "@ai-sdk/openai-compatible", name: "Outpost connection" }
             : {}),
           options: { baseURL: baseUrl, apiKey: credential, ...(openrouter ? { headers: OPENROUTER_ATTRIBUTION_HEADERS } : {}) },

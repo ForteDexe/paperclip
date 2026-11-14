@@ -14,7 +14,7 @@ export async function seedBranchRepair(base, { inheritAgentStrategy = false } = 
   };
   assert.equal((await api("/health")).deploymentMode, "local_trusted");
   await api("/instance/settings/experimental", "PATCH", { enableIsolatedWorkspaces: true, enableClassicTaskInterface: false });
-  const company = await api("/companies", "POST", { name: "Branch Repair Acceptance" });
+  const space = await api("/spaces", "POST", { name: "Branch Repair Acceptance" });
   const root = await mkdtemp(path.join(os.tmpdir(), "branch-repair-"));
   const source = path.join(root, "source"), remote = path.join(root, "origin.git"), checkout = path.join(root, "checkout");
   const git = (...args) => execFileSync("git", args, { cwd: root, stdio: "ignore" });
@@ -24,18 +24,18 @@ export async function seedBranchRepair(base, { inheritAgentStrategy = false } = 
   git("-C", source, "-c", "user.name=Acceptance", "-c", "user.email=acceptance@example.test", "commit", "-m", "fixture");
   git("clone", "--bare", source, remote);
   git("clone", remote, checkout);
-  const project = await api(`/companies/${company.id}/projects`, "POST", { name: "Master-only repository", status: "in_progress",
+  const project = await api(`/spaces/${space.id}/projects`, "POST", { name: "Master-only repository", status: "in_progress",
     workspace: { name: "Repository", cwd: checkout, repoUrl: pathToFileURL(remote).href, isPrimary: true },
     executionWorkspacePolicy: { enabled: true, defaultMode: "isolated_workspace", allowIssueOverride: true, ...(inheritAgentStrategy ? {} : { workspaceStrategy: { type: "git_worktree" } }) },
   });
-  const agent = await api(`/companies/${company.id}/agents`, "POST", { name: "Branch verification worker", role: "engineer", adapterType: "process",
+  const agent = await api(`/spaces/${space.id}/agents`, "POST", { name: "Branch verification worker", role: "engineer", adapterType: "process",
     adapterConfig: { command: process.execPath, args: [path.resolve(import.meta.dirname, "worker.mjs"), ...(inheritAgentStrategy ? ["--expect-setup"] : [])],
       ...(inheritAgentStrategy ? { workspaceStrategy: { type: "git_worktree", baseRef: "main", branchTemplate: "agent/{{issue.identifier}}", worktreeParentDir: ".agent-worktrees", provisionCommand: `node -e "require('node:fs').writeFileSync('setup-proof.txt', 'ready')"` } } : {}) },
     runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },
   });
-  const issue = await api(`/companies/${company.id}/issues`, "POST", { title: "Repair the missing starting branch", status: "todo", projectId: project.id, assigneeAgentId: agent.id,
+  const issue = await api(`/spaces/${space.id}/issues`, "POST", { title: "Repair the missing starting branch", status: "todo", projectId: project.id, assigneeAgentId: agent.id,
     executionWorkspacePreference: "isolated_workspace", executionWorkspaceSettings: { mode: "isolated_workspace", ...(inheritAgentStrategy ? {} : { workspaceStrategy: { type: "git_worktree", baseRef: "main" } }) },
   });
-  return { base, companyId: company.id, issueId: issue.id, identifier: issue.identifier, prefix: company.issuePrefix, agentId: agent.id, projectId: project.id, root, checkout };
+  return { base, spaceId: space.id, issueId: issue.id, identifier: issue.identifier, prefix: space.issuePrefix, agentId: agent.id, projectId: project.id, root, checkout };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(JSON.stringify(await seedBranchRepair(process.argv[2], { inheritAgentStrategy: process.argv.includes("--agent-defaults") })));

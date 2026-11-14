@@ -1,11 +1,11 @@
 import { isAgentAwaitingSetup, requestAgentLifecycleRecheckInTransaction } from "../modules/agent-lifecycle/index.js";
-import { agents, companies } from "@outpost/db";
+import { agents, spaces } from "@outpost/db";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 import { connectionIntentService } from "./connection-intents.js";
 import { connectionContinuationPendingResponse, findSatisfiedToolConnection, satisfiedConnectionIntentService } from "./satisfied-connection-intents.js";
 import { isAiConnectionConfigurationFailure } from "./ai-auth-failure.js";
 import { and, eq, isNull, lte, asc, inArray, notInArray, desc, sql } from "drizzle-orm";
-import { connectionIntentDeliveries, issueThreadInteractions, issues, agentWakeupRequests, companyMemberships, heartbeatRuns, chatConversations, chatEndpoints, type Db } from "@outpost/db";
+import { connectionIntentDeliveries, issueThreadInteractions, issues, agentWakeupRequests, spaceMemberships, heartbeatRuns, chatConversations, chatEndpoints, type Db } from "@outpost/db";
 import type { heartbeatService } from "./heartbeat.js";
 import { issueService } from "./issues.js";
 import { issueRecoveryActionService } from "./issue-recovery-actions.js";
@@ -86,11 +86,11 @@ export function connectionIntentDeliveryService(db: Db, heartbeat: Pick<Heartbea
     const publications: ActivityPublication[] = [];
     const restored = await db.transaction(async (tx) => {
       const [issue] = await tx.select().from(issues).where(and(
-        eq(issues.id, loaded.issue.id), eq(issues.companyId, loaded.issue.companyId),
+        eq(issues.id, loaded.issue.id), eq(issues.spaceId, loaded.issue.spaceId),
       )).for("update");
       if (!issue || issue.status !== "blocked" || issue.assigneeAgentId !== loaded.issue.assigneeAgentId) return null;
       const [latest] = await tx.select().from(heartbeatRuns).where(and(
-        eq(heartbeatRuns.companyId, issue.companyId),
+        eq(heartbeatRuns.spaceId, issue.spaceId),
         sql`coalesce(${heartbeatRuns.contextSnapshot}->>'issueId', ${heartbeatRuns.contextSnapshot}->>'taskId') = ${issue.id}`,
       )).orderBy(desc(heartbeatRuns.createdAt)).limit(1);
       if (latest?.id !== loaded.interaction.sourceRunId || latest.status !== "failed"
@@ -99,22 +99,22 @@ export function connectionIntentDeliveryService(db: Db, heartbeat: Pick<Heartbea
       // Their existing Try again path owns that authorization and delivery.
       const [restrictedChat] = await tx.select({ id: chatConversations.id }).from(chatConversations)
         .innerJoin(chatEndpoints, eq(chatEndpoints.id, chatConversations.endpointId))
-        .where(and(eq(chatConversations.companyId, issue.companyId), eq(chatConversations.issueId, issue.id),
+        .where(and(eq(chatConversations.spaceId, issue.spaceId), eq(chatConversations.issueId, issue.id),
           eq(chatEndpoints.externalExecutionPolicy, "restricted"))).limit(1);
       if (restrictedChat) return null;
       const recoveries = issueRecoveryActionService(db);
-      const recovery = await recoveries.getActiveForIssue(issue.companyId, issue.id, tx);
+      const recovery = await recoveries.getActiveForIssue(issue.spaceId, issue.id, tx);
       if (!recovery || recovery.cause !== "configuration_incomplete" || recovery.evidence.latestRunId !== latest.id) return null;
       const actorId = loaded.interaction.resolvedByUserId ?? loaded.interaction.addresseeUserId!;
       const updated = await issueService(db).update(issue.id, {
-        status: "in_progress", actorUserId: actorId, companyGuard: issue.companyId,
+        status: "in_progress", actorUserId: actorId, spaceGuard: issue.spaceId,
       }, tx, publications);
-      await recoveries.resolveActiveForIssue({ companyId: issue.companyId, sourceIssueId: issue.id,
+      await recoveries.resolveActiveForIssue({ spaceId: issue.spaceId, sourceIssueId: issue.id,
         actionId: recovery.id, status: "resolved", outcome: "restored", resolutionNote: "AI connection restored by the responsible user." }, tx);
       return updated;
     });
     for (const publication of publications) publishActivity(publication);
-    if (restored) await logActivity(db, { companyId: restored.companyId, actorType: "user",
+    if (restored) await logActivity(db, { spaceId: restored.spaceId, actorType: "user",
       actorId: loaded.interaction.resolvedByUserId ?? loaded.interaction.addresseeUserId!,
       action: "issue.updated", entityType: "issue", entityId: restored.id,
       details: { status: restored.status, _previous: { status: "blocked" }, source: "ai_connection_restored", interactionId: loaded.interaction.id } });
@@ -132,7 +132,7 @@ export function connectionIntentDeliveryService(db: Db, heartbeat: Pick<Heartbea
     if (!claimed) return;
     const [loaded] = await db.select({ interaction: issueThreadInteractions, issue: issues })
       .from(issueThreadInteractions).innerJoin(issues, eq(issues.id, issueThreadInteractions.issueId))
-      .where(and(eq(issueThreadInteractions.id, interactionId), eq(issueThreadInteractions.companyId, claimed.companyId), eq(issues.companyId, claimed.companyId)));
+      .where(and(eq(issueThreadInteractions.id, interactionId), eq(issueThreadInteractions.spaceId, claimed.spaceId), eq(issues.spaceId, claimed.spaceId)));
     let interaction = loaded?.interaction;
     const retiredForAvailableConnection = interaction?.status === "expired"
       && interaction.result?.outcome === "expired" && "connectionId" in interaction.result
@@ -141,55 +141,55 @@ export function connectionIntentDeliveryService(db: Db, heartbeat: Pick<Heartbea
     if (!loaded || !interaction || (!retiredForAvailableConnection && !["accepted", "rejected"].includes(interaction.status))
       || ["done", "cancelled"].includes(loaded.issue.status) || loaded.issue.assigneeAgentId !== payload?.requestingAgentId) {
       await db.update(connectionIntentDeliveries).set({ deliveredAt: new Date() }).where(and(eq(connectionIntentDeliveries.interactionId, interactionId),
-        eq(connectionIntentDeliveries.companyId, claimed.companyId),
+        eq(connectionIntentDeliveries.spaceId, claimed.spaceId),
         eq(connectionIntentDeliveries.nextAttemptAt, claimed.nextAttemptAt), isNull(connectionIntentDeliveries.deliveredAt)));
       return;
     }
     const userId = interaction.addresseeUserId;
-    if (userId !== "local-board") {
-      const [membership] = await db.select().from(companyMemberships).where(and(
-        eq(companyMemberships.companyId, claimed.companyId), eq(companyMemberships.principalType, "user"),
-        eq(companyMemberships.principalId, userId ?? ""), eq(companyMemberships.status, "active"),
+    if (userId !== "local-operator") {
+      const [membership] = await db.select().from(spaceMemberships).where(and(
+        eq(spaceMemberships.spaceId, claimed.spaceId), eq(spaceMemberships.principalType, "user"),
+        eq(spaceMemberships.principalId, userId ?? ""), eq(spaceMemberships.status, "active"),
       )).limit(1);
       if (!membership?.membershipRole || membership.membershipRole === "viewer") {
         await db.update(connectionIntentDeliveries).set({ deliveredAt: new Date() }).where(and(eq(connectionIntentDeliveries.interactionId, interactionId),
-        eq(connectionIntentDeliveries.companyId, claimed.companyId),
+        eq(connectionIntentDeliveries.spaceId, claimed.spaceId),
         eq(connectionIntentDeliveries.nextAttemptAt, claimed.nextAttemptAt), isNull(connectionIntentDeliveries.deliveredAt)));
         return;
       }
     }
     if (interaction.status === "accepted" && payload?.agentSetup !== true) {
-      const ready = await connectionIntentService(db).usableConnectionForAgent({ companyId: claimed.companyId,
+      const ready = await connectionIntentService(db).usableConnectionForAgent({ spaceId: claimed.spaceId,
         agentId: payload!.requestingAgentId!, responsibleUserId: userId!, serviceSlug: payload!.serviceSlug!, purpose: payload!.purpose, sourceRunId: interaction.sourceRunId,
         agentSetup: payload!.agentSetup, agentSetupOperationId: payload!.agentSetupOperationId });
       if (!ready) return;
     }
     if (payload?.agentSetup === true && payload.purpose === "ai") {
       await db.transaction(async tx => {
-        const [task] = await tx.select().from(issues).where(and(eq(issues.id, loaded.issue.id), eq(issues.companyId, claimed.companyId))).for("update");
+        const [task] = await tx.select().from(issues).where(and(eq(issues.id, loaded.issue.id), eq(issues.spaceId, claimed.spaceId))).for("update");
         const [source] = await tx.select().from(heartbeatRuns).where(and(
-          eq(heartbeatRuns.id, interaction!.sourceRunId!), eq(heartbeatRuns.companyId, claimed.companyId),
+          eq(heartbeatRuns.id, interaction!.sourceRunId!), eq(heartbeatRuns.spaceId, claimed.spaceId),
           eq(heartbeatRuns.agentId, payload.requestingAgentId!),
         )).for("no key update");
-        const [agent] = await tx.select().from(agents).where(and(eq(agents.id, payload.requestingAgentId!), eq(agents.companyId, claimed.companyId))).for("update");
-        const [company] = await tx.select({ defaultResponsibleUserId: companies.defaultResponsibleUserId })
-          .from(companies).where(eq(companies.id, claimed.companyId));
-        const verificationUserId = agent?.lifecycleOperation?.responsibleUserId ?? company?.defaultResponsibleUserId;
+        const [agent] = await tx.select().from(agents).where(and(eq(agents.id, payload.requestingAgentId!), eq(agents.spaceId, claimed.spaceId))).for("update");
+        const [space] = await tx.select({ defaultResponsibleUserId: spaces.defaultResponsibleUserId })
+          .from(spaces).where(eq(spaces.id, claimed.spaceId));
+        const verificationUserId = agent?.lifecycleOperation?.responsibleUserId ?? space?.defaultResponsibleUserId;
         if (interaction!.status === "accepted" && task && !["done", "cancelled"].includes(task.status)
           && task.assigneeAgentId === payload.requestingAgentId && source?.status === "queued" && !source.startedAt
           && source.runtimeMode === "legacy" && agent && isAgentAwaitingSetup(agent)
           && verificationUserId === interaction!.addresseeUserId
           && (!payload.agentSetupOperationId || agent.lifecycleOperation?.id === payload.agentSetupOperationId)) {
-          const ready = await connectionIntentService(db).usableConnectionForAgent({ companyId: claimed.companyId,
+          const ready = await connectionIntentService(db).usableConnectionForAgent({ spaceId: claimed.spaceId,
             agentId: payload.requestingAgentId!, responsibleUserId: userId!, serviceSlug: payload.serviceSlug!, purpose: "ai",
             sourceRunId: interaction!.sourceRunId, agentSetup: true, agentSetupOperationId: payload.agentSetupOperationId });
           if (!ready) return;
-          await requestAgentLifecycleRecheckInTransaction(tx, { companyId: claimed.companyId, agentId: agent.id,
+          await requestAgentLifecycleRecheckInTransaction(tx, { spaceId: claimed.spaceId, agentId: agent.id,
             configurationRepaired: true }, () => notifyDeliveryWork(tx, DELIVERY_QUEUES.agentLifecycle));
         }
         // Decline, Stop and stale ownership also settle this delivery without a wake.
         await tx.update(connectionIntentDeliveries).set({ deliveredAt: new Date() }).where(and(
-          eq(connectionIntentDeliveries.interactionId, interactionId), eq(connectionIntentDeliveries.companyId, claimed.companyId),
+          eq(connectionIntentDeliveries.interactionId, interactionId), eq(connectionIntentDeliveries.spaceId, claimed.spaceId),
           eq(connectionIntentDeliveries.nextAttemptAt, claimed.nextAttemptAt), isNull(connectionIntentDeliveries.deliveredAt)));
       });
       return;
@@ -197,9 +197,9 @@ export function connectionIntentDeliveryService(db: Db, heartbeat: Pick<Heartbea
     if (retiredForAvailableConnection) {
       const publications: ActivityPublication[] = [];
       const current = await db.transaction(async tx => {
-        const [task] = await tx.select().from(issues).where(and(eq(issues.id, loaded.issue.id), eq(issues.companyId, claimed.companyId))).for("update");
+        const [task] = await tx.select().from(issues).where(and(eq(issues.id, loaded.issue.id), eq(issues.spaceId, claimed.spaceId))).for("update");
         const [card] = await tx.select().from(issueThreadInteractions).where(and(
-          eq(issueThreadInteractions.id, interactionId), eq(issueThreadInteractions.companyId, claimed.companyId),
+          eq(issueThreadInteractions.id, interactionId), eq(issueThreadInteractions.spaceId, claimed.spaceId),
           eq(issueThreadInteractions.issueId, loaded.issue.id))).for("update");
         if (!task || !card || card.status !== "expired" || card.result?.outcome !== "expired") return null;
         const ready = await findSatisfiedToolConnection(tx as unknown as Db, task, { ...card, status: "pending" });
@@ -211,7 +211,7 @@ export function connectionIntentDeliveryService(db: Db, heartbeat: Pick<Heartbea
           const [updated] = await tx.update(issueThreadInteractions).set({ result: { ...card.result,
             connectionId: ready.id }, updatedAt: new Date() }).where(eq(issueThreadInteractions.id, card.id)).returning();
           Object.assign(card, updated);
-          await logActivity(tx as unknown as Db, { companyId: claimed.companyId, actorType: "system", actorId: "connection-reconciliation",
+          await logActivity(tx as unknown as Db, { spaceId: claimed.spaceId, actorType: "system", actorId: "connection-reconciliation",
             action: "issue.thread_interaction_resolved", entityType: "issue", entityId: task.id,
             details: { interactionId, interactionKind: "connection_intent", status: "expired", connectionId: ready.id,
               previousConnectionId, resolutionSource: "existing_connection_refreshed" } }, publications);
@@ -231,7 +231,7 @@ export function connectionIntentDeliveryService(db: Db, heartbeat: Pick<Heartbea
     }
     if (!["in_progress", "in_review"].includes(loaded.issue.status)) return;
     const durableWake = () => db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(and(
-      eq(agentWakeupRequests.companyId, claimed.companyId),
+      eq(agentWakeupRequests.spaceId, claimed.spaceId),
       eq(agentWakeupRequests.idempotencyKey, `connection-intent:${interactionId}:${interaction.status}`),
       notInArray(agentWakeupRequests.status, ["skipped", "failed", "cancelled"]),
     )).limit(1);
@@ -249,7 +249,7 @@ export function connectionIntentDeliveryService(db: Db, heartbeat: Pick<Heartbea
     }
     if ((await durableWake()).length) {
       await db.update(connectionIntentDeliveries).set({ deliveredAt: new Date() }).where(and(eq(connectionIntentDeliveries.interactionId, interactionId),
-        eq(connectionIntentDeliveries.companyId, claimed.companyId),
+        eq(connectionIntentDeliveries.spaceId, claimed.spaceId),
         eq(connectionIntentDeliveries.nextAttemptAt, claimed.nextAttemptAt), isNull(connectionIntentDeliveries.deliveredAt)));
     }
   }
@@ -261,7 +261,7 @@ export function connectionIntentDeliveryService(db: Db, heartbeat: Pick<Heartbea
         FROM connection_intent_deliveries d WHERE d.delivered_at IS NULL
       ), pending_intents AS (
         SELECT (${sql.raw(connectionIntentWaitingForResponse('card', 'task'))}) IS TRUE AS passive
-        FROM issue_thread_interactions card LEFT JOIN issues task ON task.id = card.issue_id AND task.company_id = card.company_id
+        FROM issue_thread_interactions card LEFT JOIN issues task ON task.id = card.issue_id AND task.space_id = card.space_id
         WHERE card.kind = 'connection_intent' AND card.status = 'pending'
           AND (task.id IS NULL OR (task.status IN ('in_progress', 'in_review') AND task.assignee_user_id IS NULL))
       ) SELECT EXISTS (SELECT 1 FROM pending_deliveries WHERE NOT passive

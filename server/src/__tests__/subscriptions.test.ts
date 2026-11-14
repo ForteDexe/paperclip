@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { and, eq, sql } from "drizzle-orm";
-import { createDb, companies, agents, heartbeatRuns, costEvents, activityLog, aiSubscriptions, aiSubscriptionPrices, aiSubscriptionConnections, companySecrets, toolApplications, toolConnections, connectionGrants, connectionGrantMembers } from "@outpost/db";
+import { createDb, spaces, agents, heartbeatRuns, costEvents, activityLog, aiSubscriptions, aiSubscriptionPrices, aiSubscriptionConnections, spaceSecrets, toolApplications, toolConnections, connectionGrants, connectionGrantMembers } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "@outpost/db/test-embedded-postgres";
 import { monthlySubscriptionCents, subscriptionPlan, subscriptionPriceSchema } from "@outpost/shared";
 import { subscriptionService, type SubscriptionActor, type SubscriptionConnection } from "../services/subscriptions.js";
@@ -26,54 +26,54 @@ const token = (workspace = "workspace", seat = "alice", plan = "plus", generatio
 const fixtureRequest = (body: unknown) => vi.fn<typeof fetch>().mockImplementation(async () => Response.json(body));
 const usage = (plan = "plus") => ({ plan_type: plan, rate_limit: { primary_window: { used_percent: 1, reset_at: 1800000000, limit_window_seconds: 18000 } } });
 async function verifiedConnection(input: SubscriptionConnection) {
-  const observed = await probeSubscriptionIdentity(input.companyId, input.provider, input.credential, fixtureRequest(usage()));
+  const observed = await probeSubscriptionIdentity(input.spaceId, input.provider, input.credential, fixtureRequest(usage()));
   return subscriptionService(db).register(input, observed);
 }
 
-beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("paperclip-subscriptions-"); db = createDb(database.connectionString); }, 90000);
+beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("outpost-subscriptions-"); db = createDb(database.connectionString); }, 90000);
 afterAll(async () => { await database?.cleanup(); });
 
-async function company() {
+async function space() {
   const id = randomUUID();
-  await db.insert(companies).values({ id, name: "Subscription fixture", issuePrefix: `S${id.replaceAll("-", "").slice(0, 7).toUpperCase()}` });
+  await db.insert(spaces).values({ id, name: "Subscription fixture", issuePrefix: `S${id.replaceAll("-", "").slice(0, 7).toUpperCase()}` });
   return id;
 }
-async function connection(companyId: string, credential = token(), provider: SubscriptionConnection["provider"] = "openai", userId: string | null = "alice") {
+async function connection(spaceId: string, credential = token(), provider: SubscriptionConnection["provider"] = "openai", userId: string | null = "alice") {
   const applicationId = randomUUID(), connectionId = randomUUID(), grantId = randomUUID();
-  await db.insert(toolApplications).values({ id: applicationId, companyId, name: applicationId, type: "mcp_http" });
-  await db.insert(toolConnections).values({ id: connectionId, companyId, applicationId, name: "My subscription", uid: connectionId,
+  await db.insert(toolApplications).values({ id: applicationId, spaceId, name: applicationId, type: "mcp_http" });
+  await db.insert(toolConnections).values({ id: connectionId, spaceId, applicationId, name: "My subscription", uid: connectionId,
     connectionPurpose: "ai", transport: "runtime_auth", status: "active", enabled: true, config: { ai: { provider, method: "subscription" } } });
-  await db.insert(connectionGrants).values({ id: grantId, companyId, connectionId, kind: userId ? "user" : "organization", subjectUserId: userId });
-  return { companyId, connectionId, grantId, credential, provider, name: "My subscription", ownerUserId: userId };
+  await db.insert(connectionGrants).values({ id: grantId, spaceId, connectionId, kind: userId ? "user" : "organization", subjectUserId: userId });
+  return { spaceId, connectionId, grantId, credential, provider, name: "My subscription", ownerUserId: userId };
 }
-async function price(companyId: string, id: string, amountCents: string | null = "10000", extra: Record<string, unknown> = {}, actor: SubscriptionActor = owner) {
+async function price(spaceId: string, id: string, amountCents: string | null = "10000", extra: Record<string, unknown> = {}, actor: SubscriptionActor = owner) {
   const [account] = await db.select().from(aiSubscriptions).where(eq(aiSubscriptions.id, id));
-  return subscriptionService(db).updatePrice(companyId, id, { expectedRevision: account.revision, plan: "My plan", amountCents, currency: "USD", cadence: "month", status: "active", ...extra }, actor);
+  return subscriptionService(db).updatePrice(spaceId, id, { expectedRevision: account.revision, plan: "My plan", amountCents, currency: "USD", cadence: "month", status: "active", ...extra }, actor);
 }
-async function event(companyId: string, subscriptionId: string | null, billingType: "metered_api" | "subscription_included" | "subscription_overage" | "credits" | "fixed" | "unknown", amount = "0", occurredAt = new Date("2026-10-08T00:00:00Z")) {
+async function event(spaceId: string, subscriptionId: string | null, billingType: "metered_api" | "subscription_included" | "subscription_overage" | "credits" | "fixed" | "unknown", amount = "0", occurredAt = new Date("2026-10-08T00:00:00Z")) {
   const agentId = randomUUID();
-  await db.insert(agents).values({ id: agentId, companyId, name: "Agent", role: "engineer", adapterType: "codex_local" });
-  await db.insert(costEvents).values({ companyId, agentId, subscriptionId, provider: "openai", biller: "openai", billingType, model: "fixture",
+  await db.insert(agents).values({ id: agentId, spaceId, name: "Agent", role: "engineer", adapterType: "codex_local" });
+  await db.insert(costEvents).values({ spaceId, agentId, subscriptionId, provider: "openai", biller: "openai", billingType, model: "fixture",
     costCents: Number(amount), inputTokens: 100, cachedInputTokens: 40, outputTokens: 10, receiptHash: "normalized", occurredAt });
   return agentId;
 }
 
 describe("subscription identity and price rules", () => {
   it("requires provider authentication, a seat and a workspace, and never persists a credential or email", async () => {
-    const observed = (companyId: string, credential: string) => probeSubscriptionIdentity(companyId, "openai", credential, fixtureRequest(usage()));
-    const a = await observed("company", token());
+    const observed = (spaceId: string, credential: string) => probeSubscriptionIdentity(spaceId, "openai", credential, fixtureRequest(usage()));
+    const a = await observed("space", token());
     expect(a.verified).toBe(true);
-    expect(a.accountKey).toBe((await observed("company", token("workspace", "alice", "plus", "2"))).accountKey);
-    expect(a.accountKey).not.toBe((await observed("company", token("workspace", "bob"))).accountKey);
-    expect(a.accountKey).not.toBe((await observed("other-company", token())).accountKey);
+    expect(a.accountKey).toBe((await observed("space", token("workspace", "alice", "plus", "2"))).accountKey);
+    expect(a.accountKey).not.toBe((await observed("space", token("workspace", "bob"))).accountKey);
+    expect(a.accountKey).not.toBe((await observed("other-space", token())).accountKey);
     expect(JSON.stringify(a)).not.toMatch(/workspace|alice|access-1|signature/);
-    expect(subscriptionCredentialIdentity("company", "openai", token()).verified).toBe(false);
-    expect(subscriptionCredentialIdentity("company", "openai", '{"tokens":{"account_id":"workspace"}}').verified).toBe(false);
-    await expect(probeSubscriptionIdentity("company", "openai", token(), async () => new Response(null, { status: 401 }))).rejects.toThrow();
+    expect(subscriptionCredentialIdentity("space", "openai", token()).verified).toBe(false);
+    expect(subscriptionCredentialIdentity("space", "openai", '{"tokens":{"account_id":"workspace"}}').verified).toBe(false);
+    await expect(probeSubscriptionIdentity("space", "openai", token(), async () => new Response(null, { status: 401 }))).rejects.toThrow();
     const opaque = JSON.parse(token()); opaque.tokens.access_token = "opaque-bearer";
-    expect((await observed("company", JSON.stringify(opaque))).verified).toBe(false);
+    expect((await observed("space", JSON.stringify(opaque))).verified).toBe(false);
     const wrongWorkspace = JSON.parse(token()); wrongWorkspace.tokens.account_id = "another-workspace";
-    expect((await observed("company", JSON.stringify(wrongWorkspace))).verified).toBe(false);
+    expect((await observed("space", JSON.stringify(wrongWorkspace))).verified).toBe(false);
   });
   it("keeps ambiguous tiers unknown and uses exact monthly equivalents", () => {
     expect(subscriptionPlan("openai", "pro")).toBeNull();
@@ -87,12 +87,12 @@ describe("subscription identity and price rules", () => {
   });
   it("uses a Claude account and organization profile, never infers a Max tier from token usage", async () => {
     const request = fixtureRequest({ account: { uuid: "person" }, organization: { uuid: "org", organization_type: "claude_max", rate_limit_tier: "default_claude_max_20x" } });
-    const observed = await probeSubscriptionIdentity("company", "anthropic", "selected-secret", request);
+    const observed = await probeSubscriptionIdentity("space", "anthropic", "selected-secret", request);
     expect(observed.plan).toBe("max_20x");
     expect(observed.verified).toBe(true);
     expect(JSON.stringify(observed)).not.toContain("selected-secret");
     expect(request).toHaveBeenCalledWith("https://api.anthropic.com/api/oauth/profile", expect.objectContaining({ redirect: "error", headers: expect.objectContaining({ Authorization: "Bearer selected-secret" }) }));
-    await expect(probeSubscriptionIdentity("company", "anthropic", "selected-secret", fixtureRequest({}))).rejects.toThrow();
+    await expect(probeSubscriptionIdentity("space", "anthropic", "selected-secret", fixtureRequest({}))).rejects.toThrow();
   });
 });
 
@@ -100,28 +100,28 @@ describe("durable subscription reporting", () => {
   it("can replay the migration and retains fees after connection deletion", async () => {
     const migration = await readFile(new URL("../../../packages/db/src/migrations/0322_reflective_kree.sql", import.meta.url), "utf8");
     for (const statement of migration.split("--> statement-breakpoint")) await db.execute(sql.raw(statement));
-    const c = await company(), input = await connection(c);
+    const c = await space(), input = await connection(c);
     await verifiedConnection(input);
     await db.delete(connectionGrants).where(eq(connectionGrants.id, input.grantId));
     await db.delete(toolConnections).where(eq(toolConnections.id, input.connectionId));
-    expect(await db.select().from(aiSubscriptionConnections).where(eq(aiSubscriptionConnections.companyId, c))).toHaveLength(0);
+    expect(await db.select().from(aiSubscriptionConnections).where(eq(aiSubscriptionConnections.spaceId, c))).toHaveLength(0);
     expect((await subscriptionCostReport(db, c, owner)).monthlyTotals[0].amountCents).toBe("2000.0000000");
-    await db.delete(toolApplications).where(eq(toolApplications.companyId, c));
-    await db.delete(activityLog).where(eq(activityLog.companyId, c));
-    await db.delete(companies).where(eq(companies.id, c));
-    expect(await db.select().from(aiSubscriptions).where(eq(aiSubscriptions.companyId, c))).toHaveLength(0);
-    expect(await db.select().from(aiSubscriptionPrices).where(eq(aiSubscriptionPrices.companyId, c))).toHaveLength(0);
+    await db.delete(toolApplications).where(eq(toolApplications.spaceId, c));
+    await db.delete(activityLog).where(eq(activityLog.spaceId, c));
+    await db.delete(spaces).where(eq(spaces.id, c));
+    expect(await db.select().from(aiSubscriptions).where(eq(aiSubscriptions.spaceId, c))).toHaveLength(0);
+    expect(await db.select().from(aiSubscriptionPrices).where(eq(aiSubscriptionPrices.spaceId, c))).toHaveLength(0);
   });
-  it("rejects a different provider, revoked grant, or foreign company before discovery", async () => {
-    const c = await company(), input = await connection(c), service = subscriptionService(db);
+  it("rejects a different provider, revoked grant, or foreign space before discovery", async () => {
+    const c = await space(), input = await connection(c), service = subscriptionService(db);
     await expect(service.register({ ...input, provider: "anthropic" })).rejects.toMatchObject({ status: 404 });
-    await expect(service.register({ ...input, companyId: await company() })).rejects.toMatchObject({ status: 404 });
+    await expect(service.register({ ...input, spaceId: await space() })).rejects.toMatchObject({ status: 404 });
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, input.grantId));
     await expect(service.register(input)).rejects.toMatchObject({ status: 404 });
-    expect(await db.select().from(aiSubscriptions).where(eq(aiSubscriptions.companyId, c))).toHaveLength(0);
+    expect(await db.select().from(aiSubscriptions).where(eq(aiSubscriptions.spaceId, c))).toHaveLength(0);
   });
   it.each([401, 200])("cannot acquire another owner's billing rights with forged ID claims (provider status %s)", async (status) => {
-    const c = await company(), service = subscriptionService(db);
+    const c = await space(), service = subscriptionService(db);
     const victim = await verifiedConnection(await connection(c));
     const forged = JSON.parse(token("workspace", "attacker"));
     forged.tokens.id_token = JSON.parse(token()).tokens.id_token;
@@ -137,7 +137,7 @@ describe("durable subscription reporting", () => {
     expect(account.ownerUserIds).toEqual(["alice"]);
   });
   it("keeps unverified credentials grant-scoped even when two members submit identical bytes", async () => {
-    const c = await company(), service = subscriptionService(db);
+    const c = await space(), service = subscriptionService(db);
     const personal = await connection(c, "unverified", "anthropic");
     const id = await service.register(personal);
     await price(c, id, "10000");
@@ -147,7 +147,7 @@ describe("durable subscription reporting", () => {
     expect(await service.register(personal)).toBe(id);
   });
   it("requires fresh provider proof before an identical credential grants a new personal editor", async () => {
-    const c = await company(), service = subscriptionService(db);
+    const c = await space(), service = subscriptionService(db);
     const id = await verifiedConnection(await connection(c));
     const second = await connection(c, token(), "openai", "bob");
     const provisional = await service.register(second);
@@ -162,13 +162,13 @@ describe("durable subscription reporting", () => {
     expect(report.accounts).toHaveLength(1);
     expect(report.monthlyTotals[0].amountCents).toBe("1800.0000000");
   });
-  it("deduplicates concurrent connections and rotations, while separating seats and companies", async () => {
-    const c = await company(), service = subscriptionService(db);
+  it("deduplicates concurrent connections and rotations, while separating seats and spaces", async () => {
+    const c = await space(), service = subscriptionService(db);
     const a = await connection(c), b = await connection(c, token("workspace", "alice", "plus", "rotated"));
     const [first, second] = await Promise.all([verifiedConnection(a), verifiedConnection(b)]);
     expect(first).toBe(second);
     expect(await verifiedConnection(await connection(c, token("workspace", "bob"), "openai", "bob"))).not.toBe(first);
-    expect(await verifiedConnection(await connection(await company()))).not.toBe(first);
+    expect(await verifiedConnection(await connection(await space()))).not.toBe(first);
     const report = await subscriptionCostReport(db, c, owner, { allTime: true });
     expect(report.activeCount).toBe(1);
     expect(report.monthlyTotals).toEqual([{ currency: "USD", amountCents: "2000.0000000", estimatedCount: 1 }]);
@@ -176,7 +176,7 @@ describe("durable subscription reporting", () => {
     expect(report.accounts.find(row => row.id === second)?.price.revision).toBe(0);
   });
   it("does not multiply automatic fees when a plan has no stable account identity", async () => {
-    const c = await company(), service = subscriptionService(db);
+    const c = await space(), service = subscriptionService(db);
     const credential = JSON.parse(token());
     delete credential.tokens.account_id;
     for (const generation of ["first", "rotated"]) {
@@ -190,7 +190,7 @@ describe("durable subscription reporting", () => {
     expect(report.accounts.every(account => account.detectedPlan === "plus")).toBe(true);
   });
   it("keeps fixed fees through zero-use periods and disconnection; preserves price history and currency", async () => {
-    const c = await company(), input = await connection(c), service = subscriptionService(db);
+    const c = await space(), input = await connection(c), service = subscriptionService(db);
     const id = await service.register(input);
     await price(c, id, "20000", { cadence: "year", currency: "EUR" });
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, input.grantId));
@@ -199,14 +199,14 @@ describe("durable subscription reporting", () => {
     expect(await db.select().from(aiSubscriptionPrices).where(eq(aiSubscriptionPrices.subscriptionId, id))).toHaveLength(2);
     expect(report.accounts[0]).not.toHaveProperty("history");
     expect(report.accounts[0].usage.eventCount).toBe(0);
-    expect((await db.select().from(costEvents).where(eq(costEvents.companyId, c)))).toHaveLength(0);
-    const [state] = await db.select().from(companies).where(eq(companies.id, c));
+    expect((await db.select().from(costEvents).where(eq(costEvents.spaceId, c)))).toHaveLength(0);
+    const [state] = await db.select().from(spaces).where(eq(spaces.id, c));
     expect(state.spentMonthlyCents).toBe(0);
     await price(c, id, "20000", { status: "ended" });
     expect((await subscriptionCostReport(db, c, owner)).activeCount).toBe(0);
   });
   it("deduplicates profile observations, preserves manual prices, and reuses promoted credentials", async () => {
-    const c = await company(), service = subscriptionService(db);
+    const c = await space(), service = subscriptionService(db);
     const first = await connection(c, "claude-first", "anthropic");
     const second = await connection(c, "claude-second", "anthropic");
     const firstId = await service.register(first), secondId = await service.register(second);
@@ -225,7 +225,7 @@ describe("durable subscription reporting", () => {
     expect(report.accounts[0]).toMatchObject({ identityVerified: true, usage: { eventCount: 2 }, price: { source: "user" } });
   });
   it("records detected plan changes without rewriting earlier prices or treating an unknown tier as zero", async () => {
-    const c = await company(), input = await connection(c), id = await verifiedConnection(input);
+    const c = await space(), input = await connection(c), id = await verifiedConnection(input);
     await db.update(aiSubscriptions).set({ lastCheckedAt: new Date(0) }).where(eq(aiSubscriptions.id, id));
     await refreshSubscriptionConnection(db, input, id, fixtureRequest(usage("pro")));
     const report = await subscriptionCostReport(db, c, owner);
@@ -242,7 +242,7 @@ describe("durable subscription reporting", () => {
     expect(after.refreshStatus).toBe("unavailable");
   });
   it("keeps shared subscription permissions and currencies separate", async () => {
-    const c = await company(), service = subscriptionService(db);
+    const c = await space(), service = subscriptionService(db);
     await verifiedConnection(await connection(c));
     const shared = await service.register(await connection(c, token("shared"), "openai", null));
     await expect(price(c, shared)).rejects.toMatchObject({ status: 403 });
@@ -254,7 +254,7 @@ describe("durable subscription reporting", () => {
     ]);
   });
   it.each([true, false])("preserves personal and shared editors regardless of discovery order (shared first: %s)", async (sharedFirst) => {
-    const c = await company(), service = subscriptionService(db);
+    const c = await space(), service = subscriptionService(db);
     const personal = await connection(c), shared = await connection(c, token(), "openai", null);
     const first = await verifiedConnection(sharedFirst ? shared : personal);
     expect(await verifiedConnection(sharedFirst ? personal : shared)).toBe(first);
@@ -270,13 +270,13 @@ describe("durable subscription reporting", () => {
     await expect(price(c, first, "1700", {}, { ...owner, readOnly: true })).rejects.toMatchObject({ status: 403 });
     // Removing authentication connections must not remove the ability to end
     // a fee that can still be billed by the provider.
-    await db.delete(connectionGrants).where(eq(connectionGrants.companyId, c));
+    await db.delete(connectionGrants).where(eq(connectionGrants.spaceId, c));
     await price(c, first, "1700", {}, owner);
     await price(c, first, "1700", { status: "ended" }, other);
     expect((await subscriptionCostReport(db, c, owner)).activeCount).toBe(0);
   });
   it.each([true, false])("combines editors when verified profiles link accounts (shared first: %s)", async (sharedFirst) => {
-    const c = await company(), service = subscriptionService(db);
+    const c = await space(), service = subscriptionService(db);
     const personal = await connection(c, "claude-personal", "anthropic");
     const shared = await connection(c, "claude-shared", "anthropic", null);
     const personalId = await service.register(personal), sharedId = await service.register(shared);
@@ -292,7 +292,7 @@ describe("durable subscription reporting", () => {
     expect((await subscriptionCostReport(db, c, owner)).monthlyTotals[0].amountCents).toBe("9000.0000000");
   });
   it("retains every personal owner without granting managers access to a personal-only fee", async () => {
-    const c = await company(), service = subscriptionService(db);
+    const c = await space(), service = subscriptionService(db);
     const id = await verifiedConnection(await connection(c));
     expect(await verifiedConnection(await connection(c, token(), "openai", "carol"))).toBe(id);
     await price(c, id, "1800", {}, { userId: "carol", canManage: false });
@@ -302,7 +302,7 @@ describe("durable subscription reporting", () => {
     expect((await subscriptionCostReport(db, c, owner)).accounts[0]).toMatchObject({ canEdit: true, shared: false, ownerUserId: null });
   });
   it.each([false, true])("keeps another member's personal fees private from cost readers (manager: %s)", async (canManage) => {
-    const c = await company(), input = await connection(c), id = await verifiedConnection(input);
+    const c = await space(), input = await connection(c), id = await verifiedConnection(input);
     await price(c, id, "1234", { plan: "Private negotiated plan" });
     await event(c, id, "subscription_included");
     const hidden = await subscriptionCostReport(db, c, { userId: "bob", canManage }, { allTime: true });
@@ -317,8 +317,8 @@ describe("durable subscription reporting", () => {
     expect(visible.accounts[0]).toMatchObject({ id, canEdit: false, price: { amountCents: "1234.0000000" } });
   });
   it("respects shared connection audiences while retaining managers' access after disconnection", async () => {
-    const c = await company(), input = await connection(c, token(), "openai", null), id = await verifiedConnection(input);
-    await db.insert(connectionGrantMembers).values({ companyId: c, grantId: input.grantId, subjectType: "user", subjectId: "bob" });
+    const c = await space(), input = await connection(c, token(), "openai", null), id = await verifiedConnection(input);
+    await db.insert(connectionGrantMembers).values({ spaceId: c, grantId: input.grantId, subjectType: "user", subjectId: "bob" });
     expect((await subscriptionCostReport(db, c, owner)).accounts).toEqual([]);
     expect((await subscriptionCostReport(db, c, { ...other, canManage: false })).accounts[0]).toMatchObject({ id, shared: true, canEdit: false });
     expect((await subscriptionCostReport(db, c, { ...owner, canManage: true })).accounts[0]).toMatchObject({ id, canEdit: true });
@@ -327,9 +327,9 @@ describe("durable subscription reporting", () => {
     expect((await subscriptionCostReport(db, c, { ...owner, canManage: true })).accounts[0].id).toBe(id);
   });
   it.each([false, true])("revokes shared fee visibility through the public revoke service (restricted audience: %s)", async (restricted) => {
-    const c = await company(), input = await connection(c, token(), "openai", null), id = await verifiedConnection(input);
+    const c = await space(), input = await connection(c, token(), "openai", null), id = await verifiedConnection(input);
     expect(await verifiedConnection(await connection(c))).toBe(id);
-    if (restricted) await db.insert(connectionGrantMembers).values({ companyId: c, grantId: input.grantId, subjectType: "user", subjectId: "bob" });
+    if (restricted) await db.insert(connectionGrantMembers).values({ spaceId: c, grantId: input.grantId, subjectType: "user", subjectId: "bob" });
     await event(c, id, "subscription_included");
     const reader = { userId: "bob", canManage: false };
     expect((await subscriptionCostReport(db, c, reader, { allTime: true })).accounts[0]).toMatchObject({ id, usage: { eventCount: 1 } });
@@ -356,7 +356,7 @@ describe("durable subscription reporting", () => {
     expect((await subscriptionCostReport(db, c, reader)).accounts[0].id).toBe(id);
   });
   it("keeps private linked-account usage out of details without calling it unattributed", async () => {
-    const c = await company(), service = subscriptionService(db);
+    const c = await space(), service = subscriptionService(db);
     const a = await service.register(await connection(c, "private-a", "anthropic"));
     const b = await service.register(await connection(c, "private-b", "anthropic"));
     await event(c, a, "subscription_included"); await event(c, b, "subscription_included");
@@ -370,10 +370,10 @@ describe("durable subscription reporting", () => {
     expect(JSON.stringify(hidden)).not.toContain(b);
   });
   it("reports only current prices while preserving accumulated revisions for auditing", async () => {
-    const c = await company(), service = subscriptionService(db);
+    const c = await space(), service = subscriptionService(db);
     const id = await service.register(await connection(c));
     await db.insert(aiSubscriptionPrices).values(Array.from({ length: 500 }, (_, i) => ({
-      companyId: c, subscriptionId: id, revision: i + 1, plan: `Historic plan ${i}`, amountCents: "1000", source: "user" as const,
+      spaceId: c, subscriptionId: id, revision: i + 1, plan: `Historic plan ${i}`, amountCents: "1000", source: "user" as const,
     })));
     await db.update(aiSubscriptions).set({ revision: 500 }).where(eq(aiSubscriptions.id, id));
     const report = await subscriptionCostReport(db, c, owner);
@@ -382,10 +382,10 @@ describe("durable subscription reporting", () => {
     expect(JSON.stringify(report)).not.toContain("Historic plan 498");
     expect(await db.select().from(aiSubscriptionPrices).where(eq(aiSubscriptionPrices.subscriptionId, id))).toHaveLength(501);
   });
-  it("never lets an admin overwrite another user's personal price or cross a company boundary", async () => {
-    const c = await company(), id = await subscriptionService(db).register(await connection(c));
+  it("never lets an admin overwrite another user's personal price or cross a space boundary", async () => {
+    const c = await space(), id = await subscriptionService(db).register(await connection(c));
     await expect(price(c, id, "10000", {}, other)).rejects.toMatchObject({ status: 403 });
-    await expect(price(await company(), id)).rejects.toMatchObject({ status: 404 });
+    await expect(price(await space(), id)).rejects.toMatchObject({ status: 404 });
     await expect(price(c, id, "10000", {}, { ...owner, readOnly: true })).rejects.toMatchObject({ status: 403 });
     const input = { expectedRevision: 0, plan: "Plus", amountCents: "1234", currency: "USD" as const, cadence: "month" as const, status: "active" as const };
     const results = await Promise.allSettled([subscriptionService(db).updatePrice(c, id, input, owner), subscriptionService(db).updatePrice(c, id, { ...input, amountCents: "5678" }, owner)]);
@@ -393,16 +393,16 @@ describe("durable subscription reporting", () => {
     expect(results.filter(result => result.status === "rejected")).toHaveLength(1);
   });
   it("commits the price and audit record even if live notification fails", async () => {
-    const c = await company(), id = await subscriptionService(db).register(await connection(c));
+    const c = await space(), id = await subscriptionService(db).register(await connection(c));
     const publish = vi.spyOn(liveEvents, "publishLiveEvent").mockImplementationOnce(() => { throw new Error("fixture subscriber unavailable"); });
     try {
       await expect(price(c, id, "1900")).resolves.toMatchObject({ revision: 1 });
       expect((await subscriptionCostReport(db, c, owner)).accounts[0].price.amountCents).toBe("1900.0000000");
-      expect(await db.select().from(activityLog).where(and(eq(activityLog.companyId, c), eq(activityLog.action, "subscription.price_updated")))).toHaveLength(1);
+      expect(await db.select().from(activityLog).where(and(eq(activityLog.spaceId, c), eq(activityLog.action, "subscription.price_updated")))).toHaveLength(1);
     } finally { publish.mockRestore(); }
   });
   it("merges duplicate usage once and retains the selected price", async () => {
-    const c = await company(), service = subscriptionService(db);
+    const c = await space(), service = subscriptionService(db);
     const a = await service.register(await connection(c, "claude-token-a", "anthropic"));
     const b = await service.register(await connection(c, "claude-token-b", "anthropic"));
     await price(c, a, "10000"); await price(c, b, "20000");
@@ -418,7 +418,7 @@ describe("durable subscription reporting", () => {
     await expect(service.merge(c, b, different, 1, 0, owner)).rejects.toMatchObject({ status: 409 });
   });
   it("separates API, subscriptions, overages and other billing with exclusive cache counters", async () => {
-    const c = await company(), id = await verifiedConnection(await connection(c));
+    const c = await space(), id = await verifiedConnection(await connection(c));
     await event(c, null, "metered_api", "123"); await event(c, id, "subscription_included");
     await event(c, id, "subscription_overage", "456"); await event(c, null, "unknown", "789");
     await event(c, null, "credits", "100"); await event(c, null, "fixed", "200");
@@ -435,11 +435,11 @@ describe("durable subscription reporting", () => {
     expect(report.monthlyTotals[0].amountCents).toBe("2000.0000000");
   });
   it("snapshots account attribution, rejects forged attribution, and preserves receipt replay", async () => {
-    const c = await company(), input = await connection(c), service = subscriptionService(db);
+    const c = await space(), input = await connection(c), service = subscriptionService(db);
     const original = await service.register(input);
     const agentId = randomUUID(), runId = randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId: c, name: "Codie", role: "engineer", adapterType: "codex_local" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: c, agentId, invocationSource: "on_demand", status: "succeeded", contextSnapshot: { aiConnection: { subscriptionId: original, provider: "openai" } } });
+    await db.insert(agents).values({ id: agentId, spaceId: c, name: "Codie", role: "engineer", adapterType: "codex_local" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: c, agentId, invocationSource: "on_demand", status: "succeeded", contextSnapshot: { aiConnection: { subscriptionId: original, provider: "openai" } } });
     const replacement = await service.register({ ...input, credential: token("other-workspace") });
     expect(replacement).not.toBe(original);
     const receipt = { agentId, heartbeatRunId: runId, idempotencyKey: "subscription-test", provider: "openai", billingType: "subscription_included" as const, model: "fixture", inputTokens: 10, costCents: "0", occurredAt: new Date() };
@@ -450,7 +450,7 @@ describe("durable subscription reporting", () => {
     expect(report.accounts.find(row => row.id === original)?.usage.eventCount).toBe(1);
     expect(report.accounts.find(row => row.id === replacement)?.usage.eventCount).toBe(0);
     // Legacy or foreign context must not make a valid receipt fail or leak an account.
-    const foreign = await service.register(await connection(await company()));
+    const foreign = await service.register(await connection(await space()));
     for (const subscriptionId of ["malformed-legacy-id", foreign]) {
       await db.update(heartbeatRuns).set({ contextSnapshot: { aiConnection: { subscriptionId, provider: "openai" } } }).where(eq(heartbeatRuns.id, runId));
       const unlinked = await costService(db).createEvent(c, { ...receipt, idempotencyKey: subscriptionId });
@@ -458,7 +458,7 @@ describe("durable subscription reporting", () => {
     }
   });
   it("preserves successful observations and manual prices through provider failures", async () => {
-    const c = await company(), input = await connection(c), service = subscriptionService(db), id = await service.register(input);
+    const c = await space(), input = await connection(c), service = subscriptionService(db), id = await service.register(input);
     const request = fixtureRequest(usage());
     await Promise.all([refreshSubscriptionConnection(db, input, id, request), refreshSubscriptionConnection(db, input, id, request)]);
     expect(request).toHaveBeenCalledTimes(1);
@@ -476,9 +476,9 @@ describe("durable subscription reporting", () => {
     expect((await subscriptionCostReport(db, c, owner)).accounts[0].price.amountCents).toBe("1750.0000000");
   });
   it("keeps one unverified account through OAuth refreshes and separates a reconnect", async () => {
-    const c = await company(), connected = await connection(c, "grok-first", "xai"), service = subscriptionService(db);
+    const c = await space(), connected = await connection(c, "grok-first", "xai"), service = subscriptionService(db);
     const secretId = randomUUID();
-    await db.insert(companySecrets).values({ id: secretId, companyId: c, key: `ai-${connected.grantId}`, name: `ai-${connected.grantId}` });
+    await db.insert(spaceSecrets).values({ id: secretId, spaceId: c, key: `ai-${connected.grantId}`, name: `ai-${connected.grantId}` });
     await db.update(connectionGrants).set({ credentialSecretRefs: [{ secretId, configPath: "ai.credential" }] }).where(eq(connectionGrants.id, connected.grantId));
     const input = { ...connected, session: { secretId, epoch: 0 } };
     const id = await service.register(input);
@@ -488,7 +488,7 @@ describe("durable subscription reporting", () => {
     let report = await subscriptionCostReport(db, c, owner);
     expect(report.accounts.map(account => account.id)).toEqual([id]);
     expect(report.accounts[0]).toMatchObject({ identityVerified: false, price: { amountCents: "3000.0000000" } });
-    await db.update(companySecrets).set({ aiSessionEpoch: 1 }).where(eq(companySecrets.id, secretId));
+    await db.update(spaceSecrets).set({ aiSessionEpoch: 1 }).where(eq(spaceSecrets.id, secretId));
     const reconnected = await service.register({ ...input, credential: "grok-reconnected", session: { secretId, epoch: 1 } });
     expect(reconnected).not.toBe(id);
     expect(await service.register({ ...input, credential: "grok-reconnected-refreshed", session: { secretId, epoch: 1 } })).toBe(reconnected);
@@ -496,11 +496,11 @@ describe("durable subscription reporting", () => {
     expect(report.accounts.map(account => account.id).sort()).toEqual([id, reconnected].sort());
   });
   it("rejects an unverified registration from a session older than the latest reconnect", async () => {
-    const c = await company(), connected = await connection(c, "grok-old", "xai"), service = subscriptionService(db);
+    const c = await space(), connected = await connection(c, "grok-old", "xai"), service = subscriptionService(db);
     const secretId = randomUUID();
-    await db.insert(companySecrets).values({ id: secretId, companyId: c, key: `ai-${connected.grantId}`, name: `ai-${connected.grantId}` });
+    await db.insert(spaceSecrets).values({ id: secretId, spaceId: c, key: `ai-${connected.grantId}`, name: `ai-${connected.grantId}` });
     await db.update(connectionGrants).set({ credentialSecretRefs: [{ secretId, configPath: "ai.credential" }] }).where(eq(connectionGrants.id, connected.grantId));
-    await db.update(companySecrets).set({ aiSessionEpoch: 1 }).where(eq(companySecrets.id, secretId));
+    await db.update(spaceSecrets).set({ aiSessionEpoch: 1 }).where(eq(spaceSecrets.id, secretId));
     const current = await service.register({ ...connected, credential: "grok-new", session: { secretId, epoch: 1 } });
     await expect(service.register({ ...connected, credential: "grok-old-refreshed", session: { secretId, epoch: 0 } })).rejects.toMatchObject({ status: 409 });
     await expect(service.register({ ...connected, credential: "grok-old-refreshed" })).rejects.toMatchObject({ status: 409 });
@@ -509,7 +509,7 @@ describe("durable subscription reporting", () => {
     expect((await subscriptionCostReport(db, c, owner)).accounts.map(account => account.id)).toEqual([current]);
   });
   it("ignores a delayed provider observation after reconnecting another account", async () => {
-    const c = await company(), input = await connection(c), service = subscriptionService(db), id = await service.register(input);
+    const c = await space(), input = await connection(c), service = subscriptionService(db), id = await service.register(input);
     let finish!: (response: Response) => void;
     let started!: () => void;
     const ready = new Promise<void>(resolve => { started = resolve; });
@@ -518,7 +518,7 @@ describe("durable subscription reporting", () => {
     await ready;
     const next = await service.register({ ...input, credential: token("new-workspace") });
     finish(Response.json(usage("pro"))); await pending;
-    const [binding] = await db.select().from(aiSubscriptionConnections).where(and(eq(aiSubscriptionConnections.companyId, c), eq(aiSubscriptionConnections.grantId, input.grantId)));
+    const [binding] = await db.select().from(aiSubscriptionConnections).where(and(eq(aiSubscriptionConnections.spaceId, c), eq(aiSubscriptionConnections.grantId, input.grantId)));
     expect(binding.subscriptionId).toBe(next);
     expect((await db.select().from(aiSubscriptions).where(eq(aiSubscriptions.id, next)))[0].detectedPlan).toBe("plus");
   });

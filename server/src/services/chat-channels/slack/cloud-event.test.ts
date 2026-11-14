@@ -10,7 +10,7 @@ import { receiveSlackCloudEvent, slackCloudAcceptedAt, type CurrentSlackCloudBin
 
 const acceptedAt = Date.parse("2099-01-01T00:00:00Z");
 function fixture() {
-  const binding: CurrentSlackCloudBinding = { companyId: "company", endpointId: "endpoint", publicId: "a".repeat(43),
+  const binding: CurrentSlackCloudBinding = { spaceId: "space", endpointId: "endpoint", publicId: "a".repeat(43),
     connectionId: "connection", runtimeGeneration: 1, teamId: "TTEST", appId: "ATEST", bindingId: `slack-event:${"b".repeat(64)}`,
     signingSecret: "0123456789abcdef0123456789abcdef" };
   const rawBody = Buffer.from(JSON.stringify({ type: "event_callback", event_id: "EvFIRST", team_id: "TTEST", api_app_id: "ATEST", event: { type: "app_mention", text: "<@UBOT> hello", user: "UOPERATOR", channel: "CTEST", ts: "1788.500", event_ts: "1788.500" } }));
@@ -28,10 +28,10 @@ describe("authenticated Slack Cloud receipt consumer", () => {
   it("crosses the real pinned Chat runtime after cold-start delay and preserves ordinary external freshness rejection", async () => {
     const network = guardSlackFixtureNetwork();
     const f = fixture(), onMessage = vi.fn(async () => {});
-    const runtime = createChatSdkEndpointRuntime({ companyId: f.binding.companyId, endpointId: f.binding.endpointId,
+    const runtime = createChatSdkEndpointRuntime({ spaceId: f.binding.spaceId, endpointId: f.binding.endpointId,
       logger: "silent", callbacks: { onMessage }, persistence: { read: async () => null,
         compareAndSet: async () => true, deleteIfVersion: async () => true },
-      providerConfig: { provider: "slack", userName: "paperclip-agent",
+      providerConfig: { provider: "slack", userName: "outpost-agent",
         credentials: { apiUrl: "http://127.0.0.1:1/api/", botToken: "xoxb-synthetic", botUserId: "UBOT", signingSecret: f.binding.signingSecret } } });
     try {
       await runtime.initialize();

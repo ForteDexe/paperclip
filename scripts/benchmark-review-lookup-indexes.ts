@@ -61,34 +61,34 @@ try {
 
   // Unrelated chat history: comments, deliveries and links on the same endpoint.
   const loadStart = performance.now();
-  await sql.unsafe(`insert into issue_comments (company_id, issue_id, author_user_id, body)
+  await sql.unsafe(`insert into issue_comments (space_id, issue_id, author_user_id, body)
     select $1::uuid, $2::uuid, 'operator', 'noise ' || g from generate_series(1, $3::int) g`,
-  [check.companyId, check.issueId, LINKS]);
-  await sql.unsafe(`insert into chat_deliveries (company_id, endpoint_id, conversation_id, provider_event_id,
+  [check.spaceId, check.issueId, LINKS]);
+  await sql.unsafe(`insert into chat_deliveries (space_id, endpoint_id, conversation_id, provider_event_id,
       deduplication_key, event_kind, state, normalized_event)
     select $1::uuid, $2::uuid, $3::uuid, 'noise-' || g, 'noise-' || g, 'message', 'processed',
       jsonb_build_object('githubAutomatic', jsonb_build_object('context', jsonb_build_object(
         'deliveryId', gen_random_uuid()::text,
         'body', (select string_agg(md5(random()::text || s.i || g), '') from generate_series(1, 64) s(i)))))
-    from generate_series(1, $4::int) g`, [check.companyId, check.endpointId, check.conversationId, DELIVERIES]);
+    from generate_series(1, $4::int) g`, [check.spaceId, check.endpointId, check.conversationId, DELIVERIES]);
   await sql.unsafe(`with c as (select id, row_number() over (order by id) rn from issue_comments
-        where company_id = $1::uuid and body like 'noise %'),
+        where space_id = $1::uuid and body like 'noise %'),
       d as (select id, row_number() over (order by id) rn from chat_deliveries
         where endpoint_id = $2::uuid and provider_event_id like 'noise-%')
-    insert into chat_message_links (company_id, endpoint_id, conversation_id, delivery_id, comment_id,
+    insert into chat_message_links (space_id, endpoint_id, conversation_id, delivery_id, comment_id,
       provider_message_id, direction)
     select $1::uuid, $2::uuid, $3::uuid, d.id, c.id, 'noise-' || c.rn,
       case when c.rn % 2 = 0 then 'inbound' else 'outbound' end
-    from c left join d on d.rn = c.rn`, [check.companyId, check.endpointId, check.conversationId]);
+    from c left join d on d.rn = c.rn`, [check.spaceId, check.endpointId, check.conversationId]);
   // Runs of the same agent before and after the wake run; most were woken by
   // some other comment.
-  await sql.unsafe(`insert into heartbeat_runs (company_id, agent_id, status, context_snapshot, created_at)
+  await sql.unsafe(`insert into heartbeat_runs (space_id, agent_id, status, context_snapshot, created_at)
     select $1::uuid, $2::uuid, 'succeeded', jsonb_build_object(
         'wakeCommentId', case when g % 5 <> 0 then gen_random_uuid()::text end,
         'issueId', $3::text,
         'prompt', (select string_agg(md5(random()::text || s.i || g), '') from generate_series(1, $4::int) s(i))),
       now() + make_interval(secs => g - $5::int / 2)
-    from generate_series(1, $5::int) g`, [check.companyId, check.agentId, check.issueId, RUN_CONTEXT_KIB * 32, RUNS]);
+    from generate_series(1, $5::int) g`, [check.spaceId, check.agentId, check.issueId, RUN_CONTEXT_KIB * 32, RUNS]);
   const loadMs = performance.now() - loadStart;
   const tableSizes = await sql.unsafe(`select relname as table, n_live_tup::int as rows,
       pg_size_pretty(pg_total_relation_size(relid)) as total_size from pg_stat_user_tables

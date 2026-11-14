@@ -86,7 +86,7 @@ describe.skipIf(!hasLinuxNode)("remote deliverable real Linux descriptor reads",
   let runner: Pick<CommandManagedRuntimeRunner, "execute">;
 
   beforeEach(async () => {
-    root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-remote-file-")));
+    root = await realpath(await mkdtemp(join(tmpdir(), "outpost-remote-file-")));
     workspaceRoot = join(root, "workspace");
     await mkdir(workspaceRoot);
     await writeFile(join(workspaceRoot, "checklist.md"), body);
@@ -139,7 +139,7 @@ describe.skipIf(!hasLinuxNode)("remote deliverable real Linux descriptor reads",
       nonce: "abcdefghijklmnopqrstuvwx", count: 7, total: 271391, sha256: "d".repeat(64),
     }, null, 2) + "\n");
     expect(proof.length).toBe(155);
-    const agentHome = join(workspaceRoot, ".paperclip-runtime", "agent-files", "agent", "origin");
+    const agentHome = join(workspaceRoot, ".outpost-runtime", "agent-files", "agent", "origin");
     await mkdir(agentHome, { recursive: true });
     await writeFile(join(agentHome, "connection-proof.json"), proof);
     mergedOutput = true;

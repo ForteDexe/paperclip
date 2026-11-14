@@ -14,9 +14,9 @@ import {
   agentWakeupRequests,
   agents,
   authUsers,
-  companies,
-  companyMemberships,
-  companySkills,
+  spaces,
+  spaceMemberships,
+  spaceSkills,
   createDb,
   documentRevisions,
   documents,
@@ -83,11 +83,11 @@ async function runGit(cwd: string, args: string[]) {
 }
 
 async function createGitRepo() {
-  const repoRoot = await mkdtemp(path.join(os.tmpdir(), "paperclip-accepted-plan-repo-"));
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), "outpost-accepted-plan-repo-"));
   await runGit(repoRoot, ["init"]);
   await runGit(repoRoot, ["checkout", "-B", "master"]);
-  await runGit(repoRoot, ["config", "user.email", "paperclip-test@example.com"]);
-  await runGit(repoRoot, ["config", "user.name", "Paperclip Test"]);
+  await runGit(repoRoot, ["config", "user.email", "outpost-test@example.com"]);
+  await runGit(repoRoot, ["config", "user.name", "Outpost Test"]);
   await writeFile(path.join(repoRoot, "README.md"), "accepted plan workspace refresh\n");
   await runGit(repoRoot, ["add", "README.md"]);
   await runGit(repoRoot, ["commit", "-m", "initial"]);
@@ -96,7 +96,7 @@ async function createGitRepo() {
 
 async function createGitRepoWithOrigin() {
   const repoRoot = await createGitRepo();
-  const originRoot = await mkdtemp(path.join(os.tmpdir(), "paperclip-accepted-plan-origin-"));
+  const originRoot = await mkdtemp(path.join(os.tmpdir(), "outpost-accepted-plan-origin-"));
   await runGit(originRoot, ["init", "--bare"]);
   await runGit(repoRoot, ["remote", "add", "origin", originRoot]);
   await runGit(repoRoot, ["push", "-u", "origin", "master"]);
@@ -109,19 +109,19 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
   const tempRoots: string[] = [];
 
-  async function grantResponsibleUser(companyId: string) {
+  async function grantResponsibleUser(spaceId: string) {
     await db.insert(authUsers).values({
       id: "responsible-user", name: "Responsible user", email: "accepted-plan@example.test",
       createdAt: new Date(), updatedAt: new Date(),
     }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({
-      companyId, principalType: "user", principalId: "responsible-user",
+    await db.insert(spaceMemberships).values({
+      spaceId, principalType: "user", principalId: "responsible-user",
       status: "active", membershipRole: "member",
     });
   }
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-accepted-plan-workspace-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-accepted-plan-workspace-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -166,9 +166,9 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     await db.delete(agentRuntimeState);
     await db.delete(agents);
     await db.delete(workspaceOperations);
-    await db.delete(companySkills);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceSkills);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -177,7 +177,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
   });
 
   async function seedAcceptedPlanClaim(args: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     ownerAgentId: string;
     status?: "in_flight" | "completed";
@@ -187,7 +187,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
 
     await db.insert(documents).values({
       id: documentId,
-      companyId: args.companyId,
+      spaceId: args.spaceId,
       title: "Plan",
       format: "markdown",
       latestBody: "Plan body",
@@ -198,7 +198,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(documentRevisions).values({
       id: revisionId,
-      companyId: args.companyId,
+      spaceId: args.spaceId,
       documentId,
       revisionNumber: 1,
       title: "Plan",
@@ -207,13 +207,13 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
       createdByAgentId: args.ownerAgentId,
     });
     await db.insert(issueDocuments).values({
-      companyId: args.companyId,
+      spaceId: args.spaceId,
       issueId: args.issueId,
       documentId,
       key: "plan",
     });
     await db.insert(issuePlanDecompositions).values({
-      companyId: args.companyId,
+      spaceId: args.spaceId,
       sourceIssueId: args.issueId,
       acceptedPlanRevisionId: revisionId,
       status: args.status ?? "in_flight",
@@ -228,7 +228,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
   }
 
   async function seedAcceptedPlanAcceptance(args: {
-    companyId: string;
+    spaceId: string;
     issueId: string;
     ownerAgentId: string;
   }) {
@@ -238,7 +238,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
 
     await db.insert(documents).values({
       id: documentId,
-      companyId: args.companyId,
+      spaceId: args.spaceId,
       title: "Plan",
       format: "markdown",
       latestBody: "Plan body",
@@ -249,7 +249,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(documentRevisions).values({
       id: revisionId,
-      companyId: args.companyId,
+      spaceId: args.spaceId,
       documentId,
       revisionNumber: 1,
       title: "Plan",
@@ -258,14 +258,14 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
       createdByAgentId: args.ownerAgentId,
     });
     await db.insert(issueDocuments).values({
-      companyId: args.companyId,
+      spaceId: args.spaceId,
       issueId: args.issueId,
       documentId,
       key: "plan",
     });
     await db.insert(issueThreadInteractions).values({
       id: interactionId,
-      companyId: args.companyId,
+      spaceId: args.spaceId,
       issueId: args.issueId,
       kind: "request_confirmation",
       status: "accepted",
@@ -287,15 +287,15 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
         outcome: "accepted",
       },
       resolvedAt: new Date(),
-      createdByUserId: "local-board",
-      resolvedByUserId: "local-board",
+      createdByUserId: "local-operator",
+      resolvedByUserId: "local-operator",
     });
 
     return revisionId;
   }
 
   it("realizes an isolated workspace and drops stale shared task-session params before executing", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const sharedExecutionWorkspaceId = randomUUID();
@@ -307,19 +307,19 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     await instanceSettingsService(db).updateExperimental({
       enableIsolatedWorkspaces: true,
     });
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
       status: "active",
       defaultResponsibleUserId: "responsible-user",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    await grantResponsibleUser(companyId);
+    await grantResponsibleUser(spaceId);
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Accepted Plan Workspace Refresh",
       status: "active",
       createdAt: new Date(),
@@ -327,7 +327,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       cwd: repoRoot,
@@ -337,7 +337,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -350,7 +350,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(executionWorkspaces).values({
       id: sharedExecutionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       mode: "shared_workspace",
@@ -365,7 +365,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       title: "Implement accepted plan",
@@ -383,7 +383,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
       updatedAt: new Date(),
     });
     await db.insert(agentTaskSessions).values({
-      companyId,
+      spaceId,
       agentId,
       adapterType: "codex_local",
       taskKey: issueId,
@@ -437,11 +437,11 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     };
     expect(adapterInput.runtime.sessionId).toBeNull();
     expect(adapterInput.runtime.sessionParams).toBeNull();
-    expect(adapterInput.context.paperclipWorkspace).toEqual(expect.objectContaining({
+    expect(adapterInput.context.outpostWorkspace).toEqual(expect.objectContaining({
       mode: "isolated_workspace",
       strategy: "git_worktree",
     }));
-    expect((adapterInput.context.paperclipWorkspace as { cwd: string }).cwd).not.toBe(repoRoot);
+    expect((adapterInput.context.outpostWorkspace as { cwd: string }).cwd).not.toBe(repoRoot);
 
     const refreshedIssue = await db
       .select({
@@ -471,7 +471,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
   }, 20_000);
 
   it("keeps accepted-plan children strategy-only until first realization after the base ref moves", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const sourceIssueId = randomUUID();
@@ -482,19 +482,19 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     await instanceSettingsService(db).updateExperimental({
       enableIsolatedWorkspaces: true,
     });
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
       status: "active",
       defaultResponsibleUserId: "responsible-user",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    await grantResponsibleUser(companyId);
+    await grantResponsibleUser(spaceId);
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Accepted Plan Branch Freshness",
       status: "active",
       createdAt: new Date(),
@@ -502,7 +502,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       cwd: repoRoot,
@@ -512,7 +512,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -530,7 +530,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(issues).values({
       id: sourceIssueId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       title: "Planning source issue",
@@ -556,7 +556,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     adapterExecute.mockImplementationOnce(async () => {
       // Planning is awaiting a real confirmation, not a prose-only promise.
       await db.insert(issueThreadInteractions).values({
-        companyId, issueId: sourceIssueId, kind: "request_confirmation", status: "pending",
+        spaceId, issueId: sourceIssueId, kind: "request_confirmation", status: "pending",
         requestedResolverPolicy: "anyone", effectiveResolverPolicy: "anyone",
         payload: { version: 1, prompt: "Review the source plan" },
       });
@@ -610,7 +610,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     await drainHeartbeatRunsToQuiescence(db, heartbeat);
     await db.delete(issueThreadInteractions).where(eq(issueThreadInteractions.issueId, sourceIssueId));
     const acceptedPlanRevisionId = await seedAcceptedPlanAcceptance({
-      companyId,
+      spaceId,
       issueId: sourceIssueId,
       ownerAgentId: agentId,
     });
@@ -655,7 +655,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
       | null;
     adapterExecute.mockImplementationOnce(async (input) => {
       const context = (input as { context?: Record<string, unknown> }).context ?? {};
-      const workspace = context.paperclipWorkspace as Record<string, unknown> | undefined;
+      const workspace = context.outpostWorkspace as Record<string, unknown> | undefined;
       const cwd = typeof workspace?.cwd === "string" ? workspace.cwd : null;
       const branchName = typeof workspace?.branchName === "string" ? workspace.branchName : null;
       const executionWorkspaceId =
@@ -707,7 +707,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
   }, 20_000);
 
   it("forces a fresh session and suppresses accepted-plan continuation when another issue owns the in-flight claim", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const issueId = randomUUID();
@@ -719,19 +719,19 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     await instanceSettingsService(db).updateExperimental({
       enableIsolatedWorkspaces: false,
     });
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
       status: "active",
       defaultResponsibleUserId: "responsible-user",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    await grantResponsibleUser(companyId);
+    await grantResponsibleUser(spaceId);
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Accepted Plan Routing",
       status: "active",
       createdAt: new Date(),
@@ -739,7 +739,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       cwd: repoRoot,
@@ -749,7 +749,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -763,7 +763,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     await db.insert(issues).values([
       {
         id: issueId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         title: "Later planning wake",
@@ -778,7 +778,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
       },
       {
         id: otherPlanningIssueId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         title: "Earlier accepted plan",
@@ -793,13 +793,13 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
       },
     ]);
     await seedAcceptedPlanClaim({
-      companyId,
+      spaceId,
       issueId: otherPlanningIssueId,
       ownerAgentId: agentId,
       status: "in_flight",
     });
     await db.insert(agentTaskSessions).values({
-      companyId,
+      spaceId,
       agentId,
       adapterType: "codex_local",
       taskKey: issueId,
@@ -862,12 +862,12 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
       otherActiveClaimIssueId: otherPlanningIssueId,
       otherActiveClaimIdentifier: "PAP-9302",
     }));
-    expect(adapterInput.context.paperclipTaskMarkdown).toContain("Make the plan only.");
-    expect(adapterInput.context.paperclipTaskMarkdown).not.toContain("Implement the accepted plan on this issue.");
+    expect(adapterInput.context.outpostTaskMarkdown).toContain("Make the plan only.");
+    expect(adapterInput.context.outpostTaskMarkdown).not.toContain("Implement the accepted plan on this issue.");
   }, 20_000);
 
   it("guards cross-issue accepted-plan retries even when the waking issue is standard work mode", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const issueId = randomUUID();
@@ -879,19 +879,19 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     await instanceSettingsService(db).updateExperimental({
       enableIsolatedWorkspaces: false,
     });
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
       status: "active",
       defaultResponsibleUserId: "responsible-user",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    await grantResponsibleUser(companyId);
+    await grantResponsibleUser(spaceId);
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Accepted Plan Routing",
       status: "active",
       createdAt: new Date(),
@@ -899,7 +899,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       cwd: repoRoot,
@@ -909,7 +909,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -923,7 +923,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     await db.insert(issues).values([
       {
         id: issueId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         title: "Implementation wake after accepted plan",
@@ -938,7 +938,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
       },
       {
         id: otherPlanningIssueId,
-        companyId,
+        spaceId,
         projectId,
         projectWorkspaceId,
         title: "Earlier accepted plan",
@@ -953,13 +953,13 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
       },
     ]);
     await seedAcceptedPlanClaim({
-      companyId,
+      spaceId,
       issueId: otherPlanningIssueId,
       ownerAgentId: agentId,
       status: "in_flight",
     });
     await db.insert(agentTaskSessions).values({
-      companyId,
+      spaceId,
       agentId,
       adapterType: "codex_local",
       taskKey: issueId,
@@ -1024,12 +1024,12 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
       otherActiveClaimIssueId: otherPlanningIssueId,
       otherActiveClaimIdentifier: "PAP-9402",
     }));
-    expect(adapterInput.context.paperclipTaskMarkdown).toContain("Issue: \"PAP-9401\"");
-    expect(adapterInput.context.paperclipTaskMarkdown).not.toContain("Implement the accepted plan on this issue.");
+    expect(adapterInput.context.outpostTaskMarkdown).toContain("Issue: \"PAP-9401\"");
+    expect(adapterInput.context.outpostTaskMarkdown).not.toContain("Implement the accepted plan on this issue.");
   }, 20_000);
 
   it("preserves accepted-plan instructions but replaces a pre-identity session when the wake issue owns the in-flight claim", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const projectWorkspaceId = randomUUID();
     const issueId = randomUUID();
@@ -1040,19 +1040,19 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     await instanceSettingsService(db).updateExperimental({
       enableIsolatedWorkspaces: false,
     });
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
       status: "active",
       defaultResponsibleUserId: "responsible-user",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    await grantResponsibleUser(companyId);
+    await grantResponsibleUser(spaceId);
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Accepted Plan Retry",
       status: "active",
       createdAt: new Date(),
@@ -1060,7 +1060,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       cwd: repoRoot,
@@ -1070,7 +1070,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -1083,7 +1083,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       title: "Accepted plan retry",
@@ -1097,13 +1097,13 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
       updatedAt: new Date(),
     });
     await seedAcceptedPlanClaim({
-      companyId,
+      spaceId,
       issueId,
       ownerAgentId: agentId,
       status: "in_flight",
     });
     await db.insert(agentTaskSessions).values({
-      companyId,
+      spaceId,
       agentId,
       adapterType: "codex_local",
       taskKey: issueId,
@@ -1162,7 +1162,7 @@ describeEmbeddedPostgres("accepted plan workspace refresh", () => {
     // The old process predates identity injection and must be replaced.
     expect(adapterInput.runtime.sessionId).toBeNull();
     expect(adapterInput.context.acceptedPlanWakeRouting).toBeUndefined();
-    expect(adapterInput.context.paperclipTaskMarkdown).toContain(
+    expect(adapterInput.context.outpostTaskMarkdown).toContain(
       "Implement the accepted plan on this issue.",
     );
   }, 20_000);

@@ -22,24 +22,24 @@ let fixture;
 try { fixture = JSON.parse(await fs.readFile(fixturePath, "utf8")); }
 catch (error) {
   if (error.code !== "ENOENT") throw error;
-  const company = await api("/companies", { name: "Apps Startup Review" });
+  const space = await api("/spaces", { name: "Apps Startup Review" });
   const tasks = [];
-  for (let i = 1; i <= 5; i++) tasks.push(await api(`/companies/${company.id}/issues`, {
+  for (let i = 1; i <= 5; i++) tasks.push(await api(`/spaces/${space.id}/issues`, {
     title: `Review task ${i}`, description: "Synthetic task context for the sidebar performance comparison.\n".repeat(100),
     status: i === 1 ? "todo" : "done", priority: "medium",
   }));
-  const application = await api(`/companies/${company.id}/tools/applications`, { name: "Review Connector", type: "mcp_http" });
-  const connection = await api(`/companies/${company.id}/tools/connections`, {
+  const application = await api(`/spaces/${space.id}/tools/applications`, { name: "Review Connector", type: "mcp_http" });
+  const connection = await api(`/spaces/${space.id}/tools/connections`, {
     applicationId: application.id, name: "Review account", transport: "mcp_remote", status: "draft", enabled: false,
     transportConfig: { url: "https://example.com/mcp" },
   });
-  const agent = await api(`/companies/${company.id}/agents`, {
+  const agent = await api(`/spaces/${space.id}/agents`, {
     name: "Review agent", role: "engineer", adapterType: "codex_local",
     runtimeConfig: { heartbeat: { enabled: false } },
   });
   await api(`/agents/${agent.id}/pause`, {});
   const session = await api("/auth/get-session");
-  fixture = { company, tasks, application, connection, agent, userId: session?.user?.id ?? null };
+  fixture = { space, tasks, application, connection, agent, userId: session?.user?.id ?? null };
   await fs.writeFile(fixturePath, JSON.stringify(fixture, null, 2));
 }
 const variants = process.env.OUTPOST_APPS_BENCH_BASELINE_DIST ? [
@@ -71,11 +71,11 @@ try {
       const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: "block" });
       await context.addInitScript(({ fixture }) => {
         const entries = fixture.tasks.map((task, index) => ({
-          id: task.id, companyId: task.companyId, title: task.title, identifier: task.identifier,
+          id: task.id, spaceId: task.spaceId, title: task.title, identifier: task.identifier,
           status: task.status, recordedAt: index + 1, snapshotUpdatedAt: new Date(task.updatedAt).getTime(),
         }));
-        localStorage.setItem("outpost.selectedCompanyId", fixture.company.id);
-        localStorage.setItem(`outpost.recentTasks.v2:${fixture.company.id}:${fixture.userId ?? "__local_board__"}`, JSON.stringify(entries));
+        localStorage.setItem("outpost.selectedSpaceId", fixture.space.id);
+        localStorage.setItem(`outpost.recentTasks.v2:${fixture.space.id}:${fixture.userId ?? "__local_board__"}`, JSON.stringify(entries));
         window.__appsLongTasks = [];
         new PerformanceObserver(list => window.__appsLongTasks.push(...list.getEntries().map(e => ({ start: e.startTime, duration: e.duration }))))
           .observe({ type: "longtask", buffered: true });
@@ -86,7 +86,7 @@ try {
         // through the real local server with the same network profile.
         const html = await fs.readFile(`${variant.dist}/index.html`, "utf8");
         await page.route(url => url.origin === target.origin &&
-          ["apps", "dashboard"].some(name => url.pathname === `/${fixture.company.issuePrefix}/${name}`),
+          ["apps", "dashboard"].some(name => url.pathname === `/${fixture.space.issuePrefix}/${name}`),
         route => route.fulfill({ status: 200, contentType: "text/html", body: html }));
       }
       const cdp = await context.newCDPSession(page);
@@ -111,7 +111,7 @@ try {
           }
         };
         page.on("response", observeInitialRefresh);
-        await page.goto(new URL(`/${fixture.company.issuePrefix}/dashboard`, target).href);
+        await page.goto(new URL(`/${fixture.space.issuePrefix}/dashboard`, target).href);
         await page.getByRole("link", { name: "Connectors", exact: true }).first().waitFor({ timeout: 90_000 });
         await Promise.race([initialRefresh, new Promise((_, reject) => {
           const timeout = setTimeout(() => reject(new Error("Initial recent-task refresh did not finish")), 90_000);
@@ -153,7 +153,7 @@ try {
         } catch { /* navigation cancellation has no completed response */ }
       });
       observedNavigationStart = await page.evaluate(() => performance.now());
-      if (scenario === "cold") await page.goto(new URL(`/${fixture.company.issuePrefix}/apps`, target).href);
+      if (scenario === "cold") await page.goto(new URL(`/${fixture.space.issuePrefix}/apps`, target).href);
       else await page.getByRole("link", { name: "Connectors", exact: true }).first().click();
       await page.getByRole("list", { name: "Connector list", exact: true }).waitFor({ timeout: 90_000 });
       await page.getByRole("searchbox", { name: "Search connectors" }).waitFor();

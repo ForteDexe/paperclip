@@ -6,7 +6,7 @@ import { TaskChatRunnerTurn } from "@/components/task-chat/TaskChatRunnerTurn";
 import { TaskChatLiveRunPill } from "@/components/task-chat/TaskChatLiveRunPill";
 import { Textarea } from "@/components/ui/textarea";
 import { queryKeys } from "@/lib/queryKeys";
-import { createIssue, storybookLiveRuns } from "../../fixtures/paperclipData";
+import { createIssue, storybookLiveRuns } from "../../fixtures/outpostData";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ExecutionProjection } from "@outpost/shared";
 import { expect, userEvent, within } from "storybook/test";
@@ -60,7 +60,7 @@ function QuietExecution({ execution }: { execution: ExecutionProjection }) {
   );
 }
 const meta = {
-  parameters: { paperclip: {
+  parameters: { outpost: {
       "capabilities": [
         "recovery/diagnosis"
       ],
@@ -196,7 +196,7 @@ const labelExamples: ExecutionProjection[] = [
     ...base,
     phase: "recovery_needed",
     label: "Recovery needed",
-    recoveryOwner: "board",
+    recoveryOwner: "operator",
     nextAction: "Review the stopped run before continuing.",
   },
 ];
@@ -340,7 +340,7 @@ function DashboardLabelExamples() {
     }));
     cache.setQueryData(
       [
-        ...queryKeys.liveRuns("company-storybook"),
+        ...queryKeys.liveRuns("space-storybook"),
         "execution-label-review",
         { minRunCount: 0, fetchLimit: undefined },
       ],
@@ -366,7 +366,7 @@ function DashboardLabelExamples() {
           card or controls.
         </p>
         <ActiveAgentsPanel
-          companyId="company-storybook"
+          spaceId="space-storybook"
           title="Agent execution"
           queryScope="execution-label-review"
           minRunCount={0}

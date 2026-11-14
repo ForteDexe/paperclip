@@ -49,7 +49,7 @@ const limited: ProviderRateLimitSnapshot = {
   observedAt: at("2026-11-05T15:02:00"),
 };
 
-const agent = (id: string, name: string) => ({ id, name, companyId: "company-story" }) as unknown as Agent;
+const agent = (id: string, name: string) => ({ id, name, spaceId: "space-story" }) as unknown as Agent;
 
 function Pane({ caption, assignee, model, snapshot, open }: {
   caption: string;
@@ -101,7 +101,7 @@ const meta = {
           "The task properties pane shows the assignee's latest provider usage limit as one line: the fullest current window and its reset, amber above 80%, 'Limited until' while the provider refuses work. Clicking it lists every window. Agents on API-key auth report no limits and show no row.",
       },
     },
-    paperclip: {
+    outpost: {
       capabilities: ["tasks/properties"],
       status: "current",
       implementation: "production",

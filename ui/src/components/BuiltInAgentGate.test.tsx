@@ -81,7 +81,7 @@ describe("BuiltInAgentGate (PAP-12978)", () => {
     flushSync(() => {
       root!.render(
         <QueryClientProvider client={queryClient}>
-          <BuiltInAgentGate agentKey="briefs" companyId="c1" featureLabel="Briefs">
+          <BuiltInAgentGate agentKey="briefs" spaceId="c1" featureLabel="Briefs">
             <div data-testid="feature">brief content</div>
           </BuiltInAgentGate>
         </QueryClientProvider>,

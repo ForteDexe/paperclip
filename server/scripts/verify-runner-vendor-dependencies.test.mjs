@@ -102,7 +102,7 @@ describe("findRunnerExternalPackages", () => {
     const missingEntryPoint = join(fixtureDir, "index.js");
 
     await expect(findRunnerExternalPackages([missingEntryPoint])).rejects.toThrow(
-      /expected build output at .*index\.js.*Run "pnpm --filter @paperclipai\/outpost-runner build" first/s,
+      /expected build output at .*index\.js.*Run "pnpm --filter @outpost\/outpost-runner build" first/s,
     );
   });
 });

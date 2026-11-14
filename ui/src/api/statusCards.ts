@@ -1,7 +1,7 @@
 import type {
-  CompanySearchIssueSummary,
-  CompanySearchQuery,
-  CompanySearchResponse,
+  SpaceSearchIssueSummary,
+  SpaceSearchQuery,
+  SpaceSearchResponse,
   CreateStatusCard,
   PatchStatusCard,
   StatusCard,
@@ -13,9 +13,9 @@ import { api } from "./client";
 export interface StatusCardDryRun {
   cardId: string;
   queryVersion: number;
-  queries: Array<{ query: CompanySearchQuery; result: CompanySearchResponse }>;
+  queries: Array<{ query: SpaceSearchQuery; result: SpaceSearchResponse }>;
   /** Issues referenced in the latest summary that joined the watched set. */
-  mentionedIssues: CompanySearchIssueSummary[];
+  mentionedIssues: SpaceSearchIssueSummary[];
 }
 
 /**
@@ -24,13 +24,13 @@ export interface StatusCardDryRun {
  * manual refresh/recompile, and live dry-run matching.
  */
 export const statusCardsApi = {
-  list: (companyId: string, archived = false) =>
+  list: (spaceId: string, archived = false) =>
     api.get<StatusCard[]>(
-      `/companies/${companyId}/status-cards?archived=${archived ? "true" : "false"}`,
+      `/spaces/${spaceId}/status-cards?archived=${archived ? "true" : "false"}`,
     ),
   get: (id: string) => api.get<StatusCard>(`/status-cards/${id}`),
-  create: (companyId: string, body: CreateStatusCard) =>
-    api.post<StatusCard>(`/companies/${companyId}/status-cards`, body),
+  create: (spaceId: string, body: CreateStatusCard) =>
+    api.post<StatusCard>(`/spaces/${spaceId}/status-cards`, body),
   patch: (id: string, body: PatchStatusCard) =>
     api.patch<StatusCard>(`/status-cards/${id}`, body),
   remove: (id: string) => api.delete<void>(`/status-cards/${id}`),

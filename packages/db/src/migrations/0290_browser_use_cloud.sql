@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "browser_use_browsers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"session_id" uuid NOT NULL,
 	"provider_browser_id" uuid NOT NULL,
 	"status" text DEFAULT 'active' NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS "browser_use_browsers" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "browser_use_runs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"session_id" uuid NOT NULL,
 	"heartbeat_run_id" uuid NOT NULL,
 	"invocation_id" uuid NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS "browser_use_runs" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "browser_use_sessions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"connection_id" uuid NOT NULL,
@@ -47,14 +47,14 @@ CREATE TABLE IF NOT EXISTS "browser_use_sessions" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "browser_use_settings" (
 	"grant_id" uuid PRIMARY KEY NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"allowed_profile_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"max_cost_usd" text
 );
 --> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'browser_use_browsers_company_id_companies_id_fk' AND conrelid = 'public.browser_use_browsers'::regclass) THEN
-    ALTER TABLE "browser_use_browsers" ADD CONSTRAINT "browser_use_browsers_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'browser_use_browsers_space_id_spaces_id_fk' AND conrelid = 'public.browser_use_browsers'::regclass) THEN
+    ALTER TABLE "browser_use_browsers" ADD CONSTRAINT "browser_use_browsers_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -63,8 +63,8 @@ DO $$ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'browser_use_runs_company_id_companies_id_fk' AND conrelid = 'public.browser_use_runs'::regclass) THEN
-    ALTER TABLE "browser_use_runs" ADD CONSTRAINT "browser_use_runs_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'browser_use_runs_space_id_spaces_id_fk' AND conrelid = 'public.browser_use_runs'::regclass) THEN
+    ALTER TABLE "browser_use_runs" ADD CONSTRAINT "browser_use_runs_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -78,8 +78,8 @@ DO $$ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'browser_use_sessions_company_id_companies_id_fk' AND conrelid = 'public.browser_use_sessions'::regclass) THEN
-    ALTER TABLE "browser_use_sessions" ADD CONSTRAINT "browser_use_sessions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'browser_use_sessions_space_id_spaces_id_fk' AND conrelid = 'public.browser_use_sessions'::regclass) THEN
+    ALTER TABLE "browser_use_sessions" ADD CONSTRAINT "browser_use_sessions_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -108,8 +108,8 @@ DO $$ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'browser_use_settings_company_id_companies_id_fk' AND conrelid = 'public.browser_use_settings'::regclass) THEN
-    ALTER TABLE "browser_use_settings" ADD CONSTRAINT "browser_use_settings_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'browser_use_settings_space_id_spaces_id_fk' AND conrelid = 'public.browser_use_settings'::regclass) THEN
+    ALTER TABLE "browser_use_settings" ADD CONSTRAINT "browser_use_settings_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "browser_use_browsers_provider_uq" ON "browser_use_browsers" USING btree ("provider_browser_id");--> statement-breakpoint
@@ -117,7 +117,7 @@ CREATE INDEX IF NOT EXISTS "browser_use_browsers_session_idx" ON "browser_use_br
 CREATE UNIQUE INDEX IF NOT EXISTS "browser_use_runs_invocation_uq" ON "browser_use_runs" USING btree ("invocation_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "browser_use_runs_provider_uq" ON "browser_use_runs" USING btree ("provider_run_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "browser_use_runs_session_idx" ON "browser_use_runs" USING btree ("session_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "browser_use_sessions_task_idx" ON "browser_use_sessions" USING btree ("company_id","issue_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "browser_use_sessions_task_idx" ON "browser_use_sessions" USING btree ("space_id","issue_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "browser_use_sessions_provider_uq" ON "browser_use_sessions" USING btree ("provider_session_id");
 --> statement-breakpoint
 -- Support development databases that applied the initial browser schema.
@@ -143,7 +143,7 @@ SET "provider" = 'browser-use-cloud',
     "biller" = CASE WHEN "biller" = 'browser-use' THEN 'browser-use-cloud' ELSE "biller" END,
     "billing_code" = regexp_replace("billing_code", '^browser-use:', 'browser-use-cloud:')
 WHERE "provider" = 'browser-use' AND "billing_code" IN (
-  SELECT 'browser-use:' || "id"::text FROM "browser_use_runs" WHERE "company_id" = "cost_events"."company_id"
+  SELECT 'browser-use:' || "id"::text FROM "browser_use_runs" WHERE "space_id" = "cost_events"."space_id"
 );
 --> statement-breakpoint
 UPDATE "finance_events"
@@ -151,5 +151,5 @@ SET "provider" = 'browser-use-cloud',
     "biller" = CASE WHEN "biller" = 'browser-use' THEN 'browser-use-cloud' ELSE "biller" END,
     "billing_code" = regexp_replace("billing_code", '^browser-use:', 'browser-use-cloud:')
 WHERE "provider" = 'browser-use' AND "billing_code" IN (
-  SELECT 'browser-use:' || "id"::text FROM "browser_use_runs" WHERE "company_id" = "finance_events"."company_id"
+  SELECT 'browser-use:' || "id"::text FROM "browser_use_runs" WHERE "space_id" = "finance_events"."space_id"
 );

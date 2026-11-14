@@ -1,6 +1,6 @@
 # Experimental AI connection routers
 
-AI routers are virtual, company-scoped connections owned by a capability-gated
+AI routers are virtual, space-scoped connections owned by a capability-gated
 plugin (`ai.connections.route`). The instance flag `enableAiConnectionRouters`
 defaults to false. Pools also default to disabled. The host must implement this
 contract; the plugin's minimum version alone does not establish compatibility.
@@ -11,7 +11,7 @@ operators can set `enableAiConnectionRouters` through the instance-admin
 fleet or per-stack managed feature configuration. Installing a plugin does not
 enable routing; enabling routing does not enable individual pools.
 
-The host authorizes members using the ordinary company, user, sharing, install,
+The host authorizes members using the ordinary space, user, sharing, install,
 health and harness checks. Saving a binding or changing its harness requires
 at least one usable member for that agent. New-agent creation installs only
 members authorized by the ordinary personal-owner or shared-install policy,
@@ -26,7 +26,7 @@ freshness. Each caller retains its selection deadline.
 
 One cursor spans all agents in a pool. An allocation transaction locks the
 cursor, checks config and cursor revisions, rechecks authorization, and writes
-the task pin and cursor advance together. Pins use company, pool, agent and the
+the task pin and cursor advance together. Pins use space, pool, agent and the
 existing task key (including `__heartbeat__`). Wakes without a task key retain
 the original run ID as an affinity key in retry context. Conflicts retry at most
 20 times; contention beyond that returns an actionable conflict.
@@ -58,7 +58,7 @@ account access and never makes a new allocation.
 The private Cloud plugin owns round-robin and quota policy. Its manifest declares
 `aiConnectionRouter: { name, description }` alongside `ai.connections.route`.
 Core adds that connector to the regular catalog and hosts its setup and account
-management using authenticated, company-scoped pool APIs. No separate plugin
+management using authenticated, space-scoped pool APIs. No separate plugin
 page or sidebar entry is needed. New allocations over
 the chosen threshold wait; known exhaustion defers pinned turns. The deferred
 run schedules `ai_connection_pool_wait` without spending the failure retry
@@ -67,14 +67,14 @@ budget, and the UI labels that retry as **Pool exhausted**.
 Operators choose **Connectors → AI connection pool → Add connection pool**,
 select existing accounts, arrange their order, and create a paused connection.
 The normal account page supports rename, member changes, enabling, and removal.
-**Used by** lists the company’s non-terminated agents configured to use the pool,
+**Used by** lists the space’s non-terminated agents configured to use the pool,
 with their avatars and links to their profiles. Paused agents remain listed.
 Optional usage and runtime defaults live under **Advanced**. Creating another
 account opens the normal catalog in a new tab so the pool draft stays intact.
 The catalog marks experimental-disabled or unavailable plugins as unavailable.
 
 Deletion uses
-`DELETE /api/companies/:companyId/ai-connection-pools/:poolId` with the current
+`DELETE /api/spaces/:spaceId/ai-connection-pools/:poolId` with the current
 `expectedRevision`. Core disables and archives the virtual connection, retaining
 its task pins, cursor and run records. It rejects stale edits and new allocations;
 already admitted runs keep their concrete recovery evidence. Cleanup remains
@@ -103,7 +103,7 @@ to build the preview.
 
 Pool configuration stories belong to the private Cloud plugin's own Storybook
 in `extensions/plugin-connection-pool/storybook/`. Both previews use fictional
-accounts; they do not call live providers or mutate a Paperclip instance.
+accounts; they do not call live providers or mutate a Outpost instance.
 Core also owns **Connectors / Pool host** stories for the generic native
 extension. The overview links to Cloud's **In Connectors** preview on port 6010;
 its stories mount these same production routes, header, sidebar and tokens.
@@ -113,13 +113,13 @@ Both previews include **Operator Setup Required** for a manually disabled host.
 ## Full-app browser acceptance
 
 Install the compatible plugin into an isolated, loopback `local_trusted` instance,
-enable the experimental flag, and use a company named for an E2E or test drive
+enable the experimental flag, and use a space named for an E2E or test drive
 with two saved, authorized AI accounts. Run:
 
 ```sh
 OUTPOST_CONNECTION_POOL_E2E=1 \
 AI_CONNECTIONS_TEST_URL=http://127.0.0.1:3100 \
-AI_CONNECTIONS_TEST_COMPANY_ID=<test-company-id> \
+AI_CONNECTIONS_TEST_SPACE_ID=<test-space-id> \
 pnpm exec playwright test --config tests/ai-connections-app/playwright.config.ts connection-pools.spec.ts
 ```
 

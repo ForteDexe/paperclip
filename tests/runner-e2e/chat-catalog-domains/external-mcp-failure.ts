@@ -131,7 +131,7 @@ export const mcpFailureExternalCases = [
         const source = ctx.input.page.url();
         await enterGenericMcpThroughCatalog(
           ctx.input.page,
-          String(ctx.input.fixtures.company.issuePrefix),
+          String(ctx.input.fixtures.space.issuePrefix),
         );
         state.genericEntryThroughVisibleCatalog = true;
         const url = ctx.input.page.getByRole("textbox", {

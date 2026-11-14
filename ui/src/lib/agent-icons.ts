@@ -76,7 +76,7 @@ export const AGENT_ICONS: Record<AgentIconName, LucideIcon> = {
   target: Target,
   wand: Wand2,
   atom: Atom,
-  "circuit-board": CircuitBoard,
+  "circuit-operator": CircuitBoard,
   radar: Radar,
   swords: Swords,
   telescope: Telescope,

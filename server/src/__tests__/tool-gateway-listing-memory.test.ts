@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issues,
@@ -42,7 +42,7 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-tool-gateway-listing-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-tool-gateway-listing-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -107,7 +107,7 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
     const fixture = await createListingFixture(db, 3);
     const service = createToolGatewayService(db);
     const expired = await service.createNamedGatewayToken({
-      companyId: fixture.company.id, gatewayId: fixture.namedGateway.id,
+      spaceId: fixture.space.id, gatewayId: fixture.namedGateway.id,
       body: { name: "Expired test token", clientLabel: "test", ownerNote: "test" },
     });
     const now = new Date();
@@ -143,7 +143,7 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
       const result = await outcome;
       expect(result).not.toHaveProperty("error");
       expect("tools" in result && result.tools.length).toBeGreaterThan(0);
-      const audits = await db.select().from(activityLog).where(eq(activityLog.companyId, fixture.company.id));
+      const audits = await db.select().from(activityLog).where(eq(activityLog.spaceId, fixture.space.id));
       expect(audits.some((audit) => audit.action === "tool_gateway.discovery")).toBe(true);
       await expect(service.listToolsForNamedGateway({ gatewayId: fixture.namedGateway.id, bearerToken: fixture.token.token }))
         .rejects.toMatchObject({ status: 401 });
@@ -181,11 +181,11 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
   it("does not construct a condition clock for unmatched entries in a decision batch", async () => {
     const fixture = await createListingFixture(db, 6);
     const [binding] = await db.select().from(toolProfileBindings)
-      .where(and(eq(toolProfileBindings.companyId, fixture.company.id), eq(toolProfileBindings.targetId, fixture.namedGateway.id)));
+      .where(and(eq(toolProfileBindings.spaceId, fixture.space.id), eq(toolProfileBindings.targetId, fixture.namedGateway.id)));
     expect(binding).toBeDefined();
     for (let start = 0; start < 47_930; start += 1000) {
       await db.insert(toolProfileEntries).values(Array.from({ length: Math.min(1000, 47_930 - start) }, (_, offset) => ({
-        companyId: fixture.company.id, profileId: binding!.profileId,
+        spaceId: fixture.space.id, profileId: binding!.profileId,
         selectorType: "tool_name" as const, toolName: `not_selected_${start + offset}`, effect: "exclude" as const,
       })));
     }
@@ -204,7 +204,7 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
       for (let index = 0; index < 10; index++) {
         const entry = fixture.entries[4 + index % 2]!;
         decisions.push(await policy.decide({
-          companyId: fixture.company.id,
+          spaceId: fixture.space.id,
           actor: { actorType: "agent", actorId: fixture.agent.id, agentId: fixture.agent.id },
           runContext: { heartbeatRunId: fixture.run.id, issueId: fixture.issue.id, projectId: fixture.project.id, gatewayId: fixture.namedGateway.id },
           request: { toolName: entry.toolName!, applicationId: fixture.application.id, connectionId: fixture.connection.id,
@@ -224,7 +224,7 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
     const fixture = await createListingFixture(db, 20);
     // An eligible connection without catalog tools adds nothing to a listing.
     const emptyConnection = await db.insert(toolConnections).values({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       applicationId: fixture.application.id,
       name: "Connection without tools",
       uid: `test/${randomUUID()}`,
@@ -253,18 +253,18 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
   });
 
   it("never selects the whole run snapshot or result when it decides access", async () => {
-    // Without agent or company bindings, the project binding is the narrowest match.
+    // Without agent or space bindings, the project binding is the narrowest match.
     const fixture = await createListingFixture(db, 3, { broadBindings: false });
     const recorder = recordingDb(db);
     const policy = toolAccessPolicyService(recorder.db);
     const projectProfile = await db.insert(toolProfiles).values({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       profileKey: `project-${randomUUID()}`,
       name: `Project profile ${randomUUID()}`,
       defaultAction: "allow",
     }).returning().then((rows) => rows[0]!);
     await db.insert(toolProfileBindings).values({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       profileId: projectProfile.id,
       targetType: "project",
       targetId: fixture.project.id,
@@ -273,7 +273,7 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
     // so the project-bound profile allows the tool only if the policy check
     // reads the snapshot ids correctly.
     const input: ToolAccessDecisionInput = {
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       actor: { actorType: "agent", actorId: fixture.agent.id, agentId: fixture.agent.id },
       runContext: { heartbeatRunId: fixture.run.id },
       request: {
@@ -312,26 +312,26 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
     const fixture = await createListingFixture(db, 3, { broadBindings: false });
     const policy = toolAccessPolicyService(db);
     const otherIssue = await db.insert(issues).values({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       projectId: fixture.project.id,
       title: "Other work",
       status: "in_progress",
     }).returning().then((rows) => rows[0]!);
     const projectProfile = await db.insert(toolProfiles).values({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       profileKey: `project-${randomUUID()}`,
       name: `Project profile ${randomUUID()}`,
       defaultAction: "allow",
     }).returning().then((rows) => rows[0]!);
     await db.insert(toolProfileBindings).values({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       profileId: projectProfile.id,
       targetType: "project",
       targetId: fixture.project.id,
     });
     const runWithSnapshot = (contextSnapshot: Record<string, unknown>) =>
       db.insert(heartbeatRuns).values({
-        companyId: fixture.company.id,
+        spaceId: fixture.space.id,
         agentId: fixture.agent.id,
         invocationSource: "assignment",
         status: "running",
@@ -339,7 +339,7 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
       }).returning().then((rows) => rows[0]!);
     const decideForRun = (runId: string, runContext: Partial<NonNullable<ToolAccessDecisionInput["runContext"]>> = {}) =>
       policy.decide({
-        companyId: fixture.company.id,
+        spaceId: fixture.space.id,
         actor: { actorType: "agent", actorId: fixture.agent.id, agentId: fixture.agent.id },
         runContext: { heartbeatRunId: runId, ...runContext },
         request: {
@@ -369,7 +369,7 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
     const fixture = await createListingFixture(db, 6);
     const other = await createListingFixture(db, 3);
     const secondAgent = await db.insert(agents).values({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       name: `Second Agent ${randomUUID()}`,
       role: "engineer",
       adapterType: "process",
@@ -378,19 +378,19 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
       permissions: {},
     }).returning().then((rows) => rows[0]!);
     const agentProfile = await db.insert(toolProfiles).values({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       profileKey: `second-agent-${randomUUID()}`,
       name: `Second agent profile ${randomUUID()}`,
       defaultAction: "allow",
     }).returning().then((rows) => rows[0]!);
     await db.insert(toolProfileBindings).values({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       profileId: agentProfile.id,
       targetType: "agent",
       targetId: secondAgent.id,
     });
     const disabledConnection = await db.insert(toolConnections).values({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       applicationId: fixture.application.id,
       name: "Disabled connection",
       uid: `test/${randomUUID()}`,
@@ -401,7 +401,7 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
       config: { url: "https://8.8.8.8/mcp" },
     }).returning().then((rows) => rows[0]!);
     const disabledEntry = await db.insert(toolCatalogEntries).values({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       applicationId: fixture.application.id,
       connectionId: disabledConnection.id,
       name: "disabled_tool",
@@ -412,7 +412,7 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
     // Listings never show a quarantined entry, so a cached decision for it
     // takes the direct query.
     const quarantinedEntry = await db.insert(toolCatalogEntries).values({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       applicationId: fixture.application.id,
       connectionId: fixture.connection.id,
       name: "quarantined_tool",
@@ -433,53 +433,53 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
     const secondAgentActor = { actorType: "agent" as const, actorId: secondAgent.id, agentId: secondAgent.id };
     const inputs: ToolAccessDecisionInput[] = [
       ...fixture.entries.map((entry) => ({
-        companyId: fixture.company.id,
+        spaceId: fixture.space.id,
         actor: firstAgentActor,
         runContext: { heartbeatRunId: fixture.run.id, gatewayId: fixture.namedGateway.id },
         request: requestFor(entry),
       })),
       ...fixture.entries.map((entry) => ({
-        companyId: fixture.company.id,
+        spaceId: fixture.space.id,
         actor: secondAgentActor,
         request: requestFor(entry),
       })),
       {
-        companyId: fixture.company.id,
+        spaceId: fixture.space.id,
         actor: secondAgentActor,
         // The run belongs to the first agent.
         runContext: { heartbeatRunId: fixture.run.id },
         request: requestFor(fixture.entries[3]!),
       },
       {
-        companyId: fixture.company.id,
+        spaceId: fixture.space.id,
         actor: secondAgentActor,
         request: requestFor(disabledEntry),
       },
       {
-        companyId: fixture.company.id,
+        spaceId: fixture.space.id,
         actor: secondAgentActor,
         request: requestFor(quarantinedEntry),
       },
       {
-        companyId: fixture.company.id,
+        spaceId: fixture.space.id,
         actor: secondAgentActor,
-        // A catalog entry of another company is not in this company's catalog.
+        // A catalog entry of another space is not in this space's catalog.
         request: requestFor(other.entries[0]!),
       },
       {
-        companyId: fixture.company.id,
+        spaceId: fixture.space.id,
         actor: secondAgentActor,
         request: { connectionId: fixture.connection.id, toolName: "tool_0004", arguments: {} },
       },
       {
-        companyId: fixture.company.id,
+        spaceId: fixture.space.id,
         actor: secondAgentActor,
         // The database matches a uuid in any letter case.
         request: { ...requestFor(fixture.entries[4]!), catalogEntryId: fixture.entries[4]!.id.toUpperCase() },
       },
       {
-        companyId: fixture.company.id,
-        actor: { actorType: "system", actorId: fixture.company.id },
+        spaceId: fixture.space.id,
+        actor: { actorType: "system", actorId: fixture.space.id },
         request: requestFor(fixture.entries[4]!),
       },
     ];
@@ -509,7 +509,7 @@ describeEmbeddedPostgres("tool gateway listing memory", () => {
     const cache = createToolAccessDecisionCache();
 
     await policy.decide({
-      companyId: fixture.company.id,
+      spaceId: fixture.space.id,
       actor: { actorType: "agent", actorId: fixture.agent.id, agentId: fixture.agent.id },
       runContext: { heartbeatRunId: fixture.run.id },
       request: {

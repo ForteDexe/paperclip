@@ -16,7 +16,7 @@ import { isExpectedStoryInterruption, storyLifecycleChecks, type StoryCheck, typ
 const T0 = Date.parse("2026-11-06T10:00:00.000Z");
 const at = (seconds: number) => new Date(T0 + seconds * 1000).toISOString();
 const run = (id: string, overrides: Partial<StoryRun> = {}): StoryRun => ({
-  id, companyId: "company", agentId: "lead", status: "succeeded", runtimeMode: "native", runnerInstanceId: "runner",
+  id, spaceId: "space", agentId: "lead", status: "succeeded", runtimeMode: "native", runnerInstanceId: "runner",
   nativeIssueId: "parent", startedAt: at(0), finishedAt: at(60), ...overrides,
 });
 /** A run woken to deliver `wake`; its prompt holds `history` (the whole conversation so far). */
@@ -93,7 +93,7 @@ describe("reliability selection stays explicit", () => {
       expect(credentials(profile)).toEqual([facadeCredentials[profile], "DAYTONA_API_KEY"]);
     expect(Object.keys(everydayReliabilitySignatures).sort()).toEqual([...everydayReliabilityCaseIds].sort());
     for (const task of everydayReliabilityTasks)
-      expect(task.buildPrompt("sample")).not.toMatch(/finish_task|paperclip_finish|PATCH|mark .*done|api\/issues/i);
+      expect(task.buildPrompt("sample")).not.toMatch(/finish_task|outpost_finish|PATCH|mark .*done|api\/issues/i);
   });
 });
 
@@ -105,7 +105,7 @@ describe("reliability interruption bookkeeping", () => {
     expect(isExpectedStoryInterruption(run("a", { status: "cancelled", errorCode: "workspace_lost" }), ["a"])).toBe(false);
   });
   it("lets a reassigned owner execute on the parent only when declared", () => {
-    const input = { issues: [{ id: "parent", companyId: "company", title: "t", status: "done" }], parentId: "parent", leadId: "lead",
+    const input = { issues: [{ id: "parent", spaceId: "space", title: "t", status: "done" }], parentId: "parent", leadId: "lead",
       runs: [run("a", { agentId: "riley", contextSnapshot: { issueId: "parent" } })] };
     expect(failed(storyLifecycleChecks(input))).toContain("parent-owned-by-lead");
     expect(failed(storyLifecycleChecks({ ...input, parentAgentIds: ["lead", "riley"] }))).toEqual([]);
@@ -118,7 +118,7 @@ describe("product rule: resume automatically or offer a Retry that works", () =>
     expect(recoveredRunIds([lost, run("retry", { startedAt: at(70), finishedAt: at(120) })])).toEqual(["lost"]);
     expect(recoveredRunIds([lost])).toEqual([]);
     expect(recoveredRunIds([lost, run("other", { nativeIssueId: "child", startedAt: at(70) })])).toEqual([]);
-    const lifecycle = { issues: [{ id: "parent", companyId: "company", title: "t", status: "done" }], parentId: "parent", leadId: "lead",
+    const lifecycle = { issues: [{ id: "parent", spaceId: "space", title: "t", status: "done" }], parentId: "parent", leadId: "lead",
       runs: [lost, run("retry", { startedAt: at(70), finishedAt: at(120) })] };
     expect(failed(storyLifecycleChecks(lifecycle))).toEqual(["successful-runs"]);
     expect(failed(storyLifecycleChecks({ ...lifecycle, recoveredRuns: ["lost"] }))).toEqual([]);

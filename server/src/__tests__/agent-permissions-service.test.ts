@@ -29,14 +29,14 @@ describe("agent permissions service", () => {
     expect(normalizeAgentPermissions([]).canCreateAgents).toBe(false);
   });
 
-  it("removes legacy CEO denial metadata without changing the explicit toggle", () => {
-    const denial = { actorType: "user", actorId: "board-user", at: "2026-11-08T00:00:00.000Z" };
-    expect(normalizeAgentPermissions({ canCreateAgents: false, ceoHiringDeniedBy: denial }))
+  it("removes legacy Default agent denial metadata without changing the explicit toggle", () => {
+    const denial = { actorType: "user", actorId: "operator-user", at: "2026-11-08T00:00:00.000Z" };
+    expect(normalizeAgentPermissions({ canCreateAgents: false, leadCreationDeniedBy: denial }))
       .toEqual(expect.objectContaining({ canCreateAgents: false }));
-    expect(normalizeAgentPermissions({ canCreateAgents: false, ceoHiringDeniedBy: denial }))
-      .not.toHaveProperty("ceoHiringDeniedBy");
-    expect(normalizeAgentPermissions({ canCreateAgents: true, ceoHiringDeniedBy: denial }))
-      .not.toHaveProperty("ceoHiringDeniedBy");
+    expect(normalizeAgentPermissions({ canCreateAgents: false, leadCreationDeniedBy: denial }))
+      .not.toHaveProperty("leadCreationDeniedBy");
+    expect(normalizeAgentPermissions({ canCreateAgents: true, leadCreationDeniedBy: denial }))
+      .not.toHaveProperty("leadCreationDeniedBy");
   });
 
   it("withholds agent-creation authority from new low-trust agents", () => {

@@ -8,6 +8,6 @@ export async function caseActivityReadSqlCondition(db: Db, actor: AuthorizationA
   const readable = await caseReadSqlCondition(db, actor);
   return sql<boolean>`(${activityLog.entityType} <> 'case' or exists (
     select 1 from ${cases} where ${cases.id}::text = ${activityLog.entityId}
-      and ${cases.companyId} = ${activityLog.companyId} and ${readable}
+      and ${cases.spaceId} = ${activityLog.spaceId} and ${readable}
   ))`;
 }

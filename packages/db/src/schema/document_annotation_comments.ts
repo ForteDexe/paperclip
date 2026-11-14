@@ -2,7 +2,7 @@ import type { IssueCommentAuthorType, SourceTrustMetadata } from "@outpost/share
 import { sql } from "drizzle-orm";
 import { check, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { agents } from "./agents.js";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { documentAnnotationThreads } from "./document_annotation_threads.js";
 import { documents } from "./documents.js";
 import { heartbeatRuns } from "./heartbeat_runs.js";
@@ -15,7 +15,7 @@ export const documentAnnotationComments = pgTable(
   "document_annotation_comments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id),
     threadId: uuid("thread_id").notNull().references(() => documentAnnotationThreads.id, { onDelete: "cascade" }),
     issueId: uuid("issue_id").references(() => issues.id, { onDelete: "cascade" }),
     routineId: uuid("routine_id").references(() => routines.id, { onDelete: "cascade" }),
@@ -32,28 +32,28 @@ export const documentAnnotationComments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyThreadCreatedAtIdx: index("document_annotation_comments_company_thread_created_at_idx").on(
-      table.companyId,
+    spaceThreadCreatedAtIdx: index("document_annotation_comments_space_thread_created_at_idx").on(
+      table.spaceId,
       table.threadId,
       table.createdAt,
     ),
-    companyIssueCreatedAtIdx: index("document_annotation_comments_company_issue_created_at_idx").on(
-      table.companyId,
+    spaceIssueCreatedAtIdx: index("document_annotation_comments_space_issue_created_at_idx").on(
+      table.spaceId,
       table.issueId,
       table.createdAt,
     ),
-    companyRoutineCreatedAtIdx: index("document_annotation_comments_company_routine_created_at_idx").on(
-      table.companyId,
+    spaceRoutineCreatedAtIdx: index("document_annotation_comments_space_routine_created_at_idx").on(
+      table.spaceId,
       table.routineId,
       table.createdAt,
     ),
-    companyCaseCreatedAtIdx: index("document_annotation_comments_company_case_created_at_idx").on(
-      table.companyId,
+    spaceCaseCreatedAtIdx: index("document_annotation_comments_space_case_created_at_idx").on(
+      table.spaceId,
       table.caseId,
       table.createdAt,
     ),
-    companyDocumentCreatedAtIdx: index("document_annotation_comments_company_document_created_at_idx").on(
-      table.companyId,
+    spaceDocumentCreatedAtIdx: index("document_annotation_comments_space_document_created_at_idx").on(
+      table.spaceId,
       table.documentId,
       table.createdAt,
     ),

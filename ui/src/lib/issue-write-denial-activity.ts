@@ -5,7 +5,7 @@ import type { IssueWriteDenialCode, IssueWriteDenialContext } from "@outpost/sha
  * the shared denial copy contract (the open cross-task write design (failure UX)).
  *
  * These are the denials that leave a durable trace on the task, so they are the
- * ones the board can read after the fact — the agent already saw the same words
+ * ones the operator can read after the fact — the agent already saw the same words
  * in the API error body.
  */
 const DENIAL_ACTIVITY_CODES: Record<string, IssueWriteDenialCode> = {

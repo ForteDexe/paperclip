@@ -5,7 +5,7 @@ import { recordToolRuntimeAuditWriteFailure } from "../tool-runtime-metrics.js";
 
 export function createToolAccessAudit(db: Db) {
   async function audit(input: {
-    companyId: string;
+    spaceId: string;
     connectionId?: string | null;
     catalogEntryId?: string | null;
     action: string;
@@ -16,7 +16,7 @@ export function createToolAccessAudit(db: Db) {
   }) {
     try {
       await db.insert(toolAccessAuditEvents).values({
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         connectionId: input.connectionId ?? null,
         catalogEntryId: input.catalogEntryId ?? null,
         actorType: input.actor?.actorType ?? "system",
@@ -27,7 +27,7 @@ export function createToolAccessAudit(db: Db) {
         details: input.details ?? {},
       });
     } catch (error) {
-      await recordToolRuntimeAuditWriteFailure(db, input.companyId);
+      await recordToolRuntimeAuditWriteFailure(db, input.spaceId);
       throw error;
     }
   }

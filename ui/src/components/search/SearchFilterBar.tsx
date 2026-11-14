@@ -1,11 +1,11 @@
 import { useMemo } from "react";
 import { User, UserX } from "lucide-react";
 import {
-  COMPANY_SEARCH_UPDATED_WITHIN_OPTIONS,
+  SPACE_SEARCH_UPDATED_WITHIN_OPTIONS,
   ISSUE_PRIORITIES,
   ISSUE_DISPLAY_STATUSES,
-  type CompanySearchFilterOptionCounts,
-  type CompanySearchSort,
+  type SpaceSearchFilterOptionCounts,
+  type SpaceSearchSort,
   type IssueDisplayStatus,
 } from "@outpost/shared";
 import { StatusIcon } from "@/components/StatusIcon";
@@ -35,7 +35,7 @@ export interface SearchFilterLabel {
 }
 
 export interface SearchFilterDataProps {
-  counts?: CompanySearchFilterOptionCounts;
+  counts?: SpaceSearchFilterOptionCounts;
   agents: SearchFilterAgent[];
   projects: SearchFilterProject[];
   labels: SearchFilterLabel[];
@@ -126,7 +126,7 @@ export function buildSearchFilterOptions({
     searchText: item.name,
   }));
 
-  const updated: FilterMenuOption[] = COMPANY_SEARCH_UPDATED_WITHIN_OPTIONS.map((value) => ({
+  const updated: FilterMenuOption[] = SPACE_SEARCH_UPDATED_WITHIN_OPTIONS.map((value) => ({
     value,
     label: updatedWithinLabel(value),
     count: count(counts?.updatedWithin as Record<string, number> | undefined, value),
@@ -144,8 +144,8 @@ export function SearchFilterBar({
 }: {
   filters: SearchFilters;
   onChange: (next: SearchFilters) => void;
-  sort: CompanySearchSort;
-  onSortChange: (next: CompanySearchSort) => void;
+  sort: SpaceSearchSort;
+  onSortChange: (next: SpaceSearchSort) => void;
   data: SearchFilterDataProps;
 }) {
   const options = useMemo(() => buildSearchFilterOptions(data), [data]);

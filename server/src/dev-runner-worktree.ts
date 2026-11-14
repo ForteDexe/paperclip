@@ -55,18 +55,18 @@ export function isLinkedGitWorktreeCheckout(rootDir: string): boolean {
 
   // Both linked worktrees and submodules store a `gitdir:` pointer in .git.
   // Only linked worktrees live below Git's worktrees administration folder;
-  // treating a submodule as a worktree incorrectly requires `.paperclip/.env`.
+  // treating a submodule as a worktree incorrectly requires `.outpost/.env`.
   const gitDir = reference.slice("gitdir:".length).trim().replaceAll("\\", "/");
   return gitDir.split("/").includes("worktrees");
 }
 
 export function resolveWorktreeEnvFilePath(rootDir: string): string {
-  return path.resolve(rootDir, ".paperclip", ".env");
+  return path.resolve(rootDir, ".outpost", ".env");
 }
 
 /** An explicitly empty instance owns its saved keys, even in an agent shell. */
 export function applyEmptyWorktreeSigningSecrets(rootDir: string, env: NodeJS.ProcessEnv = process.env): boolean {
-  if (!existsSync(path.resolve(rootDir, ".paperclip", "seed-empty"))) return false;
+  if (!existsSync(path.resolve(rootDir, ".outpost", "seed-empty"))) return false;
   const entries = parseEnvFile(readFileSync(resolveWorktreeEnvFilePath(rootDir), "utf8"));
   for (const key of ["OUTPOST_AGENT_JWT_SECRET", "OUTPOST_TOOL_ACTION_SIGNING_SECRET"] as const) {
     if (!entries[key]?.trim()) throw new Error(`Empty worktree is missing its saved ${key}. Reinitialize its configuration before starting.`);
@@ -78,7 +78,7 @@ export function applyEmptyWorktreeSigningSecrets(rootDir: string, env: NodeJS.Pr
 }
 
 export function isWorktreeSeedPending(rootDir: string): boolean {
-  const markerDir = path.resolve(rootDir, ".paperclip");
+  const markerDir = path.resolve(rootDir, ".outpost");
   const manifestPath = path.resolve(markerDir, "seed-manifest.json");
   if (existsSync(manifestPath)) {
     return !hasVerifiedWorktreeSeedManifest(manifestPath);
@@ -98,7 +98,7 @@ function resolveHomeAwarePath(value: string): string {
 }
 
 function resolveDefaultWorktreeHome(env: NodeJS.ProcessEnv): string {
-  return path.resolve(expandHomePrefix(env.OUTPOST_WORKTREES_DIR?.trim() || "~/.paperclip-worktrees"));
+  return path.resolve(expandHomePrefix(env.OUTPOST_WORKTREES_DIR?.trim() || "~/.outpost-worktrees"));
 }
 
 function repairStaleMigratedWorktreeEnvEntries(
@@ -106,7 +106,7 @@ function repairStaleMigratedWorktreeEnvEntries(
   entries: Record<string, string>,
   env: NodeJS.ProcessEnv,
 ): Record<string, string> {
-  const localConfigPath = path.resolve(rootDir, ".paperclip", "config.json");
+  const localConfigPath = path.resolve(rootDir, ".outpost", "config.json");
   const configuredPath = entries.OUTPOST_CONFIG?.trim();
   if (!configuredPath) return entries;
 

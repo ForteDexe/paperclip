@@ -21,7 +21,7 @@ This plugin is for local development, contributor onboarding, and runtime regres
 
 ```sh
 pnpm --filter @outpost/plugin-kitchen-sink-example build
-npx paperclipai plugin install ./packages/plugins/examples/plugin-kitchen-sink-example
+npx @outpost/cli plugin install ./packages/plugins/examples/plugin-kitchen-sink-example
 ```
 
 Or install it from the Outpost plugin manager as a bundled example once this repo is built.

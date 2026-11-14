@@ -17,16 +17,16 @@ export async function completeSetupTokenAiConnection(
   if (!scope.aiConnection) throw new SetupTokenSessionError(500, SETUP_TOKEN_STORAGE_FAILED);
   const [session] = await db.select({ id: adapterAuthSessions.id }).from(adapterAuthSessions).where(and(
     eq(adapterAuthSessions.publicSessionId, sessionId),
-    eq(adapterAuthSessions.companyId, scope.companyId),
+    eq(adapterAuthSessions.spaceId, scope.spaceId),
     eq(adapterAuthSessions.startedByUserId, scope.ownerUserId),
     eq(adapterAuthSessions.adapterType, scope.adapterType as AgentAdapterType),
   ));
   if (!session) throw forbidden("Login session ownership mismatch");
-  return aiConnectionService(db).save(scope.companyId, scope.ownerUserId, scope.aiConnection, token, {
+  return aiConnectionService(db).save(scope.spaceId, scope.ownerUserId, scope.aiConnection, token, {
     id: session.id,
     complete: async (tx) => {
       const transitioned = await transitionSetupTokenSessionToStored(tx, {
-        sessionId, companyId: scope.companyId, ownerUserId: scope.ownerUserId, adapterType: scope.adapterType,
+        sessionId, spaceId: scope.spaceId, ownerUserId: scope.ownerUserId, adapterType: scope.adapterType,
       });
       if (!transitioned) throw new SetupTokenSessionError(500, SETUP_TOKEN_STORAGE_FAILED);
     },

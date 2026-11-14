@@ -13,9 +13,9 @@ beforeEach(() => settings.getExperimental.mockResolvedValue({ enableChatConnecto
 
 const token = "synthetic-identity-preview-token-for-route-test";
 const preview = {
-  companyId: "company-a",
-  companyName: "Private company",
-  companyPrefix: "PVT",
+  spaceId: "space-a",
+  spaceName: "Private space",
+  spacePrefix: "PVT",
   endpointId: "endpoint-a",
   provider: "slack" as const,
   providerAccountLabel: "Private workspace",
@@ -27,10 +27,10 @@ const preview = {
 
 function fixture(
   actor: Request["actor"] = {
-    type: "board",
+    type: "operator",
     source: "session",
     userId: "viewer",
-    companyIds: ["company-a"],
+    spaceIds: ["space-a"],
   },
 ) {
   const previewIdentityLink = vi.fn().mockResolvedValue(preview);
@@ -78,7 +78,7 @@ describe("chat identity-link preview authority", () => {
     f.previewIdentityLink.mockResolvedValue({ ...preview, provider: "github" } as unknown as typeof preview);
     await request(f.app).get("/api/chat-identity-links/preview").query({ token }).expect(403);
   });
-  it("returns the preview to a Board member of its exact company", async () => {
+  it("returns the preview to a Operator member of its exact space", async () => {
     const { app, previewIdentityLink } = fixture();
     const response = await request(app)
       .get("/api/chat-identity-links/preview")
@@ -92,10 +92,10 @@ describe("chat identity-link preview authority", () => {
     "hides foreign previews identically to invalid or expired tokens (instance admin %s)",
     async (isInstanceAdmin) => {
       const { app, previewIdentityLink } = fixture({
-        type: "board",
+        type: "operator",
         source: "session",
         userId: "other-user",
-        companyIds: ["company-b"],
+        spaceIds: ["space-b"],
         isInstanceAdmin,
       });
       const foreign = await request(app)
@@ -122,7 +122,7 @@ describe("chat identity-link preview authority", () => {
     async (type) => {
       const { app, previewIdentityLink } = fixture({
         type,
-        companyId: "company-a",
+        spaceId: "space-a",
       });
       await request(app)
         .get("/api/chat-identity-links/preview")

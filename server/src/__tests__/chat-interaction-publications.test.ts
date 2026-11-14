@@ -9,7 +9,7 @@ import {
   chatConversations,
   chatEndpoints,
   chatPublications,
-  companies,
+  spaces,
   createDb,
   documentRevisions,
   documents,
@@ -51,7 +51,7 @@ describeEmbeddedPostgres(
     beforeAll(async () => {
       process.env.OUTPOST_PUBLIC_URL = "https://outpost.example";
       if (externalUrl) await applyPendingMigrations(externalUrl);
-      else tempDb = await startEmbeddedPostgresTestDatabase("paperclip-terminal-chat-interaction-");
+      else tempDb = await startEmbeddedPostgresTestDatabase("outpost-terminal-chat-interaction-");
       db = createDb(externalUrl ?? tempDb!.connectionString);
     }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
@@ -66,17 +66,17 @@ describeEmbeddedPostgres(
     async function seedBoundIssue(
       providers: ChatProvider[] = ["slack", "telegram"],
     ) {
-      const companyId = randomUUID();
+      const spaceId = randomUUID();
       const agentId = randomUUID();
       const issueId = randomUUID();
-      await db.insert(companies).values({
-        id: companyId,
-        name: `Terminal chat ${companyId}`,
-        issuePrefix: `TC${companyId.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
+      await db.insert(spaces).values({
+        id: spaceId,
+        name: `Terminal chat ${spaceId}`,
+        issuePrefix: `TC${spaceId.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
       });
       await db.insert(agents).values({
         id: agentId,
-        companyId,
+        spaceId,
         name: "Native chat agent",
         role: "operator",
         status: "idle",
@@ -87,7 +87,7 @@ describeEmbeddedPostgres(
       });
       await db.insert(issues).values({
         id: issueId,
-        companyId,
+        spaceId,
         title: "Resolve the native provider card",
         status: "in_progress",
         priority: "medium",
@@ -102,7 +102,7 @@ describeEmbeddedPostgres(
         endpointIds[provider] = endpointId;
         await db.insert(toolApplications).values({
           id: applicationId,
-          companyId,
+          spaceId,
           applicationKey: `chat:${provider}:${endpointId}`,
           name: `${provider} ${endpointId}`,
           type: "chat",
@@ -110,7 +110,7 @@ describeEmbeddedPostgres(
         });
         await db.insert(toolConnections).values({
           id: connectionId,
-          companyId,
+          spaceId,
           applicationId,
           name: `${provider} channel`,
           uid: `chat-${provider}-${endpointId}`,
@@ -121,7 +121,7 @@ describeEmbeddedPostgres(
         });
         await db.insert(chatEndpoints).values({
           id: endpointId,
-          companyId,
+          spaceId,
           connectionId,
           provider,
           publicId: randomUUID(),
@@ -144,7 +144,7 @@ describeEmbeddedPostgres(
           },
         });
         await db.insert(chatConversations).values({
-          companyId,
+          spaceId,
           endpointId,
           issueId,
           externalConversationId: `${provider}-conversation`,
@@ -153,11 +153,11 @@ describeEmbeddedPostgres(
           state: "active",
         });
       }
-      return { agentId, companyId, endpointIds, issueId };
+      return { agentId, spaceId, endpointIds, issueId };
     }
 
     async function markInteractionCardsPublished(
-      companyId: string,
+      spaceId: string,
       interactionId: string,
     ) {
       const originals = await db
@@ -165,7 +165,7 @@ describeEmbeddedPostgres(
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, companyId),
+            eq(chatPublications.spaceId, spaceId),
             eq(
               sql<string>`${chatPublications.payload}->>'interactionId'`,
               interactionId,
@@ -185,7 +185,7 @@ describeEmbeddedPostgres(
     }
 
     async function publicationsForInteraction(
-      companyId: string,
+      spaceId: string,
       interactionId: string,
     ) {
       return db
@@ -193,7 +193,7 @@ describeEmbeddedPostgres(
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, companyId),
+            eq(chatPublications.spaceId, spaceId),
             eq(
               sql<string>`${chatPublications.payload}->>'interactionId'`,
               interactionId,
@@ -240,12 +240,12 @@ describeEmbeddedPostgres(
     it("publishes a larger Slack choice as an inline selection backed by durable answer tokens", async () => {
       const fixture = await seedBoundIssue(["slack", "microsoft-teams"]);
       const interaction = await issueThreadInteractionService(db).create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         { kind: "ask_user_questions", payload: { version: 1, questions: [{
           id: "fixture", prompt: "Which fixture?", selectionMode: "single", options: Array.from({ length: 13 }, (_, i) => ({ id: `fixture-${i}`, label: `Fixture ${i + 1}` })),
         }] } }, { agentId: fixture.agentId },
       );
-      const publications = await publicationsForInteraction(fixture.companyId, interaction.id);
+      const publications = await publicationsForInteraction(fixture.spaceId, interaction.id);
       const native = publications.find(row => row.payload.card?.selection);
       expect(native?.payload.card?.selection?.options).toHaveLength(13);
       expect(native?.payload.card?.actions).toBeUndefined();
@@ -258,7 +258,7 @@ describeEmbeddedPostgres(
     it("shows the free-text question and context alongside Respond", async () => {
       const fixture = await seedBoundIssue(["slack"]);
       const interaction = await issueThreadInteractionService(db).create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           kind: "ask_user_questions",
           title: "Identify the failed change",
@@ -276,7 +276,7 @@ describeEmbeddedPostgres(
         },
         { agentId: fixture.agentId },
       );
-      const [publication] = await publicationsForInteraction(fixture.companyId, interaction.id);
+      const [publication] = await publicationsForInteraction(fixture.spaceId, interaction.id);
       expect(publication.payload.card).toMatchObject({
         title: "Identify the failed change",
         body: "The general migration checks passed. I need one detail to reproduce your specific failure.\n\nWhich agent did you try to change?\n\nSend the agent link and the error text, if available.",
@@ -295,11 +295,11 @@ describeEmbeddedPostgres(
         ...(shape === "oversized" ? { initialText: "x".repeat(3001) } : {}),
       };
       const service = issueThreadInteractionService(db);
-      const interaction = await service.create({ id: fixture.issueId, companyId: fixture.companyId }, {
+      const interaction = await service.create({ id: fixture.issueId, spaceId: fixture.spaceId }, {
         kind: "ask_user_questions", title: "Identify the failed change",
         payload: { version: 1, questionSet: { schema: "outpost.question_set.v1", description: "The answer determines the next test.", questions: [question] } },
       } as Parameters<typeof service.create>[1], { agentId: fixture.agentId });
-      const [publication] = await publicationsForInteraction(fixture.companyId, interaction.id);
+      const [publication] = await publicationsForInteraction(fixture.spaceId, interaction.id);
       expect(publication.payload.card?.body).toContain(question.prompt);
       expect(publication.payload.card?.body).toContain(question.helpText);
       expect(publication.payload.card?.body).toContain("The answer determines the next test.");
@@ -319,7 +319,7 @@ describeEmbeddedPostgres(
         expect(tokens.map(token => token.kind).sort()).toEqual(["question_answer", "question_answer", "question_form_open", "question_form_submit"].sort());
       }
       if (shape === "oversized") {
-        expect(publication.payload.card?.actions).toEqual([{ type: "link", label: "Open in Paperclip", url: expect.stringContaining(fixture.issueId) }]);
+        expect(publication.payload.card?.actions).toEqual([{ type: "link", label: "Open in Outpost", url: expect.stringContaining(fixture.issueId) }]);
       } else if (shape !== "multi_select") {
         expect(publication.payload.card?.actions?.every(action => action.type === "callback")).toBe(true);
       }
@@ -329,14 +329,14 @@ describeEmbeddedPostgres(
       const fixture = await seedBoundIssue(["slack"]);
       const service = issueThreadInteractionService(db);
       const options = Array.from({ length: count }, (_, index) => ({ id: `choice-${index}`, label: `Choice ${index}` }));
-      const interaction = await service.create({ id: fixture.issueId, companyId: fixture.companyId }, {
+      const interaction = await service.create({ id: fixture.issueId, spaceId: fixture.spaceId }, {
         kind: "ask_user_questions",
         payload: { version: 1, questionSet: { schema: "outpost.question_set.v1", questions: [{
           id: "choice", prompt: "Choose a fixture", answerMode: "single_select", required: true,
           options, customAnswer: { enabled: true },
         }] } },
       }, { agentId: fixture.agentId });
-      const [publication] = await publicationsForInteraction(fixture.companyId, interaction.id);
+      const [publication] = await publicationsForInteraction(fixture.spaceId, interaction.id);
       const tokens = await db.select().from(chatActions).where(eq(chatActions.endpointId, publication.endpointId));
       if (count === 100) {
         expect(publication.payload.card?.selection?.options).toHaveLength(count);
@@ -347,14 +347,14 @@ describeEmbeddedPostgres(
       } else {
         expect(publication.payload.card?.selection).toBeUndefined();
         expect(publication.payload.card?.actions).toEqual([
-          { type: "link", label: "Open in Paperclip", url: expect.stringContaining(fixture.issueId) },
+          { type: "link", label: "Open in Outpost", url: expect.stringContaining(fixture.issueId) },
         ]);
         expect(tokens).toEqual([]);
-        await markInteractionCardsPublished(fixture.companyId, interaction.id);
-        await service.answerQuestions({ id: fixture.issueId, companyId: fixture.companyId }, interaction.id, {
+        await markInteractionCardsPublished(fixture.spaceId, interaction.id);
+        await service.answerQuestions({ id: fixture.issueId, spaceId: fixture.spaceId }, interaction.id, {
           answers: [{ questionId: "choice", optionIds: [options[count - 1]!.id] }],
-        }, { userId: "board-user" });
-        const settled = await publicationsForInteraction(fixture.companyId, interaction.id);
+        }, { userId: "operator-user" });
+        const settled = await publicationsForInteraction(fixture.spaceId, interaction.id);
         expect(settled.find(row => row.id !== publication.id)?.payload.card?.body).toContain(`Answered: Choice ${count - 1}`);
       }
     });
@@ -362,11 +362,11 @@ describeEmbeddedPostgres(
     it("keeps repeated choices and help under each question", async () => {
       const fixture = await seedBoundIssue(["slack"]);
       const interaction = await issueThreadInteractionService(db).create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         { kind: "ask_user_questions", payload: { version: 1, questions: ["Codie", "Claude"].map(agent => ({ id: agent, prompt: `Convert ${agent}?`, helpText: "Keep the existing configuration.", selectionMode: "single" as const, options: [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }] })) } },
         { agentId: fixture.agentId },
       );
-      const [publication] = await publicationsForInteraction(fixture.companyId, interaction.id);
+      const [publication] = await publicationsForInteraction(fixture.spaceId, interaction.id);
       const body = publication.payload.card!.body!;
       expect(body.match(/- Yes/g)).toHaveLength(2);
       expect(body.match(/- No/g)).toHaveLength(2);
@@ -380,7 +380,7 @@ describeEmbeddedPostgres(
       const foreignAgentId = randomUUID();
       await db.insert(agents).values({
         id: foreignAgentId,
-        companyId: fixture.companyId,
+        spaceId: fixture.spaceId,
         name: "Foreign agent",
         role: "operator",
         status: "idle",
@@ -392,7 +392,7 @@ describeEmbeddedPostgres(
       const foreignRunId = randomUUID();
       await db.insert(heartbeatRuns).values({
         id: foreignRunId,
-        companyId: fixture.companyId,
+        spaceId: fixture.spaceId,
         agentId: foreignAgentId,
         status: "succeeded",
       });
@@ -413,38 +413,38 @@ describeEmbeddedPostgres(
       };
 
       const userAuthored = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         question,
-        { userId: "board-user" },
+        { userId: "operator-user" },
       );
       const foreignAuthored = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         question,
         { agentId: foreignAgentId },
       );
       const mismatchedRun = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         { ...question, sourceRunId: foreignRunId },
         { agentId: foreignAgentId },
       );
 
       await expect(
-        publicationsForInteraction(fixture.companyId, userAuthored.id),
+        publicationsForInteraction(fixture.spaceId, userAuthored.id),
       ).resolves.toEqual([]);
       await expect(
-        publicationsForInteraction(fixture.companyId, foreignAuthored.id),
+        publicationsForInteraction(fixture.spaceId, foreignAuthored.id),
       ).resolves.toEqual([]);
       await expect(
-        publicationsForInteraction(fixture.companyId, mismatchedRun.id),
+        publicationsForInteraction(fixture.spaceId, mismatchedRun.id),
       ).resolves.toEqual([]);
 
       const assignedAgent = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         question,
         { agentId: fixture.agentId },
       );
       const publications = await publicationsForInteraction(
-        fixture.companyId,
+        fixture.spaceId,
         assignedAgent.id,
       );
       expect(publications).toHaveLength(2);
@@ -460,13 +460,13 @@ describeEmbeddedPostgres(
     it("rolls back an interaction publication if its callback tokens cannot be stored", async () => {
       const fixture = await seedBoundIssue(["telegram"]);
       const interaction = await issueThreadInteractionService(db).create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         { kind: "request_confirmation", continuationPolicy: "wake_assignee", payload: { version: 1, prompt: "Proceed?" } },
         { agentId: fixture.agentId },
       );
-      expect(await publicationsForInteraction(fixture.companyId, interaction.id)).toHaveLength(1);
-      await db.delete(chatActions).where(eq(chatActions.companyId, fixture.companyId));
-      await db.delete(chatPublications).where(eq(chatPublications.companyId, fixture.companyId));
+      expect(await publicationsForInteraction(fixture.spaceId, interaction.id)).toHaveLength(1);
+      await db.delete(chatActions).where(eq(chatActions.spaceId, fixture.spaceId));
+      await db.delete(chatPublications).where(eq(chatPublications.spaceId, fixture.spaceId));
       const failTokens = (insert: typeof db.insert): typeof db.insert =>
         ((table: Parameters<typeof db.insert>[0]) => {
           if (table === chatActions) throw new Error("Token write failed");
@@ -483,13 +483,13 @@ describeEmbeddedPostgres(
       };
       await expect(enqueueIssueInteractionChatPublications(failingDb, interaction))
         .rejects.toThrow("Token write failed");
-      expect(await publicationsForInteraction(fixture.companyId, interaction.id)).toEqual([]);
+      expect(await publicationsForInteraction(fixture.spaceId, interaction.id)).toEqual([]);
     });
 
     it("delivers native checkbox reviews in Slack", async () => {
       const fixture = await seedBoundIssue();
       const interaction = await issueThreadInteractionService(db).create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           kind: "request_checkbox_confirmation",
           payload: {
@@ -501,18 +501,18 @@ describeEmbeddedPostgres(
         { agentId: fixture.agentId },
       );
 
-      const publications = await publicationsForInteraction(fixture.companyId, interaction.id);
+      const publications = await publicationsForInteraction(fixture.spaceId, interaction.id);
       expect(publications).toHaveLength(1);
       expect(publications[0].endpointId).toBe(fixture.endpointIds.slack);
       expect(publications[0].payload.card).toMatchObject({
         selection: { multiple: true, options: [{ label: "US" }] },
         actions: [{ type: "callback", label: "Reject" }],
       });
-      await markInteractionCardsPublished(fixture.companyId, interaction.id);
+      await markInteractionCardsPublished(fixture.spaceId, interaction.id);
       await issueThreadInteractionService(db).rejectInteraction(
-        { id: fixture.issueId, companyId: fixture.companyId }, interaction.id, {}, { userId: "board-user" },
+        { id: fixture.issueId, spaceId: fixture.spaceId }, interaction.id, {}, { userId: "operator-user" },
       );
-      const settled = await publicationsForInteraction(fixture.companyId, interaction.id);
+      const settled = await publicationsForInteraction(fixture.spaceId, interaction.id);
       expect(settled).toHaveLength(2);
       expect(settled.find(row => row.id !== publications[0].id)?.payload.card?.body).toBe("Rejected");
       expect(settled.find(row => row.id !== publications[0].id)?.payload.card?.actions).toBeUndefined();
@@ -524,20 +524,20 @@ describeEmbeddedPostgres(
     ])("delivers and settles $kind reviews in Slack", async ({ kind, payload, expected }) => {
       const fixture = await seedBoundIssue();
       const service = issueThreadInteractionService(db);
-      const issue = { id: fixture.issueId, companyId: fixture.companyId };
+      const issue = { id: fixture.issueId, spaceId: fixture.spaceId };
       const interaction = await service.create(issue, { kind, payload } as Parameters<typeof service.create>[1], { agentId: fixture.agentId });
-      const [original] = await publicationsForInteraction(fixture.companyId, interaction.id);
+      const [original] = await publicationsForInteraction(fixture.spaceId, interaction.id);
       expect(original?.endpointId).toBe(fixture.endpointIds.slack);
       expect(original?.payload.card?.body).toContain(expected);
       expect(original?.payload.card?.body).toContain("Verify preserved configuration");
-      expect(original?.payload.card?.actions).toEqual(kind === "request_item_verdicts" ? [{ type: "callback", actionId: expect.any(String), label: "Review decisions", style: "primary" }] : [{ type: "callback", actionId: expect.any(String), label: "Create task", style: "primary" }, { type: "callback", actionId: expect.any(String), label: "Dismiss", style: "default" }, { type: "link", label: "Revise in Paperclip", url: expect.stringContaining(fixture.issueId) }]);
-      await markInteractionCardsPublished(fixture.companyId, interaction.id);
+      expect(original?.payload.card?.actions).toEqual(kind === "request_item_verdicts" ? [{ type: "callback", actionId: expect.any(String), label: "Review decisions", style: "primary" }] : [{ type: "callback", actionId: expect.any(String), label: "Create task", style: "primary" }, { type: "callback", actionId: expect.any(String), label: "Dismiss", style: "default" }, { type: "link", label: "Revise in Outpost", url: expect.stringContaining(fixture.issueId) }]);
+      await markInteractionCardsPublished(fixture.spaceId, interaction.id);
       if (kind === "request_item_verdicts") {
-        await service.submitItemVerdicts(issue, interaction.id, { verdicts: [{ id: "docs", verdict: "approve" }] }, { userId: "board-user" });
+        await service.submitItemVerdicts(issue, interaction.id, { verdicts: [{ id: "docs", verdict: "approve" }] }, { userId: "operator-user" });
       } else {
-        await service.rejectInteraction(issue, interaction.id, {}, { userId: "board-user" });
+        await service.rejectInteraction(issue, interaction.id, {}, { userId: "operator-user" });
       }
-      const settled = await publicationsForInteraction(fixture.companyId, interaction.id);
+      const settled = await publicationsForInteraction(fixture.spaceId, interaction.id);
       expect(settled).toHaveLength(2);
       expect(settled.find(row => row.id !== original.id)?.payload.card?.body).toBe(kind === "request_item_verdicts" ? "Migration notes: approve" : "Dismissed — no tasks created.");
       expect(settled.find(row => row.id !== original.id)?.payload.card?.actions).toBeUndefined();
@@ -546,46 +546,46 @@ describeEmbeddedPostgres(
     it("settles an item review superseded by a historical human comment", async () => {
       const fixture = await seedBoundIssue(["slack"]);
       const service = issueThreadInteractionService(db);
-      const issue = { id: fixture.issueId, companyId: fixture.companyId };
+      const issue = { id: fixture.issueId, spaceId: fixture.spaceId };
       const interaction = await service.create(issue, { kind: "request_item_verdicts", payload: { version: 1, prompt: "Review these items", supersedeOnUserComment: true, items: [{ id: "docs", label: "Migration notes" }] } }, { agentId: fixture.agentId });
-      const [original] = await markInteractionCardsPublished(fixture.companyId, interaction.id);
-      await db.insert(issueComments).values({ companyId: fixture.companyId, issueId: fixture.issueId, authorUserId: "board-user", body: "Use the updated proposal instead.", createdAt: new Date(Date.now() + 1000) });
+      const [original] = await markInteractionCardsPublished(fixture.spaceId, interaction.id);
+      await db.insert(issueComments).values({ spaceId: fixture.spaceId, issueId: fixture.issueId, authorUserId: "operator-user", body: "Use the updated proposal instead.", createdAt: new Date(Date.now() + 1000) });
       const expired = await service.expireRequestConfirmationsSupersededByHistoricalComments(issue);
       expect(expired).toHaveLength(1);
       expect(expired[0].status).toBe("expired");
-      const publications = await publicationsForInteraction(fixture.companyId, interaction.id);
+      const publications = await publicationsForInteraction(fixture.spaceId, interaction.id);
       expect(publications).toHaveLength(2);
-      expect(publications.find(row => row.id !== original.id)?.payload.card?.body).toBe("Expired in Paperclip");
+      expect(publications.find(row => row.id !== original.id)?.payload.card?.body).toBe("Expired in Outpost");
     });
 
     it.each(["decline", "reassign"] as const)("delivers, deduplicates and settles an addressed connection request on %s without a second wake owner", async outcome => {
       const fixture = await seedBoundIssue();
       const sourceRunId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: sourceRunId, companyId: fixture.companyId, agentId: fixture.agentId, status: "running", responsibleUserId: "board-user", contextSnapshot: { issueId: fixture.issueId } });
+      await db.insert(heartbeatRuns).values({ id: sourceRunId, spaceId: fixture.spaceId, agentId: fixture.agentId, status: "running", responsibleUserId: "operator-user", contextSnapshot: { issueId: fixture.issueId } });
       const service = issueThreadInteractionService(db);
-      const issue = { id: fixture.issueId, companyId: fixture.companyId };
-      const input = { sourceRunId, addresseeUserId: "board-user", idempotencyKey: "connection-slack", payload: { version: 1 as const, serviceSlug: "notion", serviceName: "Notion", requestingAgentId: fixture.agentId, requestingAgentName: "Codie", phase: "requested" as const } };
+      const issue = { id: fixture.issueId, spaceId: fixture.spaceId };
+      const input = { sourceRunId, addresseeUserId: "operator-user", idempotencyKey: "connection-slack", payload: { version: 1 as const, serviceSlug: "notion", serviceName: "Notion", requestingAgentId: fixture.agentId, requestingAgentName: "Codie", phase: "requested" as const } };
       const interaction = await service.createConnectionIntent(issue, input);
       await service.createConnectionIntent(issue, input);
-      const [original] = await publicationsForInteraction(fixture.companyId, interaction.id);
+      const [original] = await publicationsForInteraction(fixture.spaceId, interaction.id);
       expect(original?.payload.card?.body).toContain("Codie needs Notion");
       expect(original?.payload.card?.actions).toEqual([{ type: "link", label: "Review connection", url: expect.stringContaining(fixture.issueId) }, { type: "callback", actionId: expect.any(String), label: "Not now", style: "default" }]);
-      expect(await publicationsForInteraction(fixture.companyId, interaction.id)).toHaveLength(1);
-      await markInteractionCardsPublished(fixture.companyId, interaction.id);
+      expect(await publicationsForInteraction(fixture.spaceId, interaction.id)).toHaveLength(1);
+      await markInteractionCardsPublished(fixture.spaceId, interaction.id);
       await expect(service.resolveConnectionIntent(issue, interaction.id, { version: 1, outcome: "declined" }, { userId: "different-user" })).rejects.toMatchObject({ status: 403 });
-      if (outcome === "decline") await service.resolveConnectionIntent(issue, interaction.id, { version: 1, outcome: "declined" }, { userId: "board-user" });
+      if (outcome === "decline") await service.resolveConnectionIntent(issue, interaction.id, { version: 1, outcome: "declined" }, { userId: "operator-user" });
       else await db.transaction(async tx => issueThreadInteractionService(tx as unknown as typeof db).expireConnectionIntentsForOwnershipChange(issue));
-      const settled = await publicationsForInteraction(fixture.companyId, interaction.id);
+      const settled = await publicationsForInteraction(fixture.spaceId, interaction.id);
       expect(settled).toHaveLength(2);
-      expect(settled.find(row => row.id !== original.id)?.payload.card?.body).toBe(outcome === "decline" ? "Declined: Notion. No access was granted." : "Expired in Paperclip");
-      expect((await db.select().from(chatActions).where(eq(chatActions.companyId, fixture.companyId))).filter(action => action.kind === "interaction_wakeup")).toEqual([]);
+      expect(settled.find(row => row.id !== original.id)?.payload.card?.body).toBe(outcome === "decline" ? "Declined: Notion. No access was granted." : "Expired in Outpost");
+      expect((await db.select().from(chatActions).where(eq(chatActions.spaceId, fixture.spaceId))).filter(action => action.kind === "interaction_wakeup")).toEqual([]);
     });
 
     it("settles a card when the dispatcher claims it between the read and cancellation CAS", async () => {
       const fixture = await seedBoundIssue(["slack"]);
       const service = issueThreadInteractionService(db);
       const interaction = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           kind: "ask_user_questions",
           continuationPolicy: "wake_assignee",
@@ -605,7 +605,7 @@ describeEmbeddedPostgres(
         { agentId: fixture.agentId },
       );
       const [original] = await publicationsForInteraction(
-        fixture.companyId,
+        fixture.spaceId,
         interaction.id,
       );
       if (!original) throw new Error("Expected an original publication");
@@ -618,7 +618,7 @@ describeEmbeddedPostgres(
             answers: [{ questionId: "priority", optionIds: ["high"] }],
             summaryMarkdown: null,
           },
-          resolvedByUserId: "board-user",
+          resolvedByUserId: "operator-user",
           resolvedAt: new Date(),
           updatedAt: new Date(),
         })
@@ -648,7 +648,7 @@ describeEmbeddedPostgres(
           .where(eq(chatPublications.id, original.id)),
       ).resolves.toEqual([{ state: "streaming" }]);
       const publications = await publicationsForInteraction(
-        fixture.companyId,
+        fixture.spaceId,
         interaction.id,
       );
       expect(publications).toEqual(
@@ -666,7 +666,7 @@ describeEmbeddedPostgres(
       const fixture = await seedBoundIssue(["github"]);
       const service = issueThreadInteractionService(db);
       const interaction = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           kind: "request_confirmation",
           continuationPolicy: "wake_assignee",
@@ -675,7 +675,7 @@ describeEmbeddedPostgres(
         { agentId: fixture.agentId },
       );
       const [original] = await publicationsForInteraction(
-        fixture.companyId,
+        fixture.spaceId,
         interaction.id,
       );
       if (!original) throw new Error("Expected a GitHub link-only card");
@@ -687,13 +687,13 @@ describeEmbeddedPostgres(
       await service.acceptInteraction(
         {
           id: fixture.issueId,
-          companyId: fixture.companyId,
+          spaceId: fixture.spaceId,
           projectId: null,
           goalId: null,
         },
         interaction.id,
         {},
-        { userId: "board-user" },
+        { userId: "operator-user" },
       );
 
       await expect(
@@ -726,7 +726,7 @@ describeEmbeddedPostgres(
       const fixture = await seedBoundIssue();
       const service = issueThreadInteractionService(db);
       const interaction = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           kind: "ask_user_questions",
           payload: {
@@ -753,9 +753,9 @@ describeEmbeddedPostgres(
         },
         { agentId: fixture.agentId },
       );
-      await markInteractionCardsPublished(fixture.companyId, interaction.id);
+      await markInteractionCardsPublished(fixture.spaceId, interaction.id);
       await service.answerQuestions(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         interaction.id,
         {
           answers: [
@@ -767,10 +767,10 @@ describeEmbeddedPostgres(
             },
           ],
         },
-        { userId: "board-user" },
+        { userId: "operator-user" },
       );
       const settlements = (
-        await publicationsForInteraction(fixture.companyId, interaction.id)
+        await publicationsForInteraction(fixture.spaceId, interaction.id)
       ).filter((row) => row.state === "pending");
       expect(settlements).toHaveLength(2);
       for (const settlement of settlements) {
@@ -783,7 +783,7 @@ describeEmbeddedPostgres(
           "do-not-publish-this",
         );
         expect(JSON.stringify(settlement.payload)).not.toContain(
-          "Answered in Paperclip",
+          "Answered in Outpost",
         );
       }
     });
@@ -810,29 +810,29 @@ describeEmbeddedPostgres(
         },
       };
       const answeredQuestion = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         questionInput,
         { agentId: fixture.agentId },
       );
       expect(
         await markInteractionCardsPublished(
-          fixture.companyId,
+          fixture.spaceId,
           answeredQuestion.id,
         ),
       ).toHaveLength(2);
 
       const answered = await service.answerQuestions(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         answeredQuestion.id,
         { answers: [{ questionId: "priority", optionIds: ["high"] }] },
-        { userId: "board-user" },
+        { userId: "operator-user" },
       );
       const answeredSettlements = await db
         .select()
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, fixture.companyId),
+            eq(chatPublications.spaceId, fixture.spaceId),
             eq(
               sql<string>`${chatPublications.payload}->>'interactionId'`,
               answeredQuestion.id,
@@ -885,30 +885,30 @@ describeEmbeddedPostgres(
       ]);
 
       const skippedQuestion = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         questionInput,
         { agentId: fixture.agentId },
       );
       await markInteractionCardsPublished(
-        fixture.companyId,
+        fixture.spaceId,
         skippedQuestion.id,
       );
       await service.skipInteraction(
         {
           id: fixture.issueId,
-          companyId: fixture.companyId,
+          spaceId: fixture.spaceId,
           status: "in_progress",
         },
         skippedQuestion.id,
         {},
-        { userId: "board-user" },
+        { userId: "operator-user" },
       );
       const skippedSettlements = await db
         .select()
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, fixture.companyId),
+            eq(chatPublications.spaceId, fixture.spaceId),
             eq(
               sql<string>`${chatPublications.payload}->>'interactionId'`,
               skippedQuestion.id,
@@ -919,7 +919,7 @@ describeEmbeddedPostgres(
       expect(skippedSettlements).toHaveLength(2);
       expect(
         skippedSettlements.every(
-          (row) => row.payload.card?.body === "Skipped in Paperclip.",
+          (row) => row.payload.card?.body === "Skipped in Outpost.",
         ),
       ).toBe(true);
       expect(
@@ -948,7 +948,7 @@ describeEmbeddedPostgres(
       const service = issueThreadInteractionService(db);
       for (const outcome of ["accept", "reject"] as const) {
         const interaction = await service.create(
-          { id: fixture.issueId, companyId: fixture.companyId },
+          { id: fixture.issueId, spaceId: fixture.spaceId },
           {
             kind: "request_confirmation",
             continuationPolicy: "wake_assignee",
@@ -957,7 +957,7 @@ describeEmbeddedPostgres(
           { agentId: fixture.agentId },
         );
         const originals = await markInteractionCardsPublished(
-          fixture.companyId,
+          fixture.spaceId,
           interaction.id,
         );
         expect(originals).toHaveLength(2);
@@ -981,20 +981,20 @@ describeEmbeddedPostgres(
           await service.acceptInteraction(
             {
               id: fixture.issueId,
-              companyId: fixture.companyId,
+              spaceId: fixture.spaceId,
               projectId: null,
               goalId: null,
             },
             interaction.id,
             {},
-            { userId: "board-user" },
+            { userId: "operator-user" },
           );
         } else {
           await service.rejectInteraction(
-            { id: fixture.issueId, companyId: fixture.companyId },
+            { id: fixture.issueId, spaceId: fixture.spaceId },
             interaction.id,
             {},
-            { userId: "board-user" },
+            { userId: "operator-user" },
           );
         }
 
@@ -1003,7 +1003,7 @@ describeEmbeddedPostgres(
           .from(chatPublications)
           .where(
             and(
-              eq(chatPublications.companyId, fixture.companyId),
+              eq(chatPublications.spaceId, fixture.spaceId),
               eq(
                 sql<string>`${chatPublications.payload}->>'interactionId'`,
                 interaction.id,
@@ -1061,7 +1061,7 @@ describeEmbeddedPostgres(
               interactionId: interaction.id,
               interactionStatus: outcome === "accept" ? "accepted" : "rejected",
               issueId: fixture.issueId,
-              requestedByActorId: "board-user",
+              requestedByActorId: "operator-user",
               requestedByActorType: "user",
             }),
             status: "issued",
@@ -1074,7 +1074,7 @@ describeEmbeddedPostgres(
       const fixture = await seedBoundIssue(["slack"]);
       const service = issueThreadInteractionService(db);
       const interaction = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           kind: "ask_user_questions",
           continuationPolicy: "wake_assignee",
@@ -1100,9 +1100,9 @@ describeEmbeddedPostgres(
         },
         { agentId: fixture.agentId },
       );
-      await markInteractionCardsPublished(fixture.companyId, interaction.id);
+      await markInteractionCardsPublished(fixture.spaceId, interaction.id);
       await service.answerQuestions(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         interaction.id,
         {
           answers: [
@@ -1110,7 +1110,7 @@ describeEmbeddedPostgres(
             { questionId: "owner", optionIds: ["agent"] },
           ],
         },
-        { userId: "board-user" },
+        { userId: "operator-user" },
       );
 
       const actions = await db
@@ -1135,7 +1135,7 @@ describeEmbeddedPostgres(
       const fixture = await seedBoundIssue();
       const service = issueThreadInteractionService(db);
       const interaction = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           kind: "request_confirmation",
           payload: { version: 1, prompt: "Proceed?" },
@@ -1145,13 +1145,13 @@ describeEmbeddedPostgres(
       await service.acceptInteraction(
         {
           id: fixture.issueId,
-          companyId: fixture.companyId,
+          spaceId: fixture.spaceId,
           projectId: null,
           goalId: null,
         },
         interaction.id,
         {},
-        { userId: "board-user" },
+        { userId: "operator-user" },
       );
 
       const publications = await db
@@ -1159,7 +1159,7 @@ describeEmbeddedPostgres(
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, fixture.companyId),
+            eq(chatPublications.spaceId, fixture.spaceId),
             eq(
               sql<string>`${chatPublications.payload}->>'interactionId'`,
               interaction.id,
@@ -1206,14 +1206,14 @@ describeEmbeddedPostgres(
         },
       };
       const original = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         input,
         { agentId: fixture.agentId },
       );
-      await markInteractionCardsPublished(fixture.companyId, original.id);
+      await markInteractionCardsPublished(fixture.spaceId, original.id);
 
       const replacement = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         input,
         { agentId: fixture.agentId },
       );
@@ -1230,7 +1230,7 @@ describeEmbeddedPostgres(
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, fixture.companyId),
+            eq(chatPublications.spaceId, fixture.spaceId),
             eq(
               sql<string>`${chatPublications.payload}->>'interactionId'`,
               original.id,
@@ -1256,7 +1256,7 @@ describeEmbeddedPostgres(
       const fixture = await seedBoundIssue();
       const service = issueThreadInteractionService(db);
       const confirmation = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           kind: "request_confirmation",
           payload: {
@@ -1267,17 +1267,17 @@ describeEmbeddedPostgres(
         },
         { agentId: fixture.agentId },
       );
-      await markInteractionCardsPublished(fixture.companyId, confirmation.id);
+      await markInteractionCardsPublished(fixture.spaceId, confirmation.id);
       const liveCommentId = randomUUID();
       await service.expireRequestConfirmationsSupersededByComment(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           id: liveCommentId,
-          authorUserId: "board-user",
+          authorUserId: "operator-user",
           createdByRunId: null,
           createdAt: new Date(Date.now() + 1_000),
         },
-        { userId: "board-user" },
+        { userId: "operator-user" },
       );
 
       const liveSettlements = await db
@@ -1302,7 +1302,7 @@ describeEmbeddedPostgres(
       expect(liveSettlements[0]?.payload.card?.actions ?? []).toHaveLength(0);
 
       const question = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           kind: "ask_user_questions",
           payload: {
@@ -1321,7 +1321,7 @@ describeEmbeddedPostgres(
         },
         { agentId: fixture.agentId },
       );
-      await markInteractionCardsPublished(fixture.companyId, question.id);
+      await markInteractionCardsPublished(fixture.spaceId, question.id);
       const questionCreatedAt = new Date("2026-09-05T12:00:00.000Z");
       await db
         .update(issueThreadInteractions)
@@ -1329,9 +1329,9 @@ describeEmbeddedPostgres(
         .where(eq(issueThreadInteractions.id, question.id));
       await db.insert(issueComments).values({
         id: randomUUID(),
-        companyId: fixture.companyId,
+        spaceId: fixture.spaceId,
         issueId: fixture.issueId,
-        authorUserId: "board-user",
+        authorUserId: "operator-user",
         authorType: "user",
         body: "Use the high-priority path.",
         createdAt: new Date("2026-09-05T12:01:00.000Z"),
@@ -1339,7 +1339,7 @@ describeEmbeddedPostgres(
       });
       await service.expireRequestConfirmationsSupersededByHistoricalComments({
         id: fixture.issueId,
-        companyId: fixture.companyId,
+        spaceId: fixture.spaceId,
       });
 
       const historicalSettlements = await db
@@ -1347,7 +1347,7 @@ describeEmbeddedPostgres(
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, fixture.companyId),
+            eq(chatPublications.spaceId, fixture.spaceId),
             eq(
               sql<string>`${chatPublications.payload}->>'interactionId'`,
               question.id,
@@ -1373,7 +1373,7 @@ describeEmbeddedPostgres(
       const nextRevisionId = randomUUID();
       await db.insert(documents).values({
         id: documentId,
-        companyId: fixture.companyId,
+        spaceId: fixture.spaceId,
         title: "Plan",
         format: "markdown",
         latestBody: "v1",
@@ -1381,14 +1381,14 @@ describeEmbeddedPostgres(
         latestRevisionNumber: 1,
       });
       await db.insert(issueDocuments).values({
-        companyId: fixture.companyId,
+        spaceId: fixture.spaceId,
         issueId: fixture.issueId,
         documentId,
         key: "plan",
       });
       await db.insert(documentRevisions).values({
         id: revisionId,
-        companyId: fixture.companyId,
+        spaceId: fixture.spaceId,
         documentId,
         revisionNumber: 1,
         title: "Plan",
@@ -1397,7 +1397,7 @@ describeEmbeddedPostgres(
       });
 
       const confirmation = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           kind: "request_confirmation",
           payload: {
@@ -1416,21 +1416,21 @@ describeEmbeddedPostgres(
         { agentId: fixture.agentId },
       );
       await service.expireStaleRequestConfirmationsForIssueDocument(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           id: documentId,
           key: "plan",
           latestRevisionId: nextRevisionId,
           latestRevisionNumber: 2,
         },
-        { userId: "board-user" },
+        { userId: "operator-user" },
       );
       const stalePublications = await db
         .select()
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, fixture.companyId),
+            eq(chatPublications.spaceId, fixture.spaceId),
             eq(
               sql<string>`${chatPublications.payload}->>'interactionId'`,
               confirmation.id,
@@ -1448,7 +1448,7 @@ describeEmbeddedPostgres(
       ).toBe(true);
 
       const question = await service.create(
-        { id: fixture.issueId, companyId: fixture.companyId },
+        { id: fixture.issueId, spaceId: fixture.spaceId },
         {
           kind: "ask_user_questions",
           payload: {
@@ -1466,21 +1466,21 @@ describeEmbeddedPostgres(
         },
         { agentId: fixture.agentId },
       );
-      await markInteractionCardsPublished(fixture.companyId, question.id);
+      await markInteractionCardsPublished(fixture.spaceId, question.id);
       await service.expirePendingInteractionsForTerminalIssue(
         {
           id: fixture.issueId,
-          companyId: fixture.companyId,
+          spaceId: fixture.spaceId,
           status: "done",
         },
-        { userId: "board-user" },
+        { userId: "operator-user" },
       );
       const closedSettlements = await db
         .select()
         .from(chatPublications)
         .where(
           and(
-            eq(chatPublications.companyId, fixture.companyId),
+            eq(chatPublications.spaceId, fixture.spaceId),
             eq(
               sql<string>`${chatPublications.payload}->>'interactionId'`,
               question.id,
@@ -1505,31 +1505,31 @@ describeEmbeddedPostgres(
     // behind the running turn, lost the already-delivered reply from its
     // context, and reviewed-chat attestation refused it as a failed run
     // (reviewed_chat_execution_binding_not_authorized, context_mismatch).
-    it.each(["responding_run", "board"] as const)(
+    it.each(["responding_run", "operator"] as const)(
       "wakes the assignee for a chat-bound confirmation only when no responding run owns the decision (%s)", async resolver => {
         const fixture = await seedBoundIssue(["slack"]);
         const runId = randomUUID();
-        await db.insert(heartbeatRuns).values({ id: runId, companyId: fixture.companyId, agentId: fixture.agentId,
-          status: "running", responsibleUserId: "board-user", contextSnapshot: { issueId: fixture.issueId } });
+        await db.insert(heartbeatRuns).values({ id: runId, spaceId: fixture.spaceId, agentId: fixture.agentId,
+          status: "running", responsibleUserId: "operator-user", contextSnapshot: { issueId: fixture.issueId } });
         await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, fixture.issueId));
         const service = issueThreadInteractionService(db);
         const interaction = await service.create(
-          { id: fixture.issueId, companyId: fixture.companyId },
+          { id: fixture.issueId, spaceId: fixture.spaceId },
           { kind: "request_confirmation", continuationPolicy: "wake_assignee",
             payload: { version: 1, prompt: "May I merge both pull requests?" } },
           { agentId: fixture.agentId, runId },
         );
-        await markInteractionCardsPublished(fixture.companyId, interaction.id);
+        await markInteractionCardsPublished(fixture.spaceId, interaction.id);
         if (resolver === "responding_run") {
-          const [reply] = await db.insert(issueComments).values({ companyId: fixture.companyId, issueId: fixture.issueId,
-            authorType: "user", authorUserId: "board-user", body: "yes, merge them", createdAt: new Date(Date.now() + 1_000) }).returning();
-          await resolveConfirmationFromComment(db, { companyId: fixture.companyId, issueId: fixture.issueId,
+          const [reply] = await db.insert(issueComments).values({ spaceId: fixture.spaceId, issueId: fixture.issueId,
+            authorType: "user", authorUserId: "operator-user", body: "yes, merge them", createdAt: new Date(Date.now() + 1_000) }).returning();
+          await resolveConfirmationFromComment(db, { spaceId: fixture.spaceId, issueId: fixture.issueId,
             interactionId: interaction.id, input: { commentId: reply!.id, decision: "accept" },
             actor: { agentId: fixture.agentId, runId } });
         } else {
           await service.acceptInteraction(
-            { id: fixture.issueId, companyId: fixture.companyId, projectId: null, goalId: null },
-            interaction.id, {}, { userId: "board-user" },
+            { id: fixture.issueId, spaceId: fixture.spaceId, projectId: null, goalId: null },
+            interaction.id, {}, { userId: "operator-user" },
           );
         }
         const wakeup = vi.fn(async () => ({ id: randomUUID() }));

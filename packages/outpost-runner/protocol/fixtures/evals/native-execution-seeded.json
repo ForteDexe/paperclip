@@ -10,7 +10,7 @@
   "input": {
     "caseSha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "configSha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    "deterministicSeed": "paperclip-evals-v1-seed"
+    "deterministicSeed": "outpost-evals-v1-seed"
   },
   "runner": {
     "package": {
@@ -24,9 +24,9 @@
     "orpVersion": 1,
     "nativeExecutionVersion": 1,
     "catalogVersion": 1,
-    "catalogSha256": "sha256:c5b8e95e8125d68467b8f29d86426fde5280f59e111bc4e48f8684daa174aaca",
+    "catalogSha256": "sha256:01256ba0dabb6329fa70a3a5de5c9dfb95015239cebad62d181840f0559229da",
     "driverContractVersion": 1,
-    "driverKind": "paperclip-deterministic",
+    "driverKind": "outpost-deterministic",
     "driverVersion": "1.0.0"
   },
   "events": [
@@ -124,7 +124,7 @@
       "payload": {
         "schema": "outpost.run_result.v1",
         "reportedWorkDisposition": "needs_review",
-        "summary": "The governed tool effect was rejected and preserved as a denial.",
+        "summary": "The controlled tool effect was rejected and preserved as a denial.",
         "completionClaim": {
           "contractRevision": "evals-native-execution-v1",
           "objectiveSatisfied": false,

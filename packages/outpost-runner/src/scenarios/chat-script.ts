@@ -27,7 +27,7 @@ import {
 
 /**
  * A control-plane-owned action the conversation triggers with no agent tool:
- * the board answering its own interaction is control-plane work, so the chat
+ * the operator answering their own interaction is control-plane work, so the chat
  * has to be able to script it without pretending a semantic operation exists.
  */
 export interface CapabilityControlPlaneCommandStep {
@@ -40,7 +40,7 @@ export interface CapabilityControlPlaneCommandStep {
 export type CapabilityChatStep = CapabilityPlanStep | CapabilityControlPlaneCommandStep;
 
 export interface CapabilityChatScriptTurn {
-  /** The prompt the scripted board member sends to open this turn. */
+  /** The prompt the scripted operator sends to open this turn. */
   prompt: string;
   steps: CapabilityChatStep[];
 }

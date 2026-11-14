@@ -44,7 +44,7 @@ test("parallel lanes cover check:all exactly once and never bypass verification"
   const verify = runner.split("      - name: Verify Outpost Runner\n")[1].split("      - name:")[0];
   assert.match(verify, /RUNNER_CHECKS: \$\{\{ matrix.checks \}\}/);
   assert.match(verify, /set -euo pipefail/);
-  assert.match(verify, /for check in \$RUNNER_CHECKS; do\s+pnpm --filter @paperclipai\/outpost-runner "\$check"\s+done/);
+  assert.match(verify, /for check in \$RUNNER_CHECKS; do\s+pnpm --filter @outpost\/outpost-runner "\$check"\s+done/);
   const verifyIf = verify.match(/^\s*if: \$\{\{ (.+) \}\}$/m)?.[1];
   assert.equal(verifyIf, "matrix.lane != 'server-integration'");
   for (const lane of ["protocol", "rust", "server-integration"]) {
@@ -59,7 +59,7 @@ test("only the trusted Rust lane writes, and warms both build profiles before sa
   const warm = runner.split("      - name: Warm debug dependencies for the shared Runner cache")[1];
   const expr = (body, field) => body.match(new RegExp(`^ +${field}: \\$\\{\\{ (.+) \\}\\}$`, "m"))[1];
   assert.equal(expr(cache, "save-if"), expr(warm, "if"));
-  assert.match(warm, /run: pnpm --filter @paperclipai\/outpost-runner build:rust/);
+  assert.match(warm, /run: pnpm --filter @outpost\/outpost-runner build:rust/);
   const sha = "a".repeat(40);
   const base = { repository: "paperclipai/paperclip", event_name: "push", ref: "refs/heads/master", sha };
   for (const lane of ["protocol", "rust", "server-integration"]) {
@@ -68,7 +68,7 @@ test("only the trusted Rust lane writes, and warms both build profiles before sa
       [{ event_name: "pull_request", ref: "refs/pull/1/merge" }, sha, false],
       [{ event_name: "pull_request_target" }, sha, false],
       [{ event_name: "workflow_dispatch" }, sha, false],
-      [{ repository: "someone/paperclip" }, sha, false],
+      [{ repository: "someone/outpost" }, sha, false],
       [{ ref: "refs/heads/feature" }, sha, false],
       [{}, "b".repeat(40), false],
     ]) {

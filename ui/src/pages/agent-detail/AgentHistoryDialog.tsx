@@ -44,20 +44,20 @@ export function revisionSummary(revision: Pick<AgentConfigRevision, "changedKeys
   return `Changed ${sentence}`;
 }
 
-function useRevisionAuthor(agent: AgentDetailRecord, companyId: string | undefined) {
+function useRevisionAuthor(agent: AgentDetailRecord, spaceId: string | undefined) {
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(companyId ?? agent.companyId),
-    queryFn: () => agentsApi.list(companyId ?? agent.companyId),
+    queryKey: queryKeys.agents.list(spaceId ?? agent.spaceId),
+    queryFn: () => agentsApi.list(spaceId ?? agent.spaceId),
   });
   const { data: directory } = useQuery({
-    queryKey: queryKeys.access.companyUserDirectory(agent.companyId),
-    queryFn: () => accessApi.listUserDirectory(agent.companyId),
+    queryKey: queryKeys.access.spaceUserDirectory(agent.spaceId),
+    queryFn: () => accessApi.listUserDirectory(agent.spaceId),
   });
   return (revision: AgentConfigRevision) => {
     if (revision.createdByAgentId) {
       return agents?.find((candidate) => candidate.id === revision.createdByAgentId)?.name ?? "An agent";
     }
-    if (revision.createdByUserId && revision.createdByUserId !== "local-board") {
+    if (revision.createdByUserId && revision.createdByUserId !== "local-operator") {
       const entry = directory?.users.find((candidate) => candidate.principalId === revision.createdByUserId);
       return entry?.user?.name?.trim() || entry?.user?.email || "Former member";
     }
@@ -67,26 +67,26 @@ function useRevisionAuthor(agent: AgentDetailRecord, companyId: string | undefin
 
 export function AgentHistoryDialog({
   agent,
-  companyId,
+  spaceId,
   open,
   onOpenChange,
 }: {
   agent: AgentDetailRecord;
-  companyId?: string;
+  spaceId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [pending, setPending] = useState<AgentConfigRevision | null>(null);
-  const authorOf = useRevisionAuthor(agent, companyId);
+  const authorOf = useRevisionAuthor(agent, spaceId);
   const { data: revisions, isLoading, error } = useQuery({
     queryKey: queryKeys.agents.configRevisions(agent.id),
-    queryFn: () => agentsApi.listConfigRevisions(agent.id, companyId),
+    queryFn: () => agentsApi.listConfigRevisions(agent.id, spaceId),
     enabled: open,
   });
   const rollback = useMutation({
-    mutationFn: (revisionId: string) => agentsApi.rollbackConfigRevision(agent.id, revisionId, companyId),
+    mutationFn: (revisionId: string) => agentsApi.rollbackConfigRevision(agent.id, revisionId, spaceId),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.configRevisions(agent.id) });

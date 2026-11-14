@@ -134,7 +134,7 @@ export function createTelegramMaintenance(db: Db, options: TelegramMaintenanceOp
     const [inserted] = await withMaintenanceWrite(tx => tx
       .insert(chatActions)
       .values({
-        companyId: endpoint.companyId,
+        spaceId: endpoint.spaceId,
         endpointId: endpoint.id,
         kind: "telegram_maintenance",
         providerActionId,
@@ -484,7 +484,7 @@ export function createTelegramMaintenance(db: Db, options: TelegramMaintenanceOp
         await credentialLease.assertOwned(tx);
       });
       await logActivity(db, {
-        companyId: record.endpoint.companyId,
+        spaceId: record.endpoint.spaceId,
         actorType: "system",
         actorId: "chat-maintenance",
         action: `chat_endpoint.telegram_${payload.operation}_completed`,
@@ -531,7 +531,7 @@ export function createTelegramMaintenance(db: Db, options: TelegramMaintenanceOp
           ),
         ));
       await logActivity(db, {
-        companyId: action.companyId,
+        spaceId: action.spaceId,
         actorType: "system",
         actorId: "chat-maintenance",
         action: `chat_endpoint.telegram_${payload.operation}_deferred`,
@@ -573,7 +573,7 @@ export function createTelegramMaintenance(db: Db, options: TelegramMaintenanceOp
         toolConnections,
         and(
           eq(toolConnections.id, chatEndpoints.connectionId),
-          eq(toolConnections.companyId, chatEndpoints.companyId),
+          eq(toolConnections.spaceId, chatEndpoints.spaceId),
         ),
       )
       .where(
@@ -695,7 +695,7 @@ export function createTelegramMaintenance(db: Db, options: TelegramMaintenanceOp
       .from(chatActions)
       .where(
         and(
-          eq(chatActions.companyId, endpoint.companyId),
+          eq(chatActions.spaceId, endpoint.spaceId),
           eq(chatActions.endpointId, endpoint.id),
           eq(chatActions.kind, "telegram_stop_subscription"),
           eq(
@@ -742,7 +742,7 @@ export function createTelegramMaintenance(db: Db, options: TelegramMaintenanceOp
         .where(
           and(
             eq(toolConnections.id, current.connectionId),
-            eq(toolConnections.companyId, current.companyId),
+            eq(toolConnections.spaceId, current.spaceId),
           ),
         )
         .for("share");
@@ -758,7 +758,7 @@ export function createTelegramMaintenance(db: Db, options: TelegramMaintenanceOp
       await tx
         .insert(chatActions)
         .values({
-          companyId: endpoint.companyId,
+          spaceId: endpoint.spaceId,
           endpointId: endpoint.id,
           kind: "telegram_stop_subscription",
           providerActionId: `telegram-stop-subscription:${scope.runtimeGeneration}:${scope.credentialFingerprint}:${scope.webhookUrlSha256}`,
@@ -819,7 +819,7 @@ export function createTelegramMaintenance(db: Db, options: TelegramMaintenanceOp
         );
         if (
           !current ||
-          current.companyId !== endpoint.companyId ||
+          current.spaceId !== endpoint.spaceId ||
           current.botExternalId !== scope.botUserId ||
           current.publicId !== endpoint.publicId
         )
@@ -830,7 +830,7 @@ export function createTelegramMaintenance(db: Db, options: TelegramMaintenanceOp
           .where(
             and(
               eq(toolConnections.id, current.connectionId),
-              eq(toolConnections.companyId, current.companyId),
+              eq(toolConnections.spaceId, current.spaceId),
             ),
           )
           .for("share");

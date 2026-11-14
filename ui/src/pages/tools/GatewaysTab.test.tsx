@@ -18,8 +18,8 @@ const pushToastMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api/tools", () => ({
   toolsApi: {
-    listGateways: (companyId: string) => listGatewaysMock(companyId),
-    listProfiles: (companyId: string) => listProfilesMock(companyId),
+    listGateways: (spaceId: string) => listGatewaysMock(spaceId),
+    listProfiles: (spaceId: string) => listProfilesMock(spaceId),
     createGateway: vi.fn(),
     createGatewayToken: vi.fn(),
     revokeGatewayToken: vi.fn(),
@@ -28,13 +28,13 @@ vi.mock("@/api/tools", () => ({
 
 vi.mock("@/api/agents", () => ({
   agentsApi: {
-    list: (companyId: string) => listAgentsMock(companyId),
+    list: (spaceId: string) => listAgentsMock(spaceId),
   },
 }));
 
 vi.mock("@/api/projects", () => ({
   projectsApi: {
-    list: (companyId: string) => listProjectsMock(companyId),
+    list: (spaceId: string) => listProjectsMock(spaceId),
   },
 }));
 
@@ -65,7 +65,7 @@ async function flushReact() {
 function profile(overrides: Partial<ToolProfileWithDetails> = {}): ToolProfileWithDetails {
   return {
     id: "profile-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     profileKey: "engineering",
     name: "Engineering",
     description: null,
@@ -85,7 +85,7 @@ function profile(overrides: Partial<ToolProfileWithDetails> = {}): ToolProfileWi
       totalToolCount: 5,
       assignmentCount: 1,
       appliesToAgentCount: 0,
-      isCompanyDefault: false,
+      isSpaceDefault: false,
     },
     ...overrides,
   };
@@ -94,7 +94,7 @@ function profile(overrides: Partial<ToolProfileWithDetails> = {}): ToolProfileWi
 function token(overrides: Partial<ToolMcpGatewayToken> = {}): ToolMcpGatewayToken {
   return {
     id: "token-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     gatewayId: "gateway-1",
     name: "Token",
     tokenPrefix: "pcgw_token",
@@ -121,7 +121,7 @@ function token(overrides: Partial<ToolMcpGatewayToken> = {}): ToolMcpGatewayToke
 function gateway(overrides: Partial<ToolMcpGatewayWithTokens> = {}): ToolMcpGatewayWithTokens {
   return {
     id: "gateway-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     gatewayPublicId: "gw_public",
     name: "Dotta's MacBook",
     displaySlug: "dottas-macbook",
@@ -130,7 +130,7 @@ function gateway(overrides: Partial<ToolMcpGatewayWithTokens> = {}): ToolMcpGate
     status: "active",
     profileId: "profile-1",
     defaultProfileMode: "gateway_only",
-    contextScopeType: "company",
+    contextScopeType: "space",
     contextScopeId: null,
     agentId: null,
     projectId: null,
@@ -162,7 +162,7 @@ function gateway(overrides: Partial<ToolMcpGatewayWithTokens> = {}): ToolMcpGate
     },
     metadataPolicy: {
       version: 1,
-      forwardCompanyId: false,
+      forwardSpaceId: false,
       forwardGatewayId: false,
       forwardProjectId: false,
       forwardIssueId: false,
@@ -251,7 +251,7 @@ describe("GatewaysTab", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     await render(
       <QueryClientProvider client={client}>
-        <GatewaysTab companyId="company-1" />
+        <GatewaysTab spaceId="space-1" />
       </QueryClientProvider>,
     );
 
@@ -266,7 +266,7 @@ describe("GatewaysTab", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     await render(
       <QueryClientProvider client={client}>
-        <GatewaysTab companyId="company-1" />
+        <GatewaysTab spaceId="space-1" />
       </QueryClientProvider>,
     );
     expect(container.textContent).toContain("Dotta's MacBook");
@@ -291,7 +291,7 @@ describe("GatewaysTab", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     await render(
       <QueryClientProvider client={client}>
-        <GatewaysTab companyId="company-1" />
+        <GatewaysTab spaceId="space-1" />
       </QueryClientProvider>,
     );
 

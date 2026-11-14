@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { listPaperclipSkillEntries } from "@outpost/adapter-utils/server-utils";
+import { listOutpostSkillEntries } from "@outpost/adapter-utils/server-utils";
 import {
   checkoutIssueSchema,
   createGoalSchema,
@@ -31,18 +31,18 @@ function jsonExample(relativePath: string, heading: string): unknown {
 
 describe("focused Outpost skill API examples", () => {
   it("discovers the six focused skills as bundled runtime capabilities", async () => {
-    const entries = await listPaperclipSkillEntries(here, [path.join(repoRoot, "skills")]);
+    const entries = await listOutpostSkillEntries(here, [path.join(repoRoot, "skills")]);
     const keys = entries.map((entry) => entry.key);
 
     expect(keys).toEqual(expect.arrayContaining([
-      "paperclipai/paperclip/outpost-task",
-      "paperclipai/paperclip/outpost-decision",
-      "paperclipai/paperclip/outpost-artifact",
-      "paperclipai/paperclip/outpost-case",
-      "paperclipai/paperclip/outpost-north-star",
-      "paperclipai/paperclip/outpost-delegation",
+      "outpost/outpost/outpost-task",
+      "outpost/outpost/outpost-decision",
+      "outpost/outpost/outpost-artifact",
+      "outpost/outpost/outpost-case",
+      "outpost/outpost/outpost-north-star",
+      "outpost/outpost/outpost-delegation",
     ]));
-    expect(keys).not.toContain("paperclipai/paperclip/paperclip");
+    expect(keys).not.toContain("outpost/outpost/outpost");
   });
 
   it("keeps the task update example accepted by the task API", () => {
@@ -78,7 +78,7 @@ describe("focused Outpost skill API examples", () => {
     expect(createGoalSchema.parse(jsonExample(
       "skills/outpost-north-star/references/api-reference.md",
       "Create example:",
-    ))).toMatchObject({ level: "company", status: "active" });
+    ))).toMatchObject({ level: "space", status: "active" });
   });
 
   it("keeps the delegation create example accepted", () => {

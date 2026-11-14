@@ -21,8 +21,8 @@ import type { MatrixExecution, RunnerE2EResult } from "./types.js";
 
 type Row = Record<string, any>;
 
-export function connectionCreationReceipt(pathname: string, method: string, companyId: string, loginIds: ReadonlySet<string>, body: unknown): string | undefined {
-  const root = `/api/companies/${companyId}/ai-connections`;
+export function connectionCreationReceipt(pathname: string, method: string, spaceId: string, loginIds: ReadonlySet<string>, body: unknown): string | undefined {
+  const root = `/api/spaces/${spaceId}/ai-connections`;
   const loginId = pathname.startsWith(`${root}/login/`) ? pathname.slice(`${root}/login/`.length) : undefined;
   const createdHere = method === "POST" && (pathname === root || pathname === `${root}/local`);
   const ownedLogin = method === "GET" && loginId && loginIds.has(loginId);
@@ -31,53 +31,53 @@ export function connectionCreationReceipt(pathname: string, method: string, comp
   return typeof id === "string" && /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(id) ? id : undefined;
 }
 
-export async function cleanupConnectionCompany(input: {
-  api: ConnectionApi; companyId: string; agentName: string;
-  attachedCompany: boolean; retainCompany: boolean;
+export async function cleanupConnectionSpace(input: {
+  api: ConnectionApi; spaceId: string; agentName: string;
+  attachedSpace: boolean; retainSpace: boolean;
   createdConnectionIds: ReadonlySet<string>;
-  evidence: Pick<ConnectionEvidence, "cleanupRetained" | "companyArchived">;
+  evidence: Pick<ConnectionEvidence, "cleanupRetained" | "spaceArchived">;
   collectDiagnostics: () => Promise<void>;
 }) {
-  const { api, companyId, agentName, evidence } = input;
-  const agents = await api.get<Row[]>(`/api/companies/${companyId}/agents`);
+  const { api, spaceId, agentName, evidence } = input;
+  const agents = await api.get<Row[]>(`/api/spaces/${spaceId}/agents`);
   const fixtureAgents = agents.filter(agent => agent.name === agentName);
   try {
     for (const agent of fixtureAgents) {
       await api.patch(`/api/agents/${agent.id}`, { status: "paused" });
-      const liveRuns = await api.get<Row[]>(`/api/companies/${companyId}/heartbeat-runs?agentId=${agent.id}&limit=100`);
+      const liveRuns = await api.get<Row[]>(`/api/spaces/${spaceId}/heartbeat-runs?agentId=${agent.id}&limit=100`);
       for (const run of liveRuns.filter(run => run.agentId === agent.id && ["queued", "running"].includes(run.status))) {
         await api.post(`/api/heartbeat-runs/${run.id}/cancel`);
       }
     }
   } finally {
-    // Deleting an attached-company agent also deletes its runs and logs.
+    // Deleting an attached-space agent also deletes its runs and logs.
     // Capture the stopped runs first, including when cancellation fails.
     await input.collectDiagnostics();
   }
-  if (input.retainCompany) { evidence.cleanupRetained = true; return; }
-  const connections = (await api.get(`/api/companies/${companyId}/ai-connections`)).connections;
+  if (input.retainSpace) { evidence.cleanupRetained = true; return; }
+  const connections = (await api.get(`/api/spaces/${spaceId}/ai-connections`)).connections;
   for (const connection of connections.filter((connection: Row) => input.createdConnectionIds.has(connection.id) && connection.status !== "revoked")) {
     await api.delete(`/api/tool-connections/${connection.id}`);
   }
-  if ((await api.get(`/api/companies/${companyId}/ai-connections`)).connections.some((connection: Row) => input.createdConnectionIds.has(connection.id) && connection.status !== "revoked")) {
+  if ((await api.get(`/api/spaces/${spaceId}/ai-connections`)).connections.some((connection: Row) => input.createdConnectionIds.has(connection.id) && connection.status !== "revoked")) {
     throw new ConnectionFailure("connection_revocation_failed");
   }
-  if (!input.attachedCompany) { await api.post(`/api/companies/${companyId}/archive`); evidence.companyArchived = true; }
+  if (!input.attachedSpace) { await api.post(`/api/spaces/${spaceId}/archive`); evidence.spaceArchived = true; }
   else for (const agent of fixtureAgents) await api.delete(`/api/agents/${agent.id}`);
 }
 
 export async function openConnectionBrowser(config: Pick<ConnectionConfig, "browser">, repositoryRoot: string, origin: string) {
   const temporary = config.browser.freshness === "signed-out" || !config.browser.profileDir;
-  const profile = temporary ? await mkdtemp(path.join(os.tmpdir(), "paperclip-qa-browser-")) : path.resolve(config.browser.profileDir!);
+  const profile = temporary ? await mkdtemp(path.join(os.tmpdir(), "outpost-qa-browser-")) : path.resolve(config.browser.profileDir!);
   await assertOutsideRepository(profile, repositoryRoot);
   await mkdir(profile, { recursive: true, mode: 0o700 });
   const stat = await lstat(profile);
   if (stat.isSymbolicLink() || !stat.isDirectory() || (stat.mode & 0o077) !== 0) throw new ConnectionBlock("blocked_target", "browser_profile_requires_private_directory");
-  const marker = path.join(profile, ".paperclip-provider-qa");
+  const marker = path.join(profile, ".outpost-provider-qa");
   const entries = await readdir(profile);
   if (entries.length && !entries.includes(path.basename(marker))) throw new ConnectionBlock("blocked_target", "use_a_dedicated_empty_qa_browser_profile");
-  if (!entries.length) await writeFile(marker, "Dedicated Paperclip provider QA browser. Contains private authentication state.\n", { mode: 0o600, flag: "wx" });
-  const lock = path.join(profile, ".paperclip-qa.lock");
+  if (!entries.length) await writeFile(marker, "Dedicated Outpost provider QA browser. Contains private authentication state.\n", { mode: 0o600, flag: "wx" });
+  const lock = path.join(profile, ".outpost-qa.lock");
   try { await (await open(lock, "wx", 0o600)).close(); }
   catch { throw new ConnectionBlock("blocked_target", "qa_browser_profile_in_use"); }
   let context: BrowserContext;
@@ -125,7 +125,7 @@ async function safeWrite(file: string, value: unknown, secrets: readonly string[
 async function connectionAttempt(execution: MatrixExecution, config: ConnectionConfig, origin: string, summaryDir: string, repositoryRoot: string, signal: AbortSignal): Promise<RunnerE2EResult> {
   const startedAt = new Date().toISOString();
   const nonce = randomBytes(6).toString("hex");
-  const privateDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-connection-proof-"));
+  const privateDir = await mkdtemp(path.join(os.tmpdir(), "outpost-connection-proof-"));
   const evidenceDir = path.join(summaryDir, execution.suite.id, execution.profile.id, execution.environment.id, execution.task.id, "attempt-1");
   await mkdir(evidenceDir, { recursive: true, mode: 0o700 });
   const { entry, mode } = connectionCell(execution);
@@ -141,7 +141,7 @@ async function connectionAttempt(execution: MatrixExecution, config: ConnectionC
   const observedRuns = new Map<string, Row>();
   const createdConnectionIds = new Set<string>();
   const ownedLoginIds = new Set<string>();
-  let fixtureCompanyId: string | undefined;
+  let fixtureSpaceId: string | undefined;
   let diagnosticApi: ConnectionApi | undefined;
   let diagnosticsCollected = false;
   const collectDiagnostics = async () => {
@@ -185,11 +185,11 @@ async function connectionAttempt(execution: MatrixExecution, config: ConnectionC
     diagnosticApi = api;
     browser.context.on("response", response => {
       const url = new URL(response.url());
-      if (url.origin !== origin || !fixtureCompanyId || !url.pathname.startsWith(`/api/companies/${fixtureCompanyId}/`) || !response.ok()) return;
+      if (url.origin !== origin || !fixtureSpaceId || !url.pathname.startsWith(`/api/spaces/${fixtureSpaceId}/`) || !response.ok()) return;
       const method = response.request().method();
-      const local = method === "POST" && /^\/api\/companies\/([a-f0-9-]+)\/ai-connections\/local\/attempts$/.test(url.pathname);
-      const cloud = method === "POST" && /^\/api\/companies\/([a-f0-9-]+)\/(?:setup-token-login-sessions|adapters\/[^/]+\/login-sessions)$/.test(url.pathname);
-      const root = `/api/companies/${fixtureCompanyId}/ai-connections`;
+      const local = method === "POST" && /^\/api\/spaces\/([a-f0-9-]+)\/ai-connections\/local\/attempts$/.test(url.pathname);
+      const cloud = method === "POST" && /^\/api\/spaces\/([a-f0-9-]+)\/(?:setup-token-login-sessions|adapters\/[^/]+\/login-sessions)$/.test(url.pathname);
+      const root = `/api/spaces/${fixtureSpaceId}/ai-connections`;
       const receipt = (method === "POST" && [root, `${root}/local`].includes(url.pathname)) || (method === "GET" && url.pathname.startsWith(`${root}/login/`));
       if (!local && !cloud && !receipt) return;
       loginObservers.push((async () => {
@@ -198,48 +198,48 @@ async function connectionAttempt(execution: MatrixExecution, config: ConnectionC
           ownedLoginIds.add(body.sessionId);
           loginSessions.set(`${url.pathname}/${body.sessionId}${cloud ? "/cancel" : ""}`, local ? "DELETE" : "POST");
         }
-        const id = connectionCreationReceipt(url.pathname, method, fixtureCompanyId!, ownedLoginIds, body);
+        const id = connectionCreationReceipt(url.pathname, method, fixtureSpaceId!, ownedLoginIds, body);
         if (id) createdConnectionIds.add(id);
       })().catch(() => {}));
     });
     const refreshOwnedConnections = async () => {
-      if (!fixtureCompanyId) return;
+      if (!fixtureSpaceId) return;
       for (const sessionId of ownedLoginIds) {
-        const route = `/api/companies/${fixtureCompanyId}/ai-connections/login/${sessionId}`;
+        const route = `/api/spaces/${fixtureSpaceId}/ai-connections/login/${sessionId}`;
         try {
-          const id = connectionCreationReceipt(route, "GET", fixtureCompanyId, ownedLoginIds, await api.get(route));
+          const id = connectionCreationReceipt(route, "GET", fixtureSpaceId, ownedLoginIds, await api.get(route));
           if (id) createdConnectionIds.add(id);
         } catch { /* An unfinished or cancelled owned login has no account receipt. */ }
       }
     };
     await page.goto(origin, { waitUntil: "domcontentloaded" });
-    try { await api.get("/api/companies"); }
+    try { await api.get("/api/spaces"); }
     catch (authError) {
       if (!(authError instanceof ConnectionFailure) || !["api_status_401", "api_status_403"].includes(authError.message)) throw authError;
       if (!config.browser.headed) throw new ConnectionBlock("awaiting_user", "board_login_required");
       evidence.assisted = true;
       evidence.waits.push({ kind: "board_login", startedAt: new Date().toISOString() });
       await checkpoint("awaiting_board_login");
-      console.log(`[provider-connections] Sign in to Paperclip at ${origin} in the QA browser; this test resumes automatically.`);
+      console.log(`[provider-connections] Sign in to Outpost at ${origin} in the QA browser; this test resumes automatically.`);
       const deadline = Date.now() + config.browser.loginTimeoutMs;
       let ready = false;
-      while (Date.now() < deadline) { assertActive(); try { await api.get("/api/companies"); ready = true; break; } catch { await connectionDelay(1000); } }
+      while (Date.now() < deadline) { assertActive(); try { await api.get("/api/spaces"); ready = true; break; } catch { await connectionDelay(1000); } }
       if (!ready) throw new ConnectionBlock("awaiting_user", "board_login_deadline_reached");
       evidence.waits.at(-1)!.finishedAt = new Date().toISOString();
     }
     const registry = new FixtureRegistry();
-    const attachedCompany = config.target.mode === "attach" ? config.target.companyId : undefined;
-    registry.register<Row>({ id: "connection-company", setup: async () => {
-      if (attachedCompany) {
-        const company = await api.get(`/api/companies/${attachedCompany}`);
-        if (!company.name.startsWith("Connection QA") || (await api.get<Row[]>(`/api/companies/${company.id}/agents`)).some(agent => agent.status !== "terminated") || (await api.get(`/api/companies/${company.id}/ai-connections`)).connections.some((connection: Row) => connection.status !== "revoked")) throw new ConnectionBlock("blocked_target", "attach_requires_empty_dedicated_qa_company");
-        fixtureCompanyId = company.id;
-        return company;
+    const attachedSpace = config.target.mode === "attach" ? config.target.spaceId : undefined;
+    registry.register<Row>({ id: "connection-space", setup: async () => {
+      if (attachedSpace) {
+        const space = await api.get(`/api/spaces/${attachedSpace}`);
+        if (!space.name.startsWith("Connection QA") || (await api.get<Row[]>(`/api/spaces/${space.id}/agents`)).some(agent => agent.status !== "terminated") || (await api.get(`/api/spaces/${space.id}/ai-connections`)).connections.some((connection: Row) => connection.status !== "revoked")) throw new ConnectionBlock("blocked_target", "attach_requires_empty_dedicated_qa_space");
+        fixtureSpaceId = space.id;
+        return space;
       }
-      const company = await api.post("/api/companies", { name: `Connection QA ${nonce}`, description: "Disposable provider-connections QA fixture", budgetMonthlyCents: config.budgetCents });
-      fixtureCompanyId = company.id;
-      return company;
-    }, teardown: async company => {
+      const space = await api.post("/api/spaces", { name: `Connection QA ${nonce}`, description: "Disposable provider-connections QA fixture", budgetMonthlyCents: config.budgetCents });
+      fixtureSpaceId = space.id;
+      return space;
+    }, teardown: async space => {
       await Promise.all(loginObservers);
       await refreshOwnedConnections();
       for (const [route, method] of loginSessions) {
@@ -248,13 +248,13 @@ async function connectionAttempt(execution: MatrixExecution, config: ConnectionC
       }
       await refreshOwnedConnections();
       // Creation receipts identify this attempt even when concurrent campaigns
-      // passed the initial empty-company check at the same time.
-      await cleanupConnectionCompany({ api, companyId: company.id, agentName: `Connection QA ${nonce}`,
-        attachedCompany: Boolean(attachedCompany), retainCompany: config.retainCompany, createdConnectionIds, evidence, collectDiagnostics });
+      // passed the initial empty-space check at the same time.
+      await cleanupConnectionSpace({ api, spaceId: space.id, agentName: `Connection QA ${nonce}`,
+        attachedSpace: Boolean(attachedSpace), retainSpace: config.retainSpace, createdConnectionIds, evidence, collectDiagnostics });
     } });
-    registry.register<Row>({ id: "connection-environment", dependencies: ["connection-company"], setup: async values => {
-      const company = values.get("connection-company") as Row;
-      const environments = await api.get<Row[]>(`/api/companies/${company.id}/environments`);
+    registry.register<Row>({ id: "connection-environment", dependencies: ["connection-space"], setup: async values => {
+      const space = values.get("connection-space") as Row;
+      const environments = await api.get<Row[]>(`/api/spaces/${space.id}/environments`);
       const selectedId = config.target.mode === "attach" ? config.target.environmentId : undefined;
       const environment = selectedId ? environments.find(env => env.id === selectedId) : environments.find(env => env.status === "active" && (execution.environment.id === "local" ? env.driver === "local" : env.driver === "sandbox" && env.config?.provider === "daytona"));
       if (!environment || (execution.environment.id === "local" ? environment.driver !== "local" : environment.config?.provider !== "daytona")) throw new ConnectionBlock("blocked_target", "configured_execution_environment_required");
@@ -268,16 +268,16 @@ async function connectionAttempt(execution: MatrixExecution, config: ConnectionC
       return environment;
     } });
     fixtures = await registry.setupAll();
-    const company = fixtures.values.get("connection-company") as Row;
-    evidence.companyId = company.id;
+    const space = fixtures.values.get("connection-space") as Row;
+    evidence.spaceId = space.id;
     const environment = fixtures.values.get("connection-environment") as Row;
-    const observed = await runConnectionFlow({ page, api, execution, config, settings, company, environment, secret, nonce, privateDir, evidence, checkpoint, assertActive,
+    const observed = await runConnectionFlow({ page, api, execution, config, settings, space, environment, secret, nonce, privateDir, evidence, checkpoint, assertActive,
       createdConnectionIds, refreshOwnedConnections, observeRun: run => observedRuns.set(run.id, run) });
     Object.assign(result, observed);
     evidence.outcome = "passed";
     if (!connectionEvidencePasses(evidence)) throw new ConnectionFailure("connection_proof_incomplete");
     // Only the fixture's synthetic task is captured, after authentication.
-    const expectedPath = `/${company.issuePrefix}/issues/${observed.issueIdentifier}`;
+    const expectedPath = `/${space.issuePrefix}/issues/${observed.issueIdentifier}`;
     const url = new URL(page.url());
     if (url.origin !== origin || url.pathname !== expectedPath) throw new ConnectionFailure("final_screenshot_route_mismatch");
     const screenshot = await page.screenshot({ path: path.join(privateDir, "final-state.png"), fullPage: true });
@@ -296,7 +296,7 @@ async function connectionAttempt(execution: MatrixExecution, config: ConnectionC
       const causes = cleanupError instanceof AggregateError ? cleanupError.errors : [cleanupError];
       console.log(`[provider-connections] Cleanup: ${causes.map(cause => safeConnectionFailure(cause, "cleanup")).join(", ")}`); }
     // Also preserve evidence when setup or early cleanup failed before the
-    // company teardown reached its capture point. Never refetch deleted runs.
+    // space teardown reached its capture point. Never refetch deleted runs.
     await collectDiagnostics();
     try { await browser?.close(); }
     catch { result.cleanup = "failed"; result.status = "failed"; result.failureClass = "cleanup_failure"; result.error = "qa_browser_cleanup_failed"; }

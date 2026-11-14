@@ -25,7 +25,7 @@ import { Bot, Clock3 } from "lucide-react";
 
 const briefsAgent: Agent = {
   id: "agent-briefs",
-  companyId: "company-storybook",
+  spaceId: "space-storybook",
   name: "Briefs Agent",
   urlKey: "briefs-agent",
   role: "general",
@@ -33,7 +33,7 @@ const briefsAgent: Agent = {
   icon: "sparkles",
   status: "idle",
   reportsTo: null,
-  capabilities: "Prepares concise operational briefs for the board and agent company.",
+  capabilities: "Prepares concise operational briefs for the board and agent space.",
   adapterType: "codex_local",
   adapterConfig: { model: "gpt-5" },
   runtimeConfig: {},
@@ -43,7 +43,7 @@ const briefsAgent: Agent = {
   pausedAt: null,
   permissions: { canCreateAgents: false },
   lastHeartbeatAt: null,
-  metadata: { paperclipBuiltInAgent: { key: "briefs", featureKeys: ["briefs"] } },
+  metadata: { outpostBuiltInAgent: { key: "briefs", featureKeys: ["briefs"] } },
   createdAt: new Date("2026-06-01T09:00:00.000Z"),
   updatedAt: new Date("2026-07-01T09:00:00.000Z"),
 };
@@ -52,8 +52,8 @@ const definition = {
   key: "briefs",
   displayName: "Briefs Agent",
   featureKeys: ["briefs"],
-  shortPurpose: "Prepares concise operational briefs for the board and agent company.",
-  defaultInstructions: "You are Paperclip's built-in Briefs agent.",
+  shortPurpose: "Prepares concise operational briefs for the board and agent space.",
+  defaultInstructions: "You are Outpost's built-in Briefs agent.",
   defaultRole: "general",
   allowedAdapterTypes: ["codex_local", "claude_local", "gemini_local", "opencode_local", "process"],
   defaultBudgetMonthlyCents: 0,
@@ -114,7 +114,7 @@ const meta: Meta = {
   id: "product-built-in-agents",
   title: "Agents and reusable capabilities/Hiring, configuration, and organization/Product/Built-in Agents",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "agents/built-in"
       ],
@@ -152,7 +152,7 @@ export const SurfaceGallery: Story = {
           title="Built-in agent"
           actions={<Button variant="outline" size="sm">Reset to defaults</Button>}
         >
-          Ships with Paperclip and powers <strong>Briefs</strong>. Configure it like any agent —
+          Ships with Outpost and powers <strong>Briefs</strong>. Configure it like any agent —
           model, instructions, budget. It can be paused but not deleted; pausing it pauses Briefs.
         </InlineBanner>
       </div>
@@ -238,7 +238,7 @@ export const ConfigureModal: Story = {
       <div className="p-6">
         <Button onClick={() => setOpen(true)}>Open configure modal</Button>
         <ConfigureBuiltInAgentModal
-          companyId="company-storybook"
+          spaceId="space-storybook"
           state={notProvisionedState}
           open={open}
           onOpenChange={setOpen}
@@ -284,7 +284,7 @@ const reflectionBundle = {
     skillKey: "reflection-coach",
     displayName: "reflection-coach",
     slug: "reflection-coach",
-    canonicalKey: "paperclipai/bundled/paperclip-operations/reflection-coach",
+    canonicalKey: "outpost/bundled/outpost-operations/reflection-coach",
     files: ["reflection-coach/SKILL.md"],
   },
   routine: {
@@ -300,7 +300,7 @@ const reflectionDefinition = {
   displayName: "Reflection Coach",
   featureKeys: ["reflection"],
   shortPurpose: "Reviews recent agents and coaches them.",
-  defaultInstructions: "You are Paperclip's built-in Reflection Coach.",
+  defaultInstructions: "You are Outpost's built-in Reflection Coach.",
   defaultRole: "general",
   allowedAdapterTypes: ["codex_local", "claude_local"],
   defaultBudgetMonthlyCents: 0,

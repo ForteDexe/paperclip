@@ -17,7 +17,7 @@ import { toolsApi } from "@/api/tools";
 import { issuesApi } from "@/api/issues";
 import { ReviewQueueCard } from "@/pages/apps/ReviewQueueCard";
 import type { ToolActionRequestListItem } from "@outpost/shared";
-import { storybookAgentMap } from "../../fixtures/paperclipData";
+import { storybookAgentMap } from "../../fixtures/outpostData";
 
 const readRequest: RequestConfirmationInteraction = {
   ...pendingToolActionWriteInteraction,
@@ -47,7 +47,7 @@ const meta = {
   id: "chat-comments-connection-reviews",
   title: "Tasks and conversations/Questions and approvals/Chat & Comments/Connection Reviews",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "questions-and-approvals/tool-review",
         "connection-setup/task-request"
@@ -304,7 +304,7 @@ export const Executing: Story = {
   render: () => <TaskScreen initial={[runningToolActionInteraction]} />,
 };
 export const ApprovedWaitingForConnection: Story = {
-  parameters: { paperclip: { capabilities: ["questions-and-approvals/tool-review", "connection-setup/task-request"],
+  parameters: { outpost: { capabilities: ["questions-and-approvals/tool-review", "connection-setup/task-request"],
     implementation: "production", boundary: "fixtures",
     notes: "Saved approval awaiting app sign-in. Uses the production task thread and repair link; OAuth repair and provider execution are verified separately by the server integration fixture." } },
   render: () => <TaskScreen initial={[{

@@ -10,10 +10,10 @@ function fixture() {
   const refs: ToolCredentialSecretRef[] = ["botToken", "signingSecret", "appToken"].map(key => ({
     secretId: randomUUID(), configPath: `credentials.${key}`, versionSelector: "latest", required: true,
   }));
-  const endpoint = { id: randomUUID(), companyId: randomUUID(), connectionId: randomUUID(),
+  const endpoint = { id: randomUUID(), spaceId: randomUUID(), connectionId: randomUUID(),
     provider: "slack", providerAccountId: "T-EXPECTED" } as EndpointRow;
   let signingSecret = "current-signing-secret";
-  const resolveSecretValue = vi.fn(async (_companyId: string, secretId: string, ..._resolution: unknown[]) => {
+  const resolveSecretValue = vi.fn(async (_spaceId: string, secretId: string, ..._resolution: unknown[]) => {
     const ref = refs.find(ref => ref.secretId === secretId)!;
     if (ref.configPath === "credentials.signingSecret") return signingSecret;
     throw new Error("Unrelated provider credential is unavailable");
@@ -46,7 +46,7 @@ describe("Slack signing-secret preflight", () => {
     expect(response?.status).toBe(200);
     expect(await response?.text()).toBe("ignored");
     expect(f.resolveSecretValue).toHaveBeenCalledTimes(1);
-    expect(f.resolveSecretValue).toHaveBeenCalledWith(f.endpoint.companyId, f.refs[1]!.secretId, "latest",
+    expect(f.resolveSecretValue).toHaveBeenCalledWith(f.endpoint.spaceId, f.refs[1]!.secretId, "latest",
       expect.objectContaining({ consumerType: "tool_connection", consumerId: f.endpoint.connectionId,
         configPath: "credentials.signingSecret", actorType: "system" }));
   });
@@ -74,7 +74,7 @@ describe("Slack signing-secret preflight", () => {
 
   it("preserves full runtime credential resolution", async () => {
     const f = fixture();
-    f.resolveSecretValue.mockImplementation(async (_companyId, secretId) => f.refs.find(ref => ref.secretId === secretId)!.configPath);
+    f.resolveSecretValue.mockImplementation(async (_spaceId, secretId) => f.refs.find(ref => ref.secretId === secretId)!.configPath);
     expect(await f.credentials.resolveCredentials(f.endpoint)).toEqual({
       botToken: "credentials.botToken", signingSecret: "credentials.signingSecret", appToken: "credentials.appToken",
     });

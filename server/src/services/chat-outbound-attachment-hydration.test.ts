@@ -39,7 +39,7 @@ describe("outbound attachment hydration", () => {
     await expect(
       hydrateOutboundAttachment({
         storage,
-        companyId: "company-1",
+        spaceId: "space-1",
         objectKey: "private/object",
         byteSize: body.length,
         sha256: digest(body),
@@ -67,7 +67,7 @@ describe("outbound attachment hydration", () => {
 
     const error = await hydrateOutboundAttachment({
       storage,
-      companyId: "company-1",
+      spaceId: "space-1",
       objectKey: "private/object",
       byteSize: registered.length,
       sha256: digest(registered),
@@ -101,7 +101,7 @@ describe("outbound attachment hydration", () => {
     );
     const hydration = hydrateOutboundAttachment({
       storage,
-      companyId: "company-1",
+      spaceId: "space-1",
       objectKey: "private/object",
       byteSize: 1,
       sha256: digest(Buffer.from("x")),
@@ -132,7 +132,7 @@ describe("outbound attachment hydration", () => {
     );
     const hydration = hydrateOutboundAttachment({
       storage,
-      companyId: "company-1",
+      spaceId: "space-1",
       objectKey: "private/object",
       byteSize: 2,
       sha256: digest(Buffer.from("xy")),

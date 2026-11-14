@@ -76,8 +76,8 @@ vi.mock("../services/runner-goals.js", () => ({
 }));
 
 vi.mock("../services/index.js", () => ({
-  companyService: () => ({
-    getById: vi.fn(async () => ({ id: "company-1" })),
+  spaceService: () => ({
+    getById: vi.fn(async () => ({ id: "space-1" })),
   }),
   accessService: () => ({
     canUser: vi.fn(async () => true),
@@ -86,12 +86,12 @@ vi.mock("../services/index.js", () => ({
   }),
   agentService: () => ({
     getById: vi.fn(async () => null),
-    resolveByReference: vi.fn(async (_companyId: string, raw: string) => ({
+    resolveByReference: vi.fn(async (_spaceId: string, raw: string) => ({
       ambiguous: false,
       agent: { id: raw },
     })),
   }),
-  companySkillService: () => ({
+  spaceSkillService: () => ({
     completeTestRunForIssue: vi.fn(async () => null),
   }),
   documentAnnotationService: () => ({ remapOpenThreadsForDocument: async () => [] }),
@@ -111,7 +111,7 @@ vi.mock("../services/index.js", () => ({
         feedbackDataSharingPreference: "prompt",
       },
     })),
-    listCompanyIds: vi.fn(async () => ["company-1"]),
+    listSpaceIds: vi.fn(async () => ["space-1"]),
   }),
   issueApprovalService: () => ({}),
   issueReferenceService: () => ({
@@ -154,8 +154,8 @@ function registerModuleMocks() {
   }));
 
   vi.doMock("../services/index.js", () => ({
-    companyService: () => ({
-      getById: vi.fn(async () => ({ id: "company-1" })),
+    spaceService: () => ({
+      getById: vi.fn(async () => ({ id: "space-1" })),
     }),
     accessService: () => ({
       canUser: vi.fn(async () => true),
@@ -164,12 +164,12 @@ function registerModuleMocks() {
     }),
     agentService: () => ({
       getById: vi.fn(async () => null),
-      resolveByReference: vi.fn(async (_companyId: string, raw: string) => ({
+      resolveByReference: vi.fn(async (_spaceId: string, raw: string) => ({
         ambiguous: false,
         agent: { id: raw },
       })),
     }),
-    companySkillService: () => ({
+    spaceSkillService: () => ({
       completeTestRunForIssue: vi.fn(async () => null),
     }),
     documentAnnotationService: () => ({ remapOpenThreadsForDocument: async () => [] }),
@@ -189,7 +189,7 @@ function registerModuleMocks() {
           feedbackDataSharingPreference: "prompt",
         },
       })),
-      listCompanyIds: vi.fn(async () => ["company-1"]),
+      listSpaceIds: vi.fn(async () => ["space-1"]),
     }),
     issueApprovalService: () => ({}),
     issueReferenceService: () => ({
@@ -238,11 +238,11 @@ async function createApp(transaction: (callback: (tx: Record<string, never>) => 
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = {
-      type: "board",
-      userId: "local-board",
-      companyIds: ["company-1"],
+      type: "operator",
+      userId: "local-operator",
+      spaceIds: ["space-1"],
       source: "local_implicit",
-      runId: req.header("x-paperclip-run-id") ?? null,
+      runId: req.header("x-outpost-run-id") ?? null,
       isInstanceAdmin: false,
     };
     next();
@@ -258,15 +258,15 @@ async function createApp(transaction: (callback: (tx: Record<string, never>) => 
 function makeIssue(overrides: Record<string, unknown> = {}) {
   return {
     id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    companyId: "company-1",
+    spaceId: "space-1",
     status: "todo",
     priority: "medium",
     projectId: null,
     goalId: null,
     parentId: null,
     assigneeAgentId: null,
-    assigneeUserId: "local-board",
-    createdByUserId: "local-board",
+    assigneeUserId: "local-operator",
+    createdByUserId: "local-operator",
     identifier: "PAP-999",
     title: "Wake test",
     executionPolicy: null,
@@ -302,7 +302,7 @@ describe("issue update comment wakeups", () => {
     mockIssueService.listReviewAttention.mockResolvedValue(new Map());
   });
 
-  it.each(["post", "patch"] as const)("rejects %s board messages under an inherited pause before any mutation", async (method) => {
+  it.each(["post", "patch"] as const)("rejects %s operator messages under an inherited pause before any mutation", async (method) => {
     const existing = makeIssue();
     mockIssueService.getById.mockResolvedValue(existing);
     mockPauseGate.mockResolvedValue({ holdId: "hold-1", rootIssueId: "parent-1" });
@@ -313,7 +313,7 @@ describe("issue update comment wakeups", () => {
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("Task is paused. Resume it before sending a message.");
     expect(res.body.details.rootIssueId).toBe("parent-1");
-    expect(mockPauseGate).toHaveBeenCalledWith(existing.companyId, existing.id);
+    expect(mockPauseGate).toHaveBeenCalledWith(existing.spaceId, existing.id);
     expect(mockIssueService.addComment).not.toHaveBeenCalled();
     expect(mockIssueService.update).not.toHaveBeenCalled();
     expect(mockHeartbeatService.wakeup).not.toHaveBeenCalled();
@@ -340,17 +340,17 @@ describe("issue update comment wakeups", () => {
     },
   );
 
-  it.each(["done", "cancelled"])("stops a goal-less native run before a board marks its task %s", async (status) => {
+  it.each(["done", "cancelled"])("stops a goal-less native run before a operator marks its task %s", async (status) => {
     const existing = makeIssue({ status: "in_progress", assigneeAgentId: ASSIGNEE_AGENT_ID,
       assigneeUserId: null, executionRunId: SOURCE_RUN_ID });
     mockIssueService.getById.mockResolvedValue(existing);
-    mockHeartbeatService.getRun.mockResolvedValue({ id: SOURCE_RUN_ID, companyId: existing.companyId,
+    mockHeartbeatService.getRun.mockResolvedValue({ id: SOURCE_RUN_ID, spaceId: existing.spaceId,
       agentId: ASSIGNEE_AGENT_ID, runtimeMode: "native", status: "running",
       nativeIssueId: existing.id, contextSnapshot: { issueId: existing.id } });
     const effects: string[] = [];
     mockHeartbeatService.cancelRun.mockImplementation(async () => {
       effects.push("stop");
-      return { id: SOURCE_RUN_ID, companyId: existing.companyId, status: "cancelled" };
+      return { id: SOURCE_RUN_ID, spaceId: existing.spaceId, status: "cancelled" };
     });
     mockIssueService.update.mockImplementation(async () => {
       effects.push("update");
@@ -371,10 +371,10 @@ describe("issue update comment wakeups", () => {
     const stopMetadata = mockHeartbeatService.cancelRun.mock.calls[0]![2].resultJson;
     // Exercise the recovery consumer with the route's actual producer fields.
     // A Stop receipt alone must not authorize this intentional-stop exception.
-    expect(isAcknowledgedNativeStop({ id: SOURCE_RUN_ID, companyId: existing.companyId,
+    expect(isAcknowledgedNativeStop({ id: SOURCE_RUN_ID, spaceId: existing.spaceId,
       status: "cancelled", nativeIssueId: existing.id, resultJson: { ...stopMetadata,
         nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: SOURCE_RUN_ID,
-          companyId: existing.companyId, issueId: existing.id, scope: "run",
+          spaceId: existing.spaceId, issueId: existing.id, scope: "run",
           reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
           intentAuditId: "stop-intent", acknowledgementAuditId: "stop-acknowledgement" },
       } })).toBe(true);
@@ -386,7 +386,7 @@ describe("issue update comment wakeups", () => {
     const existing = makeIssue({ status: "in_progress", assigneeAgentId: ASSIGNEE_AGENT_ID,
       assigneeUserId: null, executionRunId: SOURCE_RUN_ID });
     mockIssueService.getById.mockResolvedValue(existing);
-    mockHeartbeatService.getRun.mockResolvedValue({ id: SOURCE_RUN_ID, companyId: existing.companyId,
+    mockHeartbeatService.getRun.mockResolvedValue({ id: SOURCE_RUN_ID, spaceId: existing.spaceId,
       agentId: ASSIGNEE_AGENT_ID, runtimeMode: "native", status: "running",
       nativeIssueId: existing.id, contextSnapshot: { issueId: existing.id } });
     mockHeartbeatService.cancelRun.mockResolvedValue(null);
@@ -417,7 +417,7 @@ describe("issue update comment wakeups", () => {
     const existing = makeIssue({ status: "in_progress", assigneeAgentId: ASSIGNEE_AGENT_ID,
       assigneeUserId: null, executionRunId: SOURCE_RUN_ID });
     mockIssueService.getById.mockResolvedValue(existing);
-    mockHeartbeatService.getRun.mockResolvedValue({ id: SOURCE_RUN_ID, companyId: existing.companyId,
+    mockHeartbeatService.getRun.mockResolvedValue({ id: SOURCE_RUN_ID, spaceId: existing.spaceId,
       agentId: ASSIGNEE_AGENT_ID, runtimeMode: "legacy", status: "running", contextSnapshot: { issueId: existing.id } });
     mockIssueService.update.mockResolvedValue({ ...existing, status: "done", executionRunId: null });
 
@@ -459,7 +459,7 @@ describe("issue update comment wakeups", () => {
     mockIssueService.addComment.mockResolvedValue({
       id: "comment-1",
       issueId: existing.id,
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       body: "write the whole thing",
     });
 
@@ -553,19 +553,19 @@ describe("issue update comment wakeups", () => {
     mockIssueService.addComment.mockResolvedValue({
       id: "comment-interrupt-agent",
       issueId: existing.id,
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       body: "stop and hand this to CodexCoder",
     });
     mockHeartbeatService.getRun.mockResolvedValue({
       id: "run-1",
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       agentId: PREVIOUS_AGENT_ID,
       status: "running",
       contextSnapshot: { issueId: existing.id },
     });
     mockHeartbeatService.cancelRun.mockResolvedValue({
       id: "run-1",
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       agentId: PREVIOUS_AGENT_ID,
       status: "cancelled",
     });
@@ -582,7 +582,7 @@ describe("issue update comment wakeups", () => {
     expect(res.status).toBe(200);
     expect(mockHeartbeatService.cancelRun).toHaveBeenCalledWith(
       "run-1",
-      "Interrupted by board comment",
+      "Interrupted by operator comment",
       expect.objectContaining({
         errorCode: "operator_interrupted",
         resultJson: expect.objectContaining({
@@ -590,7 +590,7 @@ describe("issue update comment wakeups", () => {
           interruptionSource: "issue_comment_interrupt",
           interruptedIssueId: existing.id,
         }),
-        eventMessage: "run interrupted by board comment",
+        eventMessage: "run interrupted by operator comment",
         eventPayload: expect.objectContaining({
           issueId: existing.id,
           source: "issue_comment_interrupt",
@@ -621,19 +621,19 @@ describe("issue update comment wakeups", () => {
     );
   });
 
-  it("records an interrupt comment as the board user's acknowledged native Stop", async () => {
+  it("records an interrupt comment as the operator user's acknowledged native Stop", async () => {
     const existing = makeIssue({ assigneeAgentId: ASSIGNEE_AGENT_ID, assigneeUserId: null, executionRunId: SOURCE_RUN_ID, status: "in_progress" });
-    const run = { id: SOURCE_RUN_ID, companyId: existing.companyId, agentId: ASSIGNEE_AGENT_ID, nativeIssueId: existing.id };
+    const run = { id: SOURCE_RUN_ID, spaceId: existing.spaceId, agentId: ASSIGNEE_AGENT_ID, nativeIssueId: existing.id };
     mockIssueService.getById.mockResolvedValue(existing);
-    mockIssueService.addComment.mockResolvedValue({ id: "comment-interrupt-redirect", issueId: existing.id, companyId: existing.companyId, body: "Redirect" });
+    mockIssueService.addComment.mockResolvedValue({ id: "comment-interrupt-redirect", issueId: existing.id, spaceId: existing.spaceId, body: "Redirect" });
     mockHeartbeatService.getRun.mockResolvedValue({ ...run, runtimeMode: "native", status: "running", contextSnapshot: { issueId: existing.id } });
     mockHeartbeatService.cancelRun.mockResolvedValue({ ...run, status: "cancelled" });
     const res = await request(await createApp()).post(`/api/issues/${existing.id}/comments`).send({ body: "Redirect", interrupt: true });
     expect(res.status).toBe(201);
     const stopMetadata = mockHeartbeatService.cancelRun.mock.calls[0]![2].resultJson;
-    expect(stopMetadata).toMatchObject({ operatorInterrupted: true, cancelledByActorType: "user", cancelledByUserId: "local-board" });
+    expect(stopMetadata).toMatchObject({ operatorInterrupted: true, cancelledByActorType: "user", cancelledByUserId: "local-operator" });
     expect(isAcknowledgedNativeStop({ ...run, status: "cancelled", resultJson: { ...stopMetadata,
-      nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: SOURCE_RUN_ID, companyId: existing.companyId,
+      nativeCancellation: { schema: "outpost.native-cancellation.v1", runId: SOURCE_RUN_ID, spaceId: existing.spaceId,
         issueId: existing.id, scope: "run", reasonCode: "cancellation_run_only", dispatchState: "acknowledged", dispatched: true,
         intentAuditId: "stop-intent", acknowledgementAuditId: "stop-acknowledgement" } } })).toBe(true);
   });
@@ -647,7 +647,7 @@ describe("issue update comment wakeups", () => {
     });
     const updated = makeIssue({
       assigneeAgentId: null,
-      assigneeUserId: "local-board",
+      assigneeUserId: "local-operator",
       executionRunId: "run-2",
       status: "in_progress",
     });
@@ -656,19 +656,19 @@ describe("issue update comment wakeups", () => {
     mockIssueService.addComment.mockResolvedValue({
       id: "comment-interrupt-user",
       issueId: existing.id,
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       body: "stop here, I will take it",
     });
     mockHeartbeatService.getRun.mockResolvedValue({
       id: "run-2",
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       agentId: PREVIOUS_AGENT_ID,
       status: "running",
       contextSnapshot: { issueId: existing.id },
     });
     mockHeartbeatService.cancelRun.mockResolvedValue({
       id: "run-2",
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       agentId: PREVIOUS_AGENT_ID,
       status: "cancelled",
     });
@@ -677,7 +677,7 @@ describe("issue update comment wakeups", () => {
       .patch(`/api/issues/${existing.id}`)
       .send({
         assigneeAgentId: null,
-        assigneeUserId: "local-board",
+        assigneeUserId: "local-operator",
         comment: "stop here, I will take it",
         interrupt: true,
       });
@@ -685,7 +685,7 @@ describe("issue update comment wakeups", () => {
     expect(res.status).toBe(200);
     expect(mockHeartbeatService.cancelRun).toHaveBeenCalledWith(
       "run-2",
-      "Interrupted by board comment",
+      "Interrupted by operator comment",
       expect.objectContaining({
         errorCode: "operator_interrupted",
         resultJson: expect.objectContaining({
@@ -693,7 +693,7 @@ describe("issue update comment wakeups", () => {
           interruptionSource: "issue_comment_interrupt",
           interruptedIssueId: existing.id,
         }),
-        eventMessage: "run interrupted by board comment",
+        eventMessage: "run interrupted by operator comment",
       }),
     );
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -735,7 +735,7 @@ describe("issue update comment wakeups", () => {
     mockIssueService.addComment.mockResolvedValue({
       id: "comment-2",
       issueId: existing.id,
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       body: "please revise this",
     });
 
@@ -769,7 +769,7 @@ describe("issue update comment wakeups", () => {
     );
   });
 
-  it.each([null, "active"] as const)("wakes the assignee on top-level board comments with external conversation %s", async (externalConversationState) => {
+  it.each([null, "active"] as const)("wakes the assignee on top-level operator comments with external conversation %s", async (externalConversationState) => {
     const existing = makeIssue({
       externalConversationState,
       assigneeAgentId: ASSIGNEE_AGENT_ID,
@@ -780,7 +780,7 @@ describe("issue update comment wakeups", () => {
     mockIssueService.addComment.mockResolvedValue({
       id: "comment-3",
       issueId: existing.id,
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       body: "please handle this top-level thread comment",
     });
 
@@ -824,8 +824,8 @@ describe("issue update comment wakeups", () => {
     const updated = makeIssue({ status: "todo", assigneeAgentId: ASSIGNEE_AGENT_ID });
     mockIssueService.getById.mockResolvedValue(existing);
     mockIssueService.update.mockResolvedValue(updated);
-    mockIssueService.addComment.mockResolvedValue({ id: "comment-reopen-slack", issueId: existing.id, companyId: existing.companyId, body: "Continue from Paperclip" });
-    const res = await request(await createApp()).post(`/api/issues/${existing.id}/comments`).send({ body: "Continue from Paperclip", reopen: true });
+    mockIssueService.addComment.mockResolvedValue({ id: "comment-reopen-slack", issueId: existing.id, spaceId: existing.spaceId, body: "Continue from Outpost" });
+    const res = await request(await createApp()).post(`/api/issues/${existing.id}/comments`).send({ body: "Continue from Outpost", reopen: true });
     expect(res.status).toBe(201);
     await vi.waitFor(() => expect(mockHeartbeatService.wakeup).toHaveBeenCalledTimes(1));
     expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(ASSIGNEE_AGENT_ID, expect.objectContaining({
@@ -837,7 +837,7 @@ describe("issue update comment wakeups", () => {
     const existing = makeIssue({ status: "blocked", assigneeAgentId: ASSIGNEE_AGENT_ID, assigneeUserId: null });
     mockIssueService.getById.mockResolvedValue(existing);
     mockIssueService.update.mockResolvedValue(existing);
-    mockIssueService.addComment.mockResolvedValue({ id: "saved-comment", issueId: existing.id, companyId: existing.companyId, body: "Continue after recovery." });
+    mockIssueService.addComment.mockResolvedValue({ id: "saved-comment", issueId: existing.id, spaceId: existing.spaceId, body: "Continue after recovery." });
     mockExecutionBlocker.mockResolvedValue({ workspaceRepairRequired: true });
     const app = await createApp();
     const res = method === "post"
@@ -850,12 +850,12 @@ describe("issue update comment wakeups", () => {
   });
 
   it.each((["post", "patch"] as const).flatMap((method) =>
-    ["assignee_comment", "board_comment", "human_owned", "unassigned", "blocked_parent", "done_parent", "done_comment", ...(method === "patch" ? ["closing_comment"] : [])].map((scenario) => ({ method, scenario })),
+    ["assignee_comment", "operator_comment", "human_owned", "unassigned", "blocked_parent", "done_parent", "done_comment", ...(method === "patch" ? ["closing_comment"] : [])].map((scenario) => ({ method, scenario })),
   ))("keeps $method mentions as context for $scenario", async ({ method, scenario }) => {
     const selfComment = ["assignee_comment", "blocked_parent", "done_parent", "done_comment", "closing_comment"].includes(scenario);
     const existing = makeIssue({
       assigneeAgentId: ["human_owned", "unassigned"].includes(scenario) ? null : ASSIGNEE_AGENT_ID,
-      assigneeUserId: scenario === "human_owned" ? "local-board" : null,
+      assigneeUserId: scenario === "human_owned" ? "local-operator" : null,
       status: scenario === "blocked_parent" ? "blocked" : ["done_parent", "done_comment"].includes(scenario) ? "done" : "in_progress",
       executionRunId: selfComment ? SOURCE_RUN_ID : null,
     });
@@ -869,7 +869,7 @@ describe("issue update comment wakeups", () => {
       ? `[@QA](agent://${MENTIONED_AGENT_ID}) is relevant; see [${child.identifier}](/PAP/issues/${child.identifier}).`
       : `Finished the task. [@QA](agent://${MENTIONED_AGENT_ID}) has relevant context.`;
     const originalComment = {
-      id: "context-note", issueId: existing.id, companyId: existing.companyId, body,
+      id: "context-note", issueId: existing.id, spaceId: existing.spaceId, body,
       createdByRunId: selfComment ? SOURCE_RUN_ID : null,
     };
     mockIssueService.getById.mockImplementation(async (id) => id === child.id ? child : existing);
@@ -879,7 +879,7 @@ describe("issue update comment wakeups", () => {
     mockIssueService.findMentionedAgents.mockResolvedValue([MENTIONED_AGENT_ID]);
     mockIssueService.getRelationSummaries.mockResolvedValue({ blockedBy: [child], blocks: [] });
     mockHeartbeatService.getRun.mockImplementation(async (id) => ({
-      id, companyId: existing.companyId, status: "running",
+      id, spaceId: existing.spaceId, status: "running",
       agentId: id === SOURCE_RUN_ID ? ASSIGNEE_AGENT_ID : MENTIONED_AGENT_ID,
       contextSnapshot: { issueId: id === SOURCE_RUN_ID ? existing.id : child.id },
     }));
@@ -887,7 +887,7 @@ describe("issue update comment wakeups", () => {
     const req = method === "post"
       ? request(app).post(`/api/issues/${existing.id}/comments`)
       : request(app).patch(`/api/issues/${existing.id}`);
-    if (selfComment) req.set("X-Paperclip-Run-Id", SOURCE_RUN_ID);
+    if (selfComment) req.set("X-Outpost-Run-Id", SOURCE_RUN_ID);
     const res = await req.send(method === "post" ? { body } : { comment: body, ...(scenario === "closing_comment" ? { status: "done" } : {}) });
     expect(res.status).toBe(method === "post" ? 201 : 200);
     // Wake scheduling runs after sending the response. Drain its resolved
@@ -895,8 +895,8 @@ describe("issue update comment wakeups", () => {
     await new Promise<void>((resolve) => setImmediate(resolve));
     expect(mockIssueService.addComment).toHaveBeenCalledTimes(1);
     expect(mockIssueService.addComment.mock.calls[0].slice(0, 2)).toEqual([existing.id, body]);
-    expect(mockHeartbeatService.wakeup).toHaveBeenCalledTimes(scenario === "board_comment" ? 1 : 0);
-    if (scenario === "board_comment") {
+    expect(mockHeartbeatService.wakeup).toHaveBeenCalledTimes(scenario === "operator_comment" ? 1 : 0);
+    if (scenario === "operator_comment") {
       expect(mockHeartbeatService.wakeup).toHaveBeenCalledWith(ASSIGNEE_AGENT_ID, expect.objectContaining({
         reason: "issue_commented", contextSnapshot: expect.objectContaining({ issueId: existing.id }),
       }));
@@ -914,20 +914,20 @@ describe("issue update comment wakeups", () => {
     mockIssueService.addComment.mockResolvedValue({
       id: "comment-self-resume",
       issueId: existing.id,
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       body: "Resume intentionally.",
       createdByRunId: SOURCE_RUN_ID,
     });
     mockHeartbeatService.getRun.mockResolvedValue({
       id: SOURCE_RUN_ID,
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       agentId: ASSIGNEE_AGENT_ID,
       status: "succeeded",
     });
 
     const res = await request(await createApp())
       .post(`/api/issues/${existing.id}/comments`)
-      .set("X-Paperclip-Run-Id", SOURCE_RUN_ID)
+      .set("X-Outpost-Run-Id", SOURCE_RUN_ID)
       .send({ body: "Resume intentionally.", resume: true });
 
     expect(res.status).toBe(201);
@@ -943,7 +943,7 @@ describe("issue update comment wakeups", () => {
     );
   });
 
-  it("tags the wake when a board comment supersedes the last review interaction", async () => {
+  it("tags the wake when a operator comment supersedes the last review interaction", async () => {
     const existing = makeIssue({
       assigneeAgentId: ASSIGNEE_AGENT_ID,
       assigneeUserId: null,
@@ -953,7 +953,7 @@ describe("issue update comment wakeups", () => {
     mockIssueService.addComment.mockResolvedValue({
       id: "comment-review-path",
       issueId: existing.id,
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       body: "one more review note",
     });
     mockIssueThreadInteractionService.expireRequestConfirmationsSupersededByComment.mockResolvedValue([{

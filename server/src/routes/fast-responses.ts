@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Db } from "@outpost/db";
 import { updateFastResponseSchema } from "@outpost/shared";
-import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertOperator, assertSpaceAccess, getActorInfo } from "./authz.js";
 import { canManageAiConnections } from "./ai-connections.js";
 import { forbidden } from "../errors.js";
 import { validate } from "../middleware/validate.js";
@@ -18,39 +18,39 @@ export function fastResponseRoutes(db: Db) {
       cancelWorkForScope: heartbeatService(db).cancelBudgetScopeWork,
     },
   });
-  router.get("/companies/:companyId/fast-response", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    assertBoard(req);
-    const canManage = await canManageAiConnections(db, req, companyId);
+  router.get("/spaces/:spaceId/fast-response", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    assertOperator(req);
+    const canManage = await canManageAiConnections(db, req, spaceId);
     res.json(
       canManage
         ? {
             canManage,
-            settings: await service.settings(companyId),
+            settings: await service.settings(spaceId),
             choices: await service.choices(
-              companyId,
+              spaceId,
               getActorInfo(req).actorId,
             ),
           }
         : { canManage, settings: null, choices: [] },
     );
   });
-  router.put("/companies/:companyId/fast-response", validate(updateFastResponseSchema), async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    assertBoard(req);
-    if (!(await canManageAiConnections(db, req, companyId))) throw forbidden();
+  router.put("/spaces/:spaceId/fast-response", validate(updateFastResponseSchema), async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    assertOperator(req);
+    if (!(await canManageAiConnections(db, req, spaceId))) throw forbidden();
     res.json(
-      await service.configure(companyId, getActorInfo(req).actorId, req.body),
+      await service.configure(spaceId, getActorInfo(req).actorId, req.body),
     );
   });
-  router.get("/companies/:companyId/fast-response/models", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    assertBoard(req);
-    if (!(await canManageAiConnections(db, req, companyId))) throw forbidden();
-    const choices = await service.choices(companyId, getActorInfo(req).actorId);
+  router.get("/spaces/:spaceId/fast-response/models", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    assertOperator(req);
+    if (!(await canManageAiConnections(db, req, spaceId))) throw forbidden();
+    const choices = await service.choices(spaceId, getActorInfo(req).actorId);
     const connection = choices.find((c) => c.id === req.query.connectionId);
     if (!connection) throw forbidden();
     const models =
@@ -63,24 +63,24 @@ export function fastResponseRoutes(db: Db) {
         : fastResponseCatalogModels(connection);
     res.json(models);
   });
-  router.get("/companies/:companyId/fast-response/availability", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    assertBoard(req);
-    res.json(await service.availability(companyId, getActorInfo(req).actorId));
+  router.get("/spaces/:spaceId/fast-response/availability", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    assertOperator(req);
+    res.json(await service.availability(spaceId, getActorInfo(req).actorId));
   });
-  router.post("/companies/:companyId/fast-response/test", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    assertBoard(req);
-    if (!(await canManageAiConnections(db, req, companyId))) throw forbidden();
-    res.json(await service.test(companyId, getActorInfo(req).actorId));
+  router.post("/spaces/:spaceId/fast-response/test", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    assertOperator(req);
+    if (!(await canManageAiConnections(db, req, spaceId))) throw forbidden();
+    res.json(await service.test(spaceId, getActorInfo(req).actorId));
   });
-  router.get("/companies/:companyId/fast-response/history", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
+  router.get("/spaces/:spaceId/fast-response/history", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
     res.json(
-      await service.history(companyId, req.actor, {
+      await service.history(spaceId, req.actor, {
         ...parseCostDateRange(req.query),
         limit: parseCostLimit(req.query),
       }),

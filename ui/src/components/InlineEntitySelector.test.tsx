@@ -158,7 +158,7 @@ describe("InlineEntitySelector", () => {
             <DialogTitle>New task</DialogTitle>
             <InlineEntitySelector
               value="project-1"
-              options={[{ id: "project-1", label: "Board UI" }]}
+              options={[{ id: "project-1", label: "Operator UI" }]}
               placeholder="Project"
               noneLabel="No project"
               searchPlaceholder="Search projects..."
@@ -185,7 +185,7 @@ describe("InlineEntitySelector", () => {
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
       expect(document.querySelector("[data-mobile-entity-picker]")).toBeNull();
       expect(document.querySelector("[data-slot=dialog-content]")).not.toBeNull();
-      expect(trigger.textContent).toContain("Board UI");
+      expect(trigger.textContent).toContain("Operator UI");
       expect(document.activeElement).toBe(trigger);
       expect(onChange).not.toHaveBeenCalled();
       await act(() => trigger.click());

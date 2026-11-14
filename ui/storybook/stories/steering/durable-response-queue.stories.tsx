@@ -24,7 +24,7 @@ const initialQueue: IssueQueuedCommentQueue = {
       },
       comment: {
         id: "response-comment",
-        companyId: "company-storybook",
+        spaceId: "space-storybook",
         issueId: "task-gap",
         authorType: "user",
         authorAgentId: null,
@@ -97,7 +97,7 @@ const meta = {
           "Production queue with an immutable accepted response and remote-cleanup wait. Delivery uses local state; it does not prove persisted queues or runtime continuation.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "steering/approval-queue",
         "recovery/user-continuation"

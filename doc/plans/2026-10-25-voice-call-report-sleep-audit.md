@@ -64,7 +64,7 @@ do not add caller recovery wrappers or a queue table.
 - `voice-reply-push.ts` handles HTTP 409 by writing state=ended and endedAt. It
   currently notifies reply, recovery and inbound explicitly; report notification
   must be included before this terminal write.
-- Configuration/authority/company changes use notifyVoiceChange composition.
+- Configuration/authority/space changes use notifyVoiceChange composition.
 - The existing report loop inserts and updates report rows without transaction
   notifications. Move that ownership into the new report service. Account for
   callbacks during an in-flight provider response and for any remaining direct
@@ -79,7 +79,7 @@ do not add caller recovery wrappers or a queue table.
   final window expiry disarm. Available reports retain the existing window.
 - Nested commit/rollback, moved-earlier callback deadlines, concurrent writes,
   first work during drain, failed work entering drain, and shutdown keep work.
-- Multi-page backlog and per-company fairness do not starve later calls.
+- Multi-page backlog and per-space fairness do not starve later calls.
 - Provider failure, incomplete responses, older provider timestamps, guest
   transcript projection failures and diagnostic behavior retain correct data.
 - Existing full voice integration/history/access tests pass on a fresh database.
@@ -133,7 +133,7 @@ and deletion with unconfirmed provider cleanup. These remain open. The older
 #17490 E2E failure and final master reconciliation remain part of completion.
 
 Final local acceptance after the revision fix: 137 full voice/app wiring cases
-passed on `paperclip_sleep25_projection_fixed_20261025_test`; 37 report/cleanup/
+passed on `outpost_sleep25_projection_fixed_20261025_test`; 37 report/cleanup/
 retention worker cases passed serially on the isolated worker database. Workspace
 `pnpm -r typecheck` and `pnpm build` passed. Logs: `/tmp/sleep25-voice-fixed-acceptance.log`,
 `/tmp/sleep25-voice-workers-acceptance.log`, `/tmp/sleep25-workspace-types.log`,
@@ -149,11 +149,11 @@ denial latency fix is also propagated; its held-provider regression is included.
 After both merges, all 138 full voice/app cases pass on a fresh migrated database
 (`/tmp/sleep25-denial-acceptance.log`). The earlier 37 worker cases remain valid;
 those worker implementations are unchanged by the parent repairs. Remote checks
-and reviews are required for the final pushed head. Parent #17580's company
+and reviews are required for the final pushed head. Parent #17580's space
 deletion finding remains unresolved; denial latency finding is resolved.
 
 
-## Paperclip review: report window index and writer scope
+## Outpost review: report window index and writer scope
 
 Review findings 4370594150 and 4370594357 identified deployment-contract clarity
 and expensive report reconstruction. The supported writer model is now explicit:
@@ -222,17 +222,17 @@ the deadline or between saved retries afterward. Removing the cursor reset fails
 at five rows instead of 100 on restart. This measures selected rows, not physical
 tuple visits or instance cost.
 
-Fairness applies to discovered work. The prior test demanded that a company
+Fairness applies to discovered work. The prior test demanded that a space
 beyond the first page run in the initial batch; that assumes an eager inventory.
-The revised test puts that company deterministically on page two and requires
+The revised test puts that space deterministically on page two and requires
 it in the next 25-work batch as soon as it is discovered. It also verifies all
 105 calls run and the failing provider retains one saved attempt without
-starving the backlog. Bypassing company rotation makes the next-batch assertion
+starving the backlog. Bypassing space rotation makes the next-batch assertion
 fail. Both guarded mutations restore the exact original source afterward.
 
 Preserved test failures distinguish this contract change from production defects.
 The first bounded full run failed the old first-batch assertion. The first
-controlled-clock revision allowed random UUID order to put the other company
+controlled-clock revision allowed random UUID order to put the other space
 on page one; a fixed final key now makes page placement deterministic. An
 intermediate revision expected zero active intent holds before all dirty scopes
 settled. The test now uses 20 controlled one-second scheduler turns, retaining
@@ -271,10 +271,10 @@ pages; each query removes fewer than 1,000 rows by filtering.
 - 131 complete voice integration cases, including real hangup, callback and reply
   terminal producers, transcript projection after a document lock, and the parent
   retention amplification regression. This suite uses an initially empty DB.
-- 170 cases across 11 complete report, retention, cleanup, recovery, company
+- 170 cases across 11 complete report, retention, cleanup, recovery, space
   removal, shared deadline/coordinator/batching, startup and hostname suites.
   This includes 15 report, 13 retention and 14 cleanup lifecycle cases. Recovery,
-  company removal, retention and cleanup use separate initially empty DBs and
+  space removal, retention and cleanup use separate initially empty DBs and
   migrate themselves. Reports use their dedicated DB after the setup repair.
 - One complete snapshot/schema drift case. The schema and migration tree are
   identical to the checked generation after the final retention merge.
@@ -297,7 +297,7 @@ and the three fairness-clock attempts are in `/tmp/sleep25-empty-fixture-red.log
 `/tmp/sleep25-bounded-report-fairness-green.log`. The passing initial full report
 run is `/tmp/sleep25-bounded-report-final-green.log`; its 15 cases are included
 in the final 170 and not counted twice. Negative probes are
-`/tmp/sleep25-{cursor-reset,company-fairness}-mutant-red.log`.
+`/tmp/sleep25-{cursor-reset,space-fairness}-mutant-red.log`.
 
 Fresh exact-head review, CI and earlier stack landing remain required. Cleanup
 parent `b8b12199b9` completed green CI after its single recorded E2E retry, but
@@ -310,7 +310,7 @@ Neither parent state is a waiver for reports or for remaining stack duties.
 
 The earlier security thread correctly identified another source of repeated
 report inventory. A voice connection save reached `notifyVoiceChange`, which
-notified reports for connection, endpoint, company or global scopes. Bounded
+notified reports for connection, endpoint, space or global scopes. Bounded
 paging controlled each burst but still reloaded the whole eligible set after
 separate saves. A real producer regression seeds 205 terminal sessions with saved
 future report deadlines, then performs five separate connection saves. It selects
@@ -430,7 +430,7 @@ retries. They are not silently claimed fixed or treated as current idle polling.
 CI run `40703490340`, server shard 8/12 job `122869422044`, failed one unchanged
 approval-queue test: `resets consecutive failure backoff after a successful batch
 with remaining debt` exceeded its existing 15-second timeout. Teardown then
-reported a company foreign-key violation from activity-log work. The shard had
+reported a space foreign-key violation from activity-log work. The shard had
 2,097 passed tests, one failed and one skipped. No report assertion failed in
 that job, and the exact CI timing cause is not proven. The complete unchanged
 28-case approval-queue suite passes on a new isolated PostgreSQL database. Its

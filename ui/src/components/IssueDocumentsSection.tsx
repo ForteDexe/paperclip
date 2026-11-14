@@ -20,7 +20,7 @@ import { loadStructuredDraft, saveStructuredDraft } from "../lib/composer-draft"
 import { copyTextToClipboard } from "../lib/clipboard";
 import { deriveDocumentRevisionState } from "../lib/document-revisions";
 import { buildDocumentAnnotationHash, parseDocumentAnnotationHash } from "../lib/document-annotation-hash";
-import type { CompanyUserProfile } from "../lib/company-members";
+import type { SpaceUserProfile } from "../lib/space-members";
 import { queryKeys } from "../lib/queryKeys";
 import { isGeneralTaskDocumentKey } from "../lib/issue-artifacts";
 import { useDraftOwner } from "../hooks/useDraftOwner";
@@ -91,7 +91,7 @@ type DocumentSubjectConfig = {
 
 const DOCUMENT_AUTOSAVE_DEBOUNCE_MS = 900;
 const DOCUMENT_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
-const getFoldedDocumentsStorageKey = (issueId: string) => `paperclip:issue-document-folds:${issueId}`;
+const getFoldedDocumentsStorageKey = (issueId: string) => `outpost:issue-document-folds:${issueId}`;
 
 function loadFoldedDocumentKeys(issueId: string) {
   if (typeof window === "undefined") return [];
@@ -161,7 +161,7 @@ function isLockedDocumentError(error: unknown) {
  * A null scope (the session is still loading) stores and restores nothing.
  */
 function documentDraftStorageKey(scope: string, key: string) {
-  return `paperclip:document-draft:v2:${scope}:${key}`;
+  return `outpost:document-draft:v2:${scope}:${key}`;
 }
 
 function loadStoredDocumentDraft(scope: string | null, key: string): DraftState | null {
@@ -187,7 +187,7 @@ function clearStoredDocumentDraft(scope: string | null, key: string) {
 }
 
 function newDocumentDraftStorageKey(scope: string) {
-  return `paperclip:new-document-draft:v1:${scope}`;
+  return `outpost:new-document-draft:v1:${scope}`;
 }
 
 function loadStoredNewDocumentDraft(scope: string | null): DraftState | null {
@@ -224,7 +224,7 @@ function getRevisionActor(
   revision: DocumentRevision,
   maps: {
     agentMap?: ReadonlyMap<string, Pick<Agent, "id" | "name"> & Partial<Pick<Agent, "icon" | "appearance">>>;
-    userProfileMap?: ReadonlyMap<string, CompanyUserProfile>;
+    userProfileMap?: ReadonlyMap<string, SpaceUserProfile>;
   },
 ): DocumentFrameHeaderRevisionActor {
   if (revision.createdByAgentId) {
@@ -240,7 +240,7 @@ function getRevisionActor(
     const profile = maps.userProfileMap?.get(revision.createdByUserId);
     return {
       kind: "user",
-      name: profile?.label ?? (revision.createdByUserId === "local-board" ? "You" : revision.createdByUserId.slice(0, 8)),
+      name: profile?.label ?? (revision.createdByUserId === "local-operator" ? "You" : revision.createdByUserId.slice(0, 8)),
       imageUrl: profile?.image ?? null,
     };
   }
@@ -255,7 +255,7 @@ function documentHasUnsavedChanges(doc: IssueDocument, draft: DraftState | null)
 function toDocumentSummary(document: IssueDocument) {
   return {
     id: document.id,
-    companyId: document.companyId,
+    spaceId: document.spaceId,
     issueId: document.issueId,
     key: document.key,
     title: document.title,
@@ -354,7 +354,7 @@ function AccountIssueDocumentsSection({
   ) => Promise<void>;
   extraActions?: ReactNode;
   agentMap?: ReadonlyMap<string, Pick<Agent, "id" | "name"> & Partial<Pick<Agent, "icon" | "appearance">>>;
-  userProfileMap?: ReadonlyMap<string, CompanyUserProfile>;
+  userProfileMap?: ReadonlyMap<string, SpaceUserProfile>;
   /**
    * Seed which document annotation panels are open on first render. Mostly useful
    * for Storybook / screenshot harnesses; runtime callers usually omit this.
@@ -1090,7 +1090,7 @@ function AccountIssueDocumentsSection({
 
   const documentBodyShellClassName = "mt-3";
   const documentBodyPaddingClassName = "";
-  const documentBodyContentClassName = "paperclip-edit-in-place-content min-h-(--sz-220px) text-sm leading-7";
+  const documentBodyContentClassName = "outpost-edit-in-place-content min-h-(--sz-220px) text-sm leading-7";
   const toggleFoldedDocument = (key: string) => {
     setFoldedDocumentKeys((current) =>
       current.includes(key)

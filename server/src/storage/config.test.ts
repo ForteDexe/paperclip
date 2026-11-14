@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { paperclipConfigSchema } from "@outpost/shared";
+import { outpostConfigSchema } from "@outpost/shared";
 import { loadStorageConfig } from "./config.js";
 import { resolveRunEvidenceStorage } from "../services/run-evidence-storage.js";
 import {
@@ -12,7 +12,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-const file = paperclipConfigSchema.parse({
+const file = outpostConfigSchema.parse({
   $meta: { version: 1, updatedAt: "2026-10-30T00:00:00Z", source: "configure" },
   database: { mode: "embedded-postgres" },
   logging: { mode: "file" },

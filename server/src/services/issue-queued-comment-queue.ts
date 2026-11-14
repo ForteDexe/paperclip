@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { IssueComment, IssueQueuedCommentQueue } from "@outpost/shared";
 
-const QUEUE_CONTEXT_KEY = "_paperclipWakeContext";
+const QUEUE_CONTEXT_KEY = "_outpostWakeContext";
 const QUEUE_IDS_KEY = "wakeCommentIds";
 
 function record(value: unknown): Record<string, unknown> {
@@ -101,13 +101,13 @@ export function withQueuedCommentIdsInRunContext(
 
   // These projections are generated immediately before dispatch. Any queue
   // mutation must force them to be rebuilt from the canonical comment ids.
-  delete context.paperclipWake;
-  delete context.paperclipWakeComment;
-  delete context.paperclipTaskMarkdown;
-  delete context.paperclipTaskMarkdownCompact;
-  delete context.paperclipTaskMarkdownAssignment;
-  delete context.paperclipTaskMarkdownAssignmentCompact;
-  delete context.paperclipTurnContext;
+  delete context.outpostWake;
+  delete context.outpostWakeComment;
+  delete context.outpostTaskMarkdown;
+  delete context.outpostTaskMarkdownCompact;
+  delete context.outpostTaskMarkdownAssignment;
+  delete context.outpostTaskMarkdownAssignmentCompact;
+  delete context.outpostTurnContext;
   return context;
 }
 

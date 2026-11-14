@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, applyPendingMigrations, authUsers, closeRegisteredClients, companies, companySecrets, createDb, dotAgentBindings,
+import { agents, applyPendingMigrations, authUsers, closeRegisteredClients, spaces, spaceSecrets, createDb, dotAgentBindings,
   dotRunnerAssignments, grokBotDispatches, grokBotRoutines, heartbeatRuns, issues, mcpOauthClients, mcpOauthGrants, nativeRunFinalizations,
   type Db } from "@outpost/db";
 import {
@@ -40,7 +40,7 @@ const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : 
 describeEmbeddedPostgres("reportRunFailure", () => {
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
-  let companyId!: string;
+  let spaceId!: string;
   let agentId!: string;
   let inheritedEnv: NodeJS.ProcessEnv;
 
@@ -49,7 +49,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
       await applyPendingMigrations(testDatabaseUrl);
       db = createDb(testDatabaseUrl);
     } else {
-      tempDb = await startEmbeddedPostgresTestDatabase("paperclip-run-failure-report-");
+      tempDb = await startEmbeddedPostgresTestDatabase("outpost-run-failure-report-");
       db = createDb(tempDb.connectionString);
     }
   }, 20_000);
@@ -70,12 +70,12 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     vi.unstubAllEnvs();
     process.env = inheritedEnv;
     await db.delete(grokBotRoutines);
-    await db.delete(companySecrets);
+    await db.delete(spaceSecrets);
     await db.delete(nativeRunFinalizations);
     await db.delete(heartbeatRuns);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     await db.delete(mcpOauthClients);
     await db.delete(authUsers);
   });
@@ -85,19 +85,19 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompanyAndAgent(agentOverrides: Partial<typeof agents.$inferInsert> = {}) {
-    companyId = randomUUID();
+  async function seedSpaceAndAgent(agentOverrides: Partial<typeof agents.$inferInsert> = {}) {
+    spaceId = randomUUID();
     agentId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
       defaultResponsibleUserId: "responsible-user",
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "active",
@@ -107,7 +107,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
       permissions: {},
       ...agentOverrides,
     });
-    return { companyId, agentId };
+    return { spaceId, agentId };
   }
 
   function buildRun(
@@ -115,7 +115,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   ): typeof heartbeatRuns.$inferSelect {
     return {
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId,
       status: "failed",
       error: "the provider process exited with code 1",
@@ -127,7 +127,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   }
 
   it("reports only the refusal of a refused exact resume, never the interrupted attempt's provider text", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const marker = "interrupted-provider-explanation-7f3c";
     const refusal = "Plugin Runner retained session is not authorized";
     await reportRunFailure(db, buildRun({
@@ -153,7 +153,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
 
   it.each(["quota", "git", "secret", "selection", "workspace", "hermes"])("reports known %s failures in all mode", async kind => {
     vi.stubEnv("OUTPOST_SENTRY_RUN_FAILURES", "all");
-    await seedCompanyAndAgent(kind === "hermes" ? { adapterType: "hermes_gateway" } : {});
+    await seedSpaceAndAgent(kind === "hermes" ? { adapterType: "hermes_gateway" } : {});
     const fixtures = {
       quota: providerQuotaRun,
       git: gitConnectionRun,
@@ -167,17 +167,17 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     const before = structuredClone(fixture);
     await reportRunFailure(db, fixture, { phase });
     expect(mockCaptureRunFailure).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      companyId, agentId, runId: fixture.id, runStatus: "failed", errorCode: fixture.errorCode,
+      spaceId, agentId, runId: fixture.id, runStatus: "failed", errorCode: fixture.errorCode,
     }));
     expect(fixture).toEqual(before);
   });
 
-  it("reports company-scoped runs that have no task", async () => {
-    await seedCompanyAndAgent();
+  it("reports space-scoped runs that have no task", async () => {
+    await seedSpaceAndAgent();
     const fixture = buildRun({ nativeIssueId: null, contextSnapshot: null });
     await reportRunFailure(db, fixture);
     expect(mockCaptureRunFailure).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      companyId, agentId, taskId: null, runId: fixture.id,
+      spaceId, agentId, taskId: null, runId: fixture.id,
     }));
   });
 
@@ -192,7 +192,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it.each(["fresh", "resume", "provider_started"] as const)("keeps workspace base-ref observations reportable: %s", async mode => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({ errorCode: "configuration_incomplete", executionStage: "preparing", exitCode: null, signal: null,
       runtimeMode: mode === "resume" ? "native" : "legacy", runnerProfileJson: mode === "resume" ? { nativeExecutionInput: {} } : null,
       resultJson: { configurationIncomplete: { reason: "workspace_base_ref_unresolved", baseRefDiagnostic: {
@@ -229,7 +229,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   }
 
   it("keeps a proven Git clone failure and its persisted task error unchanged", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const input = gitConnectionRun();
     const [run] = await db.insert(heartbeatRuns).values(input).returning();
     const before = structuredClone(run);
@@ -240,7 +240,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("keeps an all-external Git materialization aggregate local even across different external causes", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = gitConnectionRun({ errorCode: "workspace_validation_failed" });
     run.resultJson!.workspaceValidation = { reason: "git_worktree_base_materialization_failed", materializationFailures: [
       { connectionFailure: gitConnection },
@@ -259,20 +259,20 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { resultJson: { connectionFailure: { ...gitConnection, schemaVersion: 2 }, executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } },
     { resultJson: { connectionFailure: hermesConnection, executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } },
   ])("reports a Git marker without its matching setup outcome: %j", async (overrides) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, gitConnectionRun(overrides), { phase: "setup" });
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
   });
 
   it.each([undefined, "execute"] as const)("reports Git failures outside setup: %s", async (phase) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, gitConnectionRun(), { phase });
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
   });
 
   it.each([undefined, { kind: "bootstrap" }, { kind: "bootstrap", providerWorkStarted: true },
     { kind: "runtime", providerWorkStarted: false }])("reports Git failures without unstarted bootstrap proof: %j", async (recovery) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = gitConnectionRun();
     run.resultJson!.executionRecovery = recovery;
     await reportRunFailure(db, run, { phase: "setup" });
@@ -285,7 +285,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     [{ connectionFailure: gitConnection }, { connectionFailure: { ...gitConnection, reason: "unknown" } }],
     [{ connectionFailure: { ...gitConnection, reason: "repository_unavailable" } }],
   ].map((failures) => ({ failures })))("reports mixed, malformed, or inconsistent Git materialization evidence: %j", async ({ failures }) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = gitConnectionRun({ errorCode: "workspace_validation_failed" });
     run.resultJson!.workspaceValidation = { reason: "git_worktree_base_materialization_failed", materializationFailures: failures };
     await reportRunFailure(db, run, { phase: "setup" });
@@ -296,7 +296,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { reason: "git_worktree_base_materialization_failed", materializationFailures: [{ connectionFailure: gitConnection }] },
     { reason: "git_worktree_not_reusable" },
   ])("does not use setup_failed to bypass separate workspace validation evidence: %j", async (validation) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = gitConnectionRun();
     run.resultJson!.workspaceValidation = validation;
     await reportRunFailure(db, run, { phase: "setup" });
@@ -315,7 +315,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     ...["connection_refused", "dns_failure", "network_unreachable", "connection_reset", "connection_timeout", "tls_failure"]
       .flatMap((reason) => ["hermes_gateway_connect_failed", "hermes_gateway_protocol_error"].map((code) => ["create_run", reason, code])),
   ])("keeps the matching Hermes %s/%s task error local", async (operation, reason, errorCode) => {
-    await seedCompanyAndAgent({ adapterType: "hermes_gateway" });
+    await seedSpaceAndAgent({ adapterType: "hermes_gateway" });
     const run = hermesConnectionRun({ errorCode, resultJson: { connectionFailure: { ...hermesConnection, operation, reason } } });
     const before = structuredClone(run);
     await reportRunFailure(db, run, { phase: "execute" });
@@ -325,7 +325,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
 
   it.each([undefined, { kind: "bootstrap", providerWorkStarted: true }, { kind: "runtime", providerWorkStarted: true }])(
     "does not infer remote nonacceptance from a classified Hermes connection failure: %j", async (recovery) => {
-      await seedCompanyAndAgent({ adapterType: "hermes_gateway" });
+      await seedSpaceAndAgent({ adapterType: "hermes_gateway" });
       const input = hermesConnectionRun();
       input.resultJson!.executionRecovery = recovery;
       const [run] = await db.insert(heartbeatRuns).values(input).returning();
@@ -347,7 +347,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { resultJson: { connectionFailure: gitConnection } },
     { resultJson: { connectionFailure: { ...hermesConnection, operation: "configuration", reason: "credentials_missing" } } },
   ])("reports an unproven or mismatched Hermes outcome: %j", async (overrides) => {
-    await seedCompanyAndAgent({ adapterType: "hermes_gateway" });
+    await seedSpaceAndAgent({ adapterType: "hermes_gateway" });
     const run = hermesConnectionRun(overrides);
     const before = structuredClone(run);
     await reportRunFailure(db, run, { phase: "execute" });
@@ -356,21 +356,21 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("keeps setup errors reportable even when they carry a matching Hermes marker", async () => {
-    await seedCompanyAndAgent({ adapterType: "hermes_gateway" });
+    await seedSpaceAndAgent({ adapterType: "hermes_gateway" });
     await reportRunFailure(db, hermesConnectionRun(), { phase: "setup" });
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
   });
 
   it.each(["codex_local", "hermes_local"])("requires the actual database adapter, not a Hermes marker on %s", async (adapterType) => {
-    await seedCompanyAndAgent({ adapterType });
+    await seedSpaceAndAgent({ adapterType });
     const run = hermesConnectionRun({ contextSnapshot: { adapterType: "hermes_gateway" } });
     await reportRunFailure(db, run);
     expect(mockCaptureRunFailure).toHaveBeenCalledWith(expect.objectContaining({ agentAdapter: adapterType }));
   });
 
-  it.each(["missing", "other_company"])("does not suppress Hermes when its database agent is %s", async (kind) => {
-    await seedCompanyAndAgent({ adapterType: "hermes_gateway" });
-    const run = hermesConnectionRun(kind === "missing" ? { agentId: randomUUID() } : { companyId: randomUUID() });
+  it.each(["missing", "other_space"])("does not suppress Hermes when its database agent is %s", async (kind) => {
+    await seedSpaceAndAgent({ adapterType: "hermes_gateway" });
+    const run = hermesConnectionRun(kind === "missing" ? { agentId: randomUUID() } : { spaceId: randomUUID() });
     await reportRunFailure(db, run);
     expect(mockCaptureRunFailure).toHaveBeenCalledWith(expect.objectContaining({ agentAdapter: "unknown" }));
   });
@@ -384,7 +384,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   }
 
   it.each(["claude_local", "codex_local"])("keeps a classified %s provider quota wait local", async (adapterType) => {
-    await seedCompanyAndAgent({ adapterType });
+    await seedSpaceAndAgent({ adapterType });
     const [run] = await db.insert(heartbeatRuns).values(providerQuotaRun()).returning();
     const before = structuredClone(run);
     for (const phase of [undefined, "execute"] as const) await reportRunFailure(db, run!, { phase });
@@ -397,13 +397,13 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { errorCode: "adapter_failed" }, { errorCode: "claude_transient_upstream" },
     { resultJson: {} }, { resultJson: null }, { resultJson: { errorFamily: "transient_upstream" } },
   ])("reports a provider quota outcome without matching adapter evidence: %j", async (overrides) => {
-    await seedCompanyAndAgent({ adapterType: "claude_local" });
+    await seedSpaceAndAgent({ adapterType: "claude_local" });
     await reportRunFailure(db, providerQuotaRun(overrides), { phase: "execute" });
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
   });
 
   it("keeps a provider quota code reportable during setup", async () => {
-    await seedCompanyAndAgent({ adapterType: "claude_local" });
+    await seedSpaceAndAgent({ adapterType: "claude_local" });
     await reportRunFailure(db, providerQuotaRun(), { phase: "setup" });
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
   });
@@ -421,7 +421,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   }
 
   it("keeps a classified Codex ACP model capacity retry local", async () => {
-    await seedCompanyAndAgent({ adapterType: "codex_local" });
+    await seedSpaceAndAgent({ adapterType: "codex_local" });
     for (const phase of [undefined, "execute"] as const) await reportRunFailure(db, codexModelCapacityRun(), { phase });
     expect(mockCaptureRunFailure).not.toHaveBeenCalled();
   });
@@ -432,13 +432,13 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { resultJson: { errorFamily: "provider_quota", terminalSessionFailure: { category: "service" } } },
     { resultJson: { errorFamily: "transient_upstream", terminalSessionFailure: { category: "connection" } } },
   ])("reports a Codex transient outcome without typed capacity evidence: %j", async (overrides) => {
-    await seedCompanyAndAgent({ adapterType: "codex_local" });
+    await seedSpaceAndAgent({ adapterType: "codex_local" });
     await reportRunFailure(db, codexModelCapacityRun(overrides), { phase: "execute" });
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
   });
 
   it("reports a Codex ACP model capacity failure during setup or in all mode", async () => {
-    await seedCompanyAndAgent({ adapterType: "codex_local" });
+    await seedSpaceAndAgent({ adapterType: "codex_local" });
     await reportRunFailure(db, codexModelCapacityRun(), { phase: "setup" });
     vi.stubEnv("OUTPOST_SENTRY_RUN_FAILURES", "all");
     await reportRunFailure(db, codexModelCapacityRun(), { phase: "execute" });
@@ -451,7 +451,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     resultJson?: Record<string, unknown>;
     retry?: Partial<typeof heartbeatRuns.$inferInsert> | null;
   } = {}) {
-    await seedCompanyAndAgent({ adapterType: "outpost_runner" });
+    await seedSpaceAndAgent({ adapterType: "outpost_runner" });
     const run = buildRun({
       error: "Selected model is at capacity. Please try a different model.",
       errorCode: "native_provider_overloaded", runtimeMode: "native", nativePhase: "committed",
@@ -466,7 +466,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     const [stored] = await db.insert(heartbeatRuns).values(run).returning();
     if (input.retry !== null) {
       await db.insert(heartbeatRuns).values({
-        companyId, agentId, invocationSource: "automation", triggerDetail: "system", status: "scheduled_retry",
+        spaceId, agentId, invocationSource: "automation", triggerDetail: "system", status: "scheduled_retry",
         retryOfRunId: run.id, scheduledRetryReason: "native_provider_overloaded", scheduledRetryAttempt: 1,
         scheduledRetryAt: new Date(Date.now() + 60_000), errorCode: "native_provider_overloaded",
         contextSnapshot: { issueId: run.nativeIssueId, retryOfRunId: run.id }, ...input.retry,
@@ -543,7 +543,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   }
 
   it.each(["claude_auth_required", "acpx_auth_required"])("keeps a typed ACP provider access failure (%s) local", async (errorCode) => {
-    await seedCompanyAndAgent({ adapterType: "claude_local" });
+    await seedSpaceAndAgent({ adapterType: "claude_local" });
     for (const phase of [undefined, "execute"] as const) await reportRunFailure(db, providerAccessRun({ errorCode }), { phase });
     expect(mockCaptureRunFailure).not.toHaveBeenCalled();
   });
@@ -553,13 +553,13 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { resultJson: {} }, { resultJson: null }, { resultJson: { terminalSessionFailure: { category: "service" } } },
     { resultJson: { terminalSessionFailure: "access" } },
   ])("reports a provider auth outcome without typed ACP access evidence: %j", async (overrides) => {
-    await seedCompanyAndAgent({ adapterType: "claude_local" });
+    await seedSpaceAndAgent({ adapterType: "claude_local" });
     await reportRunFailure(db, providerAccessRun(overrides), { phase: "execute" });
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
   });
 
   it("reports a typed ACP provider access failure during setup or in all mode", async () => {
-    await seedCompanyAndAgent({ adapterType: "claude_local" });
+    await seedSpaceAndAgent({ adapterType: "claude_local" });
     await reportRunFailure(db, providerAccessRun(), { phase: "setup" });
     vi.stubEnv("OUTPOST_SENTRY_RUN_FAILURES", "all");
     await reportRunFailure(db, providerAccessRun(), { phase: "execute" });
@@ -582,14 +582,14 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   }
 
   it("keeps a retried restart interruption of legacy setup local", async () => {
-    await seedCompanyAndAgent({ adapterType: "outpost_runner" });
+    await seedSpaceAndAgent({ adapterType: "outpost_runner" });
     await reportRunFailure(db, restartInterruptedSetupRun());
     expect(mockCaptureRunFailure).not.toHaveBeenCalled();
   });
 
   it("reports a retried restart interruption of legacy setup in all mode", async () => {
     vi.stubEnv("OUTPOST_SENTRY_RUN_FAILURES", "all");
-    await seedCompanyAndAgent({ adapterType: "outpost_runner" });
+    await seedSpaceAndAgent({ adapterType: "outpost_runner" });
     await reportRunFailure(db, restartInterruptedSetupRun());
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
   });
@@ -607,7 +607,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
       processLossDiagnostic: { localCheck: "no_identifiers", retryEligible: true, runPredatesObserver: false },
     } },
   ])("reports process loss without restart-before-dispatch evidence: %j", async (overrides) => {
-    await seedCompanyAndAgent({ adapterType: "outpost_runner" });
+    await seedSpaceAndAgent({ adapterType: "outpost_runner" });
     await reportRunFailure(db, restartInterruptedSetupRun(overrides));
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
   });
@@ -619,32 +619,32 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     finalization?: boolean;
     offers?: number;
   }) {
-    await seedCompanyAndAgent({ adapterType: "outpost_runner", adapterConfig: { provider: "grok_bot" } });
+    await seedSpaceAndAgent({ adapterType: "outpost_runner", adapterConfig: { provider: "grok_bot" } });
     const userId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Operator", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
     await db.insert(mcpOauthClients).values({ id: userId, name: "Grok", redirectUris: ["https://client.example/callback"] });
-    const [grant] = await db.insert(mcpOauthGrants).values({ companyId, userId, clientId: userId, resource: "https://outpost.example/mcp/runner",
-      purpose: "agent", agentId, scopes: ["paperclip:agent"] }).returning();
-    const [binding] = await db.insert(dotAgentBindings).values({ companyId, agentId, operatorId: userId, grantId: grant!.id,
+    const [grant] = await db.insert(mcpOauthGrants).values({ spaceId, userId, clientId: userId, resource: "https://outpost.example/mcp/runner",
+      purpose: "agent", agentId, scopes: ["outpost:agent"] }).returning();
+    const [binding] = await db.insert(dotAgentBindings).values({ spaceId, agentId, operatorId: userId, grantId: grant!.id,
       providerKind: "grok_bot", status: "ready" }).returning();
-    const [secret] = await db.insert(companySecrets).values({ companyId, key: `grok-${binding!.id}`, name: "Grok routine" }).returning();
-    const [routine] = await db.insert(grokBotRoutines).values({ companyId, agentId, bindingId: binding!.id, bindingGeneration: 1,
+    const [secret] = await db.insert(spaceSecrets).values({ spaceId, key: `grok-${binding!.id}`, name: "Grok routine" }).returning();
+    const [routine] = await db.insert(grokBotRoutines).values({ spaceId, agentId, bindingId: binding!.id, bindingGeneration: 1,
       botName: "Grok", secretId: secret!.id, secretVersion: 1 }).returning();
-    const [issue] = await db.insert(issues).values({ companyId, title: "Grok task", assigneeAgentId: agentId, status: "in_progress" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Grok task", assigneeAgentId: agentId, status: "in_progress" }).returning();
     const run = buildRun({ errorCode: "native_provider_terminal_failed", error: "Dot assignment acceptance or execution authority expired.",
       nativeIssueId: issue!.id, runtimeMode: "native", executionStage: "preparing", nativePhase: "terminal_failure", exitCode: null, signal: null });
     await db.insert(heartbeatRuns).values(run);
     if (input.finalization !== false) {
-      await db.insert(nativeRunFinalizations).values({ runId: run.id, companyId, issueId: run.nativeIssueId!, phase: "terminal_failure",
+      await db.insert(nativeRunFinalizations).values({ runId: run.id, spaceId, issueId: run.nativeIssueId!, phase: "terminal_failure",
         failureCode: "native_provider_terminal_failed", failureDetail: { originalFailureCode: input.originalFailureCode ?? "dot_assignment_expired" } });
     }
-    const offers = await db.insert(dotRunnerAssignments).values(Array.from({ length: input.offers ?? 1 }, () => ({ companyId, agentId,
+    const offers = await db.insert(dotRunnerAssignments).values(Array.from({ length: input.offers ?? 1 }, () => ({ spaceId, agentId,
       bindingId: binding!.id, bindingGeneration: 1, runId: run.id, normalizedSessionId: randomUUID(), turnId: randomUUID(), controllerGeneration: 1,
       catalogDigest: "fixture", projection: {}, status: "fenced" as const, acceptBy: new Date(Date.now() - 1000),
       expiresAt: new Date(Date.now() + 3_600_000), acceptedAt: input.acceptedAt ?? null }))).returning();
     const assignment = offers[0];
     for (const wake of input.wakes) {
-      await db.insert(grokBotDispatches).values({ companyId, routineId: routine!.id, bindingId: binding!.id, bindingGeneration: 1,
+      await db.insert(grokBotDispatches).values({ spaceId, routineId: routine!.id, bindingId: binding!.id, bindingGeneration: 1,
         grantId: grant!.id, routineRevision: 1, assignmentId: assignment!.id, sourceEventId: randomUUID(), kind: "mailbox_updated",
         payload: {}, status: wake.status, httpStatus: wake.httpStatus, expiresAt: new Date(Date.now() + 600_000) });
     }
@@ -662,7 +662,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     const run = await expiredGrokOffer({ wakes: [{ status: "rejected", httpStatus: 400 }] });
     await reportRunFailure(db, run);
     expect(mockCaptureRunFailure).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      companyId, agentId, runId: run.id, errorCode: "native_provider_terminal_failed",
+      spaceId, agentId, runId: run.id, errorCode: "native_provider_terminal_failed",
     }));
   });
 
@@ -715,7 +715,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     "ai_connection_missing", "ai_connection_incompatible", "ai_connection_unavailable",
     "ai_connection_credential_not_shared",
   ])("keeps the proven AI selection blocker local: %s", async (selectionFailure) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = aiSelectionRun();
     (run.resultJson!.configurationIncomplete as Record<string, unknown>).selectionFailure = selectionFailure;
     const saved = structuredClone(run);
@@ -726,7 +726,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
 
   it.each([undefined, null, {}, [], "", "database_error", "ai_connection_busy"])(
     "reports AI connection wrappers without a known selection cause: %j", async (selectionFailure) => {
-      await seedCompanyAndAgent();
+      await seedSpaceAndAgent();
       const run = aiSelectionRun();
       (run.resultJson!.configurationIncomplete as Record<string, unknown>).selectionFailure = selectionFailure;
       await reportRunFailure(db, run, { phase: "setup" });
@@ -736,7 +736,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
 
   it.each(["resume", "provider_started", "outside_setup", "unmarked"] as const)(
     "reports credential sharing denials without fresh pre-provider proof: %s", async (cause) => {
-      await seedCompanyAndAgent();
+      await seedSpaceAndAgent();
       const run = aiSelectionRun();
       (run.resultJson!.configurationIncomplete as Record<string, unknown>).selectionFailure = "ai_connection_credential_not_shared";
       run.error = "This credential is not shared with the responsible user";
@@ -761,13 +761,13 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { resultJson: { configurationIncomplete: { reason: "ai_connection_unavailable", selectionFailure: "ai_connection_default_missing" }, executionRecovery: { kind: "bootstrap" } } },
     { resultJson: { configurationIncomplete: { reason: "controller_environment_unsupported", selectionFailure: "ai_connection_default_missing" }, executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } },
   ])("reports AI configuration without pre-provider selection proof: %j", async (overrides) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, aiSelectionRun(overrides), { phase: "setup" });
     expect(mockCaptureRunFailure).toHaveBeenCalledTimes(1);
   });
 
   it.each([undefined, "execute"] as const)("reports AI selection failures outside setup: %s", async (phase) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, aiSelectionRun(), { phase });
     expect(mockCaptureRunFailure).toHaveBeenCalledTimes(1);
   });
@@ -793,7 +793,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     ...["binding_missing", "responsible_user_missing", "user_secret_missing", "secret_inactive", "user_secret_definition_inactive"]
       .map((errorCode) => ({ bindingType: "user_secret_ref", errorCode })),
   ])("keeps the known pre-dispatch secret blocker local: %j", async (binding) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = missingSecretRun();
     (run.resultJson!.configurationIncomplete as Record<string, unknown>).missingBindings = [binding];
     const saved = structuredClone(run);
@@ -818,7 +818,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     ] },
     { reason: "ai_connection_unavailable" },
   ])("reports ambiguous, unknown, and provider failures: %j", async (configurationIncomplete) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = missingSecretRun();
     run.resultJson!.configurationIncomplete = configurationIncomplete;
 
@@ -838,7 +838,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { exitCode: 0 },
     { signal: "SIGTERM" },
   ])("reports missing-secret text without a proven pre-dispatch outcome: %j", async (overrides) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
 
     await reportRunFailure(db, missingSecretRun(overrides), { phase: "setup" });
 
@@ -847,7 +847,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
 
   it.each([undefined, { kind: "bootstrap" }, { kind: "bootstrap", providerWorkStarted: true }])(
     "reports missing-secret failures without explicit bootstrap proof: %j", async (executionRecovery) => {
-      await seedCompanyAndAgent();
+      await seedSpaceAndAgent();
       const run = missingSecretRun();
       run.resultJson!.executionRecovery = executionRecovery;
 
@@ -858,7 +858,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   );
 
   it.each([undefined, "execute"] as const)("reports configuration failures outside setup: %s", async (phase) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
 
     await reportRunFailure(db, missingSecretRun(), { phase });
 
@@ -866,7 +866,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("captures once for the status failed", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({ status: "failed" });
 
     await reportRunFailure(db, run);
@@ -887,7 +887,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   }
 
   it("keeps a restricted shared workspace source actionable on the task", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, restrictedWorkspaceSourceRun(), { phase: "setup" });
     expect(mockCaptureRunFailure).not.toHaveBeenCalled();
   });
@@ -897,13 +897,13 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { resultJson: { configurationIncomplete: { reason: "workspace_source_restricted" } } },
     { resultJson: { configurationIncomplete: { reason: "workspace_source_restricted" }, executionRecovery: { kind: "bootstrap", providerWorkStarted: true } } },
   ])("reports restricted-source markers without an exact pre-dispatch outcome: %j", async (overrides) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, restrictedWorkspaceSourceRun(overrides), { phase: "setup" });
     expect(mockCaptureRunFailure).toHaveBeenCalledTimes(1);
   });
 
   it.each([undefined, "execute"] as const)("reports restricted-source markers outside the setup report: %s", async (phase) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, restrictedWorkspaceSourceRun(), { phase });
     expect(mockCaptureRunFailure).toHaveBeenCalledTimes(1);
   });
@@ -921,7 +921,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   }
 
   it("keeps a plugin Runner-task run without a managed AI connection actionable on the task", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, aiConnectionRequiredRun(), { phase: "setup" });
     expect(mockCaptureRunFailure).not.toHaveBeenCalled();
   });
@@ -930,7 +930,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { executionStage: "executing" },
     { resultJson: { configurationIncomplete: { reason: "ai_connection_required" }, executionRecovery: { kind: "bootstrap", providerWorkStarted: true } } },
   ])("reports AI-connection-required markers without an exact pre-dispatch outcome: %j", async (overrides) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, aiConnectionRequiredRun(overrides), { phase: "setup" });
     expect(mockCaptureRunFailure).toHaveBeenCalledTimes(1);
   });
@@ -954,7 +954,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   }
 
   it.each(["isolated_workspace", "operator_branch"])("keeps proven local-path policy conflicts actionable locally: %s", async (mode) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = localPathConfigurationRun();
     (run.resultJson!.workspaceValidation as Record<string, unknown>).requestedExecutionWorkspaceMode = mode;
     const before = structuredClone(run);
@@ -975,7 +975,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { workspaceStrategyType: "project_primary" },
     { requestedExecutionWorkspaceMode: "agent_default" },
   ])("reports unproven and other workspace failures: %j", async (validation) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = localPathConfigurationRun();
     Object.assign(run.resultJson!.workspaceValidation as object, validation);
     await reportRunFailure(db, run, { phase: "setup" });
@@ -987,20 +987,20 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     { exitCode: 1 }, { signal: "SIGTERM" }, { resultJson: {} },
     { resultJson: { workspaceValidation: { reason: "git_worktree_base_not_git_checkout", configurationReason: "local_path_requires_git_checkout" } } },
   ])("reports workspace failures without an exact pre-dispatch outcome: %j", async (overrides) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, localPathConfigurationRun(overrides), { phase: "setup" });
     expect(mockCaptureRunFailure).toHaveBeenCalledTimes(1);
   });
 
   it.each([undefined, "execute"] as const)("reports local-path markers outside the setup report: %s", async (phase) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, localPathConfigurationRun(), { phase });
     expect(mockCaptureRunFailure).toHaveBeenCalledTimes(1);
   });
 
   it.each([undefined, { kind: "bootstrap" }, { kind: "bootstrap", providerWorkStarted: true }])(
     "reports local-path markers without affirmative unstarted-provider evidence: %j", async (executionRecovery) => {
-      await seedCompanyAndAgent();
+      await seedSpaceAndAgent();
       const run = localPathConfigurationRun();
       run.resultJson!.executionRecovery = executionRecovery;
       await reportRunFailure(db, run, { phase: "setup" });
@@ -1009,7 +1009,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   );
 
   it("captures once for the status timed_out", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({ status: "timed_out" });
 
     await reportRunFailure(db, run);
@@ -1021,7 +1021,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("forwards stored exit evidence even when the adapter error is generic", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     for (const processExit of [
       { exitCode: 1, signal: null },
       { exitCode: null, signal: "SIGTERM" },
@@ -1050,7 +1050,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("reports selected provider diagnostics and the original cause without copying arbitrary payloads", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const cause = Object.assign(new Error("provider unreachable"), {
       code: "ECONNRESET", requestId: "request-123", status: 503,
       response: { body: "private-response" },
@@ -1085,11 +1085,11 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it.each([false, true])("redacts registered run secrets and fails closed when resolution fails: %s", async (fails) => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const secret = "opaque-registered-value";
     const run = buildRun({
       error: `connection failed: ${secret}`,
-      contextSnapshot: { paperclipSecretRedactions: [{ fingerprintSha256: "fixture", material: { encrypted: "fixture" } }] },
+      contextSnapshot: { outpostSecretRedactions: [{ fingerprintSha256: "fixture", material: { encrypted: "fixture" } }] },
       resultJson: { terminalSessionFailure: { category: "service", details: `upstream rejected ${secret}` } },
     });
     await db.insert(heartbeatRuns).values(run);
@@ -1113,7 +1113,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("redacts runtime and host environment secret values even without a persisted registry", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const runtimeSecret = "opaque-runtime-value";
     const hostSecret = "opaque-host-value";
     vi.stubEnv("FIXTURE_CUSTOM_VALUE", hostSecret);
@@ -1135,7 +1135,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("masks an inherited Bedrock credential from every failure projection", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const token = "opaque-bedrock-credential";
     vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", token);
     const text = `upstream rejected ${token}`;
@@ -1150,7 +1150,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("keeps run metadata and prose readable with short non-secret host settings", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     vi.stubEnv("FIXTURE_FLAG", "1");
     vi.stubEnv("FIXTURE_WORKERS", "2");
     vi.stubEnv("FIXTURE_MODE", "safe");
@@ -1171,14 +1171,14 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("still masks a short declared runtime secret", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, buildRun(), { secretValues: ["1"] });
     expect(mockCaptureRunFailure.mock.calls[0][0].errorMessage)
       .toBe(`the provider process exited with code ${REDACTED_EVENT_VALUE}`);
   });
 
   it("waits for the terminal write when a native run is failed pending a same-run retry", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, buildRun({ runtimeMode: "native", nativePhase: "retryable_failure" }));
     expect(mockCaptureRunFailure).not.toHaveBeenCalled();
 
@@ -1198,7 +1198,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("captures nothing for succeeded, cancelled, and interrupted", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     for (const status of ["succeeded", "cancelled", "interrupted"] as const) {
       const run = buildRun({ status });
       await reportRunFailure(db, run);
@@ -1207,7 +1207,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     expect(mockCaptureRunFailure).not.toHaveBeenCalled();
   });
   it.each(["provider", "unknown"])("reports an unexpected started cancellation from %s", async source => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({ status: "cancelled", startedAt: new Date(0), finishedAt: new Date(1000),
       resultJson: { cancellation: { source, expected: false, initiator: { type: "provider", id: "private-actor" },
         reason: "private-reason", recordedAt: new Date(1000).toISOString() } } });
@@ -1218,7 +1218,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     expect(JSON.stringify(mockCaptureRunFailure.mock.calls)).not.toMatch(/private-actor|private-reason/);
   });
   it("labels a host controller lease loss with its closed cause", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, buildRun({ status: "cancelled", startedAt: new Date(0), finishedAt: new Date(1000),
       resultJson: { cancellation: controllerLeaseLossCancellation("renewal_deadline") } }));
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
@@ -1227,7 +1227,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     expect(JSON.stringify(mockCaptureRunFailure.mock.calls)).not.toMatch(/Legacy controller lease lost/);
   });
   it("reports bounded lease-loss timings for a setup failure", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, buildRun({ status: "failed", errorCode: "setup_failed", startedAt: new Date(0),
       finishedAt: new Date(1000), resultJson: { controllerLeaseLoss: { cause: "renewal_deadline",
         sinceRenewalMs: 61_000.4, renewalPendingMs: 59_000, deadlineLateMs: 1e12, renewalCount: -1, note: "private-note" } } }));
@@ -1239,7 +1239,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     expect(JSON.stringify(mockCaptureRunFailure.mock.calls)).not.toMatch(/private-note/);
   });
   it("drops lease-loss timings without a closed cause", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, buildRun({ status: "failed", errorCode: "setup_failed", startedAt: new Date(0),
       finishedAt: new Date(1000), resultJson: { controllerLeaseLoss: { cause: "forged", sinceRenewalMs: 1 } } }));
     expect(mockCaptureRunFailure).toHaveBeenCalledOnce();
@@ -1248,16 +1248,16 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     expect(execution).not.toHaveProperty("controllerLeaseSinceRenewalMs");
   });
   it("does not report an operator's Stop as a failure", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     await reportRunFailure(db, buildRun({ status: "cancelled", startedAt: new Date(0), resultJson: {
-      cancellation: { source: "operator", expected: true, initiator: { type: "user", id: "board" },
+      cancellation: { source: "operator", expected: true, initiator: { type: "user", id: "operator" },
         reason: "Stop", recordedAt: new Date().toISOString() },
     } }));
     expect(mockCaptureRunFailure).not.toHaveBeenCalled();
   });
 
   it("sends agents.adapterType from the loaded agent row", async () => {
-    await seedCompanyAndAgent({ adapterType: "claude_managed" });
+    await seedSpaceAndAgent({ adapterType: "claude_managed" });
     const run = buildRun({ status: "failed" });
 
     await reportRunFailure(db, run);
@@ -1268,7 +1268,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("sends the adapter value unknown when the agent row is absent", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({ status: "failed", agentId: randomUUID() });
 
     await reportRunFailure(db, run);
@@ -1279,7 +1279,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("calls redactCurrentUserText on the error message before it composes the credential redactor", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({ status: "failed", error: "raw message" });
 
     await reportRunFailure(db, run);
@@ -1288,7 +1288,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("removes an Authorization: Bearer credential from the error message", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({
       status: "failed",
       error: "the adapter request failed: Authorization: Bearer live-secret-token-value",
@@ -1302,7 +1302,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("removes an API-key form from the error message", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({
       status: "failed",
       error: `adapter payload: {"apiKey":"json-secret-value"}`,
@@ -1316,7 +1316,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("removes a JSON Web Token form from the error message", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const jwt =
       "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
     const run = buildRun({ status: "failed", error: `session token: ${jwt}` });
@@ -1329,7 +1329,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("removes a password value from the error message", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({
       status: "failed",
       error: `login failed: password="hunter2-super-secret"`,
@@ -1343,10 +1343,10 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("removes a database connection string from the error message", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({
       status: "failed",
-      error: `connect failed: connectionString: "postgres://appuser:s3cr3t-pass@db.internal:5432/paperclip"`,
+      error: `connect failed: connectionString: "postgres://appuser:s3cr3t-pass@db.internal:5432/outpost"`,
     });
 
     await reportRunFailure(db, run);
@@ -1357,7 +1357,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("still masks the current user's home path in the error message", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const homeDir = os.homedir();
     const rawError = `read failed at ${homeDir}/workspace/report.log`;
     const run = buildRun({ status: "failed", error: rawError });
@@ -1374,7 +1374,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   const MAX_ERROR_MESSAGE_LENGTH = 4096;
 
   it("truncates an error message that is longer than the bound", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const longError = "x".repeat(MAX_ERROR_MESSAGE_LENGTH + 500);
     const run = buildRun({ status: "failed", error: longError });
 
@@ -1389,7 +1389,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
     vi.stubEnv("OUTPOST_DB_BACKUP_ENABLED", "false");
     vi.stubEnv("OUTPOST_DB_BACKUP_RETENTION_DAYS", "1");
     vi.stubEnv("GITHUB_RUN_ATTEMPT", "1");
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const shortError = "the provider process exited with code 1";
     const run = buildRun({ status: "failed", error: shortError });
 
@@ -1402,7 +1402,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   const MAX_ERROR_CODE_LENGTH = 200;
 
   it("sends a normal error code such as adapter_failed to Sentry unchanged", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({ status: "failed", errorCode: "adapter_failed" });
 
     await reportRunFailure(db, run);
@@ -1413,7 +1413,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("redacts an error code that holds a credential form", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({
       status: "failed",
       errorCode: "Authorization: Bearer live-secret-token-value",
@@ -1427,7 +1427,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("truncates an error code that is longer than 200 characters", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const longErrorCode = "y".repeat(MAX_ERROR_CODE_LENGTH + 50);
     const run = buildRun({ status: "failed", errorCode: longErrorCode });
 
@@ -1439,7 +1439,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("sends errorCode null unchanged when the run holds no error code", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const run = buildRun({ status: "failed", errorCode: null });
 
     await reportRunFailure(db, run);
@@ -1450,7 +1450,7 @@ describeEmbeddedPostgres("reportRunFailure", () => {
   });
 
   it("reads the task id from nativeIssueId, falling back to contextSnapshot.issueId", async () => {
-    await seedCompanyAndAgent();
+    await seedSpaceAndAgent();
     const nativeIssueId = randomUUID();
     const runWithNativeIssueId = buildRun({
       status: "failed",

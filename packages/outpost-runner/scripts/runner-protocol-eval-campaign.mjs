@@ -569,7 +569,7 @@ export async function aggregateProtocolEvalCampaign({
     costs: sumAttemptCosts(attemptUsages),
     ...(controlledCosts ? { controlledCosts } : {}),
     source: {
-      paperclip: source.paperclip,
+      outpost: source.outpost,
       evals: source.evals,
       workflowRunUrl: source.workflowRunUrl,
     },
@@ -764,13 +764,13 @@ async function main() {
       argument(args, "--output", "runner-protocol-eval-catalog.json"),
     );
     const catalog = await buildProtocolEvalCatalog({
-      evalsRoot: resolve(argument(args, "--evals-root", ".paperclip-evals")),
+      evalsRoot: resolve(argument(args, "--evals-root", ".outpost-evals")),
       rosterSelection: argument(args, "--rosters", "all"),
       campaignId: argument(args, "--campaign-id", `local-${Date.now()}`),
       maxParallel: Number(argument(args, "--max-parallel", "100")),
       grokAuthenticationMode: argument(args, "--grok-authentication", "api_key"),
       source: {
-        paperclipSha: process.env.OUTPOST_PROTOCOL_EVAL_SOURCE_SHA ?? null,
+        outpostSha: process.env.OUTPOST_PROTOCOL_EVAL_SOURCE_SHA ?? null,
         evalsSha: process.env.OUTPOST_PROTOCOL_EVALS_SHA ?? null,
       },
     });
@@ -800,7 +800,7 @@ async function main() {
       runsOut: resolve(argument(args, "--runs-out")),
       campaignOut: resolve(argument(args, "--campaign-out")),
       source: {
-        paperclip: {
+        outpost: {
           sha: process.env.OUTPOST_PROTOCOL_EVAL_SOURCE_SHA,
           ref: process.env.OUTPOST_PROTOCOL_EVAL_SOURCE_REF,
         },

@@ -6,7 +6,7 @@ import {
   activityLog,
   agents,
   approvals,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   inboxDismissals,
@@ -43,7 +43,7 @@ describeEmbeddedPostgres("inbox dismissals", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-inbox-dismissals-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-inbox-dismissals-");
     db = createDb(tempDb.connectionString);
     dismissalsSvc = inboxDismissalService(db);
     badgesSvc = sidebarBadgeService(db);
@@ -60,7 +60,7 @@ describeEmbeddedPostgres("inbox dismissals", () => {
     await db.delete(heartbeatRuns);
     await db.delete(approvals);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -71,65 +71,65 @@ describeEmbeddedPostgres("inbox dismissals", () => {
     { userId: "user-1", expected: 1 },
     { userId: "user-2", expected: 1 },
     { userId: "uninvolved-user", expected: 0 },
-    { userId: "local-board", expected: 1 },
+    { userId: "local-operator", expected: 1 },
     { userId: "user-1", actorType: "agent", expected: 1 },
     { userId: null, actorType: "agent", expected: 0 },
   ])("scopes failed-run badges to $userId (actor=$actorType)", async ({ userId, actorType, expected }) => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Paperclip", issuePrefix: "PAP" });
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Outpost", issuePrefix: "PAP" });
     for (const responsibleUserId of ["user-1", "user-2", null]) {
       const agentId = randomUUID();
-      await db.insert(agents).values({ id: agentId, companyId, name: "Agent", role: "engineer", status: "error" });
+      await db.insert(agents).values({ id: agentId, spaceId, name: "Agent", role: "engineer", status: "error" });
       await db.insert(heartbeatRuns).values({
-        companyId, agentId, responsibleUserId, invocationSource: "manual",
+        spaceId, agentId, responsibleUserId, invocationSource: "manual",
         status: responsibleUserId === "user-2" ? "timed_out" : "failed",
       });
     }
     // Pick the latest run before filtering by user, so a shared agent cannot
     // resurrect this user's older failure after somebody else's success.
     const sharedAgentId = randomUUID();
-    await db.insert(agents).values({ id: sharedAgentId, companyId, name: "Shared", role: "engineer" });
+    await db.insert(agents).values({ id: sharedAgentId, spaceId, name: "Shared", role: "engineer" });
     await db.insert(heartbeatRuns).values([
-      { companyId, agentId: sharedAgentId, responsibleUserId: "user-1", invocationSource: "manual", status: "failed", createdAt: new Date("2026-03-11T01:00:00Z") },
-      { companyId, agentId: sharedAgentId, responsibleUserId: "user-2", invocationSource: "manual", status: "succeeded", createdAt: new Date("2026-03-11T02:00:00Z") },
+      { spaceId, agentId: sharedAgentId, responsibleUserId: "user-1", invocationSource: "manual", status: "failed", createdAt: new Date("2026-03-11T01:00:00Z") },
+      { spaceId, agentId: sharedAgentId, responsibleUserId: "user-2", invocationSource: "manual", status: "succeeded", createdAt: new Date("2026-03-11T02:00:00Z") },
     ]);
     const app = express();
     app.use((req, _res, next) => {
       req.actor = actorType === "agent"
-        ? { type: "agent", source: "agent_jwt", agentId: sharedAgentId, companyId, onBehalfOfUserId: userId, onBehalfOfMemberships: [{ companyId, membershipRole: "member", status: "active" }] }
-        : { type: "board", source: userId === "local-board" ? "local_implicit" : "session", userId: userId!, companyIds: [companyId], isInstanceAdmin: true };
+        ? { type: "agent", source: "agent_jwt", agentId: sharedAgentId, spaceId, onBehalfOfUserId: userId, onBehalfOfMemberships: [{ spaceId, membershipRole: "member", status: "active" }] }
+        : { type: "operator", source: userId === "local-operator" ? "local_implicit" : "session", userId: userId!, spaceIds: [spaceId], isInstanceAdmin: true };
       next();
     });
     app.use("/api", sidebarBadgeRoutes(db));
     app.use(errorHandler);
-    const response = await request(app).get(`/api/companies/${companyId}/sidebar-badges`).expect(200);
+    const response = await request(app).get(`/api/spaces/${spaceId}/sidebar-badges`).expect(200);
     expect(response.body.failedRuns).toBe(expected);
     expect(response.body.inbox).toBe(expected);
   });
 
   it("counts only unread Mine tasks without returning their bodies", async () => {
-    const companyId = randomUUID(), issueId = randomUUID(), otherId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Badge fixture", issuePrefix: "BADGE" });
+    const spaceId = randomUUID(), issueId = randomUUID(), otherId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Badge fixture", issuePrefix: "BADGE" });
     const createdAt = new Date("2026-03-11T01:00:00Z");
     const replyAt = new Date("2026-03-11T02:00:00Z");
     await db.insert(issues).values([
-      { id: issueId, companyId, title: "Mine", description: "Large body".repeat(10000), createdByUserId: "local-board", createdAt },
-      { id: otherId, companyId, title: "Not mine", createdByUserId: "someone-else", createdAt },
+      { id: issueId, spaceId, title: "Mine", description: "Large body".repeat(10000), createdByUserId: "local-operator", createdAt },
+      { id: otherId, spaceId, title: "Not mine", createdByUserId: "someone-else", createdAt },
     ]);
-    await db.insert(issueComments).values([issueId, otherId].map((id) => ({ companyId, issueId: id, authorType: "user" as const, authorUserId: "someone-else", body: "Reply", createdAt: replyAt })));
+    await db.insert(issueComments).values([issueId, otherId].map((id) => ({ spaceId, issueId: id, authorType: "user" as const, authorUserId: "someone-else", body: "Reply", createdAt: replyAt })));
     const app = express();
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "local_implicit", userId: "local-board", companyIds: [companyId], isInstanceAdmin: true };
+      req.actor = { type: "operator", source: "local_implicit", userId: "local-operator", spaceIds: [spaceId], isInstanceAdmin: true };
       next();
     });
     app.use("/api", sidebarBadgeRoutes(db));
     app.use(errorHandler);
-    const response = await request(app).get(`/api/companies/${companyId}/sidebar-badges`).expect(200);
+    const response = await request(app).get(`/api/spaces/${spaceId}/sidebar-badges`).expect(200);
     expect(response.body).toMatchObject({ inbox: 1, unreadIssueIds: [issueId] });
     expect(JSON.stringify(response.body).length).toBeLessThan(300);
     const agentId = randomUUID();
     await db.insert(agents).values({
-      id: agentId, companyId, name: "Restricted reviewer", role: "engineer",
+      id: agentId, spaceId, name: "Restricted reviewer", role: "engineer",
       permissions: {
         trustPreset: LOW_TRUST_REVIEW_PRESET,
         authorizationPolicy: { trustBoundary: { mode: LOW_TRUST_REVIEW_PRESET, rootIssueId: otherId, projectIds: [] } },
@@ -137,36 +137,36 @@ describeEmbeddedPostgres("inbox dismissals", () => {
     });
     const agentApp = express();
     agentApp.use((req, _res, next) => {
-      req.actor = { type: "agent", source: "agent_jwt", agentId, companyId, onBehalfOfUserId: "local-board",
-        onBehalfOfMemberships: [{ companyId, membershipRole: "member", status: "active" }] };
+      req.actor = { type: "agent", source: "agent_jwt", agentId, spaceId, onBehalfOfUserId: "local-operator",
+        onBehalfOfMemberships: [{ spaceId, membershipRole: "member", status: "active" }] };
       next();
     });
     agentApp.use("/api", sidebarBadgeRoutes(db));
     agentApp.use(errorHandler);
-    const agentResponse = await request(agentApp).get(`/api/companies/${companyId}/sidebar-badges`).expect(200);
+    const agentResponse = await request(agentApp).get(`/api/spaces/${spaceId}/sidebar-badges`).expect(200);
     expect(agentResponse.body).toMatchObject({ inbox: 0, unreadIssueIds: [] });
-    await db.insert(issueReadStates).values({ companyId, issueId, userId: "local-board", lastReadAt: replyAt });
-    const read = await request(app).get(`/api/companies/${companyId}/sidebar-badges`).expect(200);
+    await db.insert(issueReadStates).values({ spaceId, issueId, userId: "local-operator", lastReadAt: replyAt });
+    const read = await request(app).get(`/api/spaces/${spaceId}/sidebar-badges`).expect(200);
     expect(read.body).toMatchObject({ inbox: 0, unreadIssueIds: [] });
   });
 
   it("upserts a single dismissal record per user and inbox item key", async () => {
-    const companyId = randomUUID();
-    const userId = "board-user";
+    const spaceId = randomUUID();
+    const userId = "operator-user";
     const firstDismissedAt = new Date("2026-03-11T01:00:00.000Z");
     const secondDismissedAt = new Date("2026-03-11T02:00:00.000Z");
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
 
-    await dismissalsSvc.dismiss(companyId, userId, "approval:approval-1", firstDismissedAt);
-    await dismissalsSvc.dismiss(companyId, userId, "approval:approval-1", secondDismissedAt);
+    await dismissalsSvc.dismiss(spaceId, userId, "approval:approval-1", firstDismissedAt);
+    await dismissalsSvc.dismiss(spaceId, userId, "approval:approval-1", secondDismissedAt);
 
-    const dismissals = await dismissalsSvc.list(companyId, userId);
+    const dismissals = await dismissalsSvc.list(spaceId, userId);
 
     expect(dismissals).toHaveLength(1);
     expect(dismissals[0]?.itemKey).toBe("approval:approval-1");
@@ -176,24 +176,24 @@ describeEmbeddedPostgres("inbox dismissals", () => {
   });
 
   it("snoozes and restores dismissal records through the route", async () => {
-    const companyId = randomUUID();
-    const userId = "board-user";
+    const spaceId = randomUUID();
+    const userId = "operator-user";
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
       (req as any).actor = {
-        type: "board",
+        type: "operator",
         source: "local_implicit",
         userId,
-        companyIds: [companyId],
+        spaceIds: [spaceId],
         isInstanceAdmin: false,
       };
       next();
@@ -202,18 +202,18 @@ describeEmbeddedPostgres("inbox dismissals", () => {
     app.use(errorHandler);
 
     await request(app)
-      .post(`/api/companies/${companyId}/inbox-dismissals`)
+      .post(`/api/spaces/${spaceId}/inbox-dismissals`)
       .send({ itemKey: "attention:approval:old", kind: "snooze", snoozedUntil: "2020-01-01T00:00:00.000Z" })
       .expect(400);
 
     const snoozedUntil = "2099-01-01T00:00:00.000Z";
     const createRes = await request(app)
-      .post(`/api/companies/${companyId}/inbox-dismissals`)
+      .post(`/api/spaces/${spaceId}/inbox-dismissals`)
       .send({ itemKey: "attention:approval:approval-1", kind: "snooze", snoozedUntil })
       .expect(201);
 
     expect(createRes.body).toMatchObject({
-      companyId,
+      spaceId,
       userId,
       itemKey: "attention:approval:approval-1",
       kind: "snooze",
@@ -221,15 +221,15 @@ describeEmbeddedPostgres("inbox dismissals", () => {
     });
 
     await request(app)
-      .delete(`/api/companies/${companyId}/inbox-dismissals/${encodeURIComponent("attention:approval:approval-1")}`)
+      .delete(`/api/spaces/${spaceId}/inbox-dismissals/${encodeURIComponent("attention:approval:approval-1")}`)
       .expect(204);
 
-    await expect(dismissalsSvc.list(companyId, userId)).resolves.toEqual([]);
+    await expect(dismissalsSvc.list(spaceId, userId)).resolves.toEqual([]);
   });
 
   it("honors dismissal timestamps and resurfaces approvals with newer activity", async () => {
-    const companyId = randomUUID();
-    const userId = "board-user";
+    const spaceId = randomUUID();
+    const userId = "operator-user";
     const primaryAgentId = randomUUID();
     const secondaryAgentId = randomUUID();
     const hiddenApprovalId = randomUUID();
@@ -239,17 +239,17 @@ describeEmbeddedPostgres("inbox dismissals", () => {
     const hiddenRunId = randomUUID();
     const visibleRunId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix: "PAP",
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values([
       {
         id: primaryAgentId,
-        companyId,
+        spaceId,
         name: "Primary",
         role: "engineer",
         status: "active",
@@ -260,7 +260,7 @@ describeEmbeddedPostgres("inbox dismissals", () => {
       },
       {
         id: secondaryAgentId,
-        companyId,
+        spaceId,
         name: "Secondary",
         role: "engineer",
         status: "active",
@@ -274,16 +274,16 @@ describeEmbeddedPostgres("inbox dismissals", () => {
     await db.insert(approvals).values([
       {
         id: hiddenApprovalId,
-        companyId,
-        type: "hire_agent",
+        spaceId,
+        type: "create_agent",
         status: "pending",
         payload: {},
         updatedAt: new Date("2026-03-11T01:00:00.000Z"),
       },
       {
         id: resurfacedApprovalId,
-        companyId,
-        type: "hire_agent",
+        spaceId,
+        type: "create_agent",
         status: "revision_requested",
         payload: {},
         updatedAt: new Date("2026-03-11T03:00:00.000Z"),
@@ -292,8 +292,8 @@ describeEmbeddedPostgres("inbox dismissals", () => {
 
     await db.insert(invites).values({
       id: inviteId,
-      companyId,
-      inviteType: "company_join",
+      spaceId,
+      inviteType: "space_join",
       tokenHash: "hash-1",
       allowedJoinTypes: "both",
       expiresAt: new Date("2026-03-12T00:00:00.000Z"),
@@ -302,7 +302,7 @@ describeEmbeddedPostgres("inbox dismissals", () => {
     await db.insert(joinRequests).values({
       id: hiddenJoinRequestId,
       inviteId,
-      companyId,
+      spaceId,
       requestType: "human",
       status: "pending_approval",
       requestIp: "127.0.0.1",
@@ -313,7 +313,7 @@ describeEmbeddedPostgres("inbox dismissals", () => {
     await db.insert(heartbeatRuns).values([
       {
         id: hiddenRunId,
-        companyId,
+        spaceId,
         agentId: primaryAgentId,
         invocationSource: "assignment",
         status: "failed",
@@ -322,7 +322,7 @@ describeEmbeddedPostgres("inbox dismissals", () => {
       },
       {
         id: visibleRunId,
-        companyId,
+        spaceId,
         agentId: secondaryAgentId,
         invocationSource: "assignment",
         status: "timed_out",
@@ -331,19 +331,19 @@ describeEmbeddedPostgres("inbox dismissals", () => {
       },
     ]);
 
-    await dismissalsSvc.dismiss(companyId, userId, `approval:${hiddenApprovalId}`, new Date("2026-03-11T02:00:00.000Z"));
-    await dismissalsSvc.dismiss(companyId, userId, `approval:${resurfacedApprovalId}`, new Date("2026-03-11T02:00:00.000Z"));
-    await dismissalsSvc.dismiss(companyId, userId, `join:${hiddenJoinRequestId}`, new Date("2026-03-11T02:00:00.000Z"));
-    await dismissalsSvc.dismiss(companyId, userId, `run:${hiddenRunId}`, new Date("2026-03-11T02:00:00.000Z"));
+    await dismissalsSvc.dismiss(spaceId, userId, `approval:${hiddenApprovalId}`, new Date("2026-03-11T02:00:00.000Z"));
+    await dismissalsSvc.dismiss(spaceId, userId, `approval:${resurfacedApprovalId}`, new Date("2026-03-11T02:00:00.000Z"));
+    await dismissalsSvc.dismiss(spaceId, userId, `join:${hiddenJoinRequestId}`, new Date("2026-03-11T02:00:00.000Z"));
+    await dismissalsSvc.dismiss(spaceId, userId, `run:${hiddenRunId}`, new Date("2026-03-11T02:00:00.000Z"));
 
     const dismissedAtByKey = new Map(
-      (await dismissalsSvc.list(companyId, userId)).map((dismissal) => [
+      (await dismissalsSvc.list(spaceId, userId)).map((dismissal) => [
         dismissal.itemKey,
         new Date(dismissal.dismissedAt).getTime(),
       ]),
     );
 
-    const badges = await badgesSvc.get(companyId, {
+    const badges = await badgesSvc.get(spaceId, {
       dismissals: dismissedAtByKey,
       joinRequests: [{
         id: hiddenJoinRequestId,

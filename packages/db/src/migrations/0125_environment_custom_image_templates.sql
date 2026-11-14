@@ -1,6 +1,6 @@
 CREATE TABLE "environment_custom_image_templates" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "environment_id" uuid NOT NULL,
   "provider" text NOT NULL,
   "template_kind" text DEFAULT 'unknown' NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE "environment_custom_image_templates" (
 --> statement-breakpoint
 CREATE TABLE "environment_custom_image_setup_sessions" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-  "company_id" uuid NOT NULL,
+  "space_id" uuid NOT NULL,
   "environment_id" uuid NOT NULL,
   "template_id" uuid,
   "promoted_template_id" uuid,
@@ -42,9 +42,9 @@ CREATE TABLE "environment_custom_image_setup_sessions" (
 );
 --> statement-breakpoint
 ALTER TABLE "environment_custom_image_templates"
-  ADD CONSTRAINT "environment_custom_image_templates_company_id_companies_id_fk"
-  FOREIGN KEY ("company_id")
-  REFERENCES "public"."companies"("id")
+  ADD CONSTRAINT "environment_custom_image_templates_space_id_spaces_id_fk"
+  FOREIGN KEY ("space_id")
+  REFERENCES "public"."spaces"("id")
   ON DELETE cascade
   ON UPDATE no action;
 --> statement-breakpoint
@@ -70,9 +70,9 @@ ALTER TABLE "environment_custom_image_templates"
   ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "environment_custom_image_setup_sessions"
-  ADD CONSTRAINT "environment_custom_image_setup_sessions_company_id_companies_id_fk"
-  FOREIGN KEY ("company_id")
-  REFERENCES "public"."companies"("id")
+  ADD CONSTRAINT "environment_custom_image_setup_sessions_space_id_spaces_id_fk"
+  FOREIGN KEY ("space_id")
+  REFERENCES "public"."spaces"("id")
   ON DELETE cascade
   ON UPDATE no action;
 --> statement-breakpoint
@@ -111,37 +111,37 @@ ALTER TABLE "environment_custom_image_setup_sessions"
   ON DELETE set null
   ON UPDATE no action;
 --> statement-breakpoint
-CREATE INDEX "environment_custom_image_templates_company_environment_status_idx"
-  ON "environment_custom_image_templates" USING btree ("company_id", "environment_id", "status");
+CREATE INDEX "environment_custom_image_templates_space_environment_status_idx"
+  ON "environment_custom_image_templates" USING btree ("space_id", "environment_id", "status");
 --> statement-breakpoint
-CREATE INDEX "environment_custom_image_templates_company_provider_status_idx"
-  ON "environment_custom_image_templates" USING btree ("company_id", "provider", "status");
+CREATE INDEX "environment_custom_image_templates_space_provider_status_idx"
+  ON "environment_custom_image_templates" USING btree ("space_id", "provider", "status");
 --> statement-breakpoint
-CREATE UNIQUE INDEX "environment_custom_image_templates_company_environment_active_uq"
-  ON "environment_custom_image_templates" USING btree ("company_id", "environment_id")
+CREATE UNIQUE INDEX "environment_custom_image_templates_space_environment_active_uq"
+  ON "environment_custom_image_templates" USING btree ("space_id", "environment_id")
   WHERE "status" = 'active';
 --> statement-breakpoint
 CREATE INDEX "environment_custom_image_templates_superseded_by_idx"
   ON "environment_custom_image_templates" USING btree ("superseded_by_template_id");
 --> statement-breakpoint
-CREATE INDEX "environment_custom_image_templates_company_last_used_idx"
-  ON "environment_custom_image_templates" USING btree ("company_id", "last_used_at");
+CREATE INDEX "environment_custom_image_templates_space_last_used_idx"
+  ON "environment_custom_image_templates" USING btree ("space_id", "last_used_at");
 --> statement-breakpoint
-CREATE INDEX "environment_custom_image_setup_sessions_company_environment_status_idx"
-  ON "environment_custom_image_setup_sessions" USING btree ("company_id", "environment_id", "status");
+CREATE INDEX "environment_custom_image_setup_sessions_space_environment_status_idx"
+  ON "environment_custom_image_setup_sessions" USING btree ("space_id", "environment_id", "status");
 --> statement-breakpoint
-CREATE UNIQUE INDEX "environment_custom_image_setup_sessions_company_environment_active_uq"
-  ON "environment_custom_image_setup_sessions" USING btree ("company_id", "environment_id")
+CREATE UNIQUE INDEX "environment_custom_image_setup_sessions_space_environment_active_uq"
+  ON "environment_custom_image_setup_sessions" USING btree ("space_id", "environment_id")
   WHERE "status" IN ('starting', 'waiting_for_user', 'capturing');
 --> statement-breakpoint
-CREATE INDEX "environment_custom_image_setup_sessions_company_template_idx"
-  ON "environment_custom_image_setup_sessions" USING btree ("company_id", "template_id");
+CREATE INDEX "environment_custom_image_setup_sessions_space_template_idx"
+  ON "environment_custom_image_setup_sessions" USING btree ("space_id", "template_id");
 --> statement-breakpoint
-CREATE INDEX "environment_custom_image_setup_sessions_company_promoted_template_idx"
-  ON "environment_custom_image_setup_sessions" USING btree ("company_id", "promoted_template_id");
+CREATE INDEX "environment_custom_image_setup_sessions_space_promoted_template_idx"
+  ON "environment_custom_image_setup_sessions" USING btree ("space_id", "promoted_template_id");
 --> statement-breakpoint
-CREATE INDEX "environment_custom_image_setup_sessions_company_expires_idx"
-  ON "environment_custom_image_setup_sessions" USING btree ("company_id", "expires_at");
+CREATE INDEX "environment_custom_image_setup_sessions_space_expires_idx"
+  ON "environment_custom_image_setup_sessions" USING btree ("space_id", "expires_at");
 --> statement-breakpoint
 CREATE INDEX "environment_custom_image_setup_sessions_provider_lease_idx"
   ON "environment_custom_image_setup_sessions" USING btree ("provider", "provider_lease_id");

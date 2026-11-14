@@ -48,16 +48,16 @@ async function preClaimNativeFailure() {
     runnerProfileJson: { ...source.runnerProfileJson,
       nativeExecutionInput: { workspace: { cwd: remoteWorkspace.remoteCwd } } },
   }).where(eq(heartbeatRuns.id, f.runId));
-  await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.runId, agentId: source.agentId,
+  await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.runId, agentId: source.agentId,
     eventType: "lifecycle", stream: "system", level: "info", message: "run started" });
-  await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.runId, agentId: source.agentId,
+  await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.runId, agentId: source.agentId,
     eventType: "error", stream: "system", level: "error", message: "The operation was aborted" });
   await db.update(issues).set({ status: "blocked", statusVersion: 18, executionRunId: null, checkoutRunId: null })
     .where(eq(issues.id, f.issueId));
-  // The hold exactly as e2d490c61 recorded it (resolved, replay blocked, board-owned).
+  // The hold exactly as e2d490c61 recorded it (resolved, replay blocked, operator-owned).
   await db.update(issueRecoveryActions).set({
     cause: "native_continuation_requires_reconciliation", fingerprint: `native-workspace:${f.runId}`,
-    status: "resolved", outcome: "blocked", ownerType: "board", resolvedAt: new Date(),
+    status: "resolved", outcome: "blocked", ownerType: "operator", resolvedAt: new Date(),
     nextAction: "The original sandbox is retained for workspace repair. Verify its exact stop receipt, recover the missing files, and record workspaceRepairEvidence without changing the current task. Repair does not replay the stopped run. Explicitly remove the retained allocation after recovery.",
     evidence: { runId: f.runId, originalFailureCode: null, continuationDelivery: "invalidated",
       workspaceRestoreFailure: "restore_failed", workspaceRestoreRecovery: recovery,
@@ -116,7 +116,7 @@ describe("native run that failed before its first coordinator claim", () => {
       evidence: { automaticRecovery: { replay: "verified_safe_replacement", successorRunId: successors[0].id } } });
     const [task] = await db.select().from(issues).where(eq(issues.id, f.issueId));
     expect(task).toMatchObject({ status: "in_progress", executionRunId: null, checkoutRunId: null });
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toBeNull();
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toBeNull();
   }, 60_000);
 
   it("waits for saved work before continuing", async () => {
@@ -143,11 +143,11 @@ describe("native run that failed before its first coordinator claim", () => {
       expect(readWorkspaceRecovery((await action(f.actionId)).evidence)).toMatchObject({ status: "recovered" });
       if (gate === "claimed") await db.update(nativeRunFinalizations).set({ attempt: 1, controllerGeneration: 1 })
         .where(eq(nativeRunFinalizations.runId, f.runId));
-      if (gate === "provider_event") await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.runId,
+      if (gate === "provider_event") await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.runId,
         agentId: f.agentId, eventType: "turn.started", stream: "system", level: "info", payload: {} });
-      if (gate === "tool_call") await appendHeartbeatRunEvent(db, { companyId: f.companyId, runId: f.runId,
+      if (gate === "tool_call") await appendHeartbeatRunEvent(db, { spaceId: f.spaceId, runId: f.runId,
         agentId: f.agentId, eventType: "tool.execution.started", stream: "system", level: "info",
-        payload: { name: "paperclip_create_issue", executionId: randomUUID() } });
+        payload: { name: "outpost_create_issue", executionId: randomUUID() } });
       if (gate === "uncertain_side_effect") {
         const current = await run(f.runId);
         await db.update(heartbeatRuns).set({ resultJson: { ...current.resultJson,
@@ -155,7 +155,7 @@ describe("native run that failed before its first coordinator claim", () => {
       }
       if (gate === "process") await db.update(heartbeatRuns).set({ processPid: 2_000_000_000, processStartedAt: new Date() })
         .where(eq(heartbeatRuns.id, f.runId));
-      if (gate === "superseded") await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+      if (gate === "superseded") await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
         status: "succeeded", contextSnapshot: { issueId: f.issueId }, createdAt: new Date(Date.now() + 1000) });
       await sweep();
       expect(await successorsOf(f.runId)).toHaveLength(0);

@@ -20,7 +20,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  endpoint = { id: "endpoint", companyId: "company", assignedAgentName: "Maya", setup: { slackSetupMethod: "managed" } } as ChatEndpoint;
+  endpoint = { id: "endpoint", spaceId: "space", assignedAgentName: "Maya", setup: { slackSetupMethod: "managed" } } as ChatEndpoint;
   api.slackSetupOptions.mockResolvedValue({ managedAvailable: true, workspaces: [{ grantId: "grant", workspaceName: "Outpost" }] });
   api.provisionManagedSlack.mockResolvedValue({}); api.get.mockResolvedValue(endpoint);
   api.authorizeSlackManager.mockResolvedValue({ authorizationUrl: "https://slack.com/oauth" });

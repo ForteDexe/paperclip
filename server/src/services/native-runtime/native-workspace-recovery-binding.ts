@@ -3,26 +3,26 @@ import { heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, type D
 import { getNativeReviewAssignment } from "./native-review-participant.js";
 
 export async function currentNativeWorkspaceRecoveryResult(db: Db, input: {
-  companyId: string;
-  issue: Pick<typeof issues.$inferSelect, "id" | "companyId" | "status" | "executionRunId" | "checkoutRunId" | "assigneeAgentId">;
-  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "nativeIssueId" | "runtimeMode" | "status" | "agentId"
+  spaceId: string;
+  issue: Pick<typeof issues.$inferSelect, "id" | "spaceId" | "status" | "executionRunId" | "checkoutRunId" | "assigneeAgentId">;
+  run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId" | "nativeIssueId" | "runtimeMode" | "status" | "agentId"
     | "contextSnapshot" | "completionContractId" | "createdAt">;
-  coordinator: Pick<typeof nativeRunFinalizations.$inferSelect, "companyId" | "issueId" | "runId" | "phase" | "resultId">;
+  coordinator: Pick<typeof nativeRunFinalizations.$inferSelect, "spaceId" | "issueId" | "runId" | "phase" | "resultId">;
 }) {
-  const { companyId, issue, run, coordinator } = input;
-  if (issue.companyId !== companyId || run.companyId !== companyId || coordinator.companyId !== companyId
+  const { spaceId, issue, run, coordinator } = input;
+  if (issue.spaceId !== spaceId || run.spaceId !== spaceId || coordinator.spaceId !== spaceId
     || run.nativeIssueId !== issue.id || coordinator.issueId !== issue.id || coordinator.runId !== run.id
     || run.runtimeMode !== "native" || run.status !== "running"
     || !["result_accepted", "workspace_finalizing", "retryable_failure"].includes(coordinator.phase)
     || !coordinator.resultId || ["done", "cancelled"].includes(issue.status)
     || issue.executionRunId !== run.id || (issue.checkoutRunId && issue.checkoutRunId !== run.id)) return null;
   if (issue.assigneeAgentId !== run.agentId && !await getNativeReviewAssignment(db, {
-    companyId, issueId: issue.id, agentId: run.agentId,
+    spaceId, issueId: issue.id, agentId: run.agentId,
     contextSnapshot: run.contextSnapshot, actingRunId: run.id, issueExecutionRunId: issue.executionRunId,
     allowResolvedByRunId: run.id,
   })) return null;
   const [result] = await db.select({ id: nativeRunResults.id, completionContractId: nativeRunResults.completionContractId }).from(nativeRunResults).where(and(
-    eq(nativeRunResults.id, coordinator.resultId), eq(nativeRunResults.companyId, companyId),
+    eq(nativeRunResults.id, coordinator.resultId), eq(nativeRunResults.spaceId, spaceId),
     eq(nativeRunResults.issueId, issue.id), eq(nativeRunResults.runId, run.id), eq(nativeRunResults.schemaStatus, "accepted"),
   ));
   if (!result || result.completionContractId !== run.completionContractId) return null;
@@ -35,7 +35,7 @@ export async function currentNativeWorkspaceRecoveryResult(db: Db, input: {
     sql`coalesce(${heartbeatRuns.contextSnapshot}->>'wakeReason', '') <> 'source_scoped_recovery_action'`,
   ) : undefined;
   const [newer] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, companyId), ne(heartbeatRuns.id, run.id),
+    eq(heartbeatRuns.spaceId, spaceId), ne(heartbeatRuns.id, run.id),
     or(eq(heartbeatRuns.nativeIssueId, issue.id), sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${issue.id}`),
     or(gt(heartbeatRuns.createdAt, run.createdAt), inArray(heartbeatRuns.status, ["queued", "running"])),
     waitingWake ? not(waitingWake) : undefined,

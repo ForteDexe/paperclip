@@ -29,7 +29,7 @@ export function readRunCancellation(result: Run["resultJson"] | undefined): RunC
 export function requestedRunCancellation(result: Run["resultJson"], reason: string): RunCancellation {
   const queued = typeof result?.queuedCommentInterruptQueueId === "string";
   const actorType = result?.cancelledByActorType ?? result?.interruptedByActorType;
-  const user = actorType === "user" || actorType === "board" || typeof result?.cancelledByUserId === "string";
+  const user = actorType === "user" || actorType === "operator" || typeof result?.cancelledByUserId === "string";
   const agent = actorType === "agent";
   const actorId = result?.cancelledByUserId ?? result?.cancelledByAgentId ?? result?.interruptedByActorId;
   const source: CancellationSource = queued ? "queued_message" : user ? "operator" : "control_plane";

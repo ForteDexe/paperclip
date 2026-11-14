@@ -24,7 +24,7 @@ export const reportProgressAction = {
     "orpEvidence": "semantic-operation item event plus active-task state diff, work-assessment, and issue-status-decision events",
     "orpBindingStatus": "audit_pending",
     "legacyAliases": [
-      "mcp:paperclipAddComment"
+      "mcp:outpostAddComment"
     ]
   },
   "documentation": {

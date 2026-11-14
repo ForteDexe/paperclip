@@ -2,11 +2,11 @@ import { sql } from "drizzle-orm";
 import { budgetEvaluationWork, type Db } from "@outpost/db";
 import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
 
-export type BudgetEvaluationInput = { companyId: string; agentId?: string | null; projectId?: string | null };
+export type BudgetEvaluationInput = { spaceId: string; agentId?: string | null; projectId?: string | null };
 
 /** Call only for an actual committed exposure change, on that change's tx. */
 export async function queueBudgetEvaluation(tx: Db, input: BudgetEvaluationInput): Promise<void> {
-  await notifyDeliveryWork(tx, DELIVERY_QUEUES.budgetEnforcement, input.companyId);
+  await notifyDeliveryWork(tx, DELIVERY_QUEUES.budgetEnforcement, input.spaceId);
   await tx.insert(budgetEvaluationWork).values(input);
 }
 

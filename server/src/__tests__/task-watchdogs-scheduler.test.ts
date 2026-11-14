@@ -6,7 +6,7 @@ import {
   agentWakeupRequests,
   agents,
   approvals,
-  companies,
+  spaces,
   createDb, applyPendingMigrations,
   documents,
   heartbeatRuns,
@@ -19,8 +19,8 @@ import {
   issueWatchdogs,
 } from "@outpost/db";
 import {
-  normalizePaperclipWakePayload,
-  renderPaperclipWakePrompt,
+  normalizeOutpostWakePayload,
+  renderOutpostWakePrompt,
 } from "@outpost/adapter-utils/server-utils";
 import {
   getEmbeddedPostgresTestSupport,
@@ -46,7 +46,7 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
 
   beforeAll(async () => {
     if (externalUrl) await applyPendingMigrations(externalUrl);
-    else tempDb = await startEmbeddedPostgresTestDatabase("paperclip-task-watchdogs-scheduler-");
+    else tempDb = await startEmbeddedPostgresTestDatabase("outpost-task-watchdogs-scheduler-");
     db = createDb(externalUrl ?? tempDb!.connectionString);
   }, 20_000);
 
@@ -64,7 +64,7 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
     await db.delete(issueWatchdogs);
     await db.delete(issues);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -72,23 +72,23 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompany() {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+  async function seedSpace() {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Watchdog Co",
       issuePrefix: `WD${randomUUID().replace(/-/g, "").slice(0, 4).toUpperCase()}`,
       issueCounter: 0,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
-    return companyId;
+    return spaceId;
   }
 
-  async function seedAgent(companyId: string, overrides: Partial<typeof agents.$inferInsert> = {}) {
+  async function seedAgent(spaceId: string, overrides: Partial<typeof agents.$inferInsert> = {}) {
     const id = overrides.id ?? randomUUID();
     await db.insert(agents).values({
       id,
-      companyId,
+      spaceId,
       name: overrides.name ?? "Watchdog Agent",
       role: overrides.role ?? "engineer",
       status: overrides.status ?? "active",
@@ -102,12 +102,12 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
   }
 
   let nextFixtureIssueNumber = 10_000;
-  async function seedIssue(companyId: string, overrides: Partial<typeof issues.$inferInsert> = {}) {
+  async function seedIssue(spaceId: string, overrides: Partial<typeof issues.$inferInsert> = {}) {
     const id = overrides.id ?? randomUUID();
     const issueNumber = overrides.issueNumber ?? ++nextFixtureIssueNumber;
     await db.insert(issues).values({
       id,
-      companyId,
+      spaceId,
       title: overrides.title ?? "Watched issue",
       status: overrides.status ?? "done",
       priority: overrides.priority ?? "medium",
@@ -127,15 +127,15 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
     return id;
   }
 
-  async function seedIssueDocument(companyId: string, issueId: string, updatedAt: Date) {
+  async function seedIssueDocument(spaceId: string, issueId: string, updatedAt: Date) {
     const [document] = await db.insert(documents).values({
-      companyId,
+      spaceId,
       title: "Plan",
       latestBody: "Plan body",
       updatedAt,
     }).returning();
     await db.insert(issueDocuments).values({
-      companyId,
+      spaceId,
       issueId,
       documentId: document!.id,
       key: "plan",
@@ -143,9 +143,9 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
     });
   }
 
-  async function seedIssueWorkProduct(companyId: string, issueId: string, updatedAt: Date) {
+  async function seedIssueWorkProduct(spaceId: string, issueId: string, updatedAt: Date) {
     await db.insert(issueWorkProducts).values({
-      companyId,
+      spaceId,
       issueId,
       type: "artifact",
       provider: "test",
@@ -156,13 +156,13 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
   }
 
   async function seedWatchdog(
-    companyId: string,
+    spaceId: string,
     issueId: string,
     agentId: string,
     instructions = "Verify stopped work.",
   ) {
     const [row] = await db.insert(issueWatchdogs).values({
-      companyId,
+      spaceId,
       issueId,
       watchdogAgentId: agentId,
       instructions,
@@ -183,13 +183,13 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
   }
 
   it("creates one reusable watchdog issue and wakes the watchdog on the initial stopped state", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-1", status: "done" });
-    const agentId = await seedAgent(companyId);
-    await seedWatchdog(companyId, sourceId, agentId);
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-1", status: "done" });
+    const agentId = await seedAgent(spaceId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     const { service, wakes } = createService();
 
-    const result = await service.reconcileTaskWatchdogs({ companyId });
+    const result = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(result).toMatchObject({ checked: 1, triggered: 1 });
     expect(wakes).toHaveLength(1);
@@ -224,7 +224,7 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
     const watchdogIssues = await db
       .select()
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.originKind, "task_watchdog")));
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.originKind, "task_watchdog")));
     expect(watchdogIssues).toHaveLength(1);
     expect(watchdogIssues[0]).toMatchObject({
       parentId: sourceId,
@@ -245,36 +245,36 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
     expect(watchdog?.triggerCount).toBe(1);
   });
 
-  it("delivers board-supplied watchdog instructions all the way into the rendered mandate", async () => {
-    const boardInstructions =
+  it("delivers operator-supplied watchdog instructions all the way into the rendered mandate", async () => {
+    const operatorInstructions =
       "Escalate to Luna before any production deploy; you do not hold Level B authority.";
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-INSTR", status: "done" });
-    const leafId = await seedIssue(companyId, {
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-INSTR", status: "done" });
+    const leafId = await seedIssue(spaceId, {
       parentId: sourceId,
       identifier: "WDOG-INSTR-LEAF",
       status: "todo",
     });
-    const agentId = await seedAgent(companyId);
-    await seedWatchdog(companyId, sourceId, agentId, boardInstructions);
+    const agentId = await seedAgent(spaceId);
+    await seedWatchdog(spaceId, sourceId, agentId, operatorInstructions);
     const { service, wakes } = createService();
 
-    await service.reconcileTaskWatchdogs({ companyId });
+    await service.reconcileTaskWatchdogs({ spaceId });
     expect(wakes).toHaveLength(1);
 
     // The producer must place the instructions inside `taskWatchdog`, which is
     // the only object the wake normalizer reads.
     const snapshot = wakes[0]?.opts?.contextSnapshot;
-    expect(snapshot).toMatchObject({ taskWatchdog: { customInstructions: boardInstructions } });
+    expect(snapshot).toMatchObject({ taskWatchdog: { customInstructions: operatorInstructions } });
 
     // End-to-end: the text the agent actually receives.
-    const normalized = normalizePaperclipWakePayload(snapshot);
-    expect(normalized?.taskWatchdog?.customInstructions).toBe(boardInstructions);
+    const normalized = normalizeOutpostWakePayload(snapshot);
+    expect(normalized?.taskWatchdog?.customInstructions).toBe(operatorInstructions);
 
-    const prompt = renderPaperclipWakePrompt(normalized);
+    const prompt = renderOutpostWakePrompt(normalized);
     expect(prompt).toContain("## Task Watchdog Mandate");
-    expect(prompt).toContain(boardInstructions);
-    expect(prompt).not.toContain("No board-supplied watchdog instructions");
+    expect(prompt).toContain(operatorInstructions);
+    expect(prompt).not.toContain("No operator-supplied watchdog instructions");
 
     // Same producer/normalizer contract: the stopped leaves the watchdog is
     // asked to verify must reach the mandate too.
@@ -286,13 +286,13 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
   });
 
   it("does not append duplicate review comments for an already-open same-fingerprint review", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-DUPE", status: "done" });
-    const agentId = await seedAgent(companyId);
-    await seedWatchdog(companyId, sourceId, agentId);
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-DUPE", status: "done" });
+    const agentId = await seedAgent(spaceId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     const { service, wakes } = createService();
 
-    const first = await service.reconcileTaskWatchdogs({ companyId });
+    const first = await service.reconcileTaskWatchdogs({ spaceId });
     expect(first).toMatchObject({ checked: 1, triggered: 1 });
 
     const [firstWatchdog] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.issueId, sourceId));
@@ -303,7 +303,7 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
       .where(eq(issueComments.issueId, watchdogIssueId));
     expect(initialComments).toHaveLength(1);
 
-    const second = await service.reconcileTaskWatchdogs({ companyId });
+    const second = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(second).toMatchObject({ checked: 1, triggered: 0, live: 1 });
     expect(wakes).toHaveLength(1);
@@ -318,13 +318,13 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
   });
 
   it("re-wakes a same-fingerprint watchdog review stuck in stale in_review", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-STALE", status: "done" });
-    const agentId = await seedAgent(companyId);
-    await seedWatchdog(companyId, sourceId, agentId);
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-STALE", status: "done" });
+    const agentId = await seedAgent(spaceId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     const { service, wakes } = createService();
 
-    const first = await service.reconcileTaskWatchdogs({ companyId });
+    const first = await service.reconcileTaskWatchdogs({ spaceId });
     expect(first).toMatchObject({ checked: 1, triggered: 1 });
 
     const [firstWatchdog] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.issueId, sourceId));
@@ -340,7 +340,7 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
       })
       .where(eq(issues.id, watchdogIssueId));
 
-    const second = await service.reconcileTaskWatchdogs({ companyId });
+    const second = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(second).toMatchObject({ checked: 1, triggered: 1 });
     expect(wakes).toHaveLength(2);
@@ -360,13 +360,13 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
   });
 
   it("does not trigger while a non-watchdog descendant has live work", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-2", status: "in_progress" });
-    const childId = await seedIssue(companyId, { parentId: sourceId, status: "in_progress" });
-    const agentId = await seedAgent(companyId);
-    await seedWatchdog(companyId, sourceId, agentId);
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-2", status: "in_progress" });
+    const childId = await seedIssue(spaceId, { parentId: sourceId, status: "in_progress" });
+    const agentId = await seedAgent(spaceId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     await db.insert(heartbeatRuns).values({
-      companyId,
+      spaceId,
       agentId,
       status: "queued",
       invocationSource: "assignment",
@@ -374,25 +374,25 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
     });
     const { service, wakes } = createService();
 
-    const result = await service.reconcileTaskWatchdogs({ companyId });
+    const result = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(result).toMatchObject({ checked: 1, triggered: 0, live: 1 });
     expect(wakes).toHaveLength(0);
     const watchdogIssues = await db
       .select({ id: issues.id })
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.originKind, "task_watchdog")));
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.originKind, "task_watchdog")));
     expect(watchdogIssues).toHaveLength(0);
   });
 
   it("does not trigger while a descendant has a queued assignment wake", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-WAKE", status: "in_progress" });
-    const childId = await seedIssue(companyId, { parentId: sourceId, status: "todo" });
-    const agentId = await seedAgent(companyId);
-    await seedWatchdog(companyId, sourceId, agentId);
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-WAKE", status: "in_progress" });
+    const childId = await seedIssue(spaceId, { parentId: sourceId, status: "todo" });
+    const agentId = await seedAgent(spaceId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     await db.insert(agentWakeupRequests).values({
-      companyId,
+      spaceId,
       agentId,
       status: "queued",
       source: "assignment",
@@ -402,35 +402,35 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
     });
     const { service, wakes } = createService();
 
-    const result = await service.reconcileTaskWatchdogs({ companyId });
+    const result = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(result).toMatchObject({ checked: 1, triggered: 0, live: 1 });
     expect(wakes).toHaveLength(0);
     const watchdogIssues = await db
       .select({ id: issues.id })
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.originKind, "task_watchdog")));
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.originKind, "task_watchdog")));
     expect(watchdogIssues).toHaveLength(0);
   });
 
   it("does not keep the source live for runs under a nested task-watchdog issue", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-NEST", status: "done" });
-    const agentId = await seedAgent(companyId);
-    const nestedWatchdogIssueId = await seedIssue(companyId, {
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-NEST", status: "done" });
+    const agentId = await seedAgent(spaceId);
+    const nestedWatchdogIssueId = await seedIssue(spaceId, {
       parentId: sourceId,
       status: "in_progress",
       originKind: "task_watchdog",
       originId: sourceId,
-      originFingerprint: `task_watchdog:${companyId}:${sourceId}`,
+      originFingerprint: `task_watchdog:${spaceId}:${sourceId}`,
     });
-    const nestedChildId = await seedIssue(companyId, {
+    const nestedChildId = await seedIssue(spaceId, {
       parentId: nestedWatchdogIssueId,
       status: "in_progress",
     });
-    await seedWatchdog(companyId, sourceId, agentId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     await db.insert(heartbeatRuns).values({
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       invocationSource: "assignment",
@@ -438,36 +438,36 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
     });
     const { service, wakes } = createService();
 
-    const result = await service.reconcileTaskWatchdogs({ companyId });
+    const result = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(result).toMatchObject({ checked: 1, triggered: 1, live: 0 });
     expect(wakes).toHaveLength(1);
   });
 
   async function seedDeepSubtree() {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { status: "blocked", issueNumber: 1000 });
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { status: "blocked", issueNumber: 1000 });
     let boundaryId = sourceId;
     for (let depth = 1; depth < 100; depth += 1) {
-      boundaryId = await seedIssue(companyId, {
+      boundaryId = await seedIssue(spaceId, {
         parentId: boundaryId, status: "blocked", identifier: `DEEP-${depth}`, issueNumber: 1000 + depth,
       });
     }
-    const agentId = await seedAgent(companyId);
-    const watchdog = await seedWatchdog(companyId, sourceId, agentId);
-    return { companyId, sourceId, boundaryId, agentId, watchdog, ...createService() };
+    const agentId = await seedAgent(spaceId);
+    const watchdog = await seedWatchdog(spaceId, sourceId, agentId);
+    return { spaceId, sourceId, boundaryId, agentId, watchdog, ...createService() };
   }
 
   it("rejects an incomplete subtree before dispatching a stopped review", async () => {
     const x = await seedDeepSubtree();
-    const omittedId = await seedIssue(x.companyId, {
+    const omittedId = await seedIssue(x.spaceId, {
       parentId: x.boundaryId, status: "blocked", issueNumber: 1100,
     });
     await db.insert(heartbeatRuns).values({
-      companyId: x.companyId, agentId: x.agentId, status: "running",
+      spaceId: x.spaceId, agentId: x.agentId, status: "running",
       contextSnapshot: { issueId: omittedId },
     });
-    expect(await x.service.reconcileTaskWatchdogs({ companyId: x.companyId }))
+    expect(await x.service.reconcileTaskWatchdogs({ spaceId: x.spaceId }))
       .toMatchObject({ checked: 1, triggered: 0, incomplete: 1, incompleteIssueIds: [x.sourceId], skipped: 0 });
     expect(x.wakes).toHaveLength(0);
     const [persisted] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.id, x.watchdog.id));
@@ -477,25 +477,25 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
 
   it("allows a complete boundary leaf but revokes its scope when an omitted child appears", async () => {
     const x = await seedDeepSubtree();
-    expect((await x.service.reconcileTaskWatchdogs({ companyId: x.companyId })).triggered).toBe(1);
+    expect((await x.service.reconcileTaskWatchdogs({ spaceId: x.spaceId })).triggered).toBe(1);
     const [persisted] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.id, x.watchdog.id));
     const scope = {
-      kind: "watchdog" as const, watchdogId: x.watchdog.id, companyId: x.companyId,
+      kind: "watchdog" as const, watchdogId: x.watchdog.id, spaceId: x.spaceId,
       watchedIssueId: x.sourceId, stopFingerprint: persisted!.lastObservedFingerprint,
     };
     expect((await x.service.revalidateMutationScope(scope)).allowed).toBe(true);
-    const omittedId = await seedIssue(x.companyId, {
+    const omittedId = await seedIssue(x.spaceId, {
       parentId: x.boundaryId, status: "blocked", issueNumber: 1100,
     });
     await db.insert(heartbeatRuns).values({
-      companyId: x.companyId, agentId: x.agentId, status: "running",
+      spaceId: x.spaceId, agentId: x.agentId, status: "running",
       contextSnapshot: { issueId: omittedId },
     });
     const incomplete = await x.service.revalidateMutationScope(scope);
     expect(incomplete.allowed).toBe(false);
     expect(incomplete.classification?.state).toBe("incomplete");
     expect(incomplete.reason).toContain("incomplete");
-    expect(await x.service.reconcileForIssueAndAncestors(x.companyId, x.sourceId))
+    expect(await x.service.reconcileForIssueAndAncestors(x.spaceId, x.sourceId))
       .toMatchObject({ triggered: 0, incomplete: 1, incompleteIssueIds: [x.sourceId], skipped: 0 });
     expect(x.wakes).toHaveLength(1);
     await db.update(issues).set({ parentId: x.sourceId }).where(eq(issues.id, omittedId));
@@ -506,49 +506,49 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
 
   it("does not treat excluded boundary children as a truncated watched subtree", async () => {
     const x = await seedDeepSubtree();
-    const hiddenId = await seedIssue(x.companyId, { parentId: x.boundaryId, issueNumber: 1100 });
+    const hiddenId = await seedIssue(x.spaceId, { parentId: x.boundaryId, issueNumber: 1100 });
     await db.update(issues).set({ hiddenAt: new Date() }).where(eq(issues.id, hiddenId));
-    const harnessId = await seedIssue(x.companyId, { parentId: x.boundaryId, issueNumber: 1103 });
+    const harnessId = await seedIssue(x.spaceId, { parentId: x.boundaryId, issueNumber: 1103 });
     await db.update(issues).set({ harnessKind: "test" }).where(eq(issues.id, harnessId));
-    await seedIssue(x.companyId, {
+    await seedIssue(x.spaceId, {
       parentId: x.boundaryId, issueNumber: 1101, originKind: "task_watchdog", originId: x.boundaryId,
     });
-    const otherCompanyId = await seedCompany();
-    await seedIssue(otherCompanyId, { parentId: x.boundaryId, issueNumber: 1102 });
-    expect((await x.service.reconcileTaskWatchdogs({ companyId: x.companyId })).triggered).toBe(1);
+    const otherSpaceId = await seedSpace();
+    await seedIssue(otherSpaceId, { parentId: x.boundaryId, issueNumber: 1102 });
+    expect((await x.service.reconcileTaskWatchdogs({ spaceId: x.spaceId })).triggered).toBe(1);
     expect(x.wakes).toHaveLength(1);
   });
 
   it("reconciles ancestor watchdogs for a descendant issue mutation", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-ANCESTOR", status: "done" });
-    const childId = await seedIssue(companyId, { parentId: sourceId, status: "done" });
-    const agentId = await seedAgent(companyId);
-    await seedWatchdog(companyId, sourceId, agentId);
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-ANCESTOR", status: "done" });
+    const childId = await seedIssue(spaceId, { parentId: sourceId, status: "done" });
+    const agentId = await seedAgent(spaceId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     const { service, wakes } = createService();
 
-    const result = await service.reconcileForIssueAndAncestors(companyId, childId);
+    const result = await service.reconcileForIssueAndAncestors(spaceId, childId);
 
     expect(result).toMatchObject({ checked: 1, triggered: 1 });
     expect(wakes).toHaveLength(1);
   });
 
   it("marks a completed watchdog fingerprint reviewed, then reuses the same issue for a later stopped state", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-3", status: "done" });
-    const childId = await seedIssue(companyId, { parentId: sourceId, status: "done" });
-    const agentId = await seedAgent(companyId);
-    await seedWatchdog(companyId, sourceId, agentId);
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-3", status: "done" });
+    const childId = await seedIssue(spaceId, { parentId: sourceId, status: "done" });
+    const agentId = await seedAgent(spaceId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     const { service, wakes } = createService();
 
-    await service.reconcileTaskWatchdogs({ companyId });
+    await service.reconcileTaskWatchdogs({ spaceId });
     const [firstWatchdog] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.issueId, sourceId));
     const watchdogIssueId = firstWatchdog!.watchdogIssueId!;
     const [firstWatchdogIssue] = await db.select().from(issues).where(eq(issues.id, watchdogIssueId));
     expect(firstWatchdogIssue?.originFingerprint).toBe(firstWatchdog?.lastObservedFingerprint);
     await db.update(issues).set({ status: "done", updatedAt: new Date() }).where(eq(issues.id, watchdogIssueId));
 
-    const reviewed = await service.reconcileTaskWatchdogs({ companyId });
+    const reviewed = await service.reconcileTaskWatchdogs({ spaceId });
     expect(reviewed).toMatchObject({ checked: 1, triggered: 0, alreadyReviewed: 1 });
     const [reviewedWatchdog] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.issueId, sourceId));
     expect(reviewedWatchdog?.lastReviewedFingerprint).toBe(firstWatchdog?.lastObservedFingerprint);
@@ -558,13 +558,13 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
       .update(issues)
       .set({ status: "blocked", updatedAt: new Date(Date.now() + 60_000) })
       .where(eq(issues.id, childId));
-    const retriggered = await service.reconcileTaskWatchdogs({ companyId });
+    const retriggered = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(retriggered).toMatchObject({ checked: 1, triggered: 1 });
     const watchdogIssues = await db
       .select()
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.originKind, "task_watchdog")));
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.originKind, "task_watchdog")));
     expect(watchdogIssues).toHaveLength(1);
     expect(watchdogIssues[0]).toMatchObject({ id: watchdogIssueId, status: "todo" });
     const comments = await db
@@ -576,24 +576,24 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
   });
 
   it("suppresses a shrink-only stop after review when the snapshot round-trips through jsonb", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-SHRINK", status: "in_review" });
-    const waitingLeafId = await seedIssue(companyId, { parentId: sourceId, status: "in_review" });
-    const siblingLeafId = await seedIssue(companyId, { parentId: sourceId, status: "in_progress" });
-    const agentId = await seedAgent(companyId);
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-SHRINK", status: "in_review" });
+    const waitingLeafId = await seedIssue(spaceId, { parentId: sourceId, status: "in_review" });
+    const siblingLeafId = await seedIssue(spaceId, { parentId: sourceId, status: "in_progress" });
+    const agentId = await seedAgent(spaceId);
     await db.insert(issueThreadInteractions).values({
       id: randomUUID(),
-      companyId,
+      spaceId,
       issueId: waitingLeafId,
       kind: "request_confirmation",
       status: "pending",
       payload: { version: 1, prompt: "Confirm the stop." },
       createdByAgentId: agentId,
     });
-    await seedWatchdog(companyId, sourceId, agentId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     const { service, wakes } = createService();
 
-    const first = await service.reconcileTaskWatchdogs({ companyId });
+    const first = await service.reconcileTaskWatchdogs({ spaceId });
     expect(first).toMatchObject({ checked: 1, triggered: 1 });
 
     const [triggeredWatchdog] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.issueId, sourceId));
@@ -601,7 +601,7 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
       .update(issues)
       .set({ status: "done", updatedAt: new Date() })
       .where(eq(issues.id, triggeredWatchdog!.watchdogIssueId!));
-    const reviewed = await service.reconcileTaskWatchdogs({ companyId });
+    const reviewed = await service.reconcileTaskWatchdogs({ spaceId });
     expect(reviewed).toMatchObject({ checked: 1, triggered: 0, alreadyReviewed: 1 });
     const [reviewedWatchdog] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.issueId, sourceId));
     expect(reviewedWatchdog?.lastReviewedStopSnapshot).not.toBeNull();
@@ -613,28 +613,28 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
       .update(issues)
       .set({ status: "done", updatedAt: new Date(Date.now() + 60_000) })
       .where(eq(issues.id, siblingLeafId));
-    const afterShrink = await service.reconcileTaskWatchdogs({ companyId });
+    const afterShrink = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(afterShrink).toMatchObject({ checked: 1, triggered: 0, alreadyReviewed: 1 });
     expect(wakes).toHaveLength(1);
   });
 
   it("does not let an old terminal watchdog review mark a newer observed fingerprint reviewed", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-STALE", status: "done" });
-    const childId = await seedIssue(companyId, { parentId: sourceId, status: "done" });
-    const agentId = await seedAgent(companyId);
-    await seedWatchdog(companyId, sourceId, agentId);
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-STALE", status: "done" });
+    const childId = await seedIssue(spaceId, { parentId: sourceId, status: "done" });
+    const agentId = await seedAgent(spaceId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     const { service, wakes } = createService();
 
-    await service.reconcileTaskWatchdogs({ companyId });
+    await service.reconcileTaskWatchdogs({ spaceId });
     const [firstWatchdog] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.issueId, sourceId));
     const oldFingerprint = firstWatchdog!.lastObservedFingerprint!;
     const watchdogIssueId = firstWatchdog!.watchdogIssueId!;
     const watchdogRunId = randomUUID();
     await db.insert(heartbeatRuns).values({
       id: watchdogRunId,
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       invocationSource: "assignment",
@@ -645,7 +645,7 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
       .update(issues)
       .set({ status: "blocked", updatedAt: new Date(Date.now() + 60_000) })
       .where(eq(issues.id, childId));
-    const changedWhileReviewLive = await service.reconcileTaskWatchdogs({ companyId });
+    const changedWhileReviewLive = await service.reconcileTaskWatchdogs({ spaceId });
     expect(changedWhileReviewLive).toMatchObject({ checked: 1, triggered: 0, live: 1 });
 
     const [observedWhileLive] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.issueId, sourceId));
@@ -656,7 +656,7 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
 
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, watchdogRunId));
     await db.update(issues).set({ status: "done", updatedAt: new Date() }).where(eq(issues.id, watchdogIssueId));
-    const afterOldReviewCompletes = await service.reconcileTaskWatchdogs({ companyId });
+    const afterOldReviewCompletes = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(afterOldReviewCompletes).toMatchObject({ checked: 1, triggered: 1 });
     const [reviewedWatchdog] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.issueId, sourceId));
@@ -681,33 +681,33 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
   });
 
   it("keeps watchdog mutation scope valid across metadata-only source evidence", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-REVALIDATE", status: "blocked" });
-    const agentId = await seedAgent(companyId);
-    await seedWatchdog(companyId, sourceId, agentId);
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-REVALIDATE", status: "blocked" });
+    const agentId = await seedAgent(spaceId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     const { service } = createService();
 
-    await service.reconcileTaskWatchdogs({ companyId });
+    await service.reconcileTaskWatchdogs({ spaceId });
     const [watchdog] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.issueId, sourceId));
     const originalFingerprint = watchdog!.lastObservedFingerprint!;
     expect(originalFingerprint).toMatch(/^task_watchdog_stop:/);
 
     const later = new Date(Date.now() + 60_000);
     await db.insert(issueComments).values({
-      companyId,
+      spaceId,
       issueId: sourceId,
       authorType: "agent",
       body: "Fresh source evidence.",
       updatedAt: later,
       createdAt: later,
     });
-    await seedIssueDocument(companyId, sourceId, new Date(later.getTime() + 1_000));
-    await seedIssueWorkProduct(companyId, sourceId, new Date(later.getTime() + 2_000));
+    await seedIssueDocument(spaceId, sourceId, new Date(later.getTime() + 1_000));
+    await seedIssueWorkProduct(spaceId, sourceId, new Date(later.getTime() + 2_000));
 
     const revalidated = await service.revalidateMutationScope({
       kind: "watchdog",
       watchdogId: watchdog!.id,
-      companyId,
+      spaceId,
       watchedIssueId: sourceId,
       stopFingerprint: originalFingerprint,
     });
@@ -724,15 +724,15 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
   });
 
   it("surfaces pending interaction kinds and approval ids in the wake and watchdog comment", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-WAITS", status: "in_review" });
-    const agentId = await seedAgent(companyId);
-    await seedWatchdog(companyId, sourceId, agentId);
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-WAITS", status: "in_review" });
+    const agentId = await seedAgent(spaceId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     const interactionId = randomUUID();
     const approvalId = randomUUID();
     await db.insert(issueThreadInteractions).values({
       id: interactionId,
-      companyId,
+      spaceId,
       issueId: sourceId,
       kind: "request_confirmation",
       status: "pending",
@@ -741,21 +741,21 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
     });
     await db.insert(approvals).values({
       id: approvalId,
-      companyId,
-      type: "request_board_approval",
+      spaceId,
+      type: "request_operator_approval",
       requestedByAgentId: agentId,
       status: "pending",
       payload: { summary: "Approve the reviewed stop." },
     });
     await db.insert(issueApprovals).values({
-      companyId,
+      spaceId,
       issueId: sourceId,
       approvalId,
       linkedByAgentId: agentId,
     });
     const { service, wakes } = createService();
 
-    const result = await service.reconcileTaskWatchdogs({ companyId });
+    const result = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(result).toMatchObject({ checked: 1, triggered: 1 });
     expect(wakes[0]?.opts?.contextSnapshot).toMatchObject({
@@ -790,17 +790,17 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
   });
 
   it("revalidates a stale watchdog review as live when the source gets a fresh run path", async () => {
-    const companyId = await seedCompany();
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-LIVE-REVALIDATE", status: "blocked" });
-    const agentId = await seedAgent(companyId);
-    await seedWatchdog(companyId, sourceId, agentId);
+    const spaceId = await seedSpace();
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-LIVE-REVALIDATE", status: "blocked" });
+    const agentId = await seedAgent(spaceId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     const { service } = createService();
 
-    await service.reconcileTaskWatchdogs({ companyId });
+    await service.reconcileTaskWatchdogs({ spaceId });
     const [watchdog] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.issueId, sourceId));
     const originalFingerprint = watchdog!.lastObservedFingerprint!;
     await db.insert(heartbeatRuns).values({
-      companyId,
+      spaceId,
       agentId,
       status: "running",
       invocationSource: "assignment",
@@ -810,7 +810,7 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
     const revalidated = await service.revalidateMutationScope({
       kind: "watchdog",
       watchdogId: watchdog!.id,
-      companyId,
+      spaceId,
       watchedIssueId: sourceId,
       stopFingerprint: originalFingerprint,
     });
@@ -821,65 +821,65 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
   });
 
   it("does not raise a stopped-subtree review while a freshly-created assigned issue's first run is starting", async () => {
-    const companyId = await seedCompany();
-    const agentId = await seedAgent(companyId);
+    const spaceId = await seedSpace();
+    const agentId = await seedAgent(spaceId);
     // Issue + watchdog created in the same flow; the assignment run row is not
     // yet visible to this evaluation (create-race).
-    const sourceId = await seedIssue(companyId, {
+    const sourceId = await seedIssue(spaceId, {
       identifier: "WDOG-RACE",
       status: "todo",
       assigneeAgentId: agentId,
       createdAt: new Date(),
     });
-    await seedWatchdog(companyId, sourceId, agentId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     const { service, wakes } = createService();
 
-    const result = await service.reconcileTaskWatchdogs({ companyId });
+    const result = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(result).toMatchObject({ checked: 1, triggered: 0, pendingFirstRun: 1 });
     expect(wakes).toHaveLength(0);
     const watchdogIssues = await db
       .select({ id: issues.id })
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.originKind, "task_watchdog")));
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.originKind, "task_watchdog")));
     expect(watchdogIssues).toHaveLength(0);
     const [watchdog] = await db.select().from(issueWatchdogs).where(eq(issueWatchdogs.issueId, sourceId));
     expect(watchdog?.triggerCount).toBe(0);
   });
 
   it("still triggers a genuinely idle assigned issue once it is past the first-run grace window", async () => {
-    const companyId = await seedCompany();
-    const agentId = await seedAgent(companyId);
+    const spaceId = await seedSpace();
+    const agentId = await seedAgent(spaceId);
     // Established issue (default createdAt is an hour ago), assigned, non-terminal,
     // with no live run or queued wake.
-    const sourceId = await seedIssue(companyId, {
+    const sourceId = await seedIssue(spaceId, {
       identifier: "WDOG-IDLE",
       status: "todo",
       assigneeAgentId: agentId,
     });
-    await seedWatchdog(companyId, sourceId, agentId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     const { service, wakes } = createService();
 
-    const result = await service.reconcileTaskWatchdogs({ companyId });
+    const result = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(result).toMatchObject({ checked: 1, triggered: 1 });
     expect(wakes).toHaveLength(1);
   });
 
   it("does not defer once the freshly-created issue has a terminal run on record", async () => {
-    const companyId = await seedCompany();
-    const agentId = await seedAgent(companyId);
-    const sourceId = await seedIssue(companyId, {
+    const spaceId = await seedSpace();
+    const agentId = await seedAgent(spaceId);
+    const sourceId = await seedIssue(spaceId, {
       identifier: "WDOG-RAN",
       status: "blocked",
       assigneeAgentId: agentId,
       createdAt: new Date(),
     });
-    await seedWatchdog(companyId, sourceId, agentId);
+    await seedWatchdog(spaceId, sourceId, agentId);
     // A run for this issue already reached a terminal status, so the stop is
     // genuine even though the issue was just created.
     await db.insert(heartbeatRuns).values({
-      companyId,
+      spaceId,
       agentId,
       status: "succeeded",
       invocationSource: "assignment",
@@ -887,44 +887,44 @@ describeEmbeddedPostgres("task watchdog scheduler", () => {
     });
     const { service, wakes } = createService();
 
-    const result = await service.reconcileTaskWatchdogs({ companyId });
+    const result = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(result).toMatchObject({ checked: 1, triggered: 1 });
     expect(wakes).toHaveLength(1);
   });
 
   it("does not recursively trigger a watchdog configured on a task-watchdog issue", async () => {
-    const companyId = await seedCompany();
-    const agentId = await seedAgent(companyId);
-    const sourceId = await seedIssue(companyId, { identifier: "WDOG-4", status: "done" });
-    const watchdogIssueId = await seedIssue(companyId, {
+    const spaceId = await seedSpace();
+    const agentId = await seedAgent(spaceId);
+    const sourceId = await seedIssue(spaceId, { identifier: "WDOG-4", status: "done" });
+    const watchdogIssueId = await seedIssue(spaceId, {
       parentId: sourceId,
       status: "done",
       originKind: "task_watchdog",
       originId: sourceId,
-      originFingerprint: `task_watchdog:${companyId}:${sourceId}`,
+      originFingerprint: `task_watchdog:${spaceId}:${sourceId}`,
     });
-    await seedIssue(companyId, { parentId: watchdogIssueId, status: "done" });
-    await seedWatchdog(companyId, watchdogIssueId, agentId);
+    await seedIssue(spaceId, { parentId: watchdogIssueId, status: "done" });
+    await seedWatchdog(spaceId, watchdogIssueId, agentId);
     const { service, wakes } = createService();
 
-    const result = await service.reconcileTaskWatchdogs({ companyId });
+    const result = await service.reconcileTaskWatchdogs({ spaceId });
 
     expect(result).toMatchObject({ checked: 1, triggered: 0 });
     expect(wakes).toHaveLength(0);
     const watchdogIssues = await db
       .select()
       .from(issues)
-      .where(and(eq(issues.companyId, companyId), eq(issues.originKind, "task_watchdog")));
+      .where(and(eq(issues.spaceId, spaceId), eq(issues.originKind, "task_watchdog")));
     expect(watchdogIssues).toHaveLength(1);
   });
 
   it("handles an armed cutoff when no watchdogs are active", async () => {
-    const companyId = await seedCompany();
+    const spaceId = await seedSpace();
     const { service } = createService();
 
     const result = await service.reconcileTaskWatchdogs({
-      companyId,
+      spaceId,
       issueCreatedAtGte: new Date(),
     });
 

@@ -4,18 +4,18 @@ import { environmentLeases, heartbeatRuns, nativeHarnessBackups, nativeRunFinali
 type Transaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 export async function retireObsoleteNativeHarnessBackup(tx: Transaction, input: {
-  id: string; companyId: string; scopeDigest: string; closedBefore: Date; dryRun: boolean;
+  id: string; spaceId: string; scopeDigest: string; closedBefore: Date; dryRun: boolean;
 }): Promise<boolean> {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${input.companyId}:${input.scopeDigest}`}, 0))`);
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${input.spaceId}:${input.scopeDigest}`}, 0))`);
   const [candidate] = await tx.select().from(nativeHarnessBackups).where(and(
-    eq(nativeHarnessBackups.id, input.id), eq(nativeHarnessBackups.companyId, input.companyId))).for("update");
+    eq(nativeHarnessBackups.id, input.id), eq(nativeHarnessBackups.spaceId, input.spaceId))).for("update");
   if (!candidate || !["pending", "superseded"].includes(candidate.status) || candidate.updatedAt >= input.closedBefore) return false;
   const [current] = await tx.select({ id: nativeHarnessBackups.id }).from(nativeHarnessBackups).where(and(
-    eq(nativeHarnessBackups.companyId, input.companyId), eq(nativeHarnessBackups.scopeDigest, input.scopeDigest),
+    eq(nativeHarnessBackups.spaceId, input.spaceId), eq(nativeHarnessBackups.scopeDigest, input.scopeDigest),
     eq(nativeHarnessBackups.status, "current"))).limit(1);
   if (!current && candidate.status === "superseded") return false;
   const [lease] = await tx.select({ id: environmentLeases.id }).from(environmentLeases).where(and(
-    eq(environmentLeases.companyId, input.companyId),
+    eq(environmentLeases.spaceId, input.spaceId),
     inArray(environmentLeases.status, ["active", "released", "retained", "pending_cleanup"]),
     sql`${environmentLeases.metadata}->'nativeHarnessBackup'->>'sessionScopeSha256' = ${input.scopeDigest}`,
     sql`${environmentLeases.metadata}->'nativeHarnessBackup'->>'manifestSha256' = ${candidate.manifestSha256}`)).limit(1);

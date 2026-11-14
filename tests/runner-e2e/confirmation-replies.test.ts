@@ -113,14 +113,14 @@ describe("confirmation-reply independent oracle", () => {
   });
   it.each(runnerMatrix.filter(e => e.suite.id === "confirmation-replies" && e.task.flow === "first_task" && e.environment.id === "local"))("provisions the real local onboarding fixture contract for $id", async execution => {
     const get = vi.fn().mockResolvedValue([{ id: "local", driver: "local" }]);
-    const patch = vi.fn().mockResolvedValue({ id: "company" });
+    const patch = vi.fn().mockResolvedValue({ id: "space" });
     const postSensitive = vi.fn().mockResolvedValue({ id: "secret" });
     const credential = execution.profile.credential;
     const fixtures = await provisionFirstTaskFixtures({ api: { get, patch, postSensitive }, execution, nonce: "fixture",
-      company: { id: "company", name: "Garden" }, credentials: { [credential]: "test-credential" } });
-    expect(get).toHaveBeenCalledExactlyOnceWith("/api/companies/company/environments?driver=local");
-    expect(patch).toHaveBeenCalledExactlyOnceWith("/api/companies/company", { budgetMonthlyCents: 500 });
-    expect(postSensitive).toHaveBeenCalledExactlyOnceWith("/api/companies/company/secrets", expect.objectContaining({ key: credential }));
+      space: { id: "space", name: "Garden" }, credentials: { [credential]: "test-credential" } });
+    expect(get).toHaveBeenCalledExactlyOnceWith("/api/spaces/space/environments?driver=local");
+    expect(patch).toHaveBeenCalledExactlyOnceWith("/api/spaces/space", { budgetMonthlyCents: 500 });
+    expect(postSensitive).toHaveBeenCalledExactlyOnceWith("/api/spaces/space/secrets", expect.objectContaining({ key: credential }));
     expect(fixtures.agent.id).toBe(""); // The real wizard must still create the agent.
     expect(JSON.stringify(fixtures)).not.toContain("test-credential");
   });

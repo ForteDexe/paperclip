@@ -9,19 +9,19 @@ function fixture() {
   trace.start("agent.turn");
   return { spans, timing: createNativeToolTrace(trace, () => now), at: (time: number) => { now = time; } };
 }
-const event = (kind: string, id: string, time: number, inputUpdated = false) => ({ eventType: `tool.execution.${kind}`, emittedAt: new Date(time).toISOString(), payload: { executionId: id, name: "mcp__paperclip__call_api", inputUpdated } });
+const event = (kind: string, id: string, time: number, inputUpdated = false) => ({ eventType: `tool.execution.${kind}`, emittedAt: new Date(time).toISOString(), payload: { executionId: id, name: "mcp__outpost__call_api", inputUpdated } });
 
 describe("native tool timing", () => {
   it("measures streamed input and server execution in their distinct ID namespaces", async () => {
     const { spans, timing, at } = fixture();
-    await timing.observe(event("started", "toolu_hire", 1_000));
-    await timing.observe(event("started", "toolu_hire", 2_000));
-    await timing.observe(event("progressed", "toolu_hire", 2_100, true));
-    await timing.observe(event("progressed", "toolu_hire", 11_568, true));
+    await timing.observe(event("started", "toolu_create", 1_000));
+    await timing.observe(event("started", "toolu_create", 2_000));
+    await timing.observe(event("progressed", "toolu_create", 2_100, true));
+    await timing.observe(event("progressed", "toolu_create", 11_568, true));
     at(11_596);
     expect(await timing.execute({ callId: "3", tool: "call_api" }, async () => { at(11_631); return "created"; })).toBe("created");
-    await timing.observe(event("completed", "toolu_hire", 12_003));
-    await timing.observe(event("completed", "toolu_hire", 12_004));
+    await timing.observe(event("completed", "toolu_create", 12_003));
+    await timing.observe(event("completed", "toolu_create", 12_004));
     expect(spans).toEqual([
       expect.objectContaining({ span: "tool.execute", durationMs: 35, operation: "call_api", outcome: "ok" }),
       expect.objectContaining({ span: "tool.request.input_stream", durationMs: 10_568, parentSpan: "agent.turn" }),
@@ -75,7 +75,7 @@ describe("native tool timing", () => {
 
 it("marks the first completion tool request once per turn without arguments",async()=>{
  const {spans,timing}=fixture();
- const completion=(id:string)=>({...event("started",id,1000),payload:{executionId:id,name:"paperclip_finish",arguments:"private"}});
+ const completion=(id:string)=>({...event("started",id,1000),payload:{executionId:id,name:"outpost_finish",arguments:"private"}});
  await timing.observe(completion("a"));await timing.observe(completion("b"));
  expect(spans.filter(span=>span.span==="completion.request.first")).toHaveLength(1);
  expect(JSON.stringify(spans)).not.toContain("private");

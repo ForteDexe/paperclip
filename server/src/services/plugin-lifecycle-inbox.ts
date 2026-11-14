@@ -1,7 +1,7 @@
 import { withAccountHomeSecretMutationLock } from "@outpost/adapter-codex-local/server";
 import { projectInstanceSecretService, type ProjectSecretSnapshot } from "./project-instance-secrets.js";
 import { publishActivity, type ActivityPublication } from "./activity-log.js";
-import { pluginCompanySettings, pluginLifecycleAcknowledgments, pluginLifecycleResourceCursors, plugins, resourceLifecycleEvents, type Db } from "@outpost/db";
+import { pluginSpaceSettings, pluginLifecycleAcknowledgments, pluginLifecycleResourceCursors, plugins, resourceLifecycleEvents, type Db } from "@outpost/db";
 import type { ResourceLifecycleEvent } from "@outpost/plugin-sdk";
 import { z } from "zod";
 import { and, asc, eq, sql, type SQL } from "drizzle-orm";
@@ -22,9 +22,9 @@ type ResourceType = ResourceLifecycleEvent["resourceType"];
 export function pluginLifecycleInbox(db: Db, pluginId: string) {
   const acknowledged = (event: SQL) => sql`EXISTS (
     SELECT 1 FROM plugin_lifecycle_acknowledgments ack WHERE ack.plugin_id = ${pluginId} AND ack.event_id = ${event})`;
-  const unacknowledgedCreation = (companyId: string, type: SQL, resource: SQL, through: SQL) => sql`
+  const unacknowledgedCreation = (spaceId: string, type: SQL, resource: SQL, through: SQL) => sql`
     SELECT e.id FROM resource_lifecycle_events e
-    WHERE e.company_id = ${companyId} AND e.resource_type = ${type} AND e.resource_id = ${resource}
+    WHERE e.space_id = ${spaceId} AND e.resource_type = ${type} AND e.resource_id = ${resource}
       AND e.action = 'create' AND e.id > ${through} AND NOT ${acknowledged(sql`e.id`)}`;
 
   /**
@@ -34,7 +34,7 @@ export function pluginLifecycleInbox(db: Db, pluginId: string) {
    * so only streams with newer events are probed. Cost follows the number of resource streams
    * and pending events, not the length of acknowledged history.
    */
-  function heads(companyId: string, types: ResourceType[]) {
+  function heads(spaceId: string, types: ResourceType[]) {
     // A manifest may repeat a type. Duplicate streams would repeat heads and shorten the page.
     const typeArray = sql`ARRAY[${sql.join([...new Set(types)].map(type => sql`${type}`), sql`, `)}]::text[]`;
     const through = sql`COALESCE(stream_cursor.acknowledged_through_id, 0)`;
@@ -43,24 +43,24 @@ export function pluginLifecycleInbox(db: Db, pluginId: string) {
         SELECT t.resource_type, first_stream.resource_id, first_stream.id FROM unnest(${typeArray}) AS t(resource_type)
         CROSS JOIN LATERAL (
           SELECT e.resource_id, e.id FROM resource_lifecycle_events e
-          WHERE e.company_id = ${companyId} AND e.resource_type = t.resource_type
+          WHERE e.space_id = ${spaceId} AND e.resource_type = t.resource_type
           ORDER BY e.resource_id DESC, e.id DESC LIMIT 1) first_stream
         UNION ALL
         SELECT s.resource_type, next_stream.resource_id, next_stream.id FROM streams s
         CROSS JOIN LATERAL (
           SELECT e.resource_id, e.id FROM resource_lifecycle_events e
-          WHERE e.company_id = ${companyId} AND e.resource_type = s.resource_type AND e.resource_id < s.resource_id
+          WHERE e.space_id = ${spaceId} AND e.resource_type = s.resource_type AND e.resource_id < s.resource_id
           ORDER BY e.resource_id DESC, e.id DESC LIMIT 1) next_stream
       )
       SELECT head.id FROM streams s
       LEFT JOIN plugin_lifecycle_resource_cursors stream_cursor ON stream_cursor.plugin_id = ${pluginId}
-        AND stream_cursor.company_id = ${companyId} AND stream_cursor.resource_type = s.resource_type
+        AND stream_cursor.space_id = ${spaceId} AND stream_cursor.resource_type = s.resource_type
         AND stream_cursor.resource_id = s.resource_id
       CROSS JOIN LATERAL (
         SELECT COALESCE(
-          (${unacknowledgedCreation(companyId, sql`s.resource_type`, sql`s.resource_id`, through)}),
+          (${unacknowledgedCreation(spaceId, sql`s.resource_type`, sql`s.resource_id`, through)}),
           (SELECT e.id FROM resource_lifecycle_events e
-            WHERE e.company_id = ${companyId} AND e.resource_type = s.resource_type AND e.resource_id = s.resource_id
+            WHERE e.space_id = ${spaceId} AND e.resource_type = s.resource_type AND e.resource_id = s.resource_id
               AND e.id > ${through} AND e.action <> 'create' AND NOT ${acknowledged(sql`e.id`)}
             ORDER BY e.id LIMIT 1)) AS id
         -- Keep the head probes evaluated once per stream.
@@ -69,44 +69,44 @@ export function pluginLifecycleInbox(db: Db, pluginId: string) {
       WHERE s.last_id > ${through} AND head.id IS NOT NULL`;
   }
 
-  async function assertAvailable(database: Db, companyId: string) {
-    if (!z.string().uuid().safeParse(companyId).success) throw badRequest("companyId must be a UUID");
+  async function assertAvailable(database: Db, spaceId: string) {
+    if (!z.string().uuid().safeParse(spaceId).success) throw badRequest("spaceId must be a UUID");
     const [plugin] = await database.select({ status: plugins.status }).from(plugins).where(eq(plugins.id, pluginId));
-    const [settings] = await database.select({ enabled: pluginCompanySettings.enabled }).from(pluginCompanySettings)
-      .where(and(eq(pluginCompanySettings.pluginId, pluginId), eq(pluginCompanySettings.companyId, companyId)));
-    if (plugin?.status !== "ready" || settings?.enabled === false) throw forbidden("Plugin is not enabled for this company");
+    const [settings] = await database.select({ enabled: pluginSpaceSettings.enabled }).from(pluginSpaceSettings)
+      .where(and(eq(pluginSpaceSettings.pluginId, pluginId), eq(pluginSpaceSettings.spaceId, spaceId)));
+    if (plugin?.status !== "ready" || settings?.enabled === false) throw forbidden("Plugin is not enabled for this space");
   }
 
   return {
-    async list(companyId: string, limit = 50, afterId?: string, resourceTypes?: ResourceType[]): Promise<ResourceLifecycleEvent[]> {
+    async list(spaceId: string, limit = 50, afterId?: string, resourceTypes?: ResourceType[]): Promise<ResourceLifecycleEvent[]> {
       if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw badRequest("limit must be an integer from 1 to 100");
       if (afterId !== undefined && (typeof afterId !== "string" || !/^[1-9]\d*$/.test(afterId) || !Number.isSafeInteger(Number(afterId)))) throw badRequest("Invalid lifecycle page id");
-      await assertAvailable(db, companyId);
-      const page = sql`SELECT page.id FROM (${heads(companyId, resourceTypes ?? ["agent", "project"])}) page
+      await assertAvailable(db, spaceId);
+      const page = sql`SELECT page.id FROM (${heads(spaceId, resourceTypes ?? ["agent", "project"])}) page
         ${afterId === undefined ? sql`` : sql`WHERE page.id > ${Number(afterId)}`}
         ORDER BY page.id LIMIT ${limit}`;
       const rows = await db.select().from(resourceLifecycleEvents)
-        .where(and(eq(resourceLifecycleEvents.companyId, companyId), sql`${resourceLifecycleEvents.id} IN (${page})`))
+        .where(and(eq(resourceLifecycleEvents.spaceId, spaceId), sql`${resourceLifecycleEvents.id} IN (${page})`))
         .orderBy(asc(resourceLifecycleEvents.id));
       return rows.map(row => ({ ...row, id: String(row.id), createdAt: row.createdAt.toISOString() })) as ResourceLifecycleEvent[];
     },
     /** Whether `list` would return any event. */
-    async hasPending(companyId: string, resourceTypes?: ResourceType[]): Promise<boolean> {
-      await assertAvailable(db, companyId);
-      const [row] = await db.execute<{ pending: boolean }>(sql`SELECT EXISTS (${heads(companyId, resourceTypes ?? ["agent", "project"])}) AS pending`);
+    async hasPending(spaceId: string, resourceTypes?: ResourceType[]): Promise<boolean> {
+      await assertAvailable(db, spaceId);
+      const [row] = await db.execute<{ pending: boolean }>(sql`SELECT EXISTS (${heads(spaceId, resourceTypes ?? ["agent", "project"])}) AS pending`);
       return row?.pending === true;
     },
-    async acknowledge(companyId: string, eventId: string, credentials?: { snapshot: ProjectSecretSnapshot; changes: unknown }): Promise<void> {
+    async acknowledge(spaceId: string, eventId: string, credentials?: { snapshot: ProjectSecretSnapshot; changes: unknown }): Promise<void> {
       if (typeof eventId !== "string" || !/^[1-9]\d*$/.test(eventId) || !Number.isSafeInteger(Number(eventId))) throw badRequest("Invalid lifecycle event id");
       const commit = () => db.transaction(async tx => {
         const publications: ActivityPublication[] = [];
         const txDb = tx as unknown as Db;
-        await assertAvailable(txDb, companyId);
+        await assertAvailable(txDb, spaceId);
         const [event] = await tx.select().from(resourceLifecycleEvents)
-          .where(and(eq(resourceLifecycleEvents.companyId, companyId), eq(resourceLifecycleEvents.id, Number(eventId)))).for("update");
+          .where(and(eq(resourceLifecycleEvents.spaceId, spaceId), eq(resourceLifecycleEvents.id, Number(eventId)))).for("update");
         if (!event) throw notFound("Lifecycle event not found");
         const [cursor] = await tx.select({ through: pluginLifecycleResourceCursors.acknowledgedThroughId }).from(pluginLifecycleResourceCursors)
-          .where(and(eq(pluginLifecycleResourceCursors.pluginId, pluginId), eq(pluginLifecycleResourceCursors.companyId, companyId),
+          .where(and(eq(pluginLifecycleResourceCursors.pluginId, pluginId), eq(pluginLifecycleResourceCursors.spaceId, spaceId),
             eq(pluginLifecycleResourceCursors.resourceType, event.resourceType), eq(pluginLifecycleResourceCursors.resourceId, event.resourceId)));
         const through = cursor?.through ?? 0;
         if (event.id <= through) return publications;
@@ -114,10 +114,10 @@ export function pluginLifecycleInbox(db: Db, pluginId: string) {
         if (acked) return publications;
         // Events at or below the cursor are acknowledged, so each check reads only the range above it.
         const earlierTransition = sql`(SELECT e.id FROM resource_lifecycle_events e
-          WHERE e.company_id = ${companyId} AND e.resource_type = ${event.resourceType} AND e.resource_id = ${event.resourceId}
+          WHERE e.space_id = ${spaceId} AND e.resource_type = ${event.resourceType} AND e.resource_id = ${event.resourceId}
             AND e.id > ${through} AND e.id < ${event.id} AND e.action <> 'create' AND NOT ${acknowledged(sql`e.id`)}
           ORDER BY e.id LIMIT 1)`;
-        const creation = sql`(${unacknowledgedCreation(companyId, sql`${event.resourceType}`, sql`${event.resourceId}::uuid`, sql`${through}`)})`;
+        const creation = sql`(${unacknowledgedCreation(spaceId, sql`${event.resourceType}`, sql`${event.resourceId}::uuid`, sql`${through}`)})`;
         // A creation is always deliverable. A transition waits for the creation and every earlier
         // transition. The earlier pending transition takes precedence, so for a creation the
         // blocker is the creation itself only when no earlier transition is pending.
@@ -134,15 +134,15 @@ export function pluginLifecycleInbox(db: Db, pluginId: string) {
         // transitions that are still pending leaves the cursor in place.
         if (event.action !== "create" || Number(blocker?.id) === event.id) {
           await tx.insert(pluginLifecycleResourceCursors)
-            .values({ pluginId, companyId, resourceType: event.resourceType, resourceId: event.resourceId, acknowledgedThroughId: event.id })
+            .values({ pluginId, spaceId, resourceType: event.resourceType, resourceId: event.resourceId, acknowledgedThroughId: event.id })
             .onConflictDoUpdate({
-              target: [pluginLifecycleResourceCursors.pluginId, pluginLifecycleResourceCursors.companyId, pluginLifecycleResourceCursors.resourceType, pluginLifecycleResourceCursors.resourceId],
+              target: [pluginLifecycleResourceCursors.pluginId, pluginLifecycleResourceCursors.spaceId, pluginLifecycleResourceCursors.resourceType, pluginLifecycleResourceCursors.resourceId],
               set: { acknowledgedThroughId: sql`GREATEST(${pluginLifecycleResourceCursors.acknowledgedThroughId}, excluded.acknowledged_through_id)`, updatedAt: sql`now()` },
             });
         }
         return publications;
       });
-      const publications = credentials ? await withAccountHomeSecretMutationLock(undefined, companyId, commit) : await commit();
+      const publications = credentials ? await withAccountHomeSecretMutationLock(undefined, spaceId, commit) : await commit();
       for (const publication of publications) publishActivity(publication);
     },
   };

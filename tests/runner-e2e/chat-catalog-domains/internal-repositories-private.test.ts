@@ -24,7 +24,7 @@ describe("repository selected-input integration", () => {
     const postSensitive = vi.fn(async (path: string, _body?: unknown) => ({ id: path.endsWith("/secrets") ? "secret" : "connection" }));
     const remove = vi.fn(async (_path: string, _options?: unknown) => {}); const read = vi.fn((name: string) => name === "OUTPOST_CHAT_EVAL_GITHUB_TOKEN" ? "selected-synthetic-token" : undefined);
     const secrets: string[] = [];
-    const context = { scenario: { id: declaration.scenarioId }, input: { nonce: "synthetic", fixtures: { company: { id: "company" } }, privateSecrets: secrets,
+    const context = { scenario: { id: declaration.scenarioId }, input: { nonce: "synthetic", fixtures: { space: { id: "space" } }, privateSecrets: secrets,
       privateInputs: { credentials: {}, read, configuration: () => ({ schemaVersion: 1, providers: { github: binding } }) }, evidence: async () => {},
       api: { postSensitive, get: async () => ({ repositories: [{ id: "999", fullName: "owned/site", url: "https://github.com/owned/site", connectionIds: ["connection"] }], failedConnectionCount: 0 }), delete: remove } } } as unknown as ChatCatalogContext;
     await expect(declaration.setup(context)).rejects.toThrow("independently expose each explicit disposable repository name and ID");

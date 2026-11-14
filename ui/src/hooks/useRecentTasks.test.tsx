@@ -21,10 +21,10 @@ vi.mock("@/api/issues", () => ({ issuesApi: { get: getIssue, summaries } }));
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
 const task = (updatedAt: number, title: string, status: "todo" | "done" = "todo") => ({
-  id: "issue-1", companyId: "company-1", identifier: "TASK-1", title, status,
+  id: "issue-1", spaceId: "space-1", identifier: "TASK-1", title, status,
   updatedAt: new Date(updatedAt), hiddenAt: null, projectId: null,
 });
-const storageKey = getRecentTasksStorageKey("company-1", "user-1");
+const storageKey = getRecentTasksStorageKey("space-1", "user-1");
 // Node 24 uses jsdom Storage; newer Node versions use the setup's storage shim.
 // jsdom's Storage proxy does not support spying on instance methods.
 const storageMethods = window.localStorage instanceof window.Storage ? window.Storage.prototype : window.localStorage;
@@ -35,8 +35,8 @@ describe("recent task synchronization", () => {
   let clients: QueryClient[];
   let renders: number;
 
-  function RecentTasks({ name, companyId = "company-1", userId = "user-1" }: { name: string; companyId?: string; userId?: string }) {
-    const { entries } = useRecentTasks({ companyId, userId });
+  function RecentTasks({ name, spaceId = "space-1", userId = "user-1" }: { name: string; spaceId?: string; userId?: string }) {
+    const { entries } = useRecentTasks({ spaceId, userId });
     renders += 1;
     // Fail promptly if a regression restores the cross-cache render loop.
     if (renders > 100) throw new Error("Recent Tasks did not settle");
@@ -47,7 +47,7 @@ describe("recent task synchronization", () => {
     const value = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
     if (snapshot) {
       value.setQueryData(queryKeys.issues.detail(snapshot.id), snapshot);
-      value.setQueryData(queryKeys.issues.summaryBatch("company-1", "user-1", [snapshot.id]), [snapshot]);
+      value.setQueryData(queryKeys.issues.summaryBatch("space-1", "user-1", [snapshot.id]), [snapshot]);
     }
     clients.push(value);
     return value;
@@ -103,7 +103,7 @@ describe("recent task synchronization", () => {
     });
     await flush();
     expect(container.querySelector('[data-tab="stale"]')?.textContent).toBe("Renamed:done");
-    expect(readRecentTasks(storageKey, "company-1")[0]?.snapshotUpdatedAt).toBe(30);
+    expect(readRecentTasks(storageKey, "space-1")[0]?.snapshotUpdatedAt).toBe(30);
     expect(setItem).toHaveBeenCalledTimes(2);
   });
 
@@ -115,7 +115,7 @@ describe("recent task synchronization", () => {
     ));
     await flush();
     // Simulate a concurrent write from another tab with an older snapshot.
-    const incoming = { ...readRecentTasks(storageKey, "company-1")[0], title: "Older", snapshotUpdatedAt: 10 };
+    const incoming = { ...readRecentTasks(storageKey, "space-1")[0], title: "Older", snapshotUpdatedAt: 10 };
     localStorage.setItem(storageKey, JSON.stringify([incoming]));
     const setItem = vi.spyOn(storageMethods, "setItem");
     const publish = vi.fn();
@@ -132,7 +132,7 @@ describe("recent task synchronization", () => {
   });
 
   it("ignores writes from the old application after migration", async () => {
-    const legacyKey = "outpost.recentTasks:company-1:user-1";
+    const legacyKey = "outpost.recentTasks:space-1:user-1";
     localStorage.setItem(legacyKey, JSON.stringify([{ ...task(10, "Legacy"), recordedAt: 100 }]));
     await act(async () => root.render(
       <QueryClientProvider client={client(task(20, "Current", "done"))}><RecentTasks name="current" /></QueryClientProvider>,
@@ -148,7 +148,7 @@ describe("recent task synchronization", () => {
     await flush();
     expect(renders).toBe(settledRenders);
     expect(container.textContent).toBe("Current:done");
-    expect(readRecentTasks(storageKey, "company-1")[0]?.recordedAt).toBe(100);
+    expect(readRecentTasks(storageKey, "space-1")[0]?.recordedAt).toBe(100);
   });
 
   it.each([403, 500])("retains snapshots when the batch fails with %s", async (status) => {
@@ -158,7 +158,7 @@ describe("recent task synchronization", () => {
       <QueryClientProvider client={client()}><RecentTasks name="unavailable" /></QueryClientProvider>,
     ));
     await flush();
-    expect(readRecentTasks(storageKey, "company-1")).toHaveLength(1);
+    expect(readRecentTasks(storageKey, "space-1")).toHaveLength(1);
     expect(container.textContent).toBe("Unavailable:todo");
     expect(summaries).toHaveBeenCalledTimes(1);
     expect(getIssue).not.toHaveBeenCalled();
@@ -199,7 +199,7 @@ describe("recent task synchronization", () => {
     const tasks = Array.from({ length: count }, (_, i) => ({ ...task(i + 1, `Task ${i}`), id: `issue-${String(i).padStart(3, "0")}` }));
     tasks.forEach(issue => recordRecentTask(issue, "user-1"));
     const pending: Array<() => void> = [];
-    summaries.mockImplementation(async (_company, ids: string[]) => {
+    summaries.mockImplementation(async (_space, ids: string[]) => {
       expect(ids.length).toBeLessThanOrEqual(ISSUE_SUMMARIES_MAX_IDS);
       const call = summaries.mock.calls.length;
       // Each chunk waits until the test releases it, so all three must be in flight together.
@@ -213,7 +213,7 @@ describe("recent task synchronization", () => {
     expect(pending).toHaveLength(3);
     pending.forEach(resolve => resolve());
     await flush();
-    const entries = readRecentTasks(storageKey, "company-1");
+    const entries = readRecentTasks(storageKey, "space-1");
     expect(entries).toHaveLength(count);
     expect(entries.every(entry => entry.title.startsWith("Refreshed"))).toBe(!fails);
     expect(getIssue).not.toHaveBeenCalled();
@@ -224,7 +224,7 @@ describe("recent task synchronization", () => {
     const tasks = Array.from({ length: count }, (_, i) => ({ ...task(i + 1, `Task ${i}`), id: `issue-${String(i).padStart(3, "0")}` }));
     tasks.forEach(issue => recordRecentTask(issue, "user-1"));
     const pending: Array<() => void> = [];
-    summaries.mockImplementation(async (_company, ids: string[]) => {
+    summaries.mockImplementation(async (_space, ids: string[]) => {
       await new Promise<void>(resolve => pending.push(resolve));
       return tasks.filter(issue => ids.includes(issue.id));
     });
@@ -236,7 +236,7 @@ describe("recent task synchronization", () => {
       await flush();
     }
     expect(summaries).toHaveBeenCalledTimes(5);
-    expect(readRecentTasks(storageKey, "company-1")).toHaveLength(count);
+    expect(readRecentTasks(storageKey, "space-1")).toHaveLength(count);
   });
 
   it("prunes successful omissions without resurrecting cached full details", async () => {
@@ -247,7 +247,7 @@ describe("recent task synchronization", () => {
     summaries.mockResolvedValue([]);
     await act(async () => root.render(<QueryClientProvider client={cache}><RecentTasks name="missing" /></QueryClientProvider>));
     await flush();
-    expect(readRecentTasks(storageKey, "company-1")).toEqual([]);
+    expect(readRecentTasks(storageKey, "space-1")).toEqual([]);
     expect(container.textContent).toBe("");
   });
 
@@ -261,7 +261,7 @@ describe("recent task synchronization", () => {
     await act(async () => { recordRecentTask(added, "user-1"); });
     await act(async () => { resolveFirst([]); });
     await flush();
-    expect(readRecentTasks(storageKey, "company-1").some(entry => entry.id === added.id)).toBe(true);
+    expect(readRecentTasks(storageKey, "space-1").some(entry => entry.id === added.id)).toBe(true);
     expect(container.textContent).toContain("New task");
   });
 
@@ -277,7 +277,7 @@ describe("recent task synchronization", () => {
     await act(async () => { resolveOld([task(30, "Old response")]); });
     await flush();
     expect(container.textContent).toBe("New account task:todo");
-    expect(readRecentTasks(getRecentTasksStorageKey("company-1", "user-2"), "company-1")[0]?.id).toBe("issue-2");
+    expect(readRecentTasks(getRecentTasksStorageKey("space-1", "user-2"), "space-1")[0]?.id).toBe("issue-2");
     expect(summaries.mock.calls.map(call => call[1])).toEqual([["issue-1"], ["issue-2"]]);
   });
 
@@ -290,13 +290,13 @@ describe("recent task synchronization", () => {
     const cache = client();
     await act(async () => root.render(<QueryClientProvider client={cache}><RecentTasks name="revisited" /></QueryClientProvider>));
     await flush();
-    expect(readRecentTasks(storageKey, "company-1").map(entry => entry.id)).toEqual([second.id]);
+    expect(readRecentTasks(storageKey, "space-1").map(entry => entry.id)).toEqual([second.id]);
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
-    expect(cache.getQueryState(queryKeys.issues.summaryBatch("company-1", "user-1", [second.id]))?.status).toBe("success");
+    expect(cache.getQueryState(queryKeys.issues.summaryBatch("space-1", "user-1", [second.id]))?.status).toBe("success");
     summaries.mockResolvedValue([first, second]);
     await act(async () => { recordRecentTask(first, "user-1", 30); });
     await flush();
-    expect(readRecentTasks(storageKey, "company-1").map(entry => entry.id).sort()).toEqual([first.id, second.id]);
+    expect(readRecentTasks(storageKey, "space-1").map(entry => entry.id).sort()).toEqual([first.id, second.id]);
     expect(summaries.mock.calls.filter(call => call[1].length === 2)).toHaveLength(2);
   });
 
@@ -313,8 +313,8 @@ describe("recent task synchronization", () => {
     summaries.mockRejectedValue(new ApiError("Unavailable", 500, null));
     await act(async () => { recordRecentTask(first, "user-1", 30); });
     await flush();
-    expect(readRecentTasks(storageKey, "company-1").map(entry => entry.id).sort()).toEqual([first.id, second.id]);
-    expect(cache.getQueryState(queryKeys.issues.summaryBatch("company-1", "user-1", [first.id, second.id]))?.status).toBe("error");
+    expect(readRecentTasks(storageKey, "space-1").map(entry => entry.id).sort()).toEqual([first.id, second.id]);
+    expect(cache.getQueryState(queryKeys.issues.summaryBatch("space-1", "user-1", [first.id, second.id]))?.status).toBe("error");
     expect(summaries.mock.calls.filter(call => call[1].length === 2)).toHaveLength(2);
   });
 
@@ -332,6 +332,6 @@ describe("recent task synchronization", () => {
     await act(async () => { recordRecentTask(first, "user-1", 30); });
     await flush();
     expect(summaries.mock.calls.filter(call => call[1].length === 2)).toHaveLength(2);
-    expect(readRecentTasks(storageKey, "company-1").map(entry => entry.id)).toEqual([second.id]);
+    expect(readRecentTasks(storageKey, "space-1").map(entry => entry.id)).toEqual([second.id]);
   });
 });

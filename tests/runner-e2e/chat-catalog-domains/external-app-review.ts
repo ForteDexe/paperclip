@@ -52,7 +52,7 @@ type Phase = {
 };
 interface TrustRule {
   id: string;
-  companyId: string;
+  spaceId: string;
   policyType: string;
   enabled: boolean;
   selectors: Record<string, unknown>;
@@ -110,7 +110,7 @@ export function exactReviewedTrust(
     ...(phase.applicationId ? { applicationId: phase.applicationId } : {}),
   };
   return (
-    rule.companyId === state.companyId &&
+    rule.spaceId === state.spaceId &&
     rule.policyType === "trust_rule" &&
     rule.enabled === true &&
     rule.createdByUserId === state.personId &&
@@ -205,7 +205,7 @@ export function gradeAppReview(value: unknown) {
           card.resolvedByUserId === o.state.personId &&
           !card.resolvedByAgentId &&
           v?.runId === phase.requestRunId &&
-          v.companyId === o.companyId &&
+          v.spaceId === o.spaceId &&
           v.agentId === o.leadId &&
           v.issueId === o.state.sourceId &&
           v.connectionId === o.state.connectionId &&
@@ -337,7 +337,7 @@ export const appReviewExternalCases = [
           throw new Error(
             "Tool review fixture requires no existing trust grant",
           );
-        if (!session.user?.id || session.user.id === "local-board")
+        if (!session.user?.id || session.user.id === "local-operator")
           throw new Error("Tool review needs an actual signed-in human");
         const factualContextAttachment = await uploadFactualQueryAttachment(ctx, {
           filename: "launch-update.md", body: appReviewDraft(connection.connectionId),
@@ -349,7 +349,7 @@ export const appReviewExternalCases = [
           writeEntryId: connection.write[0],
           projectId: project.id,
           sourceId: source.id,
-          companyId: ctx.input.fixtures.company.id,
+          spaceId: ctx.input.fixtures.space.id,
           leadId: ctx.input.fixtures.agent.id,
           personId: session.user.id,
           originalQuery: ctx.scenario.query,
@@ -456,7 +456,7 @@ export const appReviewExternalCases = [
             );
           const pending = await ctx.input.api.get<ToolRunDecisionLookup>(`${root(ctx)}/tools/runs/${card.sourceRunId}/decisions`);
           const intended = pending.decisions.find(row => row.invocation.id === action.invocationId);
-          if (pending.runId !== card.sourceRunId || !intended || intended.invocation.companyId !== state.companyId
+          if (pending.runId !== card.sourceRunId || !intended || intended.invocation.spaceId !== state.spaceId
             || intended.invocation.agentId !== state.leadId || intended.invocation.issueId !== state.sourceId
             || intended.invocation.runId !== card.sourceRunId || intended.invocation.connectionId !== state.connectionId
             || intended.invocation.catalogEntryId !== state.writeEntryId || intended.invocation.status !== "awaiting_approval"
@@ -515,7 +515,7 @@ export const appReviewExternalCases = [
           phase.proposalVisible = true;
           if (index === 0) {
             const probe = await probeReviewApproval({
-              baseURL: ctx.input.api.baseURL, companyId: state.companyId as string,
+              baseURL: ctx.input.api.baseURL, spaceId: state.spaceId as string,
               agentId: state.leadId as string, issueId: state.sourceId as string,
               interaction: card, run: newRuns[0]!, invocation: intended.invocation,
               privateSecrets: ctx.input.privateSecrets!,
@@ -530,7 +530,7 @@ export const appReviewExternalCases = [
                 const owned = current.decisions.find(row => row.invocation.id === action.invocationId);
                 const ownedCard = currentCards.find(row => row.id === card.id);
                 if (!owned || current.runId !== card.sourceRunId || ownedCard?.sourceRunId !== card.sourceRunId
-                  || owned?.invocation.companyId !== state.companyId || owned.invocation.agentId !== state.leadId
+                  || owned?.invocation.spaceId !== state.spaceId || owned.invocation.agentId !== state.leadId
                   || owned.invocation.issueId !== state.sourceId || owned.invocation.runId !== card.sourceRunId
                   || owned.invocation.argumentsHash !== proposal.hash || owned.actionRequest?.id !== action.actionRequestId
                   || owned.actionRequest.canonicalArgumentsHash !== proposal.hash)
@@ -578,7 +578,7 @@ export const appReviewExternalCases = [
             // Observe only the exact failed review phase. This cannot resume,
             // settle or regrade it; the original wait failure remains authoritative.
             try {
-              const snapshot = await observeReviewAdmission({ companyId: String(state.companyId), issueId: String(state.sourceId),
+              const snapshot = await observeReviewAdmission({ spaceId: String(state.spaceId), issueId: String(state.sourceId),
                 agentId: String(state.leadId), actionRequestId: phase.actionRequestId, invocationId: phase.invocationId,
                 interactionId: phase.interactionId, sourceRunId: phase.requestRunId });
               await ctx.input.evidence(`chat-catalog-app-review-admission-${index + 1}.json`, snapshot).catch(() => {});
@@ -681,7 +681,7 @@ export const appReviewExternalCases = [
         const page = await ctx.input.page.context().newPage();
         try {
           await page.goto(
-            `/${ctx.input.fixtures.company.issuePrefix}/apps/${state.connectionId}/permissions`,
+            `/${ctx.input.fixtures.space.issuePrefix}/apps/${state.connectionId}/permissions`,
             { waitUntil: "domcontentloaded" },
           );
           state.readAllowed = await page

@@ -11,7 +11,7 @@ afterEach(() => { vi.unstubAllEnvs(); });
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 function fixture() {
   const acceptedAt = "2099-01-01T00:00:00.000Z", secret = "0123456789abcdef0123456789abcdef";
-  const binding: SlackFormBinding = { version: 1, instanceId: "instance", companyId: "company", endpointId: "endpoint", publicId: "a".repeat(43), connectionId: "connection",
+  const binding: SlackFormBinding = { version: 1, instanceId: "instance", spaceId: "space", endpointId: "endpoint", publicId: "a".repeat(43), connectionId: "connection",
     runtimeGeneration: 1, teamId: "TTEST", appId: "ATEST", eventBindingId: `slack-event:${hash("event")}`, credentialFingerprint: hash("credential") };
   const raw = Buffer.from(new URLSearchParams({ payload: JSON.stringify({ type: "block_actions", trigger_id: "trigger", user: { id: "UTEST" }, team: { id: "TTEST" }, api_app_id: "ATEST" }) }).toString());
   const rawBody = raw.toString("base64"), timestamp = String(Date.parse(acceptedAt) / 1000);
@@ -48,7 +48,7 @@ describe("Slack form original evidence and on-demand receipt", () => {
     expect(result.operation.view).toEqual(view); expect(result.operation.acceptedAt).toBe(f.event.createdAt);
     expect(result.originalPayload.trigger_id).toBe("trigger");
   });
-  it.each(["companyId", "endpointId", "connectionId", "credentialFingerprint", "instanceId"] as const)("foreign %s cannot reach lookup", async key => {
+  it.each(["spaceId", "endpointId", "connectionId", "credentialFingerprint", "instanceId"] as const)("foreign %s cannot reach lookup", async key => {
     const f = fixture();
     await expect(lookupSlackFormDelivery(f.event, { ...f.current, binding: { ...f.current.binding, [key]: "foreign" } }, f.lookup, f.now)).rejects.toMatchObject({ disposition: "attention" });
     expect(f.lookup).not.toHaveBeenCalled();
@@ -156,7 +156,7 @@ describe("Slack form submission leaf evidence, without SDK/domain authorization 
       expect(JSON.stringify(intent)).not.toContain("private-answer-for-terminal-cipher-proof");
       expect(JSON.stringify(intent)).not.toContain(original.rawBody);
       expect(openSlackFormSubmissionIntent(intent, cipher).rawBody).toBe(original.rawBody);
-      expect(() => openSlackFormSubmissionIntent({ ...intent, binding: { ...intent.binding, companyId: "foreign" } }, cipher)).toThrow("form_submission_cipher_binding_changed");
+      expect(() => openSlackFormSubmissionIntent({ ...intent, binding: { ...intent.binding, spaceId: "foreign" } }, cipher)).toThrow("form_submission_cipher_binding_changed");
       vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "cd".repeat(32));
       const wrong = createLocalEncryptedCipher("read");
       expect(() => openSlackFormSubmissionIntent(intent, wrong)).toThrow("form_submission_cipher_unavailable");
@@ -171,7 +171,7 @@ function closedProofFixture() {
     outcome: "closed", submitReceiptId: null, rejectionDigest: null, encryptedEvidence: null };
   const operation: SlackFormOperation = { ...f.operation, phase: "terminal_proven", view, closed: f.close(view),
     acknowledgement: { appReceiptId, acceptedAt: f.operation.acceptedAt } };
-  const row: SlackFormRetainedRow = { id: appReceiptId, companyId: intent.binding.companyId, endpointId: intent.binding.endpointId, kind: "slack_form_session",
+  const row: SlackFormRetainedRow = { id: appReceiptId, spaceId: intent.binding.spaceId, endpointId: intent.binding.endpointId, kind: "slack_form_session",
     providerActionId: `slack-form-session:${intent.operationId}`, status: "cancelled", payload: { binding: intent.binding, operationId: intent.operationId,
       userId: intent.userId, grantId: intent.grantId, publicationId: intent.publicationId, interactionId: intent.interactionId }, result: { phase: "closed", terminalIntent: intent } };
   return { f, intent, operation, row };
@@ -203,14 +203,14 @@ describe("Slack form two phase terminal acceptance, provider boundaries only", (
     const pending = projectSlackFormRetainedOwner(f.row, "instance"); expect(pending?.requiresDelivery).toBe(true);
     const accepted = prepareSlackFormProofAcceptance(f.intent, f.operation, "instance");
     const retained = projectSlackFormRetainedOwner({ ...f.row, result: { ...f.row.result, cloudProofAcceptance: accepted } }, "instance");
-    expect(retained).toMatchObject({ subject: "github-bot-events", companyId: "company", requiresDelivery: false });
+    expect(retained).toMatchObject({ subject: "github-bot-events", spaceId: "space", requiresDelivery: false });
     expect(retained?.binding).toEqual(f.intent.binding);
   });
   it("foreign malformed history is isolated before parsing and changed current receipt is attention", () => {
     const f = closedProofFixture();
     expect(projectSlackFormRetainedOwner({ ...f.row, payload: { binding: { instanceId: "foreign", malformed: true } } }, "instance")).toBeNull();
     const accepted = prepareSlackFormProofAcceptance(f.intent, f.operation, "instance");
-    expect(() => projectSlackFormRetainedOwner({ ...f.row, companyId: "foreign" }, "instance")).toThrow();
+    expect(() => projectSlackFormRetainedOwner({ ...f.row, spaceId: "foreign" }, "instance")).toThrow();
     expect(() => projectSlackFormRetainedOwner({ ...f.row, result: { ...f.row.result, cloudProofAcceptance: { ...accepted, appReceiptId: "22222222-2222-2222-2222-222222222222" } } }, "instance")).toThrow();
   });
   it("definite no effect proof requires the recorded digest and no view or closed input", () => {
@@ -256,7 +256,7 @@ describe("retained form consumer identity", () => {
     const malformed = { ...f.row, id: "malformed", payload: { binding: { instanceId: "instance", malformed: true }, environment: "test" } };
     const result = selectSlackFormRetainedConsumer([malformed, good], { instanceId: "instance", environment: "test" });
     expect(result.attention).toEqual([{ actionId: "malformed", code: "form_retained_owner_invalid" }]);
-    expect(result.owner).toMatchObject({ subject: "github-bot-events", companyId: "company", requiresDelivery: false });
+    expect(result.owner).toMatchObject({ subject: "github-bot-events", spaceId: "space", requiresDelivery: false });
     expect(result.owner?.binding).toEqual(f.intent.binding);
   });
   it("a foreign or wrong-environment row cannot supply terminal lease authority", () => {
@@ -271,7 +271,7 @@ describe("retained form consumer identity", () => {
     const row: SlackFormRetainedRow = { ...f.row, kind: "slack_form_owner", payload: { enrollment: { ...identity, bindingId: eventBindingId }, subject: "actor", environment: "test" }, result: { phase: "staged" } };
     const result = selectSlackFormRetainedConsumer([row], { instanceId: "instance", environment: "test" });
     expect(result.attention).toEqual([]);
-    expect(result.owner).toEqual({ subject: "github-bot-events", companyId: "company", binding: null, requiresDelivery: true });
+    expect(result.owner).toEqual({ subject: "github-bot-events", spaceId: "space", binding: null, requiresDelivery: true });
   });
 });
 
@@ -289,9 +289,9 @@ it("retained session selection keeps unfinished GC custody but completed exact r
   expect(selectSlackFormRetainedConsumer([base], identity)).toEqual({ owner: null, attention: [] });
   for (const phase of ["accepted", "gc_pending"]) {
     const pending = { ...base, result: { ...base.result, formAck: { ...base.result.formAck, phase }, nextAttemptAt: f.operation.acceptedAt } };
-    expect(selectSlackFormRetainedConsumer([pending], identity).owner).toMatchObject({ companyId: f.row.companyId, subject: "github-bot-events", requiresDelivery: false });
+    expect(selectSlackFormRetainedConsumer([pending], identity).owner).toMatchObject({ spaceId: f.row.spaceId, subject: "github-bot-events", requiresDelivery: false });
   }
-  const malformed = { ...base, result: { ...base.result, formAck: { ...base.result.formAck, receipt: { ...receipt, binding: { ...receipt.binding, companyId: "foreign" } } } } };
+  const malformed = { ...base, result: { ...base.result, formAck: { ...base.result.formAck, receipt: { ...receipt, binding: { ...receipt.binding, spaceId: "foreign" } } } } };
   const result = selectSlackFormRetainedConsumer([malformed], identity);
   expect(result.owner !== null || result.attention.length > 0).toBe(true);
   const stillDue = { ...base, result: { ...base.result, nextAttemptAt: f.operation.acceptedAt } };

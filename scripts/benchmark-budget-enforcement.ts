@@ -5,7 +5,7 @@ import { promises as fs } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { agents, budgetPolicies, companies, createDb, heartbeatRuns, issues, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
+import { agents, budgetPolicies, spaces, createDb, heartbeatRuns, issues, startEmbeddedPostgresTestDatabase, type Db } from "../packages/db/src/index.js";
 
 const { eq } = createRequire(new URL("../server/package.json", import.meta.url))("drizzle-orm");
 
@@ -61,12 +61,12 @@ try {
   const admissionResults = [];
   let expectedTreatmentCounts: string | undefined;
   for (const count of [0, 17, 1000]) {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Synthetic budget benchmark", issuePrefix: `B${companyId.slice(0, 7).replaceAll("-", "")}` });
-    await db.insert(budgetPolicies).values({ companyId, scopeType: "company", scopeId: companyId,
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Synthetic budget benchmark", issuePrefix: `B${spaceId.slice(0, 7).replaceAll("-", "")}` });
+    await db.insert(budgetPolicies).values({ spaceId, scopeType: "space", scopeId: spaceId,
       metric: "billed_cents", windowKind: "calendar_month_utc", amount: 1_000_000, notifyEnabled: false });
-    if (count) await db.$client.unsafe(`insert into agents (company_id,name,role,status,adapter_type,lifecycle_state)
-      select $1::uuid, 'Idle fixture ' || n, 'engineer', 'idle', 'process', 'ready' from generate_series(1,$2::int) n`, [companyId, count]);
+    if (count) await db.$client.unsafe(`insert into agents (space_id,name,role,status,adapter_type,lifecycle_state)
+      select $1::uuid, 'Idle fixture ' || n, 'engineer', 'idle', 'process', 'ready' from generate_series(1,$2::int) n`, [spaceId, count]);
     await db.$client.unsafe("analyze agents");
     const measured = [];
     const entries = [["baseline", before], ["treatment", after]] as const;
@@ -77,13 +77,13 @@ try {
         const start = performance.now();
         // Real budget cost-evaluation service boundary: before this change,
         // even a charge below its limit reconciled all idle agents.
-        await service.budgetService(db).evaluateCostEvent({ companyId, agentId: null, projectId: null });
+        await service.budgetService(db).evaluateCostEvent({ spaceId, agentId: null, projectId: null });
         const elapsed = performance.now() - start;
         if (i >= 2) samples.push(elapsed);
       }
       samples.sort((a, b) => a - b);
       captured = [];
-      await service.budgetService(db).evaluateCostEvent({ companyId, agentId: null, projectId: null });
+      await service.budgetService(db).evaluateCostEvent({ spaceId, agentId: null, projectId: null });
       const queries = captured;
       captured = null;
       const agentReads = queries.filter(query => /\bfrom "agents"/.test(query.sql)).length;
@@ -99,17 +99,17 @@ try {
         drizzleStatementCount: queries.length, accountingTransactions: accountingLocks, agentReads,
         candidateQuery: candidate, candidatePlan: plan });
     }
-    const persisted = await db.$client.unsafe("select lifecycle_state, lifecycle_holds, status from agents where company_id = $1::uuid", [companyId]);
+    const persisted = await db.$client.unsafe("select lifecycle_state, lifecycle_holds, status from agents where space_id = $1::uuid", [spaceId]);
     assert.equal(persisted.length, count);
     assert.ok(persisted.every(agent => agent.lifecycle_state === "ready" && agent.lifecycle_holds.length === 0 && agent.status === "idle"));
     results.push({ unrelatedIdleAgents: count, contractPreserved: true, measured });
     // Keep exactly one admitted operation and one responsible agent at every
     // headcount. Fixture writes and cleanup are outside the timed boundary.
     const agentId = randomUUID(), issueId = randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId, name: "Responsible fixture", role: "engineer",
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Responsible fixture", role: "engineer",
       status: "idle", adapterType: "process", lifecycleState: "ready", runtimeConfig: { heartbeat: { wakeOnDemand: true } } });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Offline dispatch fixture", status: "in_progress", assigneeAgentId: agentId });
-    await db.update(budgetPolicies).set({ reservationCents: "100" }).where(eq(budgetPolicies.companyId, companyId));
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Offline dispatch fixture", status: "in_progress", assigneeAgentId: agentId });
+    await db.update(budgetPolicies).set({ reservationCents: "100" }).where(eq(budgetPolicies.spaceId, spaceId));
     const admissionMeasured = [];
     const admissionEntries = [["baseline", beforeReservations, beforeDispatch], ["treatment", afterReservations, afterDispatch]] as const;
     for (const [name, reservations, dispatch] of process.argv.includes("--reverse") ? [...admissionEntries].reverse() : admissionEntries) {
@@ -119,15 +119,15 @@ try {
       let queries: Array<{ sql: string; params: unknown[] }> = [], databaseTransactions = 0;
       for (let i = 0; i < sampleCount + 3; i++) {
         const runId = randomUUID();
-        await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", contextSnapshot: { issueId } });
+        await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", contextSnapshot: { issueId } });
         await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
         let callbacks = 0;
         const probe = i === sampleCount + 2;
         if (probe) { captured = []; capturedTransactions = 0; }
         const start = performance.now();
         try {
-          const reservation = await reservations.reserveRunBudget(db, companyId, runId, null);
-          const outcome = await adapter.dispatchResolvedInteractionIfCurrent({ companyId, runId,
+          const reservation = await reservations.reserveRunBudget(db, spaceId, runId, null);
+          const outcome = await adapter.dispatchResolvedInteractionIfCurrent({ spaceId, runId,
             reservationId: reservation.id, expectedStatus: "running", now: new Date(),
             dispatch: async () => { callbacks++; return "offline-provider-result"; } });
           assert.equal(outcome.dispatched, true, `${name}: current admitted run must dispatch`);
@@ -158,10 +158,10 @@ try {
         drizzleStatementCount: queries.length, databaseTransactions, accountingTransactions, agentReads: agentQueries.length,
         unrelatedAgentReadStatements, providerCallsPerSample: 1 });
     }
-    const [remaining] = await db.$client.unsafe(`select (select count(*) from heartbeat_runs where company_id=$1::uuid) runs,
-      (select count(*) from budget_reservations where company_id=$1::uuid) reservations`, [companyId]);
+    const [remaining] = await db.$client.unsafe(`select (select count(*) from heartbeat_runs where space_id=$1::uuid) runs,
+      (select count(*) from budget_reservations where space_id=$1::uuid) reservations`, [spaceId]);
     assert.equal(Number(remaining.runs), 0); assert.equal(Number(remaining.reservations), 0);
-    const unchanged = await db.$client.unsafe("select lifecycle_state, lifecycle_holds, status from agents where company_id=$1::uuid", [companyId]);
+    const unchanged = await db.$client.unsafe("select lifecycle_state, lifecycle_holds, status from agents where space_id=$1::uuid", [spaceId]);
     assert.equal(unchanged.length, count + 1);
     assert.ok(unchanged.every(agent => agent.lifecycle_state === "ready" && agent.lifecycle_holds.length === 0 && agent.status === "idle"));
     admissionResults.push({ unrelatedIdleAgents: count, responsibleAgents: 1, activeRuns: 1, contractPreserved: true, measured: admissionMeasured });
@@ -169,7 +169,7 @@ try {
   }
   console.log(JSON.stringify({ baselineRevision, treatmentRevision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     note: "Local service timings against disposable real PostgreSQL; no provider/network latency. Treatment may include uncommitted source changes.",
-    policiesPerCompany: 1, activeRuns: 0, node: process.version, nodeArchitecture: process.arch,
+    policiesPerSpace: 1, activeRuns: 0, node: process.version, nodeArchitecture: process.arch,
     postgres: version, results, admissionResults }, null, 2));
 } finally {
   await db?.$client.end({ timeout: 0 });

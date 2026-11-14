@@ -63,15 +63,15 @@ export class TaskAttachmentReadCache {
   }
 }
 
-type Binding = { companyId: string; issueId: string; agentId: string; runId: string };
+type Binding = { spaceId: string; issueId: string; agentId: string; runId: string };
 const columns = { attachmentId: issueAttachments.id, assetId: assets.id, sourceCommentId: issueAttachments.issueCommentId,
   filename: assets.originalFilename, contentType: assets.contentType, byteSize: assets.byteSize, sha256: assets.sha256 };
 function scope(binding: Binding) {
-  return and(eq(issueAttachments.companyId, binding.companyId), eq(issueAttachments.issueId, binding.issueId));
+  return and(eq(issueAttachments.spaceId, binding.spaceId), eq(issueAttachments.issueId, binding.issueId));
 }
 export async function listTaskAttachments(db: Db, binding: Binding, after?: string) {
   const rows = await db.select(columns).from(issueAttachments)
-    .innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.companyId, binding.companyId)))
+    .innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.spaceId, binding.spaceId)))
     .where(and(scope(binding), after ? gt(issueAttachments.id, after) : undefined)).orderBy(asc(issueAttachments.id)).limit(51);
   const page = rows.slice(0, 50);
   return { attachments: page.map(row => ({ ...row, readable: row.byteSize <= MAX_READ_BYTES })),
@@ -79,17 +79,17 @@ export async function listTaskAttachments(db: Db, binding: Binding, after?: stri
 }
 async function source(db: Db, binding: Binding, attachmentId: string) {
   const [row] = await db.select({ ...columns, objectKey: assets.objectKey }).from(issueAttachments)
-    .innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.companyId, binding.companyId)))
+    .innerJoin(assets, and(eq(assets.id, issueAttachments.assetId), eq(assets.spaceId, binding.spaceId)))
     .where(and(scope(binding), eq(issueAttachments.id, attachmentId))).limit(1);
   if (!row) throw new Error("runner_attachment_not_found");
   if (!Number.isSafeInteger(row.byteSize) || row.byteSize < 0 || row.byteSize > MAX_READ_BYTES || !/^[a-f0-9]{64}$/i.test(row.sha256))
     throw new Error("runner_attachment_size_or_hash_invalid");
   return row;
 }
-async function bytes(storage: StorageService, companyId: string, file: Awaited<ReturnType<typeof source>>) {
+async function bytes(storage: StorageService, spaceId: string, file: Awaited<ReturnType<typeof source>>) {
   let expired = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const objectPromise = storage.getObject(companyId, file.objectKey).then(object => {
+  const objectPromise = storage.getObject(spaceId, file.objectKey).then(object => {
     if (expired) object.stream.destroy();
     return object;
   });
@@ -125,7 +125,7 @@ export async function readTaskAttachment(input: {
   if (args.expectedSha256 && args.expectedSha256 !== file.sha256.toLowerCase()) throw new Error("runner_attachment_changed");
   if (args.offset > file.byteSize) throw new Error("runner_attachment_offset_invalid");
   const signature = JSON.stringify([file.objectKey, file.sha256, file.byteSize, file.contentType]);
-  const body = await input.cache.read(file.attachmentId, signature, () => bytes(input.storage ?? getStorageService(), input.binding.companyId, file));
+  const body = await input.cache.read(file.attachmentId, signature, () => bytes(input.storage ?? getStorageService(), input.binding.spaceId, file));
   await input.authorize();
   const current = await source(input.db, input.binding, args.attachmentId);
   if (current.objectKey !== file.objectKey || current.sha256 !== file.sha256 || current.byteSize !== file.byteSize || current.contentType !== file.contentType)
@@ -137,7 +137,7 @@ export async function readTaskAttachment(input: {
     if (args.offset < body.length && (body[args.offset]! & 0xc0) === 0x80) throw new Error("runner_attachment_offset_invalid");
     while (end < body.length && (body[end]! & 0xc0) === 0x80) end--;
   }
-  await logActivity(input.db, { companyId: input.binding.companyId, actorType: "agent", actorId: input.binding.agentId,
+  await logActivity(input.db, { spaceId: input.binding.spaceId, actorType: "agent", actorId: input.binding.agentId,
     runId: input.binding.runId, action: "dot.attachment_read", entityType: "issue", entityId: input.binding.issueId,
     details: { attachmentId: file.attachmentId, offset: args.offset, returnedBytes: end - args.offset, sha256: file.sha256, encoding: args.encoding } });
   await input.authorize();

@@ -5,7 +5,7 @@ import {
   agents,
   agentRuntimeState,
   agentTaskSessions,
-  companies,
+  spaces,
   createDb,
   issues,
 } from "@outpost/db";
@@ -24,7 +24,7 @@ describePostgres("task-scoped runtime session reset", () => {
 
   beforeAll(async () => {
     database = await startEmbeddedPostgresTestDatabase(
-      "paperclip-task-session-reset-",
+      "outpost-task-session-reset-",
     );
     db = createDb(database.connectionString);
   }, 20_000);
@@ -34,8 +34,8 @@ describePostgres("task-scoped runtime session reset", () => {
   });
 
   async function fixture() {
-    const companyId = randomUUID();
-    const otherCompanyId = randomUUID();
+    const spaceId = randomUUID();
+    const otherSpaceId = randomUUID();
     const agentId = randomUUID();
     const otherAgentId = randomUUID();
     const foreignAgentId = randomUUID();
@@ -45,49 +45,49 @@ describePostgres("task-scoped runtime session reset", () => {
     const identifier = `RESET-${randomUUID().slice(0, 8).toUpperCase()}-1`;
     const otherIdentifier = `${identifier}-OTHER`;
     const foreignIdentifier = `${identifier}-FOREIGN`;
-    await db.insert(companies).values([
+    await db.insert(spaces).values([
       {
-        id: companyId,
+        id: spaceId,
         name: "Reset fixture",
-        issuePrefix: `R${companyId.slice(0, 8).toUpperCase()}`,
+        issuePrefix: `R${spaceId.slice(0, 8).toUpperCase()}`,
       },
       {
-        id: otherCompanyId,
+        id: otherSpaceId,
         name: "Other reset fixture",
-        issuePrefix: `R${otherCompanyId.slice(0, 8).toUpperCase()}`,
+        issuePrefix: `R${otherSpaceId.slice(0, 8).toUpperCase()}`,
       },
     ]);
     await db.insert(agents).values([
       {
         id: agentId,
-        companyId,
+        spaceId,
         name: "Selected agent",
         adapterType: "outpost_runner",
       },
       {
         id: otherAgentId,
-        companyId,
+        spaceId,
         name: "Other agent",
         adapterType: "outpost_runner",
       },
       {
         id: foreignAgentId,
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         name: "Foreign agent",
         adapterType: "outpost_runner",
       },
     ]);
     await db.insert(issues).values([
-      { id: issueId, companyId, title: "Selected task", identifier },
+      { id: issueId, spaceId, title: "Selected task", identifier },
       {
         id: otherIssueId,
-        companyId,
+        spaceId,
         title: "Other task",
         identifier: otherIdentifier,
       },
       {
         id: foreignIssueId,
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         title: "Foreign task",
         identifier: foreignIdentifier,
       },
@@ -101,7 +101,7 @@ describePostgres("task-scoped runtime session reset", () => {
       { taskKey: identifier, agentId: otherAgentId },
       {
         taskKey: identifier,
-        companyId: otherCompanyId,
+        spaceId: otherSpaceId,
         agentId: foreignAgentId,
       },
       { taskKey: "__heartbeat__" },
@@ -114,7 +114,7 @@ describePostgres("task-scoped runtime session reset", () => {
       { taskKey: foreignIdentifier },
     ].map((row) => ({
       id: randomUUID(),
-      companyId,
+      spaceId,
       agentId,
       adapterType: "outpost_runner",
       sessionDisplayId: randomUUID(),
@@ -125,14 +125,14 @@ describePostgres("task-scoped runtime session reset", () => {
     await db.insert(agentRuntimeState).values([
       {
         agentId,
-        companyId,
+        spaceId,
         adapterType: "outpost_runner",
         sessionId: "selected-legacy",
         stateJson: { preserved: true },
       },
       {
         agentId: otherAgentId,
-        companyId,
+        spaceId,
         adapterType: "outpost_runner",
         sessionId: "other-legacy",
         stateJson: { untouched: true },
@@ -144,7 +144,7 @@ describePostgres("task-scoped runtime session reset", () => {
       .from(agentRuntimeState)
       .where(eq(agentRuntimeState.agentId, otherAgentId));
     return {
-      companyId,
+      spaceId,
       agentId,
       otherAgentId,
       issueId,
@@ -173,7 +173,7 @@ describePostgres("task-scoped runtime session reset", () => {
       const expected = seeded.before.filter(
         (row) =>
           !(
-            row.companyId === seeded.companyId &&
+            row.spaceId === seeded.spaceId &&
             row.agentId === seeded.agentId &&
             row.adapterType === "outpost_runner" &&
             [seeded.issueId, seeded.identifier].includes(row.taskKey)

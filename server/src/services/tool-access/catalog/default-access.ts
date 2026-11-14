@@ -15,7 +15,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 export function toPolicy(row: typeof toolPolicies.$inferSelect): ToolPolicy {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     name: row.name,
     description: row.description,
     policyType: row.policyType,
@@ -49,7 +49,7 @@ export function createCatalogDefaultAccess(db: Db) {
   }, dbClient: ToolAccessMutationDb = db) {
     // Catalog discovery also runs while the setup wizard is still a draft.
     // Access is not granted until the operator finishes that wizard, so a
-    // draft refresh must never manufacture a profile or company-wide binding.
+    // draft refresh must never manufacture a profile or space-wide binding.
     // Active legacy connections may still need the managed profile created on
     // their first refresh. A reconnect is the one draft exception: removal
     // deliberately clears the old selections, so reconnecting restores the
@@ -62,22 +62,22 @@ export function createCatalogDefaultAccess(db: Db) {
       .from(toolProfiles)
       .where(
         and(
-          eq(toolProfiles.companyId, input.connection.companyId),
+          eq(toolProfiles.spaceId, input.connection.spaceId),
           eq(toolProfiles.profileKey, profileKey),
         ),
       )
       .limit(1).for("no key update");
-    await lockManagedAppPolicies(dbClient, input.connection.companyId, input.connection.id);
+    await lockManagedAppPolicies(dbClient, input.connection.spaceId, input.connection.id);
     const createdProfile = !profile;
     const resetToRecommendedDefaults = !profile || profile.status !== "active";
-    if (resetToRecommendedDefaults) await lockToolAssignmentAgents(dbClient, input.connection.companyId, [{ targetType: "company", targetId: input.connection.companyId }]);
+    if (resetToRecommendedDefaults) await lockToolAssignmentAgents(dbClient, input.connection.spaceId, [{ targetType: "space", targetId: input.connection.spaceId }]);
     if (!profile) {
       const [sameName] = await dbClient
         .select({ id: toolProfiles.id })
         .from(toolProfiles)
         .where(
           and(
-            eq(toolProfiles.companyId, input.connection.companyId),
+            eq(toolProfiles.spaceId, input.connection.spaceId),
             eq(toolProfiles.name, input.connection.name),
           ),
         )
@@ -88,7 +88,7 @@ export function createCatalogDefaultAccess(db: Db) {
       [profile] = await dbClient
         .insert(toolProfiles)
         .values({
-          companyId: input.connection.companyId,
+          spaceId: input.connection.spaceId,
           profileKey,
           name: profileName,
           description: `Access profile for ${input.connection.name}.`,
@@ -101,10 +101,10 @@ export function createCatalogDefaultAccess(db: Db) {
         })
         .returning();
       await dbClient.insert(toolProfileBindings).values({
-        companyId: input.connection.companyId,
+        spaceId: input.connection.spaceId,
         profileId: profile.id,
-        targetType: "company",
-        targetId: input.connection.companyId,
+        targetType: "space",
+        targetId: input.connection.spaceId,
         priority: 100,
         metadata: { source: "app_gallery_finish" },
         createdByAgentId:
@@ -138,7 +138,7 @@ export function createCatalogDefaultAccess(db: Db) {
         .delete(toolProfileBindings)
         .where(
           and(
-            eq(toolProfileBindings.companyId, input.connection.companyId),
+            eq(toolProfileBindings.spaceId, input.connection.spaceId),
             eq(toolProfileBindings.profileId, profile.id),
           ),
         );
@@ -146,15 +146,15 @@ export function createCatalogDefaultAccess(db: Db) {
         .delete(toolProfileEntries)
         .where(
           and(
-            eq(toolProfileEntries.companyId, input.connection.companyId),
+            eq(toolProfileEntries.spaceId, input.connection.spaceId),
             eq(toolProfileEntries.profileId, profile.id),
           ),
         );
       await dbClient.insert(toolProfileBindings).values({
-        companyId: input.connection.companyId,
+        spaceId: input.connection.spaceId,
         profileId: profile.id,
-        targetType: "company",
-        targetId: input.connection.companyId,
+        targetType: "space",
+        targetId: input.connection.spaceId,
         priority: 100,
         metadata: { source: "app_gallery_finish" },
         createdByAgentId:
@@ -172,7 +172,7 @@ export function createCatalogDefaultAccess(db: Db) {
       // retire them to make every action Allowed. Policies outside this app's
       // managed profile are intentionally untouched.
       await upsertAskFirstPolicies({
-        companyId: input.connection.companyId,
+        spaceId: input.connection.spaceId,
         connection: input.connection,
         askFirstEntries: [],
         actor: input.actor,
@@ -195,7 +195,7 @@ export function createCatalogDefaultAccess(db: Db) {
       .from(toolProfileEntries)
       .where(
         and(
-          eq(toolProfileEntries.companyId, input.connection.companyId),
+          eq(toolProfileEntries.spaceId, input.connection.spaceId),
           eq(toolProfileEntries.profileId, profile.id),
           inArray(toolProfileEntries.catalogEntryId, candidateIds),
         ),
@@ -209,7 +209,7 @@ export function createCatalogDefaultAccess(db: Db) {
     if (entryIds.length === 0) return;
     await dbClient.insert(toolProfileEntries).values(
       entryIds.map((catalogEntryId) => ({
-        companyId: input.connection.companyId,
+        spaceId: input.connection.spaceId,
         profileId: profile.id,
         selectorType: "catalog_entry" as const,
         effect: "include" as const,
@@ -222,7 +222,7 @@ export function createCatalogDefaultAccess(db: Db) {
 
   async function upsertAskFirstPolicies(
     input: {
-      companyId: string;
+      spaceId: string;
       connection: typeof toolConnections.$inferSelect;
       askFirstEntries: Array<typeof toolCatalogEntries.$inferSelect>;
       actor?: ActorInfo;
@@ -235,7 +235,7 @@ export function createCatalogDefaultAccess(db: Db) {
       .from(toolPolicies)
       .where(
         and(
-          eq(toolPolicies.companyId, input.companyId),
+          eq(toolPolicies.spaceId, input.spaceId),
           eq(toolPolicies.policyType, "require_approval"),
         ),
       );
@@ -283,7 +283,7 @@ export function createCatalogDefaultAccess(db: Db) {
         const [created] = await dbClient
           .insert(toolPolicies)
           .values({
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             name: policyNameForApp(input.connection, entry),
             description: `Ask first before running ${entry.toolName}.`,
             policyType: "require_approval",

@@ -7,17 +7,17 @@ DO $$ BEGIN
     WHERE conname = 'issue_comments_agent_client_request_uq'
       AND conrelid = 'issue_comments'::regclass
   ) THEN
-    INSERT INTO "issue_read_states" ("company_id", "issue_id", "user_id", "last_read_at")
-    SELECT i."company_id", i."id", i."conversation_user_id", max(c."created_at")
+    INSERT INTO "issue_read_states" ("space_id", "issue_id", "user_id", "last_read_at")
+    SELECT i."space_id", i."id", i."conversation_user_id", max(c."created_at")
     FROM "issues" i
-    JOIN "issue_comments" c ON c."company_id" = i."company_id" AND c."issue_id" = i."id"
+    JOIN "issue_comments" c ON c."space_id" = i."space_id" AND c."issue_id" = i."id"
     WHERE i."conversation_agent_id" IS NOT NULL AND i."conversation_user_id" IS NOT NULL
       AND c."deleted_at" IS NULL AND c."author_agent_id" IS NOT NULL
       AND c."author_type" IS DISTINCT FROM 'system'
       AND c."presentation" ->> 'kind' IS DISTINCT FROM 'system_notice'
       AND c."origin" = 'comment'
-    GROUP BY i."company_id", i."id", i."conversation_user_id"
-    ON CONFLICT ("company_id", "issue_id", "user_id") DO NOTHING;
+    GROUP BY i."space_id", i."id", i."conversation_user_id"
+    ON CONFLICT ("space_id", "issue_id", "user_id") DO NOTHING;
     ALTER TABLE "issue_comments" ADD CONSTRAINT "issue_comments_agent_client_request_uq"
       UNIQUE USING INDEX "issue_comments_agent_client_request_uq";
   END IF;

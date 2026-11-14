@@ -21,7 +21,7 @@ import type { PrpEvent } from "../protocol/replay-contract.js";
 import { ORP_PROTOCOL_VERSION } from "../protocol/replay-contract.js";
 import { redactCapabilityEvidenceData } from "./evidence-redaction.js";
 import { NativeSessionCloseUnrecoverableError } from "../contracts/native-session-backend.js";
-import { parsePaperclipQuestionSet } from "../contracts/question-set.js";
+import { parseOutpostQuestionSet } from "../contracts/question-set.js";
 import {
   ACPX_CREDENTIAL_BINDING_ENV,
   createAcpxCredentialBinding,
@@ -1173,7 +1173,7 @@ it("re-issues only this run's own cut-off attachment before any provider work", 
   expect(reissue(state({ status: "completed", result: { status: "completed" } }))).toBeNull();
   expect(reissue(state({ status: "failed", result: { result: { code: "command_execution_failed" } } }))).toBeNull();
   expect(reissue(state({ status: "pending", result: null }))).toBeNull();
-  expect(reissue(state({ payload: { paperclipNextAuthority: {} } }))).toBeNull();
+  expect(reissue(state({ payload: { outpostNextAuthority: {} } }))).toBeNull();
   expect(reissue({ ...(state() as object), warmTransition: {} } as never)).toBeNull();
   expect(reissue({ ...(state() as object), stagedRunAttachment: {} } as never)).toBeNull();
   // Any provider work after it means the run moved on.
@@ -1463,7 +1463,7 @@ it.each([false, true])("uses the same API result envelope and fences handler pub
 
 it.each([false, true])("refuses a terminal call decided before earlier results were seen (seen: %s)", async seen => {
   // Restart chaos t03: Codex called write_document, the controller was held,
-  // and Codex re-sampled the model until it called paperclip_block. After the
+  // and Codex re-sampled the model until it called outpost_block. After the
   // reattach the Runner delivered the backlog in order: write_document ran and
   // returned, then the stale block arrived before Codex had seen that result.
   const stateDirectory = await mkdtemp(join(tmpdir(), "runnerd-stale-terminal-"));
@@ -1492,15 +1492,15 @@ it.each([false, true])("refuses a terminal call decided before earlier results w
     };
     const write = { executionId: "exec-write", transport: "dynamic", name: "write_document" };
     commit("tool.execution.started", { ...write, status: "running" });
-    // Paperclip's result, recorded as the controller records it for the Runner.
+    // Outpost's result, recorded as the controller records it for the Runner.
     core.queueCommand("semantic_tool.result", { callId: "exec-write", operationId: "write_document",
       inputDigest: "sha256:write", result: { created: true }, isError: false }, "command_tool_stale_terminal_write", true);
     if (seen) commit("tool.execution.completed", { ...write, status: "completed" });
     // The terminal call's own event bounds the history (in production its
     // semantic_tool.input event; any later event works the same way).
-    const sourceEventId = commit("tool.execution.started", { executionId: "exec-block", transport: "dynamic", name: "paperclip_block", status: "running" });
-    const blockInput = { summary: "Paperclip has not returned the save" };
-    const outcome = await callbacks.onSemanticToolInput!({ callId: "block-call", operationId: "paperclip_block",
+    const sourceEventId = commit("tool.execution.started", { executionId: "exec-block", transport: "dynamic", name: "outpost_block", status: "running" });
+    const blockInput = { summary: "Outpost has not returned the save" };
+    const outcome = await callbacks.onSemanticToolInput!({ callId: "block-call", operationId: "outpost_block",
       input: blockInput, sourceEventId, sourceEventType: "semantic_tool.input", correlation: identity });
     if (seen) {
       expect(handler).toHaveBeenCalledTimes(1);
@@ -1519,7 +1519,7 @@ it.each([false, true])("refuses a terminal call decided before earlier results w
 
 it("refuses a terminal call that arrives before a held call's result (restart chaos t05)", async () => {
   // Restart chaos t05: Codex called write_document during a K4 hold, then
-  // re-sampled until it called paperclip_block. After the reattach the
+  // re-sampled until it called outpost_block. After the reattach the
   // controller recovered the held write while the Runner delivered the block,
   // and the block arrived a few milliseconds before the write's result.
   const stateDirectory = await mkdtemp(join(tmpdir(), "runnerd-held-terminal-"));
@@ -1547,12 +1547,12 @@ it("refuses a terminal call that arrives before a held call's result (restart ch
       return `held-terminal-${seq}`;
     };
     commit("tool.execution.started", { executionId: "exec-held-write", transport: "dynamic", name: "write_document", status: "running" });
-    const sourceEventId = commit("tool.execution.started", { executionId: "exec-held-block", transport: "dynamic", name: "paperclip_block", status: "running" });
+    const sourceEventId = commit("tool.execution.started", { executionId: "exec-held-block", transport: "dynamic", name: "outpost_block", status: "running" });
     // The recovered write returns just after the block reaches the transport.
     setTimeout(() => core.queueCommand("semantic_tool.result", { callId: "exec-held-write", operationId: "write_document",
       inputDigest: "sha256:write", result: { created: false }, isError: false }, "command_tool_held_terminal_write", true), 100);
-    const outcome = await callbacks.onSemanticToolInput!({ callId: "held-block-call", operationId: "paperclip_block",
-      input: { summary: "Paperclip has not confirmed the save" }, sourceEventId, sourceEventType: "semantic_tool.input", correlation: identity });
+    const outcome = await callbacks.onSemanticToolInput!({ callId: "held-block-call", operationId: "outpost_block",
+      input: { summary: "Outpost has not confirmed the save" }, sourceEventId, sourceEventType: "semantic_tool.input", correlation: identity });
     expect(handler).not.toHaveBeenCalled();
     expect(outcome).toMatchObject({ isError: true, result: { error: { code: "terminal_call_before_results", retryable: true } } });
     expect(JSON.stringify(outcome.result)).toContain("Those calls have now returned");
@@ -1588,17 +1588,17 @@ it("refuses a finish once for a returned call that never reaches the agent, then
         envelope: { payload: { eventType, turnId: identity.turnId, payload } }, deliveryCount: 1, logicalEffectCount: 1 });
       return `unseen-once-${seq}`;
     };
-    commit("tool.execution.started", { executionId: "exec-search", transport: "dynamic", name: "paperclip_search_assigned_tools", status: "running" });
-    core.queueCommand("semantic_tool.result", { callId: "exec-search", operationId: "paperclip_search_assigned_tools",
+    commit("tool.execution.started", { executionId: "exec-search", transport: "dynamic", name: "outpost_search_assigned_tools", status: "running" });
+    core.queueCommand("semantic_tool.result", { callId: "exec-search", operationId: "outpost_search_assigned_tools",
       inputDigest: "sha256:search", result: { tools: [] }, isError: false }, "command_tool_unseen_once_search", true);
     const finish = (n: number) => {
-      const sourceEventId = commit("tool.execution.started", { executionId: `exec-finish-${n}`, transport: "dynamic", name: "paperclip_finish", status: "running" });
-      return callbacks.onSemanticToolInput!({ callId: `exec-finish-${n}`, operationId: "paperclip_finish",
+      const sourceEventId = commit("tool.execution.started", { executionId: `exec-finish-${n}`, transport: "dynamic", name: "outpost_finish", status: "running" });
+      return callbacks.onSemanticToolInput!({ callId: `exec-finish-${n}`, operationId: "outpost_finish",
         input: { summary: "Done" }, sourceEventId, sourceEventType: "semantic_tool.input", correlation: identity });
     };
     expect(await finish(1)).toMatchObject({ isError: true, result: { error: { code: "terminal_call_before_results" } } });
     expect(handler).not.toHaveBeenCalled();
-    commit("tool.execution.completed", { executionId: "exec-finish-1", transport: "dynamic", name: "paperclip_finish", status: "failed" });
+    commit("tool.execution.completed", { executionId: "exec-finish-1", transport: "dynamic", name: "outpost_finish", status: "failed" });
     expect((await finish(2)).isError).not.toBe(true);
     expect(handler).toHaveBeenCalledTimes(1);
   } finally {
@@ -2688,15 +2688,15 @@ it("includes ACPX terminal tools in the authenticated bridge catalog", () => {
   expect(authorizedToolSetForProvider("acpx", tools)).toMatchObject({
     operations: [
       { operationId: "get_task_context" },
-      { operationId: "paperclip_block" },
-      { operationId: "paperclip_finish" },
+      { operationId: "outpost_block" },
+      { operationId: "outpost_finish" },
     ],
   });
   expect(authorizedToolSetForProvider("codex", tools)).toMatchObject({
     operations: [
       { operationId: "get_task_context" },
-      { operationId: "paperclip_block" },
-      { operationId: "paperclip_finish" },
+      { operationId: "outpost_block" },
+      { operationId: "outpost_finish" },
     ],
   });
 });
@@ -2707,10 +2707,10 @@ it.each(["codex", "opencode", "claude_managed", "aws_agentcore", "acpx"] as cons
   );
   const finish = catalog.operations.find(
     (operation: { operationId: string }) =>
-      operation.operationId === "paperclip_finish",
+      operation.operationId === "outpost_finish",
   );
   const block = catalog.operations.find(
-    (operation: { operationId: string }) => operation.operationId === "paperclip_block",
+    (operation: { operationId: string }) => operation.operationId === "outpost_block",
   );
   expect(finish.description).toBe(ORP_COMPLETION_TOOL_DESCRIPTION);
   expect(block.description).toBe(ORP_BLOCK_TOOL_DESCRIPTION);
@@ -2725,13 +2725,13 @@ it.each(["codex", "opencode", "claude_managed", "aws_agentcore", "acpx"] as cons
   ).toContain("not in the top-level user-facing summary");
 });
 
-it("defaults runnerd ACPX permissions to authorized Paperclip actions", () => {
+it("defaults runnerd ACPX permissions to authorized Outpost actions", () => {
   expect(resolveRunnerdAcpxPermissionMode(undefined)).toBe("approve-all");
   expect(resolveRunnerdAcpxPermissionMode("deny-all")).toBe("deny-all");
 });
 
 it("rejects caller-selected local ACPX artifacts even when they are self-hashed", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "paperclip-acpx-authority-"));
+  const directory = await mkdtemp(join(tmpdir(), "outpost-acpx-authority-"));
   const command = join(directory, "node");
   const sidecar = join(directory, "sidecar.js");
   await writeFile(command, "caller-selected command", { mode: 0o700 });
@@ -2760,7 +2760,7 @@ it.each(["acpx-runtime-sidecar.cjs", "opencode-app-server-proxy.cjs"] as const)(
   "resolves the %s local provider artifact from verified build-owned output",
   async (artifact) => {
     const directory = await mkdtemp(
-      join(tmpdir(), "paperclip-provider-artifact-"),
+      join(tmpdir(), "outpost-provider-artifact-"),
     );
     const sourceAdjacent = join(directory, "src", "cli", artifact);
     const buildOwned = join(directory, "dist", "cli", artifact);
@@ -2832,11 +2832,11 @@ it("uses the public server npm package as the authority for vendored sidecars", 
 });
 
 it.each([false, true])("binds a vendored source server to its pnpm dependency root (self-rooted: %s)", async selfRooted => {
-  const workspace = await mkdtemp(join(tmpdir(), "paperclip-vendored-source-"));
+  const workspace = await mkdtemp(join(tmpdir(), "outpost-vendored-source-"));
   const server = join(workspace, "server");
   await mkdir(join(workspace, "node_modules", ".pnpm"), { recursive: true });
   await mkdir(join(server, "node_modules", ...(selfRooted ? [".pnpm"] : [])), { recursive: true });
-  await writeFile(join(workspace, "package.json"), JSON.stringify({ name: "paperclip", private: true }));
+  await writeFile(join(workspace, "package.json"), JSON.stringify({ name: "outpost", private: true }));
   await writeFile(join(workspace, "pnpm-workspace.yaml"), "packages:\n  - server\n");
   await writeFile(join(server, "package.json"), JSON.stringify({ name: "@outpost/server" }));
   try {
@@ -2888,7 +2888,7 @@ it.each((["cursor", "copilot", "pi", "kimi", "antigravity"] as const).flatMap(ag
 
 it("keeps a self-rooted pnpm deployment inside its dependency authority", async () => {
   const deploymentRoot = await mkdtemp(
-    join(tmpdir(), "paperclip-deployed-provider-root-"),
+    join(tmpdir(), "outpost-deployed-provider-root-"),
   );
   const deployedPackageRoot = deploymentRoot;
   await mkdir(join(deployedPackageRoot, "dist", "cli"), { recursive: true });
@@ -2917,12 +2917,12 @@ it("keeps a self-rooted pnpm deployment inside its dependency authority", async 
 
 it("keeps a scoped npm-installed package inside its portable dependency root", async () => {
   const deploymentRoot = await mkdtemp(
-    join(tmpdir(), "paperclip-npm-provider-root-"),
+    join(tmpdir(), "outpost-npm-provider-root-"),
   );
   const deployedPackageRoot = join(
     deploymentRoot,
     "node_modules",
-    "@paperclipai",
+    "@outpost",
     "outpost-runner",
   );
   await mkdir(join(deployedPackageRoot, "dist", "cli"), { recursive: true });
@@ -2963,7 +2963,7 @@ it("requires a provider-pack authority for remote ACPX artifact hashes", () => {
 });
 
 it("adds Codex-style turn updates only when collaboration instructions are enabled", () => {
-  const base = "Base Paperclip instructions.";
+  const base = "Base Outpost instructions.";
   const enabled = withCodexCollaborationRuntimeInstructions(base, true);
   expect(enabled).toContain(base);
   expect(enabled).toContain("Before the first tool call in a turn");
@@ -3108,7 +3108,7 @@ it("passes only the Anthropic credential to Claude Managed runnerd", () => {
       environment: {
         PATH: "/bin",
         ANTHROPIC_API_KEY: "anthropic-canary",
-        OUTPOST_NATIVE_MCP_NAME: "paperclip",
+        OUTPOST_NATIVE_MCP_NAME: "outpost",
         OUTPOST_NATIVE_MCP_URL: "https://outpost.example/mcp",
         OUTPOST_NATIVE_MCP_TOKEN: "must-not-reach-provider",
         OUTPOST_API_KEY: "must-not-reach-provider",
@@ -3141,7 +3141,7 @@ it("passes only the Anthropic credential to Claude Managed runnerd", () => {
   expect(environment.DATABASE_URL).toBeUndefined();
 });
 
-it("uses file-backed AWS workload identity without forwarding access keys or Paperclip tokens", () => {
+it("uses file-backed AWS workload identity without forwarding access keys or Outpost tokens", () => {
   const environment = createCapabilityRunnerdProviderEnvironment({
     provider: "aws_agentcore",
     options: {
@@ -3339,7 +3339,7 @@ it.each(["opencode", "acpx"] as const)(
 );
 
 it("admits Pi runnerd transport without candidate opt-in and keeps pending Copilot gated", async () => {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-pi-production-admission-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-pi-production-admission-"));
   const { transport } = createCapabilityRunnerdCodexTransport({ provider: "acpx", acpxAgent: "pi", piThinkingLevel: "low", stateDirectory: root });
   try {
     await expect(transport.request("collaborationMode/list", {})).resolves.toMatchObject({ data: [{ mode: "plan" }] });
@@ -3380,14 +3380,14 @@ it("denies the isolated Codex home without denying a remote execution workspace"
       PATH: "/usr/local/bin:/usr/bin:/bin",
     },
     codexHome:
-      "/workspaces/task/.paperclip-runtime/outpost-runner/sessions/session/filesystem/codex-home",
+      "/workspaces/task/.outpost-runtime/outpost-runner/sessions/session/filesystem/codex-home",
     readOnlyRoots: ["/usr/local"],
   });
   const serialized = args.join("\n");
   expect(args).not.toContain("project_doc_max_bytes=0");
 
   expect(serialized).toContain(
-    '"/workspaces/task/.paperclip-runtime/outpost-runner/sessions/session/filesystem/codex-home"="none"',
+    '"/workspaces/task/.outpost-runtime/outpost-runner/sessions/session/filesystem/codex-home"="none"',
   );
   expect(serialized).not.toContain('"/workspaces/task"="none"');
   expect(serialized).not.toContain('"/workspaces/task/.codex"="none"');
@@ -3395,7 +3395,7 @@ it("denies the isolated Codex home without denying a remote execution workspace"
 });
 
 it.each(["installed", "explicit"] as const)("records the selected %s Codex command before launch", async (selection) => {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-codex-command-selection-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-codex-command-selection-"));
   const command = join(root, "codex");
   const runnerBinary = join(root, "runnerd");
   await writeFile(command, "#!/bin/sh\nexit 99\n", { mode: 0o700 });
@@ -3781,7 +3781,7 @@ it("rejects remote Codex without a guest executable before resolving controller 
   });
   const { transport } = createCapabilityRunnerdCodexTransport({
     provider: "codex", runnerBinary, stateDirectory: root, sourceCodexHome: "",
-    runnerFilesystemRoot: "/workspaces/task/.paperclip-runtime/session",
+    runnerFilesystemRoot: "/workspaces/task/.outpost-runtime/session",
   });
   try {
     await expect(transport.request("thread/start", { cwd: "/workspaces/task", model: "gpt-6.1-sol", dynamicTools: [] }))
@@ -3795,7 +3795,7 @@ it("rejects remote Codex without a guest executable before resolving controller 
 });
 
 it.each(["missing", "changed"] as const)("reuses the recorded Codex command when dependency discovery is %s during resume", async (discovery) => {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-codex-recorded-command-"));
+  const root = await mkdtemp(join(tmpdir(), "outpost-codex-recorded-command-"));
   const command = join(root, "recorded-codex");
   const replacement = join(root, "replacement-codex");
   const runnerBinary = join(root, "runnerd");
@@ -3845,7 +3845,7 @@ it("rejects remote OpenCode before spawn when provider-pack paths are absent", a
   const { transport } = createCapabilityRunnerdCodexTransport({
     provider: "opencode",
     stateDirectory: root,
-    runnerFilesystemRoot: "/workspaces/task/.paperclip-runtime/session",
+    runnerFilesystemRoot: "/workspaces/task/.outpost-runtime/session",
   });
   try {
     await expect(
@@ -5759,7 +5759,7 @@ it("bridges a runnerd-native question into the server request handler and resolv
     };
     const created = controlState.committedEvents.filter(event => event.eventType === "runtime_request.created");
     expect(created).toHaveLength(1);
-    const input = parsePaperclipQuestionSet(created[0]!.envelope.payload.payload.request!.input);
+    const input = parseOutpostQuestionSet(created[0]!.envelope.payload.payload.request!.input);
     expect(input.questions[0]!.options![0]!.description).toBe("Deploy safely.");
     expect(input.questions[1]!.options![0]).not.toHaveProperty("description");
     expect(controlState.commands.filter(command => command.type === "request.resolve"))
@@ -6374,7 +6374,7 @@ it.each([
 
 it.each(["claude", "codex"] as const)("keeps the explicitly assigned gateway in the %s runner environment", (agent) => {
   const gateway = {
-    OUTPOST_NATIVE_MCP_NAME: "paperclip-assigned",
+    OUTPOST_NATIVE_MCP_NAME: "outpost-assigned",
     OUTPOST_NATIVE_MCP_URL: "http://127.0.0.1:3100/mcp/gateway",
     OUTPOST_NATIVE_MCP_TOKEN: "fixture-scoped-gateway-token-1234567890",
   };
@@ -6623,7 +6623,7 @@ it.each([
       expect(sessionRoots).toHaveLength(1);
       const requests = (await readFile(join(runtime, sessionRoots[0]!.name, "data/fake-prompt-requests.ndjson"), "utf8")).trim().split("\n").map((line) => JSON.parse(line));
       expect(requests.map((request) => request.parts)).toEqual([[{ type: "text", text: prepared }]]);
-      expect(requests[0].variant).toBe(supportsReasoning ? "paperclip-no-reasoning" : undefined);
+      expect(requests[0].variant).toBe(supportsReasoning ? "outpost-no-reasoning" : undefined);
       const outcomes = JSON.parse(await readFile(join(runtime, sessionRoots[0]!.name, "data/fake-completion-feedback.json"), "utf8"));
       expect(outcomes).toHaveLength(2);
       expect(outcomes[0].result).toMatchObject({ isError: true, content: [{ text: expect.stringContaining("required document link") }] });
@@ -6680,7 +6680,7 @@ it.each([
       for await (const event of session.events()) if (event.eventType === "turn.completed") break;
       const allRequests = (await readFile(join(runtime, sessionRoots[0]!.name, "data/fake-prompt-requests.ndjson"), "utf8")).trim().split("\n").map((line) => JSON.parse(line));
       expect(allRequests.map(request => request.variant)).toEqual(supportsReasoning
-        ? ["paperclip-no-reasoning", "paperclip-default"] : [undefined, undefined]);
+        ? ["outpost-no-reasoning", "outpost-default"] : [undefined, undefined]);
     },
     closeSession: async () => { await session?.close({ reason: "test complete" }); },
     closeTransport: async () => {

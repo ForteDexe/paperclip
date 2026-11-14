@@ -15,7 +15,7 @@ import {
   sealRestorePoint,
 } from "../services/git-restore-point.ts";
 
-const identity = { companyId: "company-1", workspaceId: "workspace-1", restorePointId: "restore-1", generation: 1 };
+const identity = { spaceId: "space-1", workspaceId: "workspace-1", restorePointId: "restore-1", generation: 1 };
 
 function git(cwd: string, ...args: string[]) {
   return execFileSync("git", ["-C", cwd, ...args], {
@@ -41,7 +41,7 @@ describe("git restore points", () => {
 
   beforeEach(async () => {
     vi.stubEnv("OUTPOST_SECRETS_MASTER_KEY", "31".repeat(32));
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-restore-point-test-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-restore-point-test-"));
     remote = path.join(root, "remote.git");
     work = path.join(root, "work");
     git(root, "init", "-q", "--bare", "-b", "master", remote);
@@ -244,7 +244,7 @@ describe("git restore points", () => {
     const restored = await freshClone("restored");
     await importRestorePoint({ repositoryCwd: restored, payload: captured!.payload });
     expect(git(restored, "cat-file", "-t", lost)).toBe("commit");
-    expect(git(restored, "for-each-ref", "refs/paperclip-restore-import/")).toBe("");
+    expect(git(restored, "for-each-ref", "refs/outpost-restore-import/")).toBe("");
   });
 
   describe("ignored files", () => {

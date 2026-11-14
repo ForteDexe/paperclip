@@ -1,5 +1,5 @@
 import type { TelemetryClient } from "./client.js";
-import type { EventDimensionsMap } from "./generated/paperclip-telemetry.js";
+import type { EventDimensionsMap } from "./generated/outpost-telemetry.js";
 
 type RawDimension<T extends string | undefined> = T | (string & {});
 
@@ -20,16 +20,16 @@ export function trackInstallCompleted(
   });
 }
 
-export function trackCompanyImported(
+export function trackSpaceImported(
   client: TelemetryClient,
   dims: {
-    sourceType: RawDimension<EventDimensionsMap["company.imported"]["source_type"]>;
+    sourceType: RawDimension<EventDimensionsMap["space.imported"]["source_type"]>;
     sourceRef: string;
     isPrivate: boolean;
   },
 ): void {
   const ref = dims.isPrivate ? client.hashPrivateRef(dims.sourceRef) : dims.sourceRef;
-  client.track("company.imported", {
+  client.track("space.imported", {
     source_type: asEventDimension(dims.sourceType),
     source_ref: ref,
     source_ref_hashed: dims.isPrivate,

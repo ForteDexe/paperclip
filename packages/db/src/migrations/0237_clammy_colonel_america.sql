@@ -1,6 +1,6 @@
 CREATE TABLE "managed_agent_profiles" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"profile_key" text NOT NULL,
 	"display_name" text NOT NULL,
 	"service" text DEFAULT 'anthropic_managed_agents' NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE "managed_agent_profiles" (
 --> statement-breakpoint
 CREATE TABLE "remote_agent_profiles" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"profile_key" text NOT NULL,
 	"display_name" text NOT NULL,
 	"service" text NOT NULL,
@@ -42,11 +42,11 @@ CREATE TABLE "remote_agent_profiles" (
 	CONSTRAINT "remote_agent_profiles_qualified_revision_check" CHECK (("remote_agent_profiles"."qualified_at" IS NULL AND "remote_agent_profiles"."qualified_revision" IS NULL) OR ("remote_agent_profiles"."qualified_at" IS NOT NULL AND "remote_agent_profiles"."qualification" <> '{}'::jsonb AND "remote_agent_profiles"."qualified_revision" ~ '^sha256:[0-9a-f]{64}$'))
 );
 --> statement-breakpoint
-ALTER TABLE "managed_agent_profiles" ADD CONSTRAINT "managed_agent_profiles_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "managed_agent_profiles" ADD CONSTRAINT "managed_agent_profiles_api_key_secret_id_company_secrets_id_fk" FOREIGN KEY ("api_key_secret_id") REFERENCES "public"."company_secrets"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "remote_agent_profiles" ADD CONSTRAINT "remote_agent_profiles_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "managed_agent_profiles_company_idx" ON "managed_agent_profiles" USING btree ("company_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "managed_agent_profiles_company_key_uq" ON "managed_agent_profiles" USING btree ("company_id","profile_key");--> statement-breakpoint
-CREATE UNIQUE INDEX "managed_agent_profiles_company_resource_uq" ON "managed_agent_profiles" USING btree ("company_id","anthropic_agent_id","agent_version","environment_id");--> statement-breakpoint
-CREATE INDEX "remote_agent_profiles_company_idx" ON "remote_agent_profiles" USING btree ("company_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "remote_agent_profiles_company_key_uq" ON "remote_agent_profiles" USING btree ("company_id","profile_key");
+ALTER TABLE "managed_agent_profiles" ADD CONSTRAINT "managed_agent_profiles_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "managed_agent_profiles" ADD CONSTRAINT "managed_agent_profiles_api_key_secret_id_space_secrets_id_fk" FOREIGN KEY ("api_key_secret_id") REFERENCES "public"."space_secrets"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "remote_agent_profiles" ADD CONSTRAINT "remote_agent_profiles_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "managed_agent_profiles_space_idx" ON "managed_agent_profiles" USING btree ("space_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "managed_agent_profiles_space_key_uq" ON "managed_agent_profiles" USING btree ("space_id","profile_key");--> statement-breakpoint
+CREATE UNIQUE INDEX "managed_agent_profiles_space_resource_uq" ON "managed_agent_profiles" USING btree ("space_id","anthropic_agent_id","agent_version","environment_id");--> statement-breakpoint
+CREATE INDEX "remote_agent_profiles_space_idx" ON "remote_agent_profiles" USING btree ("space_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "remote_agent_profiles_space_key_uq" ON "remote_agent_profiles" USING btree ("space_id","profile_key");

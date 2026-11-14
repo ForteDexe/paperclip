@@ -12,7 +12,7 @@ import {
   type SlackHumanConnectReceipt,
 } from "./external-slack-human-contract.js";
 /** This finite child performs one genuine named Slack human command. It neither
- * synthesizes a Slack event nor qualifies Paperclip's resulting connection. */
+ * synthesizes a Slack event nor qualifies Outpost's resulting connection. */
 export async function privateSlackHumanConnect(
   input: Omit<SlackHumanConnectInput, "session"> & { sessionJson: string },
   privateSecrets: string[],
@@ -56,7 +56,7 @@ export async function privateSlackHumanConnect(
       if (typeof item.value === "string" && item.value)
         privateSecrets.push(item.value);
   const directory = await mkdtemp(
-    path.join(tmpdir(), "paperclip-slack-human-"),
+    path.join(tmpdir(), "outpost-slack-human-"),
   );
   try {
     const channel = process.env.OUTPOST_PLAYWRIGHT_CHANNEL,

@@ -13,19 +13,19 @@ import { cachedAgentFileManifest } from "./agent-file-checkpoints.js";
 import { AgentFileLimitError, MAX_AGENT_DIRECTORY_BYTES, MAX_AGENT_DIRECTORY_ENTRIES, MAX_AGENT_FILE_BYTES } from "./agent-file-store.js";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
-type Owner = { companyId: string; id: string; createdAt: Date };
+type Owner = { spaceId: string; id: string; createdAt: Date };
 type Head = typeof agentFileRoots.$inferSelect;
-const where = (owner: Owner) => and(eq(agentFileRoots.companyId, owner.companyId), eq(agentFileRoots.agentId, owner.id));
+const where = (owner: Owner) => and(eq(agentFileRoots.spaceId, owner.spaceId), eq(agentFileRoots.agentId, owner.id));
 const marker = (root: string) => path.join(path.dirname(root), "file-sync", "durable-generation");
 const adoptionReceipt = (root: string) => path.join(path.dirname(root), "file-sync", "durable-adoption.json");
 export const durableAgentFilesEnabled = () => process.env.OUTPOST_DURABLE_AGENT_FILES === "true";
 
 /** A newly created agent has no legacy files to import. Commit its empty
  * authority with the agent row, before any API can acknowledge file mutations. */
-export async function initializeDurableAgentFiles(tx: Db, owner: { companyId: string; id: string }) {
+export async function initializeDurableAgentFiles(tx: Db, owner: { spaceId: string; id: string }) {
   if (!durableAgentFilesEnabled()) return;
   storage();
-  await tx.insert(agentFileRoots).values({ companyId: owner.companyId, agentId: owner.id,
+  await tx.insert(agentFileRoots).values({ spaceId: owner.spaceId, agentId: owner.id,
     generation: randomUUID(), entries: [] }).onConflictDoNothing();
 }
 
@@ -63,14 +63,14 @@ export async function restoreDurableAgentFiles(tx: Tx, owner: Owner, root: strin
     });
     if (contents !== null) {
       const receipt = JSON.parse(contents) as { version: number; agentCreatedAt: string; head: Head };
-      if (receipt.version !== 1 || receipt.head.companyId !== owner.companyId || receipt.head.agentId !== owner.id
+      if (receipt.version !== 1 || receipt.head.spaceId !== owner.spaceId || receipt.head.agentId !== owner.id
         || receipt.agentCreatedAt !== owner.createdAt.toISOString() || !Array.isArray(receipt.head.entries)) {
         throw new Error("Agent file adoption receipt does not match its owner");
       }
       // A first save can roll back the head after changing local files. Replay
       // only the pre-mutation manifest whose immutable bytes were uploaded,
       // never adopt the now-dirty directory as fresh legacy input.
-      [head] = await tx.insert(agentFileRoots).values({ companyId: owner.companyId, agentId: owner.id,
+      [head] = await tx.insert(agentFileRoots).values({ spaceId: owner.spaceId, agentId: owner.id,
         generation: receipt.head.generation, entries: receipt.head.entries }).returning();
       await invalidateAgentFileProjection(root);
     }
@@ -105,7 +105,7 @@ export async function restoreDurableAgentFiles(tx: Tx, owner: Owner, root: strin
         const hash = createHash("sha256");
         let size = 0;
         if (entry.objectKey !== null) {
-          const object = await service.getObject(owner.companyId, entry.objectKey, { signal });
+          const object = await service.getObject(owner.spaceId, entry.objectKey, { signal });
           await pipeline(object.stream, new Transform({ transform(chunk: Buffer, _encoding, callback) {
             size += chunk.length;
             if (size > entry.size) return callback(new Error("Agent file exceeds its committed size"));
@@ -176,7 +176,7 @@ export async function persistDurableAgentFiles(tx: Tx, owner: Owner, root: strin
         callback(size === entry.size && hash.digest("hex") === entry.hash ? null : new Error("Agent file changed during upload"));
       } });
       try {
-        const [result] = await Promise.all([service.putFile({ companyId: owner.companyId, namespace: `agent-files/${owner.id}`,
+        const [result] = await Promise.all([service.putFile({ spaceId: owner.spaceId, namespace: `agent-files/${owner.id}`,
           originalFilename: null, contentType: "application/octet-stream", body,
           byteSize: entry.size, sha256: entry.hash, signal }), pipeline(source, body, { signal })]);
         objectKey = result.objectKey;
@@ -193,9 +193,9 @@ export async function persistDurableAgentFiles(tx: Tx, owner: Owner, root: strin
     // This is a retry receipt for the one-time local import, not serving
     // authority. Once committed, Postgres and S3 suffice without this file.
     await atomicPrivateWrite(adoptionReceipt(root), JSON.stringify({ version: 1, agentCreatedAt: owner.createdAt.toISOString(),
-      head: { companyId: owner.companyId, agentId: owner.id, generation, entries } }));
+      head: { spaceId: owner.spaceId, agentId: owner.id, generation, entries } }));
   }
-  await tx.insert(agentFileRoots).values({ companyId: owner.companyId, agentId: owner.id, generation, entries })
-    .onConflictDoUpdate({ target: [agentFileRoots.companyId, agentFileRoots.agentId], set: { generation, entries, updatedAt: new Date() } });
+  await tx.insert(agentFileRoots).values({ spaceId: owner.spaceId, agentId: owner.id, generation, entries })
+    .onConflictDoUpdate({ target: [agentFileRoots.spaceId, agentFileRoots.agentId], set: { generation, entries, updatedAt: new Date() } });
   await mark(root, generation);
 }

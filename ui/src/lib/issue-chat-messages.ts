@@ -562,10 +562,10 @@ function createCommentMessage(args: {
   agentMap?: Map<string, Agent>;
   currentUserId?: string | null;
   userLabelMap?: ReadonlyMap<string, string> | null;
-  companyId?: string | null;
+  spaceId?: string | null;
   projectId?: string | null;
 }): ThreadMessage {
-  const { comment, agentMap, currentUserId, userLabelMap, companyId, projectId } = args;
+  const { comment, agentMap, currentUserId, userLabelMap, spaceId, projectId } = args;
   const createdAt = toDate(comment.createdAt);
   const isSystemAuthor = comment.authorType === "system";
   // Presentation can route a comment to the system-notice renderer even when it
@@ -588,7 +588,7 @@ function createCommentMessage(args: {
     authorUserId: comment.authorUserId,
     // Responsible user this agent comment rode the authority of (the open cross-task write design (attribution)).
     onBehalfOfUserId: comment.onBehalfOfUserId ?? null,
-    companyId: companyId ?? comment.companyId,
+    spaceId: spaceId ?? comment.spaceId,
     projectId: projectId ?? null,
     runId: effectiveCommentRunId(comment),
     runAgentId: effectiveCommentRunAgentId(comment),
@@ -819,10 +819,10 @@ function runDurationLabel(run: {
       return durationText ? `Timed out after ${durationText}` : "Run timed out";
     case "cancelled":
       if (isOperatorInterruptedRun(run.resultJson, run.errorCode)) {
-        return durationText ? `Interrupted by board after ${durationText}` : "Interrupted by board";
+        return durationText ? `Interrupted by operator after ${durationText}` : "Interrupted by operator";
       }
       if (stopReason === "paused") {
-        return durationText ? `Paused by board after ${durationText}` : "Paused by board";
+        return durationText ? `Paused by operator after ${durationText}` : "Paused by operator";
       }
       return durationText ? `Cancelled after ${durationText}` : "Run cancelled";
     case "queued":
@@ -947,7 +947,7 @@ export function buildAssistantPartsFromTranscript(entries: readonly IssueChatTra
       orderedParts.push({
         type: "tool-call",
         toolCallId,
-        toolName: "paperclip_provider_activity",
+        toolName: "outpost_provider_activity",
         args,
         argsText: "",
         ...(entry.status === "running" ? {} : { result: { status: entry.status ?? "informational" } }),
@@ -1171,7 +1171,7 @@ export function buildIssueChatMessages(args: {
   hasOutputForRun?: (runId: string) => boolean;
   includeSucceededRunsWithoutOutput?: boolean;
   issueId?: string;
-  companyId?: string | null;
+  spaceId?: string | null;
   projectId?: string | null;
   agentMap?: Map<string, Agent>;
   currentUserId?: string | null;
@@ -1189,7 +1189,7 @@ export function buildIssueChatMessages(args: {
     hasOutputForRun,
     includeSucceededRunsWithoutOutput = false,
     issueId,
-    companyId,
+    spaceId,
     projectId,
     agentMap,
     currentUserId,
@@ -1204,7 +1204,7 @@ export function buildIssueChatMessages(args: {
     orderedMessages.push({
       createdAtMs: toTimestamp(comment.createdAt),
       order: 1,
-      message: createCommentMessage({ comment, agentMap, currentUserId, userLabelMap, companyId, projectId }),
+      message: createCommentMessage({ comment, agentMap, currentUserId, userLabelMap, spaceId, projectId }),
     });
   }
 

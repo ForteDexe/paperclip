@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type {
   Agent,
   CatalogTeamImportPreviewResult,
-  CompanyPortabilityCollisionStrategy,
+  SpacePortabilityCollisionStrategy,
 } from "@outpost/shared";
 import {
   ApplyProgress,
@@ -33,7 +33,7 @@ import {
 // stay in sync. Preview/agent fixtures below are story-only.
 // ---------------------------------------------------------------------------
 
-const companyAgents: Agent[] = [
+const spaceAgents: Agent[] = [
   makeAgent("agent-1", "Founder", "ceo"),
   makeAgent("agent-2", "Head of Eng", "engineer"),
   makeAgent("agent-3", "Ops Lead", "general"),
@@ -42,7 +42,7 @@ const companyAgents: Agent[] = [
 function makeAgent(id: string, name: string, role: string): Agent {
   return {
     id,
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     name,
     urlKey: name.toLowerCase().replace(/\s+/g, "-"),
     role: role as Agent["role"],
@@ -70,13 +70,13 @@ export function makePreview(errors: string[] = []): CatalogTeamImportPreviewResu
   return {
     team: baseTeam,
     portabilityPreview: {
-      include: { company: false, agents: true, projects: true, issues: false, skills: true },
-      targetCompanyId: "company-storybook",
-      targetCompanyName: "Paperclip",
+      include: { space: false, agents: true, projects: true, issues: false, skills: true },
+      targetSpaceId: "space-storybook",
+      targetSpaceName: "Outpost",
       collisionStrategy: "rename",
       selectedAgentSlugs: ["ceo", "cto", "cmo"],
       plan: {
-        companyAction: "none",
+        spaceAction: "none",
         agentPlans: [
           { slug: "ceo", action: "create", plannedName: "CEO", existingAgentId: null, reason: null },
           { slug: "cto", action: "create", plannedName: "CTO", existingAgentId: null, reason: null },
@@ -93,8 +93,8 @@ export function makePreview(errors: string[] = []): CatalogTeamImportPreviewResu
         schemaVersion: 1,
         generatedAt: "2026-06-03T00:00:00.000Z",
         source: null,
-        includes: { company: false, agents: true, projects: true, issues: false, skills: true },
-        company: null,
+        includes: { space: false, agents: true, projects: true, issues: false, skills: true },
+        space: null,
         sidebar: null,
         agents: [
           manifestAgent("ceo", "CEO"),
@@ -140,7 +140,7 @@ function Frame({ children, width = "max-w-3xl" }: { children: React.ReactNode; w
 
 const meta: Meta = {
   excludeStories: ["makePreview"],
-  parameters: { paperclip: {
+  parameters: { outpost: {
       "capabilities": [
         "teams/preview",
         "teams/discovery",
@@ -213,16 +213,16 @@ export const InstalledStates: Story = {
 export const InstallTargetManager: Story = {
   render: function Render() {
     const [managerId, setManagerId] = useState<string | null>(null);
-    const [fullCompany, setFullCompany] = useState(false);
+    const [fullSpace, setFullSpace] = useState(false);
     return (
       <Frame>
         <StepTargetManager
           team={baseTeam}
-          agents={companyAgents}
+          agents={spaceAgents}
           targetManagerAgentId={managerId}
           onPickManager={setManagerId}
-          fullCompany={fullCompany}
-          onToggleFullCompany={setFullCompany}
+          fullSpace={fullSpace}
+          onToggleFullSpace={setFullSpace}
           canBypassManager
         />
       </Frame>
@@ -263,7 +263,7 @@ export const InstallSkillPlan: Story = {
 
 export const InstallPreview: Story = {
   render: function Render() {
-    const [collision, setCollision] = useState<CompanyPortabilityCollisionStrategy>("rename");
+    const [collision, setCollision] = useState<SpacePortabilityCollisionStrategy>("rename");
     const [names, setNames] = useState<Record<string, string>>({});
     const [adapters, setAdapters] = useState<Record<string, string>>({});
     return (
@@ -367,7 +367,7 @@ export const InstallSuccess: Story = {
             { kind: "project", id: "p1", name: "Launch", href: "/STORY/projects/p1" },
           ],
           portabilityImport: {
-            company: { id: "company-storybook", name: "Paperclip", action: "unchanged" },
+            space: { id: "space-storybook", name: "Outpost", action: "unchanged" },
             agents: [
               { slug: "ceo", id: "a1", action: "created", name: "CEO", reason: null },
               { slug: "cto", id: "a2", action: "created", name: "CTO", reason: null },

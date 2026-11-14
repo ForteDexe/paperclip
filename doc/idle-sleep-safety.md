@@ -3,7 +3,7 @@
 `GET /api/instance/task-drain?idleSleepSafety=1&ownerId=<owner>` adds an
 instance-wide `idleSleepSafety` report for instance administrators and signed
 Cloud control callers. Ordinary task drains keep their existing behavior.
-Company members and agents cannot read this report.
+Space members and agents cannot read this report.
 
 Cloud callers carrying full idle catalogs use `POST /api/instance/task-drain/status`
 with the same read query and `{ "idleCapabilities": ... }` JSON body. A short
@@ -83,16 +83,16 @@ policy generation, and unresolved accounting remain sleep blockers.
 
 Agent lifecycle uses the same transaction-aware coordinator. Hire approval,
 configuration invalidation, manual commands, and computed agent budget holds
-register work before their transaction writes. Company status transitions register
-inherited-hold projection; changing a company name, description, or logo does not.
-Projection selects only agents whose company pause/archive hold differs from the
-committed company state, in pages of 100 under one company accounting transaction
+register work before their transaction writes. Space status transitions register
+inherited-hold projection; changing a space name, description, or logo does not.
+Projection selects only agents whose space pause/archive hold differs from the
+committed space state, in pages of 100 under one space accounting transaction
 per page. Pause/archive transactions also persist pausing operations for agents
 with cancellable runs, reading only those involved agents in batches. Immediate
 reactivation can remove an inherited hold but cannot erase an owed Stop; new
 provider work waits for lifecycle readiness. Archive activity counts describe
 requested pauses and cancellations, not completed provider termination. Agent
-and project budget changes never enumerate company peers.
+and project budget changes never enumerate space peers.
 
 Startup recovers pending lifecycle operations and inherited-hold mismatches.
 Thereafter notifications and stored retry/lease deadlines drive work. Stable ready,
@@ -113,7 +113,7 @@ The retained chat, tool-review, browser, decision, transfer, public-MCP and
 external-agent families use their owning domain's completion receipts. Inspection
 does not delete history, expire credentials, cancel work or shorten retention.
 A terminal label alone is insufficient. Missing, contradictory, malformed or
-foreign company/task/run/binding references keep the instance awake.
+foreign space/task/run/binding references keep the instance awake.
 
 Chat input can remain work after processing because its exact wake still owns
 the conversation head. Publications retain provider ambiguity, endpoint leases
@@ -124,7 +124,7 @@ same closed session. Decision success requires the selected option's full effect
 manifest, matching ordinal/type/target receipts and audit records. The owning
 dismissal, explicit recovery stop and reviewed archive paths have separate proofs.
 Their continuation and archive-notification outboxes remain independent barriers.
-Failed company transfers remain resumable. Completed transfers require their
+Failed space transfers remain resumable. Completed transfers require their
 recorded manifest, exact part receipts and matching counts. Completed/cancelled
 transfers still block while their registered local spool contains cleanup work.
 
@@ -154,12 +154,12 @@ check; a completed command invocation does not retire that deadline.
 
 Waiting agent conversations can be passive containers under both ordinary and
 scheduled inspection. The same narrow proof requires the exact conversation
-agent/company/user, waiting state, no checkout, active run, accounting, monitor
+agent/space/user, waiting state, no checkout, active run, accounting, monitor
 or pending delivery, and a finished wake for every accepted user-comment outbox
 entry. An idle presentation state does not exempt an ordinary runnable task.
 
 Sandbox creation records in `pending` or `needs_reconciliation` remain blockers,
-including manual uncertainty after company deletion. The pending-only catalog
+including manual uncertainty after space deletion. The pending-only catalog
 omission predates the new startup-cleanup recovery path; no complete-instance
 unsafe sleep outcome has been demonstrated. A late identified resource transfers
 its obligation to the exact cleanup lease, and only the owning successful cleanup
@@ -195,7 +195,7 @@ generation, accounting, finalization and resource-cleanup checks still apply.
 
 Committed native replies use the shared delivery coordinator and its persisted
 retry deadlines. One pass checks at most four independent tasks at a time.
-Checks for the same company and task run in candidate order within the batch.
+Checks for the same space and task run in candidate order within the batch.
 Other scoped deadline workers remain serial unless their owner enables concurrency.
 Drain retains unstarted checks, and shutdown waits for every admitted check before
 releasing tracked work. Completed history creates no recurring discovery reads;
@@ -226,26 +226,26 @@ If a failed ephemeral lease has no usable local inspection path, a managed
 Daytona instance can ask Cloud for a cleanup-only absence receipt. Cloud checks
 the stack's historical credential organization and reads the exact allocation
 with its manager credential. Only confirmed absence can produce a signed receipt
-bound to the stack, company, environment, lease, provider handle and nullable run.
+bound to the stack, space, environment, lease, provider handle and nullable run.
 The separate cleanup type and audience cannot authorize run recovery. Older
 Cloud servers, unsupported providers, invalid signatures, changed organizations
 and failed reads leave the lease unresolved. Existing bounded cleanup batches
 and retry deadlines own these reads; no new idle polling is added. An explicit
 local provider observation is retained rather than replaced by this fallback.
 
-Host-owned verification metadata binds the company, environment, resource,
+Host-owned verification metadata binds the space, environment, resource,
 provider handle, optional run, and exact row version. Concurrent resume,
 replacement, cleanup, or configuration changes invalidate verification.
 Provider-supplied metadata cannot supply this marker. Inspection preserves
 failure outcomes and history and does not create a run-continuation receipt.
 Normal setup cancellation and timeout preserve the host's recorded config
-fingerprint and RPC company scope for later read-only verification.
+fingerprint and RPC space scope for later read-only verification.
 Retained allocations, unfinished runs/accounting/retries, export intents and
 live setup credentials continue to block sleep.
 
 For a reused remote allocation, a completed predecessor can resolve termination
 through the final owner's destruction receipt only when the full host-recorded
-lease handoff chain matches. Company, agent, task, workspace, environment, provider
+lease handoff chain matches. Space, agent, task, workspace, environment, provider
 and allocation identities must agree. A stopped successor, broken handoff or
 unrelated owner grants no cleanup authority. This resolution does not rewrite
 historical leases, execute remotely or claim that uncollected files were saved.
@@ -276,7 +276,7 @@ An optional Slack slash-command name is configuration only and does not create
 background work. Other setup fields still retain their blockers.
 
 Cloud also reconciles missed routine issue-status hooks in bounded batches on
-awake instances. Exact company/routine/issue/run ownership and row locks are
+awake instances. Exact space/routine/issue/run ownership and row locks are
 required. The normal routine service records completion or transient failure
 from the current issue status; a resumed issue can use its existing continuation
 rules. This repairs stale handoff bookkeeping without exempting unprocessed
@@ -292,7 +292,7 @@ cannot request this extension. Ordinary reports retain their existing behavior.
 If all other background-work checks pass, active routines may return
 `idleSleepSafety: { version: 2, backgroundWork: "none", scheduledWake }`.
 The proof has `version: 1`, `kind: "routines"`, a SHA-256 `generation`, and the
-earliest `nextWakeAt` across every company. Only enabled, unarchived schedule
+earliest `nextWakeAt` across every space. Only enabled, unarchived schedule
 triggers with valid cron, timezone and future `next_run_at` qualify. Unsupported
 triggers, setup work, due work, unknown states and more than 10,000 active
 triggers keep the instance awake. Inactive triggers do not create obligations.
@@ -340,14 +340,14 @@ Enabled task watchdogs and unsupported recovery keep their existing checks.
 Incoming changes still require the hosting admission and wake path.
 
 An active issue monitor needs a saved future `monitor_next_check_at` matching
-its validated execution policy, a company-scoped agent, no outstanding dispatch
+its validated execution policy, a space-scoped agent, no outstanding dispatch
 claim, and remaining attempts and timeout. Due, malformed, quota-recovery,
 unowned and inconsistent monitors keep the workspace awake. Inspection does
 not clear schedules, advance attempts or dispatch an agent.
 
 The combined report uses `version: 2` and a scheduled proof with `version: 1`
 and `kind: "routines_and_issue_monitors"`. Its deadline is the earliest required
-routine or monitor time across all companies. Its generation binds the current
+routine or monitor time across all spaces. Its generation binds the current
 process, idle owner and inspected catalogs. Hosts must acknowledge this known
 proof kind, persist the alarm and validate the unchanged owned report before
 stopping compute. Existing hosts reject the new kind. Monitor dispatch and
@@ -522,7 +522,7 @@ operator reconciliation; this API does not discard it to save compute.
 
 ## Persisted work and limits
 
-The report checks all companies in one bounded read-only database transaction.
+The report checks all spaces in one bounded read-only database transaction.
 Queued and orphaned runs, timers, retries, accounting debt, unfinished issues,
 cleanup, active routines, integrations, external ingress credentials, and plugin
 work block sleep. Completed ordinary run history does not. Less common work
@@ -536,7 +536,7 @@ independent workers. Their saved configuration does not block sleep. Login
 sessions and runs still pass the existing durable checks. Detached subscription
 observations and quota reads remain counted through their actual completion,
 including token refresh after a quota response times out. Credential-recovery
-journals, partial writes and probes block sleep across restart. Empty company
+journals, partial writes and probes block sleep across restart. Empty space
 directories left after successful recovery do not; invalid paths and read
 failures remain unknown. Credentials and connection records are retained.
 Disabled draft connections and saved outbound HTTP MCP connections have no
@@ -549,7 +549,7 @@ With the issue-scheduling capability, pending questions, confirmations,
 checkbox confirmations and task suggestions can be passive waits. Their
 producer must have finished without retry or accounting debt. The response
 audience and continuation policy stay unchanged. Unknown pending siblings,
-foreign-company records and unfinished producers block sleep. A resolved card
+foreign-space records and unfinished producers block sleep. A resolved card
 does not make an otherwise runnable issue passive. The schedule generation
 includes response identity and audience, including when only a routine owns
 the next alarm.
@@ -558,12 +558,12 @@ without a human response and does not yet have a durable wake contract.
 
 Known board escalation actions for stranded work, missing disposition and a
 lost review path can also be passive. They require a blocked source in the same
-company, board ownership, no automatic wake, no monitor or timeout, and no live
+space, board ownership, no automatic wake, no monitor or timeout, and no live
 execution binding. The action remains visible and unresolved. Other recovery
 causes and autonomous owners remain blockers.
 
 A failed ephemeral lease is history only with successful cleanup, a release
-timestamp, and an exact provider termination receipt bound to its company, run,
+timestamp, and an exact provider termination receipt bound to its space, run,
 lease and resource. Its run must be finished without retry or accounting debt.
 Pending cleanup claims and export/stop-and-retain intents still block. Failure
 labels or cleanup success without that proof do not authorize sleep. Lease
@@ -576,20 +576,20 @@ export or retention intent. Unknown drivers and remote resources still block.
 Finished login-session history permits sleep only after its promotion claim is
 cleared and any retained provider reference has a matching released, expired,
 or verified failed ephemeral lease with successful cleanup and a release
-timestamp in the same company and environment. The failed lease must satisfy
+timestamp in the same space and environment. The failed lease must satisfy
 the same termination and run checks above. Missing cleanup evidence,
 `cleanup_pending`, and live login flows
 remain blockers. A finished coalesced wake is history only when its exact
-company/agent's linked run has finished without retry or accounting debt.
+space/agent's linked run has finished without retry or accounting debt.
 Image-setup history requires a known terminal state, finish timestamp, cleared
 connection secret and exact host-owned resource cleanup verification. Promotion
 can succeed before teardown is confirmed, so a terminal label alone still blocks.
 
 Completed question-answer deliveries permit sleep only after acknowledgement
-and completion of their exact target run in the same company, without retry or
+and completion of their exact target run in the same space, without retry or
 accounting debt. A fallback without a target run requires its exact question's
-finished durable wake receipt in the same company. A coalesced fallback also
-requires its exact company/agent's linked run to finish without retry or
+finished durable wake receipt in the same space. A coalesced fallback also
+requires its exact space/agent's linked run to finish without retry or
 accounting debt. The question-history index covers every wake status.
 Pending deliveries, missing
 completion evidence, and unfinished handoffs still block. Failed deliveries
@@ -618,7 +618,7 @@ client belongs only to lifecycle delivery, so retirement preserves the main
 pool and other features' notification channels. Releasing the hold or its existing shared expiry deadline
 recreates the listener and reconstructs delivery from the durable journal before
 normal dispatch, including events whose notification arrived while it was closed.
-This preserves at-least-once delivery and existing company filtering; it does not
+This preserves at-least-once delivery and existing space filtering; it does not
 promise exactly-once callback invocation or add a wake guarantee for arbitrary
 external SQL writers while compute is stopped.
 
@@ -699,7 +699,7 @@ after inspection and backup preparation. Owner reads share the catalog's query
 and elapsed-time budget; exhaustion refuses sleep.
 
 Scheduled retry coverage is limited to a future legacy assignee-task retry and
-its exact same-company, same-agent queued wake pointing back to that run. Other
+its exact same-space, same-agent queued wake pointing back to that run. Other
 runs and wakes retain their checks, as do accounting, budget-stop, resources and
 cleanup. Native retries, review retries, coalesced wakes, claimed cancellation
 and tasks with a separate monitor remain conservative. After wake, ordinary

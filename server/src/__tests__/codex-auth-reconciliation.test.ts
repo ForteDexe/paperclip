@@ -7,7 +7,7 @@ import { reconcileCodexLocalManagedHomesOnStartup } from "../services/codex-auth
 
 type AgentRow = {
   id: string;
-  companyId: string;
+  spaceId: string;
   adapterConfig: Record<string, unknown>;
 };
 
@@ -23,17 +23,17 @@ function makeDb(rows: AgentRow[]): Db {
 
 describe("reconcileCodexLocalManagedHomesOnStartup", () => {
   let root: string;
-  let paperclipHome: string;
+  let outpostHome: string;
   let sharedCodexHome: string;
   const savedEnv: Record<string, string | undefined> = {};
 
-  function managedAgentHome(companyId: string, agentId: string): string {
+  function managedAgentHome(spaceId: string, agentId: string): string {
     return path.join(
-      paperclipHome,
+      outpostHome,
       "instances",
       "default",
-      "companies",
-      companyId,
+      "spaces",
+      spaceId,
       "agents",
       agentId,
       "codex-home",
@@ -41,8 +41,8 @@ describe("reconcileCodexLocalManagedHomesOnStartup", () => {
   }
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-startup-"));
-    paperclipHome = path.join(root, "paperclip-home");
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-codex-startup-"));
+    outpostHome = path.join(root, "outpost-home");
     sharedCodexHome = path.join(root, "shared-codex-home");
     await fs.mkdir(sharedCodexHome, { recursive: true });
     await fs.writeFile(path.join(sharedCodexHome, "auth.json"), '{"OPENAI_API_KEY":"sk-shared"}', "utf8");
@@ -50,7 +50,7 @@ describe("reconcileCodexLocalManagedHomesOnStartup", () => {
     for (const key of ["OUTPOST_HOME", "OUTPOST_INSTANCE_ID", "CODEX_HOME"]) {
       savedEnv[key] = process.env[key];
     }
-    process.env.OUTPOST_HOME = paperclipHome;
+    process.env.OUTPOST_HOME = outpostHome;
     process.env.OUTPOST_INSTANCE_ID = "default";
     process.env.CODEX_HOME = sharedCodexHome;
   });
@@ -64,9 +64,9 @@ describe("reconcileCodexLocalManagedHomesOnStartup", () => {
   });
 
   it("seeds a stranded managed home and is a no-op on the next boot", async () => {
-    const agentHome = managedAgentHome("company-1", "agent-7");
+    const agentHome = managedAgentHome("space-1", "agent-7");
     const rows: AgentRow[] = [
-      { id: "agent-7", companyId: "company-1", adapterConfig: { env: { CODEX_HOME: agentHome, OPENAI_API_KEY: "" } } },
+      { id: "agent-7", spaceId: "space-1", adapterConfig: { env: { CODEX_HOME: agentHome, OPENAI_API_KEY: "" } } },
     ];
 
     const first = await reconcileCodexLocalManagedHomesOnStartup(makeDb(rows));
@@ -84,9 +84,9 @@ describe("reconcileCodexLocalManagedHomesOnStartup", () => {
 
   it("does not report a backfill when shared Codex auth is missing", async () => {
     await fs.rm(path.join(sharedCodexHome, "auth.json"), { force: true });
-    const agentHome = managedAgentHome("company-1", "agent-missing-source");
+    const agentHome = managedAgentHome("space-1", "agent-missing-source");
     const rows: AgentRow[] = [
-      { id: "agent-missing-source", companyId: "company-1", adapterConfig: { env: { CODEX_HOME: agentHome } } },
+      { id: "agent-missing-source", spaceId: "space-1", adapterConfig: { env: { CODEX_HOME: agentHome } } },
     ];
 
     const summary = await reconcileCodexLocalManagedHomesOnStartup(makeDb(rows));
@@ -103,8 +103,8 @@ describe("reconcileCodexLocalManagedHomesOnStartup", () => {
     const external = path.join(root, "user-codex");
     await fs.mkdir(external, { recursive: true });
     const rows: AgentRow[] = [
-      { id: "ext", companyId: "company-1", adapterConfig: { env: { CODEX_HOME: external } } },
-      { id: "none", companyId: "company-1", adapterConfig: { env: {} } },
+      { id: "ext", spaceId: "space-1", adapterConfig: { env: { CODEX_HOME: external } } },
+      { id: "none", spaceId: "space-1", adapterConfig: { env: {} } },
     ];
 
     const summary = await reconcileCodexLocalManagedHomesOnStartup(makeDb(rows));
@@ -121,13 +121,13 @@ describe("reconcileCodexLocalManagedHomesOnStartup", () => {
   });
 
   it("does not write a secret-bound OPENAI_API_KEY placeholder as the API key", async () => {
-    const agentHome = managedAgentHome("company-2", "agent-9");
+    const agentHome = managedAgentHome("space-2", "agent-9");
     // A secret binding must never be written verbatim into auth.json; the home
     // should fall back to the seeded subscription symlink instead.
     const rows: AgentRow[] = [
       {
         id: "agent-9",
-        companyId: "company-2",
+        spaceId: "space-2",
         adapterConfig: {
           env: {
             CODEX_HOME: agentHome,
@@ -147,7 +147,7 @@ describe("reconcileCodexLocalManagedHomesOnStartup", () => {
   });
 
   it("preserves a preexisting API-key auth.json when the key is secret-bound", async () => {
-    const agentHome = managedAgentHome("company-4", "agent-secret");
+    const agentHome = managedAgentHome("space-4", "agent-secret");
     // Simulate an agent that previously ran with a RESOLVED secret API key:
     // execute-time seeding wrote a regular-file auth.json containing the key.
     await fs.mkdir(agentHome, { recursive: true });
@@ -159,7 +159,7 @@ describe("reconcileCodexLocalManagedHomesOnStartup", () => {
     const rows: AgentRow[] = [
       {
         id: "agent-secret",
-        companyId: "company-4",
+        spaceId: "space-4",
         adapterConfig: {
           env: {
             CODEX_HOME: agentHome,
@@ -183,11 +183,11 @@ describe("reconcileCodexLocalManagedHomesOnStartup", () => {
   });
 
   it("writes a plain OPENAI_API_KEY into the managed home", async () => {
-    const agentHome = managedAgentHome("company-3", "agent-5");
+    const agentHome = managedAgentHome("space-3", "agent-5");
     const rows: AgentRow[] = [
       {
         id: "agent-5",
-        companyId: "company-3",
+        spaceId: "space-3",
         adapterConfig: { env: { CODEX_HOME: agentHome, OPENAI_API_KEY: "sk-plain-1" } },
       },
     ];

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 /** Shared presentation for the application and the approved review stories. */
 export interface PrimaryAgentPresentation {
-  companyId: string;
+  spaceId: string;
   primaryAgentId: string | null;
   primaryAgent: Agent | null;
   loading?: boolean;
@@ -22,9 +22,9 @@ export interface PrimaryAgentPresentation {
 const PrimaryAgentContext = createContext<PrimaryAgentPresentation | null>(null);
 export const PrimaryAgentPresentationProvider = PrimaryAgentContext.Provider;
 
-export function usePrimaryAgentPresentation(companyId?: string | null) {
+export function usePrimaryAgentPresentation(spaceId?: string | null) {
   const value = useContext(PrimaryAgentContext);
-  return value && (!companyId || value.companyId === companyId) ? value : null;
+  return value && (!spaceId || value.spaceId === spaceId) ? value : null;
 }
 
 const crownClass = "primary-crown relative";
@@ -43,7 +43,7 @@ function crownBubbles(): CrownPop["bubbles"] {
 export function PrimaryAgentCrownButton({ agent }: {
   agent: Agent;
 }) {
-  const primary = usePrimaryAgentPresentation(agent.companyId);
+  const primary = usePrimaryAgentPresentation(agent.spaceId);
   const [confirming, setConfirming] = useState(false);
   const [replacing, setReplacing] = useState<Agent | null>(null);
   const [pop, setPop] = useState<CrownPop | null>(null);

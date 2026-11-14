@@ -28,7 +28,7 @@ import {
 } from "@/components/AgentConfigForm";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
 import { Button } from "@/components/ui/button";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { agentsApi } from "@/api/agents";
 import { queryKeys } from "@/lib/queryKeys";
 import {
@@ -40,8 +40,8 @@ import { agentDisplayAdapterType, getAdapterDisplay } from "@/adapters/adapter-d
 import { cn } from "@/lib/utils";
 import { RuntimeTestCard } from "../RuntimeTestCard";
 import { type TestOutcome } from "../new-agent-fixtures";
-import { COMPANY, ID, REF, createSettingsFixtures } from "./fixtures";
-import { storybookIssues } from "../../fixtures/paperclipData";
+import { SPACE, ID, REF, createSettingsFixtures } from "./fixtures";
+import { storybookIssues } from "../../fixtures/outpostData";
 import "./settings.css";
 
 const descriptions: Record<AgentLocalDetailView, string> = {
@@ -53,7 +53,7 @@ const descriptions: Record<AgentLocalDetailView, string> = {
   tools: "Manage installed connections, available tools, and access policies.",
   channels: "Manage the external chat connections dedicated to this agent.",
   permissions: "Set the agent’s trust level, authority, and boundaries.",
-  "api-keys": "Manage the keys this agent uses to authenticate with Paperclip.",
+  "api-keys": "Manage the keys this agent uses to authenticate with Outpost.",
   revisions:
     "Review past configuration changes and restore an earlier version.",
   activity: "Everything this agent did and everything done to it.",
@@ -85,7 +85,7 @@ export function AgentSettingsPreview({
     return fixtures;
   });
   const [ready, setReady] = useState(false);
-  const { selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { selectedSpaceId, setSelectedSpaceId } = useSpace();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   useEffect(() => {
@@ -97,7 +97,7 @@ export function AgentSettingsPreview({
         const response = await previous(input, init);
         const data = await response.json();
         return Response.json(url.pathname === "/api/health" ? { ...data, status: "ok" }
-          : data.map((adapter: { type: string }) => adapter.type === "codex_local" ? { ...adapter, supportedRunners: ["paperclip", "legacy"], defaultRunner: "paperclip" } : adapter));
+          : data.map((adapter: { type: string }) => adapter.type === "codex_local" ? { ...adapter, supportedRunners: ["outpost", "legacy"], defaultRunner: "outpost" } : adapter));
       }
       return previous(input, init);
     };
@@ -108,14 +108,14 @@ export function AgentSettingsPreview({
       queryKeys.agents.detail(ID),
       queryKeys.agents.detail(REF),
       queryKeys.agents.skills(ID),
-      queryKeys.companySkills.list(COMPANY),
+      queryKeys.spaceSkills.list(SPACE),
       queryKeys.agents.keys(ID),
       queryKeys.agents.configRevisions(ID),
       queryKeys.instance.experimentalSettings,
       queryKeys.instance.generalSettings,
-      queryKeys.environments.list(COMPANY),
-      queryKeys.secrets.list(COMPANY),
-      ["tools", COMPANY],
+      queryKeys.environments.list(SPACE),
+      queryKeys.secrets.list(SPACE),
+      ["tools", SPACE],
       ["tools", "connection", "settings-github"],
     ];
     const clearFixtureQueries = () =>
@@ -124,7 +124,7 @@ export function AgentSettingsPreview({
       );
     clearFixtureQueries();
     queryClient.setQueryData(queryKeys.agents.detail(ID), fixtures.agent);
-    setSelectedCompanyId(COMPANY);
+    setSelectedSpaceId(SPACE);
     navigate(`/PAP/agents/${REF}/${initialTab}`, { replace: true });
     setReady(true);
     return () => {
@@ -132,12 +132,12 @@ export function AgentSettingsPreview({
       uninstall();
       clearFixtureQueries();
     };
-  }, [adapterType, fixtures, initialTab, queryClient, setSelectedCompanyId]);
-  if (!ready || selectedCompanyId !== COMPANY) return null;
+  }, [adapterType, fixtures, initialTab, queryClient, setSelectedSpaceId]);
+  if (!ready || selectedSpaceId !== SPACE) return null;
   return (
     <Routes>
       <Route
-        path="/:companyPrefix/agents/:agentId/:tab?"
+        path="/:spacePrefix/agents/:agentId/:tab?"
         element={<SettingsPage runtimeContent={runtimeContent} />}
       />
       <Route
@@ -167,7 +167,7 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
   const queryClient = useQueryClient();
   const { data: agent } = useQuery({
     queryKey: queryKeys.agents.detail(ID),
-    queryFn: () => agentsApi.get(ID, COMPANY),
+    queryFn: () => agentsApi.get(ID, SPACE),
   });
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -201,7 +201,7 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
   }, []);
   const update = useMutation({
     mutationFn: (patch: Record<string, unknown>) =>
-      agentsApi.update(ID, patch, COMPANY),
+      agentsApi.update(ID, patch, SPACE),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKeys.agents.detail(ID), updated);
       queryClient.invalidateQueries({
@@ -211,7 +211,7 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
   });
   const permissions = useMutation({
     mutationFn: (patch: Parameters<typeof agentsApi.updatePermissions>[1]) =>
-      agentsApi.updatePermissions(ID, patch, COMPANY),
+      agentsApi.updatePermissions(ID, patch, SPACE),
     onSuccess: (updated) =>
       queryClient.setQueryData(queryKeys.agents.detail(ID), updated),
   });
@@ -333,7 +333,7 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
                 </Button>
                 <AgentActionButtons
                   agent={agent}
-                  companyId={COMPANY}
+                  spaceId={SPACE}
                   assignLabel="Assign Task"
                   showRun={false}
                   showStatus={false}
@@ -363,7 +363,7 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
               {view === "instructions" && (
                 <PromptsTab
                   agent={agent}
-                  companyId={COMPANY}
+                  spaceId={SPACE}
                   showSaveNotice={false}
                   {...callbacks}
                 />
@@ -439,20 +439,20 @@ function SettingsPage({ runtimeContent }: { runtimeContent?: ReactNode }) {
               {view === "permissions" && (
                 <ConfigurationTab
                   agent={agent}
-                  companyId={COMPANY}
+                  spaceId={SPACE}
                   {...callbacks}
                   updatePermissions={permissions}
                   content="permissions"
                 />
               )}
               {view === "tools" && (
-                <AgentToolsTab agent={agent} companyId={COMPANY} />
+                <AgentToolsTab agent={agent} spaceId={SPACE} />
               )}
               {view === "api-keys" && (
-                <KeysTab agentId={ID} companyId={COMPANY} />
+                <KeysTab agentId={ID} spaceId={SPACE} />
               )}
               {view === "revisions" && (
-                <AgentRevisionsTab agent={agent} companyId={COMPANY} />
+                <AgentRevisionsTab agent={agent} spaceId={SPACE} />
               )}
               {view === "advanced" && (
                 <AgentAdvancedTab key={agent.id} agent={agent} onDirtyChange={onDirty} onSavingChange={setSaving} onSaved={() => {}} />

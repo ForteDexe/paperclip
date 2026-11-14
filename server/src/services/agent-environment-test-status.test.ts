@@ -20,7 +20,7 @@ function readiness(): AdapterEnvironmentTestResult {
     code: "acpx_remote_runtime_unverified", level: "warn", message: "The remote platform is supported. Runtime package integrity and readiness must still be verified by the remote runner before launch.",
   }] };
 }
-const context: AdapterEnvironmentTestContext = { companyId: "company-1", adapterType: "outpost_runner", environmentName: "Paperclip Sandbox",
+const context: AdapterEnvironmentTestContext = { spaceId: "space-1", adapterType: "outpost_runner", environmentName: "Outpost Sandbox",
   config: { provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5", env: { CLAUDE_CODE_OAUTH_TOKEN: "fixture-token" }, managedAiConnection: { method: "subscription" } },
   executionTarget: { kind: "remote" as const, transport: "sandbox" as const, providerKey: "daytona", leaseId: "lease-1", remoteCwd: "/workspace", runner: { execute: vi.fn().mockResolvedValue({ exitCode: 0, timedOut: false, stdout: "", stderr: "", signal: null }) } },
 };
@@ -40,7 +40,7 @@ function verifiedClaude() {
 describe("managed Runner connection test status", () => {
   it("projects the selected Google home for background verification and rejects a conflicting explicit home", async () => {
     const service = agentEnvironmentTestService({} as Db);
-    const input = { companyId: "company-1", adapterType: "outpost_runner", executionTarget: null,
+    const input = { spaceId: "space-1", adapterType: "outpost_runner", executionTarget: null,
       config: { provider: "acpx", acpxAgent: "antigravity", model: "exact-google-model", env: {}, managedAiConnection: { method: "subscription" } } };
     const binding = { provider: "google", method: "subscription", mode: "responsible_user" } as const;
     const managed = { home: "/private/selected-google", identity: "fixture-identity",
@@ -57,7 +57,7 @@ describe("managed Runner connection test status", () => {
   });
   it("accepts only the Antigravity native admission receipt without invoking another provider", async () => {
     const service = agentEnvironmentTestService({} as Db);
-    const input = { companyId: "company-1", adapterType: "outpost_runner", executionTarget: null,
+    const input = { spaceId: "space-1", adapterType: "outpost_runner", executionTarget: null,
       config: { provider: "acpx", acpxAgent: "antigravity", model: "exact-google-model", env: {}, managedAiConnection: { method: "subscription" } } };
     const binding = { provider: "google", method: "subscription", mode: "responsible_user" } as const;
     const managed = { identity: "fixture-identity", attribution: { provider: "google", connectionId: "connection-1", grantId: "grant-1" } } as Parameters<typeof service.testManagedEnvironment>[3];

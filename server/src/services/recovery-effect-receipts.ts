@@ -11,24 +11,24 @@ const record = (value: unknown): Record<string, unknown> =>
  * protocols can reconcile through their existing owner instead. No transcript
  * assertion or new call/idempotency key clears an old uncertain operation. */
 export async function unresolvedRecoveryToolInvocation(db: Db, input: {
-  companyId: string; issueId: string; runId: string; connectionId: string;
+  spaceId: string; issueId: string; runId: string; connectionId: string;
   toolName: string; risk: string;
 }): Promise<string | null> {
   if (input.risk === "read") return null;
-  const ancestry = await recoveryRunAncestry({ db, companyId: input.companyId,
+  const ancestry = await recoveryRunAncestry({ db, spaceId: input.spaceId,
     issueId: input.issueId, sourceRunIds: [input.runId] });
   if (!ancestry.some(source => source.id !== input.runId)) return null;
   const [prior] = await db.select({ id: toolInvocations.id }).from(toolInvocations)
     .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.id, toolInvocations.runId),
-      eq(heartbeatRuns.companyId, input.companyId)))
-    .where(and(eq(toolInvocations.companyId, input.companyId), eq(toolInvocations.issueId, input.issueId),
+      eq(heartbeatRuns.spaceId, input.spaceId)))
+    .where(and(eq(toolInvocations.spaceId, input.spaceId), eq(toolInvocations.issueId, input.issueId),
       eq(toolInvocations.connectionId, input.connectionId), eq(toolInvocations.toolName, input.toolName),
       ne(toolInvocations.runId, input.runId),
       sql`${toolInvocations.riskLevel} is distinct from 'read'`,
       inArray(toolInvocations.status, ["executing", "failed", "timed_out"]),
       sql`${toolInvocations.startedAt} is not null`,
       sql`${heartbeatRuns.createdAt} < (select created_at from heartbeat_runs
-        where id = ${input.runId} and company_id = ${input.companyId})`,
+        where id = ${input.runId} and space_id = ${input.spaceId})`,
     )).limit(1);
   return prior?.id ?? null;
 }
@@ -36,16 +36,16 @@ export async function unresolvedRecoveryToolInvocation(db: Db, input: {
 /** Keep the mutation fence across provider/session replacement. Read operations
  * and unrelated operations remain available for authoritative reconciliation. */
 export async function priorRecoveryApiReceipt(db: Db, input: {
-  companyId: string; issueId: string; runId: string; operationId: string; digest: string;
+  spaceId: string; issueId: string; runId: string; operationId: string; digest: string;
 }): Promise<Record<string, unknown> | null> {
   // Start at the current run so persisted automatic retry edges inherit the
   // same protection as a deliberate Retry or explicit continuation receipt.
-  const ancestry = new Set((await recoveryRunAncestry({ db, companyId: input.companyId,
+  const ancestry = new Set((await recoveryRunAncestry({ db, spaceId: input.spaceId,
     issueId: input.issueId, sourceRunIds: [input.runId] }))
     .map(source => source.id).filter(id => id !== input.runId));
   if (!ancestry.size) return null;
   const sources = await db.select({ id: heartbeatRuns.id, result: heartbeatRuns.resultJson }).from(heartbeatRuns).where(and(
-    eq(heartbeatRuns.companyId, input.companyId),
+    eq(heartbeatRuns.spaceId, input.spaceId),
     sql`coalesce(${heartbeatRuns.nativeIssueId}::text, ${heartbeatRuns.issueId}::text,
       ${heartbeatRuns.contextSnapshot}->>'issueId') = ${input.issueId}`,
     ne(heartbeatRuns.id, input.runId),

@@ -8,11 +8,11 @@ import { KanbanBoard } from "@/components/KanbanBoard";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
 import { TaskList } from "@/components/TaskList";
 import { TaskListToolbar } from "@/components/TaskListToolbar";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useDialogActions } from "@/context/DialogContext";
 import { useTaskListCollection } from "@/hooks/useTaskListCollection";
 import { taskListViewStorageKey } from "@/lib/task-list-views";
-import { storybookAgents, storybookAuthSession, storybookIssueLabels, storybookProjects } from "../../fixtures/paperclipData";
+import { storybookAgents, storybookAuthSession, storybookIssueLabels, storybookProjects } from "../../fixtures/outpostData";
 import { DesignProposalAccess } from "./DesignProposalAccess";
 import { initialItems, recentTasks } from "./task-page-data";
 
@@ -21,19 +21,19 @@ const sidebarRecents = recentTasks.map(item => item.issue);
 
 function TrialContent() {
   const [items, setItems] = useState(initialItems);
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { openNewIssue } = useDialogActions();
   const userId = storybookAuthSession.user.id;
   const collection = useTaskListCollection({
-    items, companyId: selectedCompanyId, userId,
+    items, spaceId: selectedSpaceId, userId,
     viewStorageKey: taskListViewStorageKey(scope, userId),
   });
   const newTask = () => openNewIssue();
   const emptyState = <EmptyState
     icon={ListTodo}
-    message={collection.companyItems.length ? "No tasks match this view" : "No tasks in this organization"}
-    action={collection.companyItems.length ? "Clear filters" : "New Task"}
-    onAction={collection.companyItems.length ? collection.clear : newTask}
+    message={collection.spaceItems.length ? "No tasks match this view" : "No tasks in this organization"}
+    action={collection.spaceItems.length ? "Clear filters" : "New Task"}
+    onAction={collection.spaceItems.length ? collection.clear : newTask}
   />;
 
   return <>
@@ -58,7 +58,7 @@ function TrialContent() {
       </p> : null}
       {/* Preserve the shared table's column/sort state while the board is active. */}
       <div className="design-task-list-panel" hidden={collection.layout !== "list"}>
-        <TaskList items={collection.visibleItems} allItems={collection.companyItems}
+        <TaskList items={collection.visibleItems} allItems={collection.spaceItems}
           collapsedIds={collection.collapsedIds} onCollapsedIdsChange={collection.setCollapsedIds}
           emptyState={emptyState} />
       </div>

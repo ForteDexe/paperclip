@@ -1,35 +1,35 @@
 import { api } from "./client";
 import type {
-  CompanyArtifact,
-  CompanyArtifactGroupBy,
-  CompanyArtifactMediaKind,
-  CompanyArtifactsResponse,
+  SpaceArtifact,
+  SpaceArtifactGroupBy,
+  SpaceArtifactMediaKind,
+  SpaceArtifactsResponse,
 } from "@outpost/shared";
 
 export type {
-  CompanyArtifact,
-  CompanyArtifactGroup,
-  CompanyArtifactGroupBy as ArtifactGroupBy,
-  CompanyArtifactMediaKind as ArtifactMediaKind,
-  CompanyArtifactsResponse,
-  CompanyArtifactSource as ArtifactSource,
+  SpaceArtifact,
+  SpaceArtifactGroup,
+  SpaceArtifactGroupBy as ArtifactGroupBy,
+  SpaceArtifactMediaKind as ArtifactMediaKind,
+  SpaceArtifactsResponse,
+  SpaceArtifactSource as ArtifactSource,
 } from "@outpost/shared";
 
 /**
- * Company-level Artifacts client (PAP-10359).
+ * Space-level Artifacts client (PAP-10359).
  *
- * Talks to the company-scoped artifacts projection endpoint
- * (`GET /api/companies/:companyId/artifacts`) defined by the approved
+ * Talks to the space-scoped artifacts projection endpoint
+ * (`GET /api/spaces/:spaceId/artifacts`) defined by the approved
  * Artifacts plan (PAP-10353). The endpoint flattens agent-produced issue
  * documents, direct attachments, and `artifact` work products into a single
  * card-ready list so the UI never has to stitch issue-specific endpoints
  * together.
  *
- * The `CompanyArtifact` shape is imported from `@outpost/shared` so the
+ * The `SpaceArtifact` shape is imported from `@outpost/shared` so the
  * frontend and server stay synchronized as the contract evolves.
  */
 
-export type ArtifactKindFilter = Exclude<CompanyArtifactMediaKind, "empty"> | "all";
+export type ArtifactKindFilter = Exclude<SpaceArtifactMediaKind, "empty"> | "all";
 
 export interface ListArtifactsParams {
   kind?: ArtifactKindFilter;
@@ -38,7 +38,7 @@ export interface ListArtifactsParams {
   agentId?: string;
   q?: string;
   /** Grouping mode. `none` (default) returns the flat artifact grid. */
-  groupBy?: CompanyArtifactGroupBy;
+  groupBy?: SpaceArtifactGroupBy;
   /** When grouping, selects a single stack to expand into its artifacts. */
   groupIssueId?: string;
   limit?: number;
@@ -65,8 +65,8 @@ function buildArtifactsQuery(params?: ListArtifactsParams): string {
  * bare array so the page keeps working if the backend ships the simpler shape.
  */
 function normalizeArtifactsResponse(
-  raw: CompanyArtifactsResponse | CompanyArtifact[],
-): CompanyArtifactsResponse {
+  raw: SpaceArtifactsResponse | SpaceArtifact[],
+): SpaceArtifactsResponse {
   if (Array.isArray(raw)) {
     return { artifacts: raw, nextCursor: null };
   }
@@ -79,9 +79,9 @@ function normalizeArtifactsResponse(
 }
 
 export const artifactsApi = {
-  list: async (companyId: string, params?: ListArtifactsParams): Promise<CompanyArtifactsResponse> => {
-    const raw = await api.get<CompanyArtifactsResponse | CompanyArtifact[]>(
-      `/companies/${companyId}/artifacts${buildArtifactsQuery(params)}`,
+  list: async (spaceId: string, params?: ListArtifactsParams): Promise<SpaceArtifactsResponse> => {
+    const raw = await api.get<SpaceArtifactsResponse | SpaceArtifact[]>(
+      `/spaces/${spaceId}/artifacts${buildArtifactsQuery(params)}`,
     );
     return normalizeArtifactsResponse(raw);
   },

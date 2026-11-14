@@ -25,12 +25,12 @@ function accessSummary(value: unknown) {
 }
 function testDecisions(lookup: ToolRunDecisionLookup, provider: NotesProvider) {
   return lookup.decisions.map(({ invocation: v, auditEvents }) => ({ runId: lookup.runId,
-    invocation: { id: v.id, companyId: v.companyId, actorType: v.actorType, actorId: v.actorId, agentId: v.agentId, issueId: v.issueId, runId: v.runId,
+    invocation: { id: v.id, spaceId: v.spaceId, actorType: v.actorType, actorId: v.actorId, agentId: v.agentId, issueId: v.issueId, runId: v.runId,
       connectionId: v.connectionId, catalogEntryId: v.catalogEntryId, toolName: v.toolName, status: v.status, policyDecision: v.policyDecision,
       errorCode: v.errorCode, resultHash: v.resultHash, resultSizeBytes: v.resultSizeBytes, startedAt: String(v.startedAt), completedAt: String(v.completedAt) },
     events: auditEvents.map(e => {
       const metadata = record(e.metadata), request = record(record(metadata.execution).request), requestId = request.requestId;
-      return { id: e.id, companyId: e.companyId, actorType: e.actorType, actorId: e.actorId, agentId: e.agentId, issueId: e.issueId, runId: e.runId,
+      return { id: e.id, spaceId: e.spaceId, actorType: e.actorType, actorId: e.actorId, agentId: e.agentId, issueId: e.issueId, runId: e.runId,
         connectionId: e.connectionId, catalogEntryId: e.catalogEntryId, invocationId: e.invocationId, eventType: e.eventType, outcome: e.outcome,
         decision: e.decision, resultHash: e.resultHash, source: metadata.source === "test" ? "test" : "other", endpointMatches: request.endpoint === provider.url,
         method: request.mcpMethod === "tools/call" ? "tools/call" : "other", upstreamToolName: request.upstreamToolName === "launch_read" ? "launch_read" : "other",
@@ -59,7 +59,7 @@ export function gradeAppTest(value: unknown) {
     && allowedScope(s.initialCeoScope, o.leadId, s.readEntryId, s.writeEntryId) && allowedScope(s.initialMorganScope, s.morganId, s.readEntryId, s.writeEntryId) && scopesUnchanged,
   "The real caller and target already have the read grant, not the write action; no pre-query test or permission widening may supply the answer.");
   const comments = Array.isArray(s.sourceComments) ? s.sourceComments.map(record) : [], humans = comments.filter(row => !row.authorAgentId), native = o.runs[0];
-  const queryBound = o.runs.length === 1 && !!native && native.companyId === o.companyId && native.agentId === o.leadId && native.runtimeMode === "native" && native.status === "succeeded"
+  const queryBound = o.runs.length === 1 && !!native && native.spaceId === o.spaceId && native.agentId === o.leadId && native.runtimeMode === "native" && native.status === "succeeded"
     && humans.length === 1 && typeof s.personId === "string" && humans[0]!.authorUserId === s.personId && humans[0]!.matchesOriginalQuery === true && native.contextSnapshot?.commentId === humans[0]!.id && native.contextSnapshot?.issueId === s.sourceIssueId
     && o.humanQueries.length === 1 && o.humanQueries[0] === s.originalQuery && time(native.startedAt) >= time(s.setupFinishedAt);
   c.add("one-original-native-request", !!queryBound, "One unchanged human query and its actual successful CEO native turn must own the selected source conversation.");
@@ -76,13 +76,13 @@ export function gradeAppTest(value: unknown) {
   const events = (Array.isArray(decision?.events) ? decision.events : []).map(record).filter(e => e.eventType === "call_completed");
   const event = events[0];
   const invocationBound = !!queryBound && decisions.length === 1 && decision?.runId === native!.id && typeof v.id === "string" && v.id.length > 0
-    && v.companyId === o.companyId && v.actorType === "agent" && v.actorId === o.leadId && v.agentId === s.morganId && v.runId === native!.id && v.issueId === s.sourceIssueId
+    && v.spaceId === o.spaceId && v.actorType === "agent" && v.actorId === o.leadId && v.agentId === s.morganId && v.runId === native!.id && v.issueId === s.sourceIssueId
     && v.connectionId === s.connectionId && v.catalogEntryId === s.readEntryId && typeof v.toolName === "string" && v.status === "succeeded" && v.policyDecision === "allow" && !v.errorCode
     && v.resultHash === expectedResultHash && v.resultSizeBytes === Buffer.byteLength(resultText);
   c.add("saved-target-scoped-test", invocationBound, "The persisted successful invocation binds authorized CEO, Morgan, source task/run, exact connection/read catalog action and exact synthetic result bytes.");
   c.add("independent-provider-and-durable-audit", invocationBound && Array.isArray(calls) && calls.length === 1 && !!call && call.authorized === true && call.name === "launch_read"
     && call.responseHttpStatus === 200 && call.toolError === false && call.responseSha256 === expectedProviderHash
-    && events.length === 1 && !!event && event.companyId === o.companyId && event.actorType === "agent" && event.actorId === o.leadId && event.agentId === s.morganId
+    && events.length === 1 && !!event && event.spaceId === o.spaceId && event.actorType === "agent" && event.actorId === o.leadId && event.agentId === s.morganId
     && event.issueId === s.sourceIssueId && event.runId === native!.id && event.connectionId === s.connectionId && event.catalogEntryId === s.readEntryId && event.invocationId === v.id
     && event.toolName === v.toolName && event.outcome === "success" && event.decision === "allow" && event.resultHash === expectedResultHash
     && event.source === "test" && event.endpointMatches === true && event.method === "tools/call" && event.upstreamToolName === "launch_read"
@@ -122,7 +122,7 @@ export const appTestExternalCases = [definition("app-permissions.test-as-agent",
     return { syntheticProvider: true, connectionId: connection.connectionId, readEntryId: connection.read[0], writeEntryId: connection.write[0], morganId: morgan.id, marker,
       sourceIssueId: ctx.issue()!.id, personId: session.user.id, originalQuery: ctx.scenario.query, initialCeoScope: effectiveScope(effective[0]!), initialMorganScope: effectiveScope(effective[1]!),
       initialResources: resources(baseline), initialActivityIds: ids(baseline.activity), providerCallsBeforeQuery, setupFinishedAt: new Date().toISOString(),
-      connectionPath: `/${ctx.input.fixtures.company.issuePrefix}/apps/${connection.connectionId}`, resultPath: `/${ctx.input.fixtures.company.issuePrefix}/apps/${connection.connectionId}/permissions` };
+      connectionPath: `/${ctx.input.fixtures.space.issuePrefix}/apps/${connection.connectionId}`, resultPath: `/${ctx.input.fixtures.space.issuePrefix}/apps/${connection.connectionId}/permissions` };
   } catch (error) { providers.delete(ctx); await provider.close(); throw error; }
 }, gradeAppTest, {
   authentication: "human-session", oracleVersion: "outpost.chat-catalog.app-test.v4",

@@ -184,8 +184,8 @@ const DELIVERY_PROCESSING_STALE_MS = 60_000;
 
   function pendingInboundWakeupCondition(readyOnly = false): SQL {
     if (!readyOnly) {
-      return sql`(${chatDeliveries.companyId}, ${chatDeliveries.endpointId}, ${chatDeliveries.id}) in (
-        select ${chatActions.companyId}, ${chatActions.endpointId}, ${chatActions.deliveryId}
+      return sql`(${chatDeliveries.spaceId}, ${chatDeliveries.endpointId}, ${chatDeliveries.id}) in (
+        select ${chatActions.spaceId}, ${chatActions.endpointId}, ${chatActions.deliveryId}
         from ${chatActions}
         where ${chatActions.kind} = 'inbound_wakeup'
           and ${chatActions.deliveryId} is not null
@@ -196,7 +196,7 @@ const DELIVERY_PROCESSING_STALE_MS = 60_000;
       select 1 from ${chatActions}
       where ${chatActions.deliveryId} = ${chatDeliveries.id}
         and ${chatActions.endpointId} = ${chatDeliveries.endpointId}
-        and ${chatActions.companyId} = ${chatDeliveries.companyId}
+        and ${chatActions.spaceId} = ${chatDeliveries.spaceId}
         and ${chatActions.kind} = 'inbound_wakeup'
         and ${chatActions.status} in ('issued', 'processing')
         ${
@@ -231,7 +231,7 @@ const DELIVERY_PROCESSING_STALE_MS = 60_000;
       from ${chatActions} pending_wake
       join ${chatDeliveries} woken_delivery
         on woken_delivery.id = pending_wake.delivery_id
-        and woken_delivery.company_id = pending_wake.company_id
+        and woken_delivery.space_id = pending_wake.space_id
         and woken_delivery.endpoint_id = pending_wake.endpoint_id
       where pending_wake.endpoint_id = ${endpointId}
         and pending_wake.kind = 'inbound_wakeup'

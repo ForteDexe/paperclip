@@ -1,7 +1,7 @@
 /**
  * Signed workspace login handoff (PAP-17572).
  *
- * A board user opening a managed workspace must not have to know which cloned
+ * A operator user opening a managed workspace must not have to know which cloned
  * password is current. The authenticated main control plane mints a short-lived,
  * single-use ticket; the isolated workspace verifies it against its own copy of
  * the signing key and creates its own instance-scoped session.
@@ -46,15 +46,15 @@ const HANDOFF_KEY_ENV = "OUTPOST_WORKSPACE_HANDOFF_KEY";
 const HANDOFF_ROOT_SECRET_ENV = "OUTPOST_WORKSPACE_HANDOFF_SECRET";
 const READINESS_TOKEN_ENV = "OUTPOST_WORKSPACE_READINESS_TOKEN";
 const EXECUTION_WORKSPACE_ID_ENV = "OUTPOST_EXECUTION_WORKSPACE_ID";
-const EXECUTION_WORKSPACE_COMPANY_ID_ENV = "OUTPOST_EXECUTION_WORKSPACE_COMPANY_ID";
+const EXECUTION_WORKSPACE_SPACE_ID_ENV = "OUTPOST_EXECUTION_WORKSPACE_SPACE_ID";
 
 export const WORKSPACE_HANDOFF_KEY_ENV_KEY = HANDOFF_KEY_ENV;
 export const WORKSPACE_READINESS_TOKEN_ENV_KEY = READINESS_TOKEN_ENV;
 export const WORKSPACE_EXECUTION_WORKSPACE_ID_ENV_KEY = EXECUTION_WORKSPACE_ID_ENV;
-export const WORKSPACE_EXECUTION_WORKSPACE_COMPANY_ID_ENV_KEY = EXECUTION_WORKSPACE_COMPANY_ID_ENV;
-export const WORKSPACE_READINESS_TOKEN_HEADER = "x-paperclip-workspace-readiness-token";
-export const WORKSPACE_READINESS_USER_ID_HEADER = "x-paperclip-workspace-readiness-user-id";
-export const WORKSPACE_READINESS_USER_EMAIL_HEADER = "x-paperclip-workspace-readiness-user-email";
+export const WORKSPACE_EXECUTION_WORKSPACE_SPACE_ID_ENV_KEY = EXECUTION_WORKSPACE_SPACE_ID_ENV;
+export const WORKSPACE_READINESS_TOKEN_HEADER = "x-outpost-workspace-readiness-token";
+export const WORKSPACE_READINESS_USER_ID_HEADER = "x-outpost-workspace-readiness-user-id";
+export const WORKSPACE_READINESS_USER_EMAIL_HEADER = "x-outpost-workspace-readiness-user-email";
 
 export type WorkspaceHandoffTicketPayload = {
   /** Envelope version. */
@@ -68,12 +68,12 @@ export type WorkspaceHandoffTicketPayload = {
   /** Execution workspace the ticket is scoped to. */
   ws: string;
   /**
-   * Company whose board this workspace represents.
+   * Space whose operator this workspace represents.
    *
    * Bound because "the cloned user has *some* active membership" is not the
-   * question worth asking: a multi-company clone can satisfy it while leaving the
-   * signed-in user with no access to the company they were opening, which lands
-   * them on an empty board with no explanation.
+   * question worth asking: a multi-space clone can satisfy it while leaving the
+   * signed-in user with no access to the space they were opening, which lands
+   * them on an empty operator with no explanation.
    */
   cid: string;
   /** Isolated instance id the ticket is scoped to. */
@@ -99,7 +99,7 @@ export type WorkspaceHandoffVerificationFailure =
   | "origin_mismatch"
   | "instance_mismatch"
   | "workspace_mismatch"
-  | "company_mismatch";
+  | "space_mismatch";
 
 export type WorkspaceHandoffVerificationResult =
   | { ok: true; payload: WorkspaceHandoffTicketPayload }
@@ -240,9 +240,9 @@ export function resolveWorkspaceHandoffLocalWorkspaceId(env: NodeJS.ProcessEnv =
   return env[EXECUTION_WORKSPACE_ID_ENV]?.trim() || null;
 }
 
-/** The company whose board this (guest) workspace represents. */
-export function resolveWorkspaceHandoffLocalCompanyId(env: NodeJS.ProcessEnv = process.env): string | null {
-  return env[EXECUTION_WORKSPACE_COMPANY_ID_ENV]?.trim() || null;
+/** The space whose operator this (guest) workspace represents. */
+export function resolveWorkspaceHandoffLocalSpaceId(env: NodeJS.ProcessEnv = process.env): string | null {
+  return env[EXECUTION_WORKSPACE_SPACE_ID_ENV]?.trim() || null;
 }
 
 export function issueWorkspaceHandoffTicket(input: {
@@ -250,7 +250,7 @@ export function issueWorkspaceHandoffTicket(input: {
   userId: string;
   email: string;
   executionWorkspaceId: string;
-  companyId: string;
+  spaceId: string;
   instanceId: string;
   origin: string;
   issuerInstanceId: string;
@@ -272,7 +272,7 @@ export function issueWorkspaceHandoffTicket(input: {
     sub: input.userId,
     email: input.email,
     ws: input.executionWorkspaceId,
-    cid: input.companyId,
+    cid: input.spaceId,
     iid: input.instanceId,
     aud: origin,
     iss: input.issuerInstanceId,
@@ -325,7 +325,7 @@ export function verifyWorkspaceHandoffTicket(input: {
   expected: {
     instanceId: string | null;
     executionWorkspaceId: string | null;
-    companyId: string | null;
+    spaceId: string | null;
     origin: string | null;
   };
   now?: Date;
@@ -337,13 +337,13 @@ export function verifyWorkspaceHandoffTicket(input: {
   const expectedOrigin = normalizeWorkspaceHandoffOrigin(input.expected.origin);
   const expectedInstanceId = input.expected.instanceId?.trim();
   const expectedWorkspaceId = input.expected.executionWorkspaceId?.trim();
-  const expectedCompanyId = input.expected.companyId?.trim();
+  const expectedSpaceId = input.expected.spaceId?.trim();
   // Fail closed on unresolved local identity: without it the checks below would
   // degrade into "any validly signed ticket wins".
   if (!expectedOrigin) return { ok: false, reason: "origin_mismatch" };
   if (!expectedInstanceId) return { ok: false, reason: "instance_mismatch" };
   if (!expectedWorkspaceId) return { ok: false, reason: "workspace_mismatch" };
-  if (!expectedCompanyId) return { ok: false, reason: "company_mismatch" };
+  if (!expectedSpaceId) return { ok: false, reason: "space_mismatch" };
 
   const ticket = input.ticket?.trim();
   if (!ticket) return { ok: false, reason: "malformed" };
@@ -380,7 +380,7 @@ export function verifyWorkspaceHandoffTicket(input: {
   }
   if (parsed.iid !== expectedInstanceId) return { ok: false, reason: "instance_mismatch" };
   if (parsed.ws !== expectedWorkspaceId) return { ok: false, reason: "workspace_mismatch" };
-  if (parsed.cid !== expectedCompanyId) return { ok: false, reason: "company_mismatch" };
+  if (parsed.cid !== expectedSpaceId) return { ok: false, reason: "space_mismatch" };
 
   return {
     ok: true,
@@ -403,7 +403,7 @@ export function redactWorkspaceHandoffTicket(value: string): string {
     "$1[redacted]",
   );
   return workspaceRedacted.replace(
-    /([?&]paperclip_capability=)[^&#\s]+/gi,
+    /([?&]outpost_capability=)[^&#\s]+/gi,
     "$1[redacted]",
   );
 }

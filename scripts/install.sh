@@ -6,7 +6,7 @@ MIN_NODE_MINOR=11
 MIN_NODE_PATCH=0
 MIN_NODE_VERSION="${MIN_NODE_MAJOR}.${MIN_NODE_MINOR}.${MIN_NODE_PATCH}"
 DEFAULT_NODE_MAJOR=24
-OUTPOST_PACKAGE="paperclipai"
+OUTPOST_PACKAGE="@outpost/cli"
 PUBLIC_NPM_REGISTRY="https://registry.npmjs.org"
 HOMEBREW_INSTALL_COMMIT="99e13e96cbbdc1ac1ac09c0a40b450bf219ef3aa"
 HOMEBREW_INSTALL_SHA256="99287f194a8b3c9e6b0203a11a5fa54518be57209343e6bb954dec4635796d9d"
@@ -32,7 +32,7 @@ fi
 
 usage() {
   cat <<'EOF'
-Install Paperclip on macOS, Linux, or WSL2.
+Install Outpost on macOS, Linux, or WSL2.
 
 Usage:
   curl -fsSLO https://outpost.ing/install.sh
@@ -44,7 +44,7 @@ Options:
   --version <version>      Install an exact published version
   --no-onboard             Do not start onboarding after installation
   --no-prompt              Run non-interactively
-  --install-service        Install the per-user Paperclip service
+  --install-service        Install the per-user Outpost service
   --dry-run                Print the install plan without changing files
   --verbose                Enable verbose installer output
   -h, --help               Show this help
@@ -52,8 +52,8 @@ Options:
 Every option also has a OUTPOST_INSTALL_* environment equivalent, for example
 OUTPOST_INSTALL_VERSION=2026.722.0 and OUTPOST_INSTALL_NO_PROMPT=1.
 
-To install from a git branch, tag, or commit, use the Paperclip CLI directly:
-npx paperclipai install --ref <ref>
+To install from a git branch, tag, or commit, use the Outpost CLI directly:
+npx @outpost/cli install --ref <ref>
 EOF
 }
 
@@ -165,7 +165,7 @@ if [ "$CANARY" = "1" ] && [ -n "$VERSION" ]; then
 fi
 
 if [ -n "$REF" ] || [ -n "$REPO" ]; then
-  fail "git-ref installs are not supported by install.sh; run 'npx paperclipai install --ref <ref>' instead"
+  fail "git-ref installs are not supported by install.sh; run 'npx @outpost/cli install --ref <ref>' instead"
 fi
 
 if { [ ! -t 0 ] || [ ! -t 1 ]; } && [ "$NO_PROMPT" != "1" ]; then
@@ -248,7 +248,7 @@ run_privileged() {
 
 ensure_temp_dir() {
   if [ -z "$TEMP_DIR" ]; then
-    TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/paperclip-install.XXXXXX")"
+    TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/outpost-install.XXXXXX")"
   fi
 }
 
@@ -373,12 +373,12 @@ INSTALL_ARGS=(install)
 [ "$NO_PROMPT" = "1" ] && INSTALL_ARGS+=(--yes)
 ensure_temp_dir
 NPM_USERCONFIG="$TEMP_DIR/npmrc"
-printf 'registry=%s\n@paperclipai:registry=%s\n' "$PUBLIC_NPM_REGISTRY" "$PUBLIC_NPM_REGISTRY" >"$NPM_USERCONFIG"
+printf 'registry=%s\n@outpost:registry=%s\n' "$PUBLIC_NPM_REGISTRY" "$PUBLIC_NPM_REGISTRY" >"$NPM_USERCONFIG"
 chmod 600 "$NPM_USERCONFIG"
 NPM_ENV=(env "NPM_CONFIG_REGISTRY=$PUBLIC_NPM_REGISTRY" "npm_config_registry=$PUBLIC_NPM_REGISTRY" "NPM_CONFIG_USERCONFIG=$NPM_USERCONFIG" "npm_config_userconfig=$NPM_USERCONFIG")
 INSTALL_COMMAND=("${NPM_ENV[@]}" npx --yes "--registry=$PUBLIC_NPM_REGISTRY" "$PACKAGE_SPEC" "${INSTALL_ARGS[@]}")
 
-log "Delegating to the Paperclip CLI"
+log "Delegating to the Outpost CLI"
 if [ "$DRY_RUN" = "1" ]; then
   print_command "${INSTALL_COMMAND[@]}"
   exit 0
@@ -388,23 +388,23 @@ print_command "${INSTALL_COMMAND[@]}"
 "${INSTALL_COMMAND[@]}"
 
 if [ "$INSTALL_SERVICE" = "1" ]; then
-  log "Installing the Paperclip service"
+  log "Installing the Outpost service"
   print_command "${NPM_ENV[@]}" npx --yes "--registry=$PUBLIC_NPM_REGISTRY" "$PACKAGE_SPEC" service install
   "${NPM_ENV[@]}" npx --yes "--registry=$PUBLIC_NPM_REGISTRY" "$PACKAGE_SPEC" service install
 fi
 
 if [ "$NO_ONBOARD" = "0" ] && [ -t 0 ] && [ -t 1 ]; then
-  if command -v paperclipai >/dev/null 2>&1; then
-    exec paperclipai onboard
-  elif [ -x "${HOME:-}/.local/bin/paperclipai" ]; then
-    exec "${HOME}/.local/bin/paperclipai" onboard
+  if command -v outpost >/dev/null 2>&1; then
+    exec outpost onboard
+  elif [ -x "${HOME:-}/.local/bin/outpost" ]; then
+    exec "${HOME}/.local/bin/outpost" onboard
   else
-    fail "Paperclip was installed, but 'paperclipai' is not available on PATH. Open a new shell and run 'paperclipai onboard'."
+    fail "Outpost was installed, but '@outpost/cli' is not available on PATH. Open a new shell and run 'outpost onboard'."
   fi
 fi
 
 if [ "$NO_ONBOARD" = "0" ]; then
-  log "Installation complete. Next: paperclipai onboard"
+  log "Installation complete. Next: outpost onboard"
 else
   log "Installation complete."
 fi

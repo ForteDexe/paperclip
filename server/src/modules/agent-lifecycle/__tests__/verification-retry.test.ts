@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { agents, companies, companyMemberships, createDb, applyPendingMigrations, closeRegisteredClients, type Db } from "@outpost/db";
+import { agents, spaces, spaceMemberships, createDb, applyPendingMigrations, closeRegisteredClients, type Db } from "@outpost/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../../__tests__/helpers/embedded-postgres.js";
@@ -19,21 +19,21 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 (support.supported ? describe : describe.skip)("failed lifecycle verification retries", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
-  let companyId: string;
+  let spaceId: string;
   const workers: Array<{ stop(): Promise<void> }> = [];
   beforeAll(async () => {
     if (external) { await applyPendingMigrations(external); db = createDb(external, { maxConnections: 4 }); }
-    else { database = await startEmbeddedPostgresTestDatabase("paperclip-verification-retry-"); db = createDb(database.connectionString, { maxConnections: 4 }); }
+    else { database = await startEmbeddedPostgresTestDatabase("outpost-verification-retry-"); db = createDb(database.connectionString, { maxConnections: 4 }); }
   }, 90_000);
   afterAll(async () => { if (external) await closeRegisteredClients(external); else await database?.cleanup(); });
   beforeEach(async () => {
-    companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Verification retry", issuePrefix: `V${companyId.slice(0, 7)}` });
+    spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Verification retry", issuePrefix: `V${spaceId.slice(0, 7)}` });
   });
   afterEach(async () => {
     for (const worker of workers.splice(0)) await worker.stop();
     // Retire only this test's synthetic records so later coordinator reads stay isolated.
-    await db.update(agents).set({ lifecycleState: "terminated", status: "terminated" }).where(eq(agents.companyId, companyId));
+    await db.update(agents).set({ lifecycleState: "terminated", status: "terminated" }).where(eq(agents.spaceId, spaceId));
   });
   const current = async (id: string) => (await db.select().from(agents).where(eq(agents.id, id)))[0]!;
   async function failed(code = "harness_test_failed") {
@@ -43,7 +43,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     });
     const driver = { requiredPluginIds: async () => [], runHost, runPlugin: async () => "complete" as const };
     const work = configureAgentLifecycle(db, driver); workers.push(work);
-    const agent = await createAgentLifecycle(db).requestHire(companyId, { name: "Retry fixture", adapterType: "process", adapterConfig: { command: "missing-command" } });
+    const agent = await createAgentLifecycle(db).requestCreation(spaceId, { name: "Retry fixture", adapterType: "process", adapterConfig: { command: "missing-command" } });
     await work.process(agent.id);
     if (code === "harness_test_failed") {
       for (let retry = 0; retry < 2; retry++) {
@@ -57,11 +57,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
   it("parks a real missing-default selection across restart and permits repair through the normal ready handoff", async () => {
     const userId = randomUUID();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active" });
     let repaired = false;
     const runHost = vi.fn(async (agent: LifecycleAgent) => {
       if (agent.lifecycleState === "verifying" && !repaired) await aiConnectionService(db).select({
-        companyId, userId, agentId: agent.id, adapterType: "outpost_runner", runnerProvider: "opencode",
+        spaceId, userId, agentId: agent.id, adapterType: "outpost_runner", runnerProvider: "opencode",
         model: "openrouter/deepseek/deepseek-v4.1-flash-1017",
         binding: { mode: "responsible_user", provider: "openrouter", method: "api_key" },
       });
@@ -70,9 +70,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const onReady = vi.fn();
     const driver = { requiredPluginIds: async () => [], runHost, runPlugin: async () => "complete" as const, onReady };
     const work = configureAgentLifecycle(db, driver); workers.push(work);
-    const hired = await createAgentLifecycle(db).requestHire(companyId, { name: "Missing default", adapterType: "process" });
-    await work.process(hired.id);
-    const held = await current(hired.id);
+    const created = await createAgentLifecycle(db).requestCreation(spaceId, { name: "Missing default", adapterType: "process" });
+    await work.process(created.id);
+    const held = await current(created.id);
     expect(held).toMatchObject({ lifecycleState: "verifying", status: "paused", lifecycleOperation: { retryRequired: true } });
     expect(held.lifecycleError).toContain("personal default");
     expect(held.lifecycleError).not.toContain("retry automatically");
@@ -87,18 +87,18 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(runHost).toHaveBeenCalledTimes(calls);
     // Repair and Retry must still pass verification before the normal ready handoff.
     repaired = true;
-    await createAgentLifecycle(db).retry(hired.id);
+    await createAgentLifecycle(db).retry(created.id);
     await restarted.sweep();
-    expect(await current(hired.id)).toMatchObject({ lifecycleState: "ready", status: "idle", lifecycleError: null });
+    expect(await current(created.id)).toMatchObject({ lifecycleState: "ready", status: "idle", lifecycleError: null });
     expect(onReady).toHaveBeenCalledOnce();
   });
 
   it("parks owned account failures after pause/resume and accepts a durable connection repair recheck", async () => {
     const userId = randomUUID();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active" });
     let repaired = false;
     const runHost = vi.fn(async (agent: LifecycleAgent) => {
-      if (agent.lifecycleState === "resuming" && !repaired) await aiConnectionService(db).select({ companyId, userId,
+      if (agent.lifecycleState === "resuming" && !repaired) await aiConnectionService(db).select({ spaceId, userId,
         agentId: agent.id, adapterType: "outpost_runner", runnerProvider: "opencode",
         model: "openrouter/deepseek/deepseek-v4.1-flash-1017", binding: { mode: "responsible_user", provider: "openrouter", method: "api_key" } });
       return "complete" as const;
@@ -106,13 +106,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const onReady = vi.fn();
     const driver = { requiredPluginIds: async () => [], runHost, runPlugin: async () => "complete" as const, onReady };
     const lifecycle = createAgentLifecycle(db), work = configureAgentLifecycle(db, driver); workers.push(work);
-    const hired = await lifecycle.requestHire(companyId, { name: "Resume account repair", adapterType: "process" });
-    await work.process(hired.id);
-    await lifecycle.pauseAgent(hired.id); await work.process(hired.id);
-    expect((await current(hired.id)).lifecycleState).toBe("paused");
+    const created = await lifecycle.requestCreation(spaceId, { name: "Resume account repair", adapterType: "process" });
+    await work.process(created.id);
+    await lifecycle.pauseAgent(created.id); await work.process(created.id);
+    expect((await current(created.id)).lifecycleState).toBe("paused");
     onReady.mockClear();
-    await lifecycle.resumeAgent(hired.id); await work.process(hired.id);
-    const held = await current(hired.id);
+    await lifecycle.resumeAgent(created.id); await work.process(created.id);
+    const held = await current(created.id);
     expect(held).toMatchObject({ lifecycleState: "resuming", lifecycleOperation: { retryRequired: true } });
     expect(held.lifecycleOperation).not.toHaveProperty("retryAt");
     await work.stop();
@@ -122,10 +122,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(restarted.nextRunAt()).toBeNull();
     await restarted.sweep(); expect(runHost).toHaveBeenCalledTimes(calls);
     repaired = true;
-    expect(await db.transaction(tx => requestAgentLifecycleRecheckInTransaction(tx, { companyId, agentId: hired.id,
+    expect(await db.transaction(tx => requestAgentLifecycleRecheckInTransaction(tx, { spaceId, agentId: created.id,
       configurationRepaired: true }, () => notifyDeliveryWork(tx, DELIVERY_QUEUES.agentLifecycle)))).toBe(true);
     await restarted.sweep();
-    expect((await current(hired.id)).lifecycleState).toBe("ready");
+    expect((await current(created.id)).lifecycleState).toBe("ready");
     expect(onReady).toHaveBeenCalledOnce();
   });
 
@@ -152,7 +152,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
 
   it("does not let an in-flight failed verifier overwrite a completed connection repair", async () => {
-    const [agent] = await db.insert(agents).values({ companyId, name: "Repair while checking", status: "paused",
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Repair while checking", status: "paused",
       lifecycleState: "verifying", lifecycleHolds: [], lifecycleRequiredPluginIds: [],
       lifecycleOperation: { id: randomUUID(), hostComplete: false, completedPluginIds: [], attempts: 0, verificationFailures: 2 } }).returning();
     const store = createLifecycleStore(db, createAgentLifecycleEffects());
@@ -160,7 +160,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     const claimed = await store.claim(agent!.id, owner, new Date());
     expect(claimed).not.toBeNull();
     await db.transaction(async tx => {
-      expect(await requestAgentLifecycleRecheckInTransaction(tx, { companyId, agentId: agent!.id,
+      expect(await requestAgentLifecycleRecheckInTransaction(tx, { spaceId, agentId: agent!.id,
         expectedVersion: agent!.lifecycleVersion, configurationRepaired: true },
       () => notifyDeliveryWork(tx, DELIVERY_QUEUES.agentLifecycle))).toBe(true);
     });
@@ -195,7 +195,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
 
   it("does not spend verification retries on claims deferred before the host test", async () => {
-    const [agent] = await db.insert(agents).values({ companyId, name: "Deferred verification", status: "paused",
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Deferred verification", status: "paused",
       lifecycleState: "verifying", lifecycleRequiredPluginIds: [],
       lifecycleOperation: { id: randomUUID(), hostComplete: false, completedPluginIds: [], attempts: 0 } }).returning();
     const store = createLifecycleStore(db, createAgentLifecycleEffects());
@@ -314,13 +314,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       ? "complete" as const : "waiting" as const);
     const driver = { requiredPluginIds: async () => [], runPlugin: async () => "complete" as const, runHost };
     const work = configureAgentLifecycle(db, driver); workers.push(work);
-    const agent = await createAgentLifecycle(db).requestHire(companyId, { name: "External reply wait", adapterType: "process" });
+    const agent = await createAgentLifecycle(db).requestCreation(spaceId, { name: "External reply wait", adapterType: "process" });
     await work.process(agent.id);
     return { agent: await current(agent.id), work, driver, runHost, complete: () => { complete = true; } };
   }
-  function recheck(tx: Pick<Db, "select" | "update">, id: string, scopeCompanyId = companyId, version?: number) {
+  function recheck(tx: Pick<Db, "select" | "update">, id: string, scopeSpaceId = spaceId, version?: number) {
     return requestAgentLifecycleRecheckInTransaction(tx,
-      { companyId: scopeCompanyId, agentId: id, expectedVersion: version },
+      { spaceId: scopeSpaceId, agentId: id, expectedVersion: version },
       () => notifyDeliveryWork(tx, DELIVERY_QUEUES.agentLifecycle));
   }
 
@@ -350,7 +350,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     });
     const work = configureAgentLifecycle(db, { requiredPluginIds: async () => [], runPlugin: async () => "complete", runHost });
     workers.push(work);
-    const agent = await createAgentLifecycle(db).requestHire(companyId, { name: "Commit race", adapterType: "process" });
+    const agent = await createAgentLifecycle(db).requestCreation(spaceId, { name: "Commit race", adapterType: "process" });
     const processing = work.process(agent.id);
     await inside;
     try {
@@ -438,11 +438,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     expect(runHost).toHaveBeenCalledTimes(calls + 1);
   });
 
-  it("does not rearm a parked wait after a company or version mismatch, pause or required manual repair", async () => {
+  it("does not rearm a parked wait after a space or version mismatch, pause or required manual repair", async () => {
     const { agent, work } = await eventWaitFixture();
     await db.transaction(async tx => {
       expect(await recheck(tx, agent.id, randomUUID())).toBe(false);
-      expect(await recheck(tx, agent.id, companyId, agent.lifecycleVersion - 1)).toBe(false);
+      expect(await recheck(tx, agent.id, spaceId, agent.lifecycleVersion - 1)).toBe(false);
     });
     expect((await current(agent.id)).lifecycleOperation).toEqual(agent.lifecycleOperation);
     await createAgentLifecycle(db).pauseAgent(agent.id);

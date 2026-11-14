@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { companies, createDb } from "@outpost/db";
+import { spaces, createDb } from "@outpost/db";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { connectorToolPolicy } from "../services/connectors/tool-policy.js";
 import { DAYTONA_API_URL, DAYTONA_METHOD } from "../services/daytona.js";
@@ -84,13 +84,13 @@ const support = await getEmbeddedPostgresTestSupport();
   let db: ReturnType<typeof createDb>;
   let temp: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   beforeAll(async () => {
-    temp = await startEmbeddedPostgresTestDatabase("paperclip-connector-policy-");
+    temp = await startEmbeddedPostgresTestDatabase("outpost-connector-policy-");
     db = createDb(temp.connectionString);
   }, 30000);
   afterAll(async () => { await temp?.cleanup(); });
 
   it("applies reviewed endpoint risks and keeps changed tools quarantined without enabling a native bridge", async () => {
-    const [company] = await db.insert(companies).values({ name: "Custom policy fixture", issuePrefix: `CP${randomUUID().slice(0, 6)}` }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Custom policy fixture", issuePrefix: `CP${randomUUID().slice(0, 6)}` }).returning();
     let tools: McpToolDescriptor[] = [{ name: "redeploy", annotations: { readOnlyHint: true } }];
     const request = vi.fn(async (url: string, init: RequestInit) => {
       expect(url.replace(/\/$/, "")).toBe(RAILWAY_MCP_URL);
@@ -103,7 +103,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const service = toolAccessService(db, { remoteHttpRequest: request,
       remoteHttpEndpointLookup: async () => [{ address: "8.8.8.8", family: 4 }] });
     const actor = { actorType: "user" as const, actorId: "policy-reviewer" };
-    const connection = await service.createConnection(company.id, {
+    const connection = await service.createConnection(space.id, {
       name: "Custom reviewed endpoint", connectionPurpose: "tool", transport: "mcp_remote", authKind: "none", ownership: "customer", connectionKind: "managed",
       transportConfig: {}, credentialSecretRefs: [], enabled: true, status: "active",
       config: { sourceTemplateKey: "custom", url: RAILWAY_MCP_URL, quarantineNewEntries: true },

@@ -9,7 +9,7 @@ import { readNativeWorkspaceSyncReference } from "./native-workspace-sync.js";
 
 type RecordedExecution = NonNullable<NonNullable<ExecutionReconciliation["workspaceReconstruction"]>["interveningExecutions"]>;
 type InterveningRun = Pick<typeof heartbeatRuns.$inferSelect,
-  "id" | "companyId" | "agentId" | "nativeIssueId" | "runtimeMode" | "status" | "finishedAt" | "runnerProfileJson" | "resultJson">;
+  "id" | "spaceId" | "agentId" | "nativeIssueId" | "runtimeMode" | "status" | "finishedAt" | "runnerProfileJson" | "resultJson">;
 
 /** A later run is not made harmless by its terminal status. Only an audited
  * run-only cancellation with independently recorded file repair can be kept
@@ -18,23 +18,23 @@ export async function reconciledInterveningExecutions(db: Db, source: typeof hea
   runs: InterveningRun[]): Promise<RecordedExecution | null> {
   const recorded: RecordedExecution = [];
   for (const run of runs) {
-    if (run.companyId !== source.companyId || run.agentId !== source.agentId || run.nativeIssueId !== source.nativeIssueId
+    if (run.spaceId !== source.spaceId || run.agentId !== source.agentId || run.nativeIssueId !== source.nativeIssueId
       || run.runtimeMode !== "native" || run.status !== "cancelled" || !run.finishedAt
       || !hasAcknowledgedNativeStopIntent(run) || !hasRequiredWorkspaceRecovery(run.resultJson)
       || run.runnerProfileJson?.nativeWorkspaceFinalizationOwner) return null;
     const [coordinator] = await db.select().from(nativeRunFinalizations).where(and(
-      eq(nativeRunFinalizations.companyId, run.companyId), eq(nativeRunFinalizations.runId, run.id),
+      eq(nativeRunFinalizations.spaceId, run.spaceId), eq(nativeRunFinalizations.runId, run.id),
       eq(nativeRunFinalizations.issueId, run.nativeIssueId!),
     )).for("share");
     if (!coordinator || coordinator.phase !== "terminal_failure" || coordinator.failureCode !== "native_retry_cancelled"
       || coordinator.leaseOwner || coordinator.resultId || coordinator.nextAttemptAt || coordinator.failureDetail?.successorRunId) return null;
     const [result] = await db.select({ id: nativeRunResults.id }).from(nativeRunResults).where(and(
-      eq(nativeRunResults.companyId, run.companyId), eq(nativeRunResults.runId, run.id),
+      eq(nativeRunResults.spaceId, run.spaceId), eq(nativeRunResults.runId, run.id),
     )).limit(1);
     if (result) return null;
     const reference = readNativeWorkspaceSyncReference(run.runnerProfileJson?.nativeWorkspaceSync);
     const leases = await db.select().from(environmentLeases).where(and(
-      eq(environmentLeases.companyId, run.companyId), eq(environmentLeases.heartbeatRunId, run.id),
+      eq(environmentLeases.spaceId, run.spaceId), eq(environmentLeases.heartbeatRunId, run.id),
     )).for("share");
     if (!reference || !leases.some(lease => lease.id === reference.leaseId && lease.providerLeaseId === reference.providerLeaseId)
       || leases.some(lease => lease.issueId !== run.nativeIssueId || !hasRemoteTerminationReceipt(lease)
@@ -48,13 +48,13 @@ export async function reconciledInterveningExecutions(db: Db, source: typeof hea
       if (other) return null;
     }
     const actions = await db.select().from(issueRecoveryActions).where(and(
-      eq(issueRecoveryActions.companyId, run.companyId), eq(issueRecoveryActions.sourceIssueId, run.nativeIssueId!),
+      eq(issueRecoveryActions.spaceId, run.spaceId), eq(issueRecoveryActions.sourceIssueId, run.nativeIssueId!),
       eq(issueRecoveryActions.status, "resolved"), eq(issueRecoveryActions.outcome, "restored"),
       sql`${issueRecoveryActions.evidence}->>'runId' = ${run.id}`,
     )).for("share");
     const repairs = actions.filter(action => {
       const decision = action.evidence.executionReconciliation as ExecutionReconciliation | undefined;
-      return action.evidence.runId === run.id && action.kind === "active_run_watchdog" && action.ownerType === "board"
+      return action.evidence.runId === run.id && action.kind === "active_run_watchdog" && action.ownerType === "operator"
         && action.returnOwnerAgentId === null && hasRequiredWorkspaceRecovery(action.evidence)
         && action.evidence.continuationDelivery === "not_requested" && decision?.runId === run.id
         && decision.providerStopped === true && decision.actionOutcome === "not_performed"

@@ -17,7 +17,7 @@ const leaseId = "10000000-0000-4000-8000-000000000001";
 const projectId = "10000000-0000-4000-8000-000000000002";
 const secondProjectId = "10000000-0000-4000-8000-000000000003";
 const row = () => ({
-  lease: { id: leaseId, companyId: "company", environmentId: "environment", providerLeaseId: "attempt-1", heartbeatRunId: "run", issueId: "issue", status: "active", expiresAt: null as Date | null,
+  lease: { id: leaseId, spaceId: "space", environmentId: "environment", providerLeaseId: "attempt-1", heartbeatRunId: "run", issueId: "issue", status: "active", expiresAt: null as Date | null,
     metadata: { driver: "plugin", pluginId: "original", driverKey: "tasks", runnerTaskProjectAuthValidation: { configurationId: "configuration", provider: "openai", projectIds: [projectId] } } },
   environment: { id: "environment", config: { pluginKey: "test.provider", driverKey: "tasks", driverConfig: {} } } as { id: string; config: Record<string, unknown> } | null,
   run: { id: "run", agentId: "agent", status: "running" } as { id: string; agentId: string; status: string } | null,
@@ -67,7 +67,7 @@ describe("plugin-provided Runner execution", () => {
     const refusal = { kind: "admission_rejected", taskId: "attempt-1", reason: "session_state_unavailable" };
     const workers = worker(refusal);
     await expect(executeEnvironmentTask(fixture.db, workers as never, {
-      companyId: "company", leaseId, operation: submit,
+      spaceId: "space", leaseId, operation: submit,
     })).resolves.toEqual(refusal);
     const update = new PgDialect().sqlToQuery(fixture.sets.at(-1)!.metadata as never);
     expect(update.sql).toContain("- 'runnerTaskIdentity'");
@@ -78,7 +78,7 @@ describe("plugin-provided Runner execution", () => {
     });
     Object.assign(value.lease.metadata, durable);
     await expect(settleDispatchedEnvironmentTask(database(value).db, workers as never, {
-      companyId: "company", id: leaseId,
+      spaceId: "space", id: leaseId,
     })).resolves.toBe("stopped");
     expect(workers.call.mock.calls).toHaveLength(1);
   });
@@ -99,7 +99,7 @@ describe("plugin-provided Runner execution", () => {
       return operation === "status" ? { kind: "status", taskId: "attempt-1", phase: "cancelled", executionStopped: true, preparationStopped }
         : { kind: "accepted", taskId: "attempt-1" };
     });
-    const retiring = settleDispatchedEnvironmentTask(fixture.db, workers as never, { companyId: "company", id: leaseId });
+    const retiring = settleDispatchedEnvironmentTask(fixture.db, workers as never, { spaceId: "space", id: leaseId });
     const checked = retiring.then(value => ({ value, error: null }), error => ({ value: false, error }));
     await vi.waitFor(() => expect(operations).toContain("stop"));
     await vi.waitFor(() => expect(operations).toContain("status"));
@@ -125,15 +125,15 @@ describe("plugin-provided Runner execution", () => {
       return operation === "status" ? { kind: "status", taskId: "attempt-1", phase: "cancelled", executionStopped: true, preparationStopped: preparationStopped || stopped }
         : { kind: "accepted", taskId: "attempt-1" };
     });
-    await expect(settleDispatchedEnvironmentTask(fixture.db, workers as never, { companyId: "company", id: leaseId }, { executionStopObserved: true })).resolves.toBe("completed");
+    await expect(settleDispatchedEnvironmentTask(fixture.db, workers as never, { spaceId: "space", id: leaseId }, { executionStopObserved: true })).resolves.toBe("completed");
     expect(operations).toEqual(preparationStopped ? ["status", "complete"] : ["status", "stop", "status", "complete"]);
   });
   it("negotiates the transient context without reading transport for an older plugin", async () => {
-    const context = new NativeExecutionContext({ binding: { companyId: "company", agentId: "agent", runId: "run" } } as never, 1_000);
+    const context = new NativeExecutionContext({ binding: { spaceId: "space", agentId: "agent", runId: "run" } } as never, 1_000);
     const workers = worker();
     workers.call.mockImplementation(async (...args: any[]) => { args[5]?.(); return { kind: "description", taskId: "attempt-1", runner: { version: "fixture", digest: `sha256:${"a".repeat(64)}` } }; });
     try {
-      await executeEnvironmentTask(database().db, workers as never, { companyId: "company", leaseId, operation: { kind: "describe" }, executionContext: context });
+      await executeEnvironmentTask(database().db, workers as never, { spaceId: "space", leaseId, operation: { kind: "describe" }, executionContext: context });
       const sent = workers.call.mock.calls[0] as unknown as any[];
       expect(sent[2]).toMatchObject({ executionContextSupported: 1 });
       expect(sent[2].executionContext).toBeUndefined();
@@ -143,7 +143,7 @@ describe("plugin-provided Runner execution", () => {
     } finally { context.finish(); }
   });
   it("shares one transport lookup across the supported startup operations", async () => {
-    const context = new NativeExecutionContext({ binding: { companyId: "company", agentId: "agent", runId: "run" } } as never, 1_000);
+    const context = new NativeExecutionContext({ binding: { spaceId: "space", agentId: "agent", runId: "run" } } as never, 1_000);
     context.pluginSupported = true;
     const workers = worker();
     workers.call.mockImplementation(async (...args: any[]) => {
@@ -152,7 +152,7 @@ describe("plugin-provided Runner execution", () => {
     });
     try {
       for (const kind of ["describe", "describe"] as const) await executeEnvironmentTask(database().db, workers as never,
-        { companyId: "company", leaseId, operation: { kind }, executionContext: context });
+        { spaceId: "space", leaseId, operation: { kind }, executionContext: context });
       expect(state.identity).toHaveBeenCalledOnce();
       expect(state.config).toHaveBeenCalledOnce();
       for (const call of workers.call.mock.calls as unknown as any[][]) expect(call[2].executionContext).toMatchObject({
@@ -161,21 +161,21 @@ describe("plugin-provided Runner execution", () => {
     } finally { context.finish(); }
   });
   it.each(["json", "wrong-run"])("rejects a %s context before the worker", async mode => {
-    const context = new NativeExecutionContext({ binding: { companyId: "company", agentId: "agent", runId: mode === "wrong-run" ? "other" : "run" } } as never, 1_000);
+    const context = new NativeExecutionContext({ binding: { spaceId: "space", agentId: "agent", runId: mode === "wrong-run" ? "other" : "run" } } as never, 1_000);
     const workers = worker();
     try {
-      await expect(executeEnvironmentTask(database().db, workers as never, { companyId: "company", leaseId, operation: { kind: "describe" },
+      await expect(executeEnvironmentTask(database().db, workers as never, { spaceId: "space", leaseId, operation: { kind: "describe" },
         executionContext: mode === "json" ? JSON.parse(JSON.stringify(context)) : context })).rejects.toThrow("native_execution_context");
       expect(workers.call).not.toHaveBeenCalled();
     } finally { context.finish(); }
   });
   it("removes transport material from worker error reporting", async () => {
-    const context = new NativeExecutionContext({ binding: { companyId: "company", agentId: "agent", runId: "run" } } as never, 1_000);
+    const context = new NativeExecutionContext({ binding: { spaceId: "space", agentId: "agent", runId: "run" } } as never, 1_000);
     context.pluginSupported = true;
     const workers = worker();
     workers.call.mockImplementation(async (...args: any[]) => { args[5]?.(); throw new Error(JSON.stringify(args[2])); });
     try {
-      await expect(executeEnvironmentTask(database().db, workers as never, { companyId: "company", leaseId, operation: { kind: "describe" }, executionContext: context }))
+      await expect(executeEnvironmentTask(database().db, workers as never, { spaceId: "space", leaseId, operation: { kind: "describe" }, executionContext: context }))
         .rejects.toThrow("Plugin-provided Runner execution operation unavailable; reconcile the same task before retrying");
     } finally { context.finish(); }
   });
@@ -186,11 +186,11 @@ describe("plugin-provided Runner execution", () => {
     Object.assign(value.lease.metadata, { freshWorkspace: fresh });
     Object.assign(state.plugin.manifestJson.environmentDrivers[0], { freshWorkspaceVersion: 1 });
     const workers = worker();
-    await executeEnvironmentTask(database(value, []).db, workers as never, { companyId: "company", leaseId, operation: { ...submit, projectIds: [] } });
+    await executeEnvironmentTask(database(value, []).db, workers as never, { spaceId: "space", leaseId, operation: { ...submit, projectIds: [] } });
     expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({ fresh }), 15_000);
     delete state.plugin.manifestJson.environmentDrivers[0].freshWorkspaceVersion;
     const denied = worker();
-    await expect(executeEnvironmentTask(database(value, []).db, denied as never, { companyId: "company", leaseId,
+    await expect(executeEnvironmentTask(database(value, []).db, denied as never, { spaceId: "space", leaseId,
       operation: { ...submit, projectIds: [] } })).rejects.toThrow("fresh workspace preparation unavailable");
     expect(denied.call).not.toHaveBeenCalled();
   });
@@ -198,10 +198,10 @@ describe("plugin-provided Runner execution", () => {
     const value = row();
     Object.assign(value.lease, { leasePolicy: "reuse_by_environment", provider: "sandbox" });
     Object.assign(value.lease.metadata, { runnerTaskExecutionStopped: true });
-    const owner = { id: "previous-lease", companyId: "company", heartbeatRunId: "previous-run", provider: "sandbox",
+    const owner = { id: "previous-lease", spaceId: "space", heartbeatRunId: "previous-run", provider: "sandbox",
       providerLeaseId: "attempt-1", status: "retained", leasePolicy: "retain_on_failure", cleanupStatus: "failed" };
     const fixture = database(value, [], [], [owner]);
-    await executeEnvironmentTask(fixture.db, worker() as never, { companyId: "company", leaseId, operation: { kind: "complete" } });
+    await executeEnvironmentTask(fixture.db, worker() as never, { spaceId: "space", leaseId, operation: { kind: "complete" } });
     expect(fixture.transaction).toHaveBeenCalledOnce();
     expect(fixture.sets).toEqual(expect.arrayContaining([expect.objectContaining({ status: "released", cleanupStatus: "success",
       releasedAt: expect.any(Date), metadata: expect.anything() })]));
@@ -212,11 +212,11 @@ describe("plugin-provided Runner execution", () => {
     const fresh = { attemptId: leaseId, sourceRunId: secondProjectId, previousWorkspaceId: null, recoverySnapshots: [] };
     Object.assign(value.lease.metadata, { freshWorkspace: fresh });
     const workers = worker();
-    await executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation: { kind: "complete" } });
+    await executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation: { kind: "complete" } });
     expect(state.release).not.toHaveBeenCalled();
     Object.assign(value.lease.metadata, { runnerTaskExecutionStopped: true });
-    await executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation: { kind: "complete" } });
-    expect(state.release).toHaveBeenCalledWith("company", fresh);
+    await executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation: { kind: "complete" } });
+    expect(state.release).toHaveBeenCalledWith("space", fresh);
   });
   it("passes only the workspace binding pinned to this lease and provider", async () => {
     const value = row(); value.lease.metadata.runnerTaskProjectAuthValidation.projectIds = [];
@@ -225,13 +225,13 @@ describe("plugin-provided Runner execution", () => {
     state.plugin.id = binding.pluginId;
     Object.assign(value.lease, { executionWorkspaceId: binding.executionWorkspaceId });
     Object.assign(value.lease.metadata, { pluginId: binding.pluginId, workspaceProvider: binding });
-    const workspace = { id: binding.executionWorkspaceId, companyId: "company", providerType: "plugin", providerRef: binding.workspaceRef,
+    const workspace = { id: binding.executionWorkspaceId, spaceId: "space", providerType: "plugin", providerRef: binding.workspaceRef,
       status: "active", metadata: { workspaceProvider: binding } };
     const workers = worker();
-    await executeEnvironmentTask(database(value, [], [workspace]).db, workers as never, { companyId: "company", leaseId, operation: { ...submit, projectIds: [] } });
+    await executeEnvironmentTask(database(value, [], [workspace]).db, workers as never, { spaceId: "space", leaseId, operation: { ...submit, projectIds: [] } });
     expect(workers.call).toHaveBeenCalledWith(binding.pluginId, "environmentTask", expect.objectContaining({ workspace: binding }), 15_000);
     const denied = worker(); workspace.providerRef = "foreign";
-    await expect(executeEnvironmentTask(database(value, [], [workspace]).db, denied as never, { companyId: "company", leaseId, operation: { ...submit, projectIds: [] } })).rejects.toThrow("binding changed");
+    await expect(executeEnvironmentTask(database(value, [], [workspace]).db, denied as never, { spaceId: "space", leaseId, operation: { ...submit, projectIds: [] } })).rejects.toThrow("binding changed");
     expect(denied.call).not.toHaveBeenCalled();
   });
   it("accepts artifact identity without arbitrary filesystem or execution settings", () => {
@@ -252,17 +252,17 @@ describe("plugin-provided Runner execution", () => {
     const operation={kind:"read_file" as const,identity,projectIds:[projectId],path:"proof.txt",maxBytes:1024};
     const result={kind:"file",taskId:"attempt-1",base64:"",byteSize:0,sha256:"a".repeat(64)};
     const workers=worker(result);
-    await expect(executeEnvironmentTask(database(value).db,workers as never,{companyId:"company",leaseId,operation})).resolves.toEqual(result);
+    await expect(executeEnvironmentTask(database(value).db,workers as never,{spaceId:"space",leaseId,operation})).resolves.toEqual(result);
     workers.call.mockClear();
     for(const invalid of [{...operation,projectIds:[]},{...operation,identity:{...identity,itemId:"foreign"}}]) {
-      await expect(executeEnvironmentTask(database(value).db,workers as never,{companyId:"company",leaseId,operation:invalid})).rejects.toThrow();
+      await expect(executeEnvironmentTask(database(value).db,workers as never,{spaceId:"space",leaseId,operation:invalid})).rejects.toThrow();
     }
     value.lease.expiresAt=new Date(0);
-    await expect(executeEnvironmentTask(database(value).db,workers as never,{companyId:"company",leaseId,operation})).rejects.toThrow("not active");
+    await expect(executeEnvironmentTask(database(value).db,workers as never,{spaceId:"space",leaseId,operation})).rejects.toThrow("not active");
     expect(workers.call).not.toHaveBeenCalled();
     value.lease.expiresAt=null;
     workers.call.mockImplementation(async()=>{value.run!.status="cancelled";return result;});
-    await expect(executeEnvironmentTask(database(value).db,workers as never,{companyId:"company",leaseId,operation})).rejects.toThrow("operation unavailable");
+    await expect(executeEnvironmentTask(database(value).db,workers as never,{spaceId:"space",leaseId,operation})).rejects.toThrow("operation unavailable");
     for(const path of ["//etc/passwd","../escape","a/../b","a\\b","https://example.test/file"]) expect(environmentTaskOperationSchema.safeParse({...operation,path}).success).toBe(false);
     expect(environmentTaskOperationSchema.safeParse({...operation,maxBytes:11*1024*1024}).success).toBe(false);
     expect(()=>parseEnvironmentTaskResult(operation,"attempt-1",{...result,taskId:"other"})).toThrow();
@@ -275,13 +275,13 @@ describe("plugin-provided Runner execution", () => {
     const operation = { kind: "read_state" as const, identity };
     const result = { kind: "state", taskId: "attempt-1", state: { schema: "outpost.runner.durable.state.v1", ...identity, lifecycle: "suspended" } };
     const workers = worker(result);
-    await expect(executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation })).resolves.toEqual(result);
+    await expect(executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation })).resolves.toEqual(result);
     expect(workers.call).toHaveBeenCalledOnce(); workers.call.mockClear();
-    await expect(executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId,
+    await expect(executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId,
       operation: { ...operation, identity: { ...identity, itemId: "different" } } })).rejects.toThrow("identity mismatch");
     value.lease.status = "released";
-    await expect(executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation })).rejects.toThrow("not active");
-    await expect(executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId,
+    await expect(executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation })).rejects.toThrow("not active");
+    await expect(executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId,
       operation: { kind: "archive_state", priorIdentity: identity, archiveKey: "a".repeat(24), resumeFrom: "prior" } })).rejects.toThrow("not active");
     expect(workers.call).not.toHaveBeenCalled();
     expect(() => parseEnvironmentTaskResult(operation, "attempt-1", { ...result, taskId: "other" })).toThrow();
@@ -298,7 +298,7 @@ describe("plugin-provided Runner execution", () => {
     const operation = {kind:"read_state" as const,identity};
     const result = {kind:"state",taskId:"attempt-1",state:{schema:"outpost.runner.durable.state.v1",...identity,lifecycle:"suspended"}};
     const workers = worker(result);
-    await expect(executeEnvironmentTask(database(value).db,workers as never,{companyId:"company",leaseId,operation})).resolves.toEqual(result);
+    await expect(executeEnvironmentTask(database(value).db,workers as never,{spaceId:"space",leaseId,operation})).resolves.toEqual(result);
     expect(workers.call).toHaveBeenCalledOnce();
     for (const change of ["identity","policy","dispatch","lease","run"] as const) {
       const changed = structuredClone(value);
@@ -307,7 +307,7 @@ describe("plugin-provided Runner execution", () => {
       if (change === "lease") changed.lease.status="released";
       if (change === "run") changed.run!.status="cancelled";
       const denied=worker(result);
-      await expect(executeEnvironmentTask(database(changed).db,denied as never,{companyId:"company",leaseId,
+      await expect(executeEnvironmentTask(database(changed).db,denied as never,{spaceId:"space",leaseId,
         operation:change === "identity" ? {...operation,identity:{...identity,itemId:"other"}} : operation})).rejects.toThrow();
       expect(denied.call).not.toHaveBeenCalled();
     }
@@ -319,12 +319,12 @@ describe("plugin-provided Runner execution", () => {
     for (const invalid of [undefined, { ...proof, configurationId: "other" }, { ...proof, provider: "anthropic" }, { ...proof, projectIds: [] }]) {
       const value = row(); Object.assign(value.lease.metadata, { runnerTaskProjectAuthValidation: invalid });
       const workers = worker();
-      await expect(executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation })).rejects.toThrow("validation unavailable");
+      await expect(executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation })).rejects.toThrow("validation unavailable");
       expect(workers.call).not.toHaveBeenCalled();
     }
     const value = row(); Object.assign(value.lease.metadata, { runnerTaskProjectAuthValidation: proof });
-    await expect(executeEnvironmentTask(database(value).db, worker() as never, { companyId: "company", leaseId, operation })).resolves.toMatchObject({ kind: "accepted" });
-    await expect(executeEnvironmentTask(database(value).db, worker() as never, { companyId: "company", leaseId,
+    await expect(executeEnvironmentTask(database(value).db, worker() as never, { spaceId: "space", leaseId, operation })).resolves.toMatchObject({ kind: "accepted" });
+    await expect(executeEnvironmentTask(database(value).db, worker() as never, { spaceId: "space", leaseId,
       operation: { ...operation, credential: { type: "claude-env", environment: { ANTHROPIC_API_KEY: "never-leak" } } } })).rejects.toThrow("validation unavailable");
   });
   it.each(["allowed", "denied", "wrong-configuration", "wrong-provider", "timeout"])("records only a matching successful project validation (%s)", async mode => {
@@ -333,7 +333,7 @@ describe("plugin-provided Runner execution", () => {
       provider: mode === "wrong-provider" ? "anthropic" : "openai", allowed: mode !== "denied" };
     const workers = worker(result); if (mode === "timeout") workers.call.mockRejectedValueOnce(new Error("timeout with private credential"));
     const { db, sets } = database();
-    const checked = executeEnvironmentTask(db, workers as never, { companyId: "company", leaseId, operation });
+    const checked = executeEnvironmentTask(db, workers as never, { spaceId: "space", leaseId, operation });
     if (["allowed", "denied"].includes(mode)) await expect(checked).resolves.toEqual(result);
     else await expect(checked).rejects.toThrow("operation unavailable");
     expect(sets).toHaveLength(mode === "allowed" ? 2 : 1);
@@ -341,7 +341,7 @@ describe("plugin-provided Runner execution", () => {
     if (mode === "allowed") expect(JSON.parse(new PgDialect().sqlToQuery(sets[1].metadata as any).params[0] as string))
       .toEqual({ runnerTaskProjectAuthValidation: { configurationId: "configuration", provider: "openai", projectIds: [projectId] } });
     const denied = worker(result);
-    await expect(executeEnvironmentTask(database(row(), []).db, denied as never, { companyId: "company", leaseId, operation })).rejects.toThrow("project unavailable");
+    await expect(executeEnvironmentTask(database(row(), []).db, denied as never, { spaceId: "space", leaseId, operation })).rejects.toThrow("project unavailable");
     expect(denied.call).not.toHaveBeenCalled();
   });
   it.each([false, true])("prepares scoped configuration with submit-time auth %s", async atSubmit => {
@@ -356,10 +356,10 @@ describe("plugin-provided Runner execution", () => {
     const result = { kind: "prepared", taskId: "attempt-1", ...(atSubmit ? {projectAuthCheckAtSubmit: true} : {}), launch: { configurationId: "configuration-1",
       requirementsDigest: `sha256:${"a".repeat(64)}`, provider: { kind: "codex" } } };
     const workers = worker(result), store = database();
-    await expect(executeEnvironmentTask(store.db, workers as never, { companyId: "company", leaseId, operation }))
+    await expect(executeEnvironmentTask(store.db, workers as never, { spaceId: "space", leaseId, operation }))
       .resolves.toEqual(result);
     expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({
-      companyId: "company", runId: "run", agentId: "agent", projectIds: [projectId], operation,
+      spaceId: "space", runId: "run", agentId: "agent", projectIds: [projectId], operation,
     }), 15_000);
     expect(store.sets).toHaveLength(atSubmit ? 2 : 1);
     if (atSubmit) expect(new PgDialect().sqlToQuery(store.sets[1].metadata as never).params).toContain(JSON.stringify({
@@ -368,12 +368,12 @@ describe("plugin-provided Runner execution", () => {
     const denied = worker(result);
     const inactive = row(); inactive.lease.status = "released";
     for (const value of [null, inactive]) {
-      await expect(executeEnvironmentTask(database(value).db, denied as never, { companyId: "company", leaseId, operation })).rejects.toThrow();
+      await expect(executeEnvironmentTask(database(value).db, denied as never, { spaceId: "space", leaseId, operation })).rejects.toThrow();
     }
-    await expect(executeEnvironmentTask(database().db, denied as never, { companyId: "company", leaseId,
+    await expect(executeEnvironmentTask(database().db, denied as never, { spaceId: "space", leaseId,
       operation: { ...operation, requirements: { ...operation.requirements, identity: { ...operation.requirements.identity, runId: "other" } } } }))
       .rejects.toThrow("identity mismatch");
-    await expect(executeEnvironmentTask(database(row(), []).db, denied as never, { companyId: "company", leaseId, operation }))
+    await expect(executeEnvironmentTask(database(row(), []).db, denied as never, { spaceId: "space", leaseId, operation }))
       .rejects.toThrow("project unavailable");
     expect(denied.call).not.toHaveBeenCalled();
     expect(() => parseEnvironmentTaskResult(operation, "attempt-1", { ...result, taskId: "other" })).toThrow();
@@ -390,51 +390,51 @@ describe("plugin-provided Runner execution", () => {
         lifecyclePolicy: { mode: "per_turn" as const, idleTimeoutMs: null },
       } };
     const workers = worker();
-    await expect(executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation })).resolves.toMatchObject({ kind: "accepted" });
+    await expect(executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation })).resolves.toMatchObject({ kind: "accepted" });
     expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({ runId: "probe-run", projectIds: [] }), 15_000);
     const lifetime = (workers.call.mock.calls[0] as unknown as [string, string, { operation: typeof operation }])[2].operation.launch.maxRuntimeMs;
     expect(lifetime).toBeGreaterThan(0); expect(lifetime).toBeLessThanOrEqual(60_000);
     expect((workers.call.mock.calls[0] as unknown as [string, string, { operation: typeof operation }])[2].operation.launch).not.toHaveProperty("maxLifetimeMs");
     for (const invalid of [{ ...operation, projectIds: [projectId] }, { ...operation, runner: { ...operation.runner, sessionId: "other" } }, submit]) {
-      await expect(executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation: invalid })).rejects.toThrow("identity mismatch");
+      await expect(executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation: invalid })).rejects.toThrow("identity mismatch");
     }
     const metadataOperation = { kind: "copilot_metadata" as const, token: "never-persist-token", model: "selected" };
     const receipt = { kind: "copilot_metadata", taskId: "attempt-1", metadata: {}, executionStopped: true };
     const metadataDatabase = database(value);
-    await expect(executeEnvironmentTask(metadataDatabase.db, worker(receipt) as never, { companyId: "company", leaseId, operation: metadataOperation })).resolves.toEqual(receipt);
+    await expect(executeEnvironmentTask(metadataDatabase.db, worker(receipt) as never, { spaceId: "space", leaseId, operation: metadataOperation })).resolves.toEqual(receipt);
     const savedParams = JSON.stringify(metadataDatabase.sets.flatMap(set => new PgDialect().sqlToQuery((set as any).metadata).params));
     expect(savedParams).toContain("runnerTaskDispatched");
     expect(savedParams).not.toContain("never-persist-token");
-    await expect(executeEnvironmentTask(database().db, worker(receipt) as never, { companyId: "company", leaseId, operation: metadataOperation })).rejects.toThrow("private setup lease");
+    await expect(executeEnvironmentTask(database().db, worker(receipt) as never, { spaceId: "space", leaseId, operation: metadataOperation })).rejects.toThrow("private setup lease");
     expect(() => parseEnvironmentTaskResult(metadataOperation, "attempt-1", { ...receipt, executionStopped: false })).toThrow();
     Object.assign(value.lease.metadata, { runnerTaskProbe: { runId: "probe-run", sessionId: "probe-session", expiresAtMs: Date.now() - 1 } });
-    await expect(executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation })).rejects.toThrow("not active");
-    await expect(executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation: metadataOperation })).rejects.toThrow("not active");
-    await expect(executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation: { kind: "stop" } })).resolves.toMatchObject({ kind: "accepted" });
+    await expect(executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation })).rejects.toThrow("not active");
+    await expect(executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation: metadataOperation })).rejects.toThrow("not active");
+    await expect(executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation: { kind: "stop" } })).resolves.toMatchObject({ kind: "accepted" });
   });
   it("dispatches with host-derived scope and a persisted attempt identity", async () => {
     const { db, query } = database(); const workers = worker();
-    await expect(executeEnvironmentTask(db, workers as never, { companyId: "company", leaseId, operation: submit })).resolves.toEqual({ kind: "accepted", taskId: "attempt-1" });
+    await expect(executeEnvironmentTask(db, workers as never, { spaceId: "space", leaseId, operation: submit })).resolves.toEqual({ kind: "accepted", taskId: "attempt-1" });
     const scope = new PgDialect().sqlToQuery(query.where.mock.calls[0][0]);
-    expect(scope.sql).toContain('"environment_leases"."company_id" =');
+    expect(scope.sql).toContain('"environment_leases"."space_id" =');
     expect(scope.sql).toContain('"environment_leases"."id" =');
-    expect(scope.params).toEqual([leaseId, "company"]);
+    expect(scope.params).toEqual([leaseId, "space"]);
     expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({
-      taskId: "attempt-1", companyId: "company", agentId: "agent", projectIds: [projectId], runId: "run", operation: submit,
+      taskId: "attempt-1", spaceId: "space", agentId: "agent", projectIds: [projectId], runId: "run", operation: submit,
     }), 15_000);
   });
-  it("validates every requested project in the task company before dispatch", async () => {
+  it("validates every requested project in the task space before dispatch", async () => {
     const operation = { ...submit, projectIds: [projectId, secondProjectId] };
     const value = row(); value.lease.metadata.runnerTaskProjectAuthValidation.projectIds = operation.projectIds;
     const { db, query } = database(value, [{ id: projectId }, { id: secondProjectId }]);
     const workers = worker();
-    await executeEnvironmentTask(db, workers as never, { companyId: "company", leaseId, operation });
+    await executeEnvironmentTask(db, workers as never, { spaceId: "space", leaseId, operation });
     expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({ projectIds: operation.projectIds }), 15_000);
     const scope = new PgDialect().sqlToQuery(query.where.mock.calls[2][0]);
-    expect(scope.sql).toContain('"projects"."company_id" =');
-    expect(scope.params).toEqual(["company", projectId, secondProjectId]);
+    expect(scope.sql).toContain('"projects"."space_id" =');
+    expect(scope.params).toEqual(["space", projectId, secondProjectId]);
     const rejected = worker();
-    await expect(executeEnvironmentTask(database(row(), [{ id: projectId }]).db, rejected as never, { companyId: "company", leaseId, operation })).rejects.toThrow("project unavailable");
+    await expect(executeEnvironmentTask(database(row(), [{ id: projectId }]).db, rejected as never, { spaceId: "space", leaseId, operation })).rejects.toThrow("project unavailable");
     expect(rejected.call).not.toHaveBeenCalled();
   });
   it("validates unique project IDs and allows tasks with no project mounts", async () => {
@@ -443,7 +443,7 @@ describe("plugin-provided Runner execution", () => {
     }
     const workers = worker();
     const value = row(); value.lease.metadata.runnerTaskProjectAuthValidation.projectIds = [];
-    await executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation: { ...submit, projectIds: [] } });
+    await executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation: { ...submit, projectIds: [] } });
     expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({ projectIds: [] }), 15_000);
   });
   it.each(["release", "resume"] as const)("sends the prepared project and fresh scope with a retained %s", async kind => {
@@ -455,58 +455,58 @@ describe("plugin-provided Runner execution", () => {
     Object.assign(value.lease.metadata, { runnerTaskProjectIds: [projectId, secondProjectId], freshWorkspace: fresh });
     const { db, query } = database(value, [{ id: projectId }, { id: secondProjectId }]);
     const workers = worker(result);
-    await expect(executeEnvironmentTask(db, workers as never, { companyId: "company", leaseId, operation })).resolves.toEqual(result);
+    await expect(executeEnvironmentTask(db, workers as never, { spaceId: "space", leaseId, operation })).resolves.toEqual(result);
     expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({
       projectIds: [projectId, secondProjectId], fresh, operation }), 15_000);
     const scope = new PgDialect().sqlToQuery(query.where.mock.calls[1][0]);
-    expect(scope.sql).toContain('"projects"."company_id" =');
-    expect(scope.params).toEqual(["company", projectId, secondProjectId]);
+    expect(scope.sql).toContain('"projects"."space_id" =');
+    expect(scope.params).toEqual(["space", projectId, secondProjectId]);
 
     const unscoped = row(); unscoped.lease.status = "retained";
     const plain = worker(result);
-    await executeEnvironmentTask(database(unscoped, []).db, plain as never, { companyId: "company", leaseId, operation });
+    await executeEnvironmentTask(database(unscoped, []).db, plain as never, { spaceId: "space", leaseId, operation });
     const sent = (plain.call.mock.calls[0] as unknown as any[])[2];
     expect(sent.projectIds).toEqual([]);
     expect(sent).not.toHaveProperty("fresh");
 
     const rejected = worker(result);
-    await expect(executeEnvironmentTask(database(value, [{ id: projectId }]).db, rejected as never, { companyId: "company", leaseId, operation }))
+    await expect(executeEnvironmentTask(database(value, [{ id: projectId }]).db, rejected as never, { spaceId: "space", leaseId, operation }))
       .rejects.toThrow("project unavailable");
     expect(rejected.call).not.toHaveBeenCalled();
   });
-  it("rejects an absent or cross-company lease before calling a worker", async () => {
+  it("rejects an absent or cross-space lease before calling a worker", async () => {
     const workers = worker();
-    await expect(executeEnvironmentTask(database(null).db, workers as never, { companyId: "other", leaseId, operation: submit })).rejects.toThrow("lease unavailable");
+    await expect(executeEnvironmentTask(database(null).db, workers as never, { spaceId: "other", leaseId, operation: submit })).rejects.toThrow("lease unavailable");
     expect(workers.call).not.toHaveBeenCalled();
   });
   it("rejects mismatched Runner binding and inactive submission", async () => {
     const workers = worker();
-    await expect(executeEnvironmentTask(database().db, workers as never, { companyId: "company", leaseId, operation: { ...submit, runner: { ...submit.runner, runId: "other" } } })).rejects.toThrow("identity mismatch");
+    await expect(executeEnvironmentTask(database().db, workers as never, { spaceId: "space", leaseId, operation: { ...submit, runner: { ...submit.runner, runId: "other" } } })).rejects.toThrow("identity mismatch");
     const value = row(); value.lease.status = "released";
-    await expect(executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation: submit })).rejects.toThrow("not active");
+    await expect(executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation: submit })).rejects.toThrow("not active");
     expect(workers.call).not.toHaveBeenCalled();
   });
   it("uses the pinned provider for cleanup after environment edits", async () => {
     const value = row(); value.lease.status = "released"; value.environment!.config.pluginKey = "replacement";
     const workers = worker();
-    await executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation: { kind: "stop" } });
+    await executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation: { kind: "stop" } });
     expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({ config: {}, operation: { kind: "stop" } }), 15_000);
   });
   it("keeps cleanup available after environment, run, and issue deletion", async () => {
     const value = row(); value.environment = null; value.run = null;
     for (const kind of ["stop", "complete", "status"] as const) {
       const workers = worker(kind === "status" ? { kind: "status", taskId: "attempt-1", phase: "cancelled" } : undefined);
-      await executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation: { kind } });
+      await executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation: { kind } });
       expect(workers.call).toHaveBeenCalledWith("original", "environmentTask", expect.objectContaining({
         config: {}, environmentId: null, runId: null, agentId: null, projectIds: [],
       }), 15_000);
     }
-    await expect(executeEnvironmentTask(database(value).db, worker() as never, { companyId: "company", leaseId, operation: submit })).rejects.toThrow("not active");
+    await expect(executeEnvironmentTask(database(value).db, worker() as never, { spaceId: "space", leaseId, operation: submit })).rejects.toThrow("not active");
   });
   it("preserves opaque provider IDs in requests and receipts", async () => {
     const value = row(); value.lease.providerLeaseId = `provider:attempt.${"x".repeat(120)}`;
     const workers = worker({ kind: "accepted", taskId: value.lease.providerLeaseId });
-    await expect(executeEnvironmentTask(database(value).db, workers as never, { companyId: "company", leaseId, operation: { kind: "stop" } })).resolves.toMatchObject({ taskId: value.lease.providerLeaseId });
+    await expect(executeEnvironmentTask(database(value).db, workers as never, { spaceId: "space", leaseId, operation: { kind: "stop" } })).resolves.toMatchObject({ taskId: value.lease.providerLeaseId });
   });
   it("reconnects a successful retained warm task without granting new execution", async () => {
     const value = row();
@@ -522,13 +522,13 @@ describe("plugin-provided Runner execution", () => {
     } };
     const workers = worker(connection);
     await expect(executeEnvironmentTask(database(value).db, workers as never, {
-      companyId: "company", leaseId, operation: { kind: "connection" },
+      spaceId: "space", leaseId, operation: { kind: "connection" },
     })).resolves.toEqual(connection);
     expect(workers.call).toHaveBeenCalledOnce();
     for (const operation of [submit, { kind: "describe" as const }]) {
       const denied = worker();
       await expect(executeEnvironmentTask(database(value).db, denied as never, {
-        companyId: "company", leaseId, operation,
+        spaceId: "space", leaseId, operation,
       })).rejects.toThrow("not active");
       expect(denied.call).not.toHaveBeenCalled();
     }
@@ -546,7 +546,7 @@ describe("plugin-provided Runner execution", () => {
       if (change === "deleted") changed.environment = null;
       const denied = worker(connection);
       await expect(executeEnvironmentTask(database(changed).db, denied as never, {
-        companyId: "company", leaseId, operation: { kind: "connection" },
+        spaceId: "space", leaseId, operation: { kind: "connection" },
       }), change).rejects.toThrow("not active");
       expect(denied.call).not.toHaveBeenCalled();
     }
@@ -556,7 +556,7 @@ describe("plugin-provided Runner execution", () => {
       kind: "authenticated_websocket", websocketUrl: "wss://runner.example.test/connect", generation: "attempt-1",
       secretHeaders: [{ name: "Authorization", value: "Bearer fixture" }],
     } };
-    const input = { companyId: "company", leaseId, operation: { kind: "connection" as const } };
+    const input = { spaceId: "space", leaseId, operation: { kind: "connection" as const } };
     await expect(executeEnvironmentTask(database().db, worker(connection) as never, input)).resolves.toEqual(connection);
     for (const state of ["expired", "finished", "deleted"] as const) {
       const value = row();
@@ -580,20 +580,20 @@ describe("plugin-provided Runner execution", () => {
     const workers = worker();
     if (kind === "manifest") state.plugin.manifestJson.environmentDrivers[0].supportsTasks = false;
     else workers.getWorker.mockReturnValue({ supportedMethods: [] });
-    await expect(executeEnvironmentTask(database().db, workers as never, { companyId: "company", leaseId, operation: submit })).rejects.toThrow("provider unavailable");
+    await expect(executeEnvironmentTask(database().db, workers as never, { spaceId: "space", leaseId, operation: submit })).rejects.toThrow("provider unavailable");
     expect(workers.call).not.toHaveBeenCalled();
   });
   it("rejects wrong task receipts and sanitizes worker errors", async () => {
-    await expect(executeEnvironmentTask(database().db, worker({ kind: "accepted", taskId: "other" }) as never, { companyId: "company", leaseId, operation: submit })).rejects.toThrow("reconcile the same task");
+    await expect(executeEnvironmentTask(database().db, worker({ kind: "accepted", taskId: "other" }) as never, { spaceId: "space", leaseId, operation: submit })).rejects.toThrow("reconcile the same task");
     const workers = worker(); workers.call.mockRejectedValue(new Error("private-credential"));
-    await expect(executeEnvironmentTask(database().db, workers as never, { companyId: "company", leaseId, operation: submit })).rejects.toThrow(/^Plugin-provided Runner execution operation unavailable; reconcile the same task before retrying$/);
+    await expect(executeEnvironmentTask(database().db, workers as never, { spaceId: "space", leaseId, operation: submit })).rejects.toThrow(/^Plugin-provided Runner execution operation unavailable; reconcile the same task before retrying$/);
   });
   it.each([submit, { kind: "status" } as const])("redacts even a valid source envelope outside a source submit (%j)", async operation => {
     const workers = worker();
     workers.call.mockRejectedValue(new JsonRpcCallError({ code: -32000, message: "synthetic-private-text", data: {
-      schema: "paperclip/environment-task-error/v1", diagnostic: { httpStatus: 409, errorCode: "SESSION_STATE_UNAVAILABLE", reason: "unresolved_operation" },
+      schema: "outpost/environment-task-error/v1", diagnostic: { httpStatus: 409, errorCode: "SESSION_STATE_UNAVAILABLE", reason: "unresolved_operation" },
     } }));
-    const error = await executeEnvironmentTask(database().db, workers as never, { companyId: "company", leaseId, operation }).catch(error => error);
+    const error = await executeEnvironmentTask(database().db, workers as never, { spaceId: "space", leaseId, operation }).catch(error => error);
     expect(error.message).toBe("Plugin-provided Runner execution operation unavailable; reconcile the same task before retrying");
     expect(readEnvironmentTaskErrorDiagnostic(error)).toBeNull();
   });
@@ -601,13 +601,13 @@ describe("plugin-provided Runner execution", () => {
     const workers = worker();
     workers.call.mockRejectedValue(Object.assign(new JsonRpcCallError({ code: -32002, message: "private-credential",
       data: environmentTaskErrorCodeData(new PluginEnvironmentTaskError("runner_revision_mismatch")) }), { extra: "private-credential" }));
-    const error = await executeEnvironmentTask(database().db, workers as never, { companyId: "company", leaseId, operation: submit }).catch(caught => caught);
+    const error = await executeEnvironmentTask(database().db, workers as never, { spaceId: "space", leaseId, operation: submit }).catch(caught => caught);
     expect(error.message).toBe("Plugin-provided Runner execution operation unavailable; reconcile the same task before retrying");
     expect(readEnvironmentTaskErrorCode(error)).toBe("runner_revision_mismatch");
     expect(JSON.stringify({ ...error, message: error.message })).not.toContain("private-credential");
     expect(error.cause).toBeUndefined();
     workers.call.mockRejectedValue(new Error("The installed Runner does not match the expected revision"));
-    expect(readEnvironmentTaskErrorCode(await executeEnvironmentTask(database().db, workers as never, { companyId: "company", leaseId, operation: submit }).catch(caught => caught))).toBeNull();
+    expect(readEnvironmentTaskErrorCode(await executeEnvironmentTask(database().db, workers as never, { spaceId: "space", leaseId, operation: submit }).catch(caught => caught))).toBeNull();
   });
   it("accepts ORP identity characters and length limits", () => {
     for (const field of ["runnerId", "leaseId", "runId", "sessionId", "turnId", "itemId"]) {

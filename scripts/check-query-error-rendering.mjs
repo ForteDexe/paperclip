@@ -107,7 +107,7 @@ export const ENFORCED_FILES = new Set([
   "ui/src/pages/AgentDetail.production.tsx",
   "ui/src/pages/AgentDetail.tsx",
   "ui/src/pages/CaseDetail.tsx",
-  "ui/src/pages/CompanySettingsPluginPage.tsx",
+  "ui/src/pages/SpaceSettingsPluginPage.tsx",
   "ui/src/pages/ExecutionWorkspaceDetail.tsx",
   "ui/src/pages/GoalDetail.tsx",
   "ui/src/pages/IssueDetail.tsx",

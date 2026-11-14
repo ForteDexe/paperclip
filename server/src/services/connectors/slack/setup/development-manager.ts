@@ -1,10 +1,10 @@
 import { readFileSync, statSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import { SLACK_MANAGER_SCOPES } from "@outpost/shared";
-import type { PaperclipCloudConnector, SealedConnectorCredentials } from "../../../paperclip-cloud-connector.js";
+import type { OutpostCloudConnector, SealedConnectorCredentials } from "../../../outpost-cloud-connector.js";
 import { createSlackSetupClient, object, providerFailure } from "./provider-client.js";
 
-export type SlackManagerClient = Pick<PaperclipCloudConnector,
+export type SlackManagerClient = Pick<OutpostCloudConnector,
   "getSlackManagerAppId" | "startAuthorization" | "claim" | "refresh" | "revoke"
 > & { authorizationMode?: "code" };
 
@@ -35,7 +35,7 @@ export function developmentSlackManager(
     return `${url.origin}/api/chat-slack/managed/oauth/callback`;
   };
   const api = createSlackSetupClient(fetchImpl);
-  async function credentials(fields: Record<string, string>, subject: string, companyId: string, initial: boolean): Promise<SealedConnectorCredentials> {
+  async function credentials(fields: Record<string, string>, subject: string, spaceId: string, initial: boolean): Promise<SealedConnectorCredentials> {
     let result: Record<string, unknown>;
     try { result = await api("oauth.v2.access", { client_id: clientId as string, client_secret: clientSecret as string, ...fields }); }
     catch { throw providerFailure("slack_manager_reauthorize"); }
@@ -50,7 +50,7 @@ export function developmentSlackManager(
     return {
       v: 1, accessToken: user.access_token, refreshToken: user.refresh_token, tokenType: "user",
       accessTokenExpiresAt: new Date(Date.now() + user.expires_in * 1000).toISOString(), refreshTokenExpiresAt: null,
-      scopes, subject, companyId, instanceId: "local-slack-qualification", environment: "development", provider: "slack", profile: "slack.manager",
+      scopes, subject, spaceId, instanceId: "local-slack-qualification", environment: "development", provider: "slack", profile: "slack.manager",
       ...(initial ? { slackManager: { appId: appId as string, workspaceId: team.id as string, workspaceName: team.name as string, userId: user.id as string } } : {}),
     };
   }
@@ -63,8 +63,8 @@ export function developmentSlackManager(
       url.search = new URLSearchParams({ client_id: clientId as string, user_scope: SLACK_MANAGER_SCOPES.join(","), redirect_uri: callback(), state: values.returnState }).toString();
       return { authorizationUrl: url.toString(), expiresAt: new Date(Date.now() + 600_000).toISOString() };
     },
-    async claim(values) { return credentials({ code: values.claimId, redirect_uri: callback() }, values.subject, values.companyId, true); },
-    async refresh(values) { return credentials({ grant_type: "refresh_token", refresh_token: values.refreshToken }, values.subject, values.companyId, false); },
+    async claim(values) { return credentials({ code: values.claimId, redirect_uri: callback() }, values.subject, values.spaceId, true); },
+    async refresh(values) { return credentials({ grant_type: "refresh_token", refresh_token: values.refreshToken }, values.subject, values.spaceId, false); },
     async revoke(values) {
       try { await api("auth.revoke", {}, values.token); }
       catch { throw providerFailure("slack_manager_reauthorize"); }

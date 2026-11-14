@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
-  agents, companies, createDb, heartbeatRuns, issues, issueRecoveryActions,
+  agents, spaces, createDb, heartbeatRuns, issues, issueRecoveryActions,
   issueThreadInteractions, routines, routineTriggers,
   toolApplications, toolConnections,
 } from "@outpost/db";
@@ -25,24 +25,24 @@ if (!support.supported) console.warn(`Skipping response-wait database tests: ${s
     database = await startEmbeddedPostgresTestDatabase("idle-response-waits-");
     db = createDb(database.connectionString);
   }, 60_000);
-  afterEach(async () => { await db.execute(sql`TRUNCATE companies, plugins, environments CASCADE`); });
+  afterEach(async () => { await db.execute(sql`TRUNCATE spaces, plugins, environments CASCADE`); });
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
   const read = (schedules = true) => readIdleSleepSafety(db, owned, () => now, ownerId,
     async () => "none", undefined, undefined, schedules, schedules);
 
   async function seed(status = "in_review") {
-    const companyId = randomUUID(); const agentId = randomUUID(); const runId = randomUUID(); const issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Response fixture", issuePrefix: `T${companyId.slice(0, 6).toUpperCase()}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Idle owner", role: "engineer", status: "idle", adapterType: "process" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Awaiting a response", status, assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand",
+    const spaceId = randomUUID(); const agentId = randomUUID(); const runId = randomUUID(); const issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Response fixture", issuePrefix: `T${spaceId.slice(0, 6).toUpperCase()}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Idle owner", role: "engineer", status: "idle", adapterType: "process" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Awaiting a response", status, assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "on_demand",
       status: "succeeded", finishedAt: new Date(now), contextSnapshot: { issueId } });
-    return { companyId, agentId, runId, issueId };
+    return { spaceId, agentId, runId, issueId };
   }
   // Waits persist as JSON and text, so a row can hold a value this build's contract no longer names.
   type WaitChange = Omit<Partial<typeof issueThreadInteractions.$inferInsert>, "effectiveResolverPolicy" | "payload"> & { effectiveResolverPolicy?: string; payload?: unknown };
   async function wait(f: Awaited<ReturnType<typeof seed>>, change: WaitChange = {}) {
-    const [row] = await db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issueId,
+    const [row] = await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issueId,
       kind: "ask_user_questions", status: "pending", sourceRunId: f.runId, effectiveResolverPolicy: "human_only",
       continuationPolicy: "wake_assignee", payload: { version: 1, questions: [] }, ...change } as typeof issueThreadInteractions.$inferInsert).returning();
     return row!;
@@ -62,7 +62,7 @@ if (!support.supported) console.warn(`Skipping response-wait database tests: ${s
     });
   it.each(["human_only", "anyone"])("keeps automatically polled merge confirmations awake with %s audience", async policy => {
     const f = await seed("in_progress");
-    const card = { kind: "request_confirmation", title: "Merge PaperclipAI/paperclip#39?", summary: null,
+    const card = { kind: "request_confirmation", title: "Merge ForteDexe/outpost#39?", summary: null,
       payload: { version: 1 as const, prompt: "Merge the pull request?" } };
     expect(getMergeConfirmationPullRequestReferences(card)).toHaveLength(1);
     await wait(f, { ...card, effectiveResolverPolicy: policy });
@@ -80,9 +80,9 @@ if (!support.supported) console.warn(`Skipping response-wait database tests: ${s
       version: 1, serviceSlug: "fixture-service", serviceName: "Fixture service", requestingAgentId: f.agentId, requestingAgentName: "Idle owner", phase: "requested",
     } });
     expect(await read()).toEqual(none);
-    const [app] = await db.insert(toolApplications).values({ companyId: f.companyId,
+    const [app] = await db.insert(toolApplications).values({ spaceId: f.spaceId,
       type: "mcp_http", name: "Fixture service" }).returning();
-    await db.insert(toolConnections).values({ companyId: f.companyId, applicationId: app!.id,
+    await db.insert(toolConnections).values({ spaceId: f.spaceId, applicationId: app!.id,
       uid: randomUUID(), name: "Reusable access", connectionPurpose: "tool", transport: "mcp_remote", status: "active", enabled: true });
     expect(await read()).toEqual(present);
   });
@@ -102,9 +102,9 @@ if (!support.supported) console.warn(`Skipping response-wait database tests: ${s
     const f = await seed(); await wait(f); await wait(f, change);
     expect(await read()).toEqual(present);
   });
-  it("does not borrow another company's interaction or ignore a foreign pending sibling", async () => {
+  it("does not borrow another space's interaction or ignore a foreign pending sibling", async () => {
     const f = await seed(); const other = await seed("done");
-    await wait(f, { companyId: other.companyId, sourceRunId: other.runId });
+    await wait(f, { spaceId: other.spaceId, sourceRunId: other.runId });
     expect(await read()).toEqual(present);
     await wait(f); expect(await read()).toEqual(present);
   });
@@ -130,8 +130,8 @@ if (!support.supported) console.warn(`Skipping response-wait database tests: ${s
   });
   it("includes response identity and audience in the future schedule generation", async () => {
     const f = await seed(); const card = await wait(f);
-    const [routine] = await db.insert(routines).values({ companyId: f.companyId, title: "Later work", status: "active", assigneeAgentId: f.agentId }).returning();
-    await db.insert(routineTriggers).values({ companyId: f.companyId, routineId: routine!.id, kind: "schedule",
+    const [routine] = await db.insert(routines).values({ spaceId: f.spaceId, title: "Later work", status: "active", assigneeAgentId: f.agentId }).returning();
+    await db.insert(routineTriggers).values({ spaceId: f.spaceId, routineId: routine!.id, kind: "schedule",
       cronExpression: "*/15 * * * *", timezone: "UTC", nextRunAt: new Date(now + 600_000), enabled: true, setupPending: false });
     const before = await read(); expect(before.version).toBe(2);
     await db.update(issueThreadInteractions).set({ effectiveResolverPolicy: "anyone" }).where(eq(issueThreadInteractions.id, card.id));
@@ -139,32 +139,32 @@ if (!support.supported) console.warn(`Skipping response-wait database tests: ${s
     expect(after.scheduledWake?.generation).not.toBe(before.scheduledWake?.generation);
   });
 
-  async function boardHold(f: Awaited<ReturnType<typeof seed>>, change: Partial<typeof issueRecoveryActions.$inferInsert> = {}) {
-    const [row] = await db.insert(issueRecoveryActions).values({ companyId: f.companyId, sourceIssueId: f.issueId,
-      kind: "stranded_assigned_issue", cause: "stranded_assigned_issue", status: "active", ownerType: "board",
-      fingerprint: randomUUID(), nextAction: "Board decision required", wakePolicy: { type: "board_escalation", reason: "stranded_assigned_issue", preservesSourceAssignee: true },
+  async function operatorHold(f: Awaited<ReturnType<typeof seed>>, change: Partial<typeof issueRecoveryActions.$inferInsert> = {}) {
+    const [row] = await db.insert(issueRecoveryActions).values({ spaceId: f.spaceId, sourceIssueId: f.issueId,
+      kind: "stranded_assigned_issue", cause: "stranded_assigned_issue", status: "active", ownerType: "operator",
+      fingerprint: randomUUID(), nextAction: "Operator decision required", wakePolicy: { type: "operator_escalation", reason: "stranded_assigned_issue", preservesSourceAssignee: true },
       ...change }).returning();
     return row!;
   }
-  it.each(["active", "escalated"])("retains visible %s board escalation history without keeping compute running", async status => {
-    const f = await seed("blocked"); const action = await boardHold(f, { status });
+  it.each(["active", "escalated"])("retains visible %s operator escalation history without keeping compute running", async status => {
+    const f = await seed("blocked"); const action = await operatorHold(f, { status });
     expect(await read()).toEqual(none);
     expect(await db.select().from(issueRecoveryActions)).toEqual([action]);
   });
   it.each([
     { ownerType: "agent" }, { ownerType: "system" }, { cause: "native_workspace_finalization_owner_unverified" },
     { timeoutAt: new Date(now + 60_000) }, { monitorPolicy: {} },
-    { wakePolicy: { type: "wake_owner" } }, { wakePolicy: { type: "board_escalation", retryAt: "2099-01-01" } },
+    { wakePolicy: { type: "wake_owner" } }, { wakePolicy: { type: "operator_escalation", retryAt: "2099-01-01" } },
     { wakePolicy: null }, { resolvedAt: new Date(now) },
   ])("keeps automatic or unproved recovery work awake: %j", async change => {
-    await boardHold(await seed("blocked"), change);
+    await operatorHold(await seed("blocked"), change);
     expect(await read()).toEqual(present);
   });
   it("rejects a foreign recovery source and an escalation whose source still runs", async () => {
     const f = await seed("blocked"); const other = await seed("done");
-    const action = await boardHold(f, { companyId: other.companyId });
+    const action = await operatorHold(f, { spaceId: other.spaceId });
     expect(await read()).toEqual(present);
-    await db.update(issueRecoveryActions).set({ companyId: f.companyId }).where(eq(issueRecoveryActions.id, action.id));
+    await db.update(issueRecoveryActions).set({ spaceId: f.spaceId }).where(eq(issueRecoveryActions.id, action.id));
     expect(await read()).toEqual(none);
     await db.update(heartbeatRuns).set({ status: "running", finishedAt: null }).where(eq(heartbeatRuns.id, f.runId));
     expect(await read()).toEqual(present);

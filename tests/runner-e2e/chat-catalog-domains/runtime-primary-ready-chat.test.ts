@@ -11,10 +11,10 @@ function fixture(options: { loadingForever?: boolean; extraRun?: boolean; extraC
   wrongChat?: boolean; noReply?: boolean; wrongRequest?: boolean; missingRenderedReply?: boolean; readOnly?: boolean; expired?: boolean; lateReady?: boolean } = {}) {
   const deadline = Date.now() + (options.expired ? -1 : 30_000); let current = "https://fixture.test/RUN/chats/ceo", ready = false;
   const calls: string[] = [];
-  const source = { id: "source", companyId: "company", conversationAgentId: "ceo", conversationUserId: "person" };
+  const source = { id: "source", spaceId: "space", conversationAgentId: "ceo", conversationUserId: "person" };
   const comments = [{ id: "human", authorUserId: "person", body: "Make Morgan my go-to agent." },
     ...(options.noReply ? [] : [{ id: "reply", authorAgentId: "ceo", createdByRunId: "native", body: "Use the human primary control." }])];
-  const primary = { companyId: "company", userId: options.wrongPerson ? "foreign" : "person", primaryAgentId: options.wrongPrimary ? "ceo" : "morgan" };
+  const primary = { spaceId: "space", userId: options.wrongPerson ? "foreign" : "person", primaryAgentId: options.wrongPrimary ? "ceo" : "morgan" };
   const locator = (kind: string): any => ({ first() { return this; }, locator: () => locator("editor"), getByRole: () => locator("heading"),
     visible: async () => {
       calls.push(kind);
@@ -33,14 +33,14 @@ function fixture(options: { loadingForever?: boolean; extraRun?: boolean; extraC
     if (path.endsWith("/chats")) return [source, ...(options.extraChat && ready ? [{ ...source, id: "extra" }] : [])];
     throw Error("Unexpected API read");
   } };
-  const state = { worker: { id: "morgan", name: "Morgan", companyId: "company" }, primaryBefore: { companyId: "company", userId: "person", primaryAgentId: "ceo" },
+  const state = { worker: { id: "morgan", name: "Morgan", spaceId: "space" }, primaryBefore: { spaceId: "space", userId: "person", primaryAgentId: "ceo" },
     sourceBeforeNavigation: "source", nativeIdsBeforeNavigation: ["native"], chatCountBeforeNavigation: 1 };
   const evidence = vi.fn(async (_name: string, _value: unknown) => {});
   const ctx = { observationDeadlineAt: deadline, scenario: { id: "agents.choose-primary", query: "Make Morgan my go-to agent." },
-    input: { api, page, evidence, fixtures: { company: { id: "company", issuePrefix: "RUN" }, agent: { id: "ceo" } } },
+    input: { api, page, evidence, fixtures: { space: { id: "space", issuePrefix: "RUN" }, agent: { id: "ceo" } } },
     issue: () => source, refreshIssue: async () => {}, allRuns: async () => [{ id: "native", agentId: "ceo", status: "succeeded" }, ...(options.extraRun && ready ? [{ id: "unexpected", agentId: "ceo", status: "running" }] : [])],
   } as unknown as ChatCatalogContext;
-  const observation = { companyId: "company", leadId: "ceo", state, reply: "Use the human primary control.", agents: [{ id: "ceo", name: "CEO" }, state.worker], tasks: [], links: [], activity: [], runs: [], humanQueries: [] };
+  const observation = { spaceId: "space", leadId: "ceo", state, reply: "Use the human primary control.", agents: [{ id: "ceo", name: "CEO" }, state.worker], tasks: [], links: [], activity: [], runs: [], humanQueries: [] };
   return { ctx, state, observation, evidence, calls, ready: () => ready };
 }
 it("actual final verifier waits for meaningful selected Chat then rechecks preference and no extra work before capture", async () => {

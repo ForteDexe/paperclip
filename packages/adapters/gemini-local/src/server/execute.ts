@@ -13,7 +13,7 @@ import {
   adapterExecutionTargetSessionIdentity,
   adapterExecutionTargetSessionMatches,
   adapterExecutionTargetUsesManagedHome,
-  adapterExecutionTargetUsesPaperclipBridge,
+  adapterExecutionTargetUsesOutpostBridge,
   describeAdapterExecutionTarget,
   ensureAdapterExecutionTargetCommandResolvable,
   ensureAdapterExecutionTargetRuntimeCommandInstalled,
@@ -26,7 +26,7 @@ import {
   resolveAdapterExecutionTargetCommandForLogs,
   runAdapterExecutionTargetProcess,
   runAdapterExecutionTargetShellCommand,
-  startAdapterExecutionTargetPaperclipBridge,
+  startAdapterExecutionTargetOutpostBridge,
 } from "@outpost/adapter-utils/execution-target";
 import {
   asBoolean,
@@ -37,21 +37,21 @@ import {
   buildRuntimeToolsEnv,
   buildInvocationEnvForLogs,
   ensureAbsoluteDirectory,
-  ensurePaperclipSkillSymlink,
+  ensureOutpostSkillSymlink,
   joinPromptSections,
   ensurePathInEnv,
   refreshOutpostWorkspaceEnvForExecution,
-  isPaperclipSkillSourceMissing,
-  readPaperclipRuntimeSkillEntries,
-  readPaperclipIssueWorkModeFromContext,
-  resolveLegacyPaperclipDesiredSkillNames,
+  isOutpostSkillSourceMissing,
+  readOutpostRuntimeSkillEntries,
+  readOutpostIssueWorkModeFromContext,
+  resolveLegacyOutpostDesiredSkillNames,
   removeMaintainerOnlySkillSymlinks,
   parseObject,
   renderTemplate,
   hydrateFreshSessionHandoff,
-  selectPaperclipPromptSections,
+  selectOutpostPromptSections,
   selectInitialCommunicationGuidance,
-  isPaperclipRecoveryWakePayload,
+  isOutpostRecoveryWakePayload,
   DEFAULT_OUTPOST_AGENT_PROMPT_TEMPLATE,
   DEFAULT_OUTPOST_CONVERSATION_PROMPT_TEMPLATE,
   runChildProcess,
@@ -109,13 +109,13 @@ function buildGeminiRuntimeEnv(env: Record<string, string>): Record<string, stri
 }
 
 function renderOutpostEnvNote(env: Record<string, string>): string {
-  const paperclipKeys = Object.keys(env)
+  const outpostKeys = Object.keys(env)
     .filter((key) => key.startsWith("OUTPOST_"))
     .sort();
-  if (paperclipKeys.length === 0) return "";
+  if (outpostKeys.length === 0) return "";
   return [
     "Outpost runtime note:",
-    `The following OUTPOST_* environment variables are available in this run: ${paperclipKeys.join(", ")}`,
+    `The following OUTPOST_* environment variables are available in this run: ${outpostKeys.join(", ")}`,
     "Do not assume these variables are missing without checking your shell environment.",
     "",
     "",
@@ -130,7 +130,7 @@ function renderApiAccessNote(env: Record<string, string>): string {
     "GET example:",
     `  run_shell_command({ command: "curl -s -H \\"Authorization: Bearer $OUTPOST_API_KEY\\" \\"$OUTPOST_API_URL/api/agents/me\\"" })`,
     "POST/PATCH example:",
-    `  run_shell_command({ command: "curl -s -X POST -H \\"Authorization: Bearer $OUTPOST_API_KEY\\" -H 'Content-Type: application/json' -H \\"X-Paperclip-Run-Id: $OUTPOST_RUN_ID\\" -d '{...}' \\"$OUTPOST_API_URL/api/issues/$OUTPOST_TASK_ID/checkout\\"" })`,
+    `  run_shell_command({ command: "curl -s -X POST -H \\"Authorization: Bearer $OUTPOST_API_KEY\\" -H 'Content-Type: application/json' -H \\"X-Outpost-Run-Id: $OUTPOST_RUN_ID\\" -d '{...}' \\"$OUTPOST_API_URL/api/issues/$OUTPOST_TASK_ID/checkout\\"" })`,
     "When OUTPOST_TASK_ID is not set, substitute a real issue id from the current context; never send a placeholder like {id} in the URL.",
     "",
     "",
@@ -138,7 +138,7 @@ function renderApiAccessNote(env: Record<string, string>): string {
 }
 
 /**
- * Inject Paperclip skills directly into the effective Gemini skills home.
+ * Inject Outpost skills directly into the effective Gemini skills home.
  * This avoids needing GEMINI_CLI_HOME overrides, so the CLI naturally finds
  * both its auth credentials and the injected skills under the child HOME.
  */
@@ -176,7 +176,7 @@ async function ensureGeminiSkillsInjected(
     const target = path.join(skillsHome, entry.runtimeName);
 
     try {
-      const result = await ensurePaperclipSkillSymlink(entry.source, target);
+      const result = await ensureOutpostSkillSymlink(entry.source, target);
       if (result === "skipped") continue;
       await onLog(
         "stderr",
@@ -194,14 +194,14 @@ async function ensureGeminiSkillsInjected(
 async function buildGeminiSkillsDir(
   config: Record<string, unknown>,
 ): Promise<string> {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-gemini-skills-"));
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-gemini-skills-"));
   const target = path.join(tmp, "skills");
   await fs.mkdir(target, { recursive: true });
-  const availableEntries = await readPaperclipRuntimeSkillEntries(config, __moduleDir);
-  const desiredNames = new Set(resolveLegacyPaperclipDesiredSkillNames(config, availableEntries));
+  const availableEntries = await readOutpostRuntimeSkillEntries(config, __moduleDir);
+  const desiredNames = new Set(resolveLegacyOutpostDesiredSkillNames(config, availableEntries));
   for (const entry of availableEntries) {
     if (!desiredNames.has(entry.key)) continue;
-    if (isPaperclipSkillSourceMissing(entry)) continue;
+    if (isOutpostSkillSourceMissing(entry)) continue;
     await fs.symlink(entry.source, path.join(target, entry.runtimeName));
   }
   return target;
@@ -243,15 +243,15 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const model = asString(config.model, DEFAULT_GEMINI_LOCAL_MODEL).trim();
   const sandbox = asBoolean(config.sandbox, false);
 
-  const workspaceContext = parseObject(context.paperclipWorkspace);
+  const workspaceContext = parseObject(context.outpostWorkspace);
   const workspaceCwd = asString(workspaceContext.cwd, "");
   const workspaceSource = asString(workspaceContext.source, "");
   const workspaceId = asString(workspaceContext.workspaceId, "");
   const workspaceRepoUrl = asString(workspaceContext.repoUrl, "");
   const workspaceRepoRef = asString(workspaceContext.repoRef, "");
   const agentHome = asString(workspaceContext.agentHome, "");
-  const workspaceHints = Array.isArray(context.paperclipWorkspaces)
-    ? context.paperclipWorkspaces.filter(
+  const workspaceHints = Array.isArray(context.outpostWorkspaces)
+    ? context.outpostWorkspaces.filter(
       (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
     )
     : [];
@@ -261,12 +261,12 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const cwd = effectiveWorkspaceCwd || configuredCwd || process.cwd();
   let effectiveExecutionCwd = adapterExecutionTargetRemoteCwd(executionTarget, cwd);
   await ensureAbsoluteDirectory(cwd, { createIfMissing: true });
-  const geminiSkillEntries = await readPaperclipRuntimeSkillEntries(config, __moduleDir);
-  const desiredGeminiSkillNames = resolveLegacyPaperclipDesiredSkillNames(config, geminiSkillEntries);
+  const geminiSkillEntries = await readOutpostRuntimeSkillEntries(config, __moduleDir);
+  const desiredGeminiSkillNames = resolveLegacyOutpostDesiredSkillNames(config, geminiSkillEntries);
   if (!executionTargetIsRemote) {
     await ensureGeminiSkillsInjected(
       onLog,
-      geminiSkillEntries.filter((entry) => !isPaperclipSkillSourceMissing(entry)),
+      geminiSkillEntries.filter((entry) => !isOutpostSkillSourceMissing(entry)),
       desiredGeminiSkillNames,
       resolveGeminiSkillsHome(config),
     );
@@ -301,7 +301,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const linkedIssueIds = Array.isArray(context.issueIds)
     ? context.issueIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     : [];
-  const issueWorkMode = readPaperclipIssueWorkModeFromContext(context);
+  const issueWorkMode = readOutpostIssueWorkModeFromContext(context);
   if (wakeTaskId) env.OUTPOST_TASK_ID = wakeTaskId;
   if (issueWorkMode) env.OUTPOST_ISSUE_WORK_MODE = issueWorkMode;
   if (wakeReason) env.OUTPOST_WAKE_REASON = wakeReason;
@@ -360,7 +360,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   let remoteSkillsDir: string | null = null;
   let localSkillsDir: string | null = null;
   let remoteRuntimeRootDir: string | null = null;
-  let paperclipBridge: Awaited<ReturnType<typeof startAdapterExecutionTargetPaperclipBridge>> = null;
+  let outpostBridge: Awaited<ReturnType<typeof startAdapterExecutionTargetOutpostBridge>> = null;
 
   if (executionTargetIsRemote) {
     try {
@@ -469,8 +469,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     }
   }
   const runtimeExecutionTarget = overrideAdapterExecutionTargetRemoteCwd(executionTarget, effectiveExecutionCwd);
-  if (executionTargetIsRemote && adapterExecutionTargetUsesPaperclipBridge(executionTarget)) {
-    paperclipBridge = await startAdapterExecutionTargetPaperclipBridge({
+  if (executionTargetIsRemote && adapterExecutionTargetUsesOutpostBridge(executionTarget)) {
+    outpostBridge = await startAdapterExecutionTargetOutpostBridge({
       runId,
       target: runtimeExecutionTarget,
       enableSandboxDuplexBridge: adapterExecutionTargetEnablesSandboxDuplexBridge(runtimeExecutionTarget),
@@ -481,8 +481,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       hostApiToken: env.OUTPOST_API_KEY,
       onLog,
     });
-    if (paperclipBridge) {
-      Object.assign(env, paperclipBridge.env);
+    if (outpostBridge) {
+      Object.assign(env, outpostBridge.env);
     }
   }
 
@@ -549,9 +549,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const bootstrapPromptTemplate = asString(config.bootstrapPromptTemplate, "");
   const templateData = {
     agentId: agent.id,
-    companyId: agent.companyId,
+    spaceId: agent.spaceId,
     runId,
-    company: { id: agent.companyId },
+    space: { id: agent.spaceId },
     agent,
     run: { id: runId, source: "on_demand" },
     context,
@@ -561,15 +561,15 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       !resumedSession && bootstrapPromptTemplate.trim().length > 0
         ? renderTemplate(bootstrapPromptTemplate, templateData).trim()
         : "";
-    const { taskContextNote, wakePrompt } = selectPaperclipPromptSections(context, {
+    const { taskContextNote, wakePrompt } = selectOutpostPromptSections(context, {
       resumedSession,
       includeCommunicationGuidance: false,
     });
     const shouldUseResumeDeltaPrompt = resumedSession && wakePrompt.length > 0;
-    const renderedPrompt = shouldUseResumeDeltaPrompt || isPaperclipRecoveryWakePayload(context.paperclipWake)
+    const renderedPrompt = shouldUseResumeDeltaPrompt || isOutpostRecoveryWakePayload(context.outpostWake)
       ? ""
       : renderTemplate(promptTemplate, templateData);
-    const sessionHandoffNote = asString(context.paperclipSessionHandoffMarkdown, "").trim();
+    const sessionHandoffNote = asString(context.outpostSessionHandoffMarkdown, "").trim();
     const outpostEnvNote = renderOutpostEnvNote(env);
     const apiAccessNote = renderApiAccessNote(env);
     const basePrompt = joinPromptSections([
@@ -657,8 +657,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       onSpawn,
       onRuntimeProgress: ctx.onRuntimeProgress,
       onLog: accountingLog,
-      runLogTail: paperclipBridge?.runLogTail,
-      settleRunDisposition: paperclipBridge?.settleRunDisposition,
+      runLogTail: outpostBridge?.runLogTail,
+      settleRunDisposition: outpostBridge?.settleRunDisposition,
     });
     await accountingLog.flush();
     return {
@@ -811,7 +811,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       await providerStop.collectBeforeRestore();
     } finally {
       await Promise.all([
-        paperclipBridge?.stop(),
+        outpostBridge?.stop(),
         restoreRemoteWorkspace?.(),
         localSkillsDir ? fs.rm(path.dirname(localSkillsDir), { recursive: true, force: true }).catch(() => undefined) : Promise.resolve(),
       ]);

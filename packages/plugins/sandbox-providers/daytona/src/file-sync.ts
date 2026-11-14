@@ -91,10 +91,10 @@ function toTimeoutSeconds(timeoutMs: number): number {
 }
 
 // Reserved scratch-name stem for staged uploads/downloads and remote tarballs.
-// The runtime's base64 fallback stages to `<path>.paperclip-upload`; the native
+// The runtime's base64 fallback stages to `<path>.outpost-upload`; the native
 // transport reuses the same reserved prefix so a provider temp never collides
 // with a real target or with the fallback's scratch name.
-const SCRATCH_PREFIX = ".paperclip-upload";
+const SCRATCH_PREFIX = ".outpost-upload";
 
 function scratchName(suffix = ""): string {
   return `${SCRATCH_PREFIX}-${randomUUID()}${suffix}`;
@@ -144,7 +144,7 @@ export function assertConfinedSandboxPath(remoteDir: string, candidate: string, 
 }
 
 async function withHostTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-daytona-sync-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-daytona-sync-"));
   try {
     return await fn(dir);
   } finally {
@@ -563,7 +563,7 @@ async function hasCompressedHeader(sourcePath: string): Promise<boolean> {
  * stat, so a throw there does not leave the directory behind.
  */
 async function compressFileToHostTemp(sourcePath: string, codec: TransportCodec): Promise<{ dir: string; path: string; bytesOut: number }> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), `paperclip-daytona-${codec}-`));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), `outpost-daytona-${codec}-`));
   const tempPath = path.join(dir, codec === "zstd" ? "artifact.zst" : "artifact.gz");
   try {
     await pipeline(
@@ -713,7 +713,7 @@ async function snapshotOutboundFileSources(input: {
 /**
  * Best-effort removal of reserved sandbox-side scratch files (upload/download
  * snapshots or partially promoted temps) on both the happy path and error paths,
- * so a failed transfer never accumulates `.paperclip-upload-*` scratch in the
+ * so a failed transfer never accumulates `.outpost-upload-*` scratch in the
  * sandbox. Swallows its own failure — cleanup must never mask the original error.
  */
 async function removeSandboxScratch(
@@ -930,7 +930,7 @@ async function syncInFileMappings(input: {
 
   // A failed upload or a mid-batch `mv -f`/decompress failure leaves reserved
   // scratch (some targets promoted, others not) — sweep every reserved name on
-  // any error so a retry never accumulates stale `.paperclip-upload-*` scratch.
+  // any error so a retry never accumulates stale `.outpost-upload-*` scratch.
   // The private host temp directory is removed in `finally` regardless of
   // outcome — no temp remains after success or failure.
   try {
@@ -1079,9 +1079,9 @@ async function syncInDirectoryMapping(input: {
     });
     guardRoundTrips += 1;
     // The uploaded scratch tar lands at the workspace root as a reserved
-    // `.paperclip-upload-*` entry. The extract script below removes it only on
+    // `.outpost-upload-*` entry. The extract script below removes it only on
     // success. On an upload or extract failure the scratch tar can remain, and the
-    // runtime workspace wipe preserves every `.paperclip-upload-*` entry, so a
+    // runtime workspace wipe preserves every `.outpost-upload-*` entry, so a
     // stale tar would surface in the agent workspace. Sweep the scratch on any
     // failure — symmetric with the file-mapping path — so a failed sync (for
     // example a referenced-project extraction) leaves no residue.

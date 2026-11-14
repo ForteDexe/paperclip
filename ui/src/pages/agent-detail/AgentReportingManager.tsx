@@ -29,12 +29,12 @@ export function invalidManagerIds(agentId: string, agents: Agent[]): string[] {
 export function AgentReportingManager({ agent }: { agent: Agent }) {
   const client = useQueryClient();
   const directory = useQuery({
-    queryKey: queryKeys.agents.list(agent.companyId),
-    queryFn: () => agentsApi.list(agent.companyId),
+    queryKey: queryKeys.agents.list(agent.spaceId),
+    queryFn: () => agentsApi.list(agent.spaceId),
   });
   const directoryView = useQueryView(directory);
   const update = useMutation({
-    mutationFn: (reportsTo: string | null) => agentsApi.update(agent.id, { reportsTo }, agent.companyId),
+    mutationFn: (reportsTo: string | null) => agentsApi.update(agent.id, { reportsTo }, agent.spaceId),
     onSuccess: () => client.invalidateQueries({ queryKey: ["agents"] }),
   });
   const agents = directory.data ?? [];

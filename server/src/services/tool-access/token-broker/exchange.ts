@@ -100,7 +100,7 @@ export function createConnectionTokenExchange(now: () => Date, secrets: ReturnTy
     }
     if (ref.kind === "secret_ref") {
       return secretClient.resolveSecretValue(
-        input.connection.companyId,
+        input.connection.spaceId,
         ref.ref.secretId,
         ref.ref.versionSelector ?? "latest",
         {
@@ -116,7 +116,7 @@ export function createConnectionTokenExchange(now: () => Date, secrets: ReturnTy
       );
     }
     return secretClient.resolveSecretValue(
-      input.connection.companyId,
+      input.connection.spaceId,
       ref.ref.secretId,
       ref.ref.version ?? "latest",
       {

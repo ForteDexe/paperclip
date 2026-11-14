@@ -32,13 +32,13 @@ import { releaseAbandonedNativeOwners } from "./native-runtime/native-failed-run
 export async function reconcileAbandonedExecutionControl(
   db: Db,
   now = new Date(),
-  options: { startupCleanup?: (scope: { companyId: string; runId: string }) => Promise<unknown> } = {},
+  options: { startupCleanup?: (scope: { spaceId: string; runId: string }) => Promise<unknown> } = {},
 ) {
   const nativeDue = await db
     .select({
       runId: nativeRunFinalizations.runId,
       issueId: nativeRunFinalizations.issueId,
-      companyId: nativeRunFinalizations.companyId,
+      spaceId: nativeRunFinalizations.spaceId,
       failureCode: nativeRunFinalizations.failureCode,
       leaseOwner: nativeRunFinalizations.leaseOwner,
       controllerGeneration: nativeRunFinalizations.controllerGeneration,
@@ -56,7 +56,7 @@ export async function reconcileAbandonedExecutionControl(
   const controlDue = await db
     .select({
       runId: heartbeatRuns.id,
-      companyId: heartbeatRuns.companyId,
+      spaceId: heartbeatRuns.spaceId,
       context: heartbeatRuns.contextSnapshot,
       nativeIssueId: nativeRunFinalizations.issueId,
       failureCode: nativeRunFinalizations.failureCode,
@@ -99,7 +99,7 @@ export async function reconcileAbandonedExecutionControl(
         if (candidate.failureCode === NATIVE_STARTUP_CLEANUP_PENDING) {
           if (!options.startupCleanup) continue;
           try {
-            await options.startupCleanup({ companyId: candidate.companyId, runId: candidate.runId });
+            await options.startupCleanup({ spaceId: candidate.spaceId, runId: candidate.runId });
           } finally {
             await db.transaction(async tx => {
               if (candidate.issueId) await tx.select({ id: issues.id }).from(issues).where(eq(issues.id, candidate.issueId)).for("update");
@@ -131,7 +131,7 @@ export async function reconcileAbandonedExecutionControl(
                   .where(
                     and(
                       eq(issues.id, candidate.issueId),
-                      eq(issues.companyId, candidate.companyId),
+                      eq(issues.spaceId, candidate.spaceId),
                     ),
                   )
                   .for("update")
@@ -143,7 +143,7 @@ export async function reconcileAbandonedExecutionControl(
             .where(
               and(
                 eq(nativeRunFinalizations.runId, candidate.runId),
-                eq(nativeRunFinalizations.companyId, candidate.companyId),
+                eq(nativeRunFinalizations.spaceId, candidate.spaceId),
               ),
             )
             .for("update");
@@ -153,7 +153,7 @@ export async function reconcileAbandonedExecutionControl(
             .where(
               and(
                 eq(heartbeatRuns.id, candidate.runId),
-                eq(heartbeatRuns.companyId, candidate.companyId),
+                eq(heartbeatRuns.spaceId, candidate.spaceId),
               ),
             )
             .for("update");
@@ -217,7 +217,7 @@ export async function reconcileAbandonedExecutionControl(
           }
           // A persisted result belongs to the existing finalizer, not a replacement provider.
           if (coordinator?.resultId) {
-            await notifyNativeFinalizationWork(tx, { companyId: run.companyId, runId: run.id });
+            await notifyNativeFinalizationWork(tx, { spaceId: run.spaceId, runId: run.id });
             await tx
               .update(nativeRunFinalizations)
               .set({
@@ -257,17 +257,17 @@ export async function reconcileAbandonedExecutionControl(
                 failureDetail: {
                   ...coordinator.failureDetail,
                   nextAction,
-                  recoveryOwner: { kind: "board" },
+                  recoveryOwner: { kind: "operator" },
                 },
                 updatedAt: now,
               })
               .where(eq(nativeRunFinalizations.runId, run.id));
-          await notifyInstructionCollection(tx, { companyId: run.companyId, runId: run.id });
-          await notifyExternalAgentSettlement(tx, { companyId: run.companyId, runId: run.id });
-          await notifyNativeEnvironmentSettlement(tx, { companyId: run.companyId, runId: run.id });
-          await notifyCancelledWorkspacePreservation(tx, { companyId: run.companyId, runId: run.id });
+          await notifyInstructionCollection(tx, { spaceId: run.spaceId, runId: run.id });
+          await notifyExternalAgentSettlement(tx, { spaceId: run.spaceId, runId: run.id });
+          await notifyNativeEnvironmentSettlement(tx, { spaceId: run.spaceId, runId: run.id });
+          await notifyCancelledWorkspacePreservation(tx, { spaceId: run.spaceId, runId: run.id });
           await notifyUnsafeWorkspaceExportRunChange(tx, run);
-          await notifyExecutionRunWork(tx, { companyId: run.companyId });
+          await notifyExecutionRunWork(tx, { spaceId: run.spaceId });
           const [updatedRun] = await tx
             .update(heartbeatRuns)
             .set({
@@ -296,7 +296,7 @@ export async function reconcileAbandonedExecutionControl(
             .where(
               and(
                 eq(agents.id, run.agentId),
-                eq(agents.companyId, run.companyId),
+                eq(agents.spaceId, run.spaceId),
                 eq(agents.status, "running"),
                 eq(agents.lifecycleState, "ready"),
                 sql`not exists (select 1 from ${heartbeatRuns} where ${heartbeatRuns.agentId} = ${run.agentId} and ${heartbeatRuns.status} = 'running')`,
@@ -305,7 +305,7 @@ export async function reconcileAbandonedExecutionControl(
           const nativeReviewContext = readNativeReviewAssignmentContext(run.contextSnapshot);
           const nativeReviewAssignment = nativeReviewContext && task
             ? await getNativeReviewAssignment(tx as unknown as Db, {
-                companyId: run.companyId,
+                spaceId: run.spaceId,
                 issueId: task.id,
                 agentId: run.agentId,
                 contextSnapshot: nativeReviewContext,
@@ -325,7 +325,7 @@ export async function reconcileAbandonedExecutionControl(
             if (updatedRun) await preserveNativeFailedWorkspace(tx as unknown as Db, updatedRun);
             return true;
           }
-          await notifyNativeStatusReassessment(tx, { companyId: task.companyId, issueId: task.id });
+          await notifyNativeStatusReassessment(tx, { spaceId: task.spaceId, issueId: task.id });
           await tx
             .update(issues)
             .set({ executionRunId: null, checkoutRunId: null, updatedAt: now })
@@ -333,10 +333,10 @@ export async function reconcileAbandonedExecutionControl(
           await issueRecoveryActionService(
             tx as unknown as Db,
           ).upsertSourceScoped({
-            companyId: run.companyId,
+            spaceId: run.spaceId,
             sourceIssueId: task.id,
             kind: "active_run_watchdog",
-            ownerType: "board",
+            ownerType: "operator",
             ownerAgentId: null,
             returnOwnerAgentId: task.assigneeAgentId,
             cause,

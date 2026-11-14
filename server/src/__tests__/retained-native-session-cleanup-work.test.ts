@@ -8,7 +8,7 @@ import { PROCESS_IDENTITY_RECORDED, releaseSettledNativeRunProcess } from "../se
 import { setTimeout as delay } from "node:timers/promises";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, companies, completionContracts, createDb, environmentLeases, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations,
+import { agents, spaces, completionContracts, createDb, environmentLeases, heartbeatRunEvents, heartbeatRuns, issues, nativeRunFinalizations,
   nativeRunResults, statusDecisions, workAssessments, type Db } from "@outpost/db";
 import { settleAbsentSandbox, settleStopOnlyCleanup } from "../services/sandbox-stop-and-retain.js";
 import { settleNativeWorkspaceExportResume } from "../services/native-runtime/native-workspace-export-resume.js";
@@ -34,11 +34,11 @@ describe("retained native cleanup scheduled lifecycle", () => {
   let db: ReturnType<typeof createDb>;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let worker: ReturnType<ReturnType<typeof retainedNativeSessionCleanupWork>["register"]> | undefined;
-  const companyId = randomUUID(), agentId = randomUUID();
+  const spaceId = randomUUID(), agentId = randomUUID();
   const closeError = "provider_transport_failed: runner did not durably suspend before checkpoint";
   let admitted = true;
   const errors: unknown[] = [];
-  async function settle(input: { runId: string; companyId: string }): Promise<NativeCleanupOutcome> {
+  async function settle(input: { runId: string; spaceId: string }): Promise<NativeCleanupOutcome> {
     await db.update(nativeRunFinalizations).set({ leaseOwner: null, leaseExpiresAt: null,
       recoveryHistory: [{ kind: "native_cleanup_maintenance", phase: "settled" }] })
       .where(eq(nativeRunFinalizations.runId, input.runId));
@@ -47,10 +47,10 @@ describe("retained native cleanup scheduled lifecycle", () => {
   const cleanup = vi.fn(settle);
   beforeAll(async () => {
     const external = resolveExternalTestDatabaseUrl("OUTPOST_RETAINED_CLEANUP_TEST_DATABASE_URL");
-    if (!external) temporary = await startEmbeddedPostgresTestDatabase("paperclip-retained-cleanup-");
+    if (!external) temporary = await startEmbeddedPostgresTestDatabase("outpost-retained-cleanup-");
     db = createDb(external ?? temporary!.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Retained cleanup lifecycle", issuePrefix: `RC${randomUUID().slice(0, 8)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Cleanup agent", adapterType: "codex_local" });
+    await db.insert(spaces).values({ id: spaceId, name: "Retained cleanup lifecycle", issuePrefix: `RC${randomUUID().slice(0, 8)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Cleanup agent", adapterType: "codex_local" });
   }, 30_000);
   beforeEach(() => {
     admitted = true; errors.length = 0; cleanup.mockReset().mockImplementation(settle);
@@ -59,7 +59,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
   afterEach(async () => {
     worker?.stop(); await coordinator?.stop(); worker = undefined; coordinator = undefined;
     vi.useRealTimers(); vi.restoreAllMocks();
-    await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, companyId));
+    await db.delete(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, spaceId));
     expect(errors).toEqual([]);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
@@ -89,14 +89,14 @@ describe("retained native cleanup scheduled lifecycle", () => {
   async function commitCandidate() {
     const runId = randomUUID();
     return db.transaction(async tx => {
-      await notifyNativeFinalizationWork(tx, { companyId, runId });
+      await notifyNativeFinalizationWork(tx, { spaceId, runId });
       return candidate({ runId }, tx as unknown as Db);
     });
   }
   async function candidate(
     options: {
       runId?: string;
-      owner?: { companyId: string; agentId: string };
+      owner?: { spaceId: string; agentId: string };
       run?: Partial<typeof heartbeatRuns.$inferInsert>;
       coordinator?: Partial<typeof nativeRunFinalizations.$inferInsert>;
       schemaStatus?: string;
@@ -105,7 +105,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     } = {},
     writer: Db = db,
   ) {
-    const owner = options.owner ?? { companyId, agentId };
+    const owner = options.owner ?? { spaceId, agentId };
     const runId = options.runId ?? randomUUID();
     const issueId = options.issueId ?? randomUUID();
     const contractId = randomUUID();
@@ -113,13 +113,13 @@ describe("retained native cleanup scheduled lifecycle", () => {
       .insert(issues)
       .values({
         id: issueId,
-        companyId: owner.companyId,
+        spaceId: owner.spaceId,
         title: "Retained session",
         assigneeAgentId: owner.agentId,
       });
     await writer.insert(completionContracts).values({
       id: contractId,
-      companyId: owner.companyId,
+      spaceId: owner.spaceId,
       issueId,
       revision: options.revision ?? 1,
       schemaVersion: "outpost.completion-contract.v1",
@@ -134,7 +134,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     });
     await writer.insert(heartbeatRuns).values({
       id: runId,
-      companyId: owner.companyId,
+      spaceId: owner.spaceId,
       agentId: owner.agentId,
       runtimeMode: "native",
       status: "succeeded",
@@ -151,7 +151,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     const [result] = await writer
       .insert(nativeRunResults)
       .values({
-        companyId: owner.companyId,
+        spaceId: owner.spaceId,
         issueId,
         runId,
         completionContractId: contractId,
@@ -164,13 +164,13 @@ describe("retained native cleanup scheduled lifecycle", () => {
     const [assessment] = await writer
       .insert(workAssessments)
       .values({
-        companyId: owner.companyId,
+        spaceId: owner.spaceId,
         issueId,
         runId,
         contractId,
         resultId: result!.id,
         triggerKind: "native_result",
-        triggerActorCompanyId: owner.companyId,
+        triggerActorSpaceId: owner.spaceId,
         priorIssueStatus: "in_progress",
         priorStatusVersion: 0,
         policyVersion: "phase6-v3",
@@ -181,7 +181,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     const [decision] = await writer
       .insert(statusDecisions)
       .values({
-        companyId: owner.companyId,
+        spaceId: owner.spaceId,
         issueId,
         runId,
         assessmentId: assessment!.id,
@@ -195,7 +195,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
       })
       .returning();
     await writer.insert(nativeRunFinalizations).values({
-      companyId: owner.companyId,
+      spaceId: owner.spaceId,
       issueId,
       runId,
       phase: "committed",
@@ -212,7 +212,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     await start(); await flush(); await quiet();
     const runId = await commitCandidate();
     await flush();
-    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ companyId, runId });
+    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ spaceId, runId });
     await quiet();
   });
 
@@ -231,7 +231,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     await flush();
     await quiet();
     expect(cleanup).toHaveBeenCalledTimes(1);
-    expect(await retainedNativeSessionCleanupWork(db, cleanup).load({ companyId, runId })).toHaveLength(1);
+    expect(await retainedNativeSessionCleanupWork(db, cleanup).load({ spaceId, runId })).toHaveLength(1);
     const debug = db.$client.options.debug;
     const queries: string[] = [];
     db.$client.options.debug = (_connection, query) => {
@@ -239,14 +239,14 @@ describe("retained native cleanup scheduled lifecycle", () => {
     };
     try {
       for (let i = 0; i < 3; i++) {
-        await db.transaction(tx => notifyNativeFinalizationWork(tx, { companyId }));
+        await db.transaction(tx => notifyNativeFinalizationWork(tx, { spaceId }));
         await flush();
       }
       expect(queries).toEqual([]);
       expect(cleanup).toHaveBeenCalledTimes(1);
     } finally { db.$client.options.debug = debug; }
     cleanup.mockImplementation(settle);
-    releaseRetainedNativeSessionCleanup(db, { companyId, runId });
+    releaseRetainedNativeSessionCleanup(db, { spaceId, runId });
     await flush();
     expect(cleanup).toHaveBeenCalledTimes(2);
     await quiet();
@@ -257,7 +257,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
       const runId = await candidate();
       cleanup.mockResolvedValueOnce({ runId, status: "deferred", waitFor });
       await start(); await flush(); await quiet();
-      releaseRetainedNativeSessionCleanup(db, { companyId, runId });
+      releaseRetainedNativeSessionCleanup(db, { spaceId, runId });
       await flush();
       expect(cleanup).toHaveBeenCalledTimes(2);
       await quiet();
@@ -266,7 +266,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
 
   it.each(["single", "run"] as const)("reactivates after the real %s lease release commits, but not rollback", async method => {
     const runId = await candidate();
-    const [lease] = await db.insert(environmentLeases).values({ companyId, heartbeatRunId: runId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, heartbeatRunId: runId,
       status: "active", provider: "local" }).returning();
     cleanup.mockImplementation(async input => {
       const [current] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, lease!.id));
@@ -303,7 +303,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
 
   it("keeps pending cleanup quiet through metadata updates and stale release attempts", async () => {
     const runId = await candidate(), attemptId = randomUUID();
-    const [lease] = await db.insert(environmentLeases).values({ companyId, heartbeatRunId: runId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, heartbeatRunId: runId,
       status: "pending_cleanup", provider: "local", metadata: { pendingCleanupAttemptId: attemptId } }).returning();
     cleanup.mockResolvedValueOnce({ runId, status: "deferred", waitFor: "environment_release" });
     await start(); await flush();
@@ -324,16 +324,16 @@ describe("retained native cleanup scheduled lifecycle", () => {
     const runId = await candidate({ run: { runnerProfileJson: { nativeWorkspaceFinalizationOwner: { token: ownerToken } } } });
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
     const leaseId = randomUUID(), providerLeaseId = randomUUID(), attemptId = randomUUID(), pluginId = randomUUID();
-    const binding = { companyId, runId, leaseId, provider: "daytona" as const, providerLeaseId };
+    const binding = { spaceId, runId, leaseId, provider: "daytona" as const, providerLeaseId };
     const marker = { ...binding, requestId: attemptId, pluginId,
       schema: method === "export-resume" ? "outpost.workspace-export-resume.v2" : "outpost.sandbox-stop-and-retain.v1",
       resultId: randomUUID() };
-    const [lease] = await db.insert(environmentLeases).values({ id: leaseId, companyId, heartbeatRunId: runId,
+    const [lease] = await db.insert(environmentLeases).values({ id: leaseId, spaceId, heartbeatRunId: runId,
       issueId: run!.nativeIssueId, provider: "daytona", providerLeaseId, status: "pending_cleanup", cleanupStatus: "failed",
       metadata: { pluginId, pendingCleanupAttemptId: attemptId,
         [method === "export-resume" ? "nativeWorkspaceExportResume" : "sandboxStopAndRetain"]: marker } }).returning();
     const proof: SandboxAbsenceProof = { ...binding, issueId: run!.nativeIssueId!, ownerToken, v: 1,
-      iss: "paperclip-cloud", aud: "paperclip-sandbox-absence/v1", sub: "fixture", absent: true,
+      iss: "outpost-cloud", aud: "outpost-sandbox-absence/v1", sub: "fixture", absent: true,
       iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 60 };
     cleanup.mockImplementation(async input => {
       const [current] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, leaseId));
@@ -371,7 +371,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     const pid = 2_000_000_000, startedAt = new Date();
     const runId = await candidate({ run: { status: "failed", processPid: pid, processGroupId: pid,
       processStartedAt: startedAt, runnerProfileJson: { sessionCheckpoint: {} } } });
-    await db.insert(heartbeatRunEvents).values({ companyId, runId, agentId, seq: 0,
+    await db.insert(heartbeatRunEvents).values({ spaceId, runId, agentId, seq: 0,
       eventType: PROCESS_IDENTITY_RECORDED, payload: { targetKind: "local", hostname: os.hostname(),
         processPid: pid, processGroupId: pid, processStartedAt: startedAt.toISOString() } });
     await db.update(heartbeatRuns).set({ nextEventSeq: 1 }).where(eq(heartbeatRuns.id, runId));
@@ -429,7 +429,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     await flush(); await quiet();
     expect(cleanup).not.toHaveBeenCalled();
     await finalize(db); await flush();
-    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ companyId, runId });
+    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ spaceId, runId });
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
     expect(run!.status).toBe("succeeded");
     expect(run!.error).toBeNull();
@@ -449,7 +449,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     expect(coordinator!.nextWakeAt()).toBe(leaseExpiresAt.getTime());
     await quiet(10_000);
     await vi.advanceTimersByTimeAsync(40_000); await flush();
-    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ companyId, runId });
+    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ spaceId, runId });
     await quiet();
   });
 
@@ -469,7 +469,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     const entered = deferred(), release = deferred();
     const transaction = db.transaction(async outer => {
       await outer.transaction(async tx => {
-        await notifyRetainedNativeSessionCleanup(tx, { companyId });
+        await notifyRetainedNativeSessionCleanup(tx, { spaceId });
         await candidate({}, tx as unknown as Db);
       });
       entered.resolve(); await release.promise;
@@ -481,7 +481,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     expect(cleanup).not.toHaveBeenCalled();
     release.resolve(); await rolledBack; await flush(); await quiet();
     const runId = await commitCandidate(); await flush();
-    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ companyId, runId });
+    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ spaceId, runId });
     await quiet();
   });
 
@@ -492,7 +492,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     expect(cleanup).not.toHaveBeenCalled();
     await quiet();
     admitted = true; await vi.advanceTimersByTimeAsync(30_000); await flush();
-    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ companyId, runId });
+    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ spaceId, runId });
     await quiet();
   });
 
@@ -540,9 +540,9 @@ describe("retained native cleanup scheduled lifecycle", () => {
     const first = await candidate(), second = await candidate();
     const entered = deferred(), release = deferred();
     cleanup.mockImplementationOnce(async input => { entered.resolve(); await release.promise; return settle(input); });
-    const active = runRetainedNativeSessionCleanup(db, { companyId, runId: first }, cleanup);
+    const active = runRetainedNativeSessionCleanup(db, { spaceId, runId: first }, cleanup);
     await entered.promise;
-    const queued = runRetainedNativeSessionCleanup(db, { companyId, runId: second }, cleanup);
+    const queued = runRetainedNativeSessionCleanup(db, { spaceId, runId: second }, cleanup);
     try { await delay(10); expect(cleanup).toHaveBeenCalledTimes(1); }
     finally { release.resolve(); }
     await Promise.all([active, queued]);
@@ -564,7 +564,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     try {
       await delay(10);
       expect(drained).toBe(false);
-      expect(physical).toHaveBeenCalledExactlyOnceWith(db, { companyId, runId });
+      expect(physical).toHaveBeenCalledExactlyOnceWith(db, { spaceId, runId });
     } finally { release.resolve(); }
     await worker.ready; await draining; await flush();
     expect(drained).toBe(true); await quiet();
@@ -581,7 +581,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     finally { release.resolve(); }
     await Promise.all([starting, stopping]);
     expect(stopped).toBe(true); expect(cleanup).toHaveBeenCalledTimes(1);
-    releaseRetainedNativeSessionCleanup(db, { companyId });
+    releaseRetainedNativeSessionCleanup(db, { spaceId });
     await quiet();
   });
 
@@ -589,10 +589,10 @@ describe("retained native cleanup scheduled lifecycle", () => {
     const runId = await candidate({ coordinator: { leaseOwner: "old-owner", leaseExpiresAt: new Date(Date.now() + 60_000) } });
     await start(); expect(cleanup).not.toHaveBeenCalled();
     await db.transaction(async tx => {
-      await notifyNativeFinalizationWork(tx, { companyId, runId });
+      await notifyNativeFinalizationWork(tx, { spaceId, runId });
       await tx.update(nativeRunFinalizations).set({ leaseOwner: null, leaseExpiresAt: null }).where(eq(nativeRunFinalizations.runId, runId));
     });
-    await flush(); expect(cleanup).toHaveBeenCalledExactlyOnceWith({ companyId, runId });
+    await flush(); expect(cleanup).toHaveBeenCalledExactlyOnceWith({ spaceId, runId });
     await quiet();
   });
 
@@ -600,7 +600,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     const runId = await candidate({ coordinator: { leaseOwner: "old-owner", leaseExpiresAt: new Date(Date.now() + 60_000) } });
     await start();
     await db.transaction(async tx => {
-      await notifyNativeFinalizationWork(tx, { companyId, runId });
+      await notifyNativeFinalizationWork(tx, { spaceId, runId });
       await tx.update(nativeRunFinalizations).set({ recoveryHistory: [{ kind: "native_cleanup_source_archive", phase: "operator_required" }] })
         .where(eq(nativeRunFinalizations.runId, runId));
     });
@@ -611,7 +611,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     const runId = await candidate(); admitted = false;
     await start(); await quiet(); expect(cleanup).not.toHaveBeenCalled();
     admitted = true; await vi.advanceTimersByTimeAsync(30_000); await flush();
-    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ companyId, runId }); await quiet();
+    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ spaceId, runId }); await quiet();
   });
 
   it("drains a backlog across discovery pages and becomes quiet with the completed history retained", async () => {
@@ -624,7 +624,7 @@ describe("retained native cleanup scheduled lifecycle", () => {
     // observe a false quiet state.
     await start(); await flush(5);
     expect(cleanup.mock.calls.map(([input]) => input.runId).sort()).toEqual(runIds.sort());
-    expect(await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.companyId, companyId))).toHaveLength(103);
+    expect(await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.spaceId, spaceId))).toHaveLength(103);
     await quiet();
   });
 
@@ -634,6 +634,6 @@ describe("retained native cleanup scheduled lifecycle", () => {
     await start(); expect(errors).toHaveLength(1); errors.length = 0;
     expect(cleanup).not.toHaveBeenCalled();
     await quiet(20_000); await vi.advanceTimersByTimeAsync(10_000); await flush();
-    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ companyId, runId }); await quiet();
+    expect(cleanup).toHaveBeenCalledExactlyOnceWith({ spaceId, runId }); await quiet();
   });
 });

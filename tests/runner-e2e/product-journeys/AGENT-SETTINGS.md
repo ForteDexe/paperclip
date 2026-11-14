@@ -27,7 +27,7 @@ does not edit the shared source agent, provider, model, accounts, or feature fla
 3. Reload Instructions. Require the exact saved bytes in both the browser and
    the normal read API. Verify a new `agent.files_updated` audit event with the
    signed-in user, exact owned agent, entry path, and content hash.
-   Activity reads use both entity filters before the API limit. Unrelated company
+   Activity reads use both entity filters before the API limit. Unrelated space
    history cannot consume that page. A full owned page or foreign entity fails
    the coverage check rather than being silently filtered.
 4. Create one ordinary task through the shared composer. The agent must use the

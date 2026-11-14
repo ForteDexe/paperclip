@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { Issue, PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { Issue, OutpostPluginManifestV1 } from "@outpost/shared";
 import { createTestHarness } from "@outpost/plugin-sdk/testing";
 
-function seededIssue(input: Partial<Issue> & Pick<Issue, "id" | "companyId" | "title">): Issue {
+function seededIssue(input: Partial<Issue> & Pick<Issue, "id" | "spaceId" | "title">): Issue {
   const now = new Date();
   return {
     workMode: "standard",
@@ -43,34 +43,34 @@ function seededIssue(input: Partial<Issue> & Pick<Issue, "id" | "companyId" | "t
 
 describe("plugin SDK test harness", () => {
   it("rejects project snapshot requests that the host would deny", async () => {
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: "outpost.test-project-snapshots",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Project Snapshots",
       description: "Test plugin",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["automation"],
       capabilities: ["projects.read", "project.workspaces.read", "projects.instance-secrets"],
       entrypoints: { worker: "./dist/worker.js" },
     };
     const harness = createTestHarness({ manifest });
     const projectId = "10000000-0000-4000-8000-000000000001";
-    await expect(harness.ctx.projects.readSnapshots([], "company", "settings")).rejects.toThrow("Invalid project snapshot scope");
-    await expect(harness.ctx.projects.readSnapshots([projectId, projectId], "company", "settings")).rejects.toThrow("Invalid project snapshot scope");
-    await expect(harness.ctx.projects.readSnapshots([projectId], "company", "bad type")).rejects.toThrow("Invalid project snapshot scope");
+    await expect(harness.ctx.projects.readSnapshots([], "space", "settings")).rejects.toThrow("Invalid project snapshot scope");
+    await expect(harness.ctx.projects.readSnapshots([projectId, projectId], "space", "settings")).rejects.toThrow("Invalid project snapshot scope");
+    await expect(harness.ctx.projects.readSnapshots([projectId], "space", "bad type")).rejects.toThrow("Invalid project snapshot scope");
     const denied = createTestHarness({ manifest: { ...manifest, capabilities: [] } });
-    await expect(denied.ctx.projects.readSnapshots([], "company", "settings")).rejects.toThrow("missing required capability");
+    await expect(denied.ctx.projects.readSnapshots([], "space", "settings")).rejects.toThrow("missing required capability");
   });
 
   it("returns scoped execution workspace metadata with the read capability", async () => {
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: "outpost.test-execution-workspace-metadata",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Execution Workspace Metadata",
       description: "Test plugin",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["automation"],
       capabilities: ["execution.workspaces.read"],
       entrypoints: { worker: "./dist/worker.js" },
@@ -79,11 +79,11 @@ describe("plugin SDK test harness", () => {
     harness.seed({
       executionWorkspaces: [{
         id: "workspace-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         projectId: "project-1",
         projectWorkspaceId: "project-workspace-1",
-        path: "/tmp/paperclip-test",
-        cwd: "/tmp/paperclip-test",
+        path: "/tmp/outpost-test",
+        cwd: "/tmp/outpost-test",
         repoUrl: "https://example.com/repo.git",
         baseRef: "main",
         branchName: "feature/test",
@@ -92,42 +92,42 @@ describe("plugin SDK test harness", () => {
       }],
     });
 
-    await expect(harness.ctx.executionWorkspaces.get("workspace-1", "company-1")).resolves.toMatchObject({
+    await expect(harness.ctx.executionWorkspaces.get("workspace-1", "space-1")).resolves.toMatchObject({
       id: "workspace-1",
-      cwd: "/tmp/paperclip-test",
+      cwd: "/tmp/outpost-test",
       branchName: "feature/test",
       providerMetadata: { sandboxId: "sandbox-1" },
     });
-    await expect(harness.ctx.executionWorkspaces.get("workspace-1", "company-2")).resolves.toBeNull();
+    await expect(harness.ctx.executionWorkspaces.get("workspace-1", "space-2")).resolves.toBeNull();
   });
 
   it("requires execution.workspaces.read before returning workspace metadata", async () => {
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: "outpost.test-missing-execution-workspace-read",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Missing Workspace Read Capability",
       description: "Test plugin",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["automation"],
       capabilities: [],
       entrypoints: { worker: "./dist/worker.js" },
     };
     const harness = createTestHarness({ manifest });
 
-    await expect(harness.ctx.executionWorkspaces.get("workspace-1", "company-1")).rejects.toThrow(
+    await expect(harness.ctx.executionWorkspaces.get("workspace-1", "space-1")).rejects.toThrow(
       "missing required capability 'execution.workspaces.read'",
     );
   });
 
   it("requires skills.managed capability before resetting a missing declaration", async () => {
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: "outpost.test-missing-managed-skill-capability",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Missing Managed Skill Capability",
       description: "Test plugin",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["automation"],
       capabilities: [],
       entrypoints: { worker: "./dist/worker.js" },
@@ -138,44 +138,44 @@ describe("plugin SDK test harness", () => {
     };
     const harness = createTestHarness({ manifest });
 
-    await expect(harness.ctx.skills.managed.reset("unknown-skill", "company-1")).rejects.toThrow(
+    await expect(harness.ctx.skills.managed.reset("unknown-skill", "space-1")).rejects.toThrow(
       "missing required capability 'skills.managed'",
     );
   });
 
   it("requires access and authorization capabilities for permission SDK calls", async () => {
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: "outpost.test-missing-access-authz-capability",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Missing Access Capability",
       description: "Test plugin",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["automation"],
       capabilities: [],
       entrypoints: { worker: "./dist/worker.js" },
     };
     const harness = createTestHarness({ manifest });
 
-    await expect(harness.ctx.access.members.list({ companyId: "company-1" })).rejects.toThrow(
+    await expect(harness.ctx.access.members.list({ spaceId: "space-1" })).rejects.toThrow(
       "missing required capability 'access.members.read'",
     );
-    await expect(harness.ctx.authorization.grants.list({ companyId: "company-1" })).rejects.toThrow(
+    await expect(harness.ctx.authorization.grants.list({ spaceId: "space-1" })).rejects.toThrow(
       "missing required capability 'authorization.grants.read'",
     );
-    await expect(harness.ctx.authorization.audit.search({ companyId: "company-1" })).rejects.toThrow(
+    await expect(harness.ctx.authorization.audit.search({ spaceId: "space-1" })).rejects.toThrow(
       "missing required capability 'authorization.audit.read'",
     );
   });
 
   it("returns tombstone-safe deleted comments from the in-memory issue helper", async () => {
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: "outpost.test-comment-redaction",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Comment Redaction",
       description: "Test plugin",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["automation"],
       capabilities: ["issue.comments.read"],
       entrypoints: { worker: "./dist/worker.js" },
@@ -184,14 +184,14 @@ describe("plugin SDK test harness", () => {
     harness.seed({
       issues: [seededIssue({
         id: "issue-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         title: "Comment redaction",
         status: "todo",
         priority: "medium",
       })],
       issueComments: [{
         id: "comment-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         authorType: "user",
         authorAgentId: null,
@@ -207,7 +207,7 @@ describe("plugin SDK test harness", () => {
       }],
     });
 
-    const comments = await harness.ctx.issues.listComments("issue-1", "company-1");
+    const comments = await harness.ctx.issues.listComments("issue-1", "space-1");
 
     expect(comments).toHaveLength(1);
     expect(comments[0]).toMatchObject({
@@ -222,13 +222,13 @@ describe("plugin SDK test harness", () => {
   });
 
   it("rejects a human-attributed comment when the actorUserId is not an active member", async () => {
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: "outpost.test-human-attributed-comment-unverified",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Human-Attributed Comment (unverified)",
       description: "Test plugin",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["automation"],
       capabilities: ["issue.comments.create", "issue.comments.create_human_attributed"],
       entrypoints: { worker: "./dist/worker.js" },
@@ -237,7 +237,7 @@ describe("plugin SDK test harness", () => {
     harness.seed({
       issues: [seededIssue({
         id: "issue-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         title: "Human attribution",
         status: "todo",
         priority: "medium",
@@ -247,7 +247,7 @@ describe("plugin SDK test harness", () => {
       // plugin test cannot pass an attribution production would reject.
       accessMembers: [{
         id: "member-suspended",
-        companyId: "company-1",
+        spaceId: "space-1",
         principalType: "user",
         principalId: "user-1",
         status: "suspended",
@@ -259,21 +259,21 @@ describe("plugin SDK test harness", () => {
     });
 
     await expect(
-      harness.ctx.issues.createComment("issue-1", "relayed reply", "company-1", { actorUserId: "user-1" }),
-    ).rejects.toThrow('actorUserId "user-1" is not an active human member of this company');
+      harness.ctx.issues.createComment("issue-1", "relayed reply", "space-1", { actorUserId: "user-1" }),
+    ).rejects.toThrow('actorUserId "user-1" is not an active human member of this space');
   });
 
   it("rejects a human-attributed comment when the actorUserId is a viewer-role (read-only) member", async () => {
     // LOOA-648: the harness mirrors the host's viewer write-bar so a plugin's
     // own test suite cannot pass an attribution production rejects. A viewer is
     // an active member but read-only in the web app.
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: "outpost.test-human-attributed-comment-viewer",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Human-Attributed Comment (viewer)",
       description: "Test plugin",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["automation"],
       capabilities: ["issue.comments.create", "issue.comments.create_human_attributed"],
       entrypoints: { worker: "./dist/worker.js" },
@@ -282,14 +282,14 @@ describe("plugin SDK test harness", () => {
     harness.seed({
       issues: [seededIssue({
         id: "issue-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         title: "Human attribution",
         status: "todo",
         priority: "medium",
       })],
       accessMembers: [{
         id: "member-viewer",
-        companyId: "company-1",
+        spaceId: "space-1",
         principalType: "user",
         principalId: "user-1",
         status: "active",
@@ -301,18 +301,18 @@ describe("plugin SDK test harness", () => {
     });
 
     await expect(
-      harness.ctx.issues.createComment("issue-1", "relayed reply", "company-1", { actorUserId: "user-1" }),
+      harness.ctx.issues.createComment("issue-1", "relayed reply", "space-1", { actorUserId: "user-1" }),
     ).rejects.toThrow("viewer (read-only) access");
   });
 
   it("attributes a comment to an active human member for a verified actorUserId", async () => {
-    const manifest: PaperclipPluginManifestV1 = {
+    const manifest: OutpostPluginManifestV1 = {
       id: "outpost.test-human-attributed-comment-verified",
       apiVersion: 1,
       version: "0.1.0",
       displayName: "Human-Attributed Comment (verified)",
       description: "Test plugin",
-      author: "Paperclip",
+      author: "Outpost",
       categories: ["automation"],
       capabilities: ["issue.comments.create", "issue.comments.create_human_attributed"],
       entrypoints: { worker: "./dist/worker.js" },
@@ -321,14 +321,14 @@ describe("plugin SDK test harness", () => {
     harness.seed({
       issues: [seededIssue({
         id: "issue-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         title: "Human attribution",
         status: "todo",
         priority: "medium",
       })],
       accessMembers: [{
         id: "member-active",
-        companyId: "company-1",
+        spaceId: "space-1",
         principalType: "user",
         principalId: "user-1",
         status: "active",
@@ -342,7 +342,7 @@ describe("plugin SDK test harness", () => {
     const comment = await harness.ctx.issues.createComment(
       "issue-1",
       "relayed reply",
-      "company-1",
+      "space-1",
       { actorUserId: "user-1" },
     );
 

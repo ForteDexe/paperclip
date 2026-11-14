@@ -8,9 +8,9 @@ export const listApprovalsAction = {
       "live"
     ],
     "placement": "optional_agent_tool",
-    "optionalGroup": "governance",
+    "optionalGroup": "approvals",
     "requiredClaims": [
-      "governance:approvals:read"
+      "approvals:approvals:read"
     ],
     "taskModes": [
       "standard",
@@ -29,7 +29,7 @@ export const listApprovalsAction = {
   },
   "documentation": {
     "title": "List approvals",
-    "description": "List approvals in the run company.",
+    "description": "List approvals in the run space.",
     "note": null
   },
   "examples": {
@@ -50,10 +50,10 @@ export const listApprovalsAction = {
       "operationId": "list_approvals",
       "version": 1,
       "title": "List approvals",
-      "description": "List approvals in the run company.",
+      "description": "List approvals in the run space.",
       "exposure": "optional",
       "requiredClaims": [
-        "governance:approvals:read"
+        "approvals:approvals:read"
       ],
       "allowedModes": [
         "standard",
@@ -79,7 +79,7 @@ export const listApprovalsAction = {
       "operationId": "list_approvals",
       "version": 1,
       "title": "List Approvals",
-      "description": "List Approvals through the Capability governance capability set.",
+      "description": "List Approvals through the Capability approvals capability set.",
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -121,9 +121,9 @@ export const listApprovalsAction = {
         "additionalProperties": false
       },
       "disposition": "optional_agent_tool",
-      "optionalGroup": "governance",
+      "optionalGroup": "approvals",
       "requiredClaims": [
-        "governance:approvals:read"
+        "approvals:approvals:read"
       ],
       "taskModes": [
         "standard",
@@ -136,7 +136,7 @@ export const listApprovalsAction = {
       "redaction": [],
       "mockCommandMapping": {
         "kind": "snapshot_read",
-        "projection": "company_approvals"
+        "projection": "space_approvals"
       }
     }
   }

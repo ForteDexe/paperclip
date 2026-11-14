@@ -1,7 +1,7 @@
 import { isAcpxCanonicalInputMethod } from "../acpx/profile-extensions.js";
 import { resolveCompletionContinuation } from "../completion-continuation.js";
 import { isSemanticToolOutcomeUnknownError } from "../../contracts/native-session-backend.js";
-import type { HarnessRuntimeRequest, PaperclipQuestionSet } from "../../contracts/harness-driver.js";
+import type { HarnessRuntimeRequest, OutpostQuestionSet } from "../../contracts/harness-driver.js";
 import {
   CODEX_BLOCK_TOOL_NAME,
 } from "../../contracts/codex.js";
@@ -43,7 +43,7 @@ export async function handleServerRequest(
       rejected = true;
       throw error;
     } finally {
-      const correlation = request.paperclipTrace;
+      const correlation = request.outpostTrace;
       if (correlation !== undefined) {
         const emittedEventIds: string[] = [];
         for (
@@ -217,8 +217,8 @@ async function handleServerRequestBody(
               type: "inputText",
               text:
                 tool === CODEX_BLOCK_TOOL_NAME
-                  ? "paperclip_block requires reportedWorkDisposition=blocked."
-                  : "paperclip_finish accepts done, needs_review, or yielded with a response, monitor, handoff, or server-resolved workspace continuation.",
+                  ? "outpost_block requires reportedWorkDisposition=blocked."
+                  : "outpost_finish accepts done, needs_review, or yielded with a response, monitor, handoff, or server-resolved workspace continuation.",
             },
           ],
         };
@@ -271,7 +271,7 @@ async function handleServerRequestBody(
       );
       return safeRequestResponse(request.method);
     }
-    let input: PaperclipQuestionSet | null = null;
+    let input: OutpostQuestionSet | null = null;
     const responseContext = createCodexQuestionResponseContext();
     try {
       input = normalizeCodexQuestionSet(

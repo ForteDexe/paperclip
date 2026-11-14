@@ -1,5 +1,5 @@
 /**
- * Local proof for the batched task-read filter of `GET /companies/:id/issues/summaries`.
+ * Local proof for the batched task-read filter of `GET /spaces/:id/issues/summaries`.
  *
  * The route reads up to 50 task summaries and then decides, task by task,
  * whether the actor may read each one. The pre-fix route asked for one
@@ -80,18 +80,18 @@ try {
   const sql = db.$client;
   const loadStart = performance.now();
   const f = await seedIssueReadVisibilityFixture(db, { publicCount: Math.max(IDS, 8) });
-  // The rest of the company's task history, a third of it private to other people.
-  await sql.unsafe(`insert into issues (id, company_id, title, status, visibility, privacy_root_issue_id, created_by_user_id)
+  // The rest of the space's task history, a third of it private to other people.
+  await sql.unsafe(`insert into issues (id, space_id, title, status, visibility, privacy_root_issue_id, created_by_user_id)
     select id, $1::uuid, 'History ' || n, 'done', case when n % 3 = 0 then 'private' else 'open' end,
       case when n % 3 = 0 then id end, $3
     from (select gen_random_uuid() id, n from generate_series(1, $2::int) n) history`,
-  [f.companyId, NOISE_ISSUES, f.strangerUserId]);
+  [f.spaceId, NOISE_ISSUES, f.strangerUserId]);
   await sql.unsafe("vacuum analyze");
   const loadMs = performance.now() - loadStart;
 
   // What one screen asks for: mostly open tasks, private tasks the actor may and
   // may not read (roots and descendants), a blocked task, and IDs of another
-  // company and of nothing, which must be omitted.
+  // space and of nothing, which must be omitted.
   const special = [
     ...f.ownedPrivateIds, ...f.grantedPrivateIds, ...f.assignedPrivateIds, ...f.unreadablePrivateIds,
     ...f.privateProjectIssueIds, ...f.blockedIds, ...f.foreignIds, ...f.missingIds,
@@ -114,7 +114,7 @@ try {
     const server = app.listen(0, "127.0.0.1");
     servers.push(server);
     await new Promise<void>((resolve, reject) => { server.once("listening", resolve); server.once("error", reject); });
-    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/companies/${f.companyId}/issues/summaries?ids=${ids.join(",")}`;
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/spaces/${f.spaceId}/issues/summaries?ids=${ids.join(",")}`;
     return async () => {
       const response = await fetch(url);
       assert.equal(response.status, 200);
@@ -154,7 +154,7 @@ try {
     for (const arm of ["baseline", "treatment"] as const) {
       statements.length = 0;
       await counted[arm]();
-      const privacy = statements.filter(statement => /^select "id" from "issues" where \("issues"\."id" = \$1 and "issues"\."company_id" = \$2 and \(*exists/.test(statement));
+      const privacy = statements.filter(statement => /^select "id" from "issues" where \("issues"\."id" = \$1 and "issues"\."space_id" = \$2 and \(*exists/.test(statement));
       perArm[arm].statementsPerRequest = statements.length;
       perArm[arm].perTaskPrivacyStatements = privacy.length;
       perArm[arm].statementBytesPerRequest = statements.reduce((sum, statement) => sum + Buffer.byteLength(statement), 0);
@@ -197,7 +197,7 @@ try {
     baselineRevision, treatmentRevision: git("rev-parse", "HEAD").trim(),
     treatmentDirty: git("status", "--porcelain", "--", routeFile, "server/src/services").trim().length > 0,
     postgresVersion: (await sql.unsafe("select version()"))[0]!.version, node: process.version,
-    fixture: { synthetic: true, idsPerRequest: IDS, companyTasks: f.companyIssueIds.length + NOISE_ISSUES, pool: POOL,
+    fixture: { synthetic: true, idsPerRequest: IDS, spaceTasks: f.spaceIssueIds.length + NOISE_ISSUES, pool: POOL,
       requestsPerArm: REQUESTS, concurrentRequests: CONCURRENT, waves: WAVES, loadMs: Math.round(loadMs) },
     correctness: { sameSummariesForEveryActor: true },
     results: report,

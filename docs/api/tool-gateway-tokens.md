@@ -3,23 +3,23 @@ title: Tool Gateway Tokens
 summary: Create, reveal and revoke gateway client tokens
 ---
 
-A tool gateway exposes a company's tool access profile to external MCP clients. A client connects with a gateway client token. Paperclip stores only a hash of each token value.
+A tool gateway exposes a space's tool access profile to external MCP clients. A client connects with a gateway client token. Outpost stores only a hash of each token value.
 
 ## Create a Token
 
 ```
 POST /api/tool-gateway/gateways/{gatewayId}/tokens
 {
-  "companyId": "{companyId}",
+  "spaceId": "{spaceId}",
   "name": "Website client",
   "clientLabel": "Website client",
   "expiresAt": "2026-12-31T23:59:59.000Z"
 }
 ```
 
-The caller needs `tools:admin` in the company.
+The caller needs `tools:admin` in the space.
 
-A person (board session) receives the value once, in the `token` field of the `201` response. Copy it then: Paperclip cannot show it again.
+A person (board session) receives the value once, in the `token` field of the `201` response. Copy it then: Outpost cannot show it again.
 
 An agent with delegated connection management can create a token for its responsible person. The agent never receives a value. The `201` response contains:
 
@@ -36,10 +36,10 @@ To rotate a client's token, create the replacement and leave the old token activ
 
 ```
 POST /api/tool-gateway/gateway-tokens/{tokenId}/reveal
-{ "companyId": "{companyId}" }
+{ "spaceId": "{spaceId}" }
 ```
 
-Person-only. Paperclip generates the value at this moment, stores its hash, and returns it once in the `token` field. The Tokens page calls this route from its **Reveal token** button.
+Person-only. Outpost generates the value at this moment, stores its hash, and returns it once in the `token` field. The Tokens page calls this route from its **Reveal token** button.
 
 | Status | Reason code | Meaning |
 |--------|-------------|---------|
@@ -56,7 +56,7 @@ Each reveal writes a `tool_gateway.token_revealed` activity entry.
 
 ```
 POST /api/tool-gateway/gateway-tokens/{tokenId}/revoke
-{ "companyId": "{companyId}" }
+{ "spaceId": "{spaceId}" }
 ```
 
 A person or an agent with delegated connection management can revoke a token. Clients that use it stop working at once.
@@ -64,7 +64,7 @@ A person or an agent with delegated connection management can revoke a token. Cl
 ## Create a Gateway
 
 ```
-POST /api/companies/{companyId}/tools/gateways
+POST /api/spaces/{spaceId}/tools/gateways
 ```
 
 When an agent creates a gateway, the `201` response also contains `gatewayPath` (`/{prefix}/apps/gateways/{gatewayId}/overview`), `tokensPath` and `nextStep`.

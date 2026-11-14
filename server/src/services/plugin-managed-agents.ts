@@ -4,7 +4,7 @@ import { and, eq, isNull, ne } from "drizzle-orm";
 import type { Db } from "@outpost/db";
 import {
   agents,
-  companies,
+  spaces,
   pluginEntities,
   pluginManagedResources,
   plugins,
@@ -12,14 +12,14 @@ import {
 } from "@outpost/db";
 import type {
   Agent,
-  PaperclipPluginManifestV1,
+  OutpostPluginManifestV1,
   PluginManagedAgentDeclaration,
   PluginManagedAgentResolution,
 } from "@outpost/shared";
 import { agentHarnessType, agentRunner, isUuidLike } from "@outpost/shared";
 import { conflict, forbidden, notFound } from "../errors.js";
 import { agentService } from "./agents.js";
-import { resolveNewAgentRunnerForCompany } from "./agent-runner-selection.js";
+import { resolveNewAgentRunnerForSpace } from "./agent-runner-selection.js";
 import { approvalService } from "./approvals.js";
 import { logActivity } from "./activity-log.js";
 import { agentInstructionsBundleMode, agentInstructionsService } from "./agent-instructions.js";
@@ -35,12 +35,12 @@ function managedAgentPauseReason(pluginKey: string) {
 interface PluginManagedAgentServiceOptions {
   pluginId: string;
   pluginKey: string;
-  manifest?: PaperclipPluginManifestV1 | null;
-  instructionTemplateVariables?: (companyId: string) => Promise<Record<string, string | null | undefined>>;
+  manifest?: OutpostPluginManifestV1 | null;
+  instructionTemplateVariables?: (spaceId: string) => Promise<Record<string, string | null | undefined>>;
 }
 
-function bindingExternalId(companyId: string, agentKey: string) {
-  return `managed:agent:${companyId}:${agentKey}`;
+function bindingExternalId(spaceId: string, agentKey: string) {
+  return `managed:agent:${spaceId}:${agentKey}`;
 }
 
 function managedMetadata(
@@ -51,7 +51,7 @@ function managedMetadata(
 ) {
   return {
     ...(existing ?? {}),
-    paperclipManagedResource: {
+    outpostManagedResource: {
       pluginId,
       pluginKey,
       resourceKind: "agent",
@@ -171,7 +171,7 @@ function rowIsManagedAgent(
 ) {
   const metadata = row.metadata;
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
-  const marker = (metadata as Record<string, unknown>).paperclipManagedResource;
+  const marker = (metadata as Record<string, unknown>).outpostManagedResource;
   if (!marker || typeof marker !== "object" || Array.isArray(marker)) return false;
   const record = marker as Record<string, unknown>;
   return (
@@ -198,7 +198,7 @@ export function pluginManagedAgentService(
     return declaration;
   }
 
-  async function getBinding(companyId: string, agentKey: string, client: Pick<Db, "select"> = db) {
+  async function getBinding(spaceId: string, agentKey: string, client: Pick<Db, "select"> = db) {
     return client
       .select()
       .from(pluginEntities)
@@ -206,21 +206,21 @@ export function pluginManagedAgentService(
         and(
           eq(pluginEntities.pluginId, options.pluginId),
           eq(pluginEntities.entityType, MANAGED_AGENT_ENTITY_TYPE),
-          eq(pluginEntities.externalId, bindingExternalId(companyId, agentKey)),
+          eq(pluginEntities.externalId, bindingExternalId(spaceId, agentKey)),
         ),
       )
       .then((rows) => rows[0] ?? null);
   }
 
   async function upsertBinding(
-    companyId: string,
+    spaceId: string,
     declaration: PluginManagedAgentDeclaration,
     agentId: string,
     extraData: Record<string, unknown> = {},
     effectiveAdapterType?: string,
     client: Pick<Db, "select" | "insert" | "update"> = db,
   ) {
-    const adapterType = effectiveAdapterType ?? (await resolveManagedAdapterType(companyId, declaration));
+    const adapterType = effectiveAdapterType ?? (await resolveManagedAdapterType(spaceId, declaration));
     const defaultsJson = {
       agentKey: declaration.agentKey,
       displayName: declaration.displayName,
@@ -240,7 +240,7 @@ export function pluginManagedAgentService(
       .select({ id: pluginManagedResources.id })
       .from(pluginManagedResources)
       .where(and(
-        eq(pluginManagedResources.companyId, companyId),
+        eq(pluginManagedResources.spaceId, spaceId),
         eq(pluginManagedResources.pluginId, options.pluginId),
         eq(pluginManagedResources.resourceKind, "agent"),
         eq(pluginManagedResources.resourceKey, declaration.agentKey),
@@ -253,7 +253,7 @@ export function pluginManagedAgentService(
         .where(eq(pluginManagedResources.id, managedResource.id));
     } else {
       await client.insert(pluginManagedResources).values({
-        companyId,
+        spaceId,
         pluginId: options.pluginId,
         pluginKey: options.pluginKey,
         resourceKind: "agent",
@@ -263,7 +263,7 @@ export function pluginManagedAgentService(
       });
     }
 
-    const externalId = bindingExternalId(companyId, declaration.agentKey);
+    const externalId = bindingExternalId(spaceId, declaration.agentKey);
     const data = {
       pluginKey: options.pluginKey,
       resourceKind: "agent",
@@ -274,13 +274,13 @@ export function pluginManagedAgentService(
       lastReconciledAt: new Date().toISOString(),
       ...extraData,
     };
-    const existing = await getBinding(companyId, declaration.agentKey, client);
+    const existing = await getBinding(spaceId, declaration.agentKey, client);
     if (existing) {
       return client
         .update(pluginEntities)
         .set({
-          scopeKind: "company",
-          scopeId: companyId,
+          scopeKind: "space",
+          scopeId: spaceId,
           title: declaration.displayName,
           status: "resolved",
           data,
@@ -295,8 +295,8 @@ export function pluginManagedAgentService(
       .values({
         pluginId: options.pluginId,
         entityType: MANAGED_AGENT_ENTITY_TYPE,
-        scopeKind: "company",
-        scopeId: companyId,
+        scopeKind: "space",
+        scopeId: spaceId,
         externalId,
         title: declaration.displayName,
         status: "resolved",
@@ -306,19 +306,19 @@ export function pluginManagedAgentService(
       .then((rows) => rows[0]);
   }
 
-  async function findRelinkCandidate(companyId: string, declaration: PluginManagedAgentDeclaration) {
+  async function findRelinkCandidate(spaceId: string, declaration: PluginManagedAgentDeclaration) {
     const rows = await db
       .select()
       .from(agents)
-      .where(and(eq(agents.companyId, companyId), ne(agents.status, "terminated")));
+      .where(and(eq(agents.spaceId, spaceId), ne(agents.status, "terminated")));
     return rows.find((row) => rowIsManagedAgent(row, options.pluginKey, declaration.agentKey)) ?? null;
   }
 
-  async function relinkManagedAgent(companyId: string, declaration: PluginManagedAgentDeclaration, agentId: string) {
-    const adapterType = await resolveManagedAdapterType(companyId, declaration);
+  async function relinkManagedAgent(spaceId: string, declaration: PluginManagedAgentDeclaration, agentId: string) {
+    const adapterType = await resolveManagedAdapterType(spaceId, declaration);
     return db.transaction(async (tx) => {
       const [agent] = await tx.select().from(agents).where(and(
-        eq(agents.id, agentId), eq(agents.companyId, companyId), ne(agents.status, "terminated"),
+        eq(agents.id, agentId), eq(agents.spaceId, spaceId), ne(agents.status, "terminated"),
       )).for("update");
       if (!agent || !rowIsManagedAgent(agent, options.pluginKey, declaration.agentKey)) {
         throw conflict("Managed agent ownership changed before relink");
@@ -330,7 +330,7 @@ export function pluginManagedAgentService(
         || !plugin.manifestJson.agents?.some((entry) => entry.agentKey === declaration.agentKey)) {
         throw forbidden("Plugin relink is limited to its registered managed agent declaration");
       }
-      const marker = agent.metadata!.paperclipManagedResource as Record<string, unknown>;
+      const marker = agent.metadata!.outpostManagedResource as Record<string, unknown>;
       const previousPluginId = marker.pluginId;
       if (typeof previousPluginId !== "string" || !isUuidLike(previousPluginId)) throw forbidden("Managed agent has no plugin owner");
       if (previousPluginId !== options.pluginId) {
@@ -340,14 +340,14 @@ export function pluginManagedAgentService(
       // Hard uninstall cascades the bindings, but deliberately leaves the agent
       // and its canonical history. Transfer only its proven stable-key marker to
       // the replacement installation, atomically with the new scoped bindings.
-      await upsertBinding(companyId, declaration, agentId, {}, adapterType, tx);
-      await notifyAttentionRetentionWork(tx, { companyId, sourceKind: "agent_error_alert" });
+      await upsertBinding(spaceId, declaration, agentId, {}, adapterType, tx);
+      await notifyAttentionRetentionWork(tx, { spaceId, sourceKind: "agent_error_alert" });
       await tx.update(agents).set({
         metadata: managedMetadata(options.pluginId, options.pluginKey, declaration, agent.metadata),
         updatedAt: new Date(),
-      }).where(and(eq(agents.id, agentId), eq(agents.companyId, companyId))).returning();
+      }).where(and(eq(agents.id, agentId), eq(agents.spaceId, spaceId))).returning();
       await tx.insert(activityLog).values({
-        companyId, actorType: "plugin", actorId: options.pluginId,
+        spaceId, actorType: "plugin", actorId: options.pluginId,
         action: "plugin.managed_agent.relinked", entityType: "agent", entityId: agentId,
         details: { sourcePluginKey: options.pluginKey, managedResourceKey: declaration.agentKey, previousPluginId },
       });
@@ -357,11 +357,11 @@ export function pluginManagedAgentService(
     });
   }
 
-  async function companyAdapterUsage(companyId: string) {
+  async function spaceAdapterUsage(spaceId: string) {
     const rows = await db
       .select({ adapterType: agents.adapterType, adapterConfig: agents.adapterConfig })
       .from(agents)
-      .where(and(eq(agents.companyId, companyId), ne(agents.status, "terminated")));
+      .where(and(eq(agents.spaceId, spaceId), ne(agents.status, "terminated")));
     const counts = new Map<string, number>();
     for (const row of rows) {
       const adapterType = normalizeAdapterType(agentHarnessType(row.adapterType, row.adapterConfig));
@@ -374,24 +374,24 @@ export function pluginManagedAgentService(
       .slice(0, 10);
   }
 
-  async function resolveManagedAdapterType(companyId: string, declaration: PluginManagedAgentDeclaration) {
-    return selectPreferredAdapterType(declaration, await companyAdapterUsage(companyId));
+  async function resolveManagedAdapterType(spaceId: string, declaration: PluginManagedAgentDeclaration) {
+    return selectPreferredAdapterType(declaration, await spaceAdapterUsage(spaceId));
   }
 
   async function materializeDeclaredInstructions(
-    companyId: string,
+    spaceId: string,
     agent: Agent,
     declaration: PluginManagedAgentDeclaration,
     materializeOptions: { replaceExisting: boolean },
   ): Promise<Agent> {
-    const variables = await optionsForInstructionVariables(companyId);
+    const variables = await optionsForInstructionVariables(spaceId);
     const declared = declaredInstructionFiles(declaration, variables);
     if (!declared) return agent;
 
     let adapterConfig: Record<string, unknown>;
     if (materializeOptions.replaceExisting) {
       const revisions = agentInstructionRevisionService(db);
-      const target = { companyId, agentId: agent.id };
+      const target = { spaceId, agentId: agent.id };
       const actor = { type: "plugin" as const, pluginId: options.pluginId, pluginKey: options.pluginKey, agentKey: declaration.agentKey };
       const baseline = await revisions.readForPluginReset(target, actor);
       const receipt = await revisions.commitPluginReset({ ...target, entryFile: declared.entryFile,
@@ -424,12 +424,12 @@ export function pluginManagedAgentService(
   }
 
   async function managedInstructionDefaultDrift(
-    companyId: string,
+    spaceId: string,
     agent: Agent | null,
     declaration: PluginManagedAgentDeclaration,
   ): Promise<PluginManagedAgentResolution["defaultDrift"]> {
     if (!agent) return null;
-    const variables = await optionsForInstructionVariables(companyId);
+    const variables = await optionsForInstructionVariables(spaceId);
     const declared = declaredInstructionFiles(declaration, variables);
     if (!declared) return null;
     if (agentInstructionsBundleMode(agent) === "external") {
@@ -452,8 +452,8 @@ export function pluginManagedAgentService(
     return changedFiles.length > 0 ? { entryFile: declared.entryFile, changedFiles } : null;
   }
 
-  async function optionsForInstructionVariables(companyId: string) {
-    return options.instructionTemplateVariables ? options.instructionTemplateVariables(companyId) : {};
+  async function optionsForInstructionVariables(spaceId: string) {
+    return options.instructionTemplateVariables ? options.instructionTemplateVariables(spaceId) : {};
   }
 
   function optionsForRevisionSource() {
@@ -461,7 +461,7 @@ export function pluginManagedAgentService(
   }
 
   async function resolution(
-    companyId: string,
+    spaceId: string,
     declaration: PluginManagedAgentDeclaration,
     agent: Agent | null,
     status: PluginManagedAgentResolution["status"],
@@ -471,27 +471,27 @@ export function pluginManagedAgentService(
       pluginKey: options.pluginKey,
       resourceKind: "agent",
       resourceKey: declaration.agentKey,
-      companyId,
+      spaceId,
       agentId: agent?.id ?? null,
       agent,
       status,
       approvalId: approvalId ?? null,
-      defaultDrift: await managedInstructionDefaultDrift(companyId, agent, declaration),
+      defaultDrift: await managedInstructionDefaultDrift(spaceId, agent, declaration),
     };
   }
 
-  async function createManagedAgent(companyId: string, declaration: PluginManagedAgentDeclaration) {
-    const company = await db
+  async function createManagedAgent(spaceId: string, declaration: PluginManagedAgentDeclaration) {
+    const space = await db
       .select()
-      .from(companies)
-      .where(eq(companies.id, companyId))
+      .from(spaces)
+      .where(eq(spaces.id, spaceId))
       .then((rows) => rows[0] ?? null);
-    if (!company) throw notFound("Outpost not found");
+    if (!space) throw notFound("Outpost not found");
 
-    const requiresApproval = company.requireBoardApprovalForNewAgents;
-    const adapterType = await resolveManagedAdapterType(companyId, declaration);
+    const requiresApproval = space.requireOperatorApprovalForNewAgents;
+    const adapterType = await resolveManagedAdapterType(spaceId, declaration);
     const initialStatus = requiresApproval ? "pending_approval" : declaration.status ?? "idle";
-    let created = await agentSvcLifecycle.requestHire(companyId, {
+    let created = await agentSvcLifecycle.requestCreation(spaceId, {
       ...declarationPatch(declaration, { adapterType }),
       status: initialStatus,
       pauseReason: initialStatus === "paused" ? managedAgentPauseReason(options.pluginKey) : null,
@@ -500,12 +500,12 @@ export function pluginManagedAgentService(
       spentMonthlyCents: 0,
       lastHeartbeatAt: null,
     }) as Agent;
-    created = await materializeDeclaredInstructions(companyId, created, declaration, { replaceExisting: false });
+    created = await materializeDeclaredInstructions(spaceId, created, declaration, { replaceExisting: false });
 
     let approvalId: string | null = null;
     if (requiresApproval) {
-      const approval = await approvalSvc.create(companyId, {
-        type: "hire_agent",
+      const approval = await approvalSvc.create(spaceId, {
+        type: "create_agent",
         requestedByAgentId: null,
         requestedByUserId: null,
         status: "pending",
@@ -533,14 +533,14 @@ export function pluginManagedAgentService(
       });
       approvalId = approval.id;
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "plugin",
         actorId: options.pluginId,
         action: "approval.created",
         entityType: "approval",
         entityId: approval.id,
         details: {
-          type: "hire_agent",
+          type: "create_agent",
           linkedAgentId: created.id,
           sourcePluginKey: options.pluginKey,
           managedResourceKey: declaration.agentKey,
@@ -548,9 +548,9 @@ export function pluginManagedAgentService(
       });
     }
 
-    await upsertBinding(companyId, declaration, created.id, { approvalId }, adapterType);
+    await upsertBinding(spaceId, declaration, created.id, { approvalId }, adapterType);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "plugin",
       actorId: options.pluginId,
       action: "plugin.managed_agent.created",
@@ -564,11 +564,11 @@ export function pluginManagedAgentService(
         approvalId,
       },
     });
-    return resolution(companyId, declaration, created as Agent, "created", approvalId);
+    return resolution(spaceId, declaration, created as Agent, "created", approvalId);
   }
 
   async function backfillManagedPauseReason(
-    companyId: string,
+    spaceId: string,
     declaration: PluginManagedAgentDeclaration,
     agent: Agent,
   ) {
@@ -588,7 +588,7 @@ export function pluginManagedAgentService(
     }
 
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: "plugin",
       actorId: options.pluginId,
       action: "plugin.managed_agent.pause_reason_backfilled",
@@ -605,49 +605,49 @@ export function pluginManagedAgentService(
     return refreshed ?? agent;
   }
 
-  async function get(agentKey: string, companyId: string) {
+  async function get(agentKey: string, spaceId: string) {
       const declaration = declarationFor(agentKey);
-      const binding = await getBinding(companyId, agentKey);
+      const binding = await getBinding(spaceId, agentKey);
       const boundAgentId = typeof binding?.data?.agentId === "string" ? binding.data.agentId : null;
-      if (!boundAgentId) return resolution(companyId, declaration, null, "missing");
+      if (!boundAgentId) return resolution(spaceId, declaration, null, "missing");
       const agent = await agentSvc.getById(boundAgentId);
-      if (!agent || agent.companyId !== companyId || agent.status === "terminated") {
-        return resolution(companyId, declaration, null, "missing");
+      if (!agent || agent.spaceId !== spaceId || agent.status === "terminated") {
+        return resolution(spaceId, declaration, null, "missing");
       }
-      return resolution(companyId, declaration, agent as Agent, "resolved");
+      return resolution(spaceId, declaration, agent as Agent, "resolved");
   }
 
-  async function reconcile(agentKey: string, companyId: string) {
+  async function reconcile(agentKey: string, spaceId: string) {
       const declaration = declarationFor(agentKey);
-      const current = await get(agentKey, companyId);
+      const current = await get(agentKey, spaceId);
       if (current.agent) {
-        const agent = await backfillManagedPauseReason(companyId, declaration, current.agent);
-        await upsertBinding(companyId, declaration, agent.id);
-        return resolution(companyId, declaration, agent, current.status, current.approvalId);
+        const agent = await backfillManagedPauseReason(spaceId, declaration, current.agent);
+        await upsertBinding(spaceId, declaration, agent.id);
+        return resolution(spaceId, declaration, agent, current.status, current.approvalId);
       }
 
-      const relinkCandidate = await findRelinkCandidate(companyId, declaration);
+      const relinkCandidate = await findRelinkCandidate(spaceId, declaration);
       if (relinkCandidate) {
-        const relinkedAgent = await relinkManagedAgent(companyId, declaration, relinkCandidate.id);
+        const relinkedAgent = await relinkManagedAgent(spaceId, declaration, relinkCandidate.id);
         const agent = await backfillManagedPauseReason(
-          companyId,
+          spaceId,
           declaration,
           relinkedAgent,
         );
-        return resolution(companyId, declaration, agent, "relinked");
+        return resolution(spaceId, declaration, agent, "relinked");
       }
 
-      return createManagedAgent(companyId, declaration);
+      return createManagedAgent(spaceId, declaration);
   }
 
-  async function reset(agentKey: string, companyId: string) {
+  async function reset(agentKey: string, spaceId: string) {
       const declaration = declarationFor(agentKey);
-      const reconciled = await reconcile(agentKey, companyId);
+      const reconciled = await reconcile(agentKey, spaceId);
       if (!reconciled.agent) return reconciled;
       const currentMetadata = reconciled.agent.metadata && typeof reconciled.agent.metadata === "object"
         ? reconciled.agent.metadata
         : {};
-      const adapterType = await resolveManagedAdapterType(companyId, declaration);
+      const adapterType = await resolveManagedAdapterType(spaceId, declaration);
       const defaults = declarationPatch(declaration, { adapterType });
       const sameCodexHarness = adapterType === "codex_local" && agentHarnessType(reconciled.agent.adapterType, reconciled.agent.adapterConfig) === adapterType;
       const retainedNative = sameCodexHarness && reconciled.agent.adapterType === "outpost_runner";
@@ -657,7 +657,7 @@ export function pluginManagedAgentService(
           if (reconciled.agent.adapterConfig[field] !== undefined) resetAdapterConfig[field] = reconciled.agent.adapterConfig[field];
         }
       }
-      const execution = await resolveNewAgentRunnerForCompany(db, companyId, {
+      const execution = await resolveNewAgentRunnerForSpace(db, spaceId, {
         ...defaults,
         adapterType: retainedNative ? reconciled.agent.adapterType : adapterType,
         adapterConfig: resetAdapterConfig,
@@ -666,7 +666,7 @@ export function pluginManagedAgentService(
       });
       // Reset content through the canonical CAS path before changing defaults.
       // A conflict must leave the existing adapter configuration untouched.
-      const withInstructions = await materializeDeclaredInstructions(companyId, reconciled.agent, declaration, { replaceExisting: true });
+      const withInstructions = await materializeDeclaredInstructions(spaceId, reconciled.agent, declaration, { replaceExisting: true });
       const adapterConfig = { ...execution.adapterConfig };
       if (declaration.instructions) {
         for (const key of ["instructionsBundleMode", "instructionsRootPath", "instructionsEntryFile", "instructionsFilePath"]) {
@@ -685,9 +685,9 @@ export function pluginManagedAgentService(
       });
       if (!updated) throw notFound("Managed agent not found");
       const updatedAgent = updated as Agent;
-      await upsertBinding(companyId, declaration, updatedAgent.id, {}, adapterType);
+      await upsertBinding(spaceId, declaration, updatedAgent.id, {}, adapterType);
       await logActivity(db, {
-        companyId,
+        spaceId,
         actorType: "plugin",
         actorId: options.pluginId,
         action: "plugin.managed_agent.reset",
@@ -698,7 +698,7 @@ export function pluginManagedAgentService(
           managedResourceKey: declaration.agentKey,
         },
       });
-      return resolution(companyId, declaration, updatedAgent, "reset");
+      return resolution(spaceId, declaration, updatedAgent, "reset");
   }
 
   return {

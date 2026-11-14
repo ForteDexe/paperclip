@@ -22,10 +22,10 @@ export function dueRunLeaseReleaseCondition(now = Date.now()) {
   return lte(runLeaseReleaseDeadlineSql(now), now);
 }
 
-export async function nextRunLeaseReleaseAt(db: Db, companyId: string, runId: string,
+export async function nextRunLeaseReleaseAt(db: Db, spaceId: string, runId: string,
   disposition: ProviderResourceDisposition): Promise<number | null> {
   const [row] = await db.select({ due: sql<string | null>`min(${runLeaseReleaseDeadlineSql()})` }).from(environmentLeases)
-    .where(and(eq(environmentLeases.companyId, companyId), eq(environmentLeases.heartbeatRunId, runId),
+    .where(and(eq(environmentLeases.spaceId, spaceId), eq(environmentLeases.heartbeatRunId, runId),
       pendingRunLeaseReleaseCondition(disposition === "destroy")));
   return row?.due == null ? null : Number(row.due);
 }

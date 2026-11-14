@@ -55,9 +55,9 @@ export function createChatPublicationQueue(db: Db, options: PublicationQueueOpti
     const earlierPublication = alias(chatPublications, "earlier_chat_publications");
     return and(
       sql`not (${unresolvedSlackPublicationCondition()})`,
-      // An explicit Board send promises both delivery and work. Keep
+      // An explicit Operator send promises both delivery and work. Keep
       // its text/files pending until the durable wake has been accepted.
-      sql`not exists (select 1 from chat_actions a where a.company_id = ${chatPublications.companyId} and a.endpoint_id = ${chatPublications.endpointId} and a.conversation_id = ${chatPublications.conversationId} and a.kind = 'slack_board_message' and a.status = 'received' and a.payload->>'commentId' = ${chatPublications.commentId}::text)`,
+      sql`not exists (select 1 from chat_actions a where a.space_id = ${chatPublications.spaceId} and a.endpoint_id = ${chatPublications.endpointId} and a.conversation_id = ${chatPublications.conversationId} and a.kind = 'slack_board_message' and a.status = 'received' and a.payload->>'commentId' = ${chatPublications.commentId}::text)`,
       or(
         and(
           sql`not exists (select 1 from chat_endpoints e where e.id = ${chatPublications.endpointId} and e.publication_mode = 'explicit')`,
@@ -69,8 +69,8 @@ export function createChatPublicationQueue(db: Db, options: PublicationQueueOpti
               .where(
                 and(
                   eq(
-                    chatTeamsFileTransfers.companyId,
-                    chatPublications.companyId,
+                    chatTeamsFileTransfers.spaceId,
+                    chatPublications.spaceId,
                   ),
                   eq(
                     chatTeamsFileTransfers.publicationId,
@@ -88,8 +88,8 @@ export function createChatPublicationQueue(db: Db, options: PublicationQueueOpti
           .where(
             and(
               eq(
-                chatTeamsFileTransfers.companyId,
-                chatPublications.companyId,
+                chatTeamsFileTransfers.spaceId,
+                chatPublications.spaceId,
               ),
               eq(
                 chatTeamsFileTransfers.endpointId,
@@ -110,8 +110,8 @@ export function createChatPublicationQueue(db: Db, options: PublicationQueueOpti
                   and(
                     eq(chatEndpoints.id, chatPublications.endpointId),
                     eq(
-                      chatEndpoints.companyId,
-                      chatPublications.companyId,
+                      chatEndpoints.spaceId,
+                      chatPublications.spaceId,
                     ),
                     eq(chatEndpoints.provider, "microsoft-teams"),
                     eq(chatEndpoints.status, "active"),
@@ -184,7 +184,7 @@ export function createChatPublicationQueue(db: Db, options: PublicationQueueOpti
     limit = 25,
     { waitForCompletion = true, maintenance = true, scope, canContinue = () => true }: {
       waitForCompletion?: boolean; maintenance?: boolean; canContinue?: () => boolean;
-      scope?: { companyId: string; endpointId: string; conversationId: string };
+      scope?: { spaceId: string; endpointId: string; conversationId: string };
     } = {},
   ) {
     if (isShuttingDown() || !canContinue()) return 0;
@@ -193,7 +193,7 @@ export function createChatPublicationQueue(db: Db, options: PublicationQueueOpti
       await reconcileTerminalConfirmationActions(limit);
     }
     if (isShuttingDown() || !canContinue()) return 0;
-    const scopeCondition = scope ? and(eq(chatPublications.companyId, scope.companyId),
+    const scopeCondition = scope ? and(eq(chatPublications.spaceId, scope.spaceId),
       eq(chatPublications.endpointId, scope.endpointId), eq(chatPublications.conversationId, scope.conversationId)) : undefined;
     const pendingTasks = () => scope
       ? [publicationEndpointTasks.get(scope.endpointId)].filter((task): task is Promise<void> => Boolean(task))
@@ -201,7 +201,7 @@ export function createChatPublicationQueue(db: Db, options: PublicationQueueOpti
     const now = new Date();
     const staleBefore = new Date(now.getTime() - 60_000);
     // A process that disappears after the provider accepted a post but before
-    // Paperclip persisted its message id leaves an ambiguous delivery. Never
+    // Outpost persisted its message id leaves an ambiguous delivery. Never
     // resend it automatically; an operator can explicitly replay after
     // checking the provider conversation.
     const quarantinedPublications = await db.transaction(async tx => {
@@ -219,8 +219,8 @@ export function createChatPublicationQueue(db: Db, options: PublicationQueueOpti
             .where(
               and(
                 eq(
-                  chatTeamsFileTransfers.companyId,
-                  chatPublications.companyId,
+                  chatTeamsFileTransfers.spaceId,
+                  chatPublications.spaceId,
                 ),
                 eq(chatTeamsFileTransfers.publicationId, chatPublications.id),
               ),
@@ -232,7 +232,7 @@ export function createChatPublicationQueue(db: Db, options: PublicationQueueOpti
             .from(chatEndpointLeases)
             .where(
               and(
-                eq(chatEndpointLeases.companyId, chatPublications.companyId),
+                eq(chatEndpointLeases.spaceId, chatPublications.spaceId),
                 eq(
                   chatEndpointLeases.endpointId,
                   chatPublications.endpointId,
@@ -243,7 +243,7 @@ export function createChatPublicationQueue(db: Db, options: PublicationQueueOpti
             ),
         ),
       );
-      const candidates = await tx.select({ id: chatPublications.id, companyId: chatPublications.companyId, issueId: chatPublications.issueId })
+      const candidates = await tx.select({ id: chatPublications.id, spaceId: chatPublications.spaceId, issueId: chatPublications.issueId })
         .from(chatPublications).where(condition).for("update", { skipLocked: true });
       if (!candidates.length) return [];
       await notifyChatPublicationWork(tx);
@@ -346,7 +346,7 @@ export function createChatPublicationQueue(db: Db, options: PublicationQueueOpti
             .then(async () => {
               if (isShuttingDown() || !canContinue()) return;
               await processSelectedPublication(selectedPublication);
-              await settleExternalConversation(db, selectedPublication.companyId, selectedPublication.issueId).catch((err) => {
+              await settleExternalConversation(db, selectedPublication.spaceId, selectedPublication.issueId).catch((err) => {
                 logger.warn({ err, publicationId: selectedPublication.id }, "Slack conversation settlement deferred to reconciliation");
               });
             })

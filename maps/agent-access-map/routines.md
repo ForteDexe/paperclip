@@ -21,13 +21,13 @@ Review: `baseline`.
 
 API: `present` — representative operation IDs:
 
-- `POST /api/companies/{companyId}/routines`.
+- `POST /api/spaces/{spaceId}/routines`.
 - `PATCH /api/routines/{id}`.
 
 Agent access: `available` — Agent REST / native `call_api` / CLI routine create/update;
 optional installed MCP generic request.
 
-Policy: Agents may read company routines but only create/manage routines assigned to
+Policy: Agents may read space routines but only create/manage routines assigned to
 themselves; trigger secrets need secure handling.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/routines.ts#L99) at
@@ -35,12 +35,12 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: No dedicated production manage_routine binding; generic `call_api` provides
 the permitted REST path. Creation resolves responsibility from the authenticated
-agent's on-behalf-of user, then the parent issue or company default.
+agent's on-behalf-of user, then the parent issue or space default.
 
 ## `triggers`
 
@@ -56,7 +56,7 @@ API: `present` — representative operation IDs:
 Agent access: `available` — Owned-routine agent REST / native `call_api` / CLI trigger
 commands.
 
-Policy: Agents may read company routines but only create/manage routines assigned to
+Policy: Agents may read space routines but only create/manage routines assigned to
 themselves; trigger secrets need secure handling.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/routines.ts#L99) at
@@ -64,7 +64,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: No dedicated production trigger-management binding; generic `call_api`
@@ -77,7 +77,7 @@ in Sentry; see the [Sentry repair tutorial](../../docs/guides/board-operator/sen
 
 The host-only `GET /api/instance/task-drain?idleSleepSafety=1&scheduledWake=1`
 extension reports the earliest supported future routine deadline under an owned
-idle hold. It requires signed Cloud control authority; company agents and tenant
+idle hold. It requires signed Cloud control authority; space agents and tenant
 admin tokens cannot use it. It does not grant routine management or execution
 authority. See the [hosting protocol](../../doc/idle-sleep-safety.md#scheduled-routine-wake-protocol)
 and [route authorization tests](../../server/src/__tests__/instance-settings-routes.test.ts).
@@ -99,7 +99,7 @@ API: `present` — representative operation IDs:
 Agent access: `partial` — Owned-routine agent REST / CLI run; native `call_api` from
 an authorized active run.
 
-Policy: Agents may read company routines but only create/manage routines assigned to
+Policy: Agents may read space routines but only create/manage routines assigned to
 themselves; trigger secrets need secure handling.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/routines.ts#L99) at
@@ -107,7 +107,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Scheduled/waiting native agents cannot independently call this operation:
@@ -126,7 +126,7 @@ API: `present` — representative operation IDs:
 
 Agent access: `available` — REST / native call_api / CLI routine.
 
-Policy: Agents may read company routines but only create/manage routines assigned to
+Policy: Agents may read space routines but only create/manage routines assigned to
 themselves; trigger secrets need secure handling.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/routines.ts#L99) at
@@ -134,10 +134,10 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
-Gaps: Runs are readable in company scope; configuration revision access checks routine
+Gaps: Runs are readable in space scope; configuration revision access checks routine
 ownership for agents.
 
 ## `management`
@@ -152,7 +152,7 @@ API: `present` — representative operation IDs:
 
 Agent access: `available` — Owned-routine agent REST / native `call_api` / CLI.
 
-Policy: Agents may read company routines but only create/manage routines assigned to
+Policy: Agents may read space routines but only create/manage routines assigned to
 themselves; trigger secrets need secure handling.
 
 Evidence: `source-only` — [implementation](../../server/src/routes/routines.ts#L99) at
@@ -160,7 +160,7 @@ the reviewed commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Pause/archive mutations have a generic native REST path under routine

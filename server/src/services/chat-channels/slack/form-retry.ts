@@ -12,18 +12,18 @@ import { parseSlackFormProofAcceptance } from "./form-session.js";
 import { parseSlackFormAckWork } from "./form-ack-work.js";
 import type { SlackFormConnectorIdentity } from "./cloud-consumer.js";
 
-export async function retrySlackFormAcknowledgement(db: Db, input: { companyId: string; endpointId: string; actionId: string;
+export async function retrySlackFormAcknowledgement(db: Db, input: { spaceId: string; endpointId: string; actionId: string;
   identity(): SlackFormConnectorIdentity | null; management: ConnectionManagementContext }): Promise<{ actionId: string; state: "scheduled" | "already_scheduled" | "complete" }> {
   if (!/^[a-f0-9-]{36}$/i.test(input.actionId)) throw badRequest("Invalid provider work ID");
   await input.management.reauthorize();
   const identity = input.identity();
-  if (input.management.resource.companyId !== input.companyId || !identity || !input.management.decision.allowed || input.management.decision.action !== "connections:configure")
-    throw forbidden("Current company and Cloud management authority are required");
+  if (input.management.resource.spaceId !== input.spaceId || !identity || !input.management.decision.allowed || input.management.decision.action !== "connections:configure")
+    throw forbidden("Current space and Cloud management authority are required");
   const result = await db.transaction(async tx => {
-    const [endpoint] = await tx.select().from(chatEndpoints).where(and(eq(chatEndpoints.id, input.endpointId), eq(chatEndpoints.companyId, input.companyId))).for("update");
+    const [endpoint] = await tx.select().from(chatEndpoints).where(and(eq(chatEndpoints.id, input.endpointId), eq(chatEndpoints.spaceId, input.spaceId))).for("update");
     if (!endpoint || endpoint.provider !== "slack") throw notFound("Slack endpoint not found");
     if (input.management.resource.connectionId && input.management.resource.connectionId !== endpoint.connectionId) throw forbidden("Connection authority changed");
-    const [row] = await tx.select().from(chatActions).where(and(eq(chatActions.id, input.actionId), eq(chatActions.companyId, input.companyId),
+    const [row] = await tx.select().from(chatActions).where(and(eq(chatActions.id, input.actionId), eq(chatActions.spaceId, input.spaceId),
       eq(chatActions.endpointId, endpoint.id), inArray(chatActions.kind, ["slack_form_session", "slack_form_owner"]))).for("update");
     if (!row) throw notFound("Slack form work not found");
     if (row.kind === "slack_form_owner") {
@@ -44,18 +44,18 @@ export async function retrySlackFormAcknowledgement(db: Db, input: { companyId: 
       await input.management.reauthorize();
       const currentIdentity = input.identity();
       if (!currentIdentity || currentIdentity.instanceId !== identity.instanceId || currentIdentity.environment !== identity.environment
-        || input.management.resource.companyId !== input.companyId || !input.management.decision.allowed || input.management.decision.action !== "connections:configure")
+        || input.management.resource.spaceId !== input.spaceId || !input.management.decision.allowed || input.management.decision.action !== "connections:configure")
         throw forbidden("Current Cloud or management authority changed");
       await notifyDeliveryWork(tx, DELIVERY_QUEUES.connectionEvents);
       const updated = await tx.update(chatActions).set({ status: "issued", result: { ...row.result,
         firstFailureCode: row.result.firstFailureCode ?? row.result.failureCode, nextAttemptAt: new Date().toISOString() }, updatedAt: new Date() })
-        .where(and(eq(chatActions.id, row.id), eq(chatActions.companyId, input.companyId), eq(chatActions.endpointId, endpoint.id),
+        .where(and(eq(chatActions.id, row.id), eq(chatActions.spaceId, input.spaceId), eq(chatActions.endpointId, endpoint.id),
           sql`${chatActions.payload} = ${JSON.stringify(row.payload)}::jsonb`, sql`${chatActions.result} = ${JSON.stringify(row.result)}::jsonb`)).returning({ id: chatActions.id });
       if (updated.length !== 1) throw conflict("Retirement work changed before retry was committed");
       return { actionId: row.id, state: "scheduled" as const };
     }
     const binding = parseSlackFormBinding(row.payload.binding), proof = parseSlackFormProofAcceptance(row.result?.cloudProofAcceptance), work = parseSlackFormAckWork(row.result?.formAck);
-    if (binding.companyId !== input.companyId || binding.endpointId !== endpoint.id || binding.publicId !== endpoint.publicId || binding.connectionId !== endpoint.connectionId
+    if (binding.spaceId !== input.spaceId || binding.endpointId !== endpoint.id || binding.publicId !== endpoint.publicId || binding.connectionId !== endpoint.connectionId
       || binding.instanceId !== identity.instanceId || row.payload.environment !== identity.environment || !sameSlackFormBinding(proof.binding, binding)
       || proof.appReceiptId !== row.id || proof.operationId !== row.payload.operationId || work.deliveryId !== `slack_form_${proof.operationId}`
       || !["submitted", "closed", "not_opened"].includes(String(row.result?.phase))) throw conflict("Retained form responsibility does not match current Cloud authority");
@@ -70,18 +70,18 @@ export async function retrySlackFormAcknowledgement(db: Db, input: { companyId: 
     await input.management.reauthorize();
     const currentIdentity = input.identity();
     if (!currentIdentity || currentIdentity.instanceId !== identity.instanceId || currentIdentity.environment !== identity.environment
-      || input.management.resource.companyId !== input.companyId || !input.management.decision.allowed || input.management.decision.action !== "connections:configure")
+      || input.management.resource.spaceId !== input.spaceId || !input.management.decision.allowed || input.management.decision.action !== "connections:configure")
       throw forbidden("Current Cloud or management authority changed");
     await notifyDeliveryWork(tx, DELIVERY_QUEUES.connectionEvents);
     const nextAttemptAt = new Date().toISOString();
     const phase = row.result?.phase, status = phase === "submitted" ? "processed" : phase === "not_opened" ? "failed" : "cancelled";
     const updated = await tx.update(chatActions).set({ status, result: { ...row.result, firstFailureCode: row.result?.firstFailureCode ?? row.result?.failureCode,
-      nextAttemptAt }, updatedAt: new Date() }).where(and(eq(chatActions.id, row.id), eq(chatActions.companyId, input.companyId), eq(chatActions.endpointId, endpoint.id),
+      nextAttemptAt }, updatedAt: new Date() }).where(and(eq(chatActions.id, row.id), eq(chatActions.spaceId, input.spaceId), eq(chatActions.endpointId, endpoint.id),
       sql`${chatActions.payload} = ${JSON.stringify(row.payload)}::jsonb`, sql`${chatActions.result} = ${JSON.stringify(row.result)}::jsonb`)).returning({ id: chatActions.id });
     if (updated.length !== 1) throw conflict("Provider work changed before retry was committed");
     return { actionId: row.id, state: "scheduled" as const };
   });
-  if (result.state === "scheduled") await logActivity(db, { ...input.management.audit, companyId: input.companyId, action: "chat_provider_work.retry_requested",
+  if (result.state === "scheduled") await logActivity(db, { ...input.management.audit, spaceId: input.spaceId, action: "chat_provider_work.retry_requested",
     entityType: "tool_connection", entityId: input.management.resource.connectionId ?? input.endpointId, details: { endpointId: input.endpointId, actionId: input.actionId } });
   return result;
 }

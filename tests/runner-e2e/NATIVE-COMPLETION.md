@@ -16,7 +16,7 @@ extra tasks, agents, documents or interactions.
 
 Both use the actual production default hire: no custom QA instructions bundle.
 Before execution, the public bundle receipt must hash to the unchanged master
-AGENTS.md, and company/agent budgets must each be 1,000 cents. Profile model,
+AGENTS.md, and space/agent budgets must each be 1,000 cents. Profile model,
 effort, credentials, skills, permissions and provider configuration are inherited.
 
 The native oracle requires exactly one succeeded native run attributed to this
@@ -35,7 +35,7 @@ per-cell deadlines (skill: original deadline; blocker: five minutes).
 
 Candidate and baseline use identical executable fixtures and public oracles.
 Both include the same closed OpenCode compatibility projection: only actual
-`tool_call` invocations named `paperclip_finish` or `paperclip_block` retain a
+`tool_call` invocations named `outpost_finish` or `outpost_block` retain a
 nested name, paired to the result by the same call ID. Arguments, arbitrary
 tool names and results are not added. Old anonymous OpenCode streams cannot
 retroactively satisfy this stricter identity check.

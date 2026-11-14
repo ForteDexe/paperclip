@@ -51,17 +51,17 @@ export const pluginExternalCases = ["configure-plugin", "disable-plugin"].map(id
     const value = `synthetic-preview-${randomBytes(24).toString("hex")}`; ctx.input.privateSecrets?.push(value);
     const secret = await ctx.input.api.postSensitive<{ id: string }>(`${root(ctx)}/secrets`, { name: "Preview fixture credential", key: "PREVIEW_FIXTURE_API_KEY", provider: "local_encrypted", value });
     secretId = secret.id;
-    if (id === "disable-plugin") await ctx.input.api.post(`/api/plugins/${plugin.id}/config`, { companyId: ctx.input.fixtures.company.id, configJson: { apiKey: { type: "secret_ref", secretId: secret.id, version: "latest" } } });
-    const configBefore = await ctx.input.api.get<ConfigRecord | null>(`/api/plugins/${plugin.id}/config?companyId=${ctx.input.fixtures.company.id}`);
+    if (id === "disable-plugin") await ctx.input.api.post(`/api/plugins/${plugin.id}/config`, { spaceId: ctx.input.fixtures.space.id, configJson: { apiKey: { type: "secret_ref", secretId: secret.id, version: "latest" } } });
+    const configBefore = await ctx.input.api.get<ConfigRecord | null>(`/api/plugins/${plugin.id}/config?spaceId=${ctx.input.fixtures.space.id}`);
     const jobs = await ctx.input.api.get<Array<{ id: string }>>(`/api/plugins/${plugin.id}/jobs`);
     if (jobs.length !== 1) throw new Error("Synthetic plugin did not register exactly one managed job");
     const mutation = id === "disable-plugin" ? `/api/plugins/${plugin.id}/disable` : `/api/plugins/${plugin.id}/config`;
-    const agentMutationStatus = await probeAgentPermission(ctx, mutation, "POST", { companyId: ctx.input.fixtures.company.id, configJson: {} });
+    const agentMutationStatus = await probeAgentPermission(ctx, mutation, "POST", { spaceId: ctx.input.fixtures.space.id, configJson: {} });
     await ctx.input.api.post(`${root(ctx)}/chats/${ctx.input.fixtures.agent.id}`); await ctx.refreshIssue();
     await ctx.input.api.patch(`/api/issues/${ctx.issue()!.id}`, { description: `Selected preview plugin: Website Preview Eval, key ${fixture.key}. ${id === "configure-plugin" ? "Its required preview credential has not been bound. The existing organization secret is named Preview fixture credential." : "It is active and contributes a scoped preview route and an annual managed refresh job."}` });
     return { pluginId: plugin.id, pluginKey: fixture.key, syntheticPlugin: true, pluginReadyBeforeQuery: plugin.status === "ready", secretId: secret.id,
       toolsBeforeCount: toolsBefore.length, previewToolName: toolsBefore[0]!.name, configBefore, jobId: jobs[0]!.id, jobCountBefore: jobs.length, agentMutationStatus,
-      resultPath: `/${ctx.input.fixtures.company.issuePrefix}/company/settings/instance/plugins/${plugin.id}`, resultLabel: "Website Preview Eval" };
+      resultPath: `/${ctx.input.fixtures.space.issuePrefix}/space/settings/instance/plugins/${plugin.id}`, resultLabel: "Website Preview Eval" };
   } catch (error) {
     fixtures.delete(ctx);
     try { if (installedId) await ctx.input.api.delete(`/api/plugins/${installedId}`, { allowNotFound: true }); }
@@ -74,22 +74,22 @@ export const pluginExternalCases = ["configure-plugin", "disable-plugin"].map(id
   async act(ctx, state) {
     await waitForReply(ctx);
     const before = await ctx.input.api.get<PluginRecord>(`/api/plugins/${state.pluginId}`);
-    const config = await ctx.input.api.get<ConfigRecord | null>(`/api/plugins/${state.pluginId}/config?companyId=${ctx.input.fixtures.company.id}`);
+    const config = await ctx.input.api.get<ConfigRecord | null>(`/api/plugins/${state.pluginId}/config?spaceId=${ctx.input.fixtures.space.id}`);
     state.unchangedBeforeHuman = before.status === "ready" && JSON.stringify(config?.configJson ?? null) === JSON.stringify((state.configBefore as ConfigRecord | null)?.configJson ?? null);
     const source = ctx.input.page.url();
     // The plugin settings page accepts the plugin id or key; board denials link either.
     const page = id === "configure-plugin" ? [`/${state.pluginId}`, `/${state.pluginKey}`] : [""];
-    const link = ctx.input.page.locator(page.map(suffix => `[id^="comment-"] a[href$="/company/settings/instance/plugins${suffix}"]`).join(", ")).first();
+    const link = ctx.input.page.locator(page.map(suffix => `[id^="comment-"] a[href$="/space/settings/instance/plugins${suffix}"]`).join(", ")).first();
     if (await link.count()) { await expect(link).toBeVisible(); await link.click(); }
-    else await ctx.input.page.goto(id === "configure-plugin" ? String(state.resultPath) : `/${ctx.input.fixtures.company.issuePrefix}/company/settings/instance/plugins`, { waitUntil: "domcontentloaded" });
+    else await ctx.input.page.goto(id === "configure-plugin" ? String(state.resultPath) : `/${ctx.input.fixtures.space.issuePrefix}/space/settings/instance/plugins`, { waitUntil: "domcontentloaded" });
     if (id === "configure-plugin") {
       await ctx.input.page.getByRole("combobox").filter({ has: ctx.input.page.locator(`option[value=${JSON.stringify(String(state.secretId))}]`) }).selectOption(String(state.secretId));
       await ctx.input.page.getByRole("button", { name: "Save Configuration", exact: true }).click();
       await expect(ctx.input.page.getByText("Configuration saved.", { exact: true })).toBeVisible(); state.humanConfigured = true;
-      const saved = await ctx.input.api.get<ConfigRecord>(`/api/plugins/${state.pluginId}/config?companyId=${ctx.input.fixtures.company.id}`);
-      const invalid = await ctx.input.api.request.post(`/api/plugins/${state.pluginId}/config`, { data: { companyId: ctx.input.fixtures.company.id, configJson: {} } });
+      const saved = await ctx.input.api.get<ConfigRecord>(`/api/plugins/${state.pluginId}/config?spaceId=${ctx.input.fixtures.space.id}`);
+      const invalid = await ctx.input.api.request.post(`/api/plugins/${state.pluginId}/config`, { data: { spaceId: ctx.input.fixtures.space.id, configJson: {} } });
       state.invalidConfigStatus = invalid.status();
-      const after = await ctx.input.api.get<ConfigRecord>(`/api/plugins/${state.pluginId}/config?companyId=${ctx.input.fixtures.company.id}`);
+      const after = await ctx.input.api.get<ConfigRecord>(`/api/plugins/${state.pluginId}/config?spaceId=${ctx.input.fixtures.space.id}`);
       state.invalidConfigPreserved = saved.id === after.id && JSON.stringify(saved.configJson) === JSON.stringify(after.configJson);
     } else {
       const row = ctx.input.page.locator("li").filter({ hasText: "Website Preview Eval" });
@@ -107,8 +107,8 @@ export const pluginExternalCases = ["configure-plugin", "disable-plugin"].map(id
   },
   async observe(ctx, state) {
     state.pluginAfter = await ctx.input.api.get<PluginRecord>(`/api/plugins/${state.pluginId}`);
-    state.configAfter = await ctx.input.api.get<ConfigRecord | null>(`/api/plugins/${state.pluginId}/config?companyId=${ctx.input.fixtures.company.id}`);
-    const response = await ctx.input.api.request.get(`/api/plugins/${state.pluginId}/api/preview?companyId=${ctx.input.fixtures.company.id}`);
+    state.configAfter = await ctx.input.api.get<ConfigRecord | null>(`/api/plugins/${state.pluginId}/config?spaceId=${ctx.input.fixtures.space.id}`);
+    const response = await ctx.input.api.request.get(`/api/plugins/${state.pluginId}/api/preview?spaceId=${ctx.input.fixtures.space.id}`);
     if (id === "configure-plugin") state.configuredReadback = response.ok() && (await response.json()).configured === true;
     else {
       state.previewStatusAfter = response.status();

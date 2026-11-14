@@ -9,7 +9,7 @@ logs, traffic switching or readiness/draining for volume removal.
 
 ## Ownership and publication
 
-`managed` is Paperclip ownership. Its locator is null; editability does not depend
+`managed` is Outpost ownership. Its locator is null; editability does not depend
 on a directory's position beneath a managed root. Existing policies normalize it
 to `workspace`, the policy category previously used by managed local skills.
 Repository provenance and tracking remain separate from installed content. Forks
@@ -29,7 +29,7 @@ object storage.
 The initial create response, including its original version, can be replayed after
 a lost response and subsequent edits. Its durable API receipt retains the response
 projection without Markdown; the immutable version supplies the body. Receipts
-remain scoped to company, actor and operation context. A deleted skill's receipt
+remain scoped to space, actor and operation context. A deleted skill's receipt
 fails explicitly rather than creating another identity.
 
 `skill-execution-content.ts` owns temporary materialization. Heartbeat preparation
@@ -41,7 +41,7 @@ the admitted digest, manifest digest, file count and byte count to match. Adjace
 compatible releases must preserve that projection contract.
 
 Dynamic connector skills include run-specific resources and tool definitions.
-They retain null version IDs because their bytes differ from the static company
+They retain null version IDs because their bytes differ from the static space
 skill. With S3 configured, native runtime selection stages and verifies their exact
 packages before its admission transaction. That transaction checks the frozen input
 and cancellation state, locks the package rows against collection, and publishes
@@ -70,8 +70,8 @@ the concrete retained asset obligations independently of installation eligibilit
 Run on the host retaining the original runtime asset files, and follow its cursor:
 
 ```sh
-pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=runtime-assets --company=<uuid> --limit=10
-pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=runtime-assets --company=<uuid> --limit=10 --apply
+pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=runtime-assets --space=<uuid> --limit=10
+pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=runtime-assets --space=<uuid> --limit=10 --apply
 ```
 
 Studio tests deliver the selected saved version through the same native Runner
@@ -83,7 +83,7 @@ or inaccessible test skill fails preparation. Preconfigured Runner homes cannot
 receive this managed delivery, so Studio requires an isolated home. Task-bound
 credentials and native authorization
 retain the admitted scope through restart and task-mode edits. Native tools expose
-only the harness task and admitted skills; company browsing, task creation,
+only the harness task and admitted skills; space browsing, task creation,
 connectors and assigned MCP tools are unavailable. A rollback image must understand
 that mode to continue an active Studio test. Settle tests before rolling back to an
 earlier image that rejects it.
@@ -108,8 +108,8 @@ not prove the other is finished.
 Run the existing bounded CLI with the target's explicit database and storage config:
 
 ```sh
-pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=eligibility --company=<uuid> --limit=10
-pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=installations --company=<uuid> --limit=10
+pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=eligibility --space=<uuid> --limit=10
+pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=installations --space=<uuid> --limit=10
 ```
 
 These commands return a cursor. Continue each phase with `--after=<uuid>` until an
@@ -118,7 +118,7 @@ Installation preview inspects candidate legacy contents without publishing them.
 For remote legacy imports it can acquire their exact pinned source; it must never
 use the latest branch as a replacement for missing installed content.
 
-1. Inventory all companies and source kinds. Identify missing versions, incomplete
+1. Inventory all spaces and source kinds. Identify missing versions, incomplete
    inventory, local storage receipts, catalog reset snapshots and unresolved runs.
 2. Backfill legacy package/version bodies with the existing `snapshots` and
    `versions` phases. The latter also fills missing version metadata indexes so
@@ -129,7 +129,7 @@ use the latest branch as a replacement for missing installed content.
    local source again before publication:
 
    ```sh
-   pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=installations --company=<uuid> --limit=10 --apply
+   pnpm --filter @outpost/server exec tsx scripts/migrate-skill-packages.ts --phase=installations --space=<uuid> --limit=10 --apply
    ```
 
 4. Keep all original directories, versions and inline bytes. Conversion does not

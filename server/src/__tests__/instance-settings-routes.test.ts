@@ -14,7 +14,7 @@ const mockInstanceSettingsService = vi.hoisted(() => ({
   update: vi.fn(),
   updateGeneral: vi.fn(),
   updateExperimental: vi.fn(),
-  listCompanyIds: vi.fn(),
+  listSpaceIds: vi.fn(),
 }));
 const mockHeartbeatService = vi.hoisted(() => ({
   computeTaskDrain: vi.fn(),
@@ -30,7 +30,7 @@ const mockEnvironmentService = vi.hoisted(() => ({
   findManagedSandboxEnvironment: vi.fn(),
   update: vi.fn(),
 }));
-const mockCompanyService = vi.hoisted(() => ({
+const mockSpaceService = vi.hoisted(() => ({
   getById: vi.fn(),
   update: vi.fn(),
 }));
@@ -41,7 +41,7 @@ const mockReadIdleSleepSafety = vi.hoisted(() => vi.fn());
 function registerModuleMocks() {
   vi.doMock("../services/idle-sleep-safety.js", () => ({ readIdleSleepSafety: mockReadIdleSleepSafety }));
   vi.doMock("../services/index.js", () => ({
-    companyService: () => mockCompanyService,
+    spaceService: () => mockSpaceService,
     heartbeatService: () => mockHeartbeatService,
     instanceSettingsService: () => mockInstanceSettingsService,
     logActivity: mockLogActivity,
@@ -69,19 +69,19 @@ function defaultTransactionImplementation(fn: (tx: unknown) => Promise<unknown>)
 }
 // Module-scoped (not rebuilt per createApp call) so a test can assert how
 // many times a request opened a transaction — the task-drain audit writes
-// for every company must share ONE transaction, not one each.
-// Rows the lifecycle read-back's plain `db.select().from(companies)` sees;
+// for every space must share ONE transaction, not one each.
+// Rows the lifecycle read-back's plain `db.select().from(spaces)` sees;
 // tests assign per case.
-let mockCompanyRows: Array<{ id: string; status: string }> = [];
+let mockSpaceRows: Array<{ id: string; status: string }> = [];
 const mockDb = {
   transaction: vi.fn(defaultTransactionImplementation),
-  select: vi.fn(() => ({ from: () => Promise.resolve(mockCompanyRows) })),
+  select: vi.fn(() => ({ from: () => Promise.resolve(mockSpaceRows) })),
 };
 
 function localAdminActor() {
   return {
-    type: "board",
-    userId: "local-board",
+    type: "operator",
+    userId: "local-operator",
     source: "local_implicit",
     isInstanceAdmin: true,
   };
@@ -127,7 +127,7 @@ describe("instance settings routes", () => {
     mockInstanceSettingsService.update.mockReset();
     mockInstanceSettingsService.updateGeneral.mockReset();
     mockInstanceSettingsService.updateExperimental.mockReset();
-    mockInstanceSettingsService.listCompanyIds.mockReset();
+    mockInstanceSettingsService.listSpaceIds.mockReset();
     mockHeartbeatService.computeTaskDrain.mockReset();
     mockHeartbeatService.applyTaskDrain.mockReset();
     mockHeartbeatService.stopTaskDrain.mockReset();
@@ -143,10 +143,10 @@ describe("instance settings routes", () => {
     mockLogActivity.mockReset();
     // Mirrors the real logActivity: push a publication for the transaction
     // to publish once it commits, so route-level tests can prove publish
-    // happens only after every company's write in the same request lands.
-    mockLogActivity.mockImplementation((_db: unknown, input: { companyId: string }, postCommitPublications?: unknown[]) => {
-      postCommitPublications?.push({ companyId: input.companyId, payload: input, pluginEvent: null });
-      return Promise.resolve({ id: `activity-${input.companyId}` });
+    // happens only after every space's write in the same request lands.
+    mockLogActivity.mockImplementation((_db: unknown, input: { spaceId: string }, postCommitPublications?: unknown[]) => {
+      postCommitPublications?.push({ spaceId: input.spaceId, payload: input, pluginEvent: null });
+      return Promise.resolve({ id: `activity-${input.spaceId}` });
     });
     mockInstanceSettingsService.get.mockResolvedValue({
       id: "instance-settings-1",
@@ -249,7 +249,7 @@ describe("instance settings routes", () => {
         worktreeRunExecutionActivationInstanceId: null,
       },
     });
-    mockInstanceSettingsService.listCompanyIds.mockResolvedValue(["company-1", "company-2"]);
+    mockInstanceSettingsService.listSpaceIds.mockResolvedValue(["space-1", "space-2"]);
     mockEnvironmentService.getById.mockResolvedValue({
       id: "env-1",
       driver: "local",
@@ -258,7 +258,7 @@ describe("instance settings routes", () => {
     });
   });
 
-  it("allows local board users to read and update experimental settings", async () => {
+  it("allows local operator users to read and update experimental settings", async () => {
     const app = await createApp(localAdminActor());
 
     const getRes = await request(app).get("/api/instance/settings/experimental");
@@ -306,7 +306,7 @@ describe("instance settings routes", () => {
   });
 
   it.each([true, false])("allows only instance admins to change chat connector visibility (%s)", async (isInstanceAdmin) => {
-    const app = createApp({ type: "board", userId: "user-1", source: "session", isInstanceAdmin, companyIds: ["company-1"] });
+    const app = createApp({ type: "operator", userId: "user-1", source: "session", isInstanceAdmin, spaceIds: ["space-1"] });
     const response = await request(app).patch("/api/instance/settings/experimental").send({ enableChatConnectors: true });
     expect(response.status).toBe(isInstanceAdmin ? 200 : 403);
     if (isInstanceAdmin) {
@@ -347,7 +347,7 @@ describe("instance settings routes", () => {
     });
   });
 
-  it("allows local board users to read and update the instance default environment", async () => {
+  it("allows local operator users to read and update the instance default environment", async () => {
     const app = await createApp(localAdminActor());
 
     const getRes = await request(app).get("/api/instance/settings");
@@ -406,7 +406,7 @@ describe("instance settings routes", () => {
     expect(mockInstanceSettingsService.update).not.toHaveBeenCalled();
   });
 
-  it("allows local board users to update guarded dev-server auto-restart", async () => {
+  it("allows local operator users to update guarded dev-server auto-restart", async () => {
     const app = await createApp(localAdminActor());
 
     await request(app)
@@ -421,7 +421,7 @@ describe("instance settings routes", () => {
     ).toBe(true);
   });
 
-  it("allows local board users to update external object detection", async () => {
+  it("allows local operator users to update external object detection", async () => {
     const app = await createApp(localAdminActor());
 
     await request(app)
@@ -434,7 +434,7 @@ describe("instance settings routes", () => {
     });
   });
 
-  it("allows local board users to update built-in agents", async () => {
+  it("allows local operator users to update built-in agents", async () => {
     const app = await createApp(localAdminActor());
 
     await request(app)
@@ -447,7 +447,7 @@ describe("instance settings routes", () => {
     });
   });
 
-  it("allows local board users to update the goals sidebar link", async () => {
+  it("allows local operator users to update the goals sidebar link", async () => {
     const app = await createApp(localAdminActor());
 
     await request(app)
@@ -460,7 +460,7 @@ describe("instance settings routes", () => {
     });
   });
 
-  it("allows local board users to update the server info debug view", async () => {
+  it("allows local operator users to update the server info debug view", async () => {
     const app = await createApp(localAdminActor());
 
     await request(app)
@@ -473,7 +473,7 @@ describe("instance settings routes", () => {
     });
   });
 
-  it("allows local board users to update environment controls", async () => {
+  it("allows local operator users to update environment controls", async () => {
     const app = await createApp(localAdminActor());
 
     await request(app)
@@ -486,13 +486,13 @@ describe("instance settings routes", () => {
     });
   });
 
-  it("allows non-admin board users with company access to read but not update experimental settings", async () => {
+  it("allows non-admin operator users with space access to read but not update experimental settings", async () => {
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     });
 
     await request(app).get("/api/instance/settings/experimental").expect(200);
@@ -509,10 +509,10 @@ describe("instance settings routes", () => {
     afterEach(() => vi.unstubAllEnvs());
 
     const stackAdmin = {
-      type: "board",
+      type: "operator",
       userId: "stack-admin-1",
       source: "cloud_tenant",
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
       isInstanceAdmin: false,
       canManageExperimentalSettings: true,
     };
@@ -559,7 +559,7 @@ describe("instance settings routes", () => {
     });
   });
 
-  it("allows local board users to read and update general settings", async () => {
+  it("allows local operator users to read and update general settings", async () => {
     const app = await createApp(localAdminActor());
 
     const getRes = await request(app).get("/api/instance/settings/general");
@@ -584,13 +584,13 @@ describe("instance settings routes", () => {
     expect(mockLogActivity).toHaveBeenCalledTimes(2);
   });
 
-  it("allows non-admin board users to read general settings", async () => {
+  it("allows non-admin operator users to read general settings", async () => {
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     });
 
     const res = await request(app).get("/api/instance/settings/general");
@@ -602,13 +602,13 @@ describe("instance settings routes", () => {
     });
   });
 
-  it("rejects signed-in users without company access from reading general settings", async () => {
+  it("rejects signed-in users without space access from reading general settings", async () => {
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-2",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: [],
+      spaceIds: [],
       memberships: [],
     });
 
@@ -618,13 +618,13 @@ describe("instance settings routes", () => {
     expect(mockInstanceSettingsService.getGeneral).not.toHaveBeenCalled();
   });
 
-  it("rejects non-admin board users from updating general settings", async () => {
+  it("rejects non-admin operator users from updating general settings", async () => {
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     });
 
     const res = await request(app)
@@ -639,7 +639,7 @@ describe("instance settings routes", () => {
     const app = await createApp({
       type: "agent",
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       source: "agent_key",
     });
 
@@ -653,11 +653,11 @@ describe("instance settings routes", () => {
 
   describe("executionMode floor on cloud-managed instances", () => {
     const adminActor = {
-      type: "board",
+      type: "operator",
       userId: "owner-1",
       source: "cloud_tenant",
       isInstanceAdmin: true,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     };
 
     beforeEach(() => {
@@ -729,7 +729,7 @@ describe("instance settings routes", () => {
     it("keeps executionMode writable on self-hosted instances", async () => {
       delete process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN;
       const app = await createApp({
-        type: "board",
+        type: "operator",
         userId: "admin-1",
         source: "session",
         isInstanceAdmin: true,
@@ -746,11 +746,11 @@ describe("instance settings routes", () => {
 
   describe("operator-hidden settings floor", () => {
     const adminActor = {
-      type: "board",
+      type: "operator",
       userId: "admin-1",
       source: "session",
       isInstanceAdmin: true,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     };
 
     afterEach(() => {
@@ -907,14 +907,14 @@ describe("instance settings routes", () => {
         vi.stubEnv("OUTPOST_PRIMARY_HOST", primaryHost);
         vi.stubEnv("OUTPOST_HIDDEN_SETTINGS", "instance.experimental.*");
         mockInstanceSettingsService.getExperimental.mockResolvedValue({
-          enablePaperclipNotebook: false, enableChatConnectors: false,
+          enableOutpostNotebook: false, enableChatConnectors: false,
         });
         const app = createApp({
-          type: "board", userId: "stack-admin-1", source: "cloud_tenant",
-          companyIds: ["company-1"], isInstanceAdmin: false, canManageExperimentalSettings: true,
+          type: "operator", userId: "stack-admin-1", source: "cloud_tenant",
+          spaceIds: ["space-1"], isInstanceAdmin: false, canManageExperimentalSettings: true,
         });
         const denied = await request(app).patch("/api/instance/settings/experimental")
-          .send({ enablePaperclipNotebook: true }).expect(403);
+          .send({ enableOutpostNotebook: true }).expect(403);
         expect(denied.body.details).toMatchObject({ code: "settings_operator_managed" });
         expect(mockInstanceSettingsService.updateExperimental).not.toHaveBeenCalled();
         expect(mockLogActivity).not.toHaveBeenCalled();
@@ -953,8 +953,8 @@ describe("instance settings routes", () => {
         mockInstanceSettingsService.getExperimental.mockImplementation(service.getExperimental);
         mockInstanceSettingsService.updateExperimental.mockImplementation(service.updateExperimental);
         const app = createApp({
-          type: "board", userId: "stack-admin-1", source: "cloud_tenant",
-          companyIds: ["company-1"], isInstanceAdmin: false, canManageExperimentalSettings: true,
+          type: "operator", userId: "stack-admin-1", source: "cloud_tenant",
+          spaceIds: ["space-1"], isInstanceAdmin: false, canManageExperimentalSettings: true,
         });
         const current = await request(app).get("/api/instance/settings/experimental").expect(200);
         expect(current.body).toMatchObject({
@@ -990,7 +990,7 @@ describe("instance settings routes", () => {
       vi.stubEnv("OUTPOST_PRIMARY_HOST", "team.staging.outpost.app");
       vi.stubEnv("OUTPOST_HIDDEN_SETTINGS", "instance.experimental,instance.experimental.*,instance.general.censorUsernameInLogs");
       const app = createApp({
-        type: "board", userId: "admin-1", source: "cloud_tenant",
+        type: "operator", userId: "admin-1", source: "cloud_tenant",
         isInstanceAdmin: false, canManageExperimentalSettings: true,
       });
       await request(app).patch("/api/instance/settings/experimental").send({ enableChatConnectors: true }).expect(200);
@@ -1009,10 +1009,10 @@ describe("instance settings routes", () => {
       expect(mockInstanceSettingsService.updateExperimental).not.toHaveBeenCalled();
     });
 
-    it("still denies ordinary board members on staging", async () => {
+    it("still denies ordinary operator members on staging", async () => {
       vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", "tenant-token");
       vi.stubEnv("OUTPOST_PRIMARY_HOST", "team.staging.outpost.app");
-      const app = createApp({ type: "board", userId: "member-1", source: "session", isInstanceAdmin: false });
+      const app = createApp({ type: "operator", userId: "member-1", source: "session", isInstanceAdmin: false });
       await request(app).patch("/api/instance/settings/experimental").send({ enableChatConnectors: true }).expect(403);
       expect(mockInstanceSettingsService.updateExperimental).not.toHaveBeenCalled();
     });
@@ -1020,18 +1020,18 @@ describe("instance settings routes", () => {
 
   describe("task drain", () => {
     const adminActor = {
-      type: "board",
+      type: "operator",
       userId: "admin-1",
       source: "session",
       isInstanceAdmin: true,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     };
     const nonAdminActor = {
-      type: "board",
+      type: "operator",
       userId: "user-1",
       source: "session",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     };
     const idleStatus = {
       draining: false,
@@ -1139,7 +1139,7 @@ describe("instance settings routes", () => {
       expect(mockReadIdleSleepSafety).toHaveBeenCalledWith(mockDb, expect.any(Function), Date.now,
         "fixture-owner", expect.any(Function), undefined, undefined, false, false, { incomingWake: undefined, deadlineCapability: undefined, prepareLocalWork: expect.any(Function), collectDiagnostics: true });
       mockReadIdleSleepSafety.mockClear();
-      for (const actor of [nonAdminActor, { type: "agent", agentId: "agent-1", companyId: "company-1", source: "api_key" }]) {
+      for (const actor of [nonAdminActor, { type: "agent", agentId: "agent-1", spaceId: "space-1", source: "api_key" }]) {
         await request(createApp(actor))
           .get("/api/instance/task-drain?idleSleepSafety=1&idleSleepDiagnostics=1&ownerId=fixture-owner").expect(403);
       }
@@ -1196,23 +1196,23 @@ describe("instance settings routes", () => {
         const token = assertion({ action: "task-drain:read-body", idleCapabilities: undefined, bodySha256: createHash("sha256").update(raw).digest("hex") });
         const url = `/api/instance/task-drain/status?idleSleepSafety=1&scheduledWake=domain-deadlines-v1&ownerId=${ownerId}`;
         await request(createControlApp({ type: "none" })).post(url).set("content-type", "application/json")
-          .set("x-paperclip-cloud-control", token).send(raw).expect(200);
+          .set("x-outpost-cloud-control", token).send(raw).expect(200);
         expect(mockReadIdleSleepSafety).toHaveBeenCalledExactlyOnceWith(mockDb, expect.any(Function), Date.now,
           ownerId, expect.any(Function), undefined, undefined, true, true,
           { incomingWake: catalog, deadlineCapability: catalog, prepareLocalWork: expect.any(Function) });
         expect(Object.isFrozen(mockReadIdleSleepSafety.mock.calls[0][9].incomingWake)).toBe(true);
         await request(createControlApp({ type: "none" })).post(url).set("content-type", "application/json")
-          .set("x-paperclip-cloud-control", token).send(raw).expect(401);
+          .set("x-outpost-cloud-control", token).send(raw).expect(401);
       });
       it("rejects body tampering before installing capabilities or consuming the valid request", async () => {
         const raw = JSON.stringify({ idleCapabilities: catalog });
         const token = assertion({ action: "task-drain:read-body", idleCapabilities: undefined, bodySha256: createHash("sha256").update(raw).digest("hex") });
         const url = `/api/instance/task-drain/status?idleSleepSafety=1&ownerId=${ownerId}`;
         await request(createControlApp(adminActor)).post(url).set("content-type", "application/json")
-          .set("x-paperclip-cloud-control", token).send(raw + " ").expect(401);
+          .set("x-outpost-cloud-control", token).send(raw + " ").expect(401);
         expect(mockReadIdleSleepSafety).not.toHaveBeenCalled();
         await request(createControlApp({ type: "none" })).post(url).set("content-type", "application/json")
-          .set("x-paperclip-cloud-control", token).send(raw).expect(200);
+          .set("x-outpost-cloud-control", token).send(raw).expect(200);
       });
       it("rejects unsigned and actor-only body authority and cross-route method replay", async () => {
         const raw = JSON.stringify({ idleCapabilities: catalog }), url = `/api/instance/task-drain/status?idleSleepSafety=1&ownerId=${ownerId}`;
@@ -1222,20 +1222,20 @@ describe("instance settings routes", () => {
         }
         expect(mockReadIdleSleepSafety).not.toHaveBeenCalled();
         const token = assertion({ action: "task-drain:read-body", idleCapabilities: undefined, bodySha256: createHash("sha256").update(raw).digest("hex") });
-        await request(createControlApp(adminActor)).get(url).set("x-paperclip-cloud-control", token).expect(400);
+        await request(createControlApp(adminActor)).get(url).set("x-outpost-cloud-control", token).expect(400);
         await request(createControlApp(adminActor)).post("/api/instance/task-drain").set("content-type", "application/json")
-          .set("x-paperclip-cloud-control", token).send(raw).expect(401);
-        await request(createControlApp(adminActor)).delete("/api/instance/task-drain").set("x-paperclip-cloud-control", token).expect(401);
+          .set("x-outpost-cloud-control", token).send(raw).expect(401);
+        await request(createControlApp(adminActor)).delete("/api/instance/task-drain").set("x-outpost-cloud-control", token).expect(401);
         expect(mockReadIdleSleepSafety).not.toHaveBeenCalled();
         await request(createControlApp({ type: "none" })).post(url).set("content-type", "application/json")
-          .set("x-paperclip-cloud-control", token).send(raw).expect(200);
+          .set("x-outpost-cloud-control", token).send(raw).expect(200);
       });
 
       it("passes only the immutable signed catalog through real middleware and the production route", async () => {
         const token = assertion();
         const response = await request(createControlApp({ type: "none" }))
           .get(`${path}&incomingWake=${encodeURIComponent(JSON.stringify({ ...catalog.incomingWake, generation: "b".repeat(64) }))}`)
-          .set("x-paperclip-cloud-control", token)
+          .set("x-outpost-cloud-control", token)
           .send({ idleCapabilities: { incomingWake: { ...catalog.incomingWake, ownerId: randomUUID() } } }).expect(200);
         expect(response.body.idleSleepSafety).toEqual({ version: 3, backgroundWork: "none" });
         expect(mockReadIdleSleepSafety).toHaveBeenCalledExactlyOnceWith(mockDb, expect.any(Function), Date.now,
@@ -1246,13 +1246,13 @@ describe("instance settings routes", () => {
         expect(Object.isFrozen(options.incomingWake)).toBe(true);
         expect(Object.isFrozen(options.incomingWake.incomingWake)).toBe(true);
         expect(Object.isFrozen(options.incomingWake.incomingWake.routes)).toBe(true);
-        await request(createControlApp({ type: "none" })).get(path).set("x-paperclip-cloud-control", token).expect(401);
+        await request(createControlApp({ type: "none" })).get(path).set("x-outpost-cloud-control", token).expect(401);
         expect(mockReadIdleSleepSafety).toHaveBeenCalledTimes(1);
       });
 
       it("passes the signed deadline catalog only for its explicit named query", async () => {
         await request(createControlApp({ type: "none" })).get(`${path}&scheduledWake=domain-deadlines-v1`)
-          .set("x-paperclip-cloud-control", assertion()).expect(200);
+          .set("x-outpost-cloud-control", assertion()).expect(200);
         expect(mockReadIdleSleepSafety).toHaveBeenCalledExactlyOnceWith(mockDb, expect.any(Function), Date.now,
           ownerId, expect.any(Function), undefined, undefined, true, true,
           { incomingWake: catalog, deadlineCapability: catalog, prepareLocalWork: expect.any(Function) });
@@ -1267,7 +1267,7 @@ describe("instance settings routes", () => {
         ["expired", () => ({ iat: Math.floor(Date.now() / 1000) - 600, exp: Math.floor(Date.now() / 1000) - 300 })],
         ["unsupported catalog", () => ({ idleCapabilities: { incomingWake: { ...catalog.incomingWake, routes: ["unverified-path"] } } })],
       ])("rejects %s before safety inspection", async (_name, claims) => {
-        await request(createControlApp(adminActor)).get(path).set("x-paperclip-cloud-control", assertion(claims())).expect(401);
+        await request(createControlApp(adminActor)).get(path).set("x-outpost-cloud-control", assertion(claims())).expect(401);
         expect(mockReadIdleSleepSafety).not.toHaveBeenCalled();
       });
 
@@ -1276,13 +1276,13 @@ describe("instance settings routes", () => {
         const changed = JSON.parse(Buffer.from(payload!, "base64url").toString());
         changed.idleCapabilities.incomingWake.generation = "b".repeat(64);
         const tampered = `${header}.${Buffer.from(JSON.stringify(changed)).toString("base64url")}.${signature}`;
-        await request(createControlApp(adminActor)).get(path).set("x-paperclip-cloud-control", tampered).expect(401);
+        await request(createControlApp(adminActor)).get(path).set("x-outpost-cloud-control", tampered).expect(401);
         expect(mockReadIdleSleepSafety).not.toHaveBeenCalled();
       });
 
       it("leaves legacy signed reads without a catalog conservative", async () => {
         await request(createControlApp({ type: "none" })).get(path)
-          .set("x-paperclip-cloud-control", assertion({ idleCapabilities: undefined })).expect(200);
+          .set("x-outpost-cloud-control", assertion({ idleCapabilities: undefined })).expect(200);
         expect(mockReadIdleSleepSafety.mock.calls[0][9]).toEqual({ incomingWake: undefined, deadlineCapability: undefined, prepareLocalWork: expect.any(Function) });
       });
 
@@ -1346,7 +1346,7 @@ describe("instance settings routes", () => {
         for (const source of ["session", "cloud_tenant", "local_implicit"]) {
           const tenantAdmin = createApp({ ...adminActor, source }, undefined, backup);
           await request(tenantAdmin).get("/api/instance/task-drain?idleSleepSafety=1&ownerId=fixture-owner")
-            .set("x-paperclip-cloud-control", "unverified-header").expect(403);
+            .set("x-outpost-cloud-control", "unverified-header").expect(403);
         }
         expect(mockReadIdleSleepSafety).not.toHaveBeenCalled();
         expect(backup).not.toHaveBeenCalled();
@@ -1360,8 +1360,8 @@ describe("instance settings routes", () => {
     });
 
     it.each([
-      ["company member", nonAdminActor],
-      ["agent", { type: "agent", agentId: "agent-1", companyId: "company-1" }],
+      ["space member", nonAdminActor],
+      ["agent", { type: "agent", agentId: "agent-1", spaceId: "space-1" }],
       ["anonymous caller", { type: "none" }],
     ])("does not expose the instance-wide work report to a %s", async (_name, actor) => {
       const res = await request(createApp(actor)).get("/api/instance/task-drain?idleSleepSafety=1");
@@ -1369,7 +1369,7 @@ describe("instance settings routes", () => {
       expect(mockReadIdleSleepSafety).not.toHaveBeenCalled();
     });
 
-    it("writes an activity record for every company, then applies the same drain values, in one transaction", async () => {
+    it("writes an activity record for every space, then applies the same drain values, in one transaction", async () => {
       const drain = { startedAt: "2026-08-29T00:00:00.000Z", expiresAt: "2026-08-29T06:00:00.000Z" };
       mockHeartbeatService.computeTaskDrain.mockReturnValue(drain);
       const app = await createApp(adminActor);
@@ -1407,7 +1407,7 @@ describe("instance settings routes", () => {
       expect(mockHeartbeatService.computeTaskDrain).toHaveBeenCalledWith({ ttlMs: null });
     });
 
-    it("writes an activity record for every company, then stops the drain, using one wasActive value throughout", async () => {
+    it("writes an activity record for every space, then stops the drain, using one wasActive value throughout", async () => {
       mockHeartbeatService.getTaskDrainStatus.mockReturnValue({
         draining: true,
         startedAt: new Date(),
@@ -1436,8 +1436,8 @@ describe("instance settings routes", () => {
       expect(mockPublishActivity).toHaveBeenCalledTimes(2);
     });
 
-    it("does not apply a drain when the company list read fails", async () => {
-      mockInstanceSettingsService.listCompanyIds.mockRejectedValue(new Error("db unavailable"));
+    it("does not apply a drain when the space list read fails", async () => {
+      mockInstanceSettingsService.listSpaceIds.mockRejectedValue(new Error("db unavailable"));
       const app = await createApp(adminActor);
 
       const res = await request(app).post("/api/instance/task-drain").send({});
@@ -1446,20 +1446,20 @@ describe("instance settings routes", () => {
       expect(mockHeartbeatService.applyTaskDrain).not.toHaveBeenCalled();
     });
 
-    it("commits no activity record for any company when one company's audit write fails", async () => {
-      // company-1 succeeds, company-2 fails. A real transaction rolls both
+    it("commits no activity record for any space when one space's audit write fails", async () => {
+      // space-1 succeeds, space-2 fails. A real transaction rolls both
       // back together; here we prove the route puts both writes in the
       // SAME transaction (rather than firing one independent write per
-      // company) and never publishes a record for the company that did
+      // space) and never publishes a record for the space that did
       // succeed before the shared transaction rejected.
       mockHeartbeatService.computeTaskDrain.mockReturnValue({
         startedAt: "2026-08-29T00:00:00.000Z",
         expiresAt: null,
       });
-      mockLogActivity.mockImplementation((_db: unknown, input: { companyId: string }) => (
-        input.companyId === "company-2"
+      mockLogActivity.mockImplementation((_db: unknown, input: { spaceId: string }) => (
+        input.spaceId === "space-2"
           ? Promise.reject(new Error("activity insert failed"))
-          : Promise.resolve({ id: `activity-${input.companyId}` })
+          : Promise.resolve({ id: `activity-${input.spaceId}` })
       ));
       const app = await createApp(adminActor);
 
@@ -1507,8 +1507,8 @@ describe("instance settings routes", () => {
       expect(mockHeartbeatService.applyTaskDrain).toHaveBeenCalledWith(drain);
     });
 
-    it("does not stop the drain when the company list read fails", async () => {
-      mockInstanceSettingsService.listCompanyIds.mockRejectedValue(new Error("db unavailable"));
+    it("does not stop the drain when the space list read fails", async () => {
+      mockInstanceSettingsService.listSpaceIds.mockRejectedValue(new Error("db unavailable"));
       const app = await createApp(adminActor);
 
       const res = await request(app).delete("/api/instance/task-drain");
@@ -1575,13 +1575,13 @@ describe("instance settings routes", () => {
       expect(mockHeartbeatService.stopTaskDrain).toHaveBeenCalledWith();
     });
 
-    it("still publishes the second company's record when the first company's publish fails", async () => {
+    it("still publishes the second space's record when the first space's publish fails", async () => {
       // Each committed audit record publishes independently, so one
-      // company's publish failure must not stop the rest from publishing.
+      // space's publish failure must not stop the rest from publishing.
       const drain = { startedAt: "2026-08-29T00:00:00.000Z", expiresAt: null };
       mockHeartbeatService.computeTaskDrain.mockReturnValue(drain);
-      mockPublishActivity.mockImplementation((publication: { companyId: string }) => {
-        if (publication.companyId === "company-1") throw new Error("live event bus unavailable");
+      mockPublishActivity.mockImplementation((publication: { spaceId: string }) => {
+        if (publication.spaceId === "space-1") throw new Error("live event bus unavailable");
       });
       const app = await createApp(adminActor);
 
@@ -1590,9 +1590,9 @@ describe("instance settings routes", () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual(drain);
       expect(mockPublishActivity).toHaveBeenCalledTimes(2);
-      expect(mockPublishActivity.mock.calls.map(([publication]) => publication.companyId)).toEqual([
-        "company-1",
-        "company-2",
+      expect(mockPublishActivity.mock.calls.map(([publication]) => publication.spaceId)).toEqual([
+        "space-1",
+        "space-2",
       ]);
     });
 
@@ -1654,19 +1654,19 @@ describe("instance settings routes", () => {
         return fn(TX_SENTINEL);
       });
 
-      // Each route handler awaits listCompanyIds as its last step before it
+      // Each route handler awaits listSpaceIds as its last step before it
       // enters the task-drain transition queue, so a second call proves the
       // DELETE passed authorization and reached the queue — not merely that
       // it has not arrived yet.
-      let listCompanyIdsCallCount = 0;
-      let notifySecondListCompanyIdsCall: (() => void) | undefined;
-      const secondListCompanyIdsCall = new Promise<void>((resolve) => {
-        notifySecondListCompanyIdsCall = resolve;
+      let listSpaceIdsCallCount = 0;
+      let notifySecondListSpaceIdsCall: (() => void) | undefined;
+      const secondListSpaceIdsCall = new Promise<void>((resolve) => {
+        notifySecondListSpaceIdsCall = resolve;
       });
-      mockInstanceSettingsService.listCompanyIds.mockImplementation(async () => {
-        listCompanyIdsCallCount += 1;
-        if (listCompanyIdsCallCount === 2) notifySecondListCompanyIdsCall?.();
-        return ["company-1", "company-2"];
+      mockInstanceSettingsService.listSpaceIds.mockImplementation(async () => {
+        listSpaceIdsCallCount += 1;
+        if (listSpaceIdsCallCount === 2) notifySecondListSpaceIdsCall?.();
+        return ["space-1", "space-2"];
       });
 
       const app = await createApp(adminActor);
@@ -1677,7 +1677,7 @@ describe("instance settings routes", () => {
       const postPromise = request(app).post("/api/instance/task-drain").send({});
       postPromise.then(() => {}, () => {});
       // Wait for the POST's transaction call to start before the test sends
-      // the DELETE. At that point the POST already called listCompanyIds,
+      // the DELETE. At that point the POST already called listSpaceIds,
       // already entered the task-drain transition queue, and sits blocked
       // inside the mocked db.transaction call — the POST holds the queue.
       // Only a real event proves this; a fixed wait would not, because the
@@ -1688,10 +1688,10 @@ describe("instance settings routes", () => {
       await firstTransactionStarted;
       const deletePromise = request(app).delete("/api/instance/task-drain");
       deletePromise.then(() => {}, () => {});
-      // Wait for the DELETE's own listCompanyIds call. It proves the DELETE
+      // Wait for the DELETE's own listSpaceIds call. It proves the DELETE
       // passed authorization and reached the transition queue behind the
       // POST — not merely that it has not shown up yet.
-      await secondListCompanyIdsCall;
+      await secondListSpaceIdsCall;
       expect(transactionCalls).toEqual(["post-start"]);
       expect(mockHeartbeatService.applyTaskDrain).not.toHaveBeenCalled();
       expect(mockHeartbeatService.stopTaskDrain).not.toHaveBeenCalled();
@@ -1713,7 +1713,7 @@ describe("instance settings routes", () => {
       expect(liveState.draining).toBe(false);
     });
 
-    it("rejects a board actor without instance admin rights", async () => {
+    it("rejects a operator actor without instance admin rights", async () => {
       const app = await createApp(nonAdminActor);
 
       const res = await request(app).post("/api/instance/task-drain").send({});
@@ -1749,42 +1749,42 @@ describe("instance settings routes", () => {
   describe("cloud lifecycle read-back and unarchive", () => {
     const STACK_ID = "stack-lifecycle-routes";
     const adminActor = {
-      type: "board",
-      userId: "paperclip-cloud",
+      type: "operator",
+      userId: "outpost-cloud",
       source: "cloud_control",
       isInstanceAdmin: true,
-      companyIds: [],
+      spaceIds: [],
     };
     const memberActor = {
-      type: "board",
+      type: "operator",
       userId: "member-1",
       source: "cloud_tenant",
       isInstanceAdmin: false,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     };
-    // The pinned primary company id the routes derive from the stack id.
+    // The pinned primary space id the routes derive from the stack id.
     let primaryId: string;
 
     beforeEach(async () => {
       process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN = "test-server-token";
       process.env.OUTPOST_CLOUD_STACK_ID = STACK_ID;
-      const { cloudTenantPrimaryCompanyId } = await vi.importActual<
+      const { cloudTenantPrimarySpaceId } = await vi.importActual<
         typeof import("../services/cloud-instance.js")
       >("../services/cloud-instance.js");
-      primaryId = cloudTenantPrimaryCompanyId(STACK_ID);
-      mockCompanyRows = [];
+      primaryId = cloudTenantPrimarySpaceId(STACK_ID);
+      mockSpaceRows = [];
     });
     afterEach(() => {
       delete process.env.OUTPOST_CLOUD_TENANT_SERVER_TOKEN;
       delete process.env.OUTPOST_CLOUD_STACK_ID;
     });
 
-    it("reports the primary company status and how many other companies are not archived", async () => {
-      mockCompanyRows = [
+    it("reports the primary space status and how many other spaces are not archived", async () => {
+      mockSpaceRows = [
         { id: primaryId, status: "archived" },
-        { id: "company-sibling-live", status: "active" },
-        { id: "company-sibling-paused", status: "paused" },
-        { id: "company-sibling-archived", status: "archived" },
+        { id: "space-sibling-live", status: "active" },
+        { id: "space-sibling-paused", status: "paused" },
+        { id: "space-sibling-archived", status: "archived" },
       ];
       const app = await createApp(adminActor);
 
@@ -1792,25 +1792,25 @@ describe("instance settings routes", () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({
-        primaryCompanyId: primaryId,
-        primaryCompanyStatus: "archived",
+        primarySpaceId: primaryId,
+        primarySpaceStatus: "archived",
         // paused counts: any non-archived sibling keeps the stack alive.
-        otherUnarchivedCompanyCount: 2,
+        otherUnarchivedSpaceCount: 2,
       });
     });
 
-    it("reports a missing primary company without failing", async () => {
-      mockCompanyRows = [{ id: "company-other", status: "active" }];
+    it("reports a missing primary space without failing", async () => {
+      mockSpaceRows = [{ id: "space-other", status: "active" }];
       const app = await createApp(adminActor);
 
       const res = await request(app).get("/api/instance/lifecycle");
 
       expect(res.status).toBe(200);
-      expect(res.body.primaryCompanyStatus).toBe("missing");
+      expect(res.body.primarySpaceStatus).toBe("missing");
     });
 
-    it("hides the cross-company lifecycle summary from non-admin board members", async () => {
-      mockCompanyRows = [{ id: primaryId, status: "archived" }];
+    it("hides the cross-space lifecycle summary from non-admin operator members", async () => {
+      mockSpaceRows = [{ id: primaryId, status: "archived" }];
       const app = await createApp(memberActor);
 
       const res = await request(app).get("/api/instance/lifecycle");
@@ -1829,12 +1829,12 @@ describe("instance settings routes", () => {
         .post("/api/instance/lifecycle/unarchive-primary")
         .send({});
       expect(unarchiveRes.status).toBe(404);
-      expect(mockCompanyService.update).not.toHaveBeenCalled();
+      expect(mockSpaceService.update).not.toHaveBeenCalled();
     });
 
-    it("unarchives an archived primary company as a system actor", async () => {
-      mockCompanyService.getById.mockResolvedValue({ id: "", status: "archived" });
-      mockCompanyService.update.mockImplementation(async (id: string) => ({ id, status: "active" }));
+    it("unarchives an archived primary space as a system actor", async () => {
+      mockSpaceService.getById.mockResolvedValue({ id: "", status: "archived" });
+      mockSpaceService.update.mockImplementation(async (id: string) => ({ id, status: "active" }));
       const app = await createApp(adminActor);
 
       const res = await request(app)
@@ -1843,22 +1843,22 @@ describe("instance settings routes", () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ status: "active", changed: true });
-      expect(mockCompanyService.update).toHaveBeenCalledWith(
+      expect(mockSpaceService.update).toHaveBeenCalledWith(
         primaryId,
         { status: "active" },
-        { actorType: "system", actorId: "paperclip-cloud", agentId: null, runId: null },
+        { actorType: "system", actorId: "outpost-cloud", agentId: null, runId: null },
       );
     });
 
     it("attributes a human admin's unarchive to that admin, not to Cloud", async () => {
-      mockCompanyService.getById.mockResolvedValue({ id: "", status: "archived" });
-      mockCompanyService.update.mockImplementation(async (id: string) => ({ id, status: "active" }));
+      mockSpaceService.getById.mockResolvedValue({ id: "", status: "archived" });
+      mockSpaceService.update.mockImplementation(async (id: string) => ({ id, status: "active" }));
       const humanAdmin = {
-        type: "board",
+        type: "operator",
         userId: "human-admin",
         source: "session",
         isInstanceAdmin: true,
-        companyIds: ["company-1"],
+        spaceIds: ["space-1"],
       };
       const app = await createApp(humanAdmin);
 
@@ -1867,15 +1867,15 @@ describe("instance settings routes", () => {
         .send({});
 
       expect(res.status).toBe(200);
-      expect(mockCompanyService.update).toHaveBeenCalledWith(
+      expect(mockSpaceService.update).toHaveBeenCalledWith(
         primaryId,
         { status: "active" },
         expect.objectContaining({ actorType: "user", actorId: "human-admin" }),
       );
     });
 
-    it("is idempotent: an unarchived primary company reports changed:false", async () => {
-      mockCompanyService.getById.mockResolvedValue({ id: "", status: "active" });
+    it("is idempotent: an unarchived primary space reports changed:false", async () => {
+      mockSpaceService.getById.mockResolvedValue({ id: "", status: "active" });
       const app = await createApp(adminActor);
 
       const res = await request(app)
@@ -1884,7 +1884,7 @@ describe("instance settings routes", () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ status: "active", changed: false });
-      expect(mockCompanyService.update).not.toHaveBeenCalled();
+      expect(mockSpaceService.update).not.toHaveBeenCalled();
     });
 
     it("requires instance admin rights to unarchive", async () => {
@@ -1895,7 +1895,7 @@ describe("instance settings routes", () => {
         .send({});
 
       expect(res.status).toBe(403);
-      expect(mockCompanyService.update).not.toHaveBeenCalled();
+      expect(mockSpaceService.update).not.toHaveBeenCalled();
     });
   });
 });

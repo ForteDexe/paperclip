@@ -56,7 +56,7 @@ function BulkEditor({ agents, harness, totalSelected, initialEditor, failOne, sa
   const invalid = targets.filter(agent => !modelsFor(harness, changeConnection && targetConnection ? targetConnection : agent.connectionId).includes(changeModel ? model : agent.model));
   const changed = targets.filter(agent => (changeConnection && targetConnection && targetConnection !== agent.connectionId) || (changeModel && model && model !== agent.model));
   const missing = (changeConnection && !targetConnection) || (changeModel && !model);
-  const connectionError = changeConnection && binding && bindingProblem(binding, { companyId: "company-storybook", provider: info.provider }, connections, "user-board", agents[0].id);
+  const connectionError = changeConnection && binding && bindingProblem(binding, { spaceId: "space-storybook", provider: info.provider }, connections, "user-board", agents[0].id);
   const canSave = changed.length > 0 && !missing && !connectionError && invalid.length === 0 && !saving;
   const otherCount = totalSelected - agents.length;
   const currentConnections = [...new Set(agents.map(agent => connectionName(agent.connectionId)))];
@@ -99,7 +99,7 @@ function BulkEditor({ agents, harness, totalSelected, initialEditor, failOne, sa
             <span className="space-y-1"><span className="block text-sm font-medium">Change connection</span><span className="block text-xs text-muted-foreground">{currentConnections.length === 1 ? currentConnections[0] : `${currentConnections.length} different connections`}{!changeConnection && " · Keep current"}</span></span>
           </label>
           {changeConnection && <div className="space-y-2 pl-7">
-            <AiConnectionSelect requirement={{ companyId: "company-storybook", provider: info.provider }} connections={connections}
+            <AiConnectionSelect requirement={{ spaceId: "space-storybook", provider: info.provider }} connections={connections}
               value={binding} currentUserId="user-board" agentId={agents[0].id} agentName={`${agents.length} agents`} adapterType={info.adapter}
               onChange={setBinding} onConnect={() => setAccountNotice(true)} />
             {accountNotice && <p role="status" className="text-xs text-muted-foreground">Account setup is outside this preview. Choose one of the sample connections.</p>}

@@ -5,7 +5,7 @@ import type { ComponentProps } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type {
-  CompanySecret,
+  SpaceSecret,
   Routine,
   RoutineEnvConfig,
   RoutineRevision,
@@ -85,7 +85,7 @@ function snapshotV1(overrides?: Partial<RoutineRevisionSnapshotV1["routine"]>): 
     version: 1,
     routine: {
       id: "routine-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       projectId: null,
       goalId: null,
       parentIssueId: null,
@@ -98,7 +98,7 @@ function snapshotV1(overrides?: Partial<RoutineRevisionSnapshotV1["routine"]>): 
       concurrencyPolicy: "coalesce_if_active",
       catchUpPolicy: "skip_missed",
       activityGatePolicy: "always",
-      activityGateScope: "company",
+      activityGateScope: "space",
       variables: [],
       env: null,
       ...overrides,
@@ -110,7 +110,7 @@ function snapshotV1(overrides?: Partial<RoutineRevisionSnapshotV1["routine"]>): 
 function createRevision(overrides: Partial<RoutineRevision> = {}): RoutineRevision {
   return {
     id: overrides.id ?? "revision-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     routineId: "routine-1",
     revisionNumber: overrides.revisionNumber ?? 1,
     title: "Daily standup digest",
@@ -129,7 +129,7 @@ function createRevision(overrides: Partial<RoutineRevision> = {}): RoutineRevisi
 function createRoutine(overrides: Partial<Routine> = {}): Routine {
   return {
     id: "routine-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     goalId: null,
     parentIssueId: null,
@@ -142,7 +142,7 @@ function createRoutine(overrides: Partial<Routine> = {}): Routine {
     concurrencyPolicy: "coalesce_if_active",
     catchUpPolicy: "skip_missed",
     activityGatePolicy: "always",
-    activityGateScope: "company",
+    activityGateScope: "space",
     variables: [],
     latestRevisionId: "revision-2",
     latestRevisionNumber: 2,
@@ -348,18 +348,18 @@ describe("RoutineHistoryTab", () => {
       }),
     });
     mockRoutinesApi.listRevisions.mockResolvedValue([current, old]);
-    const secrets: CompanySecret[] = [
+    const secrets: SpaceSecret[] = [
       {
         id: "secret-1",
-        companyId: "company-1",
-        scope: "company",
+        spaceId: "space-1",
+        scope: "space",
         ownerUserId: null,
         userSecretDefinitionId: null,
         key: "gh_token",
         name: "github-bot",
         provider: "local_encrypted",
         status: "active",
-        managedMode: "paperclip_managed",
+        managedMode: "outpost_managed",
         externalRef: null,
         providerConfigId: null,
         providerMetadata: null,
@@ -413,18 +413,18 @@ describe("RoutineHistoryTab", () => {
         env: { GH_TOKEN: { type: "secret_ref", secretId: "secret-1", version: "latest" } },
       }),
     });
-    const secrets: CompanySecret[] = [
+    const secrets: SpaceSecret[] = [
       {
         id: "secret-1",
-        companyId: "company-1",
-        scope: "company",
+        spaceId: "space-1",
+        scope: "space",
         ownerUserId: null,
         userSecretDefinitionId: null,
         key: "old_token",
         name: "old-token",
         provider: "local_encrypted",
         status: "active",
-        managedMode: "paperclip_managed",
+        managedMode: "outpost_managed",
         externalRef: null,
         providerConfigId: null,
         providerMetadata: null,
@@ -440,15 +440,15 @@ describe("RoutineHistoryTab", () => {
       },
       {
         id: "secret-2",
-        companyId: "company-1",
-        scope: "company",
+        spaceId: "space-1",
+        scope: "space",
         ownerUserId: null,
         userSecretDefinitionId: null,
         key: "new_token",
         name: "new-token",
         provider: "local_encrypted",
         status: "active",
-        managedMode: "paperclip_managed",
+        managedMode: "outpost_managed",
         externalRef: null,
         providerConfigId: null,
         providerMetadata: null,

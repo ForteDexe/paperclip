@@ -25,7 +25,7 @@ vi.mock("@/context/ToastContext", () => ({ useToastActions: () => ({ pushToast: 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const issue = (overrides: Partial<Issue> = {}) =>
-  ({ id: "issue-1", identifier: "PAP-1", companyId: "company-1", status: "todo", priority: "medium", ...overrides }) as Issue;
+  ({ id: "issue-1", identifier: "PAP-1", spaceId: "space-1", status: "todo", priority: "medium", ...overrides }) as Issue;
 
 describe("mapIssuesInQueryData", () => {
   const refs = new Set(["PAP-1"]);
@@ -72,8 +72,8 @@ describe("useUpdateIssueMutation", () => {
     queryClient = createAppQueryClient({ connectivity: store });
     queryClient.setQueryData(queryKeys.auth.session, { user: { id: "account-a" } });
     queryClient.setQueryData(queryKeys.issues.detail("PAP-1"), issue());
-    queryClient.setQueryData(queryKeys.issues.list("company-1"), [issue()]);
-    queryClient.setQueryData(queryKeys.issues.listByProject("company-1", "project-1"), [issue()]);
+    queryClient.setQueryData(queryKeys.issues.list("space-1"), [issue()]);
+    queryClient.setQueryData(queryKeys.issues.listByProject("space-1", "project-1"), [issue()]);
   });
 
   afterEach(() => {
@@ -85,7 +85,7 @@ describe("useUpdateIssueMutation", () => {
   });
 
   function Harness() {
-    current = useUpdateIssueMutation({ companyId: "company-1" });
+    current = useUpdateIssueMutation({ spaceId: "space-1" });
     return null;
   }
 
@@ -113,8 +113,8 @@ describe("useUpdateIssueMutation", () => {
     act(() => current.mutate({ id: "PAP-1", data: { status: "in_progress" } }));
     await act(async () => {});
     expect(statusIn(queryKeys.issues.detail("PAP-1"))).toBe("in_progress");
-    expect(statusIn(queryKeys.issues.list("company-1"))).toBe("in_progress");
-    expect(statusIn(queryKeys.issues.listByProject("company-1", "project-1"))).toBe("in_progress");
+    expect(statusIn(queryKeys.issues.list("space-1"))).toBe("in_progress");
+    expect(statusIn(queryKeys.issues.listByProject("space-1", "project-1"))).toBe("in_progress");
     await act(async () => resolve({ ...issue({ status: "in_progress" }), changes: {} }));
   });
 
@@ -126,7 +126,7 @@ describe("useUpdateIssueMutation", () => {
     });
     await act(async () => {});
     expect(statusIn(queryKeys.issues.detail("PAP-1"))).toBe("todo");
-    expect(statusIn(queryKeys.issues.listByProject("company-1", "project-1"))).toBe("todo");
+    expect(statusIn(queryKeys.issues.listByProject("space-1", "project-1"))).toBe("todo");
     expect(mockPushToast).toHaveBeenCalledWith({
       title: "Couldn't update the task",
       body: "You don’t have permission to do that.",
@@ -193,15 +193,15 @@ describe("useUpdateIssueMutation", () => {
   it("rolls back only the failed update, keeping other tasks' changes", async () => {
     let failFirst!: (error: unknown) => void;
     mockUpdate.mockReturnValueOnce(new Promise((_, reject) => { failFirst = reject; }));
-    queryClient.setQueryData(queryKeys.issues.list("company-1"), [issue(), issue({ id: "issue-2", identifier: "PAP-2" })]);
+    queryClient.setQueryData(queryKeys.issues.list("space-1"), [issue(), issue({ id: "issue-2", identifier: "PAP-2" })]);
     render();
     act(() => current.mutate({ id: "PAP-1", data: { status: "in_progress" } }));
     await act(async () => {});
     // Another task changes while this update is still in flight.
-    queryClient.setQueryData<Issue[]>(queryKeys.issues.list("company-1"), (rows) =>
+    queryClient.setQueryData<Issue[]>(queryKeys.issues.list("space-1"), (rows) =>
       rows?.map((row) => (row.id === "issue-2" ? { ...row, status: "done" } : row)));
     await act(async () => failFirst(new ApiError("not_allowed_here", 403, { error: "not_allowed_here" })));
-    const rows = queryClient.getQueryData<Issue[]>(queryKeys.issues.list("company-1"));
+    const rows = queryClient.getQueryData<Issue[]>(queryKeys.issues.list("space-1"));
     expect(rows?.map((row) => row.status)).toEqual(["todo", "done"]);
   });
 

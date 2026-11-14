@@ -22,10 +22,10 @@ vi.mock("@chat-adapter/discord", () => ({
     captures.discordConfigs.push(config);
     return {
       name: "discord",
-      paperclipCompatibilityRevision:
+      outpostCompatibilityRevision:
         config.botToken === "unpatched-discord"
           ? undefined
-          : "paperclip-discord-v6",
+          : "outpost-discord-v6",
       async ensureRootThread(
         channelId: string,
         messageId: string,
@@ -260,7 +260,7 @@ function baseOptions(
 ): CreateChatSdkEndpointRuntimeOptions {
   return {
     callbacks: { onMessage: vi.fn() },
-    companyId: "company-1",
+    spaceId: "space-1",
     endpointId: "endpoint-1",
     logger: "silent",
     persistence,
@@ -295,7 +295,7 @@ describe("Chat SDK endpoint runtime", () => {
     const runtime = createChatSdkEndpointRuntime(
       baseOptions({
         provider: "slack",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           botToken: "xoxb-test",
           signingSecret: "signing-secret",
@@ -312,7 +312,7 @@ describe("Chat SDK endpoint runtime", () => {
       botUserId: "U123",
       mode: "webhook",
       nativeStreaming: true,
-      userName: "paperclip-agent",
+      userName: "outpost-agent",
       webClientOptions: {
         rejectRateLimitedCalls: true,
         retryConfig: { retries: 0 },
@@ -328,7 +328,7 @@ describe("Chat SDK endpoint runtime", () => {
     createChatSdkEndpointRuntime(
       baseOptions({
         provider: "github",
-        userName: "paperclip-agent[bot]",
+        userName: "outpost-agent[bot]",
         credentials: {
           token: "github-token",
           webhookSecret: "github-secret",
@@ -339,7 +339,7 @@ describe("Chat SDK endpoint runtime", () => {
     expect(captures.githubConfigs[0]).toMatchObject({
       token: "github-token",
       webhookSecret: "github-secret",
-      userName: "paperclip-agent",
+      userName: "outpost-agent",
     });
   });
 
@@ -392,7 +392,7 @@ describe("Chat SDK endpoint runtime", () => {
       expectedKey: "discord",
       providerConfig: {
         provider: "discord" as const,
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           applicationId: "123456789012345678",
           botToken: "discord-token",
@@ -404,7 +404,7 @@ describe("Chat SDK endpoint runtime", () => {
       expectedKey: "github",
       providerConfig: {
         provider: "github" as const,
-        userName: "paperclip-agent[bot]",
+        userName: "outpost-agent[bot]",
         credentials: { token: "github-token", webhookSecret: "github-secret" },
       },
     },
@@ -412,7 +412,7 @@ describe("Chat SDK endpoint runtime", () => {
       expectedKey: "teams",
       providerConfig: {
         provider: "microsoft-teams" as const,
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "teams-app",
           appPassword: "teams-password",
@@ -425,7 +425,7 @@ describe("Chat SDK endpoint runtime", () => {
       expectedKey: "telegram",
       providerConfig: {
         provider: "telegram" as const,
-        userName: "paperclip_agent_bot",
+        userName: "outpost_agent_bot",
         credentials: {
           botToken: "telegram-token",
           secretToken: "telegram-secret",
@@ -447,7 +447,7 @@ describe("Chat SDK endpoint runtime", () => {
     const onDiscordGatewayEvent = vi.fn();
     const options = baseOptions({
       provider: "discord",
-      userName: "paperclip-agent",
+      userName: "outpost-agent",
       credentials: {
         apiUrl: "https://discord.example.test/api/v10",
         applicationId: "123456789012345678",
@@ -462,7 +462,7 @@ describe("Chat SDK endpoint runtime", () => {
       apiUrl: "https://discord.example.test/api/v10",
       applicationId: "123456789012345678",
       botToken: "discord-token",
-      userName: "paperclip-agent",
+      userName: "outpost-agent",
     });
     expect(captures.discordConfigs[0]).not.toHaveProperty("guildId");
     expect(captures.discordConfigs[0]).not.toHaveProperty("publicKey");
@@ -533,7 +533,7 @@ describe("Chat SDK endpoint runtime", () => {
       createChatSdkEndpointRuntime(
         baseOptions({
           provider: "discord",
-          userName: "paperclip-agent",
+          userName: "outpost-agent",
           credentials: {
             applicationId: "123456789012345678",
             botToken: "unpatched-discord",
@@ -555,7 +555,7 @@ describe("Chat SDK endpoint runtime", () => {
         createChatSdkEndpointRuntime(
           baseOptions({
             provider: "telegram",
-            userName: "paperclip-agent",
+            userName: "outpost-agent",
             credentials: {
               botToken,
               secretToken: "synthetic-secret",
@@ -570,7 +570,7 @@ describe("Chat SDK endpoint runtime", () => {
     const runtime = createChatSdkEndpointRuntime(
       baseOptions({
         provider: "discord",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           applicationId: "123456789012345678",
           botToken: "discord-token",
@@ -591,7 +591,7 @@ describe("Chat SDK endpoint runtime", () => {
     const runtime = createChatSdkEndpointRuntime({
       ...baseOptions({
         provider: "discord",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           applicationId: "123456789012345678",
           botToken: "discord-token",
@@ -620,7 +620,7 @@ describe("Chat SDK endpoint runtime", () => {
       const runtime = createChatSdkEndpointRuntime(
         baseOptions({
           provider: "discord",
-          userName: "paperclip-agent",
+          userName: "outpost-agent",
           credentials: {
             applicationId: "123456789012345678",
             botToken: "discord-token",
@@ -654,7 +654,7 @@ describe("Chat SDK endpoint runtime", () => {
     const runtime = createChatSdkEndpointRuntime(
       baseOptions({
         provider: "discord",
-        userName: "paperclip-agent",
+        userName: "outpost-agent",
         credentials: {
           applicationId: "123456789012345678",
           botToken: "gateway-start-failure",
@@ -677,7 +677,7 @@ describe("Chat SDK endpoint runtime", () => {
       const runtime = createChatSdkEndpointRuntime(
         baseOptions({
           provider: "discord",
-          userName: "paperclip-agent",
+          userName: "outpost-agent",
           credentials: {
             applicationId: "123456789012345678",
             botToken: "gateway-fatal",
@@ -700,7 +700,7 @@ describe("Chat SDK endpoint runtime", () => {
     createChatSdkEndpointRuntime({
       ...baseOptions({
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: { appId: "app", appPassword: "password" },
       }),
       callbacks: { onMessage },
@@ -751,7 +751,7 @@ describe("Chat SDK endpoint runtime", () => {
     const runtime = createChatSdkEndpointRuntime({
       ...baseOptions({
         provider: "microsoft-teams",
-        userName: "Paperclip Agent",
+        userName: "Outpost Agent",
         credentials: {
           appId: "app",
           appPassword: "password",
@@ -819,7 +819,7 @@ describe("Chat SDK endpoint runtime", () => {
     createChatSdkEndpointRuntime({
       ...baseOptions({
         provider: "telegram",
-        userName: "paperclip_bot",
+        userName: "outpost_bot",
         credentials: { botToken: "token", secretToken: "secret" },
       }),
       callbacks: {

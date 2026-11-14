@@ -14,7 +14,7 @@ export function registerGitHubWebhookRecoveryWork(
     batchSize: 5,
     decodeScope: (hint: string): GitHubWebhookRecoveryScope | undefined => hint === "*" ? undefined : JSON.parse(hint),
     matches: (entry: GitHubWebhookRecoveryDeadline, scope?: GitHubWebhookRecoveryScope) => !scope ||
-      (scope.kind === "endpoint" ? entry.id : scope.kind === "company" ? entry.companyId : entry.connectionId) === scope.id,
+      (scope.kind === "endpoint" ? entry.id : scope.kind === "space" ? entry.spaceId : entry.connectionId) === scope.id,
     load: (scope, signal) => service.load(scope, canRun, signal),
     check: (entry, signal) => service.check(entry.id, canRun, signal),
   }, canRun);

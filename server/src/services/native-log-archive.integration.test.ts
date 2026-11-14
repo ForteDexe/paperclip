@@ -24,8 +24,8 @@ describeEmbeddedPostgres("online native historical log preservation", () => {
   afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
   async function fixture() {
     const f = await environment.seedRun(randomUUID());
-    const { companyId, agentId, paperclipHome } = environment.current;
-    const ref = `${companyId}/${agentId}/${f.runId}.ndjson`, base = join(paperclipHome, `archive-test-${f.runId}`);
+    const { spaceId, agentId, outpostHome } = environment.current;
+    const ref = `${spaceId}/${agentId}/${f.runId}.ndjson`, base = join(outpostHome, `archive-test-${f.runId}`);
     const file = join(base, ref), bytes = Buffer.from('{"seq":1,"chunk":"surviving 再開 output"}\n{"partial":');
     await mkdir(dirname(file), { recursive: true }); await writeFile(file, bytes);
     await f.db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date(), logStore: "local_file", logRef: ref,
@@ -35,10 +35,10 @@ describeEmbeddedPostgres("online native historical log preservation", () => {
     await f.db.update(nativeRunFinalizations).set({ phase: "terminal_failure", leaseOwner: null, leaseExpiresAt: null,
       nextAttemptAt: null, recoveryState: "blocked" }).where(eq(nativeRunFinalizations.runId, f.runId));
     await f.db.update(issues).set({ executionRunId: null, checkoutRunId: null }).where(eq(issues.id, f.issueId));
-    const options = { apply: true, companyId, afterRunId: beforeUuid(f.runId), limit: 1,
+    const options = { apply: true, spaceId, afterRunId: beforeUuid(f.runId), limit: 1,
       kinds: ["log"] as const, preserveSettledNativeFiles: true };
     const s3 = createMaintenanceS3Boundary();
-    return { ...f, companyId, agentId, ref, base, file, bytes, options, s3 };
+    return { ...f, spaceId, agentId, ref, base, file, bytes, options, s3 };
   }
   async function withSource(action: (f: Awaited<ReturnType<typeof fixture>>) => Promise<void>) {
     const f = await fixture();
@@ -64,21 +64,21 @@ describeEmbeddedPostgres("online native historical log preservation", () => {
       expect(result.items).toMatchObject([{ id: f.runId, state: "migrated", historicalArchive: true,
         bytes: f.bytes.length, sha256: createHash("sha256").update(f.bytes).digest("hex") }]);
       const [after] = await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-      expect(after).toEqual({ ...before, logStore: "s3_archive", logRef: `${f.companyId}/${f.agentId}/${f.runId}.archive` });
+      expect(after).toEqual({ ...before, logStore: "s3_archive", logRef: `${f.spaceId}/${f.agentId}/${f.runId}.archive` });
       expect((await f.db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId)))[0]).toEqual(ownerBefore);
       expect((await unrelated.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, unrelated.runId)))[0].status).toBe("running");
       expect(await readFile(f.file)).toEqual(f.bytes);
       await rm(f.file);
       const store = getRunLogStore(), handle = { store: "s3_archive" as const, logRef: after.logRef! };
       expect((await readRecoverableRunLog(f.db, store, handle)).content).toBe(f.bytes.toString());
-      expect(() => store.begin({ companyId: f.companyId, agentId: f.agentId, runId: f.runId, previousStore: "s3_archive" })).toThrow("read-only");
+      expect(() => store.begin({ spaceId: f.spaceId, agentId: f.agentId, runId: f.runId, previousStore: "s3_archive" })).toThrow("read-only");
     });
   });
 
   it("preserves a committed successful run without changing its result or completeness metadata", async () => {
     await withSource(async f => {
       const [run] = await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
-      const [result] = await f.db.insert(nativeRunResults).values({ companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+      const [result] = await f.db.insert(nativeRunResults).values({ spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
         completionContractId: run.completionContractId!, serverFingerprint: f.runId, schemaStatus: "accepted",
         resultJson: {}, canonicalSha256: f.runId }).returning();
       await f.db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.runId));
@@ -99,7 +99,7 @@ describeEmbeddedPostgres("online native historical log preservation", () => {
         sha256: createHash("sha256").update(bytes).digest("hex") }]);
       await rm(f.file);
       const archive = createObjectByteJournal({ provider: storage.resolveRunEvidenceStorage()!.provider,
-        prefix: `run-logs/segments-v1/${f.companyId}/${f.agentId}/${f.runId}.archive` });
+        prefix: `run-logs/segments-v1/${f.spaceId}/${f.agentId}/${f.runId}.archive` });
       const head = (await archive.head())!.head;
       expect(head).toMatchObject({ closed: true, sourceCursor: 0 });
       expect(Buffer.concat([await archive.readRange(head, 0, 4 * 1024 * 1024),
@@ -114,7 +114,7 @@ describeEmbeddedPostgres("online native historical log preservation", () => {
       if (kind === "expired_owner") await f.db.update(nativeRunFinalizations).set({ leaseOwner: "not-a-stop-proof", leaseExpiresAt: new Date(0) }).where(eq(nativeRunFinalizations.runId, f.runId));
       if (kind === "pending_attempt") await f.db.update(nativeRunFinalizations).set({ nextAttemptAt: new Date(0) }).where(eq(nativeRunFinalizations.runId, f.runId));
       if (kind === "pending_recovery") await f.db.update(nativeRunFinalizations).set({ recoveryState: "awaiting_runner_reattach" }).where(eq(nativeRunFinalizations.runId, f.runId));
-      if (kind === "allocation") await f.db.insert(environmentLeases).values({ companyId: f.companyId, issueId: f.issueId,
+      if (kind === "allocation") await f.db.insert(environmentLeases).values({ spaceId: f.spaceId, issueId: f.issueId,
         heartbeatRunId: f.runId, providerLeaseId: f.runId, status: "active" });
       if (kind === "process_group") await f.db.update(heartbeatRuns).set({ processGroupId: 999999 }).where(eq(heartbeatRuns.id, f.runId));
       if (kind === "physical_owner") await f.db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceFinalizationOwner: { token: "unknown-owner" } } })
@@ -131,7 +131,7 @@ describeEmbeddedPostgres("online native historical log preservation", () => {
       let release!: () => void, ready!: () => void;
       const acquired = new Promise<void>(resolve => { ready = resolve; }), held = new Promise<void>(resolve => { release = resolve; });
       const owner = f.db.transaction(async tx => {
-        expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, { companyId: f.companyId, runId: f.runId })).toBe(true);
+        expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, { spaceId: f.spaceId, runId: f.runId })).toBe(true);
         ready(); await held;
       });
       try {

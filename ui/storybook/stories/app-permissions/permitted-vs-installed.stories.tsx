@@ -27,7 +27,7 @@ const AGENT_IDS = ["a-sage", "a-atlas", "a-orion"];
 const FULL_CAPABILITIES: ToolConnectionCapabilities = {
   canConfigure: true,
   canCreateOrganizationGrant: true,
-  canSetCompanyInstall: true,
+  canSetSpaceInstall: true,
   canConnectAsCurrentUser: true,
   canManageAgentInstalls: true,
   canViewOtherPersonalIdentities: false,
@@ -37,7 +37,7 @@ const FULL_CAPABILITIES: ToolConnectionCapabilities = {
 const VIEWER_CAPABILITIES: ToolConnectionCapabilities = {
   canConfigure: false,
   canCreateOrganizationGrant: false,
-  canSetCompanyInstall: false,
+  canSetSpaceInstall: false,
   canConnectAsCurrentUser: false,
   canManageAgentInstalls: false,
   canViewOtherPersonalIdentities: false,
@@ -50,7 +50,7 @@ const VIEWER_CAPABILITIES: ToolConnectionCapabilities = {
 // signed off. Fixtures are self-contained; casts keep the stories terse.
 // ---------------------------------------------------------------------------
 
-const COMPANY = "company-review";
+const SPACE = "space-review";
 
 const AGENTS: Agent[] = [
   { id: "a-sage", name: "Sage", status: "active" },
@@ -68,7 +68,7 @@ function tool(
 ): ToolCatalogEntry {
   return {
     id,
-    companyId: COMPANY,
+    spaceId: SPACE,
     applicationId: "app-gmail",
     connectionId,
     entryKind: "tool",
@@ -101,11 +101,11 @@ const SLACK_TOOLS = [tool("s-list", "slack.list", "read", "List channels", "conn
 
 function connection(id: string, name: string, installs: InstallState): ToolConnection {
   const rows = [
-    ...(installs.onAll ? [{ targetType: "company", targetId: COMPANY }] : []),
+    ...(installs.onAll ? [{ targetType: "space", targetId: SPACE }] : []),
     ...[...installs.agentIds].map((targetId) => ({ targetType: "agent", targetId })),
   ].map((r, i) => ({
     id: `${id}-install-${i}`,
-    companyId: COMPANY,
+    spaceId: SPACE,
     connectionId: id,
     ...r,
     createdByAgentId: null,
@@ -114,7 +114,7 @@ function connection(id: string, name: string, installs: InstallState): ToolConne
   }));
   return {
     id,
-    companyId: COMPANY,
+    spaceId: SPACE,
     name,
     status: "active",
     installs: rows,
@@ -125,7 +125,7 @@ const meta: Meta = {
   id: "tools-permitted-vs-installed",
   title: "Apps, channels, and extensions/App access and action permissions/Tools/Permitted vs Installed",
   parameters: { layout: "fullscreen",
-    paperclip: {
+    outpost: {
       "capabilities": [
         "app-permissions/agent-access",
         "app-permissions/action-policy"
@@ -215,15 +215,15 @@ export const AppDetailViewerReadOnly: Story = {
 };
 
 /**
- * A member who may pick agents but may not make the connection company-wide:
+ * A member who may pick agents but may not make the connection space-wide:
  * "Any agent" is omitted from the choice entirely.
  */
-export const AppDetailMemberWithoutCompanyInstall: Story = {
-  name: "1 · App detail — member without company-wide install",
+export const AppDetailMemberWithoutSpaceInstall: Story = {
+  name: "1 · App detail — member without space-wide install",
   render: () => (
     <PanelHarness
       install={{ onAll: false, agentIds: new Set(["a-sage"]) }}
-      capabilities={{ ...FULL_CAPABILITIES, canSetCompanyInstall: false }}
+      capabilities={{ ...FULL_CAPABILITIES, canSetSpaceInstall: false }}
     />
   ),
 };
@@ -240,7 +240,7 @@ function SeededAgentTools() {
     const c = new QueryClient({
       defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false, refetchOnMount: false } },
     });
-    c.setQueryData(queryKeys.tools.effectiveProfilesForAgent(COMPANY, "a-sage"), {
+    c.setQueryData(queryKeys.tools.effectiveProfilesForAgent(SPACE, "a-sage"), {
       agentId: "a-sage",
       profiles: [],
       bindings: [],
@@ -248,7 +248,7 @@ function SeededAgentTools() {
       allowedToolNames: allowed.map((t) => t.toolName),
       installedConnections: connections.filter((conn) => conn.id === "conn-gmail"),
     });
-    c.setQueryData(queryKeys.tools.connections(COMPANY), { connections });
+    c.setQueryData(queryKeys.tools.connections(SPACE), { connections });
     c.setQueryData(queryKeys.tools.catalog("conn-gmail"), { catalog: GMAIL_TOOLS });
     c.setQueryData(queryKeys.tools.catalog("conn-slack"), { catalog: SLACK_TOOLS });
     return c;
@@ -256,7 +256,7 @@ function SeededAgentTools() {
   return (
     <QueryClientProvider client={client}>
       <div className="mx-auto max-w-6xl bg-background p-6">
-        <AgentToolsTab agent={{ id: "a-sage", name: "Sage" } as never} companyId={COMPANY} />
+        <AgentToolsTab agent={{ id: "a-sage", name: "Sage" } as never} spaceId={SPACE} />
       </div>
     </QueryClientProvider>
   );
@@ -279,7 +279,7 @@ function SeededAccessStep({
   initialAgentIds,
   capabilities = {
     canCreateOrganizationGrant: true,
-    canSetCompanyInstall: true,
+    canSetSpaceInstall: true,
     editableAgentIds: AGENT_IDS,
   },
 }: {
@@ -289,7 +289,7 @@ function SeededAccessStep({
   initialAgentIds: Set<string>;
   capabilities?: {
     canCreateOrganizationGrant: boolean;
-    canSetCompanyInstall: boolean;
+    canSetSpaceInstall: boolean;
     editableAgentIds: string[];
   };
 }) {
@@ -297,7 +297,7 @@ function SeededAccessStep({
     const c = new QueryClient({
       defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false, refetchOnMount: false } },
     });
-    c.setQueryData(queryKeys.agents.list(COMPANY), AGENTS);
+    c.setQueryData(queryKeys.agents.list(SPACE), AGENTS);
     return c;
   }, []);
   const [grantKind, setGrantKind] = useState(initialGrantKind);
@@ -307,7 +307,7 @@ function SeededAccessStep({
     <QueryClientProvider client={client}>
       <div className="bg-background p-6">
         <AccessStep
-          companyId={COMPANY}
+          spaceId={SPACE}
           authKind={authKind}
           grantKind={grantKind}
           setGrantKind={setGrantKind}

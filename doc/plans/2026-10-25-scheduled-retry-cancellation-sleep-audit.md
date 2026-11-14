@@ -39,7 +39,7 @@ retains the heartbeat scheduler toggle, warm-standby and idle-drain behavior.
 | Queue cancellation | Direct stale scheduled-retry cancellation signals its exact run. |
 | Dispatch adapter | Promotion, gate suppression, and queued-to-scheduled cleanup deferral signal the exact run. Deferral can preserve an already-written cancellation intent. |
 | Instance settings | Worktree execution enablement changes signal reconstruction. The worker reads this policy fresh; ordinary callers retain the existing cache. |
-| Agent/company deletion | Company-scoped invalidation precedes deletion of run records. |
+| Agent/space deletion | Space-scoped invalidation precedes deletion of run records. |
 
 New retry insertion paths in heartbeat retries, recovery service, native provider
 capacity retry, and native safe replacement do not copy cancellation intents.
@@ -58,7 +58,7 @@ outer commit/rollback and ambiguous outcome reconciliation. Signals are hints,
 not a replacement for durable rows. No caller-managed counters are added.
 
 The shared scoped worker reconstructs candidates in keyset pages of 100 and
-processes company-fair batches of 20. It retries concrete failures after 30 seconds,
+processes space-fair batches of 20. It retries concrete failures after 30 seconds,
 with exponential backoff capped at five minutes. Settled work removes its deadline.
 Malformed evidence is not actionable, and pagination continues past it.
 
@@ -269,7 +269,7 @@ original embedded fixtures and must pass on the new head.
 
 Database build, server types/build, module boundaries, migration order, and all
 seven fresh 0406 migration runs pass. A populated 0405 database retains all 404
-prior migration receipts and all 300 companies, adds exactly one receipt, and
+prior migration receipts and all 300 spaces, adds exactly one receipt, and
 adds none on replay. The partial index is valid and ready on upgraded and fresh
 databases. Earlier failures, including the old head's unexplained decision-expiry
 CI assertion and later successful single retry, remain in the evidence ledger.
@@ -319,7 +319,7 @@ reading the full backlog, retaining its twenty-item execution limit and the
 ability to pass malformed records. No independent timer or table was added.
 
 The regressions pass. The scoped case also commits a new valid intent behind the
-active cursor, preserves fair twenty-item batches across two companies, settles
+active cursor, preserves fair twenty-item batches across two spaces, settles
 all twenty-nine valid obligations, and performs no SQL across the later former
 poll periods. The worker keeps per-candidate admission reads: a settings change
 or shutdown can occur during asynchronous batch work. The existing disabled/

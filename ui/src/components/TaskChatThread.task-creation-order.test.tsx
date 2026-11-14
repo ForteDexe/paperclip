@@ -68,7 +68,7 @@ const sourceRun: IssueChatLinkedRun = {
   agentId: "agent", agentName: "Assistant", createdAt: at(0), startedAt: at(0), finishedAt: at(10),
 };
 const comment = (id: string, body: string, second: number, runId?: string) => ({
-  id, body, companyId: "company", issueId: "chat", authorType: runId ? "agent" as const : "user" as const,
+  id, body, spaceId: "space", issueId: "chat", authorType: runId ? "agent" as const : "user" as const,
   authorAgentId: runId ? "agent" : null, authorUserId: runId ? null : "viewer", runId,
   createdByRunId: runId ?? null, presentation: null, metadata: null,
   createdAt: new Date(at(second)), updatedAt: new Date(at(second)),
@@ -78,11 +78,11 @@ const handoff = (id = "task", sourceRunId: string | null = "source-run", second 
   createdAt: at(second), sourceRunId, suggestionInteractionId: null,
 });
 const createdTask = (overrides: Partial<Issue> = {}): Issue => ({
-  id: "child", companyId: "company", parentId: "chat", identifier: "PAPER-102", title: "Verify the repair",
+  id: "child", spaceId: "space", parentId: "chat", identifier: "PAPER-102", title: "Verify the repair",
   status: "todo", createdByAgentId: "agent", createdAt: new Date(at(5)), ...overrides,
 } as Issue);
 const suggestion = (status: "pending" | "accepted"): IssueThreadInteraction => ({
-  ...pendingSuggestedTasksInteraction, id: "suggestion", companyId: "company", issueId: "chat", sourceRunId: "source-run",
+  ...pendingSuggestedTasksInteraction, id: "suggestion", spaceId: "space", issueId: "chat", sourceRunId: "source-run",
   status, createdAt: new Date(at(3)), updatedAt: new Date(at(3)),
   result: status === "accepted" ? { version: 1, createdTasks: [{ clientKey: "post", issueId: "suggested-task", identifier: "PAPER-101", title: "Suggested task" }] } : null,
 });
@@ -117,7 +117,7 @@ const before = (earlier: Element, later: Element) => expect(earlier.compareDocum
 describe("Coordinator task creation ordering", () => {
   it("shows agent-created subtasks in ordinary task feeds at creation time and refreshes their status", async () => {
     state.coordinator = false;
-    await paint({ conversationMode: false, companyId: "company", createdTasks: [createdTask(), createdTask()] });
+    await paint({ conversationMode: false, spaceId: "space", createdTasks: [createdTask(), createdTask()] });
     const card = host.querySelector<HTMLAnchorElement>('[data-testid="task-chat-created-task"]')!;
     expect(card.textContent).toContain("Subtask created");
     expect(card.textContent).toContain("Verify the repair");
@@ -126,16 +126,16 @@ describe("Coordinator task creation ordering", () => {
     before(card, anchor("final"));
     before(anchor("final"), anchor("next"));
     expect(host.querySelectorAll('[data-testid="task-chat-created-task"]')).toHaveLength(1);
-    await paint({ conversationMode: false, companyId: "company", createdTasks: [createdTask({ status: "done" })] });
+    await paint({ conversationMode: false, spaceId: "space", createdTasks: [createdTask({ status: "done" })] });
     expect(host.querySelector('[data-testid="task-chat-created-task"]')).toBe(card);
     expect(card.textContent).toContain("Done");
   });
 
-  it("filters human and foreign-company tasks and links standalone follow-ups by ID", async () => {
+  it("filters human and foreign-space tasks and links standalone follow-ups by ID", async () => {
     state.coordinator = false;
-    await paint({ conversationMode: false, companyId: "company", createdTasks: [
+    await paint({ conversationMode: false, spaceId: "space", createdTasks: [
       createdTask({ id: "human", createdByAgentId: null }),
-      createdTask({ id: "foreign", companyId: "other" }),
+      createdTask({ id: "foreign", spaceId: "other" }),
       createdTask({ id: "chat" }),
       createdTask({ parentId: null, identifier: null }),
     ] });
@@ -147,7 +147,7 @@ describe("Coordinator task creation ordering", () => {
 
   it("does not duplicate tasks already shown by chat handoffs or accepted suggestions", async () => {
     state.handoffs = [handoff("direct")];
-    await paint({ companyId: "company", interactions: [suggestion("accepted")], createdTasks: [
+    await paint({ spaceId: "space", interactions: [suggestion("accepted")], createdTasks: [
       createdTask({ id: "direct" }), createdTask({ id: "suggested-task" }), createdTask(),
     ] });
     expect(host.querySelectorAll('[data-testid="task-chat-created-task"]')).toHaveLength(1);
@@ -156,7 +156,7 @@ describe("Coordinator task creation ordering", () => {
   });
 
   it("keeps the saved plan before its resulting document even when both belong to one native run", async () => {
-    state.plan = { id: "plan", issueId: "chat", companyId: "company", key: "plan", title: "Plan", body: "Draft the concepts.",
+    state.plan = { id: "plan", issueId: "chat", spaceId: "space", key: "plan", title: "Plan", body: "Draft the concepts.",
       format: "markdown", latestRevisionId: "plan-rev", latestRevisionNumber: 1,
       createdAt: new Date(at(2)), updatedAt: new Date(at(2)), updatedByAgentId: "agent" } as IssueDocument;
     const result = { ...state.plan, id: "concepts", key: "concepts", title: "Concept document", body: "The concepts.",

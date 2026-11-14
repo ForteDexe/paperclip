@@ -1,4 +1,4 @@
-// A canonical account handle names one login account inside one company. Two
+// A canonical account handle names one login account inside one space. Two
 // downstream sinks each guard the raw account identifier with a different
 // validator: a directory-segment denylist, and the secret-key allowlist
 // (`packages/shared/src/validators/secret.ts`). `toAccountHandle` accepts a

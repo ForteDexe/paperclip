@@ -1,7 +1,7 @@
 # Artifact API
 
 The helper requires `OUTPOST_API_URL`, `OUTPOST_API_KEY`,
-`OUTPOST_COMPANY_ID`, `OUTPOST_TASK_ID`, and `OUTPOST_RUN_ID`.
+`OUTPOST_SPACE_ID`, `OUTPOST_TASK_ID`, and `OUTPOST_RUN_ID`.
 
 For Codex:
 
@@ -17,7 +17,7 @@ For Claude, use `$HOME/.claude/skills/outpost-artifact` as `skill_dir`.
 The helper:
 
 1. lists current task attachments to make a same-run retry idempotent;
-2. uploads with `POST /api/companies/:spaceId/issues/:taskId/attachments`;
+2. uploads with `POST /api/spaces/:spaceId/issues/:taskId/attachments`;
 3. registers the attachment with `POST /api/issues/:taskId/work-products`; and
 4. prints Markdown links and ids as the receipt.
 

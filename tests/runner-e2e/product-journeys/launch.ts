@@ -25,7 +25,7 @@ import { taskDependencyResume } from "./task-dependency-resume.js";
 import { runInputFile } from "./input-file-flow.js";
 import { runSavedSkillUse } from "./saved-skill-use-flow.js";
 import { runAgentSettings } from "./agent-settings-flow.js";
-import { companyAccessIsolation } from "./company-access-flow.js";
+import { spaceAccessIsolation } from "./space-access-flow.js";
 import { inboxTriage } from "./inbox-triage-flow.js";
 import { JourneyError, type JourneyContext, type JourneyEvidence, type JourneyOutcome, type TargetLifecycleInput, type TargetProvider, type TargetSession } from "./types.js";
 import type { RunnerE2EResult } from "../types.js";
@@ -127,8 +127,8 @@ export async function launchProductJourneys(args: string[], repositoryRoot: stri
     "observation-read.ts",
     "../connection-config.ts",
     "catalog.ts",
-    "company-access-flow.ts",
-    "company-access-contract.ts",
+    "space-access-flow.ts",
+    "space-access-contract.ts",
     "repository-continuation-flow.ts",
     "repository-continuation-contract.ts",
     "repository-continuation-evidence.ts",
@@ -192,7 +192,7 @@ export async function launchProductJourneys(args: string[], repositoryRoot: stri
     "local-target.ts",
     "../../../ui/src/lib/markdown-reply-content.ts",
     "../../../ui/src/lib/issue-reference.ts",
-    "../../../ui/src/lib/company-routes.ts",
+    "../../../ui/src/lib/space-routes.ts",
     "../../../ui/package.json"
   ]) definitionHash.update(await readFile(path.join(import.meta.dirname, name)));
   for (const file of ["catalog.ts", "api.ts", "run-observations.ts", "native-task-reply.ts", "native-event-envelope.ts", "user-actions.ts", "plan-revision-flow.ts", "skill-studio-flow.ts", "protected-action-flow.ts", "story-artifact.ts", "stop-redirect-flow.ts", "everyday-cases.ts", "everyday-delivery.ts", "chat-hardening.ts", "everyday-decisions.ts", "connection-guidance-evidence.ts", "everyday-artifact.py"]) definitionHash.update(await readFile(path.join(import.meta.dirname, "..", file)));
@@ -328,7 +328,7 @@ export async function launchProductJourneys(args: string[], repositoryRoot: stri
                 await mkdir(directory, { recursive: true, mode: 0o700 });
                 await captureProductScreenshot(ready!.page, ready!.api.origin, path.join(directory, file), deadlineAt);
               } });
-          } else if (id === "company-access-isolation") await companyAccessIsolation(ready, session!, campaignId, evidence);
+          } else if (id === "space-access-isolation") await spaceAccessIsolation(ready, session!, campaignId, evidence);
           else if (id === "inbox-triage") await inboxTriage(ready, session!, campaignId, evidence);
           else if (id === "task-edit-lifecycle") await taskEditLifecycle(ready, session!, campaignId, evidence,
             { deadlineAt, directory: path.join(outputDir, "private-stories", id) });

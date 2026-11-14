@@ -6,7 +6,7 @@ import { expect, type Page } from "@playwright/test";
 import { pollUntil, type RunnerApi } from "./api.js";
 import type {
   AskUserQuestionsPayload,
-  PaperclipQuestionSetPayload,
+  OutpostQuestionSetPayload,
 } from "../../packages/shared/src/types/issue.js";
 import type { LiveFixtureValues } from "./live-fixtures.js";
 import type { MatrixExecution } from "./types.js";
@@ -42,7 +42,7 @@ export function assertChatFlowRunCount(input: {
 // Public API observations only: this driver never fabricates provider results or writes DB state.
 export interface ChatIssue {
   id: string;
-  companyId: string;
+  spaceId: string;
   title: string;
   status: string;
   identifier?: string;
@@ -57,7 +57,7 @@ export interface ChatIssue {
 }
 export interface ChatRun {
   id: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   status: string;
   error?: string | null;
@@ -133,7 +133,7 @@ export function isChatClarificationReply(body: string): boolean {
     }
     // Positively identify questions or brief fields. Unknown bullets are not
     // evidence of clarification merely because their verbs are unlisted.
-    const information = /^(?:(?:who|what|where|when|whether|how)\b|(?:(?:any|the|your|preferred|intended|required|target|desired|existing|delivery|must-include)\s+){0,3}(?:(?:club|company|project|team|event|organization)\s+name|audience|readers|recipients|tone|voice|format|length|deadline|date|purpose|context|details|requirements|constraints|examples|links|name|budget|location|venue|schedule|timezone|language|accessibility|contact|scope|goals|background|references|assets|brand|style)\b)/i;
+    const information = /^(?:(?:who|what|where|when|whether|how)\b|(?:(?:any|the|your|preferred|intended|required|target|desired|existing|delivery|must-include)\s+){0,3}(?:(?:club|space|project|team|event|organization)\s+name|audience|readers|recipients|tone|voice|format|length|deadline|date|purpose|context|details|requirements|constraints|examples|links|name|budget|location|venue|schedule|timezone|language|accessibility|contact|scope|goals|background|references|assets|brand|style)\b)/i;
     if (items.length >= 2 && items.every(item => information.test(item))) return true;
   }
   const request = body.match(
@@ -250,7 +250,7 @@ export function createChatIdleFailureDetector(minimumProviderRuns: number) {
 /** Match the shared question form's durable/native presentation, including custom labels. */
 export function chatQuestionPresentation(
   payload: AskUserQuestionsPayload,
-): PaperclipQuestionSetPayload {
+): OutpostQuestionSetPayload {
   if (payload.questionSet) return payload.questionSet;
   return {
     schema: "outpost.question_set.v1",
@@ -400,8 +400,8 @@ export interface ChatFlowInput {
 export async function runChatFlow(input: ChatFlowInput) {
   if (input.execution.suite.id === CHAT_FEATURE_SUITE) await prepareChatCatalogRespondent(input, findChatCatalogCase(input.execution.task.id));
   const { page, api, fixtures: f, execution, nonce } = input;
-  const chatPath = `/api/companies/${f.company.id}/chats/${f.agent.id}`;
-  const route = `/${f.company.issuePrefix}/chats/${f.agent.id}`;
+  const chatPath = `/api/spaces/${f.space.id}/chats/${f.agent.id}`;
+  const route = `/${f.space.issuePrefix}/chats/${f.agent.id}`;
   const marker = execution.task.buildVisibleMarker(nonce);
   const draftMarker = chatMarker("DRAFT", nonce);
   const caseId = execution.task.id;
@@ -430,7 +430,7 @@ export async function runChatFlow(input: ChatFlowInput) {
       selectSlackSource: async id => {
         if (sourceId && sourceId !== id) throw new Error("Native Slack source cannot change after canonical ingress");
         const selected = await api.get<ChatIssue>(`/api/issues/${id}`);
-        if (selected.companyId !== f.company.id) throw new Error("Native Slack source escaped the owned company");
+        if (selected.spaceId !== f.space.id) throw new Error("Native Slack source escaped the owned space");
         sourceId = id; issue = selected; input.observe(issue, await allRuns());
       } });
     if (!sourceId) throw new Error("Native Slack ingress did not establish its real source");
@@ -442,7 +442,7 @@ export async function runChatFlow(input: ChatFlowInput) {
     return { issue: await api.get<ChatIssue>(chatPath), runs: await allRuns() };
   }
   const tasks = () =>
-    api.get<ChatIssue[]>(`/api/companies/${f.company.id}/issues`);
+    api.get<ChatIssue[]>(`/api/spaces/${f.space.id}/issues`);
   const comments = async () =>
     (
       await api.get<Array<Comment & { createdAt: string }>>(
@@ -476,7 +476,7 @@ export async function runChatFlow(input: ChatFlowInput) {
           for (const run of runs.filter(row => row.errorCode === "execution_reconciliation_required")) {
             const evidence = await collectChatRunEvidence(api, run, true);
             const wait = classifyPreDispatchExecutionWait(run, evidence.events);
-            expect(wait?.companyId).toBe(f.company.id);
+            expect(wait?.spaceId).toBe(f.space.id);
             expect(wait?.agentId).toBe(f.agent.id);
             expect(wait?.issueId).toBe(resolved?.id);
             admissionWaits.push(wait!);
@@ -492,7 +492,7 @@ export async function runChatFlow(input: ChatFlowInput) {
             return inspection?.status === "blocked" && inspection.failureCode === "workspace_writer_active";
           });
           if (admissionReady) verifyChatAdmissionWaitCoverage({ runs, runEvidence: proof.runEvidence, comments: proof.comments,
-            issue: issue!, companyId: f.company.id, agentId: f.agent.id, stoppedRunId: stoppedForSessionReset, recoverySources: proof.sources });
+            issue: issue!, spaceId: f.space.id, agentId: f.agent.id, stoppedRunId: stoppedForSessionReset, recoverySources: proof.sources });
         }
         let completionReady = !requireCompletion;
         if (requireCompletion && providerRuns().length >= minimumProviderRuns
@@ -514,10 +514,10 @@ export async function runChatFlow(input: ChatFlowInput) {
           // Wait for the real reply to render inside this existing idle deadline.
           // Never extend the scenario or retry a provider to obtain the proof.
           if (replies.length && renderedLinks.some(link => link.href.includes("/issues/"))) {
-            const companyPrefix = f.company.issuePrefix;
-            if (!companyPrefix) throw new Error("Chat completion proof: company_prefix_missing");
-            completionEvidence = { companyId: f.company.id, agentId: f.agent.id,
-              companyPrefix, baseURL: api.baseURL, issue: source, child,
+            const spacePrefix = f.space.issuePrefix;
+            if (!spacePrefix) throw new Error("Chat completion proof: space_prefix_missing");
+            completionEvidence = { spaceId: f.space.id, agentId: f.agent.id,
+              spacePrefix, baseURL: api.baseURL, issue: source, child,
               tasks: finalTasks, comments: sourceComments, renderedLinks,
               runEvidence: [await collectChatRunEvidence(api, notifications[0]!, false, true)] };
             verifyChatCompletion(runs, completionEvidence);
@@ -701,7 +701,7 @@ export async function runChatFlow(input: ChatFlowInput) {
         expect(fresh.contextSnapshot?.conversationSessionGeneration).toBe(1);
         expect(fresh.sessionIdBefore).toBeFalsy();
         expect(
-          String(fresh.contextSnapshot?.paperclipTaskMarkdown ?? ""),
+          String(fresh.contextSnapshot?.outpostTaskMarkdown ?? ""),
         ).not.toContain(secret);
         if (before.sessionIdAfter && fresh.sessionIdAfter)
           expect(fresh.sessionIdAfter).not.toBe(before.sessionIdAfter);
@@ -744,7 +744,7 @@ export async function runChatFlow(input: ChatFlowInput) {
     } else if (["hire-delegate-reuse", "blocked-status-review", "committed-send-retry"].includes(caseId)) {
       await runChatHardeningFlow({ input, marker, issue: () => issue!, turn, idle, tasks, allRuns, comments });
     } else if (caseId === "create-backlog") {
-      const project = await api.post<{ id: string }>(`/api/companies/${f.company.id}/projects`, {
+      const project = await api.post<{ id: string }>(`/api/spaces/${f.space.id}/projects`, {
         name: `Later planning ${nonce}`, description: "Repository-free plans to save for later.",
       });
       await turn(`Create exactly one task titled Later checklist ${nonce} in the existing Later planning ${nonce} project. Assign it to yourself but keep it in backlog: do not start or execute it. Save a concise three-step initial plan that contains ${marker}. Reply with its identifier and status. Do not create a replacement task or change other tasks.`, 1);
@@ -772,17 +772,17 @@ export async function runChatFlow(input: ChatFlowInput) {
         environmentId: f.environment.id, environmentFixtureId: execution.environment.id,
         workspacePath: input.workspacePath, secretRefs: f.secretRefs, executionId: nonce,
       });
-      const teammate = await api.post<{ id: string }>(`/api/companies/${f.company.id}/agents`, {
+      const teammate = await api.post<{ id: string }>(`/api/spaces/${f.space.id}/agents`, {
         ...config, name: "Riley Reassignment", role: "engineer", reportsTo: f.agent.id,
-        instructionsBundle: { entryFile: "AGENTS.md", files: { "AGENTS.md": "Complete the assigned work and save the requested Paperclip document." } },
+        instructionsBundle: { entryFile: "AGENTS.md", files: { "AGENTS.md": "Complete the assigned work and save the requested Outpost document." } },
       });
-      const queued = await api.post<ChatIssue>(`/api/companies/${f.company.id}/issues`, {
+      const queued = await api.post<ChatIssue>(`/api/spaces/${f.space.id}/issues`, {
         title: `Later checklist ${nonce}`, description: `Preserve this deferred scope ${draftMarker}.`,
         status: "backlog", assigneeAgentId: f.agent.id,
       });
-      const ready = await api.post<ChatIssue>(`/api/companies/${f.company.id}/issues`, {
+      const ready = await api.post<ChatIssue>(`/api/spaces/${f.space.id}/issues`, {
         title: `Ready checklist ${nonce}`, status: "todo",
-        description: `Write a short launch checklist as a Paperclip document attached to this task, including ${marker}. Complete this task after saving it.`,
+        description: `Write a short launch checklist as a Outpost document attached to this task, including ${marker}. Complete this task after saving it.`,
       });
       await turn(`Assign the existing Ready checklist ${nonce} task to Riley Reassignment so Riley completes it. Also move the existing Later checklist ${nonce} task from you to Riley, keeping it in backlog. Preserve both tasks and their descriptions. Explain the handoff briefly here. Do not create replacement tasks or start the backlog work.`, 2);
       const observedTasks = await tasks();
@@ -811,7 +811,7 @@ export async function runChatFlow(input: ChatFlowInput) {
       ];
       if (caseId === "clarify-reuse") {
         existingProject = await api.post(
-          `/api/companies/${f.company.id}/projects`,
+          `/api/spaces/${f.space.id}/projects`,
           {
             name: `Garden ${nonce}`,
             description: "Garden club welcome notes and event announcements.",
@@ -843,7 +843,7 @@ export async function runChatFlow(input: ChatFlowInput) {
               (c) => c.authorAgentId && isChatClarificationReply(c.body),
             ),
         ).toBe(true);
-        const clarification = `It is the garden club; use the existing Garden ${nonce} project. Make one assigned task for yourself to write a two-sentence welcome note. Include ${marker} in that note, save it as a Paperclip document attached to that execution task, and finish that execution task. Please get it started now.`;
+        const clarification = `It is the garden club; use the existing Garden ${nonce} project. Make one assigned task for yourself to write a two-sentence welcome note. Include ${marker} in that note, save it as a Outpost document attached to that execution task, and finish that execution task. Please get it started now.`;
         if (pendingQuestions?.length) {
           for (const [index, question] of pendingQuestions.entries()) {
             const textInput = page
@@ -889,7 +889,7 @@ export async function runChatFlow(input: ChatFlowInput) {
         await page.getByTestId("task-chat-composer-add").click();
         await page.getByTestId("composer-add-plan").click();
         await turn(
-          `Let's plan a two-sentence garden club welcome note. The finished welcome note itself must contain the exact phrase ${draftMarker}. Write a plan in the plan panel that includes this requirement, and present it for approval. When I approve the final revision, create a suitable repository-free project and an assigned task for yourself, copy the plan into that task, and have it save the note as a Paperclip document attached to that execution task and finish. Do not create the project or task before approval.`,
+          `Let's plan a two-sentence garden club welcome note. The finished welcome note itself must contain the exact phrase ${draftMarker}. Write a plan in the plan panel that includes this requirement, and present it for approval. When I approve the final revision, create a suitable repository-free project and an assigned task for yourself, copy the plan into that task, and have it save the note as a Outpost document attached to that execution task and finish. Do not create the project or task before approval.`,
           1,
         );
         const draft = await api.get<Plan>(
@@ -935,7 +935,7 @@ export async function runChatFlow(input: ChatFlowInput) {
           .locator('[contenteditable="true"],textarea')
           .first()
           .fill(
-            `Revise the plan: the finished welcome note itself must contain the exact phrase ${marker} instead of ${draftMarker}. Include that requirement in the revised plan. The execution task should save that welcome note as a Paperclip document attached to that task. Present this revised plan for approval; wait for that approval before handing it off as agreed.`,
+            `Revise the plan: the finished welcome note itself must contain the exact phrase ${marker} instead of ${draftMarker}. Include that requirement in the revised plan. The execution task should save that welcome note as a Outpost document attached to that task. Present this revised plan for approval; wait for that approval before handing it off as agreed.`,
           );
         await reviseButton.click();
         await idle(2);
@@ -987,7 +987,7 @@ export async function runChatFlow(input: ChatFlowInput) {
         });
       } else {
         repositoryCatalogBefore = await api.get(
-          `/api/companies/${f.company.id}/project-repositories`,
+          `/api/spaces/${f.space.id}/project-repositories`,
         );
         expect(
           repositoryCatalogBefore!.repositories.filter((repository) =>
@@ -995,7 +995,7 @@ export async function runChatFlow(input: ChatFlowInput) {
           ),
         ).toHaveLength(0);
         await turn(
-          `Create a project called Repository Discussion ${nonce} for work spanning https://github.com/octocat/Hello-World and https://github.com/octocat/Spoon-Knife. These existing public repositories are not in our catalog; register both URLs. Then make one assigned task for yourself to write a two-sentence description of the intended project as a Paperclip document attached to that execution task, containing ${marker}, and complete that task. No code changes or remote repository creation are needed.`,
+          `Create a project called Repository Discussion ${nonce} for work spanning https://github.com/octocat/Hello-World and https://github.com/octocat/Spoon-Knife. These existing public repositories are not in our catalog; register both URLs. Then make one assigned task for yourself to write a two-sentence description of the intended project as a Outpost document attached to that execution task, containing ${marker}, and complete that task. No code changes or remote repository creation are needed.`,
           2,
         );
       }
@@ -1081,7 +1081,7 @@ export async function runChatFlow(input: ChatFlowInput) {
           name: string;
           workspaces: Array<{ id: string; name: string; repoUrl?: string }>;
         }>
-      >(`/api/companies/${f.company.id}/projects`);
+      >(`/api/spaces/${f.space.id}/projects`);
       expect(projects).toHaveLength(1);
       if (existingProject) {
         expect(child.projectId).toBe(existingProject.id);
@@ -1154,7 +1154,7 @@ export async function runChatFlow(input: ChatFlowInput) {
     const admissionRunEvidence = finalAdmission?.runEvidence;
     const admissionWaitSources = finalAdmission?.sources ?? [];
     if (admissionAccounting) admissionWaits = verifyChatAdmissionWaitCoverage({ runs, runEvidence: admissionRunEvidence!, comments: finalComments!, issue: issue!,
-      companyId: f.company.id, agentId: f.agent.id, stoppedRunId: stoppedForSessionReset, recoverySources: admissionWaitSources });
+      spaceId: f.space.id, agentId: f.agent.id, stoppedRunId: stoppedForSessionReset, recoverySources: admissionWaitSources });
     assertChatFlowRunCount({ suiteId: execution.suite.id, task: execution.task,
       profileId: execution.profile.id, environmentId: execution.environment.id, completionEvidence,
       runs: completionAccounting ? runs : providerRuns(),

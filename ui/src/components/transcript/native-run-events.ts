@@ -1204,7 +1204,7 @@ export function nativeRunEventsToTranscript(events: readonly HeartbeatRunEvent[]
       continue;
     }
 
-    // Governance records (hooks, automatic approval reviews) keep their full
+    // Policy records (hooks, automatic approval reviews) keep their full
     // payload so the task chat can show the decision, reason and target.
     if ((event.eventType === "hook.started" || event.eventType === "hook.completed")
       && payload.schema === "outpost.hook.v1" && text(payload.hookId)) {

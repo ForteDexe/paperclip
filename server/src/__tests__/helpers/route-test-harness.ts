@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import express, { type Router } from "express";
 import { isNotNull } from "drizzle-orm";
 import {
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   issues,
   principalPermissionGrants,
@@ -67,29 +67,29 @@ export function useEmbeddedPostgres(
   };
 }
 
-export type BoardActor = {
-  type: "board";
+export type OperatorActor = {
+  type: "operator";
   source: string;
   userId: string;
-  companyIds: string[];
-  memberships: { companyId: string; membershipRole: string; status: string }[];
+  spaceIds: string[];
+  memberships: { spaceId: string; membershipRole: string; status: string }[];
   isInstanceAdmin: boolean;
 };
 
-export type SeededCompany = { companyId: string; userId: string; actor: BoardActor };
+export type SeededSpace = { spaceId: string; userId: string; actor: OperatorActor };
 
-/** Creates a company whose board user holds company-scoped read and write grants. */
-export async function seedCompanyWithBoardAccess(db: Db, name: string): Promise<SeededCompany> {
-  const companyId = randomUUID();
+/** Creates a space whose operator user holds space-scoped read and write grants. */
+export async function seedSpaceWithBoardAccess(db: Db, name: string): Promise<SeededSpace> {
+  const spaceId = randomUUID();
   const userId = `user-${randomUUID()}`;
-  await db.insert(companies).values({
-    id: companyId,
-    name: `${name} ${companyId}`,
-    issuePrefix: `T${companyId.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
-    requireBoardApprovalForNewAgents: false,
+  await db.insert(spaces).values({
+    id: spaceId,
+    name: `${name} ${spaceId}`,
+    issuePrefix: `T${spaceId.replaceAll("-", "").slice(0, 6).toUpperCase()}`,
+    requireOperatorApprovalForNewAgents: false,
   });
-  await db.insert(companyMemberships).values({
-    companyId,
+  await db.insert(spaceMemberships).values({
+    spaceId,
     principalType: "user",
     principalId: userId,
     status: "active",
@@ -97,20 +97,20 @@ export async function seedCompanyWithBoardAccess(db: Db, name: string): Promise<
     updatedAt: new Date(),
   });
   await ensureHumanRoleDefaultGrants(db, {
-    companyId,
+    spaceId,
     principalId: userId,
     membershipRole: "owner",
     grantedByUserId: null,
   });
   return {
-    companyId,
+    spaceId,
     userId,
     actor: {
-      type: "board",
+      type: "operator",
       source: "session",
       userId,
-      companyIds: [companyId],
-      memberships: [{ companyId, membershipRole: "owner", status: "active" }],
+      spaceIds: [spaceId],
+      memberships: [{ spaceId, membershipRole: "owner", status: "active" }],
       isInstanceAdmin: false,
     },
   };
@@ -119,7 +119,7 @@ export async function seedCompanyWithBoardAccess(db: Db, name: string): Promise<
 type RouterFactory = (db: Db, storage: never) => Router;
 
 /** Mounts route modules under `/api` behind a fixed actor, with the real error handler. */
-export function routeApp(db: Db, actor: BoardActor, ...routerFactories: RouterFactory[]) {
+export function routeApp(db: Db, actor: OperatorActor, ...routerFactories: RouterFactory[]) {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
@@ -134,13 +134,13 @@ export function routeApp(db: Db, actor: BoardActor, ...routerFactories: RouterFa
 }
 
 /**
- * Clears the company and issue fixtures seeded by `seedCompanyWithBoardAccess`.
+ * Clears the space and issue fixtures seeded by `seedSpaceWithBoardAccess`.
  * Suites that seed other tables need their own reset.
  */
-export async function resetCompanyIssueFixtures(db: Db) {
+export async function resetSpaceIssueFixtures(db: Db) {
   await db.delete(issues).where(isNotNull(issues.parentId));
   await db.delete(issues);
   await db.delete(principalPermissionGrants);
-  await db.delete(companyMemberships);
-  await db.delete(companies);
+  await db.delete(spaceMemberships);
+  await db.delete(spaces);
 }

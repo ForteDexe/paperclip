@@ -98,8 +98,8 @@ try {
         await db.$client.unsafe(`set jit=${jit}`);
         for (const caller of ["badge", "list"] as const) {
           const invoke = (target: Db, arm: "baseline" | "treatment") => caller === "badge"
-            ? issueService(target).unreadInboxIssueIds(fixture.companyId, fixture.userId, conditions[arm])
-            : issueService(target).list(fixture.companyId, { readCondition: conditions[arm], touchedByUserId: fixture.userId, limit: 100, sortField: "id", sortDir: "asc" });
+            ? issueService(target).unreadInboxIssueIds(fixture.spaceId, fixture.userId, conditions[arm])
+            : issueService(target).list(fixture.spaceId, { readCondition: conditions[arm], touchedByUserId: fixture.userId, limit: 100, sortField: "id", sortDir: "asc" });
           const samples = { baseline: [] as number[], treatment: [] as number[] };
           for (let round=0; round<7; round++) {
             let before: unknown, after: unknown;
@@ -134,7 +134,7 @@ try {
       }
     }
     results.push({ fixture, fixtureMs, cases });
-    await db.$client.unsafe("truncate companies cascade");
+    await db.$client.unsafe("truncate spaces cascade");
   }
   const dependencyVersions = Object.fromEntries(await Promise.all(["postgres", "drizzle-orm"].map(async name => [name, JSON.parse(await fs.readFile(path.join(root,`packages/db/node_modules/${name}/package.json`),"utf8")).version])));
   const report = { baselineRevision, dependencyVersions, maxDenseMs: Number.isFinite(maxDenseMs) ? maxDenseMs : null, treatmentRevision: git("rev-parse", "HEAD"), sourceHashes, baselineSourceSha256: createHash("sha256").update(oldSource).digest("hex"), changedRuntime, checkedInLockSha256: createHash("sha256").update(await fs.readFile(path.join(root,"pnpm-lock.yaml"))).digest("hex"), nodeVersion: process.version, settings, setupMs, totalMs: performance.now()-started, warmupsPerArm: 2, measuredSamplesPerArm: 5, results };
@@ -145,7 +145,7 @@ try {
     for (const result of results) for (const c of result.cases) {
       if (c.readMode === "scoped") {
         for (const query of c.plans.find(p => p.arm === "treatment")!.queries) {
-          if (!result.fixture.graph) assert.equal(query.work.inspectedRows, 0, "Absent parent frontiers must not inspect company tasks");
+          if (!result.fixture.graph) assert.equal(query.work.inspectedRows, 0, "Absent parent frontiers must not inspect space tasks");
         }
         if (["dense","sparse"].includes(result.fixture.name)) assert.ok(c.speedup >= 2, `Scoped representative ${result.fixture.name}/${c.jit}/${c.caller} requires 2x improvement`);
       }

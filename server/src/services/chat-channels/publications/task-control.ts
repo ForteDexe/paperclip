@@ -46,7 +46,7 @@ export function createChatPublicationTaskControl(db: Db) {
       .from(issues)
       .where(
         and(
-          eq(issues.companyId, publication.companyId),
+          eq(issues.spaceId, publication.spaceId),
           eq(issues.id, publication.issueId),
         ),
       )
@@ -90,7 +90,7 @@ export function createChatPublicationTaskControl(db: Db) {
     tx: Db,
     publication: Pick<
       typeof chatPublications.$inferSelect,
-      | "companyId"
+      | "spaceId"
       | "conversationId"
       | "createdAt"
       | "endpointId"
@@ -106,7 +106,7 @@ export function createChatPublicationTaskControl(db: Db) {
       .set({ state: "completed", updatedAt: committedAt })
       .where(
         and(
-          eq(chatConversations.companyId, publication.companyId),
+          eq(chatConversations.spaceId, publication.spaceId),
           eq(chatConversations.endpointId, publication.endpointId),
           eq(chatConversations.id, publication.conversationId),
           inArray(chatConversations.state, ["active", "waiting"]),
@@ -129,7 +129,7 @@ export function createChatPublicationTaskControl(db: Db) {
       })
       .where(
         and(
-          eq(chatPublications.companyId, publication.companyId),
+          eq(chatPublications.spaceId, publication.spaceId),
           eq(chatPublications.endpointId, publication.endpointId),
           eq(chatPublications.conversationId, publication.conversationId),
           or(
@@ -143,7 +143,7 @@ export function createChatPublicationTaskControl(db: Db) {
             ),
           ),
           inArray(chatPublications.state, ["pending", "retry", "streaming"]),
-          sql`not (${chatPublications.idempotencyKey} like 'explicit:%' or ${chatPublications.idempotencyKey} like 'explicit-board:%')`,
+          sql`not (${chatPublications.idempotencyKey} like 'explicit:%' or ${chatPublications.idempotencyKey} like 'explicit-operator:%')`,
         ),
       );
   }

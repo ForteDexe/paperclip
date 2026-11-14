@@ -256,7 +256,7 @@ export function TaskSidePanel(props: TaskSidePanelProps) {
   // Restoration happens once in the stateful host. A preference/account
   // change must replace that host before its persistence callback can write
   // the previous scope's tabs under the new scope's storage key.
-  return <TaskSidePanelForScope key={JSON.stringify([props.accountScope, props.issue.companyId, props.issue.id])} {...props} />;
+  return <TaskSidePanelForScope key={JSON.stringify([props.accountScope, props.issue.spaceId, props.issue.id])} {...props} />;
 }
 
 function TaskSidePanelForScope({
@@ -311,7 +311,7 @@ function TaskSidePanelForScope({
   const documents = documentsData ?? EMPTY_ISSUE_DOCUMENTS;
   const { data: planDocument } = useIssuePlanDocument(issue.id);
   const restoredRef = useRef(
-    readTaskSidePanelState(accountScope, issue.companyId, issue.id, fileTabsEnabled),
+    readTaskSidePanelState(accountScope, issue.spaceId, issue.id, fileTabsEnabled),
   );
   const taskCount = tasksTab?.count ?? childIssues.length;
   const taskLabel = tasksTab ? "Tasks" : "Subtasks";
@@ -363,20 +363,20 @@ function TaskSidePanelForScope({
   }, []);
 
   const persist = useCallback((state: { tabs: SidePanelTabRecord<TaskSidePanelTabPayload>[]; activeTabId: string | null }) => {
-    writeTaskSidePanelState(accountScope, issue.companyId, issue.id, {
+    writeTaskSidePanelState(accountScope, issue.spaceId, issue.id, {
       state,
       launcherOpen,
       userInteracted: userInteractedRef.current,
       autoPlanHandled: autoPlanHandledRef.current,
       updatedAt: Date.now(),
     });
-  }, [accountScope, issue.companyId, issue.id, launcherOpen]);
+  }, [accountScope, issue.spaceId, issue.id, launcherOpen]);
   const controller = useSidePanelTabs<TaskSidePanelTabPayload>({ initialState, onStateChange: persist });
   const localOpenedPluginPanels = useRef(new Set<string>());
   const openedPluginPanels = openedPluginPanelKeys ?? localOpenedPluginPanels.current;
   const localDismissedPluginPanels = useRef(new Set<string>());
   const dismissedPluginPanels = dismissedPluginPanelKeys ?? localDismissedPluginPanels.current;
-  const pluginPanelKey = useCallback((panel: TaskPluginPanel) => taskPluginPanelActivationKey(panel, accountScope, issue), [accountScope, issue.companyId, issue.id]);
+  const pluginPanelKey = useCallback((panel: TaskPluginPanel) => taskPluginPanelActivationKey(panel, accountScope, issue), [accountScope, issue.spaceId, issue.id]);
   useEffect(() => {
     const ids = new Set(pluginPanels.map(taskPluginPanelId));
     for (const tab of controller.tabs) {
@@ -393,7 +393,7 @@ function TaskSidePanelForScope({
       controller.openTab(taskPanelPluginTab(panel), firstArrival);
     }
   }, [dismissedPluginPanels, openedPluginPanels, pluginPanelKey, pluginPanels, pluginPanelsLoading, controller.tabs, controller.closeTab, controller.openTab]);
-  const browsersQuery = useTaskBrowsers(issue.id, issue.companyId);
+  const browsersQuery = useTaskBrowsers(issue.id, issue.spaceId);
   const newestLiveBrowser = browsersQuery.data?.findLast((browser) => browser.status === "running" || browser.status === "idle");
   useEffect(() => {
     if (!openBrowserId) return;
@@ -405,10 +405,10 @@ function TaskSidePanelForScope({
     // Acknowledge only after selection and persistence commit. Clearing the
     // parent request earlier can replace the panel before its tab state lands.
     if (openBrowserId && controller.activeTabId === `browser:${openBrowserId}` &&
-      readTaskSidePanelState(accountScope, issue.companyId, issue.id, fileTabsEnabled)?.state.activeTabId === controller.activeTabId) {
+      readTaskSidePanelState(accountScope, issue.spaceId, issue.id, fileTabsEnabled)?.state.activeTabId === controller.activeTabId) {
       onBrowserOpened?.();
     }
-  }, [openBrowserId, controller.activeTabId, onBrowserOpened, accountScope, issue.companyId, issue.id, fileTabsEnabled]);
+  }, [openBrowserId, controller.activeTabId, onBrowserOpened, accountScope, issue.spaceId, issue.id, fileTabsEnabled]);
   const activeTab = controller.tabs.find((tab) => tab.id === controller.activeTabId) ?? null;
   const hasArtifactUploadSlot = !conversationAgentId && !issue.id.startsWith("chat:")
     && controller.tabs.some((tab) => tab.payload.kind === "artifacts");
@@ -806,7 +806,7 @@ function TaskSidePanelForScope({
   } else if (activeTab.payload.kind === "plugin-panel") {
     const panel = pluginPanels.find(panel => taskPluginPanelId(panel) === activeTab.id);
     content = panel ? (
-      <PluginSlotMount key={taskPluginPanelId(panel)} slot={panel.slot} context={{ companyId: issue.companyId, projectId: issue.projectId, entityId: panel.entityId, entityType: "agent" }} />
+      <PluginSlotMount key={taskPluginPanelId(panel)} slot={panel.slot} context={{ spaceId: issue.spaceId, projectId: issue.projectId, entityId: panel.entityId, entityType: "agent" }} />
     ) : null;
   } else if (activeTab.payload.kind === "properties") {
     content = (
@@ -839,7 +839,7 @@ function TaskSidePanelForScope({
     content = conversationAgentId ? (
       coordinatorWorkspaceEnabled
         ? <CoordinatorConversationTasksPanel conversationIssueId={issue.id} />
-        : <AgentTasksPanel companyId={issue.companyId} agentId={conversationAgentId} excludeIssueId={issue.id} />
+        : <AgentTasksPanel spaceId={issue.spaceId} agentId={conversationAgentId} excludeIssueId={issue.id} />
     ) : null;
   } else if (activeTab.payload.kind === "artifacts" && conversationAgentId) {
     content = (
@@ -847,7 +847,7 @@ function TaskSidePanelForScope({
         <section aria-label="Conversation documents">
           <TaskGeneralDocuments issue={issue} documentEditor={documentEditor ?? {}} />
         </section>
-        <AgentArtifactsPanel companyId={issue.companyId} agentId={conversationAgentId} />
+        <AgentArtifactsPanel spaceId={issue.spaceId} agentId={conversationAgentId} />
       </div>
     );
   } else if (activeTab.payload.kind === "artifacts") {
@@ -872,12 +872,12 @@ function TaskSidePanelForScope({
   } else if (activeTab.payload.kind === "attachment") {
     content = <TaskAttachmentPanel key={activeTab.payload.attachmentId} issueId={issue.id} attachmentId={activeTab.payload.attachmentId} />;
   } else if (activeTab.payload.kind === "skill") {
-    content = <TaskSkillPanel companyId={issue.companyId} skillId={activeTab.payload.skillId} />;
+    content = <TaskSkillPanel spaceId={issue.spaceId} skillId={activeTab.payload.skillId} />;
   } else if (activeTab.payload.kind === "files-browser") {
     content = (
       <WorkspaceFileBrowser
         issueId={issue.id}
-        companyId={issue.companyId}
+        spaceId={issue.spaceId}
         onOpen={openWorkspaceFile}
         onBrowseStateChange={(next) => {
           controller.updateTab(activeTab.id, {

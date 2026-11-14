@@ -53,7 +53,7 @@ function createApp(
       deploymentMode: "local_trusted",
       deploymentExposure: "private",
       authReady: true,
-      companyDeletionEnabled: true,
+      spaceDeletionEnabled: true,
       serverInfo,
       databaseBackupHealth,
       runtimeEnv,
@@ -110,7 +110,7 @@ describe("GET /health", () => {
     expect(res.status).toBe(200);
     expect(res.body.cloud).toEqual({
       managed: true,
-      managedBy: "paperclip-cloud",
+      managedBy: "outpost-cloud",
       stackSlug: "acme",
       cloudBaseUrl: "https://app.outpost.app",
     });
@@ -235,8 +235,8 @@ describe("GET /health", () => {
   });
 
   it("surfaces a stale database backup warning in full health details", async () => {
-    const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-health-backups-"));
-    const backupFile = path.join(backupDir, "paperclip-20260705-031702.sql.gz");
+    const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-health-backups-"));
+    const backupFile = path.join(backupDir, "outpost-20260705-031702.sql.gz");
     fs.writeFileSync(backupFile, "backup");
     fs.utimesSync(
       backupFile,
@@ -258,7 +258,7 @@ describe("GET /health", () => {
       backupDir,
       maxAgeHours: 26,
       latestBackup: {
-        name: "paperclip-20260705-031702.sql.gz",
+        name: "outpost-20260705-031702.sql.gz",
         ageHours: 33.7,
       },
       warnings: [
@@ -271,8 +271,8 @@ describe("GET /health", () => {
   });
 
   it("surfaces database backup failure markers in full health details", async () => {
-    const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-health-backups-"));
-    const backupFile = path.join(backupDir, "paperclip-20260706-031702.sql.gz");
+    const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-health-backups-"));
+    const backupFile = path.join(backupDir, "outpost-20260706-031702.sql.gz");
     const alertFile = path.join(backupDir, "db-backup-to-s3.failure");
     fs.writeFileSync(backupFile, "backup");
     fs.writeFileSync(alertFile, "db-backup-to-s3 failed at 2026-07-06T03:17:00.000Z exit=1\n");
@@ -303,10 +303,10 @@ describe("GET /health", () => {
   });
 
   it("finds conventional database backup failure markers without an explicit alert file", async () => {
-    const backupRoot = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-health-backups-root-"));
+    const backupRoot = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-health-backups-root-"));
     const backupDir = path.join(backupRoot, "backups");
     fs.mkdirSync(backupDir);
-    const backupFile = path.join(backupDir, "paperclip-20260706-031702.sql.gz");
+    const backupFile = path.join(backupDir, "outpost-20260706-031702.sql.gz");
     const alertFile = path.join(backupRoot, "db-backup-to-s3.failure");
     fs.writeFileSync(backupFile, "backup");
     fs.writeFileSync(alertFile, "db-backup-to-s3 failed beside backups\n");
@@ -336,8 +336,8 @@ describe("GET /health", () => {
   });
 
   it("surfaces redacted database backup warnings for anonymous authenticated probes", async () => {
-    const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-health-redacted-backups-"));
-    const backupFile = path.join(backupDir, "paperclip-20260705-031702.sql.gz");
+    const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-health-redacted-backups-"));
+    const backupFile = path.join(backupDir, "outpost-20260705-031702.sql.gz");
     fs.writeFileSync(backupFile, "backup");
     fs.utimesSync(
       backupFile,
@@ -364,7 +364,7 @@ describe("GET /health", () => {
         deploymentMode: "authenticated",
         deploymentExposure: "public",
         authReady: true,
-        companyDeletionEnabled: false,
+        spaceDeletionEnabled: false,
         serverInfo: testServerInfo,
         databaseBackupHealth: {
           enabled: true,
@@ -428,7 +428,7 @@ describe("GET /health", () => {
         deploymentMode: "authenticated",
         deploymentExposure: "public",
         authReady: true,
-        companyDeletionEnabled: false,
+        spaceDeletionEnabled: false,
         serverInfo: testServerInfo,
       }),
     );
@@ -467,7 +467,7 @@ describe("GET /health", () => {
         deploymentMode: "authenticated",
         deploymentExposure: "public",
         authReady: true,
-        companyDeletionEnabled: false,
+        spaceDeletionEnabled: false,
         serverInfo: testServerInfo,
       }),
     );
@@ -501,7 +501,7 @@ describe("GET /health", () => {
     } as unknown as Db;
     const app = express();
     app.use((req, _res, next) => {
-      (req as any).actor = { type: "board", userId: "user-1", source: "session" };
+      (req as any).actor = { type: "operator", userId: "user-1", source: "session" };
       next();
     });
     app.use(
@@ -510,7 +510,7 @@ describe("GET /health", () => {
         deploymentMode: "authenticated",
         deploymentExposure: "public",
         authReady: true,
-        companyDeletionEnabled: false,
+        spaceDeletionEnabled: false,
         serverInfo: testServerInfo,
       }),
     );
@@ -528,7 +528,7 @@ describe("GET /health", () => {
       bootstrapStatus: "ready",
       bootstrapInviteActive: false,
       features: {
-        companyDeletionEnabled: false,
+        spaceDeletionEnabled: false,
       },
       serverInfo: testServerInfo,
     });
@@ -555,7 +555,7 @@ describe("GET /health", () => {
         deploymentMode: "authenticated",
         deploymentExposure: "public",
         authReady: true,
-        companyDeletionEnabled: false,
+        spaceDeletionEnabled: false,
         serverInfo: testServerInfo,
       }),
     );
@@ -592,7 +592,7 @@ describe("GET /health", () => {
         deploymentMode: "authenticated",
         deploymentExposure: "public",
         authReady: true,
-        companyDeletionEnabled: false,
+        spaceDeletionEnabled: false,
         serverInfo: testServerInfo,
       }),
     );

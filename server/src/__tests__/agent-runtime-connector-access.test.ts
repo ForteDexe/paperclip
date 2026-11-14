@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { agents, chatEndpoints, authUsers, heartbeatRuns, issues, companies, companyMemberships, principalPermissionGrants, companySecrets, companySecretBindings, companySecretProviderConfigs, connectionGrants, connectionGrantMembers, connectionGrantDelegations, userSecretDefinitions, createDb, plugins, toolApplications, toolConnections, toolCatalogEntries, toolConnectionInstalls, toolProfiles, toolProfileBindings, resourceLifecycleEvents, type Db } from "@outpost/db";
+import { agents, chatEndpoints, authUsers, heartbeatRuns, issues, spaces, spaceMemberships, principalPermissionGrants, spaceSecrets, spaceSecretBindings, spaceSecretProviderConfigs, connectionGrants, connectionGrantMembers, connectionGrantDelegations, userSecretDefinitions, createDb, plugins, toolApplications, toolConnections, toolCatalogEntries, toolConnectionInstalls, toolProfiles, toolProfileBindings, resourceLifecycleEvents, type Db } from "@outpost/db";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { toolAccessService } from "../services/tool-access.js";
@@ -17,43 +17,43 @@ const describeDatabase = support.supported ? describe : describe.skip;
 describeDatabase("connector access runtime synchronization", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: Db;
-  let companyId: string;
+  let spaceId: string;
   let agentId: string;
   let peerId: string;
   let pluginId: string;
   let applicationId: string;
   let connectionId: string;
-  beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("paperclip-runtime-access-"); db = createDb(database.connectionString); }, 90_000);
+  beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("outpost-runtime-access-"); db = createDb(database.connectionString); }, 90_000);
   afterAll(async () => { await database?.cleanup(); });
   afterEach(() => vi.unstubAllEnvs());
   beforeEach(async () => {
-    companyId = randomUUID(); agentId = randomUUID(); peerId = randomUUID(); pluginId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Connector runtime fixture", issuePrefix: `C${companyId.slice(0, 6)}` });
+    spaceId = randomUUID(); agentId = randomUUID(); peerId = randomUUID(); pluginId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Connector runtime fixture", issuePrefix: `C${spaceId.slice(0, 6)}` });
     await db.insert(plugins).values({ id: pluginId, pluginKey: pluginId, packageName: "runtime-fixture", version: "1.0.0", status: "ready", manifestJson: { resourceLifecycle: ["agent_runtime"], capabilities: ["events.subscribe", "agents.lifecycle.manage"] } as never });
-    await db.insert(agents).values([agentId, peerId].map(id => ({ id, companyId, name: id, adapterType: "outpost_runner", lifecycleRequiredPluginIds: [pluginId] })));
-    const [application] = await db.insert(toolApplications).values({ companyId, name: "Fixture MCP", type: "mcp_http" }).returning(); applicationId = application.id;
-    const [connection] = await db.insert(toolConnections).values({ companyId, applicationId, name: "Fixture connection", uid: randomUUID(), transport: "mcp_remote", authKind: "none", enabled: true, status: "active" }).returning(); connectionId = connection.id;
+    await db.insert(agents).values([agentId, peerId].map(id => ({ id, spaceId, name: id, adapterType: "outpost_runner", lifecycleRequiredPluginIds: [pluginId] })));
+    const [application] = await db.insert(toolApplications).values({ spaceId, name: "Fixture MCP", type: "mcp_http" }).returning(); applicationId = application.id;
+    const [connection] = await db.insert(toolConnections).values({ spaceId, applicationId, name: "Fixture connection", uid: randomUUID(), transport: "mcp_remote", authKind: "none", enabled: true, status: "active" }).returning(); connectionId = connection.id;
   });
-  const events = () => db.select().from(resourceLifecycleEvents).where(and(eq(resourceLifecycleEvents.companyId, companyId), eq(resourceLifecycleEvents.resourceType, "agent_runtime"))).orderBy(resourceLifecycleEvents.id);
+  const events = () => db.select().from(resourceLifecycleEvents).where(and(eq(resourceLifecycleEvents.spaceId, spaceId), eq(resourceLifecycleEvents.resourceType, "agent_runtime"))).orderBy(resourceLifecycleEvents.id);
 
   it("captures referenced vault configuration and disablement through the real provider service", async () => {
-    const [vault] = await db.insert(companySecretProviderConfigs).values({ companyId, provider: "aws_secrets_manager", displayName: "Fixture vault", config: { region: "us-east-1" } }).returning();
-    const [secret] = await db.insert(companySecrets).values({ companyId, provider: "aws_secrets_manager", providerConfigId: vault.id, key: "vault", name: "Vault fixture" }).returning();
+    const [vault] = await db.insert(spaceSecretProviderConfigs).values({ spaceId, provider: "aws_secrets_manager", displayName: "Fixture vault", config: { region: "us-east-1" } }).returning();
+    const [secret] = await db.insert(spaceSecrets).values({ spaceId, provider: "aws_secrets_manager", providerConfigId: vault.id, key: "vault", name: "Vault fixture" }).returning();
     await db.update(toolConnections).set({ credentialSecretRefs: [{ secretId: secret.id, configPath: "token" }] }).where(eq(toolConnections.id, connectionId));
     const before = (await events()).length;
-    await db.update(companySecretProviderConfigs).set({ healthStatus: "ok", healthCheckedAt: new Date(), healthDetails: { fixture: true } }).where(eq(companySecretProviderConfigs.id, vault.id));
+    await db.update(spaceSecretProviderConfigs).set({ healthStatus: "ok", healthCheckedAt: new Date(), healthDetails: { fixture: true } }).where(eq(spaceSecretProviderConfigs.id, vault.id));
     expect(await events()).toHaveLength(before);
     await secretService(db).updateProviderConfig(vault.id, { config: { region: "us-west-2" } });
     expect(await events()).toHaveLength(before + 2);
     await secretService(db).disableProviderConfig(vault.id);
     expect(await events()).toHaveLength(before + 4);
-    const [unrelated] = await db.insert(companySecretProviderConfigs).values({ companyId, provider: "local_encrypted", displayName: "Unreferenced vault" }).returning();
+    const [unrelated] = await db.insert(spaceSecretProviderConfigs).values({ spaceId, provider: "local_encrypted", displayName: "Unreferenced vault" }).returning();
     await secretService(db).disableProviderConfig(unrelated.id);
     expect(await events()).toHaveLength(before + 4);
   });
-  it("skips unchanged grant audiences and coalesces replacements to one company refresh per transaction", async () => {
-    await db.insert(companyMemberships).values(["alice", "bob"].map(principalId => ({ companyId, principalType: "user", principalId, status: "active" })));
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "organization" }).returning();
+  it("skips unchanged grant audiences and coalesces replacements to one space refresh per transaction", async () => {
+    await db.insert(spaceMemberships).values(["alice", "bob"].map(principalId => ({ spaceId, principalType: "user", principalId, status: "active" })));
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "organization" }).returning();
     const service = toolAccessService(db);
     await service.replaceConnectionGrantMembers(connectionId, grant.id, ["alice"]);
     const before = (await events()).length;
@@ -72,16 +72,16 @@ describeDatabase("connector access runtime synchronization", () => {
     let memberId: string | undefined;
     if (change !== "permission save") {
       await toolAccessService(db).putConnectionInstalls(connectionId, { installs: [{ targetType: "agent", targetId: agentId }] });
-      expect((await toolAccessService(db).getConnection(connectionId, companyId)).config?.mcpAgentAccessConfigured).toBe(true);
+      expect((await toolAccessService(db).getConnection(connectionId, spaceId)).config?.mcpAgentAccessConfigured).toBe(true);
       const uninstall = (client: Db) => toolAccessService(client).putConnectionInstalls(connectionId, { installs: [] });
-      const finish = (client: Db) => toolAccessService(client).finishGalleryAppConnection(companyId, connectionId, { enabledCatalogEntryIds: [], askFirstCatalogEntryIds: [], access: "all_agents" });
+      const finish = (client: Db) => toolAccessService(client).finishGalleryAppConnection(spaceId, connectionId, { enabledCatalogEntryIds: [], askFirstCatalogEntryIds: [], access: "all_agents" });
       [first, second] = change === "uninstall" ? [uninstall, finish] : [finish, uninstall];
     } else {
-      const [member] = await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "alice", status: "active", membershipRole: "member" }).returning();
+      const [member] = await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "alice", status: "active", membershipRole: "member" }).returning();
       memberId = member.id;
-      await db.insert(principalPermissionGrants).values({ companyId, principalType: "user", principalId: "alice", permissionKey: "agents:create" });
-      first = client => accessService(client).updateMemberAndPermissions(companyId, member.id, { membershipRole: "admin", grants: [{ permissionKey: "agents:create" }] }, null);
-      second = client => accessService(client).setMemberPermissions(companyId, member.id, [{ permissionKey: "tasks:assign" }], null);
+      await db.insert(principalPermissionGrants).values({ spaceId, principalType: "user", principalId: "alice", permissionKey: "agents:create" });
+      first = client => accessService(client).updateMemberAndPermissions(spaceId, member.id, { membershipRole: "admin", grants: [{ permissionKey: "agents:create" }] }, null);
+      second = client => accessService(client).setMemberPermissions(spaceId, member.id, [{ permissionKey: "tasks:assign" }], null);
     }
     let locked!: () => void; let release!: () => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
@@ -117,35 +117,35 @@ describeDatabase("connector access runtime synchronization", () => {
       // The last serialized audience mutation wins: a later permission save
       // installs its selected audience, while a later uninstall removes it.
       const installs = await db.select().from(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, connectionId));
-      if (change === "uninstall") expect(installs).toEqual([expect.objectContaining({ targetType: "company", targetId: companyId })]);
+      if (change === "uninstall") expect(installs).toEqual([expect.objectContaining({ targetType: "space", targetId: spaceId })]);
       else expect(installs).toEqual([]);
-      const bindings = await db.select().from(toolProfileBindings).where(eq(toolProfileBindings.companyId, companyId));
+      const bindings = await db.select().from(toolProfileBindings).where(eq(toolProfileBindings.spaceId, spaceId));
       expect(bindings.some(binding => binding.metadata?.source === "tool_connection_install")).toBe(false);
     } else {
-      expect(await accessService(db).getMemberById(companyId, memberId!)).toMatchObject({ membershipRole: "admin" });
-      expect(await db.select().from(principalPermissionGrants).where(eq(principalPermissionGrants.companyId, companyId))).toEqual([expect.objectContaining({ permissionKey: "tasks:assign" })]);
+      expect(await accessService(db).getMemberById(spaceId, memberId!)).toMatchObject({ membershipRole: "admin" });
+      expect(await db.select().from(principalPermissionGrants).where(eq(principalPermissionGrants.spaceId, spaceId))).toEqual([expect.objectContaining({ permissionKey: "tasks:assign" })]);
     }
   }, 15000);
   it.each(["email allowAgent", "connection intent"] as const)("orders outer %s with direct install saves", async caller => {
     let outer: (client: Db) => Promise<unknown>;
     if (caller === "email allowAgent") {
       await db.update(toolConnections).set({ config: { provider: "agentmail", mcpAgentAccessConfigured: true } }).where(eq(toolConnections.id, connectionId));
-      outer = client => emailConnectionService(client).allowAgent(companyId, connectionId, agentId, { localImplicit: true }, "fixture-setup");
+      outer = client => emailConnectionService(client).allowAgent(spaceId, connectionId, agentId, { localImplicit: true }, "fixture-setup");
     } else {
       const userId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
       await db.insert(authUsers).values({ id: userId, name: "Fixture user", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-      await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
-      await db.insert(issues).values({ id: issueId, companyId, title: "Use Notion", status: "in_progress", assigneeAgentId: agentId });
-      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", responsibleUserId: userId, contextSnapshot: { issueId } });
-      const pending = await connectionIntentService(db).request({ sub: agentId, company_id: companyId, run_id: runId, responsible_user_id: userId }, "notion");
+      await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
+      await db.insert(issues).values({ id: issueId, spaceId, title: "Use Notion", status: "in_progress", assigneeAgentId: agentId });
+      await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", responsibleUserId: userId, contextSnapshot: { issueId } });
+      const pending = await connectionIntentService(db).request({ sub: agentId, space_id: spaceId, run_id: runId, responsible_user_id: userId }, "notion");
       expect(pending.interactionId).toEqual(expect.any(String));
       await db.update(toolConnections).set({ healthStatus: "ok", config: { sourceTemplateKey: "notion", mcpAgentAccessConfigured: true } }).where(eq(toolConnections.id, connectionId));
-      await db.insert(connectionGrants).values({ companyId, connectionId, kind: "organization", status: "active", isDefault: true });
-      await db.insert(toolCatalogEntries).values({ companyId, applicationId, connectionId, name: "read", toolName: "read", versionHash: "fixture", riskLevel: "read", isReadOnly: true });
+      await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "organization", status: "active", isDefault: true });
+      await db.insert(toolCatalogEntries).values({ spaceId, applicationId, connectionId, name: "read", toolName: "read", versionHash: "fixture", riskLevel: "read", isReadOnly: true });
       outer = client => connectionIntentService(client).complete(pending.interactionId!, connectionId, userId, { canManageOrganizationGrant: true });
     }
-    const [profile] = await db.insert(toolProfiles).values({ companyId, profileKey: `app:${connectionId}`, name: "Shared fixture profile", defaultAction: "allow" }).returning();
-    await db.insert(toolProfileBindings).values({ companyId, profileId: profile.id, targetType: "company", targetId: companyId });
+    const [profile] = await db.insert(toolProfiles).values({ spaceId, profileKey: `app:${connectionId}`, name: "Shared fixture profile", defaultAction: "allow" }).returning();
+    await db.insert(toolProfileBindings).values({ spaceId, profileId: profile.id, targetType: "space", targetId: spaceId });
     let locked!: () => void; let release!: () => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
     const resume = new Promise<void>(resolve => { release = resolve; });
@@ -176,14 +176,14 @@ describeDatabase("connector access runtime synchronization", () => {
     const results = await Promise.allSettled([direct, nested]);
     for (const result of results) if (result.status === "rejected") throw result.reason;
     expect(results.map(result => result.status)).toEqual(["fulfilled", "fulfilled"]);
-    expect((await toolAccessService(db).listConnectionInstalls(connectionId, companyId)).map(install => install.targetId).sort()).toEqual([agentId, peerId].sort());
+    expect((await toolAccessService(db).listConnectionInstalls(connectionId, spaceId)).map(install => install.targetId).sort()).toEqual([agentId, peerId].sort());
     if (caller === "connection intent") expect((results[1] as PromiseFulfilledResult<{ status: string }>).value.status).toBe("accepted");
   }, 15000);
   it("orders Slack search disconnect with concurrent personal delegation creation", async () => {
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "alice", status: "active" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "alice", status: "active" });
     await db.update(toolConnections).set({ connectionPurpose: "channel", transport: "chat_sdk", config: { provider: "slack" } }).where(eq(toolConnections.id, connectionId));
-    const [endpoint] = await db.insert(chatEndpoints).values({ companyId, connectionId, provider: "slack", publicId: randomUUID(), assignedAgentId: agentId, status: "active", providerAccountId: "T-FIXTURE" }).returning();
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice", providerTenant: { slackSearch: { endpointId: endpoint.id, workspaceId: "T-FIXTURE", slackUserId: "U-FIXTURE", clientRevision: "fixture" } } }).returning();
+    const [endpoint] = await db.insert(chatEndpoints).values({ spaceId, connectionId, provider: "slack", publicId: randomUUID(), assignedAgentId: agentId, status: "active", providerAccountId: "T-FIXTURE" }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice", providerTenant: { slackSearch: { endpointId: endpoint.id, workspaceId: "T-FIXTURE", slackUserId: "U-FIXTURE", clientRevision: "fixture" } } }).returning();
     let locked!: () => void; let resume!: () => void; let started!: (pid: number) => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
     const mayDelegate = new Promise<void>(resolve => { resume = resolve; });
@@ -199,7 +199,7 @@ describeDatabase("connector access runtime synchronization", () => {
       await tx.execute(sql`SET LOCAL lock_timeout = '8s'`);
       const [row] = await tx.execute(sql`SELECT pg_backend_pid() AS pid`);
       started(Number(row.pid));
-      return slackSearchOAuthService(tx as unknown as Db, "https://outpost.example").disconnect(companyId, endpoint.id, "alice");
+      return slackSearchOAuthService(tx as unknown as Db, "https://outpost.example").disconnect(spaceId, endpoint.id, "alice");
     });
     const completed = Promise.allSettled([creation, disconnect]);
     try {
@@ -214,7 +214,7 @@ describeDatabase("connector access runtime synchronization", () => {
   }, 15000);
   it("retries Slack disconnect when a grant appears while waiting for the connection", async () => {
     await db.update(toolConnections).set({ connectionPurpose: "channel", transport: "chat_sdk", config: { provider: "slack" } }).where(eq(toolConnections.id, connectionId));
-    const [endpoint] = await db.insert(chatEndpoints).values({ companyId, connectionId, provider: "slack", publicId: randomUUID(), assignedAgentId: agentId, status: "active" }).returning();
+    const [endpoint] = await db.insert(chatEndpoints).values({ spaceId, connectionId, provider: "slack", publicId: randomUUID(), assignedAgentId: agentId, status: "active" }).returning();
     let connectionLocked!: () => void; let releaseConnection!: () => void;
     const held = new Promise<void>(resolve => { connectionLocked = resolve; });
     const mayUnlock = new Promise<void>(resolve => { releaseConnection = resolve; });
@@ -241,7 +241,7 @@ describeDatabase("connector access runtime synchronization", () => {
         throw error;
       }
     }) as typeof db.transaction);
-    const disconnect = slackSearchOAuthService(db, "https://outpost.example").disconnect(companyId, endpoint.id, "alice");
+    const disconnect = slackSearchOAuthService(db, "https://outpost.example").disconnect(spaceId, endpoint.id, "alice");
     const disconnectResult = Promise.allSettled([disconnect]);
     try {
       await vi.waitFor(async () => {
@@ -249,7 +249,7 @@ describeDatabase("connector access runtime synchronization", () => {
         const [row] = await db.execute(sql`SELECT wait_event_type FROM pg_stat_activity WHERE pid = ${disconnectPid!}`);
         expect(row.wait_event_type).toBe("Lock");
       }, { timeout: 5000 });
-      const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
+      const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
       writer = db.transaction(async tx => {
         await tx.select().from(connectionGrants).where(eq(connectionGrants.id, grant.id)).for("update");
         writerLocked(); await mayWrite;
@@ -265,15 +265,15 @@ describeDatabase("connector access runtime synchronization", () => {
     } finally { releaseConnection(); resumeWriter(); await blocker; await writer; await disconnectResult; spy.mockRestore(); }
   }, 15000);
   it("journals a personal grant delegation only for its target agent", async () => {
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "alice", status: "active" });
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "alice", status: "active" });
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
     const before = await events();
     await toolAccessService(db).createConnectionGrantDelegation(connectionId, grant.id, agentId, "alice");
     expect((await events()).slice(before.length).map(event => event.resourceId)).toEqual([agentId]);
   });
   it("keeps repeated delegation creation and revocation independent of an unrelated agent lock", async () => {
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "alice", status: "active" });
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "alice", status: "active" });
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
     const before = await events();
     let locked!: () => void; let resume!: () => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
@@ -303,9 +303,9 @@ describeDatabase("connector access runtime synchronization", () => {
     expect(await db.select().from(connectionGrantDelegations).where(eq(connectionGrantDelegations.grantId, grant.id))).toEqual([]);
   }, 15000);
   it("invalidates both delegation targets on reassignment and ignores unchanged updates or rollback", async () => {
-    await db.insert(agents).values({ companyId, name: "Unrelated delegation peer", adapterType: "outpost_runner" });
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
-    const [delegation] = await db.insert(connectionGrantDelegations).values({ companyId, grantId: grant.id, agentId, createdByUserId: "alice" }).returning();
+    await db.insert(agents).values({ spaceId, name: "Unrelated delegation peer", adapterType: "outpost_runner" });
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
+    const [delegation] = await db.insert(connectionGrantDelegations).values({ spaceId, grantId: grant.id, agentId, createdByUserId: "alice" }).returning();
     const before = await events();
     await db.update(connectionGrantDelegations).set({ agentId: peerId }).where(eq(connectionGrantDelegations.id, delegation.id));
     const reassigned = await events();
@@ -320,8 +320,8 @@ describeDatabase("connector access runtime synchronization", () => {
     expect(await db.select().from(connectionGrantDelegations).where(eq(connectionGrantDelegations.id, delegation.id))).toEqual([expect.objectContaining({ agentId: peerId })]);
   });
   it("limits delegation creation to its target without waiting on unrelated agents", async () => {
-    await db.insert(companyMemberships).values(["alice", "bob"].map(principalId => ({ companyId, principalType: "user", principalId, status: "active" })));
-    const grants = await db.insert(connectionGrants).values(["alice", "bob"].map(subjectUserId => ({ companyId, connectionId, kind: "user" as const, subjectUserId }))).returning();
+    await db.insert(spaceMemberships).values(["alice", "bob"].map(principalId => ({ spaceId, principalType: "user", principalId, status: "active" })));
+    const grants = await db.insert(connectionGrants).values(["alice", "bob"].map(subjectUserId => ({ spaceId, connectionId, kind: "user" as const, subjectUserId }))).returning();
     const baseline = await events();
     const [lower, higher] = [agentId, peerId].sort();
     let locked!: () => void; let release!: () => void;
@@ -350,17 +350,17 @@ describeDatabase("connector access runtime synchronization", () => {
       }, { timeout: 5000 });
     } finally { release(); await blocker; }
     expect((await completed).map(result => result.status)).toEqual(["fulfilled", "fulfilled"]);
-    expect(await db.select().from(connectionGrantDelegations).where(eq(connectionGrantDelegations.companyId, companyId))).toHaveLength(2);
+    expect(await db.select().from(connectionGrantDelegations).where(eq(connectionGrantDelegations.spaceId, spaceId))).toHaveLength(2);
     const before = await events();
     expect(before.slice(baseline.length).map(event => event.resourceId).sort()).toEqual([lower, higher]);
     await toolAccessService(db).createConnectionGrantDelegation(connectionId, grants[0].id, higher, grants[0].subjectUserId!);
     expect(await events()).toEqual(before);
   }, 15000);
-  it.each(["grant revocation", "membership suspension"] as const)("orders company locks before delegation cleanup during %s", async change => {
+  it.each(["grant revocation", "membership suspension"] as const)("orders space locks before delegation cleanup during %s", async change => {
     const [lower, higher] = [agentId, peerId].sort();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "owner", membershipRole: "owner", status: "active" });
-    const [member] = await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "alice", membershipRole: "member", status: "active" }).returning();
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "owner", membershipRole: "owner", status: "active" });
+    const [member] = await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "alice", membershipRole: "member", status: "active" }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
     await toolAccessService(db).createConnectionGrantDelegation(connectionId, grant.id, higher, "alice");
     let locked!: () => void; let resume!: () => void; let started!: (pid: number) => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
@@ -378,7 +378,7 @@ describeDatabase("connector access runtime synchronization", () => {
       const [row] = await tx.execute(sql`SELECT pg_backend_pid() AS pid`);
       started(Number(row.pid));
       return change === "grant revocation" ? toolAccessService(tx as unknown as Db).revokeConnectionGrant(connectionId, grant.id)
-        : accessService(tx as unknown as Db).updateMember(companyId, member.id, { status: "suspended" });
+        : accessService(tx as unknown as Db).updateMember(spaceId, member.id, { status: "suspended" });
     });
     const completed = Promise.allSettled([settings, cleanup]);
     try {
@@ -394,8 +394,8 @@ describeDatabase("connector access runtime synchronization", () => {
     expect(await db.select().from(connectionGrantDelegations).where(eq(connectionGrantDelegations.grantId, grant.id))).toEqual([]);
   }, 15000);
   it("orders a personal delegation revocation behind whole-grant cleanup", async () => {
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "alice", status: "active" });
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "alice", status: "active" });
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
     const delegation = await toolAccessService(db).createConnectionGrantDelegation(connectionId, grant.id, agentId, "alice");
     let locked!: () => void; let resume!: () => void; let started!: (pid: number) => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
@@ -404,7 +404,7 @@ describeDatabase("connector access runtime synchronization", () => {
     const whole = db.transaction(async tx => {
       await tx.execute(sql`SET LOCAL lock_timeout = '8s'`);
       await tx.select().from(connectionGrants).where(eq(connectionGrants.id, grant.id)).for("update");
-      await tx.select().from(agents).where(eq(agents.companyId, companyId)).orderBy(agents.id).for("no key update");
+      await tx.select().from(agents).where(eq(agents.spaceId, spaceId)).orderBy(agents.id).for("no key update");
       locked(); await mayRevoke;
       return toolAccessService(tx as unknown as Db).revokeConnectionGrant(connectionId, grant.id);
     });
@@ -429,8 +429,8 @@ describeDatabase("connector access runtime synchronization", () => {
     expect(await db.select().from(connectionGrantDelegations).where(eq(connectionGrantDelegations.grantId, grant.id))).toEqual([]);
   }, 15000);
   it("orders grant revocation with a concurrent delegation creation", async () => {
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "alice", status: "active" });
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "alice", status: "active" });
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice" }).returning();
     await toolAccessService(db).createConnectionGrantDelegation(connectionId, grant.id, agentId, "alice");
     let locked!: () => void; let resume!: () => void; let started!: (pid: number) => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
@@ -462,20 +462,20 @@ describeDatabase("connector access runtime synchronization", () => {
     expect(await db.select().from(connectionGrantDelegations).where(eq(connectionGrantDelegations.grantId, grant.id))).toEqual([]);
     await expect(toolAccessService(db).createConnectionGrantDelegation(connectionId, grant.id, peerId, "alice")).rejects.toThrow("Only the active personal grant owner");
   }, 15000);
-  it.each(["updateMember", "updateMemberAndPermissions", "archiveMember", "setUserCompanyAccess"] as const)("retries %s secret cleanup as a complete transaction", async command => {
+  it.each(["updateMember", "updateMemberAndPermissions", "archiveMember", "setUserSpaceAccess"] as const)("retries %s secret cleanup as a complete transaction", async command => {
     const userId = `cleanup-${randomUUID()}`;
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "owner", membershipRole: "owner", status: "active" });
-    const [member] = await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "member", status: "active" }).returning();
-    const [definition] = await db.insert(userSecretDefinitions).values({ companyId, key: "legacy-cleanup", name: "Legacy cleanup fixture" }).returning();
-    const [secret] = await db.insert(companySecrets).values({ companyId, key: "legacy-cleanup", name: "Legacy cleanup fixture", scope: "user", ownerUserId: userId, userSecretDefinitionId: definition.id }).returning();
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: userId, credentialSecretRefs: [{ secretId: secret.id, configPath: "oauth.access_token" }] }).returning();
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "owner", membershipRole: "owner", status: "active" });
+    const [member] = await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "member", status: "active" }).returning();
+    const [definition] = await db.insert(userSecretDefinitions).values({ spaceId, key: "legacy-cleanup", name: "Legacy cleanup fixture" }).returning();
+    const [secret] = await db.insert(spaceSecrets).values({ spaceId, key: "legacy-cleanup", name: "Legacy cleanup fixture", scope: "user", ownerUserId: userId, userSecretDefinitionId: definition.id }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: userId, credentialSecretRefs: [{ secretId: secret.id, configPath: "oauth.access_token" }] }).returning();
     const before = await events();
     let locked!: () => void; let resume!: () => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
     const mayDisable = new Promise<void>(resolve => { resume = resolve; });
     const writer = db.transaction(async tx => {
       await tx.execute(sql`SET LOCAL lock_timeout = '8s'`);
-      await tx.select().from(companySecrets).where(eq(companySecrets.id, secret.id)).for("no key update");
+      await tx.select().from(spaceSecrets).where(eq(spaceSecrets.id, secret.id)).for("no key update");
       locked(); await mayDisable;
       return secretService(tx as unknown as Db).update(secret.id, { status: "disabled" });
     });
@@ -496,10 +496,10 @@ describeDatabase("connector access runtime synchronization", () => {
       }
     }) as typeof db.transaction);
     const service = accessService(db);
-    const cleanup = command === "updateMember" ? service.updateMember(companyId, member.id, { status: "suspended" })
-      : command === "updateMemberAndPermissions" ? service.updateMemberAndPermissions(companyId, member.id, { status: "suspended", grants: [] }, "owner")
-        : command === "archiveMember" ? service.archiveMember(companyId, member.id)
-          : service.setUserCompanyAccess(userId, [], { actorUserId: "owner" });
+    const cleanup = command === "updateMember" ? service.updateMember(spaceId, member.id, { status: "suspended" })
+      : command === "updateMemberAndPermissions" ? service.updateMemberAndPermissions(spaceId, member.id, { status: "suspended", grants: [] }, "owner")
+        : command === "archiveMember" ? service.archiveMember(spaceId, member.id)
+          : service.setUserSpaceAccess(userId, [], { actorUserId: "owner" });
     const completed = Promise.allSettled([writer, cleanup]);
     try {
       await vi.waitFor(async () => {
@@ -511,18 +511,18 @@ describeDatabase("connector access runtime synchronization", () => {
     } finally { resume(); await completed; spy.mockRestore(); }
     for (const result of await completed) if (result.status === "rejected") throw result.reason;
     expect(retries).toBe(1);
-    expect((await db.select().from(companyMemberships).where(eq(companyMemberships.id, member.id)))[0].status).toBe(command === "archiveMember" || command === "setUserCompanyAccess" ? "archived" : "suspended");
+    expect((await db.select().from(spaceMemberships).where(eq(spaceMemberships.id, member.id)))[0].status).toBe(command === "archiveMember" || command === "setUserSpaceAccess" ? "archived" : "suspended");
     expect((await db.select().from(connectionGrants).where(eq(connectionGrants.id, grant.id)))[0].status).toBe("revoked");
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, secret.id))).toEqual([]);
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, secret.id))).toEqual([]);
     expect(await events()).toHaveLength(before.length + 4);
   }, 15000);
   it.each((["suspended", "archived"] as const).flatMap(status => (["revocation", "settings"] as const).map(writer => ({ status, writer }))))("orders membership $status cleanup with concurrent $writer", async ({ status, writer }) => {
     await db.update(toolConnections).set({ config: { url: "https://mcp.example.test/mcp" } }).where(eq(toolConnections.id, connectionId));
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "owner", membershipRole: "owner", status: "active" });
-    const [member] = await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "alice", membershipRole: "member", status: "active" }).returning();
-    const [definition] = await db.insert(userSecretDefinitions).values({ companyId, key: "cleanup", name: "Cleanup fixture" }).returning();
-    const [secret] = await db.insert(companySecrets).values({ companyId, key: "cleanup", name: "Cleanup fixture", scope: "user", ownerUserId: "alice", userSecretDefinitionId: definition.id }).returning();
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice", credentialSecretRefs: [{ secretId: secret.id, configPath: "oauth.access_token" }] }).returning();
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "owner", membershipRole: "owner", status: "active" });
+    const [member] = await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "alice", membershipRole: "member", status: "active" }).returning();
+    const [definition] = await db.insert(userSecretDefinitions).values({ spaceId, key: "cleanup", name: "Cleanup fixture" }).returning();
+    const [secret] = await db.insert(spaceSecrets).values({ spaceId, key: "cleanup", name: "Cleanup fixture", scope: "user", ownerUserId: "alice", userSecretDefinitionId: definition.id }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice", credentialSecretRefs: [{ secretId: secret.id, configPath: "oauth.access_token" }] }).returning();
     await toolAccessService(db).createConnectionGrantDelegation(connectionId, grant.id, agentId, "alice");
     let locked!: () => void; let resume!: () => void; let started!: (pid: number) => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
@@ -542,7 +542,7 @@ describeDatabase("connector access runtime synchronization", () => {
       const [row] = await tx.execute(sql`SELECT pg_backend_pid() AS pid`);
       started(Number(row.pid));
       const service = accessService(tx as unknown as Db);
-      return status === "suspended" ? service.updateMember(companyId, member.id, { status }) : service.archiveMember(companyId, member.id);
+      return status === "suspended" ? service.updateMember(spaceId, member.id, { status }) : service.archiveMember(spaceId, member.id);
     });
     const completed = Promise.allSettled([revocation, cleanup]);
     try {
@@ -553,30 +553,30 @@ describeDatabase("connector access runtime synchronization", () => {
       }, { timeout: 5000 });
     } finally { resume(); }
     expect((await completed).map(result => result.status)).toEqual(["fulfilled", "fulfilled"]);
-    expect((await db.select().from(companyMemberships).where(eq(companyMemberships.id, member.id)))[0].status).toBe(status);
+    expect((await db.select().from(spaceMemberships).where(eq(spaceMemberships.id, member.id)))[0].status).toBe(status);
     expect((await db.select().from(connectionGrants).where(eq(connectionGrants.id, grant.id)))[0].status).toBe("revoked");
     expect(await db.select().from(connectionGrantDelegations).where(eq(connectionGrantDelegations.grantId, grant.id))).toEqual([]);
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, secret.id))).toEqual([]);
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, secret.id))).toEqual([]);
     if (writer === "settings") expect((await db.select().from(toolConnections).where(eq(toolConnections.id, connectionId)))[0].name).toBe("Concurrent settings");
   }, 15000);
   it("orders audience replacement after membership cleanup without reversing grant locks", async () => {
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "owner", membershipRole: "owner", status: "active" });
-    const members = await db.insert(companyMemberships).values(["alice", "bob"].map(principalId => ({ companyId, principalType: "user", principalId, membershipRole: "member", status: "active" }))).returning();
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "owner", membershipRole: "owner", status: "active" });
+    const members = await db.insert(spaceMemberships).values(["alice", "bob"].map(principalId => ({ spaceId, principalType: "user", principalId, membershipRole: "member", status: "active" }))).returning();
     const member = members.find(row => row.principalId === "alice")!;
-    const [definition] = await db.insert(userSecretDefinitions).values({ companyId, key: "audience", name: "Audience fixture" }).returning();
-    const [secret] = await db.insert(companySecrets).values({ companyId, key: "audience", name: "Audience fixture", scope: "user", userSecretDefinitionId: definition.id, ownerUserId: "alice" }).returning();
-    await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice", credentialSecretRefs: [{ secretId: secret.id, configPath: "oauth.access_token" }] });
-    const [organization] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "organization", isDefault: true }).returning();
-    await db.insert(connectionGrantMembers).values({ companyId, grantId: organization.id, subjectType: "user", subjectId: "alice" });
+    const [definition] = await db.insert(userSecretDefinitions).values({ spaceId, key: "audience", name: "Audience fixture" }).returning();
+    const [secret] = await db.insert(spaceSecrets).values({ spaceId, key: "audience", name: "Audience fixture", scope: "user", userSecretDefinitionId: definition.id, ownerUserId: "alice" }).returning();
+    await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice", credentialSecretRefs: [{ secretId: secret.id, configPath: "oauth.access_token" }] });
+    const [organization] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "organization", isDefault: true }).returning();
+    await db.insert(connectionGrantMembers).values({ spaceId, grantId: organization.id, subjectType: "user", subjectId: "alice" });
     let locked!: () => void; let resume!: () => void; let started!: (pid: number) => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
     const maySuspend = new Promise<void>(resolve => { resume = resolve; });
     const audienceStarted = new Promise<number>(resolve => { started = resolve; });
     const cleanup = db.transaction(async tx => {
       await tx.execute(sql`SET LOCAL lock_timeout = '8s'`);
-      await tx.select().from(companyMemberships).where(eq(companyMemberships.id, member.id)).for("update");
+      await tx.select().from(spaceMemberships).where(eq(spaceMemberships.id, member.id)).for("update");
       locked(); await maySuspend;
-      return accessService(tx as unknown as Db).updateMember(companyId, member.id, { status: "suspended" });
+      return accessService(tx as unknown as Db).updateMember(spaceId, member.id, { status: "suspended" });
     });
     await held;
     const replacement = db.transaction(async tx => {
@@ -594,21 +594,21 @@ describeDatabase("connector access runtime synchronization", () => {
       }, { timeout: 5000 });
     } finally { resume(); }
     expect((await completed).map(result => result.status)).toEqual(["fulfilled", "fulfilled"]);
-    expect((await db.select().from(companyMemberships).where(eq(companyMemberships.id, member.id)))[0].status).toBe("suspended");
+    expect((await db.select().from(spaceMemberships).where(eq(spaceMemberships.id, member.id)))[0].status).toBe("suspended");
     expect((await db.select().from(connectionGrantMembers).where(eq(connectionGrantMembers.grantId, organization.id))).map(row => row.subjectId)).toEqual(["bob"]);
   }, 15000);
   it("invalidates only the owner of an agent secret binding", async () => {
-    const [secret] = await db.insert(companySecrets).values({ companyId, key: "binding", name: "Binding fixture" }).returning();
+    const [secret] = await db.insert(spaceSecrets).values({ spaceId, key: "binding", name: "Binding fixture" }).returning();
     const before = (await events()).length;
-    const [binding] = await db.insert(companySecretBindings).values({ companyId, secretId: secret.id, targetType: "agent", targetId: agentId, configPath: "env.FIXTURE" }).returning();
-    await db.update(companySecretBindings).set({ versionSelector: "2" }).where(eq(companySecretBindings.id, binding.id));
-    await db.delete(companySecretBindings).where(eq(companySecretBindings.id, binding.id));
+    const [binding] = await db.insert(spaceSecretBindings).values({ spaceId, secretId: secret.id, targetType: "agent", targetId: agentId, configPath: "env.FIXTURE" }).returning();
+    await db.update(spaceSecretBindings).set({ versionSelector: "2" }).where(eq(spaceSecretBindings.id, binding.id));
+    await db.delete(spaceSecretBindings).where(eq(spaceSecretBindings.id, binding.id));
     expect((await events()).slice(before).map(event => event.resourceId)).toEqual([agentId, agentId, agentId]);
   });
   it("allows an agent configuration save to finish while a connector refresh waits on that agent", async () => {
     const higher = [agentId, peerId].sort().at(-1)!;
-    const [secret] = await db.insert(companySecrets).values({ companyId, key: "concurrent", name: "Concurrent fixture" }).returning();
-    await db.insert(companySecretBindings).values({ companyId, secretId: secret.id, targetType: "agent", targetId: higher, configPath: "env.FIXTURE" });
+    const [secret] = await db.insert(spaceSecrets).values({ spaceId, key: "concurrent", name: "Concurrent fixture" }).returning();
+    await db.insert(spaceSecretBindings).values({ spaceId, secretId: secret.id, targetType: "agent", targetId: higher, configPath: "env.FIXTURE" });
     let locked!: () => void; let resume!: () => void; let started!: (pid: number) => void;
     const agentLocked = new Promise<void>(resolve => { locked = resolve; });
     const maySave = new Promise<void>(resolve => { resume = resolve; });
@@ -633,12 +633,12 @@ describeDatabase("connector access runtime synchronization", () => {
         expect(row.wait_event_type).toBe("Lock");
       }, { timeout: 5000 });
     } finally { resume(); await Promise.all([save, connector]); }
-    expect(await db.select().from(companySecretBindings).where(eq(companySecretBindings.targetId, higher))).toEqual([]);
+    expect(await db.select().from(spaceSecretBindings).where(eq(spaceSecretBindings.targetId, higher))).toEqual([]);
     expect((await db.select().from(toolConnections).where(eq(toolConnections.id, connectionId)))[0].enabled).toBe(false);
   }, 15000);
   it("ignores Vercel verification timestamps while retaining credential changes", async () => {
     const credential = { provider: "vercel_connect" as const, subjectType: "user" as const, subjectId: "alice", tokenId: "fixture-token", expiresAt: "2099-01-01T00:00:00.000Z", lastVerifiedAt: "2000-01-01T00:00:00.000Z" };
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice", externalCredential: credential }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice", externalCredential: credential }).returning();
     const before = await events();
     await db.update(connectionGrants).set({ externalCredential: { ...credential, lastVerifiedAt: "2000-01-02T00:00:00.000Z" } }).where(eq(connectionGrants.id, grant.id));
     expect(await events()).toEqual(before);
@@ -647,7 +647,7 @@ describeDatabase("connector access runtime synchronization", () => {
   });
   it("ignores GitHub webhook health while retaining repository access changes", async () => {
     const github = { userId: "fixture-user", login: "fixture", installationCount: 1, repositoryCount: 1, repositorySelection: "selected" as const, installationIds: ["1"], installationOwnerLogins: ["fixture"], accessRevision: "initial", lastWebhookAt: "2000-01-01T00:00:00.000Z", webhookHealth: "pending" as const };
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice", providerTenant: { github } }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice", providerTenant: { github } }).returning();
     const before = await events();
     await db.update(connectionGrants).set({ providerTenant: { github: { ...github, lastWebhookAt: "2000-01-02T00:00:00.000Z", webhookHealth: "healthy" } } }).where(eq(connectionGrants.id, grant.id));
     expect(await events()).toEqual(before);
@@ -657,7 +657,7 @@ describeDatabase("connector access runtime synchronization", () => {
   it("ignores GitHub access refresh bookkeeping while retaining repository access changes", async () => {
     const github = { userId: "fixture-user", login: "fixture", installationCount: 1, repositoryCount: 1, repositorySelection: "selected" as const, installationIds: ["1"], installationOwnerLogins: ["fixture"],
       repositories: [{ id: "10", fullName: "fixture/repo", installationId: "1" }], accessRevision: "initial", lastAccessRefreshAt: "2000-01-01T00:00:00.000Z", webhookHealth: "healthy" as const };
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "user", subjectUserId: "alice", providerTenant: { github } }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "user", subjectUserId: "alice", providerTenant: { github } }).returning();
     const before = await events();
     // A scheduled health check rereads unchanged access: it stamps a fresh fence
     // and refresh time, records binding debt, then settles that debt.
@@ -672,7 +672,7 @@ describeDatabase("connector access runtime synchronization", () => {
   });
   it("ignores OAuth grant lease acquisition and release while retaining access changes", async () => {
     const oauth = { scopes: ["read"], tokenEndpoint: "https://oauth.example.test/token" };
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "organization", providerTenant: { oauth } }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "organization", providerTenant: { oauth } }).returning();
     const before = await events();
     await db.update(connectionGrants).set({ providerTenant: { oauth: { ...oauth, refreshLease: { id: "fixture-lease", expiresAt: "2099-01-01T00:00:00.000Z" } } } }).where(eq(connectionGrants.id, grant.id));
     expect(await events()).toEqual(before);
@@ -682,16 +682,16 @@ describeDatabase("connector access runtime synchronization", () => {
     expect(await events()).toHaveLength(before.length + 2);
   });
   it("releases removal agent locks when a concurrent credential writer holds the secret", async () => {
-    const [secret] = await db.insert(companySecrets).values({ companyId, key: "busy-delete", name: "Busy deletion fixture", status: "deleted" }).returning();
+    const [secret] = await db.insert(spaceSecrets).values({ spaceId, key: "busy-delete", name: "Busy deletion fixture", status: "deleted" }).returning();
     await db.update(toolConnections).set({ credentialSecretRefs: [{ secretId: secret.id, configPath: "token" }] }).where(eq(toolConnections.id, connectionId));
     let locked!: () => void; let resume!: () => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
     const mayWrite = new Promise<void>(resolve => { resume = resolve; });
     const writer = db.transaction(async tx => {
       await tx.execute(sql`SET LOCAL lock_timeout = '8s'`);
-      await tx.select().from(companySecrets).where(eq(companySecrets.id, secret.id)).for("no key update");
+      await tx.select().from(spaceSecrets).where(eq(spaceSecrets.id, secret.id)).for("no key update");
       locked(); await mayWrite;
-      await tx.update(companySecrets).set({ latestVersion: 2 }).where(eq(companySecrets.id, secret.id));
+      await tx.update(spaceSecrets).set({ latestVersion: 2 }).where(eq(spaceSecrets.id, secret.id));
     });
     await held;
     let result: PromiseSettledResult<unknown> | undefined;
@@ -700,13 +700,13 @@ describeDatabase("connector access runtime synchronization", () => {
       await vi.waitFor(() => expect(result).toBeDefined(), { timeout: 5000 });
       expect(result).toMatchObject({ status: "rejected", reason: { status: 409, details: { retryable: true } } });
     } finally { resume(); await writer; await removal; }
-    const [remaining] = await db.select().from(companySecrets).where(eq(companySecrets.id, secret.id));
+    const [remaining] = await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, secret.id));
     expect(remaining.latestVersion).toBe(2);
     await expect(secretService(db).remove(secret.id)).resolves.toMatchObject({ id: secret.id });
   }, 15000);
   it("orders secret deletion before cascading bindings against agent configuration saves", async () => {
-    const [secret] = await db.insert(companySecrets).values({ companyId, key: "delete-bound", name: "Deletion fixture" }).returning();
-    await db.insert(companySecretBindings).values({ companyId, secretId: secret.id, targetType: "agent", targetId: agentId, configPath: "env.FIXTURE" });
+    const [secret] = await db.insert(spaceSecrets).values({ spaceId, key: "delete-bound", name: "Deletion fixture" }).returning();
+    await db.insert(spaceSecretBindings).values({ spaceId, secretId: secret.id, targetType: "agent", targetId: agentId, configPath: "env.FIXTURE" });
     let locked!: () => void; let resume!: () => void; let started!: (pid: number) => void;
     const held = new Promise<void>(resolve => { locked = resolve; });
     const maySave = new Promise<void>(resolve => { resume = resolve; });
@@ -734,21 +734,21 @@ describeDatabase("connector access runtime synchronization", () => {
     } finally { resume(); }
     const results = await completed;
     for (const result of results) if (result.status === "rejected") throw result.reason;
-    expect(await db.select().from(companySecrets).where(eq(companySecrets.id, secret.id))).toEqual([]);
-    expect(await db.select().from(companySecretBindings).where(eq(companySecretBindings.secretId, secret.id))).toEqual([]);
+    expect(await db.select().from(spaceSecrets).where(eq(spaceSecrets.id, secret.id))).toEqual([]);
+    expect(await db.select().from(spaceSecretBindings).where(eq(spaceSecretBindings.secretId, secret.id))).toEqual([]);
   }, 15000);
   it("captures grant revocation and referenced credential rotation without storing credentials in events", async () => {
-    const [secret] = await db.insert(companySecrets).values({ companyId, key: "fixture", name: "Fixture secret" }).returning();
-    const [grant] = await db.insert(connectionGrants).values({ companyId, connectionId, kind: "organization", credentialSecretRefs: [{ secretId: secret.id, configPath: "token" }] }).returning();
+    const [secret] = await db.insert(spaceSecrets).values({ spaceId, key: "fixture", name: "Fixture secret" }).returning();
+    const [grant] = await db.insert(connectionGrants).values({ spaceId, connectionId, kind: "organization", credentialSecretRefs: [{ secretId: secret.id, configPath: "token" }] }).returning();
     const before = (await events()).length;
-    await db.update(companySecrets).set({ latestVersion: 2 }).where(eq(companySecrets.id, secret.id));
+    await db.update(spaceSecrets).set({ latestVersion: 2 }).where(eq(spaceSecrets.id, secret.id));
     expect(await events()).toHaveLength(before + 2);
     await db.update(connectionGrants).set({ status: "revoked", revokedAt: new Date() }).where(eq(connectionGrants.id, grant.id));
     expect(await events()).toHaveLength(before + 4);
-    expect(Object.keys((await events()).at(-1)!).sort()).toEqual(["action", "companyId", "createdAt", "id", "resourceId", "resourceType"]);
-    const unrelated = await db.insert(companySecrets).values({ companyId, key: "unrelated", name: "Unrelated" }).returning();
+    expect(Object.keys((await events()).at(-1)!).sort()).toEqual(["action", "spaceId", "createdAt", "id", "resourceId", "resourceType"]);
+    const unrelated = await db.insert(spaceSecrets).values({ spaceId, key: "unrelated", name: "Unrelated" }).returning();
     const unchanged = (await events()).length;
-    await db.update(companySecrets).set({ latestVersion: 2 }).where(eq(companySecrets.id, unrelated[0].id));
+    await db.update(spaceSecrets).set({ latestVersion: 2 }).where(eq(spaceSecrets.id, unrelated[0].id));
     expect(await events()).toHaveLength(unchanged);
   });
 

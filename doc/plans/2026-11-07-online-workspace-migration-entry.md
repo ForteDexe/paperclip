@@ -43,7 +43,7 @@ Write one regular, mode 0600 JSON request, at most 64 KiB:
     "commit": "<actual serving full Core commit>",
     "deploymentId": "<actual Railway deployment UUID>"
   },
-  "companyId": "<exact company UUID>",
+  "spaceId": "<exact space UUID>",
   "workspaceIds": ["<exact workspace UUID>"],
   "mode": "inspect",
   "deadlineMs": 720000,

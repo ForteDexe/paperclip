@@ -14,29 +14,29 @@ const handoffCursorIdSchema = z.uuid();
  * Both the source chat's current audience and every task's current access are
  * checked on every read, including history pagination after a chat reset. */
 export function conversationDecisionReceiptsService(db: Db) {
-  async function source(companyId: string, conversationId: string, options: { actor: AuthorizationActor; userId: string }) {
+  async function source(spaceId: string, conversationId: string, options: { actor: AuthorizationActor; userId: string }) {
     const readable = await issueReadSqlCondition(db, options.actor);
-    const [conversation] = await db.select().from(issues).where(and(eq(issues.id, conversationId), eq(issues.companyId, companyId),
+    const [conversation] = await db.select().from(issues).where(and(eq(issues.id, conversationId), eq(issues.spaceId, spaceId),
       isNotNull(issues.conversationAgentId), eq(issues.conversationUserId, options.userId), readable));
     if (!conversation) throw notFound("Conversation not found");
     return conversation;
   }
-  async function taskScopes(companyId: string, conversation: typeof issues.$inferSelect, options: {
+  async function taskScopes(spaceId: string, conversation: typeof issues.$inferSelect, options: {
     actor: AuthorizationActor; userId: string;
   }) {
     const readable = await issueReadSqlCondition(db, options.actor);
     const handoffTaskIds = db.select({ id: chatTaskHandoffs.taskId }).from(chatTaskHandoffs)
-      .innerJoin(issues, and(eq(issues.id, chatTaskHandoffs.conversationId), eq(issues.companyId, chatTaskHandoffs.companyId)))
-      .where(and(eq(chatTaskHandoffs.companyId, companyId), eq(chatTaskHandoffs.conversationId, conversation.id),
+      .innerJoin(issues, and(eq(issues.id, chatTaskHandoffs.conversationId), eq(issues.spaceId, chatTaskHandoffs.spaceId)))
+      .where(and(eq(chatTaskHandoffs.spaceId, spaceId), eq(chatTaskHandoffs.conversationId, conversation.id),
         eq(chatTaskHandoffs.agentId, issues.conversationAgentId),
         eq(chatTaskHandoffs.sessionGeneration, issues.conversationSessionGeneration),
         eq(issues.conversationUserId, options.userId), readable));
     const [handoffTasks, directTasks] = await Promise.all([
       db.select({ id: issues.id }).from(issues).where(and(
-        eq(issues.companyId, companyId), inArray(issues.id, handoffTaskIds), readable,
+        eq(issues.spaceId, spaceId), inArray(issues.id, handoffTaskIds), readable,
       )),
       db.select({ id: issues.id }).from(issues).where(and(
-        eq(issues.companyId, companyId), isNull(issues.conversationAgentId),
+        eq(issues.spaceId, spaceId), isNull(issues.conversationAgentId),
         eq(issues.createdByUserId, options.userId), eq(issues.assigneeAgentId, conversation.conversationAgentId!), readable,
         // An older or different chat handoff must not re-enter through the
         // direct-task branch and bypass its original session/audience scope.
@@ -46,22 +46,22 @@ export function conversationDecisionReceiptsService(db: Db) {
     return { handoffIds: handoffTasks.map(task => task.id), directIds: directTasks.map(task => task.id) };
   }
   return {
-    async listPendingQuestions(companyId: string, conversationId: string, options: {
+    async listPendingQuestions(spaceId: string, conversationId: string, options: {
       actor: AuthorizationActor; userId: string;
     }): Promise<AttentionItem[]> {
-      const conversation = await source(companyId, conversationId, options);
-      const { handoffIds, directIds } = await taskScopes(companyId, conversation, options);
+      const conversation = await source(spaceId, conversationId, options);
+      const { handoffIds, directIds } = await taskScopes(spaceId, conversation, options);
       // The conversation already renders its own forms in the transcript.
       // Direct-task questions remain current obligations across chat resets.
       const taskIds = new Set([...handoffIds, ...directIds].filter(id => id !== conversationId));
       if (taskIds.size === 0) return [];
 
-      return attentionService(db).taskQuestions(companyId, [...taskIds], options);
+      return attentionService(db).taskQuestions(spaceId, [...taskIds], options);
     },
-    async listCreatedTasks(companyId: string, conversationId: string, options: {
+    async listCreatedTasks(spaceId: string, conversationId: string, options: {
       actor: AuthorizationActor; userId: string; cursor?: string; limit?: number;
     }): Promise<ConversationTaskHandoffPage> {
-      const conversation = await source(companyId, conversationId, options);
+      const conversation = await source(spaceId, conversationId, options);
       const limit = Math.max(1, Math.min(options.limit ?? 40, 100));
       let cursor: { at: string; id: string } | null = null;
       if (options.cursor) {
@@ -77,12 +77,12 @@ export function conversationDecisionReceiptsService(db: Db) {
         status: issues.status, createdAt: chatTaskHandoffs.createdAt, sourceRunId: issues.originRunId,
         createdAtCursor: sql<string>`${chatTaskHandoffs.createdAt}::text`,
         suggestionInteractionId: sql<string | null>`(select ${issueThreadInteractions.id} from ${issueThreadInteractions}
-          where ${issueThreadInteractions.companyId} = ${companyId} and ${issueThreadInteractions.issueId} = ${conversationId}
+          where ${issueThreadInteractions.spaceId} = ${spaceId} and ${issueThreadInteractions.issueId} = ${conversationId}
           and ${issueThreadInteractions.kind} = 'suggest_tasks' and ${issueThreadInteractions.status} = 'accepted'
           and ${issueThreadInteractions.result}->'createdTasks' @> jsonb_build_array(jsonb_build_object('issueId', ${issues.id}::text))
           order by ${issueThreadInteractions.resolvedAt} desc limit 1)`,
-      }).from(chatTaskHandoffs).innerJoin(issues, and(eq(issues.id, chatTaskHandoffs.taskId), eq(issues.companyId, companyId)))
-        .where(and(eq(chatTaskHandoffs.companyId, companyId), eq(chatTaskHandoffs.conversationId, conversationId),
+      }).from(chatTaskHandoffs).innerJoin(issues, and(eq(issues.id, chatTaskHandoffs.taskId), eq(issues.spaceId, spaceId)))
+        .where(and(eq(chatTaskHandoffs.spaceId, spaceId), eq(chatTaskHandoffs.conversationId, conversationId),
           eq(chatTaskHandoffs.agentId, conversation.conversationAgentId!),
           eq(chatTaskHandoffs.sessionGeneration, conversation.conversationSessionGeneration), readable,
           cursor ? sql`(${chatTaskHandoffs.createdAt}, ${issues.id}) < (${cursor.at}::timestamptz, ${cursor.id}::uuid)` : undefined))
@@ -95,15 +95,15 @@ export function conversationDecisionReceiptsService(db: Db) {
           ? Buffer.from(JSON.stringify({ at: last.createdAtCursor, id: last.issueId })).toString("base64url") : null,
       };
     },
-    async list(companyId: string, conversationId: string, options: {
+    async list(spaceId: string, conversationId: string, options: {
       actor: AuthorizationActor;
       userId: string;
     } & Pick<DecisionHistoryQuery, "cursor" | "limit">): Promise<DecisionHistoryPage> {
-      const conversation = await source(companyId, conversationId, options);
-      const { handoffIds, directIds } = await taskScopes(companyId, conversation, options);
+      const conversation = await source(spaceId, conversationId, options);
+      const { handoffIds, directIds } = await taskScopes(spaceId, conversation, options);
       const [boundary] = conversation.conversationBoundaryCommentId
         ? await db.select({ createdAt: issueComments.createdAt }).from(issueComments).where(and(
-          eq(issueComments.id, conversation.conversationBoundaryCommentId), eq(issueComments.companyId, companyId),
+          eq(issueComments.id, conversation.conversationBoundaryCommentId), eq(issueComments.spaceId, spaceId),
           eq(issueComments.issueId, conversationId),
         )) : [];
       // /new resets the standing chat's receipt timeline, but does not reset an
@@ -114,8 +114,8 @@ export function conversationDecisionReceiptsService(db: Db) {
       // decision audience checks before selecting a title, answer or artifact.
       const history = decisionHistoryService(db);
       const [handoffs, direct] = await Promise.all([
-        history.list(companyId, { ...options, issueIds: handoffIds, sort: "newest" }),
-        history.list(companyId, { ...options, issueIds: directSince ? directIds : [],
+        history.list(spaceId, { ...options, issueIds: handoffIds, sort: "newest" }),
+        history.list(spaceId, { ...options, issueIds: directSince ? directIds : [],
           since: directSince?.toISOString(), sort: "newest" }),
       ]);
       const page = pageDecisionHistory([...handoffs.items, ...direct.items], Math.max(1, Math.min(options.limit ?? 40, 100)), "newest");

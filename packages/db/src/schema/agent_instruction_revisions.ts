@@ -18,7 +18,7 @@ export const agentInstructionRevisions = pgTable(
   "agent_instruction_revisions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull(),
+    spaceId: uuid("space_id").notNull(),
     agentId: uuid("agent_id").notNull(),
     entryFile: text("entry_file").notNull(),
     contentBase64: text("content_base64").notNull(),
@@ -38,17 +38,17 @@ export const agentInstructionRevisions = pgTable(
   },
   (t) => ({
     owner: foreignKey({
-      columns: [t.companyId, t.agentId],
-      foreignColumns: [agents.companyId, agents.id],
+      columns: [t.spaceId, t.agentId],
+      foreignColumns: [agents.spaceId, agents.id],
     }).onDelete("cascade"),
     identity: unique("agent_instruction_revisions_identity_uq").on(
-      t.companyId,
+      t.spaceId,
       t.agentId,
       t.entryFile,
       t.id,
     ),
     history: index("agent_instruction_revisions_history_idx").on(
-      t.companyId,
+      t.spaceId,
       t.agentId,
       t.entryFile,
       t.createdAt,
@@ -60,7 +60,7 @@ export const agentInstructionRevisions = pgTable(
 export const agentInstructionHeads = pgTable(
   "agent_instruction_heads",
   {
-    companyId: uuid("company_id").notNull(),
+    spaceId: uuid("space_id").notNull(),
     agentId: uuid("agent_id").notNull(),
     entryFile: text("entry_file").notNull(),
     revisionId: uuid("revision_id").notNull(),
@@ -70,14 +70,14 @@ export const agentInstructionHeads = pgTable(
   },
   (t) => ({
     identity: unique("agent_instruction_heads_identity_uq").on(
-      t.companyId,
+      t.spaceId,
       t.agentId,
       t.entryFile,
     ),
     revision: foreignKey({
-      columns: [t.companyId, t.agentId, t.entryFile, t.revisionId],
+      columns: [t.spaceId, t.agentId, t.entryFile, t.revisionId],
       foreignColumns: [
-        agentInstructionRevisions.companyId,
+        agentInstructionRevisions.spaceId,
         agentInstructionRevisions.agentId,
         agentInstructionRevisions.entryFile,
         agentInstructionRevisions.id,
@@ -91,7 +91,7 @@ export const agentInstructionWorkingCopies = pgTable(
   "agent_instruction_working_copies",
   {
     runId: uuid("run_id").primaryKey().references(() => heartbeatRuns.id, { onDelete: "cascade" }),
-    companyId: uuid("company_id").notNull(),
+    spaceId: uuid("space_id").notNull(),
     agentId: uuid("agent_id").notNull(),
     responsibleUserId: text("responsible_user_id").notNull(),
     entryFile: text("entry_file").notNull(),
@@ -113,19 +113,19 @@ export const agentInstructionWorkingCopies = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    owner: foreignKey({ columns: [t.companyId, t.agentId], foreignColumns: [agents.companyId, agents.id] }).onDelete("cascade"),
-    collection: index("agent_instruction_copies_collection_idx").on(t.runId, t.companyId).where(sql`NOT (coalesce(${t.receipt}, '{}'::jsonb) ? 'retainedByRunId') AND (
+    owner: foreignKey({ columns: [t.spaceId, t.agentId], foreignColumns: [agents.spaceId, agents.id] }).onDelete("cascade"),
+    collection: index("agent_instruction_copies_collection_idx").on(t.runId, t.spaceId).where(sql`NOT (coalesce(${t.receipt}, '{}'::jsonb) ? 'retainedByRunId') AND (
       (${t.attempts} < 3 AND (${t.state} IN ('prepared', 'pending_collection', 'unchanged_turn', 'warm_saved')
         OR (${t.state} = 'preparing' AND ${t.receipt}->>'schema' = 'outpost.agent-files.v1')))
       OR (${t.state} = 'unavailable' AND ${t.processStoppedAt} IS NULL
         AND ${t.location} LIKE 'remote:%' AND ${t.receipt}->>'schema' = 'outpost.agent-files.v1'))`),
-    directoryCleanup: index("agent_instruction_copies_cleanup_idx").on(t.runId, t.companyId).where(sql`${t.state} IN ('saved', 'unchanged', 'resolved', 'unavailable')
+    directoryCleanup: index("agent_instruction_copies_cleanup_idx").on(t.runId, t.spaceId).where(sql`${t.state} IN ('saved', 'unchanged', 'resolved', 'unavailable')
       AND ${t.processStoppedAt} IS NOT NULL
       AND ${t.receipt}->>'schema' = 'outpost.agent-files.v1'
       AND coalesce(${t.receipt}->>'retainedByRunId', '') = ''
       AND ${t.receipt}->>'cleanupPending' IS DISTINCT FROM 'false'
       AND (${t.receipt} ? 'baseline' OR ${t.receipt}->>'cleanupPending' = 'true')`),
     pending: index("agent_instruction_copies_pending_idx").on(t.state, t.nextAttemptAt),
-    history: index("agent_instruction_copies_agent_idx").on(t.companyId, t.agentId, t.createdAt),
+    history: index("agent_instruction_copies_agent_idx").on(t.spaceId, t.agentId, t.createdAt),
   }),
 );

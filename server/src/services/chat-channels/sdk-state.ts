@@ -28,7 +28,7 @@ export function createChatSdkStatePersistence(db: Db): ChatSdkStatePersistence {
         .from(chatSdkState)
         .where(
           and(
-            eq(chatSdkState.companyId, scope.companyId),
+            eq(chatSdkState.spaceId, scope.spaceId),
             eq(chatSdkState.endpointId, scope.endpointId),
             eq(chatSdkState.stateKey, key),
           ),
@@ -40,7 +40,7 @@ export function createChatSdkStatePersistence(db: Db): ChatSdkStatePersistence {
         const inserted = await db
           .insert(chatSdkState)
           .values({
-            companyId: input.companyId,
+            spaceId: input.spaceId,
             endpointId: input.endpointId,
             stateKey: input.key,
             version: 1,
@@ -61,7 +61,7 @@ export function createChatSdkStatePersistence(db: Db): ChatSdkStatePersistence {
         })
         .where(
           and(
-            eq(chatSdkState.companyId, input.companyId),
+            eq(chatSdkState.spaceId, input.spaceId),
             eq(chatSdkState.endpointId, input.endpointId),
             eq(chatSdkState.stateKey, input.key),
             eq(chatSdkState.version, input.expectedVersion),
@@ -75,7 +75,7 @@ export function createChatSdkStatePersistence(db: Db): ChatSdkStatePersistence {
         .delete(chatSdkState)
         .where(
           and(
-            eq(chatSdkState.companyId, input.companyId),
+            eq(chatSdkState.spaceId, input.spaceId),
             eq(chatSdkState.endpointId, input.endpointId),
             eq(chatSdkState.stateKey, input.key),
             eq(chatSdkState.version, input.expectedVersion),

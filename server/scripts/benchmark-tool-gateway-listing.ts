@@ -31,7 +31,7 @@ const connections = counts(option("--connections", "1"))[0]!;
 const implementation = option("--implementation", "");
 const moduleUrl = implementation ? pathToFileURL(implementation) : new URL("../src/services/tool-gateway.js", import.meta.url);
 const factory = (await import(moduleUrl.href)).createToolGatewayService as typeof createToolGatewayService;
-const temp = await startEmbeddedPostgresTestDatabase("paperclip-listing-benchmark-");
+const temp = await startEmbeddedPostgresTestDatabase("outpost-listing-benchmark-");
 const db = createDb(temp.connectionString);
 try {
   for (const tools of toolCounts) {
@@ -41,16 +41,16 @@ try {
       resultJson: { summary: "x".repeat(140_000) },
     }).where(eq(heartbeatRuns.id, fixture.run.id));
     await db.update(toolConnections).set({ config: { url: "https://8.8.8.8/mcp", notes: "x".repeat(15_000) } })
-      .where(eq(toolConnections.companyId, fixture.company.id));
+      .where(eq(toolConnections.spaceId, fixture.space.id));
     await db.update(toolCatalogEntries).set({ inputSchema: {
       type: "object", properties: { query: { type: "string", description: "x".repeat(5_000) } },
-    } }).where(eq(toolCatalogEntries.companyId, fixture.company.id));
+    } }).where(eq(toolCatalogEntries.spaceId, fixture.space.id));
     await db.insert(toolProfileEntries).values(fixture.entries.map((entry) => ({
-      companyId: fixture.company.id, profileId: fixture.namedGateway.profileId,
+      spaceId: fixture.space.id, profileId: fixture.namedGateway.profileId,
       selectorType: "catalog_entry" as const, effect: "include" as const, catalogEntryId: entry.id,
     })));
     await db.insert(toolPolicies).values(Array.from({ length: 371 }, (_, i) => ({
-      companyId: fixture.company.id, name: `Unmatched fixture policy ${i}`, policyType: "block" as const,
+      spaceId: fixture.space.id, name: `Unmatched fixture policy ${i}`, policyType: "block" as const,
       selectors: { catalogEntryId: randomUUID() }, priority: 100 + i,
     })));
     const input = { gatewayId: fixture.namedGateway.id, bearerToken: fixture.token.token };

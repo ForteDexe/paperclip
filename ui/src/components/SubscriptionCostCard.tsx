@@ -22,8 +22,8 @@ export function SubscriptionTokenUsage({ usage }: { usage: SubscriptionUsage }) 
   </span>;
 }
 
-function SubscriptionEditor({ account, accounts, companyId, onDone }: {
-  account: SubscriptionAccountReport; accounts: SubscriptionAccountReport[]; companyId: string; onDone: () => void;
+function SubscriptionEditor({ account, accounts, spaceId, onDone }: {
+  account: SubscriptionAccountReport; accounts: SubscriptionAccountReport[]; spaceId: string; onDone: () => void;
 }) {
   const [plan, setPlan] = useState(account.price.plan);
   const [amount, setAmount] = useState(account.price.amountCents == null ? "" : centsToUsd(account.price.amountCents).replace(/\.?0+$/, ""));
@@ -31,11 +31,11 @@ function SubscriptionEditor({ account, accounts, companyId, onDone }: {
   const [cadence, setCadence] = useState(account.price.cadence);
   const [status, setStatus] = useState(account.price.status);
   const [targetId, setTargetId] = useState("");
-  const save = useMutation({ mutationFn: () => subscriptionsApi.update(companyId, account.id, {
+  const save = useMutation({ mutationFn: () => subscriptionsApi.update(spaceId, account.id, {
     expectedRevision: account.price.revision, plan, amountCents: amount.trim() ? usdToCents(amount.trim()) : null,
     currency: currency as typeof SUBSCRIPTION_CURRENCIES[number], cadence, status,
   }), onSuccess: onDone });
-  const link = useMutation({ mutationFn: () => subscriptionsApi.link(companyId, account.id, targetId, account.price.revision,
+  const link = useMutation({ mutationFn: () => subscriptionsApi.link(spaceId, account.id, targetId, account.price.revision,
     accounts.find(row => row.id === targetId)!.price.revision), onSuccess: onDone });
   const targets = accounts.filter(row => row.id !== account.id && row.provider === account.provider && row.canEdit);
   const busy = save.isPending || link.isPending;
@@ -63,8 +63,8 @@ function SubscriptionEditor({ account, accounts, companyId, onDone }: {
   </div>;
 }
 
-export function SubscriptionCostCard({ companyId, report, error, onChanged }: {
-  companyId: string; report?: SubscriptionCostReport; error?: unknown; onChanged: () => void;
+export function SubscriptionCostCard({ spaceId, report, error, onChanged }: {
+  spaceId: string; report?: SubscriptionCostReport; error?: unknown; onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<SubscriptionAccountReport | null>(null);
@@ -93,7 +93,7 @@ export function SubscriptionCostCard({ companyId, report, error, onChanged }: {
     <Dialog open={open} onOpenChange={value => { setOpen(value); if (!value) setEditing(null); }}>
       <DialogContent className="max-h-(--sz-80vh) overflow-y-auto sm:max-w-3xl">
         <DialogHeader><DialogTitle>{editing ? "Subscription price" : "Subscriptions"}</DialogTitle><DialogDescription>Current monthly costs for accounts visible to you. Token totals cover outpost work in the selected period.</DialogDescription></DialogHeader>
-        {editing ? <SubscriptionEditor key={editing.id} companyId={companyId} account={editing} accounts={report?.accounts ?? []} onDone={closeEditor} /> : <div className="space-y-4">
+        {editing ? <SubscriptionEditor key={editing.id} spaceId={spaceId} account={editing} accounts={report?.accounts ?? []} onDone={closeEditor} /> : <div className="space-y-4">
           {report?.accounts.length === 0 && <p className="text-sm text-muted-foreground">No subscriptions are visible to you yet. Connect an AI account or run an agent with a connected subscription.</p>}
           {report?.accounts.map(account => <div key={account.id} className="space-y-2 border-b border-border pb-4 last:border-0">
             <div className="flex flex-wrap items-start justify-between gap-3">

@@ -142,8 +142,8 @@ function CreatedTaskLinks({ interaction }: { interaction: SuggestTasksInteractio
   const tasks = interaction.result?.createdTasks ?? [];
   const ids = tasks.map(task => task.issueId).sort();
   const query = useQuery({
-    queryKey: queryKeys.issues.summaryBatch(interaction.companyId, userId, ids),
-    queryFn: ({ signal }) => issuesApi.summaries(interaction.companyId, ids, { signal }),
+    queryKey: queryKeys.issues.summaryBatch(interaction.spaceId, userId, ids),
+    queryFn: ({ signal }) => issuesApi.summaries(interaction.spaceId, ids, { signal }),
     enabled: ids.length > 0,
     });
   if (tasks.length === 0) return <p className="p-4 text-sm text-muted-foreground">No tasks were created.</p>;
@@ -165,7 +165,7 @@ function CreatedTaskLinks({ interaction }: { interaction: SuggestTasksInteractio
 
 export function CoordinatorTaskCommitment({ interaction, children }: { interaction: SuggestTasksInteraction; children: ReactNode }) {
   const phase = interaction.status === "pending" ? "suggested" : interaction.status === "accepted" ? "created" : "closed";
-  return <CoordinatorTaskMotion eventId={`${interaction.companyId}:${interaction.id}`} phase={phase} createdAt={interaction.createdAt}>
+  return <CoordinatorTaskMotion eventId={`${interaction.spaceId}:${interaction.id}`} phase={phase} createdAt={interaction.createdAt}>
     {phase === "created" ? <CreatedTaskLinks interaction={interaction} /> : children}
   </CoordinatorTaskMotion>;
 }

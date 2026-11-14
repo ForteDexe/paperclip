@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CompanySecret, UserSecretDefinition } from "@outpost/shared";
+import type { SpaceSecret, UserSecretDefinition } from "@outpost/shared";
 import {
   computeDuplicateNames,
   computeRowHealth,
@@ -17,13 +17,13 @@ import {
 function makeUserSecretDefinition(overrides: { key: string; status?: "active" | "disabled" | "archived" }): UserSecretDefinition {
   return {
     id: `def-${overrides.key}`,
-    companyId: "co",
+    spaceId: "co",
     key: overrides.key,
     name: overrides.key.toUpperCase(),
     description: null,
     status: overrides.status ?? "active",
     provider: "local_encrypted",
-    managedMode: "paperclip_managed",
+    managedMode: "outpost_managed",
     providerConfigId: null,
     providerMetadata: null,
     usageGuidance: null,
@@ -37,17 +37,17 @@ function makeUserSecretDefinition(overrides: { key: string; status?: "active" | 
   };
 }
 
-function makeSecret(overrides: Partial<CompanySecret> & Pick<CompanySecret, "id">): CompanySecret {
+function makeSecret(overrides: Partial<SpaceSecret> & Pick<SpaceSecret, "id">): SpaceSecret {
   return {
-    companyId: "co",
-    scope: "company",
+    spaceId: "co",
+    scope: "space",
     ownerUserId: null,
     userSecretDefinitionId: null,
     key: overrides.id,
     name: overrides.id.toUpperCase(),
     provider: "local_encrypted",
     status: "active",
-    managedMode: "paperclip_managed",
+    managedMode: "outpost_managed",
     externalRef: null,
     providerConfigId: null,
     providerMetadata: null,
@@ -177,7 +177,7 @@ describe("validateName", () => {
   });
 
   it("charset error takes precedence over reserved prefix", () => {
-    expect(validateName("PAPERCLIP-X", new Set(), reserved)?.level).toBe("error");
+    expect(validateName("OUTPOST-X", new Set(), reserved)?.level).toBe("error");
   });
 });
 

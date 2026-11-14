@@ -24,8 +24,8 @@ const CLOSE_GRACE_MS = 10_000;
 // createRunnerdBackend stages its verified executable, pack symlink, mutable
 // sessions, homes and injected context beneath this exact path. Qualification
 // covers user workspace files, not these controller/provider runtime internals.
-// The sentinel and all other .paperclip-runtime entries remain in scope.
-const RUNTIME_RELATIVE = ".paperclip-runtime/outpost-runner";
+// The sentinel and all other .outpost-runtime entries remain in scope.
+const RUNTIME_RELATIVE = ".outpost-runtime/outpost-runner";
 const digest = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 const record = (value: unknown): Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const fail = (condition: unknown, code: string): void => { if (!condition) throw new Error(`remote_native_fixture:${code}`); };
@@ -66,7 +66,7 @@ export function remoteNativeFixtureDiagnostics(error: unknown): RpcDiagnostic[] 
   }
   return result;
 }
-export interface RemoteNativeAuthority { companyId: string; environmentId: string; runId: string; leaseId: string; sandboxId: string; image: string }
+export interface RemoteNativeAuthority { spaceId: string; environmentId: string; runId: string; leaseId: string; sandboxId: string; image: string }
 export interface RemoteNativeBinding extends RemoteNativeAuthority { remoteCwd: string }
 export interface RemoteProcessIdentity { pid: number; ppid: number; startTicks: string; bootId: string }
 const TERMINAL_FAILURE_CODES = ["ambiguous_run_root", "run_root_changed", "process_pid_reused", "workspace_watch_unknown_entry", "setup_file_changed", "setup_file_unreadable", "workspace_watch_entry_bound", "workspace_watch_new_directory", "workspace_watch_read_failure", "workspace_watch_io_failure", "receipt_output_bound", "attached_child_live", "terminal_snapshot_failed", "process_sample_failed"] as const;
@@ -206,7 +206,7 @@ function sample(){
  return {captured:root!==null,root,journal:[...journal.values()],live};
 }
 function guard(){const rs=fs.lstatSync(runtimeRoot,{bigint:true});if(!rs.isDirectory()||rs.isSymbolicLink()||rs.dev!==runtimeStat.dev||rs.ino!==runtimeStat.ino||fs.realpathSync(runtimeRoot)!==runtimeRoot)throw Error('runtime_root_replaced');const s=fs.lstatSync(config.root,{bigint:true});if(s.dev!==rootStat.dev||s.ino!==rootStat.ino||!s.isDirectory()||s.isSymbolicLink()||hash(fs.readFileSync(__filename))!==scriptHash||fs.lstatSync(__filename,{bigint:true}).ino!==scriptStat.ino)throw Error('observer_identity_changed');
- const st=fs.lstatSync(config.sentinel.path);if(!st.isFile()||st.isSymbolicLink()||st.size>16384||fs.realpathSync(config.sentinel.path)!==config.sentinel.path)throw Error('sentinel_type');const sentinel=JSON.parse(fs.readFileSync(config.sentinel.path,'utf8'));if(sentinel.version!==1||sentinel.provider!=='daytona'||sentinel.token!==config.sentinel.token||sentinel.companyId!==config.binding.companyId||sentinel.environmentId!==config.binding.environmentId)throw Error('sentinel_changed');
+ const st=fs.lstatSync(config.sentinel.path);if(!st.isFile()||st.isSymbolicLink()||st.size>16384||fs.realpathSync(config.sentinel.path)!==config.sentinel.path)throw Error('sentinel_type');const sentinel=JSON.parse(fs.readFileSync(config.sentinel.path,'utf8'));if(sentinel.version!==1||sentinel.provider!=='daytona'||sentinel.token!==config.sentinel.token||sentinel.spaceId!==config.binding.spaceId||sentinel.environmentId!==config.binding.environmentId)throw Error('sentinel_changed');
  const c=fs.lstatSync(config.binding.remoteCwd,{bigint:true});if(c.dev!==cwdStat.dev||c.ino!==cwdStat.ino||!c.isDirectory()||c.isSymbolicLink()||fs.realpathSync(config.binding.remoteCwd)!==config.binding.remoteCwd)throw Error('workspace_replaced');}
 function readSafe(p){const fd=fs.openSync(p,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);try{const before=fs.fstatSync(fd,{bigint:true});if(!before.isFile()||before.size>65536n)throw Error('file_bound_or_type');const bytes=fs.readFileSync(fd),after=fs.fstatSync(fd,{bigint:true}),named=fs.lstatSync(p,{bigint:true});if(before.dev!==named.dev||before.ino!==named.ino||named.isSymbolicLink()||before.size!==after.size||before.mtimeNs!==after.mtimeNs||BigInt(bytes.length)!==before.size)throw Error('file_changed');return bytes}finally{fs.closeSync(fd)}}
 function file(p){try{const s=fs.lstatSync(p);if(s.isSymbolicLink()||!s.isFile()||s.size>65536)throw Error('file_bound_or_type');return {absent:false,sha256:hash(readSafe(p))}}catch(e){if(e.code==='ENOENT')return {absent:true,sha256:null};throw e}}
@@ -300,7 +300,7 @@ const startedAt=Date.now();if(!Number.isInteger(r.timeoutMs)||r.timeoutMs<1000||
 const parseStat=PARSE_STAT,runRoot=RUN_ROOT;
 const codes=RPC_CODES;let failed=false;const phase=RPC_PHASES.includes(r.op)?r.op:'install';
 function failure(code){if(failed)return;failed=true;process.exitCode=2;process.stdout.write(JSON.stringify({ok:false,diagnostic:{phase,code:codes.includes(code)?code:'remote_unknown'}})+'\n')}
-function admitted(c){const st=fs.lstatSync(c.sentinel.path);if(!st.isFile()||st.isSymbolicLink()||st.size>16384||fs.realpathSync(c.sentinel.path)!==c.sentinel.path)throw Error('sentinel_type');const s=JSON.parse(fs.readFileSync(c.sentinel.path,'utf8'));if(s.version!==1||s.provider!=='daytona'||s.token!==c.sentinel.token||s.companyId!==c.binding.companyId||s.environmentId!==c.binding.environmentId)throw Error('sentinel');if(fs.realpathSync(c.binding.remoteCwd)!==c.binding.remoteCwd)throw Error('cwd')}
+function admitted(c){const st=fs.lstatSync(c.sentinel.path);if(!st.isFile()||st.isSymbolicLink()||st.size>16384||fs.realpathSync(c.sentinel.path)!==c.sentinel.path)throw Error('sentinel_type');const s=JSON.parse(fs.readFileSync(c.sentinel.path,'utf8'));if(s.version!==1||s.provider!=='daytona'||s.token!==c.sentinel.token||s.spaceId!==c.binding.spaceId||s.environmentId!==c.binding.environmentId)throw Error('sentinel');if(fs.realpathSync(c.binding.remoteCwd)!==c.binding.remoteCwd)throw Error('cwd')}
 function runtime(c){const root=c.binding.remoteCwd+'/'+c.runtimeRelative,boot=fs.readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim();let s;try{s=fs.lstatSync(root,{bigint:true})}catch(e){if(e.code==='ENOENT')return {ready:false};throw e}if(!s.isDirectory()||s.isSymbolicLink()||fs.realpathSync(root)!==root)throw Error('runtime_root_identity');const matches=[];const entries=fs.readdirSync('/proc');if(entries.length>8192)throw Error('proc_bound');for(const name of entries){if(!/^\d+$/.test(name)||Number(name)<2)continue;try{const p=parseStat(Number(name),fs.readFileSync('/proc/'+name+'/stat','utf8'),boot),argv=fs.readFileSync('/proc/'+name+'/cmdline').toString().split('\0').filter(Boolean);if(runRoot(argv,c.binding.runId,p)){if(argv[0]!==root+'/bin/outpost-runnerd'||hash(fs.readFileSync('/proc/'+name+'/exe'))!==c.runnerdSha256)throw Error('runtime_binary_identity');if(p.state!=='Z')matches.push({pid:p.pid,ppid:p.ppid,startTicks:p.startTicks,bootId:p.bootId})}}catch(e){if(e.code!=='ENOENT'&&e.code!=='ESRCH')throw e}}if(matches.length>1)throw Error('ambiguous_run_root');return matches.length===1?{ready:true,binding:c.binding,root:matches[0],runtime:{dev:String(s.dev),ino:String(s.ino),runnerExecutableSha256:c.runnerdSha256}}:{ready:false}}
 (async()=>{let controlRequest=r;if(hash(fs.readFileSync(process.execPath))!==r.nodeSha256)throw Error('node_identity');if(r.op==='runtime-ready'||r.op==='install'){const c=r.config;admitted(c);const current=runtime(c);if(r.op==='runtime-ready'){process.stdout.write(JSON.stringify({ok:true,result:current})+'\n');return}if(!current.ready)throw Error('runtime_not_ready');if(JSON.stringify(current)!==JSON.stringify(r.expectedRuntime))throw Error('runtime_identity_changed');fs.mkdirSync(c.root,{mode:0o700});fs.writeFileSync(c.root+'/observer.cjs',r.source,{flag:'wx',mode:0o400});c.observerTtlMs=Math.max(1,c.observerTtlMs-(Date.now()-startedAt));const child=cp.spawn(process.execPath,[c.root+'/observer.cjs',Buffer.from(JSON.stringify(c)).toString('base64')],{detached:true,stdio:'ignore',env:{PATH:'/usr/bin:/bin'}});child.unref();r.root=c.root;controlRequest={op:'snapshot',nonce:c.nonce};}
 for(let i=0;!fs.existsSync(r.root+'/control.sock')&&i<200;i++)await new Promise(resolve=>setTimeout(resolve,10));const socket=net.connect(r.root+'/control.sock');let output='';socket.setTimeout(Math.max(1,r.timeoutMs-(Date.now()-startedAt)));socket.on('timeout',()=>{socket.destroy();failure('socket_timeout')});socket.on('error',()=>{failure('socket_error')});socket.on('connect',()=>socket.write(JSON.stringify(controlRequest)+'\n'));socket.on('data',b=>{output+=b;if(Buffer.byteLength(output)>262144){socket.destroy();failure('output_bound')}});socket.on('end',()=>{if(!process.exitCode)process.stdout.write(output)});
@@ -439,12 +439,12 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
     fail(Array.isArray(list) && list.filter(item => record(item).id === authority.leaseId).length === 1, "lease_list");
     function admitted(row: Record<string, unknown>) {
       const metadata = record(row.metadata), sent = record(metadata.workspaceSentinel), cwd = metadata.remoteCwd;
-      fail(row.id === authority.leaseId && row.companyId === authority.companyId && row.environmentId === authority.environmentId
+      fail(row.id === authority.leaseId && row.spaceId === authority.spaceId && row.environmentId === authority.environmentId
         && row.heartbeatRunId === authority.runId && row.provider === "daytona" && row.providerLeaseId === authority.sandboxId
         && row.status === "active" && row.releasedAt == null, "lease_scope");
       fail(metadata.sandboxId === authority.sandboxId && metadata.image === authority.image && metadata.reuseLease === false, "lease_metadata");
       fail(typeof cwd === "string" && cwd.startsWith("/") && cwd.length < 512 && posix.normalize(cwd) === cwd && cwd !== "/" && !cwd.includes("\0"), "remote_cwd");
-      fail(sent.path === `${cwd}/.paperclip-runtime/reusable-sandbox-lease.json` && sent.result === "written" && typeof sent.token === "string"
+      fail(sent.path === `${cwd}/.outpost-runtime/reusable-sandbox-lease.json` && sent.result === "written" && typeof sent.token === "string"
         && sent.token.length >= 16 && sent.token.length <= 256 && sent.runId === authority.runId && sent.providerLeaseId === authority.sandboxId, "sentinel_binding");
       return { binding: { ...authority, remoteCwd: cwd as string }, sentinel: { path: sent.path as string, token: sent.token as string } };
     }
@@ -452,9 +452,9 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
     const key = JSON.stringify(current);
     fail(JSON.stringify(listed) === key && (!identityKey || identityKey === key), "lease_identity_drift");
     const sandbox = await daytona.get(authority.sandboxId);
-    fail(sandbox.id === authority.sandboxId && sandbox.labels?.["paperclip-provider"] === "daytona"
-      && sandbox.labels?.["paperclip-company-id"] === authority.companyId && sandbox.labels?.["paperclip-environment-id"] === authority.environmentId
-      && sandbox.labels?.["paperclip-run-id"] === authority.runId && sandbox.labels?.["paperclip-reuse-lease"] === "false", "sandbox_labels");
+    fail(sandbox.id === authority.sandboxId && sandbox.labels?.["outpost-provider"] === "daytona"
+      && sandbox.labels?.["outpost-space-id"] === authority.spaceId && sandbox.labels?.["outpost-environment-id"] === authority.environmentId
+      && sandbox.labels?.["outpost-run-id"] === authority.runId && sandbox.labels?.["outpost-reuse-lease"] === "false", "sandbox_labels");
     binding = current.binding; sentinel = current.sentinel; identityKey = key;
     return sandbox;
   }

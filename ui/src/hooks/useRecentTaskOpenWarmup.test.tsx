@@ -20,11 +20,11 @@ vi.mock("@/api/issues", () => ({ issuesApi: { chatBootstrap } }));
 const tasks = (count: number): RecentTaskOpenWarmupTask[] =>
   Array.from({ length: count }, (_, index) => ({ id: `id-${index}`, identifier: `PAP-${index}` }));
 
-function bootstrapItem(index: number, companyId = "company-1"): IssueChatBootstrapEntry {
+function bootstrapItem(index: number, spaceId = "space-1"): IssueChatBootstrapEntry {
   return {
     ref: `id-${index}`,
     issue: {
-      id: `id-${index}`, identifier: `PAP-${index}`, companyId, title: `Task ${index}`, status: "todo", priority: "medium",
+      id: `id-${index}`, identifier: `PAP-${index}`, spaceId, title: `Task ${index}`, status: "todo", priority: "medium",
       workMode: "standard", projectId: null, parentId: null, description: null, assigneeAgentId: null, assigneeUserId: null,
       executionRunId: null, issueNumber: index, requestDepth: 0, createdAt: new Date(0), updatedAt: new Date(0),
     } as Issue,
@@ -41,16 +41,16 @@ let root: Root;
 let queryClient: QueryClient;
 let visibility: DocumentVisibilityState;
 
-function Probe(props: { companyId: string | null; userId: string | null; tasks: RecentTaskOpenWarmupTask[] }) {
+function Probe(props: { spaceId: string | null; userId: string | null; tasks: RecentTaskOpenWarmupTask[] }) {
   useRecentTaskOpenWarmup(props);
   return null;
 }
 
-function render(props: { companyId?: string | null; userId?: string | null; tasks: RecentTaskOpenWarmupTask[] }) {
+function render(props: { spaceId?: string | null; userId?: string | null; tasks: RecentTaskOpenWarmupTask[] }) {
   act(() => {
     root.render(
       <QueryClientProvider client={queryClient}>
-        <Probe companyId={props.companyId === undefined ? "company-1" : props.companyId} userId={props.userId ?? "user-1"} tasks={props.tasks} />
+        <Probe spaceId={props.spaceId === undefined ? "space-1" : props.spaceId} userId={props.userId ?? "user-1"} tasks={props.tasks} />
       </QueryClientProvider>,
     );
   });
@@ -60,7 +60,7 @@ beforeEach(() => {
   resetRecentTaskChatPreloadForTests();
   resetIssueChatBootstrapsForTest();
   chatBootstrap.mockReset();
-  chatBootstrap.mockImplementation(async (_companyId: string, ids: string[]) => ({
+  chatBootstrap.mockImplementation(async (_spaceId: string, ids: string[]) => ({
     items: ids.map((id) => bootstrapItem(Number(id.slice(3)))),
   }));
   visibility = "visible";
@@ -83,7 +83,7 @@ describe("useRecentTaskOpenWarmup", () => {
     expect(chatBootstrap).not.toHaveBeenCalled();
     await settle();
     expect(chatBootstrap).toHaveBeenCalledTimes(1);
-    expect(chatBootstrap.mock.calls[0]![0]).toBe("company-1");
+    expect(chatBootstrap.mock.calls[0]![0]).toBe("space-1");
     expect(chatBootstrap.mock.calls[0]![1]).toEqual(tasks(10).map((task) => task.id));
     expect(queryClient.getQueryData([...queryKeys.issues.detail("PAP-3"), "core"])).toMatchObject({ id: "id-3" });
     // Reordering or re-rendering Recents never starts a second request.
@@ -129,8 +129,8 @@ describe("useRecentTaskOpenWarmup", () => {
 
   it("skips tasks whose first frame is cached and fresh, and makes no request when none is left", async () => {
     // A full first frame for two tasks (as an earlier open or preload leaves it)...
-    seedIssueChatBootstrap(queryClient, bootstrapItem(0), { companyId: "company-1", requestedAt: Date.now() });
-    seedIssueChatBootstrap(queryClient, bootstrapItem(1), { companyId: "company-1", requestedAt: Date.now() });
+    seedIssueChatBootstrap(queryClient, bootstrapItem(0), { spaceId: "space-1", requestedAt: Date.now() });
+    seedIssueChatBootstrap(queryClient, bootstrapItem(1), { spaceId: "space-1", requestedAt: Date.now() });
     // ...and a light warm (a brief hover) for the third, which is not a first frame.
     queryClient.setQueryData([...queryKeys.issues.detail("PAP-2"), "core"], bootstrapItem(2).issue);
     queryClient.setQueryData([...queryKeys.issues.comments("PAP-2"), "recent"], bootstrapItem(2).recentComments);
@@ -149,7 +149,7 @@ describe("useRecentTaskOpenWarmup", () => {
     expect(chatBootstrap).not.toHaveBeenCalled();
   });
 
-  it("preloads once per account per page load and never seeds another company's tasks", async () => {
+  it("preloads once per account per page load and never seeds another space's tasks", async () => {
     render({ tasks: tasks(1) });
     await settle();
     act(() => root.unmount());
@@ -159,7 +159,7 @@ describe("useRecentTaskOpenWarmup", () => {
     expect(chatBootstrap).toHaveBeenCalledTimes(1);
 
     // Another person in the same browser is their own scope.
-    chatBootstrap.mockImplementationOnce(async () => ({ items: [bootstrapItem(5, "company-2")] }));
+    chatBootstrap.mockImplementationOnce(async () => ({ items: [bootstrapItem(5, "space-2")] }));
     render({ userId: "user-2", tasks: tasks(6).slice(5) });
     await settle();
     expect(chatBootstrap).toHaveBeenCalledTimes(2);

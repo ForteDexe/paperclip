@@ -25,7 +25,7 @@ afterEach(async () => {
 });
 
 async function fixture(mode = "success") {
-  const home = await realpath(await mkdtemp(join(tmpdir(), "paperclip-antigravity-login-test-"))); roots.push(home);
+  const home = await realpath(await mkdtemp(join(tmpdir(), "outpost-antigravity-login-test-"))); roots.push(home);
   const peer = join(home, "peer.cjs");
   await writeFile(peer, `
 const fs = require('node:fs');
@@ -45,7 +45,7 @@ reader.on('line', line => {
  fs.writeFileSync(path.join(home,'requests.json'),JSON.stringify(requests));
  if(request.method==='initialize') {
   if(mode==='early-url') { process.stderr.write('Open the following link to authenticate the ACP server: '+${JSON.stringify(authorizationUrl())}+'\\n'); return; }
-  process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:request.id,result:{protocolVersion:1,agentInfo:{name:'antigravity-acp',version:'1.4.3'},agentCapabilities:{_meta:{antigravity:{paperclipAdmission:1}}},authMethods:[{id:'oauth-personal'}]}})+'\\n');
+  process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:request.id,result:{protocolVersion:1,agentInfo:{name:'antigravity-acp',version:'1.4.3'},agentCapabilities:{_meta:{antigravity:{outpostAdmission:1}}},authMethods:[{id:'oauth-personal'}]}})+'\\n');
  } else if(request.method==='authenticate') {
   const url = mode.startsWith('bad-url')||mode==='late-bad-url' ? 'https://example.invalid/steal' : ${JSON.stringify(authorizationUrl())};
   const message='Open the following link to authenticate the ACP server: '+url+'\\n';
@@ -87,7 +87,7 @@ function googleIdentity(emailVerified = true) {
 
 describe("Antigravity setup-only Google authentication", () => {
   it.each(["network", "unverified"])("preserves an OAuth rotation when userinfo %s verification fails", async failure => {
-    const home = await realpath(await mkdtemp(join(tmpdir(), "paperclip-antigravity-rotation-test-"))); roots.push(home);
+    const home = await realpath(await mkdtemp(join(tmpdir(), "outpost-antigravity-rotation-test-"))); roots.push(home);
     const { mkdir } = await import("node:fs/promises");
     await mkdir(join(home, "antigravity-acp"), { mode: 0o700 });
     const token = join(home, "antigravity-acp", "acp_token.json");

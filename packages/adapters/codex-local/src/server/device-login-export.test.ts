@@ -12,7 +12,7 @@ import {
 } from "./device-login-export.js";
 import { resolveManagedCodexHomeDir, resolveSharedCodexHomeDir } from "./codex-home.js";
 
-const COMPANY = "company-a";
+const SPACE = "space-a";
 const RUN = "run-1234";
 const NEWER = "2026-07-09T02:00:00Z";
 const OLDER = "2026-07-09T01:00:00Z";
@@ -33,7 +33,7 @@ describe("device-login credential export", () => {
   });
 
   async function makeInstanceRoot(): Promise<string> {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "paperclip-codex-proof-"));
+    const dir = await mkdtemp(path.join(os.tmpdir(), "outpost-codex-proof-"));
     cleanupDirs.push(dir);
     return dir;
   }
@@ -59,35 +59,35 @@ describe("device-login credential export", () => {
 
   const noopLog = (_line: string): void => {};
 
-  it("deriveProofHome returns a unique, run-scoped path under a company-scoped root", async () => {
+  it("deriveProofHome returns a unique, run-scoped path under a space-scoped root", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
-    const root = resolveProofHomeRoot(env, COMPANY);
+    const root = resolveProofHomeRoot(env, SPACE);
     expect(root).toBe(
-      path.resolve(home, "instances", "default", "companies", COMPANY, "codex-device-login-proof"),
+      path.resolve(home, "instances", "default", "spaces", SPACE, "codex-device-login-proof"),
     );
-    const a = deriveProofHome({ env, companyId: COMPANY, runId: RUN });
-    const b = deriveProofHome({ env, companyId: COMPANY, runId: RUN });
+    const a = deriveProofHome({ env, spaceId: SPACE, runId: RUN });
+    const b = deriveProofHome({ env, spaceId: SPACE, runId: RUN });
     expect(a.startsWith(root + path.sep)).toBe(true);
     expect(a).toContain(RUN);
     expect(a).not.toBe(b); // unique per call
     // Never the shared or the managed home.
     expect(a).not.toBe(resolveSharedCodexHomeDir(env));
-    expect(a).not.toBe(resolveManagedCodexHomeDir(env, COMPANY));
+    expect(a).not.toBe(resolveManagedCodexHomeDir(env, SPACE));
   });
 
   it("export_creates_root_and_home_at_mode_0700", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
-    const proofHome = deriveProofHome({ env, companyId: COMPANY, runId: RUN });
+    const proofHome = deriveProofHome({ env, spaceId: SPACE, runId: RUN });
     await installDeviceLoginCredential({
       sandboxAuthBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER }),
       proofHome,
       env,
-      companyId: COMPANY,
+      spaceId: SPACE,
       log: noopLog,
     });
-    const root = resolveProofHomeRoot(env, COMPANY);
+    const root = resolveProofHomeRoot(env, SPACE);
     expect((await stat(root)).mode & 0o777).toBe(0o700);
     expect((await stat(proofHome)).mode & 0o777).toBe(0o700);
   });
@@ -95,12 +95,12 @@ describe("device-login credential export", () => {
   it("export_seeds_empty_proof_home_with_mode_0600", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
-    const proofHome = deriveProofHome({ env, companyId: COMPANY, runId: RUN });
+    const proofHome = deriveProofHome({ env, spaceId: SPACE, runId: RUN });
     const outcome = await installDeviceLoginCredential({
       sandboxAuthBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER }),
       proofHome,
       env,
-      companyId: COMPANY,
+      spaceId: SPACE,
       log: noopLog,
     });
     expect(outcome).toBe("seeded");
@@ -115,11 +115,11 @@ describe("device-login credential export", () => {
     const env = envFor(home, { CODEX_HOME: path.join(home, "shared-codex") });
     const bytes = subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER });
     const shared = resolveSharedCodexHomeDir(env);
-    const managed = resolveManagedCodexHomeDir(env, COMPANY);
+    const managed = resolveManagedCodexHomeDir(env, SPACE);
     const agentManaged = path.resolve(managed, "..", "agents", "agent-1", "codex-home");
     for (const target of [shared, managed, agentManaged]) {
       await expect(
-        installDeviceLoginCredential({ sandboxAuthBytes: bytes, proofHome: target, env, companyId: COMPANY, log: noopLog }),
+        installDeviceLoginCredential({ sandboxAuthBytes: bytes, proofHome: target, env, spaceId: SPACE, log: noopLog }),
       ).rejects.toThrow();
     }
   });
@@ -127,7 +127,7 @@ describe("device-login credential export", () => {
   it("export_rejects_symlink_or_non_regular_path", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
-    const root = resolveProofHomeRoot(env, COMPANY);
+    const root = resolveProofHomeRoot(env, SPACE);
     await mkdir(root, { recursive: true, mode: 0o700 });
     const bytes = subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER });
 
@@ -137,7 +137,7 @@ describe("device-login credential export", () => {
     const linkedHome = path.join(root, `${RUN}-linked`);
     await symlink(realDir, linkedHome);
     await expect(
-      installDeviceLoginCredential({ sandboxAuthBytes: bytes, proofHome: linkedHome, env, companyId: COMPANY, log: noopLog }),
+      installDeviceLoginCredential({ sandboxAuthBytes: bytes, proofHome: linkedHome, env, spaceId: SPACE, log: noopLog }),
     ).rejects.toThrow();
 
     // A proof home whose auth.json is a symlink is rejected.
@@ -145,7 +145,7 @@ describe("device-login credential export", () => {
     await mkdir(symAuthHome, { recursive: true, mode: 0o700 });
     await symlink(path.join(home, "target.json"), path.join(symAuthHome, "auth.json"));
     await expect(
-      installDeviceLoginCredential({ sandboxAuthBytes: bytes, proofHome: symAuthHome, env, companyId: COMPANY, log: noopLog }),
+      installDeviceLoginCredential({ sandboxAuthBytes: bytes, proofHome: symAuthHome, env, spaceId: SPACE, log: noopLog }),
     ).rejects.toThrow();
   });
 
@@ -159,9 +159,9 @@ describe("device-login credential export", () => {
       Buffer.alloc(MAX_AUTH_JSON_BYTES + 10, 0x20),
     ]);
     for (const bytes of [apiKey, malformed, oversized]) {
-      const proofHome = deriveProofHome({ env, companyId: COMPANY, runId: RUN });
+      const proofHome = deriveProofHome({ env, spaceId: SPACE, runId: RUN });
       await expect(
-        installDeviceLoginCredential({ sandboxAuthBytes: bytes, proofHome, env, companyId: COMPANY, log: noopLog }),
+        installDeviceLoginCredential({ sandboxAuthBytes: bytes, proofHome, env, spaceId: SPACE, log: noopLog }),
       ).rejects.toThrow();
       // No file was written on a rejected payload.
       await expect(stat(path.join(proofHome, "auth.json"))).rejects.toThrow();
@@ -171,20 +171,20 @@ describe("device-login credential export", () => {
   it("export_updates_home_with_strictly_newer_same_identity", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
-    const proofHome = deriveProofHome({ env, companyId: COMPANY, runId: RUN });
+    const proofHome = deriveProofHome({ env, spaceId: SPACE, runId: RUN });
     const authPath = path.join(proofHome, "auth.json");
     await installDeviceLoginCredential({
       sandboxAuthBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: OLDER, marker: "old" }),
       proofHome,
       env,
-      companyId: COMPANY,
+      spaceId: SPACE,
       log: noopLog,
     });
     const outcome = await installDeviceLoginCredential({
       sandboxAuthBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "new" }),
       proofHome,
       env,
-      companyId: COMPANY,
+      spaceId: SPACE,
       log: noopLog,
     });
     expect(outcome).toBe("updated");
@@ -196,13 +196,13 @@ describe("device-login credential export", () => {
   it("export_keeps_home_on_older_or_different_identity", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
-    const proofHome = deriveProofHome({ env, companyId: COMPANY, runId: RUN });
+    const proofHome = deriveProofHome({ env, spaceId: SPACE, runId: RUN });
     const authPath = path.join(proofHome, "auth.json");
     await installDeviceLoginCredential({
       sandboxAuthBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "keep" }),
       proofHome,
       env,
-      companyId: COMPANY,
+      spaceId: SPACE,
       log: noopLog,
     });
     // Older same identity: kept.
@@ -210,7 +210,7 @@ describe("device-login credential export", () => {
       sandboxAuthBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: OLDER, marker: "older" }),
       proofHome,
       env,
-      companyId: COMPANY,
+      spaceId: SPACE,
       log: noopLog,
     });
     expect(olderOutcome).toBe("kept");
@@ -219,7 +219,7 @@ describe("device-login credential export", () => {
       sandboxAuthBytes: subscriptionAuth({ accountId: OTHER_ACCOUNT, lastRefresh: NEWER, marker: "other" }),
       proofHome,
       env,
-      companyId: COMPANY,
+      spaceId: SPACE,
       log: noopLog,
     });
     expect(otherOutcome).toBe("kept");
@@ -231,13 +231,13 @@ describe("device-login credential export", () => {
   it("export_logs_contain_no_token_bytes", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
-    const proofHome = deriveProofHome({ env, companyId: COMPANY, runId: RUN });
+    const proofHome = deriveProofHome({ env, spaceId: SPACE, runId: RUN });
     const logs: string[] = [];
     await installDeviceLoginCredential({
       sandboxAuthBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER }),
       proofHome,
       env,
-      companyId: COMPANY,
+      spaceId: SPACE,
       log: (line) => {
         logs.push(line);
       },
@@ -256,17 +256,17 @@ describe("device-login credential export", () => {
     const sentinel = path.join(shared, "auth.json");
     await writeFile(sentinel, JSON.stringify({ tokens: { account_id: "host", refresh_token: "host" } }), { mode: 0o600 });
 
-    const proofHome = deriveProofHome({ env, companyId: COMPANY, runId: RUN });
+    const proofHome = deriveProofHome({ env, spaceId: SPACE, runId: RUN });
     await installDeviceLoginCredential({
       sandboxAuthBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER }),
       proofHome,
       env,
-      companyId: COMPANY,
+      spaceId: SPACE,
       log: noopLog,
     });
     expect((await lstat(proofHome)).isDirectory()).toBe(true);
 
-    await removeProofHome(proofHome, { env, companyId: COMPANY });
+    await removeProofHome(proofHome, { env, spaceId: SPACE });
     await expect(lstat(proofHome)).rejects.toThrow();
     // The fake default home is untouched.
     expect(await readFile(sentinel, "utf8")).toContain("host");
@@ -277,7 +277,7 @@ describe("device-login credential export", () => {
     const env = envFor(home);
     const outside = path.join(home, "not-a-proof-home");
     await mkdir(outside, { recursive: true });
-    await expect(removeProofHome(outside, { env, companyId: COMPANY })).rejects.toThrow();
+    await expect(removeProofHome(outside, { env, spaceId: SPACE })).rejects.toThrow();
     // The outside directory is untouched.
     expect((await lstat(outside)).isDirectory()).toBe(true);
   });

@@ -5,21 +5,21 @@ import { logger } from "../middleware/logger.js";
 import { responsibleUserAuthzShadowMode } from "../services/authorization.js";
 import { getHiddenSettings } from "../services/settings-visibility.js";
 
-function throwOrShadowResponsibleUserCompanyAccessDeny(
+function throwOrShadowResponsibleUserSpaceAccessDeny(
   req: Request,
-  companyId: string,
+  spaceId: string,
   code: "RESPONSIBLE_USER_UNAUTHORIZED" | "RESPONSIBLE_USER_UNAVAILABLE",
   message: string,
 ) {
   logger.warn({
     authzMode: responsibleUserAuthzShadowMode() ? "shadow" : "enforce",
     code,
-    action: "company_access",
-    companyId,
+    action: "space_access",
+    spaceId,
     actorAgentId: req.actor.agentId ?? null,
     responsibleUserId: req.actor.onBehalfOfUserId ?? null,
     method: req.method,
-  }, "responsible-user company access intersection denied");
+  }, "responsible-user space access intersection denied");
   if (responsibleUserAuthzShadowMode()) return;
   throw new HttpError(403, message, { code });
 }
@@ -30,7 +30,7 @@ export function assertAuthenticated(req: Request) {
   }
 }
 
-export const BOARD_ACCESS_REQUIRED_CODE = "board_access_required";
+export const OPERATOR_ACCESS_REQUIRED_CODE = "operator_access_required";
 
 // Agent API subresources whose controls live on their own profile tab.
 const AGENT_PROFILE_TABS: Record<string, [string, string]> = {
@@ -44,27 +44,27 @@ const AGENT_PROFILE_TABS: Record<string, [string, string]> = {
   "runtime-state": ["harness settings", "runtime"],
 };
 
-/** A board page as [label, path], where the path keeps <prefix> for the agent to fill. */
-export type BoardControlPage = [label: string, path: string];
+/** A operator page as [label, path], where the path keeps <prefix> for the agent to fill. */
+export type OperatorControlPage = [label: string, path: string];
 
-/** Budgets are board-only. These pages hold the budget controls behind any route that writes one. */
-export const COMPANY_BUDGETS_PAGE: BoardControlPage = ["budgets", "/<prefix>/activity/budgets"];
+/** Budgets are operator-only. These pages hold the budget controls behind any route that writes one. */
+export const SPACE_BUDGETS_PAGE: OperatorControlPage = ["budgets", "/<prefix>/activity/budgets"];
 /** Cost recording controls (such as retrying a run's saved-usage cost) are on the Costs page, not Budgets. */
-export const COMPANY_COSTS_PAGE: BoardControlPage = ["costs", "/<prefix>/activity/costs"];
-export function agentBudgetPage(agentId: string): BoardControlPage {
+export const SPACE_COSTS_PAGE: OperatorControlPage = ["costs", "/<prefix>/activity/costs"];
+export function agentBudgetPage(agentId: string): OperatorControlPage {
   return [`the agent's ${AGENT_PROFILE_TABS.budgets![0]}`, `/<prefix>/agents/${agentId}/${AGENT_PROFILE_TABS.budgets![1]}`];
 }
 
-// The board page that holds the control behind a board-only API route, when one
+// The operator page that holds the control behind a operator-only API route, when one
 // is known. Paths keep <prefix> for the agent to fill from its own task identifier.
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const BOARD_CONTROL_PAGES: Array<[RegExp, (match: RegExpExecArray, req: Request) => [string, string] | null]> = [
-  [/^\/(?:companies\/[^/]+\/)?secrets?(?:[-/]|$)/, () => ["company secrets", "/<prefix>/company/settings/secrets"]],
-  [/^\/companies\/[^/]+\/(?:budgets|budget-incidents)(?:\/|$)/, () => COMPANY_BUDGETS_PAGE],
-  [/^\/companies\/[^/]+\/costs(?:\/|$)/, () => COMPANY_COSTS_PAGE],
-  [/^\/companies\/[^/]+\/(?:prompt-injection-prevention|decision-model)(?:\/|$)/, () => ["connection settings", "/<prefix>/company/settings/connections"]],
-  [/^\/companies\/[^/]+\/(?:tools\/)?gateways(?:\/|$)|^\/tool-gateway\//, () => ["tool gateways", "/<prefix>/apps/gateways"]],
+const OPERATOR_CONTROL_PAGES: Array<[RegExp, (match: RegExpExecArray, req: Request) => [string, string] | null]> = [
+  [/^\/(?:spaces\/[^/]+\/)?secrets?(?:[-/]|$)/, () => ["space secrets", "/<prefix>/space/settings/secrets"]],
+  [/^\/spaces\/[^/]+\/(?:budgets|budget-incidents)(?:\/|$)/, () => SPACE_BUDGETS_PAGE],
+  [/^\/spaces\/[^/]+\/costs(?:\/|$)/, () => SPACE_COSTS_PAGE],
+  [/^\/spaces\/[^/]+\/(?:prompt-injection-prevention|decision-model)(?:\/|$)/, () => ["connection settings", "/<prefix>/space/settings/connections"]],
+  [/^\/spaces\/[^/]+\/(?:tools\/)?gateways(?:\/|$)|^\/tool-gateway\//, () => ["tool gateways", "/<prefix>/apps/gateways"]],
   [/^\/approvals\/([^/]+)/, match => ["the approval", `/<prefix>/approvals/${match[1]}`]],
   [/^\/projects\/([^/]+)\/access-members(?:\/|$)/, (match, req) => {
     const projectId = [req.params?.id, match[1]].find((id): id is string => typeof id === "string" && UUID_PATTERN.test(id));
@@ -74,10 +74,10 @@ const BOARD_CONTROL_PAGES: Array<[RegExp, (match: RegExpExecArray, req: Request)
     const tab = match[2] && Object.hasOwn(AGENT_PROFILE_TABS, match[2]) ? AGENT_PROFILE_TABS[match[2]] : undefined;
     return tab ? [`the agent's ${tab[0]}`, `/<prefix>/agents/${match[1]}/${tab[1]}`] : ["the agent's profile", `/<prefix>/agents/${match[1]}`];
   }],
-  [/^\/companies\/[^/]+(?:\/(?:archive|branding|settings))?\/?$/, () => ["company settings", "/<prefix>/company/settings"]],
+  [/^\/spaces\/[^/]+(?:\/(?:archive|branding|settings))?\/?$/, () => ["space settings", "/<prefix>/space/settings"]],
   // An operator can hide the Experimental page, so link it only while it is visible.
   [/^\/instance\/settings\/experimental\/?$/, () => getHiddenSettings().has("instance.experimental")
-    ? null : ["Experimental settings", "/<prefix>/company/settings/instance/experimental"]],
+    ? null : ["Experimental settings", "/<prefix>/space/settings/instance/experimental"]],
 ];
 
 // Plugin management pages. A plugin id or key segment opens that plugin's settings
@@ -91,33 +91,33 @@ function pluginControlPage(path: string): [string, string] | null {
   const segment = match[1];
   const plugin = segment && PLUGIN_REFERENCE.test(segment) && !PLUGIN_MANAGER_SEGMENTS.has(segment) ? segment : null;
   return plugin
-    ? ["the plugin's settings", `/<prefix>/company/settings/instance/plugins/${plugin}`]
-    : ["plugin settings", "/<prefix>/company/settings/instance/plugins"];
+    ? ["the plugin's settings", `/<prefix>/space/settings/instance/plugins/${plugin}`]
+    : ["plugin settings", "/<prefix>/space/settings/instance/plugins"];
 }
 
-// Every plugin management route is board-only, so a denial on any one of them
+// Every plugin management route is operator-only, so a denial on any one of them
 // (often the list an agent reads first) also answers the plugin's other management steps.
 const PLUGIN_ROUTE = /^\/plugins(?:\/|$)/;
-const PLUGIN_ADMINISTRATION_SCOPE = "Plugin management is board-only throughout: listing, installing, configuring (including choosing a secret for a plugin setting), enabling, disabling, upgrading and removing plugins have no agent route either.";
+const PLUGIN_ADMINISTRATION_SCOPE = "Plugin management is operator-only throughout: listing, installing, configuring (including choosing a secret for a plugin setting), enabling, disabling, upgrading and removing plugins have no agent route either.";
 
-const ENVIRONMENT_ROUTE = /^\/(?:companies\/[^/]+\/)?environments(?:\/|$)|^\/environment-(?:leases|custom-image-setup-sessions)(?:\/|$)/;
-const ENVIRONMENT_ADMINISTRATION_SCOPE = "Execution environments are board-only throughout: listing computers, reading which coding harnesses they support, testing (probing) them and changing them have no agent route either.";
+const ENVIRONMENT_ROUTE = /^\/(?:spaces\/[^/]+\/)?environments(?:\/|$)|^\/environment-(?:leases|custom-image-setup-sessions)(?:\/|$)/;
+const ENVIRONMENT_ADMINISTRATION_SCOPE = "Execution environments are operator-only throughout: listing computers, reading which coding harnesses they support, testing (probing) them and changing them have no agent route either.";
 function environmentControlPage(path: string): [string, string] | null {
   if (!ENVIRONMENT_ROUTE.test(path) || getHiddenSettings().has("instance.environments")) return null;
-  return ["environment settings", "/<prefix>/company/settings/instance/environments"];
+  return ["environment settings", "/<prefix>/space/settings/instance/environments"];
 }
 
 function deniedApiPath(req: Request) {
   return (req.originalUrl ?? "").split("?")[0]!.replace(/^\/api(?=\/)/, "");
 }
 
-function boardControlPage(req: Request) {
+function operatorControlPage(req: Request) {
   const path = deniedApiPath(req);
   const pluginPage = pluginControlPage(path);
   if (pluginPage) return pluginPage;
   const environmentPage = environmentControlPage(path);
   if (environmentPage) return environmentPage;
-  for (const [pattern, page] of BOARD_CONTROL_PAGES) {
+  for (const [pattern, page] of OPERATOR_CONTROL_PAGES) {
     const match = pattern.exec(path);
     if (match) return page(match, req);
   }
@@ -125,21 +125,21 @@ function boardControlPage(req: Request) {
 }
 
 /**
- * A board-only denial. Agents get a final, actionable remediation so they hand the
+ * A operator-only denial. Agents get a final, actionable remediation so they hand the
  * action to the person instead of searching other routes for one that does not exist.
  */
-export function boardAccessRequired(req: Request, controlPage?: BoardControlPage) {
-  if (req.actor.type !== "agent") return forbidden("Board access required");
-  const page = controlPage ?? boardControlPage(req);
+export function operatorAccessRequired(req: Request, controlPage?: OperatorControlPage) {
+  if (req.actor.type !== "agent") return forbidden("Operator access required");
+  const page = controlPage ?? operatorControlPage(req);
   const deniedPath = deniedApiPath(req);
   const scope = PLUGIN_ROUTE.test(deniedPath) ? `${PLUGIN_ADMINISTRATION_SCOPE} `
     : ENVIRONMENT_ROUTE.test(deniedPath) ? `${ENVIRONMENT_ADMINISTRATION_SCOPE} ` : "";
   const where = page
-    ? `They can do it in the Outpost web app: link [Open ${page[0]}](${page[1]}), with this conversation's company prefix as <prefix>.`
-    : "They can do it in the Outpost web app or with their own board credentials. Link a page only if you already know its route; do not search for one.";
-  return forbidden("Board access required", {
-    code: BOARD_ACCESS_REQUIRED_CODE,
-    remediation: `This action is board-only by design and this denial is final: no agent credential, tool or other API route can do it, so do not search for one. Stop working on this step and reply now: tell the person that a board user must do it. ${scope}${where}`,
+    ? `They can do it in the Outpost web app: link [Open ${page[0]}](${page[1]}), with this conversation's space prefix as <prefix>.`
+    : "They can do it in the Outpost web app or with their own operator credentials. Link a page only if you already know its route; do not search for one.";
+  return forbidden("Operator access required", {
+    code: OPERATOR_ACCESS_REQUIRED_CODE,
+    remediation: `This action is operator-only by design and this denial is final: no agent credential, tool or other API route can do it, so do not search for one. Stop working on this step and reply now: tell the person that a operator user must do it. ${scope}${where}`,
   });
 }
 
@@ -147,7 +147,7 @@ export const ISSUE_NOT_VISIBLE_CODE = "issue_not_visible";
 
 /**
  * The 404 for a task lookup. A deleted task, a private task the caller cannot
- * see and another company's task get this same body, so it never says which.
+ * see and another space's task get this same body, so it never says which.
  * Agents also learn that the lookup is final, so they reply instead of
  * searching other routes for the task.
  */
@@ -156,97 +156,97 @@ export function issueNotFoundBody(req: Request): Record<string, unknown> {
   return {
     error: "Issue not found",
     code: ISSUE_NOT_VISIBLE_CODE,
-    remediation: "No task with this ID or identifier is visible to you. A deleted task, a private task you were not given and a task in another company all get this same answer, so this lookup is final: do not search for the task through other routes, lists, activity, files or hosts, and do not open a similarly named task in its place. Reply now: tell the person you cannot open it here, and that if it still exists they can share it with you from its sharing controls or paste the parts they need.",
+    remediation: "No task with this ID or identifier is visible to you. A deleted task, a private task you were not given and a task in another space all get this same answer, so this lookup is final: do not search for the task through other routes, lists, activity, files or hosts, and do not open a similarly named task in its place. Reply now: tell the person you cannot open it here, and that if it still exists they can share it with you from its sharing controls or paste the parts they need.",
   };
 }
 
 /**
- * Board-only check. Pass `controlPage` when the board control lives on a different
+ * Operator-only check. Pass `controlPage` when the operator control lives on a different
  * page from the one the route path implies, e.g. a budget field on a general route.
  */
-export function assertBoard(req: Request, controlPage?: BoardControlPage) {
-  if (req.actor.type !== "board") {
-    throw boardAccessRequired(req, controlPage);
+export function assertOperator(req: Request, controlPage?: OperatorControlPage) {
+  if (req.actor.type !== "operator") {
+    throw operatorAccessRequired(req, controlPage);
   }
 }
 
 export function hasBoardOrgAccess(req: Request) {
-  if (req.actor.type !== "board") {
+  if (req.actor.type !== "operator") {
     return false;
   }
   if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) {
     return true;
   }
-  return Array.isArray(req.actor.companyIds) && req.actor.companyIds.length > 0;
+  return Array.isArray(req.actor.spaceIds) && req.actor.spaceIds.length > 0;
 }
 
-export function assertBoardOrgAccess(req: Request) {
-  assertBoard(req);
+export function assertOperatorOrgAccess(req: Request) {
+  assertOperator(req);
   if (hasBoardOrgAccess(req)) {
     return;
   }
   throw forbidden("Outpost membership or instance admin access required");
 }
 
-export function assertBoardOrAgent(req: Request) {
+export function assertOperatorOrAgent(req: Request) {
   if (req.actor.type === "agent") {
     return;
   }
-  if (req.actor.type === "board") {
-    assertBoardOrgAccess(req);
+  if (req.actor.type === "operator") {
+    assertOperatorOrgAccess(req);
     return;
   }
-  throw forbidden("Board or agent access required");
+  throw forbidden("Operator or agent access required");
 }
 
 export function assertInstanceAdmin(req: Request) {
-  assertBoard(req);
+  assertOperator(req);
   if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) {
     return;
   }
   throw forbidden("Instance admin access required");
 }
 
-export function assertCompanyAccess(req: Request, companyId: string) {
+export function assertSpaceAccess(req: Request, spaceId: string) {
   assertAuthenticated(req);
-  if (req.actor.type === "agent" && req.actor.companyId !== companyId) {
-    throw forbidden("Agent key cannot access another company");
+  if (req.actor.type === "agent" && req.actor.spaceId !== spaceId) {
+    throw forbidden("Agent key cannot access another space");
   }
   if (req.actor.type === "agent" && req.actor.onBehalfOfUserId?.trim()) {
     const membership = req.actor.onBehalfOfMemberships?.find(
-      (item) => item.companyId === companyId && item.status === "active",
+      (item) => item.spaceId === spaceId && item.status === "active",
     );
     if (!membership) {
-      throwOrShadowResponsibleUserCompanyAccessDeny(
+      throwOrShadowResponsibleUserSpaceAccessDeny(
         req,
-        companyId,
+        spaceId,
         "RESPONSIBLE_USER_UNAVAILABLE",
-        "Responsible user is unavailable for this company",
+        "Responsible user is unavailable for this space",
       );
       return;
     }
     const method = typeof req.method === "string" ? req.method.toUpperCase() : "GET";
     const isSafeMethod = ["GET", "HEAD", "OPTIONS"].includes(method);
     if (!isSafeMethod && membership.membershipRole === "viewer") {
-      throwOrShadowResponsibleUserCompanyAccessDeny(
+      throwOrShadowResponsibleUserSpaceAccessDeny(
         req,
-        companyId,
+        spaceId,
         "RESPONSIBLE_USER_UNAUTHORIZED",
         "Responsible user is not authorized for write access",
       );
     }
   }
-  if (req.actor.type === "board" && req.actor.source !== "local_implicit") {
-    const allowedCompanies = req.actor.companyIds ?? [];
-    if (!allowedCompanies.includes(companyId)) {
-      throw forbidden("User does not have access to this company");
+  if (req.actor.type === "operator" && req.actor.source !== "local_implicit") {
+    const allowedSpaces = req.actor.spaceIds ?? [];
+    if (!allowedSpaces.includes(spaceId)) {
+      throw forbidden("User does not have access to this space");
     }
     const method = typeof req.method === "string" ? req.method.toUpperCase() : "GET";
     const isSafeMethod = ["GET", "HEAD", "OPTIONS"].includes(method);
     if (!isSafeMethod && !req.actor.isInstanceAdmin && Array.isArray(req.actor.memberships)) {
-      const membership = req.actor.memberships.find((item) => item.companyId === companyId);
+      const membership = req.actor.memberships.find((item) => item.spaceId === spaceId);
       if (!membership || membership.status !== "active") {
-        throw forbidden("User does not have active company access");
+        throw forbidden("User does not have active space access");
       }
       if (membership.membershipRole === "viewer") {
         throw forbidden("Viewer access is read-only");
@@ -257,11 +257,11 @@ export function assertCompanyAccess(req: Request, companyId: string) {
 
 /**
  * Non-throwing access check for routes that look up a resource by id
- * before responding. Prefer this over `assertCompanyAccess` whenever the
+ * before responding. Prefer this over `assertSpaceAccess` whenever the
  * route can reach the access check only after a successful `getById`
  * (i.e. after confirming the resource exists).
  *
- * Using `assertCompanyAccess` in that position leaks resource existence
+ * Using `assertSpaceAccess` in that position leaks resource existence
  * across tenants: a 404 means "no such resource" while a 403 means "exists
  * in another tenant". Any authenticated user can enumerate IDs and
  * distinguish the two responses.
@@ -271,7 +271,7 @@ export function assertCompanyAccess(req: Request, companyId: string) {
  * the shape is:
  *
  *     const issue = await svc.getById(id);
- *     if (!issue || !hasCompanyAccess(req, issue.companyId)) {
+ *     if (!issue || !hasSpaceAccess(req, issue.spaceId)) {
  *       res.status(404).json({ error: "Issue not found" });
  *       return;
  *     }
@@ -280,30 +280,30 @@ export function assertCompanyAccess(req: Request, companyId: string) {
  * 404, removing the oracle.
  *
  * Note: this intentionally does not replicate the write-path membership
- * checks in `assertCompanyAccess` (active membership, viewer read-only).
+ * checks in `assertSpaceAccess` (active membership, viewer read-only).
  * Routes that need those checks for authorized tenants should still call
- * `assertCompanyAccess` after the 404 gate — the oracle concern is only
+ * `assertSpaceAccess` after the 404 gate — the oracle concern is only
  * about the existence check.
  *
- * The company-scope semantics must stay in lockstep with
- * `assertCompanyAccess`: in particular, signed-in instance admins do NOT
- * get blanket access to companies they are not a member of.
+ * The space-scope semantics must stay in lockstep with
+ * `assertSpaceAccess`: in particular, signed-in instance admins do NOT
+ * get blanket access to spaces they are not a member of.
  */
-export function hasCompanyAccess(req: Request, companyId: string): boolean {
+export function hasSpaceAccess(req: Request, spaceId: string): boolean {
   if (req.actor.type === "none") return false;
-  if (req.actor.type === "agent") return req.actor.companyId === companyId;
+  if (req.actor.type === "agent") return req.actor.spaceId === spaceId;
   if (req.actor.source === "local_implicit") return true;
-  return (req.actor.companyIds ?? []).includes(companyId);
+  return (req.actor.spaceIds ?? []).includes(spaceId);
 }
 
 /**
- * Preferred way to fetch a company-scoped resource by id inside a route
- * handler. Wraps the two-step pattern described on `hasCompanyAccess` so
+ * Preferred way to fetch a space-scoped resource by id inside a route
+ * handler. Wraps the two-step pattern described on `hasSpaceAccess` so
  * new routes cannot accidentally reintroduce the existence oracle:
  *
  *   - missing resource          → 404 `{ error: notFoundMessage }`, returns null
  *   - exists but cross-tenant   → identical 404, returns null
- *   - accessible                → runs `assertCompanyAccess` (write-path
+ *   - accessible                → runs `assertSpaceAccess` (write-path
  *     membership checks on non-safe methods) and returns the resource
  *
  * Usage:
@@ -312,9 +312,9 @@ export function hasCompanyAccess(req: Request, companyId: string): boolean {
  *     if (!goal) return;
  *
  * Routes with bespoke not-found behavior (legacy `200 []` contracts,
- * audit-logged denials) should still compose `hasCompanyAccess` directly.
+ * audit-logged denials) should still compose `hasSpaceAccess` directly.
  */
-export async function getAccessibleResource<T extends { companyId: string }>(
+export async function getAccessibleResource<T extends { spaceId: string }>(
   req: Request,
   res: Response,
   resource: T | null | undefined | Promise<T | null | undefined>,
@@ -322,11 +322,11 @@ export async function getAccessibleResource<T extends { companyId: string }>(
   notFoundBody: Record<string, unknown> = { error: notFoundMessage },
 ): Promise<T | null> {
   const resolved = await resource;
-  if (!resolved || !hasCompanyAccess(req, resolved.companyId)) {
+  if (!resolved || !hasSpaceAccess(req, resolved.spaceId)) {
     res.status(404).json(notFoundBody);
     return null;
   }
-  assertCompanyAccess(req, resolved.companyId);
+  assertSpaceAccess(req, resolved.spaceId);
   return resolved;
 }
 
@@ -346,7 +346,7 @@ export function getActorInfo(req: Request): (
     agentId: null;
     runId: string | null;
     agentApiKeyId: null;
-    actorSource: "local_implicit" | "session" | "board_key" | "mcp_oauth" | "cloud_tenant";
+    actorSource: "local_implicit" | "session" | "operator_key" | "mcp_oauth" | "cloud_tenant";
   }
 ) {
   assertAuthenticated(req);
@@ -364,7 +364,7 @@ export function getActorInfo(req: Request): (
 
   const actorSource =
     req.actor.source === "local_implicit" ||
-      req.actor.source === "board_key" ||
+      req.actor.source === "operator_key" ||
       req.actor.source === "cloud_tenant" ||
       req.actor.source === "mcp_oauth"
       ? req.actor.source
@@ -372,7 +372,7 @@ export function getActorInfo(req: Request): (
 
   return {
     actorType: "user" as const,
-    actorId: req.actor.userId ?? "board",
+    actorId: req.actor.userId ?? "operator",
     sessionId: req.actor.sessionId ?? null,
     agentId: null,
     runId: req.actor.runId ?? null,
@@ -393,7 +393,7 @@ export type ActorSecretContext = {
   consumerId: string;
   actorType: "agent" | "user";
   actorId: string | null;
-  actorSource: "local_implicit" | "session" | "board_key" | "agent_key" | "agent_jwt" | "mcp_oauth" | "cloud_tenant";
+  actorSource: "local_implicit" | "session" | "operator_key" | "agent_key" | "agent_jwt" | "mcp_oauth" | "cloud_tenant";
   responsibleUserId: string | null;
 };
 

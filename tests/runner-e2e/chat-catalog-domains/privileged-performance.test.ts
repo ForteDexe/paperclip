@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { gradeLongThreadPerformance } from "./privileged-performance.js";
 function valid() {
-  return { scenarioId: "developer-labs.long-thread-performance", origin: "http://owned.invalid", companyId: "owned", leadId: "lead",
+  return { scenarioId: "developer-labs.long-thread-performance", origin: "http://owned.invalid", spaceId: "owned", leadId: "lead",
     tasks: [], projects: [], goals: [], comments: [], activity: [], documents: [], revisions: [], links: [], humanQueries: ["canonical", "actual report"],
     runs: [{ id: "initial", agentId: "lead", status: "succeeded" }, { id: "interpret", agentId: "lead", status: "succeeded" }], reply: "initial guidance",
     state: { performanceReport: { scope: "fixed synthetic UI", commentCount: 469, rowCount: 487, markdownCount: 150,

@@ -8,12 +8,12 @@ import { pollUntil } from "../api.js";
 import { connectNotes, startNotesProvider, type NotesProvider, type ProviderCall } from "./external-provider.js";
 import type { Entity } from "./internal-support.js";
 
-export interface HistoryWorkIdentity { companyId: string; agentId: string; issueId: string; runId: string; routineId: string; invocationId: string; connectionId: string; writeEntryId: string }
+export interface HistoryWorkIdentity { spaceId: string; agentId: string; issueId: string; runId: string; routineId: string; invocationId: string; connectionId: string; writeEntryId: string }
 export interface AccountedHistoryRun extends ChatRun { finishedAt?: string | null; usageJson?: Record<string, unknown> | null; costAccountingPending?: boolean; costAccountedAt?: string | null }
 export interface HistoryWorkSnapshot { run?: AccountedHistoryRun; task: Entity; invocation?: RoutineRunSummary; decisions: ToolRunDecisionLookup; comments: Entity[]; activity: Array<Entity & { runId?: string }> }
 export type WorkCall = Pick<ProviderCall, "method" | "name" | "authorized" | "sequence" | "requestIdSha256" | "responseHttpStatus" | "toolError">;
 const providers = new WeakMap<ChatCatalogContext, { provider: NotesProvider; connectionId?: string }>();
-const root = (ctx: ChatCatalogContext) => `/api/companies/${ctx.input.fixtures.company.id}`;
+const root = (ctx: ChatCatalogContext) => `/api/spaces/${ctx.input.fixtures.space.id}`;
 const positiveInteger = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 const nonnegativeInteger = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -30,31 +30,31 @@ export function completeHistoryUsage(run: AccountedHistoryRun | undefined) {
     && ["metered_api", "subscription_included"].includes(String(u.billingType))
     && nonnegativeInteger(u.inputTokens) && nonnegativeInteger(u.outputTokens) && Number(u.inputTokens) + Number(u.outputTokens) > 0;
 }
-export function routineHistoryAccountingReady(expected: Pick<HistoryWorkIdentity, "companyId" | "agentId" | "issueId" | "runId">, runs: AccountedHistoryRun[], overview: BudgetOverview) {
+export function routineHistoryAccountingReady(expected: Pick<HistoryWorkIdentity, "spaceId" | "agentId" | "issueId" | "runId">, runs: AccountedHistoryRun[], overview: BudgetOverview) {
   const run = runs.find(row => row.id === expected.runId);
-  if (!run || run.companyId !== expected.companyId || run.agentId !== expected.agentId || run.contextSnapshot?.issueId !== expected.issueId
-    || !completeHistoryUsage(run) || overview.companyId !== expected.companyId) return false;
-  const policies = overview.policies.filter(p => p.isActive && (p.scopeType === "company" && p.scopeId === expected.companyId || p.scopeType === "agent" && p.scopeId === expected.agentId));
-  return ["company", "agent"].every(scope => policies.some(p => p.scopeType === scope)) && policies.every(p => p.companyId === expected.companyId
+  if (!run || run.spaceId !== expected.spaceId || run.agentId !== expected.agentId || run.contextSnapshot?.issueId !== expected.issueId
+    || !completeHistoryUsage(run) || overview.spaceId !== expected.spaceId) return false;
+  const policies = overview.policies.filter(p => p.isActive && (p.scopeType === "space" && p.scopeId === expected.spaceId || p.scopeType === "agent" && p.scopeId === expected.agentId));
+  return ["space", "agent"].every(scope => policies.some(p => p.scopeType === scope)) && policies.every(p => p.spaceId === expected.spaceId
     && p.hardStopEnabled && p.amount > 0 && p.unpricedUsagePolicy === "allow" && p.pendingRunCount === 0 && !p.paused && p.status !== "hard_stop" && p.remainingAmount > 0);
 }
 export function genuineHistoryWork(expected: HistoryWorkIdentity, snapshot: HistoryWorkSnapshot | undefined, calls: WorkCall[], failed: boolean) {
   if (!expected || !snapshot) return false;
   const { run, task, invocation, decisions, comments, activity } = snapshot;
   const status = failed ? "blocked" : "done";
-  if (!run || run.id !== expected.runId || run.companyId !== expected.companyId || run.agentId !== expected.agentId
+  if (!run || run.id !== expected.runId || run.spaceId !== expected.spaceId || run.agentId !== expected.agentId
     || run.status !== "succeeded" || run.runtimeMode !== "native" || !run.startedAt || !run.finishedAt || run.contextSnapshot?.issueId !== expected.issueId
-    || task.id !== expected.issueId || task.companyId !== expected.companyId || task.status !== status || task.assigneeAgentId !== expected.agentId
-    || !invocation || invocation.id !== expected.invocationId || invocation.companyId !== expected.companyId || invocation.routineId !== expected.routineId
+    || task.id !== expected.issueId || task.spaceId !== expected.spaceId || task.status !== status || task.assigneeAgentId !== expected.agentId
+    || !invocation || invocation.id !== expected.invocationId || invocation.spaceId !== expected.spaceId || invocation.routineId !== expected.routineId
     || invocation.linkedIssueId !== expected.issueId || invocation.status !== (failed ? "failed" : "completed") || !invocation.completedAt || invocation.source !== "manual") return false;
   const writes = calls.filter(call => call.method === "tools/call" && call.name === "launch_update");
   if (!writes.length || !writes.every(call => call.authorized && call.responseHttpStatus === 200 && call.toolError === failed)) return false;
   const receipt = decisions.runId === expected.runId && decisions.decisions.some(({ invocation: v, auditEvents }) =>
-    v.companyId === expected.companyId && v.agentId === expected.agentId && v.issueId === expected.issueId && v.runId === expected.runId
+    v.spaceId === expected.spaceId && v.agentId === expected.agentId && v.issueId === expected.issueId && v.runId === expected.runId
     && v.connectionId === expected.connectionId && v.catalogEntryId === expected.writeEntryId && v.policyDecision === "allow"
     && v.status === (failed ? "failed" : "succeeded") && (failed ? v.errorCode === "tool_error" : v.errorCode === null)
     && !!v.startedAt && !!v.completedAt && !!v.argumentsHash && (failed || !!v.resultHash)
-    && auditEvents.some(a => a.invocationId === v.id && a.companyId === expected.companyId && a.agentId === expected.agentId && a.issueId === expected.issueId
+    && auditEvents.some(a => a.invocationId === v.id && a.spaceId === expected.spaceId && a.agentId === expected.agentId && a.issueId === expected.issueId
       && a.runId === expected.runId && a.connectionId === expected.connectionId && a.catalogEntryId === expected.writeEntryId
       && a.outcome === (failed ? "failure" : "success") && a.decision === (failed ? "deny" : "allow")
       && a.reasonCode === (failed ? "tool_error" : "tool_completed") && record(record(a.metadata).execution).response != null
@@ -67,7 +67,7 @@ export function genuineHistoryWork(expected: HistoryWorkIdentity, snapshot: Hist
       && writes.some(call => call.requestIdSha256 === createHash("sha256").update(String(record(record(record(a.metadata).execution).request).requestId)).digest("hex"))));
   return !!receipt && comments.some(c => c.issueId === task.id && c.authorAgentId === expected.agentId && c.createdByRunId === run.id && !!c.body?.trim()
     && (!failed || /\b(?:fail\w*|error|blocked)\b/i.test(c.body)))
-    && activity.some(a => a.companyId === expected.companyId && a.entityId === expected.issueId && a.runId === expected.runId && a.action === "issue.updated"
+    && activity.some(a => a.spaceId === expected.spaceId && a.entityId === expected.issueId && a.runId === expected.runId && a.action === "issue.updated"
       && (a.actorType === "agent" && a.actorId === expected.agentId && a.details?.status === status
         || a.actorType === "system" && a.actorId === "native-status-committer" && a.details?.source === "native_status_decision" && a.details?.toStatus === status));
 }

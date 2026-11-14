@@ -89,7 +89,7 @@ const MAX_EVENTS: usize = 8192;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ExternalProviderDescriptor {
     pub kind: String,
-    pub company_id: String,
+    pub space_id: String,
     pub agent_id: String,
     pub binding_id: String,
     pub binding_generation: u64,
@@ -216,7 +216,7 @@ impl State {
             || self.run_id != config.run_id
             || self.session_id != config.normalized_session_id
             || self.turn_id != config.turn_id
-            || !bounded_id(&d.company_id)
+            || !bounded_id(&d.space_id)
             || !bounded_id(&d.agent_id)
             || !bounded_id(&d.binding_id)
             || d.binding_generation == 0
@@ -370,7 +370,7 @@ impl State {
     }
 
     fn binding(&self) -> Value {
-        json!({"companyId":self.descriptor.company_id,"agentId":self.descriptor.agent_id,
+        json!({"spaceId":self.descriptor.space_id,"agentId":self.descriptor.agent_id,
             "bindingId":self.descriptor.binding_id,"bindingGeneration":self.descriptor.binding_generation,
             "runId":self.run_id,"normalizedSessionId":self.session_id,"turnId":self.turn_id,
             "assignmentRevision":self.assignment_revision})
@@ -593,7 +593,7 @@ impl ExternalCommandExecutor {
                     .as_str()
                     .ok_or_else(|| invalid("Dot tool name is missing"))?;
                 let args = op.input["arguments"].clone();
-                if matches!(tool, "paperclip_finish" | "paperclip_block")
+                if matches!(tool, "outpost_finish" | "outpost_block")
                     && state.runtime_inputs.values().any(|input| !input.consumed)
                 {
                     return Err(invalid(
@@ -701,7 +701,7 @@ impl ExternalCommandExecutor {
                 if state.completion.as_ref() != Some(submitted)
                     && state.completion_input.as_ref() != Some(submitted)
                 {
-                    return Err(invalid("Dot must successfully invoke paperclip_finish or paperclip_block with this result first"));
+                    return Err(invalid("Dot must successfully invoke outpost_finish or outpost_block with this result first"));
                 }
                 let result = state
                     .completion
@@ -746,7 +746,7 @@ impl ExternalCommandExecutor {
         }
         if matches!(
             result.operation_id.as_str(),
-            "paperclip_finish" | "paperclip_block"
+            "outpost_finish" | "outpost_block"
         ) && !result.is_error
             && result
                 .result
@@ -1049,7 +1049,7 @@ mod tests {
     impl TestDirectory {
         fn new() -> Self {
             let p =
-                std::env::temp_dir().join(format!("paperclip-dot-test-{}", uuid::Uuid::new_v4()));
+                std::env::temp_dir().join(format!("outpost-dot-test-{}", uuid::Uuid::new_v4()));
             fs::create_dir(&p).unwrap();
             Self(p)
         }
@@ -1120,7 +1120,7 @@ mod tests {
             fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
         }
         let now = crate::durable::current_unix_ms().unwrap();
-        let tools = ["save_report", "paperclip_finish"]
+        let tools = ["save_report", "outpost_finish"]
             .into_iter()
             .map(|name| AuthorizedTool {
                 operation_id: name.into(),
@@ -1140,7 +1140,7 @@ mod tests {
         call(
             &mut executor,
             "run.prepare",
-            json!({"provider":{"kind":codec.kind(),"companyId":"company-1","agentId":"agent-1",
+            json!({"provider":{"kind":codec.kind(),"spaceId":"space-1","agentId":"agent-1",
             "bindingId":"binding-1","bindingGeneration":1,"acceptByUnixMs":now+600000,"expiresAtUnixMs":now+7200000,"instructions":"test"},
             "completionContract":{"revision":"contract-1","criterionIds":["criterion-1"]},"authorizedTools":catalog}),
         );
@@ -1364,7 +1364,7 @@ mod tests {
             operation(
                 "completion-1",
                 "tool",
-                json!({"name":"paperclip_finish","arguments":result}),
+                json!({"name":"outpost_finish","arguments":result}),
             ),
         );
         assert!(e
@@ -1376,7 +1376,7 @@ mod tests {
         call(
             &mut e,
             "semantic_tool.result",
-            json!({"callId":"completion-1","operationId":"paperclip_finish","result":{"accepted":true},"isError":false}),
+            json!({"callId":"completion-1","operationId":"outpost_finish","result":{"accepted":true},"isError":false}),
         );
         call(
             &mut e,
@@ -1412,13 +1412,13 @@ mod tests {
             operation(
                 "completion-1",
                 "tool",
-                json!({"name":"paperclip_finish","arguments":input}),
+                json!({"name":"outpost_finish","arguments":input}),
             ),
         );
         call(
             &mut e,
             "semantic_tool.result",
-            json!({"callId":"completion-1","operationId":"paperclip_finish","result":{"accepted":true,"completionReport":canonical},"isError":false}),
+            json!({"callId":"completion-1","operationId":"outpost_finish","result":{"accepted":true,"completionReport":canonical},"isError":false}),
         );
         drop(e);
         let mut e = DotCommandExecutor::with_runner_config(dir.path(), &config(dir.path()));
@@ -1854,7 +1854,7 @@ mod tests {
                 operation(
                     "completion-before-ingest",
                     "tool",
-                    json!({"name":"paperclip_finish","arguments":{}})
+                    json!({"name":"outpost_finish","arguments":{}})
                 )
             ))
             .is_err());

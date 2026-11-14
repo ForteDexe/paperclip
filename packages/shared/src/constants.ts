@@ -1,4 +1,4 @@
-export const COMPANY_STATUSES = ["active", "paused", "archived"] as const;
+export const SPACE_STATUSES = ["active", "paused", "archived"] as const;
 /**
  * IDs per `/issues/summaries` request. Large enough that a typical recent-task
  * list is one request; callers split longer lists into parallel chunks.
@@ -6,7 +6,7 @@ export const COMPANY_STATUSES = ["active", "paused", "archived"] as const;
 export const ISSUE_SUMMARIES_MAX_IDS = 50;
 /** Tasks per chat bootstrap request. The list preloads larger sets in chunks. */
 export const ISSUE_CHAT_BOOTSTRAP_MAX_IDS = 10;
-export type CompanyStatus = (typeof COMPANY_STATUSES)[number];
+export type SpaceStatus = (typeof SPACE_STATUSES)[number];
 
 export const DEPLOYMENT_MODES = ["local_trusted", "authenticated"] as const;
 export type DeploymentMode = (typeof DEPLOYMENT_MODES)[number];
@@ -51,10 +51,10 @@ export const AGENT_ADAPTER_TYPES = [
 export type AgentAdapterType = (typeof AGENT_ADAPTER_TYPES)[number] | (string & {});
 
 export const AGENT_ROLES = [
-  "ceo",
-  "cto",
-  "cmo",
-  "cfo",
+  "lead",
+  "engineering_lead",
+  "product",
+  "operations",
   "security",
   "engineer",
   "designer",
@@ -67,10 +67,10 @@ export const AGENT_ROLES = [
 export type AgentRole = (typeof AGENT_ROLES)[number];
 
 export const AGENT_ROLE_LABELS: Record<AgentRole, string> = {
-  ceo: "Outpost Lead",
-  cto: "Engineering Lead",
-  cmo: "CMO",
-  cfo: "CFO",
+  lead: "Default agent",
+  engineering_lead: "Engineering Lead",
+  product: "Product Lead",
+  operations: "Operations Lead",
   security: "Security",
   engineer: "Engineer",
   designer: "Designer",
@@ -84,8 +84,8 @@ export const AGENT_ROLE_LABELS: Record<AgentRole, string> = {
 export const AGENT_DEFAULT_MAX_CONCURRENT_RUNS = 20;
 export const WORKSPACE_BRANCH_ROUTINE_VARIABLE = "workspaceBranch";
 
-// Config keys owned by Paperclip/company state rather than one concrete adapter.
-// `paperclipSkillSync` is persisted in adapterConfig but must survive adapter swaps.
+// Config keys owned by Outpost/space state rather than one concrete adapter.
+// `outpostSkillSync` is persisted in adapterConfig but must survive adapter swaps.
 export const ADAPTER_AGNOSTIC_KEYS = [
   "env",
   "promptTemplate",
@@ -94,7 +94,7 @@ export const ADAPTER_AGNOSTIC_KEYS = [
   "timeoutSec",
   "graceSec",
   "bootstrapPromptTemplate",
-  "paperclipSkillSync",
+  "outpostSkillSync",
 ] as const;
 export type AdapterAgnosticKey = (typeof ADAPTER_AGNOSTIC_KEYS)[number];
 
@@ -130,7 +130,7 @@ export const AGENT_ICON_NAMES = [
   "target",
   "wand",
   "atom",
-  "circuit-board",
+  "circuit-operator",
   "radar",
   "swords",
   "telescope",
@@ -232,7 +232,7 @@ export const MAX_ISSUE_REQUEST_DEPTH = 1024;
 /**
  * Deepest task tree an agent (or automation acting for one) may create: a root
  * task plus one level of children. A deeper request is not rejected; the new
- * task is parented at this depth instead, as a sibling of the requester. Board
+ * task is parented at this depth instead, as a sibling of the requester. Operator
  * users are not limited, and existing deeper trees stay valid.
  */
 export const MAX_AGENT_TASK_HIERARCHY_DEPTH = 2;
@@ -295,15 +295,15 @@ export type IssueThreadInteractionCanonicalResolverPolicy =
   (typeof ISSUE_THREAD_INTERACTION_CANONICAL_RESOLVER_POLICIES)[number];
 
 export const ISSUE_THREAD_INTERACTION_LEGACY_RESOLVER_POLICY_ALIASES = [
-  "board_or_agents",
-  "board_only",
+  "operator_or_agents",
+  "operator_only",
 ] as const;
 export type IssueThreadInteractionLegacyResolverPolicyAlias =
   (typeof ISSUE_THREAD_INTERACTION_LEGACY_RESOLVER_POLICY_ALIASES)[number];
 
 /**
  * Accepted resolver-policy input values. New product surfaces should use the
- * canonical values; the two board-prefixed values remain write-compatible
+ * canonical values; the two operator-prefixed values remain write-compatible
  * aliases for one migration window.
  */
 export const ISSUE_THREAD_INTERACTION_RESOLVER_POLICIES = [
@@ -323,8 +323,8 @@ export type IssueThreadInteractionResolverPolicyProvenance =
 
 export const ISSUE_THREAD_INTERACTION_EFFECTIVE_RESOLVER_POLICY_SOURCES = [
   "requested",
-  "company_cap",
-  "governed_action",
+  "space_cap",
+  "controlled_action",
 ] as const;
 export type IssueThreadInteractionEffectiveResolverPolicySource =
   (typeof ISSUE_THREAD_INTERACTION_EFFECTIVE_RESOLVER_POLICY_SOURCES)[number];
@@ -332,16 +332,16 @@ export type IssueThreadInteractionEffectiveResolverPolicySource =
 export function normalizeIssueThreadInteractionResolverPolicy(
   policy: IssueThreadInteractionResolverPolicy,
 ): IssueThreadInteractionCanonicalResolverPolicy {
-  if (policy === "board_or_agents") return "anyone";
-  if (policy === "board_only") return "human_only";
+  if (policy === "operator_or_agents") return "anyone";
+  if (policy === "operator_only") return "human_only";
   return policy;
 }
 
 export function legacyIssueThreadInteractionResolverPolicyAlias(
   policy: IssueThreadInteractionCanonicalResolverPolicy,
 ): IssueThreadInteractionLegacyResolverPolicyAlias | null {
-  if (policy === "anyone") return "board_or_agents";
-  if (policy === "human_only") return "board_only";
+  if (policy === "anyone") return "operator_or_agents";
+  if (policy === "human_only") return "operator_only";
   return null;
 }
 
@@ -418,14 +418,14 @@ export type IssueRecoveryActionStatus = (typeof ISSUE_RECOVERY_ACTION_STATUSES)[
 export const ISSUE_RECOVERY_ACTION_OWNER_TYPES = [
   "agent",
   "user",
-  "board",
+  "operator",
   "system",
 ] as const;
 export type IssueRecoveryActionOwnerType = (typeof ISSUE_RECOVERY_ACTION_OWNER_TYPES)[number];
 
 /**
  * Wake reason for an agent whose child or blocker stalled on a recovery action
- * that needs the board. Woken once per stall (one recovery action).
+ * that needs the operator. Woken once per stall (one recovery action).
  */
 export const ISSUE_BLOCKER_STALLED_WAKE_REASON = "issue_blocker_stalled" as const;
 export const ISSUE_BLOCKER_STALL_RELATIONS = ["child", "blocker"] as const;
@@ -548,7 +548,7 @@ export type IssueExecutionPolicyMode = (typeof ISSUE_EXECUTION_POLICY_MODES)[num
 export const ISSUE_EXECUTION_STAGE_TYPES = ["review", "approval"] as const;
 export type IssueExecutionStageType = (typeof ISSUE_EXECUTION_STAGE_TYPES)[number];
 
-export const ISSUE_MONITOR_SCHEDULED_BY = ["assignee", "board"] as const;
+export const ISSUE_MONITOR_SCHEDULED_BY = ["assignee", "operator"] as const;
 export type IssueMonitorScheduledBy = (typeof ISSUE_MONITOR_SCHEDULED_BY)[number];
 
 export const ISSUE_EXECUTION_MONITOR_KINDS = ["external_service"] as const;
@@ -586,7 +586,7 @@ export type IssueExecutionMonitorClearReason = (typeof ISSUE_EXECUTION_MONITOR_C
 export const ISSUE_EXECUTION_DECISION_OUTCOMES = ["approved", "changes_requested"] as const;
 export type IssueExecutionDecisionOutcome = (typeof ISSUE_EXECUTION_DECISION_OUTCOMES)[number];
 
-export const GOAL_LEVELS = ["company", "team", "agent", "task"] as const;
+export const GOAL_LEVELS = ["space", "team", "agent", "task"] as const;
 export type GoalLevel = (typeof GOAL_LEVELS)[number];
 
 export const GOAL_STATUSES = ["planned", "active", "achieved", "cancelled"] as const;
@@ -669,7 +669,7 @@ export type RoutineCatchUpPolicy = (typeof ROUTINE_CATCH_UP_POLICIES)[number];
 export const ROUTINE_ACTIVITY_GATE_POLICIES = ["always", "require_external_activity"] as const;
 export type RoutineActivityGatePolicy = (typeof ROUTINE_ACTIVITY_GATE_POLICIES)[number];
 
-export const ROUTINE_ACTIVITY_GATE_SCOPES = ["company", "project"] as const;
+export const ROUTINE_ACTIVITY_GATE_SCOPES = ["space", "project"] as const;
 export type RoutineActivityGateScope = (typeof ROUTINE_ACTIVITY_GATE_SCOPES)[number];
 
 export const ROUTINE_TRIGGER_KINDS = ["schedule", "webhook", "api"] as const;
@@ -694,10 +694,10 @@ export type RoutineRunStatus = (typeof ROUTINE_RUN_STATUSES)[number];
 export const ROUTINE_RUN_SOURCES = ["schedule", "manual", "api", "webhook"] as const;
 export type RoutineRunSource = (typeof ROUTINE_RUN_SOURCES)[number];
 
-// "import" marks agents parked by a company import (safety default) so the UI
+// "import" marks agents parked by a space import (safety default) so the UI
 // can explain the pause and offer a scoped bulk-resume; "system" remains the
 // reason for platform-managed pauses (plugins, built-ins).
-export const PAUSE_REASONS = ["manual", "budget", "system", "company_archived", "import", "setup"] as const;
+export const PAUSE_REASONS = ["manual", "budget", "system", "space_archived", "import", "setup"] as const;
 export type PauseReason = (typeof PAUSE_REASONS)[number];
 
 export const PROJECT_COLORS = [
@@ -714,10 +714,10 @@ export const PROJECT_COLORS = [
 ] as const;
 
 export const APPROVAL_TYPES = [
-  "hire_agent",
-  "approve_ceo_strategy",
+  "create_agent",
+  "approve_lead_strategy",
   "budget_override_required",
-  "request_board_approval",
+  "request_operator_approval",
 ] as const;
 export type ApprovalType = (typeof APPROVAL_TYPES)[number];
 
@@ -759,10 +759,10 @@ export type SecretProviderConfigHealthStatus =
 export const SECRET_STATUSES = ["active", "disabled", "archived", "deleted"] as const;
 export type SecretStatus = (typeof SECRET_STATUSES)[number];
 
-export const SECRET_SCOPES = ["company", "user", "instance"] as const;
+export const SECRET_SCOPES = ["space", "user", "instance"] as const;
 export type SecretScope = (typeof SECRET_SCOPES)[number];
 
-export const SECRET_MANAGED_MODES = ["paperclip_managed", "external_reference"] as const;
+export const SECRET_MANAGED_MODES = ["outpost_managed", "external_reference"] as const;
 export type SecretManagedMode = (typeof SECRET_MANAGED_MODES)[number];
 
 export const SECRET_VERSION_STATUSES = [
@@ -818,7 +818,7 @@ export const CLASS3_STATIC_LEASE_ALLOWLIST = [
   },
   {
     key: "slack.bot_token",
-    label: "Slack bot token governance connection",
+    label: "Slack bot token policy connection",
     targetType: "tool_connection",
     configPath: "credentials.bot_token",
     envKey: "SLACK_BOT_TOKEN",
@@ -839,7 +839,7 @@ export const CLASS3_STATIC_LEASE_ALLOWLIST = [
   },
   {
     key: "discord.bot_token",
-    label: "Discord bot token governance connection",
+    label: "Discord bot token policy connection",
     targetType: "tool_connection",
     configPath: "credentials.bot_token",
     envKey: "DISCORD_BOT_TOKEN",
@@ -899,7 +899,7 @@ export const FINANCE_UNITS = [
 ] as const;
 export type FinanceUnit = (typeof FINANCE_UNITS)[number];
 
-export const BUDGET_SCOPE_TYPES = ["company", "agent", "project"] as const;
+export const BUDGET_SCOPE_TYPES = ["space", "agent", "project"] as const;
 export type BudgetScopeType = (typeof BUDGET_SCOPE_TYPES)[number];
 
 export const BUDGET_METRICS = ["billed_cents"] as const;
@@ -990,24 +990,24 @@ export type PrincipalType = (typeof PRINCIPAL_TYPES)[number];
 export const MEMBERSHIP_STATUSES = ["pending", "active", "suspended", "archived"] as const;
 export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];
 
-export const COMPANY_MEMBERSHIP_ROLES = [
+export const SPACE_MEMBERSHIP_ROLES = [
   "owner",
   "admin",
   "operator",
   "viewer",
   "member",
 ] as const;
-export type CompanyMembershipRole = (typeof COMPANY_MEMBERSHIP_ROLES)[number];
+export type SpaceMembershipRole = (typeof SPACE_MEMBERSHIP_ROLES)[number];
 
-export const HUMAN_COMPANY_MEMBERSHIP_ROLES = [
+export const HUMAN_SPACE_MEMBERSHIP_ROLES = [
   "owner",
   "admin",
   "operator",
   "viewer",
 ] as const;
-export type HumanCompanyMembershipRole = (typeof HUMAN_COMPANY_MEMBERSHIP_ROLES)[number];
+export type HumanSpaceMembershipRole = (typeof HUMAN_SPACE_MEMBERSHIP_ROLES)[number];
 
-export const HUMAN_COMPANY_MEMBERSHIP_ROLE_LABELS: Record<HumanCompanyMembershipRole, string> = {
+export const HUMAN_SPACE_MEMBERSHIP_ROLE_LABELS: Record<HumanSpaceMembershipRole, string> = {
   owner: "Owner",
   admin: "Admin",
   operator: "Operator",
@@ -1017,7 +1017,7 @@ export const HUMAN_COMPANY_MEMBERSHIP_ROLE_LABELS: Record<HumanCompanyMembership
 export const INSTANCE_USER_ROLES = ["instance_admin"] as const;
 export type InstanceUserRole = (typeof INSTANCE_USER_ROLES)[number];
 
-export const INVITE_TYPES = ["company_join", "bootstrap_ceo"] as const;
+export const INVITE_TYPES = ["space_join", "bootstrap_lead"] as const;
 export type InviteType = (typeof INVITE_TYPES)[number];
 
 export const INVITE_JOIN_TYPES = ["human", "agent", "both"] as const;
@@ -1055,7 +1055,7 @@ export const PERMISSION_KEYS = [
 ] as const;
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
 
-export const TOOL_APPLICATION_TYPES = ["rest_api", "mcp_http", "mcp_stdio", "paperclip_plugin", "a2a", "chat"] as const;
+export const TOOL_APPLICATION_TYPES = ["rest_api", "mcp_http", "mcp_stdio", "outpost_plugin", "a2a", "chat"] as const;
 export type ToolApplicationType = (typeof TOOL_APPLICATION_TYPES)[number];
 
 export const TOOL_APPLICATION_STATUSES = ["draft", "active", "disabled", "archived"] as const;
@@ -1119,7 +1119,7 @@ export type ToolProfileEntrySelectorType = (typeof TOOL_PROFILE_ENTRY_SELECTOR_T
 export const TOOL_PROFILE_ENTRY_EFFECTS = ["include", "exclude"] as const;
 export type ToolProfileEntryEffect = (typeof TOOL_PROFILE_ENTRY_EFFECTS)[number];
 
-export const TOOL_PROFILE_BINDING_TARGET_TYPES = ["company", "agent", "project", "routine", "issue", "gateway"] as const;
+export const TOOL_PROFILE_BINDING_TARGET_TYPES = ["space", "agent", "project", "routine", "issue", "gateway"] as const;
 export type ToolProfileBindingTargetType = (typeof TOOL_PROFILE_BINDING_TARGET_TYPES)[number];
 
 export const TOOL_MCP_GATEWAY_STATUSES = ["draft", "active", "disabled", "archived"] as const;
@@ -1134,7 +1134,7 @@ export type ToolMcpGatewayDefaultProfileMode = (typeof TOOL_MCP_GATEWAY_DEFAULT_
 
 export const TOOL_MCP_GATEWAY_CONTEXT_SCOPE_TYPES = [
   "none",
-  "company",
+  "space",
   "project",
   "routine",
   "issue",
@@ -1142,7 +1142,7 @@ export const TOOL_MCP_GATEWAY_CONTEXT_SCOPE_TYPES = [
 ] as const;
 export type ToolMcpGatewayContextScopeType = (typeof TOOL_MCP_GATEWAY_CONTEXT_SCOPE_TYPES)[number];
 
-export const TOOL_MCP_GATEWAY_TOKEN_SUBJECT_TYPES = ["gateway_client", "heartbeat_run", "board_user", "agent"] as const;
+export const TOOL_MCP_GATEWAY_TOKEN_SUBJECT_TYPES = ["gateway_client", "heartbeat_run", "operator_user", "agent"] as const;
 export type ToolMcpGatewayTokenSubjectType = (typeof TOOL_MCP_GATEWAY_TOKEN_SUBJECT_TYPES)[number];
 
 export const TOOL_MCP_GATEWAY_TOKEN_ACTIONS = [
@@ -1242,7 +1242,7 @@ export type ToolAuditOutcome = (typeof TOOL_AUDIT_OUTCOMES)[number];
 /**
  * Connection-level lifecycle events surfaced on the per-app Activity tab
  * alongside tool-call events (PAP-11284). These are derived from the
- * company activity log rows scoped to a single tool connection.
+ * space activity log rows scoped to a single tool connection.
  */
 export const TOOL_CONNECTION_LIFECYCLE_EVENT_TYPES = [
   "app_connected",
@@ -1352,7 +1352,7 @@ export type PluginCategory = (typeof PLUGIN_CATEGORIES)[number];
 export const PLUGIN_CAPABILITIES = [
   "ai.connections.route",
   // Data Read
-  "companies.read",
+  "spaces.read",
   "projects.read",
   "projects.instance-secrets",
   "projects.git-credentials",
@@ -1366,9 +1366,9 @@ export const PLUGIN_CAPABILITIES = [
   // Read pending issue-thread interactions (decision cards) on an issue.
   "issue.interactions.read",
   // Read issue attachment metadata and, via the capability-scoped host
-  // bridge, attachment content bytes (bytes-only, company-scoped, audit-logged).
+  // bridge, attachment content bytes (bytes-only, space-scoped, audit-logged).
   "issue.attachments.read",
-  // Read company approvals (list + get). The host redacts approval payloads to
+  // Read space approvals (list + get). The host redacts approval payloads to
   // match the web app's own approval read surface.
   "approvals.read",
   "issue.documents.read",
@@ -1396,14 +1396,14 @@ export const PLUGIN_CAPABILITIES = [
   "issue.comments.create_human_attributed",
   "issue.interactions.create",
   // Respond to (accept/reject) an issue-thread interaction on behalf of a
-  // paired board user. Impersonation surface: the host independently
-  // re-verifies the actor is an active human member of the company at apply
+  // paired operator user. Impersonation surface: the host independently
+  // re-verifies the actor is an active human member of the space at apply
   // time (never trusts plugin-supplied identity), matching the web app's
-  // board-only interaction resolve route.
+  // operator-only interaction resolve route.
   "issue.interactions.respond",
-  // Decide (approve/reject) a company approval on behalf of a paired board
+  // Decide (approve/reject) a space approval on behalf of a paired operator
   // user. Same apply-time active-human-member re-verification as above; the
-  // web app's approval decision routes are board-only.
+  // web app's approval decision routes are operator-only.
   "approvals.respond",
   "issue.documents.write",
   "projects.managed",
@@ -1472,7 +1472,7 @@ export const PLUGIN_DATABASE_MIGRATION_STATUSES = [
 export type PluginDatabaseMigrationStatus = (typeof PLUGIN_DATABASE_MIGRATION_STATUSES)[number];
 
 export const PLUGIN_DATABASE_CORE_READ_TABLES = [
-  "companies",
+  "spaces",
   "projects",
   "goals",
   "agents",
@@ -1491,7 +1491,7 @@ export type PluginDatabaseCoreReadTable = (typeof PLUGIN_DATABASE_CORE_READ_TABL
 export const PLUGIN_API_ROUTE_METHODS = ["GET", "POST", "PATCH", "DELETE"] as const;
 export type PluginApiRouteMethod = (typeof PLUGIN_API_ROUTE_METHODS)[number];
 
-export const PLUGIN_API_ROUTE_AUTH_MODES = ["board", "agent", "board-or-agent", "webhook"] as const;
+export const PLUGIN_API_ROUTE_AUTH_MODES = ["operator", "agent", "operator-or-agent", "webhook"] as const;
 export type PluginApiRouteAuthMode = (typeof PLUGIN_API_ROUTE_AUTH_MODES)[number];
 
 export const PLUGIN_API_ROUTE_CHECKOUT_POLICIES = [
@@ -1503,7 +1503,7 @@ export type PluginApiRouteCheckoutPolicy = (typeof PLUGIN_API_ROUTE_CHECKOUT_POL
 
 /**
  * UI extension slot types. Each slot type corresponds to a mount point in the
- * Paperclip UI where plugin components can be rendered.
+ * Outpost UI where plugin components can be rendered.
  *
  * @see PLUGIN_SPEC.md §19 — UI Extension Model
  */
@@ -1524,7 +1524,7 @@ export const PLUGIN_UI_SLOT_TYPES = [
   "commentAnnotation",
   "commentContextMenuItem",
   "settingsPage",
-  "companySettingsPage",
+  "spaceSettingsPage",
 ] as const;
 export type PluginUiSlotType = (typeof PLUGIN_UI_SLOT_TYPES)[number];
 
@@ -1535,15 +1535,15 @@ export const WORKSPACE_OVERVIEW_MAX_LIMIT = 100;
 export const WORKSPACE_OVERVIEW_LINKED_ISSUE_LIMIT = 4;
 
 /**
- * Reserved company-scoped route segments that plugin page routes may not claim.
+ * Reserved space-scoped route segments that plugin page routes may not claim.
  *
- * These map to first-class host pages under `/:companyPrefix/...`.
+ * These map to first-class host pages under `/:spacePrefix/...`.
  */
-export const PLUGIN_RESERVED_COMPANY_ROUTE_SEGMENTS = [
+export const PLUGIN_RESERVED_SPACE_ROUTE_SEGMENTS = [
   "dashboard",
   "onboarding",
-  "companies",
-  "company",
+  "spaces",
+  "space",
   "settings",
   "plugins",
   "org",
@@ -1559,14 +1559,14 @@ export const PLUGIN_RESERVED_COMPANY_ROUTE_SEGMENTS = [
   "design-guide",
   "tests",
 ] as const;
-export type PluginReservedCompanyRouteSegment =
-  (typeof PLUGIN_RESERVED_COMPANY_ROUTE_SEGMENTS)[number];
+export type PluginReservedSpaceRouteSegment =
+  (typeof PLUGIN_RESERVED_SPACE_ROUTE_SEGMENTS)[number];
 
 /**
- * Reserved route segments under `/:companyPrefix/company/settings/...` that
- * plugin company settings pages may not claim.
+ * Reserved route segments under `/:spacePrefix/space/settings/...` that
+ * plugin space settings pages may not claim.
  */
-export const PLUGIN_RESERVED_COMPANY_SETTINGS_ROUTE_SEGMENTS = [
+export const PLUGIN_RESERVED_SPACE_SETTINGS_ROUTE_SEGMENTS = [
   "general",
   "environments",
   "access",
@@ -1575,8 +1575,8 @@ export const PLUGIN_RESERVED_COMPANY_SETTINGS_ROUTE_SEGMENTS = [
   "secrets",
   "instance",
 ] as const;
-export type PluginReservedCompanySettingsRouteSegment =
-  (typeof PLUGIN_RESERVED_COMPANY_SETTINGS_ROUTE_SEGMENTS)[number];
+export type PluginReservedSpaceSettingsRouteSegment =
+  (typeof PLUGIN_RESERVED_SPACE_SETTINGS_ROUTE_SEGMENTS)[number];
 
 /**
  * Launcher placement zones describe where a plugin-owned launcher can appear
@@ -1666,7 +1666,7 @@ export type PluginUiSlotEntityType = (typeof PLUGIN_UI_SLOT_ENTITY_TYPES)[number
  */
 export const PLUGIN_STATE_SCOPE_KINDS = [
   "instance",
-  "company",
+  "space",
   "project",
   "project_workspace",
   "agent",
@@ -1718,8 +1718,8 @@ export type PluginWebhookDeliveryStatus = (typeof PLUGIN_WEBHOOK_DELIVERY_STATUS
  * @see PLUGIN_SPEC.md §16 — Event System
  */
 export const PLUGIN_EVENT_TYPES = [
-  "company.created",
-  "company.updated",
+  "space.created",
+  "space.updated",
   "project.created",
   "project.updated",
   "project.workspace_created",

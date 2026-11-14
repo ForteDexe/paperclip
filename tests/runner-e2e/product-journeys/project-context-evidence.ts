@@ -1,6 +1,6 @@
 interface ProjectSnapshot {
   id: string;
-  companyId: string;
+  spaceId: string;
   name: string;
   status: string;
   archivedAt: string | null;
@@ -8,7 +8,7 @@ interface ProjectSnapshot {
 }
 interface TaskSnapshot {
   id: string;
-  companyId: string;
+  spaceId: string;
   title: string;
   description: string | null;
   projectId: string | null;
@@ -18,7 +18,7 @@ interface TaskSnapshot {
   identifier?: string | null;
 }
 export interface ProjectContextObservation {
-  companyId: string;
+  spaceId: string;
   userId: string;
   projectId: string;
   projectName: string;
@@ -36,11 +36,11 @@ export interface ProjectContextObservation {
 
 /** Compare independent saved reads against the submitted UI values, not the POST echo. */
 export function projectContextEvidencePasses(observed: ProjectContextObservation): boolean {
-  const { companyId, userId, projectId, projectName, taskId, taskTitle, prompt } = observed;
-  if (![companyId, userId, projectId, projectName, taskId, taskTitle, prompt].every(value => typeof value === "string" && value.length)) return false;
-  const projectMatches = (project: ProjectSnapshot) => project?.id === projectId && project.companyId === companyId
+  const { spaceId, userId, projectId, projectName, taskId, taskTitle, prompt } = observed;
+  if (![spaceId, userId, projectId, projectName, taskId, taskTitle, prompt].every(value => typeof value === "string" && value.length)) return false;
+  const projectMatches = (project: ProjectSnapshot) => project?.id === projectId && project.spaceId === spaceId
     && project.name === projectName && project.status === "planned" && project.archivedAt === null;
-  const taskMatches = (task: TaskSnapshot) => task?.id === taskId && task.companyId === companyId && task.title === taskTitle
+  const taskMatches = (task: TaskSnapshot) => task?.id === taskId && task.spaceId === spaceId && task.title === taskTitle
     && task.description === prompt && task.projectId === projectId && task.assigneeUserId === userId
     && task.assigneeAgentId === null && task.workMode === "standard";
   return projectMatches(observed.projectBeforeReload) && projectMatches(observed.projectAfterReload)

@@ -4,7 +4,7 @@ import { agents } from "./agents.js";
 
 export const agentIdentityKeys = pgTable("agent_identity_keys", {
   agentId: uuid("agent_id").primaryKey(),
-  companyId: uuid("company_id").notNull(),
+  spaceId: uuid("space_id").notNull(),
   algorithm: text("algorithm").$type<"Ed25519">().notNull(),
   keyId: text("key_id").notNull(),
   publicKeyPem: text("public_key_pem").notNull(),
@@ -13,8 +13,8 @@ export const agentIdentityKeys = pgTable("agent_identity_keys", {
 }, (table) => ({
   owner: foreignKey({
     name: "agent_identity_keys_owner_fk",
-    columns: [table.companyId, table.agentId],
-    foreignColumns: [agents.companyId, agents.id],
+    columns: [table.spaceId, table.agentId],
+    foreignColumns: [agents.spaceId, agents.id],
   }).onDelete("cascade"),
   algorithmCheck: check("agent_identity_keys_algorithm_check", sql`${table.algorithm} = 'Ed25519'`),
 }));

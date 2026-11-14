@@ -8,11 +8,11 @@ gated on its exact head. This report separates real outcomes from test fixtures.
 
 ## Environment and artifacts
 
-Implementation checkout: `~/.codex/worktrees/4631/paperclip`, branch
+Implementation checkout: `~/.codex/worktrees/4631/outpost`, branch
 `codex/project-repository-skills`, PR [#16066](https://github.com/paperclipai/paperclip/pull/16066).
 The isolated instance uses embedded PostgreSQL and a retained disposable data
 directory outside the checkout. Doctor verified the served source revision and
-loopback port ownership before the live journeys. No production company data was
+loopback port ownership before the live journeys. No production space data was
 used. The test GitHub repository is private and contains only generated skill
 fixtures. The supported live adapter is `codex_local`, using model `gpt-6.1-sol`
 through the existing authenticated Codex subscription.
@@ -22,13 +22,13 @@ contains the original four captures and a final post-reconciliation capture and 
 [version receipt](../../ui/storybook/public/project-skills-evidence/versions.json).
 It is included in the existing Storybook build artifact and branch publication.
 Credential files, full provider logs, human authentication keys, and connection
-secrets are excluded. This direct Codex task has no driving Paperclip issue or
+secrets are excluded. This direct Codex task has no driving Outpost issue or
 injected artifact-upload context; the PR and Storybook artifact provide the
 review access path.
 
 ## Live GitHub → import → execution
 
-1. Provisioned an empty company, one authorized GitHub connection and a supported
+1. Provisioned an empty space, one authorized GitHub connection and a supported
    test agent through normal APIs. This is fixture setup, not onboarding proof.
 2. Created a project and attached its repository through the real board UI.
    The background worker imported `acceptance-marker` without a second skills
@@ -93,14 +93,14 @@ was corrected to the supported model before recording successful execution.
   it. Membership in another qualifying private project restored access.
 - **Human access:** separate disposable users and real hashed bearer credentials
   passed skill, file, version, and source reads only through their qualifying
-  projects. Responses omitted inaccessible project names. An unrelated company
+  projects. Responses omitted inaccessible project names. An unrelated space
   member received not-found responses. Revocation took effect on subsequent reads.
 - **Responsible person:** an agent with project access could not read on behalf
   of an unrelated person. The same agent could read on behalf of an authorized
   project member.
 - **Open/private transition:** linking through an open project made the shared
   source visible. Changing that project to private revoked the unrelated
-  company member's access.
+  space member's access.
 
 The multi-person evidence uses seeded identities followed by production bearer
 middleware and APIs. It does not claim separate browser sign-in journeys. The
@@ -120,7 +120,7 @@ lease competition/expiry, restart recovery, graceful shutdown, backoff/rate limi
 revoked setup access, and explicit connection repair. They also cover private
 reads, forks and publication, responsible-person restrictions, immutable resume,
 explicit pins, inaccessible references, and fresh local file snapshots. Known
-project-derived local snapshots/materialized copies cannot become company-wide
+project-derived local snapshots/materialized copies cannot become space-wide
 imports. Default-branch HEAD and explicit branches retain distinct identities.
 OAuth expiry and larger failure matrices use deterministic provider boundaries;
 no live OAuth-expiry claim is made.
@@ -363,10 +363,10 @@ pass 71 cases, and recursive typecheck and production build pass. These are
 deterministic race and launch tests; they do not claim another live model run.
 
 The final default-account follow-up reproduced a mismatch between host and
-company credentials: hashing the host source while seeding the saved company
+space credentials: hashing the host source while seeding the saved space
 login could reuse a previous account's generated home. The digest now reads
-the same prepared company or explicitly selected home used for seeding. The
-default-company switch regression fails before correction and passes afterward.
+the same prepared space or explicitly selected home used for seeding. The
+default-space switch regression fails before correction and passes afterward.
 All 33 Codex launch/injection/sync cases and recursive typecheck pass. The
 source-removal correction passed fresh review; final CI/review results remain
 recorded on the PR. No extra live-provider result is claimed for this correction.
@@ -418,7 +418,7 @@ The final resource review adds generated migration 0343 and durable automatic
 refresh credits: unchanged Git trees require no download, including empty commits;
 512 MiB of scan/download allowance refills per hour, with conservative reservations
 and refunds for small repositories. Manual Refresh remains available. Initial
-imports admit 20 jobs per project and 100 per company; overflow remains durable
+imports admit 20 jobs per project and 100 per space; overflow remains durable
 and is admitted as capacity frees. Repository attachment requires workspace-write
 permission, and skill-import policy is checked before provider reads. Policy denials
 stop automatic retries until an explicit repair/adoption. These changes passed
@@ -463,14 +463,14 @@ recorded on the PR. No new feature canvas or provider run is inferred from
 this source reconciliation.
 
 A subsequent queue review reproduced two database failures: adoption held the
-binding while waiting for the company lock, and 100 deferred rows from a full
+binding while waiting for the space lock, and 100 deferred rows from a full
 project hid another project's work. Both regressions fail on the previous head.
-Adoption now captures run identity and takes the company queue lock before
+Adoption now captures run identity and takes the space queue lock before
 source/binding locks, reusing that validated setup while enqueueing. Admission
 excludes full projects before its bounded waiting-row selection. Verification
 and current-head gates are recorded on the PR.
 
-The final initial-import resource finding is corrected with durable company
+The final initial-import resource finding is corrected with durable space
 credits, reserved before provider work. The failing-download regression observed
 five reads before correction instead of the allowed four. New cases cover
 worker recreation/refill, small-import refunds and completed large measured

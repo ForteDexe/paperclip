@@ -14,7 +14,7 @@ export function registerRoutineExecutionStatusWork(
     queue: DELIVERY_QUEUES.routineExecutionStatus,
     decodeScope: hint => hint === "*" ? undefined : JSON.parse(hint) as RoutineExecutionStatusScope,
     matches: (entry, scope?: RoutineExecutionStatusScope) => (!scope?.issueId || entry.issueId === scope.issueId)
-      && (!scope?.companyId || entry.companyId === scope.companyId),
+      && (!scope?.spaceId || entry.spaceId === scope.spaceId),
     load: async (scope?: RoutineExecutionStatusScope) => {
       const key = JSON.stringify(scope) ?? "*";
       const rows = await service.load(scope, cursors.get(key));

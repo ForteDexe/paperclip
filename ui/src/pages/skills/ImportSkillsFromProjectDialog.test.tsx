@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import type {
-  CompanySkillProjectScanCandidate,
+  SpaceSkillProjectScanCandidate,
   Project,
   ProjectWorkspace,
 } from "@outpost/shared";
@@ -23,9 +23,9 @@ const WS_A = "11111111-1111-1111-1111-111111111111";
 const WS_B = "22222222-2222-2222-2222-222222222222";
 
 function candidate(
-  overrides: Partial<CompanySkillProjectScanCandidate> &
-    Pick<CompanySkillProjectScanCandidate, "slug" | "relativePath" | "status">,
-): CompanySkillProjectScanCandidate {
+  overrides: Partial<SpaceSkillProjectScanCandidate> &
+    Pick<SpaceSkillProjectScanCandidate, "slug" | "relativePath" | "status">,
+): SpaceSkillProjectScanCandidate {
   return {
     name: overrides.slug,
     description: null,
@@ -35,14 +35,14 @@ function candidate(
     projectName: "Project",
     directoryRoot: ".claude/skills",
     ...overrides,
-  } as CompanySkillProjectScanCandidate;
+  } as SpaceSkillProjectScanCandidate;
 }
 
 /**
  * A mixed candidate set: two new skills, one selectable conflict, and two
  * disabled statuses.
  */
-function mixedCandidates(): CompanySkillProjectScanCandidate[] {
+function mixedCandidates(): SpaceSkillProjectScanCandidate[] {
   return [
     candidate({ slug: "alpha", relativePath: ".claude/skills/alpha", status: "new" }),
     candidate({ slug: "beta", relativePath: ".claude/skills/beta", status: "new" }),
@@ -161,7 +161,7 @@ describe("ImportSkillsFromProjectDialog selection logic", () => {
 function workspace(overrides: Partial<ProjectWorkspace>): ProjectWorkspace {
   return {
     id: WS_A,
-    companyId: "c",
+    spaceId: "c",
     projectId: "p",
     name: "ws",
     sourceType: "local_path",

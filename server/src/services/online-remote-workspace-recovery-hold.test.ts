@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, closeRegisteredClients, companies, completionContracts, createDb, environmentLeases, environments,
+import { agents, closeRegisteredClients, spaces, completionContracts, createDb, environmentLeases, environments,
   executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults, projects,
   workspaceOperations, type Db } from "@outpost/db";
 import { readRemoteWorkspaceAuthority } from "@outpost/shared";
@@ -54,58 +54,58 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
     })).stdout.trim();
   }
   async function fixture() {
-    const companyId = randomUUID(), projectId = randomUUID(), runId = randomUUID(), remoteId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Remote hold", issuePrefix: `H${companyId.slice(0, 6)}` });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Legacy project" });
-    const [agent] = await db.insert(agents).values({ companyId, name: "Held remote worker", adapterType: "outpost_runner" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId, projectId, title: "Earlier local task", status: "blocked", statusVersion: 28 }).returning();
-    const root = resolveManagedProjectWorkspaceDir({ companyId, projectId });
+    const spaceId = randomUUID(), projectId = randomUUID(), runId = randomUUID(), remoteId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Remote hold", issuePrefix: `H${spaceId.slice(0, 6)}` });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Legacy project" });
+    const [agent] = await db.insert(agents).values({ spaceId, name: "Held remote worker", adapterType: "outpost_runner" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId, projectId, title: "Earlier local task", status: "blocked", statusVersion: 28 }).returning();
+    const root = resolveManagedProjectWorkspaceDir({ spaceId, projectId });
     await fs.mkdir(root, { recursive: true }); await fs.writeFile(path.join(root, "saved.txt"), "preserved local work\n");
     await git(root, "init", "-q", "-b", "main"); await git(root, "add", "."); await git(root, "commit", "-qm", "Local work");
     const repoUrl = "https://example.invalid/legacy.git";
     await git(root, "remote", "add", "origin", repoUrl);
-    const [legacy] = await db.insert(executionWorkspaces).values({ companyId, projectId, sourceIssueId: issue.id,
+    const [legacy] = await db.insert(executionWorkspaces).values({ spaceId, projectId, sourceIssueId: issue.id,
       name: "Old local workspace", providerType: "git_worktree", mode: "isolated_workspace", strategyType: "git_worktree",
       cwd: root, providerRef: root, repoUrl, branchName: "main" }).returning();
-    const [leafIssue] = await db.insert(issues).values({ companyId, projectId, title: "Local leaf" }).returning();
-    const cwd = path.join(root, ".paperclip", "worktrees", "leaf"); await git(root, "worktree", "add", "-qb", "leaf", cwd);
-    const [leaf] = await db.insert(executionWorkspaces).values({ companyId, projectId, sourceIssueId: leafIssue.id,
+    const [leafIssue] = await db.insert(issues).values({ spaceId, projectId, title: "Local leaf" }).returning();
+    const cwd = path.join(root, ".outpost", "worktrees", "leaf"); await git(root, "worktree", "add", "-qb", "leaf", cwd);
+    const [leaf] = await db.insert(executionWorkspaces).values({ spaceId, projectId, sourceIssueId: leafIssue.id,
       name: "Selected local leaf", providerType: "git_worktree", mode: "isolated_workspace", strategyType: "git_worktree",
       cwd, providerRef: cwd, repoUrl, branchName: "leaf", baseRef: "main" }).returning();
     const [environment] = await db.insert(environments).values({ name: runId, driver: "daytona" }).returning();
-    const [baseline] = await db.insert(executionWorkspaceSnapshots).values({ companyId, executionWorkspaceId: remoteId,
+    const [baseline] = await db.insert(executionWorkspaceSnapshots).values({ spaceId, executionWorkspaceId: remoteId,
       sourceOperationId: randomUUID(), sourceRunId: randomUUID(), generation: 10, epoch: 8, status: "committed",
-      sha256: "89".repeat(32), manifestDigest: "90".repeat(32), objectKey: `${companyId}/retained-baseline`, byteSize: 281 }).returning();
+      sha256: "89".repeat(32), manifestDigest: "90".repeat(32), objectKey: `${spaceId}/retained-baseline`, byteSize: 281 }).returning();
     const reference = { schema: "outpost.remote-workspace-run.v1", workspaceId: remoteId, leaseId: randomUUID(),
       providerLeaseId: randomUUID(), remoteCwd: `/workspaces/${remoteId}`, epoch: 9, state: "prepared", snapshotId: baseline.id };
     const authority = { schema: "outpost.remote-workspace.v1", epoch: reference.epoch, snapshotId: baseline.id, source: { kind: "empty" },
       location: { environmentId: environment.id, leaseId: reference.leaseId, providerLeaseId: reference.providerLeaseId,
         remoteCwd: reference.remoteCwd }, writerRunId: runId, dirty: true };
-    const [remote] = await db.insert(executionWorkspaces).values({ id: remoteId, companyId, projectId, sourceIssueId: issue.id,
+    const [remote] = await db.insert(executionWorkspaces).values({ id: remoteId, spaceId, projectId, sourceIssueId: issue.id,
       name: "Separate remote workspace", providerType: "cloud_sandbox", mode: "isolated_workspace", strategyType: "project_primary",
       cwd: reference.remoteCwd, metadata: { remoteWorkspace: authority } }).returning();
     const contractId = randomUUID(), resultId = randomUUID(), cause = "native_workspace_sync_out_retry_exhausted";
-    await db.insert(completionContracts).values({ id: contractId, companyId, issueId: issue.id, revision: 1,
+    await db.insert(completionContracts).values({ id: contractId, spaceId, issueId: issue.id, revision: 1,
       schemaVersion: "v1", policyVersion: "v1", risk: "low", completionAuthority: "agent", incompleteCriteriaPolicy: "block",
       contractJson: {}, canonicalSha256: "45".repeat(32), createdByActorType: "system", createdByActorId: "fixture" });
-    const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId: agent.id, nativeIssueId: issue.id,
+    const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId: agent.id, nativeIssueId: issue.id,
       status: "failed", runtimeMode: "native", finishedAt: new Date(), completionContractId: contractId,
       runnerProfileJson: { remoteWorkspace: reference }, resultJson: { retained: "remote result remains held" } }).returning();
-    await db.insert(nativeRunResults).values({ id: resultId, companyId, issueId: issue.id, runId, completionContractId: contractId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId, issueId: issue.id, runId, completionContractId: contractId,
       serverFingerprint: runId, schemaStatus: "accepted", resultJson: { terminal: { runTerminalState: "succeeded" } }, canonicalSha256: "67".repeat(32) });
-    const [owner] = await db.insert(nativeRunFinalizations).values({ companyId, issueId: issue.id, runId,
+    const [owner] = await db.insert(nativeRunFinalizations).values({ spaceId, issueId: issue.id, runId,
       phase: "terminal_failure", resultId, failureCode: cause, nextAttemptAt: null, recoveryHistory: [{ preserved: true }] }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ id: reference.leaseId, companyId, issueId: issue.id,
+    const [lease] = await db.insert(environmentLeases).values({ id: reference.leaseId, spaceId, issueId: issue.id,
       heartbeatRunId: runId, executionWorkspaceId: remoteId, environmentId: environment.id, provider: "daytona",
       providerLeaseId: reference.providerLeaseId, status: "released", cleanupStatus: "success", leasePolicy: "ephemeral",
       metadata: { agentId: agent.id, remoteCwd: reference.remoteCwd } }).returning();
-    const [action] = await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issue.id, kind: "active_run_watchdog",
-      cause, fingerprint: nativeSha256({ runId, failureCode: cause }), ownerType: "board", returnOwnerAgentId: agent.id,
+    const [action] = await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issue.id, kind: "active_run_watchdog",
+      cause, fingerprint: nativeSha256({ runId, failureCode: cause }), ownerType: "operator", returnOwnerAgentId: agent.id,
       nextAction: "Preserve remote work", evidence: { runId, systemRecovery: { ...createSystemRecovery(runId),
         phase: "preserve_files", state: "exhausted", attempts: 4, retriesUsed: 3 }, workspaceRecovery: {
         schema: "outpost.workspace-recovery.v1", runId, status: "blocked", stage: "verifying_stop", attempt: 4, requestIds: [] } } }).returning();
     await db.update(issues).set({ executionWorkspaceId: remoteId }).where(eq(issues.id, issue.id));
-    return { companyId, workspaceId: leaf.id, root, cwd, legacy, remote, run, owner, lease, action, reference, authority, issue, baseline };
+    return { spaceId, workspaceId: leaf.id, root, cwd, legacy, remote, run, owner, lease, action, reference, authority, issue, baseline };
   }
   type Fixture = Awaited<ReturnType<typeof fixture>>;
   async function retained(f: Fixture) {
@@ -120,14 +120,14 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
       issue: await db.select().from(issues).where(eq(issues.id, f.issue.id)),
     };
   }
-  const migrate = (f: Fixture) => migrateRemoteWorkspace({ db, storage, companyId: f.companyId, workspaceId: f.workspaceId, apply: true });
+  const migrate = (f: Fixture) => migrateRemoteWorkspace({ db, storage, spaceId: f.spaceId, workspaceId: f.workspaceId, apply: true });
   const hold = async (f: Fixture) => {
     const [recovery] = await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, f.action.id));
     return inspectOnlineLegacyWorkspaceRecoveryHold(db, { workspace: f.legacy, recovery });
   };
   it("imports old local bytes while preserving the same-task remote recovery obligation", async () => {
     const f = await fixture(), before = await retained(f);
-    const inspected = await inspectWorkspaceRecoverySource(db, { companyId: f.companyId, issueId: f.issue.id, runId: f.run.id, actionId: f.action.id });
+    const inspected = await inspectWorkspaceRecoverySource(db, { spaceId: f.spaceId, issueId: f.issue.id, runId: f.run.id, actionId: f.action.id });
     expect(inspected.sources[0].remoteWorkspace?.id).toBe(f.remote.id);
     expect(await inspectOnlineLegacyWorkspaceRecoverySource(db, { workspace: f.legacy, runId: f.run.id })).toBeNull();
     expect(await hold(f)).toMatchObject({ finalizedHold: null, remoteHold: {
@@ -136,13 +136,13 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
     const put = storage.putFile.bind(storage);
     vi.spyOn(storage, "putFile").mockImplementationOnce(async input => {
       await db.transaction(async tx => expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, {
-        companyId: f.companyId, runId: f.run.id,
+        spaceId: f.spaceId, runId: f.run.id,
       })).toBe(false));
       return put(input);
     });
     await expect(migrate(f)).resolves.toMatchObject({ applied: true });
     expect(await retained(f)).toEqual(before);
-    const operations = await db.select().from(workspaceOperations).where(eq(workspaceOperations.companyId, f.companyId));
+    const operations = await db.select().from(workspaceOperations).where(eq(workspaceOperations.spaceId, f.spaceId));
     expect(operations).toHaveLength(1);
     expect(operations[0].metadata?.legacyRecoverySources ?? []).toEqual([]);
     const [saved] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspaceId));
@@ -163,9 +163,9 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
         remoteWorkspace: { ...f.reference, unexpected: true },
       } }).where(eq(heartbeatRuns.id, f.run.id));
       if (change === "foreign") {
-        const companyId = randomUUID();
-        await db.insert(companies).values({ id: companyId, name: "Foreign", issuePrefix: `X${companyId.slice(0, 6)}` });
-        await db.update(executionWorkspaces).set({ companyId }).where(eq(executionWorkspaces.id, f.remote.id));
+        const spaceId = randomUUID();
+        await db.insert(spaces).values({ id: spaceId, name: "Foreign", issuePrefix: `X${spaceId.slice(0, 6)}` });
+        await db.update(executionWorkspaces).set({ spaceId }).where(eq(executionWorkspaces.id, f.remote.id));
       }
       if (change === "same-local") await db.update(heartbeatRuns).set({ runnerProfileJson: {
         remoteWorkspace: { ...f.reference, workspaceId: f.legacy.id },
@@ -180,7 +180,7 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
       if (change === "physical-owner") await db.update(heartbeatRuns).set({ runnerProfileJson: {
         ...f.run.runnerProfileJson, nativeWorkspaceFinalizationOwner: { token: "unreleased-copyback" },
       } }).where(eq(heartbeatRuns.id, f.run.id));
-      if (change === "active-writer") await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.run.agentId,
+      if (change === "active-writer") await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.run.agentId,
         nativeIssueId: f.issue.id, status: "running", runtimeMode: "native", startedAt: new Date() });
       if (change === "epoch") await db.update(executionWorkspaces).set({ metadata: {
         remoteWorkspace: { ...f.authority, epoch: f.authority.epoch + 1 },
@@ -204,7 +204,7 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
       expect(await hold(f)).toBeNull();
       await expect(migrate(f)).rejects.toThrow();
       expect(put).not.toHaveBeenCalled();
-      expect(await db.select().from(workspaceOperations).where(eq(workspaceOperations.companyId, f.companyId))).toEqual([]);
+      expect(await db.select().from(workspaceOperations).where(eq(workspaceOperations.spaceId, f.spaceId))).toEqual([]);
       expect(await retained(f)).toEqual(before);
       expect(await fs.readFile(path.join(f.cwd, "saved.txt"), "utf8")).toBe("preserved local work\n");
     });
@@ -212,7 +212,7 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
     const f = await fixture(), before = await retained(f);
     expect(await hold(f)).not.toBeNull();
     await db.transaction(async tx => {
-      expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, { companyId: f.companyId, runId: f.run.id })).toBe(true);
+      expect(await tryLockNativeWorkspaceFinalization(tx as unknown as Db, { spaceId: f.spaceId, runId: f.run.id })).toBe(true);
       await expect(migrate(f)).rejects.toThrow("remote_copyback_owned");
     });
     expect(await retained(f)).toEqual(before);
@@ -239,7 +239,7 @@ describe.skipIf(!support.supported)("remote recovery hold beside a legacy Git so
     await expect(migrate(f)).rejects.toThrow("remote_workspace_migration_blocked:online_workspace_source_scope_changed");
     const [workspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, f.workspaceId));
     expect(readRemoteWorkspaceAuthority(workspace.metadata)).toBeNull();
-    expect((await db.select().from(workspaceOperations).where(eq(workspaceOperations.companyId, f.companyId)))[0].status).toBe("running");
+    expect((await db.select().from(workspaceOperations).where(eq(workspaceOperations.spaceId, f.spaceId)))[0].status).toBe("running");
     expect(await fs.readFile(path.join(f.cwd, "saved.txt"), "utf8")).toBe("preserved local work\n");
   });
 });

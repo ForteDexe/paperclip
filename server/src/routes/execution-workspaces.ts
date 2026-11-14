@@ -26,7 +26,7 @@ import {
   resolveCanonicalWorktreeSeedSource,
   type CanonicalWorktreeSeedSource,
 } from "@outpost/shared/worktree-seed-source";
-import { resolvePaperclipConfigPath } from "../paths.js";
+import { resolveOutpostConfigPath } from "../paths.js";
 import { validate } from "../middleware/validate.js";
 import {
   accessService,
@@ -50,7 +50,7 @@ import {
   startRuntimeServicesForWorkspaceControl,
   stopRuntimeServicesForExecutionWorkspace,
 } from "../services/workspace-runtime.js";
-import { assertBoard, assertCompanyAccess, getAccessibleResource, getActorInfo } from "./authz.js";
+import { assertOperator, assertSpaceAccess, getAccessibleResource, getActorInfo } from "./authz.js";
 import { logger } from "../middleware/logger.js";
 import {
   assertNoAgentHostWorkspaceCommandMutation,
@@ -88,7 +88,7 @@ function isReadableFile(filePath: string) {
  * still rejected.
  */
 function resolveFallbackSeedSourceConfigPath(baseWorkspaceCwd: string): string | null {
-  return baseWorkspaceDeclaresInstanceConfig(baseWorkspaceCwd) ? null : resolvePaperclipConfigPath();
+  return baseWorkspaceDeclaresInstanceConfig(baseWorkspaceCwd) ? null : resolveOutpostConfigPath();
 }
 
 export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: PluginWorkerManager } = {}) {
@@ -109,32 +109,32 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     return false;
   }
 
-  async function assertExecutionWorkspaceReadAllowed(req: Request, res: Response, companyId: string) {
+  async function assertExecutionWorkspaceReadAllowed(req: Request, res: Response, spaceId: string) {
     const decision = await access.decide({
       actor: req.actor,
-      action: "company_scope:read",
-      resource: { type: "company", companyId },
+      action: "space_scope:read",
+      resource: { type: "space", spaceId },
     });
     if (decision.allowed) return true;
     res.status(403).json({ error: "Execution workspaces are outside this actor's authorization boundary" });
     return false;
   }
 
-  async function assertRuntimeManageAllowed(req: Request, res: Response, companyId: string) {
+  async function assertRuntimeManageAllowed(req: Request, res: Response, spaceId: string) {
     const decision = await access.decide({
       actor: req.actor,
       action: "runtime:manage",
-      resource: { type: "company", companyId },
+      resource: { type: "space", spaceId },
     });
     if (decision.allowed) return true;
     res.status(403).json({ error: "Runtime service control is outside this actor's authorization boundary" });
     return false;
   }
 
-  router.get("/companies/:companyId/execution-workspaces", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertExecutionWorkspaceReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/execution-workspaces", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertExecutionWorkspaceReadAllowed(req, res, spaceId))) return;
     let ids: string[] | undefined;
     if (req.query.ids !== undefined) {
       const parsedIds = executionWorkspaceSummaryIdsQuerySchema.safeParse(req.query.ids);
@@ -160,19 +160,19 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
         res.status(422).json({ error: "Invalid workspace summary pagination", details: pagination.error.flatten() });
         return;
       }
-      res.json(await svc.listSummaries(companyId, filters, pagination.data));
+      res.json(await svc.listSummaries(spaceId, filters, pagination.data));
       return;
     }
     const workspaces = req.query.summary === "true"
-      ? await svc.listSummaries(companyId, filters)
-      : await svc.list(companyId, filters);
+      ? await svc.listSummaries(spaceId, filters)
+      : await svc.list(spaceId, filters);
     res.json(workspaces);
   });
 
-  router.get("/companies/:companyId/workspace-overview", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    if (!(await assertExecutionWorkspaceReadAllowed(req, res, companyId))) return;
+  router.get("/spaces/:spaceId/workspace-overview", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    if (!(await assertExecutionWorkspaceReadAllowed(req, res, spaceId))) return;
 
     const parsed = workspaceOverviewQuerySchema.safeParse(req.query);
     if (!parsed.success) {
@@ -183,7 +183,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
       return;
     }
 
-    const overview = await svc.listOverview(companyId, parsed.data, await executionWorkspaceReadSqlCondition(db, req.actor));
+    const overview = await svc.listOverview(spaceId, parsed.data, await executionWorkspaceReadSqlCondition(db, req.actor));
     res.json(overview);
   });
 
@@ -192,7 +192,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     const workspace = await getAccessibleResource(req, res, svc.getById(id), "Execution workspace not found");
     if (!workspace) return;
     if (!(await assertWorkspacePrivacy(req, res, workspace.id))) return;
-    if (!(await assertExecutionWorkspaceReadAllowed(req, res, workspace.companyId))) return;
+    if (!(await assertExecutionWorkspaceReadAllowed(req, res, workspace.spaceId))) return;
     res.json(workspace);
   });
 
@@ -201,7 +201,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     const workspace = await getAccessibleResource(req, res, svc.getById(id), "Execution workspace not found");
     if (!workspace) return;
     if (!(await assertWorkspacePrivacy(req, res, workspace.id))) return;
-    if (!(await assertExecutionWorkspaceReadAllowed(req, res, workspace.companyId))) return;
+    if (!(await assertExecutionWorkspaceReadAllowed(req, res, workspace.spaceId))) return;
     const readiness = await svc.getCloseReadiness(id);
     if (!readiness) {
       res.status(404).json({ error: "Execution workspace not found" });
@@ -211,29 +211,29 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
   });
 
   /**
-   * Mint a single-use workspace login handoff for the calling board user.
+   * Mint a single-use workspace login handoff for the calling operator user.
    *
-   * Board-only: the ticket carries a user identity, so an agent key — which has
+   * Operator-only: the ticket carries a user identity, so an agent key — which has
    * no user to sign in — must never be able to mint one. Nothing in the request
    * body influences what the ticket is bound to; only the landing path is taken
    * from the caller, and it is reduced to a same-origin path before signing.
    */
   router.post("/execution-workspaces/:id/login-handoff", async (req, res) => {
     const id = req.params.id as string;
-    assertBoard(req);
+    assertOperator(req);
     const workspace = await getAccessibleResource(req, res, svc.getById(id), "Execution workspace not found");
     if (!workspace) return;
     if (!(await assertWorkspacePrivacy(req, res, workspace.id))) return;
-    // Opening a workspace board is a runtime-control-grade action: it hands the
+    // Opening a workspace operator is a runtime-control-grade action: it hands the
     // caller an authenticated session inside the cloned instance.
-    if (!(await assertRuntimeManageAllowed(req, res, workspace.companyId))) return;
+    if (!(await assertRuntimeManageAllowed(req, res, workspace.spaceId))) return;
 
     const requestedNext = typeof (req.body as { next?: unknown } | null)?.next === "string"
       ? (req.body as { next: string }).next
       : null;
     const result = await issueWorkspaceLoginHandoff({
       db,
-      companyId: workspace.companyId,
+      spaceId: workspace.spaceId,
       executionWorkspace: { id: workspace.id, cwd: workspace.cwd },
       actor: {
         userId: req.actor.userId ?? null,
@@ -265,7 +265,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     }
 
     await logActivity(db, {
-      companyId: workspace.companyId,
+      spaceId: workspace.spaceId,
       // Auditing issuance is a requirement of the handoff design: the nonce ties
       // this record to the guest's own accept/reject record. The ticket itself is
       // never recorded.
@@ -297,7 +297,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     const workspace = await getAccessibleResource(req, res, svc.getById(id), "Execution workspace not found");
     if (!workspace) return;
     if (!(await assertWorkspacePrivacy(req, res, workspace.id))) return;
-    if (!(await assertExecutionWorkspaceReadAllowed(req, res, workspace.companyId))) return;
+    if (!(await assertExecutionWorkspaceReadAllowed(req, res, workspace.spaceId))) return;
     const operations = await workspaceOperationsSvc.listForExecutionWorkspace(id);
     const visibleOperations = [];
     for (const operation of operations) {
@@ -317,10 +317,10 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     const existing = await getAccessibleResource(req, res, svc.getById(id), "Execution workspace not found");
     if (!existing) return;
     if (!(await assertWorkspacePrivacy(req, res, existing.id))) return;
-    if (!(await assertRuntimeManageAllowed(req, res, existing.companyId))) return;
+    if (!(await assertRuntimeManageAllowed(req, res, existing.spaceId))) return;
 
     const authorization = await assertCanManageExecutionWorkspaceRuntimeServices(db, req, {
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       executionWorkspaceId: existing.id,
       sourceIssueId: existing.sourceIssueId,
     });
@@ -349,7 +349,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
           .where(
             and(
               eq(projectWorkspaces.id, existing.projectWorkspaceId),
-              eq(projectWorkspaces.companyId, existing.companyId),
+              eq(projectWorkspaces.spaceId, existing.spaceId),
               existing.projectId ? eq(projectWorkspaces.projectId, existing.projectId) : sql`false`,
             ),
           )
@@ -367,7 +367,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
           .where(
             and(
               eq(projects.id, existing.projectId),
-              eq(projects.companyId, existing.companyId),
+              eq(projects.spaceId, existing.spaceId),
             ),
           )
           .then((rows) => parseProjectExecutionWorkspacePolicy(rows[0]?.executionWorkspacePolicy))
@@ -428,7 +428,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     let repairPreviousAttemptId: string | null = null;
     let repairCliArgs: string[] | null = null;
     if (action === "repair") {
-      const manifestPath = path.join(workspaceCwd, ".paperclip", "seed-manifest.json");
+      const manifestPath = path.join(workspaceCwd, ".outpost", "seed-manifest.json");
       let manifest: {
         attemptId?: unknown;
         source?: { configPath?: unknown; instanceId?: unknown };
@@ -455,7 +455,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
         repairSeedSource = resolveCanonicalWorktreeSeedSource({
           registeredBaseWorkspaceCwd: projectWorkspace.cwd,
           explicitSourceConfigPath: resolveFallbackSeedSourceConfigPath(projectWorkspace.cwd),
-          targetConfigPath: path.join(workspaceCwd, ".paperclip", "config.json"),
+          targetConfigPath: path.join(workspaceCwd, ".outpost", "config.json"),
           expectedTargetInstanceId,
           manifestSource: manifest.source,
           manifestTargetInstanceId: manifest.targetInstanceId,
@@ -499,7 +499,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
 
     const actor = getActorInfo(req);
     const recorder = workspaceOperationsSvc.createRecorder({
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       executionWorkspaceId: existing.id,
     });
     let runtimeServiceCount = existing.runtimeServices?.length ?? 0;
@@ -562,7 +562,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
       admit: async (publish) => {
         await withExecutionWorkspaceLifecycleLock(db, existing.id, async () => {
           const fresh = await svc.getById(existing.id);
-          if (!fresh || fresh.companyId !== existing.companyId) throw conflict("Execution workspace changed before command admission.");
+          if (!fresh || fresh.spaceId !== existing.spaceId) throw conflict("Execution workspace changed before command admission.");
           if (readRemoteWorkspaceAuthority(fresh.metadata)) {
             throw unprocessable("Workspace commands are not supported for remote workspaces yet. Run the command through an agent task.",
               { code: "remote_workspace_runtime_commands_unsupported" });
@@ -575,7 +575,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
             throw conflict("Execution workspace changed before command admission.", { code: "workspace_runtime_authority_changed" });
           }
           if (LEASED_WORKSPACE_RUNTIME_ACTIONS.includes(action)) {
-            leaseClaimResult = await runtimeLeases.claim({ companyId: existing.companyId,
+            leaseClaimResult = await runtimeLeases.claim({ spaceId: existing.spaceId,
               executionWorkspaceId: existing.id, action, owner: authorization });
           }
           await workspaceOperationsSvc.assertRuntimeControlAvailable({ executionWorkspaceId: existing.id, action });
@@ -640,8 +640,8 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
               : null,
             agent: {
               id: actor.agentId ?? null,
-              name: actor.actorType === "user" ? "Board" : "Agent",
-              companyId: existing.companyId,
+              name: actor.actorType === "user" ? "Operator" : "Agent",
+              spaceId: existing.spaceId,
             },
             recorder,
           }));
@@ -657,8 +657,8 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
           return await runWorkspaceJobForControl({
             actor: {
               id: actor.agentId ?? null,
-              name: actor.actorType === "user" ? "Board" : "Agent",
-              companyId: existing.companyId,
+              name: actor.actorType === "user" ? "Operator" : "Agent",
+              spaceId: existing.spaceId,
             },
             issue: existing.sourceIssueId
               ? {
@@ -711,7 +711,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
               | "seed_manifest_malformed"
               | "seed_manifest_instance_mismatch"
               | "source_instance_unavailable"
-              | "paperclip_cli_unavailable",
+              | "outpost_cli_unavailable",
             message: string,
           ) => {
             const details = {
@@ -752,7 +752,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
             if (!repairSeedSource?.baseWorkspaceCwd || !repairCliArgs) {
               throw new Error("Workspace repair source preflight did not complete.");
             }
-            const manifestPath = path.join(workspaceCwd, ".paperclip", "seed-manifest.json");
+            const manifestPath = path.join(workspaceCwd, ".outpost", "seed-manifest.json");
             const sourceConfigPath = repairSeedSource.configPath;
             const baseWorkspaceCwd = repairSeedSource.baseWorkspaceCwd;
 
@@ -773,7 +773,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
               cwd: baseWorkspaceCwd,
               env: {
                 ...process.env,
-                OUTPOST_SEED_EXPECTED_COMPANY_ID: existing.companyId,
+                OUTPOST_SEED_EXPECTED_SPACE_ID: existing.spaceId,
                 OUTPOST_WORKSPACE_BASE_CWD: baseWorkspaceCwd,
                 OUTPOST_PROJECT_WORKSPACE_ID: existing.projectWorkspaceId ?? "",
               },
@@ -871,7 +871,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
             resolveCanonicalWorktreeSeedSource({
               registeredBaseWorkspaceCwd: baseWorkspaceCwd,
               explicitSourceConfigPath: resolveFallbackSeedSourceConfigPath(baseWorkspaceCwd),
-              targetConfigPath: path.join(workspaceCwd, ".paperclip", "config.json"),
+              targetConfigPath: path.join(workspaceCwd, ".outpost", "config.json"),
               expectedTargetInstanceId: repairSeedSource.targetInstanceId,
               manifestSource: manifest.source as { configPath?: unknown; instanceId?: unknown } | undefined,
               manifestTargetInstanceId: manifest.targetInstanceId,
@@ -889,8 +889,8 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
                 db,
                 actor: {
                   id: actor.agentId ?? null,
-                  name: actor.actorType === "user" ? "Board" : "Agent",
-                  companyId: existing.companyId,
+                  name: actor.actorType === "user" ? "Operator" : "Agent",
+                  spaceId: existing.spaceId,
                 },
                 issue: existing.sourceIssueId
                   ? { id: existing.sourceIssueId, identifier: null, title: existing.name }
@@ -947,8 +947,8 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
               db,
               actor: {
                 id: actor.agentId ?? null,
-                name: actor.actorType === "user" ? "Board" : "Agent",
-                companyId: existing.companyId,
+                name: actor.actorType === "user" ? "Operator" : "Agent",
+                spaceId: existing.spaceId,
               },
               issue: existing.sourceIssueId
                 ? {
@@ -1067,7 +1067,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     }
 
     await logActivity(db, {
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -1107,8 +1107,8 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     const existing = await getAccessibleResource(req, res, svc.getById(id), "Execution workspace not found");
     if (!existing) return;
     if (!(await assertWorkspacePrivacy(req, res, existing.id))) return;
-    assertBoard(req);
-    if (!(await assertRuntimeManageAllowed(req, res, existing.companyId))) return;
+    assertOperator(req);
+    if (!(await assertRuntimeManageAllowed(req, res, existing.spaceId))) return;
 
     const actor = getActorInfo(req);
     const result = await svc.reconcileExecutionWorkspaceBranch(id, {
@@ -1123,7 +1123,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     });
 
     await logActivity(db, {
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -1197,7 +1197,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     const existing = await getAccessibleResource(req, res, svc.getById(id), "Execution workspace not found");
     if (!existing) return;
     if (!(await assertWorkspacePrivacy(req, res, existing.id))) return;
-    if (!(await assertRuntimeManageAllowed(req, res, existing.companyId))) return;
+    if (!(await assertRuntimeManageAllowed(req, res, existing.spaceId))) return;
     assertNoAgentHostWorkspaceCommandMutation(
       req,
       collectExecutionWorkspaceCommandPaths({
@@ -1282,7 +1282,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
 
       if (existing.mode === "shared_workspace") {
         await db.transaction(async tx => {
-          await notifyStatusCardIssueChange(tx, existing.companyId);
+          await notifyStatusCardIssueChange(tx, existing.spaceId);
           await tx
           .update(issues)
           .set({
@@ -1291,7 +1291,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
           })
           .where(
             and(
-              eq(issues.companyId, existing.companyId),
+              eq(issues.spaceId, existing.spaceId),
               eq(issues.executionWorkspaceId, existing.id),
             ),
           );
@@ -1309,7 +1309,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
             .where(
                 and(
                   eq(projectWorkspaces.id, existing.projectWorkspaceId),
-                  eq(projectWorkspaces.companyId, existing.companyId),
+                  eq(projectWorkspaces.spaceId, existing.spaceId),
                 ),
               )
               .then((rows) => rows[0] ?? null)
@@ -1320,7 +1320,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
                 executionWorkspacePolicy: projects.executionWorkspacePolicy,
               })
               .from(projects)
-              .where(and(eq(projects.id, existing.projectId), eq(projects.companyId, existing.companyId)))
+              .where(and(eq(projects.id, existing.projectId), eq(projects.spaceId, existing.spaceId)))
               .then((rows) => parseProjectExecutionWorkspacePolicy(rows[0]?.executionWorkspacePolicy))
           : null;
         // Destroy under the lifecycle lock. If a resume reopened the workspace in
@@ -1337,7 +1337,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
           destroy: async () => {
             if (readRemoteWorkspaceAuthority(workspace.metadata)) return svc.cleanupRemoteStorage(workspace);
             await environmentRuntime.destroyReusableSandboxLeases({
-              companyId: existing.companyId,
+              spaceId: existing.spaceId,
               executionWorkspaceId: existing.id,
               failureReason: "execution_workspace_closed",
             });
@@ -1356,7 +1356,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
               teardownCommand: configForCleanup?.teardownCommand ?? projectPolicy?.workspaceStrategy?.teardownCommand ?? null,
               cleanupCommand: configForCleanup?.cleanupCommand ?? null,
               recorder: workspaceOperationsSvc.createRecorder({
-                companyId: existing.companyId,
+                spaceId: existing.spaceId,
                 executionWorkspaceId: existing.id,
               }),
             });
@@ -1420,7 +1420,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     }
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId: existing.companyId,
+      spaceId: existing.spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,

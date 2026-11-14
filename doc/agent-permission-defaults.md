@@ -1,27 +1,27 @@
 # Agent permission defaults
 
-This document describes the server defaults for an ordinary, standard trust agent. An agent must belong to the same company and be active where the action requires active membership. A responsible user's authority, project or run trust policy, scope rules, and approval gates can narrow these defaults.
+This document describes the server defaults for an ordinary, standard trust agent. An agent must belong to the same space and be active where the action requires active membership. A responsible user's authority, project or run trust policy, scope rules, and approval gates can narrow these defaults.
 
 ## Granted by default
 
 | Capability | Source and limit |
 | --- | --- |
-| Agent configuration reads | Standard agents receive company-scoped `agents:read`. This permits redacted configuration, skill settings, instruction content, and configuration/instruction history reads. It grants no write, rollback, or environment-test authority. |
+| Agent configuration reads | Standard agents receive space-scoped `agents:read`. This permits redacted configuration, skill settings, instruction content, and configuration/instruction history reads. It grants no write, rollback, or environment-test authority. |
 | Agent configuration changes and suggestions | New standard agents also receive `agents:configure` and `agents:suggest-changes`. `agents:configure` permits reads and direct changes; `agents:suggest-changes` retains reads and consented changes. Protected-change and responsible-user checks still apply. |
 | Skill changes | New standard agents receive direct `skills:create` and `skills:suggest-changes` grants. |
 | Tool access and management | New standard agents receive `tools:manage_connections`, `tools:manage_profiles`, `tools:view_audit`, `tools:use`, and `tools:manage_runtime` grants. Tool, connection, profile, and runtime policy checks still apply. |
 | Audit and inbox | New standard agents receive `audit:view_agent_actions` and `inbox:manage` grants. The default inbox grant is limited to the responsible-user path and still follows that user's inbox policy. Cross-user management requires a separately configured grant or the target user's saved consent policy. |
-| Task assignment and checkout control | New standard agents receive `tasks:assign`, `tasks:assign_scope`, and `tasks:manage_active_checkouts` grants, subject to company and route checks. The `tasks:assign_scope` grant covers the new agent's own reporting subtree; an explicit invitation scope is preserved. |
+| Task assignment and checkout control | New standard agents receive `tasks:assign`, `tasks:assign_scope`, and `tasks:manage_active_checkouts` grants, subject to space and route checks. The `tasks:assign_scope` grant covers the new agent's own reporting subtree; an explicit invitation scope is preserved. |
 | Agent creation | New standard agents have `canCreateAgents: true`. This is a legacy authorization path for `agents:create`, not an `agents:create` grant row. Stored legacy records without the flag stay closed. |
 | Skill creation setting | `canCreateSkills: true` is the normalized setting. Protected skill configuration changes still require a direct `skills:create` grant or a consented `skills:suggest-changes` grant. |
-| Same-company visibility and work | Standard agents can read same-company agents, projects, issues, and company scope; read and manage decision queues; read runtime and secret metadata where the route allows it; comment or mutate their own or unassigned issues; and assign tasks under the assignment policy. The route and resource checks still apply. |
+| Same-space visibility and work | Standard agents can read same-space agents, projects, issues, and space scope; read and manage decision queues; read runtime and secret metadata where the route allows it; comment or mutate their own or unassigned issues; and assign tasks under the assignment policy. The route and resource checks still apply. |
 | Own configuration and wake | An agent can read its own configuration, update unprotected parts of it, and wake itself. Protected changes still require the relevant grant. |
 
 ## Not granted by default
 
 These permission keys have no blanket grant for new standard agents: `agents:create` (the flag above is separate), `environments:manage`, `tools:admin`, `users:invite`, `users:manage_permissions`, and `joins:approve`. Existing agents keep their current permissions. The defaults above apply when a new standard agent is created or a pending new hire is activated. Some actions have separate bounded paths; the absence of a grant row does not describe every route decision.
 
-The new direct grants do not grant company administration, user permission management, blanket tool administration, or cross-company access. The responsible user's permissions, route checks, and the normal approval gates still apply.
+The new direct grants do not grant space administration, user permission management, blanket tool administration, or cross-space access. The responsible user's permissions, route checks, and the normal approval gates still apply.
 
 Agent-authenticated callers cannot set process adapter configuration or switch an existing agent onto the process adapter. For local adapters, they cannot change host command, argument, working-directory, arbitrary environment, or filesystem sandbox command settings. Provider credential secret references on known environment keys remain allowed so agents can hire peers with their own credentials. When a caller uses an AI connection pool, a new peer can use a plain provider authentication override on the small allowlist of supported keys. Arbitrary environment keys remain blocked. The same limits apply to creation, hiring, adapter switches, and configuration rollback. They also cannot restore host-executed workspace commands through a configuration revision. This keeps host-executed commands under board control while standard agents configure other supported agent settings.
 
@@ -29,9 +29,9 @@ Agent-authenticated callers cannot set process adapter configuration or switch a
 
 The new direct grants are withheld from low trust agents and managed built-in agents. Low trust run or project policies can also deny privileged actions even if an agent has a grant. A standard pending new hire receives the new default set when approved and activated. Invitation approval retains the set when it replaces a new agent's grants and preserves any explicitly scoped default grant. Existing scoped grants stay unchanged. A grant removed by an operator stays removed; ordinary updates and startup do not reapply it.
 
-Migration `0423_agent_config_read_defaults` adds only `agents:read` to existing ready, paused, pausing or resuming standard agents with an active same-company membership. It skips setup holds or setup pause reasons, managed built-ins, nonstandard trust policies, pending or terminated agents, and agents with scoped configuration/suggestion grants. An existing read grant keeps its scope. Each addition has a system audit entry. Existing write grants are unchanged. The migration intentionally adds read access even when an older write grant is absent; it does not infer that a missing write grant denies the new independent read capability. Removing the read grant after this one-time migration persists across restarts and ordinary updates. `agents:configure` and `agents:suggest-changes` still independently imply reads within their scopes.
+Migration `0423_agent_config_read_defaults` adds only `agents:read` to existing ready, paused, pausing or resuming standard agents with an active same-space membership. It skips setup holds or setup pause reasons, managed built-ins, nonstandard trust policies, pending or terminated agents, and agents with scoped configuration/suggestion grants. An existing read grant keeps its scope. Each addition has a system audit entry. Existing write grants are unchanged. The migration intentionally adds read access even when an older write grant is absent; it does not infer that a missing write grant denies the new independent read capability. Removing the read grant after this one-time migration persists across restarts and ordinary updates. `agents:configure` and `agents:suggest-changes` still independently imply reads within their scopes.
 
-Agents can read their own redacted configuration, skills and configuration history without a peer-read grant. Target-scoped reads identify the target agent, so scoped read grants also work on individual configuration and instruction routes. Company-wide configuration listings require company-wide read authority. Basic same-company agent profiles remain readable through their existing visibility rules.
+Agents can read their own redacted configuration, skills and configuration history without a peer-read grant. Target-scoped reads identify the target agent, so scoped read grants also work on individual configuration and instruction routes. Space-wide configuration listings require space-wide read authority. Basic same-space agent profiles remain readable through their existing visibility rules.
 
 The standard agent configuration default supports the agent setup in the linked runner task. Enabling a warm runtime can still depend on the target agent's adapter and runtime configuration, provider availability, and any responsible-user or approval checks.
 
@@ -61,7 +61,7 @@ For standard-trust agents, issue comments, issue field/status updates, child
 creation under a parent, and assignment share one authorization rule: the
 target issue must be visible to the agent and the responsible user represented
 by the run must also be authorized. In V1, issue visibility defaults to the
-whole company, so these writes are company-wide by default.
+whole space, so these writes are space-wide by default.
 
 The shared rule does not widen low-trust, `skill_test`, or `task_bridge` key
 scopes. It also does not replace run-lifecycle controls: checkout ownership,
@@ -94,7 +94,7 @@ including service/plugin writes; cancelled runs cannot authorize later retries. 
 Project or repository access is a separate boundary from exact-task direction.
 A workspace project denial appears on the task with a link to the agent's
 Permissions / Trust settings. Board operators with `agents:create` can add
-same-company projects through `POST /api/agents/:id/project-access`; the operation
+same-space projects through `POST /api/agents/:id/project-access`; the operation
 locks the agent, preserves existing permissions and audits added projects.
 Saving does not retry work. The task offers explicit Retry after the required
 projects are allowed, and dispatch rechecks authorization. Readiness checks the
@@ -111,7 +111,7 @@ may wake the target assignee, including an explicit `resume: true` comment on a
 `done` or `cancelled` issue, but the wake remains agent-class and is subject to
 the normal agent rewake throttle; comment presentation cannot give it human
 wake privileges. Agent issue comments and updates require a persisted heartbeat
-run bound to the authenticated agent and company; missing, invalid, or mismatched
+run bound to the authenticated agent and space; missing, invalid, or mismatched
 run context fails closed before mutation. A run may attempt at most 20 cross-issue comments, issue
 updates, or issue-thread interaction resolutions across one shared counter. The
 server records each attempt with its source issue, target issue, run, count, and

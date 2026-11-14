@@ -142,7 +142,7 @@ describe("issueAuthorizationReasonLabel", () => {
   it("explains the default-open rule in words", () => {
     expect(issueAuthorizationReasonLabel("allow_visible_issue_write"))
       .toBe("default-open write on a visible task");
-    expect(issueAuthorizationReasonLabel("allow_board_actor")).toBe("board actor");
+    expect(issueAuthorizationReasonLabel("allow_board_actor")).toBe("operator actor");
   });
 
   it("degrades unknown reasons rather than hiding them", () => {

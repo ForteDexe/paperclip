@@ -10,7 +10,7 @@ import { buildInvocationEnvForLogs } from "./server-utils.js";
 import { prepareAcpxCodexObservabilityHome } from "./codex-observability-home.js";
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
-const input = { companyId: "company", agentId: "agent", revision: "revision", compatibilityKey: "version", enabled: true,
+const input = { spaceId: "space", agentId: "agent", revision: "revision", compatibilityKey: "version", enabled: true,
   capture: { ...DEFAULT_AGENT_OBSERVABILITY_CAPTURE }, logsEndpoint: "https://collector.example/v1/logs", tracesEndpoint: "https://collector.example/v1/traces", headers: { authorization: "Bearer a,b=c% d" } };
 it("encodes headers losslessly and clears ambient exporter conflicts without changing host state", () => {
   const launch = buildProviderObservabilityLaunch({ ...input, kind: "claude" });
@@ -56,7 +56,7 @@ it("keeps an explicit source profile while disabling export after preparation fa
   expect(args).toContain('otel.metrics_exporter="none"');
 });
 it("creates invocation-owned profiles, preserves selected profile settings, and restores by deleting only its own file", async () => {
-  const root = await mkdtemp(join(tmpdir(), "paperclip-otel-profile-")); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), "outpost-otel-profile-")); roots.push(root);
   await writeFile(join(root, "review.config.toml"), 'model = "chosen-model"\n[otel]\nexporter = "none"\n');
   const launch = buildProviderObservabilityLaunch({ ...input, kind: "codex" });
   const a = await prepareCodexObservabilityProfile({ home: root, runId: "run-a", sourceProfile: "review", launch });
@@ -75,7 +75,7 @@ it("creates invocation-owned profiles, preserves selected profile settings, and 
   expect(await readFile(join(root, "review.config.toml"), "utf8")).toContain('exporter = "none"');
 });
 it("isolates overlapping ACPX export settings while sharing the saved provider conversation", async () => {
-  const home = await mkdtemp(join(tmpdir(), "paperclip-acpx-otel-")); roots.push(home);
+  const home = await mkdtemp(join(tmpdir(), "outpost-acpx-otel-")); roots.push(home);
   await writeFile(join(home, "config.toml"), 'model = "retained-model"\n');
   const first = buildProviderObservabilityLaunch({ ...input, kind: "codex", compatibilityKey: "first" });
   const second = buildProviderObservabilityLaunch({ ...input, kind: "codex", compatibilityKey: "second", enabled: false });
@@ -99,7 +99,7 @@ it("isolates overlapping ACPX export settings while sharing the saved provider c
 });
 
 it.each([true, false])("preserves refreshed Codex credentials across repeated and replacement preparations with export %s", async enabled => {
-  const home = await mkdtemp(join(tmpdir(), "paperclip-acpx-auth-")); roots.push(home);
+  const home = await mkdtemp(join(tmpdir(), "outpost-acpx-auth-")); roots.push(home);
   await writeFile(join(home, "auth.json"), JSON.stringify({ tokens: { refresh_token: "old-fixture-token" } }), { mode: 0o600 });
   const launch = buildProviderObservabilityLaunch({ ...input, enabled, kind: "codex" });
   const first = await prepareAcpxCodexObservabilityHome(home, launch, input.agentId);

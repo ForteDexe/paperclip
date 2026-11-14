@@ -1,6 +1,6 @@
 # Persistent agent files
 
-Each managed agent has one current directory, scoped by company and agent. The
+Each managed agent has one current directory, scoped by space and agent. The
 Instructions Editor reads and writes this directory. `AGENTS.md` (or the
 configured entry) is one file in it. Agents may create ordinary files and nested
 folders for notes, memory, and other personal working material. Files in the
@@ -8,7 +8,7 @@ task working directory remain task files.
 
 Agents can edit their own managed files under the responsible user’s current
 target permissions. Access to another agent’s files additionally requires the
-caller’s own target-scoped configuration permission; shared company membership
+caller’s own target-scoped configuration permission; shared space membership
 or a responsible user alone does not grant peer access.
 
 ## Layout
@@ -43,7 +43,7 @@ remain retained until the explicit bounded object cleanup described below.
 The host directory keeps its existing physical location:
 
 ```
-<instance>/companies/<company>/agents/<agent>/
+<instance>/spaces/<space>/agents/<agent>/
   instructions/                 current agent files (editor)
     AGENTS.md
     notes/
@@ -61,14 +61,14 @@ registered writable agent copy. Adapter `HOME` and `CODEX_HOME` keep their
 existing meanings and are not personal-file storage. Local copies are outside
 the task workspace. Remote providers currently confine file sync to their
 workspace: their independent agent copy therefore lives under the excluded
-`.paperclip-runtime/agent-files/<agent>/<run>/` area. It is not included in task
+`.outpost-runtime/agent-files/<agent>/<run>/` area. It is not included in task
 workspace sync, Git staging, or task deliverables.
 
 Sandbox transfer scratch lives separately under
-`.paperclip-runtime/outpost-runner/agent-file-transfers/<agent>/<run>/`.
+`.outpost-runtime/outpost-runner/agent-file-transfers/<agent>/<run>/`.
 Workspace-staging transfer scratch stays outside `AGENT_HOME`, including
 recovery after controller restart. Remote warm Codex checkpoints may temporarily
-stage changed-file payloads under `AGENT_HOME/.paperclip-runtime/checkpoint-*`;
+stage changed-file payloads under `AGENT_HOME/.outpost-runtime/checkpoint-*`;
 these are checkpoint scratch, not managed personal files. Cleanup removes
 only the original materialization's agent directory and transfer scratch
 through its owned lease. A later warm turn keeps that original materialization
@@ -86,7 +86,7 @@ hardlinks, and special
 files are rejected, rather than followed or silently skipped. The instruction
 entry remains valid UTF-8, at most 1 MiB, and cannot be deleted. The editor edits
 text up to 1 MiB and offers downloads for binary or larger files. The reserved
-`.paperclip-runtime` directory and the compatibility-only virtual file
+`.outpost-runtime` directory and the compatibility-only virtual file
 `promptTemplate.legacy.md` are not user storage. Task cache and Git ignore
 exclusions do not apply to this directory.
 
@@ -194,10 +194,10 @@ probe must verify the full baseline and root identity without unsafe paths or
 concurrent changes. Local hashing runs in an isolated child; remote observation
 runs at the registered remote root. A failed or uncertain probe requires stopped
 collection. The next authorized run claims that same materialization within the
-company, agent, workspace, environment and configuration scope. Projectless runs
+space, agent, workspace, environment and configuration scope. Projectless runs
 use the stable workspace descriptor (cwd, repository URL/ref and branch), rather
 than the per-run workspace placeholder. A remote handoff verifies both DB leases
-belong to the same company, environment and provider allocation, then binds the
+belong to the same space, environment and provider allocation, then binds the
 successor run's active lease and collector without re-uploading the host mirror.
 Heartbeat explicitly permits a collection-only successor handoff before checking
 warm reuse. A changed or uncertain directory records durable `retirementRequired`;
@@ -212,7 +212,7 @@ removed with exact-path, identity-checked `rmdir` operations. Any content, link 
 uncertain identity fails preparation; the complete probe never excludes them.
 An exact recorded lease that is missing or no longer matches the run/environment
 blocks retrieval as well as deletion. Legacy receipts without a lease ID require
-exactly one company/run/environment lease, including when a transport is still
+exactly one space/run/environment lease, including when a transport is still
 cached. Missing or ambiguous ownership preserves pending files without remote
 commands. No SSH exception bypasses this fence, and no-ID receipts grant no warm
 adoption authority.
@@ -366,7 +366,7 @@ checks. Keep the original volume until the deployment migration is qualified.
 Object cleanup is an explicit bounded command, with dry-run as the default:
 
 ```sh
-pnpm exec tsx server/src/maintenance/agent-files.ts --phase=objects --company=<uuid> --agent=<uuid>
+pnpm exec tsx server/src/maintenance/agent-files.ts --phase=objects --space=<uuid> --agent=<uuid>
 ```
 
 Add `--apply` to delete eligible objects, and follow `next` with `--after` until

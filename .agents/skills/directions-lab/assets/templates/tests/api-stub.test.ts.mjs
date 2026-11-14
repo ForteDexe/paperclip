@@ -2,7 +2,7 @@ export default () => `// @vitest-environment jsdom
 
 import { afterEach, describe, expect, it } from "vitest";
 import { installApiStub, registerApiRoute } from "./api-stub";
-import { COMPANY } from "./fixtures";
+import { SPACE } from "./fixtures";
 
 describe("installApiStub", () => {
   const original = window.fetch;
@@ -16,8 +16,8 @@ describe("installApiStub", () => {
   it("answers /api/ from the fixtures and puts fetch back when restored", async () => {
     restores.push(installApiStub());
     expect(window.fetch).not.toBe(original);
-    const companies = await (await window.fetch("/api/companies")).json();
-    expect(companies).toEqual([COMPANY]);
+    const spaces = await (await window.fetch("/api/spaces")).json();
+    expect(spaces).toEqual([SPACE]);
     restores.pop()?.();
     expect(window.fetch).toBe(original);
   });

@@ -94,17 +94,17 @@ async function activeAtGate(context: Context, ready: string, agentId: string) {
 export async function runActiveReassignment(context: Context) {
   const { input, marker } = context;
   const { api, fixtures: f, execution } = input;
-  const company = `/api/companies/${f.company.id}`;
+  const space = `/api/spaces/${f.space.id}`;
   const config = execution.profile.buildAgent({ environmentId: f.environment.id, environmentFixtureId: "local", workspacePath: input.workspacePath, secretRefs: f.secretRefs, executionId: input.nonce });
-  const first = await api.post<Row>(`${company}/agents`, { ...config, name: "Riley Original", role: "engineer", reportsTo: f.agent.id });
-  const second = await api.post<Row>(`${company}/agents`, { ...config, name: "Morgan Successor", role: "engineer", reportsTo: f.agent.id });
+  const first = await api.post<Row>(`${space}/agents`, { ...config, name: "Riley Original", role: "engineer", reportsTo: f.agent.id });
+  const second = await api.post<Row>(`${space}/agents`, { ...config, name: "Morgan Successor", role: "engineer", reportsTo: f.agent.id });
   const wait = await brief(input, first.id);
   const reference = `REFERENCE${randomUUID().replaceAll("-", "")}`;
-  const workerInstructions = `First save a draft Paperclip document on the assigned task containing the reference from its plan. Then run node ${wait.scriptPath} and wait for the brief before finishing. Do not finish before the command returns.`;
+  const workerInstructions = `First save a draft Outpost document on the assigned task containing the reference from its plan. Then run node ${wait.scriptPath} and wait for the brief before finishing. Do not finish before the command returns.`;
   await api.saveAgentInstructions(first.id, workerInstructions);
   expect(await api.get(`/api/agents/${first.id}/instructions-bundle/file?path=AGENTS.md`)).toMatchObject({ content: workerInstructions });
-  const task = await api.post<Row>(`${company}/issues`, { title: `Launch checklist ${input.nonce}`, status: "todo", assigneeAgentId: first.id,
-    description: `Write a short launch checklist as a Paperclip document on this existing task. Use the saved plan and preserve any draft. Include its reference and ${marker} in the final checklist, then complete this task.`,
+  const task = await api.post<Row>(`${space}/issues`, { title: `Launch checklist ${input.nonce}`, status: "todo", assigneeAgentId: first.id,
+    description: `Write a short launch checklist as a Outpost document on this existing task. Use the saved plan and preserve any draft. Include its reference and ${marker} in the final checklist, then complete this task.`,
     initialPlan: `Welcome beginners on Friday at a free meetup. Reference: ${reference}` });
   try {
     const boundary = await activeAtGate(context, wait.ready, first.id);
@@ -121,7 +121,7 @@ export async function runActiveReassignment(context: Context) {
       draftRevisions: await api.get<Row[]>(`/api/issues/${task.id}/documents/${encodeURIComponent(draft.key)}/revisions`),
       draftAfter: await api.get<Row>(`/api/issues/${task.id}/documents/${encodeURIComponent(draft.key)}`),
       output: await readChatOutputDocument(api, task.id, marker), reference,
-      audit: await api.get<Row[]>(`/api/issues/${task.id}/activity`), taskIds: (await api.get<Row[]>(`${company}/issues`)).map(t => t.id) };
+      audit: await api.get<Row[]>(`/api/issues/${task.id}/activity`), taskIds: (await api.get<Row[]>(`${space}/issues`)).map(t => t.id) };
     await input.evidence("chat-active-reassignment.json", e);
     assertActiveHandoff(e);
   } finally {
@@ -194,7 +194,7 @@ export async function runWorkerCrash(context: Context) {
     assertCrashRecovered(e);
     // A fresh success must not re-enable Retry on the quarantined historical run.
     await expect(input.page.getByTestId("task-chat-run-failed-try-again")).toHaveCount(0);
-    expect(await input.api.get(`/api/companies/${input.fixtures.company.id}/issues`)).toEqual([]);
+    expect(await input.api.get(`/api/spaces/${input.fixtures.space.id}/issues`)).toEqual([]);
   } finally {
     await publishChatBrief(wait.gate, reference);
     await input.evidence("chat-worker-final.json", { runs: await context.allRuns(), comments: await context.comments().catch(error => ({ readError: String(error) })) });
@@ -214,7 +214,7 @@ export function assertAnswerFacts(reply: string, expected: Row) {
 export async function runAnswerQuality(context: Context) {
   const { input } = context;
   const { api, fixtures: f } = input;
-  const base = `/api/companies/${f.company.id}`;
+  const base = `/api/spaces/${f.space.id}`;
   const blocked = await api.post<Row>(`${base}/issues`, { title: "Venue confirmation", status: "blocked", description: "Confirm where our Friday launch will be held." });
   const deferred = await api.post<Row>(`${base}/issues`, { title: "Print invitations", status: "backlog", description: "Only start after the venue is confirmed." });
   const stale = `BUDGET${randomUUID().replaceAll("-", "")}`;

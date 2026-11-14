@@ -17,7 +17,7 @@ function writePackage(packageDir: string, type: string): void {
     name: `fixture-${type}`,
     type: "module",
     exports: { ".": "./index.mjs", "./ui-parser": "./ui-parser.mjs" },
-    paperclip: { adapterUiParser: "1.0.0" },
+    outpost: { adapterUiParser: "1.0.0" },
   }));
   fs.writeFileSync(path.join(packageDir, "index.mjs"), `
     import fs from "node:fs";
@@ -44,7 +44,7 @@ function writePackage(packageDir: string, type: string): void {
 // managed signal, so it reads and runs no persisted adapter package. The 90s
 // limit is three times the slowest measured cold import.
 beforeAll(async () => {
-  const warmHome = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-cloud-adapters-warm-"));
+  const warmHome = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-cloud-adapters-warm-"));
   vi.stubEnv("OUTPOST_HOME", warmHome);
   vi.stubEnv("OUTPOST_MANAGED_CONFIG", "");
   try {
@@ -62,7 +62,7 @@ beforeEach(() => {
   vi.resetModules();
   vi.stubEnv("OUTPOST_CLOUD_TENANT_SERVER_TOKEN", undefined);
   vi.stubEnv("OUTPOST_MANAGED_CONFIG", undefined);
-  home = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-cloud-adapters-"));
+  home = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-cloud-adapters-"));
   vi.stubEnv("OUTPOST_HOME", home);
   sentinel = path.join(home, "external-code-executed");
   localPackage = path.join(home, "local-package");

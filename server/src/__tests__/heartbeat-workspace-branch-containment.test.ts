@@ -16,10 +16,10 @@ import {
   agentRuntimeState,
   agentWakeupRequests,
   agents,
-  companies,
+  spaces,
   authUsers,
-  companyMemberships,
-  companySkills,
+  spaceMemberships,
+  spaceSkills,
   createDb,
   closeRegisteredClients,
   documentRevisions,
@@ -150,10 +150,10 @@ async function readGit(cwd: string, args: string[]) {
 async function createGitRepo() {
   // realpath: on macOS os.tmpdir() is a symlink (/tmp -> /private/tmp) and the
   // runtime persists resolved worktree paths, so unresolved fixtures never match.
-  const repoRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-branch-containment-repo-")));
+  const repoRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "outpost-branch-containment-repo-")));
   await runGit(repoRoot, ["init"]);
-  await runGit(repoRoot, ["config", "user.email", "paperclip-test@example.com"]);
-  await runGit(repoRoot, ["config", "user.name", "Paperclip Test"]);
+  await runGit(repoRoot, ["config", "user.email", "outpost-test@example.com"]);
+  await runGit(repoRoot, ["config", "user.name", "Outpost Test"]);
   await writeFile(path.join(repoRoot, "README.md"), "branch containment\n", "utf8");
   await runGit(repoRoot, ["add", "README.md"]);
   await runGit(repoRoot, ["commit", "-m", "initial"]);
@@ -210,7 +210,7 @@ async function deleteHeartbeatRunsForCleanup(db: Db) {
 
 async function waitForContainmentSideEffects(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   sourceIssueId: string;
   sameWorkspaceSiblingId: string;
   otherWorkspaceSiblingId: string;
@@ -230,7 +230,7 @@ async function waitForContainmentSideEffects(input: {
   while (Date.now() < deadline) {
     const [issueRows, actionRows, comments] = await Promise.all([
       readContainmentIssueRows(input.db, issueIds),
-      readContainmentActionRows(input.db, input.companyId, issueIds),
+      readContainmentActionRows(input.db, input.spaceId, issueIds),
       readContainmentComments(input.db, issueIds),
     ]);
     latest = { issueRows, actionRows, comments };
@@ -263,7 +263,7 @@ async function waitForContainmentSideEffects(input: {
   }
   return latest ?? {
     issueRows: await readContainmentIssueRows(input.db, issueIds),
-    actionRows: await readContainmentActionRows(input.db, input.companyId, issueIds),
+    actionRows: await readContainmentActionRows(input.db, input.spaceId, issueIds),
     comments: await readContainmentComments(input.db, issueIds),
   };
 }
@@ -282,12 +282,12 @@ function readContainmentIssueRows(db: Db, issueIds: string[]) {
     .where(inArray(issues.id, issueIds));
 }
 
-function readContainmentActionRows(db: Db, companyId: string, issueIds: string[]) {
+function readContainmentActionRows(db: Db, spaceId: string, issueIds: string[]) {
   return db
     .select()
     .from(issueRecoveryActions)
     .where(and(
-      eq(issueRecoveryActions.companyId, companyId),
+      eq(issueRecoveryActions.spaceId, spaceId),
       inArray(issueRecoveryActions.sourceIssueId, issueIds),
     ));
 }
@@ -301,7 +301,7 @@ function readContainmentComments(db: Db, issueIds: string[]) {
 
 function readAdapterWorkspace(input: unknown) {
   const context = (input as { context?: Record<string, unknown> }).context ?? {};
-  const workspace = context.paperclipWorkspace as Record<string, unknown> | undefined;
+  const workspace = context.outpostWorkspace as Record<string, unknown> | undefined;
   const cwd = typeof workspace?.cwd === "string" ? workspace.cwd : null;
   const branchName = typeof workspace?.branchName === "string" ? workspace.branchName : null;
   const executionWorkspaceId =
@@ -309,7 +309,7 @@ function readAdapterWorkspace(input: unknown) {
   if (!cwd || !branchName || !executionWorkspaceId) {
     throw new Error("Adapter input is missing execution workspace context");
   }
-  const wake = context.paperclipWake as { executionWorkspace?: { branchName?: string } } | undefined;
+  const wake = context.outpostWake as { executionWorkspace?: { branchName?: string } } | undefined;
   if (wake?.executionWorkspace?.branchName !== branchName) {
     throw new Error("Adapter wake payload is missing the execution workspace branch pin");
   }
@@ -322,7 +322,7 @@ async function seedBranchContainmentRun(
   callSite: BranchContainmentCallSite,
   opts: { enableWorkspaceBranchReconcileForward?: boolean } = {},
 ) {
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const projectId = randomUUID();
   const projectWorkspaceId = randomUUID();
   const agentId = randomUUID();
@@ -333,21 +333,21 @@ async function seedBranchContainmentRun(
   const otherWorkspaceSiblingId = randomUUID();
   const sourceExecutionWorkspaceId = randomUUID();
   const otherExecutionWorkspaceId = randomUUID();
-  const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+  const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
   const sourceIdentifier = `${issuePrefix}-1`;
   const sameSiblingIdentifier = `${issuePrefix}-2`;
   const otherSiblingIdentifier = `${issuePrefix}-3`;
   const expectedBranch = `${sourceIdentifier}-recorded`;
   const actualBranch = `${sourceIdentifier}-actual`;
-  const worktreePath = path.join(repoRoot, ".paperclip", "worktrees", expectedBranch);
+  const worktreePath = path.join(repoRoot, ".outpost", "worktrees", expectedBranch);
   const now = new Date("2026-07-07T00:00:00.000Z");
 
   await instanceSettingsService(db).updateExperimental({
     enableIsolatedWorkspaces: true,
     enableWorkspaceBranchReconcileForward: opts.enableWorkspaceBranchReconcileForward === true,
   });
-  await db.insert(companies).values({
-    id: companyId,
+  await db.insert(spaces).values({
+    id: spaceId,
     name: "Acme",
     issuePrefix,
     status: "active",
@@ -356,10 +356,10 @@ async function seedBranchContainmentRun(
     updatedAt: now,
   });
   await db.insert(authUsers).values({ id: "responsible-user", name: "Fixture user", email: "responsible-user@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-  await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
+  await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
   await db.insert(projects).values({
     id: projectId,
-    companyId,
+    spaceId,
     name: "Branch containment",
     status: "active",
     executionWorkspacePolicy: {
@@ -376,7 +376,7 @@ async function seedBranchContainmentRun(
   });
   await db.insert(projectWorkspaces).values({
     id: projectWorkspaceId,
-    companyId,
+    spaceId,
     projectId,
     name: "Primary",
     cwd: repoRoot,
@@ -386,7 +386,7 @@ async function seedBranchContainmentRun(
   });
   await db.insert(agents).values({
     id: agentId,
-    companyId,
+    spaceId,
     name: "CodexCoder",
     role: "engineer",
     status: "idle",
@@ -416,7 +416,7 @@ async function seedBranchContainmentRun(
   await db.insert(executionWorkspaces).values([
     {
       id: sourceExecutionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       sourceIssueId: null,
@@ -441,7 +441,7 @@ async function seedBranchContainmentRun(
     },
     {
       id: otherExecutionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       sourceIssueId: null,
@@ -449,12 +449,12 @@ async function seedBranchContainmentRun(
       strategyType: "git_worktree",
       name: "other-workspace",
       status: "active",
-      cwd: path.join(repoRoot, ".paperclip", "worktrees", "other-workspace"),
+      cwd: path.join(repoRoot, ".outpost", "worktrees", "other-workspace"),
       repoUrl: null,
       baseRef: "HEAD",
       branchName: "other-workspace",
       providerType: "git_worktree",
-      providerRef: path.join(repoRoot, ".paperclip", "worktrees", "other-workspace"),
+      providerRef: path.join(repoRoot, ".outpost", "worktrees", "other-workspace"),
       lastUsedAt: now,
       openedAt: now,
       createdAt: now,
@@ -464,7 +464,7 @@ async function seedBranchContainmentRun(
 
   await db.insert(agentWakeupRequests).values({
     id: wakeupRequestId,
-    companyId,
+    spaceId,
     agentId,
     source: "assignment",
     triggerDetail: "system",
@@ -477,7 +477,7 @@ async function seedBranchContainmentRun(
   });
   await db.insert(heartbeatRuns).values({
     id: runId,
-    companyId,
+    spaceId,
     agentId,
     invocationSource: "assignment",
     triggerDetail: "system",
@@ -496,7 +496,7 @@ async function seedBranchContainmentRun(
   await db.insert(issues).values([
     {
       id: sourceIssueId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       title: `Source ${callSite}`,
@@ -522,7 +522,7 @@ async function seedBranchContainmentRun(
     },
     {
       id: sameWorkspaceSiblingId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       title: "Same-workspace sibling",
@@ -548,7 +548,7 @@ async function seedBranchContainmentRun(
     },
     {
       id: otherWorkspaceSiblingId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       title: "Other-workspace sibling",
@@ -583,7 +583,7 @@ async function seedBranchContainmentRun(
     .where(eq(executionWorkspaces.id, sourceExecutionWorkspaceId));
 
   return {
-    companyId,
+    spaceId,
     agentId,
     runId,
     sourceIssueId,
@@ -607,7 +607,7 @@ async function expectContainedWorkspaceBranchFailure(input: {
   db: Db;
   heartbeat: Heartbeat;
   runId: string;
-  companyId: string;
+  spaceId: string;
   sourceIssueId: string;
   sameWorkspaceSiblingId: string;
   otherWorkspaceSiblingId: string;
@@ -655,7 +655,7 @@ async function expectContainedWorkspaceBranchFailure(input: {
 
   const { issueRows, actionRows, comments } = await waitForContainmentSideEffects({
     db: input.db,
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     sourceIssueId: input.sourceIssueId,
     sameWorkspaceSiblingId: input.sameWorkspaceSiblingId,
     otherWorkspaceSiblingId: input.otherWorkspaceSiblingId,
@@ -686,7 +686,7 @@ async function expectContainedWorkspaceBranchFailure(input: {
     kind: "workspace_validation",
     cause: "workspace_validation_failed",
     status: "active",
-    ownerType: "board",
+    ownerType: "operator",
     ownerAgentId: null,
     ownerUserId: null,
     previousOwnerAgentId: sourceAssigneeAgentId,
@@ -698,7 +698,7 @@ async function expectContainedWorkspaceBranchFailure(input: {
       latestRunId: input.runId,
       latestRunErrorCode: "workspace_validation_failed",
       recoveryCause: "workspace_validation_failed",
-      routingPolicy: "board_escalation_no_takeover_v1",
+      routingPolicy: "operator_escalation_no_takeover_v1",
       workspaceValidation: expect.objectContaining({
         fingerprint: workspaceValidation.fingerprint,
         expectedBranch: input.expectedBranch,
@@ -714,7 +714,7 @@ async function expectContainedWorkspaceBranchFailure(input: {
     }),
     nextAction: expect.stringContaining("choose a new execution workspace"),
     wakePolicy: expect.objectContaining({
-      type: "board_escalation",
+      type: "operator_escalation",
       reason: "workspace_validation_failed",
       preservesSourceAssignee: true,
     }),
@@ -892,7 +892,7 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
   beforeAll(async () => {
     if (externalTestDatabaseUrl) db = createDb(externalTestDatabaseUrl, { maxConnections: 6 });
     else {
-      tempDb = await startEmbeddedPostgresTestDatabase("paperclip-branch-containment-");
+      tempDb = await startEmbeddedPostgresTestDatabase("outpost-branch-containment-");
       db = createDb(tempDb.connectionString);
     }
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
@@ -941,9 +941,9 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
     await db.delete(agents);
     await db.delete(workspaceOperations);
     await db.delete(environments);
-    await db.delete(companySkills);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceSkills);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
     await db.delete(authUsers).where(eq(authUsers.id, "responsible-user"));
     vi.unstubAllEnvs();
   });
@@ -954,25 +954,25 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
     await tempDb?.cleanup();
   }, 60_000);
 
-  async function seedRetainedSourceRun(kind: "deleted" | "explicit_conflict" | "foreign_project" | "foreign_company" | "unproven") {
-    const home = await realpath(await mkdtemp(path.join(os.tmpdir(), "paperclip-retained-source-home-")));
+  async function seedRetainedSourceRun(kind: "deleted" | "explicit_conflict" | "foreign_project" | "foreign_space" | "unproven") {
+    const home = await realpath(await mkdtemp(path.join(os.tmpdir(), "outpost-retained-source-home-")));
     tempRoots.push(home);
     vi.stubEnv("OUTPOST_HOME", home);
     const original = await createGitRepo();
     const replacement = await createGitRepo();
     tempRoots.push(original, replacement);
-    const companyId = randomUUID(), projectId = randomUUID(), oldWorkspaceId = randomUUID(), newWorkspaceId = randomUUID();
+    const spaceId = randomUUID(), projectId = randomUUID(), oldWorkspaceId = randomUUID(), newWorkspaceId = randomUUID();
     const agentId = randomUUID(), issueId = randomUUID(), executionWorkspaceId = randomUUID(), runId = randomUUID(), wakeupId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
     const repoUrl = pathToFileURL(original).href;
     const replacementUrl = pathToFileURL(replacement).href;
-    const owner = kind === "unproven" ? original : resolveManagedProjectWorkspaceDir({ companyId, projectId, repoName: path.basename(original) });
+    const owner = kind === "unproven" ? original : resolveManagedProjectWorkspaceDir({ spaceId, projectId, repoName: path.basename(original) });
     if (owner !== original) {
       await mkdir(path.dirname(owner), { recursive: true });
       await runGit(original, ["clone", repoUrl, owner]);
     }
     const branch = "retained-task";
-    const worktree = path.join(owner, ".paperclip", "worktrees", branch);
+    const worktree = path.join(owner, ".outpost", "worktrees", branch);
     await runGit(owner, ["worktree", "add", "-b", branch, worktree]);
     await writeFile(path.join(worktree, "retained.txt"), "unexported original task edits\n");
     await writeFile(path.join(replacement, "replacement.txt"), "replacement source must stay untouched\n");
@@ -988,25 +988,25 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
         categoryFingerprints: fingerprint.categoryFingerprints, lastEvaluatedAt: fingerprint.evaluatedAt },
     };
     await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });
-    await db.insert(companies).values({ id: companyId, name: "Retained source", issuePrefix, status: "active", defaultResponsibleUserId: "responsible-user" });
+    await db.insert(spaces).values({ id: spaceId, name: "Retained source", issuePrefix, status: "active", defaultResponsibleUserId: "responsible-user" });
     await db.insert(authUsers).values({ id: "responsible-user", name: "Fixture user", email: "responsible-user@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Repository replacement", status: "active",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Repository replacement", status: "active",
       executionWorkspacePolicy: { enabled: true, defaultMode: "isolated_workspace", workspaceStrategy: { type: "git_worktree", baseRef: "HEAD" } } });
     await db.insert(projectWorkspaces).values([
-      { id: oldWorkspaceId, companyId, projectId, name: "Original", cwd: owner, repoUrl: kind === "unproven" ? null : repoUrl, isPrimary: true },
-      { id: newWorkspaceId, companyId, projectId, name: "Replacement", cwd: replacement, repoUrl: replacementUrl, isPrimary: false },
+      { id: oldWorkspaceId, spaceId, projectId, name: "Original", cwd: owner, repoUrl: kind === "unproven" ? null : repoUrl, isPrimary: true },
+      { id: newWorkspaceId, spaceId, projectId, name: "Replacement", cwd: replacement, repoUrl: replacementUrl, isPrimary: false },
     ]);
-    await db.insert(agents).values({ id: agentId, companyId, name: "Source tester", role: "engineer", status: "idle", adapterType: "codex_local",
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Source tester", role: "engineer", status: "idle", adapterType: "codex_local",
       adapterConfig: {}, runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } }, permissions: {} });
-    await db.insert(executionWorkspaces).values({ id: executionWorkspaceId, companyId, projectId, projectWorkspaceId: oldWorkspaceId,
+    await db.insert(executionWorkspaces).values({ id: executionWorkspaceId, spaceId, projectId, projectWorkspaceId: oldWorkspaceId,
       mode: "isolated_workspace", strategyType: "git_worktree", name: branch, status: "active", cwd: worktree, providerRef: worktree,
       providerType: "git_worktree", branchName: branch, repoUrl: kind === "unproven" ? null : repoUrl, baseRef: "HEAD", metadata });
-    await db.insert(agentWakeupRequests).values({ id: wakeupId, companyId, agentId, source: "assignment", triggerDetail: "system",
+    await db.insert(agentWakeupRequests).values({ id: wakeupId, spaceId, agentId, source: "assignment", triggerDetail: "system",
       reason: "issue_assigned", payload: { issueId }, status: "queued", runId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "assignment", triggerDetail: "system", status: "queued",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "assignment", triggerDetail: "system", status: "queued",
       wakeupRequestId: wakeupId, responsibleUserId: "responsible-user", contextSnapshot: { issueId, taskId: issueId, wakeReason: "issue_assigned" } });
-    await db.insert(issues).values({ id: issueId, companyId, projectId, projectWorkspaceId: oldWorkspaceId, title: "Continue retained work",
+    await db.insert(issues).values({ id: issueId, spaceId, projectId, projectWorkspaceId: oldWorkspaceId, title: "Continue retained work",
       status: "in_progress", workMode: "standard", assigneeAgentId: agentId, responsibleUserId: "responsible-user", issueNumber: 1,
       identifier: `${issuePrefix}-1`, executionWorkspaceId, executionWorkspacePreference: "reuse_existing", executionWorkspaceSettings: { mode: "isolated_workspace" },
       checkoutRunId: runId, executionRunId: runId, executionAgentNameKey: "source-tester", executionLockedAt: new Date() });
@@ -1015,14 +1015,14 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
     await db.delete(projectWorkspaces).where(eq(projectWorkspaces.id, oldWorkspaceId));
     await db.update(projectWorkspaces).set({ isPrimary: true }).where(eq(projectWorkspaces.id, newWorkspaceId));
     if (kind === "explicit_conflict") await db.update(issues).set({ projectWorkspaceId: newWorkspaceId }).where(eq(issues.id, issueId));
-    if (kind === "foreign_project" || kind === "foreign_company") {
-      const foreignCompanyId = kind === "foreign_company" ? randomUUID() : companyId;
-      if (foreignCompanyId !== companyId) await db.insert(companies).values({ id: foreignCompanyId, name: "Other company", issuePrefix: `F${foreignCompanyId.slice(0, 7)}` });
+    if (kind === "foreign_project" || kind === "foreign_space") {
+      const foreignSpaceId = kind === "foreign_space" ? randomUUID() : spaceId;
+      if (foreignSpaceId !== spaceId) await db.insert(spaces).values({ id: foreignSpaceId, name: "Other space", issuePrefix: `F${foreignSpaceId.slice(0, 7)}` });
       const foreignProjectId = randomUUID();
-      await db.insert(projects).values({ id: foreignProjectId, companyId: foreignCompanyId, name: "Other project", status: "active" });
-      await db.update(executionWorkspaces).set({ companyId: foreignCompanyId, projectId: foreignProjectId }).where(eq(executionWorkspaces.id, executionWorkspaceId));
+      await db.insert(projects).values({ id: foreignProjectId, spaceId: foreignSpaceId, name: "Other project", status: "active" });
+      await db.update(executionWorkspaces).set({ spaceId: foreignSpaceId, projectId: foreignProjectId }).where(eq(executionWorkspaces.id, executionWorkspaceId));
     }
-    return { companyId, projectId, newWorkspaceId, issueId, agentId, runId, executionWorkspaceId, worktree, branch, owner, replacement, repoUrl, metadata };
+    return { spaceId, projectId, newWorkspaceId, issueId, agentId, runId, executionWorkspaceId, worktree, branch, owner, replacement, repoUrl, metadata };
   }
 
   it("preserves a retained task source after its project repository is replaced and the original FK is deleted", async () => {
@@ -1034,15 +1034,15 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
     expect(run).toMatchObject({ status: "succeeded" });
     expect(adapterExecute).toHaveBeenCalledTimes(1);
     expect(readAdapterWorkspace(adapterExecute.mock.calls[0]?.[0])).toEqual({ cwd: seeded.worktree, branchName: seeded.branch, executionWorkspaceId: seeded.executionWorkspaceId });
-    expect(adapterExecute.mock.calls[0]?.[0]).toMatchObject({ context: { paperclipWorkspace: {
+    expect(adapterExecute.mock.calls[0]?.[0]).toMatchObject({ context: { outpostWorkspace: {
       projectId: seeded.projectId, workspaceId: null, repoUrl: seeded.repoUrl, repoRef: "HEAD", source: "task_session",
     } } });
     const [workspace] = await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.id, seeded.executionWorkspaceId));
     const [issue] = await db.select().from(issues).where(eq(issues.id, seeded.issueId));
-    expect(workspace).toMatchObject({ companyId: seeded.companyId, projectId: seeded.projectId, projectWorkspaceId: null,
+    expect(workspace).toMatchObject({ spaceId: seeded.spaceId, projectId: seeded.projectId, projectWorkspaceId: null,
       cwd: seeded.worktree, providerRef: seeded.worktree, branchName: seeded.branch, repoUrl: seeded.repoUrl, metadata: seeded.metadata });
     expect(issue).toMatchObject({ projectWorkspaceId: null, executionWorkspaceId: seeded.executionWorkspaceId, executionWorkspacePreference: "reuse_existing" });
-    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.companyId, seeded.companyId))).toHaveLength(1);
+    expect(await db.select().from(executionWorkspaces).where(eq(executionWorkspaces.spaceId, seeded.spaceId))).toHaveLength(1);
     expect(run?.resultJson).toMatchObject({ configFreshness: { workspace: { action: "replace", reuseRequested: true, workspaceReused: true, configSnapshotRefreshed: false,
       changedCategories: expect.arrayContaining(["projectWorkspace", "repo"]) } } });
     expect(await readFile(path.join(seeded.worktree, "retained.txt"), "utf8")).toBe("unexported original task edits\n");
@@ -1051,14 +1051,14 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
     expect(await readGit(seeded.owner, ["worktree", "list", "--porcelain"])).toContain(`worktree ${seeded.worktree}`);
   });
 
-  it.each(["explicit_conflict", "foreign_project", "foreign_company", "unproven"] as const)(
+  it.each(["explicit_conflict", "foreign_project", "foreign_space", "unproven"] as const)(
     "does not dispatch or rebind a retained source with %s authority", async (kind) => {
       const seeded = await seedRetainedSourceRun(kind);
       const heartbeat = heartbeatService(db);
       await heartbeat.resumeQueuedRuns();
       const run = await waitForRunToFinish(heartbeat, seeded.runId);
       await heartbeat.waitForRunExecutionDrain(seeded.runId);
-      if (kind === "foreign_company") {
+      if (kind === "foreign_space") {
         expect(run).toMatchObject({ status: "failed", errorCode: "setup_failed", error: "Task workspace access is no longer available" });
       } else {
         expect(run).toMatchObject({ status: "failed", errorCode: "workspace_validation_failed" });
@@ -1088,11 +1088,11 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
       await db.update(issues).set({ projectWorkspaceId: seeded.newWorkspaceId,
         executionWorkspaceSettings: { mode: "shared_workspace" } }).where(eq(issues.id, seeded.issueId));
     }
-    const [privateIssue] = await db.insert(issues).values({ companyId: seeded.companyId, projectId: seeded.projectId,
+    const [privateIssue] = await db.insert(issues).values({ spaceId: seeded.spaceId, projectId: seeded.projectId,
       title: "Private work", visibility: "private" }).returning();
-    const privateCwd = path.join(seeded.owner, ".paperclip", "worktrees", "restricted-task");
+    const privateCwd = path.join(seeded.owner, ".outpost", "worktrees", "restricted-task");
     await runGit(seeded.owner, ["worktree", "add", "-b", "restricted-task", privateCwd]);
-    const [privateWorkspace] = await db.insert(executionWorkspaces).values({ companyId: seeded.companyId, projectId: seeded.projectId,
+    const [privateWorkspace] = await db.insert(executionWorkspaces).values({ spaceId: seeded.spaceId, projectId: seeded.projectId,
       sourceIssueId: privateIssue.id, name: "Private workspace", mode: "isolated_workspace", strategyType: "git_worktree",
       providerType: "git_worktree", cwd: privateCwd, providerRef: privateCwd, branchName: "restricted-task", status: "idle" }).returning();
     await db.update(issues).set({ executionWorkspaceId: privateWorkspace.id }).where(eq(issues.id, privateIssue.id));
@@ -1110,7 +1110,7 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
     expect(run).toMatchObject({ status: "succeeded", errorCode: null });
     expect(adapterExecute).toHaveBeenCalledTimes(1);
     expect(adapterExecute.mock.calls[0]?.[0]).toMatchObject({ context: {
-      paperclipWorkspace: { cwd: strategyType === "project_primary" ? seeded.owner : seeded.worktree },
+      outpostWorkspace: { cwd: strategyType === "project_primary" ? seeded.owner : seeded.worktree },
       executionWorkspaceId: seeded.executionWorkspaceId,
     } });
     expect(mockCaptureRunFailure).not.toHaveBeenCalled();
@@ -1121,30 +1121,30 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
     const actions = await db.select({ cause: issueRecoveryActions.cause }).from(issueRecoveryActions)
       .where(eq(issueRecoveryActions.sourceIssueId, seeded.issueId));
     expect(actions).toHaveLength(0);
-    expect(await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.companyId, seeded.companyId))).toHaveLength(1);
+    expect(await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, seeded.spaceId))).toHaveLength(1);
     expect(await readFile(path.join(seeded.worktree, "retained.txt"), "utf8")).toBe("unexported original task edits\n");
   });
 
   it("blocks projectless isolated git-worktree issues before dispatch", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const issueId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
     const issueIdentifier = `${issuePrefix}-1`;
 
     await instanceSettingsService(db).updateExperimental({ enableIsolatedWorkspaces: true });
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
       issuePrefix,
       status: "active",
       defaultResponsibleUserId: "responsible-user",
     });
     await db.insert(authUsers).values({ id: "responsible-user", name: "Fixture user", email: "responsible-user@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "responsible-user", status: "active", membershipRole: "member" });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -1160,7 +1160,7 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       title: "Projectless isolated worktree",
       status: "todo",
       workMode: "standard",
@@ -1267,7 +1267,7 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
       db,
       heartbeat,
       runId: seeded.runId,
-      companyId: seeded.companyId,
+      spaceId: seeded.spaceId,
       sourceIssueId: seeded.sourceIssueId,
       sameWorkspaceSiblingId: seeded.sameWorkspaceSiblingId,
       otherWorkspaceSiblingId: seeded.otherWorkspaceSiblingId,
@@ -1315,7 +1315,7 @@ describeEmbeddedPostgres("heartbeat workspace branch containment", () => {
       const now = new Date("2026-07-07T00:00:01.000Z");
       await db.insert(issueRecoveryActions).values({
         id: randomUUID(),
-        companyId: seeded.companyId,
+        spaceId: seeded.spaceId,
         sourceIssueId: seeded.sourceIssueId,
         kind: "workspace_validation",
         status: "active",

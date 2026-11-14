@@ -6,7 +6,7 @@ describe("historical watchdog confirmation incident fixture", () => {
   it("reproduces the material stop fingerprint", () => {
     const materialPayload = JSON.stringify({
       version: incident.stopSnapshot.version,
-      companyId: incident.companyId,
+      spaceId: incident.spaceId,
       watchedIssueId: incident.watchdogRun.watchedIssueId,
       materialLeaves: incident.stopSnapshot.materialLeaves,
       waitsByIssueId: incident.stopSnapshot.waitsByIssueId,
@@ -16,12 +16,12 @@ describe("historical watchdog confirmation incident fixture", () => {
     expect(fingerprint).toBe(incident.watchdogRun.stopFingerprint);
   });
 
-  it("preserves why the watchdog could not resolve the board-only card", () => {
+  it("preserves why the watchdog could not resolve the operator-only card", () => {
     expect(incident.interactionAtStop).toMatchObject({
       id: "8bef17ef-6df4-4e52-8333-f3a789580be0",
       kind: "request_confirmation",
       status: "pending",
-      effectiveResolverPolicy: "board_only",
+      effectiveResolverPolicy: "operator_only",
       sourceRunId: incident.creatorRun.id,
     });
     expect(incident.watchdogAuthorizationAtStop.deniedOperations).toContain(
@@ -32,7 +32,7 @@ describe("historical watchdog confirmation incident fixture", () => {
   it("records manual acceptance without changing audit attribution or retaining a current wait", () => {
     expect(incident.manualAcceptance).toMatchObject({
       status: "accepted",
-      resolverPolicy: "board_only",
+      resolverPolicy: "operator_only",
       resolvedByAgentId: null,
       resolvedByRunId: null,
     });

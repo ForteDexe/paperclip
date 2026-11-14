@@ -19,7 +19,7 @@ interface BuiltFile { file: string; size: number; sha256: string }
 // standard carrier: declarations (.d.ts) and source maps (.map) are retained
 // byte-for-byte under a .txt suffix instead of failing the whole attempt.
 export const retainedSourceSdkPath = (file: string) => {
-  const named = file.replace(/\/\.paperclip-build-complete$/, "/build-completion-receipt.json");
+  const named = file.replace(/\/\.outpost-build-complete$/, "/build-completion-receipt.json");
   return isStandardEvidenceFile(`html-report/${SOURCE_SDK_DIAGNOSTICS}/${named}`) ? named : `${named}.txt`;
 };
 const retainedPath = retainedSourceSdkPath;
@@ -60,7 +60,7 @@ async function boundedTree(root: string) {
 }
 function outputHash(files: Array<{ file: string; bytes: Buffer }>) {
   const digest = createHash("sha256");
-  for (const file of files.filter(row => row.file !== ".paperclip-build-complete")) {
+  for (const file of files.filter(row => row.file !== ".outpost-build-complete")) {
     digest.update(JSON.stringify([file.file, file.bytes.length])); digest.update(file.bytes);
   }
   return digest.digest("hex");
@@ -80,7 +80,7 @@ export async function retainPreparedSourceSdk(input: { repositoryRoot: string; t
   const buffers: Array<BuiltFile & { bytes: Buffer }> = [], certifiedTargets: RetainedBuild["certifiedTargets"] = [];
   for (const directory of targets) {
     const files = await boundedTree(path.join(repository, directory));
-    const marker = files.find(row => row.file === ".paperclip-build-complete"), entry = files.find(row => row.file === "index.js");
+    const marker = files.find(row => row.file === ".outpost-build-complete"), entry = files.find(row => row.file === "index.js");
     if (!marker || !entry) throw new Error("Source SDK build completion evidence missing");
     const certificate = JSON.parse(marker.bytes.toString("utf8"));
     if (!hex(certificate.sources) || !hex(certificate.outputs) || outputHash(files) !== certificate.outputs) throw new Error("Source SDK build output no longer matches its completed compiler receipt");

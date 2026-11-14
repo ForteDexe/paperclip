@@ -66,7 +66,7 @@ export function sequenceLeadIn(definition: Definition, animationId: string): num
 
 /**
  * The export's body in the agent's palette (or the presentation-only gray
- * while nothing has been hired). Everything else — shape, shading, motion,
+ * while nothing has been created). Everything else — shape, shading, motion,
  * follow settings — is the studio's, untouched.
  */
 export function colorOnboardingDefinition(definition: Definition, appearance: AgentAppearance, muted: boolean): Definition {

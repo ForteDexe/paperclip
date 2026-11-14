@@ -10,7 +10,7 @@ export const taskListViews = [
 export type TaskListView = typeof taskListViews[number]["value"];
 type ViewIssue = Pick<Issue, "createdByUserId" | "assigneeUserId" | "status">;
 
-/** Apply within the current company's accessible tasks; ancestors are added separately. */
+/** Apply within the current space's accessible tasks; ancestors are added separately. */
 export function matchesTaskListView(view: TaskListView, issue: ViewIssue, unread: boolean, userId: string | null): boolean {
   switch (view) {
     case "inbox": return Boolean(userId && (issue.createdByUserId === userId || issue.assigneeUserId === userId));
@@ -21,7 +21,7 @@ export function matchesTaskListView(view: TaskListView, issue: ViewIssue, unread
 }
 
 export function taskListViewStorageKey(scope: string, userId: string): string {
-  return `paperclip:task-list-view:v1:${encodeURIComponent(scope)}:${encodeURIComponent(userId)}`;
+  return `outpost:task-list-view:v1:${encodeURIComponent(scope)}:${encodeURIComponent(userId)}`;
 }
 
 type ViewStorage = Pick<Storage, "getItem" | "setItem">;

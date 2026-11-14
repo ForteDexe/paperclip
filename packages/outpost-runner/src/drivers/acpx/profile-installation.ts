@@ -19,7 +19,7 @@ export async function verifyAcpxProfileInstallation(profile: QualifiedAcpxProfil
   if (profile.agent === "cursor") {
     try { return await verifyCursorInstallation(profile); }
     catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") throw Object.assign(new Error("Cursor runtime assets are missing. Run paperclipai runtime setup cursor on this execution host."), { code: "CURSOR_RUNTIME_MISSING", retryable: false });
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") throw Object.assign(new Error("Cursor runtime assets are missing. Run outpost runtime setup cursor on this execution host."), { code: "CURSOR_RUNTIME_MISSING", retryable: false });
       throw error;
     }
   }
@@ -38,13 +38,13 @@ export async function assertAcpxProfileWorkspace(agent: QualifiedAcpxAgent, work
 export function assertAcpxProfileEnvironment(agent: QualifiedAcpxAgent, environment: Readonly<NodeJS.ProcessEnv>): void {
   if (agent === "copilot") assertCopilotCredentials(environment);
   if (agent === "kimi" && !environment.KIMI_API_KEY?.trim()) {
-    throw Object.assign(new Error("Kimi Code credentials are missing. Bind a company secret to KIMI_API_KEY in the agent environment."), { code: "KIMI_CREDENTIALS_MISSING", retryable: false });
+    throw Object.assign(new Error("Kimi Code credentials are missing. Bind a space secret to KIMI_API_KEY in the agent environment."), { code: "KIMI_CREDENTIALS_MISSING", retryable: false });
   }
   if (agent === "antigravity" && !environment.GEMINI_API_KEY?.trim() && !environment.OUTPOST_ACPX_ANTIGRAVITY_AUTH_JSON_SECRET?.trim()) {
     throw Object.assign(new Error("Google Antigravity requires an explicitly bound Google runtime connection. Connect a Google account or Gemini API key before starting a task."), { code: "ANTIGRAVITY_CREDENTIALS_MISSING", retryable: false });
   }
   if (agent === "cursor" && !environment.CURSOR_API_KEY?.trim() && !environment.CURSOR_AUTH_TOKEN?.trim()) {
-    throw Object.assign(new Error("Cursor credentials are missing. Bind a company secret to CURSOR_API_KEY or CURSOR_AUTH_TOKEN in the agent environment."), { code: "CURSOR_CREDENTIALS_MISSING", retryable: false });
+    throw Object.assign(new Error("Cursor credentials are missing. Bind a space secret to CURSOR_API_KEY or CURSOR_AUTH_TOKEN in the agent environment."), { code: "CURSOR_CREDENTIALS_MISSING", retryable: false });
   }
 }
 
@@ -64,7 +64,7 @@ export function classifyAcpxProfileError(agent: QualifiedAcpxAgent, error: unkno
     detail = "Cursor declined access because of account entitlement or quota. Check the subscription, selected model access, and account spending cap.";
   } else if (/invalid (?:api key|auth(?:entication)? token)|authentication failed|unauthenticated|unauthorized|not authenticated/i.test(message)) {
     code = "CURSOR_AUTHENTICATION_FAILED";
-    detail = "Cursor rejected the bound credential. Update the company secret used by CURSOR_API_KEY or CURSOR_AUTH_TOKEN.";
+    detail = "Cursor rejected the bound credential. Update the space secret used by CURSOR_API_KEY or CURSOR_AUTH_TOKEN.";
   } else if (/(?:model.*(?:not found|unavailable|unsupported|not available|not allowed)|(?:unknown|invalid) model|effective model mismatch)/i.test(message)) {
     code = "CURSOR_MODEL_UNAVAILABLE";
     detail = "Cursor could not use the explicitly selected model. Verify its exact identifier and account access, then select a supported model explicitly.";

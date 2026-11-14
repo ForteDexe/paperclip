@@ -336,7 +336,7 @@ describe("bounded Teams inline picture preparation", () => {
 function persistence(): ChatSdkStatePersistence {
   const rows = new Map<string, ChatSdkStateRecord>();
   const key = (scope: ChatSdkStateScope, name: string) =>
-    JSON.stringify([scope.companyId, scope.endpointId, name]);
+    JSON.stringify([scope.spaceId, scope.endpointId, name]);
   return {
     async read(scope, name) {
       return rows.get(key(scope, name)) ?? null;
@@ -375,7 +375,7 @@ describe("Teams inline images through pinned runtime/App HTTP", () => {
     });
     vi.stubGlobal("fetch", network);
     const runtime = createChatSdkEndpointRuntime({
-      companyId: "33333333-3333-4333-8333-333333333333",
+      spaceId: "33333333-3333-4333-8333-333333333333",
       endpointId: "44444444-4444-4444-8444-444444444444",
       persistence: persistence(),
       logger: "silent",
@@ -436,7 +436,7 @@ describe("Teams inline images through pinned runtime/App HTTP", () => {
         const prepared = await prepareTeamsInlineImage(file(bytes, mime, name));
         expect(prepared).not.toBeNull();
         const result = await h.runtime.thread(d.thread).post({
-          markdown: "Picture on the Paperclip task.",
+          markdown: "Picture on the Outpost task.",
           files: [prepared!],
         });
         expect(result.id).toBe("image-receipt-1");

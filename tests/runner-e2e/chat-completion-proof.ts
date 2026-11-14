@@ -1,9 +1,9 @@
 type Row = Record<string, any>;
 
 export interface ChatCompletionEvidence {
-  companyId: string;
+  spaceId: string;
   agentId: string;
-  companyPrefix: string;
+  spacePrefix: string;
   baseURL: string;
   issue: Row;
   child: Row;
@@ -43,15 +43,15 @@ const completionItemKinds = new Set([
  */
 export function verifyChatCompletion(runs: readonly Row[], evidence: ChatCompletionEvidence | undefined) {
   requireProof(evidence, "evidence_missing");
-  const { companyId, agentId, issue, child, tasks, comments } = evidence!;
+  const { spaceId, agentId, issue, child, tasks, comments } = evidence!;
   const generation = issue.conversationSessionGeneration;
-  requireProof(issue.companyId === companyId && issue.conversationAgentId === agentId
+  requireProof(issue.spaceId === spaceId && issue.conversationAgentId === agentId
     && Number.isSafeInteger(generation) && generation >= 0, "source_scope");
-  requireProof(child.id !== issue.id && child.companyId === companyId && child.status === "done"
+  requireProof(child.id !== issue.id && child.spaceId === spaceId && child.status === "done"
     && !child.conversationAgentId && typeof child.assigneeAgentId === "string"
     && Number.isFinite(time(child.completedAt)), "child_done");
-  requireProof(tasks.length === 1 && tasks[0]?.id === child.id && tasks[0]?.companyId === companyId, "extra_work");
-  requireProof(new Set(runs.map(r => r.id)).size === runs.length && runs.every(r => typeof r.id === "string" && r.id.length > 0 && r.companyId === companyId
+  requireProof(tasks.length === 1 && tasks[0]?.id === child.id && tasks[0]?.spaceId === spaceId, "extra_work");
+  requireProof(new Set(runs.map(r => r.id)).size === runs.length && runs.every(r => typeof r.id === "string" && r.id.length > 0 && r.spaceId === spaceId
     && [issue.id, child.id].includes(scopeIssue(r)) && r.contextSnapshot?.issueId === scopeIssue(r)
     && r.agentId === (scopeIssue(r) === issue.id ? agentId : child.assigneeAgentId)
     && r.runtimeMode === "native" && r.status === "succeeded" && typeof r.nativeSessionId === "string" && r.nativeSessionId.length > 0
@@ -80,7 +80,7 @@ export function verifyChatCompletion(runs: readonly Row[], evidence: ChatComplet
   const replies = comments.filter(c => c.createdByRunId === run.id);
   requireProof(replies.length === 1, "reply_count");
   const reply = replies[0]!;
-  requireProof(reply.companyId === companyId && reply.issueId === issue.id && reply.authorAgentId === agentId
+  requireProof(reply.spaceId === spaceId && reply.issueId === issue.id && reply.authorAgentId === agentId
     && reply.authorType === "agent" && !reply.deletedAt
     && (reply.conversationSessionGeneration == null || reply.conversationSessionGeneration === generation)
     && time(reply.createdAt) >= time(run.startedAt) && typeof reply.body === "string" && reply.body.trim(), "reply_scope");
@@ -91,7 +91,7 @@ export function verifyChatCompletion(runs: readonly Row[], evidence: ChatComplet
       if (url.origin !== new URL(evidence!.baseURL).origin) return false;
       const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
       const index = parts.indexOf("issues");
-      return (index === 0 || index === 1 && parts[0] === evidence!.companyPrefix)
+      return (index === 0 || index === 1 && parts[0] === evidence!.spacePrefix)
         && parts.length === index + 2 && [child.id, child.identifier].filter(Boolean).includes(parts[index + 1]);
     } catch { return false; }
   });
@@ -100,8 +100,8 @@ export function verifyChatCompletion(runs: readonly Row[], evidence: ChatComplet
   const streams = evidence!.runEvidence.filter(e => e.runId === run.id);
   requireProof(streams.length === 1 && streams[0]!.events.length > 0, "events_missing");
   const stream = streams[0]!;
-  requireProof(stream.events.every(e => typeof e.eventType === "string" && e.companyId === companyId && e.runId === run.id && e.agentId === agentId), "event_scope");
-  // Native harness work need not use a Paperclip tool. Unknown event types and
+  requireProof(stream.events.every(e => typeof e.eventType === "string" && e.spaceId === spaceId && e.runId === run.id && e.agentId === agentId), "event_scope");
+  // Native harness work need not use a Outpost tool. Unknown event types and
   // item kinds (commands, file changes, searches) cannot earn this allowance.
   requireProof(stream.events.every(e => completionEventTypes.has(e.eventType)), "additional_native_work");
   const items = stream.events.filter(e => e.eventType.startsWith("item."));
@@ -117,8 +117,8 @@ export function verifyChatCompletion(runs: readonly Row[], evidence: ChatComplet
     && e.payload?.orpEvent?.schema === "outpost.orp.event.v1" && e.payload.orpEvent.runId === run.id
     && e.payload.orpEvent.eventType === e.eventType), "accepted_result_missing");
   requireProof(Array.isArray(stream.workspaceOperations) && stream.workspaceOperations.every(o => o.phase === "workspace_finalize"
-    && o.heartbeatRunId === run.id && o.companyId === companyId && o.status === "succeeded" && !o.command), "additional_workspace_work");
-  const allowedTools = new Set(["get_task", "list_task_documents", "get_task_document", "paperclip_finish"]);
+    && o.heartbeatRunId === run.id && o.spaceId === spaceId && o.status === "succeeded" && !o.command), "additional_workspace_work");
+  const allowedTools = new Set(["get_task", "list_task_documents", "get_task_document", "outpost_finish"]);
   const tools = stream.events.filter(e => e.eventType.startsWith("tool.execution."));
   const starts = new Map<string, string>(), finishes = new Map<string, string>();
   for (const event of tools) {
@@ -135,7 +135,7 @@ export function verifyChatCompletion(runs: readonly Row[], evidence: ChatComplet
     target.set(tool.executionId, tool.name);
   }
   requireProof(starts.size === finishes.size && [...starts].every(([id, name]) => finishes.get(id) === name)
-    && [...finishes.values()].filter(name => name === "paperclip_finish").length === 1, "tool_completion");
+    && [...finishes.values()].filter(name => name === "outpost_finish").length === 1, "tool_completion");
   for (const event of items) {
     const payload = event.payload.orpEvent.payload;
     if (payload.kind !== "dynamicToolCall") continue;

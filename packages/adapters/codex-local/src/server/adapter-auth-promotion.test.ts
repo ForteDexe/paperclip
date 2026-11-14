@@ -13,8 +13,8 @@ import { MAX_AUTH_JSON_BYTES } from "./device-login-export.js";
 import { resolveManagedCodexHomeDir, resolveSharedCodexHomeDir } from "./codex-home.js";
 import { resolveCodexAuthCacheDir, resolveCodexAuthCacheEntryPath } from "./codex-auth-cache.js";
 
-const COMPANY_A = "company-a";
-const COMPANY_B = "company-b";
+const SPACE_A = "space-a";
+const SPACE_B = "space-b";
 const NEWER = "2026-07-09T02:00:00Z";
 const OLDER = "2026-07-09T01:00:00Z";
 const ACCOUNT = "acct-42";
@@ -24,7 +24,7 @@ const TOKEN_SENTINEL = "SENTINEL_TOKEN_XYZ";
 // This suite proves the device-login credential promotion helper. The helper
 // runs an independent readiness check on the exact staged credential first, then
 // validates it with the export rules, then writes this account's own home and,
-// as a fallback, the company default home. It writes only while the session
+// as a fallback, the space default home. It writes only while the session
 // holds the sole active claim on the slot (the conditional check). It never
 // writes the instance-global host, and it never logs secret bytes.
 describe("device-login credential promotion", () => {
@@ -40,7 +40,7 @@ describe("device-login credential promotion", () => {
   });
 
   async function makeInstanceRoot(): Promise<string> {
-    const dir = await mkdtemp(path.join(os.tmpdir(), "paperclip-codex-promotion-"));
+    const dir = await mkdtemp(path.join(os.tmpdir(), "outpost-codex-promotion-"));
     cleanupDirs.push(dir);
     return dir;
   }
@@ -79,18 +79,18 @@ describe("device-login credential promotion", () => {
   const soleOwner = () => true;
   const noopLog = (_line: string): void => {};
 
-  function companyHomeAuthPath(env: NodeJS.ProcessEnv, companyId: string): string {
-    return path.join(resolveManagedCodexHomeDir(env, companyId), "auth.json");
+  function spaceHomeAuthPath(env: NodeJS.ProcessEnv, spaceId: string): string {
+    return path.join(resolveManagedCodexHomeDir(env, spaceId), "auth.json");
   }
 
-  it("a failed readiness check rejects and writes neither the company home nor the account home", async () => {
+  it("a failed readiness check rejects and writes neither the space home nor the account home", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
     const logs: string[] = [];
     await expect(
       promoteDeviceLoginCredential({
         authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER }),
-        companyId: COMPANY_A,
+        spaceId: SPACE_A,
         userInitiated: true,
         checkReadiness: notReady,
         isSoleActiveOwner: soleOwner,
@@ -101,10 +101,10 @@ describe("device-login credential promotion", () => {
       }),
     ).rejects.toBeInstanceOf(DeviceLoginReadinessError);
 
-    // Neither company target was written.
-    await expect(lstat(companyHomeAuthPath(env, COMPANY_A))).rejects.toThrow();
+    // Neither space target was written.
+    await expect(lstat(spaceHomeAuthPath(env, SPACE_A))).rejects.toThrow();
     await expect(
-      lstat(resolveCodexAuthCacheEntryPath(env, ACCOUNT, COMPANY_A)),
+      lstat(resolveCodexAuthCacheEntryPath(env, ACCOUNT, SPACE_A)),
     ).rejects.toThrow();
     // The instance-global host was never touched.
     await expect(
@@ -115,12 +115,12 @@ describe("device-login credential promotion", () => {
     expect(logs.join("\n")).not.toContain(ACCOUNT);
   });
 
-  it("a user login seeds this account's own home and the company default home", async () => {
+  it("a user login seeds this account's own home and the space default home", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
     const result = await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -130,14 +130,14 @@ describe("device-login credential promotion", () => {
     expect(result.outcome).toBe("promoted");
     expect(result.accountId).toBe(ACCOUNT);
     expect(result.accountHomeDir).toBe(
-      path.dirname(resolveCodexAuthCacheEntryPath(env, ACCOUNT, COMPANY_A)),
+      path.dirname(resolveCodexAuthCacheEntryPath(env, ACCOUNT, SPACE_A)),
     );
     expect(result.accountHomeCreated).toBe(true);
 
-    const homeAuth = await readFile(companyHomeAuthPath(env, COMPANY_A), "utf8");
+    const homeAuth = await readFile(spaceHomeAuthPath(env, SPACE_A), "utf8");
     expect(JSON.parse(homeAuth).tokens.account_id).toBe(ACCOUNT);
     const accountAuth = await readFile(
-      resolveCodexAuthCacheEntryPath(env, ACCOUNT, COMPANY_A),
+      resolveCodexAuthCacheEntryPath(env, ACCOUNT, SPACE_A),
       "utf8",
     );
     expect(JSON.parse(accountAuth).tokens.account_id).toBe(ACCOUNT);
@@ -152,7 +152,7 @@ describe("device-login credential promotion", () => {
     const env = envFor(home);
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: OLDER, marker: "old" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -161,7 +161,7 @@ describe("device-login credential promotion", () => {
     });
     const result = await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "new" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -170,7 +170,7 @@ describe("device-login credential promotion", () => {
     });
     expect(result.outcome).toBe("promoted");
     const accountAuth = JSON.parse(
-      await readFile(resolveCodexAuthCacheEntryPath(env, ACCOUNT, COMPANY_A), "utf8"),
+      await readFile(resolveCodexAuthCacheEntryPath(env, ACCOUNT, SPACE_A), "utf8"),
     );
     expect(accountAuth.last_refresh).toBe(NEWER);
     expect(accountAuth.tokens.refresh_token).toContain("new");
@@ -181,7 +181,7 @@ describe("device-login credential promotion", () => {
     const env = envFor(home);
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "keep" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -190,7 +190,7 @@ describe("device-login credential promotion", () => {
     });
     const result = await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: OLDER, marker: "older" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -199,7 +199,7 @@ describe("device-login credential promotion", () => {
     });
     expect(result.outcome).toBe("kept");
     const accountAuth = JSON.parse(
-      await readFile(resolveCodexAuthCacheEntryPath(env, ACCOUNT, COMPANY_A), "utf8"),
+      await readFile(resolveCodexAuthCacheEntryPath(env, ACCOUNT, SPACE_A), "utf8"),
     );
     expect(accountAuth.tokens.refresh_token).toContain("keep");
   });
@@ -209,7 +209,7 @@ describe("device-login credential promotion", () => {
     const env = envFor(home);
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "first" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -218,7 +218,7 @@ describe("device-login credential promotion", () => {
     });
     const result = await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: OTHER_ACCOUNT, lastRefresh: NEWER, marker: "other" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -229,7 +229,7 @@ describe("device-login credential promotion", () => {
     // succeeds instead of failing behind the first account's home.
     expect(result.outcome).toBe("promoted");
     const otherAccountAuth = JSON.parse(
-      await readFile(resolveCodexAuthCacheEntryPath(env, OTHER_ACCOUNT, COMPANY_A), "utf8"),
+      await readFile(resolveCodexAuthCacheEntryPath(env, OTHER_ACCOUNT, SPACE_A), "utf8"),
     );
     expect(otherAccountAuth.tokens.account_id).toBe(OTHER_ACCOUNT);
   });
@@ -239,7 +239,7 @@ describe("device-login credential promotion", () => {
     const env = envFor(home);
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: OLDER, marker: "first" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -248,7 +248,7 @@ describe("device-login credential promotion", () => {
     });
     const result = await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "second" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -271,7 +271,7 @@ describe("device-login credential promotion", () => {
     const [first, second] = await Promise.all([
       promoteDeviceLoginCredential({
         authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "racer-a" }),
-        companyId: COMPANY_A,
+        spaceId: SPACE_A,
         userInitiated: true,
         checkReadiness: ready,
         isSoleActiveOwner: soleOwner,
@@ -280,7 +280,7 @@ describe("device-login credential promotion", () => {
       }),
       promoteDeviceLoginCredential({
         authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "racer-b" }),
-        companyId: COMPANY_A,
+        spaceId: SPACE_A,
         userInitiated: true,
         checkReadiness: ready,
         isSoleActiveOwner: soleOwner,
@@ -296,39 +296,39 @@ describe("device-login credential promotion", () => {
     const createdFlags = [first.accountHomeCreated, second.accountHomeCreated];
     expect(createdFlags.filter(Boolean)).toHaveLength(1);
     await expect(
-      lstat(resolveCodexAuthCacheEntryPath(env, ACCOUNT, COMPANY_A)),
+      lstat(resolveCodexAuthCacheEntryPath(env, ACCOUNT, SPACE_A)),
     ).resolves.toBeDefined();
   });
 
-  it("promotion keeps the company default home when it holds another account", async () => {
+  it("promotion keeps the space default home when it holds another account", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "first" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
       env,
       log: noopLog,
     });
-    const before = await readFile(companyHomeAuthPath(env, COMPANY_A), "utf8");
+    const before = await readFile(spaceHomeAuthPath(env, SPACE_A), "utf8");
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: OTHER_ACCOUNT, lastRefresh: NEWER, marker: "other" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
       env,
       log: noopLog,
     });
-    // The company default home fallback still names the first account: a
+    // The space default home fallback still names the first account: a
     // second account never clobbers it once some account has claimed it.
-    expect(await readFile(companyHomeAuthPath(env, COMPANY_A), "utf8")).toBe(before);
+    expect(await readFile(spaceHomeAuthPath(env, SPACE_A), "utf8")).toBe(before);
   });
 
-  it("a strictly-newer same-account login refreshes the company default home", async () => {
-    // The sign-in loop this pins: a company home already holding a shape-usable
+  it("a strictly-newer same-account login refreshes the space default home", async () => {
+    // The sign-in loop this pins: a space home already holding a shape-usable
     // credential for this account must still pick up the login the user just
     // completed, or every environment test after the login keeps staging the
     // old credential and keeps reporting authentication as missing.
@@ -336,7 +336,7 @@ describe("device-login credential promotion", () => {
     const env = envFor(home);
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: OLDER, marker: "old" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -345,24 +345,24 @@ describe("device-login credential promotion", () => {
     });
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "new" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
       env,
       log: noopLog,
     });
-    const homeAuth = JSON.parse(await readFile(companyHomeAuthPath(env, COMPANY_A), "utf8"));
+    const homeAuth = JSON.parse(await readFile(spaceHomeAuthPath(env, SPACE_A), "utf8"));
     expect(homeAuth.last_refresh).toBe(NEWER);
     expect(homeAuth.tokens.refresh_token).toContain("new");
   });
 
-  it("an older same-account login keeps the company default home", async () => {
+  it("an older same-account login keeps the space default home", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "keep" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -371,19 +371,19 @@ describe("device-login credential promotion", () => {
     });
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: OLDER, marker: "older" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
       env,
       log: noopLog,
     });
-    const homeAuth = JSON.parse(await readFile(companyHomeAuthPath(env, COMPANY_A), "utf8"));
+    const homeAuth = JSON.parse(await readFile(spaceHomeAuthPath(env, SPACE_A), "utf8"));
     expect(homeAuth.tokens.refresh_token).toContain("keep");
   });
 
-  it("a strictly-newer same-account login replaces a symlinked company auth.json without writing its target", async () => {
-    // The company home often symlinks auth.json at the host login (the shared
+  it("a strictly-newer same-account login replaces a symlinked space auth.json without writing its target", async () => {
+    // The space home often symlinks auth.json at the host login (the shared
     // source seeding does exactly that). The refresh must swap the symlink for
     // a regular file holding the login credential — atomically, at the link
     // itself — and must never write through the link into the file it names.
@@ -392,13 +392,13 @@ describe("device-login credential promotion", () => {
     const hostAuthPath = path.join(home, "host-auth.json");
     const hostBytes = subscriptionAuth({ accountId: ACCOUNT, lastRefresh: OLDER, marker: "host" });
     await writeFile(hostAuthPath, hostBytes);
-    const companyHome = resolveManagedCodexHomeDir(env, COMPANY_A);
-    await mkdir(companyHome, { recursive: true, mode: 0o700 });
-    await symlink(hostAuthPath, companyHomeAuthPath(env, COMPANY_A));
+    const spaceHome = resolveManagedCodexHomeDir(env, SPACE_A);
+    await mkdir(spaceHome, { recursive: true, mode: 0o700 });
+    await symlink(hostAuthPath, spaceHomeAuthPath(env, SPACE_A));
 
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "fresh" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -406,9 +406,9 @@ describe("device-login credential promotion", () => {
       log: noopLog,
     });
 
-    const stat = await lstat(companyHomeAuthPath(env, COMPANY_A));
+    const stat = await lstat(spaceHomeAuthPath(env, SPACE_A));
     expect(stat.isSymbolicLink()).toBe(false);
-    const homeAuth = JSON.parse(await readFile(companyHomeAuthPath(env, COMPANY_A), "utf8"));
+    const homeAuth = JSON.parse(await readFile(spaceHomeAuthPath(env, SPACE_A), "utf8"));
     expect(homeAuth.tokens.refresh_token).toContain("fresh");
     // The symlink target — standing in for the host's ~/.codex/auth.json — was
     // never written.
@@ -421,7 +421,7 @@ describe("device-login credential promotion", () => {
     await expect(
       promoteDeviceLoginCredential({
         authBytes: subscriptionAuth({ accountId: "acct 42", lastRefresh: NEWER }),
-        companyId: COMPANY_A,
+        spaceId: SPACE_A,
         userInitiated: true,
         checkReadiness: ready,
         isSoleActiveOwner: soleOwner,
@@ -429,7 +429,7 @@ describe("device-login credential promotion", () => {
         log: noopLog,
       }),
     ).rejects.toThrow();
-    await expect(lstat(companyHomeAuthPath(env, COMPANY_A))).rejects.toThrow();
+    await expect(lstat(spaceHomeAuthPath(env, SPACE_A))).rejects.toThrow();
   });
 
   it("a whitespace-padded account identifier never shares a home with, or reports as authenticated against, the unpadded account", async () => {
@@ -442,7 +442,7 @@ describe("device-login credential promotion", () => {
     const env = envFor(home);
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "original" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -452,7 +452,7 @@ describe("device-login credential promotion", () => {
     await expect(
       promoteDeviceLoginCredential({
         authBytes: subscriptionAuth({ accountId: ` ${ACCOUNT}`, lastRefresh: NEWER, marker: "padded" }),
-        companyId: COMPANY_A,
+        spaceId: SPACE_A,
         userInitiated: true,
         checkReadiness: ready,
         isSoleActiveOwner: soleOwner,
@@ -464,7 +464,7 @@ describe("device-login credential promotion", () => {
     // login wrote. The padded login never read it, never wrote it, and never
     // received a "kept" outcome that would report it as authenticated.
     const accountAuth = JSON.parse(
-      await readFile(resolveCodexAuthCacheEntryPath(env, ACCOUNT, COMPANY_A), "utf8"),
+      await readFile(resolveCodexAuthCacheEntryPath(env, ACCOUNT, SPACE_A), "utf8"),
     );
     expect(accountAuth.tokens.refresh_token).toContain("original");
   });
@@ -475,17 +475,17 @@ describe("device-login credential promotion", () => {
     // Force this account's own home write to fail. Plant a regular file where
     // the account expects its own directory, so the private-directory guard
     // throws before any write. That write is now fail-loud (it is the durable
-    // result), so the whole login fails, and the best-effort company default
+    // result), so the whole login fails, and the best-effort space default
     // home fallback is never reached.
-    const cacheDir = resolveCodexAuthCacheDir(env, COMPANY_A);
+    const cacheDir = resolveCodexAuthCacheDir(env, SPACE_A);
     await mkdir(cacheDir, { recursive: true, mode: 0o700 });
-    const entryPath = resolveCodexAuthCacheEntryPath(env, ACCOUNT, COMPANY_A);
+    const entryPath = resolveCodexAuthCacheEntryPath(env, ACCOUNT, SPACE_A);
     await writeFile(path.dirname(entryPath), "not-a-directory");
 
     await expect(
       promoteDeviceLoginCredential({
         authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER }),
-        companyId: COMPANY_A,
+        spaceId: SPACE_A,
         userInitiated: true,
         checkReadiness: ready,
         isSoleActiveOwner: soleOwner,
@@ -493,23 +493,23 @@ describe("device-login credential promotion", () => {
         log: noopLog,
       }),
     ).rejects.toThrow();
-    await expect(lstat(companyHomeAuthPath(env, COMPANY_A))).rejects.toThrow();
+    await expect(lstat(spaceHomeAuthPath(env, SPACE_A))).rejects.toThrow();
   });
 
-  it("a company default home write failure keeps the promotion successful and this account's own home durable", async () => {
+  it("a space default home write failure keeps the promotion successful and this account's own home durable", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
-    // Force the company default home write to fail. Plant a regular file where
-    // the company home directory belongs, so mkdir fails. This account's own
+    // Force the space default home write to fail. Plant a regular file where
+    // the space home directory belongs, so mkdir fails. This account's own
     // home write already ran and is durable, so the login still succeeds.
-    const companyHome = resolveManagedCodexHomeDir(env, COMPANY_A);
-    await mkdir(path.dirname(companyHome), { recursive: true });
-    await writeFile(companyHome, "not-a-directory");
+    const spaceHome = resolveManagedCodexHomeDir(env, SPACE_A);
+    await mkdir(path.dirname(spaceHome), { recursive: true });
+    await writeFile(spaceHome, "not-a-directory");
 
     const logs: string[] = [];
     const result = await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -521,11 +521,11 @@ describe("device-login credential promotion", () => {
 
     expect(result.outcome).toBe("promoted");
     const accountAuth = JSON.parse(
-      await readFile(resolveCodexAuthCacheEntryPath(env, ACCOUNT, COMPANY_A), "utf8"),
+      await readFile(resolveCodexAuthCacheEntryPath(env, ACCOUNT, SPACE_A), "utf8"),
     );
     expect(accountAuth.tokens.account_id).toBe(ACCOUNT);
     const haystack = logs.join("\n");
-    expect(haystack).toContain("seeding the company default home failed");
+    expect(haystack).toContain("seeding the space default home failed");
     expect(haystack).not.toContain(TOKEN_SENTINEL);
     expect(haystack).not.toContain(ACCOUNT);
   });
@@ -544,7 +544,7 @@ describe("device-login credential promotion", () => {
       await expect(
         promoteDeviceLoginCredential({
           authBytes: bytes,
-          companyId: COMPANY_A,
+          spaceId: SPACE_A,
           userInitiated: true,
           checkReadiness: ready,
           isSoleActiveOwner: soleOwner,
@@ -553,8 +553,8 @@ describe("device-login credential promotion", () => {
         }),
       ).rejects.toThrow();
     }
-    // No company target and no instance-global host was written.
-    await expect(lstat(companyHomeAuthPath(env, COMPANY_A))).rejects.toThrow();
+    // No space target and no instance-global host was written.
+    await expect(lstat(spaceHomeAuthPath(env, SPACE_A))).rejects.toThrow();
     await expect(
       lstat(path.join(resolveSharedCodexHomeDir(env), "auth.json")),
     ).rejects.toThrow();
@@ -565,7 +565,7 @@ describe("device-login credential promotion", () => {
     const env = envFor(home);
     const result = await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       // The session lost the active claim on the slot.
@@ -574,9 +574,9 @@ describe("device-login credential promotion", () => {
       log: noopLog,
     });
     expect(result.outcome).toBe("not_sole_owner");
-    await expect(lstat(companyHomeAuthPath(env, COMPANY_A))).rejects.toThrow();
+    await expect(lstat(spaceHomeAuthPath(env, SPACE_A))).rejects.toThrow();
     await expect(
-      lstat(resolveCodexAuthCacheEntryPath(env, ACCOUNT, COMPANY_A)),
+      lstat(resolveCodexAuthCacheEntryPath(env, ACCOUNT, SPACE_A)),
     ).rejects.toThrow();
   });
 
@@ -585,7 +585,7 @@ describe("device-login credential promotion", () => {
     const env = envFor(home);
     const result = await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       // Not a user-initiated login.
       userInitiated: false,
       checkReadiness: ready,
@@ -594,39 +594,39 @@ describe("device-login credential promotion", () => {
       log: noopLog,
     });
     expect(result.outcome).toBe("background_skipped");
-    await expect(lstat(companyHomeAuthPath(env, COMPANY_A))).rejects.toThrow();
+    await expect(lstat(spaceHomeAuthPath(env, SPACE_A))).rejects.toThrow();
     await expect(
-      lstat(resolveCodexAuthCacheEntryPath(env, ACCOUNT, COMPANY_A)),
+      lstat(resolveCodexAuthCacheEntryPath(env, ACCOUNT, SPACE_A)),
     ).rejects.toThrow();
   });
 
-  it("a Company A login never changes a Company B credential", async () => {
+  it("a Space A login never changes a Space B credential", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
-    // Seed Company B first.
+    // Seed Space B first.
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: OLDER, marker: "b-cred" }),
-      companyId: COMPANY_B,
+      spaceId: SPACE_B,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
       env,
       log: noopLog,
     });
-    const before = await readFile(companyHomeAuthPath(env, COMPANY_B), "utf8");
+    const before = await readFile(spaceHomeAuthPath(env, SPACE_B), "utf8");
 
-    // A Company A login for the same identity, even newer, must not touch B.
+    // A Space A login for the same identity, even newer, must not touch B.
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER, marker: "a-cred" }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
       env,
       log: noopLog,
     });
-    expect(await readFile(companyHomeAuthPath(env, COMPANY_B), "utf8")).toBe(before);
-    const aHome = JSON.parse(await readFile(companyHomeAuthPath(env, COMPANY_A), "utf8"));
+    expect(await readFile(spaceHomeAuthPath(env, SPACE_B), "utf8")).toBe(before);
+    const aHome = JSON.parse(await readFile(spaceHomeAuthPath(env, SPACE_A), "utf8"));
     expect(aHome.tokens.refresh_token).toContain("a-cred");
   });
 
@@ -636,7 +636,7 @@ describe("device-login credential promotion", () => {
     const logs: string[] = [];
     await promoteDeviceLoginCredential({
       authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER }),
-      companyId: COMPANY_A,
+      spaceId: SPACE_A,
       userInitiated: true,
       checkReadiness: ready,
       isSoleActiveOwner: soleOwner,
@@ -650,13 +650,13 @@ describe("device-login credential promotion", () => {
     expect(haystack).not.toContain(ACCOUNT);
   });
 
-  it("rejects an empty companyId, so a promotion can never reach the instance-global home", async () => {
+  it("rejects an empty spaceId, so a promotion can never reach the instance-global home", async () => {
     const home = await makeInstanceRoot();
     const env = envFor(home);
     await expect(
       promoteDeviceLoginCredential({
         authBytes: subscriptionAuth({ accountId: ACCOUNT, lastRefresh: NEWER }),
-        companyId: "",
+        spaceId: "",
         userInitiated: true,
         checkReadiness: ready,
         isSoleActiveOwner: soleOwner,
@@ -674,7 +674,7 @@ describe("device-login credential promotion", () => {
 // This suite proves the independent readiness check for a staged credential. It
 // answers whether a run launched now with the exact staged bytes would
 // authenticate. It writes the bytes to a throwaway home only, and it never reads
-// or writes any company scope.
+// or writes any space scope.
 describe("staged credential readiness", () => {
   it("returns ready for a usable subscription credential", async () => {
     const bytes = Buffer.from(

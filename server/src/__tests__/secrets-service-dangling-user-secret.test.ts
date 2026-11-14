@@ -5,11 +5,11 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
-  companies,
-  companyMemberships,
-  companySecretBindings,
-  companySecretVersions,
-  companySecrets,
+  spaces,
+  spaceMemberships,
+  spaceSecretBindings,
+  spaceSecretVersions,
+  spaceSecrets,
   createDb,
   secretAccessEvents,
   userSecretDeclarations,
@@ -36,7 +36,7 @@ describeEmbeddedPostgres("secretService dangling user_secret_ref resolution", ()
   let stopDb: (() => Promise<void>) | null = null;
   let db!: ReturnType<typeof createDb>;
   const previousKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
-  const secretsTmpDir = path.join(os.tmpdir(), `paperclip-dangling-secret-${randomUUID()}`);
+  const secretsTmpDir = path.join(os.tmpdir(), `outpost-dangling-secret-${randomUUID()}`);
 
   beforeAll(async () => {
     mkdirSync(secretsTmpDir, { recursive: true });
@@ -50,12 +50,12 @@ describeEmbeddedPostgres("secretService dangling user_secret_ref resolution", ()
     await db.delete(activityLog);
     await db.delete(secretAccessEvents);
     await db.delete(userSecretDeclarations);
-    await db.delete(companySecretBindings);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
+    await db.delete(spaceSecretBindings);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
     await db.delete(userSecretDefinitions);
-    await db.delete(companyMemberships);
-    await db.delete(companies);
+    await db.delete(spaceMemberships);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -68,22 +68,22 @@ describeEmbeddedPostgres("secretService dangling user_secret_ref resolution", ()
     rmSync(secretsTmpDir, { recursive: true, force: true });
   });
 
-  async function seedCompany(name = "Acme") {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+  async function seedSpace(name = "Acme") {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name,
-      issuePrefix: `T${companyId.slice(0, 7)}`.toUpperCase(),
+      issuePrefix: `T${spaceId.slice(0, 7)}`.toUpperCase(),
       status: "active",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    return companyId;
+    return spaceId;
   }
 
-  async function seedCompanyMember(companyId: string, userId: string) {
-    await db.insert(companyMemberships).values({
-      companyId,
+  async function seedSpaceMember(spaceId: string, userId: string) {
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "user",
       principalId: userId,
       status: "active",
@@ -94,17 +94,17 @@ describeEmbeddedPostgres("secretService dangling user_secret_ref resolution", ()
   }
 
   it("save path (syncEnvBindingsForTarget) names the env variable, the agent id, and the deleted definition key", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1");
     const svc = secretService(db);
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "local_encrypted",
     });
 
     // Delete the definition, then keep an agent config that still references it.
-    await svc.removeUserSecretDefinition(companyId, definition.id);
+    await svc.removeUserSecretDefinition(spaceId, definition.id);
 
     const agentId = randomUUID();
     const envValue = {
@@ -117,7 +117,7 @@ describeEmbeddedPostgres("secretService dangling user_secret_ref resolution", ()
     };
 
     await expect(
-      svc.syncEnvBindingsForTarget(companyId, { targetType: "agent", targetId: agentId }, envValue),
+      svc.syncEnvBindingsForTarget(spaceId, { targetType: "agent", targetId: agentId }, envValue),
     ).rejects.toMatchObject({
       status: 404,
       message: expect.stringContaining("User secret definition not found"),
@@ -125,7 +125,7 @@ describeEmbeddedPostgres("secretService dangling user_secret_ref resolution", ()
 
     // The message must name the env variable, the agent id, and the definition key.
     const error = await svc
-      .syncEnvBindingsForTarget(companyId, { targetType: "agent", targetId: agentId }, envValue)
+      .syncEnvBindingsForTarget(spaceId, { targetType: "agent", targetId: agentId }, envValue)
       .catch((caught: unknown) => caught as Error) as Error;
     expect(error).toBeInstanceOf(Error);
     expect(error.message).toContain('environment variable "GH_TOKEN"');
@@ -134,27 +134,27 @@ describeEmbeddedPostgres("secretService dangling user_secret_ref resolution", ()
   });
 
   it("Test path (resolveUserSecretValue) names the env variable, the agent id, and the deleted definition key without leaking the value", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1");
     const svc = secretService(db);
-    const definition = await svc.createUserSecretDefinition(companyId, {
+    const definition = await svc.createUserSecretDefinition(spaceId, {
       key: "github_token",
       name: "GitHub token",
       provider: "local_encrypted",
     });
     const secretValue = "ghp_super_secret_value";
-    await svc.createCurrentUserSecretValue(companyId, "user-1", {
+    await svc.createCurrentUserSecretValue(spaceId, "user-1", {
       definitionId: definition.id,
       value: secretValue,
     });
 
     // Delete the definition after the value exists. The binding now dangles.
-    await svc.removeUserSecretDefinition(companyId, definition.id);
+    await svc.removeUserSecretDefinition(spaceId, definition.id);
 
     const agentId = randomUUID();
     const error = await svc
       .resolveUserSecretValue(
-        companyId,
+        spaceId,
         { definitionKey: "github_token", responsibleUserId: "user-1", required: true },
         {
           consumerType: "agent",
@@ -176,12 +176,12 @@ describeEmbeddedPostgres("secretService dangling user_secret_ref resolution", ()
   });
 
   it("optional binding still resolves to null when the definition is missing (enrichment keeps the 404 status)", async () => {
-    const companyId = await seedCompany();
-    await seedCompanyMember(companyId, "user-1");
+    const spaceId = await seedSpace();
+    await seedSpaceMember(spaceId, "user-1");
     const svc = secretService(db);
 
     const resolved = await svc.resolveUserSecretValue(
-      companyId,
+      spaceId,
       { definitionKey: "never_created", responsibleUserId: "user-1", required: false },
       { consumerType: "agent", consumerId: randomUUID(), configPath: "env.GH_TOKEN" },
     );

@@ -189,7 +189,7 @@ export function imageChargeCostEvent(input: { agentId: string; issueId: string |
  * Run accounting also settles paid images whose tool call never finished
  * recording them, so a lost acknowledgement cannot drop the spend.
  */
-export async function settleChargedImageReceiptsInTransaction(tx: Db, run: { id: string; companyId: string; agentId: string; nativeIssueId: string | null; resultJson: unknown },
+export async function settleChargedImageReceiptsInTransaction(tx: Db, run: { id: string; spaceId: string; agentId: string; nativeIssueId: string | null; resultJson: unknown },
   publications: ActivityPublication[]): Promise<Array<string | null>> {
   const settled: Array<string | null> = [];
   for (const [key, value] of Object.entries(record(record(run.resultJson).imageToolReceipts))) {
@@ -198,12 +198,12 @@ export async function settleChargedImageReceiptsInTransaction(tx: Db, run: { id:
     const event = imageChargeCostEvent({ agentId: run.agentId, issueId: run.nativeIssueId, runId: run.id, key, charge: record(receipt.charge) });
     // Already recorded: its attribution may have changed since (a deleted task
     // nulls cost rows), so never rebuild and compare a fresh receipt.
-    if ((await tx.select({ id: costEvents.id }).from(costEvents).where(and(eq(costEvents.companyId, run.companyId),
+    if ((await tx.select({ id: costEvents.id }).from(costEvents).where(and(eq(costEvents.spaceId, run.spaceId),
       eq(costEvents.idempotencyKey, event.idempotencyKey))).limit(1))[0]) continue;
     // Deleted attribution targets become unallocated; spend is still recorded.
-    if (event.issueId && !(await tx.select({ id: issues.id }).from(issues).where(and(eq(issues.id, event.issueId), eq(issues.companyId, run.companyId))))[0]) event.issueId = null;
-    if (event.projectId && !(await tx.select({ id: projects.id }).from(projects).where(and(eq(projects.id, event.projectId), eq(projects.companyId, run.companyId))))[0]) event.projectId = null;
-    await createCostEventInTransaction(tx, run.companyId, event, publications, undefined, { deferBudgetEvaluation: true });
+    if (event.issueId && !(await tx.select({ id: issues.id }).from(issues).where(and(eq(issues.id, event.issueId), eq(issues.spaceId, run.spaceId))))[0]) event.issueId = null;
+    if (event.projectId && !(await tx.select({ id: projects.id }).from(projects).where(and(eq(projects.id, event.projectId), eq(projects.spaceId, run.spaceId))))[0]) event.projectId = null;
+    await createCostEventInTransaction(tx, run.spaceId, event, publications, undefined, { deferBudgetEvaluation: true });
     settled.push(event.projectId);
   }
   return settled;

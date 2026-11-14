@@ -16,16 +16,16 @@ import { runtimeDefinition, runtimeObservation, runtimeWorker, observeRuntime } 
 import type { NativeFaultRun } from "./runtime-native-fault.js";
 import { runtimePrivateSpec } from "./runtime-private.js";
 type RecoveryList = { active?: IssueRecoveryAction; actions: IssueRecoveryAction[] };
-type WorkspaceView = { workspace: { id: string; companyId: string; cwd: string }; issueId?: string };
+type WorkspaceView = { workspace: { id: string; spaceId: string; cwd: string }; issueId?: string };
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const targets = new WeakMap<ChatCatalogContext, OwnedDaytonaTarget>();
-export function failedExportBound(input: { run: NativeFaultRun; action: IssueRecoveryAction; lease: EnvironmentLease; companyId: string; taskId: string; agentId: string; environmentId: string; acceptedResult: boolean }) {
+export function failedExportBound(input: { run: NativeFaultRun; action: IssueRecoveryAction; lease: EnvironmentLease; spaceId: string; taskId: string; agentId: string; environmentId: string; acceptedResult: boolean }) {
   const { run, action, lease } = input, ref = record(record(run.runnerProfileJson).nativeWorkspaceSync);
-  return input.acceptedResult && run.companyId === input.companyId && run.agentId === input.agentId && run.nativeIssueId === input.taskId && run.runtimeMode === "native" && run.status === "failed" && run.nativePhase === "terminal_failure"
-    && ["native_workspace_sync_out_unrecoverable", "native_workspace_sync_out_retry_exhausted"].includes(action.cause) && ["active", "escalated"].includes(action.status) && action.ownerType === "board" && action.companyId === input.companyId && action.sourceIssueId === input.taskId && action.evidence.runId === run.id && action.returnOwnerAgentId === input.agentId
+  return input.acceptedResult && run.spaceId === input.spaceId && run.agentId === input.agentId && run.nativeIssueId === input.taskId && run.runtimeMode === "native" && run.status === "failed" && run.nativePhase === "terminal_failure"
+    && ["native_workspace_sync_out_unrecoverable", "native_workspace_sync_out_retry_exhausted"].includes(action.cause) && ["active", "escalated"].includes(action.status) && action.ownerType === "board" && action.spaceId === input.spaceId && action.sourceIssueId === input.taskId && action.evidence.runId === run.id && action.returnOwnerAgentId === input.agentId
     && ref.state === "prepared" && ref.workspaceId === lease.executionWorkspaceId && ref.leaseId === lease.id && ref.providerLeaseId === lease.providerLeaseId && /^[a-f0-9]{64}$/.test(String(ref.descriptorSha256)) && /^[a-f0-9]{64}$/.test(String(ref.baselineSha256))
-    && lease.companyId === input.companyId && lease.environmentId === input.environmentId && lease.issueId === input.taskId && lease.heartbeatRunId === run.id && lease.provider === "daytona" && !!lease.providerLeaseId;
+    && lease.spaceId === input.spaceId && lease.environmentId === input.environmentId && lease.issueId === input.taskId && lease.heartbeatRunId === run.id && lease.provider === "daytona" && !!lease.providerLeaseId;
 }
 /** Actual new target + genuine native work. The only host mutation is an explicit
  * newer human edit AFTER the native baseline was captured, causing a real merge
@@ -42,15 +42,15 @@ export async function prepareFailedWebsiteExport(ctx: ChatCatalogContext) {
   const newer = `<!doctype html><html><body><h1>Newer human headline ${ctx.input.nonce}</h1><p>Keep this human pricing edit.</p></body></html>\n`;
   const incoming = `<!doctype html><html><body><h1>Acorn recovered website ${ctx.input.nonce}</h1><p>Remote saved product draft.</p><button>Join the list</button></body></html>\n`;
   await writeFile(path.join(cwd, "website.html"), baseline, { flag: "wx" });
-  const api = ctx.input.api, companyId = ctx.input.fixtures.company.id;
-  const project = await api.post<Entity>(`/api/companies/${companyId}/projects`, { name: `Website recovery ${ctx.input.nonce}`, executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", environmentId: target.environmentId, workspaceStrategy: { type: "project_primary" } } });
+  const api = ctx.input.api, spaceId = ctx.input.fixtures.space.id;
+  const project = await api.post<Entity>(`/api/spaces/${spaceId}/projects`, { name: `Website recovery ${ctx.input.nonce}`, executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", environmentId: target.environmentId, workspaceStrategy: { type: "project_primary" } } });
   const source = await api.post<Entity>(`/api/projects/${project.id}/workspaces`, { name: "Owned recovery destination", sourceType: "local_path", cwd, isPrimary: true });
   await api.patch(`/api/projects/${project.id}`, { executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", defaultProjectWorkspaceId: source.id, environmentId: target.environmentId, workspaceStrategy: { type: "project_primary" } } });
   const base = ctx.input.execution.profile.buildAgent({ environmentId: target.environmentId, environmentFixtureId: "daytona", workspacePath: cwd, secretRefs: ctx.input.fixtures.secretRefs, executionId: ctx.input.nonce });
   const { cwd: _cwd, ...config } = base.adapterConfig as Record<string, unknown>;
   const worker = await runtimeWorker(ctx, "Morgan", { defaultEnvironmentId: target.environmentId, adapterConfig: config });
-  for (const scope of [{ scopeType: "company", scopeId: companyId }, { scopeType: "agent", scopeId: worker.id }]) await api.post(`/api/companies/${companyId}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
-  const task = await api.post<Entity>(`/api/companies/${companyId}/issues`, { title: "Website task", projectId: project.id, status: "todo", assigneeAgentId: worker.id,
+  for (const scope of [{ scopeType: "space", scopeId: spaceId }, { scopeType: "agent", scopeId: worker.id }]) await api.post(`/api/spaces/${spaceId}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
+  const task = await api.post<Entity>(`/api/spaces/${spaceId}/issues`, { title: "Website task", projectId: project.id, status: "todo", assigneeAgentId: worker.id,
     description: `In this actual remote task workspace, first run node -e 'setTimeout(()=>console.log("Preparation finished"),20000)' and wait for its real output. Then replace website.html with exactly ${JSON.stringify(incoming)}. Register that actual website.html as a downloadable artifact work product titled website.html. Save a task comment identifying the saved page. Finish normally. Do not create other tasks, contact anyone, publish, or start services.` });
   const prepared = await pollUntil({ label: "Actual remote native baseline captured before newer human destination edit", deadlineAt: Date.now() + 240000, intervalMs: 250,
     load: async () => { const runs = (await ctx.allRuns()).filter(row => row.agentId === worker.id); const run = runs[0] && await api.get<NativeFaultRun>(`/api/heartbeat-runs/${runs[0].id}`); return { runs, run, reference: record(record(run?.runnerProfileJson).nativeWorkspaceSync) }; },
@@ -58,7 +58,7 @@ export async function prepareFailedWebsiteExport(ctx: ChatCatalogContext) {
     reject: value => value.runs.length > 1 || value.runs.some(row => ["succeeded", "failed", "cancelled", "timed_out"].includes(row.status)) ? "The real remote baseline was not captured before native completion" : undefined });
   const run = prepared.run!, reference = prepared.reference as unknown as NativeWorkspaceSyncReference;
   const workspace = await api.get<WorkspaceView>(`/api/issues/${task.id}/workspace`);
-  if (workspace.workspace.id !== reference.workspaceId || workspace.workspace.companyId !== companyId || await realpath(workspace.workspace.cwd) !== cwd || await readFile(path.join(cwd, "website.html"), "utf8") !== baseline) throw new Error("The actual prepared remote baseline does not bind the owned unchanged host destination");
+  if (workspace.workspace.id !== reference.workspaceId || workspace.workspace.spaceId !== spaceId || await realpath(workspace.workspace.cwd) !== cwd || await readFile(path.join(cwd, "website.html"), "utf8") !== baseline) throw new Error("The actual prepared remote baseline does not bind the owned unchanged host destination");
   await writeFile(path.join(cwd, "website.html"), newer, "utf8");
   const failed = await pollUntil({ label: "Genuine accepted remote Website result with export merge conflict", deadlineAt: Date.now() + 360000,
     load: async () => ({ run: await api.get<NativeFaultRun>(`/api/heartbeat-runs/${run.id}`), recovery: await api.get<RecoveryList>(`/api/issues/${task.id}/recovery-actions`) }),
@@ -67,7 +67,7 @@ export async function prepareFailedWebsiteExport(ctx: ChatCatalogContext) {
   const action = failed.recovery.active!, lease = await api.get<EnvironmentLease>(`/api/environment-leases/${reference.leaseId}`);
   const events = await collectRunEvents<{ seq?: number; payload?: unknown }>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${run.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
   const acceptedResult = events.some(row => record(record(row.payload).orpEvent).eventType === "run.result.accepted");
-  if (!failedExportBound({ run: failed.run, action, lease, companyId, taskId: task.id, agentId: worker.id, environmentId: target.environmentId, acceptedResult }) || await readFile(path.join(cwd, "website.html"), "utf8") !== newer) throw new Error("The actual export failure lacks accepted result, source attribution or preservation of the newer destination");
+  if (!failedExportBound({ run: failed.run, action, lease, spaceId, taskId: task.id, agentId: worker.id, environmentId: target.environmentId, acceptedResult }) || await readFile(path.join(cwd, "website.html"), "utf8") !== newer) throw new Error("The actual export failure lacks accepted result, source attribution or preservation of the newer destination");
   const [artifact] = await readRegisteredArtifacts(api, task.id, run.id, ["website.html"]);
   if (!artifact || artifact.content !== incoming || artifact.sha256 !== digest(incoming)) throw new Error("The actual saved remote attachment is not the retained expected website source");
   return { target, worker, task, project, cwd, baseline, newer, incoming, workspace, reference, originalRun: failed.run, originalEventReceipts: events.map(row => ({ seq: row.seq, sha256: digest(JSON.stringify(row.payload)) })), action, lease, artifact, acceptedResult, newerEditPreserved: true };
@@ -93,7 +93,7 @@ export const runtimeWorkspaceRepairCases = [runtimeDefinition("recovery.workspac
   async verifySetup(ctx, s) {
     const run = await ctx.input.api.get<NativeFaultRun>(`/api/heartbeat-runs/${(s.originalRun as NativeFaultRun).id}`), recovery = await ctx.input.api.get<RecoveryList>(`/api/issues/${(s.task as Entity).id}/recovery-actions`);
     const action = recovery.actions.find(row => row.id === (s.action as IssueRecoveryAction).id), lease = await ctx.input.api.get<EnvironmentLease>(`/api/environment-leases/${(s.reference as NativeWorkspaceSyncReference).leaseId}`);
-    s.failedSourceBound = !!action && failedExportBound({ run, action, lease, companyId: ctx.input.fixtures.company.id, taskId: (s.task as Entity).id, agentId: (s.worker as Entity).id, environmentId: (s.target as OwnedDaytonaTarget).environmentId, acceptedResult: s.acceptedResult === true });
+    s.failedSourceBound = !!action && failedExportBound({ run, action, lease, spaceId: ctx.input.fixtures.space.id, taskId: (s.task as Entity).id, agentId: (s.worker as Entity).id, environmentId: (s.target as OwnedDaytonaTarget).environmentId, acceptedResult: s.acceptedResult === true });
     const c = checks(); c.add("actual-board-owned-failed-export-newer-destination-held", s.failedSourceBound === true && await readFile(path.join(String(s.cwd), "website.html"), "utf8") === s.newer, "Actual native terminal export failure, accepted retained attachment, exact source lease and newer destination persist before the canonical query."); return c.result();
   },
   async act(ctx, s) {
@@ -118,12 +118,12 @@ export const runtimeWorkspaceRepairCases = [runtimeDefinition("recovery.workspac
     await writeFile(path.join(String(s.cwd), "website.html"), String(s.baseline), "utf8");
     await api.post(`/api/issues/${task.id}/recovery-actions/recover-workspace`, { actionId, runId: original.id, idempotencyKey: randomUUID() });
     const repaired = await pollUntil({ label: "Actual retained source physically recovered through board-owned service", deadlineAt: Date.now() + 300000,
-      load: async () => ({ recovery: await api.get<RecoveryList>(`/api/issues/${task.id}/recovery-actions`), run: await api.get<NativeFaultRun>(`/api/heartbeat-runs/${original.id}`), operations: await api.get<Array<{ id: string; phase: string; companyId: string; heartbeatRunId: string; status: string; metadata: Record<string, unknown> }>>(`/api/execution-workspaces/${(s.workspace as WorkspaceView).workspace.id}/workspace-operations`) }),
+      load: async () => ({ recovery: await api.get<RecoveryList>(`/api/issues/${task.id}/recovery-actions`), run: await api.get<NativeFaultRun>(`/api/heartbeat-runs/${original.id}`), operations: await api.get<Array<{ id: string; phase: string; spaceId: string; heartbeatRunId: string; status: string; metadata: Record<string, unknown> }>>(`/api/execution-workspaces/${(s.workspace as WorkspaceView).workspace.id}/workspace-operations`) }),
       accept: v => record(v.recovery.actions.find(row => row.id === actionId)?.evidence.workspaceRecovery).status === "recovered" && v.run.status === "succeeded" });
     s.finalRecoveryStatus = "recovered"; const ref = record(record(repaired.run.runnerProfileJson).nativeWorkspaceSync), leaseRef = s.reference as NativeWorkspaceSyncReference;
-    s.actualPhysicalCopyback = ref.state === "finalized" && !!ref.finalHostSha256 && repaired.operations.some(row => row.phase === "workspace_recovery" && row.status === "succeeded" && row.companyId === first.companyId && row.heartbeatRunId === original.id && row.metadata.leaseId === leaseRef.leaseId && row.metadata.providerLeaseId === leaseRef.providerLeaseId && row.metadata.descriptorSha256 === ref.descriptorSha256 && row.metadata.finalHostSha256 === ref.finalHostSha256)
+    s.actualPhysicalCopyback = ref.state === "finalized" && !!ref.finalHostSha256 && repaired.operations.some(row => row.phase === "workspace_recovery" && row.status === "succeeded" && row.spaceId === first.spaceId && row.heartbeatRunId === original.id && row.metadata.leaseId === leaseRef.leaseId && row.metadata.providerLeaseId === leaseRef.providerLeaseId && row.metadata.descriptorSha256 === ref.descriptorSha256 && row.metadata.finalHostSha256 === ref.finalHostSha256)
       && await readFile(path.join(String(s.cwd), "website.html"), "utf8") === s.incoming && await readFile(backup, "utf8") === s.newer;
-    const activity = await api.get<Array<{ action: string; entityId: string; actorType: string; actorId: string; runId?: string }>>(`/api/companies/${first.companyId}/activity?limit=100`), person = await api.get<{ user: { id: string } }>("/api/auth/get-session");
+    const activity = await api.get<Array<{ action: string; entityId: string; actorType: string; actorId: string; runId?: string }>>(`/api/spaces/${first.spaceId}/activity?limit=100`), person = await api.get<{ user: { id: string } }>("/api/auth/get-session");
     s.recoveryActorBound = activity.filter(row => row.action === "issue.workspace_recovery_requested" && row.entityId === task.id && row.runId === original.id && row.actorType === "user" && row.actorId === person.user.id).length === 2;
     const retainedAction = repaired.recovery.actions.find(row => row.id === actionId);
     const retainedEvents = await collectRunEvents<{ seq?: number; payload?: unknown }>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${original.id}/events?afterSeq=${afterSeq}&limit=${limit}`));
@@ -138,6 +138,6 @@ export const runtimeWorkspaceRepairCases = [runtimeDefinition("recovery.workspac
     s.confirmationReply = comments.filter(row => row.createdByRunId === next.id && row.authorAgentId === first.leadId).map(row => row.body).join("\n");
   },
   async observe(ctx, s) { return observeRuntime(ctx, s); },
-  async verifyResult(ctx, s) { const source = ctx.input.page.url(), task = s.task as Entity; await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" }); await expect(ctx.input.page.getByRole("heading", { name: "Website task", exact: true }).first()).toBeVisible(); await expect(ctx.input.page.getByText(/saved work recovered|workspace|failed/i).first()).toBeVisible(); await ctx.input.capture("workspace-repair-result", "Actual task retains recovery history and recovered saved work", "runtime-workspace-repair.png"); await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" }); },
+  async verifyResult(ctx, s) { const source = ctx.input.page.url(), task = s.task as Entity; await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" }); await expect(ctx.input.page.getByRole("heading", { name: "Website task", exact: true }).first()).toBeVisible(); await expect(ctx.input.page.getByText(/saved work recovered|workspace|failed/i).first()).toBeVisible(); await ctx.input.capture("workspace-repair-result", "Actual task retains recovery history and recovered saved work", "runtime-workspace-repair.png"); await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" }); },
   async cleanup(ctx) { await cleanupFailedWebsiteExport(ctx); },
 })];

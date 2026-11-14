@@ -68,7 +68,7 @@ export interface CapabilityMockControlPlaneAdapterOptions {
 /**
  * Deterministic, serializable control-plane authority for Capability scenarios.
  *
- * The adapter deliberately models Paperclip semantics instead of Paperclip
+ * The adapter deliberately models Outpost semantics instead of Outpost
  * transport. It imports no server route, service, database, or provider binding.
  */
 export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlPlanePort {
@@ -85,7 +85,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
     this.#state = isFixtureState(seed)
       ? clone(seed)
       : createCapabilityFixtureState(seed);
-    // Serialized v1 fixtures from before company-scope sentinels remain valid.
+    // Serialized v1 fixtures from before space-scope sentinels remain valid.
     this.#state.outOfScopeTaskIds ??= [];
     this.#state.semanticToolRuntimes ??= {};
     this.#validateState();
@@ -157,7 +157,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
 
     const actor = this.#actor(input.identity.agentId);
     const task = this.#task(input.identity.issueId);
-    this.#assertCompany(input.identity.companyId, actor.companyId, task.companyId);
+    this.#assertSpace(input.identity.spaceId, actor.spaceId, task.spaceId);
     if (actor.status !== "active") {
       this.#deny(input.identity.runId, "open_run", "actor_not_active", [`actor:${actor.id}`]);
       throw new CapabilityMockControlPlaneError("actor_not_active", "fixture actor is not active");
@@ -211,7 +211,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
     task.startedAt ??= openedAt;
     const run: CapabilityFixtureRun = {
       id: input.identity.runId,
-      companyId: input.identity.companyId,
+      spaceId: input.identity.spaceId,
       actorId: actor.id,
       taskId: task.id,
       sessionId: input.identity.sessionId,
@@ -267,11 +267,11 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
     );
     return deepFreeze({
       schema: "outpost.capability.run-context.v1",
-      company: {
-        id: this.#state.company.id,
-        name: this.#state.company.name,
-        issuePrefix: this.#state.company.issuePrefix,
-        status: this.#state.company.status,
+      space: {
+        id: this.#state.space.id,
+        name: this.#state.space.name,
+        issuePrefix: this.#state.space.issuePrefix,
+        status: this.#state.space.status,
       },
       actor: {
         id: actor.id,
@@ -725,17 +725,17 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
         }
         const slug = command.slug ?? command.name;
         const skills = this.#state.skills ??= [];
-        if (skills.some(skill => skill.companyId === run.companyId && skill.slug === slug)) {
+        if (skills.some(skill => skill.spaceId === run.spaceId && skill.slug === slug)) {
           throw new CapabilityMockControlPlaneError("fixture_state_invalid", "A skill with that name already exists");
         }
-        const skill = { id: this.#id("skill"), companyId: run.companyId, name: command.name,
+        const skill = { id: this.#id("skill"), spaceId: run.spaceId, name: command.name,
           slug, description: command.description.trim(), markdown: command.markdown, versionId: this.#id("skill-version") };
         skills.push(skill);
         entityRefs.push(`skill:${skill.id}`);
         break;
       }
       case "update_skill": {
-        const skill = this.#state.skills?.find(candidate => candidate.id === command.skillId && candidate.companyId === run.companyId);
+        const skill = this.#state.skills?.find(candidate => candidate.id === command.skillId && candidate.spaceId === run.spaceId);
         if (!skill) throw new CapabilityMockControlPlaneError("fixture_state_invalid", "Skill not found");
         if (skill.versionId !== command.expectedVersionId) throw new CapabilityMockControlPlaneError("fixture_state_invalid", "Skill version changed");
         const document = parseFrontmatterMarkdown(command.markdown);
@@ -909,7 +909,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
       case "reassign_task": {
         const target = this.#task(command.targetTaskId);
         const assignee = this.#actor(command.assigneeActorId);
-        this.#assertCompany(run.companyId, target.companyId, assignee.companyId);
+        this.#assertSpace(run.spaceId, target.spaceId, assignee.spaceId);
         if (target.id === task.id) throw new CapabilityMockControlPlaneError("reassignment_current_task", "Delegate with create_task instead of reassigning the caller");
         if (["done", "cancelled", "in_review"].includes(target.status)) throw new CapabilityMockControlPlaneError("reassignment_state_denied", "Task cannot be reassigned in this state");
         if (assignee.status !== "active") throw new CapabilityMockControlPlaneError("reassignment_target_unavailable", "Assignee must be active");
@@ -943,13 +943,13 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
       case "create_task": {
         if (command.assigneeActorId !== undefined && command.assigneeActorId !== null) {
           const assignee = this.#actor(command.assigneeActorId);
-          this.#assertCompany(this.#state.company.id, assignee.companyId);
+          this.#assertSpace(this.#state.space.id, assignee.spaceId);
         }
         const childId = this.#id("task");
         const child: CapabilityFixtureTask = {
           id: childId,
-          companyId: task.companyId,
-          identifier: `${this.#state.company.issuePrefix}-${this.#nextCounter("issue-number")}`,
+          spaceId: task.spaceId,
+          identifier: `${this.#state.space.issuePrefix}-${this.#nextCounter("issue-number")}`,
           title: requireText(command.title, "task title"),
           description: command.description ?? null,
           status: command.status === "backlog" ? "backlog" : command.blockedByTaskIds?.length ? "blocked" : "todo",
@@ -972,7 +972,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
       case "request_approval": {
         const approval = {
           id: this.#id("approval"),
-          companyId: task.companyId,
+          spaceId: task.spaceId,
           taskIds: [task.id],
           type: requireText(command.approvalType, "approval type"),
           status: "pending" as const,
@@ -1009,7 +1009,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
         let requesterTarget: { actorId: string; taskId: string } | null = null;
         for (const linkedTaskId of approval.taskIds) {
           const linkedTask = this.#task(linkedTaskId);
-          this.#assertCompany(task.companyId, linkedTask.companyId);
+          this.#assertSpace(task.spaceId, linkedTask.spaceId);
           if (
             requester !== null &&
             requester.status === "active" &&
@@ -1033,14 +1033,14 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
           requesterTarget === null
         ) {
           // Persist an unowned continuation task rather than dropping the
-          // requester notification or making the governance decision depend
+          // requester notification or making the approvals decision depend
           // on today's checkout/budget state. The actor can consume this wake
           // as soon as it becomes runnable without stealing a linked task from
           // another run or reopening terminal work.
           const recoveryTask: CapabilityFixtureTask = {
             id: this.#id("task"),
-            companyId: task.companyId,
-            identifier: `${this.#state.company.issuePrefix}-APPROVAL-${approval.id}`,
+            spaceId: task.spaceId,
+            identifier: `${this.#state.space.issuePrefix}-APPROVAL-${approval.id}`,
             title: `Continue after approval ${approval.id}`,
             description: "Review the recorded approval decision and continue any remaining work.",
             status: "todo",
@@ -1066,7 +1066,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
         // The decision is authoritative even when its requester cannot be
         // resumed immediately. A continuation is best-effort and belongs only
         // to that requester on an unowned executable task; never redirect it
-        // to another assignee or make wake availability block governance.
+        // to another assignee or make wake availability block approvals.
         if (requesterTarget !== null) {
           const wakeId = this.#scheduleWake(
             requesterTarget.actorId,
@@ -1277,21 +1277,21 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
     const plan: Array<{ dependentTask: CapabilityFixtureTask; wakeActorId: string | null }> = [];
     for (const dependentId of dependentIds) {
       const dependentTask = this.#task(dependentId);
-      this.#assertCompany(completedTask.companyId, dependentTask.companyId);
+      this.#assertSpace(completedTask.spaceId, dependentTask.spaceId);
       // Dependency completion must not release an operator's backlog hold.
       if (dependentTask.status === "backlog") continue;
       const unresolved = this.#state.blockers.filter(
         (blocker) => {
           if (blocker.taskId !== dependentId) return false;
           const blockingTask = this.#task(blocker.blockedByTaskId);
-          this.#assertCompany(completedTask.companyId, blockingTask.companyId);
+          this.#assertSpace(completedTask.spaceId, blockingTask.spaceId);
           return blockingTask.id !== completedTask.id && blockingTask.status !== "done";
         },
       );
       if (unresolved.length > 0) continue;
       if (dependentTask.assigneeActorId !== null) {
         const actor = this.#actor(dependentTask.assigneeActorId);
-        this.#assertCompany(completedTask.companyId, actor.companyId);
+        this.#assertSpace(completedTask.spaceId, actor.spaceId);
       }
       plan.push({
         dependentTask,
@@ -1333,7 +1333,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
     }
     for (const blockerId of unique) {
       const blocker = this.#task(blockerId);
-      this.#assertCompany(task.companyId, blocker.companyId);
+      this.#assertSpace(task.spaceId, blocker.spaceId);
       if (this.#dependsOn(blocker.id, task.id)) {
         throw new CapabilityMockControlPlaneError(
           "dependency_cycle",
@@ -1408,7 +1408,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
   ): string {
     const actor = this.#actor(actorId);
     const task = this.#task(taskId);
-    this.#assertCompany(this.#state.company.id, actor.companyId, task.companyId);
+    this.#assertSpace(this.#state.space.id, actor.spaceId, task.spaceId);
     const createdAt = this.#now();
     const dueAt = new Date(
       Date.parse(createdAt) + delayTicks * 1_000,
@@ -1457,7 +1457,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
   #applicableBudgets(actor: CapabilityFixtureActor) {
     return this.#state.budgets.filter(
       (budget) =>
-        (budget.scope === "company" && budget.scopeId === actor.companyId) ||
+        (budget.scope === "space" && budget.scopeId === actor.spaceId) ||
         (budget.scope === "actor" && budget.scopeId === actor.id),
     );
   }
@@ -1491,7 +1491,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
 
   #assertRunBinding(run: CapabilityFixtureRun, input: CapabilityOpenFixtureRunInput): void {
     const expected = {
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       actorId: run.actorId,
       taskId: run.taskId,
       sessionId: run.sessionId,
@@ -1499,7 +1499,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
       sourceInstanceId: run.sourceInstanceId,
     };
     const received = {
-      companyId: input.identity.companyId,
+      spaceId: input.identity.spaceId,
       actorId: input.identity.agentId,
       taskId: input.identity.issueId,
       sessionId: input.identity.sessionId,
@@ -1540,7 +1540,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
 
     if (command.kind === "decide_approval") {
       const actor = this.#actor(run.actorId);
-      if (!["board", "approver", "security"].includes(actor.role.trim().toLowerCase())) {
+      if (!["operator", "approver", "security"].includes(actor.role.trim().toLowerCase())) {
         this.#deny(run.id, command.kind, "actor_role_not_authorized", [
           `actor:${actor.id}`,
         ]);
@@ -1550,7 +1550,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
         );
       }
       const approval = this.#state.approvals.find(
-        (candidate) => candidate.id === command.approvalId && candidate.companyId === run.companyId,
+        (candidate) => candidate.id === command.approvalId && candidate.spaceId === run.spaceId,
       );
       if (
         approval === undefined ||
@@ -1578,7 +1578,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
 
   #commandTask(run: CapabilityFixtureRun, command: CapabilitySemanticCommand): CapabilityFixtureTask {
     const task = this.#task(command.taskId ?? run.taskId);
-    this.#assertCompany(run.companyId, task.companyId);
+    this.#assertSpace(run.spaceId, task.spaceId);
     if (task.id !== run.taskId) {
       this.#deny(run.id, command.kind, "active_task_scope_required", [`task:${task.id}`]);
       throw new CapabilityMockControlPlaneError(
@@ -1594,7 +1594,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
     approvalId: string,
   ): CapabilityFixtureApproval {
     const approval = this.#state.approvals.find(
-      (candidate) => candidate.id === approvalId && candidate.companyId === task.companyId,
+      (candidate) => candidate.id === approvalId && candidate.spaceId === task.spaceId,
     );
     if (approval === undefined) {
       throw new CapabilityMockControlPlaneError("approval_missing", "fixture approval not found");
@@ -1638,11 +1638,11 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
     task.status = next;
   }
 
-  #assertCompany(expected: string, ...actual: string[]): void {
-    if (actual.some((companyId) => companyId !== expected) || this.#state.company.id !== expected) {
+  #assertSpace(expected: string, ...actual: string[]): void {
+    if (actual.some((spaceId) => spaceId !== expected) || this.#state.space.id !== expected) {
       throw new CapabilityMockControlPlaneError(
-        "company_scope_violation",
-        "fixture entity is outside the run company",
+        "space_scope_violation",
+        "fixture entity is outside the run space",
       );
     }
   }
@@ -1750,8 +1750,8 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
     if (task === undefined) {
       if (this.#state.outOfScopeTaskIds.includes(id)) {
         throw new CapabilityMockControlPlaneError(
-          "company_scope_violation",
-          "fixture entity is outside the run company",
+          "space_scope_violation",
+          "fixture entity is outside the run space",
         );
       }
       throw new CapabilityMockControlPlaneError("task_missing", `fixture task ${id} not found`);
@@ -1800,8 +1800,8 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
   }
 
   #validateState(): void {
-    if (this.#state.company.id.trim().length === 0) {
-      throw new CapabilityMockControlPlaneError("fixture_state_invalid", "fixture company id is required");
+    if (this.#state.space.id.trim().length === 0) {
+      throw new CapabilityMockControlPlaneError("fixture_state_invalid", "fixture space id is required");
     }
     const ids = new Set<string>();
     for (const [kind, values] of [
@@ -1827,13 +1827,13 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
       this.#state.tasks.map((task) => [task.id, task]),
     );
     for (const actor of this.#state.actors) {
-      this.#assertCompany(this.#state.company.id, actor.companyId);
+      this.#assertSpace(this.#state.space.id, actor.spaceId);
     }
     for (const task of this.#state.tasks) {
-      this.#assertCompany(this.#state.company.id, task.companyId);
+      this.#assertSpace(this.#state.space.id, task.spaceId);
       if (
         task.assigneeActorId !== null &&
-        actorsById.get(task.assigneeActorId)?.companyId !== task.companyId
+        actorsById.get(task.assigneeActorId)?.spaceId !== task.spaceId
       ) {
         throw new CapabilityMockControlPlaneError(
           "fixture_state_invalid",
@@ -1842,11 +1842,11 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
       }
     }
     for (const approval of this.#state.approvals) {
-      this.#assertCompany(this.#state.company.id, approval.companyId);
+      this.#assertSpace(this.#state.space.id, approval.spaceId);
       if (
         approval.taskIds.length === 0 ||
         approval.taskIds.some((taskId) =>
-          tasksById.get(taskId)?.companyId !== approval.companyId
+          tasksById.get(taskId)?.spaceId !== approval.spaceId
         )
       ) {
         throw new CapabilityMockControlPlaneError(
@@ -1856,7 +1856,7 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
       }
       if (
         approval.requestedByActorId !== null &&
-        actorsById.get(approval.requestedByActorId)?.companyId !== approval.companyId
+        actorsById.get(approval.requestedByActorId)?.spaceId !== approval.spaceId
       ) {
         throw new CapabilityMockControlPlaneError(
           "fixture_state_invalid",
@@ -1870,8 +1870,8 @@ export class CapabilityMockControlPlaneAdapter implements CapabilityMockControlP
       if (
         task === undefined ||
         blockingTask === undefined ||
-        task.companyId !== this.#state.company.id ||
-        blockingTask.companyId !== this.#state.company.id ||
+        task.spaceId !== this.#state.space.id ||
+        blockingTask.spaceId !== this.#state.space.id ||
         task.id === blockingTask.id
       ) {
         throw new CapabilityMockControlPlaneError(

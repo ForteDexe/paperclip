@@ -18,7 +18,7 @@ function queuedEntry(body: string, id: string, position: number): IssueQueuedCom
   return {
     comment: {
       id,
-      companyId: "storybook",
+      spaceId: "storybook",
       issueId: "composer-queue-story",
       authorType: "user",
       authorAgentId: null,
@@ -128,7 +128,7 @@ function QueuedComposer({ protocol, steeringDisposition, initialEdit, mobile, au
               onAttachImage={screenshotSubmission ? async (file) => {
                 const id = `00000000-0000-4000-8000-00000000000${uploadIndex.current++ % 7}`;
                 return {
-                  id, companyId: "storybook", issueId: queue.issueId, issueCommentId: null,
+                  id, spaceId: "storybook", issueId: queue.issueId, issueCommentId: null,
                   assetId: id, provider: "storybook", objectKey: file.name, contentType: file.type,
                   byteSize: file.size, sha256: "0".repeat(64), originalFilename: file.name,
                   createdByAgentId: null, createdByUserId: "storybook-user", createdAt: new Date(), updatedAt: new Date(),
@@ -167,7 +167,7 @@ const meta = {
   parameters: {
     layout: "fullscreen",
     docs: { description: { component: "The production queued-message strip sits above the production composer. Steer, edit, reorder, discard, and legacy interrupt can be tried locally." } },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "steering/queue",
         "steering/edit-order-discard",

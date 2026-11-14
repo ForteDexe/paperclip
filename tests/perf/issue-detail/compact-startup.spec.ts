@@ -13,11 +13,11 @@ test.beforeAll(async ({ request }) => {
     const existing = await request.get(`/api/issues/${saved.id}`);
     if (existing.ok()) { fixture = saved; return; }
     // A different disposable instance needs a new fixture. Server failures
-    // must fail the test rather than silently creating another company.
+    // must fail the test rather than silently creating another space.
     expect(existing.status(), await existing.text()).toBe(404);
   }
-  const company = await (await request.post("/api/companies", { data: { name: "Task loading reproduction" } })).json();
-  const response = await request.post(`/api/companies/${company.id}/issues`, { data: {
+  const space = await (await request.post("/api/spaces", { data: { name: "Task loading reproduction" } })).json();
+  const response = await request.post(`/api/spaces/${space.id}/issues`, { data: {
     title: "Review the latest investigation", status: "backlog", description: "Investigate the latest reported pattern and keep the saved evidence together.",
   } });
   expect(response.ok(), await response.text()).toBeTruthy();
@@ -43,7 +43,7 @@ test.beforeAll(async ({ request }) => {
     } });
     expect(product.ok(), await product.text()).toBeTruthy();
   }
-  fixture = { id: issue.id, identifier: issue.identifier, prefix: company.issuePrefix, oldestCommentId };
+  fixture = { id: issue.id, identifier: issue.identifier, prefix: space.issuePrefix, oldestCommentId };
   await fs.mkdir(path.dirname(fixturePath), { recursive: true });
   await fs.writeFile(fixturePath, JSON.stringify(fixture, null, 2));
 });
@@ -94,7 +94,7 @@ test("Coordinator task rows use index reads and open a compact conversation", as
   const listReads: string[] = [];
   page.on("request", request => {
     const url = new URL(request.url());
-    if (/\/api\/companies\/[^/]+\/issues$/.test(url.pathname)) listReads.push(url.searchParams.get("view") ?? "full");
+    if (/\/api\/spaces\/[^/]+\/issues$/.test(url.pathname)) listReads.push(url.searchParams.get("view") ?? "full");
   });
   await page.goto(`/${fixture.prefix}/issues`);
   const row = page.locator("[data-inbox-issue-link]", { hasText: "Review the latest investigation" }).first();
@@ -239,21 +239,21 @@ test("late provider metadata keeps saved PR card geometry stable", async ({ page
 
 test("the selected responder stays mounted through comment acknowledgement and legacy startup", async ({ page, request }, info) => {
   const source = await (await request.get(`/api/issues/${fixture.id}`)).json();
-  const agentResponse = await request.post(`/api/companies/${source.companyId}/agents`, { data: {
+  const agentResponse = await request.post(`/api/spaces/${source.spaceId}/agents`, { data: {
     name: "Startup responder", role: "engineer", adapterType: "process",
     adapterConfig: { command: process.execPath, args: ["-e", "setTimeout(() => console.log('Fixture finished.'), 12000)"] },
     runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },
   } });
   expect(agentResponse.ok(), await agentResponse.text()).toBeTruthy();
   const agent = await agentResponse.json();
-  const issueResponse = await request.post(`/api/companies/${source.companyId}/issues`, { data: {
-    title: `Keep the selected responder visible ${Date.now()}`, status: "in_review", assigneeUserId: "local-board",
+  const issueResponse = await request.post(`/api/spaces/${source.spaceId}/issues`, { data: {
+    title: `Keep the selected responder visible ${Date.now()}`, status: "in_review", assigneeUserId: "local-operator",
     description: "This disposable process fixture verifies the send transition without a model provider.",
   } });
   expect(issueResponse.ok(), await issueResponse.text()).toBeTruthy();
   const issue = await issueResponse.json();
   // Repeated runs must not adopt the previous fixture through same-title dedup.
-  expect(issue).toMatchObject({ status: "in_review", assigneeUserId: "local-board", assigneeAgentId: null });
+  expect(issue).toMatchObject({ status: "in_review", assigneeUserId: "local-operator", assigneeAgentId: null });
   await coordinatorPreference(page);
   await page.addInitScript(() => {
     const frames: { visible: boolean; same: boolean }[] = [];

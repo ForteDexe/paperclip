@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { gradeSidebarOrder } from "./identity-sidebar-order.js";
 import type { IdentityObservation } from "./identity-support.js";
-function valid(): IdentityObservation { return { scenarioId: "navigation-preferences.sidebar-order", origin: "http://fixture.test", companyId: "acorn", leadId: "ceo",
-  company: { id: "acorn" }, companies: [], agents: [], interactions: [], tasks: [], projects: [], goals: [], comments: [], documents: [], revisions: [], activity: [], links: [], runs: [], humanQueries: [],
+function valid(): IdentityObservation { return { scenarioId: "navigation-preferences.sidebar-order", origin: "http://fixture.test", spaceId: "acorn", leadId: "ceo",
+  space: { id: "acorn" }, spaces: [], agents: [], interactions: [], tasks: [], projects: [], goals: [], comments: [], documents: [], revisions: [], activity: [], links: [], runs: [], humanQueries: [],
   reply: "You can drag Launch to the top of your sidebar and collapse the Agents section.", state: { project: { id: "launch" }, humanId: "alex", observerId: "riley",
     shell: "classic", humanSelectedShell: true, agentPreferenceWriteStatus: 403, orderBefore: { orderedIds: ["archive", "launch"] }, orderAfterReply: { orderedIds: ["archive", "launch"] },
     orderAfterDrag: { orderedIds: ["launch", "archive"] }, orderAfterReload: { orderedIds: ["launch", "archive"] }, launchFirstInBrowser: true,

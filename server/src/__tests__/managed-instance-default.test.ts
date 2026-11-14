@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, environments, instanceSettings, type Db } from "@outpost/db";
+import { agents, spaces, createDb, environments, instanceSettings, type Db } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { fillUnsetInstanceDefault } from "../services/managed-instance-default.js";
 import { applyManagedEnvironments } from "../services/managed-environments.js";
@@ -14,13 +14,13 @@ const support = await getEmbeddedPostgresTestSupport();
   let sandboxId: string;
 
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-managed-instance-default-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-managed-instance-default-");
     db = createDb(database.connectionString);
   }, 90_000);
   afterAll(async () => { await database?.cleanup(); });
   beforeEach(async () => {
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     await db.delete(instanceSettings);
     await db.delete(environments);
     const [sandbox] = await db.insert(environments).values({
@@ -28,7 +28,7 @@ const support = await getEmbeddedPostgresTestSupport();
       driver: "sandbox",
       status: "active",
       config: { provider: "daytona" },
-      metadata: { managedByPaperclip: true, managedSandboxProvider: "daytona" },
+      metadata: { managedByOutpost: true, managedSandboxProvider: "daytona" },
     }).returning();
     sandboxId = sandbox!.id;
   });
@@ -51,9 +51,9 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   it("fills with the managed sandbox while active agents follow the default (a sandbox needs no agent setup)", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Managed", issuePrefix: `M${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ companyId, name: "Ready agent", adapterType: "process", defaultEnvironmentId: null });
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Managed", issuePrefix: `M${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values({ spaceId, name: "Ready agent", adapterType: "process", defaultEnvironmentId: null });
     expect(await fillUnsetInstanceDefault(db, sandboxId)).toEqual({ filled: true, previousDefaultEnvironmentId: null });
   });
 

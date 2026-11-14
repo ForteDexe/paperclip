@@ -2,24 +2,24 @@ import { chatContinuityScenario, type ChatContinuityPoint, type ChatContinuitySc
 
 type Row = Record<string, any>;
 export function chatContinuityFixture() {
-  const scope: ChatContinuityScope = { companyId: "company", userId: "board", agentId: "agent", agentName: "Owned agent",
+  const scope: ChatContinuityScope = { spaceId: "space", userId: "board", agentId: "agent", agentName: "Owned agent",
     environmentId: "environment", provider: "opencode", model: "configured-model", campaignId: "synthetic-continuity-123",
-    agentHistory: { source: "company-agent-runs", companyId: "company", agentId: "agent", limit: 1, runIds: [], observedBeforeSend: true } };
+    agentHistory: { source: "space-agent-runs", spaceId: "space", agentId: "agent", limit: 1, runIds: [], observedBeforeSend: true } };
   const scenario = chatContinuityScenario(scope.campaignId);
   const user = (id: string, body: string, generation: number) => ({ id, body, authorUserId: scope.userId,
-    authorAgentId: null, companyId: scope.companyId, issueId: "chat", conversationSessionGeneration: generation });
+    authorAgentId: null, spaceId: scope.spaceId, issueId: "chat", conversationSessionGeneration: generation });
   const answer = (id: string, runId: string, body: string, generation: number) => ({ id, body,
     authorAgentId: scope.agentId, authorUserId: null, createdByRunId: runId,
-    companyId: scope.companyId, issueId: "chat", conversationSessionGeneration: generation });
+    spaceId: scope.spaceId, issueId: "chat", conversationSessionGeneration: generation });
   const prompts = [scenario.remember, scenario.recall, scenario.reset, scenario.fresh];
   const board = prompts.map((body, index) => user(`user-${index}`, body, index >= 2 ? 1 : 0));
   const replies = [answer("reply-0", "run-0", "Remembered.", 0), answer("reply-1", "run-1", scenario.remembered, 0),
     answer("reply-3", "run-3", scenario.marker, 1)];
-  const run = (index: number): Row => ({ id: `run-${index}`, companyId: scope.companyId, agentId: scope.agentId,
+  const run = (index: number): Row => ({ id: `run-${index}`, spaceId: scope.spaceId, agentId: scope.agentId,
     nativeIssueId: "chat", status: "succeeded", runtimeMode: "native", nativePhase: "committed",
     nativeSessionId: index === 3 ? "new-session" : "original-session", sessionIdBefore: null,
     contextSnapshot: { issueId: "chat", source: "issue.comment", wakeCommentId: board[index]!.id,
-      conversationSessionGeneration: index >= 2 ? 1 : 0, paperclipTaskMarkdown: index === 3 ? scenario.fresh : scenario.remember,
+      conversationSessionGeneration: index >= 2 ? 1 : 0, outpostTaskMarkdown: index === 3 ? scenario.fresh : scenario.remember,
       outpostEnvironment: { id: scope.environmentId } },
     runnerProfileJson: { nativeExecutionInput: { provider: { kind: scope.provider, model: scope.model } } },
     resultJson: { finalizationPhase: "committed", presentationDecision: { commentId: `reply-${index}` } } });
@@ -30,7 +30,7 @@ export function chatContinuityFixture() {
   delete runs[2]!.nativeSessionId;
   delete runs[2]!.nativePhase;
   delete runs[2]!.runtimeMode;
-  const chat = { id: "chat", companyId: scope.companyId, assigneeAgentId: scope.agentId, conversationAgentId: scope.agentId,
+  const chat = { id: "chat", spaceId: scope.spaceId, assigneeAgentId: scope.agentId, conversationAgentId: scope.agentId,
     conversationUserId: scope.userId, createdByUserId: scope.userId, title: `Chat with ${scope.agentName}`,
     status: "in_review", conversationState: "waiting", conversationSessionGeneration: 0 };
   const comments = [board[0]!, replies[0]!, board[1]!, replies[1]!, board[2]!, board[3]!, replies[2]!];
@@ -38,7 +38,7 @@ export function chatContinuityFixture() {
     const reply = replyIndex === undefined ? undefined : replies[replyIndex]!;
     return structuredClone({ phase, chat: { ...chat, conversationSessionGeneration: generation }, runs: runs.slice(0, count),
       comments: comments.slice(0, commentCount), tasks: [], activity: [], events: [], resetReceipts: count < 3 ? [] : [{
-        source: "issue-runs", companyId: scope.companyId, issueId: "chat", runId: "run-2", agentId: scope.agentId,
+        source: "issue-runs", spaceId: scope.spaceId, issueId: "chat", runId: "run-2", agentId: scope.agentId,
         status: "succeeded", contextIssueId: "chat", wakeCommentId: "user-2", resultJson: { conversationReset: true },
       }],
       ...(reply ? { reply: { runId: reply.createdByRunId, agentId: scope.agentId, observedAfterReload: true,
@@ -56,7 +56,7 @@ export function compactChatContinuityFixture() {
     if (!point.reply) continue;
     point.reply.anchor = `${point.reply.runId}:turn`;
     point.reply.nativeFinal = true;
-    point.events = [{ seq: 1, runId: point.reply.runId, companyId: fixture.scope.companyId, agentId: fixture.scope.agentId,
+    point.events = [{ seq: 1, runId: point.reply.runId, spaceId: fixture.scope.spaceId, agentId: fixture.scope.agentId,
       eventType: "item.completed", protocolSchemaVersion: 1, sourceEventId: "event", sourceInstanceId: "instance", sourceSeq: 1,
       payload: { orpEvent: { schema: "outpost.orp.event.v1", schemaVersion: 1, runId: point.reply.runId, sourceKind: "runner",
         eventType: "item.completed", sourceEventId: "event", sourceInstanceId: "instance", sourceSeq: 1,

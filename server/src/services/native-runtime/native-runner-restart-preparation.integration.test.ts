@@ -17,7 +17,7 @@ import type { EnvironmentLease } from "@outpost/shared";
 import type { CommandManagedRuntimeRunner } from "@outpost/adapter-utils/command-managed-runtime";
 import { materializeAsset } from "./runtime-context.js";
 import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
-import { executePaperclipNativeSession } from "./native-session-executor.js";
+import { executeOutpostNativeSession } from "./native-session-executor.js";
 import { registerNativeRunnerCheckpoint } from "./native-runner-checkpoint.js";
 import { claimNativeRestartRecoveries } from "./native-restart-recovery.js";
 import { remotePreparedWorkspace, nativeRestartFixture, describeEmbeddedPostgres } from "../../__tests__/helpers/native-restart.js";
@@ -26,16 +26,16 @@ describeEmbeddedPostgres("native runner restart recovery: preparation", () => {
   const environment = nativeRestartFixture();
   const { seedRun, transportOptions } = environment;
   let runtimeRoot: typeof environment.current.runtimeRoot;
-  let companyId: typeof environment.current.companyId;
+  let spaceId: typeof environment.current.spaceId;
   let agentId: typeof environment.current.agentId;
   let successor: typeof environment.current.successor;
-  beforeAll(() => { ({ runtimeRoot, companyId, agentId, successor } = environment.current); });
+  beforeAll(() => { ({ runtimeRoot, spaceId, agentId, successor } = environment.current); });
 
   it.each(["recover", "provider event", "cancelled task"] as const)("reconciles the drained remote backend with %s", async mode => {
     const fixture = await seedRun(`DRAINED-BACKEND-${mode.replaceAll(" ", "-")}`);
     const environmentId = randomUUID(), leaseId = randomUUID();
     await fixture.db.insert(environments).values({ id: environmentId, name: `Drained backend ${environmentId}`, driver: "sandbox" });
-    const [lease] = await fixture.db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId,
+    const [lease] = await fixture.db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId,
       heartbeatRunId: fixture.runId, issueId: fixture.issueId, status: "active",
       provider: "fixture", providerLeaseId: `drained-backend-${leaseId}` }).returning();
     const [issue] = await fixture.db.select().from(issues).where(eq(issues.id, fixture.issueId));
@@ -48,7 +48,7 @@ describeEmbeddedPostgres("native runner restart recovery: preparation", () => {
     await mkdir(sandbox, { recursive: true });
     const savedFile = join(sandbox, "saved-before-drain.txt");
     await writeFile(savedFile, "Preserve admitted work.\n");
-    const execution = buildNativeExecutionInput({ companyId, agentId, runId: fixture.runId,
+    const execution = buildNativeExecutionInput({ spaceId, agentId, runId: fixture.runId,
       issue: { id: fixture.issueId, identifier: "NRR-DRAINED", title: "Continue after drain", description: null, workMode: "standard" },
       taskPrompt: "Continue the admitted work once.", provider: "codex",
       workspace: { id: fixture.runId, cwd: sandbox, repoUrl: null, repoRef: null, branchName: null },
@@ -76,7 +76,7 @@ describeEmbeddedPostgres("native runner restart recovery: preparation", () => {
           pid: child.pid ?? null, startedAt }));
       }); } finally { clearTimeout(timeout); }
     } };
-    const workspaceSync = await prepareNativeWorkspaceSync({ db: fixture.db, runId: fixture.runId, companyId,
+    const workspaceSync = await prepareNativeWorkspaceSync({ db: fixture.db, runId: fixture.runId, spaceId,
       workspaceId: fixture.runId, workspaceLocalDir: sandbox, lease: lease as unknown as EnvironmentLease,
       target: { kind: "remote", transport: "sandbox", environmentId, leaseId, remoteCwd: remoteSandbox, runner: shell } });
     expect(workspaceSync).not.toBeNull();
@@ -150,12 +150,12 @@ describeEmbeddedPostgres("native runner restart recovery: preparation", () => {
         const backend = createNativeSessionBackend(execution, { runnerInstanceId: fixture.native.runnerInstanceId,
           environment: { CODEX_HOME: home, PATH: process.env.PATH }, codexTransportFactory: () => bundle.transport });
         try {
-          expect(await executePaperclipNativeSession({ db: fixture.db, execution, backend, useRunnerd: true,
+          expect(await executeOutpostNativeSession({ db: fixture.db, execution, backend, useRunnerd: true,
             runnerInstanceId: fixture.native.runnerInstanceId, leaseOwner: claim.leaseOwner,
             runnerExecutionTarget: { kind: "remote", transport: "sandbox", environmentId, leaseId, remoteCwd: remoteSandbox,
               runner: { execute: async () => { throw new Error("Unexpected remote preparation after the controlled backend owns execution"); } } as never },
             turnTimeoutMs: 15_000 })).toMatchObject({ exitCode: 0, timedOut: false });
-          const recorder = workspaceOperationService(fixture.db).createRecorder({ companyId,
+          const recorder = workspaceOperationService(fixture.db).createRecorder({ spaceId,
             issueId: fixture.issueId, heartbeatRunId: fixture.runId });
           const saved = await recorder.recordOperation({ phase: "workspace_finalize", cwd: sandbox,
             run: async () => { await workspaceSync!.restoreWorkspace(); return { status: "succeeded", exitCode: 0 }; } });
@@ -176,10 +176,10 @@ describeEmbeddedPostgres("native runner restart recovery: preparation", () => {
     const fixture = await seedRun(`FRESH-SLOW-${blockedPhase === "claim lock" ? "CLAIM-LOCK" : "PREPARATION"}`);
     const environmentId = randomUUID(), leaseId = randomUUID();
     await fixture.db.insert(environments).values({ id: environmentId, name: `Fresh preparation fixture ${environmentId}`, driver: "sandbox" });
-    await fixture.db.insert(environmentLeases).values({ id: leaseId, companyId, environmentId,
+    await fixture.db.insert(environmentLeases).values({ id: leaseId, spaceId, environmentId,
       heartbeatRunId: fixture.runId, issueId: fixture.issueId, status: "active",
       provider: "fixture", providerLeaseId: `fresh-preparation-${leaseId}` });
-    const execution = buildNativeExecutionInput({ companyId, agentId, runId: fixture.runId,
+    const execution = buildNativeExecutionInput({ spaceId, agentId, runId: fixture.runId,
       issue: { id: fixture.issueId, identifier: "NRR-FRESH-SLOW", title: "Prepare slowly", description: null, workMode: "standard" },
       taskPrompt: "Prepare a fresh execution.", provider: "codex",
       workspace: { id: fixture.runId, cwd: runtimeRoot, repoUrl: null, repoRef: null, branchName: null },
@@ -209,7 +209,7 @@ describeEmbeddedPostgres("native runner restart recovery: preparation", () => {
       });
       await lockTaken;
     }
-    const running = executePaperclipNativeSession({ db: fixture.db, execution,
+    const running = executeOutpostNativeSession({ db: fixture.db, execution,
       runnerInstanceId: fixture.native.runnerInstanceId, backend,
       runnerExecutionTarget: { kind: "remote", transport: "sandbox", environmentId, leaseId, remoteCwd: runtimeRoot },
       onEvent: async event => {
@@ -254,7 +254,7 @@ describeEmbeddedPostgres("native runner restart recovery: preparation", () => {
   it("renews a remote claim through slow preparation and shares renewal with execution", async () => {
     const fixture = await seedRun("SLOW-RECOVERY-PREPARATION");
     const root = resolve(runtimeRoot, fixture.runId);
-    const binding = { companyId, issueId: fixture.issueId, runId: fixture.runId };
+    const binding = { spaceId, issueId: fixture.issueId, runId: fixture.runId };
     await fixture.db.update(heartbeatRuns).set({ runnerProfileJson: {
       ...fixture.preparedProfile, nativeWorkspaceSync: remotePreparedWorkspace(),
       sessionCheckpoint: { identity: { ...binding, agentId, sessionId: fixture.native.normalizedSessionId },

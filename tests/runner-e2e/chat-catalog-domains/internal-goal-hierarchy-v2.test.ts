@@ -12,34 +12,34 @@ vi.mock("@playwright/test", () => ({ expect: (locator: { visible?: boolean }) =>
   toBeVisible: async () => { if (locator.visible !== true) throw new Error("Synthetic unit UI did not expose the requested saved goal"); },
 }) }));
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
-const query = "Set a company goal of reaching a thousand signups, with a team goal for launching the website.";
+const query = "Set a space goal of reaching a thousand signups, with a team goal for launching the website.";
 function valid(owner: string | null = null): InternalObservation {
-  const o = { scenarioId: "goals.create-goal-tree", origin: "https://fixture.test", companyId: "acorn", leadId: "ceo", state: {},
-    agents: [{ id: "ceo", companyId: "acorn" }, { id: "morgan", companyId: "acorn" }],
-    goals: [{ id: "growth", companyId: "acorn", title: "Reach a thousand signups", level: "company", parentId: null, ownerAgentId: "ceo" },
-      { id: "website", companyId: "acorn", title: "Launch the website", level: "team", parentId: "growth", ownerAgentId: owner }],
-    tasks: [], projects: [], comments: [], documents: [], revisions: [], links: [], reply: "Created the requested company goal and its website sub-goal.",
+  const o = { scenarioId: "goals.create-goal-tree", origin: "https://fixture.test", spaceId: "acorn", leadId: "ceo", state: {},
+    agents: [{ id: "ceo", spaceId: "acorn" }, { id: "morgan", spaceId: "acorn" }],
+    goals: [{ id: "growth", spaceId: "acorn", title: "Reach a thousand signups", level: "space", parentId: null, ownerAgentId: "ceo" },
+      { id: "website", spaceId: "acorn", title: "Launch the website", level: "team", parentId: "growth", ownerAgentId: owner }],
+    tasks: [], projects: [], comments: [], documents: [], revisions: [], links: [], reply: "Created the requested space goal and its website sub-goal.",
     activity: [{ id: "created-root", action: "goal.created", entityId: "growth", agentId: "ceo" },
       { id: "created-child", action: "goal.created", entityId: "website", agentId: "ceo" }],
-    humanQueries: [query, query], runs: [1, 2].map(n => ({ id: `native-${n}`, companyId: "acorn", agentId: "ceo", status: "succeeded", runtimeMode: "native" })),
+    humanQueries: [query, query], runs: [1, 2].map(n => ({ id: `native-${n}`, spaceId: "acorn", agentId: "ceo", status: "succeeded", runtimeMode: "native" })),
   } as InternalObservation;
   o.state = { firstIds: ["growth", "website"], retryQuery: query,
-    hierarchyInspection: { companyId: "acorn", rootId: "growth", childId: "website", readbackMatched: true, rootVisible: true, childVisible: true } };
+    hierarchyInspection: { spaceId: "acorn", rootId: "growth", childId: "website", readbackMatched: true, rootVisible: true, childVisible: true } };
   o.state.firstCreation = structuredClone(o);
   return o;
 }
-it.each([null, "morgan"])("accepts a genuinely inspectable tree with optional same-company owner %s and no exact chat-link requirement", owner => {
+it.each([null, "morgan"])("accepts a genuinely inspectable tree with optional same-space owner %s and no exact chat-link requirement", owner => {
   expect(grade_goals(valid(owner))).toMatchObject({ passed: true });
 });
 it.each(["invented", "foreign"])("rejects an unverified or foreign goal owner %s", owner => {
-  const o = valid(owner); if (owner === "foreign") o.agents!.push({ id: owner, companyId: "birch" });
+  const o = valid(owner); if (owner === "foreign") o.agents!.push({ id: owner, spaceId: "birch" });
   expect(grade_goals(o).passed).toBe(false);
 });
 it.each(["wrong parent", "missing child", "foreign goal", "no saved state", "missing attribution", "invented progress", "missing UI", "wrong UI identity", "duplicate retry"])("still rejects %s", invalid => {
   const o = valid();
   if (invalid === "wrong parent") o.goals[1]!.parentId = "foreign-root";
   if (invalid === "missing child") o.goals.pop();
-  if (invalid === "foreign goal") o.goals[1]!.companyId = "birch";
+  if (invalid === "foreign goal") o.goals[1]!.spaceId = "birch";
   if (invalid === "no saved state") o.goals = [];
   if (invalid === "missing attribution") o.activity = [];
   if (invalid === "invented progress") o.reply = "Already 100 signups.";
@@ -60,7 +60,7 @@ it.each([
   ["Reach 1,000 signups", "Launch the website"],
   ["Reach 1000 customer signups", "Ship the website"],
   ["Get 1,000 people signed up", "Go live with the new web site"],
-  ["Signups: 1,000", "Launch the company site"],
+  ["Signups: 1,000", "Launch the space site"],
 ])("accepts meaning-preserving goal wording %s / %s", (root, child) => {
   expect(grade_goals(retitled(root, child)).passed).toBe(true);
 });
@@ -99,11 +99,11 @@ function uiFixture() {
       current = `https://fixture.test/ACORN/goals/${row.id}`;
     } }) }),
     getByRole: (_role: string, options: { name: string }) => ({ first: () => ({ visible: o.goals.some(row => row.title === options.name
-      && current.endsWith(`/goals/${row.id}`) && (row.level === "company" ? headingVisible.root : headingVisible.child)) }) }),
+      && current.endsWith(`/goals/${row.id}`) && (row.level === "space" ? headingVisible.root : headingVisible.child)) }) }),
     getByTestId: () => ({ visible: current.endsWith("/chats/ceo") }),
   };
   const ctx = { observationDeadlineAt: Date.now() + 390_000, scenario: { id: o.scenarioId, query }, issue: () => ({ conversationState: "waiting" }),
-    input: { fixtures: { company: { id: "acorn", issuePrefix: "ACORN" } }, api: { baseURL: o.origin, get, patch: vi.fn() }, page, evidence: vi.fn() } } as unknown as ChatCatalogContext;
+    input: { fixtures: { space: { id: "acorn", issuePrefix: "ACORN" } }, api: { baseURL: o.origin, get, patch: vi.fn() }, page, evidence: vi.fn() } } as unknown as ChatCatalogContext;
   vi.mocked(observeInternal).mockImplementation(async (_ctx, receivedState) => ({ ...structuredClone(o), state: receivedState,
     runs: o.runs.slice(0, phase), humanQueries: Array.from({ length: phase }, () => query) }));
   vi.mocked(sendChatMessage).mockImplementation(async () => { phase = 2; });
@@ -133,12 +133,12 @@ it.each(["missing UI child", "readback wrong parent", "readback foreign owner", 
 });
 
 it("keeps the existing project retry factory on its default observer and original repeat request", async () => {
-  const f = uiFixture(), project = { id: "launch", companyId: "acorn", name: "Launch" };
+  const f = uiFixture(), project = { id: "launch", spaceId: "acorn", name: "Launch" };
   vi.mocked(observeInternal).mockImplementation(async (_ctx, state) => ({ ...valid(), state,
     projects: [project], goals: [], runs: [{ id: "first-native", status: "succeeded" }],
   }) as never);
   const d = retryDefinition("projects.create-project", () => { throw new Error("This boundary must not invoke the final grader"); },
-    initial => initial.projects.some(row => row.id === "launch" && row.companyId === "acorn"));
+    initial => initial.projects.some(row => row.id === "launch" && row.spaceId === "acorn"));
   await d.act!(f.ctx, f.state);
   expect(f.state.firstIds).toEqual(["launch"]);
   expect(observeInternal).toHaveBeenCalledWith(f.ctx, f.state);

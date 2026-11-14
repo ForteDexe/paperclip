@@ -62,7 +62,7 @@ class RejectedInvocationAdmission extends Error {
 }
 
 type ToolAccessContext = {
-  companyId: string;
+  spaceId: string;
   actorType: "agent" | "user" | "system" | "plugin";
   actorId: string;
   agentId: string | null;
@@ -144,7 +144,7 @@ export function runContextSnapshotString(key: "issueId" | "projectId" | "routine
 }
 
 /**
- * Memo for one batch of `decide` calls that share a company, actor and run
+ * Memo for one batch of `decide` calls that share a space, actor and run
  * context, such as one tools/list response. A listing decides every tool
  * against the same agent, run, profiles and policies, so the batch reads each
  * of those rows once instead of once per tool. The cache is a point-in-time
@@ -179,7 +179,7 @@ const CANONICAL_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 
 const catalogEntryContextColumns = {
   id: toolCatalogEntries.id,
-  companyId: toolCatalogEntries.companyId,
+  spaceId: toolCatalogEntries.spaceId,
   connectionId: toolCatalogEntries.connectionId,
   applicationId: toolCatalogEntries.applicationId,
   riskLevel: toolCatalogEntries.riskLevel,
@@ -307,7 +307,7 @@ function trustRuleIsActive(policy: typeof toolPolicies.$inferSelect, now = new D
 function sideEffectIdempotencyKey(ctx: ToolAccessContext, argumentsHash: string, version: 1 | 2 = 2): string {
   return `side_effect:${version === 2 ? "v2:" : ""}${sha256({
     ...(version === 2 ? { actorType: ctx.actorType, actorId: ctx.actorId, agentId: ctx.agentId } : {}),
-    companyId: ctx.companyId,
+    spaceId: ctx.spaceId,
     runId: ctx.heartbeatRunId,
     issueId: ctx.issueId,
     applicationId: ctx.applicationId,
@@ -607,7 +607,7 @@ function evaluatePolicyConditions(
     if (boolCondition(boundary.remoteHttpOnly) === true && ctx.providerType !== "mcp_remote_http") {
       return conditionGroupFail("trustBoundary", "Policy condition requires a remote HTTP MCP tool.");
     }
-    if (boolCondition(boundary.paperclipSelfOnly) === true && ctx.providerType !== "paperclip_self") {
+    if (boolCondition(boundary.outpostSelfOnly) === true && ctx.providerType !== "outpost_self") {
       return conditionGroupFail("trustBoundary", "Policy condition requires an Outpost self tool.");
     }
     matchedGroups.push("trustBoundary");
@@ -635,7 +635,7 @@ function profileEntryMatches(entry: typeof toolProfileEntries.$inferSelect, ctx:
 }
 
 function targetMatches(binding: typeof toolProfileBindings.$inferSelect, ctx: ToolAccessContext): boolean {
-  if (binding.targetType === "company") return binding.targetId === ctx.companyId;
+  if (binding.targetType === "space") return binding.targetId === ctx.spaceId;
   if (binding.targetType === "agent") return binding.targetId === ctx.agentId;
   if (binding.targetType === "project") return binding.targetId === ctx.projectId;
   if (binding.targetType === "routine") return binding.targetId === ctx.routineId;
@@ -725,13 +725,13 @@ function assertSupportedGenericPolicyShape(
   }
 }
 
-async function getGenericPolicyRow(db: Pick<Db, "select">, companyId: string, policyId: string) {
+async function getGenericPolicyRow(db: Pick<Db, "select">, spaceId: string, policyId: string) {
   const [policy] = await db
     .select()
     .from(toolPolicies)
     .where(and(
       eq(toolPolicies.id, policyId),
-      eq(toolPolicies.companyId, companyId),
+      eq(toolPolicies.spaceId, spaceId),
       ne(toolPolicies.policyType, "trust_rule"),
     ))
     .limit(1);
@@ -751,9 +751,9 @@ function windowStart(now: Date, windowSeconds: number): Date {
 }
 
 function rateBucket(rule: ToolRateLimitRule, ctx: ToolAccessContext): string {
-  const parts = rule.keyBy?.length ? rule.keyBy : ["company", "agent", "connection", "tool"] as const;
+  const parts = rule.keyBy?.length ? rule.keyBy : ["space", "agent", "connection", "tool"] as const;
   return parts.map((part) => {
-    if (part === "company") return `company:${ctx.companyId}`;
+    if (part === "space") return `space:${ctx.spaceId}`;
     if (part === "agent") return `agent:${ctx.agentId ?? "none"}`;
     if (part === "application") return `application:${ctx.applicationId ?? "none"}`;
     if (part === "connection") return `connection:${ctx.connectionId ?? "none"}`;
@@ -812,16 +812,16 @@ function scopeAllowsTool(scope: Record<string, unknown> | null, ctx: ToolAccessC
 
 export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "update" | "delete" | "transaction">, options: { toolActionSigningSecret?: string } = {}) {
   // Policy administration includes authorized self-targeted changes. It cannot
-  // resolve governed action requests or modify principal permission grants.
-  async function listPolicies(companyId: string) {
+  // resolve controlled action requests or modify principal permission grants.
+  async function listPolicies(spaceId: string) {
     return db
       .select()
       .from(toolPolicies)
-      .where(and(eq(toolPolicies.companyId, companyId), ne(toolPolicies.policyType, "trust_rule")))
+      .where(and(eq(toolPolicies.spaceId, spaceId), ne(toolPolicies.policyType, "trust_rule")))
       .orderBy(asc(toolPolicies.priority), desc(toolPolicies.updatedAt));
   }
 
-  async function reorderPolicies(companyId: string, body: ReorderToolPolicies, managementContext?: ConnectionManagementContext) {
+  async function reorderPolicies(spaceId: string, body: ReorderToolPolicies, managementContext?: ConnectionManagementContext) {
     const uniquePolicyIds = [...new Set(body.policyIds)];
     if (uniquePolicyIds.length !== body.policyIds.length) {
       throw badRequest("policyIds must not contain duplicates");
@@ -833,7 +833,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
         .select()
         .from(toolPolicies)
         .where(and(
-          eq(toolPolicies.companyId, companyId),
+          eq(toolPolicies.spaceId, spaceId),
           ne(toolPolicies.policyType, "trust_rule"),
         ))
         .orderBy(toolPolicies.id)
@@ -841,10 +841,10 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       const byId = new Map(rows.map((row) => [row.id, row]));
       const missingIds = uniquePolicyIds.filter((id) => !byId.has(id));
       if (missingIds.length > 0) {
-        throw unprocessable("All reordered policies must belong to the company", { missingPolicyIds: missingIds });
+        throw unprocessable("All reordered policies must belong to the space", { missingPolicyIds: missingIds });
       }
       if (uniquePolicyIds.length !== rows.length) {
-        throw unprocessable("Reorder must include every non-trust policy for the company", {
+        throw unprocessable("Reorder must include every non-trust policy for the space", {
           expectedPolicyCount: rows.length,
           receivedPolicyCount: uniquePolicyIds.length,
         });
@@ -855,28 +855,28 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
         SET priority = (requested.ordinality * 100)::integer, updated_at = ${now.toISOString()}
         FROM jsonb_array_elements_text(${JSON.stringify(uniquePolicyIds)}::jsonb)
           WITH ORDINALITY AS requested(id, ordinality)
-        WHERE tool_policies.company_id = ${companyId} AND tool_policies.id = requested.id::uuid`);
+        WHERE tool_policies.space_id = ${spaceId} AND tool_policies.id = requested.id::uuid`);
       return tx
         .select()
         .from(toolPolicies)
-        .where(and(eq(toolPolicies.companyId, companyId), ne(toolPolicies.policyType, "trust_rule")))
+        .where(and(eq(toolPolicies.spaceId, spaceId), ne(toolPolicies.policyType, "trust_rule")))
         .orderBy(asc(toolPolicies.priority), desc(toolPolicies.updatedAt));
     });
   }
 
   async function duplicatePolicy(input: {
-    companyId: string;
+    spaceId: string;
     policyId: string;
     body: DuplicateToolPolicy;
     actor?: { agentId?: string | null; userId?: string | null };
     managementContext?: ConnectionManagementContext;
   }) {
-    const existing = await getGenericPolicyRow(db, input.companyId, input.policyId);
+    const existing = await getGenericPolicyRow(db, input.spaceId, input.policyId);
     assertSupportedGenericPolicyShape(existing.policyType, existing.conditions ?? null, existing.config ?? null);
     const rows = await db
       .select({ name: toolPolicies.name })
       .from(toolPolicies)
-      .where(eq(toolPolicies.companyId, input.companyId));
+      .where(eq(toolPolicies.spaceId, input.spaceId));
     const names = new Set(rows.map((row) => row.name));
     let name = input.body.name?.trim() || `${existing.name} copy`;
     if (names.has(name)) {
@@ -890,7 +890,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     const [policy] = await db
       .insert(toolPolicies)
       .values({
-        companyId: existing.companyId,
+        spaceId: existing.spaceId,
         name,
         description: existing.description,
         policyType: existing.policyType,
@@ -909,7 +909,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
   }
 
   async function createPolicy(
-    companyId: string,
+    spaceId: string,
     body: CreateToolPolicy,
     actor?: { agentId?: string | null; userId?: string | null },
     managementContext?: ConnectionManagementContext,
@@ -920,7 +920,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     const [policy] = await db
       .insert(toolPolicies)
       .values({
-        companyId,
+        spaceId,
         name: body.name,
         description: body.description ?? null,
         policyType: body.policyType,
@@ -939,12 +939,12 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
   }
 
   async function updatePolicy(input: {
-    companyId: string;
+    spaceId: string;
     policyId: string;
     body: UpdateToolPolicy;
     managementContext?: ConnectionManagementContext;
   }) {
-    const existing = await getGenericPolicyRow(db, input.companyId, input.policyId);
+    const existing = await getGenericPolicyRow(db, input.spaceId, input.policyId);
     const nextPolicyType = input.body.policyType ?? existing.policyType;
     const nextConditions = input.body.conditions !== undefined ? input.body.conditions ?? null : existing.conditions ?? null;
     const nextConfig = input.body.config !== undefined ? input.body.config ?? null : existing.config ?? null;
@@ -969,8 +969,8 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     return policy;
   }
 
-  async function deletePolicy(input: { companyId: string; policyId: string; managementContext?: ConnectionManagementContext }) {
-    const existing = await getGenericPolicyRow(db, input.companyId, input.policyId);
+  async function deletePolicy(input: { spaceId: string; policyId: string; managementContext?: ConnectionManagementContext }) {
+    const existing = await getGenericPolicyRow(db, input.spaceId, input.policyId);
     await input.managementContext?.reauthorize();
     const [deleted] = await db
       .delete(toolPolicies)
@@ -979,23 +979,23 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     return deleted;
   }
 
-  async function loadCatalogEntry(companyId: string, catalogEntryId: string, cache?: ToolAccessDecisionCache) {
+  async function loadCatalogEntry(spaceId: string, catalogEntryId: string, cache?: ToolAccessDecisionCache) {
     const readEntry = async () => {
       const [entry] = await db.select(catalogEntryContextColumns).from(toolCatalogEntries).where(eq(toolCatalogEntries.id, catalogEntryId));
-      return entry && entry.companyId === companyId ? entry : null;
+      return entry && entry.spaceId === spaceId ? entry : null;
     };
     // Only a canonical id can use the in-memory lookup. Any other spelling
     // takes the direct query, so a cached and an uncached decision agree.
     if (!cache || !CANONICAL_UUID_RE.test(catalogEntryId)) return readEntry();
-    // A listing decides the active catalog tools of the company, so a batch
+    // A listing decides the active catalog tools of the space, so a batch
     // reads those entries once and looks each one up in memory. Any other
     // entry takes the direct query.
-    const entriesById = await cachedRead(cache, `active-catalog-tools:${companyId}`, async () => {
+    const entriesById = await cachedRead(cache, `active-catalog-tools:${spaceId}`, async () => {
       const entries = await db
         .select(catalogEntryContextColumns)
         .from(toolCatalogEntries)
         .where(and(
-          eq(toolCatalogEntries.companyId, companyId),
+          eq(toolCatalogEntries.spaceId, spaceId),
           eq(toolCatalogEntries.entryKind, "tool"),
           eq(toolCatalogEntries.status, "active"),
           isNull(toolCatalogEntries.quarantinedAt),
@@ -1004,7 +1004,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     });
     const entry = entriesById.get(catalogEntryId);
     if (!entry) return readEntry();
-    return entry.companyId === companyId ? entry : null;
+    return entry.spaceId === spaceId ? entry : null;
   }
 
   async function loadContext(input: ToolAccessDecisionInput, cache?: ToolAccessDecisionCache): Promise<
@@ -1021,10 +1021,10 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
 
     if (input.actor.actorType === "agent") {
       const lookupAgentId = agentId ?? "";
-      const [agent] = await cachedRead(cache, `agent:${input.companyId}:${lookupAgentId}`, async () =>
-        db.select({ id: agents.id }).from(agents).where(and(eq(agents.id, lookupAgentId), eq(agents.companyId, input.companyId))));
+      const [agent] = await cachedRead(cache, `agent:${input.spaceId}:${lookupAgentId}`, async () =>
+        db.select({ id: agents.id }).from(agents).where(and(eq(agents.id, lookupAgentId), eq(agents.spaceId, input.spaceId))));
       if (!agent) {
-        return { ok: false, redaction, decision: decision("deny", "deny_missing_agent", "Authenticated agent was not found in the company.", [], [], { redactionPlan: redaction.redactionPlan }) };
+        return { ok: false, redaction, decision: decision("deny", "deny_missing_agent", "Authenticated agent was not found in the space.", [], [], { redactionPlan: redaction.redactionPlan }) };
       }
       agentId = agent.id;
     }
@@ -1038,7 +1038,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       const [run] = await cachedRead(cache, `run:${runId}`, async () =>
         db
           .select({
-            companyId: heartbeatRuns.companyId,
+            spaceId: heartbeatRuns.spaceId,
             agentId: heartbeatRuns.agentId,
             issueId: boundRunIssueIdSql(),
             projectId: runContextSnapshotString("projectId"),
@@ -1046,7 +1046,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
           })
           .from(heartbeatRuns)
           .where(eq(heartbeatRuns.id, runId)));
-      if (!run || run.companyId !== input.companyId || (input.actor.actorType === "agent" && run.agentId !== (originatingAgentId ?? agentId))) {
+      if (!run || run.spaceId !== input.spaceId || (input.actor.actorType === "agent" && run.agentId !== (originatingAgentId ?? agentId))) {
         return { ok: false, redaction, decision: decision("deny", "deny_run_context_mismatch", "Supplied run context does not match the authenticated actor.", [], [], { redactionPlan: redaction.redactionPlan }) };
       }
       agentId = originatingAgentId ? agentId : run.agentId;
@@ -1066,9 +1066,9 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     if (issueId) {
       const contextIssueId = issueId;
       const [issue] = await cachedRead(cache, `issue:${contextIssueId}`, async () =>
-        db.select({ companyId: issues.companyId, projectId: issues.projectId }).from(issues).where(eq(issues.id, contextIssueId)));
-      if (!issue || issue.companyId !== input.companyId) {
-        return { ok: false, redaction, decision: decision("deny", "deny_company_boundary", "Issue context is outside the company.", [], [], { redactionPlan: redaction.redactionPlan }) };
+        db.select({ spaceId: issues.spaceId, projectId: issues.projectId }).from(issues).where(eq(issues.id, contextIssueId)));
+      if (!issue || issue.spaceId !== input.spaceId) {
+        return { ok: false, redaction, decision: decision("deny", "deny_space_boundary", "Issue context is outside the space.", [], [], { redactionPlan: redaction.redactionPlan }) };
       }
       if (projectId && projectId !== issue.projectId) {
         return { ok: false, redaction, decision: decision("deny", "deny_run_context_mismatch", "Project context does not match the issue context.", [], [], { redactionPlan: redaction.redactionPlan }) };
@@ -1078,17 +1078,17 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     if (projectId) {
       const contextProjectId = projectId;
       const [project] = await cachedRead(cache, `project:${contextProjectId}`, async () =>
-        db.select({ companyId: projects.companyId }).from(projects).where(eq(projects.id, contextProjectId)));
-      if (!project || project.companyId !== input.companyId) {
-        return { ok: false, redaction, decision: decision("deny", "deny_company_boundary", "Project context is outside the company.", [], [], { redactionPlan: redaction.redactionPlan }) };
+        db.select({ spaceId: projects.spaceId }).from(projects).where(eq(projects.id, contextProjectId)));
+      if (!project || project.spaceId !== input.spaceId) {
+        return { ok: false, redaction, decision: decision("deny", "deny_space_boundary", "Project context is outside the space.", [], [], { redactionPlan: redaction.redactionPlan }) };
       }
     }
     if (routineId) {
       const contextRoutineId = routineId;
       const [routine] = await cachedRead(cache, `routine:${contextRoutineId}`, async () =>
-        db.select({ companyId: routines.companyId }).from(routines).where(eq(routines.id, contextRoutineId)));
-      if (!routine || routine.companyId !== input.companyId) {
-        return { ok: false, redaction, decision: decision("deny", "deny_company_boundary", "Routine context is outside the company.", [], [], { redactionPlan: redaction.redactionPlan }) };
+        db.select({ spaceId: routines.spaceId }).from(routines).where(eq(routines.id, contextRoutineId)));
+      if (!routine || routine.spaceId !== input.spaceId) {
+        return { ok: false, redaction, decision: decision("deny", "deny_space_boundary", "Routine context is outside the space.", [], [], { redactionPlan: redaction.redactionPlan }) };
       }
     }
 
@@ -1106,9 +1106,9 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     let applicationType: string | null = null;
 
     if (catalogEntryId) {
-      const entry = await loadCatalogEntry(input.companyId, catalogEntryId, cache);
+      const entry = await loadCatalogEntry(input.spaceId, catalogEntryId, cache);
       if (!entry) {
-        return { ok: false, redaction, decision: decision("deny", "deny_missing_tool", "Requested tool is not in the company catalog.", [], [], { redactionPlan: redaction.redactionPlan }) };
+        return { ok: false, redaction, decision: decision("deny", "deny_missing_tool", "Requested tool is not in the space catalog.", [], [], { redactionPlan: redaction.redactionPlan }) };
       }
       connectionId = entry.connectionId;
       applicationId = entry.applicationId ?? applicationId;
@@ -1119,11 +1119,11 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       catalogSchemaHash = entry.schemaHash;
     } else if (connectionId) {
       const entryConnectionId = connectionId;
-      const [entry] = await cachedRead(cache, `catalog-entry-name:${input.companyId}:${entryConnectionId}:${input.request.toolName}`, async () =>
+      const [entry] = await cachedRead(cache, `catalog-entry-name:${input.spaceId}:${entryConnectionId}:${input.request.toolName}`, async () =>
         db
           .select(catalogEntryContextColumns)
           .from(toolCatalogEntries)
-          .where(and(eq(toolCatalogEntries.companyId, input.companyId), eq(toolCatalogEntries.connectionId, entryConnectionId), eq(toolCatalogEntries.name, input.request.toolName))));
+          .where(and(eq(toolCatalogEntries.spaceId, input.spaceId), eq(toolCatalogEntries.connectionId, entryConnectionId), eq(toolCatalogEntries.name, input.request.toolName))));
       if (entry) {
         catalogEntryId = entry.id;
         applicationId = entry.applicationId ?? applicationId;
@@ -1140,7 +1140,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       const [connection] = await cachedRead(cache, `connection:${contextConnectionId}`, async () =>
         db
           .select({
-            companyId: toolConnections.companyId,
+            spaceId: toolConnections.spaceId,
             applicationId: toolConnections.applicationId,
             enabled: toolConnections.enabled,
             status: toolConnections.status,
@@ -1148,8 +1148,8 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
           })
           .from(toolConnections)
           .where(eq(toolConnections.id, contextConnectionId)));
-      if (!connection || connection.companyId !== input.companyId) {
-        return { ok: false, redaction, decision: decision("deny", "deny_company_boundary", "Connection is outside the company.", [], [], { redactionPlan: redaction.redactionPlan }) };
+      if (!connection || connection.spaceId !== input.spaceId) {
+        return { ok: false, redaction, decision: decision("deny", "deny_space_boundary", "Connection is outside the space.", [], [], { redactionPlan: redaction.redactionPlan }) };
       }
       if (!connection.enabled || connection.status === "disabled" || connection.status === "archived") {
         return { ok: false, redaction, decision: decision("deny", "deny_disabled_connection", "Connection is disabled.", [], [], { redactionPlan: redaction.redactionPlan }) };
@@ -1162,15 +1162,15 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       const [application] = await cachedRead(cache, `application:${contextApplicationId}`, async () =>
         db
           .select({
-            companyId: toolApplications.companyId,
+            spaceId: toolApplications.spaceId,
             applicationKey: toolApplications.applicationKey,
             status: toolApplications.status,
             type: toolApplications.type,
           })
           .from(toolApplications)
           .where(eq(toolApplications.id, contextApplicationId)));
-      if (!application || application.companyId !== input.companyId) {
-        return { ok: false, redaction, decision: decision("deny", "deny_company_boundary", "Application is outside the company.", [], [], { redactionPlan: redaction.redactionPlan }) };
+      if (!application || application.spaceId !== input.spaceId) {
+        return { ok: false, redaction, decision: decision("deny", "deny_space_boundary", "Application is outside the space.", [], [], { redactionPlan: redaction.redactionPlan }) };
       }
       if (application.status === "disabled") {
         return { ok: false, redaction, decision: decision("deny", "deny_disabled_application", "Application is disabled.", [], [], { redactionPlan: redaction.redactionPlan }) };
@@ -1192,7 +1192,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       ok: true,
       redaction,
       ctx: {
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         actorType: input.actor.actorType,
         actorId: input.actor.actorId,
         agentId,
@@ -1221,24 +1221,24 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
   }
 
   async function effectiveProfiles(ctx: ToolAccessContext, cache?: ToolAccessDecisionCache) {
-    const bindings = await cachedRead(cache, `profile-bindings:${ctx.companyId}`, async () =>
-      db.select().from(toolProfileBindings).where(eq(toolProfileBindings.companyId, ctx.companyId)));
+    const bindings = await cachedRead(cache, `profile-bindings:${ctx.spaceId}`, async () =>
+      db.select().from(toolProfileBindings).where(eq(toolProfileBindings.spaceId, ctx.spaceId)));
     const matchingBindings = bindings.filter((binding) => targetMatches(binding, ctx));
     if (matchingBindings.length === 0) return { profiles: [], entries: [] as Array<typeof toolProfileEntries.$inferSelect> };
     const candidateProfileIds = profileIdsInBindingOrder(matchingBindings);
-    const candidateProfiles = await cachedRead(cache, `profiles:${ctx.companyId}:${[...candidateProfileIds].sort().join(",")}`, async () =>
+    const candidateProfiles = await cachedRead(cache, `profiles:${ctx.spaceId}:${[...candidateProfileIds].sort().join(",")}`, async () =>
       db.select().from(toolProfiles).where(and(
-        eq(toolProfiles.companyId, ctx.companyId),
+        eq(toolProfiles.spaceId, ctx.spaceId),
         inArray(toolProfiles.id, candidateProfileIds),
       )));
     const gatewayId = ctx.gatewayId;
     const [gateway] = gatewayId
-      ? await cachedRead(cache, `gateway-profile-mode:${ctx.companyId}:${gatewayId}`, async () =>
+      ? await cachedRead(cache, `gateway-profile-mode:${ctx.spaceId}:${gatewayId}`, async () =>
           db
             .select({ defaultProfileMode: toolMcpGateways.defaultProfileMode })
             .from(toolMcpGateways)
             .where(and(
-              eq(toolMcpGateways.companyId, ctx.companyId),
+              eq(toolMcpGateways.spaceId, ctx.spaceId),
               eq(toolMcpGateways.id, gatewayId),
             ))
             .limit(1))
@@ -1258,8 +1258,8 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     // The active profile set depends on the connection (additive app profiles),
     // so a batch reads the entries once per distinct set.
     const entries = activeProfileIds.length > 0
-      ? await cachedRead(cache, `profile-entries:${ctx.companyId}:${[...activeProfileIds].sort().join(",")}`, async () =>
-          db.select().from(toolProfileEntries).where(and(eq(toolProfileEntries.companyId, ctx.companyId), inArray(toolProfileEntries.profileId, activeProfileIds))))
+      ? await cachedRead(cache, `profile-entries:${ctx.spaceId}:${[...activeProfileIds].sort().join(",")}`, async () =>
+          db.select().from(toolProfileEntries).where(and(eq(toolProfileEntries.spaceId, ctx.spaceId), inArray(toolProfileEntries.profileId, activeProfileIds))))
       : [];
     return { profiles: activeProfiles, entries };
   }
@@ -1268,12 +1268,12 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     const principalType = ctx.actorType === "agent" ? "agent" : ctx.actorType === "user" ? "user" : null;
     const principalId = ctx.actorType === "agent" ? ctx.agentId : ctx.actorId;
     if (!principalType || !principalId) return false;
-    const grants = await cachedRead(cache, `tool-grants:${ctx.companyId}:${principalType}:${principalId}`, async () =>
+    const grants = await cachedRead(cache, `tool-grants:${ctx.spaceId}:${principalType}:${principalId}`, async () =>
       db
         .select()
         .from(principalPermissionGrants)
         .where(and(
-          eq(principalPermissionGrants.companyId, ctx.companyId),
+          eq(principalPermissionGrants.spaceId, ctx.spaceId),
           eq(principalPermissionGrants.principalType, principalType),
           eq(principalPermissionGrants.principalId, principalId),
           eq(principalPermissionGrants.permissionKey, "tools:use"),
@@ -1290,7 +1290,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     const resetAt = new Date(start.getTime() + rule.windowSeconds * 1000);
     const bucketKey = `${policy.id}:${rateBucket(rule, ctx)}`;
     const counterWhere = and(
-      eq(toolRateLimitCounters.companyId, ctx.companyId),
+      eq(toolRateLimitCounters.spaceId, ctx.spaceId),
       eq(toolRateLimitCounters.policyId, policy.id),
       eq(toolRateLimitCounters.counterKey, bucketKey),
       eq(toolRateLimitCounters.windowKind, kind),
@@ -1305,7 +1305,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     const [counter] = await db
       .insert(toolRateLimitCounters)
       .values({
-        companyId: ctx.companyId,
+        spaceId: ctx.spaceId,
         policyId: policy.id,
         counterKey: bucketKey,
         scopeType: "policy",
@@ -1318,7 +1318,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       })
       .onConflictDoUpdate({
         target: [
-          toolRateLimitCounters.companyId,
+          toolRateLimitCounters.spaceId,
           toolRateLimitCounters.policyId,
           toolRateLimitCounters.counterKey,
           toolRateLimitCounters.windowKind,
@@ -1360,7 +1360,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       .set({ config: { ...config, trustRule: nextRule }, updatedAt: now })
       .where(eq(toolPolicies.id, policy.id));
     await db.insert(toolAccessAuditEvents).values({
-      companyId: ctx.companyId,
+      spaceId: ctx.spaceId,
       connectionId: ctx.connectionId,
       catalogEntryId: ctx.catalogEntryId,
       actorType: ctx.actorType,
@@ -1379,7 +1379,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       },
     });
     await db.insert(toolCallEvents).values({
-      companyId: ctx.companyId,
+      spaceId: ctx.spaceId,
       eventType: "trust_rule_used",
       actorType: ctx.actorType,
       actorId: ctx.actorId,
@@ -1412,7 +1412,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       upstreamToolName: toolInvocations.upstreamToolName, argumentsHash: toolInvocations.argumentsHash,
       status: toolInvocations.status, policyDecision: toolInvocations.policyDecision, approvalState: toolInvocations.approvalState,
       policyExplanation: toolInvocations.policyExplanation,
-    }).from(toolInvocations).where(and(eq(toolInvocations.companyId, ctx.companyId), eq(toolInvocations.id, invocationId)));
+    }).from(toolInvocations).where(and(eq(toolInvocations.spaceId, ctx.spaceId), eq(toolInvocations.id, invocationId)));
     // A parked request already spent its slot before asking for review. Reusing
     // that admission only skips the same rate rule; current policy and the
     // gateway's approval/claim owners still decide whether it may execute.
@@ -1452,7 +1452,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     try {
       return await db.transaction(async tx => {
         const [invocation] = await tx.select().from(toolInvocations)
-          .where(and(eq(toolInvocations.companyId, input.companyId), eq(toolInvocations.id, invocationId)))
+          .where(and(eq(toolInvocations.spaceId, input.spaceId), eq(toolInvocations.id, invocationId)))
           .for("update");
         // Historical reviewed requests can still have a pending invocation.
         // Accept that state only with the exact executing claim owned by the
@@ -1462,7 +1462,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
           const [request] = await tx.select().from(toolActionRequests).where(and(
             eq(toolActionRequests.id, claim.actionRequestId),
             eq(toolActionRequests.invocationId, invocationId),
-            eq(toolActionRequests.companyId, input.companyId),
+            eq(toolActionRequests.spaceId, input.spaceId),
           )).for("update");
           ownsClaim = request?.status === "executing" && request.updatedAt.getTime() === claim.claimedAt.getTime();
         }
@@ -1495,7 +1495,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
               ...(Array.isArray(admissions) ? { consumedRateAdmissions: admissions } : {}),
               ...(Array.isArray(delegatedAdmissions) ? { delegatedCallerConsumedRateAdmissions: delegatedAdmissions } : {}),
             },
-          }).where(and(eq(toolInvocations.companyId, input.companyId), eq(toolInvocations.id, invocationId)));
+          }).where(and(eq(toolInvocations.spaceId, input.spaceId), eq(toolInvocations.id, invocationId)));
         }
         return result;
       });
@@ -1550,8 +1550,8 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       return !matchingEntries.some((entry) => entry.effect === "exclude")
         && (profile.defaultAction === "allow" || matchingEntries.some((entry) => entry.effect === "include"));
     });
-    const policies = await cachedRead(cache, `enabled-policies:${ctx.companyId}`, async () =>
-      db.select().from(toolPolicies).where(and(eq(toolPolicies.companyId, ctx.companyId), eq(toolPolicies.enabled, true))).orderBy(asc(toolPolicies.priority), asc(toolPolicies.createdAt)));
+    const policies = await cachedRead(cache, `enabled-policies:${ctx.spaceId}`, async () =>
+      db.select().from(toolPolicies).where(and(eq(toolPolicies.spaceId, ctx.spaceId), eq(toolPolicies.enabled, true))).orderBy(asc(toolPolicies.priority), asc(toolPolicies.createdAt)));
     for (const policy of policies) {
       const conditions = policyConditions(policy);
       if (conditions && selectorMatches(policy.selectors, ctx)) {
@@ -1671,16 +1671,16 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     // A connection's profile decides which of its actions agents may call. An
     // unscoped tools:use grant, which every new standard agent receives, is
     // permission to use tools at all; it must not turn on an action that a
-    // profile governing this connection leaves off. The connection's own
+    // profile controlling this connection leaves off. The connection's own
     // access profile governs it even with no entries (every action turned
     // off), and so does any entry that selects this action, connection or
     // application. A grant that names the action, connection or application
-    // still applies. Board users keep their operator grants.
-    const governedByConnectionProfile = ctx.actorType === "agent" && !!ctx.connectionId && (
+    // still applies. Operator users keep their operator grants.
+    const controlledByConnectionProfile = ctx.actorType === "agent" && !!ctx.connectionId && (
       profileState.profiles.some((profile) => isConnectionAccessProfile(profile, ctx.connectionId))
       || profileState.entries.some((entry) => entry.connectionId === ctx.connectionId || profileEntryMatches(entry, ctx))
     );
-    if (await explicitGrant(ctx, cache, { toolTargetedOnly: governedByConnectionProfile })) {
+    if (await explicitGrant(ctx, cache, { toolTargetedOnly: controlledByConnectionProfile })) {
       return decision("allow", "allow_explicit_grant", "Tool access allowed by explicit grant.", effectiveProfileIds, [], { redactionPlan: redaction.redactionPlan });
     }
 
@@ -1710,7 +1710,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     const loaded = await loadContext(input);
     const redaction = loaded.redaction;
     const ctx = loaded.ok ? loaded.ctx : {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: input.actor.actorType,
       actorId: input.actor.actorId,
       agentId: input.actor.agentId ?? null,
@@ -1729,7 +1729,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     const runId = "runId" in ctx ? ctx.runId : ctx.heartbeatRunId;
     try {
       const [legacyAuditEvent] = await db.insert(toolAccessAuditEvents).values({
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         connectionId: ctx.connectionId,
         catalogEntryId: ctx.catalogEntryId,
         actorType: ctx.actorType,
@@ -1757,7 +1757,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
         },
       }).returning();
       const [toolCallEvent] = await db.insert(toolCallEvents).values({
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         eventType: eventType as typeof toolCallEvents.$inferInsert["eventType"],
         actorType: ctx.actorType,
         actorId: ctx.actorId,
@@ -1790,7 +1790,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       }).returning();
       return { legacyAuditEvent, toolCallEvent };
     } catch (error) {
-      await recordToolRuntimeAuditWriteFailure(db, input.companyId);
+      await recordToolRuntimeAuditWriteFailure(db, input.spaceId);
       throw error;
     }
   }
@@ -1807,7 +1807,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       ?? (input.request.sideEffecting ? sideEffectIdempotencyKey(ctx, requestIdentityHash!) : null);
     if (idempotencyKey) {
       const [existing] = await db.select().from(toolInvocations).where(and(
-        eq(toolInvocations.companyId, input.companyId),
+        eq(toolInvocations.spaceId, input.spaceId),
         eq(toolInvocations.idempotencyKey, idempotencyKey),
       ));
       if (existing) return { invocation: existing, replayed: true, actionRequest: null };
@@ -1822,7 +1822,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
         summarizeAndRedact(input.request.arguments, false).summary.sha256!,
       ].map(hash => sideEffectIdempotencyKey(ctx, hash, 1)))];
       const legacyInvocations = legacyKeys.length ? await db.select().from(toolInvocations).where(and(
-        eq(toolInvocations.companyId, input.companyId),
+        eq(toolInvocations.spaceId, input.spaceId),
         inArray(toolInvocations.idempotencyKey, legacyKeys),
       )) : [];
       for (const legacy of legacyInvocations) {
@@ -1837,7 +1837,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
           return { invocation: legacy, replayed: true, actionRequest: null };
         }
         const [actionRequest] = await db.select({ signedArguments: toolActionRequests.signedArguments })
-          .from(toolActionRequests).where(and(eq(toolActionRequests.companyId, input.companyId),
+          .from(toolActionRequests).where(and(eq(toolActionRequests.spaceId, input.spaceId),
             eq(toolActionRequests.invocationId, legacy.id))).limit(1);
         const original = actionRequest?.signedArguments
           ? readSignedToolArgumentsPayload({ signedArguments: actionRequest.signedArguments,
@@ -1860,7 +1860,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
           ? "rate_limited"
           : "denied";
     const [invocation] = await db.insert(toolInvocations).values({
-      companyId: ctx.companyId,
+      spaceId: ctx.spaceId,
       idempotencyKey,
       actorType: ctx.actorType,
       actorId: ctx.actorId,
@@ -1869,7 +1869,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       runId: ctx.heartbeatRunId,
       gatewayId: ctx.gatewayId,
       ...(input.runContext?.gatewayTokenId ? { gatewayTokenId: sql`(select ${toolMcpGatewayTokens.id} from ${toolMcpGatewayTokens}
-        where ${toolMcpGatewayTokens.id} = ${input.runContext.gatewayTokenId} and ${toolMcpGatewayTokens.companyId} = ${ctx.companyId}
+        where ${toolMcpGatewayTokens.id} = ${input.runContext.gatewayTokenId} and ${toolMcpGatewayTokens.spaceId} = ${ctx.spaceId}
           and ${toolMcpGatewayTokens.gatewayId} = ${ctx.gatewayId})` } : {}),
       applicationId: ctx.applicationId,
       connectionId: ctx.connectionId,
@@ -1895,7 +1895,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     let actionRequest = null;
     if (accessDecision.decision === "require_approval") {
       [actionRequest] = await db.insert(toolActionRequests).values({
-        companyId: ctx.companyId,
+        spaceId: ctx.spaceId,
         invocationId: invocation.id,
         issueId: ctx.issueId,
         status: "pending",
@@ -1909,7 +1909,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
   }
 
   async function matchingApprovedActionRequestCount(input: {
-    companyId: string;
+    spaceId: string;
     invocation: typeof toolInvocations.$inferSelect;
     filters: ToolTrustRuleArgumentFilters;
     selectors: Record<string, unknown>;
@@ -1917,20 +1917,20 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     const rows = await db
       .select()
       .from(toolActionRequests)
-      .where(and(eq(toolActionRequests.companyId, input.companyId), inArray(toolActionRequests.status, ["approved", "executed"])));
+      .where(and(eq(toolActionRequests.spaceId, input.spaceId), inArray(toolActionRequests.status, ["approved", "executed"])));
     if (rows.length === 0) return 0;
     const invocationIds = rows.map((row) => row.invocationId);
     const invocations = await db
       .select()
       .from(toolInvocations)
-      .where(and(eq(toolInvocations.companyId, input.companyId), inArray(toolInvocations.id, invocationIds)));
+      .where(and(eq(toolInvocations.spaceId, input.spaceId), inArray(toolInvocations.id, invocationIds)));
     const byId = new Map(invocations.map((row) => [row.id, row]));
     const issueIds = [...new Set(invocations.map((row) => row.issueId).filter((id): id is string => Boolean(id)))];
     const issueRows = issueIds.length > 0
       ? await db
         .select({ id: issues.id, projectId: issues.projectId })
         .from(issues)
-        .where(and(eq(issues.companyId, input.companyId), inArray(issues.id, issueIds)))
+        .where(and(eq(issues.spaceId, input.spaceId), inArray(issues.id, issueIds)))
       : [];
     const issueProjectById = new Map(issueRows.map((row) => [row.id, row.projectId]));
     const allowedHashes = new Set([
@@ -1948,7 +1948,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       if (invocation.catalogVersionHash !== input.invocation.catalogVersionHash) return false;
       if (invocation.catalogSchemaHash !== input.invocation.catalogSchemaHash) return false;
       if (!selectorMatches(input.selectors, {
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         actorType: invocation.actorType as ToolAccessContext["actorType"],
         actorId: invocation.actorId ?? invocation.agentId ?? "system",
         agentId: invocation.agentId,
@@ -2084,7 +2084,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
   }
 
   async function createTrustRuleFromActionRequest(input: {
-    companyId: string;
+    spaceId: string;
     actionRequestId: string;
     body: CreateToolTrustRuleFromActionRequest;
     actor?: { agentId?: string | null; userId?: string | null };
@@ -2092,7 +2092,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     const [actionRequest] = await db
       .select()
       .from(toolActionRequests)
-      .where(and(eq(toolActionRequests.id, input.actionRequestId), eq(toolActionRequests.companyId, input.companyId)))
+      .where(and(eq(toolActionRequests.id, input.actionRequestId), eq(toolActionRequests.spaceId, input.spaceId)))
       .limit(1);
     if (!actionRequest) throw notFound("Tool action request not found");
     if (actionRequest.status !== "approved" && actionRequest.status !== "executed") {
@@ -2101,7 +2101,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     const [invocation] = await db
       .select()
       .from(toolInvocations)
-      .where(and(eq(toolInvocations.id, actionRequest.invocationId), eq(toolInvocations.companyId, input.companyId)))
+      .where(and(eq(toolInvocations.id, actionRequest.invocationId), eq(toolInvocations.spaceId, input.spaceId)))
       .limit(1);
     if (!invocation) throw notFound("Tool invocation not found");
     if (invocation.policyDecision !== "require_approval") {
@@ -2115,7 +2115,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       ? await db
         .select({ projectId: issues.projectId })
         .from(issues)
-        .where(and(eq(issues.id, invocation.issueId), eq(issues.companyId, input.companyId)))
+        .where(and(eq(issues.id, invocation.issueId), eq(issues.spaceId, input.spaceId)))
         .limit(1)
       : [null];
     const reviewedSelectors = reviewedTrustRuleSelectorValues({
@@ -2137,7 +2137,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       : assertReviewedTrustRuleArgumentFilters(invocation, input.body.argumentFilters);
     const approvalThreshold = input.body.approvalThreshold ?? 2;
     const approvedCount = await matchingApprovedActionRequestCount({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       invocation,
       filters,
       selectors,
@@ -2151,7 +2151,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     const description = input.body.description
       ?? `Progressive-autonomy trust rule promoted from action request ${actionRequest.id}.`;
     const [policy] = await db.insert(toolPolicies).values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       name,
       description,
       policyType: "trust_rule",
@@ -2181,7 +2181,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     }).returning();
 
     await db.insert(toolAccessAuditEvents).values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       connectionId: invocation.connectionId,
       catalogEntryId: invocation.catalogEntryId,
       actorType: input.actor?.agentId ? "agent" : input.actor?.userId ? "user" : "system",
@@ -2201,7 +2201,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       },
     });
     await db.insert(toolCallEvents).values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       eventType: "trust_rule_created",
       actorType: input.actor?.agentId ? "agent" : input.actor?.userId ? "user" : "system",
       actorId: input.actor?.agentId ?? input.actor?.userId ?? null,
@@ -2226,16 +2226,16 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     return policy;
   }
 
-  async function listTrustRules(companyId: string) {
+  async function listTrustRules(spaceId: string) {
     return db
       .select()
       .from(toolPolicies)
-      .where(and(eq(toolPolicies.companyId, companyId), eq(toolPolicies.policyType, "trust_rule")))
+      .where(and(eq(toolPolicies.spaceId, spaceId), eq(toolPolicies.policyType, "trust_rule")))
       .orderBy(desc(toolPolicies.updatedAt));
   }
 
   async function revokeTrustRule(input: {
-    companyId: string;
+    spaceId: string;
     policyId: string;
     body: RevokeToolTrustRule;
     actor?: { agentId?: string | null; userId?: string | null };
@@ -2243,7 +2243,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
     const [existing] = await db
       .select()
       .from(toolPolicies)
-      .where(and(eq(toolPolicies.id, input.policyId), eq(toolPolicies.companyId, input.companyId)))
+      .where(and(eq(toolPolicies.id, input.policyId), eq(toolPolicies.spaceId, input.spaceId)))
       .limit(1);
     if (!existing || existing.policyType !== "trust_rule") throw notFound("Tool trust rule not found");
     const now = new Date();
@@ -2268,7 +2268,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       .where(eq(toolPolicies.id, existing.id))
       .returning();
     await db.insert(toolAccessAuditEvents).values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: input.actor?.agentId ? "agent" : input.actor?.userId ? "user" : "system",
       actorId: input.actor?.agentId ?? input.actor?.userId ?? null,
       action: "tool_access.trust_rule_revoked",
@@ -2277,7 +2277,7 @@ export function toolAccessPolicyService(db: Pick<Db, "select" | "insert" | "upda
       details: { policyId: existing.id, reason: input.body.reason ?? null },
     });
     await db.insert(toolCallEvents).values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       eventType: "trust_rule_revoked",
       actorType: input.actor?.agentId ? "agent" : input.actor?.userId ? "user" : "system",
       actorId: input.actor?.agentId ?? input.actor?.userId ?? null,

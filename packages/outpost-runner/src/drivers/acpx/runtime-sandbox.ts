@@ -36,7 +36,7 @@ import {
 
 import { createSanitizedAcpxSpawnInput } from "./environment.js";
 import { cursorInstructionBinding } from "./cursor-instructions.js";
-import { claudePaperclipPermissionRules } from "./permission-policy.js";
+import { claudeOutpostPermissionRules } from "./permission-policy.js";
 import type { QualifiedAcpxAgent } from "./qualified-profiles.js";
 import {
   resolveAcpxRuntimeRoot,
@@ -345,7 +345,7 @@ export async function prepareAcpxRuntimeSandbox(input: {
   binding: AcpxRecoveryBinding;
   agent: QualifiedAcpxAgent;
   environment?: NodeJS.ProcessEnv;
-  /** Public operations on the runner-owned Paperclip MCP bridge only. */
+  /** Public operations on the runner-owned Outpost MCP bridge only. */
   tools?: readonly Readonly<Record<string, unknown>>[];
   providerPolicy?: AcpxProviderRuntimePolicy;
 }): Promise<AcpxRuntimeSandbox> {
@@ -440,8 +440,8 @@ export async function prepareAcpxRuntimeSandbox(input: {
         model: input.binding.requestedModel,
         availableModels: [input.binding.requestedModel],
         ...(input.binding.claudeEffort ? { effortLevel: input.binding.claudeEffort } : {}),
-        ...((input.binding.permissionMode === "approve-reads" || input.binding.permissionMode === "approve-paperclip")
-          ? { permissions: { allow: claudePaperclipPermissionRules(input.tools ?? [], input.binding.permissionMode) } }
+        ...((input.binding.permissionMode === "approve-reads" || input.binding.permissionMode === "approve-outpost")
+          ? { permissions: { allow: claudeOutpostPermissionRules(input.tools ?? [], input.binding.permissionMode) } }
           : {}),
       })}\n`,
     );
@@ -512,7 +512,7 @@ export async function prepareAcpxRuntimeSandbox(input: {
             "OUTPOST_AGENT_KEY_ID", "OUTPOST_AGENT_PUBLIC_KEY", "OUTPOST_AGENT_PRIVATE_KEY",
             ...taskEnvironmentKeys,
             // Unselected provider/config secrets keep Codex's default shell exclusions;
-            // only Paperclip's scoped API token is required by Bash/curl skills.
+            // only Outpost's scoped API token is required by Bash/curl skills.
             ...Object.keys(input.environment ?? {}).filter(key => !(AGENT_OBSERVABILITY_ENV_KEYS as readonly string[]).includes(key) && (key === "OUTPOST_API_KEY" || !/key|secret|token/i.test(key))),
           ])])}`,
         ] : []),

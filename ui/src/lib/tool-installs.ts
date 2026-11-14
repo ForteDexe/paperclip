@@ -12,7 +12,7 @@ import type { ToolConnectionInstall } from "@outpost/shared";
  */
 
 export interface InstallState {
-  /** A `company` install row: the app is installed on every agent. */
+  /** A `space` install row: the app is installed on every agent. */
   onAll: boolean;
   /** Explicit per-agent install rows. */
   agentIds: Set<string>;
@@ -22,7 +22,7 @@ export function installStateFrom(installs: ToolConnectionInstall[] | undefined):
   const agentIds = new Set<string>();
   let onAll = false;
   for (const install of installs ?? []) {
-    if (install.targetType === "company") onAll = true;
+    if (install.targetType === "space") onAll = true;
     else if (install.targetType === "agent") agentIds.add(install.targetId);
   }
   return { onAll, agentIds };
@@ -35,10 +35,10 @@ export function isAgentInstalled(state: InstallState, agentId: string): boolean 
 
 /** Serialize an install state back into the PUT payload the API expects. */
 export function installPayload(
-  companyId: string,
+  spaceId: string,
   state: InstallState,
-): Array<{ targetType: "company" | "agent"; targetId: string }> {
-  if (state.onAll) return [{ targetType: "company", targetId: companyId }];
+): Array<{ targetType: "space" | "agent"; targetId: string }> {
+  if (state.onAll) return [{ targetType: "space", targetId: spaceId }];
   return [...state.agentIds].map((targetId) => ({ targetType: "agent" as const, targetId }));
 }
 

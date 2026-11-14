@@ -136,26 +136,26 @@ export function starredResourceIds(
   return Array.isArray(ids) ? ids : [];
 }
 
-export function useResourceMemberships(companyId: string | null | undefined) {
+export function useResourceMemberships(spaceId: string | null | undefined) {
   return useQuery({
-    queryKey: queryKeys.resourceMemberships.mine(companyId ?? "__none__"),
-    queryFn: () => resourceMembershipsApi.listMine(companyId!),
-    enabled: !!companyId,
+    queryKey: queryKeys.resourceMemberships.mine(spaceId ?? "__none__"),
+    queryFn: () => resourceMembershipsApi.listMine(spaceId!),
+    enabled: !!spaceId,
   });
 }
 
-export function useResourceMembershipMutation(companyId: string | null | undefined) {
+export function useResourceMembershipMutation(spaceId: string | null | undefined) {
   const queryClient = useQueryClient();
   const { pushToast } = useToastActions();
-  const queryKey = queryKeys.resourceMemberships.mine(companyId ?? "__none__");
+  const queryKey = queryKeys.resourceMemberships.mine(spaceId ?? "__none__");
 
   return useMutation({
     mutationFn: (variables: MutationVariables) => {
-      if (!companyId) throw new Error("Select an outpost first.");
+      if (!spaceId) throw new Error("Select an outpost first.");
       const body = { state: variables.state, starred: variables.starred };
       return variables.resourceType === "project"
-        ? resourceMembershipsApi.updateProject(companyId, variables.resourceId, body)
-        : resourceMembershipsApi.updateAgent(companyId, variables.resourceId, body);
+        ? resourceMembershipsApi.updateProject(spaceId, variables.resourceId, body)
+        : resourceMembershipsApi.updateAgent(spaceId, variables.resourceId, body);
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey });
@@ -193,7 +193,7 @@ export function useResourceMembershipMutation(companyId: string | null | undefin
       );
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["primary-agent", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["primary-agent", spaceId] });
       queryClient.invalidateQueries({ queryKey });
     },
   });

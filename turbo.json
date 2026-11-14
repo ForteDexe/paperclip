@@ -66,7 +66,7 @@
         "ui/src/types/**",
         "ui/src/index.css",
         "ui/src/bootstrapSetup.ts",
-        "ui/src/pages/CompanyExport.tsx",
+        "ui/src/pages/SpaceExport.tsx",
         "ui/*",
         "ui/src/components/MarkdownBody.tsx"
       ],
@@ -83,7 +83,7 @@
         "ui/src/types/**",
         "ui/src/index.css",
         "ui/src/bootstrapSetup.ts",
-        "ui/src/pages/CompanyExport.tsx",
+        "ui/src/pages/SpaceExport.tsx",
         "ui/*",
         "ui/src/components/MarkdownBody.tsx"
       ],
@@ -128,7 +128,7 @@
         "ui/src/types/**",
         "ui/src/index.css",
         "ui/src/bootstrapSetup.ts",
-        "ui/src/pages/CompanyExport.tsx",
+        "ui/src/pages/SpaceExport.tsx",
         "ui/*",
         "ui/src/components/MarkdownBody.tsx"
       ],
@@ -145,7 +145,7 @@
         "ui/src/types/**",
         "ui/src/index.css",
         "ui/src/bootstrapSetup.ts",
-        "ui/src/pages/CompanyExport.tsx",
+        "ui/src/pages/SpaceExport.tsx",
         "ui/*",
         "ui/src/components/MarkdownBody.tsx"
       ],
@@ -169,7 +169,7 @@
         "ui/src/types/**",
         "ui/src/index.css",
         "ui/src/bootstrapSetup.ts",
-        "ui/src/pages/CompanyExport.tsx",
+        "ui/src/pages/SpaceExport.tsx",
         "ui/*",
         "ui/src/components/MarkdownBody.tsx"
       ],

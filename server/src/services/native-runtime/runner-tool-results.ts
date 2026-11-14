@@ -25,7 +25,7 @@ export const READ_TOOL_RESULT_DEFINITION = {
   },
 };
 
-/** Only the already-governed gateway result may cross this storage boundary. */
+/** Only the already-controlled gateway result may cross this storage boundary. */
 export async function captureRunnerToolResult(
   result: unknown,
   io: Pick<RunnerApiIo, "reserveResponseCapture" | "saveResponse">,

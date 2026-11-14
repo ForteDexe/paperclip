@@ -22,7 +22,7 @@ export interface LowTrustOutputPromotionTarget {
 
 export interface LowTrustBoundary {
   mode: typeof LOW_TRUST_REVIEW_PRESET;
-  companyId?: string;
+  spaceId?: string;
   projectIds?: string[];
   rootIssueId?: string;
   issueIds?: string[];
@@ -39,13 +39,13 @@ export interface LowTrustReviewPresetPolicy {
 }
 
 export interface AssignmentAuthorizationPolicy extends Record<string, unknown> {
-  mode?: "company_default" | "protected";
+  mode?: "space_default" | "protected";
   /** @deprecated Use `protectedAgent.blockAssignment`. */
   protectedAgentRequiresApproval?: boolean;
 }
 
 export interface ProtectedAgentAuthorizationPolicy extends Record<string, unknown> {
-  /** Hard-block assignment until a company administrator removes the block. */
+  /** Hard-block assignment until a space administrator removes the block. */
   blockAssignment?: boolean;
   blockReason?: string;
   /** @deprecated Legacy hard-block alias. This does not create an approval. */

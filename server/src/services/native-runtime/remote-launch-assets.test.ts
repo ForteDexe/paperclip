@@ -183,7 +183,7 @@ it("replaces poisoned provider routing before restoring credentials and keeps re
 it.each(["missing", "routing"] as const)("removes stale remote authentication when the admitted launch has no auth file (%s)", async mode => {
   const f = await filesystemFixture();
   expect(existsSync(join(f.root, "codex-home", "auth.json"))).toBe(false);
-  if (mode === "routing") writeFileSync(join(f.root, "codex-home", "config.toml"), 'model_provider = "paperclip"\n[model_providers.paperclip]\nbase_url = "https://example.com/v1"\nwire_api = "responses"\nrequires_openai_auth = false\n');
+  if (mode === "routing") writeFileSync(join(f.root, "codex-home", "config.toml"), 'model_provider = "outpost"\n[model_providers.outpost]\nbase_url = "https://example.com/v1"\nwire_api = "responses"\nrequires_openai_auth = false\n');
   mkdirSync(join(f.remote, "skills"), { recursive: true });
   writeFileSync(join(f.remote, "skills", "retained"), "source skills");
   writeFileSync(join(f.remote, "auth.json"), "previous account credential", { mode: 0o600 });

@@ -33,7 +33,7 @@ const resolverPolicyFields = {
   effectiveResolverPolicy: "anyone",
   resolverPolicyProvenance: "inherited",
   effectiveResolverPolicySource: "requested",
-  legacyResolverPolicyAliases: { requested: "board_or_agents", effective: "board_or_agents" },
+  legacyResolverPolicyAliases: { requested: "operator_or_agents", effective: "operator_or_agents" },
 } as const;
 
 describe("buildSuggestedTaskTree", () => {
@@ -69,7 +69,7 @@ describe("issue thread interaction helpers", () => {
       payload: { version: 1 as const, prompt: "Review completed work", target: { type: "custom" as const, key: "native_completion_review" } } };
     expect(isDeferredConversationInteraction(review)).toBe(true);
     expect(isDeferredConversationInteraction({ ...review, dismissedAt: null })).toBe(false);
-    expect(isDeferredConversationInteraction({ ...review, effectiveResolverPolicySource: "company_cap" })).toBe(false);
+    expect(isDeferredConversationInteraction({ ...review, effectiveResolverPolicySource: "space_cap" })).toBe(false);
     expect(isDeferredConversationInteraction({ ...pendingRequestConfirmationInteraction, dismissedAt: new Date() })).toBe(false);
     expect(isDeferredConversationInteraction({ ...review, payload: { ...review.payload, toolAction: {} as never } })).toBe(false);
     expect(isDeferredConversationInteraction({ ...review, payload: { ...review.payload, secretProposal: {} as never } })).toBe(false);
@@ -78,7 +78,7 @@ describe("issue thread interaction helpers", () => {
   it("replaces composer Skip only when the durable form has its own alternative path", () => {
     const base = {
       id: "interaction-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       status: "pending",
       continuationPolicy: "wake_assignee",
@@ -117,7 +117,7 @@ describe("issue thread interaction helpers", () => {
   it("formats successor-turn answer delivery with canonical prompts and labels", () => {
     const interaction = {
       id: "interaction-answers",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "ask_user_questions",
       status: "answered",
@@ -163,7 +163,7 @@ describe("issue thread interaction helpers", () => {
   it("summarizes task and question interactions", () => {
     expect(buildIssueThreadInteractionSummary({
       id: "interaction-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "suggest_tasks",
       status: "pending",
@@ -182,7 +182,7 @@ describe("issue thread interaction helpers", () => {
 
     expect(buildIssueThreadInteractionSummary({
       id: "interaction-accepted",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "suggest_tasks",
       status: "accepted",
@@ -206,7 +206,7 @@ describe("issue thread interaction helpers", () => {
 
     expect(buildIssueThreadInteractionSummary({
       id: "interaction-2",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "ask_user_questions",
       status: "pending",
@@ -229,7 +229,7 @@ describe("issue thread interaction helpers", () => {
 
     expect(buildIssueThreadInteractionSummary({
       id: "interaction-answered",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "ask_user_questions",
       status: "answered",
@@ -256,7 +256,7 @@ describe("issue thread interaction helpers", () => {
 
     expect(buildIssueThreadInteractionSummary({
       id: "interaction-expired",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "ask_user_questions",
       status: "expired",
@@ -287,7 +287,7 @@ describe("issue thread interaction helpers", () => {
   it("summarizes checkbox confirmation interactions by count", () => {
     const base = {
       id: "interaction-checkbox",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "request_checkbox_confirmation" as const,
       continuationPolicy: "wake_assignee" as const,
@@ -330,7 +330,7 @@ describe("issue thread interaction helpers", () => {
   it("uses a confirmation's explicit rejection action in its receipt", () => {
     const base = {
       id: "interaction-confirmation",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "request_confirmation" as const,
       status: "rejected" as const,
@@ -451,7 +451,7 @@ describe("per-item verdict helpers", () => {
   ): RequestItemVerdictsInteraction {
     return {
       id: "interaction-verdicts",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "request_item_verdicts",
       status: "pending",
@@ -526,7 +526,7 @@ describe("isDegenerateAskUserQuestions", () => {
   ): AskUserQuestionsInteraction {
     return {
       id: "interaction-ask",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "ask_user_questions",
       status: "pending",
@@ -636,7 +636,7 @@ describe("isDegenerateAskUserQuestions", () => {
   it("ignores non-ask_user_questions interactions", () => {
     const confirmation = {
       id: "interaction-confirm",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "request_confirmation",
       status: "pending",
@@ -654,7 +654,7 @@ describe("isSupersededByNewerSiblingInteraction", () => {
   function askInteraction(overrides: Partial<AskUserQuestionsInteraction>): AskUserQuestionsInteraction {
     return {
       id: "interaction-ask",
-      companyId: "company-1",
+      spaceId: "space-1",
       issueId: "issue-1",
       kind: "ask_user_questions",
       status: "expired",

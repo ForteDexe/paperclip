@@ -23,8 +23,8 @@ function fixtures(fail = false) {
   });
   return prepareFixtureApi([
     { path: "/api/workspace-preferences/me", read: () => ({ userId: "user-board", coordinatorWorkspaceEnabled: true, updatedAt: new Date().toISOString() }) },
-    { path: /\/api\/companies\/[^/]+\/attention$/, read: () => ({ items: [approval, question].filter(item => item.status === "pending").map(attention) }) },
-    { path: /\/api\/companies\/[^/]+\/attention\/history$/, read: () => ({ items: receipts, nextCursor: null }) },
+    { path: /\/api\/spaces\/[^/]+\/attention$/, read: () => ({ items: [approval, question].filter(item => item.status === "pending").map(attention) }) },
+    { path: /\/api\/spaces\/[^/]+\/attention\/history$/, read: () => ({ items: receipts, nextCursor: null }) },
     { path: /\/api\/issues\/(task-launch|task-copy)\/interactions$/, read: ({ url }) => [url.pathname.includes("task-copy") ? approval : question] },
     { path: /\/api\/issues\/(task-launch|task-copy)\/interactions\/[^/]+\/(accept|respond)$/, method: "POST", state: fail ? "mutation-failure" : "ready", read: ({ url, body }) => {
       const isApproval = url.pathname.endsWith("/accept");
@@ -46,7 +46,7 @@ const meta = {
   id: "coordinator-decision-motion",
   title: "Design proposals/Components/Coordinator decision motion",
   component: DecisionMotion,
-  parameters: { layout: "fullscreen", paperclip: {
+  parameters: { layout: "fullscreen", outpost: {
     capabilities: ["inbox-search/decisions"], home: "design-proposals", status: "proposed", implementation: "production", boundary: "fixtures",
     exception: "Coordinator experimental motion is staged with Design proposals for review, using the implemented decision components.",
     notes: "Real Coordinator Inbox and canonical resolver components with isolated API responses. Approve or answer to compare simultaneous card resize and contained Gather Light, then the move to Recent Decisions. Failed saves retain the form. Reload resets fixtures; no real decision or agent execution occurs.",

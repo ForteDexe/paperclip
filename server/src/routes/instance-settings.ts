@@ -2,7 +2,7 @@ import type { IdleDeadlineOwners } from "../services/idle-deadline-types.js";
 import { verifiedCloudControlClaims, verifiedIdleCapabilities } from "../middleware/cloud-control.js";
 import { trackIdleWork } from "../services/task-admission.js";
 import { Router, type Request, type RequestHandler } from "express";
-import { companies, type Db } from "@outpost/db";
+import { spaces, type Db } from "@outpost/db";
 import {
   patchInstanceSettingsSchema,
   patchInstanceExperimentalSettingsSchema,
@@ -12,7 +12,7 @@ import {
 import { conflict, forbidden } from "../errors.js";
 import { assertAgentsReadyForEnvironmentChange } from "../services/plugin-environment-driver.js";
 import {
-  cloudTenantPrimaryCompanyId,
+  cloudTenantPrimarySpaceId,
   getCloudStackContext,
   isCloudManagedInstance,
 } from "../services/cloud-instance.js";
@@ -23,7 +23,7 @@ import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import { validate } from "../middleware/validate.js";
 import { logger } from "../middleware/logger.js";
 import {
-  companyService,
+  spaceService,
   heartbeatService,
   instanceSettingsService,
   logActivity,
@@ -31,8 +31,8 @@ import {
   type ActivityPublication,
 } from "../services/index.js";
 import { environmentService } from "../services/environments.js";
-import { assertEnvironmentSelectionForCompany } from "./environment-selection.js";
-import { assertBoard, assertBoardOrgAccess, getActorInfo } from "./authz.js";
+import { assertEnvironmentSelectionForSpace } from "./environment-selection.js";
+import { assertOperator, assertOperatorOrgAccess, getActorInfo } from "./authz.js";
 
 function sameJsonValue(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -84,13 +84,13 @@ function publishActivitiesBestEffort(publications: ActivityPublication[], action
     try {
       publishActivity(publication);
     } catch (err) {
-      logger.error({ err, action, companyId: publication.companyId }, "failed to publish activity event");
+      logger.error({ err, action, spaceId: publication.spaceId }, "failed to publish activity event");
     }
   }
 }
 
 function assertCanManageInstanceSettings(req: Request) {
-  assertBoard(req);
+  assertOperator(req);
   if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) {
     return;
   }
@@ -99,7 +99,7 @@ function assertCanManageInstanceSettings(req: Request) {
 
 function assertCanManageExperimentalSettings(req: Request) {
   if (
-    req.actor.type === "board"
+    req.actor.type === "operator"
     && req.actor.source === "cloud_tenant"
     && req.actor.canManageExperimentalSettings
   ) {
@@ -146,7 +146,7 @@ export function instanceSettingsRoutes(
   const heartbeat = heartbeatService(db, { pluginWorkerManager: pluginWorkers });
 
   router.get("/instance/settings", async (req, res) => {
-    assertBoardOrgAccess(req);
+    assertOperatorOrgAccess(req);
     res.json(await svc.get());
   });
 
@@ -156,7 +156,7 @@ export function instanceSettingsRoutes(
     async (req, res) => {
       assertCanManageInstanceSettings(req);
       if (Object.prototype.hasOwnProperty.call(req.body, "defaultEnvironmentId")) {
-        await assertEnvironmentSelectionForCompany(
+        await assertEnvironmentSelectionForSpace(
           environments,
           "instance",
           typeof req.body.defaultEnvironmentId === "string" ? req.body.defaultEnvironmentId : null,
@@ -171,11 +171,11 @@ export function instanceSettingsRoutes(
       // lock it takes on this row means it never overwrites a concurrent write.
       const updated = await svc.update(req.body);
       const actor = getActorInfo(req);
-      const companyIds = await svc.listCompanyIds();
+      const spaceIds = await svc.listSpaceIds();
       await Promise.all(
-        companyIds.map((companyId) =>
+        spaceIds.map((spaceId) =>
           logActivity(db, {
-            companyId,
+            spaceId,
             actorType: actor.actorType,
             actorId: actor.actorId,
             agentId: actor.agentId,
@@ -198,7 +198,7 @@ export function instanceSettingsRoutes(
   router.get("/instance/settings/general", async (req, res) => {
     // General settings (e.g. feedbackDataSharingPreference) are readable by any
     // authenticated org member or instance admin. Only PATCH requires instance-admin.
-    assertBoardOrgAccess(req);
+    assertOperatorOrgAccess(req);
     res.json(await svc.getGeneral());
   });
 
@@ -233,11 +233,11 @@ export function instanceSettingsRoutes(
       );
       const updated = await svc.updateGeneral(req.body);
       const actor = getActorInfo(req);
-      const companyIds = await svc.listCompanyIds();
+      const spaceIds = await svc.listSpaceIds();
       await Promise.all(
-        companyIds.map((companyId) =>
+        spaceIds.map((spaceId) =>
           logActivity(db, {
-            companyId,
+            spaceId,
             actorType: actor.actorType,
             actorId: actor.actorId,
             agentId: actor.agentId,
@@ -258,7 +258,7 @@ export function instanceSettingsRoutes(
   );
 
   router.get("/instance/settings/experimental", async (req, res) => {
-    assertBoardOrgAccess(req);
+    assertOperatorOrgAccess(req);
     res.json(await svc.getExperimental());
   });
 
@@ -278,11 +278,11 @@ export function instanceSettingsRoutes(
       );
       const updated = await svc.updateExperimental(req.body);
       const actor = getActorInfo(req);
-      const companyIds = await svc.listCompanyIds();
+      const spaceIds = await svc.listSpaceIds();
       await Promise.all(
-        companyIds.map((companyId) =>
+        spaceIds.map((spaceId) =>
           logActivity(db, {
-            companyId,
+            spaceId,
             actorType: actor.actorType,
             actorId: actor.actorId,
             agentId: actor.agentId,
@@ -303,15 +303,15 @@ export function instanceSettingsRoutes(
   );
 
   const readTaskDrainStatus: RequestHandler = async (req, res) => {
-    assertBoardOrgAccess(req);
+    assertOperatorOrgAccess(req);
     if (req.query.upgradeReadiness === "1") {
-      // This covers all companies and must not expose instance-wide work to a member.
+      // This covers all spaces and must not expose instance-wide work to a member.
       assertCanManageInstanceSettings(req);
       res.json({ ...heartbeat.getTaskDrainStatus(), upgradeReadiness: await heartbeat.readUpgradeReadiness() });
       return;
     }
     if (req.query.idleSleepSafety === "1") {
-      // The report covers every company in this process. Ordinary company
+      // The report covers every space in this process. Ordinary space
       // members may read process counters, but not instance-wide work state.
       assertCanManageInstanceSettings(req);
       const domainDeadlines = req.query.scheduledWake === "domain-deadlines-v1";
@@ -363,7 +363,7 @@ export function instanceSettingsRoutes(
     async (req, res) => {
       assertCanManageInstanceSettings(req);
       const actor = getActorInfo(req);
-      const companyIds = await svc.listCompanyIds();
+      const spaceIds = await svc.listSpaceIds();
       const ttlMs = req.body.ttlMs ?? null;
       // The whole read-audit-apply sequence runs as one queued transition
       // (see withTaskDrainTransition above), so an overlapping start or
@@ -378,18 +378,18 @@ export function instanceSettingsRoutes(
         }
         const computed = heartbeat.computeTaskDrain({ ttlMs,
           ...(req.body.purpose === "idle" ? { purpose: "idle" as const } : {}) });
-        // One transaction for every company's audit row, so a write that
-        // succeeds for one company and fails for another never leaves a
-        // partial activity history behind — either every company gets the
+        // One transaction for every space's audit row, so a write that
+        // succeeds for one space and fails for another never leaves a
+        // partial activity history behind — either every space gets the
         // record, or none does. The drain mutation below runs only after
         // this transaction commits, so a failed write leaves the live
         // drain untouched and there is no partial state to roll back.
         const postCommitActivityPublications: ActivityPublication[] = [];
         await db.transaction((tx) =>
           Promise.all(
-            companyIds.map((companyId) =>
+            spaceIds.map((spaceId) =>
               logActivity(tx as unknown as Db, {
-                companyId,
+                spaceId,
                 actorType: actor.actorType,
                 actorId: actor.actorId,
                 agentId: actor.agentId,
@@ -423,7 +423,7 @@ export function instanceSettingsRoutes(
   router.delete("/instance/task-drain", async (req, res) => {
     assertCanManageInstanceSettings(req);
     const actor = getActorInfo(req);
-    const companyIds = await svc.listCompanyIds();
+    const spaceIds = await svc.listSpaceIds();
     // See the POST handler above for why the whole read-audit-apply
     // sequence runs inside withTaskDrainTransition: it queues this stop
     // behind any transition already in flight, so it cannot read a status
@@ -445,9 +445,9 @@ export function instanceSettingsRoutes(
       const postCommitActivityPublications: ActivityPublication[] = [];
       await db.transaction((tx) =>
         Promise.all(
-          companyIds.map((companyId) =>
+          spaceIds.map((spaceId) =>
             logActivity(tx as unknown as Db, {
-              companyId,
+              spaceId,
               actorType: actor.actorType,
               actorId: actor.actorId,
               agentId: actor.agentId,
@@ -483,11 +483,11 @@ export function instanceSettingsRoutes(
 
   // Cloud lifecycle read-back: the harness answers a tenant's archive
   // doorbell by asking this instance what the Cloud-pinned primary
-  // company's status actually is, so the shared-token doorbell can stay a
+  // space's status actually is, so the shared-token doorbell can stay a
   // hint (see cloud-lifecycle-sync.ts). Reached by the harness with a
   // `lifecycle:read` Cloud control assertion. Instance-admin only for
-  // humans: the response summarizes lifecycle state across EVERY company
-  // on the instance, which a board member scoped to one company must not
+  // humans: the response summarizes lifecycle state across EVERY space
+  // on the instance, which a operator member scoped to one space must not
   // be able to infer.
   router.get("/instance/lifecycle", async (req, res) => {
     assertCanManageInstanceSettings(req);
@@ -496,27 +496,27 @@ export function instanceSettingsRoutes(
       res.status(404).json({ error: "not_cloud_managed" });
       return;
     }
-    const primaryCompanyId = cloudTenantPrimaryCompanyId(stackId);
+    const primarySpaceId = cloudTenantPrimarySpaceId(stackId);
     const rows = await db
-      .select({ id: companies.id, status: companies.status })
-      .from(companies);
-    const primary = rows.find((row) => row.id === primaryCompanyId);
+      .select({ id: spaces.id, status: spaces.status })
+      .from(spaces);
+    const primary = rows.find((row) => row.id === primarySpaceId);
     res.json({
-      primaryCompanyId,
-      primaryCompanyStatus: primary?.status ?? "missing",
-      otherUnarchivedCompanyCount: rows.filter(
-        (row) => row.id !== primaryCompanyId && row.status !== "archived",
+      primarySpaceId,
+      primarySpaceStatus: primary?.status ?? "missing",
+      otherUnarchivedSpaceCount: rows.filter(
+        (row) => row.id !== primarySpaceId && row.status !== "archived",
       ).length,
     });
   });
 
   // Cloud restore counterpart: "Resume organization" on a stack that was
-  // archived because its primary company was archived must bring the
-  // company back too, or the tenant's next doorbell would re-archive the
-  // stack the customer just resumed. Idempotent: a primary company that is
+  // archived because its primary space was archived must bring the
+  // space back too, or the tenant's next doorbell would re-archive the
+  // stack the customer just resumed. Idempotent: a primary space that is
   // not archived reports changed:false. Reached by the harness with a
   // `lifecycle:unarchive-primary` control assertion; instance admins hold
-  // the same power through PATCH /api/companies/:id already.
+  // the same power through PATCH /api/spaces/:id already.
   router.post("/instance/lifecycle/unarchive-primary", async (req, res) => {
     assertCanManageInstanceSettings(req);
     const stackId = getCloudStackContext()?.stackId;
@@ -524,11 +524,11 @@ export function instanceSettingsRoutes(
       res.status(404).json({ error: "not_cloud_managed" });
       return;
     }
-    const primaryCompanyId = cloudTenantPrimaryCompanyId(stackId);
-    const companySvc = companyService(db);
-    const existing = await companySvc.getById(primaryCompanyId);
+    const primarySpaceId = cloudTenantPrimarySpaceId(stackId);
+    const spaceSvc = spaceService(db);
+    const existing = await spaceSvc.getById(primarySpaceId);
     if (!existing) {
-      res.status(404).json({ error: "primary_company_not_found" });
+      res.status(404).json({ error: "primary_space_not_found" });
       return;
     }
     if (existing.status !== "archived") {
@@ -540,7 +540,7 @@ export function instanceSettingsRoutes(
     // endpoint is recorded as themselves, exactly like an in-product
     // unarchive.
     const actor = req.actor.source === "cloud_control"
-      ? { actorType: "system" as const, actorId: "paperclip-cloud", agentId: null, runId: null }
+      ? { actorType: "system" as const, actorId: "outpost-cloud", agentId: null, runId: null }
       : (() => {
           const info = getActorInfo(req);
           return {
@@ -550,7 +550,7 @@ export function instanceSettingsRoutes(
             runId: info.runId,
           };
         })();
-    const updated = await companySvc.update(primaryCompanyId, { status: "active" }, actor);
+    const updated = await spaceSvc.update(primarySpaceId, { status: "active" }, actor);
     res.json({ status: updated?.status ?? "active", changed: true });
   });
 

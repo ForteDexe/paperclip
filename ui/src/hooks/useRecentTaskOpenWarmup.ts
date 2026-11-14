@@ -7,7 +7,7 @@ import { useWarmTaskDetailCode } from "./useWarmTaskDetailCode";
 
 export type RecentTaskOpenWarmupTask = { id: string; identifier: string | null };
 
-/** Accounts (company and user) whose Recents were preloaded during this page load. */
+/** Accounts (space and user) whose Recents were preloaded during this page load. */
 const preloadedScopes = new Set<string>();
 
 export function resetRecentTaskChatPreloadForTests() {
@@ -25,11 +25,11 @@ export function resetRecentTaskChatPreloadForTests() {
  * updates keep seeded entries fresh afterwards, one task at a time.
  */
 export function useRecentTaskOpenWarmup({
-  companyId,
+  spaceId,
   userId,
   tasks,
 }: {
-  companyId: string | null | undefined;
+  spaceId: string | null | undefined;
   userId: string | null | undefined;
   tasks: readonly RecentTaskOpenWarmupTask[];
 }) {
@@ -40,8 +40,8 @@ export function useRecentTaskOpenWarmup({
   const latestTasks = useRef(tasks);
   latestTasks.current = tasks;
   useEffect(() => {
-    if (!companyId || !hasTasks || typeof window.requestAnimationFrame !== "function") return;
-    const scope = `${companyId}:${userId ?? "__local_board__"}`;
+    if (!spaceId || !hasTasks || typeof window.requestAnimationFrame !== "function") return;
+    const scope = `${spaceId}:${userId ?? "__local_board__"}`;
     if (preloadedScopes.has(scope)) return;
     const controller = new AbortController();
     const cancel = whenPageSettles(queryClient, () => {
@@ -49,11 +49,11 @@ export function useRecentTaskOpenWarmup({
       preloadedScopes.add(scope);
       // Skips tasks already cached or loading (a task list may have preloaded them).
       const top = latestTasks.current.slice(0, ISSUE_CHAT_BOOTSTRAP_MAX_IDS);
-      void loadIssueChatBootstraps(queryClient, companyId, top, { signal: controller.signal });
+      void loadIssueChatBootstraps(queryClient, spaceId, top, { signal: controller.signal });
     });
     return () => {
       cancel();
       controller.abort();
     };
-  }, [companyId, hasTasks, queryClient, userId]);
+  }, [spaceId, hasTasks, queryClient, userId]);
 }

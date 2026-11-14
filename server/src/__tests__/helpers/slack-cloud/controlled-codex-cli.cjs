@@ -6,7 +6,7 @@ assert.equal(process.versions.node.split(".")[0], "24", "The qualification Node2
 const version = process.argv.length === 3 && process.argv[2] === "--version";
 fs.appendFileSync(process.env.SLACK_GATE_PROCESS_LOG, JSON.stringify({phase:"controlled-cli-entry",pid:process.pid,ppid:process.ppid,
   execPath:process.execPath,argv:process.argv,execArgv:process.execArgv,versionProbe:version,realModelProvider:false})+"\n");
-if (version) { console.log("paperclip-controlled-codex-jsonl-fixture (no real model)"); }
+if (version) { console.log("outpost-controlled-codex-jsonl-fixture (no real model)"); }
 else {
   assert.ok(process.argv.slice(2).includes("exec"), "Only actual normal Codex exec invocation accepted");
   assert.ok(process.env.OUTPOST_RUN_ID && process.env.OUTPOST_API_KEY, "Normal run token required");

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ANTIGRAVITY_ADMISSION_SCHEMA, createAntigravityAdmission } from "./antigravity-admission.js";
 
-const content = "  Exact governance 🧷\n\n";
+const content = "  Exact approvals 🧷\n\n";
 const model = "caller/model-not-in-catalog";
-const initialize = { agentInfo: { name: "antigravity-acp", version: "1.4.3" }, agentCapabilities: { _meta: { antigravity: { paperclipAdmission: 1 } } } };
+const initialize = { agentInfo: { name: "antigravity-acp", version: "1.4.3" }, agentCapabilities: { _meta: { antigravity: { outpostAdmission: 1 } } } };
 function fixture() {
   const admission = createAntigravityAdmission(content, model);
   const guard = admission.createGuard();
@@ -17,11 +17,11 @@ function request(f: ReturnType<typeof fixture>, method = "session/new", id: stri
   return message;
 }
 function response(message: ReturnType<typeof request>, changes: Record<string, unknown> = {}) {
-  const meta = message.params._meta as { antigravity: { paperclipAdmission: Record<string, unknown> } };
+  const meta = message.params._meta as { antigravity: { outpostAdmission: Record<string, unknown> } };
   return { id: message.id, result: {
     sessionId: "native-session", models: { currentModelId: model }, modes: { currentModeId: "default" },
-    _meta: { paperclipAntigravityAdmission: {
-      ...meta.antigravity.paperclipAdmission, sessionId: "native-session", connectionId: "native-connection", ...changes,
+    _meta: { outpostAntigravityAdmission: {
+      ...meta.antigravity.outpostAdmission, sessionId: "native-session", connectionId: "native-connection", ...changes,
     } as Record<string, unknown> },
   } };
 }
@@ -32,7 +32,7 @@ describe("Antigravity exact native admission", () => {
     const f = fixture(); const sent = request(f);
     const meta = sent.params._meta as { antigravity: Record<string, unknown> };
     expect(meta.antigravity.systemPrompt).toEqual({ append: content });
-    expect(meta.antigravity.paperclipAdmission).toMatchObject({ schema: ANTIGRAVITY_ADMISSION_SCHEMA, model, byteLength: Buffer.byteLength(content) });
+    expect(meta.antigravity.outpostAdmission).toMatchObject({ schema: ANTIGRAVITY_ADMISSION_SCHEMA, model, byteLength: Buffer.byteLength(content) });
     f.guard("inbound", response(sent));
     expect(() => f.admission.assertReady()).not.toThrow();
     expect(() => f.guard("outbound", prompt())).not.toThrow();
@@ -43,7 +43,7 @@ describe("Antigravity exact native admission", () => {
     const load = request(f, method, "reloaded");
     expect(() => f.admission.assertReady()).toThrow("receipt is missing");
     const ack = response(load);
-    expect(ack.result._meta.paperclipAntigravityAdmission.nonce).not.toBe(response(first).result._meta.paperclipAntigravityAdmission.nonce);
+    expect(ack.result._meta.outpostAntigravityAdmission.nonce).not.toBe(response(first).result._meta.outpostAntigravityAdmission.nonce);
     f.guard("inbound", ack);
     expect(() => f.guard("outbound", prompt())).not.toThrow();
   });

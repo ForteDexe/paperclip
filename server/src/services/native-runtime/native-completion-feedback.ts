@@ -31,30 +31,30 @@ import {
   type PrpStructuredRunResult,
 } from "../../vendor/outpost-runner/index.js";
 
-const repositoryYieldCorrection = 'This task has a saved repository preparation for its next admission. This is routine setup, not a blocker. Call paperclip_finish with reportedWorkDisposition="yielded" and omit continuation (or use null); Outpost will select the saved workspace continuation. Preserve the completed work and explain what remains. Do not repeat setup, set a timer, or ask the user to restart.';
+const repositoryYieldCorrection = 'This task has a saved repository preparation for its next admission. This is routine setup, not a blocker. Call outpost_finish with reportedWorkDisposition="yielded" and omit continuation (or use null); Outpost will select the saved workspace continuation. Preserve the completed work and explain what remains. Do not repeat setup, set a timer, or ask the user to restart.';
 
-// A Paperclip stall or restart leaves the agent's Paperclip tool calls
+// A Outpost stall or restart leaves the agent's Outpost tool calls
 // unanswered until the server is back; they then return together. The agent can
 // read that silence as an outage and report it as a blocker. This report reached
 // the server and is being answered, which is the server's own proof that its
 // control plane is reachable now. Ask once per run to re-check with fresh
-// Paperclip calls instead of resting the task blocked on a past stall.
-const paperclipServiceRecheckCorrection = "Outpost answered this report, so its control plane is reachable now. Outpost tool calls that did not return earlier were most likely delayed by an Outpost restart or pause, and their results may have arrived since. Do not report this as a blocker. Re-read the current Outpost state (for example read_document) before writing again; when a write is still needed, repeat it with the same idempotencyKey so it cannot apply twice. Then continue the task and report its real outcome. Report blocked only if a fresh Outpost call fails now.";
+// Outpost calls instead of resting the task blocked on a past stall.
+const outpostServiceRecheckCorrection = "Outpost answered this report, so its control plane is reachable now. Outpost tool calls that did not return earlier were most likely delayed by an Outpost restart or pause, and their results may have arrived since. Do not report this as a blocker. Re-read the current Outpost state (for example read_document) before writing again; when a write is still needed, repeat it with the same idempotencyKey so it cannot apply twice. Then continue the task and report its real outcome. Report blocked only if a fresh Outpost call fails now.";
 const OUTPOST_SERVICE_RECHECK_LIMIT = 1_000;
-const paperclipServiceRechecked = new Set<string>();
+const outpostServiceRechecked = new Set<string>();
 
-function isPaperclipServiceOutageBlocker(result: PrpStructuredRunResult) {
+function isOutpostServiceOutageBlocker(result: PrpStructuredRunResult) {
   const blocker = result.blocker;
   return result.reportedWorkDisposition === "blocked" && blocker?.owner.kind === "system"
-    && blocker.reasonCode === "external_service_unavailable" && (blocker.owner.name ?? "").toLowerCase().includes("paperclip");
+    && blocker.reasonCode === "external_service_unavailable" && (blocker.owner.name ?? "").toLowerCase().includes("outpost");
 }
 
 /** Once per run (per server process), so a real persistent failure still rests blocked. */
-function claimPaperclipServiceRecheck(runId: string) {
-  if (paperclipServiceRechecked.has(runId)) return false;
-  if (paperclipServiceRechecked.size >= OUTPOST_SERVICE_RECHECK_LIMIT)
-    paperclipServiceRechecked.delete(paperclipServiceRechecked.values().next().value!);
-  paperclipServiceRechecked.add(runId);
+function claimOutpostServiceRecheck(runId: string) {
+  if (outpostServiceRechecked.has(runId)) return false;
+  if (outpostServiceRechecked.size >= OUTPOST_SERVICE_RECHECK_LIMIT)
+    outpostServiceRechecked.delete(outpostServiceRechecked.values().next().value!);
+  outpostServiceRechecked.add(runId);
   return true;
 }
 
@@ -65,7 +65,7 @@ function record(value: unknown): Record<string, unknown> {
 
 /** Reconstruct links from current task state, never from provider-supplied URLs. */
 async function savedDocumentLinks(db: Db, run: typeof heartbeatRuns.$inferSelect, issue: typeof issues.$inferSelect) {
-  const saved = await publishedTaskDocuments(db, { companyId: run.companyId, issueId: issue.id });
+  const saved = await publishedTaskDocuments(db, { spaceId: run.spaceId, issueId: issue.id });
   return saved.map(document => `[Saved document](${document.href})`);
 }
 
@@ -88,12 +88,12 @@ export async function nativeCompletionFeedback(
     .where(
       and(
         eq(issues.id, run.nativeIssueId),
-        eq(issues.companyId, run.companyId),
+        eq(issues.spaceId, run.spaceId),
       ),
     )
     .then((rows) => rows[0]);
   if (!issue) throw new Error("Completion task no longer exists.");
-  const wakeScope = { companyId: run.companyId, issueId: issue.id, runId, agentId: run.agentId };
+  const wakeScope = { spaceId: run.spaceId, issueId: issue.id, runId, agentId: run.agentId };
   const currentWake = await resolveCurrentWakeCommentsBinding(db, wakeScope);
   if (currentWake) {
     try {
@@ -113,7 +113,7 @@ export async function nativeCompletionFeedback(
   }
   if (result.reportedWorkDisposition === "yielded" && isPublishedGitHubReviewCompletionContinuation(result.continuation)) {
     const current = await readPublishedGitHubReviewCompletionContinuation({ db,
-      binding: { companyId: run.companyId, issueId: issue.id, runId, agentId: run.agentId } });
+      binding: { spaceId: run.spaceId, issueId: issue.id, runId, agentId: run.agentId } });
     if (!current || current.idempotencyKey !== result.continuation!.idempotencyKey)
       throw new Error("The published GitHub review wait is no longer authorized for this run. Reassess current task state without repeating the published review.");
   }
@@ -123,11 +123,11 @@ export async function nativeCompletionFeedback(
   if (reviewContext) {
     if (result.continuation?.kind === "monitor") throw new Error("Review-only runs cannot yield to a task monitor; resolve the assigned review or report its blocker.");
     const review = await getNativeReviewAssignment(db, {
-      companyId: run.companyId, issueId: issue.id, agentId: run.agentId,
+      spaceId: run.spaceId, issueId: issue.id, agentId: run.agentId,
       contextSnapshot: reviewContext, allowResolvedByRunId: run.id,
     });
     if (review?.interaction.status === "pending" && result.reportedWorkDisposition !== "blocked") {
-      throw new Error("Resolve your assigned review with resolve_review before finishing. If you cannot review the work, report the concrete blocker with paperclip_block.");
+      throw new Error("Resolve your assigned review with resolve_review before finishing. If you cannot review the work, report the concrete blocker with outpost_block.");
     }
     return review?.interaction.status === "pending"
       ? "Review blocker recorded. Outpost will preserve the task and record the reviewer recovery action."
@@ -139,7 +139,7 @@ export async function nativeCompletionFeedback(
   if (run.completionContractId) {
     const contract = await db.select().from(completionContracts).where(and(
       eq(completionContracts.id, run.completionContractId),
-      eq(completionContracts.companyId, run.companyId),
+      eq(completionContracts.spaceId, run.spaceId),
       eq(completionContracts.issueId, issue.id),
     )).then((rows) => rows[0]);
     if (!contract) throw new Error("Completion report's bound contract no longer exists.");
@@ -197,8 +197,8 @@ export async function nativeCompletionFeedback(
     // would leave the stage pending with nobody left to decide it.
     const stageType = typeof stage.currentStageType === "string" ? stage.currentStageType : "review";
     throw new Error(`You are the active ${stageType} participant on this task. A finish report does not record your ${stageType} decision, so this report was not accepted. ` +
-      `To approve, record the decision first with paperclip_call_api operationId "PATCH /api/issues/{id}" for this task and {"status":"done","comment":"<your decision and the evidence you checked>"}, then report this run with paperclip_finish. ` +
-      "To request changes, or if you cannot decide, report the required changes or the concrete blocker with paperclip_block.");
+      `To approve, record the decision first with outpost_call_api operationId "PATCH /api/issues/{id}" for this task and {"status":"done","comment":"<your decision and the evidence you checked>"}, then report this run with outpost_finish. ` +
+      "To request changes, or if you cannot decide, report the required changes or the concrete blocker with outpost_block.");
   }
   if (["done", "cancelled"].includes(issue.status)) {
     return `Report accepted; task is already ${issue.status}. This report will not reopen it.`;
@@ -207,14 +207,14 @@ export async function nativeCompletionFeedback(
     return "Report accepted; a newer run owns the task. Do not claim this report changed its status.";
   }
   if (result.reportedWorkDisposition === "done" && !await onboardingFirstTaskCompletionAllowed(db, {
-    companyId: run.companyId, issueId: issue.id, runId,
+    spaceId: run.spaceId, issueId: issue.id, runId,
   })) {
     throw new Error("First-task proposal requires a persisted human decision before completing onboarding. The opening answer supplies scope, not approval. Present the proposal and keep this task in_review until the human accepts or rejects it; acknowledge a rejection without executing that work.");
   }
   const continuation = run.contextSnapshot?.executionContinuation as { objective?: unknown } | undefined;
   const objective = typeof continuation?.objective === "string"
     ? continuation.objective : [issue.title, issue.description].filter(Boolean).join("\n");
-  await validateNativeDeliverableEvidence(db, { companyId: run.companyId, issueId: issue.id, runId,
+  await validateNativeDeliverableEvidence(db, { spaceId: run.spaceId, issueId: issue.id, runId,
     objective, semanticToolReceipts: run.resultJson?.semanticToolReceipts }, result);
   if (result.reportedWorkDisposition === "done") {
     const quality = await readRequiredQualityReview(db, issue);
@@ -223,10 +223,10 @@ export async function nativeCompletionFeedback(
   const canSupersedeReview = result.reportedWorkDisposition === "done" ||
     (result.reportedWorkDisposition === "yielded" && (result.continuation?.kind === "monitor" ||
       (result.continuation?.kind === "response_wake" && await resolveExternalChatResponseWaitAuthorization({
-        db, binding: { companyId: run.companyId, issueId: issue.id, runId, agentId: run.agentId },
+        db, binding: { spaceId: run.spaceId, issueId: issue.id, runId, agentId: run.agentId },
       }) === "authorized")));
   const superseded = canSupersedeReview && signals.actionableAttentionRequests.length === 0
-    ? await findSupersededExternalReviewRequests(db, { companyId: run.companyId, issueId: issue.id, runId, agentId: run.agentId }) : [];
+    ? await findSupersededExternalReviewRequests(db, { spaceId: run.spaceId, issueId: issue.id, runId, agentId: run.agentId }) : [];
   const retiredCandidates = await findAutomaticCompletionReviews(db, issue.id);
   const retiredIds = [...retiredCandidates, ...superseded].map(({ interaction }) => interaction.id);
   const [interaction, approval] = await Promise.all([
@@ -241,7 +241,7 @@ export async function nativeCompletionFeedback(
       .from(issueThreadInteractions)
       .where(
         and(
-          eq(issueThreadInteractions.companyId, run.companyId),
+          eq(issueThreadInteractions.spaceId, run.spaceId),
           eq(issueThreadInteractions.issueId, issue.id),
           eq(issueThreadInteractions.status, "pending"),
           activeIssueInteractionCondition({ runId, conversationMode: isConversation(issue) }),
@@ -259,12 +259,12 @@ export async function nativeCompletionFeedback(
         approvals,
         and(
           eq(approvals.id, issueApprovals.approvalId),
-          eq(approvals.companyId, run.companyId),
+          eq(approvals.spaceId, run.spaceId),
         ),
       )
       .where(
         and(
-          eq(issueApprovals.companyId, run.companyId),
+          eq(issueApprovals.spaceId, run.spaceId),
           eq(issueApprovals.issueId, issue.id),
           inArray(approvals.status, ["pending", "revision_requested"]),
         ),
@@ -289,7 +289,7 @@ export async function nativeCompletionFeedback(
     };
     const referencedIds = new Set(JSON.stringify(approvalTarget).match(/\b[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\b/gi)?.map(id => id.toLowerCase()) ?? []);
     const cards = referencedIds.size ? await db.select().from(issueThreadInteractions).where(and(
-      eq(issueThreadInteractions.companyId, run.companyId), eq(issueThreadInteractions.issueId, issue.id),
+      eq(issueThreadInteractions.spaceId, run.spaceId), eq(issueThreadInteractions.issueId, issue.id),
       eq(issueThreadInteractions.sourceRunId, run.id), eq(issueThreadInteractions.createdByAgentId, run.agentId),
       eq(issueThreadInteractions.kind, "request_confirmation"), eq(issueThreadInteractions.continuationPolicy, "wake_assignee"),
     )) : [];
@@ -343,15 +343,15 @@ export async function nativeCompletionFeedback(
       const match = /^repository-preparation:([a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})$/i.exec(evidence.ref);
       return match ? [match[1]!] : [];
     });
-    const repository = await pendingTaskRepository(db, { companyId: run.companyId, issueId: issue.id, workspaceId: issue.executionWorkspaceId, repositoryIds });
+    const repository = await pendingTaskRepository(db, { spaceId: run.spaceId, issueId: issue.id, workspaceId: issue.executionWorkspaceId, repositoryIds });
     if (repository &&
-        !(await issueTreeControlService(db).getActivePauseHoldGate(run.companyId, issue.id))) {
+        !(await issueTreeControlService(db).getActivePauseHoldGate(run.spaceId, issue.id))) {
       throw new Error(repositoryYieldCorrection);
     }
   }
-  if (isPaperclipServiceOutageBlocker(result) && issue.executionRunId === run.id && run.status === "running"
-      && claimPaperclipServiceRecheck(run.id)) {
-    throw new Error(paperclipServiceRecheckCorrection);
+  if (isOutpostServiceOutageBlocker(result) && issue.executionRunId === run.id && run.status === "running"
+      && claimOutpostServiceRecheck(run.id)) {
+    throw new Error(outpostServiceRecheckCorrection);
   }
   if (result.reportedWorkDisposition === "yielded" && result.continuation?.kind === "monitor") {
     return `Monitor wait accepted. The task remains active and Outpost will wake its assignee at or after ${issue.monitorNextCheckAt!.toISOString()} with issue_monitor_due. End this turn; do not poll or mark the task done.`;
@@ -364,25 +364,25 @@ export async function nativeCompletionFeedback(
     signals.actionableAttentionRequests.length === 0
   ) {
     const pause = await issueTreeControlService(db).getActivePauseHoldGate(
-      run.companyId, issue.id,
+      run.spaceId, issue.id,
     );
     if (pause) {
       return "Completion report accepted; this task is paused. Wait for the recorded pause to be released before continuing.";
     }
     const chatWait = await resolveExternalChatResponseWaitAuthorization({
       db,
-      binding: { companyId: run.companyId, issueId: issue.id, runId, agentId: run.agentId },
+      binding: { spaceId: run.spaceId, issueId: issue.id, runId, agentId: run.agentId },
     });
     // Conversation turns and revoked chat authority retain their own lifecycle.
     if (chatWait === "not_applicable") {
-      const repository = await pendingTaskRepository(db, { companyId: run.companyId, issueId: issue.id, workspaceId: issue.executionWorkspaceId });
+      const repository = await pendingTaskRepository(db, { spaceId: run.spaceId, issueId: issue.id, workspaceId: issue.executionWorkspaceId });
       if (repository) throw new Error(repositoryYieldCorrection);
       throw new Error(
         "The response_wake report includes an unfinished objective or blocking remaining work without a pending wait condition. Answering a user comment does not pause the task. Continue the authorized work, or report the concrete blocker or required question. Do not repeat completed work.",
       );
     }
   }
-  // An approval request can be a governed action card, so only a review
+  // An approval request can be a controlled action card, so only a review
   // request duplicates the configured stage.
   const reviewStage = issue.executionState?.status !== "pending" && !isConversation(issue) &&
     completionReviewStageEntry(issue, run.agentId).kind === "starts";
@@ -414,10 +414,10 @@ export async function nativeCompletionFeedback(
       throw new Error("Name the reviewer's exact agent ID in targetAgentId.");
     }
     const reviewer = await db.select().from(agents).where(and(
-      eq(agents.id, request.targetAgentId), eq(agents.companyId, run.companyId),
+      eq(agents.id, request.targetAgentId), eq(agents.spaceId, run.spaceId),
     )).limit(1).then((rows) => rows[0]);
     if (!reviewer || !(await evaluateAgentInvokabilityFromDb(db, reviewer)).invokable) {
-      throw new Error("The named reviewer is not available in this company. Choose an available reviewer or report the concrete blocker.");
+      throw new Error("The named reviewer is not available in this space. Choose an available reviewer or report the concrete blocker.");
     }
   }
   if (result.reportedWorkDisposition === "blocked") {

@@ -6,8 +6,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   agents,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   environments,
   executionWorkspaces,
@@ -63,13 +63,13 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
   const tempRoots: string[] = [];
   const heartbeats: ReturnType<typeof heartbeatService>[] = [];
 
-  async function grantResponsibleUser(companyId: string, userId: string) {
+  async function grantResponsibleUser(spaceId: string, userId: string) {
     await db.insert(authUsers).values({
       id: userId, name: "Responsible user", email: `${userId}@example.test`,
       createdAt: new Date(), updatedAt: new Date(),
     }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({
-      companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "member",
+    await db.insert(spaceMemberships).values({
+      spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "member",
     });
   }
 
@@ -94,31 +94,31 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
   });
 
   it("refuses a plugin Runner-task run without a managed AI connection before any plugin call", async () => {
-    const companyId = randomUUID(), projectId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), sourceId = randomUUID();
+    const spaceId = randomUUID(), projectId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), sourceId = randomUUID();
     const environmentId = randomUUID(), pluginId = randomUUID(), pluginKey = `test.tasks.${pluginId}`;
-    const root = await mkdtemp(path.join(os.tmpdir(), "paperclip-task-heartbeat-")); tempRoots.push(root);
-    await db.insert(companies).values({ id: companyId, name: "Task fixture", issuePrefix: "TASK", defaultResponsibleUserId: "task-user" });
-    await grantResponsibleUser(companyId, "task-user");
-    await db.insert(projects).values({ id: projectId, companyId, name: "Task fixture", status: "active",
+    const root = await mkdtemp(path.join(os.tmpdir(), "outpost-task-heartbeat-")); tempRoots.push(root);
+    await db.insert(spaces).values({ id: spaceId, name: "Task fixture", issuePrefix: "TASK", defaultResponsibleUserId: "task-user" });
+    await grantResponsibleUser(spaceId, "task-user");
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Task fixture", status: "active",
       executionWorkspacePolicy: { enabled: true, storageProviderPluginId: pluginId } });
     const pluginOnlyCwd = path.join(root, "plugin-only", "project");
     await db.insert(projectWorkspaces).values([
-      { id: sourceId, companyId, projectId, name: "Primary", cwd: pluginOnlyCwd, isPrimary: true },
-      { companyId, projectId, name: "Extra", cwd: null, repoUrl: "/unavailable-controller-repository.git", isPrimary: false },
+      { id: sourceId, spaceId, projectId, name: "Primary", cwd: pluginOnlyCwd, isPrimary: true },
+      { spaceId, projectId, name: "Extra", cwd: null, repoUrl: "/unavailable-controller-repository.git", isPrimary: false },
     ]);
     await db.insert(plugins).values({ id: pluginId, pluginKey, packageName: "@test/tasks", version: "1.0.0", apiVersion: 1,
       categories: ["automation"], status: "ready", manifestJson: { id: pluginKey, apiVersion: 1, version: "1.0.0",
-        displayName: "Tasks", description: "Task fixture", author: "Paperclip", categories: ["automation"],
+        displayName: "Tasks", description: "Task fixture", author: "Outpost", categories: ["automation"],
         capabilities: ["environment.drivers.register", "workspaces.manage", "events.subscribe"], resourceLifecycle: ["project"],
         workspaceProvider: { modes: ["shared_workspace", "isolated_workspace", "operator_branch"], strategies: ["project_primary", "git_worktree"] },
         entrypoints: { worker: "worker.js" },
         environmentDrivers: [{ driverKey: "tasks", displayName: "Tasks", supportsTasks: true, warmTaskVersion: 1, configSchema: { type: "object" } }] } });
     await db.insert(environments).values({ id: environmentId, name: "Tasks", driver: "plugin", status: "active",
       config: { pluginKey, driverKey: "tasks", driverConfig: {} } });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Task agent", role: "engineer", status: "idle",
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Task agent", role: "engineer", status: "idle",
       adapterType: "outpost_runner", adapterConfig: { provider: "codex", model: "gpt-6.1-sol", lifecycleMode: "warm" }, runtimeConfig: {},
       defaultEnvironmentId: environmentId, permissions: {} });
-    await db.insert(issues).values({ id: issueId, companyId, projectId, projectWorkspaceId: sourceId, title: "Task-only dispatch", status: "in_progress",
+    await db.insert(issues).values({ id: issueId, spaceId, projectId, projectWorkspaceId: sourceId, title: "Task-only dispatch", status: "in_progress",
       assigneeAgentId: agentId, issueNumber: 1, identifier: "TASK-1" });
     const call = vi.fn(async (_id: string, method: string) => { throw new Error(`Unexpected task provider call: ${method}`); });
     const workerManager = { isRunning: () => true, getWorker: () => ({ supportedMethods: ["workspaceOperation", "environmentTask", "environmentAcquireLease", "environmentResumeLease", "environmentReleaseLease", "environmentDestroyLease"] }), call } as unknown as PluginWorkerManager;
@@ -140,14 +140,14 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
   }, 20_000);
 
   it("acquires plugin environment leases through the heartbeat execution path", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const workspaceId = randomUUID();
     const environmentId = randomUUID();
     const pluginId = randomUUID();
     const pluginKey = `acme.environments.${pluginId}`;
     const agentId = randomUUID();
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "paperclip-plugin-env-heartbeat-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "outpost-plugin-env-heartbeat-"));
     tempRoots.push(workspaceRoot);
     const workerManager = {
       isRunning: vi.fn((id: string) => id === pluginId),
@@ -167,19 +167,19 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
       }),
     } as unknown as PluginWorkerManager;
 
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
       status: "active",
       defaultResponsibleUserId: "responsible-user",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    await grantResponsibleUser(companyId, "responsible-user");
+    await grantResponsibleUser(spaceId, "responsible-user");
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Plugin Environment Heartbeat",
       status: "active",
       createdAt: new Date(),
@@ -187,7 +187,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     });
     await db.insert(projectWorkspaces).values({
       id: workspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       cwd: workspaceRoot,
@@ -198,7 +198,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     await db.insert(plugins).values({
       id: pluginId,
       pluginKey,
-      packageName: "@acme/paperclip-environments",
+      packageName: "@acme/outpost-environments",
       version: "1.0.0",
       apiVersion: 1,
       categories: ["automation"],
@@ -241,7 +241,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     });
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -271,7 +271,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     expect(workerManager.call).toHaveBeenNthCalledWith(1, pluginId, "environmentAcquireLease", {
       creationOperationId: expect.any(String),
       driverKey: "sandbox",
-      companyId,
+      spaceId,
       environmentId,
       executionWorkspaceId: expect.any(String),
       executionWorkspaceSettings: null,
@@ -289,7 +289,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     await vi.waitFor(() => {
       expect(workerManager.call).toHaveBeenCalledWith(pluginId, "environmentReleaseLease", {
         driverKey: "sandbox",
-        companyId,
+        spaceId,
         environmentId,
         issueId: null,
         config: { template: "base" },
@@ -305,21 +305,21 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     expect(adapterExecute).toHaveBeenCalledTimes(1);
   }, 15_000);
 
-  it("inherits the instance default environment across companies while preserving explicit agent overrides", async () => {
+  it("inherits the instance default environment across spaces while preserving explicit agent overrides", async () => {
     const sharedEnvironmentId = randomUUID();
     const overrideEnvironmentId = randomUUID();
     const pluginId = randomUUID();
     const pluginKey = `acme.environments.${pluginId}`;
-    const companyAId = randomUUID();
-    const companyBId = randomUUID();
+    const spaceAId = randomUUID();
+    const spaceBId = randomUUID();
     const projectAId = randomUUID();
     const projectBId = randomUUID();
     const workspaceAId = randomUUID();
     const workspaceBId = randomUUID();
     const agentAId = randomUUID();
     const agentBId = randomUUID();
-    const workspaceRootA = await mkdtemp(path.join(os.tmpdir(), "paperclip-plugin-env-company-a-"));
-    const workspaceRootB = await mkdtemp(path.join(os.tmpdir(), "paperclip-plugin-env-company-b-"));
+    const workspaceRootA = await mkdtemp(path.join(os.tmpdir(), "outpost-plugin-env-space-a-"));
+    const workspaceRootB = await mkdtemp(path.join(os.tmpdir(), "outpost-plugin-env-space-b-"));
     tempRoots.push(workspaceRootA, workspaceRootB);
     const workerManager = {
       isRunning: vi.fn((id: string) => id === pluginId),
@@ -342,7 +342,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     await db.insert(plugins).values({
       id: pluginId,
       pluginKey,
-      packageName: "@acme/paperclip-environments",
+      packageName: "@acme/outpost-environments",
       version: "1.0.0",
       apiVersion: 1,
       categories: ["automation"],
@@ -402,41 +402,41 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     ]);
     await instanceSettingsService(db).update({ defaultEnvironmentId: sharedEnvironmentId });
 
-    await db.insert(companies).values([
+    await db.insert(spaces).values([
       {
-        id: companyAId,
+        id: spaceAId,
         name: "Acme A",
-        issuePrefix: `T${companyAId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+        issuePrefix: `T${spaceAId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
         status: "active",
         defaultResponsibleUserId: "responsible-user-a",
         createdAt: new Date(),
         updatedAt: new Date(),
       },
       {
-        id: companyBId,
+        id: spaceBId,
         name: "Acme B",
-        issuePrefix: `T${companyBId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+        issuePrefix: `T${spaceBId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
         status: "active",
         defaultResponsibleUserId: "responsible-user-b",
         createdAt: new Date(),
         updatedAt: new Date(),
       },
     ]);
-    await grantResponsibleUser(companyAId, "responsible-user-a");
-    await grantResponsibleUser(companyBId, "responsible-user-b");
+    await grantResponsibleUser(spaceAId, "responsible-user-a");
+    await grantResponsibleUser(spaceBId, "responsible-user-b");
     await db.insert(projects).values([
       {
         id: projectAId,
-        companyId: companyAId,
-        name: "Company A Project",
+        spaceId: spaceAId,
+        name: "Space A Project",
         status: "active",
         createdAt: new Date(),
         updatedAt: new Date(),
       },
       {
         id: projectBId,
-        companyId: companyBId,
-        name: "Company B Project",
+        spaceId: spaceBId,
+        name: "Space B Project",
         status: "active",
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -445,7 +445,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     await db.insert(projectWorkspaces).values([
       {
         id: workspaceAId,
-        companyId: companyAId,
+        spaceId: spaceAId,
         projectId: projectAId,
         name: "Primary",
         cwd: workspaceRootA,
@@ -455,7 +455,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
       },
       {
         id: workspaceBId,
-        companyId: companyBId,
+        spaceId: spaceBId,
         projectId: projectBId,
         name: "Primary",
         cwd: workspaceRootB,
@@ -467,7 +467,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     await db.insert(agents).values([
       {
         id: agentAId,
-        companyId: companyAId,
+        spaceId: spaceAId,
         name: "SharedEnvAgent",
         role: "engineer",
         status: "idle",
@@ -481,7 +481,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
       },
       {
         id: agentBId,
-        companyId: companyBId,
+        spaceId: spaceBId,
         name: "OverrideEnvAgent",
         role: "engineer",
         status: "idle",
@@ -526,7 +526,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     expect(acquireCalls).toHaveLength(2);
     expect(acquirePayloads).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        companyId: companyAId,
+        spaceId: spaceAId,
         environmentId: sharedEnvironmentId,
         config: { template: "shared" },
         agentId: agentAId,
@@ -534,7 +534,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
         adapterType: "codex_local",
       }),
       expect.objectContaining({
-        companyId: companyBId,
+        spaceId: spaceBId,
         environmentId: overrideEnvironmentId,
         config: { template: "override" },
         agentId: agentBId,
@@ -545,7 +545,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
   }, 15_000);
 
   it("ignores stale non-reused workspace environment config in favor of the assignee selection", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const workspaceId = randomUUID();
     const oldEnvironmentId = randomUUID();
@@ -555,7 +555,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     const agentId = randomUUID();
     const issueId = randomUUID();
     const staleExecutionWorkspaceId = randomUUID();
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "paperclip-plugin-env-issue-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "outpost-plugin-env-issue-"));
     tempRoots.push(workspaceRoot);
     const workerManager = {
       isRunning: vi.fn((id: string) => id === pluginId),
@@ -579,19 +579,19 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
       enableEnvironments: true,
       enableIsolatedWorkspaces: true,
     });
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Acme",
-      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      issuePrefix: `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
       status: "active",
       defaultResponsibleUserId: "responsible-user",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    await grantResponsibleUser(companyId, "responsible-user");
+    await grantResponsibleUser(spaceId, "responsible-user");
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Plugin Environment Issue",
       status: "active",
       createdAt: new Date(),
@@ -599,7 +599,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     });
     await db.insert(projectWorkspaces).values({
       id: workspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary",
       cwd: workspaceRoot,
@@ -610,7 +610,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     await db.insert(plugins).values({
       id: pluginId,
       pluginKey,
-      packageName: "@acme/paperclip-environments",
+      packageName: "@acme/outpost-environments",
       version: "1.0.0",
       apiVersion: 1,
       categories: ["automation"],
@@ -670,7 +670,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     ]);
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "idle",
@@ -684,7 +684,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     });
     await db.insert(executionWorkspaces).values({
       id: staleExecutionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId: workspaceId,
       mode: "shared_workspace",
@@ -704,7 +704,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     });
     await db.insert(issues).values({
       id: issueId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId: workspaceId,
       title: "Environment matrix: e2b / codex_local",
@@ -737,7 +737,7 @@ describeEmbeddedPostgres("heartbeat plugin environments", () => {
     expect(workerManager.call).toHaveBeenNthCalledWith(1, pluginId, "environmentAcquireLease", {
       creationOperationId: expect.any(String),
       driverKey: "sandbox",
-      companyId,
+      spaceId,
       environmentId: newEnvironmentId,
       executionWorkspaceId: expect.any(String),
       executionWorkspaceSettings: { mode: "shared_workspace" },

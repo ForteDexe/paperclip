@@ -41,7 +41,7 @@ describe("agent chat navigation and session markers", () => {
     expect(orderChatAgents([], ["missing"], ["missing"])).toEqual([]);
     expect(orderChatAgents(agents.slice(0, 1), [], []).map((a) => a.id)).toEqual(["new"]);
   });
-  it("keeps visits personal and company scoped and moves only the visited agent", () => {
+  it("keeps visits personal and space scoped and moves only the visited agent", () => {
     localStorage.clear();
     recordAgentChatVisit("a", "user1", "agent1");
     recordAgentChatVisit("a", "user1", "agent2");
@@ -59,31 +59,31 @@ describe("agent chat navigation and session markers", () => {
     ).toEqual(["agent4"]);
   });
   it("remembers an existing conversation and clears its identity for a new empty chat", () => {
-    recordAgentChatVisit("company-c", "user1", "agent1", "issue-1");
-    expect(recordedAgentChatIssueId("company-c", "user1", "agent1")).toBe("issue-1");
-    expect(recordedAgentChatIssueId("company-c", "user2", "agent1")).toBeNull();
-    recordAgentChatVisit("company-c", "user1", "agent1", null);
-    expect(recordedAgentChatIssueId("company-c", "user1", "agent1")).toBeNull();
+    recordAgentChatVisit("space-c", "user1", "agent1", "issue-1");
+    expect(recordedAgentChatIssueId("space-c", "user1", "agent1")).toBe("issue-1");
+    expect(recordedAgentChatIssueId("space-c", "user2", "agent1")).toBeNull();
+    recordAgentChatVisit("space-c", "user1", "agent1", null);
+    expect(recordedAgentChatIssueId("space-c", "user1", "agent1")).toBeNull();
   });
   it("recognizes a conversation cleared in another tab while retaining failed-write fallback", () => {
-    const storageKey = "outpost.recentAgentChatIssue:company-d:user1:agent1";
-    recordAgentChatVisit("company-d", "user1", "agent1", "issue-1");
+    const storageKey = "outpost.recentAgentChatIssue:space-d:user1:agent1";
+    recordAgentChatVisit("space-d", "user1", "agent1", "issue-1");
     localStorage.removeItem(storageKey);
-    expect(recordedAgentChatIssueId("company-d", "user1", "agent1")).toBeNull();
+    expect(recordedAgentChatIssueId("space-d", "user1", "agent1")).toBeNull();
 
     const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("storage unavailable");
     });
     try {
-      recordAgentChatVisit("company-d", "user1", "agent1", "issue-2");
-      expect(recordedAgentChatIssueId("company-d", "user1", "agent1")).toBe("issue-2");
+      recordAgentChatVisit("space-d", "user1", "agent1", "issue-2");
+      expect(recordedAgentChatIssueId("space-d", "user1", "agent1")).toBe("issue-2");
     } finally {
       setItem.mockRestore();
     }
   });
   it("removes legacy plaintext retry records", () => {
-    const scope = "company:user:agent";
-    const key = `paperclip:agent-chat-pending:${scope}`;
+    const scope = "space:user:agent";
+    const key = `outpost:agent-chat-pending:${scope}`;
     localStorage.setItem(key, JSON.stringify([{ body: "private text", id: "old" }]));
     clearLegacyChatMessageRequests(scope);
     expect(localStorage.getItem(key)).toBeNull();

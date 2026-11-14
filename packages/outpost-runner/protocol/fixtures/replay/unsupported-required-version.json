@@ -1,7 +1,7 @@
 {
   "schema": "outpost.orp.fixture.v1", "fixtureVersion": 1, "protocolVersion": 4,
   "name": "Unsupported required version", "description": "A fixture that requires ORP v4 must fail closed in a ORP v3 consumer.",
-  "identity": { "schema": "outpost.orp.identity.v1", "companyId": "company_replay", "issueId": "issue_replay_v2", "runId": "run_replay_v2", "environmentLeaseId": "lease_replay_v2", "runnerInstanceId": "runner_replay", "normalizedSessionId": "session_replay_v2", "driverSessionId": "driver_replay_v2" },
+  "identity": { "schema": "outpost.orp.identity.v1", "spaceId": "space_replay", "issueId": "issue_replay_v2", "runId": "run_replay_v2", "environmentLeaseId": "lease_replay_v2", "runnerInstanceId": "runner_replay", "normalizedSessionId": "session_replay_v2", "driverSessionId": "driver_replay_v2" },
   "capabilities": { "schema": "outpost.orp.capabilities.v1", "sessionReusePolicy": "new_per_run", "driver": { "kind": "future", "version": "2.0.0" }, "steer": true, "interrupt": true, "resume": true, "runtimeRequests": true, "structuredResult": true, "typedEvents": true },
   "commands": [{ "schema": "outpost.orp.command.v1", "commandId": "command_v2_prepare", "controllerSeq": 1, "type": "run.prepare", "issuedAt": "2026-08-07T13:00:00.000Z", "payload": {} }],
   "events": [

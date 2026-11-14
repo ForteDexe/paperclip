@@ -99,11 +99,11 @@ export async function recoverSettledNativeRunLog(
   const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]);
   const finishWork = beginIdleTrackedWork();
   const runId = binding[3]!,
-    companyId = binding[1]!;
+    spaceId = binding[1]!;
   const eligible = () =>
     and(
       eq(heartbeatRuns.id, runId),
-      eq(heartbeatRuns.companyId, companyId),
+      eq(heartbeatRuns.spaceId, spaceId),
       eq(heartbeatRuns.agentId, binding[2]!),
       eq(heartbeatRuns.logStore, "s3_segments"),
       eq(heartbeatRuns.logRef, logRef),
@@ -112,7 +112,7 @@ export async function recoverSettledNativeRunLog(
       isNull(heartbeatRuns.logBytes),
       sql`not exists (select 1 from ${nativeRunFinalizations} where ${and(
         eq(nativeRunFinalizations.runId, runId),
-        eq(nativeRunFinalizations.companyId, companyId),
+        eq(nativeRunFinalizations.spaceId, spaceId),
         gt(nativeRunFinalizations.leaseExpiresAt, new Date()),
       )})`,
     );
@@ -123,14 +123,14 @@ export async function recoverSettledNativeRunLog(
     if (!run) return;
     const [redaction, identityRedactor, secrets] = await Promise.all([
       getRedactionOptions(),
-      agentIdentityService(db).createExistingLogRedactor(companyId, binding[2]!),
-      createRunSecretRedactionRegistry(db).redactionValuesForRun(companyId, runId),
+      agentIdentityService(db).createExistingLogRedactor(spaceId, binding[2]!),
+      createRunSecretRedactionRegistry(db).redactionValuesForRun(spaceId, runId),
     ]);
     for (const value of secrets)
       identityRedactor.values.push(...createAgentIdentityRedactor(value).values);
     identityRedactor.values.sort((left, right) => right.length - left.length);
     const handle = await store.begin({
-      companyId,
+      spaceId,
       agentId: binding[2]!,
       runId,
       previousStore: "s3_segments",
@@ -150,14 +150,14 @@ export async function recoverSettledNativeRunLog(
     let failure: unknown;
     try {
       lastSourceCursor = await nativeRunLogPrefixCursor({
-        db, companyId, runId, store, handle, signal,
+        db, spaceId, runId, store, handle, signal,
         redactChunks: (chunk) => canonicalNativeRunLogRedactionForms(chunk, {
           redactIdentity: identityRedactor.redact, currentUser: redaction,
         }),
       });
       const exporter = createNativeRunLogExporter({
         db,
-        companyId,
+        spaceId,
         runId,
         afterCursor: lastSourceCursor,
         signal,
@@ -206,7 +206,7 @@ export async function recoverSettledNativeRunLog(
             and(
               eligible(),
               sql`not exists (select 1 from ${heartbeatRunEvents} where ${and(
-                nativeRunLogSourceWhere(companyId, runId),
+                nativeRunLogSourceWhere(spaceId, runId),
                 gt(heartbeatRunEvents.seq, lastSourceCursor),
               )})`,
             ),

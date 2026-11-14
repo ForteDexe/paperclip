@@ -7,7 +7,7 @@ const ADMIN_EMAIL =
 const ADMIN_PASSWORD =
   process.env.OUTPOST_RELEASE_SMOKE_PASSWORD ??
   process.env.SMOKE_ADMIN_PASSWORD ??
-  "paperclip-smoke-password";
+  "outpost-smoke-password";
 
 // A hire needs a live-verified credential since #13344 — the subscription
 // path now dead-ends on a `claude auth login` no CI machine can finish — so
@@ -32,14 +32,14 @@ const ANTHROPIC_API_KEY =
   process.env.OUTPOST_RELEASE_SMOKE_ANTHROPIC_API_KEY ??
   (TARGET_IS_LOOPBACK ? "sk-ant-release-smoke-placeholder" : "");
 
-const COMPANY_NAME = `Release-Smoke-${Date.now()}`;
+const SPACE_NAME = `Release-Smoke-${Date.now()}`;
 const AGENT_NAME = "Release Smoke Lead";
 // The arc asks for a name, not a role, so every onboarding hire is filed under
 // the neutral role (DEFAULT_AGENT_ROLE in ui/src/lib/onboarding-agent-role.ts).
 const AGENT_ROLE = "general";
 // Seeded by the wizard's launch step (DEFAULT_TASK_TITLE in
 // ui/src/components/OnboardingWizard.tsx).
-const FIRST_TASK_TITLE = "Paperclip onboarding";
+const FIRST_TASK_TITLE = "Outpost onboarding";
 
 async function signIn(page: Page) {
   await page.goto("/");
@@ -59,7 +59,7 @@ async function getJson<T>(page: Page, url: string): Promise<T> {
 }
 
 // ONBOARDING_STORAGE_KEY in ui/src/components/OnboardingWizard.tsx.
-const ONBOARDING_DRAFT_STORAGE_KEY = "paperclip-onboarding-state";
+const ONBOARDING_DRAFT_STORAGE_KEY = "outpost-onboarding-state";
 
 /**
  * Open the wizard on its first step and hand back the organization-name field.
@@ -67,14 +67,14 @@ const ONBOARDING_DRAFT_STORAGE_KEY = "paperclip-onboarding-state";
  * `/onboarding` resolves to `{ initialStep: 1 }` on a self-hosted instance
  * (`resolveRouteOnboardingOptions`) and the route keeps the wizard open, so
  * this lands on "name your organization" whether or not the instance already
- * holds a company. Navigating explicitly is what keeps the spec re-runnable:
+ * holds a space. Navigating explicitly is what keeps the spec re-runnable:
  * the release-smoke config retries once in CI, and by the second attempt the
- * instance is no longer company-less, so sign-in lands on a dashboard instead.
+ * instance is no longer space-less, so sign-in lands on a dashboard instead.
  *
  * The saved draft is dropped first. Sign-in on an instance that already holds
- * an agentless company redirects into *that* company's onboarding, which
+ * an agentless space redirects into *that* space's onboarding, which
  * persists its id into the draft; the restored draft then makes step 1 skip
- * creating a company and hire into the old one instead. That is an artifact of
+ * creating a space and hire into the old one instead. That is an artifact of
  * re-running against a re-used instance, not behaviour this spec is asserting,
  * and a fresh release-smoke container never has it.
  *
@@ -110,23 +110,23 @@ test.describe("Docker authenticated onboarding smoke", () => {
 
     const baseUrl = new URL(page.url()).origin;
 
-    // A board with no company routes sign-in straight into onboarding rather
+    // A board with no space routes sign-in straight into onboarding rather
     // than a dashboard — the first-run experience this suite exists to guard.
-    // Asserted only when the instance really is company-less, because a retry
+    // Asserted only when the instance really is space-less, because a retry
     // (or a re-used smoke container) runs against one that is not.
-    const companiesBeforeOnboarding = await getJson<Array<{ id: string }>>(
+    const spacesBeforeOnboarding = await getJson<Array<{ id: string }>>(
       page,
-      `${baseUrl}/api/companies`
+      `${baseUrl}/api/spaces`
     );
-    if (companiesBeforeOnboarding.length === 0) {
+    if (spacesBeforeOnboarding.length === 0) {
       await expect(page).toHaveURL(/\/onboarding$/, { timeout: 20_000 });
     }
 
-    // Step 1: name the organization. "Continue" creates the company itself and
+    // Step 1: name the organization. "Continue" creates the space itself and
     // routes straight to the agent step — onboarding no longer asks for the
     // mission (it is collected later, in the app), so step 2 is skipped.
     const orgNameField = await openOnboarding(page);
-    await orgNameField.fill(COMPANY_NAME);
+    await orgNameField.fill(SPACE_NAME);
     await page.getByRole("button", { name: "Continue", exact: true }).click();
 
     // Step 3: name the team lead. The name is the step's only question and it
@@ -163,13 +163,13 @@ test.describe("Docker authenticated onboarding smoke", () => {
       page.getByRole("heading", { name: "Connect a model" })
     ).toBeVisible({ timeout: 20_000 });
 
-    const companies = await getJson<Array<{ id: string; name: string }>>(
+    const spaces = await getJson<Array<{ id: string; name: string }>>(
       page,
-      `${baseUrl}/api/companies`
+      `${baseUrl}/api/spaces`
     );
-    const company = companies.find((entry) => entry.name === COMPANY_NAME);
-    expect(company).toBeTruthy();
-    const agentsUrl = `${baseUrl}/api/companies/${company!.id}/agents`;
+    const space = spaces.find((entry) => entry.name === SPACE_NAME);
+    expect(space).toBeTruthy();
+    const agentsUrl = `${baseUrl}/api/spaces/${space!.id}/agents`;
     await expect.poll(
       () => getJson<Array<{ id: string }>>(page, agentsUrl),
       { message: "Connect a model must retain one paused setup record" },
@@ -189,7 +189,7 @@ test.describe("Docker authenticated onboarding smoke", () => {
       expect(
         await getJson<Array<{ id: string }>>(
           page,
-          `${baseUrl}/api/companies/${company!.id}/${resource}`,
+          `${baseUrl}/api/spaces/${space!.id}/${resource}`,
         ),
       ).toEqual([]);
     }
@@ -233,7 +233,7 @@ test.describe("Docker authenticated onboarding smoke", () => {
 
     const agents = await getJson<
       Array<{ id: string; name: string; role: string; adapterType: string; pauseReason: string | null }>
-    >(page, `${baseUrl}/api/companies/${company!.id}/agents`);
+    >(page, `${baseUrl}/api/spaces/${space!.id}/agents`);
     expect(agents).toHaveLength(1);
     const leadAgent = agents.find((entry) => entry.name === AGENT_NAME);
     expect(leadAgent).toBeTruthy();
@@ -243,11 +243,11 @@ test.describe("Docker authenticated onboarding smoke", () => {
     expect(leadAgent!.adapterType).not.toBe("process");
 
     // Onboarding deliberately writes no goal: the mission is collected later in
-    // the app, so a fresh company must come out of the wizard with an empty
+    // the app, so a fresh space must come out of the wizard with an empty
     // goal list rather than an unchosen one.
     const goals = await getJson<Array<{ id: string }>>(
       page,
-      `${baseUrl}/api/companies/${company!.id}/goals`
+      `${baseUrl}/api/spaces/${space!.id}/goals`
     );
     expect(goals).toEqual([]);
 
@@ -258,7 +258,7 @@ test.describe("Docker authenticated onboarding smoke", () => {
         title: string;
         assigneeAgentId: string | null;
       }>
-    >(page, `${baseUrl}/api/companies/${company!.id}/issues`);
+    >(page, `${baseUrl}/api/spaces/${space!.id}/issues`);
     const seededIssue = issues.find((entry) => entry.title === FIRST_TASK_TITLE);
     expect(seededIssue).toBeTruthy();
     expect(seededIssue!.assigneeAgentId).toBe(leadAgent!.id);
@@ -277,7 +277,7 @@ test.describe("Docker authenticated onboarding smoke", () => {
     // card are seeded without an LLM, so their absence means the launch
     // half-finished) …
     await expect(
-      page.getByText("Welcome to Paperclip!").first()
+      page.getByText("Welcome to Outpost!").first()
     ).toBeVisible({ timeout: 20_000 });
     // The timeline also summarizes the unanswered question. Check the open
     // question card so a summary alone cannot satisfy this assertion.
@@ -293,7 +293,7 @@ test.describe("Docker authenticated onboarding smoke", () => {
     // dispatch is asynchronous, so watch the endpoint over a bounded window
     // rather than sampling it once — a launch-time wake that slips through
     // lands well within this window.
-    const runsUrl = `${baseUrl}/api/companies/${company!.id}/heartbeat-runs?agentId=${leadAgent!.id}`;
+    const runsUrl = `${baseUrl}/api/spaces/${space!.id}/heartbeat-runs?agentId=${leadAgent!.id}`;
     const noRunDeadline = Date.now() + 15_000;
     while (Date.now() < noRunDeadline) {
       expect(await getJson<Array<{ id: string }>>(page, runsUrl)).toEqual([]);

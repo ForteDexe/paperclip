@@ -40,10 +40,10 @@ interface Reader {
   id?: string;
 }
 export const inspectionReaders: Record<InspectionResource, Reader> = {
-  companies: { table: schema.companies },
+  spaces: { table: schema.spaces },
   goals: { table: schema.goals },
   users: { table: schema.authUsers },
-  memberships: { table: schema.companyMemberships },
+  memberships: { table: schema.spaceMemberships },
   permissions: { table: schema.principalPermissionGrants },
   agents: { table: schema.agents },
   agentIdentities: { table: schema.agentIdentityKeys, id: "agentId", omit: ["privateKeyMaterial"] },
@@ -70,9 +70,9 @@ export const inspectionReaders: Record<InspectionResource, Reader> = {
   projects: { table: schema.projects },
   projectWorkspaces: { table: schema.projectWorkspaces, parent: "projectId" },
   projectMemberships: { table: schema.projectMemberships, parent: "projectId" },
-  skills: { table: schema.companySkills, omit: ["publicShareToken"] },
-  skillVersions: { table: schema.companySkillVersions, parent: "companySkillId" },
-  skillSources: { table: schema.companySkillSources, omit: ["leaseToken"] },
+  skills: { table: schema.spaceSkills, omit: ["publicShareToken"] },
+  skillVersions: { table: schema.spaceSkillVersions, parent: "spaceSkillId" },
+  skillSources: { table: schema.spaceSkillSources, omit: ["leaseToken"] },
   runs: { table: schema.heartbeatRuns, omit: ["logRef"] },
   runEvents: { table: schema.heartbeatRunEvents, parent: "runId" },
   traceMetadata: { table: schema.providerTraceRecords, parent: "runId", omit: ["traceRef"] },
@@ -97,7 +97,7 @@ export const inspectionReaders: Record<InspectionResource, Reader> = {
   toolProfileEntries: { table: schema.toolProfileEntries, parent: "profileId" },
   agentMemberships: { table: schema.agentMemberships, parent: "agentId" },
   agentCommentary: { table: schema.agentCommentary, parent: "runId" },
-  skillPolicies: { table: schema.companySkillPolicies, id: "companyId" },
+  skillPolicies: { table: schema.spaceSkillPolicies, id: "spaceId" },
   projectGoals: { table: schema.projectGoals, parent: "projectId" },
   labels: { table: schema.labels },
   taskLabels: { table: schema.issueLabels, parent: "issueId" },
@@ -109,12 +109,12 @@ export const inspectionReaders: Record<InspectionResource, Reader> = {
   threads: { table: schema.chatConversations, parent: "endpointId" },
 };
 
-async function ownRow(tx: Db, table: AnyPgTable, companyId: string, id: string) {
+async function ownRow(tx: Db, table: AnyPgTable, spaceId: string, id: string) {
   const columns = getTableColumns(table) as Record<string, AnyPgColumn>;
   const [row] = await tx
     .select()
     .from(table)
-    .where(and(eq(columns.companyId, companyId), eq(columns.id, id)))
+    .where(and(eq(columns.spaceId, spaceId), eq(columns.id, id)))
     .limit(1);
   if (!row) throw notFound("Inspection resource not found");
   return row as Record<string, unknown>;
@@ -150,12 +150,12 @@ export async function readCustomerSuccessResource(
   return db.transaction(
     async (rawTx) => {
       const tx = rawTx as unknown as Db;
-      if (q.companyId) {
-        const [company] = await tx
-          .select({ id: schema.companies.id })
-          .from(schema.companies)
-          .where(eq(schema.companies.id, q.companyId));
-        if (!company) throw notFound("Inspection company not found");
+      if (q.spaceId) {
+        const [space] = await tx
+          .select({ id: schema.spaces.id })
+          .from(schema.spaces)
+          .where(eq(schema.spaces.id, q.spaceId));
+        if (!space) throw notFound("Inspection space not found");
       }
       if (q.operation === "list" || q.operation === "get") {
         const reader = inspectionReaders[q.resource!];
@@ -164,17 +164,17 @@ export async function readCustomerSuccessResource(
           Object.entries(all).filter(([key]) => !reader.omit?.includes(key)),
         );
         const predicates: SQL[] = [];
-        if (q.resource === "companies") {
-          if (q.companyId) predicates.push(eq(all.id, q.companyId));
+        if (q.resource === "spaces") {
+          if (q.spaceId) predicates.push(eq(all.id, q.spaceId));
         } else if (q.resource === "users") {
           // Directory only, never the authentication account/session tables.
           const memberships = await tx
-            .select({ userId: schema.companyMemberships.principalId })
-            .from(schema.companyMemberships)
+            .select({ userId: schema.spaceMemberships.principalId })
+            .from(schema.spaceMemberships)
             .where(
               and(
-                eq(schema.companyMemberships.companyId, q.companyId!),
-                eq(schema.companyMemberships.principalType, "user"),
+                eq(schema.spaceMemberships.spaceId, q.spaceId!),
+                eq(schema.spaceMemberships.principalType, "user"),
               ),
             );
           const { inArray } = await import("drizzle-orm");
@@ -189,8 +189,8 @@ export async function readCustomerSuccessResource(
             ),
           );
         } else {
-          if (!all.companyId) throw unprocessable("Reader has no company boundary");
-          predicates.push(eq(all.companyId, q.companyId!));
+          if (!all.spaceId) throw unprocessable("Reader has no space boundary");
+          predicates.push(eq(all.spaceId, q.spaceId!));
         }
         if (q.operation === "get" && !all[reader.id ?? "id"])
           throw unprocessable("This resource supports listing only");
@@ -201,7 +201,7 @@ export async function readCustomerSuccessResource(
           predicates.push(eq(all[reader.parent], q.parentId));
         }
         const limit = q.operation === "get" ? 1 : Math.max(1, q.limit ?? 25);
-        const order = all[reader.id ?? "id"] ?? all.createdAt ?? all.companyId;
+        const order = all[reader.id ?? "id"] ?? all.createdAt ?? all.spaceId;
         let rows = await tx
           .select(columns)
           .from(reader.table)
@@ -242,7 +242,7 @@ export async function readCustomerSuccessResource(
           });
         if (q.resource === "runs")
           rows = await createRunSecretRedactionRegistry(tx).redactForRuns(
-            q.companyId!,
+            q.spaceId!,
             rows as Array<{ id: string }>,
           );
         // Match the existing structured event/config redaction, without scanning
@@ -261,7 +261,7 @@ export async function readCustomerSuccessResource(
         if (q.resource === "runEvents") {
           const redactions = createRunSecretRedactionRegistry(tx);
           rows = await Promise.all(
-            rows.map((r) => redactions.redactForRun(q.companyId!, String(r.runId), r)),
+            rows.map((r) => redactions.redactForRun(q.spaceId!, String(r.runId), r)),
           );
         }
         if (q.operation === "get") {
@@ -274,7 +274,7 @@ export async function readCustomerSuccessResource(
         };
       }
       if (q.operation === "instructions.file") {
-        const agent = await ownRow(tx, schema.agents, q.companyId!, q.resourceId!);
+        const agent = await ownRow(tx, schema.agents, q.spaceId!, q.resourceId!);
         const state = deriveBundleState(
           agent as unknown as Parameters<typeof deriveBundleState>[0],
         );
@@ -287,7 +287,7 @@ export async function readCustomerSuccessResource(
           : unavailable("instructions_file_missing");
       }
       if (q.operation === "skills.file") {
-        const skill = await ownRow(tx, schema.companySkills, q.companyId!, q.resourceId!);
+        const skill = await ownRow(tx, schema.spaceSkills, q.spaceId!, q.resourceId!);
         const relative = q.path ?? "SKILL.md";
         assertWorkspaceFilePathAllowed(relative);
         const versionId = q.versionId ?? skill.currentVersionId;
@@ -297,13 +297,13 @@ export async function readCustomerSuccessResource(
         if (versionId) {
           const version = await ownRow(
             tx,
-            schema.companySkillVersions,
-            q.companyId!,
+            schema.spaceSkillVersions,
+            q.spaceId!,
             String(versionId),
           );
-          if (version.companySkillId !== skill.id) throw notFound("Skill version not found");
+          if (version.spaceSkillId !== skill.id) throw notFound("Skill version not found");
           const file = await skillPackageStore(tx, storage, db).readVersionFile(
-            version as typeof schema.companySkillVersions.$inferSelect, relative, false);
+            version as typeof schema.spaceSkillVersions.$inferSelect, relative, false);
           if (file?.content !== undefined) {
             const bytes = Buffer.from(file.content, file.encoding === "base64" ? "base64" : "utf8");
             if (bytes.length > MAX_INSPECTION_BYTES)
@@ -320,7 +320,7 @@ export async function readCustomerSuccessResource(
         return unavailable("skill_file_not_snapshotted");
       }
       if (q.operation === "runs.log") {
-        const run = await ownRow(tx, schema.heartbeatRuns, q.companyId!, q.resourceId!);
+        const run = await ownRow(tx, schema.heartbeatRuns, q.spaceId!, q.resourceId!);
         if (!run.logRef || !isRunLogStoreType(run.logStore)) return unavailable("run_log_unavailable");
         const result = await getRunLogStore().read(
           { store: run.logStore, logRef: String(run.logRef) },
@@ -330,14 +330,14 @@ export async function readCustomerSuccessResource(
           },
         );
         return createRunSecretRedactionRegistry(tx).redactForRun(
-          q.companyId!,
+          q.spaceId!,
           q.resourceId!,
           result,
         );
       }
       if (q.operation.startsWith("files.")) {
         try {
-          const issue = await ownRow(tx, schema.issues, q.companyId!, q.resourceId!);
+          const issue = await ownRow(tx, schema.issues, q.spaceId!, q.resourceId!);
           const remoteFiles = createRemoteWorkspaceFiles(tx, {
             environmentRuntime: environmentRuntimeService(tx, { pluginWorkerManager: options.pluginWorkerManager, readOnlyInspection: true }),
             loadSavedWorkspace: createSavedWorkspaceLoader(tx, storage),
@@ -411,13 +411,13 @@ export async function readCustomerSuccessResource(
         }
       }
       if (q.operation === "assets.content") {
-        const asset = await ownRow(tx, schema.assets, q.companyId!, q.resourceId!);
+        const asset = await ownRow(tx, schema.assets, q.spaceId!, q.resourceId!);
         const range = q.range;
         if (range && (range.start >= Number(asset.byteSize) || range.end >= Number(asset.byteSize)))
           throw unprocessable("Asset byte range is outside the resource");
         if (!range && Number(asset.byteSize) > MAX_INSPECTION_BYTES)
           throw unprocessable("Request a bounded byte range");
-        const object = await storage.getObject(q.companyId!, String(asset.objectKey), { range });
+        const object = await storage.getObject(q.spaceId!, String(asset.objectKey), { range });
         const chunks: Buffer[] = [];
         let length = 0;
         try {

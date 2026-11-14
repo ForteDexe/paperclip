@@ -46,9 +46,9 @@ export const CACHED_PATHS = [
   // The process-table library is the crate's one workspace dependency. Cargo
   // rebuilds a dependent whose workspace dependency is newer than it, so the
   // library's lib unit is cached and marked current with the crate.
-  `${RELEASE_DIR}/.fingerprint/paperclip-process-table-*`,
-  `${RELEASE_DIR}/deps/libpaperclip_process_table-*`,
-  `${RELEASE_DIR}/deps/paperclip_process_table-*.d`,
+  `${RELEASE_DIR}/.fingerprint/outpost-process-table-*`,
+  `${RELEASE_DIR}/deps/liboutpost_process_table-*`,
+  `${RELEASE_DIR}/deps/outpost_process_table-*.d`,
 ];
 
 // Every file the release build of the crate reads, as hashFiles() patterns:
@@ -92,12 +92,12 @@ export const REQUIRED = [
 
 /** The lib unit of the process-table workspace dependency, in `directory`. */
 export function processTableRequired(directory) {
-  const fingerprint = `${directory}/.fingerprint/paperclip-process-table-*`;
+  const fingerprint = `${directory}/.fingerprint/outpost-process-table-*`;
   return [
-    { label: "the process-table lib fingerprint hash", glob: `${fingerprint}/lib-paperclip_process_table` },
-    { label: "the process-table lib dep-info", glob: `${fingerprint}/dep-lib-paperclip_process_table` },
-    { label: "the process-table lib rlib", glob: `${directory}/deps/libpaperclip_process_table-*.rlib` },
-    { label: "the process-table lib rmeta", glob: `${directory}/deps/libpaperclip_process_table-*.rmeta` },
+    { label: "the process-table lib fingerprint hash", glob: `${fingerprint}/lib-outpost_process_table` },
+    { label: "the process-table lib dep-info", glob: `${fingerprint}/dep-lib-outpost_process_table` },
+    { label: "the process-table lib rlib", glob: `${directory}/deps/liboutpost_process_table-*.rlib` },
+    { label: "the process-table lib rmeta", glob: `${directory}/deps/liboutpost_process_table-*.rmeta` },
   ];
 }
 

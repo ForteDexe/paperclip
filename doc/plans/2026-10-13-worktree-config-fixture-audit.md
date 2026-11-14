@@ -42,7 +42,7 @@ Production LOC: 0 added, 0 removed. Test LOC: 20 added, 139 removed, net 119 rem
 - preserves an externally supplied PORT while repairing worktree config
 - never rewrites a main-instance env when ambient worktree flags leak into the process
 - does not persist runtime ports into a main-instance config when ambient worktree flags leak in
-- does not adopt a .paperclip config whose own env does not declare a worktree
+- does not adopt a .outpost config whose own env does not declare a worktree
 - avoids sibling worktree ports when repairing legacy configs
 - serializes and persists cross-repo worktree port reservations
 - ignores stale migrated env paths when the dev runner resolved the local config

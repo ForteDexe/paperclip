@@ -6,14 +6,14 @@ import { BlockedInboxView } from "@/components/BlockedInboxView";
 import { BlockedReasonChip } from "@/components/BlockedReasonChip";
 import { defaultIssueFilterState } from "@/lib/issue-filters";
 import { queryKeys } from "@/lib/queryKeys";
-import { storybookIssues } from "../../fixtures/paperclipData";
+import { storybookIssues } from "../../fixtures/outpostData";
 
-const companyId = "company-storybook";
+const spaceId = "space-storybook";
 const blockedViewDefaults = {
   groupBy: "none" as const,
   sortBy: "most_recent" as const,
   issueFilters: defaultIssueFilterState,
-  currentUserId: "local-board",
+  currentUserId: "local-operator",
   liveIssueIds: new Set<string>(),
   workspaceFilterContext: {},
   showStatusColumn: true,
@@ -57,7 +57,7 @@ const fixtureIssues: Issue[] = [
       state: "awaiting_decision",
       severity: "medium",
       stoppedSinceAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      owner: { type: "board", agentId: null, userId: null, label: "Board" },
+      owner: { type: "operator", agentId: null, userId: null, label: "Operator" },
       action: { label: "Accept or reject", detail: null },
     }),
   },
@@ -168,7 +168,7 @@ const fixtureIssues: Issue[] = [
 function PrimeBlockedFixtures({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   useMemo(() => {
-    queryClient.setQueryData(queryKeys.issues.listBlockedAttention(companyId), fixtureIssues);
+    queryClient.setQueryData(queryKeys.issues.listBlockedAttention(spaceId), fixtureIssues);
   }, [queryClient]);
   return <>{children}</>;
 }
@@ -183,7 +183,7 @@ function BlockedTabSurface({ search = "" }: { search?: string }) {
         <div className="rounded-lg border border-border bg-background p-4">
           <BlockedInboxView
             {...blockedViewDefaults}
-            companyId={companyId}
+            spaceId={spaceId}
             searchQuery={search}
             agentNameById={new Map()}
             issueLinkState={null}
@@ -256,7 +256,7 @@ function BlockedTabEmptyState() {
     <div className="rounded-lg border border-border bg-background p-4">
       <BlockedInboxView
         {...blockedViewDefaults}
-        companyId="company-empty"
+        spaceId="space-empty"
         searchQuery=""
         agentNameById={new Map()}
         issueLinkState={null}
@@ -277,7 +277,7 @@ const meta = {
           "Stopped-work triage Inbox tab. Rows group by reason variant and sort by severity → stoppedSinceAt. The reason chip + owner + action combo sits next to the issue title. No quick archive on this tab.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "inbox-search/triage",
         "recovery/diagnosis"

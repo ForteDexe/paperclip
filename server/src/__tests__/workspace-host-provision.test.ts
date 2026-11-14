@@ -17,7 +17,7 @@ describe("controller provision source classification", () => {
       query.orderBy.mockReturnValue(query);
       return query;
     }) } as unknown as Db;
-    const input = { companyId: "company", task: { id: "task", projectId: "project" },
+    const input = { spaceId: "space", task: { id: "task", projectId: "project" },
       sourceProjectId: "project", sourceWorkspaceId: "default-source" };
     return { db, input };
   }
@@ -55,7 +55,7 @@ describe("controller provision source classification", () => {
     const missing = fixture([{ id: "older-source" }], "default-source", []);
     expect(await workspaceRequiresCopyOnlyProvisioning(missing.db, missing.input)).toBe(true);
     const foreign = fixture([{ id: "older-source" }], "foreign-source");
-    expect(await resolveProjectDefaultWorkspaceId(foreign.db, { companyId: "company", projectId: "project" })).toBe("foreign-source");
+    expect(await resolveProjectDefaultWorkspaceId(foreign.db, { spaceId: "space", projectId: "project" })).toBe("foreign-source");
     expect(await workspaceRequiresCopyOnlyProvisioning(foreign.db, { ...foreign.input, sourceProjectId: "foreign-project", sourceWorkspaceId: "foreign-source" })).toBe(true);
   });
 

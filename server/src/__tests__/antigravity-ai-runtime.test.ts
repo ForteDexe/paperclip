@@ -38,7 +38,7 @@ describe("Antigravity private managed AI home", () => {
         { limit: async () => version }),
     }) }) } as unknown as Db;
     const input = {
-      companyId: "44444444-4444-4444-8444-444444444444", agentId: "55555555-5555-4555-8555-555555555555", responsibleUserId: "alice",
+      spaceId: "44444444-4444-4444-8444-444444444444", agentId: "55555555-5555-4555-8555-555555555555", responsibleUserId: "alice",
       adapterType: "outpost_runner", binding: { provider: "google", method: "api_key", mode: "responsible_user" } as const,
       config: { provider: "acpx", acpxAgent: "antigravity", model: "caller-exact-model", env: {
         GEMINI_API_KEY: "fixture-ambient-key", GOOGLE_API_KEY: "fixture-other-key", GEMINI_HOME: "/ambient/configured-home",

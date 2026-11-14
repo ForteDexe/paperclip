@@ -5,7 +5,7 @@ import { cp, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { and, eq, sql } from "drizzle-orm";
-import { agents, authUsers, companyMemberships, environmentLeases, environments, executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults } from "@outpost/db";
+import { agents, authUsers, spaceMemberships, environmentLeases, environments, executionWorkspaceSnapshots, executionWorkspaces, heartbeatRuns, issueRecoveryActions, issues, nativeRunFinalizations, nativeRunResults } from "@outpost/db";
 import { beforeAll, expect, it, vi } from "vitest";
 import * as storageBackend from "../storage/index.js";
 import { getStorageService } from "../storage/index.js";
@@ -36,8 +36,8 @@ function barrier() { let resolve!: () => void; const promise = new Promise<void>
 
 describeEmbeddedPostgres("stopped observed native workspace preservation", () => {
   const fixture = nativeRestartFixture();
-  let runtimeRoot: string, companyId: string, agentId: string;
-  beforeAll(() => { ({ runtimeRoot, companyId, agentId } = fixture.current); });
+  let runtimeRoot: string, spaceId: string, agentId: string;
+  beforeAll(() => { ({ runtimeRoot, spaceId, agentId } = fixture.current); });
 
   async function seedSource(label: string) {
     const f = await fixture.seedRun(label), db = f.db;
@@ -49,23 +49,23 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
       config: { provider: "fake", image: "fixture:test" } });
     const userId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Source operator", email: `${userId}@example.invalid`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "owner" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "owner" });
     await db.update(agents).set({ defaultEnvironmentId: environmentId, adapterConfig: { provider: "codex", model: "gpt-6.1-sol" } }).where(eq(agents.id, agentId));
     const reference = { schema: "outpost.remote-workspace-run.v1", workspaceId, leaseId, providerLeaseId,
       remoteCwd, epoch: 1, state: "prepared", snapshotId: null };
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: f.issueId,
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: f.issueId,
       mode: "isolated_workspace", strategyType: "project_primary", providerType: "cloud_sandbox", name: "Unsaved original files",
       cwd: `/workspaces/${workspaceId}`, metadata: { remoteWorkspace: { schema: "outpost.remote-workspace.v1",
         epoch: 1, snapshotId: null, source: { kind: "empty" }, writerRunId: f.runId, dirty: true,
         location: { environmentId, leaseId, providerLeaseId, remoteCwd } } } });
     await db.update(issues).set({ status: "blocked", executionRunId: null, checkoutRunId: null, executionWorkspaceId: workspaceId })
       .where(eq(issues.id, f.issueId));
-    await db.insert(environmentLeases).values({ id: leaseId, companyId, issueId: f.issueId, heartbeatRunId: f.runId,
+    await db.insert(environmentLeases).values({ id: leaseId, spaceId, issueId: f.issueId, heartbeatRunId: f.runId,
       executionWorkspaceId: workspaceId, environmentId, provider: "fake", providerLeaseId, status: "active", leasePolicy: "ephemeral",
       metadata: { driver: "sandbox", provider: "fake", image: "fixture:test", remoteCwd, agentId }, updatedAt: new Date(Date.now() - 6 * 60_000) });
-    const checkpoint = { identity: { companyId, issueId: f.issueId, runId: f.runId, agentId, sessionId: f.native.normalizedSessionId },
+    const checkpoint = { identity: { spaceId, issueId: f.issueId, runId: f.runId, agentId, sessionId: f.native.normalizedSessionId },
       providerSessionId: "historical-session", activeTurnId: "unfinished-turn", pendingRuntimeRequests: [{ requestId: "unknown-tool" }] };
-    const execution = buildNativeExecutionInput({ companyId, agentId, runId: f.runId,
+    const execution = buildNativeExecutionInput({ spaceId, agentId, runId: f.runId,
       issue: { id: f.issueId, identifier: "NRR-HISTORICAL-OBSERVED", title: "Preserve original work", description: null, workMode: "standard" },
       taskPrompt: "Continue the original task.", provider: "codex", model: "gpt-6.1-sol",
       workspace: { id: workspaceId, cwd: remoteCwd, repoUrl: null, repoRef: null, branchName: null },
@@ -80,8 +80,8 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
     await db.update(nativeRunFinalizations).set({ phase: "observed", attempt: 1, controllerGeneration: 3, recoveryState: "awaiting_runner_reattach",
         controllerBootId: randomUUID(), controllerPid: 2_147_483_640, controllerProcessStartedAt: new Date(0),
       leaseOwner: "old-observed-controller", leaseExpiresAt: new Date(Date.now() - 5 * 60_000) }).where(eq(nativeRunFinalizations.runId, f.runId));
-    await issueRecoveryActionService(db).upsertSourceScoped({ companyId, sourceIssueId: f.issueId, kind: "active_run_watchdog",
-      ownerType: "board", returnOwnerAgentId: agentId, cause: "native_session_interrupted", fingerprint: `interrupted:${f.runId}`,
+    await issueRecoveryActionService(db).upsertSourceScoped({ spaceId, sourceIssueId: f.issueId, kind: "active_run_watchdog",
+      ownerType: "operator", returnOwnerAgentId: agentId, cause: "native_session_interrupted", fingerprint: `interrupted:${f.runId}`,
       evidence: { runId: f.runId }, nextAction: "Reconcile the unknown provider outcome.", maxAttempts: 3, wakePolicy: null,
       supersedeOnIdentityChange: true });
     return { ...f, workspaceId, environmentId, leaseId, providerLeaseId, remoteCwd, checkpoint, profile };
@@ -180,7 +180,7 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
       expect(savedOwner).toMatchObject({ phase: "terminal_failure", leaseOwner: null, attempt: 1, controllerGeneration: 3 });
       expect(savedRun).toMatchObject({ status: "failed", errorCode: "setup_failed", runnerProfileJson: { sessionCheckpoint: checkpoint, nativeExecutionInput: profile.nativeExecutionInput } });
       const snapshotId = (savedWorkspace.metadata?.remoteWorkspace as { snapshotId: string }).snapshotId;
-      const snapshot = await getWorkspaceSnapshot(db, { companyId, workspaceId, snapshotId });
+      const snapshot = await getWorkspaceSnapshot(db, { spaceId, workspaceId, snapshotId });
       expect(snapshot).not.toBeNull();
       const cold = path.join(runtimeRoot, randomUUID()), archivePath = path.join(runtimeRoot, `${randomUUID()}.pcws`);
       await loadWorkspaceSnapshotArchive({ storage: storageBackend.getStorageService(), reference: snapshot!, targetPath: archivePath });
@@ -225,13 +225,13 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
   }
   async function acceptedResult(f: Source) {
     const { run } = await readSource(f);
-    await f.db.insert(nativeRunResults).values({ companyId, issueId: f.issueId, runId: f.runId,
+    await f.db.insert(nativeRunResults).values({ spaceId, issueId: f.issueId, runId: f.runId,
       completionContractId: run.completionContractId!, schemaStatus: "accepted", serverFingerprint: randomUUID(),
       canonicalSha256: "a".repeat(64), resultJson: { outcome: "accepted" } });
   }
   async function otherAllocationOwner(f: Source) {
     const other = await fixture.seedRun(`OTHER-${randomUUID()}`, f.db);
-    await f.db.insert(environmentLeases).values({ companyId, issueId: other.issueId, heartbeatRunId: other.runId,
+    await f.db.insert(environmentLeases).values({ spaceId, issueId: other.issueId, heartbeatRunId: other.runId,
       environmentId: f.environmentId, provider: "fake", providerLeaseId: f.providerLeaseId,
       status: "active", leasePolicy: "ephemeral", metadata: { driver: "sandbox", provider: "fake", image: "fixture:test" } });
     return other;
@@ -270,7 +270,7 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
       const backend = vi.fn(() => { throw new Error("Unexpected native execution"); });
       const heartbeat = heartbeatService(f.db, { nativeSessionBackendFactory: backend });
       try {
-        await heartbeat.sweepOrphanedActiveLeases({ backoffMs: 0, companyId, leaseId: f.leaseId });
+        await heartbeat.sweepOrphanedActiveLeases({ backoffMs: 0, spaceId, leaseId: f.leaseId });
         await heartbeat.sweepPendingCleanupLeases({ backoffMs: 0 });
         const current = await readSource(f);
         expect(current.run.resultJson?.workspaceRestoreRecovery).toBeUndefined();
@@ -286,7 +286,7 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
     const f = await seedSource("MALFORMED-WORKSPACE");
     await f.db.update(executionWorkspaces).set({ metadata: sql`jsonb_set(${executionWorkspaces.metadata}, '{remoteWorkspace,epoch}', '0')` })
       .where(eq(executionWorkspaces.id, f.workspaceId));
-    await expect(pinFailedObservedWorkspace(f.db, companyId, f.runId)).resolves.toBe(false);
+    await expect(pinFailedObservedWorkspace(f.db, spaceId, f.runId)).resolves.toBe(false);
     expect((await readSource(f)).run.resultJson?.workspaceRestoreRecovery).toBeUndefined();
     await sourceHeld(f);
   });
@@ -300,7 +300,7 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
     const backend = vi.fn(() => { throw new Error("Unexpected native execution"); });
     const heartbeat = heartbeatService(db, { nativeSessionBackendFactory: backend });
     try {
-      await expect(heartbeat.sweepOrphanedActiveLeases({ backoffMs: 0, companyId })).resolves.toMatchObject({ recovered: 1 });
+      await expect(heartbeat.sweepOrphanedActiveLeases({ backoffMs: 0, spaceId })).resolves.toMatchObject({ recovered: 1 });
       expect((await readSource(bad)).run.resultJson?.workspaceRestoreRecovery).toBeUndefined();
       expect((await readSource(bad)).lease.status).toBe("active");
       expect((await readSource(good)).run.resultJson?.workspaceRestoreRecovery).toMatchObject({ leaseIds: [good.leaseId] });
@@ -322,11 +322,11 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
       await f.db.update(nativeRunFinalizations).set({ controllerHostHash: controller.hostHash })
         .where(eq(nativeRunFinalizations.runId, f.runId));
       await f.db.update(issues).set({ executionRunId: f.runId }).where(eq(issues.id, f.issueId));
-    } else expect(await pinFailedObservedWorkspace(f.db, companyId, f.runId)).toBe(true);
+    } else expect(await pinFailedObservedWorkspace(f.db, spaceId, f.runId)).toBe(true);
     const dispositions = await claimNativeRestartRecoveries({ db: f.db, restartKind: "hard", runIds: [f.runId], controller: fixture.current.successor });
     if (order === "before_pin") {
       expect(dispositions).toMatchObject([{ kind: "reattach_remote_runner", runId: f.runId }]);
-      expect(await pinFailedObservedWorkspace(f.db, companyId, f.runId)).toBe(false);
+      expect(await pinFailedObservedWorkspace(f.db, spaceId, f.runId)).toBe(false);
       const { run, lease, owner } = await readSource(f);
       expect(run.status).toBe("running"); expect(owner.leaseExpiresAt!.getTime()).toBeGreaterThan(Date.now());
       expect(owner.controllerGeneration).toBe(4); expect(lease.status).toBe("active");
@@ -344,7 +344,7 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
     const settleThis = () => settleOwnableKind(f.db, kind.id, { runIds: [f.runId] });
     const fenceOf = async () => (await f.db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.sourceIssueId, f.issueId),
       eq(issueRecoveryActions.fingerprint, `native-workspace:${f.runId}`))))[0].evidence.observedWorkspacePreservation as { state: string };
-    expect(await pinFailedObservedWorkspace(f.db, companyId, f.runId)).toBe(true);
+    expect(await pinFailedObservedWorkspace(f.db, spaceId, f.runId)).toBe(true);
     const held = await pass(false);
     expect(held.kinds[0]!.reasons.fence_expired_without_provider_proof).toBeGreaterThanOrEqual(1);
     expect(await settleThis()).toEqual([]);
@@ -368,7 +368,7 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
 
   it("rechecks a new physical allocation owner after pin before the actual Stop dispatch", async () => {
     const f = await seedSource("ARRIVING-OWNER");
-    expect(await pinFailedObservedWorkspace(f.db, companyId, f.runId)).toBe(true);
+    expect(await pinFailedObservedWorkspace(f.db, spaceId, f.runId)).toBe(true);
     const other = await otherAllocationOwner(f);
     const provider = getSandboxProvider("fake")!, stopped = vi.spyOn(provider, "stopLease"), destroyed = vi.spyOn(provider, "destroyLease");
     const heartbeat = heartbeatService(f.db);
@@ -376,7 +376,7 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
       await heartbeat.sweepPendingCleanupLeases({ backoffMs: 0 });
       expect(stopped.mock.calls.filter(([input]) => input.providerLeaseId === f.providerLeaseId)).toHaveLength(0);
         expect(destroyed.mock.calls.filter(([input]) => input.providerLeaseId === f.providerLeaseId)).toHaveLength(0);
-      expect(await settleStoppedObservedWorkspace(f.db, companyId, f.runId)).toBe(false);
+      expect(await settleStoppedObservedWorkspace(f.db, spaceId, f.runId)).toBe(false);
       expect((await readSource(f)).lease).toMatchObject({ status: "pending_cleanup", metadata: { pendingCleanupInFlight: false } });
       expect((await f.db.select().from(environmentLeases).where(eq(environmentLeases.heartbeatRunId, other.runId)))[0].status).toBe("active");
       await sourceHeld(f);
@@ -386,10 +386,10 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
   it.each(["generation", "checkpoint", "workspace_authority", "accepted_result", "other_owner", "lost_stop_ack"] as const)(
     "does not settle observed ownership from stale or missing Stop evidence (%s)", async mode => {
       const f = await seedSource(`STOP-FENCE-${mode}`);
-      expect(await pinFailedObservedWorkspace(f.db, companyId, f.runId)).toBe(true);
+      expect(await pinFailedObservedWorkspace(f.db, spaceId, f.runId)).toBe(true);
       const original = (await f.db.select().from(issueRecoveryActions).where(and(eq(issueRecoveryActions.sourceIssueId, f.issueId),
         eq(issueRecoveryActions.fingerprint, `native-workspace:${f.runId}`))))[0];
-      expect(await pinFailedObservedWorkspace(f.db, companyId, f.runId)).toBe(true);
+      expect(await pinFailedObservedWorkspace(f.db, spaceId, f.runId)).toBe(true);
       expect((await f.db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, original.id)))[0]).toEqual(original);
       const provider = getSandboxProvider("fake")!;
       const stop = mode === "lost_stop_ack" ? vi.spyOn(provider, "stopLease").mockRejectedValue(new Error("Controlled lost acknowledgement")) : null;
@@ -402,8 +402,8 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
         if (mode === "workspace_authority") await f.db.update(executionWorkspaces).set({ metadata: sql`jsonb_set(${executionWorkspaces.metadata}, '{remoteWorkspace,epoch}', '0')` }).where(eq(executionWorkspaces.id, f.workspaceId));
         if (mode === "accepted_result") await acceptedResult(f);
         if (mode === "other_owner") await otherAllocationOwner(f);
-        expect(await settleStoppedObservedWorkspace(f.db, companyId, f.runId)).toBe(false);
-        expect(await pinFailedObservedWorkspace(f.db, companyId, f.runId)).toBe(mode === "lost_stop_ack");
+        expect(await settleStoppedObservedWorkspace(f.db, spaceId, f.runId)).toBe(false);
+        expect(await pinFailedObservedWorkspace(f.db, spaceId, f.runId)).toBe(mode === "lost_stop_ack");
         const current = (await f.db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.id, original.id)))[0];
         expect(current.evidence.observedWorkspacePreservation).toEqual(original.evidence.observedWorkspacePreservation);
         expect((await readSource(f)).owner.phase).toBe("observed");
@@ -419,10 +419,10 @@ describeEmbeddedPostgres("stopped observed native workspace preservation", () =>
     });
     try {
       await entered.promise;
-      await expect(pinFailedObservedWorkspace(f.db, companyId, f.runId)).rejects.toBeInstanceOf(ObservedWorkspacePreservationBusyError);
+      await expect(pinFailedObservedWorkspace(f.db, spaceId, f.runId)).rejects.toBeInstanceOf(ObservedWorkspacePreservationBusyError);
       expect((await readSource(f)).run.resultJson?.workspaceRestoreRecovery).toBeUndefined();
     } finally { release.resolve(); await peer; }
-    expect(await pinFailedObservedWorkspace(f.db, companyId, f.runId)).toBe(false);
+    expect(await pinFailedObservedWorkspace(f.db, spaceId, f.runId)).toBe(false);
     await sourceHeld(f);
   });
 

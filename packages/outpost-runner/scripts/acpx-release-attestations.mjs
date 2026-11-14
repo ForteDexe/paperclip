@@ -14,7 +14,7 @@ import { pathToFileURL } from "node:url";
  * - `declaration`: a checked-in release declaration, hashed as canonical JSON.
  *
  * A digest changes only when the upstream release changes. It never binds
- * Paperclip source, the shared ACPX layer, absolute paths, the provider-pack
+ * Outpost source, the shared ACPX layer, absolute paths, the provider-pack
  * manifest digest or install layout: the profile's acpxVersion and the pack
  * contract digest bind ACPX and Runner source for every provider alike.
  * See rules/acpx-profile-identity.mdc.

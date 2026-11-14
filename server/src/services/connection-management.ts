@@ -42,25 +42,25 @@ export function responsibleConnectionUser(actor: AuthorizationActor): string | n
 }
 
 /** Installation changes require the same agent-edit authority at every entry point. */
-export async function assertAgentConnectionInstallAccess(db: Db, actor: AuthorizationActor, companyId: string, agentIds: string[]) {
+export async function assertAgentConnectionInstallAccess(db: Db, actor: AuthorizationActor, spaceId: string, agentIds: string[]) {
   const authorization = authorizationService(db);
-  await assertAgentToolAssignmentInteractions(db, actor.type === "agent" ? actor.agentId : null, companyId, agentIds);
+  await assertAgentToolAssignmentInteractions(db, actor.type === "agent" ? actor.agentId : null, spaceId, agentIds);
   for (const agentId of new Set(agentIds)) {
     const [agent] = await db.select({ id: agents.id }).from(agents)
-      .where(and(eq(agents.id, agentId), eq(agents.companyId, companyId))).limit(1);
-    if (!agent) throw forbidden("The target agent is not available in this company");
+      .where(and(eq(agents.id, agentId), eq(agents.spaceId, spaceId))).limit(1);
+    if (!agent) throw forbidden("The target agent is not available in this space");
     const decision = await authorization.decide({
-      actor, action: "agent_config:update", resource: { type: "agent", companyId, agentId }, scope: { targetAgentId: agentId },
+      actor, action: "agent_config:update", resource: { type: "agent", spaceId, agentId }, scope: { targetAgentId: agentId },
     });
     if (!decision.allowed) throw forbidden(`You cannot edit agent ${agentId}, so you cannot change its connection installs`, authorizationDeniedDetails(decision));
   }
 }
 
 export async function assertAgentToolAssignmentInteractions(db: Db, actorAgentId: string | null | undefined,
-  companyId: string, agentIds: readonly string[], lock = typeof (db as unknown as { nestedIndex?: number }).nestedIndex === "number") {
+  spaceId: string, agentIds: readonly string[], lock = typeof (db as unknown as { nestedIndex?: number }).nestedIndex === "number") {
   const targets = [...new Set(agentIds)].sort();
   for (const [index, targetAgentId] of targets.entries()) {
-    await assertAgentInteraction(db, { companyId, actorAgentId, operation: "configure", targetAgentId,
+    await assertAgentInteraction(db, { spaceId, actorAgentId, operation: "configure", targetAgentId,
       lock: index === 0 && lock ? "update" : false, lockAgentIds: index === 0 ? targets : undefined });
   }
 }
@@ -79,34 +79,34 @@ export function connectionManagementService(db: Db) {
     let workContext: ConnectionManagementContext["workContext"] = { runId: null, issueId: null, projectId: null };
     let capturedRun: CapturedConnectionRun | undefined;
     if (actor.type === "agent") {
-      if (!responsibleUserId || !actor.agentId || actor.companyId !== resource.companyId) {
-        throw forbidden("Connection management requires a responsible user in this company");
+      if (!responsibleUserId || !actor.agentId || actor.spaceId !== resource.spaceId) {
+        throw forbidden("Connection management requires a responsible user in this space");
       }
-      const [agent] = await db.select().from(agents).where(and(eq(agents.id, actor.agentId), eq(agents.companyId, resource.companyId)));
+      const [agent] = await db.select().from(agents).where(and(eq(agents.id, actor.agentId), eq(agents.spaceId, resource.spaceId)));
       if (!agent || ["terminated", "pending_approval", "paused"].includes(agent.status)) throw forbidden("Agent is not active");
       if (actor.keyId) {
-        const [key] = await db.select().from(agentApiKeys).where(and(eq(agentApiKeys.id, actor.keyId), eq(agentApiKeys.agentId, actor.agentId), eq(agentApiKeys.companyId, resource.companyId)));
+        const [key] = await db.select().from(agentApiKeys).where(and(eq(agentApiKeys.id, actor.keyId), eq(agentApiKeys.agentId, actor.agentId), eq(agentApiKeys.spaceId, resource.spaceId)));
         if (!key || key.revokedAt || key.responsibleUserId !== responsibleUserId || (key.scopeConfig && key.scopeConfig.kind !== "standard")) throw forbidden("Agent key authority is no longer valid");
       }
       if (actor.runId) {
-        const reusable = options.capabilityProbe && !options.afterHumanAction && options.readContext?.actor === actor && options.readContext.resource.companyId === resource.companyId
+        const reusable = options.capabilityProbe && !options.afterHumanAction && options.readContext?.actor === actor && options.readContext.resource.spaceId === resource.spaceId
           ? connectionReadRuns.get(options.readContext) : undefined;
         const captured = reusable ?? (options.afterHumanAction ? await (async () => {
-          const [run] = await db.select(runIdentityTaskFields).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, actor.runId!), eq(heartbeatRuns.agentId, actor.agentId!), eq(heartbeatRuns.companyId, resource.companyId)));
+          const [run] = await db.select(runIdentityTaskFields).from(heartbeatRuns).where(and(eq(heartbeatRuns.id, actor.runId!), eq(heartbeatRuns.agentId, actor.agentId!), eq(heartbeatRuns.spaceId, resource.spaceId)));
           if (!run || !["running", "succeeded"].includes(run.status)) throw forbidden("The originating run cannot continue this authentication");
           const [pending] = await db.select().from(runIdentityContexts).where(and(eq(runIdentityContexts.runId, run.id), eq(runIdentityContexts.status, "pending")));
           if (pending) throw forbidden("Run identity is being reconciled");
           return { run, context: null };
-        })() : await captureRunIdentity(db, { companyId: resource.companyId, agentId: actor.agentId, runId: actor.runId }, { readScope: "task_authorization" }));
+        })() : await captureRunIdentity(db, { spaceId: resource.spaceId, agentId: actor.agentId, runId: actor.runId }, { readScope: "task_authorization" }));
         capturedRun = captured;
         const { run, context } = captured;
         if ((context?.responsibleUserId ?? run.responsibleUserId) !== responsibleUserId) throw forbidden("Run responsible-user authority has changed");
         const snapshot = run.contextSnapshot ?? {};
         const issueId = run.issueId ?? (typeof snapshot.issueId === "string" ? snapshot.issueId : typeof snapshot.taskId === "string" ? snapshot.taskId : null);
-        const [issue] = issueId ? await db.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.companyId, resource.companyId))) : [];
+        const [issue] = issueId ? await db.select().from(issues).where(and(eq(issues.id, issueId), eq(issues.spaceId, resource.spaceId))) : [];
         workContext = { runId: run.id, issueId, projectId: issue?.projectId ?? null };
         if (issueId && (!issue || issue.assigneeAgentId !== actor.agentId || ["cancelled", "done"].includes(issue.status))) throw forbidden("Run no longer owns an eligible task");
-        if (snapshot.paperclipSkillTest || issue?.workMode === "skill_test") throw forbidden("Skill tests cannot administer connections");
+        if (snapshot.outpostSkillTest || issue?.workMode === "skill_test") throw forbidden("Skill tests cannot administer connections");
         if ((options.mutation ?? action !== "connections:read") && issue && issue.workMode !== "standard") throw forbidden("Connection changes are unavailable in Ask and Plan modes");
       }
     }
@@ -115,8 +115,8 @@ export function connectionManagementService(db: Db) {
     let currentGatewayResource: ConnectionManagementResource | undefined;
     let savedConnection = false;
     if (resource.gatewayId && !options.gatewayContextChecked) {
-      const [gateway] = await db.select().from(toolMcpGateways).where(and(eq(toolMcpGateways.id, resource.gatewayId), eq(toolMcpGateways.companyId, resource.companyId)));
-      if (!gateway) throw forbidden("Gateway is unavailable in this company");
+      const [gateway] = await db.select().from(toolMcpGateways).where(and(eq(toolMcpGateways.id, resource.gatewayId), eq(toolMcpGateways.spaceId, resource.spaceId)));
+      if (!gateway) throw forbidden("Gateway is unavailable in this space");
       // Explicit null is the proposed cleared binding, not an omitted selector.
       resource = { ...resource,
         profileId: Object.hasOwn(resource, "profileId") ? resource.profileId : gateway.profileId,
@@ -131,24 +131,24 @@ export function connectionManagementService(db: Db) {
       }
     }
     if (resource.profileId && !options.expandedProfile) {
-      const [profile] = await db.select().from(toolProfiles).where(and(eq(toolProfiles.id, resource.profileId), eq(toolProfiles.companyId, resource.companyId)));
-      if (!profile) throw forbidden("Profile is unavailable in this company");
+      const [profile] = await db.select().from(toolProfiles).where(and(eq(toolProfiles.id, resource.profileId), eq(toolProfiles.spaceId, resource.spaceId)));
+      if (!profile) throw forbidden("Profile is unavailable in this space");
       // Managed installation profiles can be empty while their labels still
       // identify the connection they administer.
       if (profile.profileKey.startsWith("app:") && isUuidLike(profile.profileKey.slice(4))) referencedConnections.push(profile.profileKey.slice(4));
       const bindings = await db.select().from(toolProfileBindings).where(eq(toolProfileBindings.profileId, profile.id));
       for (const binding of bindings) {
         if (binding.targetType === "agent") expandedTargets.add(binding.targetId);
-        if (binding.targetType === "company") {
-          const companyAgents = await db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, resource.companyId));
-          companyAgents.forEach(agent => expandedTargets.add(agent.id));
+        if (binding.targetType === "space") {
+          const spaceAgents = await db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, resource.spaceId));
+          spaceAgents.forEach(agent => expandedTargets.add(agent.id));
         }
         if (["project", "issue", "routine", "gateway"].includes(binding.targetType)) {
           await authorizeBindingTarget(actor, action, resource, binding, options);
         }
 
       }
-      const linkedGateways = await db.select({ id: toolMcpGateways.id }).from(toolMcpGateways).where(and(eq(toolMcpGateways.companyId, resource.companyId), eq(toolMcpGateways.profileId, profile.id)));
+      const linkedGateways = await db.select({ id: toolMcpGateways.id }).from(toolMcpGateways).where(and(eq(toolMcpGateways.spaceId, resource.spaceId), eq(toolMcpGateways.profileId, profile.id)));
       for (const gateway of linkedGateways) await authorizeBindingTarget(actor, action, resource, { targetType: "gateway", targetId: gateway.id }, options);
       const entries = await db.select().from(toolProfileEntries).where(eq(toolProfileEntries.profileId, profile.id));
       for (const entry of entries) if (entry.connectionId) referencedConnections.push(entry.connectionId);
@@ -156,8 +156,8 @@ export function connectionManagementService(db: Db) {
       const catalogIds = new Set(entries.flatMap(entry => entry.catalogEntryId ? [entry.catalogEntryId] : []));
       if (catalogIds.size) {
         const selected = await db.select({ id: toolCatalogEntries.id, connectionId: toolCatalogEntries.connectionId, applicationId: toolCatalogEntries.applicationId }).from(toolCatalogEntries)
-          .where(and(eq(toolCatalogEntries.companyId, resource.companyId), inArray(toolCatalogEntries.id, [...catalogIds])));
-        if (selected.length !== catalogIds.size) throw forbidden("Profile catalog selection is unavailable in this company");
+          .where(and(eq(toolCatalogEntries.spaceId, resource.spaceId), inArray(toolCatalogEntries.id, [...catalogIds])));
+        if (selected.length !== catalogIds.size) throw forbidden("Profile catalog selection is unavailable in this space");
         for (const entry of selected) {
           referencedConnections.push(entry.connectionId);
           // New-tool review also covers other connections in the selected
@@ -166,24 +166,24 @@ export function connectionManagementService(db: Db) {
         }
       }
       if (applicationIds.size) {
-        const selected = await db.select({ id: toolApplications.id }).from(toolApplications).where(and(eq(toolApplications.companyId, resource.companyId), inArray(toolApplications.id, [...applicationIds])));
-        if (selected.length !== applicationIds.size) throw forbidden("Profile application selection is unavailable in this company");
-        const connections = await db.select({ id: toolConnections.id }).from(toolConnections).where(and(eq(toolConnections.companyId, resource.companyId), inArray(toolConnections.applicationId, [...applicationIds])));
+        const selected = await db.select({ id: toolApplications.id }).from(toolApplications).where(and(eq(toolApplications.spaceId, resource.spaceId), inArray(toolApplications.id, [...applicationIds])));
+        if (selected.length !== applicationIds.size) throw forbidden("Profile application selection is unavailable in this space");
+        const connections = await db.select({ id: toolConnections.id }).from(toolConnections).where(and(eq(toolConnections.spaceId, resource.spaceId), inArray(toolConnections.applicationId, [...applicationIds])));
         connections.forEach(connection => referencedConnections.push(connection.id));
       }
       const toolNames = entries.flatMap(entry => entry.selectorType === "tool_name" && entry.toolName ? [entry.toolName] : []);
       const riskLevels = entries.flatMap(entry => entry.selectorType === "risk_level" && entry.riskLevel ? [entry.riskLevel] : []);
       if (profile.defaultAction === "allow" || toolNames.length || riskLevels.length) {
         const selected = await db.selectDistinct({ connectionId: toolCatalogEntries.connectionId }).from(toolCatalogEntries).where(and(
-          eq(toolCatalogEntries.companyId, resource.companyId), eq(toolCatalogEntries.status, "active"),
+          eq(toolCatalogEntries.spaceId, resource.spaceId), eq(toolCatalogEntries.status, "active"),
           profile.defaultAction === "allow" ? undefined : or(toolNames.length ? inArray(toolCatalogEntries.toolName, toolNames) : undefined, riskLevels.length ? inArray(toolCatalogEntries.riskLevel, riskLevels) : undefined),
         ));
         selected.forEach(entry => referencedConnections.push(entry.connectionId));
       }
     }
     if (resource.connectionId) {
-      const [connection] = await db.select().from(toolConnections).where(and(eq(toolConnections.id, resource.connectionId), eq(toolConnections.companyId, resource.companyId)));
-      if (!connection) throw forbidden("Connection is unavailable in this company");
+      const [connection] = await db.select().from(toolConnections).where(and(eq(toolConnections.id, resource.connectionId), eq(toolConnections.spaceId, resource.spaceId)));
+      if (!connection) throw forbidden("Connection is unavailable in this space");
       savedConnection = true;
       resource = { ...resource, selfServiceUserId: connection.createdByUserId,
         purpose: connection.connectionPurpose === "ai" ? "ai" : connection.connectionPurpose === "channel" ? "chat" : "tool",
@@ -196,14 +196,14 @@ export function connectionManagementService(db: Db) {
         const installs = await db.select().from(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, connection.id));
         for (const install of installs) {
           if (install.targetType === "agent") expandedTargets.add(install.targetId);
-          if (install.targetType === "company") {
-            const rows = await db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, resource.companyId));
+          if (install.targetType === "space") {
+            const rows = await db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, resource.spaceId));
             rows.forEach(agent => expandedTargets.add(agent.id));
           }
         }
-        if (resource.requestedInstallCompanyIds) {
-          const current = new Set(installs.filter(install => install.targetType === "company").map(install => install.targetId));
-          resource = { ...resource, selfServiceAgentInstalls: current.size === resource.requestedInstallCompanyIds.length && resource.requestedInstallCompanyIds.every(id => current.has(id)) };
+        if (resource.requestedInstallSpaceIds) {
+          const current = new Set(installs.filter(install => install.targetType === "space").map(install => install.targetId));
+          resource = { ...resource, selfServiceAgentInstalls: current.size === resource.requestedInstallSpaceIds.length && resource.requestedInstallSpaceIds.every(id => current.has(id)) };
         }
       }
       if (connection.connectionPurpose === "ai") {
@@ -233,32 +233,32 @@ export function connectionManagementService(db: Db) {
       }
     }
     if (resource.routineId) {
-      const [routine] = await db.select().from(routines).where(and(eq(routines.id, resource.routineId), eq(routines.companyId, resource.companyId)));
-      if (!routine) throw forbidden("Routine is unavailable in this company");
+      const [routine] = await db.select().from(routines).where(and(eq(routines.id, resource.routineId), eq(routines.spaceId, resource.spaceId)));
+      if (!routine) throw forbidden("Routine is unavailable in this space");
       resource = { ...resource, projectId: routine.projectId, issueId: routine.parentIssueId };
       if (routine.assigneeAgentId) expandedTargets.add(routine.assigneeAgentId);
       else if (options.mutation ?? action !== "connections:read") {
-        const rows = await db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, resource.companyId));
+        const rows = await db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, resource.spaceId));
         rows.forEach(row => expandedTargets.add(row.id));
       }
     }
     if (actor.type === "agent") {
       if (resource.projectId) {
-        const [project] = await db.select().from(projects).where(and(eq(projects.id, resource.projectId), eq(projects.companyId, resource.companyId)));
+        const [project] = await db.select().from(projects).where(and(eq(projects.id, resource.projectId), eq(projects.spaceId, resource.spaceId)));
         if (!project || !(await canActorReadProjectPrivacy(db, actor, project))) throw forbidden("Project is unavailable to this delegated principal");
       }
       if (resource.issueId) {
-        const [issue] = await db.select().from(issues).where(and(eq(issues.id, resource.issueId), eq(issues.companyId, resource.companyId)));
+        const [issue] = await db.select().from(issues).where(and(eq(issues.id, resource.issueId), eq(issues.spaceId, resource.spaceId)));
         if (!issue || !(await canActorReadIssuePrivacy(db, actor, issue))) throw forbidden("Task is unavailable to this delegated principal");
         if (options.mutation ?? action !== "connections:read") {
           if (issue.assigneeAgentId) expandedTargets.add(issue.assigneeAgentId);
           else {
-            const rows = await db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, resource.companyId));
+            const rows = await db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, resource.spaceId));
             rows.forEach(row => expandedTargets.add(row.id));
           }
         }
         if (issue.projectId && issue.projectId !== resource.projectId) {
-          const [project] = await db.select().from(projects).where(and(eq(projects.id, issue.projectId), eq(projects.companyId, resource.companyId)));
+          const [project] = await db.select().from(projects).where(and(eq(projects.id, issue.projectId), eq(projects.spaceId, resource.spaceId)));
           if (!project || !(await canActorReadProjectPrivacy(db, actor, project))) throw forbidden("Task project is unavailable to this delegated principal");
         }
         resource = { ...resource, projectId: resource.projectId ?? issue.projectId };
@@ -284,18 +284,18 @@ export function connectionManagementService(db: Db) {
       if (!resourceTrust.allowed) throw forbidden(resourceTrust.explanation);
     }
     if (targetAgentId) {
-      const [target] = await db.select({ id: agents.id }).from(agents).where(and(eq(agents.id, targetAgentId), eq(agents.companyId, resource.companyId)));
-      if (!target) throw forbidden("Target agent is outside this company");
+      const [target] = await db.select({ id: agents.id }).from(agents).where(and(eq(agents.id, targetAgentId), eq(agents.spaceId, resource.spaceId)));
+      if (!target) throw forbidden("Target agent is outside this space");
       if (targetAgentId === resource.targetAgentId && (prepared.options.mutation ?? action !== "connections:read")) {
-        await assertAgentToolAssignmentInteractions(db, actor.type === "agent" ? actor.agentId : null, resource.companyId, [targetAgentId]);
+        await assertAgentToolAssignmentInteractions(db, actor.type === "agent" ? actor.agentId : null, resource.spaceId, [targetAgentId]);
       }
       // Explicitly enforce both principals even when unrelated authorization is in shadow mode.
       // Existing human routes retain their domain-specific target authority.
       // Delegation additionally checks both the acting agent and its human.
       const principals: AuthorizationActor[] = actor.type === "agent" || resource.selfServiceAgentInstalls ? [actor] : [];
-      if (actor.type === "agent") principals.push({ type: "board", userId: responsibleUserId, source: "session", ignoreInstanceAdmin: true });
+      if (actor.type === "agent") principals.push({ type: "operator", userId: responsibleUserId, source: "session", ignoreInstanceAdmin: true });
       for (const principal of principals) {
-        const targetDecision = await authorization.decide({ actor: principal, action: "agent_config:update", resource: { type: "agent", companyId: resource.companyId, agentId: targetAgentId }, scope: { targetAgentId } }, { interactionPolicy: "defer_to_mutation" });
+        const targetDecision = await authorization.decide({ actor: principal, action: "agent_config:update", resource: { type: "agent", spaceId: resource.spaceId, agentId: targetAgentId }, scope: { targetAgentId } }, { interactionPolicy: "defer_to_mutation" });
         if (!targetDecision.allowed) throw forbidden(targetDecision.explanation, authorizationDeniedDetails(targetDecision));
       }
     }
@@ -310,7 +310,7 @@ export function connectionManagementService(db: Db) {
     for (const targetAgentId of targets.length ? targets : [undefined]) {
       decision = await evaluateTarget(prepared, targetAgentId);
     }
-    if (action === "connections:profiles" && resource.requestedInstallCompanyIds && !resource.selfServiceAgentInstalls) {
+    if (action === "connections:profiles" && resource.requestedInstallSpaceIds && !resource.selfServiceAgentInstalls) {
       await authorize(actor, "connections:configure", resource, options);
     }
     for (const connectionId of new Set(referencedConnections)) {
@@ -321,7 +321,7 @@ export function connectionManagementService(db: Db) {
     }
     const context: ConnectionManagementContext = {
       actor, responsibleUserId, resource, workContext, decision: decision!,
-      audit: { authorization: { action, operation: resource.operation, reason: decision!.reason }, actorType: actor.type === "agent" ? "agent" : "user", actorId: actor.type === "agent" ? actor.agentId! : actor.userId ?? "board",
+      audit: { authorization: { action, operation: resource.operation, reason: decision!.reason }, actorType: actor.type === "agent" ? "agent" : "user", actorId: actor.type === "agent" ? actor.agentId! : actor.userId ?? "operator",
         agentId: actor.agentId ?? null, runId: actor.runId ?? null, agentApiKeyId: actor.keyId ?? null, responsibleUserIdOverride: responsibleUserId },
       reauthorize: async (continuation) => {
         const current = await authorize(actor, action, resource, { ...options, afterHumanAction: continuation?.afterHumanAction ?? options.afterHumanAction });
@@ -350,20 +350,20 @@ export function connectionManagementService(db: Db) {
     const checkOptions = { ...options, expandedProfile: true };
     if (binding.targetType === "project") {
       resolved.projectId = binding.targetId;
-      const rows = await db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, resource.companyId));
+      const rows = await db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, resource.spaceId));
       checkOptions.targetAgentIds = [...new Set([...(options.targetAgentIds ?? []), ...rows.map(row => row.id)])];
     }
     else if (binding.targetType === "issue") resolved.issueId = binding.targetId;
     else if (binding.targetType === "routine") resolved.routineId = binding.targetId;
     else if (binding.targetType === "gateway") {
-      const [gateway] = await db.select().from(toolMcpGateways).where(and(eq(toolMcpGateways.id, binding.targetId), eq(toolMcpGateways.companyId, resource.companyId)));
-      if (!gateway) throw forbidden("Binding gateway is unavailable in this company");
+      const [gateway] = await db.select().from(toolMcpGateways).where(and(eq(toolMcpGateways.id, binding.targetId), eq(toolMcpGateways.spaceId, resource.spaceId)));
+      if (!gateway) throw forbidden("Binding gateway is unavailable in this space");
       resolved = { ...resolved, gatewayId: gateway.id, projectId: gateway.projectId, issueId: gateway.issueId };
       checkOptions.gatewayContextChecked = true;
       const targets = new Set(options.targetAgentIds ?? []);
       if (gateway.agentId) targets.add(gateway.agentId);
       else {
-        const rows = await db.select({ id: agents.id }).from(agents).where(eq(agents.companyId, resource.companyId));
+        const rows = await db.select({ id: agents.id }).from(agents).where(eq(agents.spaceId, resource.spaceId));
         rows.forEach(row => targets.add(row.id));
       }
       checkOptions.targetAgentIds = [...targets];
@@ -418,9 +418,9 @@ export function connectionManagementService(db: Db) {
     const isCanonicalAgentId = (id: string) => isUuidLike(id) && id === id.toLowerCase();
     // Direct AI accounts use the same target checks. Pools with members still
     // use the full evaluator through referencedConnections below.
-    const eligible = actor.type === "board" && prepared.savedConnection
+    const eligible = actor.type === "operator" && prepared.savedConnection
       && [resolved.profileId, resolved.gatewayId, resolved.routineId, resolved.projectId, resolved.issueId].every(id => id == null)
-      && !Object.hasOwn(resolved, "requestedProvider") && !Object.hasOwn(resolved, "requestedInstallCompanyIds")
+      && !Object.hasOwn(resolved, "requestedProvider") && !Object.hasOwn(resolved, "requestedInstallSpaceIds")
       && !resolved.selfServiceAgentInstalls
       && !prepared.referencedConnections.length && !prepared.currentGatewayResource
       && candidates.every(isCanonicalAgentId)

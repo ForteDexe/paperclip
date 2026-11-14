@@ -13,7 +13,7 @@ export const DEFAULT_FEEDBACK_DATA_SHARING_TERMS_VERSION = "feedback-data-sharin
 
 export interface FeedbackVote {
   id: string;
-  companyId: string;
+  spaceId: string;
   issueId: string;
   targetType: FeedbackTargetType;
   targetId: string;

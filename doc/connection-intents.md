@@ -11,7 +11,7 @@ Connection intents let an agent ask the responsible user for a known service con
 
 Provider-specific setup must stay in the shared feature and `AppDefinition` metadata. Do not add provider forms or connection mutations to either host.
 
-When a task connection needs Paperclip Cloud enrollment, the shared dialog opens enrollment in a separate window. The task keeps its access selection and interaction ID. A new-tab link is available if the window does not open. The dialog reads server enrollment status and refreshes the provider catalog after approval; enrollment alone does not mark the app connected. OAuth retains the interaction ID even if setup resumes in the page host, so the verified callback can resolve the task card and queue its continuation.
+When a task connection needs Outpost Cloud enrollment, the shared dialog opens enrollment in a separate window. The task keeps its access selection and interaction ID. A new-tab link is available if the window does not open. The dialog reads server enrollment status and refreshes the provider catalog after approval; enrollment alone does not mark the app connected. OAuth retains the interaction ID even if setup resumes in the page host, so the verified callback can resolve the task card and queue its continuation.
 
 ## Agent tools
 
@@ -27,15 +27,15 @@ Legacy delivery uses the same intent service, setup card, and fresh-session reso
 The equivalent CLI helpers are:
 
 ```sh
-paperclipai connections search notion
-paperclipai connections request notion
+outpost connections search notion
+outpost connections request notion
 ```
 
-The manually configured Paperclip MCP server also advertises `connections_search` and `connection_request`. Both helper surfaces require the narrow runtime token and fail outside an active heartbeat.
+The manually configured Outpost MCP server also advertises `connections_search` and `connection_request`. Both helper surfaces require the narrow runtime token and fail outside an active heartbeat.
 
 ## Security and lifecycle
 
-- Company, agent, run, task, and responsible user come only from the signed legacy runtime token or the native server-owned binding and stored execution identity.
+- Space, agent, run, task, and responsible user come only from the signed legacy runtime token or the native server-owned binding and stored execution identity.
 - Tokens are scoped to connection intents, expire after one hour, and are rejected when the heartbeat is no longer running.
 - The thread payload contains service identity, requesting-agent identity, a safe phase, and an optional human-selected audience bound to an OAuth draft. It never contains credentials or authorization URLs.
 - OAuth state is linked to the interaction. The same-origin callback finalizes the existing connection pipeline, posts only interaction ID/outcome to its opener, and redirects back to the task if there is no opener.
@@ -49,13 +49,13 @@ Legacy `request_confirmation.payload.connectionAuthorization` interactions remai
 
 ## Model evaluations
 
-The companion `paperclip-evals` repository owns the connection cases in
+The companion `outpost-evals` repository owns the connection cases in
 `evals/runner-api-tools/connection-cases.json`. They use the existing real-server
 API-tool eval controller and `scripts/runner-api-eval-worker.ts`, with this
 checkout's production tool definitions, connection guidance, and authority.
 Natural prompts measure discovery and request selection; explicit contract probes
 measure deduplication, readiness, and denied targets. The fixture helper supplies
-isolated company records and retains initial and final connection interaction
+isolated space records and retains initial and final connection interaction
 state. Scoring requires observed calls/results and persisted state, not an
 assistant's claim of having connected.
 
@@ -67,7 +67,7 @@ and data-read coverage.
 
 ## Custom targets, readiness and recovery
 
-Catalog slugs remain stable. Search also returns `connection:<uuid>` for configured custom connections whose active identity grants authorize the responsible person, their company, or the requesting agent. Identifiers are never interpreted as URLs. Configured metadata and tool descriptions, including catalog-provider descriptions, are read only after the company and identity audience checks. Setup choices expose only display and selection metadata; they never include connection configuration, transport settings, or credential fields. Discovery reads the stored index without refreshing providers. Search is ranked with exact provider matches first and capped at 20 results.
+Catalog slugs remain stable. Search also returns `connection:<uuid>` for configured custom connections whose active identity grants authorize the responsible person, their space, or the requesting agent. Identifiers are never interpreted as URLs. Configured metadata and tool descriptions, including catalog-provider descriptions, are read only after the space and identity audience checks. Setup choices expose only display and selection metadata; they never include connection configuration, transport settings, or credential fields. Discovery reads the stored index without refreshing providers. Search is ranked with exact provider matches first and capped at 20 results.
 
 `ready` requires an installed, enabled, healthy executable connection, permitted catalog tools, and a usable runtime identity. An installed connection with denied actions is administrative denial rather than a request to reauthenticate. Runtime calls continue enforcing access after a historical card resolves. If access is ready but the native provider's pinned tool snapshot is older, `connection_request` queues a fresh session without another authorization card.
 
@@ -81,6 +81,6 @@ Agent installation changes made by finishing setup use the same agent-edit check
 
 ## Verification
 
-Service and native-authority tests cover discovery, current identity, company boundaries, cross-run deduplication, additive grants and installs, permission denial, resolution atomicity, restart delivery and stale assignment. `tests/e2e/in-feed-native/playwright.config.ts` starts source `test-drive` instances with fresh data directories and a deterministic fake Codex provider plus MCP server. It exercises the real native runner and gateway; it is fixture proof, not live Notion or GitHub proof. Run with `pnpm exec playwright test -c tests/e2e/in-feed-native/playwright.config.ts`.
+Service and native-authority tests cover discovery, current identity, space boundaries, cross-run deduplication, additive grants and installs, permission denial, resolution atomicity, restart delivery and stale assignment. `tests/e2e/in-feed-native/playwright.config.ts` starts source `test-drive` instances with fresh data directories and a deterministic fake Codex provider plus MCP server. It exercises the real native runner and gateway; it is fixture proof, not live Notion or GitHub proof. Run with `pnpm exec playwright test -c tests/e2e/in-feed-native/playwright.config.ts`.
 
 Offline Storybook examples live in `ui/storybook/stories/connection-setup/in-feed-connections.stories.tsx`. Build with `pnpm --filter @outpost/ui build-storybook`, then run `pnpm exec playwright test -c tests/storybook-visual/in-feed-connections.config.ts`. The suite checks every independently addressable story in both themes, catches play-function failures, and saves screenshots. Live provider acceptance additionally requires a model credential and a test workspace/account; do not describe fixture results or local-trusted testing as authenticated/cloud acceptance.

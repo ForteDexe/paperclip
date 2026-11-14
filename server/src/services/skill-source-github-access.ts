@@ -15,17 +15,17 @@ function providerStatus(error: unknown): number | undefined {
 }
 
 /** Automatic access considers only this caller's grants, never connection management visibility. */
-export function skillSourceGitHubReader(db: Db, companyId: string, actor: Request['actor'], connectionId: string | null, options: { grantId?: string | null } = {}): GitHubRead {
+export function skillSourceGitHubReader(db: Db, spaceId: string, actor: Request['actor'], connectionId: string | null, options: { grantId?: string | null } = {}): GitHubRead {
   let chosen: Authorization | undefined;
   const access = toolAccessService(db);
-  const localTrusted = actor.type === 'board' && actor.source === 'local_implicit';
+  const localTrusted = actor.type === 'operator' && actor.source === 'local_implicit';
   const headers = async (authorization: Authorization, force = false): Promise<Record<string, string>> => {
     if (actor.type === 'agent') {
-      if (!actor.runId || !actor.agentId || actor.companyId !== companyId) {
+      if (!actor.runId || !actor.agentId || actor.spaceId !== spaceId) {
         if (connectionId) throw forbidden('Private GitHub skills require an authenticated agent run.');
         return {};
       }
-      const result = await resolveGitHubOperationCredentials(db, { companyId, agentId: actor.agentId, runId: actor.runId });
+      const result = await resolveGitHubOperationCredentials(db, { spaceId, agentId: actor.agentId, runId: actor.runId });
       if (result.status === 'available') {
         if (connectionId && result.connectionId !== connectionId) throw forbidden('This run cannot use the source’s saved GitHub connection. Choose the run’s authorized connection.');
         authorization.connectionId = result.connectionId ?? null;
@@ -35,16 +35,16 @@ export function skillSourceGitHubReader(db: Db, companyId: string, actor: Reques
       if (connectionId || result.status === 'unavailable') throw forbidden(result.reason ?? 'GitHub authorization is unavailable.');
       return {};
     }
-    if (actor.type !== 'board') throw forbidden('Authentication required.');
+    if (actor.type !== 'operator') throw forbidden('Authentication required.');
     if (!authorization.connectionId) return {};
-    return access.githubReadHeaders(companyId, authorization.connectionId, actor.userId ?? null, localTrusted, force, authorization.grantId);
+    return access.githubReadHeaders(spaceId, authorization.connectionId, actor.userId ?? null, localTrusted, force, authorization.grantId);
   };
   const candidates = async (): Promise<Authorization[]> => {
-    if (actor.type !== 'board') return [{ connectionId }];
-    const ids = connectionId ? [connectionId] : await access.githubReadConnectionIds(companyId, actor.userId ?? null, localTrusted);
+    if (actor.type !== 'operator') return [{ connectionId }];
+    const ids = connectionId ? [connectionId] : await access.githubReadConnectionIds(spaceId, actor.userId ?? null, localTrusted);
     const result: Authorization[] = [];
     for (const id of ids) {
-      for (const grantId of await access.githubReadGrantIds(companyId, id, actor.userId ?? null, localTrusted)) {
+      for (const grantId of await access.githubReadGrantIds(spaceId, id, actor.userId ?? null, localTrusted)) {
         if (options.grantId && options.grantId !== grantId) continue;
         result.push({ connectionId: id, grantId });
       }
@@ -70,7 +70,7 @@ export function skillSourceGitHubReader(db: Db, companyId: string, actor: Reques
           let result: T;
           try { result = await invoke(); }
           catch (error) {
-            if (providerStatus(error) !== 401 || !authorization.connectionId || actor.type !== 'board') throw error;
+            if (providerStatus(error) !== 401 || !authorization.connectionId || actor.type !== 'operator') throw error;
             result = await invoke(true);
           }
           chosen = authorization;
@@ -116,23 +116,23 @@ export function skillSourceGitHubReader(db: Db, companyId: string, actor: Reques
       return response.json();
     }, signal);
   }) as GitHubRead;
-  const callerId = actor.type === 'agent' ? `agent:${actor.agentId}` : `board:${actor.userId ?? actor.source}`;
+  const callerId = actor.type === 'agent' ? `agent:${actor.agentId}` : `operator:${actor.userId ?? actor.source}`;
   let scanLease: ReturnType<typeof limitScans> | undefined;
   read.withScan = async operation => {
-    const lease = limitScans(companyId, callerId);
+    const lease = limitScans(spaceId, callerId);
     scanLease = lease;
     try { return await operation(); }
     finally { scanLease = undefined; lease.release(); }
   };
   read.openSnapshot = async (input, options = {}) => {
     const ownsLease = !scanLease;
-    const lease = scanLease ?? limitScans(companyId, callerId);
+    const lease = scanLease ?? limitScans(spaceId, callerId);
     try {
       const snapshot = await authorized(async (values, authorization) => {
         const header = values.Authorization ?? values.authorization;
         if (header && !/^(Bearer|token)\s+\S+$/i.test(header)) throw unprocessable('Reconnect GitHub to download repositories.');
         const token = header?.replace(/^(Bearer|token)\s+/i, '') ?? '';
-        return openGitSkillSnapshot({ ...input, token, cacheScope: JSON.stringify([companyId, actor.type, actor.type === 'agent' ? actor.agentId : actor.userId, actor.type === 'agent' ? actor.runId : actor.source, authorization.connectionId, authorization.grantId]) }, { ...options, beforeDownload: lease.beforeDownload });
+        return openGitSkillSnapshot({ ...input, token, cacheScope: JSON.stringify([spaceId, actor.type, actor.type === 'agent' ? actor.agentId : actor.userId, actor.type === 'agent' ? actor.runId : actor.source, authorization.connectionId, authorization.grantId]) }, { ...options, beforeDownload: lease.beforeDownload });
       }, options.signal);
       return { ...snapshot, release: async () => { try { await snapshot.release(); } finally { if (ownsLease) lease.release(); } } };
     } catch (error) {

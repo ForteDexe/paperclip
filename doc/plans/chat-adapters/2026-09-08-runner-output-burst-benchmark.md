@@ -60,15 +60,15 @@ Measured binary SHA-256 digests:
 - Candidate: `8a61219d5b492b8bdff55600d25a8da818e5f66b095e68fbac40a8a9e7013370`
 
 The baseline is retained locally at
-`/tmp/paperclip-final-burst-cargo.YoIBsw/baseline-outpost-runnerd`; the candidate
-is `/tmp/paperclip-final-burst-cargo.YoIBsw/release/outpost-runnerd`.
+`/tmp/outpost-final-burst-cargo.YoIBsw/baseline-outpost-runnerd`; the candidate
+is `/tmp/outpost-final-burst-cargo.YoIBsw/release/outpost-runnerd`.
 These temporary binaries are not repository artifacts. The candidate used the
 optimized release profile in this isolated Cargo target, never the live target
 or staging script. The live staged binary retained the baseline digest after
 the comparison.
 
 Exact local evidence filenames, under the ignored
-`.paperclip-runtime/chat-adapters-live/runner-output-burst-benchmark-20260908/`:
+`.outpost-runtime/chat-adapters-live/runner-output-burst-benchmark-20260908/`:
 
 - `baseline.metrics.jsonl`: selected closed metric fields exported from captured
   `FINAL_BURST_BENCHMARK` stdout, execution session `62858`, 9/9 passed.
@@ -81,8 +81,8 @@ were captured by the execution tool: baseline 103.48 s, candidate 83.97 s.
 Run from `packages/outpost-runner`:
 
 ```sh
-OUTPOST_FINAL_BURST_BENCHMARK=1 OUTPOST_FINAL_BURST_REPETITIONS=3 OUTPOST_FINAL_BURST_BINARY=/tmp/paperclip-final-burst-cargo.YoIBsw/baseline-outpost-runnerd pnpm exec vitest run src/live/runnerd-final-output-burst.benchmark.test.ts
-OUTPOST_FINAL_BURST_BENCHMARK=1 OUTPOST_FINAL_BURST_REPETITIONS=3 OUTPOST_FINAL_BURST_BINARY=/tmp/paperclip-final-burst-cargo.YoIBsw/release/outpost-runnerd pnpm exec vitest run src/live/runnerd-final-output-burst.benchmark.test.ts
+OUTPOST_FINAL_BURST_BENCHMARK=1 OUTPOST_FINAL_BURST_REPETITIONS=3 OUTPOST_FINAL_BURST_BINARY=/tmp/outpost-final-burst-cargo.YoIBsw/baseline-outpost-runnerd pnpm exec vitest run src/live/runnerd-final-output-burst.benchmark.test.ts
+OUTPOST_FINAL_BURST_BENCHMARK=1 OUTPOST_FINAL_BURST_REPETITIONS=3 OUTPOST_FINAL_BURST_BINARY=/tmp/outpost-final-burst-cargo.YoIBsw/release/outpost-runnerd pnpm exec vitest run src/live/runnerd-final-output-burst.benchmark.test.ts
 ```
 
 Without `OUTPOST_FINAL_BURST_BINARY`, the test selects the existing staged
@@ -121,8 +121,8 @@ blocker. Runner no-emit TypeScript checking, fixture syntax, formatting, and
 files; actual benchmark executions provide the test-path verification.
 
 ```sh
-cargo test --manifest-path runner/Cargo.toml --locked --offline --target-dir /tmp/paperclip-final-burst-cargo.YoIBsw -j 2 -p outpost-runner-core --lib durable::runner::tests
-cargo test --manifest-path runner/Cargo.toml --locked --offline --target-dir /tmp/paperclip-final-burst-cargo.YoIBsw -j 2 -p outpost-runner-core --lib -- --test-threads=2
+cargo test --manifest-path runner/Cargo.toml --locked --offline --target-dir /tmp/outpost-final-burst-cargo.YoIBsw -j 2 -p outpost-runner-core --lib durable::runner::tests
+cargo test --manifest-path runner/Cargo.toml --locked --offline --target-dir /tmp/outpost-final-burst-cargo.YoIBsw -j 2 -p outpost-runner-core --lib -- --test-threads=2
 node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
 ```
 

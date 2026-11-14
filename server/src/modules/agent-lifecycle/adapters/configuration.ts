@@ -34,13 +34,13 @@ export async function updateAgentConfiguration(tx: Db, effects: LifecycleEffects
   const prepareEnvironment = needsNewPlugin && !current.lifecycleHolds.includes("setup");
   const prepareSetup = changed && current.lifecycleHolds.length === 1 && current.lifecycleHolds[0] === "setup"
     && ["paused", "preparing", "verifying"].includes(current.lifecycleState)
-    && await effects.setupRequiresPreparation(tx, current.companyId,
+    && await effects.setupRequiresPreparation(tx, current.spaceId,
       Object.prototype.hasOwnProperty.call(patch, "defaultEnvironmentId") ? patch.defaultEnvironmentId : current.defaultEnvironmentId,
       { adapterType: patch.adapterType ?? current.adapterType,
         adapterConfig: Object.prototype.hasOwnProperty.call(patch, "adapterConfig") ? patch.adapterConfig : current.adapterConfig });
   const invalidate = changed && (["preparing", "verifying", "resuming"].includes(current.lifecycleState) || prepareSetup || pauseForEnvironment);
-  if(prepareSetup&&!canConfigureAgentConnection(current))await effects.beforeConnectionEligibilityRestore?.(tx,current.companyId,current.id);
-  if (pauseForEnvironment) await effects.beforeStatusChange(tx, current.companyId, id, current.status, "paused");
+  if(prepareSetup&&!canConfigureAgentConnection(current))await effects.beforeConnectionEligibilityRestore?.(tx,current.spaceId,current.id);
+  if (pauseForEnvironment) await effects.beforeStatusChange(tx, current.spaceId, id, current.status, "paused");
   if (invalidate) await effects.notifyWork(tx);
   const [updated] = await tx.update(agents).set({ ...patch, updatedAt: new Date(), ...(invalidate ? {
     lifecycleVersion: current.lifecycleVersion + 1, lifecycleError: null,
@@ -54,9 +54,9 @@ export async function updateAgentConfiguration(tx: Db, effects: LifecycleEffects
       waitingForSignal: undefined, recheckRequested: undefined,
       // With no new hold, completed pause work resumes automatically, then verifies the new environment.
       ...(pauseForEnvironment ? { resumeState: "verifying" as const,
-        pauseCause: { holds: current.lifecycleHolds, companyPauseReason: null } } : {}) },
+        pauseCause: { holds: current.lifecycleHolds, spacePauseReason: null } } : {}) },
   } : {}) }).where(eq(agents.id, id)).returning();
-  if (pauseForEnvironment) await effects.recordStatus(tx, current.companyId, id, "idle", "paused");
+  if (pauseForEnvironment) await effects.recordStatus(tx, current.spaceId, id, "idle", "paused");
   await effects.completeConfiguration(tx, current, updated, patch, options, publications);
   return agentRecordQueries(tx).getById(id);
 }

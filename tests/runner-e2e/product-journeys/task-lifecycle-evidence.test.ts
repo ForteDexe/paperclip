@@ -7,15 +7,15 @@ import { validateRetainedRunnerResult } from "../result-validation.js";
 import type { RunnerE2EResult } from "../types.js";
 
 function fixture(): Parameters<typeof taskLifecycleEvidence>[0] {
-  const expected = { taskId: "task-1", companyId: "company-1", userId: "user-1", originalTitle: "Original task",
+  const expected = { taskId: "task-1", spaceId: "space-1", userId: "user-1", originalTitle: "Original task",
     revisedTitle: "Revised task", description: "Exact persisted context", labelName: "Owned label" };
-  const initial: LifecycleTask = { id: expected.taskId, companyId: expected.companyId, identifier: "QA-1", title: expected.originalTitle,
+  const initial: LifecycleTask = { id: expected.taskId, spaceId: expected.spaceId, identifier: "QA-1", title: expected.originalTitle,
     description: expected.description, status: "todo", priority: "medium", projectId: "project-1", assigneeUserId: expected.userId,
     assigneeAgentId: null, createdByUserId: expected.userId, createdByAgentId: null, labelIds: [], completedAt: null };
   const observe = (task: LifecycleTask, labelVisible: boolean): LifecycleObservation => ({ task: structuredClone(task), runCount: 0,
     titleVisible: true, descriptionVisible: true, statusVisible: true, labelVisible });
   const edited = { ...initial, title: expected.revisedTitle, status: "in_progress", labelIds: ["label-1"] };
-  return { expected, label: { id: "label-1", name: expected.labelName, companyId: expected.companyId, color: "#0088ff" },
+  return { expected, label: { id: "label-1", name: expected.labelName, spaceId: expected.spaceId, color: "#0088ff" },
     created: observe(initial, false), edited: observe(edited, true), reloaded: observe(edited, true),
     completed: observe({ ...edited, status: "done", completedAt: "2026-01-01T00:00:00.000Z" }, true),
     reopened: observe({ ...edited, status: "todo" }, true) };
@@ -50,7 +50,7 @@ describe("task lifecycle saved-state oracle", () => {
     expect(result.uneditedFieldsPreserved).toBe(false);
     expect(Object.values(result).every(Boolean)).toBe(false);
   });
-  it.each(["id", "companyId", "assigneeUserId", "assigneeAgentId", "createdByUserId", "createdByAgentId", "description"] as const)(
+  it.each(["id", "spaceId", "assigneeUserId", "assigneeAgentId", "createdByUserId", "createdByAgentId", "description"] as const)(
     "rejects a wrong owner or saved context field: %s", key => {
       const input = fixture(); Object.assign(input.reopened.task!, { [key]: "foreign" });
       expect(taskLifecycleEvidence(input).completedAndReopened).toBe(false);
@@ -99,7 +99,7 @@ describe("task lifecycle saved-state oracle", () => {
       (input: ReturnType<typeof fixture>) => { input.created.task!.labelIds = ["existing"]; },
       (input: ReturnType<typeof fixture>) => { input.created.task!.status = "done"; },
       (input: ReturnType<typeof fixture>) => { input.label = null; },
-      (input: ReturnType<typeof fixture>) => { input.label!.companyId = "foreign"; },
+      (input: ReturnType<typeof fixture>) => { input.label!.spaceId = "foreign"; },
       (input: ReturnType<typeof fixture>) => { input.label!.name = "Other label"; },
       (input: ReturnType<typeof fixture>) => { input.label!.color = "invalid"; },
       (input: ReturnType<typeof fixture>) => { input.expected.revisedTitle = input.expected.originalTitle; },

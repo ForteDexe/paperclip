@@ -17,7 +17,7 @@ import { badRequest, HttpError, notFound, unprocessable } from "../errors.js";
 import { workspaceFileResourceService } from "../services/workspace-file-resources.js";
 import type { PreparedWorkspaceFileDownload } from "../services/workspace-file-resources.js";
 import type { RemoteWorkspaceFiles } from "../services/remote-workspace-files.js";
-import { assertBoard, getActorInfo, hasCompanyAccess } from "./authz.js";
+import { assertOperator, getActorInfo, hasSpaceAccess } from "./authz.js";
 import { logActivity } from "../services/activity-log.js";
 import {
   isWorkspaceGitScanError,
@@ -26,7 +26,7 @@ import {
 
 export type WorkspaceFileResourceService = {
   resolveIssueId(rawId: string): Promise<string>;
-  getIssue(issueId: string): Promise<{ companyId: string }>;
+  getIssue(issueId: string): Promise<{ spaceId: string }>;
   availability(
     issueId: string,
     input: WorkspaceFileAvailabilityRequestInput,
@@ -139,8 +139,8 @@ export function createFileResourceAvailabilityLimiter(opts: {
   });
 }
 
-function limiterKey(companyId: string, actorId: string, issueId: string) {
-  return `${companyId}:${actorId}:${issueId}`;
+function limiterKey(spaceId: string, actorId: string, issueId: string) {
+  return `${spaceId}:${actorId}:${issueId}`;
 }
 
 function requestAbortController(req: Request, res: Response) {
@@ -365,10 +365,10 @@ export function fileResourceRoutes(db: Db, opts: {
   const availabilityLimiter = opts.availabilityLimiter ?? createFileResourceAvailabilityLimiter();
 
   // Resolve issue identifiers (e.g. "PAP-39") to UUIDs, matching the issues router.
-  // Only board actors can use these routes. Other actors keep the raw value so a
+  // Only operator actors can use these routes. Other actors keep the raw value so a
   // denied request's activity row never records the UUID behind a guessed identifier.
   router.param("issueId", async (req, _res, next, rawId) => {
-    if (req.actor.type !== "board") {
+    if (req.actor.type !== "operator") {
       next();
       return;
     }
@@ -381,7 +381,7 @@ export function fileResourceRoutes(db: Db, opts: {
   });
 
   async function logAvailabilityAttempt(input: {
-    companyId: string;
+    spaceId: string;
     actor: ReturnType<typeof getActorInfo>;
     issueId: string;
     outcome: "success" | "denied";
@@ -391,7 +391,7 @@ export function fileResourceRoutes(db: Db, opts: {
   }) {
     const openableCount = input.result?.results.filter((result) => result.openable).length;
     await logActivity(db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: input.actor.actorType,
       actorId: input.actor.actorId,
       action: input.outcome === "success"
@@ -414,7 +414,7 @@ export function fileResourceRoutes(db: Db, opts: {
   }
 
   async function logDeniedAttempt(input: {
-    companyId: string;
+    spaceId: string;
     actor: ReturnType<typeof getActorInfo>;
     issueId: string;
     displayPath: string;
@@ -424,7 +424,7 @@ export function fileResourceRoutes(db: Db, opts: {
     action?: "issue.file_resource_content_denied" | "issue.file_resource_resolve_denied" | "issue.file_resource_download_denied";
   }) {
     await logActivity(db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: input.actor.actorType,
       actorId: input.actor.actorId,
       action: input.action ?? "issue.file_resource_content_denied",
@@ -443,7 +443,7 @@ export function fileResourceRoutes(db: Db, opts: {
   }
 
   async function logListDeniedAttempt(input: {
-    companyId: string;
+    spaceId: string;
     actor: ReturnType<typeof getActorInfo>;
     issueId: string;
     query: { workspace: "auto" | "execution" | "project"; mode: "all" | "recent" | "changed" };
@@ -451,7 +451,7 @@ export function fileResourceRoutes(db: Db, opts: {
     error: unknown;
   }) {
     await logActivity(db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       actorType: input.actor.actorType,
       actorId: input.actor.actorId,
       action: "issue.file_resource_list_denied",
@@ -473,11 +473,11 @@ export function fileResourceRoutes(db: Db, opts: {
   router.post("/issues/:issueId/file-resources/availability", async (req, res) => {
     const requestedCount = safeAvailabilityRequestCount(req.body);
     try {
-      assertBoard(req);
+      assertOperator(req);
     } catch (error) {
-      if (req.actor.type === "agent" && req.actor.companyId) {
+      if (req.actor.type === "agent" && req.actor.spaceId) {
         await logAvailabilityAttempt({
-          companyId: req.actor.companyId,
+          spaceId: req.actor.spaceId,
           actor: getActorInfo(req),
           issueId: req.params.issueId,
           outcome: "denied",
@@ -490,10 +490,10 @@ export function fileResourceRoutes(db: Db, opts: {
 
     const issue = await serviceFor(req).getIssue(req.params.issueId);
     const actor = getActorInfo(req);
-    if (!hasCompanyAccess(req, issue.companyId)) {
+    if (!hasSpaceAccess(req, issue.spaceId)) {
       const error = notFound("Issue not found");
       await logAvailabilityAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         outcome: "denied",
@@ -508,7 +508,7 @@ export function fileResourceRoutes(db: Db, opts: {
       body = readAvailabilityBody(req.body);
     } catch (error) {
       await logAvailabilityAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         outcome: "denied",
@@ -520,10 +520,10 @@ export function fileResourceRoutes(db: Db, opts: {
 
     let release: (() => void) | null = null;
     try {
-      release = availabilityLimiter.acquire(limiterKey(issue.companyId, actor.actorId, req.params.issueId));
+      release = availabilityLimiter.acquire(limiterKey(issue.spaceId, actor.actorId, req.params.issueId));
       const result = await serviceFor(req).availability(req.params.issueId, body, { issue });
       await logAvailabilityAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         outcome: "success",
@@ -533,7 +533,7 @@ export function fileResourceRoutes(db: Db, opts: {
       res.json(result);
     } catch (error) {
       await logAvailabilityAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         outcome: "denied",
@@ -550,11 +550,11 @@ export function fileResourceRoutes(db: Db, opts: {
     const auditQuery = safeListAuditQuery(req.query);
     const auditTarget = safeAuditTarget(req.query);
     try {
-      assertBoard(req);
+      assertOperator(req);
     } catch (error) {
-      if (req.actor.type === "agent" && req.actor.companyId) {
+      if (req.actor.type === "agent" && req.actor.spaceId) {
         await logListDeniedAttempt({
-          companyId: req.actor.companyId,
+          spaceId: req.actor.spaceId,
           actor: getActorInfo(req),
           issueId: req.params.issueId,
           query: auditQuery,
@@ -567,13 +567,13 @@ export function fileResourceRoutes(db: Db, opts: {
     const issue = await serviceFor(req).getIssue(req.params.issueId);
     const actor = getActorInfo(req);
     try {
-      if (!hasCompanyAccess(req, issue.companyId)) {
+      if (!hasSpaceAccess(req, issue.spaceId)) {
         // Same 404 as a missing issue so cross-tenant probes can't tell them apart.
         throw notFound("Issue not found");
       }
     } catch (error) {
       await logListDeniedAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         query: auditQuery,
@@ -588,7 +588,7 @@ export function fileResourceRoutes(db: Db, opts: {
       query = readListQuery(req.query);
     } catch (error) {
       await logListDeniedAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         query: auditQuery,
@@ -600,10 +600,10 @@ export function fileResourceRoutes(db: Db, opts: {
 
     let release: (() => void) | null = null;
     try {
-      release = listLimiter.acquire(limiterKey(issue.companyId, actor.actorId, req.params.issueId));
+      release = listLimiter.acquire(limiterKey(issue.spaceId, actor.actorId, req.params.issueId));
     } catch (error) {
       await logListDeniedAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         query,
@@ -620,14 +620,14 @@ export function fileResourceRoutes(db: Db, opts: {
         scanContext: {
           signal: requestAbort.signal,
           fairnessKeys: [
-            `company:${issue.companyId}`,
+            `space:${issue.spaceId}`,
             `actor:${actor.actorId}`,
             `issue:${req.params.issueId}`,
           ],
         },
       });
       await logActivity(db, {
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         action: "issue.file_resource_list",
@@ -664,7 +664,7 @@ export function fileResourceRoutes(db: Db, opts: {
         res.setHeader("Retry-After", "1");
       }
       await logListDeniedAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         query,
@@ -681,11 +681,11 @@ export function fileResourceRoutes(db: Db, opts: {
   router.get("/issues/:issueId/file-resources/resolve", async (req, res) => {
     const auditTarget = safeAuditTarget(req.query);
     try {
-      assertBoard(req);
+      assertOperator(req);
     } catch (error) {
-      if (req.actor.type === "agent" && req.actor.companyId) {
+      if (req.actor.type === "agent" && req.actor.spaceId) {
         await logDeniedAttempt({
-          companyId: req.actor.companyId,
+          spaceId: req.actor.spaceId,
           actor: getActorInfo(req),
           issueId: req.params.issueId,
           displayPath: safeAuditDisplayPath(req.query),
@@ -700,13 +700,13 @@ export function fileResourceRoutes(db: Db, opts: {
     const issue = await serviceFor(req).getIssue(req.params.issueId);
     const actor = getActorInfo(req);
     try {
-      if (!hasCompanyAccess(req, issue.companyId)) {
+      if (!hasSpaceAccess(req, issue.spaceId)) {
         // Same 404 as a missing issue so cross-tenant probes can't tell them apart.
         throw notFound("Issue not found");
       }
     } catch (error) {
       await logDeniedAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         displayPath: safeAuditDisplayPath(req.query),
@@ -722,7 +722,7 @@ export function fileResourceRoutes(db: Db, opts: {
       query = readQuery(req.query);
     } catch (error) {
       await logDeniedAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         displayPath: safeAuditDisplayPath(req.query),
@@ -735,10 +735,10 @@ export function fileResourceRoutes(db: Db, opts: {
     }
     let release: (() => void) | null = null;
     try {
-      release = limiter.acquire(limiterKey(issue.companyId, actor.actorId, req.params.issueId));
+      release = limiter.acquire(limiterKey(issue.spaceId, actor.actorId, req.params.issueId));
     } catch (error) {
       await logDeniedAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         displayPath: query.path,
@@ -752,7 +752,7 @@ export function fileResourceRoutes(db: Db, opts: {
     try {
       const result = await serviceFor(req).resolve(req.params.issueId, query, { issue });
       await logActivity(db, {
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         action: "issue.file_resource_resolve",
@@ -776,7 +776,7 @@ export function fileResourceRoutes(db: Db, opts: {
       res.json(result);
     } catch (error) {
       await logDeniedAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         displayPath: query.path,
@@ -794,11 +794,11 @@ export function fileResourceRoutes(db: Db, opts: {
   router.get("/issues/:issueId/file-resources/content", async (req, res) => {
     const auditTarget = safeAuditTarget(req.query);
     try {
-      assertBoard(req);
+      assertOperator(req);
     } catch (error) {
-      if (req.actor.type === "agent" && req.actor.companyId) {
+      if (req.actor.type === "agent" && req.actor.spaceId) {
         await logDeniedAttempt({
-          companyId: req.actor.companyId,
+          spaceId: req.actor.spaceId,
           actor: getActorInfo(req),
           issueId: req.params.issueId,
           displayPath: safeAuditDisplayPath(req.query),
@@ -812,13 +812,13 @@ export function fileResourceRoutes(db: Db, opts: {
     const issue = await serviceFor(req).getIssue(req.params.issueId);
     const actor = getActorInfo(req);
     try {
-      if (!hasCompanyAccess(req, issue.companyId)) {
+      if (!hasSpaceAccess(req, issue.spaceId)) {
         // Same 404 as a missing issue so cross-tenant probes can't tell them apart.
         throw notFound("Issue not found");
       }
     } catch (error) {
       await logDeniedAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         displayPath: safeAuditDisplayPath(req.query),
@@ -833,7 +833,7 @@ export function fileResourceRoutes(db: Db, opts: {
       query = readQuery(req.query);
     } catch (error) {
       await logDeniedAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         displayPath: safeAuditDisplayPath(req.query),
@@ -845,10 +845,10 @@ export function fileResourceRoutes(db: Db, opts: {
     }
     let release: (() => void) | null = null;
     try {
-      release = limiter.acquire(limiterKey(issue.companyId, actor.actorId, req.params.issueId));
+      release = limiter.acquire(limiterKey(issue.spaceId, actor.actorId, req.params.issueId));
     } catch (error) {
       await logDeniedAttempt({
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actor,
         issueId: req.params.issueId,
         displayPath: query.path,
@@ -865,7 +865,7 @@ export function fileResourceRoutes(db: Db, opts: {
           result = await serviceFor(req).prepareDownload(req.params.issueId, query, { issue });
         } catch (error) {
           await logDeniedAttempt({
-            companyId: issue.companyId,
+            spaceId: issue.spaceId,
             actor,
             issueId: req.params.issueId,
             displayPath: query.path,
@@ -879,7 +879,7 @@ export function fileResourceRoutes(db: Db, opts: {
 
         try {
           await logActivity(db, {
-            companyId: issue.companyId,
+            spaceId: issue.spaceId,
             actorType: actor.actorType,
             actorId: actor.actorId,
             action: "issue.file_resource_download",
@@ -918,7 +918,7 @@ export function fileResourceRoutes(db: Db, opts: {
         result = await serviceFor(req).readContent(req.params.issueId, query, { issue });
       } catch (error) {
         await logDeniedAttempt({
-          companyId: issue.companyId,
+          spaceId: issue.spaceId,
           actor,
           issueId: req.params.issueId,
           displayPath: query.path,
@@ -931,7 +931,7 @@ export function fileResourceRoutes(db: Db, opts: {
 
       if (!result) throw unprocessable("Workspace file cannot be previewed");
       await logActivity(db, {
-        companyId: issue.companyId,
+        spaceId: issue.spaceId,
         actorType: actor.actorType,
         actorId: actor.actorId,
         action: "issue.file_resource_content_read",

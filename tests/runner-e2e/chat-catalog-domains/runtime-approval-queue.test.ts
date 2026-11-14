@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { gradeApprovalQueue, leadRelayEntries, ordinaryApprovalEntries, pendingInputYield } from "./runtime-approval-queue.js";
 function valid() {
   const payload = { questionSet: { questions: [{ id: "name", prompt: "What is the product name?" }] } };
-  return { scenarioId: "steering.approval-delivery", companyId: "company", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "", tasks: [{ id: "website" }], activity: [],
+  return { scenarioId: "steering.approval-delivery", spaceId: "space", leadId: "ceo", agents: [], links: [], humanQueries: [], reply: "", tasks: [{ id: "website" }], activity: [],
     runs: [{ id: "asked", status: "succeeded" }, { id: "prior", status: "succeeded" }, { id: "canonical", status: "succeeded" }, { id: "consumer", status: "succeeded" }],
     state: { task: { id: "website" }, worker: { id: "morgan" }, humanId: "human", questionRunId: "asked", questionRunYielded: true, workerRunId: "prior", workerWasReallyWaiting: true, ordinaryQueueOwned: true, ordinaryQueuedBeforeAnswer: true,
       questionBefore: { id: "question", kind: "ask_user_questions", status: "pending", issueId: "website", createdByAgentId: "morgan", sourceRunId: "asked", payload },

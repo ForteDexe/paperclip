@@ -20,7 +20,7 @@ describe("native harness backup publication", () => {
     await fs.mkdir(current); await fs.mkdir(pendingRoot);
     await fs.writeFile(path.join(current, "manifest.json"), "saved");
     await fs.writeFile(path.join(pendingRoot, "manifest.json"), "replacement");
-    return { db: {}, companyId: "company", scopeDigest: "scope", backupRoot, pendingRoot, current };
+    return { db: {}, spaceId: "space", scopeDigest: "scope", backupRoot, pendingRoot, current };
   }
   it("restores the existing backup when its lease stamp fails without publishing a false change", async () => {
     const input = await fixture(); const changes: unknown[] = [];
@@ -51,7 +51,7 @@ describe("native harness backup publication", () => {
     } });
     expect(await fs.readFile(path.join(input.current, "manifest.json"), "utf8")).toBe("replacement");
     expect(await fs.readdir(backupRoot)).toEqual(["current"]);
-    expect(changes).toEqual([{ companyId: input.companyId, scopeDigest: input.scopeDigest }]);
+    expect(changes).toEqual([{ spaceId: input.spaceId, scopeDigest: input.scopeDigest }]);
   });
   it("restores the old current directory when the pending rename fails", async () => {
     const input = await fixture(); const changes: unknown[] = [];

@@ -33,7 +33,7 @@ leaves outbox rows intact and does not attempt notification delivery.
 ## Work and deadlines
 
 Pending outbox rows are due for delivery. Each pass claims up to 500 rows and
-groups them by company and origin agent, preserving company scope and the
+groups them by space and origin agent, preserving space scope and the
 existing notification payload. Failed or remaining pending rows retain a
 30-second retry. Never-attempted rows sort first, then the oldest attempts, so
 one failing batch cannot repeatedly hide later rows.
@@ -80,8 +80,8 @@ hour of controlled time. Workspace typecheck and build pass.
 
 The first 52-case selection passed. Adding fault/concurrency tests then exposed
 two fixture errors: duplicate globally unique issue identifiers across two seeded
-companies, and asserting quiet before rollback reconciliation had run. Seeded
-identifiers now use their company prefix; quiet checks advance the retained retry
+spaces, and asserting quiet before rollback reconciliation had run. Seeded
+identifiers now use their space prefix; quiet checks advance the retained retry
 and await authoritative settlement. All 54 cases passed on rerun. No production
 hold, recovery deadline, or timeout was weakened. Full repository CI and fresh
 review are required before this PR is ready.

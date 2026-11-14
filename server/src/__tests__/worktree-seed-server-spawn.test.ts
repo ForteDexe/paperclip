@@ -71,9 +71,9 @@ function verifiedSeedResult() {
       credentialAccountCount: 1,
       instanceAdminCount: 1,
       activeMembershipCount: 1,
-      companyCount: 1,
+      spaceCount: 1,
       issueCount: 1,
-      representativeCompanyId: "00000000-0000-4000-8000-000000000001",
+      representativeSpaceId: "00000000-0000-4000-8000-000000000001",
       representativeIssueId: "00000000-0000-4000-8000-000000000002",
       migrationRevision: "0223_test.sql",
     },
@@ -92,11 +92,11 @@ afterEach(async () => {
 
 describe("managed worktree seed source through the server spawn path", () => {
   it("preserves an explicitly empty instance during managed startup before its first database boot", async () => {
-    const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-server-empty-worktree-")));
+    const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "outpost-server-empty-worktree-")));
     cleanup.push(tempRoot);
     const baseCwd = path.join(tempRoot, "source");
     const cwd = path.join(tempRoot, "empty");
-    const sourceConfigPath = path.join(baseCwd, ".paperclip", "config.json");
+    const sourceConfigPath = path.join(baseCwd, ".outpost", "config.json");
     await writeConfig(sourceConfigPath, "registered-source");
     await fs.mkdir(cwd, { recursive: true });
     await fs.mkdir(path.join(baseCwd, "scripts"), { recursive: true });
@@ -106,13 +106,13 @@ describe("managed worktree seed source through the server spawn path", () => {
     try {
       process.chdir(cwd);
       await worktreeInitCommand({ empty: true, fromConfig: sourceConfigPath, home: path.join(tempRoot, "instances") });
-      const configPath = path.join(cwd, ".paperclip", "config.json");
+      const configPath = path.join(cwd, ".outpost", "config.json");
       const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
       const startup = await execFileAsync(process.execPath, [path.join(repoRoot, "cli/node_modules/tsx/dist/cli.mjs"), "--eval", `
         void (async () => {
           const fs = await import('node:fs');
           const dotenv = (await import(${JSON.stringify(pathToFileURL(path.join(repoRoot, "server/node_modules/dotenv/lib/main.js")).href)})).default;
-          const envPath = ${JSON.stringify(path.join(cwd, ".paperclip", ".env"))};
+          const envPath = ${JSON.stringify(path.join(cwd, ".outpost", ".env"))};
           const saved = dotenv.parse(fs.readFileSync(envPath));
           await import(${JSON.stringify(pathToFileURL(path.join(repoRoot, "server/src/config.ts")).href)});
           const repaired = dotenv.parse(fs.readFileSync(envPath));
@@ -136,7 +136,7 @@ describe("managed worktree seed source through the server spawn path", () => {
         .toBe("./install-dependencies.sh");
       process.env.OUTPOST_WORKSPACE_BASE_CWD = baseCwd;
       process.env.OUTPOST_PROJECT_WORKSPACE_ID = "project-workspace-1";
-      process.env.OUTPOST_SEED_EXPECTED_COMPANY_ID = "company-1";
+      process.env.OUTPOST_SEED_EXPECTED_SPACE_ID = "space-1";
       const seedDatabase = vi.fn(async () => verifiedSeedResult());
       const inspectLegacyDatabase = vi.fn(async () => null);
       await expect(ensureWorktreeSeeded({ config: configPath }, { seedDatabase, inspectLegacyDatabase }))
@@ -150,7 +150,7 @@ describe("managed worktree seed source through the server spawn path", () => {
       });
       expect(provision.stderr).toContain("explicitly empty");
       expect(readWorktreeSeedManifest(configPath)).toBeNull();
-      await expect(fs.stat(path.join(cwd, ".paperclip", "seed-pending"))).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(fs.stat(path.join(cwd, ".outpost", "seed-pending"))).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       process.chdir(originalCwd);
       for (const key of Object.keys(process.env)) if (!(key in originalEnv)) delete process.env[key];
@@ -159,22 +159,22 @@ describe("managed worktree seed source through the server spawn path", () => {
   });
 
   it("re-derives an ambient-instance manifest written before provisioning", async () => {
-    const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-server-seed-source-")));
+    const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "outpost-server-seed-source-")));
     cleanup.push(tempRoot);
     const repoRoot = path.join(tempRoot, "repo");
     const hooksDir = path.join(tempRoot, "hooks");
     const ambientConfigPath = path.join(tempRoot, "ambient", "config.json");
-    const registeredConfigPath = path.join(repoRoot, ".paperclip", "config.json");
+    const registeredConfigPath = path.join(repoRoot, ".outpost", "config.json");
     const worktreeHome = path.join(tempRoot, "worktree-home");
 
     await fs.mkdir(repoRoot, { recursive: true });
     await runGit(repoRoot, ["init", "-q"]);
-    await runGit(repoRoot, ["config", "user.email", "paperclip@example.com"]);
-    await runGit(repoRoot, ["config", "user.name", "Paperclip Test"]);
+    await runGit(repoRoot, ["config", "user.email", "outpost@example.com"]);
+    await runGit(repoRoot, ["config", "user.name", "Outpost Test"]);
     await fs.mkdir(path.join(repoRoot, "scripts"), { recursive: true });
     await fs.writeFile(path.join(repoRoot, "README.md"), "server spawn regression\n", "utf8");
     await fs.copyFile(
-      fileURLToPath(new URL("../../../scripts/setup-paperclip-worktree.sh", import.meta.url)),
+      fileURLToPath(new URL("../../../scripts/setup-outpost-worktree.sh", import.meta.url)),
       path.join(repoRoot, "scripts", "provision-worktree.sh"),
     );
     await fs.chmod(path.join(repoRoot, "scripts", "provision-worktree.sh"), 0o755);
@@ -197,7 +197,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const cwd = process.cwd();
 if (cwd === ${JSON.stringify(repoRoot)}) process.exit(0);
-const stateDir = path.join(cwd, ".paperclip");
+const stateDir = path.join(cwd, ".outpost");
 const normalized = path.basename(cwd).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^[-_]+|[-_]+$/g, "");
 const instanceId = \`${"${(normalized || \"worktree\").slice(0, 48)}"}-\${crypto.createHash("sha256").update(path.resolve(cwd)).digest("hex").slice(0, 12)}\`;
 const targetConfigPath = path.join(stateDir, "config.json");
@@ -271,24 +271,24 @@ fs.writeFileSync(path.join(stateDir, "seed-manifest.json"), JSON.stringify({
         identifier: "PAP-17681",
         title: "Recover ambient seed source",
       },
-      agent: { id: "agent-1", name: "Coder", companyId: "company-1" },
+      agent: { id: "agent-1", name: "Coder", spaceId: "space-1" },
     });
 
-    expect(readWorktreeSeedManifest(path.join(workspace.cwd, ".paperclip", "config.json"))).toMatchObject({
+    expect(readWorktreeSeedManifest(path.join(workspace.cwd, ".outpost", "config.json"))).toMatchObject({
       source: { instanceId: "ambient-instance", configPath: ambientConfigPath },
       state: "pending",
     });
 
     await expect(ensureWorktreeSeeded({
-      config: path.join(workspace.cwd, ".paperclip", "config.json"),
+      config: path.join(workspace.cwd, ".outpost", "config.json"),
       registeredBaseWorkspaceCwd: repoRoot,
       registeredProjectWorkspaceId: "project-workspace-1",
-      expectedCompanyId: "company-1",
+      expectedSpaceId: "space-1",
     }, {
       seedDatabase: async () => verifiedSeedResult(),
     })).resolves.toMatchObject({ seeded: true, reason: "seeded" });
 
-    expect(readWorktreeSeedManifest(path.join(workspace.cwd, ".paperclip", "config.json"))).toMatchObject({
+    expect(readWorktreeSeedManifest(path.join(workspace.cwd, ".outpost", "config.json"))).toMatchObject({
       source: { instanceId: "registered-source", configPath: registeredConfigPath },
       state: "verified",
       phase: "complete",

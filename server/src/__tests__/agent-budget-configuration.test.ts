@@ -3,24 +3,24 @@ import type { Db } from "@outpost/db";
 import type { AgentConfigurationRecord } from "../lib/agent-records.js";
 import { prepareAgentConfiguration } from "../services/agent-configuration.js";
 
-const existing = { id: "agent", companyId: "company", status: "idle", budgetMonthlyCents: 500 } as AgentConfigurationRecord;
+const existing = { id: "agent", spaceId: "space", status: "idle", budgetMonthlyCents: 500 } as AgentConfigurationRecord;
 // Preparation queues retention work through the database before reading the patch.
 const fakeDb = () => ({
   execute: async () => [],
   select: () => ({ from: () => ({ where: () => ({
-    orderBy: async () => [{ id: "ceo", companyId: "company", permissions: {} }],
+    orderBy: async () => [{ id: "lead", spaceId: "space", permissions: {} }],
   }) }) }),
 }) as unknown as Db;
 describe("budget authority in configuration preparation", () => {
   it("rejects agent-originated budget changes before persistence or policy audit", async () => {
     const db = fakeDb();
-    await expect(prepareAgentConfiguration(db, existing, { budgetMonthlyCents: 5000 }, { recordRevision: { createdByAgentId: "ceo" } })).rejects.toMatchObject({ status: 403 });
-    await expect(prepareAgentConfiguration(db, existing, { budgetMonthlyCents: 0 }, { recordRevision: { createdByAgentId: "ceo" } })).rejects.toMatchObject({ status: 403 });
+    await expect(prepareAgentConfiguration(db, existing, { budgetMonthlyCents: 5000 }, { recordRevision: { createdByAgentId: "lead" } })).rejects.toMatchObject({ status: 403 });
+    await expect(prepareAgentConfiguration(db, existing, { budgetMonthlyCents: 0 }, { recordRevision: { createdByAgentId: "lead" } })).rejects.toMatchObject({ status: 403 });
   });
-  it("removes an unchanged legacy budget from agent rollback so it cannot rewrite policy or invent a board actor", async () => {
-    expect(await prepareAgentConfiguration(fakeDb(), existing, { budgetMonthlyCents: 500 }, { recordRevision: { createdByAgentId: "ceo", source: "rollback" } })).toEqual({});
+  it("removes an unchanged legacy budget from agent rollback so it cannot rewrite policy or invent a operator actor", async () => {
+    expect(await prepareAgentConfiguration(fakeDb(), existing, { budgetMonthlyCents: 500 }, { recordRevision: { createdByAgentId: "lead", source: "rollback" } })).toEqual({});
   });
-  it("preserves the actual board-authorized amount for the existing policy writer", async () => {
+  it("preserves the actual operator-authorized amount for the existing policy writer", async () => {
     expect(await prepareAgentConfiguration(fakeDb(), existing, { budgetMonthlyCents: 5000 }, { recordRevision: { createdByUserId: "operator-user" } })).toEqual({ budgetMonthlyCents: 5000 });
   });
 });

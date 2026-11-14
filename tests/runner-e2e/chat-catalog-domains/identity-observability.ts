@@ -1,4 +1,4 @@
-import { waitForCompanySettingsTurn } from "./identity-company-observer.js";
+import { waitForSpaceSettingsTurn } from "./identity-space-observer.js";
 import { privateIdentityBrowser } from "./identity-private-browser.js";
 import { createServer, type Server } from "node:http";
 import { randomBytes, createHash } from "node:crypto";
@@ -38,12 +38,12 @@ export function gradeObservability(value: unknown) {
   c.add("off-until-human-opt-in", o.state.beforeSettings === null && o.state.afterReplySettings === null && o.state.beforeConfiguredCalls === 0 && o.state.agentWriteStatus === 403
     && saved?.settings?.enabled === true && saved.settings.destination.provider === "otlp" && saved.settings.destination.endpointBaseUrl === o.state.collectorUrl
     && saved.settings.headerNames.includes("authorization") && saved.settings.credentialsConfigured && o.state.publicSettingsContainsKey === false,
-    "The actual company has no export before the authorized human configures its synthetic collector and secure ingestion header; agent writes are denied and public readback contains no secret.");
+    "The actual space has no export before the authorized human configures its synthetic collector and secure ingestion header; agent writes are denied and public readback contains no secret.");
   c.add("actual-selected-delivery-test", receipt?.status === "accepted" && receipt.source === "control_plane" && receipt.revision === saved?.settings?.revision
     && ["logs", "traces"].every(signal => receipt.signals[signal as "logs" | "traces"].status === "accepted") && o.state.collectorMatchedTestSignals === 2,
-    "Both actual protobuf signal deliveries contain the exact control-plane test marker, company, revision and private ingestion authentication; a successful settings save is not delivery proof.");
+    "Both actual protobuf signal deliveries contain the exact control-plane test marker, space, revision and private ingestion authentication; a successful settings save is not delivery proof.");
   c.add("real-coding-agent-export", o.state.nativeExportMatched === true && o.state.enabledNativeRunCount === 2 && o.runs.length === 3 && o.runs.every(run => run.status === "succeeded" && run.runtimeMode === "native"),
-    "An actual second native agent turn exports its company/agent/revision records to the selected synthetic collector; control-plane samples alone cannot prove coding-agent export.");
+    "An actual second native agent turn exports its space/agent/revision records to the selected synthetic collector; control-plane samples alone cannot prove coding-agent export.");
   c.add("disabled-stops-future-export", o.state.disabledSaved === true && o.state.disabledNativeRunCount === 3 && o.state.callsAfterDisabledRun === o.state.callsAtDisable
     && o.state.disabledCallsDidNotIncrease === true,
     "The explicit human Disable export control persists, then a third actual native turn completes without another collector delivery.");
@@ -54,20 +54,20 @@ export function gradeObservability(value: unknown) {
     "An actual answer exists; the trace-only export path is proven by the collector receipts, and the reply's wording is left to a human reader.");
   return c.result();
 }
-export const observabilityIdentityCases: readonly ChatCatalogCase[] = [identityDefinition("companies.agent-observability", async ctx => {
-  const before = await ctx.input.api.get<AgentObservabilitySettingsResponse>(`/api/companies/${ctx.input.fixtures.company.id}/observability`);
+export const observabilityIdentityCases: readonly ChatCatalogCase[] = [identityDefinition("spaces.agent-observability", async ctx => {
+  const before = await ctx.input.api.get<AgentObservabilitySettingsResponse>(`/api/spaces/${ctx.input.fixtures.space.id}/observability`);
   if (!before.canManage || before.settings !== null || !ctx.input.privateSecrets) throw new Error("Setup blocker: the real human must manage an initially unconfigured trace destination");
   const target = await collector(); collectors.set(ctx, target); ctx.input.privateSecrets.push(target.key);
   return { beforeSettings: before.settings, collectorUrl: target.url, syntheticCollector: true };
 }, gradeObservability, {
   authentication: "human-session", oracleVersion: "outpost.chat-catalog.agent-observability.structural.v3", expectedRunCount: 3, expectedHumanMessageCount: 3, attemptTimeoutMs: 600_000,
-  sourceFiles: ["chat-catalog-domains/identity-observability.ts", "chat-catalog-domains/identity-company-observer.ts", "chat-catalog-domains/identity-private-browser.ts", "chat-catalog-domains/identity-private-browser-worker.ts", "chat-catalog-domains/identity-wizard.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/companies.yaml"],
+  sourceFiles: ["chat-catalog-domains/identity-observability.ts", "chat-catalog-domains/identity-space-observer.ts", "chat-catalog-domains/identity-private-browser.ts", "chat-catalog-domains/identity-private-browser-worker.ts", "chat-catalog-domains/identity-wizard.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/spaces.yaml"],
   async act(ctx, state) {
-    await waitForCompanySettingsTurn(ctx); const target = collectors.get(ctx); if (!target) throw new Error("Owned synthetic collector is missing");
-    const root = `/api/companies/${ctx.input.fixtures.company.id}/observability`; const source = ctx.input.page.url();
+    await waitForSpaceSettingsTurn(ctx); const target = collectors.get(ctx); if (!target) throw new Error("Owned synthetic collector is missing");
+    const root = `/api/spaces/${ctx.input.fixtures.space.id}/observability`; const source = ctx.input.page.url();
     state.afterReplySettings = (await ctx.input.api.get<AgentObservabilitySettingsResponse>(root)).settings; state.beforeConfiguredCalls = target.received.length;
     state.agentWriteStatus = await probeAgentPermission(ctx, root, "PUT", { expectedRevision: null, enabled: true, destination: { provider: "otlp", endpointBaseUrl: target.url }, credentials: { mode: "replace", headers: [] }, capture: { userPrompts: false, assistantResponses: false, toolDetails: false, toolContent: false } });
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/company/settings`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/space/settings`, { waitUntil: "domcontentloaded" });
     const section = ctx.input.page.locator('section[aria-labelledby="agent-observability-heading"]');
     await privateIdentityBrowser({ kind: "observability", origin: ctx.input.api.baseURL, startPath: ctx.input.page.url(), cookies: await ctx.input.page.context().cookies(ctx.input.api.baseURL), endpoint: target.url, credential: `Bearer ${target.key}` });
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
@@ -77,17 +77,17 @@ export const observabilityIdentityCases: readonly ChatCatalogCase[] = [identityD
     await section.getByRole("button", { name: "Test saved settings", exact: true }).click(); const receipt = await (await response).json() as AgentObservabilityTestReceipt; state.testReceipt = receipt;
     await expect(section.getByText("Test payload accepted", { exact: true })).toBeVisible();
     state.collectorMatchedTestSignals = ["/v1/logs", "/v1/traces"].filter(signal => target.received.some(row => row.path === signal && row.authenticated && row.body.includes(receipt.marker)
-      && row.body.includes(ctx.input.fixtures.company.id) && row.body.includes(receipt.revision))).length;
+      && row.body.includes(ctx.input.fixtures.space.id) && row.body.includes(receipt.revision))).length;
     await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" }); await sendChatMessage(ctx.input.page, "Please acknowledge that our test collector configuration is saved. Do not change its settings.");
-    await waitForCompanySettingsTurn(ctx, 2); state.enabledNativeRunCount = (await ctx.allRuns()).length;
+    await waitForSpaceSettingsTurn(ctx, 2); state.enabledNativeRunCount = (await ctx.allRuns()).length;
     state.nativeExportMatched = await pollUntil({ label: "actual native harness trace export", deadlineAt: Date.now() + 30_000,
-      load: async () => target.received.some(row => row.authenticated && row.body.includes(ctx.input.fixtures.company.id)
+      load: async () => target.received.some(row => row.authenticated && row.body.includes(ctx.input.fixtures.space.id)
         && row.body.includes(ctx.input.fixtures.agent.id) && row.body.includes(receipt.revision)), accept: Boolean });
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/company/settings`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/space/settings`, { waitUntil: "domcontentloaded" });
     await section.getByRole("button", { name: "Disable export", exact: true }).click();
     await expect.poll(async () => (await ctx.input.api.get<AgentObservabilitySettingsResponse>(root)).settings?.enabled).toBe(false); state.disabledSaved = true; state.callsAtDisable = target.received.length;
     await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" }); await sendChatMessage(ctx.input.page, "Please acknowledge that export is now disabled. Do not change it or start any additional work.");
-    await waitForCompanySettingsTurn(ctx, 3); state.disabledNativeRunCount = (await ctx.allRuns()).length; state.callsAfterDisabledRun = target.received.length; state.disabledCallsDidNotIncrease = state.callsAfterDisabledRun === state.callsAtDisable;
+    await waitForSpaceSettingsTurn(ctx, 3); state.disabledNativeRunCount = (await ctx.allRuns()).length; state.callsAfterDisabledRun = target.received.length; state.disabledCallsDidNotIncrease = state.callsAfterDisabledRun === state.callsAtDisable;
     await ctx.input.evidence("identity-synthetic-otlp-delivery.json", { syntheticCollector: true, savedRevision: receipt.revision, controlPlaneTestMarker: receipt.marker,
       requests: target.received.map(row => ({ path: row.path, authenticated: row.authenticated, sha256: row.sha256 })), nativeExportMatched: state.nativeExportMatched,
       enabledNativeRunCount: state.enabledNativeRunCount, disabledNativeRunCount: state.disabledNativeRunCount, callsAtDisable: state.callsAtDisable, callsAfterDisabledRun: state.callsAfterDisabledRun,

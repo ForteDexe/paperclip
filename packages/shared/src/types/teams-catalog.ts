@@ -1,11 +1,11 @@
 import type {
-  CompanyPortabilityAdapterOverride,
-  CompanyPortabilityAgentSelection,
-  CompanyPortabilityCollisionStrategy,
-  CompanyPortabilityImportResult,
-  CompanyPortabilityInclude,
-  CompanyPortabilityPreviewResult,
-} from "./company-portability.js";
+  SpacePortabilityAdapterOverride,
+  SpacePortabilityAgentSelection,
+  SpacePortabilityCollisionStrategy,
+  SpacePortabilityImportResult,
+  SpacePortabilityInclude,
+  SpacePortabilityPreviewResult,
+} from "./space-portability.js";
 
 export type CatalogTeamKind = "bundled" | "optional";
 
@@ -85,7 +85,7 @@ export interface CatalogTeam {
   entrypoint: "TEAM.md";
   schema: "agentcompanies/v1";
   defaultInstall: boolean;
-  recommendedForCompanyTypes: string[];
+  recommendedForSpaceTypes: string[];
   tags: string[];
   counts: {
     agents: number;
@@ -142,16 +142,16 @@ export interface CatalogTeamSourcePolicy {
 export interface CatalogTeamImportOptions {
   targetManagerAgentId?: string | null;
   targetManagerSlug?: string | null;
-  include?: Partial<CompanyPortabilityInclude>;
-  agents?: CompanyPortabilityAgentSelection;
-  collisionStrategy?: CompanyPortabilityCollisionStrategy;
+  include?: Partial<SpacePortabilityInclude>;
+  agents?: SpacePortabilityAgentSelection;
+  collisionStrategy?: SpacePortabilityCollisionStrategy;
   nameOverrides?: Record<string, string>;
   selectedFiles?: string[];
   sourcePolicy?: CatalogTeamSourcePolicy;
 }
 
 export interface CatalogTeamInstallOptions extends CatalogTeamImportOptions {
-  adapterOverrides?: Record<string, CompanyPortabilityAdapterOverride>;
+  adapterOverrides?: Record<string, SpacePortabilityAdapterOverride>;
   secretValues?: Record<string, string>;
 }
 
@@ -175,7 +175,7 @@ export interface CatalogTeamSkillPreparation {
 
 export interface CatalogTeamImportPreviewResult {
   team: CatalogTeam;
-  portabilityPreview: CompanyPortabilityPreviewResult;
+  portabilityPreview: SpacePortabilityPreviewResult;
   skillPreparations: CatalogTeamSkillPreparation[];
   warnings: string[];
   errors: string[];
@@ -184,14 +184,14 @@ export interface CatalogTeamImportPreviewResult {
 export interface CatalogTeamInstallResult {
   resourceLinks: { kind: "agent" | "project" | "routine"; id: string; name: string; href: string }[];
   team: CatalogTeam;
-  portabilityImport: CompanyPortabilityImportResult;
+  portabilityImport: SpacePortabilityImportResult;
   skillPreparations: CatalogTeamSkillPreparation[];
   warnings: string[];
 }
 
 /**
- * Server-computed installed-team state for a company. Surfaced by
- * `GET /api/companies/:companyId/teams/catalog/installed` and consumed by the
+ * Server-computed installed-team state for a space. Surfaced by
+ * `GET /api/spaces/:spaceId/teams/catalog/installed` and consumed by the
  * Team Catalog UI to render the `INSTALLED · N` group, per-row out-of-date
  * badges, and the detail header "Update available" chip (design
  * [PAP-10238 §3.2 + §5]).

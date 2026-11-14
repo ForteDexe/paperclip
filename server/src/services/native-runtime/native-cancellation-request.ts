@@ -13,15 +13,15 @@ export function cancellationRequestId(value: unknown): string | undefined {
 }
 export const cancellationIntentId = (requestId: string) => `native-cancellation:${requestId}`;
 
-type StopRun = Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "agentId" | "nativeIssueId" | "runtimeMode" | "status" | "resultJson">;
+type StopRun = Pick<typeof heartbeatRuns.$inferSelect, "id" | "spaceId" | "agentId" | "nativeIssueId" | "runtimeMode" | "status" | "resultJson">;
 type StopRecoveryOwner = Pick<typeof nativeRunFinalizations.$inferSelect,
-  "runId" | "companyId" | "issueId" | "phase" | "resultId" | "leaseOwner" | "leaseExpiresAt" | "controllerGeneration" | "attempt" | "recoveryState" | "recoveryHistory">;
+  "runId" | "spaceId" | "issueId" | "phase" | "resultId" | "leaseOwner" | "leaseExpiresAt" | "controllerGeneration" | "attempt" | "recoveryState" | "recoveryHistory">;
 
 export function hasPendingNativeRunStop(run: StopRun): boolean {
   const intent = record(record(run.resultJson).nativeCancellation);
   return run.runtimeMode === "native" && !!run.nativeIssueId
     && intent.schema === "outpost.native-cancellation.v1" && intent.scope === "run" && intent.reasonCode === "cancellation_run_only"
-    && intent.runId === run.id && intent.companyId === run.companyId && intent.issueId === run.nativeIssueId
+    && intent.runId === run.id && intent.spaceId === run.spaceId && intent.issueId === run.nativeIssueId
     && typeof intent.intentId === "string" && intent.intentId.startsWith("native-cancellation:")
     && UUID.test(intent.intentId.slice("native-cancellation:".length))
     && typeof intent.intentAuditId === "string" && UUID.test(intent.intentAuditId)
@@ -31,7 +31,7 @@ export function hasPendingNativeRunStop(run: StopRun): boolean {
 
 export function isClaimedNativeStopRecovery(run: StopRun, owner: StopRecoveryOwner | undefined, leaseOwner: string | undefined, now = Date.now()): boolean {
   if (!leaseOwner || !hasPendingNativeRunStop(run) || run.status !== "running" || !owner
-    || owner.runId !== run.id || owner.companyId !== run.companyId || owner.issueId !== run.nativeIssueId
+    || owner.runId !== run.id || owner.spaceId !== run.spaceId || owner.issueId !== run.nativeIssueId
     || owner.phase !== "observed" || owner.resultId || owner.leaseOwner !== leaseOwner
     || !owner.leaseExpiresAt || owner.leaseExpiresAt.getTime() <= now || owner.recoveryState !== "awaiting_runner_reattach") return false;
   const latest = record(Array.isArray(owner.recoveryHistory) ? owner.recoveryHistory.at(-1) : null);
@@ -43,7 +43,7 @@ export async function readPendingNativeRunStop(db: Db, run: StopRun): Promise<bo
   if (!hasPendingNativeRunStop(run)) return false;
   const intent = record(record(run.resultJson).nativeCancellation);
   const [audit] = await db.select({ id: activityLog.id }).from(activityLog).where(and(
-    eq(activityLog.id, intent.intentAuditId as string), eq(activityLog.companyId, run.companyId),
+    eq(activityLog.id, intent.intentAuditId as string), eq(activityLog.spaceId, run.spaceId),
     eq(activityLog.runId, run.id), eq(activityLog.entityId, run.id), eq(activityLog.entityType, "heartbeat_run"),
     eq(activityLog.action, "native.cancellation_intent_recorded"),
   )).limit(1);
@@ -53,18 +53,18 @@ export async function readPendingNativeRunStop(db: Db, run: StopRun): Promise<bo
 export async function readClaimedNativeStopRecovery(db: Db, run: StopRun, leaseOwner?: string): Promise<boolean> {
   if (!leaseOwner || !await readPendingNativeRunStop(db, run)) return false;
   const [owner] = await db.select().from(nativeRunFinalizations).where(and(
-    eq(nativeRunFinalizations.runId, run.id), eq(nativeRunFinalizations.companyId, run.companyId),
+    eq(nativeRunFinalizations.runId, run.id), eq(nativeRunFinalizations.spaceId, run.spaceId),
     eq(nativeRunFinalizations.issueId, run.nativeIssueId!),
   )).limit(1);
   if (!isClaimedNativeStopRecovery(run, owner, leaseOwner)) return false;
   const [hold] = await db.select({ id: budgetReservations.id }).from(budgetReservations).where(and(
-    eq(budgetReservations.companyId, run.companyId), eq(budgetReservations.runId, run.id),
+    eq(budgetReservations.spaceId, run.spaceId), eq(budgetReservations.runId, run.id),
     eq(budgetReservations.agentId, run.agentId), eq(budgetReservations.state, "held"),
   )).limit(1);
   return !!hold;
 }
 
-/** Run only while holding this company's run row lock. An earlier uncorrelated
+/** Run only while holding this space's run row lock. An earlier uncorrelated
  * startup fence is also a conflicting Stop, even before native intent exists. */
 export function assertCancellationRequest(result: unknown, requestId: string, allowUnclaimed = false) {
   const value = record(result), startup = record(value.startupCancellation), native = record(value.nativeCancellation);
@@ -78,9 +78,9 @@ export function assertCancellationRequest(result: unknown, requestId: string, al
 /** Evaluate only while both the run and coordinator are locked. A UUID alone
  * is not retry authority; a resumed Stop needs its exact durable native intent. */
 export function nativeRetryCancellationEligible(input: {
-  runId: string; companyId: string; issueId: string; resultJson: unknown; requestId?: string; scope?: string;
+  runId: string; spaceId: string; issueId: string; resultJson: unknown; requestId?: string; scope?: string;
 }, coordinator: Partial<Pick<typeof nativeRunFinalizations.$inferSelect,
-  "runId" | "companyId" | "issueId" | "phase" | "resultId" | "failureCode" | "failureDetail">> | null | undefined) {
+  "runId" | "spaceId" | "issueId" | "phase" | "resultId" | "failureCode" | "failureDetail">> | null | undefined) {
   if (coordinator?.phase === "retryable_failure") return true;
   if (coordinator?.failureCode === "native_restart_recovery_blocked" && nativeManualAdmissionHoldMatches(input, coordinator)) return true;
   if (coordinator?.phase !== "terminal_failure" || coordinator.failureCode !== "native_retry_cancelled") return false;
@@ -88,7 +88,7 @@ export function nativeRetryCancellationEligible(input: {
   return (!input.requestId || (record(result.startupCancellation).cancellationRequestId === input.requestId
       && native.intentId === cancellationIntentId(input.requestId)))
     && native.schema === "outpost.native-cancellation.v1" && typeof native.intentId === "string" && !!native.intentId
-    && native.runId === input.runId && native.companyId === input.companyId && native.issueId === input.issueId
+    && native.runId === input.runId && native.spaceId === input.spaceId && native.issueId === input.issueId
     && native.scope === (input.scope ?? "run") && ["pending", "acknowledged"].includes(String(native.dispatchState))
     && typeof native.dispatched === "boolean" && typeof native.intentAuditId === "string" && !!native.intentAuditId
     && (native.dispatchState === "pending" || (typeof native.acknowledgementAuditId === "string"
@@ -102,7 +102,7 @@ export function pendingFailedNativeRetryCancellationCondition() {
     and ${native}->>'schema' = 'outpost.native-cancellation.v1'
     and jsonb_typeof(${native}->'intentId') = 'string' and length(${native}->>'intentId') > 0
     and ${native}->>'runId' = ${heartbeatRuns.id}::text
-    and ${native}->>'companyId' = ${heartbeatRuns.companyId}::text
+    and ${native}->>'spaceId' = ${heartbeatRuns.spaceId}::text
     and ${native}->>'issueId' = ${heartbeatRuns.nativeIssueId}::text
     and ${native}->>'scope' = 'run'
     and ${native}->>'dispatchState' in ('pending', 'acknowledged')
@@ -115,30 +115,30 @@ export function pendingFailedNativeRetryCancellationCondition() {
   return sql`${heartbeatRuns.runtimeMode} = 'native' and ${heartbeatRuns.status} = 'failed'
     and exists (select 1 from ${nativeRunFinalizations}
       where ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
-        and ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId}
+        and ${nativeRunFinalizations.spaceId} = ${heartbeatRuns.spaceId}
         and ${nativeRunFinalizations.issueId} = ${heartbeatRuns.nativeIssueId}
         and (${nativeRunFinalizations.phase} = 'retryable_failure' or (${continuingStop}))
         and ${nativeRunFinalizations.resultId} is null)`;
 }
 
-/** Final failed -> cancelled CAS: a later board/recovery outcome must win.
+/** Final failed -> cancelled CAS: a later operator/recovery outcome must win.
  * The row-locking subquery prevents a coordinator-only writer from changing
  * the retry disposition between this check and the status update. */
 export function nativeRetryCancellationCommitCondition(expectedResult: unknown) {
   const native = record(record(expectedResult).nativeCancellation);
   if (native.dispatchState !== "acknowledged" || typeof native.runId !== "string"
-    || typeof native.companyId !== "string" || typeof native.issueId !== "string"
-    || !nativeRetryCancellationEligible({ runId: native.runId, companyId: native.companyId,
+    || typeof native.spaceId !== "string" || typeof native.issueId !== "string"
+    || !nativeRetryCancellationEligible({ runId: native.runId, spaceId: native.spaceId,
       issueId: native.issueId, resultJson: expectedResult }, { phase: "terminal_failure", failureCode: "native_retry_cancelled" })) {
     return sql`false`;
   }
   return sql`${heartbeatRuns.status} = 'failed' and ${heartbeatRuns.runtimeMode} = 'native'
-    and ${heartbeatRuns.id} = ${native.runId} and ${heartbeatRuns.companyId} = ${native.companyId}
+    and ${heartbeatRuns.id} = ${native.runId} and ${heartbeatRuns.spaceId} = ${native.spaceId}
     and ${heartbeatRuns.nativeIssueId} = ${native.issueId}
     and ${heartbeatRuns.resultJson} = ${JSON.stringify(expectedResult)}::jsonb
     and exists (select 1 from ${nativeRunFinalizations}
       where ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
-        and ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId}
+        and ${nativeRunFinalizations.spaceId} = ${heartbeatRuns.spaceId}
         and ${nativeRunFinalizations.issueId} = ${heartbeatRuns.nativeIssueId}
         and ${nativeRunFinalizations.phase} = 'terminal_failure'
         and ${nativeRunFinalizations.failureCode} = 'native_retry_cancelled'
@@ -155,12 +155,12 @@ export function rethrowNativeCancellationLockConflict(error: unknown): never {
 
 /** Reserve the caller's identity before handoff or dispatch. No schema change:
  * the existing startup fence and native intent carry the correlation. */
-export async function claimCancellationRequest(db: Db, runId: string, companyId: string, requestId: string, userId: string | null) {
+export async function claimCancellationRequest(db: Db, runId: string, spaceId: string, requestId: string, userId: string | null) {
   if (cancellationRequestId(requestId) !== requestId) throw badRequest("Invalid cancellationRequestId");
   if (userId !== null && (typeof userId !== "string" || !userId)) throw badRequest("Invalid cancellation request actor");
   return db.transaction(async tx => {
     const run = await tx.select().from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId)))
+      .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId)))
       .for("update").limit(1).then(rows => rows[0]);
     if (!run || run.runtimeMode !== "native") throw conflict("Correlated Stop requires a native run");
     assertCancellationRequest(run.resultJson, requestId, true);
@@ -171,19 +171,19 @@ export async function claimCancellationRequest(db: Db, runId: string, companyId:
       // writers need not lock the run. NOWAIT avoids a lock-order deadlock with
       // execution's coordinator -> run claim; a busy claim can be retried.
       const coordinator = await tx.select().from(nativeRunFinalizations)
-        .where(and(eq(nativeRunFinalizations.runId, runId), eq(nativeRunFinalizations.companyId, companyId),
+        .where(and(eq(nativeRunFinalizations.runId, runId), eq(nativeRunFinalizations.spaceId, spaceId),
           eq(nativeRunFinalizations.issueId, run.nativeIssueId)))
         .for("update", { noWait: true }).limit(1).then(rows => rows[0]);
-      pendingRetry = nativeRetryCancellationEligible({ runId, companyId, issueId: run.nativeIssueId,
+      pendingRetry = nativeRetryCancellationEligible({ runId, spaceId, issueId: run.nativeIssueId,
         resultJson: result, requestId }, coordinator);
     }
     if (record(result.startupCancellation).cancellationRequestId === requestId) {
       const actor = record(record(result.startupCancellation).requestedBy);
-      if (actor.type !== "board" || actor.userId !== userId) throw conflict("Cancellation request belongs to another actor");
+      if (actor.type !== "operator" || actor.userId !== userId) throw conflict("Cancellation request belongs to another actor");
       if (!pendingRetry && !["queued", "running", "scheduled_retry"].includes(run.status)) {
         const native = record(result.nativeCancellation);
         if (run.status !== "cancelled" || native.schema !== "outpost.native-cancellation.v1"
-          || native.intentId !== cancellationIntentId(requestId) || native.runId !== runId || native.companyId !== companyId
+          || native.intentId !== cancellationIntentId(requestId) || native.runId !== runId || native.spaceId !== spaceId
           || native.scope !== "run" || native.dispatchState !== "acknowledged" || typeof native.dispatched !== "boolean"
           || typeof native.intentAuditId !== "string" || !native.intentAuditId
           || typeof native.acknowledgementAuditId !== "string" || !native.acknowledgementAuditId
@@ -192,10 +192,10 @@ export async function claimCancellationRequest(db: Db, runId: string, companyId:
       return run;
     }
     if (!pendingRetry && !["queued", "running", "scheduled_retry"].includes(run.status)) throw conflict("Correlated Stop run is already terminal");
-    await notifyScheduledRetryCancellation(tx, { companyId, runId });
+    await notifyScheduledRetryCancellation(tx, { spaceId, runId });
     const [claimed] = await tx.update(heartbeatRuns).set({ resultJson: { ...result,
-      startupCancellation: { requestedAt: new Date().toISOString(), beforeNativeSelection: false, cancellationRequestId: requestId, requestedBy: { type: "board", userId }, ...(run.status === "failed" ? { retryCancellation: true } : {}) },
-    } }).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId))).returning();
+      startupCancellation: { requestedAt: new Date().toISOString(), beforeNativeSelection: false, cancellationRequestId: requestId, requestedBy: { type: "operator", userId }, ...(run.status === "failed" ? { retryCancellation: true } : {}) },
+    } }).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.spaceId, spaceId))).returning();
     if (!claimed) throw conflict("Correlated Stop run changed");
     return claimed;
   }).catch(rethrowNativeCancellationLockConflict);

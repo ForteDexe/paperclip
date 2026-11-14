@@ -1,7 +1,7 @@
 import { it, expect } from "vitest";
 import { gradeReopenConversation } from "./runtime-agent-chat.js";
 function valid() {
-  return { scenarioId: "agent-chat.reopen-conversation", companyId: "company", leadId: "morgan", reply: "Your existing conversation.",
+  return { scenarioId: "agent-chat.reopen-conversation", spaceId: "space", leadId: "morgan", reply: "Your existing conversation.",
     state: { existingIssueId: "chat", reopenedIssueId: "chat", reopenedAgentId: "morgan", historyRetained: true,
       beforeNavigationRuns: 2, afterNavigationRuns: 2, beforeNavigationChatIds: ["chat"], afterNavigationChatIds: ["chat"],
       agentChatListStatus: 403, finalQueryReply: "You can reopen your existing conversation with Morgan through Chat.", navigationMatchesIntendedAgent: true, finalNavigationLinksCorrect: true }, agents: [], tasks: [], links: [], activity: [], runs: [], humanQueries: [] };

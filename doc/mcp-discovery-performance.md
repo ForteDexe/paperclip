@@ -36,7 +36,7 @@ not appear as new. The catalog filter retains its order, status check, strict
 review watermark, and returned metadata.
 
 The indexes live only for one projection. Profile listings, new-tool review, and
-app attention still read current company-scoped database state on each request.
+app attention still read current space-scoped database state on each request.
 This replaces nested catalog-by-rule scans with linear indexing and filtering.
 It changes neither database query counts nor response contracts.
 
@@ -117,7 +117,7 @@ still contribute the union of their allowed tools. Null application selectors
 retain their exact-match behavior.
 
 These indexes live only for the current computation. Each resolver call still
-reads current company-scoped bindings, profiles, and rules. Query counts and
+reads current space-scoped bindings, profiles, and rules. Query counts and
 returned database rows are unchanged. This reduces JavaScript matching work when
 a profile selects many individual tools; it does not cache authorization or
 remove the runtime assignment digest check.
@@ -184,11 +184,11 @@ the repository root in a disposable worktree. The compile step writes local
 contain the baseline and pending-fix commits named above.
 
 ```sh
-git fetch https://github.com/paperclipai/outpost.git refs/pull/18681/head
+git fetch https://github.com/outpostai/outpost.git refs/pull/18681/head
 pnpm install --frozen-lockfile
 node server/scripts/profile-tool-projection/compile.mjs
-node --expose-gc --import ./server/scripts/profile-tool-projection/register.mjs server/scripts/profile-tool-projection/benchmark.mjs --output-dir /tmp/paperclip-tool-projection --repeat 5
-node --expose-gc --import ./server/scripts/profile-tool-projection/register.mjs server/scripts/profile-tool-projection/responsiveness.mjs --output-dir /tmp/paperclip-tool-projection
+node --expose-gc --import ./server/scripts/profile-tool-projection/register.mjs server/scripts/profile-tool-projection/benchmark.mjs --output-dir /tmp/outpost-tool-projection --repeat 5
+node --expose-gc --import ./server/scripts/profile-tool-projection/register.mjs server/scripts/profile-tool-projection/responsiveness.mjs --output-dir /tmp/outpost-tool-projection
 ```
 
 The compile step writes the baseline and pending-only owner modules beside

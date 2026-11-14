@@ -11,7 +11,7 @@ const oracleVersion = "outpost.chat-catalog.runtime-capability-choice.v2";
  * The host uses the reserved .invalid domain, so it cannot be reached either. */
 export function unqualifiedSshConfig(nonce: string) {
   const slug = nonce.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-  return { host: `build-${slug}.invalid`, port: 22, username: "paperclip-eval", remoteWorkspacePath: `/srv/paperclip-${slug}`, privateKey: null, strictHostKeyChecking: true };
+  return { host: `build-${slug}.invalid`, port: 22, username: "outpost-eval", remoteWorkspacePath: `/srv/outpost-${slug}`, privateKey: null, strictHostKeyChecking: true };
 }
 /** Board-only SSH settings a restricted agent cannot read. The names are agent-readable. */
 function hiddenSshLiterals(target: Pick<Environment, "config">) {
@@ -30,7 +30,7 @@ export function environmentSettingsLink(o: Pick<InternalObservation, "links" | "
       const url = new URL(href, o.origin);
       if (url.origin !== new URL(o.origin).origin) return false;
       const parts = url.pathname.replace(/\/+$/, "").split("/").map(decodeURIComponent);
-      if (parts[1] !== prefix || parts[2] !== "company" || parts[3] !== "settings") return false;
+      if (parts[1] !== prefix || parts[2] !== "space" || parts[3] !== "settings") return false;
       const rest = parts.slice(4);
       if (rest[0] === "instance") rest.shift();
       return rest.length === 1 && rest[0] === "environments";
@@ -51,7 +51,7 @@ export function gradeCapabilityChoice(value: unknown) {
     "Production metadata advertises Claude Code on both saved computers; the SSH computer was never qualified and cannot be reached.");
   c.add("restricted-agent-boundary", s.agentInventoryStatus === 403 && s.agentProbeStatus === 403,
     "The ordinary agent cannot read environment capabilities or probe a computer.");
-  c.add("directs-to-environment-settings", typeof s.companyPrefix === "string" && !!environmentSettingsLink(o, s.companyPrefix),
+  c.add("directs-to-environment-settings", typeof s.spacePrefix === "string" && !!environmentSettingsLink(o, s.spacePrefix),
     "The reply links the environment settings page where a person can check support and test the computer.");
   c.add("no-hidden-target-settings", !!unqualified && hiddenSshLiterals(unqualified).length === 3
     && hiddenSshLiterals(unqualified).every(literal => !o.reply.toLowerCase().includes(literal.toLowerCase())),
@@ -63,23 +63,23 @@ export function gradeCapabilityChoice(value: unknown) {
   return c.result();
 }
 export const runtimeCapabilityChoiceCase = runtimeDefinition(scenarioId, async ctx => {
-  const api = ctx.input.api, company = `/api/companies/${ctx.input.fixtures.company.id}`;
+  const api = ctx.input.api, space = `/api/spaces/${ctx.input.fixtures.space.id}`;
   const originalSettings = await api.get<{ enableEnvironments: boolean }>("/api/instance/settings/experimental");
   await api.patch("/api/instance/settings/experimental", { enableEnvironments: true });
   let unqualified: Environment | undefined;
   try {
-    const inventory = await api.get<Environment[]>(`${company}/environments`);
+    const inventory = await api.get<Environment[]>(`${space}/environments`);
     const supported = inventory.find(row => row.id === ctx.input.fixtures.environment.id && row.driver === "local");
-    if (!supported) throw new Error("Owned local fixture target is not in the public company-authorized inventory");
+    if (!supported) throw new Error("Owned local fixture target is not in the public space-authorized inventory");
     // The product cannot save a computer that is advertised as unable to run Claude Code
     // (the built-in fake sandbox is reserved for probes), so the contrast is support versus health.
-    unqualified = await api.post<Environment>(`${company}/environments`, { name: `Build server ${ctx.input.nonce}`, driver: "ssh", config: unqualifiedSshConfig(ctx.input.nonce) });
-    const capabilities = await api.get<EnvironmentCapabilities>(`${company}/environments/capabilities`);
+    unqualified = await api.post<Environment>(`${space}/environments`, { name: `Build server ${ctx.input.nonce}`, driver: "ssh", config: unqualifiedSshConfig(ctx.input.nonce) });
+    const capabilities = await api.get<EnvironmentCapabilities>(`${space}/environments/capabilities`);
     if (!advertisedClaudeTargets(capabilities, supported, unqualified)) throw new Error("Production metadata does not advertise Claude Code on both owned computers");
     const worker = await runtimeWorker(ctx);
     return { supportedTarget: supported, unqualifiedTarget: unqualified, capabilities, worker, originalEnvironmentsEnabled: originalSettings.enableEnvironments,
-      companyPrefix: ctx.input.fixtures.company.issuePrefix,
-      agentInventoryStatus: await probeAgentPermission(ctx, `${company}/environments/capabilities`, "GET"),
+      spacePrefix: ctx.input.fixtures.space.issuePrefix,
+      agentInventoryStatus: await probeAgentPermission(ctx, `${space}/environments/capabilities`, "GET"),
       agentProbeStatus: await probeAgentPermission(ctx, `/api/environments/${unqualified.id}/probe`, "POST", {}) };
   } catch (error) {
     if (unqualified) await api.delete(`/api/environments/${unqualified.id}`, { allowNotFound: true });
@@ -87,7 +87,7 @@ export const runtimeCapabilityChoiceCase = runtimeDefinition(scenarioId, async c
     await cleanupIdentityProbes(ctx); throw error;
   }
 }, gradeCapabilityChoice, { authentication: "human-session", attemptTimeoutMs: 900000, oracleVersion,
-  sourceFiles: ["chat-catalog-domains/runtime-capability-choice.ts", "chat-catalog-domains/runtime-computers-ssh.ts", "chat-catalog-domains/runtime-support.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/execution-environments.yaml", "../../packages/shared/src/environment-support.ts", "../../server/src/routes/environments.ts", "../../server/src/routes/authz.ts", "../../server/src/services/environment-config.ts", "../../ui/src/pages/CompanyEnvironments.tsx"],
+  sourceFiles: ["chat-catalog-domains/runtime-capability-choice.ts", "chat-catalog-domains/runtime-computers-ssh.ts", "chat-catalog-domains/runtime-support.ts", "chat-catalog-domains/identity-support.ts", "chat-catalog-domains/internal-support.ts", "chat-scenarios/execution-environments.yaml", "../../packages/shared/src/environment-support.ts", "../../server/src/routes/environments.ts", "../../server/src/routes/authz.ts", "../../server/src/services/environment-config.ts", "../../ui/src/pages/SpaceEnvironments.tsx"],
   async act(ctx) { await waitForReply(ctx); },
   async observe(ctx, state) {
     const api = ctx.input.api, targets = [state.supportedTarget, state.unqualifiedTarget] as Environment[];
@@ -101,12 +101,12 @@ export const runtimeCapabilityChoiceCase = runtimeDefinition(scenarioId, async c
   async verifyResult(ctx, state, value) {
     const o = runtimeObservation(value); if (!o) throw new Error("Missing independent runtime result");
     const targets = [state.supportedTarget, state.unqualifiedTarget] as Environment[];
-    const href = environmentSettingsLink(o, String(state.companyPrefix));
+    const href = environmentSettingsLink(o, String(state.spacePrefix));
     if (!href) throw new Error("The reply rendered no environment settings link");
-    const source = ctx.input.page.url(), company = `/api/companies/${ctx.input.fixtures.company.id}`;
-    const response = ctx.input.page.waitForResponse(row => row.request().method() === "GET" && new URL(row.url()).pathname === `${company}/environments/capabilities`);
+    const source = ctx.input.page.url(), space = `/api/spaces/${ctx.input.fixtures.space.id}`;
+    const response = ctx.input.page.waitForResponse(row => row.request().method() === "GET" && new URL(row.url()).pathname === `${space}/environments/capabilities`);
     await internalResultLink(ctx, o, href).first().click();
-    await ctx.input.page.waitForURL(url => url.pathname.includes("/company/settings/instance/environments"));
+    await ctx.input.page.waitForURL(url => url.pathname.includes("/space/settings/instance/environments"));
     const actualResponse = await response;
     expect(actualResponse.ok() && JSON.stringify(await actualResponse.json()) === JSON.stringify(state.capabilities), "The opened view loads the independently checked capabilities").toBe(true);
     const view = ctx.input.page.getByTestId("instance-settings-environments-section");

@@ -1,8 +1,8 @@
 import { it, expect } from "vitest";
 import { gradeSessionReset } from "./runtime-session.js";
 function valid() {
-  const worker = { id: "morgan", companyId: "company", name: "Morgan", adapterConfig: { model: "model" } };
-  return { scenarioId: "runs-adapters.reset-session", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
+  const worker = { id: "morgan", spaceId: "space", name: "Morgan", adapterConfig: { model: "model" } };
+  return { scenarioId: "runs-adapters.reset-session", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
     state: { worker, task: { id: "website" }, agentResetStatus: 403, sessionPresentBeforeHuman: true, humanReset: true,
       sessionsEmptyAfterHuman: true, futureRunFresh: true, explicitContinuationSaved: true, historyRetained: true,
       documentsRetained: true, artifactRetained: true, fileRetained: true,

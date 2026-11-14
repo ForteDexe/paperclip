@@ -19,12 +19,12 @@ it("preserves zero-setup semantics and refuses impossible setup/total declaratio
 });
 
 function answerEvidence() {
-  return { expected: { interactionId: "question", sourceRunId: "initial", userId: "person" }, companyId: "company", issueId: "source", agentId: "ceo", canonicalComment: { id: "query", authorUserId: "person" },
-    interactions: [{ id: "question", companyId: "company", issueId: "source", sourceRunId: "initial", createdByAgentId: "ceo", addresseeUserId: "person", kind: "ask_user_questions" as const,
+  return { expected: { interactionId: "question", sourceRunId: "initial", userId: "person" }, spaceId: "space", issueId: "source", agentId: "ceo", canonicalComment: { id: "query", authorUserId: "person" },
+    interactions: [{ id: "question", spaceId: "space", issueId: "source", sourceRunId: "initial", createdByAgentId: "ceo", addresseeUserId: "person", kind: "ask_user_questions" as const,
       status: "answered" as const, resolverPolicy: "human_only" as const, resolvedByUserId: "person", resolvedAt: "2026-11-04T13:30:00Z", result: { version: 1 as const, answers: [{ questionId: "saved", optionIds: ["yes"] }], summaryMarkdown: null } }],
-    activity: [{ companyId: "company", entityId: "source", action: "issue.thread_interaction_answered", actorType: "user", actorId: "person", details: { interactionId: "question", interactionKind: "ask_user_questions", interactionStatus: "answered" } }],
-    runs: [{ id: "initial", companyId: "company", agentId: "ceo", runtimeMode: "native", status: "succeeded", startedAt: "2026-11-04T13:20:00Z", contextSnapshot: { issueId: "source", commentId: "query" } },
-      { id: "confirmed", companyId: "company", agentId: "ceo", runtimeMode: "native", status: "succeeded", startedAt: "2026-11-04T13:30:01Z", contextSnapshot: { issueId: "source", interactionId: "question" } }],
+    activity: [{ spaceId: "space", entityId: "source", action: "issue.thread_interaction_answered", actorType: "user", actorId: "person", details: { interactionId: "question", interactionKind: "ask_user_questions", interactionStatus: "answered" } }],
+    runs: [{ id: "initial", spaceId: "space", agentId: "ceo", runtimeMode: "native", status: "succeeded", startedAt: "2026-11-04T13:20:00Z", contextSnapshot: { issueId: "source", commentId: "query" } },
+      { id: "confirmed", spaceId: "space", agentId: "ceo", runtimeMode: "native", status: "succeeded", startedAt: "2026-11-04T13:30:01Z", contextSnapshot: { issueId: "source", interactionId: "question" } }],
   };
 }
 it("counts one independently verified UI answer as the second declared credential action without fabricating a comment", () => {
@@ -33,8 +33,8 @@ it("counts one independently verified UI answer as the second declared credentia
   const input = { implementation: { scenarioId: "secrets.personal-secret", expectedHumanMessageCount: 2 }, human, questionAnswer,
     runIds: ["initial", "confirmed"], boundary: { humanCommentIds: [], runIds: [] }, renderedQuery: "Original query" };
   expect(chatCatalogHumanHistoryMatches(input)).toBe(true); expect(human).toHaveLength(1);
-  expect(chatCatalogHumanHistoryMatches({ ...input, implementation: { scenarioId: "secrets.configure-company-secret", expectedHumanMessageCount: 2 } })).toBe(true);
-  expect(chatCatalogHumanHistoryMatches({ ...input, implementation: { scenarioId: "secrets.company-secret", expectedHumanMessageCount: 2 } })).toBe(false);
+  expect(chatCatalogHumanHistoryMatches({ ...input, implementation: { scenarioId: "secrets.configure-space-secret", expectedHumanMessageCount: 2 } })).toBe(true);
+  expect(chatCatalogHumanHistoryMatches({ ...input, implementation: { scenarioId: "secrets.space-secret", expectedHumanMessageCount: 2 } })).toBe(false);
   expect(chatCatalogHumanHistoryMatches({ ...input, questionAnswer: undefined })).toBe(false);
   expect(chatCatalogHumanHistoryMatches({ ...input, human: [...human, { id: "extra", body: "Hidden nudge" }] })).toBe(false);
   expect(chatCatalogHumanHistoryMatches({ ...input, implementation: { scenarioId: "questions-and-approvals.multi-part-question", expectedHumanMessageCount: 2 } })).toBe(false);

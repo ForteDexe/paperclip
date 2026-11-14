@@ -26,12 +26,12 @@ export function registerGitHubConnectionContinuityWork(db: Db, coordinator: Coor
     queue: DELIVERY_QUEUES.connectionContinuity,
     minimumPassIntervalMs: 5_000,
     decodeScope: hint => hint === "*" ? undefined : hint,
-    matches: (entry, companyId?: string) => !companyId || entry.companyId === companyId,
-    load: companyId => service.githubConnectionContinuitySchedule(companyId),
+    matches: (entry, spaceId?: string) => !spaceId || entry.spaceId === spaceId,
+    load: spaceId => service.githubConnectionContinuitySchedule(spaceId),
     check: async entry => {
-      const result = await service.sweepGitHubConnectionContinuity(entry.companyId);
+      const result = await service.sweepGitHubConnectionContinuity(entry.spaceId);
       if (result.failed) logger.warn(result, "GitHub credential continuity retained retry obligations");
-      const dueAt = await service.nextGitHubConnectionContinuityAt(entry.companyId);
+      const dueAt = await service.nextGitHubConnectionContinuityAt(entry.spaceId);
       return dueAt === null ? null : { ...entry, dueAt };
     },
   }, canRun);

@@ -1,6 +1,6 @@
 import { prepareTestDriveEnvironment, testDriveCommand } from "../../../cli/src/commands/test-drive.js";
 
-const options = { harness: "codex", apiKeyEnv: "INSTRUCTION_FIXTURE_KEY", companyName: "Instruction Lifecycle QA", browser: false } as const;
+const options = { harness: "codex", apiKeyEnv: "INSTRUCTION_FIXTURE_KEY", spaceName: "Instruction Lifecycle QA", browser: false } as const;
 process.env.INSTRUCTION_FIXTURE_KEY = "not-a-provider-key";
 await prepareTestDriveEnvironment(options);
 process.env.NODE_ENV = "test";

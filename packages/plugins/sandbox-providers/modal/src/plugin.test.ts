@@ -60,7 +60,7 @@ function makeFakeProcess(input: {
 function createFakeSandbox(overrides: FakeSandboxOverrides = {}) {
   const execCalls: Array<{ argv: string[]; params?: unknown }> = [];
   const defaultExec = async (_argv: string[], _params?: unknown): Promise<FakeProcess> =>
-    makeFakeProcess({ exitCode: 0, stdout: "paperclip-probe" });
+    makeFakeProcess({ exitCode: 0, stdout: "outpost-probe" });
   const exec = vi.fn().mockImplementation(async (argv: string[], params?: unknown) => {
     execCalls.push({ argv, params });
     return overrides.execImpl ? overrides.execImpl(argv, params) : defaultExec(argv, params);
@@ -98,13 +98,13 @@ type FakeSandbox = ReturnType<typeof createFakeSandbox>;
 
 const baseAcquireParams = {
   driverKey: "modal",
-  companyId: "company-1",
+  spaceId: "space-1",
   environmentId: "env-1",
   runId: "run-1",
 };
 
 const baseConfig = {
-  appName: "paperclip-app",
+  appName: "outpost-app",
   image: "node:20",
   sandboxTimeoutMs: 3_600_000,
   execTimeoutMs: 300_000,
@@ -241,19 +241,19 @@ describe("Modal sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentProbe?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       config: { ...baseConfig, workdir: "/srv/work" },
     });
 
-    expect(mockAppFromName).toHaveBeenCalledWith("paperclip-app", {
+    expect(mockAppFromName).toHaveBeenCalledWith("outpost-app", {
       createIfMissing: true,
       environment: undefined,
     });
     expect(mockImageFromRegistry).toHaveBeenCalledWith("node:20");
     expect(sandbox.setTags).toHaveBeenCalledWith(expect.objectContaining({
-      "paperclip-provider": "modal",
-      "paperclip-company-id": "c-1",
+      "outpost-provider": "modal",
+      "outpost-space-id": "c-1",
     }));
     // First exec is the mkdir for the workspace, second is the probe command.
     expect(sandbox.execCalls[0]?.argv).toEqual([
@@ -264,7 +264,7 @@ describe("Modal sandbox provider plugin", () => {
     expect(sandbox.execCalls[1]?.argv).toEqual([
       "sh",
       "-lc",
-      "printf paperclip-probe",
+      "printf outpost-probe",
     ]);
     expect(sandbox.terminate).toHaveBeenCalled();
     expect(mockClientClose).toHaveBeenCalled();
@@ -282,7 +282,7 @@ describe("Modal sandbox provider plugin", () => {
   it("returns a failure probe result when the probe command exits non-zero", async () => {
     const sandbox = createFakeSandbox({
       execImpl: async (argv: string[]) => {
-        if (argv[2] === "printf paperclip-probe") {
+        if (argv[2] === "printf outpost-probe") {
           return makeFakeProcess({ exitCode: 7, stdout: "boom" });
         }
         return makeFakeProcess({ exitCode: 0 });
@@ -293,7 +293,7 @@ describe("Modal sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentProbe?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       config: baseConfig,
     });
@@ -307,7 +307,7 @@ describe("Modal sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentProbe?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       config: baseConfig,
     });
@@ -343,8 +343,8 @@ describe("Modal sandbox provider plugin", () => {
       }),
     });
     expect(sandbox.setTags).toHaveBeenCalledWith(expect.objectContaining({
-      "paperclip-run-id": "run-1",
-      "paperclip-reuse-lease": "true",
+      "outpost-run-id": "run-1",
+      "outpost-reuse-lease": "true",
     }));
     expect(sandbox.execCalls[0]?.argv).toEqual(["sh", "-lc", "mkdir -p '/srv/work'"]);
   });
@@ -388,7 +388,7 @@ describe("Modal sandbox provider plugin", () => {
         config: baseConfig,
       }),
     ).rejects.toThrow(
-      "Failed to create remote workspace directory '/workspace/paperclip': mkdir exited with code 17",
+      "Failed to create remote workspace directory '/workspace/outpost': mkdir exited with code 17",
     );
     expect(sandbox.terminate).toHaveBeenCalledTimes(1);
   });
@@ -410,7 +410,7 @@ describe("Modal sandbox provider plugin", () => {
 
     const lease = await plugin.definition.onEnvironmentResumeLease?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       providerLeaseId: "sb-missing",
       config: { ...baseConfig, reuseLease: true },
@@ -424,7 +424,7 @@ describe("Modal sandbox provider plugin", () => {
 
     const lease = await plugin.definition.onEnvironmentResumeLease?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       providerLeaseId: "sb-resume",
       config: { ...baseConfig, reuseLease: true },
@@ -456,7 +456,7 @@ describe("Modal sandbox provider plugin", () => {
     await expect(
       plugin.definition.onEnvironmentResumeLease?.({
         driverKey: "modal",
-        companyId: "c-1",
+        spaceId: "c-1",
         environmentId: "e-1",
         providerLeaseId: "sb-resume",
         config: { ...baseConfig, reuseLease: true },
@@ -472,14 +472,14 @@ describe("Modal sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentReleaseLease?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       providerLeaseId: "sb-reuse",
       config: { ...baseConfig, reuseLease: true },
     });
     await plugin.definition.onEnvironmentReleaseLease?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       providerLeaseId: "sb-ephem",
       config: { ...baseConfig, reuseLease: false },
@@ -497,7 +497,7 @@ describe("Modal sandbox provider plugin", () => {
 
     await plugin.definition.onEnvironmentDestroyLease?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       providerLeaseId: "sb-destroy",
       config: baseConfig,
@@ -508,7 +508,7 @@ describe("Modal sandbox provider plugin", () => {
     await expect(
       plugin.definition.onEnvironmentDestroyLease?.({
         driverKey: "modal",
-        companyId: "c-1",
+        spaceId: "c-1",
         environmentId: "e-1",
         providerLeaseId: "sb-missing",
         config: baseConfig,
@@ -522,7 +522,7 @@ describe("Modal sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentRealizeWorkspace?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       config: baseConfig,
       lease: {
@@ -556,7 +556,7 @@ describe("Modal sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       config: baseConfig,
       lease: { providerLeaseId: "sb-exec", metadata: {} },
@@ -597,7 +597,7 @@ describe("Modal sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       config: baseConfig,
       lease: { providerLeaseId: "sb-exec", metadata: {} },
@@ -608,16 +608,16 @@ describe("Modal sandbox provider plugin", () => {
     });
 
     expect(sandbox.openedFiles).toHaveLength(1);
-    expect(sandbox.openedFiles[0]?.path).toMatch(/^\/tmp\/paperclip-stdin-/);
+    expect(sandbox.openedFiles[0]?.path).toMatch(/^\/tmp\/outpost-stdin-/);
     expect(sandbox.openedFiles[0]?.mode).toBe("w");
     expect(sandbox.openedFiles[0]?.written).not.toBeNull();
     expect(new TextDecoder().decode(sandbox.openedFiles[0]!.written!)).toBe("input payload");
 
     // First exec is the user command; second is the rm cleanup.
     const userCall = sandbox.execCalls[0]!;
-    expect(userCall.argv[2]).toMatch(/&& exec 'cat' < '\/tmp\/paperclip-stdin-/);
+    expect(userCall.argv[2]).toMatch(/&& exec 'cat' < '\/tmp\/outpost-stdin-/);
     const cleanupCall = sandbox.execCalls[1]!;
-    expect(cleanupCall.argv[2]).toMatch(/^rm -f '\/tmp\/paperclip-stdin-/);
+    expect(cleanupCall.argv[2]).toMatch(/^rm -f '\/tmp\/outpost-stdin-/);
     expect(result?.exitCode).toBe(0);
   });
 
@@ -628,7 +628,7 @@ describe("Modal sandbox provider plugin", () => {
     await expect(
       plugin.definition.onEnvironmentExecute?.({
         driverKey: "modal",
-        companyId: "c-1",
+        spaceId: "c-1",
         environmentId: "e-1",
         config: baseConfig,
         lease: { providerLeaseId: "sb-exec", metadata: {} },
@@ -645,7 +645,7 @@ describe("Modal sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       config: baseConfig,
       lease: { providerLeaseId: "sb-expired", metadata: {} },
@@ -670,7 +670,7 @@ describe("Modal sandbox provider plugin", () => {
 
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       config: baseConfig,
       lease: { providerLeaseId: "sb-exec", metadata: {} },
@@ -691,7 +691,7 @@ describe("Modal sandbox provider plugin", () => {
   it("returns an error result when execute is called without a provider lease id", async () => {
     const result = await plugin.definition.onEnvironmentExecute?.({
       driverKey: "modal",
-      companyId: "c-1",
+      spaceId: "c-1",
       environmentId: "e-1",
       config: baseConfig,
       lease: { providerLeaseId: null, metadata: {} },
@@ -716,11 +716,11 @@ describe("modal manifest form defaults", () => {
   const properties = configSchema.properties ?? {};
 
   it("pre-fills the required app name and image so the form works out of the box", () => {
-    expect(properties.appName?.default).toBe("paperclip");
+    expect(properties.appName?.default).toBe("outpost");
     expect(properties.image?.default).toBe("node:24");
   });
 
-  it("declares no default on secret-ref fields, which would be persisted as a company secret", () => {
+  it("declares no default on secret-ref fields, which would be persisted as a space secret", () => {
     for (const prop of Object.values(properties)) {
       if (prop.format === "secret-ref") {
         expect(prop.default).toBeUndefined();

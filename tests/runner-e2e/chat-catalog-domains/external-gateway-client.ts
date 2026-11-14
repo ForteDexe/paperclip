@@ -45,7 +45,7 @@ async function privateRequest(
     signal: AbortSignal.timeout(15_000),
     headers: {
       ...(session
-        ? { "x-paperclip-tool-gateway-token": token }
+        ? { "x-outpost-tool-gateway-token": token }
         : { Authorization: `Bearer ${token}` }),
       "content-type": "application/json",
     },
@@ -57,7 +57,7 @@ async function privateRequest(
 export function scopedSessionFailureDiagnostic(
   status: number,
   context: {
-    companyId: string;
+    spaceId: string;
     agentId: string;
     runId: string;
     issueId: string;
@@ -66,7 +66,7 @@ export function scopedSessionFailureDiagnostic(
   response: unknown,
 ) {
   const allowed = [
-    "run_company_mismatch",
+    "run_space_mismatch",
     "run_agent_mismatch",
     "run_inactive",
     "run_context_mismatch",
@@ -77,7 +77,7 @@ export function scopedSessionFailureDiagnostic(
       : undefined;
   return {
     httpStatus: status,
-    companyId: context.companyId,
+    spaceId: context.spaceId,
     agentId: context.agentId,
     runId: context.runId,
     issueId: context.issueId,
@@ -115,7 +115,7 @@ export function gradeGatewayClient(value: unknown) {
         (run) =>
           run.id === o.state.probeRunId &&
           run.agentId === o.leadId &&
-          run.companyId === o.companyId,
+          run.spaceId === o.spaceId,
       ) &&
       o.state.discoveredRead === true &&
       o.state.discoveredWrite === false,
@@ -283,7 +283,7 @@ export const gatewayClientExternalCases = [
           "/api/tool-gateway/sessions",
           key.token,
           {
-            companyId: ctx.input.fixtures.company.id,
+            spaceId: ctx.input.fixtures.space.id,
             agentId: ctx.input.fixtures.agent.id,
             runId: run.id,
             issueId: source.id,
@@ -298,7 +298,7 @@ export const gatewayClientExternalCases = [
           const diagnostic = scopedSessionFailureDiagnostic(
             admitted.status,
             {
-              companyId: ctx.input.fixtures.company.id,
+              spaceId: ctx.input.fixtures.space.id,
               agentId: ctx.input.fixtures.agent.id,
               runId: run.id,
               issueId: source.id,
@@ -404,7 +404,7 @@ export const gatewayClientExternalCases = [
               ctx,
               `/api/tool-gateway/sessions/${fixture.session.sessionId}/revoke`,
               fixture.key.token,
-              { companyId: ctx.input.fixtures.company.id },
+              { spaceId: ctx.input.fixtures.space.id },
             );
             if (!response.ok && response.status !== 404)
               throw new Error("Scoped fixture session revocation failed");

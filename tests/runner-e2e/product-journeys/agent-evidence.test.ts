@@ -7,7 +7,7 @@ import type { JourneyContext } from "./types.js";
 import { validateRetainedRunnerResult } from "../result-validation.js";
 import { agentJourneyRuns, journeyRequiredChecks } from "./success-contract.js";
 
-const context = { company: { id: "qa-company" }, environmentId: "qa-daytona",
+const context = { space: { id: "qa-space" }, environmentId: "qa-daytona",
   agent: { id: "owned-agent", provider: "opencode", model: "qa-model", runtimeMode: "native" } } as JourneyContext;
 
 it("accepts the QA editor's escaped underscore while rejecting lost, duplicate, foreign or changed replies", () => {
@@ -20,8 +20,8 @@ it("accepts the QA editor's escaped underscore while rejecting lost, duplicate, 
   }
 });
 function state() {
-  return { currentIssue: { id: "owned-task", companyId: "qa-company", assigneeAgentId: "owned-agent", status: "done" },
-    taskRuns: [{ id: "run", issueId: "owned-task", companyId: "qa-company", agentId: "owned-agent", status: "succeeded", runtimeMode: "native",
+  return { currentIssue: { id: "owned-task", spaceId: "qa-space", assigneeAgentId: "owned-agent", status: "done" },
+    taskRuns: [{ id: "run", issueId: "owned-task", spaceId: "qa-space", agentId: "owned-agent", status: "succeeded", runtimeMode: "native",
       contextSnapshot: { outpostEnvironment: { id: "qa-daytona" } }, runnerProfileJson: { nativeExecutionInput: { provider: { kind: "opencode", model: "qa-model" } } } }],
     comments: [], interactions: [], attachments: [] };
 }
@@ -55,7 +55,7 @@ describe("deployed agent journey evidence", () => {
   it("accepts bound native work and fails plausible passes from a different target, agent, model or task", () => {
     expect(() => validateAgentTaskState(context, "owned-task", state(), 3)).not.toThrow();
     const substitutions = [
-      (s: ReturnType<typeof state>) => { s.currentIssue.companyId = "other"; },
+      (s: ReturnType<typeof state>) => { s.currentIssue.spaceId = "other"; },
       (s: ReturnType<typeof state>) => { s.currentIssue.assigneeAgentId = "other"; },
       (s: ReturnType<typeof state>) => { s.taskRuns[0]!.issueId = "other"; },
       (s: ReturnType<typeof state>) => { s.taskRuns[0]!.agentId = "other"; },
@@ -72,13 +72,13 @@ describe("deployed agent journey evidence", () => {
   it("permits only the explicitly stopped run, while still checking its deployment binding", () => {
     const s = state(); s.taskRuns[0]!.status = "cancelled";
     expect(() => validateAgentTaskState(context, "owned-task", s, 3, ["run"])).not.toThrow();
-    s.taskRuns[0]!.companyId = "other";
+    s.taskRuns[0]!.spaceId = "other";
     expect(() => validateAgentTaskState(context, "owned-task", s, 3, ["run"])).toThrow();
   });
   it("ignores only a bound wake the control plane retired before provider work started", () => {
     // Observed on QA: an automation wake cancelled pre-start while completed runs awaited accounting.
     const retired = (s: ReturnType<typeof state>) => {
-      (s.taskRuns as Array<Record<string, any>>).push({ id: "retired", companyId: "qa-company", agentId: s.taskRuns[0]!.agentId, issueId: "owned-task", status: "cancelled",
+      (s.taskRuns as Array<Record<string, any>>).push({ id: "retired", spaceId: "qa-space", agentId: s.taskRuns[0]!.agentId, issueId: "owned-task", status: "cancelled",
         startedAt: null, contextSnapshot: {}, resultJson: {
           executionRecovery: { kind: "accounting_wait", providerWorkStarted: false },
           cancellation: { source: "control_plane", expected: true, initiator: { type: "system" } } } });
@@ -125,18 +125,18 @@ describe("deployed agent journey evidence", () => {
     expect(() => parseTargetConfig({ ...config, limits: { ...config.limits, maxRuns: 1 } })).toThrow("agent_journeys_require_bounded_runs");
   });
   it("does not mistake a cancelled status or pending native intent for an acknowledged Stop", () => {
-    const run = { id: "run", companyId: "qa-company", issueId: "owned-task", status: "cancelled", runtimeMode: "native", resultJson: { cancelledByActorType: "user", cancelledByUserId: "qa-user",
+    const run = { id: "run", spaceId: "qa-space", issueId: "owned-task", status: "cancelled", runtimeMode: "native", resultJson: { cancelledByActorType: "user", cancelledByUserId: "qa-user",
       cancellation: { source: "operator", expected: true, initiator: { type: "user", id: "qa-user" } },
       startupCancellation: { requestedAt: "2026-10-29T00:00:00Z", beforeNativeSelection: false }, nativeCancellation: {
-      schema: "outpost.native-cancellation.v1", intentId: "native-cancellation:00000000-0000-4000-8000-000000000001", companyId: "qa-company", runId: "run", issueId: "owned-task", scope: "run",
+      schema: "outpost.native-cancellation.v1", intentId: "native-cancellation:00000000-0000-4000-8000-000000000001", spaceId: "qa-space", runId: "run", issueId: "owned-task", scope: "run",
       dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentAuditId: "intent", acknowledgementAuditId: "ack" } } };
-    expect(nativeStopAcknowledged(run, "qa-company", "owned-task", "qa-user")).toBe(true);
+    expect(nativeStopAcknowledged(run, "qa-space", "owned-task", "qa-user")).toBe(true);
     for (const change of [{ dispatchState: "pending" }, { runId: "other" }, { scope: "task" }, { effects: [] }, { acknowledgementAuditId: "intent" }]) {
       const changed = structuredClone(run); Object.assign(changed.resultJson.nativeCancellation, change);
-      expect(nativeStopAcknowledged(changed, "qa-company", "owned-task", "qa-user")).toBe(false);
+      expect(nativeStopAcknowledged(changed, "qa-space", "owned-task", "qa-user")).toBe(false);
     }
-    expect(nativeStopAcknowledged(run, "qa-company", "owned-task", "other-user")).toBe(false);
-    expect(nativeStopAcknowledged({ ...run, resultJson: {} }, "qa-company", "owned-task", "qa-user")).toBe(false);
+    expect(nativeStopAcknowledged(run, "qa-space", "owned-task", "other-user")).toBe(false);
+    expect(nativeStopAcknowledged({ ...run, resultJson: {} }, "qa-space", "owned-task", "qa-user")).toBe(false);
   });
   it.each(Object.keys(agentJourneyRuns))("retained %s successes require every story check and the exact run receipts", id => {
     const count = agentJourneyRuns[id as keyof typeof agentJourneyRuns];

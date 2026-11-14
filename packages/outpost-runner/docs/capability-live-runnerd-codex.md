@@ -40,7 +40,7 @@ import {
   DurableCapabilityLiveSessionStore,
 } from "@outpost/outpost-runner/live";
 
-const binding = { sessionId, runId, companyId, actorId, taskId };
+const binding = { sessionId, runId, spaceId, actorId, taskId };
 const store = new DurableCapabilityLiveSessionStore({ directory, binding });
 const service = new CapabilityLiveSessionService({ store });
 const session = await service.create({ ...binding, attemptId, workingDirectory });

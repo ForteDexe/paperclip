@@ -13,10 +13,10 @@ export function gradeTreePause(value: unknown) {
   c.add("actual-owned-launch-tree-evidence", !!o, "The saved Launch tree, real active children, human pause and independent child gates must be observed."); if (!o) return c.result();
   const s = o.state, parent = s.parent as Entity, held = s.pausedHold as IssueTreeHold, released = s.releasedHold as IssueTreeHold;
   const childIds = [String((s.task as Entity).id), String(((s.second as State).task as Entity).id), String((s.manualChild as Entity).id)];
-  c.add("human-only-exact-launch-subtree-control", s.agentPauseStatus === 403 && s.parentUnpausedBeforeHuman === true && !!held && held.companyId === o.companyId
+  c.add("human-only-exact-launch-subtree-control", s.agentPauseStatus === 403 && s.parentUnpausedBeforeHuman === true && !!held && held.spaceId === o.spaceId
     && held.rootIssueId === parent.id && held.mode === "pause" && held.status === "active" && held.createdByActorType === "user"
     && held.createdByUserId === s.humanId && held.members?.length === 4 && held.members.filter(member => !member.skipped).length === 3
-    && [parent.id, ...childIds].every(id => held.members?.some(member => member.issueId === id && member.companyId === o.companyId))
+    && [parent.id, ...childIds].every(id => held.members?.some(member => member.issueId === id && member.spaceId === o.spaceId))
     && held.members.some(member => member.issueId === (s.manualChild as Entity).id && member.skipped && member.skipReason === "already_held"),
   "The agent cannot use the board-only operation; the actual human pauses precisely the parent and all three descendants.");
   // Structural only: the reply links the exact Launch parent, and the lead changed no work itself. Whether the
@@ -43,16 +43,16 @@ export function gradeTreePause(value: unknown) {
   return c.result();
 }
 async function setupTree(ctx: Parameters<typeof busyRuntimeWorker>[0]): Promise<State> {
-  const parent = await ctx.input.api.post<Entity>(`/api/companies/${ctx.input.fixtures.company.id}/issues`, { title: "Launch", status: "backlog", assigneeAgentId: ctx.input.fixtures.agent.id });
+  const parent = await ctx.input.api.post<Entity>(`/api/spaces/${ctx.input.fixtures.space.id}/issues`, { title: "Launch", status: "backlog", assigneeAgentId: ctx.input.fixtures.agent.id });
   const manualWorker = await runtimeWorker(ctx, "Jamie");
-  if (manualWorker.companyId !== ctx.input.fixtures.company.id || manualWorker.id === ctx.input.fixtures.agent.id) throw new Error("Independent tree budget fixture requires a distinct same-company worker");
-  const manualChild = await ctx.input.api.post<Entity>(`/api/companies/${ctx.input.fixtures.company.id}/issues`, { title: "Launch copy", status: "backlog", parentId: parent.id, assigneeAgentId: manualWorker.id });
+  if (manualWorker.spaceId !== ctx.input.fixtures.space.id || manualWorker.id === ctx.input.fixtures.agent.id) throw new Error("Independent tree budget fixture requires a distinct same-space worker");
+  const manualChild = await ctx.input.api.post<Entity>(`/api/spaces/${ctx.input.fixtures.space.id}/issues`, { title: "Launch copy", status: "backlog", parentId: parent.id, assigneeAgentId: manualWorker.id });
   await ctx.input.api.post(`/api/agents/${manualWorker.id}/pause`, {});
-  await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/budgets/policies`, { scopeType: "agent", scopeId: manualWorker.id,
+  await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/policies`, { scopeType: "agent", scopeId: manualWorker.id,
     amount: 100, isActive: true, hardStopEnabled: true, unpricedUsagePolicy: "allow" });
   // A zero amount disables enforcement. Seed an explicit synthetic accounting
   // fixture through the public import path; this is not model/provider spend.
-  const budgetReceipt = await ctx.input.api.post<{ id: string }>(`/api/companies/${ctx.input.fixtures.company.id}/cost-events`, {
+  const budgetReceipt = await ctx.input.api.post<{ id: string }>(`/api/spaces/${ctx.input.fixtures.space.id}/cost-events`, {
     agentId: manualWorker.id, provider: "synthetic-eval-import", biller: "synthetic-eval-import", model: "imported-fixture-receipt",
     billingType: "metered_api", costStatus: "reported", costCents: 125, inputTokens: 0, outputTokens: 0,
     occurredAt: new Date().toISOString(), idempotencyKey: `tree-held-prerequisite:${ctx.input.nonce}` });
@@ -76,10 +76,10 @@ export const runtimeTreeCases = ["task-coordination.pause-tree", "steering.stop-
     const c = checks(), lead = await ctx.input.api.get<RuntimeAgent>(`/api/agents/${ctx.input.fixtures.agent.id}`), runs = await ctx.allRuns();
     c.add("lead-ready", lead.lifecycleState === "ready" && ["idle", "active"].includes(lead.status ?? ""), "The actual CEO is ready to answer the canonical query.");
     c.add("two-real-native-workers", [state, state.second as State].every(s => s.workerWasReallyWaiting === true && runs.some(row => row.id === s.workerRunId
-      && row.agentId === (s.worker as Entity).id && row.status === "running" && row.companyId === ctx.input.fixtures.company.id)), "Two actual native workers are independently active before chat.");
-    const funding = await ctx.input.api.get<{ policies: Array<{ scopeType: string; scopeId: string; amount: number; isActive: boolean; hardStopEnabled: boolean; unpricedUsagePolicy: string }> }>(`/api/companies/${ctx.input.fixtures.company.id}/budgets/overview`);
-    const activeScopes = [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, ...[ctx.input.fixtures.agent.id, (state.worker as Entity).id, ((state.second as State).worker as Entity).id].map(scopeId => ({ scopeType: "agent", scopeId }))];
-    c.add("active-branches-funded", activeScopes.every(scope => funding.policies.some(policy => policy.scopeType === scope.scopeType && policy.scopeId === scope.scopeId && policy.amount === 500 && policy.isActive && policy.hardStopEnabled && policy.unpricedUsagePolicy === "allow")), "The real company, CEO and both active branches keep their positive execution budgets while the independent branch remains held.");
+      && row.agentId === (s.worker as Entity).id && row.status === "running" && row.spaceId === ctx.input.fixtures.space.id)), "Two actual native workers are independently active before chat.");
+    const funding = await ctx.input.api.get<{ policies: Array<{ scopeType: string; scopeId: string; amount: number; isActive: boolean; hardStopEnabled: boolean; unpricedUsagePolicy: string }> }>(`/api/spaces/${ctx.input.fixtures.space.id}/budgets/overview`);
+    const activeScopes = [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, ...[ctx.input.fixtures.agent.id, (state.worker as Entity).id, ((state.second as State).worker as Entity).id].map(scopeId => ({ scopeType: "agent", scopeId }))];
+    c.add("active-branches-funded", activeScopes.every(scope => funding.policies.some(policy => policy.scopeType === scope.scopeType && policy.scopeId === scope.scopeId && policy.amount === 500 && policy.isActive && policy.hardStopEnabled && policy.unpricedUsagePolicy === "allow")), "The real space, CEO and both active branches keep their positive execution budgets while the independent branch remains held.");
     const manual = await ctx.input.api.get<RuntimeAgent>(`/api/agents/${(state.manualWorker as Entity).id}`);
     const hold = await ctx.input.api.get<TreeState>(`/api/issues/${(state.manualChild as Entity).id}/tree-control/state`);
     c.add("independent-child-pause-budget", manual.status === "paused" && manual.lifecycleHolds?.includes("budget") === true && funding.policies.some(policy => policy.scopeType === "agent" && policy.scopeId === manual.id && policy.amount === 100 && policy.isActive && policy.hardStopEnabled) && hold.activePauseHold?.holdId === (state.manualHold as IssueTreeHold).id,
@@ -94,7 +94,7 @@ export const runtimeTreeCases = ["task-coordination.pause-tree", "steering.stop-
     const root = `/api/issues/${(state.parent as Entity).id}`, source = ctx.input.page.url();
     state.agentPauseStatus = await probeAgentPermission(ctx, `${root}/tree-holds`, "POST", { mode: "pause", releasePolicy: { strategy: "manual" } });
     state.parentUnpausedBeforeHuman = (await ctx.input.api.get<TreeState>(`${root}/tree-control/state`)).activePauseHold === null;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${(state.parent as Entity).identifier ?? (state.parent as Entity).id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${(state.parent as Entity).identifier ?? (state.parent as Entity).id}`, { waitUntil: "domcontentloaded" });
     await ctx.input.page.getByRole("button", { name: "More task actions", exact: true }).click();
     await ctx.input.page.getByRole("button", { name: "Pause subtree", exact: true }).click();
     const stopped = await pollUntil({ label: "Real parent pause and both native stop acknowledgements", deadlineAt: Date.now() + 90_000,

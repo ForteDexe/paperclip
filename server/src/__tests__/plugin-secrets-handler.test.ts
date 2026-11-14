@@ -5,11 +5,11 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import {
-  companies,
-  companySecretBindings,
-  companySecretProviderConfigs,
-  companySecrets,
-  companySecretVersions,
+  spaces,
+  spaceSecretBindings,
+  spaceSecretProviderConfigs,
+  spaceSecrets,
+  spaceSecretVersions,
   createDb,
   plugins,
   secretAccessEvents,
@@ -52,13 +52,13 @@ describe("extractSecretRefBindingsFromConfig", () => {
 });
 
 describe("createPluginSecretsHandler fail-closed guards", () => {
-  it("requires company context before touching the database", async () => {
+  it("requires space context before touching the database", async () => {
     const db = { select: vi.fn(() => { throw new Error("db should not be touched"); }) };
     const handler = createPluginSecretsHandler({ db: db as never, pluginId });
 
     await expect(
       handler.resolve({ secretRef: { type: "secret_ref", secretId: randomUUID() } }),
-    ).rejects.toThrow(/companyId is required/i);
+    ).rejects.toThrow(/spaceId is required/i);
     expect(db.select).not.toHaveBeenCalled();
   });
 
@@ -67,7 +67,7 @@ describe("createPluginSecretsHandler fail-closed guards", () => {
     const handler = createPluginSecretsHandler({ db: db as never, pluginId });
 
     await expect(
-      handler.resolve({ companyId: randomUUID(), secretRef: randomUUID() }),
+      handler.resolve({ spaceId: randomUUID(), secretRef: randomUUID() }),
     ).rejects.toThrow(/use \{ type: "secret_ref"/i);
     expect(db.select).not.toHaveBeenCalled();
   });
@@ -77,7 +77,7 @@ describeEmbeddedPostgres("createPluginSecretsHandler shared vault integration", 
   let stopDb: (() => Promise<void>) | null = null;
   let db!: ReturnType<typeof createDb>;
   const previousKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
-  const secretsTmpDir = path.join(os.tmpdir(), `paperclip-plugin-secrets-${randomUUID()}`);
+  const secretsTmpDir = path.join(os.tmpdir(), `outpost-plugin-secrets-${randomUUID()}`);
 
   beforeAll(async () => {
     mkdirSync(secretsTmpDir, { recursive: true });
@@ -89,12 +89,12 @@ describeEmbeddedPostgres("createPluginSecretsHandler shared vault integration", 
 
   afterEach(async () => {
     await db.delete(secretAccessEvents);
-    await db.delete(companySecretBindings);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
-    await db.delete(companySecretProviderConfigs);
+    await db.delete(spaceSecretBindings);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
+    await db.delete(spaceSecretProviderConfigs);
     await db.delete(plugins);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -107,17 +107,17 @@ describeEmbeddedPostgres("createPluginSecretsHandler shared vault integration", 
     rmSync(secretsTmpDir, { recursive: true, force: true });
   });
 
-  async function seedCompany(name: string) {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+  async function seedSpace(name: string) {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name,
-      issuePrefix: `P${companyId.slice(0, 7)}`.toUpperCase(),
+      issuePrefix: `P${spaceId.slice(0, 7)}`.toUpperCase(),
       status: "active",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    return companyId;
+    return spaceId;
   }
 
   async function seedPlugin() {
@@ -134,7 +134,7 @@ describeEmbeddedPostgres("createPluginSecretsHandler shared vault integration", 
         version: "0.0.1",
         displayName: "Plugin Secrets Test",
         description: "Test plugin",
-        author: "Paperclip",
+        author: "Outpost",
         categories: ["automation"],
         capabilities: [],
         entrypoints: { worker: "./dist/worker.js" },
@@ -146,21 +146,21 @@ describeEmbeddedPostgres("createPluginSecretsHandler shared vault integration", 
 
   it("resolves bound plugin refs through secretService and emits plugin_worker access events", async () => {
     await seedPlugin();
-    const companyId = await seedCompany("Plugin Co");
+    const spaceId = await seedSpace("Plugin Co");
     const svc = secretService(db);
-    const secret = await svc.create(companyId, {
+    const secret = await svc.create(spaceId, {
       name: `plugin-api-key-${randomUUID()}`,
       provider: "local_encrypted",
       value: "resolved-plugin-secret",
     });
-    await svc.syncSecretRefsForTarget(companyId, { targetType: "plugin", targetId: pluginId }, [
+    await svc.syncSecretRefsForTarget(spaceId, { targetType: "plugin", targetId: pluginId }, [
       { secretId: secret.id, configPath: "apiKey" },
     ], { replaceAll: true });
 
     const handler = createPluginSecretsHandler({ db, pluginId });
     await expect(
       handler.resolve({
-        companyId,
+        spaceId,
         secretRef: { type: "secret_ref", secretId: secret.id, version: "latest" },
       }),
     ).resolves.toBe("resolved-plugin-secret");
@@ -171,7 +171,7 @@ describeEmbeddedPostgres("createPluginSecretsHandler shared vault integration", 
       .where(eq(secretAccessEvents.secretId, secret.id));
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
-      companyId,
+      spaceId,
       secretId: secret.id,
       consumerType: "plugin_worker",
       consumerId: pluginId,
@@ -182,24 +182,24 @@ describeEmbeddedPostgres("createPluginSecretsHandler shared vault integration", 
     });
   });
 
-  it("fails closed for cross-company resolve before secret provider access", async () => {
+  it("fails closed for cross-space resolve before secret provider access", async () => {
     await seedPlugin();
-    const companyA = await seedCompany("A");
-    const companyB = await seedCompany("B");
+    const spaceA = await seedSpace("A");
+    const spaceB = await seedSpace("B");
     const svc = secretService(db);
-    const foreignSecret = await svc.create(companyB, {
+    const foreignSecret = await svc.create(spaceB, {
       name: `foreign-plugin-secret-${randomUUID()}`,
       provider: "local_encrypted",
       value: "foreign-value",
     });
-    await svc.syncSecretRefsForTarget(companyB, { targetType: "plugin", targetId: pluginId }, [
+    await svc.syncSecretRefsForTarget(spaceB, { targetType: "plugin", targetId: pluginId }, [
       { secretId: foreignSecret.id, configPath: "apiKey" },
     ], { replaceAll: true });
 
     const handler = createPluginSecretsHandler({ db, pluginId });
     await expect(
       handler.resolve({
-        companyId: companyA,
+        spaceId: spaceA,
         secretRef: { type: "secret_ref", secretId: foreignSecret.id, version: "latest" },
       }),
     ).rejects.toThrow(/not bound/i);

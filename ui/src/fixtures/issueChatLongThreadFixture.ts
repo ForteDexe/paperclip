@@ -22,7 +22,7 @@ function createAgent(id: string, name: string, icon: string, urlKey: string): Ag
   const now = new Date("2026-04-28T14:00:00.000Z");
   return {
     id,
-    companyId: "company-long-thread",
+    spaceId: "space-long-thread",
     name,
     urlKey,
     role: "engineer",
@@ -76,7 +76,7 @@ function markdownBody(index: number) {
 }
 
 function plainUserBody(index: number) {
-  return `Board checkpoint ${index}: keep the issue-detail page responsive while the thread is full of historical comments.`;
+  return `Operator checkpoint ${index}: keep the issue-detail page responsive while the thread is full of historical comments.`;
 }
 
 function plainAssistantBody(index: number) {
@@ -92,11 +92,11 @@ function createComment(index: number): IssueChatComment {
 
   return {
     id: `long-thread-comment-${String(index + 1).padStart(3, "0")}`,
-    companyId: "company-long-thread",
+    spaceId: "space-long-thread",
     issueId: "issue-long-thread",
     authorType: authorAgentId ? "agent" : "user",
     authorAgentId,
-    authorUserId: authorAgentId ? null : "user-board",
+    authorUserId: authorAgentId ? null : "user-operator",
     body: isMarkdown
       ? markdownBody(index + 1)
       : authorAgentId
@@ -126,7 +126,7 @@ export const issueChatLongThreadEvents: IssueTimelineEvent[] = Array.from(
     id: `long-thread-event-${index + 1}`,
     createdAt: atMinute(index * 36 + 18),
     actorType: index % 3 === 0 ? "user" : "agent",
-    actorId: index % 3 === 0 ? "user-board" : primaryAgent.id,
+    actorId: index % 3 === 0 ? "user-operator" : primaryAgent.id,
     statusChange: index % 2 === 0
       ? { from: index === 0 ? "todo" : "in_progress", to: "in_progress" }
       : undefined,

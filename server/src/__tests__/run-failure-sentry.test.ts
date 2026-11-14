@@ -94,7 +94,7 @@ afterEach(() => {
 describe("captureRunFailure", () => {
   it("reports a saved-message failure with the run-failure tag and the actual run status", async () => {
     const { sentryModule, captureException } = await importFreshSentryWithGateOpen();
-    const event = { companyId: "company", agentId: "agent", taskId: "task", runId: "run",
+    const event = { spaceId: "space", agentId: "agent", taskId: "task", runId: "run",
       agentAdapter: "process", runStatus: "succeeded" as const, intentId: "intent" };
     sentryModule.captureTaskInterruptionFailure(event);
     sentryModule.captureTaskInterruptionFailure(event);
@@ -104,8 +104,8 @@ describe("captureRunFailure", () => {
     });
     expect(captureException.mock.calls[0]![1]).toMatchObject({
       tags: { event_kind: "run_failure", failure_source: "task_interruption", run_id: "run", task_id: "task",
-        company_id: "company", agent_id: "agent", run_status: "succeeded", error_code: "task_attempt_failed" },
-      contexts: { paperclip: { runPath: "/api/heartbeat-runs/run", taskPath: "/api/issues/task" } },
+        space_id: "space", agent_id: "agent", run_status: "succeeded", error_code: "task_attempt_failed" },
+      contexts: { outpost: { runPath: "/api/heartbeat-runs/run", taskPath: "/api/issues/task" } },
       fingerprint: ["task_attempt_failed", "process"],
     });
     sentryModule.captureTaskInterruptionFailure({ ...event, intentId: "next-intent" });
@@ -116,7 +116,7 @@ describe("captureRunFailure", () => {
 
   it("tags a saved-message report with a valid run error code without splitting its group", async () => {
     const { sentryModule, captureException } = await importFreshSentryWithGateOpen();
-    const event = { companyId: "company", agentId: "agent", taskId: "task", agentAdapter: "process",
+    const event = { spaceId: "space", agentId: "agent", taskId: "task", agentAdapter: "process",
       runStatus: "failed" as const, intentId: null };
     sentryModule.captureTaskInterruptionFailure({ ...event, runId: "run", runErrorCode: "native_workspace_sync_out_failed" });
     sentryModule.captureTaskInterruptionFailure({ ...event, runId: "other", runErrorCode: "token=abc secret" });
@@ -128,7 +128,7 @@ describe("captureRunFailure", () => {
 
   it("does not consume a saved-message report while reporting is off or capture fails", async () => {
     const { sentryModule, captureException } = await importFreshSentryWithGateOpen();
-    const event = { companyId: "company", agentId: "agent", taskId: "task", runId: "run",
+    const event = { spaceId: "space", agentId: "agent", taskId: "task", runId: "run",
       agentAdapter: "process", runStatus: "failed" as const, intentId: null };
     vi.stubEnv("OUTPOST_SENTRY_RUN_FAILURES", "off");
     sentryModule.captureTaskInterruptionFailure(event);
@@ -154,15 +154,15 @@ describe("captureRunFailure", () => {
   it("provides authenticated run references and groups repeated causes without leaking scope", async () => {
     const { sentryModule, captureException } = await importFreshSentryWithGateOpen();
     vi.stubEnv("OUTPOST_PUBLIC_URL", "https://outpost.example.com");
-    const event = baseEvent({ companyId: "company", agentId: "agent", taskId: null,
+    const event = baseEvent({ spaceId: "space", agentId: "agent", taskId: null,
       diagnostics: { execution: { failurePhase: "setup", originalFailureCode: "tool_name_collision" }, adapter: {}, provider: {}, exceptions: [], truncatedFields: [] } });
     sentryModule.captureRunFailure(event);
     sentryModule.captureRunFailure({ ...event, runId: "another-run", errorMessage: "Another tool failed" });
     sentryModule.captureException(new Error("unrelated"));
     const first = captureException.mock.calls[0]![1]!;
-    expect(first.tags).toMatchObject({ event_kind: "run_failure", company_id: "company", agent_id: "agent", root_error_code: "tool_name_collision" });
+    expect(first.tags).toMatchObject({ event_kind: "run_failure", space_id: "space", agent_id: "agent", root_error_code: "tool_name_collision" });
     expect(first.tags).not.toHaveProperty("task_id");
-    expect(first.contexts.paperclip).toEqual({ schemaVersion: 1, companyId: "company", agentId: "agent",
+    expect(first.contexts.outpost).toEqual({ schemaVersion: 1, spaceId: "space", agentId: "agent",
       runPath: `/api/heartbeat-runs/${event.runId}`, eventsPath: `/api/heartbeat-runs/${event.runId}/events`, logPath: `/api/heartbeat-runs/${event.runId}/log`,
       runUrl: `https://outpost.example.com/api/heartbeat-runs/${event.runId}`, eventsUrl: `https://outpost.example.com/api/heartbeat-runs/${event.runId}/events`,
       logUrl: `https://outpost.example.com/api/heartbeat-runs/${event.runId}/log` });
@@ -174,8 +174,8 @@ describe("captureRunFailure", () => {
   it.each([undefined, "invalid", "ftp://example.com", "https://user:password@example.com", "https://example.com?token=private", "https://example.com/#private", "https://example.com/private"])("omits unsafe or absent instance URLs: %s", async value => {
     const { sentryModule, captureException } = await importFreshSentryWithGateOpen();
     vi.stubEnv("OUTPOST_PUBLIC_URL", value);
-    sentryModule.captureRunFailure(baseEvent({ companyId: "company", agentId: "agent" }));
-    const context = captureException.mock.calls[0]![1]!.contexts.paperclip;
+    sentryModule.captureRunFailure(baseEvent({ spaceId: "space", agentId: "agent" }));
+    const context = captureException.mock.calls[0]![1]!.contexts.outpost;
     expect(context).toHaveProperty("runPath");
     expect(context).not.toHaveProperty("runUrl");
     expect(JSON.stringify(context)).not.toMatch(/password|private/);

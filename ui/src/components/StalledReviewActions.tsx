@@ -13,7 +13,7 @@ import { Textarea } from "./ui/textarea";
 
 interface StalledReviewActionsProps {
   issueId: string;
-  companyId: string;
+  spaceId: string;
   /** Rendered at the left of the action row — e.g. a decisions-row disclosure toggle. */
   footerSlot?: ReactNode;
   /** Fired after a decision lands so the surface can navigate / close / refetch extras. */
@@ -47,7 +47,7 @@ const ACTION_PAST_TENSE: Record<StalledReviewDecisionAction, string> = {
  */
 export function StalledReviewActions({
   issueId,
-  companyId,
+  spaceId,
   footerSlot,
   onResolved,
   reviewPolicy,
@@ -65,7 +65,7 @@ export function StalledReviewActions({
         note: note.trim() ? note.trim() : undefined,
       }),
     onSuccess: (_result, action) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.attention(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.attention(spaceId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.activity(issueId) });
       setNote("");

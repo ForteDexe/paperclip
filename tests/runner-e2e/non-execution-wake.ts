@@ -41,7 +41,7 @@ const one = (value: unknown, expected: unknown) => Array.isArray(value) && value
 export interface ChatAdmissionWait {
   runId: string;
   kind: "pre_dispatch_execution_wait";
-  companyId: string;
+  spaceId: string;
   agentId: string;
   issueId: string;
   recoveryActionId: string;
@@ -53,7 +53,7 @@ export function classifyPreDispatchExecutionWait(run: unknown, events: unknown):
   const row = object(run), context = object(row?.contextSnapshot), result = object(row?.resultJson);
   const wait = object(result?.executionWait);
   if (!row || !context || !result || !wait || !Array.isArray(events) || events.length !== 1) return null;
-  for (const field of ["id", "companyId", "agentId", "wakeupRequestId"]) if (!uuid(row[field])) return null;
+  for (const field of ["id", "spaceId", "agentId", "wakeupRequestId"]) if (!uuid(row[field])) return null;
   if (!uuid(context.issueId) || !uuid(context.wakeCommentId) || !uuid(wait.recoveryActionId) ||
       wait.issueId !== context.issueId || row.issueId !== context.issueId ||
       context.source !== "issue.comment" || context.wakeReason !== "issue_commented" ||
@@ -76,14 +76,14 @@ export function classifyPreDispatchExecutionWait(run: unknown, events: unknown):
     "logRef", "logBytes", "logSha256", "stdoutExcerpt", "stderrExcerpt", "usageJson", "exitCode", "signal", "externalRunId"])
     if (row[field] !== null) return null;
   const event = object(events[0]), payload = object(event?.payload);
-  if (!event || !payload || event.seq !== 1 || event.runId !== row.id || event.companyId !== row.companyId ||
+  if (!event || !payload || event.seq !== 1 || event.runId !== row.id || event.spaceId !== row.spaceId ||
       event.agentId !== row.agentId || event.eventType !== "lifecycle" || event.stream !== "system" || event.level !== "warn" ||
       typeof row.error !== "string" || !row.error || event.message !== row.error ||
       !keys(payload, ["issueId", "recoveryActionId"]) || payload.issueId !== wait.issueId ||
       payload.recoveryActionId !== wait.recoveryActionId) return null;
   for (const field of ["sourceInstanceId", "sourceEventId", "sourceSeq", "sourcePayloadSha256", "protocolSchemaVersion"])
     if (event[field] !== null) return null;
-  return { runId: String(row.id), kind: "pre_dispatch_execution_wait", companyId: String(row.companyId),
+  return { runId: String(row.id), kind: "pre_dispatch_execution_wait", spaceId: String(row.spaceId),
     agentId: String(row.agentId), issueId: context.issueId, recoveryActionId: wait.recoveryActionId,
     wakeupRequestId: String(row.wakeupRequestId), commentId: context.wakeCommentId };
 }
@@ -98,7 +98,7 @@ export function chatProviderRuns<T extends { id: string; contextSnapshot?: Recor
 
 export function verifyChatAdmissionWaitCoverage(input: {
   runs: unknown[]; runEvidence: unknown[]; comments: unknown[]; issue: unknown;
-  companyId: string; agentId: string; stoppedRunId: string | undefined;
+  spaceId: string; agentId: string; stoppedRunId: string | undefined;
   recoverySources: Array<{ runId: string; recoveryActionId: string; response: unknown }>;
 }): ChatAdmissionWait[] {
   function require(condition: unknown, code: string): asserts condition {
@@ -110,13 +110,13 @@ export function verifyChatAdmissionWaitCoverage(input: {
   const candidates = rows.filter(row => row!.errorCode === "execution_reconciliation_required");
   require(candidates.length <= 1, "repeated_admission");
   if (!candidates.length) return [];
-  require(issue.companyId === input.companyId && issue.assigneeAgentId === input.agentId &&
+  require(issue.spaceId === input.spaceId && issue.assigneeAgentId === input.agentId &&
     issue.conversationSessionGeneration === 1, "issue_scope");
   const stopped = rows.find(row => row!.id === input.stoppedRunId), cancellation = object(object(stopped?.resultJson)?.nativeCancellation);
   require(stopped && stopped.runtimeMode === "native" && stopped.status === "cancelled" &&
-    stopped.companyId === input.companyId && stopped.agentId === input.agentId && stopped.nativeIssueId === issue.id &&
+    stopped.spaceId === input.spaceId && stopped.agentId === input.agentId && stopped.nativeIssueId === issue.id &&
     cancellation?.schema === "outpost.native-cancellation.v1" && cancellation.runId === stopped.id &&
-    cancellation.companyId === input.companyId && cancellation.issueId === issue.id && cancellation.scope === "run" &&
+    cancellation.spaceId === input.spaceId && cancellation.issueId === issue.id && cancellation.scope === "run" &&
     cancellation.reasonCode === "cancellation_run_only" && cancellation.dispatchState === "acknowledged" &&
     cancellation.dispatched === true, "stopped_native_source");
   const waits: ChatAdmissionWait[] = [];
@@ -125,9 +125,9 @@ export function verifyChatAdmissionWaitCoverage(input: {
     require(evidence.length === 1 && evidence[0]!.log === null &&
       evidence[0]!.logOmissionReason === "pre_dispatch_execution_wait", "complete_event_receipt");
     const wait = classifyPreDispatchExecutionWait(row, evidence[0]!.events);
-    require(wait && wait.companyId === input.companyId && wait.agentId === input.agentId && wait.issueId === issue.id, "wait_scope");
+    require(wait && wait.spaceId === input.spaceId && wait.agentId === input.agentId && wait.issueId === issue.id, "wait_scope");
     const comment = input.comments.map(object).filter(value => value?.id === wait.commentId);
-    require(comment.length === 1 && comment[0]!.companyId === input.companyId && comment[0]!.issueId === issue.id &&
+    require(comment.length === 1 && comment[0]!.spaceId === input.spaceId && comment[0]!.issueId === issue.id &&
       comment[0]!.body === "/new" && comment[0]!.authorType === "user" && comment[0]!.deletedAt === null &&
       typeof comment[0]!.authorUserId === "string" && comment[0]!.authorUserId &&
       comment[0]!.authorAgentId === null && comment[0]!.createdByRunId === null &&
@@ -153,7 +153,7 @@ export function verifyChatAdmissionWaitCoverage(input: {
     const action = object(actions[0]), facts = object(action?.evidence), recovery = object(facts?.systemRecovery),
       preservation = object(facts?.workspaceRecovery), automatic = object(facts?.automaticRecovery),
       authorization = object(facts?.explicitUserContinuation), inspection = object(response?.sourceInspection);
-    require(action?.id === wait.recoveryActionId && action.companyId === input.companyId && action.sourceIssueId === issue.id &&
+    require(action?.id === wait.recoveryActionId && action.spaceId === input.spaceId && action.sourceIssueId === issue.id &&
       action.status === "resolved" && action.outcome === "cancelled" && Number.isFinite(time(action.resolvedAt)) &&
       action.fingerprint === `native-workspace:${stopped.id}` && facts?.runId === stopped.id &&
       automatic?.policy === "preserve_without_replay_v1" && automatic.replay === "explicit_user_continuation" && automatic.runId === stopped.id &&
@@ -170,7 +170,7 @@ export function verifyChatAdmissionWaitCoverage(input: {
     waits.push(wait);
   }
   const providers = chatProviderRuns(rows as Array<Row & { id: string }>, waits);
-  require(providers.length === 3 && providers.every(row => row.runtimeMode === "native" && row.companyId === input.companyId && row.agentId === input.agentId &&
+  require(providers.length === 3 && providers.every(row => row.runtimeMode === "native" && row.spaceId === input.spaceId && row.agentId === input.agentId &&
       row.nativeIssueId === issue.id && object(row.contextSnapshot)?.issueId === issue.id) &&
     providers.filter(row => row.status === "cancelled").length === 1 && providers.filter(row => row.status === "succeeded").length === 2, "three_native_providers");
   const fresh = providers.filter(row => row.status === "succeeded" && object(row.contextSnapshot)?.conversationSessionGeneration === 1);

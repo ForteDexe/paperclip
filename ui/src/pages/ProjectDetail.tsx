@@ -11,7 +11,7 @@ import { agentsApi } from "../api/agents";
 import { heartbeatsApi } from "../api/heartbeats";
 import { assetsApi } from "../api/assets";
 import { usePanel } from "../context/PanelContext";
-import { useCompany } from "../context/CompanyContext";
+import { useSpace } from "../context/SpaceContext";
 import { useToastActions } from "../context/ToastContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
@@ -46,7 +46,7 @@ import {
   useResourceMemberships,
 } from "../hooks/useResourceMemberships";
 import { useUpdateIssueMutation } from "../hooks/useUpdateIssueMutation";
-import { companyProjectsQuery } from "@/lib/company-projects-query";
+import { spaceProjectsQuery } from "@/lib/space-projects-query";
 
 /* ── Top-level tab types ── */
 
@@ -187,50 +187,50 @@ function ProjectTilePicker({
 
 /* ── List (issues) tab content ── */
 
-function ProjectIssuesList({ projectId, companyId }: { projectId: string; companyId: string }) {
-  const showAgentCreatedTasks = useShowAgentCreatedTasks(companyId, "paperclip:project-issues-view");
+function ProjectIssuesList({ projectId, spaceId }: { projectId: string; spaceId: string }) {
+  const showAgentCreatedTasks = useShowAgentCreatedTasks(spaceId, "outpost:project-issues-view");
   const queryClient = useQueryClient();
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
-    enabled: !!companyId,
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
+    enabled: !!spaceId,
   });
 
-  const liveRunsQueryKey = queryKeys.liveRuns(companyId);
+  const liveRunsQueryKey = queryKeys.liveRuns(spaceId);
   const sharedLiveRuns = useSharedPollingQuery({
-    companyId,
+    spaceId,
     resourceKey: "live-runs",
     queryKey: liveRunsQueryKey,
-    enabled: !!companyId,
+    enabled: !!spaceId,
     // Event-sourced via LiveUpdatesProvider (issue 9627); no interval poll needed.
     refetchInterval: false,
     leaderOnly: true,
   });
   const { data: liveRuns, dataUpdatedAt: liveRunsUpdatedAt } = useQuery({
     queryKey: liveRunsQueryKey,
-    queryFn: () => heartbeatsApi.liveRunsForCompany(companyId),
+    queryFn: () => heartbeatsApi.liveRunsForSpace(spaceId),
     enabled: sharedLiveRuns.enabled,
     refetchInterval: sharedLiveRuns.refetchInterval,
   });
   usePublishSharedQueryData(sharedLiveRuns, liveRuns, liveRunsUpdatedAt);
   const { data: projects } = useQuery({
-    ...companyProjectsQuery(companyId),
-    enabled: !!companyId,
+    ...spaceProjectsQuery(spaceId),
+    enabled: !!spaceId,
   });
 
   const issuesQuery = useQuery({
-    queryKey: [...queryKeys.issues.listByProject(companyId, projectId), showAgentCreatedTasks],
-    queryFn: () => issuesApi.listAll(companyId, { projectId, includeRoutineExecutions: true, includeAgentCreatedTasks: showAgentCreatedTasks }),
-    enabled: !!companyId,
+    queryKey: [...queryKeys.issues.listByProject(spaceId, projectId), showAgentCreatedTasks],
+    queryFn: () => issuesApi.listAll(spaceId, { projectId, includeRoutineExecutions: true, includeAgentCreatedTasks: showAgentCreatedTasks }),
+    enabled: !!spaceId,
   });
   const { data: issues } = issuesQuery;
   const issuesView = useQueryView(issuesQuery);
   const liveIssueIds = useMemo(() => collectLiveIssueIds(liveRuns, issues), [issues, liveRuns]);
 
   const updateIssue = useUpdateIssueMutation({
-    companyId,
-    invalidateKeys: [queryKeys.issues.listByProject(companyId, projectId), queryKeys.issues.list(companyId)],
+    spaceId,
+    invalidateKeys: [queryKeys.issues.listByProject(spaceId, projectId), queryKeys.issues.list(spaceId)],
   });
 
   if (issuesView.kind === "error") return <QueryErrorState error={issuesView.error} action="load project tasks" onRetry={issuesView.retry} retrying={issuesView.isFetching} />;
@@ -244,7 +244,7 @@ function ProjectIssuesList({ projectId, companyId }: { projectId: string; compan
       liveIssueIds={liveIssueIds}
       projectId={projectId}
       enableAgentCreatedVisibilityFilter
-      viewStateKey="paperclip:project-issues-view"
+      viewStateKey="outpost:project-issues-view"
       onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
     />
   );
@@ -252,57 +252,57 @@ function ProjectIssuesList({ projectId, companyId }: { projectId: string; compan
 
 function ProjectPluginOperationsList({
   projectId,
-  companyId,
+  spaceId,
   pluginKey,
 }: {
   projectId: string;
-  companyId: string;
+  spaceId: string;
   pluginKey: string;
 }) {
   const queryClient = useQueryClient();
   const originKindPrefix = `plugin:${pluginKey}`;
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(companyId),
-    queryFn: () => agentsApi.list(companyId),
-    enabled: !!companyId,
+    queryKey: queryKeys.agents.list(spaceId),
+    queryFn: () => agentsApi.list(spaceId),
+    enabled: !!spaceId,
   });
   const { data: projects } = useQuery({
-    ...companyProjectsQuery(companyId),
-    enabled: !!companyId,
+    ...spaceProjectsQuery(spaceId),
+    enabled: !!spaceId,
   });
-  const liveRunsQueryKey = queryKeys.liveRuns(companyId);
+  const liveRunsQueryKey = queryKeys.liveRuns(spaceId);
   const sharedLiveRuns = useSharedPollingQuery({
-    companyId,
+    spaceId,
     resourceKey: "live-runs",
     queryKey: liveRunsQueryKey,
-    enabled: !!companyId,
+    enabled: !!spaceId,
     // Event-sourced via LiveUpdatesProvider (issue 9627); no interval poll needed.
     refetchInterval: false,
     leaderOnly: true,
   });
   const { data: liveRuns, dataUpdatedAt: liveRunsUpdatedAt } = useQuery({
     queryKey: liveRunsQueryKey,
-    queryFn: () => heartbeatsApi.liveRunsForCompany(companyId),
+    queryFn: () => heartbeatsApi.liveRunsForSpace(spaceId),
     enabled: sharedLiveRuns.enabled,
     refetchInterval: sharedLiveRuns.refetchInterval,
   });
   usePublishSharedQueryData(sharedLiveRuns, liveRuns, liveRunsUpdatedAt);
   const issuesQuery = useQuery({
-    queryKey: queryKeys.issues.listPluginOperationsByProject(companyId, projectId, originKindPrefix),
-    queryFn: () => issuesApi.list(companyId, { projectId, originKindPrefix }),
-    enabled: !!companyId && !!projectId,
+    queryKey: queryKeys.issues.listPluginOperationsByProject(spaceId, projectId, originKindPrefix),
+    queryFn: () => issuesApi.list(spaceId, { projectId, originKindPrefix }),
+    enabled: !!spaceId && !!projectId,
   });
   const { data: issues } = issuesQuery;
   const issuesView = useQueryView(issuesQuery);
   const liveIssueIds = useMemo(() => collectLiveIssueIds(liveRuns, issues), [issues, liveRuns]);
 
   const updateIssue = useUpdateIssueMutation({
-    companyId,
+    spaceId,
     invalidateKeys: [
-      queryKeys.issues.listPluginOperationsByProject(companyId, projectId, originKindPrefix),
-      queryKeys.issues.listByProject(companyId, projectId),
-      queryKeys.issues.list(companyId),
+      queryKeys.issues.listPluginOperationsByProject(spaceId, projectId, originKindPrefix),
+      queryKeys.issues.listByProject(spaceId, projectId),
+      queryKeys.issues.list(spaceId),
     ],
   });
 
@@ -316,7 +316,7 @@ function ProjectPluginOperationsList({
       projects={projects}
       liveIssueIds={liveIssueIds}
       projectId={projectId}
-      viewStateKey={`paperclip:project-plugin-operations-view:${pluginKey}`}
+      viewStateKey={`outpost:project-plugin-operations-view:${pluginKey}`}
       onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
     />
   );
@@ -325,12 +325,12 @@ function ProjectPluginOperationsList({
 /* ── Main project page ── */
 
 export function ProjectDetail() {
-  const { companyPrefix, projectId, filter } = useParams<{
-    companyPrefix?: string;
+  const { spacePrefix, projectId, filter } = useParams<{
+    spacePrefix?: string;
     projectId: string;
     filter?: string;
   }>();
-  const { companies, selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { spaces, selectedSpaceId, setSelectedSpaceId } = useSpace();
   const { closePanel } = usePanel();
   const { setBreadcrumbs } = useBreadcrumbs();
   const { pushToast } = useToastActions();
@@ -342,13 +342,13 @@ export function ProjectDetail() {
   const fieldSaveRequestIds = useRef<Partial<Record<ProjectConfigFieldKey, number>>>({});
   const fieldSaveTimers = useRef<Partial<Record<ProjectConfigFieldKey, ReturnType<typeof setTimeout>>>>({});
   const routeProjectRef = projectId ?? "";
-  const routeCompanyId = useMemo(() => {
-    if (!companyPrefix) return null;
-    const requestedPrefix = companyPrefix.toUpperCase();
-    return companies.find((company) => company.issuePrefix.toUpperCase() === requestedPrefix)?.id ?? null;
-  }, [companies, companyPrefix]);
-  const lookupCompanyId = routeCompanyId ?? selectedCompanyId ?? undefined;
-  const canFetchProject = routeProjectRef.length > 0 && (isUuidLike(routeProjectRef) || Boolean(lookupCompanyId));
+  const routeSpaceId = useMemo(() => {
+    if (!spacePrefix) return null;
+    const requestedPrefix = spacePrefix.toUpperCase();
+    return spaces.find((space) => space.issuePrefix.toUpperCase() === requestedPrefix)?.id ?? null;
+  }, [spaces, spacePrefix]);
+  const lookupSpaceId = routeSpaceId ?? selectedSpaceId ?? undefined;
+  const canFetchProject = routeProjectRef.length > 0 && (isUuidLike(routeProjectRef) || Boolean(lookupSpaceId));
   const activeRouteTab = routeProjectRef ? resolveProjectTab(location.pathname, routeProjectRef) : null;
   const pluginTabFromSearch = useMemo(() => {
     const tab = new URLSearchParams(location.search).get("tab");
@@ -357,13 +357,13 @@ export function ProjectDetail() {
   const activeTab = activeRouteTab ?? pluginTabFromSearch;
 
   const projectQuery = useQuery({
-    queryKey: [...queryKeys.projects.detail(routeProjectRef), lookupCompanyId ?? null],
-    queryFn: () => projectsApi.get(routeProjectRef, lookupCompanyId),
+    queryKey: [...queryKeys.projects.detail(routeProjectRef), lookupSpaceId ?? null],
+    queryFn: () => projectsApi.get(routeProjectRef, lookupSpaceId),
     enabled: canFetchProject,
     // Canonicalizing the same project's URL must not unmount its edit form
-    // while the alias query loads. Never carry data into another company or project.
+    // while the alias query loads. Never carry data into another space or project.
     placeholderData: (previous) => previous &&
-      previous.companyId === lookupCompanyId &&
+      previous.spaceId === lookupSpaceId &&
       (previous.id === routeProjectRef || projectRouteRef(previous) === routeProjectRef)
       ? previous
       : undefined,
@@ -372,9 +372,9 @@ export function ProjectDetail() {
   const projectView = useQueryView(projectQuery);
   const canonicalProjectRef = project ? projectRouteRef(project) : routeProjectRef;
   const projectLookupRef = project?.id ?? routeProjectRef;
-  const resolvedCompanyId = project?.companyId ?? selectedCompanyId;
-  const membershipsQuery = useResourceMemberships(resolvedCompanyId);
-  const membershipMutation = useResourceMembershipMutation(resolvedCompanyId);
+  const resolvedSpaceId = project?.spaceId ?? selectedSpaceId;
+  const membershipsQuery = useResourceMemberships(resolvedSpaceId);
+  const membershipMutation = useResourceMembershipMutation(resolvedSpaceId);
   const projectMembershipState = project?.id
     ? resourceMembershipState(membershipsQuery.data, "project", project.id)
     : "joined";
@@ -388,8 +388,8 @@ export function ProjectDetail() {
   } = usePluginSlots({
     slotTypes: ["detailTab"],
     entityType: "project",
-    companyId: resolvedCompanyId,
-    enabled: !!resolvedCompanyId,
+    spaceId: resolvedSpaceId,
+    enabled: !!resolvedSpaceId,
   });
   const pluginTabItems = useMemo(
     () => pluginDetailSlots.map((slot) => ({
@@ -400,27 +400,27 @@ export function ProjectDetail() {
     [pluginDetailSlots],
   );
   const activePluginTab = pluginTabItems.find((item) => item.value === activeTab) ?? null;
-  // The slots query is disabled until the project's company resolves, and a
+  // The slots query is disabled until the project's space resolves, and a
   // disabled query reports isLoading=false — so "not loading" alone cannot
   // distinguish "contribution unavailable" from "not asked yet" on cold loads.
-  const pluginTabDecisionLoaded = Boolean(resolvedCompanyId) && !pluginDetailSlotsLoading;
+  const pluginTabDecisionLoaded = Boolean(resolvedSpaceId) && !pluginDetailSlotsLoading;
   const isolatedWorkspacesEnabled = experimentalSettingsQuery.data?.enableIsolatedWorkspaces === true;
   const workspaceTabProjectId = project?.id ?? null;
   const workspaceTabIssuesQuery = useQuery({
-    queryKey: workspaceTabProjectId && resolvedCompanyId
-      ? queryKeys.issues.listByProject(resolvedCompanyId, workspaceTabProjectId)
+    queryKey: workspaceTabProjectId && resolvedSpaceId
+      ? queryKeys.issues.listByProject(resolvedSpaceId, workspaceTabProjectId)
       : ["issues", "__workspace-tab__", "disabled"],
-    queryFn: () => issuesApi.list(resolvedCompanyId!, { projectId: workspaceTabProjectId! }),
-    enabled: Boolean(resolvedCompanyId && workspaceTabProjectId && isolatedWorkspacesEnabled),
+    queryFn: () => issuesApi.list(resolvedSpaceId!, { projectId: workspaceTabProjectId! }),
+    enabled: Boolean(resolvedSpaceId && workspaceTabProjectId && isolatedWorkspacesEnabled),
   });
   const { data: workspaceTabIssues = [], isLoading: isWorkspaceTabIssuesLoading } = workspaceTabIssuesQuery;
   const workspaceTabIssuesView = useQueryView(workspaceTabIssuesQuery);
   const workspaceTabExecutionWorkspacesQuery = useQuery({
-    queryKey: workspaceTabProjectId && resolvedCompanyId
-      ? queryKeys.executionWorkspaces.list(resolvedCompanyId, { projectId: workspaceTabProjectId })
+    queryKey: workspaceTabProjectId && resolvedSpaceId
+      ? queryKeys.executionWorkspaces.list(resolvedSpaceId, { projectId: workspaceTabProjectId })
       : ["execution-workspaces", "__workspace-tab__", "disabled"],
-    queryFn: () => executionWorkspacesApi.list(resolvedCompanyId!, { projectId: workspaceTabProjectId! }),
-    enabled: Boolean(resolvedCompanyId && workspaceTabProjectId && isolatedWorkspacesEnabled),
+    queryFn: () => executionWorkspacesApi.list(resolvedSpaceId!, { projectId: workspaceTabProjectId! }),
+    enabled: Boolean(resolvedSpaceId && workspaceTabProjectId && isolatedWorkspacesEnabled),
   });
   const {
     data: workspaceTabExecutionWorkspaces = [],
@@ -450,21 +450,21 @@ export function ProjectDetail() {
       : null;
 
   useEffect(() => {
-    if (!project?.companyId || project.companyId === selectedCompanyId) return;
-    setSelectedCompanyId(project.companyId, { source: "route_sync" });
-  }, [project?.companyId, selectedCompanyId, setSelectedCompanyId]);
+    if (!project?.spaceId || project.spaceId === selectedSpaceId) return;
+    setSelectedSpaceId(project.spaceId, { source: "route_sync" });
+  }, [project?.spaceId, selectedSpaceId, setSelectedSpaceId]);
 
   const invalidateProject = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(routeProjectRef) });
     queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(projectLookupRef) });
-    if (resolvedCompanyId) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(resolvedCompanyId) });
+    if (resolvedSpaceId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(resolvedSpaceId) });
     }
   };
 
   const updateProject = useMutation({
     mutationFn: (data: Record<string, unknown>) =>
-      projectsApi.update(projectLookupRef, data, resolvedCompanyId ?? lookupCompanyId),
+      projectsApi.update(projectLookupRef, data, resolvedSpaceId ?? lookupSpaceId),
     onSuccess: (_project, data) => {
       invalidateProject();
       if (data.visibility !== undefined) queryClient.invalidateQueries({ queryKey: ["issues"] });
@@ -476,7 +476,7 @@ export function ProjectDetail() {
       projectsApi.update(
         projectLookupRef,
         { archivedAt: archived ? new Date().toISOString() : null },
-        resolvedCompanyId ?? lookupCompanyId,
+        resolvedSpaceId ?? lookupSpaceId,
       ),
     onSuccess: (updatedProject, archived) => {
       invalidateProject();
@@ -498,8 +498,8 @@ export function ProjectDetail() {
 
   const uploadImage = useMutation({
     mutationFn: async (file: File) => {
-      if (!resolvedCompanyId) throw new Error("No outpost selected");
-      return assetsApi.uploadImage(resolvedCompanyId, file, `projects/${projectLookupRef || "draft"}`);
+      if (!resolvedSpaceId) throw new Error("No outpost selected");
+      return assetsApi.uploadImage(resolvedSpaceId, file, `projects/${projectLookupRef || "draft"}`);
     },
   });
 
@@ -585,7 +585,7 @@ export function ProjectDetail() {
     fieldSaveRequestIds.current[field] = requestId;
     setFieldState(field, "saving");
     try {
-      await projectsApi.update(projectLookupRef, data, resolvedCompanyId ?? lookupCompanyId);
+      await projectsApi.update(projectLookupRef, data, resolvedSpaceId ?? lookupSpaceId);
       invalidateProject();
       if (data.visibility !== undefined) queryClient.invalidateQueries({ queryKey: ["issues"] });
       if (fieldSaveRequestIds.current[field] !== requestId) return;
@@ -597,7 +597,7 @@ export function ProjectDetail() {
       scheduleFieldReset(field, 3000);
       throw error;
     }
-  }, [invalidateProject, lookupCompanyId, projectLookupRef, queryClient, resolvedCompanyId, scheduleFieldReset, setFieldState]);
+  }, [invalidateProject, lookupSpaceId, projectLookupRef, queryClient, resolvedSpaceId, scheduleFieldReset, setFieldState]);
 
   if (pluginTabFromSearch && !activePluginTab && !error) {
     if (!pluginTabDecisionLoaded) {
@@ -614,7 +614,7 @@ export function ProjectDetail() {
   if (routeProjectRef && activeTab === null) {
     let cachedTab: string | null = null;
     if (project?.id) {
-      try { cachedTab = localStorage.getItem(`paperclip:project-tab:${project.id}`); } catch {}
+      try { cachedTab = localStorage.getItem(`outpost:project-tab:${project.id}`); } catch {}
     }
     if (cachedTab === "overview") {
       return <Navigate to={`/projects/${canonicalProjectRef}/configuration`} replace />;
@@ -656,7 +656,7 @@ export function ProjectDetail() {
   const handleTabChange = (tab: ProjectTab) => {
     // Cache the active tab per project
     if (project?.id) {
-      try { localStorage.setItem(`paperclip:project-tab:${project.id}`, tab); } catch {}
+      try { localStorage.setItem(`outpost:project-tab:${project.id}`, tab); } catch {}
     }
     if (isProjectPluginTab(tab)) {
       navigate(`/projects/${canonicalProjectRef}?tab=${encodeURIComponent(tab)}`);
@@ -749,7 +749,7 @@ export function ProjectDetail() {
       </div>
 
       <SummarySlotCard
-        companyId={resolvedCompanyId}
+        spaceId={resolvedSpaceId}
         scopeKind="project"
         scopeId={project.id}
         title="Project summary"
@@ -760,8 +760,8 @@ export function ProjectDetail() {
         slotTypes={["toolbarButton", "contextMenuItem"]}
         entityType="project"
         context={{
-          companyId: resolvedCompanyId ?? null,
-          companyPrefix: companyPrefix ?? null,
+          spaceId: resolvedSpaceId ?? null,
+          spacePrefix: spacePrefix ?? null,
           projectId: project.id,
           projectRef: canonicalProjectRef,
           entityId: project.id,
@@ -776,8 +776,8 @@ export function ProjectDetail() {
         placementZones={["toolbarButton"]}
         entityType="project"
         context={{
-          companyId: resolvedCompanyId ?? null,
-          companyPrefix: companyPrefix ?? null,
+          spaceId: resolvedSpaceId ?? null,
+          spacePrefix: spacePrefix ?? null,
           projectId: project.id,
           projectRef: canonicalProjectRef,
           entityId: project.id,
@@ -808,14 +808,14 @@ export function ProjectDetail() {
 
 
 
-      {activeTab === "list" && project?.id && resolvedCompanyId && (
-        <ProjectIssuesList projectId={project.id} companyId={resolvedCompanyId} />
+      {activeTab === "list" && project?.id && resolvedSpaceId && (
+        <ProjectIssuesList projectId={project.id} spaceId={resolvedSpaceId} />
       )}
 
-      {activeTab === "plugin-operations" && project?.id && resolvedCompanyId && project.managedByPlugin && (
+      {activeTab === "plugin-operations" && project?.id && resolvedSpaceId && project.managedByPlugin && (
         <ProjectPluginOperationsList
           projectId={project.id}
-          companyId={resolvedCompanyId}
+          spaceId={resolvedSpaceId}
           pluginKey={project.managedByPlugin.pluginKey}
         />
       )}
@@ -831,7 +831,7 @@ export function ProjectDetail() {
             />
           ) : (
             <ProjectWorkspacesContent
-              companyId={resolvedCompanyId!}
+              spaceId={resolvedSpaceId!}
               projectId={project.id}
               projectRef={canonicalProjectRef}
               summaries={workspaceSummaries}
@@ -859,8 +859,8 @@ export function ProjectDetail() {
         <PluginSlotMount
           slot={activePluginTab.slot}
           context={{
-            companyId: resolvedCompanyId,
-            companyPrefix: companyPrefix ?? null,
+            spaceId: resolvedSpaceId,
+            spacePrefix: spacePrefix ?? null,
             projectId: project.id,
             projectRef: canonicalProjectRef,
             entityId: project.id,

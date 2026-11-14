@@ -1,6 +1,6 @@
 # MCP Fixture Smoke Harness
 
-Paperclip's MCP permission work uses deterministic fixture servers so policy
+Outpost's MCP permission work uses deterministic fixture servers so policy
 logic can be tested without real customer credentials or live integrations.
 
 Run the local smoke:
@@ -10,7 +10,7 @@ pnpm smoke:mcp-fixtures
 ```
 
 The runner starts one local stdio fixture and one remote-style HTTP fixture,
-checks the local Paperclip `/api/health` endpoint when available, then exercises:
+checks the local Outpost `/api/health` endpoint when available, then exercises:
 
 - allow and deny decisions
 - approval-gated writes
@@ -24,13 +24,13 @@ checks the local Paperclip `/api/health` endpoint when available, then exercises
 Use a specific dev instance URL:
 
 ```sh
-pnpm smoke:mcp-fixtures -- --paperclip-url http://127.0.0.1:3100
+pnpm smoke:mcp-fixtures -- --outpost-url http://127.0.0.1:3100
 ```
 
 Require the dev instance health check:
 
 ```sh
-pnpm smoke:mcp-fixtures -- --require-paperclip
+pnpm smoke:mcp-fixtures -- --require-outpost
 ```
 
 JSON output for CI or release-smoke ingestion:
@@ -60,7 +60,7 @@ The catalog also defines the first profile set:
 
 The first-install demo definitions are:
 
-- `paperclip-self-read`
+- `outpost-self-read`
 - `child-issue-proposal`
 - `github-triage`
 - `update-sender`
@@ -80,7 +80,7 @@ pnpm test:e2e:mcp-user-stories
 
 By default this runs only the currently runnable stories (US-1..US-5 and
 US-8..US-10) against the Playwright-managed local instance. Each scenario seeds
-a real company, a real Scout agent, and a deterministic MCP fixture connection;
+a real space, a real Scout agent, and a deterministic MCP fixture connection;
 then it drives the gateway/Test-tab APIs plus the UI pages that provide
 evidence screenshots under `test-results/mcp-user-stories/`.
 

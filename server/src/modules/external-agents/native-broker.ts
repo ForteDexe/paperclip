@@ -4,12 +4,12 @@ import { DELIVERY_QUEUES, notifyDeliveryWork } from "../../services/delivery-wor
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { sql, and, eq, isNull, gt, inArray } from "drizzle-orm";
-import { agents, companies, issues, authUsers, companyMemberships, heartbeatRuns, nativeRunFinalizations, mcpOauthGrants,
+import { agents, spaces, issues, authUsers, spaceMemberships, heartbeatRuns, nativeRunFinalizations, mcpOauthGrants,
   dotAgentBindings, dotRunnerOperations, grokBotRoutines, museAgentBindings, museRunnerOperations, externalAgentHolds, type Db } from "@outpost/db";
 import { issueReadSqlCondition } from "../../services/authorization.js";
 import { getNativeReviewAssignment, readNativeReviewAssignmentContext } from "../../services/native-runtime/native-review-participant.js";
 import { conflict, forbidden } from "../../errors.js";
-import { externalOperationDigest, digestPaperclipSemanticContent, parsePaperclipQuestionSet, type ExternalProviderOperation, type ExternalProviderPort, type DotBindingSnapshot } from "../../vendor/outpost-runner/index.js";
+import { externalOperationDigest, digestOutpostSemanticContent, parseOutpostQuestionSet, type ExternalProviderOperation, type ExternalProviderPort, type DotBindingSnapshot } from "../../vendor/outpost-runner/index.js";
 import { consumeDotHistoryReceipt } from "../../services/dot-assignment-follow-up.js";
 import { grokRoutineService, lockGrokRoutineAcceptance } from "../../services/grok-bot/routine.js";
 import { authorizeExternalBotOperator } from "../../services/external-bot-authority.js";
@@ -25,18 +25,18 @@ const STORES = {
 } as const;
 type Provider=keyof typeof STORES;
 type Database=Db|ExternalAdmissionTransaction;
-interface Binding extends Record<string,unknown> {id:string;companyId:string;agentId:string;generation:number;operatorId:string;status:string;revokedAt:Date|null;grantId:string|null;providerKind:"openai_dot"|"grok_bot"|null}
-interface Assignment extends Record<string,unknown> {id:string;companyId:string;agentId:string;bindingId:string;bindingGeneration:number;runId:string;normalizedSessionId:string;turnId:string;revision:number;controllerGeneration:number;status:string;acceptBy:Date|string;expiresAt:Date|string;createdAt:Date|string;claimedAt:Date|string|null;projection:Record<string,unknown>}
-interface Receipt extends Record<string,unknown> {id:string;companyId:string;assignmentId:string;requestId:string;digest:string;command:Record<string,unknown>;status:string;outcome:Record<string,unknown>|null;continuationReceiptId:string|null}
-interface Authority {binding:{id:string;companyId:string;agentId:string;generation:number};assignment:Pick<Assignment,"id"|"companyId"|"agentId"|"bindingId"|"bindingGeneration"|"runId"|"normalizedSessionId"|"turnId"|"revision"|"controllerGeneration"|"status"> & {expiresAt:Date;createdAt:Date;claimedAt?:Date|null}}
+interface Binding extends Record<string,unknown> {id:string;spaceId:string;agentId:string;generation:number;operatorId:string;status:string;revokedAt:Date|null;grantId:string|null;providerKind:"openai_dot"|"grok_bot"|null}
+interface Assignment extends Record<string,unknown> {id:string;spaceId:string;agentId:string;bindingId:string;bindingGeneration:number;runId:string;normalizedSessionId:string;turnId:string;revision:number;controllerGeneration:number;status:string;acceptBy:Date|string;expiresAt:Date|string;createdAt:Date|string;claimedAt:Date|string|null;projection:Record<string,unknown>}
+interface Receipt extends Record<string,unknown> {id:string;spaceId:string;assignmentId:string;requestId:string;digest:string;command:Record<string,unknown>;status:string;outcome:Record<string,unknown>|null;continuationReceiptId:string|null}
+interface Authority {binding:{id:string;spaceId:string;agentId:string;generation:number};assignment:Pick<Assignment,"id"|"spaceId"|"agentId"|"bindingId"|"bindingGeneration"|"runId"|"normalizedSessionId"|"turnId"|"revision"|"controllerGeneration"|"status"> & {expiresAt:Date;createdAt:Date;claimedAt?:Date|null}}
 interface Identity<S> {
   authorize(subject:S,assignmentId:string,settled?:boolean):Promise<Authority>;
   enabled(database:Pick<Db,"select">,provider?:"openai_dot"|"grok_bot"):Promise<boolean>;
   expectedResource?():string;
   assertSubjectCredential?(tx:ExternalAdmissionTransaction,subject:S):Promise<void>;
 }
-type Execution={binding:{companyId:string;agentId:string;runId:string};provider:{kind?:"openai_dot"|"grok_bot"|"muse";binding:DotBindingSnapshot}};
-const bindingSchema=z.object({bindingId:z.uuid(),bindingGeneration:z.number().int().positive(),companyId:z.uuid(),agentId:z.uuid(),runId:z.uuid(),normalizedSessionId:z.string().min(1),turnId:z.string().min(1),assignmentRevision:z.number().int().positive()});
+type Execution={binding:{spaceId:string;agentId:string;runId:string};provider:{kind?:"openai_dot"|"grok_bot"|"muse";binding:DotBindingSnapshot}};
+const bindingSchema=z.object({bindingId:z.uuid(),bindingGeneration:z.number().int().positive(),spaceId:z.uuid(),agentId:z.uuid(),runId:z.uuid(),normalizedSessionId:z.string().min(1),turnId:z.string().min(1),assignmentRevision:z.number().int().positive()});
 const commandSchema=z.object({requestId:z.uuid(),bindingId:z.uuid(),bindingGeneration:z.number().int().positive(),runId:z.uuid(),normalizedSessionId:z.string().min(1),turnId:z.string().min(1),assignmentRevision:z.number().int().positive(),digest:z.string(),action:z.enum(["accept","tool","progress","finish","renew","request_user_input","consume_input"]),input:z.record(z.string(),z.unknown())}).strict();
 function isFutureAssignmentTime(value:unknown):boolean {
   const deadline=value instanceof Date?value.getTime():typeof value==="string"?Date.parse(value):NaN;
@@ -48,9 +48,9 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
   const store=STORES[provider];
   const bindingTable=sql.raw(store.binding),assignmentTable=sql.raw(store.assignment),operationTable=sql.raw(store.operation),mailboxTable=sql.raw(store.mailbox);
   const ports=new Map<string,{token:symbol;generation:number;send:(command:ExternalProviderOperation)=>Promise<void>;revoke?:()=>Promise<void>}>();
-  const bindingColumns=sql.raw(`id,company_id AS "companyId",agent_id AS "agentId",generation,operator_id AS "operatorId",status,revoked_at AS "revokedAt",grant_id AS "grantId",${provider==="muse"?"NULL::text":"provider_kind"} AS "providerKind"`);
-  const assignmentColumns=sql.raw(`id,company_id AS "companyId",agent_id AS "agentId",binding_id AS "bindingId",binding_generation AS "bindingGeneration",run_id AS "runId",normalized_session_id AS "normalizedSessionId",turn_id AS "turnId",revision,controller_generation AS "controllerGeneration",status,accept_by AS "acceptBy",expires_at AS "expiresAt",created_at AS "createdAt",${provider==="muse"?"claimed_at":"accepted_at"} AS "claimedAt",projection`);
-  const receiptColumns=sql.raw(`id,company_id AS "companyId",assignment_id AS "assignmentId",request_id AS "requestId",digest,command,status,outcome,${provider==="muse"?"continuation_receipt_id":"NULL::uuid"} AS "continuationReceiptId"`);
+  const bindingColumns=sql.raw(`id,space_id AS "spaceId",agent_id AS "agentId",generation,operator_id AS "operatorId",status,revoked_at AS "revokedAt",grant_id AS "grantId",${provider==="muse"?"NULL::text":"provider_kind"} AS "providerKind"`);
+  const assignmentColumns=sql.raw(`id,space_id AS "spaceId",agent_id AS "agentId",binding_id AS "bindingId",binding_generation AS "bindingGeneration",run_id AS "runId",normalized_session_id AS "normalizedSessionId",turn_id AS "turnId",revision,controller_generation AS "controllerGeneration",status,accept_by AS "acceptBy",expires_at AS "expiresAt",created_at AS "createdAt",${provider==="muse"?"claimed_at":"accepted_at"} AS "claimedAt",projection`);
+  const receiptColumns=sql.raw(`id,space_id AS "spaceId",assignment_id AS "assignmentId",request_id AS "requestId",digest,command,status,outcome,${provider==="muse"?"continuation_receipt_id":"NULL::uuid"} AS "continuationReceiptId"`);
   async function assignment(database:Database,id:string) {return (await database.execute<Assignment>(sql`select ${assignmentColumns} from ${assignmentTable} where id=${id}::uuid`))[0];}
   async function receipt(database:Database,id:string) {return (await database.execute<Receipt>(sql`select ${receiptColumns} from ${operationTable} where id=${id}::uuid`))[0];}
   async function currentBinding(database:Database,id:string,generation:number,allowFence=false) {
@@ -61,32 +61,32 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
     if(allowFence)return;
     const actualProvider=provider==="muse"?"muse":b.providerKind;
     if(!actualProvider||!["openai_dot","grok_bot","muse"].includes(actualProvider)||!await identity.enabled(database,actualProvider==="muse"?undefined:actualProvider)||b.status!=="ready"||b.revokedAt)throw forbidden("External binding is unavailable for new effects.");
-    const [agent]=await database.select().from(agents).where(and(eq(agents.id,b.agentId),eq(agents.companyId,b.companyId)));
-    const [company]=await database.select().from(companies).where(eq(companies.id,b.companyId));
+    const [agent]=await database.select().from(agents).where(and(eq(agents.id,b.agentId),eq(agents.spaceId,b.spaceId)));
+    const [space]=await database.select().from(spaces).where(eq(spaces.id,b.spaceId));
     const [user]=await database.select({id:authUsers.id}).from(authUsers).where(eq(authUsers.id,b.operatorId));
-    const [membership]=await database.select().from(companyMemberships).where(and(eq(companyMemberships.companyId,b.companyId),eq(companyMemberships.principalType,"user"),eq(companyMemberships.principalId,b.operatorId),eq(companyMemberships.status,"active")));
-    if(!agent||["paused","terminated","pending_approval"].includes(agent.status)||agent.adapterType!=="outpost_runner"||agent.adapterConfig.provider!==actualProvider||agent.adapterConfig[actualProvider==="muse"?"museBindingId":actualProvider==="grok_bot"?"externalBindingId":"dotBindingId"]!==b.id||company?.status!=="active"||!user||!membership||membership.membershipRole==="viewer")throw forbidden("Current external agent or authorizer authority is unavailable.");
+    const [membership]=await database.select().from(spaceMemberships).where(and(eq(spaceMemberships.spaceId,b.spaceId),eq(spaceMemberships.principalType,"user"),eq(spaceMemberships.principalId,b.operatorId),eq(spaceMemberships.status,"active")));
+    if(!agent||["paused","terminated","pending_approval"].includes(agent.status)||agent.adapterType!=="outpost_runner"||agent.adapterConfig.provider!==actualProvider||agent.adapterConfig[actualProvider==="muse"?"museBindingId":actualProvider==="grok_bot"?"externalBindingId":"dotBindingId"]!==b.id||space?.status!=="active"||!user||!membership||membership.membershipRole==="viewer")throw forbidden("Current external agent or authorizer authority is unavailable.");
     if(provider==="muse") {
-      const [member]=await database.select({id:companyMemberships.id}).from(companyMemberships).where(and(eq(companyMemberships.companyId,b.companyId),eq(companyMemberships.principalType,"agent"),eq(companyMemberships.principalId,b.agentId),eq(companyMemberships.status,"active")));
-      const [binding]=await database.select().from(museAgentBindings).where(and(eq(museAgentBindings.id,b.id),eq(museAgentBindings.generation,b.generation),eq(museAgentBindings.companyId,b.companyId),eq(museAgentBindings.agentId,b.agentId),eq(museAgentBindings.operatorId,b.operatorId)));
+      const [member]=await database.select({id:spaceMemberships.id}).from(spaceMemberships).where(and(eq(spaceMemberships.spaceId,b.spaceId),eq(spaceMemberships.principalType,"agent"),eq(spaceMemberships.principalId,b.agentId),eq(spaceMemberships.status,"active")));
+      const [binding]=await database.select().from(museAgentBindings).where(and(eq(museAgentBindings.id,b.id),eq(museAgentBindings.generation,b.generation),eq(museAgentBindings.spaceId,b.spaceId),eq(museAgentBindings.agentId,b.agentId),eq(museAgentBindings.operatorId,b.operatorId)));
       if(!member||!binding||binding.qualificationExpiresAt&&binding.qualificationExpiresAt<=new Date())throw forbidden("Current Muse membership or qualification authority expired.");
       if((await inspectMuseConnectionCredential(database,binding,binding.grantId?identity.expectedResource?.():undefined)).state!=="active")throw forbidden("Current Muse credential authority is unavailable for native effects.");
     }
     if(provider==="openai_dot") {
       const [grant]=b.grantId?await database.select().from(mcpOauthGrants).where(and(eq(mcpOauthGrants.id,b.grantId),isNull(mcpOauthGrants.revokedAt))):[];
-      if(!grant||grant.companyId!==b.companyId||grant.agentId!==b.agentId||grant.userId!==b.operatorId)throw forbidden("External agent grant authority is unavailable.");
-      if(actualProvider==="grok_bot")await authorizeExternalBotOperator(database as Db,b.companyId,b.operatorId);
+      if(!grant||grant.spaceId!==b.spaceId||grant.agentId!==b.agentId||grant.userId!==b.operatorId)throw forbidden("External agent grant authority is unavailable.");
+      if(actualProvider==="grok_bot")await authorizeExternalBotOperator(database as Db,b.spaceId,b.operatorId);
     }
-    if(await budgetServiceInTransaction(database as Db).getInvocationBlock(b.companyId,b.agentId))throw forbidden("External execution budget is exhausted.");
+    if(await budgetServiceInTransaction(database as Db).getInvocationBlock(b.spaceId,b.agentId))throw forbidden("External execution budget is exhausted.");
   }
   async function authorizeController(database:Database,a:Assignment,generation:number) {
-    const [owner]=await database.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.runId,a.runId),eq(nativeRunFinalizations.companyId,a.companyId),eq(nativeRunFinalizations.controllerGeneration,generation),gt(nativeRunFinalizations.leaseExpiresAt,new Date())));
-    const [run]=await database.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id,a.runId),eq(heartbeatRuns.companyId,a.companyId),eq(heartbeatRuns.agentId,a.agentId),eq(heartbeatRuns.status,"running"),eq(heartbeatRuns.runtimeMode,"native")));
+    const [owner]=await database.select().from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.runId,a.runId),eq(nativeRunFinalizations.spaceId,a.spaceId),eq(nativeRunFinalizations.controllerGeneration,generation),gt(nativeRunFinalizations.leaseExpiresAt,new Date())));
+    const [run]=await database.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id,a.runId),eq(heartbeatRuns.spaceId,a.spaceId),eq(heartbeatRuns.agentId,a.agentId),eq(heartbeatRuns.status,"running"),eq(heartbeatRuns.runtimeMode,"native")));
     if(!owner||!run||run.nativeSessionId!==a.normalizedSessionId||["terminal_failure","turn_stopping","turn_stopped"].includes(run.nativePhase??""))throw forbidden("Native controller no longer owns this exact assignment.");
     const [binding]=await database.execute<Binding>(sql`select ${bindingColumns} from ${bindingTable} where id=${a.bindingId}::uuid`);
-    const [issue]=run.nativeIssueId?await database.select().from(issues).where(and(eq(issues.id,run.nativeIssueId),eq(issues.companyId,a.companyId),provider==="muse"?await issueReadSqlCondition(database,{type:"agent",agentId:a.agentId,companyId:a.companyId,authorizingUserId:binding?.operatorId,onBehalfOfUserId:run.responsibleUserId}):undefined)):[];
+    const [issue]=run.nativeIssueId?await database.select().from(issues).where(and(eq(issues.id,run.nativeIssueId),eq(issues.spaceId,a.spaceId),provider==="muse"?await issueReadSqlCondition(database,{type:"agent",agentId:a.agentId,spaceId:a.spaceId,authorizingUserId:binding?.operatorId,onBehalfOfUserId:run.responsibleUserId}):undefined)):[];
     const reviewContext=readNativeReviewAssignmentContext(run.contextSnapshot);
-    const review=issue&&reviewContext?await getNativeReviewAssignment(database as Db,{companyId:a.companyId,issueId:issue.id,agentId:a.agentId,contextSnapshot:run.contextSnapshot,actingRunId:run.id,allowResolvedByRunId:run.id}):null;
+    const review=issue&&reviewContext?await getNativeReviewAssignment(database as Db,{spaceId:a.spaceId,issueId:issue.id,agentId:a.agentId,contextSnapshot:run.contextSnapshot,actingRunId:run.id,allowResolvedByRunId:run.id}):null;
     if(!issue||(reviewContext? !review||(review.interaction.status==="pending"&&issue.executionRunId!==run.id): issue.assigneeAgentId!==a.agentId||![issue.checkoutRunId,issue.executionRunId].includes(run.id)))throw forbidden("Native run no longer owns this current task.");
   }
   async function consumeHistory(row:Receipt) {
@@ -97,7 +97,7 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
     if(!store.replay.some(status=>status===row.status))return;
     const a=await assignment(db,row.assignmentId),port=a&&ports.get(a.runId);if(!a||!port)return;
     const command=commandSchema.parse(row.command);
-    const send=await db.transaction(tx=>withExecutionAdmission(tx,a.companyId,a.agentId,a.runId,async()=>{
+    const send=await db.transaction(tx=>withExecutionAdmission(tx,a.spaceId,a.agentId,a.runId,async()=>{
       const b=await currentBinding(tx,a.bindingId,a.bindingGeneration);await assertCurrentAuthority(tx,b);
       const [current]=await tx.execute<Assignment>(sql`select ${assignmentColumns} from ${assignmentTable} where id=${a.id}::uuid for update`);
       if(!current||current.status==="fenced"||current.status==="settled"||!isFutureAssignmentTime(current.expiresAt)||current.controllerGeneration!==port.generation)return false;
@@ -113,16 +113,16 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
       if(rejected) {
         const reject = (writer: Database) => writer.execute(sql`update ${operationTable} set status='rejected',outcome=${JSON.stringify({status:"rejected",message:"Runner rejected this operation; inspect the assignment and arguments before proceeding."})}::jsonb,updated_at=now() where id=${row.id}::uuid and status=${provider==="muse"?"dispatched":"reserved"}`);
         if (provider === "muse") await db.transaction(async tx => {
-          await notifyExternalAgentSettlement(tx, { companyId: a.companyId, bindingId: a.bindingId });
+          await notifyExternalAgentSettlement(tx, { spaceId: a.spaceId, bindingId: a.bindingId });
           await reject(tx);
         });
         else await reject(db);
       }
-      else if(provider==="muse")await db.transaction(tx=>withExternalAdmissionGuard(tx,a.companyId,a.agentId,async()=>{
+      else if(provider==="muse")await db.transaction(tx=>withExternalAdmissionGuard(tx,a.spaceId,a.agentId,async()=>{
         await tx.execute(sql`select id from ${bindingTable} where id=${a.bindingId}::uuid for update`);
         // A result can commit before the command acknowledgement is lost.
         // Only an actual unresolved-send transition adds an effect barrier.
-        await notifyExternalAgentSettlement(tx, { companyId: a.companyId, bindingId: a.bindingId });
+        await notifyExternalAgentSettlement(tx, { spaceId: a.spaceId, bindingId: a.bindingId });
         const changed=await tx.execute(sql`update ${operationTable} set status='unknown',updated_at=now() where id=${row.id}::uuid and status in ('dispatched','pending') returning id`);
         if(changed.length)await tx.update(externalAgentHolds).set({nativeEffectsUnknown:true,releasedAt:null,updatedAt:new Date()}).where(and(eq(externalAgentHolds.provider,provider),eq(externalAgentHolds.assignmentId,a.id)));
       }));
@@ -131,9 +131,9 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
   }
   async function reserveNativeOperation(subject:S,authority:Authority,command:ExternalProviderOperation,proof?:{continuationReceiptId:string;continuationPersisted:true}) {
     const id=authority.assignment.id;
-    return db.transaction(tx=>withExecutionAdmission(tx,authority.binding.companyId,authority.binding.agentId,authority.assignment.runId,async()=>{
+    return db.transaction(tx=>withExecutionAdmission(tx,authority.binding.spaceId,authority.binding.agentId,authority.assignment.runId,async()=>{
       const b=await currentBinding(tx,authority.binding.id,authority.binding.generation);await assertCurrentAuthority(tx,b);
-      const [a]=await tx.execute<Assignment>(sql`select ${assignmentColumns} from ${assignmentTable} where id=${id}::uuid and company_id=${b.companyId}::uuid and agent_id=${b.agentId}::uuid and binding_id=${b.id}::uuid and binding_generation=${b.generation} for update`);
+      const [a]=await tx.execute<Assignment>(sql`select ${assignmentColumns} from ${assignmentTable} where id=${id}::uuid and space_id=${b.spaceId}::uuid and agent_id=${b.agentId}::uuid and binding_id=${b.id}::uuid and binding_generation=${b.generation} for update`);
       if(!a||a.status==="fenced"||a.status==="settled"||!isFutureAssignmentTime(a.expiresAt)||a.controllerGeneration!==authority.assignment.controllerGeneration)throw conflict("Assignment changed before operation admission.");
       await authorizeController(tx,a,a.controllerGeneration);
       if(provider==="muse") {
@@ -152,7 +152,7 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
         if(command.action==="accept") {
           if(a.claimedAt||!isFutureAssignmentTime(a.acceptBy))throw conflict("Assignment already claimed or claim expired.");
           await tx.execute(sql`update ${assignmentTable} set status='claimed',claimed_at=now() where id=${id}::uuid`);
-          await tx.insert(externalAgentHolds).values({companyId:b.companyId,agentId:b.agentId,provider,assignmentId:id,bindingId:b.id,bindingGeneration:b.generation,runId:a.runId,workerUnknown:true}).onConflictDoNothing();
+          await tx.insert(externalAgentHolds).values({spaceId:b.spaceId,agentId:b.agentId,provider,assignmentId:id,bindingId:b.id,bindingGeneration:b.generation,runId:a.runId,workerUnknown:true}).onConflictDoNothing();
         }
         if(command.action==="finish") {
           const [pending]=await tx.execute(sql`select 1 from muse_input_deliveries where assignment_id=${id}::uuid and consumed_at is null union all select 1 from ${operationTable} where assignment_id=${id}::uuid and command->>'action'='request_user_input' and status in ('reserved','dispatched','pending','unknown') limit 1`);if(pending)throw conflict("Pending or unconsumed runtime input blocks finish.");
@@ -162,7 +162,7 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
           if(!delivery||proof?.continuationPersisted!==true||!z.uuid().safeParse(proof.continuationReceiptId).success)throw conflict("Persist input in this exact turn before consumption.");
         }
       }
-      const [created]=await tx.execute<Receipt>(sql`insert into ${operationTable} (company_id,assignment_id,request_id,digest,command${provider==="muse"?sql`,continuation_receipt_id`:sql``}) values (${a.companyId}::uuid,${id}::uuid,${command.requestId}::uuid,${command.digest},${JSON.stringify(command)}::jsonb${provider==="muse"?sql`,${proof?.continuationReceiptId??null}::uuid`:sql``}) returning ${receiptColumns}`);
+      const [created]=await tx.execute<Receipt>(sql`insert into ${operationTable} (space_id,assignment_id,request_id,digest,command${provider==="muse"?sql`,continuation_receipt_id`:sql``}) values (${a.spaceId}::uuid,${id}::uuid,${command.requestId}::uuid,${command.digest},${JSON.stringify(command)}::jsonb${provider==="muse"?sql`,${proof?.continuationReceiptId??null}::uuid`:sql``}) returning ${receiptColumns}`);
       if(!created)throw conflict("Operation reservation failed.");return created;
     }));
   }
@@ -170,7 +170,7 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
     const authority=await identity.authorize(subject,id),{binding:b,assignment:a}=authority;
     if(!z.uuid().safeParse(requestId).success||Buffer.byteLength(JSON.stringify(input))>256*1024)throw conflict("Use a UUID requestId and bounded arguments.");
     if(provider==="openai_dot"&&["request_user_input","consume_input"].includes(action))throw forbidden("Dot-family runtime questions remain disabled.");
-    if(action==="request_user_input")parsePaperclipQuestionSet(input.questionSet);
+    if(action==="request_user_input")parseOutpostQuestionSet(input.questionSet);
     if(action==="renew"&&(!Number.isSafeInteger(input.expiresAtUnixMs)||Number(input.expiresAtUnixMs)<=Date.now()||Number(input.expiresAtUnixMs)>Date.now()+2*60*60_000||Number(input.expiresAtUnixMs)>a.createdAt.getTime()+24*60*60_000))throw conflict("Renewal must stay within the two-hour rolling and 24-hour total lease bounds.");
     const command:ExternalProviderOperation={requestId,bindingId:b.id,bindingGeneration:b.generation,runId:a.runId,normalizedSessionId:a.normalizedSessionId,turnId:a.turnId,assignmentRevision:a.revision,action,input,digest:externalOperationDigest(action,input)};
     const reserved=await reserveNativeOperation(subject,authority,command,proof);
@@ -182,25 +182,25 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
       if(r?.status==="unknown"){await identity.authorize(subject,id,true);return {status:"unknown",assignmentId:id,requestId,canReplay:false};}
       await new Promise(resolve=>setTimeout(resolve,50));
     }
-    if(provider==="openai_dot"){const [binding]=await db.select({providerKind:dotAgentBindings.providerKind}).from(dotAgentBindings).where(eq(dotAgentBindings.id,b.id));if(binding?.providerKind==="grok_bot"){await db.update(dotRunnerOperations).set({pendingReturnedAt:new Date()}).where(eq(dotRunnerOperations.id,reserved.id));return {status:"pending",assignmentId:id,requestId,message:"Poll paperclip_grok_operation_status with this assignmentId and requestId until its receipt is terminal. Keep handling this routine; Outpost will not start another routine for a tool result. Do not repeat the operation with a new request ID or perform dependent work before its receipt completes."};}}
-    return {status:"pending",assignmentId:id,requestId,message:provider==="openai_dot"?"Use paperclip_dot_operation_status or retry with the same requestId. Do not create a new request ID.":"Read the durable receipt or retry with the same request ID and identical arguments."};
+    if(provider==="openai_dot"){const [binding]=await db.select({providerKind:dotAgentBindings.providerKind}).from(dotAgentBindings).where(eq(dotAgentBindings.id,b.id));if(binding?.providerKind==="grok_bot"){await db.update(dotRunnerOperations).set({pendingReturnedAt:new Date()}).where(eq(dotRunnerOperations.id,reserved.id));return {status:"pending",assignmentId:id,requestId,message:"Poll outpost_grok_operation_status with this assignmentId and requestId until its receipt is terminal. Keep handling this routine; Outpost will not start another routine for a tool result. Do not repeat the operation with a new request ID or perform dependent work before its receipt completes."};}}
+    return {status:"pending",assignmentId:id,requestId,message:provider==="openai_dot"?"Use outpost_dot_operation_status or retry with the same requestId. Do not create a new request ID.":"Read the durable receipt or retry with the same request ID and identical arguments."};
   }
   function port(execution:Execution):ExternalProviderPort & Required<Pick<ExternalProviderPort,"inputAvailable">> {
     const runId=execution.binding.runId,ref=execution.provider.binding;
     function eventBinding(payload:Record<string,unknown>) {
       const b=bindingSchema.parse(payload.binding);
-      if(b.runId!==runId||b.bindingId!==ref.bindingId||b.bindingGeneration!==ref.bindingGeneration||b.companyId!==execution.binding.companyId||b.agentId!==execution.binding.agentId)throw conflict("Runner event binding mismatch.");
+      if(b.runId!==runId||b.bindingId!==ref.bindingId||b.bindingGeneration!==ref.bindingGeneration||b.spaceId!==execution.binding.spaceId||b.agentId!==execution.binding.agentId)throw conflict("Runner event binding mismatch.");
       return b;
     }
     async function eventAssignment(tx:ExternalAdmissionTransaction,b:ReturnType<typeof eventBinding>) {
-      return (await tx.execute<Assignment>(sql`select ${assignmentColumns} from ${assignmentTable} where run_id=${b.runId}::uuid and company_id=${b.companyId}::uuid and agent_id=${b.agentId}::uuid and binding_id=${b.bindingId}::uuid and binding_generation=${b.bindingGeneration} and normalized_session_id=${b.normalizedSessionId} and turn_id=${b.turnId} and revision=${b.assignmentRevision} for update`))[0];
+      return (await tx.execute<Assignment>(sql`select ${assignmentColumns} from ${assignmentTable} where run_id=${b.runId}::uuid and space_id=${b.spaceId}::uuid and agent_id=${b.agentId}::uuid and binding_id=${b.bindingId}::uuid and binding_generation=${b.bindingGeneration} and normalized_session_id=${b.normalizedSessionId} and turn_id=${b.turnId} and revision=${b.assignmentRevision} for update`))[0];
     }
     async function reserveRevocationEvent(tx:ExternalAdmissionTransaction,a:Assignment,sourceEventId:string,references:Record<string,unknown>) {
       if (provider === "openai_dot") await notifyDeliveryWork(tx, DELIVERY_QUEUES.dotEvents, `binding:${a.bindingId}`);
-      const [created]=await tx.execute(sql`insert into ${mailboxTable} (company_id,binding_id,binding_generation,assignment_id,kind,source_event_id,"references") values (${a.companyId}::uuid,${a.bindingId}::uuid,${a.bindingGeneration},${a.id}::uuid,'authority_revoked',${sourceEventId},${JSON.stringify(references)}::jsonb) on conflict do nothing returning id`);
+      const [created]=await tx.execute(sql`insert into ${mailboxTable} (space_id,binding_id,binding_generation,assignment_id,kind,source_event_id,"references") values (${a.spaceId}::uuid,${a.bindingId}::uuid,${a.bindingGeneration},${a.id}::uuid,'authority_revoked',${sourceEventId},${JSON.stringify(references)}::jsonb) on conflict do nothing returning id`);
       if(created)return true;
-      const [old]=await tx.execute<{companyId:string;assignmentId:string|null;kind:string}>(sql`select company_id as "companyId",assignment_id as "assignmentId",kind from ${mailboxTable} where binding_id=${a.bindingId}::uuid and binding_generation=${a.bindingGeneration} and source_event_id=${sourceEventId}`);
-      if(!old||old.companyId!==a.companyId||old.assignmentId!==a.id||old.kind!=="authority_revoked")throw conflict("Runner event identity conflicts with its durable receipt.");
+      const [old]=await tx.execute<{spaceId:string;assignmentId:string|null;kind:string}>(sql`select space_id as "spaceId",assignment_id as "assignmentId",kind from ${mailboxTable} where binding_id=${a.bindingId}::uuid and binding_generation=${a.bindingGeneration} and source_event_id=${sourceEventId}`);
+      if(!old||old.spaceId!==a.spaceId||old.assignmentId!==a.id||old.kind!=="authority_revoked")throw conflict("Runner event identity conflicts with its durable receipt.");
       return false;
     }
     return {
@@ -211,7 +211,7 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
         if(!owner?.leaseExpiresAt||owner.leaseExpiresAt<=new Date()||ports.has(runId))throw conflict("Native run controller unavailable or already attached.");
         const token=Symbol(runId);ports.set(runId,{token,generation:owner.controllerGeneration,send,revoke});
         try {
-          await db.transaction(tx=>withExecutionAdmission(tx,execution.binding.companyId,execution.binding.agentId,runId,async()=>{
+          await db.transaction(tx=>withExecutionAdmission(tx,execution.binding.spaceId,execution.binding.agentId,runId,async()=>{
             const [binding]=await tx.execute<Binding>(sql`select ${bindingColumns} from ${bindingTable} where id=${ref.bindingId}::uuid for update`);
             if(!binding||execution.provider.kind&&execution.provider.kind!==(provider==="muse"?"muse":binding.providerKind))throw forbidden("Runner controller provider does not match its binding.");
             await tx.execute(sql`update ${assignmentTable} set controller_generation=${owner.controllerGeneration} where run_id=${runId}::uuid and binding_generation=${ref.bindingGeneration} and controller_generation<=${owner.controllerGeneration}`);
@@ -227,7 +227,7 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
         const drain=async()=>{
           try {
             if(ports.get(runId)?.token!==token)return;
-            const rows=await db.execute<Receipt>(sql`select o.id,o.company_id as "companyId",o.assignment_id as "assignmentId",o.request_id as "requestId",o.digest,o.command,o.status,o.outcome,${provider==="muse"?sql`o.continuation_receipt_id`:sql`NULL::uuid`} as "continuationReceiptId" from ${operationTable} o join ${assignmentTable} a on a.id=o.assignment_id where a.run_id=${runId}::uuid and o.status in (${sql.join(store.replay.map(status=>sql`${status}`),sql`,`)}) order by o.created_at limit 32`);
+            const rows=await db.execute<Receipt>(sql`select o.id,o.space_id as "spaceId",o.assignment_id as "assignmentId",o.request_id as "requestId",o.digest,o.command,o.status,o.outcome,${provider==="muse"?sql`o.continuation_receipt_id`:sql`NULL::uuid`} as "continuationReceiptId" from ${operationTable} o join ${assignmentTable} a on a.id=o.assignment_id where a.run_id=${runId}::uuid and o.status in (${sql.join(store.replay.map(status=>sql`${status}`),sql`,`)}) order by o.created_at limit 32`);
             for(const row of rows){if(ports.get(runId)?.token!==token)break;await forward(row).catch(()=>{});}
           } finally {if(ports.get(runId)?.token===token){timer=setTimeout(()=>void drain().catch(()=>{}),2000);timer.unref();}}
         };
@@ -236,8 +236,8 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
       },
       dispatch:async event=>{
         const p=event.payload,b=eventBinding(p);
-        await db.transaction(tx=>withExecutionAdmission(tx,b.companyId,b.agentId,b.runId,async()=>{
-          const [binding]=await tx.execute<Binding>(sql`select ${bindingColumns} from ${bindingTable} where id=${b.bindingId}::uuid and company_id=${b.companyId}::uuid and agent_id=${b.agentId}::uuid for update`);
+        await db.transaction(tx=>withExecutionAdmission(tx,b.spaceId,b.agentId,b.runId,async()=>{
+          const [binding]=await tx.execute<Binding>(sql`select ${bindingColumns} from ${bindingTable} where id=${b.bindingId}::uuid and space_id=${b.spaceId}::uuid and agent_id=${b.agentId}::uuid for update`);
           if(!binding||execution.provider.kind&&execution.provider.kind!==(provider==="muse"?"muse":binding.providerKind))throw forbidden("Runner dispatch binding unavailable.");
           if(p.kind==="authority_revoked") {
             const a=await eventAssignment(tx,b);if(!a)return;
@@ -258,7 +258,7 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
                   const nativeEffectsUnknown=hold.nativeEffectsUnknown||!!unresolved;
                   if(nativeEffectsUnknown&&(!hold.nativeEffectsUnknown||hold.releasedAt!==null))await tx.update(externalAgentHolds).set({nativeEffectsUnknown:true,releasedAt:null,updatedAt:new Date()}).where(eq(externalAgentHolds.id,hold.id));
                 } else {
-                  await tx.insert(externalAgentHolds).values({companyId:a.companyId,agentId:a.agentId,provider,assignmentId:a.id,bindingId:a.bindingId,bindingGeneration:a.bindingGeneration,runId,workerUnknown:true,nativeEffectsUnknown:!!unresolved,stopBoundary:boundary}).onConflictDoUpdate({target:[externalAgentHolds.provider,externalAgentHolds.assignmentId],set:{stopBoundary:boundary,workerUnknown:true,nativeEffectsUnknown:sql`${externalAgentHolds.nativeEffectsUnknown} or ${!!unresolved}`,releasedAt:null,updatedAt:new Date()}});
+                  await tx.insert(externalAgentHolds).values({spaceId:a.spaceId,agentId:a.agentId,provider,assignmentId:a.id,bindingId:a.bindingId,bindingGeneration:a.bindingGeneration,runId,workerUnknown:true,nativeEffectsUnknown:!!unresolved,stopBoundary:boundary}).onConflictDoUpdate({target:[externalAgentHolds.provider,externalAgentHolds.assignmentId],set:{stopBoundary:boundary,workerUnknown:true,nativeEffectsUnknown:sql`${externalAgentHolds.nativeEffectsUnknown} or ${!!unresolved}`,releasedAt:null,updatedAt:new Date()}});
                 }
               }
               return;
@@ -267,7 +267,7 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
             if(binding.providerKind==="grok_bot"&&!["offered","accepted"].includes(a.status))return;
             if(await reserveRevocationEvent(tx,a,event.sourceEventId,references)){
               await tx.execute(sql`update ${assignmentTable} set status='fenced' where id=${a.id}::uuid`);
-              if(binding.providerKind==="grok_bot")await tx.update(grokBotRoutines).set({recoveryRequiredAt:new Date(),recoveryReason:"work_session",updatedAt:new Date()}).where(and(eq(grokBotRoutines.bindingId,binding.id),eq(grokBotRoutines.companyId,binding.companyId)));
+              if(binding.providerKind==="grok_bot")await tx.update(grokBotRoutines).set({recoveryRequiredAt:new Date(),recoveryReason:"work_session",updatedAt:new Date()}).where(and(eq(grokBotRoutines.bindingId,binding.id),eq(grokBotRoutines.spaceId,binding.spaceId)));
             }
             return;
           }
@@ -275,19 +275,19 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
           await assertCurrentAuthority(tx,binding);
           const [owner]=await tx.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId,runId));
           if(!owner?.leaseExpiresAt||owner.leaseExpiresAt<=new Date())throw forbidden("Runner dispatch controller unavailable.");
-          await authorizeController(tx,{runId,companyId:b.companyId,agentId:b.agentId,bindingId:b.bindingId,normalizedSessionId:b.normalizedSessionId} as Assignment,owner.controllerGeneration);
+          await authorizeController(tx,{runId,spaceId:b.spaceId,agentId:b.agentId,bindingId:b.bindingId,normalizedSessionId:b.normalizedSessionId} as Assignment,owner.controllerGeneration);
           const [old]=await tx.execute<Assignment>(sql`select ${assignmentColumns} from ${assignmentTable} where run_id=${runId}::uuid and turn_id=${b.turnId}`);
           const projection={...p,binding:b};
           if(old&&externalOperationDigest("tool",old.projection)!==externalOperationDigest("tool",projection))throw conflict("Assignment event changed its immutable projection.");
-          if (!old && provider === "muse") await notifyExternalAgentSettlement(tx, { companyId: b.companyId, bindingId: b.bindingId });
-          const [a]=old?[old]:await tx.execute<Assignment>(sql`insert into ${assignmentTable} (company_id,binding_id,binding_generation,run_id,agent_id,normalized_session_id,turn_id,revision,controller_generation,catalog_digest,status,projection,accept_by,expires_at) values (${b.companyId}::uuid,${b.bindingId}::uuid,${b.bindingGeneration},${runId}::uuid,${b.agentId}::uuid,${b.normalizedSessionId},${b.turnId},${b.assignmentRevision},${owner.controllerGeneration},${externalOperationDigest("tool",{tools:p.tools})},'offered',${JSON.stringify(projection)}::jsonb,${new Date(Number(p.acceptByUnixMs)).toISOString()}::timestamptz,${new Date(Number(p.expiresAtUnixMs)).toISOString()}::timestamptz) returning ${assignmentColumns}`);
+          if (!old && provider === "muse") await notifyExternalAgentSettlement(tx, { spaceId: b.spaceId, bindingId: b.bindingId });
+          const [a]=old?[old]:await tx.execute<Assignment>(sql`insert into ${assignmentTable} (space_id,binding_id,binding_generation,run_id,agent_id,normalized_session_id,turn_id,revision,controller_generation,catalog_digest,status,projection,accept_by,expires_at) values (${b.spaceId}::uuid,${b.bindingId}::uuid,${b.bindingGeneration},${runId}::uuid,${b.agentId}::uuid,${b.normalizedSessionId},${b.turnId},${b.assignmentRevision},${owner.controllerGeneration},${externalOperationDigest("tool",{tools:p.tools})},'offered',${JSON.stringify(projection)}::jsonb,${new Date(Number(p.acceptByUnixMs)).toISOString()}::timestamptz,${new Date(Number(p.expiresAtUnixMs)).toISOString()}::timestamptz) returning ${assignmentColumns}`);
           if(!a)throw conflict("Assignment creation failed.");
           if (provider === "openai_dot") await notifyDeliveryWork(tx, DELIVERY_QUEUES.dotEvents, `binding:${a.bindingId}`);
-          await tx.execute(sql`insert into ${mailboxTable} (company_id,binding_id,binding_generation,assignment_id,kind,source_event_id,"references") values (${a.companyId}::uuid,${a.bindingId}::uuid,${a.bindingGeneration},${a.id}::uuid,'assignment',${event.sourceEventId},${JSON.stringify({assignmentId:a.id,runId,revision:a.revision})}::jsonb) on conflict do nothing`);
+          await tx.execute(sql`insert into ${mailboxTable} (space_id,binding_id,binding_generation,assignment_id,kind,source_event_id,"references") values (${a.spaceId}::uuid,${a.bindingId}::uuid,${a.bindingGeneration},${a.id}::uuid,'assignment',${event.sourceEventId},${JSON.stringify({assignmentId:a.id,runId,revision:a.revision})}::jsonb) on conflict do nothing`);
           if(binding.providerKind==="grok_bot"){
             const [run]=await tx.select({contextSnapshot:heartbeatRuns.contextSnapshot}).from(heartbeatRuns).where(eq(heartbeatRuns.id,runId));
             const proactive=run?.contextSnapshot?.grokProactiveRequest as Record<string,unknown>|undefined;
-            if(!(proactive?.bindingId===binding.id&&proactive.bindingGeneration===binding.generation))await grokRoutineService(tx as unknown as Db).reserve({companyId:binding.companyId,agentId:binding.agentId,bindingId:binding.id,assignmentId:a.id,sourceEventId:event.sourceEventId,kind:"mailbox_updated"});
+            if(!(proactive?.bindingId===binding.id&&proactive.bindingGeneration===binding.generation))await grokRoutineService(tx as unknown as Db).reserve({spaceId:binding.spaceId,agentId:binding.agentId,bindingId:binding.id,assignmentId:a.id,sourceEventId:event.sourceEventId,kind:"mailbox_updated"});
           }
         }));
       },
@@ -296,7 +296,7 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
         const [grokAccept]=provider==="openai_dot"?await db.select({id:dotRunnerOperations.id}).from(dotRunnerOperations).innerJoin(dotAgentBindings,eq(dotAgentBindings.id,b.bindingId)).where(and(eq(dotRunnerOperations.requestId,requestId),eq(dotAgentBindings.providerKind,"grok_bot"),sql`${dotRunnerOperations.command}->>'action' = 'accept'`,sql`${dotRunnerOperations.assignmentId} in (select id from dot_runner_assignments where run_id=${runId}::uuid and binding_id=${b.bindingId}::uuid)`)):[];
         await db.transaction(async tx=>{
           if(grokAccept)await lockGrokRoutineAcceptance(tx as unknown as Db,b.bindingId);
-          return withExternalAdmissionGuard(tx,b.companyId,b.agentId,async()=>{
+          return withExternalAdmissionGuard(tx,b.spaceId,b.agentId,async()=>{
           const [binding]=await tx.execute<Binding>(sql`select ${bindingColumns} from ${bindingTable} where id=${b.bindingId}::uuid for update`);
           if(!binding||execution.provider.kind&&execution.provider.kind!==(provider==="muse"?"muse":binding.providerKind))throw forbidden("Runner operation provider does not match its binding.");
           const a=await eventAssignment(tx,b);
@@ -308,7 +308,7 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
             // the same fact must preserve later work and its original evidence.
             return;
           }
-          if (provider === "muse") await notifyExternalAgentSettlement(tx, { companyId: a.companyId, bindingId: a.bindingId });
+          if (provider === "muse") await notifyExternalAgentSettlement(tx, { spaceId: a.spaceId, bindingId: a.bindingId });
           if (provider === "openai_dot") await notifyDeliveryWork(tx, DELIVERY_QUEUES.dotEvents, `binding:${a.bindingId}`);
           await tx.execute(sql`update ${operationTable} set status=${provider==="muse"&&outcome.status==="rejected"?"rejected":store.completed},outcome=${JSON.stringify(outcome)}::jsonb,source_event_id=${event.sourceEventId},updated_at=now() where id=${op.id}::uuid`);
           const action=op.command.action;
@@ -321,7 +321,7 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
           if(a.status!=="fenced"&&outcome.status!=="rejected"&&action==="accept")assignmentChanges.push(sql`status='accepted',${sql.raw(store.acceptedAt)}=now()`);
           if(a.status!=="fenced"&&action==="finish"&&(provider==="muse"?outcome.status!=="rejected":outcome.status==="completed"))assignmentChanges.push(sql`status='settled',${sql.raw(provider==="muse"?"accepted_result_at":"settled_at")}=now()`);
           await tx.execute(sql`update ${assignmentTable} set ${sql.join(assignmentChanges,sql`,`)} where id=${a.id}::uuid`);
-          if(binding?.providerKind==="grok_bot"&&a.status!=="fenced"&&action==="finish"&&outcome.status==="completed")await grokRoutineService(tx as unknown as Db).settleWorkNotifications(a.companyId,a.bindingId,a.id);
+          if(binding?.providerKind==="grok_bot"&&a.status!=="fenced"&&action==="finish"&&outcome.status==="completed")await grokRoutineService(tx as unknown as Db).settleWorkNotifications(a.spaceId,a.bindingId,a.id);
           if(provider==="muse") {
             if(action==="consume_input"&&outcome.status==="consumed") {
               const command=commandSchema.parse(op.command);
@@ -331,21 +331,21 @@ export function createNativeExternalBroker<S>(db:Db,provider:Provider,identity:I
             const [unknown]=await tx.execute(sql`select 1 from ${operationTable} where assignment_id=${a.id}::uuid and status in ('unknown','dispatched','pending') limit 1`);
             await tx.execute(sql`update external_agent_holds set native_effects_unknown=${!!unknown},released_at=case when not worker_unknown and ${!unknown} then now() else null end,updated_at=now() where provider='muse' and assignment_id=${a.id}::uuid`);
           }
-          if(action==="tool")await tx.execute(sql`insert into ${mailboxTable} (company_id,binding_id,binding_generation,assignment_id,kind,source_event_id,"references") values (${a.companyId}::uuid,${a.bindingId}::uuid,${a.bindingGeneration},${a.id}::uuid,'operation_result',${event.sourceEventId},${JSON.stringify({assignmentId:a.id,requestId})}::jsonb) on conflict do nothing`);
+          if(action==="tool")await tx.execute(sql`insert into ${mailboxTable} (space_id,binding_id,binding_generation,assignment_id,kind,source_event_id,"references") values (${a.spaceId}::uuid,${a.bindingId}::uuid,${a.bindingGeneration},${a.id}::uuid,'operation_result',${event.sourceEventId},${JSON.stringify({assignmentId:a.id,requestId})}::jsonb) on conflict do nothing`);
           });
         });
       },
       inputAvailable:async event=>{
         if(provider!=="muse")throw forbidden("Dot runtime questions remain disabled.");
         const p=event.payload,b=eventBinding(p),requestId=z.string().min(1).max(200).parse(p.requestId),turnId=z.literal(b.turnId).parse(p.turnId),inputDigest=z.string().regex(/^sha256:[a-f0-9]{64}$/).parse(p.inputDigest),response=z.record(z.string(),z.unknown()).parse(p.response);
-        if(inputDigest!==digestPaperclipSemanticContent({requestId,turnId,response}))throw conflict("Input digest does not match its canonical response.");
-        await db.transaction(tx=>withExternalAdmissionGuard(tx,b.companyId,b.agentId,async()=>{
+        if(inputDigest!==digestOutpostSemanticContent({requestId,turnId,response}))throw conflict("Input digest does not match its canonical response.");
+        await db.transaction(tx=>withExternalAdmissionGuard(tx,b.spaceId,b.agentId,async()=>{
           const binding=await currentBinding(tx,b.bindingId,b.bindingGeneration);await assertCurrentAuthority(tx,binding);
           const a=await eventAssignment(tx,b);if(!a||a.status==="fenced")throw forbidden("Input target authority unavailable.");
           const [old]=await tx.execute<{inputDigest:string;turnId:string}>(sql`select input_digest as "inputDigest",turn_id as "turnId" from muse_input_deliveries where assignment_id=${a.id}::uuid and request_id=${requestId}`);
           if(old&&(old.inputDigest!==inputDigest||old.turnId!==turnId))throw conflict("Input delivery changed its immutable digest.");
-          await tx.execute(sql`insert into muse_input_deliveries (company_id,assignment_id,request_id,turn_id,input_digest,response,source_event_id) values (${a.companyId}::uuid,${a.id}::uuid,${requestId},${turnId},${inputDigest},${JSON.stringify(response)}::jsonb,${event.sourceEventId}) on conflict do nothing`);
-          await tx.execute(sql`insert into ${mailboxTable} (company_id,binding_id,binding_generation,assignment_id,kind,source_event_id,"references") values (${a.companyId}::uuid,${a.bindingId}::uuid,${a.bindingGeneration},${a.id}::uuid,'input_available',${event.sourceEventId},${JSON.stringify({assignmentId:a.id,requestId,turnId,inputDigest})}::jsonb) on conflict do nothing`);
+          await tx.execute(sql`insert into muse_input_deliveries (space_id,assignment_id,request_id,turn_id,input_digest,response,source_event_id) values (${a.spaceId}::uuid,${a.id}::uuid,${requestId},${turnId},${inputDigest},${JSON.stringify(response)}::jsonb,${event.sourceEventId}) on conflict do nothing`);
+          await tx.execute(sql`insert into ${mailboxTable} (space_id,binding_id,binding_generation,assignment_id,kind,source_event_id,"references") values (${a.spaceId}::uuid,${a.bindingId}::uuid,${a.bindingGeneration},${a.id}::uuid,'input_available',${event.sourceEventId},${JSON.stringify({assignmentId:a.id,requestId,turnId,inputDigest})}::jsonb) on conflict do nothing`);
         }));
       },
     };

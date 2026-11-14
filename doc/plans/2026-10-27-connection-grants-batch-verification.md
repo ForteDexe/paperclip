@@ -39,7 +39,7 @@ node --import ./server/node_modules/tsx/dist/esm/index.mjs \
 ```
 
 The fixture is a Cloud board member who is not the creator, with a target-scoped
-grant covering the synthetic roster. Company installs retain the whole roster;
+grant covering the synthetic roster. Space installs retain the whole roster;
 partial installs retain one quarter, with at least one retained agent. Each arm
 has two warmups and five measured samples in alternating order. Counts below are
 per invocation. Full positional equality passed in every iteration. Individual
@@ -48,16 +48,16 @@ and treatment `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` outside timed samples.
 
 | Agents / installation | Old median ms (range) | Batch median ms (range) | SQL calls old → batch | Target lookups old → batch |
 | --- | ---: | ---: | ---: | ---: |
-| 1 / company | 5.13 (4.53–7.45) | 4.82 (4.38–5.08) | 8 → 8 | 1 → 1 |
+| 1 / space | 5.13 (4.53–7.45) | 4.82 (4.38–5.08) | 8 → 8 | 1 → 1 |
 | 1 / partial | 5.16 (4.01–5.54) | 5.26 (4.83–6.13) | 7 → 7 | 1 → 1 |
-| 8 / company | 231.79 (221.63–238.96) | 31.11 (24.79–35.86) | 344 → 43 | 64 → 8 |
+| 8 / space | 231.79 (221.63–238.96) | 31.11 (24.79–35.86) | 344 → 43 | 64 → 8 |
 | 8 / partial | 128.84 (114.42–160.09) | 43.07 (39.36–45.69) | 126 → 42 | 22 → 8 |
-| 32 / company | 2,804.04 (2,516.50–4,928.42) | 77.19 (75.56–132.76) | 5,216 → 163 | 1,024 → 32 |
+| 32 / space | 2,804.04 (2,516.50–4,928.42) | 77.19 (75.56–132.76) | 5,216 → 163 | 1,024 → 32 |
 | 32 / partial | 697.51 (676.38–732.57) | 73.92 (73.21–77.78) | 1,464 → 162 | 280 → 32 |
-| 100 / company | 24,753.29 (23,849.21–25,019.72) | 246.39 (234.94–278.72) | 50,300 → 503 | 10,000 → 100 |
+| 100 / space | 24,753.29 (23,849.21–25,019.72) | 246.39 (234.94–278.72) | 50,300 → 503 | 10,000 → 100 |
 | 100 / partial | 6,338.58 (6,239.68–6,526.36) | 236.37 (228.40–288.54) | 13,075 → 502 | 2,575 → 100 |
 
-At 100 agents, returned Drizzle rows fell from 60,200 to 602 for company installs
+At 100 agents, returned Drizzle rows fell from 60,200 to 602 for space installs
 and from 15,475 to 526 for partial installs. The one-agent controls are neutral,
 including a small overlapping timing regression for the partial case. The table
 retains every sample range; do not extrapolate a latency curve from these medians.
@@ -77,9 +77,9 @@ cleanup remained in use. The normal embedded package targets Darwin PostgreSQL
 - Focused real-policy regressions cover scoped grants without installs, retained
   missing/denied targets, mixed and duplicate candidates, 403 versus reached
   409/500 faults, earlier denial masking an unreachable fault, forced mutation
-  mode, fresh calls and reauthorization, actor/company isolation,
+  mode, fresh calls and reauthorization, actor/space isolation,
   deliberate within-call staleness, and ordinary fallback preparation counts.
-- Real PostgreSQL differential coverage includes company and partial installs,
+- Real PostgreSQL differential coverage includes space and partial installs,
   empty/duplicate candidates, foreign targets, uppercase UUID comparisons,
   profile/proposed-provider fallback, and an injected SQL division-by-zero fault
   that must escape only when reached.
@@ -110,7 +110,7 @@ the complete capabilities and a later reached infrastructure fault. No stored
 target is dropped or normalized, and legacy selector semantics stay unchanged.
 
 The bound is retained-plus-candidate target evaluations, not total CPU, SQL rows,
-or endpoint latency. Scoped grant arrays and company hierarchy reads can still
+or endpoint latency. Scoped grant arrays and space hierarchy reads can still
 grow inside each policy decision. Recursive and delegated fallback retain their
 existing costs. The benchmark measures the descriptive service component;
 hosted request attribution and production latency improvement remain unverified.

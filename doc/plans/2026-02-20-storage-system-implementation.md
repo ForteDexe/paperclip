@@ -6,7 +6,7 @@ Date: 2026-02-20
 
 ## Goal
 
-Add a single storage subsystem for Paperclip that supports:
+Add a single storage subsystem for Outpost that supports:
 
 - local disk storage for single-user local deployment
 - S3-compatible object storage for cloud deployment
@@ -16,8 +16,8 @@ Add a single storage subsystem for Paperclip that supports:
 
 - First consumer: issue attachments/images.
 - Storage adapters: `local_disk` and `s3`.
-- Files are always company-scoped and access-controlled.
-- API serves attachment bytes through authenticated Paperclip endpoints.
+- Files are always space-scoped and access-controlled.
+- API serves attachment bytes through authenticated Outpost endpoints.
 
 ## Out of Scope (This Draft)
 
@@ -28,11 +28,11 @@ Add a single storage subsystem for Paperclip that supports:
 
 ## Key Decisions
 
-- Default local path is under instance root: `~/.paperclip/instances/<instanceId>/data/storage`.
+- Default local path is under instance root: `~/.outpost/instances/<instanceId>/data/storage`.
 - Object bytes live in storage provider; metadata lives in Postgres.
 - `assets` is generic metadata table; `issue_attachments` links assets to issues/comments.
 - S3 credentials come from runtime environment/default AWS provider chain, not DB rows.
-- All object keys include company prefix to preserve hard tenancy boundaries.
+- All object keys include space prefix to preserve hard tenancy boundaries.
 
 ## Phase 1: Shared Config + Provider Contract
 
@@ -56,8 +56,8 @@ Add a single storage subsystem for Paperclip that supports:
 
 ### Acceptance Criteria
 
-- `paperclipai onboard` writes a valid `storage` config block by default.
-- `paperclipai configure --section storage` can switch between local and s3 modes.
+- `outpost onboard` writes a valid `storage` config block by default.
+- `outpost configure --section storage` can switch between local and s3 modes.
 - Server startup reads storage config without env-only hacks.
 
 ## Phase 2: Server Storage Subsystem + Providers
@@ -94,29 +94,29 @@ Add a single storage subsystem for Paperclip that supports:
 ### Suggested Columns
 
 - `assets`:
-  - `id`, `company_id`, `provider`, `object_key`
+  - `id`, `space_id`, `provider`, `object_key`
   - `content_type`, `byte_size`, `sha256`, `original_filename`
   - `created_by_agent_id`, `created_by_user_id`, timestamps
 - `issue_attachments`:
-  - `id`, `company_id`, `issue_id`, `asset_id`, `issue_comment_id` (nullable), timestamps
+  - `id`, `space_id`, `issue_id`, `asset_id`, `issue_comment_id` (nullable), timestamps
 
 ### Acceptance Criteria
 
 - Migration applies cleanly on empty and existing local dev DB.
-- Metadata rows are company-scoped and indexed for issue lookup.
+- Metadata rows are space-scoped and indexed for issue lookup.
 
 ## Phase 4: Issue Attachment API
 
 ### Checklist (Per File)
 
 - [ ] `packages/shared/src/validators/issue.ts`: add schemas for upload/list/delete attachment operations.
-- [ ] `server/src/services/issues.ts`: add attachment CRUD helpers with company checks.
+- [ ] `server/src/services/issues.ts`: add attachment CRUD helpers with space checks.
 - [ ] `server/src/routes/issues.ts`: add endpoints:
-  - `POST /companies/:companyId/issues/:issueId/attachments` (multipart)
+  - `POST /spaces/:spaceId/issues/:issueId/attachments` (multipart)
   - `GET /issues/:issueId/attachments`
   - `GET /attachments/:attachmentId/content`
   - `DELETE /attachments/:attachmentId`
-- [ ] `server/src/routes/authz.ts`: reuse/enforce company access for attachment endpoints.
+- [ ] `server/src/routes/authz.ts`: reuse/enforce space access for attachment endpoints.
 - [ ] `server/src/services/activity-log.ts` usage callsites: log attachment add/remove mutations.
 - [ ] `server/src/app.ts`: ensure multipart parsing middleware is in place for upload route.
 
@@ -128,8 +128,8 @@ Add a single storage subsystem for Paperclip that supports:
 
 ### Acceptance Criteria
 
-- Board and same-company agents can upload and read attachments per issue permissions.
-- Cross-company access is denied even with valid attachment id.
+- Board and same-space agents can upload and read attachments per issue permissions.
+- Cross-space access is denied even with valid attachment id.
 - Activity log records attachment add/remove actions.
 
 ## Phase 5: UI Issue Attachment Integration
@@ -161,7 +161,7 @@ Add a single storage subsystem for Paperclip that supports:
 
 ### Acceptance Criteria
 
-- `paperclipai doctor` reports actionable storage status.
+- `outpost doctor` reports actionable storage status.
 - Local single-user install works without extra cloud credentials.
 - Cloud config supports S3-compatible endpoint without code changes.
 
@@ -169,7 +169,7 @@ Add a single storage subsystem for Paperclip that supports:
 
 ### Server Integration Tests
 
-- [ ] `server/src/__tests__/issue-attachments.auth.test.ts`: company boundary and permission tests.
+- [ ] `server/src/__tests__/issue-attachments.auth.test.ts`: space boundary and permission tests.
 - [ ] `server/src/__tests__/issue-attachments.lifecycle.test.ts`: upload/list/read/delete flow.
 - [ ] `server/src/__tests__/storage-local-provider.test.ts`: local provider path safety and round-trip.
 - [ ] `server/src/__tests__/storage-s3-provider.test.ts`: s3 provider contract (mocked client).

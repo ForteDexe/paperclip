@@ -1,4 +1,4 @@
-# Paperclip feature map
+# Outpost feature map
 
 Start here when reproducing a user-facing bug, verifying a change, or deciding
 which surfaces a fix must cover. Each recipe describes what a person can do,
@@ -22,10 +22,10 @@ evidence:
 | Reference | Example | Defined by |
 | --- | --- | --- |
 | Feature ID | `onboarding` | The recipe filename without `.md`. |
-| Capability ID | `onboarding/company` | The feature ID plus a key from its Sub-features list, separated by `/`. |
+| Capability ID | `onboarding/space` | The feature ID plus a key from its Sub-features list, separated by `/`. |
 | Entry-point reference | [onboarding.md#web-wizard](onboarding.md#web-wizard) | The recipe filename plus its entry-point heading. The local entry-point ID is `web-wizard`. |
 
-For example, report verifying `onboarding/company` through `web-wizard`.
+For example, report verifying `onboarding/space` through `web-wizard`.
 Capabilities describe behavior; entry points identify the surface used to exercise
 it. Entry-point IDs are separate from generated capability IDs. Both maps and
 Storybook use the same full capability IDs. Each child page states its feature
@@ -45,9 +45,9 @@ Use this index to open a recipe or copy its feature and full capability IDs.
 
 | Feature ID | Recipe | Capability IDs |
 | --- | --- | --- |
-| `onboarding` | [Onboarding and first work](onboarding.md) | `onboarding/instance`, `onboarding/company`, `onboarding/adapter`, `onboarding/first-task`, `onboarding/resume` |
+| `onboarding` | [Onboarding and first work](onboarding.md) | `onboarding/instance`, `onboarding/space`, `onboarding/adapter`, `onboarding/first-task`, `onboarding/resume` |
 | `access` | [Login, invitations, and access](access.md) | `access/login`, `access/invitations`, `access/membership`, `access/resources`, `access/cli-auth` |
-| `companies` | [Companies and portability](companies.md) | `companies/selection`, `companies/identity`, `companies/decision-models`, `companies/prompt-injection-prevention`, `companies/fast-responses`, `companies/archive`, `companies/portability` |
+| `spaces` | [Spaces and portability](spaces.md) | `spaces/selection`, `spaces/identity`, `spaces/decision-models`, `spaces/prompt-injection-prevention`, `spaces/fast-responses`, `spaces/archive`, `spaces/portability` |
 
 ### Tasks and conversations
 
@@ -89,7 +89,7 @@ Use this index to open a recipe or copy its feature and full capability IDs.
 | `app-permissions` | [App access and action permissions](app-permissions.md) | `app-permissions/agent-access`, `app-permissions/action-policy`, `app-permissions/catalog-change`, `app-permissions/test-action`, `app-permissions/account-maintenance` |
 | `chat-channels` | [External chat and email](chat-channels.md) | `chat-channels/providers`, `chat-channels/identity`, `chat-channels/conversation`, `chat-channels/attachments`, `chat-channels/lifecycle`, `chat-channels/outbound-email` |
 | `gateways-profiles` | [Tool gateways and access profiles](gateways-profiles.md) | `gateways-profiles/gateway`, `gateways-profiles/profiles`, `gateways-profiles/client-connect`, `gateways-profiles/tokens`, `gateways-profiles/activity` |
-| `secrets` | [Secrets and proposals](secrets.md) | `secrets/company-secrets`, `secrets/user-secrets`, `secrets/proposals`, `secrets/vault-import`, `secrets/runtime-delivery` |
+| `secrets` | [Secrets and proposals](secrets.md) | `secrets/space-secrets`, `secrets/user-secrets`, `secrets/proposals`, `secrets/vault-import`, `secrets/runtime-delivery` |
 | `plugins` | [Plugins](plugins.md) | `plugins/installation`, `plugins/configuration`, `plugins/contributions`, `plugins/lifecycle` |
 
 ### Automation and structured work
@@ -108,7 +108,7 @@ Use this index to open a recipe or copy its feature and full capability IDs.
 | `activity` | [Dashboards and audit trails](activity.md) | `activity/overview`, `activity/activity`, `activity/runs`, `activity/routine-audit`, `activity/timeline`, `activity/agent-commentary` |
 | `navigation-preferences` | [Navigation, profile, and announcements](navigation-preferences.md) | `navigation-preferences/navigation`, `navigation-preferences/preferences`, `navigation-preferences/profile`, `navigation-preferences/announcements`, `navigation-preferences/fallbacks`, `navigation-preferences/command-palette` |
 | `instance-operations` | [Instance operations](instance-operations.md) | `instance-operations/install-update`, `instance-operations/server-service`, `instance-operations/configuration`, `instance-operations/diagnostics`, `instance-operations/backup`, `instance-operations/runtime-setup` |
-| `cli-operations` | [CLI/API and local worktrees](cli-operations.md) | `cli-operations/context`, `cli-operations/domain-commands`, `cli-operations/outputs`, `cli-operations/run-controls`, `cli-operations/worktree-instances`, `cli-operations/feedback-export` |
+| `cli-operations` | [CLI/API and local worktrees](cli-operations.md) | `cli-operations/context`, `cli-operations/domain-commands`, `cli-operations/outputs`, `cli-operations/run-controls`, `cli-operations/worktree-instances` |
 
 ### Contributor surfaces
 
@@ -130,11 +130,11 @@ metadata; generation does not depend on this high-level index.
 1. Use this checkout's [isolated test drive](../../doc/DEVELOPING.md#one-command-isolated-manual-test-drive)
    for manual product checks. It creates a temporary instance and prints its URL
    and data directory. Do not guess that a server on port 3100 belongs to you.
-2. Record the commit, URL, company, login role, relevant experimental settings,
+2. Record the commit, URL, space, login role, relevant experimental settings,
    adapter, runtime mode, and live versus simulated dependencies. Use disposable
-   tasks and provider resources. A fresh test drive creates a company and CEO,
+   tasks and provider resources. A fresh test drive creates a space and CEO,
    but no task or first run.
-3. Use the current navigation and company prefix. Paths in recipes omit that
+3. Use the current navigation and space prefix. Paths in recipes omit that
    prefix. Record whether the streamlined or production shell is selected;
    Agent Chat, chat connectors, and the combined Inbox/Tasks view have separate
    gates. A hidden surface is an unmet prerequisite, not a successful test.
@@ -147,11 +147,11 @@ metadata; generation does not depend on this high-level index.
    evidence; creating state through the API does not prove the creation UI.
 
 For agent-driven acceptance work, start with the
-[Paperclip verification skill](../../.agents/skills/verify-paperclip/SKILL.md) for an
+[Outpost verification skill](../../.agents/skills/verify-outpost/SKILL.md) for an
 isolated launch, ownership/readiness checks, browser driving, evidence, and cleanup.
 It uses this directory as its feature map. The existing
-[dev-workspace run/verify skill](../../.agents/skills/paperclip-dev-workspace-run-verify-fix/SKILL.md)
-and [evaluation skill](../../.agents/skills/paperclip-evals/SKILL.md) describe runtime
+[dev-workspace run/verify skill](../../.agents/skills/outpost-dev-workspace-run-verify-fix/SKILL.md)
+and [evaluation skill](../../.agents/skills/outpost-evals/SKILL.md) describe runtime
 ownership and evidence handling. Reuse them; this map introduces no environment
 launcher, credentials, scheduled job, or second test framework.
 
@@ -159,7 +159,7 @@ launcher, credentials, scheduled job, or second test framework.
 
 Report each entry point as **passed**, **failed**, **blocked** (with its missing
 prerequisite), or **not run**. Include the feature ID, full capability IDs and
-entry-point ID (for example, `onboarding/company` through `web-wizard`), plus the
+entry-point ID (for example, `onboarding/space` through `web-wizard`), plus the
 recipe link, commit/environment, user action, expected and observed result,
 command/exit code, and evidence links. Screenshots or traces should show both the
 action and the discriminating result. Include task/run/request IDs when relevant,
@@ -168,7 +168,7 @@ without secrets.
 A fix is verified across its affected surfaces only when each has evidence or
 an explicit reason it does not apply. Shared code alone does not prove parity.
 Keep product regressions visible; do not change the recipe to bless a failure.
-For Paperclip-assigned work, attach evidence through the
+For Outpost-assigned work, attach evidence through the
 [artifact workflow](../../doc/AGENT-ARTIFACTS.md).
 
 ## Inventory and remaining depth
@@ -221,7 +221,7 @@ The generated gap report combines this guidance with current story associations.
 After frontmatter, each recipe starts with an H1 and a user-visible description, then exactly:
 
 1. **Sub-features** — stable backticked local keys, full capability IDs, and observable behavior/states,
-   such as ``- `company`: `onboarding/company` — create a company``.
+   such as ``- `space`: `onboarding/space` — create a space``.
 2. **How to get to it (user POV)** — one H3 backticked entry-point ID per surface.
 3. **Driving it with <harness>** — starts with `Preconditions:`; repeat each entry-point H3,
    with `Automated:` and `Manual:` paragraphs. Name test scope and gaps honestly.
@@ -232,4 +232,4 @@ New or updated entries follow
 Existing entries with a `Driving it` heading can adopt the named harness when
 their recipes are updated. The original format was inspired by
 [Omnigent's feature map](https://github.com/omnigent-ai/omnigent/tree/91acfbbb59f6fc210ff95a9e9428aadd62e06582/feature-map).
-Paperclip's recipes and checks follow its own task model and test infrastructure.
+Outpost's recipes and checks follow its own task model and test infrastructure.

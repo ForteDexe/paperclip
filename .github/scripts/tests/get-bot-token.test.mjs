@@ -16,7 +16,7 @@ test('resolveInstallationId: uses the repo installation endpoint when repo conte
 test('resolveInstallationId: falls back to the matching owner installation', async () => {
   const installationId = await resolveInstallationId(async () => ([
     { id: 1, account: { login: 'someone-else' } },
-    { id: 7, account: { login: 'PaperclipAI' } },
+    { id: 7, account: { login: 'OutpostAI' } },
   ]), 'jwt', undefined, 'paperclipai');
 
   assert.equal(installationId, 7);

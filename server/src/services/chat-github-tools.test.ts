@@ -7,7 +7,7 @@ import {
   chatDeliveries,
   chatEndpoints,
   chatMessageLinks,
-  companies,
+  spaces,
   createDb,
   heartbeatRuns,
   issueComments,
@@ -37,7 +37,7 @@ describe("GitHub review tool contract", () => {
     });
     expect(submit.schema).not.toHaveProperty("properties.findings.items.properties.category.enum");
   });
-  it("tells new bots which review sections Paperclip renders", () => {
+  it("tells new bots which review sections Outpost renders", () => {
     const submit = GITHUB_BOT_TOOLS.find(tool => tool.name === "submit_review")!;
     const properties = submit.schema.properties!;
     expect(properties.summary).toMatchObject({
@@ -45,7 +45,7 @@ describe("GitHub review tool contract", () => {
       maxLength: 24000,
     });
     expect(properties.summary).toMatchObject({
-      description: expect.stringContaining("Paperclip adds"),
+      description: expect.stringContaining("Outpost adds"),
     });
     expect(properties.rationale).toMatchObject({
       description: expect.stringContaining("Do not repeat the summary"),
@@ -60,52 +60,52 @@ const support = await getEmbeddedPostgresTestSupport();
   let db: ReturnType<typeof createDb>;
 
   beforeAll(async () => {
-    database = await startEmbeddedPostgresTestDatabase("paperclip-github-guest-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-github-guest-");
     db = createDb(database.connectionString);
   }, 30_000);
   afterAll(async () => { await database?.cleanup(); }, 60_000);
 
   async function fixture() {
-    const [company] = await db.insert(companies).values({ name: "Guest discovery", issuePrefix: randomUUID().slice(0, 8) }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Guest discovery", issuePrefix: randomUUID().slice(0, 8) }).returning();
     const [first, second] = await db.insert(agents).values([
-      { companyId: company.id, name: "First agent", role: "general", adapterType: "codex_local" },
-      { companyId: company.id, name: "Second agent", role: "general", adapterType: "codex_local" },
+      { spaceId: space.id, name: "First agent", role: "general", adapterType: "codex_local" },
+      { spaceId: space.id, name: "Second agent", role: "general", adapterType: "codex_local" },
     ]).returning();
     const [issue, other] = await db.insert(issues).values([
-      { companyId: company.id, title: "Reassigned task", assigneeAgentId: second.id },
-      { companyId: company.id, title: "Other task", assigneeAgentId: second.id },
+      { spaceId: space.id, title: "Reassigned task", assigneeAgentId: second.id },
+      { spaceId: space.id, title: "Other task", assigneeAgentId: second.id },
     ]).returning();
-    return { company, first, second, issue, other };
+    return { space, first, second, issue, other };
   }
 
   async function continuation(f: Awaited<ReturnType<typeof fixture>>, parent: { agentId: string; issueId: string }) {
     const [source, continued] = await db.insert(heartbeatRuns).values([
-      { companyId: f.company.id, agentId: parent.agentId, status: "succeeded", nativeIssueId: parent.issueId, contextSnapshot: {}, responsibleUserId: "requester" },
-      { companyId: f.company.id, agentId: f.second.id, status: "running", nativeIssueId: f.issue.id, contextSnapshot: {}, responsibleUserId: "requester" },
+      { spaceId: f.space.id, agentId: parent.agentId, status: "succeeded", nativeIssueId: parent.issueId, contextSnapshot: {}, responsibleUserId: "requester" },
+      { spaceId: f.space.id, agentId: f.second.id, status: "running", nativeIssueId: f.issue.id, contextSnapshot: {}, responsibleUserId: "requester" },
     ]).returning();
-    const [origin] = await db.insert(runIdentityContexts).values({ companyId: f.company.id, runId: source.id, revision: 1, responsibleUserId: "requester", cause: "dispatch", correlationId: "dispatch" }).returning();
-    const [context] = await db.insert(runIdentityContexts).values({ companyId: f.company.id, runId: continued.id, revision: 1, responsibleUserId: "requester", parentContextId: origin.id, cause: "dispatch", correlationId: "dispatch" }).returning();
+    const [origin] = await db.insert(runIdentityContexts).values({ spaceId: f.space.id, runId: source.id, revision: 1, responsibleUserId: "requester", cause: "dispatch", correlationId: "dispatch" }).returning();
+    const [context] = await db.insert(runIdentityContexts).values({ spaceId: f.space.id, runId: continued.id, revision: 1, responsibleUserId: "requester", parentContextId: origin.id, cause: "dispatch", correlationId: "dispatch" }).returning();
     await db.update(heartbeatRuns).set({ activeIdentityContextId: context.id }).where(eq(heartbeatRuns.id, continued.id));
-    return { companyId: f.company.id, agentId: f.second.id, runId: continued.id, issueId: f.issue.id };
+    return { spaceId: f.space.id, agentId: f.second.id, runId: continued.id, issueId: f.issue.id };
   }
 
   async function guestSource(f: Awaited<ReturnType<typeof fixture>>, guest: boolean) {
     const endpointId = randomUUID();
-    const [application] = await db.insert(toolApplications).values({ companyId: f.company.id, applicationKey: `chat:github:${endpointId}`, name: `GitHub ${endpointId}`, type: "chat", status: "active" }).returning();
-    const [connection] = await db.insert(toolConnections).values({ companyId: f.company.id, applicationId: application.id, name: "GitHub", uid: `chat-github-${endpointId}`, connectionPurpose: "channel", transport: "chat_sdk", status: "active", enabled: true }).returning();
-    await db.insert(chatEndpoints).values({ id: endpointId, companyId: f.company.id, connectionId: connection.id, provider: "github", publicId: randomUUID(), assignedAgentId: f.second.id, status: "active" });
-    const [conversation] = await db.insert(chatConversations).values({ companyId: f.company.id, endpointId, issueId: f.issue.id, externalConversationId: `github:owner/repo:${endpointId}`, externalLabel: "Guest thread" }).returning();
-    const [comment] = await db.insert(issueComments).values({ companyId: f.company.id, issueId: f.issue.id, authorType: "user", authorUserId: "requester", body: "Please review" }).returning();
-    const [delivery] = await db.insert(chatDeliveries).values({ companyId: f.company.id, endpointId, conversationId: conversation.id, providerEventId: randomUUID(), deduplicationKey: randomUUID(), eventKind: "message", normalizedEvent: { githubAuthority: { guest } }, state: "processed" }).returning();
-    await db.insert(chatMessageLinks).values({ companyId: f.company.id, endpointId, conversationId: conversation.id, deliveryId: delivery.id, commentId: comment.id, providerMessageId: randomUUID(), direction: "inbound" });
+    const [application] = await db.insert(toolApplications).values({ spaceId: f.space.id, applicationKey: `chat:github:${endpointId}`, name: `GitHub ${endpointId}`, type: "chat", status: "active" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ spaceId: f.space.id, applicationId: application.id, name: "GitHub", uid: `chat-github-${endpointId}`, connectionPurpose: "channel", transport: "chat_sdk", status: "active", enabled: true }).returning();
+    await db.insert(chatEndpoints).values({ id: endpointId, spaceId: f.space.id, connectionId: connection.id, provider: "github", publicId: randomUUID(), assignedAgentId: f.second.id, status: "active" });
+    const [conversation] = await db.insert(chatConversations).values({ spaceId: f.space.id, endpointId, issueId: f.issue.id, externalConversationId: `github:owner/repo:${endpointId}`, externalLabel: "Guest thread" }).returning();
+    const [comment] = await db.insert(issueComments).values({ spaceId: f.space.id, issueId: f.issue.id, authorType: "user", authorUserId: "requester", body: "Please review" }).returning();
+    const [delivery] = await db.insert(chatDeliveries).values({ spaceId: f.space.id, endpointId, conversationId: conversation.id, providerEventId: randomUUID(), deduplicationKey: randomUUID(), eventKind: "message", normalizedEvent: { githubAuthority: { guest } }, state: "processed" }).returning();
+    await db.insert(chatMessageLinks).values({ spaceId: f.space.id, endpointId, conversationId: conversation.id, deliveryId: delivery.id, commentId: comment.id, providerMessageId: randomUUID(), direction: "inbound" });
     return { connectionId: connection.id, commentId: comment.id };
   }
 
   async function sponsoredRun(f: Awaited<ReturnType<typeof fixture>>, commentId: string) {
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.second.id, status: "running", nativeIssueId: f.issue.id, contextSnapshot: {}, responsibleUserId: "requester" }).returning();
-    const [context] = await db.insert(runIdentityContexts).values({ companyId: f.company.id, runId: run.id, revision: 1, responsibleUserId: "requester", messageId: commentId, cause: "instruction", correlationId: "message" }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: f.space.id, agentId: f.second.id, status: "running", nativeIssueId: f.issue.id, contextSnapshot: {}, responsibleUserId: "requester" }).returning();
+    const [context] = await db.insert(runIdentityContexts).values({ spaceId: f.space.id, runId: run.id, revision: 1, responsibleUserId: "requester", messageId: commentId, cause: "instruction", correlationId: "message" }).returning();
     await db.update(heartbeatRuns).set({ activeIdentityContextId: context.id }).where(eq(heartbeatRuns.id, run.id));
-    return { companyId: f.company.id, agentId: f.second.id, runId: run.id, issueId: f.issue.id };
+    return { spaceId: f.space.id, agentId: f.second.id, runId: run.id, issueId: f.issue.id };
   }
 
   it.each(["agent", "task"])("finds no guest sponsor when the run chain continues another %s", async (fault) => {

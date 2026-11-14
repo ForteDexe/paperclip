@@ -31,7 +31,7 @@ function runPublishHelper({
   verifyDelaySeconds = 0,
   visibilityPackages = null,
 }) {
-  const fixtureDir = mkdtempSync(join(tmpdir(), "paperclip-release-lib-"));
+  const fixtureDir = mkdtempSync(join(tmpdir(), "outpost-release-lib-"));
   const binDir = join(fixtureDir, "bin");
   const stateDir = join(fixtureDir, "state");
   const callLog = join(fixtureDir, "calls.log");
@@ -258,7 +258,7 @@ test("publish_package_to_npm retries bundled directory tlog failures without pro
   const result = runPublishHelper({ pnpmMode: "tlog-then-success", publishTool: "npm" });
 
   assert.equal(result.status, 0);
-  assert.match(result.calls, /^npm view @paperclipai\/example@1\.2\.3 version$/m);
+  assert.match(result.calls, /^npm view @outpost\/example@1\.2\.3 version$/m);
   assert.match(
     result.calls,
     /^npm publish --tag canary --access public --provenance=false --ignore-scripts --loglevel verbose$/m,
@@ -269,7 +269,7 @@ test("publish_package_to_npm retries duplicate tlog failures without provenance"
   const result = runPublishHelper({ pnpmMode: "tlog-then-success" });
 
   assert.equal(result.status, 0);
-  assert.match(result.calls, /^npm view @paperclipai\/example@1\.2\.3 version$/m);
+  assert.match(result.calls, /^npm view @outpost\/example@1\.2\.3 version$/m);
   assert.match(
     result.calls,
     /^pnpm publish --no-git-checks --tag canary --access public --provenance=false$/m,
@@ -280,7 +280,7 @@ test("publish_package_to_npm treats a duplicate tlog failure as complete when np
   const result = runPublishHelper({ pnpmMode: "tlog-always-fails", npmVersionExists: true });
 
   assert.equal(result.status, 0);
-  assert.match(result.calls, /^npm view @paperclipai\/example@1\.2\.3 version$/m);
+  assert.match(result.calls, /^npm view @outpost\/example@1\.2\.3 version$/m);
   assert.doesNotMatch(result.calls, /--provenance=false/);
 });
 
@@ -304,7 +304,7 @@ test("publish_package_to_npm does not retry stable publishes without provenance"
   const result = runPublishHelper({ pnpmMode: "tlog-then-success", distTag: "latest" });
 
   assert.notEqual(result.status, 0);
-  assert.match(result.calls, /^npm view @paperclipai\/example@1\.2\.3 version$/m);
+  assert.match(result.calls, /^npm view @outpost\/example@1\.2\.3 version$/m);
   assert.doesNotMatch(result.calls, /--provenance=false/);
 });
 
@@ -317,15 +317,15 @@ test("wait_for_npm_package_versions confirms registry visibility after a publish
 
   assert.equal(result.status, 0);
   assert.match(result.calls, /^pnpm publish --no-git-checks --tag canary --access public$/m);
-  assert.match(result.calls, /^npm view @paperclipai\/example@1\.2\.3 version$/m);
+  assert.match(result.calls, /^npm view @outpost\/example@1\.2\.3 version$/m);
 });
 
 test("wait_for_npm_package_versions blocks the release and names the straggler", () => {
   const result = runPublishHelper({ pnpmMode: "success", waitForRegistry: true });
 
   assert.notEqual(result.status, 0);
-  assert.match(result.calls, /^npm view @paperclipai\/example@1\.2\.3 version$/m);
-  assert.match(result.output, /did not become registry-visible: @paperclipai\/example@1\.2\.3/);
+  assert.match(result.calls, /^npm view @outpost\/example@1\.2\.3 version$/m);
+  assert.match(result.output, /did not become registry-visible: @outpost\/example@1\.2\.3/);
 });
 
 test("wait_for_npm_package_versions polls every package concurrently", () => {
@@ -341,8 +341,8 @@ test("wait_for_npm_package_versions polls every package concurrently", () => {
   });
 
   assert.equal(result.status, 0, result.output);
-  assert.match(result.output, /@paperclipai\/alpha@1\.2\.3 is registry-visible/);
-  assert.match(result.output, /@paperclipai\/beta@1\.2\.3 is registry-visible/);
+  assert.match(result.output, /@outpost\/alpha@1\.2\.3 is registry-visible/);
+  assert.match(result.output, /@outpost\/beta@1\.2\.3 is registry-visible/);
 });
 
 test("the workflow budget tolerates the observed 15-minute 20-second registry delay", () => {

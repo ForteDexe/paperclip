@@ -76,19 +76,19 @@ export function createSetupProbes(db: Db, options: SetupProbesOptions) {
     const startedAt = record.endpoint.setup.testStartedAt;
     if (!startedAt) return { messageReceivedAt: null };
     const links = await db.select({ principalId: chatIdentityLinks.principalId }).from(chatIdentityLinks).where(and(
-      eq(chatIdentityLinks.companyId, record.endpoint.companyId), eq(chatIdentityLinks.endpointId, endpointId),
-      eq(chatIdentityLinks.paperclipUserId, userId), eq(chatIdentityLinks.status, "linked"),
+      eq(chatIdentityLinks.spaceId, record.endpoint.spaceId), eq(chatIdentityLinks.endpointId, endpointId),
+      eq(chatIdentityLinks.outpostUserId, userId), eq(chatIdentityLinks.status, "linked"),
     ));
     if (!links.length) return { messageReceivedAt: null };
     const principalIds = links.map((link) => link.principalId);
     const [delivery, command] = await Promise.all([
       db.select({ at: chatDeliveries.createdAt }).from(chatDeliveries).where(and(
-        eq(chatDeliveries.companyId, record.endpoint.companyId), eq(chatDeliveries.endpointId, endpointId),
+        eq(chatDeliveries.spaceId, record.endpoint.spaceId), eq(chatDeliveries.endpointId, endpointId),
         inArray(chatDeliveries.principalId, principalIds), gte(chatDeliveries.createdAt, new Date(startedAt)),
         inArray(chatDeliveries.eventKind, ["message", "mention"]),
       )).orderBy(asc(chatDeliveries.createdAt)).limit(1).then((rows) => rows[0]),
       db.select({ at: chatActions.createdAt }).from(chatActions).where(and(
-        eq(chatActions.companyId, record.endpoint.companyId), eq(chatActions.endpointId, endpointId),
+        eq(chatActions.spaceId, record.endpoint.spaceId), eq(chatActions.endpointId, endpointId),
         inArray(chatActions.principalId, principalIds), eq(chatActions.kind, "slash_task_start"), gte(chatActions.createdAt, new Date(startedAt)),
       )).orderBy(asc(chatActions.createdAt)).limit(1).then((rows) => rows[0]),
     ]);
@@ -159,7 +159,7 @@ export function createSetupProbes(db: Db, options: SetupProbesOptions) {
             .from(chatDeliveries)
             .where(
               and(
-                eq(chatDeliveries.companyId, endpoint.companyId),
+                eq(chatDeliveries.spaceId, endpoint.spaceId),
                 eq(chatDeliveries.endpointId, endpoint.id),
                 eq(chatDeliveries.state, "processed"),
                 gte(chatDeliveries.processedAt, testStartedAt),
@@ -190,7 +190,7 @@ export function createSetupProbes(db: Db, options: SetupProbesOptions) {
               issueComments,
               and(
                 eq(issueComments.id, chatPublications.commentId),
-                eq(issueComments.companyId, chatPublications.companyId),
+                eq(issueComments.spaceId, chatPublications.spaceId),
                 eq(issueComments.issueId, chatPublications.issueId),
                 eq(issueComments.authorType, "agent"),
                 eq(issueComments.authorAgentId, endpoint.assignedAgentId),
@@ -199,7 +199,7 @@ export function createSetupProbes(db: Db, options: SetupProbesOptions) {
             .innerJoin(
               chatMessageLinks,
               and(
-                eq(chatMessageLinks.companyId, chatPublications.companyId),
+                eq(chatMessageLinks.spaceId, chatPublications.spaceId),
                 eq(chatMessageLinks.endpointId, chatPublications.endpointId),
                 eq(
                   chatMessageLinks.conversationId,
@@ -214,7 +214,7 @@ export function createSetupProbes(db: Db, options: SetupProbesOptions) {
               heartbeatRuns,
               and(
                 eq(heartbeatRuns.id, issueComments.createdByRunId),
-                eq(heartbeatRuns.companyId, chatPublications.companyId),
+                eq(heartbeatRuns.spaceId, chatPublications.spaceId),
                 eq(heartbeatRuns.agentId, endpoint.assignedAgentId),
                 eq(heartbeatRuns.status, "succeeded"),
                 eq(
@@ -230,7 +230,7 @@ export function createSetupProbes(db: Db, options: SetupProbesOptions) {
             )
             .where(
               and(
-                eq(chatPublications.companyId, endpoint.companyId),
+                eq(chatPublications.spaceId, endpoint.spaceId),
                 eq(chatPublications.endpointId, endpoint.id),
                 eq(
                   chatPublications.conversationId,
@@ -254,7 +254,7 @@ export function createSetupProbes(db: Db, options: SetupProbesOptions) {
             const setupRuns = await db.select({ id: heartbeatRuns.id, issueId: chatConversations.issueId })
               .from(heartbeatRuns)
               .innerJoin(chatMessageLinks, and(
-                eq(chatMessageLinks.companyId, endpoint.companyId),
+                eq(chatMessageLinks.spaceId, endpoint.spaceId),
                 eq(chatMessageLinks.endpointId, endpoint.id),
                 eq(chatMessageLinks.deliveryId, qualifyingDelivery.id),
                 eq(chatMessageLinks.direction, "inbound"),
@@ -266,14 +266,14 @@ export function createSetupProbes(db: Db, options: SetupProbesOptions) {
               .innerJoin(chatConversations, and(
                 eq(chatConversations.id, qualifyingDelivery.conversationId),
                 eq(chatConversations.id, chatMessageLinks.conversationId),
-                eq(chatConversations.companyId, endpoint.companyId),
+                eq(chatConversations.spaceId, endpoint.spaceId),
                 sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${chatConversations.issueId}::text`,
               ))
-              .where(and(eq(heartbeatRuns.companyId, endpoint.companyId),
+              .where(and(eq(heartbeatRuns.spaceId, endpoint.spaceId),
                 eq(heartbeatRuns.agentId, endpoint.assignedAgentId), eq(heartbeatRuns.status, "succeeded")))
               .orderBy(desc(heartbeatRuns.createdAt)).limit(20);
             for (const run of setupRuns) {
-              if (await githubRunReplyState(db, { companyId: endpoint.companyId, endpointId: endpoint.id,
+              if (await githubRunReplyState(db, { spaceId: endpoint.spaceId, endpointId: endpoint.id,
                 issueId: run.issueId, runId: run.id }) === "confirmed") {
                 githubToolReply = true;
                 break;
@@ -296,11 +296,11 @@ export function createSetupProbes(db: Db, options: SetupProbesOptions) {
           await credentialLease.assertOwned(tx);
           if (optionalSlackTest) {
             const linked = await tx.select({ principalId: chatIdentityLinks.principalId }).from(chatIdentityLinks).where(and(
-              eq(chatIdentityLinks.endpointId, endpoint.id), eq(chatIdentityLinks.paperclipUserId, finishOptions!.optionalSlackTestForUser), eq(chatIdentityLinks.status, "linked"),
+              eq(chatIdentityLinks.endpointId, endpoint.id), eq(chatIdentityLinks.outpostUserId, finishOptions!.optionalSlackTestForUser), eq(chatIdentityLinks.status, "linked"),
             )).limit(1).then((rows) => rows[0]);
             if (!linked || !(await lockCurrentPrincipalAuthorization(tx, endpoint, linked.principalId)).allowed) throw forbidden("Your connected account is no longer authorized");
           }
-          await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.companyId);
+          await notifyChatEndpointWork(tx, endpoint.connectionId, endpoint.spaceId);
           const [activated] = await tx
             .update(chatEndpoints)
             .set({
@@ -344,7 +344,7 @@ export function createSetupProbes(db: Db, options: SetupProbesOptions) {
             })
             .where(eq(toolConnections.id, endpoint.connectionId));
           if (optionalSlackTest) await logActivity(tx as unknown as Db, {
-            companyId: endpoint.companyId, ...(managementContext?.audit ?? { actorType: "user" as const, actorId: finishOptions!.optionalSlackTestForUser }),
+            spaceId: endpoint.spaceId, ...(managementContext?.audit ?? { actorType: "user" as const, actorId: finishOptions!.optionalSlackTestForUser }),
             action: "chat.setup_completed", entityType: "chat_endpoint", entityId: endpointId,
             details: { conversationTestOptional: true },
           });

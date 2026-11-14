@@ -5,12 +5,12 @@ import {
 } from "@outpost/adapter-grok-local/server";
 
 describe("grok local skill sync", () => {
-  const paperclipKey = "paperclipai/paperclip/paperclip";
+  const outpostKey = "outpost/outpost/outpost";
 
-  it("defaults the operational Paperclip skill as ephemeral workspace-mounted state", async () => {
+  it("defaults the operational Outpost skill as ephemeral workspace-mounted state", async () => {
     const snapshot = await listGrokSkills({
       agentId: "agent-1",
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "grok_local",
       config: {},
     });
@@ -18,8 +18,8 @@ describe("grok local skill sync", () => {
     expect(snapshot.adapterType).toBe("grok_local");
     expect(snapshot.supported).toBe(true);
     expect(snapshot.mode).toBe("ephemeral");
-    expect(snapshot.desiredSkills).toContain(paperclipKey);
-    expect(snapshot.entries.find((entry) => entry.key === paperclipKey)).toMatchObject({
+    expect(snapshot.desiredSkills).toContain(outpostKey);
+    expect(snapshot.entries.find((entry) => entry.key === outpostKey)).toMatchObject({
       state: "configured",
       detail: "Will be copied into `.claude/skills` in the execution workspace on the next run.",
     });
@@ -28,11 +28,11 @@ describe("grok local skill sync", () => {
   it("tracks unavailable desired Grok skills as missing without persistent install state", async () => {
     const snapshot = await syncGrokSkills({
       agentId: "agent-2",
-      companyId: "company-1",
+      spaceId: "space-1",
       adapterType: "grok_local",
       config: {
-        paperclipRuntimeSkills: [],
-        paperclipSkillSync: {
+        outpostRuntimeSkills: [],
+        outpostSkillSync: {
           desiredSkills: ["unknown-skill"],
         },
       },
@@ -40,7 +40,7 @@ describe("grok local skill sync", () => {
 
     expect(snapshot.mode).toBe("ephemeral");
     expect(snapshot.warnings).toContain(
-      'Desired skill "unknown-skill" is not available from the Paperclip skills directory.',
+      'Desired skill "unknown-skill" is not available from the Outpost skills directory.',
     );
     expect(snapshot.entries).toContainEqual(expect.objectContaining({
       key: "unknown-skill",

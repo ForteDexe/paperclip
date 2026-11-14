@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   classifyShellRoute,
-  getCompanyPathSegments,
+  getSpacePathSegments,
   readContextualSidebarOrigin,
   rememberContextualSidebarOrigin,
 } from "./shell-navigation";
@@ -17,8 +17,8 @@ describe("shell navigation", () => {
   });
 
   it("classifies the built-in contextual surfaces", () => {
-    expect(classifyShellRoute("/PAP/company/settings/secrets", "PAP").builtInContextualSurface).toBe("settings");
-    expect(classifyShellRoute("/PAP/company/export", "PAP").builtInContextualSurface).toBe("settings");
+    expect(classifyShellRoute("/PAP/space/settings/secrets", "PAP").builtInContextualSurface).toBe("settings");
+    expect(classifyShellRoute("/PAP/space/export", "PAP").builtInContextualSurface).toBe("settings");
     expect(classifyShellRoute("/PAP/apps/connections", "PAP").builtInContextualSurface).toBe("apps");
     expect(classifyShellRoute("/PAP/tools/runtime", "PAP").builtInContextualSurface).toBe("apps");
     expect(classifyShellRoute("/PAP/agents/agent-1/instructions", "PAP").builtInContextualSurface).toBe("agent");
@@ -43,30 +43,30 @@ describe("shell navigation", () => {
     }
   });
 
-  it("rejects a different company prefix", () => {
-    expect(getCompanyPathSegments("/OTHER/issues/task-1", "PAP")).toEqual([]);
+  it("rejects a different space prefix", () => {
+    expect(getSpacePathSegments("/OTHER/issues/task-1", "PAP")).toEqual([]);
   });
 
-  it("remembers only safe same-company origins", () => {
+  it("remembers only safe same-space origins", () => {
     rememberContextualSidebarOrigin({
       surface: "settings",
-      companyPrefix: "PAP",
+      spacePrefix: "PAP",
       previousPathname: "/PAP/issues/task-1",
     });
     expect(readContextualSidebarOrigin({
       surface: "settings",
-      companyPrefix: "PAP",
+      spacePrefix: "PAP",
       fallbackTo: "/dashboard",
     })).toBe("/PAP/issues/task-1");
 
     rememberContextualSidebarOrigin({
       surface: "settings",
-      companyPrefix: "PAP",
+      spacePrefix: "PAP",
       previousPathname: "/OTHER/dashboard",
     });
     expect(readContextualSidebarOrigin({
       surface: "settings",
-      companyPrefix: "PAP",
+      spacePrefix: "PAP",
       fallbackTo: "/dashboard",
     })).toBe("/PAP/issues/task-1");
   });
@@ -74,11 +74,11 @@ describe("shell navigation", () => {
   it("falls back when storage contains an unsafe path", () => {
     window.sessionStorage.setItem(
       "outpost.contextualSidebar.origin:PAP:settings",
-      "/OTHER/company/settings",
+      "/OTHER/space/settings",
     );
     expect(readContextualSidebarOrigin({
       surface: "settings",
-      companyPrefix: "PAP",
+      spacePrefix: "PAP",
       fallbackTo: "/dashboard",
     })).toBe("/dashboard");
   });

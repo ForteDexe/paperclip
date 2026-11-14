@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { ONBOARDING_FIRST_TASK_ORIGIN_KIND, PROVIDER_QUOTA_MONITOR_SERVICE_NAME } from "@outpost/shared";
-import { agents, agentApiKeys, agentWakeupRequests, companies, createDb, heartbeatRuns, issues, issueComments, issueRelations, issueThreadInteractions, routines, routineTriggers } from "@outpost/db";
+import { agents, agentApiKeys, agentWakeupRequests, spaces, createDb, heartbeatRuns, issues, issueComments, issueRelations, issueThreadInteractions, routines, routineTriggers } from "@outpost/db";
 import { beginIdleTrackedWork, idleWorkSnapshot } from "../services/task-admission.js";
 import { readIdleSleepSafety, type IdleSleepDrainStatus } from "../services/idle-sleep-safety.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -23,25 +23,25 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
     database = await startEmbeddedPostgresTestDatabase("idle-issue-schedule-");
     db = createDb(database.connectionString);
   }, 60_000);
-  afterEach(async () => { await db.execute(sql`TRUNCATE companies, plugins, environments CASCADE`); });
+  afterEach(async () => { await db.execute(sql`TRUNCATE spaces, plugins, environments CASCADE`); });
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
   const readScheduled = () => readIdleSleepSafety(db, owned, () => now, ownerId, emptyLocal, undefined, undefined, true);
   const readIssueSchedules = () => readIdleSleepSafety(db, owned, () => now, ownerId, emptyLocal, undefined, undefined, true, true);
   async function seed() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Idle test", issuePrefix: `T${companyId.slice(0, 6).toUpperCase()}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "On-demand agent", role: "engineer", status: "idle", adapterType: "process" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", status: "succeeded" });
-    return { companyId, agentId, runId };
+    await db.insert(spaces).values({ id: spaceId, name: "Idle test", issuePrefix: `T${spaceId.slice(0, 6).toUpperCase()}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "On-demand agent", role: "engineer", status: "idle", adapterType: "process" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, invocationSource: "on_demand", status: "succeeded" });
+    return { spaceId, agentId, runId };
   }
 
   async function scheduledRoutine(at = now + 600_000) {
     const fixture = await seed();
-    const [routine] = await db.insert(routines).values({ companyId: fixture.companyId,
+    const [routine] = await db.insert(routines).values({ spaceId: fixture.spaceId,
       title: "Scheduled fixture", status: "active", assigneeAgentId: fixture.agentId }).returning();
-    const [trigger] = await db.insert(routineTriggers).values({ companyId: fixture.companyId,
+    const [trigger] = await db.insert(routineTriggers).values({ spaceId: fixture.spaceId,
       routineId: routine!.id, kind: "schedule", cronExpression: "*/15 * * * *", timezone: "UTC",
       nextRunAt: new Date(at), enabled: true, archived: false, setupPending: false }).returning();
     return { ...fixture, routine: routine!, trigger: trigger! };
@@ -50,7 +50,7 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
   async function monitoredIssue(at = now + 600_000) {
     const fixture = await seed();
     const monitor = { nextCheckAt: new Date(at).toISOString(), notes: "Inspect fixture result" };
-    const [issue] = await db.insert(issues).values({ companyId: fixture.companyId, title: "Monitor fixture",
+    const [issue] = await db.insert(issues).values({ spaceId: fixture.spaceId, title: "Monitor fixture",
       status: "in_progress", assigneeAgentId: fixture.agentId, monitorNextCheckAt: new Date(at),
       executionPolicy: { monitor } }).returning();
     return { ...fixture, issue: issue!, monitor };
@@ -59,10 +59,10 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
   it("allows passive issue records only with the issue-scheduling host capability", async () => {
     const f = await seed();
     await db.insert(issues).values([
-      { companyId: f.companyId, title: "Planned task", status: "backlog", assigneeAgentId: f.agentId },
-      { companyId: f.companyId, title: "Unassigned task", status: "todo" },
-      { companyId: f.companyId, title: "Explicitly blocked task", status: "blocked", assigneeAgentId: f.agentId },
-      { companyId: f.companyId, title: "Human review", status: "in_review", assigneeUserId: "fixture-user" },
+      { spaceId: f.spaceId, title: "Planned task", status: "backlog", assigneeAgentId: f.agentId },
+      { spaceId: f.spaceId, title: "Unassigned task", status: "todo" },
+      { spaceId: f.spaceId, title: "Explicitly blocked task", status: "blocked", assigneeAgentId: f.agentId },
+      { spaceId: f.spaceId, title: "Human review", status: "in_review", assigneeUserId: "fixture-user" },
     ]);
     expect(await readScheduled()).toEqual(present);
     expect(await readIssueSchedules()).toEqual(none);
@@ -71,7 +71,7 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
 
   it.each(["todo", "in_progress", "in_review"])("retains an assigned %s task without a proved waiting path", async status => {
     const f = await seed();
-    await db.insert(issues).values({ companyId: f.companyId, title: "Unfinished automated task", status, assigneeAgentId: f.agentId });
+    await db.insert(issues).values({ spaceId: f.spaceId, title: "Unfinished automated task", status, assigneeAgentId: f.agentId });
     expect(await readIssueSchedules()).toEqual(present);
   });
 
@@ -79,12 +79,12 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
     const f = await seed();
     const transition = new Date(now - 5000);
     const descriptor = { owner: { agentId: f.agentId }, action: "Provide the missing input" };
-    const [issue] = await db.insert(issues).values({ companyId: f.companyId, title: "Waiting for unblock input",
+    const [issue] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Waiting for unblock input",
       status: "blocked", assigneeAgentId: f.agentId, unblockDescriptor: descriptor,
       blockedTransitionAt: transition, blockedOwnerNotifiedAt: new Date(now - 4000),
     }).returning();
     await db.update(heartbeatRuns).set({ finishedAt: new Date(now - 1000), contextSnapshot: { issueId: issue.id } }).where(eq(heartbeatRuns.id, f.runId));
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.companyId, agentId: f.agentId,
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: f.spaceId, agentId: f.agentId,
       source: "automation", reason: "issue_unblock_requested", status: "coalesced", runId: f.runId,
       finishedAt: new Date(now - 2000), idempotencyKey: `issue-unblock:${issue.id}:${transition.toISOString()}`,
       payload: { issueId: issue.id, action: descriptor.action },
@@ -100,10 +100,10 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
     expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, f.wake.id)))[0]).toMatchObject({ status: "coalesced", runId: f.runId });
   });
 
-  it("keeps an explicit board-owned unblock request passive", async () => {
+  it("keeps an explicit operator-owned unblock request passive", async () => {
     const f = await seed();
-    await db.insert(issues).values({ companyId: f.companyId, title: "Waiting for the board", status: "blocked",
-      assigneeAgentId: f.agentId, unblockDescriptor: { owner: "board", action: "Provide input" },
+    await db.insert(issues).values({ spaceId: f.spaceId, title: "Waiting for the operator", status: "blocked",
+      assigneeAgentId: f.agentId, unblockDescriptor: { owner: "operator", action: "Provide input" },
     });
     expect(await readIssueSchedules()).toEqual(none);
   });
@@ -118,11 +118,11 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
       if (kind === "changed_action") await db.update(issues).set({ unblockDescriptor: { ...f.descriptor, action: "Different input" } }).where(eq(issues.id, f.issue.id));
       if (kind === "changed_owner" || kind === "foreign_owner") {
         const other = await seed();
-        if (kind === "changed_owner") await db.update(agents).set({ companyId: f.companyId }).where(eq(agents.id, other.agentId));
+        if (kind === "changed_owner") await db.update(agents).set({ spaceId: f.spaceId }).where(eq(agents.id, other.agentId));
         await db.update(issues).set({ unblockDescriptor: { ...f.descriptor, owner: { agentId: other.agentId } } }).where(eq(issues.id, f.issue.id));
       }
-      if (kind === "foreign_receipt") await db.update(agentWakeupRequests).set({ companyId: (await seed()).companyId }).where(eq(agentWakeupRequests.id, f.wake.id));
-      if (kind === "foreign_run") await db.update(heartbeatRuns).set({ companyId: (await seed()).companyId }).where(eq(heartbeatRuns.id, f.runId));
+      if (kind === "foreign_receipt") await db.update(agentWakeupRequests).set({ spaceId: (await seed()).spaceId }).where(eq(agentWakeupRequests.id, f.wake.id));
+      if (kind === "foreign_run") await db.update(heartbeatRuns).set({ spaceId: (await seed()).spaceId }).where(eq(heartbeatRuns.id, f.runId));
       if (kind === "wrong_issue") await db.update(agentWakeupRequests).set({ payload: { ...f.wake.payload, issueId: randomUUID() } }).where(eq(agentWakeupRequests.id, f.wake.id));
       if (kind === "wrong_run_issue") await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: randomUUID() } }).where(eq(heartbeatRuns.id, f.runId));
       if (kind === "missing_run") await db.update(agentWakeupRequests).set({ runId: null }).where(eq(agentWakeupRequests.id, f.wake.id));
@@ -139,16 +139,16 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
   it.each(["typed", "legacy-typed", "interaction", "run", "origin", "agent-state"])(
     "allows an untouched onboarding task, but retains it after %s activity", async activity => {
       const f = await seed();
-      const [issue] = await db.insert(issues).values({ companyId: f.companyId, title: "First task",
+      const [issue] = await db.insert(issues).values({ spaceId: f.spaceId, title: "First task",
         status: "todo", assigneeAgentId: f.agentId, originKind: ONBOARDING_FIRST_TASK_ORIGIN_KIND }).returning();
-      await db.insert(issueComments).values({ companyId: f.companyId, issueId: issue!.id,
+      await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: issue!.id,
         authorType: "agent", authorAgentId: f.agentId, body: "Seeded greeting" });
-      const [card] = await db.insert(issueThreadInteractions).values({ companyId: f.companyId,
+      const [card] = await db.insert(issueThreadInteractions).values({ spaceId: f.spaceId,
         issueId: issue!.id, kind: "request_confirmation", payload: { version: 1, prompt: "Start?" } }).returning();
       expect(await readScheduled()).toEqual(present);
       expect(await readIssueSchedules()).toEqual(none);
       if (activity === "typed" || activity === "legacy-typed") {
-        await db.insert(issueComments).values({ companyId: f.companyId, issueId: issue!.id,
+        await db.insert(issueComments).values({ spaceId: f.spaceId, issueId: issue!.id,
           authorType: activity === "typed" ? "user" : null, authorUserId: "fixture-user", body: "Start work" });
       }
       if (activity === "interaction") await db.update(issueThreadInteractions).set({ status: "resolved",
@@ -162,9 +162,9 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
 
   it("keeps resolved dependency repair awake while allowing an unresolved blocked task", async () => {
     const f = await seed();
-    const [blocker] = await db.insert(issues).values({ companyId: f.companyId, title: "Unassigned blocker", status: "todo" }).returning();
-    const [dependent] = await db.insert(issues).values({ companyId: f.companyId, title: "Waiting task", status: "blocked", assigneeAgentId: f.agentId }).returning();
-    await db.insert(issueRelations).values({ companyId: f.companyId, issueId: blocker!.id, relatedIssueId: dependent!.id, type: "blocks" });
+    const [blocker] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Unassigned blocker", status: "todo" }).returning();
+    const [dependent] = await db.insert(issues).values({ spaceId: f.spaceId, title: "Waiting task", status: "blocked", assigneeAgentId: f.agentId }).returning();
+    await db.insert(issueRelations).values({ spaceId: f.spaceId, issueId: blocker!.id, relatedIssueId: dependent!.id, type: "blocks" });
     expect(await readIssueSchedules()).toEqual(none);
     await db.update(issues).set({ status: "cancelled" }).where(eq(issues.id, blocker!.id));
     expect(await readIssueSchedules()).toEqual(none);
@@ -172,7 +172,7 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
     expect(await readIssueSchedules()).toEqual(present);
   });
 
-  it("combines routine and issue monitor deadlines across companies without changing dispatch state", async () => {
+  it("combines routine and issue monitor deadlines across spaces without changing dispatch state", async () => {
     await scheduledRoutine(now + 900_000);
     const f = await monitoredIssue();
     expect(await readScheduled()).toEqual(present);
@@ -209,7 +209,7 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
     },
   );
 
-  it("retains a cross-company assignee and unknown issue states", async () => {
+  it("retains a cross-space assignee and unknown issue states", async () => {
     const f = await monitoredIssue();
     const other = await seed();
     await db.update(issues).set({ assigneeAgentId: other.agentId }).where(eq(issues.id, f.issue.id));
@@ -220,7 +220,7 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
 
   it("retains an unknown assignee state even for a blocked task", async () => {
     const f = await seed();
-    await db.insert(issues).values({ companyId: f.companyId, title: "Blocked fixture", status: "blocked", assigneeAgentId: f.agentId });
+    await db.insert(issues).values({ spaceId: f.spaceId, title: "Blocked fixture", status: "blocked", assigneeAgentId: f.agentId });
     await db.execute(sql`UPDATE agents SET status = 'unknown' WHERE id = ${f.agentId}`);
     expect(await readIssueSchedules()).toEqual(present);
   });
@@ -230,7 +230,7 @@ if (!support.supported) console.warn(`Skipping issue schedule Postgres tests: ${
     await db.update(heartbeatRuns).set({ status: "queued" }).where(eq(heartbeatRuns.id, f.runId));
     expect(await readIssueSchedules()).toEqual(present);
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, f.runId));
-    await db.insert(agentApiKeys).values({ companyId: f.companyId, agentId: f.agentId, name: "Fixture external client", keyHash: "fixture-key-hash" });
+    await db.insert(agentApiKeys).values({ spaceId: f.spaceId, agentId: f.agentId, name: "Fixture external client", keyHash: "fixture-key-hash" });
     expect(await readIssueSchedules()).toEqual(present);
   });
 

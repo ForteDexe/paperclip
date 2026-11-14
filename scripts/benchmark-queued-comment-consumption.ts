@@ -49,7 +49,7 @@ try {
   if (process.argv.includes("--jit-off")) await db.$client.unsafe("set jit = off");
   const version = await db.$client.unsafe("select version()");
   const settings = await db.$client.unsafe("select name, setting from pg_settings where name in ('shared_buffers', 'work_mem', 'jit', 'jit_above_cost', 'jit_inline_above_cost', 'jit_optimize_above_cost', 'random_page_cost') order by name");
-  await db.$client.unsafe("TRUNCATE companies CASCADE");
+  await db.$client.unsafe("TRUNCATE spaces CASCADE");
   const results = [];
   const budgetFailures: string[] = [];
   let waitedForSlot = false;
@@ -78,7 +78,7 @@ try {
         const sqlMs = performance.now() - sqlStart;
         assert.deepEqual(multiset(rows), multiset(expected));
         const serviceStart = performance.now();
-        const result = await (arm === "before" ? old.getExecutionBlocker : getExecutionBlocker)(db, f.companyId, f.issueId);
+        const result = await (arm === "before" ? old.getExecutionBlocker : getExecutionBlocker)(db, f.spaceId, f.issueId);
         const serviceMs = performance.now() - serviceStart;
         assert.deepEqual(result, before.result);
         if (iteration >= 2) {
@@ -110,7 +110,7 @@ try {
     const equality = { completePositionalSqlRows: expected.length, completeServiceResult: before.result };
     results.push({ fixture, before: before.query, after: after.query, equality, samples, medians, runScanLoops, plans });
     process.stderr.write(`${fixture.name}: SQL ${medians.sqlBefore!.toFixed(2)} -> ${medians.sqlAfter!.toFixed(2)} ms; service ${medians.serviceBefore!.toFixed(2)} -> ${medians.serviceAfter!.toFixed(2)} ms; history scan loops ${JSON.stringify(runScanLoops)}\n`);
-    await db.$client.unsafe("TRUNCATE companies CASCADE");
+    await db.$client.unsafe("TRUNCATE spaces CASCADE");
   }
   const treatmentSource = await fs.readFile(path.join(root, sourcePath));
   console.log(JSON.stringify({ baselineRevision, treatmentRevision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),

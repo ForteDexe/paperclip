@@ -141,25 +141,25 @@ export function buildNativeCompletionContract(
   };
 }
 
-function nativeCompletionContractLockKey(companyId: string, issueId: string): string {
-  return `paperclip:native-completion-contract:${companyId}:${issueId}`;
+function nativeCompletionContractLockKey(spaceId: string, issueId: string): string {
+  return `outpost:native-completion-contract:${spaceId}:${issueId}`;
 }
 
 export async function lockCurrentNativeCompletionContract(tx: Db, input: {
-  companyId: string; issueId: string; contractId: string;
+  spaceId: string; issueId: string; contractId: string;
 }): Promise<boolean> {
   const [lock] = await tx.execute(sql`select pg_try_advisory_xact_lock(hashtextextended(
-    ${nativeCompletionContractLockKey(input.companyId, input.issueId)}, 0)) as acquired`) as unknown as Array<{ acquired: boolean }>;
+    ${nativeCompletionContractLockKey(input.spaceId, input.issueId)}, 0)) as acquired`) as unknown as Array<{ acquired: boolean }>;
   if (!lock.acquired) return false;
   const [latest] = await tx.select({ id: completionContracts.id }).from(completionContracts)
-    .where(and(eq(completionContracts.companyId, input.companyId), eq(completionContracts.issueId, input.issueId)))
+    .where(and(eq(completionContracts.spaceId, input.spaceId), eq(completionContracts.issueId, input.issueId)))
     .orderBy(desc(completionContracts.revision)).limit(1);
   return latest?.id === input.contractId;
 }
 
 export async function ensureNativeCompletionContract(input: {
   db: Db;
-  companyId: string;
+  spaceId: string;
   issue: {
     id: string;
     title: string;
@@ -178,13 +178,13 @@ export async function ensureNativeCompletionContract(input: {
 }) {
   return input.db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(
-      ${nativeCompletionContractLockKey(input.companyId, input.issue.id)}, 0))`);
+      ${nativeCompletionContractLockKey(input.spaceId, input.issue.id)}, 0))`);
     const policy = resolveNativeCompletionPolicy(input.issue);
     const latest = await tx
       .select()
       .from(completionContracts)
       .where(and(
-        eq(completionContracts.companyId, input.companyId),
+        eq(completionContracts.spaceId, input.spaceId),
         eq(completionContracts.issueId, input.issue.id),
       ))
       .orderBy(desc(completionContracts.revision))
@@ -221,7 +221,7 @@ export async function ensureNativeCompletionContract(input: {
       contractJson: contract as unknown as Record<string, unknown>,
     });
     const [row] = await tx.insert(completionContracts).values({
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       issueId: input.issue.id,
       revision: nextRevision,
       schemaVersion: NATIVE_COMPLETION_CONTRACT_SCHEMA,

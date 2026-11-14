@@ -1,13 +1,13 @@
 import { pgTable, uuid, text, integer, timestamp, index, jsonb } from "drizzle-orm/pg-core";
 import type { SourceTrustMetadata } from "@outpost/shared";
-import { companies } from "./companies.js";
+import { spaces } from "./spaces.js";
 import { agents } from "./agents.js";
 
 export const documents = pgTable(
   "documents",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").notNull().references(() => spaces.id, { onDelete: "cascade" }),
     title: text("title"),
     format: text("format").notNull().default("markdown"),
     latestBody: text("latest_body").notNull(),
@@ -25,8 +25,8 @@ export const documents = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    companyUpdatedIdx: index("documents_company_updated_idx").on(table.companyId, table.updatedAt),
-    companyCreatedIdx: index("documents_company_created_idx").on(table.companyId, table.createdAt),
+    spaceUpdatedIdx: index("documents_space_updated_idx").on(table.spaceId, table.updatedAt),
+    spaceCreatedIdx: index("documents_space_created_idx").on(table.spaceId, table.createdAt),
     titleSearchIdx: index("documents_title_search_idx").using("gin", table.title.op("gin_trgm_ops")),
     bodySearchIdx: index("documents_latest_body_search_idx").using("gin", table.latestBody.op("gin_trgm_ops")),
   }),

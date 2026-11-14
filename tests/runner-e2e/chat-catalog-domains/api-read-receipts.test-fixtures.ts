@@ -2,7 +2,7 @@ import { redactRunnerApiEvent } from "../../../server/src/services/native-runtim
 
 /**
  * One call_api (or dedicated API-backed tool) use and its result, as the runner
- * emits them, passed through the same redactor PaperclipControlPlanePort applies
+ * emits them, passed through the same redactor OutpostControlPlanePort applies
  * before saving run events.
  */
 export function savedCall(input: Record<string, unknown>, status: number, itemId = "7", runId = "run-1", data: unknown = { id: "response-body" }, tool = "call_api", operationId = input.operationId): Record<string, unknown>[] {

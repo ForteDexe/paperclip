@@ -369,11 +369,11 @@ describe("createHttp2BridgeServer + createSandboxHttp2BridgeGateway", () => {
       // The session survives: a second request completes normally.
       const survivingResponse = await expectSessionStillServesARequest(rawClient, {
         method: "GET",
-        path: "/api/companies/co1",
+        path: "/api/spaces/co1",
         token: bridgeToken,
       });
       expect(survivingResponse.status).toBe(200);
-      expect(JSON.parse(survivingResponse.body)).toEqual({ path: "/api/companies/co1" });
+      expect(JSON.parse(survivingResponse.body)).toEqual({ path: "/api/spaces/co1" });
     } finally {
       rawClient.close();
       await handle.close();
@@ -1974,7 +1974,7 @@ describe("createHttp2BridgeServer + createSandboxHttp2BridgeGateway", () => {
       forwardRequest: async (request) => {
         seen.push(request);
         return {
-          status: request.pathname.includes("other-company") ? 403 : 200,
+          status: request.pathname.includes("other-space") ? 403 : 200,
           headers: { "content-type": "application/json" },
           body: Buffer.from(JSON.stringify({ path: request.pathname })),
         };
@@ -1983,8 +1983,8 @@ describe("createHttp2BridgeServer + createSandboxHttp2BridgeGateway", () => {
     const query = "?limit=25&summary=true";
     try {
       for (const requestPath of [
-        "/api/companies/co-1/heartbeat-runs",
-        "/api/companies/co-1/live-runs",
+        "/api/spaces/co-1/heartbeat-runs",
+        "/api/spaces/co-1/live-runs",
         "/api/heartbeat-runs/run-1",
         "/api/heartbeat-runs/run-1/events",
         "/api/heartbeat-runs/run-1/log",
@@ -1992,13 +1992,13 @@ describe("createHttp2BridgeServer + createSandboxHttp2BridgeGateway", () => {
         "/api/heartbeat-runs/run-1/issues",
         "/api/issues/issue-1/runs",
         "/api/issues/issue-1/recovery-actions",
-        "/api/companies/other-company/heartbeat-runs",
+        "/api/spaces/other-space/heartbeat-runs",
       ]) {
         const response = await gateway.forwardRequest({
           method: "GET", path: requestPath, query, headers: {},
           body: Buffer.alloc(0), receivedToken: BRIDGE_TOKEN,
         });
-        expect(response.status, requestPath).toBe(requestPath.includes("other-company") ? 403 : 200);
+        expect(response.status, requestPath).toBe(requestPath.includes("other-space") ? 403 : 200);
         expect(JSON.parse(response.body.toString("utf8"))).toEqual({ path: requestPath });
         expect(seen.at(-1)).toMatchObject({ method: "GET", pathname: requestPath, query });
         expect(seen.at(-1)?.headers.authorization).toBeUndefined();
@@ -2030,7 +2030,7 @@ describe("createHttp2BridgeServer + createSandboxHttp2BridgeGateway", () => {
     // or a valid maximum-size attachment fails here before the server ever
     // sees it.
     const maxAttachmentBytes = 10 * 1024 * 1024;
-    const boundary = "----PaperclipTestBoundary1234567890abcdef";
+    const boundary = "----OutpostTestBoundary1234567890abcdef";
     const preamble = Buffer.from(
       `--${boundary}\r\n` +
         `Content-Disposition: form-data; name="file"; filename="attachment.bin"\r\n` +
@@ -2057,7 +2057,7 @@ describe("createHttp2BridgeServer + createSandboxHttp2BridgeGateway", () => {
     try {
       const response = await gateway.forwardRequest({
         method: "POST",
-        path: "/api/companies/co-1/issues/issue-1/attachments",
+        path: "/api/spaces/co-1/issues/issue-1/attachments",
         query: "",
         headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
         body: multipartBody,

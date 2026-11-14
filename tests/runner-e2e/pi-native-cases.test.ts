@@ -43,7 +43,7 @@ describe("Pi native Product qualification", () => {
   it("binds the remote memory read to the exact agent and current run", () => {
     const nonce = "0123456789abcdef0123456789abcdef";
     const remoteRun = { agentId: "11111111-1111-4111-8111-111111111111", runId: "22222222-2222-4222-8222-222222222222" };
-    const target = `.paperclip-runtime/agent-files/${remoteRun.agentId}/${remoteRun.runId}/memory/pi-native.txt`;
+    const target = `.outpost-runtime/agent-files/${remoteRun.agentId}/${remoteRun.runId}/memory/pi-native.txt`;
     const read = (patch: Record<string, unknown> = {}) => ({ eventType: "tool.execution.completed", payload: { orpEvent: { payload: {
       schema: "outpost.tool.execution.v1", transport: "builtin", name: "read", operation: "read", status: "completed", executionId: "remote-read-1", target, readOnly: true, outputTruncated: false, output: JSON.stringify({ content: [{ type: "text", text: `${nonce}\n` }] }), ...patch,
     } } } });
@@ -75,7 +75,7 @@ describe("Pi native Product qualification", () => {
     expect(cells.reduce((sum, row) => sum + row.task.expectedRunCount, 0)).toBe(12);
     expect(selectRunnerExecutions(parseRunnerSelectors(["--all"])).some(row => row.suite.id === suite.id)).toBe(false);
     expect(runnerMatrix.filter(row => row.suite.id === "extended-harnesses")).toHaveLength(30);
-    expect(piNativeTasks[0]!.buildPrompt("fixture")).toContain("paperclip_native_question");
+    expect(piNativeTasks[0]!.buildPrompt("fixture")).toContain("outpost_native_question");
     expect(piNativeTasks[1]!.buildPrompt("fixture")).toContain("AGENT_HOME");
   });
 

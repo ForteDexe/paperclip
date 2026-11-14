@@ -22,12 +22,12 @@ import { startTimelineVerifier } from "./internal-timeline-verifier.js";
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const broken = '<h1>Launch</h1><input id="email">';
 const repaired = '<h1>Launch</h1><label for="email">Email</label><input id="email">';
-type Options = { wrongTask?: boolean; foreignCompany?: boolean; wrongWorker?: boolean; wrongRun?: boolean;
+type Options = { wrongTask?: boolean; foreignSpace?: boolean; wrongWorker?: boolean; wrongRun?: boolean;
   stopped?: boolean; infrastructureFailure?: boolean; changedAfterCommand?: boolean; missingFile?: boolean; wrongFile?: boolean; badEncoding?: boolean; oversized?: boolean; changedCheckout?: boolean };
 function fixture(options: Options = {}) {
   port.executed.splice(0); port.providerToken = ""; port.infrastructureFailure = options.infrastructureFailure ?? false;
   let body = broken, reads = 0, taskReads = 0;
-  const current = () => ({ id: options.wrongTask ? "other" : "task", companyId: options.foreignCompany ? "foreign" : "company",
+  const current = () => ({ id: options.wrongTask ? "other" : "task", spaceId: options.foreignSpace ? "foreign" : "space",
     assigneeAgentId: options.wrongWorker ? "foreign-worker" : "worker", executionRunId: options.wrongRun || options.changedCheckout && reads > 0 || options.changedAfterCommand && taskReads > 2 ? "other-run" : "native" });
   const agentDenied = vi.fn();
   vi.stubGlobal("fetch", vi.fn(async (url: URL | string, init: RequestInit) => {
@@ -47,9 +47,9 @@ function fixture(options: Options = {}) {
     port.providerToken = value.credentialValues["credentials.authorization"];
     return { connectionId: "connection", actions: { readOnly: [{ catalogEntryId: "verify" }] } };
   });
-  const ctx = { input: { privateSecrets: [] as string[], fixtures: { company: { id: "company" } },
+  const ctx = { input: { privateSecrets: [] as string[], fixtures: { space: { id: "space" } },
     api: { baseURL: "https://fixture.test", get, postSensitive, post: vi.fn(async () => {}), putSensitive: vi.fn(async () => {}), delete: vi.fn(async () => {}) } },
-    allRuns: vi.fn(async () => [{ id: "native", companyId: "company", agentId: "worker", status: options.stopped ? "cancelled" : "running", runtimeMode: "native", contextSnapshot: { issueId: "task" } }]),
+    allRuns: vi.fn(async () => [{ id: "native", spaceId: "space", agentId: "worker", status: options.stopped ? "cancelled" : "running", runtimeMode: "native", contextSnapshot: { issueId: "task" } }]),
   } as unknown as ChatCatalogContext;
   async function call(token = port.providerToken, arguments_: Record<string, unknown> = {}) {
     let status = 0, response = "";
@@ -76,7 +76,7 @@ it("actual verifier uses only authorized fixture read and executes genuine faile
     expect(f.get).toHaveBeenCalledTimes(2); expect(f.agentDenied).not.toHaveBeenCalled();
   } finally { await verifier.close(); }
 });
-it.each([{ wrongTask: true }, { foreignCompany: true }, { wrongWorker: true }, { wrongRun: true }, { stopped: true },
+it.each([{ wrongTask: true }, { foreignSpace: true }, { wrongWorker: true }, { wrongRun: true }, { stopped: true },
   { missingFile: true }, { wrongFile: true }, { badEncoding: true }, { oversized: true }, { changedCheckout: true }])("actual verifier refuses invalid scope/custody/content %j without a fabricated exit receipt", async options => {
   const f = fixture(options); const verifier = await startTimelineVerifier(f.ctx, "task", ["worker"]);
   try {

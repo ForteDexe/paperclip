@@ -36,13 +36,13 @@ export function inputFileSummaryMatches(body: unknown, expected: InputFileFixtur
 }
 
 export interface InputFileAttachment {
-  id: string; companyId: string; issueId: string; originalFilename: string;
+  id: string; spaceId: string; issueId: string; originalFilename: string;
   originatingRunId: string | null; byteSize: number;
 }
 
 export function inputFileAttachmentMatches(attachment: InputFileAttachment | undefined,
-  input: { companyId: string; issueId: string; fixture: InputFileFixture; downloaded: Buffer }): boolean {
-  return Boolean(attachment?.id && attachment.companyId === input.companyId && attachment.issueId === input.issueId
+  input: { spaceId: string; issueId: string; fixture: InputFileFixture; downloaded: Buffer }): boolean {
+  return Boolean(attachment?.id && attachment.spaceId === input.spaceId && attachment.issueId === input.issueId
     && attachment.originalFilename === input.fixture.filename && attachment.originatingRunId === null
     && attachment.byteSize === input.fixture.bytes.length && input.downloaded.equals(input.fixture.bytes));
 }

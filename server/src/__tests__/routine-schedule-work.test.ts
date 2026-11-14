@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { agents, applyPendingMigrations, companies, costEvents, createDb, routineRuns, routineTriggers, type Db } from "@outpost/db";
+import { agents, applyPendingMigrations, spaces, costEvents, createDb, routineRuns, routineTriggers, type Db } from "@outpost/db";
 import { resolveExternalTestDatabaseUrl } from "./helpers/external-test-database.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { routineService } from "../services/routines.js";
 import { budgetService } from "../services/budgets.js";
-import { companyService } from "../services/companies.js";
+import { spaceService } from "../services/space-service.js";
 import { registerDeadlineWork } from "../services/deadline-work.js";
 import { DELIVERY_QUEUES } from "../services/delivery-work-notifications.js";
 import { createDeliveryWorkCoordinator } from "../services/delivery-work-coordinator.js";
@@ -17,7 +17,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 (support.supported ? describe : describe.skip)("routine schedule deadline work", () => {
   let db: Db;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
-  let companyId: string, agentId: string;
+  let spaceId: string, agentId: string;
   let coordinator: ReturnType<typeof createDeliveryWorkCoordinator> | undefined;
   let draining = false;
   const errors: unknown[] = [];
@@ -29,10 +29,10 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 6 });
   }, 30_000);
   beforeEach(async () => {
-    companyId = randomUUID(); agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Scheduled work", issuePrefix: `R${companyId.slice(0, 6)}`,
-      defaultResponsibleUserId: randomUUID(), requireBoardApprovalForNewAgents: false });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Scheduled agent", status: "active", lifecycleState: "ready", adapterType: "codex_local" });
+    spaceId = randomUUID(); agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Scheduled work", issuePrefix: `R${spaceId.slice(0, 6)}`,
+      defaultResponsibleUserId: randomUUID(), requireOperatorApprovalForNewAgents: false });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Scheduled agent", status: "active", lifecycleState: "ready", adapterType: "codex_local" });
     errors.length = 0; wakeup.mockClear(); draining = false;
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-07-16T12:30:00Z"));
@@ -40,11 +40,11 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   afterEach(async () => {
     await coordinator?.stop(); coordinator = undefined;
     vi.useRealTimers(); vi.restoreAllMocks();
-    await db.execute(sql`truncate companies cascade`);
+    await db.execute(sql`truncate spaces cascade`);
     expect(errors).toEqual([]);
   });
   afterAll(async () => { await db?.$client.end({ timeout: 1 }); await temporary?.cleanup(); });
-  const create = (owner = db, catchUpPolicy: "skip_missed" | "enqueue_missed_with_cap" = "skip_missed") => service(owner).create(companyId, {
+  const create = (owner = db, catchUpPolicy: "skip_missed" | "enqueue_missed_with_cap" = "skip_missed") => service(owner).create(spaceId, {
     title: "Scheduled routine", assigneeAgentId: agentId, priority: "medium", status: "active",
     concurrencyPolicy: "coalesce_if_active", catchUpPolicy,
     variables: [],
@@ -93,15 +93,15 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await quiet();
   });
 
-  it("disarms on company pause and rearms from the committed reactivation", async () => {
+  it("disarms on space pause and rearms from the committed reactivation", async () => {
     const routine = await create();
     const { trigger } = await service().createTrigger(routine.id, { kind: "schedule", enabled: true, cronExpression: "0 0 * * *", timezone: "UTC" }, {});
     await start(); await settled();
     expect(coordinator!.nextWakeAt()).toBe(trigger.nextRunAt!.getTime());
-    await companyService(db).update(companyId, { status: "paused" });
+    await spaceService(db).update(spaceId, { status: "paused" });
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBeNull());
     await quiet();
-    await companyService(db).update(companyId, { status: "active" });
+    await spaceService(db).update(spaceId, { status: "active" });
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBe(trigger.nextRunAt!.getTime()));
     await quiet();
     expect(wakeup).not.toHaveBeenCalled();
@@ -259,7 +259,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await quiet();
   });
 
-  it.each(["archive", "remove"] as const)("disarms a company schedule after %s", async operation => {
+  it.each(["archive", "remove"] as const)("disarms a space schedule after %s", async operation => {
     const routine = await create();
     await service().createTrigger(routine.id, { kind: "schedule", enabled: true, cronExpression: "0 0 * * *", timezone: "UTC" }, {});
     await start(); await settled();
@@ -269,7 +269,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
 
       await db.update(agents).set({ status: "terminated", lifecycleState: "terminated" }).where(eq(agents.id, agentId));
     }
-    await companyService(db)[operation](companyId);
+    await spaceService(db)[operation](spaceId);
     await vi.waitFor(() => expect(coordinator!.nextWakeAt()).toBeNull());
     await quiet();
   });
@@ -287,12 +287,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
     await quiet();
   });
 
-  it("does not consume overdue triggers in a paused company", async () => {
+  it("does not consume overdue triggers in a paused space", async () => {
     const routine = await create();
     const { trigger } = await service().createTrigger(routine.id, { kind: "schedule", enabled: true, cronExpression: "0 * * * *", timezone: "UTC" }, {});
     const due = new Date("2026-07-16T12:00:00Z");
     await db.update(routineTriggers).set({ nextRunAt: due }).where(eq(routineTriggers.id, trigger.id));
-    await companyService(db).update(companyId, { status: "paused" });
+    await spaceService(db).update(spaceId, { status: "paused" });
     await start(); await quiet();
     expect(await db.select().from(routineRuns)).toHaveLength(0);
     expect((await db.select().from(routineTriggers))[0]!.nextRunAt).toEqual(due);
@@ -300,14 +300,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
   });
 
 
-  it.each(["pause", "resume"] as const)("refreshes schedules when budget enforcement changes company state: %s", async operation => {
+  it.each(["pause", "resume"] as const)("refreshes schedules when budget enforcement changes space state: %s", async operation => {
     const routine = await create();
     const { trigger } = await service().createTrigger(routine.id, { kind: "schedule", enabled: true, cronExpression: "0 0 * * *", timezone: "UTC" }, {});
-    await db.insert(costEvents).values({ companyId, agentId, provider: "openai", biller: "openai",
+    await db.insert(costEvents).values({ spaceId, agentId, provider: "openai", biller: "openai",
       billingType: "metered_api", model: "fixture", costCents: 125, occurredAt: new Date() });
     const budgets = budgetService(db);
-    const limit = (amount: number) => budgets.upsertPolicy(companyId, {
-      scopeType: "company", scopeId: companyId, amount, windowKind: "calendar_month_utc", notifyEnabled: false,
+    const limit = (amount: number) => budgets.upsertPolicy(spaceId, {
+      scopeType: "space", scopeId: spaceId, amount, windowKind: "calendar_month_utc", notifyEnabled: false,
     }, null);
     if (operation === "resume") await limit(100);
     await start(); await settled();

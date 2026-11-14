@@ -1,10 +1,10 @@
-export { companyService } from "./companies.js";
-export { companyArtifactsService } from "./company-artifacts.js";
-export { companySearchService } from "./company-search.js";
-export { companySearchExtractService } from "./company-search-extract.js";
+export { spaceService } from "./space-service.js";
+export { spaceArtifactsService } from "./space-artifacts.js";
+export { spaceSearchService } from "./space-search.js";
+export { spaceSearchExtractService } from "./space-search-extract.js";
 export { feedbackService } from "./feedback.js";
-export { companySkillService } from "./company-skills.js";
-export { companySkillPolicyService, normalizeSkillPolicySourceType } from "./company-skill-policy.js";
+export { spaceSkillService } from "./space-skills.js";
+export { spaceSkillPolicyService, normalizeSkillPolicySourceType } from "./space-skill-policy.js";
 export { folderService } from "./folders.js";
 export { agentService, deduplicateAgentName } from "./agents.js";
 export {
@@ -135,7 +135,7 @@ export type {
   AuthorizationDecision,
   AuthorizationResource,
 } from "./authorization.js";
-export { boardAuthService } from "./board-auth.js";
+export { operatorAuthService } from "./operator-auth.js";
 export { instanceSettingsService, applyManagedExperimentalOverlay } from "./instance-settings.js";
 export {
   getManagedInstanceConfig,
@@ -148,7 +148,7 @@ export {
 export { bootstrapExecutionPolicyFromEnv } from "./execution-policy-bootstrap.js";
 export { applyManagedEnvironments, createManagedEnvironmentRecovery } from "./managed-environments.js";
 export { buildExportFidelityReport, collectExportFidelityCounts } from "./export-fidelity.js";
-export { companyPortabilityService } from "./company-portability.js";
+export { spacePortabilityService } from "./space-portability.js";
 export { teamsCatalogService } from "./teams-catalog.js";
 export { environmentService } from "./environments.js";
 export {
@@ -200,8 +200,8 @@ export {
   type LogActivityInput,
 } from "./activity-log.js";
 export { summarySlotService, SUMMARIZER_BUILT_IN_KEY } from "./summary-slots.js";
-export { notifyHireApproved, type NotifyHireApprovedInput } from "./hire-hook.js";
-export { publishLiveEvent, subscribeCompanyLiveEvents } from "./live-events.js";
+export { notifyCreateApproved, type NotifyCreateApprovedInput } from "./create-hook.js";
+export { publishLiveEvent, subscribeSpaceLiveEvents } from "./live-events.js";
 export {
   reconcileCodexLocalManagedHomesOnStartup,
   type CodexAuthReconciliationSummary,

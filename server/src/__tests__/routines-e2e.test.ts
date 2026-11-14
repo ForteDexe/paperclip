@@ -7,11 +7,11 @@ import {
   activityLog,
   agentWakeupRequests,
   agents,
-  companies,
-  companyMemberships,
-  companySecrets,
-  companySecretVersions,
-  companySecretBindings,
+  spaces,
+  spaceMemberships,
+  spaceSecrets,
+  spaceSecretVersions,
+  spaceSecretBindings,
   secretAccessEvents,
   createDb,
   documentAnnotationAnchorSnapshots,
@@ -56,16 +56,16 @@ function registerRoutineServiceMock() {
               if (!issueId) return null;
 
               const issue = await db
-                .select({ companyId: issues.companyId })
+                .select({ spaceId: issues.spaceId })
                 .from(issues)
                 .where(eq(issues.id, issueId))
-                .then((rows: Array<{ companyId: string }>) => rows[0] ?? null);
+                .then((rows: Array<{ spaceId: string }>) => rows[0] ?? null);
               if (!issue) return null;
 
               const queuedRunId = randomUUID();
               await db.insert(heartbeatRuns).values({
                 id: queuedRunId,
-                companyId: issue.companyId,
+                spaceId: issue.spaceId,
                 agentId,
                 invocationSource: wakeupOpts?.source ?? "assignment",
                 triggerDetail: wakeupOpts?.triggerDetail ?? null,
@@ -101,7 +101,7 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-routines-e2e-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-routines-e2e-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -109,9 +109,9 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     vi.unstubAllEnvs();
     await db.delete(activityLog);
     await db.delete(secretAccessEvents);
-    await db.delete(companySecretBindings);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
+    await db.delete(spaceSecretBindings);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
     await db.delete(documentAnnotationAnchorSnapshots);
     await db.delete(documentAnnotationComments);
     await db.delete(documentAnnotationThreads);
@@ -124,14 +124,14 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     await db.delete(executionWorkspaces);
     await db.delete(projectWorkspaces);
     await db.delete(principalPermissionGrants);
-    await db.delete(companyMemberships);
+    await db.delete(spaceMemberships);
     await db.delete(routineDocuments);
     await db.delete(routines);
     await db.delete(documentRevisions);
     await db.delete(documents);
     await db.delete(projects);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     await db.delete(instanceSettings);
   });
 
@@ -145,9 +145,9 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     vi.doUnmock("../telemetry.js");
     vi.doUnmock("../services/access.js");
     vi.doUnmock("../services/issues.js");
-    vi.doUnmock("../services/companies.js");
+    vi.doUnmock("../services/spaces.js");
     vi.doUnmock("../services/projects.js");
-    vi.doUnmock("../services/company-skills.js");
+    vi.doUnmock("../services/space-skills.js");
     vi.doUnmock("../services/assets.js");
     vi.doUnmock("../services/agent-instructions.js");
     vi.doUnmock("../services/workspace-runtime.js");
@@ -213,22 +213,22 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
   }
 
   async function seedFixture() {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const agentId = randomUUID();
     const projectId = randomUUID();
     const userId = randomUUID();
-    const issuePrefix = `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+    const issuePrefix = `T${spaceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 
-    await db.insert(companies).values({
-      id: companyId,
-      name: "Paperclip",
+    await db.insert(spaces).values({
+      id: spaceId,
+      name: "Outpost",
       issuePrefix,
-      requireBoardApprovalForNewAgents: false,
+      requireOperatorApprovalForNewAgents: false,
     });
 
     await db.insert(agents).values({
       id: agentId,
-      companyId,
+      spaceId,
       name: "CodexCoder",
       role: "engineer",
       status: "active",
@@ -240,21 +240,21 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
 
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Routine Project",
       status: "in_progress",
     });
 
     const access = accessService(db);
-    const membership = await access.ensureMembership(companyId, "user", userId, "owner", "active");
+    const membership = await access.ensureMembership(spaceId, "user", userId, "owner", "active");
     await access.setMemberPermissions(
-      companyId,
+      spaceId,
       membership.id,
       [{ permissionKey: "tasks:assign" }],
       userId,
     );
 
-    return { companyId, agentId, projectId, userId };
+    return { spaceId, agentId, projectId, userId };
   }
 
   function routineResourceRequests(app: express.Express, routineId: string, triggerId = routineId) {
@@ -287,10 +287,10 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
   }
 
   it("returns not found without queries for malformed routine and trigger IDs on every resource route", async () => {
-    const { companyId, agentId, userId } = await seedFixture();
+    const { spaceId, agentId, userId } = await seedFixture();
     const actors = [
-      { type: "board", userId, source: "session", companyIds: [companyId] },
-      { type: "agent", agentId, companyId },
+      { type: "operator", userId, source: "session", spaceIds: [spaceId] },
+      { type: "agent", agentId, spaceId },
       { type: "none" },
     ];
     const fullId = "12345678-1234-4234-8234-123456789abc";
@@ -318,15 +318,15 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     }
   }, 20_000);
 
-  it("keeps missing and cross-company routine resources indistinguishable", async () => {
-    const { companyId, agentId, userId } = await seedFixture();
+  it("keeps missing and cross-space routine resources indistinguishable", async () => {
+    const { spaceId, agentId, userId } = await seedFixture();
     const routineId = randomUUID();
     const triggerId = randomUUID();
-    await db.insert(routines).values({ id: routineId, companyId, assigneeAgentId: agentId, title: "Private routine" });
-    await db.insert(routineTriggers).values({ id: triggerId, companyId, routineId, kind: "api" });
+    await db.insert(routines).values({ id: routineId, spaceId, assigneeAgentId: agentId, title: "Private routine" });
+    await db.insert(routineTriggers).values({ id: triggerId, spaceId, routineId, kind: "api" });
     for (const actor of [
-      { type: "board", userId, source: "session", isInstanceAdmin: true, companyIds: [randomUUID()] },
-      { type: "agent", agentId: randomUUID(), companyId: randomUUID() },
+      { type: "operator", userId, source: "session", isInstanceAdmin: true, spaceIds: [randomUUID()] },
+      { type: "agent", agentId: randomUUID(), spaceId: randomUUID() },
       { type: "none" },
     ]) {
       const app = await createApp(actor);
@@ -345,15 +345,15 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
   }, 20_000);
 
   it("preserves UUID routine reads and assignee-only mutations", async () => {
-    const { companyId, agentId, userId } = await seedFixture();
+    const { spaceId, agentId, userId } = await seedFixture();
     const routineId = randomUUID();
     const triggerId = randomUUID();
-    await db.insert(routines).values({ id: routineId, companyId, assigneeAgentId: agentId, title: "Private routine" });
-    await db.insert(routineTriggers).values({ id: triggerId, companyId, routineId, kind: "api" });
-    const owner = await createApp({ type: "agent", agentId, companyId });
-    const otherAgent = await createApp({ type: "agent", agentId: randomUUID(), companyId });
-    const board = await createApp({ type: "board", userId, source: "session", companyIds: [companyId] });
-    for (const app of [owner, otherAgent, board]) {
+    await db.insert(routines).values({ id: routineId, spaceId, assigneeAgentId: agentId, title: "Private routine" });
+    await db.insert(routineTriggers).values({ id: triggerId, spaceId, routineId, kind: "api" });
+    const owner = await createApp({ type: "agent", agentId, spaceId });
+    const otherAgent = await createApp({ type: "agent", agentId: randomUUID(), spaceId });
+    const operator = await createApp({ type: "operator", userId, source: "session", spaceIds: [spaceId] });
+    for (const app of [owner, otherAgent, operator]) {
       const response = await request(app).get(`/api/routines/${routineId.toUpperCase()}`);
       expect(response.status).toBe(200);
       expect(response.body.id).toBe(routineId);
@@ -365,7 +365,7 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     const updated = await request(owner).patch(`/api/routines/${routineId}`).send({ title: "Owner update" });
     expect(updated.status, JSON.stringify(updated.body)).toBe(200);
     expect(updated.body.title).toBe("Owner update");
-    const changedTrigger = await request(board).patch(`/api/routine-triggers/${triggerId}`).send({ enabled: false });
+    const changedTrigger = await request(operator).patch(`/api/routine-triggers/${triggerId}`).send({ enabled: false });
     expect(changedTrigger.status, JSON.stringify(changedTrigger.body)).toBe(200);
     expect(changedTrigger.body.enabled).toBe(false);
   }, 20_000);
@@ -375,33 +375,33 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     async (signingMode) => {
       vi.stubEnv("OUTPOST_API_URL", "http://localhost:3100");
       vi.stubEnv("OUTPOST_IN_WORKTREE", "false");
-      const { companyId, agentId, projectId, userId } = await seedFixture();
-      const board = await createApp({ type: "board", source: "local_implicit", userId, isInstanceAdmin: true });
-      const created = await request(board).post(`/api/companies/${companyId}/routines`).send({
+      const { spaceId, agentId, projectId, userId } = await seedFixture();
+      const operator = await createApp({ type: "operator", source: "local_implicit", userId, isInstanceAdmin: true });
+      const created = await request(operator).post(`/api/spaces/${spaceId}/routines`).send({
         projectId, assigneeAgentId: agentId, title: "Webhook {{event}}",
         description: "Handle {{event}}", variables: [{ name: "event", type: "text", required: true }],
         concurrencyPolicy: "always_enqueue",
       });
       expect(created.status, JSON.stringify(created.body)).toBe(201);
       const routineId = created.body.id;
-      const configured = await request(board).post(`/api/routines/${routineId}/triggers`).send({ kind: "webhook", signingMode });
+      const configured = await request(operator).post(`/api/routines/${routineId}/triggers`).send({ kind: "webhook", signingMode });
       expect(configured.status, JSON.stringify(configured.body)).toBe(201);
       const { trigger, secretMaterial } = configured.body;
-      const detail = await request(board).get(`/api/routines/${routineId}`);
+      const detail = await request(operator).get(`/api/routines/${routineId}`);
       expect(detail.body.triggers[0].webhookUrl).toBe(secretMaterial.webhookUrl);
       const path = new URL(secretMaterial.webhookUrl).pathname;
-      const [{ actorMiddleware }, { boardMutationGuard }, { routineRoutes }, { errorHandler }] = await Promise.all([
-        import("../middleware/auth.js"), import("../middleware/board-mutation-guard.js"),
+      const [{ actorMiddleware }, { operatorMutationGuard }, { routineRoutes }, { errorHandler }] = await Promise.all([
+        import("../middleware/auth.js"), import("../middleware/operator-mutation-guard.js"),
         import("../routes/routines.js"), import("../middleware/error-handler.js"),
       ]);
       const ingress = express();
       ingress.use(express.json({ verify: (req, _res, buf) => { (req as any).rawBody = buf; } }));
       ingress.use(actorMiddleware(db, {
         deploymentMode: "authenticated",
-        // A webhook must not acquire an ambient board session or need CSRF headers.
+        // A webhook must not acquire an ambient operator session or need CSRF headers.
         resolveSession: async () => { throw new Error("Webhook must not resolve a browser session"); },
       }));
-      ingress.use("/api", boardMutationGuard(), routineRoutes(db));
+      ingress.use("/api", operatorMutationGuard(), routineRoutes(db));
       ingress.use(errorHandler);
       const raw = '{ "event": "deploy", "detail": { "text": "café" } }';
       const timestamp = String(Math.floor(Date.now() / 1000));
@@ -409,7 +409,7 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
         const req = request(ingress).post(path).set("Content-Type", "application/json");
         if (signingMode === "bearer") req.set("Authorization", `Bearer ${secret}`);
         if (signingMode === "hmac_sha256") {
-          req.set("X-Paperclip-Timestamp", ts).set("X-Paperclip-Signature",
+          req.set("X-Outpost-Timestamp", ts).set("X-Outpost-Signature",
             `sha256=${createHmac("sha256", secret).update(`${ts}.`).update(raw).digest("hex")}`);
         }
         if (signingMode === "github_hmac") req.set("X-Hub-Signature-256",
@@ -423,7 +423,7 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
       if (signingMode === "hmac_sha256") {
         expect((await delivery(undefined, raw, "1")).status).toBe(401);
         const malformed = await request(ingress).post(path).set("Content-Type", "application/json")
-          .set("X-Paperclip-Timestamp", timestamp).set("X-Paperclip-Signature", "é".repeat(64)).send(raw);
+          .set("X-Outpost-Timestamp", timestamp).set("X-Outpost-Signature", "é".repeat(64)).send(raw);
         expect(malformed.status).toBe(401);
       }
       expect((await request(ingress).post(path).type("text").send(raw)).status).toBe(415);
@@ -432,8 +432,8 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
       expect(accepted.status, JSON.stringify(accepted.body)).toBe(202);
       expect(accepted.body).toMatchObject({ source: "webhook", status: "issue_created" });
       const [issue] = await db.select().from(issues).where(eq(issues.id, accepted.body.linkedIssueId));
-      expect(issue).toMatchObject({ companyId, assigneeAgentId: agentId, title: "Webhook deploy", description: "Handle deploy" });
-      const history = await request(board).get(`/api/routines/${routineId}/runs`);
+      expect(issue).toMatchObject({ spaceId, assigneeAgentId: agentId, title: "Webhook deploy", description: "Handle deploy" });
+      const history = await request(operator).get(`/api/routines/${routineId}/runs`);
       expect(history.body[0].triggerPayload).toMatchObject({ event: "deploy", detail: { text: "café" } });
       await db.update(issues).set({ status: "done", executionRunId: null }).where(eq(issues.id, issue.id));
       if (signingMode === "hmac_sha256") {
@@ -446,16 +446,16 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
         await db.update(issues).set({ status: "done", executionRunId: null }).where(eq(issues.id, first.body.linkedIssueId));
       }
       if (signingMode !== "none") {
-        const rotated = await request(board).post(`/api/routine-triggers/${trigger.id}/rotate-secret`).send({});
+        const rotated = await request(operator).post(`/api/routine-triggers/${trigger.id}/rotate-secret`).send({});
         expect(rotated.status).toBe(200);
         expect(rotated.body.trigger.lastWebhookDelivery).toBeNull();
         expect((await delivery()).status).toBe(401);
         expect((await delivery(rotated.body.secretMaterial.webhookSecret)).status).toBe(202);
       }
-      await request(board).patch(`/api/routine-triggers/${trigger.id}`).send({ enabled: false });
+      await request(operator).patch(`/api/routine-triggers/${trigger.id}`).send({ enabled: false });
       expect((await delivery()).status).toBe(409);
-      await request(board).patch(`/api/routine-triggers/${trigger.id}`).send({ enabled: true });
-      await request(board).patch(`/api/routines/${routineId}`).send({ status: "paused" });
+      await request(operator).patch(`/api/routine-triggers/${trigger.id}`).send({ enabled: true });
+      await request(operator).patch(`/api/routines/${routineId}`).send({ status: "paused" });
       expect((await delivery()).status).toBe(409);
     },
   );
@@ -464,24 +464,24 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     vi.stubEnv("OUTPOST_API_URL", "http://localhost:3100");
     vi.stubEnv("OUTPOST_IN_WORKTREE", "false");
     vi.stubEnv("OUTPOST_AGENT_JWT_SECRET", randomUUID().repeat(2));
-    const { companyId, agentId, projectId, userId } = await seedFixture();
-    const board = await createApp({ type: "board", source: "local_implicit", userId, isInstanceAdmin: true });
-    const created = await request(board).post(`/api/companies/${companyId}/routines`).send({
+    const { spaceId, agentId, projectId, userId } = await seedFixture();
+    const operator = await createApp({ type: "operator", source: "local_implicit", userId, isInstanceAdmin: true });
+    const created = await request(operator).post(`/api/spaces/${spaceId}/routines`).send({
       projectId, assigneeAgentId: agentId, title: "Ordinary webhook", concurrencyPolicy: "always_enqueue",
     });
     expect(created.status).toBe(201);
     const routineId = created.body.id;
-    const a = await request(board).post(`/api/routines/${routineId}/triggers`).send({ kind: "webhook", signingMode: "app_webhook" });
-    const b = await request(board).post(`/api/routines/${routineId}/triggers`).send({ kind: "webhook", signingMode: "app_webhook" });
+    const a = await request(operator).post(`/api/routines/${routineId}/triggers`).send({ kind: "webhook", signingMode: "app_webhook" });
+    const b = await request(operator).post(`/api/routines/${routineId}/triggers`).send({ kind: "webhook", signingMode: "app_webhook" });
     expect(a.status).toBe(201); expect(b.status).toBe(201);
-    const [source] = await db.insert(issues).values({ companyId, title: "Caller source", createdByUserId: userId }).returning();
-    const [caller] = await db.insert(heartbeatRuns).values({ companyId, agentId, nativeIssueId: source!.id, status: "running" }).returning();
-    const token = createLocalAgentJwt(agentId, companyId, "codex_local", caller!.id)!;
+    const [source] = await db.insert(issues).values({ spaceId, title: "Caller source", createdByUserId: userId }).returning();
+    const [caller] = await db.insert(heartbeatRuns).values({ spaceId, agentId, nativeIssueId: source!.id, status: "running" }).returning();
+    const token = createLocalAgentJwt(agentId, spaceId, "codex_local", caller!.id)!;
     const { app: publicApp, resolveSession } = await createAuthenticatedApp();
     const delivery = (config: typeof a.body, scope = "routine") => request(publicApp)
       .post(new URL(config.secretMaterial.webhookUrl).pathname)
       .set("Authorization", `Bearer ${config.secretMaterial.webhookSecret}`)
-      .set("X-Paperclip-Source-Run-Token", token).set("X-Paperclip-Idempotency-Scope", scope)
+      .set("X-Outpost-Source-Run-Token", token).set("X-Outpost-Idempotency-Scope", scope)
       .set("Idempotency-Key", "external-occurrence-1").send({ event: "any-provider.failure", createdByRunId: randomUUID() });
     expect((await delivery(a.body, "global")).status).toBe(400);
     const first = await delivery(a.body), retry = await delivery(b.body);
@@ -501,19 +501,19 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
 
   it("preserves the authenticated caller and upstream routine through the routine HTTP API", async () => {
     vi.stubEnv("OUTPOST_AGENT_JWT_SECRET", randomUUID().repeat(2));
-    const { companyId, agentId, projectId, userId } = await seedFixture();
-    const board = await createApp({ type: "board", source: "local_implicit", userId, isInstanceAdmin: true });
-    const create = (title: string) => request(board).post(`/api/companies/${companyId}/routines`)
+    const { spaceId, agentId, projectId, userId } = await seedFixture();
+    const operator = await createApp({ type: "operator", source: "local_implicit", userId, isInstanceAdmin: true });
+    const create = (title: string) => request(operator).post(`/api/spaces/${spaceId}/routines`)
       .send({ projectId, assigneeAgentId: agentId, title });
     const upstream = await create("Upstream routine"), downstream = await create("API consumer");
     expect(upstream.status).toBe(201); expect(downstream.status).toBe(201);
-    const source = await request(board).post(`/api/routines/${upstream.body.id}/run`).send({});
+    const source = await request(operator).post(`/api/routines/${upstream.body.id}/run`).send({});
     expect(source.status, JSON.stringify(source.body)).toBe(202);
     const [task] = await db.select().from(issues).where(eq(issues.id, source.body.linkedIssueId));
     const [caller] = await db.update(heartbeatRuns).set({ status: "running" })
       .where(eq(heartbeatRuns.id, task!.executionRunId!)).returning();
     const { app } = await createAuthenticatedApp();
-    const token = createLocalAgentJwt(agentId, companyId, "codex_local", caller!.id)!;
+    const token = createLocalAgentJwt(agentId, spaceId, "codex_local", caller!.id)!;
     const response = await request(app).post(`/api/routines/${downstream.body.id}/run`)
       .set("Authorization", `Bearer ${token}`).send({ source: "api" });
     expect(response.status, JSON.stringify(response.body)).toBe(202);
@@ -521,29 +521,29 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     const [receipt] = await db.select().from(routineRuns).where(eq(routineRuns.id, response.body.id));
     expect(receipt?.createdByRunId).toBe(caller!.id);
     const { readTaskCreationProvenance } = await import("../services/task-creation-provenance.js");
-    expect(await readTaskCreationProvenance(db, companyId, response.body.linkedIssueId))
+    expect(await readTaskCreationProvenance(db, spaceId, response.body.linkedIssueId))
       .toEqual({ status: "complete", routineIds: [upstream.body.id, downstream.body.id].sort(), shareable: true });
   });
 
   it("keeps setup deliveries out of runs, persists test receipts, and restores removed triggers", async () => {
     vi.stubEnv("OUTPOST_API_URL", "http://localhost:3100");
     vi.stubEnv("OUTPOST_IN_WORKTREE", "false");
-    const { companyId, agentId, projectId, userId } = await seedFixture();
-    const board = await createApp({ type: "board", source: "local_implicit", userId, isInstanceAdmin: true });
-    const created = await request(board).post(`/api/companies/${companyId}/routines`).send({
+    const { spaceId, agentId, projectId, userId } = await seedFixture();
+    const operator = await createApp({ type: "operator", source: "local_implicit", userId, isInstanceAdmin: true });
+    const created = await request(operator).post(`/api/spaces/${spaceId}/routines`).send({
       projectId, assigneeAgentId: agentId, title: "Verify deployment", description: "Inspect deployment", concurrencyPolicy: "always_enqueue",
     });
     expect(created.status).toBe(201);
     const routineId = created.body.id;
-    const configured = await request(board).post(`/api/routines/${routineId}/triggers`).send({ kind: "webhook", signingMode: "bearer", setupPending: true });
+    const configured = await request(operator).post(`/api/routines/${routineId}/triggers`).send({ kind: "webhook", signingMode: "bearer", setupPending: true });
     expect(configured.status).toBe(201);
     const { trigger, secretMaterial } = configured.body;
     const path = new URL(secretMaterial.webhookUrl).pathname;
     const publicApp = await createApp({ type: "none" });
     const deliver = (key: string, secret = secretMaterial.webhookSecret) => request(publicApp).post(path).set("Authorization", `Bearer ${secret}`).set("Idempotency-Key", key).send({ event: "deployment.completed" });
-    await request(board).patch(`/api/routines/${routineId}`).send({ status: "paused" });
+    await request(operator).patch(`/api/routines/${routineId}`).send({ status: "paused" });
     expect((await deliver("bad", "wrong")).status).toBe(401);
-    let detail = await request(board).get(`/api/routines/${routineId}`);
+    let detail = await request(operator).get(`/api/routines/${routineId}`);
     expect(detail.body.triggers[0]).toMatchObject({ setupPending: true, lastWebhookDelivery: { status: "rejected", test: true } });
     const tested = await deliver("setup-event");
     expect(tested.status, JSON.stringify(tested.body)).toBe(202);
@@ -552,12 +552,12 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     expect(await db.select().from(issues)).toHaveLength(0);
     expect(await db.select().from(heartbeatRuns)).toHaveLength(0);
     // Read through a fresh app instance to prove the state is database-backed.
-    const reopened = await createApp({ type: "board", source: "local_implicit", userId, isInstanceAdmin: true });
+    const reopened = await createApp({ type: "operator", source: "local_implicit", userId, isInstanceAdmin: true });
     detail = await request(reopened).get(`/api/routines/${routineId}`);
     expect(detail.body.triggers[0]).toMatchObject({ setupPending: true, lastWebhookDelivery: { status: "received", test: true } });
     expect(JSON.stringify(detail.body)).not.toContain(secretMaterial.webhookSecret);
-    expect((await request(board).patch(`/api/routine-triggers/${trigger.id}`).send({ setupPending: false })).status).toBe(200);
-    await request(board).patch(`/api/routines/${routineId}`).send({ status: "active" });
+    expect((await request(operator).patch(`/api/routine-triggers/${trigger.id}`).send({ setupPending: false })).status).toBe(200);
+    await request(operator).patch(`/api/routines/${routineId}`).send({ status: "active" });
     expect((await deliver("setup-event")).body.status).toBe("test_received");
     expect(await db.select().from(routineRuns)).toHaveLength(0);
     const live = await deliver("live-event");
@@ -567,34 +567,34 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     expect((await deliver("live-event")).body.id).toBe(live.body.id);
     expect(await db.select().from(activityLog).where(eq(activityLog.action, "routine.run_triggered"))).toHaveLength(1);
     expect(await db.select().from(issues)).toHaveLength(1);
-    expect((await request(board).patch(`/api/routine-triggers/${trigger.id}`).send({ setupPending: true })).status).toBe(400);
-    expect((await request(board).patch(`/api/routine-triggers/${trigger.id}`).send({ archived: true })).status).toBe(200);
+    expect((await request(operator).patch(`/api/routine-triggers/${trigger.id}`).send({ setupPending: true })).status).toBe(400);
+    expect((await request(operator).patch(`/api/routine-triggers/${trigger.id}`).send({ archived: true })).status).toBe(200);
     expect((await deliver("removed-event")).status).toBe(404);
-    expect((await request(board).get(`/api/routines/${routineId}`)).body.triggers).toHaveLength(0);
-    expect((await request(board).patch(`/api/routine-triggers/${trigger.id}`).send({ archived: false })).status).toBe(200);
-    detail = await request(board).get(`/api/routines/${routineId}`);
+    expect((await request(operator).get(`/api/routines/${routineId}`)).body.triggers).toHaveLength(0);
+    expect((await request(operator).patch(`/api/routine-triggers/${trigger.id}`).send({ archived: false })).status).toBe(200);
+    detail = await request(operator).get(`/api/routines/${routineId}`);
     expect(detail.body.triggers[0].webhookUrl).toBe(secretMaterial.webhookUrl);
     expect((await deliver("restored-event")).status).toBe(202);
-    const schedule = await request(board).post(`/api/routines/${routineId}/triggers`).send({ kind: "schedule", cronExpression: "0 9 * * 1-5", timezone: "America/Chicago" });
+    const schedule = await request(operator).post(`/api/routines/${routineId}/triggers`).send({ kind: "schedule", cronExpression: "0 9 * * 1-5", timezone: "America/Chicago" });
     expect(schedule.status).toBe(201);
-    await request(board).patch(`/api/routine-triggers/${schedule.body.trigger.id}`).send({ archived: true });
-    expect((await request(board).get(`/api/routines/${routineId}`)).body.triggers).toHaveLength(1);
-    await request(board).patch(`/api/routine-triggers/${schedule.body.trigger.id}`).send({ archived: false });
-    expect((await request(board).get(`/api/routines/${routineId}`)).body.triggers).toHaveLength(2);
+    await request(operator).patch(`/api/routine-triggers/${schedule.body.trigger.id}`).send({ archived: true });
+    expect((await request(operator).get(`/api/routines/${routineId}`)).body.triggers).toHaveLength(1);
+    await request(operator).patch(`/api/routine-triggers/${schedule.body.trigger.id}`).send({ archived: false });
+    expect((await request(operator).get(`/api/routines/${routineId}`)).body.triggers).toHaveLength(2);
   });
 
   it("supports creating, scheduling, and manually running a routine through the API", async () => {
-    const { companyId, agentId, projectId, userId } = await seedFixture();
+    const { spaceId, agentId, projectId, userId } = await seedFixture();
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId,
       source: "session",
       isInstanceAdmin: false,
-      companyIds: [companyId],
+      spaceIds: [spaceId],
     });
 
     const createRes = await request(app)
-      .post(`/api/companies/${companyId}/routines`)
+      .post(`/api/spaces/${spaceId}/routines`)
       .send({
         projectId,
         title: "Daily standup prep",
@@ -619,12 +619,12 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
       .patch(`/api/routines/${routineId}`)
       .send({
         activityGatePolicy: "always",
-        activityGateScope: "company",
+        activityGateScope: "space",
       });
 
     expect(updateRes.status).toBe(200);
     expect(updateRes.body.activityGatePolicy).toBe("always");
-    expect(updateRes.body.activityGateScope).toBe("company");
+    expect(updateRes.body.activityGateScope).toBe("space");
 
     const triggerRes = await request(app)
       .post(`/api/routines/${routineId}/triggers`)
@@ -651,12 +651,12 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     expect(runRes.body.source).toBe("manual");
     expect(runRes.body.linkedIssueId).toBeTruthy();
 
-    const listRes = await request(app).get(`/api/companies/${companyId}/routines`);
+    const listRes = await request(app).get(`/api/spaces/${spaceId}/routines`);
     expect(listRes.status).toBe(200);
     const listed = listRes.body.find((r: { id: string }) => r.id === routineId);
     expect(listed).toBeDefined();
     expect(listed.activityGatePolicy).toBe("always");
-    expect(listed.activityGateScope).toBe("company");
+    expect(listed.activityGateScope).toBe("space");
     expect(listed.triggers).toHaveLength(1);
     expect(listed.triggers[0].cronExpression).toBe("0 10 * * 1-5");
     expect(listed.triggers[0].timezone).toBe("UTC");
@@ -664,7 +664,7 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     const detailRes = await request(app).get(`/api/routines/${routineId}`);
     expect(detailRes.status).toBe(200);
     expect(detailRes.body.activityGatePolicy).toBe("always");
-    expect(detailRes.body.activityGateScope).toBe("company");
+    expect(detailRes.body.activityGateScope).toBe("space");
     expect(detailRes.body.triggers).toHaveLength(1);
     expect(detailRes.body.triggers[0]?.id).toBe(createdTrigger.id);
     expect(detailRes.body.recentRuns).toHaveLength(1);
@@ -701,7 +701,7 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
         action: activityLog.action,
       })
       .from(activityLog)
-      .where(eq(activityLog.companyId, companyId));
+      .where(eq(activityLog.spaceId, spaceId));
 
     expect(actions.map((entry) => entry.action)).toEqual(
       expect.arrayContaining([
@@ -713,17 +713,17 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
   }, 15_000);
 
   it("runs routines with variable inputs and interpolates the execution issue description", async () => {
-    const { companyId, agentId, projectId, userId } = await seedFixture();
+    const { spaceId, agentId, projectId, userId } = await seedFixture();
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId,
       source: "session",
       isInstanceAdmin: false,
-      companyIds: [companyId],
+      spaceIds: [spaceId],
     });
 
     const createRes = await request(app)
-      .post(`/api/companies/${companyId}/routines`)
+      .post(`/api/spaces/${spaceId}/routines`)
       .send({
         projectId,
         title: "Repository triage",
@@ -739,13 +739,13 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
 
     const runRes = await postRoutineRun(app, createRes.body.id, {
       source: "manual",
-      variables: { repo: "paperclip" },
+      variables: { repo: "outpost" },
     });
 
     expect(runRes.status).toBe(202);
     expect(runRes.body.triggerPayload).toEqual({
       variables: {
-        repo: "paperclip",
+        repo: "outpost",
         priority: "high",
       },
     });
@@ -755,21 +755,21 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
       .from(issues)
       .where(eq(issues.id, runRes.body.linkedIssueId));
 
-    expect(issue?.description).toBe("Review paperclip for high bugs");
+    expect(issue?.description).toBe("Review outpost for high bugs");
   });
 
   it("defaults activity gates and rejects invalid activity gate values", async () => {
-    const { companyId, agentId, projectId, userId } = await seedFixture();
+    const { spaceId, agentId, projectId, userId } = await seedFixture();
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId,
       source: "session",
       isInstanceAdmin: false,
-      companyIds: [companyId],
+      spaceIds: [spaceId],
     });
 
     const createRes = await request(app)
-      .post(`/api/companies/${companyId}/routines`)
+      .post(`/api/spaces/${spaceId}/routines`)
       .send({
         projectId,
         title: "Default activity gate",
@@ -778,10 +778,10 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
 
     expect(createRes.status).toBe(201);
     expect(createRes.body.activityGatePolicy).toBe("always");
-    expect(createRes.body.activityGateScope).toBe("company");
+    expect(createRes.body.activityGateScope).toBe("space");
 
     const invalidCreateRes = await request(app)
-      .post(`/api/companies/${companyId}/routines`)
+      .post(`/api/spaces/${spaceId}/routines`)
       .send({
         projectId,
         title: "Invalid activity gate",
@@ -799,17 +799,17 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
   });
 
   it("allows drafting a routine without defaults and running it with one-off overrides", async () => {
-    const { companyId, agentId, projectId, userId } = await seedFixture();
+    const { spaceId, agentId, projectId, userId } = await seedFixture();
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId,
       source: "session",
       isInstanceAdmin: false,
-      companyIds: [companyId],
+      spaceIds: [spaceId],
     });
 
     const createRes = await request(app)
-      .post(`/api/companies/${companyId}/routines`)
+      .post(`/api/spaces/${spaceId}/routines`)
       .send({
         title: "Draft routine",
         description: "No saved defaults",
@@ -844,20 +844,20 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
   });
 
   it("persists execution workspace selections from manual routine runs", async () => {
-    const { companyId, agentId, projectId, userId } = await seedFixture();
+    const { spaceId, agentId, projectId, userId } = await seedFixture();
     const projectWorkspaceId = randomUUID();
     const executionWorkspaceId = randomUUID();
     const app = await createApp({
-      type: "board",
+      type: "operator",
       userId,
       source: "session",
       isInstanceAdmin: false,
-      companyIds: [companyId],
+      spaceIds: [spaceId],
     });
 
     await db.insert(projectWorkspaces).values({
       id: projectWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       name: "Primary workspace",
       isPrimary: true,
@@ -865,7 +865,7 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       projectWorkspaceId,
       mode: "isolated_workspace",
@@ -889,7 +889,7 @@ describeEmbeddedPostgres("routine routes end-to-end", () => {
     });
 
     const createRes = await request(app)
-      .post(`/api/companies/${companyId}/routines`)
+      .post(`/api/spaces/${spaceId}/routines`)
       .send({
         projectId,
         title: "Workspace-aware routine",

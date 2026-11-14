@@ -35,7 +35,7 @@ const queue: IssueQueuedCommentQueue = {
     (body, position) => ({
       comment: {
         id: `comment-${position + 1}`,
-        companyId: "company-1",
+        spaceId: "space-1",
         issueId: "issue-1",
         authorType: "user",
         authorAgentId: null,
@@ -93,7 +93,7 @@ describe("TaskChatQueuedMessages", () => {
   });
 
   it("says why a chat message held in the outbox waits, without offering queue actions", () => {
-    const message = "CEO reached its daily run limit. Your message is saved and sends automatically when the limit resets at 00:00 UTC.";
+    const message = "Default agent reached its daily run limit. Your message is saved and sends automatically when the limit resets at 00:00 UTC.";
     render({ queue: { ...queue, queueId: null, targetRunId: null, steeringDisposition: "unsupported",
       executionWait: { reason: "heartbeat.daily_run_limit", message },
       entries: queue.entries.slice(0, 1).map(entry => ({ ...entry, canEdit: false, canDiscard: false })) } });

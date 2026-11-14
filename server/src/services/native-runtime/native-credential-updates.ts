@@ -4,7 +4,7 @@ import { validatePrpEvent, type PrpEvent, type NativeSession } from "../../vendo
 import { appendHeartbeatRunEvent } from "../heartbeat-run-events.js";
 
 export async function appendNativeCredentialUpdate(db: Db, input: {
-  companyId: string;
+  spaceId: string;
   agentId: string;
   normalizedSessionId: string;
   runnerInstanceId: string;
@@ -21,13 +21,13 @@ export async function appendNativeCredentialUpdate(db: Db, input: {
   const event = parsed.event;
   await db.transaction(async tx => {
     const [run] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.id, event.runId), eq(heartbeatRuns.companyId, input.companyId),
+      .where(and(eq(heartbeatRuns.id, event.runId), eq(heartbeatRuns.spaceId, input.spaceId),
         eq(heartbeatRuns.agentId, input.agentId), eq(heartbeatRuns.nativeSessionId, input.normalizedSessionId),
         eq(heartbeatRuns.runnerInstanceId, input.runnerInstanceId)))
       .for("update").limit(1);
     if (!run) throw new Error("native_credential_update_binding_mismatch");
     await appendHeartbeatRunEvent(tx as unknown as Db, {
-      companyId: input.companyId,
+      spaceId: input.spaceId,
       agentId: input.agentId,
       runId: event.runId,
       eventType: event.eventType,

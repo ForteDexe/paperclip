@@ -55,7 +55,7 @@ export function gradeApprovalQueue(value: unknown) {
   return c.result();
 }
 export const runtimeApprovalQueueCases = [runtimeDefinition("steering.approval-delivery", async ctx => {
-  const prepared = await prepareRuntimeWorkerGate(ctx, { taskBound: true }), root = `/api/companies/${ctx.input.fixtures.company.id}`;
+  const prepared = await prepareRuntimeWorkerGate(ctx, { taskBound: true }), root = `/api/spaces/${ctx.input.fixtures.space.id}`;
   const task = await ctx.input.api.post<Entity>(`${root}/issues`, { title: "Website naming task", status: "todo", assigneeAgentId: prepared.worker.id,
     description: `We need a product name before continuing the website. If this task has no naming question yet, create exactly one pending ask_user_questions interaction on it, authenticated as yourself with this actual run identity. Use idempotencyKey naming-${ctx.input.nonce}, title Website product name, continuationPolicy wake_assignee, and payload {version:1,supersedeOnUserComment:false,questionSet:{schema:"outpost.question_set.v1",title:"Website product name",submitLabel:"Submit answers",questions:[{id:"name",prompt:"What is the product name?",answerMode:"text",required:true}]}}. This is an ordinary durable task question, not an artificial provider runtime-request receipt. Do not choose a name or create another interaction. If a human message wakes you while that naming question is still pending, run ${prepared.gate.command} once and wait for its actual output, then follow that output, leaving queued human answers for normal continuation. On a later normal continuation that delivers the submitted name response, save a non-plan website-delivery document using that name and a short semantic website outline, and complete the same task.` });
   const interactions = () => ctx.input.api.get<IssueThreadInteraction[]>(`/api/issues/${task.id}/interactions`);
@@ -70,7 +70,7 @@ export const runtimeApprovalQueueCases = [runtimeDefinition("steering.approval-d
     reject: v => v.runs.length > 1 || v.runs.some(row => ["failed", "cancelled", "timed_out"].includes(row.status)) || (v.run && !(v.questions.length === 1 && pendingInputYield(v.run, v.questions[0]!.id)))
       ? "The actual question fixture did not park its native turn on one pending naming question" : undefined });
   const question = asked.questions[0]!, questionRunId = asked.runs[0]!.id;
-  const source = ctx.input.page.url(); await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+  const source = ctx.input.page.url(); await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
   const form = ctx.input.page.getByTestId("task-chat-composer-takeover"); await expect(form).toBeVisible(); await form.getByRole("button", { name: /^Dismiss / }).click();
   // An ordinary human message while the question stays open is normal discussion; it wakes Morgan into a new turn.
   await submitTaskReply(ctx.input.page, "Keep the hero section simple while the name is pending.");
@@ -101,7 +101,7 @@ export const runtimeApprovalQueueCases = [runtimeDefinition("steering.approval-d
       accept: v => v.source?.conversationState === "waiting" && v.runs.length === 3 && v.runs.some(row => row.id === state.workerRunId && row.status === "running") && v.runs.some(row => row.agentId === ctx.input.fixtures.agent.id && row.status === "succeeded") });
     state.queryReply = (await observeRuntime(ctx, state)).reply;
     const task = state.task as Entity, question = state.questionBefore as IssueThreadInteraction, source = ctx.input.page.url(), endpoint = `/api/issues/${task.id}/queued-comments`;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
     const current = (await ctx.input.api.get<IssueThreadInteraction[]>(`/api/issues/${task.id}/interactions`)).find(row => row.id === question.id);
     if (current?.status === "answered") {
       const canonical = canonicalPhase.runs.find(row => row.agentId === ctx.input.fixtures.agent.id)!;
@@ -185,7 +185,7 @@ export const runtimeApprovalQueueCases = [runtimeDefinition("steering.approval-d
     await expect(ctx.input.page.getByTestId(`task-chat-queued-discard-${question.id}`)).toBeDisabled();
     await ctx.input.capture("actual-immutable-answer-queue", "Bound Acorn answer remains distinct from edited, reordered and removed ordinary comments", "runtime-approval-queue.png");
     state.initialMarker = `Earlier website work ${ctx.input.nonce}`;
-    await writeFile((state.gate as { gate: string }).gate, `This turn is settling while the naming question waits. Save a task document with the exact reference ${state.initialMarker} preserving earlier website work, then finish this turn normally. Do not manufacture or pre-consume a name decision; leave the actual accepted response for normal Paperclip admission.`, "utf8");
+    await writeFile((state.gate as { gate: string }).gate, `This turn is settling while the naming question waits. Save a task document with the exact reference ${state.initialMarker} preserving earlier website work, then finish this turn normally. Do not manufacture or pre-consume a name decision; leave the actual accepted response for normal Outpost admission.`, "utf8");
     const done = await pollUntil({ label: "One normal successor receives actual immutable name response", deadlineAt: Date.now() + 240_000,
       load: async () => ({ runs: await ctx.allRuns(), queue: await ctx.input.api.get<IssueQueuedCommentQueue>(endpoint), task: await ctx.input.api.get<Entity>(`/api/issues/${task.id}`) }),
       accept: v => v.runs.length === 4 && v.runs.every(row => row.status === "succeeded") && v.queue.entries.length === 0 && v.task.status === "done",
@@ -201,7 +201,7 @@ export const runtimeApprovalQueueCases = [runtimeDefinition("steering.approval-d
     state.actualAcornResult = o.revisions.some(row => row.createdByRunId === state.consumerRunId && row.createdByAgentId === (state.worker as Entity).id && /Acorn/i.test(row.body ?? "") && o.documents.some(doc => doc.id === row.documentId && doc.latestRevisionId === row.id));
     state.initialWorkRetained = o.revisions.some(row => row.createdByRunId === state.workerRunId && (row.body ?? "").includes(String(state.initialMarker))); return o; },
   async verifyResult(ctx, state) { const source = ctx.input.page.url(), task = state.task as Entity;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" }); await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" }); await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("heading", { name: task.title!, exact: true }).first()).toBeVisible(); await expect(ctx.input.page.getByTestId("task-chat-queued-messages")).toHaveCount(0); await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" }); },
   cleanup: async (_ctx, state) => releaseRuntimeWorker(state),
 })];

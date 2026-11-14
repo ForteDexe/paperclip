@@ -86,7 +86,7 @@ async function createBuiltPluginFixture(parentDir: string, nameSuffix: string): 
       version: "0.1.0",
       private: true,
       type: "module",
-      paperclipPlugin: {
+      outpostPlugin: {
         manifest: "./dist/manifest.js",
         worker: "./dist/worker.js",
       },
@@ -100,9 +100,9 @@ async function createBuiltPluginFixture(parentDir: string, nameSuffix: string): 
     version: "0.1.0",
     displayName: "Install Guard Fixture",
     description: "Plugin fixture for install-route security floor coverage.",
-    author: "Paperclip",
+    author: "Outpost",
     categories: ["automation"],
-    capabilities: ["companies.read"],
+    capabilities: ["spaces.read"],
     entrypoints: {
       worker: "./dist/worker.js",
     },
@@ -132,11 +132,11 @@ async function createInstallApp(db: ReturnType<typeof createDb>) {
   app.use(express.json());
   app.use((req, _res, next) => {
     req.actor = {
-      type: "board",
+      type: "operator",
       userId: "admin-1",
       source: "session",
       isInstanceAdmin: true,
-      companyIds: [],
+      spaceIds: [],
     } as typeof req.actor;
     next();
   });
@@ -152,7 +152,7 @@ describeEmbeddedPostgres("plugin install route security floor", () => {
   const originalManagedConfig = process.env["OUTPOST_MANAGED_CONFIG"];
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-plugin-install-guard-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-plugin-install-guard-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -181,7 +181,7 @@ describeEmbeddedPostgres("plugin install route security floor", () => {
 
       const res = await request(app)
         .post("/api/plugins/install")
-        .send({ packageName: "paperclip-plugin-anything", version: "1.0.0" });
+        .send({ packageName: "outpost-plugin-anything", version: "1.0.0" });
 
       expect(res.status).toBe(403);
       expect(res.body.error).toContain("npm installs are disabled on cloud-managed instances");
@@ -199,7 +199,7 @@ describeEmbeddedPostgres("plugin install route security floor", () => {
 
       const res = await request(app)
         .post("/api/plugins/install")
-        .send({ packageName: "paperclip-plugin-anything" });
+        .send({ packageName: "outpost-plugin-anything" });
 
       expect(res.status).toBe(403);
       expect(mockLifecycle.load).not.toHaveBeenCalled();
@@ -376,7 +376,7 @@ describeEmbeddedPostgres("plugin install route security floor", () => {
       // in the test environment) — proving the 403 floor did not trigger.
       const res = await request(app)
         .post("/api/plugins/install")
-        .send({ packageName: `paperclip-plugin-guard-missing-${randomUUID().slice(0, 8)}` });
+        .send({ packageName: `outpost-plugin-guard-missing-${randomUUID().slice(0, 8)}` });
 
       expect(res.status).toBe(400);
       expect(res.body.error).toContain("npm install failed");

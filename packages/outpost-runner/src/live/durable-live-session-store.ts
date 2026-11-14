@@ -13,7 +13,7 @@ const DURABLE_STORE_SCHEMA = "outpost.capability.live-session-checkpoint.v1" as 
 export interface CapabilityLiveSessionStoreBinding {
   sessionId: string;
   runId: string;
-  companyId: string;
+  spaceId: string;
   actorId: string;
   taskId: string;
 }
@@ -44,13 +44,13 @@ function sameBinding(
 ): boolean {
   return left.sessionId === right.sessionId
     && left.runId === right.runId
-    && left.companyId === right.companyId
+    && left.spaceId === right.spaceId
     && left.actorId === right.actorId
     && left.taskId === right.taskId;
 }
 
 /**
- * Attempt-bound, crash-safe checkpoint storage for the governed live path.
+ * Attempt-bound, crash-safe checkpoint storage for the controlled live path.
  *
  * Each replacement is written, fsynced, renamed, and followed by a directory
  * fsync. A checksum, schema check, revision check, and immutable run binding
@@ -163,7 +163,7 @@ export class DurableCapabilityLiveSessionStore implements CapabilityLiveSessionS
     const actual: CapabilityLiveSessionStoreBinding = {
       sessionId: snapshot.sessionId,
       runId: authority.runId,
-      companyId: authority.companyId,
+      spaceId: authority.spaceId,
       actorId: authority.actorId,
       taskId: authority.taskId,
     };

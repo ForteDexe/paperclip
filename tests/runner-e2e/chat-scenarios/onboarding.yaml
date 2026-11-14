@@ -9,36 +9,36 @@ scenarios:
       - onboarding/instance
       - instance-operations/diagnostics
     context: >-
-      No Paperclip server or company exists yet, so in-app Agent Chat cannot execute this
+      No Outpost server or space exists yet, so in-app Agent Chat cannot execute this
       request. This is a setup-guidance boundary for a future browser/operator journey.
     query: >-
-      Help me set up Paperclip on this machine.
+      Help me set up Outpost on this machine.
     expected_outcome: >-
       The scenario reaches the supported operator onboarding path, selects the intended instance
       configuration and checks real service readiness. No nonexistent CEO conversation is
       credited with creating its own runtime. The outcome must explicitly separate pre-chat
-      installation from the later chat-ready company.
-  - id: onboarding.new-company
+      installation from the later chat-ready space.
+  - id: onboarding.new-space
     capabilities:
-      - onboarding/company
-      - companies/selection
+      - onboarding/space
+      - spaces/selection
       - agents/hire
     context: >-
-      A signed-in human can use company onboarding; their existing chat belongs to another
-      company.
+      A signed-in human can use space onboarding; their existing chat belongs to another
+      space.
     query: >-
-      Set up a new company for my website business with a CEO.
+      Set up a new space for my website business with a CEO.
     expected_outcome: >-
-      The agent points to the human company-creation flow and preserves the requested business
-      context for setup. The resulting company and first agent have distinct identities and
-      authority. The existing company's agent does not create or impersonate a board user to
-      manage the new company.
+      The agent points to the human space-creation flow and preserves the requested business
+      context for setup. The resulting space and first agent have distinct identities and
+      authority. The existing space's agent does not create or impersonate a board user to
+      manage the new space.
   - id: onboarding.choose-first-runtime
     capabilities:
       - onboarding/adapter
       - runs-adapters/validation
     context: >-
-      The new-company wizard has a saved company but no usable first-agent account; the person
+      The new-space wizard has a saved space but no usable first-agent account; the person
       wants Claude Code on an available target.
     query: >-
       Use Claude Code for my CEO.
@@ -53,7 +53,7 @@ scenarios:
       - tasks/create
       - agent-chat/handoff
     context: >-
-      The company and CEO are ready, and the person has reached their first in-app conversation.
+      The space and CEO are ready, and the person has reached their first in-app conversation.
     query: >-
       Make me a simple website introducing our business.
     expected_outcome: >-
@@ -65,12 +65,12 @@ scenarios:
     capabilities:
       - onboarding/resume
     context: >-
-      The human saved part of company onboarding and reloaded before account setup finished;
+      The human saved part of space onboarding and reloaded before account setup finished;
       there is no working first-agent chat yet.
     query: >-
-      Continue setting up the company I started earlier.
+      Continue setting up the space I started earlier.
     expected_outcome: >-
       The browser restores the appropriate saved nonsecret wizard state and references existing
-      company and agent records. Missing secure inputs are requested through their proper
-      fields. Finishing setup does not duplicate the company, leak credentials from draft
+      space and agent records. Missing secure inputs are requested through their proper
+      fields. Finishing setup does not duplicate the space, leak credentials from draft
       storage or report an unfinished agent as ready.

@@ -257,7 +257,7 @@ describe("public repository paid workflow security", () => {
       /(?:(?:OPENAI|ANTHROPIC|OPENROUTER|DAYTONA|XAI)_API_KEY|GROK_AUTH_JSON)/,
     );
     expect(authorizeJob).toContain(
-      "aws_runner='runs-on/fleet=paperclip-public-pr-x64/env=public-ci'",
+      "aws_runner='runs-on/fleet=outpost-public-pr-x64/env=public-ci'",
     );
     expect(authorizeJob).toContain("github_runner='ubuntu-latest'");
     expect(authorizeJob).toContain(
@@ -358,7 +358,7 @@ describe("public repository paid workflow security", () => {
     expect(grokPreparation).toBeGreaterThan(paidInstall);
     expect(paidExecution).toBeGreaterThan(grokPreparation);
     expect(paidJob).toContain("if: matrix.environmentId == 'local' && (matrix.profileId == 'runner-acpx-grok' || matrix.profileId == 'runner-acpx-grok-subscription')");
-    expect(paidJob).toContain("run: sudo node packages/outpost-runner/scripts/provision-grok.mjs /opt/paperclip/providers/grok/1.0.13/grok");
+    expect(paidJob).toContain("run: sudo node packages/outpost-runner/scripts/provision-grok.mjs /opt/outpost/providers/grok/1.0.13/grok");
 
     const everydayOracleStep = paidJob.slice(
       everydayOraclePreparation,

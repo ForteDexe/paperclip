@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, companyMemberships, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
+import { agents, spaces, spaceMemberships, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations } from "@outpost/db";
 import type { NativeExecutionInputV1 } from "@outpost/outpost-runner";
 import { startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 
@@ -11,7 +11,7 @@ vi.mock("../../vendor/outpost-runner/index.js", async (importOriginal) => ({
   executeNativeSession: provider.execute,
 }));
 
-import { executePaperclipNativeSession, NATIVE_PROVIDER_STARTUP_REJECTED } from "./native-session-executor.js";
+import { executeOutpostNativeSession, NATIVE_PROVIDER_STARTUP_REJECTED } from "./native-session-executor.js";
 import { buildNativeCompletionContract } from "./completion-contracts.js";
 import { prepareNativeHeartbeatRun } from "./prepare-native-run.js";
 import { heartbeatService } from "../heartbeat.js";
@@ -21,16 +21,16 @@ import { taskInterruptionPresentation } from "../task-interruption-presentation.
 describe("native session.open the provider rejected before any provider work", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const agentId = randomUUID();
 
   beforeAll(async () => {
     temporary = await startEmbeddedPostgresTestDatabase("native-startup-rejected-");
     db = createDb(temporary.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Startup rejected", issuePrefix: "NSR" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Codex agent", status: "active", adapterType: "outpost_runner",
+    await db.insert(spaces).values({ id: spaceId, name: "Startup rejected", issuePrefix: "NSR" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Codex agent", status: "active", adapterType: "outpost_runner",
       adapterConfig: { provider: "codex", model: "gpt-test" } });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "board-user", status: "active", membershipRole: "member" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "operator-user", status: "active", membershipRole: "member" });
   });
   afterAll(async () => { await temporary?.cleanup(); });
 
@@ -48,21 +48,21 @@ describe("native session.open the provider rejected before any provider work", (
 
   async function rejectSessionOpen(failure: Error, attempt = 0, options: { remote?: boolean; recoveryHistory?: Record<string, unknown>[] } = {}) {
     const issueId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Plan the change", status: "in_progress", workMode: "standard",
-      assigneeAgentId: agentId, createdByUserId: "board-user", responsibleUserId: "board-user" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Plan the change", status: "in_progress", workMode: "standard",
+      assigneeAgentId: agentId, createdByUserId: "operator-user", responsibleUserId: "operator-user" });
     const [issue] = await db.select().from(issues).where(eq(issues.id, issueId));
     const runId = randomUUID();
-    const [run] = await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", runtimeMode: "native",
-      nativeIssueId: issueId, responsibleUserId: "board-user", invocationSource: "assignment", triggerDetail: "system",
+    const [run] = await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", runtimeMode: "native",
+      nativeIssueId: issueId, responsibleUserId: "operator-user", invocationSource: "assignment", triggerDetail: "system",
       contextSnapshot: { issueId } }).returning();
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
     const native = await prepareNativeHeartbeatRun({ db, run, issue, environmentLeaseId: randomUUID() });
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issueId));
-    await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "observed", attempt,
+    await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "observed", attempt,
       ...(options.recoveryHistory ? { recoveryHistory: options.recoveryHistory } : {}) });
     const execution: NativeExecutionInputV1 = {
       schema: "outpost.native-execution-input.v1",
-      binding: { companyId, runId, issueId, agentId, executionWorkspaceId: runId },
+      binding: { spaceId, runId, issueId, agentId, executionWorkspaceId: runId },
       provider: { kind: "codex", model: "gpt-test" },
       task: { identifier: issueId, title: issue.title, description: null, prompt: "Plan the change.", workMode: "standard" },
       workspace: { cwd: "/tmp", repoUrl: null, repoRef: null, branchName: null },
@@ -73,7 +73,7 @@ describe("native session.open the provider rejected before any provider work", (
     };
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: execution } }).where(eq(heartbeatRuns.id, runId));
     provider.execute.mockReset().mockRejectedValue(failure);
-    await executePaperclipNativeSession({ db, execution, runnerInstanceId: native.runnerInstanceId,
+    await executeOutpostNativeSession({ db, execution, runnerInstanceId: native.runnerInstanceId,
       ...(options.remote ? { runnerExecutionTarget: { kind: "remote", transport: "sandbox", providerKey: "test", remoteCwd: "/workspace",
         runner: { execute: vi.fn() } } as never } : {}), backend: {
       descriptor: async () => { throw new Error("Unexpected provider call"); },
@@ -93,11 +93,11 @@ describe("native session.open the provider rejected before any provider work", (
     const [issue] = await db.select().from(issues).where(eq(issues.id, issueId));
     await expect(taskInterruptionPresentation(db, issue)).resolves.toMatchObject({ state: "failed", canRetry: true,
       providerFailure: expect.objectContaining({ phase: "startup" }) });
-    const receipt = await requestTaskRetry({ db, companyId, issueId, actorId: "board-user", actorSource: "session",
+    const receipt = await requestTaskRetry({ db, spaceId, issueId, actorId: "operator-user", actorSource: "session",
       idempotencyKey: randomUUID(), observedRunId: runId });
     expect(receipt).toMatchObject({ accepted: true, stale: false });
     const heartbeat = heartbeatService(db);
-    await heartbeat.resumeTaskRetry(companyId, receipt.requestId!);
+    await heartbeat.resumeTaskRetry(spaceId, receipt.requestId!);
     const retried = (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, agentId)))
       .filter(r => r.contextSnapshot?.issueId === issueId && r.contextSnapshot?.taskRetryRequestId === receipt.requestId);
     expect(retried).toHaveLength(1);

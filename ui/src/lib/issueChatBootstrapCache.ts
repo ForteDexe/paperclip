@@ -93,15 +93,15 @@ function seedKey(queryClient: QueryClient, key: QueryKey, data: unknown, request
  *
  * The item's `issue` is the `?view=core` payload, so it fills the core key and
  * its projections, never the full detail key: core cannot stand in for the
- * detail read's related data. Items for another company are ignored.
+ * detail read's related data. Items for another space are ignored.
  */
 export function seedIssueChatBootstrap(
   queryClient: QueryClient,
   item: IssueChatBootstrapEntry,
-  options: { companyId: string; requestedAt: number },
+  options: { spaceId: string; requestedAt: number },
 ) {
-  const { companyId, requestedAt } = options;
-  if (!item?.issue || item.issue.companyId !== companyId) return false;
+  const { spaceId, requestedAt } = options;
+  if (!item?.issue || item.issue.spaceId !== spaceId) return false;
   const inputCommentIds = item.recentComments ? issueInputCommentIds(item.recentComments.comments) : [];
   for (const ref of bootstrapRefs(item)) {
     seedKey(queryClient, coreKey(ref), item.issue, requestedAt, true);

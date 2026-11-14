@@ -40,7 +40,7 @@ export function createWorkspaceRestoreTeardown(input: {
       await stagedRuntime.restoreWorkspace((line) => onLog("stdout", line));
       return { ok: true };
     } catch (err) {
-      // The run log is readable by any same-company actor, so it must never
+      // The run log is readable by any same-space actor, so it must never
       // carry the caught error's own message: that message can hold a host
       // filesystem path or a process id. Log only the fixed, allowlisted
       // diagnostic for the classified code.

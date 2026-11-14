@@ -3,7 +3,7 @@ import type { LiveEvent } from "@outpost/shared";
 import { createLiveEventDelivery, LIVE_DELIVERY_MAX_BYTES, LIVE_DELIVERY_MAX_ITEMS, sharedDeliveryRead, type LiveDeliveryReads } from "./live-event-delivery.js";
 import { idleWorkSnapshot } from "../services/task-admission.js";
 
-const event = (seq = 1, runId = "run-1"): LiveEvent => ({ id: seq, companyId: "company", type: "heartbeat.run.log",
+const event = (seq = 1, runId = "run-1"): LiveEvent => ({ id: seq, spaceId: "space", type: "heartbeat.run.log",
   createdAt: "2026-10-24T00:00:00Z", payload: { runId, agentId: "agent", seq, chunk: "output" } });
 function fixture(authorize = vi.fn(async (value: LiveEvent, _reads?: LiveDeliveryReads) => value as LiveEvent | null)) {
   const frames: any[] = [];

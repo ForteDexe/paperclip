@@ -3,7 +3,7 @@ title: Costs and Budgets
 summary: Budget caps, cost tracking, and auto-pause enforcement
 ---
 
-Paperclip tracks every token spent by every agent and enforces budget limits to prevent runaway costs.
+Outpost tracks every token spent by every agent and enforces budget limits to prevent runaway costs.
 
 ## How Cost Tracking Works
 
@@ -19,12 +19,12 @@ These are aggregated per agent per month (UTC calendar month).
 
 ## Setting Budgets
 
-### Company Budget
+### Space Budget
 
-Set an overall monthly budget for the company:
+Set an overall monthly budget for the space:
 
 ```
-PATCH /api/companies/{companyId}
+PATCH /api/spaces/{spaceId}
 { "budgetMonthlyCents": 100000 }
 ```
 
@@ -39,7 +39,7 @@ PATCH /api/agents/{agentId}
 
 ## Budget Enforcement
 
-Paperclip enforces budgets automatically:
+Outpost enforces budgets automatically:
 
 | Threshold | Action |
 |-----------|--------|
@@ -52,14 +52,14 @@ An auto-paused agent can be resumed by increasing its budget or waiting for the 
 
 ### Dashboard
 
-The dashboard shows current month spend vs budget for the company and each agent.
+The dashboard shows current month spend vs budget for the space and each agent.
 
 ### Cost Breakdown API
 
 ```
-GET /api/companies/{companyId}/costs/summary     # Company total
-GET /api/companies/{companyId}/costs/by-agent     # Per-agent breakdown
-GET /api/companies/{companyId}/costs/by-project   # Per-project breakdown
+GET /api/spaces/{spaceId}/costs/summary     # Space total
+GET /api/spaces/{spaceId}/costs/by-agent     # Per-agent breakdown
+GET /api/spaces/{spaceId}/costs/by-project   # Per-project breakdown
 ```
 
 ## Best Practices

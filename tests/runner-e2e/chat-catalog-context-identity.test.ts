@@ -13,7 +13,7 @@ it("preserves actual setup/act/cleanup context identity and one original clock a
   vi.useFakeTimers(); vi.setSystemTime(0);
   const custody = new WeakMap<ChatCatalogContext, object>(); const resource = {}; const contexts: ChatCatalogContext[] = [];
   fixture.implementation = {
-    scenarioId: "companies.switch-company", sourceFiles: [], oracleVersion: "test", attemptTimeoutMs: 300_000,
+    scenarioId: "spaces.switch-space", sourceFiles: [], oracleVersion: "test", attemptTimeoutMs: 300_000,
     turnTimeoutMs: 120_000, expectedRunCount: 1, setupPolicy: { readiness: "preserve-scenario", funding: "preserve-scenario", invariantCheckIds: [] },
     setup: async ctx => { custody.set(ctx, resource); contexts.push(ctx); expect(ctx.observationDeadlineAt).toBe(270_000); vi.setSystemTime(30_000); return {}; },
     act: async ctx => { contexts.push(ctx); expect(custody.get(ctx)).toBe(resource); expect(ctx.observationDeadlineAt).toBe(270_000); throw new Error("stop after identity proof"); },
@@ -22,8 +22,8 @@ it("preserves actual setup/act/cleanup context identity and one original clock a
     cleanup: async ctx => { contexts.push(ctx); expect(custody.get(ctx)).toBe(resource); },
   };
   const context = {
-    scenario: { id: "companies.switch-company", query: "Canonical query" }, refreshIssue: async () => {}, issue: () => ({ id: "chat" }), allRuns: async () => [],
-    input: { execution: { task: { turnTimeoutMs: 0 } }, fixtures: { company: { id: "company" }, agent: { id: "lead" } },
+    scenario: { id: "spaces.switch-space", query: "Canonical query" }, refreshIssue: async () => {}, issue: () => ({ id: "chat" }), allRuns: async () => [],
+    input: { execution: { task: { turnTimeoutMs: 0 } }, fixtures: { space: { id: "space" }, agent: { id: "lead" } },
       page: { evaluate: async () => [], locator: () => ({ count: async () => 0 }) }, evidence: async () => {}, api: { baseURL: "https://fixture.test", get: async (path: string) => path.endsWith("/budgets/overview") ? { policies: [] } : path === "/api/agents/lead" ? { adapterConfig: { timeoutSec: 0 } } : [] } },
   } as unknown as ChatCatalogContext;
   await expect(runChatCatalogFlow(context)).rejects.toThrow("stop after identity proof");

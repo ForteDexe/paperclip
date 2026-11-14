@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
   agents,
-  companies,
+  spaces,
   closeRegisteredClients,
   connectionGrants,
   createDb,
@@ -36,8 +36,8 @@ function createRouteApp(db: Db) {
   app.use(express.json());
   app.use((req, _res, next) => {
     req.actor = {
-      type: "board",
-      userId: "board-user",
+      type: "operator",
+      userId: "operator-user",
       isInstanceAdmin: true,
       source: "local_implicit",
     };
@@ -57,7 +57,7 @@ describeDatabase("connection install permission preservation", () => {
       db = createDb(externalDatabaseUrl);
       return;
     }
-    database = await startEmbeddedPostgresTestDatabase("paperclip-install-permissions-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-install-permissions-");
     db = createDb(database.connectionString);
   }, 90_000);
 
@@ -67,67 +67,67 @@ describeDatabase("connection install permission preservation", () => {
   });
 
   async function fixture() {
-    const [company] = await db.insert(companies).values({
+    const [space] = await db.insert(spaces).values({
       name: "Install permission fixture",
       issuePrefix: `IP${randomUUID().slice(0, 6)}`,
     }).returning();
-    const companyId = company.id;
+    const spaceId = space.id;
     const agentIds = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
     await db.insert(agents).values(agentIds.map(id => ({
-      id, companyId, name: id, status: "active", adapterType: "process",
+      id, spaceId, name: id, status: "active", adapterType: "process",
     })));
     const [application] = await db.insert(toolApplications).values({
-      companyId, name: "Fixture app", type: "mcp_http",
+      spaceId, name: "Fixture app", type: "mcp_http",
     }).returning();
     const [connection] = await db.insert(toolConnections).values({
-      companyId, applicationId: application.id, name: "Fixture connection",
+      spaceId, applicationId: application.id, name: "Fixture connection",
       uid: randomUUID(), transport: "mcp_remote", status: "active", enabled: true,
     }).returning();
     await db.insert(connectionGrants).values({
-      companyId, connectionId: connection.id, kind: "organization", status: "active", isDefault: true,
+      spaceId, connectionId: connection.id, kind: "organization", status: "active", isDefault: true,
     });
     const catalog = await db.insert(toolCatalogEntries).values([
       { name: "read_email", riskLevel: "read" as const, isReadOnly: true, isWrite: false },
       { name: "send_email", riskLevel: "write" as const, isReadOnly: false, isWrite: true },
     ].map(tool => ({
-      ...tool, toolName: tool.name, companyId, applicationId: application.id,
+      ...tool, toolName: tool.name, spaceId, applicationId: application.id,
       connectionId: connection.id, versionHash: "fixture-v1",
     }))).returning();
     const [appProfile] = await db.insert(toolProfiles).values({
-      companyId, profileKey: `app:${connection.id}`, name: "Fixture app access",
+      spaceId, profileKey: `app:${connection.id}`, name: "Fixture app access",
       defaultAction: "deny", metadata: { source: "app_gallery_finish", connectionId: connection.id },
     }).returning();
     await db.insert(toolProfileEntries).values(catalog.map(entry => ({
-      companyId, profileId: appProfile.id, selectorType: "catalog_entry" as const,
+      spaceId, profileId: appProfile.id, selectorType: "catalog_entry" as const,
       catalogEntryId: entry.id, connectionId: connection.id,
     })));
     const [limitedProfile] = await db.insert(toolProfiles).values({
-      companyId, profileKey: "read-only", name: "Read email only", defaultAction: "deny",
+      spaceId, profileKey: "read-only", name: "Read email only", defaultAction: "deny",
     }).returning();
     await db.insert(toolProfileEntries).values({
-      companyId, profileId: limitedProfile.id, selectorType: "catalog_entry", catalogEntryId: catalog[0].id,
+      spaceId, profileId: limitedProfile.id, selectorType: "catalog_entry", catalogEntryId: catalog[0].id,
     });
     const app = createRouteApp(db);
     const service = toolAccessService(db);
     const policy = toolAccessPolicyService(db);
-    const putTargets = (installs: Array<{ targetType: "agent" | "company"; targetId: string }>) => request(app)
+    const putTargets = (installs: Array<{ targetType: "agent" | "space"; targetId: string }>) => request(app)
       .put(`/api/tool-connections/${connection.id}/installs`)
       .send({ installs })
       .expect(response => expect(response.status, JSON.stringify(response.body)).toBe(200));
     const putInstalls = (ids: string[]) => putTargets(ids.map(targetId => ({ targetType: "agent", targetId })));
     const appBindings = () => db.select().from(toolProfileBindings)
-      .where(and(eq(toolProfileBindings.companyId, companyId), eq(toolProfileBindings.profileId, appProfile.id)));
+      .where(and(eq(toolProfileBindings.spaceId, spaceId), eq(toolProfileBindings.profileId, appProfile.id)));
     const extensions = () => db.select().from(activityLog).where(and(
-      eq(activityLog.companyId, companyId), eq(activityLog.action, "tool_connection.install_access_extended"),
+      eq(activityLog.spaceId, spaceId), eq(activityLog.action, "tool_connection.install_access_extended"),
     ));
     const decide = (agentId: string, toolName: string) => policy.decide({
-      companyId, actor: { actorType: "agent", actorId: agentId, agentId },
+      spaceId, actor: { actorType: "agent", actorId: agentId, agentId },
       request: {
         connectionId: connection.id, catalogEntryId: catalog.find(entry => entry.toolName === toolName)!.id,
         toolName, arguments: {},
       },
     });
-    return { companyId, agentIds, connection, catalog, appProfile, limitedProfile, service, putTargets, putInstalls, appBindings, extensions, decide };
+    return { spaceId, agentIds, connection, catalog, appProfile, limitedProfile, service, putTargets, putInstalls, appBindings, extensions, decide };
   }
 
   it.each(["adding an agent", "removing an agent", "saving the same list"])(
@@ -153,7 +153,7 @@ describeDatabase("connection install permission preservation", () => {
       for (const agentId of [first, second]) {
         await expect(f.decide(agentId, "read_email")).resolves.toMatchObject({ decision: "allow" });
         await expect(f.decide(agentId, "send_email")).resolves.toMatchObject({ decision: "deny", reasonCode: "deny_default" });
-        const effective = await f.service.getEffectiveProfilesForAgent(f.companyId, agentId);
+        const effective = await f.service.getEffectiveProfilesForAgent(f.spaceId, agentId);
         expect(effective.installedConnections.map(connection => connection.id)).toContain(f.connection.id);
       }
       const bindings = await f.appBindings();
@@ -185,7 +185,7 @@ describeDatabase("connection install permission preservation", () => {
         eq(toolProfileEntries.profileId, f.appProfile.id), eq(toolProfileEntries.catalogEntryId, writeEntry.id),
       ));
       await db.insert(toolProfileEntries).values({
-        companyId: f.companyId, profileId: f.appProfile.id, selectorType: "connection",
+        spaceId: f.spaceId, profileId: f.appProfile.id, selectorType: "connection",
         effect: "include", connectionId: f.connection.id,
       });
       await expect(f.decide(first, "send_email")).resolves.toMatchObject({ decision: "allow", reasonCode: "allow_profile" });
@@ -207,11 +207,11 @@ describeDatabase("connection install permission preservation", () => {
     },
   );
 
-  it("preserves a removed company app grant when saving a company install", async () => {
+  it("preserves a removed space app grant when saving a space install", async () => {
     const f = await fixture();
-    const input = { installs: [{ targetType: "company" as const, targetId: f.companyId }] };
+    const input = { installs: [{ targetType: "space" as const, targetId: f.spaceId }] };
     await f.putTargets(input.installs);
-    await f.service.unbindProfile(f.appProfile.id, { targetType: "company", targetId: f.companyId });
+    await f.service.unbindProfile(f.appProfile.id, { targetType: "space", targetId: f.spaceId });
     const priorEvents = await f.extensions();
 
     await f.putTargets(input.installs);
@@ -220,7 +220,7 @@ describeDatabase("connection install permission preservation", () => {
     expect(await f.appBindings()).toEqual([]);
     expect(await f.extensions()).toEqual(priorEvents);
     expect(await f.service.listConnectionInstalls(f.connection.id)).toEqual([
-      expect.objectContaining({ targetType: "company", targetId: f.companyId }),
+      expect.objectContaining({ targetType: "space", targetId: f.spaceId }),
     ]);
   });
 });

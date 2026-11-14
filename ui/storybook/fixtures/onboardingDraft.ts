@@ -13,7 +13,7 @@ import { ONBOARDING_STORAGE_KEY } from "@/components/OnboardingWizard";
  * copy of a storage key is a bug waiting for the first one to be renamed.
  */
 
-export const STORYBOOK_COMPANY_ID = "company-storybook";
+export const STORYBOOK_SPACE_ID = "space-storybook";
 export const STORYBOOK_AGENT_ID = "agent-storybook";
 
 /** Where the agent arc begins. Every story in it enters here — see below. */
@@ -37,7 +37,7 @@ export function seedOnboardingDraft(): void {
     ONBOARDING_STORAGE_KEY,
     JSON.stringify({
       step: ONBOARDING_ARC_ENTRY_STEP,
-      companyName: "Paperclip Storybook",
+      spaceName: "Outpost Storybook",
       agentName: "Darnold",
       agentRole: "general",
       // No `adapterType`. This draft describes a run standing on step 3, and a
@@ -49,8 +49,8 @@ export function seedOnboardingDraft(): void {
       // (It read `claude_code` before that, which is no adapter at all: the step
       // recovered by falling back, and the hire would have posted a type the
       // server does not know.)
-      createdCompanyId: STORYBOOK_COMPANY_ID,
-      createdCompanyPrefix: "PAP",
+      createdSpaceId: STORYBOOK_SPACE_ID,
+      createdSpacePrefix: "PAP",
       createdAgentId: "",
     }),
   );

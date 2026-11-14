@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({ metadata: vi.fn(), command: vi.fn(), environme
 vi.mock("../vendor/outpost-runner/live/index.js", async importOriginal => ({ ...await importOriginal<object>(), probeCopilotMetadata: mocks.metadata }));
 vi.mock("@outpost/adapter-utils/execution-target", () => ({ runAdapterExecutionTargetShellCommand: mocks.command }));
 vi.mock("../middleware/logger.js", () => ({ logger: { warn: vi.fn() } }));
-vi.mock("../services/environments.js", () => ({ environmentService: () => ({ getById: mocks.environment, listBoundCompanyIds: mocks.bindings, findKubernetesEnvironment: mocks.kubernetes, findManagedSandboxEnvironment: mocks.managed, updateLeaseMetadata: mocks.updateLeaseMetadata }) }));
+vi.mock("../services/environments.js", () => ({ environmentService: () => ({ getById: mocks.environment, listBoundSpaceIds: mocks.bindings, findKubernetesEnvironment: mocks.kubernetes, findManagedSandboxEnvironment: mocks.managed, updateLeaseMetadata: mocks.updateLeaseMetadata }) }));
 vi.mock("../services/instance-settings.js", () => ({ instanceSettingsService: () => ({ get: mocks.defaults, getGeneral: mocks.general, getExperimental: mocks.experimental }) }));
 vi.mock("../services/environment-runtime.js", () => ({ environmentRuntimeService: vi.fn(() => ({ acquireRunLease: mocks.acquire, supportsTasks: mocks.supportsTasks, realizeWorkspace: mocks.realize, getDriver: () => ({ releaseRunLease: mocks.release }) })) }));
 vi.mock("../services/environment-execution-target.js", () => ({ resolveEnvironmentExecutionTarget: mocks.resolve }));
@@ -18,7 +18,7 @@ const verified = { status: "verified", version: "1.0.88", profileDigest: QUALIFI
 const remote = { kind: "remote", remoteCwd: "/workspace" } as AdapterExecutionTarget;
 beforeEach(() => {
   vi.clearAllMocks(); mocks.command.mockReset(); mocks.general.mockResolvedValue({ executionMode: "local" }); mocks.experimental.mockResolvedValue({}); mocks.defaults.mockResolvedValue({ defaultEnvironmentId: null });
-  mocks.environment.mockResolvedValue({ id: "selected", driver: "sandbox", status: "active", config: { provider: "daytona" } }); mocks.bindings.mockResolvedValue(["company"]);
+  mocks.environment.mockResolvedValue({ id: "selected", driver: "sandbox", status: "active", config: { provider: "daytona" } }); mocks.bindings.mockResolvedValue(["space"]);
   mocks.supportsTasks.mockResolvedValue(false);
   mocks.updateLeaseMetadata.mockImplementation(async (id, metadata) => ({ id, metadata }));
   mocks.acquire.mockResolvedValue({ lease: { id: "lease", metadata: {} } }); mocks.realize.mockResolvedValue({}); mocks.release.mockResolvedValue(undefined); mocks.resolve.mockResolvedValue(remote);
@@ -28,7 +28,7 @@ describe("Copilot connection verification", () => {
   it.each(["ssh", "sandbox", "plugin"])("keeps an explicitly selected %s environment under managed-only execution", async driver => {
     mocks.experimental.mockResolvedValue({ enableManagedSandboxOnly: true });
     mocks.environment.mockResolvedValue({ id: "selected", driver, status: "active", config: { provider: "daytona" } });
-    expect(await probeCopilotConnection({} as Db, "company", "private-token", "selected")).toEqual(verified);
+    expect(await probeCopilotConnection({} as Db, "space", "private-token", "selected")).toEqual(verified);
     expect(mocks.managed).not.toHaveBeenCalled();
     expect(mocks.resolve).toHaveBeenCalledWith(expect.objectContaining({ environment: expect.objectContaining({ id: "selected", driver }) }));
     expect(mocks.metadata).not.toHaveBeenCalled();
@@ -38,7 +38,7 @@ describe("Copilot connection verification", () => {
     mocks.experimental.mockResolvedValue({ enableManagedSandboxOnly: true });
     mocks.managed.mockResolvedValue({ id: "managed" });
     mocks.environment.mockImplementation(async id => ({ id, driver: id === "local" ? "local" : "sandbox", status: "active", config: { provider: "daytona" } }));
-    expect(await probeCopilotConnection({} as Db, "company", "private-token", selection)).toEqual(verified);
+    expect(await probeCopilotConnection({} as Db, "space", "private-token", selection)).toEqual(verified);
     expect(mocks.resolve).toHaveBeenCalledWith(expect.objectContaining({ environment: expect.objectContaining({ id: "managed" }) }));
     expect(mocks.metadata).not.toHaveBeenCalled();
   });
@@ -47,7 +47,7 @@ describe("Copilot connection verification", () => {
     mocks.experimental.mockResolvedValue({ enableManagedSandboxOnly: true });
     mocks.kubernetes.mockResolvedValue({ id: "kubernetes" });
     mocks.environment.mockImplementation(async id => ({ id, driver: "sandbox", status: "active", config: { provider: "kubernetes" } }));
-    expect(await probeCopilotConnection({} as Db, "company", "private-token", "selected")).toEqual(verified);
+    expect(await probeCopilotConnection({} as Db, "space", "private-token", "selected")).toEqual(verified);
     expect(mocks.resolve).toHaveBeenCalledWith(expect.objectContaining({ environment: expect.objectContaining({ id: "kubernetes" }) }));
     expect(mocks.managed).not.toHaveBeenCalled();
     expect(mocks.metadata).not.toHaveBeenCalled();
@@ -55,7 +55,7 @@ describe("Copilot connection verification", () => {
   it("probes the selected environment and releases its owned lease", async () => {
     const db = {} as Db;
     const pluginWorkerManager = {} as PluginWorkerManager;
-    expect(await probeCopilotConnection(db, "company", "private-token", "selected", "gpt-5.6-luna", { pluginWorkerManager })).toEqual(verified);
+    expect(await probeCopilotConnection(db, "space", "private-token", "selected", "gpt-5.6-luna", { pluginWorkerManager })).toEqual(verified);
     expect(environmentRuntimeService).toHaveBeenCalledWith(db, { pluginWorkerManager });
     expect(mocks.metadata).not.toHaveBeenCalled(); expect(mocks.acquire).toHaveBeenCalledOnce();
     expect(mocks.command.mock.calls[0]![3]).toMatchObject({ env: { COPILOT_GITHUB_TOKEN: "private-token", OUTPOST_COPILOT_PROBE_MODEL: "gpt-5.6-luna" }, timeoutSec: 35 });
@@ -68,7 +68,7 @@ describe("Copilot connection verification", () => {
     const runnerTask = vi.fn(async () => ({ kind: "copilot_metadata", taskId: "task", metadata: verified, executionStopped: true }));
     const target = { kind: "remote", transport: "sandbox", remoteCwd: ".", runnerTask } as const;
     mocks.resolve.mockResolvedValue(target);
-    expect(await probeCopilotConnection({} as Db, "company", "private-token", "selected", "gpt-5.6-luna", { targetAgentId: "saved-agent" })).toEqual(verified);
+    expect(await probeCopilotConnection({} as Db, "space", "private-token", "selected", "gpt-5.6-luna", { targetAgentId: "saved-agent" })).toEqual(verified);
     expect(mocks.acquire).toHaveBeenCalledWith(expect.objectContaining({ agentId: "saved-agent" }));
     expect(runnerTask).toHaveBeenCalledWith({ kind: "copilot_metadata", token: "private-token", model: "gpt-5.6-luna" });
     expect(mocks.updateLeaseMetadata).toHaveBeenCalledWith("lease", expect.objectContaining({ runnerTaskProbe: expect.objectContaining({ runId: expect.any(String) }) }));
@@ -77,34 +77,34 @@ describe("Copilot connection verification", () => {
     runnerTask.mockResolvedValueOnce({ kind: "copilot_metadata", taskId: "task", metadata: { ...verified, profileDigest: "stale" }, executionStopped: true });
     await expect(probeCopilotExecutionTarget("private-token", target, "gpt-5.6-luna")).rejects.toThrow();
   });
-  it("rejects a foreign company before creating a lease or transmitting the token", async () => {
-    mocks.bindings.mockResolvedValue(["other-company"]);
-    await expect(probeCopilotConnection({} as Db, "company", "private-token", "selected")).rejects.toMatchObject({ status: 403 });
+  it("rejects a foreign space before creating a lease or transmitting the token", async () => {
+    mocks.bindings.mockResolvedValue(["other-space"]);
+    await expect(probeCopilotConnection({} as Db, "space", "private-token", "selected")).rejects.toMatchObject({ status: 403 });
     expect(mocks.command).not.toHaveBeenCalled(); expect(mocks.metadata).not.toHaveBeenCalled(); expect(mocks.acquire).not.toHaveBeenCalled();
   });
   it("does not fall back to host credentials when the remote runtime is missing", async () => {
     mocks.command.mockResolvedValue({ timedOut: false, stdout: "", exitCode: 127 });
-    await expect(probeCopilotConnection({} as Db, "company", "private-token", "selected")).rejects.toMatchObject({ details: { code: "COPILOT_INSTALLATION_INVALID" } });
+    await expect(probeCopilotConnection({} as Db, "space", "private-token", "selected")).rejects.toMatchObject({ details: { code: "COPILOT_INSTALLATION_INVALID" } });
     expect(mocks.metadata).not.toHaveBeenCalled(); expect(mocks.release).toHaveBeenCalledWith(expect.objectContaining({ status: "failed" }));
   });
   it("sanitizes remote errors and releases the lease on authentication failure", async () => {
     mocks.command.mockResolvedValue({ timedOut: false, stdout: JSON.stringify({ status: "failed", code: "COPILOT_AUTH_REQUIRED", promptSent: false, message: "private-token" }), exitCode: 1 });
-    const error = await probeCopilotConnection({} as Db, "company", "private-token", "selected").catch(e => e);
+    const error = await probeCopilotConnection({} as Db, "space", "private-token", "selected").catch(e => e);
     expect(error.details.code).toBe("COPILOT_AUTH_REQUIRED"); expect(error.message).not.toContain("private-token"); expect(mocks.release).toHaveBeenCalledOnce();
   });
   it("preserves authentication classification when lease cleanup also fails", async () => {
     mocks.command.mockResolvedValue({ timedOut: false, stdout: JSON.stringify({ status: "failed", code: "COPILOT_AUTH_REQUIRED", promptSent: false, message: "private-token" }), exitCode: 1 });
     mocks.release.mockRejectedValue(new Error("cleanup private-token"));
-    const error = await probeCopilotConnection({} as Db, "company", "private-token", "selected").catch(e => e);
+    const error = await probeCopilotConnection({} as Db, "space", "private-token", "selected").catch(e => e);
     expect(error).toMatchObject({ status: 422, details: { code: "COPILOT_AUTH_REQUIRED" } });
     expect(error.message).not.toContain("private-token");
-    expect(logger.warn).toHaveBeenCalledWith({ companyId: "company", environmentId: "selected", leaseId: "lease", code: "COPILOT_PROBE_CLEANUP_FAILED" }, expect.any(String));
+    expect(logger.warn).toHaveBeenCalledWith({ spaceId: "space", environmentId: "selected", leaseId: "lease", code: "COPILOT_PROBE_CLEANUP_FAILED" }, expect.any(String));
     expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain("private-token");
     expect(mocks.release).toHaveBeenCalledOnce();
   });
   it("does not verify a connection when its successful probe cannot clean up", async () => {
     mocks.release.mockRejectedValue(new Error("cleanup private-token"));
-    const error = await probeCopilotConnection({} as Db, "company", "private-token", "selected").catch(e => e);
+    const error = await probeCopilotConnection({} as Db, "space", "private-token", "selected").catch(e => e);
     expect(error).toMatchObject({ status: 422, details: { code: "COPILOT_REQUEST_FAILED", cleanupCode: "COPILOT_PROBE_CLEANUP_FAILED" } });
     expect(error.message).not.toContain("private-token");
     expect(mocks.release).toHaveBeenCalledOnce();

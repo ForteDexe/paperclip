@@ -74,12 +74,12 @@ describe("deriveRecoveryDisplayState", () => {
   const waitBase = { ...base, kind: "deliberate_wait_without_target" as const };
 
   it.each([null, "delegated"] as const)(
-    "shows a board-owned watchdog as needing recovery, not observing work (%s)",
+    "shows a operator-owned watchdog as needing recovery, not observing work (%s)",
     (outcome) => {
       const action = {
         ...base,
         kind: "active_run_watchdog" as const,
-        ownerType: "board" as const,
+        ownerType: "operator" as const,
         outcome,
         wakePolicy: null,
         evidence: {
@@ -104,13 +104,13 @@ describe("deriveRecoveryDisplayState", () => {
     ["cancelled", "resolved"],
     ["escalated", "escalated"],
   ] as const)(
-    "keeps %s precedence for a board-owned watchdog",
+    "keeps %s precedence for a operator-owned watchdog",
     (status, expected) => {
       expect(
         deriveRecoveryDisplayState({
           ...base,
           kind: "active_run_watchdog",
-          ownerType: "board",
+          ownerType: "operator",
           status,
         }),
       ).toBe(expected);
@@ -171,17 +171,17 @@ describe("deriveRecoveryDisplayState", () => {
       },
     );
 
-    it.each(["active", "escalated"] as const)("shows a board-admitted export as progress despite prior %s repair ownership", (status) => {
+    it.each(["active", "escalated"] as const)("shows a operator-admitted export as progress despite prior %s repair ownership", (status) => {
       expect(deriveRecoveryDisplayState({
-        ...action, status, ownerType: "board", attemptCount: 3,
+        ...action, status, ownerType: "operator", attemptCount: 3,
         nativeRunActivity: { runId: "finalizing-run", status: "running", workspaceOperationId: "export-operation" },
       }, { now })).toBe("in_progress");
     });
 
-    it("keeps exhausted retries and board-owned failures actionable", () => {
+    it("keeps exhausted retries and operator-owned failures actionable", () => {
       const wakePolicy = { ...action.wakePolicy, notBefore: "2026-09-27T02:01:00.000Z" };
       expect(deriveRecoveryDisplayState({ ...action, wakePolicy, attemptCount: 3 }, { now })).toBe("needed");
-      expect(deriveRecoveryDisplayState({ ...action, wakePolicy, ownerType: "board" }, { now })).toBe("needed");
+      expect(deriveRecoveryDisplayState({ ...action, wakePolicy, ownerType: "operator" }, { now })).toBe("needed");
     });
   });
 
@@ -300,13 +300,13 @@ describe("deriveRecoveryDisplayState", () => {
     ).toBe("needed");
   });
 
-  it("keeps an escalated board action red even with a lineage", () => {
+  it("keeps an escalated operator action red even with a lineage", () => {
     expect(
       deriveRecoveryDisplayState({
         ...waitBase,
         status: "escalated",
         wakePolicy: {
-          type: "board_escalation",
+          type: "operator_escalation",
           reason: "recovery_owner_retry_exhausted",
           preservesSourceAssignee: true,
         },
@@ -327,5 +327,5 @@ describe("deriveRecoveryDisplayState", () => {
 // Historical unsafe exports are recovered by the control plane without a task warning.
 it.each(["active", "escalated", "resolved"] as const)("hides historical unsafe recovery chips: %s", status => {
   expect(deriveActiveRecoveryDisplayState({ status, kind: "active_run_watchdog", outcome: null,
-    cause: "native_workspace_sync_out_unsafe_archive", ownerType: "board" })).toBeNull();
+    cause: "native_workspace_sync_out_unsafe_archive", ownerType: "operator" })).toBeNull();
 });

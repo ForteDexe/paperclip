@@ -18,7 +18,7 @@ function registerModuleMocks() {
     agentService: () => ({
       getById: vi.fn(),
     }),
-    boardAuthService: () => ({
+    operatorAuthService: () => ({
       createChallenge: vi.fn(),
       resolveBoardAccess: vi.fn(),
       assertCurrentBoardKey: vi.fn(),
@@ -26,15 +26,15 @@ function registerModuleMocks() {
     }),
     deduplicateAgentName: vi.fn(),
     logActivity: (...args: unknown[]) => logActivityMock(...args),
-    notifyHireApproved: vi.fn(),
+    notifyCreateApproved: vi.fn(),
   }));
 }
 
 function createDbStub() {
   const createdInvite = {
     id: "invite-1",
-    companyId: "company-1",
-    inviteType: "company_join",
+    spaceId: "space-1",
+    inviteType: "space_join",
     allowedJoinTypes: "human",
     tokenHash: "hash",
     defaultsPayload: { humanRole: "viewer" },
@@ -88,10 +88,10 @@ async function createApp(authPublicBaseUrl?: string) {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).actor = {
-      type: "board",
+      type: "operator",
       source: "local_implicit",
       userId: null,
-      companyIds: ["company-1"],
+      spaceIds: ["space-1"],
     };
     next();
   });
@@ -127,7 +127,7 @@ describe("invite URL: authPublicBaseUrl precedence", () => {
     );
 
     const res = await request(app)
-      .post("/api/companies/company-1/invites")
+      .post("/api/spaces/space-1/invites")
       .set("host", "127.0.0.1:3100")
       .set("x-forwarded-proto", "http")
       .send({ allowedJoinTypes: "human", humanRole: "viewer" });
@@ -143,7 +143,7 @@ describe("invite URL: authPublicBaseUrl precedence", () => {
     const app = await createApp(undefined);
 
     const res = await request(app)
-      .post("/api/companies/company-1/invites")
+      .post("/api/spaces/space-1/invites")
       .set("host", "outpost.example")
       .set("x-forwarded-proto", "https")
       .send({ allowedJoinTypes: "human", humanRole: "viewer" });
@@ -160,7 +160,7 @@ describe("invite URL: authPublicBaseUrl precedence", () => {
     );
 
     const res = await request(app)
-      .post("/api/companies/company-1/invites")
+      .post("/api/spaces/space-1/invites")
       .set("host", "127.0.0.1:3100")
       .send({ allowedJoinTypes: "human", humanRole: "viewer" });
 

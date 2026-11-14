@@ -39,7 +39,7 @@ vi.mock("../../vendor/outpost-runner/index.js", async original => {
       return actual.createNativeSessionBackend(input, { ...options, codexTransportFactory: () => state.transport as ProviderTransport });
     } };
 });
-import { closeWarmNativeSessionsForEnvironment, detachNativeSessionsForRestart, executePaperclipNativeSession, NativeControllerDetachedForRestartError } from "./native-session-executor.js";
+import { closeWarmNativeSessionsForEnvironment, detachNativeSessionsForRestart, executeOutpostNativeSession, NativeControllerDetachedForRestartError } from "./native-session-executor.js";
 import * as executionLease from "./native-execution-lease.js";
 import { finalizeNativeRun } from "./native-run-finalizer.js";
 import { prepareNativeHeartbeatRun } from "./prepare-native-run.js";
@@ -54,11 +54,11 @@ describeEmbeddedPostgres("managed warm checkpoint ownership", () => {
 
   it.each(["normal", "delayed", "instruction_error", "fresh_successor", "wrong_boot", "superseded_owner", "detach_during_close", "detach_during_instruction_error", "detach_during_instruction_error_and_renewal_loss"])("keeps the producing coordinator claim until the managed failed-turn close joins: %s", async scenario => {
     let fixture: Omit<Awaited<ReturnType<typeof environment.seedRun>>, "runId"> & { runId: string } = await environment.seedRun(`WARM-CHECKPOINT-OWNER-${scenario}`);
-    const { companyId, agentId } = environment.current;
+    const { spaceId, agentId } = environment.current;
     const [contract] = await fixture.db.select().from(completionContracts).where(eq(completionContracts.issueId, fixture.issueId));
     let execution: NativeExecutionInputV1 = {
       schema: "outpost.native-execution-input.v1",
-      binding: { companyId, agentId, issueId: fixture.issueId, runId: fixture.runId, executionWorkspaceId: randomUUID() },
+      binding: { spaceId, agentId, issueId: fixture.issueId, runId: fixture.runId, executionWorkspaceId: randomUUID() },
       provider: { kind: "codex", model: "test-model" },
       task: { identifier: "WARM-1", title: "Retain checkpoint owner", description: null, prompt: "Return a failed turn.", workMode: "standard" },
       workspace: { cwd: root, repoUrl: null, repoRef: null, branchName: null },
@@ -117,10 +117,10 @@ describeEmbeddedPostgres("managed warm checkpoint ownership", () => {
       } catch (error) { closeFailures.push(String(error)); throw error; }
     };
     state.execute.mockReset().mockImplementation(async options => {
-      const session = await options.backend.openSession({ identity: { companyId, agentId, issueId: fixture.issueId,
+      const session = await options.backend.openSession({ identity: { spaceId, agentId, issueId: fixture.issueId,
         runId: fixture.runId, sessionId: execution.session.normalizedSessionId }, workingDirectory: root });
       await options.onSession(session);
-      await options.controlPlane.openRun({ identity: { companyId, agentId, issueId: fixture.issueId, runId: fixture.runId,
+      await options.controlPlane.openRun({ identity: { spaceId, agentId, issueId: fixture.issueId, runId: fixture.runId,
         sessionId: execution.session.normalizedSessionId }, backendKind: "mock", sourceInstanceId: fixture.native.runnerInstanceId });
       await options.controlPlane.appendEvent({ schema: "outpost.orp.event.v1", runId: fixture.runId,
         normalizedSessionId: execution.session.normalizedSessionId, turnId: fixture.native.turnId,
@@ -140,7 +140,7 @@ describeEmbeddedPostgres("managed warm checkpoint ownership", () => {
     const runCurrent = async () => {
       await fixture.db.update(heartbeatRuns).set({ runnerProfileJson: { ...fixture.preparedProfile, nativeExecutionInput: execution } })
         .where(eq(heartbeatRuns.id, fixture.runId));
-      return executePaperclipNativeSession({ db: fixture.db, execution, runnerInstanceId: fixture.native.runnerInstanceId,
+      return executeOutpostNativeSession({ db: fixture.db, execution, runnerInstanceId: fixture.native.runnerInstanceId,
         useRunnerd: true, runnerIngressAuthorized: true,
         runnerRemoteBinaryPath: defaultCapabilityRunnerdBinary(), runnerRemoteCodexPath: defaultCapabilityRunnerdBinary(),
         runnerExecutionTarget: { kind: "remote", transport: "sandbox", remoteCwd: root, environmentId,
@@ -216,19 +216,19 @@ describeEmbeddedPostgres("managed warm checkpoint ownership", () => {
         await fixture.db.update(heartbeatRuns).set({ responsibleUserId: "local-capacity-owner" }).where(eq(heartbeatRuns.id, fixture.runId));
         await fixture.db.update(issues).set({ responsibleUserId: "local-capacity-owner" }).where(eq(issues.id, fixture.issueId));
         await finalizeNativeRun({ db: fixture.db, runId: fixture.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
-        const [retry] = await fixture.db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.retryOfRunId, fixture.runId)));
+        const [retry] = await fixture.db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.retryOfRunId, fixture.runId)));
         expect(retry).toMatchObject({ status: "scheduled_retry", scheduledRetryReason: "native_provider_overloaded", contextSnapshot: { forceFreshSession: true } });
         const unexpected = async () => { throw new Error("unexpected fixture escalation"); };
         const release = createReleaseIssueExecution({ issueLock: createPostgresWakeQueueAdapter(fixture.db, {
           resolveResponsibleUserId: unexpected, getRoutineEnv: unexpected, resolveSessionBeforeForWakeup: unexpected }),
           recovery: { escalateStrandedAssignedIssue: unexpected, escalateStrandedRecoveryIssueInPlace: unexpected } });
-        expect((await release({ companyId, runId: fixture.runId, now: new Date() })).outcome.kind).toBe("released");
+        expect((await release({ spaceId, runId: fixture.runId, now: new Date() })).outcome.kind).toBe("released");
         const [ready] = await fixture.db.update(heartbeatRuns).set({ status: "running", runtimeMode: "native", nativeIssueId: fixture.issueId })
           .where(eq(heartbeatRuns.id, retry.id)).returning();
         await fixture.db.update(issues).set({ executionRunId: retry.id }).where(eq(issues.id, fixture.issueId));
         const [task] = await fixture.db.select().from(issues).where(eq(issues.id, fixture.issueId));
         const native = await prepareNativeHeartbeatRun({ db: fixture.db, run: ready, issue: task, environmentLeaseId: randomUUID() });
-        await fixture.db.insert(nativeRunFinalizations).values({ runId: retry.id, companyId, issueId: fixture.issueId, phase: "observed" });
+        await fixture.db.insert(nativeRunFinalizations).values({ runId: retry.id, spaceId, issueId: fixture.issueId, phase: "observed" });
         const previousSession = execution.session.normalizedSessionId;
         execution = { ...execution, binding: { ...execution.binding, runId: retry.id }, session: { ...execution.session, normalizedSessionId: native.normalizedSessionId } };
         expect(execution.session.normalizedSessionId).not.toBe(previousSession);

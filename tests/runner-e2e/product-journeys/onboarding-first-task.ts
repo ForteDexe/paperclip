@@ -45,7 +45,7 @@ const isPlanningDocument = (row: Row) => /^(?:plan|proposal)$/.test(row.key);
 function sameWorkspaceRetry(source: Row, successor: Row): boolean {
   const issueIds = (run: Row) => [run.nativeIssueId, run.issueId, run.contextSnapshot?.issueId].filter(value => value != null);
   const sourceIssues = issueIds(source), successorIssues = issueIds(successor);
-  return source.id !== successor.id && source.companyId === successor.companyId && source.agentId === successor.agentId &&
+  return source.id !== successor.id && source.spaceId === successor.spaceId && source.agentId === successor.agentId &&
     sourceIssues.length > 0 && successorIssues.length > 0 && [...sourceIssues, ...successorIssues].every(id => id === sourceIssues[0]) &&
     successor.retryOfRunId === source.id && successor.contextSnapshot?.retryOfRunId === source.id &&
     successor.scheduledRetryReason === "workspace_busy" && successor.contextSnapshot?.retryReason === "workspace_busy" &&
@@ -63,7 +63,7 @@ function unstartedScheduledWorkspaceRetry(run: Row): boolean {
 
 /** Exercise the ordinary onboarding conversation; APIs observe, never submit its actions. */
 export async function onboardingFirstTask(input: OnboardingFirstTaskInput): Promise<OnboardingFirstTaskResult> {
-  const { context: { api, page, company }, agent, campaignId, proof } = input;
+  const { context: { api, page, space }, agent, campaignId, proof } = input;
   const isPendingRun = (run: Row) => activeRuns([run]).length > 0 || run.status === "scheduled_retry" ||
     isPendingNativeRecovery(run, input.deadlineAt);
   if (!Number.isSafeInteger(input.maxRuns) || input.maxRuns < 1) fail("invalid_onboarding_run_limit");
@@ -79,8 +79,8 @@ export async function onboardingFirstTask(input: OnboardingFirstTaskInput): Prom
   const load = async (parentId?: string): Promise<Snapshot> => {
     remaining();
     const [tasks, rows] = await Promise.all([
-      api.get<Row[]>(`/api/companies/${company.id}/issues?limit=100&includeAgentCreatedTasks=true`),
-      api.get<Row[]>(`/api/companies/${company.id}/heartbeat-runs?limit=1000`),
+      api.get<Row[]>(`/api/spaces/${space.id}/issues?limit=100&includeAgentCreatedTasks=true`),
+      api.get<Row[]>(`/api/spaces/${space.id}/heartbeat-runs?limit=1000`),
     ]);
     const runs = await Promise.all(rows.map(row => api.get<Row>(`/api/heartbeat-runs/${row.id}`)));
     for (const run of runs) {
@@ -119,7 +119,7 @@ export async function onboardingFirstTask(input: OnboardingFirstTaskInput): Prom
       else workspacePending = true;
     }
     for (const run of seen.values()) {
-      if (run.companyId !== company.id || run.agentId !== agent.id || !allowedIssues.includes(runIssueId(run))) fail("onboarding_run_scope_mismatch");
+      if (run.spaceId !== space.id || run.agentId !== agent.id || !allowedIssues.includes(runIssueId(run))) fail("onboarding_run_scope_mismatch");
       if (isProviderUnstartedWorkspaceDeferral(run)) {
         const chain = new Set<string>();
         let tail: Row | undefined = run;
@@ -174,7 +174,7 @@ export async function onboardingFirstTask(input: OnboardingFirstTaskInput): Prom
   const option = question?.options?.find((row: Row) => row.id === "task" && row.freeText === true);
   if (opening.length !== 1 || questions.length !== 1 || !option ||
     !snapshot.comments.some(row => row.authorAgentId === agent.id && String(row.body ?? "").trim())) fail("onboarding_opening_not_presented");
-  await page.goto(`${api.origin}/${company.issuePrefix}/issues/${parent.identifier ?? parent.id}`, { timeout: remaining() });
+  await page.goto(`${api.origin}/${space.issuePrefix}/issues/${parent.identifier ?? parent.id}`, { timeout: remaining() });
   // Persist the exact intended child before the opening reply can dispatch any model work.
   await input.own({ kind: "issue", name: title });
   await page.getByRole("radio", { name: option.label }).last().click({ timeout: remaining() });
@@ -184,15 +184,15 @@ export async function onboardingFirstTask(input: OnboardingFirstTaskInput): Prom
     `Exact input bytes: ${Buffer.from(proof.input).toString("base64")}`,
     '2. Write connection-proof.json containing exactly {"nonce":string,"count":number,"total":number,"sha256":string}. Copy nonce, count the input values, sum them, and compute sha256 of the exact input bytes including the final newline.',
     '3. Publish connection-proof.json on this child using register_deliverable with filename "connection-proof.json", workspace-relative contentRef "connection-proof.json", and correct byteSize and SHA-256 for that file.',
-    "4. Use write_document to save a connection-proof document on this child including the filename connection-proof.json, input nonce, result, and the file link returned by register_deliverable. A Markdown workspace note is not a Paperclip task document and does not replace this step.",
-    "5. Report completion with paperclip_finish using the current completion contract. Include verification for checks actually run and omit optional schema. Use deliverable:<attachmentId> from register_deliverable in evidence and any file artifacts. Keep local input paths in verification details, not completion evidence or artifacts. Correct rejected arguments using the tool feedback and retry before declaring a blocker.",
+    "4. Use write_document to save a connection-proof document on this child including the filename connection-proof.json, input nonce, result, and the file link returned by register_deliverable. A Markdown workspace note is not a Outpost task document and does not replace this step.",
+    "5. Report completion with outpost_finish using the current completion contract. Include verification for checks actually run and omit optional schema. Use deliverable:<attachmentId> from register_deliverable in evidence and any file artifacts. Keep local input paths in verification details, not completion evidence or artifacts. Correct rejected arguments using the tool feedback and retry before declaring a blocker.",
     "Do not hire agents, create additional tasks, or access credentials or unrelated files.",
   ].join("\n");
   await page.getByTestId("question-other-answer-composer").last().locator('[contenteditable="true"],textarea').first().fill([
     `I have one task in mind. Propose exactly one child task named "${title}" and wait for my approval before creating it or doing its work.`,
     'Save that proposal with request_human_input using interactionKind "confirmation" (or "checkbox" bound to the saved plan revision when plan mode applies) and continuationPolicy "wake_assignee". Check that the tool returned a saved pending card. Correct rejected arguments from its feedback; a failed call is not a pending proposal.',
     "Do not resolve, accept, or record approval yourself. This opening answer supplies scope, not approval. Wait for my actual accepted card decision before calling create_task; a rejection does not authorize the work.",
-    "After approval, assign it to yourself and let its own Paperclip execution produce the result. After it finishes, verify its saved document and published attachment.",
+    "After approval, assign it to yourself and let its own Outpost execution produce the result. After it finishes, verify its saved document and published attachment.",
     "In your final reply in this onboarding conversation, include actual Markdown links to the child task, its saved document, and connection-proof.json. Copy the published attachment's returned contentPath or downloadPath into the file link URL, including its actual attachment ID. A backticked filename, document key, or path is not a clickable link. Obtain the real references from the child's saved results; do not invent IDs or URLs. Then complete both tasks.",
     "When you create the child, copy the entire brief between BEGIN CHILD BRIEF and END CHILD BRIEF VERBATIM into create_task.description. Preserve every step, tool name, parameter instruction, and exact encoded input. Do not summarize or paraphrase it.",
     "BEGIN CHILD BRIEF",

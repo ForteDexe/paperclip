@@ -5,13 +5,13 @@ import type { AgentAuditView } from "./agent-detail-navigation";
 
 export function AgentAuditTab({
   agent,
-  companyId,
+  spaceId,
   section,
 }: {
   agent: AgentDetailRecord;
-  companyId: string;
+  spaceId: string;
   section: AgentAuditView;
 }) {
-  if (section === "activity") return <AuditFeed companyId={companyId} lockedAgentId={agent.id} hideHeader />;
-  return <AuditRuns companyId={companyId} lockedAgentId={agent.id} hideHeader />;
+  if (section === "activity") return <AuditFeed spaceId={spaceId} lockedAgentId={agent.id} hideHeader />;
+  return <AuditRuns spaceId={spaceId} lockedAgentId={agent.id} hideHeader />;
 }

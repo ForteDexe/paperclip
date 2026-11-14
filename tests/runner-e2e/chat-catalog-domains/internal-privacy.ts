@@ -66,7 +66,7 @@ export function gradePrivateProject(value: unknown) {
   c.add("complete-multi-principal-evidence", !!o, "A privacy result needs real signed-in observer, acting-agent and unrelated-agent API evidence.");
   if (!o) return c.result();
   const p = o.protectedProject; const probe = o.state.inheritanceTask ? entity(o.state, "inheritanceTask") : undefined;
-  c.add("agent-created-owned-private-project", !!p && p.visibility === "private" && p.companyId === o.companyId
+  c.add("agent-created-owned-private-project", !!p && p.visibility === "private" && p.spaceId === o.spaceId
     && typeof o.state.ownerId === "string" && !!o.state.ownerId && p.privacyOwnerUserId === o.state.ownerId && o.projects.filter(row => /acquisition/i.test(row.name ?? "")).length === 1
     && o.activity.some(row => row.action === "project.created" && row.entityId === p.id && row.agentId === o.leadId),
     "One newly requested private project derives ownership from the authorized person and is actually created by the CEO.");
@@ -74,7 +74,7 @@ export function gradePrivateProject(value: unknown) {
   c.add("observer-cannot-discover-or-read", o.observer.projectsStatus === 200 && o.observer.searchStatus === 200 && [403, 404].includes(o.observer.projectStatus) && [403, 404].includes(o.observer.taskStatus)
     && !!p && !o.observer.projectsBody.includes(p.id) && !o.observer.searchBody.includes(p.id)
     && !!probe && !o.observer.searchBody.includes(probe.id) && !o.observer.searchBody.includes(String(o.state.privateMarker)),
-    "The unrelated real company member cannot discover the project or its inherited private task through lists, search or copied resource IDs.");
+    "The unrelated real space member cannot discover the project or its inherited private task through lists, search or copied resource IDs.");
   c.add("unrelated-agent-excluded", o.unrelatedPublicStatus === 200 && [403, 404].includes(o.unrelatedAgentStatus), "A separate agent without project membership cannot read the new private project.");
   c.add("inheritance-probe-owned-by-project", !!p && !!probe && probe.projectId === p.id && o.tasks.some(row => row.id === probe.id && row.projectId === p.id),
     "A separate labeled production-API probe verifies the new project's task access inheritance; it is not a preseeded project result.");
@@ -103,7 +103,7 @@ function privateProject(): ChatCatalogCase {
       if (!observer) throw new Error("Authenticated privacy observer is unavailable");
       const o = await observeInternal(ctx, state); const p = state.project ? o.projects.find(row => row.id === entity(state, "project").id) as PrivateRecord | undefined : undefined;
       const inheritanceTask = state.inheritanceTask ? entity(state, "inheritanceTask") : undefined;
-      const root = `/api/companies/${o.companyId}`;
+      const root = `/api/spaces/${o.spaceId}`;
       const [privateRead, taskRead, visibleProjects, search, leadStatus, unrelatedAgentStatus, unrelatedPublicStatus] = await Promise.all([
         p ? personRead(observer, `/api/projects/${p.id}`) : { status: 0, body: "" },
         inheritanceTask ? personRead(observer, `/api/issues/${inheritanceTask.id}`) : { status: 0, body: "" },
@@ -121,7 +121,7 @@ function privateProject(): ChatCatalogCase {
       if (!observer) throw new Error("Missing independent browser observer");
       const p = entity(state, "project"); const observerPage = await observer.context.newPage();
       try {
-        await observerPage.goto(new URL(`/${ctx.input.fixtures.company.issuePrefix}/projects/${p.id}`, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded" });
+        await observerPage.goto(new URL(`/${ctx.input.fixtures.space.issuePrefix}/projects/${p.id}`, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded" });
         await expect(observerPage.getByRole("heading", { name: p.name!, exact: true })).toHaveCount(0);
         await expect(observerPage.getByText(/not found|not available|access denied|do not have access|couldn't load/i).first()).toBeVisible();
         await ctx.input.evidence("chat-catalog-private-project-observer-browser.json", { observerId: observer.id, projectId: p.id,
@@ -152,7 +152,7 @@ export function gradeShareProject(value: unknown) {
     && o.members.some(row => row.subjectType === "user" && row.subjectId === o.state.observerId)
     && o.activity.some(row => row.action === "project.access_member_added" && row.entityId === p.id
       && row.actorType === "user" && row.actorId === o.state.ownerId && row.details?.subjectId === o.state.observerId),
-    "A visible owner action grants the intended same-company Riley through project membership, without making the project public.");
+    "A visible owner action grants the intended same-space Riley through project membership, without making the project public.");
   c.add("separate-task-privacy-retained", [403, 404].includes(before.protectedTaskStatus ?? 0) && [403, 404].includes(o.observerProtectedTaskStatus)
     && o.tasks.some(row => row.id === entity(o.state, "protectedTask").id && (row as PrivateRecord).visibility === "private"),
     "The separately protected task remains private and unreadable to Riley after project sharing.");
@@ -174,7 +174,7 @@ function shareProject(): ChatCatalogCase {
     const ownerId = await mainPerson(ctx); observer = await observerPerson(ctx);
     const p = await project(ctx, "Acquisition research", { visibility: "private", description: "Private acquisition research for the authorized owner." });
     await ctx.input.api.post(`/api/projects/${p.id}/access-members`, { subjectType: "agent", subjectId: ctx.input.fixtures.agent.id });
-    const protectedTask = await ctx.input.api.post<Entity>(`/api/companies/${ctx.input.fixtures.company.id}/issues`, {
+    const protectedTask = await ctx.input.api.post<Entity>(`/api/spaces/${ctx.input.fixtures.space.id}/issues`, {
       title: "Separately protected acquisition note", description: `Independent protected task ${ctx.input.nonce}`, visibility: "private", status: "backlog",
     });
     return { project: p, ownerId, observerId: observer.id, protectedTask };
@@ -237,7 +237,7 @@ function shareProject(): ChatCatalogCase {
       if (!observer) throw new Error("Missing independent browser observer");
       const p = entity(state, "project"); const observerPage = await observer.context.newPage();
       try {
-        await observerPage.goto(new URL(`/${ctx.input.fixtures.company.issuePrefix}/projects/${p.id}`, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded" });
+        await observerPage.goto(new URL(`/${ctx.input.fixtures.space.issuePrefix}/projects/${p.id}`, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded" });
         await expect(observerPage.getByRole("heading", { name: p.name!, exact: true }).first()).toBeVisible();
         await ctx.input.evidence("chat-catalog-owner-project-sharing-opened.json", { observerId: observer.id, projectId: p.id, url: observerPage.url(), visible: true });
       } finally { await observerPage.close(); }
@@ -247,14 +247,14 @@ function shareProject(): ChatCatalogCase {
 }
 
 interface TaskSharingObservation extends InternalObservation {
-  members: AccessMember[]; taskReadStatus: number; observerTaskStatus: number; observerCompanyStatus: number; agentGrantStatus: number;
+  members: AccessMember[]; taskReadStatus: number; observerTaskStatus: number; observerSpaceStatus: number; agentGrantStatus: number;
 }
 export function gradeTaskSharing(value: unknown) {
   const c = checks(); const o = observation(value) as TaskSharingObservation | undefined;
   c.add("independent-task-audience-evidence", !!o && Array.isArray(o.members) && typeof o.agentGrantStatus === "number", "Saved task membership and independent human and agent access probes are required.");
   if (!o || !Array.isArray(o.members)) return c.result();
   const before = entity(o.state, "task"); const current = o.tasks.find(row => row.id === before.id) as PrivateRecord | undefined;
-  c.add("read-is-not-sharing-authority", o.taskReadStatus === 200 && o.agentGrantStatus === 403 && o.observerCompanyStatus === 200
+  c.add("read-is-not-sharing-authority", o.taskReadStatus === 200 && o.agentGrantStatus === 403 && o.observerSpaceStatus === 200
     && [403, 404].includes(o.observerTaskStatus), "The CEO can read but cannot grant access; the healthy enrolled Riley remains denied the copied private-task ID.");
   c.add("audience-preserved", !!current && current.visibility === "private" && sameTask(before, current)
     && !o.members.some(row => row.subjectType === "user" && (row.subjectId === o.state.observerId || (row.source !== "owner" && row.subjectId !== o.state.ownerId)))
@@ -277,12 +277,12 @@ function sharePrivateTask(): ChatCatalogCase {
     async observe(ctx, state): Promise<TaskSharingObservation> {
       if (!observer) throw new Error("Missing actual Riley observer");
       const o = await observeInternal(ctx, state); const t = entity(state, "task");
-      const [members, observerRead, observerCompany, taskReadStatus, agentGrantStatus] = await Promise.all([
+      const [members, observerRead, observerSpace, taskReadStatus, agentGrantStatus] = await Promise.all([
         ctx.input.api.get<AccessMember[]>(`/api/issues/${t.id}/access-grants`), personRead(observer, `/api/issues/${t.id}`),
-        personRead(observer, `/api/companies/${ctx.input.fixtures.company.id}`), agentStatus(ctx, o.leadId, `/api/issues/${t.id}`),
+        personRead(observer, `/api/spaces/${ctx.input.fixtures.space.id}`), agentStatus(ctx, o.leadId, `/api/issues/${t.id}`),
         agentMutationStatus(ctx, `/api/issues/${t.id}/access-grants`, { subjectType: "user", subjectId: observer.id }),
       ]);
-      return { ...o, members, observerTaskStatus: observerRead.status, observerCompanyStatus: observerCompany.status, taskReadStatus, agentGrantStatus };
+      return { ...o, members, observerTaskStatus: observerRead.status, observerSpaceStatus: observerSpace.status, taskReadStatus, agentGrantStatus };
     },
     async verifyResult(ctx, state, value) {
       await base.verifyResult(ctx, state, value);
@@ -304,7 +304,7 @@ function sharePrivateTask(): ChatCatalogCase {
       await expect(ctx.input.page.getByTestId("task-chat-composer-input")).toBeVisible();
       const page = await observer.context.newPage();
       try {
-        await page.goto(new URL(`/${ctx.input.fixtures.company.issuePrefix}/issues/${t.id}`, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded" });
+        await page.goto(new URL(`/${ctx.input.fixtures.space.issuePrefix}/issues/${t.id}`, ctx.input.api.baseURL).href, { waitUntil: "domcontentloaded" });
         await expect(page.getByText(/not found|access denied|forbidden|unable to load|could not load/i).first()).toBeVisible();
         await expect(page.getByRole("heading", { name: t.title!, exact: true })).toHaveCount(0);
         await ctx.input.evidence("chat-catalog-task-sharing-denied-browser.json", { taskId: t.id, observerId: observer.id, denied: true });

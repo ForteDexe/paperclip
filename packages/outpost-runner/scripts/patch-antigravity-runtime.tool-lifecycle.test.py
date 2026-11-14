@@ -1,7 +1,7 @@
 """Credential-free regressions executed in the real pinned hermetic SDK."""
 
 
-def _paperclip_tool_lifecycle_regressions():
+def _outpost_tool_lifecycle_regressions():
   import asyncio
   import contextlib
   import json
@@ -154,7 +154,7 @@ def _paperclip_tool_lifecycle_regressions():
     for owner, name in ((socket, "create_connection"), (subprocess, "Popen"), (asyncio, "create_subprocess_exec")):
       stack.enter_context(mock.patch.object(owner, name, side_effect=forbidden))
     asyncio.run(run())
-  sys.stderr.write("paperclip-tool-lifecycle-regressions: passed\n")
+  sys.stderr.write("outpost-tool-lifecycle-regressions: passed\n")
 
 
-_paperclip_tool_lifecycle_regressions()
+_outpost_tool_lifecycle_regressions()

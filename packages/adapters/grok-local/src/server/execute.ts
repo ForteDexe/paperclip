@@ -31,16 +31,16 @@ import {
   ensureAbsoluteDirectory,
   ensurePathInEnv,
   joinPromptSections,
-  materializePaperclipSkillCopy,
+  materializeOutpostSkillCopy,
   parseObject,
-  readPaperclipIssueWorkModeFromContext,
-  readPaperclipRuntimeSkillEntries,
+  readOutpostIssueWorkModeFromContext,
+  readOutpostRuntimeSkillEntries,
   renderTemplate,
   hydrateFreshSessionHandoff,
-  selectPaperclipPromptSections,
+  selectOutpostPromptSections,
   selectInitialCommunicationGuidance,
-  isPaperclipRecoveryWakePayload,
-  resolveLegacyPaperclipDesiredSkillNames,
+  isOutpostRecoveryWakePayload,
+  resolveLegacyOutpostDesiredSkillNames,
   refreshOutpostWorkspaceEnvForExecution,
   DEFAULT_OUTPOST_AGENT_PROMPT_TEMPLATE,
   DEFAULT_OUTPOST_CONVERSATION_PROMPT_TEMPLATE,
@@ -67,13 +67,13 @@ function hasNonEmptyEnvValue(env: Record<string, string | undefined>, key: strin
 }
 
 function renderOutpostEnvNote(env: Record<string, string>): string {
-  const paperclipKeys = Object.keys(env)
+  const outpostKeys = Object.keys(env)
     .filter((key) => key.startsWith("OUTPOST_"))
     .sort();
-  if (paperclipKeys.length === 0) return "";
+  if (outpostKeys.length === 0) return "";
   return [
     "Outpost runtime note:",
-    `The following OUTPOST_* environment variables are available in this run: ${paperclipKeys.join(", ")}`,
+    `The following OUTPOST_* environment variables are available in this run: ${outpostKeys.join(", ")}`,
     "Do not assume these variables are missing without checking your shell environment.",
     "",
     "",
@@ -85,7 +85,7 @@ function renderApiAccessNote(env: Record<string, string>): string {
   return [
     "Outpost API access note:",
     "Use shell commands with curl to make Outpost API requests when needed.",
-    "Include X-Paperclip-Run-Id on mutating requests.",
+    "Include X-Outpost-Run-Id on mutating requests.",
     "",
     "",
   ].join("\n");
@@ -171,7 +171,7 @@ async function stageGrokProjectAssets(input: {
         );
         continue;
       }
-      await materializePaperclipSkillCopy(skill.source, target);
+      await materializeOutpostSkillCopy(skill.source, target);
       ensureCleanupDir(target);
       stagedSkillsCount += 1;
     }
@@ -273,15 +273,15 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
   const alwaysApprove = asBoolean(config.alwaysApprove, true);
   const disableWebSearch = asBoolean(config.disableWebSearch, true);
 
-  const workspaceContext = parseObject(context.paperclipWorkspace);
+  const workspaceContext = parseObject(context.outpostWorkspace);
   const workspaceCwd = asString(workspaceContext.cwd, "");
   const workspaceSource = asString(workspaceContext.source, "");
   const workspaceId = asString(workspaceContext.workspaceId, "");
   const workspaceRepoUrl = asString(workspaceContext.repoUrl, "");
   const workspaceRepoRef = asString(workspaceContext.repoRef, "");
   const agentHome = asString(workspaceContext.agentHome, "");
-  const workspaceHints = Array.isArray(context.paperclipWorkspaces)
-    ? context.paperclipWorkspaces.filter(
+  const workspaceHints = Array.isArray(context.outpostWorkspaces)
+    ? context.outpostWorkspaces.filter(
         (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null,
       )
     : [];
@@ -292,8 +292,8 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
   let effectiveExecutionCwd = adapterExecutionTargetRemoteCwd(executionTarget, cwd);
   await ensureAbsoluteDirectory(cwd, { createIfMissing: true });
 
-  const grokSkillEntries = await readPaperclipRuntimeSkillEntries(config, __moduleDir);
-  const desiredGrokSkillNames = resolveLegacyPaperclipDesiredSkillNames(config, grokSkillEntries);
+  const grokSkillEntries = await readOutpostRuntimeSkillEntries(config, __moduleDir);
+  const desiredGrokSkillNames = resolveLegacyOutpostDesiredSkillNames(config, grokSkillEntries);
   const instructionsFilePath = asString(config.instructionsFilePath, "").trim();
   const stagedAssets = await stageGrokProjectAssets({
     cwd,
@@ -338,7 +338,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
     const linkedIssueIds = Array.isArray(context.issueIds)
       ? context.issueIds.filter((value: unknown): value is string => typeof value === "string" && value.trim().length > 0)
       : [];
-    const issueWorkMode = readPaperclipIssueWorkModeFromContext(context);
+    const issueWorkMode = readOutpostIssueWorkModeFromContext(context);
     if (wakeTaskId) env.OUTPOST_TASK_ID = wakeTaskId;
     if (issueWorkMode) env.OUTPOST_ISSUE_WORK_MODE = issueWorkMode;
     if (wakeReason) env.OUTPOST_WAKE_REASON = wakeReason;
@@ -364,8 +364,8 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
     }
     // Held before the remote block below, so the remote lane can stage this
     // same host home into the sandbox without re-resolving it.
-    const hostGrokHome = config.managedAiConnection ? asString(env.GROK_HOME, "") : resolveManagedGrokHomeDir(process.env, agent.companyId);
-    // Subscription mode (no XAI_API_KEY): pin GROK_HOME to the company-scoped
+    const hostGrokHome = config.managedAiConnection ? asString(env.GROK_HOME, "") : resolveManagedGrokHomeDir(process.env, agent.spaceId);
+    // Subscription mode (no XAI_API_KEY): pin GROK_HOME to the space-scoped
     // home a completed device login wrote. Do not pin an empty local home —
     // that shadows the host `~/.grok` login and fails with "Not signed in"
     // (#13568). Remote/sandbox runs and managed AI connections still pin so
@@ -474,7 +474,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
       if (isGrokSubscriptionMode) {
         env.GROK_HOME =
           preparedExecutionTargetRuntime.assetDirs.home ??
-          path.posix.join(effectiveExecutionCwd, ".paperclip-runtime", "grok", "home");
+          path.posix.join(effectiveExecutionCwd, ".outpost-runtime", "grok", "home");
       }
     }
 
@@ -540,14 +540,14 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
 
     const templateData = {
       agentId: agent.id,
-      companyId: agent.companyId,
+      spaceId: agent.spaceId,
       runId,
-      company: { id: agent.companyId },
+      space: { id: agent.spaceId },
       agent,
       run: { id: runId, source: "on_demand" },
       context,
     };
-    const sessionHandoffNote = asString(context.paperclipSessionHandoffMarkdown, "").trim();
+    const sessionHandoffNote = asString(context.outpostSessionHandoffMarkdown, "").trim();
     const outpostEnvNote = renderOutpostEnvNote(env);
     const apiAccessNote = renderApiAccessNote(env);
 
@@ -574,13 +574,13 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
     const runAttempt = async (resumeSessionId: string | null) => {
     await hydrateFreshSessionHandoff(ctx, { resumedSession: Boolean(resumeSessionId) });
       ctx.signal?.throwIfAborted();
-      const attemptSections = selectPaperclipPromptSections(context, {
+      const attemptSections = selectOutpostPromptSections(context, {
         resumedSession: Boolean(resumeSessionId),
         includeCommunicationGuidance: false,
       });
       const attemptWakePrompt = attemptSections.wakePrompt;
       const attemptRenderedPrompt = Boolean(resumeSessionId) && attemptWakePrompt.length > 0
-        || isPaperclipRecoveryWakePayload(context.paperclipWake)
+        || isOutpostRecoveryWakePayload(context.outpostWake)
         ? ""
         : renderTemplate(promptTemplate, templateData);
       const attemptBasePrompt = joinPromptSections([

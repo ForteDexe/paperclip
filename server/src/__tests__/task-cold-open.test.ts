@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { activityLog, agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues, issueWorkProducts } from "@outpost/db";
+import { activityLog, agents, applyPendingMigrations, closeRegisteredClients, spaces, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues, issueWorkProducts } from "@outpost/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { issueRoutes } from "../routes/issues.js";
 import { errorHandler } from "../middleware/index.js";
@@ -21,7 +21,7 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
 (support.supported ? describe : describe.skip)("task cold-open reads", () => {
   let fixture: Pick<Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>, "connectionString" | "cleanup">;
   let db: ReturnType<typeof createDb>;
-  const companyId = randomUUID();
+  const spaceId = randomUUID();
   const issueId = randomUUID();
   const agentId = randomUUID();
   const runId = randomUUID();
@@ -31,23 +31,23 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
       fixture = { connectionString: externalDatabase, cleanup: () => closeRegisteredClients(externalDatabase) };
     } else fixture = await startEmbeddedPostgresTestDatabase("task-cold-open-");
     db = createDb(fixture.connectionString);
-    await db.insert(companies).values({ id: companyId, name: "Cold open", issuePrefix: `T${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Writer", role: "engineer", adapterType: "codex_local" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Original instruction", description: "Read this first", identifier: `T${companyId.slice(0, 6)}-1`, issueNumber: 1 });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, runtimeMode: "native", status: "succeeded" });
+    await db.insert(spaces).values({ id: spaceId, name: "Cold open", issuePrefix: `T${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Writer", role: "engineer", adapterType: "codex_local" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Original instruction", description: "Read this first", identifier: `T${spaceId.slice(0, 6)}-1`, issueNumber: 1 });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, runtimeMode: "native", status: "succeeded" });
   }, 30_000);
   afterAll(async () => { await fixture?.cleanup(); });
-  function app(allowedCompany = companyId) {
+  function app(allowedSpace = spaceId) {
     const app = express();
     app.use((req, _res, next) => {
-      (req as any).actor = { type: "board", userId: "local-board", source: allowedCompany === companyId ? "local_implicit" : "cloud_tenant", companyIds: [allowedCompany], isInstanceAdmin: allowedCompany === companyId };
+      (req as any).actor = { type: "operator", userId: "local-operator", source: allowedSpace === spaceId ? "local_implicit" : "cloud_tenant", spaceIds: [allowedSpace], isInstanceAdmin: allowedSpace === spaceId };
       next();
     });
     app.use("/api", issueRoutes(db, {} as any));
     app.use(errorHandler);
     return app;
   }
-  it("returns the instruction and saved card projection without related detail and keeps company checks", async () => {
+  it("returns the instruction and saved card projection without related detail and keeps space checks", async () => {
     const response = await request(app()).get(`/api/issues/${issueId}?view=core`);
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     expect(response.body).toMatchObject({ id: issueId, description: "Read this first" });
@@ -61,7 +61,7 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     await documents.upsertIssueDocument({ issueId, key: "plan", title: "Saved plan", format: "markdown", body: "# Stable plan" });
     await documents.upsertIssueDocument({ issueId, key: "evidence", title: "Saved evidence", format: "markdown", body: "Long saved evidence".repeat(1000) });
     const savedProduct = {
-      id: randomUUID(), companyId, issueId, type: "pull_request", provider: "github",
+      id: randomUUID(), spaceId, issueId, type: "pull_request", provider: "github",
       title: "Saved investigation fix", status: "merged",
       url: "https://github.com/example/reproduction/pull/42",
       metadata: { repository: "example/reproduction", number: 42, additions: 78, deletions: 2 },
@@ -78,8 +78,8 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
   it("returns a bounded recent exchange plus the latest human instruction", async () => {
     const humanId = randomUUID();
     await db.insert(issueComments).values([
-      { id: humanId, companyId, issueId, body: "Human direction", authorType: "user", authorUserId: "local-board", createdAt: new Date(0) },
-      ...Array.from({ length: 20 }, (_, i) => ({ companyId, issueId, authorType: "agent" as const, authorAgentId: agentId, body: `Reply ${i}`, createdAt: new Date(1000 + i) })),
+      { id: humanId, spaceId, issueId, body: "Human direction", authorType: "user", authorUserId: "local-operator", createdAt: new Date(0) },
+      ...Array.from({ length: 20 }, (_, i) => ({ spaceId, issueId, authorType: "agent" as const, authorAgentId: agentId, body: `Reply ${i}`, createdAt: new Date(1000 + i) })),
     ]);
     const response = await request(app()).get(`/api/issues/${issueId}/recent-comments`);
     expect(response.status, JSON.stringify(response.body)).toBe(200);
@@ -90,9 +90,9 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
   });
   it("opens long chats with a contiguous recent window and pages every older message", async () => {
     const chatId = randomUUID();
-    await db.insert(issues).values({ id: chatId, companyId, title: "Persistent chat", conversationAgentId: agentId, conversationUserId: "local-board", assigneeAgentId: agentId, conversationState: "waiting" });
-    const rows = Array.from({ length: 123 }, (_, i) => ({ id: randomUUID(), companyId, issueId: chatId,
-      authorType: "user" as const, authorUserId: "local-board", body: `Chat ${i}`, createdAt: new Date(1000 + Math.floor(i / 3)) }));
+    await db.insert(issues).values({ id: chatId, spaceId, title: "Persistent chat", conversationAgentId: agentId, conversationUserId: "local-operator", assigneeAgentId: agentId, conversationState: "waiting" });
+    const rows = Array.from({ length: 123 }, (_, i) => ({ id: randomUUID(), spaceId, issueId: chatId,
+      authorType: "user" as const, authorUserId: "local-operator", body: `Chat ${i}`, createdAt: new Date(1000 + Math.floor(i / 3)) }));
     await db.insert(issueComments).values(rows);
     const ordered = [...rows].sort((a, b) => +b.createdAt - +a.createdAt || b.id.localeCompare(a.id));
     const response = await request(app()).get(`/api/issues/${chatId}/recent-comments`);
@@ -112,22 +112,22 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     expect(new Set(seen).size).toBe(123);
     expect([403, 404]).toContain((await request(app(randomUUID())).get(`/api/issues/${chatId}/recent-comments`)).status);
   });
-  it("hydrates only requested runs linked to the company and issue", async () => {
+  it("hydrates only requested runs linked to the space and issue", async () => {
     const otherIssue = randomUUID(), otherRun = randomUUID();
-    await db.insert(issues).values({ id: otherIssue, companyId, title: "Other task" });
-    await db.insert(heartbeatRuns).values({ id: otherRun, companyId, agentId, issueId: otherIssue, status: "succeeded" });
+    await db.insert(issues).values({ id: otherIssue, spaceId, title: "Other task" });
+    await db.insert(heartbeatRuns).values({ id: otherRun, spaceId, agentId, issueId: otherIssue, status: "succeeded" });
     const activity = activityService(db);
-    expect((await activity.runsForIssue(companyId, issueId, null, undefined, [runId, otherRun])).map(run => run.runId)).toEqual([runId]);
+    expect((await activity.runsForIssue(spaceId, issueId, null, undefined, [runId, otherRun])).map(run => run.runId)).toEqual([runId]);
     expect(await activity.runsForIssue(randomUUID(), issueId, null, undefined, [runId])).toEqual([]);
-    expect(await activity.runsForIssue(companyId, issueId, null, undefined, [])).toEqual([]);
+    expect(await activity.runsForIssue(spaceId, issueId, null, undefined, [])).toEqual([]);
   });
   it.each(["user", null] as const)("preserves initial and latest human instructions without a description (authorType=%s)", async (authorType) => {
     const bareIssueId = randomUUID();
-    await db.insert(issues).values({ id: bareIssueId, companyId, title: "No description" });
+    await db.insert(issues).values({ id: bareIssueId, spaceId, title: "No description" });
     await db.insert(issueComments).values([
-      { companyId, issueId: bareIssueId, body: "Human direction", authorType, authorUserId: "local-board", createdAt: new Date(0) },
-      { companyId, issueId: bareIssueId, body: "Newest direction", authorType, authorUserId: "local-board", createdAt: new Date(50_000) },
-      ...Array.from({ length: 6 }, (_, i) => ({ companyId, issueId: bareIssueId, body: `New reply ${i}`, authorType: "agent" as const, authorAgentId: agentId, createdAt: new Date(60_000 + i) })),
+      { spaceId, issueId: bareIssueId, body: "Human direction", authorType, authorUserId: "local-operator", createdAt: new Date(0) },
+      { spaceId, issueId: bareIssueId, body: "Newest direction", authorType, authorUserId: "local-operator", createdAt: new Date(50_000) },
+      ...Array.from({ length: 6 }, (_, i) => ({ spaceId, issueId: bareIssueId, body: `New reply ${i}`, authorType: "agent" as const, authorAgentId: agentId, createdAt: new Date(60_000 + i) })),
     ]);
     const response = await request(app()).get(`/api/issues/${bareIssueId}/recent-comments`);
     expect(response.status).toBe(200);
@@ -138,25 +138,25 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
   it("loads the original input receipts outside the recent activity window and ignores replay receipts", async () => {
     const commentId = randomUUID();
     const receiptIssueId = randomUUID();
-    await db.insert(issues).values({ id: receiptIssueId, companyId, title: "Steering receipts" });
+    await db.insert(issues).values({ id: receiptIssueId, spaceId, title: "Steering receipts" });
     await db.insert(activityLog).values([
-      { companyId, actorId: "test", entityType: "issue", entityId: receiptIssueId, action: "issue.queued_comment_steered", createdAt: new Date(1), details: { commentId, targetRunId: runId } },
-      { companyId, actorId: "test", entityType: "issue", entityId: receiptIssueId, action: "issue.queued_comment_steered", createdAt: new Date(2), details: { commentId, targetRunId: runId, duplicate: true } },
-      ...Array.from({ length: 51 }, () => ({ companyId, actorId: "test", entityType: "issue", entityId: receiptIssueId, action: "issue.updated" })),
+      { spaceId, actorId: "test", entityType: "issue", entityId: receiptIssueId, action: "issue.queued_comment_steered", createdAt: new Date(1), details: { commentId, targetRunId: runId } },
+      { spaceId, actorId: "test", entityType: "issue", entityId: receiptIssueId, action: "issue.queued_comment_steered", createdAt: new Date(2), details: { commentId, targetRunId: runId, duplicate: true } },
+      ...Array.from({ length: 51 }, () => ({ spaceId, actorId: "test", entityType: "issue", entityId: receiptIssueId, action: "issue.updated" })),
     ]);
     const activity = activityService(db);
     expect((await activity.forIssue(receiptIssueId, 50)).some(row => row.action === "issue.queued_comment_steered")).toBe(false);
-    const facts = await activity.inputFactsForIssue(companyId, receiptIssueId, [commentId]);
+    const facts = await activity.inputFactsForIssue(spaceId, receiptIssueId, [commentId]);
     expect(facts).toHaveLength(1);
     expect(facts[0].createdAt).toEqual(new Date(1));
-    expect(await activity.inputFactsForIssue(companyId, receiptIssueId, [randomUUID()])).toEqual([]);
+    expect(await activity.inputFactsForIssue(spaceId, receiptIssueId, [randomUUID()])).toEqual([]);
     expect(await activity.inputFactsForIssue(randomUUID(), receiptIssueId, [commentId])).toEqual([]);
-    expect(await activity.inputFactsForIssue(companyId, randomUUID(), [commentId])).toEqual([]);
+    expect(await activity.inputFactsForIssue(spaceId, randomUUID(), [commentId])).toEqual([]);
   });
 
   it("pages conversation events without ordinary tools, including identity-less deltas and requests", async () => {
     const event = (seq: number, eventType: string, payload: Record<string, unknown>, itemId?: string) => ({
-      companyId, runId, agentId, seq, eventType, payload: { orpEvent: { schema: "outpost.orp.event.v1", eventType, itemId, payload } },
+      spaceId, runId, agentId, seq, eventType, payload: { orpEvent: { schema: "outpost.orp.event.v1", eventType, itemId, payload } },
     });
     await db.insert(heartbeatRunEvents).values([
       event(1, "item.started", { kind: "toolCall", arguments: "large tool arguments" }, "tool"),
@@ -179,21 +179,21 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
     expect(rest.map(e => e.seq)).toEqual([5, 6, 7, 8, 9]);
     expect(JSON.stringify([...first, ...rest])).not.toContain("large tool arguments");
     expect(await service.listEvents(runId)).toHaveLength(10);
-    await db.insert(heartbeatRuns).values({ companyId, agentId, issueId, status: "succeeded", createdAt: new Date(Date.now() + 1000) });
+    await db.insert(heartbeatRuns).values({ spaceId, agentId, issueId, status: "succeeded", createdAt: new Date(Date.now() + 1000) });
     const activity = activityService(db);
     await db.insert(activityLog).values(Array.from({ length: 55 }, () => ({
-      companyId, actorId: "test", action: "issue.updated", entityType: "issue", entityId: issueId,
+      spaceId, actorId: "test", action: "issue.updated", entityType: "issue", entityId: issueId,
     })));
     expect(await activity.forIssue(issueId, 50)).toHaveLength(50);
     expect(await activity.forIssue(issueId)).toHaveLength(55);
-    expect(await activity.runsForIssue(companyId, issueId, null, 1)).toHaveLength(1);
-    expect(await activity.runsForIssue(companyId, issueId)).toHaveLength(2);
+    expect(await activity.runsForIssue(spaceId, issueId, null, 1)).toHaveLength(1);
+    expect(await activity.runsForIssue(spaceId, issueId)).toHaveLength(2);
   });
   it("retains only successful Plan writes, with bodies removed in the database", async () => {
     const planRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: planRunId, companyId, agentId, issueId, runtimeMode: "native", status: "succeeded" });
+    await db.insert(heartbeatRuns).values({ id: planRunId, spaceId, agentId, issueId, runtimeMode: "native", status: "succeeded" });
     const event = (seq: number, eventType: string, item: Record<string, unknown>, turnId = "turn-1", sourceKind = "runner") => ({
-      companyId, runId: planRunId, agentId, seq, eventType, message: "private tool message",
+      spaceId, runId: planRunId, agentId, seq, eventType, message: "private tool message",
       payload: { extra: "private outer payload", orpEvent: { schema: "outpost.orp.event.v1", runId: planRunId,
         sourceKind, turnId, eventType, sourceSeq: seq, itemId: item.id, payload: { kind: item.type, item } } },
     });
@@ -242,8 +242,8 @@ const support = externalDatabase ? { supported: true } : await getEmbeddedPostgr
 
   it.each(nativePlanWrites.captures)("keeps the retained $provider Plan receipt alongside provider activity", async ({ events }) => {
     const captureRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: captureRunId, companyId, agentId, issueId, runtimeMode: "native", status: "succeeded" });
-    await db.insert(heartbeatRunEvents).values(events.map(event => ({ ...event, companyId, agentId, runId: captureRunId,
+    await db.insert(heartbeatRuns).values({ id: captureRunId, spaceId, agentId, issueId, runtimeMode: "native", status: "succeeded" });
+    await db.insert(heartbeatRunEvents).values(events.map(event => ({ ...event, spaceId, agentId, runId: captureRunId,
       payload: { orpEvent: { ...event.payload.orpEvent, runId: captureRunId } } })));
     const service = createHeartbeatRunState(db);
     const compact = await service.listEvents(captureRunId, 0, 1000, true);

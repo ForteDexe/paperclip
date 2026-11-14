@@ -4,7 +4,7 @@ import { Check, RefreshCw } from "lucide-react";
 import type { ToolConnection } from "@outpost/shared";
 import { AGGREGATOR_APP_CATALOG } from "@outpost/shared/aggregator-app-catalog";
 import { AGGREGATOR_NAMES, type AggregatorAppSnapshot, isAppAggregator } from "@outpost/shared/aggregator-apps";
-import { useAccountIdentity } from "@/api/companies-query";
+import { useAccountIdentity } from "@/api/spaces-query";
 import { toolsApi } from "@/api/tools";
 import { QueryErrorState, useQueryView } from "@/components/QueryView";
 import { Button } from "@/components/ui/button";

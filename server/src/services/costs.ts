@@ -3,7 +3,7 @@ import { agentAvatarUrl, resolveAgentAppearance, createCostEventSchema, createSe
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@outpost/db";
-import { activityLog, agents, authUsers, companies, companyMemberships, costEvents, heartbeatRuns, issues, projects, goals, aiSubscriptions } from "@outpost/db";
+import { activityLog, agents, authUsers, spaces, spaceMemberships, costEvents, heartbeatRuns, issues, projects, goals, aiSubscriptions } from "@outpost/db";
 import { notFound, unprocessable, conflict } from "../errors.js";
 import type { BudgetServiceHooks } from "./budgets.js";
 import { logActivity, type LogActivityInput, type ActivityPublication } from "./activity-log.js";
@@ -42,11 +42,11 @@ function currentUtcMonthWindow(now = new Date()) {
 
 export async function getMonthlySpendTotal(
   db: Db,
-  scope: { companyId: string; agentId?: string | null },
+  scope: { spaceId: string; agentId?: string | null },
 ) {
   const { start, end } = currentUtcMonthWindow();
   const conditions = [
-    eq(costEvents.companyId, scope.companyId),
+    eq(costEvents.spaceId, scope.spaceId),
     gte(costEvents.occurredAt, start),
     lt(costEvents.occurredAt, end),
   ];
@@ -62,7 +62,7 @@ export async function getMonthlySpendTotal(
   return Number(row?.total ?? 0);
 }
 
-export async function createCostEventInTransaction(db: Db, companyId: string, data: Omit<typeof costEvents.$inferInsert, "companyId" | "receiptHash" | "costCents"> & { costCents: MoneyInput }, publications: ActivityPublication[] = [], actor?: Pick<LogActivityInput, "actorType" | "actorId" | "agentId">,
+export async function createCostEventInTransaction(db: Db, spaceId: string, data: Omit<typeof costEvents.$inferInsert, "spaceId" | "receiptHash" | "costCents"> & { costCents: MoneyInput }, publications: ActivityPublication[] = [], actor?: Pick<LogActivityInput, "actorType" | "actorId" | "agentId">,
   options: { deferBudgetEvaluation?: boolean } = {}) {
   const parsed = ((data.usageKind === "decision" || data.usageKind === "fast_response" || data.usageKind === "prompt_injection") ? createServiceCostEventSchema : createCostEventSchema).safeParse({ ...data, occurredAt: data.occurredAt.toISOString() });
   if (!parsed.success) throw unprocessable("Invalid cost receipt", parsed.error.flatten());
@@ -86,7 +86,7 @@ export async function createCostEventInTransaction(db: Db, companyId: string, da
   } catch { /* The legacy number may round beyond the decimal storage limit. */ }
   if (values.idempotencyKey) {
     const [existing] = await db.select().from(costEvents).where(and(
-      eq(costEvents.companyId, companyId), eq(costEvents.idempotencyKey, values.idempotencyKey),
+      eq(costEvents.spaceId, spaceId), eq(costEvents.idempotencyKey, values.idempotencyKey),
     ));
     if (existing) {
       if (existing.receiptHash !== receiptHash && existing.receiptHash !== legacyHash) throw conflict("Idempotency key already used for a different cost receipt");
@@ -101,9 +101,9 @@ export async function createCostEventInTransaction(db: Db, companyId: string, da
   ] as const;
   for (const [table, id, label] of links) {
     if (!id) continue;
-    const [row] = await db.select({ companyId: table.companyId }).from(table).where(eq(table.id, id));
+    const [row] = await db.select({ spaceId: table.spaceId }).from(table).where(eq(table.id, id));
     if (!row) throw notFound(`${label} not found`);
-    if (row.companyId !== companyId) throw unprocessable(`${label} does not belong to company`);
+    if (row.spaceId !== spaceId) throw unprocessable(`${label} does not belong to space`);
   }
   let subscriptionId: string | null = null;
   if (values.heartbeatRunId) {
@@ -111,17 +111,17 @@ export async function createCostEventInTransaction(db: Db, companyId: string, da
     if (run.agentId !== values.agentId) throw unprocessable("Heartbeat run does not belong to agent");
     const attribution = run.context?.aiConnection as { subscriptionId?: unknown; provider?: unknown } | undefined;
     if (SUBSCRIPTION_BILLING_TYPES.includes(values.billingType as typeof SUBSCRIPTION_BILLING_TYPES[number]) && attribution?.provider === values.provider && typeof attribution.subscriptionId === "string" && isUuidLike(attribution.subscriptionId)) {
-      const [account] = await db.select({ id: aiSubscriptions.id }).from(aiSubscriptions).where(and(eq(aiSubscriptions.id, attribution.subscriptionId), eq(aiSubscriptions.companyId, companyId), eq(aiSubscriptions.provider, values.provider)));
+      const [account] = await db.select({ id: aiSubscriptions.id }).from(aiSubscriptions).where(and(eq(aiSubscriptions.id, attribution.subscriptionId), eq(aiSubscriptions.spaceId, spaceId), eq(aiSubscriptions.provider, values.provider)));
       subscriptionId = account?.id ?? null;
     }
   }
   // Server-derived attribution stays outside the immutable receipt fingerprint;
   // replaying a receipt must not depend on later account metadata changes.
-  const [inserted] = await db.insert(costEvents).values({ ...values, subscriptionId, costCents: sql`${values.costCents}::numeric`, reportedCostCents: values.costCents, id: data.id, companyId, receiptHash })
+  const [inserted] = await db.insert(costEvents).values({ ...values, subscriptionId, costCents: sql`${values.costCents}::numeric`, reportedCostCents: values.costCents, id: data.id, spaceId, receiptHash })
     .onConflictDoNothing().returning();
   if (!inserted) {
     const [winner] = values.idempotencyKey ? await db.select().from(costEvents).where(and(
-      eq(costEvents.companyId, companyId), eq(costEvents.idempotencyKey, values.idempotencyKey))) : [];
+      eq(costEvents.spaceId, spaceId), eq(costEvents.idempotencyKey, values.idempotencyKey))) : [];
     if (!winner) throw Object.assign(new Error("Concurrent cost receipt requires a fresh snapshot"), { code: "40001" });
     if (winner.receiptHash !== receiptHash && winner.receiptHash !== legacyHash)
       throw conflict("Idempotency key already used for a different cost receipt");
@@ -129,9 +129,9 @@ export async function createCostEventInTransaction(db: Db, companyId: string, da
     return { ...winner, costCentsExact: normalizeCents(exact.costCents) };
   }
   const event = inserted;
-  if (!options.deferBudgetEvaluation) await queueBudgetEvaluation(db, { companyId, agentId: event.agentId, projectId: event.projectId });
+  if (!options.deferBudgetEvaluation) await queueBudgetEvaluation(db, { spaceId, agentId: event.agentId, projectId: event.projectId });
   await logActivity(db, {
-    companyId, actorType: actor?.actorType ?? "system", actorId: actor?.actorId ?? "cost_accounting", agentId: actor?.agentId ?? event.agentId,
+    spaceId, actorType: actor?.actorType ?? "system", actorId: actor?.actorId ?? "cost_accounting", agentId: actor?.agentId ?? event.agentId,
     ...((event.usageKind === "decision" || event.usageKind === "fast_response" || event.usageKind === "prompt_injection") ? { responsibleUserIdOverride: event.responsibleUserId } : {}),
     runId: event.heartbeatRunId, action: "cost.reported", entityType: "cost_event", entityId: event.id,
     details: { costCents: event.costCents, costCentsExact: values.costCents, model: event.model, costStatus: event.costStatus },
@@ -141,23 +141,23 @@ export async function createCostEventInTransaction(db: Db, companyId: string, da
 
 export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
   return {
-    createEvent: async (companyId: string, data: Omit<typeof costEvents.$inferInsert, "companyId" | "receiptHash" | "costCents"> & { costCents: MoneyInput }, actor?: Pick<LogActivityInput, "actorType" | "actorId" | "agentId">) => {
+    createEvent: async (spaceId: string, data: Omit<typeof costEvents.$inferInsert, "spaceId" | "receiptHash" | "costCents"> & { costCents: MoneyInput }, actor?: Pick<LogActivityInput, "actorType" | "actorId" | "agentId">) => {
       if (data.idempotencyKey?.startsWith("heartbeat:")) throw unprocessable("The heartbeat idempotency namespace is reserved for run receipts");
-      const event = await withOperationAccountingTransaction(db, companyId, (tx, publications) => createCostEventInTransaction(tx, companyId, data, publications, actor));
+      const event = await withOperationAccountingTransaction(db, spaceId, (tx, publications) => createCostEventInTransaction(tx, spaceId, data, publications, actor));
       return event;
     },
 
-    summary: async (companyId: string, range?: CostDateRange) => withAccountingReadSnapshot(db, companyId, async (db) => {
-      const company = await db
+    summary: async (spaceId: string, range?: CostDateRange) => withAccountingReadSnapshot(db, spaceId, async (db) => {
+      const space = await db
         .select()
-        .from(companies)
-        .where(eq(companies.id, companyId))
+        .from(spaces)
+        .where(eq(spaces.id, spaceId))
         .then((rows) => rows[0] ?? null);
 
-      if (!company) throw notFound("Outpost not found");
+      if (!space) throw notFound("Outpost not found");
 
       range = resolveCostDateRange(range);
-      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.companyId, companyId)];
+      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.spaceId, spaceId)];
       if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
       if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
 
@@ -173,7 +173,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
         .from(costEvents)
         .where(and(...conditions));
 
-      const pendingConditions = [eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.costAccountingPending, true),
+      const pendingConditions = [eq(heartbeatRuns.spaceId, spaceId), eq(heartbeatRuns.costAccountingPending, true),
         inArray(heartbeatRuns.status, ["succeeded", "failed", "timed_out", "cancelled", "interrupted"])];
       if (range?.from) pendingConditions.push(sql`coalesce(${heartbeatRuns.finishedAt}, ${heartbeatRuns.createdAt}) >= ${range.from.toISOString()}::timestamptz`);
       if (range?.to) pendingConditions.push(sql`coalesce(${heartbeatRuns.finishedAt}, ${heartbeatRuns.createdAt}) <= ${range.to.toISOString()}::timestamptz`);
@@ -181,12 +181,12 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
       const pendingRunCount = pending?.count ?? 0;
       const spendCents = Number(total);
       const utilization =
-        company.budgetMonthlyCents > 0
-          ? (spendCents / company.budgetMonthlyCents) * 100
+        space.budgetMonthlyCents > 0
+          ? (spendCents / space.budgetMonthlyCents) * 100
           : 0;
 
       return {
-        companyId,
+        spaceId,
         eventCount,
         unpricedEventCount,
         unknownBillingEventCount,
@@ -195,13 +195,13 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
         pricingComplete: unpricedEventCount === 0 && pendingRunCount === 0,
         spendCents,
         spendCentsExact: normalizeCents(totalExact),
-        budgetCents: company.budgetMonthlyCents,
+        budgetCents: space.budgetMonthlyCents,
         utilizationPercent: Number(utilization.toFixed(2)),
       };
     }),
 
     issueTreeSummary: async (
-      companyId: string,
+      spaceId: string,
       issueId: string,
       options: { excludeRoot?: boolean } = {},
     ) => {
@@ -215,7 +215,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
         ? sql`
             SELECT ${issues.id}
             FROM ${issues}
-            WHERE ${issues.companyId} = ${companyId}
+            WHERE ${issues.spaceId} = ${spaceId}
               AND ${issues.parentId} = ${issueId}
               AND ${issues.hiddenAt} IS NULL
               AND ${issues.harnessKind} IS NULL
@@ -223,7 +223,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
         : sql`
             SELECT ${issues.id}
             FROM ${issues}
-            WHERE ${issues.companyId} = ${companyId}
+            WHERE ${issues.spaceId} = ${spaceId}
               AND ${issues.id} = ${issueId}
               AND ${issues.hiddenAt} IS NULL
               AND ${issues.harnessKind} IS NULL
@@ -233,7 +233,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
         ? sql`
             SELECT (${issues.id})::text AS id
             FROM ${issues}
-            WHERE ${issues.companyId} = ${companyId}
+            WHERE ${issues.spaceId} = ${spaceId}
               AND ${issues.parentId} = ${issueId}
               AND ${issues.hiddenAt} IS NULL
               AND ${issues.harnessKind} IS NULL
@@ -241,7 +241,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
         : sql`
             SELECT (${issues.id})::text AS id
             FROM ${issues}
-            WHERE ${issues.companyId} = ${companyId}
+            WHERE ${issues.spaceId} = ${spaceId}
               AND ${issues.id} = ${issueId}
               AND ${issues.hiddenAt} IS NULL
               AND ${issues.harnessKind} IS NULL
@@ -255,7 +255,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
             SELECT ${childIssues.id}
             FROM ${issues} ${childIssues}
             JOIN issue_tree ON ${childIssues.parentId} = issue_tree.id
-            WHERE ${childIssues.companyId} = ${companyId}
+            WHERE ${childIssues.spaceId} = ${spaceId}
               AND ${childIssues.hiddenAt} IS NULL
               AND ${childIssues.harnessKind} IS NULL
           )
@@ -270,7 +270,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
           SELECT (${childIssues.id})::text
           FROM ${issues} ${childIssues}
           JOIN issue_tree ON (${childIssues.parentId})::text = issue_tree.id
-          WHERE ${childIssues.companyId} = ${companyId}
+          WHERE ${childIssues.spaceId} = ${spaceId}
             AND ${childIssues.hiddenAt} IS NULL
             AND ${childIssues.harnessKind} IS NULL
         )
@@ -278,7 +278,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
           count(distinct ${heartbeatRuns.id})::int AS "runCount",
           coalesce(sum(extract(epoch from (coalesce(${heartbeatRuns.finishedAt}, now()) - ${heartbeatRuns.startedAt})) * 1000), 0)::double precision AS "runtimeMs"
         FROM ${heartbeatRuns}
-        WHERE ${heartbeatRuns.companyId} = ${companyId}
+        WHERE ${heartbeatRuns.spaceId} = ${spaceId}
           AND ${heartbeatRuns.startedAt} IS NOT NULL
           AND (
             ${heartbeatRuns.contextSnapshot} ->> 'issueId' IN (SELECT id FROM issue_tree)
@@ -286,7 +286,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
               SELECT 1
               FROM ${activityLog}
               JOIN issue_tree ON ${activityLog.entityId} = issue_tree.id
-              WHERE ${activityLog.companyId} = ${companyId}
+              WHERE ${activityLog.spaceId} = ${spaceId}
                 AND ${activityLog.entityType} = 'issue'
                 AND ${activityLog.runId} = ${heartbeatRuns.id}
             )
@@ -310,13 +310,13 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
           .leftJoin(
             costEvents,
             and(
-              eq(costEvents.companyId, companyId),
+              eq(costEvents.spaceId, spaceId),
               eq(costEvents.issueId, issues.id),
             ),
           )
           .where(
             and(
-              eq(issues.companyId, companyId),
+              eq(issues.spaceId, spaceId),
               visibleIssueCondition(),
               issueTreeCondition,
             ),
@@ -343,29 +343,29 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
       };
     },
 
-    byUser: (companyId: string, range?: CostDateRange): Promise<CostByUserReport> => withAccountingReadSnapshot(db, companyId, async tx => {
+    byUser: (spaceId: string, range?: CostDateRange): Promise<CostByUserReport> => withAccountingReadSnapshot(db, spaceId, async tx => {
       // Keep membership, identity and spend in one non-blocking read snapshot.
       const members = await tx.select({
-        userId: companyMemberships.principalId,
-        status: companyMemberships.status,
+        userId: spaceMemberships.principalId,
+        status: spaceMemberships.status,
         userName: authUsers.name,
         userImage: authUsers.image,
-      }).from(companyMemberships)
-        .leftJoin(authUsers, eq(authUsers.id, companyMemberships.principalId))
+      }).from(spaceMemberships)
+        .leftJoin(authUsers, eq(authUsers.id, spaceMemberships.principalId))
         .where(and(
-          eq(companyMemberships.companyId, companyId),
-          eq(companyMemberships.principalType, "user"),
-          ne(companyMemberships.principalId, "local-board"),
+          eq(spaceMemberships.spaceId, spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          ne(spaceMemberships.principalId, "local-operator"),
         ));
       const activeMembers = members.filter(member => member.status === "active");
       const activeUserCount = activeMembers.length;
 
       const bounds = resolveCostDateRange(range);
-      const conditions = [eq(costEvents.companyId, companyId)];
+      const conditions = [eq(costEvents.spaceId, spaceId)];
       if (bounds.from) conditions.push(gte(costEvents.occurredAt, bounds.from));
       if (bounds.to) conditions.push(lte(costEvents.occurredAt, bounds.to));
       const totals = await tx.select({
-        userId: companyMemberships.principalId,
+        userId: spaceMemberships.principalId,
         eventCount: sql<number>`count(*)::int`,
         estimatedEventCount: sql<number>`count(*) filter (where ${costEvents.costStatus} = 'estimated')::int`,
         unpricedEventCount: sql<number>`count(*) filter (where ${costEvents.costStatus} = 'unpriced' and ${costEvents.billingType} <> 'subscription_included')::int`,
@@ -378,22 +378,22 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
       }).from(costEvents)
         .leftJoin(heartbeatRuns, and(
           eq(heartbeatRuns.id, costEvents.heartbeatRunId),
-          eq(heartbeatRuns.companyId, costEvents.companyId),
+          eq(heartbeatRuns.spaceId, costEvents.spaceId),
           eq(heartbeatRuns.agentId, costEvents.agentId),
         ))
-        // Never resolve names through a foreign-company run or membership. Retain
+        // Never resolve names through a foreign-space run or membership. Retain
         // former members' historical spend; missing attribution remains in the total.
-        // The synthetic Board principal is not a person. Any historical charges
+        // The synthetic Operator principal is not a person. Any historical charges
         // attached to it remain in Unattributed so the report still reconciles.
-        .leftJoin(companyMemberships, and(
-          eq(companyMemberships.companyId, companyId),
-          eq(companyMemberships.principalType, "user"),
-          ne(companyMemberships.principalId, "local-board"),
-          eq(companyMemberships.principalId, sql`case when ${costEvents.usageKind} in ('decision', 'fast_response', 'prompt_injection') then ${costEvents.responsibleUserId} else ${heartbeatRuns.responsibleUserId} end`),
+        .leftJoin(spaceMemberships, and(
+          eq(spaceMemberships.spaceId, spaceId),
+          eq(spaceMemberships.principalType, "user"),
+          ne(spaceMemberships.principalId, "local-operator"),
+          eq(spaceMemberships.principalId, sql`case when ${costEvents.usageKind} in ('decision', 'fast_response', 'prompt_injection') then ${costEvents.responsibleUserId} else ${heartbeatRuns.responsibleUserId} end`),
         ))
         .where(and(...conditions))
-        .groupBy(companyMemberships.principalId)
-        .orderBy(desc(sql`sum(${costEvents.costCents})`), companyMemberships.principalId);
+        .groupBy(spaceMemberships.principalId)
+        .orderBy(desc(sql`sum(${costEvents.costCents})`), spaceMemberships.principalId);
       const directory = new Map(members.map(member => [member.userId, member]));
       const rows: CostByUserReport["rows"] = totals.map(row => ({
         ...row,
@@ -414,9 +414,9 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
       return { activeUserCount, rows };
     }),
 
-    byAgent: async (companyId: string, range?: CostDateRange) => {
+    byAgent: async (spaceId: string, range?: CostDateRange) => {
       range = resolveCostDateRange(range);
-      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.companyId, companyId)];
+      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.spaceId, spaceId)];
       if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
       if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
 
@@ -456,9 +456,9 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
       });
     },
 
-    byProvider: async (companyId: string, range?: CostDateRange) => {
+    byProvider: async (spaceId: string, range?: CostDateRange) => {
       range = resolveCostDateRange(range);
-      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.companyId, companyId)];
+      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.spaceId, spaceId)];
       if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
       if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
 
@@ -493,9 +493,9 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
         .orderBy(desc(sumAsNumber(costEvents.costCents)));
     },
 
-    byBiller: async (companyId: string, range?: CostDateRange) => {
+    byBiller: async (spaceId: string, range?: CostDateRange) => {
       range = resolveCostDateRange(range);
-      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.companyId, companyId)];
+      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.spaceId, spaceId)];
       if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
       if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
 
@@ -534,7 +534,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
      * last 5 hours, last 24 hours, last 7 days.
      * purely internal consumption data, no external rate-limit sources.
      */
-    windowSpend: async (companyId: string) => {
+    windowSpend: async (spaceId: string) => {
       const windows = [
         { label: "5h", hours: 5 },
         { label: "24h", hours: 24 },
@@ -558,7 +558,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
             .from(costEvents)
             .where(
               and(
-                eq(costEvents.companyId, companyId),
+                eq(costEvents.spaceId, spaceId),
                 gte(costEvents.occurredAt, since),
                 lte(costEvents.occurredAt, now),
               ),
@@ -583,14 +583,14 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
       return results.flat();
     },
 
-    byAgentModel: async (companyId: string, range?: CostDateRange) => {
+    byAgentModel: async (spaceId: string, range?: CostDateRange) => {
       range = resolveCostDateRange(range);
-      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.companyId, companyId)];
+      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.spaceId, spaceId)];
       if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
       if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
 
       // single query: group by agent + provider + model.
-      // the (companyId, agentId, occurredAt) composite index covers this well.
+      // the (spaceId, agentId, occurredAt) composite index covers this well.
       // order by provider + model for stable db-level ordering; cost-desc sort
       // within each agent's sub-rows is done client-side in the ui memo.
       const rows = await db
@@ -630,7 +630,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
       });
     },
 
-    byProject: async (companyId: string, range?: CostDateRange) => {
+    byProject: async (spaceId: string, range?: CostDateRange) => {
       const issueIdAsText = sql<string>`${issues.id}::text`;
       const runProjectLinks = db
         .select({
@@ -647,8 +647,8 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
         )
         .where(
           and(
-            eq(activityLog.companyId, companyId),
-            eq(issues.companyId, companyId),
+            eq(activityLog.spaceId, spaceId),
+            eq(issues.spaceId, spaceId),
             isNotNull(activityLog.runId),
             isNotNull(issues.projectId),
           ),
@@ -659,7 +659,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
 
       const effectiveProjectId = sql<string | null>`coalesce(${costEvents.projectId}, case when ${costEvents.receiptHash} is null then ${runProjectLinks.projectId} end)`;
       range = resolveCostDateRange(range);
-      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.companyId, companyId)];
+      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.spaceId, spaceId)];
       if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
       if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
 
@@ -680,7 +680,7 @@ export function costService(db: Db, _budgetHooks: BudgetServiceHooks = {}) {
         })
         .from(costEvents)
         .leftJoin(runProjectLinks, eq(costEvents.heartbeatRunId, runProjectLinks.runId))
-        .leftJoin(projects, and(eq(projects.companyId, companyId), sql`${projects.id} = ${effectiveProjectId}`))
+        .leftJoin(projects, and(eq(projects.spaceId, spaceId), sql`${projects.id} = ${effectiveProjectId}`))
         .where(and(...conditions))
         .groupBy(projects.id, projects.name)
         .orderBy(desc(costCentsExpr));

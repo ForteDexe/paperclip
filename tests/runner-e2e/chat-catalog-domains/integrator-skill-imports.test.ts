@@ -7,13 +7,13 @@ function valid(id: string) {
   const find = id === "skills.find-and-install";
   const url = find ? "/owned/vetted-candidates/accessibility-review" : accessibilityUpdatePins.repositoryURL;
   const originalMarkdown = find ? sourceSkillMarkdown : readFileSync(new URL("../fixtures/accessibility-source/0.4.SKILL.md", import.meta.url), "utf8");
-  const upstream = { id: "upstream", companyId: "company", name: "accessibility-review", sourceLocator: url, sourceType: find ? "local_path" : "github", sourceRef: find ? null : accessibilityUpdatePins.oldCommit, editable: find, markdown: originalMarkdown, currentVersionId: "original", usedByAgents: [] };
+  const upstream = { id: "upstream", spaceId: "space", name: "accessibility-review", sourceLocator: url, sourceType: find ? "local_path" : "github", sourceRef: find ? null : accessibilityUpdatePins.oldCommit, editable: find, markdown: originalMarkdown, currentVersionId: "original", usedByAgents: [] };
   const version = { id: "original", fileInventory: [{ path: "SKILL.md", content: originalMarkdown }] };
-  const local = { ...upstream, id: "local", name: "Accessibility local notes", sourceType: "local_path", editable: true, forkedFromSkillId: "upstream", forkedFromCompanyId: "company", markdown: `${originalMarkdown}\nKeep ORCHID customer escalation notes unchanged.`, currentVersionId: "notes" };
+  const local = { ...upstream, id: "local", name: "Accessibility local notes", sourceType: "local_path", editable: true, forkedFromSkillId: "upstream", forkedFromSpaceId: "space", markdown: `${originalMarkdown}\nKeep ORCHID customer escalation notes unchanged.`, currentVersionId: "notes" };
   const fork = { ...local, markdown: `${local.markdown}\n${mobileChecks.join("\n")}`, currentVersionId: "edited" };
-  return { scenarioId: id, origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { sourceURL: url, importAllowed: true, upstreamQualified: !find, upstream: structuredClone(upstream), localFork: structuredClone(local), upstreamVersions: [structuredClone(version)] },
+  return { scenarioId: id, origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { sourceURL: url, importAllowed: true, upstreamQualified: !find, upstream: structuredClone(upstream), localFork: structuredClone(local), upstreamVersions: [structuredClone(version)] },
     tasks: [], projects: [], goals: [], comments: [], documents: [], revisions: [], humanQueries: [], links: [], runs: [{ id: "run", agentId: "ceo", status: "succeeded" }],
-    activity: find ? [{ id: "import", action: "company.skills_imported", agentId: "ceo", details: { source: url, importedCount: 1 } }] : [{ id: "edit", action: "company.skill_file_updated", agentId: "ceo", entityId: "local" }],
+    activity: find ? [{ id: "import", action: "space.skills_imported", agentId: "ceo", details: { source: url, importedCount: 1 } }] : [{ id: "edit", action: "space.skill_file_updated", agentId: "ceo", entityId: "local" }],
     importedFile: find ? { skillId: "upstream", path: "SKILL.md", content: sourceSkillMarkdown } : undefined,
     sourceRequests: [{ method: "GET", path: "/accessibility-review/SKILL.md", at: 1, sha256: "digest" }],
     skills: find ? [upstream] : [upstream, fork], skillVersions: find ? { upstream: [version] } : { upstream: [version], local: [{ id: "edited", authorAgentId: "ceo", fileInventory: [{ path: "SKILL.md", content: fork.markdown }] }] },

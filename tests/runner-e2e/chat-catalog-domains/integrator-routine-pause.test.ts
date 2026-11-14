@@ -3,7 +3,7 @@ import { gradeIntegratorRoutinePause } from "./integrator-routine-pause.js";
 function valid() {
   const routine = { id: "routine", assigneeAgentId: "ceo", projectId: "project", description: "Daily launch summary", status: "active", triggers: [{ id: "schedule", kind: "schedule", enabled: true, cronExpression: "0 9 * * *", timezone: "America/Chicago" }] };
   const prior = { id: "prior", status: "completed", linkedIssueId: "prior-task" }; const active = { id: "active", status: "completed", linkedIssueId: "active-task" };
-  const base = { scenarioId: "routines.pause-owned", origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { routine: structuredClone(routine), worker: { id: "morgan" }, priorInvocation: prior, activeInvocation: active, activeNativeRunId: "busy" },
+  const base = { scenarioId: "routines.pause-owned", origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { routine: structuredClone(routine), worker: { id: "morgan" }, priorInvocation: prior, activeInvocation: active, activeNativeRunId: "busy" },
     routine: { ...routine, status: "paused" }, invocations: [prior, active], tasks: [{ id: "prior-task", status: "done" }, { id: "active-task", status: "done" }],
     projects: [], goals: [], comments: [], documents: [], revisions: [], humanQueries: [], activity: [], links: [], runs: [{ id: "busy", agentId: "morgan", status: "succeeded" }],
     reply: "Paused future daily summaries. The already running task is separate and continues; its history remains available." };

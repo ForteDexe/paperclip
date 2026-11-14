@@ -99,7 +99,7 @@ export function createHeartbeatRunOutput(db: Db, input: HeartbeatRunOutputInput)
         ACTIVE_RUN_OUTPUT_PROGRESS_FLUSH_INTERVAL_MS;
     if (!shouldFlush) return;
     progressWrite = db.transaction(async tx => {
-      await notifyActiveRunSilence(tx, { companyId: run.companyId, runId: run.id });
+      await notifyActiveRunSilence(tx, { spaceId: run.spaceId, runId: run.id });
       await tx.update(heartbeatRuns)
       .set({
         lastOutputAt: pendingOutputProgress.at,
@@ -128,7 +128,7 @@ export function createHeartbeatRunOutput(db: Db, input: HeartbeatRunOutputInput)
       throw new Error("Run log backend is not supported");
     const previousStore = run.logStore ?? undefined;
     handle = await storageOutageWaitFor("starting the run log", () => retryThroughStorageOutage(() => runLogStore.begin({
-      companyId: run.companyId,
+      spaceId: run.spaceId,
       agentId: run.agentId,
       runId,
       newRun: isNewRunLog(run),
@@ -219,7 +219,7 @@ export function createHeartbeatRunOutput(db: Db, input: HeartbeatRunOutputInput)
         ) {
           lastLogRuntimeStatusTouchMs = logActivityAt.getTime();
           const touchedStatus = touchHeartbeatRunRuntimeStatus({
-            companyId: run.companyId,
+            spaceId: run.spaceId,
             issueId,
             agentId: run.agentId,
             runId: run.id,
@@ -234,7 +234,7 @@ export function createHeartbeatRunOutput(db: Db, input: HeartbeatRunOutputInput)
             : sanitizedChunk;
 
         publishLiveEvent({
-          companyId: run.companyId,
+          spaceId: run.spaceId,
           type: "heartbeat.run.log",
           payload: {
             runId: run.id,
@@ -267,10 +267,10 @@ export function createHeartbeatRunOutput(db: Db, input: HeartbeatRunOutputInput)
       if (input.runtimeLogSecretValues?.length) {
         const registry = createRunSecretRedactionRegistry(db);
         for (const value of new Set(input.runtimeLogSecretValues))
-          await registry.register(run.companyId, runId, value);
+          await registry.register(run.spaceId, runId, value);
       }
       const afterCursor = await nativeRunLogPrefixCursor({
-        db, companyId: run.companyId, runId, store: runLogStore, handle: handle!,
+        db, spaceId: run.spaceId, runId, store: runLogStore, handle: handle!,
         // Verify the two supported historical username-masking settings. Keep
         // the full private-data projection here; compaction is proved separately.
         redactChunks: (chunk) => canonicalNativeRunLogRedactionForms(chunk, {
@@ -279,7 +279,7 @@ export function createHeartbeatRunOutput(db: Db, input: HeartbeatRunOutputInput)
       });
       return createNativeRunLogExporter({
         db,
-        companyId: run.companyId,
+        spaceId: run.spaceId,
         runId,
         afterCursor,
         enqueue: (cursor, chunk) =>

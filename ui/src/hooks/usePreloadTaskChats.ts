@@ -42,20 +42,20 @@ export function topRenderedNavEntryRefs(
  * chat of each of its top rows needs before its first frame, so opening one
  * of them renders from cache. Tasks already cached, loading or preloaded
  * recently are skipped, so a reorder or a revisit sends nothing new. A change
- * of rows or company, or unmount, stops requests not yet sent.
+ * of rows or space, or unmount, stops requests not yet sent.
  */
-export function usePreloadTaskChats(companyId: string | null | undefined, refs: readonly string[], ready: boolean) {
+export function usePreloadTaskChats(spaceId: string | null | undefined, refs: readonly string[], ready: boolean) {
   const queryClient = useQueryClient();
   const refsKey = refs.slice(0, CHAT_BOOTSTRAP_PRELOAD_LIMIT).join(",");
   useEffect(() => {
-    if (!ready || !companyId || !refsKey || typeof window.requestAnimationFrame !== "function") return;
+    if (!ready || !spaceId || !refsKey || typeof window.requestAnimationFrame !== "function") return;
     const controller = new AbortController();
     const cancel = whenPageSettles(queryClient, () => {
-      void loadIssueChatBootstraps(queryClient, companyId, refsKey.split(","), { signal: controller.signal, background: true });
+      void loadIssueChatBootstraps(queryClient, spaceId, refsKey.split(","), { signal: controller.signal, background: true });
     });
     return () => {
       cancel();
       controller.abort();
     };
-  }, [companyId, queryClient, ready, refsKey]);
+  }, [spaceId, queryClient, ready, refsKey]);
 }

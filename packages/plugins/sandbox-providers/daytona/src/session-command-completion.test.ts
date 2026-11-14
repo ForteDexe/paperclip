@@ -22,7 +22,7 @@ function fixture() {
   };
   getSandbox.mockResolvedValue({ id: "fixture-sandbox", state: "started", process });
   const execute = (commandTimeoutMs = 2_000) => plugin.definition.onEnvironmentExecute!({
-    driverKey: "daytona", companyId: "fixture-company", environmentId: "fixture-environment",
+    driverKey: "daytona", spaceId: "fixture-space", environmentId: "fixture-environment",
     config: { apiKey: "fixture-not-a-key", timeoutMs: 30_000 },
     lease: { providerLeaseId: "fixture-sandbox" }, command: "printf", args: ["fixture"],
     commandTimeoutMs,

@@ -3,20 +3,20 @@ import { sql, eq } from "drizzle-orm";
 import express from "express";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { agentCommentary, agents, authUsers, companies, companyMemberships, createDb, heartbeatRuns, issueAccessGrants, issues, principalPermissionGrants } from "@outpost/db";
+import { agentCommentary, agents, authUsers, spaces, spaceMemberships, createDb, heartbeatRuns, issueAccessGrants, issues, principalPermissionGrants } from "@outpost/db";
 import { agentCommentaryQuerySchema } from "@outpost/shared";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { agentCommentaryReader } from "../services/agent-commentary-reader.js";
 import { agentCommentaryRoutes } from "../routes/agent-commentary.js";
 import { errorHandler } from "../middleware/error-handler.js";
 import { accessService } from "../services/access.js";
-import { grantsForHumanRole } from "../services/company-member-roles.js";
+import { grantsForHumanRole } from "../services/space-member-roles.js";
 
 describe("agent commentary browsing", () => {
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   let reader: ReturnType<typeof agentCommentaryReader>;
-  const companyId = randomUUID(), foreignCompanyId = randomUUID();
+  const spaceId = randomUUID(), foreignSpaceId = randomUUID();
   const firstAgentId = randomUUID(), secondAgentId = randomUUID();
   const visibleTaskId = randomUUID(), privateTaskId = randomUUID();
   const firstId = randomUUID(), privateId = randomUUID(), foreignId = randomUUID();
@@ -24,58 +24,58 @@ describe("agent commentary browsing", () => {
   const query = (values: object = {}) => agentCommentaryQuerySchema.parse(values);
 
   beforeAll(async () => {
-    temporary = await startEmbeddedPostgresTestDatabase("paperclip-commentary-reader-");
+    temporary = await startEmbeddedPostgresTestDatabase("outpost-commentary-reader-");
     db = createDb(temporary.connectionString);
     reader = agentCommentaryReader(db);
-    await db.insert(companies).values([
-      { id: companyId, name: "Feedback fixtures", issuePrefix: "FDB" },
-      { id: foreignCompanyId, name: "Other company", issuePrefix: "OTH" },
+    await db.insert(spaces).values([
+      { id: spaceId, name: "Feedback fixtures", issuePrefix: "FDB" },
+      { id: foreignSpaceId, name: "Other space", issuePrefix: "OTH" },
     ]);
     await db.insert(agents).values([
-      { id: firstAgentId, companyId, name: "Writer", role: "engineer", adapterType: "codex_local" },
-      { id: secondAgentId, companyId, name: "Reviewer", role: "engineer", adapterType: "claude_local" },
-      { id: foreignCompanyId, companyId: foreignCompanyId, name: "Other writer", role: "engineer", adapterType: "codex_local" },
+      { id: firstAgentId, spaceId, name: "Writer", role: "engineer", adapterType: "codex_local" },
+      { id: secondAgentId, spaceId, name: "Reviewer", role: "engineer", adapterType: "claude_local" },
+      { id: foreignSpaceId, spaceId: foreignSpaceId, name: "Other writer", role: "engineer", adapterType: "codex_local" },
     ]);
     await db.insert(issues).values([
-      { id: visibleTaskId, companyId, title: "Visible task", identifier: "FDB-1" },
-      { id: privateTaskId, companyId, title: "Private task", identifier: "FDB-2" },
+      { id: visibleTaskId, spaceId, title: "Visible task", identifier: "FDB-1" },
+      { id: privateTaskId, spaceId, title: "Private task", identifier: "FDB-2" },
     ]);
     const runId = randomUUID(), foreignRunId = randomUUID();
     await db.insert(heartbeatRuns).values([
-      { id: runId, companyId, agentId: firstAgentId, status: "succeeded" },
-      { id: foreignRunId, companyId: foreignCompanyId, agentId: foreignCompanyId, status: "succeeded" },
+      { id: runId, spaceId, agentId: firstAgentId, status: "succeeded" },
+      { id: foreignRunId, spaceId: foreignSpaceId, agentId: foreignSpaceId, status: "succeeded" },
     ]);
     await db.insert(agentCommentary).values([
-      { id: firstId, companyId, agentId: firstAgentId, runId, issueId: visibleTaskId, kind: "suggestion", body: longBody, idempotencyKey: "first", payloadHash: "hash", createdAt: new Date("2026-01-03T12:00:00Z") },
-      { id: randomUUID(), companyId, agentId: secondAgentId, runId, issueId: visibleTaskId, kind: "complaint", body: "Installer failed at 100% completion with literal_under_score.", idempotencyKey: "second", payloadHash: "hash", createdAt: new Date("2026-01-02T12:00:00Z") },
-      { id: privateId, companyId, agentId: firstAgentId, runId, issueId: privateTaskId, kind: "suggestion", body: "Private task feedback", idempotencyKey: "private", payloadHash: "hash", createdAt: new Date("2026-01-01T12:00:00Z") },
-      { id: foreignId, companyId: foreignCompanyId, agentId: foreignCompanyId, runId: foreignRunId, kind: "complaint", body: "Other company feedback", idempotencyKey: "foreign", payloadHash: "hash" },
+      { id: firstId, spaceId, agentId: firstAgentId, runId, issueId: visibleTaskId, kind: "suggestion", body: longBody, idempotencyKey: "first", payloadHash: "hash", createdAt: new Date("2026-01-03T12:00:00Z") },
+      { id: randomUUID(), spaceId, agentId: secondAgentId, runId, issueId: visibleTaskId, kind: "complaint", body: "Installer failed at 100% completion with literal_under_score.", idempotencyKey: "second", payloadHash: "hash", createdAt: new Date("2026-01-02T12:00:00Z") },
+      { id: privateId, spaceId, agentId: firstAgentId, runId, issueId: privateTaskId, kind: "suggestion", body: "Private task feedback", idempotencyKey: "private", payloadHash: "hash", createdAt: new Date("2026-01-01T12:00:00Z") },
+      { id: foreignId, spaceId: foreignSpaceId, agentId: foreignSpaceId, runId: foreignRunId, kind: "complaint", body: "Other space feedback", idempotencyKey: "foreign", payloadHash: "hash" },
     ]);
   }, 90_000);
   afterAll(async () => { await temporary?.cleanup(); });
   afterEach(() => vi.unstubAllEnvs());
 
   it("bounds previews and pagination while details retain the full message", async () => {
-    const page = await reader.list(companyId, query({ limit: 1 }), sql`true`);
+    const page = await reader.list(spaceId, query({ limit: 1 }), sql`true`);
     expect(page).toMatchObject({ total: 3, limit: 1, offset: 0 });
     expect(page.items[0]).toMatchObject({ id: firstId, agent: { name: "Writer" }, task: { identifier: "FDB-1" } });
     expect(page.items[0].preview).toHaveLength(280);
     expect(page.items[0]).not.toHaveProperty("body");
-    expect((await reader.get(companyId, firstId, sql`true`))?.body).toBe(longBody);
-    expect((await reader.list(companyId, query({ limit: 1, offset: 1 }), sql`true`)).items[0].kind).toBe("complaint");
+    expect((await reader.get(spaceId, firstId, sql`true`))?.body).toBe(longBody);
+    expect((await reader.list(spaceId, query({ limit: 1, offset: 1 }), sql`true`)).items[0].kind).toBe("complaint");
   });
 
   it("loads 50 messages by default and retrieves the remaining page without duplicates", async () => {
-    const pagedCompanyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: pagedCompanyId, name: "Pagination fixtures", issuePrefix: "PAG" });
-    await db.insert(agents).values({ id: agentId, companyId: pagedCompanyId, name: "Writer", role: "engineer", adapterType: "codex_local" });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: pagedCompanyId, agentId, status: "succeeded" });
+    const pagedSpaceId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: pagedSpaceId, name: "Pagination fixtures", issuePrefix: "PAG" });
+    await db.insert(agents).values({ id: agentId, spaceId: pagedSpaceId, name: "Writer", role: "engineer", adapterType: "codex_local" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: pagedSpaceId, agentId, status: "succeeded" });
     await db.insert(agentCommentary).values(Array.from({ length: 58 }, (_, index) => ({
-      companyId: pagedCompanyId, agentId, runId, kind: "suggestion" as const, body: `Message ${index}`,
+      spaceId: pagedSpaceId, agentId, runId, kind: "suggestion" as const, body: `Message ${index}`,
       idempotencyKey: String(index), payloadHash: "hash",
     })));
-    const first = await reader.list(pagedCompanyId, query(), sql`true`);
-    const second = await reader.list(pagedCompanyId, query({ offset: 50 }), sql`true`);
+    const first = await reader.list(pagedSpaceId, query(), sql`true`);
+    const second = await reader.list(pagedSpaceId, query({ offset: 50 }), sql`true`);
     expect(first).toMatchObject({ total: 58, limit: 50, offset: 0 });
     expect(first.items).toHaveLength(50);
     expect(second).toMatchObject({ total: 58, limit: 50, offset: 50 });
@@ -84,44 +84,44 @@ describe("agent commentary browsing", () => {
   });
 
   it("combines filters and searches literal SQL wildcard characters", async () => {
-    expect((await reader.list(companyId, query({ agentId: firstAgentId, kind: "complaint" }), sql`true`)).total).toBe(0);
-    expect((await reader.list(companyId, query({ kind: "complaint", q: "100%" }), sql`true`)).total).toBe(1);
-    expect((await reader.list(companyId, query({ q: "literal_under_score" }), sql`true`)).total).toBe(1);
-    expect((await reader.list(companyId, query({ q: "nothing_here" }), sql`true`)).total).toBe(0);
+    expect((await reader.list(spaceId, query({ agentId: firstAgentId, kind: "complaint" }), sql`true`)).total).toBe(0);
+    expect((await reader.list(spaceId, query({ kind: "complaint", q: "100%" }), sql`true`)).total).toBe(1);
+    expect((await reader.list(spaceId, query({ q: "literal_under_score" }), sql`true`)).total).toBe(1);
+    expect((await reader.list(spaceId, query({ q: "nothing_here" }), sql`true`)).total).toBe(0);
   });
 
-  it("applies source-task visibility to counts, previews and details and isolates companies", async () => {
-    const page = await reader.list(companyId, query(), eq(issues.id, visibleTaskId));
+  it("applies source-task visibility to counts, previews and details and isolates spaces", async () => {
+    const page = await reader.list(spaceId, query(), eq(issues.id, visibleTaskId));
     expect(page.total).toBe(2);
     expect(page.items.map((item) => item.id)).not.toContain(privateId);
-    expect(await reader.get(companyId, privateId, eq(issues.id, visibleTaskId))).toBeNull();
-    expect(await reader.get(companyId, foreignId, sql`true`)).toBeNull();
-    expect((await reader.list(companyId, query(), sql`true`)).items.map((item) => item.id)).not.toContain(foreignId);
+    expect(await reader.get(spaceId, privateId, eq(issues.id, visibleTaskId))).toBeNull();
+    expect(await reader.get(spaceId, foreignId, sql`true`)).toBeNull();
+    expect((await reader.list(spaceId, query(), sql`true`)).items.map((item) => item.id)).not.toContain(foreignId);
   });
 
   it.each(["legacy", "native"])("keeps %s feedback hidden after its source task is deleted", async (transport) => {
     const taskId = randomUUID(), runId = randomUUID(), id = randomUUID();
-    await db.insert(issues).values({ id: taskId, companyId, title: "Deleted private task" });
+    await db.insert(issues).values({ id: taskId, spaceId, title: "Deleted private task" });
     await db.insert(heartbeatRuns).values({
-      id: runId, companyId, agentId: firstAgentId, status: "succeeded",
+      id: runId, spaceId, agentId: firstAgentId, status: "succeeded",
       ...(transport === "native" ? { nativeIssueId: taskId } : { contextSnapshot: { issueId: taskId } }),
     });
     await db.insert(agentCommentary).values({
-      id, companyId, agentId: firstAgentId, runId, issueId: taskId, kind: "complaint",
+      id, spaceId, agentId: firstAgentId, runId, issueId: taskId, kind: "complaint",
       body: "Deleted private task feedback", idempotencyKey: "deleted", payloadHash: "hash",
     });
     await db.delete(issues).where(eq(issues.id, taskId));
-    expect(await reader.get(companyId, id, eq(issues.id, visibleTaskId))).toBeNull();
-    expect((await reader.list(companyId, query({ q: "Deleted private task feedback" }), eq(issues.id, visibleTaskId))).total).toBe(0);
+    expect(await reader.get(spaceId, id, eq(issues.id, visibleTaskId))).toBeNull();
+    expect((await reader.list(spaceId, query({ q: "Deleted private task feedback" }), eq(issues.id, visibleTaskId))).total).toBe(0);
   });
 
-  it("enforces board membership, commentary permission and filter bounds at the HTTP boundary", async () => {
-    let actor: Record<string, unknown> = { type: "board", source: "local_implicit", userId: "operator" };
+  it("enforces operator membership, commentary permission and filter bounds at the HTTP boundary", async () => {
+    let actor: Record<string, unknown> = { type: "operator", source: "local_implicit", userId: "operator" };
     const app = express();
     app.use((req, _res, next) => { req.actor = actor as typeof req.actor; next(); });
     app.use("/api", agentCommentaryRoutes(db));
     app.use(errorHandler);
-    const url = `/api/companies/${companyId}/agent-commentary`;
+    const url = `/api/spaces/${spaceId}/agent-commentary`;
     expect((await request(app).get(url)).body.total).toBe(3);
     expect((await request(app).get(`${url}/${firstId}`)).body.body).toBe(longBody);
     expect((await request(app).get(`${url}/${foreignId}`)).status).toBe(404);
@@ -129,75 +129,75 @@ describe("agent commentary browsing", () => {
       expect((await request(app).get(`${url}?${filters}`)).status).toBe(400);
     }
     // Agents read only their own commentary unless granted commentary:view.
-    actor = { type: "agent", companyId, agentId: firstAgentId };
+    actor = { type: "agent", spaceId, agentId: firstAgentId };
     expect((await request(app).get(url)).status).toBe(403);
     expect((await request(app).get(`${url}/${firstId}`)).status).toBe(200);
-    actor = { type: "agent", companyId, agentId: secondAgentId };
+    actor = { type: "agent", spaceId, agentId: secondAgentId };
     expect((await request(app).get(`${url}/${firstId}`)).status).toBe(403);
-    await db.insert(companyMemberships).values({ companyId, principalType: "agent", principalId: secondAgentId, status: "active", membershipRole: "member" }).onConflictDoNothing();
-    await db.insert(principalPermissionGrants).values({ companyId, principalType: "agent", principalId: secondAgentId, permissionKey: "commentary:view" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "agent", principalId: secondAgentId, status: "active", membershipRole: "member" }).onConflictDoNothing();
+    await db.insert(principalPermissionGrants).values({ spaceId, principalType: "agent", principalId: secondAgentId, permissionKey: "commentary:view" });
     try {
       expect((await request(app).get(`${url}/${firstId}`)).status).toBe(200);
       expect((await request(app).get(url)).status).toBe(200);
     } finally {
       await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.principalId, secondAgentId));
-      await db.delete(companyMemberships).where(eq(companyMemberships.principalId, secondAgentId));
+      await db.delete(spaceMemberships).where(eq(spaceMemberships.principalId, secondAgentId));
     }
-    actor = { type: "board", source: "session", userId: "viewer", companyIds: [companyId] };
+    actor = { type: "operator", source: "session", userId: "viewer", spaceIds: [spaceId] };
     const denied = await request(app).get(url).expect(403);
     expect(denied.body.error).toContain("commentary:view");
     await request(app).get(`${url}/${firstId}`).expect(403);
-    actor = { type: "board", source: "session", userId: "operator", isInstanceAdmin: true, companyIds: [foreignCompanyId] };
+    actor = { type: "operator", source: "session", userId: "operator", isInstanceAdmin: true, spaceIds: [foreignSpaceId] };
     expect((await request(app).get(url)).status).toBe(403);
   });
   it.each(["owner", "admin", "operator", "viewer"] as const)("lets a default %s read commentary independently of audit access", async (role) => {
     const userId = randomUUID();
     const access = accessService(db);
-    await access.ensureMembership(companyId, "user", userId, role);
-    await access.setPrincipalGrants(companyId, "user", userId, grantsForHumanRole(role), null);
+    await access.ensureMembership(spaceId, "user", userId, role);
+    await access.setPrincipalGrants(spaceId, "user", userId, grantsForHumanRole(role), null);
     const app = express();
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "session", userId, companyIds: [companyId] };
+      req.actor = { type: "operator", source: "session", userId, spaceIds: [spaceId] };
       next();
     });
     app.use("/api", agentCommentaryRoutes(db));
     app.use(errorHandler);
-    const url = `/api/companies/${companyId}/agent-commentary`;
+    const url = `/api/spaces/${spaceId}/agent-commentary`;
     expect((await request(app).get(url).expect(200)).body.total).toBe(3);
     expect((await request(app).get(`${url}/${firstId}`).expect(200)).body.body).toBe(longBody);
-    await expect(access.canUser(companyId, userId, "audit:view_agent_actions")).resolves.toBe(role === "operator");
-    await request(app).get(`/api/companies/${foreignCompanyId}/agent-commentary`).expect(403);
+    await expect(access.canUser(spaceId, userId, "audit:view_agent_actions")).resolves.toBe(role === "operator");
+    await request(app).get(`/api/spaces/${foreignSpaceId}/agent-commentary`).expect(403);
     await request(app).get(`${url}/${foreignId}`).expect(404);
 
-    await access.setPrincipalGrants(companyId, "user", userId, [
+    await access.setPrincipalGrants(spaceId, "user", userId, [
       { permissionKey: "audit:view_agent_actions", scope: null },
     ], null);
     expect((await request(app).get(url).expect(403)).body.error).toContain("commentary:view");
     await request(app).get(`${url}/${firstId}`).expect(403);
   });
 
-  it("applies actual task privacy to HTTP previews, counts, searches and details for commentary-authorized board users", async () => {
+  it("applies actual task privacy to HTTP previews, counts, searches and details for commentary-authorized operator users", async () => {
     vi.stubEnv("OUTPOST_ISSUE_PRIVACY_MODE", "enforce");
     const userId = randomUUID(), ownerId = randomUUID();
     await db.insert(authUsers).values([userId, ownerId].map((id) => ({
-      id, name: "Board user", email: `${id}@example.test`, emailVerified: true,
+      id, name: "Operator user", email: `${id}@example.test`, emailVerified: true,
       createdAt: new Date(), updatedAt: new Date(),
     })));
-    await db.insert(companyMemberships).values({
-      companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "viewer",
+    await db.insert(spaceMemberships).values({
+      spaceId, principalType: "user", principalId: userId, status: "active", membershipRole: "viewer",
     });
     await db.insert(principalPermissionGrants).values({
-      companyId, principalType: "user", principalId: userId, permissionKey: "commentary:view",
+      spaceId, principalType: "user", principalId: userId, permissionKey: "commentary:view",
     });
     await db.update(issues).set({ visibility: "private", privacyRootIssueId: privateTaskId, responsibleUserId: ownerId }).where(eq(issues.id, privateTaskId));
     const app = express();
     app.use((req, _res, next) => {
-      req.actor = { type: "board", source: "session", userId, companyIds: [companyId] };
+      req.actor = { type: "operator", source: "session", userId, spaceIds: [spaceId] };
       next();
     });
     app.use("/api", agentCommentaryRoutes(db));
     app.use(errorHandler);
-    const url = `/api/companies/${companyId}/agent-commentary`;
+    const url = `/api/spaces/${spaceId}/agent-commentary`;
     const deniedPage = await request(app).get(url).expect(200);
     expect(deniedPage.body.total).toBe(2);
     expect(deniedPage.body.items.map((entry: { id: string }) => entry.id)).not.toContain(privateId);

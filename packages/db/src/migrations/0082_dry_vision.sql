@@ -1,6 +1,6 @@
-CREATE TABLE IF NOT EXISTS "company_secret_bindings" (
+CREATE TABLE IF NOT EXISTS "space_secret_bindings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"secret_id" uuid NOT NULL,
 	"target_type" text NOT NULL,
 	"target_id" text NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS "company_secret_bindings" (
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "secret_access_events" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"company_id" uuid NOT NULL,
+	"space_id" uuid NOT NULL,
 	"secret_id" uuid NOT NULL,
 	"version" integer,
 	"provider" text NOT NULL,
@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS "secret_access_events" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "company_secrets" ADD COLUMN IF NOT EXISTS "key" text;--> statement-breakpoint
-UPDATE "company_secrets"
+ALTER TABLE "space_secrets" ADD COLUMN IF NOT EXISTS "key" text;--> statement-breakpoint
+UPDATE "space_secrets"
 SET "key" = left(
 	regexp_replace(
 		regexp_replace(lower(trim(coalesce("name", "id"::text))), '[^a-z0-9_.-]+', '-', 'g'),
@@ -43,58 +43,58 @@ SET "key" = left(
 	120
 )
 WHERE "key" IS NULL;--> statement-breakpoint
-UPDATE "company_secrets"
+UPDATE "space_secrets"
 SET "key" = "id"::text
 WHERE "key" IS NULL OR "key" = '';--> statement-breakpoint
-ALTER TABLE "company_secrets" ALTER COLUMN "key" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "space_secrets" ALTER COLUMN "key" SET NOT NULL;--> statement-breakpoint
 WITH ranked AS (
 	SELECT
 		"id",
 		"key",
-		row_number() OVER (PARTITION BY "company_id", "key" ORDER BY "created_at", "id") AS rn
-	FROM "company_secrets"
+		row_number() OVER (PARTITION BY "space_id", "key" ORDER BY "created_at", "id") AS rn
+	FROM "space_secrets"
 )
-UPDATE "company_secrets"
+UPDATE "space_secrets"
 SET "key" = left(ranked."key", 100) || '-' || ranked.rn::text
 FROM ranked
-WHERE "company_secrets"."id" = ranked."id"
+WHERE "space_secrets"."id" = ranked."id"
 	AND ranked.rn > 1;--> statement-breakpoint
-ALTER TABLE "company_secrets" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'active' NOT NULL;--> statement-breakpoint
-ALTER TABLE "company_secrets" ADD COLUMN IF NOT EXISTS "managed_mode" text DEFAULT 'paperclip_managed' NOT NULL;--> statement-breakpoint
-ALTER TABLE "company_secrets" ADD COLUMN IF NOT EXISTS "provider_config_id" text;--> statement-breakpoint
-ALTER TABLE "company_secrets" ADD COLUMN IF NOT EXISTS "provider_metadata" jsonb;--> statement-breakpoint
-ALTER TABLE "company_secrets" ADD COLUMN IF NOT EXISTS "last_resolved_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "company_secrets" ADD COLUMN IF NOT EXISTS "last_rotated_at" timestamp with time zone;--> statement-breakpoint
-UPDATE "company_secrets"
+ALTER TABLE "space_secrets" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'active' NOT NULL;--> statement-breakpoint
+ALTER TABLE "space_secrets" ADD COLUMN IF NOT EXISTS "managed_mode" text DEFAULT 'outpost_managed' NOT NULL;--> statement-breakpoint
+ALTER TABLE "space_secrets" ADD COLUMN IF NOT EXISTS "provider_config_id" text;--> statement-breakpoint
+ALTER TABLE "space_secrets" ADD COLUMN IF NOT EXISTS "provider_metadata" jsonb;--> statement-breakpoint
+ALTER TABLE "space_secrets" ADD COLUMN IF NOT EXISTS "last_resolved_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "space_secrets" ADD COLUMN IF NOT EXISTS "last_rotated_at" timestamp with time zone;--> statement-breakpoint
+UPDATE "space_secrets"
 SET "last_rotated_at" = "updated_at"
 WHERE "last_rotated_at" IS NULL;--> statement-breakpoint
-ALTER TABLE "company_secrets" ADD COLUMN IF NOT EXISTS "deleted_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "company_secret_versions" ADD COLUMN IF NOT EXISTS "provider_version_ref" text;--> statement-breakpoint
-ALTER TABLE "company_secret_versions" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'current' NOT NULL;--> statement-breakpoint
-ALTER TABLE "company_secret_versions" ADD COLUMN IF NOT EXISTS "fingerprint_sha256" text;--> statement-breakpoint
-UPDATE "company_secret_versions"
+ALTER TABLE "space_secrets" ADD COLUMN IF NOT EXISTS "deleted_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "space_secret_versions" ADD COLUMN IF NOT EXISTS "provider_version_ref" text;--> statement-breakpoint
+ALTER TABLE "space_secret_versions" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'current' NOT NULL;--> statement-breakpoint
+ALTER TABLE "space_secret_versions" ADD COLUMN IF NOT EXISTS "fingerprint_sha256" text;--> statement-breakpoint
+UPDATE "space_secret_versions"
 SET "fingerprint_sha256" = "value_sha256"
 WHERE "fingerprint_sha256" IS NULL;--> statement-breakpoint
-ALTER TABLE "company_secret_versions" ALTER COLUMN "fingerprint_sha256" SET NOT NULL;--> statement-breakpoint
-ALTER TABLE "company_secret_versions" ADD COLUMN IF NOT EXISTS "rotation_job_id" text;--> statement-breakpoint
+ALTER TABLE "space_secret_versions" ALTER COLUMN "fingerprint_sha256" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "space_secret_versions" ADD COLUMN IF NOT EXISTS "rotation_job_id" text;--> statement-breakpoint
 DO $$ BEGIN
-	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'company_secret_bindings_company_id_companies_id_fk') THEN
-		ALTER TABLE "company_secret_bindings" ADD CONSTRAINT "company_secret_bindings_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'space_secret_bindings_space_id_spaces_id_fk') THEN
+		ALTER TABLE "space_secret_bindings" ADD CONSTRAINT "space_secret_bindings_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 	END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'company_secret_bindings_secret_id_company_secrets_id_fk') THEN
-		ALTER TABLE "company_secret_bindings" ADD CONSTRAINT "company_secret_bindings_secret_id_company_secrets_id_fk" FOREIGN KEY ("secret_id") REFERENCES "public"."company_secrets"("id") ON DELETE cascade ON UPDATE no action;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'space_secret_bindings_secret_id_space_secrets_id_fk') THEN
+		ALTER TABLE "space_secret_bindings" ADD CONSTRAINT "space_secret_bindings_secret_id_space_secrets_id_fk" FOREIGN KEY ("secret_id") REFERENCES "public"."space_secrets"("id") ON DELETE cascade ON UPDATE no action;
 	END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'secret_access_events_company_id_companies_id_fk') THEN
-		ALTER TABLE "secret_access_events" ADD CONSTRAINT "secret_access_events_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'secret_access_events_space_id_spaces_id_fk') THEN
+		ALTER TABLE "secret_access_events" ADD CONSTRAINT "secret_access_events_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE no action ON UPDATE no action;
 	END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
-	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'secret_access_events_secret_id_company_secrets_id_fk') THEN
-		ALTER TABLE "secret_access_events" ADD CONSTRAINT "secret_access_events_secret_id_company_secrets_id_fk" FOREIGN KEY ("secret_id") REFERENCES "public"."company_secrets"("id") ON DELETE cascade ON UPDATE no action;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'secret_access_events_secret_id_space_secrets_id_fk') THEN
+		ALTER TABLE "secret_access_events" ADD CONSTRAINT "secret_access_events_secret_id_space_secrets_id_fk" FOREIGN KEY ("secret_id") REFERENCES "public"."space_secrets"("id") ON DELETE cascade ON UPDATE no action;
 	END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
@@ -112,13 +112,13 @@ DO $$ BEGIN
 		ALTER TABLE "secret_access_events" ADD CONSTRAINT "secret_access_events_plugin_id_plugins_id_fk" FOREIGN KEY ("plugin_id") REFERENCES "public"."plugins"("id") ON DELETE set null ON UPDATE no action;
 	END IF;
 END $$;--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "company_secret_bindings_company_idx" ON "company_secret_bindings" USING btree ("company_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "company_secret_bindings_secret_idx" ON "company_secret_bindings" USING btree ("secret_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "company_secret_bindings_target_idx" ON "company_secret_bindings" USING btree ("company_id","target_type","target_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "company_secret_bindings_target_path_uq" ON "company_secret_bindings" USING btree ("company_id","target_type","target_id","config_path");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "secret_access_events_company_created_idx" ON "secret_access_events" USING btree ("company_id","created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "space_secret_bindings_space_idx" ON "space_secret_bindings" USING btree ("space_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "space_secret_bindings_secret_idx" ON "space_secret_bindings" USING btree ("secret_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "space_secret_bindings_target_idx" ON "space_secret_bindings" USING btree ("space_id","target_type","target_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "space_secret_bindings_target_path_uq" ON "space_secret_bindings" USING btree ("space_id","target_type","target_id","config_path");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "secret_access_events_space_created_idx" ON "secret_access_events" USING btree ("space_id","created_at");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "secret_access_events_secret_created_idx" ON "secret_access_events" USING btree ("secret_id","created_at");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "secret_access_events_consumer_idx" ON "secret_access_events" USING btree ("company_id","consumer_type","consumer_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "secret_access_events_consumer_idx" ON "secret_access_events" USING btree ("space_id","consumer_type","consumer_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "secret_access_events_run_idx" ON "secret_access_events" USING btree ("heartbeat_run_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "company_secret_versions_fingerprint_idx" ON "company_secret_versions" USING btree ("fingerprint_sha256");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "company_secrets_company_key_uq" ON "company_secrets" USING btree ("company_id","key");
+CREATE INDEX IF NOT EXISTS "space_secret_versions_fingerprint_idx" ON "space_secret_versions" USING btree ("fingerprint_sha256");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "space_secrets_space_key_uq" ON "space_secrets" USING btree ("space_id","key");

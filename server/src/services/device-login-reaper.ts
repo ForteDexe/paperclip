@@ -142,7 +142,7 @@ export function createDeviceLoginReaper(deps: DeviceLoginReaperDeps) {
     let newlyPending = 0;
     for (const row of expired) {
       // Claim the terminalization with a conditional write from the row's current
-      // status. The claim reserves `cleanup_pending` and releases the company
+      // status. The claim reserves `cleanup_pending` and releases the space
       // slot. A lost claim means the session owner reached a terminal first, so
       // the reaper deletes nothing and leaves the row alone. This closes the
       // lost-update race on the slot.
@@ -153,8 +153,8 @@ export function createDeviceLoginReaper(deps: DeviceLoginReaperDeps) {
       // interleaves with a live write. A crashed owner drops the lock, so the
       // reaper still reclaims the stalled row on a later sweep.
       const pendingWrite = terminalCleanupWrite(false, "timed_out", null);
-      const claimed = await store.withCompanyAdapterPromotionLock(
-        row.companyId,
+      const claimed = await store.withSpaceAdapterPromotionLock(
+        row.spaceId,
         row.startedByUserId,
         row.adapterType,
         () =>

@@ -1,4 +1,4 @@
-"""Paperclip-owned admission for the pinned Antigravity 1.4.3 native runtime.
+"""Outpost-owned admission for the pinned Antigravity 1.4.3 native runtime.
 
 Loaded inside Google's hermetic distribution. No credentials or prompt content
 are persisted in receipts. Native creation must acknowledge the exact config
@@ -24,16 +24,16 @@ from google3.cloud.developer_experience.antigravity_extensions.acp_server.oauth.
 
 SCHEMA = "outpost.antigravity.admission.v1"
 MODELS_SCHEMA = "outpost.antigravity.models.v1"
-_CONTEXT = contextvars.ContextVar("paperclip_antigravity_admission", default=None)
+_CONTEXT = contextvars.ContextVar("outpost_antigravity_admission", default=None)
 
 
 def _fail(message):
-  raise exceptions.RequestError(code=-32602, message="Paperclip admission: " + message)
+  raise exceptions.RequestError(code=-32602, message="Outpost admission: " + message)
 
 
 def _read_request(kwargs):
   meta = request_meta.antigravity_meta_from_request_kwargs(kwargs)
-  value = meta.get("paperclipAdmission")
+  value = meta.get("outpostAdmission")
   if value is None:
     return None
   if not isinstance(value, dict) or set(value) != {
@@ -104,7 +104,7 @@ def prepare_native_config(config, strategy):
   if config.harness_side_tools.subagents.enabled or config.harness_side_tools.run_workflow.enabled or config.custom_subagents:
     _fail("managed subagents, workflows, and browser agents are unavailable")
   if config.harness_side_tools.schedule.enabled:
-    _fail("managed timers and recurring schedules belong to Paperclip")
+    _fail("managed timers and recurring schedules belong to Outpost")
   return {
       **admission,
       "sessionId": config.cascade_id,
@@ -133,7 +133,7 @@ def _receipt(adapter, session_id, admission):
   if session is None:
     _fail("native session is missing")
   strategy = getattr(session.agent, "_strategy", None)
-  receipt = getattr(strategy, "_paperclip_native_admission", None)
+  receipt = getattr(strategy, "_outpost_native_admission", None)
   if not isinstance(receipt, dict) or receipt.get("sessionId") != session_id:
     _fail("native content acknowledgment is missing")
   for key in ("schema", "nonce", "model", "digest", "byteLength"):
@@ -147,12 +147,12 @@ def _receipt(adapter, session_id, admission):
 
 
 def _add_receipt(result, receipt):
-  result.field_meta = {**(result.field_meta or {}), "paperclipAntigravityAdmission": receipt}
+  result.field_meta = {**(result.field_meta or {}), "outpostAntigravityAdmission": receipt}
   return result
 
 
 def install(adapter_type):
-  if adapter_type.__dict__.get("_paperclip_admission_installed", False):
+  if adapter_type.__dict__.get("_outpost_admission_installed", False):
     return
   original_initialize = adapter_type.initialize
   original_extract = system_prompt.extract_system_prompt
@@ -171,22 +171,22 @@ def install(adapter_type):
   # Bind this to the manager, because later token use occurs in background
   # threads without the request ContextVar. Explicit standalone authenticate
   # uses a separate, unflagged manager and retains its interactive login.
-  if not getattr(OAuthCredentialManager._interactive_login_and_store, "_paperclip_managed_guard", False):
+  if not getattr(OAuthCredentialManager._interactive_login_and_store, "_outpost_managed_guard", False):
     original_interactive_login = OAuthCredentialManager._interactive_login_and_store
 
     @functools.wraps(original_interactive_login)
     def interactive_login(manager):
-      if getattr(manager, "_paperclip_noninteractive", False):
-        raise ValueError("Google sign-in must be renewed through Paperclip before this managed task can continue")
+      if getattr(manager, "_outpost_noninteractive", False):
+        raise ValueError("Google sign-in must be renewed through Outpost before this managed task can continue")
       return original_interactive_login(manager)
 
-    interactive_login._paperclip_managed_guard = True
+    interactive_login._outpost_managed_guard = True
     OAuthCredentialManager._interactive_login_and_store = interactive_login
 
   def ensure_oauth_mgr(self):
     manager = original_oauth_mgr(self)
-    if _CONTEXT.get() is not None or getattr(self, "_paperclip_managed_sessions", {}):
-      manager._paperclip_noninteractive = True
+    if _CONTEXT.get() is not None or getattr(self, "_outpost_managed_sessions", {}):
+      manager._outpost_noninteractive = True
     return manager
 
   def hooks_config(*args, **kwargs):
@@ -200,14 +200,14 @@ def install(adapter_type):
 
   @functools.wraps(original_initialize)
   async def initialize(self, *args, **kwargs):
-    if getattr(self, "_paperclip_managed_sessions", {}):
+    if getattr(self, "_outpost_managed_sessions", {}):
       _fail("cannot renegotiate an initialized managed connection")
     result = await original_initialize(self, *args, **kwargs)
     meta = result.agent_capabilities.field_meta or {}
-    meta.setdefault("antigravity", {})["paperclipAdmission"] = 1
-    meta["antigravity"]["paperclipModels"] = 1
+    meta.setdefault("antigravity", {})["outpostAdmission"] = 1
+    meta["antigravity"]["outpostModels"] = 1
     result.agent_capabilities.field_meta = meta
-    self._paperclip_managed_sessions = {}
+    self._outpost_managed_sessions = {}
     return result
 
   def extract(kwargs):
@@ -248,7 +248,7 @@ def install(adapter_type):
     async def open_session(self, *args, **kwargs):
       admission = _read_request(kwargs)
       session_id = None if is_new else kwargs.get("session_id", args[0] if args else None)
-      managed = getattr(self, "_paperclip_managed_sessions", {})
+      managed = getattr(self, "_outpost_managed_sessions", {})
       if admission is None:
         if session_id in managed:
           _fail("managed reload requires a fresh exact content acknowledgment")
@@ -261,7 +261,7 @@ def install(adapter_type):
         session_id = result.session_id if is_new else session_id
         receipt = _receipt(self, session_id, admission)
         managed[session_id] = admission
-        self._paperclip_managed_sessions = managed
+        self._outpost_managed_sessions = managed
         return _add_receipt(result, receipt)
       finally:
         _CONTEXT.reset(token)
@@ -269,7 +269,7 @@ def install(adapter_type):
 
   @functools.wraps(original_rebuild)
   async def rebuild(self, session_id):
-    admission = getattr(self, "_paperclip_managed_sessions", {}).get(session_id) or _CONTEXT.get()
+    admission = getattr(self, "_outpost_managed_sessions", {}).get(session_id) or _CONTEXT.get()
     if admission is None:
       return await original_rebuild(self, session_id)
     token = _CONTEXT.set(admission)
@@ -282,7 +282,7 @@ def install(adapter_type):
 
   @functools.wraps(original_replace)
   async def replace(self, session_id):
-    if session_id in getattr(self, "_paperclip_managed_sessions", {}):
+    if session_id in getattr(self, "_outpost_managed_sessions", {}):
       # Never let the native enterprise poller substitute a model on this path.
       return
     return await original_replace(self, session_id)
@@ -290,7 +290,7 @@ def install(adapter_type):
   @functools.wraps(original_prompt)
   async def prompt(self, *args, **kwargs):
     session_id = kwargs.get("session_id", args[1] if len(args) > 1 else None)
-    admission = getattr(self, "_paperclip_managed_sessions", {}).get(session_id)
+    admission = getattr(self, "_outpost_managed_sessions", {}).get(session_id)
     if admission is not None:
       _receipt(self, session_id, admission)
     return await original_prompt(self, *args, **kwargs)
@@ -299,7 +299,7 @@ def install(adapter_type):
     @functools.wraps(original)
     async def setting(self, *args, **kwargs):
       session_id = kwargs.get("session_id", args[1] if len(args) > 1 else None)
-      managed = getattr(self, "_paperclip_managed_sessions", {})
+      managed = getattr(self, "_outpost_managed_sessions", {})
       if session_id not in managed:
         return await original(self, *args, **kwargs)
       admission = _read_request(kwargs)
@@ -327,7 +327,7 @@ def install(adapter_type):
     try:
       return await original_cleanup(self, session_id)
     finally:
-      managed = getattr(self, "_paperclip_managed_sessions", {})
+      managed = getattr(self, "_outpost_managed_sessions", {})
       if session_id is None:
         managed.clear()
       else:
@@ -347,7 +347,7 @@ def install(adapter_type):
     def session_free():
       if (
           getattr(self, "_sessions", {})
-          or getattr(self, "_paperclip_managed_sessions", {})
+          or getattr(self, "_outpost_managed_sessions", {})
           or _CONTEXT.get() is not None
       ):
         _fail("model catalog requires a session-free connection")
@@ -366,13 +366,13 @@ def install(adapter_type):
       # Set the persistent instance policy BEFORE the native auth assertion:
       # both assertion and catalog token reads may otherwise open a browser.
       manager = self._ensure_oauth_mgr()
-      manager._paperclip_noninteractive = True
+      manager._outpost_noninteractive = True
       await self._assert_authenticated()
       require_personal()
     except Exception:
       raise exceptions.RequestError(
           code=-32000,
-          message="Google personal sign-in must be renewed through Paperclip before model discovery",
+          message="Google personal sign-in must be renewed through Outpost before model discovery",
       ) from None
     session_free()
     try:
@@ -407,18 +407,18 @@ def install(adapter_type):
     }
 
   async def ext_method(self, method, params):
-    if method.lstrip("_") == "paperclip/models":
+    if method.lstrip("_") == "outpost/models":
       return await models(self, params)
-    if method.lstrip("_") != "paperclip/admission":
+    if method.lstrip("_") != "outpost/admission":
       if original_ext is None:
         _fail("unknown extension method")
       return await original_ext(self, method, params)
     if not isinstance(params, dict) or set(params) != {"sessionId", "nonce"}:
       _fail("invalid admission status request")
-    admission = getattr(self, "_paperclip_managed_sessions", {}).get(params["sessionId"])
+    admission = getattr(self, "_outpost_managed_sessions", {}).get(params["sessionId"])
     if admission is None or admission["nonce"] != params["nonce"]:
       _fail("unknown admission session or nonce")
-    return {"paperclipAntigravityAdmission": _receipt(self, params["sessionId"], admission)}
+    return {"outpostAntigravityAdmission": _receipt(self, params["sessionId"], admission)}
 
   adapter_type.initialize = initialize
   if original_oauth_mgr is not None:
@@ -439,4 +439,4 @@ def install(adapter_type):
   adapter_type.set_session_model = wrap_setting(adapter_type.set_session_model)
   adapter_type.set_config_option = wrap_setting(adapter_type.set_config_option)
   adapter_type.ext_method = ext_method
-  adapter_type._paperclip_admission_installed = True
+  adapter_type._outpost_admission_installed = True

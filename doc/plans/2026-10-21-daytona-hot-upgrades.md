@@ -2,7 +2,7 @@
 
 ## Goal and boundary
 
-Upgrade the main Paperclip server while native agents keep running in their
+Upgrade the main Outpost server while native agents keep running in their
 existing Daytona sandboxes. A server outage of up to five minutes may delay
 server-dependent tools and queued launches, but must not interrupt the provider
 turn, create a replacement run, repeat completed effects, or require an operator
@@ -27,7 +27,7 @@ and legacy server-owned stdio adapters are outside this first contract.
 | New work before/after replacement | Accepted queued work resumes automatically; no global pause required | Second run reaches useful completion |
 | Concurrent old/new controllers | Only the current fenced owner may issue commands/ACK events | Postgres lease race and stale-writer tests |
 | Existing runs and differing server/runner artifacts | Preserve admitted execution and runner identity; unsupported historical state remains explicit | Compatibility and artifact-identity tests |
-| Explicit Stop and changed authority | Recovery cannot undo cancellation or bypass company/budget controls | Stop/reconnect and cross-company negative cases |
+| Explicit Stop and changed authority | Recovery cannot undo cancellation or bypass space/budget controls | Stop/reconnect and cross-space negative cases |
 
 ## Lean recovery revision
 
@@ -62,7 +62,7 @@ No provider turn or uncertain business operation may be restarted to fill it.
 
 ## Findings at kickoff
 
-Base: `eaacadeba3`; worktree `/Users/dotta/.codex/worktrees/a2c4/paperclip`;
+Base: `eaacadeba3`; worktree `/Users/dotta/.codex/worktrees/a2c4/outpost`;
 branch `codex/daytona-hot-upgrades`.
 
 - Native graceful shutdown already detaches instead of cancelling provider work.
@@ -84,7 +84,7 @@ branch `codex/daytona-hot-upgrades`.
    persistence at the transport's effect boundary: authentication, commands and
    control-event acknowledgements must be recoverable before becoming visible to the peer.
    Streaming output uses the authenticated cursor contract described above.
-   Use a company/run-bound, versioned Postgres record with controller fencing;
+   Use a space/run-bound, versioned Postgres record with controller fencing;
    keep connection credentials encrypted with the instance secret provider.
    Local files become a materialized cache for existing parsers and diagnostics.
 2. Restore that state before remote reattachment; retain the admitted runner
@@ -213,7 +213,7 @@ It verifies running status and exact durable identity, reacquires the authentica
 connection, and preserves the original task lease. It owns task protocol parsing,
 stop confirmation, and credential/session settlement. Heartbeat dispatches the
 recovery claim without interpreting plugin state. The environment orchestrator
-continues to enforce current company, agent, run, workspace, and lease ownership.
+continues to enforce current space, agent, run, workspace, and lease ownership.
 
 The shared driver permits absent OS process identifiers for provider-owned tasks;
 local and sandbox consumers keep their real process identifiers and probes.
@@ -401,7 +401,7 @@ tests (five Docker-only skips); server typecheck also passed.
 
 The merged full local suite found four failures in unchanged tests: two chat
 integration cases (ambiguous Slack retry and attachment-only Telegram failure),
-a workspace port-conflict case, and a wrong-company gateway revocation case.
+a workspace port-conflict case, and a wrong-space gateway revocation case.
 All four passed isolated reruns without source or timeout changes. Their
 original causes remain unknown, and the full invocation is not a clean pass.
 Original evidence: `/tmp/hot-upgrade-cost-merged-full-tests.log`. Rerun evidence:
@@ -560,9 +560,9 @@ transactions and fourteen changed rows, with zero streaming or idle SQL.
 ### Project creation receipt recovery
 
 `create_project` stores its committed result identity in the existing
-`project.created` activity receipt, scoped to company, actor, source task and
+`project.created` activity receipt, scoped to space, actor, source task and
 idempotency key. Recovery asks the normal authenticated project creation route
-for that receipt with `X-Paperclip-Receipt-Only: true`. The route retains its
+for that receipt with `X-Outpost-Receipt-Only: true`. The route retains its
 normal parsed input, fingerprint validation and access checks. It checks current
 run authority again after acquiring the receipt lock. A matching receipt returns
 the existing project. An absent receipt returns HTTP 204 before any project or
@@ -571,7 +571,7 @@ This adds no checkpoint table writes or recurring work during ordinary execution
 
 The real-Postgres/API regression loses the successful HTTP response after commit,
 then uses fresh tool authorities to recover concurrently. It checks one project
-and one audit receipt, input mismatch rejection, company isolation, cancellation,
+and one audit receipt, input mismatch rejection, space isolation, cancellation,
 and the no-receipt/no-effect path. The transport test separately checks the
 receipt-only request and empty response. macOS skips the embedded-Postgres suite;
 a passing transport test is not a substitute for its Linux CI result.

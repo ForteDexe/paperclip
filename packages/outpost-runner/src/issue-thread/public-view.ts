@@ -241,7 +241,7 @@ function publicProviderPayload(
       return common(["schema", "hookId", "event", "scope", "status", "blocking", "durationMs", "summary"]);
     case "memory": {
       const projected = common(["schema", "citationId", "messageItemId", "label", "available", "reference"]);
-      if (typeof projected.reference === "string" && !projected.reference.startsWith("paperclip://")) projected.reference = null;
+      if (typeof projected.reference === "string" && !projected.reference.startsWith("outpost://")) projected.reference = null;
       return projected;
     }
     case "safety":

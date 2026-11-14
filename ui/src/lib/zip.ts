@@ -1,4 +1,4 @@
-import type { CompanyPortabilityFileEntry } from "@outpost/shared";
+import type { SpacePortabilityFileEntry } from "@outpost/shared";
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -143,7 +143,7 @@ function decodeStrictUtf8(bytes: Uint8Array): string | null {
   return text;
 }
 
-function bytesToPortableFileEntry(pathValue: string, bytes: Uint8Array): CompanyPortabilityFileEntry {
+function bytesToPortableFileEntry(pathValue: string, bytes: Uint8Array): SpacePortabilityFileEntry {
   // Content-addressed blob entries are opaque bytes regardless of extension.
   if (isBlobStorePath(pathValue)) {
     return { encoding: "base64", data: bytesToBase64(bytes), contentType: "application/octet-stream" };
@@ -159,7 +159,7 @@ function bytesToPortableFileEntry(pathValue: string, bytes: Uint8Array): Company
   return { encoding: "base64", data: bytesToBase64(bytes), contentType: "application/octet-stream" };
 }
 
-function portableFileEntryToBytes(entry: CompanyPortabilityFileEntry): Uint8Array {
+function portableFileEntryToBytes(entry: SpacePortabilityFileEntry): Uint8Array {
   if (typeof entry === "string") return textEncoder.encode(entry);
   return base64ToBytes(entry.data);
 }
@@ -180,10 +180,10 @@ async function inflateZipEntry(compressionMethod: number, bytes: Uint8Array) {
 
 export async function readZipArchive(source: ArrayBuffer | Uint8Array): Promise<{
   rootPath: string | null;
-  files: Record<string, CompanyPortabilityFileEntry>;
+  files: Record<string, SpacePortabilityFileEntry>;
 }> {
   const bytes = source instanceof Uint8Array ? source : new Uint8Array(source);
-  const entries: Array<{ path: string; body: CompanyPortabilityFileEntry }> = [];
+  const entries: Array<{ path: string; body: SpacePortabilityFileEntry }> = [];
   let offset = 0;
 
   while (offset + 4 <= bytes.length) {
@@ -229,7 +229,7 @@ export async function readZipArchive(source: ArrayBuffer | Uint8Array): Promise<
   }
 
   const rootPath = sharedArchiveRoot(entries.map((entry) => entry.path));
-  const files: Record<string, CompanyPortabilityFileEntry> = {};
+  const files: Record<string, SpacePortabilityFileEntry> = {};
   for (const entry of entries) {
     const normalizedPath =
       rootPath && entry.path.startsWith(`${rootPath}/`)
@@ -242,7 +242,7 @@ export async function readZipArchive(source: ArrayBuffer | Uint8Array): Promise<
   return { rootPath, files };
 }
 
-export function createZipArchive(files: Record<string, CompanyPortabilityFileEntry>, rootPath: string): Uint8Array {
+export function createZipArchive(files: Record<string, SpacePortabilityFileEntry>, rootPath: string): Uint8Array {
   const normalizedRoot = normalizeArchivePath(rootPath);
   const localChunks: Uint8Array[] = [];
   const centralChunks: Uint8Array[] = [];
@@ -360,7 +360,7 @@ function base64ByteLength(data: string): number {
  * record. The writer emits no data descriptors, extra fields, or comments.
  */
 export function estimateZipArchiveSize(
-  files: Record<string, CompanyPortabilityFileEntry>,
+  files: Record<string, SpacePortabilityFileEntry>,
   rootPath: string,
 ): number {
   const normalizedRoot = normalizeArchivePath(rootPath);

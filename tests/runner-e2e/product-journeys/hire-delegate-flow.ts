@@ -17,15 +17,15 @@ type Run = ChatRun & Row;
 interface Options { deadlineAt: number; directory: string; capture(id: string, label: string, file: string): Promise<void> }
 class HireReadTransportError extends Error {}
 
-export function hireHandoffMentions(scope: Pick<HireScope, "companyId" | "leadId" | "projectId" | "campaignId">, hiredId: string, hired: Row, project: Row) {
-  if (![scope?.companyId, scope?.leadId, scope?.projectId, scope?.campaignId].every(value => typeof value === "string" && value.length > 0)) {
+export function hireHandoffMentions(scope: Pick<HireScope, "spaceId" | "leadId" | "projectId" | "campaignId">, hiredId: string, hired: Row, project: Row) {
+  if (![scope?.spaceId, scope?.leadId, scope?.projectId, scope?.campaignId].every(value => typeof value === "string" && value.length > 0)) {
     throw new JourneyError("failed", "hire_handoff_context_unverified");
   }
   const names = hireDelegateNames(scope.campaignId);
   if (!hired || !project || typeof hiredId !== "string" || !hiredId || hired.id !== hiredId || hired.id === scope.leadId
-    || hired.companyId !== scope.companyId || hired.reportsTo !== scope.leadId || hired.name !== names.hire
+    || hired.spaceId !== scope.spaceId || hired.reportsTo !== scope.leadId || hired.name !== names.hire
     || typeof project.id !== "string" || !project.id || project.id !== scope.projectId
-    || project.companyId !== scope.companyId || project.name !== names.project) {
+    || project.spaceId !== scope.spaceId || project.name !== names.project) {
     throw new JourneyError("failed", "hire_handoff_context_unverified");
   }
   const agentHref = buildAgentMentionHref(hiredId, hired.icon ?? null), projectHref = buildProjectMentionHref(project.id, project.color ?? null);
@@ -40,26 +40,26 @@ export async function hireDelegateReuse(context: JourneyContext, session: Target
   if (!agent || agent.runtimeMode !== "native" || !context.environmentId) throw new JourneyError("unsupported", "native_agent_and_environment_required");
   const features = await api.get<Row>("/api/instance/settings/experimental");
   if (features.enableAgentChat !== true) throw new JourneyError("unsupported", "agent_chat_required");
-  const company = await api.get<Row>(`/api/companies/${context.company.id}`);
-  if (company.requireBoardApprovalForNewAgents !== false) throw new JourneyError("unsupported", "automatic_hiring_policy_required");
+  const space = await api.get<Row>(`/api/spaces/${context.space.id}`);
+  if (space.requireBoardApprovalForNewAgents !== false) throw new JourneyError("unsupported", "automatic_hiring_policy_required");
   const lead = await api.get<Row>(`/api/agents/${agent.id}`), names = hireDelegateNames(campaignId);
-  if (lead.id !== agent.id || lead.companyId !== context.company.id || lead.permissions?.canCreateAgents !== true || !lead.runtimeConfig?.aiConnection) {
+  if (lead.id !== agent.id || lead.spaceId !== context.space.id || lead.permissions?.canCreateAgents !== true || !lead.runtimeConfig?.aiConnection) {
     throw new JourneyError("unsupported", "owned_hiring_agent_required");
   }
-  const connectionChoice = await readHireConnectionChoice(api, { companyId: context.company.id,
+  const connectionChoice = await readHireConnectionChoice(api, { spaceId: context.space.id,
     responsibleUserId: context.user.id, binding: lead.runtimeConfig.aiConnection });
   const check = (id: string, passed = true) => { evidence.checks.push({ id, passed }); if (!passed) throw new JourneyError("failed", id.replaceAll("-", "_")); };
   await mkdir(options.directory, { recursive: true, mode: 0o700 });
   const retain = (name: string, value: unknown) => writeFile(path.join(options.directory, name), JSON.stringify(value, null, 2), { mode: 0o600 });
   await session.own({ kind: "project", name: names.project, journeyId: "hire-delegate-reuse" });
-  const project = await api.post<Row>(`/api/companies/${context.company.id}/projects`, { name: names.project, description: "Disposable native hiring and delegation verification." });
-  if (project.companyId !== context.company.id || !project.id || project.name !== names.project) throw new JourneyError("failed", "hire_project_binding_mismatch");
+  const project = await api.post<Row>(`/api/spaces/${context.space.id}/projects`, { name: names.project, description: "Disposable native hiring and delegation verification." });
+  if (project.spaceId !== context.space.id || !project.id || project.name !== names.project) throw new JourneyError("failed", "hire_project_binding_mismatch");
   await session.own({ kind: "project", name: names.project, id: project.id, journeyId: "hire-delegate-reuse" });
-  const chatPath = `/api/companies/${context.company.id}/chats/${agent.id}`;
+  const chatPath = `/api/spaces/${context.space.id}/chats/${agent.id}`;
   if (await api.get(chatPath)) throw new JourneyError("unsupported", "fresh_lead_chat_required");
-  const freshChat = { companyId: context.company.id, userId: context.user.id, leadAgentId: agent.id, absent: true as const };
+  const freshChat = { spaceId: context.space.id, userId: context.user.id, leadAgentId: agent.id, absent: true as const };
   await session.own({ kind: "issue", name: `Chat with ${lead.name}`, journeyId: "hire-delegate-reuse", freshChat });
-  const chatUrl = `${api.origin}/${context.company.issuePrefix}/chats/${agent.id}`;
+  const chatUrl = `${api.origin}/${context.space.issuePrefix}/chats/${agent.id}`;
   await page.goto(chatUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("task-chat-composer-input")).toBeVisible();
   let scope: HireScope | undefined, hiredId: string | undefined;
@@ -89,23 +89,23 @@ export async function hireDelegateReuse(context: JourneyContext, session: Target
   const observe = async () => {
     const chat = await readObserved<Row | null>(chatPath);
     if (!chat) return undefined;
-    if (chat.companyId !== context.company.id || chat.assigneeAgentId !== agent.id
+    if (chat.spaceId !== context.space.id || chat.assigneeAgentId !== agent.id
       || chat.conversationAgentId !== agent.id || chat.conversationUserId !== context.user.id || chat.createdByUserId !== context.user.id) throw new JourneyError("failed", "hire_chat_scope_mismatch");
-    scope ??= { companyId: context.company.id, leadId: agent.id, chatId: chat.id, projectId: project.id, campaignId,
+    scope ??= { spaceId: context.space.id, leadId: agent.id, chatId: chat.id, projectId: project.id, campaignId,
       model: agent.model, provider: agent.provider, environmentId: context.environmentId!, connectionBinding: lead.runtimeConfig.aiConnection, connectionChoice,
-      origin: api.origin, issuePrefix: context.company.issuePrefix };
+      origin: api.origin, issuePrefix: context.space.issuePrefix };
     if (chat.id !== scope.chatId) throw new JourneyError("failed", "hire_chat_replaced");
     if (!known.has(chat.id)) { await session.own({ kind: "issue", name: chat.title, id: chat.id, journeyId: "hire-delegate-reuse", freshChat }); known.add(chat.id); }
     const leadProjection = await readRuns(chat.id);
-    const leadRuns = leadProjection.filter(run => run.companyId === scope!.companyId
+    const leadRuns = leadProjection.filter(run => run.spaceId === scope!.spaceId
       && run.agentId === scope!.leadId && hireRunIssueId(run) === chat.id);
-    const activity = await readObserved<Row[]>(`/api/companies/${context.company.id}/activity?agentId=${agent.id}&limit=500`);
+    const activity = await readObserved<Row[]>(`/api/spaces/${context.space.id}/activity?agentId=${agent.id}&limit=500`);
     assertHireAuditCoverage(activity, leadRuns);
     const agents: Agent[] = [], tasks: Task[] = [], seen = new Set<string>();
     let scopeMismatch = false;
     for (const event of activity) {
-      if (event.companyId !== scope.companyId || event.actorType !== "agent" || event.actorId !== agent.id || event.agentId !== agent.id
-        || !leadRuns.some(run => run.id === event.runId && run.companyId === scope!.companyId && run.agentId === agent.id
+      if (event.spaceId !== scope.spaceId || event.actorType !== "agent" || event.actorId !== agent.id || event.agentId !== agent.id
+        || !leadRuns.some(run => run.id === event.runId && run.spaceId === scope!.spaceId && run.agentId === agent.id
           && hireRunIssueId(run) === chat.id && run.runtimeMode === "native")) continue;
       const kind = ["agent.hire_created", "agent.created"].includes(event.action) ? "agent"
         : ["issue.created", "issue.child_created"].includes(event.action) ? "issue" : undefined;
@@ -128,7 +128,7 @@ export async function hireDelegateReuse(context: JourneyContext, session: Target
     const owned = observedHireResources(scope, { agents, tasks, activity, leadRuns });
     if (scopeMismatch || owned.scopeMismatch) throw new JourneyError("failed", "hire_resource_scope_mismatch");
     if (owned.agents.length) {
-      await readHireConnectionChoice({ get: readObserved }, { companyId: context.company.id, responsibleUserId: context.user.id,
+      await readHireConnectionChoice({ get: readObserved }, { spaceId: context.space.id, responsibleUserId: context.user.id,
         binding: lead.runtimeConfig.aiConnection, hiredId: owned.agents[0]!.id });
       const verified = assertHireBinding(scope, owned.agents, hiredId);
       if (hiredConnectionBinding === undefined) hiredConnectionBinding = Object.freeze(structuredClone(verified.runtimeConfig.aiConnection));
@@ -140,7 +140,7 @@ export async function hireDelegateReuse(context: JourneyContext, session: Target
     const canonical = new Map<string, Run>();
     for (const run of projectedRuns) {
       const previous = canonical.get(run.id);
-      if (previous && (previous.companyId !== run.companyId || previous.agentId !== run.agentId
+      if (previous && (previous.spaceId !== run.spaceId || previous.agentId !== run.agentId
         || hireRunIssueId(previous) !== hireRunIssueId(run))) throw new JourneyError("failed", "hire_run_scope_mismatch");
       if (!previous) canonical.set(run.id, run);
     }
@@ -191,7 +191,7 @@ export async function hireDelegateReuse(context: JourneyContext, session: Target
   const handoff = hireHandoffMentions(scope!, hiredId!, hired, project);
   const marker = `HIRE${campaignId.replace(/[^a-z0-9]/gi, "")}`;
   await session.own({ kind: "issue", name: names.checklist, journeyId: "hire-delegate-reuse" });
-  state = await turn(`Have the existing ${handoff.teammate} write a concise launch checklist as a saved Paperclip document with the line "Reference: ${marker}". Create exactly one task titled ${names.checklist} in ${handoff.project}, already assigned to that teammate when it is created. Link the result here and let the teammate complete it. Do not hire another agent.`, 4, handoff);
+  state = await turn(`Have the existing ${handoff.teammate} write a concise launch checklist as a saved Outpost document with the line "Reference: ${marker}". Create exactly one task titled ${names.checklist} in ${handoff.project}, already assigned to that teammate when it is created. Link the result here and let the teammate complete it. Do not hire another agent.`, 4, handoff);
   const first = state.tasks.find(task => task.title === names.checklist);
   check("first-delegated-task-complete", typeof first?.identifier === "string" && state.tasks.length === 1);
   const readOutput = async (task: Row, token: string, runs: Row[]) => {
@@ -229,8 +229,8 @@ export async function hireDelegateReuse(context: JourneyContext, session: Target
     });
     if (!callback) throw new JourneyError("failed", "hire_completion_binding_mismatch");
     await page.goto(chatUrl, { waitUntil: "domcontentloaded" }); await page.reload();
-    if (!await openSavedHireResult(page, api.origin, context.company.issuePrefix, comments, agent.id, task,
-      options.deadlineAt, { companyId: scope!.companyId, chatId: scope!.chatId, runId: callback.id })) {
+    if (!await openSavedHireResult(page, api.origin, context.space.issuePrefix, comments, agent.id, task,
+      options.deadlineAt, { spaceId: scope!.spaceId, chatId: scope!.chatId, runId: callback.id })) {
       resultsVisible = false; break;
     }
   }
@@ -247,10 +247,10 @@ export async function hireDelegateReuse(context: JourneyContext, session: Target
 }
 
 export async function openSavedHireResult(page: Page, origin: string, issuePrefix: string, comments: Row[], leadId: string, task: Row, deadlineAt: number,
-  callback: { companyId: string; chatId: string; runId: string }) {
+  callback: { spaceId: string; chatId: string; runId: string }) {
   while (Date.now() < deadlineAt) {
     for (const comment of comments.filter(row => row.authorAgentId === leadId && !row.authorUserId
-      && row.companyId === callback.companyId && row.issueId === callback.chatId && row.createdByRunId === callback.runId)) {
+      && row.spaceId === callback.spaceId && row.issueId === callback.chatId && row.createdByRunId === callback.runId)) {
       const reply = page.locator(`[id=${JSON.stringify(`comment-${comment.id}`)}]`);
       if (!await reply.isVisible()) continue;
       const links = await reply.locator("a[href]").evaluateAll(elements => elements.map(element => element.getAttribute("href")!));

@@ -73,10 +73,10 @@ const EXE_DEV_SSH_INVALID_KEY_FORMAT = /Load key [^\n]*invalid format/i;
 const UUID_SECRET_REF_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // exe.dev's `--setup-script` runs at VM init as the unprivileged `exedev` user, which
-// has passwordless sudo. The Paperclip sandbox callback bridge is a Node script, so
-// every Paperclip workload on this provider needs node on PATH before the bridge can
+// has passwordless sudo. The Outpost sandbox callback bridge is a Node script, so
+// every Outpost workload on this provider needs node on PATH before the bridge can
 // start. When the operator hasn't supplied their own setup script, install Node 24 via
-// nodesource so the VM comes up ready for Paperclip out of the box.
+// nodesource so the VM comes up ready for Outpost out of the box.
 const DEFAULT_SETUP_SCRIPT =
   "(command -v node >/dev/null 2>&1 && " +
   "node -e 'const v=process.versions.node.split(\".\").map(Number);" +
@@ -231,12 +231,12 @@ function normalizeApiUrl(value: string | null): string {
 }
 
 function normalizeNamePrefix(value: string | null): string {
-  const normalized = (value ?? "paperclip")
+  const normalized = (value ?? "outpost")
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .replace(/-{2,}/g, "-");
-  return normalized.length > 0 ? normalized.slice(0, 24) : "paperclip";
+  return normalized.length > 0 ? normalized.slice(0, 24) : "outpost";
 }
 
 function parseDriverConfig(raw: Record<string, unknown>): ExeDevDriverConfig {
@@ -518,7 +518,7 @@ async function prepareSshIdentity(config: ExeDevDriverConfig): Promise<{
     };
   }
 
-  const tempDir = await mkdtemp(path.join(tmpdir(), "paperclip-exe-dev-ssh-"));
+  const tempDir = await mkdtemp(path.join(tmpdir(), "outpost-exe-dev-ssh-"));
   const sshIdentityFile = path.join(tempDir, "id_ed25519");
   const privateKey = config.sshPrivateKey.endsWith("\n")
     ? config.sshPrivateKey
@@ -702,7 +702,7 @@ async function buildLease(
   resumedLease: boolean,
 ): Promise<PluginEnvironmentLease> {
   const remote = await detectRemoteContext(config, vm);
-  const remoteCwd = requestedCwd?.trim() || path.posix.join(remote.homeDir, "paperclip-workspace");
+  const remoteCwd = requestedCwd?.trim() || path.posix.join(remote.homeDir, "outpost-workspace");
   await ensureRemoteWorkspace(config, vm, remoteCwd);
 
   return {
@@ -911,7 +911,7 @@ const plugin = definePlugin({
       parseOptionalString(params.lease.metadata?.remoteCwd)
       ?? params.workspace.remotePath
       ?? params.workspace.localPath
-      ?? "/tmp/paperclip-workspace";
+      ?? "/tmp/outpost-workspace";
 
     const vm = metadataVmRecord({
       providerLeaseId: params.lease.providerLeaseId,

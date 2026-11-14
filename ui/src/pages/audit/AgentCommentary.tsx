@@ -42,10 +42,10 @@ function CommentaryRow({ entry, onOpen }: { entry: AgentCommentaryEntry; onOpen:
   );
 }
 
-function CommentaryDetail({ companyId, id, onClose, triggerRef }: { companyId: string; id: string | null; onClose: () => void; triggerRef: RefObject<HTMLButtonElement | null> }) {
+function CommentaryDetail({ spaceId, id, onClose, triggerRef }: { spaceId: string; id: string | null; onClose: () => void; triggerRef: RefObject<HTMLButtonElement | null> }) {
   const detail = useQuery({
-    queryKey: queryKeys.agentCommentary.detail(companyId, id),
-    queryFn: ({ signal }) => agentCommentaryApi.get(companyId, id!, signal),
+    queryKey: queryKeys.agentCommentary.detail(spaceId, id),
+    queryFn: ({ signal }) => agentCommentaryApi.get(spaceId, id!, signal),
     enabled: id !== null,
   });
   const entry = detail.data;
@@ -76,7 +76,7 @@ function CommentaryDetail({ companyId, id, onClose, triggerRef }: { companyId: s
   );
 }
 
-export function AgentCommentary({ companyId }: { companyId: string }) {
+export function AgentCommentary({ spaceId }: { spaceId: string }) {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const agentId = params.get("agentId") ?? ALL;
@@ -111,8 +111,8 @@ export function AgentCommentary({ companyId }: { companyId: string }) {
     }, { replace: id === null });
   }
   const filters = { q: q || undefined, agentId: agentId === ALL ? undefined : agentId, kind, offset, limit: PAGE_SIZE };
-  const messages = useQuery({ queryKey: queryKeys.agentCommentary.list(companyId, filters), queryFn: ({ signal }) => agentCommentaryApi.list(companyId, filters, signal) });
-  const agents = useQuery({ queryKey: queryKeys.agents.list(companyId), queryFn: () => agentsApi.list(companyId) });
+  const messages = useQuery({ queryKey: queryKeys.agentCommentary.list(spaceId, filters), queryFn: ({ signal }) => agentCommentaryApi.list(spaceId, filters, signal) });
+  const agents = useQuery({ queryKey: queryKeys.agents.list(spaceId), queryFn: () => agentsApi.list(spaceId) });
   const hasFilters = Boolean(q || agentId !== ALL || kind);
   const clearFilters = () => updateFilters({ q: "", agentId: "", kind: "" });
 
@@ -140,7 +140,7 @@ export function AgentCommentary({ companyId }: { companyId: string }) {
           <div className="flex gap-2"><Button variant="outline" size="sm" aria-label="Previous page" disabled={offset === 0} onClick={() => updateFilters({ offset: String(Math.max(0, offset - PAGE_SIZE)) })}><ChevronLeft className="size-4" />Previous</Button><Button variant="outline" size="sm" aria-label="Next page" disabled={offset + messages.data.items.length >= messages.data.total} onClick={() => updateFilters({ offset: String(offset + PAGE_SIZE) })}>Next<ChevronRight className="size-4" /></Button></div>
         </div>
       </> : null}
-      <CommentaryDetail key={companyId} companyId={companyId} id={selectedId} onClose={() => selectEntry(null)} triggerRef={triggerRef} />
+      <CommentaryDetail key={spaceId} spaceId={spaceId} id={selectedId} onClose={() => selectEntry(null)} triggerRef={triggerRef} />
     </section>
   );
 }

@@ -352,16 +352,16 @@ describe("AgentMail protocol boundary", () => {
       }).replyAll,
     ).toBe(false);
   });
-  it("exposes explicit email actions in runtime API discovery and keeps credential setup board-only", () => {
+  it("exposes explicit email actions in runtime API discovery and keeps credential setup operator-only", () => {
     const operations = buildRunnerApiCatalog();
-    const send = operations.find(o => o.path === "/api/companies/{companyId}/email/send");
+    const send = operations.find(o => o.path === "/api/spaces/{spaceId}/email/send");
     expect(send?.method).toBe("POST"); expect(send?.requestBody).toBeDefined();
     expect(send?.responses).toHaveProperty("202");
-    const setup = operations.find(o => o.path === "/api/companies/{companyId}/email/inspect");
-    expect(JSON.stringify(setup?.authorization)).toContain("board");
-    const check = operations.find(o => o.path === "/api/companies/{companyId}/email/connections/{connectionId}/check-address");
+    const setup = operations.find(o => o.path === "/api/spaces/{spaceId}/email/inspect");
+    expect(JSON.stringify(setup?.authorization)).toContain("operator");
+    const check = operations.find(o => o.path === "/api/spaces/{spaceId}/email/connections/{connectionId}/check-address");
     expect(check?.requestBody).toBeDefined();
-    expect(JSON.stringify(check?.authorization)).toContain("board");
+    expect(JSON.stringify(check?.authorization)).toContain("operator");
     expect(check?.responses).toHaveProperty("429");
   });
 

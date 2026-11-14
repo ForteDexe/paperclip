@@ -2,7 +2,7 @@
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createIssue } from "../../storybook/fixtures/paperclipData";
+import { createIssue } from "../../storybook/fixtures/outpostData";
 import { TaskList, type TaskListItem } from "./TaskList";
 import { TooltipProvider } from "./ui/tooltip";
 import { readTaskListSortParams } from "../lib/task-list";
@@ -104,17 +104,17 @@ describe("TaskList progressive rendering", () => {
   });
   it("retains revealed rows when another server page sorts before them", async () => {
     const items = tasks(200).map((item, i) => ({ issue: { ...item.issue, identifier: `PAP-${i + 21}` } }));
-    await render(items, "company:person:paged");
+    await render(items, "space:person:paged");
     await more();
     const originalRows = [...rows()];
     const older = tasks(20).map((item, i) => ({ issue: { ...item.issue, id: `older-${i}`, identifier: `PAP-${i + 1}`, updatedAt: new Date(200_000 - i) } }));
-    await render([...items, ...older], "company:person:paged");
+    await render([...items, ...older], "space:person:paged");
     expect(rows()).toHaveLength(220);
     expect(originalRows.every(row => row.isConnected)).toBe(true);
     expect(rows()[0].getAttribute("data-issue-row-details")).toBe("older-0");
     await act(async () => root.unmount());
     root = createRoot(host);
-    await render([...items, ...older], "company:person:paged");
+    await render([...items, ...older], "space:person:paged");
     expect(rows()).toHaveLength(220);
   });
 

@@ -47,7 +47,7 @@ async function provider(handler: (req: IncomingMessage, res: ServerResponse) => 
     });
   };
   const call = (toolName: string, parameters: unknown, budgetMs = 3000) => executeDaytonaTool({
-    binding: { companyId: "company", agentId: "agent" }, connection: { companyId: "company", config: {} },
+    binding: { spaceId: "space", agentId: "agent" }, connection: { spaceId: "space", config: {} },
     headers: { Authorization: `Bearer ${credential}` }, request, toolName, parameters,
     signal: AbortSignal.timeout(budgetMs), deadlineAt: Date.now() + budgetMs,
   });

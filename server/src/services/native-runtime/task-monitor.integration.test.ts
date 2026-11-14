@@ -3,10 +3,10 @@ import { DELIVERY_QUEUES } from "../delivery-work-notifications.js";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, agents, agentWakeupRequests, authUsers, companyMemberships, companies, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, statusDecisions } from "@outpost/db";
+import { activityLog, agents, agentWakeupRequests, authUsers, spaceMemberships, spaces, completionContracts, createDb, heartbeatRuns, issues, nativeRunFinalizations, nativeRunResults, statusDecisions } from "@outpost/db";
 import { issueExecutionMonitorPolicySchema, PROVIDER_QUOTA_MONITOR_SERVICE_NAME } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 import { buildIssueMonitorTriggeredPatch, normalizeIssueExecutionPolicy } from "../issue-execution-policy.js";
 import { nativeCompletionFeedback } from "./native-completion-feedback.js";
 import { finalizeNativeRun } from "./native-run-finalizer.js";
@@ -29,14 +29,14 @@ describeEmbeddedPostgres("native task monitors", () => {
   afterAll(async () => { await temporary?.cleanup(); });
 
   async function fixture() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Monitors", issuePrefix: `M${companyId.slice(0, 7)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner", status: "active" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Deferred check", status: "in_progress", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, nativeIssueId: issueId, runtimeMode: "native", status: "running", contextSnapshot: { issueId } });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Monitors", issuePrefix: `M${spaceId.slice(0, 7)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "outpost_runner", status: "active" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Deferred check", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, nativeIssueId: issueId, runtimeMode: "native", status: "running", contextSnapshot: { issueId } });
     await db.update(issues).set({ executionRunId: runId }).where(eq(issues.id, issueId));
-    const binding = { companyId, agentId, issueId, runId };
-    const authority = new PaperclipRunnerToolAuthority(db, binding);
+    const binding = { spaceId, agentId, issueId, runId };
+    const authority = new OutpostRunnerToolAuthority(db, binding);
     const monitor = { nextCheckAt: new Date(Date.now() + 60_000).toISOString(), notes: "Compare this task's run and session identities." };
     const call = (args: Record<string, unknown>) => authority.execute({ tool: "set_task_monitor", callId: randomUUID(), arguments: args });
     const read = async () => (await db.select().from(issues).where(eq(issues.id, issueId)))[0]!;
@@ -68,7 +68,7 @@ describeEmbeddedPostgres("native task monitors", () => {
 
   it("notifies committed monitor changes for another owned task without replay or authorization wakeups", async () => {
     const value = await fixture(), targetId = randomUUID();
-    await db.insert(issues).values({ id: targetId, companyId: value.companyId,
+    await db.insert(issues).values({ id: targetId, spaceId: value.spaceId,
       title: "Another owned monitor", status: "in_review", assigneeAgentId: value.agentId });
     const events: string[] = [];
     const unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.issueMonitors, event => { events.push(event); });
@@ -96,7 +96,7 @@ describeEmbeddedPostgres("native task monitors", () => {
     const value = await fixture();
     expect(value.authority.definitions().some(tool => tool.name === "set_task_monitor")).toBe(true);
     for (const workMode of ["planning", "ask"] as const) {
-      const authority = new PaperclipRunnerToolAuthority(db, { ...value.binding, workMode });
+      const authority = new OutpostRunnerToolAuthority(db, { ...value.binding, workMode });
       expect(authority.definitions().some(tool => tool.name === "set_task_monitor")).toBe(false);
       await db.update(issues).set({ workMode }).where(eq(issues.id, value.issueId));
       await expect(authority.execute({ tool: "set_task_monitor", callId: randomUUID(), arguments: { idempotencyKey: "forbidden", monitor: value.monitor } })).rejects.toThrow();
@@ -109,7 +109,7 @@ describeEmbeddedPostgres("native task monitors", () => {
       await db.update(agents).set({ adapterConfig: { provider } }).where(eq(agents.id, value.agentId));
       expect(value.authority.definitions().map(tool => tool.name)).toContain("set_task_monitor");
     }
-    const authority = new PaperclipRunnerToolAuthority(db, { ...value.binding,
+    const authority = new OutpostRunnerToolAuthority(db, { ...value.binding,
       nativeReview: { nativeReviewInteractionId: randomUUID(), nativeReviewDecisionId: randomUUID() } });
     expect(authority.definitions().map(tool => tool.name)).not.toContain("set_task_monitor");
     await expect(authority.execute({ tool: "set_task_monitor", callId: randomUUID(), arguments: { idempotencyKey: "review", monitor: value.monitor } })).rejects.toThrow("review run");
@@ -118,11 +118,11 @@ describeEmbeddedPostgres("native task monitors", () => {
   it("rechecks the responsible user's permissions before mutation and replay", async () => {
     const value = await fixture(), userId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Owner", email: `${userId}@example.test`, createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId: value.companyId, principalType: "user", principalId: userId, membershipRole: "owner" });
+    await db.insert(spaceMemberships).values({ spaceId: value.spaceId, principalType: "user", principalId: userId, membershipRole: "owner" });
     await db.update(heartbeatRuns).set({ responsibleUserId: userId }).where(eq(heartbeatRuns.id, value.runId));
     const original = { idempotencyKey: "authorized", monitor: value.monitor };
     await value.call(original);
-    await db.update(companyMemberships).set({ membershipRole: "viewer" }).where(eq(companyMemberships.companyId, value.companyId));
+    await db.update(spaceMemberships).set({ membershipRole: "viewer" }).where(eq(spaceMemberships.spaceId, value.spaceId));
     await expect(value.call(original)).rejects.toThrow();
     await expect(value.call({ idempotencyKey: "clear", monitor: null })).rejects.toThrow();
     expect((await value.read()).monitorNextCheckAt?.toISOString()).toBe(value.monitor.nextCheckAt);
@@ -197,23 +197,23 @@ describeEmbeddedPostgres("native task monitors", () => {
     await value.call({ idempotencyKey: "durable-clear", monitor: null });
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, value.runId));
     const nextRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({ id: nextRunId, companyId: value.companyId, agentId: value.agentId,
+    await db.insert(heartbeatRuns).values({ id: nextRunId, spaceId: value.spaceId, agentId: value.agentId,
       nativeIssueId: value.issueId, runtimeMode: "native", status: "running", contextSnapshot: { issueId: value.issueId } });
     await db.update(issues).set({ executionRunId: nextRunId }).where(eq(issues.id, value.issueId));
-    const authority = new PaperclipRunnerToolAuthority(db, { ...value.binding, runId: nextRunId });
+    const authority = new OutpostRunnerToolAuthority(db, { ...value.binding, runId: nextRunId });
     expect(await authority.execute({ tool: "set_task_monitor", callId: randomUUID(), arguments: original }))
       .toMatchObject({ replayed: true, monitor: { nextCheckAt: null, status: "cleared" } });
     expect((await value.read()).monitorNextCheckAt).toBeNull();
     await expect(value.call(original)).rejects.toThrow();
   });
 
-  it("allows another owned task but rejects foreign ownership and company scope", async () => {
+  it("allows another owned task but rejects foreign ownership and space scope", async () => {
     const value = await fixture(), other = await fixture(), targetId = randomUUID();
-    await db.insert(issues).values({ id: targetId, companyId: value.companyId, title: "Another owned check", status: "in_review", assigneeAgentId: value.agentId });
+    await db.insert(issues).values({ id: targetId, spaceId: value.spaceId, title: "Another owned check", status: "in_review", assigneeAgentId: value.agentId });
     expect(await value.call({ taskId: targetId, idempotencyKey: "other", monitor: value.monitor })).toMatchObject({ taskId: targetId });
     await expect(value.call({ taskId: other.issueId, idempotencyKey: "foreign", monitor: value.monitor })).rejects.toThrow("Task not found");
     const otherAgent = randomUUID();
-    await db.insert(agents).values({ id: otherAgent, companyId: value.companyId, name: "Other", adapterType: "outpost_runner" });
+    await db.insert(agents).values({ id: otherAgent, spaceId: value.spaceId, name: "Other", adapterType: "outpost_runner" });
     await db.update(issues).set({ assigneeAgentId: otherAgent }).where(eq(issues.id, targetId));
     await expect(value.call({ taskId: targetId, idempotencyKey: "other", monitor: value.monitor })).rejects.toThrow();
   });
@@ -223,7 +223,7 @@ describeEmbeddedPostgres("native task monitors", () => {
     for (const monitor of [
       { ...value.monitor, notes: "" },
       { ...value.monitor, nextCheckAt: new Date(0).toISOString() },
-      { ...value.monitor, scheduledBy: "board" },
+      { ...value.monitor, scheduledBy: "operator" },
       { ...value.monitor, timeoutAt: value.monitor.nextCheckAt },
       { ...value.monitor, maxAttempts: 101 },
     ]) await expect(value.call({ idempotencyKey: randomUUID(), monitor })).rejects.toThrow();
@@ -246,7 +246,7 @@ describeEmbeddedPostgres("native task monitors", () => {
     };
     await expect(nativeCompletionFeedback(db, value.runId, result)).rejects.toThrow("persisted, eligible monitor");
     const otherId = randomUUID();
-    await db.insert(issues).values({ id: otherId, companyId: value.companyId, title: "Other", status: "in_progress", assigneeAgentId: value.agentId });
+    await db.insert(issues).values({ id: otherId, spaceId: value.spaceId, title: "Other", status: "in_progress", assigneeAgentId: value.agentId });
     await value.call({ taskId: otherId, idempotencyKey: "other", monitor: value.monitor });
     await expect(nativeCompletionFeedback(db, value.runId, result)).rejects.toThrow("persisted, eligible monitor");
     await value.call({ idempotencyKey: "self", monitor: value.monitor });
@@ -280,7 +280,7 @@ describeEmbeddedPostgres("native task monitors", () => {
     await value.call({ idempotencyKey: "schedule", monitor: value.monitor });
     const contractId = randomUUID(), resultId = randomUUID(), successorId = randomUUID();
     await db.insert(completionContracts).values({
-      id: contractId, companyId: value.companyId, issueId: value.issueId, revision: 1,
+      id: contractId, spaceId: value.spaceId, issueId: value.issueId, revision: 1,
       schemaVersion: "outpost.completion-contract.v1", policyVersion: "test",
       risk: "standard", completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: { revision: "test", criteria: [] }, canonicalSha256: randomUUID(),
@@ -299,20 +299,20 @@ describeEmbeddedPostgres("native task monitors", () => {
     await db.update(heartbeatRuns).set({ status: "succeeded", completionContractId: contractId })
       .where(eq(heartbeatRuns.id, value.runId));
     await db.insert(nativeRunResults).values({
-      id: resultId, companyId: value.companyId, issueId: value.issueId, runId: value.runId,
+      id: resultId, spaceId: value.spaceId, issueId: value.issueId, runId: value.runId,
       completionContractId: contractId, serverFingerprint: randomUUID(), canonicalSha256: randomUUID(),
       schemaStatus: "accepted", resultJson,
     });
     await db.insert(nativeRunFinalizations).values({
-      companyId: value.companyId, issueId: value.issueId, runId: value.runId,
+      spaceId: value.spaceId, issueId: value.issueId, runId: value.runId,
       phase: "retryable_failure", resultId, failureCode: "monitor_wait_authority_lost",
     });
     const successorAgentId = state === "other_agent" ? randomUUID() : value.agentId;
     if (state === "other_agent") await db.insert(agents).values({
-      id: successorAgentId, companyId: value.companyId, name: "Another agent", adapterType: "outpost_runner",
+      id: successorAgentId, spaceId: value.spaceId, name: "Another agent", adapterType: "outpost_runner",
     });
     await db.insert(heartbeatRuns).values({
-      id: successorId, companyId: value.companyId, agentId: successorAgentId,
+      id: successorId, spaceId: value.spaceId, agentId: successorAgentId,
       status: state === "running_successor" ? "running" : "failed",
       contextSnapshot: { issueId: state === "other_task" ? randomUUID() : value.issueId },
       error: "Previous task run still owns workspace recovery",
@@ -328,7 +328,7 @@ describeEmbeddedPostgres("native task monitors", () => {
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, value.runId)))[0])
       .toMatchObject({ phase: "retryable_failure", failureCode: "monitor_wait_authority_lost" });
     const [wake] = await db.insert(agentWakeupRequests).values({
-      companyId: value.companyId, agentId: value.agentId, source: "automation", reason: "issue_monitor_due",
+      spaceId: value.spaceId, agentId: value.agentId, source: "automation", reason: "issue_monitor_due",
       status: state === "unadmitted" ? "queued" : state === "running_successor" ? "claimed" : "failed",
       runId: state === "unadmitted" ? null : successorId,
       idempotencyKey: `issue-monitor:${value.issueId}:${value.monitor.nextCheckAt}`,
@@ -366,6 +366,6 @@ describeEmbeddedPostgres("native task monitors", () => {
       await finalizeNativeRun({ db, runId: value.runId, workspaceFinalizeStatus });
       expect(await db.select().from(statusDecisions).where(eq(statusDecisions.runId, value.runId))).toEqual(decisions);
     }
-    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, value.companyId))).toEqual([wake]);
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, value.spaceId))).toEqual([wake]);
   });
 });

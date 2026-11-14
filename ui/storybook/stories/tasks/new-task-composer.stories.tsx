@@ -15,7 +15,7 @@ import { MarkdownBody } from "@/components/MarkdownBody";
 import { composerImageFiles } from "../../support/composerImageFiles";
 import { composerSkills as SKILLS } from "../../support/composerSkills";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useDialog } from "@/context/DialogContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { trackRecentAssignee, trackRecentAssigneeUser } from "@/lib/recent-assignees";
@@ -27,9 +27,9 @@ import {
   storybookExecutionWorkspaces,
   storybookProjects,
   storybookIssues,
-} from "../../fixtures/paperclipData";
+} from "../../fixtures/outpostData";
 
-const COMPANY_ID = "company-storybook";
+const SPACE_ID = "space-storybook";
 const NEW_TASK_AGENTS = [...storybookAgents, { ...storybookAgents[2]!, id: "agent-ceo", name: "CEO", role: "ceo" }].map((agent) =>
   agent.id === "agent-codex"
     ? { ...agent, adapterConfig: { ...agent.adapterConfig, model: "gpt-6-sol" }, appearance: appearanceForPalette("electric-grove") }
@@ -63,7 +63,7 @@ function NewTaskStory({
   rememberedEffort?: boolean;
 }) {
   const client = useQueryClient();
-  const { selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { selectedSpaceId, setSelectedSpaceId } = useSpace();
   const { openNewIssue } = useDialog();
   const opened = useRef(false);
   const [submitted, setSubmitted] = useState<Record<string, unknown> | null>(null);
@@ -75,15 +75,15 @@ function NewTaskStory({
         typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
         location.origin,
       );
-      if (url.pathname === `/api/companies/${COMPANY_ID}/skills`) return Response.json(SKILLS);
-      if (url.pathname === `/api/companies/${COMPANY_ID}/agents`) return Response.json(NEW_TASK_AGENTS);
-      if (url.pathname === `/api/companies/${COMPANY_ID}/routines`) return Response.json(ROUTINES);
-      if (url.pathname === `/api/companies/${COMPANY_ID}/execution-workspaces`) {
+      if (url.pathname === `/api/spaces/${SPACE_ID}/skills`) return Response.json(SKILLS);
+      if (url.pathname === `/api/spaces/${SPACE_ID}/agents`) return Response.json(NEW_TASK_AGENTS);
+      if (url.pathname === `/api/spaces/${SPACE_ID}/routines`) return Response.json(ROUTINES);
+      if (url.pathname === `/api/spaces/${SPACE_ID}/execution-workspaces`) {
         if (worktrees === "loading") return new Promise<Response>(() => {});
         if (worktrees === "error") return Response.json({ error: "Worktrees unavailable" }, { status: 503 });
         return Response.json(worktrees === "empty" || url.searchParams.get("projectId") !== "project-board-ui" ? [] : WORKTREES);
       }
-      if (url.pathname === `/api/companies/${COMPANY_ID}/issues` && init?.method === "POST") {
+      if (url.pathname === `/api/spaces/${SPACE_ID}/issues` && init?.method === "POST") {
         if (scenario === "saving") return new Promise<Response>(() => {});
         if (scenario === "error")
           return Response.json(
@@ -98,7 +98,7 @@ function NewTaskStory({
           ...data,
           id: "storybook-created-task",
           identifier: "PAP-204",
-          companyId: COMPANY_ID,
+          spaceId: SPACE_ID,
         });
       }
       return originalFetch(input, init);
@@ -109,42 +109,42 @@ function NewTaskStory({
   }, [scenario, worktrees]);
 
   useLayoutEffect(() => {
-    if (selectedCompanyId !== COMPANY_ID) {
-      setSelectedCompanyId(COMPANY_ID);
+    if (selectedSpaceId !== SPACE_ID) {
+      setSelectedSpaceId(SPACE_ID);
       return;
     }
     if (opened.current) return;
     opened.current = true;
-    localStorage.removeItem(`paperclip:issue-draft:${storybookAuthSession.user!.id}`);
-    localStorage.removeItem("paperclip:recent-assignees");
-    localStorage.removeItem(`paperclip:recent-assignees:${COMPANY_ID}`);
-    localStorage.removeItem("paperclip:recent-projects");
-    localStorage.removeItem(`paperclip:recent-projects:${COMPANY_ID}`);
-    localStorage.removeItem(`paperclip:composer-effort:${COMPANY_ID}`);
-    if (rememberedAssignee === "agent") trackRecentAssignee("agent-codex", COMPANY_ID);
-    if (rememberedAssignee === "human") trackRecentAssigneeUser(storybookAuthSession.user.id, COMPANY_ID);
-    if (rememberedProject) trackRecentProject("project-board-ui", COMPANY_ID);
-    if (rememberedEffort) rememberComposerEffort(COMPANY_ID, "high");
+    localStorage.removeItem(`outpost:issue-draft:${storybookAuthSession.user!.id}`);
+    localStorage.removeItem("outpost:recent-assignees");
+    localStorage.removeItem(`outpost:recent-assignees:${SPACE_ID}`);
+    localStorage.removeItem("outpost:recent-projects");
+    localStorage.removeItem(`outpost:recent-projects:${SPACE_ID}`);
+    localStorage.removeItem(`outpost:composer-effort:${SPACE_ID}`);
+    if (rememberedAssignee === "agent") trackRecentAssignee("agent-codex", SPACE_ID);
+    if (rememberedAssignee === "human") trackRecentAssigneeUser(storybookAuthSession.user.id, SPACE_ID);
+    if (rememberedProject) trackRecentProject("project-board-ui", SPACE_ID);
+    if (rememberedEffort) rememberComposerEffort(SPACE_ID, "high");
     client.setQueryData(queryKeys.health, { hiddenSettings: [] });
     client.setQueryData(queryKeys.auth.session, storybookAuthSession);
     client.setQueryData(
-      queryKeys.agents.list(COMPANY_ID),
+      queryKeys.agents.list(SPACE_ID),
       NEW_TASK_AGENTS,
     );
-    client.setQueryData(queryKeys.agents.adapterModels(COMPANY_ID, "codex_local"), [
+    client.setQueryData(queryKeys.agents.adapterModels(SPACE_ID, "codex_local"), [
       { id: "gpt-6-sol", label: "GPT-6 Sol" },
       { id: "gpt-6-astra", label: "GPT-6 Astra" },
     ]);
-    client.setQueryData(queryKeys.projects.list(COMPANY_ID), isolation ? storybookProjects : storybookProjects.map((project) => ({
+    client.setQueryData(queryKeys.projects.list(SPACE_ID), isolation ? storybookProjects : storybookProjects.map((project) => ({
       ...project, executionWorkspacePolicy: { ...project.executionWorkspacePolicy, enabled: false },
     })));
-    client.setQueryData(queryKeys.issues.mentionPool(COMPANY_ID), storybookIssues);
-    client.setQueryData(queryKeys.companySkills.list(COMPANY_ID), SKILLS);
-    client.setQueryData(queryKeys.routines.list(COMPANY_ID), ROUTINES);
+    client.setQueryData(queryKeys.issues.mentionPool(SPACE_ID), storybookIssues);
+    client.setQueryData(queryKeys.spaceSkills.list(SPACE_ID), SKILLS);
+    client.setQueryData(queryKeys.routines.list(SPACE_ID), ROUTINES);
     client.setQueryData(queryKeys.instance.experimentalSettings, {
       enableIsolatedWorkspaces: true,
     });
-    const worktreeQueryKey = queryKeys.executionWorkspaces.summaryList(COMPANY_ID, {
+    const worktreeQueryKey = queryKeys.executionWorkspaces.summaryList(SPACE_ID, {
       projectId: "project-board-ui",
       reuseEligible: true,
     });
@@ -175,7 +175,7 @@ function NewTaskStory({
               : {}),
           },
     );
-  }, [client, isolation, openNewIssue, rememberedAssignee, rememberedProject, rememberedEffort, scenario, selectedCompanyId, setSelectedCompanyId, worktrees]);
+  }, [client, isolation, openNewIssue, rememberedAssignee, rememberedProject, rememberedEffort, scenario, selectedSpaceId, setSelectedSpaceId, worktrees]);
 
   return (
     <div className="min-h-screen bg-background p-8 text-foreground">
@@ -209,7 +209,7 @@ const meta = {
           "The production new-task dialog renders TaskChatComposer. An inset bar shared with queued messages holds the colored project picker and, for projects with isolation enabled, Worktrees. Choose a new worktree or reuse a project worktree. The shared editor supports agent, person, project, and task mentions plus skill and routine slash-command chips. Agent mentions show the agent's current avatar. The editor, add menu, work modes, assignee/model/effort picker, and send button are shared with task chat. Creation is mocked locally; no agents run.",
       },
     },
-    paperclip: {
+    outpost: {
       "capabilities": [
         "tasks/create",
         "workspaces/binding"
@@ -502,7 +502,7 @@ export const RichChips: Story = {
       await waitFor(() => expect(composer.querySelector(`[data-mention-kind="${kind}"]`)).toBeVisible());
     }
     const agentChip = composer.querySelector('[data-mention-kind="agent"]')!;
-    await expect(agentChip).toHaveAttribute("style", expect.stringContaining("--paperclip-mention-avatar-image"));
+    await expect(agentChip).toHaveAttribute("style", expect.stringContaining("--outpost-mention-avatar-image"));
     await expect(canvasElement.ownerDocument.defaultView!.getComputedStyle(agentChip, "::before").backgroundImage)
       .toContain(new URL("./agent-avatar-images/", canvasElement.ownerDocument.baseURI).href);
   },

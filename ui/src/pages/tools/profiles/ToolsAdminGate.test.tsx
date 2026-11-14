@@ -15,8 +15,8 @@ vi.mock("@/api/access", () => ({
   accessApi: { getCurrentBoardAccess: () => getBoardAccessMock() },
 }));
 
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 
 vi.mock("@/lib/router", () => ({

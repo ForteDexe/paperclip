@@ -224,7 +224,7 @@ fn matches_task_context_result(result: &Value, expected_canonical: Option<&Value
         return false;
     }
     [
-        ("/value/company/id", "/companyId"),
+        ("/value/space/id", "/spaceId"),
         ("/value/actor/id", "/actorId"),
         ("/value/activeTask/id", "/taskId"),
         ("/value/run/id", "/runId"),
@@ -295,7 +295,7 @@ mod tests {
                 "operationId": "get_task_context",
                 "callId": "semantic-call-1",
                 "value": {
-                    "company": {"id": "company-1"},
+                    "space": {"id": "space-1"},
                     "actor": {"id": "actor-1"},
                     "activeTask": {"id": "task-1"},
                     "run": {"id": "run-1"},
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn task_context_result_accepts_only_the_expected_canonical_binding() {
         let expected = json!({
-            "companyId": "company-1",
+            "spaceId": "space-1",
             "actorId": "actor-1",
             "taskId": "task-1",
             "runId": "run-1",
@@ -318,7 +318,7 @@ mod tests {
             "operationId": "get_task_context",
             "callId": "semantic-call-1",
             "value": {
-                "company": {"id": "company-1"},
+                "space": {"id": "space-1"},
                 "actor": {"id": "actor-1"},
                 "activeTask": {"id": "task-1"},
                 "run": {"id": "run-1"},
@@ -332,7 +332,7 @@ mod tests {
                 "operationId": "get_task_context",
                 "callId": "semantic-call-1",
                 "value": {
-                    "company": {"id": "company-1"},
+                    "space": {"id": "space-1"},
                     "actor": {"id": "actor-1"},
                     "activeTask": {"id": "wrong-task"},
                     "run": {"id": "run-1"},
@@ -534,7 +534,7 @@ fn send_opencode_proxy_runtime_question(state: &FakeState) -> io::Result<()> {
     let turn_id = state.active_turn_id.as_deref().unwrap_or("provider-turn-1");
     send(json!({
         "id": "opencode-runtime-request-1",
-        "method": "paperclip/runtimeRequest",
+        "method": "outpost/runtimeRequest",
         "params": {
             "request": {
                 "schema": "outpost.runtime_request.v2",
@@ -1087,7 +1087,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 send(
                     json!({"id":"discovery-request", "method":"item/tool/call", "params":{
                         "threadId":state.thread_id, "turnId":state.active_turn_id,
-                        "callId":"assigned-discovery", "tool":"paperclip_search_assigned_tools",
+                        "callId":"assigned-discovery", "tool":"outpost_search_assigned_tools",
                         "arguments":{"query":"github"}
                     }}),
                 )?;
@@ -1274,7 +1274,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 }))?;
             }
             "initialized" => {}
-            "paperclip/ackTerminal" => {
+            "outpost/ackTerminal" => {
                 let path = argument(&args, "--cursor-cloud-terminal-file")
                     .ok_or("terminal fixture missing")?;
                 let delivery: Value = serde_json::from_slice(&fs::read(&path)?)?;
@@ -1294,7 +1294,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     )?;
                 }
             }
-            "paperclip/shutdown" if args.iter().any(|arg| arg == "--cursor-cloud-shutdown") => {
+            "outpost/shutdown" if args.iter().any(|arg| arg == "--cursor-cloud-shutdown") => {
                 let unconfirmed =
                     argument(&args, "--cursor-cloud-shutdown-control").is_some_and(|path| {
                         fs::read_to_string(path).is_ok_and(|value| value.trim() == "unconfirmed")
@@ -2039,7 +2039,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                                 "senderThreadId":state.thread_id, "receiverThreadIds":["helper-thread"]}
                         }}))?;
                     }
-                    for (index, tool) in ["get_task_context", "paperclip_finish"].iter().enumerate()
+                    for (index, tool) in ["get_task_context", "outpost_finish"].iter().enumerate()
                     {
                         send(
                             json!({"id":format!("helper-request-{index}"), "method":"item/tool/call", "params":{
@@ -2071,7 +2071,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     // Real Codex announces a child's MCP startup before its
                     // thread/started notification establishes parent lineage.
                     send(json!({"method":"mcpServer/startupStatus/updated","params":{
-                        "threadId":"descendant-0", "name":"paperclip", "status":"starting", "error":null
+                        "threadId":"descendant-0", "name":"outpost", "status":"starting", "error":null
                     }}))?;
                     // Codex can announce a helper through the root's spawn receipt
                     // before emitting any thread/started notification for that helper.
@@ -2207,7 +2207,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     send(
                         json!({"id":"discovery-request", "method":"item/tool/call", "params":{
                             "threadId":state.thread_id, "turnId":provider_turn_id,
-                            "callId":"assigned-discovery", "tool":"paperclip_search_assigned_tools",
+                            "callId":"assigned-discovery", "tool":"outpost_search_assigned_tools",
                             "arguments":{"query":{"PRIVATE_QUERY":"private search"}}
                         }}),
                     )?;
@@ -2226,7 +2226,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     send(json!({
                         "id": "terminal-result-request", "method": "item/tool/call",
                         "params": { "threadId": state.thread_id, "turnId": provider_turn_id,
-                            "callId": "terminal-result-call", "tool": "paperclip_finish", "arguments": result }
+                            "callId": "terminal-result-call", "tool": "outpost_finish", "arguments": result }
                     }))?;
                 } else if emit_tool_call {
                     send(json!({

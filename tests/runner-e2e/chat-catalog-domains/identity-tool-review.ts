@@ -80,7 +80,7 @@ export const toolReviewIdentityCases = ["approve-tool-once", "decline-tool"].map
       const agent = await ctx.input.api.get<{ runtimeConfig: { heartbeat?: Record<string, unknown> } }>(`/api/agents/${ctx.input.fixtures.agent.id}`);
       await ctx.input.api.patch(`/api/agents/${ctx.input.fixtures.agent.id}`, { runtimeConfig: { ...agent.runtimeConfig, heartbeat: { ...agent.runtimeConfig.heartbeat, maxDailyRuns: 4 } } });
     }
-    const root = `/api/companies/${ctx.input.fixtures.company.id}`;
+    const root = `/api/spaces/${ctx.input.fixtures.space.id}`;
     const connected = await ctx.input.api.postSensitive<{ connectionId: string; actions: { readOnly: Array<{ catalogEntryId: string }>; canMakeChanges: Array<{ catalogEntryId: string }> } }>(`${root}/tools/apps/connect`, {
       link: provider.url, name: "Launch Notes Synthetic Service", authMode: "bearer", credentialValues: { "credentials.authorization": credential }, grantKind: "organization",
     });
@@ -90,7 +90,7 @@ export const toolReviewIdentityCases = ["approve-tool-once", "decline-tool"].map
     await ctx.input.api.putSensitive(`/api/tool-connections/${connected.connectionId}/installs`, { installs: [{ targetType: "agent", targetId: ctx.input.fixtures.agent.id }] });
     const state: Record<string, unknown> = { marker, markerNonce, connectionId: connected.connectionId, entryIds, syntheticProvider: true };
     if (id === "decline-tool") {
-      for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: ctx.input.fixtures.agent.id }])
+      for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: ctx.input.fixtures.agent.id }])
         await ctx.input.api.post(`${root}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
       await pollUntil({ label: "real read setup agent readiness", deadlineAt: Date.now() + 60_000,
         load: () => ctx.input.api.get<{ lifecycleState: string; status: string }>(`/api/agents/${ctx.input.fixtures.agent.id}`), accept: row => row.lifecycleState === "ready" && row.status === "idle" });
@@ -142,7 +142,7 @@ export const toolReviewIdentityCases = ["approve-tool-once", "decline-tool"].map
     // It is visited only after the actor's decision, on a separate page so chat remains observable.
     if (state.decisionId) {
       const page = await ctx.input.page.context().newPage();
-      try { await page.goto(`/${ctx.input.fixtures.company.issuePrefix}/apps/${state.connectionId}/permissions`, { waitUntil: "domcontentloaded" });
+      try { await page.goto(`/${ctx.input.fixtures.space.issuePrefix}/apps/${state.connectionId}/permissions`, { waitUntil: "domcontentloaded" });
         const option = page.getByRole("radio", { name: "Read launch notes: Ask first", exact: true });
         await expect(option).toBeVisible(); state.policyStillAskFirst = await option.isChecked();
       } finally { await page.close(); }

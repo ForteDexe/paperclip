@@ -5,7 +5,7 @@ export function makeStatusCard(
 ): StatusCardView {
   const card: StatusCard = {
     id: "card-gap",
-    companyId: "company-storybook",
+    spaceId: "space-storybook",
     createdByUserId: null,
     createdByAgentId: null,
     title: "Release readiness",

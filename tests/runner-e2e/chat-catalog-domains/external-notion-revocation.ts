@@ -43,7 +43,7 @@ export const notionRevocationExternalCases = [definition("app-permissions.revoke
   async act(ctx,state) {
     await waitForReply(ctx); const o = await observeExternal(ctx,state); if(!revokeNotionGuidance(o.reply)) throw new Error("Disconnection guidance must preserve the exact old Notion account, affected consumers and unrelated-account boundary");
     const before = await ctx.input.api.get<ToolConnection>(`/api/tool-connections/${state.connectionId}`);state.unchangedBeforeHuman=before.enabled&&before.status==="active";
-    const prefix=`/${ctx.input.fixtures.company.issuePrefix}/apps/${state.connectionId}`,href=o.links.find(link=>{try{const url=new URL(link,o.origin);return url.origin===o.origin&&(url.pathname===prefix||url.pathname.startsWith(`${prefix}/`));}catch{return false;}});
+    const prefix=`/${ctx.input.fixtures.space.issuePrefix}/apps/${state.connectionId}`,href=o.links.find(link=>{try{const url=new URL(link,o.origin);return url.origin===o.origin&&(url.pathname===prefix||url.pathname.startsWith(`${prefix}/`));}catch{return false;}});
     if(!href)throw new Error("The reply did not provide the selected old account's management path");const source=ctx.input.page.url();await ctx.input.page.goto(new URL(href,o.origin).href,{waitUntil:"domcontentloaded"});
     if(!ctx.input.page.url().endsWith("/permissions"))await ctx.input.page.goto(`${prefix}/permissions`,{waitUntil:"domcontentloaded"});await expect(ctx.input.page.getByRole("main")).toContainText("Launch Notion");state.correctAccountVisible=true;
     await ctx.input.page.getByRole("button",{name:"Disconnect",exact:true}).click();const dialog=ctx.input.page.getByRole("alertdialog");await expect(dialog).toContainText("Other connections are unaffected");

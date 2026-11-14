@@ -30,10 +30,10 @@ try {
     if (!result.eligible) process.exitCode = 1;
   } else {
   const result = phase === "migration" ? await migrateAgentFiles(db, {
-    apply, writersStopped: process.argv.includes("--writers-stopped"), companyId: value("--company"),
+    apply, writersStopped: process.argv.includes("--writers-stopped"), spaceId: value("--space"),
     after: value("--after"), limit: Number(value("--limit") ?? 25),
   }) : phase === "objects" ? await collectAgentFileObjects(db, provider, createStorageService(provider), {
-    apply, companyId: value("--company") ?? "", agentId: value("--agent") ?? "", continuationToken: value("--after"),
+    apply, spaceId: value("--space") ?? "", agentId: value("--agent") ?? "", continuationToken: value("--after"),
   }) : (() => { throw new Error("--phase must be migration, eligibility or objects"); })();
   console.log(JSON.stringify({ phase, apply, ...result }));
   if (phase === "migration" && apply && "pageReady" in result && !result.pageReady) process.exitCode = 1;

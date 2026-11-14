@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PaperclipApiClient } from "./client.js";
+import { OutpostApiClient } from "./client.js";
 import { createToolDefinitions } from "./tools.js";
 
 function makeClient() {
-  return new PaperclipApiClient({
+  return new OutpostApiClient({
     apiUrl: "http://localhost:3100/api",
     apiKey: "token-123",
-    companyId: "11111111-1111-1111-1111-111111111111",
+    spaceId: "11111111-1111-1111-1111-111111111111",
     agentId: "22222222-2222-2222-2222-222222222222",
     runId: "33333333-3333-3333-3333-333333333333",
   });
@@ -25,7 +25,7 @@ function mockJsonResponse(body: unknown, status = 200) {
   });
 }
 
-describe("paperclip MCP tools", () => {
+describe("outpost MCP tools", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -36,7 +36,7 @@ describe("paperclip MCP tools", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = getTool("paperclipUpdateIssue");
+    const tool = getTool("outpostUpdateIssue");
     await tool.execute({
       issueId: "PAP-1135",
       status: "done",
@@ -47,41 +47,41 @@ describe("paperclip MCP tools", () => {
     expect(String(url)).toBe("http://localhost:3100/api/issues/PAP-1135");
     expect(init.method).toBe("PATCH");
     expect((init.headers as Record<string, string>)["Authorization"]).toBe("Bearer token-123");
-    expect((init.headers as Record<string, string>)["X-Paperclip-Run-Id"]).toBe(
+    expect((init.headers as Record<string, string>)["X-Outpost-Run-Id"]).toBe(
       "33333333-3333-3333-3333-333333333333",
     );
   });
 
-  it("lists the company skill library with the default company id", async () => {
+  it("lists the space skill library with the default space id", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      mockJsonResponse([{ key: "paperclipai/bundled/product/wireframe", name: "wireframe" }]),
+      mockJsonResponse([{ key: "outpost/bundled/product/wireframe", name: "wireframe" }]),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = getTool("paperclipListSkills");
+    const tool = getTool("outpostListSkills");
     const response = await tool.execute({});
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url] = fetchMock.mock.calls[0] as [string];
     expect(String(url)).toBe(
-      "http://localhost:3100/api/companies/11111111-1111-1111-1111-111111111111/skills",
+      "http://localhost:3100/api/spaces/11111111-1111-1111-1111-111111111111/skills",
     );
     expect(response.content[0]?.text).toContain("wireframe");
   });
 
-  it("uses default company id for company-scoped list tools", async () => {
+  it("uses default space id for space-scoped list tools", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       mockJsonResponse([{ id: "issue-1" }]),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = getTool("paperclipListIssues");
+    const tool = getTool("outpostListIssues");
     const response = await tool.execute({});
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url] = fetchMock.mock.calls[0] as [string];
     expect(String(url)).toBe(
-      "http://localhost:3100/api/companies/11111111-1111-1111-1111-111111111111/issues",
+      "http://localhost:3100/api/spaces/11111111-1111-1111-1111-111111111111/issues",
     );
     expect(response.content[0]?.text).toContain("issue-1");
   });
@@ -92,7 +92,7 @@ describe("paperclip MCP tools", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = getTool("paperclipCheckoutIssue");
+    const tool = getTool("outpostCheckoutIssue");
     await tool.execute({
       issueId: "PAP-1135",
     });
@@ -110,7 +110,7 @@ describe("paperclip MCP tools", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = getTool("paperclipCreateIssue");
+    const tool = getTool("outpostCreateIssue");
     await tool.execute({
       title: "Assigned follow-up",
       assigneeAgentId: "22222222-2222-2222-2222-222222222222",
@@ -118,7 +118,7 @@ describe("paperclip MCP tools", () => {
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(String(url)).toBe(
-      "http://localhost:3100/api/companies/11111111-1111-1111-1111-111111111111/issues",
+      "http://localhost:3100/api/spaces/11111111-1111-1111-1111-111111111111/issues",
     );
     expect(init.method).toBe("POST");
     expect(JSON.parse(String(init.body))).toEqual({
@@ -136,7 +136,7 @@ describe("paperclip MCP tools", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = getTool("paperclipUpsertIssueDocument");
+    const tool = getTool("outpostUpsertIssueDocument");
     await tool.execute({
       issueId: "PAP-1135",
       key: "plan",
@@ -174,7 +174,7 @@ describe("paperclip MCP tools", () => {
       }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = getTool("paperclipControlIssueWorkspaceServices");
+    const tool = getTool("outpostControlIssueWorkspaceServices");
     await tool.execute({
       issueId: "PAP-1135",
       action: "restart",
@@ -214,7 +214,7 @@ describe("paperclip MCP tools", () => {
       }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = getTool("paperclipWaitForIssueWorkspaceService");
+    const tool = getTool("outpostWaitForIssueWorkspaceService");
     const response = await tool.execute({
       issueId: "PAP-1135",
       serviceName: "web",
@@ -231,7 +231,7 @@ describe("paperclip MCP tools", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = getTool("paperclipSuggestTasks");
+    const tool = getTool("outpostSuggestTasks");
     await tool.execute({
       issueId: "PAP-1135",
       idempotencyKey: "run-1:suggest",
@@ -261,7 +261,7 @@ describe("paperclip MCP tools", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = getTool("paperclipRequestConfirmation");
+    const tool = getTool("outpostRequestConfirmation");
     await tool.execute({
       issueId: "PAP-1135",
       idempotencyKey: "confirmation:PAP-1135:plan:33333333-3333-4333-8333-333333333333",
@@ -315,7 +315,7 @@ describe("paperclip MCP tools", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = getTool("paperclipRequestCheckboxConfirmation");
+    const tool = getTool("outpostRequestCheckboxConfirmation");
     await tool.execute({
       issueId: "PAP-1135",
       idempotencyKey: "confirmation:PAP-1135:files",
@@ -365,13 +365,13 @@ describe("paperclip MCP tools", () => {
     });
   });
 
-  it("creates approvals with the expected company-scoped payload", async () => {
+  it("creates approvals with the expected space-scoped payload", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       mockJsonResponse({ id: "approval-1" }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = getTool("paperclipCreateApproval");
+    const tool = getTool("outpostCreateApproval");
     await tool.execute({
       type: "hire_agent",
       payload: { branch: "pap-1167" },
@@ -381,7 +381,7 @@ describe("paperclip MCP tools", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(String(url)).toBe(
-      "http://localhost:3100/api/companies/11111111-1111-1111-1111-111111111111/approvals",
+      "http://localhost:3100/api/spaces/11111111-1111-1111-1111-111111111111/approvals",
     );
     expect(init.method).toBe("POST");
     expect(JSON.parse(String(init.body))).toEqual({
@@ -394,7 +394,7 @@ describe("paperclip MCP tools", () => {
   it("rejects invalid generic request paths", async () => {
     vi.stubGlobal("fetch", vi.fn());
 
-    const tool = getTool("paperclipApiRequest");
+    const tool = getTool("outpostApiRequest");
     const response = await tool.execute({
       method: "GET",
       path: "issues",
@@ -406,7 +406,7 @@ describe("paperclip MCP tools", () => {
   it("rejects generic request paths that escape /api", async () => {
     vi.stubGlobal("fetch", vi.fn());
 
-    const tool = getTool("paperclipApiRequest");
+    const tool = getTool("outpostApiRequest");
     const response = await tool.execute({
       method: "GET",
       path: "/../../secret",

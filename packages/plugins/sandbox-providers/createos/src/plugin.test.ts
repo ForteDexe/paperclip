@@ -7,7 +7,7 @@ import { CreateosClient } from "./client.js";
 vi.mock("./request-pacer.js", () => ({ waitForRequest: vi.fn().mockResolvedValue(undefined) }));
 
 const config = { apiUrl: "https://createos.example.test", apiKey: "test-secret", shape: "test-shape", timeoutMs: 5000 };
-const base = { driverKey: "createos", companyId: "company-a", environmentId: "env-a", config };
+const base = { driverKey: "createos", spaceId: "space-a", environmentId: "env-a", config };
 const success = (data: unknown = {}) => Response.json({ status: "success", data });
 const failure = (status: number) => Response.json({ status: "fail", data: "private provider diagnostics test-secret" }, { status });
 const data = (seq: number, text: string | Buffer, stream = "stdout") => ({ type: "data", seq, stream, data_base64: Buffer.from(text).toString("base64") });
@@ -35,7 +35,7 @@ function provider() {
     if (path.endsWith("/pause")) { state = "paused"; return success({ status: "pausing" }); }
     if (path.endsWith("/resume")) { state = "running"; return success({ status: "resuming" }); }
     if (parsed.pathname.endsWith("/files") && method === "PUT") {
-      if (parsed.searchParams.get("path")?.endsWith(".paperclip-createos-lease")) marker = raw;
+      if (parsed.searchParams.get("path")?.endsWith(".outpost-createos-lease")) marker = raw;
       return success();
     }
     if (path.endsWith("/exec")) return success({ result: { exit_code: 0, stdout: body.cmd === "/bin/cat" ? marker : "", stderr: "" } });
@@ -46,7 +46,7 @@ function provider() {
       return success({ process_id: "proc_test" });
     }
     if (path.endsWith("/stdin/close")) return success();
-    if (parsed.pathname.endsWith("/connect")) return ndjson([data(1, "paperclip-createos-ready\n"), { type: "exit", exit_code: 0 }]);
+    if (parsed.pathname.endsWith("/connect")) return ndjson([data(1, "outpost-createos-ready\n"), { type: "exit", exit_code: 0 }]);
     if (method === "DELETE" && path.includes("/processes/")) return success({ tree_exited: true });
     throw new Error(`Unhandled fixture request ${method} ${path}`);
   });
@@ -69,7 +69,7 @@ describe("CreateOS lifecycle", () => {
     const lease = await hooks.onEnvironmentAcquireLease!({ ...params, runId: "run-a" });
     expect(fake.calls[0].body).toEqual({ shape: "test-shape", rootfs: "tpl_ready", region: "us", ingress_enabled: false });
     expect(JSON.stringify(lease)).not.toContain("test-secret");
-    expect(await hooks.onEnvironmentRealizeWorkspace!({ ...params, lease, workspace: { localPath: "/private/host/path" } })).toMatchObject({ cwd: "/paperclip-workspace" });
+    expect(await hooks.onEnvironmentRealizeWorkspace!({ ...params, lease, workspace: { localPath: "/private/host/path" } })).toMatchObject({ cwd: "/outpost-workspace" });
     expect(await hooks.onEnvironmentExecute!({ ...params, lease, command: "echo" })).toMatchObject({ exitCode: 0, timedOut: false });
     await hooks.onEnvironmentReleaseLease!({ ...params, providerLeaseId: lease.providerLeaseId, leaseMetadata: lease.metadata });
     expect(fake.calls.some((call) => call.path.endsWith("/pause"))).toBe(true);
@@ -94,12 +94,12 @@ describe("CreateOS lifecycle", () => {
     expect(fake.fetchMock).not.toHaveBeenCalled();
   });
 
-  it("does not execute, resume, or destroy another company's recorded lease", async () => {
+  it("does not execute, resume, or destroy another space's recorded lease", async () => {
     const fake = provider();
     const hooks = createPlugin().definition;
     const lease = await hooks.onEnvironmentAcquireLease!({ ...base, runId: "run" });
     fake.fetchMock.mockClear();
-    const other = { ...base, companyId: "company-b" };
+    const other = { ...base, spaceId: "space-b" };
     await expect(hooks.onEnvironmentExecute!({ ...other, lease, command: "echo" })).rejects.toThrow("this environment");
     await expect(hooks.onEnvironmentResumeLease!({ ...other, providerLeaseId: "sb_test", leaseMetadata: lease.metadata })).rejects.toThrow("this environment");
     await expect(hooks.onEnvironmentDestroyLease!({ ...other, providerLeaseId: "sb_test", leaseMetadata: lease.metadata })).rejects.toThrow("this environment");

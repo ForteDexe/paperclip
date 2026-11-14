@@ -5,8 +5,8 @@ import {
   PLUGIN_CAPABILITIES,
   PLUGIN_UI_SLOT_TYPES,
   PLUGIN_UI_SLOT_ENTITY_TYPES,
-  PLUGIN_RESERVED_COMPANY_ROUTE_SEGMENTS,
-  PLUGIN_RESERVED_COMPANY_SETTINGS_ROUTE_SEGMENTS,
+  PLUGIN_RESERVED_SPACE_ROUTE_SEGMENTS,
+  PLUGIN_RESERVED_SPACE_SETTINGS_ROUTE_SEGMENTS,
   PLUGIN_LAUNCHER_PLACEMENT_ZONES,
   PLUGIN_LAUNCHER_ACTIONS,
   PLUGIN_LAUNCHER_BOUNDS,
@@ -447,10 +447,10 @@ export const pluginUiSlotDeclarationSchema = z.object({
       path: ["entityTypes"],
     });
   }
-  if (value.routePath && value.type !== "page" && value.type !== "routeSidebar" && value.type !== "companySettingsPage") {
+  if (value.routePath && value.type !== "page" && value.type !== "routeSidebar" && value.type !== "spaceSettingsPage") {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "routePath is only supported for page, routeSidebar, and companySettingsPage slots",
+      message: "routePath is only supported for page, routeSidebar, and spaceSettingsPage slots",
       path: ["routePath"],
     });
   }
@@ -461,14 +461,14 @@ export const pluginUiSlotDeclarationSchema = z.object({
       path: ["routePath"],
     });
   }
-  if (value.type === "companySettingsPage" && !value.routePath) {
+  if (value.type === "spaceSettingsPage" && !value.routePath) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "companySettingsPage slots require routePath",
+      message: "spaceSettingsPage slots require routePath",
       path: ["routePath"],
     });
   }
-  if (value.routePath && PLUGIN_RESERVED_COMPANY_ROUTE_SEGMENTS.includes(value.routePath as (typeof PLUGIN_RESERVED_COMPANY_ROUTE_SEGMENTS)[number])) {
+  if (value.routePath && PLUGIN_RESERVED_SPACE_ROUTE_SEGMENTS.includes(value.routePath as (typeof PLUGIN_RESERVED_SPACE_ROUTE_SEGMENTS)[number])) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: `routePath "${value.routePath}" is reserved by the host`,
@@ -476,13 +476,13 @@ export const pluginUiSlotDeclarationSchema = z.object({
     });
   }
   if (
-    value.type === "companySettingsPage"
+    value.type === "spaceSettingsPage"
     && value.routePath
-    && PLUGIN_RESERVED_COMPANY_SETTINGS_ROUTE_SEGMENTS.includes(value.routePath as (typeof PLUGIN_RESERVED_COMPANY_SETTINGS_ROUTE_SEGMENTS)[number])
+    && PLUGIN_RESERVED_SPACE_SETTINGS_ROUTE_SEGMENTS.includes(value.routePath as (typeof PLUGIN_RESERVED_SPACE_SETTINGS_ROUTE_SEGMENTS)[number])
   ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: `company settings routePath "${value.routePath}" is reserved by the host`,
+      message: `space settings routePath "${value.routePath}" is reserved by the host`,
       path: ["routePath"],
     });
   }
@@ -683,16 +683,16 @@ export const pluginApiRouteDeclarationSchema = z.object({
   auth: z.enum(PLUGIN_API_ROUTE_AUTH_MODES),
   capability: z.literal("api.routes.register"),
   checkoutPolicy: z.enum(PLUGIN_API_ROUTE_CHECKOUT_POLICIES).optional(),
-  companyResolution: z.discriminatedUnion("from", [
+  spaceResolution: z.discriminatedUnion("from", [
     z.object({ from: z.literal("body"), key: z.string().min(1) }),
     z.object({ from: z.literal("query"), key: z.string().min(1) }),
     z.object({ from: z.literal("issue"), param: z.string().min(1) }),
     z.object({ from: z.literal("agent"), param: z.string().min(1) }),
   ]).optional(),
-}).refine(route => !route.transport || (route.method === "GET" && route.auth === "board"), { message: "WebSocket routes require GET and board authentication" })
-  .refine(route => !route.transport || route.companyResolution?.from !== "body", {
-    message: "WebSocket routes cannot resolve company from a request body",
-    path: ["companyResolution"],
+}).refine(route => !route.transport || (route.method === "GET" && route.auth === "operator"), { message: "WebSocket routes require GET and operator authentication" })
+  .refine(route => !route.transport || route.spaceResolution?.from !== "body", {
+    message: "WebSocket routes cannot resolve space from a request body",
+    path: ["spaceResolution"],
   });
 
 export type PluginApiRouteDeclarationInput = z.infer<typeof pluginApiRouteDeclarationSchema>;
@@ -751,7 +751,7 @@ export type PluginObjectReferenceProviderDeclarationInput = z.infer<
 // ---------------------------------------------------------------------------
 
 /**
- * Zod schema for {@link PaperclipPluginManifestV1} — the complete runtime
+ * Zod schema for {@link OutpostPluginManifestV1} — the complete runtime
  * validator for plugin manifests read at install time.
  *
  * Field-level constraints (see PLUGIN_SPEC.md §10.1 for the normative rules):
@@ -766,7 +766,7 @@ export type PluginObjectReferenceProviderDeclarationInput = z.infer<
  * | `author`                 | string     | 1–200 chars                                  |
  * | `categories`             | enum[]     | at least one; values from PLUGIN_CATEGORIES  |
  * | `minimumHostVersion`     | string?    | semver lower bound if present, no leading `v`|
- * | `minimumPaperclipVersion`| string?    | legacy alias of `minimumHostVersion`         |
+ * | `minimumOutpostVersion`| string?    | legacy alias of `minimumHostVersion`         |
  * | `capabilities`           | enum[]     | at least one; values from PLUGIN_CAPABILITIES|
  * | `entrypoints.worker`     | string     | min 1 char                                   |
  * | `entrypoints.ui`         | string?    | required when `ui.slots` is declared         |
@@ -784,7 +784,7 @@ export type PluginObjectReferenceProviderDeclarationInput = z.infer<
  * - duplicate `ui.slots[].id` values are rejected
  *
  * @see PLUGIN_SPEC.md §10.1 — Manifest shape
- * @see {@link PaperclipPluginManifestV1} — the inferred TypeScript type
+ * @see {@link OutpostPluginManifestV1} — the inferred TypeScript type
  */
 export const pluginManifestV1Schema = z.object({
   id: z.string().min(1).regex(
@@ -804,9 +804,9 @@ export const pluginManifestV1Schema = z.object({
     /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/,
     "minimumHostVersion must follow semver (e.g. 1.0.0)",
   ).optional(),
-  minimumPaperclipVersion: z.string().regex(
+  minimumOutpostVersion: z.string().regex(
     /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/,
-    "minimumPaperclipVersion must follow semver (e.g. 1.0.0)",
+    "minimumOutpostVersion must follow semver (e.g. 1.0.0)",
   ).optional(),
   capabilities: z.array(z.enum(PLUGIN_CAPABILITIES)).min(1),
   agentLifecycle: z.literal(true).optional(),
@@ -881,12 +881,12 @@ export const pluginManifestV1Schema = z.object({
 
   if (
     manifest.minimumHostVersion
-    && manifest.minimumPaperclipVersion
-    && manifest.minimumHostVersion !== manifest.minimumPaperclipVersion
+    && manifest.minimumOutpostVersion
+    && manifest.minimumHostVersion !== manifest.minimumOutpostVersion
   ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "minimumHostVersion and minimumPaperclipVersion must match when both are declared",
+      message: "minimumHostVersion and minimumOutpostVersion must match when both are declared",
       path: ["minimumHostVersion"],
     });
   }
@@ -1004,9 +1004,9 @@ export const pluginManifestV1Schema = z.object({
   for (const [index, slot] of (manifest.ui?.slots ?? []).entries()) {
     if (!slot.taskSidePanel) continue;
     const route = manifest.apiRoutes?.find(route => route.path === slot.taskSidePanel!.availabilityPath && route.method === "GET");
-    if (!route || route.auth !== "board" || route.transport
-      || route.companyResolution?.from !== "agent" || route.companyResolution.param !== "entityId") {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "taskSidePanel availability requires a declared board GET route scoped to agent :entityId", path: ["ui", "slots", index, "taskSidePanel"] });
+    if (!route || route.auth !== "operator" || route.transport
+      || route.spaceResolution?.from !== "agent" || route.spaceResolution.param !== "entityId") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "taskSidePanel availability requires a declared operator GET route scoped to agent :entityId", path: ["ui", "slots", index, "taskSidePanel"] });
     }
   }
 
@@ -1278,27 +1278,27 @@ export const installPluginSchema = z.object({
 export type InstallPlugin = z.infer<typeof installPluginSchema>;
 
 // ---------------------------------------------------------------------------
-// Plugin config (company-scoped configuration) schemas
+// Plugin config (space-scoped configuration) schemas
 // ---------------------------------------------------------------------------
 
 /**
- * Schema for creating or updating a plugin's company-scoped configuration.
+ * Schema for creating or updating a plugin's space-scoped configuration.
  * configJson is validated permissively here; runtime validation against
  * the plugin's instanceConfigSchema is done at the service layer.
  */
 export const upsertPluginConfigSchema = z.object({
-  companyId: z.string().guid(),
+  spaceId: z.string().guid(),
   configJson: z.record(z.string(), z.unknown()),
 });
 
 export type UpsertPluginConfig = z.infer<typeof upsertPluginConfigSchema>;
 
 /**
- * Schema for partially updating a plugin's company-scoped configuration.
+ * Schema for partially updating a plugin's space-scoped configuration.
  * Allows a partial merge of config values.
  */
 export const patchPluginConfigSchema = z.object({
-  companyId: z.string().guid(),
+  spaceId: z.string().guid(),
   configJson: z.record(z.string(), z.unknown()),
 });
 

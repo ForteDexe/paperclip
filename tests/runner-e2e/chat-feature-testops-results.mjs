@@ -123,7 +123,7 @@ export async function exportChatAllure({ root, output, expected, selected }) {
     statusDetails: { message: status === 'passed' ? 'Real Product E2E assertions and cleanup passed' : 'Real Product E2E evaluation or cleanup failed; original verdict preserved' },
     labels: [{ name: 'AS_ID', value: String(selected.caseId) }, { name: 'parentSuite', value: 'Product E2E' },
       { name: 'suite', value: 'chat-features' }, { name: 'area', value: 'Chat and collaboration' },
-      { name: 'framework', value: 'Paperclip Evals' }, { name: 'tag', value: 'chat-feature-testops' }],
+      { name: 'framework', value: 'Outpost Evals' }, { name: 'tag', value: 'chat-feature-testops' }],
     parameters: [{ name: 'canonicalScenario', value: 'tasks.create-backlog' }, { name: 'model', value: model }, { name: 'environment', value: 'GitHub Actions / AWS' }],
     links: [{ name: 'GitHub Actions run', type: 'custom', url: `https://github.com/paperclipai/paperclip/actions/runs/${expected.runId}` },
       { name: 'Evaluated source', type: 'custom', url: `https://github.com/paperclipai/paperclip/commit/${expected.targetSha}` }],

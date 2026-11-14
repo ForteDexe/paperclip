@@ -8,8 +8,8 @@ import {
 } from "../src/host-client-factory.js";
 import { PLUGIN_RPC_ERROR_CODES } from "../src/protocol.js";
 
-describe("createHostClientHandlers invocation company scope", () => {
-  it("rejects worker-selected config and secret company ids without a host invocation scope", async () => {
+describe("createHostClientHandlers invocation space scope", () => {
+  it("rejects worker-selected config and secret space ids without a host invocation scope", async () => {
     const configGet = vi.fn(async () => ({ apiKeyRef: "unreachable" }));
     const secretsResolve = vi.fn(async () => "unreachable");
     const services = {
@@ -24,11 +24,11 @@ describe("createHostClientHandlers invocation company scope", () => {
     });
 
     await expect(
-      handlers["config.get"]({ companyId: "company-a" }),
+      handlers["config.get"]({ spaceId: "space-a" }),
     ).rejects.toBeInstanceOf(InvocationScopeDeniedError);
     await expect(
       handlers["secrets.resolve"]({
-        companyId: "company-a",
+        spaceId: "space-a",
         secretRef: { type: "secret_ref", secretId: "secret-a" },
       }),
     ).rejects.toBeInstanceOf(InvocationScopeDeniedError);
@@ -36,7 +36,7 @@ describe("createHostClientHandlers invocation company scope", () => {
     expect(secretsResolve).not.toHaveBeenCalled();
   });
 
-  it("allows explicit config and secret company ids only when they match the host invocation scope", async () => {
+  it("allows explicit config and secret space ids only when they match the host invocation scope", async () => {
     const configGet = vi.fn(async () => ({ apiKeyRef: "ref" }));
     const secretsResolve = vi.fn(async () => "resolved");
     const services = {
@@ -49,26 +49,26 @@ describe("createHostClientHandlers invocation company scope", () => {
       capabilities: ["secrets.read-ref"],
       services,
     });
-    const context = { invocationScope: { companyId: "company-a" } };
+    const context = { invocationScope: { spaceId: "space-a" } };
 
     await expect(
-      handlers["config.get"]({ companyId: "company-a" }, context),
+      handlers["config.get"]({ spaceId: "space-a" }, context),
     ).resolves.toEqual({ apiKeyRef: "ref" });
     await expect(
       handlers["secrets.resolve"]({
-        companyId: "company-a",
+        spaceId: "space-a",
         secretRef: { type: "secret_ref", secretId: "secret-a" },
       }, context),
     ).resolves.toBe("resolved");
 
-    expect(configGet).toHaveBeenCalledWith({ companyId: "company-a" }, context);
+    expect(configGet).toHaveBeenCalledWith({ spaceId: "space-a" }, context);
     expect(secretsResolve).toHaveBeenCalledWith({
-      companyId: "company-a",
+      spaceId: "space-a",
       secretRef: { type: "secret_ref", secretId: "secret-a" },
     }, context);
   });
 
-  it("rejects company-scoped host calls outside the current invocation company", async () => {
+  it("rejects space-scoped host calls outside the current invocation space", async () => {
     const projectsList = vi.fn(async () => []);
     const services = {
       projects: {
@@ -84,14 +84,14 @@ describe("createHostClientHandlers invocation company scope", () => {
 
     await expect(
       handlers["projects.list"](
-        { companyId: "company-b" },
-        { invocationScope: { companyId: "company-a" } },
+        { spaceId: "space-b" },
+        { invocationScope: { spaceId: "space-a" } },
       ),
     ).rejects.toBeInstanceOf(InvocationScopeDeniedError);
     await expect(
       handlers["projects.list"](
-        { companyId: "company-b" },
-        { invocationScope: { companyId: "company-a" } },
+        { spaceId: "space-b" },
+        { invocationScope: { spaceId: "space-a" } },
       ),
     ).rejects.toMatchObject({
       code: PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED,
@@ -99,31 +99,31 @@ describe("createHostClientHandlers invocation company scope", () => {
     expect(projectsList).not.toHaveBeenCalled();
   });
 
-  it("filters companies.list to the current invocation company", async () => {
+  it("filters spaces.list to the current invocation space", async () => {
     const services = {
-      companies: {
+      spaces: {
         list: vi.fn(async () => [
-          { id: "company-a", name: "Company A" },
-          { id: "company-b", name: "Company B" },
+          { id: "space-a", name: "Space A" },
+          { id: "space-b", name: "Space B" },
         ]),
       },
     } as unknown as HostServices;
 
     const handlers = createHostClientHandlers({
       pluginId: "outpost.test",
-      capabilities: ["companies.read"],
+      capabilities: ["spaces.read"],
       services,
     });
 
     await expect(
-      handlers["companies.list"](
+      handlers["spaces.list"](
         {},
-        { invocationScope: { companyId: "company-a" } },
+        { invocationScope: { spaceId: "space-a" } },
       ),
-    ).resolves.toEqual([{ id: "company-a", name: "Company A" }]);
+    ).resolves.toEqual([{ id: "space-a", name: "Space A" }]);
   });
 
-  it("rejects company-scope store access for a different company", async () => {
+  it("rejects space-scope store access for a different space", async () => {
     const stateGet = vi.fn(async () => null);
     const services = {
       state: {
@@ -139,8 +139,8 @@ describe("createHostClientHandlers invocation company scope", () => {
 
     await expect(
       handlers["state.get"](
-        { scopeKind: "company", scopeId: "company-b", stateKey: "settings" },
-        { invocationScope: { companyId: "company-a" } },
+        { scopeKind: "space", scopeId: "space-b", stateKey: "settings" },
+        { invocationScope: { spaceId: "space-a" } },
       ),
     ).rejects.toBeInstanceOf(InvocationScopeDeniedError);
     expect(stateGet).not.toHaveBeenCalled();
@@ -150,31 +150,31 @@ describe("createHostClientHandlers invocation company scope", () => {
     [
       "access.members.list",
       "access.members.read",
-      { companyId: "company-a" },
+      { spaceId: "space-a" },
       (services: HostServices) => vi.mocked(services.access.listMembers),
     ],
     [
       "access.members.update",
       "access.members.write",
-      { companyId: "company-a", memberId: "member-a", patch: { status: "active" } },
+      { spaceId: "space-a", memberId: "member-a", patch: { status: "active" } },
       (services: HostServices) => vi.mocked(services.access.updateMember),
     ],
     [
       "authorization.grants.set",
       "authorization.grants.write",
-      { companyId: "company-a", principalType: "agent", principalId: "agent-a", grants: [] },
+      { spaceId: "space-a", principalType: "agent", principalId: "agent-a", grants: [] },
       (services: HostServices) => vi.mocked(services.authorization.setGrants),
     ],
     [
       "authorization.policies.update",
       "authorization.policies.write",
-      { companyId: "company-a", resourceType: "agent", resourceId: "agent-a", policy: null },
+      { spaceId: "space-a", resourceType: "agent", resourceId: "agent-a", policy: null },
       (services: HostServices) => vi.mocked(services.authorization.updatePolicy),
     ],
     [
       "authorization.audit.search",
       "authorization.audit.read",
-      { companyId: "company-a" },
+      { spaceId: "space-a" },
       (services: HostServices) => vi.mocked(services.authorization.searchAudit),
     ],
   ] as const)(
@@ -210,7 +210,7 @@ describe("createHostClientHandlers invocation company scope", () => {
     },
   );
 
-  it("checks invocation company scope before exposing authorization data", async () => {
+  it("checks invocation space scope before exposing authorization data", async () => {
     const searchAudit = vi.fn(async () => []);
     const services = {
       authorization: {
@@ -225,8 +225,8 @@ describe("createHostClientHandlers invocation company scope", () => {
 
     await expect(
       handlers["authorization.audit.search"](
-        { companyId: "company-b" },
-        { invocationScope: { companyId: "company-a" } },
+        { spaceId: "space-b" },
+        { invocationScope: { spaceId: "space-a" } },
       ),
     ).rejects.toBeInstanceOf(InvocationScopeDeniedError);
     expect(searchAudit).not.toHaveBeenCalled();
@@ -242,13 +242,13 @@ describe("createHostClientHandlers invocation company scope", () => {
       capabilities: ["issue.comments.create"],
       services,
     });
-    const context = { invocationScope: { companyId: "company-a" } };
+    const context = { invocationScope: { spaceId: "space-a" } };
 
     await expect(
       handlers["issues.createComment"]({
         issueId: "issue-a",
         body: "hello",
-        companyId: "company-a",
+        spaceId: "space-a",
         actorUserId: "user-a",
       }, context),
     ).rejects.toBeInstanceOf(CapabilityDeniedError);
@@ -265,20 +265,20 @@ describe("createHostClientHandlers invocation company scope", () => {
       capabilities: ["issue.comments.create", "issue.comments.create_human_attributed"],
       services,
     });
-    const context = { invocationScope: { companyId: "company-a" } };
+    const context = { invocationScope: { spaceId: "space-a" } };
 
     await expect(
       handlers["issues.createComment"]({
         issueId: "issue-a",
         body: "hello",
-        companyId: "company-a",
+        spaceId: "space-a",
         actorUserId: "user-a",
       }, context),
     ).resolves.toEqual({ id: "comment-1" });
     expect(createComment).toHaveBeenCalledWith({
       issueId: "issue-a",
       body: "hello",
-      companyId: "company-a",
+      spaceId: "space-a",
       actorUserId: "user-a",
     });
   });
@@ -293,13 +293,13 @@ describe("createHostClientHandlers invocation company scope", () => {
       capabilities: ["issue.comments.create"],
       services,
     });
-    const context = { invocationScope: { companyId: "company-a" } };
+    const context = { invocationScope: { spaceId: "space-a" } };
 
     await expect(
       handlers["issues.createComment"]({
         issueId: "issue-a",
         body: "hello",
-        companyId: "company-a",
+        spaceId: "space-a",
         authorAgentId: "agent-a",
       }, context),
     ).resolves.toEqual({ id: "comment-2" });
@@ -308,7 +308,7 @@ describe("createHostClientHandlers invocation company scope", () => {
 });
 
 describe("createHostClientHandlers capability gating for LOOA-641 methods", () => {
-  const context = { invocationScope: { companyId: "company-a" } };
+  const context = { invocationScope: { spaceId: "space-a" } };
 
   it("denies issues.respondInteraction without issue.interactions.respond", async () => {
     const respondInteraction = vi.fn(async () => ({ interaction: { id: "i" }, applied: true }));
@@ -321,7 +321,7 @@ describe("createHostClientHandlers capability gating for LOOA-641 methods", () =
     });
     await expect(
       handlers["issues.respondInteraction"]({
-        issueId: "issue-a", interactionId: "int-a", companyId: "company-a", action: "accept", actorUserId: "user-a",
+        issueId: "issue-a", interactionId: "int-a", spaceId: "space-a", action: "accept", actorUserId: "user-a",
       }, context),
     ).rejects.toBeInstanceOf(CapabilityDeniedError);
     expect(respondInteraction).not.toHaveBeenCalled();
@@ -337,7 +337,7 @@ describe("createHostClientHandlers capability gating for LOOA-641 methods", () =
     });
     await expect(
       handlers["issues.respondInteraction"]({
-        issueId: "issue-a", interactionId: "int-a", companyId: "company-a", action: "accept", actorUserId: "user-a",
+        issueId: "issue-a", interactionId: "int-a", spaceId: "space-a", action: "accept", actorUserId: "user-a",
       }, context),
     ).resolves.toEqual({ interaction: { id: "i" }, applied: true });
     expect(respondInteraction).toHaveBeenCalledOnce();
@@ -354,7 +354,7 @@ describe("createHostClientHandlers capability gating for LOOA-641 methods", () =
     });
     await expect(
       handlers["approvals.decide"]({
-        approvalId: "a", companyId: "company-a", action: "approve", actorUserId: "user-a",
+        approvalId: "a", spaceId: "space-a", action: "approve", actorUserId: "user-a",
       }, context),
     ).rejects.toBeInstanceOf(CapabilityDeniedError);
     expect(decide).not.toHaveBeenCalled();
@@ -370,7 +370,7 @@ describe("createHostClientHandlers capability gating for LOOA-641 methods", () =
     });
     await expect(
       handlers["approvals.decide"]({
-        approvalId: "a", companyId: "company-a", action: "approve", actorUserId: "user-a",
+        approvalId: "a", spaceId: "space-a", action: "approve", actorUserId: "user-a",
       }, context),
     ).resolves.toEqual({ approval: { id: "a" }, applied: true });
     expect(decide).toHaveBeenCalledOnce();
@@ -390,20 +390,20 @@ describe("createHostClientHandlers capability gating for LOOA-641 methods", () =
       services,
     });
     await expect(
-      handlers["issues.listInteractions"]({ issueId: "i", companyId: "company-a" }, context),
+      handlers["issues.listInteractions"]({ issueId: "i", spaceId: "space-a" }, context),
     ).rejects.toBeInstanceOf(CapabilityDeniedError);
     await expect(
-      handlers["approvals.list"]({ companyId: "company-a" }, context),
+      handlers["approvals.list"]({ spaceId: "space-a" }, context),
     ).rejects.toBeInstanceOf(CapabilityDeniedError);
     await expect(
-      handlers["issues.getAttachmentContent"]({ attachmentId: "at", companyId: "company-a" }, context),
+      handlers["issues.getAttachmentContent"]({ attachmentId: "at", spaceId: "space-a" }, context),
     ).rejects.toBeInstanceOf(CapabilityDeniedError);
     expect(listInteractions).not.toHaveBeenCalled();
     expect(list).not.toHaveBeenCalled();
     expect(getAttachmentContent).not.toHaveBeenCalled();
   });
 
-  it("enforces invocation company scope on the new methods", async () => {
+  it("enforces invocation space scope on the new methods", async () => {
     const list = vi.fn(async () => []);
     const services = { approvals: { list } } as unknown as HostServices;
     const handlers = createHostClientHandlers({
@@ -411,9 +411,9 @@ describe("createHostClientHandlers capability gating for LOOA-641 methods", () =
       capabilities: ["approvals.read"],
       services,
     });
-    // Requesting company-b while scoped to company-a must be denied.
+    // Requesting space-b while scoped to space-a must be denied.
     await expect(
-      handlers["approvals.list"]({ companyId: "company-b" }, context),
+      handlers["approvals.list"]({ spaceId: "space-b" }, context),
     ).rejects.toBeInstanceOf(InvocationScopeDeniedError);
     expect(list).not.toHaveBeenCalled();
   });
@@ -421,15 +421,15 @@ describe("createHostClientHandlers capability gating for LOOA-641 methods", () =
 
 
 describe("agent runtime reader", () => {
-  it.each(["getRuntime", "getRuntimeIdentity"] as const)("requires lifecycle capability and invocation company for %s", async method => {
+  it.each(["getRuntime", "getRuntimeIdentity"] as const)("requires lifecycle capability and invocation space for %s", async method => {
     const getRuntime = vi.fn(async () => null);
     const services = { agents: { [method]: getRuntime } } as unknown as HostServices;
-    const params = { companyId: "company-a", agentId: "agent-a" };
-    const context = { invocationScope: { companyId: "company-a" } };
+    const params = { spaceId: "space-a", agentId: "agent-a" };
+    const context = { invocationScope: { spaceId: "space-a" } };
     const denied = createHostClientHandlers({ pluginId: "runtime", capabilities: ["agents.read"], services });
     await expect(denied[`agents.${method}`](params, context)).rejects.toBeInstanceOf(CapabilityDeniedError);
     const allowed = createHostClientHandlers({ pluginId: "runtime", capabilities: ["agents.lifecycle.manage"], services });
-    await expect(allowed[`agents.${method}`](params, { invocationScope: { companyId: "other" } })).rejects.toBeInstanceOf(InvocationScopeDeniedError);
+    await expect(allowed[`agents.${method}`](params, { invocationScope: { spaceId: "other" } })).rejects.toBeInstanceOf(InvocationScopeDeniedError);
     expect(getRuntime).not.toHaveBeenCalled();
     await expect(allowed[`agents.${method}`](params, context)).resolves.toBeNull();
     expect(getRuntime).toHaveBeenCalledOnce();
@@ -437,16 +437,16 @@ describe("agent runtime reader", () => {
 });
 
 describe("project instance secrets", () => {
-  it("requires the capability and host-authorized company scope", async () => {
+  it("requires the capability and host-authorized space scope", async () => {
     const getInstanceSecrets = vi.fn(async () => ({ mount_grants: "fixture" }));
     const services = { projects: { getInstanceSecrets } } as unknown as HostServices;
-    const params = { companyId: "company-a", projectId: "project-a" };
-    const context = { invocationScope: { companyId: "company-a" } };
+    const params = { spaceId: "space-a", projectId: "project-a" };
+    const context = { invocationScope: { spaceId: "space-a" } };
     const denied = createHostClientHandlers({ pluginId: "fixture", capabilities: [], services });
     await expect(denied["projects.getInstanceSecrets"](params, context)).rejects.toBeInstanceOf(CapabilityDeniedError);
     const allowed = createHostClientHandlers({ pluginId: "fixture", capabilities: ["projects.instance-secrets"], services });
     await expect(allowed["projects.getInstanceSecrets"](params)).rejects.toBeInstanceOf(InvocationScopeDeniedError);
-    await expect(allowed["projects.getInstanceSecrets"](params, { invocationScope: { companyId: "other" } })).rejects.toBeInstanceOf(InvocationScopeDeniedError);
+    await expect(allowed["projects.getInstanceSecrets"](params, { invocationScope: { spaceId: "other" } })).rejects.toBeInstanceOf(InvocationScopeDeniedError);
     expect(getInstanceSecrets).not.toHaveBeenCalled();
     await expect(allowed["projects.getInstanceSecrets"](params, context)).resolves.toEqual({ mount_grants: "fixture" });
     expect(getInstanceSecrets).toHaveBeenCalledWith(params);
@@ -454,18 +454,18 @@ describe("project instance secrets", () => {
 });
 
 describe("project Git credentials", () => {
-  it("requires capability, company, project and repository scope before calling credential services", async () => {
+  it("requires capability, space, project and repository scope before calling credential services", async () => {
     const resolveGitCredential = vi.fn(async () => "transient-token");
     const services = { projects: { resolveGitCredential } } as unknown as HostServices;
-    const params = { companyId: "company-a", projectId: "project-a", workspaceId: "workspace-a" };
-    const context = { invocationScope: { companyId: "company-a", projectGit: { projectId: "project-a", workspaceId: "workspace-a", runId: "run-a", agentId: "agent-a" } } };
+    const params = { spaceId: "space-a", projectId: "project-a", workspaceId: "workspace-a" };
+    const context = { invocationScope: { spaceId: "space-a", projectGit: { projectId: "project-a", workspaceId: "workspace-a", runId: "run-a", agentId: "agent-a" } } };
     const denied = createHostClientHandlers({ pluginId: "fixture", capabilities: [], services });
     await expect(denied["projects.resolveGitCredential"](params, context)).rejects.toBeInstanceOf(CapabilityDeniedError);
     const allowed = createHostClientHandlers({ pluginId: "fixture", capabilities: ["projects.git-credentials"], services });
-    for (const invalid of [undefined, { invocationScope: { companyId: "other" } },
-      { invocationScope: { companyId: "company-a" } },
-      { invocationScope: { companyId: "company-a", projectGit: { projectId: "other" } } },
-      { invocationScope: { companyId: "company-a", projectGit: { projectId: "project-a", workspaceId: "other" } } },
+    for (const invalid of [undefined, { invocationScope: { spaceId: "other" } },
+      { invocationScope: { spaceId: "space-a" } },
+      { invocationScope: { spaceId: "space-a", projectGit: { projectId: "other" } } },
+      { invocationScope: { spaceId: "space-a", projectGit: { projectId: "project-a", workspaceId: "other" } } },
       { ...context, invalidInvocationScope: true }]) {
       await expect(allowed["projects.resolveGitCredential"](params, invalid)).rejects.toThrow();
     }

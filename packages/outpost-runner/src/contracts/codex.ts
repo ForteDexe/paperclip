@@ -23,7 +23,7 @@ export const CODEX_BLOCK_TOOL_NAME = ORP_BLOCK_TOOL_NAME;
 /** @deprecated Use the provider-neutral ORP completion contract exports. */
 export const CODEX_SEMANTIC_TOOL_NAMES = ORP_SEMANTIC_TOOL_NAMES;
 export const CODEX_SKILLLESS_BASE_INSTRUCTIONS =
-  "Complete only the supplied task envelope. Do not discover or invoke skills. Do not call a control-plane API. Return exactly one semantic completion result; use paperclip_finish when the work is done, needs review, or is explicitly yielding for the next response, and paperclip_block only when work cannot continue." as const;
+  "Complete only the supplied task envelope. Do not discover or invoke skills. Do not call a control-plane API. Return exactly one semantic completion result; use outpost_finish when the work is done, needs review, or is explicitly yielding for the next response, and outpost_block only when work cannot continue." as const;
 
 export interface CodexTaskEnvelope {
   schema: typeof CODEX_TASK_ENVELOPE_SCHEMA;
@@ -50,7 +50,7 @@ export interface CodexModelContextSnapshot {
   collaborationMode: "default" | "plan";
   sandbox: unknown;
   approvalPolicy: unknown;
-  /** Historical trace field for the Paperclip instruction fragment, supplied
+  /** Historical trace field for the Outpost instruction fragment, supplied
    * to Codex as developerInstructions rather than replacing its stock base. */
   baseInstructions: string;
   instructionSources: string[];
@@ -76,7 +76,7 @@ export interface CodexRunMetadata {
   fixtureName: string;
   identity: {
     schema: "outpost.orp.identity.v1";
-    companyId: string;
+    spaceId: string;
     issueId: string;
     runId: string;
     environmentLeaseId: string;
@@ -175,7 +175,7 @@ export function isSkilllessCodexContext(
     ) &&
     context.instructionPolicy.skillInstructions === false &&
     context.instructionPolicy.appInstructions === false &&
-    !serialized.includes("paperclip_api_key") &&
+    !serialized.includes("outpost_api_key") &&
     !serialized.includes("authorization: bearer") &&
     !serialized.includes("/api/issues/") &&
     !serialized.includes('"type":"skill"')

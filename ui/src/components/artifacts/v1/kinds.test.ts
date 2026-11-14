@@ -1,7 +1,7 @@
 import { Music } from "lucide-react";
-import type { CompanyArtifact } from "@outpost/shared";
+import type { SpaceArtifact } from "@outpost/shared";
 import { describe, expect, it } from "vitest";
-import { glyphOf, isPortrait, kindFor, labelOf, mediaKindOf, subjectFromCompanyArtifact, treatmentOf } from "./kinds";
+import { glyphOf, isPortrait, kindFor, labelOf, mediaKindOf, subjectFromSpaceArtifact, treatmentOf } from "./kinds";
 import { testSubject } from "./test-subject";
 
 describe("treatmentOf", () => {
@@ -61,8 +61,8 @@ describe("kindFor", () => {
   });
 });
 
-describe("subjectFromCompanyArtifact", () => {
-  const base: CompanyArtifact = {
+describe("subjectFromSpaceArtifact", () => {
+  const base: SpaceArtifact = {
     id: "a1", source: "work_product", mediaKind: "file", title: "Interface Craft deck", previewText: null,
     contentType: "application/pdf", contentPath: "/api/files/acmehats-interface-craft.pdf", openPath: null, downloadPath: null,
     issue: { id: "i1", identifier: "ACM-3", title: "Create visual directions" }, project: null, createdByAgent: null,
@@ -70,19 +70,19 @@ describe("subjectFromCompanyArtifact", () => {
   };
 
   it("reads the file name and kind from the content path and type", () => {
-    const subject = subjectFromCompanyArtifact(base);
+    const subject = subjectFromSpaceArtifact(base);
     expect(subject).toMatchObject({ kind: "pdf", filename: "acmehats-interface-craft.pdf", ext: "pdf", taskIdentifier: "ACM-3", isTaskDocument: false });
   });
 
   it("treats a task document as a document with known text when it has a preview", () => {
-    const subject = subjectFromCompanyArtifact({ ...base, source: "document", mediaKind: "document", contentType: null, contentPath: null, previewText: "Goal: a clear brand direction" });
+    const subject = subjectFromSpaceArtifact({ ...base, source: "document", mediaKind: "document", contentType: null, contentPath: null, previewText: "Goal: a clear brand direction" });
     expect(subject).toMatchObject({ kind: "document", isTaskDocument: true, hasText: true, filename: null });
   });
 
   it("gives pictures and video their content path as the picture", () => {
-    const subject = subjectFromCompanyArtifact({ ...base, mediaKind: "image", contentType: "image/png", contentPath: "/api/files/contact-sheet.png" });
+    const subject = subjectFromSpaceArtifact({ ...base, mediaKind: "image", contentType: "image/png", contentPath: "/api/files/contact-sheet.png" });
     expect(subject).toMatchObject({ kind: "image", thumbnailUrl: "/api/files/contact-sheet.png", filename: "contact-sheet.png" });
-    const video = subjectFromCompanyArtifact({ ...base, mediaKind: "video", contentType: "video/webm", contentPath: "/api/files/reel.webm" });
+    const video = subjectFromSpaceArtifact({ ...base, mediaKind: "video", contentType: "video/webm", contentPath: "/api/files/reel.webm" });
     expect(video).toMatchObject({ kind: "video", videoUrl: "/api/files/reel.webm", thumbnailUrl: null });
   });
 });

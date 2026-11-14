@@ -74,7 +74,7 @@ ownership changes.
 ## Design principles
 
 - **Execution requires current authority.** Queue acceptance is not permission
-  to execute indefinitely. Admission and dispatch must respect company scope,
+  to execute indefinitely. Admission and dispatch must respect space scope,
   responsible-user authority, budgets, pause/Stop, and task eligibility, including
   when these change during preparation. Retries and recovery must not become
   alternate paths around those controls.

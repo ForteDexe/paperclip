@@ -7,7 +7,7 @@ export interface GitHubReviewJourneyEvidence {
   outcome: "running" | "passed" | "failed" | "awaiting_user" | "missing_credential" | "blocked_target";
   phase: string;
   setupId: string;
-  hosting: "self-hosted" | "paperclip-cloud";
+  hosting: "self-hosted" | "outpost-cloud";
   targetCommit: string | null;
   assisted: boolean;
   dependencies: Array<{ alias: string; consumer: "harness" | "browser" | "product-agent"; status: "ready" | "unverified" | "created-in-journey"; source: "onepassword" | "environment" | "browser-session" | "product-connection" }>;
@@ -47,12 +47,12 @@ export function matchesGitHubJourneyEnvironment(environment: { id: string; drive
 }
 
 export function verifyGitHubReviewRun(run: Record<string, any> | undefined, expected: {
-  runId: string | null; companyId: string; agentId: string; issueId: string;
+  runId: string | null; spaceId: string; agentId: string; issueId: string;
   runtimeMode: string; environmentId: string; executionEnvironment: "local" | "daytona";
   environment: { id: string; driver: string; config: Record<string, unknown> }; provider: string; model: string;
 }) {
   const provider = run?.runnerProfileJson?.nativeExecutionInput?.provider;
-  return Boolean(run && run.id === expected.runId && run.companyId === expected.companyId
+  return Boolean(run && run.id === expected.runId && run.spaceId === expected.spaceId
     && run.agentId === expected.agentId && run.issueId === expected.issueId
     && run.status === "succeeded" && run.runtimeMode === expected.runtimeMode
     && matchesGitHubJourneyEnvironment(expected.environment, expected.environmentId, expected.executionEnvironment)
@@ -77,11 +77,11 @@ function ownedDeliveryUrl(value: string | null, repository: string, pullNumber: 
 
 /** Independent identity/cause/output gates; a Done task or success prose cannot satisfy them. */
 export function verifyGitHubReview(input: {
-  review: GitHubTaskReview; companyId: string; endpointId: string; issueId: string; repository: string; pullNumber: number; headSha: string;
-  issue: { id: string; companyId: string; assigneeAgentId: string; status: string }; agentId: string;
+  review: GitHubTaskReview; spaceId: string; endpointId: string; issueId: string; repository: string; pullNumber: number; headSha: string;
+  issue: { id: string; spaceId: string; assigneeAgentId: string; status: string }; agentId: string;
 }) {
   const { review: r } = input; const assessment = r.assessment;
-  return r.companyId === input.companyId && r.endpointId === input.endpointId && r.issueId === input.issueId
+  return r.spaceId === input.spaceId && r.endpointId === input.endpointId && r.issueId === input.issueId
     && r.repository === input.repository && r.pullNumber === input.pullNumber && r.headSha === input.headSha
     && r.event.event === "opened" && r.event.headSha === input.headSha && r.event.repository === input.repository
     && r.state === "completed" && assessment?.complete === true && assessment.reviewedCommit === input.headSha
@@ -89,7 +89,7 @@ export function verifyGitHubReview(input: {
       && /precision|decimal|floating|cents/i.test(f.body) && f.line >= 1 && f.line <= 7)
     && assessment.score < 5 && r.conclusion === "failure"
     && ownedDeliveryUrl(r.summaryUrl, input.repository, input.pullNumber, "summary") && ownedDeliveryUrl(r.checkUrl, input.repository, input.pullNumber, "check")
-    && input.issue.id === input.issueId && input.issue.companyId === input.companyId && input.issue.assigneeAgentId === input.agentId && input.issue.status === "done";
+    && input.issue.id === input.issueId && input.issue.spaceId === input.spaceId && input.issue.assigneeAgentId === input.agentId && input.issue.status === "done";
 }
 
 /** New, versioned fixture: price precision is explicitly part of the repository's test contract. */

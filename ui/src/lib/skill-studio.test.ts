@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type {
-  CompanySkillLastEditor,
-  CompanySkillListItem,
-  CompanySkillTestRunStatus,
-  CompanySkillTestRunTemplate,
+  SpaceSkillLastEditor,
+  SpaceSkillListItem,
+  SpaceSkillTestRunStatus,
+  SpaceSkillTestRunTemplate,
   IssueAttachment,
   IssueDocument,
   IssueWorkProduct,
@@ -43,7 +43,7 @@ import {
   testTaskLinkState,
 } from "./skill-studio";
 
-const ALL_STATUSES: CompanySkillTestRunStatus[] = [
+const ALL_STATUSES: SpaceSkillTestRunStatus[] = [
   "queued",
   "running",
   "succeeded",
@@ -55,7 +55,7 @@ function makeRunDocument(overrides: Partial<IssueDocument> & { id: string; key: 
   const { id, key, ...documentOverrides } = overrides;
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     key,
     title: overrides.title ?? null,
@@ -80,7 +80,7 @@ function makeRunAttachment(overrides: Partial<IssueAttachment> & { id: string })
   const { id, ...attachmentOverrides } = overrides;
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     issueId: "issue-1",
     issueCommentId: null,
     assetId: `asset-${id}`,
@@ -115,13 +115,13 @@ function makeArtifactWorkProduct(
   const contentPath = overrideContentPath ?? `/api/attachments/${attachmentId}/content`;
   return {
     id,
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: null,
     issueId: "issue-1",
     executionWorkspaceId: null,
     runtimeServiceId: null,
     type: "artifact",
-    provider: "paperclip",
+    provider: "outpost",
     externalId: null,
     title: overrides.title ?? `Artifact ${id}`,
     url: null,
@@ -159,7 +159,7 @@ describe("run-status derivation", () => {
   it("polls only while non-terminal (V1 2s policy)", () => {
     expect(shouldPollRun("queued")).toBe(true);
     expect(shouldPollRun("running")).toBe(true);
-    for (const status of ["succeeded", "failed", "cancelled"] as CompanySkillTestRunStatus[]) {
+    for (const status of ["succeeded", "failed", "cancelled"] as SpaceSkillTestRunStatus[]) {
       expect(shouldPollRun(status)).toBe(false);
     }
   });
@@ -441,7 +441,7 @@ describe("interaction inline-vs-fallback routing", () => {
     for (const kind of [
       "suggest_tasks",
       "request_checkbox_confirmation",
-      "request_board_approval",
+      "request_operator_approval",
       "some_future_kind",
     ]) {
       expect(routeInteraction(kind)).toBe("fallback");
@@ -559,9 +559,9 @@ describe("agent picker + run labels", () => {
 });
 
 describe("advanced run template helpers", () => {
-  const defaultTemplate: CompanySkillTestRunTemplate = {
+  const defaultTemplate: SpaceSkillTestRunTemplate = {
     id: DEFAULT_TEST_RUN_TEMPLATE_ID,
-    companyId: "company-1",
+    spaceId: "space-1",
     name: "Default test template",
     description: "Default",
     body: "Default {{skillName}}",
@@ -574,7 +574,7 @@ describe("advanced run template helpers", () => {
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-01T00:00:00Z"),
   };
-  const customTemplate: CompanySkillTestRunTemplate = {
+  const customTemplate: SpaceSkillTestRunTemplate = {
     ...defaultTemplate,
     id: "template-1",
     name: "Focused smoke",
@@ -640,10 +640,10 @@ describe("advanced run template helpers", () => {
 
 describe("studio landing recency helpers", () => {
   function makeSkill(
-    overrides: Partial<CompanySkillListItem> & { id: string },
-  ): CompanySkillListItem {
+    overrides: Partial<SpaceSkillListItem> & { id: string },
+  ): SpaceSkillListItem {
     return {
-      companyId: "company-1",
+      spaceId: "space-1",
       key: overrides.id,
       slug: overrides.id,
       name: overrides.id,
@@ -663,7 +663,7 @@ describe("studio landing recency helpers", () => {
       sharingScope: "private",
       publicShareToken: null,
       forkedFromSkillId: null,
-      forkedFromCompanyId: null,
+      forkedFromSpaceId: null,
       starCount: 0,
       installCount: 0,
       forkCount: 0,
@@ -741,7 +741,7 @@ describe("studio landing recency helpers", () => {
   });
 
   describe("skillEditorAvatar", () => {
-    const userEditor: CompanySkillLastEditor = {
+    const userEditor: SpaceSkillLastEditor = {
       kind: "user",
       id: "user-1",
       name: "Ada Lovelace",

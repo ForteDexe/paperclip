@@ -24,7 +24,7 @@ export async function resolveAndRetainRunTrustPreset(
   return db.transaction(async (tx) => {
     const scope = and(
       eq(heartbeatRuns.id, input.runId),
-      eq(heartbeatRuns.companyId, input.companyId),
+      eq(heartbeatRuns.spaceId, input.spaceId),
       eq(heartbeatRuns.agentId, input.agentId),
       eq(heartbeatRuns.status, "running"),
     );
@@ -40,7 +40,7 @@ export async function resolveAndRetainRunTrustPreset(
     const existingPolicy = run.contextSnapshot?.executionPolicy;
     const trustPreset = resolveCoreTrustPreset({
       ...input,
-      run: { companyId: input.companyId, executionPolicy: existingPolicy },
+      run: { spaceId: input.spaceId, executionPolicy: existingPolicy },
     });
     if (trustPreset.kind !== "low_trust_review") {
       return { trustPreset, executionPolicy: existingPolicy };
@@ -63,7 +63,7 @@ export async function resolveAndRetainRunTrustPreset(
       })
       .where(scope);
     return { trustPreset: await withHumanDirectedWork(tx, trustPreset, {
-      companyId: input.companyId, agentId: input.agentId,
+      spaceId: input.spaceId, agentId: input.agentId,
       runId: input.runId,
     }), executionPolicy };
   });

@@ -51,7 +51,7 @@ async function executeProcess(ctx: AdapterExecutionContext): Promise<AdapterExec
     if (typeof v !== "string") continue;
     // Runtime OUTPOST_* always wins over config, and OUTPOST_API_KEY is
     // never accepted from config — the harness-minted run token is the only
-    // source. Other OUTPOST_* keys Paperclip did not assign flow through.
+    // source. Other OUTPOST_* keys Outpost did not assign flow through.
     if (isForbiddenConfigEnvKey(k)) continue;
     if (isOutpostRuntimeEnvKey(k) && k in env) continue;
     env[k] = v;
@@ -90,7 +90,7 @@ async function executeProcess(ctx: AdapterExecutionContext): Promise<AdapterExec
   let proc: Awaited<ReturnType<typeof runChildProcess>>;
   try {
     if (typeof instructions.text === "string" && instructions.text) {
-      instructionsDirectory = await mkdtemp(join(tmpdir(), "paperclip-connection-instructions-"));
+      instructionsDirectory = await mkdtemp(join(tmpdir(), "outpost-connection-instructions-"));
       const instructionsFile = join(instructionsDirectory, "instructions.json");
       await writeFile(instructionsFile, JSON.stringify(instructions), { mode: 0o600 });
       env.OUTPOST_CONNECTION_INSTRUCTIONS_FILE = instructionsFile;

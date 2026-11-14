@@ -47,7 +47,7 @@ import {
   issueClosedRequestConfirmationInteraction,
   notCreatorRequestConfirmationInteraction,
   humanOnlyRequestConfirmationInteraction,
-  companyCappedRequestConfirmationInteraction,
+  spaceCappedRequestConfirmationInteraction,
   legacyRestrictedRequestConfirmationInteraction,
   pendingConnectionIntentInteraction,
   retryConnectionIntentInteraction,
@@ -100,9 +100,9 @@ vi.mock("@/lib/router", () => ({
   ),
 }));
 
-vi.mock("@/context/CompanyContext", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../context/CompanyContext")>(),
-  useCompany: () => ({ selectedCompanyId: issueThreadInteractionFixtureMeta.companyId, selectedCompany: null }),
+vi.mock("@/context/SpaceContext", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../context/SpaceContext")>(),
+  useSpace: () => ({ selectedSpaceId: issueThreadInteractionFixtureMeta.spaceId, selectedSpace: null }),
 }));
 vi.mock("@/context/BreadcrumbContext", async (importOriginal) => ({
   ...await importOriginal<typeof import("../context/BreadcrumbContext")>(),
@@ -549,7 +549,7 @@ describe("IssueThreadInteractionCard", () => {
     });
 
     expect(host.textContent).toContain("Questions expired by comment");
-    expect(host.textContent).toContain("A later board/user comment superseded this question request.");
+    expect(host.textContent).toContain("A later operator/user comment superseded this question request.");
     expect(host.textContent).not.toContain("Send answers");
     expect(host.textContent).not.toContain("Cancel question");
 
@@ -680,7 +680,7 @@ describe("IssueThreadInteractionCard", () => {
 
     const link = host.querySelector('a[href="/issues/PAP-42#document-preview"]');
     expect(link?.textContent).toBe("two screenshots");
-    const prompt = link?.closest(".paperclip-markdown");
+    const prompt = link?.closest(".outpost-markdown");
     expect(prompt?.querySelector("strong")?.textContent).toBe("Accept");
     expect(prompt?.querySelector("code")?.textContent).toBe("preview.png");
     expect(prompt?.querySelector("img")).toBeNull();
@@ -689,7 +689,7 @@ describe("IssueThreadInteractionCard", () => {
       .toContain("Image: Review image (https://provider.invalid/review.png)");
     expect(prompt?.querySelector("pre code.language-mermaid")?.textContent)
       .toContain("flowchart LR");
-    expect(prompt?.querySelector(".paperclip-mermaid")).toBeNull();
+    expect(prompt?.querySelector(".outpost-mermaid")).toBeNull();
     expect(prompt?.querySelectorAll("li")).toHaveLength(2);
     expect(prompt?.textContent).not.toContain("[two screenshots]");
   });
@@ -981,7 +981,7 @@ describe("IssueThreadInteractionCard", () => {
           payload: { ...pendingRequestConfirmationInteraction.payload, target: unlabeled(16) },
         },
       });
-      expect(host.textContent).not.toContain("github:paperclipai");
+      expect(host.textContent).not.toContain("github:outpost");
     });
 
     it("links a labeled target on a pending card", () => {
@@ -995,13 +995,13 @@ describe("IssueThreadInteractionCard", () => {
         'a[href="https://github.com/paperclipai/paperclip-desktop/pull/16"]',
       );
       expect(link?.textContent).toContain("PR #16");
-      expect(host.textContent).not.toContain("github:paperclipai");
+      expect(host.textContent).not.toContain("github:outpost");
     });
 
     it("shows no chips or chevron for an unlabeled stale-target change", () => {
       const host = renderCard({ interaction: staleTargetChange(unlabeled(15), unlabeled(16)) });
       expect(host.textContent).toContain("Expired by target change");
-      expect(host.textContent).not.toContain("github:paperclipai");
+      expect(host.textContent).not.toContain("github:outpost");
       expect(host.querySelector(".lucide-chevron-right")).toBeNull();
     });
 
@@ -1009,14 +1009,14 @@ describe("IssueThreadInteractionCard", () => {
       const host = renderCard({ interaction: staleTargetChange(labeled(15), labeled(16)) });
       expect(host.textContent).toContain("PR #15");
       expect(host.textContent).toContain("PR #16");
-      expect(host.textContent).not.toContain("github:paperclipai");
+      expect(host.textContent).not.toContain("github:outpost");
       expect(host.querySelector(".lucide-chevron-right")).not.toBeNull();
     });
 
     it("drops the chevron when only one side of the stale-target change is labeled", () => {
       const host = renderCard({ interaction: staleTargetChange(unlabeled(15), labeled(16)) });
       expect(host.textContent).toContain("PR #16");
-      expect(host.textContent).not.toContain("github:paperclipai");
+      expect(host.textContent).not.toContain("github:outpost");
       expect(host.querySelector(".lucide-chevron-right")).toBeNull();
     });
   });
@@ -1492,7 +1492,7 @@ describe("IssueThreadInteractionCard tool-action card", () => {
     expect(addresseeBadge?.textContent).toContain("For ");
   });
 
-  it("omits the addressee badge for a board-only interaction", () => {
+  it("omits the addressee badge for a operator-only interaction", () => {
     const host = renderCard({
       interaction: pendingRequestConfirmationInteraction,
     });
@@ -1700,7 +1700,7 @@ describe("IssueThreadInteractionCard connection-authorization card", () => {
       anchor.textContent?.includes("Connect Gmail"),
     );
     expect(connect?.getAttribute("href")).toBe(
-      "https://accounts.google.com/o/oauth2/v2/auth?client_id=paperclip",
+      "https://accounts.google.com/o/oauth2/v2/auth?client_id=outpost",
     );
     expect(connect?.getAttribute("target")).toBe("_blank");
 
@@ -1828,8 +1828,8 @@ describe("IssueThreadInteractionCard resolver audience", () => {
     expect(audience?.getAttribute("data-audience-open")).toBe("true");
     expect(audience?.textContent).toContain("Anyone");
     expect(audience?.textContent).toContain("a human or any agent, including the one that asked");
-    // An open card must never read as board-required.
-    expect(audience?.textContent).not.toMatch(/only a person on the board/i);
+    // An open card must never read as operator-required.
+    expect(audience?.textContent).not.toMatch(/only a person on the operator/i);
     expect(host.querySelector('[data-testid="interaction-audience-note"]')).toBeNull();
   });
 
@@ -1868,14 +1868,14 @@ describe("IssueThreadInteractionCard resolver audience", () => {
     expect(audience?.textContent).not.toContain("Anyone");
   });
 
-  it("explains a company cap that narrowed the requested audience", () => {
-    const host = renderCard({ interaction: companyCappedRequestConfirmationInteraction });
+  it("explains a space cap that narrowed the requested audience", () => {
+    const host = renderCard({ interaction: spaceCappedRequestConfirmationInteraction });
 
     const audience = host.querySelector('[data-testid="interaction-audience"]');
     expect(audience?.getAttribute("data-audience-policy")).toBe("human_only");
     expect(
       host.querySelector('[data-testid="interaction-audience-note"]')?.textContent,
-    ).toBe("Outpost interaction governance narrowed this from Anyone to Human only.");
+    ).toBe("Outpost interaction policy narrowed this from Anyone to Human only.");
   });
 
   it("explains a legacy card that predates the open default", () => {

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { agents, agentTaskSessions, authUsers, companyMemberships, createDb, heartbeatRuns,
+import { agents, agentTaskSessions, authUsers, spaceMemberships, createDb, heartbeatRuns,
   issueComments, issueThreadInteractions, issues, nativeRunResults } from "@outpost/db";
 import type { NativeRunIdentity, NativeSession, NativeSessionBackend, PrpEvent } from "@outpost/outpost-runner";
 import { describe, expect, it, vi } from "vitest";
@@ -22,19 +22,19 @@ describe.skipIf(!support.supported)("heartbeat context compaction execution", ()
   const fixture = nativeRestartFixture(databaseOptions);
 
   async function conversation() {
-    const { companyId, agentId, temporary } = fixture.current;
+    const { spaceId, agentId, temporary } = fixture.current;
     const db = createDb(temporary.connectionString, { maxConnections: 4 });
     const userId = randomUUID();
     await db.insert(authUsers).values({ id: userId, name: "Conversation owner", email: `${userId}@example.invalid`,
       createdAt: new Date(), updatedAt: new Date() });
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "owner" });
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "owner" });
     await db.update(agents).set({ status: "idle", adapterConfig: { provider: "codex", lifecycleMode: "warm", idleTimeoutMs: 60_000 } })
       .where(eq(agents.id, agentId));
     await instanceSettingsService(db).updateExperimental({ enableAgentChat: true, enableNativeRunner: true });
-    const [issue] = await db.insert(issues).values({ companyId, title: "Keep the conversation parked", status: "in_progress",
+    const [issue] = await db.insert(issues).values({ spaceId, title: "Keep the conversation parked", status: "in_progress",
       assigneeAgentId: agentId, responsibleUserId: userId, conversationAgentId: agentId, conversationUserId: userId,
       conversationState: "active" }).returning();
-    return { db, companyId, agentId, userId, issue };
+    return { db, spaceId, agentId, userId, issue };
   }
 
   // The first ordinary conversation turn produces a real idle checkpoint and
@@ -103,7 +103,7 @@ describe.skipIf(!support.supported)("heartbeat context compaction execution", ()
     const backend = conversationBackend(f.db);
     const heartbeat = heartbeatService(f.db, { nativeSessionBackendFactory: backend.factory });
     try {
-      const [message] = await f.db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issue.id,
+      const [message] = await f.db.insert(issueComments).values({ spaceId: f.spaceId, issueId: f.issue.id,
         authorType: "user", authorUserId: f.userId, body: "Start this conversation." }).returning();
       const first = await heartbeat.wakeup(f.agentId, { source: "on_demand", triggerDetail: "manual", reason: "issue_commented",
         requestedByActorType: "user", requestedByActorId: f.userId, manualUserWake: true,
@@ -113,14 +113,14 @@ describe.skipIf(!support.supported)("heartbeat context compaction execution", ()
       await waitForCondition("normal conversation execution and wakes to settle", () => heartbeat.getTaskDrainStatus().quiescent);
       expect((await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, first!.id)))[0])
         .toMatchObject({ status: "succeeded" });
-      const [idle] = await f.db.select().from(agentTaskSessions).where(and(eq(agentTaskSessions.companyId, f.companyId),
+      const [idle] = await f.db.select().from(agentTaskSessions).where(and(eq(agentTaskSessions.spaceId, f.spaceId),
         eq(agentTaskSessions.agentId, f.agentId), eq(agentTaskSessions.taskKey, f.issue.id)));
       expect(idle).toMatchObject({ lastRunId: first!.id });
       expect(idle.sessionParamsJson).toBeTruthy();
       const [before] = await f.db.select().from(issues).where(eq(issues.id, f.issue.id));
       expect(before).toMatchObject({ status: "in_review", conversationState: "waiting" });
       const [question] = pendingQuestion ? await f.db.insert(issueThreadInteractions).values({
-        companyId: f.companyId, issueId: f.issue.id, createdByAgentId: f.agentId, sourceRunId: first!.id,
+        spaceId: f.spaceId, issueId: f.issue.id, createdByAgentId: f.agentId, sourceRunId: first!.id,
         kind: "ask_user_questions", status: "pending", addresseeUserId: f.userId,
         payload: { version: 1, questions: [{ id: "q", prompt: "Which option?", selectionMode: "single",
           options: [{ id: "a", label: "Option A" }] }] },
@@ -128,7 +128,7 @@ describe.skipIf(!support.supported)("heartbeat context compaction execution", ()
       const commentsBefore = await f.db.select().from(issueComments).where(eq(issueComments.issueId, f.issue.id));
       const interactionsBefore = await f.db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.issueId, f.issue.id));
       const compact = await contextCompactionService(f.db, { wakeup: heartbeat.wakeup }).request({
-        companyId: f.companyId, issue: before, userId: f.userId,
+        spaceId: f.spaceId, issue: before, userId: f.userId,
       });
       await waitForCondition("normal compaction execution and wakes to settle", () => heartbeat.getTaskDrainStatus().quiescent);
       const [run] = await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, compact.runId));
@@ -160,13 +160,13 @@ describe.skipIf(!support.supported)("heartbeat context compaction execution", ()
     const f = await conversation();
     try {
       await f.db.update(issues).set({ status: "in_review", conversationState: "waiting" }).where(eq(issues.id, f.issue.id));
-      await f.db.insert(issueThreadInteractions).values({ companyId: f.companyId, issueId: f.issue.id,
+      await f.db.insert(issueThreadInteractions).values({ spaceId: f.spaceId, issueId: f.issue.id,
         createdByAgentId: f.agentId, addresseeUserId: f.userId, kind: "ask_user_questions", status: "pending",
         payload: { version: 1, questions: [{ id: "q", prompt: "Continue?", selectionMode: "single", options: [{ id: "a", label: "Yes" }] }] } });
-      const [run] = await f.db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+      const [run] = await f.db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
         status: "queued", runtimeMode: "legacy", invocationSource: "automation", triggerDetail: "system", responsibleUserId: f.userId,
         resultJson: { conversationContinuation: "continue_conversation_v1" }, contextSnapshot: { issueId: f.issue.id } }).returning();
-      const result = await createRunDispatch(f.db).cancelStaleQueuedRun({ runId: run.id, companyId: f.companyId, expectedStatus: "queued" });
+      const result = await createRunDispatch(f.db).cancelStaleQueuedRun({ runId: run.id, spaceId: f.spaceId, expectedStatus: "queued" });
       expect(result).toMatchObject({ outcome: "cancelled", errorCode: "issue_waiting_for_response" });
       expect((await f.db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id)))[0])
         .toMatchObject({ status: "cancelled", errorCode: "issue_waiting_for_response" });

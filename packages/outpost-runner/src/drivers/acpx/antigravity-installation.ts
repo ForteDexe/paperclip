@@ -13,7 +13,7 @@ export function antigravityRuntimeCachePath(closure: string, platform: string, a
   if (!/^[a-f0-9]{64}$/.test(closure) || !Object.hasOwn(ANTIGRAVITY_DISTRIBUTION_PINS, `${platform}-${architecture}`)
     || !isAbsolute(home) || home.includes("\0")) throw new Error("Invalid Antigravity runtime cache identity");
   let directory = home;
-  for (const part of [".paperclip", "runtimes", "antigravity", `${platform}-${architecture}`, closure]) {
+  for (const part of [".outpost", "runtimes", "antigravity", `${platform}-${architecture}`, closure]) {
     directory = join(directory, part);
     try {
       const stat = lstatSync(directory);
@@ -36,7 +36,7 @@ export function antigravityNativeDistributionSpec(platform: NodeJS.Platform = pr
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     distributionRoot = antigravityRuntimeCachePath(pin.closureSha256, platform, architecture);
   }
-  return { distributionRoot, manifestPath: join(distributionRoot, ".paperclip-antigravity-closure.json"), expectedClosureSha256: pin.closureSha256,
+  return { distributionRoot, manifestPath: join(distributionRoot, ".outpost-antigravity-closure.json"), expectedClosureSha256: pin.closureSha256,
     executable: pin.executable, fixedArguments: [...pin.args] };
 }
 

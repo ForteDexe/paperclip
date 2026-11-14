@@ -23,7 +23,7 @@ describe.each(["provider", "biller"] as const)("%s price status", kind => {
   afterEach(() => { act(() => root.unmount()); container.remove(); });
   it.each(cases)("labels $name totals without implying missing costs are free", async example => {
     const row = { ...base, ...example };
-    const props = { budgetMonthlyCents: 0, totalCompanySpendCents: row.costCents, weekSpendCents: 0 };
+    const props = { budgetMonthlyCents: 0, totalSpaceSpendCents: row.costCents, weekSpendCents: 0 };
     await act(async () => root.render(kind === "provider"
       ? <ProviderQuotaCard {...props} provider="openai" rows={[row]} windowRows={[]} showDeficitNotch={false} />
       : <BillerSpendCard {...props} row={row} providerRows={[row]} />));

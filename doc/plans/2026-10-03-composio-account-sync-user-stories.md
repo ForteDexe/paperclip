@@ -2,7 +2,7 @@
 
 October 3, 2026 · Acceptance criteria written before implementation; results recorded after the embedded-browser walkthrough
 
-The user starts on Apps with a saved Composio gateway. Composio owns app accounts and authorization; Paperclip shows provider observations and controls access to the saved gateway. Existing access restrictions must survive every discovery and setup action.
+The user starts on Apps with a saved Composio gateway. Composio owns app accounts and authorization; Outpost shows provider observations and controls access to the saved gateway. Existing access restrictions must survive every discovery and setup action.
 
 The current Connect MCP credential supports account listing by toolkit, not an authenticated list-all inventory API. Automatic discovery therefore checks the supported Composio catalog in bounded background batches, independently of search and pagination. Custom apps absent from that catalog remain outside this coverage. The UI and final test report must describe that limit.
 
@@ -25,13 +25,13 @@ The current Connect MCP credential supports account listing by toolkit, not an a
 
 ## Verification boundaries
 
-Use the embedded browser against the built production UI and real Paperclip server/database. Live checks use the existing Composio test gateway for reads and management navigation. Authorization, expiry, independent disconnection, errors, and local removal use a clearly marked disposable provider fixture so valuable real accounts are preserved.
+Use the embedded browser against the built production UI and real Outpost server/database. Live checks use the existing Composio test gateway for reads and management navigation. Authorization, expiry, independent disconnection, errors, and local removal use a clearly marked disposable provider fixture so valuable real accounts are preserved.
 
-Fixture results establish Paperclip behavior through the real UI and backend, not real Composio authorization compatibility. Record these separately. A passing unit test or API response alone does not pass a browser journey.
+Fixture results establish Outpost behavior through the real UI and backend, not real Composio authorization compatibility. Record these separately. A passing unit test or API response alone does not pass a browser journey.
 
 ## Results
 
-The implementation and all twelve Paperclip browser journeys passed within the boundaries below. Fresh third-party OAuth consent was simulated through the disposable provider; it is not claimed as a live provider pass. Live reuse and discovery were verified with the saved Composio gateway and independently compared with Composio's own account inventory.
+The implementation and all twelve Outpost browser journeys passed within the boundaries below. Fresh third-party OAuth consent was simulated through the disposable provider; it is not claimed as a live provider pass. Live reuse and discovery were verified with the saved Composio gateway and independently compared with Composio's own account inventory.
 
 ### Live Composio
 
@@ -39,13 +39,13 @@ Tested the built Apps UI at `http://localhost:3104/TES/apps`, using the existing
 
 - Automatic discovery checked all **1,583 catalog toolkit identifiers**, including aliases and native overlaps, with zero failed toolkit checks. Circleback and the independently connected Airtable account appeared above the paginated catalog without searching for them or requesting another sign-in.
 - Opening the old `/TES/apps/connect?source=composio&targetToolkit=circleback_mcp` URL selected the saved gateway. Continue reused the active Circleback account, closed setup, and cleared the setup query. Reload did not reopen the dialog. No new task or gateway was created.
-- Manage Circleback showed the provider account and its default status, the quoted source connection link, and the explanation that Paperclip permissions apply across this gateway. The source link opened the correct existing permission screen. Native Notion retained **Permissions** and **Remove connection**.
-- **Open in Composio** was clicked from Paperclip. Its final destination was the consumer **For You → Connect Apps** screen, rather than Platform developer projects. Selecting Connected showed the same two apps: Airtable and Circleback MCP, both with one active account.
+- Manage Circleback showed the provider account and its default status, the quoted source connection link, and the explanation that Outpost permissions apply across this gateway. The source link opened the correct existing permission screen. Native Notion retained **Permissions** and **Remove connection**.
+- **Open in Composio** was clicked from Outpost. Its final destination was the consumer **For You → Connect Apps** screen, rather than Platform developer projects. Selecting Connected showed the same two apps: Airtable and Circleback MCP, both with one active account.
 - A subsequent background check failed at 448 of 1,583 identifiers. Previously observed accounts remained visible as unverified. Refresh recovered, and the next complete scan again checked 1,583 identifiers with zero failures. The failure's provider/transport cause was not established; it is not presented as an app disconnection.
 
 ### Disposable provider journeys
 
-Used the production React build, company-scoped tool-access routes, service, and real local PostgreSQL database at `http://localhost:3110/COM/apps`. Only outbound responses for two explicitly fictional fixture gateways were controlled through the service's existing remote-request test seam. This was a separate company with a paused agent and no issues.
+Used the production React build, space-scoped tool-access routes, service, and real local PostgreSQL database at `http://localhost:3110/COM/apps`. Only outbound responses for two explicitly fictional fixture gateways were controlled through the service's existing remote-request test seam. This was a separate space with a paused agent and no issues.
 
 | Journey | Browser result and corroboration |
 | --- | --- |
@@ -64,7 +64,7 @@ Used the production React build, company-scoped tool-access routes, service, and
 
 Additional checks: a single-provider Circleback action skipped the provider picker. After Work's removal the saved-account dropdown offered Personal and Connect a new account. Choosing the latter opened normal gateway setup with organization-wide defaults, a Reuse an existing session disclosure, and one Change link. Cancel created no gateway.
 
-The fixture call log recorded **list** and one **add** action, with a maximum batch size of **32**. Database checks found zero fixture issues, no added agent grants, an archived Work gateway, and an active Personal gateway. The fixture's health check was adjusted to prevent the real server from probing the fictional host; this was fixture setup, not a product fix. After recording these results, the disposable company was archived and its fixture server and browser tab were closed. The live Apps page remains available.
+The fixture call log recorded **list** and one **add** action, with a maximum batch size of **32**. Database checks found zero fixture issues, no added agent grants, an archived Work gateway, and an active Personal gateway. The fixture's health check was adjusted to prevent the real server from probing the fictional host; this was fixture setup, not a product fix. After recording these results, the disposable space was archived and its fixture server and browser tab were closed. The live Apps page remains available.
 
 ### Issues found and corrected during the walkthrough
 
@@ -77,7 +77,7 @@ The fixture call log recorded **list** and one **add** action, with a maximum ba
 ### Automated verification
 
 - Focused UI/shared tests: **320 passed** across Browse, AppsConnect, AppDetail, aggregator setup, and catalog mapping.
-- Backend Composio setup/sync tests: **21 passed**, including batch size, concurrent leases, incomplete/error evidence, recovery, company access, and credential changes during a check.
+- Backend Composio setup/sync tests: **21 passed**, including batch size, concurrent leases, incomplete/error evidence, recovery, space access, and credential changes during a check.
 - Repository-wide `pnpm -r typecheck`: passed.
 - Repository-wide `pnpm build`: passed; the final management-link edit also passed a fresh UI build.
 - `pnpm check:token-gates`: passed after the final UI edit.
@@ -86,8 +86,8 @@ The fixture call log recorded **list** and one **add** action, with a maximum ba
 
 ### Coverage limits
 
-Automatic discovery covers the supported public catalog, not arbitrary custom apps absent from that catalog. It uses the authenticated Connect MCP account-list tool because saved gateway OAuth is not a consumer list-all API key. Observations are isolated by company, human viewer, and credential selection; changed credentials require fresh evidence.
+Automatic discovery covers the supported public catalog, not arbitrary custom apps absent from that catalog. It uses the authenticated Connect MCP account-list tool because saved gateway OAuth is not a consumer list-all API key. Observations are isolated by space, human viewer, and credential selection; changed credentials require fresh evidence.
 
 The hosted authorization handoff, premature completion, and post-authorization verification were tested with controlled provider responses. This report does not claim that a new real Spotify OAuth consent flow was completed. No paid runner evaluation, exhaustive mobile/accessibility audit, or new Arcade account synchronization was performed. Existing Arcade setup remains intact.
 
-Paperclip still exposes and governs the saved gateway's outer MCP tool catalog. Imported app rows do not re-publish each underlying service's tools or promise app-level permission isolation inside Composio's gateway.
+Outpost still exposes and governs the saved gateway's outer MCP tool catalog. Imported app rows do not re-publish each underlying service's tools or promise app-level permission isolation inside Composio's gateway.

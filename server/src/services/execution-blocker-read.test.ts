@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { agents, companies, createDb, heartbeatRuns, issueRecoveryActions, issues, type Db } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRuns, issueRecoveryActions, issues, type Db } from "@outpost/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
@@ -17,21 +17,21 @@ describe.skipIf(!support.supported)("execution blocker PostgreSQL read projectio
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); });
 
   async function fixture(patch: Partial<typeof heartbeatRuns.$inferInsert> = {}, extraEvidence: Record<string, unknown> = {}) {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Blocker fixture", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Blocker agent", adapterType: "process", status: "active" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Blocker task", status: "blocked", assigneeAgentId: agentId });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Blocker fixture", issuePrefix: spaceId.slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Blocker agent", adapterType: "process", status: "active" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Blocker task", status: "blocked", assigneeAgentId: agentId });
     const payload = randomBytes(128 * 1024).toString("base64");
-    const [run] = await db.insert(heartbeatRuns).values({ companyId, agentId, status: "failed", runtimeMode: "legacy",
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId, agentId, status: "failed", runtimeMode: "legacy",
       startedAt: new Date("2020-01-01T00:00:00Z"), finishedAt: new Date("2020-01-01T00:01:00Z"),
       errorCode: "adapter_failed", error: "Fixture failure", contextSnapshot: { issueId, prompt: payload },
       runnerProfileJson: { adapterDispatch: { adapterType: "outpost_runner", adapterConfig: { instructions: payload } }, instructions: payload },
       stdoutExcerpt: payload, ...patch,
     }).returning();
-    await db.insert(issueRecoveryActions).values({ companyId, sourceIssueId: issueId, kind: "active_run_watchdog",
+    await db.insert(issueRecoveryActions).values({ spaceId, sourceIssueId: issueId, kind: "active_run_watchdog",
       cause: "legacy_execution_requires_reconciliation", fingerprint: run.id, status: "active", nextAction: "Inspect the source run.",
       evidence: { runId: run.id, ...extraEvidence } });
-    return { companyId, agentId, issueId, run };
+    return { spaceId, agentId, issueId, run };
   }
 
   function recordRunReads(fullRows = false) {
@@ -58,8 +58,8 @@ describe.skipIf(!support.supported)("execution blocker PostgreSQL read projectio
 
   async function compare(f: Awaited<ReturnType<typeof fixture>>) {
     const baseline = recordRunReads(true), projected = recordRunReads();
-    const expected = await getExecutionBlocker(baseline.recorded, f.companyId, f.issueId);
-    const result = await getExecutionBlocker(projected.recorded, f.companyId, f.issueId);
+    const expected = await getExecutionBlocker(baseline.recorded, f.spaceId, f.issueId);
+    const result = await getExecutionBlocker(projected.recorded, f.spaceId, f.issueId);
     expect(expected).not.toBeNull();
     expect(result).toEqual(expected);
     expect(projected.reads).toHaveLength(baseline.reads.length);
@@ -78,7 +78,7 @@ describe.skipIf(!support.supported)("execution blocker PostgreSQL read projectio
 
   it("names Retry as the person's control, so an agent reading the blocker does not re-run the work", async () => {
     const f = await fixture();
-    const blocker = await getExecutionBlocker(db, f.companyId, f.issueId);
+    const blocker = await getExecutionBlocker(db, f.spaceId, f.issueId);
     expect(blocker).toMatchObject({ canRetry: true });
     expect(blocker!.nextAction).toBe(`Inspect the source run. ${EXECUTION_BLOCKER_PERSON_RETRY_ACTION}`);
     expect(EXECUTION_BLOCKER_PERSON_RETRY_ACTION).toMatch(/^A person can use Retry on this task/);
@@ -89,10 +89,10 @@ describe.skipIf(!support.supported)("execution blocker PostgreSQL read projectio
     const previousReleaseText = "Inspect the failed run and verify its provider has stopped. Reconcile any uncertain external action before explicitly continuing this task.";
     const f = await fixture({ runtimeMode: "native", errorCode: "execution_finalization_deadline_exceeded",
       error: previousReleaseText, nextAction: previousReleaseText });
-    await db.update(issueRecoveryActions).set({ cause: "execution_finalization_deadline_exceeded", ownerType: "board",
+    await db.update(issueRecoveryActions).set({ cause: "execution_finalization_deadline_exceeded", ownerType: "operator",
       nextAction: previousReleaseText }).where(eq(issueRecoveryActions.sourceIssueId, f.issueId));
 
-    const blocker = await getExecutionBlocker(db, f.companyId, f.issueId);
+    const blocker = await getExecutionBlocker(db, f.spaceId, f.issueId);
 
     expect(blocker).toMatchObject({ canRetry: true, runError: EXECUTION_FINALIZATION_DEADLINE_MESSAGE,
       nextAction: `${EXECUTION_FINALIZATION_DEADLINE_MESSAGE} ${EXECUTION_BLOCKER_PERSON_RETRY_ACTION}` });
@@ -104,7 +104,7 @@ describe.skipIf(!support.supported)("execution blocker PostgreSQL read projectio
       resultJson: { startupCancellation: { beforeNativeSelection: true }, startupPreparationSettledAt: "2020-01-01T00:01:00Z" } });
     expect(await compare(f)).toMatchObject({ canRetry: true, canContinue: false });
     await db.update(heartbeatRuns).set({ processPid: 424242 }).where(eq(heartbeatRuns.id, f.run.id));
-    expect(await getExecutionBlocker(db, f.companyId, f.issueId)).toMatchObject({ canRetry: false });
+    expect(await getExecutionBlocker(db, f.spaceId, f.issueId)).toMatchObject({ canRetry: false });
   });
 
   it.each(["valid", "number", "missing"])("preserves typed pre-dispatch interaction evidence (%s)", async kind => {
@@ -123,7 +123,7 @@ describe.skipIf(!support.supported)("execution blocker PostgreSQL read projectio
       workspaceRestoreRecovery: { schema: "outpost.workspace-restore-recovery.v1", leaseIds: [] },
     });
     const input = { schema: "outpost.native-execution-input.v6",
-      binding: { runId: f.run.id, companyId: f.companyId, agentId: f.agentId, issueId: f.issueId },
+      binding: { runId: f.run.id, spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId },
       provider: { kind: "grok_bot" }, workspace: { access: "none", ...(hasCwd ? { cwd: null } : {}) },
       task: { description: randomBytes(128 * 1024).toString("base64") },
       runtimeContext: { instructions: randomBytes(128 * 1024).toString("base64") } };
@@ -134,7 +134,7 @@ describe.skipIf(!support.supported)("execution blocker PostgreSQL read projectio
     expect(stored.runnerProfileJson?.nativeExecutionInput).toEqual(input);
   });
 
-  it.each(["run", "company", "agent", "issue", "provider", "schema", "access", "workspace", "binding", "missing_binding",
+  it.each(["run", "space", "agent", "issue", "provider", "schema", "access", "workspace", "binding", "missing_binding",
     "null_input", "array_input", "scalar_input", "number_input"])(
     "does not relax native workspace recovery for invalid input (%s)", async kind => {
       const f = await fixture({ runtimeMode: "native", driverKind: "grok_bot_mcp" }, {
@@ -143,13 +143,13 @@ describe.skipIf(!support.supported)("execution blocker PostgreSQL read projectio
       });
       const input: Record<string, unknown> = {
         schema: "outpost.native-execution-input.v6",
-        binding: { runId: f.run.id, companyId: f.companyId, agentId: f.agentId, issueId: f.issueId },
+        binding: { runId: f.run.id, spaceId: f.spaceId, agentId: f.agentId, issueId: f.issueId },
         provider: { kind: "grok_bot" }, workspace: { access: "none", cwd: null },
         task: { description: randomBytes(128 * 1024).toString("base64") },
       };
       const binding = input.binding as Record<string, unknown>;
       if (kind === "run") binding.runId = randomUUID();
-      if (kind === "company") binding.companyId = randomUUID();
+      if (kind === "space") binding.spaceId = randomUUID();
       if (kind === "agent") binding.agentId = randomUUID();
       if (kind === "issue") binding.issueId = randomUUID();
       if (kind === "provider") input.provider = { kind: "codex" };

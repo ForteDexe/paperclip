@@ -8,7 +8,7 @@ import { accessService } from "./access.js";
 
 type DbTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type DefaultsAccessInput = {
-  companyId: string;
+  spaceId: string;
   actor: AuthorizationActor;
   assigneeAgentId?: string | null;
   defaults: ChatExecutionDefaults | null | undefined;
@@ -22,13 +22,13 @@ export async function assertChatExecutionDefaultsAccess(
   const defaults = chatExecutionDefaultsSchema.parse(input.defaults ?? {});
   if (defaults.projectId) {
     const [project] = await reader.select({ id: projects.id }).from(projects).where(and(
-      eq(projects.id, defaults.projectId), eq(projects.companyId, input.companyId),
+      eq(projects.id, defaults.projectId), eq(projects.spaceId, input.spaceId),
       await projectReadSqlCondition(reader, input.actor),
     ));
     if (!project) throw notFound("Default project is unavailable or inaccessible");
   }
   if (defaults.workspace) await executionWorkspaceService(db).validateSelection({
-    companyId: input.companyId, actor: input.actor, selection: defaults.workspace, assigneeAgentId: input.assigneeAgentId,
+    spaceId: input.spaceId, actor: input.actor, selection: defaults.workspace, assigneeAgentId: input.assigneeAgentId,
   }, reader);
 }
 
@@ -48,7 +48,7 @@ export async function assertChatTaskCreationAccess(
   const decision = await accessService(transaction as Db).decide({
     actor: input.actor,
     action: "tasks:assign",
-    resource: { type: "issue", companyId: input.companyId, ...scope },
+    resource: { type: "issue", spaceId: input.spaceId, ...scope },
     scope,
   });
   if (!decision.allowed) throw forbidden(decision.explanation);

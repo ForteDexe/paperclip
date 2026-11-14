@@ -29,7 +29,7 @@ const briefHasFacts = (body: string) => /Acorn Test Shop/i.test(body) && /checko
   && /order confirmation/i.test(body) && /(?:no|without) (?:order )?confirmation|confirmation (?:does not|doesn't|never) appear/i.test(body) && /no charge|not charged|without (?:a )?charge/i.test(body);
 async function observeCreation(ctx: ChatCatalogContext, state: Record<string, unknown>): Promise<CaseCreationObservation> {
   const o = await observeInternal(ctx, state); const api = ctx.input.api;
-  const cases = await api.get<CaseRecord[]>(`/api/companies/${o.companyId}/cases`);
+  const cases = await api.get<CaseRecord[]>(`/api/spaces/${o.spaceId}/cases`);
   const handoffs: Record<string, CaseHandoff[]> = {}; const taskDocuments: Record<string, IssueDocument[]> = {}; const documentVersions: Record<string, DocumentRevision[]> = {};
   for (const row of cases) {
     handoffs[row.id] = (await api.get<{ items: CaseHandoff[] }>(`/api/cases/${row.id}/handoffs?limit=100`)).items;
@@ -57,8 +57,8 @@ export function gradeIntegratorCaseCreation(value: unknown) {
   if (!o) return c.result();
   const row = o.cases[0]; const worker = o.state.worker as Entity | undefined;
   const primary = row?.workIssueId ? o.tasks.find(task => task.id === row.workIssueId) : undefined;
-  c.add("one-case-with-one-primary-task", o.cases.length === 1 && !!row && row.companyId === o.companyId && row.projectId === (o.state.project as Entity | undefined)?.id
-    && !!primary && o.tasks.filter(task => task.id !== (o.state.task as Entity | undefined)?.id).length === 1, "One actual company case has one primary task; the prerequisite customer brief remains a separate original record.");
+  c.add("one-case-with-one-primary-task", o.cases.length === 1 && !!row && row.spaceId === o.spaceId && row.projectId === (o.state.project as Entity | undefined)?.id
+    && !!primary && o.tasks.filter(task => task.id !== (o.state.task as Entity | undefined)?.id).length === 1, "One actual space case has one primary task; the prerequisite customer brief remains a separate original record.");
   c.add("structured-customer-facts", preservesCustomerBugFacts(row?.fields), "Structured case fields preserve the actual customer, device/browser, reproduction and expected versus observed behavior; prose may be paraphrased.");
   const kickoff = row && o.handoffs[row.id]?.filter(handoff => handoff.version === 1);
   // A handoff's sourceRunId names the run that held the task being handed off, so a kickoff that creates its
@@ -71,7 +71,7 @@ export function gradeIntegratorCaseCreation(value: unknown) {
   const docs = primary ? o.taskDocuments[primary.id] ?? [] : [];
   const workflow = docs.find(doc => doc.key === "workflow"); const brief = docs.find(doc => doc.key !== "workflow" && briefHasFacts(doc.body));
   const workerRun = o.runs.find(run => run.agentId === worker?.id && run.contextSnapshot?.issueId === primary?.id);
-  const savedBeforeStart = (doc: IssueDocument | undefined, content: (body: string) => boolean) => !!doc && !!primary && doc.issueId === primary.id && doc.companyId === o.companyId
+  const savedBeforeStart = (doc: IssueDocument | undefined, content: (body: string) => boolean) => !!doc && !!primary && doc.issueId === primary.id && doc.spaceId === o.spaceId
     && !!workerRun && o.documentVersions[`${primary.id}:${doc.key}`]?.some(revision => revision.issueId === primary.id && revision.documentId === doc.id && revision.createdByAgentId === o.leadId
     && content(revision.body) && !!kickoffRun && revision.createdByRunId === kickoffRun.id && Date.parse(String(revision.createdAt)) <= Date.parse(String(workerRun.startedAt)));
   c.add("required-documents-persist-before-investigation", savedBeforeStart(workflow, body => /Morgan/i.test(body) && /\b(?:review|handoff|hand.off|owner)\b/i.test(body)) && savedBeforeStart(brief, briefHasFacts), "The primary task owns an attributed saved brief and workflow describing Morgan, owners and later handoffs before Morgan's run begins; a later repaired document cannot rescue a missing initial brief.");
@@ -90,7 +90,7 @@ export const integratorCaseCreationCases = [integratorDefinition("cases", "cases
   try {
     await ctx.input.api.patch("/api/instance/settings/experimental", { enableCases: true });
     const p = await project(ctx, "Launch"); const worker = await fixtureWorker(ctx);
-    await ctx.input.api.post(`/api/companies/${ctx.input.fixtures.company.id}/chats/${ctx.input.fixtures.agent.id}`);
+    await ctx.input.api.post(`/api/spaces/${ctx.input.fixtures.space.id}/chats/${ctx.input.fixtures.agent.id}`);
     await ctx.refreshIssue(); const t = ctx.issue();
     if (!t) throw new Error("Customer brief requires its actual standing conversation");
     await ctx.input.api.patch(`/api/issues/${t.id}`, { projectId: p.id });

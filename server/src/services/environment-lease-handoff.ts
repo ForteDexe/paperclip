@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { environmentLeases } from "@outpost/db";
 
 type Lease = typeof environmentLeases.$inferSelect;
-type Binding = Pick<Lease, "id" | "companyId" | "environmentId" | "executionWorkspaceId" | "issueId" |
+type Binding = Pick<Lease, "id" | "spaceId" | "environmentId" | "executionWorkspaceId" | "issueId" |
   "heartbeatRunId" | "provider" | "providerLeaseId" | "metadata" | "acquiredAt">;
 const outgoingKey = "reusableLeaseSuccessor";
 const incomingKey = "reusableLeasePredecessor";
@@ -27,7 +27,7 @@ function handoffBinding(previous: Binding, current: Binding) {
   return { schema: "outpost.reusable-lease-handoff.v1",
     previousLeaseId: previous.id, successorLeaseId: current.id,
     previousRunId: previous.heartbeatRunId, successorRunId: current.heartbeatRunId,
-    companyId: current.companyId, environmentId: current.environmentId,
+    spaceId: current.spaceId, environmentId: current.environmentId,
     workspaceId: current.executionWorkspaceId, issueId: current.issueId,
     agentId: current.metadata?.agentId ?? null, provider: current.provider,
     providerLeaseId: current.providerLeaseId, recordedAt: current.acquiredAt.toISOString() };
@@ -60,7 +60,7 @@ export function retiredReusableLeasePredecessors(current: Lease, history: Lease[
         Object.entries(expected).some(([key, value]) => receipt[key] !== value ||
           (outgoing as Record<string, unknown>)[key] !== value) ||
         !previous.environmentId || !previous.issueId || typeof previous.metadata?.agentId !== "string" ||
-        previous.companyId !== current.companyId || previous.environmentId !== current.environmentId ||
+        previous.spaceId !== current.spaceId || previous.environmentId !== current.environmentId ||
         previous.executionWorkspaceId !== current.executionWorkspaceId ||
         (current.executionWorkspaceId === null && previous.issueId !== current.issueId) ||
         previous.metadata.agentId !== current.metadata?.agentId ||

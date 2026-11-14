@@ -4,7 +4,7 @@ import { setupRunnerPrpWebSocketServer } from "../realtime/runner-orp-ws.js";
 import { registerLocalRuntimeApiServer } from "../runtime-api.js";
 
 /** Create the HTTP listener used by both production and custom launchers. */
-export function createPaperclipHttpServer(
+export function createOutpostHttpServer(
   listener: RequestListener,
   options: { apiUrl: string; httpOptions?: ServerOptions },
 ) {

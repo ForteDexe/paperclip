@@ -2,7 +2,7 @@ import type { Db } from "@outpost/db";
 import { RUNNERD_CONTROL_PLANE_STATE_SCHEMAS } from "./native-bootstrap-proof.js";
 import { loadNativeRunnerCheckpoint } from "./native-runner-checkpoint.js";
 
-type Binding = { companyId: string; issueId: string; runId: string };
+type Binding = { spaceId: string; issueId: string; runId: string };
 type JournalEntry = { commandId: string; controllerSeq: number };
 
 const IDENTITY_FIELDS = ["runId", "runnerInstanceId", "environmentLeaseId", "normalizedSessionId", "turnId", "itemId"] as const;

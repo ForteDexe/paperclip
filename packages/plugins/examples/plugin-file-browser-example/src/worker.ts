@@ -65,11 +65,11 @@ const plugin = definePlugin({
   async setup(ctx) {
     ctx.logger.info(`${PLUGIN_NAME} plugin setup`);
 
-    // Expose the current company-scoped plugin config so UI components can read
+    // Expose the current space-scoped plugin config so UI components can read
     // operator settings from the canonical config store.
     ctx.data.register("plugin-config", async (params) => {
-      const companyId = typeof params.companyId === "string" ? params.companyId : "";
-      const config = companyId ? await ctx.config.get(companyId) : null;
+      const spaceId = typeof params.spaceId === "string" ? params.spaceId : "";
+      const config = spaceId ? await ctx.config.get(spaceId) : null;
       return {
         showFilesInSidebar: config?.showFilesInSidebar === true,
         commentAnnotationMode: config?.commentAnnotationMode ?? "both",
@@ -80,10 +80,10 @@ const plugin = definePlugin({
     ctx.data.register("comment-file-links", async (params: Record<string, unknown>) => {
       const commentId = typeof params.commentId === "string" ? params.commentId : "";
       const issueId = typeof params.issueId === "string" ? params.issueId : "";
-      const companyId = typeof params.companyId === "string" ? params.companyId : "";
-      if (!commentId || !issueId || !companyId) return { links: [] };
+      const spaceId = typeof params.spaceId === "string" ? params.spaceId : "";
+      if (!commentId || !issueId || !spaceId) return { links: [] };
       try {
-        const comments = await ctx.issues.listComments(issueId, companyId);
+        const comments = await ctx.issues.listComments(issueId, spaceId);
         const comment = comments.find((c) => c.id === commentId);
         if (!comment?.body) return { links: [] };
         return { links: extractFilePaths(comment.body) };
@@ -95,9 +95,9 @@ const plugin = definePlugin({
 
     ctx.data.register("workspaces", async (params: Record<string, unknown>) => {
       const projectId = params.projectId as string;
-      const companyId = typeof params.companyId === "string" ? params.companyId : "";
-      if (!projectId || !companyId) return [];
-      const workspaces = await ctx.projects.listWorkspaces(projectId, companyId);
+      const spaceId = typeof params.spaceId === "string" ? params.spaceId : "";
+      if (!projectId || !spaceId) return [];
+      const workspaces = await ctx.projects.listWorkspaces(projectId, spaceId);
       return workspaces.map((w) => ({
         id: w.id,
         projectId: w.projectId,
@@ -109,11 +109,11 @@ const plugin = definePlugin({
 
     async function readFileList(params: Record<string, unknown>) {
       const projectId = params.projectId as string;
-      const companyId = typeof params.companyId === "string" ? params.companyId : "";
+      const spaceId = typeof params.spaceId === "string" ? params.spaceId : "";
       const workspaceId = params.workspaceId as string;
       const directoryPath = typeof params.directoryPath === "string" ? params.directoryPath : "";
-      if (!projectId || !companyId || !workspaceId) return { entries: [] };
-      const workspaces = await ctx.projects.listWorkspaces(projectId, companyId);
+      if (!projectId || !spaceId || !workspaceId) return { entries: [] };
+      const workspaces = await ctx.projects.listWorkspaces(projectId, spaceId);
       const workspace = workspaces.find((w) => w.id === workspaceId);
       if (!workspace) return { entries: [] };
       const workspacePath = sanitizeWorkspacePath(workspace.path);
@@ -152,13 +152,13 @@ const plugin = definePlugin({
       "fileContent",
       async (params: Record<string, unknown>) => {
         const projectId = params.projectId as string;
-        const companyId = typeof params.companyId === "string" ? params.companyId : "";
+        const spaceId = typeof params.spaceId === "string" ? params.spaceId : "";
         const workspaceId = params.workspaceId as string;
         const filePath = params.filePath as string;
-        if (!projectId || !companyId || !workspaceId || !filePath) {
+        if (!projectId || !spaceId || !workspaceId || !filePath) {
           return { content: null, error: "Missing file context" };
         }
-        const workspaces = await ctx.projects.listWorkspaces(projectId, companyId);
+        const workspaces = await ctx.projects.listWorkspaces(projectId, spaceId);
         const workspace = workspaces.find((w) => w.id === workspaceId);
         if (!workspace) return { content: null, error: "Workspace not found" };
         const workspacePath = sanitizeWorkspacePath(workspace.path);
@@ -181,17 +181,17 @@ const plugin = definePlugin({
       "writeFile",
       async (params: Record<string, unknown>) => {
         const projectId = params.projectId as string;
-        const companyId = typeof params.companyId === "string" ? params.companyId : "";
+        const spaceId = typeof params.spaceId === "string" ? params.spaceId : "";
         const workspaceId = params.workspaceId as string;
         const filePath = typeof params.filePath === "string" ? params.filePath.trim() : "";
         if (!filePath) {
           throw new Error("filePath must be a non-empty string");
         }
         const content = typeof params.content === "string" ? params.content : null;
-        if (!projectId || !companyId || !workspaceId) {
+        if (!projectId || !spaceId || !workspaceId) {
           throw new Error("Missing workspace context");
         }
-        const workspaces = await ctx.projects.listWorkspaces(projectId, companyId);
+        const workspaces = await ctx.projects.listWorkspaces(projectId, spaceId);
         const workspace = workspaces.find((w) => w.id === workspaceId);
         if (!workspace) {
           throw new Error("Workspace not found");

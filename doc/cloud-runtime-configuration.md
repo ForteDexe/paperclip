@@ -55,7 +55,7 @@ legacy file leaves no canonical row and can be corrected before retry.
 Environment overlays are not saved as operator choices. Correct that file before
 import, or use the existing absent-file/null-snapshot environment-only setup.
 Ordinary self-hosted file defaults remain unchanged.
-Already-canonical nonblank values, including `paperclip`, remain authoritative.
+Already-canonical nonblank values, including `outpost`, remain authoritative.
 Prior normalization cannot reliably distinguish an operator's deliberate name
 from a historical default, so this release does not invent retrospective
 provenance or replace those saved values.

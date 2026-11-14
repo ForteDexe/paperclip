@@ -2,16 +2,16 @@ import { gunzipSync, inflateRawSync } from "node:zlib";
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
-import type { CompanySecret } from "../../../packages/shared/src/types/secrets.js";
+import type { SpaceSecret } from "../../../packages/shared/src/types/secrets.js";
 import type { IssueAttachment } from "../../../packages/shared/src/types/issue.js";
 import type { IssueWorkProduct } from "../../../packages/shared/src/types/work-product.js";
 
 const MAX_BYTES = 16 * 1024 * 1024;
 /** Compare persisted identity/custody/version semantics. Resolution timestamps,
  * reference counters, serialization order and other bookkeeping are irrelevant. */
-export function sameSecretIdentity(before: Partial<CompanySecret> | undefined, after: Partial<CompanySecret> | undefined) {
+export function sameSecretIdentity(before: Partial<SpaceSecret> | undefined, after: Partial<SpaceSecret> | undefined) {
   if (!before || !after) return false;
-  return (["id", "companyId", "scope", "ownerUserId", "userSecretDefinitionId", "key", "provider", "managedMode", "externalRef", "providerConfigId", "latestVersion", "status", "deletedAt"] as const)
+  return (["id", "spaceId", "scope", "ownerUserId", "userSecretDefinitionId", "key", "provider", "managedMode", "externalRef", "providerConfigId", "latestVersion", "status", "deletedAt"] as const)
     .every(key => (before[key] ?? null) === (after[key] ?? null));
 }
 /** Read a bounded ZIP directory and inflate entries without extracting paths or
@@ -92,11 +92,11 @@ export async function scanReachableSecretOutputs(ctx: ChatCatalogContext, issueI
       scanJson([document, revisions]); references.push(document, revisions); documents++;
     }
     for (const file of files) {
-      if (file.companyId !== ctx.input.fixtures.company.id || file.issueId !== issueId) throw new Error("Private scan attachment scope differs from the task");
+      if (file.spaceId !== ctx.input.fixtures.space.id || file.issueId !== issueId) throw new Error("Private scan attachment scope differs from the task");
       await scanUrl(file.contentPath); attachments++;
     }
     for (const product of products) {
-      if (product.companyId !== ctx.input.fixtures.company.id || product.issueId !== issueId) throw new Error("Private scan artifact scope differs from the task");
+      if (product.spaceId !== ctx.input.fixtures.space.id || product.issueId !== issueId) throw new Error("Private scan artifact scope differs from the task");
       if (product.type !== "artifact") continue;
       const metadata = product.metadata ?? {};
       const ref = metadata.resourceRef as { kind?: string; relativePath?: string } | undefined;

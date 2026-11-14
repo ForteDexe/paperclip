@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { CAPABILITIES } from "../provider-catalog.js";
 import { parseSlackFormBinding } from "./cloud-forms.js";
 import { requiredSlackIngressLanes, parseSlackConfiguredCoverage, slackConfiguredBindingsFingerprint, matchSlackConfiguredCoverage } from "./configured-coverage.js";
-const binding = parseSlackFormBinding({ version: 1, instanceId: "instance", companyId: "company", endpointId: "endpoint", publicId: "p".repeat(43), connectionId: "connection",
+const binding = parseSlackFormBinding({ version: 1, instanceId: "instance", spaceId: "space", endpointId: "endpoint", publicId: "p".repeat(43), connectionId: "connection",
   runtimeGeneration: 1, teamId: "TTEST", appId: "ATEST", eventBindingId: "slack-event:" + "a".repeat(64), credentialFingerprint: "b".repeat(64) });
 const requirement = { binding, capabilities: CAPABILITIES.slack, registeredOptions: false };
 it("requires every default configured Slack lane rather than treating a form slice as complete", () => {

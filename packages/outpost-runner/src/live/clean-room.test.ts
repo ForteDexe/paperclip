@@ -24,7 +24,7 @@ async function exposedOperations(): Promise<Set<string>> {
     identity: {
       runId: "run-clean-room",
       sessionId: "session-clean-room",
-      companyId: identity.companyId,
+      spaceId: identity.spaceId,
       issueId: identity.taskId,
       agentId: identity.actorId,
     },
@@ -45,11 +45,11 @@ async function exposedOperations(): Promise<Set<string>> {
 }
 
 describe("Capability clean-room seed", () => {
-  it("seeds only a company, an agent, and one blank work issue", () => {
+  it("seeds only a space, an agent, and one blank work issue", () => {
     const identity = createCapabilityCleanRoomIdentity({ token: "abc12345", sequence: 4242 });
     const state = createCapabilityCleanRoomSeed(identity);
 
-    expect(state.company.id).toBe("company-cleanroom-abc12345");
+    expect(state.space.id).toBe("space-cleanroom-abc12345");
     expect(state.actors).toHaveLength(1);
     expect(state.tasks).toHaveLength(1);
     expect(state.tasks[0]?.identifier).toBe("MCK-4242");
@@ -81,7 +81,7 @@ describe("Capability clean-room seed", () => {
 
   it("mints a distinct mock tenant on every open", () => {
     const identities = Array.from({ length: 8 }, () => createCapabilityCleanRoomIdentity());
-    expect(new Set(identities.map((identity) => identity.companyId)).size).toBe(8);
+    expect(new Set(identities.map((identity) => identity.spaceId)).size).toBe(8);
     expect(new Set(identities.map((identity) => identity.actorId)).size).toBe(8);
     expect(new Set(identities.map((identity) => identity.taskId)).size).toBe(8);
     for (const identity of identities) {

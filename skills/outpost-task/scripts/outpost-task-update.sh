@@ -117,7 +117,7 @@ while :; do
     curl -sS -m 30 -X PATCH \
       "$OUTPOST_API_URL/api/issues/$issue_id" \
       -H "Authorization: Bearer $OUTPOST_API_KEY" \
-      -H "X-Paperclip-Run-Id: $OUTPOST_RUN_ID" \
+      -H "X-Outpost-Run-Id: $OUTPOST_RUN_ID" \
       -H 'Content-Type: application/json' \
       --data-binary "$payload" \
       -w '\n%{http_code}'

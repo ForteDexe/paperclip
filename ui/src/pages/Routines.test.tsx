@@ -19,9 +19,9 @@ async function act(callback: () => void | Promise<void>) {
 }
 
 const navigateMock = vi.fn();
-const routinesListMock = vi.fn<(companyId: string) => Promise<RoutineListItem[]>>();
-const foldersListMock = vi.fn<(companyId: string, kind: string) => Promise<FolderListResult>>();
-const issuesListMock = vi.fn<(companyId: string, filters?: Record<string, unknown>) => Promise<Issue[]>>();
+const routinesListMock = vi.fn<(spaceId: string) => Promise<RoutineListItem[]>>();
+const foldersListMock = vi.fn<(spaceId: string, kind: string) => Promise<FolderListResult>>();
+const issuesListMock = vi.fn<(spaceId: string, filters?: Record<string, unknown>) => Promise<Issue[]>>();
 const markdownEditorRenderMock = vi.fn((props: { mentions?: Array<{ id: string; name: string }> }) => props);
 const issuesListRenderMock = vi.fn(({ issues }: { issues: Issue[] }) => (
   <div data-testid="issues-list">{issues.map((issue) => issue.title).join(", ")}</div>
@@ -41,8 +41,8 @@ vi.mock("@/lib/router", () => ({
   useSearchParams: () => [new URLSearchParams(currentSearch), vi.fn()],
 }));
 
-vi.mock("../context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompanyId: "company-1" }),
+vi.mock("../context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpaceId: "space-1" }),
 }));
 
 vi.mock("../context/BreadcrumbContext", () => ({
@@ -55,7 +55,7 @@ vi.mock("../context/ToastContext", () => ({
 
 vi.mock("../api/routines", () => ({
   routinesApi: {
-    list: (companyId: string) => routinesListMock(companyId),
+    list: (spaceId: string) => routinesListMock(spaceId),
     create: vi.fn(),
     update: vi.fn(),
     run: vi.fn(),
@@ -64,7 +64,7 @@ vi.mock("../api/routines", () => ({
 
 vi.mock("../api/folders", () => ({
   foldersApi: {
-    list: (companyId: string, kind: string) => foldersListMock(companyId, kind),
+    list: (spaceId: string, kind: string) => foldersListMock(spaceId, kind),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -74,7 +74,7 @@ vi.mock("../api/folders", () => ({
 
 vi.mock("../api/issues", () => ({
   issuesApi: {
-    list: (companyId: string, filters?: Record<string, unknown>) => issuesListMock(companyId, filters),
+    list: (spaceId: string, filters?: Record<string, unknown>) => issuesListMock(spaceId, filters),
     update: vi.fn(),
   },
 }));
@@ -84,7 +84,7 @@ vi.mock("../api/agents", () => ({
     list: vi.fn(async () => [
       {
         id: "agent-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Agent One",
         role: "engineer",
         title: null,
@@ -108,7 +108,7 @@ vi.mock("../api/agents", () => ({
       },
       {
         id: "agent-2",
-        companyId: "company-1",
+        spaceId: "space-1",
         name: "Agent Two",
         role: "engineer",
         title: null,
@@ -139,7 +139,7 @@ vi.mock("../api/projects", () => ({
     list: vi.fn(async () => [
       {
         id: "project-1",
-        companyId: "company-1",
+        spaceId: "space-1",
         urlKey: "project-alpha",
         goalId: null,
         goalIds: [],
@@ -162,7 +162,7 @@ vi.mock("../api/projects", () => ({
       },
       {
         id: "project-2",
-        companyId: "company-1",
+        spaceId: "space-1",
         urlKey: "project-beta",
         goalId: null,
         goalIds: [],
@@ -185,7 +185,7 @@ vi.mock("../api/projects", () => ({
       },
       {
         id: "project-archived",
-        companyId: "company-1",
+        spaceId: "space-1",
         urlKey: "project-archived",
         goalId: null,
         goalIds: [],
@@ -236,7 +236,7 @@ vi.mock("../api/instanceSettings", () => ({
 
 vi.mock("../api/heartbeats", () => ({
   heartbeatsApi: {
-    liveRunsForCompany: vi.fn(async () => []),
+    liveRunsForSpace: vi.fn(async () => []),
   },
 }));
 
@@ -291,7 +291,7 @@ vi.mock("../components/AgentIconPicker", () => ({
 function createRoutine(overrides: Partial<RoutineListItem>): RoutineListItem {
   return {
     id: "routine-1",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     goalId: null,
     parentIssueId: null,
@@ -304,7 +304,7 @@ function createRoutine(overrides: Partial<RoutineListItem>): RoutineListItem {
     concurrencyPolicy: "coalesce_if_active",
     catchUpPolicy: "skip_missed",
     activityGatePolicy: "always",
-    activityGateScope: "company",
+    activityGateScope: "space",
     variables: [],
     latestRevisionId: null,
     latestRevisionNumber: 1,
@@ -328,7 +328,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
   return {
     id: "issue-1",
     identifier: "PAP-1000",
-    companyId: "company-1",
+    spaceId: "space-1",
     projectId: "project-1",
     projectWorkspaceId: null,
     goalId: null,
@@ -531,7 +531,7 @@ describe("Routines page", () => {
         updatedAt: new Date("2026-04-03T00:00:00.000Z"),
         lastRun: {
           id: "run-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           routineId: "routine-1",
           triggerId: null,
           source: "manual",
@@ -621,7 +621,7 @@ describe("Routines page", () => {
       folders: [
         {
           id: "folder-rpi",
-          companyId: "company-1",
+          spaceId: "space-1",
           kind: "routine",
           parentId: null,
           name: "RPI",
@@ -637,7 +637,7 @@ describe("Routines page", () => {
         },
         {
           id: "folder-test",
-          companyId: "company-1",
+          spaceId: "space-1",
           kind: "routine",
           parentId: null,
           name: "Test",
@@ -750,7 +750,7 @@ describe("Routines page", () => {
       folders: [
         {
           id: "folder-reporting",
-          companyId: "company-1",
+          spaceId: "space-1",
           kind: "routine",
           parentId: null,
           name: "Reporting",
@@ -766,7 +766,7 @@ describe("Routines page", () => {
         },
         {
           id: "folder-empty",
-          companyId: "company-1",
+          spaceId: "space-1",
           kind: "routine",
           parentId: null,
           name: "Empty folder",
@@ -886,7 +886,7 @@ describe("Routines page", () => {
   it("searches routine titles and descriptions and restores results when cleared", async () => {
     routinesListMock.mockResolvedValue([
       createRoutine({ id: "routine-1", title: "Morning sync", status: "active" }),
-      createRoutine({ id: "routine-2", title: "Weekly digest", description: "Review company activity", status: "active" }),
+      createRoutine({ id: "routine-2", title: "Weekly digest", description: "Review space activity", status: "active" }),
     ]);
     issuesListMock.mockResolvedValue([]);
 
@@ -920,7 +920,7 @@ describe("Routines page", () => {
         input.dispatchEvent(new Event("input", { bubbles: true }));
       });
     }
-    await search("company review");
+    await search("space review");
     expect(container.textContent).toContain("Weekly digest");
     expect(container.textContent).not.toContain("Morning sync");
     await search("missing");
@@ -1044,7 +1044,7 @@ describe("Routines page", () => {
     });
   });
 
-  it("passes company mention options to the routine description editor", async () => {
+  it("passes space mention options to the routine description editor", async () => {
     routinesListMock.mockResolvedValue([]);
     issuesListMock.mockResolvedValue([]);
 

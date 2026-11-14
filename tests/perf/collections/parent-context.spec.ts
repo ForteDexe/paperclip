@@ -1,24 +1,24 @@
 import { expect, test } from "@playwright/test";
 
-let companyId: string | undefined;
+let spaceId: string | undefined;
 test.afterEach(async ({ request }) => {
-  if (!companyId) return;
-  const response = await request.delete(`/api/companies/${companyId}`);
+  if (!spaceId) return;
+  const response = await request.delete(`/api/spaces/${spaceId}`);
   expect(response.ok(), await response.text()).toBeTruthy();
-  companyId = undefined;
+  spaceId = undefined;
 });
 
 test("Mine reveals assembled parent metadata before loading visible diagnostics", async ({ page, request }) => {
-  const created = await request.post("/api/companies", { data: { name: "Parent context browser check" } });
+  const created = await request.post("/api/spaces", { data: { name: "Parent context browser check" } });
   expect(created.ok(), await created.text()).toBeTruthy();
-  const company = await created.json() as { id: string; issuePrefix: string };
-  companyId = company.id;
-  const preference = await request.put(`/api/companies/${company.id}/workspace-preferences/me`, {
+  const space = await created.json() as { id: string; issuePrefix: string };
+  spaceId = space.id;
+  const preference = await request.put(`/api/spaces/${space.id}/workspace-preferences/me`, {
     data: { coordinatorWorkspaceEnabled: true },
   });
   expect(preference.ok(), await preference.text()).toBeTruthy();
   const create = async (title: string, status: string, parentId?: string) => {
-    const response = await request.post(`/api/companies/${company.id}/issues`, { data: { title, status, parentId } });
+    const response = await request.post(`/api/spaces/${space.id}/issues`, { data: { title, status, parentId } });
     expect(response.ok(), await response.text()).toBeTruthy();
     return response.json() as Promise<{ id: string; identifier: string; title: string }>;
   };
@@ -30,10 +30,10 @@ test("Mine reveals assembled parent metadata before loading visible diagnostics"
   expect(archived.ok(), await archived.text()).toBeTruthy();
 
   const reads: Array<{ projection: string | null; ids: string[] }> = [];
-  const sourceRead = (url: URL) => url.pathname === `/api/companies/${company.id}/inbox/mine`;
+  const sourceRead = (url: URL) => url.pathname === `/api/spaces/${space.id}/inbox/mine`;
   page.on("request", request => {
     const url = new URL(request.url());
-    if (url.pathname === `/api/companies/${company.id}/issues` && url.searchParams.has("ids")) {
+    if (url.pathname === `/api/spaces/${space.id}/issues` && url.searchParams.has("ids")) {
       reads.push({ projection: url.searchParams.get("view"), ids: url.searchParams.get("ids")!.split(",") });
     }
   });
@@ -41,14 +41,14 @@ test("Mine reveals assembled parent metadata before loading visible diagnostics"
   const held = new Promise<void>(resolve => { release = resolve; });
   let releaseDetails!: () => void;
   const detailsHeld = new Promise<void>(resolve => { releaseDetails = resolve; });
-  const detailRead = (url: URL) => url.pathname === `/api/companies/${company.id}/issues`
+  const detailRead = (url: URL) => url.pathname === `/api/spaces/${space.id}/issues`
     && url.searchParams.get("view") === "rows"
     && url.searchParams.get("ids")?.split(",").includes(second.id) === true;
   await page.route(detailRead, async route => { await detailsHeld; await route.continue(); });
   await page.route(sourceRead, async route => { await held; await route.continue(); });
   const sourceRequest = page.waitForRequest(request => sourceRead(new URL(request.url())));
   try {
-    await page.goto(`/${company.issuePrefix}/inbox/mine`);
+    await page.goto(`/${space.issuePrefix}/inbox/mine`);
     await sourceRequest;
     expect(await page.locator("[data-inbox-item]").count()).toBe(0);
     expect(reads).toEqual([]);

@@ -79,7 +79,7 @@ const record = (value: unknown): Record<string, unknown> => value && typeof valu
 const projectFields = ["id", "ref", "name", "organization_id", "organization_slug", "region", "status", "created_at"];
 const functionFields = ["id", "slug", "name", "status", "version", "created_at", "updated_at", "verify_jwt", "import_map", "entrypoint_path", "import_map_path"];
 
-/** The governed transport supplies a selected grant's headers and its guarded
+/** The controlled transport supplies a selected grant's headers and its guarded
  * HTTP request function. This provider never resolves credentials or host files. */
 export function supabaseClient(headers: Record<string, string>, request: SupabaseRequest, projectRef: unknown,
   signal: AbortSignal = AbortSignal.timeout(30_000), deadlineAt: number = Date.now() + 30_000) {

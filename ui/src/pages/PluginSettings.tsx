@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Puzzle, ArrowLeft, ShieldAlert, ActivitySquare, CheckCircle, XCircle, Loader2, Clock, Cpu, Webhook, CalendarClock, AlertTriangle, FolderOpen, Save } from "lucide-react";
 import type { PluginLocalFolderDeclaration } from "@outpost/shared";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useManagedSandboxOnly } from "@/hooks/useManagedSandboxOnly";
 import { Link, Navigate, useParams } from "@/lib/router";
@@ -55,7 +55,7 @@ import { QueryErrorState, QueryPlaceholder, useQueryView } from "@/components/Qu
  * - `POST /api/plugins/:pluginId/config/test` — test configuration.
  *
  * URL params:
- * - `companyPrefix` — the company slug (for breadcrumb links).
+ * - `spacePrefix` — the space slug (for breadcrumb links).
  * - `pluginId` — UUID of the plugin to display.
  *
  * @see PluginManager — parent list page.
@@ -63,9 +63,9 @@ import { QueryErrorState, QueryPlaceholder, useQueryView } from "@/components/Qu
  * @see doc/plugins/PLUGIN_SPEC.md §19.8 — Plugin Settings UI.
  */
 export function PluginSettings() {
-  const { selectedCompany, selectedCompanyId } = useCompany();
+  const { selectedSpace, selectedSpaceId } = useSpace();
   const { setBreadcrumbs } = useBreadcrumbs();
-  const { companyPrefix, pluginId } = useParams<{ companyPrefix?: string; pluginId: string }>();
+  const { spacePrefix, pluginId } = useParams<{ spacePrefix?: string; pluginId: string }>();
   const { hideHostPaths } = useManagedSandboxOnly();
   const [activeTab, setActiveTab] = useState<"configuration" | "status">("configuration");
 
@@ -102,20 +102,20 @@ export function PluginSettings() {
   const configSchema = plugin?.manifestJson?.instanceConfigSchema as JsonSchemaNode | undefined;
   const hasConfigSchema = configSchema && configSchema.properties && Object.keys(configSchema.properties).length > 0;
 
-  const configQueryKey = pluginId && selectedCompanyId
-    ? queryKeys.plugins.config(pluginId, selectedCompanyId)
-    : ["plugins", pluginId ?? "__missing_plugin__", "companies", "__missing_company__", "config"] as const;
+  const configQueryKey = pluginId && selectedSpaceId
+    ? queryKeys.plugins.config(pluginId, selectedSpaceId)
+    : ["plugins", pluginId ?? "__missing_plugin__", "spaces", "__missing_space__", "config"] as const;
 
   const { data: configData, isLoading: configLoading } = useQuery({
     queryKey: configQueryKey,
-    queryFn: () => pluginsApi.getConfig(pluginId!, selectedCompanyId!),
-    enabled: !!pluginId && !!hasConfigSchema && !!selectedCompanyId,
+    queryFn: () => pluginsApi.getConfig(pluginId!, selectedSpaceId!),
+    enabled: !!pluginId && !!hasConfigSchema && !!selectedSpaceId,
   });
 
   const { slots } = usePluginSlots({
     slotTypes: ["settingsPage"],
-    companyId: selectedCompanyId,
-    enabled: !!selectedCompanyId,
+    spaceId: selectedSpaceId,
+    enabled: !!selectedSpaceId,
   });
 
   // Filter slots to only show settings pages for this specific plugin. The route
@@ -127,12 +127,12 @@ export function PluginSettings() {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: selectedCompany?.name ?? "Outpost", href: "/dashboard" },
-      { label: "Settings", href: "/company/settings" },
-      { label: "Plugins", href: "/company/settings/instance/plugins" },
+      { label: selectedSpace?.name ?? "Outpost", href: "/dashboard" },
+      { label: "Settings", href: "/space/settings" },
+      { label: "Plugins", href: "/space/settings/instance/plugins" },
       { label: plugin?.manifestJson?.displayName ?? plugin?.packageName ?? "Plugin Details" },
     ]);
-  }, [selectedCompany?.name, setBreadcrumbs, companyPrefix, plugin]);
+  }, [selectedSpace?.name, setBreadcrumbs, spacePrefix, plugin]);
 
   useEffect(() => {
     setActiveTab("configuration");
@@ -159,7 +159,7 @@ export function PluginSettings() {
   }
 
   if (!plugin) {
-    return <Navigate to="/company/settings/instance/plugins" replace />;
+    return <Navigate to="/space/settings/instance/plugins" replace />;
   }
 
   const displayStatus = plugin.status;
@@ -182,7 +182,7 @@ export function PluginSettings() {
   return (
     <div className="max-w-6xl space-y-6">
       <div className="flex items-center gap-4">
-        <Link to="/company/settings/instance/plugins">
+        <Link to="/space/settings/instance/plugins">
           <Button variant="outline" size="icon" className="h-8 w-8">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -251,7 +251,7 @@ export function PluginSettings() {
               {hasLocalFolders ? (
                 <PluginLocalFoldersSettings
                   pluginId={pluginId!}
-                  companyId={selectedCompanyId}
+                  spaceId={selectedSpaceId}
                   declarations={localFolderDeclarations}
                 />
               ) : null}
@@ -262,8 +262,8 @@ export function PluginSettings() {
                       key={`${slot.pluginKey}:${slot.id}`}
                       slot={slot}
                       context={{
-                        companyId: selectedCompanyId,
-                        companyPrefix: companyPrefix ?? null,
+                        spaceId: selectedSpaceId,
+                        spacePrefix: spacePrefix ?? null,
                       }}
                       missingBehavior="placeholder"
                     />
@@ -272,7 +272,7 @@ export function PluginSettings() {
               ) : hasConfigSchema ? (
                 <PluginConfigForm
                   pluginId={pluginId!}
-                  companyId={selectedCompanyId}
+                  spaceId={selectedSpaceId}
                   schema={configSchema!}
                   initialValues={configData?.configJson}
                   isLoading={configLoading}
@@ -585,29 +585,29 @@ export function PluginSettings() {
 }
 
 // ---------------------------------------------------------------------------
-// PluginLocalFoldersSettings — host-managed company-scoped folders
+// PluginLocalFoldersSettings — host-managed space-scoped folders
 // ---------------------------------------------------------------------------
 
 interface PluginLocalFoldersSettingsProps {
   pluginId: string;
-  companyId: string | null;
+  spaceId: string | null;
   declarations: PluginLocalFolderDeclaration[];
 }
 
-function PluginLocalFoldersSettings({ pluginId, companyId, declarations }: PluginLocalFoldersSettingsProps) {
+function PluginLocalFoldersSettings({ pluginId, spaceId, declarations }: PluginLocalFoldersSettingsProps) {
   const foldersQuery = useQuery({
-    queryKey: companyId
-      ? queryKeys.plugins.localFolders(pluginId, companyId)
-      : ["plugins", pluginId, "companies", "none", "local-folders"],
-    queryFn: () => pluginsApi.listLocalFolders(pluginId, companyId!),
-    enabled: !!companyId,
+    queryKey: spaceId
+      ? queryKeys.plugins.localFolders(pluginId, spaceId)
+      : ["plugins", pluginId, "spaces", "none", "local-folders"],
+    queryFn: () => pluginsApi.listLocalFolders(pluginId, spaceId!),
+    enabled: !!spaceId,
   });
   const foldersView = useQueryView(foldersQuery);
 
   // Loaded folder statuses stay on the rows through an outage.
   const statusByKey = new Map((foldersQuery.data?.folders ?? []).map((folder) => [folder.folderKey, folder]));
 
-  if (!companyId) {
+  if (!spaceId) {
     return (
       <div className="rounded-md border border-border/60 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
         Select an outpost to configure this plugin's local folders.
@@ -638,7 +638,7 @@ function PluginLocalFoldersSettings({ pluginId, companyId, declarations }: Plugi
             <PluginLocalFolderRow
               key={declaration.folderKey}
               pluginId={pluginId}
-              companyId={companyId}
+              spaceId={spaceId}
               declaration={declaration}
               status={statusByKey.get(declaration.folderKey)}
             />
@@ -651,12 +651,12 @@ function PluginLocalFoldersSettings({ pluginId, companyId, declarations }: Plugi
 
 interface PluginLocalFolderRowProps {
   pluginId: string;
-  companyId: string;
+  spaceId: string;
   declaration: PluginLocalFolderDeclaration;
   status?: PluginLocalFolderStatus;
 }
 
-function PluginLocalFolderRow({ pluginId, companyId, declaration, status }: PluginLocalFolderRowProps) {
+function PluginLocalFolderRow({ pluginId, spaceId, declaration, status }: PluginLocalFolderRowProps) {
   const queryClient = useQueryClient();
   const serverPath = status?.path ?? "";
   const [pathValue, setPathValue] = useState(serverPath);
@@ -669,7 +669,7 @@ function PluginLocalFolderRow({ pluginId, companyId, declaration, status }: Plug
 
   const saveMutation = useMutation({
     mutationFn: (path: string) =>
-      pluginsApi.configureLocalFolder(pluginId, companyId, declaration.folderKey, {
+      pluginsApi.configureLocalFolder(pluginId, spaceId, declaration.folderKey, {
         path,
         access: declaration.access,
         requiredDirectories: declaration.requiredDirectories,
@@ -682,7 +682,7 @@ function PluginLocalFolderRow({ pluginId, companyId, declaration, status }: Plug
           ? "Local folder saved."
           : "Local folder saved, but validation still needs attention.",
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.plugins.localFolders(pluginId, companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.plugins.localFolders(pluginId, spaceId) });
     },
     onError: (err: Error) => {
       setMessage({ type: "error", text: describeError(err).body });
@@ -768,7 +768,7 @@ function PluginLocalFolderRow({ pluginId, companyId, declaration, status }: Plug
           <Button
             size="sm"
             onClick={handleSave}
-            disabled={saveMutation.isPending || !isDirty || !companyId}
+            disabled={saveMutation.isPending || !isDirty || !spaceId}
           >
             {saveMutation.isPending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -937,7 +937,7 @@ function isLikelyAbsolutePath(pathValue: string) {
 
 interface PluginConfigFormProps {
   pluginId: string;
-  companyId: string | null;
+  spaceId: string | null;
   schema: JsonSchemaNode;
   initialValues?: Record<string, unknown>;
   isLoading?: boolean;
@@ -954,7 +954,7 @@ interface PluginConfigFormProps {
  * Separated from PluginSettings to isolate re-render scope — only the form
  * re-renders on field changes, not the entire page.
  */
-function PluginConfigForm({ pluginId, companyId, schema, initialValues, isLoading, pluginStatus, supportsConfigTest }: PluginConfigFormProps) {
+function PluginConfigForm({ pluginId, spaceId, schema, initialValues, isLoading, pluginStatus, supportsConfigTest }: PluginConfigFormProps) {
   const queryClient = useQueryClient();
 
   // Form values: start with saved values, fall back to schema defaults
@@ -970,7 +970,7 @@ function PluginConfigForm({ pluginId, companyId, schema, initialValues, isLoadin
   useEffect(() => {
     hasHydratedRef.current = false;
     setValues(getDefaultValues(schema));
-  }, [companyId, pluginId, schema]);
+  }, [spaceId, pluginId, schema]);
 
   useEffect(() => {
     if (initialValues && !hasHydratedRef.current) {
@@ -995,14 +995,14 @@ function PluginConfigForm({ pluginId, companyId, schema, initialValues, isLoadin
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: (configJson: Record<string, unknown>) => {
-      if (!companyId) throw new Error("Select an outpost before saving plugin configuration.");
-      return pluginsApi.saveConfig(pluginId, companyId, configJson);
+      if (!spaceId) throw new Error("Select an outpost before saving plugin configuration.");
+      return pluginsApi.saveConfig(pluginId, spaceId, configJson);
     },
     onSuccess: () => {
       setSaveMessage({ type: "success", text: "Configuration saved." });
       setTestResult(null);
-      if (companyId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.plugins.config(pluginId, companyId) });
+      if (spaceId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.plugins.config(pluginId, spaceId) });
       }
       // Clear success message after 3s
       setTimeout(() => setSaveMessage(null), 3000);
@@ -1015,8 +1015,8 @@ function PluginConfigForm({ pluginId, companyId, schema, initialValues, isLoadin
   // Test configuration mutation
   const testMutation = useMutation({
     mutationFn: (configJson: Record<string, unknown>) => {
-      if (!companyId) throw new Error("Select an outpost before testing plugin configuration.");
-      return pluginsApi.testConfig(pluginId, companyId, configJson);
+      if (!spaceId) throw new Error("Select an outpost before testing plugin configuration.");
+      return pluginsApi.testConfig(pluginId, spaceId, configJson);
     },
     onSuccess: (result) => {
       if (result.valid) {
@@ -1124,7 +1124,7 @@ function PluginConfigForm({ pluginId, companyId, schema, initialValues, isLoadin
           <Button
             variant="outline"
             onClick={handleTestConnection}
-            disabled={testMutation.isPending || !companyId}
+            disabled={testMutation.isPending || !spaceId}
             size="sm"
           >
             {testMutation.isPending ? (

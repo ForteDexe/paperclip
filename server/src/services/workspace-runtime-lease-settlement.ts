@@ -37,7 +37,7 @@ export async function settleExecutionWorkspaceRuntimeLease(db: Db, record: InPro
     if (!deleted.length) return { settled: false, reason: "lease_no_longer_held" };
     // The lease row is gone; the activity entry keeps who held it and why it was released.
     publication = (await persistActivity(tx, {
-      companyId: row.companyId, actorType: "system", actorId: "ownership-reconciler",
+      spaceId: row.spaceId, actorType: "system", actorId: "ownership-reconciler",
       action: "execution_workspace.runtime_lease_released", entityType: "execution_workspace",
       entityId: row.executionWorkspaceId, runId: row.ownerRunId, issueId: row.ownerIssueId,
       details: { leaseId: row.id, previousOwnerKey: row.ownerKey, lastAction: row.lastAction, proof: gone },

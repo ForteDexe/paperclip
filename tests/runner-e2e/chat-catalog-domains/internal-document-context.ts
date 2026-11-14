@@ -14,9 +14,9 @@ export async function selectDocumentSource(ctx: ChatCatalogContext, input: {
 }) {
   const { api, fixtures } = ctx.input;
   const target = await api.get<Entity>(`/api/issues/${input.task.id}`);
-  if (target.id !== input.task.id || target.companyId !== fixtures.company.id || target.projectId !== input.task.projectId)
-    throw new Error("Selected document source does not belong to the expected task/company/project");
-  const taskHref = `/${fixtures.company.issuePrefix}/issues/${target.identifier ?? target.id}`;
+  if (target.id !== input.task.id || target.spaceId !== fixtures.space.id || target.projectId !== input.task.projectId)
+    throw new Error("Selected document source does not belong to the expected task/space/project");
+  const taskHref = `/${fixtures.space.issuePrefix}/issues/${target.identifier ?? target.id}`;
   const lines = [`Selected source: [${target.title}](${taskHref}).`];
   if (input.document) {
     const doc = await api.get<IssueDocument>(`/api/issues/${target.id}/documents/${encodeURIComponent(input.document.key)}`);
@@ -39,13 +39,13 @@ export async function selectDocumentSource(ctx: ChatCatalogContext, input: {
   }
   if (input.workspaceFilename) lines.push(`Selected workspace file: ${input.workspaceFilename}, in the selected task's authorized workspace.`);
   const description = lines.join("\n\n");
-  await api.post(`/api/companies/${fixtures.company.id}/chats/${fixtures.agent.id}`);
+  await api.post(`/api/spaces/${fixtures.space.id}/chats/${fixtures.agent.id}`);
   await ctx.refreshIssue();
   const source = ctx.issue();
   if (!source || source.id === target.id) throw new Error("Source selection requires the actual separate standing conversation");
   await api.patch(`/api/issues/${source.id}`, { projectId: target.projectId, description });
   const saved = await api.get<Entity>(`/api/issues/${source.id}`);
-  if (saved.id !== source.id || saved.companyId !== fixtures.company.id || saved.projectId !== target.projectId || saved.description !== description)
+  if (saved.id !== source.id || saved.spaceId !== fixtures.space.id || saved.projectId !== target.projectId || saved.description !== description)
     throw new Error("Visible source selection did not persist on the canonical conversation");
   await ctx.refreshIssue();
   const factualContextAttachment = await uploadFactualQueryAttachment(ctx, { filename: "selected-source.md", body: description });

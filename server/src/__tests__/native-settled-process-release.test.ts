@@ -9,8 +9,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   agents,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   environmentLeases,
   heartbeatRunEvents,
@@ -60,20 +60,20 @@ async function exitedPid() {
 suite("settled native run process identity", () => {
   let db: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | undefined;
-  let companyId: string;
+  let spaceId: string;
   let agentId: string;
   const children: ReturnType<typeof startDetached>[] = [];
 
   beforeAll(async () => {
     if (!external) temporary = await startEmbeddedPostgresTestDatabase("native-settled-process-");
     db = createDb(external ?? temporary!.connectionString, { maxConnections: 6 });
-    if (external) await db.execute(sql`truncate companies cascade`);
-    companyId = randomUUID();
+    if (external) await db.execute(sql`truncate spaces cascade`);
+    spaceId = randomUUID();
     agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Settled processes", issuePrefix: "SPR", defaultResponsibleUserId: "owner" });
+    await db.insert(spaces).values({ id: spaceId, name: "Settled processes", issuePrefix: "SPR", defaultResponsibleUserId: "owner" });
     await db.insert(authUsers).values({ id: "owner", name: "Fixture user", email: "owner@example.test", createdAt: new Date(), updatedAt: new Date() }).onConflictDoNothing();
-    await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: "owner", status: "active", membershipRole: "member" });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", role: "engineer", status: "idle", adapterType: "process",
+    await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: "owner", status: "active", membershipRole: "member" });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", role: "engineer", status: "idle", adapterType: "process",
       adapterConfig: {}, permissions: {}, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true, maxConcurrentRuns: 20 } } });
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
@@ -103,29 +103,29 @@ suite("settled native run process identity", () => {
     const issueId = randomUUID();
     const runId = randomUUID();
     const pid = fixture.pid ?? await exitedPid();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Settled process", status: "in_progress", assigneeAgentId: agentId });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Settled process", status: "in_progress", assigneeAgentId: agentId });
     await db.insert(heartbeatRuns).values({
-      id: runId, companyId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId,
+      id: runId, spaceId, agentId, status: "running", runtimeMode: "native", nativeIssueId: issueId,
       invocationSource: "assignment", triggerDetail: "system", contextSnapshot: { issueId },
       runnerProfileJson: fixture.checkpoint === false ? {} : { sessionCheckpoint: { providerSessionId: "thread" } },
     });
     if (fixture.hostname) {
       await db.update(heartbeatRuns).set({ processPid: pid, processGroupId: pid, processStartedAt: new Date() }).where(eq(heartbeatRuns.id, runId));
-      await appendHeartbeatRunEvent(db, { companyId, runId, agentId, eventType: "native.process_identity_recorded", stream: "system", level: "info",
+      await appendHeartbeatRunEvent(db, { spaceId, runId, agentId, eventType: "native.process_identity_recorded", stream: "system", level: "info",
         message: "Process identity recorded", payload: { targetKind: "local", hostname: fixture.hostname, processPid: pid, processGroupId: pid } });
     } else {
       await persistHeartbeatRunProcessMetadata(db, runId, { pid, processGroupId: pid, startedAt: new Date().toISOString(), targetKind: "local" });
     }
     if (fixture.providerEvidence) {
-      await appendHeartbeatRunEvent(db, { companyId, runId, agentId, eventType: "harness.ready", stream: "system", level: "info", message: "ready" });
+      await appendHeartbeatRunEvent(db, { spaceId, runId, agentId, eventType: "harness.ready", stream: "system", level: "info", message: "ready" });
     }
     if (fixture.phase !== null) {
-      await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: fixture.phase ?? "committed" });
+      await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: fixture.phase ?? "committed" });
     }
     for (const kind of fixture.leases ?? ["local"]) {
       const remote = kind.startsWith("remote");
       const [lease] = await db.insert(environmentLeases).values({
-        companyId, issueId, heartbeatRunId: runId, provider: remote ? "sandbox-fixture" : "local",
+        spaceId, issueId, heartbeatRunId: runId, provider: remote ? "sandbox-fixture" : "local",
         providerLeaseId: remote ? randomUUID() : null, leasePolicy: "ephemeral",
         status: kind === "local_unreleased" ? "active" : "released", releasedAt: kind === "local_unreleased" ? null : new Date(),
         cleanupStatus: kind === "local_unreleased" ? null : "success",
@@ -150,8 +150,8 @@ suite("settled native run process identity", () => {
     expect(await releaseSettledNativeRunProcess(db, runId)).toBe("released");
     const after = await readRun(runId);
     expect(after).toMatchObject({ status: "failed", processPid: null, processGroupId: null, processStartedAt: null });
-    expect(await hasNativeLocalProcessStop(db, companyId, runId)).toBe(true);
-    expect(await readNativeLocalProcessStop(db, companyId, runId)).toEqual({
+    expect(await hasNativeLocalProcessStop(db, spaceId, runId)).toBe(true);
+    expect(await readNativeLocalProcessStop(db, spaceId, runId)).toEqual({
       processPid: pid, processGroupId: pid, processStartedAt: before.processStartedAt!.toISOString(),
     });
     expect(await withReleasedNativeRunProcess(db, after)).toMatchObject({
@@ -168,7 +168,7 @@ suite("settled native run process identity", () => {
     const heartbeat = heartbeatService(db);
     await heartbeat.reapOrphanedRuns();
     expect((await readRun(runId)).processPid).toBeNull();
-    expect(await hasNativeLocalProcessStop(db, companyId, runId)).toBe(true);
+    expect(await hasNativeLocalProcessStop(db, spaceId, runId)).toBe(true);
     expect((await readRun(alive.runId)).processPid).toBe(child.pid);
     await new Promise<void>(resolve => { child.once("exit", () => resolve()); process.kill(-child.pid!, "SIGKILL"); });
     await heartbeat.reapOrphanedRuns();
@@ -181,7 +181,7 @@ suite("settled native run process identity", () => {
   ] as const)("releases a %s native run's identity when its executor settles: %s", async (status, released) => {
     const pid = await exitedPid();
     const issueId = randomUUID();
-    await db.insert(issues).values({ id: issueId, companyId, title: "Executor settlement", status: "todo", assigneeAgentId: agentId, responsibleUserId: "owner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Executor settlement", status: "todo", assigneeAgentId: agentId, responsibleUserId: "owner" });
     let runId = "";
     execute.mockReset().mockImplementation(async (context: { runId: string }) => {
       if (runId) return { exitCode: 0, signal: null, timedOut: false, summary: "Follow-up" };
@@ -189,7 +189,7 @@ suite("settled native run process identity", () => {
       await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issueId,
         runnerProfileJson: { sessionCheckpoint: { providerSessionId: "thread" } } }).where(eq(heartbeatRuns.id, runId));
       await persistHeartbeatRunProcessMetadata(db, runId, { pid, processGroupId: pid, startedAt: new Date().toISOString(), targetKind: "local" });
-      await db.insert(nativeRunFinalizations).values({ runId, companyId, issueId, phase: "committed" });
+      await db.insert(nativeRunFinalizations).values({ runId, spaceId, issueId, phase: "committed" });
       await db.update(heartbeatRuns).set({ status, finishedAt: new Date() }).where(eq(heartbeatRuns.id, runId));
       return { exitCode: status === "failed" ? 1 : 0, signal: null, timedOut: false, summary: "Settled" };
     });
@@ -199,7 +199,7 @@ suite("settled native run process identity", () => {
     const run = await readRun(runId);
     expect(run.status).toBe(status);
     expect(run.processPid).toBe(released ? null : pid);
-    expect(await hasNativeLocalProcessStop(db, companyId, runId)).toBe(released);
+    expect(await hasNativeLocalProcessStop(db, spaceId, runId)).toBe(released);
     const events = await db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.runId, runId),
       eq(heartbeatRunEvents.eventType, "native.local_process_stopped")));
     expect(events).toHaveLength(released ? 1 : 0);
@@ -231,7 +231,7 @@ suite("settled native run process identity", () => {
     const after = await readRun(runId);
     expect(after).toEqual({ ...saved, processPid: null, processGroupId: null, processStartedAt: null,
       nextEventSeq: saved.nextEventSeq + 1, updatedAt: after.updatedAt });
-    expect(await hasNativeLocalProcessStop(db, companyId, runId)).toBe(true);
+    expect(await hasNativeLocalProcessStop(db, spaceId, runId)).toBe(true);
     expect(JSON.stringify(events)).not.toContain(bulk.slice(0, 64));
   });
 
@@ -254,7 +254,7 @@ suite("settled native run process identity", () => {
       .where(eq(heartbeatRuns.id, runId));
     expect(await releaseSettledNativeRunProcess(db, runId)).toBe(kind === "absent" ? "released" : kind === "live" ? "pending" : "skipped");
     expect((await readRun(runId)).processPid).toBe(kind === "absent" ? null : pid);
-    expect(await hasNativeLocalProcessStop(db, companyId, runId)).toBe(kind === "absent");
+    expect(await hasNativeLocalProcessStop(db, spaceId, runId)).toBe(kind === "absent");
   });
   it("keeps the identity while the process is still alive, then releases it after exit", async () => {
     const child = startDetached();
@@ -262,7 +262,7 @@ suite("settled native run process identity", () => {
     const { runId } = await seed({ pid: child.pid! });
     expect(await releaseSettledNativeRunProcess(db, runId)).toBe("pending");
     expect((await readRun(runId)).processPid).toBe(child.pid);
-    expect(await hasNativeLocalProcessStop(db, companyId, runId)).toBe(false);
+    expect(await hasNativeLocalProcessStop(db, spaceId, runId)).toBe(false);
     await new Promise<void>(resolve => { child.once("exit", () => resolve()); process.kill(-child.pid!, "SIGKILL"); });
     expect(await releaseSettledNativeRunProcess(db, runId)).toBe("released");
     expect((await readRun(runId)).processPid).toBeNull();
@@ -294,7 +294,7 @@ suite("settled native run process identity", () => {
     const { runId } = await seed({ leases: ["remote_stopped"] });
     expect(await releaseSettledNativeRunProcess(db, runId)).toBe("released");
     expect((await readRun(runId)).processPid).toBeNull();
-    expect(await hasNativeLocalProcessStop(db, companyId, runId)).toBe(false);
+    expect(await hasNativeLocalProcessStop(db, spaceId, runId)).toBe(false);
   });
 
   it("discovers settled runs in pages, skips live executions, and retries only pending releases", async () => {

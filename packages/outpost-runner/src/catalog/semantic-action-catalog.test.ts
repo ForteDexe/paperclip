@@ -13,8 +13,8 @@ import { handoffCaseAction } from "../protocol-actions/handoff-case.js";
 
 import {
   OUTPOST_SEMANTIC_ACTION_CATALOG,
-  canonicalPaperclipSemanticActionCatalog,
-  paperclipSemanticAction,
+  canonicalOutpostSemanticActionCatalog,
+  outpostSemanticAction,
 } from "./semantic-action-catalog.js";
 
 const packageRoot = resolve(
@@ -31,7 +31,7 @@ describe("semantic action catalog", () => {
       const schemas = [
         action.live.descriptor.inputSchema.properties.key,
         action.scenario.descriptor.inputSchema.properties.key,
-        paperclipSemanticAction(action.id)!.inputSchema.properties!.key,
+        outpostSemanticAction(action.id)!.inputSchema.properties!.key,
       ];
       for (const schema of schemas) {
         const validate = ajv.compile(schema);
@@ -46,7 +46,7 @@ describe("semantic action catalog", () => {
   );
   it("compiles case handoff identity constraints in strict consumers and rejects malformed IDs", () => {
     const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true, strict: true });
-    for (const schema of [handoffCaseAction.live.descriptor.inputSchema, paperclipSemanticAction("handoff_case")!.inputSchema]) {
+    for (const schema of [handoffCaseAction.live.descriptor.inputSchema, outpostSemanticAction("handoff_case")!.inputSchema]) {
       const validate = ajv.compile(schema);
       const input = handoffCaseAction.examples.call.input;
       expect(validate(input), JSON.stringify(validate.errors)).toBe(true);
@@ -60,7 +60,7 @@ describe("semantic action catalog", () => {
   });
   it("requires a workflow source for new cases and defers existing-case first-task checks to the service", () => {
     const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true, strict: true });
-    for (const schema of [handoffCaseAction.live.descriptor.inputSchema, paperclipSemanticAction("handoff_case")!.inputSchema]) {
+    for (const schema of [handoffCaseAction.live.descriptor.inputSchema, outpostSemanticAction("handoff_case")!.inputSchema]) {
       const validate = ajv.compile(schema);
       const input = handoffCaseAction.examples.call.input;
       const create = { ...input, case: { create: { caseType: "work", title: "New work" } } };
@@ -84,7 +84,7 @@ describe("semantic action catalog", () => {
     const done = { to: "done", idempotencyKey: "finish-case", case: { id: "00000000-0000-4000-8000-000000000001" },
       instructions: "Saved final artifacts; finish the task through its existing completion gates.",
       expectedHandoffVersion: 4, expectedIssueStatusVersion: 7 };
-    for (const schema of [handoffCaseAction.live.descriptor.inputSchema, paperclipSemanticAction("handoff_case")!.inputSchema]) {
+    for (const schema of [handoffCaseAction.live.descriptor.inputSchema, outpostSemanticAction("handoff_case")!.inputSchema]) {
       const validate = ajv.compile(schema);
       expect(validate(done), JSON.stringify(validate.errors)).toBe(true);
       expect(validate({ ...done, phase: "done" }), JSON.stringify(validate.errors)).toBe(true);
@@ -103,7 +103,7 @@ describe("semantic action catalog", () => {
   });
   it("limits project repository URLs to HTTPS GitHub repository paths on both tool surfaces", () => {
     const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true, strict: true });
-    for (const schema of [createProjectAction.live.descriptor.inputSchema, paperclipSemanticAction("create_project")!.inputSchema]) {
+    for (const schema of [createProjectAction.live.descriptor.inputSchema, outpostSemanticAction("create_project")!.inputSchema]) {
       const validate = ajv.compile(schema);
       const input = { name: "Project", idempotencyKey: "create-project-1" };
       expect(validate({ ...input, repositoryUrls: ["https://github.com/org/repo", "https://github.com/org/other.git/"] })).toBe(true);
@@ -120,9 +120,9 @@ describe("semantic action catalog", () => {
 
   it("advertises human assignment in both task creation contracts", () => {
     const ajv = new Ajv2020({ allErrors: true, allowUnionTypes: true, strict: true });
-    for (const schema of [createTaskAction.live.descriptor.inputSchema, paperclipSemanticAction("create_task")!.inputSchema]) {
+    for (const schema of [createTaskAction.live.descriptor.inputSchema, outpostSemanticAction("create_task")!.inputSchema]) {
       const validate = ajv.compile(schema);
-      const input = { title: "Hello", idempotencyKey: "hello", assigneeUserId: "company-owner" };
+      const input = { title: "Hello", idempotencyKey: "hello", assigneeUserId: "space-owner" };
       expect(validate(input), JSON.stringify(validate.errors)).toBe(true);
       expect(validate({ ...input, assigneeUserId: null })).toBe(true);
       expect(validate({ ...input, assigneeUserId: 42 })).toBe(false);
@@ -157,19 +157,19 @@ describe("semantic action catalog", () => {
     expect(operationIds).not.toContain("generic_api_request");
     expect(Object.isFrozen(OUTPOST_SEMANTIC_ACTION_CATALOG)).toBe(true);
     expect(
-      Object.isFrozen(paperclipSemanticAction("write_document")?.inputSchema),
+      Object.isFrozen(outpostSemanticAction("write_document")?.inputSchema),
     ).toBe(true);
   });
 
-  it("declares hire_agent as a native identity-only mutation", () => {
-    const hire = paperclipSemanticAction("hire_agent");
-    expect(hire).toMatchObject({
+  it("declares create_agent as a native identity-only mutation", () => {
+    const creation = outpostSemanticAction("create_agent");
+    expect(creation).toMatchObject({
       effect: "write",
       requiredClaims: ["delegation:agents:create"],
       allowedModes: ["standard", "skill_test"],
     });
-    expect(hire?.inputSchema.properties).not.toHaveProperty("adapterConfig");
-    expect(hire?.inputSchema.properties).not.toHaveProperty("env");
+    expect(creation?.inputSchema.properties).not.toHaveProperty("adapterConfig");
+    expect(creation?.inputSchema.properties).not.toHaveProperty("env");
   });
 
   it("compiles every operation input and output schema", () => {
@@ -197,8 +197,8 @@ describe("semantic action catalog", () => {
       allowUnionTypes: true,
       strict: true,
     });
-    const writeDocument = paperclipSemanticAction("write_document");
-    const taskContext = paperclipSemanticAction("get_task_context");
+    const writeDocument = outpostSemanticAction("write_document");
+    const taskContext = outpostSemanticAction("get_task_context");
     expect(writeDocument).toBeDefined();
     expect(taskContext).toBeDefined();
 
@@ -223,7 +223,7 @@ describe("semantic action catalog", () => {
 
     const validateContext = ajv.compile(taskContext!.inputSchema);
     expect(validateContext({})).toBe(true);
-    expect(validateContext({ companyId: "forged-company" })).toBe(false);
+    expect(validateContext({ spaceId: "forged-space" })).toBe(false);
   });
 
   it("matches the checked-in generated inventory byte for byte", async () => {
@@ -232,7 +232,7 @@ describe("semantic action catalog", () => {
       "utf8",
     );
 
-    expect(generated).toBe(canonicalPaperclipSemanticActionCatalog());
+    expect(generated).toBe(canonicalOutpostSemanticActionCatalog());
   });
 
   it("does not carry executable authorization or binding hooks", () => {

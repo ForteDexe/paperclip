@@ -1,7 +1,7 @@
 import { createDb } from "@outpost/db";
 import { createAgentLifecycle } from "../src/services/agent-lifecycle.js";
 import {
-  companies,
+  spaces,
   goals,
   projects,
   issues,
@@ -14,32 +14,32 @@ const db = createDb(url);
 
 console.log("Seeding database...");
 
-const [company] = await db
-  .insert(companies)
+const [space] = await db
+  .insert(spaces)
   .values({
-    name: "Paperclip Demo Co",
-    description: "A demo autonomous company",
+    name: "Outpost Demo Space",
+    description: "A demo autonomous space",
     status: "active",
     budgetMonthlyCents: 50000,
   })
   .returning();
 
-const ceo = await createAgentLifecycle(db).requestHire(company!.id, {
-    name: "CEO Agent",
-    role: "ceo",
-    title: "Chief Executive Officer",
+const defaultAgent = await createAgentLifecycle(db).requestCreation(space!.id, {
+    name: "Default agent",
+    role: "lead",
+    title: "Default agent",
     status: "idle",
     adapterType: "process",
-    adapterConfig: { command: "echo", args: ["hello from ceo"] },
+    adapterConfig: { command: "echo", args: ["hello from default agent"] },
     budgetMonthlyCents: 15000,
   });
 
-const engineer = await createAgentLifecycle(db).requestHire(company!.id, {
+const engineer = await createAgentLifecycle(db).requestCreation(space!.id, {
     name: "Engineer Agent",
     role: "engineer",
     title: "Software Engineer",
     status: "idle",
-    reportsTo: ceo!.id,
+    reportsTo: defaultAgent!.id,
     adapterType: "process",
     adapterConfig: { command: "echo", args: ["hello from engineer"] },
     budgetMonthlyCents: 10000,
@@ -48,30 +48,30 @@ const engineer = await createAgentLifecycle(db).requestHire(company!.id, {
 const [goal] = await db
   .insert(goals)
   .values({
-    companyId: company!.id,
+    spaceId: space!.id,
     title: "Ship V1",
     description: "Deliver first control plane release",
-    level: "company",
+    level: "space",
     status: "active",
-    ownerAgentId: ceo!.id,
+    ownerAgentId: defaultAgent!.id,
   })
   .returning();
 
 const [project] = await db
   .insert(projects)
   .values({
-    companyId: company!.id,
+    spaceId: space!.id,
     goalId: goal!.id,
     name: "Control Plane MVP",
-    description: "Implement core board + agent loop",
+    description: "Implement the core operator and agent loop",
     status: "in_progress",
-    leadAgentId: ceo!.id,
+    leadAgentId: defaultAgent!.id,
   })
   .returning();
 
 await db.insert(issues).values([
   {
-    companyId: company!.id,
+    spaceId: space!.id,
     projectId: project!.id,
     goalId: goal!.id,
     title: "Implement atomic task checkout",
@@ -79,17 +79,17 @@ await db.insert(issues).values([
     status: "todo",
     priority: "high",
     assigneeAgentId: engineer!.id,
-    createdByAgentId: ceo!.id,
+    createdByAgentId: defaultAgent!.id,
   },
   {
-    companyId: company!.id,
+    spaceId: space!.id,
     projectId: project!.id,
     goalId: goal!.id,
     title: "Add budget auto-pause",
     description: "Pause agent at hard budget ceiling",
     status: "backlog",
     priority: "medium",
-    createdByAgentId: ceo!.id,
+    createdByAgentId: defaultAgent!.id,
   },
 ]);
 

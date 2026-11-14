@@ -14,7 +14,7 @@ function valid() {
           runId,
           agentId,
           issueId,
-          companyId: "company",
+          spaceId: "space",
           connectionId: "notes",
           catalogEntryId: "write",
           status: "failed",
@@ -28,10 +28,10 @@ function valid() {
   });
   return {
     scenarioId: "gateways-profiles.inspect-gateway-error",
-    companyId: "company",
+    spaceId: "space",
     leadId: "ceo",
     reply:
-      "Morgan's task receipt reports a provider error; the page remained unchanged. I cannot inspect company-wide history; an authorized human can open the activity audit for the broader picture.",
+      "Morgan's task receipt reports a provider error; the page remained unchanged. I cannot inspect space-wide history; an authorized human can open the activity audit for the broader picture.",
     phaseReplies: [],
     connections: [],
     profiles: [],
@@ -56,7 +56,7 @@ function valid() {
       },
     ],
     state: {
-      companyId: "company",
+      spaceId: "space",
       connectionId: "notes",
       writeEntryId: "write",
       morganId: "morgan",
@@ -86,7 +86,7 @@ it("accepts actual Morgan and own failure receipts with a permitted read or hone
   o.state.canonicalReadMorganReceipt = false;
   o.state.scopedAuditLink = true;
   o.reply =
-    "I cannot inspect Morgan's company-wide tool history. An authorized human can review the activity audit to determine the cause.";
+    "I cannot inspect Morgan's space-wide tool history. An authorized human can review the activity audit to determine the cause.";
   expect(gradeGatewayError(o).passed).toBe(true);
 });
 it("rejects wrong identity/cause/authority and missing provider/task/result evidence", () => {

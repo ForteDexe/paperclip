@@ -81,17 +81,17 @@ describe("Codex ACPX harness driver", () => {
     oldCallback?.(bound.receipt);
     fixture.finishTurn({ status: "completed" });
     const firstEvents = await collectUntil(session.events(), "turn.completed");
-    const receipts = firstEvents.filter(e => e.eventType === "provider.notice.recorded" && e.payload.category === "paperclip_semantic_tool_receipt_v2");
+    const receipts = firstEvents.filter(e => e.eventType === "provider.notice.recorded" && e.payload.category === "outpost_semantic_tool_receipt_v2");
     expect(receipts).toHaveLength(agent === "copilot" ? 1 : 0);
     if (agent === "copilot") expect(receipts[0]).toMatchObject({ runId: "run-receipt", turnId: first.turnId, payload: { provenance: { sessionId: "backend-1", turnId: first.turnId } } });
     const transcript = JSON.parse(JSON.stringify(await session.transcript!()));
     for (const event of transcript.events) validatePrpEvent(event);
-    expect(transcript.events.filter((e: PrpEvent) => e.payload.category === "paperclip_semantic_tool_receipt_v2")).toEqual(receipts);
+    expect(transcript.events.filter((e: PrpEvent) => e.payload.category === "outpost_semantic_tool_receipt_v2")).toEqual(receipts);
     await session.startTurn({ message: { role: "user", text: "Second" } });
     oldCallback?.(bound.receipt);
     fixture.finishTurn({ status: "completed" });
     const secondEvents = await collectUntil(session.events(), "turn.completed");
-    expect(secondEvents.filter(e => e.payload.category === "paperclip_semantic_tool_receipt_v2")).toEqual([]);
+    expect(secondEvents.filter(e => e.payload.category === "outpost_semantic_tool_receipt_v2")).toEqual([]);
     await session.close({ reason: "receipt turn scope verified" });
   });
 
@@ -181,7 +181,7 @@ describe("Codex ACPX harness driver", () => {
     const session = await fixture.driver.openSession({ runId: "run-pi-notice", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
     await session.startTurn({ message: { role: "user", text: "Work" } });
     const input = fixture.host.startTurn.mock.calls[0]![0];
-    await input.onExtensionNotification!("paperclip/pi_notice", { sessionId: "backend-1", category: "auto_retry_end", summary: "Retry did not recover.", severity: "warning", details: { attempt: 2, success: false } });
+    await input.onExtensionNotification!("outpost/pi_notice", { sessionId: "backend-1", category: "auto_retry_end", summary: "Retry did not recover.", severity: "warning", details: { attempt: 2, success: false } });
     fixture.finishTurn({ status: "completed" });
     const events = await collectUntil(session.events(), "turn.completed");
     expect(events.find(event => event.eventType === "provider.notice.recorded")?.payload).toMatchObject({ severity: "warning", category: "pi.auto_retry_end", scope: "session" });
@@ -2239,7 +2239,7 @@ describe("Codex ACPX harness driver", () => {
     await expect(handoff.cleanup).resolves.toBeUndefined();
     await expect(providerResponse).resolves.toEqual({ action: "cancel" });
     expect(fixture.host.interruptActiveTurn).toHaveBeenCalledWith(
-      "Paperclip parked the ACPX input on a durable wait.",
+      "Outpost parked the ACPX input on a durable wait.",
     );
     await expect(
       session.resolveRuntimeRequest!({
@@ -3223,7 +3223,7 @@ function fakeHost(createTurn: () => AcpxRuntimeTurn, onClose: () => void) {
       requestedModel: "gpt-5.6-sol",
       effectiveModel: "gpt-5.6-sol",
       permissionMode: "approve-reads" as const,
-      profileSessionKey: "paperclip-session",
+      profileSessionKey: "outpost-session",
     }),
     status: vi.fn(async () => ({
       agentSessionId: "agent-1",

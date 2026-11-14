@@ -10,7 +10,7 @@ import type { ExecutionContinuationEnvelope, NativeFinalizationResult } from "@o
 
 export interface AdapterAgent {
   id: string;
-  companyId: string;
+  spaceId: string;
   name: string;
   adapterType: string | null;
   adapterConfig: unknown;
@@ -235,7 +235,7 @@ export interface AgentRuntimeIdentity {
 }
 
 export interface AdapterExecutionContext {
-  /** Company-owned exporter credentials. Transient; never persist or merge into config. */
+  /** Space-owned exporter credentials. Transient; never persist or merge into config. */
   observability?: import("./agent-observability.js").ProviderObservabilityLaunch;
   /** Server-owned credentials. Never persist this object or merge it into config. */
   agentIdentity?: AgentRuntimeIdentity;
@@ -332,7 +332,7 @@ export type AdapterSkillState =
   | "external";
 
 export type AdapterSkillOrigin =
-  | "company_managed"
+  | "space_managed"
   | "user_installed"
   | "external_unknown";
 
@@ -365,20 +365,20 @@ export interface AdapterSkillSnapshot {
 
 export interface AdapterSkillContext {
   agentId: string;
-  companyId: string;
+  spaceId: string;
   adapterType: string;
   config: Record<string, unknown>;
 }
 
 export interface AdapterEnvironmentTestContext {
-  companyId: string;
+  spaceId: string;
   adapterType: string;
   config: Record<string, unknown>;
   managedAiCredentialHome?: string;
   /**
    * Optional execution target the adapter should run probes against.
    *
-   * If omitted (or `kind === "local"`), the adapter tests on the Paperclip
+   * If omitted (or `kind === "local"`), the adapter tests on the Outpost
    * host. For SSH/sandbox targets the adapter should run command/auth probes
    * inside the remote environment so the result reflects what an agent run
    * would actually see at execution time.
@@ -397,9 +397,9 @@ export interface AdapterEnvironmentTestContext {
   };
 }
 
-/** Payload for the onHireApproved adapter lifecycle hook (e.g. join-request or hire_agent approval). */
-export interface HireApprovedPayload {
-  companyId: string;
+/** Payload for the onCreateApproved adapter lifecycle hook (e.g. join-request or create_agent approval). */
+export interface CreateApprovedPayload {
+  spaceId: string;
   agentId: string;
   agentName: string;
   adapterType: string;
@@ -411,8 +411,8 @@ export interface HireApprovedPayload {
   message: string;
 }
 
-/** Result of onHireApproved hook; failures are non-fatal to the approval flow. */
-export interface HireApprovedHookResult {
+/** Result of onCreateApproved hook; failures are non-fatal to the approval flow. */
+export interface CreateApprovedHookResult {
   ok: boolean;
   error?: string;
   detail?: Record<string, unknown>;
@@ -481,7 +481,7 @@ export interface AdapterConfigSchema {
 
 export interface AdapterRuntimeCommandSpec {
   /**
-   * The command Paperclip should execute for this adapter in the current config.
+   * The command Outpost should execute for this adapter in the current config.
    */
   command: string;
   /**
@@ -517,7 +517,7 @@ export interface ServerAdapterModule {
   /** Selected harness can resume its conversation with this run's tool bindings. */
   supportsToolRefreshOnResume?: boolean | ((config: Record<string, unknown>) => boolean);
   supportsLocalAgentJwt?: boolean;
-  /** How this adapter receives Paperclip's run-scoped control tools. */
+  /** How this adapter receives Outpost's run-scoped control tools. */
   runtimeToolDelivery?: AdapterRuntimeToolDelivery;
   models?: AdapterModel[];
   listModels?: () => Promise<AdapterModel[]>;
@@ -525,18 +525,18 @@ export interface ServerAdapterModule {
    * Optional explicit refresh hook for model discovery.
    * Use this when the adapter caches discovered models and needs a bypass path
    * so the UI can fetch newly released models without waiting for cache expiry
-   * or a Paperclip code update.
+   * or a Outpost code update.
    */
   refreshModels?: () => Promise<AdapterModel[]>;
   agentConfigurationDoc?: string;
   /**
-   * Optional lifecycle hook when an agent is approved/hired (join-request or hire_agent approval).
+   * Optional lifecycle hook when an agent creation is approved (join-request or create_agent approval).
    * adapterConfig is the agent's adapter config so the adapter can e.g. send a callback to a configured URL.
    */
-  onHireApproved?: (
-    payload: HireApprovedPayload,
+  onCreateApproved?: (
+    payload: CreateApprovedPayload,
     adapterConfig: Record<string, unknown>,
-  ) => Promise<HireApprovedHookResult>;
+  ) => Promise<CreateApprovedHookResult>;
   /**
    * Optional: fetch live provider quota/rate-limit windows for this adapter.
    * Returns a ProviderQuotaResult so the server can aggregate across adapters
@@ -583,7 +583,7 @@ export interface ServerAdapterModule {
   /**
    * Adapter needs runtime skill entries materialized (written to disk)
    * before being passed via config. Used by adapters that scan a directory
-   * rather than reading config.paperclipRuntimeSkills.
+   * rather than reading config.outpostRuntimeSkills.
    */
   requiresMaterializedRuntimeSkills?: boolean;
   /**
@@ -655,14 +655,14 @@ export interface TranscriptRunArtifact {
   title?: string;
 }
 
-export interface PaperclipQuestionOption {
+export interface OutpostQuestionOption {
   id: string;
   label: string;
   description?: string;
   recommended?: boolean;
 }
 
-export interface PaperclipQuestion {
+export interface OutpostQuestion {
   id: string;
   header?: string;
   prompt: string;
@@ -671,7 +671,7 @@ export interface PaperclipQuestion {
   answerMode: "single_select" | "multi_select" | "text";
   /** Editable starting text, never an implicit or submitted answer. Text mode only. */
   initialText?: string;
-  options?: PaperclipQuestionOption[];
+  options?: OutpostQuestionOption[];
   customAnswer?: { enabled: true; label?: string; placeholder?: string };
   textValidation?: {
     minLength?: number;
@@ -683,15 +683,15 @@ export interface PaperclipQuestion {
   };
 }
 
-export interface PaperclipQuestionSet {
+export interface OutpostQuestionSet {
   schema: "outpost.question_set.v1";
   title?: string;
   description?: string;
   submitLabel?: string;
-  questions: PaperclipQuestion[];
+  questions: OutpostQuestion[];
 }
 
-export interface PaperclipQuestionResponse {
+export interface OutpostQuestionResponse {
   schema: "outpost.question_response.v1";
   answers: Record<string, { selectedOptionIds?: string[]; text?: string; customText?: string }>;
 }
@@ -728,7 +728,7 @@ export type TranscriptEntry =
   | { kind: "provider_activity"; ts: string; family: ProviderActivityFamily; eventType: string; status: ProviderActivityStatus; title: string; summary: string; payload: Record<string, unknown> }
   | { kind: "workspace_change"; ts: string; changeSetId: string; revision: number; source: "harness_reported" | "runner_verified"; complete: boolean; files: TranscriptWorkspaceChangeFile[]; totals: { files: number; additions: number | null; deletions: number | null }; patchArtifactRef: string | null }
   | { kind: "workspace_file_reference"; ts: string; referenceId: string; source: "harness_reported" | "runner_verified"; path: string; displayName: string; mediaType: string | null; presentation: "document" | "code" | "image" | "generic"; line: number | null; preview: string | null; previewTruncated: boolean; contentDigest: string | null }
-  | { kind: "runtime_request"; ts: string; requestId: string; requestKind: "runtime" | "command_approval" | "file_approval" | "permission_approval" | "user_input" | "elicitation" | null; turnId: string | null; requestType: "permission" | "input"; status: "pending" | "resolved" | "expired" | "cancelled"; prompt: string; choices: Array<{ key: string; label: string }>; fields: Array<{ name: string; label: string; placeholder: string | null }>; questionSet?: PaperclipQuestionSet | null; resolvedAction?: string | null; response?: PaperclipQuestionResponse | null }
+  | { kind: "runtime_request"; ts: string; requestId: string; requestKind: "runtime" | "command_approval" | "file_approval" | "permission_approval" | "user_input" | "elicitation" | null; turnId: string | null; requestType: "permission" | "input"; status: "pending" | "resolved" | "expired" | "cancelled"; prompt: string; choices: Array<{ key: string; label: string }>; fields: Array<{ name: string; label: string; placeholder: string | null }>; questionSet?: OutpostQuestionSet | null; resolvedAction?: string | null; response?: OutpostQuestionResponse | null }
   | { kind: "run_result"; ts: string; disposition: "done" | "blocked" | "needs_review" | "yielded"; summary: string; objectiveSatisfied: boolean | null; verification: TranscriptRunVerification[]; remainingWork: Array<{ description: string; blocksCompletion: boolean }>; blocker: { reasonCode: string; unblockAction: string; scope: "current_track" | "task_wide" } | null; artifacts: TranscriptRunArtifact[]; acceptedResponseWake?: { runId: string; sourceEventId: string } }
   | { kind: "run_terminal"; ts: string; turnState: "completed" | "failed" | "interrupted" | "cancelled"; runState: "succeeded" | "failed" | "cancelled"; disposition: "done" | "blocked" | "needs_review" | "yielded"; stopReason?: string };
 
@@ -748,13 +748,13 @@ export interface CLIAdapterModule {
 // ---------------------------------------------------------------------------
 
 export interface CreateConfigValues {
-  runner?: "auto" | "paperclip" | "legacy";
-  resolvedRunner?: "paperclip" | "legacy";
+  runner?: "auto" | "outpost" | "legacy";
+  resolvedRunner?: "outpost" | "legacy";
   adapterType: string;
   codexPermissionMode?: "never" | "on-request" | "untrusted";
   codexLegacySandboxBypass?: boolean;
-  paperclipRunnerLifecycleMode?: "per_turn" | "warm";
-  paperclipRunnerIdleTimeoutMs?: number;
+  outpostRunnerLifecycleMode?: "per_turn" | "warm";
+  outpostRunnerIdleTimeoutMs?: number;
   cwd: string;
   instructionsFilePath?: string;
   promptTemplate: string;
@@ -829,7 +829,7 @@ export interface CreateConfigValues {
   devicePrivateKeyPem?: string;
   role?: string;
   scopes?: string;
-  paperclipApiUrl?: string;
+  outpostApiUrl?: string;
   headersJson?: string;
   password?: string;
 }

@@ -2,7 +2,7 @@ const schema = "outpost.native-runner-checkpoint-retirement.v1";
 export const MAX_NATIVE_CHECKPOINT_RETIREMENT_RUNS = 100;
 export type NativeCheckpointRetirement = {
   schema: typeof schema;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   sessionId: string;
   runIds: string[];
@@ -11,7 +11,7 @@ export type NativeCheckpointRetirement = {
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 export function readNativeCheckpointRetirement(
   value: unknown,
-  binding: { companyId: string; runId: string },
+  binding: { spaceId: string; runId: string },
 ): NativeCheckpointRetirement | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
@@ -23,8 +23,8 @@ export function readNativeCheckpointRetirement(
   if (
     record.schema !== schema ||
     Object.keys(record).sort().join(",") !==
-      "agentId,companyId,retiredAt,runIds,schema,sessionId" ||
-    record.companyId !== binding.companyId ||
+      "agentId,spaceId,retiredAt,runIds,schema,sessionId" ||
+    record.spaceId !== binding.spaceId ||
     typeof record.agentId !== "string" ||
     !uuid.test(record.agentId) ||
     typeof record.sessionId !== "string" ||
@@ -53,7 +53,7 @@ export function nativeCheckpointRetirement(
     retiredAt: new Date().toISOString(),
   };
   readNativeCheckpointRetirement(record, {
-    companyId: input.companyId,
+    spaceId: input.spaceId,
     runId: input.runIds[0],
   });
   return record;

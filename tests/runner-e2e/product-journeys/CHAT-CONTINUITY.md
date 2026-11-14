@@ -13,7 +13,7 @@ it and reloading, the next message asks for that phrase without supplying it.
 The independently attributed reply must contain the phrase, and both native
 turns must retain the same session identity.
 
-The user then sends the ordinary `/new` command. Paperclip preserves the same
+The user then sends the ordinary `/new` command. Outpost preserves the same
 backing chat and saved history while advancing `conversationSessionGeneration`
 from zero to one. The final request does not reveal the remembered phrase. Its
 reply must use the fresh-context marker, with a different native session, no
@@ -32,7 +32,7 @@ The closed accounting contract is **three successful native provider turns
 plus one synthetic reset row**, four persisted run IDs in total. The reset must
 have its normal reset context and a matching original `/issues/:id/runs`
 summary receipt and must not publish an assistant response. That receipt binds
-the request's company and issue to the same successful summary run, agent,
+the request's space and issue to the same successful summary run, agent,
 context issue and wake comment as the independently read detail. The raw run
 detail is not rewritten. Its optional `resultJson` can be absent or compact;
 an explicit contradictory reset flag is rejected. Real provider turns require
@@ -45,11 +45,11 @@ authentication, the disposable agent, pre-send chat ownership, complete run and
 usage collection, stopping and evidence-first cleanup. Unknown setup or model
 cost remains unknown; a run limit is not proof of an absolute spend limit.
 
-The company activity request includes the exact owned agent filter before the
-server's 500-row limit. Every returned row must match that company and agent,
+The space activity request includes the exact owned agent filter before the
+server's 500-row limit. Every returned row must match that space and agent,
 have its canonical activity identity, and leave the response below that limit.
 Mixed or truncated results fail; the client never filters a global response
-into an apparent pass. Unrelated company history therefore does not limit this
+into an apparent pass. Unrelated space history therefore does not limit this
 fresh agent's proof, while any owned task, project or teammate creation fails.
 Activity identifies the acting agent, not the created entity. Board provisioning
 therefore has no agent actor even when its `entityId` is this new agent. Creation

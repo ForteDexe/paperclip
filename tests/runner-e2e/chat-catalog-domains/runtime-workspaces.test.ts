@@ -1,10 +1,10 @@
 import { it, expect } from "vitest";
 import { gradeLocateFiles } from "./runtime-workspaces.js";
 function valid() {
-  const task = { id: "website", title: "Website task", companyId: "company", projectId: null, status: "done", assigneeAgentId: "morgan" };
-  const view = { workspace: { id: "bound-workspace", companyId: "company", projectId: null, name: "Website task workspace", cwd: "/owned/task-root" } };
-  return { scenarioId: "workspaces.locate-files", origin: "http://fixture.invalid", companyId: "company", leadId: "ceo",
-    state: { companyPrefix: "ACORN", task, worker: { id: "morgan" }, workspaceBefore: view, workspaceAfter: structuredClone(view), marker: "saved prerequisite",
+  const task = { id: "website", title: "Website task", spaceId: "space", projectId: null, status: "done", assigneeAgentId: "morgan" };
+  const view = { workspace: { id: "bound-workspace", spaceId: "space", projectId: null, name: "Website task workspace", cwd: "/owned/task-root" } };
+  return { scenarioId: "workspaces.locate-files", origin: "http://fixture.invalid", spaceId: "space", leadId: "ceo",
+    state: { spacePrefix: "ACORN", task, worker: { id: "morgan" }, workspaceBefore: view, workspaceAfter: structuredClone(view), marker: "saved prerequisite",
       fileBefore: "saved prerequisite", fileAfter: "saved prerequisite", fixtureRunId: "setup" },
     agents: [], tasks: [task], links: ["/ACORN/execution-workspaces/bound-workspace"], reply: "The actual files are in /owned/task-root.",
     activity: [], runs: [{ id: "setup", agentId: "morgan", status: "succeeded" }], humanQueries: [] };
@@ -30,7 +30,7 @@ it("rejects naming the full bound path or id as text without a link the person c
   expect(gradeLocateFiles(o).passed).toBe(false);
 });
 it("calibrates against the retained failed run: a shortened path with no workspace link fails", () => {
-  // Retained reply (gha-42641286447): right workspace named as `.../isolated-workspaces/<company>/<task>`, no workspace link.
+  // Retained reply (gha-42641286447): right workspace named as `.../isolated-workspaces/<space>/<task>`, no workspace link.
   const o = valid(); o.links = ["/ACORN/issues/ACORN-1"]; o.reply = "Its files live in that task's own workspace:\n\n- Workspace: `.../task-root` (workspace `ACORN-1`, shared_workspace mode)";
   expect(gradeLocateFiles(o).passed).toBe(false);
 });
@@ -38,7 +38,7 @@ it("rejects a wrong saved workspace href even before its DOM anchor renders", ()
   const o = valid(); o.links = []; o.reply = "Workspace files are in /owned/task-root. [Open workspace](/ACORN/execution-workspaces/another).";
   expect(gradeLocateFiles(o).passed).toBe(false);
 });
-it("rejects correct resource IDs routed through another company or an unsupported tab", () => {
+it("rejects correct resource IDs routed through another space or an unsupported tab", () => {
   const o = valid(); o.links = ["/BIRCH/execution-workspaces/bound-workspace"]; expect(gradeLocateFiles(o).passed).toBe(false);
   o.links = ["/ACORN/execution-workspaces/bound-workspace/not-a-tab"]; expect(gradeLocateFiles(o).passed).toBe(false);
 });

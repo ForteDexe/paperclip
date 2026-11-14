@@ -6,10 +6,10 @@ test.setTimeout(60_000);
 for (const hasPlan of [false, true]) {
   for (const entry of ["direct", "list"]) {
     test(`task reveals its core plan projection while separate plan reads are stalled (plan=${hasPlan}, entry=${entry})`, async ({ page, request }, info) => {
-      const companyResponse = await request.post("/api/companies", { data: { name: `Plan startup ${Date.now()}` } });
-      expect(companyResponse.ok()).toBe(true);
-      const company = await companyResponse.json();
-      const issueResponse = await request.post(`/api/companies/${company.id}/issues`, { data: { title: "Read a saved conversation", status: "backlog" } });
+      const spaceResponse = await request.post("/api/spaces", { data: { name: `Plan startup ${Date.now()}` } });
+      expect(spaceResponse.ok()).toBe(true);
+      const space = await spaceResponse.json();
+      const issueResponse = await request.post(`/api/spaces/${space.id}/issues`, { data: { title: "Read a saved conversation", status: "backlog" } });
       expect(issueResponse.ok()).toBe(true);
       const issue = await issueResponse.json();
       const commentResponse = await request.post(`/api/issues/${issue.id}/comments`, { data: { body: "This saved reply must be readable without a redundant plan request." } });
@@ -28,10 +28,10 @@ for (const hasPlan of [false, true]) {
       });
       try {
         if (entry === "list") {
-          await page.goto(`/${company.issuePrefix}/issues`);
+          await page.goto(`/${space.issuePrefix}/issues`);
           await page.locator("[data-inbox-issue-link]", { hasText: "Read a saved conversation" }).first().click();
         } else {
-          await page.goto(`/${company.issuePrefix}/issues/${issue.identifier}`);
+          await page.goto(`/${space.issuePrefix}/issues/${issue.identifier}`);
         }
         const thread = page.getByTestId("task-chat-thread");
         await expect(thread.locator(':scope > [aria-busy="false"]')).toBeVisible({ timeout: 10_000 });
@@ -44,24 +44,24 @@ for (const hasPlan of [false, true]) {
 }
 
 test("profiling records every gate when switching back to a fully cached task", async ({ page, request }) => {
-  const companyResponse = await request.post("/api/companies", { data: { name: `Readiness switches ${Date.now()}` } });
-  expect(companyResponse.ok()).toBe(true);
-  const company = await companyResponse.json();
+  const spaceResponse = await request.post("/api/spaces", { data: { name: `Readiness switches ${Date.now()}` } });
+  expect(spaceResponse.ok()).toBe(true);
+  const space = await spaceResponse.json();
   const tasks = [];
   for (const title of ["First cached task", "Second cached task"]) {
-    const response = await request.post(`/api/companies/${company.id}/issues`, { data: { title, status: "backlog" } });
+    const response = await request.post(`/api/spaces/${space.id}/issues`, { data: { title, status: "backlog" } });
     expect(response.ok()).toBe(true);
     tasks.push(await response.json());
   }
   for (const [index, task] of tasks.entries()) {
     const destination = tasks[1 - index];
     const response = await request.post(`/api/issues/${task.id}/comments`, {
-      data: { body: `[Switch task](/${company.issuePrefix}/issues/${destination.identifier})` },
+      data: { body: `[Switch task](/${space.issuePrefix}/issues/${destination.identifier})` },
     });
     expect(response.ok()).toBe(true);
   }
   await page.addInitScript(() => { window.__OUTPOST_ISSUE_DETAIL_PROFILE__ = true; });
-  await page.goto(`/${company.issuePrefix}/issues/${tasks[0].identifier}`);
+  await page.goto(`/${space.issuePrefix}/issues/${tasks[0].identifier}`);
   const ready = () => expect(page.getByTestId("task-chat-thread").locator(':scope > [aria-busy="false"]')).toBeVisible();
   await ready();
   await page.getByRole("link", { name: new RegExp(`^Issue ${tasks[1].identifier}(?:[: ]|$)`) }).click({ timeout: 5_000 });

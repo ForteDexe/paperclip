@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { agents, companies, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues } from "@outpost/db";
+import { agents, spaces, createDb, heartbeatRunEvents, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } from "./helpers/full-database-response-capture.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
@@ -18,7 +18,7 @@ const support = await getEmbeddedPostgresTestSupport();
   beforeAll(async () => {
     vi.stubEnv("OUTPOST_AGENT_JWT_SECRET", "identity-transfer-test-secret");
     vi.stubEnv("OUTPOST_INSTANCE_ID", "default");
-    database = await startEmbeddedPostgresTestDatabase("paperclip-auth-identity-transfer-");
+    database = await startEmbeddedPostgresTestDatabase("outpost-auth-identity-transfer-");
     db = createDb(database.connectionString);
   }, 30_000);
   afterAll(async () => {
@@ -28,26 +28,26 @@ const support = await getEmbeddedPostgresTestSupport();
   }, 60_000);
 
   async function seed() {
-    const companyId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Authentication transfer", issuePrefix: companyId.slice(0, 8) });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Reader", role: "engineer", adapterType: "codex_local", status: "idle" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Authentication task", responsibleUserId: "owner" });
+    const spaceId = randomUUID(), agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Authentication transfer", issuePrefix: spaceId.slice(0, 8) });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Reader", role: "engineer", adapterType: "codex_local", status: "idle" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Authentication task", responsibleUserId: "owner" });
     const padding = "retained input ".repeat(32_768);
     const payloads = {
       contextSnapshot: { issueId, launchInput: padding },
       runnerProfileJson: { nativeExecutionInput: { savedInput: padding } },
       resultJson: { savedResult: padding }, stdoutExcerpt: padding, stderrExcerpt: padding,
     };
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, status: "running", ...payloads });
-    const identity = await initializeRunIdentity(db, { companyId, runId, issueId, messageIds: [], responsibleUserId: "owner", cause: "instruction" });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, status: "running", ...payloads });
+    const identity = await initializeRunIdentity(db, { spaceId, runId, issueId, messageIds: [], responsibleUserId: "owner", cause: "instruction" });
     const app = express();
     app.use(actorMiddleware(db, { deploymentMode: "authenticated", resolveSession: async () => null }));
     app.get("/actor", (req, res) => res.json(req.actor));
     app.patch("/actor", (req, res) => res.json(req.actor));
     app.use(errorHandler);
-    const token = createLocalAgentJwt(agentId, companyId, "codex_local", runId, "stale-user");
+    const token = createLocalAgentJwt(agentId, spaceId, "codex_local", runId, "stale-user");
     expect(token).not.toBeNull();
-    return { companyId, agentId, issueId, runId, app, token: token!, identity, payloads };
+    return { spaceId, agentId, issueId, runId, app, token: token!, identity, payloads };
   }
 
   it("bounds actual middleware responses and preserves the complete stored run", async () => {
@@ -70,13 +70,13 @@ const support = await getEmbeddedPostgresTestSupport();
 
   it("blocks uncertain steering, accepts its durable acknowledgement, and rechecks cancellation", async () => {
     const fixture = await seed(), messageId = randomUUID();
-    await db.insert(issueComments).values({ id: messageId, companyId: fixture.companyId, issueId: fixture.issueId,
+    await db.insert(issueComments).values({ id: messageId, spaceId: fixture.spaceId, issueId: fixture.issueId,
       authorUserId: "next-user", body: "Next instruction" });
     const pending = await reserveSteeredIdentity(db, { ...fixture, messageId });
     expect(pending).not.toBeNull();
     const blocked = await request(fixture.app).get("/actor").set("Authorization", `Bearer ${fixture.token}`);
     expect(blocked.status).toBe(409);
-    await db.insert(heartbeatRunEvents).values({ companyId: fixture.companyId, agentId: fixture.agentId, runId: fixture.runId,
+    await db.insert(heartbeatRunEvents).values({ spaceId: fixture.spaceId, agentId: fixture.agentId, runId: fixture.runId,
       seq: 1, eventType: "item.completed", sourceEventId: randomUUID(),
       payload: { orpEvent: { turnId: "auth-turn", itemId: `auth-turn:steer:${messageId}`,
         payload: { kind: "steering_acknowledgement" } } } });
@@ -91,10 +91,10 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(stored).toMatchObject(fixture.payloads);
   });
 
-  it.each(["company", "agent", "missing", "finished"] as const)("rejects %s run identity for the compact scope", async (fault) => {
+  it.each(["space", "agent", "missing", "finished"] as const)("rejects %s run identity for the compact scope", async (fault) => {
     const fixture = await seed();
     if (fault === "finished") await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, fixture.runId));
-    const input = { companyId: fault === "company" ? randomUUID() : fixture.companyId,
+    const input = { spaceId: fault === "space" ? randomUUID() : fixture.spaceId,
       agentId: fault === "agent" ? randomUUID() : fixture.agentId,
       runId: fault === "missing" ? randomUUID() : fixture.runId };
     await expect(captureRunIdentity(db, input, { readScope: "request_authentication" })).rejects.toThrow(/active run/);

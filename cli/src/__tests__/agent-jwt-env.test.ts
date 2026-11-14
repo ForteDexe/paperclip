@@ -15,7 +15,7 @@ import { agentJwtSecretCheck } from "../checks/agent-jwt-secret-check.js";
 const ORIGINAL_ENV = { ...process.env };
 
 function tempConfigPath(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "paperclip-jwt-env-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "outpost-jwt-env-"));
   const configDir = path.join(dir, "custom");
   fs.mkdirSync(configDir, { recursive: true });
   return path.join(configDir, "config.json");
@@ -95,7 +95,7 @@ describe("agent jwt env helpers", () => {
     const envPath = resolveAgentJwtEnvFile(configPath);
     const original = [
       "# operator comment",
-      "DATABASE_URL='postgres://operator:encoded@localhost/paperclip'",
+      "DATABASE_URL='postgres://operator:encoded@localhost/outpost'",
       "",
       "export OUTPOST_HOME = '/old path'  # managed path",
       "OUTPOST_DUPLICATE=stale",
@@ -110,7 +110,7 @@ describe("agent jwt env helpers", () => {
         OUTPOST_HOME: "/new path",
         OUTPOST_DUPLICATE: "current",
         OUTPOST_WORKTREE_COLOR: "#439edb",
-        DATABASE_URL: "postgres://paperclip-must-not-overwrite",
+        DATABASE_URL: "postgres://outpost-must-not-overwrite",
       },
       envPath,
     );
@@ -118,7 +118,7 @@ describe("agent jwt env helpers", () => {
     const updated = fs.readFileSync(envPath, "utf8");
     expect(updated).toBe([
       "# operator comment",
-      "DATABASE_URL='postgres://operator:encoded@localhost/paperclip'",
+      "DATABASE_URL='postgres://operator:encoded@localhost/outpost'",
       "",
       'export OUTPOST_HOME = "/new path"  # managed path',
       "OUTPOST_DUPLICATE=current",

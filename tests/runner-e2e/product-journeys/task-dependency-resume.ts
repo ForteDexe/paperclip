@@ -11,12 +11,12 @@ import { JourneyError, type JourneyContext, type JourneyEvidence, type TargetSes
 
 type Row = Record<string, any>;
 const id = "task-dependency-resume" as const;
-const taskSnapshot = (task: Row) => ({ id: task.id, companyId: task.companyId, identifier: task.identifier,
+const taskSnapshot = (task: Row) => ({ id: task.id, spaceId: task.spaceId, identifier: task.identifier,
   title: task.title, description: task.description, status: task.status, assigneeAgentId: task.assigneeAgentId,
   assigneeUserId: task.assigneeUserId, createdByUserId: task.createdByUserId, createdByAgentId: task.createdByAgentId,
   completedAt: task.completedAt, executionRunId: task.executionRunId, checkoutRunId: task.checkoutRunId,
   blockedByIssueIds: task.blockedByIssueIds ?? task.blockedBy?.map((row: Row) => row.id) ?? [] });
-const runSnapshot = (run: Row) => ({ id: run.id, companyId: run.companyId, agentId: run.agentId,
+const runSnapshot = (run: Row) => ({ id: run.id, spaceId: run.spaceId, agentId: run.agentId,
   issueId: run.issueId, nativeIssueId: run.nativeIssueId, status: run.status, runtimeMode: run.runtimeMode,
   nativePhase: run.nativePhase, invocationSource: run.invocationSource, triggerDetail: run.triggerDetail, startedAt: run.startedAt,
   contextSnapshot: { issueId: run.contextSnapshot?.issueId, taskId: run.contextSnapshot?.taskId,
@@ -25,7 +25,7 @@ const runSnapshot = (run: Row) => ({ id: run.id, companyId: run.companyId, agent
     outpostEnvironment: { id: run.contextSnapshot?.outpostEnvironment?.id } },
   runnerProfileJson: { nativeExecutionInput: { provider: { kind: run.runnerProfileJson?.nativeExecutionInput?.provider?.kind,
     model: run.runnerProfileJson?.nativeExecutionInput?.provider?.model } } } });
-const documentSnapshot = (row: Row) => Object.fromEntries(["id", "companyId", "issueId", "key", "body", "latestRevisionId",
+const documentSnapshot = (row: Row) => Object.fromEntries(["id", "spaceId", "issueId", "key", "body", "latestRevisionId",
   "documentId", "createdByAgentId", "createdByUserId", "createdByRunId"].map(key => [key, row[key]]));
 
 async function properties(context: JourneyContext, label: string) {
@@ -54,7 +54,7 @@ async function setStatus(context: JourneyContext, label: string) {
 
 export async function taskDependencyResume(context: JourneyContext, session: TargetSession, campaignId: string, evidence: JourneyEvidence,
   options: { deadlineAt: number; directory: string }) {
-  const { api, page, company, user, agent } = context;
+  const { api, page, space, user, agent } = context;
   const read = createObservedReader(api, options.deadlineAt);
   const reference = randomBytes(16).toString("hex");
   let scope: DependencyScope | undefined, stage = "prerequisites", journeyFailed = false;
@@ -65,9 +65,9 @@ export async function taskDependencyResume(context: JourneyContext, session: Tar
     await writeFile(path.join(options.directory, "task-dependency-observations.json"),
       JSON.stringify({ schema: "outpost.task-dependency-observations/v1", stage, ...observations, latest, scope }, null, 2), { mode: 0o600 });
   };
-  const url = (identifier: string) => `${api.origin}/${company.issuePrefix}/issues/${identifier}`;
+  const url = (identifier: string) => `${api.origin}/${space.issuePrefix}/issues/${identifier}`;
   try {
-    for (const capability of ["company", "board-user", "task-write", "agent"]) {
+    for (const capability of ["space", "board-user", "task-write", "agent"]) {
       if (!context.capabilities.includes(capability)) throw new JourneyError("unsupported", `missing_${capability}`);
     }
     if (!agent || agent.runtimeMode !== "native" || !context.environmentId) throw new JourneyError("unsupported", "native_agent_and_environment_required");
@@ -87,10 +87,10 @@ export async function taskDependencyResume(context: JourneyContext, session: Tar
       return runSnapshot(run);
     };
     const snapshots = async (route: string) => Promise.all((await summaries(route)).map(row => runDetail(row.id)));
-    const agentRoute = `/api/companies/${company.id}/heartbeat-runs?agentId=${agent.id}&limit=${HEARTBEAT_RUN_LIST_MAX_LIMIT}`;
+    const agentRoute = `/api/spaces/${space.id}/heartbeat-runs?agentId=${agent.id}&limit=${HEARTBEAT_RUN_LIST_MAX_LIMIT}`;
     stage = "observe_starting_runs";
     const startingRuns = observations.startingAgentRuns = (await summaries(agentRoute, HEARTBEAT_RUN_LIST_MAX_LIMIT)).map(runSnapshot);
-    if (startingRuns.some(run => run.companyId !== company.id || run.agentId !== agent.id
+    if (startingRuns.some(run => run.spaceId !== space.id || run.agentId !== agent.id
       || !["succeeded", "failed", "cancelled", "timed_out"].includes(run.status))) {
       throw new JourneyError("failed", "dependency_starting_agent_not_idle");
     }
@@ -100,7 +100,7 @@ export async function taskDependencyResume(context: JourneyContext, session: Tar
     stage = "create_blocker";
     const blockerTitle = `Journey QA dependency blocker ${campaignId}`;
     const blockerDescription = `Human review gate. The review reference is ${reference}. Keep this task for my review; no agent work is required.`;
-    const blocker = await createTaskThroughUi({ page, origin: api.origin, issuePrefix: company.issuePrefix,
+    const blocker = await createTaskThroughUi({ page, origin: api.origin, issuePrefix: space.issuePrefix,
       agentName: "Me", title: blockerTitle, prompt: blockerDescription, workMode: "standard", requireExplicitTitle: true,
       beforeDispatch: () => session.own({ kind: "issue", name: blockerTitle, journeyId: id }) });
     await session.own({ kind: "issue", name: blockerTitle, id: blocker.issueId, journeyId: id });
@@ -111,11 +111,11 @@ export async function taskDependencyResume(context: JourneyContext, session: Tar
       + `Its body must be JSON with exactly reference (the review reference in the blocker description) and blockerIdentifier ("${savedBlocker.identifier}"). `
       + "Then finish this task. No other tasks, agents or projects are needed.";
     stage = "create_dependent";
-    const dependent = await createTaskThroughUi({ page, origin: api.origin, issuePrefix: company.issuePrefix,
+    const dependent = await createTaskThroughUi({ page, origin: api.origin, issuePrefix: space.issuePrefix,
       agentName: "Me", title: dependentTitle, prompt, workMode: "standard", requireExplicitTitle: true,
       beforeDispatch: () => session.own({ kind: "issue", name: dependentTitle, journeyId: id }) });
     await session.own({ kind: "issue", name: dependentTitle, id: dependent.issueId, journeyId: id });
-    scope = { companyId: company.id, userId: user.id, agentId: agent.id, environmentId: context.environmentId,
+    scope = { spaceId: space.id, userId: user.id, agentId: agent.id, environmentId: context.environmentId,
       provider: agent.provider, model: agent.model, blockerId: blocker.issueId, blockerIdentifier: savedBlocker.identifier,
       blockerTitle, blockerDescription, dependentId: dependent.issueId, dependentTitle, prompt, reference, documentKey };
     const observe = async (): Promise<DependencyPoint> => {
@@ -123,19 +123,19 @@ export async function taskDependencyResume(context: JourneyContext, session: Tar
         read.get<Row>(`/api/issues/${blocker.issueId}`), read.get<Row>(`/api/issues/${dependent.issueId}`),
         snapshots(`/api/issues/${blocker.issueId}/runs`), snapshots(`/api/issues/${dependent.issueId}/runs`),
         agentSnapshots(), read.get<Row[]>(`/api/issues/${blocker.issueId}/activity`), read.get<Row[]>(`/api/issues/${dependent.issueId}/activity`),
-        read.get<Row[]>(`/api/companies/${company.id}/activity?agentId=${agent.id}&limit=500`),
+        read.get<Row[]>(`/api/spaces/${space.id}/activity?agentId=${agent.id}&limit=500`),
       ]);
       if ([blockerActivity, dependentActivity, agentActivity].some(rows => !Array.isArray(rows)) || agentActivity.length >= 500) {
         throw new JourneyError("failed", "dependency_activity_coverage_unavailable");
       }
       const newAgentRuns = dependencyNewAgentRuns(agentRuns, startingRuns);
       const activity = [...new Map([...blockerActivity, ...dependentActivity, ...agentActivity].map(row => [row.id, row])).values()];
-      if (activity.some(row => typeof row.id !== "string" || !row.id || row.companyId !== company.id)
+      if (activity.some(row => typeof row.id !== "string" || !row.id || row.spaceId !== space.id)
         || agentActivity.some(row => row.agentId !== agent.id)) throw new JourneyError("failed", "dependency_activity_identity_invalid");
       const point: DependencyPoint = { observedAt: Date.now(), blocker: taskSnapshot(currentBlocker), dependent: taskSnapshot(currentDependent),
         blockerRuns, dependentRuns, agentRuns, activityCoverage: { blocker: true, dependent: true, agent: true },
         activity: activity.filter(row => [blocker.issueId, dependent.issueId].includes(row.entityId)
-          || newAgentRuns.some(run => run.id === row.runId)).map(row => ({ id: row.id, companyId: row.companyId, actorType: row.actorType,
+          || newAgentRuns.some(run => run.id === row.runId)).map(row => ({ id: row.id, spaceId: row.spaceId, actorType: row.actorType,
           actorId: row.actorId, runId: row.runId, action: row.action, entityType: row.entityType, entityId: row.entityId,
           createdAt: row.createdAt, details: { status: row.details?.status } })) };
       latest = point;
@@ -155,7 +155,7 @@ export async function taskDependencyResume(context: JourneyContext, session: Tar
       return point;
     };
     observations.created = await observe();
-    if ([observations.created.blocker, observations.created.dependent].some(task => task.companyId !== company.id
+    if ([observations.created.blocker, observations.created.dependent].some(task => task.spaceId !== space.id
       || task.assigneeUserId !== user.id || task.assigneeAgentId !== null || task.createdByUserId !== user.id
       || task.createdByAgentId || task.status !== "todo") || observations.created.blocker.id !== blocker.issueId
       || observations.created.dependent.id !== dependent.issueId || observations.created.blockerRuns.length

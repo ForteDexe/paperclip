@@ -20,7 +20,7 @@ export function isConnectionManagementAction(action: string): action is Connecti
 /** Values come from resolved database rows, never caller-selected identities. */
 export interface ConnectionManagementResource {
   type: "connection_management";
-  companyId: string;
+  spaceId: string;
   connectionId?: string | null;
   profileId?: string | null;
   gatewayId?: string | null;
@@ -35,7 +35,7 @@ export interface ConnectionManagementResource {
   routineId?: string | null;
   /** Personal self-service/creator authority, only for operations that permit it. */
   selfServiceUserId?: string | null;
-  /** Resolved installation diff changes only agent targets, preserving company sharing. */
+  /** Resolved installation diff changes only agent targets, preserving space sharing. */
   selfServiceAgentInstalls?: boolean;
-  requestedInstallCompanyIds?: string[];
+  requestedInstallSpaceIds?: string[];
 }

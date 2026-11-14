@@ -9,7 +9,7 @@ or change the one-hour review policy.
 
 The tool gateway owns request signing and authorization. `toolReviewExpiryService`
 owns pending-expiry selection and settlement. `registerToolReviewExpiryWork`
-supplies company-scoped operations to the existing shared scoped deadline worker. Startup wires
+supplies space-scoped operations to the existing shared scoped deadline worker. Startup wires
 that contract without interpreting tool or provider behavior.
 
 The supported writers are:
@@ -27,13 +27,13 @@ The supported writers are:
 - Administrative interaction resolution signals in the caller-owned transaction
   before resolving linked requests. Review-queue invalidation signals before
   invalidating unreadable or unsigned requests.
-- Company deletion signals its company before removing saved review obligations.
+- Space deletion signals its space before removing saved review obligations.
 - The expiry worker signals before its own settlement. A compare-and-set against
   pending status and the observed update time protects concurrent resolution.
 
-Every notification requires the company ID. Normal commits reload only that
-company's saved minimum expiry; due cleanup selects only that company. Startup
-reconstructs all saved company deadlines once. A company with only unsigned
+Every notification requires the space ID. Normal commits reload only that
+space's saved minimum expiry; due cleanup selects only that space. Startup
+reconstructs all saved space deadlines once. A space with only unsigned
 null-expiry requests has no deadline.
 
 Only the SQL mutation is wrapped. Signing, provider requests, telemetry, and
@@ -60,17 +60,17 @@ execution quarantine, and terminal projection repair retain their behavior.
 An unknown external outcome is never replayed by this expiry worker.
 
 The next deadline comes from pending rows only. Startup uses the existing
-partial expiry index to reconstruct company deadlines. A company notification
-uses an ordered, single-row lookup backed by the partial `(company_id,
-expires_at)` index, rather than aggregating that company's pending backlog.
+partial expiry index to reconstruct space deadlines. A space notification
+uses an ordered, single-row lookup backed by the partial `(space_id,
+expires_at)` index, rather than aggregating that space's pending backlog.
 Null-expiry unsigned requests and retained resolved history do not keep this
 worker active. The concurrent index migration uses the existing top-level
 executor and is safe to apply again after interruption.
 
 The shared coordinator coalesces changes and preserves a write arriving during
-reconciliation. Each due pass expires at most 100 rows for one company; companies
+reconciliation. Each due pass expires at most 100 rows for one space; spaces
 rotate between passes until the backlog drains. Failed scopes retry independently
-with exponential backoff from 30 seconds to five minutes. Other companies retain
+with exponential backoff from 30 seconds to five minutes. Other spaces retain
 their own deadlines. New writes do not erase a failed sweep's backoff.
 Once reconciliation completes with no deadline, it has no recurring SQL. Drain
 retains first writes without passive database scans; resume processes overdue
@@ -83,8 +83,8 @@ With heartbeat scheduling disabled, startup-only expiry remains as before.
 ## Verification scope
 
 Real PostgreSQL tests record SQL to prove signing, human decisions, and due expiry
-remain company-scoped. They also verify five-second and earlier replacement
-deadlines, company deletion, and bounded multi-pass draining. Existing cases cover
+remain space-scoped. They also verify five-second and earlier replacement
+deadlines, space deletion, and bounded multi-pass draining. Existing cases cover
 normal gateway signing and human decisions,
 configured idle and terminal history, outer commit/rollback, startup/restart,
 drain/resume, concurrent producer/read, unsigned rows, multi-page expiry, and
@@ -102,12 +102,12 @@ alarm coverage are unchanged. An in-process deadline cannot wake a stopped host.
 
 The original scoped aggregate examined 12,004 rows to return one deadline in a
 real PostgreSQL regression. The repaired lookup returns the earliest non-null
-pending expiry for the requested company with `ORDER BY expires_at LIMIT 1`.
-The grouped startup inventory remains unchanged. Existing company signals,
+pending expiry for the requested space with `ORDER BY expires_at LIMIT 1`.
+The grouped startup inventory remains unchanged. Existing space signals,
 authority checks, expiry settlement, paging, backoff, and sleep gates remain
 owned by their existing services.
 
-The additive company-expiry index is migration `0383_tool_review_company_expiry`.
+The additive space-expiry index is migration `0383_tool_review_space_expiry`.
 It builds the index concurrently and idempotently through the existing top-level
 migration executor. Initially reserving number 0402 passed per-branch checks but
 caused CI to reject descendants whose migrations preceded their target branch.
@@ -129,9 +129,9 @@ Two failures shaped the repair. The first migration attempt omitted its explicit
 top-level registration and PostgreSQL rejected the concurrent build inside a
 transaction; adding the registration fixed application and replay. An initial
 three-column index also lost to the global expiry index in the planner, which
-filtered 12,001 foreign-company rows before returning a result. The final index
+filtered 12,001 foreign-space rows before returning a result. The final index
 omits the unused request ID. With 12,000 additional pending rows in each of two
-companies, including earlier foreign deadlines, all three measured reloads
+spaces, including earlier foreign deadlines, all three measured reloads
 examine one row. The assertion counts filtered rows as well as returned rows.
 This is evidence for the recorded fixture and query plan, not a production
 latency guarantee or a claim that PostgreSQL can never choose another plan.

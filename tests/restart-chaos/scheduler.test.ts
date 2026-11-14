@@ -101,8 +101,8 @@ describe("scheduler determinism", () => {
     expect(daytonaR1.options).toMatchObject({ env: "daytona", storage: "s3", workloads: ["R1"] });
     expect(daytonaR1.options).toMatchObject({ workspaceGitUrl: "https://github.com/acme/widget.git", workspaceCommit: masterCommit });
     rmSync(repo, { recursive: true, force: true });
-    expect(publicGitHubUrl("git@github.com:paperclipai/outpost.git")).toBe("https://github.com/paperclipai/outpost.git");
-    expect(publicGitHubUrl("https://github.com/paperclipai/paperclip")).toBe("https://github.com/paperclipai/outpost.git");
+    expect(publicGitHubUrl("git@github.com:outpost/outpost.git")).toBe("https://github.com/example/outpost.git");
+    expect(publicGitHubUrl("https://github.com/paperclipai/paperclip")).toBe("https://github.com/example/outpost.git");
     expect(() => publicGitHubUrl("/Users/me/repo")).toThrow(/GitHub origin/);
     expect(() => parseCommand(["--k4-hold-max-seconds", "601"])).toThrow(/between 120 and 600/);
     expect(() => parseCommand(["--replay", "w-20261106T101112-s42/t03", "--k4-hold-max-seconds", "400"])).toThrow(/do not combine/);

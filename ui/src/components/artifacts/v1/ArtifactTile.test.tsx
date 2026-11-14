@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ArtifactSingleTile, ArtifactStackTile, ArtifactTileGrid } from "./ArtifactTile";
 import { testSubject } from "./test-subject";
 
-vi.mock("@/context/CompanyContext", () => ({
-  useCompany: () => ({ selectedCompany: null, selectedCompanyId: null, companies: [] }),
+vi.mock("@/context/SpaceContext", () => ({
+  useSpace: () => ({ selectedSpace: null, selectedSpaceId: null, spaces: [] }),
 }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

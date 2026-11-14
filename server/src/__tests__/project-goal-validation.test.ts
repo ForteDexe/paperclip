@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import {
-  companies,
+  spaces,
   createDb,
   goals,
   projectGoals,
@@ -23,10 +23,10 @@ if (!embeddedPostgresSupport.supported) {
   );
 }
 
-// A project's goals must exist and belong to the same company. Before this
+// A project's goals must exist and belong to the same space. Before this
 // validation, a nonexistent goal id died at the projects.goal_id foreign key
 // as an opaque 500 (observed live 2026-09-03, retried four times by the
-// caller), and a goal from another company linked silently — the foreign key
+// caller), and a goal from another space linked silently — the foreign key
 // proves existence, not ownership.
 describeEmbeddedPostgres("project goal validation", () => {
   let db!: ReturnType<typeof createDb>;
@@ -34,7 +34,7 @@ describeEmbeddedPostgres("project goal validation", () => {
   let prefixCounter = 0;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-project-goal-validation-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-project-goal-validation-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -42,26 +42,26 @@ describeEmbeddedPostgres("project goal validation", () => {
     await db.delete(projectGoals);
     await db.delete(projectsTable);
     await db.delete(goals);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
     await tempDb?.cleanup();
   });
 
-  async function seedCompany(name: string): Promise<string> {
+  async function seedSpace(name: string): Promise<string> {
     prefixCounter += 1;
-    const [company] = await db
-      .insert(companies)
+    const [space] = await db
+      .insert(spaces)
       .values({ name, issuePrefix: `GV${prefixCounter}` })
       .returning();
-    return company.id;
+    return space.id;
   }
 
-  async function seedGoal(companyId: string, title: string): Promise<string> {
+  async function seedGoal(spaceId: string, title: string): Promise<string> {
     const [goal] = await db
       .insert(goals)
-      .values({ companyId, title, level: "task", status: "active" })
+      .values({ spaceId, title, level: "task", status: "active" })
       .returning();
     return goal.id;
   }
@@ -72,22 +72,22 @@ describeEmbeddedPostgres("project goal validation", () => {
     expect((error as Error).message).toContain(unknownGoalId);
   }
 
-  it("creates and links a project to a goal of the same company", async () => {
-    const companyId = await seedCompany("Valid Co");
-    const goalId = await seedGoal(companyId, "Ship it");
+  it("creates and links a project to a goal of the same space", async () => {
+    const spaceId = await seedSpace("Valid Co");
+    const goalId = await seedGoal(spaceId, "Ship it");
     const projects = projectService(db);
 
-    const created = await projects.create(companyId, { name: "Rocket", goalIds: [goalId] });
+    const created = await projects.create(spaceId, { name: "Rocket", goalIds: [goalId] });
     expect(created.goalIds).toEqual([goalId]);
   });
 
   it("rejects a create whose goal id does not exist, before any insert", async () => {
-    const companyId = await seedCompany("Missing Goal Co");
+    const spaceId = await seedSpace("Missing Goal Co");
     const projects = projectService(db);
     const ghost = "db7da378-99a6-43ea-964f-000000000000";
 
     const failure = await projects
-      .create(companyId, { name: "Rocket", goalIds: [ghost] })
+      .create(spaceId, { name: "Rocket", goalIds: [ghost] })
       .then(() => null, (error: unknown) => error);
     expectUnprocessable(failure, ghost);
 
@@ -96,24 +96,24 @@ describeEmbeddedPostgres("project goal validation", () => {
   });
 
   it("rejects the legacy single goalId field the same way", async () => {
-    const companyId = await seedCompany("Legacy Field Co");
+    const spaceId = await seedSpace("Legacy Field Co");
     const projects = projectService(db);
     const ghost = "db7da378-99a6-43ea-964f-111111111111";
 
     const failure = await projects
-      .create(companyId, { name: "Rocket", goalId: ghost })
+      .create(spaceId, { name: "Rocket", goalId: ghost })
       .then(() => null, (error: unknown) => error);
     expectUnprocessable(failure, ghost);
   });
 
-  it("rejects another company's goal on create — the FK only proves existence", async () => {
-    const companyId = await seedCompany("Home Co");
-    const otherCompanyId = await seedCompany("Other Co");
-    const foreignGoalId = await seedGoal(otherCompanyId, "Not yours");
+  it("rejects another space's goal on create — the FK only proves existence", async () => {
+    const spaceId = await seedSpace("Home Co");
+    const otherSpaceId = await seedSpace("Other Co");
+    const foreignGoalId = await seedGoal(otherSpaceId, "Not yours");
     const projects = projectService(db);
 
     const failure = await projects
-      .create(companyId, { name: "Rocket", goalIds: [foreignGoalId] })
+      .create(spaceId, { name: "Rocket", goalIds: [foreignGoalId] })
       .then(() => null, (error: unknown) => error);
     expectUnprocessable(failure, foreignGoalId);
   });
@@ -123,12 +123,12 @@ describeEmbeddedPostgres("project goal validation", () => {
     // first) is canonical for persistence too. Before this rule, an empty
     // list skipped validation while the raw legacy id was still written —
     // unvalidated, and unchecked for ownership.
-    const companyId = await seedCompany("Conflicting Fields Co");
-    const otherCompanyId = await seedCompany("Conflicting Other Co");
-    const foreignGoalId = await seedGoal(otherCompanyId, "Should not link");
+    const spaceId = await seedSpace("Conflicting Fields Co");
+    const otherSpaceId = await seedSpace("Conflicting Other Co");
+    const foreignGoalId = await seedGoal(otherSpaceId, "Should not link");
     const projects = projectService(db);
 
-    const created = await projects.create(companyId, {
+    const created = await projects.create(spaceId, {
       name: "Rocket",
       goalIds: [],
       goalId: foreignGoalId,
@@ -143,13 +143,13 @@ describeEmbeddedPostgres("project goal validation", () => {
   });
 
   it("rejects an update to an unknown or foreign goal and leaves links unchanged", async () => {
-    const companyId = await seedCompany("Update Co");
-    const otherCompanyId = await seedCompany("Update Other Co");
-    const goodGoalId = await seedGoal(companyId, "Good goal");
-    const foreignGoalId = await seedGoal(otherCompanyId, "Foreign goal");
+    const spaceId = await seedSpace("Update Co");
+    const otherSpaceId = await seedSpace("Update Other Co");
+    const goodGoalId = await seedGoal(spaceId, "Good goal");
+    const foreignGoalId = await seedGoal(otherSpaceId, "Foreign goal");
     const projects = projectService(db);
 
-    const created = await projects.create(companyId, { name: "Rocket", goalIds: [goodGoalId] });
+    const created = await projects.create(spaceId, { name: "Rocket", goalIds: [goodGoalId] });
 
     const failure = await projects
       .update(created.id, { goalIds: [foreignGoalId] })

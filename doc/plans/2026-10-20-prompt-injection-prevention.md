@@ -3,7 +3,7 @@
 Branch: `codex/prompt-injection-prevention`. Rebased base: `1f3695ac67`.
 Endpoint: one reviewable PR; no shared-instance deployment.
 
-The company opts in to a shared OpenRouter connection, defaulting to
+The space opts in to a shared OpenRouter connection, defaulting to
 `openai/gpt-oss-safeguard-20b`. Existing tool-result guards prefer a valid model
 verdict, fall back to the original regex on classified dependency failures,
 and preserve signing, return values, authorization and accounting.
@@ -11,13 +11,13 @@ and preserve signing, return values, authorization and accounting.
 | Acceptance | Required evidence | State |
 | --- | --- | --- |
 | Strict provider policy/parser, full redacted input, cancellation | Controlled HTTP tests and bounded live corpus | HTTP tests pass; all nine final-policy corpus examples returned correct live verdicts across bounded runs |
-| Company settings, stale selections, permissions | Database/API tests | Passing |
+| Space settings, stale selections, permissions | Database/API tests | Passing |
 | Budget admission, charges, recovery, retained holds | Database tests | Twenty-four database/API tests pass, including configuration race, cancellation, and credential-provider failure |
 | Existing six gateway boundaries and replay | Service integration tests | All six paths pass; blocked virtual-result HTTP mapping verified |
 | Connections always visible, draft/save/test | UI tests and isolated running app | UI journey passes; both fixed model samples and real gateway benign/attack checks pass on reviewed revision `e88bc3da18` |
 | Documentation, maps, stories, required checks | Commands and PR evidence | Migration, tokens, maps, catalog, full typecheck/build passed. PR holds final full-suite and review status |
 
-The isolated test-drive uses a disposable company and the local board role.
+The isolated test-drive uses a disposable space and the local board role.
 Fast Responses was off for initial navigation and enabled to verify section order.
 The shared OpenRouter connection was seeded through the normal API using an
 authorized local key. All model requests used the official live OpenRouter

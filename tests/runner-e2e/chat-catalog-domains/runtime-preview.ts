@@ -18,7 +18,7 @@ export function gradePreview(value: unknown) {
   c.add("actual-preview-lifecycle-evidence", !!o, "Actual service identity, HTTP content, source output and subsequent startup failure must be independently observed."); if (!o) return c.result();
   const service = o.state.healthyService as WorkspaceRuntimeService | undefined; const workspace = o.state.workspace as PreviewWorkspace;
   const products = o.state.previewProducts as IssueWorkProduct[] | undefined;
-  c.add("real-ready-service-correct-workspace", !!service && service.executionWorkspaceId === workspace.id && service.companyId === o.companyId
+  c.add("real-ready-service-correct-workspace", !!service && service.executionWorkspaceId === workspace.id && service.spaceId === o.spaceId
     && service.status === "running" && service.healthStatus === "healthy" && service.serviceName === "Website preview"
     && o.state.initialHttpStatus === 200 && o.state.initialHttpBody === o.state.websiteBytes
     && typeof o.state.initialHttpBody === "string" && o.state.initialHttpBody.includes(String(o.state.marker)) && o.state.browserPreviewVisible === true,
@@ -107,7 +107,7 @@ export const runtimePreviewCases = [runtimeDefinition("workspaces.preview-servic
   observe: observeRuntime,
   async verifyResult(ctx, state) {
     const source = ctx.input.page.url(); const ws = state.workspace as Entity;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/execution-workspaces/${ws.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/execution-workspaces/${ws.id}`, { waitUntil: "domcontentloaded" });
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("heading", { name: ws.name!, exact: true }).first()).toBeVisible();
     // The workspace page opens on Tasks; failed runtime operations are listed on its Runtime logs tab.

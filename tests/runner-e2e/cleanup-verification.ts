@@ -61,6 +61,6 @@ export async function runCleanupWithObservers(input: {
   return { checks: verification.checks, errors };
 }
 
-export function ownedActiveCleanupRunIds(runs: readonly { id: string; companyId?: string; status: string }[], companyId: string, terminal: ReadonlySet<string>) {
-  return [...new Set(runs.filter(run => run.companyId === companyId && !terminal.has(run.status)).map(run => run.id).filter(Boolean))];
+export function ownedActiveCleanupRunIds(runs: readonly { id: string; spaceId?: string; status: string }[], spaceId: string, terminal: ReadonlySet<string>) {
+  return [...new Set(runs.filter(run => run.spaceId === spaceId && !terminal.has(run.status)).map(run => run.id).filter(Boolean))];
 }

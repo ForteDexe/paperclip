@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 import { eq, sql } from "drizzle-orm";
-import { activityLog, agents, agentWakeupRequests, applyPendingMigrations, companies, createDb, environmentLeases, environments,
+import { activityLog, agents, agentWakeupRequests, applyPendingMigrations, spaces, createDb, environmentLeases, environments,
   heartbeatRuns, issueRecoveryActions, issues, workspaceOperations, completionContracts, nativeRunResults, nativeRunFinalizations } from "@outpost/db";
 import { startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { lockWorkspaceRecoveryTestDatabase, WORKSPACE_RECOVERY_EXTERNAL_SETUP_TIMEOUT_MS } from "./__tests__/workspace-recovery-database-lock.js";
@@ -29,19 +29,19 @@ describe("workspace source verification diagnostics", () => {
       temporary = { connectionString: external, cleanup: async () => {} };
     } else temporary = await startEmbeddedPostgresTestDatabase("source-verification-");
     db = createDb(temporary.connectionString);
-    if (external) await db.execute(sql`TRUNCATE TABLE companies CASCADE`);
+    if (external) await db.execute(sql`TRUNCATE TABLE spaces CASCADE`);
   }, external ? WORKSPACE_RECOVERY_EXTERNAL_SETUP_TIMEOUT_MS : 30_000);
   afterAll(async () => { await db?.$client.end(); await temporary?.cleanup(); await externalLock?.$client.end(); });
 
   async function seed() {
-    const companyId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), actionId = randomUUID(), agentId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Source verification", issuePrefix: `S${companyId.slice(0, 6)}` });
-    await db.insert(agents).values({ id: agentId, companyId, name: "Worker", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId, title: "Preserve the source", status: "blocked", assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, issueId, nativeIssueId: issueId,
+    const spaceId = randomUUID(), issueId = randomUUID(), runId = randomUUID(), actionId = randomUUID(), agentId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Source verification", issuePrefix: `S${spaceId.slice(0, 6)}` });
+    await db.insert(agents).values({ id: agentId, spaceId, name: "Worker", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId, title: "Preserve the source", status: "blocked", assigneeAgentId: agentId });
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId, agentId, issueId, nativeIssueId: issueId,
       runtimeMode: "native", status: "failed", finishedAt: new Date() });
     const [environment] = await db.insert(environments).values({ name: runId, driver: "sandbox" }).returning();
-    const [lease] = await db.insert(environmentLeases).values({ companyId, issueId, heartbeatRunId: runId,
+    const [lease] = await db.insert(environmentLeases).values({ spaceId, issueId, heartbeatRunId: runId,
       environmentId: environment.id, provider: "daytona", providerLeaseId: randomUUID(), leasePolicy: "retain_on_failure",
       status: "released", cleanupStatus: "success", metadata: { remoteCwd: "/workspace", token: "secret-must-not-appear" } }).returning();
     const reference = { schema: "outpost.native-workspace-sync/v3", state: "prepared", leaseId: lease.id,
@@ -50,15 +50,15 @@ describe("workspace source verification diagnostics", () => {
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeWorkspaceSync: reference } }).where(eq(heartbeatRuns.id, runId));
     const systemRecovery = failSystemRecovery(createSystemRecovery(runId, randomUUID()),
       new SystemRecoveryFailure("source_binding_invalid", "service_required"));
-    await db.insert(issueRecoveryActions).values({ id: actionId, companyId, sourceIssueId: issueId,
-      kind: "active_run_watchdog", ownerType: "board", cause: "native_workspace_sync_out_retry_exhausted", fingerprint: runId,
+    await db.insert(issueRecoveryActions).values({ id: actionId, spaceId, sourceIssueId: issueId,
+      kind: "active_run_watchdog", ownerType: "operator", cause: "native_workspace_sync_out_retry_exhausted", fingerprint: runId,
       nextAction: "Inspect the retained source", evidence: { runId, systemRecovery,
         workspaceRecovery: { schema: "outpost.workspace-recovery.v1", runId, status: "blocked",
           stage: "verifying_stop", attempt: 1, attemptLimit: 6, requestIds: [] } } });
-    return { db, companyId, issueId, runId, actionId, agentId, environment, lease, reference };
+    return { db, spaceId, issueId, runId, actionId, agentId, environment, lease, reference };
   }
 
-  function app(actor: express.Request["actor"] = { type: "board", source: "local_implicit" }) {
+  function app(actor: express.Request["actor"] = { type: "operator", source: "local_implicit" }) {
     const result = express();
     result.use((req, _res, next) => { req.actor = actor; next(); });
     result.use("/api", issueRoutes(db, {} as Parameters<typeof issueRoutes>[1]));
@@ -72,13 +72,13 @@ describe("workspace source verification diagnostics", () => {
 
   async function snapshot(f: Awaited<ReturnType<typeof seed>>) {
     return {
-      actions: await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.companyId, f.companyId)),
-      runs: await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.companyId, f.companyId)),
-      leases: await db.select().from(environmentLeases).where(eq(environmentLeases.companyId, f.companyId)),
-      issues: await db.select().from(issues).where(eq(issues.companyId, f.companyId)),
-      wakeups: await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId)),
-      operations: await db.select().from(workspaceOperations).where(eq(workspaceOperations.companyId, f.companyId)),
-      activity: await db.select().from(activityLog).where(eq(activityLog.companyId, f.companyId)),
+      actions: await db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.spaceId, f.spaceId)),
+      runs: await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.spaceId, f.spaceId)),
+      leases: await db.select().from(environmentLeases).where(eq(environmentLeases.spaceId, f.spaceId)),
+      issues: await db.select().from(issues).where(eq(issues.spaceId, f.spaceId)),
+      wakeups: await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.spaceId, f.spaceId)),
+      operations: await db.select().from(workspaceOperations).where(eq(workspaceOperations.spaceId, f.spaceId)),
+      activity: await db.select().from(activityLog).where(eq(activityLog.spaceId, f.spaceId)),
     };
   }
 
@@ -89,7 +89,7 @@ describe("workspace source verification diagnostics", () => {
       .where(eq(heartbeatRuns.id, f.runId));
     const [runs, activity] = await Promise.all([
       createHeartbeatRunState(db).getRun(f.runId),
-      activityService(db).runsForIssue(f.companyId, f.issueId),
+      activityService(db).runsForIssue(f.spaceId, f.issueId),
     ]);
     expect(runs?.resultJson?.opaque).toBeUndefined();
     const activityResult = activity[0].resultJson;
@@ -120,7 +120,7 @@ describe("workspace source verification diagnostics", () => {
       await db.update(environmentLeases).set({ leasePolicy: "reuse_by_environment" }).where(eq(environmentLeases.id, f.lease.id));
     } else {
       const otherRunId = randomUUID();
-      await db.insert(heartbeatRuns).values({ id: otherRunId, companyId: f.companyId, agentId: f.agentId,
+      await db.insert(heartbeatRuns).values({ id: otherRunId, spaceId: f.spaceId, agentId: f.agentId,
         issueId: f.issueId, status: "running" });
       await db.update(environmentLeases).set({ heartbeatRunId: otherRunId }).where(eq(environmentLeases.id, f.lease.id));
     }
@@ -132,22 +132,22 @@ describe("workspace source verification diagnostics", () => {
   it.each(["rejected", "failed_result", "unselected", "shared_allocation", "active_writer"])("keeps reusable export guards: %s", async kind => {
     const f = await seed();
     const contractId = randomUUID(), resultId = randomUUID();
-    await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
+    await db.insert(completionContracts).values({ id: contractId, spaceId: f.spaceId, issueId: f.issueId,
       revision: 1, schemaVersion: "outpost.completion-contract.v1", policyVersion: "test", risk: "standard",
       completionAuthority: "server_arbiter", incompleteCriteriaPolicy: "preserve_non_terminal",
       contractJson: {}, canonicalSha256: "contract", createdByActorType: "system", createdByActorId: "test" });
     await db.update(heartbeatRuns).set({ completionContractId: contractId }).where(eq(heartbeatRuns.id, f.runId));
-    await db.insert(nativeRunResults).values({ id: resultId, companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+    await db.insert(nativeRunResults).values({ id: resultId, spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
       completionContractId: contractId, schemaStatus: kind === "rejected" ? "rejected" : "accepted",
       serverFingerprint: "result", canonicalSha256: "result", resultJson: {
         terminal: { runTerminalState: kind === "failed_result" ? "failed" : "succeeded" } } });
-    await db.insert(nativeRunFinalizations).values({ companyId: f.companyId, issueId: f.issueId, runId: f.runId,
+    await db.insert(nativeRunFinalizations).values({ spaceId: f.spaceId, issueId: f.issueId, runId: f.runId,
       phase: "terminal_failure", resultId: kind === "unselected" ? null : resultId });
     await db.update(environmentLeases).set({ leasePolicy: "reuse_by_environment" }).where(eq(environmentLeases.id, f.lease.id));
-    if (kind === "shared_allocation") await db.insert(environmentLeases).values({ companyId: f.companyId,
+    if (kind === "shared_allocation") await db.insert(environmentLeases).values({ spaceId: f.spaceId,
       environmentId: f.environment.id, provider: "daytona", providerLeaseId: f.lease.providerLeaseId,
       leasePolicy: "reuse_by_environment", status: "released" });
-    if (kind === "active_writer") await db.insert(heartbeatRuns).values({ companyId: f.companyId, agentId: f.agentId,
+    if (kind === "active_writer") await db.insert(heartbeatRuns).values({ spaceId: f.spaceId, agentId: f.agentId,
       issueId: f.issueId, status: "running" });
     const before = await snapshot(f);
     await expect(inspectWorkspaceRecoverySource(db, f)).rejects.toMatchObject({
@@ -192,7 +192,7 @@ describe("workspace source verification diagnostics", () => {
 
   it("keeps a reused physical allocation blocked without touching either lease", async () => {
     const f = await seed();
-    await db.insert(environmentLeases).values({ companyId: f.companyId, environmentId: f.environment.id,
+    await db.insert(environmentLeases).values({ spaceId: f.spaceId, environmentId: f.environment.id,
       provider: "daytona", providerLeaseId: f.lease.providerLeaseId, leasePolicy: "reuse_by_environment", status: "active" });
     const before = await snapshot(f);
     const response = await request(app()).get(path(f)).expect(200);
@@ -210,9 +210,9 @@ describe("workspace source verification diagnostics", () => {
     expect(await snapshot(f)).toEqual(before);
   });
 
-  it("does not let another company's agent inspect the source", async () => {
+  it("does not let another space's agent inspect the source", async () => {
     const f = await seed(), foreign = await seed();
-    const response = await request(app({ type: "agent", agentId: foreign.agentId, companyId: foreign.companyId,
+    const response = await request(app({ type: "agent", agentId: foreign.agentId, spaceId: foreign.spaceId,
       source: "agent_key" })).get(path(f));
     expect([403, 404]).toContain(response.status);
     expect(response.body.sourceInspection).toBeUndefined();
@@ -230,7 +230,7 @@ describe("workspace source verification diagnostics", () => {
     const f = await seed();
     const leaseIds = [f.lease.id];
     for (let index = 0; index < 8; index++) {
-      const [lease] = await db.insert(environmentLeases).values({ companyId: f.companyId, issueId: f.issueId,
+      const [lease] = await db.insert(environmentLeases).values({ spaceId: f.spaceId, issueId: f.issueId,
         heartbeatRunId: f.runId, environmentId: f.environment.id, provider: "daytona", providerLeaseId: randomUUID(),
         leasePolicy: "retain_on_failure", status: "released", metadata: { remoteCwd: "/workspace" } }).returning();
       leaseIds.push(lease.id);

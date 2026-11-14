@@ -17,14 +17,14 @@ import { createRunnerProviderLaunch, runnerLaunchRequirementsDigest, canonicalNa
 import { materializeAsset } from "./runtime-context.js";
 import { spawnRunner } from "../../vendor/outpost-runner/testing.js";
 import { describeEmbeddedPostgres, nativeRestartFixture, realProcessIt, fakeCodexAppServer, waitForCondition } from "../../__tests__/helpers/native-restart.js";
-import { executePaperclipNativeSession, cancelNativeSession, closeIdleWarmNativeSessionsForRestart, readNativeSessionIdleWork } from "./native-session-executor.js";
-import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
+import { executeOutpostNativeSession, cancelNativeSession, closeIdleWarmNativeSessionsForRestart, readNativeSessionIdleWork } from "./native-session-executor.js";
+import { resolveOutpostInstanceRoot } from "../../home-paths.js";
 import * as remoteWarmRecovery from "./remote-warm-session-recovery.js";
 import { reconcileNativeFinalizations } from "./native-finalization-reconciler.js";
 import { buildNativeCompletionContract } from "./completion-contracts.js";
 import { nativeRuntimeContextFixture } from "./runtime-context.test-fixture.js";
 import { PROCESS_START_REQUESTED } from "../native-local-process-stop.js";
-import { PaperclipRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
+import { OutpostRunnerToolAuthority } from "./outpost-runner-tool-authority.js";
 
 const { createPrivateHostControlFixture } = await import(new URL("../../../../packages/outpost-runner/test/support/private-host-control.ts", import.meta.url).href) as {
   createPrivateHostControlFixture(): {
@@ -54,15 +54,15 @@ describeEmbeddedPostgres("plugin Runner release/resume through the Core executio
     const preparedBrokers: Array<{ runId: string; token?: string }> = [];
     const first = await environment.seedRun(`RELEASE-ENTRY-${harness}-${mode}`);
     const { db, runId, issueId, native } = first;
-    const { companyId, agentId, runtimeRoot } = environment.current;
+    const { spaceId, agentId, runtimeRoot } = environment.current;
     const root = join(runtimeRoot, runId), workspace = join(root, "workspace"), home = join(root, "credential-home");
     await mkdir(workspace, { recursive: true }); await mkdir(home, { recursive: true });
     await writeFile(join(home, "auth.json"), JSON.stringify({ OPENAI_API_KEY: "synthetic-fixture" }), { mode: 0o600 });
     const workspaceId = randomUUID(), environmentId = randomUUID(), leaseA = randomUUID(), taskId = randomUUID();
-    await db.insert(executionWorkspaces).values({ id: workspaceId, companyId, sourceIssueId: issueId,
+    await db.insert(executionWorkspaces).values({ id: workspaceId, spaceId, sourceIssueId: issueId,
       mode: "isolated", strategyType: "directory", name: "Release fixture", cwd: workspace });
     await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "plugin" });
-    await db.insert(environmentLeases).values({ id: leaseA, companyId, environmentId, heartbeatRunId: runId, issueId,
+    await db.insert(environmentLeases).values({ id: leaseA, spaceId, environmentId, heartbeatRunId: runId, issueId,
       executionWorkspaceId: workspaceId, provider: "plugin:fixture:tasks", providerLeaseId: taskId, status: "active", leasePolicy: "reuse_by_environment", metadata: { remoteCwd: workspace } });
     const [issue] = await db.select().from(issues).where(eq(issues.id, issueId));
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issueId));
@@ -71,7 +71,7 @@ describeEmbeddedPostgres("plugin Runner release/resume through the Core executio
     runtimeContext.aggregateDigest = canonicalNativeRuntimeContextDigest(runtimeContext);
     const { permissionPolicy: _permissionPolicy, ...claudeProfile } = QUALIFIED_ACPX_PROFILES.claude;
     const execution = parseNativeExecutionInput({ schema: "outpost.native-execution-input.v5", executionMode: "default", planningContext: null,
-      runtimeContext, binding: { companyId, agentId, issueId, runId, executionWorkspaceId: workspaceId },
+      runtimeContext, binding: { spaceId, agentId, issueId, runId, executionWorkspaceId: workspaceId },
       provider: harness === "codex" ? { kind: "codex", model: "fixture-model", approvalPolicy: "never" }
         : { kind: "acpx", agent: "claude", model: "claude-sonnet-4-6", permissionMode: "approve-all", profile: claudeProfile },
       task: { identifier: "RELEASE-ENTRY", title: issue!.title, description: null, prompt: "Complete the controlled task.", workMode: "standard" },
@@ -128,8 +128,8 @@ describeEmbeddedPostgres("plugin Runner release/resume through the Core executio
     const releases: DurableRecoveryIdentity[] = [], claims: DurableRecoveryIdentity[] = [];
     const operationsDuringClaim: string[] = [];
     let claimHeld = false, holdPreparationFor: string | undefined, claimedDuringPreparation = false;
-    const toolDefinitions = PaperclipRunnerToolAuthority.prototype.definitions;
-    const preparation = vi.spyOn(PaperclipRunnerToolAuthority.prototype, "definitions").mockImplementation(function (this: PaperclipRunnerToolAuthority) {
+    const toolDefinitions = OutpostRunnerToolAuthority.prototype.definitions;
+    const preparation = vi.spyOn(OutpostRunnerToolAuthority.prototype, "definitions").mockImplementation(function (this: OutpostRunnerToolAuthority) {
       const definitions = toolDefinitions.call(this);
       if (holdPreparationFor === undefined || this.binding.runId !== holdPreparationFor) return definitions;
       holdPreparationFor = undefined;
@@ -223,7 +223,7 @@ describeEmbeddedPostgres("plugin Runner release/resume through the Core executio
       return { kind: "accepted", taskId };
     };
     const supervisor = async () => {
-      const directory = join(resolvePaperclipInstanceRoot(), "runtime/outpost-runner/sessions");
+      const directory = join(resolveOutpostInstanceRoot(), "runtime/outpost-runner/sessions");
       for (const file of await readdir(directory)) {
         const envelope = JSON.parse(await readFile(join(directory, file), "utf8"));
         if (envelope.snapshot?.identity.sessionId === native.normalizedSessionId) return envelope;
@@ -234,7 +234,7 @@ describeEmbeddedPostgres("plugin Runner release/resume through the Core executio
     const execute = async (current: typeof execution, leaseId: string) => {
       await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: current }, runnerInstanceId: native.runnerInstanceId, completionContractId: contract!.id, completionContractSha256: contract!.canonicalSha256, nativeSessionId: current.session.normalizedSessionId })
         .where(eq(heartbeatRuns.id, current.binding.runId));
-      return executePaperclipNativeSession({ db, execution: current, runnerInstanceId: native.runnerInstanceId, useRunnerd: true, runnerIngressAuthorized: true,
+      return executeOutpostNativeSession({ db, execution: current, runnerInstanceId: native.runnerInstanceId, useRunnerd: true, runnerIngressAuthorized: true,
         runnerEnvironment: { ...(harness === "claude" ? { ANTHROPIC_API_KEY: "synthetic-fixture" } : {}),
           ...(managedGitHub ? { OUTPOST_GITHUB_BROKER_URL: brokerUrl, OUTPOST_GITHUB_BROKER_TOKEN: brokerToken(current.binding.runId) } : {}) },
         managedGitHub,
@@ -269,10 +269,10 @@ describeEmbeddedPostgres("plugin Runner release/resume through the Core executio
       expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, runId)))[0]).toMatchObject({ phase: "committed", leaseOwner: null });
       const admitNext = async () => {
         const runB = randomUUID(), leaseB = randomUUID();
-        await db.insert(heartbeatRuns).values({ id: runB, companyId, agentId, nativeIssueId: issueId, status: "running", runtimeMode: "native" });
-        await db.insert(nativeRunFinalizations).values({ runId: runB, companyId, issueId, phase: "observed" });
+        await db.insert(heartbeatRuns).values({ id: runB, spaceId, agentId, nativeIssueId: issueId, status: "running", runtimeMode: "native" });
+        await db.insert(nativeRunFinalizations).values({ runId: runB, spaceId, issueId, phase: "observed" });
         await db.update(issues).set({ executionRunId: runB, status: "in_progress" }).where(eq(issues.id, issueId));
-        await db.insert(environmentLeases).values({ id: leaseB, companyId, environmentId, heartbeatRunId: runB, issueId, executionWorkspaceId: workspaceId,
+        await db.insert(environmentLeases).values({ id: leaseB, spaceId, environmentId, heartbeatRunId: runB, issueId, executionWorkspaceId: workspaceId,
           provider: "plugin:fixture:tasks", providerLeaseId: taskId, status: "active", leasePolicy: "reuse_by_environment", metadata: { remoteCwd: workspace } });
         const next = { ...execution, binding: { ...execution.binding, runId: runB } };
         if (heldClaimMode) holdPreparationFor = runB;

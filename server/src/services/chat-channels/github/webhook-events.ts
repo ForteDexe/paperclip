@@ -44,7 +44,7 @@ export function createGitHubWebhookEvents(db: Db, options: EventOptions) {
       const providerEventId = `github:policy_ingress:${createHash("sha256").update(deliveryId).digest("hex")}`;
       await notifyChatDeliveryWork(tx);
       await tx.insert(chatDeliveries).values({
-        companyId: current.companyId, endpointId: current.id,
+        spaceId: current.spaceId, endpointId: current.id,
         providerEventId, deduplicationKey: providerEventId, eventKind: "message", state: "filtered", processedAt: new Date(),
         redactedError: `GitHub ${event} ignored. ${details[reason ?? ""] ?? "Automatic runs are restricted by this bot's review policy."}`,
         normalizedEvent: { providerEventId, kind: "message", filtering: { contentRetained: false, reason: reason ?? "automatic_policy_unavailable" } },

@@ -19,7 +19,7 @@ import {
 } from "@outpost/shared";
 import {
   removeMaintainerOnlySkillSymlinks,
-  resolvePaperclipSkillsDir,
+  resolveOutpostSkillsDir,
 } from "@outpost/adapter-utils/server-utils";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -36,11 +36,11 @@ import {
 } from "./common.js";
 
 interface AgentListOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
 }
 
 interface AgentLocalCliOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   keyName?: string;
   installSkills?: boolean;
 }
@@ -51,7 +51,7 @@ interface AgentInboxMineOptions extends BaseClientOptions {
 }
 
 interface AgentWakeOptions extends BaseClientOptions {
-  companyId?: string;
+  spaceId?: string;
   source?: string;
   trigger?: string;
   reason?: string;
@@ -61,8 +61,8 @@ interface AgentWakeOptions extends BaseClientOptions {
 }
 
 interface AgentJsonPayloadOptions extends BaseClientOptions {
-  runner?: "auto" | "paperclip" | "legacy";
-  companyId?: string;
+  runner?: "auto" | "outpost" | "legacy";
+  spaceId?: string;
   payloadJson: string;
 }
 
@@ -213,14 +213,14 @@ async function installSkillsForTarget(
 
 function buildAgentEnvExports(input: {
   apiBase: string;
-  companyId: string;
+  spaceId: string;
   agentId: string;
   apiKey: string;
 }): string {
   const escaped = (value: string) => value.replace(/'/g, "'\"'\"'");
   return [
     `export OUTPOST_API_URL='${escaped(input.apiBase)}'`,
-    `export OUTPOST_COMPANY_ID='${escaped(input.companyId)}'`,
+    `export OUTPOST_SPACE_ID='${escaped(input.spaceId)}'`,
     `export OUTPOST_AGENT_ID='${escaped(input.agentId)}'`,
     `export OUTPOST_API_KEY='${escaped(input.apiKey)}'`,
   ].join("\n");
@@ -276,8 +276,8 @@ export function registerAgentCommands(program: Command): void {
   addCommonClientOptions(
     agent
       .command("inbox-mine")
-      .description("List current agent inbox items touched or archived by a board user")
-      .requiredOption("--user-id <id>", "Board user ID")
+      .description("List current agent inbox items touched or archived by a operator user")
+      .requiredOption("--user-id <id>", "Operator user ID")
       .option("--status <csv>", "Comma-separated issue statuses")
       .action(async (opts: AgentInboxMineOptions) => {
         try {
@@ -295,12 +295,12 @@ export function registerAgentCommands(program: Command): void {
   addCommonClientOptions(
     agent
       .command("list")
-      .description("List agents for a company")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .description("List agents for a space")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .action(async (opts: AgentListOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const rows = (await ctx.api.get<Agent[]>(apiPath`/api/companies/${ctx.companyId}/agents`)) ?? [];
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const rows = (await ctx.api.get<Agent[]>(apiPath`/api/spaces/${ctx.spaceId}/agents`)) ?? [];
 
           if (ctx.json) {
             printOutput(rows, { json: true });
@@ -329,7 +329,7 @@ export function registerAgentCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
@@ -352,39 +352,39 @@ export function registerAgentCommands(program: Command): void {
     agent
       .command("create")
       .description("Create an agent from a JSON payload")
-      .option("-C, --company-id <id>", "Outpost ID")
+      .option("-C, --space-id <id>", "Outpost ID")
       .requiredOption("--payload-json <json>", "CreateAgent JSON payload")
-      .option("--runner <runner>", "Runner: auto (default), paperclip, or legacy")
+      .option("--runner <runner>", "Runner: auto (default), outpost, or legacy")
       .action(async (opts: AgentJsonPayloadOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
           const payload = createAgentSchema.parse({ ...parseJsonObject(opts.payloadJson), ...(opts.runner ? { runner: opts.runner } : {}) });
-          const created = await ctx.api.post<Agent>(apiPath`/api/companies/${ctx.companyId}/agents`, payload);
+          const created = await ctx.api.post<Agent>(apiPath`/api/spaces/${ctx.spaceId}/agents`, payload);
           printOutput(created, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
     agent
-      .command("hire")
-      .description("Create an agent hire request")
-      .option("-C, --company-id <id>", "Outpost ID")
-      .requiredOption("--payload-json <json>", "CreateAgentHire JSON payload")
-      .option("--runner <runner>", "Runner: auto (default), paperclip, or legacy")
+      .command("create")
+      .description("Create an agent create request")
+      .option("-C, --space-id <id>", "Outpost ID")
+      .requiredOption("--payload-json <json>", "CreateAgentCreation JSON payload")
+      .option("--runner <runner>", "Runner: auto (default), outpost, or legacy")
       .action(async (opts: AgentJsonPayloadOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const result = await ctx.api.post(apiPath`/api/companies/${ctx.companyId}/agent-hires`, { ...parseJsonObject(opts.payloadJson), ...(opts.runner ? { runner: opts.runner } : {}) });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const result = await ctx.api.post(apiPath`/api/spaces/${ctx.spaceId}/agent-creations`, { ...parseJsonObject(opts.payloadJson), ...(opts.runner ? { runner: opts.runner } : {}) });
           printOutput(result, { json: ctx.json });
         } catch (err) {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
@@ -503,7 +503,7 @@ export function registerAgentCommands(program: Command): void {
   for (const [command, enabled] of [["permission:grant", true], ["permission:revoke", false]] as const) {
     addCommonClientOptions(
       agent.command(command)
-        .description(`${enabled ? "Grant" : "Revoke"} one agent permission (Board permission manager only)`)
+        .description(`${enabled ? "Grant" : "Revoke"} one agent permission (Operator permission manager only)`)
         .argument("<agentId>", "Agent UUID")
         .argument("<permissionKey>", "Permission key, such as commentary:view")
         .action(async (agentId: string, permissionKey: string, opts: BaseClientOptions) => {
@@ -796,7 +796,7 @@ export function registerAgentCommands(program: Command): void {
       .command("wake")
       .description("Request a heartbeat wakeup for an agent")
       .argument("<agentRef>", "Agent ID or shortname/url-key")
-      .option("-C, --company-id <id>", "Outpost ID for shortname/url-key lookup")
+      .option("-C, --space-id <id>", "Outpost ID for shortname/url-key lookup")
       .option("--source <source>", "Invocation source (timer, assignment, on_demand, automation)", "on_demand")
       .option("--trigger <trigger>", "Trigger detail (manual, ping, callback, system)", "manual")
       .option("--reason <text>", "Wakeup reason")
@@ -806,7 +806,7 @@ export function registerAgentCommands(program: Command): void {
       .action(async (agentRef: string, opts: AgentWakeOptions) => {
         try {
           const ctx = resolveCommandContext(opts);
-          const query = opts.companyId ? `?${new URLSearchParams({ companyId: opts.companyId }).toString()}` : "";
+          const query = opts.spaceId ? `?${new URLSearchParams({ spaceId: opts.spaceId }).toString()}` : "";
           const agentRow = await ctx.api.get<Agent>(`${apiPath`/api/agents/${agentRef}`}${query}`);
           if (!agentRow) {
             throw new Error(`Agent not found: ${agentRef}`);
@@ -825,7 +825,7 @@ export function registerAgentCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 
   addCommonClientOptions(
@@ -835,7 +835,7 @@ export function registerAgentCommands(program: Command): void {
         "Create an agent API key, install local Outpost skills for Codex/Claude, and print shell exports",
       )
       .argument("<agentRef>", "Agent ID or shortname/url-key")
-      .requiredOption("-C, --company-id <id>", "Outpost ID")
+      .requiredOption("-C, --space-id <id>", "Outpost ID")
       .option("--key-name <name>", "API key label", "local-cli")
       .option(
         "--no-install-skills",
@@ -843,8 +843,8 @@ export function registerAgentCommands(program: Command): void {
       )
       .action(async (agentRef: string, opts: AgentLocalCliOptions) => {
         try {
-          const ctx = resolveCommandContext(opts, { requireCompany: true });
-          const query = new URLSearchParams({ companyId: ctx.companyId ?? "" });
+          const ctx = resolveCommandContext(opts, { requireSpace: true });
+          const query = new URLSearchParams({ spaceId: ctx.spaceId ?? "" });
           const agentRow = await ctx.api.get<Agent>(
             `${apiPath`/api/agents/${agentRef}`}?${query.toString()}`,
           );
@@ -861,7 +861,7 @@ export function registerAgentCommands(program: Command): void {
 
           const installSummaries: SkillsInstallSummary[] = [];
           if (opts.installSkills !== false) {
-            const skillsDir = await resolvePaperclipSkillsDir(__moduleDir, [path.resolve(process.cwd(), "skills")]);
+            const skillsDir = await resolveOutpostSkillsDir(__moduleDir, [path.resolve(process.cwd(), "skills")]);
             if (!skillsDir) {
               throw new Error(
                 "Could not locate local Outpost skills directory. Expected ./skills in the repo checkout.",
@@ -877,7 +877,7 @@ export function registerAgentCommands(program: Command): void {
 
           const exportsText = buildAgentEnvExports({
             apiBase: ctx.api.apiBase,
-            companyId: agentRow.companyId,
+            spaceId: agentRow.spaceId,
             agentId: agentRow.id,
             apiKey: key.token,
           });
@@ -889,7 +889,7 @@ export function registerAgentCommands(program: Command): void {
                   id: agentRow.id,
                   name: agentRow.name,
                   urlKey: agentRow.urlKey,
-                  companyId: agentRow.companyId,
+                  spaceId: agentRow.spaceId,
                 },
                 key: {
                   id: key.id,
@@ -924,7 +924,7 @@ export function registerAgentCommands(program: Command): void {
           handleCommandError(err);
         }
       }),
-    { includeCompany: false },
+    { includeSpace: false },
   );
 }
 

@@ -88,7 +88,7 @@ for (const theme of ["light", "dark"]) {
 
 test("one deferred HTTP lookup updates repeated links and is reused on later hover", async ({ page }) => {
   let count = 0;
-  await page.route("**/api/companies/company-storybook/link-preview?*", async route => {
+  await page.route("**/api/spaces/space-storybook/link-preview?*", async route => {
     count++;
     const canonicalUrl = new URL(route.request().url()).searchParams.get("url");
     await route.fulfill({ json: {
@@ -117,7 +117,7 @@ test("one deferred HTTP lookup updates repeated links and is reused on later hov
 for (const available of [true, false]) {
   test(`PR cache survives reload and refreshes only on stale interest (available=${available})`, async ({ page }, testInfo) => {
     let count = 0;
-    await page.route("**/api/companies/company-storybook/link-preview?*", async route => {
+    await page.route("**/api/spaces/space-storybook/link-preview?*", async route => {
       count++;
       const canonicalUrl = new URL(route.request().url()).searchParams.get("url");
       await route.fulfill({ json: {

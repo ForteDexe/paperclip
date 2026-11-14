@@ -4,16 +4,16 @@ The release scope is Cursor CLI `2026.09.26-dd393fe` on macOS ARM64, macOS x64,
 and Linux x64 (including Daytona). Qualification uses the explicitly selected
 `gpt-5.6-luna[context=272k,reasoning=medium,fast=false]`. Native AskQuestion and
 authoritative per-run USD accounting are excluded from certification. Semantic
-Paperclip questions remain the supported question path. Unknown usage is unknown.
+Outpost questions remain the supported question path. Unknown usage is unknown.
 
-The proposed release supports authenticated Paperclip tools, semantic questions,
+The proposed release supports authenticated Outpost tools, semantic questions,
 native plan decisions, permission control, rich activity, file delivery, durable
 responses, cancellation and warm continuation. The matrix below records the
 completed local and fresh Daytona proof for those capabilities.
 Accepted planning succeeds while the task waits for explicit user direction.
 Acceptance does not start implementation.
 
-Install with `paperclipai runtime setup cursor`. Configure company secret bindings
+Install with `outpost runtime setup cursor`. Configure space secret bindings
 for `CURSOR_API_KEY` or `CURSOR_AUTH_TOKEN` and select the model explicitly.
 Agent is the default mode; Plan and Ask are explicit alternatives. Missing assets,
 credentials, model availability and entitlement are diagnosed without substituting
@@ -70,7 +70,7 @@ or `packages` relative to the frozen application. Historical results below retai
 their original source and artifact identities.
 
 The tested public version is `0.0.0-cursor-verify.3d0c9b7761c6`. Cursor CLI
-`2026.09.26-dd393fe`, profile v11, patch `paperclip-cursor-usage-v4`, and explicit
+`2026.09.26-dd393fe`, profile v11, patch `outpost-cursor-usage-v4`, and explicit
 model `gpt-5.6-luna[context=272k,reasoning=medium,fast=false]` stayed fixed.
 The native distribution/profile digest is
 `sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e`.
@@ -83,7 +83,7 @@ The tracked lockfile was not changed.
 | macOS ARM64 daemon | `816c6603b4ef05ab29cc22a8b6cae9989469a8233bdedc3c97aae22a0c1c6abc` |
 | macOS x64 daemon | `372524b322f1200f1708288d0497195477ecf984e21dd32f3ddc2f2038465199` |
 | Linux x64 daemon | `d5a22554c922087f122ceeb0e7527529221c41af171b37315469c838dede0288` |
-| Public `paperclipai` tarball | `14a96c7de0c20cde231782f54ce0df76c1d6a81512f0c5b38a08ec8e8786631a` |
+| Public `outpostai` tarball | `14a96c7de0c20cde231782f54ce0df76c1d6a81512f0c5b38a08ec8e8786631a` |
 | Public server tarball | `6e66d37c3ee4d61b66bbc5f2515550a246d8afc8a10b5425c064f5ec3f661d66` |
 | Public Daytona plugin tarball | `a6cf4e9070503757be0505d6a1a8df219dca493f801831b3cc1ca83a185d07db` |
 
@@ -97,13 +97,13 @@ publish an npm release or deploy production.
 
 Clean public-package installation passed on macOS ARM64, macOS x64 through
 Rosetta, and Linux x64. Normal npm lifecycle scripts ran; Cursor remained absent
-until explicit `paperclipai runtime setup cursor`. Setup verified the pinned
+until explicit `outpost runtime setup cursor`. Setup verified the pinned
 closure, and normal resolution launched each platform's packaged daemon without
 candidate or asset overrides. The x64 Mac proof covers installation and daemon
 startup under Rosetta, not a separate native Intel live campaign. The public
 Daytona plugin was built, packed and installed with its own dependencies. Its
 version matches the controller packages. Live cells use that installed CLI and
-plugin, company secret bindings, ordinary production admission, and the immutable
+plugin, space secret bindings, ordinary production admission, and the immutable
 image. Repository loaders and qualification overrides are absent.
 
 ### Post-qualification mainline reconciliation
@@ -129,7 +129,7 @@ shutdowns and timeout remain recorded; they are separate from the live campaign.
 
 All 18 required cells passed, including cleanup: nine local and nine Daytona.
 These are real Cursor sessions through the installed product. Each cell used
-the same frozen runtime, explicit model and normal company credential path.
+the same frozen runtime, explicit model and normal space credential path.
 There were 23 attempts; the five failed attempts remain recorded below.
 
 Campaign IDs have prefix `cursor-v11-final-d7-installed-`, followed by
@@ -254,7 +254,7 @@ The branch incorporates mainline `72ff3a9f2` without replacing the qualified
 Cursor CLI, profile v11, patch or explicit model. Mainline's newer Codex, Claude
 and OpenCode pins remain intact. Its global sandbox Cursor CLI is separate from
 the native provider's verified 2026.09.26 distribution. Mainline completion
-feedback keeps current, company-scoped document links and blocker guidance;
+feedback keeps current, space-scoped document links and blocker guidance;
 Cursor's explicit final-response format still takes precedence. Both regression
 suites are retained. The combined Runner fixture catalog contains 492 cases.
 
@@ -276,13 +276,13 @@ new builds. A later release must assemble and verify matching packages and image
 from its release source. Merging this PR does not publish or deploy that release.
 
 An additional manual trial used the ordinary installed public package on macOS,
-the real local Cursor ACP executable and normal encrypted company credentials.
+the real local Cursor ACP executable and normal encrypted space credentials.
 Cursor generated a 1,777-byte counter page, validated it, registered its deliverable
 and finished the task through authenticated tools. The task and run reached
 `done` and `succeeded`. Independent download matched the workspace bytes and
 SHA-256 `0db0ddc7bcd33aed5fe7e74b2551f1c13403d3a6175239f544cab9a45ad0891e`.
 The page rendered in the browser and incremented from 0 to 1 to 2 without console
-errors. Native approval requests were approved through Paperclip. The reviewer
+errors. Native approval requests were approved through Outpost. The reviewer
 did not create or edit the page. This trial uses the previously qualified public
 package; it is additional live proof, not a new certification identity.
 
@@ -295,7 +295,7 @@ remain gated. Production merge and deployment are separate actions; the PR must
 have green final-head checks before merge.
 
 The frozen native runtime is `d0b90756e3abe9e7516caded784036f01e76ad25`. Cursor
-profile v11, patch `paperclip-cursor-usage-v4`, CLI and exact Luna model remain
+profile v11, patch `outpost-cursor-usage-v4`, CLI and exact Luna model remain
 fixed. The native command digest is
 `sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e`;
 the ACPX patch SHA-256 is `bd5393058a218040d217fa85449d59a6f30507de54cd645bf0ef21422823f85e`.
@@ -379,10 +379,10 @@ installed configuration probe also passed without credentials.
 | `cursor-v11-268497-installed-local-file-edit-validate-01` | `b9a0180c1a96cf0fd0448cc69d6f47a5de8d258e` | 8/8 matchers, cleanup pass | `26cdd34a8b7c3dc19f0afd3cf94c22e1700bad217d2af92877aeb10dbe1f58bc` |
 | `cursor-v11-268497-installed-daytona-hello-complete-02` | `327f6df095d38f0e2213cb4572376e01d4629946` | 6/6 matchers, cleanup pass | `7f2f23d1c5dec8e030866781cc09e06990d5149758c0d467df49e63366b29dd1` |
 
-These launch the actual installed `paperclipai/dist/index.js` from its consumer
+These launch the actual installed `outpostai/dist/index.js` from its consumer
 root. The server removes qualification admission, native binary paths, provider
 pack overrides, repository executables and TypeScript loader injection. Credentials
-use company secret bindings. The Daytona plugin is a compiled public npm package
+use space secret bindings. The Daytona plugin is a compiled public npm package
 installed through the normal plugin API. Image selection uses the normal
 environment configuration surface. Task results were reloaded and inspected.
 The local gate verified the registered download independently. Remote cleanup
@@ -470,7 +470,7 @@ preserved; semantic behavior is assessed separately.
 - [x] Complete targeted tests and make the consolidated branch buildable with admission disabled.
 - [x] Ship and verify explicit public runtime setup; npm lifecycle must not download Cursor.
 - [x] Include Cursor in ordinary provider-pack and Daytona image builds.
-- [x] Verify company secret bindings, exact model diagnostics and Agent/Plan/Ask configuration.
+- [x] Verify space secret bindings, exact model diagnostics and Agent/Plan/Ask configuration.
 - [x] Preserve successful accepted planning runs as open tasks awaiting explicit user direction.
 - [x] Show unavailable accounting explicitly and keep partial counters diagnostic-only.
 - [x] Freeze candidate source/profile/patch/pack/image identities and build all three platforms.
@@ -554,7 +554,7 @@ catalog fingerprints; the verification commit is an additional harness identity.
 
 Cursor profile v11 binds command digest
 `sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e`.
-The native patch remains `paperclip-cursor-usage-v4`.
+The native patch remains `outpost-cursor-usage-v4`.
 The ordinary macOS ARM64 pack digest is
 `sha256:7443adb3ab1d2fbd7081532923bcc6eaf8d9f511aff22fac6836c647ac6a3c8e`.
 Both macOS targets were built with official standalone Node 24.21.0; the x64
@@ -633,7 +633,7 @@ The `cursor-v11-ae24f0-local-native-write-deny-reconnect-01` attempt delivered
 the exact Reject once, observed no target mutation, and retired the owned process
 tree. Its original result remains failed: the fixture incorrectly required a
 failed native tool and a subsequent Stop. Cursor reported transport completion
-and ended the turn; Paperclip correctly failed missing semantic finalization and
+and ended the turn; Outpost correctly failed missing semantic finalization and
 kept the task unfinished. The repaired oracle preserves exact request/tool/turn/
 command identity, delivered rejection, all six independent samples, a complete
 continuous watcher, and actual process retirement. It additionally requires the
@@ -691,7 +691,7 @@ unproven. This changes passive evidence, not provider permissions or file access
 Committed Cursor permission declines followed by a completed turn without a
 semantic result now fail the run once, block the unfinished task, and assign recovery to
 the operator with no automatic wake. Other missing-result recovery remains intact.
-The decision proof binds company, agent, run, turn, normalized session, source,
+The decision proof binds space, agent, run, turn, normalized session, source,
 request, and strict event order. It does not assert response delivery or absence
 of effects; those remain separate live requirements.
 
@@ -720,7 +720,7 @@ Review-fix verification passed: 538 controller tests and 38 fixture tests, serve
 
 Both affected local repeats passed on runtime c45cf9 with controller/harness df1c65. The first new Daytona denied-write case also passed, including a completed read attestation, exact delivered denial, no automatic resume, continuous absent effects, owned retirement and confirmed sandbox deletion.
 
-Remote Stop reached the exact pending-callback cancellation and stale-answer refusal, with a complete remote no-effect watcher and an empty final process journal. Its overall result remains failed: the flow also applied a local API-PID identity check to remote execution, where the controller-command PID legitimately becomes the sandbox runner PID. The repaired flow uses local PID tracking only for local execution. Remote proof still requires the same company/run/lease/sandbox, root boot/start-tick identity, retained descendant journal and continuous watcher. No remote retirement requirement is removed. The failed case and private recovery journal remain retained; only Stop is repeated before continuing the remaining cells.
+Remote Stop reached the exact pending-callback cancellation and stale-answer refusal, with a complete remote no-effect watcher and an empty final process journal. Its overall result remains failed: the flow also applied a local API-PID identity check to remote execution, where the controller-command PID legitimately becomes the sandbox runner PID. The repaired flow uses local PID tracking only for local execution. Remote proof still requires the same space/run/lease/sandbox, root boot/start-tick identity, retained descendant journal and continuous watcher. No remote retirement requirement is removed. The failed case and private recovery journal remain retained; only Stop is repeated before continuing the remaining cells.
 
 The affected remote Stop repeat passed. Remote warm three-turn continuation and normal completion also passed with cleanup. The first remote file case verified exact bytes, successful validation, an accessible registered deliverable and final task/run success. Its overall result remains failed because the automatically generated artifact-preparation comment used the provider-selected file title, which duplicated the completion marker. The fixture now requests the actual filename as its deliverable title and reserves the marker for completion. Exact byte, validation, accessible-output and single-completion checks remain intact; only the file case is repeated before continuing.
 
@@ -793,7 +793,7 @@ the already passing general-server cases:
   migration startup failures passed serially with other database groups idle.
 - All nine remaining default adapter/plugin projects passed with two workers.
 - All 150 serialized route/auth files were exercised. The earlier built-in-agent
-  socket-reset case passed during resumption. Two later cross-company socket/
+  socket-reset case passed during resumption. Two later cross-space socket/
   timeout failures passed in the final isolated repeat. Their original failed
   records remain retained.
 - Runner protocol, Rust, conformance and replay checks passed. The authority
@@ -887,7 +887,7 @@ artifacts still require matching source and qualification.
 ## Model selection and activity adapters (2026-10-06)
 
 The bundled ACPX dependency still checked model discovery catalogs after the
-Paperclip allowlists were removed. The package now forwards an explicit model ID
+Outpost allowlists were removed. The package now forwards an explicit model ID
 unchanged, including IDs absent from the catalog. It does not expand Cursor IDs
 into advertised variants. A native selection response must acknowledge the exact
 ID. New connections recheck the selected model after session load; rejection,
@@ -921,7 +921,7 @@ with two release-path findings. Explicit setup now installs the pinned runtime
 under the OS account's cache, independently of npm package ownership. Setup and
 execution resolve the same closure-keyed path even when the provider has an
 isolated HOME. Image-owned assets remain authoritative. Setup must run as the
-Paperclip service account; it does not make root-owned private assets public.
+Outpost service account; it does not make root-owned private assets public.
 
 Release assembly requires the Linux image manifest and verifies its canonical
 payload digest, source revision, ACPX profiles and Cursor version/profile/closure

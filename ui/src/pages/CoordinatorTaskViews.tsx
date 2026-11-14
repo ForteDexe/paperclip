@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { TaskViewsMenu } from "@/components/TaskViewsMenu";
 import { Button } from "@/components/ui/button";
-import { useCompany } from "@/context/CompanyContext";
+import { useSpace } from "@/context/SpaceContext";
 import { useDialogActions } from "@/context/DialogContext";
 import { useCoordinatorWorkspaceEnabled } from "@/hooks/useCoordinatorWorkspaceEnabled";
 import { loadTaskListView, taskListViewStorageKey } from "@/lib/task-list-views";
@@ -23,13 +23,13 @@ function loadView(key: string, userId: string | null): TaskViewKey {
 }
 
 export function CoordinatorTaskViews() {
-  const { selectedCompanyId } = useCompany();
+  const { selectedSpaceId } = useSpace();
   const { userId, loaded } = useCoordinatorWorkspaceEnabled();
   const { openNewIssue } = useDialogActions();
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
-  const key = JSON.stringify(["paperclip:coordinator-task-view:v2", selectedCompanyId, userId]);
+  const key = JSON.stringify(["outpost:coordinator-task-view:v2", selectedSpaceId, userId]);
   const [preference, setPreference] = useState(() => ({ key, view: loadView(key, userId) }));
   const savedView = preference.key === key ? preference.view : loadView(key, userId);
   const requested = params.get("view") === "inbox" ? "mine" : params.get("view");
@@ -37,10 +37,10 @@ export function CoordinatorTaskViews() {
   const view = resolveInitialTaskView(requested, organizationScoped, savedView);
   const definition = taskView(view);
   useEffect(() => {
-    if (!loaded || !userId || !selectedCompanyId) return;
+    if (!loaded || !userId || !selectedSpaceId) return;
     try { localStorage.setItem(key, view); } catch {}
     setPreference(current => current.key === key && current.view === view ? current : { key, view });
-  }, [key, loaded, userId, selectedCompanyId, view]);
+  }, [key, loaded, userId, selectedSpaceId, view]);
   if ((loaded || organizationScoped) && params.get("view") !== view) {
     const next = new URLSearchParams(params);
     next.set("view", view);

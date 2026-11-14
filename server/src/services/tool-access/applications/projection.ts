@@ -6,7 +6,7 @@ export function toApplication(
 ): ToolApplication {
   return {
     id: row.id,
-    companyId: row.companyId,
+    spaceId: row.spaceId,
     applicationKey: row.applicationKey ?? undefined,
     name: row.name,
     description: row.description,

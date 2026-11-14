@@ -15,7 +15,7 @@ describe("directoryMergeLockTimeoutDiagnosticsFor", () => {
   });
 
   it("reduces a real lock timeout to allowlisted holder diagnostics without its path or process id", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "paperclip-lock-report-"));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "outpost-lock-report-"));
     cleanupDirs.push(rootDir);
     vi.stubEnv("OUTPOST_HOME", path.join(rootDir, "home"));
     vi.stubEnv("OUTPOST_INSTANCE_ID", "test-instance");

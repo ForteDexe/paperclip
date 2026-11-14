@@ -105,7 +105,7 @@ export function createTelegramPublicationPreparation(db: Db, options: Publicatio
         delete attachmentPayload.progressState;
         await notifyChatPublicationWork(tx);
         await tx.insert(chatPublications).values({
-          companyId: current.companyId,
+          spaceId: current.spaceId,
           endpointId: current.endpointId,
           conversationId: current.conversationId,
           issueId: current.issueId,
@@ -169,7 +169,7 @@ export function createTelegramPublicationPreparation(db: Db, options: Publicatio
         currentParts.slice(1).map((text, offset) => {
           const index = offset + 1;
           return {
-            companyId: current.companyId,
+            spaceId: current.spaceId,
             endpointId: current.endpointId,
             conversationId: current.conversationId,
             issueId: current.issueId,

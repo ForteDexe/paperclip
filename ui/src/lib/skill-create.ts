@@ -1,7 +1,7 @@
 import type {
-  CompanySkillCreateRequest,
-  CompanySkillDetail,
-  CompanySkillSharingScope,
+  SpaceSkillCreateRequest,
+  SpaceSkillDetail,
+  SpaceSkillSharingScope,
 } from "@outpost/shared";
 
 export const SKILL_CREATE_ACCENTS = [
@@ -18,7 +18,7 @@ export type SkillCreateDraft = {
   color: string;
   categories: string[];
   markdown: string;
-  sharingScope: Exclude<CompanySkillSharingScope, "public_link">;
+  sharingScope: Exclude<SpaceSkillSharingScope, "public_link">;
   forkedFromSkillId: string | null;
   forkedFromName: string | null;
   /** Destination folder for the new skill (null = Unfiled / top level). */
@@ -91,14 +91,14 @@ export function buildBlankSkillDraft(): SkillCreateDraft {
     color: SKILL_CREATE_ACCENTS[0]!,
     categories: [],
     markdown: defaultSkillMarkdown("", ""),
-    sharingScope: "company",
+    sharingScope: "space",
     forkedFromSkillId: null,
     forkedFromName: null,
     folderId: null,
   };
 }
 
-export function buildForkSkillDraft(skill: CompanySkillDetail): SkillCreateDraft {
+export function buildForkSkillDraft(skill: SpaceSkillDetail): SkillCreateDraft {
   const name = `${skill.name} Fork`;
   const slug = normalizeSkillDraftSlug(`${skill.slug}-fork`);
   return {
@@ -109,14 +109,14 @@ export function buildForkSkillDraft(skill: CompanySkillDetail): SkillCreateDraft
     color: skill.color ?? skillAccentColor(skill.key, null),
     categories: skill.categories,
     markdown: skill.markdown.replace(/^name:\s*.*$/m, `name: ${name}`),
-    sharingScope: "company",
+    sharingScope: "space",
     forkedFromSkillId: skill.id,
     forkedFromName: skill.name,
     folderId: null,
   };
 }
 
-export function skillCreateDraftToPayload(draft: SkillCreateDraft): CompanySkillCreateRequest {
+export function skillCreateDraftToPayload(draft: SkillCreateDraft): SpaceSkillCreateRequest {
   const effectiveSlug = draft.slug.trim() || normalizeSkillDraftSlug(draft.name);
   const effectiveMarkdown = draft.markdown.trim().length > 0
     ? draft.markdown

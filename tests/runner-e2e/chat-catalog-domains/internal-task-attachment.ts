@@ -29,14 +29,14 @@ export function gradeAttachmentBrief(value: unknown) {
   if (!o || !Array.isArray(o.sourceAttachments) || !Array.isArray(o.workAttachments) || !Array.isArray(o.workDocuments)) return c.result();
   const receipt = o.state.briefAttachment as ChatQueryAttachmentReceipt | undefined;
   const worker = entity(o.state, "worker"); const work = o.tasks.filter(row => row.id !== o.sourceId); const saved = work[0];
-  c.add("actual-human-upload-retained", !!receipt && receipt.companyId === o.companyId && o.sourceAttachments.some(row => row.id === receipt.id && row.issueId === o.sourceId && row.companyId === o.companyId
+  c.add("actual-human-upload-retained", !!receipt && receipt.spaceId === o.spaceId && o.sourceAttachments.some(row => row.id === receipt.id && row.issueId === o.sourceId && row.spaceId === o.spaceId
     && row.createdByUserId === receipt.createdByUserId && row.createdByAgentId == null && row.issueCommentId && row.sha256 === o.state.briefHash)
     && o.originalBytesHash === o.state.briefHash, "The original signed-in person's uploaded brief and its exact bytes remain attached to the actual source human comment.");
-  c.add("one-contextual-ordinary-work-task", work.length === 1 && !!saved && saved.companyId === o.companyId && saved.assigneeAgentId === worker.id
+  c.add("one-contextual-ordinary-work-task", work.length === 1 && !!saved && saved.spaceId === o.spaceId && saved.assigneeAgentId === worker.id
     && o.activity.some(row => row.action === "issue.created" && row.entityId === saved.id && row.agentId === o.leadId)
     && hasLink(o, "issues", saved), "One actual CEO-created website task is delegated to the intended Morgan and linked in chat.");
   const context = `${o.workDescription ?? saved?.description ?? ""}\n${o.workDocuments.map(row => row.body ?? "").join("\n")}`;
-  const copied = o.workAttachments.some(row => row.issueId === saved?.id && row.companyId === o.companyId && row.sha256 === o.state.briefHash
+  const copied = o.workAttachments.some(row => row.issueId === saved?.id && row.spaceId === o.spaceId && row.sha256 === o.state.briefHash
     && o.durablePath === row.contentPath);
   const originalReference = !!receipt && context.includes(receipt.contentPath) && o.durablePath === receipt.contentPath;
   const inline = containsExactBrief(context, o.state.briefBody);
@@ -104,7 +104,7 @@ export const taskAttachmentCases: readonly ChatCatalogCase[] = [{ ...base, authe
     const saved = o.tasks.filter(row => row.id !== source?.id)[0]; const workAttachments: ChatQueryAttachmentReceipt[] = []; const workDocuments: Entity[] = [];
     let workDescription: string | null | undefined;
     if (saved) {
-      // Company issue listings shorten descriptions; read the saved task in full.
+      // Space issue listings shorten descriptions; read the saved task in full.
       workDescription = (await ctx.input.api.get<Entity>(`/api/issues/${saved.id}`)).description;
       workAttachments.push(...await ctx.input.api.get<ChatQueryAttachmentReceipt[]>(`/api/issues/${saved.id}/attachments`));
       for (const summary of await ctx.input.api.get<Entity[]>(`/api/issues/${saved.id}/documents`))

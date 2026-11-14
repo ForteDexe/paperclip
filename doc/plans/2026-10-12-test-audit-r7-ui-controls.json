@@ -105,12 +105,12 @@
       "skipped": 0,
       "files": [
         {
-          "path": "ui/src/hooks/useCompanyInviteAccess.test.ts",
+          "path": "ui/src/hooks/useSpaceInviteAccess.test.ts",
           "status": "passed",
           "cases": 10
         },
         {
-          "path": "ui/src/lib/company-selection.test.ts",
+          "path": "ui/src/lib/space-selection.test.ts",
           "status": "passed",
           "cases": 11
         },
@@ -180,7 +180,7 @@
       "skipped": 0,
       "files": [
         {
-          "path": "ui/src/hooks/useCompanyInviteAccess.test.ts",
+          "path": "ui/src/hooks/useSpaceInviteAccess.test.ts",
           "status": "passed",
           "cases": 10
         },
@@ -220,7 +220,7 @@
           "cases": 9
         },
         {
-          "path": "ui/src/lib/company-selection.test.ts",
+          "path": "ui/src/lib/space-selection.test.ts",
           "status": "passed",
           "cases": 11
         },
@@ -295,7 +295,7 @@
       "sourceSha": "4c236e0330ed4946572af9528f27d24c305bc3e73473814e921017199d4afa8a",
       "replacements": 1,
       "mutation": {
-        "before": "const sharedSecondarySidebar = isCompanySettingsRoute ? (",
+        "before": "const sharedSecondarySidebar = isSpaceSettingsRoute ? (",
         "after": "const sharedSecondarySidebar = false ? ("
       },
       "restoredByteForByte": true,
@@ -310,7 +310,7 @@
         "status": "failed",
         "jsonSha256": "a0cdaa7f1233d4f88d6abd92f61984343f41b27e2723b8ce28b16a8c97624366",
         "logSha256": "83b0ab380a65c7f9ec69f8ec36132dbafb6ef9cc2c4df220b20415144244eab3",
-        "intendedFailure": "AssertionError: expected 'Skip to Main ContentPaperclipCompany \u2026' to contain 'Company settings sidebar'"
+        "intendedFailure": "AssertionError: expected 'Skip to Main ContentOutpostSpace \u2026' to contain 'Space settings sidebar'"
       }
     }
   ],
@@ -454,12 +454,12 @@
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
         {
-          "title": "auto-accepts the invite after account creation and redirects into the company",
+          "title": "auto-accepts the invite after account creation and redirects into the space",
           "decision": "R",
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
         {
-          "title": "shows the pending approval page with the company icon and non-clickable access instructions",
+          "title": "shows the pending approval page with the space icon and non-clickable access instructions",
           "decision": "R",
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
@@ -474,7 +474,7 @@
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
         {
-          "title": "redirects straight to the company after sign-in when the user already has access",
+          "title": "redirects straight to the space after sign-in when the user already has access",
           "decision": "R",
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
@@ -504,12 +504,12 @@
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
         {
-          "title": "falls back to the generated company icon when the invite logo fails to load",
+          "title": "falls back to the generated space icon when the invite logo fails to load",
           "decision": "R",
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
         {
-          "title": "normalizes the shared company cache envelope before checking membership",
+          "title": "normalizes the shared space cache envelope before checking membership",
           "decision": "R",
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
@@ -554,27 +554,27 @@
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
         {
-          "title": "renders a mobile company settings selector on company settings routes",
+          "title": "renders a mobile space settings selector on space settings routes",
           "decision": "R",
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
         {
-          "title": "replaces the company nav on instance settings routes",
+          "title": "replaces the space nav on instance settings routes",
           "decision": "R",
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
         {
-          "title": "replaces the company nav with the shared settings sidebar on /PAP/company/export",
+          "title": "replaces the space nav with the shared settings sidebar on /PAP/space/export",
           "decision": "R",
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
         {
-          "title": "replaces the company nav with the shared settings sidebar on /PAP/company/import",
+          "title": "replaces the space nav with the shared settings sidebar on /PAP/space/import",
           "decision": "R",
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
         {
-          "title": "keeps the company nav beside Apps navigation on legacy tools routes",
+          "title": "keeps the space nav beside Apps navigation on legacy tools routes",
           "decision": "R",
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
@@ -664,12 +664,12 @@
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
         {
-          "title": "uses the route company context for plugin route sidebars on the first render",
+          "title": "uses the route space context for plugin route sidebars on the first render",
           "decision": "R",
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },
         {
-          "title": "keeps the normal company sidebar when a plugin page route is ambiguous",
+          "title": "keeps the normal space sidebar when a plugin page route is ambiguous",
           "decision": "R",
           "evidence": "Whole-program expansion retains original assertions and action order outside the one recorded keeper migration"
         },

@@ -38,7 +38,7 @@ export function modelSupportsEffort(model: string): boolean {
 }
 
 /**
- * Map a Paperclip effort value onto Kimi's supported thinking-effort set.
+ * Map a Outpost effort value onto Kimi's supported thinking-effort set.
  * Returns null for values Kimi cannot honor so the caller leaves Kimi's own
  * default_effort in place instead of forwarding an invalid tier.
  */

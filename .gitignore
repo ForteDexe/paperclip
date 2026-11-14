@@ -22,7 +22,7 @@ coverage/
 .AppleDouble
 .LSOverride
 data/
-.paperclip/
+.outpost/
 .pnpm-store/
 tmp-*
 cli/tmp/
@@ -33,7 +33,7 @@ check-*.mjs
 !.github/scripts/tests/check-*.mjs
 !scripts/check-*.mjs
 new-agent*.json
-newcompany.json
+newspace.json
 seed-*.mjs
 server/check-*.mjs
 server/seed-*.mjs
@@ -55,8 +55,8 @@ diagnostics/
 *.tmp
 .vscode/
 .claude/settings.local.json
-.paperclip-local/
-.paperclip-runtime/
+.outpost-local/
+.outpost-runtime/
 /.idea/
 /.agents/
 

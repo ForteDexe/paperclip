@@ -22,7 +22,7 @@ export function deferredInteractionCondition() {
 export function historicalQuestionCondition() {
   return sql`(${ordinaryQuestionCondition()} and (${deferredInteractionCondition()} or exists (
     select 1 from ${issueComments}
-    where ${issueComments.companyId} = ${issueThreadInteractions.companyId}
+    where ${issueComments.spaceId} = ${issueThreadInteractions.spaceId}
       and ${issueComments.issueId} = ${issueThreadInteractions.issueId}
       and ${issueComments.createdAt} > ${issueThreadInteractions.createdAt}
       and ${issueComments.deletedAt} is null
@@ -48,7 +48,7 @@ export function activeIssueInteractionCondition(input: {
     ? sql`${input.responsibleUserId}`
     : input.runId ? sql`(select ${heartbeatRuns.responsibleUserId} from ${heartbeatRuns}
         where ${heartbeatRuns.id} = ${input.runId}
-          and ${heartbeatRuns.companyId} = ${issueThreadInteractions.companyId})`
+          and ${heartbeatRuns.spaceId} = ${issueThreadInteractions.spaceId})`
       : null;
   return and(
     sql`not ${historicalQuestionCondition()}`,
@@ -76,7 +76,7 @@ export function activeIssueInteractionCondition(input: {
 }
 
 export async function readTaskQuestionContext(db: Db, input: {
-  companyId: string;
+  spaceId: string;
   issueId: string;
   runId?: string | null;
   conversationMode?: boolean;
@@ -90,7 +90,7 @@ export async function readTaskQuestionContext(db: Db, input: {
     createdAt: issueThreadInteractions.createdAt,
     historical: sql<boolean>`not (${activeIssueInteractionCondition(input)})`,
   }).from(issueThreadInteractions).where(and(
-    eq(issueThreadInteractions.companyId, input.companyId),
+    eq(issueThreadInteractions.spaceId, input.spaceId),
     eq(issueThreadInteractions.issueId, input.issueId),
     eq(issueThreadInteractions.status, "pending"),
     or(ordinaryQuestionCondition(), isNotNull(issueThreadInteractions.dismissedAt)),

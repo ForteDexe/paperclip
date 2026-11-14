@@ -5,10 +5,10 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { expect } from "@playwright/test";
 import type { Agent, AdapterEnvironmentTestResult } from "../../../packages/shared/src/types/agent.js";
-import type { CompanyPortabilityAdapterOverride } from "../../../packages/shared/src/types/company-portability.js";
+import type { SpacePortabilityAdapterOverride } from "../../../packages/shared/src/types/space-portability.js";
 import type { CatalogTeam, CatalogTeamInstallResult } from "../../../packages/shared/src/types/teams-catalog.js";
 import type { ChatCatalogContext } from "../chat-catalog-contract.js";
-import type { CompanySecretUsageBinding, SecretProposalView } from "../../../packages/shared/src/types/secrets.js";
+import type { SpaceSecretUsageBinding, SecretProposalView } from "../../../packages/shared/src/types/secrets.js";
 import type { RequestConfirmationInteraction } from "../../../packages/shared/src/types/issue.js";
 import { pollUntil } from "../api.js";
 import { sendChatMessage } from "../chat-flow.js";
@@ -16,7 +16,7 @@ import { codexSubscriptionAgentConfig } from "../codex-subscription-fixture.js";
 import { definition, externalObservation, observeExternal, root, checks } from "./external-support.js";
 import { catalogTeamMembers, observeTeamResources } from "./external-team-install.js";
 import { waitForReply } from "./identity-support.js";
-interface PrivateTeam { emptyHome: string; override: CompanyPortabilityAdapterOverride }
+interface PrivateTeam { emptyHome: string; override: SpacePortabilityAdapterOverride }
 const fixtures = new WeakMap<ChatCatalogContext, PrivateTeam>();
 function stable(value: unknown): unknown { return Array.isArray(value) ? value.map(stable) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, stable(item)])) : value; }
 const configHash = (agent: Agent) => createHash("sha256").update(JSON.stringify(stable({ adapterType: agent.adapterType, adapterConfig: agent.adapterConfig, runtimeConfig: agent.runtimeConfig, defaultEnvironmentId: agent.defaultEnvironmentId }))).digest("hex");
@@ -50,20 +50,20 @@ export function eligibleTeamBindings(env: unknown): EligibleTeamBinding[] {
     return ref && ref.type === "secret_ref" && typeof ref.secretId === "string" ? [{ configPath: `env.${key}`, secretId: ref.secretId }] : [];
   });
 }
-export function teamBindingCandidate(input: { interactions: readonly RequestConfirmationInteraction[]; proposals: readonly SecretProposalView[]; companyId: string; issueId: string;
+export function teamBindingCandidate(input: { interactions: readonly RequestConfirmationInteraction[]; proposals: readonly SecretProposalView[]; spaceId: string; issueId: string;
   leadId: string; initialRunId: string; missingId: string; eligible: readonly EligibleTeamBinding[] }): TeamBindingApproval | undefined {
   for (const card of input.interactions) {
     const p = card.payload?.secretProposal, proposal = p && input.proposals.find(row => row.id === p.proposalId);
-    if (!p || !proposal || card.kind !== "request_confirmation" || card.status !== "pending" || card.companyId !== input.companyId || card.issueId !== input.issueId
+    if (!p || !proposal || card.kind !== "request_confirmation" || card.status !== "pending" || card.spaceId !== input.spaceId || card.issueId !== input.issueId
       || card.sourceRunId !== input.initialRunId || card.createdByAgentId !== input.leadId || card.createdByUserId || card.addresseeAgentId || card.resolvedByUserId || card.resolvedByAgentId
       || card.requestedResolverPolicy !== "human_only" || card.effectiveResolverPolicy !== "human_only" || card.idempotencyKey !== `secret-proposal:${proposal.id}`
-      || p.targetAgentId !== input.missingId || p.configPath !== proposal.configPath || proposal.companyId !== input.companyId || proposal.kind !== "binding" || proposal.status !== "pending"
+      || p.targetAgentId !== input.missingId || p.configPath !== proposal.configPath || proposal.spaceId !== input.spaceId || proposal.kind !== "binding" || proposal.status !== "pending"
       || proposal.targetType !== "agent" || proposal.target?.id !== input.missingId || proposal.secretProposalId || proposal.originRunId !== input.initialRunId || proposal.proposedBy?.id !== input.leadId
       || !input.eligible.some(row => row.configPath === proposal.configPath && row.secretId === proposal.secretId)) continue;
     return { interactionId: card.id, proposalId: proposal.id, configPath: proposal.configPath!, secretId: proposal.secretId!, targetAgentId: input.missingId, payloadHash: payloadHash(card.payload) };
   }
 }
-const bindingKey = (row: Pick<CompanySecretUsageBinding, "targetType" | "targetId" | "configPath">) => `${row.targetType}:${row.targetId}:${row.configPath}`;
+const bindingKey = (row: Pick<SpaceSecretUsageBinding, "targetType" | "targetId" | "configPath">) => `${row.targetType}:${row.targetId}:${row.configPath}`;
 function humanApprovedBinding(o: NonNullable<ReturnType<typeof externalObservation>>) {
   const marker = o.state.bindingApproval as TeamBindingApproval | undefined, card = marker && o.interactions.find(row => row.id === marker.interactionId) as unknown as RequestConfirmationInteraction | undefined;
   const before = o.state.bindingsBefore as string[] | undefined, after = o.state.bindingsAfter as string[] | undefined, ref = o.state.missingBindingRef as { type?: string; secretId?: string } | undefined;
@@ -89,7 +89,7 @@ export function gradeTeamConfigure(value: unknown) {
     && ((o.state.repairChannel === "agent-configuration" && o.activity.some(row => row.entityId === o.state.missingId && row.action === "agent.updated" && row.actorType === "agent" && row.agentId === o.leadId))
       || (o.state.repairChannel === "human-board-configuration" && o.activity.some(row => row.entityId === o.state.missingId && row.action === "agent.updated" && row.actorType === "user"))
       || (o.state.repairChannel === "human-approved-binding" && humanApprovedBinding(o))),
-    "Chat identifies the incomplete member by linking its own configuration page, proposing a governed binding of the eligible company account to that member, or repairing it itself; the repair changes only that member through actual agent or human authority.");
+    "Chat identifies the incomplete member by linking its own configuration page, proposing a governed binding of the eligible space account to that member, or repairing it itself; the repair changes only that member through actual agent or human authority.");
   c.add("already-working-member-preserved", typeof o.state.workingHashBefore === "string" && o.state.workingHashBefore === o.state.workingHashAfter && o.state.memberIdsPreserved === true,
     "The already working member's semantic configuration and the installed member identities remain unchanged.");
   c.add("working-configuration-revisions-preserved", Array.isArray(o.state.workingRevisionIdsBefore) && Array.isArray(o.state.workingRevisionIdsAfter)
@@ -112,9 +112,9 @@ export const teamConfigureExternalCases = [definition("teams.configure-team", as
   const built = ctx.input.execution.profile.buildAgent({ environmentId: ctx.input.fixtures.environment.id, environmentFixtureId: ctx.input.execution.environment.id, workspacePath: ctx.input.workspacePath, secretRefs: ctx.input.fixtures.secretRefs, executionId: ctx.input.nonce });
   if (typeof built.adapterType !== "string") throw new Error("Setup blocker: selected profile does not declare a supported runtime adapter");
   const subscription = ctx.input.execution.profile.credential === "CODEX_AUTH_JSON";
-  const configured = subscription ? codexSubscriptionAgentConfig(built, process.env, ctx.input.fixtures.company.id) : built;
-  const override: CompanyPortabilityAdapterOverride = { adapterType: built.adapterType, adapterConfig: configured.adapterConfig as Record<string, unknown> };
-  const emptyHome = await mkdtemp(path.join(tmpdir(), "paperclip-missing-team-login-")); fixtures.set(ctx, { emptyHome, override });
+  const configured = subscription ? codexSubscriptionAgentConfig(built, process.env, ctx.input.fixtures.space.id) : built;
+  const override: SpacePortabilityAdapterOverride = { adapterType: built.adapterType, adapterConfig: configured.adapterConfig as Record<string, unknown> };
+  const emptyHome = await mkdtemp(path.join(tmpdir(), "outpost-missing-team-login-")); fixtures.set(ctx, { emptyHome, override });
   try {
     const install = await ctx.input.api.postSensitive<CatalogTeamInstallResult>(`${root(ctx)}/teams/catalog/${encodeURIComponent(team.id)}/install`, { targetManagerAgentId: ctx.input.fixtures.agent.id, adapterOverrides: Object.fromEntries(team.agentSlugs.map(slug => [slug, override])) });
     const missingId = install.portabilityImport.agents.find(row => row.slug === "qa")?.id, workingId = install.portabilityImport.agents.find(row => row.slug === "senior-coder")?.id;
@@ -128,7 +128,7 @@ export const teamConfigureExternalCases = [definition("teams.configure-team", as
     const working = await ctx.input.api.get<Agent>(`/api/agents/${workingId}`);
     const workingRevisionIdsBefore = (await ctx.input.api.get<Array<{ id: string }>>(`/api/agents/${workingId}/config-revisions`)).map(row => row.id).sort();
     await ctx.input.api.post(`${root(ctx)}/chats/${ctx.input.fixtures.agent.id}`); await ctx.refreshIssue();
-    await ctx.input.api.patch(`/api/issues/${ctx.issue()!.id}`, { description: `The website team is the installed ${team.name} package. Its QA member (${missingId}) has not selected the eligible company ${subscription ? "Codex subscription" : "OpenRouter"} account. The senior coder (${workingId}) is already configured. The existing company account is authorized for the QA member too; its value must not enter chat.` });
+    await ctx.input.api.patch(`/api/issues/${ctx.issue()!.id}`, { description: `The website team is the installed ${team.name} package. Its QA member (${missingId}) has not selected the eligible space ${subscription ? "Codex subscription" : "OpenRouter"} account. The senior coder (${workingId}) is already configured. The existing space account is authorized for the QA member too; its value must not enter chat.` });
     return { teamId: team.id, installedFromCatalog: true, memberIdsBefore: members.map(row => row.id).sort(), expectedMembers: members.length, missingId, missingName: members.find(row => row.id === missingId)!.name,
       workingId, workingHashBefore: configHash(working), workingRevisionIdsBefore, initialProbes,
       eligibleBindings: eligibleTeamBindings((override.adapterConfig as { env?: unknown } | undefined)?.env), currentUserId: session.user?.id ?? null };
@@ -145,7 +145,7 @@ export const teamConfigureExternalCases = [definition("teams.configure-team", as
     const handoff = initial.links.find(href => { try { const url = new URL(href, initial.origin); return url.origin === initial.origin && url.pathname.split("/").some((part, i, parts) => part === "agents" && [missing.id, missing.urlKey].includes(parts[i + 1]!)); } catch { return false; } });
     const issueId = ctx.issue()!.id, eligible = state.eligibleBindings as EligibleTeamBinding[];
     const binding = alreadyRepaired ? undefined : teamBindingCandidate({ interactions: await ctx.input.api.get<RequestConfirmationInteraction[]>(`/api/issues/${issueId}/interactions`),
-      proposals: await ctx.input.api.get<SecretProposalView[]>(`${root(ctx)}/secret-proposals`), companyId: ctx.input.fixtures.company.id, issueId, leadId: ctx.input.fixtures.agent.id,
+      proposals: await ctx.input.api.get<SecretProposalView[]>(`${root(ctx)}/secret-proposals`), spaceId: ctx.input.fixtures.space.id, issueId, leadId: ctx.input.fixtures.agent.id,
       initialRunId: String(state.initialRunId), missingId: missing.id, eligible });
     state.initialHandoffSupported = alreadyRepaired || !!binding || !!handoff;
     if (binding) {
@@ -187,7 +187,7 @@ export const teamConfigureExternalCases = [definition("teams.configure-team", as
 })];
 
 async function usageKeys(ctx: ChatCatalogContext, secretId: string) {
-  return (await ctx.input.api.get<{ bindings: CompanySecretUsageBinding[] }>(`/api/secrets/${secretId}/usage`)).bindings.map(bindingKey).sort();
+  return (await ctx.input.api.get<{ bindings: SpaceSecretUsageBinding[] }>(`/api/secrets/${secretId}/usage`)).bindings.map(bindingKey).sort();
 }
 async function acceptTeamBinding(ctx: ChatCatalogContext, marker: TeamBindingApproval, memberName: string, userId: string) {
   const page = ctx.input.page, budget = chatCatalogNativePhaseRemainingBudget(ctx), remaining = () => Math.max(1_000, budget ? budget() : 120_000), issueId = ctx.issue()!.id;

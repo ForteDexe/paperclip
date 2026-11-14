@@ -4,7 +4,7 @@ import { updateInboxAgentPolicySchema } from "@outpost/shared";
 import { forbidden, notFound, unauthorized } from "../errors.js";
 import { validate } from "../middleware/validate.js";
 import { accessService, inboxAgentPolicyService, logActivity } from "../services/index.js";
-import { assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertSpaceAccess, getActorInfo } from "./authz.js";
 
 export function inboxAgentPolicyRoutes(db: Db) {
   const router = Router();
@@ -12,20 +12,20 @@ export function inboxAgentPolicyRoutes(db: Db) {
   const policies = inboxAgentPolicyService(db);
 
   function selfUserId(req: Request) {
-    if (req.actor.type !== "board" || !req.actor.userId) throw unauthorized("Board user context required");
+    if (req.actor.type !== "operator" || !req.actor.userId) throw unauthorized("Operator user context required");
     return req.actor.userId;
   }
 
-  async function assertAdmin(req: Request, companyId: string) {
-    assertCompanyAccess(req, companyId);
-    if (req.actor.type === "board") {
+  async function assertAdmin(req: Request, spaceId: string) {
+    assertSpaceAccess(req, spaceId);
+    if (req.actor.type === "operator") {
       if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return;
-      if (!req.actor.userId) throw unauthorized("Board user context required");
-      if (await access.canUser(companyId, req.actor.userId, "users:manage_permissions")) return;
+      if (!req.actor.userId) throw unauthorized("Operator user context required");
+      if (await access.canUser(spaceId, req.actor.userId, "users:manage_permissions")) return;
     } else if (
       req.actor.type === "agent"
       && req.actor.agentId
-      && await access.hasPermission(companyId, "agent", req.actor.agentId, "users:manage_permissions")
+      && await access.hasPermission(spaceId, "agent", req.actor.agentId, "users:manage_permissions")
     ) {
       return;
     }
@@ -34,19 +34,19 @@ export function inboxAgentPolicyRoutes(db: Db) {
     });
   }
 
-  async function assertActiveUserMembership(companyId: string, userId: string) {
-    const membership = await access.getMembership(companyId, "user", userId);
+  async function assertActiveUserMembership(spaceId: string, userId: string) {
+    const membership = await access.getMembership(spaceId, "user", userId);
     if (!membership || membership.status !== "active") {
-      throw notFound("Active company user membership not found");
+      throw notFound("Active space user membership not found");
     }
   }
 
-  async function writePolicy(req: Request, companyId: string, userId: string) {
-    const previous = await policies.get(companyId, userId);
-    const policy = await policies.update(companyId, userId, req.body);
+  async function writePolicy(req: Request, spaceId: string, userId: string) {
+    const previous = await policies.get(spaceId, userId);
+    const policy = await policies.update(spaceId, userId, req.body);
     const actor = getActorInfo(req);
     await logActivity(db, {
-      companyId,
+      spaceId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       agentId: actor.agentId,
@@ -65,39 +65,39 @@ export function inboxAgentPolicyRoutes(db: Db) {
     return policy;
   }
 
-  router.get("/companies/:companyId/users/me/inbox-agent-policy", async (req, res) => {
-    const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
-    res.json(await policies.get(companyId, selfUserId(req)));
+  router.get("/spaces/:spaceId/users/me/inbox-agent-policy", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
+    assertSpaceAccess(req, spaceId);
+    res.json(await policies.get(spaceId, selfUserId(req)));
   });
 
   router.put(
-    "/companies/:companyId/users/me/inbox-agent-policy",
+    "/spaces/:spaceId/users/me/inbox-agent-policy",
     validate(updateInboxAgentPolicySchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
-      res.json(await writePolicy(req, companyId, selfUserId(req)));
+      const spaceId = req.params.spaceId as string;
+      assertSpaceAccess(req, spaceId);
+      res.json(await writePolicy(req, spaceId, selfUserId(req)));
     },
   );
 
-  router.get("/companies/:companyId/users/:userId/inbox-agent-policy", async (req, res) => {
-    const companyId = req.params.companyId as string;
+  router.get("/spaces/:spaceId/users/:userId/inbox-agent-policy", async (req, res) => {
+    const spaceId = req.params.spaceId as string;
     const userId = req.params.userId as string;
-    await assertAdmin(req, companyId);
-    await assertActiveUserMembership(companyId, userId);
-    res.json(await policies.get(companyId, userId));
+    await assertAdmin(req, spaceId);
+    await assertActiveUserMembership(spaceId, userId);
+    res.json(await policies.get(spaceId, userId));
   });
 
   router.put(
-    "/companies/:companyId/users/:userId/inbox-agent-policy",
+    "/spaces/:spaceId/users/:userId/inbox-agent-policy",
     validate(updateInboxAgentPolicySchema),
     async (req, res) => {
-      const companyId = req.params.companyId as string;
+      const spaceId = req.params.spaceId as string;
       const userId = req.params.userId as string;
-      await assertAdmin(req, companyId);
-      await assertActiveUserMembership(companyId, userId);
-      res.json(await writePolicy(req, companyId, userId));
+      await assertAdmin(req, spaceId);
+      await assertActiveUserMembership(spaceId, userId);
+      res.json(await writePolicy(req, spaceId, userId));
     },
   );
 

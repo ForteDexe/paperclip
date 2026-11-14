@@ -8,8 +8,8 @@ import {
 import {
   publishGlobalLiveEvent,
   publishLiveEvent,
-  subscribeAllCompanyLiveEvents,
-  subscribeCompanyLiveEvents,
+  subscribeAllSpaceLiveEvents,
+  subscribeSpaceLiveEvents,
   subscribeGlobalLiveEvents,
 } from "./live-events.js";
 import { SAFE_NATIVE_CHAT_PROGRESS_EVENT_TYPES } from "./safe-native-chat-progress.js";
@@ -290,18 +290,18 @@ describe("chat publication commit signals", () => {
     ).toBe(false);
   });
 
-  it("observes company events without changing the public global event stream", () => {
+  it("observes space events without changing the public global event stream", () => {
     const observed: string[] = [];
     const globallyObserved: string[] = [];
-    const unsubscribe = subscribeAllCompanyLiveEvents((event) => {
-      observed.push(`${event.companyId}:${event.type}`);
+    const unsubscribe = subscribeAllSpaceLiveEvents((event) => {
+      observed.push(`${event.spaceId}:${event.type}`);
     });
     const unsubscribeGlobal = subscribeGlobalLiveEvents((event) => {
-      globallyObserved.push(`${event.companyId}:${event.type}`);
+      globallyObserved.push(`${event.spaceId}:${event.type}`);
     });
     try {
       expect(publishChatPublicationCommitSignal({
-        companyId: "publication-signal-company",
+        spaceId: "publication-signal-space",
         issueId: "publication-signal-issue",
         runId: "publication-signal-run",
         agentId: "publication-signal-agent",
@@ -309,7 +309,7 @@ describe("chat publication commit signals", () => {
         eventType: "tool.execution.started",
       })).toBe(true);
       expect(publishChatPublicationCommitSignal({
-        companyId: "publication-signal-company",
+        spaceId: "publication-signal-space",
         issueId: "publication-signal-issue",
         runId: "publication-signal-run",
         agentId: "publication-signal-agent",
@@ -317,7 +317,7 @@ describe("chat publication commit signals", () => {
         eventType: "provider.notice",
       })).toBe(false);
       publishLiveEvent({
-        companyId: "publication-signal-company",
+        spaceId: "publication-signal-space",
         type: "heartbeat.run.status",
         payload: {},
       });
@@ -331,14 +331,14 @@ describe("chat publication commit signals", () => {
     }
 
     expect(observed).toEqual([
-      "publication-signal-company:heartbeat.run.event",
-      "publication-signal-company:heartbeat.run.status",
+      "publication-signal-space:heartbeat.run.event",
+      "publication-signal-space:heartbeat.run.status",
     ]);
     expect(globallyObserved).toEqual(["*:plugin.ui.updated"]);
   });
 
   it("contains a live subscriber failure after the durable source committed", () => {
-    const unsubscribe = subscribeCompanyLiveEvents(
+    const unsubscribe = subscribeSpaceLiveEvents(
       "publication-signal-listener-failure",
       () => {
         throw new Error("simulated_live_listener_failure");
@@ -346,7 +346,7 @@ describe("chat publication commit signals", () => {
     );
     try {
       expect(publishChatPublicationCommitSignal({
-        companyId: "publication-signal-listener-failure",
+        spaceId: "publication-signal-listener-failure",
         issueId: "publication-signal-issue",
         runId: "publication-signal-run",
         agentId: "publication-signal-agent",
@@ -367,14 +367,14 @@ describe("chat publication commit signals", () => {
       onError: vi.fn(),
       minimumSpacingMs: 0,
     });
-    const unsubscribe = subscribeAllCompanyLiveEvents((event) => {
+    const unsubscribe = subscribeAllSpaceLiveEvents((event) => {
       if (isChatPublicationCommitSignal(event)) trigger.notify();
     });
     try {
       // Status/lifecycle events may be emitted before a publication transaction
       // commits or after it rolls back. They must leave recovery to polling.
       publishLiveEvent({
-        companyId: "publication-commit-boundary-company",
+        spaceId: "publication-commit-boundary-space",
         type: "heartbeat.run.event",
         payload: { eventType: "lifecycle" },
       });
@@ -383,7 +383,7 @@ describe("chat publication commit signals", () => {
 
       publicationCommitted = true;
       publishLiveEvent({
-        companyId: "publication-commit-boundary-company",
+        spaceId: "publication-commit-boundary-space",
         type: "heartbeat.run.event",
         payload: { eventType: "run.presentation.resolved" },
       });

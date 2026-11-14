@@ -25,7 +25,7 @@ import type {
   RunnerE2ERuntimeUsage,
 } from "./types.js";
 
-interface CompanyRecord {
+interface SpaceRecord {
   id: string;
   issuePrefix?: string | null;
   name: string;
@@ -47,7 +47,7 @@ interface EnvironmentRecord {
 interface AgentRecord {
   id: string;
   name: string;
-  companyId: string;
+  spaceId: string;
 }
 interface ManagedAccountFixture {
   connectionId: string;
@@ -64,7 +64,7 @@ interface ProjectRecord {
 }
 
 export interface LiveFixtureValues {
-  company: CompanyRecord;
+  space: SpaceRecord;
   secretRefs: SecretReferenceMap;
   environment: EnvironmentRecord;
   agent: AgentRecord;
@@ -150,7 +150,7 @@ export async function installFixtureDaytonaProvider(api: Pick<RunnerApi, "post">
 /** HTTP liveness after a restart does not imply the provider worker is ready. */
 export async function waitForFixtureDaytonaProvider(
   api: Pick<RunnerApi, "get">,
-  input: { companyId: string; deadlineAt: number },
+  input: { spaceId: string; deadlineAt: number },
 ): Promise<void> {
   const pluginKey = "outpost.daytona-sandbox-provider";
   const timeout = () => {
@@ -169,7 +169,7 @@ export async function waitForFixtureDaytonaProvider(
       );
       const capabilities = await api.get<{ sandboxProviders?: Record<string, {
         status?: string; source?: string; pluginKey?: string; pluginId?: string; supportsRunExecution?: boolean;
-      }> }>(`/api/companies/${input.companyId}/environments/capabilities`, { timeout: timeout() });
+      }> }>(`/api/spaces/${input.spaceId}/environments/capabilities`, { timeout: timeout() });
       return { dashboard, provider: capabilities.sandboxProviders?.daytona };
     },
     accept: ({ dashboard, provider }) => dashboard.worker?.status === "running"
@@ -191,7 +191,7 @@ export async function setupLiveFixtures(input: {
   credentials: Partial<Record<CredentialName, string>>;
   daytonaImage?: string;
   cleanupDeadlineAt?: number;
-  onCompanyCreated?: (companyId: string) => Promise<void>;
+  onSpaceCreated?: (spaceId: string) => Promise<void>;
 }): Promise<LiveFixtureValues> {
   const { api, execution } = input;
   const cursorCloudQualification = execution.suite.id === "cursor-cloud" && execution.profile.provider === "cursor_cloud";
@@ -215,12 +215,12 @@ export async function setupLiveFixtures(input: {
     });
   }
 
-  registry.register<CompanyRecord>({
-    id: "company",
+  registry.register<SpaceRecord>({
+    id: "space",
     async setup() {
-      const company = await api.post<CompanyRecord>("/api/companies", {
-        name: `Company ${neutralFixtureSuffix(execution.id, input.executionNonce)}`,
-        description: "Operations company",
+      const space = await api.post<SpaceRecord>("/api/spaces", {
+        name: `Space ${neutralFixtureSuffix(execution.id, input.executionNonce)}`,
+        description: "Operations space",
         budgetMonthlyCents: [CHAT_FEATURE_SUITE, CHAT_SETUP_HEALTH_SUITE].includes(execution.suite.id) ? CHAT_FEATURE_BUDGET_CENTS
           : receiptSmoke ? CASE_RECEIPT_BUDGET_CENTS
           : ["native-completion", "native-instruction-consolidation", "native-connection-guidance"].includes(execution.suite.id)
@@ -229,21 +229,21 @@ export async function setupLiveFixtures(input: {
           : execution.suite.id === "task-titles" ? TASK_TITLE_BUDGET_CENTS
           : ["cursor-cloud", "stock-harness", "task-workspaces", "case-handoffs", "feedback-persistence", "daytona-restart-continuity", "remote-workspace-storage", "rolling-web-deployment"].includes(execution.suite.id) ? 1_000 : 0,
       });
-      await input.onCompanyCreated?.(company.id);
-      return company;
+      await input.onSpaceCreated?.(space.id);
+      return space;
     },
     async teardown() {
       // The isolated instance/database is removed by the launcher. Do not call
-      // company deletion here: metered runs intentionally retain cost-event
+      // space deletion here: metered runs intentionally retain cost-event
       // references until that instance-wide teardown.
     },
   });
 
   registry.register<SecretReferenceMap>({
     id: "secrets",
-    dependencies: ["company"],
+    dependencies: ["space"],
     async setup(resolved) {
-      const company = value<CompanyRecord>(resolved, "company");
+      const space = value<SpaceRecord>(resolved, "space");
       const refs: SecretReferenceMap = {};
       for (const credentialName of execution.suite.id === "chat-features"
         ? [...new Set([execution.profile.credential, execution.environment.credential].filter((name): name is CredentialName => !!name))]
@@ -252,7 +252,7 @@ export async function setupLiveFixtures(input: {
         const rawValue = input.credentials[credentialName];
         if (!rawValue) throw new Error(`Missing credential ${credentialName}`);
         const secret = await api.postSensitive<SecretRecord>(
-          `/api/companies/${company.id}/secrets`,
+          `/api/spaces/${space.id}/secrets`,
           {
             name: `${credentialName} ${neutralFixtureSuffix(input.executionNonce)}`,
             key: credentialName,
@@ -275,12 +275,12 @@ export async function setupLiveFixtures(input: {
   if (grokSubscription || codexSubscription) {
     registry.register<() => Promise<void>>({
       id: "subscription-login",
-      dependencies: ["company"],
+      dependencies: ["space"],
       async setup(resolved) {
         const raw = input.credentials[execution.profile.credential];
         if (!raw) throw new Error("Missing explicit subscription login credential");
         return (codexSubscription ? stageCodexSubscriptionFixture : stageGrokSubscriptionFixture)({
-          raw, companyId: value<CompanyRecord>(resolved, "company").id,
+          raw, spaceId: value<SpaceRecord>(resolved, "space").id,
           environment: process.env,
         });
       },
@@ -291,32 +291,32 @@ export async function setupLiveFixtures(input: {
   registry.register<EnvironmentRecord>({
     id: "environment",
     dependencies: [
-      "company",
+      "space",
       "secrets",
       ...((grokSubscription || codexSubscription) ? ["subscription-login"] : []),
       ...(execution.environment.id === "daytona" ? ["sandbox-provider"] : []),
     ],
     async setup(resolved) {
-      const company = value<CompanyRecord>(resolved, "company");
+      const space = value<SpaceRecord>(resolved, "space");
       const secretRefs = value<SecretReferenceMap>(resolved, "secrets");
       if (execution.environment.id === "local") {
-        // Paperclip has one instance-managed local environment. The company
+        // Outpost has one instance-managed local environment. The space
         // creation API ensures it exists; creating a second local environment
         // is intentionally rejected by the public API.
         const environments = await api.get<EnvironmentRecord[]>(
-          `/api/companies/${company.id}/environments?driver=local`,
+          `/api/spaces/${space.id}/environments?driver=local`,
         );
         const local = environments.find(
           (candidate) => candidate.driver === "local",
         );
         if (!local)
           throw new Error(
-            "Isolated Paperclip instance did not create its managed local environment",
+            "Isolated Outpost instance did not create its managed local environment",
           );
         return local;
       }
       return api.post<EnvironmentRecord>(
-        `/api/companies/${company.id}/environments`,
+        `/api/spaces/${space.id}/environments`,
         execution.environment.buildEnvironment({
           secretRefs,
           daytonaImage: input.daytonaImage,
@@ -342,9 +342,9 @@ export async function setupLiveFixtures(input: {
   if (managedHiring || savedCopilot || budgetedGateway) {
     registry.register<ManagedAccountFixture>({
       id: "ai-connection",
-      dependencies: ["company", ...(savedCopilot ? ["environment"] : [])],
+      dependencies: ["space", ...(savedCopilot ? ["environment"] : [])],
       async setup(resolved) {
-        const company = value<CompanyRecord>(resolved, "company");
+        const space = value<SpaceRecord>(resolved, "space");
         const key = savedCopilot ? "COPILOT_GITHUB_TOKEN" : execution.profile.credential;
         const provider = savedCopilot ? "github" : key === "ANTHROPIC_API_KEY" ? "anthropic"
           : key === "OPENROUTER_API_KEY" ? "openrouter"
@@ -353,7 +353,7 @@ export async function setupLiveFixtures(input: {
         const apiKey = input.credentials[key];
         if (!apiKey) throw new Error(`Missing credential ${key}`);
         const account = await api.postSensitive<{ connectionId: string; grantId: string }>(
-          `/api/companies/${company.id}/ai-connections`,
+          `/api/spaces/${space.id}/ai-connections`,
           {
             provider,
             method: "api_key",
@@ -380,14 +380,14 @@ export async function setupLiveFixtures(input: {
   registry.register<AgentRecord>({
     id: "agent",
     dependencies: [
-      "company",
+      "space",
       "secrets",
       "environment",
       ...((grokSubscription || codexSubscription) ? ["subscription-login"] : []),
       ...(managedHiring || savedCopilot || budgetedGateway ? ["ai-connection"] : []),
     ],
     async setup(resolved) {
-      const company = value<CompanyRecord>(resolved, "company");
+      const space = value<SpaceRecord>(resolved, "space");
       const environment = value<EnvironmentRecord>(resolved, "environment");
       const secretRefs = value<SecretReferenceMap>(resolved, "secrets");
       const agent = execution.profile.buildAgent({
@@ -406,7 +406,7 @@ export async function setupLiveFixtures(input: {
         }
         const startedAt = Date.now();
         const probe = await api.post<{ ok: boolean; details?: { platformQualificationRecorded?: boolean; leaseId?: string } }>(
-          `/api/environments/${environment.id}/probe?companyId=${encodeURIComponent(company.id)}`,
+          `/api/environments/${environment.id}/probe?spaceId=${encodeURIComponent(space.id)}`,
           {}, { timeout: 330_000 },
         );
         if (probe.ok !== true || probe.details?.platformQualificationRecorded !== true || !probe.details.leaseId) {
@@ -415,10 +415,10 @@ export async function setupLiveFixtures(input: {
         setupProbe = { leaseId: probe.details.leaseId, durationMs: Date.now() - startedAt };
         if (autoCodex) {
           const adapters = await api.get<Array<{ type: string; defaultRunner?: string; supportedRunners?: string[] }>>(
-            `/api/adapters?companyId=${encodeURIComponent(company.id)}&environmentId=${encodeURIComponent(environment.id)}`,
+            `/api/adapters?spaceId=${encodeURIComponent(space.id)}&environmentId=${encodeURIComponent(environment.id)}`,
           );
           const selected = adapters.find(adapter => adapter.type === "codex_local");
-          if (selected?.defaultRunner !== "paperclip" || !selected.supportedRunners?.includes("paperclip")) {
+          if (selected?.defaultRunner !== "outpost" || !selected.supportedRunners?.includes("outpost")) {
             throw new Error("The qualified image does not advertise native Codex as its server-owned default.");
           }
           setupProbe.defaultRunner = selected.defaultRunner;
@@ -449,11 +449,11 @@ export async function setupLiveFixtures(input: {
         };
       }
       const createdAgent = await api.post<AgentRecord>(
-        `/api/companies/${company.id}/agents`,
-        codexSubscription ? codexSubscriptionAgentConfig(agent, process.env, company.id) : agent,
+        `/api/spaces/${space.id}/agents`,
+        codexSubscription ? codexSubscriptionAgentConfig(agent, process.env, space.id) : agent,
       );
       if (cursorCloudQualification) {
-        qualificationBudget = await configureCursorCloudQualificationBudget({ api, companyId: company.id, agentId: createdAgent.id });
+        qualificationBudget = await configureCursorCloudQualificationBudget({ api, spaceId: space.id, agentId: createdAgent.id });
       }
       return createdAgent;
     },
@@ -470,12 +470,12 @@ export async function setupLiveFixtures(input: {
     || (["extended-harnesses", "kimi-qualification"].includes(execution.suite.id) && execution.task.id === "file-edit-validate")) {
     registry.register<ProjectRecord>({
       id: "project",
-      dependencies: ["company", "environment"],
+      dependencies: ["space", "environment"],
       async setup(resolved) {
-        const company = value<CompanyRecord>(resolved, "company");
+        const space = value<SpaceRecord>(resolved, "space");
         const environment = value<EnvironmentRecord>(resolved, "environment");
         return api.post<ProjectRecord>(
-          `/api/companies/${company.id}/projects`,
+          `/api/spaces/${space.id}/projects`,
           {
             name: `Workspace project ${neutralFixtureSuffix(input.executionNonce)}`,
             description:
@@ -505,7 +505,7 @@ export async function setupLiveFixtures(input: {
 
   const setup = await registry.setupAll();
   return {
-    company: value<CompanyRecord>(setup.values, "company"),
+    space: value<SpaceRecord>(setup.values, "space"),
     secretRefs: value<SecretReferenceMap>(setup.values, "secrets"),
     environment: value<EnvironmentRecord>(setup.values, "environment"),
     agent: value<AgentRecord>(setup.values, "agent"),

@@ -7,8 +7,8 @@ import {
   activityLog,
   agents,
   authUsers,
-  companies,
-  companyMemberships,
+  spaces,
+  spaceMemberships,
   createDb,
   heartbeatRuns,
   issueComments,
@@ -20,9 +20,9 @@ import {
 } from "./helpers/embedded-postgres.js";
 
 vi.hoisted(() => {
-  process.env.OUTPOST_HOME = "/tmp/paperclip-test-home";
+  process.env.OUTPOST_HOME = "/tmp/outpost-test-home";
   process.env.OUTPOST_INSTANCE_ID = "vitest";
-  process.env.OUTPOST_LOG_DIR = "/tmp/paperclip-test-home/logs";
+  process.env.OUTPOST_LOG_DIR = "/tmp/outpost-test-home/logs";
   process.env.OUTPOST_IN_WORKTREE = "false";
 });
 
@@ -58,7 +58,7 @@ describeEmbeddedPostgres("issue comment attribution and patch audit routes", () 
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
   beforeAll(async () => {
-    tempDb = await startEmbeddedPostgresTestDatabase("paperclip-comment-attribution-audit-");
+    tempDb = await startEmbeddedPostgresTestDatabase("outpost-comment-attribution-audit-");
     db = createDb(tempDb.connectionString);
   }, 20_000);
 
@@ -67,22 +67,22 @@ describeEmbeddedPostgres("issue comment attribution and patch audit routes", () 
     await db.delete(issueComments);
     await db.delete(heartbeatRuns);
     await db.delete(issues);
-    await db.delete(companyMemberships);
+    await db.delete(spaceMemberships);
     await db.delete(agents);
-    await db.delete(companies);
+    await db.delete(spaces);
     await db.delete(authUsers);
   });
 
   afterAll(async () => tempDb?.cleanup());
 
   async function seed() {
-    const company = await db.insert(companies).values({
-      name: "Attribution Company",
+    const space = await db.insert(spaces).values({
+      name: "Attribution Space",
       issueCounter: 2,
       issuePrefix: `AT${randomUUID().replaceAll("-", "").slice(0, 6).toUpperCase()}`,
     }).returning().then((rows) => rows[0]!);
     const [actorAgent, targetAgent] = await db.insert(agents).values(["Actor", "Target"].map((name) => ({
-      companyId: company.id,
+      spaceId: space.id,
       name,
       role: "engineer",
       status: "active" as const,
@@ -91,7 +91,7 @@ describeEmbeddedPostgres("issue comment attribution and patch audit routes", () 
       runtimeConfig: {},
     }))).returning();
     const responsibleUserId = `responsible-${randomUUID()}`;
-    const boardUserId = `board-${randomUUID()}`;
+    const operatorUserId = `operator-${randomUUID()}`;
     const now = new Date();
     await db.insert(authUsers).values([
       {
@@ -103,16 +103,16 @@ describeEmbeddedPostgres("issue comment attribution and patch audit routes", () 
         updatedAt: now,
       },
       {
-        id: boardUserId,
-        name: "Board User",
-        email: `${boardUserId}@example.test`,
+        id: operatorUserId,
+        name: "Operator User",
+        email: `${operatorUserId}@example.test`,
         emailVerified: true,
         createdAt: now,
         updatedAt: now,
       },
     ]);
-    await db.insert(companyMemberships).values({
-      companyId: company.id,
+    await db.insert(spaceMemberships).values({
+      spaceId: space.id,
       principalType: "user",
       principalId: responsibleUserId,
       status: "active",
@@ -120,16 +120,16 @@ describeEmbeddedPostgres("issue comment attribution and patch audit routes", () 
     });
     const [sourceIssue, issue] = await db.insert(issues).values([
       {
-        companyId: company.id,
-        identifier: `${company.issuePrefix}-1`,
+        spaceId: space.id,
+        identifier: `${space.issuePrefix}-1`,
         title: "Source issue",
         status: "in_progress" as const,
         priority: "medium" as const,
         assigneeAgentId: actorAgent.id,
       },
       {
-        companyId: company.id,
-        identifier: `${company.issuePrefix}-2`,
+        spaceId: space.id,
+        identifier: `${space.issuePrefix}-2`,
         title: "Foreign issue",
         status: "done" as const,
         priority: "medium" as const,
@@ -137,25 +137,25 @@ describeEmbeddedPostgres("issue comment attribution and patch audit routes", () 
       },
     ]).returning();
     const run = await db.insert(heartbeatRuns).values({
-      companyId: company.id,
+      spaceId: space.id,
       agentId: actorAgent.id,
       status: "running",
       responsibleUserId,
       contextSnapshot: { issueId: sourceIssue.id },
     }).returning().then((rows) => rows[0]!);
 
-    return { company, actorAgent, responsibleUserId, boardUserId, run, issue };
+    return { space, actorAgent, responsibleUserId, operatorUserId, run, issue };
   }
 
   function agentActor(input: Awaited<ReturnType<typeof seed>>): Express.Request["actor"] {
     return {
       type: "agent",
       agentId: input.actorAgent.id,
-      companyId: input.company.id,
+      spaceId: input.space.id,
       runId: input.run.id,
       onBehalfOfUserId: input.responsibleUserId,
       onBehalfOfMemberships: [{
-        companyId: input.company.id,
+        spaceId: input.space.id,
         membershipRole: "member",
         status: "active",
       }],
@@ -167,7 +167,7 @@ describeEmbeddedPostgres("issue comment attribution and patch audit routes", () 
     const fixture = await seed();
     const app = await createApp(db, agentActor(fixture));
     for (const [path, action] of [
-      [`/api/companies/${fixture.company.id}/issues`, "issue.created"],
+      [`/api/spaces/${fixture.space.id}/issues`, "issue.created"],
       [`/api/issues/${fixture.issue.id}/children`, "issue.child_created"],
     ]) {
       const response = await request(app).post(path!).send({
@@ -209,14 +209,14 @@ describeEmbeddedPostgres("issue comment attribution and patch audit routes", () 
       priority: { from: "medium", to: "high" },
     });
 
-    const boardApp = await createApp(db, {
-      type: "board",
-      userId: fixture.boardUserId,
-      companyIds: [fixture.company.id],
+    const operatorApp = await createApp(db, {
+      type: "operator",
+      userId: fixture.operatorUserId,
+      spaceIds: [fixture.space.id],
       source: "local_implicit",
       isInstanceAdmin: false,
     });
-    const humanPatch = await request(boardApp)
+    const humanPatch = await request(operatorApp)
       .patch(`/api/issues/${fixture.issue.id}`)
       .send({ title: "Human-edited issue" });
     expect(humanPatch.status, JSON.stringify(humanPatch.body)).toBe(200);
@@ -245,10 +245,10 @@ describeEmbeddedPostgres("issue comment attribution and patch audit routes", () 
       }),
       expect.objectContaining({
         actorType: "user",
-        actorId: fixture.boardUserId,
+        actorId: fixture.operatorUserId,
         agentId: null,
         runId: null,
-        responsibleUserId: fixture.boardUserId,
+        responsibleUserId: fixture.operatorUserId,
         details: expect.objectContaining({
           authorizationReason: "allow_board_actor",
           changes: expect.objectContaining({
@@ -258,7 +258,7 @@ describeEmbeddedPostgres("issue comment attribution and patch audit routes", () 
       }),
     ]));
 
-    const activityResponse = await request(boardApp).get(`/api/issues/${fixture.issue.id}/activity`);
+    const activityResponse = await request(operatorApp).get(`/api/issues/${fixture.issue.id}/activity`);
     expect(activityResponse.status, JSON.stringify(activityResponse.body)).toBe(200);
     expect(activityResponse.body).toEqual(expect.arrayContaining([
       expect.objectContaining({

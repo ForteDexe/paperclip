@@ -19,7 +19,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PaperclipPluginManifestV1 } from "@outpost/shared";
+import type { OutpostPluginManifestV1 } from "@outpost/shared";
 import { EventEmitter } from "node:events";
 import { createPluginToolDispatcher } from "../services/plugin-tool-dispatcher.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
@@ -27,13 +27,13 @@ import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 const PLUGIN_KEY = "acme.demo";
 const PLUGIN_DB_ID = "00000000-0000-4000-8000-000000000001";
 
-const MANIFEST: PaperclipPluginManifestV1 = {
+const MANIFEST: OutpostPluginManifestV1 = {
   id: PLUGIN_KEY,
   apiVersion: 1,
   version: "1.0.0",
   displayName: "Demo plugin",
   description: "Regression fixture",
-  author: "Paperclip",
+  author: "Outpost",
   categories: ["automation"],
   capabilities: [],
   entrypoints: { worker: "dist/worker.js" },
@@ -45,7 +45,7 @@ const MANIFEST: PaperclipPluginManifestV1 = {
       parametersSchema: { type: "object", properties: {} },
     },
   ],
-} as unknown as PaperclipPluginManifestV1;
+} as unknown as OutpostPluginManifestV1;
 
 // ---------------------------------------------------------------------------
 // Test doubles
@@ -93,7 +93,7 @@ function createLifecycleManager(): EventEmitter {
 function createDbStub(plugin: {
   id: string;
   pluginKey: string;
-  manifestJson: PaperclipPluginManifestV1;
+  manifestJson: OutpostPluginManifestV1;
 }): unknown {
   return {
     __plugins: [plugin],
@@ -129,7 +129,7 @@ describe("dispatcher.registerPluginTools — activation path", () => {
         {
           agentId: "agent-1",
           runId: "run-1",
-          companyId: "company-1",
+          spaceId: "space-1",
           projectId: "project-1",
         },
       ),
@@ -193,7 +193,7 @@ describe("dispatcher — lifecycle path (plugin.enabled → registerFromDb)", ()
       dispatcher.executeTool(
         `${PLUGIN_KEY}:ping`,
         {},
-        { agentId: "a", runId: "r", companyId: "c", projectId: "p" },
+        { agentId: "a", runId: "r", spaceId: "c", projectId: "p" },
       ),
     ).resolves.toBeDefined();
     expect(workerManager.isRunning).toHaveBeenCalledWith(PLUGIN_DB_ID);
@@ -228,7 +228,7 @@ describe("dispatcher — disable → enable cycle (re-entry)", () => {
       dispatcher.executeTool(
         `${PLUGIN_KEY}:ping`,
         {},
-        { agentId: "a", runId: "r", companyId: "c", projectId: "p" },
+        { agentId: "a", runId: "r", spaceId: "c", projectId: "p" },
       ),
     ).resolves.toBeDefined();
     expect(workerManager.isRunning).not.toHaveBeenCalledWith(PLUGIN_KEY);
@@ -282,7 +282,7 @@ describe("dispatcher — worker re-spawn after container restart", () => {
       dispatcher.executeTool(
         `${PLUGIN_KEY}:ping`,
         {},
-        { agentId: "a", runId: "r1", companyId: "c", projectId: "p" },
+        { agentId: "a", runId: "r1", spaceId: "c", projectId: "p" },
       ),
     ).resolves.toBeDefined();
 
@@ -292,7 +292,7 @@ describe("dispatcher — worker re-spawn after container restart", () => {
       dispatcher.executeTool(
         `${PLUGIN_KEY}:ping`,
         {},
-        { agentId: "a", runId: "r2", companyId: "c", projectId: "p" },
+        { agentId: "a", runId: "r2", spaceId: "c", projectId: "p" },
       ),
     ).rejects.toThrow(/is not running/);
 
@@ -302,7 +302,7 @@ describe("dispatcher — worker re-spawn after container restart", () => {
       dispatcher.executeTool(
         `${PLUGIN_KEY}:ping`,
         {},
-        { agentId: "a", runId: "r3", companyId: "c", projectId: "p" },
+        { agentId: "a", runId: "r3", spaceId: "c", projectId: "p" },
       ),
     ).resolves.toBeDefined();
 

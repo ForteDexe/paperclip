@@ -1,5 +1,5 @@
 // One explicitly authorized real-service prompt. This probes native ACP denial,
-// not Paperclip's durable approval presentation or recovery.
+// not Outpost's durable approval presentation or recovery.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { appendFileSync, writeFileSync } from "node:fs";
@@ -184,7 +184,7 @@ export async function runDenial(packInput, privateParent, token) {
         if (entry) { clearTimeout(entry.timer); pending.delete(message.id); message.error ? entry.reject(new Error(`provider_rpc_error:${message.error.code}`)) : entry.resolve(message.result); }
       }
     });
-    const initialized = await request("initialize", { protocolVersion: 1, clientInfo: { name: "paperclip-cursor-denial-qualification", version: "1" }, clientCapabilities: {} });
+    const initialized = await request("initialize", { protocolVersion: 1, clientInfo: { name: "outpost-cursor-denial-qualification", version: "1" }, clientCapabilities: {} });
     assert.equal(initialized.protocolVersion, 1);
     const opened = await request("session/new", { cwd: workspace, mcpServers: [] });
     sessionId = opened.sessionId; assert.ok(typeof sessionId === "string" && sessionId.length > 0);

@@ -114,10 +114,10 @@ export function storageAuditMarkdown(audit: StorageAudit): string {
     ...(failures.length ? ["", ...failures.map(failure => `- ${failure}`)] : []), ""].join("\n");
 }
 
-export async function readCommittedSnapshots(db: Db, companyId: string): Promise<CommittedSnapshot[]> {
+export async function readCommittedSnapshots(db: Db, spaceId: string): Promise<CommittedSnapshot[]> {
   const rows = await db.$client.unsafe(
-    `select id, object_key, sha256, byte_size from execution_workspace_snapshots where company_id = $1 and status = 'committed' order by created_at`,
-    [companyId]);
+    `select id, object_key, sha256, byte_size from execution_workspace_snapshots where space_id = $1 and status = 'committed' order by created_at`,
+    [spaceId]);
   return rows.map(row => ({ id: String(row.id), objectKey: row.object_key === null ? null : String(row.object_key),
     sha256: row.sha256 === null ? null : String(row.sha256), byteSize: row.byte_size === null ? null : Number(row.byte_size) }));
 }
@@ -127,9 +127,9 @@ export class StorageAuditor {
 
   constructor(private readonly store: StoreAccess, private readonly prefix: string) {}
 
-  async checkSnapshots(db: Db, companyId: string): Promise<void> {
+  async checkSnapshots(db: Db, spaceId: string): Promise<void> {
     try {
-      const snapshots = await readCommittedSnapshots(db, companyId);
+      const snapshots = await readCommittedSnapshots(db, spaceId);
       this.audit.committedSnapshots = snapshots.length;
       this.audit.snapshotProblems = await checkCommittedSnapshots(this.store, this.prefix, snapshots);
       this.audit.snapshotsChecked = true;

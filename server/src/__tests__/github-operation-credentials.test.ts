@@ -12,9 +12,9 @@ import { createFullDatabaseResponseCapture, installDatabaseResponseCapture } fro
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents,
-  companies,
-  companyMemberships,
-  companySecrets,
+  spaces,
+  spaceMemberships,
+  spaceSecrets,
   connectionGrants,
   createDb,
   heartbeatRuns,
@@ -44,7 +44,7 @@ import {
 
 const vault = vi.hoisted(() => ({
   resolveUserSecretValue: vi.fn(
-    async (_company: string, input: { responsibleUserId: string }) => ({
+    async (_space: string, input: { responsibleUserId: string }) => ({
       value: `test-token-${input.responsibleUserId}`,
     }),
   ),
@@ -64,7 +64,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         "test-github-broker-signing-secret",
       );
       if (!external) database = await startEmbeddedPostgresTestDatabase(
-        "paperclip-github-operation-",
+        "outpost-github-operation-",
       );
       db = createDb(external ?? database!.connectionString);
     }, 30_000);
@@ -82,7 +82,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const payload = "unrelated-connection-config🙂".repeat(10_000);
       const irrelevant = [null, true, 42, ["github"], { name: "github" }, "GitHub", " github ", "other"].map(sourceTemplateKey => {
         const id = randomUUID();
-        return { id, companyId: input.companyId, applicationId: connection.applicationId, name: id, uid: id,
+        return { id, spaceId: input.spaceId, applicationId: connection.applicationId, name: id, uid: id,
           transport: "mcp_remote" as const, config: { sourceTemplateKey, payload }, transportConfig: { sourceTemplateKey } };
       });
       await db.insert(toolConnections).values(irrelevant);
@@ -90,7 +90,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const capture = createFullDatabaseResponseCapture({ start: now - 100, end: now + 59_000 }, event => events.push(event));
       installDatabaseResponseCapture(observed, { toolConnections }, capture);
       try {
-        expect(await resolveManagedGitHubIdentitySelection(observed, input.companyId, { agentId: input.agentId, responsibleUserId: "A" }))
+        expect(await resolveManagedGitHubIdentitySelection(observed, input.spaceId, { agentId: input.agentId, responsibleUserId: "A" }))
           .toMatchObject({ configured: true, grant: { id: selected.id } });
         capture.flush();
         const reads = events.filter(event => event.table === "tool_connections" && event.operation === "select");
@@ -98,14 +98,14 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         expect(reads[0].rows).toBe(1);
         expect(reads[0].responseValueBytes).toBeLessThan(8192);
         await db.update(toolConnections).set({ enabled: false }).where(eq(toolConnections.id, selected.connectionId));
-        expect((await resolveManagedGitHubIdentitySelection(observed, input.companyId, { agentId: input.agentId, responsibleUserId: "A" })).grant)
+        expect((await resolveManagedGitHubIdentitySelection(observed, input.spaceId, { agentId: input.agentId, responsibleUserId: "A" })).grant)
           .toBeUndefined();
         await db.update(toolConnections).set({ [location]: { sourceTemplateKey: "other" } }).where(eq(toolConnections.id, selected.connectionId));
-        expect(await resolveManagedGitHubIdentitySelection(observed, input.companyId, { agentId: input.agentId, responsibleUserId: "A" }))
+        expect(await resolveManagedGitHubIdentitySelection(observed, input.spaceId, { agentId: input.agentId, responsibleUserId: "A" }))
           .toEqual({ configured: false });
         expect(await resolveManagedGitHubIdentitySelection(observed, randomUUID(), { agentId: input.agentId, responsibleUserId: "A" }))
           .toEqual({ configured: false });
-        const saved = await db.select().from(toolConnections).where(eq(toolConnections.companyId, input.companyId));
+        const saved = await db.select().from(toolConnections).where(eq(toolConnections.spaceId, input.spaceId));
         for (const row of irrelevant) expect(saved.find(candidate => candidate.id === row.id)?.config).toEqual(row.config);
       } finally { capture.flush(); await observed.$client.end(); }
     });
@@ -185,7 +185,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         expect(summaryWrites()).toBe(2);
         expect(await stored()).toMatchObject({ status: "unavailable" });
         await db.update(issues).set({ executionPolicy: { authorizationPolicy: { trustPreset: LOW_TRUST_REVIEW_PRESET,
-          trustBoundary: { mode: LOW_TRUST_REVIEW_PRESET, companyId: input.companyId, rootIssueId: input.issueId,
+          trustBoundary: { mode: LOW_TRUST_REVIEW_PRESET, spaceId: input.spaceId, rootIssueId: input.issueId,
             issueIds: [input.issueId], allowedAgentIds: [input.agentId], allowedToolClasses: ["git.read", "github.pr.read"] } } } })
           .where(eq(issues.id, input.issueId));
         for (let call = 0; call < 2; call++) {
@@ -208,16 +208,16 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       );
       await switchTo(input, "A");
       await db
-        .update(companyMemberships)
+        .update(spaceMemberships)
         .set({ status: "inactive" })
-        .where(eq(companyMemberships.companyId, input.companyId));
+        .where(eq(spaceMemberships.spaceId, input.spaceId));
       expect((await resolveGitHubOperationCredentials(db, input)).status).toBe(
         "unavailable",
       );
       await db
-        .update(companyMemberships)
+        .update(spaceMemberships)
         .set({ status: "active" })
-        .where(eq(companyMemberships.companyId, input.companyId));
+        .where(eq(spaceMemberships.spaceId, input.spaceId));
       const differentAccount = await grant(input, "A");
       await db
         .update(connectionGrants)
@@ -241,7 +241,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       await expect(
         resolveGitHubOperationCredentials(db, {
           ...input,
-          companyId: randomUUID(),
+          spaceId: randomUUID(),
         }),
       ).rejects.toThrow();
     });
@@ -326,7 +326,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         (
           await resolveManagedGitHubIdentitySelection(
             db,
-            input.companyId,
+            input.spaceId,
             context,
           )
         ).grant?.id,
@@ -356,7 +356,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         (
           await resolveManagedGitHubIdentitySelection(
             db,
-            input.companyId,
+            input.spaceId,
             context,
           )
         ).grant?.id,
@@ -369,7 +369,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         (
           await resolveManagedGitHubIdentitySelection(
             db,
-            input.companyId,
+            input.spaceId,
             context,
           )
         ).grant?.id,
@@ -401,7 +401,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         .where(eq(toolConnectionInstalls.connectionId, duplicate.connectionId));
       expect(
         (
-          await resolveManagedGitHubIdentitySelection(db, input.companyId, {
+          await resolveManagedGitHubIdentitySelection(db, input.spaceId, {
             ...input,
             responsibleUserId: "A",
           })
@@ -440,9 +440,9 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
             .where(eq(connectionGrants.id, second.id));
         if (problem === "disabled-secret")
           await db
-            .update(companySecrets)
+            .update(spaceSecrets)
             .set({ status: "disabled" })
-            .where(eq(companySecrets.id, second.secretId));
+            .where(eq(spaceSecrets.id, second.secretId));
         if (problem === "disabled-definition")
           await db
             .update(userSecretDefinitions)
@@ -450,13 +450,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
             .where(eq(userSecretDefinitions.id, second.definitionId));
         if (problem === "missing-secret")
           await db
-            .delete(companySecrets)
-            .where(eq(companySecrets.id, second.secretId));
+            .delete(spaceSecrets)
+            .where(eq(spaceSecrets.id, second.secretId));
         if (problem === "wrong-owner")
           await db
-            .update(companySecrets)
+            .update(spaceSecrets)
             .set({ ownerUserId: "B" })
-            .where(eq(companySecrets.id, second.secretId));
+            .where(eq(spaceSecrets.id, second.secretId));
         if (problem === "no-repositories")
           await db
             .update(connectionGrants)
@@ -476,7 +476,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
             .where(eq(connectionGrants.id, second.id));
         expect(
           (
-            await resolveManagedGitHubIdentitySelection(db, input.companyId, {
+            await resolveManagedGitHubIdentitySelection(db, input.spaceId, {
               ...input,
               responsibleUserId: "A",
             })
@@ -560,12 +560,12 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         env: {},
       });
     });
-    it("does not resolve the company default person's GitHub", async () => {
+    it("does not resolve the space default person's GitHub", async () => {
       const input = await seed();
       await grant(input, "A");
       await db
         .update(runIdentityContexts)
-        .set({ cause: "company_default" })
+        .set({ cause: "space_default" })
         .where(eq(runIdentityContexts.runId, input.runId));
       expect((await resolveGitHubOperationCredentials(db, input)).env).toEqual(
         {},
@@ -601,7 +601,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
               trustPreset: LOW_TRUST_REVIEW_PRESET,
               trustBoundary: {
                 mode: LOW_TRUST_REVIEW_PRESET,
-                companyId: input.companyId,
+                spaceId: input.spaceId,
                 rootIssueId: input.issueId,
                 issueIds: [input.issueId],
                 allowedAgentIds: [input.agentId],
@@ -633,7 +633,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
             const projectId = randomUUID();
             await db.insert(projects).values({
               id: projectId,
-              companyId: input.companyId,
+              spaceId: input.spaceId,
               name: "Restricted",
               executionWorkspacePolicy: policy,
             });
@@ -699,7 +699,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
       const projectId = randomUUID();
       await db.insert(projects).values({
         id: projectId,
-        companyId: input.companyId,
+        spaceId: input.spaceId,
         name: "Taskless project",
       });
       await db
@@ -718,7 +718,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
               trustPreset: LOW_TRUST_REVIEW_PRESET,
               trustBoundary: {
                 mode: LOW_TRUST_REVIEW_PRESET,
-                companyId: input.companyId,
+                spaceId: input.spaceId,
                 projectIds: [projectId],
                 allowedAgentIds: [input.agentId],
               },
@@ -788,13 +788,13 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         expect((await post()).status).toBe(403);
         releaseA();
         const next = { ...input, runId: randomUUID() };
-        await db.insert(heartbeatRuns).values({ id: next.runId, companyId: next.companyId, agentId: next.agentId, status: "running", contextSnapshot: { issueId: input.issueId } });
-        await initializeRunIdentity(db, { companyId: input.companyId, runId: next.runId, responsibleUserId: "B", cause: "instruction" });
+        await db.insert(heartbeatRuns).values({ id: next.runId, spaceId: next.spaceId, agentId: next.agentId, status: "running", contextSnapshot: { issueId: input.issueId } });
+        await initializeRunIdentity(db, { spaceId: input.spaceId, runId: next.runId, responsibleUserId: "B", cause: "instruction" });
         broker.activate(next);
         const b = await post();
         expect(b.status).toBe(200);
         expect((await b.json()).login).toBe("B");
-        await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.companyId, input.companyId));
+        await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.spaceId, input.spaceId));
         const revoked = await post();
         expect((await revoked.json()).env).toEqual({});
       } finally { await broker.stop(); }
@@ -859,7 +859,7 @@ const support = external ? { supported: true } : await getEmbeddedPostgresTestSu
         (
           await post()
             .set("Authorization", "Bearer bridge-host-token")
-            .set("x-paperclip-github-capability", token)
+            .set("x-outpost-github-capability", token)
         ).status,
       ).toBe(200);
       await switchTo(input, "B");

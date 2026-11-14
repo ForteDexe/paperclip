@@ -41,7 +41,7 @@ export interface DecisionTrainingSnapshotV1 {
 
 /**
  * Read-only preview of the state a new training example would freeze, returned
- * by `POST /companies/:id/decision-training/preview`. Mirrors the capture that
+ * by `POST /spaces/:id/decision-training/preview`. Mirrors the capture that
  * `create` performs, minus persistence, so the drawer can show the exact cutoff
  * and captured counts before the user commits.
  */
@@ -53,7 +53,7 @@ export interface DecisionTrainingPreview {
 
 export interface DecisionTrainingExample {
   id: string;
-  companyId: string;
+  spaceId: string;
   sourceKind: DecisionTrainingSourceKind;
   sourceId: string;
   issueId: string;

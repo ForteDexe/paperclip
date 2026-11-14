@@ -18,22 +18,22 @@ Capability ID: `instance-operations/install-update`.
 
 Review: `baseline`.
 
-API: `not-applicable` — No uniform company REST updater API. Treat pre-start
+API: `not-applicable` — No uniform space REST updater API. Treat pre-start
 installation as an operator exception or design an explicit delegated operator API.
 
 Agent access: `operator-only` — Existing CLI install/update/rollback commands.
 
 Policy: Local machine operator and instance-administrator authority; distinct from
-company-scoped agent keys.
+space-scoped agent keys.
 
 Evidence: `source-only` — [implementation](../../cli/src/index.ts#L91) at the reviewed
 commit above.
 
 Verification: `not-run` — exercise the listed local workflow in an authorized, owned
 operator environment. Verify its isolation and result; do not count local machine
-authority as company-agent API access.
+authority as space-agent API access.
 
-Gaps: No uniform company REST updater API. Treat pre-start installation as an operator
+Gaps: No uniform space REST updater API. Treat pre-start installation as an operator
 exception or design an explicit delegated operator API.
 
 ## `server-service`
@@ -50,17 +50,17 @@ Agent access: `operator-only` — Existing CLI service/dev controls; health REST
 workspace services have separate agent APIs.
 
 Policy: Local machine operator and instance-administrator authority; distinct from
-company-scoped agent keys.
+space-scoped agent keys.
 
 Evidence: `source-only` — [implementation](../../cli/src/index.ts#L91) at the reviewed
 commit above.
 
 Verification: `not-run` — exercise the listed local workflow in an authorized, owned
 operator environment. Verify its isolation and result; do not count local machine
-authority as company-agent API access.
+authority as space-agent API access.
 
 Gaps: Instance start/stop and task workspace start/stop are different capabilities.
-Local service control is not agent company authority.
+Local service control is not agent space authority.
 
 Historical Cloud sandbox cleanup remains server-owned. Cleanup-only absence
 reads authenticate the tenant host with its server capability; they expose no
@@ -90,7 +90,7 @@ Agent access: `restricted` — Board/admin instance settings; CLI configure/env;
 configuration files.
 
 Policy: Local machine operator and instance-administrator authority; distinct from
-company-scoped agent keys.
+space-scoped agent keys.
 
 Evidence: `source-only` — [implementation](../../cli/src/index.ts#L91) at the reviewed
 commit above.
@@ -133,7 +133,7 @@ see the [scope and operator procedure](../../doc/cloud-configuration-migration.m
 
 Cloud stack Admins may update experimental settings through the trusted Cloud
 actor without receiving other instance-admin powers. This uses the current
-stack role on each request; company membership alone does not grant it.
+stack role on each request; space membership alone does not grant it.
 Members, Support users, agents, and ordinary self-hosted sessions remain denied.
 Cloud staging exposes experimental controls to instance admins and stack Admins.
 It permits saved overrides of Cloud-disabled experimental defaults. Cloud-enabled
@@ -163,7 +163,7 @@ API: `present` — representative operation IDs:
 - `GET /api/health`.
 - `GET /api/instance/task-drain?upgradeReadiness=1` — instance-admin or signed
   Cloud control only. Returns aggregate restart eligibility, never checkpoint
-  contents, task identities or credentials. Company members and agent keys are
+  contents, task identities or credentials. Space members and agent keys are
   denied. The explicit request performs bounded read-only SQL; ordinary drain
   status remains an in-memory read. [Route coverage](../../server/src/__tests__/instance-settings-routes.test.ts)
   and [PostgreSQL coverage](../../server/src/services/heartbeat/upgrade-readiness.test.ts)
@@ -186,7 +186,7 @@ API: `present` — representative operation IDs:
   fixture checks do not establish deployed sleep or external wake.
 - `GET /api/ready` and `HEAD /api/ready` — public deployment readiness only;
   200 after recovery, 503 while starting, recovering, or draining. No SQL,
-  session resolution, company identity, or control authority.
+  session resolution, space identity, or control authority.
 - `GET /api/liveness` and `HEAD /api/liveness` — public process startup status
   and build commit only; no database readiness or workspace identity.
 
@@ -199,14 +199,14 @@ local Express fixtures; no live provider or agent access is claimed.
 Agent access: `partial` — REST health plus local CLI doctor.
 
 Policy: Local machine operator and instance-administrator authority; distinct from
-company-scoped agent keys.
+space-scoped agent keys.
 
 Evidence: `source-only` — [implementation](../../cli/src/index.ts#L91) at the reviewed
 commit above.
 
 Verification: `not-run` — exercise a listed permitted operation with actual agent
 credentials/run context; inspect its result and applicable persistence/attribution.
-Assert the relevant denied actor, owner, company or mode from Policy. Review the
+Assert the relevant denied actor, owner, space or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
 Gaps: Health is an API; full local doctor/repair inspects host configuration and is not
@@ -226,7 +226,7 @@ Agent access: `restricted` — Board/admin backup API; local CLI db:backup; rest
 an authorized separate target.
 
 Policy: Local machine operator and instance-administrator authority; distinct from
-company-scoped agent keys.
+space-scoped agent keys.
 
 Evidence: `source-only` — [implementation](../../cli/src/index.ts#L91) at the reviewed
 commit above.
@@ -236,7 +236,7 @@ verify any listed agent request/result path separately. A delegated operation ne
 own policy and access review.
 
 Gaps: API creation exists. Restore/lifecycle are operator workflows rather than ordinary
-company agent capabilities.
+space agent capabilities.
 
 ## `runtime-setup`
 
@@ -244,9 +244,9 @@ Capability ID: `instance-operations/runtime-setup`.
 
 Review: `baseline`.
 
-API: `not-applicable` — these commands provision an operator-owned published package and local filesystem cache. They have no company-domain REST equivalent and deliberately bypass instance config, environment, and credential initialization.
+API: `not-applicable` — these commands provision an operator-owned published package and local filesystem cache. They have no space-domain REST equivalent and deliberately bypass instance config, environment, and credential initialization.
 
-Agent access: `operator-only` — explicit host/package provisioning through the runtime CLI, with the installed release’s verified assets. A company agent grant does not authorize another host’s installation or private operator cache.
+Agent access: `operator-only` — explicit host/package provisioning through the runtime CLI, with the installed release’s verified assets. A space agent grant does not authorize another host’s installation or private operator cache.
 
 Policy: Host setup verifies public pinned assets without model calls and requires the published server package layout/identity. Import requires a trusted manifest digest, exact installed source/profile identity, Linux x64 companion inventory/pack/ELF integrity, and a private operator-owned cache. Import performs no downloads or executable probes. A Pi companion does not enable remote Cursor or qualify credentials.
 
@@ -256,13 +256,13 @@ Verification: `not-run` — Inspect setup identity/path and repeat reuse on an o
 
 Gaps: Source-checkout setup, different platforms, remote Cursor, provider execution, and published-package acceptance remain separate scopes. Local fixture materialization does not establish remote model readiness.
 
-Antigravity addition (2026-10-28): `paperclipai runtime setup antigravity` stages
+Antigravity addition (2026-10-28): `outpost runtime setup antigravity` stages
 the verified official and patched two-executable closures on macOS ARM64. The
 operator-only authority above is unchanged. The native profile remains pending
-at API, driver, sidecar and Rust admission; a company grant cannot enable it.
+at API, driver, sidecar and Rust admission; a space grant cannot enable it.
 Google AI API-key binding is distinct from Workspace OAuth. Evidence remains
 `source-only` for agent access: [setup](../../cli/src/commands/runtime.ts),
 [provisioner](../../packages/outpost-runner/scripts/provision-antigravity.mjs),
 and [gate regressions](../../packages/outpost-runner/src/drivers/acpx/antigravity-models.test.ts).
 Credential-free public-layout provisioning and controlled native tests do not
-qualify a company agent task or authenticated connection/revocation.
+qualify a space agent task or authenticated connection/revocation.

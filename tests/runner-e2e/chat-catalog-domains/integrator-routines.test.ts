@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { gradeIntegratorRoutines, integratorRoutinesCases, runsHourly } from "./integrator-routines.js";
 function valid(id: string) {
   const managed = id === "routines.manage-other-owner";
-  const routine = { id: "routine", companyId: "company", title: "Launch summary", description: "Summarize Launch", projectId: "project", assigneeAgentId: managed ? "morgan" : "ceo", createdByAgentId: "ceo", latestRevisionId: "revision",
+  const routine = { id: "routine", spaceId: "space", title: "Launch summary", description: "Summarize Launch", projectId: "project", assigneeAgentId: managed ? "morgan" : "ceo", createdByAgentId: "ceo", latestRevisionId: "revision",
     triggers: [{ id: "schedule", kind: "schedule", enabled: true, cronExpression: "0 9 * * 1-5", timezone: "America/Chicago" }] };
   const revision = { id: "revision", createdByAgentId: "ceo", createdByRunId: "run" };
-  return { scenarioId: id, origin: "https://fixture.test", companyId: "company", leadId: "ceo", state: { project: { id: "project" }, worker: { id: "morgan" }, routine: structuredClone(routine), originalRevisions: [structuredClone(revision)] },
+  return { scenarioId: id, origin: "https://fixture.test", spaceId: "space", leadId: "ceo", state: { project: { id: "project" }, worker: { id: "morgan" }, routine: structuredClone(routine), originalRevisions: [structuredClone(revision)] },
     tasks: [], projects: [], goals: [], comments: [], documents: [], revisions: [], humanQueries: [], activity: [] as Array<Record<string, unknown>>, links: managed ? ["/ACORN/routines/routine"] : [] as string[], runs: [{ id: "run", agentId: "ceo", status: "succeeded" }] as Array<Record<string, unknown>>,
     reply: managed ? "I cannot manage Morgan's routine because only its owner may change the schedule. Morgan or a human operator can make this change." : "Saved one weekday routine for 9 in the morning America/Chicago. Each occurrence creates a task in Launch; future summaries have not run.",
     routines: [routine], histories: { routine: [] }, routineRevisions: { routine: [revision] }, browserTimezone: "America/Chicago" };

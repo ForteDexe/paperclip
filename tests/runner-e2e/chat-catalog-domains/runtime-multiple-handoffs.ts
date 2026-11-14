@@ -36,8 +36,8 @@ export function gradeMultipleHandoffs(value: unknown) {
   return c.result();
 }
 export const runtimeMultipleHandoffCases = [runtimeDefinition("agent-chat.multiple-handoffs", async ctx => {
-  const logoWorker = await runtimeWorker(ctx, "Riley"), root = `/api/companies/${ctx.input.fixtures.company.id}`, logoMarker = `Acorn logo ${ctx.input.nonce}`;
-  for (const scope of [{ scopeType: "company", scopeId: ctx.input.fixtures.company.id }, { scopeType: "agent", scopeId: logoWorker.id }])
+  const logoWorker = await runtimeWorker(ctx, "Riley"), root = `/api/spaces/${ctx.input.fixtures.space.id}`, logoMarker = `Acorn logo ${ctx.input.nonce}`;
+  for (const scope of [{ scopeType: "space", scopeId: ctx.input.fixtures.space.id }, { scopeType: "agent", scopeId: logoWorker.id }])
     await ctx.input.api.post(`${root}/budgets/policies`, { ...scope, amount: 500, hardStopEnabled: true, isActive: true, unpricedUsagePolicy: "allow" });
   const logo = await ctx.input.api.post<Entity>(`${root}/issues`, { title: "Logo", status: "todo", assigneeAgentId: logoWorker.id,
     description: `Create an actual small logo file logo.html containing an inline SVG with a simple acorn/circle mark, visible text Acorn and the exact reference ${logoMarker} in its SVG metadata or text. Save a short non-plan task delivery document describing it and register the real logo.html file as a downloadable artifact work product titled logo.html. Then complete this same task. No other task, publication or website change is authorized.` });
@@ -100,7 +100,7 @@ export const runtimeMultipleHandoffCases = [runtimeDefinition("agent-chat.multip
   async verifyResult(ctx, state) {
     const source = ctx.input.page.url();
     for (const task of [state.task as Entity, state.logoBefore as Entity]) {
-      await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
+      await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/issues/${task.identifier ?? task.id}`, { waitUntil: "domcontentloaded" });
       await ctx.input.page.reload({ waitUntil: "domcontentloaded" }); await expect(ctx.input.page.getByRole("heading", { name: task.title!, exact: true }).first()).toBeVisible();
     }
     await ctx.input.page.goto(source, { waitUntil: "domcontentloaded" });

@@ -71,9 +71,9 @@ describe("everyday workflow grader and review timing", () => {
 });
 
 describe("unexercised review boundary diagnostics", () => {
-  const done = { id: "parent", companyId: "company", title: "task", status: "done" };
+  const done = { id: "parent", spaceId: "space", title: "task", status: "done" };
   const completed = {
-    id: "run", companyId: "company", agentId: "lead", status: "succeeded",
+    id: "run", spaceId: "space", agentId: "lead", status: "succeeded",
     nativeIssueId: "parent", finishedAt: "2026-09-19T14:47:48.134Z",
   };
   const child = {
@@ -116,7 +116,7 @@ describe("unexercised review boundary diagnostics", () => {
 describe("multi-round agent review handoff", () => {
   const child = {
     id: "child",
-    companyId: "company",
+    spaceId: "space",
     title: "child",
     status: "done",
     interactions: [
@@ -150,7 +150,7 @@ describe("multi-round agent review handoff", () => {
   };
   const runs = [{
     id: "review-run",
-    companyId: "company",
+    spaceId: "space",
     agentId: "lead",
     status: "succeeded",
     contextSnapshot: {
@@ -241,7 +241,7 @@ describe("manual everyday workflow catalog", () => {
       (candidate) => candidate.id !== "agent-review-handoff",
     ))
       expect(task.buildPrompt("sample")).not.toMatch(
-        /finish_task|paperclip_finish|PATCH|mark .*done|idempotencyKey/i,
+        /finish_task|outpost_finish|PATCH|mark .*done|idempotencyKey/i,
       );
     expect(
       everydayTasks
@@ -283,14 +283,14 @@ describe("manual everyday workflow catalog", () => {
 describe("lifecycle oracle calibrated failures", () => {
   const parent = {
     id: "parent",
-    companyId: "company",
+    spaceId: "space",
     title: "Project",
     status: "done",
     assigneeAgentId: "lead",
   };
   const run: StoryRun = {
     id: "run",
-    companyId: "company",
+    spaceId: "space",
     agentId: "lead",
     status: "succeeded",
     runtimeMode: "native",
@@ -360,7 +360,7 @@ describe("lifecycle oracle calibrated failures", () => {
   it("excludes a proven pre-dispatch workspace deferral without hiding executed failures", () => {
     const deferred: StoryRun = {
       id: "deferred",
-      companyId: "company",
+      spaceId: "space",
       agentId: "lead",
       status: "cancelled",
       errorCode: "workspace_busy",
@@ -389,7 +389,7 @@ describe("lifecycle oracle calibrated failures", () => {
 
 describe("reply completion boundary", () => {
   it("accepts an explicit reply matcher for continuation output on a new line", () => {
-    const issue = { id: "parent", companyId: "company", title: "Continue", status: "done",
+    const issue = { id: "parent", spaceId: "space", title: "Continue", status: "done",
       comments: [{ authorAgentId: "lead", body: "CONTINUED_nonce\nqueue_r" }] };
     const expected = (body: string) => body === "CONTINUED_nonce\nqueue_r";
     expect(storyHasAgentReply(issue, "lead", expected)).toBe(true);
@@ -398,14 +398,14 @@ describe("reply completion boundary", () => {
   it.each([" ", "\n", "\r\n", "\t", "  \n"])("accepts continuation output separated by %j", separator => {
     const expected = retainedControllerReplyMatcher("CONTINUED_nonce.1");
     const comment = { authorAgentId: "lead", body: `CONTINUED_nonce.1${separator}queue_r` };
-    expect(storyHasAgentReply({ id: "task", companyId: "company", title: "Continue", status: "done", comments: [comment] }, "lead", expected)).toBe(true);
+    expect(storyHasAgentReply({ id: "task", spaceId: "space", title: "Continue", status: "done", comments: [comment] }, "lead", expected)).toBe(true);
     expect(storyAgentReplyMatches(comment, "lead", expected)).toBe(true);
   });
 
   it.each(["\nI used the saved project.", " I used the saved project.", "\r\nqueue_ready"])("accepts explanation after the exact continuation token %j", suffix => {
     const expected = retainedControllerReplyMatcher("CONTINUED_nonce.1");
     const comment = { authorAgentId: "lead", body: `CONTINUED_nonce.1\nqueue_r${suffix}` };
-    expect(storyHasAgentReply({ id: "task", companyId: "company", title: "Continue", status: "done", comments: [comment] }, "lead", expected)).toBe(true);
+    expect(storyHasAgentReply({ id: "task", spaceId: "space", title: "Continue", status: "done", comments: [comment] }, "lead", expected)).toBe(true);
     expect(storyAgentReplyMatches(comment, "lead", expected)).toBe(true);
   });
 
@@ -416,7 +416,7 @@ describe("reply completion boundary", () => {
   ])("rejects an incorrect continuation reply %j", body => {
     const expected = retainedControllerReplyMatcher("CONTINUED_nonce.1");
     const comment = { authorAgentId: "lead", body };
-    expect(storyHasAgentReply({ id: "task", companyId: "company", title: "Continue", status: "done", comments: [comment] }, "lead", expected)).toBe(false);
+    expect(storyHasAgentReply({ id: "task", spaceId: "space", title: "Continue", status: "done", comments: [comment] }, "lead", expected)).toBe(false);
     expect(storyAgentReplyMatches(comment, "lead", expected)).toBe(false);
   });
 
@@ -424,7 +424,7 @@ describe("reply completion boundary", () => {
     const expected = retainedControllerReplyMatcher("CONTINUED_nonce");
     const comment = { authorAgentId: "other", body: "CONTINUED_nonce\nqueue_r" };
     expect(storyAgentReplyMatches(comment, "lead", expected)).toBe(false);
-    const issue = { id: "task", companyId: "company", title: "Continue", status: "done", comments: [comment] };
+    const issue = { id: "task", spaceId: "space", title: "Continue", status: "done", comments: [comment] };
     expect(storyHasAgentReply(issue, "lead", expected)).toBe(false);
     expect(storyAgentReplyMatches({ ...comment, authorAgentId: "lead" }, "lead", "CONTINUED_nonce queue_r")).toBe(false);
     expect(storyAgentReplyMatches({ authorAgentId: "lead", body: "a.b" }, "lead", "a.b")).toBe(true);
@@ -433,7 +433,7 @@ describe("reply completion boundary", () => {
 
   const run: StoryRun = {
     id: "old",
-    companyId: "company",
+    spaceId: "space",
     agentId: "lead",
     status: "succeeded",
     runnerProfileJson: {
@@ -461,7 +461,7 @@ describe("reply completion boundary", () => {
   it("waits for the expected agent reply after terminal state is visible", () => {
     const issue = {
       id: "parent",
-      companyId: "company",
+      spaceId: "space",
       title: "Stop and redirect",
       status: "done",
       comments: [
@@ -512,7 +512,7 @@ describe("reply completion boundary", () => {
   it("keeps a blocked lead alive when its child has a durable agent wake", () => {
     const child = {
       id: "child",
-      companyId: "company",
+      spaceId: "space",
       title: "Worker delivery",
       status: "in_progress",
       interactions: [
@@ -689,7 +689,7 @@ describe("reply completion boundary", () => {
     expect(
       storyRunReportsDependencyBlock({
         id: "parent-run",
-        companyId: "company",
+        spaceId: "space",
         agentId: "lead",
         status: "succeeded",
         resultJson: {
@@ -705,13 +705,13 @@ describe("reply completion boundary", () => {
   it("keeps polling when review acceptance is durable but the parent wake is not projected yet", () => {
     const issues = [
       {
-        id: "parent", companyId: "company", title: "parent", status: "blocked",
+        id: "parent", spaceId: "space", title: "parent", status: "blocked",
         blockedTransitionAt: "2026-09-17T19:07:30.000Z",
       },
       {
         id: "child",
         parentId: "parent",
-        companyId: "company",
+        spaceId: "space",
         title: "child",
         status: "done",
         interactions: [{
@@ -730,7 +730,7 @@ describe("reply completion boundary", () => {
     ];
     const runs = [{
       id: "review-run",
-      companyId: "company",
+      spaceId: "space",
       agentId: "lead",
       status: "succeeded",
       finishedAt: "2026-09-17T19:08:11.000Z",
@@ -754,8 +754,8 @@ describe("reply completion boundary", () => {
 
   it("still identifies a blocked parent as stranded without accepted review evidence", () => {
     const issues = [
-      { id: "parent", companyId: "company", title: "parent", status: "blocked" },
-      { id: "child", parentId: "parent", companyId: "company", title: "child", status: "done", interactions: [] },
+      { id: "parent", spaceId: "space", title: "parent", status: "blocked" },
+      { id: "child", parentId: "parent", spaceId: "space", title: "child", status: "done", interactions: [] },
     ];
     expect(storyHasDurableAgentReviewContinuation(issues, "parent", "lead", [])).toBe(false);
   });
@@ -767,7 +767,7 @@ describe("reply completion boundary", () => {
         storyHasPendingAgentWake(
           {
             id: "child",
-            companyId: "company",
+            spaceId: "space",
             title: "Worker delivery",
             status: "in_progress",
             wakeDiagnostics: {
@@ -784,7 +784,7 @@ describe("delegation completion order", () => {
   it("rejects a parent closed before its worker finishes", () => {
     const base: StoryRun = {
       id: "lead-run",
-      companyId: "company",
+      spaceId: "space",
       agentId: "lead",
       status: "succeeded",
       nativeIssueId: "parent",
@@ -819,7 +819,7 @@ describe("delegation completion order", () => {
 describe("cancelled queued workspace retry", () => {
   const queued: StoryRun = {
     id: "retry",
-    companyId: "company",
+    spaceId: "space",
     agentId: "agent",
     status: "cancelled",
     runtimeMode: "legacy",

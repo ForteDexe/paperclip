@@ -56,8 +56,8 @@ const FORBIDDEN_OPERATION_MAP: Array<[RegExp, string[]]> = [
   [/\/cases/, ["list_cases", "upsert_case"]],
   [/\/(workspaces|services)/, ["get_workspace_runtime", "control_workspace_service"]],
   [/\/agents/, ["list_agents"]],
-  [/\/skills/, ["list_company_skills", "sync_company_skills"]],
-  [/\/export/, ["export_company"]],
+  [/\/skills/, ["list_space_skills", "sync_space_skills"]],
+  [/\/export/, ["export_space"]],
   [/\/issues/, ["create_task", "finish_task", "block_task", "request_review", "set_dependencies", "search_tasks"]],
 ];
 

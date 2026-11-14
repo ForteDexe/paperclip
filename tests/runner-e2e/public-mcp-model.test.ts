@@ -34,16 +34,16 @@ describe("external assistant evidence and billing", () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(Response.json({ model: "gpt-5.4-nano", usage: { input_tokens: 200, output_tokens: 20 }, output: [
         { type: "reasoning", summary: [{ text: "private fixture reasoning" }] },
-        { type: "function_call", name: "paperclip_connection", call_id: "one", arguments: "{}" },
+        { type: "function_call", name: "outpost_connection", call_id: "one", arguments: "{}" },
       ] }))
       .mockResolvedValueOnce(Response.json({ model: "gpt-5.4-nano", usage: { input_tokens: 250, output_tokens: 10 }, output: [{ type: "message", content: [{ type: "output_text", text: "Connected to Team." }] }] }));
     vi.stubGlobal("fetch", fetchMock);
     const observe = vi.fn();
-    const call = vi.fn().mockResolvedValue({ companyId: "team" });
+    const call = vi.fn().mockResolvedValue({ spaceId: "team" });
     const usage = assistantUsage("openai", "gpt-5.4-nano");
     const result = await runAssistant({ usage, credential: "unit-test-key", prompt: "Which team?", tools: [], call, deadlineAt: Date.now() + 10_000, observe });
     expect(result.final).toBe("Connected to Team.");
-    expect(call).toHaveBeenCalledExactlyOnceWith("paperclip_connection", {});
+    expect(call).toHaveBeenCalledExactlyOnceWith("outpost_connection", {});
     expect(JSON.stringify(observe.mock.calls)).not.toContain("private fixture reasoning");
     expect(JSON.stringify(observe.mock.calls)).not.toContain("unit-test-key");
     expect(usage.requests).toBe(2);
@@ -58,12 +58,12 @@ describe("external assistant evidence and billing", () => {
 
   it("persists paid usage and completed tools before the next provider request", async () => {
     vi.stubGlobal("fetch", vi.fn()
-      .mockResolvedValueOnce(Response.json({ model: "gpt-5.4-mini", usage: { input_tokens: 200, output_tokens: 20 }, output: [{ type: "function_call", name: "paperclip_connection", call_id: "one", arguments: "{}" }] }))
+      .mockResolvedValueOnce(Response.json({ model: "gpt-5.4-mini", usage: { input_tokens: 200, output_tokens: 20 }, output: [{ type: "function_call", name: "outpost_connection", call_id: "one", arguments: "{}" }] }))
       .mockRejectedValueOnce(new Error("fixture connection interrupted")));
     const snapshots: Array<{ calls: number; requests: number }> = [];
     const usage = assistantUsage("openai", "gpt-5.4-mini");
     await expect(runAssistant({ usage, credential: "unit-test-key", prompt: "Which team?", tools: [],
-      call: async () => ({ companyId: "company" }), deadlineAt: Date.now() + 10_000,
+      call: async () => ({ spaceId: "space" }), deadlineAt: Date.now() + 10_000,
       observe: async turn => { snapshots.push({ calls: turn.calls.length, requests: usage.requests }); },
     })).rejects.toThrow("fixture connection interrupted");
     expect(snapshots).toEqual([{ calls: 0, requests: 1 }, { calls: 1, requests: 1 }, { calls: 1, requests: 1 }]);

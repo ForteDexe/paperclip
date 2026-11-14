@@ -64,7 +64,7 @@ export async function attemptNativeWorkspaceFinalization(input: {
   pluginWorkerManager?: WorkspaceWorkers;
 }) {
   const bound = await input.db.select({
-    companyId: heartbeatRuns.companyId,
+    spaceId: heartbeatRuns.spaceId,
     agentId: heartbeatRuns.agentId,
     runtimeMode: heartbeatRuns.runtimeMode,
     runnerProfileJson: heartbeatRuns.runnerProfileJson,
@@ -76,7 +76,7 @@ export async function attemptNativeWorkspaceFinalization(input: {
     .innerJoin(nativeRunFinalizations, eq(nativeRunFinalizations.runId, heartbeatRuns.id))
     .innerJoin(issues, and(
       eq(issues.id, nativeRunFinalizations.issueId),
-      eq(issues.companyId, heartbeatRuns.companyId),
+      eq(issues.spaceId, heartbeatRuns.spaceId),
     ))
     .where(eq(heartbeatRuns.id, input.runId))
     .limit(1)
@@ -92,7 +92,7 @@ export async function attemptNativeWorkspaceFinalization(input: {
     try {
       await ownership.assertHeld();
       await settleSupersededNativeWorkspaceFinalizations(input.db, {
-        companyId: bound.companyId, runId: input.runId, issueId: bound.issueId, superseding,
+        spaceId: bound.spaceId, runId: input.runId, issueId: bound.issueId, superseding,
       });
     } catch (error) {
       // Settlement is bookkeeping; it must not change the finalization outcome.
@@ -100,7 +100,7 @@ export async function attemptNativeWorkspaceFinalization(input: {
     }
   };
   const owned = await withNativeWorkspaceFinalizationOwnership({
-    db: input.db, companyId: bound.companyId, runId: input.runId,
+    db: input.db, spaceId: bound.spaceId, runId: input.runId,
   }, async (ownership) => {
   // A sweep can be admitted before the live owner publishes a permanent
   // failure or retry delay, then acquire ownership after that owner releases.
@@ -111,7 +111,7 @@ export async function attemptNativeWorkspaceFinalization(input: {
     resultId: nativeRunFinalizations.resultId,
   }).from(nativeRunFinalizations).where(and(
     eq(nativeRunFinalizations.runId, input.runId),
-    eq(nativeRunFinalizations.companyId, bound.companyId),
+    eq(nativeRunFinalizations.spaceId, bound.spaceId),
     eq(nativeRunFinalizations.issueId, bound.issueId),
   )).limit(1).then((rows) => rows[0] ?? null);
   if (!admission || admission.resultId !== bound.resultId) {
@@ -122,7 +122,7 @@ export async function attemptNativeWorkspaceFinalization(input: {
     return { kind: "retry", retryAt: admission.nextAttemptAt } as const;
   }
   const successful = await input.db.select().from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, bound.companyId),
+    eq(workspaceOperations.spaceId, bound.spaceId),
     eq(workspaceOperations.heartbeatRunId, input.runId),
     eq(workspaceOperations.issueId, bound.issueId),
     eq(workspaceOperations.phase, "workspace_finalize"),
@@ -134,7 +134,7 @@ export async function attemptNativeWorkspaceFinalization(input: {
     return { kind: "completed", operation: successful } as const;
   }
   const previous = await input.db.select().from(workspaceOperations).where(and(
-    eq(workspaceOperations.companyId, bound.companyId),
+    eq(workspaceOperations.spaceId, bound.spaceId),
     eq(workspaceOperations.heartbeatRunId, input.runId),
     eq(workspaceOperations.issueId, bound.issueId),
     eq(workspaceOperations.phase, "workspace_finalize"),
@@ -153,16 +153,16 @@ export async function attemptNativeWorkspaceFinalization(input: {
   const workspace = workspaceId
     ? await input.db.select().from(executionWorkspaces).where(and(
         eq(executionWorkspaces.id, workspaceId),
-        eq(executionWorkspaces.companyId, bound.companyId),
+        eq(executionWorkspaces.spaceId, bound.spaceId),
       )).limit(1).then((rows) => rows[0] ?? null)
     : null;
   const cwd = workspace?.providerRef ?? workspace?.cwd ?? previous?.cwd ?? null;
 
   const recorder = workspaceOperationService(input.db).createRecorder({
-    companyId: bound.companyId,
+    spaceId: bound.spaceId,
     heartbeatRunId: input.runId,
     // The native binding also uses this field as a directory-only containment token.
-    // Only attach it to the operation when it resolves to a company-owned row, because
+    // Only attach it to the operation when it resolves to a space-owned row, because
     // workspace_operations.execution_workspace_id is a real execution-workspace FK.
     executionWorkspaceId: workspace?.id ?? null,
     issueId: bound.issueId,
@@ -188,14 +188,14 @@ export async function attemptNativeWorkspaceFinalization(input: {
         const environmentsSvc = environmentService(input.db);
         const lease = await environmentsSvc.getLeaseById(location.leaseId);
         const environment = lease?.environmentId ? await environmentsSvc.getById(lease.environmentId) : null;
-        if (!lease || !environment || lease.companyId !== bound.companyId
+        if (!lease || !environment || lease.spaceId !== bound.spaceId
           || lease.heartbeatRunId !== input.runId || lease.executionWorkspaceId !== workspace.id
           || lease.providerLeaseId !== location.providerLeaseId || environment.id !== location.environmentId
           || ["expired", "failed", "pending_cleanup"].includes(lease.status)) {
           return workspaceSyncFailure("workspace_sync_out_unrecoverable");
         }
         const target = await resolveEnvironmentExecutionTarget({
-          db: input.db, companyId: bound.companyId, adapterType: "outpost_runner",
+          db: input.db, spaceId: bound.spaceId, adapterType: "outpost_runner",
           environment, leaseId: lease.id, leaseMetadata: lease.metadata, lease,
           environmentRuntime: input.environmentRuntime,
         });
@@ -237,7 +237,7 @@ export async function attemptNativeWorkspaceFinalization(input: {
         if (
           !lease ||
           !environment ||
-          lease.companyId !== bound.companyId ||
+          lease.spaceId !== bound.spaceId ||
           environment.id !== lease.environmentId
         ) {
           return workspaceSyncFailure("workspace_sync_out_unrecoverable");
@@ -253,7 +253,7 @@ export async function attemptNativeWorkspaceFinalization(input: {
         }
         const target = await resolveEnvironmentExecutionTarget({
           db: input.db,
-          companyId: bound.companyId,
+          spaceId: bound.spaceId,
           adapterType: "outpost_runner",
           environment,
           leaseId: lease.id,

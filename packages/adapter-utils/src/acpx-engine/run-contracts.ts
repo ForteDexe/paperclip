@@ -14,7 +14,7 @@
 import type { AcpRuntime, AcpRuntimeHandle } from "acpx/runtime";
 import type {
   AdapterExecutionTarget,
-  AdapterExecutionTargetPaperclipBridgeHandle,
+  AdapterExecutionTargetOutpostBridgeHandle,
   AdapterExecutionTargetProcessSessionBridgeHandle,
   PreparedAdapterExecutionTargetRuntime,
 } from "@outpost/adapter-utils/execution-target";
@@ -114,13 +114,13 @@ export interface StagingLeaseResource {
 }
 
 /**
- * Maps each resource id to its payload. The `control_bridge` is the Paperclip
+ * Maps each resource id to its payload. The `control_bridge` is the Outpost
  * control-plane bridge; the `agent_bridge` is the agent process-session bridge.
  */
 export interface RunResourcePayloads {
   readonly acp_runtime: AcpRuntimeResource;
   readonly staged_runtime: StagedRuntimeResource;
-  readonly control_bridge: AdapterExecutionTargetPaperclipBridgeHandle;
+  readonly control_bridge: AdapterExecutionTargetOutpostBridgeHandle;
   readonly agent_bridge: AdapterExecutionTargetProcessSessionBridgeHandle;
   readonly managed_home: ManagedHomeResource;
   readonly staging_lease: StagingLeaseResource;
@@ -345,7 +345,7 @@ export interface PlacedWorkspace {
 
 /** The transport handles the site started for the run. */
 export interface RunSiteTransport {
-  readonly controlBridge: AdapterExecutionTargetPaperclipBridgeHandle | null;
+  readonly controlBridge: AdapterExecutionTargetOutpostBridgeHandle | null;
   readonly agentBridge: AdapterExecutionTargetProcessSessionBridgeHandle | null;
 }
 
@@ -425,15 +425,15 @@ export interface McpServerIdentity {
   readonly connectionId: string;
 }
 
-/** The Paperclip Claude settings the fingerprint reads. */
-export interface PaperclipClaudeSettingsIdentity {
+/** The Outpost Claude settings the fingerprint reads. */
+export interface OutpostClaudeSettingsIdentity {
   readonly allow: readonly string[];
   readonly additionalDirectories: readonly string[];
   readonly defaultMode: string;
 }
 
 /**
- * The 17 fields the session fingerprint hashes. Company, agent, and task
+ * The 17 fields the session fingerprint hashes. Space, agent, and task
  * identifiers are NOT here; they scope the outer session key only (see
  * `SessionKeyIdentity`). A change to any field here invalidates a warm handle
  * or a resumable session and forces a fresh launch.
@@ -453,19 +453,19 @@ export interface SessionFingerprintIdentity {
   readonly additionalSourcesIdentity: Record<string, unknown>;
   readonly skillsIdentity: Record<string, unknown>;
   readonly skillPromptInstructions: string;
-  readonly paperclipClaudeSettings: PaperclipClaudeSettingsIdentity | null;
+  readonly outpostClaudeSettings: OutpostClaudeSettingsIdentity | null;
   readonly mcpServers: readonly McpServerIdentity[];
   readonly secretManifestHash: string;
   readonly adapterEnvHash: string;
 }
 
 /**
- * The company, agent, and task parts of the session key. The key form is
- * `paperclip:companyId:agentId:taskKey:fingerprint`. These parts stay out of
+ * The space, agent, and task parts of the session key. The key form is
+ * `outpost:spaceId:agentId:taskKey:fingerprint`. These parts stay out of
  * the fingerprint hash.
  */
 export interface SessionKeyIdentity {
-  readonly companyId: string;
+  readonly spaceId: string;
   readonly agentId: string;
   readonly taskKey: string;
 }

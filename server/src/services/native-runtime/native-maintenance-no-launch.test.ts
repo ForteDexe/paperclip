@@ -279,7 +279,7 @@ function fixture(): RetainedMaintenanceNoLaunchInput {
   Object.assign(original, seal(original));
   Object.assign(attempted, seal(attempted));
   return {
-    companyId: "company-1",
+    spaceId: "space-1",
     agentId: "agent-1",
     identity,
     requestId,
@@ -313,7 +313,7 @@ function fixture(): RetainedMaintenanceNoLaunchInput {
         rawCanonicalSha256: nativeSha256(raw),
       };
       return {
-        companyId: "company-1",
+        spaceId: "space-1",
         agentId: "agent-1",
         runId: identity.runId,
         eventType: "native.cleanup.event",
@@ -516,9 +516,9 @@ describe("retained pre-spawn terminal latch proof", () => {
       },
     ],
     [
-      "foreign company",
+      "foreign space",
       (x: RetainedMaintenanceNoLaunchInput) => {
-        x.receipts[0]!.companyId = "other-company";
+        x.receipts[0]!.spaceId = "other-space";
       },
     ],
     [

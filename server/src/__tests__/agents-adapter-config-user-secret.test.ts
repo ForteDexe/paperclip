@@ -7,11 +7,11 @@ import request from "supertest";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   activityLog,
-  companies,
-  companyMemberships,
-  companySecretBindings,
-  companySecretVersions,
-  companySecrets,
+  spaces,
+  spaceMemberships,
+  spaceSecretBindings,
+  spaceSecretVersions,
+  spaceSecrets,
   createDb,
   secretAccessEvents,
   userSecretDeclarations,
@@ -36,10 +36,10 @@ const mockAccessService = vi.hoisted(() => ({
 const mockEnvironmentService = vi.hoisted(() => ({
   getById: vi.fn(),
   releaseLease: vi.fn(),
-  // The tenant-binding guard reads the environment's bound company ids before it
+  // The tenant-binding guard reads the environment's bound space ids before it
   // reveals the driver or the status. An empty list marks an instance-global
-  // environment, so the guard lets the same-company Test through.
-  listBoundCompanyIds: vi.fn(async () => []),
+  // environment, so the guard lets the same-space Test through.
+  listBoundSpaceIds: vi.fn(async () => []),
   // The managed-sandbox-only redirect looks up the managed sandbox for a local
   // environment Test. These tests keep the policy off, so no managed row exists.
   findManagedSandboxEnvironment: vi.fn(async () => null),
@@ -64,8 +64,8 @@ vi.mock("../services/index.js", () => ({
   agentInstructionsService: () => ({}),
   accessService: () => mockAccessService,
   approvalService: () => ({}),
-  builtInAgentService: () => ({ ensureCompanyDefaultAgentGrants: vi.fn() }),
-  companySkillService: () => ({
+  builtInAgentService: () => ({ ensureSpaceDefaultAgentGrants: vi.fn() }),
+  spaceSkillService: () => ({
     listRuntimeSkillEntries: vi.fn(async () => []),
     resolveRequestedSkillKeys: vi.fn(async () => []),
   }),
@@ -117,7 +117,7 @@ if (!embeddedPostgresSupport.supported) {
   );
 }
 
-const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
+const SPACE_ID = "11111111-1111-4111-8111-111111111111";
 const ENVIRONMENT_ID = "22222222-2222-4222-8222-222222222222";
 
 type TestActor = Express.Request["actor"];
@@ -135,7 +135,7 @@ describeEmbeddedPostgres("agents adapter-config user-secret resolution routes", 
   let stopDb: (() => Promise<void>) | null = null;
   let db!: ReturnType<typeof createDb>;
   const previousKeyFile = process.env.OUTPOST_SECRETS_MASTER_KEY_FILE;
-  const secretsTmpDir = path.join(os.tmpdir(), `paperclip-adapter-user-secret-${randomUUID()}`);
+  const secretsTmpDir = path.join(os.tmpdir(), `outpost-adapter-user-secret-${randomUUID()}`);
 
   beforeAll(async () => {
     mkdirSync(secretsTmpDir, { recursive: true });
@@ -143,16 +143,16 @@ describeEmbeddedPostgres("agents adapter-config user-secret resolution routes", 
     const started = await startEmbeddedPostgresTestDatabase("adapter-user-secret-routes");
     stopDb = started.cleanup;
     db = createDb(started.connectionString);
-    await db.insert(companies).values({
-      id: COMPANY_ID,
+    await db.insert(spaces).values({
+      id: SPACE_ID,
       name: "Acme",
       issuePrefix: "ACME",
       status: "active",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    await db.insert(companyMemberships).values({
-      companyId: COMPANY_ID,
+    await db.insert(spaceMemberships).values({
+      spaceId: SPACE_ID,
       principalType: "user",
       principalId: "user-1",
       status: "active",
@@ -188,9 +188,9 @@ describeEmbeddedPostgres("agents adapter-config user-secret resolution routes", 
     await db.delete(activityLog);
     await db.delete(secretAccessEvents);
     await db.delete(userSecretDeclarations);
-    await db.delete(companySecretBindings);
-    await db.delete(companySecretVersions);
-    await db.delete(companySecrets);
+    await db.delete(spaceSecretBindings);
+    await db.delete(spaceSecretVersions);
+    await db.delete(spaceSecrets);
     await db.delete(userSecretDefinitions);
   });
 
@@ -217,29 +217,29 @@ describeEmbeddedPostgres("agents adapter-config user-secret resolution routes", 
     return app;
   }
 
-  const boardUserActor: TestActor = {
-    type: "board",
+  const operatorUserActor: TestActor = {
+    type: "operator",
     userId: "user-1",
-    companyIds: [COMPANY_ID],
+    spaceIds: [SPACE_ID],
     source: "session",
     isInstanceAdmin: false,
   };
 
-  const boardNoUserActor: TestActor = {
-    type: "board",
-    companyIds: [COMPANY_ID],
+  const operatorNoUserActor: TestActor = {
+    type: "operator",
+    spaceIds: [SPACE_ID],
     source: "local_implicit",
     isInstanceAdmin: false,
   };
 
   async function seedUserSecretDefinitionWithValue(key: string, value: string) {
     const svc = secretService(db);
-    const definition = await svc.createUserSecretDefinition(COMPANY_ID, {
+    const definition = await svc.createUserSecretDefinition(SPACE_ID, {
       key,
       name: key,
       provider: "local_encrypted",
     });
-    await svc.createCurrentUserSecretValue(COMPANY_ID, "user-1", {
+    await svc.createCurrentUserSecretValue(SPACE_ID, "user-1", {
       definitionId: definition.id,
       value,
     });
@@ -249,12 +249,12 @@ describeEmbeddedPostgres("agents adapter-config user-secret resolution routes", 
   // ── test-environment ──────────────────────────────────────────────
 
   it("test-environment resolves a required user_secret_ref for the acting user (owner-scoped, no declaration)", async () => {
-    beforeEachActor(boardUserActor);
+    beforeEachActor(operatorUserActor);
     await seedUserSecretDefinitionWithValue("github_token", "ghp_owner");
     const app = await createApp();
 
     const res = await request(app)
-      .post(`/api/companies/${COMPANY_ID}/adapters/external_test/test-environment`)
+      .post(`/api/spaces/${SPACE_ID}/adapters/external_test/test-environment`)
       .send({
         adapterConfig: {
           env: {
@@ -271,12 +271,12 @@ describeEmbeddedPostgres("agents adapter-config user-secret resolution routes", 
   });
 
   it("test-environment throws responsible_user_missing when no responsible user", async () => {
-    beforeEachActor(boardNoUserActor);
+    beforeEachActor(operatorNoUserActor);
     await seedUserSecretDefinitionWithValue("github_token", "ghp_owner");
     const app = await createApp();
 
     const res = await request(app)
-      .post(`/api/companies/${COMPANY_ID}/adapters/external_test/test-environment`)
+      .post(`/api/spaces/${SPACE_ID}/adapters/external_test/test-environment`)
       .send({
         adapterConfig: {
           env: {
@@ -290,37 +290,37 @@ describeEmbeddedPostgres("agents adapter-config user-secret resolution routes", 
     expect(testEnvironmentSpy).not.toHaveBeenCalled();
   });
 
-  it("test-environment company secret_ref still resolves (no binding_missing regression)", async () => {
-    beforeEachActor(boardUserActor);
+  it("test-environment space secret_ref still resolves (no binding_missing regression)", async () => {
+    beforeEachActor(operatorUserActor);
     const svc = secretService(db);
-    const companySecret = await svc.create(COMPANY_ID, {
-      name: `company-token-${randomUUID()}`,
+    const spaceSecret = await svc.create(SPACE_ID, {
+      name: `space-token-${randomUUID()}`,
       provider: "local_encrypted",
-      value: "company-value",
+      value: "space-value",
     });
     const app = await createApp();
 
     const res = await request(app)
-      .post(`/api/companies/${COMPANY_ID}/adapters/external_test/test-environment`)
+      .post(`/api/spaces/${SPACE_ID}/adapters/external_test/test-environment`)
       .send({
         adapterConfig: {
           env: {
-            COMPANY_TOKEN: { type: "secret_ref", secretId: companySecret.id, version: "latest" },
+            SPACE_TOKEN: { type: "secret_ref", secretId: spaceSecret.id, version: "latest" },
           },
         },
       });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(testEnvironmentSpy.mock.calls[0][0].config.env.COMPANY_TOKEN).toBe("company-value");
+    expect(testEnvironmentSpy.mock.calls[0][0].config.env.SPACE_TOKEN).toBe("space-value");
   });
 
   it("test-environment records an honest audit consumer (environment:<id> when selected, else system:adapter_test — never agent) with the real actor/responsible-user", async () => {
     // (a) No environment selected → system:adapter_test.
-    beforeEachActor(boardUserActor);
+    beforeEachActor(operatorUserActor);
     await seedUserSecretDefinitionWithValue("github_token", "ghp_owner");
     let app = await createApp();
     await request(app)
-      .post(`/api/companies/${COMPANY_ID}/adapters/external_test/test-environment`)
+      .post(`/api/spaces/${SPACE_ID}/adapters/external_test/test-environment`)
       .send({
         adapterConfig: {
           env: { GH_TOKEN: { type: "user_secret_ref", key: "github_token", version: "latest", required: true } },
@@ -343,14 +343,14 @@ describeEmbeddedPostgres("agents adapter-config user-secret resolution routes", 
     await db.delete(secretAccessEvents);
     mockEnvironmentService.getById.mockResolvedValue({
       id: ENVIRONMENT_ID,
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       name: "Sandbox",
       driver: "local",
       config: {},
     });
     app = await createApp();
     await request(app)
-      .post(`/api/companies/${COMPANY_ID}/adapters/external_test/test-environment`)
+      .post(`/api/spaces/${SPACE_ID}/adapters/external_test/test-environment`)
       .send({
         environmentId: ENVIRONMENT_ID,
         adapterConfig: {
@@ -376,14 +376,14 @@ describeEmbeddedPostgres("agents adapter-config user-secret resolution routes", 
     const agentId = randomUUID();
     mockAgentService.getById.mockResolvedValue({
       id: agentId,
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       name: "Claude agent",
       adapterType: "claude_local",
       adapterConfig: {
         env: { ANTHROPIC_API_KEY: { type: "user_secret_ref", key: "anthropic_key", version: "latest", required: true } },
       },
     });
-    beforeEachActor(boardUserActor);
+    beforeEachActor(operatorUserActor);
 
     // Undeclared → binding_missing (declared mode declaration guard active).
     let app = await createApp();
@@ -394,7 +394,7 @@ describeEmbeddedPostgres("agents adapter-config user-secret resolution routes", 
 
     // Declare it at the resolver-injected configPath (env.<KEY>) for consumer agent:<agentId>.
     await db.insert(userSecretDeclarations).values({
-      companyId: COMPANY_ID,
+      spaceId: SPACE_ID,
       userSecretDefinitionId: definition.id,
       targetType: "agent",
       targetId: agentId,

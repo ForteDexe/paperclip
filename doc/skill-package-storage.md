@@ -1,7 +1,7 @@
 # Installed skill package storage
 
 Installed repository and editable-skill contents can live in the configured storage
-backend instead of PostgreSQL JSONB. The database keeps company-scoped package
+backend instead of PostgreSQL JSONB. The database keeps space-scoped package
 identities, storage receipts, source tracking, versions, permissions and run pins.
 The original repository tree, wrappers, binary bytes and executable flags retain
 their existing behavior. New Git packages also retain an immutable restore recipe;
@@ -9,7 +9,7 @@ locally authored/edited packages and unproven legacy packages keep a durable cop
 
 ## Installed content authority
 
-Paperclip-owned skills use `sourceType: managed`, `sourceLocator: null`, and an
+Outpost-owned skills use `sourceType: managed`, `sourceLocator: null`, and an
 immutable `currentVersionId`. Creation, edits, deletion of files, forks and restores
 prepare verified packages before a short transaction publishes the version, head,
 metadata and audit. A competing head returns `409`; it never overwrites another
@@ -56,14 +56,14 @@ post-commit cache or notification failure cannot undo a committed save. Only the
 explicit linked-local compatibility adapter retains filesystem rollback handling.
 
 Create idempotency receipts retain the original response projection and immutable
-version identity in `company_skill_mutation_receipts`; file-save receipts keep their
+version identity in `space_skill_mutation_receipts`; file-save receipts keep their
 existing activity receipt shape. Retries reauthorize access. Deleted identities do
 not transfer their receipts to a skill recreated with the same name. Skill bodies
 remain in packages/versions rather than activity logs.
 
 The optional `server/scripts/migrate-skill-packages.ts` command remains available for
 diagnostics and controlled batches. It defaults to dry run, supports
-`--phase=snapshots|versions|orphans|deletions|installations|eligibility|verification`, `--company=<uuid>`, `--limit=1..50`,
+`--phase=snapshots|versions|orphans|deletions|installations|eligibility|verification`, `--space=<uuid>`, `--limit=1..50`,
 `--after=<uuid>`, `--apply` and `--clear-legacy`. It is not part of normal installation
 or compatible routine upgrade. The installations phase is the one-time legacy
 conversion boundary described in the linked runbook. Never point it at another instance's database/storage configuration.
@@ -126,7 +126,7 @@ pending delete/existence requests; incomplete cleanup retains the receipt for re
 
 ## Execution and cache behavior
 
-- New packages store one gzip tar archive and one manifest per company/content hash.
+- New packages store one gzip tar archive and one manifest per space/content hash.
   The manifest contains paths, kinds, encodings, executable flags, byte sizes and
   SHA-256 values. PostgreSQL stores keys, hashes, sizes and ownership metadata.
 - Preparation uses metadata-only version/package queries. Multiple selected versions
@@ -136,7 +136,7 @@ pending delete/existence requests; incomplete cleanup retains the receipt for re
   `access_source_id IS NULL` at the final read, so a concurrent scope change fails closed.
   Aliases, legacy operational skills, missing installations and mutable local sources
   retain the discovery/reconciliation path.
-- A cold package download is coalesced in process; the existing company cache lock
+- A cold package download is coalesced in process; the existing space cache lock
   serializes cross-process restoration and pinning. The archive and each extracted
   file are verified before atomic publication. Extraction rejects unexpected entries,
   path escapes, links, duplicate paths, wrong sizes, modes and digests.
@@ -167,7 +167,7 @@ pending delete/existence requests; incomplete cleanup retains the receipt for re
   wrappers/policies have a 16 MiB budget and 256-entry limit. The stat/digest cache holds
   at most 128,000 file records, with 24 concurrent file checks.
   Native skill asset manifests hold at most 32,000 file records and 128 entries.
-- Shared extracted packages target 512 MiB and 64 directories per company, trimming
+- Shared extracted packages target 512 MiB and 64 directories per space, trimming
   on cold fills only, with at most two eviction attempts and a ten-second storage
   verification budget per fill. This is a soft limit during a storage outage: cleanup preserves
   the last recoverable copy. Version projections retain the existing pin-aware cleanup.
@@ -191,7 +191,7 @@ unchanged warm preparation path.
 Uploads use unique attempt keys. An incomplete attempt has a durable claim with a
 ten-minute expiry. Retries after expiry use fresh keys; an ambiguous database result
 never triggers deletion of a possibly successful upload. A database trigger records
-retired keys in `skill_package_deletions`, including company cascades. Promotion of
+retired keys in `skill_package_deletions`, including space cascades. Promotion of
 an upload to a published receipt does not enqueue its objects for deletion.
 
 The maintenance phases `orphans` and `deletions` have the same dry-run/cursor controls.
@@ -213,7 +213,7 @@ objects first. The current storage facade does not find objects in an old bucket
 
 `skill-package-store.test.ts` exercises real PostgreSQL/local storage, cold/warm
 reads, same-size edits, offline historical restoration, missing durable objects,
-upload recovery, company-deletion receipts, cancellation and resumable migration.
+upload recovery, space-deletion receipts, cancellation and resumable migration.
 A reader that obtained its descriptor before the legacy clear pass follows the new
 receipt, including when its old manifest is already cached. Existing source,
 version-cache, retention, concurrency, authoring and runtime-context suites preserve
@@ -280,7 +280,7 @@ checks run concurrently, so CPU can exceed wall time. Process peak RSS was about
 these are not incremental cache-memory measurements. Allocated instance file bytes
 were about 97/152/596 MB. Runtime/native tree duplication remains visible here and is
 a separate optimization. Cache budgets also mean sufficiently large selected sets or
-many active companies can evict metadata/digests and require new hashing or asset
+many active spaces can evict metadata/digests and require new hashing or asset
 assembly; the warm timing is not a constant-time guarantee for arbitrary workloads.
 
 The real S3-compatible proof used a disposable loopback MinIO server built from its
@@ -331,7 +331,7 @@ claim a clean full-suite result, deployed Railway measurements, or a live agent 
 Version lists, current-version summaries, and test-run detail return file names/kinds
 without bodies. Diff and restore fetch only the selected version through its existing
 single-version endpoint. Archive reads for those operations and retention checks use
-isolated scratch directories, so storage latency does not hold the company preparation
+isolated scratch directories, so storage latency does not hold the space preparation
 lock. Support inspection reads the requested stored version without Git recovery.
 
 Package preparation renews a 24-hour publication grace. Publication and retirement

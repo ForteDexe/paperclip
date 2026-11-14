@@ -6,29 +6,29 @@ import { cn } from "../lib/utils";
 
 const RECENT_ACTIVITY_MS = 24 * 60 * 60 * 1000;
 
-/** Href for a queue page under the current company prefix, or `/decisions` for All. */
+/** Href for a queue page under the current space prefix, or `/decisions` for All. */
 export function decisionsHref(queueKey?: string | null): string {
   return queueKey ? `/decisions/queues/${encodeURIComponent(queueKey)}` : "/decisions";
 }
 
 interface DecisionQueueRailProps {
-  companyId: string;
+  spaceId: string;
   /** The active queue key, or null when the desk (All) is active. */
   activeQueueKey?: string | null;
 }
 
 /**
  * Queue quicklinks (PAP-16032 §4.1 / wireframe screen 1, annotation 1). The
- * chips are *this company's queues*, ordered by most-recently-updated (the
+ * chips are *this space's queues*, ordered by most-recently-updated (the
  * server already sorts them that way) — not a hardcoded set of types. "All" is
  * the only fixed chip. A dot marks a queue with recent activity; the count is
  * the queue's pending items.
  */
-export function DecisionQueueRail({ companyId, activeQueueKey = null }: DecisionQueueRailProps) {
+export function DecisionQueueRail({ spaceId, activeQueueKey = null }: DecisionQueueRailProps) {
   const { data: queues } = useQuery({
-    queryKey: queryKeys.decisionQueues.list(companyId),
-    queryFn: () => decisionQueuesApi.list(companyId),
-    enabled: !!companyId,
+    queryKey: queryKeys.decisionQueues.list(spaceId),
+    queryFn: () => decisionQueuesApi.list(spaceId),
+    enabled: !!spaceId,
   });
 
   // Nothing to show until at least one queue exists — the desk still works

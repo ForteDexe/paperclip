@@ -13,7 +13,7 @@ export function gradeWorkspaceClosure(value: unknown) {
   c.add("real-closure-retention-evidence", !!o, "Actual lifecycle, source references and independently downloaded retained file bytes are required."); if (!o) return c.result();
   const before = o.state.closingWorkspace as Workspace | undefined; const after = o.state.closedWorkspace as Workspace | undefined;
   const artifact = o.state.retainedArtifact as Artifact | undefined; const prior = o.state.artifact as Artifact | undefined;
-  c.add("permitted-actual-workspace-closed", !!before && !!after && before.id === after.id && after.companyId === o.companyId
+  c.add("permitted-actual-workspace-closed", !!before && !!after && before.id === after.id && after.spaceId === o.spaceId
     && after.status === "archived" && !!after.closedAt && o.state.closeReadyBeforeQuery === true
     && o.activity.some(row => row.action === "execution_workspace.updated" && row.entityId === after.id && row.agentId === o.leadId
       && (row.details?.changedKeys as string[] | undefined)?.includes("status")),
@@ -54,7 +54,7 @@ export const runtimeWorkspaceClosureCases = [runtimeDefinition("workspaces.close
     const before = state.closingWorkspace as Workspace;
     state.closedWorkspace = await ctx.input.api.get<Workspace>(`/api/execution-workspaces/${before.id}`);
     [state.retainedArtifact] = await readRegisteredArtifacts(ctx.input.api, (state.task as Entity).id, String(state.fixtureRunId), ["website-fixture.txt"]);
-    const inventory = await ctx.input.api.get<Workspace[]>(`/api/companies/${ctx.input.fixtures.company.id}/execution-workspaces`);
+    const inventory = await ctx.input.api.get<Workspace[]>(`/api/spaces/${ctx.input.fixtures.space.id}/execution-workspaces`);
     state.otherWorkspacesUnchanged = (state.otherWorkspacesBefore as Workspace[]).every(prior => inventory.some(row => row.id === prior.id
       && row.status === prior.status && row.cwd === prior.cwd && row.sourceIssueId === prior.sourceIssueId && row.rootIssueId === prior.rootIssueId));
     const other = await ctx.input.api.get<{ content: { data: string } }>(`/api/issues/${(state.otherTask as Entity).id}/file-resources/content?workspace=execution&path=website-fixture.txt`);
@@ -63,7 +63,7 @@ export const runtimeWorkspaceClosureCases = [runtimeDefinition("workspaces.close
   },
   async verifyResult(ctx, state) {
     const source = ctx.input.page.url(); const workspace = state.closedWorkspace as Workspace;
-    await ctx.input.page.goto(`/${ctx.input.fixtures.company.issuePrefix}/execution-workspaces/${workspace.id}`, { waitUntil: "domcontentloaded" });
+    await ctx.input.page.goto(`/${ctx.input.fixtures.space.issuePrefix}/execution-workspaces/${workspace.id}`, { waitUntil: "domcontentloaded" });
     await ctx.input.page.reload({ waitUntil: "domcontentloaded" });
     await expect(ctx.input.page.getByRole("heading", { name: workspace.name!, exact: true }).first()).toBeVisible();
     // The workspace page opens on Tasks; the close control lives on its Configuration tab.

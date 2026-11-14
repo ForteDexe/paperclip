@@ -10,19 +10,19 @@ import logoLockup from "./assets/acmehats-logo-lockup.svg";
 import reelPoster from "./assets/cap-reel-poster.svg";
 import reelVideo from "./assets/cap-reel.webm";
 import storefrontPreview from "./assets/storefront-preview.svg";
-import avatarCeo from "./assets/avatar-ceo.svg";
+import avatarDefaultAgent from "./assets/avatar-lead.svg";
 import avatarDesigner from "./assets/avatar-designer.svg";
 
 /**
  * The acmehats fixture world: the three stacks in the reference screenshots
  * (ACM-1 = 7 artifacts, ACM-3 = 21, ACM-2 = 1) and three more in the same
- * company so the gallery has six and every `LabKind` appears at least once.
+ * space so the gallery has six and every `LabKind` appears at least once.
  */
 
-export const COMPANY = { id: "outpost-acmehats", name: "acmehats", issuePrefix: "ACM" };
+export const SPACE = { id: "outpost-acmehats", name: "acmehats", issuePrefix: "ACM" };
 export const DESIGNER = "Brand and Presentation Designer";
-export const CEO = "Outpost Lead";
-export const AVATARS: Record<string, string> = { [DESIGNER]: avatarDesigner, [CEO]: avatarCeo };
+export const DEFAULT_AGENT = "Default agent";
+export const AVATARS: Record<string, string> = { [DESIGNER]: avatarDesigner, [DEFAULT_AGENT]: avatarDefaultAgent };
 
 export const TASKS = {
   "ACM-1": "Outpost onboarding",
@@ -123,7 +123,7 @@ const T3 = { task: "ACM-3" } as const;
 const docCritique = taskDocument("doc-critique", "Interface Craft critique and implemented changes", "interface-craft-critique", 1, docs.DOC_CRITIQUE, { ...T3, at: "2026-09-28T11:07:00" });
 const docGuideVerification = taskDocument("doc-guide-verification", "Interface Craft deck guide and verification", "interface-craft-deck-guide", 3, docs.DOC_GUIDE_VERIFICATION, { ...T3, at: "2026-09-28T11:06:00" });
 const docSuppliedSource = taskDocument("doc-supplied-source", "Interface Craft — supplied source", "interface-craft-source", 1, docs.DOC_SUPPLIED_SOURCE, { ...T3, at: "2026-09-28T10:58:00" });
-const docRevisionBrief = taskDocument("doc-revision-brief", "Approved consolidated deck revision brief", "approved-revision-brief", 1, docs.DOC_REVISION_BRIEF, { ...T3, at: "2026-09-26T15:32:00", author: CEO });
+const docRevisionBrief = taskDocument("doc-revision-brief", "Approved consolidated deck revision brief", "approved-revision-brief", 1, docs.DOC_REVISION_BRIEF, { ...T3, at: "2026-09-26T15:32:00", author: DEFAULT_AGENT });
 const docRevisionNotes = taskDocument("doc-revision-notes", "Consolidated revision notes", "consolidated-revision-notes", 2, docs.DOC_REVISION_NOTES, { ...T3, at: "2026-09-26T16:48:00" });
 const docDraftVerification = taskDocument("doc-draft-verification", "First-draft deck guide and verification", "first-draft-deck-guide", 2, docs.DOC_FIRST_DRAFT_VERIFICATION, { ...T3, at: "2026-09-25T13:26:00" });
 const docVisualStrategy = taskDocument("doc-visual-strategy", "Visual direction strategy", "visual-direction-strategy", 1, docs.DOC_VISUAL_STRATEGY, { ...T3, at: "2026-09-25T11:42:00" });
@@ -176,13 +176,13 @@ export const THREAD_WORK_PRODUCTS: LabArtifact[] = [docCritique, docGuideVerific
 // ACM-1 — Outpost onboarding (7)
 // ---------------------------------------------------------------------------
 
-const T1 = { task: "ACM-1", author: CEO } as const;
+const T1 = { task: "ACM-1", author: DEFAULT_AGENT } as const;
 const ACM1: LabArtifact[] = [
-  taskDocument("a1-ceo-review", "Interface Craft pass — Outpost Lead review", "interface-craft-ceo-review", 1, docs.DOC_CEO_REVIEW, { ...T1, at: "2026-09-28T11:18:00" }),
+  taskDocument("a1-lead-review", "Interface Craft pass — Default agent review", "interface-craft-lead-review", 1, docs.DOC_DEFAULT_AGENT_REVIEW, { ...T1, at: "2026-09-28T11:18:00" }),
   artifact("a1-packet", "pdf", "Founder review packet", { ...T1, at: "2026-09-28T11:16:00", filename: "founder-review-packet.pdf", byteSize: 148480, summary: "Deck, strategy and open decisions in one file", pageCount: 18, review: "needs_review" }),
   artifact("a1-storefront", "link", "Storefront preview", { ...T1, at: "2026-09-27T16:05:00", url: "https://preview.acmehats.example/storefront", summary: "Homepage and cap configurator, first pass", thumbnailUrl: storefrontPreview, aspect: 16 / 9 }),
   taskDocument("a1-founder-questions", "Founder questions and decisions", "founder-questions", 4, docs.DOC_FOUNDER_QUESTIONS, { ...T1, at: "2026-09-27T09:30:00" }),
-  taskDocument("a1-first-draft-review", "First draft — Outpost Lead review", "first-draft-ceo-review", 1, docs.DOC_FIRST_DRAFT_REVIEW, { ...T1, at: "2026-09-25T14:02:00" }),
+  taskDocument("a1-first-draft-review", "First draft — Default agent review", "first-draft-lead-review", 1, docs.DOC_FIRST_DRAFT_REVIEW, { ...T1, at: "2026-09-25T14:02:00" }),
   artifact("a1-logo", "image", "Supplied logo lockup", { ...T1, at: "2026-09-24T10:12:00", filename: "acmehats-logo-supplied.png", byteSize: 96461, summary: "As supplied by the founder; raster only", thumbnailUrl: logoLockup, aspect: 2 }),
   taskDocument("a1-onboarding-plan", "acmehats onboarding plan", "onboarding-plan", 2, docs.DOC_ONBOARDING_PLAN, { ...T1, at: "2026-09-24T09:48:00" }),
 ];

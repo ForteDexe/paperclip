@@ -2,7 +2,7 @@ import { createAgentLifecycle } from "../services/agent-lifecycle.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { activityLog, agents, companies, companyMemberships, createDb, principalPermissionGrants } from "@outpost/db";
+import { activityLog, agents, spaces, spaceMemberships, createDb, principalPermissionGrants } from "@outpost/db";
 import { LOW_TRUST_REVIEW_PRESET, type PermissionKey } from "@outpost/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { agentService } from "../services/agents.js";
@@ -45,14 +45,14 @@ describeDatabase("new agent configuration defaults", () => {
   });
 
   it("grants standard new agents direct peer configuration, but keeps restricted agents narrow", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Agent permission defaults",
-      issuePrefix: `PD${companyId.slice(0, 6).toUpperCase()}`,
+      issuePrefix: `PD${spaceId.slice(0, 6).toUpperCase()}`,
     });
     const create = (name: string, permissions: Record<string, unknown> = {}, metadata?: Record<string, unknown>) =>
-      createAgentLifecycle(db).requestHire(companyId, {
+      createAgentLifecycle(db).requestCreation(spaceId, {
         name,
         role: "engineer",
         adapterType: "process",
@@ -66,11 +66,11 @@ describeDatabase("new agent configuration defaults", () => {
     const peer = await create("Peer");
     const lowTrust = await create("Low trust", { trustPreset: LOW_TRUST_REVIEW_PRESET });
     const bundled = await create("Bundled", {}, {
-      paperclipBuiltInAgent: { key: "reflection-coach", featureKeys: [] },
+      outpostBuiltInAgent: { key: "reflection-coach", featureKeys: [] },
     });
 
     const grants = await db.select().from(principalPermissionGrants)
-      .where(eq(principalPermissionGrants.companyId, companyId));
+      .where(eq(principalPermissionGrants.spaceId, spaceId));
     for (const agent of [standard, peer]) {
       expect(grants.filter((grant) => grant.principalId === agent.id)
         .map((grant) => grant.permissionKey).sort()).toEqual(expectedNewAgentGrantKeys);
@@ -83,8 +83,8 @@ describeDatabase("new agent configuration defaults", () => {
       expect(grants.filter((grant) => grant.principalId === agent.id)).toEqual([]);
     }
 
-    await db.insert(companyMemberships).values({
-      companyId,
+    await db.insert(spaceMemberships).values({
+      spaceId,
       principalType: "agent",
       principalId: standard.id,
       status: "active",
@@ -93,10 +93,10 @@ describeDatabase("new agent configuration defaults", () => {
 
     for (const permissionKey of expectedNewAgentGrantKeys) {
       if (permissionKey === "tasks:assign_scope" || permissionKey === "inbox:manage") continue; // These grants require a target scope or the responsible-user inbox path.
-      expect(await accessService(db).hasPermission(companyId, "agent", standard.id, permissionKey)).toBe(true);
+      expect(await accessService(db).hasPermission(spaceId, "agent", standard.id, permissionKey)).toBe(true);
     }
     expect(await authorizationService(db).decidePrincipalGrant({
-      companyId,
+      spaceId,
       principalType: "agent",
       principalId: standard.id,
       action: "tasks:assign",
@@ -104,7 +104,7 @@ describeDatabase("new agent configuration defaults", () => {
       scope: { assigneeAgentId: standard.id },
     })).toMatchObject({ allowed: true });
     expect(await authorizationService(db).decidePrincipalGrant({
-      companyId,
+      spaceId,
       principalType: "agent",
       principalId: standard.id,
       action: "tasks:assign",
@@ -115,13 +115,13 @@ describeDatabase("new agent configuration defaults", () => {
       "agents:create", "environments:manage", "tools:admin", "users:invite",
       "users:manage_permissions", "joins:approve",
     ] as const) {
-      expect(await accessService(db).hasPermission(companyId, "agent", standard.id, permissionKey)).toBe(false);
+      expect(await accessService(db).hasPermission(spaceId, "agent", standard.id, permissionKey)).toBe(false);
     }
 
     const decision = await authorizationService(db).decide({
-      actor: { type: "agent", agentId: standard.id, companyId, source: "agent_key" },
+      actor: { type: "agent", agentId: standard.id, spaceId, source: "agent_key" },
       action: "agent_config:update",
-      resource: { type: "agent", agentId: peer.id, companyId },
+      resource: { type: "agent", agentId: peer.id, spaceId },
       scope: { requiresChangeGrant: true },
     });
     expect(decision).toMatchObject({ allowed: true, reason: "allow_direct_change" });
@@ -137,29 +137,29 @@ describeDatabase("new agent configuration defaults", () => {
     expect(await db.select().from(principalPermissionGrants)
       .where(eq(principalPermissionGrants.principalId, peer.id))).toEqual([]);
 
-    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.companyId, companyId));
-    await db.delete(companyMemberships).where(eq(companyMemberships.companyId, companyId));
-    await db.delete(agents).where(eq(agents.companyId, companyId));
-    await db.delete(activityLog).where(eq(activityLog.companyId, companyId));
-    await db.delete(companies).where(eq(companies.id, companyId));
+    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.spaceId, spaceId));
+    await db.delete(spaceMemberships).where(eq(spaceMemberships.spaceId, spaceId));
+    await db.delete(agents).where(eq(agents.spaceId, spaceId));
+    await db.delete(activityLog).where(eq(activityLog.spaceId, spaceId));
+    await db.delete(spaces).where(eq(spaces.id, spaceId));
   });
 
   it("keeps existing agents and their scoped grants unchanged during ordinary updates", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Existing permission defaults",
-      issuePrefix: `PE${companyId.slice(0, 6).toUpperCase()}`,
+      issuePrefix: `PE${spaceId.slice(0, 6).toUpperCase()}`,
     });
     const rows = await db.insert(agents).values([
-      { companyId, name: "Existing", role: "engineer", permissions: {}, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
-      { companyId, name: "Scoped", role: "engineer", permissions: {}, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
-      { companyId, name: "Restricted", role: "engineer", permissions: { trustPreset: LOW_TRUST_REVIEW_PRESET }, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
-      { companyId, name: "Built in", role: "engineer", metadata: { paperclipBuiltInAgent: { key: "reflection-coach", featureKeys: [] } }, permissions: {}, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
-      { companyId, name: "Pending", role: "engineer", status: "pending_approval", permissions: {}, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
+      { spaceId, name: "Existing", role: "engineer", permissions: {}, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
+      { spaceId, name: "Scoped", role: "engineer", permissions: {}, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
+      { spaceId, name: "Restricted", role: "engineer", permissions: { trustPreset: LOW_TRUST_REVIEW_PRESET }, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
+      { spaceId, name: "Built in", role: "engineer", metadata: { outpostBuiltInAgent: { key: "reflection-coach", featureKeys: [] } }, permissions: {}, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
+      { spaceId, name: "Pending", role: "engineer", status: "pending_approval", permissions: {}, adapterType: "process", adapterConfig: {}, runtimeConfig: {} },
     ]).returning();
     await db.insert(principalPermissionGrants).values({
-      companyId,
+      spaceId,
       principalType: "agent",
       principalId: rows[1]!.id,
       permissionKey: "agents:configure",
@@ -169,32 +169,32 @@ describeDatabase("new agent configuration defaults", () => {
     for (const row of rows) {
       if (row.status === "pending_approval") {
         await expect(agentService(db).update(row.id, { title: "Updated existing agent" }))
-          .rejects.toThrow("Pending approval agent configuration cannot be changed before board approval");
+          .rejects.toThrow("Pending approval agent configuration cannot be changed before operator approval");
       } else {
         await agentService(db).update(row.id, { title: "Updated existing agent" });
       }
     }
     const grants = await db.select().from(principalPermissionGrants)
-      .where(eq(principalPermissionGrants.companyId, companyId));
+      .where(eq(principalPermissionGrants.spaceId, spaceId));
     expect(grants.map((grant) => grant.principalId).sort()).toEqual([rows[1]!.id]);
     expect(grants.map((grant) => grant.permissionKey)).toEqual(["agents:configure"]);
     expect(grants.find((grant) => grant.principalId === rows[1]!.id)?.scope).toEqual({ agentIds: [rows[0]!.id] });
 
-    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.companyId, companyId));
-    await db.delete(agents).where(eq(agents.companyId, companyId));
-    await db.delete(activityLog).where(eq(activityLog.companyId, companyId));
-    await db.delete(companies).where(eq(companies.id, companyId));
+    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.spaceId, spaceId));
+    await db.delete(agents).where(eq(agents.spaceId, spaceId));
+    await db.delete(activityLog).where(eq(activityLog.spaceId, spaceId));
+    await db.delete(spaces).where(eq(spaces.id, spaceId));
   });
 
-  it("adds the default grant when a standard pending hire is approved", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+  it("adds the default grant when a standard pending create is approved", async () => {
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Pending permission default",
-      issuePrefix: `PP${companyId.slice(0, 6).toUpperCase()}`,
+      issuePrefix: `PP${spaceId.slice(0, 6).toUpperCase()}`,
     });
-    const pending = await createAgentLifecycle(db).requestHire(companyId, {
-      name: "Pending hire",
+    const pending = await createAgentLifecycle(db).requestCreation(spaceId, {
+      name: "Pending create",
       status: "pending_approval",
       role: "engineer",
       adapterType: "process",
@@ -202,46 +202,46 @@ describeDatabase("new agent configuration defaults", () => {
       runtimeConfig: {},
     });
     expect(await db.select().from(principalPermissionGrants)
-      .where(eq(principalPermissionGrants.companyId, companyId))).toEqual([]);
+      .where(eq(principalPermissionGrants.spaceId, spaceId))).toEqual([]);
 
-    const result = await createAgentLifecycle(db).approveHire(pending.id);
+    const result = await createAgentLifecycle(db).approveCreation(pending.id);
     expect(result?.activated).toBe(true);
     expect((await db.select().from(principalPermissionGrants)
-      .where(eq(principalPermissionGrants.companyId, companyId)))
+      .where(eq(principalPermissionGrants.spaceId, spaceId)))
       .map((grant) => grant.permissionKey).sort()).toEqual(expectedNewAgentGrantKeys);
 
-    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.companyId, companyId));
-    await db.delete(agents).where(eq(agents.companyId, companyId));
-    await db.delete(activityLog).where(eq(activityLog.companyId, companyId));
-    await db.delete(companies).where(eq(companies.id, companyId));
+    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.spaceId, spaceId));
+    await db.delete(agents).where(eq(agents.spaceId, spaceId));
+    await db.delete(activityLog).where(eq(activityLog.spaceId, spaceId));
+    await db.delete(spaces).where(eq(spaces.id, spaceId));
   });
 
   it("keeps configuration access when invitation approval replaces a new agent's grants", async () => {
-    const companyId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    const spaceId = randomUUID();
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Invited permission default",
-      issuePrefix: `PI${companyId.slice(0, 6).toUpperCase()}`,
+      issuePrefix: `PI${spaceId.slice(0, 6).toUpperCase()}`,
     });
-    const invited = await createAgentLifecycle(db).requestHire(companyId, {
+    const invited = await createAgentLifecycle(db).requestCreation(spaceId, {
       name: "Invited agent",
       role: "engineer",
       adapterType: "process",
       adapterConfig: {},
       runtimeConfig: {},
     });
-    await accessService(db).ensureMembership(companyId, "agent", invited.id, "member", "active");
+    await accessService(db).ensureMembership(spaceId, "agent", invited.id, "member", "active");
     await accessService(db).setPrincipalGrants(
-      companyId, "agent", invited.id, agentJoinGrantsFromDefaults(null, invited.id), null,
+      spaceId, "agent", invited.id, agentJoinGrantsFromDefaults(null, invited.id), null,
     );
     const grants = await db.select().from(principalPermissionGrants)
       .where(eq(principalPermissionGrants.principalId, invited.id));
     expect(grants.map((grant) => grant.permissionKey).sort()).toEqual(expectedNewAgentGrantKeys);
 
-    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.companyId, companyId));
-    await db.delete(companyMemberships).where(eq(companyMemberships.companyId, companyId));
-    await db.delete(agents).where(eq(agents.companyId, companyId));
-    await db.delete(activityLog).where(eq(activityLog.companyId, companyId));
-    await db.delete(companies).where(eq(companies.id, companyId));
+    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.spaceId, spaceId));
+    await db.delete(spaceMemberships).where(eq(spaceMemberships.spaceId, spaceId));
+    await db.delete(agents).where(eq(agents.spaceId, spaceId));
+    await db.delete(activityLog).where(eq(activityLog.spaceId, spaceId));
+    await db.delete(spaces).where(eq(spaces.id, spaceId));
   });
 });

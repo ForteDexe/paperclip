@@ -6,7 +6,7 @@ const STOPPED_STATUSES = new Set(["succeeded", "interrupted", "failed", "cancell
 
 const VERIFICATION_ERROR = "The stop was requested, but stopping could not be verified. Refresh and try Stop again if work is still running.";
 
-type StopRunEvidence = Pick<HeartbeatRun, "id" | "companyId" | "resultJson"> & {
+type StopRunEvidence = Pick<HeartbeatRun, "id" | "spaceId" | "resultJson"> & {
   status: string;
   runtimeMode?: string;
 };
@@ -30,7 +30,7 @@ export function isRunStopConfirmed(run: StopRunEvidence) {
   return Boolean(cancellation && typeof cancellation === "object"
     && "schema" in cancellation && cancellation.schema === "outpost.native-cancellation.v1"
     && "runId" in cancellation && cancellation.runId === run.id
-    && "companyId" in cancellation && cancellation.companyId === run.companyId
+    && "spaceId" in cancellation && cancellation.spaceId === run.spaceId
     && "dispatchState" in cancellation && cancellation.dispatchState === "acknowledged");
 }
 

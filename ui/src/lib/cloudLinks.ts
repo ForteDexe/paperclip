@@ -1,5 +1,5 @@
 /**
- * Links out of a tenant instance and into the Paperclip Cloud app.
+ * Links out of a tenant instance and into the Outpost Cloud app.
  *
  * The base always comes from the health `cloud` block (derived from
  * `OUTPOST_CLOUD_API_ORIGIN`) — the cloud domain is never hardcoded, because
@@ -25,7 +25,7 @@ export function cloudAppUrl(cloudBaseUrl: string | null | undefined, path: strin
   }
 }
 
-/** Cloud's own create-a-stack flow, which replaces the in-app company wizard. */
+/** Cloud's own create-a-stack flow, which replaces the in-app space wizard. */
 export function cloudStackCreateUrl(cloudBaseUrl: string | null | undefined): string | null {
   return cloudAppUrl(cloudBaseUrl, "/stacks/new");
 }
@@ -57,7 +57,7 @@ export function cloudStackEntryUrl(
  * Cloud's organization portfolio in its explicit manage view. `?manage=1`
  * matters: the plain launchpad auto-forwards a solo user straight back into
  * their one openable stack, and the caller here has just archived that
- * stack's only company — bouncing back into it is exactly what the
+ * stack's only space — bouncing back into it is exactly what the
  * navigation is escaping.
  */
 export function cloudPortfolioManageUrl(cloudBaseUrl: string | null | undefined): string | null {

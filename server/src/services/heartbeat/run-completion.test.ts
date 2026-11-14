@@ -5,7 +5,7 @@ import { registerLocalRuntimeApiServer } from "../../runtime-api.js";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { executePaperclipNativeSession, closeIdleWarmNativeSessionsForRestart, nativeSessionFailureSourceCode } from "../native-runtime/native-session-executor.js";
+import { executeOutpostNativeSession, closeIdleWarmNativeSessionsForRestart, nativeSessionFailureSourceCode } from "../native-runtime/native-session-executor.js";
 import { createHeartbeatRunOutput } from "./run-output.js";
 import { createHeartbeatRunControl } from "./run-control.js";
 import { callbacks as controlCallbacks } from "./__tests__/run-control-fixtures.js";
@@ -16,7 +16,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { appendHeartbeatRunEvent } from "../heartbeat-run-events.js";
 import { createNativeRunLogCoverageVerifier, formatNativeRunLogEvent } from "../native-runtime/native-run-log-export.js";
 import type { Db } from "@outpost/db";
-import { activityLog, agents, agentWakeupRequests, approvals, issueApprovals, budgetReservations, caseHandoffs, cases, companies, completionContracts, costEvents, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, heartbeatRunEvents, issueComments, issueQuestionResponseDeliveries, issueRecoveryActions, issues, issueThreadInteractions, nativeRunFinalizations } from "@outpost/db";
+import { activityLog, agents, agentWakeupRequests, approvals, issueApprovals, budgetReservations, caseHandoffs, cases, spaces, completionContracts, costEvents, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRuns, heartbeatRunEvents, issueComments, issueQuestionResponseDeliveries, issueRecoveryActions, issues, issueThreadInteractions, nativeRunFinalizations } from "@outpost/db";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -66,8 +66,8 @@ vi.mock("../native-runtime/native-codex-runner.js", async importOriginal => {
   const actual = await importOriginal<typeof import("../native-runtime/native-codex-runner.js")>();
   return {
     ...actual,
-    resolvePaperclipRunnerBinary: () => diagnosticNativeFixture.enabled ? process.execPath : actual.resolvePaperclipRunnerBinary(),
-    resolvePaperclipRunnerBinaryAsync: async () => diagnosticNativeFixture.enabled ? process.execPath : actual.resolvePaperclipRunnerBinaryAsync(),
+    resolveOutpostRunnerBinary: () => diagnosticNativeFixture.enabled ? process.execPath : actual.resolveOutpostRunnerBinary(),
+    resolveOutpostRunnerBinaryAsync: async () => diagnosticNativeFixture.enabled ? process.execPath : actual.resolveOutpostRunnerBinaryAsync(),
   };
 });
 vi.mock("../../vendor/outpost-runner/index.js", async importOriginal => {
@@ -100,7 +100,7 @@ function callbacks(db: Db) {
     ...state, ...createHeartbeatRunPreparation(db),
     issuesSvc: { addComment: vi.fn(), listReviewAttention: vi.fn() },
     recovery: { escalateStrandedAssignedIssue: vi.fn() },
-    companySkills: { completeTestRunForIssue: vi.fn() },
+    spaceSkills: { completeTestRunForIssue: vi.fn() },
     budgets: { getInvocationBlock: vi.fn(async () => null) },
     treeControlSvc: { getActivePauseHoldGate: vi.fn(async () => null) },
     enqueueWakeup: vi.fn(),
@@ -162,19 +162,19 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     const external = process.env.OUTPOST_TEST_DATABASE_URL;
     if (external) db = createDb(external);
     else {
-      database = await startEmbeddedPostgresTestDatabase("paperclip-heartbeat-completion");
+      database = await startEmbeddedPostgresTestDatabase("outpost-heartbeat-completion");
       db = createDb(database.connectionString);
     }
     await db.execute(sql`set client_min_messages = warning`);
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
   afterAll(async () => { await db?.$client.end(); await database?.cleanup(); vi.restoreAllMocks(); });
-  beforeEach(async () => { await db.execute(sql`truncate table companies restart identity cascade`); });
+  beforeEach(async () => { await db.execute(sql`truncate table spaces restart identity cascade`); });
 
   async function fixture(patch: Partial<typeof heartbeatRuns.$inferInsert> = {}, issuePrefix = "CMP") {
-    const [company] = await db.insert(companies).values({ name: "Completion", issuePrefix }).returning();
-    const [agent] = await db.insert(agents).values({ companyId: company.id, name: "Completing agent", adapterType: "process" }).returning();
-    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: company.id, agentId: agent.id, source: "on_demand", status: "claimed" }).returning();
-    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, wakeupRequestId: wake.id, status: "running", runtimeMode: "legacy", ...patch }).returning();
+    const [space] = await db.insert(spaces).values({ name: "Completion", issuePrefix }).returning();
+    const [agent] = await db.insert(agents).values({ spaceId: space.id, name: "Completing agent", adapterType: "process" }).returning();
+    const [wake] = await db.insert(agentWakeupRequests).values({ spaceId: space.id, agentId: agent.id, source: "on_demand", status: "claimed" }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ spaceId: space.id, agentId: agent.id, wakeupRequestId: wake.id, status: "running", runtimeMode: "legacy", ...patch }).returning();
     const deps = callbacks(db);
     const controller = new AbortController();
     const input: CompleteHeartbeatRunInput = {
@@ -201,19 +201,19 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
         ? "runner_continuity_break_archive_failed: exit=1 timedOut=false mv: cannot remove 'runner': Directory not empty"
         : "runner_remote_process_identity_unavailable";
       const retryExpected = mode === "unattached" || mode === "archive_failed" || mode === "promoted";
-      const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Continue saved work",
+      const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Continue saved work",
         assigneeAgentId: f.agent.id, status: "in_progress" }).returning();
-      const [comment] = await db.insert(issueComments).values({ companyId: f.run.companyId, issueId: issue.id,
-        authorType: "user", authorUserId: "local-board", body: "Please finish the saved change." }).returning();
+      const [comment] = await db.insert(issueComments).values({ spaceId: f.run.spaceId, issueId: issue.id,
+        authorType: "user", authorUserId: "local-operator", body: "Please finish the saved change." }).returning();
       await db.update(agentWakeupRequests).set({ runId: f.run.id, reason: "issue_reopened_via_comment",
-        requestedByActorType: mode === "system_wake" ? "system" : "user", requestedByActorId: "local-board",
+        requestedByActorType: mode === "system_wake" ? "system" : "user", requestedByActorId: "local-operator",
         payload: { issueId: issue.id, commentId: comment.id } }).where(eq(agentWakeupRequests.id, f.wake.id));
-      const [run] = await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issue.id, responsibleUserId: "local-board",
+      const [run] = await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issue.id, responsibleUserId: "local-operator",
         contextSnapshot: { issueId: issue.id, wakeReason: "issue_reopened_via_comment", wakeCommentId: comment.id } })
         .where(eq(heartbeatRuns.id, f.run.id)).returning();
-      await db.insert(nativeRunFinalizations).values({ companyId: run.companyId, issueId: issue.id, runId: run.id,
+      await db.insert(nativeRunFinalizations).values({ spaceId: run.spaceId, issueId: issue.id, runId: run.id,
         phase: "terminal_failure", failureCode: nativeSessionFailureSourceCode(new Error(failureMessage)) });
-      if (mode === "provider_started") await appendHeartbeatRunEvent(db, { companyId: run.companyId, runId: run.id,
+      if (mode === "provider_started") await appendHeartbeatRunEvent(db, { spaceId: run.spaceId, runId: run.id,
         agentId: run.agentId, eventType: "turn.started", stream: "system", level: "info", message: "Provider started" });
       if (mode === "stopped_failed") await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date(),
         error: failureMessage, errorCode: nativeSessionFailureSourceCode(new Error(failureMessage)) }).where(eq(heartbeatRuns.id, run.id));
@@ -221,11 +221,11 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
       const observedRun = mode === "promoted" ? { ...run, runtimeMode: f.run.runtimeMode } : run;
       await f.completion.failRun({ ...f.failure(new Error(failureMessage)), run: observedRun,
         issueId: issue.id, requiredWorkspaceRestoreEvidence: {}, legacyAdapterEntered: false });
-      const requests = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.companyId, run.companyId),
+      const requests = await db.select().from(agentWakeupRequests).where(and(eq(agentWakeupRequests.spaceId, run.spaceId),
         eq(agentWakeupRequests.reason, "task_retry")));
       expect.soft(requests, mode).toHaveLength(retryExpected ? 1 : 0);
       if (retryExpected && requests[0]) expect(requests[0]).toMatchObject({ status: "deferred_issue_execution",
-        requestedByActorType: "user", requestedByActorId: "local-board", payload: { taskRetry: { sourceRunId: run.id } } });
+        requestedByActorType: "user", requestedByActorId: "local-operator", payload: { taskRetry: { sourceRunId: run.id } } });
     }
   }, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS);
 
@@ -297,7 +297,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     execution.workspace.cwd = workspace;
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: execution } }).where(eq(heartbeatRuns.id, f.run.id));
     Object.assign(execution.session, { lifecyclePolicy: { mode: "warm", idleTimeoutMs: 60000 } });
-    await db.insert(nativeRunFinalizations).values({ runId: f.run.id, companyId: f.run.companyId, issueId: issue.id, phase: "observed" });
+    await db.insert(nativeRunFinalizations).values({ runId: f.run.id, spaceId: f.run.spaceId, issueId: issue.id, phase: "observed" });
     const api = createServer((_req, response) => { response.writeHead(404).end(); });
     registerLocalRuntimeApiServer(api);
     await new Promise<void>((resolve, reject) => { api.once("error", reject); api.listen(0, "127.0.0.1", resolve); });
@@ -324,12 +324,12 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
         sourceInstanceId: randomUUID(), sourceEventId: randomUUID(), sourceSeq: 1, sourceKind: "runner",
         runId: f.run.id, normalizedSessionId: execution.session.normalizedSessionId,
         eventType: "item.delta", priority: 2, emittedAt: new Date().toISOString(), payload: { text: "canonical accepted output 再開" } };
-      const persisted = await appendHeartbeatRunEvent(db, { companyId: f.run.companyId, runId: f.run.id,
+      const persisted = await appendHeartbeatRunEvent(db, { spaceId: f.run.spaceId, runId: f.run.id,
         agentId: f.run.agentId, eventType: event.eventType, payload: { orpEvent: event },
         nativeSource: { sourceInstanceId: event.sourceInstanceId, sourceEventId: event.sourceEventId,
           sourceSeq: event.sourceSeq, protocolSchemaVersion: 1, canonicalPayload: event as unknown as Record<string, unknown> } });
       if (!stalledAppend) await handlers.onPersistedNativeLog!(persisted.row.seq, formatNativeRunLogEvent(event));
-      const adapter = await executePaperclipNativeSession({ db, execution: execution as never,
+      const adapter = await executeOutpostNativeSession({ db, execution: execution as never,
         runnerInstanceId: "synthetic-controller", useRunnerd: true, onLog: (stream, chunk) => {
           const write = handlers.onLog(stream, chunk);
           if (chunk.includes("runnerd diagnostic")) diagnosticWrites.push(write);
@@ -363,7 +363,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
       const before = await readLog();
       expect(before.content).toContain("accepted output for this exact run");
       const settled = await read(f.run.id);
-      expect(settled).toMatchObject({ companyId: f.run.companyId, status: "succeeded", resultJson: { durable: "accepted result" } });
+      expect(settled).toMatchObject({ spaceId: f.run.spaceId, status: "succeeded", resultJson: { durable: "accepted result" } });
       expect(settled).toMatchObject({ costAccountingPending: true, costAccountedAt: null, usageJson: { accountingReceiptReady: false } });
       expect(f.deps.releaseIssueExecutionAndPromote).toHaveBeenCalledWith(expect.objectContaining({ id: f.run.id }), expect.any(Object));
       if (stalledAppend) {
@@ -381,13 +381,13 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
         await closeIdleWarmNativeSessionsForRestart();
         return { closed: 1, busy: 0, failed: 0 };
       });
-      await createHeartbeatRunControl(db, deps).releaseEnvironmentLeasesForRun({ runId: f.run.id, companyId: f.run.companyId,
+      await createHeartbeatRunControl(db, deps).releaseEnvironmentLeasesForRun({ runId: f.run.id, spaceId: f.run.spaceId,
         agentId: f.run.agentId, status: "succeeded", providerResourceDisposition: "destroy" });
       expect(deps.options.closeWarmNativeSessionsForRun).toHaveBeenCalledOnce();
       const after = await readLog();
       expect(after.content).toBe(before.content);
       if (!stalledAppend) {
-        const coverage = createNativeRunLogCoverageVerifier(db, f.run.companyId, f.run.id, { redactChunks: chunk => [chunk] });
+        const coverage = createNativeRunLogCoverageVerifier(db, f.run.spaceId, f.run.id, { redactChunks: chunk => [chunk] });
         await coverage.write(Buffer.from(after.content));
         expect(await coverage.finish()).toBe(persisted.row.seq);
       }
@@ -418,13 +418,13 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
 
   async function admitNativeExecution(f: Awaited<ReturnType<typeof fixture>>) {
     await db.update(agents).set({ adapterType: "outpost_runner" }).where(eq(agents.id, f.agent.id));
-    const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Interrupted native task" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Interrupted native task" }).returning();
     await db.update(heartbeatRuns).set({ nativeIssueId: issue.id, issueId: issue.id,
       contextSnapshot: { issueId: issue.id } }).where(eq(heartbeatRuns.id, f.run.id));
     Object.assign(f.run, await read(f.run.id));
     const native = await prepareNativeHeartbeatRun({ db, run: f.run, issue, environmentLeaseId: randomUUID() });
     const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.issueId, issue.id));
-    const binding = { companyId: f.run.companyId, runId: f.run.id, issueId: issue.id, agentId: f.agent.id, executionWorkspaceId: f.run.id };
+    const binding = { spaceId: f.run.spaceId, runId: f.run.id, issueId: issue.id, agentId: f.agent.id, executionWorkspaceId: f.run.id };
     const execution = { schema: "outpost.native-execution-input.v1", binding,
       provider: { kind: "codex", model: "test-model" },
       task: { identifier: issue.id, title: issue.title, description: null, prompt: "Complete the task.", workMode: "standard" },
@@ -441,10 +441,10 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
   it.each(["completeRun", "failRun"] as const)("settles the outgoing agent after a case handoff in %s", async operation => {
     const f = await fixture();
     await db.update(agents).set({ status: "running", lifecycleState: "ready" }).where(eq(agents.id, f.agent.id));
-    const [recipient] = await db.insert(agents).values({ companyId: f.agent.companyId, name: "Next phase", adapterType: "process" }).returning();
-    const [issue] = await db.insert(issues).values({ companyId: f.agent.companyId, title: "Case task", status: "in_progress", assigneeAgentId: f.agent.id }).returning();
-    const [record] = await db.insert(cases).values({ companyId: f.agent.companyId, caseNumber: 1, identifier: "CASE-1", caseType: "work", title: issue.title, workIssueId: issue.id, handoffVersion: 1 }).returning();
-    await db.insert(caseHandoffs).values({ companyId: f.agent.companyId, caseId: record.id, issueId: issue.id, version: 1,
+    const [recipient] = await db.insert(agents).values({ spaceId: f.agent.spaceId, name: "Next phase", adapterType: "process" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.agent.spaceId, title: "Case task", status: "in_progress", assigneeAgentId: f.agent.id }).returning();
+    const [record] = await db.insert(cases).values({ spaceId: f.agent.spaceId, caseNumber: 1, identifier: "CASE-1", caseType: "work", title: issue.title, workIssueId: issue.id, handoffVersion: 1 }).returning();
+    await db.insert(caseHandoffs).values({ spaceId: f.agent.spaceId, caseId: record.id, issueId: issue.id, version: 1,
       fromAgentId: f.agent.id, toAgentId: recipient.id, phase: "verification", instructions: "Verify the saved work",
       actorType: "agent", actorId: f.agent.id, sourceRunId: f.run.id, wakeupRequestId: randomUUID(), idempotencyKey: "next-phase", inputFingerprint: "next-phase", state: "awaiting_release" });
     f.input.issueId = issue.id;
@@ -468,7 +468,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     await f.completion.completeRun(f.input);
     expect(await read(f.run.id)).toMatchObject({ status: "succeeded", sessionIdAfter: "provider-session", logBytes: 123, logSha256: "log-hash", logCompressed: true, stdoutExcerpt: "answer", costAccountingPending: false, costAccountedAt: expect.any(Date), usageJson: { inputTokens: 20, cachedInputTokens: 5, outputTokens: 8, usageSource: "per_run", configFreshness: { version: 1 } }, resultJson: { presentationDecision: { commentAction: "none" } } });
     expect(await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.run.id))).toHaveLength(1);
-    expect((await f.deps.getTaskSession(f.agent.companyId, f.agent.id, f.agent.adapterType, "completion-task"))?.sessionDisplayId).toBe("provider-session");
+    expect((await f.deps.getTaskSession(f.agent.spaceId, f.agent.id, f.agent.adapterType, "completion-task"))?.sessionDisplayId).toBe("provider-session");
     expect(f.input.output.outputProgressState.pending?.bytes).toBe(123);
     expect(f.input.onProviderTraceFinalized).toHaveBeenCalledOnce();
     expect(f.deps.setWakeupStatus).toHaveBeenCalledWith(f.wake.id, "completed", expect.any(Object));
@@ -476,35 +476,35 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     expect(f.deps.finalizeAgentStatus).toHaveBeenCalledWith(f.agent.id, "succeeded", null, expect.any(Object));
   });
 
-  // A chat turn can finish while its task keeps waiting: a resubmitted hire
+  // A chat turn can finish while its task keeps waiting: a resubmitted create
   // approval, an execution stage or a dependency blocker holds the status.
   // The accepted final answer must still reach the conversation. Only a card
   // the run itself left pending in the thread presents the turn instead.
   it.each([
-    { hold: "pending approval", reasonCode: "governed_response_waiting", replies: true },
-    { hold: "approval sent back for revision", reasonCode: "governed_response_waiting", replies: true },
-    { hold: "execution stage", reasonCode: "governed_response_waiting", replies: true },
+    { hold: "pending approval", reasonCode: "controlled_response_waiting", replies: true },
+    { hold: "approval sent back for revision", reasonCode: "controlled_response_waiting", replies: true },
+    { hold: "execution stage", reasonCode: "controlled_response_waiting", replies: true },
     { hold: "dependency blocker", reasonCode: "durable_dependency_blocker_bound", replies: true },
     { hold: "finished turn", reasonCode: "conversation_turn_finished", replies: true },
-    { hold: "own question card", reasonCode: "governed_response_waiting", replies: false },
-    { hold: "execution stage and own question card", reasonCode: "governed_response_waiting", replies: false },
-    // A card the board addressed to someone else holds the task, but this run
+    { hold: "own question card", reasonCode: "controlled_response_waiting", replies: false },
+    { hold: "execution stage and own question card", reasonCode: "controlled_response_waiting", replies: false },
+    // A card the operator addressed to someone else holds the task, but this run
     // did not create it, so it cannot be the turn's response.
-    { hold: "someone else's confirmation card", reasonCode: "governed_response_waiting", replies: true },
-    { hold: "earlier turn's question card", reasonCode: "governed_response_waiting", replies: true },
+    { hold: "someone else's confirmation card", reasonCode: "controlled_response_waiting", replies: true },
+    { hold: "earlier turn's question card", reasonCode: "controlled_response_waiting", replies: true },
   ] as const)("posts a waiting conversation turn's accepted answer: $hold", async ({ hold, reasonCode, replies }) => {
     const f = await fixture({ runtimeMode: "native" }, `CNV${randomUUID().slice(0, 6)}`);
-    const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Chat with CEO",
-      status: "in_progress", assigneeAgentId: f.agent.id, responsibleUserId: "local-board",
-      conversationAgentId: f.agent.id, conversationUserId: "local-board", conversationState: "active",
+    const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Chat with Default agent",
+      status: "in_progress", assigneeAgentId: f.agent.id, responsibleUserId: "local-operator",
+      conversationAgentId: f.agent.id, conversationUserId: "local-operator", conversationState: "active",
       ...(hold.startsWith("execution stage") ? { executionState: { status: "pending" } } : {}),
     }).returning();
-    await db.update(heartbeatRuns).set({ nativeIssueId: issue.id, responsibleUserId: "local-board",
+    await db.update(heartbeatRuns).set({ nativeIssueId: issue.id, responsibleUserId: "local-operator",
       contextSnapshot: { issueId: issue.id, conversationSessionGeneration: 0 } }).where(eq(heartbeatRuns.id, f.run.id));
     if (hold.includes("approval")) {
-      const [approval] = await db.insert(approvals).values({ companyId: f.run.companyId, type: "hire_agent",
+      const [approval] = await db.insert(approvals).values({ spaceId: f.run.spaceId, type: "create_agent",
         status: hold === "pending approval" ? "pending" : "revision_requested", payload: { name: "Researcher" } }).returning();
-      await db.insert(issueApprovals).values({ companyId: f.run.companyId, issueId: issue.id, approvalId: approval.id });
+      await db.insert(issueApprovals).values({ spaceId: f.run.spaceId, issueId: issue.id, approvalId: approval.id });
     }
     if (hold.endsWith("own question card")) {
       await issueThreadInteractionService(db).create(issue, { kind: "ask_user_questions", sourceRunId: f.run.id,
@@ -513,36 +513,36 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
         { agentId: f.agent.id, runId: f.run.id });
     }
     if (hold === "someone else's confirmation card") {
-      // Saved as the board's create route saves it: no source run.
-      await db.insert(issueThreadInteractions).values({ companyId: f.run.companyId, issueId: issue.id,
+      // Saved as the operator's create route saves it: no source run.
+      await db.insert(issueThreadInteractions).values({ spaceId: f.run.spaceId, issueId: issue.id,
         kind: "request_confirmation", status: "pending", continuationPolicy: "none", title: "Riley's website proposal",
         requestedResolverPolicy: "human_only", effectiveResolverPolicy: "human_only", resolverPolicyProvenance: "explicit",
-        addresseeUserId: "riley", createdByUserId: "local-board",
+        addresseeUserId: "riley", createdByUserId: "local-operator",
         payload: { version: 1, prompt: "Riley: approve creating the website implementation task?" } });
     }
     if (hold === "earlier turn's question card") {
-      const [earlier] = await db.insert(heartbeatRuns).values({ companyId: f.run.companyId, agentId: f.agent.id,
-        status: "succeeded", runtimeMode: "native", responsibleUserId: "local-board" }).returning();
+      const [earlier] = await db.insert(heartbeatRuns).values({ spaceId: f.run.spaceId, agentId: f.agent.id,
+        status: "succeeded", runtimeMode: "native", responsibleUserId: "local-operator" }).returning();
       await issueThreadInteractionService(db).create(issue, { kind: "request_confirmation", sourceRunId: earlier.id,
         resolverPolicy: "human_only", continuationPolicy: "wake_assignee",
         payload: { version: 1, prompt: "Create the website implementation task?" } },
         { agentId: f.agent.id, runId: earlier.id });
     }
-    const answer = "Resubmitted the hire with the cheaper model. [Review the pending approval](/CNV/approvals/a1).";
+    const answer = "Resubmitted the create with the cheaper model. [Review the pending approval](/CNV/approvals/a1).";
     f.input.issueId = issue.id;
     f.input.issueRef = issue;
-    f.input.issueContext = await createHeartbeatRunPreparation(db).getIssueExecutionContext(f.run.companyId, issue.id);
+    f.input.issueContext = await createHeartbeatRunPreparation(db).getIssueExecutionContext(f.run.spaceId, issue.id);
     // The finalizer's saved shape, unchanged from the previous release.
     f.input.adapterResult.resultJson = {
       nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "yielded",
         summary: "Waiting for the approval decision.",
-        continuation: { kind: "response_wake", summary: "Wait for the decision.", idempotencyKey: "hire-wait" } },
+        continuation: { kind: "response_wake", summary: "Wait for the decision.", idempotencyKey: "create-wait" } },
       finalizationPhase: "committed", finalizationReasonCode: reasonCode,
     };
     f.deps.findLatestCompletedFinalAgentMessage.mockResolvedValue({ seq: 1, text: answer, sourceEventId: "final-event", channel: "final",
       reasonCode: "latest_non_empty_completed_final_agent_message" });
     f.deps.issuesSvc.addComment.mockImplementation(async (issueId, body) => {
-      const [comment] = await db.insert(issueComments).values({ companyId: f.run.companyId, issueId,
+      const [comment] = await db.insert(issueComments).values({ spaceId: f.run.spaceId, issueId,
         authorAgentId: f.agent.id, authorType: "agent", createdByRunId: f.run.id, body }).returning();
       return { ...comment, authorType: "agent" as const };
     });
@@ -563,7 +563,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
   it("settles the accepted native exact rate-card price without replacing it with zero", async () => {
     const f = await fixture({ runtimeMode: "native" });
     const runnerInstanceId = randomUUID();
-    const delivery = await createNativeUsageDelivery(db, { companyId: f.run.companyId, runId: f.run.id, runnerInstanceId,
+    const delivery = await createNativeUsageDelivery(db, { spaceId: f.run.spaceId, runId: f.run.id, runnerInstanceId,
       provider: { kind: "codex", model: "gpt-6.1-sol" }, billing: { provider: "openai", biller: "openai", billingType: "metered_api" } });
     const event = (sourceSeq: number, eventType: string, payload: Record<string, unknown>): PrpEvent => ({
       sourceKind: "runner", sourceInstanceId: runnerInstanceId, runId: f.run.id, sourceSeq, sourceEventId: `rate-card-${sourceSeq}`,
@@ -572,7 +572,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     await delivery.capture(event(1, "usage.reported", { runDeltaBasis: "run", runDeltaAvailable: true,
       runDelta: { inputTokens: 1000, outputTokens: 100000, providerCostUsd: 0 } }));
     await delivery.capture(event(2, "turn.completed", {}));
-    const accepted = await usageReceipts.readAcceptedRunUsageCheckpoint(db, { companyId: f.run.companyId, runId: f.run.id });
+    const accepted = await usageReceipts.readAcceptedRunUsageCheckpoint(db, { spaceId: f.run.spaceId, runId: f.run.id });
     expect(accepted?.costStatus).toBe("estimated");
     const exact = accepted!.costUsdExact;
     f.input.adapterResult = { exitCode: 0, signal: null, timedOut: false, ...accepted, usageComplete: accepted!.complete };
@@ -588,7 +588,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
   it("retains newer accepted native usage when completion consumed an older receipt", async () => {
     const f = await fixture({ runtimeMode: "native", usageJson: { sessionRotated: true, configFreshness: { version: 0 } } });
     const runnerInstanceId = randomUUID();
-    const delivery = await createNativeUsageDelivery(db, { companyId: f.run.companyId, runId: f.run.id, runnerInstanceId,
+    const delivery = await createNativeUsageDelivery(db, { spaceId: f.run.spaceId, runId: f.run.id, runnerInstanceId,
       provider: { kind: "codex", model: "test-model" }, billing: { provider: "openai", biller: "openai", billingType: "metered_api" } });
     const event = (sourceSeq: number, eventType: string, inputTokens = 100): PrpEvent => ({
       sourceInstanceId: runnerInstanceId, runId: f.run.id, sourceSeq, sourceEventId: `racing-${sourceSeq}`, turnId: "turn-1",
@@ -597,7 +597,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     } as PrpEvent);
     await delivery.capture(event(1, "usage.reported"));
     await delivery.capture(event(2, "turn.completed"));
-    const acceptedA = await usageReceipts.readAcceptedRunUsageCheckpoint(db, { companyId: f.run.companyId, runId: f.run.id });
+    const acceptedA = await usageReceipts.readAcceptedRunUsageCheckpoint(db, { spaceId: f.run.spaceId, runId: f.run.id });
     await delivery.capture(event(3, "usage.reported", 120));
     f.input.adapterResult = { exitCode: 0, signal: null, timedOut: false, ...acceptedA, usageComplete: acceptedA!.complete };
     await f.completion.completeRun(f.input);
@@ -683,12 +683,12 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
 
   it("keeps a stop requested before the lease loss when the adapter throws", async () => {
     const f = await fixture();
-    const requested = requestedRunCancellation({ cancelledByActorType: "user", cancelledByUserId: "operator-1" }, "Stopped from the board");
+    const requested = requestedRunCancellation({ cancelledByActorType: "user", cancelledByUserId: "operator-1" }, "Stopped from the operator");
     await db.update(heartbeatRuns).set({ resultJson: { cancellation: requested } }).where(eq(heartbeatRuns.id, f.run.id));
     f.controller.abort(new LegacyControllerLeaseLostError("renewal_error"));
     await f.completion.failRun(f.failure(f.controller.signal.reason));
     expect(await read(f.run.id)).toMatchObject({ status: "cancelled", resultJson: { cancellation: {
-      source: "operator", expected: true, initiator: { type: "user", id: "operator-1" }, reason: "Stopped from the board" } } });
+      source: "operator", expected: true, initiator: { type: "user", id: "operator-1" }, reason: "Stopped from the operator" } } });
   });
 
   it("does not publish or overwrite a conflicting terminal transition that wins the compare-and-set", async () => {
@@ -716,7 +716,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     f.input.adapterResult.sessionId = nativeSessionId;
     delete f.input.adapterResult.sessionParams;
     f.input.adapterResult.sessionDisplayId = providerSessionId;
-    f.input.adapterResult.nativeFinalization = { schema: "outpost.native-finalization.v1", runtimeMode: "native", runId: f.run.id, companyId: f.run.companyId, issueId: "unused", result: {}, terminal: { schema: "outpost.orp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }, turnId: null, sourceInstanceId: "test", normalizedSessionId: nativeSessionId, providerSessionId, driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1, workspaceFinalizeStatus: "succeeded" };
+    f.input.adapterResult.nativeFinalization = { schema: "outpost.native-finalization.v1", runtimeMode: "native", runId: f.run.id, spaceId: f.run.spaceId, issueId: "unused", result: {}, terminal: { schema: "outpost.orp.terminal.v1", turnTerminalState: "completed", runTerminalState: "succeeded", reportedWorkDisposition: "done" }, turnId: null, sourceInstanceId: "test", normalizedSessionId: nativeSessionId, providerSessionId, driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1, workspaceFinalizeStatus: "succeeded" };
     await f.completion.completeRun(f.input);
     expect(await read(f.run.id)).toMatchObject({ status: "succeeded", finishedAt, sessionIdAfter: providerSessionId, resultJson: { durable: "accepted" }, usageJson: { durableReceipt: "native", inputTokens: 20 } });
     expect(f.deps.updateRuntimeState).toHaveBeenCalledOnce();
@@ -748,20 +748,20 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     { runtimeMode: "legacy" as const, conversation: true, createsFinal: false },
   ])("scopes final-response precedence to native standing conversations: %j", async ({ runtimeMode, conversation, createsFinal }) => {
     const f = await fixture({ runtimeMode });
-    const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Conversation reply",
+    const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Conversation reply",
       ...(conversation ? { assigneeAgentId: f.agent.id, conversationAgentId: f.agent.id,
-        conversationUserId: "board-person", conversationState: "active" } : {}),
+        conversationUserId: "operator-person", conversationState: "active" } : {}),
     }).returning();
-    const [earlier] = await db.insert(issueComments).values({ companyId: f.run.companyId, issueId: issue.id,
+    const [earlier] = await db.insert(issueComments).values({ spaceId: f.run.spaceId, issueId: issue.id,
       authorAgentId: f.agent.id, createdByRunId: f.run.id, body: "Checking the request.",
     }).returning();
     f.input.issueId = issue.id;
     f.input.issueRef = issue;
-    f.input.issueContext = await createHeartbeatRunPreparation(db).getIssueExecutionContext(f.run.companyId, issue.id);
+    f.input.issueContext = await createHeartbeatRunPreparation(db).getIssueExecutionContext(f.run.spaceId, issue.id);
     f.input.adapterResult.resultJson = { nativeResult: { schema: "outpost.run_result.v1", reportedWorkDisposition: "done", summary: "The complete answer" } };
     f.deps.findRunIssueComment.mockResolvedValue(earlier);
     f.deps.issuesSvc.addComment.mockImplementation(async (issueId, body) => {
-      const [comment] = await db.insert(issueComments).values({ companyId: f.run.companyId, issueId,
+      const [comment] = await db.insert(issueComments).values({ spaceId: f.run.spaceId, issueId,
         authorAgentId: f.agent.id, authorType: "agent", createdByRunId: f.run.id, body }).returning();
       return { ...comment, authorType: "agent" as const };
     });
@@ -778,10 +778,10 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
   it("keeps completion and session persistence moving after a response comment fails", async () => {
     const f = await fixture();
     f.input.adapterResult.resultJson = { finalResponseDisposition: "final", finalResponse: "Completed the work." };
-    const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Report the result" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Report the result" }).returning();
     f.input.issueId = issue.id;
     f.input.issueRef = issue;
-    f.input.issueContext = await createHeartbeatRunPreparation(db).getIssueExecutionContext(f.run.companyId, issue.id);
+    f.input.issueContext = await createHeartbeatRunPreparation(db).getIssueExecutionContext(f.run.spaceId, issue.id);
     f.deps.issuesSvc.addComment.mockRejectedValueOnce(new Error("comment unavailable"));
     await f.completion.completeRun(f.input);
     expect(f.deps.issuesSvc.addComment).toHaveBeenCalledOnce();
@@ -796,7 +796,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     const f = await fixture();
     f.input.adapterResult.clearSession = true;
     await f.completion.completeRun(f.input);
-    expect(f.deps.clearTaskSessions).toHaveBeenCalledWith(f.run.companyId, f.agent.id, { taskKey: "completion-task", adapterType: "process", expectedRunId: f.run.id });
+    expect(f.deps.clearTaskSessions).toHaveBeenCalledWith(f.run.spaceId, f.agent.id, { taskKey: "completion-task", adapterType: "process", expectedRunId: f.run.id });
     expect(f.deps.upsertTaskSession).not.toHaveBeenCalled();
   });
 
@@ -808,7 +808,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     const run = await read(f.run.id);
     expect(run).toMatchObject({ status: "failed", errorCode: "adapter_failed", logBytes: 123, resultJson: { workspaceRestoreFailure: { reason: "missing_base" } } });
     expect(run.error).not.toContain("private-identity-material");
-    expect((await f.deps.getTaskSession(f.agent.companyId, f.agent.id, f.agent.adapterType, "completion-task"))?.sessionDisplayId).toBe("checkpoint");
+    expect((await f.deps.getTaskSession(f.agent.spaceId, f.agent.id, f.agent.adapterType, "completion-task"))?.sessionDisplayId).toBe("checkpoint");
     expect(f.deps.finalizeAgentStatus).toHaveBeenCalledOnce();
   });
 
@@ -864,24 +864,24 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
   // Staging incident shape: a server restart reattached a remote native runner whose turn was
   // still in flight. A storage outage then failed the reattachment, restart
   // recovery kept the workspace under a no-replay hold, and the run reported
-  // "Paperclip will retry automatically when storage is back" with no storage
+  // "Outpost will retry automatically when storage is back" with no storage
   // wait scheduled. The task sat blocked for 15 hours behind a false promise.
   it.each([
     ["an outage", "ServiceUnavailable", 503, STORAGE_UNAVAILABLE_HELD_MESSAGE],
     ["rejected credentials", "ExpiredToken", 403, STORAGE_CREDENTIALS_REJECTED_HELD_MESSAGE],
   ] as const)("never promises a storage retry when native recovery holds the run after %s", async (_label, name, status, expected) => {
     const f = await fixture({ runtimeMode: "native" });
-    const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Daily staging review",
+    const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Daily staging review",
       assigneeAgentId: f.agent.id, status: "in_progress" }).returning();
     await db.update(agentWakeupRequests).set({ runId: f.run.id, reason: "issue_monitor_due", requestedByActorType: "system" })
       .where(eq(agentWakeupRequests.id, f.wake.id));
     const [run] = await db.update(heartbeatRuns).set({ nativeIssueId: issue.id,
       contextSnapshot: { issueId: issue.id, wakeReason: "issue_monitor_due", wakeSource: "automation" } })
       .where(eq(heartbeatRuns.id, f.run.id)).returning();
-    await appendHeartbeatRunEvent(db, { companyId: run.companyId, runId: run.id, agentId: run.agentId,
+    await appendHeartbeatRunEvent(db, { spaceId: run.spaceId, runId: run.id, agentId: run.agentId,
       eventType: "turn.started", stream: "system", level: "info", message: "Provider turn started" });
     // Restart recovery's workspace preservation already settled the coordinator.
-    await db.insert(nativeRunFinalizations).values({ companyId: run.companyId, issueId: issue.id, runId: run.id,
+    await db.insert(nativeRunFinalizations).values({ spaceId: run.spaceId, issueId: issue.id, runId: run.id,
       phase: "terminal_failure", attempt: 1, controllerGeneration: 3, recoveryState: "blocked",
       failureCode: "native_continuation_requires_reconciliation" });
     const outage = await withS3FailureDiagnostics("put_object", async () => {
@@ -919,7 +919,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     expect(events.map(event => event.message)).toEqual([STORAGE_UNAVAILABLE_HELD_MESSAGE]);
   });
 
-  it.each(["execution", "setup"] as const)("names the nested cause of a generic %s failure and keeps SQL text off the board", async phase => {
+  it.each(["execution", "setup"] as const)("names the nested cause of a generic %s failure and keeps SQL text off the operator", async phase => {
     const f = await fixture();
     const logged = vi.spyOn(logger, "error");
     onTestFinished(() => logged.mockRestore());
@@ -990,9 +990,9 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
 
   it("keeps durable result-less native failure authoritative and suppresses generic replacement recovery", async () => {
     const f = await fixture({ runtimeMode: "native", status: "failed", errorCode: "native_result_missing" });
-    const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Native recovery" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Native recovery" }).returning();
     await db.update(heartbeatRuns).set({ nativeIssueId: issue.id }).where(eq(heartbeatRuns.id, f.run.id));
-    await db.insert(nativeRunFinalizations).values({ runId: f.run.id, companyId: f.run.companyId, issueId: issue.id, phase: "terminal_failure", failureCode: "native_result_missing" });
+    await db.insert(nativeRunFinalizations).values({ runId: f.run.id, spaceId: f.run.spaceId, issueId: issue.id, phase: "terminal_failure", failureCode: "native_result_missing" });
     await f.completion.failRun(f.failure(new Error("transport ended")));
     expect((await read(f.run.id)).errorCode).toBe("native_result_missing");
     expect(f.deps.releaseIssueExecutionAndPromote).toHaveBeenCalledWith(expect.objectContaining({ id: f.run.id }), { suppressImmediateRecovery: true });
@@ -1003,10 +1003,10 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     const refusal = "Plugin Runner retained session is not authorized";
     async function resumeClaim(recoveryHistory: Array<Record<string, unknown>>, attempt = 1) {
       const f = await fixture({ runtimeMode: "native" });
-      const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Native resume" }).returning();
+      const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Native resume" }).returning();
       await db.update(heartbeatRuns).set({ nativeIssueId: issue.id }).where(eq(heartbeatRuns.id, f.run.id));
       const leaseOwner = `runner:resume:${randomUUID()}`;
-      await db.insert(nativeRunFinalizations).values({ runId: f.run.id, companyId: f.run.companyId, issueId: issue.id,
+      await db.insert(nativeRunFinalizations).values({ runId: f.run.id, spaceId: f.run.spaceId, issueId: issue.id,
         phase: "observed", attempt, leaseOwner, leaseExpiresAt: new Date(Date.now() + 20 * 60_000), recoveryHistory });
       return { f, issue, leaseOwner, attempt };
     }
@@ -1103,12 +1103,12 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
       usageJson: { accountingReceiptReady: false, accountingReceiptSequence: 0 } });
     const { issue, native, binding, execution } = await admitNativeExecution(f);
     const intentAuditId = randomUUID();
-    await db.insert(activityLog).values({ id: intentAuditId, companyId: f.run.companyId, actorType: "user", actorId: "test-board",
+    await db.insert(activityLog).values({ id: intentAuditId, spaceId: f.run.spaceId, actorType: "user", actorId: "test-operator",
       action: "native.cancellation_intent_recorded", entityType: "heartbeat_run", entityId: f.run.id, runId: f.run.id, agentId: f.agent.id });
     const nativeCancellation = { schema: "outpost.native-cancellation.v1", ...binding, scope: "run", reasonCode: "cancellation_run_only",
       intentId: `native-cancellation:${randomUUID()}`, intentAuditId, dispatchState: "pending", dispatched: false, effects: ["release_run_resources"] };
-    await db.insert(nativeRunFinalizations).values({ runId: f.run.id, companyId: f.run.companyId, issueId: issue.id, phase: "observed", attempt: 1 });
-    await reserveRunBudget(db, f.run.companyId, f.run.id, null);
+    await db.insert(nativeRunFinalizations).values({ runId: f.run.id, spaceId: f.run.spaceId, issueId: issue.id, phase: "observed", attempt: 1 });
+    await reserveRunBudget(db, f.run.spaceId, f.run.id, null);
     await db.update(budgetReservations).set({ providerStartedAt: new Date() }).where(eq(budgetReservations.runId, f.run.id));
     await db.update(heartbeatRuns).set({ runnerProfileJson: { nativeExecutionInput: execution,
       ...(mode === "prior_attempt_only" ? {} : { sessionCheckpoint: { identity: { ...binding, sessionId: native.normalizedSessionId }, providerSessionId: "existing-provider-session", activeTurnId: native.turnId } }) },
@@ -1125,7 +1125,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     const acknowledged = mode === "concurrent_ack" || mode === "handoff_ack";
     if (acknowledged) {
       const acknowledgementAuditId = randomUUID();
-      await db.insert(activityLog).values({ id: acknowledgementAuditId, companyId: f.run.companyId, actorType: "system", actorId: "native-session-cancellation",
+      await db.insert(activityLog).values({ id: acknowledgementAuditId, spaceId: f.run.spaceId, actorType: "system", actorId: "native-session-cancellation",
         action: "native.cancellation_dispatch_acknowledged", entityType: "heartbeat_run", entityId: f.run.id, runId: f.run.id, agentId: f.agent.id });
       expectedCancellation = { ...nativeCancellation, dispatchState: "acknowledged", dispatched: true, acknowledgementAuditId };
       let enter!: () => void, release!: () => void, blockerPid = 0;
@@ -1173,7 +1173,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
   ] as const)("settles only a genuinely pre-provider setup failure ($runtimeMode, dispatched=$providerDispatchStarted)", async ({ runtimeMode, providerDispatchStarted }) => {
     const f = await fixture({ runtimeMode, costAccountingPending: true,
       usageJson: { accountingReceiptReady: false, accountingReceiptSequence: 0 } });
-    await reserveRunBudget(db, f.run.companyId, f.run.id, null);
+    await reserveRunBudget(db, f.run.spaceId, f.run.id, null);
     if (providerDispatchStarted) await db.update(budgetReservations).set({ providerStartedAt: new Date() }).where(eq(budgetReservations.runId, f.run.id));
     await f.completion.failRunSetup(f.setup(new ConfigurationIncompleteFailure("missing credential", {
       configurationIncomplete: { reason: "missing_binding" } }), providerDispatchStarted));
@@ -1185,12 +1185,12 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     expect(await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.run.id))).toHaveLength(0);
   });
 
-  it.each(["run", "company", "issue", "task_scope"] as const)("does not preserve a foreign or task-scoped cancellation projection (%s)", async mismatch => {
+  it.each(["run", "space", "issue", "task_scope"] as const)("does not preserve a foreign or task-scoped cancellation projection (%s)", async mismatch => {
     const f = await fixture({ runtimeMode: "native" });
-    const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Scoped metadata" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Scoped metadata" }).returning();
     const nativeCancellation = { schema: "outpost.native-cancellation.v1", scope: mismatch === "task_scope" ? "issue" : "run",
       reasonCode: "cancellation_run_only", runId: mismatch === "run" ? randomUUID() : f.run.id,
-      companyId: mismatch === "company" ? randomUUID() : f.run.companyId, issueId: mismatch === "issue" ? randomUUID() : issue.id,
+      spaceId: mismatch === "space" ? randomUUID() : f.run.spaceId, issueId: mismatch === "issue" ? randomUUID() : issue.id,
       dispatchState: "pending", dispatched: false };
     await db.update(heartbeatRuns).set({ nativeIssueId: issue.id, resultJson: { nativeCancellation, oldNonControlField: true } })
       .where(eq(heartbeatRuns.id, f.run.id));
@@ -1202,7 +1202,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
   it("keeps ordinary adapter pre-provider receipts outside setup-history checks", async () => {
     const f = await fixture({ runtimeMode: "native", costAccountingPending: true,
       runnerProfileJson: { nativeExecutionInput: { schema: "outpost.native-execution-input.v1" } } });
-    await reserveRunBudget(db, f.run.companyId, f.run.id, null);
+    await reserveRunBudget(db, f.run.spaceId, f.run.id, null);
     await f.completion.completeRun({ ...f.input, adapterResult: { exitCode: 1, signal: null, timedOut: false,
       errorCode: "provider_not_started", executionRecovery: { kind: "bootstrap", providerWorkStarted: false } } });
     expect(await read(f.run.id)).toMatchObject({ status: "failed", costAccountingPending: false,
@@ -1217,16 +1217,16 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     const setup = { ...f.setup(new ConfigurationIncompleteFailure("fresh preparation failed", {
       configurationIncomplete: { reason: "missing_binding" } })), run: { ...f.run } };
     const { issue } = await admitNativeExecution(f);
-    await db.insert(nativeRunFinalizations).values({ runId: f.run.id, companyId: f.run.companyId,
+    await db.insert(nativeRunFinalizations).values({ runId: f.run.id, spaceId: f.run.spaceId,
       issueId: issue.id, phase: "observed" });
     if (mode === "foreign_coordinator") {
-      const [otherIssue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Other task" }).returning();
-      const [otherRun] = await db.insert(heartbeatRuns).values({ companyId: f.run.companyId, agentId: f.agent.id,
+      const [otherIssue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Other task" }).returning();
+      const [otherRun] = await db.insert(heartbeatRuns).values({ spaceId: f.run.spaceId, agentId: f.agent.id,
         nativeIssueId: otherIssue.id, status: "running", runtimeMode: "native" }).returning();
-      await db.insert(nativeRunFinalizations).values({ runId: otherRun.id, companyId: otherRun.companyId,
+      await db.insert(nativeRunFinalizations).values({ runId: otherRun.id, spaceId: otherRun.spaceId,
         issueId: otherIssue.id, phase: "observed", attempt: 1 });
     }
-    await reserveRunBudget(db, f.run.companyId, f.run.id, null);
+    await reserveRunBudget(db, f.run.spaceId, f.run.id, null);
     if (mode !== "stale") setup.run = await read(f.run.id);
     await f.completion.failRunSetup(setup);
     expect.soft(await read(f.run.id)).toMatchObject({ status: "failed",
@@ -1244,9 +1244,9 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     const setup = f.setup(new ConfigurationIncompleteFailure("preparation failed", {
       configurationIncomplete: { reason: "missing_binding" } }));
     const { issue } = await admitNativeExecution(f);
-    await db.insert(nativeRunFinalizations).values({ runId: f.run.id, companyId: f.run.companyId,
+    await db.insert(nativeRunFinalizations).values({ runId: f.run.id, spaceId: f.run.spaceId,
       issueId: issue.id, phase: "observed" });
-    await reserveRunBudget(db, f.run.companyId, f.run.id, null);
+    await reserveRunBudget(db, f.run.spaceId, f.run.id, null);
     let enter!: () => void, release!: () => void, blockerPid = 0;
     const entered = new Promise<void>(resolve => { enter = resolve; });
     const released = new Promise<void>(resolve => { release = resolve; });
@@ -1278,18 +1278,18 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
 
   it("lets a completed Stop advance its budget delivery metadata", async () => {
     const f = await fixture({ runtimeMode: "native" });
-    const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Budget Stop delivery" }).returning();
+    const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Budget Stop delivery" }).returning();
     const intentAuditId = randomUUID(), acknowledgementAuditId = randomUUID();
     await db.insert(activityLog).values([
-      { id: intentAuditId, companyId: f.run.companyId, actorType: "system", actorId: "native-session-cancellation",
+      { id: intentAuditId, spaceId: f.run.spaceId, actorType: "system", actorId: "native-session-cancellation",
         action: "native.cancellation_intent_recorded", entityType: "heartbeat_run", entityId: f.run.id, runId: f.run.id, agentId: f.agent.id },
-      { id: acknowledgementAuditId, companyId: f.run.companyId, actorType: "system", actorId: "native-session-cancellation",
+      { id: acknowledgementAuditId, spaceId: f.run.spaceId, actorType: "system", actorId: "native-session-cancellation",
         action: "native.cancellation_dispatch_acknowledged", entityType: "heartbeat_run", entityId: f.run.id, runId: f.run.id, agentId: f.agent.id },
     ]);
-    const nativeCancellation = { schema: "outpost.native-cancellation.v1", companyId: f.run.companyId, runId: f.run.id, issueId: issue.id,
+    const nativeCancellation = { schema: "outpost.native-cancellation.v1", spaceId: f.run.spaceId, runId: f.run.id, issueId: issue.id,
       scope: "run", reasonCode: "cancellation_run_only", intentAuditId, acknowledgementAuditId, dispatched: true, dispatchState: "acknowledged" };
     const startupCancellation = { requestedAt: new Date().toISOString(), beforeNativeSelection: false,
-      budgetEnforcement: { companyId: f.run.companyId, scopeType: "agent", scopeId: f.agent.id, policyId: randomUUID(), version: 1 } };
+      budgetEnforcement: { spaceId: f.run.spaceId, scopeType: "agent", scopeId: f.agent.id, policyId: randomUUID(), version: 1 } };
     await db.update(heartbeatRuns).set({ nativeIssueId: issue.id, resultJson: { nativeCancellation, startupCancellation } })
       .where(eq(heartbeatRuns.id, f.run.id));
     const deliveredAt = new Date().toISOString();
@@ -1334,7 +1334,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     const resume = new ReusableSandboxResumeError({ provider: "daytona", providerLeaseId: "lease-1", cause: providerError });
     // The orchestrator wraps the runtime error, exactly as staging recorded it.
     const wrapped = new EnvironmentRunError("lease_acquire_failed",
-      `Failed to acquire lease for environment "Paperclip Sandbox" (sandbox): ${resume.message}`, { cause: resume });
+      `Failed to acquire lease for environment "Outpost Sandbox" (sandbox): ${resume.message}`, { cause: resume });
     const error = scenario === "untrusted" ? new Error(wrapped.message) : wrapped;
     f.deps.scheduleBoundedRetryForRun.mockResolvedValueOnce({ outcome: "not_scheduled", reason: "Fixture scheduler boundary", issueId: null });
     await f.completion.failRunSetup(f.setup(error, scenario === "started"));
@@ -1369,15 +1369,15 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
   // provisional allocation could not be confirmed. The orchestrator wraps the
   // worker refusal exactly as staging recorded it.
   const daytonaCreate502 = (withEnvelope = true) => new JsonRpcCallError({ code: -32000,
-    message: "Daytona sandbox creation failed (HTTP 502); cleanup could not be confirmed for paperclip-create-05f81d77",
-    data: withEnvelope ? { schema: "paperclip/environment-creation-cleanup/v1", providerDiagnostic: { httpStatus: 502 },
-      cleanup: { providerLeaseId: "paperclip-create-05f81d77", companyId: "company", environmentId: "environment",
+    message: "Daytona sandbox creation failed (HTTP 502); cleanup could not be confirmed for outpost-create-05f81d77",
+    data: withEnvelope ? { schema: "outpost/environment-creation-cleanup/v1", providerDiagnostic: { httpStatus: 502 },
+      cleanup: { providerLeaseId: "outpost-create-05f81d77", spaceId: "space", environmentId: "environment",
         attemptId: "05f81d77", accountFingerprint: "a".repeat(64), labels: {} } } : undefined });
   const acquireThroughOrchestrator = async (refusal: unknown) => {
     const orchestrator = environmentRunOrchestrator(db, { environmentRuntime: {
       acquireRunLease: async () => { throw refusal; },
     } as never });
-    return orchestrator.acquireLease({ companyId: randomUUID(), environment: { id: randomUUID(), name: "Paperclip Sandbox", driver: "sandbox" } as never,
+    return orchestrator.acquireLease({ spaceId: randomUUID(), environment: { id: randomUUID(), name: "Outpost Sandbox", driver: "sandbox" } as never,
       issueId: null, agentId: randomUUID(), heartbeatRunId: randomUUID(), persistedExecutionWorkspace: null,
       executionWorkspaceSettings: null, adapterType: null }).then(() => { throw new Error("expected a refusal"); }, (error: unknown) => error);
   };
@@ -1386,7 +1386,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     const f = await fixture({ runtimeMode: scenario === "retained" ? "native" : "legacy" });
     const refusal = scenario === "message_only" ? daytonaCreate502(false)
       : scenario === "permanent" ? new JsonRpcCallError({ code: -32000, message: "Daytona sandbox creation failed (HTTP 400)",
-        data: { schema: "paperclip/environment-acquire-error/v1", providerDiagnostic: { httpStatus: 400 } } })
+        data: { schema: "outpost/environment-acquire-error/v1", providerDiagnostic: { httpStatus: 400 } } })
       : daytonaCreate502();
     const error = await acquireThroughOrchestrator(refusal);
     f.deps.scheduleBoundedRetryForRun.mockResolvedValueOnce({ outcome: "not_scheduled", reason: "Fixture scheduler boundary", issueId: null });
@@ -1408,10 +1408,10 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
   // create-phase diagnostic and no provider status.
   const daytonaLeaseTimeout = (elapsedMs: number) => new JsonRpcCallError({ code: -32000,
     message: "Daytona lease acquisition timed out; allocation cleanup is pending",
-    data: { schema: "paperclip/environment-creation-cleanup/v1",
-      cleanup: { providerLeaseId: "paperclip-create-05f81d77", companyId: "company", environmentId: "environment",
+    data: { schema: "outpost/environment-creation-cleanup/v1",
+      cleanup: { providerLeaseId: "outpost-create-05f81d77", spaceId: "space", environmentId: "environment",
         runId: "f41857b6", attemptId: "05f81d77", accountFingerprint: "a".repeat(64),
-        labels: { "paperclip-provider": "daytona", "paperclip-create-attempt": "05f81d77" } },
+        labels: { "outpost-provider": "daytona", "outpost-create-attempt": "05f81d77" } },
       acquisitionDiagnostic: { phase: "create", elapsedMs, budgetMs: 300_000, providerState: "creating" } } });
 
   it.each(["fresh", "started", "early_failure"] as const)("routes a %s sandbox create that timed out through bounded bootstrap recovery", async scenario => {
@@ -1462,9 +1462,9 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     const f = await fixture();
     await db.update(agents).set({ adapterType: "outpost_runner", status: "idle",
       runtimeConfig: { heartbeat: { maxConcurrentRuns: 1 } } }).where(eq(agents.id, f.agent.id));
-    const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Answer delivery retry",
-      status: "in_progress", assigneeAgentId: f.agent.id, responsibleUserId: "local-board" }).returning();
-    const [questionRun] = await db.insert(heartbeatRuns).values({ companyId: f.run.companyId, agentId: f.agent.id,
+    const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Answer delivery retry",
+      status: "in_progress", assigneeAgentId: f.agent.id, responsibleUserId: "local-operator" }).returning();
+    const [questionRun] = await db.insert(heartbeatRuns).values({ spaceId: f.run.spaceId, agentId: f.agent.id,
       issueId: issue.id, nativeIssueId: issue.id, runtimeMode: "native", status: "succeeded", finishedAt: new Date(),
       contextSnapshot: { issueId: issue.id, source: "chat:telegram" } }).returning();
     const interactions = issueThreadInteractionService(db);
@@ -1473,7 +1473,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
         selectionMode: "single", required: true, options: [{ id: "yes", label: "Yes" }] }] } },
       { agentId: f.agent.id, runId: questionRun.id });
     await interactions.answerQuestions(issue, interaction.id, { answers: [{ questionId: "choice", optionIds: ["yes"] }] },
-      { userId: "local-board" });
+      { userId: "local-operator" });
     const heartbeat = heartbeatService(db);
     const answerHeartbeat = legacy ? { ...heartbeat, wakeup: (...[agentId, options]: Parameters<typeof heartbeat.wakeup>) => {
       const contextSnapshot = { ...options?.contextSnapshot };
@@ -1589,7 +1589,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
 
     it("keeps the hold once the run's history shows a native process start", async () => {
       const f = await nativeFixture();
-      await appendHeartbeatRunEvent(db, { companyId: f.run.companyId, runId: f.run.id, agentId: f.run.agentId,
+      await appendHeartbeatRunEvent(db, { spaceId: f.run.spaceId, runId: f.run.id, agentId: f.run.agentId,
         eventType: "native.process_start_requested", stream: "system", level: "info", message: "Native execution requested",
         payload: { providerAttempt: 1 } });
       await f.completion.failRun(f.preDispatch(contention(), false));
@@ -1610,9 +1610,9 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
 
     it("keeps the hold when a native coordinator was claimed", async () => {
       const f = await nativeFixture();
-      const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Claimed native run" }).returning();
+      const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Claimed native run" }).returning();
       await db.update(heartbeatRuns).set({ nativeIssueId: issue.id }).where(eq(heartbeatRuns.id, f.run.id));
-      await db.insert(nativeRunFinalizations).values({ runId: f.run.id, companyId: f.run.companyId, issueId: issue.id, phase: "observed", attempt: 1, leaseOwner: "executor-lease" });
+      await db.insert(nativeRunFinalizations).values({ runId: f.run.id, spaceId: f.run.spaceId, issueId: issue.id, phase: "observed", attempt: 1, leaseOwner: "executor-lease" });
       await f.completion.failRun(f.preDispatch(contention(), false));
       expect((await read(f.run.id)).resultJson).not.toHaveProperty("nativePreDispatchFailure");
       expect(f.deps.scheduleBoundedRetryForRun).not.toHaveBeenCalled();
@@ -1620,9 +1620,9 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
 
     it("re-queues when runtime selection created the coordinator but no executor claimed it", async () => {
       const f = await nativeFixture();
-      const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Unclaimed native run" }).returning();
+      const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Unclaimed native run" }).returning();
       await db.update(heartbeatRuns).set({ nativeIssueId: issue.id }).where(eq(heartbeatRuns.id, f.run.id));
-      await db.insert(nativeRunFinalizations).values({ runId: f.run.id, companyId: f.run.companyId, issueId: issue.id, phase: "observed" });
+      await db.insert(nativeRunFinalizations).values({ runId: f.run.id, spaceId: f.run.spaceId, issueId: issue.id, phase: "observed" });
       await f.completion.failRun(f.preDispatch(contention(), false));
       expect((await read(f.run.id)).resultJson).toMatchObject({ nativePreDispatchFailure: { version: 1, providerWorkStarted: false } });
       expect(f.deps.scheduleBoundedRetryForRun).toHaveBeenCalledOnce();
@@ -1700,7 +1700,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     expect(f.deps.scheduleBoundedRetryForRun).toHaveBeenCalledWith(expect.objectContaining({ id: f.run.id }), f.agent);
   });
 
-  it("keeps a found project authentication conflict a configuration gap that blocks for the board", async () => {
+  it("keeps a found project authentication conflict a configuration gap that blocks for the operator", async () => {
     const f = await fixture();
     const conflict = unprocessable("This agent's managed AI connection conflicts with project authentication settings in .claude/settings.json.",
       { code: "ai_connection_incompatible" });
@@ -1729,7 +1729,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     const refusal = new PluginWorkerUnavailableError({ pluginId: "plugin-1", workerStatus: null,
       message: 'Sandbox provider "daytona" is installed via plugin "outpost.daytona-sandbox-provider", but its worker is not running.' });
     const wrapped = new EnvironmentRunError("lease_acquire_failed",
-      `Failed to acquire lease for environment "Paperclip Sandbox" (sandbox): ${refusal.message}`, { cause: refusal });
+      `Failed to acquire lease for environment "Outpost Sandbox" (sandbox): ${refusal.message}`, { cause: refusal });
     f.deps.scheduleBoundedRetryForRun.mockResolvedValueOnce({ outcome: "not_scheduled", reason: "Fixture scheduler boundary", issueId: null });
     await f.completion.failRunSetup(f.setup(wrapped));
     expect(await read(f.run.id)).toMatchObject({ status: "failed", errorCode: "plugin_worker_unavailable",
@@ -1739,7 +1739,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
 
   it.each(["retried", "exhausted", "refused", "started", "in progress"] as const)("names a %s saved workspace restore failure and leaves recovery", async scenario => {
     const f = await fixture();
-    const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Parent task", status: scenario === "in progress" ? "in_progress" : "blocked",
+    const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Parent task", status: scenario === "in progress" ? "in_progress" : "blocked",
       assigneeAgentId: f.agent.id }).returning();
     await db.update(heartbeatRuns).set({ issueId: issue.id, contextSnapshot: { issueId: issue.id } }).where(eq(heartbeatRuns.id, f.run.id));
     const sandboxCause = scenario === "refused"
@@ -1768,7 +1768,7 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
     // Stranded-work recovery owns scanned statuses; a retry owns the next step.
     if (scenario === "retried" || scenario === "in progress") { expect(actions).toHaveLength(0); return; }
     expect(actions).toHaveLength(1);
-    expect(actions[0]).toMatchObject({ status: "active", ownerType: "board", cause: "remote_workspace_restore_failed",
+    expect(actions[0]).toMatchObject({ status: "active", ownerType: "operator", cause: "remote_workspace_restore_failed",
       kind: "stranded_assigned_issue", returnOwnerAgentId: f.agent.id });
     expect(actions[0]!.evidence).toMatchObject({ runId: f.run.id, restoreFailure: failed.error });
     expect(actions[0]!.nextAction).toContain("saved workspace version was kept");
@@ -1776,11 +1776,11 @@ describe.skipIf(!support.supported && !process.env.OUTPOST_TEST_DATABASE_URL)("h
 
   it("keeps an active recovery action that another writer created for the task", async () => {
     const f = await fixture();
-    const [issue] = await db.insert(issues).values({ companyId: f.run.companyId, title: "Parent task", status: "blocked",
+    const [issue] = await db.insert(issues).values({ spaceId: f.run.spaceId, title: "Parent task", status: "blocked",
       assigneeAgentId: f.agent.id }).returning();
     await db.update(heartbeatRuns).set({ issueId: issue.id, contextSnapshot: { issueId: issue.id } }).where(eq(heartbeatRuns.id, f.run.id));
-    const [existing] = await db.insert(issueRecoveryActions).values({ companyId: f.run.companyId, sourceIssueId: issue.id,
-      kind: "active_run_watchdog", status: "active", ownerType: "board", cause: "other_failure", fingerprint: "other",
+    const [existing] = await db.insert(issueRecoveryActions).values({ spaceId: f.run.spaceId, sourceIssueId: issue.id,
+      kind: "active_run_watchdog", status: "active", ownerType: "operator", cause: "other_failure", fingerprint: "other",
       evidence: { runId: "other-run" }, nextAction: "Handle the other failure.", attemptCount: 1 }).returning();
     const error = new RemoteWorkspaceRestoreError("sandbox_restore", false, new RemoteWorkspaceOperationError(
       "remote_workspace_operation_failed: operation=restore exit=1; remote_workspace_restore_failed: stage=inspect_root reason=occupied_root"));

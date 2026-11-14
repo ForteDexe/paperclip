@@ -15,7 +15,7 @@ scenarios:
     expected_outcome: >-
       The agent points to the supported environment setup and explains the small set of
       connection details the operator must provide securely. It does not execute host
-      provisioning under ordinary company-agent authority. Completion requires a saved target
+      provisioning under ordinary space-agent authority. Completion requires a saved target
       and successful qualification, not just a friendly name in chat.
   - id: execution-environments.choose-capable-target
     capabilities:
@@ -23,7 +23,7 @@ scenarios:
       - runs-adapters/availability
     context: >-
       Two saved computers are advertised as able to run the requested coding harness, and
-      neither has been tested for it; one is an SSH computer that cannot be reached. Paperclip
+      neither has been tested for it; one is an SSH computer that cannot be reached. Outpost
       cannot save a computer that is advertised as unable to run that harness. Environment
       inventory, capabilities and tests are board-only.
     query: >-
@@ -52,7 +52,7 @@ scenarios:
       - execution-environments/assignment
       - agents/hire
     context: >-
-      Morgan and a qualified cloud computer belong to the same company; the CEO may save this
+      Morgan and a qualified cloud computer belong to the same space; the CEO may save this
       configuration and no protected change remains.
     query: >-
       Have Morgan use our cloud computer for future work.

@@ -3,7 +3,7 @@ import { context, trace } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from "@opentelemetry/sdk-trace";
 import { eq } from "drizzle-orm";
-import { agents, authUsers, companyMemberships, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
+import { agents, authUsers, spaceMemberships, createDb, heartbeatRuns, issueComments, issues } from "@outpost/db";
 import type { NativeRunIdentity, NativeSession, NativeSessionBackend, PrpEvent } from "@outpost/outpost-runner";
 import { describe, expect, it, vi } from "vitest";
 import { heartbeatService, type HeartbeatServiceOptions } from "../services/heartbeat.js";
@@ -67,7 +67,7 @@ describe.skipIf(!support.supported)("heartbeat preparation gap spans", () => {
   const fixture = nativeRestartFixture({});
 
   it("emits spans for the work between the named preparation phases", async () => {
-    const { companyId, agentId, temporary } = fixture.current;
+    const { spaceId, agentId, temporary } = fixture.current;
     const db = createDb(temporary.connectionString, { maxConnections: 4 });
     const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
     vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.test");
@@ -81,14 +81,14 @@ describe.skipIf(!support.supported)("heartbeat preparation gap spans", () => {
       const userId = randomUUID();
       await db.insert(authUsers).values({ id: userId, name: "Task owner", email: `${userId}@example.invalid`,
         createdAt: new Date(), updatedAt: new Date() });
-      await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, membershipRole: "owner" });
+      await db.insert(spaceMemberships).values({ spaceId, principalType: "user", principalId: userId, membershipRole: "owner" });
       await db.update(agents).set({ status: "idle", adapterConfig: { provider: "codex", lifecycleMode: "warm", idleTimeoutMs: 60_000 } })
         .where(eq(agents.id, agentId));
       await instanceSettingsService(db).updateExperimental({ enableAgentChat: true, enableNativeRunner: true });
-      const [issue] = await db.insert(issues).values({ companyId, title: "Trace the preparation gaps", status: "in_progress",
+      const [issue] = await db.insert(issues).values({ spaceId, title: "Trace the preparation gaps", status: "in_progress",
         assigneeAgentId: agentId, responsibleUserId: userId, conversationAgentId: agentId, conversationUserId: userId,
         conversationState: "active" }).returning();
-      const [message] = await db.insert(issueComments).values({ companyId, issueId: issue!.id,
+      const [message] = await db.insert(issueComments).values({ spaceId, issueId: issue!.id,
         authorType: "user", authorUserId: userId, body: "Start." }).returning();
       const run = await heartbeat.wakeup(agentId, { source: "on_demand", triggerDetail: "manual", reason: "issue_commented",
         requestedByActorType: "user", requestedByActorId: userId, manualUserWake: true,

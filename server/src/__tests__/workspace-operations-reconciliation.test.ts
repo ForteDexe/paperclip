@@ -6,7 +6,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   agents,
-  companies,
+  spaces,
   createDb,
   executionWorkspaces,
   heartbeatRuns,
@@ -88,9 +88,9 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
   let previousLogRoot: string | undefined;
 
   beforeAll(async () => {
-    if (!externalUrl) tempDb = await startEmbeddedPostgresTestDatabase("paperclip-workspace-operation-reconcile-");
+    if (!externalUrl) tempDb = await startEmbeddedPostgresTestDatabase("outpost-workspace-operation-reconcile-");
     db = createDb(externalUrl ?? tempDb!.connectionString);
-    logRoot = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-workspace-operation-logs-"));
+    logRoot = await fs.mkdtemp(path.join(os.tmpdir(), "outpost-workspace-operation-logs-"));
     previousLogRoot = process.env.WORKSPACE_OPERATION_LOG_BASE_PATH;
     process.env.WORKSPACE_OPERATION_LOG_BASE_PATH = logRoot;
   }, 20_000);
@@ -99,7 +99,7 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
     await db.delete(workspaceOperations);
     await db.delete(executionWorkspaces);
     await db.delete(projects);
-    await db.delete(companies);
+    await db.delete(spaces);
   });
 
   afterAll(async () => {
@@ -111,13 +111,13 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
   });
 
   async function seedFinalizationWorkspace() {
-    const companyId = randomUUID(), projectId = randomUUID(), executionWorkspaceId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: "Delivery receipt wake",
-      issuePrefix: `W${companyId.replace(/-/g, "").slice(0, 7).toUpperCase()}` });
-    await db.insert(projects).values({ id: projectId, companyId, name: "Delivery", status: "in_progress" });
-    await db.insert(executionWorkspaces).values({ id: executionWorkspaceId, companyId, projectId,
+    const spaceId = randomUUID(), projectId = randomUUID(), executionWorkspaceId = randomUUID();
+    await db.insert(spaces).values({ id: spaceId, name: "Delivery receipt wake",
+      issuePrefix: `W${spaceId.replace(/-/g, "").slice(0, 7).toUpperCase()}` });
+    await db.insert(projects).values({ id: projectId, spaceId, name: "Delivery", status: "in_progress" });
+    await db.insert(executionWorkspaces).values({ id: executionWorkspaceId, spaceId, projectId,
       mode: "isolated_workspace", strategyType: "git_worktree", name: "Finalization", status: "active" });
-    return { companyId, executionWorkspaceId };
+    return { spaceId, executionWorkspaceId };
   }
 
   it.each(["succeeded", "failed"] as const)("wakes cleanup after %s finalization commits, never at a nested savepoint", async status => {
@@ -142,7 +142,7 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
 
   it("wakes the attached workspace when an already settled finalization gains its identity", async () => {
     const scope = await seedFinalizationWorkspace();
-    const recorder = workspaceOperationService(db).createRecorder({ companyId: scope.companyId });
+    const recorder = workspaceOperationService(db).createRecorder({ spaceId: scope.spaceId });
     const operation = await recorder.recordOperation({ phase: "workspace_finalize", run: async () => ({}) });
     const settled: string[][] = [];
     const unsubscribe = subscribeDatabaseWork(db, DELIVERY_QUEUES.terminalWorkspaces, (event, hints) => {
@@ -158,10 +158,10 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
   it("keeps the finalization record when its write loses a deadlock to an issue-then-run locker", async () => {
     const scope = await seedFinalizationWorkspace();
     const agentId = randomUUID(), issueId = randomUUID(), runId = randomUUID();
-    await db.insert(agents).values({ id: agentId, companyId: scope.companyId, name: "Finalizer", adapterType: "outpost_runner" });
-    await db.insert(issues).values({ id: issueId, companyId: scope.companyId, title: "Finalize", status: "in_progress",
+    await db.insert(agents).values({ id: agentId, spaceId: scope.spaceId, name: "Finalizer", adapterType: "outpost_runner" });
+    await db.insert(issues).values({ id: issueId, spaceId: scope.spaceId, title: "Finalize", status: "in_progress",
       assigneeAgentId: agentId });
-    await db.insert(heartbeatRuns).values({ id: runId, companyId: scope.companyId, agentId, status: "running",
+    await db.insert(heartbeatRuns).values({ id: runId, spaceId: scope.spaceId, agentId, status: "running",
       contextSnapshot: { issueId } });
     const locker = createDb(externalUrl ?? tempDb!.connectionString);
     let lockedIssue!: () => void, releaseLocker!: () => void;
@@ -213,27 +213,27 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
   });
 
   it("terminalizes an orphaned runtime start with an inspectable reconciliation log", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const executionWorkspaceId = randomUUID();
     const staleOperationId = randomUUID();
     const unrelatedOperationId = randomUUID();
 
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Workspace operation reconciliation",
-      issuePrefix: `W${companyId.replace(/-/g, "").slice(0, 7).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+      issuePrefix: `W${spaceId.replace(/-/g, "").slice(0, 7).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Runtime reconciliation",
       status: "in_progress",
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       mode: "isolated_workspace",
       strategyType: "git_worktree",
@@ -243,13 +243,13 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
     });
 
     const logHandle = await getWorkspaceOperationLogStore().begin({
-      companyId,
+      spaceId,
       operationId: staleOperationId,
     });
     await db.insert(workspaceOperations).values([
       {
         id: staleOperationId,
-        companyId,
+        spaceId,
         executionWorkspaceId,
         phase: "workspace_provision",
         command: "workspace command start",
@@ -261,7 +261,7 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
       },
       {
         id: unrelatedOperationId,
-        companyId,
+        spaceId,
         executionWorkspaceId,
         phase: "workspace_provision",
         command: "bash ./scripts/provision-worktree.sh",
@@ -316,24 +316,24 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
   });
 
   it("persists bounded repair phase progress on the operation row and log", async () => {
-    const companyId = randomUUID();
+    const spaceId = randomUUID();
     const projectId = randomUUID();
     const executionWorkspaceId = randomUUID();
-    await db.insert(companies).values({
-      id: companyId,
+    await db.insert(spaces).values({
+      id: spaceId,
       name: "Workspace repair diagnostics",
-      issuePrefix: `R${companyId.replace(/-/g, "").slice(0, 7).toUpperCase()}`,
-      requireBoardApprovalForNewAgents: false,
+      issuePrefix: `R${spaceId.replace(/-/g, "").slice(0, 7).toUpperCase()}`,
+      requireOperatorApprovalForNewAgents: false,
     });
     await db.insert(projects).values({
       id: projectId,
-      companyId,
+      spaceId,
       name: "Repair diagnostics",
       status: "in_progress",
     });
     await db.insert(executionWorkspaces).values({
       id: executionWorkspaceId,
-      companyId,
+      spaceId,
       projectId,
       mode: "isolated_workspace",
       strategyType: "git_worktree",
@@ -343,7 +343,7 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
     });
 
     const operation = await workspaceOperationService(db)
-      .createRecorder({ companyId, executionWorkspaceId })
+      .createRecorder({ spaceId, executionWorkspaceId })
       .recordOperation({
         phase: "workspace_repair",
         command: "workspace command repair",
@@ -383,7 +383,7 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
   });
 
   describe("when the operation log file cannot be written", () => {
-    // The log file is created, then every append hits a full disk (PAPERCLIP-BACKEND-4H).
+    // The log file is created, then every append hits a full disk (OUTPOST-BACKEND-4H).
     function failLogAppends() {
       const enospc = Object.assign(new Error("ENOSPC: no space left on device, write"), {
         code: "ENOSPC",
@@ -398,28 +398,28 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
       return { enospc, spy };
     }
 
-    async function seedCompany() {
-      const companyId = randomUUID();
-      await db.insert(companies).values({
-        id: companyId,
+    async function seedSpace() {
+      const spaceId = randomUUID();
+      await db.insert(spaces).values({
+        id: spaceId,
         name: "Workspace operation full disk",
-        issuePrefix: `F${companyId.replace(/-/g, "").slice(0, 7).toUpperCase()}`,
-        requireBoardApprovalForNewAgents: false,
+        issuePrefix: `F${spaceId.replace(/-/g, "").slice(0, 7).toUpperCase()}`,
+        requireOperatorApprovalForNewAgents: false,
       });
-      return companyId;
+      return spaceId;
     }
 
-    async function operationRows(companyId: string) {
-      return db.select().from(workspaceOperations).where(eq(workspaceOperations.companyId, companyId));
+    async function operationRows(spaceId: string) {
+      return db.select().from(workspaceOperations).where(eq(workspaceOperations.spaceId, spaceId));
     }
 
     it("terminalizes the operation and surfaces the write error", async () => {
-      const companyId = await seedCompany();
+      const spaceId = await seedSpace();
       const { enospc, spy } = failLogAppends();
       try {
         await expect(
           workspaceOperationService(db)
-            .createRecorder({ companyId })
+            .createRecorder({ spaceId })
             .recordOperation({
               phase: "worktree_prepare",
               command: "git worktree add",
@@ -431,7 +431,7 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
         spy.mockRestore();
       }
 
-      const rows = await operationRows(companyId);
+      const rows = await operationRows(spaceId);
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({ status: "failed", phase: "worktree_prepare" });
       expect(rows[0]?.finishedAt).toBeInstanceOf(Date);
@@ -439,13 +439,13 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
     });
 
     it("keeps the operation's own error instead of the log write error", async () => {
-      const companyId = await seedCompany();
+      const spaceId = await seedSpace();
       const { spy } = failLogAppends();
       const gitError = new Error("fatal: could not create work tree dir");
       try {
         await expect(
           workspaceOperationService(db)
-            .createRecorder({ companyId })
+            .createRecorder({ spaceId })
             .recordOperation({
               phase: "worktree_prepare",
               command: "git worktree add",
@@ -459,7 +459,7 @@ describeEmbeddedPostgres("workspace operation reconciliation", () => {
         spy.mockRestore();
       }
 
-      const rows = await operationRows(companyId);
+      const rows = await operationRows(spaceId);
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({ status: "failed" });
       expect(rows[0]?.finishedAt).toBeInstanceOf(Date);

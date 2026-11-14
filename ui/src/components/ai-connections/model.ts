@@ -30,7 +30,7 @@ export const AI_PROVIDERS: Record<
 export type AiConnectionSummary = Omit<AiManagedConnectionSummary, "isDefault"> & { isDefault?: boolean };
 
 export interface AiConnectionRequirement {
-  companyId: string;
+  spaceId: string;
   provider: AiProvider;
   method?: AiAuthMethod;
 }
@@ -72,7 +72,7 @@ export function matchesAiRequirement(
   requirement: AiConnectionRequirement,
 ) {
   return (
-    connection.companyId === requirement.companyId &&
+    connection.spaceId === requirement.spaceId &&
     connection.provider === requirement.provider &&
     (requirement.method === undefined || connection.method === requirement.method)
   );
